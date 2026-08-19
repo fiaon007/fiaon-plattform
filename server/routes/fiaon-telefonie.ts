@@ -75,6 +75,12 @@ router.get("/telefon/stand", requireAgent, async (req: AgentRequest, res: Respon
       maxMinuten: MAX_MINUTEN,
       offene: await offeneAnrufe(req.agent!.id),
       testkonto: await istTestkonto(req.agent!.id),
+      // Fuer die gespeicherte Mikrofon-Wahl im Browser: Sie gilt je Mitarbeiter,
+      // nicht je Browser-Profil (zwei Menschen an einem Rechner haben zwei
+      // Headsets). Die Geraetekennung selbst bleibt im Browser — auf dem Server
+      // gespeichert wuerde sie am zweiten Arbeitsplatz auf ein Geraet zeigen,
+      // das es dort nicht gibt.
+      agentId: req.agent!.id,
       // ── DER TAGESSTAND DER RUFNUMMER (30.08.2026) ─────────────────────
       // Sichtbar im Panel, nicht erst in der Ablehnung: Wer bei 98 von 100
       // steht, soll es wissen, BEVOR der Knopf nicht mehr geht. Eine Grenze,
@@ -205,7 +211,26 @@ router.post("/telefon/ausweis", requireAgent, async (req: AgentRequest, res: Res
         neufassung: richtlinie.neufassung, error: richtlinie.grund,
       });
     }
-    const pruefung = await wahlPruefen(nummerRoh);
+    // ── DAS LAND DES KUNDEN, BEVOR GEWÄHLT WIRD (31.08.2026) ──────────────
+    // Ohne diese Zeilen ratet `wahlPruefen` bei einer national geschriebenen
+    // Nummer die Vorwahl — und aus dem Schweizer Kunden 0797435749 wurde am
+    // 19.08.2026 dreimal +49797435749, also Deutschland. Das Land steht in der
+    // Akte; es muss nur mitgegeben werden.
+    //
+    // `personId` ist hier nur ein VORSCHLAG aus der offenen Karte (die Zuordnung
+    // nach der gewählten Nummer passiert weiter unten). Für die Landfrage genügt
+    // er: Er entscheidet nicht, WEM der Anruf gehört, sondern nur, welche
+    // Vorwahl zu einer unvollständigen Nummer passt. Fehlt er, verweigert
+    // `wahlPruefen` — und das ist die richtige Richtung.
+    let kundenLand: string | null = null;
+    const vorschlagId = Number(req.body?.personId) || 0;
+    if (vorschlagId > 0) {
+      const [pl] = (await sqlPool`
+        SELECT country FROM fiaon_persons WHERE id = ${vorschlagId}
+      `.catch(() => [])) as any[];
+      kundenLand = pl?.country ?? null;
+    }
+    const pruefung = await wahlPruefen(nummerRoh, sqlPool, kundenLand);
     if (!pruefung.erlaubt) return ablehnen(pruefung.grund!, 400);
 
     // ══════════════════════════════════════════════════════════════════════

@@ -96,10 +96,57 @@ export function nummerNormalisieren(roh: string, vorwahlVorgabe = "+49"): string
   if (s.startsWith("00")) s = `+${s.slice(2)}`;
   if (s.startsWith("0")) s = `${vorwahlVorgabe}${s.slice(1)}`;
   if (!s.startsWith("+")) s = `${vorwahlVorgabe}${s}`;
-  // Führende Null nach der Landesvorwahl: „+49 0176" ist ein häufiger Tippfehler.
-  s = s.replace(/^(\+\d{2})0+/, "$1");
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // DIE FÜHRENDE NULL NACH DER LANDESVORWAHL — ABER NUR BEI DACH
+  //
+  // ── DER BEFUND (31.08.2026) ───────────────────────────────────────────────
+  // Hier stand:
+  //     s = s.replace(/^(\+\d{2})0+/, "$1");
+  //
+  // Das nimmt ZWEI Ziffern als Landesvorwahl an. Für +49, +43 und +41 stimmt
+  // das. Für alles andere zerstört es die Nummer, weil `\d{2}` mitten in die
+  // Vorwahl schneidet und die nächste Null als Amtskennzahl missversteht.
+  //
+  // GEMESSEN im Bestand — 4 von 8 Ziffern-Abweichungen kamen von dieser Zeile:
+  //     +380677197080  (Ukraine, Vorwahl 380)  →  +38677197080   Ziffer WEG
+  //     +380976846557  (Ukraine)               →  +38976846557   Ziffer WEG
+  //     +380978600679  (Ukraine)               →  +38978600679   Ziffer WEG
+  //     +16096405036   (USA, Vorwahl 1)        →  +1696405036    Ziffer WEG
+  //
+  // Bei der US-Nummer sieht der Ausdruck „+16" als Land und frisst die Null aus
+  // der Ortsnetzkennzahl 609. Übrig bleibt eine Nummer, die es gibt — nur
+  // gehört sie jemand anderem.
+  //
+  // Jetzt gilt die Regel nur für die drei Vorwahlen, für die sie gedacht war.
+  // Sie sind alle zweistellig, also ist das Ergebnis für DACH unverändert; für
+  // den Rest der Welt bleibt die Nummer, wie sie ist.
+  s = s.replace(/^(\+4[139])0+/, "$1");
+
   if (!/^\+\d{8,15}$/.test(s)) return null;
   return s;
+}
+
+/**
+ * Die Landesvorwahl zu einem Länderkürzel — für national geschriebene Nummern.
+ *
+ * Bewusst knapp: Es geht nur um die Länder, in die überhaupt gewählt wird, plus
+ * die Nachbarn, die im Bestand vorkommen. Ein unbekanntes Kürzel gibt `null`
+ * zurück, und der Aufrufer verweigert dann — er rät nicht.
+ */
+export function vorwahlFuerLand(land: unknown): string | null {
+  const k = String(land ?? "").trim().toUpperCase();
+  const tafel: Record<string, string> = {
+    DE: "+49", AT: "+43", CH: "+41",
+    // Kommen im Bestand vor. Gewählt werden sie nicht (die DACH-Grenze steht in
+    // `wahlPruefen`), aber eine richtig zusammengesetzte Nummer soll auch dann
+    // entstehen, wenn sie anschließend abgelehnt wird — sonst steht in der Akte
+    // eine falsche Nummer, die irgendwann jemand freigibt.
+    IT: "+39", RO: "+40", SK: "+421", CZ: "+420", HU: "+36", SI: "+386",
+    PL: "+48", HR: "+385", NL: "+31", BE: "+32", FR: "+33", ES: "+34",
+    LI: "+423", LU: "+352", UA: "+380", US: "+1", GB: "+44",
+  };
+  return tafel[k] ?? null;
 }
 
 export async function freiliste(lauf: Lauf = sqlPool): Promise<string[]> {
@@ -117,8 +164,54 @@ export interface WahlPruefung { erlaubt: boolean; nummer: string | null; grund: 
  * UND vom TwiML-Weg gebraucht. Zwei Fassungen wären zwei Gelegenheiten, eine
  * davon zu vergessen.
  */
-export async function wahlPruefen(roh: string, lauf: Lauf = sqlPool): Promise<WahlPruefung> {
-  const nummer = nummerNormalisieren(roh);
+export async function wahlPruefen(
+  roh: string, lauf: Lauf = sqlPool, land?: unknown,
+): Promise<WahlPruefung> {
+  // ══════════════════════════════════════════════════════════════════════════
+  // EINE NATIONALE NUMMER OHNE LAND WIRD NICHT GERATEN (31.08.2026)
+  //
+  // ── DER BEFUND, MIT ANRUFPROTOKOLL BELEGT ─────────────────────────────────
+  // Kunde Maurizio Pampanini (Person 11479, FIAON-MSUOPDV8), wohnhaft in Winkel,
+  // `country = CH`. Gespeicherte Nummer: `0797435749` — eine gültige SCHWEIZER
+  // Mobilnummer (079…).
+  //
+  // Am 19.08.2026 um 09:12, 09:13 und 09:13 stehen in `fiaon_calls` drei
+  // Versuche, alle mit `status = fehlgeschlagen`, alle an:
+  //
+  //     +49797435749        ← Deutschland
+  //
+  // Richtig gewesen wäre +41797435749. Die Vorgabe `vorwahlVorgabe = "+49"` hat
+  // aus einer schweizerischen eine deutsche Nummer gemacht. Über die
+  // Kundenkarte wäre es richtig gelaufen: `nummerAusZeile` kennt das Land und
+  // liefert +41797435749. Über die WÄHLTASTATUR griff der Rat auf +49.
+  //
+  // ── WARUM VERWEIGERN BESSER IST ALS RATEN ─────────────────────────────────
+  // Eine geratene Vorwahl erzeugt keinen Fehler, sondern eine ANDERE, oft
+  // existierende Rufnummer. Im besten Fall geht sie ins Leere (so hier: dreimal
+  // „fehlgeschlagen"). Im schlechteren klingelt sie bei einem Fremden, dem
+  // jemand von seinem Kreditvertrag erzählt.
+  //
+  // `waehlbareNummer` in server/lib/fiaon-telefon.ts macht es seit Langem
+  // richtig: „Ländervorwahl fehlt — bitte in der Akte ergänzen." Diese Wand
+  // stand nur nicht auf dem Tastaturweg. Jetzt steht sie an beiden.
+  //
+  // GEMESSEN: 44 Kunden haben eine national geschriebene Nummer. 18 davon wohnen
+  // NICHT in Deutschland (12 AT, 4 CH, 1 RO, 1 SK) — 18 Anrufe an Fremde.
+  const geputzt = String(roh || "").trim().replace(/[\s()/.\-]/g, "");
+  const istNational = geputzt.startsWith("0") && !geputzt.startsWith("00");
+  const landVorwahl = vorwahlFuerLand(land);
+  if (istNational && !landVorwahl) {
+    return {
+      erlaubt: false, nummer: null,
+      grund: "Dieser Nummer fehlt die Ländervorwahl, und im Kundendatensatz steht kein "
+        + "Land. Sie wird NICHT geraten: Eine geratene Vorwahl ergibt eine gültige "
+        + "Nummer in einem anderen Land — dann klingelt es bei einem Fremden. "
+        + "Bitte ergänze die Nummer in der Akte mit Vorwahl (+43…, +49…, +41…).",
+    };
+  }
+
+  // Mit bekanntem Land wird die richtige Vorwahl gesetzt, nicht die geratene.
+  const nummer = nummerNormalisieren(roh, landVorwahl ?? "+43");
   if (!nummer) {
     return { erlaubt: false, nummer: null, grund: "Das ist keine gültige Rufnummer." };
   }

@@ -3,6 +3,113 @@
 Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 **Datum · Was geändert · Warum · Wo zu finden.** Verständlich für Nicht-Entwickler.
 
+## 31.08.2026 — Telefonie: der Zustand log, und die Nummer war falsch
+
+Grundlage war die Videoauswertung eines echten Anrufs (Nikita, 19.08.). Vier abgelesene Befunde — und beim Nachmessen kam ein fünfter dazu, der schwerer wiegt als alle vier.
+
+### Der Fund, der nicht im Auftrag stand
+
+Beim Gegenprüfen der Nummer aus dem Video (`+49797435749`, Kunde Maurizio Pampanini, `FIAON-MSUOPDV8`):
+
+| | |
+|---|---|
+| Gespeicherter Rohwert | `0797435749` |
+| Land in der Akte | **CH**, Winkel |
+| Richtig gewählt | `+41797435749` (079… ist eine schweizerische Mobilnummer) |
+| Tatsächlich gewählt | `+49797435749` — **Deutschland** |
+
+Im Anrufprotokoll stehen drei Versuche am 19.08. um 09:12, 09:13 und 09:13, alle mit `status = fehlgeschlagen`. Der Agent hat nicht Maurizio angerufen, sondern eine deutsche Nummer, die es so nicht gibt.
+
+**Ursache:** `nummerNormalisieren` hatte die Vorgabe `vorwahlVorgabe = "+49"`. Eine national geschriebene Nummer (führende 0) bekam stillschweigend die deutsche Vorwahl. Über die Kundenkarte wäre es richtig gelaufen — `nummerAusZeile` kennt das Land und liefert `+41…`. Über die **Wähltastatur** griff der Rat.
+
+**Gemessen im Bestand:** 44 Kunden haben eine national geschriebene Nummer. **18 davon wohnen nicht in Deutschland** (12 AT, 4 CH, 1 RO, 1 SK) — 18 Anrufe an fremde, teils existierende Rufnummern. Die vollständige Liste steht in `reports/nummern-geratenes-land.csv`.
+
+**Behoben:** `wahlPruefen` bekommt das Land aus der Akte und **verweigert**, wenn keines dasteht. Eine geratene Vorwahl erzeugt keinen Fehler, sondern eine gültige Nummer, die jemand anderem gehört — dann klingelt es bei einem Fremden, dem jemand von seinem Kreditvertrag erzählt. `waehlbareNummer` machte das seit Langem richtig; die Wand stand nur nicht auf dem Tastaturweg.
+
+**Und ein zweiter Nummern-Fehler**, bei derselben Messung gefunden: Der Ausdruck `/^(\+\d{2})0+/` nahm **zwei** Ziffern als Landesvorwahl an und fraß bei längeren Vorwahlen eine Ziffer:
+
+```
++380677197080  (Ukraine)  →  +38677197080    Ziffer weg
++16096405036   (USA)      →  +1696405036     Ziffer weg
+```
+
+Bei der US-Nummer sah der Ausdruck „+16" als Land und nahm die Null aus der Ortsnetzkennzahl 609. Jetzt gilt die Regel nur für `+49`, `+43`, `+41` — die drei, für die sie gedacht war. Echte Ziffern-Abweichungen im Bestand: **0** (vorher 8).
+
+### Teil 1 — Das Mikrofon: vom Hinweis zur Wand
+
+Am 30.08. wurde ein Pegelbalken eingebaut. Das Video zeigt, warum das nicht genügt: Am Balken stand **„sehr leise", der Balken war leer — und der Anruf ging trotzdem raus.** Ein Hinweis, der einen Fehler nur beschreibt, wird im Arbeitsfluss überlesen. Wer sechzig Gespräche am Tag führt, drückt den grünen Knopf.
+
+**Der Hauptverdächtige hat sich bestätigt.** Im Panel gab es kein `enumerateDevices`, kein `device.audio.setInputDevice` und ein `getUserMedia({ audio: true })` **ohne** `deviceId`. Das Twilio-SDK holt sich seinen eigenen Audiostrom und nimmt dafür das Gerät, das der Browser als Standard führt. Ist das ein stummes Headset oder ein Monitor-Mikrofon, spricht der Agent in nichts hinein — und hatte in der Anwendung **keine Möglichkeit, das zu ändern**. Der Balken vom 30.08. maß denselben Standard: ehrlich und trotzdem nutzlos, weil er das Problem zeigte und keinen Ausweg bot.
+
+Jetzt:
+
+- **Der Anrufknopf ist gesperrt**, wenn der Pegel über 3 Sekunden unter der Hörbarkeitsschwelle liegt. Aufschrift „Mikrofon prüfen" statt „Anrufen", mit Grund im Tooltip: Ein gesperrter Knopf ohne Begründung wird als Fehler gemeldet, nicht als Hinweis gelesen.
+- **Gerätewahl** über `enumerateDevices`, je Mitarbeiter gemerkt (nicht je Browser — zwei Menschen an einem Rechner haben zwei Headsets) und beim Anruf über `setInputDevice` **an Twilio übergeben**. Mit `deviceId: { exact }`, nicht `ideal`: Bei `ideal` weicht der Browser stillschweigend aus, und der Agent glaubt, er spreche ins Headset, während der Ton aus dem Notebook kommt.
+- **Sprechprobe:** zwei Sekunden aufnehmen, sofort abspielen. Der einzige Beweis, den ein Mensch ohne Messtechnik führen kann — einen Balken kann man falsch deuten, die eigene Stimme nicht. Die Aufnahme verlässt den Browser nicht.
+- **Im Gespräch:** 8 Sekunden Stille → roter Balken „Der Kunde hört dich vermutlich nicht", und der Anruf wird als `stumm_verdacht` im Protokoll markiert. Die Warnung hilft dem Agenten, der gerade telefoniert; die Marke hilft bei der Frage, warum bei jemandem nur 2 von 158 Anrufen durchkommen.
+
+Der Balken lag zuerst als **weiße Pille im dunkelblauen Display** — aufgefallen erst am Screenshot der Abnahme, bei grünem Build und grünem Prüfstand. Jetzt in der Sprache des Geräts.
+
+### Teil 1.3 — Die Messung, und was sie nicht kann
+
+7 Tage, ausgehend, je Mitarbeiter (`reports/stumme-anrufe.csv`):
+
+| Mitarbeiter | Versuche | angenommen | **< 5 s** | 0 s | Ø s |
+|---|---|---|---|---|---|
+| Lucas Böhnert | 645 | 357 (55 %) | 17 | 23 | 35 |
+| Nikita Boychenko | 217 | 123 (57 %) | **49** | 4 | 52 |
+| Hans-Jürgen Gerhold | 132 | 84 (64 %) | 8 | 6 | 51 |
+| Daniel Stripling | 39 | 24 (62 %) | **14** | 0 | 26 |
+
+Nikita: 49 von 123 angenommenen Gesprächen unter 5 Sekunden — **40 %**. Bei Daniel 14 von 24, also 58 %. Bei Lucas 17 von 357, also 5 %.
+
+**Aber:** Die gemeldete Quote „2 von 158" lässt sich damit **nicht** bestätigen. Über 7 Tage liegt die Annahmequote bei 55 bis 64 Prozent, bei Nikita bei 57 %. Das ist keine Reputationskatastrophe. Und die Stumm-Marke gibt es erst seit heute — für den 19.08. existiert diese Zahl nicht und lässt sich nicht rückwirkend erzeugen. „< 5 s" ist ein **Indiz, kein Beweis**: Wer abhebt und sofort auflegt, sieht in den Daten genauso aus wie einer, der nichts hört. Wer diesen Unterschied behauptet, ohne ihn messen zu können, liefert eine falsche Auskunft.
+
+### Teil 2 — Der Zustand sagt die Wahrheit
+
+Nach dem Klick stand „IM GESPRÄCH · 00:00" mit laufender Uhr, während beim Kunden noch nichts klingelte. Ursache war eine Zeile:
+
+```
+      c.on("warning-cleared", …);
+      setZustand("gespraech");        ← unbedingt, gleich nach den Handlern
+```
+
+Der `accept`-Handler (der echte Moment des Abhebens) war korrekt — diese Zeile hat ihn nur überholt. **Das ist mehr als eine falsche Beschriftung:** Der Agent begrüßt einen Menschen, der noch nicht dran ist. Seine ersten Sätze gehen ins Freizeichen; wenn der Kunde abhebt, ist die Begrüßung vorbei. Aus dessen Blickwinkel: „nimmt ab, keiner spricht."
+
+Vier Zustände statt drei: **Verbinde …** → **Es klingelt beim Kunden** → **Im Gespräch** (erst bei `accept`) → **Beendet**. Die Uhr läuft nur im Gespräch. Im klingelnden Zustand steht: „Warte, bis der Kunde abhebt — sprich nicht ins Freizeichen." Das Ereignis `ringing` gibt es überhaupt nur, weil das TwiML `answerOnBridge="true"` trägt.
+
+### Teil 3 — Darstellung
+
+Der **Kundenname** stand zweimal: Die Zeile im Kopf hatte keine Zustandsbedingung, war also in *jedem* Zustand da — im Gespräch neben dem großen Namen. Jetzt nur dort, wo die große Ansicht ihn nicht zeigt.
+
+Für den **Übergang** tragen beide Hauptansichten `data-ansicht`. Die Blöcke schlossen sich schon vorher über `zustand === …` aus — genau das ist die Falle: Es sieht aus wie eine Garantie, ist aber eine Übereinkunft zwischen vier verstreuten Bedingungen. Der Browsertest **zählt** die Ansichten; mehr als eine ist ein Fehlschlag.
+
+### Prüfstände
+
+`scripts/pruef-telefon-zustand.ts` — **52 Prüfungen**: Zustandsfolge aus simulierten SDK-Ereignissen, Rot-Probe (12 Sekunden Klingeln → 0 auf der Uhr), ein spätes `ringing` wirft nicht zurück, Nummer wird nicht geraten, der Bestandsfall Maurizio ergibt `+41…`, keine Ziffer geht verloren.
+
+Die Rot-Probe hat den Prüfstand selbst überführt: Mit wieder eingebautem Fehler blieb er **grün**. `indexOf("} catch (err)")` ohne Startposition fand ein *früheres* Vorkommen, das Ende lag vor dem Anfang, `slice` gab leeren Text — die Prüfung durchsuchte nichts. Jetzt sucht sie ab dem Anfang, und es gibt eine Prüfung darauf, dass der geprüfte Abschnitt nicht leer ist.
+
+`scripts/pruef-telefon-bild.ts` — **14 Prüfungen im Browser**, mit vier Screenshots. Der Prüfstand drückt „Mikrofon erlauben", nagelt den Pegel auf Stille (`getByteTimeDomainData` liefert die Mittellinie), tippt eine Nummer und prüft, dass der Knopf **gesperrt** ist. Dazu die **Gegenprobe**: Mit Pegel ist er frei — sonst hinge die Sperre an etwas anderem.
+
+Beim Bauen fielen drei eigene Fehler auf: die Telefon-Richtlinie steht in `fiaon_vertrieb_zusagen` mit `bereich = 'telefon'` (nicht in einer eigenen Tabelle, und der Schreibfehler lief in ein stilles `.catch()`); `/telefon/stand` braucht eine Attrappe, weil Twilio lokal nicht konfiguriert ist und Testkonten nicht telefonieren dürfen; und die Nummernanzeige ist ein `<input>`, dessen `innerText` immer leer ist.
+
+### Wo zu finden
+
+| Datei | Zweck |
+|---|---|
+| `client/src/lib/fiaon-mikrofon.ts` | Gerätewahl, Pegelrechnung, Schwellen an einem Ort |
+| `client/src/components/Softphone.tsx` | Zustände, Sperre, Gerätewahl, Sprechprobe |
+| `server/lib/fiaon-softphone.ts` | `vorwahlFuerLand`, Verweigerung statt Raten |
+| `scripts/mess-stumme-anrufe.ts` | die beiden Messungen |
+| `scripts/pruef-telefon-zustand.ts` / `-bild.ts` | 52 + 14 Prüfungen |
+
+### Betreiber-TODOs
+
+1. **Die 18 Nummern ergänzen** (`reports/nummern-geratenes-land.csv`). Bis dahin verweigert das Telefon sie — das ist die richtige Richtung, aber der Agent kann diese Kunden nicht anrufen. Der Rohwert bleibt unverändert in der Akte; es fehlt nur die Vorwahl.
+2. **Team einmal die Sprechprobe machen lassen**, bevor der nächste Anruf rausgeht. Wenn Nikitas 49 Kurzgespräche am Mikrofon lagen, zeigt die Probe es in fünf Sekunden.
+3. **Reputationsfrage zurückstellen.** Die 7-Tage-Zahlen (55–64 % Annahme) sprechen gegen eine Spam-Markierung. Erst messen, wenn die Stumm-Marke ein paar Tage gelaufen ist.
+
 ## 30.08.2026 — Der Tageslauf überwacht sich jetzt selbst
 
 Der 15-Tage-Ausfall aus dem letzten Lauf war der Anlass. Ein stiller Ausfall dieser Läufe kostet direkt Geld, und es gab keine Stelle, an der man ihn sehen konnte.

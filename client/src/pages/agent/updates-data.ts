@@ -40,6 +40,63 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-31-telefon-mikrofon",
+    date: "2026-08-31",
+    category: "Behoben",
+    title: "Vor dem ersten Anruf: Sprechprobe machen",
+    summary:
+      "Wir haben ausgewertet, warum Kunden „abnehmen und niemand spricht“. Zwei "
+      + "Ursachen, beide behoben: ein stummes Mikrofon, das niemandem auffiel, und "
+      + "eine Anzeige, die „im Gespräch“ sagte, w\u00e4hrend es beim Kunden noch klingelte.",
+    changes: [
+      "MACH EINMAL DIE SPRECHPROBE: Im Telefon steht jetzt ein Knopf "
+      + "„Sprechprobe“. Er nimmt zwei Sekunden auf und spielt sie sofort ab. "
+      + "H\u00f6rst du dich selbst, bist du sendebereit — das ist der einzige Beweis, "
+      + "den du ohne Messtechnik f\u00fchren kannst. Bitte einmal am Morgen, bevor du "
+      + "den ersten Kunden anrufst. Die Aufnahme verl\u00e4sst deinen Rechner nicht.",
+
+      "ANRUFEN IST GESPERRT, WENN DEIN MIKROFON NICHTS LIEFERT: Bisher stand am "
+      + "Balken „sehr leise“ und der Anruf ging trotzdem raus. Jetzt heißt der "
+      + "Knopf „Mikrofon pr\u00fcfen“ und l\u00e4sst sich nicht dr\u00fccken, bis wieder etwas "
+      + "ankommt. Das kostet dich einen Anruf, der ohnehin nichts geworden w\u00e4re — "
+      + "und dem Kunden das Erlebnis, das unsere Nummer bei ihm verbrennt.",
+
+      "DU KANNST DEIN MIKROFON JETZT AUSW\u00c4HLEN: Neu ist eine Liste "
+      + "„Eingabeger\u00e4t“. Das war die Hauptursache: Die Telefonie nahm immer das "
+      + "Standardger\u00e4t des Browsers — auch wenn das ein stummes Headset oder ein "
+      + "Monitor-Mikrofon war, und du konntest nichts dagegen tun. Deine Wahl wird "
+      + "gemerkt und beim Anruf wirklich benutzt.",
+
+      "DIE ANZEIGE SAGT JETZT DIE WAHRHEIT: Nach dem Klick stand „IM GESPR\u00c4CH · "
+      + "00:00“ mit laufender Uhr, obwohl es beim Kunden erst klingelte. Jetzt "
+      + "steht „Verbinde …“, dann „Es klingelt beim Kunden“ und erst beim echten "
+      + "Abheben „Im Gespr\u00e4ch“. Die Uhr l\u00e4uft erst dann. WICHTIG: Sprich nicht ins "
+      + "Freizeichen — wenn du deine Begr\u00fc\u00dfung schon w\u00e4hrend des Klingelns sagst, "
+      + "ist sie vorbei, sobald der Kunde dran ist.",
+
+      "WARNUNG IM GESPR\u00c4CH: Kommt an deinem Mikrofon 8 Sekunden lang nichts an, "
+      + "steht es rot im Gespr\u00e4chsfenster. Dann h\u00f6rt dich der Kunde vermutlich "
+      + "nicht — Stummschalter am Headset pr\u00fcfen.",
+
+      "FALSCHE L\u00c4NDERVORWAHL BEHOBEN: Bei Nummern ohne Vorwahl (die mit 0 "
+      + "beginnen) hat das System bisher „+49“ geraten. Bei 18 Kunden war das "
+      + "falsch — sie wohnen in \u00d6sterreich, der Schweiz, Rum\u00e4nien oder der "
+      + "Slowakei. Da wurde eine fremde Nummer angerufen. Solche Nummern werden "
+      + "jetzt ABGELEHNT statt geraten: Wenn du die Meldung „Ländervorwahl fehlt“ "
+      + "siehst, erg\u00e4nze die Nummer in der Akte mit +43…, +49… oder +41…",
+    ],
+    howto: [
+      "Telefon \u00f6ffnen \u2192 oben steht der Mikrofon-Kasten. Sag etwas: Schl\u00e4gt der "
+      + "Balken gr\u00fcn aus, liefert dein Mikro. Bleibt er leer, w\u00e4hl unter "
+      + "„Eingabeger\u00e4t“ ein anderes und dr\u00fcck „Sprechprobe“.",
+      "Wenn „Anrufen“ zu „Mikrofon pr\u00fcfen“ wird, ist das kein Fehler der "
+      + "Anwendung: Es kommt gerade nichts an deinem Mikrofon an.",
+      "Im klingelnden Zustand: warten, bis der Kunde wirklich dran ist. Die "
+      + "Anzeige sagt dir, wann.",
+    ],
+    important: true,
+  },
+  {
     id: "2026-08-30-tageslauf-waechter",
     date: "2026-08-30",
     category: "Behoben",

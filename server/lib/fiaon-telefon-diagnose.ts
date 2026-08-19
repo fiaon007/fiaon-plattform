@@ -394,6 +394,17 @@ export async function telefonDiagnose(): Promise<{
       ansage: await ansageText(),
       aufnahmeCallback: `${(process.env.PUBLIC_BASE_URL || "https://www.fiaon.com").replace(/\/+$/, "")}/api/fiaon/telefon/aufnahme`,
       statusCallback: `${(process.env.PUBLIC_BASE_URL || "https://www.fiaon.com").replace(/\/+$/, "")}/api/fiaon/telefon/status`,
+      // ── DIESES FELD FEHLTE (aufgefallen am 31.08.2026) ──────────────────
+      // `twimlAusgehend` verlangt es seit der Umstellung, bei der die Ansage
+      // dem KUNDEN vorgelesen wird und nicht mehr dem Agenten. Der Typcheck
+      // meldete es die ganze Zeit — die Meldung ging im Altbestand unter,
+      // genau wie AGENTS.md es für den 08.08.2026 beschreibt.
+      //
+      // Die Folge war begrenzt (nur die Diagnose-Vorschau baute eine TwiML
+      // ohne Ansage-Adresse), aber sie zeigte damit ein anderes Ergebnis als
+      // der echte Anruf — und eine Diagnose, die etwas anderes prüft als das,
+      // was läuft, ist schlimmer als keine.
+      ansageUrl: `${(process.env.PUBLIC_BASE_URL || "https://www.fiaon.com").replace(/\/+$/, "")}/api/fiaon/telefon/ansage`,
     });
     const hatDial = /<Dial\s/.test(probe);
     const hatNummer = /<Number>\+\d/.test(probe);

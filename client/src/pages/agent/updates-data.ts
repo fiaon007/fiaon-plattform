@@ -134,6 +134,15 @@ export const AGENT_UPDATES: AgentUpdate[] = [
       + "gestreckt: Deine Liste ist heute kürzer und enthält mehr Menschen, mit "
       + "denen ein Gespräch möglich ist.",
 
+      "AUSNAHME — WER EINE ZAHLUNG GEMELDET HAT, RUHT NIE. Bei „Kunde meldet "
+      + "Zahlung“ (Stufe A) geht es um Geld, das auf dem Weg zu uns ist. Diese "
+      + "Fälle verschwinden NICHT aus deiner Liste und werden auch nicht nach "
+      + "hinten geschoben. Ab dem 9. erfolglosen Versuch bekommt die "
+      + "Vertriebsleitung stattdessen eine Aufgabe „Zahlung gemeldet, 9x nicht "
+      + "erreicht — entscheiden“ mit Frist in 2 Tagen. 38 solche Aufgaben sind "
+      + "gerade entstanden (19 bei Daniel, 19 bei Florentine). Du musst dort "
+      + "nichts tun — die Leitung prüft den Kontoabgleich und entscheidet.",
+
       "TERMINE ZEIGEN, WER ZUSTÄNDIG IST. Auf der Startseite steht an jedem "
       + "Termin eine Marke: „Onboarding“ (der Kunde hat bezahlt und wird "
       + "freigeschaltet), „Vertrieb“ (noch nicht bezahlt, beraten) oder "

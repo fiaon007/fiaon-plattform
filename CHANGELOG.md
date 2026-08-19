@@ -5,6 +5,81 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 19.08.2026 (Nacht, Nachtrag) — Stufe A ruht nie, sie wird entschieden
+
+**Entscheidung des Betreibers** zu Teil 4 des Feedbacks: „Kunden mit GEMELDETER
+Zahlung (`claimed_paid`) ruhen NIE automatisch. Bei denen geht es um Geld auf dem
+Weg zu uns; nach dem 9. Fehlversuch statt Ruhe: Aufgabe an die Vertriebsleitung
+‚Zahlung gemeldet, 9x nicht erreicht — entscheiden' + Wiedervorlage +2 Tage."
+
+Das ist **nicht** die alte Ausnahme zurück. Der Unterschied ist der ganze Punkt:
+
+| | bis 19.08. | ab jetzt |
+|---|---|---|
+| Ruht Stufe A? | nein (`!istStufeA`) | nein |
+| Was passiert stattdessen? | **nichts** | Aufgabe an die Leitung, Frist +2 Tage |
+| Folge | 77 Personen lagen in der Liste, teils mit 20 Versuchen, ohne dass jemand entschied | jeder Fall landet auf einem Schreibtisch |
+
+„Nicht ruhen" hieß vorher „ewig weiterklingeln". Jetzt heißt es: Es wird
+entschieden.
+
+### Was geändert wurde
+
+- `stufeASql()` in `server/lib/fiaon-nicht-erreicht.ts` — die Bedingung
+  (`priority_tier = 1`, entsteht ausschließlich aus `claimed_paid`) steht an
+  EINER Stelle für Ruhe-Bedingung, Automatik und Bestandslauf.
+- `ruhtSql()` nimmt Stufe A aus — bei **beiden** Fassungen, auch der
+  zeitbasierten. Eine alte Ruhe-Marke soll nicht weiter verdecken; bei Geld ist
+  sichtbar besser als versteckt.
+- Stufe A wird auch **nicht gestreckt**. Bei einer gemeldeten Zahlung ist die
+  offene Frage das Geld, nicht der Kontakt — und die Frage wird nicht kleiner,
+  wenn man sie um sieben Tage verlegt.
+- `stufeAAnLeitung()` erzeugt die Wirkung: Ruhe-Marke weg, Wiedervorlage
+  +2 Tage, Aufgabe in `fiaon_vermerke` (dieselbe Tabelle, die
+  `/agent/aufgaben` und die Verwaltung lesen — kein zweites Aufgabensystem).
+
+### Drei Dinge, die beim Bauen aufgefallen sind
+
+1. **Ein Bestandslauf hätte 38 echte Mails verschickt.** Der naheliegende Weg
+   war, `automatikNachFehlversuch` je Person aufzurufen. Die verschickt aber ab
+   dem 6. Fehlversuch eine Terminlink-Mail — 38 Kunden hätten als Nebenwirkung
+   einer Aufräumarbeit Post bekommen. Deshalb die eigene Funktion
+   `stufeAAnLeitung`, die nichts nach außen sendet.
+2. **Die erste Abfrage zum „Zurückholen" traf 114 Menschen statt 0.** Sie
+   lautete `ruhe_seit IS NOT NULL OR follow_up_date > CURRENT_DATE`. Eine
+   Wiedervorlage in der Zukunft ist bei Stufe A aber meist eine **Zusage**
+   („ich zahle am 25.") — sie auf heute zu ziehen hätte 114 Vereinbarungen
+   zerstört. Ruhend heißt `ruhe_seit IS NOT NULL`, nur das.
+3. **Der Lauf hätte die Regel im eigenen Namen gebrochen.** Seine Gruppe
+   „RUHEND" wählte über `NOT ruhtSql(p)` — und seit Stufe A davon ausgenommen
+   ist, erfüllten genau die 38 Stufe-A-Fälle diese Bedingung. Ohne die
+   zusätzliche Ausnahme hätte der Lauf ihnen `ruhe_seit` gesetzt. Gefunden in
+   der Vorschau, bevor geschrieben wurde — das ist der Zweck der Vorschau.
+
+### Bestand (Lauf vom 19.08.2026)
+
+| | |
+|---|---|
+| Stufe-A-Fälle mit Ruhe-Marke | **0** — zurückzuholen war nichts |
+| Aufgaben an die Vertriebsleitung | **38** (19 Daniel Stripling, 19 Florentine Lombardi) |
+| Wiedervorlagen gestreckt | 18 |
+| auf RUHEND gesetzt | 0 |
+
+Dass **nichts zurückzuholen war**, ist der Beweis für den Befund von vorher: Die
+alte Ausnahme hat Stufe A nie ruhen lassen — sie hat sie nur liegen lassen. Die
+gemessenen 77 „ohne Ruhe-Marke" waren genau diese Fälle.
+
+**Zählproben:** 0 Personen mit ≥9 Versuchen (ohne Stufe A) in der Tagesliste ·
+0 Stufe-A-Fälle gelten als ruhend · 0 der 38 ohne Aufgabe. Der Lauf ist
+**idempotent**: Beim zweiten Aufruf bleiben es 38 Aufgaben, die bestehende wird
+nur auf den neuen Versuchsstand gebracht.
+
+**Rot-Probe:** Ausnahme aus `ruhtSql` entfernt → Prüfstand rot **und** die
+Gegenprobe des Bestandslaufs meldet „38 Stufe-A-Fälle gelten als ruhend —
+FALSCH".
+
+---
+
 ## 19.08.2026 (Nacht) — Neun Punkte aus Vertrieb und Onboarding
 
 Ein Feedback mit neun Meldungen. Drei davon waren **Wiedergänger** — schon

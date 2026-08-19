@@ -92,6 +92,46 @@ export const SCHWELLE_MAIL = 6;
 export const SCHWELLE_STRECKEN = 3;
 /** Ab hier ruht der Fall dauerhaft — raus aus der Tagesliste. */
 export const SCHWELLE_RUHEND = 9;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STUFE A RUHT NIE — SIE WIRD ENTSCHIEDEN (19.08.2026, Betreiber)
+//
+// ── DIE ENTSCHEIDUNG ───────────────────────────────────────────────────────
+// „Kunden mit GEMELDETER Zahlung (claimed_paid) ruhen NIE automatisch. Bei denen
+// geht es um Geld auf dem Weg zu uns; nach dem 9. Fehlversuch statt Ruhe:
+// Aufgabe an die Vertriebsleitung ‚Zahlung gemeldet, 9x nicht erreicht —
+// entscheiden' + Wiedervorlage +2 Tage."
+//
+// ── WARUM DAS DER RICHTIGE SCHNITT IST ────────────────────────────────────
+// Ein Kunde, der sagt „ich habe überwiesen", hat entweder bezahlt (dann fehlt
+// uns die Zuordnung) oder nicht (dann fehlt uns die Forderung). Beides sind
+// Fragen, die JEMAND entscheiden muss — sie verschwinden nicht dadurch, dass
+// man sie aus einer Liste nimmt. Alle anderen Stufen ruhen: Dort ist der zehnte
+// Anruf wirklich nur ein zehnter Anruf.
+//
+// Der Unterschied zur ALTEN Ausnahme (`!istStufeA`, bis 19.08.2026) ist
+// entscheidend: Damals blieb Stufe A einfach in der Tagesliste liegen — 77
+// Personen, teils mit 20 Fehlversuchen, ohne dass irgendetwas geschah. „Nicht
+// ruhen" hieß „ewig weiterklingeln". Jetzt heißt es: Es landet auf einem
+// Schreibtisch, mit Frist.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Ab so vielen Fehlversuchen entscheidet die Vertriebsleitung über Stufe A. */
+export const SCHWELLE_LEITUNG = 9;
+/** Wiedervorlage für Stufe A nach der Meldung an die Leitung. */
+export const LEITUNG_WIEDERVORLAGE_TAGE = 2;
+
+/**
+ * Stufe A als SQL: gemeldete, noch nicht bankbestätigte Zahlung.
+ *
+ * `priority_tier = 1` entsteht in `server/lib/tier.ts` ausschließlich aus
+ * `payment_status = 'claimed_paid'` (Rang 50) — der Zustand, den der Betreiber
+ * gemeint hat. Die Zahl steht hier EINMAL, damit Ruhe-Bedingung, Automatik und
+ * Bestandslauf nicht auseinanderlaufen.
+ */
+export function stufeASql(p = "p"): string {
+  return `(COALESCE(${p}.priority_tier, 3) = 1)`;
+}
 /** Wiedervorlage ab dem 3. Versuch. */
 export const STRECKUNG_TAGE = 3;
 /** Wiedervorlage ab dem 6. Versuch. */
@@ -201,10 +241,21 @@ export async function automatikNachFehlversuch(
           : `Terminlink konnte NICHT versendet werden (${ergebnis.grund}). Bitte den Link von Hand schicken.`;
     }
 
-    // ── Schwelle 2: RUHEND (ab dem 9. Versuch, ohne Ablaufdatum) ────────────
+    const istStufeA = Number(p.priority_tier) === 1;
+
+    // ── Schwelle 2a: STUFE A GEHT AN DIE VERTRIEBSLEITUNG ──────────────────
+    // Gemeldete Zahlung: Hier ruht nichts. Es wird entschieden.
+    if (versuche >= SCHWELLE_LEITUNG && istStufeA) {
+      const erg = await stufeAAnLeitung(personId, lauf);
+      wirkung.ruht = false;
+      wirkung.wiedervorlage = erg.wiedervorlage;
+      wirkung.hinweis = [wirkung.hinweis, erg.hinweis].filter(Boolean).join(" ");
+      return wirkung;
+    }
+
+    // ── Schwelle 2b: RUHEND (ab dem 9. Versuch, ohne Ablaufdatum) ───────────
     // Kein `!p.ruhe_seit` mehr: Die alte Bedingung feuerte genau einmal und
-    // ließ danach jeden weiteren Fehlversuch wirkungslos. Und keine
-    // Stufe-A-Ausnahme mehr — sie war der Grund, dass 77 Personen NIE ruhten.
+    // ließ danach jeden weiteren Fehlversuch wirkungslos.
     if (versuche >= SCHWELLE_RUHEND) {
       await lauf`
         UPDATE fiaon_persons
@@ -232,8 +283,18 @@ export async function automatikNachFehlversuch(
                   NOW())
         `.catch((e) => console.error("[NICHT-ERREICHT] Verlaufseintrag Ruhend:", e));
       }
-    } else if (versuche >= SCHWELLE_STRECKEN) {
-      // ── Die Wiedervorlage strecken (3.–8. Versuch) ────────────────────────
+    } else if (versuche >= SCHWELLE_STRECKEN && !istStufeA) {
+      // ── Die Wiedervorlage strecken (3.–8. Versuch, nicht Stufe A) ─────────
+      //
+      // Stufe A wird auch NICHT gestreckt. „Ruhen nie automatisch" heißt nicht
+      // nur „verschwinden nicht", sondern auch „werden nicht nach hinten
+      // geschoben": Bei einer gemeldeten Zahlung ist die offene Frage das Geld,
+      // nicht der Kontakt — und die Frage wird nicht dadurch kleiner, dass man
+      // sie um sieben Tage verlegt. Sie bleiben fällig, bis der 9. Versuch die
+      // Leitung einschaltet.
+      //
+      // Damit sagen Automatik und Bestandslauf dasselbe. Eine Regel, die im
+      // Lauf anders wirkt als im Betrieb, ist zwei Regeln.
       // Nicht sperren, nur Abstand: Wer dreimal nicht dranging, ist nicht
       // unerreichbar — aber morgen wieder anzurufen bringt nichts. Die
       // Streckung wird NUR nach hinten verschoben, nie nach vorn, sonst zieht
@@ -257,6 +318,165 @@ export async function automatikNachFehlversuch(
     console.error("[NICHT-ERREICHT] Automatik:", err instanceof Error ? err.message : err);
     return LEER;
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STUFE A AN DIE LEITUNG — ALS EIGENE FUNKTION, UND ZWAR AUS EINEM GRUND
+//
+// Der Bestandslauf muss dieselbe Wirkung erzeugen wie die Automatik: Marke weg,
+// Wiedervorlage +2 Tage, Aufgabe an die Leitung. Der naheliegende Weg wäre,
+// `automatikNachFehlversuch` je Person aufzurufen.
+//
+// DAS WÄRE EIN FEHLER GEWESEN. Die Automatik verschickt ab dem 6. Fehlversuch
+// eine Terminlink-Mail. Ein Bestandslauf über 38 Personen hätte also bis zu 38
+// ECHTE Mails an Kunden ausgelöst — als Nebenwirkung einer Aufräumarbeit, die
+// niemand bestellt hat. AGENTS.md warnt genau davor („Ein Screenshot-Lauf darf
+// keine 50 echten Mails auslösen"), und beim Schreiben der Vorschau ist es
+// beinahe passiert.
+//
+// Also: die Stufe-A-Wirkung in EINER Funktion, die kein Wort nach außen sendet.
+// Automatik und Bestandslauf rufen dieselbe — keine zweite Fassung der Regel.
+// ═══════════════════════════════════════════════════════════════════════════
+export async function stufeAAnLeitung(
+  personId: number, lauf: Lauf = sqlPool,
+): Promise<{ wiedervorlage: string; hinweis: string; aufgabe: boolean }> {
+  const bis = tagPlus(LEITUNG_WIEDERVORLAGE_TAGE);
+  const [p] = (await lauf`
+    SELECT p.unreachable_count,
+           (SELECT a.ref FROM fiaon_applications a
+             WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
+             ORDER BY a.created_at DESC LIMIT 1) AS ref
+      FROM fiaon_persons p WHERE p.id = ${personId}
+  `) as any[];
+  const versuche = Number(p?.unreachable_count || 0);
+
+  // Die Ruhe wird ausdrücklich WEGGENOMMEN, falls eine alte Marke steht: Sonst
+  // hielte ein Rest aus der Zeit vor dieser Regel den Fall unsichtbar.
+  await lauf`
+    UPDATE fiaon_persons
+       SET ruhe_seit = NULL, follow_up_date = ${bis}::date, updated_at = NOW()
+     WHERE id = ${personId}
+  `;
+  const aufgabe = await leitungAufgabeAnlegen(personId, versuche, p?.ref ?? null, bis, lauf);
+  return {
+    wiedervorlage: bis,
+    aufgabe,
+    hinweis: `${versuche}× nicht erreicht bei GEMELDETER Zahlung — der Fall ruht NICHT. `
+      + (aufgabe ? "Die Vertriebsleitung hat eine Aufgabe „entscheiden“ bekommen. " : "")
+      + `Wiedervorlage in ${LEITUNG_WIEDERVORLAGE_TAGE} Tagen (${bis}).`,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE AUFGABE AN DIE VERTRIEBSLEITUNG
+//
+// Sie geht in `fiaon_vermerke` — dieselbe Tabelle, die `/agent/aufgaben` und die
+// Verwaltung lesen. Kein zweites Aufgabensystem: „Zwei Notizsysteme im Portal
+// wären ein Notizsystem zu viel" (der Kommentar in fiaon-vermerke.ts, und er hat
+// recht).
+//
+// ── DREI ENTSCHEIDUNGEN, DIE ERKLÄRT GEHÖREN ──────────────────────────────
+//
+// 1. GENAU EINE OFFENE AUFGABE JE PERSON. Die Automatik läuft bei JEDEM
+//    weiteren Fehlversuch — beim 10., 11., 12. Ohne diese Sperre hätte die
+//    Leitung nach zwei Wochen zwanzig identische Zettel zu demselben Menschen,
+//    und dann liest sie keinen mehr.
+//
+// 2. EIN ZUSTÄNDIGER, NICHT „DIE LEITUNG". Eine Aufgabe ohne Namen erledigt
+//    niemand. Es bekommt die Vertriebsleitung mit den WENIGSTEN offenen
+//    Aufgaben — messbar fair und ohne Absprache. Alle anderen Leitungen sehen
+//    sie über `sicht_agenten` mit, können also übernehmen.
+//
+// 3. RÜCKFALL AUF DEN BETREIBER. Gibt es keine aktive Vertriebsleitung, geht die
+//    Aufgabe an ihn (`fuer_betreiber`). AGENTS.md: „Fehlende
+//    Personalentscheidungen dürfen das System nicht kaputt machen … ein
+//    begründeter Rückfall, protokolliert, damit er nicht unbemerkt zum
+//    Dauerzustand wird."
+// ═══════════════════════════════════════════════════════════════════════════
+async function leitungAufgabeAnlegen(
+  personId: number, versuche: number, ref: string | null,
+  faelligAm: string, lauf: Lauf = sqlPool,
+): Promise<boolean> {
+  try {
+    // Die Tabelle wird von `fiaon-vermerke.ts` angelegt. Läuft dieser Aufruf
+    // vor dem ersten Zugriff dort, gibt es sie noch nicht — dann wird die
+    // Aufgabe übersprungen und das GEMELDET, statt den Anruf scheitern zu
+    // lassen. Eine Automatik darf das Dokumentieren nie verhindern.
+    const [tabelleDa] = (await lauf`
+      SELECT to_regclass('public.fiaon_vermerke') IS NOT NULL AS da
+    `) as any[];
+    if (!tabelleDa?.da) {
+      console.warn("[NICHT-ERREICHT] fiaon_vermerke fehlt — Leitungs-Aufgabe übersprungen.");
+      return false;
+    }
+
+    // 1. Gibt es schon eine offene Aufgabe zu diesem Menschen?
+    const [offen] = (await lauf`
+      SELECT id FROM fiaon_vermerke
+       WHERE art = 'aufgabe' AND status = 'offen' AND entfernt_am IS NULL
+         AND text LIKE ${`%${LEITUNG_MARKE}%`}
+         AND ref IN (SELECT a.ref FROM fiaon_applications a WHERE a.person_id = ${personId})
+       LIMIT 1
+    `) as any[];
+    if (offen) {
+      // Die Zahl der Versuche wächst weiter — der Zettel soll den neuesten
+      // Stand tragen, ohne ein zweiter Zettel zu werden.
+      await lauf`
+        UPDATE fiaon_vermerke
+           SET text = ${leitungText(versuche)}, faellig_am = ${faelligAm}::date,
+               updated_at = NOW()
+         WHERE id = ${offen.id}
+      `;
+      return true;
+    }
+
+    // 2. Wer ist zuständig? Die Leitung mit den wenigsten offenen Aufgaben.
+    const leitungen = (await lauf`
+      SELECT ag.id,
+             (SELECT COUNT(*)::int FROM fiaon_vermerke v
+               WHERE v.zustaendig_agent_id = ag.id AND v.art = 'aufgabe'
+                 AND v.status = 'offen' AND v.entfernt_am IS NULL) AS offene
+        FROM fiaon_agents ag
+       WHERE ag.active AND ag.rolle = 'vertriebsleiter'
+         AND COALESCE(ag.is_test_account, FALSE) = FALSE
+       ORDER BY offene ASC, ag.id ASC
+    `) as any[];
+
+    const zustaendig = leitungen[0]?.id ? Number(leitungen[0].id) : null;
+    const alle = leitungen.map((l: any) => Number(l.id));
+    if (!zustaendig) {
+      console.warn("[NICHT-ERREICHT] Keine aktive Vertriebsleitung — die Aufgabe "
+        + `für Person ${personId} geht an den Betreiber.`);
+    }
+
+    await lauf`
+      INSERT INTO fiaon_vermerke
+        (art, ref, text, sicht, sicht_agenten, zustaendig_agent_id, fuer_betreiber,
+         faellig_am, dringend, autor_art, autor_name)
+      VALUES ('aufgabe', ${ref}, ${leitungText(versuche)},
+              ${alle.length > 0 ? "auswahl" : "privat"}, ${alle},
+              ${zustaendig}, ${zustaendig == null},
+              ${faelligAm}::date, TRUE, 'system', 'Automatik: nicht erreicht')
+    `;
+    return true;
+  } catch (err) {
+    // Eine Automatik, die das Dokumentieren eines Anrufs scheitern lässt, kostet
+    // mehr als sie bringt — aber der Fehler wird MITGESCHRIEBEN (AGENTS.md).
+    console.error("[NICHT-ERREICHT] Leitungs-Aufgabe konnte nicht angelegt werden:",
+      err instanceof Error ? err.message : err);
+    return false;
+  }
+}
+
+/** Die Marke, an der die Automatik ihre eigene Aufgabe wiedererkennt. */
+const LEITUNG_MARKE = "Zahlung gemeldet, ";
+
+function leitungText(versuche: number): string {
+  return `${LEITUNG_MARKE}${versuche}× nicht erreicht — entscheiden. `
+    + "Der Kunde hat eine Überweisung gemeldet, wir erreichen ihn nicht. "
+    + "Bitte Kontoabgleich prüfen: Ist das Geld da, gehört es zugeordnet; "
+    + "ist es nicht da, gehört die Forderung entschieden. Dieser Fall ruht NICHT "
+    + "und bleibt in der Arbeitsliste.";
 }
 
 /**
@@ -301,7 +521,20 @@ export function ruhtSql(p = "p"): string {
   //    heute drinstehen — eine Nebenwirkung, die niemand bestellt hat. Fassung 1
   //    deckt den einen gemessenen Fall (10 Versuche, Marke gesetzt, keine
   //    Wiedervorlage) über den Zähler ohnehin ab.
-  return `((${p}.unreachable_count >= ${SCHWELLE_RUHEND})
+  //
+  // ── UND STUFE A RUHT ÜBERHAUPT NICHT (19.08.2026, Betreiber) ────────────
+  // Gemeldete Zahlung heißt: Geld ist auf dem Weg zu uns oder eine Forderung
+  // ist offen. Solche Fälle verschwinden nicht aus der Liste, sie gehen an die
+  // Vertriebsleitung (siehe `SCHWELLE_LEITUNG`).
+  //
+  // Die Ausnahme steht bei BEIDEN Fassungen, nicht nur bei der ersten: Eine
+  // alte Ruhe-Marke aus der Zeit vor dieser Regel würde sonst weiter verdecken.
+  // Die Richtung ist Absicht — bei Geld lieber sichtbar als versteckt.
+  //
+  // Das ist NICHT die alte Ausnahme zurück: Damals blieb Stufe A liegen und
+  // nichts geschah. Jetzt bleibt sie sichtbar UND bekommt eine Aufgabe.
+  return `(NOT ${stufeASql(p)} AND (
+      (${p}.unreachable_count >= ${SCHWELLE_RUHEND})
       OR (${p}.ruhe_seit IS NOT NULL AND ${p}.follow_up_date IS NOT NULL
-          AND ${p}.follow_up_date > CURRENT_DATE))`;
+          AND ${p}.follow_up_date > CURRENT_DATE)))`;
 }

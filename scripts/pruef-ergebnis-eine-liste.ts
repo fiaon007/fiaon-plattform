@@ -198,6 +198,40 @@ function main(): void {
     + readFileSync("server/routes/fiaon-agent.ts", "utf8");
   ok("Die Routen rufen `pruefeNotiz`", /pruefeNotiz\(/.test(routen));
 
+  // ═════════════════════════════════════════════════════════════════════════
+  gruppe("5. Stufe A ruht nie — sie wird entschieden");
+  // ═════════════════════════════════════════════════════════════════════════
+  // Die Regel des Betreibers (19.08.2026) am Quelltext festgehalten. Die
+  // Wirkung auf den Bestand prüft `ruhe-staffel-nachziehen.ts` mit seinen
+  // Zählproben; hier geht es darum, dass die Regel nicht wieder herausfällt.
+  const ne = readFileSync("server/lib/fiaon-nicht-erreicht.ts", "utf8");
+  const neOhne = ohneKommentar(ne);
+  ok("Es gibt eine Stufe-A-Bedingung an EINER Stelle",
+    /export function stufeASql/.test(neOhne));
+  ok("Die Ruhe-Bedingung nimmt Stufe A aus",
+    /NOT \$\{stufeASql\(p\)\}/.test(neOhne),
+    "ruhtSql kennt die Ausnahme nicht — Stufe A würde wieder ruhen");
+  ok("Ab der Leitungs-Schwelle geht Stufe A an die Vertriebsleitung",
+    /versuche >= SCHWELLE_LEITUNG && istStufeA/.test(neOhne));
+  ok("Die Stufe-A-Wirkung ist eine eigene Funktion (kein Mailversand im Bestandslauf)",
+    /export async function stufeAAnLeitung/.test(neOhne));
+  ok("Stufe A wird auch nicht gestreckt",
+    /SCHWELLE_STRECKEN && !istStufeA/.test(neOhne));
+  ok("Die Aufgabe geht in die Vermerke, nicht in ein zweites Aufgabensystem",
+    /INSERT INTO fiaon_vermerke/.test(neOhne));
+  ok("Es gibt eine Sperre gegen doppelte Aufgaben je Person",
+    /status = 'offen'[\s\S]{0,400}?LIMIT 1/.test(neOhne));
+  ok("Ohne aktive Vertriebsleitung fällt die Aufgabe an den Betreiber",
+    /fuer_betreiber/.test(neOhne) && /zustaendig == null/.test(neOhne));
+  // Der Bestandslauf darf die Regel nicht im eigenen Namen brechen.
+  const lauf = ohneKommentar(readFileSync("scripts/ruhe-staffel-nachziehen.ts", "utf8"));
+  ok("Der Bestandslauf setzt Stufe A NICHT auf ruhend",
+    /NOT \$\{stufeASql\("p"\)\}[\s\S]{0,200}?NOT \$\{ruhtSql\("p"\)\}/.test(lauf));
+  ok("Der Bestandslauf benutzt `stufeAAnLeitung` (sendet keine Mails)",
+    /stufeAAnLeitung/.test(lauf) && !/automatikNachFehlversuch/.test(lauf));
+  ok("Eine Zusage in der Zukunft schlägt die Wiedervorlage",
+    /promised_payment_date > CURRENT_DATE/.test(lauf));
+
   log(`\n══ ${bestanden} ok, ${fehlgeschlagen} rot ══\n`);
   if (fehlgeschlagen > 0) process.exit(1);
 }

@@ -5,6 +5,117 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 20.08.2026 — NOTFALL: Onboarding sah „0 Kunden", hatte aber Termine
+
+Viktoria Reichert und Rifka Rovcanin führen heute Startgespräche und sahen eine
+leere Kundenliste.
+
+### Teil 1 — Ursache: zwei Filter, die beide leerten
+
+**GEMESSEN:**
+
+| | Betreuer bei | Termine | davon heute |
+|---|---|---|---|
+| Rifka Rovcanin | **0** | 15 | 5 |
+| Viktoria Reichert | **0** | 6 | 5 |
+
+In `server/routes/fiaon-agent-start.ts`, Route `/agent/kunden/liste`:
+
+1. `p.assigned_agent_id = $1` — die Betreuung liegt beim **Vertrieb**. Onboarding
+   wird nie eingetragen, die Menge ist also immer leer.
+2. `p.priority_tier BETWEEN 1 AND 3` — selbst mit richtiger Zuordnung wäre die
+   Liste leer geblieben: Ein Kunde im Onboarding **hat bezahlt** und steht auf
+   Tier 0. (Bewiesen: alle gefundenen Kunden sind Tier 0.)
+
+**FIX:** Für die Rolle Onboarding zählt der **Termin**, nicht die Betreuung —
+Kunden mit einem Startgespräch bei diesem Mitarbeiter (offen, heute, oder in den
+letzten 14 Tagen). Die Grenze bleibt eine `WHERE`-Bedingung (`t.agent_id = $1`),
+kein Rollenschalter in der Anzeige. Der Tier-Filter greift für sie nicht.
+
+**Ergebnis: Rifka 0 → 12, Viktoria 0 → 8 Kunden.**
+
+Dazu: Sortierung „heute nach Uhrzeit, dann kommende, dann vergangene ohne
+Ergebnis". Die Zeile trägt **„Heute 15:00 · Startgespräch · 30 Min"**. Der
+Leerzustand sagt nicht mehr „Dir ist kein Kunde zugewiesen", sondern nennt den
+nächsten Termin oder „Keine Startgespräche geplant".
+
+**Die Akte:** `GET /agent/vertrieb/person/:id` hatte `nurLeitung` → Onboarding
+bekam **404**. Jetzt `leitungOderOnboarding`, begrenzt auf die **eigenen**
+Terminkunden. **Rot-Probe:** ein Kunde ohne eigenen Termin → **403**.
+
+**Und der Satz, mit dem der Ausfall gemeldet wurde, stand nach dem ersten Fix
+noch da:** Über einer Liste mit drei Startgesprächen stand weiter „0 Kunden
+gehören dir" und der Chip „Alle 0" — die Zähler-Abfrage filtert eigenständig auf
+`assigned_agent_id`. Der Screenshot hat es gezeigt. Jetzt: **„3 Startgespräche in
+deiner Liste. Heute zuerst, nach Uhrzeit."** (Die Lehre steht seit dem 11.08. in
+derselben Datei: „Die Zähler müssen dieselbe Menge zählen wie die Liste zeigt.")
+
+**Prüfstand:** `pruef-onboarding-liste` **32 ok** — Desktop und 380 px,
+Screenshots angesehen.
+
+### Teil 2 — Angaben ergänzen (Florentine: „wo kann man das ergänzen?")
+
+Die Route gab es: `POST /agent/customers/:ref/stammdaten`, und der Knopf steht in
+der Kundenkarte unter „Details, Stammdaten und Verlauf". **Aber
+`ERLAUBTE_ROLLEN` kannte `onboarding` nicht** — der Server antwortete 403, und
+genau die Rolle, der Angaben im Gespräch auffallen, konnte nichts nachtragen.
+Eine Zeile. Die Besitzgrenze dahinter bleibt: `darfAnKunde` erlaubt einem
+Onboarder nur Menschen mit eigenem Termin.
+
+**Nicht getan, und zwar mit Grund:** Land und Geburtsdatum stehen NICHT zur
+Verfügung. `updateCustomerContact` verarbeitet nur Vorname, Nachname, E-Mail,
+Telefon, Straße, PLZ, Ort — `country` und `birthdate` werden dort stillschweigend
+verworfen. Sie in der Feldliste zu erlauben hätte ein Feld angeboten, das „ok"
+meldet und nichts tut. Das ist die Fehlerklasse, die dieses Repo an sechs Stellen
+beseitigt hat; sie wird nicht an einer siebten eingebaut. Ebenso offen: die Zeile
+„Für die Rechnung fehlt noch: …" mit Sprung ins Feld.
+
+### Teil 3 — „FIAON Pro 10 €": woher der Betrag kommt
+
+**4 abweichende lebende Bestellungen von 1.312 mit Katalogpreis** — und **alle
+vier sind bezahlt:**
+
+| Referenz | Paket | ist | soll | Provision auf |
+|---|---|---|---|---|
+| FIAON-MQBE5ZYE-53MZ | pro | **10,00 €** | 59,99 € | 10,00 € |
+| FIAON-MQNTZ4V5-EAD3 | start | 10,00 € | 7,99 € | 10,00 € |
+| FIAON-MSLZ4YHC-9MF5 | highend | 79,99 € | 99,99 € | 79,99 € |
+| FIAON-MR339DDD-0VKP | highend | 79,99 € | 99,99 € | 79,99 € |
+
+**Es wurde NICHTS korrigiert — und das ist eine Entscheidung, nicht ein
+Versäumnis.** `amount_due` einer bezahlten Bestellung von 10 € auf 59,99 € zu
+setzen ist keine Korrektur eines Anzeigefehlers, sondern die Behauptung, es seien
+59,99 € geflossen. Was tatsächlich floss, steht in keiner Tabelle dieses Systems
+— und die Provision wurde auf 10,00 € Bemessungsgrundlage gebucht. Ein Skript,
+das hier schreibt, erfindet eine Zahlung oder eine Forderung. Vorschau:
+`reports/preis-abweichung.csv`, je Zeile mit der offenen Frage.
+
+**Warum die Wand aus Migration 065 nicht griff — zwei Gründe:**
+
+1. Alle vier Bestellungen sind **vor** der Wand entstanden (angewendet
+   19.08.2026, 14:31; die Bestellungen vom 12.06. bis 09.08.).
+2. Der wichtigere: Die Wand hat einen **ausdrücklichen Freibrief** —
+   `IF COALESCE(NEW.payment_status,'') = 'paid' THEN RETURN NEW;`. Das ist
+   Absicht und richtig: Bei einer bezahlten Bestellung ist der Betrag eine
+   Tatsache, keine Sollgröße. Die Fälle sind also nicht durch die Wand
+   gerutscht, sie liegen außerhalb ihres Zwecks. **Für unbezahlte Bestellungen
+   greift sie: 0 Abweichungen im ganzen Bestand.**
+
+**Ein Messfehler von mir, der das Gegenteil behauptet hätte:** Der erste Lauf
+übergab `katalogpreisCents(String(pack_name))`. Die Funktion liest aber
+`pack_key` und gab für **jede** Bestellung `null` zurück — der Lauf meldete „0
+Abweichungen" und hätte den gemeldeten Fall verdeckt.
+
+### Ein Irrweg beim Bau
+
+Die Onboarding-Sortierung nutzte Alias-Spalten in einem `CASE` im `ORDER BY`. Die
+Route antwortete **HTTP 500**: `column "t_beginn" does not exist`. In PostgreSQL
+ist ein Alias aus der SELECT-Liste im `ORDER BY` nur als **blanker Name** erlaubt.
+Der Hinweis stand in meinem eigenen Kommentar zwei Zeilen darüber. Jetzt eine
+Hülle um die Abfrage — die rechnet die Unterabfragen einmal statt zweimal je Zeile.
+
+---
+
 ## 20.08.2026 — Der Deploy brach an meiner eigenen Wand
 
 `sh: 1: eslint: not found`, exit 127. Die Hook-Wand vom selben Tag hat den Build

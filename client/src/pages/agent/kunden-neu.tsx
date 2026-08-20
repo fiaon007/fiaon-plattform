@@ -47,6 +47,11 @@ import { ERGEBNIS_TEXT, type Ergebnis } from "@shared/fiaon-kontakt-ergebnis-lis
 interface Kunde {
   personId: number;
   name: string;
+  /** Der naechstliegende Termin — fuer Onboarding die eigentliche Arbeit. */
+  termin?: {
+    beginn: string; status: string | null; dauerMin: number | null;
+    erledigt: boolean; art: string;
+  } | null;
   telefon: string | null;
   telefonWaehlbar: string | null;
   telefonHinweis: string | null;
@@ -348,6 +353,14 @@ function Inhalt() {
    * `nurZaehler` holt deshalb nur die Zahlen. Die Reihenfolge bleibt, wie sie
    * war, bis der Agent sie BEWUSST neu ordnet.
    */
+  // ── WER FRAGT? (20.08.2026) ─────────────────────────────────────────────
+  // Onboarding wird NIE Betreuer eines Kunden — die Liste war fuer sie deshalb
+  // immer leer, und der Leerzustand sagte „Dir ist gerade kein Kunde
+  // zugewiesen". Das hat Viktoria Reichert und Rifka Rovcanin glauben lassen, es
+  // gaebe keine Arbeit, waehrend je fuenf Startgespraeche im Kalender standen.
+  const [rolle, setRolle] = useState<string>("agent");
+  const [naechsterTermin, setNaechsterTermin] = useState<string | null>(null);
+
   const laden = useCallback(async (leise = false, nurZaehler = false) => {
     if (!leise) setLaedt(true);
     const p = new URLSearchParams({ filter, sort });
@@ -360,8 +373,14 @@ function Inhalt() {
         setListe(r.json.kunden);
         setErledigt(new Set());
       }
-      setZaehler(r.json.zaehler);
+      // Fuer Onboarding zaehlt der Server die Liste selbst — die Vertriebs-
+      // Zaehler (assigned_agent_id) waeren dort immer 0.
+      setZaehler({ ...(r.json.zaehler ?? {}), ...(r.json.zaehlerUeberschrieben ?? {}) });
       setVorrat(r.json.vorrat || {});
+      // Rolle und naechster Termin kommen vom SERVER — die Anzeige leitet sie
+      // nicht selbst ab, sonst gibt es zwei Wahrheiten (AGENTS.md).
+      setRolle(r.json.rolle ?? "agent");
+      setNaechsterTermin(r.json.naechsterTermin ?? null);
     }
     setLaedt(false);
   }, [filter, sort, suche, nurPerson]);
@@ -403,7 +422,9 @@ function Inhalt() {
               </h1>
               <p className="mt-1 text-[13px]" style={{ color: "var(--fi-text-leise)" }}>
                 {laedt ? "Lade deine Kunden …"
-                  : `${zaehler.alle ?? 0} Kunden gehören dir. Von oben nach unten — die Reihenfolge steht schon.`}
+                  : rolle === "onboarding"
+                    ? `${zaehler.alle ?? 0} Startgespräche in deiner Liste. Heute zuerst, nach Uhrzeit.`
+                    : `${zaehler.alle ?? 0} Kunden gehören dir. Von oben nach unten — die Reihenfolge steht schon.`}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -535,14 +556,29 @@ function Inhalt() {
           {!laedt && liste.length === 0 && (
             <div className="fi-karte p-6 text-center">
               <p className="text-[14px] font-semibold">
-                {suche ? "Kein Treffer." : filter === "alle" ? "Dir ist gerade kein Kunde zugewiesen." : "In dieser Ansicht ist nichts offen."}
+                {suche
+                  ? "Kein Treffer."
+                  : rolle === "onboarding"
+                    ? (naechsterTermin
+                      ? `Für jetzt nichts offen. Nächstes Startgespräch: ${
+                        new Date(naechsterTermin).toLocaleString("de-DE", {
+                          timeZone: "Europe/Berlin", weekday: "short",
+                          day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
+                        })} Uhr.`
+                      : "Keine Startgespräche geplant.")
+                    : filter === "alle"
+                      ? "Dir ist gerade kein Kunde zugewiesen."
+                      : "In dieser Ansicht ist nichts offen."}
               </p>
               <p className="text-[12.5px] mt-1" style={{ color: "var(--fi-text-still)" }}>
                 {suche
                   ? "Suche über Name, E-Mail, Telefonnummer oder Referenz."
-                  : filter === "alle"
-                    ? "Neue Kunden kommen automatisch dazu. Betreute Kunden bleiben bei dir — niemand nimmt sie dir weg."
-                    : "Wechsle auf „Alle“, um deinen gesamten Bestand zu sehen."}
+                  : rolle === "onboarding"
+                    ? "Hier stehen die Menschen, mit denen du ein Startgespräch hast — heute, "
+                      + "demnächst und die aus den letzten 14 Tagen ohne Ergebnis."
+                    : filter === "alle"
+                      ? "Neue Kunden kommen automatisch dazu. Betreute Kunden bleiben bei dir — niemand nimmt sie dir weg."
+                      : "Wechsle auf „Alle“, um deinen gesamten Bestand zu sehen."}
               </p>
             </div>
           )}
@@ -584,6 +620,39 @@ function Inhalt() {
 // ═══════════════════════════════════════════════════════════════════════════
 // Eine Karte — sie trägt ALLES, was zum Arbeiten nötig ist
 // ═══════════════════════════════════════════════════════════════════════════
+/**
+ * „Heute 13:15" / „Morgen 09:00" / „Di 24.08. 13:00" / „Gestern 16:00".
+ *
+ * Ein reines Datum („20.08.2026, 13:15") beantwortet die Frage nicht, die man
+ * hat: Ist das JETZT? Deshalb der Tagesbezug zuerst.
+ */
+function terminText(t: { beginn: string }): string {
+  const d = new Date(t.beginn);
+  const inBerlin = (x: Date) => x.toLocaleDateString("en-CA", { timeZone: "Europe/Berlin" });
+  const heute = inBerlin(new Date());
+  const tag = inBerlin(d);
+  const uhr = d.toLocaleTimeString("de-DE", {
+    timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit",
+  });
+  if (tag === heute) return `Heute ${uhr}`;
+  const morgen = new Date(Date.now() + 86_400_000);
+  if (tag === inBerlin(morgen)) return `Morgen ${uhr}`;
+  const gestern = new Date(Date.now() - 86_400_000);
+  if (tag === inBerlin(gestern)) return `Gestern ${uhr}`;
+  return d.toLocaleDateString("de-DE", {
+    timeZone: "Europe/Berlin", weekday: "short", day: "2-digit", month: "2-digit",
+  }) + ` ${uhr}`;
+}
+
+/** Heute ist dringend, Vergangenes ohne Ergebnis ist Nacharbeit. */
+function terminFarbe(t: { beginn: string; erledigt: boolean }): string {
+  const d = new Date(t.beginn);
+  const inBerlin = (x: Date) => x.toLocaleDateString("en-CA", { timeZone: "Europe/Berlin" });
+  if (inBerlin(d) === inBerlin(new Date())) return "var(--fi-primaer)";
+  if (d.getTime() < Date.now() && !t.erledigt) return "#b45309";
+  return "var(--fi-text)";
+}
+
 function KundenKarte({
   k, index, offen, erledigt, onOeffnen, onWeg, onNeu, onErledigt, onZaehler,
 }: {
@@ -1103,6 +1172,27 @@ function KundenKarte({
         <div className="flex items-start gap-3">
           <button type="button" onClick={onOeffnen} className="flex-1 min-w-0 text-left">
             <p className="text-[16px] font-bold leading-tight truncate">{k.name}</p>
+            {/* ── UHRZEIT UND ART DES TERMINS (20.08.2026) ──────────────────
+                Fuer Onboarding steht hier die Arbeit: „Heute 13:15 ·
+                Startgespraech". Ohne sie muesste man fuer jede Zeile in den
+                Kalender wechseln. */}
+            {k.termin && (
+              <p className="mt-0.5 text-[12.5px] font-bold flex flex-wrap items-center gap-x-2"
+                 data-fiaon="karte-termin"
+                 style={{ color: terminFarbe(k.termin) }}>
+                <span>{terminText(k.termin)}</span>
+                <span style={{ color: "var(--fi-text-still)", fontWeight: 600 }}>
+                  {k.termin.art}
+                  {k.termin.dauerMin ? ` · ${k.termin.dauerMin} Min` : ""}
+                </span>
+                {k.termin.erledigt && (
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold"
+                        style={{ background: "rgba(4,120,87,.10)", color: "#047857" }}>
+                    Ergebnis da
+                  </span>
+                )}
+              </p>
+            )}
             <p className="mt-1 text-[12.5px] flex flex-wrap items-center gap-x-2 gap-y-0.5"
                style={{ color: "var(--fi-text-still)" }}>
               {/* Die Stufe zuerst: Sie erklärt, warum diese Karte hier steht. */}

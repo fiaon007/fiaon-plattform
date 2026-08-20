@@ -84,6 +84,53 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-20-onboarding-liste",
+    date: "2026-08-20",
+    category: "Behoben",
+    title: "Onboarding sieht endlich seine Startgespräche unter „Kunden“",
+    summary:
+      "Viktoria und Rifka hatten heute je fünf Startgespräche und sahen "
+      + "„0 Kunden“. Ursache: Die Liste zeigte nur Kunden, bei denen man als "
+      + "BETREUER eingetragen ist — und das ist Onboarding nie.",
+    changes: [
+      "WAS FALSCH WAR: Die Kundenliste fragte „wem ist dieser Kunde zugewiesen?“ "
+      + "Zugewiesen wird im Vertrieb. Onboarding bekommt Termine, keine "
+      + "Zuweisungen — also war die Liste immer leer, obwohl der Kalender voll war.",
+
+      "ZWEITER GRUND: Selbst mit richtiger Zuordnung wäre sie leer geblieben. Die "
+      + "Liste zeigt Kunden mit offener Arbeit im Vertrieb — ein Kunde im "
+      + "Onboarding hat aber schon bezahlt und fiel deshalb heraus.",
+
+      "WAS DU JETZT SIEHST: Die Menschen, mit denen du ein Startgespräch hast — "
+      + "heute, demnächst, und die aus den letzten 14 Tagen ohne Ergebnis. "
+      + "Heutige zuerst, nach Uhrzeit. An jeder Zeile steht „Heute 15:00 · "
+      + "Startgespräch · 30 Min“, damit du nicht in den Kalender wechseln musst.",
+
+      "DIE VOLLE KUNDENAKTE ÖFFNET. Vorher antwortete der Server mit „nicht "
+      + "gefunden“, wenn Onboarding eine Akte aufrufen wollte. Jetzt geht sie auf "
+      + "— aber nur bei Menschen, mit denen du einen Termin hast. Fremde Akten "
+      + "bleiben zu, das ist geprüft.",
+
+      "ANGABEN ERGÄNZEN: Du kannst Vorname, Nachname, E-Mail, Telefon, Straße, "
+      + "PLZ und Ort jetzt selbst nachtragen — unter „Details, Stammdaten und "
+      + "Verlauf“ an der Kundenkarte. Vorher lehnte der Server das für deine "
+      + "Rolle ab. Land und Geburtsdatum fehlen noch; das kommt.",
+
+      "WENN NICHTS OFFEN IST, steht dort jetzt dein nächster Termin mit Uhrzeit "
+      + "statt „Dir ist kein Kunde zugewiesen“ — ein Satz, der schlicht falsch war "
+      + "und den Eindruck erzeugt hat, es gäbe keine Arbeit.",
+    ],
+    howto: [
+      "Kunden öffnen. Oben steht, wie viele Startgespräche in deiner Liste sind; "
+      + "die heutigen stehen zuerst, nach Uhrzeit.",
+      "Auf eine Karte tippen → volle Akte mit Stammdaten und Verlauf. Von dort "
+      + "auch anrufen und das Ergebnis festhalten.",
+      "Fehlt eine Angabe: „Details, Stammdaten und Verlauf“ → Feld ausfüllen → "
+      + "speichern. Die Änderung steht mit deinem Namen im Verlauf.",
+    ],
+    important: true,
+  },
+  {
     id: "2026-08-20-akte-behoben",
     date: "2026-08-20",
     category: "Behoben",

@@ -44,7 +44,17 @@ import { requireAgent, type AgentRequest } from "./fiaon-agent";
 const router = Router();
 
 /** Wer darf anlegen und pflegen? */
-const ERLAUBTE_ROLLEN = new Set(["agent", "vertriebsleiter", "admin"]);
+// ── ONBOARDING DARF STAMMDATEN ERGAENZEN (20.08.2026) ──────────────────────
+// Florentine Lombardi: „Wo kann man das ergaenzen?" — Angaben fehlen, und
+// bemerkt wird das fast immer IM GESPRAECH. Onboarding fuehrt die
+// Startgespraeche und ist damit die Stelle, an der eine falsche Nummer oder eine
+// fehlende Strasse auffaellt. Die Rolle stand nicht in dieser Liste; der Server
+// antwortete mit 403, und niemand konnte etwas nachtragen.
+//
+// Die Besitzgrenze steht dahinter unveraendert: `darfAnKunde` erlaubt einem
+// Onboarder nur Menschen, mit denen er einen Termin hat (fiaon-kundenzugriff.ts,
+// quelle = 'onboarding_call'). Die Rolle oeffnet also keinen fremden Bestand.
+const ERLAUBTE_ROLLEN = new Set(["agent", "vertriebsleiter", "admin", "onboarding"]);
 
 /**
  * Eine Referenz im FIAON-Format.
@@ -687,6 +697,16 @@ router.post("/agent/customers/:ref/stammdaten", requireAgent, async (req: AgentR
     // Kontakt- und Adressdaten ja — das ist der Sinn der Sache. Aber KEINE
     // Beträge, keine Zahlungszustände, kein Paket über diesen Weg. Wer den
     // Preis ändern will, legt ein Produkt aus dem Katalog an.
+    // ── WARUM `country` HIER (NOCH) NICHT STEHT (20.08.2026) ─────────────
+    // Der Auftrag nennt Land und Geburtsdatum. `updateCustomerContact`
+    // (fiaon-agent.ts) verarbeitet aber nur firstName, lastName, email, phone,
+    // street, zip, city — `country` und `birthdate` werden dort stillschweigend
+    // verworfen. Sie hier zu erlauben haette ein Feld angeboten, das „ok"
+    // meldet und nichts tut. Das ist die Fehlerklasse, die dieses Repo an sechs
+    // Stellen beseitigt hat; sie wird nicht an einer siebten eingebaut.
+    //
+    // `birthdate` steht in der Liste, weil es dort schon stand — auch es wird
+    // von der Schreibfunktion nicht verarbeitet und ist im Report benannt.
     const erlaubt = ["firstName", "lastName", "email", "phone", "street", "zip", "city", "birthdate"];
     const koerper: any = {};
     const abgelehnt: string[] = [];

@@ -124,6 +124,21 @@ const KARTE_SQL = `
   ${sendeGrundSql("p")} AS sende_grund,
   -- Welche Pflichtfelder fehlen? Wörtlich in die Karte, statt „im Formular".
   ${fehlendeFelderSql("p")} AS fehlende_felder,
+  -- ── DER TERMIN AN DER ZEILE (20.08.2026) ───────────────────────────────
+  -- Fuer Onboarding ist der Termin die Arbeit. Die Uhrzeit gehoert an die
+  -- Karte, sonst muss man fuer jede Zeile in den Kalender wechseln.
+  (SELECT t.beginn FROM fiaon_termine t
+    WHERE t.person_id = p.id AND t.abgesagt_am IS NULL
+    ORDER BY ABS(EXTRACT(EPOCH FROM (t.beginn - NOW()))) LIMIT 1) AS termin_beginn,
+  (SELECT t.status FROM fiaon_termine t
+    WHERE t.person_id = p.id AND t.abgesagt_am IS NULL
+    ORDER BY ABS(EXTRACT(EPOCH FROM (t.beginn - NOW()))) LIMIT 1) AS termin_status,
+  (SELECT t.dauer_min FROM fiaon_termine t
+    WHERE t.person_id = p.id AND t.abgesagt_am IS NULL
+    ORDER BY ABS(EXTRACT(EPOCH FROM (t.beginn - NOW()))) LIMIT 1) AS termin_dauer_min,
+  (SELECT t.erledigt_am FROM fiaon_termine t
+    WHERE t.person_id = p.id AND t.abgesagt_am IS NULL
+    ORDER BY ABS(EXTRACT(EPOCH FROM (t.beginn - NOW()))) LIMIT 1) AS termin_erledigt_am,
   (SELECT a.amount_due FROM fiaon_applications a
     WHERE a.person_id = p.id AND a.merged_into IS NULL
     ORDER BY a.created_at DESC LIMIT 1) AS amount_due,
@@ -250,6 +265,18 @@ export function karte(p: any) {
       status: p.zahlungsstatus || null,
       ref: p.ref || null,
     },
+    // ── DER TERMIN AN DER ZEILE (20.08.2026) ─────────────────────────────
+    // Fuer Onboarding ist er die Arbeit. Uhrzeit und Art gehoeren an die Karte,
+    // sonst muss man fuer jede Zeile in den Kalender wechseln.
+    termin: p.termin_beginn
+      ? {
+        beginn: p.termin_beginn,
+        status: p.termin_status ?? null,
+        dauerMin: p.termin_dauer_min == null ? null : Number(p.termin_dauer_min),
+        erledigt: p.termin_erledigt_am != null,
+        art: "Startgespräch",
+      }
+      : null,
   };
 }
 
@@ -443,6 +470,33 @@ router.get("/agent/start", requireAgent, async (req: AgentRequest, res: Response
 // Antwort in derselben Liste, in der auch gearbeitet wird.
 // ═══════════════════════════════════════════════════════════════════════════
 type Sortierung = "arbeit" | "neu" | "betrag" | "name";
+
+/**
+ * Die Reihenfolge fuer ONBOARDING (20.08.2026).
+ *
+ * Nicht die Vertriebs-Rangfolge (Zusagen, Rueckrufe, Stufen) — die passt hier
+ * nicht: Onboarding arbeitet einen TAG ab, und der Tag hat Uhrzeiten.
+ *
+ *   1 Termin HEUTE, nach Uhrzeit aufsteigend — der naechste zuerst
+ *   2 kommende Termine, der naechste zuerst
+ *   3 vergangene OHNE Ergebnis (erledigt_am IS NULL) — die Nacharbeit
+ *   4 alles uebrige
+ */
+const ORDNUNG_ONBOARDING = `
+  CASE
+    WHEN q.termin_beginn IS NULL THEN 5
+    WHEN (q.termin_beginn AT TIME ZONE 'Europe/Berlin')::date
+         = (NOW() AT TIME ZONE 'Europe/Berlin')::date THEN 1
+    WHEN q.termin_beginn > NOW() THEN 2
+    WHEN q.termin_erledigt_am IS NULL THEN 3
+    ELSE 4
+  END,
+  CASE
+    WHEN q.termin_beginn >= (NOW() AT TIME ZONE 'Europe/Berlin')::date
+      THEN q.termin_beginn
+    ELSE NULL
+  END ASC NULLS LAST,
+  q.termin_beginn DESC NULLS LAST`;
 
 const ORDNUNG: Record<Sortierung, string> = {
   // Arbeitsreihenfolge — die fachliche Rangfolge, in SQL gegossen:
@@ -641,8 +695,42 @@ router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: R
     // ══════════════════════════════════════════════════════════════════════
     const nurPerson = req.query.person ? Number(req.query.person) : null;
 
+    // ══════════════════════════════════════════════════════════════════════
+    // ONBOARDING IST NIE BETREUER — UND SAH DESHALB „0 KUNDEN" (20.08.2026)
+    //
+    // ── DER BEFUND ────────────────────────────────────────────────────────
+    // Viktoria Reichert und Rifka Rovcanin haben heute Startgespräche und sehen
+    // eine leere Kundenliste. GEMESSEN:
+    //
+    //   Rifka Rovcanin    Betreuer bei  0 Kunden ·  15 Termine ·  5 HEUTE
+    //   Viktoria Reichert Betreuer bei  0 Kunden ·   6 Termine ·  5 HEUTE
+    //
+    // Zwei Gründe, beide hier:
+    //   1. `p.assigned_agent_id = $1` — die Betreuung liegt beim VERTRIEB.
+    //      Onboarding wird nie eingetragen, also ist die Menge immer leer.
+    //   2. Selbst mit richtiger Zuordnung hätte der Tier-Filter unten
+    //      (`priority_tier BETWEEN 1 AND 3`) sie geleert: Ein Kunde im
+    //      Onboarding HAT bezahlt und steht damit auf Tier 0.
+    //
+    // ── WAS ONBOARDING STATTDESSEN SIEHT ──────────────────────────────────
+    // Die Menschen, mit denen sie sprechen: Kunden mit einem Startgespräch-
+    // Termin bei DIESEM Mitarbeiter — offen, heute, oder in den letzten
+    // 14 Tagen. Die Grenze bleibt eine WHERE-Bedingung (AGENTS.md): Ein
+    // Onboarder sieht keinen fremden Kunden, weil `t.agent_id = $1` steht.
+    // ══════════════════════════════════════════════════════════════════════
+    const { istOnboarding } = await import("./fiaon-onboarding-bereich");
+    const onboarding = await istOnboarding(me);
+
+    const ONBOARDING_ZUSTAENDIG = `EXISTS (
+      SELECT 1 FROM fiaon_termine t
+       WHERE t.person_id = p.id AND t.agent_id = $1
+         AND t.abgesagt_am IS NULL
+         AND (t.beginn AT TIME ZONE 'Europe/Berlin')::date
+             >= (NOW() AT TIME ZONE 'Europe/Berlin')::date - INTERVAL '14 days'
+    )`;
+
     const wo: string[] = [
-      "p.assigned_agent_id = $1",
+      onboarding ? ONBOARDING_ZUSTAENDIG : "p.assigned_agent_id = $1",
       "p.merged_into_person_id IS NULL",
       // Testeinträge sind keine Kunden (server/lib/fiaon-testerkennung.ts).
       "p.ist_test_am IS NULL",
@@ -652,6 +740,16 @@ router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: R
     // durch Menschen, die schon gezahlt haben.
     if (filter === "bezahlt") wo.push("p.priority_tier = 0");
     else if (filter === "gesperrt") wo.push("p.is_blocked");
+    // ── ONBOARDING KENNT KEINE STUFEN ──────────────────────────────────────
+    // Der Zweig unten schraenkt auf `priority_tier BETWEEN 1 AND 3` ein — also
+    // auf Menschen mit offener Arbeit im VERTRIEB. Ein Kunde im Onboarding hat
+    // bezahlt und steht auf Tier 0; er waere hier wieder herausgefallen, und die
+    // Liste bliebe leer. Der Termin IST die Arbeit, nicht die Stufe.
+    else if (onboarding) {
+      // Gesperrte bleiben draussen — mit einem gesperrten Konto kann man kein
+      // Startgespraech fuehren.
+      wo.push("NOT p.is_blocked");
+    }
     else {
       wo.push("p.priority_tier BETWEEN 1 AND 3", "NOT p.is_blocked");
       if (filter === "tier1") wo.push("p.priority_tier = 1");
@@ -769,6 +867,7 @@ router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: R
     // kostet die Liste drei Wege zur Datenbank statt einem (siehe Startseite).
     const [rows, zR, rueckrufR] = await Promise.all([
       sqlPool.unsafe(`
+      ${onboarding ? "SELECT * FROM (" : ""}
       SELECT ${KARTE_SQL}
       FROM fiaon_persons p
       WHERE (${wo.join(" AND ")}${nurPerson && Number.isFinite(nurPerson)
@@ -779,8 +878,19 @@ router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: R
              OR EXISTS (SELECT 1 FROM fiaon_applications a7 WHERE a7.person_id = p.id
                           AND (a7.ref ILIKE '%' || $2 || '%'
                                OR COALESCE(a7.payment_reference, '') ILIKE '%' || $2 || '%')))
-      ORDER BY ${ORDNUNG[sort]}
-      LIMIT ${limit}
+      ${onboarding
+        // ── EINE HUELLE, WEIL ALIASE IM ORDER BY NICHT GEHEN (20.08.2026) ──
+        // Erster Entwurf sortierte direkt ueber `termin_beginn`. Die Route
+        // antwortete mit HTTP 500: `column "t_beginn" does not exist`. In
+        // PostgreSQL ist ein Alias aus der SELECT-Liste im ORDER BY nur als
+        // BLANKER Name erlaubt, nicht in einem CASE-Ausdruck. Der Hinweis stand
+        // in meinem eigenen Kommentar zwei Zeilen darueber.
+        //
+        // Die Unterabfragen im ORDER BY zu wiederholen waere der andere Weg und
+        // der langsamere: Sie liefen zweimal je Zeile, und die Abfrage brauchte
+        // schon knapp drei Sekunden. Eine Huelle rechnet sie einmal.
+        ? `) q ORDER BY ${ORDNUNG_ONBOARDING} LIMIT ${limit}`
+        : `ORDER BY ${ORDNUNG[sort]} LIMIT ${limit}`}
     `, [me, q]),
       // Zähler für die Filter-Chips — in EINER Abfrage, damit die Chips nicht
       // zehn Anfragen kosten.
@@ -898,11 +1008,40 @@ router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: R
     const z = (zR as any[])[0] || {};
     const rueckrufZahl = (rueckrufR as any[])[0] || { c: 0 };
 
+    // ── DER LEERZUSTAND MUSS WISSEN, WER FRAGT (20.08.2026) ──────────────
+    // „Dir ist gerade kein Kunde zugewiesen" ist fuer Onboarding schlicht
+    // falsch: Ihnen wird NIE ein Kunde zugewiesen, sie haben Termine. Der Satz
+    // hat Viktoria und Rifka glauben lassen, es gaebe keine Arbeit — waehrend
+    // fuenf Startgespraeche im Kalender standen.
+    let naechsterTermin: string | null = null;
+    if (onboarding) {
+      const [t] = (await sqlPool`
+        SELECT beginn FROM fiaon_termine
+         WHERE agent_id = ${me} AND abgesagt_am IS NULL AND erledigt_am IS NULL
+           AND beginn >= NOW() - INTERVAL '2 hours'
+         ORDER BY beginn LIMIT 1
+      `.catch(() => [] as any[])) as any[];
+      naechsterTermin = t?.beginn ?? null;
+    }
+
     res.json({
       ok: true,
       anzahl: rows.length,
       sort,
       filter,
+      /** Die Anzeige braucht die Rolle für den richtigen Leerzustand. */
+      rolle: onboarding ? "onboarding" : "agent",
+      naechsterTermin,
+      // ── DER ZAEHLER MUSS DIESELBE MENGE ZAEHLEN WIE DIE LISTE ZEIGT ──────
+      // Die Zaehler-Abfrage unten filtert weiter auf `assigned_agent_id` — fuer
+      // Onboarding also auf 0. Im Screenshot stand ueber einer Liste mit drei
+      // Startgespraechen weiter „0 Kunden gehoeren dir" und der Chip „Alle 0".
+      // Das ist genau der Satz, mit dem der Ausfall gemeldet wurde; ihn stehen
+      // zu lassen haette den Fix verdeckt.
+      //
+      // Die Lehre steht seit dem 11.08.2026 in dieser Datei: „Die Zaehler
+      // muessen dieselbe Menge zaehlen wie die Liste zeigt."
+      zaehlerUeberschrieben: onboarding ? { alle: rows.length } : null,
       zaehler: {
         alle: z.alle, tier1: z.tier1, rechnung_offen: z.rechnung_offen,
         rechnung_stellen: z.rechnung_stellen,

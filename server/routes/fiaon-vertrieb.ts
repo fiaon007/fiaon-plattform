@@ -73,6 +73,56 @@ async function nurLeitung(req: AgentRequest, res: Response, next: any) {
 }
 
 /**
+ * Leitung ODER Onboarding — und Onboarding nur bei EIGENEM Termin (20.08.2026).
+ *
+ * ── DER BEFUND ─────────────────────────────────────────────────────────────
+ * Onboarding sah „0 Kunden" und kam auch an keine Akte: `nurLeitung` antwortet
+ * mit 404. Gemessen: Viktoria Reichert und Rifka Rovcanin haben heute je fünf
+ * Startgespräche und konnten die Akte des Menschen nicht öffnen, mit dem sie in
+ * zehn Minuten sprechen.
+ *
+ * ── DIE GRENZE BLEIBT EINE ABFRAGE, KEINE ROLLE ────────────────────────────
+ * Ein Onboarder darf NICHT den ganzen Bestand sehen. Er darf die Akte der
+ * Menschen sehen, mit denen er einen Termin hat — dieselbe Menge, die seine
+ * Arbeitsliste zeigt. Deshalb wird hier die Kennung des Kunden gegen die
+ * Termine geprüft, und zwar in der Datenbank.
+ *
+ * Die Verpflichtungserklärung (`nurMitZusage`) gilt für die Vertriebsleitung:
+ * Sie sieht den GESAMTEN Bestand. Onboarding sieht nur seine Terminkunden und
+ * braucht sie deshalb nicht — sonst stünde ein Onboarder vor einem Rechtsdokument
+ * über eine Befugnis, die er nicht hat.
+ */
+async function leitungOderOnboarding(req: AgentRequest, res: Response, next: any) {
+  if (await istVertriebsleiter(req.agent!.id)) return nurMitZusage(req, res, next);
+  const { istOnboarding } = await import("./fiaon-onboarding-bereich");
+  if (!(await istOnboarding(req.agent!.id))) {
+    return res.status(404).json({ ok: false, error: "Nicht gefunden" });
+  }
+  const personId = Number(req.params.id);
+  if (!Number.isFinite(personId) || personId <= 0) {
+    return res.status(400).json({ ok: false, error: "Ungültige Kennung." });
+  }
+  const [treffer] = (await sqlPool`
+    SELECT 1 AS da FROM fiaon_termine
+     WHERE person_id = ${personId} AND agent_id = ${Number(req.agent!.id)}
+       AND abgesagt_am IS NULL
+       AND (beginn AT TIME ZONE 'Europe/Berlin')::date
+           >= (NOW() AT TIME ZONE 'Europe/Berlin')::date - INTERVAL '14 days'
+     LIMIT 1
+  `.catch(() => [] as any[])) as any[];
+  if (!treffer) {
+    // 403 mit Grund, nicht 404: Der Onboarder DARF wissen, dass es die Akte
+    // gibt — ihm fehlt der Termin. Eine 404 ließe ihn glauben, der Kunde sei weg.
+    return res.status(403).json({
+      ok: false,
+      error: "Diese Akte gehört nicht zu einem deiner Startgespräche. Du siehst die "
+        + "Akte der Menschen, mit denen du einen Termin hast.",
+    });
+  }
+  return next();
+}
+
+/**
  * Zweiter Torwächter: die angenommene Verpflichtungserklärung.
  *
  * Hier ist 403 richtig und 404 falsch — anders als bei der Rolle. Wer
@@ -553,7 +603,7 @@ router.post("/agent/vertrieb/person/:id/sperre", requireAgent, nurLeitung, nurMi
 // ───────────────────────────────────────────────────────────────────────────
 // GET /agent/vertrieb/person/:id — die Akte
 // ───────────────────────────────────────────────────────────────────────────
-router.get("/agent/vertrieb/person/:id", requireAgent, nurLeitung, nurMitZusage, async (req: AgentRequest, res: Response) => {
+router.get("/agent/vertrieb/person/:id", requireAgent, leitungOderOnboarding, async (req: AgentRequest, res: Response) => {
   try {
     const id = Number(req.params.id);
     const [p] = await sqlPool.unsafe(`
@@ -751,7 +801,7 @@ router.get("/agent/vertrieb/zahlungen", requireAgent, nurLeitung, nurMitZusage, 
 });
 
 /** Die Lage EINES Kunden: Zahlung mit Bankeingängen, Dokumente, Zugang. */
-router.get("/agent/vertrieb/person/:id/lage", requireAgent, nurLeitung, nurMitZusage, async (req: AgentRequest, res: Response) => {
+router.get("/agent/vertrieb/person/:id/lage", requireAgent, leitungOderOnboarding, async (req: AgentRequest, res: Response) => {
   try {
     const id = Number(req.params.id);
     const [p] = await sqlPool`

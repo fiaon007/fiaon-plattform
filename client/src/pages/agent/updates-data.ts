@@ -84,6 +84,50 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-20-akte-behoben",
+    date: "2026-08-20",
+    category: "Behoben",
+    title: "Die Kundenakte öffnet wieder — und kann nie mehr leer bleiben",
+    summary:
+      "Heute ging die Kundenakte bei keinem Kunden mehr auf. Der Fehler ist "
+      + "behoben, die Ursache benannt, und es gibt jetzt eine Wand, die diese "
+      + "Fehlerart vor der Auslieferung stoppt.",
+    changes: [
+      "WAS PASSIERT IST: Ein Programmierfehler in der Akten-Schublade — eine "
+      + "Zeile stand an der falschen Stelle. Die Folge war, dass die Akte beim "
+      + "Öffnen abstürzte, sobald die Daten geladen waren. Bei JEDEM Kunden.",
+
+      "SEIT WANN: Der Fehler war schon älter, aber er zeigte sich als WEISSES "
+      + "FENSTER — genau das, was am 19.08. gemeldet wurde. Seit die Akte einen "
+      + "Fehlerrahmen hat, steht der Grund lesbar da statt einer leeren Fläche. "
+      + "Deshalb war er heute in zwanzig Minuten zu finden.",
+
+      "DEINE DATEN WAREN NIE IN GEFAHR. Es war ein Anzeigefehler: Die Akte "
+      + "konnte nicht gezeichnet werden. Kunden, Zahlungen, Verläufe und Notizen "
+      + "lagen unverändert in der Datenbank.",
+
+      "NEU — DER NOTWEG: Wenn eine Ansicht wieder einmal scheitert, steht im "
+      + "Fehlerkasten jetzt zusätzlich, WELCHE Ansicht es war, und es gibt den "
+      + "Knopf „Als Liste öffnen“. Er zeigt Name, Telefon, E-Mail, Referenz, "
+      + "Stand und Betreuer — genug, um weiterzuarbeiten und zu telefonieren. "
+      + "Ein Anzeigefehler soll dir nie wieder den Zugriff auf Kundendaten kosten.",
+
+      "DIE WAND: Diese Fehlerart wird ab jetzt beim Bauen der Anwendung "
+      + "erkannt. Die Auslieferung bricht ab, wenn sie auftritt — sie kann also "
+      + "nicht mehr bei euch landen. Geprüft wird das bei jeder Auslieferung, "
+      + "zusätzlich öffnet ein automatischer Test die Akte von drei echten "
+      + "Kunden am Bildschirm und am Handy.",
+    ],
+    howto: [
+      "Nichts zu tun. Falls die Akte bei dir noch nicht aufgeht: Seite einmal "
+      + "neu laden (Strg+Umschalt+R beziehungsweise auf dem Handy die Seite neu "
+      + "aufrufen) — dann ist die neue Fassung da.",
+      "Wenn wieder ein Fehlerkasten erscheint: den Satz darin abschreiben oder "
+      + "abfotografieren und weitergeben. Er nennt die Ursache.",
+    ],
+    important: true,
+  },
+  {
     id: "2026-08-20-verguetungsmodell",
     date: "2026-08-20",
     category: "Neu",

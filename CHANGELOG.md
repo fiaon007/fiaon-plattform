@@ -5,6 +5,115 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 20.08.2026 — NOTFALL: die Kundenakte öffnete bei keinem Kunden mehr
+
+React #310, „Rendered more hooks than during the previous render". Das ganze Team
+stand.
+
+### Die Ursache — Datei, Zeile, Haken, Commit
+
+| | |
+|---|---|
+| Datei | `client/src/pages/agent/vertrieb.tsx`, Bauteil `Akte` |
+| Zeile | 940 (vorher) |
+| Haken | `const [bestaetigen, setBestaetigen] = useState(false)` |
+| Commit | **`e675efa`** („falsches Paket in der Zahlungsdaten-Mail") |
+
+Der Haken stand rund 200 Zeilen **nach** zwei frühen Ausstiegen:
+
+```js
+if (daten.fehler || (!daten.laedt && !p)) return …   // Fehlerkarte
+if (daten.laedt || !p) return …                      // Ladezustand
+```
+
+Die Schublade öffnet mit `setAkte({ laedt: true, personId })`. Also:
+
+| Durchgang | Zustand | Haken |
+|---|---|---|
+| 1 | `laedt = true` | Ausstieg oben → **9** |
+| 2 | Daten da | läuft durch → **10** → Absturz |
+
+### Warum es erst jetzt sichtbar wurde — und was das bedeutet
+
+Zwischen `e675efa` und `6a4f04e` gab es **keine Fehlerwand** um die Akte. React
+entmountet bei diesem Fehler den Baum: die Seite wurde **weiß**.
+
+Das ist genau die Meldung vom 19.08. — *„die Kundenakte lässt sich nicht öffnen,
+es werden keine Inhalte angezeigt"*. Ich habe damals den Fehlerrahmen gebaut und
+vier Ladezustände ohne Fehlerweg behoben. Alles richtig, aber **die eigentliche
+Ursache war dieser Haken, und ich habe ihn nicht gesucht.** Der Fehlerrahmen hat
+ihn jetzt aus dem Weiß geholt und beim Namen genannt — dass der Notfall heute
+eine Fehlermeldung statt einer weißen Fläche zeigte, ist der Grund, warum er in
+zwanzig Minuten zu finden war.
+
+Es war die **dritte** Wiederholung derselben Klasse (zweimal `Softphone.tsx`).
+
+### Die Wand
+
+`eslint.config.js` mit **`react-hooks/rules-of-hooks` als `error`**, und
+`npm run build` fängt damit an:
+
+```
+npm run haken     # eslint client/src
+npm run build     # npm run haken && vite build && …
+```
+
+Ein Verstoß **bricht ab jetzt den Build ab** statt in Produktion zu erscheinen.
+
+**Verstöße im Repo: 1 gefunden** — `client/src/components/dev/nav-stress.tsx`,
+ein `useEffect` nach `if (!isDebugEnabled) return null`. Behoben, **jetzt 0.**
+Ein Entwickler-Werkzeug, das nie im Weg war — trotzdem behoben: Eine Wand mit
+einer geduldeten Ausnahme ist keine Wand.
+
+Nur **eine** Regel, mit Absicht: Ein Regelwerk über 700 gewachsene Dateien liefert
+hunderte Meldungen, und ein Prüfstand mit hunderten Meldungen wird beim dritten
+Mal abgeschaltet (dieselbe Lehre wie bei der verworfenen
+Anführungszeichen-Prüfung: 365 Fehlalarme). Diese Regel hat keine Fehlalarme.
+
+**Rot-Probe:** Haken zurück hinter den Ausstieg geschoben →
+
+```
+error  React Hook "useState" is called conditionally … Did you accidentally
+       call a React Hook after an early return?   react-hooks/rules-of-hooks
+```
+
+Die Wand hätte den Notfall verhindert, und ihre Meldung nennt die Ursache.
+
+### Sofort-Absicherung: der Notweg
+
+Der Fehlerrahmen nennt jetzt zusätzlich die **gescheiterte Ansicht** („die
+Akten-Schublade") und bietet **„Als Liste öffnen"**: Name, Telefon, E-Mail,
+Referenz, Stand, Produkt, Betreuer. Die Kerndaten kommen aus der **Liste**, nicht
+aus der Akte — sie liegen also auch dann vor, wenn die Akte gar nicht rendert.
+Ein Renderfehler kostet damit nie wieder den Zugriff auf Kundendaten.
+
+### Prüfstand
+
+`pruef-akte-haken` (**22 ok**): keine Haken-Verstöße · die Regel hängt im Build ·
+sie ist `error` · der Haken steht vor dem Ausstieg · **drei echte Kunden, Akte
+geöffnet, Desktop und 380 px, Konsole frei von React-Fehlern** · Notweg vorhanden.
+
+### Drei Irrwege, die der Prüfstand selbst erzeugt hat
+
+1. **`p.email` gibt es nicht** — die Spalte heißt `primary_email`. An
+   `information_schema` gemessen statt geraten.
+2. **Die eigene Attrappe schluckte den Login.** Ein Sammel-Abfang über alle
+   schreibenden Aufrufe antwortete `ok: true` ohne Sitzungs-Cookie; die Seite
+   blieb leer und der Lauf meldete „Liste nicht geladen".
+3. **Die Seite war weiß, obwohl der Code heil war:**
+   `504 Outdated Optimize Dep`. Meine ESLint-Installation hatte Vites
+   Abhängigkeits-Cache invalidiert. `rm -rf node_modules/.vite`. Der Browsertest
+   läuft jetzt gegen den **gebauten** Client — das ist auch, was Produktion
+   ausführt.
+
+Und einmal die Falle aus AGENTS.md am eigenen Werk: Meine Attrappe lieferte
+`punkte: []` — ein Feld, das der Server nicht hat — und ließ `ablauf` weg.
+Ergebnis: *„Cannot read properties of undefined (reading 'antrag')"*, ein Fehler,
+den die Anwendung nicht hat. Der Fehlerrahmen hat ihn gefangen und benannt; die
+Feldnamen sind jetzt an der echten Route abgelesen.
+
+---
+
 ## 20.08.2026 — Ausgezahlt ohne Beleg: die Wand stand an der falschen Stelle
 
 **Befund aus Produktion:** `FIAON-COM-2026-0011` (Nikita Boychenko, 386,40 €,

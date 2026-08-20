@@ -110,6 +110,38 @@ async function attrappen(kontext: BrowserContext, kunden: any[]): Promise<void> 
       body: JSON.stringify({ ok: true, personen: kunden }),
     });
   });
+  // ── DIE ABGELEITETE STUFE ─────────────────────────────────────────────
+  // Die Akte holt sie in einem EIGENEN Aufruf. Beim ersten Lauf fehlte sie in
+  // der Attrappe: Die Akte ging auf, aber der Reiter „Lage" zeigte drei
+  // Skelettbalken — und ein Screenshot mit halb leerer Akte beweist nicht, dass
+  // sie funktioniert. AGENTS.md: „Eine Attrappe muss liefern, was der Server
+  // liefert."
+  await kontext.route("**/api/fiaon/kunde/*/startgespraech", async (r) => {
+    await r.fulfill({
+      status: 200, contentType: "application/json",
+      // Die Feldnamen sind an der ECHTEN Route abgelesen
+      // (server/routes/fiaon-startgespraech.ts, res.json ab Zeile 188) und die
+      // Form von `ablauf` an `server/lib/fiaon-kundenstufe.ts` (AblaufStand).
+      // Der erste Entwurf gab `punkte: []` — ein Feld, das es nicht gibt — und
+      // liess `ablauf` weg. Ergebnis: „Cannot read properties of undefined
+      // (reading 'antrag')", also ein Fehler, den die Anwendung nicht hat.
+      body: JSON.stringify({
+        ok: true,
+        stufe: "rechnung_offen",
+        stufenGrund: "Antrag vollständig, Zahlung nicht bankbestätigt",
+        naechsterSchritt: "Rechnung nachfassen",
+        ablauf: {
+          antrag: true, zahlung: false, startgespraech: false,
+          auskunft: false, vollAktiv: false, aboLaeuft: false,
+        },
+        auskunftBezahlt: false, ausnahme: null,
+        faellig: false, banner: false, pflicht: false,
+        vorname: "Prüf", nachname: "Fall", email: null,
+        termin: null, erledigt: false, vollAktiv: false, token: null,
+      }),
+    });
+  });
+
   // ── DIE AKTE: ERST LÄDT SIE, DANN KOMMEN DATEN ─────────────────────────
   // Genau diese Folge hat den Absturz erzeugt (Durchgang 1 ohne `person`,
   // Durchgang 2 mit). Die Attrappe stellt sie ABSICHTLICH her — mit einer
@@ -218,8 +250,13 @@ async function main(): Promise<void> {
       const t = m.text();
       if (/Rendered more hooks|Minified React error|#310|Rules of Hooks/i.test(t)) reactFehler.push(t);
     });
-    await page.request.post(`${BASIS}/api/fiaon/agent/login`, { data: { email: mail, password: pass } })
-      .catch(() => null);
+    // Die Anmeldung über den KONTEXT, damit das Cookie im Browser landet — und
+    // ihr Ergebnis wird geprüft. Beim ersten Lauf blieb die Seite leer, und der
+    // Prüfstand meldete „Liste nicht geladen", obwohl die Anmeldung das Problem war.
+    const an = await kontext.request.post(`${BASIS}/api/fiaon/agent/login`,
+      { data: { email: mail, password: pass } }).catch(() => null);
+    ok(`[${name}] Das Testkonto ist angemeldet`, an != null && an.ok(),
+      `HTTP ${an?.status()} — ohne Anmeldung rendert die Agent-Seite nichts`);
     await page.goto(`${BASIS}/agent/vertrieb`, { waitUntil: "domcontentloaded" });
 
     const zeileDa = await page.getByText(new RegExp(String(kunden[0].name).slice(0, 12), "i")).first()

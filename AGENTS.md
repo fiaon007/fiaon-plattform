@@ -229,6 +229,35 @@ Gefunden hat es der Screenshot der Browser-Abnahme.
 Deshalb: Neue `useState`/`useEffect` immer zu den anderen Haken oben in die
 Komponente, nie an die Stelle, wo man sie gerade braucht.
 
+**Am 20.08.2026 zum dritten Mal — diesmal stand das Team.** In
+`client/src/pages/agent/vertrieb.tsx` lag `const [bestaetigen, setBestaetigen] =
+useState(false)` rund 200 Zeilen unter zwei frühen Ausstiegen. Die Kundenakte ging
+bei **keinem** Kunden mehr auf. Und weil es die Klasse zum dritten Mal war, ist
+sie jetzt keine Erinnerung mehr, sondern eine **Wand**:
+
+```
+npm run haken     # eslint client/src, Regel react-hooks/rules-of-hooks
+npm run build     # fängt damit an — ein Verstoß bricht den Build ab
+```
+
+`eslint.config.js` aktiviert genau **eine** Regel, als `error`. Kein
+Regelwerk über 700 gewachsene Dateien: Ein Prüfstand mit hundert Meldungen wird
+beim dritten Mal abgeschaltet. Diese Regel hat keine Fehlalarme (sie liest den
+Syntaxbaum) und ihre Meldung nennt die Ursache im Klartext: *„Did you accidentally
+call a React Hook after an early return?"*
+
+Zwei Dinge, die dabei auffielen und Zeit kosten, wenn man sie nicht kennt:
+
+- **Ein Haken-Fehler OHNE Fehlerwand ergibt eine weiße Seite**, keine
+  Fehlermeldung — React entmountet den Baum. Der Befund „weißes Fenster" vom
+  19.08. war genau dieser Haken; ich habe damals vier Ladezustände repariert und
+  die Ursache nicht gefunden. Wer „weiß" sieht, sucht zuerst nach einem Haken
+  hinter einem `return`.
+- **Nach `npm install` ist Vites Abhängigkeits-Cache veraltet**
+  (`504 Outdated Optimize Dep`) — die Seite bleibt weiß, obwohl der Code heil
+  ist. `rm -rf node_modules/.vite` und neu starten. Ein Browsertest, der das
+  nicht weiß, meldet einen Fehler, den es nicht gibt.
+
 ## Eine Attrappe muss liefern, was der Server liefert
 
 Am 18.08.2026 zeigte ein Browsertest die Terminwahl mit dem Satz „Wähl eine Zeit

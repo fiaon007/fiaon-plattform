@@ -730,8 +730,36 @@ function Inhalt() {
           umbenanntes Feld. Scheitert die Akte beim Zeichnen, zeigt der Rahmen
           eine Karte mit dem Grund — und die Kundenliste dahinter bleibt heil.
           ══════════════════════════════════════════════════════════════════ */}
+      {/* ── DER NOTWEG (20.08.2026) ──────────────────────────────────────
+          Am 20.08. hat ein Haken-Fehler die Akte für ALLE Kunden zerstört. Der
+          Rahmen nannte den Grund, aber das Team kam an die Kundendaten nicht
+          mehr heran — und konnte nicht einmal telefonieren.
+
+          Die Kerndaten kommen aus der LISTE, nicht aus der Akte: Sie liegen
+          schon geladen vor (`personen`), sind also auch dann da, wenn die Akte
+          gar nicht rendert. Genau das macht sie zum Notweg.
+
+          (Ein JSX-Kommentar direkt nach `{akte && (` ist ein Syntaxfehler — er
+          gehört VOR die Bedingung. Beim ersten Versuch stand er darin.) */}
       {akte && (
-        <Fehlerrahmen was="Die Kundenakte" onSchliessen={() => setAkte(null)}>
+        <Fehlerrahmen was="Die Kundenakte" ansicht="die Akten-Schublade"
+                      onSchliessen={() => setAkte(null)}
+                      notweg={(() => {
+                        const z = personen.find((x) => x.personId === akte?.personId);
+                        if (!z) return null;
+                        return {
+                          titel: `${z.name} — Kerndaten aus der Liste`,
+                          zeilen: [
+                            { feld: "Name", wert: z.name },
+                            { feld: "Telefon", wert: z.telefon },
+                            { feld: "E-Mail", wert: z.email },
+                            { feld: "Referenz", wert: z.ref ?? null },
+                            { feld: "Stand", wert: z.tierGrund ?? null },
+                            { feld: "Produkt", wert: z.produkt ?? null },
+                            { feld: "Betreuer", wert: z.betreuerName ?? z.agentName ?? null },
+                          ],
+                        };
+                      })()}>
           <Akte daten={akte} onSchliessen={() => setAkte(null)}
                 onGeaendert={() => { void ladeListe(true); void ladeKopf(); }} />
         </Fehlerrahmen>
@@ -758,6 +786,38 @@ function Akte({ daten, onSchliessen, onGeaendert }: { daten: any; onSchliessen: 
   const [loeschFrage, setLoeschFrage] = useState(false);
   const [zugangStand, setZugangStand] = useState<any>(null);
   const [form, setForm] = useState<Record<string, string>>({});
+  // ══════════════════════════════════════════════════════════════════════════
+  // DIESER HAKEN STAND 200 ZEILEN TIEFER — UND HAT DIE AKTE ZERSTÖRT
+  //
+  // ── DER FEHLER (React #310, gemeldet 20.08.2026) ─────────────────────────
+  // „Rendered more hooks than during the previous render." Die Kundenakte ging
+  // bei KEINEM Kunden mehr auf.
+  //
+  // `const [bestaetigen, setBestaetigen] = useState(false)` stand bei Zeile 940,
+  // also NACH zwei frühen Ausstiegen:
+  //     if (daten.fehler || (!daten.laedt && !p)) return …   (Fehlerkarte)
+  //     if (daten.laedt || !p) return …                      (Ladezustand)
+  //
+  // Die Schublade öffnet mit `setAkte({ laedt: true, personId })`. Also:
+  //   Durchgang 1 — laedt=true  → Ausstieg oben  → 9 Haken
+  //   Durchgang 2 — Daten da    → läuft durch    → 10 Haken  → Absturz
+  //
+  // ── SEIT WANN, UND WARUM ES ERST JETZT AUFFIEL ──────────────────────────
+  // Der Haken kam mit `e675efa` („falsches Paket in der Zahlungsdaten-Mail"),
+  // also VOR dem Fehlerrahmen. Zwischen e675efa und 6a4f04e gab es keine
+  // Fehlerwand um die Akte: React entmountet bei diesem Fehler den Baum, und die
+  // Seite wurde WEISS.
+  //
+  // Das ist genau die Meldung „die Kundenakte lässt sich nicht öffnen, es werden
+  // keine Inhalte angezeigt" vom 19.08. Ich habe damals den Fehlerrahmen gebaut
+  // und vier Ladezustände ohne Fehlerweg behoben — alles richtig, aber die
+  // EIGENTLICHE Ursache war dieser Haken, und ich habe ihn nicht gesucht. Der
+  // Fehlerrahmen hat ihn jetzt aus dem Weiß geholt und beim Namen genannt.
+  //
+  // AGENTS.md sagt es seit dem 16.08.: „React-Haken stehen ÜBER dem ersten
+  // return." Es war die dritte Wiederholung derselben Klasse.
+  // ══════════════════════════════════════════════════════════════════════════
+  const [bestaetigen, setBestaetigen] = useState(false);
   const p = daten.person;
 
   // ── DIE ABGELEITETE STUFE ──────────────────────────────────────────────
@@ -937,7 +997,10 @@ function Akte({ daten, onSchliessen, onGeaendert }: { daten: any; onSchliessen: 
   // Dasselbe Bauteil wie in der Kundenkarte. Die Vertriebsleitung sieht die
   // gleiche Vorschau — sie trifft dieselbe Entscheidung und darf nicht weniger
   // wissen als der Agent.
-  const [bestaetigen, setBestaetigen] = useState(false);
+  //
+  // Der zugehörige Haken (`bestaetigen`) steht oben im Haken-Block, NICHT hier:
+  // An dieser Stelle lag er nach zwei frühen Ausstiegen und hat React #310
+  // ausgelöst — die Akte ging bei keinem Kunden mehr auf.
 
   const zahlungsdaten = async (ref: string | null = null) => {
     setBusy(true);

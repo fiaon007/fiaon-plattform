@@ -40,7 +40,22 @@ export function NavStressTest() {
 
   // Check if debug mode is enabled
   const isDebugEnabled = typeof window !== 'undefined' && localStorage.getItem('aras_debug') === '1';
-  
+
+  // ── DER AUFRAEUM-HAKEN STEHT VOR DEM AUSSTIEG (20.08.2026) ──────────────
+  // Er stand 60 Zeilen tiefer, also NACH `if (!isDebugEnabled) return null`.
+  // Damit lief er nur, wenn der Debug-Schalter an war — und beim Umschalten des
+  // Schalters aenderte sich die Zahl der Haken. Dieselbe Klasse, die am
+  // 20.08.2026 die Kundenakte zerstoert hat (React #310).
+  //
+  // Diese Datei ist ein Entwickler-Werkzeug und war nie im Weg. Sie wird
+  // trotzdem behoben: Eine Wand mit einer geduldeten Ausnahme ist keine Wand —
+  // beim naechsten Lauf wuerde jemand die Regel abschalten statt die Zeile.
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
   if (!isDebugEnabled) return null;
 
   const logTransition = (from: string, to: string) => {
@@ -103,12 +118,6 @@ export function NavStressTest() {
       timerRef.current = null;
     }
   };
-
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
-  }, []);
 
   return (
     <motion.div

@@ -625,7 +625,22 @@ router.get("/agent/documents/statement/:id.pdf", requireAgent, async (req: Agent
 // Wird bei bestätigter Auszahlung aufgerufen (fiaon-team.ts mark-paid).
 // Zieht ausschließlich die Werte der Commission-Engine + des Auszahlungssatzes.
 
-export async function generateCommissionStatement(payoutId: number): Promise<{ ok: boolean; statementNo?: string; skipped?: boolean }> {
+/**
+ * Die Abrechnung zu einer Auszahlung anlegen — samt PDF.
+ *
+ * ── DER RÜCKGABEWERT SAGT JETZT, OB DER BELEG DA IST ──────────────────────
+ * Vorher gab die Funktion `{ ok: true }` zurück, auch wenn das PDF gescheitert
+ * war — der Fehler stand nur in der Konsole. Der Aufrufer (die
+ * Auszahlungs-Freigabe) konnte ihn also nicht weitergeben, und genau so entstand
+ * FIAON-COM-2026-0011: ausgezahlt, kein Beleg, niemand informiert.
+ *
+ * `pdfFehlt` und `pdfGrund` gehören deshalb in die Antwort. Die Zeile entsteht
+ * weiterhin — eine Abrechnung ohne PDF ist besser als keine Abrechnung, weil sie
+ * die Nummer und die Positionen festhält und nachträglich gedruckt werden kann.
+ */
+export async function generateCommissionStatement(payoutId: number): Promise<{
+  ok: boolean; statementNo?: string; skipped?: boolean; pdfFehlt?: boolean; pdfGrund?: string;
+}> {
   await ensureOnboardingTables();
   const existing = await sqlPool`SELECT statement_no FROM fiaon_commission_statements WHERE payout_id = ${payoutId}`;
   if (existing.length > 0) return { ok: true, statementNo: existing[0].statement_no, skipped: true };
@@ -742,14 +757,17 @@ export async function generateCommissionStatement(payoutId: number): Promise<{ o
 
   let pdfBase64: string | null = null;
   let hash = docHash(`${statementNo}|${payout.agent_id}|${grossCents}|${netCents}|${JSON.stringify(lines)}`);
+  let pdfGrund: string | undefined;
   try {
     const erg = await abrechnungPdf(daten);
     pdfBase64 = erg.pdf.toString("base64");
     hash = erg.hash;
   } catch (e) {
-    // Ein Beleg ohne PDF ist ein halber Beleg — der Fehler wird MITGESCHRIEBEN
-    // und nicht verschluckt. Die Zeile entsteht trotzdem, damit die Auszahlung
-    // nicht an der Druckmaschine hängt; die Zentrale kann sie neu erzeugen.
+    // Ein Beleg ohne PDF ist ein halber Beleg. Die Zeile entsteht trotzdem
+    // (Nummer und Positionen sind damit festgehalten und nachträglich
+    // druckbar) — aber der Grund GEHT MIT NACH OBEN, damit die Freigabe ihn
+    // dem Menschen zeigen kann. Vorher endete er hier in der Konsole.
+    pdfGrund = e instanceof Error ? e.message : String(e);
     console.error(`[ABRECHNUNG] ${statementNo}: PDF konnte nicht erzeugt werden:`, e);
   }
 
@@ -771,8 +789,9 @@ export async function generateCommissionStatement(payoutId: number): Promise<{ o
     doc_hash: hash,
   }).catch(() => {});
 
-  console.log(`[FIAON-ONBOARDING] Provisions-Abrechnung erzeugt: ${statementNo} (${fmtEurCents(netCents)})`);
-  return { ok: true, statementNo };
+  console.log(`[FIAON-ONBOARDING] Provisions-Abrechnung erzeugt: ${statementNo} `
+    + `(${fmtEurCents(netCents)})${pdfBase64 ? "" : " — OHNE PDF"}`);
+  return { ok: true, statementNo, pdfFehlt: !pdfBase64, pdfGrund };
 }
 
 /**
@@ -789,8 +808,8 @@ export async function generateCommissionStatement(payoutId: number): Promise<{ o
  * aufruft, soll nicht versehentlich einen Beleg überschreiben.
  */
 export async function abrechnungNeuErzeugen(
-  statementId: number,
-): Promise<{ ok: boolean; grund?: string }> {
+  statementId: number, wer = "Verwaltung",
+): Promise<{ ok: boolean; grund?: string; ersterDruck?: boolean }> {
   const [s] = (await sqlPool`
     SELECT s.*, p.status AS auszahlung_status, p.amount_cents, p.processed_at, p.iban_masked,
            ag.name, ag.rolle, ag.email, ag.partner_type, ag.vat_id, ag.tax_id, ag.first_name
@@ -800,11 +819,33 @@ export async function abrechnungNeuErzeugen(
      WHERE s.id = ${statementId}
   `) as any[];
   if (!s) return { ok: false, grund: "Abrechnung nicht gefunden." };
-  if (String(s.auszahlung_status ?? "") === "ausgezahlt") {
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // DIE WAND SCHÜTZT VOR ÜBERSCHREIBEN, NICHT VOR ERSTELLEN (20.08.2026)
+  //
+  // ── DER BEFUND AUS PRODUKTION ────────────────────────────────────────────
+  // FIAON-COM-2026-0011 (386,40 €, ausgezahlt) hatte kein PDF. Der Abruf
+  // antwortete „über Neu erzeugen erstellbar, solange die Auszahlung nicht
+  // abgeschlossen ist" — und sie WAR abgeschlossen. Damit existierte eine
+  // ausgezahlte Provision ohne Beleg, und das System verweigerte die Herstellung.
+  //
+  // Der Denkfehler war meiner: Ich habe „Belege ändert man nicht" richtig
+  // gedacht und falsch umgesetzt — nämlich auch auf den Fall angewandt, in dem
+  // es noch gar keinen Beleg gibt. Eine Erst-Erzeugung ist kein Eingriff in ein
+  // Dokument, sondern seine Herstellung.
+  //
+  // Drei Fälle, drei Antworten:
+  //   kein PDF                  → IMMER erzeugen, auch bei „ausgezahlt"
+  //   PDF da + ausgezahlt       → verweigern (der Beleg bleibt, wie er ist)
+  //   PDF da + nicht ausgezahlt → neu drucken, alte Fassung archivieren
+  // ══════════════════════════════════════════════════════════════════════════
+  const hatPdf = !!s.pdf_base64;
+  const ausgezahlt = String(s.auszahlung_status ?? "") === "ausgezahlt";
+  if (hatPdf && ausgezahlt) {
     return {
       ok: false,
-      grund: "Die Auszahlung ist erfolgt — die Abrechnung ist ein Buchungsbeleg "
-        + "und wird nicht neu erzeugt.",
+      grund: "Die Auszahlung ist erfolgt und ein Beleg liegt vor — er wird nicht "
+        + "überschrieben. Änderungen an einem Buchungsbeleg sind nicht zulässig.",
     };
   }
 
@@ -843,19 +884,52 @@ export async function abrechnungNeuErzeugen(
 
   try {
     const erg = await abrechnungPdf(daten);
-    await sqlPool`
-      UPDATE fiaon_commission_statements
-         SET pdf_base64 = ${erg.pdf.toString("base64")},
-             doc_hash = ${erg.hash},
-             neu_erzeugt_am = NOW(),
-             neu_erzeugt_anzahl = COALESCE(neu_erzeugt_anzahl, 0) + 1
-       WHERE id = ${statementId}
-    `;
-    console.log(`[ABRECHNUNG] ${s.statement_no} neu erzeugt (${Math.round(erg.pdf.length / 1024)} kB).`);
-    return { ok: true };
+    if (hatPdf) {
+      // ── ERSETZEN: DIE ALTE FASSUNG WIRD ARCHIVIERT ──────────────────────
+      // Kein Hard-Delete eines Dokuments, auch nicht eines noch nicht
+      // ausgezahlten. Wer später fragt „wie sah der Beleg vorher aus", bekommt
+      // eine Antwort.
+      await sqlPool`
+        UPDATE fiaon_commission_statements
+           SET pdf_base64_ersetzt = pdf_base64,
+               doc_hash_ersetzt = doc_hash,
+               pdf_ersetzt_am = NOW(),
+               pdf_ersetzt_von = ${wer},
+               pdf_base64 = ${erg.pdf.toString("base64")},
+               doc_hash = ${erg.hash},
+               neu_erzeugt_am = NOW(),
+               neu_erzeugt_anzahl = COALESCE(neu_erzeugt_anzahl, 0) + 1
+         WHERE id = ${statementId}
+      `;
+      console.log(`[ABRECHNUNG] ${s.statement_no} ersetzt — alte Fassung archiviert `
+        + `(${Math.round(erg.pdf.length / 1024)} kB neu).`);
+    } else {
+      // ── ERST-ERZEUGUNG ─────────────────────────────────────────────────
+      // `pdf_nachtraeglich` hält fest, dass der Beleg NACH der Auszahlung
+      // hergestellt wurde. Inhaltlich zeigt er den Stand von damals
+      // (lines_json, issued_at, processed_at) — nur sein Druckdatum liegt
+      // später, und das ist eine Tatsache und keine Kleinigkeit.
+      await sqlPool`
+        UPDATE fiaon_commission_statements
+           SET pdf_base64 = ${erg.pdf.toString("base64")},
+               doc_hash = ${erg.hash},
+               pdf_erzeugt_am = NOW(),
+               pdf_nachtraeglich = ${ausgezahlt}
+         WHERE id = ${statementId}
+      `;
+      console.log(`[ABRECHNUNG] ${s.statement_no} ERSTMALS erzeugt`
+        + `${ausgezahlt ? " (nachträglich — die Auszahlung war schon erfolgt)" : ""} `
+        + `(${Math.round(erg.pdf.length / 1024)} kB).`);
+    }
+    await logAgentEvent(Number(s.agent_id), "commission_statement_pdf", {
+      statement_no: s.statement_no,
+      art: hatPdf ? "ersetzt" : (ausgezahlt ? "nachtraeglich erstellt" : "erstellt"),
+      doc_hash: erg.hash, wer, at: new Date().toISOString(),
+    }).catch(() => {});
+    return { ok: true, ersterDruck: !hatPdf };
   } catch (e) {
     const grund = e instanceof Error ? e.message : String(e);
-    console.error(`[ABRECHNUNG] ${s.statement_no} neu erzeugen fehlgeschlagen:`, e);
+    console.error(`[ABRECHNUNG] ${s.statement_no} Druck fehlgeschlagen:`, e);
     return { ok: false, grund: `Der Druck ist gescheitert: ${grund}` };
   }
 }

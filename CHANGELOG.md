@@ -5,6 +5,107 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 20.08.2026 — Ausgezahlt ohne Beleg: die Wand stand an der falschen Stelle
+
+**Befund aus Produktion:** `FIAON-COM-2026-0011` (Nikita Boychenko, 386,40 €,
+ausgezahlt) hatte **kein PDF**. Der Abruf antwortete `PDF_FEHLT` mit dem Hinweis,
+es sei „über Neu erzeugen erstellbar, solange die Auszahlung nicht abgeschlossen
+ist" — und genau das war sie. Eine ausgezahlte Provision ohne Beleg, und das
+System verweigerte die Herstellung.
+
+### Der Denkfehler war meiner
+
+Ich habe „Belege ändert man nicht" richtig gedacht und falsch umgesetzt: Die
+Wand griff **nach Status**, nicht nach *ob ein Beleg existiert*. Damit verbot sie
+auch das Erstellen. Eine Erst-Erzeugung ist aber kein Eingriff in ein Dokument,
+sondern seine Herstellung.
+
+| Fall | vorher | jetzt |
+|---|---|---|
+| kein PDF, ausgezahlt | **verweigert** | **wird erzeugt** (und als nachträglich gekennzeichnet) |
+| PDF da, ausgezahlt | verweigert | verweigert (409 mit Grund) |
+| PDF da, nicht ausgezahlt | erlaubt | erlaubt — **alte Fassung wird archiviert** |
+
+Die ersetzte Fassung wandert nach `pdf_base64_ersetzt` mit Zeitpunkt, Person und
+alter Prüfsumme (Migration 070) — kein Hard-Delete eines Dokuments.
+
+### Die Ursache, warum 0011 ohne PDF entstand
+
+In `fiaon-team.ts`, Freigabe „Als überwiesen markieren", stand:
+
+```js
+generateCommissionStatement(id).catch((e) => console.error(…));
+res.json({ ok: true });
+```
+
+**Kein `await`.** Der Fehler landete in der Konsole, die Antwort war in jedem
+Fall `ok: true`. Die Auszahlung galt als abgeschlossen, während die Abrechnung im
+Hintergrund lief — und wenn dort das PDF scheiterte, erfuhr es niemand. Dazu
+kam, dass `generateCommissionStatement` einen Druckfehler zwar protokollierte,
+aber `{ ok: true }` zurückgab: Der Aufrufer konnte ihn nicht weitergeben.
+
+Es ist **dieselbe Fehlerklasse**, die am 19.08. schon zweimal behoben wurde
+(`sendMakeWebhook(...).catch(() => {})` bei der Zahlungsdaten-Mail). Ein
+verworfener Fehler an einer Geldstelle kommt zurück.
+
+**Behoben:** Die Freigabe **wartet** auf die Abrechnung und wertet aus, ob das PDF
+entstanden ist. Fehlt es, antwortet sie **HTTP 502 mit `BELEG_FEHLT`** und einer
+Handlungsanweisung statt „ok".
+
+**Eine bewusste Abweichung vom Auftrag:** Der Status bleibt trotzdem auf
+„ausgezahlt". Der Knopf heißt „Als überwiesen markieren" — der Betreiber drückt
+ihn, *nachdem* er bei Wise überwiesen hat. Würde das System den Status
+verweigern, stünde in der Buchhaltung „nicht ausgezahlt" bei erfolgter Zahlung,
+und die Provisionszeilen würden wieder freigegeben. Das ist schlechter als ein
+fehlender Beleg. Kein stiller Erfolg — aber auch keine falsche Buchhaltung.
+
+### Der Bestand
+
+| Status | Abrechnungen | ohne PDF |
+|---|---|---|
+| ausgezahlt | 11 | **1** → jetzt **0** |
+
+Genau eine: `FIAON-COM-2026-0011`. **Nachträglich hergestellt und geprüft:**
+
+- 1 Seite · 386,40 € · Auszahlungsbetrag stimmt
+- **9 Provisionen** mit Satz 20,0 % = 136,40 €
+- **FEEDBACK-49** (250,00 €, `kind = feedback_bonus`, 0 %) steht in der Tabelle
+  **„Pauschalvergütungen"** als *„Einmalige Gutschrift für Feedback #49: …"* —
+  **nicht** als Provision mit leerer Satzspalte. Die Aufteilung nach `satzBp > 0`
+  greift also genau so, wie sie gedacht war.
+- Der Beleg zeigt den Stand von damals (Positionen und Sätze aus `lines_json`,
+  Auszahlungsdatum 20.08.2026, Verwendungszweck), nur sein Druckdatum liegt
+  später. Das ist über `pdf_nachtraeglich = TRUE` festgehalten.
+
+**Zwei Abweichungen von den Zahlen im Auftrag, die ich benennen muss:** Es sind
+**10 Buchungen, nicht 32** (Summe stimmt: 386,40 €). Und der Bonus war **schon
+vorher richtig einsortiert** — der neue Renderer trennt seit dem 19.08. nach
+Satz, nicht nach Art.
+
+### Prüfstand
+
+`pruef-beleg-zwingend` (**17 ok**): Zählprobe am Bestand (0 ohne PDF) · die
+Regel greift nur bei vorhandenem Beleg · die Freigabe wartet (`await`) · sie
+wertet `pdfFehlt` aus · Freigabe → Beleg im selben Lauf, mit beiden Tabellen.
+
+**Rot-Probe, echt gefahren:** `abrechnungPdf` im Quelltext gebrochen, Server neu
+gestartet, Freigabe über HTTP gerufen →
+
+```
+HTTP 502  ok=false  code=BELEG_FEHLT
+Auszahlung: ausgezahlt · Abrechnung: FIAON-COM-2026-0012 · PDF: NEIN
+```
+
+Mit heilem Druck: `HTTP 200`, Abrechnung **und** PDF liegen vor, bevor die
+Antwort geht. Renderer danach zurückgesetzt, Prüfdaten entfernt.
+
+*(Der erste Versuch der Rot-Probe wollte den Druck über eine Umgebungsvariable
+brechen und schaffte es nicht — der Lauf hat das ausdrücklich gemeldet statt
+stillschweigend zu bestehen. Erst der Eingriff in den Quelltext war eine echte
+Probe.)*
+
+---
+
 ## 20.08.2026 — Vergütungs-Steuerung statt Mini-Formular, und die Bankdaten
 
 ### Vorab: was von „Teil 2" des letzten Auftrags fehlte

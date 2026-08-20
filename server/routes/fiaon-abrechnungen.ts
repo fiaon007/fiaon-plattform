@@ -30,6 +30,11 @@ import { echteMitarbeiterSql } from "../lib/fiaon-mitarbeiter-sicht";
 
 const router = Router();
 
+/** Wer hat gehandelt — für Protokoll und Vermerke. */
+function wer(req: Request): string {
+  return String((req as any).adminName || "Verwaltung");
+}
+
 /** Ein Datensatz für die Liste — dieselbe Form für Zentrale, Profil und Portal. */
 const LISTE_SQL = `
   SELECT s.id, s.statement_no, s.agent_id, s.payout_id,
@@ -94,11 +99,17 @@ function zeile(r: any) {
     // Ob „Neu erzeugen" erlaubt ist, entscheidet der SERVER und sagt es der
     // Oberfläche im Klartext. Eine Sperre, die die Anzeige selbst ableitet,
     // gibt irgendwann frei, was der Server ablehnt.
-    darfNeuErzeugen: String(r.auszahlung_status ?? "") !== "ausgezahlt",
-    neuErzeugenGrund: String(r.auszahlung_status ?? "") === "ausgezahlt"
-      ? "Die Auszahlung ist erfolgt — die Abrechnung ist ein Buchungsbeleg und "
-        + "wird nicht mehr verändert."
-      : null,
+    // Fehlt das PDF, ist „Neu erzeugen" IMMER erlaubt — auch bei „ausgezahlt".
+    // Vorher war genau dieser Fall gesperrt, und ein ausgezahlter Beleg ohne
+    // Dokument liess sich nicht herstellen.
+    darfNeuErzeugen: r.hat_pdf !== true || String(r.auszahlung_status ?? "") !== "ausgezahlt",
+    neuErzeugenGrund: r.hat_pdf === true && String(r.auszahlung_status ?? "") === "ausgezahlt"
+      ? "Die Auszahlung ist erfolgt und ein Beleg liegt vor — er wird nicht "
+        + "überschrieben."
+      : (r.hat_pdf !== true && String(r.auszahlung_status ?? "") === "ausgezahlt"
+        ? "Der Beleg fehlt und wird nachträglich hergestellt — er zeigt den Stand "
+          + "der Auszahlung von damals."
+        : null),
   };
 }
 
@@ -179,8 +190,11 @@ router.get("/admin/abrechnungen/:id.pdf", async (req: Request, res: Response) =>
       // fehlt" entscheidet, was der Betreiber als Nächstes tut.
       return res.status(409).json({
         ok: false, code: "PDF_FEHLT",
-        error: `Zu ${r.statement_no} liegt kein PDF. Über „Neu erzeugen" lässt es `
-          + "sich erstellen, solange die Auszahlung nicht abgeschlossen ist.",
+        // Der alte Hinweis sagte „solange die Auszahlung nicht abgeschlossen
+        // ist" — und war damit genau in dem Fall falsch, in dem er auftrat.
+        error: `Zu ${r.statement_no} liegt kein PDF. Über „Neu erzeugen“ wird es `
+          + "hergestellt — auch wenn die Auszahlung schon erfolgt ist, denn ein "
+          + "fehlender Beleg ist schlimmer als ein nachträglich gedruckter.",
       });
     }
     const buf = Buffer.from(String(r.pdf_base64), "base64");
@@ -281,35 +295,44 @@ router.post("/admin/abrechnungen/:id/neu-erzeugen", async (req: Request, res: Re
   try {
     const id = Number(req.params.id);
     const [r] = (await sqlPool`
-      SELECT s.*, p.status AS auszahlung_status
+      SELECT s.statement_no, (s.pdf_base64 IS NOT NULL) AS pdf_base64,
+             p.status AS auszahlung_status
         FROM fiaon_commission_statements s
         LEFT JOIN fiaon_payouts p ON p.id = s.payout_id
        WHERE s.id = ${id}
     `) as any[];
     if (!r) return res.status(404).json({ ok: false, error: "Abrechnung nicht gefunden." });
 
-    // ── DIE WAND STEHT IM SERVER ──────────────────────────────────────────
-    // Die Oberfläche sperrt den Knopf auch — aber wer die Route direkt aufruft,
-    // muss auf dieselbe Grenze stoßen. Eine Sperre nur in der Anzeige ist keine.
-    if (String(r.auszahlung_status ?? "") === "ausgezahlt") {
+    // ── DIE WAND STEHT IM SERVER — ABER AN DER RICHTIGEN STELLE ───────────
+    // Sie schützt vor ÜBERSCHREIBEN, nicht vor ERSTELLEN. Fehlt das PDF, wird es
+    // IMMER hergestellt — auch bei „ausgezahlt". Eine ausgezahlte Provision ohne
+    // Beleg ist der schlimmere Zustand (Befund: FIAON-COM-2026-0011).
+    if (String(r.auszahlung_status ?? "") === "ausgezahlt" && r.pdf_base64) {
       return res.status(409).json({
         ok: false, code: "BELEG_UNVERAENDERLICH",
-        error: `${r.statement_no} gehört zu einer erfolgten Auszahlung und ist damit `
-          + "ein Buchungsbeleg. Belege werden nicht neu erzeugt.",
+        error: `${r.statement_no} gehört zu einer erfolgten Auszahlung und ein Beleg `
+          + "liegt vor — er wird nicht überschrieben.",
       });
     }
 
     const { abrechnungNeuErzeugen } = await import("./fiaon-onboarding");
-    const erg = await abrechnungNeuErzeugen(id);
+    const erg = await abrechnungNeuErzeugen(id, wer(req));
     if (!erg.ok) {
-      return res.status(502).json({
+      // 409 bei einer Regel, 502 bei einem gescheiterten Druck — der Unterschied
+      // entscheidet, was der Betreiber als Naechstes tut.
+      const regel = /nicht überschrieben|nicht zulässig/.test(String(erg.grund ?? ""));
+      return res.status(regel ? 409 : 502).json({
         ok: false,
-        error: erg.grund || "Das PDF konnte nicht neu erzeugt werden.",
+        error: erg.grund || "Das PDF konnte nicht erzeugt werden.",
       });
     }
     res.json({
       ok: true,
-      meldung: `${r.statement_no} wurde mit dem aktuellen Layout neu erzeugt.`,
+      meldung: erg.ersterDruck
+        ? `${r.statement_no}: Der Beleg wurde ERSTMALS erzeugt — vorher gab es keinen. `
+          + "Er zeigt den Stand der Auszahlung von damals."
+        : `${r.statement_no} wurde mit dem aktuellen Layout neu erzeugt. `
+          + "Die vorherige Fassung ist archiviert.",
     });
   } catch (err) {
     console.error("[ABRECHNUNGEN] neu erzeugen:", err);

@@ -21,7 +21,8 @@
     "test:webkit": "npx playwright test --project=webkit",
     "test:webkit:smoke": "npx playwright test dashboard-smoke --project=webkit",
     "test:e2e": "npx playwright test",
-    "haken": "eslint client/src --no-warn-ignored"
+    "haken": "eslint client/src --no-warn-ignored",
+    "pruef:deploy": "tsx scripts/pruef-deploy.ts"
   },
   "dependencies": {
     "@auth0/auth0-react": "^2.4.0",

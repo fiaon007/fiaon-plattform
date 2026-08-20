@@ -5,6 +5,70 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 20.08.2026 — Der Deploy brach an meiner eigenen Wand
+
+`sh: 1: eslint: not found`, exit 127. Die Hook-Wand vom selben Tag hat den Build
+gestoppt — nicht wegen eines Verstoßes, sondern weil das Werkzeug auf dem Server
+fehlte.
+
+### Mein Fehler, und wie er messbar war
+
+Ich habe mit `npm install --save-dev` installiert. In diesem Repo ist das falsch,
+und man kann es an der `package.json` **ablesen**:
+
+| Werkzeug | steht in |
+|---|---|
+| `vite` | **dependencies** |
+| `esbuild` | **dependencies** |
+| `typescript` | **dependencies** |
+| `@vitejs/plugin-react` | **dependencies** |
+| `playwright` | **dependencies** |
+
+Alle Werkzeuge, die `npm run build` braucht, liegen bereits in `dependencies` —
+weil Render die devDependencies nicht installiert. Hätte ich das gemessen, statt
+die Gewohnheit anderer Projekte anzuwenden, wäre der Deploy nicht gebrochen. Es
+ist dieselbe Sorte Fehler wie die Backticks: eine Konvention, die im Repo steht
+und die ich nicht gelesen habe.
+
+**Entschieden:** `eslint`, `eslint-plugin-react-hooks` und `typescript-eslint`
+nach `dependencies`, mit exakten Versionen. **Nicht** über `npx --yes` — das
+lädt bei jedem Build aus dem Netz, ist langsamer, nicht reproduzierbar und öffnet
+einen Weg für untergeschobene Pakete.
+
+### Der Beweis, nicht „läuft bei mir"
+
+In einer sauberen Kopie aus `git ls-files` — ohne `node_modules`, ohne `.env`:
+
+```
+NODE_ENV=production npm ci --omit=dev   → exit 0, eslint in node_modules/.bin
+NODE_ENV=production npm run build       → exit 0, 2239 Module, dist/ vollständig
+```
+
+### Die Wand: derselbe Weg wie Render, vor dem Push
+
+```
+npx tsx scripts/pruef-deploy.ts              # 9 ok
+npx tsx scripts/pruef-deploy.ts --rot-probe  # bestanden
+```
+
+Sie liest aus dem `build`-Befehl selbst, welche Werkzeuge er ruft (wer morgen
+eines ergänzt, wird automatisch mitgeprüft), verlangt sie in `dependencies` und
+baut dann in einer sauberen Kopie mit `npm ci --omit=dev`. Dauer: zwei bis vier
+Minuten — ein kaputter Deploy kostet das Team einen halben Tag.
+
+### Zwei Befunde beim Bau der Wand
+
+1. **Die erste Rot-Probe blieb grün.** Sie verschob `eslint` nur in der
+   `package.json` nach devDependencies — und der Bau lief trotzdem durch.
+   Grund: **`npm ci --omit=dev` entscheidet anhand des LOCKS**, dort stand
+   weiter `"dev": false`. Wer den Schaden nachstellen will, muss beide Dateien
+   ändern. Eine Rot-Probe, die den Schaden nicht nachstellt, ist keine.
+2. **Ein Fehlalarm hätte die Wand entwertet:** Die Ableitung hielt `npx` für ein
+   fehlendes Paket. `npx`, `npm` und `node` kommen mit der Laufzeit; hinter
+   `npx` steht das eigentliche Werkzeug (hier `playwright`).
+
+---
+
 ## 20.08.2026 — NOTFALL: die Kundenakte öffnete bei keinem Kunden mehr
 
 React #310, „Rendered more hooks than during the previous render". Das ganze Team

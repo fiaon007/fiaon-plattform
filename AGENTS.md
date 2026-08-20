@@ -258,6 +258,47 @@ Zwei Dinge, die dabei auffielen und Zeit kosten, wenn man sie nicht kennt:
   ist. `rm -rf node_modules/.vite` und neu starten. Ein Browsertest, der das
   nicht weiß, meldet einen Fehler, den es nicht gibt.
 
+## „Läuft bei mir" ist kein Beweis — Render bekommt weniger
+
+Am 20.08.2026 brach der Deploy mit `sh: 1: eslint: not found`, exit 127. Auf
+diesem Rechner war `npm run build` grün, weil hier ein `node_modules` mit
+**allen** Paketen liegt.
+
+**Render installiert die devDependencies nicht.** Das steht nirgends
+geschrieben, ist aber an der `package.json` ablesbar: `vite`, `esbuild`,
+`typescript`, `@vitejs/plugin-react` und `playwright` stehen alle in
+`dependencies`. Wer das misst, bevor er installiert, macht den Fehler nicht.
+
+- **Jedes Werkzeug, das `npm run build` aufruft, gehört in `dependencies`** —
+  nicht in devDependencies. Mit exakter Version (`--save-exact`) und
+  `package-lock.json` im selben Commit.
+- **Nicht über `npx --yes` lösen.** Das lädt bei jedem Build aus dem Netz, ist
+  langsamer, nicht reproduzierbar und öffnet einen Weg für untergeschobene
+  Pakete.
+
+**Die Wand:**
+
+```
+npx tsx scripts/pruef-deploy.ts              # vor jedem Push
+npx tsx scripts/pruef-deploy.ts --rot-probe  # prüft, dass die Wand greift
+```
+
+Sie baut das Projekt in einer **sauberen Kopie** aus `git ls-files` nach — ohne
+`node_modules`, ohne `.env` — mit `NODE_ENV=production npm ci --omit=dev` und
+`npm run build`. Läuft das durch, läuft Render durch. Dauer: zwei bis vier
+Minuten; ein kaputter Deploy kostet das Team einen halben Tag.
+
+Zwei Dinge, die beim Bau dieser Wand auffielen:
+
+- **`npm ci --omit=dev` entscheidet anhand des LOCKS, nicht der package.json.**
+  Die erste Rot-Probe verschob `eslint` nur in der `package.json` nach
+  devDependencies — und blieb grün, weil im Lock `"dev": false` stand. Wer den
+  Schaden nachstellen will, muss **beide** Dateien ändern (genau das tut
+  `npm install --save-dev`).
+- **Ein Fehlalarm hat die Wand fast entwertet:** Die Ableitung „welche Werkzeuge
+  ruft der Build" hielt `npx` für ein Paket. `npx`, `npm` und `node` kommen mit
+  der Laufzeit; hinter `npx` steht das eigentliche Werkzeug.
+
 ## Eine Attrappe muss liefern, was der Server liefert
 
 Am 18.08.2026 zeigte ein Browsertest die Terminwahl mit dem Satz „Wähl eine Zeit

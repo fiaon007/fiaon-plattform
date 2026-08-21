@@ -1372,3 +1372,118 @@ Und zwei Regeln, die aus denselben neun Punkten folgen:
 - `db/migrations/006_service_orders.sql` wird vom Migrationslauf **absichtlich
   verweigert** (enthält DROP). Das „Failed: 1" am Ende ist normal.
 - `/admin/hub/badges` braucht kalt rund zehn Sekunden. Bekannt, nicht schön.
+
+## `updated_at` beantwortet nicht die Frage „wann ist DAS passiert"
+
+Am 21.08.2026 zweimal in einer Sitzung dieselbe Falle:
+
+- Die Bestandswache nahm `MAX(updated_at)` als Zahlungsdatum und meldete
+  **0 Kunden, die länger als 14 Tage warten**. Richtig waren **204**.
+- Die Rechnungs-Messung wählte über `updated_at >= 19.08.` und legte
+  **610 Bestellungen** in den Topf „gar nicht versendet". Richtig war **0**.
+  Das wäre eine Katastrophenmeldung gewesen, und sie war falsch.
+
+`updated_at` heißt „irgendetwas an dieser Zeile hat sich geändert" — bei 689 von
+689 Zeilen war das ein Lauf von heute. Wer damit ein Ereignis datiert, misst die
+Aktivität des Systems, nicht den Vorgang.
+
+**Für jede Frage nach einem Zeitpunkt die Spalte nehmen, die diesen Zeitpunkt
+BEDEUTET** (`paid_at`, `payment_email_sent_at`) — oder ihn aus einer
+Nebenwirkung zurückrechnen und das hinschreiben. `rechnungStellen` setzt
+`payment_due_date = Lauftag + 7`; der Stelltag ist also `payment_due_date − 7`.
+
+Und: **Für „ist das rausgegangen?" zwei Quellen lesen.** Das Zustellprotokoll
+allein genügt nicht — die automatische Antragsstrecke setzt
+`payment_email_sent_at` und schreibt nicht hinein. Wer eine Quelle liest,
+erklärt fünf Kunden zu Opfern, die ihre Rechnung längst haben.
+
+## Ein Schutzmechanismus, der Kernarbeit sperrt, wird umgangen
+
+Migration 072 sollte verhindern, dass produktive Datensätze an
+Prüfstands-Konten hängen. Eine harte Sperre auf **beide** Richtungen hätte
+jeden Browser-Prüfstand dieses Hauses lahmgelegt: Sie leihen sich absichtlich
+einen Kunden und geben ihn im `finally` zurück.
+
+Deshalb die Aufteilung nach Richtung, nicht nach Tabelle:
+
+- **Harte Sperre nur, wo es keinen berechtigten Fall gibt.** Die Testmarke auf
+  ein Konto zu setzen, an dem Kunden, Provisionen oder Termine hängen, ist immer
+  ein Fehler — hier bricht der Trigger mit Klartext ab.
+- **Warnung plus Vormerkung, wo es einen gibt.** Ein Datensatz, der an ein
+  Prüfstands-Konto zeigt, wird durchgelassen und in
+  `fiaon_testkonto_warnungen` notiert. Der Tageslauf meldet, was länger als
+  einen Tag steht.
+
+Wer die Härte nach Tabelle statt nach Richtung wählt, muss später eine Wand
+abschalten — und dann ist sie ganz weg.
+
+## Der Verwaltungsbereich hat zwei Türen, und die Agenten-Tür sperrt
+
+Für Browser-Prüfstände gegen `/admin`:
+
+1. Jede `/admin`-Route antwortet ohne das Cookie `fiaon_admin` mit **401
+   `ADMIN_CODE_REQUIRED`**. Geöffnet wird über `POST /api/fiaon/zugang/oeffnen`
+   mit `ADMIN_ACCESS_CODE` — über die echte Tür, nicht durch Nachbauen des
+   Siegels.
+2. **Ein gesetzter `fiaon_agent_token` VERHINDERT den Admin-Zugriff** (403
+   „Agent-Rolle hat keine Admin-Berechtigung"), auch bei Rolle
+   `vertriebsleiter`. Die Verwaltung braucht einen **eigenen Browser-Kontext**
+   ohne Agenten-Cookie.
+
+Beides gekostet: zwei Fehlalarme, die wie fehlende Oberflächen aussahen.
+
+## Arbeitsvorrat: stille Fehlerschlucker
+
+`npx tsx scripts/mess-stille-fehler.ts` erzeugt `reports/stille-fehler.md`.
+Stand 21.08.2026: **735 harte Treffer**, davon **27 auf kritischen Pfaden**.
+Fünfzehn sind behoben (Mail, Rechnung, Termin, Gate, Telefon, Badge); der Rest
+ist Arbeitsvorrat, nach Bereich sortiert.
+
+Regel für neuen Code: **Jeder Ausgang ist sichtbar.** Ein `catch` ohne Ausgabe
+und ein `if (!j?.ok) return;` ohne Meldung sind keine Fehlerbehandlung, sondern
+das Verstecken eines Ausfalls. Für den Menschen im Klartext, für uns im
+Protokoll — und die Meldung nennt, WAS ausfällt, nicht nur „Fehler".
+
+Die 411 Treffer in `scripts/` bleiben stehen: In einem Prüfstand ist ein
+`.catch(() => {})` um einen Playwright-Zeitablauf richtig.
+
+## Die Wand vor dem Merge
+
+```
+npx tsx scripts/pruef-vor-merge.ts                      # alle vier
+npx tsx scripts/pruef-vor-merge.ts --nur=bau            # einzeln
+npx tsx scripts/pruef-vor-merge.ts --rot-probe=migration
+```
+
+Vier Prüfungen: Bau in sauberer Kopie · Migrationen trocken · Backticks in SQL-
+**und CSS**-Kommentaren · CHANGELOG.md und `updates-data.ts` mitgeändert. In der
+CI als vier getrennte Schritte (`.github/workflows/vor-merge.yml`), damit
+sichtbar ist, WELCHE Wand gefallen ist.
+
+**Drei Fehlalarme, die beim Bau dieser Wand entstanden und behoben sind** — jeder
+hätte jeden Merge blockiert und die Wand damit erledigt:
+
+- Die Nachverfolgungstabelle heißt `schema_migrations.filename`. Ein
+  `.catch(() => [])` auf den falschen Namen ergab „0 eingespielt", und die Wand
+  prüfte alle 73 Migrationen; drei alte, nicht wiederholbare wurden rot.
+- `006_service_orders.sql` ist zerstörend und wird dauerhaft verweigert — als
+  „offene Arbeit" gezählt war die Wand mit einem Befund von vor einem halben
+  Jahr rot.
+- Ein Abschnitt ohne eine einzige Prüfung meldete **„0 ok, 0 rot"**. Das las
+  sich wie Erfolg. Ein Abschnitt, der nichts geprüft hat, muss es sagen.
+
+## Zuständigkeit hat genau eine Quelle
+
+`server/lib/fiaon-zustaendigkeit.ts` beantwortet „wer ist für diesen Menschen
+zuständig" — als TypeScript-Funktion für einen Fall und als SQL-Ausdruck für
+Listen. `scripts/pruef-stabilisierung.ts` hält beide an **je einem Fall pro
+Topf** gegeneinander.
+
+**Was diese Funktion NICHT ist: eine Arbeitsliste.** Die Inkasso-Liste zeigt
+339 Personen (jede offene Rate), die Zuständigkeit sagt bei 151 „inkasso".
+Hätte ich die Liste umgestellt, hätte das Forderungsmanagement **188 Menschen
+verloren** — als Nebenwirkung einer Aufräumarbeit.
+
+„Wer ist zuständig?" hat eine Antwort je Mensch. „Wen bearbeitet Inkasso?" ist
+eine Menge und darf breiter sein. Wer sie zusammenlegt, kürzt eine Arbeitsliste
+aus Ordnungsliebe.

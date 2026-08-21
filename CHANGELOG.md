@@ -229,6 +229,13 @@ Zwei Fehlalarme im eigenen Prüfstand behoben: Der Verwaltungsbereich ist mit
 einem Code verschlossen (401), und ein gesetzter Agenten-Token **verhindert** den
 Admin-Zugriff (403) — die Verwaltung braucht einen eigenen Browser-Kontext.
 
+**In `AGENTS.md` eingetragen** (damit die Lehren nicht in einem Commit-Text
+verschwinden): dass `updated_at` keinen Zeitpunkt beantwortet · dass ein
+Schutzmechanismus, der Kernarbeit sperrt, umgangen wird · dass der
+Verwaltungsbereich zwei Türen hat und die Agenten-Tür sperrt · der Arbeitsvorrat
+der 720 verbleibenden stillen Fehlerschlucker · die Bedienung der Merge-Wand ·
+und dass Zuständigkeit keine Arbeitsliste ist.
+
 ## 21.08.2026 — NOTFALL: vier Blocker aus dem Betrieb
 
 ---

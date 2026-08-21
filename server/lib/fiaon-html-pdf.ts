@@ -13,15 +13,69 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { createHash } from "crypto";
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import PDFDocument from "pdfkit";
 
 type Browser = any;
 let browserPromise: Promise<Browser> | null = null;
 
+// ═══════════════════════════════════════════════════════════════════════════
+// WO LIEGT DER BROWSER? — DER AUSFALL VOM 21.08.2026
+//
+// ── DER PRODUKTIONSFEHLER, WÖRTLICH ───────────────────────────────────────
+//     browserType.launch: Executable doesn't exist at
+//     /opt/render/.cache/ms-playwright/chromium_headless_shell-1200/
+//     chrome-headless-shell-linux64/chrome-headless-shell
+//
+// Zwei ausgezahlte Abrechnungen (FIAON-COM-2026-0012 über 120,00 € und 0013
+// über 60,00 €) hatten deshalb KEINEN Beleg — und „Neu erzeugen" scheiterte an
+// derselben Stelle. Eine Schleife ohne Ausgang.
+//
+// ── DIE GEMESSENE URSACHE ─────────────────────────────────────────────────
+//   1. `npm run pdf:browser` war das VIERTE Glied einer &&-Kette, die mit
+//      `npm run haken` (eslint) beginnt. Der eslint-Schritt ist tagelang
+//      gescheitert — also wurde der Browser nie installiert.
+//   2. Die Ablage war der HOME-Cache (`/opt/render/.cache/ms-playwright`).
+//      Build und Laufzeit sehen ihn auf Render nicht zuverlässig als dieselbe
+//      Ablage, und ein geleerter Build-Cache nimmt ihn mit.
+//   3. `playwright: "^1.57.0"` — eine Spanne. Die Bibliothek verlangt genau
+//      Revision 1200 (chromium UND chromium_headless_shell); wandert die
+//      Version, wandert die Revision, und der vorhandene Browser passt nicht.
+//
+// ── DIE ABLAGE STEHT JETZT IM PROJEKT ─────────────────────────────────────
+// `PLAYWRIGHT_BROWSERS_PATH="$PWD/.playwright"` in `build` UND in `start`
+// (package.json). Auf Render ist das `/opt/render/project/src/.playwright` —
+// dasselbe Verzeichnis in beiden Schritten.
+//
+// Diese Funktion setzt die Variable ZUSÄTZLICH selbst, falls sie fehlt: Wer
+// `node dist/index.js` von Hand startet oder die Umgebungsvariable im
+// Dashboard vergisst, soll trotzdem drucken können. Ein Fix, der von einem
+// Häkchen in einer Weboberfläche abhängt, ist kein Fix.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Sorgt dafür, dass Playwright in der Projekt-Ablage sucht — falls dort etwas
+ * liegt und die Umgebung nichts vorgibt.
+ *
+ * Bewusst NUR wenn `PLAYWRIGHT_BROWSERS_PATH` leer ist: Eine gesetzte Variable
+ * ist eine Entscheidung, und die überschreibt niemand aus Hilfsbereitschaft.
+ */
+export function browserAblageSicherstellen(): string | null {
+  if (process.env.PLAYWRIGHT_BROWSERS_PATH) return process.env.PLAYWRIGHT_BROWSERS_PATH;
+  const imProjekt = resolve(process.cwd(), ".playwright");
+  if (existsSync(imProjekt)) {
+    process.env.PLAYWRIGHT_BROWSERS_PATH = imProjekt;
+    return imProjekt;
+  }
+  // Nichts gefunden: Die Standard-Auflösung (~/.cache/ms-playwright) gilt
+  // weiter. Auf einem Entwicklungsrechner liegt der Browser genau dort.
+  return null;
+}
+
 async function getBrowser(): Promise<Browser> {
   if (!browserPromise) {
-    // In node_modules abgelegte Browser (Build mit PLAYWRIGHT_BROWSERS_PATH=0)
-    // finden — sonst greift die Standard-Auflösung (~/.cache/ms-playwright).
+    browserAblageSicherstellen();
     browserPromise = (async () => {
       const { chromium } = await import("playwright");
       return chromium.launch({
@@ -33,6 +87,35 @@ async function getBrowser(): Promise<Browser> {
     browserPromise.then((b) => b.on("disconnected", () => { browserPromise = null; })).catch(() => { browserPromise = null; });
   }
   return browserPromise;
+}
+
+/**
+ * Druckt Chromium überhaupt? — für die Selbstprüfung beim Serverstart.
+ *
+ * Startet einen leeren Browser und schließt ihn wieder. Wirft nie; die
+ * Auskunft steht im Rückgabewert, damit der Aufrufer sie anzeigen kann.
+ */
+export async function pdfBrowserPruefen(): Promise<{
+  ok: boolean; grund: string | null; ablage: string | null; dauerMs: number;
+}> {
+  const t0 = Date.now();
+  const ablage = browserAblageSicherstellen();
+  try {
+    const { chromium } = await import("playwright");
+    const b = await chromium.launch({
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+    });
+    await b.close();
+    return { ok: true, grund: null, ablage, dauerMs: Date.now() - t0 };
+  } catch (e: any) {
+    return {
+      ok: false,
+      grund: String(e?.message ?? e).split("\n").slice(0, 3).join(" ").slice(0, 400),
+      ablage,
+      dauerMs: Date.now() - t0,
+    };
+  }
 }
 
 /** Rendert vollständiges HTML (A4) zu einem PDF-Buffer. */
@@ -73,7 +156,57 @@ export async function htmlToPdf(html: string): Promise<Buffer> {
 // Die bestehende `htmlToPdf` bleibt unverändert: Verträge und Nachweise hängen
 // daran, und ein Beleg, der gestern anders aussah, ist ein Problem für sich.
 // ═══════════════════════════════════════════════════════════════════════════
+/**
+ * Mit laufender Fußzeile drucken — und mit einem Ausgang, wenn kein Browser da ist.
+ *
+ * ── WARUM DIESE FUNKTION EINEN RÜCKFALL BRAUCHT (21.08.2026) ──────────────
+ * `renderDocumentPdf` hatte seit Langem einen pdfkit-Rückfall, und der
+ * Dateikopf verspricht „So wird IMMER ein PDF erzeugt". Diese Funktion hatte
+ * ihn NICHT — und genau sie druckt die Provisionsabrechnungen
+ * (`fiaon-abrechnung-pdf.ts`).
+ *
+ * Ergebnis am 21.08.2026: Der fehlende Browser auf Render warf hier hart, die
+ * Auszahlung wurde gebucht, der Beleg fehlte, und „Neu erzeugen" lief in
+ * denselben Fehler. Der Betreiber kam aus der Schleife nicht heraus.
+ *
+ * ── WAS DER RÜCKFALL LIEFERT UND WAS NICHT ────────────────────────────────
+ * Ein gültiges, lesbares PDF mit demselben Inhalt — aber ohne die
+ * pixelgenaue CI und ohne laufende Fußzeile mit Seitenzahl. Das ist ein
+ * SCHLECHTERER Beleg, aber ein Beleg. Ein fehlender Beleg zu einer gebuchten
+ * Überweisung ist ein Buchhaltungsproblem; ein einfacher ist eine
+ * Schönheitsfrage.
+ *
+ * Der Aufrufer erfährt davon: `pdfNotbehelf` steht danach auf `true`, und
+ * `fiaon-abrechnung-pdf.ts` schreibt es an die Abrechnung. Ein Notbehelf, den
+ * niemand erkennt, wird zum Dauerzustand.
+ */
+export let pdfNotbehelf = false;
+
 export async function htmlZuPdfMitFusszeile(opts: {
+  html: string;
+  fusszeile: string;
+  rand: { oben: string; unten: string; links: string; rechts: string };
+}): Promise<Buffer> {
+  try {
+    return await chromiumMitFusszeile(opts);
+  } catch (e) {
+    pdfNotbehelf = true;
+    console.error("[FIAON-PDF] Chromium druckt nicht — pdfkit-Notbehelf für dieses "
+      + "Dokument. Der Beleg entsteht, aber ohne laufende Fußzeile und Seitenzahl. "
+      + "Ursache:", (e as Error)?.message || e);
+    // Der Notbehelf kennt kein HTML mit Vorlagen — er bekommt den Rumpf und
+    // die Fußzeile als Text. `wrapFiaonDocument` läuft hier NICHT, weil das
+    // HTML schon vollständig ist.
+    return await renderPdfKitFallback({
+      documentTitle: "Provisionsabrechnung",
+      subtitle: "Ersatzdruck — die pixelgenaue Fassung war nicht erzeugbar",
+      bodyHtml: opts.html,
+      fusszeile: opts.fusszeile,
+    });
+  }
+}
+
+async function chromiumMitFusszeile(opts: {
   html: string;
   fusszeile: string;
   rand: { oben: string; unten: string; links: string; rechts: string };

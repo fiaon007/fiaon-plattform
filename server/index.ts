@@ -608,6 +608,22 @@ async function seedSubscriptionPlans() {
     reusePort: true,
   }, () => {
     log(`serving on port ${port}`);
+
+    // ══════════════════════════════════════════════════════════════════════
+    // DIE PDF-WACHE (21.08.2026)
+    //
+    // Am 21.08. fehlte Chromium auf Render. Aufgefallen ist es beim AUSZAHLEN:
+    // Zwei Abrechnungen (FIAON-COM-2026-0012 über 120,00 € und 0013 über
+    // 60,00 €) waren als überwiesen gebucht und hatten keinen Beleg — und
+    // „Neu erzeugen" lief in denselben Fehler.
+    //
+    // Diese Wache startet 20 Sekunden nach dem Hochlauf einmal einen leeren
+    // Browser. Geht das nicht, steht es im Protokoll und als rote Karte auf
+    // dem Dashboard — VOR der nächsten Auszahlung, nicht danach.
+    // ══════════════════════════════════════════════════════════════════════
+    void import("./lib/fiaon-pdf-wache")
+      .then((m) => m.pdfWacheStarten())
+      .catch((e) => console.error("[PDF-WACHE] konnte nicht starten:", e));
     // Die eigene Ausgangsadresse ermitteln und vormerken. Sie ist der Grund,
     // warum Brevo Mails ablehnt („IP nicht auf der Freigabeliste") — und auf
     // dieser Plattform wechselt sie bei jedem Neustart. Wer sie sammelt, kann

@@ -5,6 +5,137 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 21.08.2026 (Notfall) — PDF-Erzeugung auf Render tot: Chromium fehlte
+
+---
+
+### Der Ausfall
+
+Beim Auszahlen:
+
+```
+browserType.launch: Executable doesn't exist at
+/opt/render/.cache/ms-playwright/chromium_headless_shell-1200/
+chrome-headless-shell-linux64/chrome-headless-shell
+```
+
+**FIAON-COM-2026-0012** (120,00 € an Rifka Rovcanin) und **0013** (60,00 € an
+Viktoria Reichert) waren als überwiesen gebucht und hatten **keinen Beleg**.
+„Neu erzeugen" lief in denselben Fehler — eine Schleife ohne Ausgang.
+
+### Die Ursache, gemessen — es waren vier
+
+| | |
+|---|---|
+| **1. Die Installation lief nie** | `npm run pdf:browser` war das **vierte** Glied der Kette `npm run haken && vite build && esbuild && npm run pdf:browser`. Der eslint-Schritt ist tagelang gescheitert — also wurde der Browser nie installiert. |
+| **2. Der Fehlschlag war unsichtbar** | Das Skript endete auf `\|\| echo 'playwright chromium install skipped'`. Der Build wurde grün, ohne Browser. |
+| **3. Falsche Ablage** | Home-Cache (`/opt/render/.cache/ms-playwright`). Build und Laufzeit sehen ihn auf Render nicht zuverlässig als dieselbe Ablage, und ein geleerter Build-Cache nimmt ihn mit. |
+| **4. Kein Rückfall auf dem Abrechnungs-Weg** | `renderDocumentPdf` hat seit Langem einen pdfkit-Rückfall, und der Dateikopf verspricht „So wird IMMER ein PDF erzeugt". `htmlZuPdfMitFusszeile` — die Funktion, die **die Provisionsabrechnungen druckt** — hatte ihn **nicht**. Deshalb die Schleife. |
+
+**Versionen:** `playwright: "^1.57.0"` (eine **Spanne**), im Lock 1.57.0.
+Diese Version verlangt `chromium-1200` **und** `chromium_headless_shell-1200` —
+genau der Pfad aus der Fehlermeldung. Lokal lagen beide im Cache, deshalb fiel
+es hier nie auf.
+
+### Der Fix
+
+**Build und Laufzeit** (`package.json`):
+
+```
+pdf:browser  PLAYWRIGHT_BROWSERS_PATH="$PWD/.playwright" npx playwright install --with-deps chromium
+             || PLAYWRIGHT_BROWSERS_PATH="$PWD/.playwright" npx playwright install chromium
+build        npm run pdf:browser && npm run haken && vite build && esbuild …
+start        npm run db:migrate:sql && PLAYWRIGHT_BROWSERS_PATH="$PWD/.playwright" node dist/index.js
+```
+
+- Installation **als erstes Glied** — nichts Fehleranfälliges davor
+- Kein `|| echo` mehr: Scheitern beide Versuche, **bricht der Build**
+- Ablage **im Projekt** (`/opt/render/project/src/.playwright`), in Build *und*
+  Laufzeit dieselbe. Ein geleerter Build-Cache zerstört nichts.
+- **Version exakt gepinnt**: `playwright: "1.57.0"`, `@playwright/test: "1.57.0"`,
+  `package-lock.json` im selben Commit
+- `.playwright/` in `.gitignore`
+
+**Zusätzlich im Code**: `browserAblageSicherstellen()` setzt
+`PLAYWRIGHT_BROWSERS_PATH` selbst auf `<projekt>/.playwright`, falls die
+Variable fehlt und dort etwas liegt. Ein Fix, der von einem Häkchen in einer
+Weboberfläche abhängt, ist kein Fix.
+
+**Der Rückfall**: `htmlZuPdfMitFusszeile` fällt jetzt auf pdfkit zurück. Das
+Ergebnis ist ein gültiges, lesbares PDF ohne laufende Fußzeile und Seitenzahl —
+ein **schlechterer** Beleg, aber ein Beleg. Ein fehlender Beleg zu einer
+gebuchten Überweisung ist ein Buchhaltungsproblem; ein einfacher ist eine
+Schönheitsfrage. Der Notbehelf meldet sich (`pdfNotbehelf`), damit er nicht zum
+Dauerzustand wird.
+
+### Die Selbstprüfung
+
+`server/lib/fiaon-pdf-wache.ts`: 20 Sekunden nach dem Hochlauf startet einmal
+ein leerer Browser. Geht das nicht, steht es
+
+- im Serverprotokoll mit Grund, Suchpfad und Behebungsanweisung,
+- als Eintrag in `fiaon_agent_events` (`pdf_browser_fehlt`),
+- und als **rote Karte ganz oben** im Dashboard: „PDF-Erzeugung nicht verfügbar
+  — Belege können nicht gedruckt werden", mit Grund und Suchpfad.
+
+Nach einem Fehlschlag wird halbstündlich nachgefasst. Die Karte **sperrt
+nichts** — Auszahlen bleibt möglich, der Ersatzbeleg entsteht.
+
+`pdfDruck === null` heißt „noch nicht gemessen" und zeigt **nichts** — nicht
+dasselbe wie „geht nicht".
+
+### Die Belege sind da
+
+`scripts/belege-nachziehen.ts --schreiben`, ausgeführt von einem Rechner mit
+Chromium (unabhängig vom Deploy) — über **dieselbe** Funktion, die der Knopf
+ruft (`abrechnungNeuErzeugen`), nicht über einen zweiten Druckweg:
+
+| Abrechnung | vorher | nachher |
+|---|---|---|
+| FIAON-COM-2026-0012 | 0 Bytes | **368.602 Bytes**, `%PDF-` … `%%EOF` |
+| FIAON-COM-2026-0013 | 0 Bytes | **365.491 Bytes**, `%PDF-` … `%%EOF` |
+
+Beide als `pdf_nachtraeglich` gekennzeichnet.
+
+**Zählprobe: 0 ausgezahlte Abrechnungen ohne Beleg** (vorher 2 über 180,00 €).
+
+### Umgebungsvariablen für das Render-Dashboard
+
+Die Skripte setzen die Ablage selbst; diese Eintragung ist die **Absicherung**,
+falls jemand `node dist/index.js` direkt startet:
+
+| Variable | Wert |
+|---|---|
+| `PLAYWRIGHT_BROWSERS_PATH` | `/opt/render/project/src/.playwright` |
+
+Optional, wenn der Download im Build zu lange dauert:
+
+| Variable | Wert | Wirkung |
+|---|---|---|
+| `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD` | **nicht setzen** | gesetzt würde sie den Fix aufheben |
+
+Sonst nichts. Der Build lädt Chromium selbst (gemessen: **61 Sekunden** für den
+kompletten Bau inklusive Download).
+
+### Abnahme
+
+`scripts/pruef-pdf-browser.ts` — **14 ok, 0 rot**, mit Rot-Probe **18 ok**.
+`scripts/pruef-deploy.ts` — **9 ok, 0 rot**: `npm ci --omit=dev && npm run build`
+in einer sauberen Kopie, 61 s.
+
+Die **Rot-Probe läuft in einem eigenen Prozess** und stellt genau die
+Produktionsmeldung her (`Executable doesn't exist at …`). Der erste Entwurf
+setzte nur die Umgebungsvariable und importierte das Modul mit `?rotprobe=` neu
+— und war grün, weil `browserPromise` den bereits offenen Browser hielt. Die
+Probe prüfte ihre eigene Umgehung.
+
+Screenshot der roten Karte angesehen: `reports/pdf-notfall/1-rote-karte.png`.
+
+Nebenbei behoben: `pruef-deploy.ts` hielt `PLAYWRIGHT_BROWSERS_PATH="$PWD/…"`
+für ein npm-Paket und meldete es als fehlend — bei einem Build, der einwandfrei
+durchlief. Derselbe Fehlalarm wie damals mit `npx`, und im Kommentar darüber
+steht, warum das gefährlich ist: Eine Wand mit Fehlalarm wird abgeschaltet.
+
 ## 21.08.2026 (abends) — Zuständigkeit endgültig, Abo-Fälligkeit, Überfälligkeit ab Tag 1
 
 ---

@@ -30,3 +30,7 @@ vite.config.ts.*
 # Auswertungen aus dem CRM-Umbau: Prüflisten mit Namen, Beträgen und
 # Zahlungszuordnungen echter Kunden. Bleiben lokal.
 /reports/
+
+# Playwright-Browser: liegen IM Projekt (Render sieht Build und Laufzeit
+# nur dann in derselben Ablage), gehoeren aber nicht ins Repo.
+.playwright/

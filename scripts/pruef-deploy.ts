@@ -75,7 +75,20 @@ async function main(): Promise<void> {
   // eigentliche Werkzeug, also wird eins weitergelesen.
   const LAUFZEIT = new Set(["npm", "npx", "node", "cd", "rm", "cp", "mkdir", "bash", "sh"]);
   function werkzeugAus(befehl: string): string | null {
-    const teile = befehl.trim().split(/\s+/).filter((x) => !x.startsWith("-"));
+    const teile = befehl.trim().split(/\s+/)
+      .filter((x) => !x.startsWith("-"))
+      // ── EINE UMGEBUNGSVARIABLE IST KEIN PAKET (21.08.2026) ────────────
+      // Nach dem PDF-Notfall beginnt `pdf:browser` mit
+      // `PLAYWRIGHT_BROWSERS_PATH="$PWD/.playwright" npx playwright install …`.
+      // Diese Ableitung nahm das erste Wort und meldete:
+      // „`PLAYWRIGHT_BROWSERS_PATH="$PWD/.playwright"` steht in keiner der
+      // beiden Listen" — bei einem Build, der einwandfrei durchlief.
+      //
+      // Genau derselbe Fehlalarm wie damals mit `npx`, und der Kommentar
+      // darüber sagt, warum das gefährlich ist: Eine Wand mit Fehlalarm wird
+      // abgeschaltet. Ein `NAME=wert` vor dem Befehl ist eine Zuweisung, kein
+      // Werkzeug.
+      .filter((x) => !/^[A-Z_][A-Z0-9_]*=/.test(x));
     for (const t of teile) {
       if (!LAUFZEIT.has(t)) return t;
       // `npx playwright …` → playwright. `npm run x` wird oben aufgelöst.

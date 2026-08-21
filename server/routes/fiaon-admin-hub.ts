@@ -516,6 +516,27 @@ router.get("/admin/hub/knopfdurchgang", async (_req, res) => {
       return [{ n: 0, summe: 0 }];
     })) as any[];
 
+    // ── 8. DRUCKT CHROMIUM? (21.08.2026) ──────────────────────────────────
+    // Der Stand kommt aus der Wache (einmal beim Start gemessen, danach
+    // halbstündlich nachgefasst) — hier wird NICHT gemessen. Ein Browserstart
+    // je Dashboard-Aufruf wären ein bis drei Sekunden für eine Auskunft, die
+    // sich nur bei einem Deploy ändert.
+    const { pdfStand } = await import("../lib/fiaon-pdf-wache");
+    const pdf = pdfStand();
+
+    // Und die Zahl, die wirklich weh tut: ausgezahlt, aber ohne Beleg.
+    const [belege] = (await sqlPool`
+      SELECT COUNT(*)::int AS n,
+             COALESCE(SUM(s.net_cents), 0)::bigint / 100.0 AS summe
+      FROM fiaon_commission_statements s
+      JOIN fiaon_payouts x ON x.id = s.payout_id
+      WHERE x.status = 'ausgezahlt'
+        AND (s.pdf_base64 IS NULL OR LENGTH(s.pdf_base64) < 100)
+    `.catch((e) => {
+      console.error("[HUB] Belege ohne PDF zaehlen:", e);
+      return [{ n: 0, summe: 0 }];
+    })) as any[];
+
     const gesperrt = Number(zahlung?.gesperrt_obwohl ?? 0)
       + Number(telefon?.n ?? 0);
 
@@ -545,6 +566,21 @@ router.get("/admin/hub/knopfdurchgang", async (_req, res) => {
         summe: Number(ueb?.summe ?? 0),
         wo: "/admin/hub — Karte „Was niemand sieht“",
       },
+      // ── DIE PDF-AMPEL ──────────────────────────────────────────────────
+      // `null` heißt „noch nicht gemessen" (die Wache prüft 20 Sekunden nach
+      // dem Start) — ausdrücklich NICHT dasselbe wie „geht nicht". Die
+      // Oberfläche zeigt in diesem Fall nichts, statt falschen Alarm.
+      pdfDruck: pdf
+        ? {
+            ok: pdf.ok,
+            grund: pdf.grund,
+            ablage: pdf.ablage,
+            geprueftAm: pdf.geprueftAm,
+            // Ausgezahlt ohne Beleg — die Folge, nicht die Ursache.
+            belegeFehlen: Number(belege?.n ?? 0),
+            belegeSumme: Number(belege?.summe ?? 0),
+          }
+        : null,
       unsichtbar: befunde.map((b) => ({
         art: b.art, anzahl: b.anzahl, gewicht: b.gewicht,
         klartext: b.klartext, wo: b.wo,

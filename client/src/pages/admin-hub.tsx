@@ -1171,6 +1171,57 @@ export default function AdminHubPage() {
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════
+          PDF-ERZEUGUNG NICHT VERFÜGBAR (21.08.2026)
+
+          ── DER ANLASS ──────────────────────────────────────────────────────
+          Chromium fehlte auf Render. Zwei ausgezahlte Abrechnungen (0012 über
+          120,00 €, 0013 über 60,00 €) hatten keinen Beleg, und „Neu erzeugen"
+          lief in denselben Fehler. Aufgefallen ist es beim AUSZAHLEN — am
+          teuersten Moment.
+
+          Diese Karte steht GANZ OBEN und ist rot: Sie betrifft Buchhaltung.
+          Sie erscheint nur, wenn die Wache wirklich gemessen hat und es
+          wirklich nicht geht — `pdfDruck === null` heißt „noch nicht gemessen"
+          und zeigt nichts, statt falschen Alarm zu schlagen.
+          ══════════════════════════════════════════════════════════════════════ */}
+      {durchgang?.ok && durchgang.pdfDruck && !durchgang.pdfDruck.ok && (
+        <section data-fiaon="karte-pdf-fehlt"
+                 className="rounded-2xl border p-4 mb-4"
+                 style={{ borderColor: "rgba(220,38,38,.45)", background: "rgba(220,38,38,.06)" }}>
+          <h2 className="text-[13px] font-bold uppercase tracking-wider mb-1.5"
+              style={{ color: "#b91c1c" }}>
+            PDF-Erzeugung nicht verfügbar — Belege können nicht gedruckt werden
+          </h2>
+          <p className="text-[12.5px] text-slate-700 leading-relaxed">
+            Chromium startet auf diesem Server nicht. Auszahlen bleibt möglich,
+            und es entsteht ein <b>Ersatzbeleg</b> (lesbar, aber ohne laufende
+            Fußzeile und Seitenzahl) — die pixelgenaue Fassung fehlt.
+          </p>
+          {durchgang.pdfDruck.belegeFehlen > 0 && (
+            <p className="text-[12.5px] font-semibold mt-1.5" style={{ color: "#b91c1c" }}>
+              {durchgang.pdfDruck.belegeFehlen} ausgezahlte Abrechnung
+              {durchgang.pdfDruck.belegeFehlen === 1 ? "" : "en"} über
+              {" "}{Number(durchgang.pdfDruck.belegeSumme).toFixed(2)} € haben
+              {" "}<b>keinen Beleg</b>.
+            </p>
+          )}
+          <p className="text-[11.5px] text-slate-500 mt-1.5">
+            Grund: {durchgang.pdfDruck.grund}
+          </p>
+          <p className="text-[11.5px] text-slate-500">
+            Gesucht in: {durchgang.pdfDruck.ablage ?? "Standard-Ablage (~/.cache/ms-playwright)"}
+            {" · "}geprüft {new Date(durchgang.pdfDruck.geprueftAm).toLocaleString("de-DE",
+              { timeZone: "Europe/Berlin" })}
+          </p>
+          <p className="text-[11.5px] text-slate-600 mt-1.5">
+            Behebung: Im Build muss <code>npm run pdf:browser</code> gelaufen sein, und
+            {" "}<code>PLAYWRIGHT_BROWSERS_PATH</code> muss in Build und Laufzeit auf
+            dasselbe Verzeichnis zeigen (Vorgabe <code>$PWD/.playwright</code>).
+          </p>
+        </section>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════════
           WAS NIEMAND SIEHT (21.08.2026)
 
           ── DER ANLASS ──────────────────────────────────────────────────────

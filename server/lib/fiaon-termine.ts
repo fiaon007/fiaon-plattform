@@ -44,6 +44,28 @@ export const QUELLEN = {
   nichterreicht_mail: { minuten: 20, text: "Gespräch mit deinem persönlichen Ansprechpartner" },
   agent_manuell: { minuten: 20, text: "Gespräch mit deinem persönlichen Ansprechpartner" },
   onboarding_call: { minuten: 15, text: "Dein persönliches Startgespräch" },
+  // ── DIE DRITTE GESPRÄCHSART (21.08.2026) ────────────────────────────────
+  // Der Kommentar oben sagte: „Wer eine dritte Gesprächsart braucht (Inkasso),
+  // trägt sie hier ein und ist fertig." Hier ist sie.
+  //
+  // ── DER WIDERSPRUCH, DEN SIE AUFLÖSEN MUSS ──────────────────────────────
+  // Am 11.08.2026 hat der Betreiber ausdrücklich gesagt: „Die Mitarbeiter aus
+  // dem Inkasso, warum haben die Termine? Die können keine Termine bekommen."
+  // Deshalb steht weiter unten in `terminBuchen` eine Wand, die jede Buchung
+  // auf ein Inkasso-Konto ablehnt.
+  //
+  // Diese Wand bleibt — sie hat nur nie unterschieden, WELCHE Gesprächsart
+  // gebucht wird. Abgelehnt gehören VERTRIEBS-Rückrufe: Hans-Jürgen hatte zwei
+  // `nichterreicht_mail`-Termine, und die umgehen seine nach Dringlichkeit
+  // sortierte Arbeitsliste.
+  //
+  // Ein `inkasso_call` ist das Gegenteil: ein Gespräch über GENAU die offene
+  // Rate, das der Zuständige selbst führt. Es umgeht keine Liste, es ist ihre
+  // Fortsetzung. Nur diese eine Art darf auf ein Inkasso-Konto.
+  //
+  // 20 Minuten wie das Vertriebsgespräch: Es geht um eine Zahlung, eine
+  // Vereinbarung und oft um eine Lebenslage — 15 Minuten wären knapp.
+  inkasso_call: { minuten: 20, text: "Gespräch über deine offene Rate" },
 } as const;
 
 export type TerminQuelle = keyof typeof QUELLEN;
@@ -62,7 +84,73 @@ export function dauerFuer(quelle: TerminQuelle | string): number {
  * bekommt der Kunde statt einer Einführung ein Verkaufsgespräch.
  */
 export function rolleFuerQuelle(quelle: TerminQuelle | string): string | null {
-  return String(quelle) === "onboarding_call" ? "onboarding" : null;
+  const q = String(quelle);
+  if (q === "onboarding_call") return "onboarding";
+  if (q === "inkasso_call") return "inkasso";
+  return null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE RICHTUNG IST UMGEDREHT — DER ZUSTAND BESTIMMT DIE GESPRÄCHSART
+//
+// ── DER AUFTRAG (Betreiber, 21.08.2026) ───────────────────────────────────
+// „Du hast `zustaendigeRolle` gebaut, aber die Vergabe entscheidet weiterhin
+// über die Terminart. Genau dort entsteht der Fehler. Drehe die Richtung um:
+// Die Rolle bestimmt die Terminart, nicht umgekehrt."
+//
+// ── WAS VORHER GALT ───────────────────────────────────────────────────────
+// Der Link trug `?art=start`. Daraus wurde die Quelle, daraus die Rolle. Ein
+// URL-Parameter entschied, wer den Kunden anruft — und wer ihn wegliess,
+// buchte ein Verkaufsgespräch für einen Menschen, der das Paket schon besitzt.
+//
+// ── GEMESSEN, WAS DIE UMSTELLUNG BEWEGT (21.08.2026) ─────────────────────
+// Von 41 Terminen seit dem 20.08. hätten **25** eine andere Gesprächsart
+// bekommen, **23** liegen bei einer Rolle, die nicht zuständig ist:
+//     11× onboarding_call → nichterreicht_mail  (Startgespräch längst geführt)
+//     10× onboarding_call → inkasso_call        (im Rückstand)
+//      2× nichterreicht_mail → inkasso_call
+//      2× nichterreicht_mail → onboarding_call
+//
+// ── DIE FOLGE, DIE DER BETREIBER AUSDRÜCKLICH ENTSCHIEDEN HAT ────────────
+// 147 der 151 Forderungsfälle (97 %) haben NIE ein Startgespräch geführt. Weil
+// der Rückstand vorgeht, wandern 147 der 342 Wartenden (43 % der
+// Onboarding-Warteschlange) in ein Zahlungsgespräch statt in ihr
+// Startgespräch. Ich habe genau diese Zahl vorgelegt und gefragt; die Antwort
+// war „Rückstand zuerst, wie beauftragt". Die Reihenfolge steht in
+// `fiaon-zustaendigkeit.ts` und ist dort in EINER Bedingung geändert.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Welche Gesprächsart und welche Rollen gehören zu DIESEM Menschen?
+ *
+ * Ersetzt den Weg „Quelle → Rolle" durch „Zustand → Quelle → Rollen". Der
+ * Rückfall (Vertretung) bleibt: Ist bei der zuständigen Rolle keine Zeit frei,
+ * treten Vertrieb und Leitung ein — sichtbar markiert.
+ *
+ * @param gewuenscht Was der Aufrufer mitgeschickt hat (z. B. `?art=start`).
+ *                   Wird vermerkt und verworfen, nicht befolgt.
+ */
+export async function entscheidFuerPerson(
+  personId: number, gewuenscht: string | null = null, lauf: Lauf = sqlPool,
+): Promise<RollenEntscheid & { quelle: string; zustaendig: string; verworfen: string | null }> {
+  const { terminartFuerPerson } = await import("./fiaon-zustaendigkeit");
+  const art = await terminartFuerPerson(personId, gewuenscht, lauf);
+  if (!art) {
+    // Kein Kunde — dann gilt das alte Verhalten (keine Rollenbindung). Ein
+    // Fehler wäre hier falsch: Die Terminwahl darf nicht daran scheitern, dass
+    // eine Person gerade zusammengeführt wurde.
+    return {
+      rollen: null, rueckfall: false, grund: "ohne_rolle",
+      quelle: "nichterreicht_mail", zustaendig: "vertrieb", verworfen: gewuenscht,
+    };
+  }
+  const entscheid = await rollenFuerBuchung(art.quelle, personId, lauf);
+  return {
+    ...entscheid,
+    quelle: art.quelle,
+    zustaendig: art.zustaendig,
+    verworfen: art.verworfen,
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -329,9 +417,24 @@ export function terminTokenPruefen(token: unknown): { personId: number; abgelauf
  * sondern die Auskunft, welche Art Gespräch gebucht wird (15 Minuten
  * Startgespräch beim Onboarding, 20 Minuten beim Vertrieb).
  */
-export function terminLink(personId: number, quelle: TerminQuelle | string = "nichterreicht_mail"): string {
-  const t = terminTokenErzeugen(personId);
-  return absoluteUrl(quelle === "onboarding_call" ? `/termin/${t}?art=start` : `/termin/${t}`);
+/**
+ * Der Buchungslink für einen Menschen.
+ *
+ * ── OHNE `?art=` SEIT DEM 21.08.2026 ──────────────────────────────────────
+ * Hier stand `?art=start` für Startgespräche. Der Parameter entschied die
+ * Gesprächsart und damit, wer anruft — von außen setzbar, und in jeder Mail
+ * mitgeschleppt. Wer ihn wegliess (oder eine alte Mail von vor der Zahlung
+ * aufrief), buchte ein VERTRIEBSGESPRÄCH für einen Menschen, der das Paket
+ * längst besitzt.
+ *
+ * Jetzt leitet die Seite die Gesprächsart aus dem Zustand ab. `quelle` bleibt
+ * als Parameter, weil rund zwanzig Aufrufer ihn übergeben — er wird nur nicht
+ * mehr in die Adresse geschrieben. Ein mitgeschicktes `?art=` verwirft die
+ * Ableitung und vermerkt es (`fiaon_termine.quelle_verworfen`).
+ */
+export function terminLink(personId: number, quelle: TerminQuelle | string = "auto"): string {
+  void quelle;
+  return absoluteUrl(`/termin/${terminTokenErzeugen(personId)}`);
 }
 
 /** Der Storno-Link zu einem Termin. */
@@ -416,6 +519,18 @@ export interface SlotAuskunft {
    * wenn das Telefon klingelt.
    */
   vertretung?: boolean;
+  /**
+   * Welche Gesprächsart wurde ABGELEITET? (21.08.2026)
+   *
+   * Die Terminseite schreibt sie hin und schickt sie beim Buchen zurück. Ohne
+   * sie müsste die Seite raten, und dann wäre die Ableitung wieder eine von
+   * zwei Wahrheiten.
+   */
+  quelle?: string;
+  /** Welche Rolle ist für diesen Menschen zuständig? */
+  zustaendig?: string;
+  /** Eine mitgeschickte Gesprächsart, die verworfen wurde — nur fürs Protokoll. */
+  verworfen?: string | null;
 }
 
 /**
@@ -565,14 +680,20 @@ export async function slotsProTag(lauf: Lauf = sqlPool): Promise<number> {
 }
 
 export async function freieSlots(
-  personId: number, lauf: Lauf = sqlPool, quelle: TerminQuelle | string = "nichterreicht_mail",
+  personId: number, lauf: Lauf = sqlPool, quelle: TerminQuelle | string = "auto",
 ): Promise<SlotAuskunft> {
-  const takt = dauerFuer(quelle);
-  // ── DER RÜCKFALL ────────────────────────────────────────────────────────
-  // DIESELBE Entscheidung, die auch `terminBuchen` trifft. Sie prüft nicht
-  // mehr nur, ob es ein Onboarding-Konto GIBT, sondern ob dort eine Zeit FREI
-  // ist — Begründung bei `rollenFuerBuchung`.
-  const entscheid = await rollenFuerBuchung(quelle, personId, lauf);
+  // ── „auto" HEISST: DER ZUSTAND ENTSCHEIDET (21.08.2026) ────────────────
+  // Die Vorgabe war `"nichterreicht_mail"` — ein Vertriebsgespräch für jeden,
+  // der die Quelle nicht mitschickte, auch für einen längst bezahlten Kunden.
+  //
+  // Jetzt ist die Vorgabe `"auto"`: Die Gesprächsart wird aus dem Zustand
+  // abgeleitet. Wer eine bestimmte Art WILL (ein Mitarbeiter, der einen
+  // eigenen Rückruf setzt), gibt sie weiter ausdrücklich an — dann bleibt sie.
+  const entscheid = String(quelle) === "auto"
+    ? await entscheidFuerPerson(personId, null, lauf)
+    : { ...(await rollenFuerBuchung(quelle, personId, lauf)), quelle: String(quelle) };
+  const wirkQuelle = entscheid.quelle;
+  const takt = dauerFuer(wirkQuelle);
   const nurRollen = entscheid.rollen;
   const nurRolle = nurRollen ? nurRollen[0] : null;
   const [person] = (await lauf`
@@ -582,7 +703,7 @@ export async function freieSlots(
     LEFT JOIN fiaon_agents a ON a.id = p.assigned_agent_id
     WHERE p.id = ${personId} AND p.merged_into_person_id IS NULL
   `) as any[];
-  if (!person) return { slots: [], betreuer: null };
+  if (!person) return { slots: [], betreuer: null, quelle: wirkQuelle };
 
   // Wer darf angeboten werden? Bei Besitz: nur der Betreuer. Sonst: alle, die
   // im Verteilbetrieb stehen — Testkonten ausdrücklich nicht, sonst bucht ein
@@ -606,7 +727,12 @@ export async function freieSlots(
             AND COALESCE(rolle, 'agent') IN ('agent', 'vertriebsleiter')
           ORDER BY id
         `) as any[]).map((a) => ({ id: Number(a.id), vorname: String(a.vorname) }));
-  if (agenten.length === 0) return { slots: [], betreuer: null, vertretung: entscheid.rueckfall };
+  if (agenten.length === 0) {
+    return {
+      slots: [], betreuer: null, vertretung: entscheid.rueckfall, quelle: wirkQuelle,
+      zustaendig: (entscheid as any).zustaendig,
+    };
+  }
 
   // Die Rechnung steht in `rohSlots` — dieselbe, die `rollenFuerBuchung`
   // benutzt, um „ist beim Onboarding etwas frei?" zu beantworten.
@@ -655,6 +781,9 @@ export async function freieSlots(
       slots: slotsVerknappen(eindeutig, await slotsProTag(lauf)),
       betreuer: null,
       vertretung: entscheid.rueckfall,
+      quelle: wirkQuelle,
+      zustaendig: (entscheid as any).zustaendig,
+      verworfen: (entscheid as any).verworfen ?? null,
     };
   }
 
@@ -664,6 +793,9 @@ export async function freieSlots(
       ? { id: Number(person.assigned_agent_id), vorname: String(person.agent_vorname || person.agent_name || "") }
       : null,
     vertretung: entscheid.rueckfall,
+    quelle: wirkQuelle,
+    zustaendig: (entscheid as any).zustaendig,
+    verworfen: (entscheid as any).verworfen ?? null,
   };
 }
 
@@ -773,6 +905,16 @@ export interface Buchung {
   /** Woher der Termin kommt — die Meldung an den Zuständigen nennt es. */
   quelle: string;
   /**
+   * Welche Rolle war ZUM ZEITPUNKT DER BUCHUNG zuständig? (21.08.2026)
+   *
+   * Die durchführende Person kann abweichen (Vertretung) — die Zuständigkeit
+   * wechselt dabei nie. Genau dieser Satz stand im Auftrag, und ohne eigenes
+   * Feld wäre er nicht nachweisbar.
+   */
+  zustaendig?: string | null;
+  /** Eine mitgeschickte Gesprächsart, die die Ableitung verworfen hat. */
+  verworfen?: string | null;
+  /**
    * Führt jemand aus einer anderen Rolle, weil beim Onboarding nichts frei war?
    *
    * Sie steht am Termin und nicht nur im Log: Ein Betreiber, der morgens seine
@@ -792,7 +934,16 @@ export async function terminBuchen(
     personId: number;
     agentId: number;
     beginn: string | Date;
-    quelle: TerminQuelle;
+    /**
+     * Der WUNSCH des Aufrufers, nicht die Entscheidung.
+     *
+     * Bewusst `string` und nicht `TerminQuelle`: Seit dem 21.08.2026 darf hier
+     * auch `"auto"` stehen („leite ab"), und ein alter Aufrufer darf weiter
+     * eine Art mitschicken, ohne dass der Typcheck ihn zwingt. Was wirklich
+     * gebucht wird, entscheidet `entscheidFuerPerson` — und nur die
+     * abgeleitete Art landet in der Datenbank.
+     */
+    quelle: TerminQuelle | string;
   },
   lauf: Lauf = sqlPool,
 ): Promise<Buchung> {
@@ -813,8 +964,27 @@ export async function terminBuchen(
     throw new TerminFehler("zu_spaet", `Termine sind höchstens ${HORIZONT_TAGE} Tage im Voraus buchbar.`);
   }
 
-  const takt = dauerFuer(eingabe.quelle);
-  const nurRolle = rolleFuerQuelle(eingabe.quelle);
+  // ══════════════════════════════════════════════════════════════════════
+  // DIE GESPRÄCHSART WIRD ABGELEITET, NICHT ÜBERNOMMEN (21.08.2026)
+  //
+  // Was der Aufrufer mitschickt, ist ein WUNSCH. Maßgeblich ist der Zustand
+  // des Menschen — sonst entscheidet weiter ein URL-Parameter, wer anruft.
+  //
+  // Zwei Ausnahmen, beide mit Grund:
+  //   · `agent_manuell` — ein Mitarbeiter setzt seinen EIGENEN Rückruf. Das
+  //     ist keine Kundenbuchung, sondern eine Notiz mit Uhrzeit; sie darf
+  //     nicht in ein Startgespräch umgedeutet werden.
+  //   · `onboarding` — die alte Quelle aus der Einladungsstrecke.
+  // Alles andere (auch ein mitgeschicktes `onboarding_call`) wird abgeleitet.
+  // ══════════════════════════════════════════════════════════════════════
+  const gewuenscht = String(eingabe.quelle);
+  const eigenerRueckruf = gewuenscht === "agent_manuell" || gewuenscht === "onboarding";
+  const abgeleitet = eigenerRueckruf
+    ? null
+    : await entscheidFuerPerson(eingabe.personId, gewuenscht, lauf);
+  const wirkQuelle = abgeleitet ? abgeleitet.quelle : gewuenscht;
+  const takt = dauerFuer(wirkQuelle);
+  const nurRolle = rolleFuerQuelle(wirkQuelle);
   const [agent] = (await lauf`
     SELECT id, COALESCE(NULLIF(first_name, ''), name) AS vorname, active, rolle
     FROM fiaon_agents WHERE id = ${eingabe.agentId}
@@ -859,13 +1029,13 @@ export async function terminBuchen(
   // keine Zeit frei ist — und dann wird der Termin als Vertretung markiert.
   let vertretung = false;
   if (nurRolle) {
-    const entscheid = await rollenFuerBuchung(eingabe.quelle, eingabe.personId, lauf);
+    const entscheid = abgeleitet ?? await rollenFuerBuchung(wirkQuelle, eingabe.personId, lauf);
     const rolle = String(agent.rolle || "agent");
     if (entscheid.rollen && !entscheid.rollen.includes(rolle)) {
       throw new TerminFehler(
         "falsche_rolle",
-        "Diese Person führt keine Startgespräche. Bitte wähl eine andere Zeit — "
-        + "die angebotenen Zeiten gehören zu Mitarbeitern, die Startgespräche führen.",
+        `Diese Person führt keine Gespräche dieser Art (${QUELLEN[wirkQuelle as TerminQuelle]?.text ?? wirkQuelle}). `
+        + "Bitte wähl eine andere Zeit — die angebotenen Zeiten gehören zu den zuständigen Mitarbeitern.",
       );
     }
     // Vertretung ist es nur, wenn der Rückfall greift UND der Gebuchte
@@ -897,7 +1067,19 @@ export async function terminBuchen(
   // (`inkasso_wiedervorlage`). Sie erscheint am gesetzten Tag von selbst in
   // der Arbeitsliste — ohne Uhrzeit, ohne zweites System.
   // ══════════════════════════════════════════════════════════════════════════
-  if (String(agent.rolle || "agent") === "inkasso") {
+  //
+  // ── PRÄZISIERT AM 21.08.2026 ────────────────────────────────────────────
+  // Die Wand lehnte JEDE Buchung auf ein Inkasso-Konto ab — sie unterschied
+  // nicht, WELCHE Gesprächsart. Abzulehnen sind Vertriebs-Rückrufe: Genau die
+  // hatte Hans-Jürgen, und sie umgehen seine nach Dringlichkeit sortierte
+  // Liste.
+  //
+  // Ein `inkasso_call` ist das Gegenteil: das Gespräch über genau die offene
+  // Rate, geführt vom Zuständigen. Es umgeht keine Liste, es ist ihre
+  // Fortsetzung — und ohne es hätte ein Mensch im Rückstand keinen Weg mehr,
+  // eine Zeit zu wählen. „Buchen wird nie hart gesperrt" (Auftrag vom
+  // 21.08.2026) gilt auch für ihn.
+  if (String(agent.rolle || "agent") === "inkasso" && wirkQuelle !== "inkasso_call") {
     throw new TerminFehler(
       "falsche_rolle",
       "Das Forderungsmanagement nimmt keine Termine an. Für einen späteren Anruf "
@@ -926,11 +1108,18 @@ export async function terminBuchen(
   const stornoToken = randomBytes(24).toString("hex");
   let gebucht: any;
   try {
+    // ── DIE ZUSTÄNDIGKEIT WIRD MITGESCHRIEBEN (Migration 073) ───────────
+    // Die Ableitung antwortet immer für HEUTE. Wer im Nachhinein prüfen will,
+    // ob eine Vertretung berechtigt war, braucht den DAMALIGEN Stand — sonst
+    // ist jede Rückschau eine Schätzung. Genau daran ist die Messung vom
+    // 21.08.2026 gescheitert: Sie musste den Zustand von heute für den von
+    // damals nehmen und musste das dazuschreiben.
     [gebucht] = (await lauf`
       INSERT INTO fiaon_termine (person_id, agent_id, beginn, dauer_min, status, quelle,
-                                 storno_token, vertretung)
+                                 storno_token, vertretung, zustaendige_rolle, quelle_verworfen)
       VALUES (${eingabe.personId}, ${eingabe.agentId}, ${beginn}, ${takt}, 'gebucht',
-              ${eingabe.quelle}, ${stornoToken}, ${vertretung})
+              ${wirkQuelle}, ${stornoToken}, ${vertretung},
+              ${abgeleitet?.zustaendig ?? null}, ${abgeleitet?.verworfen ?? null})
       RETURNING id
     `) as any[];
   } catch (err: any) {
@@ -949,8 +1138,10 @@ export async function terminBuchen(
     datumText: berlinDatumText(beginn),
     uhrzeit: berlinUhrzeit(beginn),
     stornoToken,
-    quelle: eingabe.quelle,
+    quelle: wirkQuelle,
     vertretung,
+    zustaendig: abgeleitet?.zustaendig ?? null,
+    verworfen: abgeleitet?.verworfen ?? null,
   };
 }
 

@@ -492,6 +492,30 @@ router.get("/admin/hub/knopfdurchgang", async (_req, res) => {
           OR (t.quelle = 'onboarding_call' AND COALESCE(ag.rolle, 'agent') <> 'onboarding'))
     `.catch(() => [{ n: 0, kommend: 0 }])) as any[];
 
+    // ── 7. BEREIT ZUR ÜBERGABE ────────────────────────────────────────────
+    // Dieselbe Bedingung wie in `fiaon-forderung.ts` — über dieselbe Funktion,
+    // damit Kachel und Liste nicht auseinanderlaufen. Eine zweite Bedingung
+    // hier wäre die zweite Wahrheit über dieselbe Frage.
+    const { UEBERGABE_AB_VERSUCHEN } = await import("./fiaon-forderung");
+    const { zustaendigeRolleSql: zrs } = await import("../lib/fiaon-zustaendigkeit");
+    const [ueb] = (await sqlPool.unsafe(`
+      SELECT COUNT(*)::int AS n,
+             COALESCE(SUM((
+               SELECT COALESCE(SUM(r.betrag_cents), 0) FROM fiaon_abo_raten r
+               JOIN fiaon_applications ar ON ar.ref = r.ref
+               WHERE ar.person_id = p.id AND ar.merged_into IS NULL
+                 AND r.status <> 'bezahlt' AND r.storniert_am IS NULL
+             )), 0)::bigint / 100.0 AS summe
+      FROM fiaon_persons p
+      WHERE ${zrs("p")} = 'inkasso'
+        AND COALESCE(p.unreachable_count, 0) >= ${UEBERGABE_AB_VERSUCHEN}
+        AND p.uebergabe_geprueft_am IS NULL
+        AND p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL
+    `).catch((e) => {
+      console.error("[HUB] uebergabe-bereit zaehlen:", e);
+      return [{ n: 0, summe: 0 }];
+    })) as any[];
+
     const gesperrt = Number(zahlung?.gesperrt_obwohl ?? 0)
       + Number(telefon?.n ?? 0);
 
@@ -512,6 +536,14 @@ router.get("/admin/hub/knopfdurchgang", async (_req, res) => {
         gesamt: Number(vertr?.n ?? 0),
         kommend: Number(vertr?.kommend ?? 0),
         wo: "/admin/hub#vertretungen",
+      },
+      // ── 7. BEREIT ZUR ÜBERGABE (21.08.2026) ──────────────────────────
+      // Nur die ZAHL, nicht die Liste: Die Kachel soll das Dashboard nicht um
+      // 25 vollständige Datensätze schwerer machen. Der Klick holt sie.
+      uebergabeBereit: {
+        gesamt: Number(ueb?.n ?? 0),
+        summe: Number(ueb?.summe ?? 0),
+        wo: "/admin/hub — Karte „Was niemand sieht“",
       },
       unsichtbar: befunde.map((b) => ({
         art: b.art, anzahl: b.anzahl, gewicht: b.gewicht,

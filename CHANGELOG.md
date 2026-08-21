@@ -5,6 +5,229 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 21.08.2026 (abends) — Zuständigkeit endgültig, Abo-Fälligkeit, Überfälligkeit ab Tag 1
+
+---
+
+### 0 — Die Entmarkierung ist ausgeführt
+
+`scripts/pruefstands-konten-lauf.ts --schreiben`. Beide Konten (#2, #7) tragen
+die Testmarke nicht mehr, und alles daran ist zurück in den Team-Ansichten:
+
+**5 Kunden · 3 Termine · 6 Provisionen über 591,60 € · 1 Auszahlung · 3 Leads.**
+
+Nachgezählt: 0 produktive Kunden und 0 Provisionen hängen noch an
+Prüfstands-Konten. Die Team-Zentrale zeigt jetzt „11 Menschen im Team · 207
+Testkonten ausgeblendet".
+
+---
+
+### 1 — Die Rolle bestimmt die Terminart, nicht die Adresse
+
+**Was falsch war.** Der Buchungslink trug `?art=start`. Daraus wurde die
+Gesprächsart, daraus die Rolle. **Ein URL-Parameter entschied, wer den Kunden
+anruft** — von außen setzbar und in jeder Mail mitgeschleppt. Wer eine
+Einladung von VOR seiner Zahlung aufrief, buchte ein Verkaufsgespräch über ein
+Paket, das er besitzt.
+
+**Jetzt** leitet `terminartFuerPerson` die Gesprächsart aus dem Zustand ab:
+
+| Zustand | Gesprächsart | Rolle |
+|---|---|---|
+| Rückstand ab Tag 1 oder von Hand markiert | `inkasso_call` (neu) | Forderungsmanagement |
+| Paket bezahlt, Startgespräch nicht geführt | `onboarding_call` | Onboarding |
+| sonst | `nichterreicht_mail` | Vertrieb |
+
+Ein mitgeschicktes `?art=` wird **vermerkt und verworfen**
+(`fiaon_termine.quelle_verworfen`). Der Link enthält keinen Parameter mehr.
+
+**GEMESSEN, was das bewegt** (41 Termine seit dem 20.08.):
+
+| | |
+|---|---|
+| hätten eine andere Gesprächsart bekommen | **25** |
+| lagen bei einer nicht zuständigen Rolle | **23** |
+| 11× `onboarding_call` → `nichterreicht_mail` | Startgespräch längst geführt |
+| 10× `onboarding_call` → `inkasso_call` | im Rückstand |
+| 2× `nichterreicht_mail` → `inkasso_call` | |
+| 2× `nichterreicht_mail` → `onboarding_call` | |
+
+**Die Folge habe ich vorgelegt, bevor ich sie gebaut habe.** 147 der 151
+Forderungsfälle (**97 %**) haben nie ein Startgespräch geführt. Weil der
+Rückstand vorgeht, wandern **147 der 342 Wartenden** (43 % der
+Onboarding-Warteschlange) in ein Zahlungsgespräch statt in ihr Startgespräch.
+Auf die Frage kam die Antwort „Rückstand zuerst, wie beauftragt" — so ist es
+gebaut. Die Reihenfolge steht in **einer** Bedingung und ist in einer Zeile
+umkehrbar.
+
+**Ein Widerspruch, den ich auflösen musste.** Am 11.08.2026 galt: „Die
+Mitarbeiter aus dem Inkasso können keine Termine bekommen." Die Wand dagegen
+steht weiter — sie unterscheidet jetzt aber, WELCHE Art. Abzulehnen sind
+Vertriebs-Rückrufe (die umgehen die nach Dringlichkeit sortierte Liste). Ein
+`inkasso_call` ist deren Fortsetzung und darf durch — sonst hätte ein Mensch im
+Rückstand keinen Weg mehr, eine Zeit zu wählen, und „Buchen wird nie hart
+gesperrt" wäre gebrochen.
+
+Neue Terminart-Marke **„Zahlung"** in Bernstein (`shared/fiaon-termin-art.ts`) —
+ohne sie wäre ein Zahlungsgespräch im Kalender als „Vertrieb" erschienen, und
+der Mitarbeiter hätte sich auf einen Verkauf eingestellt.
+
+**Vertretung:** ab **3 an einem Tag** eine Warnung an den Betreiber
+(`VERTRETUNG_WARNSCHWELLE`), höchstens eine je Tag. Die Zuständigkeit wechselt
+dabei nie — nur die durchführende Person. Neu:
+`fiaon_termine.zustaendige_rolle` hält den DAMALIGEN Stand fest; ohne diese
+Spalte war jede Rückschau eine Schätzung (genau daran ist die Messung von heute
+Mittag gescheitert).
+
+---
+
+### 2 — Die Kunden ohne Zahldatum: 90, nicht 81
+
+**GEMESSEN:** 90 bezahlte Bestellungen ohne `paid_at` (333 von 423 haben eines,
+78,7 %). Rekonstruierbarkeit:
+
+| Quelle | Fälle | Güte |
+|---|---|---|
+| Bankbuchung | 0 | sicher |
+| Akteneintrag | 4 | gut |
+| Zustellprotokoll | 2 | brauchbar |
+| Ratenkette (ein Monat vor erster Fälligkeit) | 50 | schwach |
+| **nicht rekonstruierbar** | **34** | — |
+
+**Woher sie kommen:** Bei **68 von 90** ist auch `completed_at` leer. Das sind
+Altbestand-Zeilen ohne jede Zeitspur — kein aktiver Weg im System setzt
+`payment_status = 'paid'` heute ohne `paid_at`; die drei Buchungswege
+(mark-paid, Kontoabgleich, Vertriebsleitung) setzen es alle.
+
+`reports/paid-at-rekonstruktion.csv` liegt vor, mit Vorschlag, Quelle und Güte
+je Zeile. **Es wurde nichts geschrieben** — das wartet auf Ihre Freigabe.
+
+---
+
+### 3 — Abo-Fälligkeit: die Rechnung war schon richtig
+
+Ich habe erwartet, das bauen zu müssen. `server/lib/fiaon-abo-zyklus.ts` tut es
+seit dem 16.08.2026 korrekt, und zwar genau so, wie Sie es verlangen:
+
+- Anker ist **`paid_at`** (die Verbuchung), mit Rangfolge Bankbuchung →
+  Antragsabschluss als Ersatz
+- **Jede** Fälligkeit wird frisch aus dem Anker gerechnet
+  (`faelligkeit(anker, n)`), nie aus der vorherigen — geprüft: 31.01. → 28.02.
+  → **31.03.** (der 31. kommt zurück)
+- Schaltjahr: 31.01.2028 → **29.02.2028**
+- Europe/Berlin über `berlinToday`
+- Betrag aus dem Katalog (`paketPreisCents`)
+
+**GEMESSEN am Bestand:** 535 von 588 Raten liegen genau auf dem Jahrestag. Die
+53 Abweichungen sind Altbestand: median +1 Tag, alle vor dem 16.08. angelegt,
+als der Motor noch mit „+30 Tage" rechnete. Seit der Korrektur: **1 von 1**
+richtig.
+
+**Laufzeit 12 Monate:** Es gibt keine Rate jenseits von Nr. 13 (12 Monatsraten +
+Startzahlung) — aber auch **keine Wand**, die es verhindert. Das ist offen,
+siehe „nicht getan".
+
+---
+
+### 4 — Überfälligkeit ab Tag 1
+
+**Zwei Teile liefen schon:** `ueberfaelligStellen` setzt `ueberfaellig_seit =
+faellig_am + 1` und teilt dem Inkasso mit der kleinsten Last zu. Und
+`rateErinnern` erhöht die Mahnstufe **schon vorher** nur bei bestätigtem Versand
+— „nie fire-and-forget" war bereits erfüllt.
+
+**Was gefehlt hat:**
+
+- **Der Akteneintrag** beim Zuständigkeitswechsel. Ohne ihn sieht ein Mensch in
+  der Akte nicht, wann und warum der Kunde ins Forderungsmanagement gewandert
+  ist — und beginnt das Gespräch mit einer Frage statt einer Auskunft.
+- **Der Beleg zur Mahnstufe.** Sie stieg korrekt, war aber nicht nachweisbar.
+  Neu: `mahnstufe_bestaetigt_am`, `mahnstufe_versuch_am`, `mahnstufe_fehler` —
+  damit ist „nie versucht" von „versucht und gescheitert" unterscheidbar.
+- **Die Abstände.** Vorher 0/7/14 — zwischen Tag 0 und Tag 7 lag eine Woche
+  Stille. Jetzt **0/3/7/14/21** wie besprochen.
+- **Ein hartcodiertes Duplikat.** In `faelligeRaten` stand
+  `CASE r.mahnstufe WHEN 0 THEN 0 WHEN 1 THEN 7 ELSE 14 END` — dieselbe Liste
+  ein zweites Mal. Wer `MAHNSTUFEN` geändert hätte, hätte die Anzeige verschoben
+  und nicht den Versand. Der Ausdruck wird jetzt aus der Liste **gebaut**
+  (`mahnAbstandSql`).
+- **Der Knopf „Sofort ins Forderungsmanagement"**
+  (`POST /admin/person/:id/inkasso`, Grund ist Pflicht). Er schreibt
+  `fiaon_persons.inkasso_ab`, und die **Ableitung liest die Spalte** — eine
+  Handmarkierung, die die Ableitung nicht liest, wäre ein Knopf ohne Wirkung.
+
+---
+
+### 5 — Drei erfolglose Anrufe → bereit zur Übergabe
+
+Neu: `GET /admin/uebergabe-bereit` und die Karte im Dashboard. **25 Fälle über
+zusammen 3.207,55 €.** Je Fall: Person, Adresse, Geburtsdatum, Vertrag mit
+Verwendungszweck, offene Raten mit Fälligkeit und Mahnstufe, Mahnhistorie,
+Anrufprotokoll, Zustimmungsnachweis. **CSV-Ausgang** vorhanden.
+
+**Nichts wird übergeben.** Der Satz steht in der Antwort des Servers, damit ihn
+niemand zweimal formuliert. Ein Fall verschwindet erst, wenn Sie ihn als geprüft
+abhaken (`uebergabe_geprueft_am`).
+
+Der Zustimmungsnachweis kommt aus dem Verlaufseintrag, den `fiaon-zustimmung.ts`
+beim Erteilen schreibt — die Spalten `consent_at`/`consent_ip` gibt es nicht,
+und ein Satz mit Datum ist für ein externes Inkasso der brauchbarere Nachweis.
+
+---
+
+### 6 — Die zwei Inkasso-Wahrheiten: eine Ursache, ein Vorschlag
+
+| | |
+|---|---|
+| Arbeitsliste (jede offene Rate) | **327** |
+| Ableitung (`zustaendig = inkasso`) | **151** |
+| **nur** in der Arbeitsliste | **176** |
+
+**Alle 176 aus GENAU EINEM Grund: die Rate ist noch nicht fällig.** Kein
+zweiter Grund, keine Datenlücke. Die beiden Regeln widersprechen sich nicht —
+sie beantworten zwei Fragen („ist er im Rückstand?" gegen „hat er eine offene
+Rate?").
+
+**Vorschlag — eine Regel, eine Liste, zwei Abschnitte:**
+
+```
+FORDERUNGSMANAGEMENT — 327 Fälle
+  ÜBERFÄLLIG · 151            ← Arbeit für heute, Mahnstufe läuft
+  KOMMENDE FÄLLIGKEITEN · 176 ← keine Arbeit, nur Planung.
+                                 Keine Mahnstufe, keine Anrufpflicht.
+```
+
+> Die eine Regel: Ein Mensch gehört ins Forderungsmanagement, wenn eine Rate
+> seit mindestens einem Tag fällig und unbezahlt ist — oder Sie ihn von Hand
+> markiert haben. Alles davor ist Vorschau, nicht Rückstand.
+
+Das ist wörtlich die Bedingung, die `zustaendigeRolle` schon benutzt. Niemand
+verliert einen Fall.
+
+**Was ich dafür von Ihnen brauche:** Die Kennzahl „offene Forderungen" fällt
+damit von 327 auf **151**, und der Betrag entsprechend. Das ist eine Zahl, die
+in Berichten steht. Sagen Sie ja, und ich baue es — es ist eine Bedingung in
+`fiaon-inkasso.ts` plus eine Gruppierung in der Anzeige.
+`reports/inkasso-differenz.csv` hat alle 327 Zeilen mit Begründung.
+
+---
+
+### Abnahme
+
+`scripts/pruef-zustaendigkeit-abo.ts` — **55 ok, 0 rot**, mit Rot-Proben.
+Vier Beweisbilder angesehen:
+
+1. **Bezahlter Kunde** öffnet den Link MIT `?art=start` → 15-Minuten-**Startgespräch**, Zuständigkeit `onboarding`
+2. **Unbezahlter Kunde**, derselbe Link mit `?art=start` → 20-Minuten-**Vertriebsgespräch** mit seinem Ansprechpartner, Parameter **verworfen**
+3. **Tag-1-Überfälliger** (Lydia GRUBER, Rate 2 fällig 20.08.) steht in der Inkasso-Arbeitsliste
+4. **„Bereit zur Übergabe"** mit 25 Fällen, Namen, Raten, Mahnstufen und CSV-Ausgang
+
+Drei eigene Fehler beim Bauen des Prüfstands, alle behoben: ein Backtick in
+einem SQL-Kommentar (die Regel, die ich gestern selbst in AGENTS.md geschrieben
+habe), ein Akteneintrag ohne `ref` (25 Mal abgelehnt — sichtbar nur, weil das
+`.catch` den Fehler nennt statt ihn zu schlucken), und ein Beweisbild vom
+Ladekreis, weil vier Sekunden nicht reichten.
+
 ## 21.08.2026 (nachmittags) — Stabilisierung: nichts bleibt unsichtbar
 
 ---

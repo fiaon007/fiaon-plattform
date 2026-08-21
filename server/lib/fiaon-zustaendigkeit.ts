@@ -69,17 +69,31 @@ export type ZustaendigeRolle = "vertrieb" | "onboarding" | "inkasso";
  *     Mahnstufe 2:   38 Raten,  38 Personen
  *     Mahnstufe 3:   10 Raten,  10 Personen
  *
- * Stufe 0 heißt „es gibt eine Rate", nicht „er zahlt nicht". Wer sie
- * mitzählt, erklärt 211 Menschen zu Mahnfällen, die nichts falsch gemacht
- * haben. Stufe 1 wird am Fälligkeitstag gesetzt — das ist der erste Tag, an
- * dem das Wort „Rückstand" stimmt.
+ * Stufe 0 heißt „es gibt eine Rate", nicht „er zahlt nicht".
  *
- * Ergebnis der drei Töpfe je Schwelle:
- *     X = 1:  inkasso 151 · onboarding 195 · vertrieb 4093
- *     X = 2:  inkasso 138 · onboarding 207 · vertrieb 4094
- *     X = 3:  inkasso 138 · onboarding 207 · vertrieb 4094
+ * ── WARUM DIESE ZAHL NUR NOCH EIN RÜCKFALL IST (21.08.2026, abends) ──────
+ * Der Betreiber: „Überfälligkeit ab Tag 1." Das ist genauer als eine
+ * Mahnstufe — denn die Mahnstufe steigt nur, wenn der Erinnerungslauf
+ * durchgekommen ist. Bleibt er aus (und genau das ist am 19.08. drei Tage
+ * lang passiert), bleibt ein Kunde auf Stufe 0 stehen, obwohl er seit zwei
+ * Wochen nicht zahlt. Eine Zuständigkeit, die von einem Lauf abhängt, ist
+ * keine Ableitung, sondern eine Nebenwirkung.
+ *
+ * Maßgeblich ist jetzt das DATUM (`faellig_am < heute`). Die Mahnstufe bleibt
+ * als ODER-Bedingung: Wer schon gemahnt wurde, ist ein Fall, auch wenn das
+ * Datum nachträglich verschoben wurde.
  */
 export const RUECKSTAND_AB_MAHNSTUFE = 1;
+
+/**
+ * Ab wie vielen Tagen nach Fälligkeit ist eine Rate überfällig?
+ *
+ * 1 = ab dem Tag NACH der Fälligkeit. Am Fälligkeitstag selbst (Tag 0) geht
+ * die Zahlungserinnerung raus; wer am selben Tag überweist, ist nicht im
+ * Rückstand. Ein Mensch, der pünktlich zahlt, darf nicht am Morgen des
+ * Fälligkeitstags im Forderungsmanagement stehen.
+ */
+export const UEBERFAELLIG_AB_TAGEN = 1;
 
 export interface Zustaendigkeit {
   personId: number;
@@ -101,14 +115,30 @@ export interface Zustaendigkeit {
   vertretung: boolean;
 }
 
-/** Die Bausteine der Ableitung — einmal als SQL, damit Listen sie brauchen können. */
+/**
+ * Die Bausteine der Ableitung — einmal als SQL, damit Listen sie brauchen können.
+ *
+ * ── VIER WEGE INS FORDERUNGSMANAGEMENT ────────────────────────────────────
+ *   1. Die Rate ist seit mindestens einem Tag fällig      (das Datum, maßgeblich)
+ *   2. Sie wurde schon gemahnt                            (Rückfall, falls das
+ *      Datum verschoben wurde)
+ *   3. Ein Inkasso-Mitarbeiter ist ihr zugewiesen          (jemand arbeitet daran)
+ *   4. Der Betreiber hat den Fall von Hand markiert        (`inkasso_ab`)
+ *
+ * Nummer 4 ist der Knopf „Sofort ins Forderungsmanagement" — unabhängig vom
+ * Datum. Er stand im Auftrag und gehört in dieselbe Bedingung: Eine
+ * Handmarkierung, die die Ableitung nicht liest, ist ein Knopf ohne Wirkung.
+ */
 function rueckstandSql(p: string, abStufe: number): string {
-  return `EXISTS (
+  return `(EXISTS (
     SELECT 1 FROM fiaon_abo_raten r
     JOIN fiaon_applications ar ON ar.ref = r.ref
     WHERE ar.person_id = ${p}.id AND ar.merged_into IS NULL
       AND ar.gdpr_deleted_at IS NULL AND r.status <> 'bezahlt'
-      AND (r.mahnstufe >= ${abStufe} OR r.inkasso_agent_id IS NOT NULL))`;
+      AND (r.faellig_am < (CURRENT_DATE - ${UEBERFAELLIG_AB_TAGEN - 1}::int)
+        OR r.mahnstufe >= ${abStufe}
+        OR r.inkasso_agent_id IS NOT NULL))
+    OR ${p}.inkasso_ab IS NOT NULL)`;
 }
 
 /**
@@ -214,6 +244,81 @@ export async function zustaendigeRolle(
     agentRolle,
     // Ohne Eingetragenen ist es keine Vertretung, sondern eine Lücke.
     vertretung: agentRolle != null && !ROLLEN_FUER[rolle].includes(agentRolle),
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE ROLLE BESTIMMT DIE TERMINART — NICHT UMGEKEHRT
+//
+// ── DIE LÜCKE, DIE DER BETREIBER GEFUNDEN HAT (21.08.2026) ────────────────
+// „Du hast `zustaendigeRolle` gebaut, aber die Vergabe entscheidet weiterhin
+// über die Terminart. Genau dort entsteht der Fehler."
+//
+// Er hat recht, und die Richtung war wirklich falsch herum:
+//
+//   VORHER   Der Buchungslink trug `?art=start`. Daraus wurde die Quelle
+//            `onboarding_call`, daraus über `rolleFuerQuelle` die Rolle
+//            „onboarding". Ein URL-Parameter entschied, wer den Kunden anruft.
+//            Wer ihn wegliess, buchte ein VERTRIEBSGESPRÄCH für einen
+//            Menschen, der längst bezahlt hat — und der sass dann in einem
+//            Verkaufsgespräch über ein Paket, das er besitzt.
+//
+//   JETZT    Der Zustand des Menschen entscheidet die Gesprächsart, und die
+//            Gesprächsart bestimmt die Rolle. Der Link braucht keinen
+//            Parameter mehr; ein mitgeschickter wird vermerkt und verworfen.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Welche Gesprächsart gehört zu welcher Zuständigkeit?
+ *
+ * Bewusst Zeichenketten und nicht der Typ `TerminQuelle`: Sonst müsste diese
+ * Datei `fiaon-termine.ts` importieren, und die importiert diese — ein Kreis,
+ * den Node beim Start mit einer halb gefüllten Datei auflöst.
+ * `scripts/pruef-zustaendigkeit-abo.ts` prüft, dass jeder Wert hier in
+ * `QUELLEN` steht; ohne diese Prüfung wäre die Trennung eine Wette.
+ */
+export const QUELLE_FUER_ROLLE: Record<ZustaendigeRolle, string> = {
+  onboarding: "onboarding_call",
+  vertrieb: "nichterreicht_mail",
+  inkasso: "inkasso_call",
+};
+
+export interface Terminentscheid {
+  /** Die Gesprächsart — abgeleitet, nicht übergeben. */
+  quelle: string;
+  zustaendig: ZustaendigeRolle;
+  /** Welche Mitarbeiter-Rollen dürfen es führen? */
+  rollen: string[];
+  grund: string;
+  /**
+   * Wurde eine mitgeschickte Gesprächsart verworfen? Dann steht sie hier.
+   * Nur fürs Protokoll: Ein stillschweigend überschriebener Parameter ist
+   * genau die Art Änderung, die man später nicht mehr erklären kann.
+   */
+  verworfen: string | null;
+}
+
+/**
+ * Welche Gesprächsart und welche Rolle gehören zu DIESEM Menschen?
+ *
+ * Der eine Ort. Gelesen von: öffentlichem Buchungslink, Slot-Anzeige,
+ * Buchungsannahme, Vollpfleger, Übergabe-Knopf, Telefon-Panel.
+ *
+ * @param gewuenscht Was der Aufrufer mitgeschickt hat (z. B. aus `?art=`).
+ *                   Wird NICHT befolgt, sondern nur vermerkt.
+ */
+export async function terminartFuerPerson(
+  personId: number, gewuenscht: string | null = null, lauf: Lauf = sqlPool,
+): Promise<Terminentscheid | null> {
+  const z = await zustaendigeRolle(personId, lauf);
+  if (!z) return null;
+  const quelle = QUELLE_FUER_ROLLE[z.rolle];
+  return {
+    quelle,
+    zustaendig: z.rolle,
+    rollen: ROLLEN_FUER[z.rolle],
+    grund: z.grund,
+    verworfen: gewuenscht && gewuenscht !== quelle ? gewuenscht : null,
   };
 }
 

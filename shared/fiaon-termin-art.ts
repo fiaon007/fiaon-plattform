@@ -32,7 +32,14 @@
 // Fassung.
 // ═══════════════════════════════════════════════════════════════════════════
 
-export type TerminArt = "onboarding" | "vertrieb" | "rueckruf";
+// ── DIE VIERTE ART (21.08.2026) ──────────────────────────────────────────
+// Der Kommentar oben sagt: „eine sechste wird dazukommen". Hier ist die
+// vierte Art — das Zahlungsgespräch. Sie musste dazu, weil die Zuständigkeit
+// jetzt die Gesprächsart bestimmt und „Forderungsmanagement" eine der drei
+// Zuständigkeiten ist. Ohne eigene Marke wäre ein Zahlungsgespräch im
+// Kalender als „Vertrieb" erschienen — und der Mitarbeiter hätte sich auf ein
+// Verkaufsgespräch eingestellt.
+export type TerminArt = "onboarding" | "vertrieb" | "rueckruf" | "forderung";
 
 export interface TerminArtMarke {
   art: TerminArt;
@@ -64,6 +71,15 @@ const MARKEN: Record<TerminArt, Omit<TerminArtMarke, "grund">> = {
     erklaerung: "Selbst notierter Rückruf — kein vom Kunden gebuchter Termin.",
     ton: "#92400e",
   },
+  forderung: {
+    art: "forderung",
+    text: "Zahlung",
+    erklaerung: "Gespräch über eine offene Rate. Der Mensch hat bezahlt und ist "
+      + "in Rückstand — es geht um eine Vereinbarung, nicht um einen Verkauf.",
+    // Bernstein statt Rot: Ein Zahlungsrückstand ist keine Verfehlung, und die
+    // Marke soll den Mitarbeiter einstimmen, nicht den Kunden anklagen.
+    ton: "#b45309",
+  },
 };
 
 /**
@@ -83,6 +99,8 @@ export function terminArtAusQuelle(quelle: unknown): TerminArtMarke {
     case "agent_manuell":
     case "nummer_korrektur":
       return { ...MARKEN.rueckruf, grund: `Quelle „${q}“` };
+    case "inkasso_call":
+      return { ...MARKEN.forderung, grund: `Quelle „${q}“` };
     case "nichterreicht_mail":
     case "portal":
       return { ...MARKEN.vertrieb, grund: `Quelle „${q}“` };
@@ -105,9 +123,10 @@ export function terminArtRueckruf(): TerminArtMarke {
   return { ...MARKEN.rueckruf, grund: "Wiedervorlage aus dem Verlauf" };
 }
 
-/** Alle drei Marken — für Filterleisten und Legenden. */
+/** Alle Marken — für Filterleisten und Legenden. */
 export const TERMIN_ARTEN: TerminArtMarke[] = [
   { ...MARKEN.onboarding, grund: "" },
   { ...MARKEN.vertrieb, grund: "" },
+  { ...MARKEN.forderung, grund: "" },
   { ...MARKEN.rueckruf, grund: "" },
 ];

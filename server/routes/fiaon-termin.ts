@@ -117,11 +117,34 @@ router.get("/termin/:token", async (req: Request, res: Response) => {
       ORDER BY t.beginn ASC LIMIT 1
     `) as any[];
 
-    // `art=start` schaltet auf das Startgespräch um: 15 Minuten statt 20 und
-    // ausschließlich Slots des Onboardings. Die Art steht im Pfad und nicht im
-    // Token, weil sie keine Berechtigung ist, sondern eine Auskunft.
-    const quelle = String(req.query.art) === "start" ? "onboarding_call" : "nichterreicht_mail";
-    const auskunft = await freieSlots(person.id, sqlPool, quelle);
+    // ══════════════════════════════════════════════════════════════════════
+    // DIE GESPRÄCHSART KOMMT AUS DEM ZUSTAND, NICHT AUS DER ADRESSE
+    //
+    // ── VORHER (bis 21.08.2026) ─────────────────────────────────────────
+    //     const quelle = String(req.query.art) === "start"
+    //       ? "onboarding_call" : "nichterreicht_mail";
+    //
+    // Ein Parameter in der Adresse entschied, welches Gespräch der Kunde
+    // bekommt und damit, wer ihn anruft. Er war von aussen setzbar und wurde
+    // in jeder Mail mitgeschleppt: Wer eine Einladung von VOR seiner Zahlung
+    // aufrief, buchte ein Verkaufsgespräch über ein Paket, das er besitzt.
+    //
+    // ── JETZT ───────────────────────────────────────────────────────────
+    // `freieSlots(..., "auto")` fragt `entscheidFuerPerson` — dieselbe
+    // Ableitung, die die Annahme benutzt. Ein mitgeschicktes `?art=` wird
+    // VERMERKT und verworfen, nicht befolgt.
+    //
+    // GEMESSEN: 25 von 41 Terminen seit dem 20.08. hätten eine andere
+    // Gesprächsart bekommen, 23 lagen bei einer nicht zuständigen Rolle.
+    // ══════════════════════════════════════════════════════════════════════
+    const gewuenscht = String(req.query.art || "") === "start" ? "onboarding_call"
+      : String(req.query.art || "") || null;
+    const auskunft = await freieSlots(person.id, sqlPool, "auto");
+    const quelle = auskunft.quelle ?? "nichterreicht_mail";
+    if (gewuenscht && gewuenscht !== quelle) {
+      console.log(`[TERMIN] Person ${person.id}: mitgeschickte Art „${gewuenscht}" verworfen, `
+        + `abgeleitet ist „${quelle}" (zuständig: ${auskunft.zustaendig ?? "?"}).`);
+    }
 
     // ══════════════════════════════════════════════════════════════════════
     // KEINE ZEIT IN 14 TAGEN? DANN MELDEN WIR UNS (19.08.2026)
@@ -168,6 +191,10 @@ router.get("/termin/:token", async (req: Request, res: Response) => {
     res.json({
       ok: true,
       art: quelle,
+      // Die Zuständigkeit steht in der Antwort, damit die Seite dem Kunden
+      // sagen kann, mit WEM er sprechen wird — und der Prüfstand es messen kann.
+      zustaendig: auskunft.zustaendig ?? null,
+      verworfen: gewuenscht && gewuenscht !== quelle ? gewuenscht : null,
       vorname: person.vorname || null,
       betreuer: auskunft.betreuer,
       slotMinuten: dauerFuer(quelle),
@@ -204,15 +231,25 @@ router.post("/termin/:token/buchen", async (req: Request, res: Response) => {
   // Aufrufe je Ausgang wären die Gelegenheit, an einem davon das Protokoll zu
   // vergessen — und dann fehlt genau der Fall, der die Meldung erklärt.
   // ══════════════════════════════════════════════════════════════════════════
+  // ── DER WUNSCH DES CLIENTS IST KEINE ENTSCHEIDUNG (21.08.2026) ──────────
+  // Vorher stand hier eine Erlaubnisliste, die aus dem Rumpf der Anfrage die
+  // Gesprächsart ableitete. Damit konnte jeder, der die Anfrage selbst baut,
+  // seine Gesprächsart bestimmen — und die Anzeige eine Zeile vorher hatte
+  // etwas anderes angeboten. Genau die Trennung, die am 19.08. 213 Kunden
+  // abgewiesen hat.
+  //
+  // `terminBuchen` leitet die Art jetzt selbst aus dem Zustand ab. Der Wunsch
+  // wird nur noch zum Protokollieren mitgenommen.
   const { beginn, agentId, quelle } = req.body || {};
-  const gewuenscht = quelle === "onboarding_call" ? "onboarding_call"
-    : quelle === "onboarding" ? "onboarding" : "nichterreicht_mail";
+  const gewuenscht = "auto";
+  const wunsch = quelle ? String(quelle) : null;
   let personId: number | null = null;
 
   const ablehnen = async (grund: string, text: string, status = 409) => {
     await versuchProtokollieren({
       ergebnis: "abgelehnt", personId, slotBeginn: beginn ?? null,
-      agentId: agentId ? Number(agentId) : null, grund, quelle: gewuenscht, akteur: "kunde",
+      agentId: agentId ? Number(agentId) : null, grund,
+      quelle: wunsch ?? "auto", akteur: "kunde",
     });
     return res.status(status).json({ ok: false, error: text, grund });
   };
@@ -257,14 +294,17 @@ router.post("/termin/:token/buchen", async (req: Request, res: Response) => {
       personId: geprueft.personId,
       agentId: Number(agentId),
       beginn: String(beginn),
-      quelle: gewuenscht,
+      // Der Wunsch geht mit, damit `terminBuchen` ihn verwerfen und vermerken
+      // kann. Übergäbe man hier „auto", stünde im Protokoll nicht mehr, was
+      // der Client eigentlich wollte.
+      quelle: wunsch ?? "auto",
     });
     await buchungAnwenden(buchung);
     await bestaetigungSenden(buchung);
 
     await versuchProtokollieren({
       ergebnis: "gebucht", personId: geprueft.personId, slotBeginn: beginn,
-      agentId: Number(agentId), quelle: gewuenscht, akteur: "kunde",
+      agentId: Number(agentId), quelle: buchung.quelle, akteur: "kunde",
     });
 
     res.json({
@@ -284,7 +324,7 @@ router.post("/termin/:token/buchen", async (req: Request, res: Response) => {
     await versuchProtokollieren({
       ergebnis: "abgelehnt", personId, slotBeginn: beginn ?? null,
       agentId: agentId ? Number(agentId) : null, grund: "serverfehler",
-      quelle: gewuenscht, akteur: "kunde",
+      quelle: wunsch ?? "auto", akteur: "kunde",
     });
     res.status(500).json({
       ok: false,

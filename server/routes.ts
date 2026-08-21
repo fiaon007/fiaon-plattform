@@ -268,6 +268,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonHubRoutes = await import('./routes/fiaon-admin-hub');
   app.use('/api/fiaon', fiaonHubRoutes.default);
 
+  // Forderungsmanagement: der Handschalter des Betreibers und die Liste
+  // „Bereit zur Übergabe". Hinter `adminCodeGate` wie alles unter /admin.
+  const fiaonForderungRoutes = await import('./routes/fiaon-forderung');
+  app.use('/api/fiaon', fiaonForderungRoutes.default);
+
   // 📈 FIAON Arbeitsberichte (P4-C) — /admin/leistung + /agent/leistung (Spiegel) + KI-Analyse
   const fiaonLeistungRoutes = await import('./routes/fiaon-leistung');
   app.use('/api/fiaon', fiaonLeistungRoutes.default);

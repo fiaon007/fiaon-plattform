@@ -827,13 +827,15 @@ export default function AdminHubPage() {
   // Abfrage scheiterte, sieht sonst aus wie eine Liste ohne Einträge. Genau
   // diese Verwechslung war der Befund vom 21.08.
   const [unsichtbarListe, setUnsichtbarListe] = useState<
-    { art: "onboarding" | "vertretung"; zeilen: any[]; fehler: string | null } | null>(null);
+    { art: "onboarding" | "vertretung" | "uebergabe"; zeilen: any[]; fehler: string | null } | null>(null);
 
-  const listeHolen = useCallback(async (art: "onboarding" | "vertretung") => {
+  const listeHolen = useCallback(async (art: "onboarding" | "vertretung" | "uebergabe") => {
     setUnsichtbarListe({ art, zeilen: [], fehler: null });
     const pfad = art === "vertretung"
       ? "/api/fiaon/agent/termine/vertretungen"
-      : "/api/fiaon/admin/hub/bezahlt-ohne-onboarding";
+      : art === "uebergabe"
+        ? "/api/fiaon/admin/uebergabe-bereit"
+        : "/api/fiaon/admin/hub/bezahlt-ohne-onboarding";
     const r = await fetch(pfad, { credentials: "include" }).catch(() => null);
     const j = await r?.json().catch(() => null);
     if (!j?.ok) {
@@ -847,7 +849,9 @@ export default function AdminHubPage() {
     }
     setUnsichtbarListe({
       art, fehler: null,
-      zeilen: art === "vertretung" ? (j.vertretungen ?? []) : (j.kunden ?? []),
+      zeilen: art === "vertretung" ? (j.vertretungen ?? [])
+        : art === "uebergabe" ? (j.faelle ?? [])
+        : (j.kunden ?? []),
     });
   }, []);
 
@@ -1183,7 +1187,8 @@ export default function AdminHubPage() {
           ══════════════════════════════════════════════════════════════════════ */}
       {durchgang?.ok && (durchgang.unsichtbar?.length > 0
         || durchgang.bezahltOhneOnboarding?.ueber14Tage > 0
-        || durchgang.vertretungen?.gesamt > 0) && (
+        || durchgang.vertretungen?.gesamt > 0
+        || durchgang.uebergabeBereit?.gesamt > 0) && (
         <section id="unsichtbar" className="rounded-2xl border p-4 mb-4"
                  style={{ borderColor: "rgba(180,83,9,.3)", background: "rgba(180,83,9,.05)" }}>
           <h2 className="text-[13px] font-bold uppercase tracking-wider mb-2"
@@ -1224,6 +1229,28 @@ export default function AdminHubPage() {
             </button>
           )}
 
+          {/* ── BEREIT ZUR ÜBERGABE AN EIN EXTERNES INKASSO ───────────────
+              Drei erfolglose Anrufe bei offener Rate. Die Karte MELDET —
+              übergeben wird nichts, das entscheidet der Betreiber. Genau
+              dieser Satz steht auch in der Antwort des Servers, damit ihn
+              niemand zweimal formuliert. */}
+          {durchgang.uebergabeBereit?.gesamt > 0 && (
+            <button type="button" onClick={() => void listeHolen("uebergabe")}
+                    data-fiaon="kachel-uebergabe-bereit"
+                    className="w-full text-left rounded-xl px-3 py-2.5 mb-2 hover:bg-white/60 transition-colors"
+                    style={{ background: "rgba(255,255,255,.5)" }}>
+              <span className="text-[13px] font-semibold text-slate-900">
+                <b className="tabular-nums text-[17px]">{durchgang.uebergabeBereit.gesamt}</b>
+                {" "}bereit zur Übergabe an externes Inkasso
+              </span>
+              <span className="block text-[12px] text-slate-600 mt-0.5">
+                Drei erfolglose Anrufe bei offener Rate, zusammen
+                {" "}{Number(durchgang.uebergabeBereit.summe ?? 0).toFixed(2)} €.
+                {" "}Nichts wurde übergeben — du entscheidest.
+              </span>
+            </button>
+          )}
+
           {durchgang.unsichtbar?.map((b: any) => (
             <p key={b.art} className="text-[12px] leading-relaxed mt-1.5"
                style={{ color: b.gewicht === "schwer" ? "#92400e" : "#64748b" }}>
@@ -1238,8 +1265,9 @@ export default function AdminHubPage() {
             <div className="mt-3 rounded-xl bg-white p-3" data-fiaon="unsichtbar-liste">
               <div className="flex items-center justify-between mb-2">
                 <b className="text-[12px] uppercase tracking-wider text-slate-500">
-                  {unsichtbarListe.art === "vertretung"
-                    ? "Termine in Vertretung" : "Bezahlt ohne Startgespräch"}
+                  {unsichtbarListe.art === "vertretung" ? "Termine in Vertretung"
+                    : unsichtbarListe.art === "uebergabe" ? "Bereit zur Übergabe an externes Inkasso"
+                    : "Bezahlt ohne Startgespräch"}
                 </b>
                 <button type="button" onClick={() => setUnsichtbarListe(null)}
                         className="text-[12px] font-semibold text-slate-500 hover:text-slate-800">
@@ -1253,6 +1281,32 @@ export default function AdminHubPage() {
               )}
               {!unsichtbarListe.fehler && unsichtbarListe.zeilen.length === 0 && (
                 <p className="text-[12.5px] text-slate-500">Wird geladen …</p>
+              )}
+              {unsichtbarListe.art === "uebergabe" && (
+                <>
+                  <a href="/api/fiaon/admin/uebergabe-bereit.csv"
+                     className="inline-block text-[12px] font-semibold mb-2"
+                     style={{ color: ACCENT }} data-fiaon="uebergabe-csv">
+                    Alle als CSV herunterladen
+                  </a>
+                  {unsichtbarListe.zeilen.map((f: any) => (
+                    <div key={f.personId} className="text-[12.5px] text-slate-700 py-1.5 border-b border-slate-100">
+                      <b>{f.name}</b>
+                      {" "}<span className="text-slate-500">
+                        {f.erfolgloseAnrufe} erfolglose Anrufe ·
+                        {" "}{f.anzahlOffen} offene Rate{f.anzahlOffen === 1 ? "" : "n"}
+                        {" "}({Number(f.summeOffen).toFixed(2)} €)
+                        {f.betreuer ? ` · ${f.betreuer}` : ""}
+                      </span>
+                      <span className="block text-[11.5px] text-slate-500">
+                        {(f.offeneRaten ?? []).slice(0, 3).map((r: any) =>
+                          `Rate ${r.rate} fällig ${new Date(r.faellig_am).toLocaleDateString("de-DE")}`
+                          + (r.mahnstufe ? ` (Mahnstufe ${r.mahnstufe})` : "")).join(" · ")}
+                        {f.vonHandMarkiert ? " · von Hand markiert" : ""}
+                      </span>
+                    </div>
+                  ))}
+                </>
               )}
               {unsichtbarListe.art === "vertretung"
                 ? unsichtbarListe.zeilen.map((v: any) => (
@@ -1270,6 +1324,7 @@ export default function AdminHubPage() {
                       )}
                     </p>
                   ))
+                : unsichtbarListe.art === "uebergabe" ? null
                 : unsichtbarListe.zeilen.map((k: any) => (
                     <p key={k.personId} className="text-[12.5px] text-slate-700 py-1 border-b border-slate-100">
                       <span className="tabular-nums text-slate-500 mr-2">

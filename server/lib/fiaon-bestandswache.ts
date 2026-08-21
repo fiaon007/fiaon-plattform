@@ -47,6 +47,17 @@ export interface Befund {
 /** Ab wann ist ein bezahlter Kunde ohne Startgespräch ein Befund? */
 export const ONBOARDING_GEDULD_TAGE = 14;
 
+/**
+ * Ab wie vielen Vertretungen an einem Tag geht eine Warnung raus?
+ *
+ * Drei. Eine einzelne Vertretung ist Alltag (jemand ist krank, ein Kalender
+ * ist gerade voll). Drei an einem Tag heißen: Die zuständige Rolle hat
+ * strukturell keine Zeit — und dann ist die Vertretung auf dem Weg, der
+ * Normalfall zu werden. Genau das ist am 19./20.08.2026 passiert, und es hat
+ * niemand bemerkt, weil es nirgends stand.
+ */
+export const VERTRETUNG_WARNSCHWELLE = 3;
+
 export async function bestandPruefen(lauf: Lauf = sqlPool): Promise<Befund[]> {
   const befunde: Befund[] = [];
 
@@ -161,6 +172,29 @@ export async function bestandPruefen(lauf: Lauf = sqlPool): Promise<Befund[]> {
       anzahl: Number(ohne.n),
       gewicht: "schwer",
       wo: "/admin/kunden",
+    });
+  }
+
+  // ── 5. VERTRETUNGEN VON HEUTE ───────────────────────────────────────────
+  // Der Auftrag: „Warn-Mail an Admin ab 3 Vertretungen an einem Tag." Drei
+  // an einem Tag ist kein Einzelfall mehr, sondern ein Kalender, der nicht
+  // reicht — und der Betreiber soll es am selben Tag erfahren, nicht in der
+  // Wochenauswertung.
+  const [vert] = (await lauf`
+    SELECT COUNT(*)::int AS n FROM fiaon_termine t
+    WHERE t.vertretung IS TRUE AND t.abgesagt_am IS NULL
+      AND (t.created_at AT TIME ZONE 'Europe/Berlin')::date
+          = (NOW() AT TIME ZONE 'Europe/Berlin')::date
+  `.catch(() => [{ n: 0 }])) as any[];
+  if (Number(vert?.n ?? 0) >= VERTRETUNG_WARNSCHWELLE) {
+    befunde.push({
+      art: "vertretungen_heute",
+      klartext: `${vert.n} Termine sind heute als VERTRETUNG gebucht worden. `
+        + "Die zuständige Rolle hatte keine freie Zeit — Vertretung ist erlaubt, "
+        + "aber drei an einem Tag heißt, dass der Kalender nicht reicht.",
+      anzahl: Number(vert.n),
+      gewicht: "schwer",
+      wo: "/admin/hub — Karte „Was niemand sieht“, Liste „Termine in Vertretung“",
     });
   }
 

@@ -84,6 +84,59 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-21-zustaendigkeit-termine",
+    date: "2026-08-21",
+    category: "Ge\u00e4ndert",
+    title: "Der Termin richtet sich jetzt nach dem Kunden \u2014 nicht nach dem Link",
+    summary:
+      "Wenn ein Kunde eine Zeit bucht, entscheidet sein ZUSTAND, welche Art "
+      + "Gespr\u00e4ch daraus wird und wer es f\u00fchrt. Vorher entschied das ein "
+      + "Textbaustein in der Adresse \u2014 und der war oft veraltet.",
+    changes: [
+      "WAS FALSCH WAR: Im Buchungslink stand „?art=start\u201c. Daraus wurde "
+      + "„Startgespr\u00e4ch\u201c, daraus „Onboarding f\u00fchrt es\u201c. Wer eine \u00e4ltere "
+      + "Einladung anklickte \u2014 aus der Zeit VOR seiner Zahlung \u2014, bekam ein "
+      + "Verkaufsgespr\u00e4ch \u00fcber ein Paket, das er l\u00e4ngst besitzt. GEMESSEN: 25 "
+      + "von 41 Terminen seit dem 20.08. w\u00e4ren anders gelandet.",
+
+      "WAS JETZT GILT: Bezahlt und Startgespr\u00e4ch fehlt \u2192 Startgespr\u00e4ch beim "
+      + "Onboarding. Noch nicht bezahlt \u2192 Vertriebsgespr\u00e4ch bei dir. Rate seit "
+      + "mindestens einem Tag \u00fcberf\u00e4llig \u2192 Zahlungsgespr\u00e4ch beim "
+      + "Forderungsmanagement. Ein mitgeschicktes „?art=\u201c wird ignoriert und "
+      + "im Termin vermerkt.",
+
+      "NEUE TERMINART „ZAHLUNG\u201c: Im Kalender gibt es jetzt eine vierte Marke "
+      + "in Bernstein. Sie sagt dir vorher, dass es um eine offene Rate geht \u2014 "
+      + "vorher stand dort „Vertrieb\u201c, und man ist mit der falschen Erwartung "
+      + "ins Gespr\u00e4ch gegangen.",
+
+      "VERTRETUNG BLEIBT M\u00d6GLICH und wird gez\u00e4hlt. Ist bei der zust\u00e4ndigen "
+      + "Rolle keine Zeit frei, springen Vertrieb und Leitung ein \u2014 der Termin "
+      + "tr\u00e4gt dann die Marke „Vertretung\u201c. Ab drei an einem Tag bekommt die "
+      + "Leitung eine Mail. Wichtig: Die ZUST\u00c4NDIGKEIT wechselt dabei nie, nur "
+      + "wer das Gespr\u00e4ch f\u00fchrt.",
+
+      "\u00dcBERF\u00c4LLIG AB TAG 1: Ist eine Rate am Tag nach der F\u00e4lligkeit nicht "
+      + "gebucht, steht der Kunde im Forderungsmanagement \u2014 mit einem Eintrag "
+      + "in der Akte, der sagt, welche Rate und seit wann. Erinnerungen gehen "
+      + "an Tag 0, 3, 7, 14 und 21 raus (vorher 0, 7, 14).",
+
+      "DIE MAHNSTUFE Z\u00c4HLT NUR MIT BELEG. Sie stieg schon vorher nur bei "
+      + "best\u00e4tigtem Versand \u2014 jetzt steht auch der Zeitpunkt dabei. Wenn du "
+      + "in der Akte „Mahnstufe 2\u201c liest, ist zweimal wirklich etwas "
+      + "rausgegangen.",
+    ],
+    howto: [
+      "Kalender: Die Marke neben der Uhrzeit sagt dir die Gespr\u00e4chsart \u2014 "
+      + "Onboarding (gr\u00fcn), Vertrieb (blau), Zahlung (bernstein), R\u00fcckruf (braun).",
+      "Steht „Vertretung\u201c am Termin: Du springst ein. Der Kunde geh\u00f6rt "
+      + "weiterhin zur urspr\u00fcnglich zust\u00e4ndigen Rolle.",
+      "Buchungslinks brauchen keinen Zusatz mehr. Ein alter Link mit "
+      + "„?art=start\u201c funktioniert \u2014 er wird nur nicht mehr befolgt.",
+    ],
+    important: true,
+  },
+  {
     id: "2026-08-21-stabilisierung",
     date: "2026-08-21",
     category: "Behoben",

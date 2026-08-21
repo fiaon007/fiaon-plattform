@@ -73,7 +73,43 @@ type Lauf = typeof sqlPool;
  */
 export const ABO_ZYKLUS = "monatlich zum Jahrestag der Buchung";
 /** Mahnstufen: Tage nach Fälligkeit, an denen die jeweilige Stufe rausgeht. */
-export const MAHNSTUFEN = [0, 7, 14] as const;
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE ERINNERUNGS-ABSTÄNDE — TAGE NACH FÄLLIGKEIT
+//
+// ── DIE ENTSCHEIDUNG (Betreiber, 21.08.2026) ──────────────────────────────
+// „Tag 0 (Fälligkeit): Zahlungserinnerung. Weitere Erinnerungen Tag 3, 7, 14,
+//  21." Vorher waren es drei Sendungen (0 / 7 / 14) — zwischen Tag 0 und Tag 7
+// lag eine Woche Stille, in der die meisten Zahlungen kippen.
+//
+// Der Index ist die Mahnstufe: Stufe 0 wird am Fälligkeitstag versandt, Stufe 1
+// drei Tage danach, und so weiter. Nach der letzten Stufe kommt KEINE weitere
+// Mail, sondern ein Punkt „Entscheidung nötig" in der Zahlungszentrale — eine
+// sechste Mail liest niemand mehr.
+// ═══════════════════════════════════════════════════════════════════════════
+export const MAHNSTUFEN = [0, 3, 7, 14, 21] as const;
+
+/**
+ * Dieselben Abstände als SQL-CASE.
+ *
+ * ── WARUM DAS HIER STEHT (21.08.2026) ────────────────────────────────────
+ * In `faelligeRaten` stand die Liste ein ZWEITES Mal, hartcodiert:
+ *
+ *     CASE r.mahnstufe WHEN 0 THEN 0 WHEN 1 THEN 7 ELSE 14 END
+ *
+ * Wer `MAHNSTUFEN` ändert und diese Zeile nicht, verschiebt die Anzeige und
+ * nicht den Versand — genau die Fehlerklasse, die dieses Haus schon zweimal
+ * Kunden gekostet hat (213 abgewiesene Buchungen, 139 gesperrte Rechnungen).
+ * Jetzt wird der Ausdruck aus der Liste GEBAUT.
+ */
+export function mahnAbstandSql(spalte = "r.mahnstufe"): string {
+  const zweige = MAHNSTUFEN
+    .map((tage, stufe) => `WHEN ${stufe} THEN ${tage}`)
+    .join(" ");
+  // Der ELSE-Zweig kann nicht greifen (`mahnstufe < MAHNSTUFEN.length` steht in
+  // der Bedingung), aber ein CASE ohne ELSE liefert NULL — und NULL >= x ist
+  // niemals wahr. Dann fiele die Rate lautlos aus dem Lauf.
+  return `CASE ${spalte} ${zweige} ELSE ${MAHNSTUFEN[MAHNSTUFEN.length - 1]} END`;
+}
 const ABO_BATCH = 40;
 
 /** Vorab-Erinnerung: Vorgabe drei Tage vor Fälligkeit, abschaltbar (0). */
@@ -584,8 +620,9 @@ async function faelligeRaten(limit: number, opts: { abStichtag?: string | null }
       -- Ein Kunde, den wir nicht erreichen können, muss auffallen.
       -- ══════════════════════════════════════════════════════════════════
       AND (r.letzte_erinnerung_at IS NULL OR r.letzte_erinnerung_at < NOW() - INTERVAL '20 hours')
-      -- Stufe erst, wenn der Abstand erreicht ist (0 / 7 / 14 Tage nach Fälligkeit)
-      AND (${heute}::date - r.faellig_am) >= (CASE r.mahnstufe WHEN 0 THEN 0 WHEN 1 THEN 7 ELSE 14 END)
+      -- Stufe erst, wenn der Abstand erreicht ist. Der Ausdruck kommt aus
+      -- MAHNSTUFEN (Tag 0/3/7/14/21) und steht nicht mehr zweimal da.
+      AND (${heute}::date - r.faellig_am) >= ${sqlPool.unsafe(mahnAbstandSql())}
       AND (${opts.abStichtag || null}::date IS NULL OR r.faellig_am >= ${opts.abStichtag || null}::date)
     ORDER BY r.faellig_am ASC
     LIMIT ${limit}
@@ -781,8 +818,37 @@ async function ueberfaelligStellen(
       AND r.status = 'offen' AND r.storniert_am IS NULL
       AND r.faellig_am < ${heute}::date
       AND r.ueberfaellig_seit IS NULL
-    RETURNING r.id
+    RETURNING r.id, r.ref, r.rate_nr, r.betrag_cents, r.faellig_am
   `) as any[];
+
+  // ══════════════════════════════════════════════════════════════════════
+  // DIE AKTE ERFÄHRT VOM ZUSTÄNDIGKEITSWECHSEL (21.08.2026)
+  //
+  // ── DER AUFTRAG ─────────────────────────────────────────────────────
+  // „Tag 1 überfällig: Kunde wechselt in die Zuständigkeit
+  //  Forderungsmanagement, erscheint in der Arbeitsliste, Akteneintrag."
+  //
+  // Die ersten zwei Teile liefen schon: `ueberfaellig_seit` wird gesetzt, und
+  // `zustaendigeRolle` liest das Datum. Der Akteneintrag fehlte — und damit
+  // die einzige Spur, die ein Mensch beim Öffnen der Akte sieht. Wer nicht
+  // weiss, WANN und WARUM ein Kunde ins Forderungsmanagement gewandert ist,
+  // beginnt das Gespräch mit einer Frage statt mit einer Auskunft.
+  //
+  // Kein `.catch(() => {})`: Bleibt der Eintrag aus, steht es im Log.
+  // ══════════════════════════════════════════════════════════════════════
+  for (const r of neu) {
+    const betrag = (Number(r.betrag_cents || 0) / 100).toFixed(2);
+    const faellig = new Date(r.faellig_am).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" });
+    await lauf`
+      INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
+      SELECT ${String(r.ref)}, a.person_id, NULL, 'System', 'system',
+             ${`Rate ${r.rate_nr} über ${betrag} € war am ${faellig} fällig und ist nicht `
+               + "gebucht. Ab heute liegt die Zuständigkeit beim Forderungsmanagement — "
+               + "der Kunde steht in deren Arbeitsliste."}
+      FROM fiaon_applications a WHERE a.ref = ${String(r.ref)}
+    `.catch((e) => console.error(`[FIAON-ABO] Akteneintrag zum Zuständigkeitswechsel `
+      + `(${r.ref}, Rate ${r.rate_nr}) nicht geschrieben — die Akte zeigt den Wechsel nicht:`, e));
+  }
 
   // Zuteilung an den Inkasso-Menschen mit der kleinsten Last — die bestehende
   // Logik, nicht eine zweite daneben.
@@ -914,10 +980,17 @@ async function rateErinnern(r: any, opts: { stufeErhoehen?: boolean } = {}): Pro
   );
   const versand = await sendMakeWebhookMitGrund("abo_payment_reminder", aboErinnerungPayload(r) as any);
   if (versand.ok) {
+    // ── DIE STUFE UND IHR BELEG STEHEN ZUSAMMEN (Migration 073) ─────────
+    // Die Stufe stieg schon vorher nur bei bestätigtem Versand — richtig, aber
+    // nicht nachweisbar: Man sah die Stufe und musste glauben, dass eine Mail
+    // dahinterstand. `mahnstufe_bestaetigt_am` ist dieser Nachweis.
     await sqlPool`
       UPDATE fiaon_abo_raten
       SET mahnstufe = ${stufe}, erinnerungen = erinnerungen + 1,
           letzte_erinnerung_at = NOW(),
+          mahnstufe_bestaetigt_am = NOW(),
+          mahnstufe_versuch_am = NOW(),
+          mahnstufe_fehler = NULL,
           letzter_fehler = NULL, letzter_fehler_at = NULL,
           updated_at = NOW()
       WHERE id = ${r.id}
@@ -931,7 +1004,12 @@ async function rateErinnern(r: any, opts: { stufeErhoehen?: boolean } = {}): Pro
     UPDATE fiaon_abo_raten
     SET fehlversuche = fehlversuche + 1,
         letzter_fehler = ${versand.grund || "Unbekannter Fehler beim Versand"},
-        letzter_fehler_at = NOW(), updated_at = NOW()
+        letzter_fehler_at = NOW(),
+        -- Der VERSUCH wird festgehalten, die Stufe nicht. So ist im Nachhinein
+        -- unterscheidbar: „nie versucht" gegen „versucht und gescheitert".
+        mahnstufe_versuch_am = NOW(),
+        mahnstufe_fehler = ${versand.grund || "Unbekannter Fehler beim Versand"},
+        updated_at = NOW()
     WHERE id = ${r.id}
   `;
   return { ok: false, grund: versand.grund };

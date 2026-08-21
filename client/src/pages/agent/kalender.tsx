@@ -84,6 +84,20 @@ function KalenderContent() {
   const [busy, setBusy] = useState<number | null>(null);
   // #17: angeklickter Termin → Detail-Popup (mobil Bottom-Sheet)
   const [detail, setDetail] = useState<Appointment | null>(null);
+  // ── ÜBERGABE AN EINEN KOLLEGEN (21.08.2026) ─────────────────────────────
+  // Krankheit, Urlaub, Rollenwechsel — täglich gebraucht und bisher nur über
+  // einen direkten Datenbankzugriff möglich. Alle Haken stehen hier oben:
+  // AGENTS.md, dreimal in diesem Repo gelernt.
+  const [uebergabe, setUebergabe] = useState<
+    { id: number; name: string; agentId: string; grund: string } | null>(null);
+  const [kollegen, setKollegen] = useState<{ id: number; name: string; rolle: string }[]>([]);
+
+  useEffect(() => {
+    if (!uebergabe || kollegen.length > 0) return;
+    void api("/agent/termine/uebernehmer").then((r) => {
+      if (r.ok) setKollegen(r.json?.kollegen ?? []);
+    });
+  }, [uebergabe, kollegen.length]);
 
   const flash = (m: string) => { setMessage(m); setTimeout(() => setMessage(null), 4000); };
 
@@ -166,6 +180,25 @@ function KalenderContent() {
     } else flash(r.json?.error || "Fehler");
   };
 
+  /**
+   * Den Termin an einen Kollegen übergeben.
+   *
+   * Der Grund ist Pflicht — der Server verlangt ihn auch, aber die Sperre
+   * gehört dorthin, wo der Finger hinzeigt. Der Kunde bekommt eine Info-Mail
+   * mit dem neuen Ansprechpartner; scheitert sie, sagt es die Meldung.
+   */
+  const doUebergeben = async () => {
+    if (!uebergabe?.agentId || uebergabe.grund.trim().length < 5) return;
+    setBusy(uebergabe.id);
+    const r = await api(`/agent/termine/${uebergabe.id}/uebergeben`, {
+      method: "POST",
+      body: JSON.stringify({ agentId: Number(uebergabe.agentId), grund: uebergabe.grund.trim() }),
+    });
+    setBusy(null);
+    if (r.ok) { flash(r.json?.hinweis || "Termin übergeben"); setUebergabe(null); load(); }
+    else flash(r.json?.error || "Die Übergabe hat nicht geklappt.");
+  };
+
   const doReschedule = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!reschedule?.value) return;
@@ -186,8 +219,20 @@ function KalenderContent() {
         role="button"
         title="Termin-Details öffnen"
       >
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
+        {/* ══════════════════════════════════════════════════════════════════
+            DIE ZEILE DARF UMBRECHEN (21.08.2026)
+
+            Mit dem vierten Knopf („Übergeben") passte die Zeile in der
+            WOCHENANSICHT nicht mehr: Dort sind die Spalten rund 370 px breit,
+            `min-w-0` liess den Namen auf null schrumpfen, und „Juri
+            Konchenko" stand SENKRECHT — ein Buchstabe je Zeile. Gesehen auf
+            dem Screenshot der Browser-Abnahme, nicht im Code.
+
+            `flex-wrap` schiebt die Knöpfe in die nächste Zeile, statt den
+            Namen zu zerquetschen, und die Mindestbreite hält ihn lesbar.
+            ══════════════════════════════════════════════════════════════════ */}
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="min-w-0 basis-[11rem] grow">
             {/* #17: Name nicht mehr abschneiden (break-words statt truncate) */}
             <p className="text-[13px] font-semibold text-slate-900 break-words">
               <span className="tabular-nums text-slate-500 mr-2">{showDate ? fmtDT(a.scheduled_at || a.promised_date) : fmtTime(a.scheduled_at || a.promised_date)}</span>
@@ -259,7 +304,7 @@ function KalenderContent() {
               {isOverdue && <span className="inline-flex items-center gap-1"><Clock size={10} /> überfällig</span>}
             </p>
           </div>
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
             {phone && (
               <a href={`tel:${phone}`} onClick={(e) => e.stopPropagation()} className={`${btnPrimary} px-3 py-2 inline-flex items-center gap-1.5`}>
                 <Phone size={13} strokeWidth={2} />
@@ -295,6 +340,24 @@ function KalenderContent() {
                 Nicht erschienen
               </button>
             )}
+            {/* ── ÜBERGEBEN ────────────────────────────────────────────────
+                Nur bei Kundenterminen: Eine selbst notierte Wiedervorlage
+                gehört niemand anderem. */}
+            {a.art === "termin" && !a.abgesagt && (
+              <button
+                type="button"
+                data-fiaon="termin-uebergeben"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setUebergabe({ id: a.id, name: apptName(a), agentId: "", grund: "" });
+                }}
+                disabled={busy === a.id}
+                title="Diesen Termin an einen Kollegen abgeben — der Kunde wird informiert"
+                className={`${btnGhost} px-3 py-2 text-[12px] disabled:opacity-30`}
+              >
+                Übergeben
+              </button>
+            )}
             <button
               type="button"
               onClick={(e) => markDone(e, a)}
@@ -323,6 +386,52 @@ function KalenderContent() {
             <button type="button" onClick={(e) => { e.stopPropagation(); setReschedule(null); }} className={btnGhost}>
               Abbrechen
             </button>
+          </div>
+        )}
+        {/* ══════════════════════════════════════════════════════════════════
+            DIE ÜBERGABE — AUSWAHL UND GRUND
+
+            Der Grund ist Pflicht und die Sperre erklärt sich selbst: Ein
+            gesperrter Knopf ohne Begründung ist eine Sackgasse (AGENTS.md).
+            Die Zeit bleibt, wie sie ist — wer verschieben will, sagt ab und
+            bucht neu. Sonst steht der Kunde vor einer Verschiebung, der er
+            nie zugestimmt hat.
+            ══════════════════════════════════════════════════════════════════ */}
+        {uebergabe?.id === a.id && (
+          <div className="mt-2.5 flex flex-col gap-2" data-fiaon="uebergabe-feld"
+               onClick={(e) => e.stopPropagation()}>
+            <select value={uebergabe.agentId}
+                    aria-label="Neuer Ansprechpartner"
+                    onChange={(e) => setUebergabe((v) => (v ? { ...v, agentId: e.target.value } : v))}
+                    className={inputCls} style={{ maxWidth: 300 }}>
+              <option value="">Wer übernimmt?</option>
+              {kollegen.map((k) => (
+                <option key={k.id} value={k.id}>{k.name} — {k.rolle}</option>
+              ))}
+            </select>
+            <input type="text" value={uebergabe.grund}
+                   aria-label="Grund der Übergabe"
+                   placeholder="Grund — zum Beispiel: krank bis Freitag"
+                   onChange={(e) => setUebergabe((v) => (v ? { ...v, grund: e.target.value } : v))}
+                   className={inputCls} style={{ maxWidth: 380 }} />
+            <div className="flex gap-2 items-center flex-wrap">
+              <button type="button" data-fiaon="uebergabe-senden"
+                      onClick={() => void doUebergeben()}
+                      disabled={!uebergabe.agentId || uebergabe.grund.trim().length < 5 || busy === a.id}
+                      className={btnPrimary}>
+                {busy === a.id ? "Übergibt …" : "Übergeben & Kunden informieren"}
+              </button>
+              <button type="button" onClick={() => setUebergabe(null)} className={btnGhost}>
+                Abbrechen
+              </button>
+              {(!uebergabe.agentId || uebergabe.grund.trim().length < 5) && (
+                <span className="text-[11.5px] text-slate-500">
+                  {!uebergabe.agentId
+                    ? "Bitte einen Kollegen auswählen."
+                    : "Bitte den Grund in einem Satz — der Kollege liest ihn morgen früh."}
+                </span>
+              )}
+            </div>
           </div>
         )}
       </div>

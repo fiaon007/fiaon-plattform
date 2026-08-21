@@ -84,6 +84,73 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-21-vier-blocker",
+    date: "2026-08-21",
+    category: "Behoben",
+    title: "Rechnung geht wieder, Telefon-Ergebnis wird angenommen, Onboarding sieht den Kunden",
+    summary:
+      "Vier Meldungen aus dem Betrieb an einem Tag \u2014 alle vier behoben. "
+      + "137 Kunden, denen du bis heute keine Zahlungsdaten schicken konntest, "
+      + "sind jetzt frei.",
+    changes: [
+      "DIE RECHNUNG H\u00c4NGT NICHT MEHR AM VERTRAG. Bisher war \u201eZahlungsdaten "
+      + "senden\u201c gesperrt, solange irgendein Antragsfeld fehlte \u2014 auch der Tag "
+      + "des Gehaltseingangs, die IBAN oder eine Zustimmung. Das hat mit einer "
+      + "Rechnung nichts zu tun. Jetzt gilt: eine offene Bestellung mit Preis und "
+      + "eine E-Mail-Adresse, mehr braucht es nicht. GEMESSEN: 968 sendbare "
+      + "Kunden vorher, 1.099 nachher.",
+
+      "WAS DEM VERTRAG FEHLT, STEHT GRAU DARUNTER \u2014 und sperrt nichts mehr. "
+      + "\u201eF\u00fcr den Vertrag fehlen noch: \u2026\u201c Sachangaben (Name, E-Mail, Telefon, "
+      + "Adresse, Geburtsdatum, Gehaltseingang, IBAN) nimmst du weiter am Telefon "
+      + "auf.",
+
+      "ZUSTIMMUNGEN DARFST DU NICHT MEHR SETZEN \u2014 und das ist Absicht. AGB, "
+      + "SCHUFA-Einwilligung und Vertragsannahme sind Erkl\u00e4rungen des Kunden; "
+      + "wer sie f\u00fcr ihn ankreuzt, erzeugt keinen Nachweis, sondern eine "
+      + "Behauptung. Statt eines Feldes gibt es den Knopf \u201eZustimmungs-Link an "
+      + "den Kunden senden\u201c. Der Link steht danach auch zum Kopieren da \u2014 falls "
+      + "die Mail nicht ankommt, liest du ihn am Telefon vor.",
+
+      "DAS ERGEBNIS IM TELEFON-PANEL WIRD ANGENOMMEN. Bei einem EINGEHENDEN "
+      + "Anruf war der Ergebnis-Klick tot: keine Meldung, kein Eintrag, zur\u00fcck "
+      + "zur Tastatur. Ursache war eine fehlende Anruf-Kennung. Jetzt wird sie "
+      + "nachgeschlagen, sonst geht das Ergebnis \u00fcber denselben Weg wie in der "
+      + "Kundenliste \u2014 und wenn es wirklich nicht geht, steht der Grund rot im "
+      + "Panel statt gar nichts.",
+
+      "ONBOARDING SIEHT BEIM ANRUFEN DEN KUNDEN. Im Telefon-Panel stehen jetzt "
+      + "Name, Paket, Zahlungsstand, SCHUFA-Stand und offene Punkte \u2014 und der "
+      + "Knopf \u201eGespr\u00e4ch f\u00fchren \u2014 die 7 Schritte\u201c \u00f6ffnet den Leitfaden "
+      + "W\u00c4HREND des Gespr\u00e4chs. Bisher gab es ihn nur \u00fcber die Terminkarte. "
+      + "Steht kein Zugriff zu, sagt das Panel WARUM, statt ewig \u201eWird geladen \u2026\u201c "
+      + "anzuzeigen.",
+
+      "STARTGESPR\u00c4CHE GEHEN ANS ONBOARDING. 15 Startgespr\u00e4che sind am 19. und "
+      + "20.08. beim Vertrieb gelandet. Ab jetzt gilt: solange beim Onboarding "
+      + "eine Zeit frei ist, geht es dorthin. Nur wenn dort NICHTS frei ist, "
+      + "springt der Vertrieb ein \u2014 und der Termin ist dann sichtbar als "
+      + "\u201eVertretung\u201c markiert.",
+
+      "TERMIN \u00dcBERGEBEN. Neuer Knopf im Kalender neben \u201eNicht erschienen\u201c: "
+      + "Kollegen w\u00e4hlen, Grund eintragen, fertig. Der Kunde bekommt eine Mail "
+      + "mit dem neuen Ansprechpartner. F\u00fcr Krankheit, Urlaub, Rollenwechsel.",
+    ],
+    howto: [
+      "Kunden \u2192 Karte aufklappen. Ist der Knopf \u201eZahlungsdaten senden\u201c blau, "
+      + "kannst du senden \u2014 auch wenn darunter noch Vertragsfelder fehlen.",
+      "Fehlt eine Zustimmung: \u201eZustimmungs-Link an den Kunden senden\u201c dr\u00fccken. "
+      + "Der Kunde best\u00e4tigt selbst, mit zwei Klicks.",
+      "Steht dort \u201eKeine E-Mail-Adresse\u201c: Feld daneben ausf\u00fcllen, speichern \u2014 "
+      + "der Knopf ist sofort frei.",
+      "Onboarding: w\u00e4hrend des Anrufs im Telefon auf \u201eKundendaten\u201c, dann "
+      + "\u201eGespr\u00e4ch f\u00fchren \u2014 die 7 Schritte\u201c.",
+      "Kalender \u2192 \u00dcbergeben \u2192 Kollegen und Grund \u2192 \u201e\u00dcbergeben & Kunden "
+      + "informieren\u201c.",
+    ],
+    important: true,
+  },
+  {
     id: "2026-08-20-onboarding-liste",
     date: "2026-08-20",
     category: "Behoben",

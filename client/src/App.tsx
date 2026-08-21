@@ -63,6 +63,9 @@ import AgentPartnerProgrammPage from "@/pages/agent/partner-programm";
 // Nachgeladen statt statisch importiert: Die Seite wird nur von den Agenten
 // gebraucht und würde das Hauptbündel für alle anderen Besucher vergrössern.
 const TerminPage = lazy(() => import("@/pages/termin"));
+// Die Zustimmungsseite: Nur der Kunde selbst darf AGB, Bonitaetspruefung und
+// Vertrag bestaetigen (server/lib/fiaon-zustimmung.ts).
+const ZustimmungPage = lazy(() => import("@/pages/zustimmung"));
 const TerminAbsagenPage = lazy(() => import("@/pages/termin").then((m) => ({ default: m.TerminAbsagenPage })));
 const AbmeldenPage = lazy(() => import("@/pages/abmelden"));
 const AlsKundePage = lazy(() => import("@/pages/als-kunde"));
@@ -358,6 +361,7 @@ function Router() {
       <Route path="/abmelden/:schluessel" component={AbmeldenPage} />
       <Route path="/termin/absagen/:stornoToken" component={TerminAbsagenPage} />
       <Route path="/termin/:token" component={TerminPage} />
+      <Route path="/zustimmung/:token" component={ZustimmungPage} />
       <Route path="/zahlung/:paymentRef/danke" component={ZahlungDankePage} />
       <Route path="/zahlung/:paymentRef" component={ZahlungPage} />
       <Route path="/nummer-aktualisieren" component={NummerAktualisierenPage} />

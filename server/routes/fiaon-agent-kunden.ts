@@ -45,7 +45,7 @@ import { hinweisFuer, type TierGrund } from "../lib/tier-hinweise";
 import { sendMakeWebhook, sendMakeWebhookMitGrund, makePayloadFromRow } from "../make-webhook";
 import { signInvoiceUrl } from "../fiaon-invoice";
 import {
-  sendeGrundSql, SENDE_GRUND_TEXT, fehlendeFelderSql,
+  sendeGrundSql, SENDE_GRUND_TEXT, fehlendeFelderSql, zustimmungFehltSql,
 } from "../lib/fiaon-massgebliche-bestellung";
 import { nachschub } from "./fiaon-followup";
 import { FIAON_BANK_DETAILS as BANK } from "./fiaon-antrag";
@@ -207,7 +207,11 @@ async function meinePerson(personId: number, agentId: number) {
            -- Welche Pflichtfelder fehlen? Der Text steht danach WÖRTLICH in der
            -- Karte („Es fehlt: Geburtsdatum, IBAN"). Ein pauschales „im
            -- Formular" hat Daniel am 19.08.2026 auf die Suche geschickt.
-           ${sqlPool.unsafe(fehlendeFelderSql("p"))} AS fehlende_felder
+           ${sqlPool.unsafe(fehlendeFelderSql("p"))} AS fehlende_felder,
+           -- Nur die drei Willenserklaerungen. Sie stehen getrennt, weil sie
+           -- einen anderen Weg haben: Sachangaben traegt der Mitarbeiter am
+           -- Telefon nach, Zustimmungen gibt ausschliesslich der Kunde.
+           ${sqlPool.unsafe(zustimmungFehltSql("p"))} AS zustimmung_fehlt
     FROM fiaon_persons p
     WHERE p.id = ${personId}
       AND p.assigned_agent_id = ${agentId}
@@ -243,10 +247,14 @@ function kartePayload(p: any, letzteAktivitaet?: any) {
     sendeMoeglich: p.sende_grund === "frei" || p.sende_grund === "erste_rechnung",
     sendeText: p.sende_grund ? (SENDE_GRUND_TEXT[String(p.sende_grund)]?.text ?? null) : null,
     sendeTat: p.sende_grund ? (SENDE_GRUND_TEXT[String(p.sende_grund)]?.tat ?? null) : null,
-    // Die fehlenden Angaben im Klartext — nur bei `antrag_unfertig` sinnvoll,
-    // aber immer mitgeliefert: Ein Feld, das der Client manchmal bekommt und
-    // manchmal nicht, wird zur zweiten Ableitung in der Oberfläche.
+    // ── DIE ZWEITE, GETRENNTE AUSKUNFT (21.08.2026) ────────────────────────
+    // `fehlendeFelder` sperrt seit dem 21.08.2026 NICHTS mehr. Es ist die
+    // Vertragslücke und steht grau unter dem Sende-Knopf. Immer mitgeliefert:
+    // Ein Feld, das der Client manchmal bekommt und manchmal nicht, wird zur
+    // zweiten Ableitung in der Oberfläche.
     fehlendeFelder: p.fehlende_felder ? String(p.fehlende_felder) : null,
+    /** Nur die Willenserklärungen — für sie gibt es KEIN Eingabefeld. */
+    zustimmungFehlt: p.zustimmung_fehlt ? String(p.zustimmung_fehlt) : null,
     // `telefon` bleibt die Anzeige (abwärtskompatibel), `telefonWaehlbar` ist
     // die Form für den Anruf. Getrennt, weil eine Nummer ohne Vorwahl angezeigt
     // werden soll, aber NICHT gewählt.
@@ -942,17 +950,49 @@ export async function zahlungsdatenSenden(
   // Zustand — und verschickt gleich mit.
   // ══════════════════════════════════════════════════════════════════════════
   if (!bestellung) {
-    const { rechnungStellen, RECHNUNGSREIF } = await import("../lib/fiaon-rechnung-stellen");
-    const [reif] = (await sqlPool`
-      SELECT ref FROM fiaon_applications
-      WHERE person_id = ${personId} AND merged_into IS NULL AND archived_at IS NULL
-        AND payment_status = 'pending'
-        AND status = ANY(${RECHNUNGSREIF as unknown as string[]})
-      ORDER BY created_at DESC LIMIT 1
-    `) as any[];
+    const { rechnungStellen } = await import("../lib/fiaon-rechnung-stellen");
+    const { katalogpreisVorhandenSql } = await import("../lib/fiaon-massgebliche-bestellung");
+    // ══════════════════════════════════════════════════════════════════════
+    // DER ZUSTANDSFILTER IST HIER RAUS (21.08.2026)
+    //
+    // Hier stand zusätzlich `AND status = ANY(RECHNUNGSREIF)`. Das ist
+    // dieselbe Bedingung, die `sendeGrundSql` in der Karte hatte — und sie
+    // hat Hans Neumann gesperrt: FIAON Ultra, Verwendungszweck vorhanden,
+    // Antrag im Zustand „contract".
+    //
+    // Eine Zahlungsaufforderung braucht eine lebende unbezahlte Bestellung
+    // mit einem Katalogpreis, sonst nichts. Die Auswahl hier muss dieselbe
+    // Menge treffen wie `sendeGrundSql` — sonst gibt die Karte frei und der
+    // Server lehnt ab, und das ist die Fehlerklasse, gegen die
+    // `fiaon-massgebliche-bestellung.ts` überhaupt gebaut wurde.
+    // ══════════════════════════════════════════════════════════════════════
+    //
+    // Was BLEIBT, ist die Entwurfs-Wand: Wer schon bezahlt hat, bekommt aus
+    // einem liegengebliebenen Formular-Anlauf keine zweite Rechnung. Gemessen
+    // waren das 48 Menschen mit bis zu sechs Entwürfen vom selben Tag.
+    // Die Reihenfolge unten ist dieselbe wie in `sendeGrundSql`: gestellte
+    // Bestellungen zuerst, Entwürfe nur, wenn nichts bezahlt ist.
+    const { FORMULAR_SCHRITTE_SQL } = await import("../lib/fiaon-antrag-vollstaendig");
+    const [stellbar] = (await sqlPool.unsafe(`
+      SELECT a.ref FROM fiaon_applications a
+      WHERE a.person_id = $1 AND a.merged_into IS NULL AND a.archived_at IS NULL
+        AND a.gdpr_deleted_at IS NULL AND a.cancelled_at IS NULL
+        AND a.payment_status NOT IN ('paid', 'refunded', 'superseded')
+        AND ${katalogpreisVorhandenSql("a")}
+        AND (
+          a.status NOT IN (${FORMULAR_SCHRITTE_SQL})
+          OR NOT EXISTS (SELECT 1 FROM fiaon_applications b
+            WHERE b.person_id = a.person_id AND b.merged_into IS NULL
+              AND b.archived_at IS NULL AND b.gdpr_deleted_at IS NULL
+              AND b.payment_status = 'paid')
+        )
+      ORDER BY (a.status NOT IN (${FORMULAR_SCHRITTE_SQL})) DESC, a.created_at DESC
+      LIMIT 1
+    `, [personId])) as any[];
 
-    if (reif) {
-      const erg = await rechnungStellen(String(reif.ref), { akteur: agentName, agentId });
+    if (stellbar) {
+      const erg = await rechnungStellen(String(stellbar.ref),
+        { akteur: agentName, agentId, aufAnweisung: true });
       if (!erg.ok) return { ok: false, status: 400, error: erg.grund };
       return {
         ok: true,
@@ -965,19 +1005,31 @@ export async function zahlungsdatenSenden(
     // ── DER GRUND, WARUM ES NICHT GEHT, IN WORTEN ─────────────────────────
     // „Keine offene Bestellung" sagt einem Agenten nicht, was er tun kann.
     const [warum] = (await sqlPool`
-      SELECT status, payment_status FROM fiaon_applications
-      WHERE person_id = ${personId} AND merged_into IS NULL AND archived_at IS NULL
-      ORDER BY created_at DESC LIMIT 1
+      SELECT
+        (SELECT pack_key FROM fiaon_applications
+          WHERE person_id = ${personId} AND merged_into IS NULL AND archived_at IS NULL
+          ORDER BY created_at DESC LIMIT 1) AS pack_key,
+        EXISTS (SELECT 1 FROM fiaon_applications
+          WHERE person_id = ${personId} AND merged_into IS NULL AND archived_at IS NULL
+            AND gdpr_deleted_at IS NULL) AS hat_bestellung,
+        EXISTS (SELECT 1 FROM fiaon_applications
+          WHERE person_id = ${personId} AND merged_into IS NULL AND archived_at IS NULL
+            AND gdpr_deleted_at IS NULL AND payment_status = 'paid') AS hat_bezahlt
     `) as any[];
     return {
       ok: false, status: 400,
-      error: !warum
+      error: !warum?.hat_bestellung
         ? "Dieser Kunde hat keine Bestellung — es gibt nichts zu berechnen."
-        : warum.payment_status === "paid"
-          ? "Dieser Kunde hat bereits bezahlt."
-          : `Der Antrag ist noch nicht abgeschlossen (Stand: ${warum.status}). `
-            + "Ruf an und hilf ihm, ihn fertigzustellen — danach lässt sich eine "
-            + "Rechnung stellen.",
+        : warum.hat_bezahlt
+          ? "Dieser Kunde hat bereits bezahlt. Offen sind nur liegengebliebene "
+            + "Formular-Anläufe — daraus entsteht keine zweite Rechnung. Wenn er "
+            // Das deutsche Schlusszeichen als Unicode-Flucht: als ASCII-
+            // Anführungszeichen geschrieben beendet es den String (esbuild:
+            // „Expected : but found an"). Zweimal heute passiert.
+            + "wirklich etwas nachbestellt, leg es \u00fcber \u201eProdukt hinzuf\u00fcgen\u201c an."
+          : `Für das gebuchte Paket „${warum.pack_key ?? "ohne Paket"}" ist kein `
+            + "Katalogpreis hinterlegt. Bitte ein Produkt aus dem Katalog anlegen — "
+            + "ohne Betrag wäre die Rechnung eine Bitte um Überweisung von irgendetwas.",
     };
   }
   // ── DER EMPFÄNGER KOMMT AUS DER AUFLÖSUNG (19.08.2026) ──────────────────
@@ -1267,9 +1319,32 @@ router.get("/agent/crm/kunden/:personId/rechnung-vorschau", requireAgent, async 
     const p = await meinePerson(personId, req.agent!.id);
     if (!p) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
 
-    const { massgeblicheBestellung, empfaengerFuer, katalogpreisCents } =
+    const { massgeblicheBestellung, empfaengerFuer, katalogpreisCents, sendeGrundSql, SENDE_GRUND_TEXT } =
       await import("../lib/fiaon-massgebliche-bestellung");
     const b = await massgeblicheBestellung(personId);
+
+    // ══════════════════════════════════════════════════════════════════════
+    // „möglich" KOMMT AUS DER EINEN AUFLÖSUNG (21.08.2026)
+    //
+    // ── DER BEFUND (scripts/pruef-sendesperre-browser.ts) ────────────────
+    // Der Prüfstand wurde bei zwei Fällen rot: Person 3375 (`alles_bezahlt`)
+    // und Person 3567 (`kein_preis`) — beide bekamen `moeglich: true`.
+    //
+    // Ursache: Diese Route leitete `moeglich` SELBST ab, aus „hat eine
+    // Adresse" bzw. „hat eine Adresse und irgendeine pending-Zeile". Die
+    // Karte fragt `sendeGrundSql`, der Versand entscheidet nach seinen
+    // Regeln, und der Dialog dazwischen hatte eine dritte Meinung.
+    //
+    // Genau dafür gibt es `fiaon-massgebliche-bestellung.ts`. Der Dialog
+    // fragt ab sofort dieselbe Funktion wie Karte und Arbeitsliste — und der
+    // Sperrgrund geht als Klartext mit, statt zweimal formuliert zu werden.
+    // ══════════════════════════════════════════════════════════════════════
+    const [g] = (await sqlPool.unsafe(`
+      SELECT ${sendeGrundSql("p")} AS grund FROM fiaon_persons p WHERE p.id = $1
+    `, [personId])) as any[];
+    const grund = String(g?.grund ?? "keine_bestellung");
+    const sendbar = grund === "frei" || grund === "erste_rechnung";
+    const grundText = SENDE_GRUND_TEXT[grund]?.text || null;
 
     // ── DIE ADRESSE KOMMT AUS DER EINEN AUFLÖSUNG ─────────────────────────
     // Auch für den Zweig „noch keine Rechnung". Hier stand eine eigene Abfrage
@@ -1295,8 +1370,9 @@ router.get("/agent/crm/kunden/:personId/rechnung-vorschau", requireAgent, async 
       const katalog = reif ? katalogpreisCents(reif) : null;
       return res.json({
         ok: true,
-        moeglich: !!empf.adresse && !!reif,
-        ersteRechnung: !!reif,
+        moeglich: sendbar,
+        grund,
+        ersteRechnung: !!reif && sendbar,
         // Die Referenz geht MIT, auch in diesem Zweig: Das Inline-Feld zum
         // Nachtragen der Adresse arbeitet auf `ref` (Stammdaten-Route). Ohne
         // sie stünde im Dialog ein Feld, das nicht speichern kann.
@@ -1316,12 +1392,10 @@ router.get("/agent/crm/kunden/:personId/rechnung-vorschau", requireAgent, async 
         empfaenger: empf.adresse,
         empfaengerQuelle: empf.quelle,
         weitereOffen: 0,
-        hinweis: !reif
-          ? "Dieser Kunde hat keine offene Bestellung."
-          : empf.adresse
-            ? "Für diesen Kunden wird jetzt die ERSTE Rechnung gestellt: Betrag aus dem "
-              + "Paket, sieben Tage Zahlungsfrist. Danach geht sie sofort raus."
-            : "Für diesen Kunden ist keine E-Mail-Adresse hinterlegt — die Mail kann nicht raus.",
+        hinweis: sendbar
+          ? "Für diesen Kunden wird jetzt die ERSTE Rechnung gestellt: Betrag aus dem "
+            + "Paket, sieben Tage Zahlungsfrist. Danach geht sie sofort raus."
+          : grundText || "Für diesen Kunden lässt sich gerade keine Rechnung stellen.",
       });
     }
 
@@ -1331,7 +1405,8 @@ router.get("/agent/crm/kunden/:personId/rechnung-vorschau", requireAgent, async 
       ? `${(b.katalogCents / 100).toFixed(2).replace(".", ",")} €` : null;
     res.json({
       ok: true,
-      moeglich: !!empf.adresse,
+      moeglich: sendbar,
+      grund,
       ersteRechnung: false,
       ref: b.ref,
       paket: b.paket,
@@ -1351,8 +1426,8 @@ router.get("/agent/crm/kunden/:personId/rechnung-vorschau", requireAgent, async 
       // Der Satz, den der Agent liest. Er steht HIER und nicht in drei
       // Oberflächen: Kundenkarte, Akte und Vollpfleger-Fluss zeigen dieselbe
       // Vorschau, also darf es auch nur einen Wortlaut geben.
-      hinweis: !empf.adresse
-        ? "Für diesen Kunden ist keine E-Mail-Adresse hinterlegt — die Mail kann nicht raus."
+      hinweis: !sendbar
+        ? (grundText || "Für diesen Kunden lässt sich gerade keine Rechnung stellen.")
         : b.betragWeichtAb
           ? `Ungewöhnlicher Betrag: ${betrag} — Katalogpreis wäre ${katalogText}. `
             + "Prüf das, bevor der Kunde überweist."
@@ -1385,6 +1460,100 @@ router.post("/agent/crm/kunden/:personId/rechnung", requireAgent, async (req: Ag
     });
   } catch (err) {
     console.error("[AGENT-KUNDEN] rechnung:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// POST /agent/crm/kunden/:personId/zustimmungs-link
+//
+// Der Ersatz für ein Eingabefeld, das es nie hätte geben dürfen. Ein
+// Mitarbeiter darf AGB-, SCHUFA- und Vertragszustimmung nicht für den Kunden
+// setzen — die Begründung steht in `server/lib/fiaon-zustimmung.ts`.
+//
+// Die Antwort trägt den Link IMMER, auch wenn die Mail scheitert: Dann liest
+// der Mitarbeiter ihn am Telefon vor oder schickt ihn per WhatsApp. Ein Knopf,
+// der bei einem Zustellfehler nichts hinterlässt, schickt den Menschen in eine
+// Sackgasse (dieselbe Bauform wie „termin-anbieten" in fiaon-agent-anlage.ts).
+// ═══════════════════════════════════════════════════════════════════════════
+router.post("/agent/crm/kunden/:personId/zustimmungs-link", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const personId = Number(req.params.personId);
+    const p = await meinePerson(personId, req.agent!.id);
+    if (!p) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+
+    const { massgeblicheBestellung, empfaengerFuer } =
+      await import("../lib/fiaon-massgebliche-bestellung");
+    // Dieselbe Auflösung wie beim Rechnungsversand — sonst zeigt der Link auf
+    // eine andere Bestellung als die Mail davor.
+    const massgeblich = await massgeblicheBestellung(personId);
+    const [neueste] = massgeblich ? [] : (await sqlPool`
+      SELECT ref FROM fiaon_applications
+      WHERE person_id = ${personId} AND merged_into IS NULL AND archived_at IS NULL
+        AND gdpr_deleted_at IS NULL AND payment_status NOT IN ('paid', 'refunded')
+      ORDER BY created_at DESC LIMIT 1
+    `) as any[];
+    const ref = massgeblich?.ref ?? (neueste ? String(neueste.ref) : null);
+    if (!ref) {
+      return res.status(400).json({
+        ok: false,
+        error: "Dieser Kunde hat keine offene Bestellung — ohne sie gibt es keinen Vertrag, dem er zustimmen könnte.",
+      });
+    }
+
+    const { zustimmungsLage, zustimmungLink } = await import("../lib/fiaon-zustimmung");
+    const lage = await zustimmungsLage(ref);
+    if (!lage) return res.status(404).json({ ok: false, error: "Bestellung nicht gefunden." });
+    if (lage.fertig) {
+      return res.status(400).json({
+        ok: false,
+        error: "Dieser Kunde hat bereits allen Punkten zugestimmt — es fehlt nichts.",
+      });
+    }
+
+    const link = zustimmungLink(ref);
+    const empfaenger = (await empfaengerFuer(personId, ref)).adresse;
+    if (!empfaenger) {
+      return res.json({
+        ok: true, link, gesendet: false, offen: lage.offen,
+        meldung: "Für diesen Kunden ist keine E-Mail hinterlegt. Der Link steht hier — "
+          + "gib ihn am Telefon durch oder schick ihn über einen anderen Weg.",
+      });
+    }
+
+    // Ein BESTEHENDES Ereignis, kein neues: `documents_change_request` ist die
+    // Rückfrage an den Kunden zu seinen Unterlagen und hat 65 zugestellte
+    // Sendungen im Protokoll. Ein neues Ereignis wäre ein zweiter Brevo-Text,
+    // den beim nächsten Wortwechsel jemand an einer Stelle ändert.
+    const { mailSenden } = await import("../lib/fiaon-mail-senden");
+    const { rolleVon } = await import("../lib/fiaon-kundenzugriff");
+    const rolle = await rolleVon(req.agent!.id);
+    const v = await mailSenden({
+      event: "documents_change_request", personId,
+      zusatz: {
+        login_url: link,
+        hinweis: `Es fehlt noch deine Bestätigung: ${lage.offen.join(", ")}. `
+          + "Über den Link brauchst du dafür nur zwei Klicks.",
+      },
+      akteur: { name: req.agent!.name, agentId: req.agent!.id, rolle: rolle as any },
+    }).catch((e) => ({ ok: false, grund: e instanceof Error ? e.message : String(e) }));
+
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
+      VALUES (${ref}, ${personId}, ${req.agent!.id}, ${req.agent!.name}, 'system',
+              ${`Zustimmungs-Link an ${empfaenger} geschickt (offen: ${lage.offen.join(", ")}).`}, NOW())
+    `.catch((e) => console.error("[AGENT-KUNDEN] zustimmungs-link Verlauf:", e));
+
+    res.json({
+      ok: true, link, offen: lage.offen,
+      gesendet: (v as any).ok === true,
+      meldung: (v as any).ok
+        ? `Link an ${empfaenger} verschickt. Offen: ${lage.offen.join(", ")}.`
+        : `Die Mail ging nicht raus (${(v as any).grund ?? "unbekannt"}). `
+          + "Der Link steht hier — du kannst ihn dem Kunden direkt geben.",
+    });
+  } catch (err) {
+    console.error("[AGENT-KUNDEN] zustimmungs-link:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

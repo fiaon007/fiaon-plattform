@@ -503,16 +503,51 @@ router.get("/telefon/eingehend/wer-ist-zustaendig", requireAgent, async (req: Ag
  * ganze Akte: Buchungen, offener Betrag, Verwendungszweck, Ort. Wenige Felder,
  * damit die Antwort in Millisekunden da ist.
  */
+// ═══════════════════════════════════════════════════════════════════════════
+// WAS DAS ONBOARDING BEIM ANRUFEN BRAUCHT (21.08.2026)
+//
+// ── DIE MELDUNG ───────────────────────────────────────────────────────────
+// „Onboarding ruft an und sieht weder Kundendaten noch die sieben Schritte."
+//
+// ── ZWEI URSACHEN, BEIDE HIER ─────────────────────────────────────────────
+//  1. Die Antwort trug fünf Felder: Paket, offener Betrag, Verwendungszweck,
+//     E-Mail, Ort. Für einen Verkäufer reicht das. Ein Startgespräch beginnt
+//     aber mit „Sie haben bezahlt, jetzt richten wir Sie ein" — dafür braucht
+//     es den Zahlungsstand, den Stand der Bonitätsauskunft und die offenen
+//     Punkte. Nichts davon war dabei.
+//  2. Der Termin fehlte. Das Cockpit mit den sieben Schritten
+//     (`OnboardingCockpit`) braucht eine Termin-Kennung — und die gab es nur
+//     auf der Seite /agent/startgespraeche. Wer aus dem Telefon heraus
+//     arbeitete, kam nicht hin. Jetzt liegt der Termin in der Antwort, und das
+//     Panel kann das Cockpit selbst öffnen.
+//
+// Die Bausteine kommen aus `fiaon-kundenlage.ts` — dieselben, die der
+// Onboarding-Bereich und der Vertrieb benutzen. Eine eigene Fassung hier wäre
+// die dritte Wahrheit über denselben Zahlungsstand.
+// ═══════════════════════════════════════════════════════════════════════════
 router.get("/telefon/kunde/:personId", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
     const personId = Number(req.params.personId);
     const rolle = await rolleVon(req.agent!.id);
     if (!(await darfAnKunde(req.agent!.id, rolle, personId))) {
-      return res.status(403).json({ ok: false, error: "Kein Zugriff auf diesen Kunden." });
+      // ── DER GRUND STATT „KEIN ZUGRIFF" ────────────────────────────────
+      // Der Client hat diese Antwort bisher verschluckt und „Wird geladen …"
+      // stehen lassen — für den Menschen am Telefon nicht von einem Ausfall
+      // zu unterscheiden. Jetzt steht da, WARUM, und was er tun kann.
+      return res.status(403).json({
+        ok: false,
+        error: rolle === "onboarding"
+          ? "Zu diesem Kunden hast du kein Startgespräch — deshalb siehst du seine Daten nicht. "
+            + "Wenn der Termin bei dir liegen soll, lass ihn dir von der Leitung übergeben."
+          : "Dieser Kunde wird von jemand anderem betreut.",
+        rolle,
+      });
     }
     const { buchungenVon, offenCents } = await import("../lib/fiaon-buchungen");
     const [p] = (await sqlPool`
-      SELECT COALESCE(NULLIF(p.primary_email, ''), (
+      SELECT COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''),
+                      p.company_name, 'Ohne Namen') AS name,
+             COALESCE(NULLIF(p.primary_email, ''), (
                SELECT NULLIF(COALESCE(a.email, a.contact_email, a.billing_email), '')
                FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL
                ORDER BY a.created_at DESC LIMIT 1)) AS email,
@@ -522,9 +557,36 @@ router.get("/telefon/kunde/:personId", requireAgent, async (req: AgentRequest, r
       FROM fiaon_persons p WHERE p.id = ${personId}
     `) as any[];
     const buchungen = await buchungenVon(personId);
+
+    // ── DER OFFENE TERMIN DIESES MITARBEITERS ─────────────────────────────
+    // Er entscheidet, ob das Panel den Knopf „Gespräch führen" zeigt. Nur
+    // eigene Termine: Ein Cockpit zu einem fremden Startgespräch wäre eine
+    // Zuständigkeitsübernahme durch die Hintertür.
+    const [termin] = (await sqlPool`
+      SELECT id, beginn, dauer_min, status, quelle, vertretung
+      FROM fiaon_termine
+      WHERE person_id = ${personId} AND agent_id = ${req.agent!.id}
+        AND quelle = 'onboarding_call' AND abgesagt_am IS NULL
+        AND status IN ('gebucht', 'verpasst')
+      ORDER BY ABS(EXTRACT(EPOCH FROM (beginn - NOW()))) LIMIT 1
+    `) as any[];
+
+    // Zahlungsstand, Unterlagen und Bonität — nur wenn jemand sie braucht.
+    // Für den Vertrieb wäre es eine Abfrage ohne Leser.
+    let lage: any = null;
+    if (rolle === "onboarding" || termin) {
+      const { zahlungsLage, dokumentLage } = await import("../lib/fiaon-kundenlage");
+      const [zahlung, dokumente] = await Promise.all([
+        zahlungsLage(personId).catch(() => null),
+        dokumentLage(personId).catch(() => null),
+      ]);
+      lage = { zahlung, dokumente };
+    }
+
     res.json({
       ok: true,
       kunde: {
+        name: p?.name ?? null,
         email: p?.email ?? null,
         ort: p?.ort ?? null,
         kundeSeit: p?.kunde_seit
@@ -535,6 +597,26 @@ router.get("/telefon/kunde/:personId", requireAgent, async (req: AgentRequest, r
         // Der Verwendungszweck der ältesten offenen Buchung — den braucht man,
         // wenn der Kunde sagt „ich überweise gleich".
         verwendungszweck: buchungen.find((b) => b.offen)?.verwendungszweck ?? null,
+        // ── FÜR DAS STARTGESPRÄCH ─────────────────────────────────────────
+        paket: buchungen.find((b) => b.art === "paket")?.bezeichnung ?? null,
+        zahlungsstand: buchungen.some((b) => b.offen)
+          ? `Offen: ${(offenCents(buchungen) / 100).toFixed(2).replace(".", ",")} €`
+          : buchungen.length > 0 ? "Bezahlt" : "Keine Bestellung",
+        schufaStand: buchungen.find((b) => b.art === "bonitaet")
+          ? (buchungen.find((b) => b.art === "bonitaet")!.bezahlt
+              ? "Bonitätsauskunft bezahlt"
+              : "Bonitätsauskunft bestellt, noch offen")
+          : "Keine Bonitätsauskunft bestellt",
+        offenePunkte: (lage?.dokumente?.fehlt ?? []) as string[],
+        termin: termin
+          ? {
+              id: Number(termin.id),
+              beginn: new Date(termin.beginn).toISOString(),
+              dauerMin: Number(termin.dauer_min ?? 15),
+              status: String(termin.status),
+              vertretung: termin.vertretung === true,
+            }
+          : null,
       },
     });
   } catch (err) {

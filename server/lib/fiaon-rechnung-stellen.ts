@@ -120,6 +120,7 @@ export interface RechnungsKandidat {
  */
 async function kandidatenLaden(
   lauf: Lauf, agentId: number | null, ref: string | null, grenze: number,
+  aufAnweisung = false,
 ): Promise<any[]> {
   const status = RECHNUNGSREIF as unknown as string[];
   return (await lauf`
@@ -159,7 +160,28 @@ async function kandidatenLaden(
       AND a.archived_at IS NULL
       AND a.gdpr_deleted_at IS NULL
       AND a.payment_status = 'pending'
-      AND a.status = ANY(${status}::text[])
+      AND a.cancelled_at IS NULL
+      -- ══════════════════════════════════════════════════════════════════════
+      -- DER ZUSTANDSFILTER GILT FÜR DEN TAGESLAUF, NICHT FÜR DEN MENSCHEN
+      --
+      -- Bis zum 21.08.2026 galt er für beide. Damit hing der Knopf eines
+      -- Agenten an derselben Liste wie ein Massenversand — und ein Antrag im
+      -- Zustand „contract" war für BEIDE gesperrt.
+      --
+      -- Die zwei Fälle sind aber nicht dieselben:
+      --   Tageslauf   verschickt unbeaufsichtigt an alles, was passt. Ohne
+      --               Zustandsfilter gingen Rechnungen an 3.626 halb
+      --               ausgefüllte Formulare — an Menschen, die einen Namen
+      --               eingetippt und aufgehört haben.
+      --   Mitarbeiter hat gerade mit dem Menschen GESPROCHEN. Er weiß, dass
+      --               eine Rechnung gewollt ist. Ihn an einem Merker zu
+      --               hindern, der beim letzten Formularschritt verloren ging,
+      --               ist die Blockade aus dem Screenshot Hans Neumann.
+      --
+      -- „aufAnweisung“ ist deshalb keine Abkürzung, sondern die Unterscheidung
+      -- zwischen Automat und Mensch.
+      -- ══════════════════════════════════════════════════════════════════════
+      AND (${aufAnweisung} OR a.status = ANY(${status}::text[]))
       AND (p.id IS NULL OR (p.merged_into_person_id IS NULL AND NOT p.is_blocked))
       AND (${agentId}::int IS NULL OR p.assigned_agent_id = ${agentId}::int)
       AND (${ref}::text IS NULL OR a.ref = ${ref}::text)
@@ -277,12 +299,19 @@ export interface Versandergebnis {
  */
 export async function rechnungStellen(
   ref: string,
-  opts: { akteur: string; agentId?: number | null; nurBuchen?: boolean } ,
+  opts: {
+    akteur: string; agentId?: number | null; nurBuchen?: boolean;
+    /** Ein Mensch hat gedrückt — dann entscheidet der Antragszustand nicht mit. */
+    aufAnweisung?: boolean;
+  },
   lauf: Lauf = sqlPool,
 ): Promise<Versandergebnis> {
-  const [r] = await kandidatenLaden(lauf, null, ref, 1);
+  const [r] = await kandidatenLaden(lauf, null, ref, 1, opts.aufAnweisung === true);
   if (!r) {
-    return { ok: false, ref, grund: "Diese Bestellung ist nicht (mehr) rechnungsreif." };
+    return {
+      ok: false, ref,
+      grund: "Diese Bestellung ist nicht (mehr) offen — sie ist bezahlt, storniert oder archiviert.",
+    };
   }
   const k = bauen(r);
   if (k.hindernis) return { ok: false, ref, grund: k.hindernis };
@@ -338,7 +367,25 @@ export async function rechnungStellen(
     paket: k.bezeichnung,
   } as any);
 
-  // Der Vorgang steht in der Akte — auch wenn die Mail scheitert.
+  // ══════════════════════════════════════════════════════════════════════════
+  // DER VORGANG STEHT IN DER AKTE — AUCH WENN DIE MAIL SCHEITERT
+  //
+  // ── DIESE VIER KOMMENTARZEILEN STANDEN IM SQL (gefunden 21.08.2026) ───────
+  // Sie lagen zwischen „NOW())" und dem schließenden Backtick — also INNERHALB
+  // des Template-Literals. Damit waren sie kein Kommentar, sondern Teil der
+  // Anweisung, und PostgreSQL lehnte jedes INSERT mit einem Syntaxfehler ab.
+  //
+  // Der Kommentar selbst hieß „KEIN STILLES SCHLUCKEN MEHR" und ersetzte ein
+  // `.catch(() => {})` durch eines mit Log-Ausgabe. Genau dieses `.catch` hat
+  // den Fehler dann geschluckt, den der Kommentar erzeugt hat: Seit dem
+  // 19.08.2026 ist KEIN einziger Eintrag „Erste Rechnung gestellt" in der Akte
+  // gelandet. Der Agent, der nachsieht „hab ich das schon geschickt?", findet
+  // nichts — und schickt ein zweites Mal.
+  //
+  // AGENTS.md warnt vor Backticks in SQL-Kommentaren. Das hier ist dieselbe
+  // Falle von der anderen Seite: ein JS-Kommentar IM SQL. Der Text gehört über
+  // die Anweisung, nicht hinein.
+  // ══════════════════════════════════════════════════════════════════════════
   if (k.personId) {
     await lauf`
       INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
@@ -347,12 +394,7 @@ export async function rechnungStellen(
                 + `Verwendungszweck ${k.verwendungszweck}, fällig in ${ZAHLUNGSFRIST_TAGE} Tagen`
                 + `${versand.ok ? ` — verschickt an ${k.email}` : ` — MAIL FEHLGESCHLAGEN: ${versand.grund}`}.`},
               NOW())
-    // ── KEIN STILLES SCHLUCKEN MEHR (19.08.2026) ────────────────────────
-    // Hier stand `.catch(() => {})`. Wenn dieser Eintrag scheitert, fehlt der
-    // Vorgang im Verlauf der Akte — und der Agent, der „hab ich das schon
-    // geschickt?" nachsieht, findet nichts. Der Fehler gehört wenigstens ins
-    // Log (AGENTS.md: „Ein .catch() um eine Abfrage schreibt den Fehler mit").
-    `.catch((e) => console.error(`[RECHNUNG] Verlaufseintrag ${ref} nicht geschrieben:`, e));
+    `.catch((e: unknown) => console.error(`[RECHNUNG] Verlaufseintrag ${ref} nicht geschrieben:`, e));
   }
 
   return versand.ok

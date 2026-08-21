@@ -5,6 +5,171 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 21.08.2026 — NOTFALL: vier Blocker aus dem Betrieb
+
+---
+
+### Teil 1 — Die Rechnung hing an Vertragsfeldern (137 Kunden befreit)
+
+**Die Meldung.** Screenshot Hans Neumann: „Antrag fertig — Rechnung offen",
+FIAON Ultra 79,99 €, Verwendungszweck FIAON-QQZAYT — und daneben
+„Zahlungsdaten: **gesperrt**", weil E-Mail, Tag des Gehaltseingangs, IBAN,
+AGB-, SCHUFA- und Vertragszustimmung fehlten.
+
+**Die Ursache.** Der Sende-Knopf verlangte einen Antragszustand aus einer Liste
+**oder alle neunzehn Pflichtfelder**. Damit hing eine ZAHLUNGSAUFFORDERUNG an
+Angaben, die zum VERTRAG gehören. Der Gehaltseingangstag sagt nichts darüber,
+wohin eine Rechnung geht; die IBAN erst recht nicht (wer überweist, braucht
+UNSERE Bankverbindung); und die drei Zustimmungen sind Willenserklärungen des
+Kunden.
+
+**Der Fix — zwei Begriffe, die nichts miteinander zu tun haben:**
+
+| | was es heißt | was es bewirkt |
+|---|---|---|
+| **rechnungsreif** | lebende unbezahlte Bestellung + Katalogpreis + zustellbare Adresse | entscheidet über den Sende-Knopf |
+| **vertragsreif** | die neunzehn Pflichtfelder | steht grau daneben, **sperrt nichts** |
+
+**GEMESSEN** (`scripts/mess-rechnungsreif.ts`):
+
+| | vorher | nachher |
+|---|---|---|
+| sendbare Kunden | **968** | **1.099** |
+| davon neu freigegeben | | **+137** |
+| ungewollt neu gesperrt | | **0** |
+
+Was bleibt: 345 ohne Adresse (ein Grund statt sechs — und die Karte hat für
+genau den ein Eingabefeld), 299 bereits bezahlt, 6 ohne Katalogpreis.
+
+**Ein Entwurf ist keine Forderung.** Der erste Anlauf ließ den Antragszustand
+ganz weg und hätte nebenbei **48 zahlende Kunden** eine Rechnung über ein Paket
+geschickt, das sie schon haben (Person 3471: eine bezahlte Bestellung und sechs
+abgebrochene Formular-Anläufe vom selben Tag). Der Zustand entscheidet jetzt nur
+noch eines: ob eine unbezahlte Zeile ein **Entwurf** ist. Gegen Entwürfe — und
+nur gegen die — gilt weiter „wer bezahlt hat, bekommt keine Rechnung".
+
+**Zustimmungen kann ein Mitarbeiter nicht mehr setzen.** Statt „Fehlendes am
+Telefon ergänzen" steht dort jetzt **„Zustimmungs-Link an den Kunden senden"**.
+Neu: `/zustimmung/:token` — eine Seite ohne Login, signierter Link, 30 Tage
+gültig, mit Zeitpunkt und Gerät als Nachweis. Sie war nötig, weil die
+Antragsstrecke einen bestehenden Antrag NICHT fortsetzen kann; ein Link dorthin
+hätte ein leeres Formular geöffnet. Am Telefon bearbeitbar bleiben nur
+Sachangaben.
+
+Nebenbei gefunden: In `fiaon-rechnung-stellen.ts` lagen vier Kommentarzeilen
+INNERHALB des SQL-Template-Literals. Seit dem 19.08.2026 ist deshalb **kein
+einziger** Eintrag „Erste Rechnung gestellt" in einer Akte gelandet — das
+`.catch()` daneben hat den Syntaxfehler geschluckt.
+
+*Wo:* `server/lib/fiaon-massgebliche-bestellung.ts`,
+`server/lib/fiaon-antrag-vollstaendig.ts`, `server/lib/fiaon-zustimmung.ts`,
+`server/routes/fiaon-zustimmung.ts`, `client/src/pages/zustimmung.tsx`,
+`client/src/pages/agent/kunden-neu.tsx`.
+
+---
+
+### Teil 2 — Das Ergebnis im Telefon-Panel verpuffte still
+
+**Die Meldung** (Vika, 16:46): „Ich kann es anklicken, aber es wird nicht
+angenommen." Über die Kundenliste ging dasselbe Ergebnis.
+
+**Die Ursache, in einer Zeile.** In `Softphone.tsx` stand:
+
+```
+if (!callId) { setZustand("bereit"); return; }
+```
+
+Keine Anfrage, keine Meldung, nichts in der Konsole — der Klick sprang zurück
+auf die Wähltastatur. Und `callId` **ist** bei einem eingehenden Anruf null:
+Gesetzt wird sie nur in der Antwort des Wählvorgangs. Der Knopf „Annehmen"
+setzte Zustand, Kunde und Nummer — die Kennung des Anrufs nicht. **Wer angerufen
+WIRD, konnte sein Gespräch nie dokumentieren.**
+
+**Der Fix:** Die Kennung wird aus den offenen Gesprächen nachgeschlagen; fehlt
+sie, geht das Ergebnis über **dieselbe Route wie die Kundenliste**
+(`/agent/crm/kunden/:id/aktivitaet` — beide laufen im Server durch
+`ergebnisNachbereiten`). Geht beides nicht, steht der Grund rot im Panel. Auch
+der stumme Ausgang bekommt einen Satz: Bei einem Netzfehler setzte die alte
+Zeile die Meldung auf **nichts**. Zusätzlich führt ein beendeter eingehender
+Anruf jetzt von selbst in den Ergebnis-Schritt.
+
+*Wo:* `client/src/components/Softphone.tsx`.
+
+---
+
+### Teil 3 — Onboarding sah beim Anrufen weder Daten noch Leitfaden
+
+Zwei Ursachen. Erstens verschluckte das Panel jede Absage des Servers
+(`if (!j?.ok) return;`) — ein „kein Startgespräch zu diesem Kunden" wurde zu
+einem **ewigen „Wird geladen …"**, ununterscheidbar von einem Ausfall.
+Zweitens trug die Antwort fünf Felder, die für einen Verkäufer reichen: Paket,
+offener Betrag, Verwendungszweck, E-Mail, Ort.
+
+**Jetzt:** Name, Paket, **Zahlungsstand**, **SCHUFA-Stand**, **offene Punkte** —
+und der eigene Termin. Damit gibt es im Panel den Knopf **„Gespräch führen — die
+7 Schritte"**, der das Onboarding-Cockpit über dem laufenden Anruf öffnet. Es
+gab das Cockpit bisher nur auf `/agent/startgespraeche`, erreichbar nur über die
+Termin-Karte — also nicht während des Gesprächs.
+
+*Wo:* `server/routes/fiaon-telefonie.ts`, `client/src/components/Softphone.tsx`.
+
+---
+
+### Teil 4 — Startgespräche beim Vertrieb
+
+**GEMESSEN** (`scripts/mess-startgespraech-zuordnung.ts`), letzte drei Tage:
+
+| Quelle | Rolle | Anzahl |
+|---|---|---|
+| onboarding_call | onboarding | 40 |
+| onboarding_call | **agent** | **15** ← falsch |
+
+Alle 15 gingen an Angelique Laukert, alle waren echte Kundenbuchungen, alle
+zwischen dem **19.08. 11:08 und dem 20.08. 10:22**. Seitdem keine einzige mehr.
+
+**Die Ursache.** Der Rückfall fragte „gibt es überhaupt ein Onboarding-**Konto**?"
+Das erste (Rifka) entstand am 19.08. um 12:29 — davor war der Rückfall
+zwangsläufig und richtig. Falsch war er trotzdem in zwei Punkten, die auch mit
+besetzter Rolle bleiben:
+
+1. Er fragte nach dem KONTO, nicht nach der **freien Zeit**. Ein Onboarding im
+   Urlaub hat ein Konto und keinen Slot — dann sieht der Kunde eine **leere**
+   Terminwahl, und niemand fällt zurück.
+2. Der Rückfall war **unsichtbar**: nicht am Termin, nicht in der Liste, nicht
+   in der Bestätigung.
+
+**Die Regel jetzt:** Ein Startgespräch geht IMMER ans Onboarding, solange dort
+eine Zeit frei ist. Erst bei NULL freien Onboarding-Zeiten treten Vertrieb und
+Leitung ein — und dann trägt der Termin die Marke **„Vertretung"** (Migration
+071). Anzeige und Annahme fragen **dieselbe** Funktion (`rollenFuerBuchung`);
+zwei Regeln für dieselbe Frage haben am 19.08. schon 213 Kunden abgewiesen,
+denen die Anzeige eine Zeile vorher Zeiten angeboten hatte.
+
+**Falsch zugeordnete Startgespräche der nächsten sieben Tage: keine.** Alle 15
+liegen in der Vergangenheit. `reports/startgespraech-falsch-zugeordnet.csv`.
+
+**Neu: Termin übergeben.** Auswahl, Pflicht-Grund, Info-Mail an den Kunden mit
+dem neuen Ansprechpartner (`termin_bestaetigung`). Der bisherige Zuständige
+bleibt in `uebergeben_von` stehen. Knopf im Kalender neben „Nicht erschienen".
+
+*Wo:* `server/lib/fiaon-termine.ts`, `server/routes/fiaon-termin.ts`,
+`client/src/pages/agent/kalender.tsx`, `db/migrations/071_termin_vertretung.sql`.
+
+---
+
+### Abnahme
+
+`scripts/pruef-vier-blocker.ts` — **46 ok, 0 rot**, zweimal hintereinander
+stabil, mit Rot-Probe. Alle schreibenden Routen abgefangen, kein echter Vorgang,
+Testkonten stillgelegt, geliehene Kunden und Termine zurückgegeben.
+`scripts/pruef-sendesperre-browser.ts` — 36 ok, 0 rot.
+
+Dabei aufgefallen und behoben: Die Rückgabe geliehener Termine lag im
+`try`-Block. Ein Playwright-Timeout hat ihn verlassen, und **zwei echte
+Kundentermine hingen an stillgelegten Prüfstands-Konten** (#684, #688) — zu
+ihnen wäre niemand erschienen. Repariert, und die Rückgabe steht jetzt im
+`finally`.
+
 ## 20.08.2026 — NOTFALL: Onboarding sah „0 Kunden", hatte aber Termine
 
 Viktoria Reichert und Rifka Rovcanin führen heute Startgespräche und sahen eine

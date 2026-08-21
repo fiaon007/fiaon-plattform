@@ -513,6 +513,168 @@ router.post("/agent/termine/:id/ergebnis", requireAgent, async (req: AgentReques
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// EINEN TERMIN AN EINEN KOLLEGEN ÜBERGEBEN
+//
+// ── WARUM (Auftrag Betrieb, 21.08.2026) ───────────────────────────────────
+// „Wird bei Krankheit/Rollenwechsel täglich gebraucht." Bisher ging es nur
+// über einen direkten UPDATE in der Datenbank — also gar nicht, für alle außer
+// einem Entwickler. Die Folge sind Termine, zu denen niemand erscheint.
+//
+// ── WAS DABEI PASSIERT ────────────────────────────────────────────────────
+//   1. Der Grund ist PFLICHT. Ein umgehängter Termin ohne Grund ist am
+//      nächsten Tag ein Rätsel — für den Übernehmenden und für den Betreiber.
+//   2. Der alte Zuständige bleibt in `uebergeben_von` stehen. Kein
+//      Hard-Delete der Zuordnung (AGENTS.md).
+//   3. Der Kunde bekommt eine Info-Mail über `termin_bestaetigung` mit dem
+//      NEUEN Ansprechpartner. Dieselbe Vorlage wie bei der Buchung: Ein
+//      zweiter Brevo-Text für „fast dasselbe" läuft beim ersten Wortwechsel
+//      auseinander.
+//   4. Der neue Zeitpunkt bleibt derselbe. Wer die Zeit ändern will, sagt sie
+//      ab und bucht neu — sonst steht der Kunde vor einer Verschiebung, der er
+//      nie zugestimmt hat.
+//
+// ── WER DARF ─────────────────────────────────────────────────────────────
+// Der bisherige Zuständige und die Leitung. Nicht jeder: Ein Termin, den
+// beliebige Kollegen umhängen können, ist keine Zuständigkeit mehr.
+// ═══════════════════════════════════════════════════════════════════════════
+router.post("/agent/termine/:id/uebergeben", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const zielId = Number(req.body?.agentId);
+    const grund = String(req.body?.grund ?? "").trim();
+    if (!zielId) return res.status(400).json({ ok: false, error: "Bitte einen Kollegen auswählen." });
+    if (grund.length < 5) {
+      return res.status(400).json({
+        ok: false,
+        error: "Bitte in einem Satz sagen, warum du übergibst — der Kollege liest ihn morgen früh.",
+      });
+    }
+
+    const [termin] = (await sqlPool`
+      SELECT id, person_id, agent_id, beginn, quelle, status, storno_token
+      FROM fiaon_termine WHERE id = ${id} AND abgesagt_am IS NULL
+    `) as any[];
+    if (!termin) return res.status(404).json({ ok: false, error: "Termin nicht gefunden." });
+    if (Number(termin.agent_id) === zielId) {
+      return res.status(400).json({ ok: false, error: "Der Termin liegt schon bei diesem Kollegen." });
+    }
+
+    const { rolleVon } = await import("../lib/fiaon-kundenzugriff");
+    const rolle = await rolleVon(req.agent!.id);
+    const darf = Number(termin.agent_id) === req.agent!.id
+      || ["vertriebsleiter", "admin"].includes(rolle);
+    if (!darf) {
+      return res.status(403).json({
+        ok: false,
+        error: "Diesen Termin kann nur sein Zuständiger oder die Leitung übergeben.",
+      });
+    }
+
+    const [ziel] = (await sqlPool`
+      SELECT id, COALESCE(NULLIF(first_name, ''), name) AS vorname, name, rolle, active
+      FROM fiaon_agents
+      WHERE id = ${zielId} AND active AND NOT COALESCE(is_test_account, FALSE)
+    `) as any[];
+    if (!ziel) return res.status(404).json({ ok: false, error: "Diesen Kollegen gibt es nicht (mehr)." });
+    // Dieselbe Grenze wie beim Buchen: Das Forderungsmanagement nimmt keine
+    // Termine an (Begründung in server/lib/fiaon-termine.ts).
+    if (String(ziel.rolle) === "inkasso") {
+      return res.status(400).json({
+        ok: false,
+        error: "Das Forderungsmanagement nimmt keine Termine an. Dort gibt es die Wiedervorlage an der Rate.",
+      });
+    }
+
+    // Wechselt ein Startgespräch aus dem Onboarding heraus, ist es ab jetzt
+    // eine Vertretung — und wieder zurück, wenn es ins Onboarding geht.
+    const sollRolle = String(termin.quelle) === "onboarding_call" ? "onboarding" : null;
+    const vertretung = sollRolle ? String(ziel.rolle || "agent") !== sollRolle : false;
+
+    await sqlPool`
+      UPDATE fiaon_termine
+      SET agent_id = ${zielId},
+          vertretung = ${vertretung},
+          uebergeben_am = NOW(),
+          uebergeben_von = ${Number(termin.agent_id)},
+          uebergeben_grund = ${grund.slice(0, 500)},
+          updated_at = NOW()
+      WHERE id = ${id}
+    `;
+
+    // ── DIE INFO-MAIL AN DEN KUNDEN ───────────────────────────────────────
+    // Sie geht über `termin_bestaetigung` mit dem neuen Vornamen. Scheitert
+    // sie, ist die Übergabe trotzdem gültig — sie steht in der Datenbank, und
+    // der Mitarbeiter erfährt es im Klartext, statt es zu glauben.
+    const [p] = (await sqlPool`
+      SELECT COALESCE(NULLIF(TRIM(a.email), ''), NULLIF(TRIM(p.primary_email), '')) AS email,
+             p.first_name AS vorname, p.last_name AS nachname, a.ref
+      FROM fiaon_persons p
+      LEFT JOIN fiaon_applications a ON a.person_id = p.id
+        AND a.merged_into IS NULL AND a.archived_at IS NULL
+      WHERE p.id = ${Number(termin.person_id)}
+      ORDER BY a.created_at DESC LIMIT 1
+    `) as any[];
+
+    let mailHinweis = "Der Kunde hat keine E-Mail-Adresse — bitte ihn selbst informieren.";
+    if (p?.email) {
+      const versand = await versendenUndProtokollieren(
+        "termin_bestaetigung",
+        {
+          email: String(p.email),
+          vorname: p.vorname || null,
+          nachname: p.nachname || null,
+          agent_vorname: String(ziel.vorname),
+          termin_datum: berlinDatumText(termin.beginn),
+          termin_uhrzeit: berlinUhrzeit(termin.beginn),
+          termin_art: terminArtAusQuelle(termin.quelle).text,
+          storno_link: stornoLink(String(termin.storno_token)),
+          hinweis_anruf: anrufHinweis(String(ziel.vorname)),
+          hinweis_absage: ABSAGE_HINWEIS,
+        },
+        {
+          personId: Number(termin.person_id),
+          verlaufRef: p.ref || null,
+          verlaufText: `Termin an ${ziel.name} übergeben (${grund.slice(0, 200)}). `
+            + `Der Kunde wurde über den neuen Ansprechpartner informiert.`,
+        },
+      ).catch((e) => ({ ok: false, grund: e instanceof Error ? e.message : String(e) }));
+      mailHinweis = (versand as any).ok
+        ? `${p.email} wurde über den neuen Ansprechpartner informiert.`
+        : `Die Info-Mail ging NICHT raus (${(versand as any).grund ?? "unbekannt"}) — `
+          + "bitte den Kunden selbst informieren. Die Übergabe steht trotzdem.";
+    }
+
+    res.json({
+      ok: true,
+      vertretung,
+      hinweis: `Termin an ${ziel.name} übergeben. ${mailHinweis}`
+        + (vertretung ? " Er ist als Vertretung markiert." : ""),
+    });
+  } catch (err) {
+    console.error("[TERMIN] uebergeben:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/** GET /agent/termine/uebernehmer — wer kommt für eine Übergabe infrage? */
+router.get("/agent/termine/uebernehmer", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const kollegen = (await sqlPool`
+      SELECT id, name, COALESCE(rolle, 'agent') AS rolle
+      FROM fiaon_agents
+      WHERE active AND NOT COALESCE(is_test_account, FALSE)
+        AND COALESCE(rolle, 'agent') <> 'inkasso'
+        AND id <> ${req.agent!.id}
+      ORDER BY COALESCE(rolle, 'agent'), name
+    `) as any[];
+    res.json({ ok: true, kollegen });
+  } catch (err) {
+    console.error("[TERMIN] uebernehmer:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 /** POST /agent/termine — der Agent legt selbst einen Termin an. */
 router.post("/agent/termine", requireAgent, async (req: AgentRequest, res: Response) => {
   try {

@@ -59,8 +59,15 @@ interface Kunde {
   nummerOhneLand?: boolean;
   /** Der Sperrgrund fuer „Zahlungsdaten senden" — vom Server, bei jedem Laden. */
   sendeGrund?: string | null;
-  /** Die fehlenden Pflichtfelder im Klartext („Geburtsdatum, IBAN"). */
+  /**
+   * Die fehlenden VERTRAGS-Felder im Klartext („Geburtsdatum, IBAN").
+   *
+   * Sie sperren seit dem 21.08.2026 NICHTS mehr — eine Zahlungsaufforderung
+   * braucht eine offene Bestellung und eine Adresse, sonst nichts.
+   */
   fehlendeFelder?: string | null;
+  /** Nur die Willenserklärungen. Für sie gibt es kein Eingabefeld, nur einen Link. */
+  zustimmungFehlt?: string | null;
   sendeMoeglich?: boolean;
   sendeText?: string | null;
   sendeTat?: string | null;
@@ -239,6 +246,94 @@ const SORT: { key: string; label: string }[] = [
 const TIER_FARBE: Record<number, string> = {
   0: "var(--fi-erfolg)", 1: "var(--fi-tier1)", 2: "var(--fi-tier2)", 3: "var(--fi-tier3)",
 };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WAS DEM VERTRAG NOCH FEHLT — GRAU, UNTER DEM SENDE-KNOPF
+//
+// ── DIE MELDUNG (Screenshot Hans Neumann, 21.08.2026) ─────────────────────
+// „Antrag fertig — Rechnung offen", FIAON Ultra 79,99 €, Verwendungszweck
+// vorhanden — und trotzdem „Zahlungsdaten: gesperrt", weil unter anderem
+// AGB-, SCHUFA- und Vertragszustimmung fehlten.
+//
+// ── DIE TRENNUNG ──────────────────────────────────────────────────────────
+// Eine Rechnung braucht eine offene Bestellung und eine Adresse. Der
+// Gehaltseingangstag, die IBAN und die drei Zustimmungen gehören zum VERTRAG.
+// Deshalb stehen sie hier: sichtbar, benannt, mit einem Weg — aber sie sperren
+// nichts. GEMESSEN: 137 Kunden waren allein deswegen blockiert.
+//
+// ── UND DIE ZUSTIMMUNGEN HABEN EINEN ANDEREN WEG ──────────────────────────
+// „Fehlendes am Telefon ergänzen" führte hier bisher zu einem Formular. Für
+// eine Willenserklärung darf es das nicht geben: Ein Mitarbeiter, der ein
+// Häkchen für den Kunden setzt, erzeugt keinen Nachweis, sondern eine
+// Behauptung (AGENTS.md, 06.08.2026). Für sie gibt es nur den Link.
+// ═══════════════════════════════════════════════════════════════════════════
+function VertragsLuecke({
+  k, zeige,
+}: {
+  k: Kunde;
+  zeige: (art: "erfolg" | "fehler", titel: string, text?: string) => void;
+}) {
+  const [laeuft, setLaeuft] = useState(false);
+  const [link, setLink] = useState<string | null>(null);
+
+  if (!k.fehlendeFelder) return null;
+
+  const zustimmungen = (k.zustimmungFehlt || "").split(", ").filter(Boolean);
+  // Die Sachangaben sind alles, was KEINE Willenserklärung ist. Der Server
+  // liefert beide Listen; hier wird nur abgezogen, nicht neu abgeleitet.
+  const sachangaben = k.fehlendeFelder.split(", ")
+    .filter((f) => f.trim() && !zustimmungen.includes(f.trim()));
+
+  const linkSenden = async () => {
+    setLaeuft(true);
+    const r = await api(`/agent/crm/kunden/${k.personId}/zustimmungs-link`, { method: "POST" });
+    setLaeuft(false);
+    if (!r.ok) {
+      zeige("fehler", "Nicht möglich", r.json?.error || "Bitte erneut versuchen.");
+      return;
+    }
+    // Der Link steht IMMER da — auch wenn die Mail rausging. Wer den Kunden
+    // gerade am Telefon hat, liest ihn vor, statt aufzulegen und zu warten.
+    setLink(r.json.link ?? null);
+    zeige(r.json.gesendet ? "erfolg" : "fehler",
+      r.json.gesendet ? "Link verschickt" : "Mail nicht zugestellt",
+      r.json.meldung);
+  };
+
+  return (
+    <span className="inline-flex flex-col gap-1" data-fiaon="vertrags-luecke">
+      <span className="text-[11.5px] leading-snug" style={{ color: "var(--fi-text-still)" }}>
+        Für den Vertrag fehlen noch: {k.fehlendeFelder}
+      </span>
+      {sachangaben.length > 0 && (
+        <span className="text-[11px] leading-snug" style={{ color: "var(--fi-text-still)" }}>
+          {sachangaben.join(", ")} kannst du am Telefon aufnehmen — über „Kunde bearbeiten".
+        </span>
+      )}
+      {zustimmungen.length > 0 && (
+        <>
+          <button type="button" onClick={() => void linkSenden()} disabled={laeuft}
+                  data-fiaon="zustimmungs-link"
+                  className="self-start text-[11.5px] font-bold underline decoration-dotted"
+                  style={{ color: "var(--fi-text-leise)" }}
+                  title="Zustimmungen darf nur der Kunde selbst geben — dieser Link führt ihn hin.">
+            {laeuft ? "Sende …" : "Zustimmungs-Link an den Kunden senden"}
+          </button>
+          {link && (
+            <input readOnly value={link} onFocus={(e) => e.currentTarget.select()}
+                   data-fiaon="zustimmungs-link-text"
+                   aria-label="Zustimmungs-Link zum Kopieren"
+                   className="px-2 py-1.5 text-[11px]"
+                   style={{
+                     borderRadius: "var(--fi-radius-knopf)",
+                     border: "1px solid var(--fi-linie)", maxWidth: 330,
+                   }} />
+          )}
+        </>
+      )}
+    </span>
+  );
+}
 
 // Statustexte kommen aus dem EINEN Vokabular (shared/fiaon-kundenstatus.ts).
 // Hier stand bis zum 08.08.2026 eine eigene Tabelle — eine von neun im Client,
@@ -1483,12 +1578,28 @@ function KundenKarte({
 
             if (!sperre) {
               return (
-                <button type="button" onClick={() => setBestaetigen(true)} disabled={!!laeuft}
-                        title={`Zahlungsdaten und Rechnung an ${k.email}`}
-                        className="fi-sendeknopf inline-flex items-center gap-2 px-4 py-2.5 text-[13px] font-semibold">
-                  <ZeichenSenden size={15} />
-                  {laeuft === "rechnung" ? "Sende …" : "Zahlungsdaten senden"}
-                </button>
+                <span className="inline-flex flex-col gap-1" style={{ maxWidth: 340 }}>
+                  <button type="button" onClick={() => setBestaetigen(true)} disabled={!!laeuft}
+                          title={`Zahlungsdaten und Rechnung an ${k.email}`}
+                          className="fi-sendeknopf inline-flex items-center gap-2 px-4 py-2.5 text-[13px] font-semibold">
+                    <ZeichenSenden size={15} />
+                    {laeuft === "rechnung" ? "Sende …" : "Zahlungsdaten senden"}
+                  </button>
+                  {/* ══════════════════════════════════════════════════════════
+                      ZWEI AUSKÜNFTE, GETRENNT (21.08.2026)
+
+                      Oben steht, dass die RECHNUNG rausgehen kann. Darunter
+                      grau, was dem VERTRAG noch fehlt. Vorher war beides eine
+                      Bedingung — und deshalb stand bei Hans Neumann
+                      „Zahlungsdaten: gesperrt", obwohl Paket, Betrag und
+                      Verwendungszweck da waren.
+
+                      Grau und nicht rot: Es ist kein Fehler, sondern der
+                      nächste Schritt. Rot war die Farbe, die 137 Kunden
+                      blockiert hat.
+                      ══════════════════════════════════════════════════════════ */}
+                  <VertragsLuecke k={k} zeige={zeige} />
+                </span>
               );
             }
 
@@ -1509,32 +1620,9 @@ function KundenKarte({
                 <span className="text-[11.5px] leading-snug" style={{ color: "#92400e" }}>
                   {sperre.grund}
                 </span>
-                {/* ══════════════════════════════════════════════════════════
-                    WAS GENAU FEHLT — STATT „IM FORMULAR" (19.08.2026)
-
-                    Daniel: „Es ist nicht ersichtlich, welche Information noch
-                    fehlt oder an welcher Stelle der Antrag noch
-                    fertiggestellt werden soll." Der Server liefert die
-                    Pflichtfelder jetzt namentlich mit; hier stehen sie.
-                    ══════════════════════════════════════════════════════════ */}
-                {k.sendeGrund === "antrag_unfertig" && k.fehlendeFelder && (
-                  <span className="text-[11.5px] font-semibold leading-snug"
-                        data-fiaon="fehlende-felder"
-                        style={{ color: "#92400e" }}>
-                    Es fehlt: {k.fehlendeFelder}
-                  </span>
-                )}
-                {/* Der Knopf öffnet die Stammdaten-Felder in derselben Karte —
-                    ein Seitenwechsel für drei Felder ist die häufigste Stelle,
-                    an der jemand aufgibt (AGENTS.md). */}
-                {k.sendeGrund === "antrag_unfertig" && (
-                  <button type="button" onClick={onOeffnen}
-                          data-fiaon="fehlendes-ergaenzen"
-                          className="self-start text-[11.5px] font-bold underline decoration-dotted"
-                          style={{ color: "#92400e" }}>
-                    Fehlendes am Telefon ergänzen
-                  </button>
-                )}
+                {/* Auch im gesperrten Fall gehört die Vertragslücke dazu — sie
+                    ist der zweite, unabhängige Arbeitsauftrag. */}
+                <VertragsLuecke k={k} zeige={zeige} />
                 {/* ── DER NÄCHSTE SCHRITT, NICHT NUR DIE DIAGNOSE ──────────
                     Bei fehlender E-Mail steht das Feld direkt hier: Das löst
                     165 der 477 gesperrten Fälle mit einer Eingabe, ohne die

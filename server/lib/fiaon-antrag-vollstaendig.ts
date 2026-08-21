@@ -63,6 +63,21 @@ export interface Pflichtfeld {
    */
   nurWenn?: (zeile: Record<string, any>) => boolean;
   nurWennSql?: (a: string) => string;
+  /**
+   * Eine Willenserklärung, die NUR der Kunde selbst abgeben darf.
+   *
+   * ── WARUM DIESE MARKE (21.08.2026) ──────────────────────────────────────
+   * Die drei Zustimmungen standen in derselben Liste wie „Ort" und „IBAN",
+   * und die Oberfläche behandelte sie gleich: als etwas, das jemand
+   * nachträgt. Ein Mitarbeiter, der am Telefon „ja, passt" hört und ein
+   * Häkchen setzt, erzeugt aber keinen Nachweis, sondern eine Behauptung —
+   * dieselbe Fehlerklasse wie der Roboter, der am 06.08.2026 eine
+   * Verpflichtungserklärung „echt angenommen" hat (AGENTS.md).
+   *
+   * Wo diese Marke steht, gibt es in keiner Mitarbeiter-Oberfläche ein
+   * Eingabefeld — nur einen Link an den Kunden.
+   */
+  nurKunde?: true;
 }
 
 /**
@@ -98,9 +113,9 @@ export const PFLICHTFELDER: readonly Pflichtfeld[] = [
     nurWenn: (z) => String(z.billing_method ?? "") === "iban",
     nurWennSql: (a) => `${a}.billing_method = 'iban'`,
   },
-  { spalte: "consent_agb", name: "Zustimmung zu den AGB", art: "ja" },
-  { spalte: "consent_schufa", name: "SCHUFA-Einwilligung", art: "ja" },
-  { spalte: "consent_contract", name: "Zustimmung zum Vertrag", art: "ja" },
+  { spalte: "consent_agb", name: "Zustimmung zu den AGB", art: "ja", nurKunde: true },
+  { spalte: "consent_schufa", name: "SCHUFA-Einwilligung", art: "ja", nurKunde: true },
+  { spalte: "consent_contract", name: "Zustimmung zum Vertrag", art: "ja", nurKunde: true },
 ] as const;
 
 /** Der Firmenantrag hat andere Pflichtfelder — dieselbe Bauform. */
@@ -109,9 +124,18 @@ export const PFLICHTFELDER_FIRMA: readonly Pflichtfeld[] = [
   { spalte: "contact_name", name: "Ansprechpartner", art: "text" },
   { spalte: "contact_email", name: "E-Mail-Adresse", art: "text" },
   { spalte: "contact_phone", name: "Telefonnummer", art: "text" },
-  { spalte: "consent_agb", name: "Zustimmung zu den AGB", art: "ja" },
-  { spalte: "consent_contract", name: "Zustimmung zum Vertrag", art: "ja" },
+  { spalte: "consent_agb", name: "Zustimmung zu den AGB", art: "ja", nurKunde: true },
+  { spalte: "consent_contract", name: "Zustimmung zum Vertrag", art: "ja", nurKunde: true },
 ] as const;
+
+/**
+ * Die Spalten, die ein Mitarbeiter NIE schreiben darf — als Wand für
+ * Schreibrouten. Sie leitet sich aus der Marke ab und wird nicht abgeschrieben:
+ * Eine zweite Liste hätte beim nächsten Zustimmungsfeld gefehlt.
+ */
+export const NUR_KUNDE_SPALTEN: readonly string[] = Array.from(new Set(
+  [...PFLICHTFELDER, ...PFLICHTFELDER_FIRMA].filter((f) => f.nurKunde).map((f) => f.spalte),
+));
 
 export function pflichtfelderFuer(typ: unknown): readonly Pflichtfeld[] {
   return String(typ ?? "private") === "business" ? PFLICHTFELDER_FIRMA : PFLICHTFELDER;
@@ -146,6 +170,18 @@ export function antragVollstaendig(zeile: Record<string, any>): boolean {
 }
 
 /**
+ * Welche der drei Willenserklärungen fehlen noch?
+ *
+ * Getrennt von `fehlendeFelder`, weil sie einen anderen Weg haben: Sachangaben
+ * trägt der Mitarbeiter am Telefon nach, Zustimmungen gibt nur der Kunde.
+ */
+export function fehlendeZustimmungen(zeile: Record<string, any>): string[] {
+  return pflichtfelderFuer(zeile.type)
+    .filter((f) => f.nurKunde && !traegt(zeile, f))
+    .map((f) => f.name);
+}
+
+/**
  * Dieselbe Regel als SQL-Ausdruck — für Abfragen über den ganzen Bestand.
  *
  * Sie muss buchstäblich dasselbe sagen wie `antragVollstaendig`. Der Prüfstand
@@ -175,6 +211,19 @@ export function antragVollstaendigSql(a = "a"): string {
  * zeigen. Gebaut mit `concat_ws`, das NULL-Werte überspringt: Für jedes Feld
  * steht dort entweder sein Name (fehlt) oder NULL (ist da).
  */
+export function fehlendeZustimmungenAusdruckSql(a = "a"): string {
+  const bau = (liste: readonly Pflichtfeld[]) => {
+    const nur = liste.filter((f) => f.nurKunde);
+    return `NULLIF(CONCAT_WS(', ', ${nur
+      .map((f) => `CASE WHEN NOT (${a}.${f.spalte} IS TRUE) THEN '${f.name}' END`)
+      .join(", ")}), '')`;
+  };
+  return `(CASE WHEN ${a}.type = 'business'
+      THEN ${bau(PFLICHTFELDER_FIRMA)}
+      ELSE ${bau(PFLICHTFELDER)}
+    END)`;
+}
+
 export function fehlendeFelderAusdruckSql(a = "a"): string {
   const teil = (f: Pflichtfeld): string => {
     const da = f.art === "ja"

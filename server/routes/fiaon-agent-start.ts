@@ -36,7 +36,7 @@ import { terminLink } from "../lib/fiaon-termine";
 import { wartetSql, warteZahlen } from "../lib/fiaon-warten";
 import { landVorschlag } from "./fiaon-agent-kunden";
 import {
-  sendeGrundSql, SENDE_GRUND_TEXT, fehlendeFelderSql,
+  sendeGrundSql, SENDE_GRUND_TEXT, fehlendeFelderSql, zustimmungFehltSql,
 } from "../lib/fiaon-massgebliche-bestellung";
 import { terminArtAusQuelle, terminArtRueckruf } from "../../shared/fiaon-termin-art";
 
@@ -124,6 +124,9 @@ const KARTE_SQL = `
   ${sendeGrundSql("p")} AS sende_grund,
   -- Welche Pflichtfelder fehlen? Wörtlich in die Karte, statt „im Formular".
   ${fehlendeFelderSql("p")} AS fehlende_felder,
+  -- Getrennt: nur die drei Willenserklaerungen. Sie sperren nichts, aber sie
+  -- entscheiden, ob die Karte den Knopf „Zustimmungs-Link an den Kunden“ zeigt.
+  ${zustimmungFehltSql("p")} AS zustimmung_fehlt,
   -- ── DER TERMIN AN DER ZEILE (20.08.2026) ───────────────────────────────
   -- Fuer Onboarding ist der Termin die Arbeit. Die Uhrzeit gehoert an die
   -- Karte, sonst muss man fuer jede Zeile in den Kalender wechseln.
@@ -235,6 +238,7 @@ export function karte(p: any) {
     sendeText: p.sende_grund ? (SENDE_GRUND_TEXT[String(p.sende_grund)]?.text ?? null) : null,
     sendeTat: p.sende_grund ? (SENDE_GRUND_TEXT[String(p.sende_grund)]?.tat ?? null) : null,
     fehlendeFelder: p.fehlende_felder ? String(p.fehlende_felder) : null,
+    zustimmungFehlt: p.zustimmung_fehlt ? String(p.zustimmung_fehlt) : null,
     betrag: p.amount_due != null ? Math.round(Number(p.amount_due) * 100) : null,
     zusagedatum: p.promised_payment_date,
     wiedervorlage: p.follow_up_date,

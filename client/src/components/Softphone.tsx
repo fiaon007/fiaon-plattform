@@ -2,6 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { FiaonGeraet, FiaonTastatur } from "@/components/FiaonGeraet";
 import { telefonFehler, telefonFehlerText } from "@shared/fiaon-telefon-fehler";
 import { ERGEBNIS_LISTE, NOTIZ_MINDESTLAENGE } from "@shared/fiaon-kontakt-ergebnis-liste";
+// Die sieben Schritte des Startgesprächs — DAS Bauteil, nicht eine zweite
+// Fassung davon. Es wird nur gerendert, wenn ein eigener Termin vorliegt.
+import { OnboardingCockpit } from "@/components/agent/OnboardingCockpit";
 import { FiaonEbene } from "./FiaonEbene";
 // Gerätewahl, Pegelrechnung und die Hörbarkeitsschwellen stehen an EINER Stelle:
 // Sie werden hier an vier Stellen gebraucht (Balken, Sperre, Sprechprobe,
@@ -376,6 +379,13 @@ export function Softphone() {
   // nicht, wird nichts gezeigt. Ein vergessenes Zurücksetzen kann damit keine
   // fremden Stammdaten mehr einblenden.
   const [gespraechsDaten, setGespraechsDaten] = useState<{ personId: number; kunde: any } | null>(null);
+  // ── WARUM KEINE DATEN DA SIND (21.08.2026) ──────────────────────────────
+  // Der Ladevorgang verschluckte jede Absage: `if (!j?.ok) return;` — und dann
+  // stand „Wird geladen …" für immer. Das ist die Meldung „Onboarding sieht
+  // keine Kundendaten": kein Ausfall, sondern ein 403 ohne Stimme.
+  const [datenFehler, setDatenFehler] = useState<string | null>(null);
+  /** Das Cockpit mit den sieben Schritten — offen WÄHREND des Gesprächs. */
+  const [cockpitOffen, setCockpitOffen] = useState(false);
   // Der Stand des Mikrofonrechts. Wird VOR dem ersten Wählversuch geklärt.
   const [mikrofon, setMikrofon] = useState<"offen" | "erlaubt" | "verweigert">("offen");
   // ══════════════════════════════════════════════════════════════════════════
@@ -485,13 +495,27 @@ export function Softphone() {
     // die Antwort noch unterwegs ist, darf sie nicht mehr ankommen. Dasselbe
     // Muster wie bei der Nummernauflösung weiter unten.
     let abgebrochen = false;
+    setDatenFehler(null);
     void fetch(`/api/fiaon/telefon/kunde/${gespraechsPersonId}`, { credentials: "include" })
       .then((r) => r.json())
       .then((j) => {
-        if (abgebrochen || !j?.ok) return;
+        if (abgebrochen) return;
+        // ── JEDER AUSGANG IST SICHTBAR ────────────────────────────────────
+        // Hier stand `if (!j?.ok) return;`. Ein 403 („kein Startgespräch zu
+        // diesem Kunden") wurde damit zu einem ewigen „Wird geladen …" —
+        // ununterscheidbar von einem Ausfall. Genau das haben Viktoria und
+        // Rifka als „ich sehe keine Kundendaten" gemeldet.
+        if (!j?.ok) {
+          setDatenFehler(j?.error || "Die Kundendaten konnten nicht geladen werden.");
+          return;
+        }
         setGespraechsDaten({ personId: gespraechsPersonId, kunde: j.kunde });
       })
-      .catch(() => {});
+      .catch(() => {
+        if (!abgebrochen) {
+          setDatenFehler("Keine Verbindung zum Server — die Kundendaten fehlen. Das Gespräch läuft weiter.");
+        }
+      });
     return () => { abgebrochen = true; };
   }, [zustand, gespraechsPersonId]);
 
@@ -1151,8 +1175,20 @@ export function Softphone() {
         // Fenster von selbst. Ein Klingelfenster, das stehen bleibt, ist ein
         // Fehlalarm, den man wegklicken muss.
         ruf.on("cancel", () => setEingehend(null));
-        ruf.on("disconnect", () => setEingehend(null));
         ruf.on("reject", () => setEingehend(null));
+        // ── NACH DEM AUFLEGEN KOMMT DER ERGEBNIS-SCHRITT (21.08.2026) ────
+        // Beim AUSGEHENDEN Anruf tut „disconnect" genau das (Zeile weiter
+        // unten). Beim eingehenden wurde nur das Klingelfenster geschlossen —
+        // wer angerufen wurde, blieb im Zustand „gespraech" stehen und musste
+        // von Hand auf „auflegen" drücken, um überhaupt zu den Ergebnissen zu
+        // kommen. `laden()` holt dabei die offenen Anrufe nach; daraus
+        // bestimmt `dokumentieren` die Anruf-Kennung, die es beim eingehenden
+        // Anruf sonst nicht gibt.
+        ruf.on("disconnect", () => {
+          setEingehend(null);
+          setZustand((z) => (z === "gespraech" || z === "klingelt" ? "ergebnis" : z));
+          void laden();
+        });
       });
 
       // ── „To" IST BEI TWILIO RESERVIERT ────────────────────────────────
@@ -1295,16 +1331,78 @@ export function Softphone() {
     try { verbindung.current?.sendDigits?.(t); } catch { /* wirkungslos */ }
   };
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // DAS ERGEBNIS AUS DEM PANEL — ES VERPUFFTE STILL (Vika, 21.08.2026, 16:46)
+  //
+  // ── DIE MELDUNG ────────────────────────────────────────────────────────
+  // „Ich kann es anklicken, aber es wird nicht angenommen." Im Telefon-Panel.
+  // Über die Kundenliste ging dasselbe Ergebnis.
+  //
+  // ── DIE URSACHE, IN EINER ZEILE ────────────────────────────────────────
+  // Hier stand:
+  //
+  //     if (!callId) { setZustand("bereit"); return; }
+  //
+  // Keine Anfrage, keine Meldung, kein Eintrag in der Konsole — der Klick
+  // sprang zurück auf die Wähltastatur, als hätte man nichts gedrückt.
+  //
+  // Und `callId` IST bei einem eingehenden Anruf null: Gesetzt wird sie nur
+  // an einer einzigen Stelle, in der Antwort des Wählvorgangs (`j.callId`).
+  // Der Knopf „Annehmen" setzt Zustand, Kunde und Nummer — die Kennung des
+  // Anrufs nicht. Wer angerufen WIRD, konnte sein Gespräch also nie
+  // dokumentieren. Dasselbe gilt nach einem Wählversuch, der vor der Antwort
+  // scheitert: Auch dort landet man im Ergebnis-Schritt ohne Kennung.
+  //
+  // ── DIE BEHEBUNG: ZWEI WEGE, KEIN STILLER ──────────────────────────────
+  //  1. Die Kennung nachschlagen. Der Server liefert mit `stand.offene`
+  //     ohnehin die eigenen Anrufe ohne Ergebnis — darunter der eben
+  //     beendete. Passt die Nummer, ist es seiner.
+  //  2. Bleibt sie leer, aber der Kunde ist bekannt, geht das Ergebnis über
+  //     DIESELBE Route wie in der Kundenliste
+  //     (`/agent/crm/kunden/:id/aktivitaet`). Beide Routen laufen im Server
+  //     durch `ergebnisNachbereiten` — es ist wirklich ein Weg, nicht zwei.
+  //  3. Geht beides nicht, steht das ROT im Panel. Ein Ergebnis, das
+  //     verschwindet, ist schlimmer als eines, das sich weigert.
+  // ═══════════════════════════════════════════════════════════════════════
   const dokumentieren = async (art: string) => {
-    if (!callId) { setZustand("bereit"); return; }
-    const r = await fetch(`/api/fiaon/telefon/${callId}/ergebnis`, {
+    // Die Kennung des Anrufs — gesetzt beim Wählen, sonst aus den offenen
+    // Gesprächen dieses Menschen nachgeschlagen (eingehender Anruf).
+    const nummerGleich = (a: string, b: string) =>
+      a.replace(/\D/g, "").slice(-9) === b.replace(/\D/g, "").slice(-9);
+    const offeneListe: { id: number; nummer: string; personId?: number | null }[] =
+      (stand?.offene ?? []) as any[];
+    const gefunden = callId
+      ?? (nummer ? offeneListe.find((a) => a.nummer && nummerGleich(String(a.nummer), nummer))?.id : null)
+      ?? null;
+
+    const personId = kunde?.personId ?? null;
+    if (!gefunden && !personId) {
+      setNotizFehler(null);
+      setMeldung(
+        "Dieses Ergebnis lässt sich nicht zuordnen: Zu diesem Anruf gibt es weder eine "
+        + "Anruf-Kennung noch einen erkannten Kunden. Ordne den Anruf über „Anderen Kunden "
+        + "wählen" + "\u201c zu — oder trag das Ergebnis in der Kundenliste ein.",
+      );
+      return;
+    }
+
+    const ziel = gefunden
+      ? `/api/fiaon/telefon/${gefunden}/ergebnis`
+      : `/api/fiaon/agent/crm/kunden/${personId}/aktivitaet`;
+    // Die Kundenliste nennt das Feld `art`, die Anrufroute `ergebnis`. Beide
+    // Namen gehen mit; der Server liest jeweils seinen. Das ist billiger als
+    // eine Umbenennung in zwei Routen mitten in einem Notfall.
+    const koerper = {
+      ergebnis: art,
+      art,
+      notiz: notiz.trim() || null,
+      zusageDatum: datumFeld === "zusage" ? datum : null,
+      terminDatum: datumFeld === "termin" ? datum : null,
+    };
+
+    const r = await fetch(ziel, {
       method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ergebnis: art,
-        notiz: notiz.trim() || null,
-        zusageDatum: datumFeld === "zusage" ? datum : null,
-        terminDatum: datumFeld === "termin" ? datum : null,
-      }),
+      body: JSON.stringify(koerper),
     }).catch(() => null);
     const j = await r?.json().catch(() => null);
     // Verlangt der Server eine Notiz, bleibt das Feld offen und sagt warum —
@@ -1314,10 +1412,19 @@ export function Softphone() {
       setNotizFehler(j.error || "Bitte eine Notiz eintragen.");
       return;
     }
-    setMeldung(j?.meldung || j?.error || null);
+    // ── AUCH DER STUMME AUSGANG BEKOMMT EINEN SATZ ────────────────────────
+    // Vorher stand hier `setMeldung(j?.meldung || j?.error || null)`. Bei
+    // einem Netzfehler ist `j` null, und dann setzte diese Zeile die Meldung
+    // auf NICHTS — derselbe Eindruck wie beim toten Knopf.
+    setMeldung(j?.meldung || j?.error
+      || (r == null
+        ? "Keine Verbindung zum Server — das Ergebnis ist NICHT gespeichert. "
+          + "Prüf dein Netz und drück noch einmal."
+        : `Der Server hat mit ${r.status} geantwortet und keinen Grund genannt. `
+          + "Das Ergebnis ist nicht gespeichert."));
     setDatumFeld(null); setDatum("");
-    setNotiz(""); setNotizFuer(null); setNotizFehler(null);
     if (!j?.ok) return;
+    setNotiz(""); setNotizFuer(null); setNotizFehler(null);
 
     setCallId(null);
     void laden();
@@ -1368,9 +1475,39 @@ export function Softphone() {
     }
   };
 
+  // ── DAS COCKPIT NEBEN DEM LAUFENDEN ANRUF ───────────────────────────────
+  // Es ersetzt das Telefon nicht, es liegt daneben: Wer während des Gesprächs
+  // auflegen müsste, um die Agenda zu lesen, liest sie nicht. Der Termin kommt
+  // aus derselben Antwort wie die Kundendaten.
+  const cockpitDaten = gespraechsDaten && kunde
+    && gespraechsDaten.personId === kunde.personId ? gespraechsDaten.kunde : null;
+
   return (
     <>
       <style>{EINGEHEND_CSS}</style>
+
+      {cockpitOffen && cockpitDaten?.termin && kunde && (
+        <OnboardingCockpit
+          termin={{
+            id: Number(cockpitDaten.termin.id),
+            personId: kunde.personId,
+            name: cockpitDaten.name || kunde.name,
+            telefon: nummer || null,
+            email: cockpitDaten.email ?? null,
+            beginn: String(cockpitDaten.termin.beginn),
+            datumText: new Date(cockpitDaten.termin.beginn)
+              .toLocaleDateString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "long" }),
+            uhrzeit: new Date(cockpitDaten.termin.beginn)
+              .toLocaleTimeString("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit" }),
+            dauerMin: Number(cockpitDaten.termin.dauerMin ?? 15),
+            status: String(cockpitDaten.termin.status),
+            paket: cockpitDaten.paket ?? null,
+            zahlungsstand: cockpitDaten.zahlungsstand ?? null,
+          }}
+          onZu={() => setCockpitOffen(false)}
+          onFertig={(m) => { setCockpitOffen(false); setMeldung(m); void laden(); }}
+        />
+      )}
 
       {/* ══════════════════════════════════════════════════════════════════════
           DAS KLINGELFENSTER
@@ -1434,11 +1571,17 @@ export function Softphone() {
                       try { eingehend.ruf.accept(); } catch { /* schon weg */ }
                       setOffen(true);
                       setZustand("gespraech");
+                      // ── DIE NUMMER GEHT IMMER MIT (21.08.2026) ──────────
+                      // Sie stand bis heute NUR im `if` darunter — also nur,
+                      // wenn der Anrufer erkannt wurde. Bei einer unbekannten
+                      // Nummer blieb `nummer` leer, und damit fand
+                      // `dokumentieren` später weder Anruf-Kennung noch
+                      // Kunden: Der Ergebnis-Klick war tot (Vikas Meldung).
+                      setNummer(eingehend.von);
                       if (eingehend.kunde) {
                         // Der Kunde ist damit gesetzt: Ergebnis festhalten,
                         // Notiz und Akte beziehen sich auf ihn.
                         setKunde({ personId: eingehend.kunde.id, name: eingehend.kunde.name });
-                        setNummer(eingehend.von);
                       }
                       setEingehend(null);
                     }}>
@@ -2116,27 +2259,64 @@ export function Softphone() {
                 ? gespraechsDaten.kunde
                 : null;
               return (
-              <details className="fi-tel-daten">
+              /* ══════════════════════════════════════════════════════════════
+                 AUFGEKLAPPT, WENN EIN STARTGESPRÄCH LÄUFT (21.08.2026)
+
+                 Für einen Verkäufer ist die Nummer die Hauptsache und die
+                 Kundendaten ein Nachschlagewerk — deshalb war der Block
+                 zugeklappt. Für ein Startgespräch ist es umgekehrt: Der Kunde
+                 hat bezahlt, und das Gespräch beginnt mit seinem Stand. Wer
+                 dafür erst aufklappen muss, sieht ihn nicht.
+                 ══════════════════════════════════════════════════════════════ */
+              <details className="fi-tel-daten" open={!!daten?.termin}>
                 <summary>Kundendaten</summary>
-                {!daten && <p className="fi-tel-daten-laedt">Wird geladen …</p>}
+                {!daten && !datenFehler && <p className="fi-tel-daten-laedt">Wird geladen …</p>}
+                {/* Der Grund, warum nichts da ist — statt „Wird geladen …" bis
+                    zum Auflegen. */}
+                {!daten && datenFehler && (
+                  <p className="fi-tel-daten-fehler" role="alert">{datenFehler}</p>
+                )}
                 {daten && (
-                  <div className="fi-tel-daten-raster">
-                    {([
-                      ["Paket", daten.buchungen?.map((b: any) =>
-                        `${b.bezeichnung}${b.bezahlt ? " ✓" : ""}`).join(", ")],
-                      ["Offen", daten.offenCents
-                        ? `${(daten.offenCents / 100).toFixed(2).replace(".", ",")} €` : null],
-                      ["Verwendungszweck", daten.verwendungszweck],
-                      ["E-Mail", daten.email],
-                      ["Ort", daten.ort],
-                      ["Kunde seit", daten.kundeSeit],
-                    ] as const).filter(([, w]) => w).map(([t, w]) => (
-                      <div key={t}>
-                        <span className="fi-tel-daten-marke">{t}</span>
-                        <span className="fi-tel-daten-wert">{w}</span>
-                      </div>
-                    ))}
-                  </div>
+                  <>
+                    <div className="fi-tel-daten-raster">
+                      {([
+                        ["Kunde", daten.name],
+                        ["Paket", daten.paket || daten.buchungen?.map((b: any) =>
+                          `${b.bezeichnung}${b.bezahlt ? " ✓" : ""}`).join(", ")],
+                        ["Zahlung", daten.zahlungsstand],
+                        ["Offen", daten.offenCents
+                          ? `${(daten.offenCents / 100).toFixed(2).replace(".", ",")} €` : null],
+                        ["SCHUFA", daten.schufaStand],
+                        ["Offene Punkte", daten.offenePunkte?.length
+                          ? daten.offenePunkte.join(", ") : "keine"],
+                        ["Verwendungszweck", daten.verwendungszweck],
+                        ["E-Mail", daten.email],
+                        ["Ort", daten.ort],
+                        ["Kunde seit", daten.kundeSeit],
+                      ] as const).filter(([, w]) => w).map(([t, w]) => (
+                        <div key={t}>
+                          <span className="fi-tel-daten-marke">{t}</span>
+                          <span className="fi-tel-daten-wert">{w}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {/* ══════════════════════════════════════════════════════
+                        „GESPRÄCH FÜHREN" — DIE SIEBEN SCHRITTE IM ANRUF
+
+                        Das Cockpit gab es nur auf /agent/startgespraeche, und
+                        zwar nur über die Termin-Karte. Wer aus dem Telefon
+                        heraus arbeitete — also genau während des Gesprächs —
+                        kam nicht hin und führte es aus dem Gedächtnis.
+                        ══════════════════════════════════════════════════════ */}
+                    {daten.termin && (
+                      <button type="button" onClick={() => setCockpitOffen(true)}
+                              data-fiaon="cockpit-oeffnen"
+                              className="fi-tel-cockpit">
+                        Gespräch führen — die 7 Schritte
+                        {daten.termin.vertretung ? " (Vertretung)" : ""}
+                      </button>
+                    )}
+                  </>
                 )}
               </details>
               );
@@ -2960,4 +3140,22 @@ const TELEFON_DATEN_CSS = `
   padding: 2px 12px 10px; font-size: 12px;
   color: rgba(191,214,247,.6) !important;
 }
+/* Der GRUND, warum keine Daten da sind. Bernstein, nicht Grau: „Wird geladen"
+   in Grau war genau die Meldung „ich sehe nichts". */
+.fi-tel-daten-fehler {
+  padding: 2px 12px 10px; font-size: 12px; line-height: 1.45; font-weight: 600;
+  color: #fcd34d !important;
+}
+/* ── „GESPRÄCH FÜHREN" ────────────────────────────────────────────────────
+   Er steht IM Datenblock und nicht in der Knopfleiste: Dort konkurriert er
+   mit Stumm, Tastatur und Auflegen — drei Knöpfe, die man im Reflex trifft. */
+.fi-tel-cockpit {
+  display: block; width: calc(100% - 24px); margin: 2px 12px 12px;
+  padding: 10px 12px; min-height: 44px;
+  border: 0; border-radius: 10px; cursor: pointer;
+  font-size: 12.5px; font-weight: 700; text-align: left;
+  background: rgba(96,165,250,.22); color: #eef4ff;
+  box-shadow: inset 0 0 0 1px rgba(147,197,253,.35);
+}
+.fi-tel-cockpit:hover { background: rgba(96,165,250,.32); }
 `;

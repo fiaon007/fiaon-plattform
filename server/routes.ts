@@ -369,6 +369,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonTerminRoutes = await import('./routes/fiaon-termin');
   app.use('/api/fiaon', fiaonTerminRoutes.default);
 
+  // ✍️ FIAON Zustimmung — der Kunde erteilt AGB-, SCHUFA- und
+  //    Vertragszustimmung SELBST. Ein Mitarbeiter darf das nie; die Begruendung
+  //    steht in server/lib/fiaon-zustimmung.ts. Signiertes Token, kein Login.
+  const fiaonZustimmungRoutes = await import('./routes/fiaon-zustimmung');
+  app.use('/api/fiaon', fiaonZustimmungRoutes.default);
+
   // 🤝 FIAON Onboarding — eigener Bereich fuer die Startgespraeche. 404 fuer
   //    alle ohne die Rolle, 403 ohne angenommene Verpflichtungserklaerung.
   const fiaonOnboardingBereich = await import('./routes/fiaon-onboarding-bereich');

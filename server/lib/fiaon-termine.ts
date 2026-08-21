@@ -86,39 +86,128 @@ export function rolleFuerQuelle(quelle: TerminQuelle | string): string | null {
 // sein. Ein Startgespräch, das ein Vertriebsmitarbeiter führt, ist ein
 // geführtes Startgespräch; ein Gate ohne Slots ist ein Ausfall.
 //
-// Deshalb: Gibt es keinen aktiven Onboarding-Menschen, fallen die Slots auf
-// Vertrieb und Leitung zurück. Die Rückfall-Entscheidung wird protokolliert,
-// damit sie nicht unbemerkt zum Dauerzustand wird.
+// Deshalb: Gibt es keine freie Onboarding-Zeit, fallen die Slots auf Vertrieb
+// und Leitung zurück. Die Rückfall-Entscheidung wird protokolliert, damit sie
+// nicht unbemerkt zum Dauerzustand wird.
+//
+// ═══════════════════════════════════════════════════════════════════════════
+// DER RÜCKFALL FRAGTE DAS FALSCHE (21.08.2026)
+//
+// ── DIE MELDUNG (Betrieb) ─────────────────────────────────────────────────
+// „Kunden buchen ein Startgespräch, der Termin landet beim Vertrieb."
+//
+// ── GEMESSEN (scripts/mess-startgespraech-zuordnung.ts) ───────────────────
+// 15 Startgespräche (quelle `onboarding_call`) gingen an Angelique Laukert,
+// Rolle `agent` — angelegt zwischen dem 19.08. 11:08 und dem 20.08. 10:22.
+// Alle 15 waren echte Kundenbuchungen (`akteur = kunde`). Danach kein
+// einziger mehr: Seit dem 20.08. 10:22 gehen alle an Rifka oder Viktoria.
+//
+// ── DIE URSACHE ───────────────────────────────────────────────────────────
+// Diese Funktion fragte: „Gibt es überhaupt ein aktives Onboarding-KONTO?"
+// Das erste (Rifka) entstand am 19.08. um 12:29 — davor war der Rückfall
+// zwangsläufig, und er war auch richtig: Ohne Onboarding muss jemand das
+// Gespräch führen.
+//
+// Falsch war er trotzdem in zwei Punkten, und die bleiben auch mit besetzter
+// Rolle bestehen:
+//
+//   1. **Er fragte nach dem KONTO, nicht nach der ZEIT.** Ein Onboarding, das
+//      besetzt ist — Urlaub, krank, Kalender voll —, hat ein Konto und keinen
+//      freien Slot. Dann liefert `freieSlots` null Zeiten, der Kunde sieht
+//      eine leere Terminwahl, und niemand fällt zurück. Genau die
+//      verschlossene Tür, die diese Wand verhindern sollte.
+//   2. **Der Rückfall war unsichtbar.** Am Termin stand nichts, in der
+//      Bestätigungsmail stand nichts, in der Liste des Betreibers stand
+//      nichts. Ein Startgespräch beim Vertrieb sah aus wie eines beim
+//      Onboarding — und deshalb hat es niemand bemerkt, bis Kunden sich
+//      wunderten.
+//
+// ── DIE REGEL, DIE JETZT GILT ─────────────────────────────────────────────
+// Ein Startgespräch geht IMMER ans Onboarding, solange dort eine Zeit frei
+// ist. Erst bei NULL freien Onboarding-Zeiten treten Vertrieb und Leitung ein
+// — und dann trägt der Termin die Marke „Vertretung", sichtbar in Kalender,
+// Liste und Bestätigung.
+//
+// Die Entscheidung fällt an EINER Stelle (`rollenFuerBuchung`) und wird von
+// der Anzeige UND der Annahme benutzt. Zwei Regeln für dieselbe Frage haben
+// am 19.08.2026 schon einmal 213 Kunden abgewiesen, denen die Anzeige eine
+// Zeile vorher Zeiten angeboten hatte.
 // ═══════════════════════════════════════════════════════════════════════════
 
 let rueckfallGemeldet = false;
 
+export interface RollenEntscheid {
+  /** Wer darf angeboten/gebucht werden? `null` = keine Rollen-Einschränkung. */
+  rollen: string[] | null;
+  /** Greift der Rückfall auf Vertrieb und Leitung? Dann ist es eine Vertretung. */
+  rueckfall: boolean;
+  /** Warum — für Protokoll und Anzeige. */
+  grund: "rolle_frei" | "kein_konto" | "keine_freie_zeit" | "ohne_rolle";
+}
+
 /**
  * Welche Rollen dürfen Slots für diese Quelle stellen?
  *
- * Normalfall: die eine zuständige Rolle. Ausnahme: Gibt es davon keinen
- * aktiven Menschen, treten Vertrieb und Leitung ein — sonst hätte der Kunde
- * keine Wahl.
+ * DIE Entscheidung — Anzeige und Annahme rufen dieselbe Funktion auf.
+ *
+ * `personId` wird für die Slot-Prüfung gebraucht: „frei" heißt frei für DIESEN
+ * Kunden, im Vorlauf- und Horizontfenster.
+ */
+export async function rollenFuerBuchung(
+  quelle: TerminQuelle | string, personId: number, lauf: Lauf = sqlPool,
+): Promise<RollenEntscheid> {
+  const soll = rolleFuerQuelle(quelle);
+  if (!soll) return { rollen: null, rueckfall: false, grund: "ohne_rolle" };
+
+  const agenten = await agentenMitRolle([soll], lauf);
+  if (agenten.length === 0) {
+    if (!rueckfallGemeldet) {
+      console.warn(`[TERMINE] Kein aktiver Mitarbeiter mit der Rolle „${soll}" — `
+        + "Startgespräche laufen als VERTRETUNG über Vertrieb und Leitung.");
+      rueckfallGemeldet = true;
+    }
+    return { rollen: ["agent", "vertriebsleiter"], rueckfall: true, grund: "kein_konto" };
+  }
+
+  // Die eigentliche Frage: Ist dort noch eine Zeit frei? Ein Konto im Urlaub
+  // hat keine, und dann ist die Terminwahl leer statt vertreten.
+  const roh = await rohSlots(agenten, dauerFuer(quelle), lauf);
+  if (roh.length > 0) return { rollen: [soll], rueckfall: false, grund: "rolle_frei" };
+
+  console.warn(`[TERMINE] Onboarding hat in den nächsten ${HORIZONT_TAGE} Tagen `
+    + `keine freie Zeit (${agenten.length} Konten) — Startgespräch läuft als VERTRETUNG `
+    + "über Vertrieb und Leitung. Person " + String(personId) + ".");
+  return { rollen: ["agent", "vertriebsleiter"], rueckfall: true, grund: "keine_freie_zeit" };
+}
+
+/**
+ * Alte Signatur, damit bestehende Aufrufer nicht ins Leere laufen.
+ *
+ * Sie kann die Slot-Frage nicht stellen (ihr fehlt die Person) und beantwortet
+ * deshalb nur die Konto-Frage. Neue Aufrufer nehmen `rollenFuerBuchung`.
  */
 export async function rollenMitRueckfall(
   quelle: TerminQuelle | string, lauf: Lauf = sqlPool,
 ): Promise<{ rollen: string[] | null; rueckfall: boolean }> {
   const soll = rolleFuerQuelle(quelle);
   if (!soll) return { rollen: null, rueckfall: false };
+  const agenten = await agentenMitRolle([soll], lauf);
+  return agenten.length > 0
+    ? { rollen: [soll], rueckfall: false }
+    : { rollen: ["agent", "vertriebsleiter"], rueckfall: true };
+}
 
-  const [z] = (await lauf`
-    SELECT COUNT(*)::int AS n FROM fiaon_agents
-    WHERE active AND NOT COALESCE(is_test_account, FALSE) AND rolle = ${soll}
-  `) as any[];
-  if (Number(z?.n ?? 0) > 0) return { rollen: [soll], rueckfall: false };
-
-  if (!rueckfallGemeldet) {
-    console.warn(`[TERMINE] Kein aktiver Mitarbeiter mit der Rolle „${soll}" — `
-      + "Startgespräch-Slots kommen aus Vertrieb und Leitung. "
-      + "Sobald ein Onboarding-Konto existiert, greift wieder die Rolle.");
-    rueckfallGemeldet = true;
-  }
-  return { rollen: ["agent", "vertriebsleiter"], rueckfall: true };
+/** Die aktiven, echten Mitarbeiter dieser Rollen — Testkonten nie. */
+async function agentenMitRolle(
+  rollen: string[], lauf: Lauf = sqlPool,
+): Promise<{ id: number; vorname: string }[]> {
+  return ((await lauf`
+    SELECT id, COALESCE(NULLIF(first_name, ''), name) AS vorname
+    FROM fiaon_agents
+    WHERE active AND NOT COALESCE(is_test_account, FALSE)
+      AND COALESCE(rolle, 'agent') = ANY(${rollen})
+    ORDER BY id
+  `) as any[]).map((a) => ({ id: Number(a.id), vorname: String(a.vorname) }));
 }
 /** Frühestens buchbar: so viele Stunden ab jetzt. */
 export const VORLAUF_STUNDEN = 2;
@@ -319,6 +408,67 @@ export interface SlotAuskunft {
   slots: Slot[];
   /** Der zuständige Agent, falls es einen gibt — dann sind alle Slots seine. */
   betreuer: { id: number; vorname: string } | null;
+  /**
+   * Führt hier eine VERTRETUNG statt der zuständigen Rolle?
+   *
+   * Die Terminseite schreibt es dann hin. Ein Kunde, der ein Startgespräch
+   * bucht und einen Verkäufer bekommt, soll das VORHER lesen — nicht erst,
+   * wenn das Telefon klingelt.
+   */
+  vertretung?: boolean;
+}
+
+/**
+ * Die reine Slot-Rechnung für eine Menge Agenten — ohne Verknappung, ohne
+ * Lastverteilung.
+ *
+ * Sie steht getrennt, weil `rollenFuerBuchung` sie braucht, um „gibt es
+ * überhaupt eine freie Onboarding-Zeit?" zu beantworten. Eine zweite
+ * Rechnung dafür wäre die zweite Wahrheit über dieselbe Frage.
+ */
+async function rohSlots(
+  agenten: { id: number; vorname: string }[], takt: number, lauf: Lauf = sqlPool,
+): Promise<Slot[]> {
+  if (agenten.length === 0) return [];
+  const frühestens = new Date(Date.now() + VORLAUF_STUNDEN * 3600_000);
+  const spätestens = new Date(Date.now() + HORIZONT_TAGE * 86_400_000);
+
+  const belegt = new Set(
+    ((await lauf`
+      SELECT agent_id, beginn FROM fiaon_termine
+      WHERE agent_id = ANY(${agenten.map((a) => a.id)})
+        AND status IN ('gebucht', 'erledigt', 'verpasst')
+        AND beginn BETWEEN ${frühestens} AND ${spätestens}
+    `) as any[]).map((t) => `${t.agent_id}@${new Date(t.beginn).toISOString()}`),
+  );
+
+  const slots: Slot[] = [];
+  for (const agent of agenten) {
+    const fenster = (await verfuegbarkeitVon(agent.id, lauf)).filter((f) => f.aktiv);
+    for (let tag = 0; tag <= HORIZONT_TAGE; tag++) {
+      const datum = berlinDatum(new Date(Date.now() + tag * 86_400_000));
+      const wochentag = berlinWochentag(datum);
+      for (const f of fenster.filter((x) => x.wochentag === wochentag)) {
+        const von = zeitZuMinuten(f.von);
+        const bis = zeitZuMinuten(f.bis);
+        if (von == null || bis == null) continue;
+        for (let min = von; min + takt <= bis; min += takt) {
+          const beginn = berlinZeitpunkt(datum, min);
+          if (beginn < frühestens || beginn > spätestens) continue;
+          if (belegt.has(`${agent.id}@${beginn.toISOString()}`)) continue;
+          slots.push({
+            beginn: beginn.toISOString(),
+            datum: berlinDatum(beginn),
+            uhrzeit: berlinUhrzeit(beginn),
+            agentId: agent.id,
+            agentVorname: agent.vorname,
+          });
+        }
+      }
+    }
+  }
+  slots.sort((a, b) => a.beginn.localeCompare(b.beginn) || a.agentId - b.agentId);
+  return slots;
 }
 
 /**
@@ -419,9 +569,11 @@ export async function freieSlots(
 ): Promise<SlotAuskunft> {
   const takt = dauerFuer(quelle);
   // ── DER RÜCKFALL ────────────────────────────────────────────────────────
-  // `rolleFuerQuelle` allein hätte bei fehlendem Onboarding-Konto null Slots
-  // ergeben — siehe die Begründung bei `rollenMitRueckfall`.
-  const { rollen: nurRollen } = await rollenMitRueckfall(quelle, lauf);
+  // DIESELBE Entscheidung, die auch `terminBuchen` trifft. Sie prüft nicht
+  // mehr nur, ob es ein Onboarding-Konto GIBT, sondern ob dort eine Zeit FREI
+  // ist — Begründung bei `rollenFuerBuchung`.
+  const entscheid = await rollenFuerBuchung(quelle, personId, lauf);
+  const nurRollen = entscheid.rollen;
   const nurRolle = nurRollen ? nurRollen[0] : null;
   const [person] = (await lauf`
     SELECT p.id, p.assigned_agent_id,
@@ -440,12 +592,7 @@ export async function freieSlots(
   // führt das Onboarding, auch wenn der Kunde längst einen Betreuer hat.
   const betreuerAktiv = !nurRolle && person.assigned_agent_id && person.agent_aktiv;
   const agenten = nurRollen
-    ? ((await lauf`
-        SELECT id, COALESCE(NULLIF(first_name, ''), name) AS vorname
-        FROM fiaon_agents
-        WHERE active AND NOT is_test_account AND COALESCE(rolle, 'agent') = ANY(${nurRollen})
-        ORDER BY id
-      `) as any[]).map((a) => ({ id: Number(a.id), vorname: String(a.vorname) }))
+    ? await agentenMitRolle(nurRollen, lauf)
     : betreuerAktiv
       ? [{ id: Number(person.assigned_agent_id), vorname: String(person.agent_vorname || person.agent_name || "dein Ansprechpartner") }]
       : ((await lauf`
@@ -459,47 +606,11 @@ export async function freieSlots(
             AND COALESCE(rolle, 'agent') IN ('agent', 'vertriebsleiter')
           ORDER BY id
         `) as any[]).map((a) => ({ id: Number(a.id), vorname: String(a.vorname) }));
-  if (agenten.length === 0) return { slots: [], betreuer: null };
+  if (agenten.length === 0) return { slots: [], betreuer: null, vertretung: entscheid.rueckfall };
 
-  const frühestens = new Date(Date.now() + VORLAUF_STUNDEN * 3600_000);
-  const spätestens = new Date(Date.now() + HORIZONT_TAGE * 86_400_000);
-
-  const belegt = new Set(
-    ((await lauf`
-      SELECT agent_id, beginn FROM fiaon_termine
-      WHERE agent_id = ANY(${agenten.map((a) => a.id)})
-        AND status IN ('gebucht', 'erledigt', 'verpasst')
-        AND beginn BETWEEN ${frühestens} AND ${spätestens}
-    `) as any[]).map((t) => `${t.agent_id}@${new Date(t.beginn).toISOString()}`),
-  );
-
-  const slots: Slot[] = [];
-  for (const agent of agenten) {
-    const fenster = (await verfuegbarkeitVon(agent.id, lauf)).filter((f) => f.aktiv);
-    for (let tag = 0; tag <= HORIZONT_TAGE; tag++) {
-      const datum = berlinDatum(new Date(Date.now() + tag * 86_400_000));
-      const wochentag = berlinWochentag(datum);
-      for (const f of fenster.filter((x) => x.wochentag === wochentag)) {
-        const von = zeitZuMinuten(f.von);
-        const bis = zeitZuMinuten(f.bis);
-        if (von == null || bis == null) continue;
-        for (let min = von; min + takt <= bis; min += takt) {
-          const beginn = berlinZeitpunkt(datum, min);
-          if (beginn < frühestens || beginn > spätestens) continue;
-          if (belegt.has(`${agent.id}@${beginn.toISOString()}`)) continue;
-          slots.push({
-            beginn: beginn.toISOString(),
-            datum: berlinDatum(beginn),
-            uhrzeit: berlinUhrzeit(beginn),
-            agentId: agent.id,
-            agentVorname: agent.vorname,
-          });
-        }
-      }
-    }
-  }
-
-  slots.sort((a, b) => a.beginn.localeCompare(b.beginn) || a.agentId - b.agentId);
+  // Die Rechnung steht in `rohSlots` — dieselbe, die `rollenFuerBuchung`
+  // benutzt, um „ist beim Onboarding etwas frei?" zu beantworten.
+  const slots = await rohSlots(agenten, takt, lauf);
 
   // ── EINE UHRZEIT, EIN KNOPF ────────────────────────────────────────────
   // Ohne festen Betreuer sind mehrere Agenten gleichzeitig frei. Ungefiltert
@@ -540,7 +651,11 @@ export async function freieSlots(
     const eindeutig = Array.from(jeZeit.values()).sort((a, b) => a.beginn.localeCompare(b.beginn));
     // Verknappen erst NACH der Lastverteilung: Sonst würde die Auswahl der
     // fünf Zeiten die Verteilung verzerren.
-    return { slots: slotsVerknappen(eindeutig, await slotsProTag(lauf)), betreuer: null };
+    return {
+      slots: slotsVerknappen(eindeutig, await slotsProTag(lauf)),
+      betreuer: null,
+      vertretung: entscheid.rueckfall,
+    };
   }
 
   return {
@@ -548,6 +663,7 @@ export async function freieSlots(
     betreuer: betreuerAktiv
       ? { id: Number(person.assigned_agent_id), vorname: String(person.agent_vorname || person.agent_name || "") }
       : null,
+    vertretung: entscheid.rueckfall,
   };
 }
 
@@ -656,6 +772,14 @@ export interface Buchung {
   stornoToken: string;
   /** Woher der Termin kommt — die Meldung an den Zuständigen nennt es. */
   quelle: string;
+  /**
+   * Führt jemand aus einer anderen Rolle, weil beim Onboarding nichts frei war?
+   *
+   * Sie steht am Termin und nicht nur im Log: Ein Betreiber, der morgens seine
+   * Liste ansieht, soll die Vertretungen sehen können, ohne im Serverprotokoll
+   * zu suchen.
+   */
+  vertretung: boolean;
 }
 
 /**
@@ -728,16 +852,26 @@ export async function terminBuchen(
   // Die Wand bleibt (wer die Anfrage selbst baut, kommt sonst an der Anzeige
   // vorbei) — sie benutzt jetzt DIESELBE Funktion.
   // ══════════════════════════════════════════════════════════════════════════
+  //
+  // ── SEIT DEM 21.08.2026 FRAGT SIE NACH FREIEN ZEITEN, NICHT NACH KONTEN ──
+  // `rollenFuerBuchung` ist dieselbe Funktion, die `freieSlots` eine Zeile
+  // vorher benutzt hat. Sie lässt Vertrieb NUR durch, wenn beim Onboarding
+  // keine Zeit frei ist — und dann wird der Termin als Vertretung markiert.
+  let vertretung = false;
   if (nurRolle) {
-    const { rollen } = await rollenMitRueckfall(eingabe.quelle, lauf);
+    const entscheid = await rollenFuerBuchung(eingabe.quelle, eingabe.personId, lauf);
     const rolle = String(agent.rolle || "agent");
-    if (rollen && !rollen.includes(rolle)) {
+    if (entscheid.rollen && !entscheid.rollen.includes(rolle)) {
       throw new TerminFehler(
         "falsche_rolle",
         "Diese Person führt keine Startgespräche. Bitte wähl eine andere Zeit — "
         + "die angebotenen Zeiten gehören zu Mitarbeitern, die Startgespräche führen.",
       );
     }
+    // Vertretung ist es nur, wenn der Rückfall greift UND der Gebuchte
+    // tatsächlich nicht die zuständige Rolle hat. Ein Onboarding-Mensch, der
+    // während eines Rückfalls doch noch gebucht wird, ist keine Vertretung.
+    vertretung = entscheid.rueckfall && rolle !== nurRolle;
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -793,9 +927,10 @@ export async function terminBuchen(
   let gebucht: any;
   try {
     [gebucht] = (await lauf`
-      INSERT INTO fiaon_termine (person_id, agent_id, beginn, dauer_min, status, quelle, storno_token)
+      INSERT INTO fiaon_termine (person_id, agent_id, beginn, dauer_min, status, quelle,
+                                 storno_token, vertretung)
       VALUES (${eingabe.personId}, ${eingabe.agentId}, ${beginn}, ${takt}, 'gebucht',
-              ${eingabe.quelle}, ${stornoToken})
+              ${eingabe.quelle}, ${stornoToken}, ${vertretung})
       RETURNING id
     `) as any[];
   } catch (err: any) {
@@ -815,6 +950,7 @@ export async function terminBuchen(
     uhrzeit: berlinUhrzeit(beginn),
     stornoToken,
     quelle: eingabe.quelle,
+    vertretung,
   };
 }
 

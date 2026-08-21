@@ -63,9 +63,10 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import {
-  antragVollstaendigSql, fehlendeFelderAusdruckSql,
+  antragVollstaendigSql, fehlendeFelderAusdruckSql, fehlendeZustimmungenAusdruckSql,
+  FORMULAR_SCHRITTE_SQL,
 } from "./fiaon-antrag-vollstaendig";
-import { paket, paketPreisCents } from "../../shared/fiaon-pakete";
+import { PAKETE, paket, paketPreisCents } from "../../shared/fiaon-pakete";
 
 type Lauf = typeof sqlPool;
 
@@ -189,50 +190,116 @@ export function lebendeOffeneBestellungSql(a = "a"): string {
 // Karten in EINER Abfrage. Ein Aufruf je Kunde wären 1.093 Abfragen, und dann
 // baut jemand aus Not wieder eine Ableitung in der Oberfläche.
 //
+// ═══════════════════════════════════════════════════════════════════════════
+// ZWEI BEGRIFFE, DIE NICHTS MITEINANDER ZU TUN HABEN (21.08.2026)
+//
+// ── DIE MELDUNG (Screenshot Hans Neumann, Betrieb) ────────────────────────
+// „Antrag fertig — Rechnung offen", FIAON Ultra 79,99 €, Verwendungszweck
+// FIAON-QQZAYT — und daneben „Zahlungsdaten: gesperrt", weil E-Mail, Tag des
+// Gehaltseingangs, IBAN, AGB-, SCHUFA- und Vertragszustimmung fehlen.
+//
+// ── WAS DARAN FALSCH WAR ──────────────────────────────────────────────────
+// Der Zweig „noch keine Rechnung gestellt" verlangte `REIF_ODER_VOLL`: einen
+// Antragszustand aus einer Liste ODER ALLE NEUNZEHN Pflichtfelder. Damit hing
+// eine ZAHLUNGSAUFFORDERUNG an Angaben, die zum VERTRAG gehören und nicht zur
+// Rechnung.
+//
+// Eine Rechnung braucht vier Dinge, und drei davon hat Hans Neumann:
+//   · eine lebende unbezahlte Bestellung   ✓
+//   · einen Betrag aus dem Katalog          ✓ (Ultra, 79,99 €)
+//   · einen Verwendungszweck                ✓ (FIAON-QQZAYT)
+//   · eine zustellbare Adresse              ✗
+//
+// Der Gehaltseingangstag sagt nichts darüber, wohin eine Rechnung geht. Die
+// IBAN erst recht nicht — wer überweist, braucht UNSERE Bankverbindung, nicht
+// umgekehrt. Und die drei Zustimmungen sind Willenserklärungen des Kunden: Sie
+// gehören zum Vertrag, den er schließt, nicht zu der Forderung, die wir
+// stellen.
+//
+// ── GEMESSEN (scripts/mess-rechnungsreif.ts, 21.08.2026) ──────────────────
+// 388 Personen trugen den Sperrgrund `antrag_unfertig`. Davon haben 137 eine
+// lebende unbezahlte Bestellung UND eine zustellbare Adresse — sie sind nach
+// der Regel oben sendbar und wurden es nicht. 250 haben wirklich keine
+// Adresse; sie bleiben gesperrt, aber mit EINEM Grund statt sechs, und die
+// Karte hat für genau diesen Fall ein Eingabefeld.
+//
+// ── DIE TRENNUNG, DIE JETZT GILT ──────────────────────────────────────────
+//   RECHNUNGSREIF  = lebende unbezahlte Bestellung + Katalogpreis + Empfänger
+//                    → das und NUR das entscheidet über den Sende-Knopf.
+//   VERTRAGSREIF   = die neunzehn Pflichtfelder aus `fiaon-antrag-vollstaendig`
+//                    → das steht als Hinweis daneben und sperrt NICHTS.
+//
+// Der Antragszustand entscheidet gar nicht mehr mit. Er ist ein Merker, den ein
+// verlorenes Ereignis falsch stehen lässt (der Rückfall auf `started` bei
+// Schritt 9 hat 24 fertige Anträge als „nie begonnen" markiert) — und eine
+// Rechnung an einem Merker aufzuhängen war schon beim letzten Mal die Ursache.
+//
 // Deckungsgleich mit dem Entscheidungsbaum in `zahlungsdatenSenden`:
 //   1. lebende offene Bestellung MIT Empfänger        → frei
 //   2. lebende offene Bestellung OHNE Empfänger       → keine_email
-//   3. rechnungsreife Bestellung MIT Empfänger        → erste_rechnung (frei)
-//   4. rechnungsreife OHNE Empfänger                  → keine_email
-//   5. Bestellung da, aber Antrag im Formular         → antrag_unfertig
+//   3. unbezahlte Bestellung MIT Empfänger + Preis    → erste_rechnung (frei)
+//   4. unbezahlte Bestellung OHNE Empfänger           → keine_email
+//   5. unbezahlte Bestellung OHNE Katalogpreis        → kein_preis
 //   6. alles bezahlt                                  → alles_bezahlt
-//   7. gar keine lebende Bestellung                    → keine_bestellung
+//   7. gar keine lebende Bestellung                   → keine_bestellung
 // ═══════════════════════════════════════════════════════════════════════════
 
-/** Die Antragszustände, in denen eine erste Rechnung gestellt werden darf. */
-const REIF_SQL = "'completed','approved','submitted','documents_submitted',"
-  + "'verifying','processing','pending_payment'";
+/**
+ * Hat diese Bestellung einen Katalogpreis? — dieselbe Reihenfolge wie
+ * `katalogpreisCents`: erst die Kategorie, dann der Paketschlüssel.
+ *
+ * Die Schlüssel kommen aus `shared/fiaon-pakete.ts` und werden hier NICHT
+ * abgeschrieben. Eine zweite Liste hätte beim nächsten Paket gefehlt — und der
+ * Knopf wäre frei, während `rechnungStellen` „kein Preis hinterlegt" antwortet.
+ * Genau diese Klasse (Karte gibt frei, Server lehnt ab) soll diese Datei
+ * beseitigen.
+ *
+ * GEMESSEN am 21.08.2026: 7 von 1.509 unbezahlten Bestellungen haben keinen
+ * Katalogpreis (1× pack_key „standard", 6× Firmenantrag ohne Paket).
+ */
+export function katalogpreisVorhandenSql(a = "a"): string {
+  const keys = PAKETE.map((p) => `'${p.key}'`).join(", ");
+  return `(${a}.type = 'schufa' OR ${a}.ref LIKE 'FIAON-SCHUFA-%'
+      OR LOWER(TRIM(COALESCE(${a}.pack_key, ''))) IN (${keys}))`;
+}
+
+/** Unbezahlt heißt: es ist noch Geld offen. „superseded" gehört nicht dazu. */
+const UNBEZAHLT_SQL = (a: string): string =>
+  `${a}.payment_status NOT IN ('paid', 'refunded', 'superseded')`;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// DER ZUSTAND WIRD AUS DEM INHALT ABGELEITET, NICHT NUR AUS DEM LETZTEN KLICK
+// EIN LIEGENGEBLIEBENER ENTWURF IST KEINE FORDERUNG
 //
-// ── DIE MELDUNG (Daniel Stripling, 19.08.2026) ─────────────────────────────
-// „Bei einigen Kunden wird angezeigt, dass sich der Antrag noch ‚im Formular'
-// befindet … Das Problem ist, dass der Antrag aus meiner Sicht bereits
-// vollständig ausgefüllt ist."
+// ── DER BEFUND BEIM MESSEN (21.08.2026) ───────────────────────────────────
+// Der erste Entwurf dieser Regel hat den Antragszustand VOLLSTÄNDIG
+// weggelassen. Das befreite die 137 Kunden, um die es geht — und nebenbei 48
+// weitere, die bereits BEZAHLT hatten.
 //
-// ── DER BEFUND (scripts/mess-rechnung-blockade.ts) ─────────────────────────
-// 475 Anträge standen auf `antrag_unfertig`. 25 davon tragen JEDES Pflichtfeld
-// — alle drei Zusagen, E-Mail, Gehaltseingangstag, vollständige Stammdaten. Sie
-// sind fertig. Ihr Zustand sagte `started` oder `contract`.
+// Nachgesehen, was das für Menschen sind: Person 3471 hat eine bezahlte
+// Bestellung und SECHS unbezahlte Zeilen vom selben Tag, alle in
+// Formularschritten („started", „contract", „completed"). Person 3345: ein
+// Entwurf vom 1. Mai, bezahlt am 2. Mai. Das sind keine Nachbestellungen, das
+// sind abgebrochene Anläufe desselben Kaufs — der Trichter, nicht der Bestand.
 //
-// Die Ursache lag in `client/src/pages/antrag.tsx` (Rückfall auf den ERSTEN
-// Schritt bei Schritt 9, siehe `shared/fiaon-antrag-schritte.ts`). Sie ist
-// behoben — aber ein behobener Schreibfehler räumt den Bestand nicht auf, und
-// der nächste verlorene Schritt erzeugt denselben Zustand wieder.
+// 48 zahlende Kunden hätten eine Rechnung über 99,99 € für ein Paket bekommen,
+// das sie schon haben. Das wäre schlimmer gewesen als die Sperre, die ich
+// beheben sollte.
 //
-// ── DESHALB ENTSCHEIDET DER INHALT MIT ────────────────────────────────────
-// AGENTS.md: „Zustände, die sich ausrechnen lassen, werden AUSGERECHNET." Der
-// Zustand ist ein Merker, den ein verlorenes Ereignis falsch stehen lässt — die
-// Felder sind die Tatsache. Wer alle Pflichtfelder trägt, ist rechnungsreif,
-// ganz gleich welcher Klick zuletzt angekommen ist.
+// ── DESHALB EIN SCHMALER SCHNITT, KEIN BREITER ────────────────────────────
+// Der Antragszustand entscheidet NICHT mehr, ob eine Rechnung gestellt werden
+// darf. Er entscheidet nur noch EINES: ob eine unbezahlte Zeile ein ENTWURF
+// ist. Und gegen Entwürfe — und nur gegen die — gilt weiter: Wer schon bezahlt
+// hat, bekommt keine Rechnung.
 //
-// Die Liste der Pflichtfelder steht in `fiaon-antrag-vollstaendig.ts` — einmal,
-// mit einer TypeScript- und einer SQL-Fassung, die ein Prüfstand gegeneinander
-// hält.
+// GEMESSEN mit dieser Fassung: 137 befreit, 0 Kunden neu gesperrt, die es
+// heute nicht schon sind.
+//
+// Die Liste der Formularschritte steht in `fiaon-antrag-vollstaendig.ts` —
+// dieselbe, die der Nachzieh-Lauf benutzt. Zwei Listen wären zwei Begriffe von
+// „im Formular".
 // ═══════════════════════════════════════════════════════════════════════════
-const REIF_ODER_VOLL = (a: string): string =>
-  `(${a}.status IN (${REIF_SQL}) OR ${antragVollstaendigSql(a)})`;
+const ENTWURF_SQL = (a: string): string =>
+  `${a}.status IN (${FORMULAR_SCHRITTE_SQL})`;
 
 /** Der Empfänger: Bestellung zuerst, Person als Rückfall. */
 const EMPFAENGER_SQL = (a: string, p: string) =>
@@ -312,34 +379,67 @@ export async function empfaengerFuer(
  * Umformulierung.
  */
 export function sendeGrundSql(p = "p"): string {
+  /** Eine lebende Bestellung, auf die noch Geld offen ist — egal in welchem
+   *  Formularschritt der Antrag steckt. Der Schritt gehört zum Vertrag. */
+  const lebendUnbezahlt = (a: string) => `${a}.person_id = ${p}.id
+      AND ${a}.merged_into IS NULL AND ${a}.archived_at IS NULL
+      AND ${a}.gdpr_deleted_at IS NULL AND ${a}.cancelled_at IS NULL
+      AND ${UNBEZAHLT_SQL(a)}`;
+
   const offen = `EXISTS (SELECT 1 FROM fiaon_applications a1
     WHERE a1.person_id = ${p}.id AND ${lebendeOffeneBestellungSql("a1")})`;
   const offenMitMail = `EXISTS (SELECT 1 FROM fiaon_applications a2
     WHERE a2.person_id = ${p}.id AND ${lebendeOffeneBestellungSql("a2")}
       AND ${EMPFAENGER_SQL("a2", p)} IS NOT NULL)`;
-  const reif = `EXISTS (SELECT 1 FROM fiaon_applications a3
-    WHERE a3.person_id = ${p}.id AND a3.merged_into IS NULL AND a3.archived_at IS NULL
-      AND a3.gdpr_deleted_at IS NULL AND a3.payment_status = 'pending'
-      AND ${REIF_ODER_VOLL("a3")})`;
-  const reifMitMail = `EXISTS (SELECT 1 FROM fiaon_applications a4
-    WHERE a4.person_id = ${p}.id AND a4.merged_into IS NULL AND a4.archived_at IS NULL
-      AND a4.gdpr_deleted_at IS NULL AND a4.payment_status = 'pending'
-      AND ${REIF_ODER_VOLL("a4")} AND ${EMPFAENGER_SQL("a4", p)} IS NOT NULL)`;
-  const irgendeine = `EXISTS (SELECT 1 FROM fiaon_applications a5
-    WHERE a5.person_id = ${p}.id AND a5.merged_into IS NULL AND a5.archived_at IS NULL
-      AND a5.gdpr_deleted_at IS NULL)`;
-  const bezahlt = `EXISTS (SELECT 1 FROM fiaon_applications a6
-    WHERE a6.person_id = ${p}.id AND a6.merged_into IS NULL AND a6.archived_at IS NULL
-      AND a6.gdpr_deleted_at IS NULL AND a6.payment_status = 'paid')`;
+  // Noch keine Rechnung gestellt: Sie entsteht beim Senden. Dafür braucht es
+  // einen Betrag — und der kommt aus dem Katalog, nicht aus `amount_due`.
+  // GESTELLT heißt: kein Formularschritt mehr. Diese Zeile ist eine
+  // Bestellung, egal was sonst bezahlt ist.
+  const gestellt = `EXISTS (SELECT 1 FROM fiaon_applications a3
+    WHERE ${lebendUnbezahlt("a3")} AND ${katalogpreisVorhandenSql("a3")}
+      AND NOT (${ENTWURF_SQL("a3")}))`;
+  const gestelltMitMail = `EXISTS (SELECT 1 FROM fiaon_applications a4
+    WHERE ${lebendUnbezahlt("a4")} AND ${katalogpreisVorhandenSql("a4")}
+      AND NOT (${ENTWURF_SQL("a4")}) AND ${EMPFAENGER_SQL("a4", p)} IS NOT NULL)`;
+  // ENTWURF: steht noch im Formular. Auch daraus wird eine Rechnung — der
+  // Mitarbeiter hat den Menschen ja am Telefon. Nur nicht, wenn schon bezahlt
+  // wurde (Begründung bei `ENTWURF_SQL`).
+  const entwurf = `EXISTS (SELECT 1 FROM fiaon_applications a5
+    WHERE ${lebendUnbezahlt("a5")} AND ${katalogpreisVorhandenSql("a5")})`;
+  const entwurfMitMail = `EXISTS (SELECT 1 FROM fiaon_applications a6
+    WHERE ${lebendUnbezahlt("a6")} AND ${katalogpreisVorhandenSql("a6")}
+      AND ${EMPFAENGER_SQL("a6", p)} IS NOT NULL)`;
+  const unbezahltOhnePreis = `EXISTS (SELECT 1 FROM fiaon_applications a7
+    WHERE ${lebendUnbezahlt("a7")})`;
+  const bezahlt = `EXISTS (SELECT 1 FROM fiaon_applications a8
+    WHERE a8.person_id = ${p}.id AND a8.merged_into IS NULL AND a8.archived_at IS NULL
+      AND a8.gdpr_deleted_at IS NULL AND a8.payment_status = 'paid')`;
   return `CASE
     WHEN ${offenMitMail} THEN 'frei'
     WHEN ${offen} THEN 'keine_email'
-    WHEN ${reifMitMail} THEN 'erste_rechnung'
-    WHEN ${reif} THEN 'keine_email'
+    WHEN ${gestelltMitMail} THEN 'erste_rechnung'
+    WHEN ${gestellt} THEN 'keine_email'
     WHEN ${bezahlt} THEN 'alles_bezahlt'
-    WHEN ${irgendeine} THEN 'antrag_unfertig'
+    WHEN ${entwurfMitMail} THEN 'erste_rechnung'
+    WHEN ${entwurf} THEN 'keine_email'
+    WHEN ${unbezahltOhnePreis} THEN 'kein_preis'
     ELSE 'keine_bestellung'
   END`;
+}
+
+/**
+ * Ist der VERTRAG vollständig? — die neunzehn Pflichtfelder.
+ *
+ * Diese Frage sperrt NICHTS. Sie steht als grauer Hinweis unter dem
+ * Sende-Knopf: „Für den Vertrag fehlen noch: …". Wer sie mit
+ * `sendeGrundSql` vermischt, baut den Fehler vom 21.08.2026 neu.
+ */
+export function vertragsreifSql(p = "p"): string {
+  return `NOT EXISTS (SELECT 1 FROM fiaon_applications av
+      WHERE av.person_id = ${p}.id AND av.merged_into IS NULL
+        AND av.archived_at IS NULL AND av.gdpr_deleted_at IS NULL
+        AND av.payment_status NOT IN ('paid', 'refunded')
+        AND NOT (${antragVollstaendigSql("av")}))`;
 }
 
 /** Der Klartext zu einem Grund-Code — an EINER Stelle, für alle Oberflächen. */
@@ -361,22 +461,52 @@ export const SENDE_GRUND_TEXT: Record<string, { text: string; tat: string | null
     text: "Alles bezahlt. Eine Zahlungsaufforderung wäre falsch.",
     tat: null,
   },
-  // ── HIER STAND EIN PAUSCHALSATZ, UND DAS WAR DER FEHLER ─────────────────
-  // Wörtlich vorher: „Der Antrag steht noch im Formular — ruf an und hilf beim
-  // Fertigstellen." Daniel dazu: „Es ist nicht ersichtlich, welche Information
-  // noch fehlt oder an welcher Stelle der Antrag noch fertiggestellt werden
-  // soll."
+  // ── DER EINZIGE NEUE SPERRGRUND (21.08.2026) ────────────────────────────
+  // Er entstand aus der Trennung: Wenn nicht mehr der Antragszustand sperrt,
+  // muss das fehlen, was eine Rechnung WIRKLICH braucht — ein Betrag. Ohne
+  // Katalogpreis würde `rechnungStellen` ablehnen, und die Karte hätte den
+  // Knopf freigegeben. Genau diese Klasse beseitigt diese Datei.
+  kein_preis: {
+    text: "Für das gebuchte Paket ist kein Katalogpreis hinterlegt — "
+      + "ohne Betrag wäre die Rechnung eine Bitte um Überweisung von irgendetwas.",
+    tat: "Produkt aus dem Katalog anlegen",
+  },
+  // ── DIESER GRUND WIRD NICHT MEHR ERZEUGT (21.08.2026) ───────────────────
+  // Er steht noch im Wörterbuch, weil im Browser eines Mitarbeiters eine
+  // ältere Fassung der Oberfläche liegen kann, bis sie hart neu lädt — und ein
+  // fehlender Eintrag ergäbe dort einen leeren Sperrhinweis.
   //
-  // Er hat recht: Der Satz nennt eine Aufgabe („hilf beim Fertigstellen") ohne
-  // ihren Inhalt. Die Karte bekommt jetzt `fehlendeFelder` vom Server mit und
-  // schreibt „Es fehlt: Geburtsdatum, IBAN" — dieser Text ist nur noch der
-  // Rückfall, wenn die Liste leer bleibt.
+  // Der Satz ist trotzdem korrigiert: Ein unfertiger Antrag SPERRT die
+  // Rechnung nicht mehr. Was fehlt, gehört zum Vertrag und steht als grauer
+  // Hinweis unter dem Knopf.
   antrag_unfertig: {
-    text: "Im Antrag fehlen noch Angaben — sie stehen unten. "
-      + "Sobald sie da sind, lässt sich eine Rechnung stellen.",
-    tat: "Fehlendes am Telefon ergänzen",
+    text: "Im Antrag fehlen noch Angaben für den VERTRAG — die Rechnung geht "
+      + "davon unabhängig raus. Bitte die Seite hart neu laden (Strg+Umschalt+R).",
+    tat: null,
   },
 };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WAS FÜR DEN VERTRAG FEHLT — GETRENNT VOM SPERRGRUND
+//
+// Zwei Listen, weil es zwei Fragen sind:
+//   `fehlendeFelderSql`      ALLE neunzehn — was der Antrag noch braucht.
+//   `zustimmungFehltSql`     nur die drei Willenserklärungen — was NUR der
+//                            Kunde selbst geben darf.
+//
+// Die zweite Liste entscheidet in der Karte, ob der Knopf „Zustimmungs-Link an
+// den Kunden senden" erscheint. Ein Mitarbeiter darf eine Zustimmung nicht
+// setzen — rechtlich muss der Kunde selbst zustimmen. Deshalb gibt es dafür
+// kein Eingabefeld, sondern einen Link.
+// ═══════════════════════════════════════════════════════════════════════════
+export function zustimmungFehltSql(p = "p"): string {
+  return `(SELECT ${fehlendeZustimmungenAusdruckSql("az")}
+      FROM fiaon_applications az
+     WHERE az.person_id = ${p}.id AND az.merged_into IS NULL
+       AND az.archived_at IS NULL AND az.gdpr_deleted_at IS NULL
+       AND az.payment_status NOT IN ('paid', 'refunded')
+     ORDER BY az.created_at DESC LIMIT 1)`;
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // WAS GENAU FEHLT — ALS SQL, FÜR DIE ARBEITSLISTE

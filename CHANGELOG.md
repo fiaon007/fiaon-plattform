@@ -5,6 +5,230 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 21.08.2026 (nachmittags) — Stabilisierung: nichts bleibt unsichtbar
+
+---
+
+### Punkt 1 — Die „zehn unsichtbaren Kunden": ich hatte falsch gemeldet
+
+**Was ich am Morgen geschrieben habe:** „10 Kunden hängen an stillgelegten
+Prüfstands-Konten — die sieht aktuell niemand." Das war eine Vermutung aus einer
+Zählung, kein Befund.
+
+**GEMESSEN** (`scripts/mess-pruefstands-konten.ts`, über **44 Besitz-Spalten**,
+aus dem Datenbank-Katalog abgeleitet statt aufgezählt):
+
+| | |
+|---|---|
+| Konten mit Testkonto-Marke | **203** |
+| Personen daran | **16** |
+| davon selbst Testeinträge (in Ordnung) | **11** |
+| Datensätze insgesamt an solchen Konten | **1.426** |
+
+Die stillgelegten `PRUEFSTAND-`Konten halten **ausschließlich Testeinträge**.
+Alles Produktive hängt an **zwei** Konten: **#2 und #7 — beide „Justin
+Schwarzott"**, aktiv, mit Passwort, echte Adressen, angelegt am 04.07.2026. Es
+sind die Konten des Betreibers, und sie tragen die Marke `is_test_account` zu
+Unrecht.
+
+**Warum das trotzdem teuer ist:** Jede Team-Ansicht filtert über
+`echteMitarbeiterSql()`. Diese zwei Konten fallen also aus Team-Zentrale,
+Kennzahlen, Rangliste und Verteilung — und mit ihnen:
+
+**5 Kunden (3 zahlend) · 4 Bestellungen · 3 Termine · 6 Provisionen über
+591,60 € · 1 Auszahlung · 3 Leads.** Seit 48 Tagen. Gefunden hat es ein Zufall
+beim Aufräumen.
+
+**Die Behebung ist nicht Umhängen, sondern Entmarkieren.** Die Kunden sind beim
+richtigen Betreuer; der Betreuer ist falsch etikettiert. Umhängen hätte fünf
+Menschen einem fremden Mitarbeiter gegeben und die Provisionen verschoben.
+`scripts/pruefstands-konten-lauf.ts` zeigt die Vorschau — **geschrieben wurde
+nichts**, das wartet auf Freigabe.
+
+**Die Wand (Migration 072), zwei Richtungen mit verschiedener Härte:**
+
+| Richtung | Antwort | Warum |
+|---|---|---|
+| Marke SETZEN auf ein Konto mit Kunden/Provisionen/Terminen | **harte Sperre** mit Klartext | genau dieser Vorfall; es gibt keinen berechtigten Fall |
+| Datensatz an ein Prüfstands-Konto HÄNGEN | **Warnung + Vormerkung** | unsere eigenen Browsertests leihen sich Kunden und geben sie im `finally` zurück — eine Sperre hätte jeden Prüfstand lahmgelegt |
+
+Beide Richtungen sind in einer zurückgerollten Transaktion belegt.
+
+**Der Tageslauf** `bestandswache` (in `server/lib/fiaon-bestandswache.ts`) prüft
+täglich vier Dinge und schickt höchstens **eine** Mail am Tag: Produktives an
+Prüfstands-Konten, offene Vormerkungen, bezahlte Kunden ohne Startgespräch,
+zahlende Kunden ganz ohne Betreuer. Er ändert **nichts** von selbst.
+
+---
+
+### Punkt 2 — Sind die Rechnungen rausgegangen? **Ja. Alle.**
+
+Die Frage, die ich am Morgen offen gelassen habe.
+
+**GEMESSEN** (`scripts/mess-rechnungen-luecke.ts`):
+
+| Topf | Anzahl |
+|---|---|
+| erste Rechnungen gestellt seit dem 19.08. | **63** |
+| A — versendet und protokolliert | 0 |
+| B — **versendet, aber nicht protokolliert** | **63** |
+| C — **gar nicht versendet** | **0** |
+
+Gegenprobe: **110 versandte `payment_details` im Zustellprotokoll, 0 Fehler, 0
+Akteneinträge.** Kein Kunde ist ohne Rechnung geblieben.
+
+**Zwei eigene Messfehler, die ich korrigieren musste** — beide dieselbe Ursache:
+
+1. Die Auswahl lautete `updated_at >= 19.08.` Das ergab **689** Bestellungen und
+   damit **610 im Topf C** — eine Katastrophenmeldung, die falsch war.
+   `updated_at` wird von jedem Lauf angefasst. Der Stelltag lässt sich nur aus
+   `payment_due_date − 7 Tage` zurückrechnen: **63**, nicht 689.
+2. Fünf Fälle standen zunächst in Topf C, obwohl sie ein
+   `payment_email_sent_at` tragen. Sie kommen aus der **automatischen
+   Antragsstrecke**, die nicht ins Zustellprotokoll schreibt. Wer nur eine
+   Quelle liest, erklärt fünf Kunden zu Opfern, die ihre Rechnung längst haben.
+
+**Nachgetragen: 65 Akteneinträge** mit der Marke `[rückwirkend rekonstruiert]`,
+`created_at` auf den echten Sendezeitpunkt. Ohne Mitarbeiternamen — wer gedrückt
+hat, stand im verlorenen Eintrag und wird nicht erfunden. Der Lauf ist
+idempotent (zweiter Durchgang: 0).
+
+**Und die Ursache der letzten zwei behoben:** Die automatische Rechnung beim
+Antragsabschluss (`fiaon-antrag.ts`) schrieb **nie** einen Verlaufseintrag —
+unabhängig vom Fehler vom 19.08. Zwei Fälle allein heute zwischen 12:53 und
+13:05. Jetzt tut sie es, und der Ausgang ist nicht stumm.
+
+**Fehlende Rechnungen wurden NICHT automatisch versendet** — es gibt keine.
+
+---
+
+### Punkt 3 — Zuständigkeit: eine Ableitung
+
+`server/lib/fiaon-zustaendigkeit.ts`, in dieser Reihenfolge:
+
+| Regel | Ergebnis | Personen |
+|---|---|---|
+| Rückstand ab Mahnstufe 1 **oder** vom Betreiber zugewiesen | Forderungsmanagement | **151** |
+| Paket bezahlt, Startgespräch nicht geführt | Onboarding | **195** |
+| sonst | Vertrieb | **4.093** |
+
+**Warum Mahnstufe 1 und nicht 0** — gemessen: Stufe 0 sind 211 Personen, deren
+Rate noch nicht fällig ist. Wer sie mitzählt, erklärt 211 Menschen zu Mahnfällen,
+die nichts falsch gemacht haben. Stufe 1 wird am Fälligkeitstag gesetzt.
+
+**Was diese Funktion ausdrücklich NICHT ersetzt:** die Arbeitsliste des
+Forderungsmanagements. Die zeigt 339 Personen (jede offene Rate). Hätte ich sie
+auf die neue Ableitung umgestellt, hätte Inkasso **188 Menschen verloren** — und
+der Betreiber hat am 11.08. das Gegenteil gemeldet. Es sind zwei Fragen: „wer ist
+zuständig" (eine Antwort je Mensch) und „wen bearbeitet Inkasso" (eine
+Arbeitsmenge). Das steht ausgeschrieben in der Datei, damit es niemand aus
+Ordnungsliebe zusammenlegt.
+
+**Ersetzt haben diese Ableitung:** Übergabe-Auswahl (Zuständige stehen oben und
+sind markiert), Softphone-Panel (`ichBinZustaendig` + Grund), Kundenliste (zeigt
+sie an, **filtert nicht** danach — der Filter ist gemessen und behoben), neue
+Admin-Liste „Termine in Vertretung".
+
+Der Prüfstand hält SQL- und TypeScript-Fassung an **je einem Fall pro Topf**
+gegeneinander.
+
+---
+
+### Punkt 4 — Onboarding-Kapazität: der Rückfall ist nicht der Dauerzustand
+
+Die Sorge war berechtigt und die Antwort ist beruhigend.
+
+| | |
+|---|---|
+| freie Onboarding-Plätze, 14 Tage | **487** (Rifka 309, Viktoria 178) |
+| davon belegt | **9** |
+| Startgespräche gebucht seit dem 20.08. | **35** |
+| davon bei fremder Rolle | **2** (beide am 20.08.) |
+| am 21.08. bei fremder Rolle | **0** |
+
+**Die 35 sind der Punkt:** „keins mehr falsch zugeordnet" ist hier NICHT „gar
+keins gebucht". Der Prüfstand prüft genau diese Verwechslung.
+
+**Bezahlt ohne Startgespräch: 342** (Ihre Notiz sagte 336). 332 ohne Termin,
+**204 warten länger als 14 Tage**, ältester **48 Tage**. Bei 81 fehlt
+`paid_at`, ihr Alter ist unbekannt. `reports/bezahlt-ohne-onboarding.csv`.
+
+Neu im Dashboard: Karte **„Was niemand sieht"** mit der Zahl und einem Klick auf
+die Namensliste. **Nichts wird automatisch gebucht** — 342 Termine, zu denen
+niemand zugesagt hat, wären zwei zerstörte Kalender.
+
+---
+
+### Punkt 5 — Stille Fehlerschlucker
+
+`scripts/mess-stille-fehler.ts` über **925 Dateien**:
+
+| Bereich | hart | Muster A | Muster B |
+|---|---|---|---|
+| server/lib | 52 | 52 | 0 |
+| server/routes | 146 | 146 | 0 |
+| server | 10 | 10 | 0 |
+| client/src | 120 | 114 | 6 |
+| scripts | 411 | 411 | 0 |
+
+**735 hart, 27 auf kritischen Pfaden.** Vollständig in
+`reports/stille-fehler.md`.
+
+**Behoben in dieser Sitzung** (jeder Ausgang hat jetzt eine Stimme, die sagt,
+WAS ausfällt): Mail-Diagnose, Mail-Testmarke, Termin-Ergebnis, Termin-Meldung
+(zweimal), Termin-Wartezustand, Einladungs-Protokoll, Vorwahl-Protokoll,
+Skripte-Abfrage, automatische Rechnung — dazu im Client: Startgespräch-Gate
+(hier stand ein Kunde vor einer leeren Fläche), Anrufer-Auflösung im Telefon,
+Rücklaufzähler des Agenten-Badges, Mail-Zentrale, Portal-Limit,
+Academy-Stand.
+
+Der Scanner hat zunächst **sechs Kommentarzeilen** gemeldet, die das Muster
+zitieren, weil dort schon einmal ein stiller Fehler behoben wurde. Ein
+Prüfstand, der die Dokumentation seiner eigenen Behebung anzeigt, wird beim
+zweiten Lesen abgeschaltet — Kommentare sind jetzt ausgenommen.
+
+**411 Treffer in `scripts/` bleiben bewusst stehen:** In einem Prüfstand ist ein
+`.catch(() => {})` um einen Playwright-Zeitablauf richtig.
+
+---
+
+### Punkt 6 — Die Wand vor dem Merge
+
+`scripts/pruef-vor-merge.ts` + `.github/workflows/vor-merge.yml`, vier Schritte,
+jeder mit eigener Rot-Probe:
+
+1. **Bau** in sauberer Kopie (`npm ci --omit=dev && npm run build`)
+2. **Migrationen** trocken einspielen — Transaktion, dann Rollback
+3. **Backticks** in SQL- **und CSS**-Kommentaren
+4. **Protokoll** — CHANGELOG.md und `updates-data.ts` mitgeändert
+
+Vier getrennte CI-Schritte, damit in der GitHub-Übersicht steht, WELCHE Wand
+gefallen ist.
+
+**Drei Fehlalarme beim Bau dieser Wand behoben** — jeder hätte jeden Merge
+blockiert und die Wand damit erledigt:
+- Die Nachverfolgungstabelle heißt `schema_migrations.filename`, nicht
+  `fiaon_migrations.name`. Ein `.catch(() => [])` machte daraus „0 eingespielt",
+  und die Wand prüfte alle 73 Migrationen — drei alte wurden rot.
+- `006_service_orders.sql` ist zerstörend und wird dauerhaft verweigert. Als
+  „offene Arbeit" gezählt, war die Wand mit einem Befund von vor einem halben
+  Jahr rot.
+- Ein Abschnitt ohne einzige Prüfung meldete „0 ok, 0 rot" — das las sich wie
+  Erfolg. Er sagt es jetzt.
+
+---
+
+### Abnahme
+
+`scripts/pruef-stabilisierung.ts` — **37 ok, 0 rot**, mit Rot-Proben.
+Screenshots angesehen: Admin-Kachel mit Namensliste, Liste „Termine in
+Vertretung", und der Fehlerfall im Telefon-Panel, der jetzt **„Zu diesem Kunden
+hast du kein Startgespräch."** sagt statt ewig „Wird geladen …".
+
+Zwei Fehlalarme im eigenen Prüfstand behoben: Der Verwaltungsbereich ist mit
+einem Code verschlossen (401), und ein gesetzter Agenten-Token **verhindert** den
+Admin-Zugriff (403) — die Verwaltung braucht einen eigenen Browser-Kontext.
+
 ## 21.08.2026 — NOTFALL: vier Blocker aus dem Betrieb
 
 ---

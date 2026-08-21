@@ -685,11 +685,24 @@ export function Softphone() {
         { credentials: "include" })
         .then((r) => r.json())
         .then((j) => {
-          if (!j?.ok) return;
+          // ── WER RUFT AN? EIN STUMMES `return` HILFT NIEMANDEM ──────────
+          // Vorher: `if (!j?.ok) return;`. Das Klingelfenster blieb dann bei
+          // „Unbekannte Nummer" stehen — auch wenn der Kunde bekannt ist und
+          // nur die Abfrage scheiterte. Der Mensch nimmt ab und weiss nicht,
+          // mit wem er spricht. Jetzt steht der Grund im Fenster.
+          if (!j?.ok) {
+            setEingehend((v) => v && v.von === von
+              ? { ...v, grund: j?.error || "Wir konnten nicht nachsehen, wer anruft." } : v);
+            return;
+          }
           setEingehend((v) => v && v.von === von
             ? { ...v, kunde: j.kunde, grund: j.grund, fuerMich: j.fuerMich } : v);
         })
-        .catch(() => {});
+        .catch((e) => {
+          console.error("[TELEFON] Anrufer nicht aufgeloest:", e);
+          setEingehend((v) => v && v.von === von
+            ? { ...v, grund: "Keine Verbindung — wer anruft, ist gerade nicht feststellbar." } : v);
+        });
     };
     return () => { delete (window as any).__fiaonTelefonTest; };
   }, []);
@@ -1166,11 +1179,21 @@ export function Softphone() {
           { credentials: "include" })
           .then((r) => r.json())
           .then((j) => {
-            if (!j?.ok) return;
+            // Derselbe Grund wie bei der Attrappe weiter oben: Ein stummes
+            // `return` liess das Klingelfenster bei „Unbekannte Nummer" stehen.
+            if (!j?.ok) {
+              setEingehend((v) => v && v.von === von
+                ? { ...v, grund: j?.error || "Wir konnten nicht nachsehen, wer anruft." } : v);
+              return;
+            }
             setEingehend((v) => v && v.von === von
               ? { ...v, kunde: j.kunde, grund: j.grund, fuerMich: j.fuerMich } : v);
           })
-          .catch(() => {});
+          .catch((e) => {
+            console.error("[TELEFON] Anrufer nicht aufgeloest:", e);
+            setEingehend((v) => v && v.von === von
+              ? { ...v, grund: "Keine Verbindung — wer anruft, ist gerade nicht feststellbar." } : v);
+          });
         // Legt der Anrufer auf, bevor jemand abnimmt, verschwindet das
         // Fenster von selbst. Ein Klingelfenster, das stehen bleibt, ist ein
         // Fehlalarm, den man wegklicken muss.

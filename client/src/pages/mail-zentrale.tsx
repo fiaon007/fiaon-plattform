@@ -211,7 +211,13 @@ function Inhalt() {
     fetch(`${basis}/gruppen`, { credentials: "include" })
       .then((r) => r.json())
       .then((j) => {
-        if (!j?.ok) return;
+        // Ohne Gruppen und Bausteine sind die Auswahlfelder LEER — und das
+        // sieht aus wie „es gibt keine Vorlagen", nicht wie ein Ausfall.
+        if (!j?.ok) {
+          setFeldHinweis(j?.error
+            || "Gruppen und Textbausteine konnten nicht geladen werden. Bitte die Seite neu laden.");
+          return;
+        }
         setGruppen(j.gruppen || []);
         setBausteine(j.bausteine || []);
         setMaxEmpfaenger(j.maxEmpfaenger || 10);

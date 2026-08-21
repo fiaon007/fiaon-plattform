@@ -333,12 +333,33 @@ export function StartgespraechGate({ kundenRef }: { kundenRef: string }) {
   const laden = useCallback(async () => {
     const res = await fetch(`/api/fiaon/kunde/${encodeURIComponent(kundenRef)}/startgespraech`).catch(() => null);
     const json = await res?.json().catch(() => null);
-    if (!json?.ok) return;
+    // ── EIN STUMMES `return` VOR EINEM PFLICHT-GATE (behoben 21.08.2026) ──
+    // Hier stand `if (!json?.ok) return;`. Scheiterte die Abfrage, blieb das
+    // Gate LEER stehen: Ein Kunde, der bezahlt hat und sein Startgespräch
+    // buchen soll, sah eine Fläche ohne Inhalt und ohne Grund. Genau der
+    // Vorfall, den AGENTS.md als „349 Menschen vor einer verschlossenen Tür"
+    // führt — nur diesmal ohne Tür.
+    if (!json?.ok) {
+      setFehler(json?.error
+        || (res == null
+          ? "Wir konnten deinen Stand nicht laden — bitte prüf deine Verbindung und lade die Seite neu."
+          : `Wir konnten deinen Stand nicht laden (Fehler ${res.status}). `
+            + "Bitte lade die Seite neu; wenn es dann noch nicht geht, melde dich bei uns."));
+      return;
+    }
+    setFehler(null);
     setLage(json);
     if (json.token) {
       const s = await fetch(`/api/fiaon/termin/${encodeURIComponent(json.token)}?art=start`).catch(() => null);
       const sj = await s?.json().catch(() => null);
       if (sj?.ok) setSlots(sj.slots || []);
+      // Ohne Zeiten steht der Kunde vor einer leeren Auswahl. Er erfährt
+      // WARUM, statt zu raten.
+      else {
+        setFehler(sj?.error
+          || "Gerade sind keine Zeiten abrufbar. Bitte versuch es in ein paar Minuten "
+            + "noch einmal — oder melde dich bei uns, dann vereinbaren wir den Termin direkt.");
+      }
     }
   }, [kundenRef]);
 

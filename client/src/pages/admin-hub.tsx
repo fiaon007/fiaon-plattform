@@ -818,6 +818,38 @@ export default function AdminHubPage() {
   // Zweimal hintereinander meldete das Team einen Knopf, der „nicht geht" —
   // beide Male hat es ein MENSCH gemeldet, nicht die Anwendung.
   const [durchgang, setDurchgang] = useState<any>(null);
+  // ── DIE ZWEI LISTEN HINTER DER KARTE „WAS NIEMAND SIEHT" (21.08.2026) ────
+  // Bewusst NICHT über `Detailfenster`: Dessen `ListenArt` ist eine getypte
+  // Union, und zwei neue Arten dort einzuhängen hätte eine fremde Komponente
+  // umgebaut. Diese Listen gehören zu dieser Karte — sie bleiben hier.
+  //
+  // `offen` trägt AUCH den Fehlertext: Eine Liste, die leer bleibt, weil die
+  // Abfrage scheiterte, sieht sonst aus wie eine Liste ohne Einträge. Genau
+  // diese Verwechslung war der Befund vom 21.08.
+  const [unsichtbarListe, setUnsichtbarListe] = useState<
+    { art: "onboarding" | "vertretung"; zeilen: any[]; fehler: string | null } | null>(null);
+
+  const listeHolen = useCallback(async (art: "onboarding" | "vertretung") => {
+    setUnsichtbarListe({ art, zeilen: [], fehler: null });
+    const pfad = art === "vertretung"
+      ? "/api/fiaon/agent/termine/vertretungen"
+      : "/api/fiaon/admin/hub/bezahlt-ohne-onboarding";
+    const r = await fetch(pfad, { credentials: "include" }).catch(() => null);
+    const j = await r?.json().catch(() => null);
+    if (!j?.ok) {
+      setUnsichtbarListe({
+        art, zeilen: [],
+        fehler: j?.error
+          || (r == null ? "Keine Verbindung zum Server."
+            : `Der Server hat mit ${r.status} geantwortet und keinen Grund genannt.`),
+      });
+      return;
+    }
+    setUnsichtbarListe({
+      art, fehler: null,
+      zeilen: art === "vertretung" ? (j.vertretungen ?? []) : (j.kunden ?? []),
+    });
+  }, []);
 
   const holen = useCallback(async () => {
     setLaedt(true);
@@ -1130,6 +1162,127 @@ export default function AdminHubPage() {
               )}
               . Jede Ablehnung ist ein Kunde, der keine Zeit wählen konnte.
             </p>
+          )}
+        </section>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          WAS NIEMAND SIEHT (21.08.2026)
+
+          ── DER ANLASS ──────────────────────────────────────────────────────
+          Fünf Kunden (drei zahlend), drei Termine und 591,60 € Provision lagen
+          48 Tage lang unsichtbar an zwei Konten, die eine falsch gesetzte
+          Testkonto-Marke trugen. Gefunden hat es ein Zufall beim Aufräumen.
+
+          Diese Karte ist der Ort, an dem so etwas auffällt. Sie zeigt NUR
+          Befunde — bei einem ruhigen Bestand ist sie gar nicht da.
+
+          Die Zahlen kommen aus derselben Ableitung wie der Tageslauf
+          (server/lib/fiaon-bestandswache.ts): Wenn Mail und Kachel
+          auseinandergehen, weiß niemand, welche stimmt.
+          ══════════════════════════════════════════════════════════════════════ */}
+      {durchgang?.ok && (durchgang.unsichtbar?.length > 0
+        || durchgang.bezahltOhneOnboarding?.ueber14Tage > 0
+        || durchgang.vertretungen?.gesamt > 0) && (
+        <section id="unsichtbar" className="rounded-2xl border p-4 mb-4"
+                 style={{ borderColor: "rgba(180,83,9,.3)", background: "rgba(180,83,9,.05)" }}>
+          <h2 className="text-[13px] font-bold uppercase tracking-wider mb-2"
+              style={{ color: "#92400e" }}>
+            Was niemand sieht
+          </h2>
+
+          {durchgang.bezahltOhneOnboarding?.gesamt > 0 && (
+            <button type="button" onClick={() => void listeHolen("onboarding")}
+                    data-fiaon="kachel-bezahlt-ohne-onboarding"
+                    className="w-full text-left rounded-xl px-3 py-2.5 mb-2 hover:bg-white/60 transition-colors"
+                    style={{ background: "rgba(255,255,255,.5)" }}>
+              <span className="text-[13px] font-semibold text-slate-900">
+                <b className="tabular-nums text-[17px]">{durchgang.bezahltOhneOnboarding.gesamt}</b>
+                {" "}bezahlte Kunden ohne Startgespräch
+              </span>
+              <span className="block text-[12px] text-slate-600 mt-0.5">
+                {durchgang.bezahltOhneOnboarding.ueber14Tage} warten länger als 14 Tage,
+                {" "}{durchgang.bezahltOhneOnboarding.mitTermin} haben einen Termin.
+                {" "}Sie haben gezahlt und warten — anrufen, nicht buchen lassen.
+              </span>
+            </button>
+          )}
+
+          {durchgang.vertretungen?.gesamt > 0 && (
+            <button type="button" onClick={() => void listeHolen("vertretung")}
+                    data-fiaon="kachel-vertretungen"
+                    className="w-full text-left rounded-xl px-3 py-2.5 mb-2 hover:bg-white/60 transition-colors"
+                    style={{ background: "rgba(255,255,255,.5)" }}>
+              <span className="text-[13px] font-semibold text-slate-900">
+                <b className="tabular-nums text-[17px]">{durchgang.vertretungen.gesamt}</b>
+                {" "}Termine in Vertretung
+              </span>
+              <span className="block text-[12px] text-slate-600 mt-0.5">
+                {durchgang.vertretungen.kommend} davon noch kommend. Vertretung ist
+                erlaubt — sie darf nur nicht der Normalfall werden.
+              </span>
+            </button>
+          )}
+
+          {durchgang.unsichtbar?.map((b: any) => (
+            <p key={b.art} className="text-[12px] leading-relaxed mt-1.5"
+               style={{ color: b.gewicht === "schwer" ? "#92400e" : "#64748b" }}>
+              <b>{b.anzahl}</b> — {b.klartext}
+              <span className="block text-[11.5px] text-slate-500">Nachsehen: {b.wo}</span>
+            </p>
+          ))}
+
+          {/* ── DIE LISTE ZUM KLICK ────────────────────────────────────────
+              Eine Zahl ohne Liste ist eine Behauptung. Hier stehen die Namen. */}
+          {unsichtbarListe && (
+            <div className="mt-3 rounded-xl bg-white p-3" data-fiaon="unsichtbar-liste">
+              <div className="flex items-center justify-between mb-2">
+                <b className="text-[12px] uppercase tracking-wider text-slate-500">
+                  {unsichtbarListe.art === "vertretung"
+                    ? "Termine in Vertretung" : "Bezahlt ohne Startgespräch"}
+                </b>
+                <button type="button" onClick={() => setUnsichtbarListe(null)}
+                        className="text-[12px] font-semibold text-slate-500 hover:text-slate-800">
+                  schließen
+                </button>
+              </div>
+              {unsichtbarListe.fehler && (
+                <p role="alert" className="text-[12.5px] font-semibold text-red-600">
+                  {unsichtbarListe.fehler}
+                </p>
+              )}
+              {!unsichtbarListe.fehler && unsichtbarListe.zeilen.length === 0 && (
+                <p className="text-[12.5px] text-slate-500">Wird geladen …</p>
+              )}
+              {unsichtbarListe.art === "vertretung"
+                ? unsichtbarListe.zeilen.map((v: any) => (
+                    <p key={v.id} className="text-[12.5px] text-slate-700 py-1 border-b border-slate-100">
+                      <span className="tabular-nums text-slate-500 mr-2">
+                        {new Date(v.beginn).toLocaleString("de-DE",
+                          { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                      <b>{v.kunde}</b> — {v.agentName ?? "ohne Zuständigen"}
+                      {" "}<span className="text-slate-500">({v.agentRolle}, zuständig wäre {v.sollRolle})</span>
+                      {v.uebergebenGrund && (
+                        <span className="block text-[11.5px] text-slate-500">
+                          übergeben{v.vorherName ? ` von ${v.vorherName}` : ""}: {v.uebergebenGrund}
+                        </span>
+                      )}
+                    </p>
+                  ))
+                : unsichtbarListe.zeilen.map((k: any) => (
+                    <p key={k.personId} className="text-[12.5px] text-slate-700 py-1 border-b border-slate-100">
+                      <span className="tabular-nums text-slate-500 mr-2">
+                        {k.tageSeitZahlung != null ? `${k.tageSeitZahlung} T` : "? T"}
+                      </span>
+                      <b>{k.name}</b>
+                      {" "}<span className="text-slate-500">
+                        {k.paket ?? "ohne Paket"} · {k.betreuer ?? "ohne Betreuer"}
+                        {k.terminGebucht ? " · Termin steht" : " · kein Termin"}
+                      </span>
+                    </p>
+                  ))}
+            </div>
           )}
         </section>
       )}

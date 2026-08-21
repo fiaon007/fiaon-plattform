@@ -693,6 +693,24 @@ tageslauf("laeufe-ueberwachen", () => {
     .catch((err) => console.error("[CRONS] Überwachung:", err));
 }, 20 * 60 * 1000);
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE BESTANDSWACHE
+//
+// ── WARUM SIE HIER STEHT ──────────────────────────────────────────────────
+// Neben der Lauf-Überwachung, weil sie dieselbe Aufgabe hat: bemerken, was
+// niemand bemerkt. Am 21.08.2026 lagen fünf Kunden, drei Termine und 591,60 €
+// Provision 48 Tage lang unsichtbar an zwei falsch markierten Konten —
+// gefunden hat es ein Zufall beim Aufräumen.
+//
+// `alleXStunden: 20` statt einer festen Uhrzeit: Ein Server, der um 6 Uhr
+// schläft, hätte den Tag sonst verpasst (siehe die Begründung an `tageslauf`).
+// ═══════════════════════════════════════════════════════════════════════════
+tageslauf("bestandswache", () => {
+  void import("../lib/fiaon-bestandswache")
+    .then((m) => m.bestandswache())
+    .catch((err) => console.error("[WACHE] Tageslauf:", err));
+}, 60 * 60 * 1000, { beimStartNach: 90_000, alleXStunden: 20 });
+
 tageslauf("followup-und-termine", () => {
   runFollowUpTageslauf().catch((err) => console.error("[FIAON-FOLLOWUP] Tageslauf:", err));
   // Die Terminerinnerung hängt NICHT am 6-Uhr-Tageslauf: Ein Termin um 09:20

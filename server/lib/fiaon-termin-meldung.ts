@@ -121,7 +121,7 @@ async function melden(opts: {
               ${opts.art === "buchung"
                 ? `Termin gebucht: ${wann} (${quelle}). Der Zuständige wurde benachrichtigt.`
                 : `Termin abgesagt (${opts.wer ?? "System"}): ${wann}. Der Zuständige wurde benachrichtigt.`})
-    `.catch(() => {});
+    `.catch((e) => console.error(`[TERMIN-MELDUNG] Verlaufseintrag (${opts.art}) fuer Termin ${opts.terminId} nicht geschrieben — die Akte kennt die Meldung nicht:`, e));
   }
 
   if (!b.agentMail) return { gemeldet: false, grund: "Der Zuständige hat keine E-Mail-Adresse." };
@@ -137,7 +137,7 @@ async function melden(opts: {
         SET ${opts.lauf.unsafe(opts.art === "buchung" ? "gemeldet_buchung_am" : "gemeldet_absage_am")} = NOW(),
             updated_at = NOW()
         WHERE id = ${opts.terminId}
-      `.catch(() => {});
+      `.catch((e) => console.error(`[TERMIN-MELDUNG] Merker fuer Termin ${opts.terminId} nicht gesetzt — die Meldung geht beim naechsten Lauf ERNEUT raus:`, e));
       return { gemeldet: true };
     }
     return { gemeldet: false, grund: erg.grund };

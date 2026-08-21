@@ -495,7 +495,7 @@ router.post("/admin/termine/einladen", async (req: Request, res: Response) => {
           INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
           VALUES (${k.ref}, NULL, 'Vorgesetzter', 'system',
                   'Einladung zum Startgespräch aus der Termin-Zentrale geschickt.')
-        `.catch(() => {});
+        `.catch((e) => console.error(`[ZENTRALE] Verlaufseintrag zur Einladung ${k.ref} nicht geschrieben — niemand sieht, dass sie raus ist:`, e));
       } else {
         fehler.push(`${k.name}: ${(v as any).grund ?? "unbekannt"}`);
       }

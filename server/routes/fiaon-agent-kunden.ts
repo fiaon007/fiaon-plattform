@@ -1284,7 +1284,7 @@ router.post("/agent/crm/kunden/:personId/nummer-land", requireAgent, async (req:
               })},
               ${req.agent!.name},
               ${`Ländervorwahl ergänzt: ${roh} + ${land} → ${wird}`})
-    `.catch(() => {});
+    `.catch((e) => console.error(`[AGENT-KUNDEN] Verlaufseintrag zur Vorwahl von Person ${personId} nicht geschrieben:`, e));
 
     res.json({
       ok: true, land, waehlbar: wird,

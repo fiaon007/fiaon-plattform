@@ -964,7 +964,41 @@ router.post("/payment-order", async (req, res) => {
       if (claimed.length > 0) {
         // invoice_url: signierter, ablaufender Download-Link (Brevo-Template: „Rechnung herunterladen"-Button)
         const payload = { ...makePayloadFromRow(claimed[0]), invoice_url: signInvoiceUrl(paymentReference) };
-        sendMakeWebhook("payment_details", payload).catch(() => {});
+        sendMakeWebhook("payment_details", payload)
+          .catch((e) => console.error(`[MAKE-WEBHOOK] payment_details für ${ref} nicht `
+            + "abgesetzt — der Kunde bekommt seine Zahlungsdaten NICHT:", e));
+
+        // ══════════════════════════════════════════════════════════════════
+        // DIE AKTE ERFÄHRT AUCH VON DER AUTOMATISCHEN RECHNUNG
+        //
+        // ── DER BEFUND (21.08.2026) ─────────────────────────────────────
+        // Dieser Weg — der Kunde stellt seinen Antrag selbst fertig — hat die
+        // Zahlungsdaten immer verschickt und NIE einen Verlaufseintrag
+        // hinterlassen. `rechnungStellen` (der Weg über den Mitarbeiter) tut
+        // es; dieser nicht.
+        //
+        // Die Folge ist dieselbe wie beim geschluckten SQL-Fehler vom 19.08.:
+        // Ein Mitarbeiter öffnet die Akte, sieht keine Rechnung — und schickt
+        // sie ein zweites Mal. GEMESSEN: zwei Fälle allein am 21.08. zwischen
+        // 12:53 und 13:05 Uhr; über die ganze Woche 5 von 63.
+        //
+        // Kein `.catch(() => {})`: Bleibt der Eintrag aus, steht es im Log.
+        // Genau dieses stumme catch hat den 19.08. drei Tage lang verdeckt.
+        // ══════════════════════════════════════════════════════════════════
+        const c = claimed[0] as any;
+        const betrag = c.amount_due != null
+          ? `${Number(c.amount_due).toFixed(2)} €` : "Betrag unbekannt";
+        const empfaenger = c.email || c.contact_email || c.billing_email || "die hinterlegte Adresse";
+        await sqlPool`
+          INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
+          SELECT ${ref}, a.person_id, NULL, 'System', 'system',
+                 ${`Erste Rechnung gestellt (automatisch beim Antragsabschluss): ${betrag}, `
+                   + `Verwendungszweck ${c.payment_reference ?? paymentReference} — `
+                   + `verschickt an ${empfaenger}.`}
+          FROM fiaon_applications a WHERE a.ref = ${ref}
+        `.catch((e) => console.error(`[ANTRAG] Verlaufseintrag zur automatischen Rechnung `
+          + `${ref} nicht geschrieben — die Akte zeigt sie nicht, und jemand schickt sie `
+          + "ein zweites Mal:", e));
       }
     } catch (whErr) {
       console.error("[MAKE-WEBHOOK] payment_details claim:", whErr);

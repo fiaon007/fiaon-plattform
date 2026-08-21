@@ -1,0 +1,108 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# DIE WAND VOR JEDEM MERGE NACH main
+#
+# ── DER ANLASS ────────────────────────────────────────────────────────────
+# Am 20.08.2026 brach der Deploy mit `sh: 1: eslint: not found`, exit 127. Auf
+# dem Rechner des Entwicklers war `npm run build` grün, weil dort ein
+# node_modules mit ALLEN Paketen liegt. Render installiert die
+# devDependencies nicht.
+#
+# „Läuft bei mir" ist kein Beweis. Dieser Ablauf tut, was Render tut — bevor
+# gemergt wird, nicht danach.
+#
+# ── VIER PRÜFUNGEN, VIER SCHRITTE ─────────────────────────────────────────
+# Absichtlich vier getrennte Schritte und nicht ein Aufruf: In der
+# Zusammenfassung von GitHub steht dann, WELCHE Wand gefallen ist. Ein
+# einzelner roter Schritt „pruef-vor-merge" verlangt, dass jemand ein Protokoll
+# liest.
+#
+# ── WAS HIER NICHT PASSIERT ───────────────────────────────────────────────
+# Keine Migration wird eingespielt, keine Mail verschickt, kein Kunde
+# angefasst. Der Migrationsschritt läuft in einer Transaktion, die
+# zurückgerollt wird — deshalb braucht er die echte Datenbank und deshalb
+# steht sie in einem Geheimnis (`DATABASE_URL`).
+#
+# Ohne dieses Geheimnis überspringt sich der Schritt SELBST und sagt es. Ein
+# Ablauf, der ohne Zugangsdaten grün wird, wäre die gefährlichere Variante.
+# ═══════════════════════════════════════════════════════════════════════════
+name: Wand vor dem Merge
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: vor-merge-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  wand:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Quelltext holen
+        uses: actions/checkout@v4
+        with:
+          # Die Protokoll-Prüfung vergleicht gegen origin/main. Mit einem
+          # abgeflachten Klon gibt es keinen Vergleichspunkt.
+          fetch-depth: 0
+
+      - name: Node einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      # Nur für die Prüfstände selbst (tsx). Der BAU läuft in einer eigenen,
+      # sauberen Kopie mit `npm ci --omit=dev` — genau wie bei Render.
+      - name: Werkzeuge installieren
+        run: npm ci
+
+      # ── 1 ─────────────────────────────────────────────────────────────
+      - name: "1 · Bau in sauberer Kopie (npm ci --omit=dev && npm run build)"
+        run: npx tsx scripts/pruef-vor-merge.ts --nur=bau
+
+      # ── 2 ─────────────────────────────────────────────────────────────
+      # Ohne DATABASE_URL kann nichts trocken eingespielt werden. Der Schritt
+      # sagt das und wird NICHT still grün.
+      - name: "2 · Migrationen trocken einspielen"
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "::error title=Kein DATABASE_URL::Die Migrationsprüfung braucht die Datenbank."
+            echo "Sie läuft in einer Transaktion, die zurückgerollt wird — es wird nichts geschrieben."
+            echo "Geheimnis DATABASE_URL im Repository setzen."
+            exit 1
+          fi
+          npx tsx scripts/pruef-vor-merge.ts --nur=migration
+
+      # ── 3 ─────────────────────────────────────────────────────────────
+      - name: "3 · Backticks in SQL- und CSS-Kommentaren"
+        run: npx tsx scripts/pruef-vor-merge.ts --nur=backticks
+
+      # ── 4 ─────────────────────────────────────────────────────────────
+      # Bei einem Push auf main gibt es keinen Zweig zum Vergleichen; dann
+      # zählt der letzte Commit (das Skript fällt selbst darauf zurück).
+      - name: "4 · CHANGELOG.md und updates-data.ts"
+        env:
+          PRUEF_BASIS_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'HEAD~1' }}
+        run: npx tsx scripts/pruef-vor-merge.ts --nur=protokoll
+
+      # ── DIE ROT-PROBEN ────────────────────────────────────────────────
+      # Nur von Hand (`workflow_dispatch`): Sie bauen Schäden absichtlich ein.
+      # In jedem Lauf mitzulaufen würde die Dauer verdoppeln, ohne dass sich
+      # etwas ändert — aber sie müssen aufrufbar sein, sonst weiß niemand, ob
+      # die Wände noch greifen.
+      - name: "Rot-Proben (nur bei manuellem Start)"
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          npx tsx scripts/pruef-vor-merge.ts --nur=migration --rot-probe=migration
+          npx tsx scripts/pruef-vor-merge.ts --nur=backticks --rot-probe=backticks
+          npx tsx scripts/pruef-vor-merge.ts --nur=protokoll --rot-probe=protokoll

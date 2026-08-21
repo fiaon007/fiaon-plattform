@@ -1253,7 +1253,12 @@ export default function AdminTeamZentrale() {
     void fetch("/api/fiaon/admin/academy/stand", { credentials: "include" })
       .then((r) => r.json())
       .then((j) => {
-        if (!j?.ok) return;
+        // Ohne Stand zeigt jede Karte „Kapitel 0" — nicht von „hat nichts
+        // gemacht" zu unterscheiden.
+        if (!j?.ok) {
+          console.error("[TEAM] Academy-Stand nicht geladen, die Karten zeigen 0:", j?.error);
+          return;
+        }
         setAcademyStand(new Map((j.mitarbeiter ?? [])
           .map((x: any) => [Number(x.id), x])));
       })

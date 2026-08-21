@@ -38,6 +38,7 @@ import { landVorschlag } from "./fiaon-agent-kunden";
 import {
   sendeGrundSql, SENDE_GRUND_TEXT, fehlendeFelderSql, zustimmungFehltSql,
 } from "../lib/fiaon-massgebliche-bestellung";
+import { zustaendigeRolleSql } from "../lib/fiaon-zustaendigkeit";
 import { terminArtAusQuelle, terminArtRueckruf } from "../../shared/fiaon-termin-art";
 
 const router = Router();
@@ -127,6 +128,16 @@ const KARTE_SQL = `
   -- Getrennt: nur die drei Willenserklaerungen. Sie sperren nichts, aber sie
   -- entscheiden, ob die Karte den Knopf „Zustimmungs-Link an den Kunden“ zeigt.
   ${zustimmungFehltSql("p")} AS zustimmung_fehlt,
+  -- ── WER IST ZUSTAENDIG? EINE ABLEITUNG (21.08.2026) ─────────────────────
+  -- Die Liste zeigt sie an, sie FILTERT nicht danach. Der Filter bleibt, wie
+  -- er ist (Termin fuer Onboarding, Betreuung fuer Vertrieb) — er ist gemessen
+  -- und behoben. Wer hier zusaetzlich filtert, aendert stillschweigend den
+  -- Arbeitsvorrat von drei Rollen an einem Notfalltag.
+  --
+  -- Sichtbar muss sie trotzdem sein: Ein Vertriebsmitarbeiter, der einen
+  -- Kunden bearbeitet, fuer den das Forderungsmanagement zustaendig ist, soll
+  -- es LESEN — und nicht daraus schliessen, dass er es tun soll.
+  ${zustaendigeRolleSql("p")} AS zustaendige_rolle,
   -- ── DER TERMIN AN DER ZEILE (20.08.2026) ───────────────────────────────
   -- Fuer Onboarding ist der Termin die Arbeit. Die Uhrzeit gehoert an die
   -- Karte, sonst muss man fuer jede Zeile in den Kalender wechseln.
@@ -239,6 +250,7 @@ export function karte(p: any) {
     sendeTat: p.sende_grund ? (SENDE_GRUND_TEXT[String(p.sende_grund)]?.tat ?? null) : null,
     fehlendeFelder: p.fehlende_felder ? String(p.fehlende_felder) : null,
     zustimmungFehlt: p.zustimmung_fehlt ? String(p.zustimmung_fehlt) : null,
+    zustaendigeRolle: p.zustaendige_rolle ? String(p.zustaendige_rolle) : null,
     betrag: p.amount_due != null ? Math.round(Number(p.amount_due) * 100) : null,
     zusagedatum: p.promised_payment_date,
     wiedervorlage: p.follow_up_date,

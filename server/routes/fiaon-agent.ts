@@ -2120,7 +2120,12 @@ router.get("/agent/customers/:ref", requireAgent, requireEigenerKunde, async (re
           ORDER BY sort_order ASC, id ASC
         `;
       }
-    } catch {}
+    } catch (e) {
+      // Ein leeres `catch` stand hier. Die Gespraechsleitfaeden fehlten dann
+      // stillschweigend in der Akte — und der Mitarbeiter hielt es fuer
+      // „es gibt keine".
+      console.error("[FIAON-AGENT] Skripte zur Akte nicht geladen:", e);
+    }
     // Reaktivierbar: abgelaufene Bestellung, die mir gehört oder unzugewiesen ist
     // (Direktive „Kein Kunde verschwindet" — Agent kann selbst wieder aktivieren).
     const canReactivate = r.payment_status === "expired" && (!r.assigned_agent_id || r.assigned_agent_id === me);

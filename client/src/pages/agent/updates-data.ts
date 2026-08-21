@@ -84,6 +84,67 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-21-stabilisierung",
+    date: "2026-08-21",
+    category: "Behoben",
+    title: "Fehler sind nicht mehr stumm \u2014 und im Telefon steht, wer zust\u00e4ndig ist",
+    summary:
+      "Wenn etwas nicht geht, sagt es das jetzt. Bisher sah ein Ausfall genauso "
+      + "aus wie „es gibt nichts\u201c \u2014 und man hat weitergearbeitet, als w\u00e4re alles "
+      + "in Ordnung.",
+    changes: [
+      "IM TELEFON STEHT JETZT, OB DU ZUST\u00c4NDIG BIST. Neben den Kundendaten "
+      + "erscheint die Rolle, die zu diesem Menschen geh\u00f6rt \u2014 Vertrieb, "
+      + "Onboarding oder Forderungsmanagement \u2014 mit dem Grund. Springst du "
+      + "ein, steht das da. Es SPERRT nichts: Wer schon in der Leitung ist, "
+      + "f\u00fchrt das Gespr\u00e4ch.",
+
+      "KOMMEN KEINE KUNDENDATEN, STEHT DER GRUND DA. Vorher hing dort „Wird "
+      + "geladen \u2026\u201c \u2014 f\u00fcr immer, egal ob der Server nein gesagt hat oder "
+      + "wirklich etwas ausgefallen war. Jetzt liest du zum Beispiel „Zu diesem "
+      + "Kunden hast du kein Startgespr\u00e4ch.\u201c und wei\u00dft, woran du bist.",
+
+      "WER ANRUFT, WIRD BENANNT \u2014 ODER DER GRUND. Konnte das System den "
+      + "Anrufer nicht nachschlagen, stand im Klingelfenster einfach "
+      + "„Unbekannte Nummer\u201c, auch wenn der Kunde bekannt ist. Jetzt steht "
+      + "dort, dass die Abfrage nicht durchkam.",
+
+      "DAS BADGE IN DER KUNDENLISTE L\u00dcGT NICHT MEHR. Der Z\u00e4hler f\u00fcr "
+      + "R\u00fcckl\u00e4ufer blieb bei einem Ladefehler auf dem alten Wert stehen \u2014 im "
+      + "schlimmsten Fall 0, w\u00e4hrend 36 Vorg\u00e4nge offen waren. Ein Z\u00e4hler, der "
+      + "0 zeigt, obwohl Arbeit da ist, ist schlimmer als keiner.",
+
+      "TERMIN \u00dcBERGEBEN: DIE AUSWAHL EMPFIEHLT. Wer f\u00fcr diesen Kunden "
+      + "zust\u00e4ndig w\u00e4re, steht oben und ist als „zust\u00e4ndig\u201c markiert. Alle "
+      + "anderen bleibst du w\u00e4hlbar \u2014 nur mit dem Vermerk „Vertretung\u201c. Bei "
+      + "Krankheit und Urlaub soll niemand blockiert werden.",
+
+      "DEINE AKTE ZEIGT DIE ERSTE RECHNUNG WIEDER. Zwischen dem 19. und "
+      + "21.08. ist bei 65 Kunden kein Eintrag „Erste Rechnung gestellt\u201c in "
+      + "der Akte gelandet, obwohl die Rechnung raus war. Wer nachsah, fand "
+      + "nichts und schickte ein zweites Mal. Die Eintr\u00e4ge sind nachgetragen "
+      + "und mit „r\u00fcckwirkend rekonstruiert\u201c gekennzeichnet. GEPR\u00dcFT: Es ist "
+      + "keine einzige Rechnung liegengeblieben \u2014 nur das Protokoll fehlte.",
+
+      "STARTGESPR\u00c4CHE: 487 freie Pl\u00e4tze in zwei Wochen. Der R\u00fcckfall auf den "
+      + "Vertrieb ist damit die Ausnahme, nicht die Regel \u2014 seit dem 21.08. "
+      + "kein einziges Startgespr\u00e4ch mehr bei einer fremden Rolle.",
+    ],
+    howto: [
+      "W\u00e4hrend eines Anrufs im Telefon auf „Kundendaten\u201c tippen. Oben steht "
+      + "die zust\u00e4ndige Rolle mit Grund; darunter Paket, Zahlungsstand und "
+      + "offene Punkte.",
+      "Steht dort ein oranger Satz statt der Daten: Das ist der Grund, kein "
+      + "Ausfall. Bei „kein Startgespr\u00e4ch\u201c ist der Kunde nicht dein Fall.",
+      "Kalender \u2192 \u00dcbergeben: Der oberste Vorschlag ist der Zust\u00e4ndige. Ein "
+      + "anderer geht auch \u2014 dann steht am Termin „Vertretung\u201c.",
+      "Akte \u2192 Verlauf: Eintr\u00e4ge mit „[r\u00fcckwirkend rekonstruiert]\u201c stammen aus "
+      + "dem Nachtrag. Sie nennen keinen Namen, weil nicht mehr feststellbar "
+      + "ist, wer gedr\u00fcckt hat.",
+    ],
+    important: true,
+  },
+  {
     id: "2026-08-21-vier-blocker",
     date: "2026-08-21",
     category: "Behoben",

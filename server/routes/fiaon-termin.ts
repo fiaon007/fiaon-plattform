@@ -504,7 +504,7 @@ router.post("/agent/termine/:id/ergebnis", requireAgent, async (req: AgentReques
         VALUES (${ref.ref}, ${req.agent!.id}, ${req.agent!.name}, 'system',
                 ${`Termin ${berlinDatumText(termin.beginn)} um ${berlinUhrzeit(termin.beginn)} Uhr: ${ergebnis === "erledigt" ? "erledigt" : "Kunde nicht erschienen"}.${notiz ? ` ${String(notiz).slice(0, 500)}` : ""}`},
                 NOW())
-      `.catch(() => {});
+      `.catch((e) => console.error(`[TERMIN] Verlaufseintrag zum Ergebnis von Termin ${id} nicht geschrieben — die Akte zeigt das Gespraech nicht:`, e));
     }
     res.json({ ok: true, hinweis });
   } catch (err) {
@@ -657,7 +657,20 @@ router.post("/agent/termine/:id/uebergeben", requireAgent, async (req: AgentRequ
   }
 });
 
-/** GET /agent/termine/uebernehmer — wer kommt für eine Übergabe infrage? */
+// ═══════════════════════════════════════════════════════════════════════════
+// GET /agent/termine/uebernehmer — wer kommt für eine Übergabe infrage?
+//
+// ── DIE LISTE SAGT JETZT, WER ZUSTÄNDIG WÄRE (21.08.2026) ─────────────────
+// Vorher war es eine alphabetische Aufzählung aller Kollegen. Wer übergibt,
+// musste selbst wissen, ob ein Startgespräch ans Onboarding gehört — und wenn
+// er sich vertat, entstand eine stille Vertretung.
+//
+// Jetzt entscheidet `fiaon-zustaendigkeit.ts`, und zwar dieselbe Funktion, die
+// auch Terminvergabe und Panel lesen. Wer die Zuständigkeit erfüllt, steht
+// oben und ist als „zuständig" markiert; alle anderen bleiben wählbar, aber
+// mit dem Vermerk „Vertretung". Eine Auswahl, die den falschen Weg VERBIETET,
+// hätte den Krankheitsfall blockiert — sie soll ihn nur benennen.
+// ═══════════════════════════════════════════════════════════════════════════
 router.get("/agent/termine/uebernehmer", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
     const kollegen = (await sqlPool`
@@ -668,9 +681,102 @@ router.get("/agent/termine/uebernehmer", requireAgent, async (req: AgentRequest,
         AND id <> ${req.agent!.id}
       ORDER BY COALESCE(rolle, 'agent'), name
     `) as any[];
-    res.json({ ok: true, kollegen });
+
+    // Zu welchem Termin? Ohne Kennung bleibt die Liste roh — dann fehlt der
+    // Bezug, und eine geratene Zuständigkeit wäre schlimmer als keine.
+    const terminId = Number(req.query.termin);
+    let soll: string | null = null;
+    let grund: string | null = null;
+    if (Number.isFinite(terminId) && terminId > 0) {
+      const [t] = (await sqlPool`
+        SELECT person_id, quelle FROM fiaon_termine WHERE id = ${terminId}
+      `) as any[];
+      if (t?.person_id) {
+        const { zustaendigeRolle, ROLLEN_FUER } = await import("../lib/fiaon-zustaendigkeit");
+        const z = await zustaendigeRolle(Number(t.person_id));
+        if (z) {
+          soll = z.rolle;
+          grund = z.grund;
+          for (const k of kollegen) {
+            k.zustaendig = ROLLEN_FUER[z.rolle].includes(String(k.rolle));
+          }
+          // Zuständige zuerst — die Reihenfolge ist die halbe Empfehlung.
+          kollegen.sort((a: any, b: any) =>
+            (b.zustaendig ? 1 : 0) - (a.zustaendig ? 1 : 0)
+            || String(a.name).localeCompare(String(b.name)));
+        }
+      }
+    }
+    res.json({ ok: true, kollegen, soll, grund });
   } catch (err) {
     console.error("[TERMIN] uebernehmer:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GET /agent/termine/vertretungen — die Admin-Liste
+//
+// ── WARUM SIE EXISTIEREN MUSS ─────────────────────────────────────────────
+// Vertretung ist erlaubt: Krankheit, Urlaub, ein voller Onboarding-Kalender.
+// Sie darf nur nie stillschweigend zum Normalfall werden — genau das ist am
+// 19./20.08.2026 passiert: 15 Startgespräche beim Vertrieb, und niemand hat es
+// bemerkt, weil es nirgends stand.
+//
+// Diese Liste ist der Ort, an dem es steht. Sie zählt AUCH die Vergangenheit
+// (14 Tage): Eine Liste, die nur die Zukunft zeigt, ist am Tag nach dem
+// Vorfall leer.
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/agent/termine/vertretungen", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const { rolleVon } = await import("../lib/fiaon-kundenzugriff");
+    const rolle = await rolleVon(req.agent!.id);
+    if (!["vertriebsleiter", "admin"].includes(rolle)) {
+      return res.status(403).json({
+        ok: false,
+        error: "Diese Liste ist für die Leitung — sie nennt fremde Zuständigkeiten.",
+      });
+    }
+    const { zustaendigeRolleSql } = await import("../lib/fiaon-zustaendigkeit");
+    const zeilen = (await sqlPool.unsafe(`
+      SELECT t.id, t.beginn, t.quelle, t.status, t.vertretung,
+             t.uebergeben_am, t.uebergeben_grund,
+             ag.name AS agent_name, COALESCE(ag.rolle, 'agent') AS agent_rolle,
+             vor.name AS vorher_name,
+             p.id AS person_id,
+             COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''),
+                      p.company_name, 'Ohne Namen') AS kunde,
+             ${zustaendigeRolleSql("p")} AS soll_rolle
+      FROM fiaon_termine t
+      JOIN fiaon_persons p ON p.id = t.person_id
+      LEFT JOIN fiaon_agents ag ON ag.id = t.agent_id
+      LEFT JOIN fiaon_agents vor ON vor.id = t.uebergeben_von
+      WHERE t.abgesagt_am IS NULL
+        AND t.beginn > NOW() - INTERVAL '14 days'
+        AND (t.vertretung IS TRUE
+          OR (t.quelle = 'onboarding_call' AND COALESCE(ag.rolle, 'agent') <> 'onboarding'))
+      ORDER BY t.beginn DESC
+    `)) as any[];
+    res.json({
+      ok: true,
+      vertretungen: zeilen.map((r) => ({
+        id: Number(r.id),
+        beginn: new Date(r.beginn).toISOString(),
+        quelle: String(r.quelle),
+        status: String(r.status),
+        markiert: r.vertretung === true,
+        agentName: r.agent_name ?? null,
+        agentRolle: String(r.agent_rolle),
+        sollRolle: String(r.soll_rolle),
+        vorherName: r.vorher_name ?? null,
+        uebergebenAm: r.uebergeben_am ? new Date(r.uebergeben_am).toISOString() : null,
+        uebergebenGrund: r.uebergeben_grund ?? null,
+        personId: Number(r.person_id),
+        kunde: String(r.kunde),
+      })),
+    });
+  } catch (err) {
+    console.error("[TERMIN] vertretungen:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

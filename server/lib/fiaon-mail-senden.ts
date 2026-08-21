@@ -122,7 +122,7 @@ export async function mailSenden(ein: SendeEingabe): Promise<SendeErgebnis> {
     await lauf`
       UPDATE fiaon_mail_log SET art = 'test'
       WHERE id = (SELECT MAX(id) FROM fiaon_mail_log WHERE event = ${def.type})
-    `.catch(() => {});
+    `.catch((e) => console.error(`[MAIL] Testmarke fuer ${def.type} nicht gesetzt — die Sendung zaehlt damit als echt:`, e));
     return {
       ok: erg.status === "versandt", status: erg.status, grund: erg.grund,
       meldung: erg.status === "versandt" ? `Prüfversand an ${an} raus.` : `Prüfversand fehlgeschlagen: ${erg.grund}`,

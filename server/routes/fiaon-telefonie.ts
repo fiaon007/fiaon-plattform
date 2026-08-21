@@ -571,6 +571,16 @@ router.get("/telefon/kunde/:personId", requireAgent, async (req: AgentRequest, r
       ORDER BY ABS(EXTRACT(EPOCH FROM (beginn - NOW()))) LIMIT 1
     `) as any[];
 
+    // ── WER IST ZUSTÄNDIG? EINE ABLEITUNG (21.08.2026) ────────────────────
+    // Das Panel hat diese Frage bisher gar nicht gestellt. Wer angerufen hat,
+    // wusste nicht, ob er der Zuständige ist oder einspringt — und ein Anruf
+    // aus der falschen Rolle beginnt mit dem falschen Satz.
+    //
+    // Dieselbe Funktion, die Terminvergabe, Übergabe und die Admin-Liste
+    // lesen (server/lib/fiaon-zustaendigkeit.ts).
+    const { zustaendigeRolle, ROLLEN_FUER } = await import("../lib/fiaon-zustaendigkeit");
+    const zust = await zustaendigeRolle(personId);
+
     // Zahlungsstand, Unterlagen und Bonität — nur wenn jemand sie braucht.
     // Für den Vertrieb wäre es eine Abfrage ohne Leser.
     let lage: any = null;
@@ -608,6 +618,20 @@ router.get("/telefon/kunde/:personId", requireAgent, async (req: AgentRequest, r
               : "Bonitätsauskunft bestellt, noch offen")
           : "Keine Bonitätsauskunft bestellt",
         offenePunkte: (lage?.dokumente?.fehlt ?? []) as string[],
+        // ── DIE ZUSTÄNDIGKEIT, IM KLARTEXT ────────────────────────────────
+        // `ichBinZustaendig` sagt dem Menschen am Telefon, ob er einspringt.
+        // Es SPERRT nichts: Wer schon in der Leitung ist, soll das Gespräch
+        // führen und nicht auf eine Rollenmeldung starren.
+        zustaendig: zust
+          ? {
+              rolle: zust.rolle,
+              grund: zust.grund,
+              ichBinZustaendig: ROLLEN_FUER[zust.rolle].includes(String(rolle)),
+              betreuerName: zust.agentName,
+              betreuerRolle: zust.agentRolle,
+              vertretung: zust.vertretung,
+            }
+          : null,
         termin: termin
           ? {
               id: Number(termin.id),

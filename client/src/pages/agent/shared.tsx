@@ -755,7 +755,14 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
     // keiner: der Agent hält die Seite für abgearbeitet.
     const holen = () => api("/agent/crm/dashboard")
       .then((r) => {
-        if (!r.ok) return;
+        // Der Kommentar darüber sagt es selbst: Ein Badge, der 0 zeigt,
+        // obwohl 36 Vorgänge offen sind, ist schlimmer als keiner. Genau das
+        // tat dieses stumme `return` — es liess den alten Wert stehen.
+        if (!r.ok) {
+          console.error("[AGENT] Rücklaufzähler nicht geladen — das Badge kann veraltet sein:",
+            r.status, r.json?.error);
+          return;
+        }
         const z = r.json.zahlen ?? {};
         setRuecklaeufer((z.heuteFaellig || 0) + (z.ohneDatum || 0) + (z.ueberfaellig || 0));
       })

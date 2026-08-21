@@ -437,6 +437,61 @@ router.get("/admin/hub/knopfdurchgang", async (_req, res) => {
         AND ${nichtWaehlbarSql("p")}
     `)) as any[];
 
+    // ── 5. WAS IST UNSICHTBAR? (21.08.2026) ───────────────────────────────
+    // Dieselbe Funktion, die der Tageslauf benutzt
+    // (server/lib/fiaon-bestandswache.ts). Der Lauf schickt eine Mail, die
+    // Kachel zeigt es — beide lesen dieselbe Ableitung, sonst weichen sie ab
+    // und niemand weiß, welche stimmt.
+    //
+    // GEMESSEN am 21.08.2026: 342 bezahlte Kunden ohne Startgespräch, 204 davon
+    // länger als 14 Tage; fünf Kunden und 591,60 € Provision an falsch
+    // markierten Konten.
+    const { bestandPruefen } = await import("../lib/fiaon-bestandswache");
+    const befunde = await bestandPruefen().catch((e) => {
+      // Ein Fehler hier darf die anderen Kacheln nicht mitnehmen — aber er
+      // wird GENANNT und nicht verschluckt.
+      console.error("[HUB] bestandPruefen:", e);
+      return [];
+    });
+
+    // Die Zahl für die Kachel „Bezahlt ohne Startgespräch": alle, nicht nur
+    // die alten. Die Kachel nennt beide Zahlen.
+    const [ob] = (await sqlPool`
+      SELECT COUNT(*)::int AS gesamt,
+             COUNT(*) FILTER (WHERE tage > 14)::int AS ueber14,
+             COUNT(*) FILTER (WHERE hat_termin)::int AS mit_termin
+      FROM (
+        SELECT p.id, EXTRACT(DAY FROM NOW() - MIN(a.paid_at))::int AS tage,
+               EXISTS (SELECT 1 FROM fiaon_termine t
+                 WHERE t.person_id = p.id AND t.quelle = 'onboarding_call'
+                   AND t.abgesagt_am IS NULL AND t.status = 'gebucht') AS hat_termin
+        FROM fiaon_persons p
+        JOIN fiaon_applications a ON a.person_id = p.id AND a.payment_status = 'paid'
+         AND a.merged_into IS NULL AND a.archived_at IS NULL AND a.gdpr_deleted_at IS NULL
+         AND NOT (a.type = 'schufa' OR a.ref LIKE 'FIAON-SCHUFA-%')
+        WHERE p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL
+          AND NOT COALESCE(p.is_blocked, FALSE)
+          AND NOT EXISTS (SELECT 1 FROM fiaon_termine t
+            WHERE t.person_id = p.id AND t.quelle = 'onboarding_call' AND t.status = 'erledigt')
+          AND NOT EXISTS (SELECT 1 FROM fiaon_applications ax
+            WHERE ax.person_id = p.id AND ax.merged_into IS NULL
+              AND ax.onboarding_pflicht = FALSE
+              AND NULLIF(TRIM(COALESCE(ax.onboarding_ausnahme_grund, '')), '') IS NOT NULL)
+        GROUP BY p.id
+      ) x
+    `.catch(() => [{ gesamt: 0, ueber14: 0, mit_termin: 0 }])) as any[];
+
+    // ── 6. TERMINE IN VERTRETUNG ──────────────────────────────────────────
+    const [vertr] = (await sqlPool`
+      SELECT COUNT(*)::int AS n,
+             COUNT(*) FILTER (WHERE t.beginn > NOW())::int AS kommend
+      FROM fiaon_termine t
+      LEFT JOIN fiaon_agents ag ON ag.id = t.agent_id
+      WHERE t.abgesagt_am IS NULL AND t.beginn > NOW() - INTERVAL '14 days'
+        AND (t.vertretung IS TRUE
+          OR (t.quelle = 'onboarding_call' AND COALESCE(ag.rolle, 'agent') <> 'onboarding'))
+    `.catch(() => [{ n: 0, kommend: 0 }])) as any[];
+
     const gesperrt = Number(zahlung?.gesperrt_obwohl ?? 0)
       + Number(telefon?.n ?? 0);
 
@@ -444,6 +499,24 @@ router.get("/admin/hub/knopfdurchgang", async (_req, res) => {
       ok: true,
       // Die eine Zahl für die Dashboard-Zeile.
       gesperrteKernaktionen: gesperrt,
+      bezahltOhneOnboarding: {
+        gesamt: Number(ob?.gesamt ?? 0),
+        ueber14Tage: Number(ob?.ueber14 ?? 0),
+        mitTermin: Number(ob?.mit_termin ?? 0),
+        // Rot, sobald jemand länger als zwei Wochen wartet: Er hat bezahlt.
+        ampel: Number(ob?.ueber14 ?? 0) === 0 ? "gruen"
+          : Number(ob?.ueber14 ?? 0) < 25 ? "gelb" : "rot",
+        wo: "/admin/kunden?bezahltOhneOnboarding=1",
+      },
+      vertretungen: {
+        gesamt: Number(vertr?.n ?? 0),
+        kommend: Number(vertr?.kommend ?? 0),
+        wo: "/admin/hub#vertretungen",
+      },
+      unsichtbar: befunde.map((b) => ({
+        art: b.art, anzahl: b.anzahl, gewicht: b.gewicht,
+        klartext: b.klartext, wo: b.wo,
+      })),
       zahlungsdaten: {
         sendbar: Number(zahlung?.sendbar ?? 0),
         gesperrtObwohlSendbar: Number(zahlung?.gesperrt_obwohl ?? 0),
@@ -473,6 +546,71 @@ router.get("/admin/hub/knopfdurchgang", async (_req, res) => {
   } catch (err) {
     console.error("[HUB] knopfdurchgang:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GET /admin/hub/bezahlt-ohne-onboarding — die Liste hinter der Zahl
+//
+// Eine Kachel mit „342" ohne Liste ist eine Behauptung. Hier stehen die Namen,
+// das Alter seit der Zahlung und ob ein Termin steht.
+//
+// AUSDRÜCKLICH NUR LESEND: Es wird nichts gebucht und niemand eingeladen. Wer
+// 342 Startgespräche automatisch bucht, füllt zwei Kalender mit Terminen, zu
+// denen niemand zugesagt hat.
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/admin/hub/bezahlt-ohne-onboarding", async (_req, res) => {
+  try {
+    const zeilen = (await sqlPool`
+      SELECT p.id AS person_id,
+             COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''),
+                      p.company_name, 'Ohne Namen') AS name,
+             p.primary_email AS email, p.primary_phone AS telefon,
+             MIN(a.paid_at) AS bezahlt_am,
+             EXTRACT(DAY FROM NOW() - MIN(a.paid_at))::int AS tage,
+             MAX(a.pack_name) AS paket,
+             ag.name AS betreuer,
+             (SELECT t.beginn FROM fiaon_termine t
+               WHERE t.person_id = p.id AND t.quelle = 'onboarding_call'
+                 AND t.abgesagt_am IS NULL AND t.status = 'gebucht'
+               ORDER BY t.beginn LIMIT 1) AS termin_gebucht
+      FROM fiaon_persons p
+      JOIN fiaon_applications a ON a.person_id = p.id AND a.payment_status = 'paid'
+        AND a.merged_into IS NULL AND a.archived_at IS NULL AND a.gdpr_deleted_at IS NULL
+        AND NOT (a.type = 'schufa' OR a.ref LIKE 'FIAON-SCHUFA-%')
+      LEFT JOIN fiaon_agents ag ON ag.id = p.assigned_agent_id
+      WHERE p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL
+        AND NOT COALESCE(p.is_blocked, FALSE)
+        AND NOT EXISTS (SELECT 1 FROM fiaon_termine t
+          WHERE t.person_id = p.id AND t.quelle = 'onboarding_call' AND t.status = 'erledigt')
+        AND NOT EXISTS (SELECT 1 FROM fiaon_applications ax
+          WHERE ax.person_id = p.id AND ax.merged_into IS NULL
+            AND ax.onboarding_pflicht = FALSE
+            AND NULLIF(TRIM(COALESCE(ax.onboarding_ausnahme_grund, '')), '') IS NOT NULL)
+      GROUP BY p.id, p.first_name, p.last_name, p.company_name,
+               p.primary_email, p.primary_phone, ag.name
+      ORDER BY MIN(a.paid_at) NULLS LAST
+      LIMIT 500
+    `) as any[];
+    res.json({
+      ok: true,
+      kunden: zeilen.map((r) => ({
+        personId: Number(r.person_id),
+        name: String(r.name),
+        email: r.email ?? null,
+        telefon: r.telefon ?? null,
+        paket: r.paket ? String(r.paket).split("\n")[0] : null,
+        bezahltAm: r.bezahlt_am ? new Date(r.bezahlt_am).toISOString() : null,
+        // `null` heißt „Zahlungsdatum fehlt", nicht „heute bezahlt". Der
+        // Unterschied muss in der Anzeige ankommen.
+        tageSeitZahlung: r.tage != null ? Number(r.tage) : null,
+        betreuer: r.betreuer ?? null,
+        terminGebucht: r.termin_gebucht ? new Date(r.termin_gebucht).toISOString() : null,
+      })),
+    });
+  } catch (err) {
+    console.error("[HUB] bezahlt-ohne-onboarding:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler beim Laden der Liste." });
   }
 });
 

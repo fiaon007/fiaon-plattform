@@ -73,7 +73,8 @@ function reportDiag(e: { severity: "kritisch" | "warnung" | "info"; code: string
       link: e.ref ? `/admin/zahlungen?ref=${encodeURIComponent(String(e.ref))}` : undefined,
       action: e.ref ? { kind: "resend_event", label: "Event erneut senden", ref: String(e.ref) } : null,
     }))
-    .catch(() => {});
+    .catch((e) => console.error("[MAKE] Diagnose-Eintrag zum Mailfehler nicht geschrieben "
+      + "— der Fehler bleibt damit unsichtbar in /admin/events:", e));
 }
 
 /** Ergebnis eines Versands — mit Grund, falls er nicht geklappt hat. */

@@ -1009,7 +1009,7 @@ export async function buchungAnwenden(buchung: Buchung, lauf: Lauf = sqlPool): P
   // Ein gebuchter Termin beendet einen Wartezustand: Der Kunde hat reagiert.
   void import("./fiaon-warten")
     .then((m) => m.nichtMehrWarten(buchung.personId))
-    .catch(() => {});
+    .catch((e) => console.error(`[TERMINE] Wartezustand von Person ${buchung.personId} nicht beendet — der Kunde bleibt im Filter „Wartend“, obwohl er gebucht hat:`, e));
 }
 
 /** Sagt einen Termin ab. Der Slot wird dadurch wieder frei. */

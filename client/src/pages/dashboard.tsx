@@ -382,7 +382,12 @@ export default function DashboardPage() {
       // #20: Limit/Paket serverseitig frisch holen (korrigiert veraltete Session,
       // z. B. Ultra-Kunde, der bisher 250 € sah) — nur Anzeige, kein Geldbezug.
       fetch(`/api/fiaon/profile/${user.ref}`).then(r => r.json()).then(d => {
-        if (!d?.ok) return;
+        // Scheitert das, bleiben die Werte aus der Sitzung stehen — ein
+        // vertretbarer Rückfall, aber er darf nicht unsichtbar sein.
+        if (!d?.ok) {
+          console.error("[PORTAL] Limit und Paket nicht frisch geladen, Sitzungswerte bleiben:", d?.error);
+          return;
+        }
         setUser((prev) => {
           const next = { ...prev, approvedLimit: d.approvedLimit ?? prev.approvedLimit, packName: d.packName ?? prev.packName };
           try { sessionStorage.setItem("fiaon_user", JSON.stringify(next)); } catch {}

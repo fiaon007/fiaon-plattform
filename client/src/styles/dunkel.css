@@ -160,3 +160,11 @@
 .flug .dk-knoepfe{pointer-events:auto}
 @media(max-width:720px){.flug{height:260vh !important}.flug-land{top:96px}.flug-land button{padding:8px 12px;font-size:12px}.flug-h1{font-size:clamp(30px,8.5vw,40px)}}
 @media(prefers-reduced-motion:reduce){.flug{height:auto !important}.flug-buehne{position:relative;min-height:100svh}.flug-text{position:relative;left:auto;top:auto;transform:none;opacity:1 !important;margin:24px auto}}
+
+/* ── HirnVideo: Hologramm-Hirn, Schwarz wird durch screen unsichtbar ───── */
+.hirn{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;overflow:hidden}
+.hirn-video{object-fit:contain;mix-blend-mode:screen;filter:saturate(1.1) contrast(1.05);animation:hirnSchweben 7s ease-in-out infinite}
+.hirn-aura{position:absolute;width:70%;aspect-ratio:1;border-radius:50%;background:radial-gradient(circle,rgba(59,130,246,.28),rgba(37,99,235,.08) 45%,transparent 70%);filter:blur(30px);animation:hirnPuls 4.5s ease-in-out infinite}
+@keyframes hirnSchweben{0%,100%{transform:translateY(0)}50%{transform:translateY(-14px)}}
+@keyframes hirnPuls{0%,100%{opacity:.7;transform:scale(1)}50%{opacity:1;transform:scale(1.08)}}
+@media(prefers-reduced-motion:reduce){.hirn-video,.hirn-aura{animation:none}}

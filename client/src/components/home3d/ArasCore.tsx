@@ -1,7 +1,6 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { umgebungslicht, leuchtTextur, BLAU, BLAU_HELL, TINTE } from "./umgebung";
-import { gehirnBauen } from "./Gehirn";
 
 /*
   ArasCore — Sektion 4 Signature-Piece
@@ -93,11 +92,29 @@ export default function ArasCore({ className = "" }: { className?: string }) {
     const group = new THREE.Group();
     scene.add(group);
 
-    /* ── Kern: das KI-Hirn (22.08.2026 — statt Polyeder) ── */
+    /* ── Kern: das Hologramm-Hirn als Videotextur (22.08.2026) ──
+       Das Video liegt auf reinem Schwarz; additiv gemischt wird Schwarz unsichtbar,
+       das Hirn schwebt frei zwischen den Ringen. Zwei Ebenen, leicht gedreht,
+       damit es aus jedem Winkel Tiefe hat. */
     const nucleus = new THREE.Group();
     group.add(nucleus);
-    const hirn = gehirnBauen({ knoten: isMobile ? 360 : 620, stroeme: isMobile ? 60 : 120, massstab: 0.78 });
-    nucleus.add(hirn.group);
+    const videoEl = document.createElement("video");
+    videoEl.src = "/kino/hirn.mp4"; videoEl.muted = true; videoEl.loop = true; videoEl.playsInline = true; videoEl.preload = "metadata";
+    videoEl.setAttribute("playsinline", ""); videoEl.setAttribute("muted", "");
+    const videoTex = new THREE.VideoTexture(videoEl);
+    videoTex.colorSpace = THREE.SRGBColorSpace;
+    const hirnMat = new THREE.MeshBasicMaterial({ map: videoTex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+    const hirnEbene = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 2.3), hirnMat);
+    nucleus.add(hirnEbene);
+    const hirnEbene2 = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 2.3), hirnMat);
+    hirnEbene2.rotation.y = Math.PI / 2;
+    hirnEbene2.material = hirnMat.clone(); (hirnEbene2.material as THREE.MeshBasicMaterial).opacity = 0.55;
+    nucleus.add(hirnEbene2);
+    const nucGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: leuchtTextur("#3b82f6"), transparent: true, opacity: 0.5, depthWrite: false, blending: THREE.AdditiveBlending }));
+    nucGlow.scale.setScalar(3.2);
+    nucleus.add(nucGlow);
+    if (!reduced) videoEl.play().catch(() => {});
+    const hirn = { tick: (_t: number, _dt: number) => { /* Bewegung steckt im Video */ } };
 
     /* ── Gyroskop-Ringe — gegenläufig, Metall mit Klarlack ── */
     const ringSpecs = [
@@ -202,8 +219,8 @@ export default function ArasCore({ className = "" }: { className?: string }) {
       const t = clock.getElapsedTime();
       const dt = Math.min(clock.getDelta() + 0.016, 0.05);
 
-      nucleus.rotation.y = t * 0.22;
-      nucleus.rotation.x = Math.sin(t * 0.4) * 0.12;
+      nucleus.rotation.y = Math.sin(t * 0.3) * 0.25;
+      nucleus.rotation.x = Math.sin(t * 0.4) * 0.08;
       hirn.tick(t, dt);
       group.position.y = Math.sin(t * 0.6) * 0.08;
       group.rotation.x += (tRX - group.rotation.x) * 0.05;
@@ -252,6 +269,7 @@ export default function ArasCore({ className = "" }: { className?: string }) {
         if (Array.isArray(mat)) mat.forEach((x) => x.dispose());
         else if (mat) mat.dispose();
       });
+      videoEl.pause(); videoEl.removeAttribute("src"); videoEl.load(); videoTex.dispose();
       umgebung.dispose();
       renderer.dispose();
       if (renderer.domElement.parentNode === mount) mount.removeChild(renderer.domElement);

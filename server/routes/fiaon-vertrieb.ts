@@ -478,7 +478,8 @@ router.post("/agent/vertrieb/zuweisen", requireAgent, nurLeitung, nurMitZusage, 
 // ───────────────────────────────────────────────────────────────────────────
 // PATCH /agent/vertrieb/person/:id — Stammdaten korrigieren
 // ───────────────────────────────────────────────────────────────────────────
-const STAMM_FELDER = ["first_name", "last_name", "company_name", "primary_email", "primary_phone", "street", "zip", "city"] as const;
+// Land und Geburtsdatum seit 22.08.2026 (Scheibe 4) — beide werden wirklich geschrieben, nicht nur „erlaubt".
+const STAMM_FELDER = ["first_name", "last_name", "company_name", "primary_email", "primary_phone", "street", "zip", "city", "country", "birthdate"] as const;
 
 router.patch("/agent/vertrieb/person/:id", requireAgent, nurLeitung, nurMitZusage, async (req: AgentRequest, res: Response) => {
   try {
@@ -819,6 +820,133 @@ router.get("/agent/vertrieb/zahlungen", requireAgent, nurLeitung, nurMitZusage, 
 });
 
 /** Die Lage EINES Kunden: Zahlung mit Bankeingängen, Dokumente, Zugang. */
+// ═══════════════════════════════════════════════════════════════════════════
+// POST /agent/vertrieb/person/:id/betreuer — den Provisionsanspruch setzen (E-027)
+//
+// Justin, 22.08.2026: „Leitung darf Provision setzen." Vorher stand der
+// Anspruch ausschließlich in der Kontaktkette; die Leitung SAH den Betreuer
+// (Spalte „Betreuer"), konnte ihn aber weder setzen noch korrigieren — für
+// jeden Fall (Strauß, Demiroski, Renner) brauchte es Justin.
+//
+// Regeln: Pflichtbegründung (≥ 10 Zeichen); nur solange für die Bestellung
+// nichts ausgezahlt oder angefordert ist; eine bereits gebuchte, noch nicht
+// ausgezahlte Provision eines anderen wird storniert und neu gebucht — beides
+// mit Spur in Akte, Protokoll und Agenten-Ereignissen.
+// ═══════════════════════════════════════════════════════════════════════════
+let entscheidSpalten = false;
+async function ensureEntscheidSpalten(): Promise<void> {
+  if (entscheidSpalten) return;
+  await sqlPool`
+    ALTER TABLE fiaon_applications
+    ADD COLUMN IF NOT EXISTS commission_agent_id INTEGER,
+    ADD COLUMN IF NOT EXISTS commission_decided_by VARCHAR,
+    ADD COLUMN IF NOT EXISTS commission_decided_note TEXT,
+    ADD COLUMN IF NOT EXISTS commission_decided_at TIMESTAMPTZ
+  `;
+  entscheidSpalten = true;
+}
+
+router.post("/agent/vertrieb/person/:id/betreuer", requireAgent, nurLeitung, nurMitZusage, async (req: AgentRequest, res: Response) => {
+  try {
+    await ensureEntscheidSpalten();
+    const id = Number(req.params.id);
+    const agentId = Number(req.body?.agentId || 0);
+    const grund = String(req.body?.grund || "").trim();
+    if (!agentId) return res.status(400).json({ ok: false, error: "Bitte einen Mitarbeiter wählen." });
+    if (grund.length < 10) return res.status(400).json({ ok: false, error: "Bitte in einem Satz begründen (mindestens 10 Zeichen) — die Begründung steht dauerhaft am Kunden." });
+    const [ziel] = (await sqlPool`SELECT id, name, rolle FROM fiaon_agents WHERE id = ${agentId} AND active AND NOT COALESCE(is_test_account, FALSE)`) as any[];
+    if (!ziel) return res.status(404).json({ ok: false, error: "Diesen Mitarbeiter gibt es nicht (mehr)." });
+
+    const bestellungen = (await sqlPool`
+      SELECT a.ref, a.payment_status, a.commission_agent_id, a.assigned_agent_id,
+             (SELECT COUNT(*)::int FROM fiaon_commissions c WHERE c.ref = a.ref AND c.status IN ('ausgezahlt', 'angefordert')) AS gesperrt,
+             (SELECT json_agg(json_build_object('id', c.id, 'agent_id', c.agent_id, 'status', c.status, 'amount_cents', c.amount_cents, 'kind', c.kind))
+                FROM fiaon_commissions c WHERE c.ref = a.ref AND c.status NOT IN ('storniert') AND c.amount_cents > 0) AS provisionen
+      FROM fiaon_applications a
+      WHERE a.person_id = ${id} AND a.merged_into IS NULL AND a.archived_at IS NULL AND a.gdpr_deleted_at IS NULL
+      ORDER BY a.created_at DESC`) as any[];
+    if (bestellungen.length === 0) return res.status(404).json({ ok: false, error: "Keine Bestellung zu diesem Kunden." });
+    if (bestellungen.some((b) => Number(b.gesperrt) > 0)) {
+      return res.status(409).json({ ok: false, error: "Für diesen Kunden wurde bereits eine Provision angefordert oder ausgezahlt. Ab hier entscheidet nur der Vorgesetzte (Nachbuchungs-Center)." });
+    }
+
+    const vorher = bestellungen.map((b) => ({ ref: b.ref, entscheid: b.commission_agent_id ?? null, provisionen: b.provisionen || [] }));
+    await sqlPool`
+      UPDATE fiaon_applications
+      SET commission_agent_id = ${agentId}, commission_decided_by = ${`Vertriebsleitung ${req.agent!.name}`},
+          commission_decided_note = ${grund.slice(0, 500)}, commission_decided_at = NOW(), updated_at = NOW()
+      WHERE person_id = ${id} AND merged_into IS NULL AND archived_at IS NULL AND gdpr_deleted_at IS NULL`;
+
+    // Bezahlte Bestellungen: bestehende (nicht ausgezahlte) Provision eines
+    // anderen stornieren und nach der neuen Regel buchen.
+    const umgebucht: string[] = [];
+    for (const b of bestellungen) {
+      if (String(b.payment_status) !== "paid") continue;
+      const fremd = (b.provisionen || []).filter((c: any) => Number(c.agent_id) !== agentId);
+      for (const c of fremd) {
+        await sqlPool`UPDATE fiaon_commissions SET status = 'storniert', note = CONCAT_WS(' · ', note, ${`storniert ${new Date().toLocaleDateString("de-DE")}: Anspruch durch Vertriebsleitung ${req.agent!.name} auf ${ziel.name} gesetzt — ${grund.slice(0, 200)}`}), updated_at = NOW() WHERE id = ${Number(c.id)}`.catch(async () =>
+          sqlPool`UPDATE fiaon_commissions SET status = 'storniert' WHERE id = ${Number(c.id)}`);
+      }
+      const eigene = (b.provisionen || []).some((c: any) => Number(c.agent_id) === agentId);
+      if (!eigene) {
+        try {
+          const { onCustomerPaid } = await import("./fiaon-agent");
+          await onCustomerPaid(String(b.ref), { forceAgentId: agentId, forceReason: `Vertriebsleitung ${req.agent!.name}: ${grund.slice(0, 200)}` });
+          umgebucht.push(String(b.ref));
+        } catch (e) { console.error("[FIAON-VERTRIEB] Umbuchung:", e); }
+      }
+    }
+
+    await protokoll(req.agent!.id, "vertrieb_betreuer_gesetzt", { person_id: id, agent_id: agentId, agent_name: ziel.name, grund, vorher, umgebucht });
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (person_id, ref, agent_id, agent_name, type, note, created_at)
+      VALUES (${id}, ${bestellungen[0].ref}, ${req.agent!.id}, ${req.agent!.name}, 'system',
+              ${`Provisionsanspruch durch die Vertriebsleitung auf ${ziel.name} gesetzt. Begründung: ${grund}${umgebucht.length ? ` — umgebucht: ${umgebucht.join(", ")}` : ""}`}, NOW())
+    `.catch(() => {});
+    res.json({ ok: true, meldung: `Der Anspruch liegt jetzt bei ${ziel.name}.${umgebucht.length ? ` ${umgebucht.length} bezahlte Bestellung(en) umgebucht.` : ""}`, umgebucht });
+  } catch (err) {
+    console.error("[FIAON-VERTRIEB] betreuer:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/**
+ * PATCH /agent/vertrieb/person/:id/paket — Paket und Betrag der OFFENEN Bestellung ändern (Scheibe 4).
+ * Nach der Zahlung nicht mehr: Dann ist es eine Rückerstattung/Nachbuchung — Vorgesetzter.
+ */
+router.patch("/agent/vertrieb/person/:id/paket", requireAgent, nurLeitung, nurMitZusage, async (req: AgentRequest, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const packKey = String(req.body?.packKey || "");
+    const grund = String(req.body?.grund || "").trim();
+    const { paket, PAKETE } = await import("@shared/fiaon-pakete");
+    const pk = paket(packKey);
+    if (!pk || !pk.abo) return res.status(400).json({ ok: false, error: `Unbekanntes Paket. Erlaubt: ${PAKETE.filter((x) => x.abo).map((x) => x.key).join(", ")}` });
+    if (grund.length < 5) return res.status(400).json({ ok: false, error: "Bitte kurz begründen — die Änderung steht dauerhaft am Kunden." });
+    const [a] = (await sqlPool`
+      SELECT ref, pack_key, pack_name, amount_due, payment_status FROM fiaon_applications
+      WHERE person_id = ${id} AND merged_into IS NULL AND archived_at IS NULL AND gdpr_deleted_at IS NULL
+        AND type IS DISTINCT FROM 'schufa' AND ref NOT LIKE 'FIAON-SCHUFA-%'
+      ORDER BY created_at DESC LIMIT 1`) as any[];
+    if (!a) return res.status(404).json({ ok: false, error: "Keine Paketbestellung zu diesem Kunden." });
+    if (String(a.payment_status) === "paid") return res.status(409).json({ ok: false, error: "Diese Bestellung ist bezahlt. Ein Paketwechsel danach ist eine Rückerstattung oder Nachbuchung — bitte den Vorgesetzten." });
+    const { paketNameFuerDaten } = await import("@shared/fiaon-paketname");
+    const name = paketNameFuerDaten(pk.key) ?? pk.label;
+    const betrag = (pk.preisCents / 100).toFixed(2);
+    await sqlPool`UPDATE fiaon_applications SET pack_key = ${pk.key}, pack_name = ${name}, amount_due = ${betrag}, updated_at = NOW() WHERE ref = ${a.ref}`;
+    await protokoll(req.agent!.id, "vertrieb_paket_geaendert", { person_id: id, ref: a.ref, alt: { pack_key: a.pack_key, amount_due: a.amount_due }, neu: { pack_key: pk.key, amount_due: betrag }, grund });
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (person_id, ref, agent_id, agent_name, type, note, created_at)
+      VALUES (${id}, ${a.ref}, ${req.agent!.id}, ${req.agent!.name}, 'system',
+              ${`Paket geändert: ${a.pack_name || a.pack_key || "—"} (${a.amount_due ?? "?"} €) → ${name} (${betrag} €). Grund: ${grund}. Eine bereits versandte Zahlungsdaten-Mail ist damit veraltet — bitte neu senden.`}, NOW())
+    `.catch(() => {});
+    res.json({ ok: true, meldung: `Paket auf ${name} (${betrag} €) gesetzt. Bitte die Zahlungsdaten neu senden — die alte Mail nennt den alten Betrag.` });
+  } catch (err) {
+    console.error("[FIAON-VERTRIEB] paket:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 // ═══════════════════════════════════════════════════════════════════════════
 // GET /agent/vertrieb/bestandswache — die Listen hinter den schweren Befunden
 //

@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import GlassNav from "@/components/GlassNav";
+import { PAKETE, paket as paketVon } from "@shared/fiaon-pakete";
+const preisText = (key: string) => ((paketVon(key)?.preisCents ?? 0) / 100).toFixed(2).replace(".", ",");
 import PremiumFooter from "@/components/PremiumFooter";
 
 /* ── scroll reveal ── */
@@ -58,17 +60,17 @@ if (!document.head.querySelector('style[data-card-enter]')) {
 // aber sich darauf zu verlassen, hieße, die Wand als Entschuldigung zu nehmen.
 // ══════════════════════════════════════════════════════════════════════════
 const PACKS = [
-  { name: "FIAON Starter\n(Das Fundament)", fee: "7,99", lim: "500", bg: "linear-gradient(145deg,#4a7ab5,#6a9fd4,#8ab8e8)", feats: ["Dein 500 € Einstiegs-Setup", "Zugang: Basic Karten-Portfolio", "Schufaneutrale Profil-Prüfung", "Online-Dashboard & Verwaltung"] },
-  { name: "FIAON Pro\n(Standard)", fee: "59,99", lim: "5.000", rec: true, bg: "linear-gradient(145deg,#1a3f6f,#2563eb,#4a8af5)", feats: ["Dein 5.000 € Limit-Protokoll", "Zugang: Premium Karten-Netzwerk", "Dynamische Limit-Aufstockung", "Sofortige Score-Auswertung", "Priority-Bearbeitung im System"] },
-  { name: "FIAON Ultra\n(Elite Konto)", fee: "79,99", lim: "15.000", bg: "linear-gradient(145deg,#1a3050,#2a5580,#3d7ab8)", feats: ["Dein 15.000 € Elite-Portfolio", "Zugang: Gold- & Platinum-Karten", "Cashback- & Meilen-Aktivierung", "Individuelle Freigabe-Roadmap", "VIP-Support & Konto-Optimierung"] },
-  { name: "FIAON High End\n(Das Maximum)", fee: "99,99", lim: "25.000", bg: "linear-gradient(145deg,#0d1b2a,#1b2d44,#2a4060)", feats: ["Dein 25.000 € Black-Card Setup", "Exklusiver Zugang: Metal- & VIP-Karten", "Persönlicher Account Director", "Internationale Limit-Strukturen", "24/7 Dedicated Concierge-Support"] },
+  { name: "FIAON Starter\n(Das Fundament)", fee: preisText("start"), lim: "500", bg: "linear-gradient(145deg,#4a7ab5,#6a9fd4,#8ab8e8)", feats: ["Dein 500 € Einstiegs-Setup", "Zugang: Basic Karten-Portfolio", "Schufaneutrale Profil-Prüfung", "Online-Dashboard & Verwaltung"] },
+  { name: "FIAON Pro\n(Standard)", fee: preisText("pro"), lim: "5.000", rec: true, bg: "linear-gradient(145deg,#1a3f6f,#2563eb,#4a8af5)", feats: ["Dein 5.000 € Limit-Protokoll", "Zugang: Premium Karten-Netzwerk", "Dynamische Limit-Aufstockung", "Sofortige Score-Auswertung", "Priority-Bearbeitung im System"] },
+  { name: "FIAON Ultra\n(Elite Konto)", fee: preisText("ultra"), lim: "15.000", bg: "linear-gradient(145deg,#1a3050,#2a5580,#3d7ab8)", feats: ["Dein 15.000 € Elite-Portfolio", "Zugang: Gold- & Platinum-Karten", "Cashback- & Meilen-Aktivierung", "Individuelle Freigabe-Roadmap", "VIP-Support & Konto-Optimierung"] },
+  { name: "FIAON High End\n(Das Maximum)", fee: preisText("highend"), lim: "25.000", bg: "linear-gradient(145deg,#0d1b2a,#1b2d44,#2a4060)", feats: ["Dein 25.000 € Black-Card Setup", "Exklusiver Zugang: Metal- & VIP-Karten", "Persönlicher Account Director", "Internationale Limit-Strukturen", "24/7 Dedicated Concierge-Support"] },
 ];
 
 const BUSINESS_PACKS = [
-  { name: "FIAON Starter", tier: "Paket 1", lim: "10.000", bg: "linear-gradient(135deg,#64748b,#94a3b8,#cbd5e1)", feats: ["KI-Unternehmensanalyse (Basis)", "Business-Kartenkompass", "Credit-Building für Gründer", "Digitales Finance-Dashboard"] },
-  { name: "FIAON Business", tier: "Paket 2", lim: "25.000", bg: "linear-gradient(135deg,#b8923a,#d4af37,#e8d085)", feats: ["Erweiterte Cashflow-Analyse", "Strategie für Limit-Aufstockungen", "Strikte Trennung von Privat & Business", "Monatliches Business-Coaching"] },
-  { name: "FIAON Executive", tier: "Paket 3", lim: "50.000", rec: true, bg: "linear-gradient(135deg,#0b1628,#1a3560,#1e4070)", feats: ["Multi-Karten-Struktur (z.B. für GmbHs)", "Cashflow-Strategieberatung", "Meilen- & Reisekosten-Optimierung", "Priority Business Support"] },
-  { name: "FIAON Black", tier: "Paket 4", lim: "100.000", bg: "linear-gradient(135deg,#111,#1a1a1a,#2a2a2a)", feats: ["Dedizierter Account Manager", "Sub-Account- & Mitarbeiter-Strategie", "Premium-Module (Internationale Limits)", "24/7 VIP Business-Support"] },
+  { name: "FIAON Business Starter", tier: "Paket 1", fee: preisText("business_starter"), lim: "10.000", bg: "linear-gradient(135deg,#64748b,#94a3b8,#cbd5e1)", feats: ["KI-Unternehmensanalyse (Basis)", "Business-Kartenkompass", "Credit-Building für Gründer", "Digitales Finance-Dashboard"] },
+  { name: "FIAON Business Pro", tier: "Paket 2", fee: preisText("business_pro"), lim: "25.000", bg: "linear-gradient(135deg,#b8923a,#d4af37,#e8d085)", feats: ["Erweiterte Cashflow-Analyse", "Strategie für Limit-Aufstockungen", "Strikte Trennung von Privat & Business", "Monatliches Business-Coaching"] },
+  { name: "FIAON Business Ultra", tier: "Paket 3", fee: preisText("business_ultra"), lim: "50.000", rec: true, bg: "linear-gradient(135deg,#0b1628,#1a3560,#1e4070)", feats: ["Multi-Karten-Struktur (z.B. für GmbHs)", "Cashflow-Strategieberatung", "Meilen- & Reisekosten-Optimierung", "Priority Business Support"] },
+  { name: "FIAON Business Enterprise", tier: "Paket 4", fee: preisText("business_enterprise"), lim: "100.000", bg: "linear-gradient(135deg,#111,#1a1a1a,#2a2a2a)", feats: ["Dedizierter Account Manager", "Sub-Account- & Mitarbeiter-Strategie", "Premium-Module (Internationale Limits)", "24/7 VIP Business-Support"] },
 ];
 
 /* ────────────────────────────────
@@ -675,12 +677,12 @@ function Packages() {
 
                 {/* Card */}
                 <div className="p-5 sm:p-6">
-                  <Card bg={p.bg} lim={p.lim} label={customerType === "business" && "tier" in p ? p.tier : undefined} className="w-full" />
+                  <Card bg={p.bg} lim={p.lim} label={customerType === "business" ? (p as any).tier : undefined} className="w-full" />
                 </div>
 
                 {/* Content */}
                 <div className="px-5 sm:px-6 pb-6">
-                  {customerType === "business" && "tier" in p && <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">{p.tier}</p>}
+                  {customerType === "business" && (p as any).tier && <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">{(p as any).tier}</p>}
                   <h3 className={`${customerType === "business" ? "text-[17px]" : "text-[15px]"} font-semibold text-gray-900 mb-2`}>{p.name}</h3>
                   {customerType === "business" ? (
                     <p className="text-[14px] text-gray-500 mb-4 pb-4 border-b border-gray-100">Limits bis zu <span className="text-[#2563eb] font-semibold">{p.lim}&nbsp;€</span></p>
@@ -715,104 +717,6 @@ function Packages() {
 
 /* ────────────────────────────────
    APPLICATION PROCESS — HIGH END
-   ──────────────────────────────── */
-function ApplicationProcess() {
-  const obs = useReveal(0.1);
-  const steps = [
-    { n: "01", t: "Paket wählen", d: "Wähle dein gewünschtes FIAON Paket mit passendem Limit." },
-    { n: "02", t: "Daten eingeben", d: "Persönliche Daten, Beruf & Finanzen – verschlüsselt übertragen." },
-    { n: "03", t: "Bonitätsprüfung", d: "Echtzeit-Analyse deiner Daten – dauert nur wenige Sekunden." },
-    { n: "04", t: "Limit erhalten", d: "Dein personalisiertes Kreditlimit wird sofort angezeigt." },
-    { n: "05", t: "Vertrag annehmen", d: "Unterschrift digital – dein Vertrag ist sofort bereit." },
-  ];
-  return (
-    <section className="py-24 sm:py-32 relative overflow-hidden" ref={obs.ref}>
-      {/* Premium animated background */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1200px] h-[600px] opacity-[0.04]" style={{ 
-          background: "radial-gradient(ellipse, #2563eb, transparent 70%)",
-          animation: "pulse 10s ease-in-out infinite"
-        }} />
-        <div className="absolute top-0 right-0 w-[400px] h-[400px] opacity-[0.02]" style={{
-          background: "radial-gradient(circle, #3b82f6, transparent 60%)",
-          animation: "pulse 8s ease-in-out infinite reverse"
-        }} />
-      </div>
-
-      <div className="max-w-[1280px] mx-auto px-6 relative z-10">
-        <div className="max-w-3xl mb-20 text-center">
-          <p className="text-[12px] font-semibold text-[#2563eb] tracking-[.2em] uppercase mb-4">Antragprozess</p>
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-tight mb-6">
-            <span className="fiaon-gradient-text-animated">In 5 Schritten zur Karte</span>
-          </h2>
-          <p className="text-[16px] sm:text-[17px] text-gray-500 leading-relaxed max-w-2xl mx-auto">
-            Digital, sicher und in unter 2 Minuten – so einfach geht's.
-          </p>
-        </div>
-
-        <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-8">
-          {steps.map((s, i) => (
-            <div key={i} className={`relative transition-all duration-1000 ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-12"}`} style={{ transitionDelay: `${i * 120}ms` }}>
-              {/* Premium card with enhanced effects */}
-              <div className="relative p-8 rounded-3xl fiaon-glass-panel hover:scale-[1.03] hover:shadow-2xl transition-all duration-500 group">
-                {/* Multi-layer gradient overlay */}
-                <div className="absolute inset-0 rounded-3xl overflow-hidden pointer-events-none">
-                  <div className="absolute inset-0 opacity-20" style={{
-                    background: "linear-gradient(135deg, rgba(37,99,235,0.15), rgba(147,197,253,0.25), rgba(37,99,235,0.12), rgba(147,197,253,0.18))",
-                    backgroundSize: "300% 300%",
-                    animation: "limitGlow 8s ease-in-out infinite"
-                  }} />
-                  <div className="absolute inset-0 opacity-10" style={{
-                    background: "radial-gradient(circle at 50% 0%, rgba(255,255,255,0.8), transparent 70%)"
-                  }} />
-                </div>
-
-                <div className="relative z-10">
-                  {/* Premium step number */}
-                  <div className="text-[48px] font-bold mb-5 tracking-tight" style={{
-                    background: "linear-gradient(135deg, #1e40af, #2563eb, #3b82f6, #60a5fa)",
-                    backgroundClip: "text",
-                    WebkitBackgroundClip: "text",
-                    WebkitTextFillColor: "transparent",
-                    opacity: 0.25,
-                    letterSpacing: "-0.02em"
-                  }}>
-                    {s.n}
-                  </div>
-
-                  {/* Title */}
-                  <h3 className="text-[16px] font-semibold text-gray-900 mb-3 tracking-tight">{s.t}</h3>
-
-                  {/* Description */}
-                  <p className="text-[14px] text-gray-500 leading-relaxed font-medium">{s.d}</p>
-                </div>
-
-                {/* Premium connector line */}
-                {i < steps.length - 1 && (
-                  <div className="absolute -right-4 top-1/2 -translate-y-1/2 w-8 h-[2px] hidden lg:block" style={{
-                    background: "linear-gradient(90deg, #2563eb, rgba(37,99,235,0.2))",
-                    boxShadow: "0 0 20px rgba(37,99,235,0.3)"
-                  }} />
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Premium CTA */}
-        <div className="mt-20 text-center">
-          <a href="/antrag" className="fiaon-btn-outline-animated inline-flex items-center gap-3 px-10 py-4.5 rounded-full text-[16px] font-semibold text-[#2563eb] border-2 border-[#2563eb]/20 hover:border-[#2563eb]/40 transition-all duration-300 hover:scale-105">
-            Jetzt starten
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-          </a>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ────────────────────────────────
-   HOW IT WORKS
    ──────────────────────────────── */
 function HowItWorks() {
   const obs = useReveal(0.1);
@@ -1474,7 +1378,7 @@ function ComparisonSection() {
     { 
       id: 0,
       name: "FIAON Starter", 
-      fee: "7,99", 
+      fee: preisText("start"), 
       lim: "500", 
       recommended: false,
       features: ["KI-Profilanalyse (Basis-Scan)", "Kartenkompass: Markt-Matching", "Credit-Building Grundmodul", "Digitales Strategie-Dashboard"],
@@ -1483,7 +1387,7 @@ function ComparisonSection() {
     { 
       id: 1,
       name: "FIAON Pro", 
-      fee: "59,99", 
+      fee: preisText("pro"), 
       lim: "5.000", 
       recommended: true,
       features: ["Vollständiges Credit-Building System", "KI-Matching mit Score-Prognose", "Dynamischer Score-Simulator", "Limit-Aufbau-Strategie (12 Monate)"],
@@ -1492,7 +1396,7 @@ function ComparisonSection() {
     { 
       id: 2,
       name: "FIAON Ultra", 
-      fee: "79,99", 
+      fee: preisText("ultra"), 
       lim: "15.000", 
       recommended: false,
       features: ["Premium Coaching (Meilen & Cashback)", "Multi-Karten-Portfolio-Struktur", "Individueller Optimierungs-Algorithmus", "Exklusive Strategie-Sessions"],
@@ -1501,7 +1405,7 @@ function ComparisonSection() {
     { 
       id: 3,
       name: "FIAON High End", 
-      fee: "99,99", 
+      fee: preisText("highend"), 
       lim: "25.000", 
       recommended: false,
       features: ["1-on-1 Strategy-Director (Monatlich)", "VIP International Credit Building", "Individuelle Limit-Roadmap (High-End)", "24/7 Dedicated Concierge-Support"],
@@ -1724,76 +1628,6 @@ function ProcessSection() {
 /* ────────────────────────────────
    FOOTER
    ──────────────────────────────── */
-function Foot() {
-  return (
-    <footer className="relative py-16 sm:py-20 overflow-hidden">
-      {/* Animated gradient background */}
-      <div className="absolute inset-0" style={{
-        background: "linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(249,250,251,0.8) 50%, rgba(243,244,246,1) 100%)"
-      }} />
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] opacity-30" style={{
-          background: "radial-gradient(ellipse at 50% 0%, rgba(37,99,235,0.1), transparent 70%)",
-          filter: "blur(60px)"
-        }} />
-      </div>
-
-      <div className="relative z-10 max-w-[1280px] mx-auto px-6">
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-12 mb-12">
-          {/* Logo & Description */}
-          <div>
-            <div className="mb-6">
-              <span className="text-2xl font-bold tracking-tight fiaon-gradient-text-animated">FIAON</span>
-            </div>
-            <p className="text-[14px] text-gray-500 leading-relaxed max-w-[260px]">
-              Unabhängige Kreditkarten-Begleitung für Privatpersonen und Unternehmen.
-            </p>
-          </div>
-
-          {/* Pages */}
-          <div>
-            <div className="text-[13px] font-semibold text-gray-900 uppercase tracking-[.15em] mb-5">Seiten</div>
-            <ul className="space-y-3">
-              <li><a href="/" className="text-[14px] text-gray-500 hover:text-gray-900 transition-colors">Startseite</a></li>
-              <li><a href="/privatkunden" className="text-[14px] text-gray-500 hover:text-gray-900 transition-colors">Privatkunden</a></li>
-              <li><a href="/business" className="text-[14px] text-gray-500 hover:text-gray-900 transition-colors">Business</a></li>
-              <li><a href="/plattform-konzept" className="text-[14px] text-gray-500 hover:text-gray-900 transition-colors">Plattform-Konzept</a></li>
-            </ul>
-          </div>
-
-          {/* Legal */}
-          <div>
-            <div className="text-[13px] font-semibold text-gray-900 uppercase tracking-[.15em] mb-5">Rechtliches</div>
-            <ul className="space-y-3">
-              <li><a href="/terms" className="text-[14px] text-gray-500 hover:text-gray-900 transition-colors">AGB</a></li>
-              <li><a href="/privacy" className="text-[14px] text-gray-500 hover:text-gray-900 transition-colors">Datenschutz</a></li>
-              <li><a href="#" className="text-[14px] text-gray-500 hover:text-gray-900 transition-colors">Impressum</a></li>
-            </ul>
-          </div>
-
-          {/* Contact */}
-          <div>
-            <div className="text-[13px] font-semibold text-gray-900 uppercase tracking-[.15em] mb-5">Kontakt</div>
-            <ul className="space-y-3">
-              <li><a href="mailto:support@fiaon.com" className="text-[14px] text-gray-500 hover:text-gray-900 transition-colors">support@fiaon.com</a></li>
-              <li><span className="text-[14px] text-gray-500">Mo–Fr, 9–18 Uhr</span></li>
-            </ul>
-          </div>
-        </div>
-
-        {/* Bottom Bar */}
-        <div className="pt-8 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <span className="text-[13px] text-gray-400">&copy; {new Date().getFullYear()} FIAON. Alle Rechte vorbehalten.</span>
-          <span className="text-[12px] text-gray-400">FIAON ist ein Begleitungs- und Softwareangebot und kein Kreditinstitut.</span>
-        </div>
-      </div>
-    </footer>
-  );
-}
-
-/* ════════════════════════════════
-   EXPORT
-   ════════════════════════════════ */
 export default function FiaonLanding() {
   return (
     <div className="min-h-screen bg-white text-gray-900 antialiased" style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
@@ -1810,7 +1644,6 @@ export default function FiaonLanding() {
       <WasIstFiaonSection />
       <FeaturesOverview />
       <Cta />
-      <ProcessSection />
       <PremiumFooter />
     </div>
   );

@@ -726,6 +726,22 @@ export async function ermittleProvisionsAnspruch(
       basisNote: opts.forceReason || "Admin-Entscheidung (manuelle Nachbuchung)",
     };
   }
+  // ── 1b. LEITUNGS-ENTSCHEID AN DER BESTELLUNG (E-027, 22.08.2026) ─────
+  // Die Vertriebsleitung darf den Anspruch setzen — mit Begründung, im
+  // Protokoll. Er steht an der Bestellung und schlägt Altmodell und
+  // Kontaktkette, genau wie der Admin-Entscheid.
+  try {
+    const [e] = (await sqlPool`
+      SELECT commission_agent_id, commission_decided_by, commission_decided_note, commission_decided_at
+      FROM fiaon_applications WHERE ref = ${ref}`) as any[];
+    if (e?.commission_agent_id) {
+      return {
+        agentId: Number(e.commission_agent_id),
+        basisKind: "admin",
+        basisNote: `Entscheid ${e.commission_decided_by || "der Leitung"} vom ${e.commission_decided_at ? new Date(e.commission_decided_at).toLocaleDateString("de-DE") : "?"}: ${e.commission_decided_note || "ohne Begründung"}`,
+      };
+    }
+  } catch { /* Spalten fehlen noch — dann gibt es auch keinen Entscheid. */ }
 
   const settingsEarly = await getSettings();
   // ── V1 STICHTAG (Phase 2B): Kein rückwirkender Regelwechsel. Bestellungen,

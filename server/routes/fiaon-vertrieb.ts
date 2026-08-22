@@ -1147,56 +1147,23 @@ router.get("/agent/vertrieb/testeintrag-meldungen", requireAgent, nurLeitung, nu
  * Antwort in der Akte stehen — und nicht „das hat damals jemand angeklickt".
  */
 router.post("/agent/vertrieb/person/:id/zahlung-gebucht", requireAgent, nurLeitung, nurMitZusage,
-  async (req: AgentRequest, res: Response) => {
-  try {
-    const id = Number(req.params.id);
-    const grund = String(req.body?.grund || "").trim();
-    if (grund.length < 5) {
-      return res.status(400).json({
-        ok: false,
-        error: "Bitte notieren, woher du weißt, dass gezahlt wurde. Der Satz ist der Beleg.",
-      });
-    }
-    const [p] = (await sqlPool`
-      SELECT p.id, TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')) AS name,
-             (SELECT a.ref FROM fiaon_applications a
-               WHERE a.person_id = p.id AND a.merged_into IS NULL
-               ORDER BY a.created_at DESC LIMIT 1) AS ref
-      FROM fiaon_persons p WHERE p.id = ${id} AND p.merged_into_person_id IS NULL
-    `) as any[];
-    if (!p?.ref) return res.status(404).json({ ok: false, error: "Keine Bestellung zu diesem Kunden." });
-
-    const [vorher] = (await sqlPool`
-      SELECT payment_status FROM fiaon_applications WHERE ref = ${p.ref}
-    `) as any[];
-    if (String(vorher?.payment_status) === "paid") {
-      return res.status(400).json({ ok: false, error: "Diese Bestellung steht bereits auf bezahlt." });
-    }
-
-    await sqlPool`
-      UPDATE fiaon_applications
-      SET payment_status = 'paid', paid_at = COALESCE(paid_at, NOW()), updated_at = NOW()
-      WHERE ref = ${p.ref}
-    `;
-    // Provisionen entstehen im bestehenden Weg — hier nicht nachgebaut.
-    await import("./fiaon-agent").then((m: any) => m.onCustomerPaid?.(p.ref)).catch(() => {});
-
-    await sqlPool`
-      INSERT INTO fiaon_contact_log (person_id, ref, agent_id, agent_name, type, note, created_at)
-      VALUES (${id}, ${p.ref}, ${req.agent!.id}, ${req.agent!.name}, 'system',
-              ${`Als bezahlt gebucht von ${req.agent!.name}. Beleg: ${grund}`}, NOW())
-    `.catch(() => {});
-    await aktivitaetSchreiben({
-      typ: "vertrieb_zahlung_gebucht", wer: req.agent!.name,
-      referenz: String(p.ref), grund,
-    });
-
-    console.log(`[VERTRIEB] Zahlung gebucht: ${p.ref} von ${req.agent!.name} — ${grund}`);
-    res.json({ ok: true, meldung: `${p.name} steht jetzt auf bezahlt. Der Beleg steht in der Akte.` });
-  } catch (err) {
-    console.error("[VERTRIEB] zahlung-gebucht:", err);
-    res.status(500).json({ ok: false, error: "Serverfehler" });
-  }
+  async (_req: AgentRequest, res: Response) => {
+  // ══════════════════════════════════════════════════════════════════════
+  // GESCHLOSSEN (22.08.2026, E-022 / K3)
+  //
+  // Dieser Weg schrieb `payment_status = 'paid'` als rohes UPDATE und rief
+  // die Provisionsbuchung mit `.catch(() => {})` — scheiterte sie, war der
+  // Kunde bezahlt und die Provision weg, ohne Meldung. Keine Abo-Kette,
+  // keine Bestätigungsmail, `paid_at = NOW()` statt des echten Eingangs.
+  // Der geprüfte Weg (Belegpflicht, Bankeingang, Abo-Kette) ist
+  // POST /agent/vertrieb/zahlung/:paymentRef/bezahlt — die Akte öffnet jetzt
+  // denselben Dialog wie der Reiter „Zahlungen". Die Route bleibt als
+  // Wegweiser stehen, damit ein alter Client eine Antwort bekommt.
+  // ══════════════════════════════════════════════════════════════════════
+  res.status(410).json({
+    ok: false,
+    error: "Dieser Buchungsweg ist geschlossen. Bitte „Zahlung prüfen und buchen“ in der Akte benutzen — mit Beleg und Eingangsdatum.",
+  });
 });
 
 /**

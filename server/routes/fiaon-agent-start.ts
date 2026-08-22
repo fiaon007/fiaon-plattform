@@ -40,6 +40,8 @@ import {
 } from "../lib/fiaon-massgebliche-bestellung";
 import { zustaendigeRolleSql } from "../lib/fiaon-zustaendigkeit";
 import { terminArtAusQuelle, terminArtRueckruf } from "../../shared/fiaon-termin-art";
+import { FIAON_BANK_DETAILS as BANK } from "./fiaon-antrag";
+import { zahlungstext } from "../lib/fiaon-verwendungszweck";
 
 const router = Router();
 
@@ -65,8 +67,9 @@ const NAME_SQL = `COALESCE(
   CONCAT('Person ', p.id)
 )`;
 
-/** Felder, die jede Karte braucht — einmal definiert, in beiden Abfragen benutzt. */
-const KARTE_SQL = `
+/** Felder, die jede Karte braucht — einmal definiert, in ALLEN Abfragen benutzt
+ *  (Liste, Startseite UND Einzelkarte in fiaon-agent-kunden.ts). */
+export const KARTE_SQL = `
   p.id, ${NAME_SQL} AS name, p.primary_email, p.primary_phone, p.country,
   p.priority_tier, p.tier_reason, p.promised_payment_date, p.follow_up_date,
   p.unreachable_count, p.invoice_sent_count, p.is_blocked, p.betreuung_seit,
@@ -153,6 +156,12 @@ const KARTE_SQL = `
   (SELECT t.erledigt_am FROM fiaon_termine t
     WHERE t.person_id = p.id AND t.abgesagt_am IS NULL
     ORDER BY ABS(EXTRACT(EPOCH FROM (t.beginn - NOW()))) LIMIT 1) AS termin_erledigt_am,
+  (SELECT t.quelle FROM fiaon_termine t
+    WHERE t.person_id = p.id AND t.abgesagt_am IS NULL
+    ORDER BY ABS(EXTRACT(EPOCH FROM (t.beginn - NOW()))) LIMIT 1) AS termin_quelle,
+  (SELECT a.payment_due_date FROM fiaon_applications a
+    WHERE a.person_id = p.id AND a.merged_into IS NULL
+    ORDER BY a.created_at DESC LIMIT 1) AS zahlungsfrist,
   (SELECT a.amount_due FROM fiaon_applications a
     WHERE a.person_id = p.id AND a.merged_into IS NULL
     ORDER BY a.created_at DESC LIMIT 1) AS amount_due,
@@ -276,11 +285,31 @@ export function karte(p: any) {
       strasse: p.strasse || null, plz: p.plz || null, ort: p.ort || null,
       land: p.country || null, geburtsdatum: p.geburtsdatum || null,
     },
+    // ── DIE ZAHLUNGSDATEN ZUM KOPIEREN — AUCH IN DER LISTE (22.08.2026, K6) ──
+    // `klartext` gab es nur in der Einzelkarte. Die Liste lieferte ihn nicht,
+    // und der Knopf „Zahlungsdaten kopieren" (WhatsApp, der Kanal mit der
+    // höchsten Konversion) war beim Öffnen der Seite bei JEDEM Kunden grau —
+    // ohne Begründung. Bankverbindung aus derselben Quelle wie die Rechnung.
     zahlung: {
       referenz: p.zahlungsreferenz || null,
       status: p.zahlungsstatus || null,
+      frist: p.zahlungsfrist || null,
       ref: p.ref || null,
+      empfaenger: BANK.recipient,
+      iban: BANK.ibanDisplay,
+      bic: BANK.bic,
+      klartext: p.zahlungsreferenz
+        ? zahlungstext({
+            empfaenger: BANK.recipient, iban: BANK.iban, ibanAnzeige: BANK.ibanDisplay,
+            bic: BANK.bic, verwendungszweck: String(p.zahlungsreferenz),
+            betragCent: p.amount_due != null ? Math.round(Number(p.amount_due) * 100) : null,
+          })
+        : null,
     },
+    // Die Warnung entsteht hier, nicht im Frontend: eine fachliche Regel.
+    rechnungWarnung: Number(p.invoice_sent_count || 0) >= 3
+      ? `Bereits ${p.invoice_sent_count}× versandt. Ein weiterer Versand ersetzt kein Gespräch — ruf an.`
+      : null,
     // ── DER TERMIN AN DER ZEILE (20.08.2026) ─────────────────────────────
     // Fuer Onboarding ist er die Arbeit. Uhrzeit und Art gehoeren an die Karte,
     // sonst muss man fuer jede Zeile in den Kalender wechseln.
@@ -290,7 +319,10 @@ export function karte(p: any) {
         status: p.termin_status ?? null,
         dauerMin: p.termin_dauer_min == null ? null : Number(p.termin_dauer_min),
         erledigt: p.termin_erledigt_am != null,
-        art: "Startgespräch",
+        // Die Art aus der Quelle (shared/fiaon-termin-art.ts) — vorher stand
+        // hier hart „Startgespräch", auch an einem Vertriebstermin.
+        art: terminArtAusQuelle(p.termin_quelle).text,
+        artMarke: terminArtAusQuelle(p.termin_quelle),
       }
       : null,
   };

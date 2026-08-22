@@ -43,6 +43,17 @@ import { requireAgent, type AgentRequest } from "./fiaon-agent";
 
 const router = Router();
 
+/** Zahlungsdaten als Text — dieselbe Quelle wie Karte und Rechnung (keine zweite IBAN). */
+async function zahlungsKlartextFuer(verwendungszweck: string, preisEuro: unknown): Promise<string> {
+  const { zahlungstext } = await import("../lib/fiaon-verwendungszweck");
+  const { FIAON_BANK_DETAILS: B } = await import("./fiaon-antrag");
+  return zahlungstext({
+    empfaenger: B.recipient, iban: B.iban, ibanAnzeige: B.ibanDisplay, bic: B.bic,
+    verwendungszweck,
+    betragCent: preisEuro != null && Number.isFinite(Number(preisEuro)) ? Math.round(Number(preisEuro) * 100) : null,
+  });
+}
+
 /** Wer darf anlegen und pflegen? */
 // ── ONBOARDING DARF STAMMDATEN ERGAENZEN (20.08.2026) ──────────────────────
 // Florentine Lombardi: „Wo kann man das ergaenzen?" — Angaben fehlen, und
@@ -378,6 +389,9 @@ router.post("/agent/kunden/neu", requireAgent, async (req: AgentRequest, res: Re
       name: `${vorname} ${nachname}`,
       paket: p ? { key: p.key, label: p.label, preisEuro: paketPreisEuro(paketKey) } : null,
       zahlungsreferenz: paketKey ? zahlungsreferenz : null,
+      // Der fertige Text für WhatsApp — aus derselben Funktion wie Karte und
+      // Rechnung. Der handgeschriebene Text im Client hatte keine IBAN.
+      zahlungsKlartext: paketKey ? await zahlungsKlartextFuer(zahlungsreferenz, p ? paketPreisEuro(paketKey) : null) : null,
       // Was der Agent als nächstes tun kann — in der Reihenfolge des Gesprächs.
       weiter: {
         zahlungsdatenSenden: paketKey ? `/agent/customers/${encodeURIComponent(ref)}/send-payment-email` : null,

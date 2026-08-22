@@ -7,7 +7,7 @@ import { Reveal } from "./motion";
 import { Skelett, eur, useReduzierteBewegung, useToast } from "@/lib/fiaon-ui";
 import { ZeichenSenden, ZeichenTelefon, ZeichenWinkel } from "@/lib/fiaon-zeichen";
 import { VertriebZusage, useZusage } from "./vertrieb-zusage";
-import { VertriebZahlungen, VertriebDokumente, VertriebZugang, LageTafel, ServiceZahlen, PipelineZahlen } from "./vertrieb-service";
+import { VertriebZahlungen, VertriebDokumente, VertriebZugang, LageTafel, ServiceZahlen, PipelineZahlen, BuchenDialog } from "./vertrieb-service";
 import DublettenArbeitsplatz from "@/components/admin/DublettenArbeitsplatz";
 import { Fehlerrahmen } from "@/components/agent/Fehlerrahmen";
 import { statusAusTierGrund } from "@shared/fiaon-kundenstatus";
@@ -983,15 +983,9 @@ function Akte({ daten, onSchliessen, onGeaendert }: { daten: any; onSchliessen: 
     else zeige("fehler", "Nicht möglich", r.json?.error || "");
   };
 
-  const zahlungBuchen = async () => {
-    if (grund.trim().length < 5) { zeige("fehler", "Beleg fehlt", "Bitte notieren, woher du weißt, dass gezahlt wurde."); return; }
-    setBusy(true);
-    const r = await api(`/agent/vertrieb/person/${p.personId}/zahlung-gebucht`,
-      { method: "POST", body: JSON.stringify({ grund }) });
-    setBusy(false);
-    if (r.ok) { zeige("erfolg", "Gebucht", r.json.meldung ?? "Die Zahlung ist vermerkt."); setGrund(""); onGeaendert(); }
-    else zeige("fehler", "Nicht gebucht", r.json?.error || "");
-  };
+  // Zahlung buchen: derselbe Dialog wie im Reiter „Zahlungen" (Belegpflicht,
+  // Bankeingang, echtes Eingangsdatum). Der alte Freitext-Weg ist geschlossen.
+  const [buchen, setBuchen] = useState(false);
 
   // ── ERST BESTÄTIGEN, DANN SENDEN (31.08.2026) ───────────────────────────
   // Dasselbe Bauteil wie in der Kundenkarte. Die Vertriebsleitung sieht die
@@ -1227,25 +1221,22 @@ function Akte({ daten, onSchliessen, onGeaendert }: { daten: any; onSchliessen: 
                   <ZeichenSenden size={14} /> Zahlungsdaten erneut schicken
                 </button>
 
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-[.08em] mb-1.5"
-                         style={{ color: "var(--fi-text-still)" }}>
-                    Beleg (Pflicht)
-                  </label>
-                  <input value={grund} onChange={(e) => setGrund(e.target.value)}
-                         placeholder="z. B. Überweisung am 09.08. im Kontoauszug gesehen"
-                         className="w-full rounded-xl px-3.5 py-2.5 text-[13px] outline-none"
-                         style={{ border: "1px solid var(--fi-linie)", background: "var(--fi-seite)" }} />
+                <div className="pt-1">
+                  <button type="button" onClick={() => setBuchen(true)} disabled={busy || p.zahlungStatus === "paid"}
+                          className="fi-primaerknopf px-4 py-2.5 text-[13px] font-semibold text-white disabled:opacity-40">
+                    Zahlung prüfen und buchen
+                  </button>
                   <p className="text-[11.5px] mt-1.5 leading-snug" style={{ color: "var(--fi-text-still)" }}>
-                    Woher weißt du, dass gezahlt wurde? Der Satz steht dauerhaft am Kunden — er
-                    ist der Beleg, wenn später jemand fragt.
+                    Mit Beleg: Bankeingang auswählen oder Kundenbeleg, Eingangsdatum, ein Satz dazu.
+                    Derselbe Weg wie im Reiter „Zahlungen" — Abo-Kette, Bestätigungsmail und Provision
+                    entstehen daraus. Einen zweiten, schnelleren Weg gibt es mit Absicht nicht.
                   </p>
                 </div>
-                <button type="button" onClick={() => void zahlungBuchen()}
-                        disabled={busy || grund.trim().length < 5}
-                        className="fi-primaerknopf px-4 py-2.5 text-[13px] font-semibold text-white disabled:opacity-40">
-                  Als bezahlt buchen
-                </button>
+                {buchen && (
+                  <BuchenDialog zahlung={{ personId: p.personId, ref: p.ref }}
+                                onSchliessen={() => setBuchen(false)}
+                                onFertig={() => { setBuchen(false); onGeaendert(); }} />
+                )}
               </div>
             )}
 

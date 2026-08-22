@@ -307,7 +307,23 @@ router.get("/agent/onboarding/person/:id/lage", requireAgent, nurOnboarding, nur
       dokumentLage(id),
       zugangsLage(p.primary_email || p.app_email || ""),
     ]);
-    res.json({ ok: true, zahlung, dokumente, zugang });
+    // Kopfzeile des Cockpits: Paket, Zahlungsstand, Bonitätsauskunft — das
+    // Cockpit las diese Felder seit dem ersten Tag, bekam sie aber nie.
+    const { zahlungsstatusText } = await import("@shared/fiaon-kundenstatus");
+    const paketZeile = zahlung.find((z) => z.paket && !/bonit|schufa|auskunft/i.test(String(z.paket))) ?? zahlung[0] ?? null;
+    let bonitaet: string | null = null;
+    try {
+      const { bonitaetFuer } = await import("../lib/fiaon-bonitaet-status");
+      const refFuerBonitaet = paketZeile?.ref ?? zahlung[0]?.ref ?? null;
+      const stand = refFuerBonitaet ? await bonitaetFuer(String(refFuerBonitaet)) : null;
+      bonitaet = stand?.grund ?? null;
+    } catch { /* Bonität ist Beiwerk — die Lage darf nicht daran scheitern. */ }
+    res.json({
+      ok: true, zahlung, dokumente, zugang,
+      paket: paketZeile?.paket ?? null,
+      zahlungsstand: paketZeile ? zahlungsstatusText(paketZeile.status) : null,
+      bonitaet,
+    });
   } catch (err) {
     console.error("[ONBOARDING] lage:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
@@ -324,20 +340,43 @@ router.get("/agent/onboarding/person/:id/lage", requireAgent, nurOnboarding, nur
  * regelt die vorhandene Automatik, deshalb wird sie hier benutzt und nicht
  * nachgebaut.
  */
-router.post("/agent/onboarding/termine/:id/ergebnis", requireAgent, nurOnboarding, nurMitZusage, async (req: AgentRequest, res: Response) => {
-  try {
-    const id = Number(req.params.id);
-    const { ergebnis, notiz } = req.body || {};
+/**
+ * DER EINE WEG, EIN STARTGESPRÄCH ABZUSCHLIESSEN (22.08.2026, E-022 / K2)
+ *
+ * Vorher gab es zwei: diese Route (schaltet frei, bucht die Gutschrift, sagt
+ * dem Kunden Bescheid) und der Haken im Kalender (`/agent/termine/:id/
+ * ergebnis`), der nur `status = 'erledigt'` setzte. Wer morgens seinen
+ * Kalender öffnete — die Gewohnheit aus jedem anderen Portal —, arbeitete den
+ * ganzen Tag in der folgenlosen Fassung: Kunde „erledigt", Konto gesperrt,
+ * Onboarder unbezahlt. Jetzt ruft der Kalender diese Funktion.
+ *
+ * `jederZustaendige`: Der Kalender prüft die Zuständigkeit bereits über
+ * `darfAnKunde` (Vertretung, Übergabe). Die Onboarding-Route bleibt bei
+ * „nur der Agent, dem der Termin gehört".
+ */
+export async function startgespraechErgebnis(opts: {
+  terminId: number;
+  agent: { id: number; name: string };
+  ergebnis: unknown;
+  notiz?: unknown;
+  agenda?: unknown;
+  dauerSek?: unknown;
+  jederZustaendige?: boolean;
+}): Promise<{ status: number; body: any }> {
+    const id = Number(opts.terminId);
+    const ergebnis = opts.ergebnis;
+    const notiz = opts.notiz;
+    const req = { agent: opts.agent } as { agent: { id: number; name: string } };
     if (!["erledigt", "verpasst"].includes(String(ergebnis))) {
-      return res.status(400).json({ ok: false, error: "Ergebnis muss 'erledigt' oder 'verpasst' sein." });
+      return { status: 400, body: { ok: false, error: "Ergebnis muss 'erledigt' oder 'verpasst' sein." } };
     }
     // Der Stand der Agenda und die Gesprächsdauer kommen aus dem Cockpit.
     // Beides ist freiwillig: Ein Gespräch, das ohne das Cockpit geführt wurde
     // (Telefon klingelte einfach), muss trotzdem abschließbar sein.
-    const agendaStand = req.body?.agenda && typeof req.body.agenda === "object"
-      ? req.body.agenda : null;
-    const dauerSek = Number.isFinite(Number(req.body?.dauerSek))
-      ? Math.max(0, Math.min(4 * 3600, Number(req.body.dauerSek))) : null;
+    const agendaStand = opts.agenda && typeof opts.agenda === "object"
+      ? opts.agenda : null;
+    const dauerSek = Number.isFinite(Number(opts.dauerSek))
+      ? Math.max(0, Math.min(4 * 3600, Number(opts.dauerSek))) : null;
 
     // ── AUCH EIN VERPASSTER TERMIN LÄSST SICH NACHTRAGEN ─────────────────
     // Hier stand `status = 'gebucht'`. Ein Tageslauf setzt Termine nach zwölf
@@ -345,10 +384,11 @@ router.post("/agent/onboarding/termine/:id/ergebnis", requireAgent, nurOnboardin
     // auch wenn der Kunde sich abends doch gemeldet hatte.
     const [termin] = (await sqlPool`
       SELECT id, person_id, beginn FROM fiaon_termine
-      WHERE id = ${id} AND agent_id = ${req.agent!.id} AND quelle = 'onboarding_call'
+      WHERE id = ${id} AND quelle = 'onboarding_call'
+        AND (${opts.jederZustaendige === true} OR agent_id = ${req.agent!.id})
         AND status IN ('gebucht', 'verpasst')
     `) as any[];
-    if (!termin) return res.status(404).json({ ok: false, error: "Termin nicht gefunden." });
+    if (!termin) return { status: 404, body: { ok: false, error: "Termin nicht gefunden." } };
 
     // ══════════════════════════════════════════════════════════════════════
     // EINE LEERE ANGABE LÖSCHT NICHTS MEHR (19.08.2026)
@@ -486,7 +526,18 @@ router.post("/agent/onboarding/termine/:id/ergebnis", requireAgent, nurOnboardin
         VALUES (${ref.ref}, ${req.agent!.id}, ${req.agent!.name}, 'result', ${text}, NOW())
       `.catch(() => {});
     }
-    res.json({ ok: true, hinweis });
+    return { status: 200, body: { ok: true, hinweis } };
+}
+
+router.post("/agent/onboarding/termine/:id/ergebnis", requireAgent, nurOnboarding, nurMitZusage, async (req: AgentRequest, res: Response) => {
+  try {
+    const erg = await startgespraechErgebnis({
+      terminId: Number(req.params.id),
+      agent: { id: req.agent!.id, name: req.agent!.name },
+      ergebnis: req.body?.ergebnis, notiz: req.body?.notiz,
+      agenda: req.body?.agenda, dauerSek: req.body?.dauerSek,
+    });
+    res.status(erg.status).json(erg.body);
   } catch (err) {
     console.error("[ONBOARDING] ergebnis:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });

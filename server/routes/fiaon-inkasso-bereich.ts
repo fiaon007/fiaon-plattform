@@ -189,7 +189,8 @@ router.get("/inkasso/rate/:id", requireAgent, async (req: AgentRequest, res: Res
     const [rate] = (await sqlPool`
       SELECT r.id, r.ref, r.rate_nr, r.betrag_cents, r.zahlungsreferenz, r.faellig_am,
              r.mahnstufe, r.erinnerungen, r.letzte_erinnerung_at, r.letzter_fehler,
-             r.inkasso_wiedervorlage, r.inkasso_zusage_am, a.person_id
+             r.inkasso_wiedervorlage, r.inkasso_zusage_am, a.person_id,
+             r.lastschrift_status, r.lastschrift_grund, r.lastschrift_am
       FROM fiaon_abo_raten r JOIN fiaon_applications a ON a.ref = r.ref
       WHERE r.id = ${id} AND r.status = 'offen'
         AND a.payment_status = 'paid' AND a.merged_into IS NULL
@@ -262,6 +263,7 @@ router.get("/inkasso/rate/:id", requireAgent, async (req: AgentRequest, res: Res
                COALESCE(NULLIF(p.zip, ''), a.zip) AS plz,
                COALESCE(NULLIF(p.city, ''), a.city) AS ort,
                a.pack_name, a.pack_key, a.amount_due, a.payment_reference,
+               p.gc_mandate_status,
                a.created_at::date AS kunde_seit,
                a.account_status, a.schufa_status,
                COALESCE(NULLIF(a.email, ''), NULLIF(a.contact_email, ''),

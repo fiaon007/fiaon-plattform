@@ -25,14 +25,14 @@ export default function KartenSzene({ anzahl = 1, className = "" }: { anzahl?: 1
     renderer.setClearColor(0x000000, 0);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.1;
+    renderer.toneMappingExposure = 0.92;
     mount.appendChild(renderer.domElement);
     Object.assign(renderer.domElement.style, { width: "100%", height: "100%", display: "block" });
 
     const umgebung = umgebungslicht(renderer);
     scene.environment = umgebung;
-    scene.add(new THREE.AmbientLight(0xffffff, 0.45));
-    const key = new THREE.DirectionalLight(0xffffff, 2.6);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.35));
+    const key = new THREE.DirectionalLight(0xffffff, 1.5);
     key.position.set(3, 5, 4);
     scene.add(key);
     const rim = new THREE.DirectionalLight(0x60a5fa, 2);

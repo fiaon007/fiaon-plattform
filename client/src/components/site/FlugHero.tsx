@@ -82,7 +82,7 @@ export function FlugHero({ video, bild, knoepfe }: { video: string; bild: string
         </div>
 
         {/* Satz 1 */}
-        <div className="flug-text" style={{ opacity: sicht(0, 0.28), transform: `translateY(${p * -60}px)` }}>
+        <div className="flug-text" style={{ opacity: sicht(0, 0.28), transform: `translate(-50%, calc(-50% - ${p * 60}px))` }}>
           <p className="flug-ueber">Bonität in {LANDNAME[land]}</p>
           <h1 className="flug-h1">Wissen, was die {AUSKUNFTEI[land]} <span className="dk-verlauf">über Sie</span> gespeichert hat.</h1>
         </div>

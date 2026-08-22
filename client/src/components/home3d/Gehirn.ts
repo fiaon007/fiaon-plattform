@@ -58,9 +58,11 @@ export function gehirnBauen(o: { knoten?: number; stroeme?: number; massstab?: n
   }
   geo.computeVertexNormals();
 
+  // Matt, tief nachtblau, von innen blau leuchtend — kein graues Reflexions-Knäuel.
   const kern = new THREE.Mesh(geo, new THREE.MeshPhysicalMaterial({
-    color: "#0b1220", metalness: 0.2, roughness: 0.55, clearcoat: 0.6, clearcoatRoughness: 0.35,
-    transparent: true, opacity: 0.92, envMapIntensity: 0.35,
+    color: "#0a1a3f", emissive: new THREE.Color("#1e40af"), emissiveIntensity: 0.45,
+    metalness: 0, roughness: 0.75, clearcoat: 0.25, clearcoatRoughness: 0.5,
+    transparent: true, opacity: 0.9, envMapIntensity: 0.08,
   }));
   kern.scale.setScalar(0.985);
   group.add(kern);
@@ -79,7 +81,7 @@ export function gehirnBauen(o: { knoten?: number; stroeme?: number; massstab?: n
         // wandernde Wellen über die Oberfläche — die Aktivität
         float welle = 0.5 + 0.5 * sin(vP.y * 6.0 + vP.x * 4.0 - uT * 1.6) * sin(vP.z * 5.0 + uT * 0.9);
         vec3 c = mix(uColor, uLicht, welle * 0.6);
-        gl_FragColor = vec4(c, fres * 0.55 + welle * 0.06);
+        gl_FragColor = vec4(c, fres * 0.9 + welle * 0.12);
       }`,
   }));
   group.add(huelle);
@@ -117,11 +119,11 @@ export function gehirnBauen(o: { knoten?: number; stroeme?: number; massstab?: n
   });
   const kantenGeo = new THREE.BufferGeometry();
   kantenGeo.setAttribute("position", new THREE.BufferAttribute(kantenPos, 3));
-  group.add(new THREE.LineSegments(kantenGeo, new THREE.LineBasicMaterial({ color: new THREE.Color(BLAU_HELL), transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false })));
+  group.add(new THREE.LineSegments(kantenGeo, new THREE.LineBasicMaterial({ color: new THREE.Color(BLAU_HELL), transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false })));
 
   const knotenGeo = new THREE.BufferGeometry().setFromPoints(knoten);
   group.add(new THREE.Points(knotenGeo, new THREE.PointsMaterial({
-    size: 0.045, map: leuchtTextur(BLAU_HELL), transparent: true, opacity: 0.75, depthWrite: false, blending: THREE.AdditiveBlending, color: new THREE.Color("#bfdbfe"),
+    size: 0.06, map: leuchtTextur(BLAU_HELL), transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending, color: new THREE.Color("#bfdbfe"),
   })));
 
   /* ── Ströme ── */

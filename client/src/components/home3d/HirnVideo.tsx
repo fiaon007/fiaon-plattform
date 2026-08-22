@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// HirnVideo — das KI-Hirn als Hologramm (22.08.2026)
+// HirnVideo — seit 23.08. die Weltkugel als Hologramm (Name bleibt) (22.08.2026)
 //
 // Das Hirn wird von Higgsfield gerendert (rotierend, pulsierend, auf reinem
 // Schwarz). Hier liegt es als Videotextur ADDITIV auf einer Ebene in einer
@@ -30,7 +30,7 @@ export default function HirnVideo({ className = "", ruhig = false }: { className
     Object.assign(renderer.domElement.style, { width: "100%", height: "100%", display: "block" });
 
     const video = document.createElement("video");
-    video.src = "/kino/hirn.mp4"; video.poster = "/kino/hirn.jpg";
+    video.src = "/kino/kugel.mp4"; video.poster = "/kino/kugel.jpg";
     video.muted = true; video.loop = true; video.playsInline = true; video.preload = "auto";
     video.setAttribute("muted", ""); video.setAttribute("playsinline", "");
     const tex = new THREE.VideoTexture(video);
@@ -38,7 +38,7 @@ export default function HirnVideo({ className = "", ruhig = false }: { className
 
     // Poster sofort, Video sobald es läuft — beide additiv
     // Sobald das Poster da ist, einmal zeichnen — auch wenn der Tab gerade im Hintergrund liegt.
-    const poster = new THREE.TextureLoader().load("/kino/hirn.jpg", (t) => { t.colorSpace = THREE.SRGBColorSpace; mat.needsUpdate = true; renderer.render(scene, camera); });
+    const poster = new THREE.TextureLoader().load("/kino/kugel.jpg", (t) => { t.colorSpace = THREE.SRGBColorSpace; mat.needsUpdate = true; renderer.render(scene, camera); });
     // Additiv für die Farbe, aber die Deckkraft der Fläche NICHT mitschreiben — sonst
     // wird die durchsichtige Leinwand dort deckend und das Schwarz des Videos bleibt
     // als Quadrat stehen. (Farbe mit Alpha 0 zeigt der Browser als reines Licht.)

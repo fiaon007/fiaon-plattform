@@ -246,8 +246,8 @@ function Hero({ onCta }: { onCta: () => void }) {
               <span className="text-[12.5px] font-medium text-gray-500">Das Betriebssystem f&uuml;r Bonit&auml;t &middot; Deutschland, &Ouml;sterreich, Schweiz</span>
             </div>
 
-            <h1 style={rise(1)} className="text-[2.35rem] sm:text-[3.1rem] lg:text-[3.5rem] xl:text-[3.9rem] font-semibold leading-[1.06] tracking-tight mb-6">
-              <G>Wissen, was die Auskunfteien</G><br />
+            <h1 style={rise(1)} className="text-[2.35rem] sm:text-[3rem] lg:text-[3.2rem] xl:text-[3.6rem] font-semibold leading-[1.06] tracking-tight mb-6">
+              <G>Wissen, was Auskunfteien</G><br />
               <G>&uuml;ber Sie wissen.</G><br />
               <span className="text-gray-400">Und es &auml;ndern.</span>
             </h1>

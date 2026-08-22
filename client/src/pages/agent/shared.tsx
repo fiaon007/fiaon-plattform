@@ -251,6 +251,8 @@ const NAV: {
   // Aufgaben stehen bewusst VOR dem Kalender: Ein zugewiesener Auftrag mit
   // Frist ist verbindlicher als ein selbst gesetzter Termin.
   { href: "/agent/aufgaben", label: "Aufgaben", icon: ListChecks, match: ["/agent/aufgaben"] },
+  // Anliegen der Kunden aus „Hilfe & Anliegen" (E-019). Eigene Kunden zuerst, dann der Pool.
+  { href: "/agent/anliegen", label: "Anliegen", icon: Mail, match: ["/agent/anliegen"] },
   // ══════════════════════════════════════════════════════════════════════════
   // KEIN KALENDER FÜR DAS FORDERUNGSMANAGEMENT
   //
@@ -702,6 +704,7 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
   // Anzeige muss zwischen „es ist kaputt" und „ich kann es nicht messen"
   // unterscheiden. Nach zwölf Sekunden sagt sie es.
   // ══════════════════════════════════════════════════════════════════════════
+  const [anliegenOffen, setAnliegenOffen] = useState(0);
   const [ladenZaeh, setLadenZaeh] = useState(false);
   useEffect(() => {
     if (checked && onboardingComplete !== null) { setLadenZaeh(false); return; }
@@ -713,11 +716,16 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
   // eine Zahl, die niemand sekundengenau braucht.
   useEffect(() => {
     if (!agent) return;
+    const holeAnliegen = () => api("/agent/tickets/zaehler")
+      .then((r) => { if (r.ok) setAnliegenOffen((r.json.meine || 0) + (r.json.pool || 0)); }).catch(() => {});
+    holeAnliegen();
+    const ta = setInterval(holeAnliegen, 120_000);
+    window.addEventListener("agent-anliegen-geaendert", holeAnliegen);
     const hole = () => api("/agent/space/ungelesen")
       .then((r) => { if (r.ok) setSpaceNeu(r.json.anzahl || 0); }).catch(() => {});
     hole();
     const t = setInterval(hole, 120_000);
-    return () => clearInterval(t);
+    return () => { clearInterval(t); clearInterval(ta); window.removeEventListener("agent-anliegen-geaendert", holeAnliegen); };
   }, [agent, location]);
 
   // Nav-Badge: Tickets mit ungelesener Vorgesetzten-Antwort. Aktualisiert beim
@@ -901,6 +909,8 @@ export function AgentShell({ children, onRefresh }: { children: ReactNode; onRef
     // Eine Aufgabe für nächste Woche soll den Zähler nicht dauerhaft rot
     // halten — sonst gewöhnt man sich an die Zahl und sieht sie nicht mehr.
     "/agent/aufgaben": aufgabenFaellig,
+    // Offene Anliegen: meine plus Pool — beides wartet auf eine Antwort.
+    "/agent/anliegen": anliegenOffen,
     // Neuerungen und Vorgesetzten-Antworten liegen beide unter „Mehr".
     "/agent/mehr": neueUpdates + fbUnread,
     // Ungelesene Beiträge im Space. Sie zählen bewusst mit in die Menü-Marke

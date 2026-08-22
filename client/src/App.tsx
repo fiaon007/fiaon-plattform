@@ -89,6 +89,7 @@ const AlsKundePage = lazy(() => import("@/pages/als-kunde"));
 // `scripts/pruef-ergebnis-eine-liste.ts` hält die Zahl der Fassungen jetzt fest.
 // ══════════════════════════════════════════════════════════════════════════
 const AgentAufgabenPage = lazy(() => import("@/pages/agent/aufgaben"));
+const AgentAnliegenPage = lazy(() => import("@/pages/agent/anliegen"));
 const AgentStartPage = lazy(() => import("@/pages/agent/start"));
 const AgentKundenNeuPage = lazy(() => import("@/pages/agent/kunden-neu"));
 const AdminTerminePage = lazy(() => import("@/pages/admin-termine"));
@@ -288,6 +289,7 @@ function Router() {
       <Route path="/agent/vertrieb" component={AgentVertriebPage} />
       {/* Aufgaben und Hinweise, die die Verwaltung dem Mitarbeiter zuweist. */}
       <Route path="/agent/aufgaben" component={AgentAufgabenPage} />
+      <Route path="/agent/anliegen" component={AgentAnliegenPage} />
       {/* Die Kartei ist abgeschaltet. Beide Pfade zeigen NICHT mehr auf sie,
           sondern leiten weiter — ein Lesezeichen darf nicht auf einer Seite
           landen, deren Endpunkte mit 410 antworten. Die Seiten selbst bleiben

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "NODE_ENV=development tsx server/index.ts",
     "build": "npm run pdf:browser && npm run haken && vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
-    "pdf:browser": "PLAYWRIGHT_BROWSERS_PATH=\"$PWD/.playwright\" npx playwright install --with-deps chromium || PLAYWRIGHT_BROWSERS_PATH=\"$PWD/.playwright\" npx playwright install chromium",
+    "pdf:browser": "PLAYWRIGHT_BROWSERS_PATH=\"$PWD/.playwright\" node node_modules/playwright/cli.js install chromium || echo '[FIAON-BUILD] WARNUNG: Chromium wurde nicht installiert. Der Build laeuft weiter — PDFs entstehen ueber den pdfkit-Notbehelf, und die PDF-Wache meldet den Zustand als rote Karte im Dashboard.'",
     "start": "npm run db:migrate:sql && PLAYWRIGHT_BROWSERS_PATH=\"$PWD/.playwright\" NODE_ENV=production node dist/index.js",
     "check": "tsc",
     "typecheck": "tsc --noEmit",

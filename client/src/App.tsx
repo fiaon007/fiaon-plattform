@@ -168,8 +168,12 @@ function Router() {
       <Route path="/antrag" component={AntragPage} />
       <Route path="/business-antrag" component={BusinessAntragPage} />
       <Route path="/login" component={LoginPage} />
-      <Route path="/dashboard" component={DashboardPage} />
+      {/* Seit 22.08.2026 (E-013): /dashboard IST der neue Bereich. Das alte Dashboard
+          bleibt unter /dashboard-alt erreichbar, bis die letzten Funktionen (KYC-
+          Prüfansicht, Bank-Anleitungen) in den neuen Bereich gewandert sind. */}
+      <Route path="/dashboard" component={MeinBereichPage} />
       <Route path="/mein-bereich" component={MeinBereichPage} />
+      <Route path="/dashboard-alt" component={DashboardPage} />
       {/* Nach der Anmeldung landet auch der Vorgesetzte im SPACE — dort steht,
           was das Haus heute gemacht hat. Das Dashboard bleibt als eigener
           Punkt erreichbar: /admin/dashboard. */}

@@ -28,6 +28,7 @@ interface Bereich {
   fahrplan: Etappe[];
   naechsterSchritt: { key: string; titel: string; text: string; href: string | null } | null;
   ansprechpartner: { name: string; rolle: string | null } | null;
+  lastschrift: { mandat: string | null; status: string | null; aktiv: boolean };
   kontoVerbunden: boolean;
 }
 
@@ -135,6 +136,19 @@ export default function MeinBereichPage() {
   }, [d]);
 
   const leisteUmschalten = () => { const zu = !eingeklappt; setEingeklappt(zu); localStorage.setItem("mb_leiste", zu ? "zu" : "auf"); };
+  const terminWaehlen = async () => {
+    const r = await api(`/kunde/${encodeURIComponent(ref)}/startgespraech`);
+    const token = r.json?.token;
+    if (token) window.location.href = `/termin/${encodeURIComponent(token)}?art=start`;
+    else alert(r.json?.error || "Der Terminlink konnte nicht erzeugt werden. Bitte versuchen Sie es gleich noch einmal.");
+  };
+  const lastschriftStarten = async () => {
+    const r = await api(`/kunde/${encodeURIComponent(ref)}/lastschrift/start`, { method: "POST" });
+    if (r.ok && r.json?.url) window.location.href = r.json.url;
+    else if (r.ok && r.json?.bereits) alert("Ihre Lastschrift ist bereits eingerichtet.");
+    else alert(r.json?.error || "Die Lastschrift konnte nicht gestartet werden.");
+  };
+  const lastschriftRueckmeldung = new URLSearchParams(window.location.search).get("lastschrift");
   const abmelden = async () => { await api("/kunde/logout", { method: "POST" }).catch(() => null); sessionStorage.removeItem("fiaon_user"); window.location.href = "/login"; };
 
   if (fehler) return <div className="mb"><div className="mb-laden"><div className="mb-hinweis" style={{ maxWidth: 420 }}><b>Das hat nicht geklappt.</b><br />{fehler}</div></div></div>;
@@ -205,17 +219,18 @@ export default function MeinBereichPage() {
         <div className={`mb-grundriss${eingeklappt ? " eingeklappt" : ""}`}>
           <nav className="mb-leiste" aria-label="Bereiche">
             <button className="mb-klapp" type="button" onClick={leisteUmschalten} aria-expanded={!eingeklappt}>{eingeklappt ? "Menü" : "Menü einklappen"}</button>
-            {gruppen.map((g) => (
-              <div className="mb-leiste-block" key={g}>
+            <div className="mb-panel">
+              {gruppen.map((g) => (<div key={g} style={{ display: "contents" }}>
                 <div className="mb-leiste-titel">{g}</div>
                 {punkte.filter((p) => p.gruppe === g).map((p) => (
                   <a key={p.id} href={`#${p.id}`} data-kurz={p.kurz} title={p.label} className={aktiv === p.id ? "aktiv" : ""}>
                     <span>{p.label}</span>{p.marke ? <span className="mb-marke">{p.marke}</span> : null}
                   </a>
                 ))}
-                {g === "Konto" && <button type="button" className="mb-link" data-kurz="AB" title="Abmelden" onClick={abmelden}><span>Abmelden</span></button>}
-              </div>
-            ))}
+              </div>))}
+              <div className="mb-nutzer"><div className="mb-gesicht" aria-hidden="true">{initialen}</div><div style={{ minWidth: 0 }}><b>{name}</b><small>{d.paket.name}</small></div></div>
+              <button type="button" className="mb-link" data-kurz="AB" title="Abmelden" onClick={abmelden}><span>Abmelden</span></button>
+            </div>
           </nav>
 
           <main className="mb-spalte">
@@ -237,8 +252,23 @@ export default function MeinBereichPage() {
               <Mitgliedskarte name={name} paket={d.paket.name} rahmen={d.paket.rahmen} />
             </section>
 
+            {/* ═══ STARTGESPRÄCH (Pflicht, solange nicht gebucht) ═══ */}
+            {!d.stufe.vollAktiv && !d.termin && (
+              <div className="mb-pflicht">
+                <div><h3>Ihr Startgespräch — der erste Schritt</h3><p>Fünfzehn Minuten am Telefon: Wir gehen Ihren Bereich gemeinsam durch, klären offene Fragen und schalten Ihr Konto vollständig frei. Wählen Sie einen Zeitpunkt, der Ihnen passt.</p></div>
+                <button className="mb-knopf" type="button" onClick={terminWaehlen}>Termin wählen</button>
+              </div>
+            )}
+            {lastschriftRueckmeldung && (
+              <div className={`mb-meldung ${lastschriftRueckmeldung === "eingerichtet" ? "gut" : "fehler"}`} style={{ marginTop: 0 }}>
+                {lastschriftRueckmeldung === "eingerichtet" ? "Ihre Lastschrift ist eingerichtet. Die Raten werden ab jetzt automatisch eingezogen — Sie müssen nichts mehr überweisen."
+                  : lastschriftRueckmeldung === "abgebrochen" ? "Die Einrichtung wurde abgebrochen. Sie können sie jederzeit unter Abo & Zahlungen erneut starten."
+                  : "Die Lastschrift konnte nicht eingerichtet werden. Bitte versuchen Sie es erneut oder schreiben Sie uns."}
+              </div>
+            )}
+
             {/* ═══ NÄCHSTER SCHRITT ═══ */}
-            {ns && (
+            {ns && ns.key !== "start" && (
               <div className="mb-tat">
                 <div><h3>{ns.titel}</h3><p>{ns.text}</p></div>
                 {ns.href ? <a className="mb-knopf" href={ns.href}>Jetzt erledigen</a> : null}
@@ -262,7 +292,7 @@ export default function MeinBereichPage() {
                       <p style={{ margin: "8px 0 0", fontSize: 13.5, color: "var(--text-leise)", maxWidth: "56ch" }}>Bevor irgendetwas anderes Sinn hat, braucht es einen Überblick: Was steht über Sie in den Auskunfteien? Die Auskunft wird neutral abgerufen und verändert Ihren Wert nicht. Einmalig 74 €, kein Abo.</p>
                       <div style={{ marginTop: 16, display: "flex", gap: 8, flexWrap: "wrap" }}>
                         {d.bonitaet?.darfKaufen && <a className="mb-knopf" href="/bonitaet-antrag">Auskunft beauftragen</a>}
-                        {d.bonitaet?.darfHochladen && <a className="mb-knopf still" href="/dashboard">Eigene Auskunft hochladen</a>}
+                        {d.bonitaet?.darfHochladen && <a className="mb-knopf still" href="#unterlagen">Eigene Auskunft hochladen</a>}
                       </div>
                     </div>
                     <div className="mb-warte"><b>Was Sie danach sehen:</b> Ihren Wert als Bogen, die drei größten Einträge mit ihrer Wirkung in Punkten, und zu jedem eine Einschätzung — rechtmäßig, angreifbar oder rechtswidrig.</div>
@@ -310,9 +340,10 @@ export default function MeinBereichPage() {
                   { t: "Bonitätsauskunft", da: d.unterlagen.auskunft, x: "Über uns beschafft oder selbst hochgeladen — beides geht." },
                 ].map((u) => (
                   <article className="mb-kachel" key={u.t}><h4>{u.t}</h4><p>{u.x}</p>
-                    <div className="mb-kachel-fuss"><span className={`mb-lage ${u.da ? "gut" : "frist"}`}>{u.da ? "Liegt vor" : "Fehlt"}</span>{!u.da && <a className="mb-knopf klein" href="/dashboard">Hochladen</a>}</div></article>
+                    <div className="mb-kachel-fuss"><span className={`mb-lage ${u.da ? "gut" : "frist"}`}>{u.da ? "Liegt vor" : "Fehlt"}</span></div></article>
                 ))}
               </div>
+              <Upload refKunde={d.kunde.ref} fehlt={{ kontoauszug: !d.unterlagen.kontoauszug || d.unterlagen.erneutKontoauszug, ausweis: !d.unterlagen.ausweis || d.unterlagen.erneutAusweis, auskunft: !d.unterlagen.auskunft && !!d.bonitaet?.darfHochladen }} />
             </section>
 
             {/* ═══ KONTOANBINDUNG ═══ */}
@@ -371,10 +402,13 @@ export default function MeinBereichPage() {
                   <div className="mb-zeile"><span>Verwendungszweck</span><span className="zahl">{d.abo.naechste?.referenz || d.paket.zahlungsreferenz || "—"}</span></div>
                   <div className="mb-zeile"><span>Bezahlt / offen</span><span className="zahl">{d.abo.bezahlt} / {d.abo.offen}</span></div>
                   <div className="mb-zeile"><span>Kündbar</span><span>zum Monatsende, formlos per E-Mail</span></div>
+                  <div className="mb-zeile"><span>Lastschrift</span><span>{d.lastschrift.aktiv ? "eingerichtet — Raten werden automatisch eingezogen" : d.lastschrift.mandat ? "wird von Ihrer Bank bestätigt" : "nicht eingerichtet"}</span></div>
                   <div style={{ marginTop: 14, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {d.abo.naechste && d.abo.naechste.status !== "bezahlt" && d.abo.naechste.referenz && <a className="mb-knopf klein" href={`/zahlung/${encodeURIComponent(d.abo.naechste.referenz)}`}>Jetzt bezahlen</a>}
+                    {!d.lastschrift.aktiv && d.paket.abo && <button className="mb-knopf klein" type="button" onClick={lastschriftStarten}>Lastschrift einrichten</button>}
+                    {d.abo.naechste && d.abo.naechste.status !== "bezahlt" && d.abo.naechste.referenz && <a className={`mb-knopf klein${d.lastschrift.aktiv ? " still" : ""}`} href={`/zahlung/${encodeURIComponent(d.abo.naechste.referenz)}`}>Jetzt überweisen</a>}
                     <a className="mb-knopf still klein" href="/abo-kuendigen">Abo kündigen</a>
                   </div>
+                  {!d.lastschrift.aktiv && d.paket.abo && <p style={{ margin: "10px 0 0", fontSize: 12, color: "var(--text-still)" }}>Mit der Lastschrift geben Sie Ihre IBAN einmal sicher bei unserem Zahlungspartner GoCardless ein — FIAON sieht sie nie. Danach wird jede Rate pünktlich eingezogen, ohne dass Sie an die Überweisung denken müssen.</p>}
                 </div>
                 <Passwort refKunde={d.kunde.ref} />
                 <div className="mb-karte" id="hilfe"><h4 style={{ fontSize: 15, marginBottom: 8 }}>Hilfe</h4>
@@ -498,6 +532,44 @@ function Zahlungskalender({ raten, paket }: { raten: Bereich["abo"]["raten"]; pa
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Upload: direkt an den bestehenden Endpunkt /upload-kyc (multipart) ──────
+function Upload({ refKunde, fehlt }: { refKunde: string; fehlt: { kontoauszug: boolean; ausweis: boolean; auskunft: boolean } }) {
+  const [dateien, setDateien] = useState<{ bankStatement?: File; idCard?: File; schufaDoc?: File }>({});
+  const [laeuft, setLaeuft] = useState(false);
+  const [meldung, setMeldung] = useState<{ ton: "gut" | "fehler"; text: string } | null>(null);
+  const felder: { key: "bankStatement" | "idCard" | "schufaDoc"; label: string; zeigen: boolean }[] = [
+    { key: "bankStatement", label: "Kontoauszug (PDF oder Foto)", zeigen: fehlt.kontoauszug },
+    { key: "idCard", label: "Ausweis oder Reisepass (PDF oder Foto)", zeigen: fehlt.ausweis },
+    { key: "schufaDoc", label: "Bonitätsauskunft (PDF)", zeigen: fehlt.auskunft },
+  ];
+  const sichtbar = felder.filter((f) => f.zeigen);
+  if (sichtbar.length === 0) return null;
+  const senden = async () => {
+    const fd = new FormData(); fd.append("ref", refKunde);
+    let n = 0; for (const f of sichtbar) { const d = dateien[f.key]; if (d) { fd.append(f.key, d); n++; } }
+    if (!n) { setMeldung({ ton: "fehler", text: "Bitte wählen Sie zuerst eine Datei aus." }); return; }
+    setLaeuft(true); setMeldung(null);
+    const r = await fetch("/api/fiaon/upload-kyc", { method: "POST", body: fd, credentials: "include" });
+    const j = await r.json().catch(() => null); setLaeuft(false);
+    if (r.ok && j?.ok !== false) { setMeldung({ ton: "gut", text: "Hochgeladen. Wir prüfen die Unterlagen und melden uns, falls etwas fehlt." }); setTimeout(() => window.location.reload(), 1600); }
+    else setMeldung({ ton: "fehler", text: j?.error || "Der Upload hat nicht geklappt. Bitte versuchen Sie es erneut." });
+  };
+  return (
+    <div className="mb-karte" style={{ marginTop: 16 }}>
+      <h4 style={{ fontSize: 15 }}>Jetzt einreichen</h4>
+      <p style={{ margin: "4px 0 0", fontSize: 12.8, color: "var(--text-leise)" }}>PDF, JPG oder PNG, bis 20 MB je Datei. Ein Handyfoto genügt, wenn alles lesbar ist — alle vier Ecken im Bild.</p>
+      <div className="mb-upload">
+        {sichtbar.map((f) => (
+          <label key={f.key}><span>{f.label}</span><span className="gewaehlt">{dateien[f.key]?.name || "Datei wählen"}</span>
+            <input type="file" accept=".pdf,image/*" onChange={(e) => setDateien({ ...dateien, [f.key]: e.target.files?.[0] })} /></label>
+        ))}
+      </div>
+      <div style={{ marginTop: 12 }}><button className="mb-knopf klein" type="button" disabled={laeuft} onClick={senden}>{laeuft ? "Lädt hoch …" : "Hochladen"}</button></div>
+      {meldung && <div className={`mb-meldung ${meldung.ton}`}>{meldung.text}</div>}
     </div>
   );
 }

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
 
 interface GlassNavProps {
-  activePage?: "startseite" | "privatkunden" | "business" | "was-ist-fiaon" | "plattform-konzept" | "login" | "investoren" | "karriere" | "presse" | "partner" | "datenraum";
+  activePage?: "startseite" | "privatkunden" | "business" | "was-ist-fiaon" | "plattform-konzept" | "login" | "investoren" | "karriere" | "presse" | "partner" | "datenraum" | "team";
 }
 
 export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
@@ -10,7 +10,6 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
   const [mob, setMob] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [privatOpen, setPrivatOpen] = useState(false);
-  const [privatMobileOpen, setPrivatMobileOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const dropdownPanelRef = useRef<HTMLDivElement>(null);
   // Angemeldete Kunden sehen „Mein Bereich“ statt „Login“ — sonst bleibt alles, wie es war.
@@ -223,133 +222,76 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
           </div>
         )}
 
-        {/* Mobile full-screen menu overlay */}
+        {/* ── Handy-Menü (neu 22.08.2026): dunkle Glasbühne statt leerer weißer Fläche.
+            Zwei Gruppen (Für Kunden · Unternehmen), jede Zeile mit Zweitzeile,
+            darunter die beiden Knöpfe und die Vertrauenszeile. Gleiche Sprache wie die Website. */}
         {mob && (
           <div className="lg:hidden fixed inset-0 z-40" style={{ animation: "mobMenuIn .25s ease both" }}>
-            {/* Backdrop */}
-            <div
-              className="absolute inset-0 bg-white/90"
-              style={{ backdropFilter: "blur(28px) saturate(160%)", WebkitBackdropFilter: "blur(28px) saturate(160%)" }}
-            />
-            {/* Ambient glow */}
-            <div
-              className="absolute -top-32 left-1/2 -translate-x-1/2 w-[520px] h-[420px] pointer-events-none"
-              style={{ background: "radial-gradient(ellipse at center, rgba(37,99,235,.10), transparent 65%)" }}
-            />
-            {/* Close button */}
+            <div className="absolute inset-0" style={{ background: "linear-gradient(160deg,#0a1628 0%,#111a33 55%,#0b0f24 100%)" }} />
+            <div className="absolute -top-24 -left-20 w-[420px] h-[420px] rounded-full pointer-events-none" style={{ background: "radial-gradient(circle, rgba(59,130,246,.28), transparent 65%)", filter: "blur(60px)" }} />
+            <div className="absolute bottom-0 -right-24 w-[380px] h-[380px] rounded-full pointer-events-none" style={{ background: "radial-gradient(circle, rgba(37,99,235,.22), transparent 65%)", filter: "blur(60px)" }} />
             <button
-              onClick={() => { setMob(false); setPrivatMobileOpen(false); }}
+              onClick={() => setMob(false)}
               aria-label="Menü schließen"
-              className="absolute top-5 right-5 z-50 w-11 h-11 rounded-full bg-gray-900 text-white flex items-center justify-center shadow-xl active:scale-90 transition-transform"
-              style={{ animation: "mobItemIn .4s cubic-bezier(.22,1,.36,1) both" }}
+              className="absolute top-5 right-5 z-50 w-11 h-11 rounded-full flex items-center justify-center text-white active:scale-90 transition-transform"
+              style={{ background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.16)", animation: "mobItemIn .4s cubic-bezier(.22,1,.36,1) both" }}
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                <path d="M18 6L6 18M6 6l12 12" />
-              </svg>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
             </button>
-            <div className="relative h-full flex flex-col pt-[100px] px-5 pb-8 overflow-y-auto">
-              {/* Nav items */}
-              <div className="space-y-1.5">
-                {pages.map((p, i) => (
-                  <div key={p.key} style={{ animation: `mobItemIn .5s cubic-bezier(.22,1,.36,1) ${0.05 + i * 0.06}s both` }}>
-                    {p.key === "privatkunden" ? (
-                      <>
-                        <button
-                          onClick={() => setPrivatMobileOpen(!privatMobileOpen)}
-                          className={`w-full flex items-center justify-between px-4 py-4 rounded-2xl text-[17px] font-semibold transition-all ${
-                            activePage === p.key ? "text-gray-900 bg-blue-50/70" : "text-gray-700 active:bg-gray-100"
-                          }`}
-                        >
-                          <span className="flex items-center gap-3">
-                            {activePage === p.key && <span className="w-1.5 h-1.5 rounded-full bg-[#2563eb]" />}
-                            {p.label}
-                          </span>
-                          <span
-                            className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 ${
-                              privatMobileOpen ? "bg-[#2563eb] text-white rotate-180" : "bg-gray-100 text-gray-500"
-                            }`}
-                          >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                              <path d="M6 9l6 6 6-6" />
-                            </svg>
-                          </span>
-                        </button>
-                        {/* Mobile submenu for Privatkunden */}
-                        {privatMobileOpen && (
-                          <div className="mt-1 mb-1 ml-4 pl-4 border-l-2 border-blue-100 space-y-0.5" style={{ animation: "mobItemIn .35s ease both" }}>
-                            <a
-                              href="/privatkunden"
-                              onClick={() => { setMob(false); setPrivatMobileOpen(false); }}
-                              className="flex items-center justify-between px-3 py-3.5 rounded-xl text-[15px] font-medium text-gray-600 active:bg-blue-50/60 transition-colors"
-                            >
-                              Privatkunden Startseite
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#93c5fd" strokeWidth="2.5" strokeLinecap="round">
-                                <path d="M9 18l6-6-6-6" />
-                              </svg>
-                            </a>
-                            <a
-                              href="/bonitaet"
-                              onClick={() => { setMob(false); setPrivatMobileOpen(false); }}
-                              className="flex items-center justify-between px-3 py-3.5 rounded-xl text-[15px] font-medium text-gray-600 active:bg-blue-50/60 transition-colors"
-                            >
-                              Bonitäts-Auszug
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#93c5fd" strokeWidth="2.5" strokeLinecap="round">
-                                <path d="M9 18l6-6-6-6" />
-                              </svg>
-                            </a>
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <a
-                        href={p.href}
-                        onClick={() => setMob(false)}
-                        className={`flex items-center justify-between px-4 py-4 rounded-2xl text-[17px] font-semibold transition-all ${
-                          activePage === p.key ? "text-gray-900 bg-blue-50/70" : "text-gray-700 active:bg-gray-100"
-                        }`}
-                      >
-                        <span className="flex items-center gap-3">
-                          {activePage === p.key && <span className="w-1.5 h-1.5 rounded-full bg-[#2563eb]" />}
-                          {p.hasGradient ? (
-                            <>
-                              Was ist&nbsp;<span className="fiaon-gradient-text-animated">FIAON</span>
-                            </>
-                          ) : (
-                            p.label
-                          )}
+            <div className="relative h-full flex flex-col pt-[88px] px-5 pb-8 overflow-y-auto">
+              <a href="/" onClick={() => setMob(false)} className="text-[22px] tracking-tight text-white mb-6" style={{ fontWeight: 500, animation: "mobItemIn .5s cubic-bezier(.22,1,.36,1) both" }}>FIAON</a>
+              {[
+                { titel: "Für Kunden", eintraege: [
+                  { href: "/", label: "Startseite", text: "Einsicht · Aktion · Zugang", key: "startseite" },
+                  { href: "/was-ist-fiaon", label: "Was ist FIAON", text: "Die Plattform in drei Schichten", key: "was-ist-fiaon" },
+                  { href: "/privatkunden", label: "Privatkunden", text: "Pakete, Ablauf, Preise", key: "privatkunden" },
+                  { href: "/bonitaet", label: "Bonitäts-Auszug", text: "Ihre Auskunft, beantragt durch FIAON", key: "bonitaet" },
+                  { href: "/business", label: "Business", text: "Firmenbonität und Geschäftskonto", key: "business" },
+                ] },
+                { titel: "Unternehmen", eintraege: [
+                  { href: "/team", label: "Team", text: "Wer FIAON baut", key: "team" },
+                  { href: "/karriere", label: "Karriere", text: "Von zuhause für FIAON arbeiten", key: "karriere" },
+                  { href: "/partner", label: "Partner", text: "Banken, Auskunfteien, Vermittler", key: "partner" },
+                  { href: "/presse", label: "Presse", text: "Fakten, Zahlen, Ansprechpartner", key: "presse" },
+                  { href: "/investoren", label: "Investoren", text: "Das Modell, der Datenraum", key: "investoren" },
+                ] },
+              ].map((g, gi) => (
+                <div key={g.titel} className="mb-5" style={{ animation: `mobItemIn .5s cubic-bezier(.22,1,.36,1) ${0.08 + gi * 0.1}s both` }}>
+                  <p className="text-[10.5px] uppercase tracking-[.2em] mb-2 px-1" style={{ color: "#60a5fa" }}>{g.titel}</p>
+                  <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,.05)", border: "1px solid rgba(255,255,255,.1)" }}>
+                    {g.eintraege.map((e, i) => (
+                      <a key={e.href} href={e.href} onClick={() => setMob(false)}
+                         className="flex items-center justify-between gap-3 px-4 py-3.5"
+                         style={{ borderTop: i ? "1px solid rgba(255,255,255,.07)" : undefined, background: activePage === e.key ? "rgba(37,99,235,.16)" : undefined }}>
+                        <span className="min-w-0">
+                          <span className="block text-[15.5px] text-white" style={{ fontWeight: 400 }}>{e.label}</span>
+                          <span className="block text-[12px] mt-0.5" style={{ color: "#9ca3af" }}>{e.text}</span>
                         </span>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="2" strokeLinecap="round">
-                          <path d="M9 18l6-6-6-6" />
-                        </svg>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="1.8" strokeLinecap="round" className="shrink-0"><path d="M9 18l6-6-6-6" /></svg>
                       </a>
-                    )}
+                    ))}
                   </div>
-                ))}
-              </div>
+                </div>
+              ))}
 
-              {/* CTA area */}
-              <div className="mt-auto pt-8 space-y-3" style={{ animation: "mobItemIn .5s cubic-bezier(.22,1,.36,1) .32s both" }}>
+              <div className="mt-auto pt-4 space-y-3" style={{ animation: "mobItemIn .5s cubic-bezier(.22,1,.36,1) .32s both" }}>
                 <button
                   onClick={handleAntragClick}
-                  className="fiaon-btn-gradient w-full flex items-center justify-center gap-2 py-4 rounded-2xl text-[16px] font-semibold text-white shadow-[0_12px_30px_rgba(37,99,235,.30)] active:scale-[.98] transition-transform"
+                  className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl text-[15.5px] text-white active:scale-[.98] transition-transform"
+                  style={{ fontWeight: 400, background: "linear-gradient(135deg,#2563eb,#3b82f6)", boxShadow: "0 12px 30px rgba(37,99,235,.35), inset 0 1px 0 rgba(255,255,255,.2)" }}
                 >
                   Konto eröffnen
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                    <path d="M5 12h14M12 5l7 7-7 7" />
-                  </svg>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
                 </button>
                 <a
                   href={eingeloggt ? "/dashboard" : "/login"}
-                  className="w-full flex items-center justify-center py-4 rounded-2xl text-[15px] font-semibold text-gray-700 bg-white border border-gray-200 shadow-sm active:scale-[.98] transition-transform"
+                  className="w-full flex items-center justify-center py-4 rounded-2xl text-[15px] text-white active:scale-[.98] transition-transform"
+                  style={{ fontWeight: 400, background: "rgba(255,255,255,.06)", border: "1px solid rgba(255,255,255,.14)" }}
                 >
                   {eingeloggt ? "Mein Bereich" : "Login"}
                 </a>
-                <p className="flex items-center justify-center gap-1.5 pt-2 text-center text-[11px] text-gray-400">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                    <rect x="3" y="11" width="18" height="11" rx="2" />
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                  </svg>
-                  Kostenlos &amp; unverbindlich starten
+                <p className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 pt-2 text-center text-[11px]" style={{ color: "#6b7280" }}>
+                  <span>SEPA-Lastschrift</span><span>·</span><span>EU-Hosting</span><span>·</span><span>Anwaltlich geprüft</span>
                 </p>
               </div>
             </div>

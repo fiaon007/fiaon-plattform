@@ -2,6 +2,7 @@
 import { Dunkel, Hero, Block, Karten, Kennzahlen, Schritte, Zeilen, Glas, Zitat, Fragen, Zwischenruf, Abschluss, Anfrage, Knopf, Auf } from "@/components/site/DunkleBuehne";
 import KartenSzene from "@/components/home3d/KartenSzene";
 import ArasCore from "@/components/home3d/ArasCore";
+import { Team } from "@/components/site/Team";
 import { PAKETE, SCHUFA_PREIS_EURO } from "@shared/fiaon-pakete";
 
 const euro = (cents: number) => (cents / 100).toFixed(2).replace(".", ",") + " €";
@@ -94,12 +95,10 @@ export default function Investoren() {
         ]} />
       </Block>
 
-      <Block pille="Team" titel={<>Wer das <span className="dk-verlauf">baut.</span></>}>
-        <Karten items={[
-          { tag: "Gründer", titel: "Justin Schwarzott", text: "Gründer und Director der FIAON LTD, London. Führt das Unternehmen seit dem ersten Tag so, als würde es morgen verkauft: Entscheidungsregister, Logbuch, eine Quelle für jede Zahl." },
-          { tag: "Recht", titel: "Anwaltsteam", text: "Prüft jede Vorlage, bevor sie ein Kunde versenden kann – Löschantrag, Widerspruch, Ratenvereinbarung. Ohne diese Freigabe geht kein Schreiben hinaus." },
-          { tag: "Betrieb", titel: "Vertrieb, Onboarding, Inkasso", text: "Drei Abteilungen mit eigenem Portal: Startgespräch mit jedem Kunden, feste Ansprechpartner, Begleitung jeder Rate. Viele davon waren selbst Kunden." },
-        ]} />
+      <Block pille="Team" titel={<>Wer das <span className="dk-verlauf">baut.</span></>}
+             lead="Drei Gesellschafter, die selbst im Betrieb stehen – und ein Investor, der das möglich gemacht hat.">
+        <Team kompakt />
+        <div className="dk-knoepfe"><Knopf href="/team" still>Das Team kennenlernen</Knopf></div>
       </Block>
 
       <Block eng schmal>

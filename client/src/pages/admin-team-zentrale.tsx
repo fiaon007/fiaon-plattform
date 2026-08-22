@@ -2550,7 +2550,7 @@ function NeuImTeam({ onNachricht }: { onNachricht: (id: number) => void }) {
 // VERGÜTUNG & STUNDEN
 //
 // Die Platzhalter sind ABSICHTLICH auffällig und stehen unter dem Hinweis
-// „vom Vorgesetzter zu bestätigen". Solange `verguetung_bestaetigt_am` leer ist,
+// „vom Vorgesetzten zu bestätigen". Solange `verguetung_bestaetigt_am` leer ist,
 // wird KEINE Prämie gebucht und lassen sich KEINE Stunden abrechnen — ein
 // stiller Vorgabewert, den niemand prüft, wird sonst zur echten Abrechnung.
 // ═══════════════════════════════════════════════════════════════════════════

@@ -529,7 +529,7 @@ router.post("/admin/inkasso/stunden/:agentId/bestaetigen", async (req, res: Resp
         VALUES (${agentId}, ${`STUNDEN-${monat}-${agentId}`}, 'Arbeitszeit',
                 ${cents}, 0, ${cents}, 'bestaetigt', 'stunden',
                 ${`${Math.floor(minuten / 60)} Std ${minuten % 60} Min im ${monat} `
-                  + `zu ${(satz / 100).toFixed(2).replace(".", ",")} € — bestätigt vom Vorgesetzter.`})
+                  + `zu ${(satz / 100).toFixed(2).replace(".", ",")} € — bestätigt vom Vorgesetzten.`})
         ON CONFLICT DO NOTHING
         RETURNING id
       `) as any[];

@@ -453,7 +453,7 @@ async function naechsteRateAnlegen(
  *
  * Warum ohne Knopf: Wer ein Paket kauft, hat ein Abo — das ist keine
  * Einzelfallentscheidung, sondern die Regel des Geschäfts. Der frühere Knopf
- * „Ketten anlegen" verlangte vom Vorgesetzter eine Zustimmung zu etwas, das
+ * „Ketten anlegen" verlangte vom Vorgesetzten eine Zustimmung zu etwas, das
  * ohnehin gilt, und ließ bis zum Klick Umsatz unsichtbar. Angelegt wird die
  * NÄCHSTE künftige Fälligkeit — für Monate, die nie in Rechnung gestellt
  * wurden, kann niemand gemahnt werden.

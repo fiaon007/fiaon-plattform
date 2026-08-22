@@ -24,7 +24,7 @@
  * Der letzte TwiML-Aufruf von Twilio — was wirklich ankam.
  *
  * ── WARUM DAS DIE WICHTIGSTE ZEILE DER DIAGNOSE IST ────────────────────────
- * Die Schritte 1 bis 6 prüfen die KONFIGURATION. Sie waren beim Vorgesetzter
+ * Die Schritte 1 bis 6 prüfen die KONFIGURATION. Sie waren beim Vorgesetzten
  * alle grün, und telefonieren ging trotzdem nicht: Twilio setzt bei
  * Browser-Anrufen den Parameter `To` selbst und überschreibt einen
  * gleichnamigen eigenen. Im Log stand eine leere Nummer.

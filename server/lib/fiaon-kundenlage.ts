@@ -246,7 +246,7 @@ export async function zugangsLage(email: string): Promise<ZugangsLage> {
     "AUTH-01": "Der Kunde tippt ein falsches Passwort. „Passwort vergessen“ auf der Login-Seite — Name, E-Mail und Geburtsdatum genügen.",
     "AUTH-02": "Für dieses Konto ist kein Passwort gespeichert. Der Kunde setzt es über „Passwort vergessen“ — dafür braucht er Name, E-Mail und Geburtsdatum.",
     "AUTH-03": "Die Zahlung ist noch nicht gebucht. Sobald sie steht, geht das Konto automatisch auf.",
-    "AUTH-04": "Das Konto ist vom Vorgesetzter gesperrt. Das kann die Vertriebsleitung nicht aufheben — bitte an den Vorgesetzten.",
+    "AUTH-04": "Das Konto ist vom Vorgesetzten gesperrt. Das kann die Vertriebsleitung nicht aufheben — bitte an den Vorgesetzten.",
     "AUTH-05": "Technischer Fehler beim Login. Bitte an den Vorgesetzten, mit Uhrzeit und E-Mail des Kunden.",
   };
 

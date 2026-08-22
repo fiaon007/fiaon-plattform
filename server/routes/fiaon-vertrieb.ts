@@ -12,8 +12,8 @@
 //   · Zahlungsdaten senden
 //
 // WAS SIE NICHT DÜRFEN
-//   · Zahlungen buchen        → bleibt beim Vorgesetzter
-//   · Provisionen ändern      → bleibt beim Vorgesetzter
+//   · Zahlungen buchen        → bleibt beim Vorgesetzten
+//   · Provisionen ändern      → bleibt beim Vorgesetzten
 //   · Agenten anlegen/löschen oder Rollen ändern
 //   · Bankdaten anderer Agenten sehen
 //
@@ -1138,7 +1138,7 @@ router.post("/agent/vertrieb/zahlung/:paymentRef/bezahlt", requireAgent, nurLeit
 // beendet keine Bestellung. Was er anfasst — die Zuständigkeit —, verlangt bei
 // zwei verschiedenen Betreuern ohnehin eine ausdrückliche, protokollierte Wahl.
 //
-// ARCHIVIEREN ja, WIEDERHERSTELLEN nein: Zurückholen bleibt beim Vorgesetzter.
+// ARCHIVIEREN ja, WIEDERHERSTELLEN nein: Zurückholen bleibt beim Vorgesetzten.
 // ═══════════════════════════════════════════════════════════════════════════
 
 /** Klartext-Akteur für alle Protokolle dieses Bereichs. */

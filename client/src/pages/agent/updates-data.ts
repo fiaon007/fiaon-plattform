@@ -2427,7 +2427,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
     changes: [
       "Sagt dein Kunde, er habe überwiesen: Die Vertriebsleitung sieht die Bankeingänge und kann ihn bei belegtem Geld selbst auf „bezahlt“ setzen. Das Konto geht sofort auf und der Kunde bekommt seine Bestätigung.",
       "Gebucht wird nur mit Nachweis — passender Verwendungszweck im Bankeingang oder ein Überweisungsbeleg, den der Kunde gezeigt hat. Ohne Nachweis und ohne echtes Eingangsdatum geht der Knopf nicht.",
-      "Fehlende Unterlagen sind sichtbar: Bei welchen bezahlten Kunden noch Ausweis, Kontoauszug oder SCHUFA-Auskunft fehlt. Die Dokumente selbst bleiben beim Vorgesetzter.",
+      "Fehlende Unterlagen sind sichtbar: Bei welchen bezahlten Kunden noch Ausweis, Kontoauszug oder SCHUFA-Auskunft fehlt. Die Dokumente selbst bleiben beim Vorgesetzten.",
       "Login-Probleme sind erklärbar: Es steht da, WARUM ein Kunde nicht in sein Konto kommt (kein Passwort gesetzt, Zahlung offen, Konto gesperrt) und was konkret hilft.",
       "Deine Provision bleibt deine: Eine Buchung durch die Vertriebsleitung geht auf den dokumentierten Betreuer — also auf den, der die Arbeit gemacht hat.",
     ],
@@ -2677,7 +2677,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
     changes: [
       "Tippe oben links auf das Menü-Symbol — oder wisch einfach vom linken Bildschirmrand nach rechts.",
       "Schließen: nach links wischen, daneben tippen oder die Zurück-Taste.",
-      "Am Menü-Symbol steht eine Zahl, wenn etwas auf dich wartet: Antwort vom Vorgesetzter, neue Neuerungen oder Akten, die bald zurück in die Kartei laufen.",
+      "Am Menü-Symbol steht eine Zahl, wenn etwas auf dich wartet: Antwort vom Vorgesetzten, neue Neuerungen oder Akten, die bald zurück in die Kartei laufen.",
       "„Nächste Akte“ bleibt immer als Knopf sichtbar, auch wenn das Menü zu ist — eine Handbewegung bis zur Arbeit.",
       "Alles ist einhändig erreichbar, alle Tippflächen mindestens 44 Pixel.",
     ],

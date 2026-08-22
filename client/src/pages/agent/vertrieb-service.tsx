@@ -396,7 +396,7 @@ export function VertriebDokumente() {
       <div className="flex items-center justify-between gap-3 mb-3">
         <p className="text-[12.5px]" style={{ color: "var(--fi-text-leise)" }}>
           Bezahlte Kunden, bei denen Unterlagen fehlen. Du siehst, WAS fehlt — die Dokumente selbst
-          bleiben beim Vorgesetzter.
+          bleiben beim Vorgesetzten.
         </p>
         <input value={suche} onChange={(e) => setSuche(e.target.value)} placeholder="Name, E-Mail, Referenz"
                className="h-[34px] px-3 rounded-xl border bg-white text-[13px] outline-none w-[220px] shrink-0"

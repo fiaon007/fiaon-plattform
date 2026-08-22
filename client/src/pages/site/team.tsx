@@ -1,6 +1,6 @@
 // /team — Wer FIAON baut: drei Gesellschafter im Betrieb, ein Investor, ein Weg für neue Kollegen.
 import { Dunkel, Hero, Block, Karten, Schritte, Zwischenruf, Abschluss, Knopf } from "@/components/site/DunkleBuehne";
-import { Team, PERSONEN, INVESTOR } from "@/components/site/Team";
+import { Team, Mitarbeiter, PERSONEN, INVESTOR } from "@/components/site/Team";
 import SchichtenSzene from "@/components/home3d/SchichtenSzene";
 
 export default function TeamSeite() {
@@ -14,6 +14,11 @@ export default function TeamSeite() {
         szene={<SchichtenSzene namen={["Vertrieb", "Onboarding", "Betreuung"]} className="absolute inset-0" />}
         bild="/kino/presse.jpg"
       />
+
+      <Block pille="Das Team" titel={<>Die Menschen, die Sie <span className="dk-verlauf">am Telefon erreichen.</span></>}
+             lead="Vertrieb, Onboarding, Forderungsmanagement – wer bei FIAON anruft, spricht mit einem dieser Menschen. Viele von ihnen waren selbst Kunden." mitte>
+        <div style={{ textAlign: "left" }}><Mitarbeiter /></div>
+      </Block>
 
       <Block pille="Die Gesellschafter" titel={<>Wer was <span className="dk-verlauf">verantwortet.</span></>} mitte>
         <div style={{ textAlign: "left" }}><Team /></div>

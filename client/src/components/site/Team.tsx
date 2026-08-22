@@ -29,6 +29,17 @@ export const PERSONEN = [
   },
 ] as const;
 
+/** Das Team im Betrieb — vollständige Namen, Bereich. Fotos unter /portraits/<kuerzel>.jpg, sonst Monogramm. */
+export const MITARBEITER = [
+  { kuerzel: "nikita", name: "Nikita Boychenko", rolle: "Vertrieb" },
+  { kuerzel: "lucas", name: "Lucas Böhnert", rolle: "Vertrieb" },
+  { kuerzel: "angelique", name: "Angelique Laukert", rolle: "Vertrieb" },
+  { kuerzel: "viktoria", name: "Viktoria Reichert", rolle: "Onboarding" },
+  { kuerzel: "rifka", name: "Rifka Rovcanin", rolle: "Onboarding" },
+  { kuerzel: "diana", name: "Diana Zeller", rolle: "Forderungsmanagement" },
+  { kuerzel: "hans-juergen", name: "Hans-Jürgen Gerhold", rolle: "Forderungsmanagement" },
+] as const;
+
 export const INVESTOR = {
   name: "Schwarzott Capital Partners AG",
   adresse: ["Schifflände 26", "8001 Zürich", "Schweiz"],
@@ -78,15 +89,15 @@ export function Team({ kompakt = false }: { kompakt?: boolean }) {
       </div>
       {!kompakt && (
         <Auf verzoegerung={200}>
-          <div className="dk-glas ruhig" style={{ marginTop: 24, display: "grid", gridTemplateColumns: "1fr auto", gap: 24, alignItems: "center" }}>
+          <div className="dk-glas ruhig team-investor" style={{ marginTop: 24 }}>
             <div>
               <span className="tag">Investor und Partner</span>
               <h3 className="dk-h3">{INVESTOR.name}</h3>
               <p className="dk-text" style={{ marginTop: 8 }}>{INVESTOR.text}</p>
             </div>
-            <div className="dk-leise" style={{ textAlign: "right", lineHeight: 1.6 }}>
+            <div className="dk-leise adresse" style={{ lineHeight: 1.7 }}>
               {INVESTOR.adresse.map((z) => <div key={z}>{z}</div>)}
-              <a href={`mailto:${INVESTOR.email}`} style={{ color: "#93c5fd", textDecoration: "none" }}>{INVESTOR.email}</a>
+              <a href={`mailto:${INVESTOR.email}`} style={{ color: "#93c5fd", textDecoration: "none", wordBreak: "break-all" }}>{INVESTOR.email}</a>
             </div>
           </div>
         </Auf>
@@ -97,5 +108,24 @@ export function Team({ kompakt = false }: { kompakt?: boolean }) {
         </Auf>
       )}
     </>
+  );
+}
+
+/** Die Mitarbeiterinnen und Mitarbeiter — Porträt, vollständiger Name, Bereich. */
+export function Mitarbeiter() {
+  return (
+    <div className="team-leute">
+      {MITARBEITER.map((m, i) => (
+        <Auf key={m.kuerzel} verzoegerung={i * 60}>
+          <div className="dk-glas ruhig team-person">
+            <Portrait kuerzel={m.kuerzel} name={m.name} />
+            <div>
+              <span className="tag" style={{ marginBottom: 4 }}>{m.rolle}</span>
+              <p className="team-name">{m.name}</p>
+            </div>
+          </div>
+        </Auf>
+      ))}
+    </div>
   );
 }

@@ -1052,8 +1052,9 @@ export default function AntragPage() {
                   onClick={() => { setPack(p); up("wantedLimit", Math.min(d.wantedLimit, p.lim)); track("pack_select", { pack: p.key }, ref); setTimeout(() => goStep(1), 400); }}
                   className="relative"
                   style={{
-                    background: "#ffffff",
-                    border: p.key === "pro" ? "1.5px solid rgba(37,99,235,0.35)" : "1.5px solid rgba(37,99,235,0.10)",
+                    background: "rgba(15,23,42,.6)",
+                    backdropFilter: "blur(18px)",
+                    border: p.key === "pro" ? "1.5px solid rgba(96,165,250,0.55)" : "1.5px solid rgba(255,255,255,0.12)",
                     borderRadius: "24px",
                     padding: "0",
                     boxShadow: p.key === "pro" ? "0 8px 40px rgba(37,99,235,0.13)" : "0 4px 24px rgba(37,99,235,0.07)",
@@ -1428,7 +1429,7 @@ export default function AntragPage() {
         {/* === EDGE-TO-EDGE DASHBOARD MOCKUP SECTION === */}
         {step === 0 && (
           <div className="mt-20 animate-[fadeInUp_.8s_ease]">
-            <div className="relative w-full overflow-hidden" style={{ background: "#ffffff" }}>
+            <div className="relative w-full overflow-hidden" style={{ background: "transparent" }}>
               {/* Background Effects */}
               <div className="absolute inset-0 overflow-hidden">
                 <div className="absolute top-0 right-0 w-[800px] h-[600px] opacity-20" style={{
@@ -1679,7 +1680,7 @@ export default function AntragPage() {
         {/* === ROI CALCULATOR SECTION === */}
         {step === 0 && (
           <div className="mt-20 animate-[fadeInUp_.8s_ease]">
-            <div className="relative py-24 sm:py-32 px-6 rounded-3xl overflow-hidden" style={{ background: "#ffffff" }}>
+            <div className="relative py-24 sm:py-32 px-6 rounded-3xl overflow-hidden" style={{ background: "transparent" }}>
               {/* Background Effects */}
               <div className="absolute inset-0 overflow-hidden">
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[600px] opacity-20" style={{

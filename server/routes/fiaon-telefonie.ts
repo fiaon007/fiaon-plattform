@@ -696,6 +696,43 @@ router.post("/telefon/twiml", async (req: Request, res: Response) => {
     // bekommt eine leere Nummer.
     const an = String(b?.An || b?.Ziel || b?.PhoneNumber || b?.To || "");
 
+    // ══════════════════════════════════════════════════════════════════════
+    // DIE ANRUF-ZEILE REIST MIT (22.08.2026)
+    //
+    // ── DER BEFUND ────────────────────────────────────────────────────────
+    // Twilio meldete Status und Aufnahme nur mit seiner CallSid. Der Server
+    // kannte die SID aber noch nicht und nahm ersatzweise „die jüngste
+    // gewählte Zeile ohne SID" — von IRGENDEINEM Agenten. Wählten zwei
+    // Kollegen binnen Sekunden, bekam der eine die SID (und damit Aufnahme,
+    // Transkript und KI-Zusammenfassung) des anderen. Gemessen gegen Twilios
+    // eigene Aufzeichnung: 194 von 1.613 Anrufen (12 %), 132 Aufnahmen am
+    // falschen Kunden, 56 Akten mit fremder Gesprächszusammenfassung.
+    //
+    // ── DIE LÖSUNG ────────────────────────────────────────────────────────
+    // Der Browser gibt die Kennung der Zeile (`Anruf`) mit. Twilio schickt
+    // diese Parameter an die TwiML-Anfrage — zusammen mit der CallSid. Hier,
+    // und nur hier, werden beide zum ersten Mal gemeinsam gesehen: Die SID
+    // wird an GENAU diese Zeile gebunden, und die Kennung wandert als
+    // `?anruf=` in beide Callback-URLs, damit auch Status und Aufnahme die
+    // Zeile kennen, ohne raten zu müssen.
+    //
+    // `From` ist bei Browser-Anrufen `client:agent-<id>` — die Bindung gilt
+    // nur, wenn die Zeile demselben Agenten gehört. Eine gefälschte Kennung
+    // kann so keinen fremden Anruf kapern.
+    // ══════════════════════════════════════════════════════════════════════
+    const anrufId = Number(String(b?.Anruf || "").replace(/\D/g, "")) || null;
+    const callSid = String(b?.CallSid || "");
+    const vonClient = String(b?.From || "");
+    if (anrufId && callSid) {
+      await sqlPool`
+        UPDATE fiaon_calls
+        SET twilio_sid = COALESCE(twilio_sid, ${callSid}), updated_at = NOW()
+        WHERE id = ${anrufId} AND status = 'gewaehlt'
+          AND (${vonClient} = '' OR ${vonClient} = 'client:agent-' || agent_id::text)
+      `.catch((e) => console.error("[TELEFON] twiml: SID-Bindung fehlgeschlagen", e));
+    }
+    const mitKennung = (pfad: string) => absoluteUrl(pfad) + (anrufId ? `?anruf=${anrufId}` : "");
+
     // ── WAS WIRKLICH ANKAM, WIRD AUFGESCHRIEBEN ─────────────────────────
     // Diese Route ist die einzige Stelle, an der man sieht, was Twilio
     // übergibt. Ohne diesen Vermerk bleibt „die To-Spalte ist leer" eine
@@ -721,8 +758,8 @@ router.post("/telefon/twiml", async (req: Request, res: Response) => {
       an: pruefung.nummer!,
       von: process.env.TWILIO_CALLER_ID || "",
       ansage: await ansageText(),
-      aufnahmeCallback: absoluteUrl("/api/fiaon/telefon/aufnahme"),
-      statusCallback: absoluteUrl("/api/fiaon/telefon/status"),
+      aufnahmeCallback: mitKennung("/api/fiaon/telefon/aufnahme"),
+      statusCallback: mitKennung("/api/fiaon/telefon/status"),
       // Die Ansage wird dem ANGERUFENEN vorgelesen, sobald er abnimmt.
       ansageUrl: absoluteUrl("/api/fiaon/telefon/ansage"),
     }));
@@ -740,6 +777,15 @@ router.post("/telefon/status", async (req: Request, res: Response) => {
     const sid = String(b?.CallSid || "");
     const dauer = Number(b?.DialCallDuration ?? b?.CallDuration ?? 0);
     const status = String(b?.DialCallStatus || b?.CallStatus || "");
+    // ── WELCHE ZEILE? IN DIESER REIHENFOLGE, NIE „IRGENDWER" ───────────────
+    //   1. die Kennung aus der Callback-URL (seit 22.08.2026 immer dabei)
+    //   2. die SID, falls sie schon gebunden ist
+    //   3. Übergang für Browser mit altem Skript: die jüngste gewählte Zeile
+    //      DESSELBEN Agenten (`From` = client:agent-<id>) — nicht mehr die
+    //      jüngste von allen. Das war der Fehler, der 132 Aufnahmen an den
+    //      falschen Kunden hängte.
+    const anrufId = Number(String(req.query?.anruf || "").replace(/\D/g, "")) || null;
+    const agentAusClient = Number(/^client:agent-(\d+)$/.exec(String(b?.From || ""))?.[1] || 0) || null;
     if (sid) {
       await sqlPool`
         UPDATE fiaon_calls
@@ -747,9 +793,12 @@ router.post("/telefon/status", async (req: Request, res: Response) => {
             ende = NOW(), dauer_sek = ${dauer || null},
             status = ${status === "completed" ? "beendet" : status === "no-answer" || status === "busy" ? "abgelehnt" : "fehlgeschlagen"},
             updated_at = NOW()
-        WHERE twilio_sid = ${sid}
-           OR id = (SELECT id FROM fiaon_calls WHERE twilio_sid IS NULL AND status = 'gewaehlt'
-                     ORDER BY beginn DESC LIMIT 1)
+        WHERE id = COALESCE(
+          (SELECT id FROM fiaon_calls WHERE id = ${anrufId} AND (twilio_sid IS NULL OR twilio_sid = ${sid})),
+          (SELECT id FROM fiaon_calls WHERE twilio_sid = ${sid} ORDER BY id LIMIT 1),
+          (SELECT id FROM fiaon_calls WHERE twilio_sid IS NULL AND status = 'gewaehlt'
+             AND agent_id = ${agentAusClient} ORDER BY beginn DESC LIMIT 1)
+        )
       `;
     }
     res.type("text/xml").send('<?xml version="1.0" encoding="UTF-8"?><Response/>');
@@ -765,13 +814,21 @@ router.post("/telefon/aufnahme", async (req: Request, res: Response) => {
     const b = req.body as any;
     const sid = String(b?.CallSid || "");
     const url = String(b?.RecordingUrl || "");
+    // Dieselbe Reihenfolge wie im Status-Callback: Kennung vor SID. Eine
+    // Aufnahme an der falschen Zeile ist ein Datenschutzfall — die
+    // Zusammenfassung eines fremden Gesprächs in der Akte eines Kunden.
+    const anrufId = Number(String(req.query?.anruf || "").replace(/\D/g, "")) || null;
     if (sid && url) {
       const [c] = (await sqlPool`
         UPDATE fiaon_calls
         SET recording_url = ${`${url}.mp3`}, recording_sid = ${String(b?.RecordingSid || "")},
+            twilio_sid = COALESCE(twilio_sid, ${sid}),
             dauer_sek = COALESCE(dauer_sek, ${Number(b?.RecordingDuration ?? 0) || null}),
             updated_at = NOW()
-        WHERE twilio_sid = ${sid}
+        WHERE id = COALESCE(
+          (SELECT id FROM fiaon_calls WHERE id = ${anrufId} AND (twilio_sid IS NULL OR twilio_sid = ${sid})),
+          (SELECT id FROM fiaon_calls WHERE twilio_sid = ${sid} ORDER BY id LIMIT 1)
+        )
         RETURNING id
       `) as any[];
       // Nachbereitung im Hintergrund: Der Rückruf von Twilio darf nicht

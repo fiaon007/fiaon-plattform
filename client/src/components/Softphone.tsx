@@ -1223,7 +1223,12 @@ export function Softphone() {
       //
       // `An` ist nicht reserviert und kommt unverändert an. `Ziel` geht als
       // zweiter Name mit: kostet nichts und überlebt eine Umbenennung.
-      const c = await d.connect({ params: { An: j.nummer, Ziel: j.nummer } });
+      // `Anruf` ist die Kennung der Zeile, die /telefon/waehlen soeben angelegt
+      // hat. Mit ihr bindet der Server die Twilio-SID an GENAU diesen Anruf —
+      // vorher riet er „die jüngste gewählte Zeile ohne SID", und bei zwei
+      // Agenten, die binnen Sekunden wählten, bekam jeder die Aufnahme des
+      // anderen (Twilio-Abgleich 22.08.2026: 194 von 1.613 Anrufen, 132 Aufnahmen).
+      const c = await d.connect({ params: { An: j.nummer, Ziel: j.nummer, Anruf: String(j.callId) } });
       verbindung.current = c;
       // „accept" ist der Moment, in dem der Gegenüber abnimmt — erst dann
       // läuft die Uhr. Sonst zählt sie das Klingeln mit, und die Dauer im

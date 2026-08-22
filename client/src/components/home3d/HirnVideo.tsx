@@ -37,12 +37,13 @@ export default function HirnVideo({ className = "", ruhig = false }: { className
     tex.colorSpace = THREE.SRGBColorSpace;
 
     // Poster sofort, Video sobald es läuft — beide additiv
-    const poster = new THREE.TextureLoader().load("/kino/hirn.jpg", (t) => { t.colorSpace = THREE.SRGBColorSpace; });
+    // Sobald das Poster da ist, einmal zeichnen — auch wenn der Tab gerade im Hintergrund liegt.
+    const poster = new THREE.TextureLoader().load("/kino/hirn.jpg", (t) => { t.colorSpace = THREE.SRGBColorSpace; mat.needsUpdate = true; renderer.render(scene, camera); });
     const mat = new THREE.MeshBasicMaterial({ map: poster, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: ruhig ? 0.8 : 1 });
     const groesse = 2.6;
     const ebene = new THREE.Mesh(new THREE.PlaneGeometry(groesse, groesse), mat);
     scene.add(ebene);
-    video.addEventListener("playing", () => { mat.map = tex; mat.needsUpdate = true; }, { once: true });
+    video.addEventListener("playing", () => { mat.map = tex; mat.needsUpdate = true; renderer.render(scene, camera); }, { once: true });
 
     const aura = new THREE.Sprite(new THREE.SpriteMaterial({ map: leuchtTextur("#2563eb"), transparent: true, opacity: ruhig ? 0.3 : 0.45, depthWrite: false, blending: THREE.AdditiveBlending }));
     aura.scale.setScalar(3.4); aura.position.z = -0.2;

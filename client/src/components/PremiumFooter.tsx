@@ -74,6 +74,7 @@ export default function PremiumFooter() {
               {[
                 ["/was-ist-fiaon", "Über FIAON"],
                 ["/plattform-konzept", "Technologie & Sicherheit"],
+                ["/team", "Team"],
                 ["/karriere", "Karriere — Werden Sie Teil des Teams"],
                 ["/partner", "Partner"],
                 ["/presse", "Presse"],

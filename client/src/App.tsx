@@ -132,6 +132,7 @@ const SitePresse = lazy(() => import("@/pages/site/presse"));
 const SiteDatenraum = lazy(() => import("@/pages/site/datenraum"));
 const SitePartner = lazy(() => import("@/pages/site/partner"));
 const SiteKarriere = lazy(() => import("@/pages/site/karriere"));
+const SiteTeam = lazy(() => import("@/pages/site/team"));
 
 // Paket N1: JEDE /admin-Seite läuft in der AdminShell (Sidebar, Breadcrumb,
 // Zurück, Cmd+K). Serverseitige Guards bleiben unberührt.
@@ -173,6 +174,7 @@ function Router() {
       <Route path="/datenraum" component={SiteDatenraum} />
       <Route path="/partner" component={SitePartner} />
       <Route path="/karriere" component={SiteKarriere} />
+      <Route path="/team" component={SiteTeam} />
       <Route path="/start" component={StartPage} />
       <Route path="/karte-sichern" component={StartPage} />
       <Route path="/business" component={BusinessPage} />

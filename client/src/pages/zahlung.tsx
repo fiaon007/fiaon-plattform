@@ -3,6 +3,8 @@ import { appViewport } from "@/lib/app-viewport";
 import { useRoute } from "wouter";
 import { QRCodeSVG, QRCodeCanvas } from "qrcode.react";
 import GlassNav from "@/components/GlassNav";
+import "@/styles/dunkel.css";
+import "@/styles/antrag-dunkel.css";
 import PremiumFooter from "@/components/PremiumFooter";
 import { buildEpcQrPayload } from "@/lib/epc-qr";
 
@@ -197,7 +199,8 @@ function TerminAngebot({ paymentReference }: { paymentReference: string }) {
 // ── Danke-Seite nach "Ich habe die Überweisung getätigt" ──────────────
 export function ZahlungDankePage() {
   return (
-    <div className="min-h-screen bg-white text-slate-900">
+    <div className="antrag-dk dk min-h-screen antialiased">
+      <div className="dk-grund" aria-hidden="true"><span className="dk-nebel a" /><span className="dk-nebel b" /><span className="dk-nebel c" /></div>
       <GlassNav />
       <div className="max-w-xl mx-auto px-4 sm:px-6 pt-28 sm:pt-32 pb-16">
         <div className="text-center py-16">
@@ -364,7 +367,8 @@ export default function ZahlungPage() {
   );
 
   return (
-    <div className="min-h-screen bg-white text-slate-900">
+    <div className="antrag-dk dk min-h-screen antialiased">
+      <div className="dk-grund" aria-hidden="true"><span className="dk-nebel a" /><span className="dk-nebel b" /><span className="dk-nebel c" /></div>
       <GlassNav />
 
       <div className="max-w-2xl mx-auto px-4 sm:px-6 pt-28 sm:pt-32 pb-16">

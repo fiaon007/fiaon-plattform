@@ -113,8 +113,7 @@ export default function FiaonHome() {
 
   return (
     <Dunkel seite="startseite" titel="Das Betriebssystem für Bonität" beschreibung="FIAON zeigt Ihnen, was SCHUFA, KSV und CRIF über Sie wissen, repariert es mit Ihnen – und öffnet die Tür zu Konto, Karte und Finanzierung. Für Deutschland, Österreich und die Schweiz.">
-      <FlugHero knoepfe={<><Knopf onClick={openModal}>Jetzt starten</Knopf><Knopf href="#aras" still>So funktioniert es</Knopf></>} />}
-      />
+      <FlugHero knoepfe={<><Knopf onClick={openModal}>Jetzt starten</Knopf><Knopf href="#aras" still>So funktioniert es</Knopf></>} />
 
       <Block eng>
         <Kennzahlen items={[

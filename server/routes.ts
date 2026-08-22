@@ -484,6 +484,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonLastschrift = await import('./routes/fiaon-lastschrift');
   app.use('/api/fiaon', fiaonLastschrift.default);
 
+  // 🎫 Anliegen (Tickets) — Hilfe im Kundenbereich als internes System.
+  const fiaonTickets = await import('./routes/fiaon-tickets');
+  app.use('/api/fiaon', fiaonTickets.default);
+
   // ❌ FIAON Cancellation Routes — Public submit + Admin review
   const cancellationRoutes = await import('./routes/cancellation');
   app.use('/api/fiaon', cancellationRoutes.default);

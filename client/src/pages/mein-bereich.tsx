@@ -20,7 +20,7 @@ interface Etappe { key: string; titel: string; text: string; stand: "fertig" | "
 interface Bereich {
   kunde: { ref: string; vorname: string; nachname: string; email: string; telefon: string; strasse: string; plz: string; ort: string; land: string; geburtsdatum: string | null; kundeSeit: string | null; profilRueckfrage: boolean; profilHinweis: string | null };
   paket: { key: string | null; name: string; abo: boolean; rahmen: number | null; wunschlimit: number | null; monatlichCents: number | null; zahlungsstatus: string; zahlungsreferenz: string | null; faelligAm: string | null };
-  stufe: { stufe: string | null; text: string | null; grund: string | null; naechsterSchritt: string | null; vollAktiv: boolean };
+  stufe: { stufe: string | null; text: string | null; grund: string | null; naechsterSchritt: string | null; vollAktiv: boolean; pflicht: boolean; bezahlt: boolean };
   bonitaet: { stufe: string; fuerKunden: string; naechsterSchritt: string; bezahlt: boolean; hatDokument: boolean; geprueft: boolean; darfKaufen: boolean; darfHochladen: boolean; bestellRef: string | null } | null;
   unterlagen: { kontoauszug: boolean; ausweis: boolean; auskunft: boolean; erneutKontoauszug: boolean; erneutAusweis: boolean; kycStatus: string; kontoStatus: string };
   abo: { naechste: { nr: number; betragCents: number; faelligAm: string | null; status: string; referenz: string } | null; offen: number; bezahlt: number; raten: { nr: number; betragCents: number; faelligAm: string | null; faelligIso: string | null; status: string; bezahltAm: string | null }[] };
@@ -186,6 +186,21 @@ export default function MeinBereichPage() {
       {vorhang && <Begruessung name={name} paket={d.paket.name} rahmen={d.paket.rahmen} zeile={begruessungsZeile}
         onZu={() => { sessionStorage.setItem("mb_begruesst", "1"); setVorhang(false); }} />}
 
+      {d.stufe.bezahlt && !d.termin && !d.stufe.vollAktiv && !vorhang && (
+        <div className="mb-vorhang mb-gate" role="dialog" aria-label="Startgespräch buchen">
+          <div className="mb-vorhang-innen">
+            <div className="z1" style={{ animationDelay: ".1s" }}>Ein Schritt noch</div>
+            <h1 className="z2" style={{ animationDelay: ".25s", fontSize: 30 }}>Ihr Startgespräch — dann ist alles frei.</h1>
+            <p className="z3" style={{ animationDelay: ".4s" }}>Fünfzehn Minuten am Telefon: Wir gehen Ihren Bereich gemeinsam durch, klären offene Fragen und schalten Ihr Konto vollständig frei. Wählen Sie jetzt einen Zeitpunkt, der Ihnen passt.</p>
+            <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+              <button className="mb-knopf" type="button" style={{ animationDelay: ".6s" }} onClick={terminWaehlen}>Termin wählen</button>
+              {!d.stufe.pflicht && <button className="mb-knopf still" type="button" style={{ animationDelay: ".7s" }} onClick={() => document.querySelector(".mb-gate")?.classList.add("zu")}>Später</button>}
+              <button className="mb-knopf still" type="button" style={{ animationDelay: ".8s" }} onClick={abmelden}>Abmelden</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <header className="mb-kopf">
         <div className="mb-kopf-innen">
           <a className="mb-wort fiaon-gradient-text-animated" href="/mein-bereich">FIAON</a>
@@ -238,7 +253,7 @@ export default function MeinBereichPage() {
             <section className="mb-buehne" id="buehne">
               <div>
                 <div className="mb-eyebrow">Ihr Stand</div>
-                <h1 className="mb-gruss">{grussWorte.map((w, i) => <span key={i} className="w" style={{ animationDelay: `${0.15 + i * 0.12}s` }}>{w}{i < grussWorte.length - 1 ? " " : ""}</span>)}</h1>
+                <h1 className="mb-gruss">{grussWorte.map((w, i) => <span key={i}><span className="w" style={{ animationDelay: `${0.15 + i * 0.12}s` }}>{w}</span>{i < grussWorte.length - 1 ? " " : ""}</span>)}</h1>
                 <p className="lead">{leadText}</p>
                 <div className="mb-kennzahlen">
                   <div className="mb-kz"><small>Paket</small><b>{d.paket.name}</b></div>
@@ -252,11 +267,20 @@ export default function MeinBereichPage() {
               <Mitgliedskarte name={name} paket={d.paket.name} rahmen={d.paket.rahmen} />
             </section>
 
-            {/* ═══ STARTGESPRÄCH (Pflicht, solange nicht gebucht) ═══ */}
-            {!d.stufe.vollAktiv && !d.termin && (
+            {/* ═══ ZAHLUNG OFFEN — davor gibt es keinen Termin ═══ */}
+            {!d.stufe.bezahlt && (
               <div className="mb-pflicht">
-                <div><h3>Ihr Startgespräch — der erste Schritt</h3><p>Fünfzehn Minuten am Telefon: Wir gehen Ihren Bereich gemeinsam durch, klären offene Fragen und schalten Ihr Konto vollständig frei. Wählen Sie einen Zeitpunkt, der Ihnen passt.</p></div>
-                <button className="mb-knopf" type="button" onClick={terminWaehlen}>Termin wählen</button>
+                <div><h3>Ihre Zahlung ist noch nicht eingegangen</h3><p>Sobald Ihre erste Rate bei uns ist, schalten wir den nächsten Schritt frei: Ihr Startgespräch. Am einfachsten richten Sie die Lastschrift ein — dann läuft jede Rate automatisch. Oder Sie überweisen mit dem Verwendungszweck {d.paket.zahlungsreferenz ? <b className="zahl">{d.paket.zahlungsreferenz}</b> : "aus Ihrer Rechnung"}.</p></div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {d.paket.abo && <button className="mb-knopf" type="button" onClick={lastschriftStarten}>Lastschrift einrichten</button>}
+                  {d.paket.zahlungsreferenz && <a className="mb-knopf still" href={`/zahlung/${encodeURIComponent(d.paket.zahlungsreferenz)}`}>Überweisen</a>}
+                </div>
+              </div>
+            )}
+            {/* ═══ STARTGESPRÄCH — Termin gebucht, noch nicht geführt ═══ */}
+            {d.stufe.bezahlt && d.termin && d.termin.status !== "erledigt" && (
+              <div className="mb-pflicht">
+                <div><h3>Ihr Startgespräch ist gebucht</h3><p>{new Date(d.termin.beginn).toLocaleString("de-DE", { weekday: "long", day: "2-digit", month: "long", hour: "2-digit", minute: "2-digit" })} Uhr{d.termin.agent ? ` mit ${d.termin.agent}` : ""}. Wir rufen Sie an — halten Sie bitte Ihren Bereich geöffnet, wir gehen ihn gemeinsam durch.</p></div>
               </div>
             )}
             {lastschriftRueckmeldung && (
@@ -411,12 +435,7 @@ export default function MeinBereichPage() {
                   {!d.lastschrift.aktiv && d.paket.abo && <p style={{ margin: "10px 0 0", fontSize: 12, color: "var(--text-still)" }}>Mit der Lastschrift geben Sie Ihre IBAN einmal sicher bei unserem Zahlungspartner GoCardless ein — FIAON sieht sie nie. Danach wird jede Rate pünktlich eingezogen, ohne dass Sie an die Überweisung denken müssen.</p>}
                 </div>
                 <Passwort refKunde={d.kunde.ref} />
-                <div className="mb-karte" id="hilfe"><h4 style={{ fontSize: 15, marginBottom: 8 }}>Hilfe</h4>
-                  <div className="mb-zeile"><span>Ihre Ansprechpartnerin</span><span>{d.ansprechpartner?.name || "FIAON Team"}</span></div>
-                  <div className="mb-zeile"><span>E-Mail</span><span>support@fiaon.com</span></div>
-                  <div className="mb-zeile"><span>Antwortzeit</span><span>werktags innerhalb von 24 Stunden</span></div>
-                  <div style={{ marginTop: 14 }}><a className="mb-knopf still klein" href="mailto:support@fiaon.com">Nachricht schreiben</a></div>
-                </div>
+                <Hilfe refKunde={d.kunde.ref} ansprechpartner={d.ansprechpartner?.name || null} />
               </div>
             </section>
 
@@ -570,6 +589,54 @@ function Upload({ refKunde, fehlt }: { refKunde: string; fehlt: { kontoauszug: b
       </div>
       <div style={{ marginTop: 12 }}><button className="mb-knopf klein" type="button" disabled={laeuft} onClick={senden}>{laeuft ? "Lädt hoch …" : "Hochladen"}</button></div>
       {meldung && <div className={`mb-meldung ${meldung.ton}`}>{meldung.text}</div>}
+    </div>
+  );
+}
+
+// ── Hilfe als Anliegen: Datensatz mit Zustand statt E-Mail ins Nirgendwo ────
+function Hilfe({ refKunde, ansprechpartner }: { refKunde: string; ansprechpartner: string | null }) {
+  const [liste, setListe] = useState<any[] | null>(null);
+  const [betreff, setBetreff] = useState(""); const [text, setText] = useState("");
+  const [offen, setOffen] = useState(false); const [laeuft, setLaeuft] = useState(false);
+  const [meldung, setMeldung] = useState<{ ton: "gut" | "fehler"; text: string } | null>(null);
+  const laden = () => api(`/kunde/${encodeURIComponent(refKunde)}/tickets`).then((r) => setListe(r.ok ? r.json.tickets : []));
+  useEffect(() => { laden(); }, [refKunde]);
+  const senden = async () => {
+    setLaeuft(true); setMeldung(null);
+    const r = await api(`/kunde/${encodeURIComponent(refKunde)}/tickets`, { method: "POST", body: JSON.stringify({ betreff, text }) });
+    setLaeuft(false);
+    if (r.ok) { setMeldung({ ton: "gut", text: "Ihr Anliegen ist bei uns. Sie sehen die Antwort hier und bekommen sie zusätzlich per E-Mail." }); setBetreff(""); setText(""); setOffen(false); laden(); }
+    else setMeldung({ ton: "fehler", text: r.json?.error || "Das Anliegen konnte nicht gesendet werden." });
+  };
+  const lage = (s: string) => s === "erledigt" ? "gut" : s === "beantwortet" ? "bereit" : "frist";
+  const lageText = (s: string) => s === "erledigt" ? "Erledigt" : s === "beantwortet" ? "Beantwortet" : "In Bearbeitung";
+  return (
+    <div className="mb-karte" id="hilfe" style={{ gridColumn: "1 / -1" }}>
+      <h4 style={{ fontSize: 15, marginBottom: 8 }}>Hilfe &amp; Anliegen</h4>
+      <div className="mb-zeile"><span>Ihre Ansprechpartnerin</span><span>{ansprechpartner || "FIAON Team"}</span></div>
+      <div className="mb-zeile"><span>Antwortzeit</span><span>werktags innerhalb von 24 Stunden</span></div>
+      {!offen ? <div style={{ marginTop: 14 }}><button className="mb-knopf klein" type="button" onClick={() => setOffen(true)}>Neues Anliegen</button></div> : (
+        <div>
+          <div className="mb-feld"><label htmlFor="t-betreff">Worum geht es?</label><input id="t-betreff" value={betreff} onChange={(e) => setBetreff(e.target.value)} placeholder="z. B. Frage zu meiner Rate im September" /></div>
+          <div className="mb-feld"><label htmlFor="t-text">Ihre Nachricht</label><textarea id="t-text" rows={4} value={text} onChange={(e) => setText(e.target.value)} style={{ font: "500 14px/1.5 'Inter',sans-serif", padding: "11px 12px", borderRadius: 10, border: "1px solid var(--linie-stark)", background: "var(--flaeche)", color: "var(--text)", resize: "vertical" }} /></div>
+          <div style={{ marginTop: 12, display: "flex", gap: 8 }}><button className="mb-knopf klein" type="button" disabled={laeuft || betreff.length < 3 || text.length < 10} onClick={senden}>{laeuft ? "Sendet …" : "Absenden"}</button><button className="mb-knopf still klein" type="button" onClick={() => setOffen(false)}>Abbrechen</button></div>
+        </div>
+      )}
+      {meldung && <div className={`mb-meldung ${meldung.ton}`}>{meldung.text}</div>}
+      {liste && liste.length > 0 && (
+        <div className="mb-kal-liste" style={{ marginTop: 16 }}>
+          {liste.map((t) => (
+            <div className="mb-kachel" key={t.id} style={{ padding: "14px 16px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                <h4 style={{ fontSize: 14 }}>{t.betreff}</h4><span className={`mb-lage ${lage(t.status)}`}>{lageText(t.status)}</span>
+              </div>
+              <p style={{ whiteSpace: "pre-wrap" }}>{t.text}</p>
+              {t.antwort && <div className="mb-warte" style={{ marginTop: 6 }}><b>Antwort{t.beantwortet_am ? ` vom ${new Date(t.beantwortet_am).toLocaleDateString("de-DE")}` : ""}:</b> <span style={{ whiteSpace: "pre-wrap" }}>{t.antwort}</span></div>}
+              <small style={{ color: "var(--text-still)", fontSize: 11 }}>gesendet am {new Date(t.created_at).toLocaleDateString("de-DE")}</small>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

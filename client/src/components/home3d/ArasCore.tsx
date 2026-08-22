@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { umgebungslicht, leuchtTextur, BLAU, BLAU_HELL, TINTE } from "./umgebung";
+import { gehirnBauen } from "./Gehirn";
 
 /*
   ArasCore — Sektion 4 Signature-Piece
@@ -68,8 +69,8 @@ export default function ArasCore({ className = "" }: { className?: string }) {
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
     renderer.setClearColor(0x000000, 0);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.05;
+    renderer.toneMapping = THREE.NeutralToneMapping;
+    renderer.toneMappingExposure = 1;
     mount.appendChild(renderer.domElement);
     renderer.domElement.style.width = "100%";
     renderer.domElement.style.height = "100%";
@@ -92,24 +93,11 @@ export default function ArasCore({ className = "" }: { className?: string }) {
     const group = new THREE.Group();
     scene.add(group);
 
-    /* ── Nucleus: lackierter Polyeder + Drahtgitter ── */
+    /* ── Kern: das KI-Hirn (22.08.2026 — statt Polyeder) ── */
     const nucleus = new THREE.Group();
     group.add(nucleus);
-    const nucSolid = new THREE.Mesh(
-      new THREE.IcosahedronGeometry(0.78, 1),
-      new THREE.MeshPhysicalMaterial({ color: 0x0d1b3e, metalness: 0.8, roughness: 0.22, clearcoat: 1, clearcoatRoughness: 0.08, flatShading: true })
-    );
-    nucleus.add(nucSolid);
-    const nucWire = new THREE.Mesh(
-      new THREE.IcosahedronGeometry(0.96, 1),
-      new THREE.MeshBasicMaterial({ color: LIGHT, wireframe: true, transparent: true, opacity: 0.35 })
-    );
-    nucleus.add(nucWire);
-    const nucGlow = new THREE.Sprite(
-      new THREE.SpriteMaterial({ map: leuchtTextur("#3b82f6"), transparent: true, opacity: 0.5, depthWrite: false })
-    );
-    nucGlow.scale.setScalar(2.6);
-    nucleus.add(nucGlow);
+    const hirn = gehirnBauen({ knoten: isMobile ? 360 : 620, stroeme: isMobile ? 60 : 120, massstab: 0.78 });
+    nucleus.add(hirn.group);
 
     /* ── Gyroskop-Ringe — gegenläufig, Metall mit Klarlack ── */
     const ringSpecs = [
@@ -214,9 +202,9 @@ export default function ArasCore({ className = "" }: { className?: string }) {
       const t = clock.getElapsedTime();
       const dt = Math.min(clock.getDelta() + 0.016, 0.05);
 
-      nucleus.rotation.y = t * 0.35;
-      nucleus.rotation.x = Math.sin(t * 0.4) * 0.2;
-      nucWire.rotation.y = -t * 0.2;
+      nucleus.rotation.y = t * 0.22;
+      nucleus.rotation.x = Math.sin(t * 0.4) * 0.12;
+      hirn.tick(t, dt);
       group.position.y = Math.sin(t * 0.6) * 0.08;
       group.rotation.x += (tRX - group.rotation.x) * 0.05;
       group.rotation.y += (tRY - group.rotation.y) * 0.05;

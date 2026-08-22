@@ -13,7 +13,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useState } from "react";
 import { Dunkel, Block, Karten, Kennzahlen, Schritte, Glas, Fragen, Zwischenruf, Abschluss, Knopf, Auf } from "@/components/site/DunkleBuehne";
-import { KinoHero } from "@/components/site/KinoHero";
+import { FlugHero } from "@/components/site/FlugHero";
 import ArasCore from "@/components/home3d/ArasCore";
 import SchichtenSzene from "@/components/home3d/SchichtenSzene";
 import { paket as paketVon, SCHUFA_PREIS_EURO } from "@shared/fiaon-pakete";
@@ -113,15 +113,10 @@ export default function FiaonHome() {
 
   return (
     <Dunkel seite="startseite" titel="Das Betriebssystem für Bonität" beschreibung="FIAON zeigt Ihnen, was SCHUFA, KSV und CRIF über Sie wissen, repariert es mit Ihnen – und öffnet die Tür zu Konto, Karte und Finanzierung. Für Deutschland, Österreich und die Schweiz.">
-      <KinoHero
-        pille="Das Betriebssystem für Bonität"
-        titel={<>Wissen, was Auskunfteien &uuml;ber Sie wissen. <span className="dk-verlauf">Und es &auml;ndern.</span></>}
-        lead="FIAON zeigt Ihnen Ihre Bonität, repariert sie mit Ihnen – und öffnet dann die Tür zu Konto, Karte und Finanzierung. Die FIAON-Analyse liest Ihre Auskunft und Ihren Kontoauszug und erklärt jeden Eintrag in Klartext."
-        punkte={["Auskunft aus SCHUFA, KSV und CRIF – beantragt durch FIAON", "Löschanträge und Widersprüche – vorbereitet und versendet", "Girokonto und Kreditkarte bis 25.000 € bei guter Bonität"]}
+      <FlugHero
+        video="/kino/flug.mp4"
+        bild="/kino/flug-start.jpg"
         knoepfe={<><Knopf onClick={openModal}>Jetzt starten</Knopf><Knopf href="#aras" still>So funktioniert es</Knopf></>}
-        hinweis="Konto in zwei Minuten. Erste Einsicht innerhalb von 24 Stunden."
-        video="/kino/hero.mp4"
-        bild="/kino/hero.jpg"
       />
 
       <Block eng>

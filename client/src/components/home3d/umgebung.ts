@@ -67,32 +67,38 @@ export function kartenTextur(variante: "blau" | "tinte" = "blau"): THREE.Texture
 
   const grund = ctx.createLinearGradient(0, 0, w, h);
   if (variante === "blau") {
-    grund.addColorStop(0, "#1d4ed8");
-    grund.addColorStop(0.55, "#2563eb");
-    grund.addColorStop(1, "#3b82f6");
+    grund.addColorStop(0, "#0f1e3d");
+    grund.addColorStop(0.5, "#132a5c");
+    grund.addColorStop(1, "#0b1630");
   } else {
-    grund.addColorStop(0, "#0b1628");
-    grund.addColorStop(0.6, "#0f172a");
-    grund.addColorStop(1, "#1e293b");
+    grund.addColorStop(0, "#0c1120");
+    grund.addColorStop(0.6, "#121a2e");
+    grund.addColorStop(1, "#0a0f1c");
   }
   ctx.fillStyle = grund;
   ctx.fillRect(0, 0, w, h);
 
-  // sanfte Lichtbahn
+  // feine Diagonalstruktur wie gebürstetes Material
+  ctx.strokeStyle = "rgba(255,255,255,0.035)";
+  ctx.lineWidth = 1;
+  for (let i = -h; i < w + h; i += 6) {
+    ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i + h, h); ctx.stroke();
+  }
+  // weiche Lichtbahn
   const bahn = ctx.createLinearGradient(0, 0, w, h);
   bahn.addColorStop(0, "rgba(255,255,255,0)");
-  bahn.addColorStop(0.45, "rgba(255,255,255,0.16)");
-  bahn.addColorStop(0.55, "rgba(255,255,255,0.16)");
+  bahn.addColorStop(0.42, "rgba(255,255,255,0.10)");
+  bahn.addColorStop(0.5, "rgba(255,255,255,0.14)");
+  bahn.addColorStop(0.58, "rgba(255,255,255,0.10)");
   bahn.addColorStop(1, "rgba(255,255,255,0)");
   ctx.fillStyle = bahn;
   ctx.fillRect(0, 0, w, h);
-
-  // feine Linien als Struktur
-  ctx.strokeStyle = "rgba(255,255,255,0.07)";
+  // dezente Bögen als Markenmuster
+  ctx.strokeStyle = "rgba(96,165,250,0.10)";
   ctx.lineWidth = 2;
-  for (let i = 0; i < 9; i++) {
+  for (let i = 0; i < 7; i++) {
     ctx.beginPath();
-    ctx.arc(w * 0.92, h * 0.15, 120 + i * 70, 0, Math.PI * 2);
+    ctx.arc(w * 0.94, h * 0.12, 140 + i * 80, 0, Math.PI * 2);
     ctx.stroke();
   }
 
@@ -125,8 +131,10 @@ export function kartenTextur(variante: "blau" | "tinte" = "blau"): THREE.Texture
   }
 
   // Wortmarke
-  ctx.fillStyle = "#ffffff";
-  ctx.font = "600 72px Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+  const silber = ctx.createLinearGradient(96, 80, 360, 140);
+  silber.addColorStop(0, "#f1f5f9"); silber.addColorStop(0.5, "#cbd5e1"); silber.addColorStop(1, "#e2e8f0");
+  ctx.fillStyle = silber;
+  ctx.font = "500 68px Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
   ctx.textBaseline = "alphabetic";
   ctx.fillText("FIAON", 96, 132);
   ctx.font = "500 26px Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
@@ -134,8 +142,11 @@ export function kartenTextur(variante: "blau" | "tinte" = "blau"): THREE.Texture
   ctx.fillText("BONITÄT · DACH", 100, 172);
 
   // Nummer (maskiert)
-  ctx.fillStyle = "rgba(255,255,255,0.92)";
-  ctx.font = "500 54px Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+  // geprägte Nummer: Schatten unten, Licht oben
+  ctx.font = "400 52px Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+  ctx.fillStyle = "rgba(0,0,0,0.45)";
+  ctx.fillText("••••   ••••   ••••   0925", 97, 472);
+  ctx.fillStyle = "rgba(226,232,240,0.95)";
   ctx.fillText("••••   ••••   ••••   0925", 96, 470);
 
   ctx.font = "500 24px Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
@@ -157,8 +168,8 @@ export function kartenTextur(variante: "blau" | "tinte" = "blau"): THREE.Texture
   ctx.fillText("25.000 €", w - 96, 590);
 
   // feine helle Kante innen — die Karte wirkt gefasst statt flach
-  ctx.strokeStyle = "rgba(255,255,255,0.22)";
-  ctx.lineWidth = 3;
+  ctx.strokeStyle = "rgba(255,255,255,0.12)";
+  ctx.lineWidth = 2;
   abgerundet(ctx, 1.5, 1.5, w - 3, h - 3, KARTEN_RADIUS - 1);
   ctx.stroke();
 
@@ -177,9 +188,9 @@ export function kartenRueckseite(variante: "blau" | "tinte" = "blau"): THREE.Tex
   ctx.clearRect(0, 0, w, h);
   abgerundet(ctx, 0, 0, w, h, KARTEN_RADIUS);
   ctx.clip();
-  ctx.fillStyle = variante === "blau" ? "#1e40af" : "#0f172a";
+  ctx.fillStyle = variante === "blau" ? "#101f40" : "#0d1424";
   ctx.fillRect(0, 0, w, h);
-  ctx.fillStyle = "#0b1628";
+  ctx.fillStyle = "#05070d";
   ctx.fillRect(0, 90, w, 110);
   ctx.fillStyle = "rgba(255,255,255,0.9)";
   abgerundet(ctx, 96, 260, 620, 80, 10);
@@ -199,22 +210,22 @@ export function karteBauen(breite: number, variante: "blau" | "tinte" = "blau"):
   // Echte Karte: Ecken ≈ 3,7 % der Breite, hier etwas mehr; viele Segmente, damit die Rundung glatt ist.
   const geo = new RoundedBoxGeometry(breite, hoehe, dicke, 8, breite * 0.055);
   const kante = new THREE.MeshPhysicalMaterial({
-    color: variante === "blau" ? "#1e40af" : "#0f172a",
-    metalness: 0.6,
-    roughness: 0.35,
-    clearcoat: 1,
-    clearcoatRoughness: 0.12,
+    color: variante === "blau" ? "#101f40" : "#0d1424",
+    metalness: 0.3,
+    roughness: 0.45,
+    clearcoat: 0.8,
+    clearcoatRoughness: 0.2,
   });
   // Die Flächen tragen die Textur mit transparenten Ecken — Plastik mit Klarlack, kein Metallbrett.
   const vorne = new THREE.MeshPhysicalMaterial({
     map: kartenTextur(variante),
     transparent: true,
     alphaTest: 0.02,
-    metalness: 0.1,
-    roughness: 0.5,
-    clearcoat: 0.35,
-    clearcoatRoughness: 0.25,
-    envMapIntensity: 0.35,
+    metalness: 0.25,
+    roughness: 0.42,
+    clearcoat: 0.9,
+    clearcoatRoughness: 0.18,
+    envMapIntensity: 0.6,
   });
   const hinten = new THREE.MeshPhysicalMaterial({
     map: kartenRueckseite(variante),

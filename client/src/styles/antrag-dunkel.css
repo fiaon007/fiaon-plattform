@@ -85,3 +85,47 @@
 .antrag-dk nav .bg-white{background-color:#fff}
 .antrag-dk nav .border-gray-200{border-color:#e5e7eb}
 .antrag-dk nav .text-gray-400{color:#9ca3af}
+
+/* ── 23.08.2026: Knöpfe kleiner, Paket-Chip lesbar, Upgrade dezent, Adresse ── */
+.antrag-dk .antrag-weiter{box-shadow:0 8px 22px rgba(37,99,235,.28),inset 0 1px 0 rgba(255,255,255,.2)}
+.antrag-dk .antrag-zurueck{color:#9ca3af;border:1px solid rgba(255,255,255,.12);background:transparent}
+.antrag-dk .antrag-zurueck:hover{background:rgba(255,255,255,.06);color:#e5e7eb}
+.antrag-dk .antrag-paketchip{display:inline-flex;align-items:center;gap:8px;padding:6px 12px 6px 10px;border-radius:999px;font-size:12px;font-weight:400;letter-spacing:.01em;color:#e5e7eb;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);transition:background .25s,border-color .25s;max-width:100%}
+.antrag-dk .antrag-paketchip:hover{background:rgba(255,255,255,.1);border-color:rgba(147,197,253,.45)}
+.antrag-dk .antrag-paketchip svg{color:#93c5fd;flex:0 0 auto}
+.antrag-dk .antrag-paketchip .name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.antrag-dk .antrag-paketchip .aendern{color:#93c5fd}
+.antrag-dk .antrag-paketchip .up{white-space:nowrap;padding:3px 9px;border-radius:999px;background:rgba(37,99,235,.22);border:1px solid rgba(96,165,250,.4);color:#bfdbfe;font-size:11px;animation:chipAtem 4s ease-in-out infinite}
+@keyframes chipAtem{0%,100%{box-shadow:0 0 0 0 rgba(37,99,235,0)}50%{box-shadow:0 0 0 5px rgba(37,99,235,.14)}}
+.antrag-dk .antrag-upgrade{display:flex;align-items:center;justify-content:space-between;gap:18px;margin:6px 0 22px;padding:16px 18px;border-radius:16px;background:linear-gradient(135deg,rgba(37,99,235,.12),rgba(255,255,255,.03));border:1px solid rgba(96,165,250,.22);transition:border-color .3s,box-shadow .3s}
+.antrag-dk .antrag-upgrade.am-limit{border-color:rgba(96,165,250,.5);box-shadow:0 16px 40px rgba(37,99,235,.18)}
+.antrag-dk .antrag-upgrade .t{margin:0;font-size:14px;color:#f3f4f6;font-weight:400}
+.antrag-dk .antrag-upgrade .s{margin:4px 0 0;font-size:12.5px;color:#9ca3af;line-height:1.5}
+.antrag-dk .antrag-upgrade .rechts{display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex:0 0 auto}
+.antrag-dk .antrag-upgrade .preis{font-size:17px;color:#bfdbfe;font-weight:400;letter-spacing:-.01em}
+.antrag-dk .antrag-upgrade .preis small{font-size:11px;color:#8b95a7;margin-left:4px}
+.antrag-dk .antrag-upgrade .dk-knopf{padding:8px 14px;font-size:12.5px;min-height:0}
+.antrag-dk .antrag-upgrade-zeile{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;margin-top:4px;padding:10px 12px;border-radius:12px;background:rgba(37,99,235,.1);border:1px solid rgba(96,165,250,.22);text-align:left;cursor:pointer;transition:background .25s,border-color .25s}
+.antrag-dk .antrag-upgrade-zeile:hover{background:rgba(37,99,235,.18);border-color:rgba(96,165,250,.45)}
+.antrag-dk .antrag-upgrade-zeile span{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#93c5fd}
+.antrag-dk .antrag-upgrade-zeile b{font-size:12.5px;font-weight:400;color:#e5e7eb}
+.antrag-dk .antrag-geburt{display:grid;grid-template-columns:1fr 1.4fr 1fr;gap:8px}
+.antrag-dk select{min-height:48px}
+.antrag-dk .antrag-adresse{margin-bottom:20px}
+.antrag-dk .antrag-adresse-zeichen{position:absolute;right:14px;top:50%;transform:translateY(-50%);color:#8b95a7;pointer-events:none;display:flex}
+.antrag-dk .antrag-adresse-zeichen .dreht{width:16px;height:16px;border-radius:999px;border:2px solid rgba(147,197,253,.25);border-top-color:#93c5fd;animation:adrDreh .8s linear infinite}
+@keyframes adrDreh{to{transform:rotate(360deg)}}
+.antrag-dk .antrag-adresse-liste{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:60;margin:0;padding:6px;list-style:none;border-radius:14px;background:rgba(11,18,36,.96);border:1px solid rgba(255,255,255,.12);box-shadow:0 24px 60px rgba(2,6,23,.6);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);max-height:280px;overflow:auto}
+.antrag-dk .antrag-adresse-liste li{display:flex;flex-direction:column;gap:1px;padding:9px 12px;border-radius:10px;cursor:pointer}
+.antrag-dk .antrag-adresse-liste li.aktiv{background:rgba(37,99,235,.22)}
+.antrag-dk .antrag-adresse-liste li b{font-weight:400;font-size:14px;color:#f3f4f6}
+.antrag-dk .antrag-adresse-liste li span{font-size:12px;color:#9ca3af}
+.antrag-dk .antrag-adresse-liste li.quelle{cursor:default;font-size:10.5px;color:#6b7280;padding-top:8px;border-top:1px solid rgba(255,255,255,.08);margin-top:4px;border-radius:0}
+.antrag-dk .antrag-adresse-link{background:none;border:0;padding:0;color:#93c5fd;font:inherit;font-size:inherit;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px;cursor:pointer}
+@media (max-width:640px){
+  .antrag-dk .antrag-upgrade{flex-direction:column;align-items:stretch}
+  .antrag-dk .antrag-upgrade .rechts{flex-direction:row;align-items:center;justify-content:space-between}
+  .antrag-dk .antrag-paketchip .name{max-width:120px}
+  .antrag-dk .antrag-knopfzeile .antrag-weiter{flex:1}
+  .antrag-dk input:not([type="range"]):not([type="checkbox"]):not([type="radio"]),.antrag-dk select{font-size:16px}
+}

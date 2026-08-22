@@ -8,6 +8,7 @@ import GlassNav from "@/components/GlassNav";
 import "@/styles/dunkel.css";
 import "@/styles/antrag-dunkel.css";
 import { AntragStart } from "@/components/antrag/AntragStart";
+import { AdresseSuche } from "@/components/antrag/AdresseSuche";
 import PremiumFooter from "@/components/PremiumFooter";
 import { checkPhone } from "@/lib/phone";
 
@@ -337,8 +338,8 @@ function PremiumButton({ children, onClick, disabled = false }: { children: Reac
     <button
       onClick={onClick}
       disabled={disabled}
-      className="relative flex-1 inline-flex items-center justify-center gap-2 py-3.5 px-6 fiaon-btn-gradient rounded-full text-[15px] font-semibold text-white overflow-hidden group transition-all duration-300 hover:scale-[1.01] hover:shadow-[0_8px_24px_rgba(37,99,235,0.35)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-none"
-      style={{ minHeight: 48 }}
+      className="antrag-weiter relative inline-flex items-center justify-center gap-2 py-2.5 px-5 fiaon-btn-gradient rounded-full text-[14px] font-medium text-white overflow-hidden group transition-all duration-300 hover:scale-[1.01] hover:shadow-[0_8px_24px_rgba(37,99,235,0.35)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-none"
+      style={{ minHeight: 42 }}
     >
       <span className="relative z-10">{children}</span>
       <svg className="relative z-10 shrink-0" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
@@ -697,6 +698,10 @@ export default function AntragPage() {
   }, [step]);
 
   const up = useCallback((k: string, v: any) => setD(p => ({ ...p, [k]: v })), []);
+  // Upgrade-Hinweis (23.08.2026, Justin: „dezent, nicht aufdringlich — der Kunde
+  // soll dazu gebracht werden, im Antrag upzugraden"): das nächstgrößere Paket.
+  const nextPack = useMemo(() => { const i = PACKS.findIndex(p => p.key === pack?.key); return i >= 0 && i < PACKS.length - 1 ? PACKS[i + 1] : null; }, [pack]);
+  const upgraden = (np: typeof PACKS[number]) => { setPack(np); track("pack_upgrade", { von: pack?.key, zu: np.key, step }, ref); };
   const cardName = (d.firstName + " " + d.lastName).trim().toUpperCase();
 
   // Dynamic placeholders based on country
@@ -742,8 +747,6 @@ export default function AntragPage() {
       if (!d.purpose) e.purpose = "Bitte wählen";
     } else if (step === 6) {
       if (!d.email || !d.email.includes("@")) e.email = "Gültige E-Mail eingeben";
-      if (!d.salaryReceiptDay) e.salaryReceiptDay = "Bitte wählen";
-      if (d.billingMethod === "iban" && !d.iban) e.iban = "IBAN eingeben";
       if (!d.ag1 || !d.ag2 || !d.ag3) e.consent = "Bitte allen Bedingungen zustimmen";
     }
     if (Object.keys(e).length) { setErrors(e); return; }
@@ -990,20 +993,10 @@ export default function AntragPage() {
                 {/* Paket-Chip — Trigger für Paket-Wechsler (mobile + desktop) */}
                 {pack && (
                   <div className="flex justify-end mb-3 -mt-1">
-                    <button
-                      type="button"
-                      onClick={() => setShowPackSwitcher(true)}
-                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-semibold text-[#2563eb] bg-blue-50/70 hover:bg-blue-100 border border-blue-200/60 transition-all"
-                      aria-label="Paket ändern"
-                    >
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="2" y="7" width="20" height="12" rx="2"/>
-                        <path d="M2 11h20"/>
-                      </svg>
-                      {/* Kein `.replace()` mehr nötig: Der Name trägt keinen Umbruch. */}
-                      <span className="truncate max-w-[160px] sm:max-w-none">{pack.name} ({pack.sub})</span>
-                      <span className="text-blue-400">·</span>
-                      <span>ändern</span>
+                    <button type="button" onClick={() => setShowPackSwitcher(true)} className="antrag-paketchip" aria-label="Paket ändern">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="12" rx="2"/><path d="M2 11h20"/></svg>
+                      <span className="name">{pack.name}</span>
+                      {nextPack ? <span className="up">Upgrade · bis {eur(nextPack.lim)}</span> : <span className="aendern">ändern</span>}
                     </button>
                   </div>
                 )}
@@ -1039,56 +1032,17 @@ export default function AntragPage() {
                     </div>
                     <div className="space-y-2">
                       <label className="block text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2">Geburtsdatum</label>
-                      <div className="grid grid-cols-3 gap-3">
-                        <div className="relative">
-                          <select
-                            value={d.birthDay}
-                            onChange={(e) => up("birthDay", e.target.value)}
-                            className="w-full px-4 py-3 bg-slate-50/50 border border-slate-200 rounded-xl text-slate-900 font-medium text-base outline-none appearance-none transition-all duration-300 ease-in-out focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300"
-                          >
-                            <option value="">Tag</option>
-                            {Array.from({length:31},(_,i)=><option key={i+1} value={String(i+1)}>{String(i+1).padStart(2,"0")}</option>)}
-                          </select>
-                          <svg className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                          </svg>
-                        </div>
-                        <div className="relative">
-                          <select
-                            value={d.birthMonth}
-                            onChange={(e) => up("birthMonth", e.target.value)}
-                            className="w-full px-4 py-3 bg-slate-50/50 border border-slate-200 rounded-xl text-slate-900 font-medium text-base outline-none appearance-none transition-all duration-300 ease-in-out focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300"
-                          >
-                            <option value="">Monat</option>
-                            {["Jan","Feb","Mär","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"].map((m,i)=><option key={i} value={String(i+1)}>{m}</option>)}
-                          </select>
-                          <svg className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                          </svg>
-                        </div>
-                        <div className="relative">
-                          <select
-                            value={d.birthYear}
-                            onChange={(e) => up("birthYear", e.target.value)}
-                            className="w-full px-4 py-3 bg-slate-50/50 border border-slate-200 rounded-xl text-slate-900 font-medium text-base outline-none appearance-none transition-all duration-300 ease-in-out focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300"
-                          >
-                            <option value="">Jahr</option>
-                            {Array.from({length:100},(_,i)=><option key={i} value={String(new Date().getFullYear() - i)}>{new Date().getFullYear() - i}</option>)}
-                          </select>
-                          <svg className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                          </svg>
-                        </div>
+                      <div className="antrag-geburt">
+                        <Sel value={d.birthDay} onChange={(v: string) => up("birthDay", v)} aria-label="Tag"><option value="">Tag</option>{Array.from({length:31},(_,i)=><option key={i+1} value={String(i+1)}>{String(i+1).padStart(2,"0")}</option>)}</Sel>
+                        <Sel value={d.birthMonth} onChange={(v: string) => up("birthMonth", v)} aria-label="Monat"><option value="">Monat</option>{["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"].map((m,i)=><option key={i} value={String(i+1)}>{m}</option>)}</Sel>
+                        <Sel value={d.birthYear} onChange={(v: string) => up("birthYear", v)} aria-label="Jahr"><option value="">Jahr</option>{Array.from({length:100},(_,i)=><option key={i} value={String(new Date().getFullYear() - 18 - i)}>{new Date().getFullYear() - 18 - i}</option>)}</Sel>
                       </div>
                       {errors.birth && <p className="mt-1 text-xs text-red-500">{errors.birth}</p>}
                     </div>
                     <PremiumPhoneInput countryCode={d.phoneCountryCode} phone={d.phone} onCountryCodeChange={(v: string) => up("phoneCountryCode", v)} onPhoneChange={(v: string) => up("phone", v)} error={errors.phone} />
                     <Field label="Wohnsitzland" req error={errors.country}><Sel value={d.country} onChange={(v: string) => up("country", v)}><option value="">Wählen</option><option value="DE">Deutschland</option><option value="AT">Österreich</option><option value="CH">Schweiz</option><option value="AL">Albanien</option><option value="AD">Andorra</option><option value="BY">Belarus</option><option value="BE">Belgien</option><option value="BA">Bosnien und Herzegowina</option><option value="BG">Bulgarien</option><option value="HR">Kroatien</option><option value="CY">Zypern</option><option value="CZ">Tschechien</option><option value="DK">Dänemark</option><option value="EE">Estland</option><option value="FI">Finnland</option><option value="FR">Frankreich</option><option value="GE">Georgien</option><option value="GR">Griechenland</option><option value="HU">Ungarn</option><option value="IS">Island</option><option value="IE">Irland</option><option value="IT">Italien</option><option value="XK">Kosovo</option><option value="LV">Lettland</option><option value="LI">Liechtenstein</option><option value="LT">Litauen</option><option value="LU">Luxemburg</option><option value="MT">Malta</option><option value="MD">Moldawien</option><option value="MC">Monaco</option><option value="ME">Montenegro</option><option value="NL">Niederlande</option><option value="MK">Nordmazedonien</option><option value="NO">Norwegen</option><option value="PL">Polen</option><option value="PT">Portugal</option><option value="RO">Rumänien</option><option value="RU">Russland</option><option value="SM">San Marino</option><option value="RS">Serbien</option><option value="SK">Slowakei</option><option value="SI">Slowenien</option><option value="ES">Spanien</option><option value="SE">Schweden</option><option value="CH">Schweiz</option><option value="TR">Türkei</option><option value="UA">Ukraine</option><option value="GB">Vereinigtes Königreich</option><option value="VA">Vatikanstadt</option></Sel></Field>
-                    <PremiumInput label="Straße & Hausnummer" value={d.street} onChange={(v: string) => up("street", v)} placeholder={addressPlaceholders.street} isValid={!!d.street} error={errors.street} />
-                    <div className="grid grid-cols-2 gap-3">
-                      <PremiumInput label="PLZ" value={d.zip} onChange={(v: string) => up("zip", v)} placeholder={addressPlaceholders.zip} isValid={!!d.zip} error={errors.zip} />
-                      <PremiumInput label="Ort" value={d.city} onChange={(v: string) => up("city", v)} placeholder={addressPlaceholders.city} isValid={!!d.city} error={errors.city} />
-                    </div>
+                    <AdresseSuche wert={{ street: d.street, zip: d.zip, city: d.city, country: d.country }} land={d.country || land || "DE"}
+                                  onChange={(w) => setD(p => ({ ...p, ...w }))} errors={{ street: errors.street, zip: errors.zip, city: errors.city }} platzhalter={addressPlaceholders} />
                     <Field label="Staatsangehörigkeit" req error={errors.nationality}><CountryDropdown value={d.nationality} onChange={(v: string) => up("nationality", v)} error={errors.nationality} /></Field>
                   </div>
                 </>}
@@ -1159,35 +1113,21 @@ export default function AntragPage() {
                     <div className="flex justify-between text-[10px] text-gray-400 font-mono mt-1"><span>€ 500</span><span>{eur(pack?.lim || 5000)}</span></div>
                   </Field>
                   
-                  {/* Package Suggestion when at max limit */}
-                  {d.wantedLimit >= (pack?.lim || 5000) && (() => {
-                    const currentIndex = PACKS.findIndex(p => p.key === pack?.key);
-                    const nextPack = currentIndex < PACKS.length - 1 ? PACKS[currentIndex + 1] : null;
-                    return nextPack ? (
-                      <div className="mt-4 p-4 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 animate-[fadeInUp_.4s_ease]">
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <p className="text-sm font-semibold text-blue-900 mb-1">Upgrade verfügbar</p>
-                            <p className="text-xs text-blue-700 mb-2">Mit dem {nextPack.name.replace('\n', ' ')} erhalten Sie einen Rahmen bis zu {eur(nextPack.lim)}</p>
-                            <button 
-                              onClick={() => {
-                                setPack(nextPack);
-                                // Adjust limit to be within new package range (keep current limit if valid, otherwise set to minimum)
-                                const newLimit = d.wantedLimit > nextPack.lim ? nextPack.lim : d.wantedLimit;
-                                up("wantedLimit", newLimit);
-                              }}
-                              className="text-xs font-semibold text-white bg-blue-600 px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-all"
-                            >
-                              Jetzt wechseln
-                            </button>
-                          </div>
-                          <div className="ml-4 text-right">
-                            <p className="text-lg font-bold text-blue-900">{eur(nextPack.fee)}</p>
-                            <p className="text-[10px] text-blue-600">/ Monat</p>
-                          </div>
+                  {/* Upgrade — dezent immer sichtbar, am Limit betont (23.08.2026) */}
+                  {nextPack && (() => {
+                    const amLimit = d.wantedLimit >= (pack?.lim || 5000);
+                    return (
+                      <div className={`antrag-upgrade${amLimit ? " am-limit" : ""}`}>
+                        <div className="text">
+                          <p className="t">{amLimit ? "Ihr Wunschlimit liegt am Maximum dieses Pakets." : "Mehr Spielraum, wenn Sie ihn brauchen."}</p>
+                          <p className="s">{nextPack.name}: Rahmen bis {eur(nextPack.lim)} – für {eur(Math.round((nextPack.fee - (pack?.fee || 0)) * 100) / 100)} mehr im Monat.</p>
+                        </div>
+                        <div className="rechts">
+                          <span className="preis">{eur(nextPack.fee)}<small>/ Monat</small></span>
+                          <button type="button" className="dk-knopf" onClick={() => upgraden(nextPack)}>Upgrade wählen</button>
                         </div>
                       </div>
-                    ) : null;
+                    );
                   })()}
                   
                   <Field label="Verwendungszweck" req error={errors.purpose}><Sel value={d.purpose} onChange={(v: string) => up("purpose", v)}><option value="">Wählen</option><option>Tägliche Ausgaben</option><option>Online-Shopping</option><option>Reisen</option><option>Geschäftlich</option><option>Finanzielle Reserve</option></Sel></Field>
@@ -1203,13 +1143,6 @@ export default function AntragPage() {
                   <p className="text-[14px] text-gray-400 mb-6">Bestätigen Sie Ihre Daten und nehmen Sie den Vertrag an.</p>
                   
                   <Field label="E-Mail-Adresse" req error={errors.email} hint="Vertragsunterlagen werden hierhin gesendet."><Inp type="email" inputMode="email" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={d.email} onChange={(v: string) => up("email", v)} placeholder={land === "AT" ? "max@gmx.at" : land === "CH" ? "max@bluewin.ch" : "max@beispiel.de"} /><EmailVorschlaege wert={d.email} land={land || d.country} onWahl={(v) => up("email", v)} /></Field>
-                  <Field label="Gehaltseingang" req error={errors.salaryReceiptDay} hint="An welchem Tag erhalten Sie Ihr Gehalt?"><Sel value={d.salaryReceiptDay} onChange={(v: string) => up("salaryReceiptDay", v)}><option value="">Tag auswählen</option>{Array.from({length: 31}, (_, i) => <option key={i + 1} value={`${i + 1}`}>{i + 1}. Tag im Monat</option>)}<option value="last">Letzter Tag im Monat</option></Sel></Field>
-                  <div className="flex gap-0 rounded-xl overflow-hidden mb-5 fiaon-glass-panel">
-                    {[["iban","SEPA-Lastschrift"],["paper","Papierrechnung"]].map(([k,l]) => (
-                      <button key={k} onClick={() => up("billingMethod", k)} className={`flex-1 py-3 text-center text-[13px] font-semibold transition-all ${d.billingMethod === k ? "bg-white/80 text-[#2563eb]" : "text-gray-400"}`}>{l}</button>
-                    ))}
-                  </div>
-                  {d.billingMethod === "iban" && <Field label="IBAN" error={errors.iban}><Inp value={d.iban} onChange={(v: string) => up("iban", v)} placeholder="DE89 3704 0044 0532 0130 00" /></Field>}
                   {[["ag1","AGB & Datenschutz","Ich stimme zu und habe die vorvertraglichen Informationen erhalten."],["ag2","Bonitätsprüfung","Ich willige in die Übermittlung meiner Daten ein."],["ag3","Vertragsannahme","Ich nehme den Vertrag verbindlich an."]].map(([key,title,desc]) => (
                     <button key={key} onClick={() => up(key, !(d as any)[key])} className={`w-full flex gap-3 items-start p-4 rounded-xl mb-3 text-left transition-all ${(d as any)[key] ? "fiaon-glass-card-selected" : "fiaon-glass-panel hover:bg-white/60"}`}>
                       <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 mt-0.5 transition-all ${(d as any)[key] ? "border-[#2563eb] bg-[#2563eb]" : "border-gray-300"}`}>
@@ -1222,10 +1155,10 @@ export default function AntragPage() {
                 </>}
 
                 {/* Buttons */}
-                <div className="flex gap-3 mt-8 pt-4 border-t border-white/40">
-                  <button onClick={() => goStep(step === 6 ? 5 : step - 1)} className="px-5 py-3 rounded-full fiaon-glass-panel text-[13px] font-medium text-gray-600 hover:bg-white/80 transition-all">Zurück</button>
+                <div className="antrag-knopfzeile flex items-center justify-between gap-3 mt-8 pt-4 border-t border-white/40">
+                  <button onClick={() => goStep(step === 6 ? 5 : step - 1)} className="antrag-zurueck px-4 py-2.5 rounded-full text-[13px] font-medium text-gray-600 hover:bg-white/80 transition-all">Zurück</button>
                   <PremiumButton onClick={next}>
-                    {step === 3 ? "Prüfen lassen" : step === 6 ? "Vertrag annehmen" : "Weiter zu Schritt " + (step + 1)}
+                    {step === 3 ? "Prüfen lassen" : step === 6 ? "Vertrag annehmen" : `Weiter · ${SCHRITT_NAMEN[step] || ""}`}
                   </PremiumButton>
                 </div>
               </div>
@@ -1245,7 +1178,7 @@ export default function AntragPage() {
                     </div>
                     
                     <div className="relative z-10">
-                      <p className="text-[11px] font-semibold text-[#2563eb] uppercase tracking-[.2em] mb-3">DEIN PAKET</p>
+                      <p className="text-[11px] font-semibold text-[#2563eb] uppercase tracking-[.2em] mb-3">IHR PAKET</p>
                       <p className="text-[18px] font-semibold text-gray-900 mb-4 tracking-tight">{pack?.name}</p>
                       
                       <div className="space-y-3">
@@ -1260,6 +1193,12 @@ export default function AntragPage() {
                           <p className="text-[11px] font-medium text-gray-400 uppercase tracking-[.1em] mb-1">Limit</p>
                           <p className="text-[16px] font-bold fiaon-gradient-text-animated">bis {(pack?.lim || 0).toLocaleString("de-DE")} €</p>
                         </div>
+                        {nextPack && (
+                          <button type="button" className="antrag-upgrade-zeile" onClick={() => upgraden(nextPack)}>
+                            <span>Upgrade auf {nextPack.name.replace("FIAON ", "")}</span>
+                            <b>bis {eur(nextPack.lim)} · {eur(nextPack.fee)}/Mt.</b>
+                          </button>
+                        )}
                       </div>
                       
                       <div className="pt-3 mt-3 border-t border-white/40 flex items-center justify-between gap-2">
@@ -1434,7 +1373,7 @@ export default function AntragPage() {
               <p className="text-xs text-gray-500">Monatliche Gebühr: {eur(pack?.fee || 0)} · Maximales Limit: {eur(pack?.lim || 0)}</p>
             </div>
 
-            <button onClick={() => goStep(6)} className="inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-full fiaon-btn-gradient text-[15px] font-semibold text-white transition-all duration-300 hover:scale-[1.01] hover:shadow-[0_8px_24px_rgba(37,99,235,0.35)] w-full sm:w-auto" style={{ minHeight: 48 }}>
+            <button onClick={() => goStep(6)} className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full fiaon-btn-gradient text-[14px] font-medium text-white transition-all duration-300 hover:scale-[1.01] hover:shadow-[0_8px_24px_rgba(37,99,235,0.35)] w-full sm:w-auto" style={{ minHeight: 48 }}>
               <span>Vertrag annehmen &amp; fortfahren</span>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
             </button>
@@ -1479,8 +1418,8 @@ export default function AntragPage() {
                 <button
                   type="button"
                   onClick={handleProceedToPayment}
-                  className="relative w-full inline-flex items-center justify-center gap-2.5 overflow-hidden rounded-full fiaon-btn-gradient py-4 sm:py-5 px-6 text-white font-semibold text-[15px] sm:text-[16px] shadow-xl shadow-blue-500/30 transition-all duration-300 hover:shadow-2xl hover:shadow-blue-600/40 hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus:ring-4 focus:ring-blue-300"
-                  style={{ minHeight: 52 }}
+                  className="relative w-full sm:w-auto sm:min-w-[340px] mx-auto inline-flex items-center justify-center gap-2.5 overflow-hidden rounded-full fiaon-btn-gradient py-3.5 px-7 text-white font-medium text-[15px] shadow-xl shadow-blue-500/30 transition-all duration-300 hover:shadow-2xl hover:shadow-blue-600/40 hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus:ring-4 focus:ring-blue-300"
+                  style={{ minHeight: 46 }}
                 >
                   <span className="absolute inset-0 pointer-events-none" style={{
                     background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.22), transparent)",
@@ -1658,8 +1597,8 @@ export default function AntragPage() {
                     setPasswordError("Fehler beim Speichern des Passworts");
                   }
                 }}
-                className="w-full inline-flex items-center justify-center gap-2 py-4 rounded-full fiaon-btn-gradient text-[15px] font-semibold text-white transition-all duration-300 hover:shadow-[0_8px_24px_rgba(37,99,235,0.35)] hover:-translate-y-0.5"
-                style={{ minHeight: 52 }}
+                className="w-full inline-flex items-center justify-center gap-2 py-3.5 rounded-full fiaon-btn-gradient text-[15px] font-medium text-white transition-all duration-300 hover:shadow-[0_8px_24px_rgba(37,99,235,0.35)] hover:-translate-y-0.5"
+                style={{ minHeight: 46 }}
               >
                 <span>Konto erstellen</span>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>

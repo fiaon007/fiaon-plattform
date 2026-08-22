@@ -553,7 +553,7 @@ function Zahlungskalender({ raten, paket }: { raten: Bereich["abo"]["raten"]; pa
   const [monat, setMonat] = useState(() => { const h = new Date(); return new Date(h.getFullYear(), h.getMonth(), 1); });
   const heute = new Date(); const heuteKey = heute.toISOString().slice(0, 10);
   const eintraege = raten.filter((r) => r.faelligIso).map((r) => ({
-    datum: r.faelligIso as string, titel: `FIAON ${paket} · Rate ${r.nr}`,
+    datum: r.faelligIso as string, titel: `${/^fiaon/i.test(paket) ? paket : `FIAON ${paket}`} · Rate ${r.nr}`,
     zweck: `Verwendungszweck: ${(r as any).referenz || "siehe Rechnung"}`, betragCents: r.betragCents,
     art: r.status === "bezahlt" ? "bezahlt" : "offen", bezahltAm: r.bezahltAm,
   }));
@@ -637,16 +637,16 @@ function FinanzAnalyse({ a, hatAuszug }: { a: any; hatAuszug: boolean }) {
         <div className="mb-karte">
           <h4 style={{ fontSize: 15, marginBottom: 8 }}>Ihre festen Zahlungen</h4>
           {a.fixkosten.map((f: any, i: number) => (
-            <div className="mb-zeile" key={i}><span>{f.name}<small style={{ display: "block", color: "var(--text-still)" }}>{f.kategorie} · {f.rhythmus}</small></span><span className="zahl">{eurCents(f.betragCents)}</span></div>
+            <div className="mb-zeile" key={i}><span>{f.name}<small style={{ display: "block", color: "var(--text-still)" }}>{f.kategorie} · {f.rhythmus}</small></span><span className="zahl">{eurCents(f.betragCents ?? f.betrag_cents)}</span></div>
           ))}
         </div>
       )}
       {a.kategorien?.length > 0 && (
         <div className="mb-karte">
           <h4 style={{ fontSize: 15, marginBottom: 8 }}>Wohin Ihr Geld geht</h4>
-          {a.kategorien.slice().sort((x: any, y: any) => y.betragCents - x.betragCents).map((k: any, i: number) => (
+          {a.kategorien.slice().sort((x: any, y: any) => (y.betragCents ?? y.betrag_cents ?? 0) - (x.betragCents ?? x.betrag_cents ?? 0)).map((k: any, i: number) => (
             <div key={i} style={{ margin: "8px 0" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}><span>{k.name}</span><span className="zahl">{eurCents(k.betragCents)} · {Math.round((k.anteil || 0) * 100)} %</span></div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}><span>{k.name}</span><span className="zahl">{eurCents(k.betragCents ?? k.betrag_cents)} · {Math.round((k.anteil || 0) * 100)} %</span></div>
               <div style={{ height: 6, borderRadius: 6, background: "var(--flaeche-still)", marginTop: 4, overflow: "hidden" }}><div style={{ width: `${Math.min(100, Math.round((k.anteil || 0) * 100))}%`, height: "100%", background: "linear-gradient(90deg,#288DFA,#1D4ED8)" }} /></div>
             </div>
           ))}
@@ -656,7 +656,7 @@ function FinanzAnalyse({ a, hatAuszug }: { a: any; hatAuszug: boolean }) {
         <div className="mb-karte">
           <h4 style={{ fontSize: 15, marginBottom: 8 }}>Was für Ihre Bonität zählt</h4>
           {a.warnungen.map((w: any, i: number) => (
-            <p key={i} style={{ margin: "6px 0 0", fontSize: 13.5, color: ton(w.art) }}>{w.text}{w.betragCents != null ? ` (${eurCents(w.betragCents)})` : ""}</p>
+            <p key={i} style={{ margin: "6px 0 0", fontSize: 13.5, color: ton(w.art) }}>{w.text}{(w.betragCents ?? w.betrag_cents) != null ? ` (${eurCents(w.betragCents ?? w.betrag_cents)})` : ""}</p>
           ))}
         </div>
       )}

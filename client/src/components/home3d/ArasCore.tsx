@@ -103,7 +103,8 @@ export default function ArasCore({ className = "" }: { className?: string }) {
     videoEl.setAttribute("playsinline", ""); videoEl.setAttribute("muted", "");
     const videoTex = new THREE.VideoTexture(videoEl);
     videoTex.colorSpace = THREE.SRGBColorSpace;
-    const hirnMat = new THREE.MeshBasicMaterial({ map: videoTex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+    const hirnMat = new THREE.MeshBasicMaterial({ map: videoTex, transparent: true, depthWrite: false, side: THREE.DoubleSide,
+      blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor, blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.OneFactor });
     const hirnEbene = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 2.3), hirnMat);
     nucleus.add(hirnEbene);
     const hirnEbene2 = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 2.3), hirnMat);

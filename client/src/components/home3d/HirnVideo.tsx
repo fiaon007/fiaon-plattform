@@ -39,7 +39,11 @@ export default function HirnVideo({ className = "", ruhig = false }: { className
     // Poster sofort, Video sobald es läuft — beide additiv
     // Sobald das Poster da ist, einmal zeichnen — auch wenn der Tab gerade im Hintergrund liegt.
     const poster = new THREE.TextureLoader().load("/kino/hirn.jpg", (t) => { t.colorSpace = THREE.SRGBColorSpace; mat.needsUpdate = true; renderer.render(scene, camera); });
-    const mat = new THREE.MeshBasicMaterial({ map: poster, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: ruhig ? 0.8 : 1 });
+    // Additiv für die Farbe, aber die Deckkraft der Fläche NICHT mitschreiben — sonst
+    // wird die durchsichtige Leinwand dort deckend und das Schwarz des Videos bleibt
+    // als Quadrat stehen. (Farbe mit Alpha 0 zeigt der Browser als reines Licht.)
+    const mat = new THREE.MeshBasicMaterial({ map: poster, transparent: true, depthWrite: false, opacity: ruhig ? 0.8 : 1,
+      blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor, blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.OneFactor });
     const groesse = 2.6;
     const ebene = new THREE.Mesh(new THREE.PlaneGeometry(groesse, groesse), mat);
     scene.add(ebene);

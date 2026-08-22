@@ -26,8 +26,8 @@ export default function Presse() {
 
       <Abschnitt ueber="Bildmaterial" titel="Wortmarke und Plattform." lead="Die Wortmarke FIAON in Blau (#1D4ED8) oder Weiß auf Blau — bitte nicht verzerren, nicht einfärben. Plattformansichten auf Anfrage in hoher Auflösung.">
         <div className="ws-raster">
-          <div className="ws-karte" style={{ display: "grid", placeItems: "center", minHeight: 160 }}><span style={{ font: "800 44px/1 'Outfit', sans-serif", letterSpacing: "-.05em", color: "var(--w-tief)" }}>FIAON</span></div>
-          <div className="ws-karte" style={{ display: "grid", placeItems: "center", minHeight: 160, background: "linear-gradient(135deg,#2563EB,#1D4ED8)", border: 0 }}><span style={{ font: "800 44px/1 'Outfit', sans-serif", letterSpacing: "-.05em", color: "#fff" }}>FIAON</span></div>
+          <div className="ws-karte" style={{ display: "grid", placeItems: "center", minHeight: 160 }}><span style={{ font: "800 44px/1 'Inter', sans-serif", letterSpacing: "-.05em", color: "var(--w-tief)" }}>FIAON</span></div>
+          <div className="ws-karte" style={{ display: "grid", placeItems: "center", minHeight: 160, background: "linear-gradient(135deg,#2563EB,#1D4ED8)", border: 0 }}><span style={{ font: "800 44px/1 'Inter', sans-serif", letterSpacing: "-.05em", color: "#fff" }}>FIAON</span></div>
         </div>
       </Abschnitt>
 

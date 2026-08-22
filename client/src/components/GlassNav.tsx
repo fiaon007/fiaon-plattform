@@ -13,15 +13,12 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
   const [privatMobileOpen, setPrivatMobileOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const dropdownPanelRef = useRef<HTMLDivElement>(null);
-  // ── WER IST ANGEMELDET? (22.08.2026, Justins Kundentest) ────────────────
-  // Die Kopfzeile zeigte jedem „Login" — auch dem Kunden mit gültiger
-  // Sitzung. Jetzt fragt sie das Cookie (/kunde/me) und zeigt „Mein Bereich".
-  const [kunde, setKunde] = useState<{ vorname: string | null; name: string | null } | null>(null);
+  // Angemeldete Kunden sehen „Mein Bereich“ statt „Login“ — sonst bleibt alles, wie es war.
+  const [eingeloggt, setEingeloggt] = useState(false);
   useEffect(() => {
     let weg = false;
-    fetch("/api/fiaon/kunde/me", { credentials: "include" })
-      .then((r) => r.json()).then((j) => { if (!weg && j?.eingeloggt) setKunde({ vorname: j.vorname ?? null, name: j.name ?? null }); })
-      .catch(() => {});
+    fetch("/api/fiaon/kunde/me", { credentials: "include" }).then((r) => r.json())
+      .then((j) => { if (!weg && j?.eingeloggt) setEingeloggt(true); }).catch(() => {});
     return () => { weg = true; };
   }, []);
 
@@ -52,8 +49,6 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
     { label: "Was ist FIAON", href: "/was-ist-fiaon", key: "was-ist-fiaon", hasGradient: true },
     { label: "Privatkunden", href: "/privatkunden", key: "privatkunden" },
     { label: "Business", href: "/business", key: "business" },
-    { label: "Karriere", href: "/karriere", key: "karriere" },
-    { label: "Investoren", href: "/investoren", key: "investoren" },
   ];
 
   const handleAntragClick = (e: React.MouseEvent) => {
@@ -146,7 +141,7 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
 
               {/* Desktop: CTA buttons */}
               <div className="hidden md:flex items-center gap-3">
-                {!kunde && <button
+                <button
                   onClick={handleAntragClick}
                   className="fiaon-btn-outline-animated px-5 py-2 text-[13px] font-medium relative overflow-hidden group"
                 >
@@ -155,24 +150,13 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out" />
                   </div>
-                </button>}
-                {kunde ? (
-                  <a href="/dashboard"
-                     className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-[13px] font-semibold text-white"
-                     style={{ background: "linear-gradient(180deg,#2563eb,#1d4ed8)", boxShadow: "0 6px 16px rgba(37,99,235,.3)" }}>
-                    <span className="w-6 h-6 rounded-full bg-white/20 grid place-items-center text-[11px] font-bold">
-                      {(kunde.vorname || kunde.name || "K").slice(0, 1).toUpperCase()}
-                    </span>
-                    Mein Bereich
-                  </a>
-                ) : (
-                  <a
-                    href="/login"
-                    className="px-4 py-2 text-[13px] font-medium text-gray-600 hover:text-gray-900 transition-colors"
-                  >
-                    Login
-                  </a>
-                )}
+                </button>
+                <a
+                  href={eingeloggt ? "/dashboard" : "/login"}
+                  className="px-4 py-2 text-[13px] font-medium text-gray-600 hover:text-gray-900 transition-colors"
+                >
+                  {eingeloggt ? "Mein Bereich" : "Login"}
+                </a>
               </div>
 
               {/* Mobile hamburger */}
@@ -248,22 +232,18 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
               className="absolute -top-32 left-1/2 -translate-x-1/2 w-[520px] h-[420px] pointer-events-none"
               style={{ background: "radial-gradient(ellipse at center, rgba(37,99,235,.10), transparent 65%)" }}
             />
-            {/* Der Hamburger in der Pille wird selbst zum X — ein zweiter
-                Schließen-Knopf lag genau darüber und sah aus wie ein Fehler. */}
-            <div className="relative h-full flex flex-col pt-[104px] px-5 pb-8 overflow-y-auto">
-              {kunde && (
-                <a href="/dashboard" onClick={() => setMob(false)}
-                   className="flex items-center gap-3 px-4 py-3.5 mb-3 rounded-2xl text-white"
-                   style={{ background: "linear-gradient(180deg,#2563eb,#1d4ed8)", boxShadow: "0 10px 24px rgba(37,99,235,.28)", animation: "mobItemIn .45s cubic-bezier(.22,1,.36,1) both" }}>
-                  <span className="w-9 h-9 rounded-full bg-white/20 grid place-items-center text-[13px] font-bold">
-                    {(kunde.vorname || kunde.name || "K").slice(0, 1).toUpperCase()}
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-[11px] uppercase tracking-[.14em] opacity-80">Angemeldet{kunde.vorname ? ` als ${kunde.vorname}` : ""}</span>
-                    <span className="block text-[16px] font-semibold">Mein Bereich öffnen</span>
-                  </span>
-                </a>
-              )}
+            {/* Close button */}
+            <button
+              onClick={() => { setMob(false); setPrivatMobileOpen(false); }}
+              aria-label="Menü schließen"
+              className="absolute top-5 right-5 z-50 w-11 h-11 rounded-full bg-gray-900 text-white flex items-center justify-center shadow-xl active:scale-90 transition-transform"
+              style={{ animation: "mobItemIn .4s cubic-bezier(.22,1,.36,1) both" }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
+            <div className="relative h-full flex flex-col pt-[100px] px-5 pb-8 overflow-y-auto">
               {/* Nav items */}
               <div className="space-y-1.5">
                 {pages.map((p, i) => (
@@ -345,7 +325,7 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
 
               {/* CTA area */}
               <div className="mt-auto pt-8 space-y-3" style={{ animation: "mobItemIn .5s cubic-bezier(.22,1,.36,1) .32s both" }}>
-                {!kunde && <button
+                <button
                   onClick={handleAntragClick}
                   className="fiaon-btn-gradient w-full flex items-center justify-center gap-2 py-4 rounded-2xl text-[16px] font-semibold text-white shadow-[0_12px_30px_rgba(37,99,235,.30)] active:scale-[.98] transition-transform"
                 >
@@ -353,12 +333,12 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                     <path d="M5 12h14M12 5l7 7-7 7" />
                   </svg>
-                </button>}
+                </button>
                 <a
-                  href={kunde ? "/dashboard" : "/login"}
+                  href={eingeloggt ? "/dashboard" : "/login"}
                   className="w-full flex items-center justify-center py-4 rounded-2xl text-[15px] font-semibold text-gray-700 bg-white border border-gray-200 shadow-sm active:scale-[.98] transition-transform"
                 >
-                  {kunde ? "Mein Bereich" : "Login"}
+                  {eingeloggt ? "Mein Bereich" : "Login"}
                 </a>
                 <p className="flex items-center justify-center gap-1.5 pt-2 text-center text-[11px] text-gray-400">
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">

@@ -1105,3 +1105,35 @@ html {
 .antrag-teilschritte li[data-zustand="fertig"] .stand{color:#059669}
 .antrag-pruef-fuss{margin:22px 0 0;font-size:12.5px;color:#94a3b8}
 @media(prefers-reduced-motion:reduce){.antrag-glas{animation:none;transform:none}.antrag-teilschritte .marke{animation:none}}
+
+
+/* ═══ Kopfzeile: 3D-Leiste mit wanderndem Lichtrand (CI-Blau) + Mega-Menü (23.08.2026) ═══ */
+@property --nav-winkel { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+.nav-3d { transform-style: preserve-3d; transition: transform .25s ease, box-shadow .4s ease; will-change: transform;
+  box-shadow: 0 18px 50px rgba(37,99,235,.14), 0 6px 18px rgba(15,23,42,.08), inset 0 1px 0 rgba(255,255,255,.95), inset 0 -2px 0 rgba(37,99,235,.06); }
+.nav-3d::after { content: ""; position: absolute; inset: -1.5px; border-radius: inherit; padding: 1.5px; pointer-events: none;
+  background: conic-gradient(from var(--nav-winkel), rgba(37,99,235,0) 0deg, #2563eb 70deg, #60a5fa 120deg, #bfdbfe 160deg, rgba(37,99,235,0) 220deg, #3b82f6 300deg, rgba(37,99,235,0) 360deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude;
+  animation: navRand 9s linear infinite; opacity: .85; }
+.nav-3d:hover { box-shadow: 0 26px 70px rgba(37,99,235,.22), 0 8px 22px rgba(15,23,42,.1), inset 0 1px 0 rgba(255,255,255,.95); }
+@keyframes navRand { to { --nav-winkel: 360deg; } }
+@media (prefers-reduced-motion: reduce) { .nav-3d::after { animation: none; } }
+
+.nav-mega { position: absolute; top: 92px; left: 50%; width: min(1000px, calc(100% - 32px)); transform: translate(-50%, -8px); z-index: 100;
+  opacity: 0; pointer-events: none; transition: opacity .25s ease, transform .35s cubic-bezier(.22,1,.36,1); }
+.nav-mega.auf { opacity: 1; pointer-events: auto; transform: translate(-50%, 0); }
+.nav-mega-innen { display: grid; grid-template-columns: 1.1fr 1.1fr .9fr; gap: 12px; padding: 22px; border-radius: 26px;
+  background: linear-gradient(160deg, rgba(10,22,40,.94), rgba(17,26,51,.94)); border: 1px solid rgba(255,255,255,.1);
+  box-shadow: 0 40px 100px rgba(2,6,23,.55), inset 0 1px 0 rgba(255,255,255,.08); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); }
+.nav-mega-gruppe { padding: 6px 8px; }
+.nav-mega-titel { font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase; color: #60a5fa; margin: 4px 10px 10px; font-weight: 400; }
+.nav-mega-eintrag { display: block; padding: 9px 10px; border-radius: 12px; text-decoration: none; transition: background .2s; }
+.nav-mega-eintrag:hover, .nav-mega-eintrag[data-an="1"] { background: rgba(37,99,235,.16); }
+.nav-mega-eintrag .label { display: block; color: #fff; font-size: 14px; font-weight: 400; }
+.nav-mega-eintrag .text { display: block; color: #9ca3af; font-size: 11.5px; margin-top: 1px; }
+.nav-mega-konto { border-left: 1px solid rgba(255,255,255,.08); padding-left: 20px; display: flex; flex-direction: column; gap: 10px; }
+.nav-mega-satz { color: #cbd5e1; font-size: 13px; line-height: 1.55; font-weight: 300; margin: 0 10px 6px; }
+.nav-mega-knopf { display: inline-flex; align-items: center; justify-content: center; margin: 0 10px; padding: 11px 16px; border-radius: 999px; border: 0; cursor: pointer;
+  font: 400 13.5px/1 'Inter', sans-serif; color: #fff; background: linear-gradient(135deg,#2563eb,#3b82f6); box-shadow: 0 10px 26px rgba(37,99,235,.32); text-decoration: none; }
+.nav-mega-knopf.still { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.14); box-shadow: none; color: #e5e7eb; }
+.nav-mega-fuss { color: #6b7280; font-size: 11px; margin: 6px 10px 0; }

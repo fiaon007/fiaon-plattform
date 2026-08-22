@@ -9,9 +9,20 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
   const [scrolled, setScrolled] = useState(false);
   const [mob, setMob] = useState(false);
   const [showModal, setShowModal] = useState(false);
-  const [privatOpen, setPrivatOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const dropdownPanelRef = useRef<HTMLDivElement>(null);
+  // Mega-Menü am Rechner: öffnet beim Überfahren der Leiste, schließt mit kurzer Verzögerung
+  const [mega, setMega] = useState(false);
+  const megaTimer = useRef<number | null>(null);
+  const oeffneMega = () => { if (megaTimer.current) window.clearTimeout(megaTimer.current); setMega(true); };
+  const schliesseMega = () => { if (megaTimer.current) window.clearTimeout(megaTimer.current); megaTimer.current = window.setTimeout(() => setMega(false), 180); };
+  // leichte 3D-Neigung der Leiste zur Maus
+  const leisteRef = useRef<HTMLDivElement>(null);
+  const neigen = (e: React.MouseEvent) => {
+    const el = leisteRef.current; if (!el) return;
+    const b = el.getBoundingClientRect();
+    const x = (e.clientX - b.left) / b.width - 0.5, y = (e.clientY - b.top) / b.height - 0.5;
+    el.style.transform = `perspective(900px) rotateX(${(-y * 4).toFixed(2)}deg) rotateY(${(x * 5).toFixed(2)}deg) translateZ(0)`;
+  };
+  const geradeStellen = () => { const el = leisteRef.current; if (el) el.style.transform = ""; };
   // Angemeldete Kunden sehen „Mein Bereich“ statt „Login“ — sonst bleibt alles, wie es war.
   const [eingeloggt, setEingeloggt] = useState(false);
   useEffect(() => {
@@ -29,19 +40,6 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
     window.addEventListener("scroll", fn, { passive: true });
     return () => window.removeEventListener("scroll", fn);
   }, []);
-
-  // Click outside to close dropdown
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      const inButton = dropdownRef.current?.contains(e.target as Node);
-      const inPanel  = dropdownPanelRef.current?.contains(e.target as Node);
-      if (!inButton && !inPanel) setPrivatOpen(false);
-    };
-    if (privatOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
-    }
-  }, [privatOpen]);
 
   const pages = [
     { label: "Startseite", href: "/", key: "startseite" },
@@ -64,9 +62,9 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
         <div className="max-w-[1000px] mx-auto px-4 sm:px-6 py-3">
           {/* Glass pill container */}
           <div
-            className={`fiaon-glass-nav rounded-full transition-all duration-500 ${
-              scrolled ? "shadow-lg" : ""
-            }`}
+            ref={leisteRef}
+            className={`fiaon-glass-nav nav-3d rounded-full ${scrolled ? "shadow-lg" : ""}`}
+            onMouseEnter={oeffneMega} onMouseLeave={() => { schliesseMega(); geradeStellen(); }} onMouseMove={neigen}
           >
             {/* Drei Zonen in einer Zeile: Marke · Links (nehmen den Platz dazwischen) · Knöpfe.
                 Die Links sind NICHT mehr absolut zentriert — so können sie bei schmalen
@@ -77,67 +75,14 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
                 <span className="text-xl font-bold tracking-tight fiaon-gradient-text-animated">FIAON</span>
               </a>
 
-              {/* Desktop: Links in der Mitte */}
+              {/* Desktop: Links in der Mitte — das volle Menü öffnet sich beim Überfahren der Leiste */}
               <div className="hidden lg:flex items-center justify-center gap-6 xl:gap-8 flex-1 min-w-0 whitespace-nowrap">
                 {pages.map((p) => (
-                  <div
-                    key={p.key}
-                    className="relative"
-                    ref={p.key === "privatkunden" ? dropdownRef : null}
-                  >
-                    {p.key === "privatkunden" ? (
-                      <button
-                        onClick={(e) => { e.preventDefault(); setPrivatOpen(!privatOpen); }}
-                        className={`relative text-[13px] font-medium pb-0.5 transition-colors duration-300 ${
-                          activePage === p.key
-                            ? "text-gray-900"
-                            : "text-gray-500 hover:text-gray-900"
-                        }`}
-                      >
-                        {p.label}
-                        {activePage === p.key && (
-                          <span
-                            className="absolute -bottom-0.5 left-0 right-0 h-[1.5px] rounded-full bg-[#2563eb]"
-                            style={{
-                              boxShadow: "0 0 6px rgba(37,99,235,.4)",
-                            }}
-                          />
-                        )}
-                        <svg
-                          width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
-                          className="inline-block ml-1 transition-transform duration-300"
-                          style={{ transform: privatOpen ? "rotate(180deg)" : "rotate(0deg)" }}
-                        >
-                          <path d="M6 9l6 6 6-6" />
-                        </svg>
-                      </button>
-                    ) : (
-                      <a
-                        href={p.href}
-                        className={`relative text-[13px] font-medium pb-0.5 transition-colors duration-300 ${
-                          activePage === p.key
-                            ? "text-gray-900"
-                            : "text-gray-500 hover:text-gray-900"
-                        }`}
-                      >
-                        {p.hasGradient ? (
-                          <>
-                            Was ist <span className="fiaon-gradient-text-animated">FIAON</span>
-                          </>
-                        ) : (
-                          p.label
-                        )}
-                        {activePage === p.key && (
-                          <span
-                            className="absolute -bottom-0.5 left-0 right-0 h-[1.5px] rounded-full bg-[#2563eb]"
-                            style={{
-                              boxShadow: "0 0 6px rgba(37,99,235,.4)",
-                            }}
-                          />
-                        )}
-                      </a>
-                    )}
-                  </div>
+                  <a key={p.key} href={p.href}
+                     className={`relative text-[13px] font-medium pb-0.5 transition-colors duration-300 ${activePage === p.key ? "text-gray-900" : "text-gray-500 hover:text-gray-900"}`}>
+                    {p.hasGradient ? <>Was ist <span className="fiaon-gradient-text-animated">FIAON</span></> : p.label}
+                    {activePage === p.key && <span className="absolute -bottom-0.5 left-0 right-0 h-[1.5px] rounded-full bg-[#2563eb]" style={{ boxShadow: "0 0 6px rgba(37,99,235,.4)" }} />}
+                  </a>
                 ))}
               </div>
 
@@ -194,33 +139,45 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
           </div>
         </div>
 
-        {/* Desktop: Privatkunden Dropdown (outside glass container to prevent clipping) */}
-        {privatOpen && (
-          <div className="hidden lg:block absolute top-[88px] left-1/2 -translate-x-1/2 z-[100]">
-            <div ref={dropdownPanelRef} className="fiaon-glass-panel rounded-2xl py-2 shadow-xl border border-gray-100 min-w-[200px]" 
-              style={{ 
-                backdropFilter: "blur(20px)", 
-                WebkitBackdropFilter: "blur(20px)",
-                background: "rgba(255, 255, 255, 0.85)"
-              }}
-            >
-              <a
-                href="/privatkunden"
-                onClick={() => setPrivatOpen(false)}
-                className="block px-5 py-3 text-[13.5px] font-medium text-gray-700 hover:text-gray-900 hover:bg-blue-50/50 transition-colors rounded-xl"
-              >
-                Privatkunden Startseite
-              </a>
-              <a
-                href="/bonitaet"
-                onClick={() => setPrivatOpen(false)}
-                className="block px-5 py-3 text-[13.5px] font-medium text-gray-700 hover:text-gray-900 hover:bg-blue-50/50 transition-colors rounded-xl"
-              >
-                Bonitäts-Auszug
-              </a>
+        {/* Desktop: Mega-Menü — alle Seiten, öffnet beim Überfahren der Leiste */}
+        <div className={`hidden lg:block nav-mega ${mega ? "auf" : ""}`} onMouseEnter={oeffneMega} onMouseLeave={schliesseMega} aria-hidden={!mega}>
+          <div className="nav-mega-innen">
+            {[
+              { titel: "Für Kunden", eintraege: [
+                { href: "/", label: "Startseite", text: "Einsicht · Aktion · Zugang" },
+                { href: "/was-ist-fiaon", label: "Was ist FIAON", text: "Die Vision, genau erklärt" },
+                { href: "/privatkunden", label: "Privatkunden", text: "Pakete, Ablauf, Preise" },
+                { href: "/bonitaet", label: "Bonitäts-Auszug", text: "Ihre Auskunft, beantragt durch FIAON" },
+                { href: "/business", label: "Business", text: "Firmenbonität und Geschäftskonto" },
+              ] },
+              { titel: "Unternehmen", eintraege: [
+                { href: "/team", label: "Team", text: "Wer FIAON baut" },
+                { href: "/karriere", label: "Karriere", text: "Von zuhause für FIAON arbeiten" },
+                { href: "/partner", label: "Partner", text: "Banken, Auskunfteien, Vermittler" },
+                { href: "/presse", label: "Presse", text: "Fakten, Zahlen, Ansprechpartner" },
+                { href: "/investoren", label: "Investoren", text: "Das Modell, der Datenraum" },
+                { href: "/datenraum", label: "Datenraum", text: "Due Diligence auf Anfrage" },
+              ] },
+            ].map((g) => (
+              <div key={g.titel} className="nav-mega-gruppe">
+                <p className="nav-mega-titel">{g.titel}</p>
+                {g.eintraege.map((e) => (
+                  <a key={e.href} href={e.href} className="nav-mega-eintrag" data-an={activePage === e.href.replace("/", "") || (e.href === "/" && activePage === "startseite") ? "1" : undefined}>
+                    <span className="label">{e.label}</span>
+                    <span className="text">{e.text}</span>
+                  </a>
+                ))}
+              </div>
+            ))}
+            <div className="nav-mega-gruppe nav-mega-konto">
+              <p className="nav-mega-titel">Ihr Konto</p>
+              <p className="nav-mega-satz">Konto in zwei Minuten. Ihre Auskunft innerhalb von 24 Stunden. Ein Mensch, der Sie begleitet.</p>
+              <button type="button" onClick={handleAntragClick} className="nav-mega-knopf">Konto eröffnen</button>
+              <a href={eingeloggt ? "/dashboard" : "/login"} className="nav-mega-knopf still">{eingeloggt ? "Mein Bereich" : "Login"}</a>
+              <p className="nav-mega-fuss">SEPA-Lastschrift · EU-Hosting · Anwaltlich geprüft</p>
             </div>
           </div>
-        )}
+        </div>
 
         {/* ── Handy-Menü (neu 22.08.2026): dunkle Glasbühne statt leerer weißer Fläche.
             Zwei Gruppen (Für Kunden · Unternehmen), jede Zeile mit Zweitzeile,

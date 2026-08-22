@@ -27,20 +27,20 @@
 
 .dk-pille{display:inline-flex;align-items:center;gap:8px;padding:10px 20px;border-radius:999px;border:1px solid rgba(96,165,250,.32);background:rgba(255,255,255,.07);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
   color:#93c5fd;font-size:11px;font-weight:400;letter-spacing:.2em;text-transform:uppercase;box-shadow:0 6px 20px rgba(37,99,235,.12)}
-.dk-h1{font-size:clamp(34px,4.6vw,58px);margin-top:32px;font-weight:400}
-.dk-h2{font-size:clamp(28px,3.3vw,42px);margin-top:28px;font-weight:400}
-.dk-h3{font-size:clamp(17px,1.7vw,20px);color:#fff;font-weight:500}
+.dk-h1{font-size:clamp(31px,4.2vw,54px);margin-top:32px;font-weight:400}
+.dk-h2{font-size:clamp(25px,3vw,38px);margin-top:28px;font-weight:400}
+.dk-h3{font-size:clamp(16px,1.6vw,18px);color:#fff;font-weight:500}
 .dk-verlauf{font-weight:inherit;background:linear-gradient(90deg,#60a5fa,#2563eb 45%,#93c5fd);-webkit-background-clip:text;background-clip:text;color:transparent}
-.dk-lead{font-size:clamp(16px,1.35vw,18px);color:#9ca3af;max-width:62ch;margin-top:28px;line-height:1.75;font-weight:300}
-.dk-text{font-size:15px;color:#9ca3af;line-height:1.75;font-weight:300}
-.dk-leise{font-size:13px;color:#6b7280}
+.dk-lead{font-size:clamp(15px,1.25vw,16.5px);color:#9ca3af;max-width:62ch;margin-top:28px;line-height:1.75;font-weight:300}
+.dk-text{font-size:14px;color:#9ca3af;line-height:1.75;font-weight:300}
+.dk-leise{font-size:12.5px;color:#6b7280}
 .mitte{text-align:center}
 .mitte .dk-lead{margin-left:auto;margin-right:auto}
 
 .dk-knoepfe{display:flex;gap:14px;flex-wrap:wrap;margin-top:44px;align-items:center}
 .mitte .dk-knoepfe{justify-content:center}
 .dk-knopf{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:52px;padding:0 28px;border-radius:999px;border:0;cursor:pointer;text-decoration:none;
-  font:400 15px/1 'Inter',sans-serif;letter-spacing:.01em;color:#fff;background:linear-gradient(135deg,#2563eb,#3b82f6);box-shadow:0 10px 28px rgba(37,99,235,.28),inset 0 1px 0 rgba(255,255,255,.2);transition:transform .18s,box-shadow .18s}
+  font:400 14px/1 'Inter',sans-serif;letter-spacing:.01em;color:#fff;background:linear-gradient(135deg,#2563eb,#3b82f6);box-shadow:0 10px 28px rgba(37,99,235,.28),inset 0 1px 0 rgba(255,255,255,.2);transition:transform .18s,box-shadow .18s}
 .dk-knopf:hover{transform:translateY(-1px);box-shadow:0 20px 44px rgba(37,99,235,.45),inset 0 1px 0 rgba(255,255,255,.25)}
 .dk-knopf.still{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.16);box-shadow:none;color:#e5e7eb}
 .dk-knopf.still:hover{background:rgba(255,255,255,.1)}
@@ -60,30 +60,30 @@
 .dk-szene.gross{height:520px}
 @media(max-width:720px){.dk-glas{padding:24px}.dk-szene{height:320px;margin:0 -24px}.dk-szene.gross{height:380px}}
 
-.dk-kennzahl{font-size:clamp(32px,3.6vw,48px);font-weight:300;letter-spacing:-.03em;line-height:1}
-.dk-kennzahl-label{color:#9ca3af;font-size:13.5px;margin-top:10px;line-height:1.45}
+.dk-kennzahl{font-size:clamp(29px,3.3vw,44px);font-weight:300;letter-spacing:-.03em;line-height:1}
+.dk-kennzahl-label{color:#9ca3af;font-size:12.5px;margin-top:10px;line-height:1.45}
 
 .dk-schritte{display:grid;gap:22px;margin-top:56px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
 .dk-schritt .n{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#2563eb,#60a5fa);color:#fff;font-size:13px;font-weight:400;box-shadow:0 10px 24px rgba(37,99,235,.35);margin-bottom:16px}
 
-.dk-zeile{display:flex;justify-content:space-between;gap:18px;padding:14px 0;border-bottom:1px solid rgba(255,255,255,.08);font-size:14.5px;color:#d1d5db}
+.dk-zeile{display:flex;justify-content:space-between;gap:18px;padding:13px 0;border-bottom:1px solid rgba(255,255,255,.08);font-size:13.5px;color:#d1d5db}
 .dk-zeile:last-child{border-bottom:0}
 .dk-zeile b{font-weight:400;color:#fff}
 .dk-liste{list-style:none;margin:18px 0 0;padding:0;display:grid;gap:10px}
-.dk-liste li{position:relative;padding-left:24px;color:#d1d5db;font-size:15px}
+.dk-liste li{position:relative;padding-left:24px;color:#d1d5db;font-size:14px}
 .dk-liste li::before{content:"";position:absolute;left:0;top:9px;width:9px;height:9px;border-radius:50%;background:linear-gradient(135deg,#60a5fa,#2563eb);box-shadow:0 0 0 4px rgba(37,99,235,.18)}
 
-.dk-zitat{font-size:clamp(20px,2.4vw,28px);line-height:1.4;color:#fff;font-weight:400;max-width:28ch}
+.dk-zitat{font-size:clamp(18px,2.2vw,25px);line-height:1.4;color:#fff;font-weight:400;max-width:28ch}
 .dk-zitat + .wer{margin-top:20px;color:#9ca3af;font-size:14px}
 
 .dk-frage{border-bottom:1px solid rgba(255,255,255,.08)}
-.dk-frage button{width:100%;display:flex;justify-content:space-between;align-items:center;gap:16px;padding:20px 0;background:none;border:0;color:#fff;text-align:left;font:400 16px/1.35 'Inter',sans-serif;cursor:pointer}
+.dk-frage button{width:100%;display:flex;justify-content:space-between;align-items:center;gap:16px;padding:20px 0;background:none;border:0;color:#fff;text-align:left;font:400 15px/1.35 'Inter',sans-serif;cursor:pointer}
 .dk-frage .plus{width:28px;height:28px;border-radius:50%;border:1px solid rgba(255,255,255,.2);display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;transition:transform .3s,background .3s}
 .dk-frage.auf .plus{background:#2563eb;border-color:#2563eb;transform:rotate(45deg)}
 .dk-frage .antwort{display:grid;grid-template-rows:0fr;transition:grid-template-rows .35s ease}
 .dk-frage.auf .antwort{grid-template-rows:1fr}
 .dk-frage .antwort>div{overflow:hidden}
-.dk-frage .antwort p{padding:0 0 20px;color:#9ca3af;font-size:15px;line-height:1.65}
+.dk-frage .antwort p{padding:0 0 20px;color:#9ca3af;font-size:14px;line-height:1.65}
 
 .dk-form{display:grid;gap:16px;margin-top:36px}
 .dk-form .zwei{display:grid;gap:16px;grid-template-columns:1fr 1fr}
@@ -119,7 +119,7 @@
 .kino-text{will-change:transform,opacity}
 .kino-szene{position:relative;height:560px;will-change:transform,opacity}
 .kino-punkte{list-style:none;margin:28px 0 0;padding:0;display:grid;gap:12px}
-.kino-punkte li{display:flex;align-items:center;gap:12px;font-size:14.5px;color:#cbd5e1;font-weight:300}
+.kino-punkte li{display:flex;align-items:center;gap:12px;font-size:13.5px;color:#cbd5e1;font-weight:300}
 .kino-punkte .haken{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:rgba(37,99,235,.22);border:1px solid rgba(96,165,250,.45);color:#93c5fd;flex:0 0 auto}
 .kino-scroll{position:absolute;left:50%;bottom:28px;z-index:1;width:26px;height:42px;border:1.5px solid rgba(255,255,255,.28);border-radius:14px;transform:translateX(-50%)}
 .kino-scroll span{position:absolute;left:50%;top:8px;width:3px;height:8px;border-radius:3px;background:#93c5fd;transform:translateX(-50%);animation:kinoRoll 1.8s ease-in-out infinite}
@@ -129,7 +129,7 @@
 
 /* ── Pakete (Startseite) ─────────────────────────────────────────────────── */
 .dk-tabs{display:inline-flex;padding:4px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);margin-top:36px}
-.dk-tabs button{padding:10px 24px;border-radius:999px;border:0;background:none;color:#9ca3af;font:500 14px/1 'Inter',sans-serif;cursor:pointer;transition:all .25s}
+.dk-tabs button{padding:9px 22px;border-radius:999px;border:0;background:none;color:#9ca3af;font:500 13px/1 'Inter',sans-serif;cursor:pointer;transition:all .25s}
 .dk-tabs button[data-an="1"]{background:linear-gradient(135deg,#2563eb,#3b82f6);color:#fff;box-shadow:0 10px 24px rgba(37,99,235,.35)}
 .dk-preise{display:grid;gap:20px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin-top:44px;align-items:stretch}
 .dk-preis{position:relative;display:flex;flex-direction:column;padding:30px 26px 26px;border-radius:24px;background:rgba(15,23,42,.55);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);box-shadow:0 24px 60px rgba(2,6,23,.45),inset 0 1px 0 rgba(255,255,255,.08);transition:transform .4s cubic-bezier(.22,1,.36,1),border-color .3s}
@@ -138,11 +138,11 @@
 .dk-preis .band{position:absolute;top:-13px;left:50%;transform:translateX(-50%);padding:5px 14px;border-radius:999px;background:linear-gradient(135deg,#2563eb,#60a5fa);color:#fff;font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
 .dk-preis .name{font-size:17px;font-weight:500;color:#fff}
 .dk-preis .sub{font-size:12.5px;color:#9ca3af;margin-top:2px}
-.dk-preis .betrag{margin-top:18px;font-size:36px;font-weight:300;letter-spacing:-.03em;line-height:1}
+.dk-preis .betrag{margin-top:18px;font-size:32px;font-weight:300;letter-spacing:-.03em;line-height:1}
 .dk-preis .betrag small{font-size:13px;font-weight:400;color:#9ca3af;letter-spacing:0;margin-left:6px}
 .dk-preis .ziel{font-size:12.5px;color:#9ca3af;margin-top:10px;min-height:36px}
 .dk-preis .dk-liste{margin-top:18px;flex:1}
-.dk-preis .dk-liste li{font-size:13.5px}
+.dk-preis .dk-liste li{font-size:13px}
 .dk-preis .dk-knopf{margin-top:22px;width:100%}
 
 /* ── FlugHero (Startseite): die Kamera ist der Scroll ───────────────────── */
@@ -150,14 +150,58 @@
 .flug-buehne{position:sticky;top:0;height:100svh;overflow:hidden;background:#0a1628}
 .flug-video,.flug-poster{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:opacity .6s ease}
 .flug-leinwand{position:absolute;inset:0;width:100%;height:100%;display:block;transition:opacity .5s ease}
-.flug-schleier{position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,22,40,.55) 0%,rgba(10,22,40,.15) 35%,rgba(10,22,40,.25) 70%,#0a1628 100%);pointer-events:none}
+.flug-schleier{position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,22,40,.6) 0%,rgba(10,22,40,.3) 35%,rgba(10,22,40,.38) 70%,#0a1628 100%),radial-gradient(ellipse at 50% 50%,rgba(10,22,40,.45) 0%,rgba(10,22,40,0) 62%);pointer-events:none}
 .flug-land{position:absolute;top:108px;left:50%;transform:translateX(-50%);z-index:3;display:inline-flex;padding:4px;border-radius:999px;background:rgba(10,22,40,.55);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
 .flug-land button{padding:8px 16px;border-radius:999px;border:0;background:none;color:#9ca3af;font:400 12.5px/1 'Inter',sans-serif;letter-spacing:.04em;cursor:pointer;transition:all .25s}
 .flug-land button[data-an="1"]{background:rgba(37,99,235,.35);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.15)}
 .flug-text{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(880px,calc(100% - 48px));text-align:center;z-index:2;pointer-events:none;transition:opacity .25s linear}
 .flug-ueber{font-size:11.5px;letter-spacing:.22em;text-transform:uppercase;color:#93c5fd;margin-bottom:22px}
-.flug-h1{font-size:clamp(32px,4.8vw,62px);font-weight:300;letter-spacing:-.02em;line-height:1.1;color:#fff;text-shadow:0 10px 40px rgba(0,0,0,.45)}
-.flug-satz{font-size:clamp(15px,1.35vw,18px);font-weight:300;color:#cbd5e1;max-width:56ch;margin:22px auto 0;line-height:1.7;text-shadow:0 6px 24px rgba(0,0,0,.5)}
+.flug-h1{font-size:clamp(30px,4.4vw,56px);font-weight:300;letter-spacing:-.02em;line-height:1.1;color:#fff;text-shadow:0 2px 12px rgba(0,0,0,.6),0 16px 60px rgba(0,0,0,.55)}
+.flug-satz{font-size:clamp(14px,1.2vw,16px);font-weight:300;color:#cbd5e1;max-width:56ch;margin:22px auto 0;line-height:1.7;text-shadow:0 6px 24px rgba(0,0,0,.5)}
 .flug .dk-knoepfe{pointer-events:auto}
 @media(max-width:720px){.flug{height:260vh !important}.flug-land{top:96px}.flug-land button{padding:8px 12px;font-size:12px}.flug-h1{font-size:clamp(30px,8.5vw,40px)}}
 @media(prefers-reduced-motion:reduce){.flug{height:auto !important}.flug-buehne{position:relative;min-height:100svh}.flug-text{position:relative;left:auto;top:auto;transform:none;opacity:1 !important;margin:24px auto}}
+
+/* ── Szenenbild: Bild in voller Breite zwischen Blöcken ─────────────────── */
+.dk-szenenbild{position:relative;z-index:1;min-height:62vh;display:grid;place-items:center;overflow:hidden}
+.dk-szenenbild img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.55;filter:saturate(.9);transform:scale(1.04);animation:dkAtmen 30s ease-in-out infinite alternate}
+.dk-szenenbild .schleier{position:absolute;inset:0;background:linear-gradient(180deg,#0a1628 0%,rgba(10,22,40,.25) 25%,rgba(10,22,40,.25) 75%,#0a1628 100%)}
+.dk-szenenbild .inhalt{position:relative;z-index:1;padding:120px 24px}
+@media(max-width:720px){.dk-szenenbild{min-height:48vh}.dk-szenenbild .inhalt{padding:80px 24px}}
+
+/* ── Lichtband: helle Abschnitte mitten auf der dunklen Bühne (23.08.2026, Justin: „durchgängig dunkel wirkt unseriös") ── */
+.dk-licht{position:relative;z-index:1;color:#0f172a;
+  background:linear-gradient(180deg,rgba(246,249,255,0) 0,#f6f9ff 160px,#ffffff 50%,#f3f7ff calc(100% - 160px),rgba(246,249,255,0) 100%)}
+.dk-licht::before,.dk-licht::after{content:"";position:absolute;left:0;right:0;height:160px;pointer-events:none}
+.dk-licht::before{top:0;background:linear-gradient(180deg,#0a1628 0%,rgba(10,22,40,0) 100%)}
+.dk-licht::after{bottom:0;background:linear-gradient(0deg,#0a1628 0%,rgba(10,22,40,0) 100%)}
+.dk-licht>*{position:relative;z-index:1}
+.dk-licht .dk-h1,.dk-licht .dk-h2,.dk-licht .dk-h3{color:#0f172a}
+.dk-licht .dk-lead{color:#475569}
+.dk-licht .dk-text{color:#475569}
+.dk-licht .dk-leise{color:#64748b}
+.dk-licht .dk-pille{background:rgba(37,99,235,.06);border-color:rgba(37,99,235,.22);color:#1d4ed8;box-shadow:none}
+.dk-licht .dk-glas{background:rgba(255,255,255,.82);border:1px solid rgba(15,23,42,.07);box-shadow:0 2px 4px rgba(15,23,42,.03),0 18px 44px rgba(37,99,235,.1),inset 0 1px 0 #fff}
+.dk-licht .dk-glas:hover{border-color:rgba(37,99,235,.3)}
+.dk-licht .dk-glas .tag{color:#1d4ed8}
+.dk-licht .dk-kennzahl-label{color:#64748b}
+.dk-licht .dk-liste li{color:#475569}
+.dk-licht .dk-zeile{border-bottom-color:rgba(15,23,42,.08);color:#334155}
+.dk-licht .dk-zeile b{color:#0f172a}
+.dk-licht .dk-knopf.still{background:#fff;border:1px solid rgba(15,23,42,.12);color:#0f172a;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+.dk-licht .dk-knopf.still:hover{background:#f8fafc}
+.dk-licht .dk-tabs{background:#eef2f7;border-color:rgba(15,23,42,.06)}
+.dk-licht .dk-tabs button{color:#64748b}
+.dk-licht .dk-preis{background:rgba(255,255,255,.9);border:1px solid rgba(15,23,42,.07);box-shadow:0 2px 4px rgba(15,23,42,.03),0 20px 50px rgba(37,99,235,.1),inset 0 1px 0 #fff}
+.dk-licht .dk-preis[data-top="1"]{border-color:rgba(37,99,235,.4);box-shadow:0 24px 60px rgba(37,99,235,.18)}
+.dk-licht .dk-preis .name{color:#0f172a}
+.dk-licht .dk-preis .sub,.dk-licht .dk-preis .ziel{color:#64748b}
+.dk-licht .dk-preis .betrag small{color:#64748b}
+.dk-licht .dk-frage{border-bottom-color:rgba(15,23,42,.08)}
+.dk-licht .dk-frage button{color:#0f172a}
+.dk-licht .dk-frage .plus{border-color:rgba(15,23,42,.18)}
+.dk-licht .dk-frage .antwort p{color:#475569}
+.dk-licht .dk-zitat{color:#0f172a}
+.dk-licht .dk-zitat + .wer{color:#64748b}
+.dk-licht .dk-schritt .n{box-shadow:0 10px 24px rgba(37,99,235,.25)}
+.dk-licht .dk-lead.hervor{color:#0f172a}

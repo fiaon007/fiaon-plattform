@@ -61,19 +61,31 @@ export interface Analyse {
   erstelltAm: string;
 }
 
+/** JSONB kommt als Array — oder, aus einem frühen Lauf, als JSON-Text. Beides lesen. */
+function liste(v: unknown): any[] {
+  if (Array.isArray(v)) return v;
+  if (typeof v === "string") { try { const j = JSON.parse(v); return Array.isArray(j) ? j : []; } catch { return []; } }
+  return [];
+}
+function tagText(v: unknown): string | null {
+  if (!v) return null;
+  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  const d = new Date(String(v)); return isNaN(d.getTime()) ? String(v).slice(0, 10) : d.toISOString().slice(0, 10);
+}
+
 function zeile(r: any): Analyse {
   return {
     id: Number(r.id), ref: r.ref, status: r.status, fehler: r.fehler ?? null,
-    zeitraumVon: r.zeitraum_von ? String(r.zeitraum_von).slice(0, 10) : null,
-    zeitraumBis: r.zeitraum_bis ? String(r.zeitraum_bis).slice(0, 10) : null,
+    zeitraumVon: tagText(r.zeitraum_von),
+    zeitraumBis: tagText(r.zeitraum_bis),
     einnahmenCents: r.einnahmen_cents == null ? null : Number(r.einnahmen_cents),
     ausgabenCents: r.ausgaben_cents == null ? null : Number(r.ausgaben_cents),
     gehaltCents: r.gehalt_cents == null ? null : Number(r.gehalt_cents),
     saldoEndeCents: r.saldo_ende_cents == null ? null : Number(r.saldo_ende_cents),
     dispoGenutzt: r.dispo_genutzt ?? null, dispoTiefstCents: r.dispo_tiefst_cents == null ? null : Number(r.dispo_tiefst_cents),
     ruecklastschriften: Number(r.ruecklastschriften || 0),
-    fixkosten: Array.isArray(r.fixkosten) ? r.fixkosten : [], kategorien: Array.isArray(r.kategorien) ? r.kategorien : [],
-    warnungen: Array.isArray(r.warnungen) ? r.warnungen : [], merksaetze: Array.isArray(r.merksaetze) ? r.merksaetze : [],
+    fixkosten: liste(r.fixkosten), kategorien: liste(r.kategorien),
+    warnungen: liste(r.warnungen), merksaetze: liste(r.merksaetze),
     erstelltAm: r.created_at,
   };
 }
@@ -160,7 +172,10 @@ export async function kontoauszugAnalysieren(ref: string, opts: { erzwingen?: bo
   const id = Number(neu.id);
   const fertig = async (felder: Record<string, any>) => {
     const cols = Object.keys(felder);
-    const sets = cols.map((c, i) => `${c} = $${i + 1}`).join(", ");
+    const JSONB = new Set(["fixkosten", "kategorien", "warnungen", "merksaetze"]);
+    // Ausdrücklich `::jsonb` aus Text — sonst verpackt der Treiber den JSON-Text
+    // noch einmal als JSON-String (jsonb_typeof = 'string'), gemessen am 22.08.
+    const sets = cols.map((c, i) => `${c} = $${i + 1}${JSONB.has(c) ? "::jsonb" : ""}`).join(", ");
     await sqlPool.unsafe(`UPDATE fiaon_kontoauszug_analysen SET ${sets}, updated_at = NOW() WHERE id = $${cols.length + 1}`, [...cols.map((c) => felder[c]), id]);
   };
   try {

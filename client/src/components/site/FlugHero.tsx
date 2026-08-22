@@ -23,7 +23,9 @@ export function FlugHero({ video, bild, knoepfe }: { video: string; bild: string
   const [bereit, setBereit] = useState(false);
   const ruhe = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
   // Am Handy die 720p-Fassung (halb so groß), am Rechner 1600 px.
-  const quelle = typeof window !== "undefined" && window.innerWidth < 768 ? video.replace(/\.mp4$/, "-m.mp4") : video;
+  const handy = typeof window !== "undefined" && window.innerWidth < 768;
+  const quelle = handy ? video.replace(/\.mp4$/, "-m.mp4") : video;
+  const poster = handy ? bild.replace(/\.jpg$/, "-m.jpg") : bild;
 
   useEffect(() => { landErkennen().then((l) => { if (l && (LAENDER as readonly string[]).includes(l)) setLand(l); }).catch(() => {}); }, []);
   const landWaehlen = (l: string) => { setLand(l); try { sessionStorage.setItem("fiaon_land", l); } catch { /* egal */ } };
@@ -68,10 +70,10 @@ export function FlugHero({ video, bild, knoepfe }: { video: string; bild: string
     <section ref={ref} className="flug" style={{ height: "320vh" }}>
       <div className="flug-buehne">
         {!ruhe && (
-          <video ref={videoRef} className="flug-video" src={quelle} poster={bild} muted playsInline preload="auto"
+          <video ref={videoRef} className="flug-video" src={quelle} poster={poster} muted playsInline preload="auto"
                  onLoadedData={() => setBereit(true)} style={{ opacity: bereit ? 1 : 0 }} />
         )}
-        <img className="flug-poster" src={bild} alt="" style={{ opacity: bereit && !ruhe ? 0 : 1 }} />
+        <img className="flug-poster" src={poster} alt="" style={{ opacity: bereit && !ruhe ? 0 : 1 }} />
         <div className="flug-schleier" style={{ opacity: 0.35 + p * 0.25 }} />
 
         {/* Land — oben, immer sichtbar */}

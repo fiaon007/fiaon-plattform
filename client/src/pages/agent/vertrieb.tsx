@@ -782,6 +782,9 @@ function Akte({ daten, onSchliessen, onGeaendert }: { daten: any; onSchliessen: 
   >("lage");
   // Ein Grund ist Pflicht bei allem, was Zugang verschafft oder Geld bewegt.
   const [grund, setGrund] = useState("");
+  // Zahlung buchen: derselbe Dialog wie im Reiter „Zahlungen" (Belegpflicht,
+  // Bankeingang, echtes Eingangsdatum). Der alte Freitext-Weg ist geschlossen.
+  const [buchen, setBuchen] = useState(false);
   const [einmalPasswort, setEinmalPasswort] = useState<{ pw: string; bis: string } | null>(null);
   const [loeschFrage, setLoeschFrage] = useState(false);
   const [zugangStand, setZugangStand] = useState<any>(null);
@@ -983,9 +986,6 @@ function Akte({ daten, onSchliessen, onGeaendert }: { daten: any; onSchliessen: 
     else zeige("fehler", "Nicht möglich", r.json?.error || "");
   };
 
-  // Zahlung buchen: derselbe Dialog wie im Reiter „Zahlungen" (Belegpflicht,
-  // Bankeingang, echtes Eingangsdatum). Der alte Freitext-Weg ist geschlossen.
-  const [buchen, setBuchen] = useState(false);
 
   // ── ERST BESTÄTIGEN, DANN SENDEN (31.08.2026) ───────────────────────────
   // Dasselbe Bauteil wie in der Kundenkarte. Die Vertriebsleitung sieht die

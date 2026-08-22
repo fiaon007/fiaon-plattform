@@ -42,7 +42,7 @@ export default function Investoren() {
         <div className="dk-zweispaltig" style={{ marginTop: 44 }}>
           <Auf><div className="dk-szene gross"><ArasCore className="absolute inset-0" /></div></Auf>
           <div style={{ display: "grid", gap: 16 }}>
-            <Auf><Glas tag="Schicht 1 · Einsicht" titel="Zuerst Klarheit.">Auskunft aus SCHUFA, KSV oder CRIF, Kontoauszug-Analyse durch ARAS AI, jeder Eintrag erklärt. Ziel: erste Einsicht innerhalb von 24 Stunden.</Glas></Auf>
+            <Auf><Glas tag="Schicht 1 · Einsicht" titel="Zuerst Klarheit.">Auskunft aus SCHUFA, KSV oder CRIF, Kontoauszug-Analyse durch FIAON, jeder Eintrag erklärt. Ziel: erste Einsicht innerhalb von 24 Stunden.</Glas></Auf>
             <Auf verzoegerung={100}><Glas tag="Schicht 2 · Aktion — der Burggraben" titel="Dann Bewegung.">Löschanträge, Berichtigungen, Widersprüche, Ratenvereinbarungen: vorbereitet, anwaltlich geprüft, mit einem Klick versendet, Antwort verfolgt. Jede Antwort macht das System besser.</Glas></Auf>
             <Auf verzoegerung={200}><Glas tag="Schicht 3 · Zugang" titel="Dann die Tür.">Girokonto für jeden Kunden, Kreditkarte bis 25.000 € bei guter Bonität, Finanzierung später. Hier entstehen Partnererlöse – mit Kunden, deren Bonität dokumentiert ist.</Glas></Auf>
           </div>

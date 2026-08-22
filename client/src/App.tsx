@@ -125,6 +125,7 @@ const AdminFahrplanPage = lazy(() => import("@/pages/admin-fahrplan"));
 const AdminKarteiPage = lazy(() => import("@/pages/admin-kartei"));
 const AdminAuszahlungenPage = lazy(() => import("@/pages/admin-auszahlungen"));
 const AdminAufgabenPage = lazy(() => import("@/pages/admin-aufgaben"));
+const AdminTodoPage = lazy(() => import("@/pages/admin-todo"));
 
 // Paket N1: JEDE /admin-Seite läuft in der AdminShell (Sidebar, Breadcrumb,
 // Zurück, Cmd+K). Serverseitige Guards bleiben unberührt.
@@ -191,6 +192,8 @@ function Router() {
       <Route path="/admin/auszahlungen" component={admin(AdminAuszahlungenPage)} />
       {/* Notizen und Aufgaben an Personen — eigene und ans Team vergebene. */}
       <Route path="/admin/aufgaben" component={admin(AdminAufgabenPage)} />
+      {/* Justins eigene Liste — was nur der Betreiber tun kann (E-025). */}
+      <Route path="/admin/todo" component={admin(AdminTodoPage)} />
       <Route path="/admin/finanzen" component={admin(AdminFinanzenPage)} />
       <Route path="/admin/kontoabgleich" component={admin(AdminKontoabgleichPage)} />
       <Route path="/admin/verbuchung" component={admin(AdminVerbuchungPage)} />

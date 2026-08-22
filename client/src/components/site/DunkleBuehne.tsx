@@ -10,7 +10,7 @@ import PremiumFooter from "@/components/PremiumFooter";
 import NeuralSphere from "@/components/home3d/NeuralSphere";
 import "@/styles/dunkel.css";
 
-type Seite = "startseite" | "investoren" | "karriere" | "presse" | "partner" | "datenraum" | "team";
+type Seite = "startseite" | "investoren" | "karriere" | "presse" | "partner" | "datenraum" | "team" | "was-ist-fiaon";
 
 export function Dunkel({ seite, titel, beschreibung, children }: { seite: Seite; titel: string; beschreibung: string; children: ReactNode }) {
   useEffect(() => {
@@ -278,4 +278,27 @@ export function Anfrage({ art, felder, knopf, hinweis, vorbelegt }: {
       </div>
     </form>
   );
+}
+
+/** Szenenbild: ein Higgsfield-Bild in voller Breite, gedimmt, mit Schleier nach oben und unten — ein Atemzug zwischen zwei Blöcken. */
+export function Szenenbild({ src, titel, text }: { src: string; titel?: ReactNode; text?: ReactNode }) {
+  return (
+    <section className="dk-szenenbild" aria-hidden={!titel}>
+      <img src={src} alt="" loading="lazy" decoding="async" />
+      <div className="schleier" />
+      {(titel || text) && (
+        <div className="dk-rahmen schmal mitte inhalt">
+          <Auf>
+            {titel && <h2 className="dk-h2" style={{ marginTop: 0 }}>{titel}</h2>}
+            {text && <p className="dk-lead">{text}</p>}
+          </Auf>
+        </div>
+      )}
+    </section>
+  );
+}
+
+/** Lichtband: mehrere Blöcke auf hellem Grund — die Bühne bleibt dunkel, die Mitte atmet hell. Ein- und Ausblendung in Nachtblau. */
+export function Licht({ children }: { children: ReactNode }) {
+  return <div className="dk-licht">{children}</div>;
 }

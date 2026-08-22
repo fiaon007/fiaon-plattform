@@ -24,7 +24,7 @@ const AdminKundenPage = lazy(() => import("@/pages/admin-kunden"));
 const AdminKundeAktePage = lazy(() => import("@/pages/admin-kunde"));
 const AdminAntraegePage = lazy(() => import("@/pages/admin-antraege"));
 const AdminFunktionenPage = lazy(() => import("@/pages/admin-funktionen"));
-import WasIstFiaonPage from "@/pages/was-ist-fiaon";
+const WasIstFiaonPage = lazy(() => import("@/pages/site/was-ist-fiaon"));
 import PlattformKonzeptPage from "@/pages/plattform-konzept";
 import LoginPage from "@/pages/login";
 const DashboardPage = lazy(() => import("@/pages/dashboard"));

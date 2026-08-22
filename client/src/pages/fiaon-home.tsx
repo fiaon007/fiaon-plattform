@@ -12,7 +12,7 @@
 // Preise kommen aus dem Paketkatalog. Marke: FIAON — sonst nichts.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useState } from "react";
-import { Dunkel, Block, Karten, Kennzahlen, Schritte, Glas, Fragen, Zwischenruf, Abschluss, Knopf, Auf } from "@/components/site/DunkleBuehne";
+import { Dunkel, Block, Karten, Kennzahlen, Schritte, Glas, Fragen, Zwischenruf, Abschluss, Knopf, Auf, Licht } from "@/components/site/DunkleBuehne";
 import { FlugHero } from "@/components/site/FlugHero";
 import ArasCore from "@/components/home3d/ArasCore";
 import SchichtenSzene from "@/components/home3d/SchichtenSzene";
@@ -149,6 +149,7 @@ export default function FiaonHome() {
 
       <Zwischenruf text="Ihr Konto ist in zwei Minuten angelegt – Ihre Auskunft liegt innerhalb von 24 Stunden in Ihrem Bereich." knopf="Jetzt starten" href="/antrag" still={{ knopf: "Pakete ansehen", href: "#setups" }} />
 
+      <Licht>
       <Block pille="Ihr Vertrauen" titel={<>Gef&uuml;hrt wie ein Finanzinstitut. <span className="dk-verlauf">Gebaut wie eine App.</span></>}
              lead="FIAON LTD mit Sitz in London, Kunden in Deutschland, Österreich und der Schweiz. Jedes Schreiben, das Sie über FIAON versenden, ist anwaltlich geprüft. Jede Zahlung läuft per SEPA-Lastschrift über einen verifizierten Kreditor.">
         <div className="dk-zweispaltig" style={{ marginTop: 56 }}>
@@ -206,6 +207,8 @@ export default function FiaonHome() {
         </div>
         <Auf><p className="dk-leise" style={{ marginTop: 36 }}>Kein Papierkram. Keine Filiale. Ein Ansprechpartner, der Ihre Akte kennt.</p></Auf>
       </Block>
+
+      </Licht>
 
       <Block pille="Kundenstimmen" titel={<>Klarheit, <span className="dk-verlauf">die bleibt.</span></>} mitte>
         <div style={{ textAlign: "left" }}>

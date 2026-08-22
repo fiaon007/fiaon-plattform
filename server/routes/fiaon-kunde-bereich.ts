@@ -253,6 +253,8 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
       ansprechpartner: a.betreuer_name ? { name: a.betreuer_name, rolle: a.betreuer_rolle || null } : null,
       lastschrift: { mandat: a.gc_mandate_ref || null, status: a.gc_mandate_status || null, aktiv: a.gc_mandate_status === "active" },
       kontoVerbunden: false,
+      // Die Auswertung des Kontoauszugs (22.08.2026) — null, solange keiner da ist.
+      finanzen: await (await import("../lib/fiaon-kontoauszug-analyse")).analyseFuer(ref).catch(() => null),
     });
   } catch (err) {
     console.error("[MEIN-BEREICH] bereich:", err);

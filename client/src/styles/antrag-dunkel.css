@@ -1,0 +1,76 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   ANTRAG — dunkle, ruhige Fassung (22.08.2026, Justin: „komplett neu polieren,
+   ins Dunklere, HIGH END, Handy und PC").
+   Der Antrag ist 2.700 Zeilen Logik mit hellen Hilfsklassen. Statt jede Zeile
+   anzufassen, legt diese Schicht unter `.antrag-dk` die Nachtblau-Bühne der
+   Website darüber: gleiche Glasflächen, gleiche dünne Schrift, gleiche Knöpfe.
+   Die Logik bleibt unberührt — nur das Licht ändert sich.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.antrag-dk{background:#0a1628 !important;color:#e5e7eb;font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;-webkit-font-smoothing:antialiased}
+.antrag-dk .dk-grund{position:fixed;inset:0;z-index:0;background:linear-gradient(135deg,#0a1628 0%,#121a33 50%,#0b0f24 100%)}
+
+/* ── Schrift: dünner, ruhiger ─────────────────────────────────────────────── */
+.antrag-dk .font-black,.antrag-dk .font-bold{font-weight:500}
+.antrag-dk .font-semibold{font-weight:500}
+.antrag-dk :where(h1,h2){font-weight:400;letter-spacing:-.02em}
+.antrag-dk :where(h3,h4){font-weight:500;letter-spacing:-.01em}
+.antrag-dk .fiaon-gradient-text-animated{font-weight:inherit}
+
+/* ── Flächen ───────────────────────────────────────────────────────────────── */
+.antrag-dk .bg-white,.antrag-dk .bg-white\/95,.antrag-dk .bg-white\/90,.antrag-dk .bg-white\/80,.antrag-dk .bg-white\/60,.antrag-dk .bg-white\/50,.antrag-dk .bg-white\/30{background-color:rgba(15,23,42,.62)}
+.antrag-dk .bg-slate-50\/50,.antrag-dk .bg-slate-100{background-color:rgba(255,255,255,.05)}
+.antrag-dk .bg-blue-50{background-color:rgba(37,99,235,.14)}
+.antrag-dk .bg-blue-100{background-color:rgba(37,99,235,.22)}
+.antrag-dk .bg-gray-300,.antrag-dk .bg-gray-400{background-color:rgba(255,255,255,.18)}
+.antrag-dk .bg-red-50\/80{background-color:rgba(220,38,38,.14)}
+.antrag-dk .hover\:bg-white\/60:hover,.antrag-dk .hover\:bg-white\/80:hover{background-color:rgba(255,255,255,.08)}
+.antrag-dk .backdrop-blur-xl,.antrag-dk .backdrop-blur{backdrop-filter:blur(20px) saturate(160%);-webkit-backdrop-filter:blur(20px) saturate(160%)}
+
+.antrag-dk .fiaon-glass-panel{background:rgba(15,23,42,.55) !important;border:1px solid rgba(255,255,255,.1) !important;box-shadow:0 24px 60px rgba(2,6,23,.45),inset 0 1px 0 rgba(255,255,255,.08) !important;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
+.antrag-dk .fiaon-glass-card-selected{background:rgba(37,99,235,.18) !important;border:1px solid rgba(96,165,250,.5) !important;box-shadow:0 20px 50px rgba(37,99,235,.22),inset 0 1px 0 rgba(255,255,255,.1) !important}
+.antrag-dk .fiaon-input-glass{background:rgba(255,255,255,.05) !important;border:1px solid rgba(255,255,255,.12) !important;color:#fff !important;box-shadow:none !important}
+.antrag-dk .fiaon-input-glass:focus{border-color:#60a5fa !important;box-shadow:0 0 0 4px rgba(37,99,235,.22) !important}
+.antrag-dk [class*="shadow-["],.antrag-dk .shadow-sm,.antrag-dk .shadow-lg,.antrag-dk .shadow-xl,.antrag-dk .shadow-2xl{box-shadow:0 24px 60px rgba(2,6,23,.45)}
+
+/* ── Schriftfarben ─────────────────────────────────────────────────────────── */
+.antrag-dk .text-gray-900,.antrag-dk .text-slate-900,.antrag-dk .text-gray-800,.antrag-dk .text-slate-800{color:#f3f4f6}
+.antrag-dk .text-gray-700,.antrag-dk .text-slate-700,.antrag-dk .text-gray-600,.antrag-dk .text-slate-600{color:#cbd5e1}
+.antrag-dk .text-gray-500,.antrag-dk .text-slate-500{color:#9ca3af}
+.antrag-dk .text-gray-400,.antrag-dk .text-slate-400{color:#8b95a7}
+.antrag-dk .text-gray-300,.antrag-dk .text-slate-300,.antrag-dk .text-slate-200{color:#6b7280}
+.antrag-dk .text-blue-600,.antrag-dk .text-blue-700,.antrag-dk .text-blue-900,.antrag-dk .text-\[\#1d4ed8\],.antrag-dk .text-\[\#2563eb\]{color:#93c5fd}
+.antrag-dk .text-blue-600\/70{color:rgba(147,197,253,.7)}
+.antrag-dk .text-red-500,.antrag-dk .text-red-600{color:#fca5a5}
+.antrag-dk .text-emerald-500,.antrag-dk .text-green-400{color:#6ee7b7}
+.antrag-dk .text-amber-600{color:#fcd34d}
+.antrag-dk .placeholder\:text-gray-300::placeholder,.antrag-dk input::placeholder,.antrag-dk textarea::placeholder{color:#64748b}
+
+/* ── Linien ───────────────────────────────────────────────────────────────── */
+.antrag-dk .border-slate-200,.antrag-dk .border-slate-100,.antrag-dk .border-gray-200,.antrag-dk .border-gray-300,.antrag-dk .border-blue-100,.antrag-dk .border-blue-200,.antrag-dk .border-blue-200\/60,.antrag-dk .border-blue-200\/50{border-color:rgba(255,255,255,.12)}
+.antrag-dk .border-blue-300,.antrag-dk .border-blue-500,.antrag-dk .border-\[\#2563eb\],.antrag-dk .hover\:border-\[\#2563eb\]:hover,.antrag-dk .focus\:border-blue-300:focus,.antrag-dk .focus-within\:border-blue-300:focus-within{border-color:rgba(96,165,250,.6)}
+.antrag-dk .border-red-500,.antrag-dk .border-red-100{border-color:#f87171}
+.antrag-dk .divide-slate-100>*+*,.antrag-dk .divide-slate-200>*+*{border-color:rgba(255,255,255,.1)}
+.antrag-dk .focus\:bg-white:focus,.antrag-dk .focus-within\:bg-white:focus-within{background-color:rgba(255,255,255,.07)}
+
+/* ── Eingaben ──────────────────────────────────────────────────────────────── */
+.antrag-dk input:not([type="range"]):not([type="checkbox"]):not([type="radio"]),.antrag-dk select,.antrag-dk textarea{color:#fff;color-scheme:dark}
+.antrag-dk select option{color:#0f172a;background:#fff}
+.antrag-dk input:-webkit-autofill{-webkit-text-fill-color:#fff;-webkit-box-shadow:0 0 0 1000px #111a33 inset}
+
+/* ── Prüfung (Glasbühne) ───────────────────────────────────────────────────── */
+.antrag-dk .antrag-glas{background:rgba(15,23,42,.6) !important;border:1px solid rgba(255,255,255,.1) !important;color:#e5e7eb}
+.antrag-dk .antrag-panel{box-shadow:0 30px 80px rgba(2,6,23,.5),inset 0 1px 0 rgba(255,255,255,.08) !important;border:1px solid rgba(255,255,255,.1) !important}
+.antrag-dk .antrag-pruef-titel{color:#fff;font-weight:400}
+.antrag-dk .antrag-pruef-text{color:#9ca3af}
+.antrag-dk .antrag-teilschritte li{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.1);color:#e5e7eb}
+.antrag-dk .antrag-pruef-fuss{color:#6b7280}
+.antrag-dk .antrag-buehne-schatten{background:radial-gradient(ellipse,rgba(37,99,235,.4),transparent 70%)}
+
+/* ── Knöpfe ───────────────────────────────────────────────────────────────── */
+.antrag-dk .fiaon-btn-gradient{font-weight:400;letter-spacing:.01em;box-shadow:0 10px 28px rgba(37,99,235,.28),inset 0 1px 0 rgba(255,255,255,.2)}
+.antrag-dk .fiaon-btn-outline-animated{color:#e5e7eb;border-color:rgba(255,255,255,.18)}
+
+/* ── Scrollbalken & Kleinigkeiten ──────────────────────────────────────────── */
+.antrag-dk ::-webkit-scrollbar{width:8px}
+.antrag-dk ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.14);border-radius:8px}
+.antrag-dk .shadow-inner{box-shadow:inset 0 1px 3px rgba(0,0,0,.4)}

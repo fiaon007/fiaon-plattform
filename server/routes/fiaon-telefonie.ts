@@ -905,7 +905,6 @@ router.post("/telefon/:id/ergebnis", requireAgent, async (req: AgentRequest, res
   try {
     const id = Number(req.params.id);
     const ergebnis = String(req.body?.ergebnis || "");
-    if (!istErgebnis(ergebnis)) return res.status(400).json({ ok: false, error: "Unbekanntes Ergebnis." });
 
     const [c] = (await sqlPool`
       SELECT id, person_id, ref, agent_id FROM fiaon_calls WHERE id = ${id}
@@ -914,6 +913,41 @@ router.post("/telefon/:id/ergebnis", requireAgent, async (req: AgentRequest, res
     if (Number(c.agent_id) !== req.agent!.id) {
       return res.status(403).json({ ok: false, error: "Das ist nicht dein Anruf." });
     }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // EIN INKASSO-ANRUF BEKOMMT EIN RATEN-ERGEBNIS (22.08.2026, V-7)
+    //
+    // Kommt der Anruf aus dem Forderungsmanagement, trägt er die Rate mit
+    // (`rateId`). Dann gilt hier NICHT die Vertriebskette (Übergabe bei
+    // „blockiert", Nachschub, Tier) — sondern dieselbe Funktion wie der
+    // Ergebnis-Knopf an der Rate. Ein Anruf, ein Ergebnis, eine Prämie.
+    // ══════════════════════════════════════════════════════════════════════
+    const rateId = Number(req.body?.rateId || 0);
+    if (rateId > 0) {
+      const { rolleVon } = await import("../lib/fiaon-kundenzugriff");
+      const rolle = await rolleVon(req.agent!.id);
+      if (!["inkasso", "vertriebsleiter", "admin"].includes(rolle)) {
+        return res.status(403).json({ ok: false, error: "Raten-Ergebnisse hält nur das Forderungsmanagement fest." });
+      }
+      const { istRatenErgebnis, ratenErgebnisAnwenden } = await import("../lib/fiaon-inkasso");
+      if (!istRatenErgebnis(ergebnis)) return res.status(400).json({ ok: false, error: "Unbekanntes Raten-Ergebnis." });
+      const erg = await ratenErgebnisAnwenden({
+        rateId, ergebnis, agentId: req.agent!.id, agentName: req.agent!.name,
+        zusageDatum: req.body?.zusageDatum || null,
+        notiz: req.body?.notiz ? String(req.body.notiz).trim() : null,
+      });
+      if (!erg.ok) return res.status(400).json({ ok: false, error: erg.fehler, brauchtNotiz: ergebnis === "eskalation" });
+      await sqlPool`
+        UPDATE fiaon_calls
+        SET ergebnis = ${`rate_${ergebnis}`}, ergebnis_am = NOW(), updated_at = NOW(),
+            status = CASE WHEN status = 'laeuft' THEN 'beendet' ELSE status END,
+            ende = COALESCE(ende, NOW())
+        WHERE id = ${id}
+      `;
+      return res.json({ ok: true, meldung: erg.meldung ?? "Ergebnis an der Rate festgehalten.", wiedervorlage: erg.wiedervorlage ?? null });
+    }
+
+    if (!istErgebnis(ergebnis)) return res.status(400).json({ ok: false, error: "Unbekanntes Ergebnis." });
 
     let ref = c.ref as string | null;
     if (!ref && c.person_id) {

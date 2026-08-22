@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { FiaonGeraet, FiaonTastatur } from "@/components/FiaonGeraet";
 import { telefonFehler, telefonFehlerText } from "@shared/fiaon-telefon-fehler";
 import { ERGEBNIS_LISTE, NOTIZ_MINDESTLAENGE } from "@shared/fiaon-kontakt-ergebnis-liste";
+import { RATEN_ERGEBNISSE } from "@shared/fiaon-raten-ergebnisse";
 // Die sieben Schritte des Startgesprächs — DAS Bauteil, nicht eine zweite
 // Fassung davon. Es wird nur gerendert, wenn ein eigener Termin vorliegt.
 import { OnboardingCockpit } from "@/components/agent/OnboardingCockpit";
@@ -89,6 +90,13 @@ interface Stand {
 //
 // `scripts/pruef-ergebnis-eine-liste.ts` verbietet eine fünfte Fassung.
 // ═══════════════════════════════════════════════════════════════════════════
+/** Die Ergebnisse des Forderungsmanagements — in derselben Form wie die Vertriebsliste. */
+const RATEN_ERGEBNISSE_PANEL = RATEN_ERGEBNISSE.map((e) => ({
+  art: e.art as string,
+  label: e.label,
+  braucht: (e.braucht === "datum" ? "zusage" : null) as "zusage" | "termin" | null,
+  notizPflicht: e.braucht === "notiz",
+}));
 const ERGEBNISSE = ERGEBNIS_LISTE.map((e) => ({
   art: e.art,
   label: e.knopf,
@@ -265,7 +273,10 @@ export function Softphone() {
   const [stand, setStand] = useState<Stand | null>(null);
   const [offen, setOffen] = useState(false);
   const [nummer, setNummer] = useState("");
-  const [kunde, setKunde] = useState<{ personId: number; name: string } | null>(null);
+  // `rateId`: Kommt der Anruf aus dem Forderungsmanagement, hängt die Rate
+  // dran — dann zeigt das Panel die RATEN-Ergebnisse (shared/fiaon-raten-
+  // ergebnisse.ts) und bucht an der Rate, nicht im Vertrieb.
+  const [kunde, setKunde] = useState<{ personId: number; name: string; rateId?: number | null } | null>(null);
   // ── WEN RUFE ICH GLEICH AN? ─────────────────────────────────────────────
   // Der Server beantwortet das anhand der GEWÄHLTEN NUMMER, nicht anhand der
   // offenen Kundenkarte. Beides kann auseinandergehen: Wer eine Karte offen
@@ -477,7 +488,7 @@ export function Softphone() {
     const hoer = (e: Event) => {
       const d = (e as CustomEvent).detail || {};
       setNummer(String(d.nummer || ""));
-      setKunde(d.personId ? { personId: Number(d.personId), name: String(d.name || "") } : null);
+      setKunde(d.personId ? { personId: Number(d.personId), name: String(d.name || ""), rateId: d.rateId ? Number(d.rateId) : null } : null);
       setOffen(true);
       setZustand("bereit");
     };
@@ -1392,6 +1403,11 @@ export function Softphone() {
   //  3. Geht beides nicht, steht das ROT im Panel. Ein Ergebnis, das
   //     verschwindet, ist schlimmer als eines, das sich weigert.
   // ═══════════════════════════════════════════════════════════════════════
+  // Welche Ergebnisse? Vertrieb — oder, wenn eine Rate mitkam, die des
+  // Forderungsmanagements. Zwei Listen, EINE Quelle je Liste (shared/).
+  const ergebnisListe: { art: string; label: string; braucht: "zusage" | "termin" | null; notizPflicht: boolean }[] =
+    kunde?.rateId ? RATEN_ERGEBNISSE_PANEL : (ERGEBNISSE as any);
+
   const dokumentieren = async (art: string) => {
     // Die Kennung des Anrufs — gesetzt beim Wählen, sonst aus den offenen
     // Gesprächen dieses Menschen nachgeschlagen (eingehender Anruf).
@@ -1416,13 +1432,16 @@ export function Softphone() {
 
     const ziel = gefunden
       ? `/api/fiaon/telefon/${gefunden}/ergebnis`
-      : `/api/fiaon/agent/crm/kunden/${personId}/aktivitaet`;
+      : kunde?.rateId
+        ? `/api/fiaon/inkasso/rate/${kunde.rateId}/ergebnis`
+        : `/api/fiaon/agent/crm/kunden/${personId}/aktivitaet`;
     // Die Kundenliste nennt das Feld `art`, die Anrufroute `ergebnis`. Beide
     // Namen gehen mit; der Server liest jeweils seinen. Das ist billiger als
     // eine Umbenennung in zwei Routen mitten in einem Notfall.
     const koerper = {
       ergebnis: art,
       art,
+      rateId: kunde?.rateId ?? null,
       notiz: notiz.trim() || null,
       zusageDatum: datumFeld === "zusage" ? datum : null,
       terminDatum: datumFeld === "termin" ? datum : null,
@@ -2315,7 +2334,7 @@ export function Softphone() {
                       {([
                         ["Kunde", daten.name],
                         ["Paket", daten.paket || daten.buchungen?.map((b: any) =>
-                          `${b.bezeichnung}${b.bezahlt ? " ✓" : ""}`).join(", ")],
+                          `${b.bezeichnung}${b.bezahlt ? " (bezahlt)" : ""}`).join(", ")],
                         ["Zahlung", daten.zahlungsstand],
                         ["Offen", daten.offenCents
                           ? `${(daten.offenCents / 100).toFixed(2).replace(".", ",")} €` : null],
@@ -2427,14 +2446,19 @@ export function Softphone() {
                       als Zahl, und der Server prüfte seine eigene. Zwei Zahlen
                       für dieselbe Grenze gehen beim ersten Ändern auseinander. */}
                   {notizFehler
-                    ?? (ERGEBNISSE.find((e) => e.art === notizFuer)?.notizPflicht
+                    ?? (ergebnisListe.find((e) => e.art === notizFuer)?.notizPflicht
                       ? `Pflicht — noch ${Math.max(0, NOTIZ_MINDESTLAENGE - notiz.trim().length)} Zeichen`
                       : "Freiwillig. Steht danach im Verlauf der Akte.")}
                 </p>
               </div>
             )}
+            {kunde?.rateId && (
+              <p className="fi-tel-notiz-fuss" style={{ marginBottom: 6 }}>
+                Forderungsmanagement — das Ergebnis gilt für die Rate, nicht für den Vertrieb.
+              </p>
+            )}
             <div className="fi-tel-ergebnisse">
-              {ERGEBNISSE.map((e) => (
+              {ergebnisListe.map((e) => (
                 <button key={e.art} type="button"
                         onClick={() => {
                           if (e.braucht && datumFeld !== e.braucht) { setDatumFeld(e.braucht); return; }
@@ -2510,8 +2534,11 @@ export function Softphone() {
 }
 
 /** Von überall aus anrufen — die Kundenkarte schickt nur ein Ereignis. */
-export function anrufStarten(nummer: string, personId?: number | null, name?: string): void {
-  window.dispatchEvent(new CustomEvent("fiaon-anrufen", { detail: { nummer, personId, name } }));
+export function anrufStarten(
+  nummer: string, personId?: number | null, name?: string,
+  kontext?: { rateId?: number | null },
+): void {
+  window.dispatchEvent(new CustomEvent("fiaon-anrufen", { detail: { nummer, personId, name, rateId: kontext?.rateId ?? null } }));
 }
 
 

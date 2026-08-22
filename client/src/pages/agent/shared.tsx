@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, createContext, useContext, type ReactNode } from "react";
+import { useState, useEffect, useRef, useCallback, createContext, useContext, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { Softphone } from "@/components/Softphone";
 import { TerminErinnerung } from "@/components/TerminErinnerung";
@@ -648,7 +648,41 @@ function Ladeflaeche({ haengt, was }: { haengt: boolean; was: string }) {
  * Shell: prüft die Anmeldung, zeigt Kopfzeile + Navigation (Desktop oben,
  * Mobile als Bottom-Bar). Nicht angemeldet ⇒ Redirect auf /agent (Login).
  */
-export function AgentShell({ children, onRefresh }: { children: ReactNode; onRefresh?: () => void }) {
+// ═══════════════════════════════════════════════════════════════════════════
+// RÜCKFRAGEN — EIN DIALOG FÜR ALLE (E-022, Scheibe 3 — 22.08.2026)
+//
+// Sieben Stellen im Portal fragten mit `window.confirm()`: ein Systemdialog
+// am oberen Bildrand, auf dem Telefon nicht mit dem Daumen zu bedienen, ohne
+// Fokusfalle, ohne Gestaltung — in einem Portal, das mit `ConfirmDialog`
+// längst ein eigenes Bauteil hat. `useFragen()` gibt jeder Stelle dieselbe
+// Frage zurück: `if (!(await fragen({ titel, text }))) return;`
+// Außerhalb der Hülle (Vorschau-Seiten) fällt es auf `window.confirm` zurück.
+// ═══════════════════════════════════════════════════════════════════════════
+export interface Frage { titel: string; text?: string; folge?: string; ja?: string; nein?: string; gefaehrlich?: boolean }
+const FragenContext = createContext<(f: Frage) => Promise<boolean>>(
+  async (f) => window.confirm([f.titel, f.text, f.folge].filter(Boolean).join("\n\n")),
+);
+export function useFragen(): (f: Frage) => Promise<boolean> { return useContext(FragenContext); }
+
+function FragenAnbieter({ children }: { children: ReactNode }) {
+  const [offen, setOffen] = useState<(Frage & { antwort: (ja: boolean) => void }) | null>(null);
+  const fragen = useCallback((f: Frage) => new Promise<boolean>((antwort) => setOffen({ ...f, antwort })), []);
+  const schliessen = (ja: boolean) => { offen?.antwort(ja); setOffen(null); };
+  return (
+    <FragenContext.Provider value={fragen}>
+      {children}
+      <ConfirmDialog open={!!offen} title={offen?.titel ?? ""} message={offen?.text} consequence={offen?.folge}
+                     confirmLabel={offen?.ja ?? "Ja, weiter"} cancelLabel={offen?.nein ?? "Abbrechen"}
+                     danger={offen?.gefaehrlich} onConfirm={() => schliessen(true)} onCancel={() => schliessen(false)} />
+    </FragenContext.Provider>
+  );
+}
+
+export function AgentShell(props: Parameters<typeof AgentShellInnen>[0]) {
+  return <FragenAnbieter><AgentShellInnen {...props} /></FragenAnbieter>;
+}
+
+function AgentShellInnen({ children, onRefresh }: { children: ReactNode; onRefresh?: () => void }) {
   const [agent, setAgent] = useState<AgentInfo | null>(null);
   const [checked, setChecked] = useState(false);
   const [fbUnread, setFbUnread] = useState(0);

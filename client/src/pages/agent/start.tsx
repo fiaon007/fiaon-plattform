@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { ErsteSchritte } from "@/components/ErsteSchritte";
-import { AgentShell, ACCENT } from "./shared";
+import { AgentShell, ACCENT, useFragen } from "./shared";
 import { Reveal } from "./motion";
 import {
   Tilt, Ebene, Skelett, eur, useReduzierteBewegung, useToast,
@@ -130,6 +130,7 @@ interface AgentTermin {
 
 function Inhalt() {
   const [d, setD] = useState<StartDaten | null>(null);
+  const fragen = useFragen();
   const [laedt, setLaedt] = useState(true);
   const [busy, setBusy] = useState(false);
   const reduziert = useReduzierteBewegung();
@@ -188,11 +189,11 @@ function Inhalt() {
    */
   const auszahlungEinleiten = async () => {
     if (!d) return;
-    if (!confirm(
-      `Auszahlung über ${eur(d.verdienst.guthabenCents)} anfordern?\n\n`
-      + `Der Betrag wird zur Freigabe eingereicht. Die Überweisung macht die Verwaltung `
-      + `von Hand — du bekommst eine Bestätigungsmail und eine Abrechnung als PDF.`,
-    )) return;
+    if (!(await fragen({
+      titel: `Auszahlung über ${eur(d.verdienst.guthabenCents)} anfordern?`,
+      text: "Der Betrag wird zur Freigabe eingereicht. Die Überweisung macht die Verwaltung von Hand — du bekommst eine Bestätigungsmail und eine Abrechnung als PDF.",
+      ja: "Anfordern",
+    }))) return;
     setBusy(true);
     const r = await api("/agent/payouts", { method: "POST", body: JSON.stringify({}) });
     setBusy(false);

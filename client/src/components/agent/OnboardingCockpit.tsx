@@ -21,6 +21,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useFragen } from "@/pages/agent/shared";
 import { KernbotschaftKarte } from "@/components/KernbotschaftKarte";
 import { FiaonEbene } from "@/components/FiaonEbene";
 import {
@@ -102,6 +103,7 @@ export function OnboardingCockpit({
   // Jetzt liegt der Stand je Termin im Browser, bis das Gespräch abgeschlossen
   // ist. Kein Server-Weg: Es ist der Entwurf des Mitarbeiters, nicht die Akte.
   const speicherKey = `fiaon-cockpit-${termin.id}`;
+  const fragen = useFragen();
   const [stand, setStand] = useState<AgendaStand>(() => {
     try {
       const roh = window.localStorage.getItem(speicherKey);
@@ -199,11 +201,11 @@ export function OnboardingCockpit({
   };
 
   const nichtErschienen = async () => {
-    if (!confirm(
-      `„${termin.name}" als NICHT ERSCHIENEN vermerken?\n\n`
-      + "Das zählt als erfolgloser Versuch, und der Kunde wird erneut eingeladen. "
-      + "Das Konto bleibt eingeschränkt.",
-    )) return;
+    if (!(await fragen({
+      titel: `„${termin.name}“ als nicht erschienen vermerken?`,
+      text: "Das zählt als erfolgloser Versuch, und der Kunde wird erneut eingeladen. Das Konto bleibt eingeschränkt.",
+      ja: "Nicht erschienen",
+    }))) return;
     setBusy("noshow");
     const r = await fetch(`/api/fiaon/agent/onboarding/termine/${termin.id}/ergebnis`, {
       method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },

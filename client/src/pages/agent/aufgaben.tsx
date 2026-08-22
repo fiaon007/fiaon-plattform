@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AgentShell, ACCENT } from "./shared";
 import { Reveal } from "./motion";
+import { AuftraegeListe } from "./auftraege-liste";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // /agent/aufgaben — was die Verwaltung von mir erwartet
@@ -113,13 +114,17 @@ function Inhalt() {
   const [liste, setListe] = useState<Vermerk[]>([]);
   const [laedt, setLaedt] = useState(true);
   const [busy, setBusy] = useState<number | null>(null);
-  const [reiter, setReiter] = useState<"offen" | "hinweise" | "erledigt">("offen");
+  const [reiter, setReiter] = useState<"offen" | "auftraege" | "hinweise" | "erledigt">("offen");
+  // Aufträge der Leitung (E-028): Justin übergibt Aufgaben aus seiner Liste.
+  const [auftraegeZahl, setAuftraegeZahl] = useState(0);
 
   const laden = useCallback(async () => {
     setLaedt(true);
     const r = await api("/agent/vermerke");
     setListe(r.ok ? r.json.vermerke : []);
     setLaedt(false);
+    const z = await api("/agent/vermerke/zahlen");
+    if (z.ok) setAuftraegeZahl(Number(z.json.auftraege || 0));
   }, []);
 
   useEffect(() => { void laden(); }, [laden]);
@@ -159,7 +164,7 @@ function Inhalt() {
 
   const ueberfaellig = aufgabenOffen.filter((v) => v.ueberfaellig).length;
   const heute = aufgabenOffen.filter((v) => v.heuteFaellig).length;
-  const sichtbar = reiter === "offen" ? aufgabenOffen : reiter === "hinweise" ? hinweise : erledigt;
+  const sichtbar = reiter === "offen" ? aufgabenOffen : reiter === "hinweise" ? hinweise : reiter === "auftraege" ? [] : erledigt;
 
   return (
     <div className="max-w-2xl pb-24 md:pb-8">
@@ -195,6 +200,9 @@ function Inhalt() {
           <button type="button" data-an={reiter === "offen" ? "1" : undefined} onClick={() => setReiter("offen")}>
             Zu tun {aufgabenOffen.length > 0 ? `(${aufgabenOffen.length})` : ""}
           </button>
+          <button type="button" data-an={reiter === "auftraege" ? "1" : undefined} onClick={() => setReiter("auftraege")}>
+            Aufträge {auftraegeZahl > 0 ? `(${auftraegeZahl})` : ""}
+          </button>
           <button type="button" data-an={reiter === "hinweise" ? "1" : undefined} onClick={() => setReiter("hinweise")}>
             Hinweise {hinweise.length > 0 ? `(${hinweise.length})` : ""}
           </button>
@@ -204,9 +212,16 @@ function Inhalt() {
         </div>
       </Reveal>
 
-      {laedt && <p className="text-[13px] text-slate-400">Wird geladen …</p>}
+      {laedt && reiter !== "auftraege" && <p className="text-[13px] text-slate-400">Wird geladen …</p>}
 
-      {!laedt && sichtbar.length === 0 && (
+      {reiter === "auftraege" && (
+        <Reveal index={3}>
+          <p className="text-[12px] text-slate-400 mb-3">Aufgaben, die Justin dir aus seiner Liste übergeben hat. Annehmen, Rückfrage stellen, Ergebnis melden — alles hier.</p>
+          <AuftraegeListe onGeaendert={() => void laden()} />
+        </Reveal>
+      )}
+
+      {!laedt && reiter !== "auftraege" && sichtbar.length === 0 && (
         <Reveal index={3}>
           <div className="au-karte px-5 py-8 text-center">
             <p className="text-[14px] font-semibold text-slate-800">

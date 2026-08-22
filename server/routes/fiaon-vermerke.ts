@@ -414,7 +414,9 @@ router.get("/agent/vermerke/zahlen", requireAgent, async (req: AgentRequest, res
         COUNT(*) FILTER (WHERE art = 'aufgabe' AND status = 'offen' AND zustaendig_agent_id = ${id} AND faellig_am = ${heute}::date)::int AS heute
       FROM fiaon_vermerke WHERE entfernt_am IS NULL
     `;
-    res.json({ ok: true, offen: Number(z.offen), ueberfaellig: Number(z.ueberfaellig), heute: Number(z.heute) });
+    // Aufträge der Leitung (E-028) zählen mit — sie liegen auf derselben Seite.
+    const auftraege = await (await import("./fiaon-betreiber-todo")).agentAuftraegeOffen(id).catch(() => 0);
+    res.json({ ok: true, offen: Number(z.offen), ueberfaellig: Number(z.ueberfaellig), heute: Number(z.heute), auftraege });
   } catch (err) {
     console.error("[FIAON-VERMERK] agent-zahlen:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });

@@ -862,7 +862,7 @@ function AgentShellInnen({ children, onRefresh }: { children: ReactNode; onRefre
   useEffect(() => {
     if (!agent) return;
     const holen = () => api("/agent/vermerke/zahlen")
-      .then((r) => { if (r.ok) setAufgabenFaellig((r.json.heute || 0) + (r.json.ueberfaellig || 0)); })
+      .then((r) => { if (r.ok) setAufgabenFaellig((r.json.heute || 0) + (r.json.ueberfaellig || 0) + (r.json.auftraege || 0)); })
       .catch(() => {});
     holen();
     const geaendert = () => holen();

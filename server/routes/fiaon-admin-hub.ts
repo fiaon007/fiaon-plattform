@@ -262,6 +262,8 @@ async function computeBadges(): Promise<any> {
       // Die Zählung steht jetzt in server/lib/fiaon-marken.ts — einmal, für
       // Marke und Zielseite.
       aufgabenOffen: marken.aufgaben.wert,
+      // Justins eigene Liste (E-025) — was der Betreiber tun muss.
+      todoOffen: await (await import("./fiaon-betreiber-todo")).todoOffenZahl().catch(() => 0),
       // Nur die Fehlschläge sind eine Aufgabe. „Versandt" gehört auf die
       // Karte, nicht an die Navigation — eine Zahl, die immer da ist, liest
       // nach drei Tagen niemand mehr.

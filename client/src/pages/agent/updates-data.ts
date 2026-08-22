@@ -56,7 +56,7 @@
 // hat man schon vergessen.
 // ============================================================================
 
-export type UpdateCategory = "Neu" | "Verbessert" | "Behoben" | "Hintergrund";
+export type UpdateCategory = "Neu" | "Verbessert" | "Behoben" | "Hintergrund" | "Geändert";
 
 export interface AgentUpdate {
   /** Stabile, eindeutige ID (Datum + Kürzel) — steuert den „gesehen"-Status. */
@@ -83,6 +83,53 @@ export interface AgentUpdate {
 
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
+  {
+    id: "2026-08-22-kundenweg-neu",
+    date: "2026-08-22",
+    category: "Neu",
+    title: "Der Kunde bleibt eingeloggt, bekommt Erinnerungen, sieht seine Finanzen",
+    summary:
+      "Viel Neues auf der Kundenseite, das sich auf deine Gespräche auswirkt: E-Mail zuerst im Antrag, "
+      + "Erinnerungskette nach Abbruch, Kontoauszug-Analyse, Frage nach Rate 12, Kartenstatus.",
+    changes: [
+      "E-MAIL ZUERST: Im Antrag ist die E-Mail jetzt das erste Feld. Wer abbricht, bekommt eine Erinnerungskette (10 Minuten, dann 16:30 und 19:00 Uhr, am Folgetag 07:30, 15:00, 16:30, 19:00) mit einem Link genau an die abgebrochene Stelle.",
+      "KONTOAUSZUG-ANALYSE: Lädt ein Kunde seinen Kontoauszug hoch, wertet FIAON ihn in Minuten aus — Einnahmen, Ausgaben, Fixkosten, Dispo, Rücklastschriften, Warnungen. Der Kunde sieht das unter „Ihre Finanzen“; in der Akte steht ein Eintrag mit den Kernzahlen.",
+      "RATE 12: Nach der zwölften Rate wird der Kunde gefragt, ob er bleibt. Ohne Ja endet das Abo — es entsteht keine 13. Rate, es wird nichts gemahnt.",
+      "LASTSCHRIFT: Kunden können nach der ersten Zahlung eine SEPA-Lastschrift einrichten. Das Forderungsmanagement sieht an der Karte, ob ein Mandat aktiv ist und ob ein Einzug geplatzt ist.",
+      "KARTENSTATUS: „Wo ist meine Karte?“ ist beantwortbar — der Stand steht in der Lage des Kunden (Vertriebsleitung pflegt ihn).",
+      "EINGELOGGT BLEIBEN: Kunden bleiben 30 Tage angemeldet und sehen „Mein Bereich“ in der Kopfzeile der Website.",
+    ],
+    howto: [
+      "Fragt ein Kunde nach seiner Auswertung: Unter „Ihre Finanzen“ im Kundenbereich — ein PDF aus dem Online-Banking, kein Foto.",
+      "Fragt ein Kunde, warum er viele Mails bekommt: Die Erinnerungskette endet, sobald er weitermacht oder bezahlt.",
+      "Rate 12 erreicht? Der Kunde entscheidet selbst im Bereich unter „Abo & Zahlungen“. Bitte nicht von Hand verlängern.",
+    ],
+    link: { href: "/agent/kunden", label: "Zur Kundenliste" },
+    important: true,
+  },
+  {
+    id: "2026-08-22-agentenportal-umbau",
+    date: "2026-08-22",
+    category: "Verbessert",
+    title: "Agentenportal: Wartende, Bestandswache, Anliegen, ein Ergebnis je Anruf",
+    summary:
+      "Vier Abteilungen wurden im Code durchleuchtet und umgebaut — weniger Stellen, an denen dasselbe schiefgehen kann.",
+    changes: [
+      "ONBOARDING — REITER „WARTENDE“: Bezahlte Kunden ohne Startgespräch sind jetzt sichtbar (hausweit), mit „Einladung senden“ und „Anrufen“. Der Kalender-Haken schaltet ein Startgespräch jetzt wirklich frei (Gutschrift inklusive). Notizen im Cockpit bleiben bei einem Reload erhalten. Du bekommst 60 Minuten vor jedem Termin eine Erinnerung.",
+      "VERTRIEB: „Zahlungsdaten kopieren“ ist in der Liste nicht mehr grau. Die Zähler an den Filtern zählen dieselbe Menge wie die Liste. Das Softphone meldet dein Ergebnis an die Karte dahinter. Rechnung (PDF) steht an jeder Buchung. Rückfragen kommen im Portal statt als Browser-Fenster.",
+      "FORDERUNGSMANAGEMENT: Das Telefon zeigt dir bei einem Inkasso-Anruf die RATEN-Ergebnisse — ein Anruf, ein Ergebnis, Prämie inklusive. „Nummer blockiert“ schickt den Kunden nicht mehr in den Vertrieb. Nach dem fünften vergeblichen Versuch ruht die Rate 14 Tage. Fünf Mahnstufen, konsistent angezeigt. Eine Bankverbindung in der Akte.",
+      "VERTRIEBSLEITUNG: Reiter „Bestandswache“ (bezahlt ohne Startgespräch, zahlend ohne Betreuer), Kartenstatus pflegen, Zahlung nur noch über den Beleg-Dialog buchen.",
+      "ANLIEGEN: Kundenanliegen aus „Hilfe & Anliegen“ landen unter „Anliegen“ — eigene Kunden zuerst, dann der Pool.",
+      "DESIGN: Outfit für Überschriften, Monoschrift für Zahlen, kein Systemdialog mehr.",
+    ],
+    howto: [
+      "Onboarding: „Startgespräche“ → Reiter „Wartende“. Ohne Termin = einladen; eingeladen ohne Buchung = anrufen.",
+      "Inkasso: Anrufen wie gewohnt aus der Liste oder Akte — das Telefon weiß, dass es eine Rate ist.",
+      "Leitung: „Vertrieb“ → „Bestandswache“. In der Akte unter „Lage“ den Kartenstatus setzen.",
+    ],
+    link: { href: "/agent/anliegen", label: "Zu den Anliegen" },
+    important: true,
+  },
   {
     id: "2026-08-21-zustaendigkeit-termine",
     date: "2026-08-21",

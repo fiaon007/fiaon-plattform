@@ -73,6 +73,7 @@ export const ADMIN_NAV: NavGroup[] = [
       // sichtbar wird, was das Haus heute gemacht hat — und der Vorgesetzte
       // landet nach der Anmeldung dort.
       { path: "/admin/space", label: "Space", desc: "Der Feed des Teams — mitlesen, reagieren, anpinnen, moderieren", icon: Users },
+      { path: "/admin/todo", label: "Meine Liste", desc: "Was nur du tun kannst — Make, Brevo, Konten, Entscheidungen", icon: ListChecks, badgeKey: "todoOffen" },
       { path: "/admin/aufgaben", label: "Notizen & Aufgaben", desc: "Alles, was an Personen festgehalten oder ans Team vergeben wurde — mit Frist und Sichtbarkeit", icon: ListChecks, badgeKey: "aufgabenOffen" },
     ],
   },

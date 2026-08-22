@@ -17,6 +17,8 @@ const CATEGORY_STYLE: Record<UpdateCategory, { label: string; cls: string }> = {
   Verbessert:  { label: "Verbessert",  cls: "text-indigo-700 bg-indigo-50 border border-indigo-100" },
   Behoben:     { label: "Behoben",     cls: "text-emerald-700 bg-emerald-50 border border-emerald-100" },
   Hintergrund: { label: "Hintergrund", cls: "text-slate-500 bg-slate-50 border border-slate-200" },
+  // Fehlte — ein Eintrag mit dieser Kategorie ließ die ganze Seite abstürzen (22.08.2026).
+  Geändert:    { label: "Geändert",    cls: "text-amber-700 bg-amber-50 border border-amber-100" },
 };
 
 export default function AgentUpdatesPage() {

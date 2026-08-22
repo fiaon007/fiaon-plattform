@@ -441,6 +441,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // 📝 FIAON Vermerke — Notizen und Aufgaben an der Person, mit Frist,
   //    Zuständigem und Sichtbarkeit (privat / Team / bestimmte Personen).
+  // Justins TODO-Liste (E-025) — hinter dem Admin-Gate wie alles unter /admin.
+  const fiaonTodoRoutes = await import('./routes/fiaon-betreiber-todo');
+  app.use('/api/fiaon', fiaonTodoRoutes.default);
   const fiaonVermerkeRoutes = await import('./routes/fiaon-vermerke');
   app.use('/api/fiaon', fiaonVermerkeRoutes.default);
 

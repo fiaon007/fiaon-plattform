@@ -5,7 +5,7 @@
    große Überschrift im Markenverlauf, ruhiger grauer Lauftext.
    Schrift: Inter, dünn. Fett nur, wo es Gewicht braucht (600, nie 800).
    ═══════════════════════════════════════════════════════════════════════════ */
-.dk{color:#fff;font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;-webkit-font-smoothing:antialiased;line-height:1.6;min-height:100vh;position:relative;overflow-x:hidden;background:#0a1628}
+.dk{color:#fff;font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;-webkit-font-smoothing:antialiased;line-height:1.6;min-height:100vh;position:relative;overflow-x:clip;background:#0a1628}
 .dk :where(h1,h2,h3){margin:0;letter-spacing:-.02em;text-wrap:balance;font-weight:400;line-height:1.12}
 .dk :where(p){margin:0}
 .dk .zahl{font-variant-numeric:tabular-nums}

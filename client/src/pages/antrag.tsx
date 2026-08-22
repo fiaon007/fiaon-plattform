@@ -1033,14 +1033,14 @@ export default function AntragPage() {
                 backgroundClip: "text"
               }}>Wählen Sie Ihr FIAON Paket</h1>
               <p style={{
-                color: "#6b7280",
+                color: "#9ca3af",
                 fontSize: "15px",
                 maxWidth: "480px",
                 margin: "0 auto",
                 lineHeight: "1.7"
               }}>Entscheiden Sie sich für das passende Paket — Sie gelangen automatisch zum nächsten Schritt.</p>
               <p style={{
-                color: "#94a3b8",
+                color: "#9ca3af",
                 fontSize: "12.5px",
                 marginTop: "10px"
               }}>Aktivierung per Banküberweisung – Zugang nach Zahlungseingang</p>
@@ -1137,7 +1137,7 @@ export default function AntragPage() {
                       <span style={{
                         fontSize: '17px',
                         fontWeight: 800,
-                        color: '#2563eb',
+                        color: '#93c5fd',
                         whiteSpace: 'nowrap',
                         lineHeight: 1
                       }}>
@@ -1160,7 +1160,7 @@ export default function AntragPage() {
                     }}>{p.fee.toLocaleString("de-DE", { minimumFractionDigits: 2 })}</span>
                     <span style={{
                       fontSize: "13px",
-                      color: "#6b7280",
+                      color: "#9ca3af",
                       fontWeight: "500"
                     }}>€/Mt.</span>
                   </div>
@@ -1191,7 +1191,7 @@ export default function AntragPage() {
                       <CheckIcon isHighEnd={p.key === "highend"} />
                       <span style={{
                         fontSize: "13.5px",
-                        color: "#374151",
+                        color: "#cbd5e1",
                         fontWeight: "500",
                         lineHeight: "1.5",
                         textAlign: "left"
@@ -1210,7 +1210,7 @@ export default function AntragPage() {
                         <CheckIcon isHighEnd={p.key === "highend"} />
                         <span style={{
                           fontSize: "13.5px",
-                          color: "#374151",
+                          color: "#cbd5e1",
                           fontWeight: "500",
                           lineHeight: "1.5",
                           textAlign: "left"
@@ -1236,7 +1236,7 @@ export default function AntragPage() {
                           <CheckIcon isHighEnd={p.key === "highend"} />
                           <span style={{
                             fontSize: "13.5px",
-                            color: "#374151",
+                            color: "#cbd5e1",
                             fontWeight: "500",
                             lineHeight: "1.5",
                             textAlign: "left"
@@ -1262,7 +1262,7 @@ export default function AntragPage() {
                         background: "transparent",
                         border: "none",
                         cursor: "pointer",
-                        color: "#2563eb",
+                        color: "#93c5fd",
                         fontSize: "13px",
                         fontWeight: "600",
                         transition: "color 0.15s, gap 0.2s"

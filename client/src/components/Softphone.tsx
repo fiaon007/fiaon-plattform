@@ -1456,6 +1456,11 @@ export function Softphone() {
 
     setCallId(null);
     void laden();
+    // ── DIE LISTE DAHINTER ERFÄHRT ES (22.08.2026, V-3) ───────────────────
+    // Vorher sah der Agent hinter dem Panel die UNVERÄNDERTE Karte: keine
+    // Marke, alte Zähler — zwei Wahrheiten über denselben Kunden auf einem
+    // Bildschirm. Ein Ereignis hinaus, so wie `fiaon-anrufen` hinein.
+    window.dispatchEvent(new CustomEvent("fiaon-ergebnis", { detail: { personId: personId ?? null, art } }));
 
     // ══════════════════════════════════════════════════════════════════════
     // AUTO-ADVANCE: DER NÄCHSTE KOMMT VON SELBST

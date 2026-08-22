@@ -147,8 +147,14 @@ router.get("/inkasso/liste", requireAgent, async (req: AgentRequest, res: Respon
     // sieht alle unzugeteilten — sonst stünde er vor einer leeren Liste und
     // könnte nicht arbeiten, obwohl Arbeit da ist.
     const { fristZaehler } = await import("../lib/fiaon-inkasso");
-    const meine = await fristZaehler({ nurMeine: req.agent!.id });
-    const nurMeine = meine.alle > 0 ? req.agent!.id : null;
+    // „Hat er zugeteilte Raten?" — direkt gezählt. Vorher lief die Frage über
+    // `fristZaehler({ nurMeine })`, das eigene UND unzugeteilte Raten zählt:
+    // Die Antwort war immer „ja", sobald irgendetwas herumlag (P-7).
+    const [eigene] = (await sqlPool`
+      SELECT COUNT(*)::int AS n FROM fiaon_abo_raten
+      WHERE inkasso_agent_id = ${req.agent!.id} AND status <> 'bezahlt' AND storniert_am IS NULL
+    `) as any[];
+    const nurMeine = Number(eigene?.n || 0) > 0 ? req.agent!.id : null;
     const frist = String(req.query.frist || "") || null;
 
     // ── EINE KARTE JE MENSCH ────────────────────────────────────────────
@@ -317,12 +323,15 @@ router.get("/inkasso/rate/:id", requireAgent, async (req: AgentRequest, res: Res
 
       // ── DIE BANKDATEN ZUM VORLESEN ──────────────────────────────────────
       (async () => {
-        const { firmierung } = await import("../lib/fiaon-firmierung");
-        const f = await firmierung().catch(() => ({ name: "Fiaon Ltd" } as any));
+        // EINE Bankverbindung — dieselbe wie Rechnung und Mahnmail
+        // (FIAON_BANK_DETAILS). Hier stand ein zweiter, hartkodierter Rückfall
+        // auf eine belgische IBAN: Wer am Telefon vorlas, konnte etwas anderes
+        // sagen als das, was in der Mail stand.
+        const { FIAON_BANK_DETAILS: B } = await import("./fiaon-antrag");
         return {
-          empfaenger: f.name,
-          iban: process.env.FIAON_IBAN || "BE09 9058 9276 3957",
-          bic: process.env.FIAON_BIC || "TRWIBEB1XXX",
+          empfaenger: B.recipient,
+          iban: B.ibanDisplay,
+          bic: B.bic,
           verwendungszweck: rate.zahlungsreferenz,
         };
       })(),

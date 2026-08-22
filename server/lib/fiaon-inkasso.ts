@@ -184,6 +184,10 @@ export const RATEN_ERGEBNISSE: {
   },
 ];
 
+/** Ab dem wievielten vergeblichen Versuch ruht eine Rate — und wie lange. */
+export const NICHT_ERREICHT_RUHE_AB = 5;
+export const NICHT_ERREICHT_RUHE_TAGE = 14;
+
 export function istRatenErgebnis(v: unknown): v is RatenErgebnis {
   return RATEN_ERGEBNISSE.some((e) => e.art === v);
 }
@@ -215,7 +219,8 @@ export async function ratenErgebnisAnwenden(
   lauf: Lauf = sqlPool,
 ): Promise<{ ok: boolean; fehler?: string } & Partial<RatenWirkung>> {
   const [rate] = (await lauf`
-    SELECT r.id, r.ref, r.rate_nr, r.betrag_cents, r.zahlungsreferenz, r.faellig_am, r.mahnstufe
+    SELECT r.id, r.ref, r.rate_nr, r.betrag_cents, r.zahlungsreferenz, r.faellig_am, r.mahnstufe,
+           COALESCE(r.inkasso_versuche, 0)::int AS inkasso_versuche
     FROM fiaon_abo_raten r WHERE r.id = ${opts.rateId} AND r.status = 'offen'
   `) as any[];
   if (!rate) return { ok: false, fehler: "Diese Rate ist nicht mehr offen." };
@@ -249,10 +254,23 @@ export async function ratenErgebnisAnwenden(
       wiedervorlage = berlinPlusTage(3);
       meldung = "Vermerkt. Die Buchung macht der Kontoabgleich — die Rate bleibt bis dahin offen.";
       break;
-    case "nicht_erreicht":
-      wiedervorlage = berlinPlusTage(1);
-      meldung = "Nicht erreicht — morgen erneut.";
+    case "nicht_erreicht": {
+      // ── NACH FÜNF VERSUCHEN RUHT DIE RATE (22.08.2026, C17a / V-8) ──────
+      // Vorher stur +1 Tag, ohne Ende: Wer nie abnahm, stand jeden Morgen
+      // wieder oben — und jeder Anruf kostete Zeit, die bei erreichbaren
+      // Kunden fehlte. Die Mahnungen laufen weiter; in 14 Tagen ist er
+      // wieder dran. Dieselbe Idee wie der Ruhe-Pool im Vertrieb.
+      const versucheDanach = Number(rate.inkasso_versuche || 0) + 1;
+      if (versucheDanach >= NICHT_ERREICHT_RUHE_AB) {
+        wiedervorlage = berlinPlusTage(NICHT_ERREICHT_RUHE_TAGE);
+        meldung = `${versucheDanach}. Versuch ohne Erfolg — die Rate ruht ${NICHT_ERREICHT_RUHE_TAGE} Tage. `
+          + "Die Mahnungen laufen weiter; der Anrufweg pausiert.";
+      } else {
+        wiedervorlage = berlinPlusTage(1);
+        meldung = `Nicht erreicht (${versucheDanach}. Versuch) — morgen erneut.`;
+      }
       break;
+    }
     case "nummer_blockiert":
       wiedervorlage = berlinPlusTage(BLOCKIERT_RUHE_TAGE);
       meldung = `Nummer blockiert uns — die Rate ruht ${BLOCKIERT_RUHE_TAGE} Tage. `
@@ -364,6 +382,11 @@ export async function arbeitsliste(
 ): Promise<any[]> {
   const heute = berlinToday();
   const frist = await anrufPflichtTage(lauf);
+  // Die letzte Stufe kommt aus EINER Quelle (MAHNSTUFEN in fiaon-abo.ts).
+  // Hier stand hart „>= 3", während der Motor bis Stufe 5 sendet — die
+  // Karte meldete „Versand beendet", und es kamen noch zwei Mails.
+  const { MAHNSTUFEN } = await import("../routes/fiaon-abo");
+  const letzteStufe = MAHNSTUFEN.length;
 
   const zeilen = (await lauf`
     SELECT r.id AS rate_id, r.ref, r.rate_nr, r.betrag_cents, r.zahlungsreferenz,
@@ -385,7 +408,7 @@ export async function arbeitsliste(
            (r.faellig_am < ${heute}::date) AS ueberfaellig,
            (${heute}::date - r.faellig_am) AS tage_ueberfaellig,
            -- Anruf-Pflicht: höchste Stufe erreicht UND die Frist verstrichen.
-           (r.mahnstufe >= 3 AND r.faellig_am < (${heute}::date - ${14 + frist}::int)) AS anruf_pflicht,
+           (r.mahnstufe >= ${letzteStufe} AND r.faellig_am < (${heute}::date - ${14 + frist}::int)) AS anruf_pflicht,
            -- Gebrochene Zusage: ein Datum wurde genannt und ist vorbei.
            (r.inkasso_zusage_am IS NOT NULL AND r.inkasso_zusage_am < ${heute}::date) AS zusage_gebrochen,
            (SELECT COUNT(*)::int FROM fiaon_abo_raten x
@@ -426,7 +449,7 @@ export async function arbeitsliste(
       -- herumliegt — sonst arbeitet man an fremden Fällen, während die eigenen
       -- warten.
       ${opts.nurMeine ? lauf`(r.inkasso_agent_id = ${opts.nurMeine}) DESC,` : lauf``}
-      (r.mahnstufe >= 3 AND r.faellig_am < (${heute}::date - ${14 + frist}::int)) DESC,
+      (r.mahnstufe >= ${letzteStufe} AND r.faellig_am < (${heute}::date - ${14 + frist}::int)) DESC,
       -- Geplatzte Lastschrift vor gebrochener Zusage: Hier hat die Bank
       -- schon Nein gesagt, und jede Rücklastschrift kostet FIAON Gebühren.
       (r.lastschrift_status = 'fehlgeschlagen') DESC,

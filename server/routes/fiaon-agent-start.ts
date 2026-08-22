@@ -980,15 +980,19 @@ router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: R
         -- Ein Zähler, der eine andere Menge zählt als die Liste zeigt, ist der
         -- schlimmere Fehler: Dann traut man keiner Zahl mehr.
         -- ══════════════════════════════════════════════════════════════════
+        -- Seit 22.08.2026 tragen ALLE Chips dieselben zwei Bedingungen wie die
+        -- Liste (NOT ruht, Wiedervorlage nicht in der Zukunft) — nicht nur
+        -- „Rechnung stellen". Sonst klafft B7 wieder, sobald der erste
+        -- Tier-1-Kunde in den Ruhe-Pool wandert.
         COUNT(*) FILTER (WHERE priority_tier BETWEEN 1 AND 3 AND NOT is_blocked
-          AND ist_test_am IS NULL)::int AS alle,
+          AND ist_test_am IS NULL AND NOT ruht AND (follow_up_date IS NULL OR follow_up_date <= ${sqlPool.unsafe(HEUTE)}))::int AS alle,
         COUNT(*) FILTER (WHERE priority_tier = 1 AND NOT is_blocked
-          AND ist_test_am IS NULL)::int AS tier1,
-        COUNT(*) FILTER (WHERE tier_reason = 'rechnung_offen' AND NOT is_blocked AND ist_test_am IS NULL)::int AS rechnung_offen,
-        COUNT(*) FILTER (WHERE tier_reason = 'zahlungsfrist_abgelaufen' AND NOT is_blocked AND ist_test_am IS NULL)::int AS frist_abgelaufen,
-        COUNT(*) FILTER (WHERE tier_reason IN ('antrag_abgeschlossen','antrag_abgebrochen') AND NOT is_blocked AND ist_test_am IS NULL)::int AS antrag_offen,
+          AND ist_test_am IS NULL AND NOT ruht AND (follow_up_date IS NULL OR follow_up_date <= ${sqlPool.unsafe(HEUTE)}))::int AS tier1,
+        COUNT(*) FILTER (WHERE tier_reason = 'rechnung_offen' AND NOT is_blocked AND ist_test_am IS NULL AND NOT ruht AND (follow_up_date IS NULL OR follow_up_date <= ${sqlPool.unsafe(HEUTE)}))::int AS rechnung_offen,
+        COUNT(*) FILTER (WHERE tier_reason = 'zahlungsfrist_abgelaufen' AND NOT is_blocked AND ist_test_am IS NULL AND NOT ruht AND (follow_up_date IS NULL OR follow_up_date <= ${sqlPool.unsafe(HEUTE)}))::int AS frist_abgelaufen,
+        COUNT(*) FILTER (WHERE tier_reason IN ('antrag_abgeschlossen','antrag_abgebrochen') AND NOT is_blocked AND ist_test_am IS NULL AND NOT ruht AND (follow_up_date IS NULL OR follow_up_date <= ${sqlPool.unsafe(HEUTE)}))::int AS antrag_offen,
         COUNT(*) FILTER (WHERE priority_tier = 3 AND NOT is_blocked
-          AND ist_test_am IS NULL)::int AS leads,
+          AND ist_test_am IS NULL AND NOT ruht AND (follow_up_date IS NULL OR follow_up_date <= ${sqlPool.unsafe(HEUTE)}))::int AS leads,
         -- ── WER BRAUCHT EINE ERSTE RECHNUNG? ────────────────────────────
         -- Dieselbe Bedingung wie im Filter.
         --
@@ -1005,7 +1009,7 @@ router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: R
         -- heute fertig — die Liste blendet ihn aus, der Zähler muss das auch.
         -- Nach „NOT ruht" standen immer noch 66 gegen 21 in der Liste.
         COUNT(*) FILTER (WHERE NOT is_blocked AND ist_test_am IS NULL AND NOT ruht
-          AND (follow_up_date IS NULL OR follow_up_date <= CURRENT_DATE)
+          AND (follow_up_date IS NULL OR follow_up_date <= ${sqlPool.unsafe(HEUTE)})
           AND priority_tier BETWEEN 1 AND 3
           AND EXISTS (
           SELECT 1 FROM fiaon_applications ar

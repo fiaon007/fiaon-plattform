@@ -1357,7 +1357,46 @@ export async function runCallbackReminders(): Promise<number> {
     });
     sent++;
   }
-  if (sent) console.log(`[FIAON-AGENT] Rückruf-Erinnerungen versendet: ${sent}`);
+
+  // ══════════════════════════════════════════════════════════════════════
+  // AUCH DER MITARBEITER BEKOMMT SEINE TERMINE ERINNERT (22.08.2026, C12-f)
+  //
+  // Der KUNDE bekam 24 Stunden vorher eine Mail und saß pünktlich da. Der
+  // Onboarder erfuhr von seinem Termin nur, wenn er die Seite offen hatte —
+  // dieser Lauf las ausschließlich `fiaon_contact_log`. Nach zwölf Stunden
+  // setzte der Tageslauf den Termin auf „verpasst", ohne Spur, dass hier ein
+  // Mitarbeiter gefehlt hat und nicht der Kunde. Derselbe Make-Zweig
+  // (`agent_callback_reminder`), eine eigene Spalte gegen Doppelversand.
+  // ══════════════════════════════════════════════════════════════════════
+  await sqlPool`ALTER TABLE fiaon_termine ADD COLUMN IF NOT EXISTS agent_erinnert_am TIMESTAMPTZ`.catch(() => {});
+  const termine = await sqlPool`
+    UPDATE fiaon_termine SET agent_erinnert_am = NOW()
+    WHERE beginn BETWEEN NOW() AND NOW() + INTERVAL '60 minutes'
+      AND status = 'gebucht' AND abgesagt_am IS NULL AND agent_erinnert_am IS NULL AND agent_id IS NOT NULL
+    RETURNING id, agent_id, person_id, beginn, quelle
+  `.catch(() => [] as any[]);
+  for (const t of termine as any[]) {
+    const agents = await sqlPool`SELECT email, first_name, name FROM fiaon_agents WHERE id = ${t.agent_id} AND active = TRUE`;
+    if (agents.length === 0) continue;
+    const [p] = (await sqlPool`
+      SELECT COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''), p.company_name, p.contact_name, p.primary_email) AS name,
+             (SELECT a.ref FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL
+                ORDER BY a.created_at DESC LIMIT 1) AS ref
+      FROM fiaon_persons p WHERE p.id = ${t.person_id}
+    `) as any[];
+    const { terminArtAusQuelle } = await import("../../shared/fiaon-termin-art");
+    await sendMakeWebhook("agent_callback_reminder", {
+      email: agents[0].email,
+      agent_email: agents[0].email,
+      vorname: agents[0].first_name || agents[0].name,
+      kunde_name: p?.name || `Person ${t.person_id}`,
+      referenz: p?.ref || "",
+      termin_zeit: new Date(t.beginn).toISOString(),
+      termin_zeit_text: `${formatBerlin(t.beginn)} (${terminArtAusQuelle(t.quelle).text})`,
+    }).catch((e) => console.error("[FIAON-AGENT] Termin-Erinnerung an Mitarbeiter:", e));
+    sent++;
+  }
+  if (sent) console.log(`[FIAON-AGENT] Rückruf-/Termin-Erinnerungen an Mitarbeiter versendet: ${sent}`);
   return sent;
 }
 

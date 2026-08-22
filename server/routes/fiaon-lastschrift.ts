@@ -54,11 +54,19 @@ router.post("/kunde/:ref/lastschrift/start", requireKunde, async (req: KundeRequ
     const ref = req.kundeRef!;
     const [a] = (await sqlPool`
       SELECT a.ref, a.person_id, a.first_name, a.last_name, a.email, a.street, a.zip, a.city, a.country, a.pack_key,
-             p.gc_mandate_ref, p.gc_mandate_status
+             a.payment_status, p.gc_mandate_ref, p.gc_mandate_status
       FROM fiaon_applications a LEFT JOIN fiaon_persons p ON p.id = a.person_id
       WHERE a.ref = ${ref} AND a.merged_into IS NULL LIMIT 1`) as any[];
     if (!a) return res.status(404).json({ ok: false, error: "Konto nicht gefunden." });
     if (a.gc_mandate_ref && a.gc_mandate_status === "active") return res.json({ ok: true, bereits: true });
+    // ── ERST ZAHLEN, DANN LASTSCHRIFT (Justin, 22.08.2026) ──────────────────
+    // Wer noch nichts überwiesen hat, richtet keine Lastschrift ein: Sonst
+    // richtet jeder eine ein, die erste Abbuchung schlägt fehl, und die
+    // Rücklastgebühr zahlt FIAON. Die Tür steht hier, nicht nur im Browser.
+    if (String(a.payment_status) !== "paid") {
+      return res.status(409).json({ ok: false, code: "ERST_ZAHLEN",
+        error: "Die Lastschrift können Sie einrichten, sobald Ihre erste Zahlung eingegangen ist." });
+    }
 
     const br = await gc("/billing_requests", { method: "POST", idem: `br-${ref}-${Date.now()}`, body: {
       billing_requests: { mandate_request: { scheme: "sepa_core", currency: "EUR" }, metadata: { ref } } } });

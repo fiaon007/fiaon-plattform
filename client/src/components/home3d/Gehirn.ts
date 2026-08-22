@@ -24,19 +24,26 @@ export interface Gehirn {
 function form(dir: THREE.Vector3, out: THREE.Vector3): THREE.Vector3 {
   const th = Math.atan2(dir.z, dir.x);
   const ph = Math.asin(Math.max(-1, Math.min(1, dir.y)));
-  // Windungen: drei Wellen, gegeneinander verschoben
+  // Windungen (Gyri): gefaltete Grate — Betrag einer Welle ergibt Kämme und Täler,
+  // zwei Richtungen übereinander, nach unten hin ruhiger
+  const oben = Math.max(0, Math.cos(ph)) * (0.55 + 0.45 * Math.max(0, dir.y + 0.3));
+  const grat1 = 1 - Math.abs(Math.sin(7.5 * th + 2.2 * Math.sin(2.5 * ph) + 0.6));
+  const grat2 = 1 - Math.abs(Math.sin(4.5 * ph + 3.0 * Math.sin(1.7 * th) + 1.1));
   let r = 1
-    + 0.055 * Math.sin(6 * th + 2 * Math.sin(3 * ph)) * Math.cos(4 * ph)
-    + 0.035 * Math.sin(9 * th + 5 * ph + 1.3)
-    + 0.022 * Math.sin(15 * th - 3 * ph + 0.4) * Math.cos(2 * th);
-  // Längsfurche oben in der Mitte
-  const furche = Math.exp(-(dir.x * dir.x) / 0.018) * Math.max(0, dir.y + 0.15);
-  r -= 0.13 * furche;
-  out.set(dir.x * r * 1.22, dir.y * r * 0.95, dir.z * r * 1.08);
-  // Stirn leicht vor, Hinterkopf rund
-  out.z *= 1 + 0.08 * dir.z;
+    + 0.075 * grat1 * oben
+    + 0.045 * grat2 * oben
+    + 0.02 * Math.sin(13 * th - 4 * ph + 0.4) * Math.cos(2 * th);
+  // tiefe Längsfurche oben in der Mitte
+  const furche = Math.exp(-(dir.x * dir.x) / 0.02) * Math.max(0, dir.y + 0.2);
+  r -= 0.2 * furche;
+  // Proportionen eines Gehirns: breiter als hoch, am längsten von vorn nach hinten
+  out.set(dir.x * r * 1.12, dir.y * r * 0.88, dir.z * r * 1.3);
+  // Stirn leicht vor, Hinterkopf rund; Kleinhirn-Wulst hinten unten
+  out.z *= 1 + 0.06 * dir.z;
+  const klein = Math.exp(-((dir.z + 0.75) * (dir.z + 0.75)) / 0.12) * Math.max(0, -dir.y - 0.1);
+  out.y -= 0.14 * klein;
   // flacher Boden
-  if (out.y < -0.32) out.y = -0.32 + (out.y + 0.32) * 0.4;
+  if (out.y < -0.34) out.y = -0.34 + (out.y + 0.34) * 0.45;
   return out;
 }
 
@@ -93,7 +100,8 @@ export function gehirnBauen(o: { knoten?: number; stroeme?: number; massstab?: n
     const y = 1 - (i / (N - 1)) * 2;
     const rad = Math.sqrt(1 - y * y);
     const th = golden * i;
-    d.set(Math.cos(th) * rad, y, Math.sin(th) * rad);
+    // leichtes Zittern, damit kein regelmäßiges Gitter entsteht
+    d.set(Math.cos(th) * rad + (Math.random() - 0.5) * 0.09, y + (Math.random() - 0.5) * 0.09, Math.sin(th) * rad + (Math.random() - 0.5) * 0.09).normalize();
     knoten.push(form(d, new THREE.Vector3()).multiplyScalar(1.012));
   }
   // Nachbarn: 3 nächste — über ein grobes Raster, damit es nicht quadratisch teuer wird

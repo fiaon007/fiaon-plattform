@@ -1052,8 +1052,9 @@ export default function AntragPage() {
                   onClick={() => { setPack(p); up("wantedLimit", Math.min(d.wantedLimit, p.lim)); track("pack_select", { pack: p.key }, ref); setTimeout(() => goStep(1), 400); }}
                   className="relative"
                   style={{
-                    background: "transparent",
-                    border: p.key === "pro" ? "1.5px solid rgba(37,99,235,0.35)" : "1.5px solid rgba(37,99,235,0.10)",
+                    background: "rgba(15,23,42,.6)",
+                    backdropFilter: "blur(18px)",
+                    border: p.key === "pro" ? "1.5px solid rgba(96,165,250,0.55)" : "1.5px solid rgba(255,255,255,0.12)",
                     borderRadius: "24px",
                     padding: "0",
                     boxShadow: p.key === "pro" ? "0 8px 40px rgba(37,99,235,0.13)" : "0 4px 24px rgba(37,99,235,0.07)",

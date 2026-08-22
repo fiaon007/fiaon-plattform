@@ -359,10 +359,10 @@ function PremiumButton({ children, onClick, disabled = false }: { children: Reac
 // und `fiaon-landing.tsx` nicht — und genau die schreiben in die Datenbank.
 // ══════════════════════════════════════════════════════════════════════════
 const PACKS = [
-  { key:"start", name:"FIAON Starter", sub:"Das Fundament", fee:7.99, lim:500, bg:"linear-gradient(145deg,#4a7ab5,#6a9fd4,#8ab8e8)", feats:["Dein 500 € Einstiegs-Setup","Zugang: Basic Karten-Portfolio","Schufaneutrale Profil-Prüfung","Online-Dashboard & Verwaltung"] },
-  { key:"pro", name:"FIAON Pro", sub:"Standard", fee:59.99, lim:5000, rec:true, bg:"linear-gradient(145deg,#1a3f6f,#2563eb,#4a8af5)", feats:["Dein 5.000 € Limit-Protokoll","Zugang: Premium Karten-Netzwerk","Dynamische Limit-Aufstockung","Sofortige Score-Auswertung","Priority-Bearbeitung im System"] },
-  { key:"ultra", name:"FIAON Ultra", sub:"Elite Konto", fee:79.99, lim:15000, bg:"linear-gradient(145deg,#1a3050,#2a5580,#3d7ab8)", feats:["Dein 15.000 € Elite-Portfolio","Zugang: Gold- & Platinum-Karten","Cashback- & Meilen-Aktivierung","Individuelle Freigabe-Roadmap","VIP-Support & Konto-Optimierung"] },
-  { key:"highend", name:"FIAON High End", sub:"Das Maximum", fee:99.99, lim:25000, bg:"linear-gradient(145deg,#0d1b2a,#1b2d44,#2a4060)", feats:["Dein 25.000 € Black-Card Setup","Exklusiver Zugang: Metal- & VIP-Karten","Persönlicher Account Director","Internationale Limit-Strukturen","24/7 Dedicated Concierge-Support"] },
+  { key:"start", name:"FIAON Starter", sub:"Das Fundament", fee:7.99, lim:500, bg:"linear-gradient(145deg,#4a7ab5,#6a9fd4,#8ab8e8)", feats:["Ihr 500 € Einstiegs-Setup","Zugang: Basic Karten-Portfolio","Schufaneutrale Profil-Prüfung","Online-Dashboard & Verwaltung"] },
+  { key:"pro", name:"FIAON Pro", sub:"Standard", fee:59.99, lim:5000, rec:true, bg:"linear-gradient(145deg,#1a3f6f,#2563eb,#4a8af5)", feats:["Ihr 5.000 € Limit-Protokoll","Zugang: Premium Karten-Netzwerk","Dynamische Limit-Aufstockung","Sofortige Score-Auswertung","Priority-Bearbeitung im System"] },
+  { key:"ultra", name:"FIAON Ultra", sub:"Elite Konto", fee:79.99, lim:15000, bg:"linear-gradient(145deg,#1a3050,#2a5580,#3d7ab8)", feats:["Ihr 15.000 € Elite-Portfolio","Zugang: Gold- & Platinum-Karten","Cashback- & Meilen-Aktivierung","Individuelle Freigabe-Roadmap","VIP-Support & Konto-Optimierung"] },
+  { key:"highend", name:"FIAON High End", sub:"Das Maximum", fee:99.99, lim:25000, bg:"linear-gradient(145deg,#0d1b2a,#1b2d44,#2a4060)", feats:["Ihr 25.000 € Black-Card Setup","Exklusiver Zugang: Metal- & VIP-Karten","Persönlicher Account Director","Internationale Limit-Strukturen","24/7 Dedicated Concierge-Support"] },
 ];
 
 /* === CHECK ICON COMPONENT === */
@@ -471,21 +471,32 @@ function LiveCard({ bg, name, lim, className = "", compact = false }: { bg: stri
 }
 
 /* === PROGRESS BAR === */
-function Progress({ step, total }: { step: number; total: number }) {
-  const progress = ((step + 1) / total) * 100;
+// ── EHRLICHE SCHRITTZÄHLUNG (22.08.2026) ─────────────────────────────────
+// Intern gibt es zehn Zustände (0–9), sichtbar sind fünf Schritte. Vorher
+// stand hier „Schritt 7 von 10" neben „Schritt 4 von 5" in der Überschrift.
+const SICHTBARER_SCHRITT: Record<number, number> = { 1: 1, 2: 2, 3: 3, 4: 3, 5: 3, 6: 4, 7: 4, 8: 5, 9: 5 };
+const SCHRITT_NAMEN = ["Daten", "Finanzen", "Karte", "Vertrag", "Zugang"];
+function Progress({ step }: { step: number; total?: number }) {
+  const sichtbar = SICHTBARER_SCHRITT[step] ?? 1;
   return (
     <div className="mb-10">
       <div className="flex gap-1.5 mb-3">
-        {Array.from({ length: total }).map((_, i) => (
-          <div key={i} className="flex-1 h-1.5 rounded-full relative overflow-hidden" style={{ background: i <= step ? "rgba(37,99,235,.15)" : "rgba(0,0,0,.04)" }}>
-            {i < step && <div className="absolute inset-0 rounded-full bg-[#2563eb]" />}
-            {i === step && <div className="absolute inset-0 rounded-full bg-gradient-to-r from-[#2563eb] to-[#3b82f6]" style={{ animation: "shimmer 2s ease-in-out infinite", backgroundSize: "200% 100%" }} />}
-          </div>
-        ))}
+        {SCHRITT_NAMEN.map((name, i) => {
+          const nr = i + 1;
+          return (
+            <div key={name} className="flex-1">
+              <div className="h-1.5 rounded-full relative overflow-hidden" style={{ background: nr <= sichtbar ? "rgba(37,99,235,.15)" : "rgba(0,0,0,.04)" }}>
+                {nr < sichtbar && <div className="absolute inset-0 rounded-full bg-[#2563eb]" />}
+                {nr === sichtbar && <div className="absolute inset-0 rounded-full bg-gradient-to-r from-[#2563eb] to-[#288DFA]" style={{ animation: "shimmer 2s ease-in-out infinite", backgroundSize: "200% 100%" }} />}
+              </div>
+              <span className={`block mt-1.5 text-[10px] font-semibold uppercase tracking-[.12em] ${nr === sichtbar ? "text-[#1d4ed8]" : "text-gray-400"}`}>{name}</span>
+            </div>
+          );
+        })}
       </div>
       <div className="flex justify-between text-[11px] font-medium text-gray-400">
-        <span>Schritt {step + 1} von {total}</span>
-        <span>{Math.round(progress)}% abgeschlossen</span>
+        <span>Schritt {sichtbar} von 5</span>
+        <span>{Math.round((sichtbar / 5) * 100)} % geschafft</span>
       </div>
     </div>
   );
@@ -712,7 +723,7 @@ export default function AntragPage() {
       if (!d.firstName) e.firstName = "Vorname eingeben";
       if (!d.lastName) e.lastName = "Nachname eingeben";
       if (!d.birthDay || !d.birthMonth || !d.birthYear || d.birthYear.length < 4) e.birth = "Gültiges Datum eingeben";
-      else { const age = new Date().getFullYear() - +d.birthYear; if (age < 18) e.birth = "Du musst mind. 18 sein"; }
+      else { const age = new Date().getFullYear() - +d.birthYear; if (age < 18) e.birth = "Sie müssen mindestens 18 Jahre alt sein"; }
       if (!d.phoneCountryCode || !d.phone) e.phone = "Telefonnummer eingeben";
       else if (!checkPhone(`${d.phoneCountryCode}${d.phone}`).valid) e.phone = checkPhone(`${d.phoneCountryCode}${d.phone}`).reason || "Bitte gültige Telefonnummer eingeben";
       if (!d.street) e.street = "Adresse eingeben";
@@ -1021,14 +1032,14 @@ export default function AntragPage() {
                 WebkitBackgroundClip: "text",
                 WebkitTextFillColor: "transparent",
                 backgroundClip: "text"
-              }}>Wähle dein FIAON Paket</h1>
+              }}>Wählen Sie Ihr FIAON Paket</h1>
               <p style={{
                 color: "#6b7280",
                 fontSize: "15px",
                 maxWidth: "480px",
                 margin: "0 auto",
                 lineHeight: "1.7"
-              }}>Entscheide dich für das passende Paket — du gelangst automatisch zum nächsten Schritt.</p>
+              }}>Entscheiden Sie sich für das passende Paket — Sie gelangen automatisch zum nächsten Schritt.</p>
               <p style={{
                 color: "#94a3b8",
                 fontSize: "12.5px",
@@ -1380,13 +1391,13 @@ export default function AntragPage() {
 
                 {/* Headline */}
                 <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6 leading-[1.1] fiaon-gradient-text-animated">
-                  Dein Limit ist keine Glückssache.<br/>
+                  Ihr Rahmen ist keine Glückssache.<br/>
                   Es ist Mathematik.
                 </h2>
 
                 {/* Subline */}
                 <p className="text-lg text-gray-600 mb-16 max-w-2xl mx-auto leading-relaxed">
-                  Die Bank bewertet dich nach einem starren Algorithmus. Es ist Zeit, deinen eigenen zu nutzen. Wähle dein strategisches Setup und erhalte Zugang zur führenden Limit-Building-Software Europas.
+                  Die Bank bewertet Sie nach einem starren Algorithmus. Es ist Zeit, Ihren eigenen zu nutzen. Wählen Sie Ihr Paket und erhalten Sie Zugang zur führenden Limit-Building-Software Europas.
                 </p>
 
                 {/* Score Circle Visualization */}
@@ -1444,13 +1455,13 @@ export default function AntragPage() {
 
                     {/* Headline */}
                     <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-8 leading-[1.1] fiaon-gradient-text-animated">
-                      Du kaufst keine PDF.<br/>
-                      Du kaufst dein persönliches Finanz-Cockpit.
+                      Sie kaufen keine PDF.<br/>
+                      Sie bekommen Ihr persönliches Finanz-Cockpit.
                     </h2>
 
                     {/* Text */}
                     <p className="text-lg text-gray-600 leading-relaxed">
-                      Sobald du dein Setup wählst, öffnet sich das FIAON-Dashboard. Keine verstaubten Ratgeber, sondern interaktive Daten. Du siehst deine persönliche Limit-Roadmap, simulierst Entscheidungen, bevor du sie triffst, und trackst deinen monatlichen Fortschritt. Die KI liefert die Insights – du triffst die Entscheidungen.
+                      Sobald Sie Ihr Paket wählen, öffnet sich Ihr FIAON-Bereich. Keine verstaubten Ratgeber, sondern interaktive Daten. Sie sehen Ihre persönliche Limit-Roadmap, simulierst Entscheidungen, bevor du sie triffst, und trackst deinen monatlichen Fortschritt. Die KI liefert die Insights – du triffst die Entscheidungen.
                     </p>
                   </div>
 
@@ -1588,7 +1599,7 @@ export default function AntragPage() {
 
                     {/* Text */}
                     <p className="text-[15px] text-gray-600 leading-relaxed">
-                      Was passiert, wenn du heute einen Antrag stellst? Was passiert in 90 Tagen? Simuliere die Auswirkungen auf dein Profil, bevor du in der realen Welt handelst. Vermeide fatale Timing-Fehler.
+                      Was passiert, wenn Sie heute einen Antrag stellen? Was passiert in 90 Tagen? Simulieren Sie die Auswirkungen auf Ihr Profil, bevor Sie in der realen Welt handelst. Vermeide fatale Timing-Fehler.
                     </p>
                   </div>
                 </div>
@@ -1616,7 +1627,7 @@ export default function AntragPage() {
 
                     {/* Text */}
                     <p className="text-[14px] text-gray-600 leading-relaxed">
-                      Unsere Engine gleicht dein Profil blind mit dem Markt ab. Du siehst sofort, bei welchen Anbietern deine Wahrscheinlichkeiten am höchsten sind. 100 % redaktionell. 0 % Affiliate-getrieben.
+                      Unsere Engine gleicht Ihr Profil blind mit dem Markt ab. Sie sehen sofort, bei welchen Anbietern Ihre Wahrscheinlichkeiten am höchsten sind. 100 % redaktionell. 0 % Affiliate-getrieben.
                     </p>
                   </div>
                 </div>
@@ -1657,7 +1668,7 @@ export default function AntragPage() {
 
                     {/* Text */}
                     <p className="text-[14px] text-gray-600 leading-relaxed">
-                      Das US-amerikanische Credit-Building-System, übersetzt in einen 12-Monats-Plan. Du weißt immer genau, was im aktuellen Monat deine wichtigste Aufgabe ist.
+                      Das US-amerikanische Credit-Building-System, übersetzt in einen 12-Monats-Plan. Sie wissen immer genau, was im aktuellen Monat Ihre wichtigste Aufgabe ist.
                     </p>
                   </div>
                 </div>
@@ -1693,7 +1704,7 @@ export default function AntragPage() {
 
                 {/* Text */}
                 <p className="text-lg text-gray-600 mb-16 max-w-2xl mx-auto leading-relaxed">
-                  Warum 59 Euro im Monat zahlen? Weil dich Unwissenheit ein Vielfaches kostet. Eine optimierte 2-Karten-Strategie spart dir durchschnittlich 300 € Fremdwährungsgebühren im Jahr, generiert Hunderte Euros an Cashback und gibt dir Zugang zu zinsfreien Zahlungszielen, die deine Liquidität massiv erhöhen. FIAON ist kein Kostenpunkt. Es ist dein Hebel.
+                  Warum 59 Euro im Monat zahlen? Weil Sie Unwissenheit ein Vielfaches kostet. Eine optimierte 2-Karten-Strategie spart Ihnen durchschnittlich 300 € Fremdwährungsgebühren im Jahr, generiert Hunderte Euros an Cashback und gibt dir Zugang zu zinsfreien Zahlungszielen, die deine Liquidität massiv erhöhen. FIAON ist kein Kostenpunkt. Es ist dein Hebel.
                 </p>
 
                 {/* Scale Visualization */}
@@ -1771,7 +1782,7 @@ export default function AntragPage() {
                   </button>
                   <div className={`overflow-hidden transition-all duration-300 ease-in-out ${openFaq === 0 ? 'max-h-40 opacity-100 pb-6' : 'max-h-0 opacity-0'}`}>
                     <p className="text-[14px] text-gray-600 leading-relaxed">
-                      Nein. Wer dir in der Finanzwelt Garantien gibt, lügt. Wir liefern dir die präziseste Software, die besten Daten und die erfolgreichsten US-Strategien. Den Weg gehst du selbst. Die Entscheidung trifft die Bank.
+                      Nein. Wer Ihnen in der Finanzwelt Garantien gibt, lügt. Wir liefern Ihnen die präziseste Software, die besten Daten und die erfolgreichsten US-Strategien. Den Weg gehst du selbst. Die Entscheidung trifft die Bank.
                     </p>
                   </div>
                 </div>
@@ -1793,7 +1804,7 @@ export default function AntragPage() {
                   </button>
                   <div className={`overflow-hidden transition-all duration-300 ease-in-out ${openFaq === 1 ? 'max-h-40 opacity-100 pb-6' : 'max-h-0 opacity-0'}`}>
                     <p className="text-[14px] text-gray-600 leading-relaxed">
-                      Jederzeit. Wenn dein Finanzprofil wächst und du komplexere Multi-Karten-Strategien (z.B. aus dem Ultra-Paket) benötigst, kannst du per One-Click im Dashboard wechseln.
+                      Jederzeit. Wenn Ihr Finanzprofil wächst und Sie komplexere Multi-Karten-Strategien (z.B. aus dem Ultra-Paket) benötigen, können Sie per One-Click im Dashboard wechseln.
                     </p>
                   </div>
                 </div>
@@ -1815,7 +1826,7 @@ export default function AntragPage() {
                   </button>
                   <div className={`overflow-hidden transition-all duration-300 ease-in-out ${openFaq === 2 ? 'max-h-40 opacity-100 pb-6' : 'max-h-0 opacity-0'}`}>
                     <p className="text-[14px] text-gray-600 leading-relaxed">
-                      In 60 Sekunden. Nach Abschluss deines Setups wird dein Account generiert, die Engine gestartet und dein initialer Profil-Scan beginnt sofort.
+                      In 60 Sekunden. Nach Abschluss Ihres Antrags wird Ihr Konto angelegt, die Engine gestartet und Ihr erster Profil-Scan beginnt sofort.
                     </p>
                   </div>
                 </div>
@@ -1842,7 +1853,7 @@ export default function AntragPage() {
                 {/* Headline */}
                 <h2 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6 text-white leading-[1.1]">
                   Die Maschine ist bereit.<br/>
-                  Du auch?
+                  Sie auch?
                 </h2>
 
                 {/* Subline */}
@@ -1870,7 +1881,7 @@ export default function AntragPage() {
           <div className="animate-[fadeInUp_.4s_ease] w-full">
             <div className="grid grid-cols-1 lg:grid-cols-[1fr,320px] gap-6 sm:gap-8 items-start w-full max-w-full">
               {/* Left: Form */}
-              <div className="fiaon-glass-panel rounded-2xl p-4 sm:p-6 md:p-8 min-w-0 w-full">
+              <div className="fiaon-glass-panel antrag-panel rounded-2xl p-4 sm:p-6 md:p-8 min-w-0 w-full">
                 {/* Paket-Chip — Trigger für Paket-Wechsler (mobile + desktop) */}
                 {pack && (
                   <div className="flex justify-end mb-3 -mt-1">
@@ -1897,7 +1908,7 @@ export default function AntragPage() {
                   <p className="text-[14px] text-gray-400 mb-6">Verschlüsselt übertragen und validiert.</p>
                   {wiederEinstieg === "fertig" && (
                     <div className="mb-5 px-4 py-3 rounded-xl text-[13px] font-semibold" style={{ background: "rgba(37,99,235,.07)", color: "#1d4ed8" }}>
-                      Willkommen zurück — deine Angaben sind noch da. Mach einfach weiter.
+                      Willkommen zurück — Ihre Angaben sind noch da. Machen Sie einfach weiter.
                     </div>
                   )}
                   {wiederEinstieg === "abgelaufen" && (
@@ -1915,7 +1926,7 @@ export default function AntragPage() {
                                     isValid={!!d.email && d.email.includes("@") && d.email.includes(".")} error={errors.email}
                                     type="email" inputMode="email" autoCapitalize="none" autoCorrect="off" spellCheck={false} />
                       <EmailVorschlaege wert={d.email} land={land || d.country} onWahl={(v) => up("email", v)} />
-                      <p className="mt-1.5 text-[11.5px] text-gray-400">Damit du jederzeit genau hier weitermachen kannst.</p>
+                      <p className="mt-1.5 text-[11.5px] text-gray-400">Damit Sie jederzeit genau hier weitermachen können.</p>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <PremiumInput label="Vorname" value={d.firstName} onChange={(v: string) => up("firstName", v)} placeholder="Max" isValid={!!d.firstName} error={errors.firstName} />
@@ -2025,7 +2036,7 @@ export default function AntragPage() {
                 {step === 3 && <>
                   <p className="text-[11px] font-semibold text-[#2563eb] uppercase tracking-[.2em] mb-2">Schritt 3 von 5</p>
                   <h2 className="text-xl sm:text-2xl font-semibold tracking-tight fiaon-gradient-text-animated mb-1">Karte konfigurieren</h2>
-                  <p className="text-[14px] text-gray-400 mb-6">Wähle dein Wunschlimit.</p>
+                  <p className="text-[14px] text-gray-400 mb-6">Wählen Sie Ihr Wunschlimit.</p>
                   <Field label="Wunsch-Kreditlimit" req>
                     <div className="flex items-center gap-3 mb-3">
                       <span className="text-2xl font-semibold fiaon-gradient-text-animated">{d.wantedLimit > 0 ? eur(d.wantedLimit) : "—"}</span>
@@ -2052,7 +2063,7 @@ export default function AntragPage() {
                         <div className="flex items-center justify-between">
                           <div className="flex-1">
                             <p className="text-sm font-semibold text-blue-900 mb-1">Upgrade verfügbar</p>
-                            <p className="text-xs text-blue-700 mb-2">Mit dem {nextPack.name.replace('\n', ' ')} erhältst du ein Limit bis zu {eur(nextPack.lim)}</p>
+                            <p className="text-xs text-blue-700 mb-2">Mit dem {nextPack.name.replace('\n', ' ')} erhalten Sie einen Rahmen bis zu {eur(nextPack.lim)}</p>
                             <button 
                               onClick={() => {
                                 setPack(nextPack);
@@ -2084,10 +2095,10 @@ export default function AntragPage() {
                 {step === 6 && <>
                   <p className="text-[11px] font-semibold text-[#2563eb] uppercase tracking-[.2em] mb-2">Schritt 4 von 5</p>
                   <h2 className="text-xl sm:text-2xl font-semibold tracking-tight fiaon-gradient-text-animated mb-1">Vertrag annehmen</h2>
-                  <p className="text-[14px] text-gray-400 mb-6">Bestätige deine Daten und nimm den Vertrag an.</p>
+                  <p className="text-[14px] text-gray-400 mb-6">Bestätigen Sie Ihre Daten und nehmen Sie den Vertrag an.</p>
                   
                   <Field label="E-Mail-Adresse" req error={errors.email} hint="Vertragsunterlagen werden hierhin gesendet."><Inp type="email" inputMode="email" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={d.email} onChange={(v: string) => up("email", v)} placeholder={land === "AT" ? "max@gmx.at" : land === "CH" ? "max@bluewin.ch" : "max@beispiel.de"} /><EmailVorschlaege wert={d.email} land={land || d.country} onWahl={(v) => up("email", v)} /></Field>
-                  <Field label="Gehaltseingang" req error={errors.salaryReceiptDay} hint="An welchem Tag erhältst du dein Gehalt?"><Sel value={d.salaryReceiptDay} onChange={(v: string) => up("salaryReceiptDay", v)}><option value="">Tag auswählen</option>{Array.from({length: 31}, (_, i) => <option key={i + 1} value={`${i + 1}`}>{i + 1}. Tag im Monat</option>)}<option value="last">Letzter Tag im Monat</option></Sel></Field>
+                  <Field label="Gehaltseingang" req error={errors.salaryReceiptDay} hint="An welchem Tag erhalten Sie Ihr Gehalt?"><Sel value={d.salaryReceiptDay} onChange={(v: string) => up("salaryReceiptDay", v)}><option value="">Tag auswählen</option>{Array.from({length: 31}, (_, i) => <option key={i + 1} value={`${i + 1}`}>{i + 1}. Tag im Monat</option>)}<option value="last">Letzter Tag im Monat</option></Sel></Field>
                   <div className="flex gap-0 rounded-xl overflow-hidden mb-5 fiaon-glass-panel">
                     {[["iban","SEPA-Lastschrift"],["paper","Papierrechnung"]].map(([k,l]) => (
                       <button key={k} onClick={() => up("billingMethod", k)} className={`flex-1 py-3 text-center text-[13px] font-semibold transition-all ${d.billingMethod === k ? "bg-white/80 text-[#2563eb]" : "text-gray-400"}`}>{l}</button>
@@ -2159,7 +2170,7 @@ export default function AntragPage() {
 
                       {/* Real-time data display */}
                       <div className="pt-4 mt-4 border-t border-white/40 space-y-2">
-                        <p className="text-[10px] font-semibold text-[#2563eb] uppercase tracking-[.15em] mb-3">Deine Eingaben</p>
+                        <p className="text-[10px] font-semibold text-[#2563eb] uppercase tracking-[.15em] mb-3">Ihre Eingaben</p>
                         
                         {d.firstName && d.lastName && (
                           <div className="flex justify-between items-center py-1.5">
@@ -2237,81 +2248,60 @@ export default function AntragPage() {
 
         {/* === STEP 4: Verification === */}
         {step === 4 && (
-          <div className="animate-[fadeInUp_.6s_ease] flex flex-col items-center text-center py-16 sm:py-24 px-4" style={{ background: "#FDFDFD" }}>
-            {/* Premium Spinner */}
-            <div className="relative w-56 h-56 mb-12">
-              {/* Outer Glass Ring */}
-              <div className="absolute inset-0 rounded-full bg-gradient-to-br from-slate-50 via-slate-100 to-slate-50 border border-slate-200/50 shadow-lg shadow-slate-200/50 transition-transform duration-[8000ms] animate-spin" />
-              
-              {/* Inner Ring */}
-              <div className="absolute inset-4 rounded-full border border-blue-100/30 bg-gradient-to-br from-blue-50/50 to-transparent shadow-sm" />
-              
-              {/* Haptic Core */}
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="relative z-10 w-28 h-28 rounded-full bg-gradient-to-br from-blue-500 via-blue-600 to-blue-700 border-4 border-white/90 shadow-[0_0_30px_rgba(37,99,235,0.4),0_0_60px_rgba(37,99,235,0.2)] animate-pulse" style={{ animation: "pulseEnergy 2s ease-in-out infinite" }}>
-                  <span className="absolute inset-0 flex items-center justify-center font-black tracking-tight text-white text-3xl bg-gradient-to-r from-blue-100 via-white to-blue-100 bg-clip-text text-transparent animate-gradient">
-                    {verifyDone ? "100" : Math.round(checkProgress)}%
-                  </span>
-                </div>
-              </div>
-              
-              {verifyDone && (
-                <div className="absolute inset-0 flex items-center justify-center animate-[scaleIn_.5s_ease]">
-                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={3}><polyline points="6 12 10 16 18 8"/></svg>
-                </div>
-              )}
-            </div>
-
-            <h3 className="text-xl sm:text-3xl font-black tracking-tight text-slate-900 mb-2 px-4 text-center">
-              {verifyDone ? "Prüfung abgeschlossen" : "Bonitätsprüfung läuft"}
-            </h3>
-            
-            <p className="text-xs sm:text-sm text-slate-500 font-medium leading-relaxed mb-8 sm:mb-10 max-w-md text-center px-4">
-              {verifyDone 
-                ? "Deine Daten wurden erfolgreich verifiziert." 
-                : "Wir analysieren deine Bonität in Echtzeit."}
-            </p>
-
-            {/* Progress Bar */}
-            <div className="w-full max-w-sm mb-8">
-              <div className="h-2 bg-slate-100 rounded-full overflow-hidden relative mb-4 shadow-inner">
-                <div 
-                  className={`h-full rounded-full bg-gradient-to-r from-blue-400 via-blue-500 via-blue-600 to-blue-700 transition-all duration-300 ease-out relative overflow-hidden shadow-[0_0_20px_rgba(37,99,235,0.3)]`}
-                  style={{ width: `${verifyDone ? 100 : checkProgress}%` }}
-                >
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent animate-[slide_1.5s_ease-in-out_infinite]" />
-                </div>
-              </div>
-            </div>
-
-            {/* Micro-Milestone Tiles */}
-            <div className="grid grid-cols-3 gap-2 sm:gap-3 max-w-md mx-auto w-full px-4">
-              {[
-                { label: "SCHUFA-Prüfung", status: checkProgress >= 33 ? (verifyDone ? "done" : "done") : (checkProgress > 0 ? "active" : "pending") },
-                { label: "Einkommenscheck", status: checkProgress >= 66 ? (verifyDone ? "done" : "done") : (checkProgress >= 33 ? "active" : "pending") },
-                { label: "Freigabe", status: checkProgress >= 100 ? "done" : (checkProgress >= 66 ? "active" : "pending") }
-              ].map((item, i) => (
-                <div key={i} className={`bg-white/90 backdrop-blur-xl border rounded-xl p-2 sm:p-3 flex flex-col items-center gap-1.5 sm:gap-2 w-full min-w-0 transition-all duration-500 shadow-sm ${
-                  item.status === 'done' ? 'border-green-200 bg-gradient-to-br from-green-50 to-white shadow-green-100/50' : 
-                  item.status === 'active' ? 'border-blue-200 bg-gradient-to-br from-blue-50 to-white shadow-blue-100/50 animate-pulse' : 
-                  'border-slate-200 bg-gradient-to-br from-slate-50 to-white opacity-60'
-                }`}>
-                  <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shadow-sm flex-shrink-0 ${
-                    item.status === 'done' ? 'bg-gradient-to-br from-green-400 to-green-500' : 
-                    item.status === 'active' ? 'bg-gradient-to-br from-blue-400 to-blue-500 animate-spin' : 
-                    'bg-slate-200'
-                  }`}>
-                    {item.status === 'done' && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={3} className="sm:w-[14px] sm:h-[14px]"><polyline points="6 12 10 16 18 8"/></svg>}
-                    {item.status === 'active' && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2} className="sm:w-[14px] sm:h-[14px]"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>}
+          <div className="animate-[fadeInUp_.6s_ease] antrag-pruefung px-2 sm:px-4 py-8 sm:py-14">
+            {/* ══ DIE PRÜFUNG ALS BÜHNE (22.08.2026) ═════════════════════════
+                Vorher: ein Ring mit Prozentzahl und drei Kacheln. Jetzt eine
+                Glasbühne mit Tiefe, in der die Teilschritte nacheinander
+                erscheinen — nachvollziehbar, was gerade geprüft wird. Die
+                Dauer bleibt (12 s), der Inhalt ist ehrlicher. */}
+            {(() => {
+              const pz = verifyDone ? 100 : checkProgress;
+              const teilschritte = [
+                { ab: 4,  t: "Identität abgeglichen", s: `${d.firstName} ${d.lastName}`.trim() || "Name und Geburtsdatum" },
+                { ab: 18, t: "Anschrift geprüft", s: [d.zip, d.city].filter(Boolean).join(" ") || "Wohnsitz" },
+                { ab: 34, t: "Auskunftei angefragt", s: d.country === "AT" ? "KSV1870 · CRIF Austria" : d.country === "CH" ? "ZEK · CRIF Schweiz" : "SCHUFA · CRIF Bürgel" },
+                { ab: 52, t: "Einkommen plausibilisiert", s: d.income ? `${Number(d.income).toLocaleString("de-DE")} € netto` : "Beschäftigung" },
+                { ab: 68, t: "Haushaltsrechnung", s: "Miete, Verbindlichkeiten, Spielraum" },
+                { ab: 84, t: "Ziel-Rahmen berechnet", s: pack ? `Paket ${pack.name}` : "Paket" },
+                { ab: 100, t: "Freigabe", s: "Ihr Programm steht" },
+              ];
+              return (
+                <div className="antrag-buehne mx-auto" style={{ maxWidth: 760 }}>
+                  <div className="antrag-glas">
+                    <div className="antrag-ring" data-fertig={verifyDone ? "ja" : undefined}>
+                      <svg viewBox="0 0 120 120" width="100%" height="100%" aria-hidden="true">
+                        <defs><linearGradient id="pr-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#288DFA" /><stop offset="1" stopColor="#1D4ED8" /></linearGradient></defs>
+                        <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(29,78,216,.10)" strokeWidth="7" />
+                        <circle cx="60" cy="60" r="52" fill="none" stroke="url(#pr-g)" strokeWidth="7" strokeLinecap="round"
+                                strokeDasharray={`${2 * Math.PI * 52}`} strokeDashoffset={`${2 * Math.PI * 52 * (1 - pz / 100)}`}
+                                transform="rotate(-90 60 60)" style={{ transition: "stroke-dashoffset .35s ease-out" }} />
+                      </svg>
+                      <div className="antrag-ring-kern">
+                        {verifyDone
+                          ? <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round"><polyline points="5 12 10 17 19 7" /></svg>
+                          : <span className="zahl">{Math.round(pz)}<small>%</small></span>}
+                      </div>
+                    </div>
+                    <h3 className="antrag-pruef-titel">{verifyDone ? "Prüfung abgeschlossen" : "Ihre Angaben werden geprüft"}</h3>
+                    <p className="antrag-pruef-text">{verifyDone ? "Ihre Angaben wurden geprüft. Gleich sehen Sie Ihren Rahmen." : "Identität, Auskunftei, Einkommen, Haushalt — Schritt für Schritt, in dieser Reihenfolge."}</p>
+                    <ol className="antrag-teilschritte">
+                      {teilschritte.map((x, i) => {
+                        const zustand = pz >= x.ab ? "fertig" : pz >= x.ab - 16 ? "laeuft" : "wartet";
+                        return (
+                          <li key={x.t} data-zustand={zustand} style={{ ["--i" as any]: i }}>
+                            <span className="marke" aria-hidden="true">{zustand === "fertig" ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={3.2} strokeLinecap="round" strokeLinejoin="round"><polyline points="5 12 10 17 19 7" /></svg> : null}</span>
+                            <span className="text"><b>{x.t}</b><small>{x.s}</small></span>
+                            <span className="stand">{zustand === "fertig" ? "erledigt" : zustand === "laeuft" ? "läuft" : ""}</span>
+                          </li>
+                        );
+                      })}
+                    </ol>
+                    {!verifyDone && <p className="antrag-pruef-fuss">Bitte haben Sie einen Moment Geduld — das dauert unter einer Minute.</p>}
                   </div>
-                  <div className="text-[9px] sm:text-xs text-slate-600 font-medium leading-tight text-center break-words hyphens-auto w-full" style={{ wordBreak: 'break-word' }}>{item.label}</div>
+                  <div className="antrag-buehne-schatten" aria-hidden="true" />
                 </div>
-              ))}
-            </div>
-
-            {!verifyDone && (
-              <p className="mt-12 text-xs text-slate-400 font-mono text-center mb-20">Bitte hab einen Moment Geduld...</p>
-            )}
+              );
+            })()}
           </div>
         )}
 
@@ -2326,8 +2316,8 @@ export default function AntragPage() {
             </div>
             
             <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight mb-3 fiaon-gradient-text-animated">Herzlichen Glückwunsch</h2>
-            <p className="text-[15px] text-gray-500 mb-2">Deine Bonitätsprüfung war erfolgreich</p>
-            <p className="text-[14px] text-gray-400 mb-8">Dein bewilligter Kreditrahmen:</p>
+            <p className="text-[15px] text-gray-500 mb-2">Ihre Prüfung war erfolgreich</p>
+            <p className="text-[14px] text-gray-400 mb-8">Ihr Ziel-Rahmen im Programm:</p>
             
             <div className="relative inline-block mb-10">
               <div className="absolute inset-0 bg-[#2563eb] blur-3xl opacity-10" />
@@ -2353,8 +2343,8 @@ export default function AntragPage() {
               <div className="absolute inset-0 rounded-full border-[2px] border-transparent border-t-[#2563eb] animate-spin" />
               <div className="absolute inset-3 rounded-full border-[2px] border-transparent border-b-blue-300 animate-[spin_1.5s_linear_infinite_reverse]" />
             </div>
-            <h3 className="text-xl font-semibold tracking-tight mb-2 fiaon-gradient-text-animated">Dein Vertrag wird erstellt</h3>
-            <p className="text-[14px] text-gray-400">Wir bereiten alles für dich vor.</p>
+            <h3 className="text-xl font-semibold tracking-tight mb-2 fiaon-gradient-text-animated">Ihr Vertrag wird erstellt</h3>
+            <p className="text-[14px] text-gray-400">Wir bereiten alles für Sie vor.</p>
           </div>
         )}
 
@@ -2371,7 +2361,7 @@ export default function AntragPage() {
               </div>
               <h2 className="text-2xl sm:text-4xl font-bold tracking-tight fiaon-gradient-text-animated mb-3 leading-tight">Herzlich Willkommen</h2>
               <p className="text-[14px] sm:text-[16px] text-gray-500 leading-relaxed max-w-md mx-auto">
-                Deine FIAON Kreditkarte wird in Kürze aktiviert.
+                Ihr FIAON-Bereich wird in Kürze aktiviert.
               </p>
               <p className="text-[12px] sm:text-[13px] text-gray-400 mt-2 break-words px-2">
                 {d.firstName} {d.lastName} · {pack?.name?.replace(/\n/g, " ")} · Ref. {ref}
@@ -2420,7 +2410,7 @@ export default function AntragPage() {
                 <div className="flex-1 min-w-0">
                   <p className="text-[12px] sm:text-[13px] font-semibold text-slate-700 mb-0.5">Aktivierung per Banküberweisung – Zugang nach Zahlungseingang</p>
                   <p className="text-[11px] sm:text-[12px] text-slate-500 leading-relaxed">
-                    Nach dem Passwort-Setup erhältst du deine persönlichen Zahlungsdaten inkl. QR-Code für deine Banking-App. Mit der Zahlung versenden wir auch direkt deine Karte.
+                    Nach dem Passwort erhalten Sie Ihre persönlichen Zahlungsdaten inkl. QR-Code für Ihre Banking-App. Mit der Zahlung versenden wir auch direkt deine Karte.
                   </p>
                 </div>
               </div>
@@ -2475,7 +2465,7 @@ export default function AntragPage() {
                 </div>
               </div>
               <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight fiaon-gradient-text-animated mb-3">Passwort wählen</h2>
-              <p className="text-[15px] text-gray-500 mb-2 max-w-md mx-auto">Wähle ein sicheres Passwort für dein FIAON Konto.</p>
+              <p className="text-[15px] text-gray-500 mb-2 max-w-md mx-auto">Wählen Sie ein sicheres Passwort für Ihr FIAON Konto.</p>
               <p className="text-[13px] text-gray-400">{d.firstName} {d.lastName} · {pack?.name} · Ref. {ref}</p>
             </div>
 
@@ -2590,7 +2580,7 @@ export default function AntragPage() {
             <div className="sticky top-0 bg-white/95 backdrop-blur-xl border-b border-slate-100 px-5 sm:px-8 py-4 sm:py-5 flex items-center justify-between z-10">
               <div>
                 <p className="text-[10px] uppercase tracking-[.2em] font-bold text-[#2563eb] mb-1">Paket wechseln</p>
-                <h3 className="text-lg sm:text-2xl font-black tracking-tight text-slate-900">Wähle dein neues Paket</h3>
+                <h3 className="text-lg sm:text-2xl font-black tracking-tight text-slate-900">Wählen Sie Ihr neues Paket</h3>
               </div>
               <button
                 type="button"
@@ -2672,7 +2662,7 @@ export default function AntragPage() {
             {/* Footer Info */}
             <div className="px-5 sm:px-8 py-4 border-t border-slate-100 bg-slate-50/50">
               <p className="text-[11px] text-slate-500 leading-relaxed">
-                Dein Wunschlimit wird automatisch an das neue Paket angepasst. Eingaben bleiben erhalten.
+                Ihr Wunschlimit wird automatisch an das neue Paket angepasst. Eingaben bleiben erhalten.
               </p>
             </div>
           </div>

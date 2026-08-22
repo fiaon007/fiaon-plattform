@@ -171,7 +171,7 @@ function TerminAngebot({ paymentReference }: { paymentReference: string }) {
         <p className="text-[10px] font-bold uppercase tracking-wider text-[#1d4ed8] mb-1">Weg 1 · empfohlen</p>
         <p className="text-[14px] font-bold text-slate-900 leading-tight">Jetzt überweisen — Konto sofort aktiv</p>
         <p className="text-[12.5px] text-slate-600 mt-1.5 leading-relaxed">
-          Nach Zahlungseingang wird dein Konto freigeschaltet. Tippe hier, die Zahlungsdaten mit deinem Verwendungszweck springen dir entgegen.
+          Nach Zahlungseingang wird Ihr Konto freigeschaltet. Tippen Sie hier — die Zahlungsdaten mit Ihrem Verwendungszweck springen Ihnen entgegen.
         </p>
         <span className="inline-flex items-center justify-center w-full mt-3 rounded-xl text-[13px] font-bold text-white"
               style={{ minHeight: 44, background: "linear-gradient(180deg,#2563eb,#1d4ed8)" }}>
@@ -182,7 +182,7 @@ function TerminAngebot({ paymentReference }: { paymentReference: string }) {
         <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Weg 2</p>
         <p className="text-[14px] font-bold text-slate-900 leading-tight">Wunschtermin buchen</p>
         <p className="text-[12.5px] text-slate-600 mt-1.5 leading-relaxed">
-          Lieber erst sprechen? Wähle eine Zeit — dein persönlicher Ansprechpartner ruft an.
+          Lieber erst sprechen? Wählen Sie eine Zeit — Ihr persönlicher Ansprechpartner ruft an.
         </p>
         <a href={`/termin/${token}`}
            className="inline-flex items-center justify-center w-full mt-3 rounded-xl text-[13px] font-bold text-slate-900 border border-slate-300 bg-white hover:bg-slate-50"
@@ -206,8 +206,8 @@ export function ZahlungDankePage() {
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight zahlung-shimmer-heading mb-4">Danke!</h1>
           <p className="text-[15px] text-slate-600 leading-relaxed max-w-md mx-auto">
-            Wir prüfen deinen Zahlungseingang. Sobald er da ist – meist innerhalb von 24 Stunden – schalten wir dein
-            Konto frei und du bekommst eine E-Mail. Du musst nichts weiter tun.
+            Wir prüfen Ihren Zahlungseingang. Sobald er da ist – meist innerhalb von 24 Stunden – schalten wir Ihr
+            Konto frei und Sie bekommen eine E-Mail. Sie müssen nichts weiter tun.
           </p>
           <div className="mt-10">
             <TrustBadges />
@@ -389,7 +389,7 @@ export default function ZahlungPage() {
             </div>
             <h1 className="text-2xl font-bold mb-3">Zahlung eingegangen ✓</h1>
             <p className="text-[14px] text-gray-500">
-              {order.firstName ? `${order.firstName}, deine` : "Deine"} Zahlung ist bei uns eingegangen — dein Konto ist aktiv und deine Karte ist unterwegs.
+              {order.firstName ? `${order.firstName}, Ihre` : "Ihre"} Zahlung ist bei uns eingegangen — Ihr Konto ist aktiv und Ihre Karte ist unterwegs.
             </p>
           </div>
         )}
@@ -403,7 +403,7 @@ export default function ZahlungPage() {
               </h1>
               {/* 2. Statuszeile */}
               <p className="text-[13px] sm:text-[14px] text-slate-500">
-                Dein Platz ist bis zum <b className="text-slate-900">{dueDateStr}</b> reserviert.
+                Ihr Platz ist bis zum <b className="text-slate-900">{dueDateStr}</b> reserviert.
               </p>
               {order.firstName && (
                 <p className="text-[12px] text-slate-400 mt-1.5">
@@ -427,7 +427,7 @@ export default function ZahlungPage() {
             {order.status === "claimed_paid" && (
               <div className="mb-5 rounded-xl bg-emerald-50 border border-emerald-200 p-4 text-center">
                 <p className="text-[13px] font-semibold text-emerald-700">
-                  Danke! Wir prüfen deinen Zahlungseingang – meist innerhalb von 24 Stunden. Du bekommst eine E-Mail, sobald dein Konto frei ist.
+                  Danke! Wir prüfen Ihren Zahlungseingang – meist innerhalb von 24 Stunden. Sie bekommen eine E-Mail, sobald Ihr Konto frei ist.
                 </p>
               </div>
             )}
@@ -435,12 +435,12 @@ export default function ZahlungPage() {
             {order.status === "expired" && (
               <div className="mb-5 rounded-xl bg-red-50 border border-red-100 p-4 text-center">
                 <p className="text-[13px] font-semibold text-red-600">
-                  Die Zahlungsfrist ist abgelaufen. Bitte kontaktiere unseren Support, um deinen Antrag zu reaktivieren.
+                  Die Zahlungsfrist ist abgelaufen. Bitte kontaktieren Sie unseren Support, um Ihren Antrag zu reaktivieren.
                 </p>
               </div>
             )}
 
-            {/* 3. Erklär-Box: So bezahlst du – ganz einfach */}
+            {/* 3. Erklär-Box: So bezahlen Sie – ganz einfach */}
             <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-5 sm:p-6 mb-5">
               <p className="text-[16px] sm:text-[17px] font-bold zahlung-shimmer-heading mb-4 inline-block">Konto aktivieren &amp; Karte versenden – ganz einfach</p>
 
@@ -448,25 +448,25 @@ export default function ZahlungPage() {
               <ol className="space-y-2.5 mb-5">
                 <li className="flex gap-3 text-[13.5px] sm:text-[14px] text-slate-700 leading-relaxed">
                   <span className="shrink-0 w-6 h-6 rounded-full bg-[#2563eb] text-white text-[12px] font-bold flex items-center justify-center">1</span>
-                  <span>Tippe unten auf <b>„QR-Code speichern"</b> – der Code wird in deiner Foto-Galerie gespeichert.</span>
+                  <span>Tippen Sie unten auf <b>„QR-Code speichern"</b> – der Code wird in Ihrer Foto-Galerie gespeichert.</span>
                 </li>
                 <li className="flex gap-3 text-[13.5px] sm:text-[14px] text-slate-700 leading-relaxed">
                   <span className="shrink-0 w-6 h-6 rounded-full bg-[#2563eb] text-white text-[12px] font-bold flex items-center justify-center">2</span>
-                  Öffne deine Banking-App und starte eine neue Überweisung.
+                  Öffnen Sie Ihre Banking-App und starten Sie eine neue Überweisung.
                 </li>
                 <li className="flex gap-3 text-[13.5px] sm:text-[14px] text-slate-700 leading-relaxed">
                   <span className="shrink-0 w-6 h-6 rounded-full bg-[#2563eb] text-white text-[12px] font-bold flex items-center justify-center">3</span>
                   <span>
                     Wähle dort <b>„Rechnung fotografieren"</b> oder <b>„QR-Code aus Galerie"</b> und lade den gespeicherten
-                    Code hoch. Alle Daten – auch dein persönlicher Code – werden automatisch ausgefüllt.
-                    <span className="hidden sm:inline"> Oder scanne den Code unten einfach mit deiner Banking-App am Handy.</span>
+                    Code hoch. Alle Daten – auch Ihr persönlicher Code – werden automatisch ausgefüllt.
+                    <span className="hidden sm:inline"> Oder scannen Sie den Code unten einfach mit Ihrer Banking-App am Handy.</span>
                   </span>
                 </li>
               </ol>
 
               <p className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Alternativ (von Hand)</p>
               <p className="text-[13px] text-slate-600 leading-relaxed">
-                Du kannst die Daten auch einzeln unten kopieren und selbst eintragen. Wichtig: Trage dabei den Code{" "}
+                Sie können die Daten auch einzeln unten kopieren und selbst eintragen. Wichtig: Tragen Sie dabei den Code{" "}
                 <b className="text-slate-900">{order.paymentReference}</b> als Verwendungszweck ein.
               </p>
             </div>
@@ -478,7 +478,7 @@ export default function ZahlungPage() {
                 <QRCodeSVG value={qrPayload} size={190} level="M" marginSize={2} bgColor="#ffffff" fgColor="#0f172a" />
               </div>
               <p className="text-[12px] text-slate-500 mb-4">
-                GiroCode — enthält Empfänger, IBAN, Betrag und deinen persönlichen Verwendungszweck.
+                GiroCode — enthält Empfänger, IBAN, Betrag und Ihren persönlichen Verwendungszweck.
               </p>
 
               <button
@@ -505,12 +505,12 @@ export default function ZahlungPage() {
               </button>
               {qrSaved === "shared" && (
                 <p className="mt-3 text-[13px] font-semibold text-emerald-600">
-                  QR-Code gespeichert ✓ – öffne jetzt deine Banking-App und lade ihn dort hoch.
+                  QR-Code gespeichert – öffnen Sie jetzt Ihre Banking-App und laden Sie ihn dort hoch.
                 </p>
               )}
               {qrSaved === "downloaded" && (
                 <p className="mt-3 text-[13px] font-semibold text-emerald-600">
-                  Das Bild wurde gespeichert – du findest es in deinen Downloads/Fotos. Öffne jetzt deine Banking-App und lade es dort hoch.
+                  Das Bild wurde gespeichert – Sie finden es in Ihren Downloads/Fotos. Öffnen Sie jetzt Ihre Banking-App und laden Sie es dort hoch.
                 </p>
               )}
 
@@ -535,14 +535,14 @@ export default function ZahlungPage() {
                 display={order.paymentReference}
                 copyValue={order.paymentReference}
                 highlight
-                hint="Ohne diesen Code können wir deine Zahlung nicht zuordnen."
+                hint="Ohne diesen Code können wir Ihre Zahlung nicht zuordnen."
               />
             </div>
 
             {/* 6. IBAN-Herkunft-Hinweis */}
             <div className="rounded-xl bg-blue-50/70 border border-blue-100 p-4 sm:p-5 mb-4">
               <p className="text-[13px] text-slate-600 leading-relaxed">
-                Deine Überweisung geht an unser europäisches Geschäftskonto (die IBAN beginnt mit BE für Belgien). Das
+                Ihre Überweisung geht an unser europäisches Geschäftskonto (die IBAN beginnt mit BE für Belgien). Das
                 ist eine ganz normale SEPA-Überweisung – kostenlos und in der Regel innerhalb eines Bankarbeitstages,
                 genau wie eine Inlandsüberweisung.
               </p>
@@ -551,7 +551,7 @@ export default function ZahlungPage() {
             {/* 7. Vertrauens-Absatz */}
             <div className="rounded-xl bg-slate-50 border border-slate-100 p-4 sm:p-5 mb-6">
               <p className="text-[13px] text-slate-600 leading-relaxed">
-                <b className="text-slate-800">Warum Überweisung?</b> Du behältst die volle Kontrolle: keine
+                <b className="text-slate-800">Warum Überweisung?</b> Sie behalten die volle Kontrolle: keine
                 automatischen Kartenabbuchungen, keine gespeicherten Zahlungsdaten. Du entscheidest bei jeder Zahlung
                 selbst.
               </p>

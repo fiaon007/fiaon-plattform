@@ -1014,20 +1014,20 @@ export default function AntragPage() {
             <div style={{ position: "relative", zIndex: "1" }}>
               <div className="text-center mb-12">
               <span className="inline-block" style={{
-                background: "rgba(37,99,235,0.08)",
-                color: "#2563eb",
+                background: "rgba(255,255,255,0.06)",
+                color: "#93c5fd",
                 fontSize: "11px",
-                fontWeight: "700",
+                fontWeight: "400",
                 letterSpacing: "0.13em",
                 textTransform: "uppercase",
                 padding: "5px 14px",
                 borderRadius: "20px",
-                border: "1px solid rgba(37,99,235,0.18)"
+                border: "1px solid rgba(96,165,250,0.32)"
               }}>PAKET WÄHLEN</span>
               <h1 className="mt-3" style={{
                 fontSize: "clamp(2rem, 4vw, 3rem)",
-                fontWeight: "800",
-                background: "linear-gradient(135deg, #1e40af, #2563eb, #3b82f6)",
+                fontWeight: "400",
+                background: "linear-gradient(135deg, #ffffff 0%, #bfdbfe 45%, #60a5fa 100%)",
                 WebkitBackgroundClip: "text",
                 WebkitTextFillColor: "transparent",
                 backgroundClip: "text"
@@ -1082,7 +1082,7 @@ export default function AntragPage() {
                       background: "linear-gradient(135deg, #2563eb, #3b82f6)",
                       color: "#fff",
                       fontSize: "11px",
-                      fontWeight: "700",
+                      fontWeight: "500",
                       padding: "4px 12px",
                       borderRadius: "0 0 10px 10px",
                       boxShadow: "0 4px 12px rgba(37,99,235,0.35)",
@@ -1099,14 +1099,14 @@ export default function AntragPage() {
                   <div style={{ padding: "18px 24px 0 24px" }} className="sm:px-[24px] sm:pt-[18px] px-[20px] pt-[16px]">
                     <div style={{
                       fontSize: "17px",
-                      fontWeight: "700",
-                      color: "#111827",
+                      fontWeight: "500",
+                      color: "#f3f4f6",
                       lineHeight: "1.3",
                     }}>
                       {p.name}
                       {/* Der Beisatz in eigener Zeile — vorher machte das ein
                           `\n` im Namen, das mit in die Datenbank wanderte. */}
-                      <div style={{ fontSize: "17px", fontWeight: 700 }}>({p.sub})</div>
+                      <div style={{ fontSize: "17px", fontWeight: 500 }}>({p.sub})</div>
                     </div>
                   </div>
 
@@ -1117,8 +1117,8 @@ export default function AntragPage() {
                       alignItems: 'center',
                       gap: '10px',
                       padding: '8px 14px',
-                      background: 'linear-gradient(135deg, rgba(37,99,235,0.06), rgba(59,130,246,0.09))',
-                      border: '1px solid rgba(37,99,235,0.15)',
+                      background: 'linear-gradient(135deg, rgba(37,99,235,0.18), rgba(59,130,246,0.22))',
+                      border: '1px solid rgba(96,165,250,0.35)',
                       borderRadius: '10px',
                       flexShrink: 0,
                       width: 'fit-content',
@@ -1126,7 +1126,7 @@ export default function AntragPage() {
                     }}>
                       <span style={{
                         fontSize: '9px',
-                        fontWeight: 700,
+                        fontWeight: 500,
                         letterSpacing: '0.12em',
                         color: 'rgba(37,99,235,0.65)',
                         textTransform: 'uppercase',
@@ -1155,8 +1155,8 @@ export default function AntragPage() {
                   }} className="sm:px-[24px] sm:pt-[14px] px-[20px] pt-[12px]">
                     <span style={{
                       fontSize: "28px",
-                      fontWeight: "800",
-                      color: "#111827"
+                      fontWeight: "400",
+                      color: "#f3f4f6"
                     }}>{p.fee.toLocaleString("de-DE", { minimumFractionDigits: 2 })}</span>
                     <span style={{
                       fontSize: "13px",

@@ -522,8 +522,10 @@ export function VertriebZugang() {
 }
 
 /** Die Lage eines Kunden — eingebettet in die Akte. */
-export function LageTafel({ personId, basis = "/agent/vertrieb/person" }: {
+export function LageTafel({ personId, basis = "/agent/vertrieb/person", karteSetzbar = false }: {
   personId: number;
+  /** Darf der Betrachter den Kartenstatus pflegen? Nur die Vertriebsleitung. */
+  karteSetzbar?: boolean;
   /**
    * Woher die Lage kommt. Die Vertriebsleitung liest sie über ihren Endpunkt,
    * das Onboarding über einen eigenen, der ausschließlich die eigenen
@@ -533,11 +535,25 @@ export function LageTafel({ personId, basis = "/agent/vertrieb/person" }: {
   basis?: string;
 }) {
   const [lage, setLage] = useState<any>(null);
+  const { zeige } = useToast();
+  const [karteBusy, setKarteBusy] = useState(false);
+  const [karteNotiz, setKarteNotiz] = useState("");
 
-  useEffect(() => {
-    setLage(null);
+  const ladeLage = useCallback(() => {
     api(`${basis}/${personId}/lage`).then((r) => setLage(r.ok ? r.json : { fehler: true }));
-  }, [personId, basis]);
+  }, [basis, personId]);
+  useEffect(() => { setLage(null); ladeLage(); }, [ladeLage]);
+
+  const karteSetzen = async (status: string) => {
+    if (!status) return;
+    setKarteBusy(true);
+    const r = await api(`/agent/vertrieb/person/${personId}/karte`, {
+      method: "PATCH", body: JSON.stringify({ status, notiz: karteNotiz.trim() || null }),
+    });
+    setKarteBusy(false);
+    if (r.ok) { zeige("erfolg", "Kartenstatus", r.json.meldung); setKarteNotiz(""); ladeLage(); }
+    else zeige("fehler", "Nicht gespeichert", r.json?.error || "Bitte erneut versuchen.");
+  };
 
   if (!lage) return <div className="space-y-2">{[0, 1, 2].map((i) => <Skelett key={i} h={18} />)}</div>;
   if (lage.fehler) return <p className="text-[13px]" style={{ color: "var(--fi-text-still)" }}>Lage nicht ladbar.</p>;
@@ -562,6 +578,14 @@ export function LageTafel({ personId, basis = "/agent/vertrieb/person" }: {
             <span className="block text-[11.5px] font-mono" style={{ color: "var(--fi-text-still)" }}>
               {z.zahlungsreferenz || "kein Verwendungszweck"}
             </span>
+            {/* Die Rechnung als PDF — die Route gab es seit jeher, nur keinen
+                Knopf (C7, viermal gemeldet). Ein Link, dieselbe Berechtigung. */}
+            {z.ref && (
+              <a href={`/api/fiaon/agent/customers/${encodeURIComponent(z.ref)}/invoice.pdf`} target="_blank" rel="noreferrer"
+                 className="inline-block mt-1 text-[11.5px] font-semibold no-underline" style={{ color: "var(--fi-primaer)" }}>
+                Rechnung (PDF) öffnen
+              </a>
+            )}
             {z.bankeingaenge?.length > 0 && (
               <span className="block mt-1 text-[11.5px]" style={{ color: "var(--fi-erfolg)" }}>
                 {z.bankeingaenge.length} passende(r) Bankeingang — über „Zahlungen" prüfen und buchen
@@ -591,6 +615,49 @@ export function LageTafel({ personId, basis = "/agent/vertrieb/person" }: {
         <p className="mt-1 text-[11.5px]" style={{ color: "var(--fi-text-still)" }}>
           Prüfstand: {lage.dokumente?.kycStatus || "—"} · Inhalte sieht nur der Vorgesetzte.
         </p>
+      </div>
+
+      {/* ══════════════════════════════════════════════════════════════════
+          DIE KARTE — „Wo ist meine Karte?" (22.08.2026, K11)
+          Die häufigste Kundenfrage hatte bis heute kein Feld. Jetzt steht
+          der Stand hier, mit Datum, und die Leitung pflegt ihn an Ort und
+          Stelle — bis eine Kartenschnittstelle ihn automatisch setzt.
+          ══════════════════════════════════════════════════════════════════ */}
+      <div>
+        <p className="text-[11px] font-semibold uppercase tracking-[.08em] mb-2" style={{ color: "var(--fi-text-still)" }}>
+          Karte
+        </p>
+        <p className="text-[12.5px] font-semibold"
+           style={{ color: lage.karte?.status === "zugestellt" ? "var(--fi-erfolg)"
+             : ["zurueck", "abgelehnt"].includes(lage.karte?.status) ? "var(--fi-tier1)"
+             : lage.karte?.status ? "var(--fi-text)" : "var(--fi-text-still)" }}>
+          {lage.karte?.text || "Stand unbekannt"}
+          {lage.karte?.am ? ` · seit ${dtag(lage.karte.am)}` : ""}
+        </p>
+        {lage.karte?.notiz && (
+          <p className="mt-1 text-[11.5px]" style={{ color: "var(--fi-text-still)" }}>{lage.karte.notiz}</p>
+        )}
+        {karteSetzbar && lage.karte?.ref && (
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <select aria-label="Kartenstatus setzen" disabled={karteBusy}
+                    value={lage.karte?.status ?? ""}
+                    onChange={(e) => void karteSetzen(e.target.value)}
+                    className="h-[34px] px-2.5 rounded-xl border bg-white text-[12.5px] outline-none"
+                    style={{ borderColor: "var(--fi-linie)" }}>
+              <option value="">Stand setzen …</option>
+              {(lage.kartenStatusListe || []).map((k: any) => (
+                <option key={k.key} value={k.key}>{k.text}</option>
+              ))}
+            </select>
+            <input value={karteNotiz} onChange={(e) => setKarteNotiz(e.target.value)}
+                   placeholder="Notiz, z. B. Sendungsnummer"
+                   className="h-[34px] px-3 rounded-xl border bg-white text-[12.5px] outline-none w-[200px]"
+                   style={{ borderColor: "var(--fi-linie)" }} />
+          </div>
+        )}
+        {karteSetzbar && !lage.karte?.ref && (
+          <p className="mt-1 text-[11.5px]" style={{ color: "var(--fi-text-still)" }}>Ohne Paketbestellung gibt es keine Karte.</p>
+        )}
       </div>
 
       <div>
@@ -678,6 +745,116 @@ export function PipelineZahlen({ pipeline }: { pipeline: any }) {
           <p className="mt-1.5 text-[11px] leading-snug" style={{ color: "var(--fi-text-still)" }}>{f.h}</p>
         </div>
       ))}
+    </div>
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BESTANDSWACHE — die Listen hinter den schweren Befunden (22.08.2026, K10)
+//
+// „Bezahlt ohne Startgespräch" ist der teuerste Bestand des Hauses. Die Wache
+// misst ihn seit dem 21.08., zeigte ihn aber nur auf /admin/hub — einem Ort,
+// den Florentine und Daniel nicht betreten können. Hier ist die Liste.
+// ═══════════════════════════════════════════════════════════════════════════
+export function Bestandswache({ zahlen, onAkte }: { zahlen: any; onAkte: (personId: number) => void }) {
+  const [art, setArt] = useState<"ohne_onboarding" | "ohne_betreuer">("ohne_onboarding");
+  const [daten, setDaten] = useState<any>(null);
+  const [fehler, setFehler] = useState<string | null>(null);
+
+  useEffect(() => {
+    setDaten(null); setFehler(null);
+    api(`/agent/vertrieb/bestandswache?art=${art}`).then((r) => {
+      if (r.ok) setDaten(r.json);
+      else setFehler(r.json?.error || `Die Liste kam nicht (HTTP ${r.status}).`);
+    });
+  }, [art]);
+
+  const zeilen: any[] = daten?.zeilen ?? [];
+  const geduld = Number(daten?.geduldTage ?? 14);
+
+  return (
+    <div className="mt-5 space-y-3" data-fiaon="bestandswache">
+      <div className="grid grid-cols-2 gap-2.5">
+        {([
+          ["ohne_onboarding", "Bezahlt ohne Startgespräch", zahlen?.bezahltOhneOnboarding,
+            `Zahlende Kunden, deren Konto bis zum Startgespräch eingeschränkt bleibt — länger als ${geduld} Tage.`],
+          ["ohne_betreuer", "Zahlend ohne Betreuer", zahlen?.bezahltOhneBetreuer,
+            "Zahlende Kunden, für die niemand zuständig ist. Niemand ruft sie an, niemand bekommt Provision."],
+        ] as const).map(([k, t, w, h]) => (
+          <button key={k} type="button" onClick={() => setArt(k)} title={h}
+                  className="fi-karte fi-karte--hebt p-4 text-left"
+                  style={art === k ? { borderColor: "rgba(29,78,216,.35)" } : undefined}>
+            <p className="text-[10.5px] font-semibold uppercase tracking-[.08em]" style={{ color: "var(--fi-text-still)" }}>{t}</p>
+            <p className="text-[24px] font-bold leading-none mt-1.5 fi-zahl" style={{ color: "var(--fi-tier1)" }}>{w ?? 0}</p>
+          </button>
+        ))}
+      </div>
+
+      {fehler && (
+        <div className="fi-karte p-4" role="alert" style={{ borderColor: "rgba(185,28,28,.3)" }}>
+          <p className="text-[13px] font-bold" style={{ color: "#b91c1c" }}>{fehler}</p>
+        </div>
+      )}
+      <div className="fi-karte overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left" style={{ minWidth: 760 }}>
+            <thead>
+              <tr style={{ background: "var(--fi-seite)" }}>
+                {["Kunde", "Bezahlt", art === "ohne_onboarding" ? "Stand" : "Referenz", "Zuständig", ""].map((h) => (
+                  <th key={h} className="px-3 py-2.5 text-[10.5px] font-semibold uppercase tracking-[.07em] whitespace-nowrap"
+                      style={{ color: "var(--fi-text-still)" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {!daten && !fehler && [0, 1, 2, 3].map((i) => (
+                <tr key={i}><td colSpan={5} className="px-3 py-3"><Skelett h={16} /></td></tr>
+              ))}
+              {daten && zeilen.length === 0 && (
+                <tr><td colSpan={5} className="px-3 py-8 text-center text-[13px]" style={{ color: "var(--fi-text-still)" }}>
+                  Hier ist gerade niemand. Das ist die beste Nachricht des Tages.
+                </td></tr>
+              )}
+              {zeilen.map((z) => (
+                <tr key={z.personId} style={{ boxShadow: "inset 0 -1px 0 var(--fi-linie)" }}>
+                  <td className="px-3 py-2.5">
+                    <p className="text-[13px] font-semibold" style={{ color: "var(--fi-text)" }}>{z.name}</p>
+                    <p className="text-[11.5px]" style={{ color: "var(--fi-text-still)" }}>{z.telefon || z.email || "—"}</p>
+                  </td>
+                  <td className="px-3 py-2.5 text-[12.5px] whitespace-nowrap">
+                    {z.bezahltAm ? dtag(z.bezahltAm) : "—"}
+                    {z.tage != null && (
+                      <span className="block text-[11px] font-semibold" style={{ color: z.tage > geduld ? "var(--fi-tier1)" : "var(--fi-text-still)" }}>
+                        vor {z.tage} {z.tage === 1 ? "Tag" : "Tagen"}
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5 text-[12.5px]">
+                    {art === "ohne_onboarding"
+                      ? (z.terminAm ? <span style={{ color: "var(--fi-erfolg)" }}>Termin {dtag(z.terminAm)}</span>
+                        : z.eingeladenAm ? <span style={{ color: "var(--fi-tier2)" }}>eingeladen {dtag(z.eingeladenAm)}, keine Buchung</span>
+                        : <span style={{ color: "var(--fi-tier1)" }}>nie eingeladen</span>)
+                      : <span className="font-mono text-[11.5px]">{z.ref || "—"}</span>}
+                  </td>
+                  <td className="px-3 py-2.5 text-[12.5px]">{z.zustaendig || <span style={{ color: "var(--fi-tier1)" }}>niemand</span>}</td>
+                  <td className="px-3 py-2.5 whitespace-nowrap">
+                    <button type="button" onClick={() => onAkte(Number(z.personId))}
+                            className="fi-zweitknopf px-3 py-1.5 text-[12px] font-semibold">
+                      Akte öffnen
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {daten && zeilen.length >= 300 && (
+          <p className="px-3 py-2 text-[11.5px]" style={{ color: "var(--fi-text-still)" }}>
+            Die ersten 300 — nach Wartezeit sortiert, die ältesten zuerst.
+          </p>
+        )}
+      </div>
     </div>
   );
 }

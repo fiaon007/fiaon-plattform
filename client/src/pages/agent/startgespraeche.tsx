@@ -37,6 +37,8 @@ interface Termin {
   vorbei: boolean;
   /** Wann wurde er abgeschlossen? Steht als Datum an der Erledigt-Marke. */
   erledigtAm?: string | null;
+  /** Vom Kunden abgesagt — bleibt sieben Tage sichtbar, aber nie unter „Offen". */
+  abgesagtAm?: string | null;
   quelle?: string | null;
   /** Die Art aus `shared/fiaon-termin-art.ts` — Onboarding, Vertrieb, Rückruf. */
   terminArt?: string | null;
@@ -65,6 +67,15 @@ interface Kennzahlen {
   /** Neu: der Kennzahlen-Kopf des Bereichs (Teil 2.4). */
   heuteGeplant?: number; heuteErledigt?: number; heuteNoShow?: number;
   dauerSchnittMin?: number | null; freigeschaltetWoche?: number;
+  /** Die beiden Zahlen, die den Zweck des Bereichs messen (22.08.2026). */
+  wartend?: number; wartendOhneTermin?: number;
+}
+
+/** Ein Wartender: bezahlt, Konto eingeschränkt, noch kein geführtes Startgespräch. */
+interface Wartender {
+  personId: number; name: string; vorname: string | null; telefon: string | null; email: string | null;
+  ref: string | null; paket: string | null; bezahltAm: string | null; tage: number | null;
+  terminAm: string | null; eingeladenAm: string | null; spaeterAm: string | null; verpasst: number;
 }
 
 export default function AgentStartgespraecheSeite() {
@@ -80,7 +91,7 @@ function Inhalt() {
   const [zusageOffen, setZusageOffen] = useState(false);
   const [ansicht, setAnsicht] = useState<"liste" | "kalender">("liste");
   /** Offen oder erledigt — der Reiter, der Teil 9 beantwortet. */
-  const [reiter, setReiter] = useState<"offen" | "erledigt">("offen");
+  const [reiter, setReiter] = useState<"offen" | "erledigt" | "wartende">("offen");
   const [offen, setOffen] = useState<number | null>(null);
   // ── DIE GESPRÄCHSBÜHNE ──────────────────────────────────────────────────
   // Ein Startgespräch wird GEFÜHRT, nicht abgehakt. Das Cockpit hat die Agenda,
@@ -122,7 +133,7 @@ function Inhalt() {
   // irgendwo aufzutauchen, sieht wie Datenverlust aus.
   // ══════════════════════════════════════════════════════════════════════════
   const istErledigt = (t: Termin) =>
-    t.status === "erledigt" || t.status === "verpasst" || !!t.erledigtAm;
+    t.status === "erledigt" || t.status === "verpasst" || !!t.erledigtAm || !!t.abgesagtAm;
 
   const offeneTermine = useMemo(() => termine.filter((t) => !istErledigt(t)), [termine]);
   const erledigteTermine = useMemo(
@@ -199,12 +210,16 @@ function Inhalt() {
                 h: "Heute geführte Gespräche. Jedes davon hat ein Konto freigeschaltet." },
               { t: "Nicht erschienen", w: zahlen?.heuteNoShow ?? 0,
                 h: "Heute nicht erschienen. Diese Kunden werden automatisch erneut eingeladen." },
-              { t: "Ø Dauer", w: zahlen?.dauerSchnittMin != null ? `${zahlen.dauerSchnittMin} min` : "—",
-                h: "Durchschnittliche Gesprächsdauer der letzten Gespräche. Zugesagt sind 15 Minuten." },
+              // ── DIE ZWEI ZAHLEN, DIE DEN ZWECK MESSEN (22.08.2026) ──────
+              // Sie wurden berechnet und weggeworfen; stattdessen standen
+              // „Ø Dauer" und „Erledigungsquote" da. Ein Onboarder sah drei
+              // Termine und wusste nicht, dass 213 Menschen auf ihn warten.
+              { t: "Wartet auf Gespräch", w: zahlen?.wartend ?? 0,
+                h: "Bezahlte Kunden, deren Konto bis zum Startgespräch eingeschränkt bleibt — hausweit. Das ist der Arbeitsvorrat." },
+              { t: "Davon ohne Termin", w: zahlen?.wartendOhneTermin ?? 0,
+                h: "Wartende, die noch keinen Termin gewählt haben. Unter „Wartende“ lassen sie sich einladen oder anrufen." },
               { t: "Freigeschaltet (7 Tage)", w: zahlen?.freigeschaltetWoche ?? 0,
                 h: "Konten, die in den letzten sieben Tagen nach dem Startgespräch voll freigeschaltet wurden." },
-              { t: "Erledigungsquote", w: zahlen?.erledigungsquote != null ? `${zahlen.erledigungsquote} %` : "—",
-                h: "Anteil geführter Gespräche an allen, die stattfinden sollten." },
             ].map((f) => (
               <div key={f.t} className="fi-karte p-4" title={f.h}>
                 <p className="text-[10.5px] font-semibold uppercase tracking-[.08em]" style={{ color: "var(--fi-text-still)" }}>
@@ -229,6 +244,7 @@ function Inhalt() {
           {([
             ["offen", "Offen", offeneTermine.length],
             ["erledigt", "Erledigt", erledigteTermine.length],
+            ["wartende", "Wartende", zahlen?.wartendOhneTermin ?? 0],
           ] as const).map(([k, label, n]) => (
             <button key={k} type="button" onClick={() => setReiter(k)}
                     data-fiaon={`reiter-${k}`}
@@ -241,8 +257,10 @@ function Inhalt() {
           ))}
         </div>
 
+        {reiter === "wartende" && <WartendeListe onGeaendert={() => void laden()} />}
+
         {/* ── Termine ────────────────────────────────────────────────────── */}
-        <div className="mt-3 space-y-3">
+        {reiter !== "wartende" && <div className="mt-3 space-y-3">
           {laedt && [0, 1].map((i) => <div key={i} className="fi-karte p-4"><Skelett h={20} /></div>)}
 
           {!laedt && tage.length === 0 && reiter === "erledigt" && (
@@ -304,7 +322,7 @@ function Inhalt() {
               </div>
             </div>
           ))}
-        </div>
+        </div>}
       </div>
 
       {/* ══════════════════════════════════════════════════════════════════
@@ -457,6 +475,12 @@ function TerminKarte({
                   <span className="inline-flex items-center px-1.5 py-0.5 rounded-md font-semibold"
                         style={{ background: "rgba(180,83,9,.10)", color: "#b45309" }}>
                     nicht erschienen
+                  </span>
+                )}
+                {!!termin.abgesagtAm && (
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-md font-semibold"
+                        style={{ background: "rgba(15,23,42,.06)", color: "var(--fi-text-still)" }}>
+                    vom Kunden abgesagt · {uhrzeitTag(termin.abgesagtAm)}
                   </span>
                 )}
               </p>
@@ -618,5 +642,131 @@ function TerminKarte({
         </div>
       </div>
     </Reveal>
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE WARTENDEN — bezahlt, ohne geführtes Startgespräch (22.08.2026, K10)
+//
+// Das ist die Liste, die dem Bereich fehlte: Wer auf sein Gespräch wartet,
+// war bisher nur auf /admin/hub zu sehen — für das Onboarding unsichtbar.
+// Jede Zeile hat die zwei Handgriffe, die hier helfen: einladen, anrufen.
+// ═══════════════════════════════════════════════════════════════════════════
+function WartendeListe({ onGeaendert }: { onGeaendert: () => void }) {
+  const { zeige } = useToast();
+  const [zeilen, setZeilen] = useState<Wartender[] | null>(null);
+  const [fehler, setFehler] = useState<string | null>(null);
+  const [nur, setNur] = useState<"ohne_termin" | "alle">("ohne_termin");
+  const [busy, setBusy] = useState<number | null>(null);
+  const [link, setLink] = useState<Record<number, string>>({});
+
+  const laden = useCallback(async () => {
+    const r = await api("/agent/onboarding/wartende");
+    if (r.ok) { setZeilen(r.json.wartende || []); setFehler(null); }
+    else setFehler(r.json?.error || `Die Liste kam nicht (HTTP ${r.status}).`);
+  }, []);
+  useEffect(() => { void laden(); }, [laden]);
+
+  const einladen = async (w: Wartender) => {
+    setBusy(w.personId);
+    const r = await api(`/agent/onboarding/wartende/${w.personId}/einladung`, { method: "POST" });
+    setBusy(null);
+    if (r.ok) {
+      zeige("erfolg", "Einladung verschickt", `${w.name} hat den Terminlink per E-Mail bekommen.`);
+      if (r.json?.terminLink) setLink((l) => ({ ...l, [w.personId]: r.json.terminLink }));
+      void laden(); onGeaendert();
+    } else {
+      zeige("fehler", "Nicht verschickt", r.json?.error || r.json?.grund || "Bitte anrufen und den Link durchgeben.");
+      if (r.json?.terminLink) setLink((l) => ({ ...l, [w.personId]: r.json.terminLink }));
+    }
+  };
+
+  const sichtbar = (zeilen ?? []).filter((w) => nur === "alle" || !w.terminAm);
+
+  return (
+    <div className="mt-3 space-y-3" data-fiaon="wartende">
+      <div className="fi-karte p-4 sm:p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-[15px] font-bold" style={{ color: "var(--fi-text)" }}>
+              Bezahlt, aber noch kein Startgespräch
+            </h2>
+            <p className="text-[12.5px] mt-1 leading-snug" style={{ color: "var(--fi-text-leise)" }}>
+              Diese Kunden haben gezahlt und warten — ihr Konto bleibt bis zum Gespräch eingeschränkt.
+              Wer keinen Termin hat, bekommt mit einem Klick den Terminlink; wer nicht reagiert, einen Anruf.
+              Die Liste ist hausweit und nach Wartezeit sortiert.
+            </p>
+          </div>
+          <div className="flex items-center gap-1.5">
+            {([["ohne_termin", "Ohne Termin"], ["alle", "Alle Wartenden"]] as const).map(([k, label]) => (
+              <button key={k} type="button" onClick={() => setNur(k)}
+                      className="px-3 py-1.5 rounded-xl text-[12px] font-semibold"
+                      style={nur === k
+                        ? { background: "var(--fi-primaer)", color: "#fff" }
+                        : { background: "#fff", border: "1px solid var(--fi-linie)", color: "var(--fi-text-leise)" }}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {fehler && (
+        <div className="fi-karte p-4" role="alert" style={{ borderColor: "rgba(185,28,28,.3)" }}>
+          <p className="text-[13px] font-bold" style={{ color: "#b91c1c" }}>{fehler}</p>
+          <button type="button" onClick={() => void laden()} className="mt-2 text-[12.5px] font-semibold" style={{ color: "var(--fi-primaer)" }}>
+            Noch einmal laden
+          </button>
+        </div>
+      )}
+      {!zeilen && !fehler && [0, 1, 2].map((i) => <div key={i} className="fi-karte p-4"><Skelett h={20} /></div>)}
+      {zeilen && sichtbar.length === 0 && (
+        <div className="fi-karte p-6 text-center">
+          <p className="text-[14px] font-semibold">Niemand wartet{nur === "ohne_termin" ? " ohne Termin" : ""}.</p>
+        </div>
+      )}
+      {sichtbar.map((w) => (
+        <div key={w.personId} className="fi-karte p-4">
+          <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
+            <div className="min-w-0 flex-1">
+              <p className="text-[14.5px] font-bold" style={{ color: "var(--fi-text)" }}>{w.name}</p>
+              <p className="text-[12px] mt-0.5" style={{ color: "var(--fi-text-leise)" }}>
+                {w.paket || "Paket"}
+                {w.tage != null && ` · bezahlt vor ${w.tage} ${w.tage === 1 ? "Tag" : "Tagen"}`}
+                {w.verpasst > 0 && ` · ${w.verpasst}× nicht erschienen`}
+              </p>
+              <p className="text-[12px] mt-0.5 font-semibold"
+                 style={{ color: w.terminAm ? "#059669" : w.eingeladenAm ? "#b45309" : "#b91c1c" }}>
+                {w.terminAm
+                  ? `Termin gebucht: ${uhrzeitTag(w.terminAm)}`
+                  : w.eingeladenAm
+                    ? `Eingeladen am ${uhrzeitTag(w.eingeladenAm)} — noch keine Buchung`
+                    : "Noch nie eingeladen"}
+              </p>
+              {link[w.personId] && (
+                <p className="text-[11.5px] mt-1 break-all" style={{ color: "var(--fi-text-still)" }}>
+                  Terminlink zum Durchgeben: <span className="font-mono">{link[w.personId]}</span>
+                </p>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {w.telefon && (
+                <button type="button" onClick={() => anrufStarten(w.telefon!, w.personId, w.name)}
+                        className="fi-primaerknopf px-3.5 py-2 text-[12.5px] font-semibold text-white">
+                  Anrufen
+                </button>
+              )}
+              {!w.terminAm && (
+                <button type="button" onClick={() => void einladen(w)} disabled={busy === w.personId}
+                        className="fi-zweitknopf px-3.5 py-2 text-[12.5px] font-semibold disabled:opacity-50">
+                  {busy === w.personId ? "Sendet …" : w.eingeladenAm ? "Erneut einladen" : "Einladung senden"}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }

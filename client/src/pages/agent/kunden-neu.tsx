@@ -45,6 +45,8 @@ import { ERGEBNIS_TEXT, type Ergebnis } from "@shared/fiaon-kontakt-ergebnis-lis
 // ═══════════════════════════════════════════════════════════════════════════
 
 interface Kunde {
+  /** Kartenstatus an der Paketbestellung (22.08.2026, K11) — vom Server, nie hier abgeleitet. */
+  karte?: { status: string | null; text: string | null; am: string | null } | null;
   personId: number;
   name: string;
   /** Der naechstliegende Termin — fuer Onboarding die eigentliche Arbeit. */
@@ -1836,6 +1838,22 @@ function KundenKarte({
                             style={{ color: b.bezahlt ? "#059669" : b.erledigt ? "var(--fi-text-still)" : "#b45309" }}>
                         {b.zahlungText}
                       </span>
+                      {/* Die Rechnung als PDF (C7, viermal gemeldet): Die Route
+                          gab es, der Knopf fehlte. „Schicken Sie mir die Rechnung
+                          nochmal" ist damit ein Klick — und der Link lässt sich
+                          per WhatsApp weitergeben. */}
+                      {!b.erledigt && (
+                        <a href={`/api/fiaon/agent/customers/${encodeURIComponent(b.ref)}/invoice.pdf`}
+                           target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}
+                           className="text-[11.5px] font-semibold no-underline" style={{ color: "var(--fi-primaer)" }}>
+                          Rechnung (PDF)
+                        </a>
+                      )}
+                      {b.art !== "bonitaet" && b.bezahlt && k.karte?.text && (
+                        <span className="w-full text-[11px]" style={{ color: "var(--fi-text-still)" }}>
+                          Karte: {k.karte.text}{k.karte.am ? ` (seit ${dtag(k.karte.am)})` : ""}
+                        </span>
+                      )}
                       <span className="ml-auto shrink-0 text-[11px] tabular-nums"
                             style={{ color: "var(--fi-text-still)" }}>
                         gestellt {b.gestelltAm ? dtag(b.gestelltAm) : "—"}

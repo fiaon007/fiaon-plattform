@@ -251,8 +251,23 @@ router.get("/agent/vertrieb/uebersicht", requireAgent, nurLeitung, nurMitZusage,
         COUNT(*) FILTER (WHERE is_blocked)::int AS gesperrt,
         COUNT(*) FILTER (WHERE promised_payment_date = CURRENT_DATE)::int AS zusage_heute,
         COUNT(*) FILTER (WHERE promised_payment_date < CURRENT_DATE AND priority_tier BETWEEN 1 AND 2)::int AS zusage_ueberfaellig
-      FROM fiaon_persons WHERE merged_into_person_id IS NULL
+      FROM fiaon_persons p
+      WHERE p.merged_into_person_id IS NULL
+        -- ── DIESELBE GRUNDMENGE WIE „BESTAND JE MITARBEITER" (22.08.2026, B7) ──
+        -- Die Tabelle darunter filtert Prüfstands-Konten heraus, die Kopfzahl
+        -- tat es nicht: Die Summe der Zeilen konnte die Kachel per
+        -- Konstruktion nie erreichen. Ein Zähler, dem niemand traut, kostet
+        -- jeden Tag Vertrauen in die ganze Seite.
+        AND p.ist_test_am IS NULL
+        AND NOT EXISTS (SELECT 1 FROM fiaon_agents ta
+                        WHERE ta.id = p.assigned_agent_id AND COALESCE(ta.is_test_account, FALSE))
     `;
+    // Die schweren Befunde der Bestandswache gehören in dieselbe Kopfzeile:
+    // „Bezahlt ohne Startgespräch" ist der teuerste Bestand des Hauses, und er
+    // stand bisher nur auf /admin/hub — einem Ort, den die Leitung nicht betritt.
+    const { bestandPruefen } = await import("../lib/fiaon-bestandswache");
+    const befunde = await bestandPruefen().catch(() => [] as any[]);
+    const befund = (art: string) => befunde.find((b: any) => b.art === art)?.anzahl ?? 0;
     const agenten = await sqlPool`
       SELECT a.id, a.name, a.rolle,
              COUNT(p.id) FILTER (WHERE p.priority_tier = 1 AND NOT p.is_blocked)::int AS tier1,
@@ -271,7 +286,10 @@ router.get("/agent/vertrieb/uebersicht", requireAgent, nurLeitung, nurMitZusage,
         tier1: z.tier1, tier2: z.tier2, tier3: z.tier3,
         ohneAgent: z.ohne_agent, gesperrt: z.gesperrt,
         zusageHeute: z.zusage_heute, zusageUeberfaellig: z.zusage_ueberfaellig,
+        bezahltOhneOnboarding: befund("bezahlt_ohne_onboarding"),
+        bezahltOhneBetreuer: befund("bezahlt_ohne_betreuer"),
       },
+      bestandswache: befunde.map((b: any) => ({ art: b.art, anzahl: b.anzahl, gewicht: b.gewicht, klartext: b.klartext })),
       agenten: (agenten as any[]).map((a) => ({
         id: a.id, name: a.name, rolle: a.rolle,
         tier1: a.tier1, tier2: a.tier2, tier3: a.tier3, betreut: a.betreut,
@@ -801,6 +819,104 @@ router.get("/agent/vertrieb/zahlungen", requireAgent, nurLeitung, nurMitZusage, 
 });
 
 /** Die Lage EINES Kunden: Zahlung mit Bankeingängen, Dokumente, Zugang. */
+// ═══════════════════════════════════════════════════════════════════════════
+// GET /agent/vertrieb/bestandswache — die Listen hinter den schweren Befunden
+//
+// Die Wache (server/lib/fiaon-bestandswache.ts) misst seit dem 21.08.2026,
+// wie viele bezahlte Kunden kein Startgespräch haben — und zeigte die Liste
+// nur auf /admin/hub. Florentine und Daniel haben dort keinen Zugang (C15).
+// Dieselben Bedingungen, hier als Liste für die Menschen, die sie abarbeiten.
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/agent/vertrieb/bestandswache", requireAgent, nurLeitung, nurMitZusage, async (req: AgentRequest, res: Response) => {
+  try {
+    const art = String(req.query.art || "ohne_onboarding");
+    const { ONBOARDING_GEDULD_TAGE } = await import("../lib/fiaon-bestandswache");
+    const zeilen = art === "ohne_betreuer"
+      ? (await sqlPool`
+          SELECT p.id AS person_id,
+                 COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''), p.company_name, p.contact_name, p.primary_email) AS name,
+                 p.primary_phone, p.primary_email,
+                 (SELECT a.ref FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
+                    AND a.payment_status = 'paid' ORDER BY a.paid_at DESC NULLS LAST, a.created_at DESC LIMIT 1) AS ref,
+                 (SELECT MIN(a.paid_at) FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.payment_status = 'paid') AS bezahlt_am,
+                 NULL::text AS zustaendig
+          FROM fiaon_persons p
+          WHERE p.assigned_agent_id IS NULL AND p.merged_into_person_id IS NULL
+            AND p.ist_test_am IS NULL AND NOT COALESCE(p.is_blocked, FALSE)
+            AND EXISTS (SELECT 1 FROM fiaon_applications ap WHERE ap.person_id = p.id
+              AND ap.merged_into IS NULL AND ap.archived_at IS NULL AND ap.payment_status = 'paid')
+          ORDER BY bezahlt_am ASC NULLS LAST LIMIT 300`) as any[]
+      : (await sqlPool`
+          SELECT p.id AS person_id,
+                 COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''), p.company_name, p.contact_name, p.primary_email) AS name,
+                 p.primary_phone, p.primary_email,
+                 ag.name AS zustaendig,
+                 (SELECT a.ref FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
+                    AND a.payment_status = 'paid' AND NOT (COALESCE(a.type,'') = 'schufa' OR a.ref LIKE 'FIAON-SCHUFA-%')
+                    ORDER BY a.paid_at DESC NULLS LAST, a.created_at DESC LIMIT 1) AS ref,
+                 (SELECT MIN(a.paid_at) FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL
+                    AND a.payment_status = 'paid' AND NOT (COALESCE(a.type,'') = 'schufa' OR a.ref LIKE 'FIAON-SCHUFA-%')) AS bezahlt_am,
+                 (SELECT t.beginn FROM fiaon_termine t WHERE t.person_id = p.id AND t.quelle = 'onboarding_call'
+                    AND t.status = 'gebucht' AND t.abgesagt_am IS NULL ORDER BY t.beginn LIMIT 1) AS termin_am,
+                 p.startgespraech_mail_am AS eingeladen_am
+          FROM fiaon_persons p
+          LEFT JOIN fiaon_agents ag ON ag.id = p.assigned_agent_id
+          WHERE p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL AND NOT COALESCE(p.is_blocked, FALSE)
+            AND EXISTS (SELECT 1 FROM fiaon_applications ap WHERE ap.person_id = p.id
+              AND ap.merged_into IS NULL AND ap.archived_at IS NULL AND ap.payment_status = 'paid'
+              AND NOT (COALESCE(ap.type,'') = 'schufa' OR ap.ref LIKE 'FIAON-SCHUFA-%'))
+            AND NOT EXISTS (SELECT 1 FROM fiaon_termine t WHERE t.person_id = p.id
+              AND t.quelle = 'onboarding_call' AND t.status = 'erledigt')
+            AND NOT EXISTS (SELECT 1 FROM fiaon_applications ax WHERE ax.person_id = p.id AND ax.merged_into IS NULL
+              AND ax.onboarding_pflicht = FALSE AND NULLIF(TRIM(COALESCE(ax.onboarding_ausnahme_grund, '')), '') IS NOT NULL)
+          ORDER BY bezahlt_am ASC NULLS LAST LIMIT 300`) as any[];
+    const heute = Date.now();
+    res.json({
+      ok: true, art, geduldTage: ONBOARDING_GEDULD_TAGE,
+      zeilen: zeilen.map((z) => ({
+        personId: Number(z.person_id), name: z.name, telefon: z.primary_phone, email: z.primary_email,
+        ref: z.ref, zustaendig: z.zustaendig ?? null,
+        bezahltAm: z.bezahlt_am ?? null,
+        tage: z.bezahlt_am ? Math.floor((heute - new Date(z.bezahlt_am).getTime()) / 86_400_000) : null,
+        terminAm: z.termin_am ?? null, eingeladenAm: z.eingeladen_am ?? null,
+      })),
+    });
+  } catch (err) {
+    console.error("[FIAON-VERTRIEB] bestandswache:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/** PATCH /agent/vertrieb/person/:id/karte — den Kartenstatus pflegen (Leitung), protokolliert. */
+router.patch("/agent/vertrieb/person/:id/karte", requireAgent, nurLeitung, nurMitZusage, async (req: AgentRequest, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const { istKartenStatus, kartenLage, kartenStatusText, ensureKartenSpalten } = await import("../lib/fiaon-kartenstatus");
+    await ensureKartenSpalten();
+    const status = String(req.body?.status ?? "");
+    if (!istKartenStatus(status)) return res.status(400).json({ ok: false, error: "Unbekannter Kartenstatus." });
+    const notiz = String(req.body?.notiz ?? "").trim().slice(0, 500) || null;
+    const vorher = await kartenLage(id);
+    if (!vorher.ref) return res.status(404).json({ ok: false, error: "Dieser Kunde hat keine Paketbestellung — und damit keine Karte." });
+    await sqlPool`
+      UPDATE fiaon_applications
+      SET karten_status = ${status}, karten_status_am = NOW(),
+          karten_notiz = COALESCE(${notiz}, karten_notiz), updated_at = NOW()
+      WHERE ref = ${vorher.ref}
+    `;
+    await protokoll(req.agent!.id, "vertrieb_kartenstatus", { person_id: id, ref: vorher.ref, alt: vorher.status, neu: status, notiz });
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (person_id, ref, agent_id, agent_name, type, note, created_at)
+      VALUES (${id}, ${vorher.ref}, ${req.agent!.id}, ${req.agent!.name}, 'system',
+              ${`Kartenstatus: ${vorher.status ? kartenStatusText(vorher.status) : "unbekannt"} → ${kartenStatusText(status)}${notiz ? ` (${notiz})` : ""}`}, NOW())
+    `.catch(() => {});
+    res.json({ ok: true, karte: await kartenLage(id), meldung: `Kartenstatus steht jetzt auf „${kartenStatusText(status)}“.` });
+  } catch (err) {
+    console.error("[FIAON-VERTRIEB] karte:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 router.get("/agent/vertrieb/person/:id/lage", requireAgent, leitungOderOnboarding, async (req: AgentRequest, res: Response) => {
   try {
     const id = Number(req.params.id);
@@ -813,12 +929,14 @@ router.get("/agent/vertrieb/person/:id/lage", requireAgent, leitungOderOnboardin
     `;
     if (!p) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
     const { zahlungsLage, dokumentLage, zugangsLage } = await import("../lib/fiaon-kundenlage");
-    const [zahlung, dokumente, zugang] = await Promise.all([
+    const { kartenLage, KARTEN_STATUS } = await import("../lib/fiaon-kartenstatus");
+    const [zahlung, dokumente, zugang, karte] = await Promise.all([
       zahlungsLage(id),
       dokumentLage(id),
       zugangsLage(p.primary_email || p.app_email || ""),
+      kartenLage(id),
     ]);
-    res.json({ ok: true, zahlung, dokumente, zugang });
+    res.json({ ok: true, zahlung, dokumente, zugang, karte, kartenStatusListe: KARTEN_STATUS });
   } catch (err) {
     console.error("[FIAON-VERTRIEB] lage:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });

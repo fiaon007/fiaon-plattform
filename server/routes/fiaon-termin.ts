@@ -661,6 +661,22 @@ router.post("/agent/termine/:id/uebergeben", requireAgent, async (req: AgentRequ
       WHERE id = ${id}
     `;
 
+    // ── DER ÜBERNEHMER ERFÄHRT ES — ALS AUFGABE (22.08.2026, C12-e) ───────
+    // Vorher bekam nur der Kunde Post. Der Kollege sah den Termin frühestens,
+    // wenn er von sich aus in den Kalender schaute — und der Grund („krank
+    // bis Freitag") stand in `uebergeben_grund`, wurde aber nirgends gezeigt.
+    await sqlPool`
+      INSERT INTO fiaon_vermerke (art, ref, text, sicht, sicht_agenten, zustaendig_agent_id,
+                                  fuer_betreiber, dringend, status, autor_art, autor_agent_id, autor_name, faellig_am)
+      SELECT 'aufgabe',
+             (SELECT a.ref FROM fiaon_applications a WHERE a.person_id = ${Number(termin.person_id)} AND a.merged_into IS NULL
+                ORDER BY a.created_at DESC LIMIT 1),
+             ${`Termin übernommen von ${req.agent!.name}: ${berlinDatumText(termin.beginn)} um ${berlinUhrzeit(termin.beginn)} Uhr (${terminArtAusQuelle(termin.quelle).text}). Grund: ${grund.slice(0, 300)}${vertretung ? " — Vertretung außerhalb der zuständigen Rolle." : ""}`},
+             'agenten', ARRAY[${zielId}]::int[], ${zielId},
+             FALSE, TRUE, 'offen', 'agent', ${req.agent!.id}, ${req.agent!.name},
+             (${termin.beginn}::timestamptz AT TIME ZONE 'Europe/Berlin')::date
+    `.catch((e) => console.error("[TERMIN] Aufgabe an den Übernehmer nicht geschrieben:", e));
+
     // ── DIE INFO-MAIL AN DEN KUNDEN ───────────────────────────────────────
     // Sie geht über `termin_bestaetigung` mit dem neuen Vornamen. Scheitert
     // sie, ist die Übergabe trotzdem gültig — sie steht in der Datenbank, und

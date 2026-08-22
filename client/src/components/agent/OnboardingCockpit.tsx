@@ -96,7 +96,32 @@ export function OnboardingCockpit({
   /** Öffnet das Softphone MIT Kundenkontext — nicht ein zweites Telefon. */
   onAnrufen?: (nummer: string, personId: number, name: string) => void;
 }) {
-  const [stand, setStand] = useState<AgendaStand>({ erledigt: [], notizen: {} });
+  // ── ZWISCHENSPEICHER (22.08.2026, P-09) ─────────────────────────────────
+  // Fünfzehn Minuten Notizen lagen nur im Arbeitsspeicher: Ein Reload, ein
+  // versehentliches Schließen, ein 502 beim Abschluss — und alles war weg.
+  // Jetzt liegt der Stand je Termin im Browser, bis das Gespräch abgeschlossen
+  // ist. Kein Server-Weg: Es ist der Entwurf des Mitarbeiters, nicht die Akte.
+  const speicherKey = `fiaon-cockpit-${termin.id}`;
+  const [stand, setStand] = useState<AgendaStand>(() => {
+    try {
+      const roh = window.localStorage.getItem(speicherKey);
+      const g = roh ? JSON.parse(roh) : null;
+      if (g && Array.isArray(g.erledigt) && g.notizen && typeof g.notizen === "object") return g as AgendaStand;
+    } catch { /* kaputter Eintrag — frisch anfangen */ }
+    return { erledigt: [], notizen: {} };
+  });
+  useEffect(() => {
+    try { window.localStorage.setItem(speicherKey, JSON.stringify(stand)); } catch { /* voll oder gesperrt */ }
+  }, [stand, speicherKey]);
+  // Wer mitten im Gespräch das Fenster schließt, wird gefragt — die Notizen
+  // bleiben zwar gespeichert, aber der Anruf läuft noch.
+  useEffect(() => {
+    const hatInhalt = stand.erledigt.length > 0 || Object.values(stand.notizen).some((n) => (n ?? "").trim());
+    if (!hatInhalt) return;
+    const warnen = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", warnen);
+    return () => window.removeEventListener("beforeunload", warnen);
+  }, [stand]);
   const [offen, setOffen] = useState<string | null>(AGENDA[0]?.key ?? null);
   const [lage, setLage] = useState<Lage | null>(null);
   const [busy, setBusy] = useState<"" | "fertig" | "noshow">("");
@@ -162,8 +187,15 @@ export function OnboardingCockpit({
     }).catch(() => null);
     const j = await r?.json().catch(() => null);
     setBusy("");
-    if (j?.ok) onFertig(j.hinweis || "Startgespräch abgeschlossen — das Konto ist freigeschaltet.");
-    else setFehler(j?.error || "Der Abschluss hat nicht geklappt.");
+    if (j?.ok) {
+      try { window.localStorage.removeItem(speicherKey); } catch { /* egal */ }
+      onFertig(j.hinweis || "Startgespräch abgeschlossen — das Konto ist freigeschaltet.");
+    } else {
+      // Der Grund, nicht „hat nicht geklappt": 403 heißt Zusage fehlt, 404 der
+      // Termin ist weg, 5xx der Server. Die Notizen bleiben gespeichert.
+      const grund = j?.error || (r ? `HTTP ${r.status}` : "keine Verbindung");
+      setFehler(`Der Abschluss hat nicht geklappt (${grund}). Deine Notizen sind zwischengespeichert — bitte noch einmal versuchen.`);
+    }
   };
 
   const nichtErschienen = async () => {

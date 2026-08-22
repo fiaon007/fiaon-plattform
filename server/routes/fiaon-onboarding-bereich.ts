@@ -124,6 +124,10 @@ router.get("/agent/onboarding/termine", requireAgent, nurOnboarding, nurMitZusag
              -- „erledigt" nicht von „offen" trennen, und alles Heutige stand
              -- gemischt in einer Spalte (Teil 9 des Feedbacks, 19.08.2026).
              t.erledigt_am,
+             -- Abgesagte Termine standen unter „Offen" — ohne Marke, ohne
+             -- Knopf, als Geister (22.08.2026). Sie bleiben sieben Tage
+             -- sichtbar, aber als das, was sie sind.
+             t.abgesagt_am,
              COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''),
                       p.company_name, p.contact_name, p.primary_email) AS name,
              COALESCE(NULLIF(p.first_name, ''), p.contact_name) AS vorname,
@@ -133,6 +137,7 @@ router.get("/agent/onboarding/termine", requireAgent, nurOnboarding, nurMitZusag
       WHERE t.agent_id = ${req.agent!.id} AND t.quelle = 'onboarding_call'
         AND p.merged_into_person_id IS NULL
         AND t.beginn > NOW() - INTERVAL '30 days'
+        AND (t.abgesagt_am IS NULL OR t.abgesagt_am > NOW() - INTERVAL '7 days')
       ORDER BY t.beginn ASC
       LIMIT 300
     `) as any[];
@@ -154,6 +159,7 @@ router.get("/agent/onboarding/termine", requireAgent, nurOnboarding, nurMitZusag
         status: t.status,
         notiz: t.notiz,
         erledigtAm: t.erledigt_am ?? null,
+        abgesagtAm: t.abgesagt_am ?? null,
         quelle: t.quelle,
         // Die Art wird auch hier mitgeliefert. Diese Liste zeigt fast immer
         // Onboarding-Gespräche — aber „fast immer" ist der Grund, warum die
@@ -302,10 +308,12 @@ router.get("/agent/onboarding/person/:id/lage", requireAgent, nurOnboarding, nur
     `) as any[];
     if (!p) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
     const { zahlungsLage, dokumentLage, zugangsLage } = await import("../lib/fiaon-kundenlage");
-    const [zahlung, dokumente, zugang] = await Promise.all([
+    const { kartenLage } = await import("../lib/fiaon-kartenstatus");
+    const [zahlung, dokumente, zugang, karte] = await Promise.all([
       zahlungsLage(id),
       dokumentLage(id),
       zugangsLage(p.primary_email || p.app_email || ""),
+      kartenLage(id),
     ]);
     // Kopfzeile des Cockpits: Paket, Zahlungsstand, Bonitätsauskunft — das
     // Cockpit las diese Felder seit dem ersten Tag, bekam sie aber nie.
@@ -319,7 +327,7 @@ router.get("/agent/onboarding/person/:id/lage", requireAgent, nurOnboarding, nur
       bonitaet = stand?.grund ?? null;
     } catch { /* Bonität ist Beiwerk — die Lage darf nicht daran scheitern. */ }
     res.json({
-      ok: true, zahlung, dokumente, zugang,
+      ok: true, zahlung, dokumente, zugang, karte,
       paket: paketZeile?.paket ?? null,
       zahlungsstand: paketZeile ? zahlungsstatusText(paketZeile.status) : null,
       bonitaet,
@@ -540,6 +548,112 @@ router.post("/agent/onboarding/termine/:id/ergebnis", requireAgent, nurOnboardin
     res.status(erg.status).json(erg.body);
   } catch (err) {
     console.error("[ONBOARDING] ergebnis:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE WARTENDEN — bezahlt, kein Startgespräch (22.08.2026, E-022 / K10)
+//
+// `wartendeZaehlen` rechnete „wartend" und „ohne Termin" seit Tagen aus; die
+// Seite warf beide Zahlen weg. Und ein Onboarder konnte einen wartenden
+// Kunden ohne Termin nicht einmal SEHEN — die Einladung brauchte eine
+// personId aus einem bestehenden Termin. 213 Menschen lagen damit außerhalb
+// der Reichweite genau der Abteilung, die sie erreichen soll.
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/agent/onboarding/wartende", requireAgent, nurOnboarding, nurMitZusage, async (_req: AgentRequest, res: Response) => {
+  try {
+    const zeilen = (await sqlPool`
+      SELECT p.id AS person_id,
+             COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''), p.company_name, p.contact_name, p.primary_email) AS name,
+             COALESCE(NULLIF(p.first_name, ''), p.contact_name) AS vorname,
+             p.primary_phone, p.primary_email, p.startgespraech_mail_am, p.startgespraech_spaeter_am,
+             (SELECT a.ref FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
+                AND a.payment_status = 'paid' AND a.onboarding_stufe = 'wartet_auf_onboarding'
+                ORDER BY a.paid_at DESC NULLS LAST, a.created_at DESC LIMIT 1) AS ref,
+             (SELECT SPLIT_PART(a.pack_name, E'\\n', 1) FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL
+                AND a.payment_status = 'paid' AND a.onboarding_stufe = 'wartet_auf_onboarding'
+                ORDER BY a.paid_at DESC NULLS LAST, a.created_at DESC LIMIT 1) AS paket,
+             (SELECT MIN(a.paid_at) FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL
+                AND a.payment_status = 'paid' AND a.onboarding_stufe = 'wartet_auf_onboarding') AS bezahlt_am,
+             (SELECT t.beginn FROM fiaon_termine t WHERE t.person_id = p.id AND t.quelle = 'onboarding_call'
+                AND t.status = 'gebucht' AND t.abgesagt_am IS NULL ORDER BY t.beginn LIMIT 1) AS termin_am,
+             (SELECT COUNT(*)::int FROM fiaon_termine t WHERE t.person_id = p.id AND t.quelle = 'onboarding_call'
+                AND t.status = 'verpasst') AS verpasst
+      FROM fiaon_persons p
+      WHERE p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL AND NOT COALESCE(p.is_blocked, FALSE)
+        AND EXISTS (SELECT 1 FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL
+              AND a.archived_at IS NULL AND a.payment_status = 'paid' AND a.onboarding_stufe = 'wartet_auf_onboarding')
+        AND NOT EXISTS (SELECT 1 FROM fiaon_termine t WHERE t.person_id = p.id AND t.quelle = 'onboarding_call' AND t.status = 'erledigt')
+      ORDER BY termin_am NULLS FIRST, bezahlt_am ASC NULLS LAST
+      LIMIT 300
+    `) as any[];
+    const jetzt = Date.now();
+    res.json({
+      ok: true,
+      wartende: zeilen.map((z) => ({
+        personId: Number(z.person_id), name: z.name, vorname: z.vorname, telefon: z.primary_phone, email: z.primary_email,
+        ref: z.ref, paket: z.paket, bezahltAm: z.bezahlt_am ?? null,
+        tage: z.bezahlt_am ? Math.floor((jetzt - new Date(z.bezahlt_am).getTime()) / 86_400_000) : null,
+        terminAm: z.termin_am ?? null, eingeladenAm: z.startgespraech_mail_am ?? null,
+        spaeterAm: z.startgespraech_spaeter_am ?? null, verpasst: Number(z.verpasst || 0),
+      })),
+      ohneTermin: zeilen.filter((z) => !z.termin_am).length,
+      mitTermin: zeilen.filter((z) => !!z.termin_am).length,
+    });
+  } catch (err) {
+    console.error("[ONBOARDING] wartende:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/**
+ * POST /agent/onboarding/wartende/:id/einladung — Einladung an einen Wartenden.
+ * Anders als `/person/:id/einladung` braucht das keinen bestehenden Termin —
+ * nur: bezahlt, wartet, noch kein geführtes Gespräch. Schreibend genau diese
+ * eine Sache, sonst nichts.
+ */
+router.post("/agent/onboarding/wartende/:id/einladung", requireAgent, nurOnboarding, nurMitZusage, async (req: AgentRequest, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const [p] = (await sqlPool`
+      SELECT p.id, COALESCE(NULLIF(p.first_name, ''), p.contact_name) AS vorname,
+             COALESCE(NULLIF(p.primary_email, ''), (
+               SELECT NULLIF(COALESCE(a.email, a.contact_email, a.billing_email), '')
+               FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL
+               ORDER BY a.created_at DESC LIMIT 1)) AS email,
+             (SELECT a2.ref FROM fiaon_applications a2
+               WHERE a2.person_id = p.id AND a2.merged_into IS NULL AND a2.archived_at IS NULL
+               ORDER BY a2.created_at DESC LIMIT 1) AS ref
+      FROM fiaon_persons p
+      WHERE p.id = ${id} AND p.merged_into_person_id IS NULL
+        AND EXISTS (SELECT 1 FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL
+              AND a.payment_status = 'paid' AND a.onboarding_stufe = 'wartet_auf_onboarding')
+        AND NOT EXISTS (SELECT 1 FROM fiaon_termine t WHERE t.person_id = p.id AND t.quelle = 'onboarding_call' AND t.status = 'erledigt')
+    `) as any[];
+    if (!p) return res.status(404).json({ ok: false, error: "Dieser Kunde wartet nicht (mehr) auf ein Startgespräch." });
+    if (!p.email) return res.status(409).json({ ok: false, error: "Keine E-Mail-Adresse — bitte anrufen und den Terminlink durchgeben." });
+
+    const { versandErlaubt } = await import("../lib/fiaon-versand");
+    const pruefung = await versandErlaubt(id, "onboarding_einladung");
+    if (!pruefung.erlaubt) return res.status(409).json({ ok: false, error: pruefung.grund });
+
+    const erg = await versendenUndProtokollieren(
+      "onboarding_einladung",
+      { email: String(p.email), vorname: p.vorname || null, termin_link: terminLink(id, "onboarding_call") },
+      {
+        personId: id, verlaufRef: p.ref || null,
+        verlaufText: `Einladung zum Startgespräch versandt von ${req.agent!.name} (aus der Liste der Wartenden).`,
+        ausgeloestVon: req.agent!.name, ausgeloestAgentId: req.agent!.id,
+      },
+    );
+    if (erg.status === "versandt") {
+      await sqlPool`UPDATE fiaon_persons SET startgespraech_mail_am = NOW(), updated_at = NOW() WHERE id = ${id}`.catch(() => {});
+    }
+    res.json({ ok: erg.status === "versandt", status: erg.status, grund: erg.grund,
+      terminLink: terminLink(id, "onboarding_call") });
+  } catch (err) {
+    console.error("[ONBOARDING] wartende/einladung:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

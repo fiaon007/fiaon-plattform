@@ -42,6 +42,7 @@ import { zustaendigeRolleSql } from "../lib/fiaon-zustaendigkeit";
 import { terminArtAusQuelle, terminArtRueckruf } from "../../shared/fiaon-termin-art";
 import { FIAON_BANK_DETAILS as BANK } from "./fiaon-antrag";
 import { zahlungstext } from "../lib/fiaon-verwendungszweck";
+import { kartenStatusText, ensureKartenSpalten } from "../lib/fiaon-kartenstatus";
 
 const router = Router();
 
@@ -162,6 +163,15 @@ export const KARTE_SQL = `
   (SELECT a.payment_due_date FROM fiaon_applications a
     WHERE a.person_id = p.id AND a.merged_into IS NULL
     ORDER BY a.created_at DESC LIMIT 1) AS zahlungsfrist,
+  -- Kartenstatus (22.08.2026, K11): „Wo ist meine Karte?" — an der Paketbestellung.
+  (SELECT a.karten_status FROM fiaon_applications a
+    WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
+      AND NOT (COALESCE(a.type,'') = 'schufa' OR a.ref LIKE 'FIAON-SCHUFA-%')
+    ORDER BY (a.payment_status = 'paid') DESC, a.created_at DESC LIMIT 1) AS karten_status,
+  (SELECT a.karten_status_am FROM fiaon_applications a
+    WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
+      AND NOT (COALESCE(a.type,'') = 'schufa' OR a.ref LIKE 'FIAON-SCHUFA-%')
+    ORDER BY (a.payment_status = 'paid') DESC, a.created_at DESC LIMIT 1) AS karten_status_am,
   (SELECT a.amount_due FROM fiaon_applications a
     WHERE a.person_id = p.id AND a.merged_into IS NULL
     ORDER BY a.created_at DESC LIMIT 1) AS amount_due,
@@ -306,6 +316,11 @@ export function karte(p: any) {
           })
         : null,
     },
+    karte: {
+      status: p.karten_status ?? null,
+      text: kartenStatusText(p.karten_status) ?? (p.zahlungsstatus === "paid" ? "Stand unbekannt" : null),
+      am: p.karten_status_am ?? null,
+    },
     // Die Warnung entsteht hier, nicht im Frontend: eine fachliche Regel.
     rechnungWarnung: Number(p.invoice_sent_count || 0) >= 3
       ? `Bereits ${p.invoice_sent_count}× versandt. Ein weiterer Versand ersetzt kein Gespräch — ruf an.`
@@ -333,6 +348,7 @@ export function karte(p: any) {
 // ═══════════════════════════════════════════════════════════════════════════
 router.get("/agent/start", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
+    await ensureKartenSpalten();
     await ensureBetreuungSpalte(sqlPool);
     const me = req.agent!.id;
 
@@ -688,6 +704,7 @@ router.get("/agent/termine/faellig", requireAgent, async (req: AgentRequest, res
 
 router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
+    await ensureKartenSpalten();
     // ══════════════════════════════════════════════════════════════════════
     // DAS FORDERUNGSMANAGEMENT SIEHT DIESE LISTE NICHT
     //

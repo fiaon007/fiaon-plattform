@@ -12,6 +12,10 @@
      Blick weiß dann nicht mehr, wohin. */
   --fi-primaer: #1d4ed8;
   --fi-primaer-hell: #2563eb;
+  /* Das zweite Markenblau aus dem Kundenbereich (mein-bereich.css): Licht zu
+     Tiefe. Ein Portal, eine Palette — vorher hatte der Agent ein anderes
+     Blau als der Kunde (E-022, Scheibe 3). */
+  --fi-primaer-licht: #288DFA;
   --fi-primaer-hover: #1e40af;
   --fi-verlauf-primaer: linear-gradient(180deg, #1d4ed8 0%, #2563eb 100%);
 
@@ -691,3 +695,49 @@ button.fi-knopf-primaer *, a.fi-knopf-primaer * { color: inherit !important; }
 @media (prefers-reduced-motion: reduce) {
   .fi-kk-wartet { transition: none !important; }
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   EIN DESIGNSYSTEM, NICHT ZWEI (E-022, Scheibe 3 — 22.08.2026)
+   Der Kundenbereich (mein-bereich.css) setzt Outfit für Überschriften und
+   JetBrains Mono für Zahlen. Das Agentenportal lud beide Schriften seit je
+   (index.css) und wies sie nie zu. Zwei Zeilen — und beide Seiten sprechen
+   dieselbe Sprache.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.agent-scope h1, .agent-scope h2, .agent-scope h3, .agent-scope h4 {
+  font-family: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  letter-spacing: -.02em;
+  text-wrap: balance;
+}
+.agent-scope .fi-zahl, .agent-scope .fi-ak-mono, .agent-scope .font-mono {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* Eine waagerechte Rolle (Filter-Chips, Reiter) sagt am rechten Rand, dass
+   es weitergeht: Der Inhalt läuft in einen Verlauf aus, statt hart
+   abzuschneiden. Auf dem Telefon sieht man drei Chips — und dass es vierzehn
+   weitere gibt, war vorher nicht erkennbar. */
+.fi-rolle {
+  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 36px), transparent);
+  mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 36px), transparent);
+  scrollbar-width: none;
+}
+.fi-rolle::-webkit-scrollbar { display: none; }
+
+/* Das Feld unter „Ergebnis festhalten" (Notiz, Zusage, Rückruf) wird auf dem
+   Telefon zum Blatt von unten: Ein Feld am Ende einer langen Karte liegt sonst
+   außerhalb des Daumens — und ausgerechnet dieses Bauteil wird zwanzigmal am
+   Tag gedrückt. Auf breiten Bildschirmen bleibt es, wo es ist. */
+@media (max-width: 640px) {
+  .fi-ergebnis-feld {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 80;
+    margin: 0 !important; border-radius: 18px 18px 0 0;
+    background: #fff !important;
+    box-shadow: var(--fi-schatten-schwebend), var(--fi-glanzkante);
+    padding: 16px 16px max(16px, env(safe-area-inset-bottom)) !important;
+    max-height: 72vh; overflow: auto;
+    animation: fi-blatt-auf .26s cubic-bezier(.32,.72,0,1) both;
+  }
+  @keyframes fi-blatt-auf { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+}
+@media (prefers-reduced-motion: reduce) { .fi-ergebnis-feld { animation: none; } }

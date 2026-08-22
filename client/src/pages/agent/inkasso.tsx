@@ -498,7 +498,7 @@ export default function AgentInkasso() {
                     Knopfes, der ins Leere ruft. */}
                 {f.telefonWaehlbar && (
                   <button type="button"
-                          onClick={() => anrufStarten(f.telefonWaehlbar!, f.person_id, f.name)}
+                          onClick={() => anrufStarten(f.telefonWaehlbar!, f.person_id, f.name, { rateId: f.rate_id })}
                           className="fi-primaerknopf inline-flex items-center gap-1.5 px-3.5 py-2 text-[12.5px] font-semibold">
                     <MarkeHoerer size={14} /> Anrufen
                   </button>
@@ -604,7 +604,7 @@ export default function AgentInkasso() {
       {akte && (
         <InkassoAkte fall={akte} onZu={() => setAkte(null)}
                      onGeaendert={() => void laden()}
-                     onAnrufen={(nummer, name) => { void anrufStarten(nummer, akte.person_id, name); }} />
+                     onAnrufen={(nummer, name) => { void anrufStarten(nummer, akte.person_id, name, { rateId: akte.rate_id }); }} />
       )}
 
       {offenerFall && (

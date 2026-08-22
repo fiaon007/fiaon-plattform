@@ -37,6 +37,7 @@
 // Ausgang sichtbar — Erfolg wie Fehler.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useRef, useState } from "react";
+import { useFragen } from "@/pages/agent/shared";
 import {
   ERGEBNIS_LISTE, NOTIZ_MINDESTLAENGE, NOTIZ_VORLAGEN, pruefeNotiz,
   type Ergebnis,
@@ -104,22 +105,23 @@ export function ErgebnisWahl({
     setOffen(null); setNotiz(""); setFehler(null);
   };
 
-  const anklicken = (art: Ergebnis) => {
+  const fragen = useFragen();
+  const anklicken = async (art: Ergebnis) => {
     const e = ERGEBNIS_LISTE.find((x) => x.art === art)!;
     setFehler(null);
     // Zweiter Klick auf denselben Knopf schließt das Feld wieder.
     if (e.braucht && offen?.art === art) { setOffen(null); return; }
     if (e.braucht) { setOffen({ art, braucht: e.braucht }); return; }
-    if (e.gibtAb && !confirm(
-      `${kundeName || "Der Kunde"} hat deine Nummer blockiert?\n\n`
-      + "Der Kunde geht sofort an den Kollegen mit dem kleinsten Bestand, der bei "
-      + "ihm noch nicht blockiert wurde. Er verschwindet aus deiner Liste.\n\n"
-      + "Wichtig: Die Provision folgt dem, der den Abschluss dokumentiert.",
-    )) return;
+    if (e.gibtAb && !(await fragen({
+      titel: `${kundeName || "Der Kunde"} hat deine Nummer blockiert?`,
+      text: "Der Kunde geht sofort an den Kollegen mit dem kleinsten Bestand, der bei ihm noch nicht blockiert wurde. Er verschwindet aus deiner Liste.",
+      folge: "Die Provision folgt dem, der den Abschluss dokumentiert.",
+      ja: "Übergeben",
+    }))) return;
     void speichern(art, {});
   };
 
-  const feldRahmen = "mt-2.5 p-3 rounded-xl";
+  const feldRahmen = "fi-ergebnis-feld mt-2.5 p-3 rounded-xl";
   const feldStil = { background: "var(--fi-seite)" };
 
   return (
@@ -129,7 +131,7 @@ export function ErgebnisWahl({
           <button key={e.art} type="button" disabled={!!laeuft}
                   data-fiaon={`ergebnis-${e.art}`}
                   aria-expanded={offen?.art === e.art ? true : undefined}
-                  onClick={() => anklicken(e.art)}
+                  onClick={() => void anklicken(e.art)}
                   className={`fi-zweitknopf font-medium ${dicht
                     ? "px-2.5 py-2 text-[12px]" : "px-3 py-2.5 text-[12.5px]"}`}
                   style={offen?.art === e.art

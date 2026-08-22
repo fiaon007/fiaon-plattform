@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ProduktDialog } from "@/components/agent/ProduktDialog";
 import { KundeAnlegen } from "@/components/agent/KundeAnlegen";
-import { AgentShell } from "./shared";
+import { AgentShell, useFragen } from "./shared";
 import { Reveal } from "./motion";
 import { Skelett, eur, useReduzierteBewegung, useToast } from "@/lib/fiaon-ui";
 import { ZeichenSenden, ZeichenTelefon, ZeichenWinkel } from "@/lib/fiaon-zeichen";
@@ -589,7 +589,7 @@ function Inhalt() {
         {/* Filter-Chips mit Zählern. Ein Chip ohne Zahl ist eine Behauptung —
             die Zahl sagt, ob sich der Klick lohnt. */}
         <Reveal index={2}>
-          <div className="mt-4 -mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto">
+          <div className="fi-rolle mt-4 -mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto">
             <div className="flex items-center gap-1.5 pb-1" style={{ minWidth: "max-content" }}>
               {FILTER.map((f) => {
                 const n = zaehler[f.zaehler] ?? 0;
@@ -772,6 +772,7 @@ function KundenKarte({
   onOeffnen: () => void; onWeg: () => void; onNeu: (k: Kunde) => void;
   onErledigt: () => void; onZaehler: () => void;
 }) {
+  const fragen = useFragen();
   const { zeige } = useToast();
   const reduziert = useReduzierteBewegung();
   const [laeuft, setLaeuft] = useState<string | null>(null);
@@ -1035,14 +1036,12 @@ function KundenKarte({
     if (refs.length === 0) return;
     const zeilen = (k.buchungen ?? []).filter((b) => refs.includes(b.ref));
     const summe = zeilen.reduce((s, b) => s + Number(b.betragCents ?? 0), 0);
-    if (!confirm(
-      `${refs.length} ${refs.length === 1 ? "Buchung" : "Buchungen"} aus der Liste nehmen?\n\n`
-      + `${zeilen.map((b) => `· ${b.bezeichnung}${b.betragCents != null ? ` (${eur(b.betragCents)})` : ""}`).join("\n")}\n\n`
-      + `Summe: ${eur(summe)}\n\n`
-      + "Sie werden archiviert, nicht gelöscht — die Vertriebsleitung kann sie "
-      + "zurückholen. Bezahlte Buchungen und die letzte verbleibende bleiben "
-      + "in jedem Fall stehen.",
-    )) return;
+    if (!(await fragen({
+      titel: `${refs.length} ${refs.length === 1 ? "Buchung" : "Buchungen"} aus der Liste nehmen?`,
+      text: `${zeilen.map((b) => `${b.bezeichnung}${b.betragCents != null ? ` (${eur(b.betragCents)})` : ""}`).join(", ")} — Summe ${eur(summe)}.`,
+      folge: "Sie werden archiviert, nicht gelöscht — die Vertriebsleitung kann sie zurückholen. Bezahlte Buchungen und die letzte verbleibende bleiben in jedem Fall stehen.",
+      ja: "Wegräumen",
+    }))) return;
 
     setLaeuft("arch-auswahl");
     // Der Reihe nach, nicht parallel: Die Wand „das ist die letzte Buchung"
@@ -1079,13 +1078,12 @@ function KundenKarte({
 
   const buchungWegraeumen = async (b: { ref: string; bezeichnung: string; betragCents: number | null }) => {
     const betrag = b.betragCents != null ? eur(b.betragCents) : "ohne Betrag";
-    if (!confirm(
-      `„${b.bezeichnung}" (${betrag}) aus der Liste nehmen?\n\n`
-      + `Der Kunde behält seine anderen Buchungen. Diese hier verschwindet aus `
-      + `deiner Liste — sie wird archiviert, nicht gelöscht, und die `
-      + `Vertriebsleitung kann sie zurückholen.\n\n`
-      + `Referenz: ${b.ref}`,
-    )) return;
+    if (!(await fragen({
+      titel: `„${b.bezeichnung}“ (${betrag}) aus der Liste nehmen?`,
+      text: `Der Kunde behält seine anderen Buchungen. Diese hier verschwindet aus deiner Liste — sie wird archiviert, nicht gelöscht, und die Vertriebsleitung kann sie zurückholen.`,
+      folge: `Referenz: ${b.ref}`,
+      ja: "Wegräumen",
+    }))) return;
     setLaeuft(`arch-${b.ref}`);
     const r = await api(`/agent/buchungen/${encodeURIComponent(b.ref)}/archivieren`,
       { method: "POST", body: JSON.stringify({ grund: "doppelt" }) });
@@ -1319,7 +1317,7 @@ function KundenKarte({
                       style={{ color: b.bezahlt ? "#059669" : undefined }}>
                   · {b.bezeichnung}
                   {b.betragCents != null && ` ${eur(b.betragCents)}`}
-                  {b.bezahlt ? " ✓" : ""}
+                  {b.bezahlt ? " (bezahlt)" : ""}
                 </span>
               ))}
               {(k.buchungen ?? []).length === 0 && k.produkt && (
@@ -2250,6 +2248,7 @@ function NummerLandNachtragen({ k, onFertig }: { k: Kunde; onFertig: (neu: any) 
 // hier abschaffen soll.
 // ═══════════════════════════════════════════════════════════════════════════
 export function Versandzentrum({ personId }: { personId: number }) {
+  const fragen = useFragen();
   const { zeige } = useToast();
   const [daten, setDaten] = useState<any>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -2261,7 +2260,7 @@ export function Versandzentrum({ personId }: { personId: number }) {
   useEffect(() => { void laden(); }, [laden]);
 
   const senden = async (art: string, titel: string) => {
-    if (!confirm(`„${titel}" jetzt erneut an den Kunden schicken?`)) return;
+    if (!(await fragen({ titel: `„${titel}“ jetzt erneut an den Kunden schicken?`, ja: "Senden" }))) return;
     setBusy(art);
     const r = await api(`/agent/versand/${personId}/${art}`, { method: "POST", body: JSON.stringify({}) });
     setBusy(null);

@@ -56,7 +56,7 @@ function AuszahlungContent() {
     const r = await api("/agent/payouts/request", { method: "POST" });
     setBusy(false);
     if (r.ok) {
-      flash("✓ Auszahlung beantragt — du findest sie unten im Verlauf. Die Überweisung erfolgt nach Prüfung manuell.");
+      flash("Auszahlung beantragt — du findest sie unten im Verlauf. Die Überweisung erfolgt nach Prüfung manuell.");
       setPulse((p) => p + 1);
       load();
     } else flash(r.json?.error || "Fehler");

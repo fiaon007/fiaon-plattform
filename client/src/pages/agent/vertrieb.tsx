@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { KundenKopf } from "@/components/kunde/AblaufLeiste";
 import { anrufStarten } from "@/components/Softphone";
 import { RechnungBestaetigung } from "@/components/agent/RechnungBestaetigung";
-import { AgentShell } from "./shared";
+import { AgentShell, useFragen } from "./shared";
 import { Reveal } from "./motion";
 import { Skelett, eur, useReduzierteBewegung, useToast } from "@/lib/fiaon-ui";
 import { ZeichenSenden, ZeichenTelefon, ZeichenWinkel } from "@/lib/fiaon-zeichen";
@@ -108,6 +108,7 @@ function Inhalt() {
   const [zahlen, setZahlen] = useState<any>(null);
   const [agenten, setAgenten] = useState<AgentZeile[]>([]);
   const [personen, setPersonen] = useState<Person[]>([]);
+  const fragen = useFragen();
   const [laedt, setLaedt] = useState(true);
   const [keinZugang, setKeinZugang] = useState(false);
   // Die Verpflichtungserklärung. Solange sie offen ist, liefert der Server
@@ -215,11 +216,12 @@ function Inhalt() {
   const zuweisen = async (agentId: number | null) => {
     if (gewaehlt.length === 0) return;
     const ziel = agentId ? agenten.find((a) => a.id === agentId)?.name : "niemandem";
-    if (!confirm(
-      `${gewaehlt.length} Kunde(n) ${agentId ? `an ${ziel} zuweisen` : "aus der Zuweisung nehmen"}?\n\n`
-      + `Der Provisionsanspruch bleibt beim dokumentierten Betreuer — eine Zuweisung verschiebt nur die `
-      + `Zuständigkeit, nicht das Geld.\n\nJede Änderung wird protokolliert.`,
-    )) return;
+    if (!(await fragen({
+      titel: `${gewaehlt.length} Kunde(n) ${agentId ? `an ${ziel} zuweisen` : "aus der Zuweisung nehmen"}?`,
+      text: "Der Provisionsanspruch bleibt beim dokumentierten Betreuer — eine Zuweisung verschiebt nur die Zuständigkeit, nicht das Geld.",
+      folge: "Jede Änderung wird protokolliert.",
+      ja: agentId ? "Zuweisen" : "Zuweisung aufheben",
+    }))) return;
     setBusy(true);
     const r = await api("/agent/vertrieb/zuweisen", {
       method: "POST", body: JSON.stringify({ personIds: gewaehlt, agentId }),
@@ -359,7 +361,7 @@ function Inhalt() {
           )}
 
           {/* Bereichswahl — die vier Arbeiten der Vertriebsleitung. */}
-          <div className="mt-4 -mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto">
+          <div className="fi-rolle mt-4 -mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto">
             <div className="flex items-center gap-1.5 pb-1" style={{ minWidth: "max-content" }}>
               {([
                 ["kunden", "Kunden", null],
@@ -595,7 +597,7 @@ function Inhalt() {
                 <button type="button" onClick={() => setAgentFilter(null)}
                         className="px-3 py-1.5 rounded-xl text-[12.5px] font-semibold whitespace-nowrap"
                         style={{ background: "var(--fi-seite)", border: "1px solid var(--fi-linie)" }}>
-                  Nur {agenten.find((a) => a.id === agentFilter)?.name || "ohne Zuständigen"} ✕
+                  Nur {agenten.find((a) => a.id === agentFilter)?.name || "ohne Zuständigen"} · aufheben
                 </button>
               )}
             </div>

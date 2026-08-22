@@ -142,7 +142,7 @@ function Uebersicht() {
                   borderRadius: 12, background: r.ton.akzent, color: "#04102b",
                   fontSize: 13, fontWeight: 800, minHeight: 44, lineHeight: "22px",
                 }}>
-                  {r.fortschritt.kapitel > 0 ? "Weitermachen →" : "Reise starten →"}
+                  {r.fortschritt.kapitel > 0 ? "Weitermachen" : "Reise starten"}
                 </span>
               </Link>
             );

@@ -119,7 +119,6 @@ const AdminKuendigungenPage = lazy(() => import("@/pages/admin-kuendigungen"));
 const AdminInvestorenPage = lazy(() => import("@/pages/admin-investoren"));
 const AdminBuchhaltungPage = lazy(() => import("@/pages/admin-buchhaltung"));
 import AgentLeistungPage from "@/pages/agent/leistung";
-import AgentLeadsPage from "@/pages/agent/leads";
 import AgentDokumentePage from "@/pages/agent/dokumente";
 const AdminVertraegePage = lazy(() => import("@/pages/admin-vertraege"));
 const AdminFahrplanPage = lazy(() => import("@/pages/admin-fahrplan"));
@@ -319,7 +318,11 @@ function Router() {
           Stand von vor drei Wochen.
           ══════════════════════════════════════════════════════════════════ */}
       <Route path="/agent/meine-kunden-alt"><Redirect to="/agent/kunden" /></Route>
-      <Route path="/agent/leads" component={AgentLeadsPage} />
+      {/* /agent/leads war seit der Kartei unerreichbar (kein Menüpunkt, 711
+          Zeilen im Hauptbündel, zweites Ergebnis-Bauteil, Knopf im Kreis).
+          Gelöscht am 22.08.2026 (E-022, Scheibe 3); gemerkte Links landen in
+          der einen Arbeitsliste. */}
+      <Route path="/agent/leads" component={() => <Umleitung nach="/agent/kunden?filter=leads" />} />
       <Route path="/agent/verdienst" component={AgentVerdienstPage} />
       <Route path="/agent/updates" component={AgentUpdatesPage} />
       <Route path="/agent/feedback" component={AgentFeedbackPage} />

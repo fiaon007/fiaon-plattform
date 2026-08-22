@@ -24,7 +24,7 @@ export const PERSONEN = [
   {
     kuerzel: "daniel", name: "Daniel Stripling", rolle: "Gesellschafter · Leitung Vertrieb",
     kurz: "Leitet den gesamten Vertrieb – vom ersten Anruf bis zum Abschluss, inklusive Provisionsregeln und Qualität der Gespräche.",
-    lang: "Daniel führt den Vertrieb: Gesprächsqualität, Ergebnisse, Provisionen, Bestandspflege. Er entscheidet, wer welchen Kunden betreut, und hält die Linie zwischen „verkaufen" und „helfen" – bei FIAON ist das dasselbe.",
+    lang: "Daniel führt den Vertrieb: Gesprächsqualität, Ergebnisse, Provisionen, Bestandspflege. Er entscheidet, wer welchen Kunden betreut, und hält die Linie zwischen ‚verkaufen‘ und ‚helfen‘ – bei FIAON ist das dasselbe.",
     email: "daniel@fiaon.com", telefon: null,
   },
 ] as const;

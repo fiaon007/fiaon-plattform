@@ -115,11 +115,23 @@ export default function MeinBereichPage() {
   const [menueOffen, setMenueOffen] = useState(false);
   const [aktiv, setAktiv] = useState("buehne");
 
-  const ref = useMemo(() => { try { return JSON.parse(sessionStorage.getItem("fiaon_user") || "{}")?.ref || ""; } catch { return ""; } }, []);
+  // Die Referenz: aus dem Tab, sonst dauerhaft gespeichert, sonst fragt die
+  // Seite das Cookie (/kunde/me). Vorher reichte ein geschlossener Tab, und
+  // der Kunde stand trotz gültigem 30-Tage-Cookie wieder vor dem Login.
+  const [ref, setRef] = useState<string | null>(() => {
+    try { return JSON.parse(sessionStorage.getItem("fiaon_user") || localStorage.getItem("fiaon_user") || "{}")?.ref || null; } catch { return null; }
+  });
+  useEffect(() => {
+    if (ref) return;
+    api("/kunde/me").then((r) => {
+      if (r.ok && r.json?.eingeloggt && r.json.ref) { try { sessionStorage.setItem("fiaon_user", JSON.stringify({ ref: r.json.ref })); } catch { /* egal */ } setRef(String(r.json.ref)); }
+      else window.location.href = "/login";
+    }).catch(() => { window.location.href = "/login"; });
+  }, [ref]);
 
   useEffect(() => {
-    if (!ref) { window.location.href = "/login"; return; }
-    api(`/kunde/${encodeURIComponent(ref)}/bereich`).then((r) => {
+    if (!ref) return;
+    api(`/kunde/${encodeURIComponent(ref ?? "")}/bereich`).then((r) => {
       if (r.status === 401 || r.status === 403) { window.location.href = "/login"; return; }
       if (!r.ok) { setFehler(r.json?.error || "Der Bereich konnte nicht geladen werden."); return; }
       setD(r.json as Bereich);
@@ -137,13 +149,13 @@ export default function MeinBereichPage() {
 
   const leisteUmschalten = () => { const zu = !eingeklappt; setEingeklappt(zu); localStorage.setItem("mb_leiste", zu ? "zu" : "auf"); };
   const terminWaehlen = async () => {
-    const r = await api(`/kunde/${encodeURIComponent(ref)}/startgespraech`);
+    const r = await api(`/kunde/${encodeURIComponent(ref ?? "")}/startgespraech`);
     const token = r.json?.token;
     if (token) window.location.href = `/termin/${encodeURIComponent(token)}?art=start`;
     else alert(r.json?.error || "Der Terminlink konnte nicht erzeugt werden. Bitte versuchen Sie es gleich noch einmal.");
   };
   const lastschriftStarten = async () => {
-    const r = await api(`/kunde/${encodeURIComponent(ref)}/lastschrift/start`, { method: "POST" });
+    const r = await api(`/kunde/${encodeURIComponent(ref ?? "")}/lastschrift/start`, { method: "POST" });
     if (r.ok && r.json?.url) window.location.href = r.json.url;
     else if (r.ok && r.json?.bereits) alert("Ihre Lastschrift ist bereits eingerichtet.");
     else alert(r.json?.error || "Die Lastschrift konnte nicht gestartet werden.");
@@ -281,7 +293,7 @@ export default function MeinBereichPage() {
                       <span className={`mb-lage ${d.bonitaet?.zahlungsstatus === "paid" ? "gut" : d.bonitaet?.zahlungsreferenz ? "frist" : "ruht"}`}>{d.bonitaet?.zahlungsstatus === "paid" ? "Bezahlt" : d.bonitaet?.zahlungsreferenz ? "Offen" : "Noch nicht bestellt"}</span>
                       {d.bonitaet?.zahlungsstatus !== "paid" && (d.bonitaet?.zahlungsreferenz
                         ? <a className="mb-knopf klein" href={`/zahlung/${encodeURIComponent(d.bonitaet.zahlungsreferenz)}`}>Jetzt überweisen</a>
-                        : d.bonitaet?.darfKaufen ? <a className="mb-knopf klein" href="/bonitaet-antrag">Dazu bestellen</a> : null)}
+                        : d.bonitaet?.darfKaufen ? <a className="mb-knopf klein" href={`/bonitaet-antrag?ref=${encodeURIComponent(d.kunde.ref)}`}>Dazu bestellen</a> : null)}
                     </div></div>
                 </div>
                 <p style={{ margin: 0, fontSize: 12.5, color: "var(--text-still)" }}>Die Lastschrift für die weiteren Raten richten Sie ein, sobald Ihre erste Zahlung eingegangen ist — dann läuft alles automatisch.</p>
@@ -327,8 +339,8 @@ export default function MeinBereichPage() {
                       <div style={{ marginTop: 16, display: "flex", gap: 8, flexWrap: "wrap" }}>
                         {d.bonitaet?.zahlungsreferenz && d.bonitaet.zahlungsstatus !== "paid"
                           ? <a className="mb-knopf" href={`/zahlung/${encodeURIComponent(d.bonitaet.zahlungsreferenz)}`}>Auskunft jetzt bezahlen</a>
-                          : d.bonitaet?.darfKaufen ? <a className="mb-knopf" href="/bonitaet-antrag">Auskunft beauftragen</a> : null}
-                        {d.bonitaet?.darfHochladen && <a className="mb-knopf still" href="#unterlagen">Eigene Auskunft hochladen</a>}
+                          : d.bonitaet?.darfKaufen ? <a className="mb-knopf" href={`/bonitaet-antrag?ref=${encodeURIComponent(d.kunde.ref)}`}>Auskunft beauftragen</a> : null}
+                        {d.bonitaet?.darfHochladen && <a className="mb-knopf still" href="#unterlagen">Sie haben schon eine Auskunft? Hochladen</a>}
                       </div>
                     </div>
                     <div className="mb-warte"><b>Was Sie danach sehen:</b> Ihren Wert als Bogen, die drei größten Einträge mit ihrer Wirkung in Punkten, und zu jedem eine Einschätzung — rechtmäßig, angreifbar oder rechtswidrig.</div>
@@ -577,7 +589,8 @@ function Upload({ refKunde, fehlt }: { refKunde: string; fehlt: { kontoauszug: b
   const felder: { key: "bankStatement" | "idCard" | "schufaDoc"; label: string; zeigen: boolean }[] = [
     { key: "bankStatement", label: "Kontoauszug (PDF oder Foto)", zeigen: fehlt.kontoauszug },
     { key: "idCard", label: "Ausweis oder Reisepass (PDF oder Foto)", zeigen: fehlt.ausweis },
-    { key: "schufaDoc", label: "Bonitätsauskunft (PDF)", zeigen: fehlt.auskunft },
+    // Die Auskunft beschafft FIAON — das Feld ist ein Angebot für Kunden, die schon eine haben, keine Aufforderung.
+    { key: "schufaDoc", label: "Eigene Bonitätsauskunft — nur falls Sie schon eine haben (optional)", zeigen: fehlt.auskunft },
   ];
   const sichtbar = felder.filter((f) => f.zeigen);
   if (sichtbar.length === 0) return null;
@@ -588,7 +601,7 @@ function Upload({ refKunde, fehlt }: { refKunde: string; fehlt: { kontoauszug: b
     setLaeuft(true); setMeldung(null);
     const r = await fetch("/api/fiaon/upload-kyc", { method: "POST", body: fd, credentials: "include" });
     const j = await r.json().catch(() => null); setLaeuft(false);
-    if (r.ok && j?.ok !== false) { setMeldung({ ton: "gut", text: "Hochgeladen. Wir prüfen die Unterlagen und melden uns, falls etwas fehlt." }); setTimeout(() => window.location.reload(), 1600); }
+    if (r.ok && j?.ok !== false) { setMeldung({ ton: "gut", text: j?.message || "Eingegangen. Wir prüfen Ihre Unterlagen innerhalb von zwei Werktagen und melden uns." }); setTimeout(() => window.location.reload(), 2200); }
     else setMeldung({ ton: "fehler", text: j?.error || "Der Upload hat nicht geklappt. Bitte versuchen Sie es erneut." });
   };
   return (

@@ -359,6 +359,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Eine Übersicht über ALLE Termine ALLER Mitarbeiter, mit dem
   // Quoten-Vergleich, der bisher in keiner Ansicht stand: Zwei Mitarbeiter
   // hatten bei 64 Terminen keinen einzigen abgeschlossen.
+  // Land des Besuchers (öffentlich, nur lesend) — für die Vorbelegung im Antrag.
+  const fiaonGeoRoutes = await import('./routes/fiaon-geo');
+  app.use('/api/fiaon', fiaonGeoRoutes.default);
   const fiaonTerminZentraleRoutes = await import('./routes/fiaon-termin-zentrale');
   app.use('/api/fiaon', fiaonTerminZentraleRoutes.default);
 

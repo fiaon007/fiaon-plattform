@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { EmailVorschlaege } from "@/components/EmailVorschlaege";
 import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
 
@@ -18,6 +19,7 @@ type LoginProblem = {
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
+  const [bleiben, setBleiben] = useState(true);
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [problem, setProblem] = useState<LoginProblem | null>(null);
@@ -32,7 +34,7 @@ export default function LoginPage() {
       const response = await fetch("/api/fiaon/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, bleiben }),
       });
 
       const data = await response.json().catch(() => null);
@@ -50,8 +52,10 @@ export default function LoginPage() {
         return;
       }
 
-      // Store user data in sessionStorage
+      // Die Referenz für den Bereich — im Tab UND dauerhaft, damit der Kunde
+      // morgen ohne neuen Login wieder hineinkommt (das Cookie lebt 30 Tage).
       sessionStorage.setItem("fiaon_user", JSON.stringify(data));
+      try { if (bleiben) localStorage.setItem("fiaon_user", JSON.stringify(data)); else localStorage.removeItem("fiaon_user"); } catch { /* privater Modus */ }
 
       // Redirect to dashboard
       window.location.href = "/dashboard";
@@ -120,9 +124,11 @@ export default function LoginPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="deine@email.de"
-                    className="w-full px-4 py-3 rounded-xl bg-white/50 border border-gray-200 focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/20 outline-none transition-all text-[14px]"
+                    inputMode="email" autoCapitalize="none" autoCorrect="off" spellCheck={false}
+                    className="w-full px-4 py-3 rounded-xl bg-white/50 border border-gray-200 focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/20 outline-none transition-all text-base"
                     required
                   />
+                  <EmailVorschlaege wert={email} onWahl={setEmail} />
                 </div>
 
                 {/* Password */}
@@ -136,7 +142,7 @@ export default function LoginPage() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="w-full px-4 py-3 rounded-xl bg-white/50 border border-gray-200 focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/20 outline-none transition-all text-[14px]"
+                      className="w-full px-4 py-3 rounded-xl bg-white/50 border border-gray-200 focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/20 outline-none transition-all text-base"
                       required
                     />
                     <button
@@ -163,7 +169,7 @@ export default function LoginPage() {
                 <div className="flex items-center justify-between">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
-                      type="checkbox"
+                      type="checkbox" checked={bleiben} onChange={(e) => setBleiben(e.target.checked)}
                       className="w-4 h-4 rounded border-gray-300 text-[#2563eb] focus:ring-[#2563eb]"
                     />
                     <span className="text-[13px] text-gray-600">Angemeldet bleiben</span>

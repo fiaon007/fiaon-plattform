@@ -1,4 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from "react";
+import { EmailVorschlaege } from "@/components/EmailVorschlaege";
+import { landErkennen, VORWAHL, LANDNAME } from "@/lib/land-erkennen";
+import { appViewport } from "@/lib/app-viewport";
 import { paketNameFuerDaten } from "@shared/fiaon-paketname";
 import { zustandFuerSchritt } from "@shared/fiaon-antrag-schritte";
 import GlassNav from "@/components/GlassNav";
@@ -501,17 +504,39 @@ function Field({ label, req, error, hint, children }: { label: string; req?: boo
 }
 
 function Inp({ value, onChange, placeholder, type = "text", ...p }: any) {
-  return <input type={type} value={value} onChange={(e: any) => onChange(e.target.value)} placeholder={placeholder} className="w-full px-4 py-3 rounded-xl fiaon-input-glass text-[15px] text-gray-900 outline-none placeholder:text-gray-300" {...p} />;
+  return <input type={type} value={value} onChange={(e: any) => onChange(e.target.value)} placeholder={placeholder} className="w-full px-4 py-3 rounded-xl fiaon-input-glass text-base text-gray-900 outline-none placeholder:text-gray-300" {...p} />;
 }
 
 function Sel({ value, onChange, children, ...p }: any) {
-  return <select value={value} onChange={(e: any) => onChange(e.target.value)} className="w-full px-4 py-3 rounded-xl fiaon-input-glass text-[15px] text-gray-900 outline-none appearance-none" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%2394a3b8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 14px center", paddingRight: "38px" }} {...p}>{children}</select>;
+  return <select value={value} onChange={(e: any) => onChange(e.target.value)} className="w-full px-4 py-3 rounded-xl fiaon-input-glass text-base text-gray-900 outline-none appearance-none" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%2394a3b8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 14px center", paddingRight: "38px" }} {...p}>{children}</select>;
 }
 
 /* === MAIN COMPONENT === */
 export default function AntragPage() {
   const [step, setStep] = useState(0);
   const [ref] = useState(() => getPersistentRef("fiaon_antrag_ref"));
+  // Das Land des Besuchers — Vorschlag für Land, Vorwahl, Staatsangehörigkeit
+  // und Mail-Endungen. Wird NUR gesetzt, solange der Kunde nichts gewählt hat.
+  const [land, setLand] = useState<string | null>(null);
+  useEffect(() => appViewport(), []);
+  useEffect(() => {
+    let weg = false;
+    void landErkennen().then((l) => {
+      if (weg || !l) return;
+      setLand(l);
+      setD((prev) => {
+        if (prev.country || prev.phone || prev.nationality) return prev;
+        return {
+          ...prev,
+          country: ["DE", "AT", "CH", "LI", "LU"].includes(l) ? l : prev.country,
+          phoneCountryCode: VORWAHL[l] || prev.phoneCountryCode,
+          nationality: LANDNAME[l] || prev.nationality,
+        };
+      });
+    });
+    return () => { weg = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [pack, setPack] = useState<typeof PACKS[0] | null>(null);
   const [hoveredCard, setHoveredCard] = useState<number | null>(null);
@@ -722,8 +747,13 @@ export default function AntragPage() {
     }
   }, [step]);
 
-  // Development: Skip to payment step with Shift+Alt+P
+  // ══ ENTWICKLER-ABKÜRZUNGEN NUR IN DER ENTWICKLUNG (22.08.2026) ══════════
+  // Die Produktionsseite druckte „?skip=true — Skip to payment" und
+  // „Shift+Alt+P" in die Konsole; jeder Kunde konnte Prüfung und Vertrag
+  // überspringen. Ab jetzt: nur mit Vite-Dev-Server.
+  const DEV = !!import.meta.env.DEV;
   useEffect(() => {
+    if (!DEV) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.shiftKey && e.altKey && e.key === 'P') {
         e.preventDefault();
@@ -753,6 +783,7 @@ export default function AntragPage() {
 
   // Development: Check URL parameter for skip
   useEffect(() => {
+    if (!DEV) return;
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('skip') === 'true') {
       if (urlParams.get('skipPayment') === 'true') {
@@ -777,6 +808,7 @@ export default function AntragPage() {
 
   // Development: Console commands for skipping
   useEffect(() => {
+    if (!DEV) return;
     (window as any).skipToPayment = skipToPayment;
     (window as any).goToStep = (n: number) => {
       if (n >= 0 && n <= 9) {
@@ -1923,13 +1955,13 @@ export default function AntragPage() {
                     <Field label="Monatliche Miete" hint="Kaltmiete in EUR">
                       <div className="relative">
                         <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-semibold text-[15px] pointer-events-none select-none">€</span>
-                        <input type="number" inputMode="numeric" pattern="[0-9]*" min={0} value={d.rent || ""} onChange={e => up("rent", +e.target.value || 0)} placeholder="850" className="w-full pl-9 pr-4 py-3 rounded-xl fiaon-input-glass text-[15px] text-gray-900 outline-none placeholder:text-gray-300" />
+                        <input type="number" inputMode="numeric" pattern="[0-9]*" min={0} value={d.rent || ""} onChange={e => up("rent", +e.target.value || 0)} placeholder="850" className="w-full pl-9 pr-4 py-3 rounded-xl fiaon-input-glass text-base text-gray-900 outline-none placeholder:text-gray-300" />
                       </div>
                     </Field>
                     <Field label="Verbindlichkeiten" hint="Ratenkredite etc.">
                       <div className="relative">
                         <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-semibold text-[15px] pointer-events-none select-none">€</span>
-                        <input type="number" inputMode="numeric" pattern="[0-9]*" min={0} value={d.debts || ""} onChange={e => up("debts", +e.target.value || 0)} placeholder="200" className="w-full pl-9 pr-4 py-3 rounded-xl fiaon-input-glass text-[15px] text-gray-900 outline-none placeholder:text-gray-300" />
+                        <input type="number" inputMode="numeric" pattern="[0-9]*" min={0} value={d.debts || ""} onChange={e => up("debts", +e.target.value || 0)} placeholder="200" className="w-full pl-9 pr-4 py-3 rounded-xl fiaon-input-glass text-base text-gray-900 outline-none placeholder:text-gray-300" />
                       </div>
                     </Field>
                   </div>
@@ -2000,7 +2032,7 @@ export default function AntragPage() {
                   <h2 className="text-xl sm:text-2xl font-semibold tracking-tight fiaon-gradient-text-animated mb-1">Vertrag annehmen</h2>
                   <p className="text-[14px] text-gray-400 mb-6">Bestätige deine Daten und nimm den Vertrag an.</p>
                   
-                  <Field label="E-Mail-Adresse" req error={errors.email} hint="Vertragsunterlagen werden hierhin gesendet."><Inp type="email" value={d.email} onChange={(v: string) => up("email", v)} placeholder="max@beispiel.de" /></Field>
+                  <Field label="E-Mail-Adresse" req error={errors.email} hint="Vertragsunterlagen werden hierhin gesendet."><Inp type="email" inputMode="email" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={d.email} onChange={(v: string) => up("email", v)} placeholder={land === "AT" ? "max@gmx.at" : land === "CH" ? "max@bluewin.ch" : "max@beispiel.de"} /><EmailVorschlaege wert={d.email} land={land || d.country} onWahl={(v) => up("email", v)} /></Field>
                   <Field label="Gehaltseingang" req error={errors.salaryReceiptDay} hint="An welchem Tag erhältst du dein Gehalt?"><Sel value={d.salaryReceiptDay} onChange={(v: string) => up("salaryReceiptDay", v)}><option value="">Tag auswählen</option>{Array.from({length: 31}, (_, i) => <option key={i + 1} value={`${i + 1}`}>{i + 1}. Tag im Monat</option>)}<option value="last">Letzter Tag im Monat</option></Sel></Field>
                   <div className="flex gap-0 rounded-xl overflow-hidden mb-5 fiaon-glass-panel">
                     {[["iban","SEPA-Lastschrift"],["paper","Papierrechnung"]].map(([k,l]) => (
@@ -2626,7 +2658,7 @@ export default function AntragPage() {
           0%{background-position:0% 50%}
           50%{background-position:100% 50%}
           100%{background-position:0% 50%}
-        }}
+        }
         @keyframes scaleIn{0%{opacity:0;transform:scale(0.5)}100%{opacity:1;transform:scale(1)}}
       `}</style>
     </div>

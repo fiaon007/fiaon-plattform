@@ -12,7 +12,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { Router, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
-import { requireKunde, kundenSitzungLoeschen, passwortPasst, passwortHashen, type KundeRequest } from "../lib/fiaon-kunde-session";
+import { requireKunde, kundenSitzungLoeschen, kundeAusCookie, passwortPasst, passwortHashen, type KundeRequest } from "../lib/fiaon-kunde-session";
 import { effectiveLimit } from "./fiaon-antrag";
 import { paket as paketVon } from "@shared/fiaon-pakete";
 
@@ -26,6 +26,30 @@ const tag = (d: any): string | null => {
   const x = new Date(d); if (Number.isNaN(x.getTime())) return null;
   return x.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
 };
+
+/**
+ * GET /kunde/me — ist jemand angemeldet, und wer?
+ *
+ * Die öffentliche Kopfzeile (GlassNav) kannte den Login-Zustand nicht: Ein
+ * angemeldeter Kunde sah auf jeder Seite „Login" und fand nie zurück in
+ * seinen Bereich (Justin, 22.08.2026). Antwortet IMMER 200 — „nicht
+ * angemeldet" ist keine Fehlermeldung, sondern eine Auskunft.
+ */
+router.get("/kunde/me", async (req, res: Response) => {
+  try {
+    const ref = kundeAusCookie(req);
+    if (!ref) return res.json({ ok: true, eingeloggt: false });
+    const [a] = (await sqlPool`
+      SELECT ref, first_name, last_name, company_name FROM fiaon_applications
+      WHERE ref = ${ref} AND merged_into IS NULL AND gdpr_deleted_at IS NULL LIMIT 1`) as any[];
+    if (!a) return res.json({ ok: true, eingeloggt: false });
+    res.json({ ok: true, eingeloggt: true, ref: a.ref, vorname: a.first_name || null,
+      name: [a.first_name, a.last_name].filter(Boolean).join(" ") || a.company_name || null });
+  } catch (err) {
+    console.error("[KUNDE] me:", err);
+    res.json({ ok: true, eingeloggt: false });
+  }
+});
 
 /** GET /kunde/:ref/bereich — alles für die Seite. */
 router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: Response) => {

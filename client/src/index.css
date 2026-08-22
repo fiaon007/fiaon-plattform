@@ -312,6 +312,9 @@ html {
 
 /* Premium input style */
 .fiaon-input-glass {
+  /* 16 px: Darunter zoomt iOS Safari beim Antippen in jedes Feld hinein und
+     bleibt so (Justin, 22.08.2026: „man darf nichts zoomen können"). */
+  font-size: 16px;
   background: rgba(255, 255, 255, 0.8);
   border: 1px solid rgba(0, 0, 0, 0.06);
   transition: all 0.3s ease;

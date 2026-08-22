@@ -23,7 +23,7 @@ interface Bereich {
   stufe: { stufe: string | null; text: string | null; grund: string | null; naechsterSchritt: string | null; vollAktiv: boolean; pflicht: boolean; bezahlt: boolean };
   bonitaet: { stufe: string; fuerKunden: string; naechsterSchritt: string; bezahlt: boolean; hatDokument: boolean; geprueft: boolean; darfKaufen: boolean; darfHochladen: boolean; bestellRef: string | null; zahlungsreferenz: string | null; zahlungsstatus: string | null; preisEuro: number } | null;
   unterlagen: { kontoauszug: boolean; ausweis: boolean; auskunft: boolean; erneutKontoauszug: boolean; erneutAusweis: boolean; kycStatus: string; kontoStatus: string };
-  abo: { naechste: { nr: number; betragCents: number; faelligAm: string | null; status: string; referenz: string } | null; offen: number; bezahlt: number; raten: { nr: number; betragCents: number; faelligAm: string | null; faelligIso: string | null; status: string; bezahltAm: string | null }[] };
+  abo: { verlaengerung?: { gefragt: boolean; entschieden: boolean; verlaengert: boolean; beendet: boolean; bezahlteRaten: number }; naechste: { nr: number; betragCents: number; faelligAm: string | null; status: string; referenz: string } | null; offen: number; bezahlt: number; raten: { nr: number; betragCents: number; faelligAm: string | null; faelligIso: string | null; status: string; bezahltAm: string | null }[] };
   termin: { beginn: string; status: string; agent: string | null } | null;
   fahrplan: Etappe[];
   naechsterSchritt: { key: string; titel: string; text: string; href: string | null } | null;
@@ -444,6 +444,12 @@ export default function MeinBereichPage() {
               <div className="mb-konto">
                 <Stammdaten d={d} />
                 <div className="mb-karte" id="abo"><h4 style={{ fontSize: 15, marginBottom: 8 }}>Abo &amp; Zahlungen</h4>
+                  {d.abo.verlaengerung?.gefragt && !d.abo.verlaengerung.entschieden && (
+                    <Verlaengerung refKunde={d.kunde.ref} raten={d.abo.verlaengerung.bezahlteRaten} />
+                  )}
+                  {d.abo.verlaengerung?.beendet && (
+                    <p style={{ margin: "0 0 12px", fontSize: 13, color: "var(--text-leise)" }}>Ihr Abo endet mit der letzten Rate. Möchten Sie doch weitermachen? Schreiben Sie uns unter Hilfe.</p>
+                  )}
                   <div className="mb-zeile"><span>Paket</span><span>{d.paket.name}</span></div>
                   <div className="mb-zeile"><span>{d.paket.abo ? "Monatlich" : "Einmalig"}</span><span className="zahl">{eurCents(d.paket.monatlichCents)}</span></div>
                   <div className="mb-zeile"><span>Nächste Abbuchung</span><span className="zahl">{d.abo.naechste?.faelligAm || "—"}</span></div>
@@ -577,6 +583,32 @@ function Zahlungskalender({ raten, paket }: { raten: Bereich["abo"]["raten"]; pa
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Nach Rate 12: „Möchten Sie bleiben?" (E-024) ──────────────────────────
+function Verlaengerung({ refKunde, raten }: { refKunde: string; raten: number }) {
+  const [laeuft, setLaeuft] = useState<"ja" | "nein" | null>(null);
+  const [meldung, setMeldung] = useState<string | null>(null);
+  const antworten = async (bleiben: boolean) => {
+    setLaeuft(bleiben ? "ja" : "nein");
+    const r = await api(`/kunde/${encodeURIComponent(refKunde)}/abo/verlaengerung`, { method: "POST", body: JSON.stringify({ bleiben }) });
+    setLaeuft(null);
+    if (r.ok) { setMeldung(r.json?.meldung || "Danke."); setTimeout(() => window.location.reload(), 1800); }
+    else setMeldung(r.json?.error || "Das hat nicht geklappt. Bitte versuchen Sie es erneut.");
+  };
+  return (
+    <div style={{ margin: "0 0 14px", padding: 14, borderRadius: 14, background: "linear-gradient(135deg,rgba(37,99,235,.08),rgba(40,141,250,.05))", border: "1px solid rgba(37,99,235,.18)" }}>
+      <p style={{ margin: 0, fontSize: 11, fontWeight: 700, letterSpacing: ".14em", textTransform: "uppercase", color: "var(--blau-tief)" }}>Ihre {raten} Raten sind geschafft</p>
+      <h4 style={{ fontSize: 16, margin: "6px 0 4px" }}>Möchten Sie bleiben?</h4>
+      <p style={{ margin: 0, fontSize: 13, color: "var(--text-leise)" }}>Mit einem Klick läuft Ihr Abo weitere zwölf Monate — zum gleichen Preis, jederzeit zum Monatsende kündbar. Ohne Antwort endet es mit der letzten Rate.</p>
+      {meldung ? <p style={{ margin: "10px 0 0", fontSize: 13, fontWeight: 600, color: "var(--blau-tief)" }}>{meldung}</p> : (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+          <button type="button" className="mb-knopf" disabled={!!laeuft} onClick={() => void antworten(true)}>{laeuft === "ja" ? "Einen Moment …" : "Ja, ich bleibe"}</button>
+          <button type="button" className="mb-knopf still" disabled={!!laeuft} onClick={() => void antworten(false)}>{laeuft === "nein" ? "Einen Moment …" : "Nein, Abo beenden"}</button>
+        </div>
+      )}
     </div>
   );
 }

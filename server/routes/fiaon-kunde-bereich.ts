@@ -51,12 +51,52 @@ router.get("/kunde/me", async (req, res: Response) => {
   }
 });
 
+/**
+ * POST /kunde/:ref/abo/verlaengerung — die Antwort auf „Möchten Sie bleiben?" (E-024).
+ * { bleiben: true } → weitere 12 Raten, nächste Rate entsteht sofort, bei aktivem
+ * Lastschrift-Mandat ein neues GoCardless-Abo. { bleiben: false } → Abo endet.
+ */
+router.post("/kunde/:ref/abo/verlaengerung", requireKunde, async (req: KundeRequest, res: Response) => {
+  try {
+    const ref = req.kundeRef!;
+    const bleiben = req.body?.bleiben === true;
+    const [a] = (await sqlPool`SELECT ref, person_id, pack_key, abo_verlaengerung_gefragt_am, abo_verlaengert_am, abo_gestoppt_am
+      FROM fiaon_applications WHERE ref = ${ref} AND merged_into IS NULL LIMIT 1`) as any[];
+    if (!a) return res.status(404).json({ ok: false, error: "Konto nicht gefunden." });
+    if (!a.abo_verlaengerung_gefragt_am) return res.status(409).json({ ok: false, error: "Die Laufzeit ist noch nicht erreicht." });
+    if (bleiben) {
+      const { ABO_LAUFZEIT_RATEN, naechsteRateAnlegen } = await import("./fiaon-abo");
+      await sqlPool`UPDATE fiaon_applications SET abo_verlaengert_am = NOW(), abo_verlaengert_raten = COALESCE(abo_verlaengert_raten, 0) + ${ABO_LAUFZEIT_RATEN},
+        abo_verlaengerung_gefragt_am = NULL, abo_gestoppt_am = NULL, updated_at = NOW() WHERE ref = ${ref}`;
+      const [letzte] = (await sqlPool`SELECT rate_nr, faellig_am, betrag_cents, zahlungsreferenz FROM fiaon_abo_raten
+        WHERE ref = ${ref} AND storniert_am IS NULL ORDER BY rate_nr DESC LIMIT 1`) as any[];
+      if (letzte) await naechsteRateAnlegen(ref, letzte);
+      // Lastschrift: neues 12er-Abo, wenn ein Mandat aktiv ist.
+      try {
+        const { gcAboAnlegen } = await import("./fiaon-lastschrift");
+        await gcAboAnlegen(ref);
+      } catch (e) { console.error("[MEIN-BEREICH] GC-Verlängerung:", e); }
+      await sqlPool`INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+        VALUES (${ref}, NULL, 'System', 'system', 'Kunde hat das Abo um weitere 12 Raten verlängert (E-024).')`.catch(() => {});
+      return res.json({ ok: true, verlaengert: true, meldung: "Schön, dass Sie bleiben. Ihr Abo läuft weitere zwölf Monate." });
+    }
+    await sqlPool`UPDATE fiaon_applications SET abo_gestoppt_am = NOW(), abo_stopp_grund = 'Kunde: nach 12 Raten nicht verlängert (E-024)', updated_at = NOW() WHERE ref = ${ref}`;
+    await sqlPool`INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+      VALUES (${ref}, NULL, 'System', 'system', 'Kunde hat das Abo nach 12 Raten NICHT verlängert — Abo beendet (E-024).')`.catch(() => {});
+    res.json({ ok: true, verlaengert: false, meldung: "Ihr Abo endet mit der letzten Rate. Vielen Dank für Ihr Vertrauen — Sie sind jederzeit willkommen." });
+  } catch (err) {
+    console.error("[MEIN-BEREICH] verlaengerung:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 /** GET /kunde/:ref/bereich — alles für die Seite. */
 router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: Response) => {
   try {
     const ref = req.kundeRef!;
+    await (await import("./fiaon-abo")).ensureAboTabellen();
     const [a] = (await sqlPool`
-      SELECT a.ref, a.person_id, a.first_name, a.last_name, a.email, a.phone, a.phone_country_code,
+      SELECT a.abo_verlaengerung_gefragt_am, a.abo_verlaengert_am, a.abo_gestoppt_am, a.ref, a.person_id, a.first_name, a.last_name, a.email, a.phone, a.phone_country_code,
              a.street, a.zip, a.city, a.country, a.birthdate,
              a.pack_key, a.pack_name, a.approved_limit, a.wanted_limit,
              a.payment_status, a.payment_reference, a.amount_due, a.payment_due_date,
@@ -197,6 +237,12 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
         kycStatus: a.kyc_status || "pending", kontoStatus: a.account_status || "pending",
       },
       abo: {
+        // E-024: Laufzeit erreicht? Dann zeigt der Bereich die Frage.
+        verlaengerung: {
+          gefragt: !!a.abo_verlaengerung_gefragt_am, entschieden: !!a.abo_verlaengert_am || !!a.abo_gestoppt_am,
+          verlaengert: !!a.abo_verlaengert_am, beendet: !!a.abo_gestoppt_am,
+          bezahlteRaten: raten.filter((r) => r.status === "bezahlt").length,
+        },
         naechste: naechste ? { nr: naechste.rate_nr, betragCents: naechste.betrag_cents, faelligAm: tag(naechste.faellig_am), status: naechste.status, referenz: naechste.zahlungsreferenz } : null,
         offen: offen.length, bezahlt: raten.filter((r) => r.status === "bezahlt").length,
         raten: raten.map((r) => ({ nr: r.rate_nr, betragCents: r.betrag_cents, faelligAm: tag(r.faellig_am), faelligIso: r.faellig_am ? new Date(r.faellig_am).toISOString().slice(0, 10) : null, status: r.status, bezahltAm: tag(r.bezahlt_am), referenz: r.zahlungsreferenz })),

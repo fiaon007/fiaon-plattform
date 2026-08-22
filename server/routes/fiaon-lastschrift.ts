@@ -107,11 +107,32 @@ router.get("/kunde/:ref/lastschrift/rueckkehr", requireKunde, async (req: KundeR
       await sqlPool`UPDATE fiaon_persons SET gc_customer_ref = ${customerId}, gc_mandate_ref = ${mandateId},
         gc_mandate_status = ${String(mandat?.status || "pending_submission")}, updated_at = NOW() WHERE id = ${a.person_id}`;
     }
-    // Abonnement: 12 Raten, fällig am Tag des Antragsabschlusses. Bereits
-    // bezahlte Raten werden abgezogen — sonst zahlt der Kunde 13 Mal.
+    await gcAboAnlegen(ref, mandateId);
+    return zurueck("eingerichtet");
+  } catch (err: any) {
+    console.error("[LASTSCHRIFT] rueckkehr:", err);
+    return zurueck("fehler");
+  }
+});
+
+/**
+ * Das GoCardless-Abo anlegen — aus der Rückkehr UND aus der Verlängerung
+ * (E-024). 12 Raten abzüglich der schon bezahlten in dieser Laufzeit.
+ */
+export async function gcAboAnlegen(ref: string, mandateIdVorgabe?: string | null): Promise<boolean> {
+  const [a] = (await sqlPool`SELECT a.pack_key, a.created_at, a.submitted_at, a.abo_verlaengert_raten, p.gc_mandate_ref, p.gc_mandate_status
+    FROM fiaon_applications a LEFT JOIN fiaon_persons p ON p.id = a.person_id
+    WHERE a.ref = ${ref} AND a.merged_into IS NULL LIMIT 1`) as any[];
+  const mandateId = mandateIdVorgabe || a?.gc_mandate_ref || null;
+  if (!a || !mandateId) return false;
+  if (!mandateIdVorgabe && a.gc_mandate_status !== "active") return false;
+  {
+    // Abonnement: 12 Raten, fällig am Tag des Abo-Ankers. Bereits bezahlte
+    // Raten dieser Laufzeit werden abgezogen — sonst zahlt der Kunde 13 Mal.
     const pk = paketVon(a?.pack_key);
     const [gez] = (await sqlPool`SELECT COUNT(*)::int n FROM fiaon_abo_raten WHERE ref = ${ref} AND status = 'bezahlt'`) as any[];
-    const verbleibend = Math.max(1, 12 - Number(gez?.n || 0));
+    const laufzeitStart = Number(a.abo_verlaengert_raten || 0); // Raten der vorigen Laufzeiten
+    const verbleibend = Math.max(1, 12 - Math.max(0, Number(gez?.n || 0) - laufzeitStart));
     if (pk?.abo && pk.preisCents > 0) {
       // ── EIN FÄLLIGKEITSTAG, NICHT ZWEI (22.08.2026, K8) ──────────────
       // Der interne Zyklus rechnet vom Anker (`aboAnker`: Buchungstag der
@@ -121,18 +142,16 @@ router.get("/kunde/:ref/lastschrift/rueckkehr", requireKunde, async (req: KundeR
       // ohnehin eingezogen worden wäre. Dieselbe Quelle für beide.
       const { tag: anker } = await aboAnker(ref);
       const start = new Date(anker ? `${anker}T12:00:00Z` : (a?.submitted_at || a?.created_at || Date.now()));
-      await gc("/subscriptions", { method: "POST", idem: `sub-${ref}-${mandateId}`, body: { subscriptions: {
+      await gc("/subscriptions", { method: "POST", idem: `sub-${ref}-${mandateId}-${Number(a.abo_verlaengert_raten || 0)}`, body: { subscriptions: {
         amount: pk.preisCents, currency: "EUR", name: `FIAON ${pk.label}`, interval_unit: "monthly",
         day_of_month: faelligkeitstag(start), count: verbleibend, metadata: { ref },
         links: { mandate: mandateId },
       } } });
+      return true;
     }
-    return zurueck("eingerichtet");
-  } catch (err: any) {
-    console.error("[LASTSCHRIFT] rueckkehr:", err);
-    return zurueck("fehler");
   }
-});
+  return false;
+}
 
 /** POST /gocardless/webhook — Mandats- und Zahlungsstatus. Signatur: HMAC-SHA256 mit GOCARDLESS_WEBHOOK_SECRET. */
 router.post("/gocardless/webhook", async (req: Request, res: Response) => {

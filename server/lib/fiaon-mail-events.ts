@@ -74,6 +74,14 @@ const ZUSATZ: Partial<Record<MakeEventType, EventZusatz>> = {
     rollen: ["admin", "vertriebsleiter", "agent", "inkasso"],
     klartext: "Bankverbindung, Betrag und Verwendungszweck. Geht nach dem Antrag automatisch raus.",
   },
+  antrag_erinnerung: {
+    gruppe: "konto", zielgruppe: "kunde", rollen: ["admin", "vertriebsleiter"],
+    klartext: "Antrag begonnen, nicht beendet — Erinnerung mit Link genau an den abgebrochenen Schritt (E-023).",
+  },
+  abo_verlaengerung_frage: {
+    gruppe: "zahlung", zielgruppe: "kunde", rollen: ["admin", "vertriebsleiter", "inkasso"],
+    klartext: "Zwölfte Rate bezahlt — möchten Sie bleiben? Ohne Antwort endet das Abo (E-024).",
+  },
   payment_reminder: {
     gruppe: "zahlung", zielgruppe: "kunde", rollen: ["admin", "vertriebsleiter"],
     klartext: "Erinnerung an eine offene Zahlung, gestuft nach Alter der Rechnung.",

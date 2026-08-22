@@ -196,7 +196,7 @@ function CountryDropdown({ value, onChange, error }: { value: string; onChange: 
 }
 
 /* === PREMIUM INPUT COMPONENT === */
-function PremiumInput({ label, value, onChange, placeholder, isValid, error, className = "" }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; isValid?: boolean; error?: string; className?: string }) {
+function PremiumInput({ label, value, onChange, placeholder, isValid, error, className = "", ...rest }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; isValid?: boolean; error?: string; className?: string } & Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange" | "placeholder" | "className">) {
   return (
     <div className={`relative ${className}`}>
       <label className="block text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2">{label}</label>
@@ -207,7 +207,7 @@ function PremiumInput({ label, value, onChange, placeholder, isValid, error, cla
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           className={`w-full px-4 py-3 bg-slate-50/50 border border-slate-200 rounded-xl text-slate-900 font-medium text-base outline-none transition-all duration-300 ease-in-out focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-300 ${error ? "border-red-500" : ""}`}
-        />
+         {...rest} />
         {isValid && (
           <div className="absolute right-4 top-1/2 -translate-y-1/2 opacity-100 transition">
             <svg className="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -514,7 +514,16 @@ function Sel({ value, onChange, children, ...p }: any) {
 /* === MAIN COMPONENT === */
 export default function AntragPage() {
   const [step, setStep] = useState(0);
-  const [ref] = useState(() => getPersistentRef("fiaon_antrag_ref"));
+  // ── WIEDEREINSTIEG (E-023) ──────────────────────────────────────────────
+  // Kommt der Kunde mit ?weiter=<ref.exp.sig> aus der Erinnerungsmail, wird
+  // DIESE Referenz die Referenz des Antrags — sonst legte jeder Klick auf den
+  // Link einen zweiten Antrag an, und die Kette liefe weiter.
+  const [weiterToken] = useState(() => { try { return new URLSearchParams(window.location.search).get("weiter"); } catch { return null; } });
+  const [ref] = useState(() => {
+    if (weiterToken) { const r = weiterToken.split(".")[0]; try { sessionStorage.setItem("fiaon_antrag_ref", r); } catch { /* egal */ } return r; }
+    return getPersistentRef("fiaon_antrag_ref");
+  });
+  const [wiederEinstieg, setWiederEinstieg] = useState<"laedt" | "fertig" | "abgelaufen" | null>(weiterToken ? "laedt" : null);
   // Das Land des Besuchers — Vorschlag für Land, Vorwahl, Staatsangehörigkeit
   // und Mail-Endungen. Wird NUR gesetzt, solange der Kunde nichts gewählt hat.
   const [land, setLand] = useState<string | null>(null);
@@ -537,6 +546,29 @@ export default function AntragPage() {
     return () => { weg = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  useEffect(() => {
+    if (!weiterToken) return;
+    let weg = false;
+    void (async () => {
+      const r = await fetch(`/api/fiaon/antrag/weiter/${encodeURIComponent(weiterToken)}`).catch(() => null);
+      const j = await r?.json().catch(() => null);
+      if (weg) return;
+      if (!r?.ok || !j?.ok) { setWiederEinstieg("abgelaufen"); return; }
+      if (j.fertig && j.zahlung) { window.location.href = j.zahlung; return; }
+      const pk = PACKS.find((x) => x.key === j.packKey) || null;
+      if (pk) setPack(pk);
+      setD((prev) => ({ ...prev, ...Object.fromEntries(Object.entries(j.daten || {}).filter(([, v]) => v !== undefined && v !== null && v !== "")) }));
+      if (j.approvedLimit) setApproved(Number(j.approvedLimit));
+      const st = Number(j.currentStep || 1);
+      // Animationsschritte (4, 5, 7) sind kein Wiedereinstiegsziel.
+      const ziel = st <= 3 ? Math.max(1, st) : st <= 5 ? 3 : st <= 7 ? 6 : 6;
+      setStep(pk ? ziel : 0);
+      setWiederEinstieg("fertig");
+      try { window.history.replaceState({}, "", window.location.pathname); } catch { /* egal */ }
+    })();
+    return () => { weg = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weiterToken]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [pack, setPack] = useState<typeof PACKS[0] | null>(null);
   const [hoveredCard, setHoveredCard] = useState<number | null>(null);
@@ -676,6 +708,7 @@ export default function AntragPage() {
   function next() {
     const e: Record<string, string> = {};
     if (step === 1) {
+      if (!d.email || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(d.email.trim())) e.email = "Gültige E-Mail eingeben";
       if (!d.firstName) e.firstName = "Vorname eingeben";
       if (!d.lastName) e.lastName = "Nachname eingeben";
       if (!d.birthDay || !d.birthMonth || !d.birthYear || d.birthYear.length < 4) e.birth = "Gültiges Datum eingeben";
@@ -1862,7 +1895,28 @@ export default function AntragPage() {
                   <p className="text-[11px] font-semibold text-[#2563eb] uppercase tracking-[.2em] mb-2">Schritt 1 von 5</p>
                   <h2 className="text-xl sm:text-2xl font-semibold tracking-tight fiaon-gradient-text-animated mb-1">Persönliche Daten</h2>
                   <p className="text-[14px] text-gray-400 mb-6">Verschlüsselt übertragen und validiert.</p>
+                  {wiederEinstieg === "fertig" && (
+                    <div className="mb-5 px-4 py-3 rounded-xl text-[13px] font-semibold" style={{ background: "rgba(37,99,235,.07)", color: "#1d4ed8" }}>
+                      Willkommen zurück — deine Angaben sind noch da. Mach einfach weiter.
+                    </div>
+                  )}
+                  {wiederEinstieg === "abgelaufen" && (
+                    <div className="mb-5 px-4 py-3 rounded-xl text-[13px] font-semibold" style={{ background: "rgba(217,119,6,.08)", color: "#b45309" }}>
+                      Der Link aus der E-Mail ist abgelaufen — kein Problem, der Antrag dauert nur wenige Minuten.
+                    </div>
+                  )}
                   <div className="space-y-6">
+                    {/* ── DIE E-MAIL ZUERST (E-023, 22.08.2026) ──────────────────
+                        Vorher erst in Schritt 4 von 5. Wer vorher abbrach, war
+                        nicht erreichbar — kein Empfänger, keine Erinnerung. */}
+                    <div>
+                      <PremiumInput label="E-Mail-Adresse" value={d.email} onChange={(v: string) => up("email", v)}
+                                    placeholder={land === "AT" ? "max@gmx.at" : land === "CH" ? "max@bluewin.ch" : "max@beispiel.de"}
+                                    isValid={!!d.email && d.email.includes("@") && d.email.includes(".")} error={errors.email}
+                                    type="email" inputMode="email" autoCapitalize="none" autoCorrect="off" spellCheck={false} />
+                      <EmailVorschlaege wert={d.email} land={land || d.country} onWahl={(v) => up("email", v)} />
+                      <p className="mt-1.5 text-[11.5px] text-gray-400">Damit du jederzeit genau hier weitermachen kannst.</p>
+                    </div>
                     <div className="grid grid-cols-2 gap-4">
                       <PremiumInput label="Vorname" value={d.firstName} onChange={(v: string) => up("firstName", v)} placeholder="Max" isValid={!!d.firstName} error={errors.firstName} />
                       <PremiumInput label="Nachname" value={d.lastName} onChange={(v: string) => up("lastName", v)} placeholder="Mustermann" isValid={!!d.lastName} error={errors.lastName} />

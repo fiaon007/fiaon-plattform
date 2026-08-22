@@ -1701,6 +1701,55 @@ import("../lib/fiaon-crons").then(({ tageslauf }) => {
   tageslauf("zahlungserinnerungen", () => {
     runPaymentReminders().catch((err) => console.error("[FIAON-PAYMENT] Reminder-Cron:", err));
   }, 60 * 60 * 1000);
+  // Die Abbruch-Kette (E-023) prüft alle fünf Minuten — die 10-Minuten-Mail
+  // und die Tagesfenster (07:30, 15:00, 16:30, 19:00) brauchen diesen Takt.
+  tageslauf("antrag-erinnerungen", () => {
+    void import("../lib/fiaon-antrag-erinnerung")
+      .then(({ antragErinnerungenLauf }) => antragErinnerungenLauf())
+      .catch((err) => console.error("[ANTRAG-ERINNERUNG] Lauf:", err));
+  }, 5 * 60 * 1000, { beimStartNach: 60_000 });
+});
+
+/**
+ * GET /antrag/weiter/:token — der Wiedereinstieg aus der Erinnerungsmail.
+ * Liefert den gespeicherten Stand (ohne Passwort), damit der Antrag genau dort
+ * weitergeht, wo der Kunde aufgehört hat.
+ */
+router.get("/antrag/weiter/:token", async (req, res) => {
+  try {
+    const { weiterPruefen } = await import("../lib/fiaon-antrag-erinnerung");
+    const ref = weiterPruefen(String(req.params.token || ""));
+    if (!ref) return res.status(410).json({ ok: false, error: "Dieser Link ist abgelaufen. Bitte starten Sie den Antrag neu — es dauert nur wenige Minuten." });
+    const [a] = (await sqlPool`
+      SELECT ref, type, status, current_step, pack_key, first_name, last_name, birthdate, phone, phone_country_code,
+             street, zip, city, country, nationality, employment, employer, employed_since, income, rent, debts, housing,
+             wanted_limit, purpose, billing, addon, nfc, email, salary_receipt_day, billing_method, approved_limit,
+             payment_reference, payment_status
+      FROM fiaon_applications WHERE ref = ${ref} AND merged_into IS NULL AND gdpr_deleted_at IS NULL LIMIT 1
+    `) as any[];
+    if (!a) return res.status(404).json({ ok: false, error: "Antrag nicht gefunden." });
+    if (a.payment_reference || a.payment_status === "paid") {
+      return res.json({ ok: true, fertig: true, zahlung: a.payment_reference ? `/zahlung/${a.payment_reference}` : "/login" });
+    }
+    const g = a.birthdate ? String(a.birthdate).slice(0, 10).split("-") : null;
+    res.json({
+      ok: true, ref: a.ref, type: a.type, status: a.status, currentStep: Number(a.current_step || 1), packKey: a.pack_key || null,
+      daten: {
+        firstName: a.first_name || "", lastName: a.last_name || "",
+        birthYear: g?.[0] || "", birthMonth: g ? String(Number(g[1])) : "", birthDay: g ? String(Number(g[2])) : "",
+        phone: a.phone || "", phoneCountryCode: a.phone_country_code || "", street: a.street || "", zip: a.zip || "", city: a.city || "",
+        country: a.country || "", nationality: a.nationality || "", employment: a.employment || "", employer: a.employer || "",
+        employedSince: a.employed_since || "", income: Number(a.income || 0), rent: Number(a.rent || 0), debts: Number(a.debts || 0),
+        housing: a.housing || "", wantedLimit: Number(a.wanted_limit || 0), purpose: a.purpose || "", billing: a.billing || undefined,
+        addon: a.addon || undefined, nfc: a.nfc || undefined, email: a.email || "", salaryReceiptDay: a.salary_receipt_day || "",
+        billingMethod: a.billing_method || undefined,
+      },
+      approvedLimit: Number(a.approved_limit || 0),
+    });
+  } catch (err) {
+    console.error("[ANTRAG] weiter:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
 });
 
 // Manueller Trigger für Tests / Admin (inkl. Rückruf-Erinnerungen, J2)
@@ -2431,10 +2480,13 @@ router.post("/track", async (req, res) => {
 // Save/update application
 router.post("/application", async (req, res) => {
   try {
-    console.log("[FIAON-APP] Received application save request. Body keys:", Object.keys(req.body), "password in body:", 'password' in req.body, "password value:", req.body.password);
+    // Nie ein Passwort ins Log — auch nicht „nur zum Prüfen".
+    console.log("[FIAON-APP] Received application save request. Body keys:", Object.keys(req.body).filter((k) => k !== "password"));
 
     // Neue Zahlungs-/Webhook-Spalten müssen vor dem Drizzle-SELECT existieren
     await ensurePaymentColumns();
+    const { ensureAntragErinnerungSpalten } = await import("../lib/fiaon-antrag-erinnerung");
+    await ensureAntragErinnerungSpalten();
     
     const { 
       ref, type, status, currentStep, packKey, packName, 
@@ -2582,6 +2634,8 @@ router.post("/application", async (req, res) => {
           type = ${values.type ?? null},
           status = ${values.status ?? null},
           current_step = ${values.currentStep ?? null},
+          -- Der Stempel, an dem die Erinnerungskette (E-023) misst: „zuletzt weitergemacht am".
+          antrag_stand_am = NOW(),
           pack_key = ${values.packKey ?? null},
           pack_name = ${values.packName ?? null},
           first_name = COALESCE(NULLIF(${values.firstName ?? ''}, ''), first_name),

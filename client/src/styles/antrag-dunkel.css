@@ -74,3 +74,14 @@
 .antrag-dk ::-webkit-scrollbar{width:8px}
 .antrag-dk ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.14);border-radius:8px}
 .antrag-dk .shadow-inner{box-shadow:inset 0 1px 3px rgba(0,0,0,.4)}
+
+/* ── Die Kopfzeile bleibt, wie sie überall ist (helles Glas, dunkle Schrift) ── */
+.antrag-dk nav .text-gray-500,.antrag-dk nav .text-slate-500{color:#6b7280}
+.antrag-dk nav .text-gray-600{color:#4b5563}
+.antrag-dk nav .text-gray-900,.antrag-dk nav .text-gray-700,.antrag-dk nav .hover\:text-gray-900:hover{color:#111827}
+.antrag-dk nav .fiaon-glass-panel{background:rgba(255,255,255,.88) !important;border:1px solid rgba(255,255,255,.8) !important;box-shadow:0 20px 50px rgba(15,23,42,.18) !important}
+.antrag-dk nav .fiaon-btn-outline-animated{color:#1d4ed8;border-color:rgba(37,99,235,.5)}
+.antrag-dk nav .bg-white\/90{background-color:rgba(255,255,255,.92)}
+.antrag-dk nav .bg-white{background-color:#fff}
+.antrag-dk nav .border-gray-200{border-color:#e5e7eb}
+.antrag-dk nav .text-gray-400{color:#9ca3af}

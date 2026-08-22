@@ -84,6 +84,28 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-22-auftraege-der-leitung",
+    date: "2026-08-22",
+    category: "Neu",
+    title: "Aufträge von Justin — unter Aufgaben → Aufträge",
+    summary:
+      "Justin kann dir Aufgaben aus seiner Liste übergeben. Sie stehen unter „Aufgaben“ im neuen Reiter „Aufträge“. "
+      + "Du nimmst an, stellst Rückfragen, meldest ein Ergebnis oder gibst den Auftrag begründet zurück — alles in einer Zeitleiste, die Justin auch sieht.",
+    changes: [
+      "AUFGABEN → AUFTRÄGE: Neuer Reiter. Ein neuer Auftrag ist orange („Neu — bitte annehmen“), in Arbeit blau, wartend auf Justins Antwort braun, erledigt grün.",
+      "RÜCKFRAGE: „Rückfrage an Justin“ schickt deine Frage sofort zu ihm; der Auftrag wartet, bis er antwortet. Seine Antwort steht dann in der Zeitleiste.",
+      "ERGEBNIS: „Ergebnis melden“ verlangt einen kurzen Text — Justin liest das Ergebnis, nicht den Haken.",
+      "ZURÜCKGEBEN: Wenn du den Auftrag nicht übernehmen kannst, gib ihn mit Begründung zurück. Er liegt dann wieder bei Justin.",
+      "ZÄHLER: Offene Aufträge zählen in der Zahl am Menüpunkt „Aufgaben“ mit.",
+    ],
+    howto: [
+      "Aufgaben → Reiter „Aufträge“ → Auftrag lesen → „Annehmen“.",
+      "Unklar? „Rückfrage an Justin“ → Frage schreiben → senden. Fertig? „Ergebnis melden“ → was herausgekommen ist → „Als erledigt melden“.",
+    ],
+    link: { href: "/agent/aufgaben", label: "Zu den Aufgaben" },
+    important: true,
+  },
+  {
     id: "2026-08-22-leitung-provision-scheibe-4",
     date: "2026-08-22",
     category: "Neu",

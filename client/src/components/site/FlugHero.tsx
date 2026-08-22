@@ -28,6 +28,14 @@ export function FlugHero({ video, bild, knoepfe }: { video: string; bild: string
   const [p, setP] = useState(0);
   const [land, setLand] = useState<string>("DE");
   const [modus, setModus] = useState<"film" | "spulen">("film");
+  const modusRef = useRef<"film" | "spulen">("film");
+  const ausstehend = useRef<number | null>(null);
+  /** Spult direkt — nie in ein laufendes Spulen hinein; der letzte Wunsch wird nach `seeked` nachgeholt. */
+  const spulen = (zeit: number) => {
+    const v = videoRef.current; if (!v) return;
+    if (v.seeking) { ausstehend.current = zeit; return; }
+    try { v.currentTime = zeit; } catch { /* noch nicht bereit */ }
+  };
   const ruhe = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
   const handy = typeof window !== "undefined" && window.innerWidth < 768;
   const quelle = handy ? video.replace(/\.mp4$/, "-m.mp4") : video;
@@ -47,6 +55,8 @@ export function FlugHero({ video, bild, knoepfe }: { video: string; bild: string
       const wert = Math.min(1, Math.max(0, -r.top / Math.max(1, strecke)));
       if (Math.abs(wert - pRef.current) < 0.0005) return;
       pRef.current = wert; setP(wert);
+      const v = videoRef.current;
+      if (modusRef.current === "spulen" && v && v.duration && isFinite(v.duration)) spulen(wert * (v.duration - 0.06));
     };
     // Die App scrollt in #root (html/body/#root haben overflow-y:auto), nicht im Fenster —
     // deshalb Scroll-Ereignisse im Capture-Modus am Dokument abgreifen: so kommen sie
@@ -72,7 +82,7 @@ export function FlugHero({ video, bild, knoepfe }: { video: string; bild: string
         await new Promise<void>((res) => { const f = () => { v.removeEventListener("loadeddata", f); res(); }; v.addEventListener("loadeddata", f); });
         // iOS: erst nach play/pause liefert das Video Einzelbilder beim Spulen
         try { await v.play(); v.pause(); } catch { /* Autoplay verweigert — Spulen geht trotzdem */ }
-        if (!weg) setModus("spulen");
+        if (!weg) { modusRef.current = "spulen"; setModus("spulen"); if (v.duration && isFinite(v.duration)) spulen(pRef.current * (v.duration - 0.06)); }
       } catch { /* bleibt im Film-Modus */ }
     })();
     return () => { weg = true; if (url) URL.revokeObjectURL(url); };
@@ -88,7 +98,7 @@ export function FlugHero({ video, bild, knoepfe }: { video: string; bild: string
       const dauer = v.duration; if (!dauer || !isFinite(dauer)) return;
       const ziel = pRef.current * (dauer - 0.06);
       ist += (ziel - ist) * 0.14;
-      if (!v.seeking && Math.abs(v.currentTime - ist) > 0.012) { try { v.currentTime = ist; } catch { /* noch nicht bereit */ } }
+      if (!v.seeking && Math.abs(v.currentTime - ist) > 0.05) { try { v.currentTime = ist; } catch { /* noch nicht bereit */ } }
     };
     lauf();
     return () => { aktiv = false; cancelAnimationFrame(raf); };
@@ -106,7 +116,8 @@ export function FlugHero({ video, bild, knoepfe }: { video: string; bild: string
       <div className="flug-buehne">
         {!ruhe ? (
           <video ref={videoRef} className="flug-video" src={quelle} poster={poster} muted playsInline preload="auto"
-                 autoPlay={modus === "film"} loop={modus === "film"} />
+                 autoPlay={modus === "film"} loop={modus === "film"}
+                 onSeeked={() => { const z = ausstehend.current; if (z != null) { ausstehend.current = null; spulen(z); } }} />
         ) : (
           <img className="flug-poster" src={poster} alt="" />
         )}

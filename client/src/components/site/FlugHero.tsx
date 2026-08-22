@@ -38,14 +38,16 @@ export function FlugHero({ video, bild, knoepfe }: { video: string; bild: string
 
   // Scroll → Fortschritt 0..1 über die Strecke des Abschnitts (abzüglich der klebenden Bildschirmhöhe)
   useEffect(() => {
-    let raf = 0;
-    const fn = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => {
+    // Direkt rechnen, nicht erst im nächsten Frame — das Spulen soll am Finger hängen.
+    const raf = 0;
+    const fn = () => {
       const el = ref.current; if (!el) return;
       const r = el.getBoundingClientRect();
       const strecke = el.offsetHeight - window.innerHeight;
       const wert = Math.min(1, Math.max(0, -r.top / Math.max(1, strecke)));
+      if (Math.abs(wert - pRef.current) < 0.0005) return;
       pRef.current = wert; setP(wert);
-    }); };
+    };
     // Die App scrollt in #root (html/body/#root haben overflow-y:auto), nicht im Fenster —
     // deshalb Scroll-Ereignisse im Capture-Modus am Dokument abgreifen: so kommen sie
     // an, egal welches Element scrollt.

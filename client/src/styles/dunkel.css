@@ -31,7 +31,7 @@
 .dk-h2{font-size:clamp(30px,3.8vw,46px);margin-top:24px}
 .dk-h3{font-size:clamp(18px,1.8vw,21px);color:#fff}
 .dk-verlauf{background:linear-gradient(90deg,#60a5fa,#2563eb 45%,#93c5fd);-webkit-background-clip:text;background-clip:text;color:transparent}
-.dk-lead{font-size:clamp(16px,1.5vw,19px);color:#9ca3af;max-width:62ch;margin-top:24px;line-height:1.65}
+.dk-lead{font-size:clamp(16px,1.5vw,19px);color:#9ca3af;max-width:62ch;margin-top:28px;line-height:1.7}
 .dk-text{font-size:15px;color:#9ca3af;line-height:1.7}
 .dk-leise{font-size:13px;color:#6b7280}
 .mitte{text-align:center}

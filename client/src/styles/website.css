@@ -75,7 +75,9 @@
 .ws-karte3d .nr{position:absolute;right:28px;bottom:30px;font:600 13px/1 'JetBrains Mono',monospace;letter-spacing:.12em;opacity:.7}
 .ws-schwebe{position:absolute;padding:14px 16px;border-radius:16px;min-width:170px;font-size:13px;line-height:1.35}
 .ws-schwebe b{display:block;font:700 15px/1.2 'Outfit',sans-serif;margin-bottom:3px}
-.ws-schwebe small{color:var(--w-stumm)}
+.ws-schwebe small{display:block;color:var(--w-stumm);margin-top:4px;font-size:12px}
+.ws-schwebe-mobil{display:none}
+@media(max-width:760px){.ws-schwebe-wrap{display:none !important}.ws-schwebe-mobil{display:grid;gap:10px;grid-template-columns:1fr;margin-top:56px;width:100%}.ws-schwebe-mobil .ws-schwebe{position:static;min-width:0}}
 .ws-schatten{position:absolute;left:50%;bottom:-40px;width:70%;height:60px;transform:translateX(-50%);background:radial-gradient(ellipse,rgba(29,78,216,.35),transparent 70%);filter:blur(18px)}
 
 /* Gerät (Plattform-Vorschau) */

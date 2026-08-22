@@ -126,6 +126,13 @@ const AdminKarteiPage = lazy(() => import("@/pages/admin-kartei"));
 const AdminAuszahlungenPage = lazy(() => import("@/pages/admin-auszahlungen"));
 const AdminAufgabenPage = lazy(() => import("@/pages/admin-aufgaben"));
 const AdminTodoPage = lazy(() => import("@/pages/admin-todo"));
+// Die neue Website (22.08.2026): Startseite + fünf Seiten für Investoren, Presse, Datenraum, Partner, Karriere.
+const SiteStartseite = lazy(() => import("@/pages/site/startseite"));
+const SiteInvestoren = lazy(() => import("@/pages/site/investoren"));
+const SitePresse = lazy(() => import("@/pages/site/presse"));
+const SiteDatenraum = lazy(() => import("@/pages/site/datenraum"));
+const SitePartner = lazy(() => import("@/pages/site/partner"));
+const SiteKarriere = lazy(() => import("@/pages/site/karriere"));
 
 // Paket N1: JEDE /admin-Seite läuft in der AdminShell (Sidebar, Breadcrumb,
 // Zurück, Cmd+K). Serverseitige Guards bleiben unberührt.
@@ -161,7 +168,13 @@ function Router() {
   return (
     <Suspense fallback={<SeiteLaedt />}>
     <Switch>
-      <Route path="/" component={FiaonHome} />
+      <Route path="/" component={SiteStartseite} />
+      <Route path="/home-alt" component={FiaonHome} />
+      <Route path="/investoren" component={SiteInvestoren} />
+      <Route path="/presse" component={SitePresse} />
+      <Route path="/datenraum" component={SiteDatenraum} />
+      <Route path="/partner" component={SitePartner} />
+      <Route path="/karriere" component={SiteKarriere} />
       <Route path="/start" component={StartPage} />
       <Route path="/karte-sichern" component={StartPage} />
       <Route path="/business" component={BusinessPage} />

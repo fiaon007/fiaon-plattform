@@ -437,6 +437,8 @@ export default function MeinBereichPage() {
                 <article className="mb-kachel"><h4>DKB Girokonto</h4><p>Kostenlos, ohne Bonitätsprüfung. Spart Ihnen rund 60 € im Jahr.</p><div className="mb-kachel-fuss"><span className="mb-lage gut">Heute möglich</span><span className="zahl" style={{ fontSize: 12, color: "var(--text-still)" }}>über Ihre Ansprechpartnerin</span></div></article>
                 <article className="mb-kachel"><h4>Kreditkarte{d.paket.wunschlimit ? ` bis ${eur(d.paket.wunschlimit)}` : ""}</h4><p>Ihr Wunschlimit. Erreichbar, sobald Ihr Wert die Schwelle des Kartenpartners erreicht — wir sagen Ihnen, wann es so weit ist.</p><div className="mb-kachel-fuss"><span className="mb-lage bereit">Das Ziel</span></div></article>
                 <article className="mb-kachel"><h4>Finanzierung</h4><p>Für Auto, Umzug oder Anschaffung. Braucht einen stabilen Wert über mehrere Monate.</p><div className="mb-kachel-fuss"><span className="mb-lage ruht">Später</span></div></article>
+                {/* E-026: Kunden werden Mitarbeiter — die Bewerbung ist vorbelegt. */}
+                <article className="mb-kachel" style={{ background: "linear-gradient(135deg,rgba(37,99,235,.07),rgba(40,141,250,.04))" }}><h4>Werden Sie Teil des FIAON Teams</h4><p>Arbeiten Sie von zuhause — für das, was Ihnen selbst hilft. Start auf Provision, Fixum bei Bewährung. Bewerbung in 60 Sekunden, Ihre Daten sind schon eingetragen.</p><div className="mb-kachel-fuss"><a className="mb-knopf klein" href={`/karriere?ref=${encodeURIComponent(d.kunde.ref)}`}>Jetzt bewerben</a></div></article>
               </div>
             </section>
 

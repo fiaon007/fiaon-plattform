@@ -360,6 +360,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Quoten-Vergleich, der bisher in keiner Ansicht stand: Zwei Mitarbeiter
   // hatten bei 64 Terminen keinen einzigen abgeschlossen.
   // Land des Besuchers (öffentlich, nur lesend) — für die Vorbelegung im Antrag.
+  const fiaonAnfragenRoutes = await import('./routes/fiaon-anfragen');
+  app.use('/api/fiaon', fiaonAnfragenRoutes.default);
   const fiaonGeoRoutes = await import('./routes/fiaon-geo');
   app.use('/api/fiaon', fiaonGeoRoutes.default);
   const fiaonTerminZentraleRoutes = await import('./routes/fiaon-termin-zentrale');

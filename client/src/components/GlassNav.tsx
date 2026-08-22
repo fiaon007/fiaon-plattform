@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
 
 interface GlassNavProps {
-  activePage?: "startseite" | "privatkunden" | "business" | "was-ist-fiaon" | "plattform-konzept" | "login";
+  activePage?: "startseite" | "privatkunden" | "business" | "was-ist-fiaon" | "plattform-konzept" | "login" | "investoren" | "karriere" | "presse" | "partner" | "datenraum";
 }
 
 export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
@@ -52,6 +52,8 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
     { label: "Was ist FIAON", href: "/was-ist-fiaon", key: "was-ist-fiaon", hasGradient: true },
     { label: "Privatkunden", href: "/privatkunden", key: "privatkunden" },
     { label: "Business", href: "/business", key: "business" },
+    { label: "Karriere", href: "/karriere", key: "karriere" },
+    { label: "Investoren", href: "/investoren", key: "investoren" },
   ];
 
   const handleAntragClick = (e: React.MouseEvent) => {

@@ -27,17 +27,23 @@ export default function Startseite() {
                 </div>
                 <p className="ws-hinweis" style={{ marginTop: 14 }}>Ab 7,99 € im Monat · 12 Raten, dann Ihre Entscheidung · jederzeit zum Monatsende kündbar</p>
               </Ebene>
-              <div style={{ position: "relative", minHeight: 360, display: "grid", placeItems: "center" }}>
+              <div style={{ position: "relative", minHeight: 360, display: "grid", placeItems: "center", justifyItems: "center" }}>
                 <Ebene tiefe={0.6} scroll={p}><Karte3D /></Ebene>
-                <Ebene tiefe={1.1} scroll={p} style={{ position: "absolute", left: "2%", top: "6%" }}>
+                <Ebene tiefe={1.1} scroll={p} className="ws-schwebe-wrap" style={{ position: "absolute", left: "2%", top: "6%" }}>
                   <div className="ws-schwebe ws-glas"><b>Einsicht</b>Ihr Wert, jeder Eintrag erklärt<small>SCHUFA · KSV · CRIF</small></div>
                 </Ebene>
-                <Ebene tiefe={0.9} scroll={p} style={{ position: "absolute", right: "0%", top: "48%" }}>
+                <Ebene tiefe={0.9} scroll={p} className="ws-schwebe-wrap" style={{ position: "absolute", right: "0%", top: "48%" }}>
                   <div className="ws-schwebe ws-glas"><b>Aktion</b>Löschantrag mit einem Klick<small>juristisch geprüft</small></div>
                 </Ebene>
-                <Ebene tiefe={1.4} scroll={p} style={{ position: "absolute", left: "10%", bottom: "-2%" }}>
+                <Ebene tiefe={1.4} scroll={p} className="ws-schwebe-wrap" style={{ position: "absolute", left: "10%", bottom: "-2%" }}>
                   <div className="ws-schwebe ws-glas"><b>Zugang</b>Konto heute, Karte als Ziel<small>DKB · bis 25.000 €</small></div>
                 </Ebene>
+                {/* Am Handy stapeln die drei Tafeln unter der Karte, statt sie zu verdecken. */}
+                <div className="ws-schwebe-mobil">
+                  <div className="ws-schwebe ws-glas"><b>Einsicht</b>Ihr Wert, jeder Eintrag erklärt<small>SCHUFA · KSV · CRIF</small></div>
+                  <div className="ws-schwebe ws-glas"><b>Aktion</b>Löschantrag mit einem Klick<small>juristisch geprüft</small></div>
+                  <div className="ws-schwebe ws-glas"><b>Zugang</b>Konto heute, Karte als Ziel<small>DKB · bis 25.000 €</small></div>
+                </div>
               </div>
             </div>
           )}</Buehne>

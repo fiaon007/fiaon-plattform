@@ -30,7 +30,12 @@ export function SiteShell({ seite, titel, beschreibung, children }: { seite: Sei
 export function Auf({ children, verzoegerung = 0, className = "" }: { children: ReactNode; verzoegerung?: number; className?: string }) {
   return (
     <div className={`ws-auf ${className}`} style={{ transitionDelay: `${verzoegerung}ms` }}
-         ref={(el) => { if (!el) return; const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) { el.classList.add("da"); io.disconnect(); } }, { threshold: 0.15 }); io.observe(el); }}>
+         ref={(el) => {
+           if (!el || el.classList.contains("da") || (el as any).__io) return;
+           if (el.getBoundingClientRect().top < window.innerHeight * 0.95) { el.classList.add("da"); return; }
+           const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) { el.classList.add("da"); io.disconnect(); } }, { threshold: 0.12 });
+           (el as any).__io = io; io.observe(el);
+         }}>
       {children}
     </div>
   );

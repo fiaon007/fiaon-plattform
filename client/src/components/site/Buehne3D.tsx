@@ -44,9 +44,9 @@ export function Karte3D({ ziel = "25.000 €", name = "IHR NAME", tilt = true }:
 }
 
 /** Eine Ebene in der Tiefe: bewegt sich mit dem Scroll, je nach Tiefe verschieden schnell. */
-export function Ebene({ tiefe, scroll, children, style }: { tiefe: number; scroll: number; children: ReactNode; style?: React.CSSProperties }) {
+export function Ebene({ tiefe, scroll, children, style, className = "" }: { tiefe: number; scroll: number; children: ReactNode; style?: React.CSSProperties; className?: string }) {
   return (
-    <div className="ws-ebene" style={{ transform: `translate3d(0, ${scroll * tiefe * -120}px, ${tiefe * 80}px)`, ...style }}>{children}</div>
+    <div className={`ws-ebene ${className}`} style={{ transform: `translate3d(0, ${scroll * tiefe * -120}px, ${tiefe * 80}px)`, ...style }}>{children}</div>
   );
 }
 

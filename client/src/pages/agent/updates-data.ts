@@ -84,6 +84,25 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-22-antrag-website",
+    date: "2026-08-22",
+    category: "Geändert",
+    title: "Neue Website, neuer Antrag: Sie-Form, fünf Schritte, ehrliche Prüfung",
+    summary:
+      "fiaon.com ist neu (Startseite, Investoren, Presse, Partner, Karriere, Datenraum). Der Antrag siezt, zeigt fünf "
+      + "benannte Schritte und eine Prüfung mit nachvollziehbaren Teilschritten.",
+    changes: [
+      "ANTRAG: Kunden werden gesiezt (E-002). Fünf Schritte: Daten · Finanzen · Karte · Vertrag · Zugang. Die Bonitätsprüfung zeigt, was gerade geprüft wird (Identität, Anschrift, Auskunftei je Land, Einkommen, Haushalt, Rahmen, Freigabe).",
+      "WEBSITE: Startseite erklärt die drei Schichten Einsicht · Aktion · Zugang. Neue Seiten: /karriere (Kunden können sich als Mitarbeiter bewerben — Bewerbungen landen als Aufgabe bei der Leitung), /partner, /presse, /investoren, /datenraum.",
+      "PREISE: Die Startseite liest die Preise aus derselben Quelle wie das Portal (shared/fiaon-pakete.ts) — keine abweichenden Zahlen mehr zwischen Website und Akte.",
+    ],
+    howto: [
+      "Fragt ein Kunde nach „Schritt 7 von 10“: Das gibt es nicht mehr. Er sieht „Schritt 3 von 5“ — die Prüfung gehört zu Schritt 3.",
+      "Sagt ein Kunde, er wolle für FIAON arbeiten: auf fiaon.com/karriere verweisen — aus seinem Bereich ist die Bewerbung schon vorbelegt.",
+    ],
+    link: { href: "https://www.fiaon.com/", label: "Die neue Website" },
+  },
+  {
     id: "2026-08-22-kundenweg-neu",
     date: "2026-08-22",
     category: "Neu",

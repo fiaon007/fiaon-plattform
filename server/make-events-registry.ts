@@ -177,6 +177,27 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     },
   },
   {
+    type: "antrag_erinnerung",
+    label: "Antrag abgebrochen — Erinnerung mit Wiedereinstiegs-Link",
+    description:
+      "Feuert nach E-023: 10 Minuten nach dem letzten Schritt, dann in den Tagesfenstern 16:30 und 19:00 Uhr, am Folgetag 07:30, 15:00, 16:30 und 19:00 Uhr (Europe/Berlin) — bis zu sieben Mails, solange der Kunde nicht weitermacht und keine Zahlungsbestellung existiert. Vorgesetzten-TODO: Make-Zweig 'antrag_erinnerung' + Brevo-Template in Sie-Form (Variablen: vorname, paket, schritt_text, weiter_link, erinnerung_nr). Der weiter_link führt genau an den abgebrochenen Schritt (14 Tage gültig).",
+    customerBound: true,
+    example: {
+      email: "max.mustermann@example.com", vorname: "Max", nachname: "Mustermann", antrag_id: "FIAON-ABC123-XY9Z",
+      paket: "FIAON Pro (Standard)", pack_key: "pro", schritt: 2, schritt_text: "Schritt 2 von 5 — Beruf & Finanzen",
+      weiter_link: "https://www.fiaon.com/antrag?weiter=FIAON-ABC123-XY9Z.1756...abcd", erinnerung_nr: 1,
+      portal_url: "https://www.fiaon.com/antrag",
+    },
+  },
+  {
+    type: "abo_verlaengerung_frage",
+    label: "12. Rate bezahlt — möchten Sie bleiben?",
+    description:
+      "Feuert nach E-024 mit der Buchung der zwölften Rate: Das Abo endet, wenn der Kunde nichts tut; mit einem Klick im Kundenbereich läuft es weitere zwölf Raten. Vorgesetzten-TODO: Make-Zweig 'abo_verlaengerung_frage' + Brevo-Template in Sie-Form (Variablen: vorname, paket, betrag, portal_url).",
+    customerBound: true,
+    example: { ...CUSTOMER_EXAMPLE, paket: "FIAON Pro (Standard)", betrag: "59.99", portal_url: "https://www.fiaon.com/dashboard#abo" },
+  },
+  {
     type: "termin_erinnerung",
     label: "Terminerinnerung 24 h vorher (Kunde)",
     description:

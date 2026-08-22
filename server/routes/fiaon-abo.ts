@@ -197,6 +197,13 @@ export async function ensureAboTabellen(): Promise<void> {
     ADD COLUMN IF NOT EXISTS lastschrift_grund TEXT,
     ADD COLUMN IF NOT EXISTS gc_payment_id VARCHAR
   `;
+  // Nach zwölf Raten wird gefragt, nicht einfach weitergemacht (E-024).
+  await sqlPool`
+    ALTER TABLE fiaon_applications
+    ADD COLUMN IF NOT EXISTS abo_verlaengerung_gefragt_am TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS abo_verlaengert_am TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS abo_verlaengert_raten INTEGER NOT NULL DEFAULT 0
+  `;
   // Ein GoCardless-Payment bucht genau eine Rate — auch wenn der Webhook
   // dreimal kommt (GoCardless wiederholt bei jedem Nicht-200).
   await sqlPool`
@@ -411,16 +418,24 @@ export async function aboBeiZahlungAnlegen(ref: string): Promise<{ angelegt: boo
  * die richtige nächste Fälligkeit zu FINDEN (welcher Jahrestag ist der
  * nächste?), nicht um sie zu VERSCHIEBEN.
  */
-async function naechsteRateAnlegen(
+export const ABO_LAUFZEIT_RATEN = 12;
+
+export async function naechsteRateAnlegen(
   ref: string,
   letzteRate: { rate_nr: number; faellig_am: any; betrag_cents: number; zahlungsreferenz: string },
   abDatum?: string,
 ) {
   const [app] = await sqlPool`
-    SELECT payment_reference, ref, abo_gestoppt_am, amount_due, pack_key
+    SELECT payment_reference, ref, abo_gestoppt_am, amount_due, pack_key, abo_verlaengert_raten
     FROM fiaon_applications WHERE ref = ${ref}
   `;
   if (!app || app.abo_gestoppt_am) return;
+  // ── NACH RATE 12 WIRD GEFRAGT (E-024, 22.08.2026) ─────────────────────
+  // Justin: „Nach der 12. Rate wird der Kunde gefragt, ob er bleiben will."
+  // Die Kette endet hier; eine 13. Rate entsteht erst, wenn der Kunde im
+  // Bereich Ja sagt (abo_verlaengert_raten wächst dann um 12).
+  const grenze = ABO_LAUFZEIT_RATEN + Number(app.abo_verlaengert_raten || 0);
+  if (Number(letzteRate.rate_nr) >= grenze) return;
   const { tag: anker } = await aboAnker(ref);
   if (!anker) return;
   const referenz = app.payment_reference || app.ref;
@@ -753,6 +768,9 @@ async function ratenFuerHeuteErzeugen(heute: string, lauf: Lauf = sqlPool): Prom
       -- kein Schuldenberg entstehen, den niemand entschieden hat.
       AND NOT EXISTS (SELECT 1 FROM fiaon_abo_raten r
                        WHERE r.ref = a.ref AND r.status = 'offen' AND r.storniert_am IS NULL)
+      -- E-024: nach der Laufzeit keine neue Rate ohne Ja des Kunden
+      AND COALESCE((SELECT MAX(r.rate_nr) FROM fiaon_abo_raten r WHERE r.ref = a.ref), 0)
+          < ${ABO_LAUFZEIT_RATEN} + COALESCE(a.abo_verlaengert_raten, 0)
   `)) as any[];
 
   let erzeugt = 0;
@@ -1274,6 +1292,27 @@ export async function rateBezahltBuchen(opts: {
   // Fälligkeit. Zahlt jemand zehn Tage zu spät, ist der nächste Termin
   // 30 Tage nach seiner Zahlung.
   await naechsteRateAnlegen(rate.ref, rate as any, opts.zahlungsdatum);
+
+  // ── DIE FRAGE NACH RATE 12 (E-024) ────────────────────────────────────
+  if (Number(rate.rate_nr) > 0 && Number(rate.rate_nr) % ABO_LAUFZEIT_RATEN === 0) {
+    try {
+      const [k] = (await sqlPool`
+        SELECT a.ref, a.person_id, a.email, a.first_name, a.last_name, a.payment_reference, a.amount_due, a.pack_name, a.abo_verlaengerung_gefragt_am
+        FROM fiaon_applications a WHERE a.ref = ${rate.ref}`) as any[];
+      if (k && !k.abo_verlaengerung_gefragt_am) {
+        await sqlPool`UPDATE fiaon_applications SET abo_verlaengerung_gefragt_am = NOW(), updated_at = NOW() WHERE ref = ${rate.ref}`;
+        await sendMakeWebhookMitGrund("abo_verlaengerung_frage", {
+          ...makePayloadFromRow(k), paket: k.pack_name || null,
+          betrag: k.amount_due != null ? String(k.amount_due) : null,
+          portal_url: absoluteUrl("/dashboard#abo"),
+        } as any);
+        await sqlPool`
+          INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+          VALUES (${rate.ref}, NULL, 'System', 'system', ${`Rate ${rate.rate_nr} bezahlt — Laufzeit erreicht. Der Kunde wurde gefragt, ob er bleiben möchte (E-024). Ohne Ja entsteht keine weitere Rate.`})
+        `.catch(() => {});
+      }
+    } catch (e) { console.error("[FIAON-ABO] Verlängerungsfrage:", e); }
+  }
 
   // ── Inkasso-Prämie ────────────────────────────────────────────────────
   // HIER und nur hier. Der Buchungsweg für eine Rate ist die einzige Stelle,

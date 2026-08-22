@@ -38,6 +38,8 @@ export type MakeEventType =
   | "termin_bestaetigung"    // Termin gebucht — mit Storno-Link
   | "termin_erinnerung"      // 24 h vor dem Termin
   | "onboarding_einladung"   // bezahlter Kunde soll sein Startgespraech buchen
+  | "antrag_erinnerung"      // Antrag begonnen, nicht beendet — Kette nach E-023 (10 min, 16:30, 19:00, 07:30, 15:00 …)
+  | "abo_verlaengerung_frage" // 12. Rate bezahlt — „Möchten Sie bleiben?" (E-024)
   // ── Registriert für /admin/events (Vorgesetzter kann testen + Make-Zweig bauen).
   //    NOCH KEIN automatischer Versand im Code verdrahtet (Empfehlung, Teil 1.3):
   | "payment_cancelled"       // Bestellung storniert

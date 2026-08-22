@@ -3,6 +3,7 @@ import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
 import NeuralSphere from "@/components/home3d/NeuralSphere";
 import ArasCore from "@/components/home3d/ArasCore";
+import { paket as paketVon, SCHUFA_PREIS_EURO } from "@shared/fiaon-pakete";
 
 /* ════════════════════════════════════════════
    FIAON Startseite v3.0 — "Finanzintelligenz"
@@ -166,7 +167,7 @@ function CustomerModal({ open, onClose }: { open: boolean; onClose: () => void }
               Profil analysieren
             </div>
             <h3 className="text-[24px] font-semibold tracking-tight text-gray-900 leading-snug">
-              F&uuml;r wen m&ouml;chtest du <span className="fiaon-gradient-text-animated">starten</span>?
+              F&uuml;r wen m&ouml;chten Sie <span className="fiaon-gradient-text-animated">starten</span>?
             </h3>
           </div>
 
@@ -180,7 +181,7 @@ function CustomerModal({ open, onClose }: { open: boolean; onClose: () => void }
               </div>
               <div className="flex-1 min-w-0 text-left">
                 <p className="text-[15.5px] font-semibold text-gray-900">Privatkunde</p>
-                <p className="text-[13px] text-gray-500">Score verstehen &amp; Profil entwickeln</p>
+                <p className="text-[13px] text-gray-500">Bonit&auml;t einsehen, reparieren, Zugang erhalten</p>
               </div>
               <span className="w-8 h-8 rounded-full bg-gray-50 group-hover:bg-[#2563eb] flex items-center justify-center text-gray-400 group-hover:text-white transition-all duration-300 shrink-0">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
@@ -197,7 +198,7 @@ function CustomerModal({ open, onClose }: { open: boolean; onClose: () => void }
               </div>
               <div className="flex-1 min-w-0 text-left">
                 <p className="text-[15.5px] font-semibold text-gray-900">Gesch&auml;ftskunde</p>
-                <p className="text-[13px] text-gray-500">Finanzstruktur professionalisieren</p>
+                <p className="text-[13px] text-gray-500">Firmenbonit&auml;t und Gesch&auml;ftskonto</p>
               </div>
               <span className="w-8 h-8 rounded-full bg-gray-50 group-hover:bg-[#2563eb] flex items-center justify-center text-gray-400 group-hover:text-white transition-all duration-300 shrink-0">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
@@ -242,24 +243,24 @@ function Hero({ onCta }: { onCta: () => void }) {
                 <span className="absolute inline-flex w-full h-full rounded-full bg-[#2563eb] opacity-60 animate-ping" />
                 <span className="relative inline-flex w-2 h-2 rounded-full bg-[#2563eb]" style={{ boxShadow: "0 0 8px rgba(37,99,235,.5)" }} />
               </span>
-              <span className="text-[12.5px] font-semibold text-gray-500">5.000+ aktive Nutzer &middot; Plattform w&auml;chst t&auml;glich</span>
+              <span className="text-[12.5px] font-medium text-gray-500">Das Betriebssystem f&uuml;r Bonit&auml;t &middot; Deutschland, &Ouml;sterreich, Schweiz</span>
             </div>
 
             <h1 style={rise(1)} className="text-[2.35rem] sm:text-[3.1rem] lg:text-[3.5rem] xl:text-[3.9rem] font-semibold leading-[1.06] tracking-tight mb-6">
-              <G>Deine Finanzen.</G><br />
-              <G>Deine Bonit&auml;t.</G><br />
-              <span className="text-gray-400">Endlich verstanden.</span>
+              <G>Wissen, was die Auskunfteien</G><br />
+              <G>&uuml;ber Sie wissen.</G><br />
+              <span className="text-gray-400">Und es &auml;ndern.</span>
             </h1>
 
             <p style={rise(2)} className="text-[15px] sm:text-[16.5px] text-gray-500 leading-relaxed max-w-[560px] mx-auto lg:mx-0 mb-7">
-              FIAON ist die unabh&auml;ngige Finanzintelligenz-Plattform, angetrieben von <strong className="font-semibold text-gray-800">ARAS AI</strong> &ndash; dem eigens entwickelten KI-Modell der Schwarzott Group. Wir analysieren dein Finanzprofil, &uuml;bersetzen den Markt in Klartext und sch&uuml;tzen dich vor Angeboten, die dich Geld kosten statt weiterbringen.
+              FIAON zeigt Ihnen Ihre Bonit&auml;t, repariert sie mit Ihnen &ndash; und &ouml;ffnet dann die T&uuml;r zu Konto, Karte und Finanzierung. Im Kern arbeitet <strong className="font-medium text-gray-800">ARAS AI</strong>, unser Modell f&uuml;r Bonit&auml;t im DACH-Raum: Es liest Ihre Auskunft und Ihren Kontoauszug und erkl&auml;rt jeden Eintrag in Klartext.
             </p>
 
             <ul style={rise(3)} className="flex flex-col items-center lg:items-start gap-2.5 mb-8">
               {[
-                "100 % SCHUFA-neutral – keine Auskunftsabfrage",
-                "Radikal unabhängig – null Provisionen von Banken",
-                "Für Privat- und Geschäftskunden",
+                "Auskunft aus SCHUFA, KSV und CRIF – beantragt durch FIAON",
+                "Löschanträge und Widersprüche – vorbereitet und versendet",
+                "Girokonto und Kreditkarte bis 25.000 € bei guter Bonität",
               ].map((b) => (
                 <li key={b} className="flex items-center gap-2.5 text-[13.5px] font-medium text-gray-600">
                   <span className="w-[18px] h-[18px] rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0">
@@ -272,15 +273,15 @@ function Hero({ onCta }: { onCta: () => void }) {
 
             <div style={rise(4)} className="flex flex-col sm:flex-row items-center lg:items-start lg:justify-start justify-center gap-4 sm:gap-6 mb-3">
               <button onClick={onCta} className="fiaon-btn-gradient inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full text-[15px] font-semibold text-white w-full sm:w-auto hover:scale-[1.03] transition-transform">
-                Kostenlos Profil analysieren
+                Jetzt starten
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
               </button>
-              <a href="#aras" className="inline-flex items-center gap-1.5 text-[14px] font-semibold text-[#2563eb] hover:text-[#1d4ed8] transition-colors py-4 sm:py-4 group">
-                So funktioniert ARAS AI
+              <a href="#aras" className="inline-flex items-center gap-1.5 text-[14px] font-medium text-[#2563eb] hover:text-[#1d4ed8] transition-colors py-4 sm:py-4 group">
+                So funktioniert es
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="group-hover:translate-y-0.5 transition-transform"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
               </a>
             </div>
-            <p style={rise(5)} className="text-[12px] text-gray-400 font-medium">Einrichtung in unter 2 Minuten. Jederzeit k&uuml;ndbar.</p>
+            <p style={rise(5)} className="text-[12px] text-gray-400 font-medium">Konto in zwei Minuten. Erste Einsicht innerhalb von 24 Stunden.</p>
           </div>
 
           {/* 3D: Neurale Glaskugel */}
@@ -299,10 +300,10 @@ function Hero({ onCta }: { onCta: () => void }) {
 function StatsBar() {
   const obs = useReveal(0.3);
   const stats = [
-    { end: 5000, fmt: (v: number) => `${v.toLocaleString("de-DE")}+`, label: "Aktive Nutzer auf der Plattform" },
-    { end: 12400, fmt: (v: number) => `${v.toLocaleString("de-DE")}+`, label: "Durchgeführte KI-Profilanalysen" },
-    { end: 2, fmt: () => "< 2 Min", label: "Von der Registrierung zum ersten Dashboard" },
-    { end: 49, fmt: (v: number) => `${(v / 10).toLocaleString("de-DE", { minimumFractionDigits: 1 })} / 5`, label: "Durchschnittliche Nutzerbewertung" },
+    { end: 3, fmt: (v: number) => `${v}`, label: "Auskunfteien: SCHUFA, KSV und CRIF – beantragt durch FIAON" },
+    { end: 24, fmt: (v: number) => `< ${v} h`, label: "Von der Anmeldung bis zur ersten Einsicht" },
+    { end: 25000, fmt: (v: number) => `${v.toLocaleString("de-DE")} €`, label: "Kreditkartenrahmen bei guter Bonität" },
+    { end: 100, fmt: (v: number) => `${v} Mio.`, label: "Menschen im DACH-Raum, für die FIAON gebaut ist" },
   ];
   const v0 = useCountUp(stats[0].end, obs.v);
   const v1 = useCountUp(stats[1].end, obs.v);
@@ -350,9 +351,9 @@ function ProblemSection() {
   const pathLen = 1400;
 
   const cards = [
-    { title: "„Abgelehnt. Ohne Erklärung.“", text: "Banken entscheiden nach Scoring-Modellen, die niemand erklärt. Wer sein eigenes Profil nicht versteht, kann es auch nicht verbessern." },
-    { title: "„Vergleichsportale vergleichen nicht für dich.“", text: "Die meisten Portale leben von Provisionen. Empfohlen wird, was am besten vergütet wird – nicht, was zu deinem Profil passt." },
-    { title: "„Versteckte Kosten, aggressive Angebote, echte Fallen.“", text: "Von überteuerten Ratenmodellen bis zu unseriösen ‚Sofort-Limit'-Versprechen: Wer die Mechanik dahinter nicht kennt, zahlt drauf – oder wird Opfer." },
+    { title: "„Abgelehnt. Ohne Erklärung.“", text: "Banken entscheiden nach einer Auskunft, die Sie nie gesehen haben. Wer seinen eigenen Eintrag nicht kennt, kann ihn auch nicht ändern." },
+    { title: "„Ein Eintrag, der längst erledigt ist.“", text: "Bezahlte Forderungen, veraltete Daten, falsche Zuordnungen: Millionen Einträge im DACH-Raum sind löschbar – wenn jemand den Antrag stellt." },
+    { title: "„Apps, die anzeigen. Und nichts tun.“", text: "Score-Apps zeigen eine Zahl. Dann lassen sie Sie allein. Der schwere Teil – Widerspruch, Berichtigung, Ratenvereinbarung – bleibt an Ihnen hängen." },
   ];
 
   return (
@@ -399,11 +400,11 @@ function ProblemSection() {
             <Eyebrow light>Das Problem</Eyebrow>
           </div>
           <h2 className={`text-[1.7rem] sm:text-3xl md:text-[2.6rem] font-semibold tracking-tight text-white leading-[1.15] mb-6 transition-all duration-700 delay-100 ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
-            Der Finanzmarkt ist nicht gegen dich.<br className="hidden sm:block" />
-            <span className="text-blue-300/80"> Aber er ist auch nicht f&uuml;r dich gebaut.</span>
+            Ihre Bonit&auml;t entscheidet &uuml;ber Konto, Karte und Kredit.<br className="hidden sm:block" />
+            <span className="text-blue-300/80"> Nur Sie selbst sehen sie nie.</span>
           </h2>
           <p className={`text-[15px] sm:text-[16px] text-gray-400 leading-relaxed max-w-[680px] mx-auto transition-all duration-700 delay-200 ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
-            Millionen Menschen in der DACH-Region treffen Finanzentscheidungen im Blindflug: unverst&auml;ndliche Konditionen, Vergleichsportale, die am Klick verdienen, und Ablehnungen ohne Begr&uuml;ndung. Nicht, weil ihnen das Einkommen fehlt &ndash; sondern weil ihnen Transparenz, Daten und Strategie fehlen.
+            100 Millionen Menschen in Deutschland, &Ouml;sterreich und der Schweiz haben einen Eintrag bei SCHUFA, KSV oder CRIF. Allein in Deutschland gelten sechs Millionen als &uuml;berschuldet. Die meisten wissen nicht, was dort steht &ndash; und niemand hilft ihnen, es zu &auml;ndern.
           </p>
         </div>
 
@@ -428,7 +429,7 @@ function ProblemSection() {
         </div>
 
         <p className={`text-center text-[15px] sm:text-[16px] font-medium text-blue-200/90 transition-all duration-700 delay-500 ${obs.v ? "opacity-100" : "opacity-0"}`}>
-          Genau hier setzt FIAON an: <span className="text-white font-semibold">mit Technologie, die auf deiner Seite steht.</span>
+          Genau hier setzt FIAON an: <span className="text-white font-medium">Einsicht. Aktion. Zugang.</span>
         </p>
       </div>
     </section>
@@ -443,19 +444,19 @@ function ArasSection() {
   const obs = useReveal(0.08);
   const blocks = [
     {
-      title: "Versteht dein Profil.",
-      text: "ARAS AI analysiert die Struktur deines Finanzprofils – Einkommensbild, Verpflichtungen, Kartennutzung, Score-relevante Faktoren – und zeigt dir, wo du stehst und welche Hebel du selbst in der Hand hast. Vollständig SCHUFA-neutral, ohne eine einzige Auskunftsabfrage.",
-      icon: <><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></>,
+      title: "Einsicht – zuerst Klarheit.",
+      text: "FIAON beantragt Ihre Auskunft bei SCHUFA, KSV oder CRIF und liest Ihren Kontoauszug. Sie sehen Ihren Wert als Bogen, jeden Eintrag erklärt, Ihre Einnahmen, Fixkosten und Ihren monatlichen Spielraum.",
+      icon: <><circle cx="12" cy="12" r="3"/><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/></>,
     },
     {
-      title: "Versteht den Markt.",
-      text: "Hunderte Karten- und Kontoprodukte, ständig wechselnde Konditionen: ARAS AI ordnet den Markt datenbasiert – ohne Affiliate-Links, ohne Provisionslogik, ohne bezahlte Platzierungen. Du siehst, was zu deinem Profil passt. Nicht, was am meisten Provision bringt.",
-      icon: <><path d="M3 3v18h18"/><path d="M7 15l4-6 4 3 5-8"/></>,
+      title: "Aktion – dann Bewegung.",
+      text: "Löschanträge, Berichtigungen, Widersprüche, Ratenvereinbarungen: vorbereitet, anwaltlich geprüft, mit einem Klick versendet. FIAON erinnert Sie an jede Frist und verfolgt jede Antwort.",
+      icon: <><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></>,
     },
     {
-      title: "Erkennt, was dich schützt – und was dich kostet.",
-      text: "Überhöhte Effektivzinsen, versteckte Gebührenmodelle, unrealistische Versprechen: ARAS AI ist darauf trainiert, kritische Muster in Angeboten zu erkennen und dich zu warnen, bevor du unterschreibst.",
-      icon: <><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></>,
+      title: "Zugang – dann die Tür.",
+      text: "Girokonto für jeden Kunden, Kreditkarte bis 25.000 € bei guter Bonität, Finanzierung später. Niemand geht leer aus. Jeder hat ein nächstes Ziel.",
+      icon: <><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M6 15h4"/></>,
     },
   ];
   return (
@@ -470,14 +471,14 @@ function ArasSection() {
 
           <div className="order-2 lg:order-none">
             <div className={`transition-all duration-700 ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
-              <Eyebrow>Die Engine</Eyebrow>
+              <Eyebrow>So funktioniert es</Eyebrow>
             </div>
             <h2 className={`text-[1.8rem] sm:text-[2.4rem] lg:text-[2.7rem] font-semibold tracking-tight leading-[1.12] mb-5 transition-all duration-700 delay-100 ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
-              <G>ARAS AI.</G><br />
-              <span className="text-gray-900">Das Finanz-LLM der Schwarzott Group.</span>
+              <G>Drei Schichten.</G><br />
+              <span className="text-gray-900">Ein Weg.</span>
             </h2>
             <p className={`text-[15px] text-gray-500 leading-relaxed mb-9 transition-all duration-700 delay-200 ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
-              Kein zugekauftes Standardmodell. ARAS AI ist eine Eigenentwicklung &ndash; trainiert und optimiert f&uuml;r eine einzige Aufgabe: Finanzprofile, Bonit&auml;tsmechanik und Marktangebote im DACH-Raum pr&auml;zise zu analysieren und verst&auml;ndlich zu erkl&auml;ren.
+              Score-Apps zeigen Ihnen eine Zahl. FIAON geht drei Schritte weiter: Wir zeigen, was dahintersteht, wir &auml;ndern es mit Ihnen &ndash; und wir &ouml;ffnen danach die T&uuml;r. Im Kern arbeitet <strong className="font-medium text-gray-800">ARAS AI</strong>, unser Modell f&uuml;r Bonit&auml;t im DACH-Raum.
             </p>
 
             <div className="space-y-4 mb-8">
@@ -499,11 +500,11 @@ function ArasSection() {
             </div>
 
             <p className={`text-[12px] text-gray-400 leading-relaxed border-l-2 border-blue-200 pl-4 mb-8 transition-all duration-700 delay-700 ${obs.v ? "opacity-100" : "opacity-0"}`}>
-              ARAS AI liefert Analysen und Bildungsinhalte, keine Anlage-, Rechts- oder Steuerberatung. Jede Entscheidung triffst du selbst &ndash; auf Basis besserer Informationen.
+              ARAS AI liefert Analysen und vorbereitete Schreiben, keine Rechts- oder Steuerberatung. Jedes Schreiben geht erst hinaus, wenn Sie es freigeben.
             </p>
 
-            <a href="/was-ist-fiaon" className={`inline-flex items-center gap-2 text-[14.5px] font-semibold text-[#2563eb] hover:text-[#1d4ed8] transition-all duration-700 delay-700 group ${obs.v ? "opacity-100" : "opacity-0"}`}>
-              Die Technologie kennenlernen
+            <a href="/was-ist-fiaon" className={`inline-flex items-center gap-2 text-[14.5px] font-medium text-[#2563eb] hover:text-[#1d4ed8] transition-all duration-700 delay-700 group ${obs.v ? "opacity-100" : "opacity-0"}`}>
+              Die Plattform kennenlernen
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="group-hover:translate-x-1 transition-transform"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
             </a>
           </div>
@@ -589,24 +590,24 @@ function ShieldVisual() {
 function ShieldSection() {
   const obs = useReveal(0.08);
   const feats = [
-    { n: "1", title: "Angebots-Check", text: "Lade Konditionen oder Angebote hoch – ARAS AI prüft sie auf Kostenfallen, unübliche Klauseln und kritische Muster und erklärt dir das Ergebnis in Klartext." },
-    { n: "2", title: "Betrugsmuster-Erkennung", text: "Unrealistische Limit-Versprechen, Vorkasse-Modelle, Fake-Anbieter: Die Plattform kennt die gängigen Maschen und macht dich darauf aufmerksam, bevor Schaden entsteht." },
-    { n: "3", title: "Konditions-Klartext", text: "Effektivzins statt Lockzins, Gesamtkosten statt Monatsrate: FIAON übersetzt Finanz-Kleingedrucktes in Sprache, die jeder versteht." },
-    { n: "4", title: "Datensouveränität", text: "AES-256-Verschlüsselung, ausschließlich EU-Hosting, DSGVO-konform, One-Click-Löschung. Deine Daten arbeiten für dich – und für niemanden sonst." },
+    { n: "1", title: "Anwaltlich geprüft", text: "Löschanträge, Widersprüche und Ratenvereinbarungen entstehen aus Vorlagen, die unser Anwaltsteam geprüft hat – und gehen erst hinaus, wenn Sie sie freigeben." },
+    { n: "2", title: "SEPA-Lastschrift", text: "Monatliche Raten per SEPA über einen verifizierten Kreditor. Keine Kreditkarte nötig, keine Vorkasse, jede Abbuchung angekündigt." },
+    { n: "3", title: "Verschlüsselt und DSGVO-konform", text: "Ihre Auskunft und Ihr Kontoauszug liegen verschlüsselt auf Servern in der EU. Sie entscheiden, was Sie hochladen – und können es jederzeit löschen lassen." },
+    { n: "4", title: "Ein Mensch am Telefon", text: "Jeder Kunde beginnt mit einem Startgespräch. Danach kennen Sie Ihren Ansprechpartner mit Namen – und er kennt Ihre Akte." },
   ];
   return (
     <section ref={obs.ref} className="relative py-20 sm:py-28 overflow-hidden" style={{ background: "linear-gradient(180deg,#ffffff 0%,#f4f8ff 50%,#ffffff 100%)" }}>
       <div className="max-w-[1200px] mx-auto px-6">
         <div className="max-w-3xl mx-auto text-center mb-4">
           <div className={`transition-all duration-700 ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
-            <Eyebrow>Dein Schutz</Eyebrow>
+            <Eyebrow>Ihr Vertrauen</Eyebrow>
           </div>
           <h2 className={`text-[1.7rem] sm:text-[2.4rem] font-semibold tracking-tight leading-[1.15] mb-5 transition-all duration-700 delay-100 ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
-            <G>Die erste Finanzplattform, die dich warnt</G><br />
-            <span className="text-gray-400">&ndash; statt dir zu verkaufen.</span>
+            <G>Gef&uuml;hrt wie ein Finanzinstitut.</G><br />
+            <span className="text-gray-400">Gebaut wie eine App.</span>
           </h2>
           <p className={`text-[15px] text-gray-500 leading-relaxed max-w-[620px] mx-auto transition-all duration-700 delay-200 ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
-            FIAON verdient kein Geld daran, dass du ein bestimmtes Produkt abschlie&szlig;t. Deshalb k&ouml;nnen wir das tun, was provisionsgetriebene Anbieter strukturell nicht k&ouml;nnen: dich ehrlich warnen.
+            FIAON LTD mit Sitz in London, Kunden in Deutschland, &Ouml;sterreich und der Schweiz. Jedes Schreiben, das Sie &uuml;ber FIAON versenden, ist anwaltlich gepr&uuml;ft. Jede Zahlung l&auml;uft per SEPA-Lastschrift &uuml;ber einen verifizierten Kreditor.
           </p>
         </div>
 
@@ -657,12 +658,12 @@ function TiltCard({ children, className = "", style }: { children: React.ReactNo
 function PlatformSection() {
   const obs = useReveal(0.06);
   const modules = [
-    { tag: "Der Scanner", title: "KI-Profilanalyse", text: "Dein vollständiges Finanzbild in unter 120 Sekunden. ARAS AI zeigt dir Stärken, Schwachstellen und deine größten Hebel – neutral und ohne SCHUFA-Abfrage.", icon: <><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/><path d="M8 11h6M11 8v6"/></> },
-    { tag: "Der Simulator", title: "Score-Simulator", text: "Was passiert mit deiner Bonität, wenn du X tust? Simuliere Szenarien risikofrei, bevor du in der echten Welt handelst.", icon: <><path d="M3 3v18h18"/><path d="M7 13l3-3 4 4 6-7"/><circle cx="20" cy="7" r="1.5" fill="currentColor"/></> },
-    { tag: "Der Aufbau", title: "Credit-Building-Programm", text: "Aus dem US-Credit-Building-System adaptiert und für den europäischen Markt optimiert: Schritt-für-Schritt-Module, mit denen du dein Profil systematisch und eigenständig entwickelst.", icon: <><path d="M4 20h16"/><path d="M6 20V12M11 20V8M16 20V4"/></> },
-    { tag: "Der Navigator", title: "Kartenkompass", text: "Der gesamte Kartenmarkt, datenbasiert geordnet nach deinem Profil. Ohne Affiliate-Links, ohne Werbung, ohne bezahlte Rankings.", icon: <><circle cx="12" cy="12" r="10"/><path d="M16 8l-2.5 5.5L8 16l2.5-5.5L16 8z"/></> },
-    { tag: "Der Monitor", title: "Limit-Tracker", text: "Verfolge deine Entwicklung in Echtzeit: Was hat sich verändert, was ist dein nächster sinnvoller Schritt.", icon: <><rect x="2" y="4" width="20" height="14" rx="2"/><path d="M6 12l3-3 3 3 4-5"/><path d="M8 22h8"/></> },
-    { tag: "Der Guide", title: "Monats-Coaching", text: "Jeden Monat neue Insights, Aufgaben und Strategie-Updates. FIAON ist kein einmaliger Vergleich – es ist ein laufendes Programm.", icon: <><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M9 16l2 2 4-4"/></> },
+    { tag: "Die Auskunft", title: "Bonitätsauskunft", text: "FIAON beantragt Ihre Auskunft bei SCHUFA, KSV oder CRIF – Sie füllen kein Formular aus. Innerhalb von 24 Stunden wissen Sie, was dort steht.", icon: <><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/><path d="M8 11h6M11 8v6"/></> },
+    { tag: "Die Analyse", title: "Kontoauszug-Analyse", text: "Laden Sie Ihren Kontoauszug hoch. ARAS AI erkennt Einnahmen, Fixkosten, Abos und Risiken – und zeigt Ihren monatlichen Spielraum.", icon: <><path d="M3 3v18h18"/><path d="M7 13l3-3 4 4 6-7"/><circle cx="20" cy="7" r="1.5" fill="currentColor"/></> },
+    { tag: "Die Aktion", title: "Löschanträge und Widersprüche", text: "Jeder Eintrag bekommt eine Einschätzung: erledigt, löschbar, berichtigbar, angreifbar. Das Schreiben ist vorbereitet – Sie geben frei, FIAON versendet.", icon: <><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></> },
+    { tag: "Die Einigung", title: "Ratenvereinbarungen", text: "Offene Forderungen werden zu Plänen: FIAON schlägt Raten vor, die zu Ihrem Spielraum passen, und verfolgt die Antwort des Gläubigers.", icon: <><path d="M4 20h16"/><path d="M6 20V12M11 20V8M16 20V4"/></> },
+    { tag: "Der Zugang", title: "Konto und Karte", text: "Girokonto für jeden Kunden, Kreditkarte bis 25.000 € bei guter Bonität. Ihr Fahrplan zeigt, wie weit Sie noch davon entfernt sind.", icon: <><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M6 15h4"/></> },
+    { tag: "Der Mensch", title: "Startgespräch und Betreuung", text: "Ein Startgespräch zu Beginn, ein fester Ansprechpartner danach. Fragen beantwortet ein Mensch – am Telefon oder in Ihrem Bereich.", icon: <><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72l.72 3.5a2 2 0 0 1-.45 1.95L8 10.5a16 16 0 0 0 5.5 5.5l1.33-1.38a2 2 0 0 1 1.95-.45l3.5.72A2 2 0 0 1 22 16.92z"/></> },
   ];
   return (
     <section ref={obs.ref} className="relative py-20 sm:py-28 overflow-hidden">
@@ -670,11 +671,11 @@ function PlatformSection() {
       <div className="max-w-[1200px] mx-auto px-6 relative z-10">
         <div className="max-w-2xl mx-auto text-center mb-14">
           <div className={`transition-all duration-700 ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
-            <Eyebrow>Alles in einer Plattform</Eyebrow>
+            <Eyebrow>Die Plattform</Eyebrow>
           </div>
           <h2 className={`text-[1.8rem] sm:text-[2.5rem] font-semibold tracking-tight leading-[1.12] transition-all duration-700 delay-100 ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
-            <G>Software. Coaching. Strategie.</G><br />
-            <span className="text-gray-400">Ein System.</span>
+            <G>Einsicht. Aktion. Zugang.</G><br />
+            <span className="text-gray-400">Alles in Ihrem Bereich.</span>
           </h2>
         </div>
 
@@ -735,15 +736,15 @@ function AudienceSection({ onChoose }: { onChoose: (tab: "privat" | "business") 
     {
       key: "privat" as const,
       title: "Für Privatkunden",
-      text: "Vom ersten Score-Aufbau bis zum Premium-Karten-Portfolio: Verstehe dein Profil, lerne die Mechanik hinter Limits und Konditionen und entwickle deine Bonität strategisch – in deinem Tempo, in voller Eigenkontrolle.",
-      goals: "Typische Ziele: Score verstehen und verbessern · faire Konditionen erkennen · Premium-Karten-Wissen aufbauen · Reise- und Cashback-Strategien nutzen",
+      text: "Vom ersten Eintrag bis zur Kreditkarte: Sie sehen Ihre Auskunft, räumen auf, was nicht hineingehört, und arbeiten Etappe für Etappe auf Konto und Karte zu – mit einem Ansprechpartner, der Ihre Akte kennt.",
+      goals: "Typische Ziele: Eintrag löschen lassen · Ratenvereinbarung treffen · Girokonto eröffnen · Kreditkarte bis 25.000 €",
       icon: <><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></>,
     },
     {
       key: "business" as const,
       title: "Für Geschäftskunden",
-      text: "Liquidität, Firmenkarten, Trennung von privat und geschäftlich: FIAON Business gibt Selbstständigen und Unternehmen die Datenbasis, um Finanzentscheidungen professionell zu treffen – und teure Fehlstrukturen zu vermeiden.",
-      goals: "Typische Ziele: Firmenprofil strukturieren · Business-Kartenstrategien verstehen · Kostenfallen im B2B-Bereich erkennen · Ausgaben-Setup professionalisieren",
+      text: "Firmenbonität entscheidet über Lieferantenkredit, Leasing und Geschäftskonto. FIAON Business zeigt Selbstständigen und Unternehmen, was Auskunfteien über sie führen – und hilft, es in Ordnung zu bringen.",
+      goals: "Typische Ziele: Firmeneintrag prüfen · Geschäftskonto eröffnen · Firmenkarte mit Rahmen · Privat und Geschäft trennen",
       icon: <><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></>,
     },
   ];
@@ -755,7 +756,7 @@ function AudienceSection({ onChoose }: { onChoose: (tab: "privat" | "business") 
             <Eyebrow>F&uuml;r wen</Eyebrow>
           </div>
           <h2 className={`text-[1.8rem] sm:text-[2.5rem] font-semibold tracking-tight leading-[1.12] mb-2 transition-all duration-700 delay-100 ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
-            <G>Eine Intelligenz. Zwei Welten.</G>
+            <G>Eine Plattform. Zwei Welten.</G>
           </h2>
         </div>
 
@@ -780,7 +781,7 @@ function AudienceSection({ onChoose }: { onChoose: (tab: "privat" | "business") 
                 onClick={() => onChoose(c.key)}
                 className="mt-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full text-[14px] font-semibold fiaon-btn-outline-animated w-full sm:w-auto group/btn"
               >
-                Setup w&auml;hlen
+                Paket w&auml;hlen
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="group-hover/btn:translate-x-1 transition-transform"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
               </button>
             </div>
@@ -795,18 +796,21 @@ function AudienceSection({ onChoose }: { onChoose: (tab: "privat" | "business") 
    SEKTION 8 — SETUPS & PREISE
    3D: aufsteigende Podeste mit wachsender Komplexität
    ════════════════════════════════ */
+/* Preise kommen aus dem Paketkatalog (shared/fiaon-pakete.ts) — eine Quelle für Website, Antrag und Akte. */
+const preisText = (key: string) => ((paketVon(key)?.preisCents ?? 0) / 100).toFixed(2).replace(".", ",");
+
 const PRIVATE_PACKS = [
-  { name: "FIAON Starter", sub: "Das Fundament", scenario: "Einstieg & Score-Basics", fee: "7,99", feats: ["Basis-Profilanalyse mit ARAS AI", "SCHUFA-neutrale Profil-Prüfung", "Karten-Grundlagen-Module (E-Learning)", "Online-Dashboard & Verwaltung"] },
-  { name: "FIAON Pro", sub: "Standard", scenario: "Profil-Aufbau bis in den vierstelligen Limit-Bereich", fee: "59,99", rec: true, feats: ["Vollständiges Credit-Building-System (12-Monats-Strategie)", "KI-Matching mit Score-Prognose", "Dynamischer Score-Simulator", "Priority-Bearbeitung im System"] },
-  { name: "FIAON Ultra", sub: "Elite Konto", scenario: "Premium-Portfolio-Strategie (Gold- & Platinum-Segment)", fee: "79,99", feats: ["Alles aus Pro", "Cashback- & Meilen-Strategiemodule", "Individuelle Aufbau-Roadmap", "VIP-Support & Profil-Optimierung"] },
-  { name: "FIAON High End", sub: "Das Maximum", scenario: "Elite-Portfolio & internationale Strukturen (Metal- & VIP-Segment)", fee: "99,99", feats: ["Alles aus Ultra", "Persönlicher Account Director", "Module zu internationalen Limit- & Kartenstrukturen", "24/7 Dedicated Concierge-Support"] },
+  { key: "start", name: "FIAON Start", sub: "Der Einstieg", scenario: "Einsicht in Ihre Bonität", feats: ["Bonitätsauskunft einsehen und verstehen", "Kontoauszug-Analyse mit Spielraum", "Ihr Bereich mit Fahrplan", "Unterstützung per E-Mail"] },
+  { key: "pro", name: "FIAON Pro", sub: "Standard", scenario: "Einträge bereinigen, Konto eröffnen", rec: true, feats: ["Alles aus Start", "Löschanträge und Widersprüche – vorbereitet und versendet", "Ratenvereinbarungen mit Antwort-Verfolgung", "Startgespräch und fester Ansprechpartner"] },
+  { key: "ultra", name: "FIAON Ultra", sub: "Mit Karte", scenario: "Kreditkarte bis 25.000 € bei guter Bonität", feats: ["Alles aus Pro", "Begleitung bis zur Kreditkarte", "Bevorzugte Bearbeitung Ihrer Schreiben", "Telefonische Betreuung"] },
+  { key: "highend", name: "FIAON High End", sub: "Das Maximum", scenario: "Finanzierung und persönliche Betreuung", feats: ["Alles aus Ultra", "Persönlicher Betreuer für Ihre Akte", "Vorbereitung auf Finanzierungen", "Erreichbar auch außerhalb der Bürozeiten"] },
 ];
 
 const BUSINESS_PACKS = [
-  { name: "FIAON Business Starter", sub: "", scenario: "Kreditlimit: bis 5.000 €", fee: "49,99", feats: ["Limit bis 5.000 €", "Business Support", "Multi-User Access", "Monthly Reports"] },
-  { name: "FIAON Business Pro", sub: "", scenario: "Kreditlimit: bis 25.000 €", fee: "99,99", rec: true, feats: ["Limit bis 25.000 €", "Priority Business Support", "Expense Tracking", "Employee Cards"] },
-  { name: "FIAON Business Ultra", sub: "", scenario: "Kreditlimit: bis 75.000 €", fee: "149,99", feats: ["Limit bis 75.000 €", "Dedicated Account Manager", "Advanced Analytics", "Custom Limits"] },
-  { name: "FIAON Business Enterprise", sub: "", scenario: "Kreditlimit: bis 250.000 €", fee: "249,99", feats: ["Limit bis 250.000 €", "24/7 Enterprise Support", "API Integration", "Unlimited Users"] },
+  { key: "business_starter", name: "FIAON Business Starter", sub: "", scenario: "Firmenrahmen bis 5.000 €", feats: ["Firmeneintrag prüfen und verstehen", "Geschäftskonto-Zugang", "Unterstützung für Ihr Unternehmen", "Monatliche Übersicht"] },
+  { key: "business_pro", name: "FIAON Business Pro", sub: "", scenario: "Firmenrahmen bis 25.000 €", rec: true, feats: ["Alles aus Starter", "Löschanträge und Widersprüche für das Unternehmen", "Firmenkarte mit Rahmen", "Bevorzugte Bearbeitung"] },
+  { key: "business_ultra", name: "FIAON Business Ultra", sub: "", scenario: "Firmenrahmen bis 75.000 €", feats: ["Alles aus Pro", "Fester Ansprechpartner", "Mehrere Nutzer im Bereich", "Vorbereitung auf Finanzierungen"] },
+  { key: "business_enterprise", name: "FIAON Business Enterprise", sub: "", scenario: "Firmenrahmen bis 250.000 €", feats: ["Alles aus Ultra", "Betreuung auch außerhalb der Bürozeiten", "Schnittstelle zu Ihrer Buchhaltung", "Unbegrenzte Nutzer"] },
 ];
 
 /* Podest-Objekt: wachsende geometrische Komplexität */
@@ -849,14 +853,14 @@ function PricingSection({ tab, setTab }: { tab: "privat" | "business"; setTab: (
       <div className="max-w-[1240px] mx-auto px-6 relative z-10">
         <div className="max-w-2xl mx-auto text-center mb-10">
           <div className={`transition-all duration-700 ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
-            <Eyebrow>Dein Setup</Eyebrow>
+            <Eyebrow>Ihr Paket</Eyebrow>
           </div>
           <h2 className={`text-[1.8rem] sm:text-[2.5rem] font-semibold tracking-tight leading-[1.12] mb-5 transition-all duration-700 delay-100 ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
-            <G>W&auml;hle die Tiefe deiner Analyse.</G><br />
-            <span className="text-gray-400">Nicht dein Gl&uuml;ck.</span>
+            <G>W&auml;hlen Sie, wie weit Sie gehen.</G><br />
+            <span className="text-gray-400">Nicht, ob.</span>
           </h2>
           <p className={`text-[14.5px] text-gray-500 leading-relaxed max-w-[640px] mx-auto transition-all duration-700 delay-200 ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
-            Jedes Setup ist ein Software- und Coaching-Zugang &ndash; gestaffelt nach Analyse-Tiefe, Betreuungsgrad und strategischem Ziel-Szenario. Kein Setup vergibt Karten oder Limits: Du baust dein Profil selbst auf, FIAON liefert dir System, Daten und Strategie.
+            Jedes Paket beginnt mit Ihrer Auskunft. Je weiter Sie gehen, desto mehr nimmt FIAON Ihnen ab &ndash; bis zu Konto, Karte und Finanzierung. &Uuml;ber die Vergabe entscheidet immer die Bank; FIAON bereitet Sie darauf vor.
           </p>
         </div>
 
@@ -900,11 +904,11 @@ function PricingSection({ tab, setTab }: { tab: "privat" | "business"; setTab: (
                   {p.sub && <p className="text-[12px] text-gray-400 font-medium">({p.sub})</p>}
                 </div>
                 <div className="text-center mb-1">
-                  <span className="text-[2rem] font-semibold tracking-tight fiaon-gradient-text-animated">{p.fee} &euro;</span>
+                  <span className="text-[2rem] font-semibold tracking-tight fiaon-gradient-text-animated">{preisText(p.key)} &euro;</span>
                   <span className="text-[13px] text-gray-400 font-medium"> / Monat</span>
                 </div>
                 <p className="text-center text-[11.5px] text-gray-400 leading-snug mb-6 min-h-[32px]">
-                  {tab === "privat" ? `Ziel-Szenario: ${p.scenario}` : p.scenario}
+                  {tab === "privat" ? `Ziel: ${p.scenario}` : p.scenario}
                 </p>
                 <ul className="space-y-3 mb-7 flex-1">
                   {p.feats.map((f) => (
@@ -929,8 +933,8 @@ function PricingSection({ tab, setTab }: { tab: "privat" | "business"; setTab: (
 
         <p className={`text-center text-[11.5px] text-gray-400 leading-relaxed max-w-[720px] mx-auto mt-10 transition-all duration-700 delay-700 ${obs.v ? "opacity-100" : "opacity-0"}`}>
           {tab === "privat"
-            ? "Alle Setups: monatlich kündbar · SCHUFA-neutral · keine Provisionsmodelle. Ziel-Szenarien sind Bildungs- und Strategieziele – die Vergabe von Karten und Limits obliegt ausschließlich den jeweiligen Finanzinstituten."
-            : "Alle Pakete: monatlich kündbar · SCHUFA-neutral · keine Provisionsmodelle. Das endgültige Kreditlimit wird individuell festgelegt."}
+            ? `Alle Pakete: monatlich per SEPA-Lastschrift · zwölf Raten, danach entscheiden Sie, ob Sie bleiben · Nur die Auskunft? Bonitätsauskunft ${SCHUFA_PREIS_EURO.toFixed(2).replace(".", ",")} € einmalig. Über Konto, Karte und Rahmen entscheidet die jeweilige Bank.`
+            : "Alle Pakete: monatlich per SEPA-Lastschrift · zwölf Raten, danach entscheiden Sie, ob Sie bleiben. Über Konto, Karte und Rahmen entscheidet die jeweilige Bank."}
         </p>
       </div>
     </section>
@@ -945,9 +949,9 @@ function StepsSection() {
   const { ref, p } = useScrollProgress();
   const obs = useReveal(0.1);
   const steps = [
-    { n: "01", title: "Profil erstellen", text: "Beantworte wenige Fragen zu deiner finanziellen Situation. Dauert unter 2 Minuten – vollständig digital, vollständig SCHUFA-neutral.", icon: <><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></> },
-    { n: "02", title: "Analyse erhalten", text: "ARAS AI erstellt dein persönliches Dashboard: Standortbestimmung, Stärken, Risiken und dein individueller strategischer Fahrplan.", icon: <><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 12l2.5 2.5L16 9"/></> },
-    { n: "03", title: "Strategie umsetzen", text: "Du setzt die Schritte eigenständig um – mit Modulen, Simulator und monatlichem Coaching an deiner Seite. Du bleibst zu jedem Zeitpunkt selbst am Steuer.", icon: <><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></> },
+    { n: "01", title: "Konto anlegen", text: "E-Mail-Adresse, wenige Angaben, zwei Minuten. Ihr Bereich ist sofort aktiv – am Handy wie am Rechner.", icon: <><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></> },
+    { n: "02", title: "Auskunft erhalten", text: "FIAON beantragt Ihre Auskunft. Innerhalb von 24 Stunden sehen Sie, was SCHUFA, KSV oder CRIF über Sie führen – und was sich ändern lässt.", icon: <><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 12l2.5 2.5L16 9"/></> },
+    { n: "03", title: "Handeln und Zugang erhalten", text: "Schreiben freigeben, Raten vereinbaren, Etappen abschließen. Am Ende stehen Konto, Karte und – wenn Sie möchten – die Finanzierung.", icon: <><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></> },
   ];
   const lineLen = 1000;
   return (
@@ -958,7 +962,7 @@ function StepsSection() {
             <Eyebrow>Ablauf</Eyebrow>
           </div>
           <h2 className={`text-[1.8rem] sm:text-[2.5rem] font-semibold tracking-tight leading-[1.12] transition-all duration-700 delay-100 ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
-            <G>In drei Schritten zur vollen Kontrolle.</G>
+            <G>In drei Schritten zu Ihrer Bonit&auml;t.</G>
           </h2>
         </div>
 
@@ -1008,7 +1012,7 @@ function StepsSection() {
         </div>
 
         <p className={`text-center text-[12.5px] text-gray-400 font-medium mt-14 transition-all duration-700 delay-700 ${obs.v ? "opacity-100" : "opacity-0"}`}>
-          Kein Papierkram. Keine Filiale. Keine Verpflichtung gegen&uuml;ber Banken.
+          Kein Papierkram. Keine Filiale. Ein Ansprechpartner, der Ihre Akte kennt.
         </p>
       </div>
     </section>
@@ -1021,9 +1025,9 @@ function StepsSection() {
 function TestimonialsSection() {
   const obs = useReveal(0.1);
   const items = [
-    { quote: "Zum ersten Mal hat mir jemand erklärt, wie mein Scoring überhaupt funktioniert – und was ich konkret ändern kann. Das hat mir keine Bank in zehn Jahren gesagt.", name: "Sara W.", role: "Angestellte" },
-    { quote: "Als Selbstständiger wurde ich überall durchs Raster geschoben. Mit FIAON verstehe ich endlich, wie ich mein Firmenprofil strukturieren muss – und erkenne unseriöse Angebote sofort.", name: "Markus R.", role: "Selbstständiger" },
-    { quote: "Ich hätte fast ein Angebot mit versteckten Gebühren abgeschlossen. Der Angebots-Check hat mich davor bewahrt. Allein das war den Zugang wert.", name: "Julia B.", role: "Studentin" },
+    { quote: "Zum ersten Mal habe ich gesehen, was die SCHUFA über mich gespeichert hat – und zwei Einträge waren längst erledigt. Der Löschantrag war in einer Minute unterwegs.", name: "Sara W.", role: "Angestellte" },
+    { quote: "Als Selbstständiger bin ich überall durchgefallen. Mit der Ratenvereinbarung über FIAON ist die Forderung vom Tisch, und das Geschäftskonto steht.", name: "Markus R.", role: "Selbstständiger" },
+    { quote: "Ich dachte, meine Bonität sei ein Urteil. Sie ist ein Zustand. Den kann man ändern – das hat mir vorher niemand gesagt.", name: "Julia B.", role: "Studentin" },
   ];
   return (
     <section ref={obs.ref} className="relative py-20 sm:py-24">
@@ -1033,8 +1037,8 @@ function TestimonialsSection() {
             <Eyebrow>Kundenstimmen</Eyebrow>
           </div>
           <h2 className={`text-[1.7rem] sm:text-[2.3rem] font-semibold tracking-tight leading-[1.15] transition-all duration-700 delay-100 ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
-            <G>&Uuml;ber 5.000 Nutzer.</G>{" "}
-            <span className="text-gray-400">Ein gemeinsamer Nenner: Klarheit.</span>
+            <G>Klarheit,</G>{" "}
+            <span className="text-gray-400">die bleibt.</span>
           </h2>
         </div>
         <div className="grid md:grid-cols-3 gap-5">
@@ -1071,12 +1075,12 @@ function FaqSection() {
   const obs = useReveal(0.1);
   const [open, setOpen] = useState<number | null>(0);
   const faqs = [
-    { q: "Vergibt FIAON selbst Kreditkarten oder Limits?", a: "Nein. FIAON ist eine reine Software- und E-Learning-Plattform. Wir vergeben keine Karten, keine Kredite und keine Limits – und wir vermitteln auch keine. Wir liefern Analyse, Wissen und Strategie; die Umsetzung und Antragstellung erfolgt eigenständig durch dich, die Entscheidung trifft immer das jeweilige Finanzinstitut." },
-    { q: "Wird eine SCHUFA-Abfrage durchgeführt?", a: "Nein, zu keinem Zeitpunkt. Alle Analysen und Simulationen laufen vollständig isoliert auf Basis deiner eigenen Angaben. Dein realer SCHUFA-Score bleibt unberührt." },
-    { q: "Was ist ARAS AI?", a: "ARAS AI ist das eigens entwickelte KI-Sprachmodell der Schwarzott Group – spezialisiert auf Finanzprofile, Bonitätsmechanik und Marktanalyse im DACH-Raum. Es ist das technologische Herzstück der FIAON-Plattform." },
-    { q: "Verdient FIAON an den Produkten, die mir angezeigt werden?", a: "Nein. Wir setzen keine Affiliate-Links ein und erhalten keinerlei Provisionen, Kick-backs oder erfolgsabhängige Vergütungen von Banken oder Kartenherausgebern. Unser einziges Geschäftsmodell ist deine Abo-Gebühr – deshalb arbeiten wir ausschließlich in deinem Interesse." },
-    { q: "Für wen ist FIAON geeignet?", a: "Für Privatpersonen, die ihre Bonität verstehen und entwickeln wollen – vom Einsteiger bis zum Premium-Portfolio – und für Selbstständige und Unternehmen, die ihre Finanzstruktur professionalisieren möchten." },
-    { q: "Kann ich jederzeit kündigen?", a: "Ja. Alle Setups sind monatlich kündbar, direkt im Dashboard, mit einem Klick." },
+    { q: "Beantragt FIAON die Auskunft für mich?", a: "Ja. Sie geben uns einmal Ihre Daten, FIAON beantragt Ihre Auskunft bei SCHUFA, KSV oder CRIF. Sie müssen kein Formular ausfüllen und nichts hochladen. Innerhalb von 24 Stunden sehen Sie in Ihrem Bereich, was dort steht." },
+    { q: "Was passiert mit meinen Einträgen?", a: "Jeder Eintrag bekommt eine Einschätzung: erledigt, löschbar, berichtigbar oder angreifbar. Für alles, was sich ändern lässt, bereitet FIAON das Schreiben vor. Sie geben es frei – FIAON versendet es und verfolgt die Antwort." },
+    { q: "Bekomme ich eine Kreditkarte?", a: "Über die Vergabe entscheidet immer die Bank. FIAON bringt Ihre Bonität in Ordnung und bereitet Sie vor: Ein Girokonto ist für jeden Kunden erreichbar, eine Kreditkarte mit Rahmen bis 25.000 € bei guter Bonität. Ihr Fahrplan zeigt, wie weit Sie noch entfernt sind." },
+    { q: "Was ist ARAS AI?", a: "ARAS AI ist das Modell hinter FIAON. Es liest Auskünfte und Kontoauszüge, erklärt Einträge in Klartext und bereitet Schreiben vor. Es ersetzt keine Rechts- oder Steuerberatung – jedes Schreiben ist anwaltlich geprüft und geht erst hinaus, wenn Sie es freigeben." },
+    { q: "Wie lange läuft ein Paket?", a: "Zwölf monatliche Raten per SEPA-Lastschrift. Nach der zwölften Rate fragen wir Sie, ob Sie bleiben möchten – keine stille Verlängerung." },
+    { q: "Wo liegen meine Daten?", a: "Verschlüsselt auf Servern in der EU, DSGVO-konform. Sie entscheiden, was Sie hochladen, und können es jederzeit löschen lassen." },
   ];
   return (
     <section id="faq" ref={obs.ref} className="relative py-16 sm:py-20">
@@ -1125,19 +1129,19 @@ function FinalCta({ onCta }: { onCta: () => void }) {
 
       <div className="relative z-10 max-w-[720px] mx-auto px-6 text-center">
         <h2 className={`text-[2rem] sm:text-[2.9rem] font-semibold tracking-tight leading-[1.1] mb-6 transition-all duration-700 ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
-          <G>H&ouml;r auf zu raten.</G><br />
-          <G>Fang an zu verstehen.</G>
+          <G>Ihr Weg beginnt</G><br />
+          <G>mit einer E-Mail-Adresse.</G>
         </h2>
         <p className={`text-[15px] sm:text-[16px] text-gray-500 leading-relaxed max-w-[520px] mx-auto mb-9 transition-all duration-700 delay-150 ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
-          Erstelle jetzt dein Profil und erhalte deine erste ARAS-AI-Analyse &ndash; SCHUFA-neutral, in unter 2 Minuten, monatlich k&uuml;ndbar.
+          Konto in zwei Minuten. Ihre Auskunft innerhalb von 24 Stunden. Ein Mensch, der Sie durch alles Weitere begleitet.
         </p>
         <div className={`transition-all duration-700 delay-300 ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
           <button onClick={onCta} className="fiaon-btn-gradient inline-flex items-center gap-2 px-9 py-4 rounded-full text-[15.5px] font-semibold text-white hover:scale-[1.04] transition-transform">
-            Jetzt kostenlos starten
+            Jetzt starten
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
           </button>
           <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 mt-6 text-[12px] text-gray-400 font-medium">
-            {["SCHUFA-neutral", "EU-Hosting", "DSGVO-konform", "Monatlich kündbar"].map((t, i) => (
+            {["SEPA-Lastschrift", "EU-Hosting", "DSGVO-konform", "Anwaltlich geprüft"].map((t, i) => (
               <span key={t} className="flex items-center gap-4">
                 {i > 0 && <span className="w-px h-3 bg-gray-200 hidden sm:block" />}
                 {t}

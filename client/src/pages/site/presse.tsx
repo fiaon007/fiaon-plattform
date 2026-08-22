@@ -69,7 +69,7 @@ export default function Presse() {
         <Karten items={[
           { tag: "Verbraucher", titel: "Was steht eigentlich in meiner SCHUFA?", text: "Wie Einträge entstehen, warum erledigte Forderungen oft stehen bleiben und was jeder Mensch dagegen tun kann – mit echten, anonymisierten Fällen." },
           { tag: "Markt", titel: "Warum Score-Apps nicht reichen", text: "Eine Zahl ist keine Hilfe. Der Unterschied zwischen Anzeigen und Handeln – und warum die Aktion die schwerste Schicht ist." },
-          { tag: "Technik", titel: "KI, die Kontoauszüge liest", text: "Wie ARAS AI Einnahmen, Fixkosten und Spielraum erkennt, welche Grenzen wir ziehen und warum jedes Schreiben von Menschen freigegeben wird." },
+          { tag: "Technik", titel: "KI, die Kontoauszüge liest", text: "Wie die FIAON-Analyse Einnahmen, Fixkosten und Spielraum erkennt, welche Grenzen wir ziehen und warum jedes Schreiben von Menschen freigegeben wird." },
           { tag: "Gesellschaft", titel: "Kunden werden Mitarbeiter", text: "Wer FIAON erlebt hat, arbeitet von zuhause für FIAON – auf Provision, nach Academy. Ein Vertriebsmodell, das mit seinen Kunden wächst." },
         ]} zwei />
       </Block>

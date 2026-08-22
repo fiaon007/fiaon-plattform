@@ -17,48 +17,48 @@ export default function PremiumFooter() {
                 FIAON
               </span>
             </div>
-            <p className="text-[14px] text-gray-200 leading-relaxed mb-6">
+            <p className="pf-text text-[14px] leading-relaxed mb-6">
               Das Betriebssystem für Bonität: Einsicht, Aktion, Zugang. Für Deutschland, Österreich und die Schweiz.
             </p>
             {/* Trust Badge */}
             <div className="inline-block px-4 py-2 bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg">
-              <span className="text-xs font-medium text-gray-100">Hosted in EU / DSGVO Compliant</span>
+              <span className="pf-text text-xs font-medium">Hosted in EU / DSGVO Compliant</span>
             </div>
           </div>
 
           {/* Column 2: Platform */}
           <div>
-            <h3 className="text-[13px] font-medium text-white uppercase tracking-[.15em] mb-6">
+            <h3 className="pf-kopf text-[13px] font-medium uppercase tracking-[.15em] mb-6">
               PLATTFORM
             </h3>
             <ul className="space-y-4">
               <li>
-                <a href="/" className="text-[14px] text-gray-200 hover:text-white transition-all duration-200 hover:translate-x-1">
+                <a href="/" className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">
                   Startseite
                 </a>
               </li>
               <li>
-                <a href="/privatkunden" className="text-[14px] text-gray-200 hover:text-white transition-all duration-200 hover:translate-x-1">
+                <a href="/privatkunden" className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">
                   Privatkunden Setup
                 </a>
               </li>
               <li>
-                <a href="/bonitaet-service" className="text-[14px] text-gray-200 hover:text-white transition-all duration-200 hover:translate-x-1">
+                <a href="/bonitaet-service" className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">
                   Bonitäts-Auszug (Erklärung)
                 </a>
               </li>
               <li>
-                <a href="/business" className="text-[14px] text-gray-200 hover:text-white transition-all duration-200 hover:translate-x-1">
+                <a href="/business" className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">
                   Business Setup
                 </a>
               </li>
               <li>
-                <a href="/plattform-konzept" className="text-[14px] text-gray-200 hover:text-white transition-all duration-200 hover:translate-x-1">
+                <a href="/plattform-konzept" className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">
                   Preise & Pakete
                 </a>
               </li>
               <li>
-                <a href="/plattform-konzept" className="text-[14px] text-gray-200 hover:text-white transition-all duration-200 hover:translate-x-1">
+                <a href="/plattform-konzept" className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">
                   Kartenkompass (Daten-Insights)
                 </a>
               </li>
@@ -67,7 +67,7 @@ export default function PremiumFooter() {
 
           {/* Column 3: Company */}
           <div>
-            <h3 className="text-[13px] font-medium text-white uppercase tracking-[.15em] mb-6">
+            <h3 className="pf-kopf text-[13px] font-medium uppercase tracking-[.15em] mb-6">
               UNTERNEHMEN
             </h3>
             <ul className="space-y-4">
@@ -82,7 +82,7 @@ export default function PremiumFooter() {
                 ["mailto:support@fiaon.com", "Kontakt & Support"],
               ].map(([href, label]) => (
                 <li key={href}>
-                  <a href={href} className="text-[14px] text-gray-200 hover:text-white transition-all duration-200 hover:translate-x-1">{label}</a>
+                  <a href={href} className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">{label}</a>
                 </li>
               ))}
             </ul>
@@ -90,37 +90,37 @@ export default function PremiumFooter() {
 
           {/* Column 4: Legal */}
           <div>
-            <h3 className="text-[13px] font-medium text-white uppercase tracking-[.15em] mb-6">
+            <h3 className="pf-kopf text-[13px] font-medium uppercase tracking-[.15em] mb-6">
               RECHTLICHES
             </h3>
             <ul className="space-y-4">
               <li>
-                <a href="/impressum" className="text-[14px] text-gray-200 hover:text-white transition-all duration-200 hover:translate-x-1">
+                <a href="/impressum" className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">
                   Impressum
                 </a>
               </li>
               <li>
-                <a href="/privacy" className="text-[14px] text-gray-200 hover:text-white transition-all duration-200 hover:translate-x-1">
+                <a href="/privacy" className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">
                   Datenschutzerklärung
                 </a>
               </li>
               <li>
-                <a href="/agb" className="text-[14px] text-gray-200 hover:text-white transition-all duration-200 hover:translate-x-1">
+                <a href="/agb" className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">
                   Allgemeine Geschäftsbedingungen (AGB)
                 </a>
               </li>
               <li>
-                <a href="/widerrufsbelehrung" className="text-[14px] text-gray-200 hover:text-white transition-all duration-200 hover:translate-x-1">
+                <a href="/widerrufsbelehrung" className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">
                   Widerrufsbelehrung
                 </a>
               </li>
               <li>
-                <a href="/cookie-einstellungen" className="text-[14px] text-gray-200 hover:text-white transition-all duration-200 hover:translate-x-1">
+                <a href="/cookie-einstellungen" className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">
                   Cookie-Einstellungen
                 </a>
               </li>
               <li>
-                <a href="/abo-kuendigen" className="text-[14px] text-rose-300 hover:text-rose-200 transition-all duration-200 hover:translate-x-1">
+                <a href="/abo-kuendigen" className="text-[14px] text-rose-300/80 hover:text-rose-200 transition-all duration-200 hover:translate-x-1">
                   Abo kündigen
                 </a>
               </li>
@@ -130,7 +130,7 @@ export default function PremiumFooter() {
 
         {/* Disclaimer Block */}
         <div className="pt-8 mb-8" style={{ borderTop: "1px solid rgba(255, 255, 255, 0.1)" }}>
-          <p className="text-[12px] text-gray-300 leading-relaxed">
+          <p className="pf-leise text-[12px] leading-relaxed">
             FIAON ist eine Software-as-a-Service (SaaS) und E-Learning-Plattform, bereitgestellt von der FIAON LTD (128 City Road, London, EC1V 2NX, United Kingdom · Companies House No. 17318250). FIAON ist kein Kreditinstitut, kein Finanzdienstleister und erbringt ausdrücklich keine Anlage-, Steuer- oder Rechtsberatung im Sinne des Kreditwesengesetzes (KWG). Ebenso betreiben wir keine Kredit- oder Darlehensvermittlung gemäß der Gewerbeordnung (insbesondere § 34c GewO). Wir vermitteln keine Finanzprodukte, setzen keine Affiliate-Tracking-Links ein und erhalten keinerlei Provisionen, Kick-backs oder erfolgsabhängige Vergütungen von Banken oder Kreditkartenherausgebern. Alle durch die Software generierten Daten, Analysen, Score-Simulationen und strategischen Dashboards dienen ausschließlich der finanziellen Bildung. Die Umsetzung der erlernten Strategien sowie die Antragstellung bei Finanzinstituten erfolgen vollumfänglich und in alleiniger Eigenverantwortung des Nutzers. Die finale Entscheidung über die Vergabe einer Kreditkarte oder die Gewährung eines spezifischen Kreditlimits obliegt zu 100 % dem jeweiligen Finanzinstitut. Es wird ausdrücklich keine Garantie, Haftung oder Gewährleistung für eine erfolgreiche Bewilligung übernommen.
           </p>
         </div>
@@ -138,7 +138,7 @@ export default function PremiumFooter() {
         {/* Final Line */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4" style={{ borderTop: "1px solid rgba(255, 255, 255, 0.05)" }}>
           {/* Copyright */}
-          <span className="text-[12px] text-gray-300">
+          <span className="pf-leise text-[12px]">
             © 2026 FIAON – FIAON LTD, Registered in England and Wales, Companies House No. 17318250 · Director: Justin Schwarzott. Alle Rechte vorbehalten. / All rights reserved.
           </span>
 
@@ -155,7 +155,7 @@ export default function PremiumFooter() {
               Kundenseite soll nicht verraten, wie das Haus innen gebaut ist. */}
           <div className="flex items-center gap-5">
             <a href="/agent"
-               className="group inline-flex items-center gap-1.5 text-[12px] text-gray-300 hover:text-white transition-colors duration-200"
+               className="group inline-flex items-center gap-1.5 pf-leise text-[12px] transition-colors duration-200"
                title="Zugang für FIAON-Mitarbeiter">
               <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor"
                    strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"
@@ -170,13 +170,26 @@ export default function PremiumFooter() {
             {/* System Status */}
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-green-500" style={{ animation: "pulse 2s ease-in-out infinite" }} />
-              <span className="text-[12px] text-gray-300">System Status: All Systems Operational</span>
+              <span className="pf-leise text-[12px]">System Status: All Systems Operational</span>
             </div>
           </div>
         </div>
       </div>
 
       <style>{`
+        /* Fußzeile: kein grelles Weiß. Die Schrift trägt einen sanften, langsam
+           wandernden Verlauf aus Silber und Hellblau — seriös, ruhig, lesbar. */
+        .pf-text, .pf-kopf, .pf-leise {
+          background: linear-gradient(100deg, #c3ccd9 0%, #9fb8e6 30%, #d6dde8 55%, #a9c4ee 80%, #c3ccd9 100%);
+          background-size: 300% 100%;
+          -webkit-background-clip: text; background-clip: text; color: transparent;
+          animation: pfVerlauf 18s linear infinite;
+        }
+        .pf-kopf { opacity: .95; }
+        .pf-leise { opacity: .72; }
+        a.pf-text:hover, a.pf-leise:hover { opacity: 1; background-image: linear-gradient(100deg, #ffffff, #dbeafe); }
+        @keyframes pfVerlauf { from { background-position: 0% 50%; } to { background-position: 300% 50%; } }
+        @media (prefers-reduced-motion: reduce) { .pf-text, .pf-kopf, .pf-leise { animation: none; } }
         @keyframes pulse {
           0%, 100% {
             opacity: 1;

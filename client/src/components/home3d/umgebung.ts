@@ -51,11 +51,19 @@ function abgerundet(ctx: CanvasRenderingContext2D, x: number, y: number, w: numb
 }
 
 /** Vorderseite der Karte, 1024×646 (Kreditkartenformat 85,6 × 54 mm). */
+/** Eckenradius der Karte in Pixeln der 1024er-Textur — echte Karten: 3,18 mm auf 85,6 mm ≈ 3,7 %; etwas runder wirkt auf dem Bildschirm realistischer. */
+const KARTEN_RADIUS = 56;
+
 export function kartenTextur(variante: "blau" | "tinte" = "blau"): THREE.Texture {
   const w = 1024, h = 646;
   const c = document.createElement("canvas");
   c.width = w; c.height = h;
   const ctx = c.getContext("2d")!;
+  // Transparente Ecken: Die Fläche wird als abgerundetes Rechteck beschnitten,
+  // damit die Textur nicht als eckiges Brett über den runden Körper hinausragt.
+  ctx.clearRect(0, 0, w, h);
+  abgerundet(ctx, 0, 0, w, h, KARTEN_RADIUS);
+  ctx.clip();
 
   const grund = ctx.createLinearGradient(0, 0, w, h);
   if (variante === "blau") {
@@ -148,6 +156,12 @@ export function kartenTextur(variante: "blau" | "tinte" = "blau"): THREE.Texture
   ctx.font = "600 36px Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
   ctx.fillText("25.000 €", w - 96, 590);
 
+  // feine helle Kante innen — die Karte wirkt gefasst statt flach
+  ctx.strokeStyle = "rgba(255,255,255,0.22)";
+  ctx.lineWidth = 3;
+  abgerundet(ctx, 1.5, 1.5, w - 3, h - 3, KARTEN_RADIUS - 1);
+  ctx.stroke();
+
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 4;
@@ -160,6 +174,9 @@ export function kartenRueckseite(variante: "blau" | "tinte" = "blau"): THREE.Tex
   const c = document.createElement("canvas");
   c.width = w; c.height = h;
   const ctx = c.getContext("2d")!;
+  ctx.clearRect(0, 0, w, h);
+  abgerundet(ctx, 0, 0, w, h, KARTEN_RADIUS);
+  ctx.clip();
   ctx.fillStyle = variante === "blau" ? "#1e40af" : "#0f172a";
   ctx.fillRect(0, 0, w, h);
   ctx.fillStyle = "#0b1628";
@@ -179,26 +196,32 @@ export function kartenRueckseite(variante: "blau" | "tinte" = "blau"): THREE.Tex
 export function karteBauen(breite: number, variante: "blau" | "tinte" = "blau"): THREE.Mesh {
   const hoehe = breite * (54 / 85.6);
   const dicke = breite * 0.012;
-  const geo = new RoundedBoxGeometry(breite, hoehe, dicke, 4, breite * 0.06);
+  // Echte Karte: Ecken ≈ 3,7 % der Breite, hier etwas mehr; viele Segmente, damit die Rundung glatt ist.
+  const geo = new RoundedBoxGeometry(breite, hoehe, dicke, 8, breite * 0.055);
   const kante = new THREE.MeshPhysicalMaterial({
     color: variante === "blau" ? "#1e40af" : "#0f172a",
-    metalness: 0.85,
-    roughness: 0.3,
+    metalness: 0.6,
+    roughness: 0.35,
     clearcoat: 1,
-    clearcoatRoughness: 0.15,
+    clearcoatRoughness: 0.12,
   });
+  // Die Flächen tragen die Textur mit transparenten Ecken — Plastik mit Klarlack, kein Metallbrett.
   const vorne = new THREE.MeshPhysicalMaterial({
     map: kartenTextur(variante),
-    metalness: 0.55,
-    roughness: 0.28,
+    transparent: true,
+    alphaTest: 0.02,
+    metalness: 0.35,
+    roughness: 0.3,
     clearcoat: 1,
-    clearcoatRoughness: 0.1,
-    envMapIntensity: 1.1,
+    clearcoatRoughness: 0.08,
+    envMapIntensity: 1.15,
   });
   const hinten = new THREE.MeshPhysicalMaterial({
     map: kartenRueckseite(variante),
-    metalness: 0.5,
-    roughness: 0.35,
+    transparent: true,
+    alphaTest: 0.02,
+    metalness: 0.3,
+    roughness: 0.38,
     clearcoat: 0.8,
     clearcoatRoughness: 0.2,
   });

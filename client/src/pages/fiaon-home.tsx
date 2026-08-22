@@ -253,7 +253,7 @@ function Hero({ onCta }: { onCta: () => void }) {
             </h1>
 
             <p style={rise(2)} className="text-[15px] sm:text-[16.5px] text-gray-500 leading-relaxed max-w-[560px] mx-auto lg:mx-0 mb-7">
-              FIAON zeigt Ihnen Ihre Bonit&auml;t, repariert sie mit Ihnen &ndash; und &ouml;ffnet dann die T&uuml;r zu Konto, Karte und Finanzierung. Im Kern arbeitet <strong className="font-medium text-gray-800">ARAS AI</strong>, unser Modell f&uuml;r Bonit&auml;t im DACH-Raum: Es liest Ihre Auskunft und Ihren Kontoauszug und erkl&auml;rt jeden Eintrag in Klartext.
+              FIAON zeigt Ihnen Ihre Bonit&auml;t, repariert sie mit Ihnen &ndash; und &ouml;ffnet dann die T&uuml;r zu Konto, Karte und Finanzierung. Die <strong className="font-medium text-gray-800">FIAON-Analyse</strong> liest Ihre Auskunft und Ihren Kontoauszug und erkl&auml;rt jeden Eintrag in Klartext.
             </p>
 
             <ul style={rise(3)} className="flex flex-col items-center lg:items-start gap-2.5 mb-8">
@@ -437,7 +437,7 @@ function ProblemSection() {
 }
 
 /* ════════════════════════════════
-   SEKTION 4 — ARAS AI (Herzstück)
+   SEKTION 4 — SO FUNKTIONIERT ES (Herzstück)
    3D: Gyroskop-Kern (ArasCore)
    ════════════════════════════════ */
 function ArasSection() {
@@ -478,7 +478,7 @@ function ArasSection() {
               <span className="text-gray-900">Ein Weg.</span>
             </h2>
             <p className={`text-[15px] text-gray-500 leading-relaxed mb-9 transition-all duration-700 delay-200 ${obs.v ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
-              Score-Apps zeigen Ihnen eine Zahl. FIAON geht drei Schritte weiter: Wir zeigen, was dahintersteht, wir &auml;ndern es mit Ihnen &ndash; und wir &ouml;ffnen danach die T&uuml;r. Im Kern arbeitet <strong className="font-medium text-gray-800">ARAS AI</strong>, unser Modell f&uuml;r Bonit&auml;t im DACH-Raum.
+              Score-Apps zeigen Ihnen eine Zahl. FIAON geht drei Schritte weiter: Wir zeigen, was dahintersteht, wir &auml;ndern es mit Ihnen &ndash; und wir &ouml;ffnen danach die T&uuml;r. Im Kern arbeitet die <strong className="font-medium text-gray-800">FIAON-Analyse</strong>, gebaut f&uuml;r Bonit&auml;t im DACH-Raum.
             </p>
 
             <div className="space-y-4 mb-8">
@@ -500,7 +500,7 @@ function ArasSection() {
             </div>
 
             <p className={`text-[12px] text-gray-400 leading-relaxed border-l-2 border-blue-200 pl-4 mb-8 transition-all duration-700 delay-700 ${obs.v ? "opacity-100" : "opacity-0"}`}>
-              ARAS AI liefert Analysen und vorbereitete Schreiben, keine Rechts- oder Steuerberatung. Jedes Schreiben geht erst hinaus, wenn Sie es freigeben.
+              FIAON liefert Analysen und vorbereitete Schreiben, keine Rechts- oder Steuerberatung. Jedes Schreiben geht erst hinaus, wenn Sie es freigeben.
             </p>
 
             <a href="/was-ist-fiaon" className={`inline-flex items-center gap-2 text-[14.5px] font-medium text-[#2563eb] hover:text-[#1d4ed8] transition-all duration-700 delay-700 group ${obs.v ? "opacity-100" : "opacity-0"}`}>
@@ -659,7 +659,7 @@ function PlatformSection() {
   const obs = useReveal(0.06);
   const modules = [
     { tag: "Die Auskunft", title: "Bonitätsauskunft", text: "FIAON beantragt Ihre Auskunft bei SCHUFA, KSV oder CRIF – Sie füllen kein Formular aus. Innerhalb von 24 Stunden wissen Sie, was dort steht.", icon: <><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/><path d="M8 11h6M11 8v6"/></> },
-    { tag: "Die Analyse", title: "Kontoauszug-Analyse", text: "Laden Sie Ihren Kontoauszug hoch. ARAS AI erkennt Einnahmen, Fixkosten, Abos und Risiken – und zeigt Ihren monatlichen Spielraum.", icon: <><path d="M3 3v18h18"/><path d="M7 13l3-3 4 4 6-7"/><circle cx="20" cy="7" r="1.5" fill="currentColor"/></> },
+    { tag: "Die Analyse", title: "Kontoauszug-Analyse", text: "Laden Sie Ihren Kontoauszug hoch. FIAON erkennt Einnahmen, Fixkosten, Abos und Risiken – und zeigt Ihren monatlichen Spielraum.", icon: <><path d="M3 3v18h18"/><path d="M7 13l3-3 4 4 6-7"/><circle cx="20" cy="7" r="1.5" fill="currentColor"/></> },
     { tag: "Die Aktion", title: "Löschanträge und Widersprüche", text: "Jeder Eintrag bekommt eine Einschätzung: erledigt, löschbar, berichtigbar, angreifbar. Das Schreiben ist vorbereitet – Sie geben frei, FIAON versendet.", icon: <><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></> },
     { tag: "Die Einigung", title: "Ratenvereinbarungen", text: "Offene Forderungen werden zu Plänen: FIAON schlägt Raten vor, die zu Ihrem Spielraum passen, und verfolgt die Antwort des Gläubigers.", icon: <><path d="M4 20h16"/><path d="M6 20V12M11 20V8M16 20V4"/></> },
     { tag: "Der Zugang", title: "Konto und Karte", text: "Girokonto für jeden Kunden, Kreditkarte bis 25.000 € bei guter Bonität. Ihr Fahrplan zeigt, wie weit Sie noch davon entfernt sind.", icon: <><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M6 15h4"/></> },
@@ -720,10 +720,10 @@ function DualRings() {
         <div className="absolute inset-0 rounded-full border-[3px] border-[#0f172a]/50" style={{ animation: "fiaonRing3dB 16s linear infinite", boxShadow: "0 0 30px rgba(15,23,42,.14), inset 0 0 20px rgba(15,23,42,.08)" }} />
         <div className="absolute inset-[14%] rounded-full border-[1.5px] border-[#334155]/40" style={{ animation: "fiaonRing3dB 22s linear infinite reverse" }} />
       </div>
-      {/* ARAS-Nukleus in der Schnittmenge */}
+      {/* FIAON-Kern in der Schnittmenge */}
       <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10">
         <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#2563eb] to-[#60a5fa] flex items-center justify-center" style={{ boxShadow: "0 0 40px rgba(37,99,235,.5), 0 12px 30px rgba(37,99,235,.3)", animation: "fiaonPulse 4s ease-in-out infinite" }}>
-          <span className="text-[9px] font-bold text-white tracking-widest">ARAS</span>
+          <span className="text-[9px] font-semibold text-white tracking-widest">FIAON</span>
         </div>
       </div>
     </div>
@@ -1078,7 +1078,7 @@ function FaqSection() {
     { q: "Beantragt FIAON die Auskunft für mich?", a: "Ja. Sie geben uns einmal Ihre Daten, FIAON beantragt Ihre Auskunft bei SCHUFA, KSV oder CRIF. Sie müssen kein Formular ausfüllen und nichts hochladen. Innerhalb von 24 Stunden sehen Sie in Ihrem Bereich, was dort steht." },
     { q: "Was passiert mit meinen Einträgen?", a: "Jeder Eintrag bekommt eine Einschätzung: erledigt, löschbar, berichtigbar oder angreifbar. Für alles, was sich ändern lässt, bereitet FIAON das Schreiben vor. Sie geben es frei – FIAON versendet es und verfolgt die Antwort." },
     { q: "Bekomme ich eine Kreditkarte?", a: "Über die Vergabe entscheidet immer die Bank. FIAON bringt Ihre Bonität in Ordnung und bereitet Sie vor: Ein Girokonto ist für jeden Kunden erreichbar, eine Kreditkarte mit Rahmen bis 25.000 € bei guter Bonität. Ihr Fahrplan zeigt, wie weit Sie noch entfernt sind." },
-    { q: "Was ist ARAS AI?", a: "ARAS AI ist das Modell hinter FIAON. Es liest Auskünfte und Kontoauszüge, erklärt Einträge in Klartext und bereitet Schreiben vor. Es ersetzt keine Rechts- oder Steuerberatung – jedes Schreiben ist anwaltlich geprüft und geht erst hinaus, wenn Sie es freigeben." },
+    { q: "Wie arbeitet die FIAON-Analyse?", a: "Sie liest Auskünfte und Kontoauszüge, erklärt Einträge in Klartext und bereitet Schreiben vor. Sie ersetzt keine Rechts- oder Steuerberatung – jedes Schreiben ist anwaltlich geprüft und geht erst hinaus, wenn Sie es freigeben." },
     { q: "Wie lange läuft ein Paket?", a: "Zwölf monatliche Raten per SEPA-Lastschrift. Nach der zwölften Rate fragen wir Sie, ob Sie bleiben möchten – keine stille Verlängerung." },
     { q: "Wo liegen meine Daten?", a: "Verschlüsselt auf Servern in der EU, DSGVO-konform. Sie entscheiden, was Sie hochladen, und können es jederzeit löschen lassen." },
   ];

@@ -489,6 +489,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonDemo = await import('./routes/fiaon-demo');
   app.use('/api/fiaon', fiaonDemo.default);
 
+  // 📍 Adress-Vorschläge für den Antrag (Photon/OSM über unseren Server, 23.08.2026).
+  const fiaonAdresse = await import('./routes/fiaon-adresse');
+  app.use('/api/fiaon', fiaonAdresse.default);
+
   // 🧭 MEIN BEREICH — der neue Kundenbereich (E-013). Hinter signiertem Cookie.
   const fiaonKundeBereich = await import('./routes/fiaon-kunde-bereich');
   app.use('/api/fiaon', fiaonKundeBereich.default);

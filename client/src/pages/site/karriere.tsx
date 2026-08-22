@@ -12,6 +12,7 @@ export default function Karriere() {
   return (
     <Dunkel seite="karriere" titel="Karriere · Werden Sie Teil des Teams" beschreibung="Arbeiten Sie von zuhause für FIAON: Vertrieb, Startgespräche, Betreuung. Kunden, Quereinsteiger und Vertriebsprofis willkommen – Academy zuerst, dann echte Kunden.">
       <Hero
+        bild="/kino/karriere.jpg"
         pille="Karriere · Homeoffice"
         titel={<>Arbeiten Sie von zuhause – für das, was Ihnen <span className="dk-verlauf">selbst geholfen hat.</span></>}
         lead="Die besten Menschen für FIAON sind die, die FIAON erlebt haben. Wer seine eigene Auskunft gesehen, einen Eintrag gelöscht und die erste Karte bekommen hat, kann das anderen erklären. Deshalb kann jeder Kunde Mitarbeiter werden – von zuhause, per Telefon und Plattform."

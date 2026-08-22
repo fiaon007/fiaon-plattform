@@ -12,6 +12,7 @@ export default function Investoren() {
   return (
     <Dunkel seite="investoren" titel="Für Investoren" beschreibung="FIAON besetzt den Platz zwischen Auskunftei und Bank: Einsicht, Aktion, Zugang für 100 Millionen Menschen im DACH-Raum. Datenraum auf Anfrage.">
       <Hero
+        bild="/kino/investoren.jpg"
         pille="Für Investoren"
         titel={<>Der größte unbesetzte Platz im Finanzleben von <span className="dk-verlauf">100 Millionen Menschen.</span></>}
         lead="Score-Apps zeigen eine Zahl. Banken entscheiden. Dazwischen steht niemand. FIAON besetzt diesen Platz: Wir zeigen die Bonität, reparieren sie mit dem Kunden – und öffnen dann die Tür zu Konto, Karte und Finanzierung."

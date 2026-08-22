@@ -1,3 +1,4 @@
+import { passwortPasst } from "./lib/fiaon-kunde-session";
 /**
  * ═══════════════════════════════════════════════════════════════════════════
  * KUNDEN-LOGIN — DIE ENTSCHEIDUNG (reine Logik, keine Datenbank, keine Seiteneffekte)
@@ -146,9 +147,11 @@ export function decideLogin(family: any[], password: string): LoginVerdict {
   const rows = family ?? [];
 
   // ── Schritt 1: Passwort prüfen. Es darf in JEDER Zeile der Familie liegen.
+  // Seit 22.08.2026: Hash (scrypt$…) ODER Altbestand im Klartext — der Altbestand
+  // wird beim nächsten erfolgreichen Login nachgehasht (fiaon-antrag.ts).
   const matched = rows.find((r) => {
     const stored = storedPasswordOf(r);
-    return stored !== null && stored === password;
+    return stored !== null && passwortPasst(stored, password);
   });
 
   if (!matched) {

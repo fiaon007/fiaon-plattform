@@ -2845,6 +2845,21 @@ router.post("/login", async (req, res) => {
     const account = verdict.account;
     logLoginAttempt({ email: normalizedEmail, code: "LOGIN-OK", reason: "Anmeldung erfolgreich", ref: account.ref, ip, userAgent });
 
+    // ── KUNDENSITZUNG + PASSWORTHYGIENE (22.08.2026) ───────────────────────
+    // Signiertes Cookie für die neuen Kunden-Endpunkte. Und: Lag das Passwort
+    // noch im Klartext, wird es JETZT nachgehasht — der Kunde hat es gerade
+    // richtig eingegeben, besser wird die Gelegenheit nicht.
+    try {
+      const { kundenSitzungSetzen, istGehasht, passwortHashen } = await import("../lib/fiaon-kunde-session");
+      kundenSitzungSetzen(res, account.ref);
+      if (!istGehasht(account.password) && typeof account.password === "string" && account.password) {
+        await sqlPool`UPDATE fiaon_applications SET password = ${passwortHashen(password)}, updated_at = NOW()
+                      WHERE ref = ${account.ref} AND password = ${account.password}`;
+      }
+    } catch (e) {
+      console.error("[FIAON-LOGIN] Sitzung/Nachhashen:", e);
+    }
+
     // Return success with application data
     res.json({
       ok: true,

@@ -205,3 +205,33 @@
 .dk-licht .dk-zitat + .wer{color:#64748b}
 .dk-licht .dk-schritt .n{box-shadow:0 10px 24px rgba(37,99,235,.25)}
 .dk-licht .dk-lead.hervor{color:#0f172a}
+
+/* ── AntragStart (Schritt 0): Pakete in voller Breite ──────────────────── */
+.antrag-start{position:relative;z-index:1}
+.as-hero{padding-top:150px}
+.as-preise{display:grid;gap:18px;grid-template-columns:repeat(4,minmax(0,1fr));margin-top:48px;text-align:left}
+@media(max-width:1100px){.as-preise{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:620px){.as-preise{grid-template-columns:1fr}}
+.as-paket{position:relative;display:flex;flex-direction:column;width:100%;height:100%;padding:16px 16px 20px;border-radius:26px;text-align:left;cursor:pointer;
+  background:rgba(255,255,255,.9);border:1px solid rgba(15,23,42,.08);box-shadow:0 2px 4px rgba(15,23,42,.03),0 22px 54px rgba(37,99,235,.1),inset 0 1px 0 #fff;
+  font-family:inherit;color:#0f172a;transition:transform .4s cubic-bezier(.22,1,.36,1),box-shadow .3s,border-color .3s}
+.as-paket:hover{transform:translateY(-6px);border-color:rgba(37,99,235,.35);box-shadow:0 30px 70px rgba(37,99,235,.18)}
+.as-paket:focus-visible{outline:2px solid #2563eb;outline-offset:3px}
+.as-paket[data-top="1"]{border-color:rgba(37,99,235,.45);box-shadow:0 28px 70px rgba(37,99,235,.2)}
+.as-paket .band{position:absolute;top:-13px;left:50%;transform:translateX(-50%);padding:5px 14px;border-radius:999px;background:linear-gradient(135deg,#2563eb,#60a5fa);color:#fff;font-size:11px;letter-spacing:.08em;text-transform:uppercase;box-shadow:0 8px 20px rgba(37,99,235,.3)}
+.as-karte{position:relative;aspect-ratio:1.586/1;border-radius:16px;overflow:hidden;color:#fff;box-shadow:0 14px 30px -10px rgba(15,23,42,.45),inset 0 1px 0 rgba(255,255,255,.3);transform:perspective(800px) rotateX(4deg);transition:transform .4s cubic-bezier(.22,1,.36,1)}
+.as-paket:hover .as-karte{transform:perspective(800px) rotateX(0deg) translateY(-2px)}
+.as-karte::after{content:"";position:absolute;inset:-40% -60%;background:linear-gradient(115deg,transparent 40%,rgba(255,255,255,.28) 50%,transparent 60%);transform:translateX(-60%);animation:wsGlanz 7s ease-in-out infinite}
+@keyframes wsGlanz{0%,55%{transform:translateX(-60%)}85%,100%{transform:translateX(60%)}}
+.as-karte .chip{position:absolute;left:16px;top:16px;width:34px;height:25px;border-radius:6px;background:linear-gradient(135deg,#e9c872,#f7e3a2 45%,#c9a227);box-shadow:0 2px 5px rgba(0,0,0,.25)}
+.as-karte .wort{position:absolute;right:16px;top:14px;font-size:12px;letter-spacing:.16em;opacity:.85}
+.as-karte .limit{position:absolute;left:16px;bottom:30px;font-size:22px;font-weight:400;letter-spacing:-.02em}
+.as-karte .inhaber{position:absolute;left:16px;bottom:12px;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;opacity:.7}
+.as-paket .name{margin-top:18px;font-size:16px;font-weight:500;color:#0f172a}
+.as-paket .sub{font-size:12.5px;color:#64748b;margin-top:2px}
+.as-paket .betrag{margin-top:14px;font-size:30px;font-weight:300;letter-spacing:-.03em;line-height:1}
+.as-paket .betrag small{font-size:12.5px;color:#64748b;margin-left:6px}
+.as-paket .dk-liste{margin-top:16px;flex:1}
+.as-paket .dk-liste li{font-size:13px;color:#475569}
+.as-paket .dk-knopf{margin-top:20px;width:100%;pointer-events:none}
+.as-abschluss{padding-bottom:140px}

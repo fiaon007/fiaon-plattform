@@ -99,7 +99,7 @@ export default function ArasCore({ className = "" }: { className?: string }) {
     const nucleus = new THREE.Group();
     group.add(nucleus);
     const videoEl = document.createElement("video");
-    videoEl.src = "/kino/hirn.mp4"; videoEl.muted = true; videoEl.loop = true; videoEl.playsInline = true; videoEl.preload = "metadata";
+    videoEl.src = "/kino/kugel.mp4"; videoEl.muted = true; videoEl.loop = true; videoEl.playsInline = true; videoEl.preload = "metadata";
     videoEl.setAttribute("playsinline", ""); videoEl.setAttribute("muted", "");
     const videoTex = new THREE.VideoTexture(videoEl);
     videoTex.colorSpace = THREE.SRGBColorSpace;

@@ -111,19 +111,23 @@ export function Team({ kompakt = false }: { kompakt?: boolean }) {
   );
 }
 
-/** Die Mitarbeiterinnen und Mitarbeiter — Porträt, vollständiger Name, Bereich. */
+/** Die Mitarbeiterinnen und Mitarbeiter — präsentiert wie die Gesellschafter: großes Porträt, Name, Bereich, ein Satz. */
+const BEREICH_SATZ: Record<string, string> = {
+  "Vertrieb": "Führt das erste Gespräch: erklärt die Auskunft, findet das passende Paket, legt den ersten Schritt fest.",
+  "Onboarding": "Begleitet neue Kunden vom Startgespräch an – Zahlung, Auskunft, Fahrplan, fester Ansprechpartner.",
+  "Forderungsmanagement": "Begleitet Raten und Fristen, findet Lösungen mit Kunden und Gläubigern, bevor etwas platzt.",
+};
 export function Mitarbeiter() {
   return (
-    <div className="team-leute">
+    <div className="dk-raster" style={{ marginTop: 48 }}>
       {MITARBEITER.map((m, i) => (
-        <Auf key={m.kuerzel} verzoegerung={i * 60}>
-          <div className="dk-glas ruhig team-person">
-            <Portrait kuerzel={m.kuerzel} name={m.name} />
-            <div>
-              <span className="tag" style={{ marginBottom: 4 }}>{m.rolle}</span>
-              <p className="team-name">{m.name}</p>
-            </div>
-          </div>
+        <Auf key={m.kuerzel} verzoegerung={i * 70}>
+          <Glas ruhig style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+            <Portrait kuerzel={m.kuerzel} name={m.name} gross />
+            <span className="tag" style={{ marginTop: 18 }}>{m.rolle}</span>
+            <h3 className="dk-h3">{m.name}</h3>
+            <p className="dk-text" style={{ marginTop: 10 }}>{BEREICH_SATZ[m.rolle] || ""}</p>
+          </Glas>
         </Auf>
       ))}
     </div>

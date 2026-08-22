@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
+import KarrierePopup from "@/components/site/KarrierePopup";
 
 interface GlassNavProps {
   activePage?: "startseite" | "privatkunden" | "business" | "was-ist-fiaon" | "plattform-konzept" | "login" | "investoren" | "karriere" | "presse" | "partner" | "datenraum" | "team";
@@ -364,6 +365,7 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
           </div>
         </div>
       )}
+      <KarrierePopup />
     </>
   );
 }

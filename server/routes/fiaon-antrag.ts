@@ -839,12 +839,35 @@ router.post("/payment-order", async (req, res) => {
     if (kind === "schufa") {
       // SCHUFA/Bonitätsauskunft: eigene Bestellzeile, unabhängig vom ABO
       ref = `FIAON-SCHUFA-${Date.now().toString(36).toUpperCase()}-${randomPaymentCode(4)}`;
+      // ── ALLE ANGABEN KOMMEN AN (22.08.2026, Justins Kundentest) ───────────
+      // Das Formular fragte Adresse, Geburtsdatum und Telefon ab — und schickte
+      // nur E-Mail und Name. Neun Felder gingen verloren. Jetzt werden sie
+      // gespeichert; und kommt die Bestellung aus dem Kundenbereich (kundeRef
+      // + Sitzungs-Cookie), hängt sie an derselben Person wie das Paket.
+      const b = req.body || {};
+      let personId: number | null = null;
+      let vorlage: any = null;
+      if (b.kundeRef) {
+        const { kundeAusCookie } = await import("../lib/fiaon-kunde-session");
+        if (kundeAusCookie(req) === String(b.kundeRef)) {
+          const [v] = (await sqlPool`SELECT person_id, first_name, last_name, email, street, zip, city, country, birthdate, phone, phone_country_code
+            FROM fiaon_applications WHERE ref = ${String(b.kundeRef)} AND merged_into IS NULL LIMIT 1`) as any[];
+          if (v) { personId = v.person_id ?? null; vorlage = v; }
+        }
+      }
+      const geburt = typeof b.birthDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(b.birthDate) ? b.birthDate : (vorlage?.birthdate ?? null);
       // `payment_reference` wird hier NICHT mitgegeben und trotzdem gesetzt: Der
       // Trigger aus db/migrations/037 füllt sie. Genau das ist der Punkt — eine
       // neue Anlagestelle kann den Verwendungszweck nicht mehr vergessen.
       await sqlPool`
-        INSERT INTO fiaon_applications (ref, type, status, first_name, last_name, email, pack_name, created_at, updated_at)
-        VALUES (${ref}, 'schufa', 'submitted', ${firstName ?? null}, ${lastName ?? null}, ${email ?? null}, 'Bonitätsauskunft inkl. Handlungsplan', NOW(), NOW())
+        INSERT INTO fiaon_applications (ref, type, status, first_name, last_name, email, pack_name,
+                                        street, zip, city, country, birthdate, phone, person_id, created_at, updated_at)
+        VALUES (${ref}, 'schufa', 'submitted',
+                ${firstName || vorlage?.first_name || null}, ${lastName || vorlage?.last_name || null}, ${email || vorlage?.email || null},
+                'Bonitätsauskunft inkl. Handlungsplan',
+                ${b.street || vorlage?.street || null}, ${b.plz || b.zip || vorlage?.zip || null}, ${b.city || vorlage?.city || null},
+                ${b.country || vorlage?.country || null}, ${geburt}, ${b.phone || vorlage?.phone || null}, ${personId},
+                NOW(), NOW())
       `;
     }
 
@@ -2851,7 +2874,7 @@ router.post("/login", async (req, res) => {
     // richtig eingegeben, besser wird die Gelegenheit nicht.
     try {
       const { kundenSitzungSetzen, istGehasht, passwortHashen } = await import("../lib/fiaon-kunde-session");
-      kundenSitzungSetzen(res, account.ref);
+      kundenSitzungSetzen(res, account.ref, { bleiben: req.body?.bleiben !== false });
       if (!istGehasht(account.password) && typeof account.password === "string" && account.password) {
         await sqlPool`UPDATE fiaon_applications SET password = ${passwortHashen(password)}, updated_at = NOW()
                       WHERE ref = ${account.ref} AND password = ${account.password}`;
@@ -3116,11 +3139,35 @@ router.post("/upload-kyc", (req, res, next) => {
     }
 
     console.log(`[FIAON-KYC] Documents uploaded for ${ref}, kycStatus=${newKycStatus}`);
-    
+
+    // ══════════════════════════════════════════════════════════════════════
+    // EIN UPLOAD IST EIN VORGANG, KEIN ABLEGEN (22.08.2026, Justins Kundentest)
+    //
+    // Justin lud als Kunde seinen Kontoauszug hoch — und nichts passierte:
+    // keine Bestätigung mit Frist, kein Eintrag in der Akte, keine Aufgabe im
+    // Haus. Die Datei lag in der Datenbank, und niemand wusste es. Jetzt:
+    // Akteneintrag (der Betreuer sieht es), Aufgabe an die Verwaltung (die
+    // prüft), und die Antwort nennt die Frist.
+    // ══════════════════════════════════════════════════════════════════════
+    const was = [files.bankStatement ? "Kontoauszug" : null, files.idCard ? "Ausweis" : null, files.schufaDoc ? "eigene Bonitätsauskunft" : null]
+      .filter(Boolean).join(", ");
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
+      VALUES (${ref}, ${currentApp.person_id ?? null}, NULL, 'System', 'system',
+              ${`Kunde hat hochgeladen: ${was}. Prüfung durch die Verwaltung steht aus.`}, NOW())
+    `.catch(() => {});
+    await sqlPool`
+      INSERT INTO fiaon_vermerke (art, ref, text, sicht, fuer_betreiber, dringend, status, autor_art, autor_name, faellig_am)
+      VALUES ('aufgabe', ${ref},
+              ${`Unterlagen eingegangen (${was}) — bitte prüfen und freigeben (Verwaltung → Kunden → Prüfung). Der Kunde wurde informiert, dass die Prüfung bis zu zwei Werktage dauert.`},
+              'betreiber', TRUE, FALSE, 'offen', 'system', 'System',
+              ((NOW() AT TIME ZONE 'Europe/Berlin')::date + 2))
+    `.catch((e) => console.error("[FIAON-KYC] Aufgabe nicht angelegt:", e?.message));
+
     const hasSchufa = !!(files.schufaDoc || currentApp.schufa_pdf);
     res.json({ 
       ok: true, 
-      message: "Dokumente erfolgreich hochgeladen",
+      message: "Eingegangen. Wir prüfen Ihre Unterlagen innerhalb von zwei Werktagen und melden uns.",
       hasBankStatement: !!hasBankStatement,
       hasIdCard: !!hasIdCard,
       hasSchufa,

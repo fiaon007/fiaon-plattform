@@ -1,4 +1,7 @@
 import { useState, useEffect } from "react";
+import { EmailVorschlaege } from "@/components/EmailVorschlaege";
+import { landErkennen } from "@/lib/land-erkennen";
+import { appViewport } from "@/lib/app-viewport";
 import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
 
@@ -48,7 +51,7 @@ function Field({
           onChange={e => onChange(e.target.value)}
           placeholder={placeholder}
           disabled={disabled}
-          className={`w-full px-4 py-3 rounded-xl text-[14.5px] border outline-none transition-all
+          className={`w-full px-4 py-3 rounded-xl text-base border outline-none transition-all
             ${error ? "border-red-300 bg-red-50/40 focus:ring-2 focus:ring-red-100" : disabled ? "border-gray-100 bg-gray-50 text-gray-400 cursor-not-allowed" : "border-gray-200 bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100"}
           `}
         />
@@ -90,6 +93,46 @@ export default function BonitaetAntragPage() {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [payRedirecting, setPayRedirecting] = useState(false);
+  // ══ VORBELEGUNG AUS DEM KUNDENBEREICH (22.08.2026, Justins Kundentest) ══
+  // „Wenn man ‚Auskunft beantragen' klickt, sollen die Daten des Kunden
+  // direkt vorgegeben sein — nur noch Rechnung bzw. Zahlungsdetails." Kommt
+  // der Kunde mit ?ref= und gültigem Cookie, holt die Seite seinen Bereich,
+  // füllt alles aus und springt direkt zur Bestätigung. Ohne Sitzung bleibt
+  // das Formular, wie es ist — nur mit erkanntem Land.
+  const [kundeRef, setKundeRef] = useState<string | null>(null);
+  const [vorbelegt, setVorbelegt] = useState(false);
+  const [land, setLand] = useState<string | null>(null);
+  useEffect(() => appViewport(), []);
+  useEffect(() => {
+    let weg = false;
+    const refAusUrl = new URLSearchParams(window.location.search).get("ref");
+    let ref = refAusUrl;
+    if (!ref) { try { ref = JSON.parse(sessionStorage.getItem("fiaon_user") || localStorage.getItem("fiaon_user") || "{}")?.ref || null; } catch { ref = null; } }
+    void (async () => {
+      if (ref) {
+        const r = await fetch(`/api/fiaon/kunde/${encodeURIComponent(ref)}/bereich`, { credentials: "include" }).catch(() => null);
+        const j = await r?.json().catch(() => null);
+        if (!weg && r?.ok && j?.ok && j.kunde) {
+          const k = j.kunde;
+          setKundeRef(String(k.ref));
+          setFormData((prev) => ({
+            ...prev,
+            fullName: [k.vorname, k.nachname].filter(Boolean).join(" ") || prev.fullName,
+            birthDate: k.geburtsdatum ? String(k.geburtsdatum).slice(0, 10) : prev.birthDate,
+            street: k.strasse || prev.street, plz: k.plz || prev.plz, city: k.ort || prev.city,
+            phone: k.telefon || prev.phone, email: k.email || prev.email,
+            country: ["DE", "AT"].includes(String(k.land || "").toUpperCase()) ? String(k.land).toUpperCase() : prev.country,
+          }));
+          setVorbelegt(true);
+          setStep("success");
+          return;
+        }
+      }
+      const l = await landErkennen();
+      if (!weg && l) { setLand(l); if (l === "AT") setFormData((prev) => ({ ...prev, country: "AT" })); }
+    })();
+    return () => { weg = true; };
+  }, []);
 
   const handleProceedToPayment = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -98,13 +141,18 @@ export default function BonitaetAntragPage() {
     try {
       const nameParts = formData.fullName.trim().split(/\s+/);
       const res = await fetch("/api/fiaon/payment-order", {
-        method: "POST",
+        method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           kind: "schufa",
           email: formData.email,
           firstName: nameParts[0] || "",
           lastName: nameParts.slice(1).join(" ") || "",
+          // Alle Angaben — nicht nur E-Mail und Name (vorher gingen neun Felder verloren).
+          birthDate: formData.birthDate, birthPlace: formData.birthPlace,
+          street: formData.street, plz: formData.plz, city: formData.city,
+          phone: formData.phone, country: formData.country,
+          kundeRef,
         }),
       });
       const json = await res.json().catch(() => null);
@@ -329,9 +377,12 @@ export default function BonitaetAntragPage() {
                     <div className="grid sm:grid-cols-2 gap-5">
                       <Field label="Telefonnummer *" placeholder="+49 170 12345678" type="tel" value={formData.phone}
                         onChange={v => set("phone", v)} error={errors.phone} />
-                      <Field label="E-Mail-Adresse *" placeholder="max@mustermann.de" type="email" value={formData.email}
-                        onChange={v => set("email", v)} error={errors.email}
-                        hint="Deine Auskunft wird an diese Adresse gesendet." />
+                      <div>
+                        <Field label="E-Mail-Adresse *" placeholder={formData.country === "AT" ? "max@gmx.at" : "max@mustermann.de"} type="email" value={formData.email}
+                          onChange={v => set("email", v)} error={errors.email}
+                          hint="Deine Auskunft wird an diese Adresse gesendet." />
+                        <EmailVorschlaege wert={formData.email} land={land || formData.country} onWahl={(v) => set("email", v)} />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -391,6 +442,21 @@ export default function BonitaetAntragPage() {
 
           {/* ══ SUCCESS ══ */}
           {step === "success" && (
+            <>
+            {vorbelegt && (
+              <div className="bg-white rounded-3xl p-6 sm:p-7 mb-4 border border-gray-100" style={{ boxShadow: "0 8px 32px rgba(37,99,235,0.08)", animation: "baFadeUp .4s ease-out" }}>
+                <p className="text-[11px] font-bold uppercase tracking-[.16em] text-[#1d4ed8] mb-2">Ihre Angaben — aus Ihrem Konto übernommen</p>
+                <dl className="grid sm:grid-cols-2 gap-x-6 gap-y-2 text-[14px]">
+                  {[["Name", formData.fullName], ["Geburtsdatum", formData.birthDate ? formData.birthDate.split("-").reverse().join(".") : "—"],
+                    ["Anschrift", [formData.street, [formData.plz, formData.city].filter(Boolean).join(" ")].filter(Boolean).join(", ") || "—"],
+                    ["Land", formData.country === "AT" ? "Österreich" : "Deutschland"], ["Telefon", formData.phone || "—"], ["E-Mail", formData.email || "—"]].map(([k, v]) => (
+                    <div key={k} className="flex flex-col"><dt className="text-[11.5px] text-gray-400">{k}</dt><dd className="font-semibold text-gray-900">{v}</dd></div>
+                  ))}
+                </dl>
+                <button type="button" onClick={() => { setVorbelegt(false); setStep("form"); }}
+                        className="mt-4 text-[13px] font-semibold text-[#1d4ed8]">Angaben ändern</button>
+              </div>
+            )}
             <div style={{ animation: "baSuccess .65s cubic-bezier(.22,1,.36,1)" }}>
               {/* Hero success card */}
               <div className="bg-white rounded-3xl p-10 sm:p-12 text-center border border-gray-100 mb-5"
@@ -458,6 +524,7 @@ export default function BonitaetAntragPage() {
                 </div>
               </div>
             </div>
+            </>
           )}
 
         </div>

@@ -55,12 +55,18 @@ export function kundeAusCookie(req: Request): string | null {
   return ref;
 }
 
-export function kundenSitzungSetzen(res: Response, ref: string): void {
+/**
+ * Sitzung setzen. `bleiben` (Vorgabe: ja) = 30 Tage, gleitend verlängert bei
+ * jedem geprüften Aufruf (siehe `requireKunde`). `bleiben: false` = nur bis
+ * der Browser geschlossen wird. Justin (22.08.2026): „man muss eingeloggt
+ * bleiben, sodass man jederzeit auf die Plattform wechseln kann."
+ */
+export function kundenSitzungSetzen(res: Response, ref: string, opts: { bleiben?: boolean } = {}): void {
   res.cookie(COOKIE, signieren(ref), {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
-    maxAge: TAGE * 24 * 60 * 60 * 1000,
+    ...(opts.bleiben === false ? {} : { maxAge: TAGE * 24 * 60 * 60 * 1000 }),
     path: "/",
   });
 }
@@ -86,6 +92,8 @@ export function requireKunde(req: KundeRequest, res: Response, next: NextFunctio
     return;
   }
   req.kundeRef = ref;
+  // Gleitende Verlängerung: Wer aktiv ist, bleibt angemeldet.
+  kundenSitzungSetzen(res, ref);
   next();
 }
 

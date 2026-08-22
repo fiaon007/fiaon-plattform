@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { appViewport } from "@/lib/app-viewport";
 import { useRoute } from "wouter";
 import { QRCodeSVG, QRCodeCanvas } from "qrcode.react";
 import GlassNav from "@/components/GlassNav";
@@ -150,18 +151,34 @@ function TerminAngebot({ paymentReference }: { paymentReference: string }) {
     return () => { abgebrochen = true; };
   }, [paymentReference]);
 
-  if (!token) return null;
+  // ── WEG 1 IST EIN KNOPF (22.08.2026, Justins Kundentest) ─────────────────
+  // Die optisch dominante Kachel war ein totes <div>: kein Link, kein Ziel.
+  // Jetzt scrollt sie zu den Zahlungsdaten — und sagt, was der Kunde davon
+  // hat: „Konto sofort aktiv nach Zahlungseingang". Und sie steht auch dann,
+  // wenn die Termin-API keinen Token liefert; nur Weg 2 hängt am Token.
+  const zuDenZahlungsdaten = () => {
+    const ziel = document.getElementById("zahlungsdaten");
+    ziel?.scrollIntoView({ behavior: "smooth", block: "start" });
+    ziel?.classList.add("zahlung-ziel-blitz");
+    setTimeout(() => ziel?.classList.remove("zahlung-ziel-blitz"), 1400);
+  };
 
   return (
     <div className="mb-6 grid sm:grid-cols-2 gap-3">
-      <div className="p-4 rounded-2xl border-2 border-[#1d4ed8] bg-blue-50/40">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-[#1d4ed8] mb-1">Weg 1</p>
-        <p className="text-[14px] font-bold text-slate-900 leading-tight">Jetzt überweisen</p>
+      <button type="button" onClick={zuDenZahlungsdaten}
+              className="text-left p-4 rounded-2xl border-2 border-[#1d4ed8] bg-blue-50/40 active:scale-[.99] transition-transform"
+              style={{ boxShadow: "0 10px 30px -14px rgba(29,78,216,.45)" }}>
+        <p className="text-[10px] font-bold uppercase tracking-wider text-[#1d4ed8] mb-1">Weg 1 · empfohlen</p>
+        <p className="text-[14px] font-bold text-slate-900 leading-tight">Jetzt überweisen — Konto sofort aktiv</p>
         <p className="text-[12.5px] text-slate-600 mt-1.5 leading-relaxed">
-          Die Zahlungsdaten mit deinem Verwendungszweck stehen direkt unten.
+          Nach Zahlungseingang wird dein Konto freigeschaltet. Tippe hier, die Zahlungsdaten mit deinem Verwendungszweck springen dir entgegen.
         </p>
-      </div>
-      <div className="p-4 rounded-2xl border border-slate-200 bg-white">
+        <span className="inline-flex items-center justify-center w-full mt-3 rounded-xl text-[13px] font-bold text-white"
+              style={{ minHeight: 44, background: "linear-gradient(180deg,#2563eb,#1d4ed8)" }}>
+          Zu den Zahlungsdaten
+        </span>
+      </button>
+      {token && <div className="p-4 rounded-2xl border border-slate-200 bg-white">
         <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Weg 2</p>
         <p className="text-[14px] font-bold text-slate-900 leading-tight">Wunschtermin buchen</p>
         <p className="text-[12.5px] text-slate-600 mt-1.5 leading-relaxed">
@@ -172,7 +189,7 @@ function TerminAngebot({ paymentReference }: { paymentReference: string }) {
            style={{ minHeight: 44 }}>
           Termin wählen
         </a>
-      </div>
+      </div>}
     </div>
   );
 }
@@ -206,6 +223,8 @@ export function ZahlungDankePage() {
 // Dezent animierter Gradient-Shimmer für Überschriften (edel, langsam).
 // prefers-reduced-motion → Animation aus, statischer Gradient bleibt.
 const ZAHLUNG_STYLES = `
+  .zahlung-ziel-blitz { box-shadow: 0 0 0 4px rgba(37,99,235,.25), 0 18px 40px -18px rgba(37,99,235,.5) !important; transition: box-shadow .3s; }
+
   .zahlung-shimmer-heading{
     background:linear-gradient(110deg,#0f172a 0%,#1d4ed8 30%,#60a5fa 50%,#1d4ed8 70%,#0f172a 100%);
     background-size:220% auto;
@@ -248,6 +267,7 @@ export default function ZahlungPage() {
 
   // QR-Speichern
   const [qrSaved, setQrSaved] = useState<null | "shared" | "downloaded">(null);
+  useEffect(() => appViewport(), []);
   const exportWrapRef = useRef<HTMLDivElement>(null);
 
   // Tracking-Button
@@ -452,7 +472,7 @@ export default function ZahlungPage() {
             </div>
 
             {/* 4. HAUPT-BAUSTEIN: QR-Code (GiroCode) + "QR-Code speichern" */}
-            <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-6 sm:p-8 mb-5 text-center">
+            <div id="zahlungsdaten" className="rounded-2xl border border-slate-200 bg-slate-50/60 p-6 sm:p-8 mb-5 text-center" style={{ scrollMarginTop: 96 }}>
               {/* Immer heller Hintergrund hinter dem QR (Scanbarkeit, auch Darkmode) */}
               <div className="inline-block p-4 rounded-2xl border border-slate-200 shadow-sm mb-4" style={{ background: "#ffffff" }}>
                 <QRCodeSVG value={qrPayload} size={190} level="M" marginSize={2} bgColor="#ffffff" fgColor="#0f172a" />
@@ -501,7 +521,7 @@ export default function ZahlungPage() {
             </div>
 
             {/* 5. Bankdaten einzeln (Alternativ-Weg) */}
-            <div className="space-y-2.5 mb-5">
+            <div id="bankdaten" className="space-y-2.5 mb-5" style={{ scrollMarginTop: 96 }}>
               <CopyField label="Empfänger" display={order.bank.recipient} copyValue={order.bank.recipient} />
               <CopyField label="IBAN" display={order.bank.ibanDisplay} copyValue={order.bank.iban} />
               <CopyField label="BIC" display={order.bank.bic} copyValue={order.bank.bic} />

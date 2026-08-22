@@ -5,6 +5,8 @@ import { appViewport } from "@/lib/app-viewport";
 import { paketNameFuerDaten } from "@shared/fiaon-paketname";
 import { zustandFuerSchritt } from "@shared/fiaon-antrag-schritte";
 import GlassNav from "@/components/GlassNav";
+import "@/styles/dunkel.css";
+import "@/styles/antrag-dunkel.css";
 import PremiumFooter from "@/components/PremiumFooter";
 import { checkPhone } from "@/lib/phone";
 
@@ -485,7 +487,7 @@ function Progress({ step }: { step: number; total?: number }) {
           const nr = i + 1;
           return (
             <div key={name} className="flex-1">
-              <div className="h-1.5 rounded-full relative overflow-hidden" style={{ background: nr <= sichtbar ? "rgba(37,99,235,.15)" : "rgba(0,0,0,.04)" }}>
+              <div className="h-1.5 rounded-full relative overflow-hidden" style={{ background: nr <= sichtbar ? "rgba(37,99,235,.25)" : "rgba(255,255,255,.08)" }}>
                 {nr < sichtbar && <div className="absolute inset-0 rounded-full bg-[#2563eb]" />}
                 {nr === sichtbar && <div className="absolute inset-0 rounded-full bg-gradient-to-r from-[#2563eb] to-[#288DFA]" style={{ animation: "shimmer 2s ease-in-out infinite", backgroundSize: "200% 100%" }} />}
               </div>
@@ -954,12 +956,9 @@ export default function AntragPage() {
   const sideCard = <LiveCard bg={pack?.bg || PACKS[1].bg} name={cardName} lim={(pack?.lim || 5000).toLocaleString("de-DE")} />;
 
   return (
-    <div className="min-h-screen text-gray-900 antialiased" style={{ fontFamily: "'Inter',-apple-system,sans-serif", background: "linear-gradient(180deg, #f0f4ff 0%, #f8faff 30%, #ffffff 60%)" }}>
-      {/* Ambient background orbs */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <div className="absolute top-0 left-1/4 w-[600px] h-[600px] rounded-full opacity-[0.04]" style={{ background: "radial-gradient(circle, #2563eb, transparent 70%)" }} />
-        <div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] rounded-full opacity-[0.03]" style={{ background: "radial-gradient(circle, #2563eb, transparent 70%)" }} />
-      </div>
+    <div className="antrag-dk dk min-h-screen antialiased" style={{ fontFamily: "'Inter',-apple-system,sans-serif" }}>
+      {/* Nachtblau mit Lichtnebel — dieselbe Bühne wie die Website */}
+      <div className="dk-grund" aria-hidden="true"><span className="dk-nebel a" /><span className="dk-nebel b" /><span className="dk-nebel c" /></div>
 
       <GlassNav activePage="privatkunden" />
 
@@ -979,7 +978,7 @@ export default function AntragPage() {
         {/* === STEP 0: Paketauswahl === */}
         {step === 0 && (
           <div className="animate-[fadeInUp_.4s_ease] relative px-0 sm:px-6" style={{
-            background: "linear-gradient(180deg, #f0f4ff 0%, #f5f8ff 30%, #ffffff 70%, #f8faff 100%)",
+            background: "transparent",
             maxWidth: "100%",
             width: "100%",
             boxSizing: "border-box"

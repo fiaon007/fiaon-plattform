@@ -99,11 +99,16 @@ function MarkeUhr({ size = 16 }: { size?: number }) {
   );
 }
 
+// Fünf Stufen, wie MAHNSTUFEN in server/routes/fiaon-abo.ts (0, 3, 7, 14, 21
+// Tage). Hier endete die Anzeige bei 3 mit „Versand beendet" — und danach
+// kamen noch zwei Mahnungen. Die letzte Stufe ist die letzte Stufe.
 const STUFE_TON: Record<number, { text: string; farbe: string }> = {
   0: { text: "noch nicht gemahnt", farbe: "#64748b" },
   1: { text: "Mahnstufe 1", farbe: "#1d4ed8" },
-  2: { text: "Mahnstufe 2", farbe: "#b45309" },
-  3: { text: "Mahnstufe 3 — Versand beendet", farbe: "#b91c1c" },
+  2: { text: "Mahnstufe 2", farbe: "#1d4ed8" },
+  3: { text: "Mahnstufe 3", farbe: "#b45309" },
+  4: { text: "Mahnstufe 4", farbe: "#b45309" },
+  5: { text: "Mahnstufe 5 — Versand beendet", farbe: "#b91c1c" },
 };
 
 export default function AgentInkasso() {
@@ -307,7 +312,7 @@ export default function AgentInkasso() {
 
         {reiter === "liste" && daten?.nurMeine && (
           <p className="mb-3 text-[11.5px] leading-relaxed" style={{ color: "var(--fi-text-still)" }}>
-            Du siehst deine zugeteilten Fälle. Weiter oben ist keine Rate mehr, die niemandem gehört.
+            Du siehst deine zugeteilten Fälle zuerst — und darunter alles, was noch niemandem gehört.
           </p>
         )}
 
@@ -337,7 +342,7 @@ export default function AgentInkasso() {
           // Die Karte zeigt die DRINGENDSTE Rate. Alles Weitere liegt darunter
           // und wird aufgeklappt — sichtbar, aber nicht im Weg.
           const f = m.dringendste;
-          const stufe = STUFE_TON[Math.min(3, Number(f.mahnstufe))] ?? STUFE_TON[0];
+          const stufe = STUFE_TON[Math.min(5, Number(f.mahnstufe))] ?? STUFE_TON[0];
           const schluessel = m.personId != null ? `p:${m.personId}` : `ref:${f.ref}`;
           const offenKarte = aufgeklappt.includes(schluessel);
           return (

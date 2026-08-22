@@ -482,6 +482,19 @@ function Inhalt() {
     setLaedt(false);
   }, [filter, sort, suche, nurPerson]);
 
+  // Das Softphone meldet ein gebuchtes Ergebnis (`fiaon-ergebnis`): Die Karte
+  // bekommt ihre Marke, die Zähler laden leise nach — ohne dass die Reihenfolge
+  // springt (die bleibt bis „neu ordnen", siehe oben).
+  useEffect(() => {
+    const h = (e: Event) => {
+      const d = (e as CustomEvent).detail || {};
+      if (d.personId) setErledigt((v) => new Set(v).add(Number(d.personId)));
+      void laden(true, true);
+    };
+    window.addEventListener("fiaon-ergebnis", h);
+    return () => window.removeEventListener("fiaon-ergebnis", h);
+  }, [laden]);
+
   useEffect(() => {
     const t = setTimeout(() => void laden(), suche ? 280 : 0);
     return () => clearTimeout(t);

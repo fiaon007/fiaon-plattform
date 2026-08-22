@@ -10,7 +10,7 @@ import PremiumFooter from "@/components/PremiumFooter";
 import NeuralSphere from "@/components/home3d/NeuralSphere";
 import "@/styles/dunkel.css";
 
-type Seite = "investoren" | "karriere" | "presse" | "partner" | "datenraum";
+type Seite = "startseite" | "investoren" | "karriere" | "presse" | "partner" | "datenraum";
 
 export function Dunkel({ seite, titel, beschreibung, children }: { seite: Seite; titel: string; beschreibung: string; children: ReactNode }) {
   useEffect(() => {
@@ -59,10 +59,13 @@ function Pfeil() {
 }
 
 /** Hero wie auf /plattform-konzept: mittig, Pille, große Überschrift, Lead, Knöpfe — optional mit 3D-Szene daneben oder darunter. */
-export function Hero({ pille, titel, lead, knoepfe, szene }: { pille: string; titel: ReactNode; lead: ReactNode; knoepfe?: ReactNode; szene?: ReactNode }) {
+export function Hero({ pille, titel, lead, knoepfe, szene, bild }: { pille: string; titel: ReactNode; lead: ReactNode; knoepfe?: ReactNode; szene?: ReactNode; bild?: string }) {
+  // Ein Bild hinter dem Hero (Higgsfield, 2k) — gedimmt, mit Schleier ins Nachtblau, damit der Text vorne bleibt.
+  const hinter = bild ? <div className="dk-hero-bild" aria-hidden="true"><img src={bild} alt="" decoding="async" fetchPriority="high" /><div className="schleier" /></div> : null;
   if (szene) {
     return (
       <section className="dk-hero">
+        {hinter}
         <div className="dk-rahmen dk-zweispaltig">
           <Auf>
             <span className="dk-pille">{pille}</span>
@@ -77,6 +80,7 @@ export function Hero({ pille, titel, lead, knoepfe, szene }: { pille: string; ti
   }
   return (
     <section className="dk-hero">
+      {hinter}
       <div className="dk-rahmen schmal mitte">
         <Auf>
           <span className="dk-pille">{pille}</span>

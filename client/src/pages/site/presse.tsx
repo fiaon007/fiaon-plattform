@@ -7,6 +7,7 @@ export default function Presse() {
   return (
     <Dunkel seite="presse" titel="Presse" beschreibung="FIAON in den Medien: Kurzprofil, Fakten, Zahlen zum Zitieren, Bildmaterial und Ansprechpartner für Journalistinnen und Journalisten.">
       <Hero
+        bild="/kino/presse.jpg"
         pille="Presse"
         titel={<>FIAON in den <span className="dk-verlauf">Medien.</span></>}
         lead="Das Betriebssystem für Bonität: FIAON zeigt Menschen in Deutschland, Österreich und der Schweiz, was Auskunfteien über sie wissen – repariert es mit ihnen und öffnet danach die Tür zu Konto, Karte und Finanzierung. Hier finden Sie alles für Ihre Recherche."

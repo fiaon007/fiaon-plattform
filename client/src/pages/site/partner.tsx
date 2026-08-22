@@ -6,6 +6,7 @@ export default function Partner() {
   return (
     <Dunkel seite="partner" titel="Geschäftspartner" beschreibung="Banken, Kartenherausgeber, Auskunfteien, Inkasso und Vermittler: FIAON bringt Kunden mit reparierter, dokumentierter Bonität – und die Einwilligung gleich mit.">
       <Hero
+        bild="/kino/partner.jpg"
         pille="Geschäftspartner"
         titel={<>Kunden, deren Bonität repariert ist, sind die <span className="dk-verlauf">besten Kunden.</span></>}
         lead="FIAON bringt Ihnen keinen Antrag, sondern eine Akte: bereinigte Einträge, dokumentierter Spielraum aus dem Kontoauszug, eine Zahlungshistorie aus zwölf Raten – und die Einwilligung des Kunden, Ihnen genau das zu zeigen."

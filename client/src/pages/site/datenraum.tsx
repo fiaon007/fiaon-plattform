@@ -6,6 +6,7 @@ export default function Datenraum() {
   return (
     <Dunkel seite="datenraum" titel="Datenraum · Due Diligence" beschreibung="FIAON wird geführt, als würde morgen verkauft: Entscheidungsregister, Logbuch, Kennzahlen, Verträge und Technik-Dokumentation – auf Anfrage unter NDA.">
       <Hero
+        bild="/kino/datenraum.jpg"
         pille="Due Diligence"
         titel={<>Geführt, als würde <span className="dk-verlauf">morgen verkauft.</span></>}
         lead="Seit dem ersten Tag hält FIAON jede Entscheidung, jede Änderung und jede Zahl fest – nicht für den Verkauf, sondern weil ein Unternehmen, das jederzeit geprüft werden kann, besser geführt wird. Der Datenraum ist die Folge davon."

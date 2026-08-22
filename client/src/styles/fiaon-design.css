@@ -697,21 +697,7 @@ button.fi-knopf-primaer *, a.fi-knopf-primaer * { color: inherit !important; }
 }
 
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   EIN DESIGNSYSTEM, NICHT ZWEI (E-022, Scheibe 3 — 22.08.2026)
-   Der Kundenbereich (mein-bereich.css) setzt Outfit für Überschriften und
-   JetBrains Mono für Zahlen. Das Agentenportal lud beide Schriften seit je
-   (index.css) und wies sie nie zu. Zwei Zeilen — und beide Seiten sprechen
-   dieselbe Sprache.
-   ═══════════════════════════════════════════════════════════════════════════ */
-.agent-scope h1, .agent-scope h2, .agent-scope h3, .agent-scope h4 {
-  font-family: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  letter-spacing: -.02em;
-  text-wrap: balance;
-}
-.agent-scope .fi-zahl, .agent-scope .fi-ak-mono, .agent-scope .font-mono {
-  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-}
+/* Schrift bleibt Inter (Justin, 22.08.2026: Schrift und CI wie gehabt). */
 
 /* Eine waagerechte Rolle (Filter-Chips, Reiter) sagt am rechten Rand, dass
    es weitergeht: Der Inhalt läuft in einen Verlauf aus, statt hart

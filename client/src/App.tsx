@@ -127,7 +127,6 @@ const AdminAuszahlungenPage = lazy(() => import("@/pages/admin-auszahlungen"));
 const AdminAufgabenPage = lazy(() => import("@/pages/admin-aufgaben"));
 const AdminTodoPage = lazy(() => import("@/pages/admin-todo"));
 // Die neue Website (22.08.2026): Startseite + fünf Seiten für Investoren, Presse, Datenraum, Partner, Karriere.
-const SiteStartseite = lazy(() => import("@/pages/site/startseite"));
 const SiteInvestoren = lazy(() => import("@/pages/site/investoren"));
 const SitePresse = lazy(() => import("@/pages/site/presse"));
 const SiteDatenraum = lazy(() => import("@/pages/site/datenraum"));
@@ -168,8 +167,7 @@ function Router() {
   return (
     <Suspense fallback={<SeiteLaedt />}>
     <Switch>
-      <Route path="/" component={SiteStartseite} />
-      <Route path="/home-alt" component={FiaonHome} />
+      <Route path="/" component={FiaonHome} />
       <Route path="/investoren" component={SiteInvestoren} />
       <Route path="/presse" component={SitePresse} />
       <Route path="/datenraum" component={SiteDatenraum} />

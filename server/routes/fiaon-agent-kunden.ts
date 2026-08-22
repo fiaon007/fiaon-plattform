@@ -52,6 +52,7 @@ import { FIAON_BANK_DETAILS as BANK } from "./fiaon-antrag";
 import { zahlungstext } from "../lib/fiaon-verwendungszweck";
 import { aufbereiten } from "../lib/fiaon-buchungen";
 import { karte, KARTE_SQL } from "./fiaon-agent-start";
+import { ensureKartenSpalten } from "../lib/fiaon-kartenstatus";
 
 const router = Router();
 
@@ -87,6 +88,7 @@ const ESKALATION_TAGE = 7;
  * nicht, wenn später jemand die Prüfung zu vergessen versucht.
  */
 async function meinePerson(personId: number, agentId: number) {
+  await ensureKartenSpalten();
   // ══════════════════════════════════════════════════════════════════════════
   // DIESELBEN FELDER WIE DIE LISTE (22.08.2026, E-022 / K9)
   //

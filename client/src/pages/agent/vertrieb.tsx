@@ -7,7 +7,7 @@ import { Reveal } from "./motion";
 import { Skelett, eur, useReduzierteBewegung, useToast } from "@/lib/fiaon-ui";
 import { ZeichenSenden, ZeichenTelefon, ZeichenWinkel } from "@/lib/fiaon-zeichen";
 import { VertriebZusage, useZusage } from "./vertrieb-zusage";
-import { VertriebZahlungen, VertriebDokumente, VertriebZugang, LageTafel, ServiceZahlen, PipelineZahlen, BuchenDialog } from "./vertrieb-service";
+import { VertriebZahlungen, VertriebDokumente, VertriebZugang, LageTafel, ServiceZahlen, PipelineZahlen, BuchenDialog, Bestandswache } from "./vertrieb-service";
 import DublettenArbeitsplatz from "@/components/admin/DublettenArbeitsplatz";
 import { Fehlerrahmen } from "@/components/agent/Fehlerrahmen";
 import { statusAusTierGrund } from "@shared/fiaon-kundenstatus";
@@ -120,7 +120,7 @@ function Inhalt() {
   // Seit 08.08.2026 fünf Reiter: „Dubletten" kam hinzu, weil die
   // Vertriebsleitung telefoniert und damit die Einzige ist, die „Axel Conrad
   // zweimal" wirklich beurteilen kann.
-  const [bereich, setBereich] = useState<"kunden" | "zahlungen" | "dokumente" | "zugang" | "dubletten">("kunden");
+  const [bereich, setBereich] = useState<"kunden" | "zahlungen" | "dokumente" | "zugang" | "dubletten" | "bestandswache">("kunden");
   const [service, setService] = useState<any>(null);
   const [pipeline, setPipeline] = useState<any>(null);
   const [filter, setFilter] = useState("alle");
@@ -313,7 +313,11 @@ function Inhalt() {
                     ? "Offene Zahlungen prüfen und buchen. Jede Buchung braucht einen Nachweis und schaltet das Konto sofort frei."
                     : bereich === "dokumente"
                       ? "Wo bei bezahlten Kunden noch Unterlagen fehlen — damit du am Telefon sagen kannst, was gebraucht wird."
-                      : "Warum ein Kunde nicht in sein Konto kommt, und was konkret hilft."}
+                      : bereich === "dubletten"
+                        ? "Derselbe Mensch mehrfach im Bestand — prüfen und zusammenführen."
+                        : bereich === "bestandswache"
+                          ? "Was liegen bleibt und Geld kostet: bezahlte Kunden ohne Startgespräch, zahlende Kunden ohne Betreuer."
+                          : "Warum ein Kunde nicht in sein Konto kommt, und was konkret hilft."}
               </p>
             </div>
             {bereich === "kunden" && (
@@ -363,6 +367,7 @@ function Inhalt() {
                 ["dokumente", "Unterlagen", service?.dokumenteFehlen ?? 0],
                 ["zugang", "Zugang", service?.zugangOffen ?? 0],
                 ["dubletten", "Dubletten", service?.dubletten ?? 0],
+                ["bestandswache", "Bestandswache", (zahlen?.bezahltOhneOnboarding ?? 0) + (zahlen?.bezahltOhneBetreuer ?? 0)],
               ] as const).map(([k, label, zahl]) => {
                 const an = bereich === k;
                 return (
@@ -385,7 +390,11 @@ function Inhalt() {
           </div>
         </Reveal>
 
-        {bereich !== "kunden" && bereich !== "dubletten" && (
+        {bereich === "bestandswache" && (
+          <Bestandswache zahlen={zahlen} onAkte={(personId) => void akteOeffnen(personId)} />
+        )}
+
+        {bereich !== "kunden" && bereich !== "dubletten" && bereich !== "bestandswache" && (
           <div className="mt-5">
             <ServiceZahlen zahlen={service} aktiv={bereich} aufReiter={(r) => setBereich(r as any)} />
             <PipelineZahlen pipeline={pipeline} />
@@ -1109,7 +1118,7 @@ function Akte({ daten, onSchliessen, onGeaendert }: { daten: any; onSchliessen: 
           </div>
 
           <div className="px-5 py-4">
-            {reiter === "lage" && <LageTafel personId={Number(daten.personId)} />}
+            {reiter === "lage" && <LageTafel personId={Number(daten.personId)} karteSetzbar />}
 
             {/* ══════════════════════════════════════════════════════════════
                 ZUGANG

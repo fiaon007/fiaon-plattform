@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { Phone, Check, Clock, X, StickyNote, CalendarClock, ExternalLink } from "lucide-react";
 import { AgentShell, Card, Badge, FlashMessage, api, fmtDT, fmtTime, inputCls, btnPrimary, btnGhost } from "./shared";
 import { Reveal } from "./motion";
+import { anrufStarten } from "@/components/Softphone";
 
 // ============================================================================
 // /agent/kalender (J1) — Tages-/Wochenansicht der eigenen Rückruf-Termine
@@ -61,8 +62,16 @@ function apptTime(a: Appointment): Date {
   return new Date(a.scheduled_at || a.promised_date || 0);
 }
 
+/**
+ * Tagesgrenze in Europe/Berlin — `toISOString()` ist UTC (AGENTS.md). Ein
+ * Termin am 22.08. um 01:30 fiel damit auf den 21.08., und in der Sommerzeit
+ * rutschte alles ab 22:00 in den Folgetag: „Überfällig", „Heute" und die
+ * ganze Wochenspalte waren nachts falsch.
+ */
 function dayKey(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  const t = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit" })
+    .formatToParts(d).reduce<Record<string, string>>((o, p) => { o[p.type] = p.value; return o; }, {});
+  return `${t.year}-${t.month}-${t.day}`;
 }
 
 const WEEKDAYS = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
@@ -90,14 +99,20 @@ function KalenderContent() {
   // AGENTS.md, dreimal in diesem Repo gelernt.
   const [uebergabe, setUebergabe] = useState<
     { id: number; name: string; agentId: string; grund: string } | null>(null);
-  const [kollegen, setKollegen] = useState<{ id: number; name: string; rolle: string }[]>([]);
+  const [kollegen, setKollegen] = useState<{ id: number; name: string; rolle: string; zustaendig?: boolean }[]>([]);
+  const [uebergabeSoll, setUebergabeSoll] = useState<string | null>(null);
 
+  // Mit `?termin=`: Der Server sortiert die Zuständigen nach oben und
+  // markiert sie — ohne die Kennung war es wieder die alphabetische Liste,
+  // und die Empfehlungslogik lief ins Leere (C12-e).
+  const uebergabeId = uebergabe?.id ?? null;
   useEffect(() => {
-    if (!uebergabe || kollegen.length > 0) return;
-    void api("/agent/termine/uebernehmer").then((r) => {
-      if (r.ok) setKollegen(r.json?.kollegen ?? []);
+    if (!uebergabeId) return;
+    setKollegen([]);
+    void api(`/agent/termine/uebernehmer?termin=${uebergabeId}`).then((r) => {
+      if (r.ok) { setKollegen(r.json?.kollegen ?? []); setUebergabeSoll(r.json?.soll ?? null); }
     });
-  }, [uebergabe, kollegen.length]);
+  }, [uebergabeId]);
 
   const flash = (m: string) => { setMessage(m); setTimeout(() => setMessage(null), 4000); };
 
@@ -306,10 +321,12 @@ function KalenderContent() {
           </div>
           <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
             {phone && (
-              <a href={`tel:${phone}`} onClick={(e) => e.stopPropagation()} className={`${btnPrimary} px-3 py-2 inline-flex items-center gap-1.5`}>
+              <button type="button"
+                      onClick={(e) => { e.stopPropagation(); anrufStarten(phone, a.person_id ?? null, apptName(a)); }}
+                      className={`${btnPrimary} px-3 py-2 inline-flex items-center gap-1.5`}>
                 <Phone size={13} strokeWidth={2} />
                 <span className="hidden sm:inline">Anrufen</span>
-              </a>
+              </button>
             )}
             <button
               type="button"
@@ -406,7 +423,9 @@ function KalenderContent() {
                     className={inputCls} style={{ maxWidth: 300 }}>
               <option value="">Wer übernimmt?</option>
               {kollegen.map((k) => (
-                <option key={k.id} value={k.id}>{k.name} — {k.rolle}</option>
+                <option key={k.id} value={k.id}>
+                  {k.name} — {k.rolle}{k.zustaendig ? " · zuständig" : uebergabeSoll ? " · Vertretung" : ""}
+                </option>
               ))}
             </select>
             <input type="text" value={uebergabe.grund}
@@ -531,9 +550,11 @@ function KalenderContent() {
               )}
               <div className="flex flex-wrap items-center gap-2 pt-1">
                 {apptPhone(detail) && (
-                  <a href={`tel:${apptPhone(detail)}`} className={`${btnPrimary} px-4 py-2.5 inline-flex items-center gap-1.5`}>
+                  <button type="button"
+                          onClick={() => anrufStarten(apptPhone(detail)!, detail.person_id ?? null, apptName(detail))}
+                          className={`${btnPrimary} px-4 py-2.5 inline-flex items-center gap-1.5`}>
                     <Phone size={14} strokeWidth={2} /> Anrufen
-                  </a>
+                  </button>
                 )}
                 <Link href={`/agent/kunden?ref=${encodeURIComponent(detail.ref)}`}
                   className={`${btnGhost} px-4 py-2.5 inline-flex items-center gap-1.5`}>

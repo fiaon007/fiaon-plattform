@@ -69,14 +69,17 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
               scrolled ? "shadow-lg" : ""
             }`}
           >
-            <div className="relative z-10 h-[72px] px-5 flex items-center justify-between">
+            {/* Drei Zonen in einer Zeile: Marke · Links (nehmen den Platz dazwischen) · Knöpfe.
+                Die Links sind NICHT mehr absolut zentriert — so können sie bei schmalen
+                Fenstern nicht über Marke oder Knöpfe laufen. Unter 1024px: Hamburger. */}
+            <div className="relative z-10 h-[72px] px-5 flex items-center justify-between gap-4">
               {/* Logo */}
               <a href="/" className="flex items-center shrink-0">
                 <span className="text-xl font-bold tracking-tight fiaon-gradient-text-animated">FIAON</span>
               </a>
 
-              {/* Desktop: centered links */}
-              <div className="hidden md:flex items-center gap-8 absolute left-1/2 -translate-x-1/2">
+              {/* Desktop: Links in der Mitte */}
+              <div className="hidden lg:flex items-center justify-center gap-6 xl:gap-8 flex-1 min-w-0 whitespace-nowrap">
                 {pages.map((p) => (
                   <div
                     key={p.key}
@@ -140,7 +143,7 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
               </div>
 
               {/* Desktop: CTA buttons */}
-              <div className="hidden md:flex items-center gap-3">
+              <div className="hidden lg:flex items-center gap-3 shrink-0 whitespace-nowrap">
                 <button
                   onClick={handleAntragClick}
                   className="fiaon-btn-outline-animated px-5 py-2 text-[13px] font-medium relative overflow-hidden group"
@@ -161,8 +164,9 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
 
               {/* Mobile hamburger */}
               <button
-                className="md:hidden p-1"
+                className="lg:hidden p-1"
                 onClick={() => setMob(!mob)}
+                aria-label={mob ? "Menü schließen" : "Menü öffnen"}
               >
                 <svg
                   width="20"
@@ -193,7 +197,7 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
 
         {/* Desktop: Privatkunden Dropdown (outside glass container to prevent clipping) */}
         {privatOpen && (
-          <div className="hidden md:block absolute top-[88px] left-1/2 -translate-x-1/2 z-[100]">
+          <div className="hidden lg:block absolute top-[88px] left-1/2 -translate-x-1/2 z-[100]">
             <div ref={dropdownPanelRef} className="fiaon-glass-panel rounded-2xl py-2 shadow-xl border border-gray-100 min-w-[200px]" 
               style={{ 
                 backdropFilter: "blur(20px)", 
@@ -221,7 +225,7 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
 
         {/* Mobile full-screen menu overlay */}
         {mob && (
-          <div className="md:hidden fixed inset-0 z-40" style={{ animation: "mobMenuIn .25s ease both" }}>
+          <div className="lg:hidden fixed inset-0 z-40" style={{ animation: "mobMenuIn .25s ease both" }}>
             {/* Backdrop */}
             <div
               className="absolute inset-0 bg-white/90"
@@ -399,7 +403,7 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
                   Konto eröffnen
                 </div>
                 <h3 className="text-[24px] font-semibold tracking-tight text-gray-900 leading-snug">
-                  Wie möchtest du <span className="fiaon-gradient-text-animated">fortfahren</span>?
+                  Wie möchten Sie <span className="fiaon-gradient-text-animated">fortfahren</span>?
                 </h3>
               </div>
 

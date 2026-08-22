@@ -1,10 +1,12 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
+import { umgebungslicht, leuchtTextur, karteBauen, BLAU, BLAU_HELL, TINTE } from "./umgebung";
 
 /*
   NeuralSphere — FIAON Signature 3D
   Eine halbtransparente Glaskugel aus verwobenen neuronalen Bahnen.
-  Im Zentrum rotieren abstrakte Datenkarten & Score-Ringe.
+  Im Zentrum schwebt die FIAON-Karte (echter Körper, Lack und Metall),
+  umkreist von Score-Ringen und zwei Auswertungskarten.
   Partikel fließen von außen hinein und ordnen sich: "Chaos rein, Klarheit raus."
   variant="hero"  → lebendig, Partikel strömen ein
   variant="calm"  → geordnet, ruhig (Final CTA)
@@ -15,27 +17,11 @@ interface NeuralSphereProps {
   className?: string;
 }
 
-function glowTexture(color: string): THREE.Texture {
-  const c = document.createElement("canvas");
-  c.width = c.height = 64;
-  const ctx = c.getContext("2d")!;
-  const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
-  g.addColorStop(0, color);
-  g.addColorStop(0.35, color + "aa");
-  g.addColorStop(1, "rgba(37,99,235,0)");
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, 64, 64);
-  const t = new THREE.CanvasTexture(c);
-  t.needsUpdate = true;
-  return t;
-}
-
-function dataCardTexture(kind: "score" | "bars" | "curve"): THREE.Texture {
+function auswertungTextur(kind: "score" | "curve"): THREE.Texture {
   const w = 256, h = 160;
   const c = document.createElement("canvas");
   c.width = w; c.height = h;
   const ctx = c.getContext("2d")!;
-  // glass card
   const r = 22;
   ctx.beginPath();
   ctx.moveTo(r, 0); ctx.lineTo(w - r, 0); ctx.quadraticCurveTo(w, 0, w, r);
@@ -44,45 +30,47 @@ function dataCardTexture(kind: "score" | "bars" | "curve"): THREE.Texture {
   ctx.lineTo(0, r); ctx.quadraticCurveTo(0, 0, r, 0);
   ctx.closePath();
   const bg = ctx.createLinearGradient(0, 0, w, h);
-  bg.addColorStop(0, "rgba(255,255,255,0.92)");
-  bg.addColorStop(1, "rgba(224,236,255,0.85)");
+  bg.addColorStop(0, "rgba(255,255,255,0.94)");
+  bg.addColorStop(1, "rgba(224,236,255,0.88)");
   ctx.fillStyle = bg;
   ctx.fill();
   ctx.strokeStyle = "rgba(37,99,235,0.35)";
   ctx.lineWidth = 2;
   ctx.stroke();
 
-  ctx.strokeStyle = "#2563eb";
-  ctx.fillStyle = "#2563eb";
   if (kind === "score") {
     ctx.lineWidth = 10;
+    ctx.lineCap = "round";
     ctx.strokeStyle = "rgba(37,99,235,0.15)";
-    ctx.beginPath(); ctx.arc(70, 80, 42, 0, Math.PI * 2); ctx.stroke();
-    ctx.strokeStyle = "#2563eb";
-    ctx.beginPath(); ctx.arc(70, 80, 42, -Math.PI / 2, Math.PI * 0.9); ctx.stroke();
-    ctx.fillStyle = "rgba(37,99,235,0.55)";
-    for (let i = 0; i < 3; i++) {
-      ctx.fillRect(135, 50 + i * 26, 90 - i * 22, 9);
-    }
-  } else if (kind === "bars") {
-    const vals = [0.35, 0.6, 0.45, 0.8, 0.95];
-    vals.forEach((v, i) => {
-      const bh = v * 90;
-      ctx.fillStyle = i === 4 ? "#2563eb" : "rgba(37,99,235,0.35)";
-      ctx.fillRect(34 + i * 42, 125 - bh, 24, bh);
-    });
+    ctx.beginPath(); ctx.arc(70, 82, 42, Math.PI * 0.8, Math.PI * 2.2); ctx.stroke();
+    ctx.strokeStyle = BLAU;
+    ctx.beginPath(); ctx.arc(70, 82, 42, Math.PI * 0.8, Math.PI * 1.95); ctx.stroke();
+    ctx.fillStyle = TINTE;
+    ctx.font = "500 26px Inter, -apple-system, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("97", 70, 92);
+    ctx.textAlign = "left";
+    ctx.fillStyle = "rgba(15,23,42,0.7)";
+    ctx.fillRect(135, 52, 90, 9);
+    ctx.fillStyle = "rgba(37,99,235,0.45)";
+    ctx.fillRect(135, 78, 68, 9);
+    ctx.fillRect(135, 104, 46, 9);
   } else {
     ctx.lineWidth = 6;
+    ctx.lineCap = "round";
+    ctx.strokeStyle = BLAU;
     ctx.beginPath();
-    ctx.moveTo(24, 120);
-    ctx.bezierCurveTo(80, 118, 110, 70, 160, 62);
-    ctx.quadraticCurveTo(200, 56, 232, 34);
+    ctx.moveTo(24, 122);
+    ctx.bezierCurveTo(80, 120, 110, 72, 160, 64);
+    ctx.quadraticCurveTo(200, 58, 232, 36);
     ctx.stroke();
-    ctx.fillStyle = "#2563eb";
-    ctx.beginPath(); ctx.arc(232, 34, 8, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = BLAU;
+    ctx.beginPath(); ctx.arc(232, 36, 8, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "rgba(15,23,42,0.7)";
+    ctx.fillRect(24, 24, 70, 9);
   }
   const t = new THREE.CanvasTexture(c);
-  t.needsUpdate = true;
+  t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }
 
@@ -103,18 +91,31 @@ export default function NeuralSphere({ variant = "hero", className = "" }: Neura
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
     renderer.setClearColor(0x000000, 0);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
     mount.appendChild(renderer.domElement);
     renderer.domElement.style.width = "100%";
     renderer.domElement.style.height = "100%";
     renderer.domElement.style.display = "block";
 
+    /* ── Licht: Raumlicht für Spiegelungen + Schlüssel-/Kantenlicht ── */
+    const umgebung = umgebungslicht(renderer);
+    scene.environment = umgebung;
+    scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+    const key = new THREE.DirectionalLight(0xffffff, 2.4);
+    key.position.set(3, 4, 5);
+    scene.add(key);
+    const rim = new THREE.DirectionalLight(0x60a5fa, 1.6);
+    rim.position.set(-4, -2, -3);
+    scene.add(rim);
+
     const group = new THREE.Group();
     scene.add(group);
 
     const R = 2.1;
-    const BLUE = new THREE.Color("#2563eb");
-    const LIGHT = new THREE.Color("#60a5fa");
-    const INK = new THREE.Color("#0f172a");
+    const BLUE = new THREE.Color(BLAU);
+    const LIGHT = new THREE.Color(BLAU_HELL);
+    const INK = new THREE.Color(TINTE);
 
     /* ── Glass shell (fresnel rim) ── */
     const shellMat = new THREE.ShaderMaterial({
@@ -122,7 +123,7 @@ export default function NeuralSphere({ variant = "hero", className = "" }: Neura
       depthWrite: false,
       side: THREE.FrontSide,
       uniforms: {
-        uColor: { value: new THREE.Color("#2563eb") },
+        uColor: { value: new THREE.Color(BLAU) },
         uOpacity: { value: 0.55 },
       },
       vertexShader: `
@@ -157,7 +158,6 @@ export default function NeuralSphere({ variant = "hero", className = "" }: Neura
       const th = golden * i;
       nodes.push(new THREE.Vector3(Math.cos(th) * rad * R, y * R, Math.sin(th) * rad * R));
     }
-    // edges: connect each node to 2 nearest neighbours
     const edgePos: number[] = [];
     for (let i = 0; i < NODE_COUNT; i++) {
       const dists = nodes
@@ -173,13 +173,13 @@ export default function NeuralSphere({ variant = "hero", className = "" }: Neura
     }
     const edgeGeo = new THREE.BufferGeometry();
     edgeGeo.setAttribute("position", new THREE.Float32BufferAttribute(edgePos, 3));
-    const edgeMat = new THREE.LineBasicMaterial({ color: BLUE, transparent: true, opacity: 0.22 });
+    const edgeMat = new THREE.LineBasicMaterial({ color: BLUE, transparent: true, opacity: 0.2 });
     group.add(new THREE.LineSegments(edgeGeo, edgeMat));
 
     const nodeGeo = new THREE.BufferGeometry().setFromPoints(nodes);
     const nodeMat = new THREE.PointsMaterial({
       size: isMobile ? 0.11 : 0.13,
-      map: glowTexture("#2563eb"),
+      map: leuchtTextur(BLAU),
       transparent: true,
       opacity: 0.9,
       depthWrite: false,
@@ -188,41 +188,51 @@ export default function NeuralSphere({ variant = "hero", className = "" }: Neura
     });
     group.add(new THREE.Points(nodeGeo, nodeMat));
 
-    /* ── Inner core: score rings ── */
+    /* ── Kern: die FIAON-Karte ── */
     const core = new THREE.Group();
     group.add(core);
+    const karte = karteBauen(1.55, "blau");
+    core.add(karte);
+
+    /* ── Score-Ringe um die Karte (Metall) ── */
     const ringDefs = [
-      { r: 0.95, tube: 0.012, axis: new THREE.Euler(Math.PI / 2.3, 0, 0), color: BLUE, op: 0.85 },
-      { r: 0.75, tube: 0.01, axis: new THREE.Euler(0.4, Math.PI / 3, 0.2), color: LIGHT, op: 0.7 },
-      { r: 1.15, tube: 0.008, axis: new THREE.Euler(1.2, 0.8, 0.5), color: INK, op: 0.35 },
+      { r: 1.28, tube: 0.022, axis: new THREE.Euler(Math.PI / 2.3, 0, 0), color: BLUE, op: 0.95 },
+      { r: 1.1, tube: 0.014, axis: new THREE.Euler(0.4, Math.PI / 3, 0.2), color: LIGHT, op: 0.85 },
+      { r: 1.48, tube: 0.01, axis: new THREE.Euler(1.2, 0.8, 0.5), color: INK, op: 0.45 },
     ];
     const rings: THREE.Mesh[] = [];
     ringDefs.forEach((d) => {
       const m = new THREE.Mesh(
-        new THREE.TorusGeometry(d.r, d.tube, 12, 90),
-        new THREE.MeshBasicMaterial({ color: d.color, transparent: true, opacity: d.op })
+        new THREE.TorusGeometry(d.r, d.tube, 14, 110),
+        new THREE.MeshPhysicalMaterial({ color: d.color, metalness: 0.9, roughness: 0.25, clearcoat: 1, clearcoatRoughness: 0.1, transparent: true, opacity: d.op })
       );
       m.rotation.copy(d.axis);
       core.add(m);
       rings.push(m);
     });
+    // Lichtpunkt auf dem Hauptring
+    const sat = new THREE.Mesh(new THREE.SphereGeometry(0.045, 16, 16), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    const satGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: leuchtTextur(BLAU_HELL), transparent: true, opacity: 0.9, depthWrite: false }));
+    satGlow.scale.setScalar(0.45);
+    sat.add(satGlow);
+    rings[0].add(sat);
+    sat.position.set(ringDefs[0].r, 0, 0);
 
-    /* ── Inner data cards ── */
-    const cardKinds: ("score" | "bars" | "curve")[] = ["score", "bars", "curve"];
+    /* ── Zwei Auswertungskarten, die die Karte umkreisen ── */
+    const cardKinds: ("score" | "curve")[] = ["score", "curve"];
     const cards: { mesh: THREE.Mesh; phase: number; radius: number; speed: number; yOff: number }[] = [];
     cardKinds.forEach((kind, i) => {
-      const tex = dataCardTexture(kind);
       const mesh = new THREE.Mesh(
-        new THREE.PlaneGeometry(0.78, 0.49),
-        new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.95, side: THREE.DoubleSide, depthWrite: false })
+        new THREE.PlaneGeometry(0.7, 0.44),
+        new THREE.MeshBasicMaterial({ map: auswertungTextur(kind), transparent: true, opacity: 0.96, side: THREE.DoubleSide, depthWrite: false })
       );
       core.add(mesh);
       cards.push({
         mesh,
-        phase: (i / cardKinds.length) * Math.PI * 2,
-        radius: 0.62,
-        speed: variant === "calm" ? 0.14 : 0.24,
-        yOff: (i - 1) * 0.34,
+        phase: i * Math.PI,
+        radius: 1.22,
+        speed: variant === "calm" ? 0.14 : 0.22,
+        yOff: i === 0 ? 0.55 : -0.55,
       });
     });
 
@@ -243,7 +253,7 @@ export default function NeuralSphere({ variant = "hero", className = "" }: Neura
     pGeo.setAttribute("position", new THREE.BufferAttribute(pPos, 3));
     const pMat = new THREE.PointsMaterial({
       size: 0.06,
-      map: glowTexture("#3b82f6"),
+      map: leuchtTextur("#3b82f6"),
       transparent: true,
       opacity: variant === "calm" ? 0.35 : 0.55,
       depthWrite: false,
@@ -254,7 +264,7 @@ export default function NeuralSphere({ variant = "hero", className = "" }: Neura
 
     /* ── Ambient inner glow ── */
     const glow = new THREE.Sprite(
-      new THREE.SpriteMaterial({ map: glowTexture("#93c5fd"), transparent: true, opacity: 0.5, depthWrite: false })
+      new THREE.SpriteMaterial({ map: leuchtTextur("#93c5fd"), transparent: true, opacity: 0.45, depthWrite: false })
     );
     glow.scale.setScalar(3.4);
     group.add(glow);
@@ -296,7 +306,8 @@ export default function NeuralSphere({ variant = "hero", className = "" }: Neura
 
     /* ── Loop ── */
     const clock = new THREE.Clock();
-    const baseSpeed = variant === "calm" ? 0.12 : 0.22;
+    const baseSpeed = variant === "calm" ? 0.1 : 0.18;
+    const kartenSpeed = variant === "calm" ? 0.18 : 0.3;
     let spin = 0;
     let parallaxY = 0;
     let raf = 0;
@@ -311,6 +322,12 @@ export default function NeuralSphere({ variant = "hero", className = "" }: Neura
       group.rotation.y = spin + parallaxY;
       group.rotation.x += (targetRX + scrollOffset * 0.35 - group.rotation.x) * 0.04;
       group.position.y = Math.sin(t * 0.7) * 0.07;
+
+      // Karte dreht sich gegen die Kugel, damit sie dem Betrachter zugewandt bleibt
+      karte.rotation.y = -group.rotation.y + Math.sin(t * kartenSpeed) * 0.75;
+      karte.rotation.x = Math.sin(t * 0.6) * 0.14 - group.rotation.x * 0.6;
+      karte.rotation.z = Math.sin(t * 0.45) * 0.05;
+      karte.position.y = Math.sin(t * 0.9) * 0.04;
 
       rings[0].rotation.z = t * 0.5;
       rings[1].rotation.z = -t * 0.35;
@@ -358,6 +375,7 @@ export default function NeuralSphere({ variant = "hero", className = "" }: Neura
         if (Array.isArray(mat)) mat.forEach((x) => x.dispose());
         else if (mat) mat.dispose();
       });
+      umgebung.dispose();
       renderer.dispose();
       if (renderer.domElement.parentNode === mount) mount.removeChild(renderer.domElement);
     };

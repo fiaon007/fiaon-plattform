@@ -71,37 +71,20 @@ export default function PremiumFooter() {
               UNTERNEHMEN
             </h3>
             <ul className="space-y-4">
-              <li>
-                <a href="/plattform-konzept" className="text-[14px] text-gray-400 hover:text-white transition-all duration-200 hover:translate-x-1">
-                  Die Engine (Technologie & Konzept)
-                </a>
-              </li>
-              <li>
-                <a href="/was-ist-fiaon" className="text-[14px] text-gray-400 hover:text-white transition-all duration-200 hover:translate-x-1">
-                  Unsere Methodik (US Credit-Building)
-                </a>
-              </li>
-              <li>
-                <a href="/was-ist-fiaon" className="text-[14px] text-gray-400 hover:text-white transition-all duration-200 hover:translate-x-1">
-                  Über FIAON
-                </a>
-              </li>
-              <li>
-                <a href="/plattform-konzept" className="text-[14px] text-gray-400 hover:text-white transition-all duration-200 hover:translate-x-1">
-                  Sicherheit & Architektur
-                </a>
-              </li>
-              <li>
-                <a href="mailto:support@fiaon.com" className="text-[14px] text-gray-400 hover:text-white transition-all duration-200 hover:translate-x-1">
-                  Kontakt & Support
-                </a>
-              </li>
-              <li>
-                <a href="/banking" className="inline-flex items-center gap-2 text-[14px] text-gray-300 hover:text-white transition-all duration-200 hover:translate-x-1 font-medium">
-                  Schwarzott Group Banking
-                  <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md" style={{ background: "rgba(37,99,235,0.2)", color: "#93c5fd", border: "1px solid rgba(59,130,246,0.3)" }}>Investoren</span>
-                </a>
-              </li>
+              {[
+                ["/was-ist-fiaon", "Über FIAON"],
+                ["/plattform-konzept", "Technologie & Sicherheit"],
+                ["/karriere", "Karriere — Werden Sie Teil des Teams"],
+                ["/partner", "Partner"],
+                ["/presse", "Presse"],
+                ["/investoren", "Investoren"],
+                ["/datenraum", "Datenraum (Due Diligence)"],
+                ["mailto:support@fiaon.com", "Kontakt & Support"],
+              ].map(([href, label]) => (
+                <li key={href}>
+                  <a href={href} className="text-[14px] text-gray-400 hover:text-white transition-all duration-200 hover:translate-x-1">{label}</a>
+                </li>
+              ))}
             </ul>
           </div>
 

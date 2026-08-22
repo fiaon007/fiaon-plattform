@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // Das Team — drei Gesellschafter, ein Investor (22.08.2026, Angaben von Justin)
 //
-// Fotos liegen unter client/public/team/<vorname>.jpg. Fehlt ein Bild, steht
+// Fotos liegen unter client/public/portraits/<vorname>.jpg. Fehlt ein Bild, steht
 // das Monogramm auf Glas — so bricht nichts, bis die Bilder da sind.
 // Wird auf /team (ausführlich) und /investoren („Wer das baut", kompakt) gezeigt.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -45,7 +45,7 @@ function Portrait({ kuerzel, name, gross = false }: { kuerzel: string; name: str
                   background: "linear-gradient(135deg,rgba(37,99,235,.35),rgba(15,23,42,.6))", border: "1px solid rgba(255,255,255,.14)",
                   boxShadow: "0 20px 50px rgba(2,6,23,.45), inset 0 1px 0 rgba(255,255,255,.12)" }}>
       {!fehlt ? (
-        <img src={`/team/${kuerzel}.jpg`} alt={name} width={groesse} height={groesse} loading="lazy" decoding="async"
+        <img src={`/portraits/${kuerzel}.jpg`} alt={name} width={groesse} height={groesse} loading="lazy" decoding="async"
              style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 18%", display: "block" }} onError={() => setFehlt(true)} />
       ) : (
         <span style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "#bfdbfe", fontSize: gross ? 44 : 28, fontWeight: 300, letterSpacing: ".04em" }}>{initialen}</span>

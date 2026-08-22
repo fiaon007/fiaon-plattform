@@ -597,7 +597,7 @@ router.delete("/admin/space/:id", async (req: Request, res: Response) => {
           updated_at = NOW()
       WHERE id = ${id} AND geloescht_at IS NULL
     `;
-    console.log(`[SPACE] Beitrag ${id} vom Vorgesetzter gelöscht`);
+    console.log(`[SPACE] Beitrag ${id} vom Vorgesetzten gelöscht`);
     res.json({ ok: true });
   } catch (err) {
     console.error("[SPACE] admin loeschen:", err);

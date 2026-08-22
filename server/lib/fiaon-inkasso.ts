@@ -781,7 +781,7 @@ export async function praemieBuchen(
   if (!agent.verguetung_bestaetigt_am) {
     return {
       gebucht: false,
-      grund: "Die Vergütung dieses Mitarbeiters ist noch nicht vom Vorgesetzter bestätigt — "
+      grund: "Die Vergütung dieses Mitarbeiters ist noch nicht vom Vorgesetzten bestätigt — "
         + "es wird nichts gebucht, was niemand freigegeben hat.",
     };
   }

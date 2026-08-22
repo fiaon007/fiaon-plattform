@@ -11,7 +11,7 @@
 // Eine fest verdrahtete Liste veraltet — genau wie die „Make-Zweig fehlt"-
 // Heuristik, die diesem Paket zugrunde liegt. Domains und Kennzeichen ändern
 // sich, wenn ein neues Werkzeug dazukommt oder ein Mitarbeiter geht. Also
-// stehen sie in den Einstellungen und sind vom Vorgesetzter änderbar.
+// stehen sie in den Einstellungen und sind vom Vorgesetzten änderbar.
 //
 // DIE HARTE GRENZE
 // Eine Bestellung, für die BEZAHLT wurde, macht die Person unantastbar. Ein

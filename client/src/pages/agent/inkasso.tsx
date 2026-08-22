@@ -252,7 +252,7 @@ export default function AgentInkasso() {
           )}
           {!v.verguetungBestaetigt && (
             <p className="text-[11.5px] mt-1.5 font-semibold" style={{ color: "#b45309" }}>
-              Stundensatz und Prämie sind noch nicht vom Vorgesetzter bestätigt. Bis dahin werden
+              Stundensatz und Prämie sind noch nicht vom Vorgesetzten bestätigt. Bis dahin werden
               keine Prämien gebucht — deine Arbeit wird aber vollständig festgehalten.
             </p>
           )}

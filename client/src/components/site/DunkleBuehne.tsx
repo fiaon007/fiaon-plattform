@@ -10,7 +10,7 @@ import PremiumFooter from "@/components/PremiumFooter";
 import NeuralSphere from "@/components/home3d/NeuralSphere";
 import "@/styles/dunkel.css";
 
-type Seite = "startseite" | "investoren" | "karriere" | "presse" | "partner" | "datenraum" | "team" | "was-ist-fiaon";
+type Seite = "startseite" | "investoren" | "karriere" | "presse" | "partner" | "datenraum" | "team" | "demo" | "was-ist-fiaon";
 
 export function Dunkel({ seite, titel, beschreibung, children }: { seite: Seite; titel: string; beschreibung: string; children: ReactNode }) {
   useEffect(() => {

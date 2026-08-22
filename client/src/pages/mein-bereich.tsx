@@ -15,6 +15,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import "@/styles/mein-bereich.css";
 
+// Demo-Konto (23.08.2026): unter /demo/kundenbereich zeigt dieselbe Seite die
+// Platzhalterdaten von FIAON-DEMO (server/routes/fiaon-demo.ts) — ohne Login.
+const DEMO = typeof window !== "undefined" && window.location.pathname.startsWith("/demo");
+const DEMO_REF = "FIAON-DEMO";
+
 // ── Datenform des Endpunkts ─────────────────────────────────────────────────
 interface Etappe { key: string; titel: string; text: string; stand: "fertig" | "jetzt" | "kommt"; datum: string | null; stempel: string | null; href?: string | null }
 interface Bereich {
@@ -111,7 +116,7 @@ function Begruessung({ name, paket, rahmen, zeile, onZu }: { name: string; paket
 export default function MeinBereichPage() {
   const [d, setD] = useState<Bereich | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
-  const [vorhang, setVorhang] = useState(() => sessionStorage.getItem("mb_begruesst") !== "1");
+  const [vorhang, setVorhang] = useState(() => DEMO || sessionStorage.getItem("mb_begruesst") !== "1");
   const [eingeklappt, setEingeklappt] = useState(() => localStorage.getItem("mb_leiste") === "zu");
   const [menueOffen, setMenueOffen] = useState(false);
   const [aktiv, setAktiv] = useState("buehne");
@@ -120,6 +125,7 @@ export default function MeinBereichPage() {
   // Seite das Cookie (/kunde/me). Vorher reichte ein geschlossener Tab, und
   // der Kunde stand trotz gültigem 30-Tage-Cookie wieder vor dem Login.
   const [ref, setRef] = useState<string | null>(() => {
+    if (DEMO) return DEMO_REF;
     try { return JSON.parse(sessionStorage.getItem("fiaon_user") || localStorage.getItem("fiaon_user") || "{}")?.ref || null; } catch { return null; }
   });
   useEffect(() => {
@@ -162,7 +168,7 @@ export default function MeinBereichPage() {
     else alert(r.json?.error || "Die Lastschrift konnte nicht gestartet werden.");
   };
   const lastschriftRueckmeldung = new URLSearchParams(window.location.search).get("lastschrift");
-  const abmelden = async () => { await api("/kunde/logout", { method: "POST" }).catch(() => null); sessionStorage.removeItem("fiaon_user"); window.location.href = "/login"; };
+  const abmelden = async () => { if (DEMO) { window.location.href = "/demo"; return; } await api("/kunde/logout", { method: "POST" }).catch(() => null); sessionStorage.removeItem("fiaon_user"); window.location.href = "/login"; };
 
   if (fehler) return <div className="mb"><div className="mb-laden"><div className="mb-hinweis" style={{ maxWidth: 420 }}><b>Das hat nicht geklappt.</b><br />{fehler}</div></div></div>;
   if (!d) return <div className="mb"><div className="mb-laden">Ihr Bereich wird geladen …</div></div>;
@@ -195,6 +201,7 @@ export default function MeinBereichPage() {
   return (
     <div className="mb">
       <div className="mb-lichter" aria-hidden="true"><div className="mb-licht a" /><div className="mb-licht b" /></div>
+      {DEMO && <a className="mb-demo-band" href="/demo">Demo-Konto mit Platzhalterdaten<span>Zurück zur Demo-Übersicht</span></a>}
 
       {vorhang && <Begruessung name={name} paket={d.paket.name} rahmen={d.paket.rahmen} zeile={begruessungsZeile}
         onZu={() => { sessionStorage.setItem("mb_begruesst", "1"); setVorhang(false); }} />}

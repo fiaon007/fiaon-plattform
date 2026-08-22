@@ -274,3 +274,58 @@
 .ka-karte .kurz{display:block;font-size:11.5px;color:#9ca3af;margin-top:3px}
 .ka-knoepfe{display:flex;gap:12px;flex-wrap:wrap;margin-top:26px;justify-content:flex-end}
 .dk-knopf:disabled{opacity:.45;cursor:not-allowed;transform:none}
+
+/* ── Demo-Konto: die Gesprächsbühne ohne Server (23.08.2026) ─────────────── */
+.demo-cockpit{margin-top:44px;border-radius:26px;border:1px solid rgba(255,255,255,.10);background:linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.025));box-shadow:0 30px 80px rgba(4,10,24,.45);overflow:hidden}
+.demo-kopf{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;padding:26px 30px 22px;border-bottom:1px solid rgba(255,255,255,.08);flex-wrap:wrap}
+.demo-ueber{font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:rgba(232,238,251,.55);margin:0 0 6px;font-weight:400}
+.demo-name{font-size:clamp(20px,2.4vw,26px);font-weight:400;margin:0;color:#f3f6fd;letter-spacing:-.01em}
+.demo-kontakt{margin:6px 0 0;font-size:13.5px;color:rgba(232,238,251,.62);font-weight:300}
+.demo-fortschritt{min-width:220px;flex:0 1 280px}
+.demo-fortschritt span{display:block;font-size:12.5px;color:rgba(232,238,251,.65);margin-bottom:8px;text-align:right}
+.demo-fortschritt .balken{height:6px;border-radius:999px;background:rgba(255,255,255,.10);overflow:hidden}
+.demo-fortschritt .balken i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#2563eb,#60a5fa);transition:width .5s cubic-bezier(.2,.8,.2,1)}
+.demo-raster{display:grid;grid-template-columns:minmax(240px,300px) 1fr}
+.demo-lage{padding:26px 28px;border-right:1px solid rgba(255,255,255,.08)}
+.demo-zeile{display:flex;flex-direction:column;gap:2px;padding:11px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+.demo-zeile span{font-size:11.5px;color:rgba(232,238,251,.5);letter-spacing:.02em}
+.demo-zeile b{font-weight:400;font-size:14px;color:#eef2fb}
+.demo-kern{margin-top:22px;padding:16px 18px;border-radius:16px;background:rgba(37,99,235,.12);border:1px solid rgba(96,165,250,.22)}
+.demo-kern p:last-child{margin:0;font-size:13.5px;line-height:1.55;color:rgba(232,238,251,.85);font-weight:300}
+.demo-agenda{list-style:none;margin:0;padding:10px 14px}
+.demo-schritt{border-radius:18px;border:1px solid transparent;transition:background .25s,border-color .25s}
+.demo-schritt.offen{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.10)}
+.demo-schritt-kopf{display:flex;align-items:center;gap:14px;width:100%;padding:14px 16px;background:none;border:0;color:inherit;text-align:left;cursor:pointer;font:inherit}
+.demo-schritt-kopf .nr{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:999px;border:1px solid rgba(255,255,255,.18);font-size:12.5px;color:rgba(232,238,251,.8);flex:0 0 30px;transition:background .25s,border-color .25s}
+.demo-schritt.fertig .nr{background:#2563eb;border-color:#2563eb;color:#fff}
+.demo-schritt-kopf .titel{font-size:15px;font-weight:400;color:#eef2fb;flex:1}
+.demo-schritt.fertig .titel{color:rgba(232,238,251,.6)}
+.demo-schritt-kopf .pflicht{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;padding:3px 8px;border-radius:999px;border:1px solid rgba(96,165,250,.35);color:#93c5fd}
+.demo-schritt-koerper{padding:0 16px 18px 60px}
+.demo-schritt-koerper .zweck{margin:0 0 10px;font-size:13.5px;color:rgba(232,238,251,.7);font-weight:300;line-height:1.55}
+.demo-schritt-koerper .punkte{margin:0 0 14px;padding:0;list-style:none;display:grid;gap:6px}
+.demo-schritt-koerper .punkte li{position:relative;padding-left:16px;font-size:14px;line-height:1.5;color:#e8eefb;font-weight:300}
+.demo-schritt-koerper .punkte li::before{content:"";position:absolute;left:0;top:.62em;width:6px;height:6px;border-radius:999px;background:#60a5fa}
+.demo-schritt-koerper textarea{width:100%;resize:vertical;padding:12px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:rgba(6,14,30,.5);color:#f3f6fd;font:inherit;font-size:13.5px;font-weight:300;line-height:1.5;outline:none}
+.demo-schritt-koerper textarea:focus{border-color:#60a5fa;box-shadow:0 0 0 3px rgba(37,99,235,.25)}
+.demo-schritt-koerper textarea::placeholder{color:rgba(232,238,251,.4)}
+.demo-schritt-knoepfe{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
+.demo-schritt-knoepfe .dk-knopf{padding:9px 16px;font-size:13px}
+.demo-fuss{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:18px 30px;border-top:1px solid rgba(255,255,255,.08);background:rgba(6,14,30,.35);flex-wrap:wrap}
+.demo-fuss .dk-leise{margin:0;flex:1;min-width:240px}
+.demo-fuss .dk-knopf[disabled]{opacity:.45;cursor:not-allowed}
+.demo-frei{margin-top:44px;padding:40px 36px;border-radius:26px;border:1px solid rgba(96,165,250,.25);background:linear-gradient(160deg,rgba(37,99,235,.18),rgba(255,255,255,.03));box-shadow:0 30px 80px rgba(4,10,24,.45)}
+.demo-frei .dk-text{max-width:64ch}
+.demo-frei-zeilen{display:grid;gap:10px;margin:26px 0 30px}
+.demo-frei-zeilen div{display:grid;grid-template-columns:160px 1fr;gap:14px;padding:12px 0;border-top:1px solid rgba(255,255,255,.08);font-size:14px}
+.demo-frei-zeilen b{font-weight:400;color:#eef2fb}
+.demo-frei-zeilen span{color:rgba(232,238,251,.7);font-weight:300}
+@media (max-width:860px){
+  .demo-raster{grid-template-columns:1fr}
+  .demo-lage{border-right:0;border-bottom:1px solid rgba(255,255,255,.08);padding:20px 22px}
+  .demo-kopf,.demo-fuss{padding-left:22px;padding-right:22px}
+  .demo-fortschritt span{text-align:left}
+  .demo-schritt-koerper{padding-left:16px}
+  .demo-frei{padding:28px 22px}
+  .demo-frei-zeilen div{grid-template-columns:1fr}
+}

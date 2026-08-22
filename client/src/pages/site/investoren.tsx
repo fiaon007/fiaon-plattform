@@ -17,7 +17,7 @@ export default function Investoren() {
         pille="Für Investoren"
         titel={<>Der größte unbesetzte Platz im Finanzleben von <span className="dk-verlauf">100 Millionen Menschen.</span></>}
         lead="Score-Apps zeigen eine Zahl. Banken entscheiden. Dazwischen steht niemand. FIAON besetzt diesen Platz: Wir zeigen die Bonität, reparieren sie mit dem Kunden – und öffnen dann die Tür zu Konto, Karte und Finanzierung."
-        knoepfe={<><Knopf href="#anfrage">Datenraum anfragen</Knopf><Knopf href="#modell" still>Das Modell in drei Minuten</Knopf></>}
+        knoepfe={<><Knopf href="#anfrage">Datenraum anfragen</Knopf><Knopf href="/demo" still>Demo-Konto ansehen</Knopf></>}
         szene={<KartenSzene anzahl={1} className="absolute inset-0" />}
       />
 
@@ -93,6 +93,15 @@ export default function Investoren() {
           { titel: "Finanzierung", text: "Die dritte Tür: Ratenkredit und Umschuldung über Partner – für Kunden, deren Akte es trägt." },
           { titel: "Europa", text: "Dasselbe Betriebssystem, weitere Auskunfteien. Der Burggraben – geprüfte Schreiben und verfolgte Antworten – reist mit." },
         ]} />
+      </Block>
+
+      <Block id="demo" pille="Das Produkt, live" titel={<>Sehen Sie das Konto, <span className="dk-verlauf">wie es gemeint ist.</span></>}
+             lead="Ein Demo-Konto mit Platzhalterdaten zeigt den Kundenbereich im besten Fall – und daneben die Sicht des Mitarbeiters, der den Kunden im Startgespräch durch die Plattform führt. Kein Login, keine echten Daten.">
+        <div className="dk-raster zwei">
+          <Auf><Glas tag="Kundensicht" titel="Der Kundenbereich, 1:1">Dieselbe Oberfläche, die ein zahlender Kunde sieht: Fahrplan, Bonität, Finanzen, Schreiben, Abo – alles auf dem Stand eines Kunden nach vier Monaten. Nur die Daten sind erfunden.</Glas></Auf>
+          <Auf verzoegerung={100}><Glas tag="Mitarbeitersicht" titel="Das Startgespräch, geführt">Sechs Schritte, kuratierte Stichpunkte, Notizen während des Gesprächs und ein Knopf, der am Ende freischaltet. So wird aus einem Antrag ein betreuter Kunde.</Glas></Auf>
+        </div>
+        <div className="dk-knoepfe" style={{ marginTop: 28 }}><Knopf href="/demo">Demo-Konto öffnen</Knopf><Knopf href="/demo/kundenbereich" still>Direkt in den Kundenbereich</Knopf></div>
       </Block>
 
       <Block pille="Team" titel={<>Wer das <span className="dk-verlauf">baut.</span></>}

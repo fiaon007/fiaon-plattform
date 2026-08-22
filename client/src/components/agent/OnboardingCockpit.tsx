@@ -82,7 +82,7 @@ export interface CockpitTermin {
 interface Lage {
   paket: string | null;
   zahlungsstand: string | null;
-  dokumente: { fehlt: string[]; stand: string | null } | null;
+  dokumente: { fehlend?: { art: string; label: string }[]; stand: string | null } | null;
   bonitaet: string | null;
   stufe: string | null;
 }
@@ -391,11 +391,17 @@ export function OnboardingCockpit({
           {lage && (
             <div className="fi-ob-lage">
               <p className="fi-ob-lage-titel">Was wir über ihn wissen</p>
-              {lage.dokumente?.fehlt?.length
+              {/* Das Feld heißt `fehlend` (server/lib/fiaon-kundenlage.ts) und ist
+                  eine Liste von { art, label }. Der erste Entwurf las `fehlt` —
+                  immer undefined, also stand hier IMMER „vollständig". Genau an
+                  dem Schritt, der verlangt, konkret zu sagen, was fehlt. */}
+              {lage.dokumente?.fehlend?.length
                 ? <p className="fi-ob-lage-zeile" data-warn="ja">
-                    Es fehlt: {lage.dokumente.fehlt.join(", ")}
+                    Es fehlt: {lage.dokumente.fehlend.map((d: any) => d.label || d.art).join(", ")}
                   </p>
-                : <p className="fi-ob-lage-zeile">Unterlagen sind vollständig.</p>}
+                : lage.dokumente
+                  ? <p className="fi-ob-lage-zeile">Unterlagen sind vollständig.</p>
+                  : <p className="fi-ob-lage-zeile">Unterlagen: Stand konnte nicht geladen werden.</p>}
               {lage.bonitaet && <p className="fi-ob-lage-zeile">Bonitätsauskunft: {lage.bonitaet}</p>}
             </div>
           )}

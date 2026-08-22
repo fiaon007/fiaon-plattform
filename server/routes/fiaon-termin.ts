@@ -513,9 +513,28 @@ router.post("/agent/termine/:id/ergebnis", requireAgent, async (req: AgentReques
       }
     }
 
+    // ══════════════════════════════════════════════════════════════════════
+    // EIN STARTGESPRÄCH NIMMT DEN ONBOARDING-WEG (22.08.2026, E-022 / K2)
+    //
+    // Dieser Haken setzte bei einem `onboarding_call` nur `erledigt` — ohne
+    // Freischaltung, ohne Gutschrift, ohne Nachricht an den Kunden. Der
+    // Kalender war damit eine zweite Tür zur selben Handlung, und die
+    // folgenlose. Jetzt führt sie in denselben Raum.
+    // ══════════════════════════════════════════════════════════════════════
+    if (String(termin.quelle) === "onboarding_call") {
+      const { startgespraechErgebnis } = await import("./fiaon-onboarding-bereich");
+      const erg = await startgespraechErgebnis({
+        terminId: id, agent: { id: req.agent!.id, name: req.agent!.name },
+        ergebnis, notiz, jederZustaendige: true,
+      });
+      return res.status(erg.status).json(erg.body);
+    }
+
+    // COALESCE: Eine fehlende Notiz ist keine Anweisung zum Löschen — dieselbe
+    // Lehre wie im Onboarding-Weg (19.08.2026), hier stand sie noch nicht.
     await sqlPool`
       UPDATE fiaon_termine SET status = ${String(ergebnis)}, erledigt_am = NOW(),
-             notiz = ${notiz ? String(notiz).slice(0, 4000) : null}, updated_at = NOW()
+             notiz = COALESCE(${notiz ? String(notiz).slice(0, 4000) : null}, notiz), updated_at = NOW()
       WHERE id = ${id}
     `;
 

@@ -32,6 +32,22 @@ interface Fall {
   anruf_pflicht: boolean; zusage_gebrochen: boolean;
   raten_bezahlt: number; raten_gesamt: number;
   letzter_bearbeiter: string | null; letztes_ergebnis: string | null;
+  /** Lastschrift (GoCardless): eingereicht | eingezogen | fehlgeschlagen | abgebrochen | null */
+  lastschrift_status?: string | null; lastschrift_grund?: string | null; lastschrift_am?: string | null;
+  /** Mandat an der Person: active | pending_submission | cancelled | failed | expired | null */
+  gc_mandate_status?: string | null;
+}
+
+/** Ein Satz zum Mandat — derselbe in Liste und Akte. */
+function mandatText(status: unknown): string | null {
+  const s = String(status ?? "");
+  if (!s) return null;
+  if (s === "active") return "Lastschrift aktiv — die nächste Rate wird automatisch eingezogen";
+  if (s === "pending_submission" || s === "submitted") return "Lastschrift eingerichtet, Mandat wird noch bestätigt";
+  if (s === "cancelled") return "Lastschrift-Mandat gekündigt — kein automatischer Einzug mehr";
+  if (s === "failed") return "Lastschrift-Mandat fehlgeschlagen — Bank hat abgelehnt";
+  if (s === "expired") return "Lastschrift-Mandat abgelaufen";
+  return `Lastschrift: ${s}`;
 }
 
 /**
@@ -334,6 +350,23 @@ export default function AgentInkasso() {
                   {f.anruf_pflicht
                     ? "Anruf-Pflicht — der automatische Versand ist zu Ende"
                     : `Zusage gebrochen — zugesagt war der ${datum(f.inkasso_zusage_am)}`}
+                </p>
+              )}
+              {/* ── LASTSCHRIFT GEPLATZT (22.08.2026) ─────────────────────
+                  Die Bank hat schon Nein gesagt. Das ist ein anderer erster
+                  Satz als „Ihre Rate ist fällig": Der Kunde wollte zahlen,
+                  die Abbuchung kam zurück — Kontodeckung, Widerspruch oder
+                  ein gekündigtes Mandat. Der Grund steht daneben. */}
+              {f.lastschrift_status === "fehlgeschlagen" && (
+                <p className="text-[10.5px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "#b91c1c" }}>
+                  Lastschrift geplatzt{f.lastschrift_am ? ` am ${datum(f.lastschrift_am)}` : ""}
+                  {f.lastschrift_grund ? ` — ${f.lastschrift_grund}` : ""}
+                </p>
+              )}
+              {f.lastschrift_status !== "fehlgeschlagen" && mandatText(f.gc_mandate_status) && (
+                <p className="text-[10.5px] font-semibold uppercase tracking-wider mb-1.5"
+                   style={{ color: f.gc_mandate_status === "active" ? "#047857" : "#b45309" }}>
+                  {mandatText(f.gc_mandate_status)}
                 </p>
               )}
               {/* ── ZWEITES ABO ────────────────────────────────────────────
@@ -944,6 +977,22 @@ function InkassoAkte({
                 {fall.erinnerungen} {fall.erinnerungen === 1 ? "Erinnerung" : "Erinnerungen"} raus
               </p>
             </div>
+            {(fall.lastschrift_status || k?.gc_mandate_status) && (
+              <div>
+                <p className="fi-ak-marke">Lastschrift</p>
+                <p className="fi-ak-gross" style={{ color: fall.lastschrift_status === "fehlgeschlagen" ? "#b91c1c" : k?.gc_mandate_status === "active" ? "#047857" : undefined }}>
+                  {fall.lastschrift_status === "fehlgeschlagen" ? "geplatzt"
+                    : fall.lastschrift_status === "eingereicht" ? "läuft"
+                    : k?.gc_mandate_status === "active" ? "aktiv"
+                    : k?.gc_mandate_status ? "inaktiv" : "—"}
+                </p>
+                <p className="fi-ak-klein">
+                  {fall.lastschrift_status === "fehlgeschlagen"
+                    ? (fall.lastschrift_grund || "Einzug kam zurück")
+                    : (mandatText(k?.gc_mandate_status) || "kein Mandat")}
+                </p>
+              </div>
+            )}
             {k && (
               <div>
                 <p className="fi-ak-marke">Schon bezahlt</p>

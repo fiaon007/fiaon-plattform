@@ -2005,7 +2005,7 @@ function KundenKarte({
                             ist streng nach Ergebnis getippt. Der Zugriff wird
                             deshalb ausdrücklich geweitet, statt die Liste
                             aufzuweichen — der Typ ist dort die Wand. */}
-                        {v.agentName || v.agent || "System"}: {(ERGEBNIS_TEXT as Record<string, string>)[String(v.ergebnis)] || (v.art === "note" ? "Notiz" : v.art)}
+                        {v.von || v.agentName || v.agent || "System"}: {(ERGEBNIS_TEXT as Record<string, string>)[String(v.ergebnis)] || (v.art === "note" ? "Notiz" : v.art)}
                       </span>
                       {v.notiz && <span style={{ color: "var(--fi-text-still)" }}> — {v.notiz}</span>}
                     </li>

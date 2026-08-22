@@ -22,6 +22,7 @@ import { sqlPool } from "../lib/db-pool";
 import { requireKunde, type KundeRequest } from "../lib/fiaon-kunde-session";
 import { paket as paketVon } from "@shared/fiaon-pakete";
 import { absoluteUrl } from "../fiaon-base-url";
+import { aboAnker, rateBezahltBuchen } from "./fiaon-abo";
 
 const router = Router();
 const BASIS = () => (process.env.GOCARDLESS_ENVIRONMENT === "sandbox" ? "https://api-sandbox.gocardless.com" : "https://api.gocardless.com");
@@ -46,7 +47,7 @@ async function gc(pfad: string, init: { method?: string; body?: unknown; idem?: 
 }
 
 /** Fälligkeitstag = Tag des Antragsabschlusses, auf 1–28 geklemmt (Februar). */
-function faelligkeitstag(d: Date): number { return Math.min(28, Math.max(1, d.getDate())); }
+function faelligkeitstag(d: Date): number { return Math.min(28, Math.max(1, d.getUTCDate())); }
 
 /** POST /kunde/:ref/lastschrift/start — Billing Request + Flow, liefert die GoCardless-Seite. */
 router.post("/kunde/:ref/lastschrift/start", requireKunde, async (req: KundeRequest, res: Response) => {
@@ -112,7 +113,14 @@ router.get("/kunde/:ref/lastschrift/rueckkehr", requireKunde, async (req: KundeR
     const [gez] = (await sqlPool`SELECT COUNT(*)::int n FROM fiaon_abo_raten WHERE ref = ${ref} AND status = 'bezahlt'`) as any[];
     const verbleibend = Math.max(1, 12 - Number(gez?.n || 0));
     if (pk?.abo && pk.preisCents > 0) {
-      const start = new Date(a?.submitted_at || a?.created_at || Date.now());
+      // ── EIN FÄLLIGKEITSTAG, NICHT ZWEI (22.08.2026, K8) ──────────────
+      // Der interne Zyklus rechnet vom Anker (`aboAnker`: Buchungstag der
+      // ersten Zahlung). Der erste Entwurf nahm hier den Antragstag — dann
+      // zog GoCardless am 3., während die Rate intern am 7. fällig wurde,
+      // und das Forderungsmanagement mahnte eine Rate, die vier Tage später
+      // ohnehin eingezogen worden wäre. Dieselbe Quelle für beide.
+      const { tag: anker } = await aboAnker(ref);
+      const start = new Date(anker ? `${anker}T12:00:00Z` : (a?.submitted_at || a?.created_at || Date.now()));
       await gc("/subscriptions", { method: "POST", idem: `sub-${ref}-${mandateId}`, body: { subscriptions: {
         amount: pk.preisCents, currency: "EUR", name: `FIAON ${pk.label}`, interval_unit: "monthly",
         day_of_month: faelligkeitstag(start), count: verbleibend, metadata: { ref },
@@ -144,7 +152,21 @@ router.post("/gocardless/webhook", async (req: Request, res: Response) => {
       if (ev.resource_type === "mandates") {
         const status = ev.action === "active" ? "active" : ev.action === "cancelled" ? "cancelled" : ev.action === "failed" ? "failed" : ev.action === "expired" ? "expired" : null;
         if (status && ev.links?.mandate) {
-          await sqlPool`UPDATE fiaon_persons SET gc_mandate_status = ${status}, updated_at = NOW() WHERE gc_mandate_ref = ${ev.links.mandate}`;
+          const betroffen = (await sqlPool`UPDATE fiaon_persons SET gc_mandate_status = ${status}, updated_at = NOW()
+            WHERE gc_mandate_ref = ${ev.links.mandate} RETURNING id`) as any[];
+          // Das Ende eines Mandats gehört in die Akte: Wer anruft, muss wissen,
+          // dass ab jetzt nichts mehr automatisch eingezogen wird.
+          if (status !== "active") {
+            for (const p of betroffen) {
+              await sqlPool`
+                INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
+                SELECT a.ref, a.person_id, NULL, 'System', 'system',
+                       ${`Lastschrift-Mandat ${status === "cancelled" ? "gekündigt" : status === "failed" ? "fehlgeschlagen" : "abgelaufen"} (GoCardless ${ev.links.mandate}${ev.details?.description ? ": " + ev.details.description : ""}). Ab jetzt kein automatischer Einzug mehr.`}
+                FROM fiaon_applications a WHERE a.person_id = ${p.id} AND a.merged_into IS NULL
+                ORDER BY a.created_at DESC LIMIT 1
+              `.catch(() => {});
+            }
+          }
         }
       }
       if (ev.resource_type === "payments" && ev.links?.payment) {
@@ -153,15 +175,61 @@ router.post("/gocardless/webhook", async (req: Request, res: Response) => {
         // Ohne Referenz am Payment: über das Abo (subscription.metadata.ref)
         let r = ref;
         if (!r && p?.links?.subscription) { const s = (await gc(`/subscriptions/${p.links.subscription}`)).subscriptions; r = s?.metadata?.ref || null; }
-        if (!r) continue;
-        const charge = p?.charge_date ? new Date(p.charge_date) : new Date();
-        if (["confirmed", "paid_out"].includes(ev.action)) {
-          // Die Rate, die dem Einzugstag am nächsten liegt und noch offen ist.
-          await sqlPool`UPDATE fiaon_abo_raten SET status = 'bezahlt', bezahlt_am = NOW(), quelle = 'gocardless', notiz = ${`GoCardless ${p.id}`}, updated_at = NOW()
-            WHERE id = (SELECT id FROM fiaon_abo_raten WHERE ref = ${r} AND status <> 'bezahlt' ORDER BY ABS(faellig_am - ${charge.toISOString().slice(0, 10)}::date) LIMIT 1)`;
-        } else if (["failed", "charged_back", "late_failure_settled"].includes(ev.action)) {
-          await sqlPool`UPDATE fiaon_abo_raten SET status = 'fehlgeschlagen', notiz = ${`GoCardless ${p.id}: ${ev.action}${ev.details?.description ? " — " + ev.details.description : ""}`}, updated_at = NOW()
-            WHERE id = (SELECT id FROM fiaon_abo_raten WHERE ref = ${r} AND status <> 'bezahlt' ORDER BY ABS(faellig_am - ${charge.toISOString().slice(0, 10)}::date) LIMIT 1)`;
+        if (!r) { console.warn(`[LASTSCHRIFT] Payment ${p?.id} ohne Referenz — nicht zuordenbar.`); continue; }
+        const chargeTag = String(p?.charge_date || new Date().toISOString().slice(0, 10)).slice(0, 10);
+        const betrag = Number(p?.amount || 0);
+
+        // ── DIE RICHTIGE RATE (K7) ──────────────────────────────────────
+        // Erst die, die dieses Payment schon trägt (Webhook-Wiederholung),
+        // dann die nicht stornierte, unbezahlte Rate mit GLEICHEM Betrag, die
+        // dem Einzugstag am nächsten liegt. Ein Betrag, der zu keiner Rate
+        // passt, wird nicht irgendwo verbucht, sondern gemeldet.
+        let [rate] = (await sqlPool`SELECT id, status FROM fiaon_abo_raten WHERE gc_payment_id = ${p.id} LIMIT 1`) as any[];
+        if (!rate) {
+          [rate] = (await sqlPool`
+            SELECT id, status FROM fiaon_abo_raten
+            WHERE ref = ${r} AND status <> 'bezahlt' AND storniert_am IS NULL
+              AND (${betrag} = 0 OR betrag_cents = ${betrag})
+            ORDER BY ABS(faellig_am - ${chargeTag}::date) LIMIT 1`) as any[];
+        }
+        if (!rate) {
+          console.warn(`[LASTSCHRIFT] Payment ${p.id} (${betrag} ct, ${ev.action}) passt zu keiner offenen Rate von ${r}.`);
+          await sqlPool`
+            INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+            VALUES (${r}, NULL, 'System', 'system',
+                    ${`Lastschrift ${ev.action} über ${(betrag / 100).toFixed(2).replace(".", ",")} € (GoCardless ${p.id}) — keine passende offene Rate gefunden. Bitte von Hand prüfen.`})
+          `.catch(() => {});
+          continue;
+        }
+
+        if (["created", "submitted", "pending_submission"].includes(ev.action)) {
+          await sqlPool`UPDATE fiaon_abo_raten SET lastschrift_status = 'eingereicht', lastschrift_am = NOW(),
+            gc_payment_id = COALESCE(gc_payment_id, ${p.id}), updated_at = NOW()
+            WHERE id = ${rate.id} AND status <> 'bezahlt'`;
+        } else if (["confirmed", "paid_out"].includes(ev.action)) {
+          // Dieselbe Buchung wie der Admin-Knopf: Folge-Rate, Prämie, Akte.
+          await rateBezahltBuchen({ rateId: Number(rate.id), zahlungsdatum: chargeTag, quelle: "gocardless",
+            notiz: `GoCardless ${p.id}`, gcPaymentId: String(p.id) });
+        } else if (["failed", "charged_back", "late_failure_settled", "customer_approval_denied"].includes(ev.action)) {
+          const grund = `${ev.action}${ev.details?.description ? " — " + ev.details.description : ""}`;
+          // Die Rate bleibt OFFEN. Sie trägt jetzt eine Geschichte, und das
+          // Forderungsmanagement sieht sie als eigenen Fall („Lastschrift
+          // geplatzt") — mit Vorrang, denn hier hat schon ein Einzug versagt.
+          await sqlPool`UPDATE fiaon_abo_raten
+            SET status = CASE WHEN status = 'fehlgeschlagen' THEN 'offen' ELSE status END,
+                lastschrift_status = 'fehlgeschlagen', lastschrift_am = NOW(), lastschrift_grund = ${grund},
+                gc_payment_id = COALESCE(gc_payment_id, ${p.id}),
+                notiz = CONCAT_WS(' · ', NULLIF(notiz, ''), ${`GoCardless ${p.id}: ${grund}`}), updated_at = NOW()
+            WHERE id = ${rate.id}`;
+          await sqlPool`
+            INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+            VALUES (${r}, NULL, 'System', 'system',
+                    ${`Lastschrift geplatzt (GoCardless ${p.id}: ${grund}). Die Rate bleibt offen und liegt beim Forderungsmanagement.`})
+          `.catch(() => {});
+        } else if (ev.action === "cancelled") {
+          await sqlPool`UPDATE fiaon_abo_raten SET lastschrift_status = 'abgebrochen', lastschrift_am = NOW(),
+            lastschrift_grund = ${ev.details?.description || "cancelled"}, updated_at = NOW()
+            WHERE id = ${rate.id} AND status <> 'bezahlt'`;
         }
       }
     }

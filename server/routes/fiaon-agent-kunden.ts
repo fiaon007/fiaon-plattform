@@ -51,6 +51,7 @@ import { nachschub } from "./fiaon-followup";
 import { FIAON_BANK_DETAILS as BANK } from "./fiaon-antrag";
 import { zahlungstext } from "../lib/fiaon-verwendungszweck";
 import { aufbereiten } from "../lib/fiaon-buchungen";
+import { karte, KARTE_SQL } from "./fiaon-agent-start";
 
 const router = Router();
 
@@ -86,132 +87,28 @@ const ESKALATION_TAGE = 7;
  * nicht, wenn später jemand die Prüfung zu vergessen versucht.
  */
 async function meinePerson(personId: number, agentId: number) {
+  // ══════════════════════════════════════════════════════════════════════════
+  // DIESELBEN FELDER WIE DIE LISTE (22.08.2026, E-022 / K9)
+  //
+  // Hier stand eine zweite, handgeschriebene Fassung der Kartenabfrage. Sie
+  // kannte 14 Felder nicht, die die Liste liefert (Stufe, Rückruf, letzter
+  // Kontakt, Terminlink, Ruhe, Betreuung …) — und nach JEDER Aktion ersetzte
+  // der Client die Listenkarte durch diese ärmere: Die Stufen-Marke
+  // verschwand, aus „seit 12 Tagen kein Kontakt" wurde „noch kein Kontakt",
+  // der Terminlink kopierte `undefined`. Dieselbe Fehlerklasse wie am
+  // 18.08.2026 (buchungen_roh), damals für ein Feld behoben.
+  //
+  // Jetzt: EIN Textbaustein (KARTE_SQL aus fiaon-agent-start.ts), EINE
+  // Aufbereitung (`karte`). Was die Einzelkarte zusätzlich braucht, steht
+  // darunter — nicht daneben.
+  // ══════════════════════════════════════════════════════════════════════════
   const [p] = await sqlPool`
-    SELECT p.id, p.priority_tier, p.tier_reason, p.promised_payment_date,
-           p.follow_up_date, p.unreachable_count, p.invoice_sent_count,
-           (SELECT a.pack_name FROM fiaon_applications a
-             WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
-             ORDER BY a.created_at DESC LIMIT 1) AS pack_name,
-           (SELECT a.amount_due FROM fiaon_applications a
-             WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
-             ORDER BY a.created_at DESC LIMIT 1) AS amount_due,
-           p.is_blocked, p.assigned_at, p.primary_phone, p.primary_email,
-           COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''),
-                    p.company_name, p.contact_name, p.primary_email) AS name,
-           -- Für den Handlungshinweis bei abgebrochenen Anträgen
-           (SELECT a.status FROM fiaon_applications a
-             WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
-             ORDER BY a.created_at DESC LIMIT 1) AS letzter_status,
-           -- Ziel für Schreibvorgänge in den Kontaktverlauf
+    SELECT ${sqlPool.unsafe(KARTE_SQL)},
+           p.assigned_at,
+           -- Ziel für Schreibvorgänge in den Kontaktverlauf (ohne archivierte)
            (SELECT a.ref FROM fiaon_applications a
              WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
-             ORDER BY a.created_at DESC LIMIT 1) AS schreib_ref,
-           -- ── STAMMDATEN (Meldung 04.08.2026) ──────────────────────────────
-           -- In „Heute" fehlten Adresse, Geburtsdatum und Zahlungsreferenz. Der
-           -- Agent musste den Kunden zusätzlich unter „Meine Kunden" suchen, um
-           -- am Telefon Auskunft geben zu können. Sie kommen aus der Person UND
-           -- ergänzend aus der Bestellung: Was in der Person fehlt, steht oft in
-           -- der Bestellung — und umgekehrt.
-           COALESCE(NULLIF(p.street, ''), (SELECT NULLIF(a.street,'') FROM fiaon_applications a
-             WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL AND NULLIF(a.street,'') IS NOT NULL
-             ORDER BY a.created_at DESC LIMIT 1)) AS strasse,
-           COALESCE(NULLIF(p.zip, ''), (SELECT NULLIF(a.zip,'') FROM fiaon_applications a
-             WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL AND NULLIF(a.zip,'') IS NOT NULL
-             ORDER BY a.created_at DESC LIMIT 1)) AS plz,
-           COALESCE(NULLIF(p.city, ''), (SELECT NULLIF(a.city,'') FROM fiaon_applications a
-             WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL AND NULLIF(a.city,'') IS NOT NULL
-             ORDER BY a.created_at DESC LIMIT 1)) AS ort,
-           COALESCE(NULLIF(p.country, ''), (SELECT NULLIF(a.country,'') FROM fiaon_applications a
-             WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL AND NULLIF(a.country,'') IS NOT NULL
-             ORDER BY a.created_at DESC LIMIT 1)) AS country,
-           COALESCE(p.birthdate, (SELECT a.birthdate FROM fiaon_applications a
-             WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL AND a.birthdate IS NOT NULL
-             ORDER BY a.created_at DESC LIMIT 1)) AS geburtsdatum,
-           -- Telefon der Bestellung inkl. getrennter Ländervorwahl: genau die
-           -- Vorwahl, die in primary_phone bei 2.058 Personen fehlt.
-           (SELECT a.phone FROM fiaon_applications a
-             WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL AND NULLIF(a.phone,'') IS NOT NULL
-             ORDER BY a.created_at DESC LIMIT 1) AS app_phone,
-           (SELECT a.phone_country_code FROM fiaon_applications a
-             WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL AND NULLIF(a.phone,'') IS NOT NULL
-             ORDER BY a.created_at DESC LIMIT 1) AS app_vorwahl,
-           (SELECT NULLIF(a.contact_phone,'') FROM fiaon_applications a
-             WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL AND NULLIF(a.contact_phone,'') IS NOT NULL
-             ORDER BY a.created_at DESC LIMIT 1) AS app_contact_phone,
-           -- Zahlung: Referenz, Status und Frist gehören auf die Karte, weil
-           -- der Kunde am Telefon genau danach fragt.
-           (SELECT a.payment_reference FROM fiaon_applications a
-             WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
-             ORDER BY a.created_at DESC LIMIT 1) AS zahlungsreferenz,
-           (SELECT a.payment_status FROM fiaon_applications a
-             WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
-             ORDER BY a.created_at DESC LIMIT 1) AS zahlungsstatus,
-           (SELECT a.payment_due_date FROM fiaon_applications a
-             WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
-             ORDER BY a.created_at DESC LIMIT 1) AS zahlungsfrist,
-           (SELECT COALESCE(NULLIF(a.email,''), NULLIF(a.contact_email,''), NULLIF(a.billing_email,''))
-             FROM fiaon_applications a
-             WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
-             ORDER BY a.created_at DESC LIMIT 1) AS app_email,
-           -- ══════════════════════════════════════════════════════════════════
-           -- DIE BUCHUNGEN GEHÖREN AN DIE KARTE (18.08.2026)
-           --
-           -- ── DIE MELDUNGEN, DIE HIER ZUSAMMENLAUFEN ──────────────────────
-           -- „E-Mail ergänzt — Versand bleibt trotzdem gesperrt."
-           -- „Produkt anlegen: keine Bestellung vorhanden."
-           --
-           -- Beides war DERSELBE Fehler, und er saß nicht dort, wo er auftrat.
-           -- Die Oberfläche leitet den Sperrgrund aus „k.buchungen“ ab. Dieses
-           -- Feld lieferte NUR die Listenabfrage (buchungen_roh in
-           -- fiaon-agent-start.ts). „kartePayload“ kannte es nicht.
-           --
-           -- Nach dem Ergänzen einer E-Mail und nach dem Anlegen eines Produkts
-           -- holt die Karte sich frisch über GET /agent/crm/kunden/:personId —
-           -- und bekam eine Antwort OHNE buchungen. Die Karte wurde ersetzt, das
-           -- Feld war danach „undefined“, und „k.buchungen ?? []“ ergab eine
-           -- LEERE Liste. Die Ableitung sagte daraufhin folgerichtig „Keine
-           -- Bestellung vorhanden" — und der Produkt-Dialog „Diese Akte hat
-           -- keine Bestellung".
-           --
-           -- Die Aktualisierung hat die Daten also nicht bloß nicht erneuert,
-           -- sie hat sie GELÖSCHT. Deshalb wurde es schlimmer, je mehr der
-           -- Agent tat: Wer die E-Mail nachtrug, sperrte sich damit den Versand.
-           --
-           -- Dieselben Spalten, dieselbe Reihenfolge wie in der Listenabfrage —
-           -- beide Wege gehen danach durch „aufbereiten“ aus
-           -- server/lib/fiaon-buchungen.ts. Zwei Fassungen derselben Liste
-           -- wären genau die zweite Wahrheit, die diesen Fehler erzeugt hat.
-           -- ══════════════════════════════════════════════════════════════════
-           (SELECT COALESCE(JSON_AGG(JSON_BUILD_OBJECT(
-                     'ref', a.ref, 'pack_key', a.pack_key, 'pack_name', a.pack_name,
-                     'amount_due', a.amount_due, 'payment_status', a.payment_status,
-                     'status', a.status, 'created_at', a.created_at,
-                     'payment_due_date', a.payment_due_date,
-                     'payment_reference', a.payment_reference,
-                     'cancelled_at', a.cancelled_at, 'refunded_at', a.refunded_at
-                   ) ORDER BY a.created_at), '[]'::json)
-              FROM fiaon_applications a
-              WHERE a.person_id = p.id AND a.merged_into IS NULL
-                AND a.archived_at IS NULL AND a.gdpr_deleted_at IS NULL) AS buchungen_roh,
-           -- ══════════════════════════════════════════════════════════════════
-           -- DER SPERRGRUND, FRISCH BEI JEDEM LADEN (19.08.2026)
-           --
-           -- Er MUSS auch hier stehen, nicht nur in der Listenabfrage: Nach
-           -- einer Inline-Aenderung (E-Mail nachgetragen, Produkt angelegt) holt
-           -- die Karte ihre Daten von HIER. Faehlt das Feld, faellt der Client
-           -- auf seinen alten Zustand zurueck — genau der Fehler, der am
-           -- 18.08.2026 beim Knopf „Zahlungsdaten senden" schon einmal vier Tage
-           -- gekostet hat (buchungen_roh fehlte in dieser Abfrage).
-           -- ══════════════════════════════════════════════════════════════════
-           ${sqlPool.unsafe(sendeGrundSql("p"))} AS sende_grund,
-           -- Welche Pflichtfelder fehlen? Der Text steht danach WÖRTLICH in der
-           -- Karte („Es fehlt: Geburtsdatum, IBAN"). Ein pauschales „im
-           -- Formular" hat Daniel am 19.08.2026 auf die Suche geschickt.
-           ${sqlPool.unsafe(fehlendeFelderSql("p"))} AS fehlende_felder,
-           -- Nur die drei Willenserklaerungen. Sie stehen getrennt, weil sie
-           -- einen anderen Weg haben: Sachangaben traegt der Mitarbeiter am
-           -- Telefon nach, Zustimmungen gibt ausschliesslich der Kunde.
-           ${sqlPool.unsafe(zustimmungFehltSql("p"))} AS zustimmung_fehlt
+             ORDER BY a.created_at DESC LIMIT 1) AS schreib_ref
     FROM fiaon_persons p
     WHERE p.id = ${personId}
       AND p.assigned_agent_id = ${agentId}
@@ -220,100 +117,12 @@ async function meinePerson(personId: number, agentId: number) {
   return p ?? null;
 }
 
-/** Die Karten-Antwort. Enthält alles, was die Oberfläche zum Handeln braucht. */
+/** Die Karten-Antwort: die Listenkarte plus das, was nur die Einzelansicht braucht. */
 function kartePayload(p: any, letzteAktivitaet?: any) {
-  const h = hinweisFuer(p.tier_reason as TierGrund, p.letzter_status);
-  // Wählbare Nummer: die Bestellnummer mit getrennter Vorwahl zuerst, danach die
-  // Sammelnummer der Person. Ohne diese Zusammensetzung fehlte im `tel:`-Link
-  // die Ländervorwahl — der Anruf ging ins Leere.
-  const tel = waehlbareNummer(
-    [
-      { nummer: p.app_phone, vorwahl: p.app_vorwahl },
-      { nummer: p.primary_phone },
-      { nummer: p.app_contact_phone },
-    ],
-    p.country,
-  );
+  const k = karte(p);
   return {
-    personId: p.id,
-    name: p.name,
-    // Die Buchungen der Person — dieselbe Aufbereitung wie in der Liste.
-    // Fehlte dieses Feld, löschte jede Kartenaktualisierung die Buchungen der
-    // Karte und sperrte damit den Zahlungsdaten-Versand (Begründung an der
-    // Abfrage oben). `aufbereiten` verträgt auch `undefined`.
-    buchungen: aufbereiten(p.buchungen_roh),
-    // Der Sperrgrund vom Server — dieselbe Ableitung wie in der Arbeitsliste.
-    sendeGrund: p.sende_grund ?? null,
-    sendeMoeglich: p.sende_grund === "frei" || p.sende_grund === "erste_rechnung",
-    sendeText: p.sende_grund ? (SENDE_GRUND_TEXT[String(p.sende_grund)]?.text ?? null) : null,
-    sendeTat: p.sende_grund ? (SENDE_GRUND_TEXT[String(p.sende_grund)]?.tat ?? null) : null,
-    // ── DIE ZWEITE, GETRENNTE AUSKUNFT (21.08.2026) ────────────────────────
-    // `fehlendeFelder` sperrt seit dem 21.08.2026 NICHTS mehr. Es ist die
-    // Vertragslücke und steht grau unter dem Sende-Knopf. Immer mitgeliefert:
-    // Ein Feld, das der Client manchmal bekommt und manchmal nicht, wird zur
-    // zweiten Ableitung in der Oberfläche.
-    fehlendeFelder: p.fehlende_felder ? String(p.fehlende_felder) : null,
-    /** Nur die Willenserklärungen — für sie gibt es KEIN Eingabefeld. */
-    zustimmungFehlt: p.zustimmung_fehlt ? String(p.zustimmung_fehlt) : null,
-    // `telefon` bleibt die Anzeige (abwärtskompatibel), `telefonWaehlbar` ist
-    // die Form für den Anruf. Getrennt, weil eine Nummer ohne Vorwahl angezeigt
-    // werden soll, aber NICHT gewählt.
-    telefon: tel.anzeige || p.primary_phone || null,
-    telefonWaehlbar: tel.waehlbar,
-    telefonHinweis: tel.hinweis,
-    email: p.primary_email || p.app_email || null,
-    // Stammdaten für die Karte — damit niemand mehr zwischen zwei Ansichten
-    // wechseln muss, um am Telefon Auskunft zu geben.
-    stammdaten: {
-      strasse: p.strasse || null,
-      plz: p.plz || null,
-      ort: p.ort || null,
-      land: p.country || null,
-      geburtsdatum: p.geburtsdatum || null,
-    },
-    // Der Verwendungszweck ist ab jetzt IMMER dabei — auch wenn der Kunde keine
-    // E-Mail hat. Genau dort entstand der Schaden: Der Agent konnte die
-    // Zahlungsdaten nicht mailen, hat sie am Telefon durchgegeben, und ohne
-    // Referenz kam Geld ohne Namen an. Die Bankverbindung kommt aus derselben
-    // Quelle wie die Rechnung (FIAON_BANK_DETAILS) — keine zweite, abgeschriebene
-    // IBAN im Frontend.
-    zahlung: {
-      referenz: p.zahlungsreferenz || null,
-      status: p.zahlungsstatus || null,
-      frist: p.zahlungsfrist || null,
-      ref: p.schreib_ref || null,
-      empfaenger: BANK.recipient,
-      iban: BANK.ibanDisplay,
-      bic: BANK.bic,
-      /** Fertiger Text zum Einfügen in WhatsApp — serverseitig formatiert. */
-      klartext: p.zahlungsreferenz
-        ? zahlungstext({
-            empfaenger: BANK.recipient, iban: BANK.iban, ibanAnzeige: BANK.ibanDisplay,
-            bic: BANK.bic, verwendungszweck: String(p.zahlungsreferenz),
-            betragCent: p.amount_due != null ? Math.round(Number(p.amount_due) * 100) : null,
-          })
-        : null,
-    },
-    tier: p.priority_tier,
-    tierGrund: p.tier_reason,
-    titel: h.titel,
-    hinweis: h.hinweis,
-    // Betrag und Produkt der jüngsten offenen Bestellung. Die Karte braucht
-    // beides: Ein Anruf ohne Kenntnis von Paket und Summe beginnt mit einer
-    // Rückfrage. Vorher standen die Werte nur in der Detailansicht — der Agent
-    // musste die Karte erst öffnen, um zu wissen, worüber er spricht.
-    produkt: p.pack_name ? String(p.pack_name).split("\n")[0].trim() : null,
-    betrag: p.amount_due != null ? Math.round(Number(p.amount_due) * 100) : null,
-    zusagedatum: p.promised_payment_date,
-    wiedervorlage: p.follow_up_date,
-    nichtErreicht: p.unreachable_count,
-    rechnungVersandt: p.invoice_sent_count,
-    // Die Warnung entsteht hier, nicht im Frontend: Sie ist eine fachliche
-    // Regel und muss überall dieselbe sein.
-    rechnungWarnung: p.invoice_sent_count >= RECHNUNG_WARNUNG_AB
-      ? `Bereits ${p.invoice_sent_count}× versandt. Ein weiterer Versand ersetzt kein Gespräch — ruf an.`
-      : null,
-    gesperrt: p.is_blocked,
+    ...k,
+    zahlung: { ...k.zahlung, ref: p.schreib_ref || k.zahlung.ref },
     seit: p.assigned_at,
     letzteAktivitaet: letzteAktivitaet
       ? {

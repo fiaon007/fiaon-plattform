@@ -183,6 +183,26 @@ export async function ensureAboTabellen(): Promise<void> {
     ADD COLUMN IF NOT EXISTS vorab_am TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS ueberfaellig_seit DATE
   `;
+  // ── LASTSCHRIFT-ZUSTAND (22.08.2026, E-022 / K1) ─────────────────────
+  // Der Einzugsstand ist ein ZWEITES Feld neben `status`, kein neuer Wert
+  // darin. Der erste Entwurf schrieb `status = 'fehlgeschlagen'` — und keine
+  // der 30 Lesestellen kannte den Wert: Die Rate erschien in der Liste, die
+  // Akte antwortete 404, der Motor mahnte nicht mehr, und der Tageslauf
+  // legte trotzdem eine neue Rate an. Eine geplatzte Lastschrift ist eine
+  // OFFENE Rate mit einer Geschichte — genau so steht sie jetzt da.
+  await sqlPool`
+    ALTER TABLE fiaon_abo_raten
+    ADD COLUMN IF NOT EXISTS lastschrift_status VARCHAR,
+    ADD COLUMN IF NOT EXISTS lastschrift_am TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS lastschrift_grund TEXT,
+    ADD COLUMN IF NOT EXISTS gc_payment_id VARCHAR
+  `;
+  // Ein GoCardless-Payment bucht genau eine Rate — auch wenn der Webhook
+  // dreimal kommt (GoCardless wiederholt bei jedem Nicht-200).
+  await sqlPool`
+    CREATE UNIQUE INDEX IF NOT EXISTS fiaon_abo_raten_gc_payment_uidx
+    ON fiaon_abo_raten (gc_payment_id) WHERE gc_payment_id IS NOT NULL
+  `.catch((e) => console.warn("[FIAON-ABO] GC-Payment-Index:", e?.message));
   // Die Wand gegen Doppelrechnungen: eine offene Rate je Bestellung und
   // Fälligkeit. Der Tageslauf darf dadurch beliebig oft laufen.
   await sqlPool`
@@ -1215,57 +1235,77 @@ router.get("/admin/abo/raten", async (req, res) => {
  * dazwischen Tage liegen; die nächste Fälligkeit muss vom Eingang aus rechnen,
  * sonst wandert der Zyklus mit jeder verspäteten Buchung nach hinten.
  */
+/**
+ * EINE Buchung für „Rate ist bezahlt" — Admin-Knopf UND Lastschrift-Webhook.
+ *
+ * Vorher gab es zwei: Der Knopf buchte mit Prämie, nächster Rate und
+ * Akteneintrag; der Webhook setzte nur `status = 'bezahlt'`. Wer per
+ * Lastschrift zahlte, bekam damit keine Folge-Rate, der Inkasso-Mitarbeiter
+ * keine Prämie, die Akte keinen Eintrag. Zwei Wege, eine Wahrheit weniger.
+ */
+export async function rateBezahltBuchen(opts: {
+  rateId: number;
+  /** YYYY-MM-DD — der Tag, an dem das Geld angekommen ist. */
+  zahlungsdatum: string;
+  quelle: "admin" | "gocardless" | "bank";
+  notiz?: string | null;
+  gcPaymentId?: string | null;
+}): Promise<{ ok: boolean; schonBezahlt?: boolean; error?: string; naechsteFaelligkeit?: string | null }> {
+  await ensureAboTabellen();
+  const [rate] = await sqlPool`SELECT * FROM fiaon_abo_raten WHERE id = ${opts.rateId}`;
+  if (!rate) return { ok: false, error: "Rate nicht gefunden" };
+  if (rate.status === "bezahlt") return { ok: true, schonBezahlt: true };
+
+  const geaendert = await sqlPool`
+    UPDATE fiaon_abo_raten
+    SET status = 'bezahlt', bezahlt_am = ${`${opts.zahlungsdatum}T12:00:00Z`},
+        quelle = ${opts.quelle === "admin" ? rate.quelle : opts.quelle},
+        lastschrift_status = ${opts.quelle === "gocardless" ? "eingezogen" : rate.lastschrift_status ?? null},
+        lastschrift_am = ${opts.quelle === "gocardless" ? new Date() : rate.lastschrift_am ?? null},
+        gc_payment_id = COALESCE(${opts.gcPaymentId ?? null}, gc_payment_id),
+        notiz = CASE WHEN ${opts.notiz ?? null}::text IS NULL THEN notiz
+                     ELSE CONCAT_WS(' · ', NULLIF(notiz, ''), ${opts.notiz ?? null}::text) END,
+        updated_at = NOW()
+    WHERE id = ${opts.rateId} AND status <> 'bezahlt'
+  `;
+  if ((geaendert as any).count === 0) return { ok: true, schonBezahlt: true };
+
+  // Die nächste Rate rechnet ab dem Zahlungsdatum — nicht ab der bisherigen
+  // Fälligkeit. Zahlt jemand zehn Tage zu spät, ist der nächste Termin
+  // 30 Tage nach seiner Zahlung.
+  await naechsteRateAnlegen(rate.ref, rate as any, opts.zahlungsdatum);
+
+  // ── Inkasso-Prämie ────────────────────────────────────────────────────
+  // HIER und nur hier. Der Buchungsweg für eine Rate ist die einzige Stelle,
+  // an der zuverlässig feststeht, dass Geld angekommen ist. `praemieBuchen`
+  // entscheidet selbst, OB gebucht wird (Selbstzahler: nein). Ein Fehler hier
+  // darf die Ratenbuchung nicht umwerfen — die ist die wichtigere Wahrheit.
+  try {
+    const { praemieBuchen } = await import("../lib/fiaon-inkasso");
+    const p = await praemieBuchen(opts.rateId);
+    if (!p.gebucht) console.log(`[FIAON-ABO] Rate ${opts.rateId}: keine Inkasso-Prämie (${p.grund})`);
+  } catch (e) {
+    console.error("[FIAON-ABO] Inkasso-Prämie:", e);
+  }
+
+  const quelleText = opts.quelle === "gocardless" ? "per Lastschrift eingezogen" : opts.quelle === "bank" ? "über den Kontoauszug gebucht" : "als bezahlt gebucht";
+  await sqlPool`
+    INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+    VALUES (${rate.ref}, NULL, 'System', 'system',
+            ${`Abo-Rate ${rate.rate_nr} (${rate.zahlungsreferenz}) ${quelleText} — Zahlungseingang ${opts.zahlungsdatum}${opts.notiz ? ` (${opts.notiz})` : ""}`})
+  `.catch(() => {});
+  const { tag: anker } = await aboAnker(rate.ref);
+  return { ok: true, naechsteFaelligkeit: anker ? naechsteFaelligkeit(anker, opts.zahlungsdatum) : null };
+}
+
 router.post("/admin/abo/raten/:id/bezahlt", async (req: Request, res: Response) => {
   try {
-    await ensureAboTabellen();
     const id = Number(req.params.id);
-    const [rate] = await sqlPool`SELECT * FROM fiaon_abo_raten WHERE id = ${id}`;
-    if (!rate) return res.status(404).json({ ok: false, error: "Rate nicht gefunden" });
-    if (rate.status === "bezahlt") return res.json({ ok: true, schonBezahlt: true });
-
     const pruefung = pruefeZahlungsdatum(req.body?.zahlungsdatum);
     if (pruefung.fehler) return res.status(400).json({ ok: false, error: pruefung.fehler });
-    const zahlungsdatum = pruefung.datum;
-
-    await sqlPool`
-      UPDATE fiaon_abo_raten
-      SET status = 'bezahlt', bezahlt_am = ${`${zahlungsdatum}T12:00:00Z`}, updated_at = NOW()
-      WHERE id = ${id}
-    `;
-    // Die nächste Rate rechnet ab dem Zahlungsdatum — nicht ab der bisherigen
-    // Fälligkeit. Zahlt jemand zehn Tage zu spät, ist der nächste Termin
-    // 30 Tage nach seiner Zahlung.
-    await naechsteRateAnlegen(rate.ref, rate as any, zahlungsdatum);
-
-    // ── Inkasso-Prämie ────────────────────────────────────────────────────
-    // HIER und nur hier. Der Buchungsweg für eine Rate ist die einzige Stelle,
-    // an der zuverlässig feststeht, dass Geld angekommen ist. Eine Prämie, die
-    // woanders entsteht — beim Klick auf ein Gesprächsergebnis etwa —, würde
-    // für Zusagen bezahlen statt für Zahlungen.
-    //
-    // `praemieBuchen` entscheidet selbst, OB gebucht wird: Ohne dokumentierte
-    // Bearbeitung (Selbstzahler) und ohne vom Vorgesetzter bestätigte Vergütung
-    // passiert nichts. Ein Fehler hier darf die Ratenbuchung nicht umwerfen —
-    // die ist die wichtigere Wahrheit.
-    try {
-      const { praemieBuchen } = await import("../lib/fiaon-inkasso");
-      const p = await praemieBuchen(id);
-      if (!p.gebucht) console.log(`[FIAON-ABO] Rate ${id}: keine Inkasso-Prämie (${p.grund})`);
-    } catch (e) {
-      console.error("[FIAON-ABO] Inkasso-Prämie:", e);
-    }
-
-    // Im Kundenverlauf dokumentieren, damit die Akte die Wahrheit zeigt.
-    await sqlPool`
-      INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
-      VALUES (${rate.ref}, NULL, 'System', 'system',
-              ${`Abo-Rate ${rate.rate_nr} (${rate.zahlungsreferenz}) als bezahlt gebucht — Zahlungseingang ${zahlungsdatum}`})
-    `.catch(() => {});
-    const { tag: anker } = await aboAnker(rate.ref);
-    res.json({
-      ok: true, zahlungsdatum,
-      naechsteFaelligkeit: anker ? naechsteFaelligkeit(anker, zahlungsdatum) : null,
-    });
+    const erg = await rateBezahltBuchen({ rateId: id, zahlungsdatum: pruefung.datum, quelle: "admin" });
+    if (!erg.ok) return res.status(404).json({ ok: false, error: erg.error });
+    res.json({ ok: true, schonBezahlt: erg.schonBezahlt ?? false, zahlungsdatum: pruefung.datum, naechsteFaelligkeit: erg.naechsteFaelligkeit ?? null });
   } catch (err) {
     console.error("[FIAON-ABO] bezahlt:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });

@@ -184,7 +184,7 @@ export function VertriebZahlungen({ onGebucht }: { onGebucht: () => void }) {
 // ═══════════════════════════════════════════════════════════════════════════
 // Buchen — mit Beleg, oder gar nicht
 // ═══════════════════════════════════════════════════════════════════════════
-function BuchenDialog({ zahlung, onSchliessen, onFertig }: { zahlung: any; onSchliessen: () => void; onFertig: () => void }) {
+export function BuchenDialog({ zahlung, onSchliessen, onFertig }: { zahlung: any; onSchliessen: () => void; onFertig: () => void }) {
   const { zeige } = useToast();
   const [lage, setLage] = useState<any>(null);
   const [art, setArt] = useState<"bankeingang" | "beleg" | null>(null);
@@ -209,7 +209,12 @@ function BuchenDialog({ zahlung, onSchliessen, onFertig }: { zahlung: any; onSch
     return () => { document.removeEventListener("keydown", esc); document.body.style.overflow = vorher; };
   }, [onSchliessen]);
 
-  const eintrag = (lage?.zahlung || []).find((z: any) => z.ref === zahlung.ref);
+  // Aus der Akte kommt nur { personId, ref } — der Verwendungszweck steht
+  // dann in der Lage. Aus dem Reiter „Zahlungen" kommt er mit.
+  const eintrag = (lage?.zahlung || []).find((z: any) => z.ref === zahlung.ref)
+    ?? (lage?.zahlung || []).find((z: any) => z.status !== "paid")
+    ?? (lage?.zahlung || [])[0];
+  const zweck: string | null = zahlung.verwendungszweck ?? eintrag?.zahlungsreferenz ?? null;
   const alle: any[] = eintrag?.bankeingaenge || [];
   // BEWEIS UND RAUSCHEN GETRENNT. Ein Treffer über die Referenz ist ein Beweis;
   // „gleicher Betrag" ist bei einem Standardpaket für 59,99 € die halbe
@@ -220,7 +225,8 @@ function BuchenDialog({ zahlung, onSchliessen, onFertig }: { zahlung: any; onSch
 
   const buchen = async () => {
     setBusy(true);
-    const r = await api(`/agent/vertrieb/zahlung/${encodeURIComponent(zahlung.verwendungszweck)}/bezahlt`, {
+    if (!zweck) { setBusy(false); zeige("fehler", "Kein Verwendungszweck", "Diese Bestellung hat keine Zahlungsreferenz — bitte den Vorgesetzten informieren."); return; }
+    const r = await api(`/agent/vertrieb/zahlung/${encodeURIComponent(zweck)}/bezahlt`, {
       method: "POST",
       body: JSON.stringify({ belegArt: art, bankeingangId: bankId, zahlungsdatum: datum, notiz }),
     });
@@ -229,7 +235,7 @@ function BuchenDialog({ zahlung, onSchliessen, onFertig }: { zahlung: any; onSch
     else zeige("fehler", "Nicht gebucht", r.json?.error || "Bitte erneut versuchen.");
   };
 
-  const bereit = !!art && /^\d{4}-\d{2}-\d{2}$/.test(datum) && notiz.trim().length >= 10
+  const bereit = !!art && !!zweck && /^\d{4}-\d{2}-\d{2}$/.test(datum) && notiz.trim().length >= 10
     && (art !== "bankeingang" || !!bankId) && !busy;
 
   return (

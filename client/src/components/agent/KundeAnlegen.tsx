@@ -219,10 +219,12 @@ export function KundeAnlegen({ offen, aufKlappen, fertig }: {
                     Agent den Verwendungszweck ab — und vertippt sich. */}
                 <button type="button"
                         onClick={() => kopieren(
-                          `FIAON — Zahlungsdaten\n`
-                          + `Verwendungszweck: ${erfolg.zahlungsreferenz}\n`
-                          + (erfolg.paket ? `Betrag: ${euro(erfolg.paket.preisEuro)}\n` : "")
-                          + `Rechnung: ${window.location.origin}${erfolg.weiter?.rechnung ?? ""}`,
+                          // Vom Server, mit IBAN — der frühere Text hier hatte keine,
+                          // und ein Kunde konnte damit nicht überweisen.
+                          (erfolg.zahlungsKlartext
+                            ?? `FIAON — Zahlungsdaten\nVerwendungszweck: ${erfolg.zahlungsreferenz}\n`
+                              + (erfolg.paket ? `Betrag: ${euro(erfolg.paket.preisEuro)}\n` : ""))
+                          + `\nRechnung: ${window.location.origin}${erfolg.weiter?.rechnung ?? ""}`,
                           "zahlung")}
                         className="px-4 py-2.5 rounded-xl border border-slate-200 text-[12.5px] font-semibold text-slate-700"
                         style={{ minHeight: 44 }}>

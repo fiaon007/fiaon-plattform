@@ -484,6 +484,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonRoadmapRoutes = await import('./routes/fiaon-roadmap');
   app.use('/api/fiaon', fiaonRoadmapRoutes.default);
 
+  // 🎬 DEMO-KONTO (23.08.2026): feste Platzhalterdaten für FIAON-DEMO — VOR den
+  // echten Kundenrouten, damit requireKunde diese Referenz nie sieht.
+  const fiaonDemo = await import('./routes/fiaon-demo');
+  app.use('/api/fiaon', fiaonDemo.default);
+
   // 🧭 MEIN BEREICH — der neue Kundenbereich (E-013). Hinter signiertem Cookie.
   const fiaonKundeBereich = await import('./routes/fiaon-kunde-bereich');
   app.use('/api/fiaon', fiaonKundeBereich.default);

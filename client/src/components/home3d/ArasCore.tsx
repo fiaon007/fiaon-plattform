@@ -247,11 +247,10 @@ export default function ArasCore({ className = "" }: { className?: string }) {
       renderer.render(scene, camera);
     };
 
-    if (reduced) {
-      renderer.render(scene, camera);
-    } else {
-      tick();
-    }
+    // Erstes Bild sofort — auch wenn der Tab im Hintergrund liegt (document.hidden),
+    // sonst bleibt die Fläche leer, bis der Tab einmal sichtbar war.
+    renderer.render(scene, camera);
+    if (!reduced) tick();
 
     return () => {
       cancelAnimationFrame(raf);

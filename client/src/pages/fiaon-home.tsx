@@ -112,7 +112,7 @@ export default function FiaonHome() {
   const chooseSetup = useCallback((t: "privat" | "business") => { setTab(t); document.getElementById("setups")?.scrollIntoView({ behavior: "smooth" }); }, []);
 
   return (
-    <Dunkel seite="startseite" titel="FIAON – Das Betriebssystem für Bonität" beschreibung="FIAON zeigt Ihnen, was SCHUFA, KSV und CRIF über Sie wissen, repariert es mit Ihnen – und öffnet die Tür zu Konto, Karte und Finanzierung. Für Deutschland, Österreich und die Schweiz.">
+    <Dunkel seite="startseite" titel="Das Betriebssystem für Bonität" beschreibung="FIAON zeigt Ihnen, was SCHUFA, KSV und CRIF über Sie wissen, repariert es mit Ihnen – und öffnet die Tür zu Konto, Karte und Finanzierung. Für Deutschland, Österreich und die Schweiz.">
       <KinoHero
         pille="Das Betriebssystem für Bonität"
         titel={<>Wissen, was Auskunfteien &uuml;ber Sie wissen. <span className="dk-verlauf">Und es &auml;ndern.</span></>}

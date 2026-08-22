@@ -210,11 +210,11 @@ export function karteBauen(breite: number, variante: "blau" | "tinte" = "blau"):
     map: kartenTextur(variante),
     transparent: true,
     alphaTest: 0.02,
-    metalness: 0.35,
-    roughness: 0.3,
-    clearcoat: 1,
-    clearcoatRoughness: 0.08,
-    envMapIntensity: 1.15,
+    metalness: 0.15,
+    roughness: 0.38,
+    clearcoat: 0.9,
+    clearcoatRoughness: 0.12,
+    envMapIntensity: 0.55,
   });
   const hinten = new THREE.MeshPhysicalMaterial({
     map: kartenRueckseite(variante),

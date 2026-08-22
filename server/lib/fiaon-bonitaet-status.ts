@@ -126,7 +126,7 @@ export function bonitaetAbleiten(z: Zeilen): BonitaetStand {
     return {
       ...roh, stufe: "geprueft",
       grund: "Die Bonitätsauskunft liegt vor und ist geprüft.",
-      fuerKunden: "Deine Bonitätsauskunft liegt vor und ist geprüft.",
+      fuerKunden: "Ihre Bonitätsauskunft liegt vor und ist geprüft.",
       naechsterSchritt: "Nichts zu tun.",
       darfKaufen: false, darfHochladen: false,
     };
@@ -135,7 +135,7 @@ export function bonitaetAbleiten(z: Zeilen): BonitaetStand {
     return {
       ...roh, stufe: "beanstandet",
       grund: "Das eingereichte Dokument wurde beanstandet.",
-      fuerKunden: "Mit deiner Auskunft gibt es ein Problem — bitte lade sie erneut hoch.",
+      fuerKunden: "Mit Ihrer Auskunft gibt es ein Problem — bitte laden Sie sie erneut hoch.",
       naechsterSchritt: "Der Kunde muss nachliefern. Der Beanstandungsgrund steht in der Akte.",
       darfKaufen: false, darfHochladen: true,
     };
@@ -145,7 +145,7 @@ export function bonitaetAbleiten(z: Zeilen): BonitaetStand {
       ...roh, stufe: "liegt_zur_pruefung",
       grund: "Ein Dokument liegt vor und wartet auf Prüfung."
         + (bezahlt ? " Der Kunde hat außerdem bezahlt." : ""),
-      fuerKunden: "Deine Auskunft ist bei uns eingegangen — wir sehen sie durch.",
+      fuerKunden: "Ihre Auskunft ist bei uns eingegangen — wir sehen sie durch.",
       // GEMESSEN: 35 Dokumente liegen, 0 sind geprüft. Niemand sah sie.
       naechsterSchritt: "Ein Mitarbeiter muss das Dokument prüfen (Akte → Dokumente).",
       darfKaufen: false, darfHochladen: true,
@@ -158,7 +158,7 @@ export function bonitaetAbleiten(z: Zeilen): BonitaetStand {
     return {
       ...roh, stufe: "beschaffung_laeuft",
       grund: "Die Auskunft ist bezahlt, liegt aber noch nicht vor.",
-      fuerKunden: "Deine Bonitätsauskunft ist bezahlt — wir beschaffen sie für dich.",
+      fuerKunden: "Ihre Bonitätsauskunft ist bezahlt — wir beschaffen sie für Sie.",
       naechsterSchritt: "Auskunft beschaffen und im Kundendatensatz hinterlegen.",
       // NICHT kaufen: Er hat bezahlt. Aber hochladen darf er — wenn er selbst
       // schneller ist als wir, soll ihn nichts daran hindern.
@@ -169,7 +169,7 @@ export function bonitaetAbleiten(z: Zeilen): BonitaetStand {
     return {
       ...roh, stufe: "zahlung_offen",
       grund: "Die Auskunft ist bestellt, die Zahlung steht noch aus.",
-      fuerKunden: "Deine Bestellung ist da — sobald die Zahlung eingeht, beschaffen wir die Auskunft.",
+      fuerKunden: "Ihre Bestellung ist eingegangen — sobald die Zahlung da ist, beschaffen wir die Auskunft.",
       naechsterSchritt: "Zahlungseingang abwarten oder im Kontoabgleich zuordnen.",
       darfKaufen: false, darfHochladen: true,
     };

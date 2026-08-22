@@ -304,3 +304,9 @@
 @media(max-width:640px){.mb-pflicht{grid-template-columns:1fr}}
 .mb-pflicht h3{font-size:17px;font-weight:700}
 .mb-pflicht p{margin:5px 0 0;font-size:13.5px;color:var(--text-leise);max-width:64ch}
+
+/* Gate: Startgespräch buchen — Inhalt bleibt sichtbar, aber hinter Glas */
+.mb-gate{z-index:90}
+.mb-gate .mb-knopf{opacity:0;animation:mbAuftauchen .8s ease both}
+.mb-gate.zu{animation:mbVorhangZu .5s cubic-bezier(.4,0,.2,1) forwards;pointer-events:none}
+.mb textarea:focus{outline:2px solid var(--blau);outline-offset:1px;border-color:transparent}

@@ -149,6 +149,8 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
         stufe: abgeleitet?.stufe ?? konto?.stufe ?? null, text: konto?.text ?? null,
         grund: abgeleitet?.grund ?? null, naechsterSchritt: abgeleitet?.naechsterSchritt ?? null,
         vollAktiv: (abgeleitet?.stufe ?? konto?.stufe) === "voll_aktiv",
+        pflicht: konto?.pflicht ?? false,
+        bezahlt: String(a.payment_status) === "paid",
       },
       bonitaet: bonitaet ? {
         stufe: bonitaet.stufe, fuerKunden: bonitaet.fuerKunden, naechsterSchritt: bonitaet.naechsterSchritt,

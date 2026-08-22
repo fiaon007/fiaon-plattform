@@ -21,6 +21,9 @@
 .mb :focus-visible{outline:2px solid var(--blau);outline-offset:3px;border-radius:6px}
 .mb button{font-family:inherit}
 .mb a{color:inherit}
+.mb a.mb-knopf,.mb .mb-knopf{color:#fff}
+.mb a.mb-knopf.still,.mb .mb-knopf.still{color:var(--text-leise)}
+.mb a.mb-knopf.still:hover,.mb .mb-knopf.still:hover{color:var(--text)}
 
 .mb-lichter{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
 .mb-licht{position:absolute;border-radius:50%;filter:blur(40px)}
@@ -271,3 +274,33 @@
 .mb-kal-eintrag .b small{display:block;font:600 10px/1 'Inter',sans-serif;margin-top:5px;text-transform:uppercase;letter-spacing:.08em}
 .mb-kal-eintrag.offen .b{color:var(--frist)}.mb-kal-eintrag.bezahlt .b{color:var(--gut)}
 .mb-kal-summe{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+
+
+/* ═══ Menü v2 — EIN ruhiges Panel statt vier Kästen ═══ */
+.mb-leiste{gap:0}
+.mb-leiste .mb-klapp{margin-bottom:12px}
+.mb-panel{background:var(--flaeche);border:1px solid var(--linie);border-radius:var(--r-gross);box-shadow:var(--sch-hoch),var(--glanz);padding:10px;display:flex;flex-direction:column;gap:2px}
+.mb-panel .mb-leiste-titel{padding:12px 12px 6px;margin-top:4px;border-top:1px solid var(--linie)}
+.mb-panel .mb-leiste-titel:first-child{border-top:0;margin-top:0;padding-top:6px}
+.mb-panel a,.mb-panel button.mb-link{padding:10px 12px;font-weight:500}
+.mb-panel a.aktiv{font-weight:600}
+.mb-panel .mb-nutzer{display:flex;align-items:center;gap:10px;padding:12px 10px 6px;margin-top:6px;border-top:1px solid var(--linie)}
+.mb-panel .mb-nutzer .mb-gesicht{width:32px;height:32px;font-size:11px}
+.mb-panel .mb-nutzer b{display:block;font:600 12.5px/1.2 'Inter',sans-serif;color:var(--text)}
+.mb-panel .mb-nutzer small{display:block;font:500 11px/1.2 'Inter',sans-serif;color:var(--text-still);margin-top:2px}
+.eingeklappt .mb-panel{padding:8px 6px;align-items:center;gap:6px;border-radius:18px}
+.eingeklappt .mb-panel .mb-leiste-titel,.eingeklappt .mb-panel .mb-nutzer b,.eingeklappt .mb-panel .mb-nutzer small{display:none}
+.eingeklappt .mb-panel .mb-nutzer{padding:8px 0 2px;border-top:1px solid var(--linie);width:100%;justify-content:center;margin-top:2px}
+
+/* Upload-Felder */
+.mb-upload{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.mb-upload label{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 13px;border-radius:var(--r-klein);border:1px dashed var(--linie-stark);background:var(--flaeche-still);font:500 12.5px/1.3 'Inter',sans-serif;color:var(--text-leise);cursor:pointer}
+.mb-upload label:hover{border-color:var(--blau);color:var(--text)}
+.mb-upload input[type=file]{display:none}
+.mb-upload .gewaehlt{font:600 11px/1 'JetBrains Mono',monospace;color:var(--blau-tief);max-width:46%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Pflicht-Karte (Startgespräch) */
+.mb-pflicht{background:linear-gradient(135deg,color-mix(in srgb,var(--blau) 9%,#fff),#fff);border:1px solid color-mix(in srgb,var(--blau) 22%,transparent);border-radius:var(--r-gross);box-shadow:var(--sch-hoch),var(--glanz);padding:22px 26px;display:grid;grid-template-columns:1fr auto;gap:18px;align-items:center}
+@media(max-width:640px){.mb-pflicht{grid-template-columns:1fr}}
+.mb-pflicht h3{font-size:17px;font-weight:700}
+.mb-pflicht p{margin:5px 0 0;font-size:13.5px;color:var(--text-leise);max-width:64ch}

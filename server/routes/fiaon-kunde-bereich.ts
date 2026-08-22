@@ -40,7 +40,7 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
              (a.bank_statement_pdf IS NOT NULL) AS hat_kontoauszug,
              (a.id_card_pdf IS NOT NULL) AS hat_ausweis,
              a.reupload_bank_statement, a.reupload_id_card, a.profile_changes_requested, a.admin_profile_note,
-             p.assigned_agent_id,
+             p.assigned_agent_id, p.gc_mandate_ref, p.gc_mandate_status,
              (SELECT g.name FROM fiaon_agents g WHERE g.id = p.assigned_agent_id) AS betreuer_name,
              (SELECT g.rolle FROM fiaon_agents g WHERE g.id = p.assigned_agent_id) AS betreuer_rolle
       FROM fiaon_applications a
@@ -169,6 +169,7 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
       fahrplan: etappen,
       naechsterSchritt: jetzt ? { key: jetzt.key, titel: jetzt.titel, text: jetzt.text, href: jetzt.href || null } : null,
       ansprechpartner: a.betreuer_name ? { name: a.betreuer_name, rolle: a.betreuer_rolle || null } : null,
+      lastschrift: { mandat: a.gc_mandate_ref || null, status: a.gc_mandate_status || null, aktiv: a.gc_mandate_status === "active" },
       kontoVerbunden: false,
     });
   } catch (err) {

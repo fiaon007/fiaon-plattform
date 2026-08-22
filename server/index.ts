@@ -20,7 +20,9 @@ app.set("trust proxy", 1);
 // Raw body parser for Stripe webhook (must be before JSON parser)
 app.use('/api/fiaon/stripe-webhook', express.raw({ type: 'application/json' }));
 
-app.use(express.json({ limit: "50mb" }));
+// `rawBody` für Webhook-Signaturen (GoCardless): Die Signatur gilt über die Bytes,
+// wie sie ankamen — ein neu serialisiertes JSON wäre ein anderer Text.
+app.use(express.json({ limit: "50mb", verify: (req: any, _res, buf) => { req.rawBody = buf.toString("utf8"); } }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" })); // CloudMailin compatibility
 app.use(cookieParser());
 

@@ -480,6 +480,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonKundeBereich = await import('./routes/fiaon-kunde-bereich');
   app.use('/api/fiaon', fiaonKundeBereich.default);
 
+  // 💶 SEPA-Lastschrift über GoCardless (Scheibe 11): Mandat, 12-Raten-Abo, Webhook.
+  const fiaonLastschrift = await import('./routes/fiaon-lastschrift');
+  app.use('/api/fiaon', fiaonLastschrift.default);
+
   // ❌ FIAON Cancellation Routes — Public submit + Admin review
   const cancellationRoutes = await import('./routes/cancellation');
   app.use('/api/fiaon', cancellationRoutes.default);

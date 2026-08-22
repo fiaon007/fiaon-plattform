@@ -28,6 +28,8 @@ import WasIstFiaonPage from "@/pages/was-ist-fiaon";
 import PlattformKonzeptPage from "@/pages/plattform-konzept";
 import LoginPage from "@/pages/login";
 const DashboardPage = lazy(() => import("@/pages/dashboard"));
+// Mein Bereich — der neue Kundenbereich (E-013). Bis zur Abnahme unter eigener Route.
+const MeinBereichPage = lazy(() => import("@/pages/mein-bereich"));
 import ImpressumPage from "@/pages/impressum";
 import AGBPage from "@/pages/agb";
 import WiderrufsbelehrungPage from "@/pages/widerrufsbelehrung";
@@ -167,6 +169,7 @@ function Router() {
       <Route path="/business-antrag" component={BusinessAntragPage} />
       <Route path="/login" component={LoginPage} />
       <Route path="/dashboard" component={DashboardPage} />
+      <Route path="/mein-bereich" component={MeinBereichPage} />
       {/* Nach der Anmeldung landet auch der Vorgesetzte im SPACE — dort steht,
           was das Haus heute gemacht hat. Das Dashboard bleibt als eigener
           Punkt erreichbar: /admin/dashboard. */}

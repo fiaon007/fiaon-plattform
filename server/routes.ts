@@ -476,6 +476,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonRoadmapRoutes = await import('./routes/fiaon-roadmap');
   app.use('/api/fiaon', fiaonRoadmapRoutes.default);
 
+  // 🧭 MEIN BEREICH — der neue Kundenbereich (E-013). Hinter signiertem Cookie.
+  const fiaonKundeBereich = await import('./routes/fiaon-kunde-bereich');
+  app.use('/api/fiaon', fiaonKundeBereich.default);
+
   // ❌ FIAON Cancellation Routes — Public submit + Admin review
   const cancellationRoutes = await import('./routes/cancellation');
   app.use('/api/fiaon', cancellationRoutes.default);

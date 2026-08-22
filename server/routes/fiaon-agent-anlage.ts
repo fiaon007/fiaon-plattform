@@ -54,7 +54,11 @@ const router = Router();
 // Die Besitzgrenze steht dahinter unveraendert: `darfAnKunde` erlaubt einem
 // Onboarder nur Menschen, mit denen er einen Termin hat (fiaon-kundenzugriff.ts,
 // quelle = 'onboarding_call'). Die Rolle oeffnet also keinen fremden Bestand.
-const ERLAUBTE_ROLLEN = new Set(["agent", "vertriebsleiter", "admin", "onboarding"]);
+// `inkasso` dazu (22.08.2026): Das Forderungsmanagement meldete seit dem
+// 13.08. doppelte Vorwahlen („+49 +49"), die es nicht korrigieren durfte —
+// jede Korrektur lief über die Vertriebsleitung. Die Besitzgrenze bleibt:
+// `darfAnKunde` lässt Inkasso nur an Menschen mit offener Rate.
+const ERLAUBTE_ROLLEN = new Set(["agent", "vertriebsleiter", "admin", "onboarding", "inkasso"]);
 
 /**
  * Eine Referenz im FIAON-Format.

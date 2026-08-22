@@ -84,6 +84,29 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-22-leitung-provision-scheibe-4",
+    date: "2026-08-22",
+    category: "Neu",
+    title: "Leitung setzt den Provisionsanspruch · Kunde bearbeiten · Academy in Weiß",
+    summary:
+      "Die Vertriebsleitung kann den Provisionsanspruch mit Begründung setzen, Paket und Betrag vor der Zahlung ändern, "
+      + "Land und Geburtsdatum pflegen. Agenten bearbeiten Stammdaten direkt in der Karte. Academy und Schulung sind jetzt weiß und im Menü.",
+    changes: [
+      "VERTRIEBSLEITUNG — PROVISION (E-027): In der Akte unter „Verwaltung“ → „Provision & Betreuer“: Mitarbeiter wählen, in einem Satz begründen, setzen. Bereits gebuchte, noch nicht ausgezahlte Provisionen anderer werden storniert und neu gebucht. Nicht mehr möglich, sobald etwas angefordert oder ausgezahlt ist — dann der Vorgesetzte.",
+      "VERTRIEBSLEITUNG — PAKET: Unter „Stammdaten“ das Paket der offenen Bestellung ändern; der Betrag kommt aus dem Katalog. Danach die Zahlungsdaten neu senden. Nach der Zahlung nicht mehr (Vorgesetzter).",
+      "VERTRIEBSLEITUNG — STAMMDATEN: Land und Geburtsdatum sind jetzt änderbar und werden wirklich gespeichert.",
+      "VERTRIEB — KUNDE BEARBEITEN: In der Karte unter „Details“ → „Stammdaten“ → „Kunde bearbeiten“: Name, Telefon, Adresse. Jede Änderung steht mit altem und neuem Wert in der Akte.",
+      "LEITUNG AM HANDY: Die Kundentabelle zeigt sich unter Tablet-Breite als Karten — Anrufen und Akte direkt.",
+      "ACADEMY & SCHULUNG: weiß, im Portal-Menü, mit Telefon und Rücksprung. Navigation mit eigenen Marken statt Fremd-Icons.",
+    ],
+    howto: [
+      "Provision korrigieren: Kunde öffnen → Verwaltung → Provision & Betreuer → Mitarbeiter + Begründung → „Provisionsanspruch setzen“.",
+      "Paket korrigieren: Kunde öffnen → Stammdaten → „Paket der offenen Bestellung“ → dann „Zahlungsdaten erneut schicken“.",
+    ],
+    link: { href: "/agent/vertrieb", label: "Zum Vertrieb" },
+    important: true,
+  },
+  {
     id: "2026-08-22-antrag-website",
     date: "2026-08-22",
     category: "Geändert",

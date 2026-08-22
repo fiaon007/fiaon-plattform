@@ -14,15 +14,16 @@
 // Wahrheit — und die Schulung würde nach der ersten Änderung auseinanderlaufen.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AgentShell } from "./shared";
 import { SchaubildFuerKapitel } from "@/components/AcademySchaubilder";
 import { KernbotschaftKarte } from "@/components/KernbotschaftKarte";
 import { Link, useRoute } from "wouter";
 import { HANDELNDER_TEXT, type Kapitel } from "@shared/fiaon-academy";
 
-const GRUND = "#0A1A3C";
-const HELL = "#eef2fb";
-const LEISE = "#9fb3d9";
-const LEISER = "#7f97c4";
+const GRUND = "#F7F9FC";
+const HELL = "#0F172A";
+const LEISE = "#475569";
+const LEISER = "#64748B";
 
 function nutztRuhe(): boolean {
   return typeof window !== "undefined"
@@ -51,7 +52,7 @@ function Uebersicht() {
   }, []);
 
   return (
-    <div data-fiaon="team-academy" style={{ background: GRUND, minHeight: "100vh" }}>
+    <div data-fiaon="team-academy" style={{ background: GRUND, minHeight: "60vh" }}>
       <div style={{ maxWidth: 820, margin: "0 auto", padding: "28px 16px 96px" }}>
         <Link href="/agent/mehr" style={{
           color: LEISE, fontSize: 13, fontWeight: 700, textDecoration: "none",
@@ -92,7 +93,7 @@ function Uebersicht() {
                     data-fiaon="team-reise-karte"
                     style={{
                       display: "block", textDecoration: "none", padding: "20px 18px",
-                      borderRadius: 20, background: "rgba(255,255,255,.055)",
+                      borderRadius: 20, background: "rgba(15,23,42,.055)",
                       boxShadow: `inset 0 0 0 1px ${r.ton.akzent}3d`,
                       animation: ruhe ? "none"
                         : `fiTeamAcademyEintritt .5s cubic-bezier(.22,1,.36,1) ${i * 0.08}s both`,
@@ -119,7 +120,7 @@ function Uebersicht() {
                     wie viel noch kommt, die Zahl sagt, wo man weitermacht. */}
                 <div style={{ marginTop: 14 }}>
                   <div style={{
-                    height: 4, borderRadius: 999, background: "rgba(255,255,255,.12)",
+                    height: 4, borderRadius: 999, background: "rgba(15,23,42,.12)",
                     overflow: "hidden",
                   }}>
                     <div style={{
@@ -276,14 +277,14 @@ function TeamReise({ reiseKey }: { reiseKey: string }) {
 
   if (laedt) {
     return (
-      <div style={{ background: GRUND, minHeight: "100vh", padding: "40px 16px" }}>
+      <div style={{ background: GRUND, minHeight: "60vh", padding: "40px 16px" }}>
         <p style={{ color: LEISER, fontSize: 13 }}>Lädt …</p>
       </div>
     );
   }
   if (fehler || !jetzt) {
     return (
-      <div style={{ background: GRUND, minHeight: "100vh", padding: "40px 16px" }}>
+      <div style={{ background: GRUND, minHeight: "60vh", padding: "40px 16px" }}>
         <p style={{ color: HELL, fontSize: 15, lineHeight: 1.6 }}>{fehler ?? "Keine Kapitel."}</p>
         <Link href="/agent/academy" style={{ color: "#5b8cff", fontSize: 14, fontWeight: 700 }}>
           Zu meinen Reisen
@@ -293,13 +294,13 @@ function TeamReise({ reiseKey }: { reiseKey: string }) {
   }
 
   return (
-    <div data-fiaon="team-academy" style={{ background: GRUND, minHeight: "100vh" }}>
+    <div data-fiaon="team-academy" style={{ background: GRUND, minHeight: "60vh" }}>
       {/* ── DIE LEISTE: WO BIN ICH? ──────────────────────────────────────── */}
       <div style={{
         position: "sticky", top: 0, zIndex: 20, background: "rgba(10,26,60,.93)",
-        backdropFilter: "blur(10px)", borderBottom: "1px solid rgba(255,255,255,.08)",
+        backdropFilter: "blur(10px)", borderBottom: "1px solid rgba(15,23,42,.08)",
       }}>
-        <div style={{ height: 3, background: "rgba(255,255,255,.1)" }}>
+        <div style={{ height: 3, background: "rgba(15,23,42,.1)" }}>
           <div style={{
             height: "100%", width: `${((aktiv + 1) / kapitel.length) * 100}%`,
             background: ton.akzent, transition: ruhe ? "none" : "width .3s",
@@ -338,7 +339,7 @@ function TeamReise({ reiseKey }: { reiseKey: string }) {
                     onClick={() => setPraesentation((v) => !v)}
                     style={{
                       padding: "9px 14px", borderRadius: 10, border: 0, cursor: "pointer",
-                      background: praesentation ? ton.akzent : "rgba(255,255,255,.09)",
+                      background: praesentation ? ton.akzent : "rgba(15,23,42,.09)",
                       color: praesentation ? "#04102b" : HELL,
                       fontSize: 12, fontWeight: 800, minHeight: 44,
                     }}>
@@ -415,8 +416,8 @@ function TeamReise({ reiseKey }: { reiseKey: string }) {
              style={{
                display: "inline-block", marginTop: 18, padding: "12px 17px",
                borderRadius: 12, textDecoration: "none",
-               background: "rgba(255,255,255,.09)", color: HELL,
-               boxShadow: "inset 0 0 0 1px rgba(255,255,255,.2)",
+               background: "rgba(15,23,42,.09)", color: HELL,
+               boxShadow: "inset 0 0 0 1px rgba(15,23,42,.2)",
                fontSize: 13, fontWeight: 700, minHeight: 44, lineHeight: "20px",
              }}>
             {jetzt.weg.label} öffnen →
@@ -443,7 +444,7 @@ function TeamReise({ reiseKey }: { reiseKey: string }) {
           <button type="button" onClick={() => springe(aktiv - 1)} disabled={aktiv === 0}
                   style={{
                     padding: "13px 19px", borderRadius: 12, border: 0, cursor: "pointer",
-                    background: "rgba(255,255,255,.08)", color: HELL, fontSize: 13,
+                    background: "rgba(15,23,42,.08)", color: HELL, fontSize: 13,
                     fontWeight: 700, minHeight: 48, opacity: aktiv === 0 ? .35 : 1,
                   }}>
             ← Zurück
@@ -516,5 +517,6 @@ export default function AgentAcademyPage() {
   useEffect(() => {
     document.title = key ? "Academy — FIAON Team" : "FIAON Academy";
   }, [key]);
-  return key ? <TeamReise reiseKey={key} /> : <Uebersicht />;
+  // Seit 22.08.2026 in der Hülle: Menü, Telefon, Rücksprung — und weiß wie der Rest des Portals.
+  return <AgentShell>{key ? <TeamReise reiseKey={key} /> : <Uebersicht />}</AgentShell>;
 }

@@ -22,15 +22,16 @@
 // derselben Regel geht auseinander.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useState } from "react";
+import { AgentShell } from "./shared";
 import { Link } from "wouter";
 import { katalogFuerLeitung, anzahlNurVerwaltung } from "@/pages/admin-funktionen";
 import { KernbotschaftKarte } from "@/components/KernbotschaftKarte";
 
-const GRUND = "#0A1A3C";
-const HELL = "#eef2fb";
-const LEISE = "#9fb3d9";
-const LEISER = "#7f97c4";
-const AKZENT = "#5b8cff";
+const GRUND = "#F7F9FC";
+const HELL = "#0F172A";
+const LEISE = "#475569";
+const LEISER = "#64748B";
+const AKZENT = "#1D4ED8";
 
 export default function AgentSchulungPage() {
   const [academy, setAcademy] = useState<any>(null);
@@ -56,17 +57,17 @@ export default function AgentSchulungPage() {
   // Der Server hat entschieden; hier wird nur angezeigt oder nicht.
   if (!laedt && academy && !academy.istLeitung) {
     return (
-      <div style={{ background: GRUND, minHeight: "100vh", padding: "40px 18px" }}>
+      <AgentShell><div style={{ background: GRUND, minHeight: "60vh", padding: "40px 18px" }}>
         <p style={{ color: HELL, fontSize: 15, lineHeight: 1.6, maxWidth: 520 }}>
           Diese Seite ist für die Vertriebsleitung. Deine eigene Reise findest du
           unter <Link href="/agent/academy" style={{ color: AKZENT }}>Academy</Link>.
         </p>
-      </div>
+      </div></AgentShell>
     );
   }
 
   return (
-    <div data-fiaon="leitung-schulung" style={{ background: GRUND, minHeight: "100vh" }}>
+    <AgentShell><div data-fiaon="leitung-schulung" style={{ background: GRUND, minHeight: "60vh" }}>
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "26px 16px 96px" }}>
         <Link href="/agent/mehr" style={{
           color: LEISE, fontSize: 13, fontWeight: 700, textDecoration: "none",
@@ -122,7 +123,7 @@ export default function AgentSchulungPage() {
                     data-fiaon="leitung-reise"
                     style={{
                       display: "block", textDecoration: "none", padding: "16px 16px",
-                      borderRadius: 16, background: "rgba(255,255,255,.05)",
+                      borderRadius: 16, background: "rgba(15,23,42,.05)",
                       boxShadow: `inset 0 0 0 1px ${r.ton?.akzent ?? AKZENT}3d`,
                     }}>
                 <p style={{ margin: 0, color: HELL, fontSize: 16, fontWeight: 800 }}>
@@ -163,7 +164,7 @@ export default function AgentSchulungPage() {
                     style={{
                       display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10,
                       padding: "11px 14px", borderRadius: 13,
-                      background: "rgba(255,255,255,.04)",
+                      background: "rgba(15,23,42,.04)",
                     }}>
                   <span style={{ color: HELL, fontSize: 13.5, fontWeight: 700 }}>{m.name}</span>
                   <span style={{ color: LEISER, fontSize: 11.5 }}>{m.rolle}</span>
@@ -196,8 +197,8 @@ export default function AgentSchulungPage() {
             {katalog.map((g) => (
               <div key={g.title} data-fiaon="leitung-katalog-gruppe" style={{
                 padding: "15px 16px", borderRadius: 16,
-                background: "rgba(255,255,255,.04)",
-                boxShadow: "inset 0 0 0 1px rgba(255,255,255,.08)",
+                background: "rgba(15,23,42,.04)",
+                boxShadow: "inset 0 0 0 1px rgba(15,23,42,.08)",
               }}>
                 <p style={{ margin: 0, color: HELL, fontSize: 14.5, fontWeight: 800 }}>
                   {g.title}
@@ -236,6 +237,6 @@ export default function AgentSchulungPage() {
           </div>
         </section>
       </div>
-    </div>
+    </div></AgentShell>
   );
 }

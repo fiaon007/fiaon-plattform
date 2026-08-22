@@ -784,6 +784,7 @@ function KundenKarte({
   //
   // AGENTS.md: Haken stehen ÜBER dem ersten `return`, nicht dort, wo man sie
   // braucht — sonst „Rendered more hooks than during the previous render".
+  const [bearbeiten, setBearbeiten] = useState(false);
   const [mailNachtrag, setMailNachtrag] = useState("");
   // Der Produkt-Dialog. AGENTS.md: Haken stehen ÜBER dem ersten `return`.
   const [produktOffen, setProduktOffen] = useState(false);
@@ -1964,8 +1965,21 @@ function KundenKarte({
               </div>
             )}
             <div className="p-3 rounded-xl" style={{ background: "var(--fi-seite)" }}>
-              <p className="text-[11px] font-semibold uppercase tracking-[.07em] mb-1.5"
-                 style={{ color: "var(--fi-text-still)" }}>Stammdaten</p>
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-[11px] font-semibold uppercase tracking-[.07em]"
+                   style={{ color: "var(--fi-text-still)" }}>Stammdaten</p>
+                {/* „Kunde bearbeiten" — der Knopf, auf den ein Hinweistext seit dem 20.08. zeigte, ohne dass es ihn gab (V-6). */}
+                <button type="button" onClick={() => setBearbeiten((v) => !v)} className="text-[11.5px] font-semibold" style={{ color: "var(--fi-primaer)" }}>
+                  {bearbeiten ? "Schließen" : "Kunde bearbeiten"}
+                </button>
+              </div>
+              {bearbeiten && (
+                <KundeBearbeiten k={k} onFertig={async () => {
+                  setBearbeiten(false);
+                  const r = await api(`/agent/crm/kunden/${k.personId}`);
+                  if (r.ok && r.json?.kunde) onNeu(r.json.kunde);
+                }} />
+              )}
               <dl className="text-[12.5px]">
                 {[
                   ["Adresse", [k.stammdaten?.strasse, [k.stammdaten?.plz, k.stammdaten?.ort].filter(Boolean).join(" ")].filter(Boolean).join(", ") || null],
@@ -2327,6 +2341,51 @@ export function Versandzentrum({ personId }: { personId: number }) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+
+// ── „Kunde bearbeiten" (V-6, 22.08.2026) ─────────────────────────────────────
+// Dieselbe Route wie das E-Mail-Nachtragen (`/agent/customers/:ref/stammdaten`):
+// Audit je Feld, alte Nummer wird Alias. Kein zweiter Schreibweg.
+function KundeBearbeiten({ k, onFertig }: { k: Kunde; onFertig: () => Promise<void> }) {
+  const { zeige } = useToast();
+  const [f, setF] = useState({
+    firstName: (k.name || "").split(" ").slice(0, -1).join(" ") || k.name || "", lastName: (k.name || "").split(" ").slice(-1).join(""),
+    phone: k.telefon || "", street: k.stammdaten?.strasse || "", zip: k.stammdaten?.plz || "", city: k.stammdaten?.ort || "",
+  });
+  const [busy, setBusy] = useState(false);
+  const ref = k.zahlung?.ref || k.buchungen?.[0]?.ref || null;
+  const speichern = async () => {
+    if (!ref) { zeige("fehler", "Keine Bestellung", "Ohne Bestellung gibt es keine Akte, an der die Daten hängen."); return; }
+    setBusy(true);
+    const r = await api(`/agent/customers/${encodeURIComponent(ref)}/stammdaten`, { method: "POST", body: JSON.stringify(f) });
+    setBusy(false);
+    if (!r.ok) { zeige("fehler", "Nicht gespeichert", r.json?.error || "Bitte erneut versuchen."); return; }
+    zeige("erfolg", "Gespeichert", "Die Änderungen stehen mit altem und neuem Wert in der Akte.");
+    await onFertig();
+  };
+  const feld = (key: keyof typeof f, label: string, breit = false) => (
+    <label className={breit ? "col-span-2" : ""}>
+      <span className="block text-[10.5px] font-semibold uppercase tracking-[.06em] mb-1" style={{ color: "var(--fi-text-still)" }}>{label}</span>
+      <input value={f[key]} onChange={(e) => setF({ ...f, [key]: e.target.value })}
+             className="w-full h-[36px] px-2.5 rounded-lg border bg-white text-[13px] outline-none" style={{ borderColor: "var(--fi-linie)" }} />
+    </label>
+  );
+  return (
+    <div className="mb-3 p-3 rounded-xl bg-white" style={{ border: "1px solid var(--fi-linie)" }}>
+      <div className="grid grid-cols-2 gap-2">
+        {feld("firstName", "Vorname")}{feld("lastName", "Nachname")}
+        {feld("phone", "Telefon", true)}{feld("street", "Straße", true)}
+        {feld("zip", "PLZ")}{feld("city", "Ort")}
+      </div>
+      <div className="flex items-center gap-2 mt-2.5">
+        <button type="button" onClick={() => void speichern()} disabled={busy} className="fi-primaerknopf px-3.5 py-2 text-[12.5px] font-semibold text-white disabled:opacity-50">
+          {busy ? "Speichert …" : "Speichern"}
+        </button>
+        <span className="text-[11.5px]" style={{ color: "var(--fi-text-still)" }}>Geburtsdatum und Land ändert die Vertriebsleitung.</span>
+      </div>
     </div>
   );
 }

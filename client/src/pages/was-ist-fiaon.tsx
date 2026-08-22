@@ -42,13 +42,13 @@ export default function WasIstFiaonPage() {
           {/* Headline */}
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-semibold text-center tracking-tight mb-8 max-w-5xl leading-[1.2] fiaon-gradient-text-animated">
             Die erste KI-Plattform,<br/>
-            die für dich arbeitet.<br/>
+            die für Sie arbeitet.<br/>
             Nicht für die Bank.
           </h1>
 
           {/* Subline */}
           <p className="text-sm sm:text-base lg:text-lg text-gray-600 text-center max-w-3xl leading-relaxed mb-12">
-            Du bist es gewohnt, dass Finanz-Tools kostenlos sind, weil sie dich als Lead an Banken verkaufen. FIAON bricht dieses System. Wir sind eine 100 % unabhängige SaaS-Plattform um DIR zu helfen. Keine Affiliate-Links. Keine Provisionen. Nur Technologie, Insider-Strategien und dein direkter Weg zum Wunschlimit.
+            Sie sind es gewohnt, dass Finanz-Tools kostenlos sind, weil sie Sie als Lead an Banken verkaufen. FIAON bricht dieses System. Wir sind eine 100 % unabhängige SaaS-Plattform um DIR zu helfen. Keine Affiliate-Links. Keine Provisionen. Nur Technologie, Insider-Strategien und dein direkter Weg zum Wunschlimit.
           </p>
 
           {/* CTA Button */}
@@ -162,7 +162,7 @@ export default function WasIstFiaonPage() {
               <div className="text-white">
                 <h2 className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.1] fiaon-gradient-text-animated -ml-4">
                   Das System war nie<br/>
-                  für dich ausgelegt.<br/>
+                  für Sie ausgelegt.<br/>
                   Wir haben ein neues<br/>
                   gebaut.
                 </h2>
@@ -171,10 +171,10 @@ export default function WasIstFiaonPage() {
               {/* Right side - Text Block */}
               <div className="text-gray-300 text-lg leading-relaxed space-y-6">
                 <p>
-                  Banken verdienen an deinen Zinsen, nicht an deinem Fortschritt. Vergleichsportale verdienen an deinem Klick, egal ob die Karte wirklich zu dir passt oder nicht. Du bist in der Finanzindustrie traditionell das Produkt.
+                  Banken verdienen an Ihren Zinsen, nicht an Ihrem Fortschritt. Vergleichsportale verdienen an Ihrem Klick, egal ob die Karte wirklich zu dir passt oder nicht. Du bist in der Finanzindustrie traditionell das Produkt.
                 </p>
                 <p>
-                  Bei FIAON drehen wir den Spieß um. Du bezahlst unsere Software, damit unsere Software ausschließlich für dich arbeitet. Kein Algorithmus, der von Banken bezahlt wird. Keine versteckten Agenden.
+                  Bei FIAON drehen wir den Spieß um. Sie bezahlen unsere Software, damit unsere Software ausschließlich für Sie arbeitet. Kein Algorithmus, der von Banken bezahlt wird. Keine versteckten Agenden.
                 </p>
               </div>
             </div>
@@ -217,7 +217,7 @@ export default function WasIstFiaonPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                   </svg>
                 </div>
-                <span className="text-white font-medium">Fokus auf deinen Score, nicht auf Sales</span>
+                <span className="text-white font-medium">Fokus auf Ihren Wert, nicht auf Verkauf</span>
               </div>
             </div>
           </div>
@@ -297,7 +297,7 @@ export default function WasIstFiaonPage() {
                 <h3 className="text-2xl font-bold text-gray-900 mb-3 fiaon-gradient-text-animated">Die KI-Engine</h3>
                 <p className="text-sm text-blue-500 font-semibold tracking-wide uppercase mb-4">Der Navigator</p>
                 <p className="text-gray-600 leading-relaxed">
-                  Die FIAON-Engine gleicht dein Finanzprofil in Millisekunden mit hunderten Parametern des Marktes ab. Sie zeigt dir blind, wo dein Limit-Potenzial wirklich liegt und warum du bisher unter Wert liegst.
+                  Die FIAON-Engine gleicht Ihr Finanzprofil in Millisekunden mit hunderten Parametern des Marktes ab. Sie zeigt Ihnen blind, wo Ihr Limit-Potenzial wirklich liegt und warum du bisher unter Wert liegst.
                 </p>
               </div>
 
@@ -338,7 +338,7 @@ export default function WasIstFiaonPage() {
                 <h3 className="text-2xl font-bold text-gray-900 mb-3 fiaon-gradient-text-animated">Das Credit-Building</h3>
                 <p className="text-sm text-purple-500 font-semibold tracking-wide uppercase mb-4">Der Muskel</p>
                 <p className="text-gray-600 leading-relaxed">
-                  Das Herzstück. Wir haben die effektivsten US-Kreditkarten-Strategien für den europäischen Markt adaptiert. Du lernst, wann du Anträge stellst, wie du Limits hebelst und Cashflow durch Karten optimierst.
+                  Das Herzstück. Wir haben die effektivsten US-Kreditkarten-Strategien für den europäischen Markt adaptiert. Sie lernen, wann Sie Anträge stellst, wie du Limits hebelst und Cashflow durch Karten optimierst.
                 </p>
               </div>
 
@@ -381,7 +381,7 @@ export default function WasIstFiaonPage() {
                 <h3 className="text-2xl font-bold text-gray-900 mb-3 fiaon-gradient-text-animated">Das Dashboard</h3>
                 <p className="text-sm text-amber-500 font-semibold tracking-wide uppercase mb-4">Das Cockpit</p>
                 <p className="text-gray-600 leading-relaxed">
-                  Deine Fortschritte, deine Timeline, deine nächsten Schritte. Das FIAON-Dashboard ist dein persönlicher Kommando-Stand, der sich jeden Monat mit dir weiterentwickelt.
+                  Ihre Fortschritte, Ihre Zeitleiste, Ihre nächsten Schritte. Ihr FIAON-Bereich ist Ihr persönlicher Kommando-Stand, der sich jeden Monat mit dir weiterentwickelt.
                 </p>
               </div>
             </div>

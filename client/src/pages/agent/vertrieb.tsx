@@ -11,6 +11,7 @@ import { VertriebZahlungen, VertriebDokumente, VertriebZugang, LageTafel, Servic
 import DublettenArbeitsplatz from "@/components/admin/DublettenArbeitsplatz";
 import { Fehlerrahmen } from "@/components/agent/Fehlerrahmen";
 import { statusAusTierGrund } from "@shared/fiaon-kundenstatus";
+import { PAKETE } from "@shared/fiaon-pakete";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // /agent/vertrieb — Gesamtsicht für die Vertriebsleitung
@@ -628,8 +629,45 @@ function Inhalt() {
           </div>
         )}
 
-        {/* Tabelle */}
-        <div className="mt-3 fi-karte overflow-hidden">
+        {/* ── AM HANDY KARTEN STATT TABELLE (Scheibe 4) ───────────────────
+            Acht Spalten bei 900 px Mindestbreite hießen: waagerecht schieben.
+            Die Leitung telefoniert mobil — hier stehen Name, Status,
+            Zuständig, Betrag, Anrufen, Akte. Dieselben Daten, andere Form. */}
+        <div className="mt-3 space-y-2 md:hidden">
+          {!laedt && personen.map((p) => {
+            const an = gewaehlt.includes(p.personId);
+            return (
+              <div key={p.personId} className="fi-karte p-3.5" style={an ? { borderColor: "rgba(29,78,216,.35)" } : undefined}>
+                <div className="flex items-start gap-2.5">
+                  <input type="checkbox" checked={an} className="w-4 h-4 mt-1 accent-blue-600" aria-label={`${p.name} wählen`}
+                         onChange={() => setGewaehlt((g) => an ? g.filter((x) => x !== p.personId) : [...g, p.personId])} />
+                  <button type="button" onClick={() => void akteOeffnen(p.personId)} className="text-left min-w-0 flex-1">
+                    <span className="block text-[14px] font-bold" style={{ color: "var(--fi-text)" }}>{p.name}</span>
+                    <span className="block text-[11.5px]" style={{ color: "var(--fi-text-still)" }}>{p.email || p.telefon || p.ref || "—"}</span>
+                  </button>
+                  <span className="text-[13px] font-bold fi-zahl">{p.betrag != null ? eur(p.betrag) : "—"}</span>
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px]">
+                  <span className="font-semibold" style={{ color: TIER_FARBE[p.tier] }}>{statusAusTierGrund(p.tierGrund).anzeige}</span>
+                  <span style={{ color: "var(--fi-text-still)" }}>Zuständig: {p.agentName || "niemand"}</span>
+                  {p.betreuerName && <span style={{ color: "var(--fi-text-still)" }}>Betreuer: {p.betreuerName}</span>}
+                  {p.zusagedatum && <span style={{ color: "var(--fi-text-still)" }}>Zusage {dtag(p.zusagedatum)}</span>}
+                </div>
+                <div className="mt-2.5 flex items-center gap-2">
+                  {p.telefonWaehlbar && (
+                    <button type="button" onClick={() => anrufStarten(String(p.telefonWaehlbar), p.personId, p.name)}
+                            className="fi-primaerknopf px-3.5 py-2 text-[12.5px] font-semibold text-white">Anrufen</button>
+                  )}
+                  <button type="button" onClick={() => void akteOeffnen(p.personId)} className="fi-zweitknopf px-3.5 py-2 text-[12.5px] font-semibold">Akte</button>
+                </div>
+              </div>
+            );
+          })}
+          {!laedt && personen.length === 0 && <p className="fi-karte p-6 text-center text-[13px]" style={{ color: "var(--fi-text-still)" }}>{suche ? "Kein Treffer." : "In dieser Ansicht steht nichts."}</p>}
+        </div>
+
+        {/* Tabelle (ab Tablet) */}
+        <div className="mt-3 fi-karte overflow-hidden hidden md:block">
           <div className="overflow-x-auto">
             <table className="w-full text-left" style={{ minWidth: 900 }}>
               <thead>
@@ -771,7 +809,7 @@ function Inhalt() {
                           ],
                         };
                       })()}>
-          <Akte daten={akte} onSchliessen={() => setAkte(null)}
+          <Akte daten={akte} agenten={agenten} onSchliessen={() => setAkte(null)}
                 onGeaendert={() => { void ladeListe(true); void ladeKopf(); }} />
         </Fehlerrahmen>
       )}
@@ -782,7 +820,7 @@ function Inhalt() {
 // ═══════════════════════════════════════════════════════════════════════════
 // Akte — Stammdaten korrigieren, dokumentieren, sperren, senden
 // ═══════════════════════════════════════════════════════════════════════════
-function Akte({ daten, onSchliessen, onGeaendert }: { daten: any; onSchliessen: () => void; onGeaendert: () => void }) {
+function Akte({ daten, onSchliessen, onGeaendert, agenten = [] }: { daten: any; onSchliessen: () => void; onGeaendert: () => void; agenten?: { id: number; name: string; rolle?: string }[] }) {
   const { zeige } = useToast();
   const [busy, setBusy] = useState(false);
   // „Lage" steht zuerst: Wenn ein Agent anruft, lautet die Frage fast immer
@@ -792,10 +830,33 @@ function Akte({ daten, onSchliessen, onGeaendert }: { daten: any; onSchliessen: 
     "lage" | "zugang" | "zahlung" | "verwaltung" | "stammdaten" | "verlauf" | "zuweisungen"
   >("lage");
   // Ein Grund ist Pflicht bei allem, was Zugang verschafft oder Geld bewegt.
+  const fragen = useFragen();
   const [grund, setGrund] = useState("");
   // Zahlung buchen: derselbe Dialog wie im Reiter „Zahlungen" (Belegpflicht,
   // Bankeingang, echtes Eingangsdatum). Der alte Freitext-Weg ist geschlossen.
   const [buchen, setBuchen] = useState(false);
+  // ── Provision & Betreuer (E-027) ────────────────────────────────────────
+  const [betreuerId, setBetreuerId] = useState<string>("");
+  const [betreuerGrund, setBetreuerGrund] = useState("");
+  const [paketKey, setPaketKey] = useState<string>("");
+  const [paketGrund, setPaketGrund] = useState("");
+  const betreuerSetzen = async () => {
+    if (!betreuerId || betreuerGrund.trim().length < 10) { zeige("fehler", "Begründung fehlt", "Mitarbeiter wählen und in einem Satz begründen."); return; }
+    if (!(await fragen({ titel: "Provisionsanspruch setzen?", text: `Der Anspruch für ${p.name} geht an ${agenten.find((a) => String(a.id) === betreuerId)?.name || "den gewählten Mitarbeiter"}. Bereits gebuchte, noch nicht ausgezahlte Provisionen anderer werden storniert und neu gebucht.`, folge: "Mit Begründung im Protokoll und in der Akte.", ja: "Setzen" }))) return;
+    setBusy(true);
+    const r = await api(`/agent/vertrieb/person/${p.personId}/betreuer`, { method: "POST", body: JSON.stringify({ agentId: Number(betreuerId), grund: betreuerGrund.trim() }) });
+    setBusy(false);
+    if (r.ok) { zeige("erfolg", "Anspruch gesetzt", r.json.meldung); setBetreuerGrund(""); onGeaendert(); }
+    else zeige("fehler", "Nicht gesetzt", r.json?.error || "");
+  };
+  const paketSetzen = async () => {
+    if (!paketKey || paketGrund.trim().length < 5) { zeige("fehler", "Angabe fehlt", "Paket wählen und kurz begründen."); return; }
+    setBusy(true);
+    const r = await api(`/agent/vertrieb/person/${p.personId}/paket`, { method: "PATCH", body: JSON.stringify({ packKey: paketKey, grund: paketGrund.trim() }) });
+    setBusy(false);
+    if (r.ok) { zeige("erfolg", "Paket geändert", r.json.meldung); setPaketGrund(""); onGeaendert(); }
+    else zeige("fehler", "Nicht geändert", r.json?.error || "");
+  };
   const [einmalPasswort, setEinmalPasswort] = useState<{ pw: string; bis: string } | null>(null);
   const [loeschFrage, setLoeschFrage] = useState(false);
   const [zugangStand, setZugangStand] = useState<any>(null);
@@ -1302,6 +1363,34 @@ function Akte({ daten, onSchliessen, onGeaendert }: { daten: any; onSchliessen: 
                   </p>
                 </div>
 
+                {/* ══ PROVISION & BETREUER (E-027, 22.08.2026) ══════════════
+                    Justin: „Leitung darf Provision setzen." Mit Begründung,
+                    im Protokoll, in der Akte — und nur, solange nichts
+                    ausgezahlt ist. Eine Zuweisung verschiebt die Zuständigkeit;
+                    DAS hier verschiebt das Geld. Deshalb ein eigener Block. */}
+                <div className="px-3.5 py-3 rounded-xl" style={{ boxShadow: "inset 0 0 0 1px rgba(29,78,216,.25)", background: "rgba(29,78,216,.03)" }}>
+                  <p className="text-[11px] font-semibold uppercase tracking-[.08em] mb-1" style={{ color: "var(--fi-primaer)" }}>Provision & Betreuer</p>
+                  <p className="text-[12.5px] mb-2.5" style={{ color: "var(--fi-text-leise)" }}>
+                    Heute: <b>{p.betreuerName || daten.person?.betreuerName || "kein dokumentierter Betreuer"}</b>. Der Anspruch folgt sonst dem letzten dokumentierten Kontakt.
+                  </p>
+                  <div className="flex flex-col gap-2">
+                    <select value={betreuerId} onChange={(e) => setBetreuerId(e.target.value)} aria-label="Mitarbeiter"
+                            className="w-full h-[36px] px-2.5 rounded-lg border bg-white text-[13px] outline-none" style={{ borderColor: "var(--fi-linie)" }}>
+                      <option value="">Mitarbeiter wählen …</option>
+                      {agenten.map((a) => <option key={a.id} value={a.id}>{a.name}{a.rolle ? ` — ${a.rolle}` : ""}</option>)}
+                    </select>
+                    <input value={betreuerGrund} onChange={(e) => setBetreuerGrund(e.target.value)} placeholder="Begründung (Pflicht), z. B. hat den Abschluss am Telefon gemacht, Kontakt nicht dokumentiert"
+                           className="w-full h-[36px] px-2.5 rounded-lg border bg-white text-[13px] outline-none" style={{ borderColor: "var(--fi-linie)" }} />
+                    <button type="button" onClick={() => void betreuerSetzen()} disabled={busy || !betreuerId || betreuerGrund.trim().length < 10}
+                            className="fi-primaerknopf px-3.5 py-2 text-[12.5px] font-semibold text-white disabled:opacity-40">
+                      Provisionsanspruch setzen
+                    </button>
+                  </div>
+                  <p className="text-[11.5px] mt-1.5 leading-snug" style={{ color: "var(--fi-text-still)" }}>
+                    Geht nicht mehr, sobald eine Provision angefordert oder ausgezahlt ist — dann entscheidet der Vorgesetzte im Nachbuchungs-Center.
+                  </p>
+                </div>
+
                 {/* ── LÖSCHUNG ────────────────────────────────────────────── */}
                 <div className="px-3.5 py-3 rounded-xl"
                      style={{ background: "rgba(185,28,28,.04)", boxShadow: "inset 0 0 0 1px rgba(185,28,28,.16)" }}>
@@ -1371,13 +1460,22 @@ function Akte({ daten, onSchliessen, onGeaendert }: { daten: any; onSchliessen: 
                     ["company_name", "Firma"], ["primary_email", "E-Mail"],
                     ["primary_phone", "Telefon"], ["street", "Straße"],
                     ["zip", "PLZ"], ["city", "Ort"],
+                    ["country", "Land"], ["birthdate", "Geburtsdatum"],
                   ] as const).map(([feld, label]) => (
                     <label key={feld} className={feld === "company_name" || feld === "primary_email" || feld === "street" ? "col-span-2" : ""}>
                       <span className="block text-[11px] font-semibold uppercase tracking-[.06em] mb-1"
                             style={{ color: "var(--fi-text-still)" }}>{label}</span>
-                      <input value={form[feld] ?? ""} onChange={(e) => setForm((f) => ({ ...f, [feld]: e.target.value }))}
-                             className="w-full h-[36px] px-2.5 rounded-lg border bg-white text-[13px] outline-none"
-                             style={{ borderColor: "var(--fi-linie)" }} />
+                      {feld === "country" ? (
+                        <select value={form[feld] ?? ""} onChange={(e) => setForm((f) => ({ ...f, [feld]: e.target.value }))}
+                                className="w-full h-[36px] px-2.5 rounded-lg border bg-white text-[13px] outline-none" style={{ borderColor: "var(--fi-linie)" }}>
+                          <option value="">—</option><option value="DE">Deutschland</option><option value="AT">Österreich</option><option value="CH">Schweiz</option><option value="LI">Liechtenstein</option><option value="LU">Luxemburg</option>
+                        </select>
+                      ) : (
+                        <input type={feld === "birthdate" ? "date" : "text"} value={feld === "birthdate" ? String(form[feld] ?? "").slice(0, 10) : (form[feld] ?? "")}
+                               onChange={(e) => setForm((f) => ({ ...f, [feld]: e.target.value }))}
+                               className="w-full h-[36px] px-2.5 rounded-lg border bg-white text-[13px] outline-none"
+                               style={{ borderColor: "var(--fi-linie)" }} />
+                      )}
                     </label>
                   ))}
                 </div>
@@ -1386,10 +1484,26 @@ function Akte({ daten, onSchliessen, onGeaendert }: { daten: any; onSchliessen: 
                   {busy ? "Speichere …" : "Stammdaten speichern"}
                 </button>
                 <p className="mt-2 text-[11.5px]" style={{ color: "var(--fi-text-still)" }}>
-                  Jede Änderung wird mit altem und neuem Wert protokolliert. Zahlungen buchen und Provisionen ändern
-                  bleibt beim Vorgesetzten.
+                  Jede Änderung wird mit altem und neuem Wert protokolliert. Zahlungen buchst du unter „Zahlung" mit Beleg,
+                  den Provisionsanspruch setzt du unter „Verwaltung" mit Begründung.
                 </p>
 
+                {/* ── PAKET ÄNDERN (Scheibe 4) — nur vor der Zahlung ─────────── */}
+                <div className="mt-4 px-3.5 py-3 rounded-xl" style={{ boxShadow: "inset 0 0 0 1px var(--fi-linie)" }}>
+                  <p className="text-[11px] font-semibold uppercase tracking-[.07em] mb-1.5" style={{ color: "var(--fi-text-still)" }}>Paket der offenen Bestellung</p>
+                  <div className="flex flex-col gap-2">
+                    <select value={paketKey} onChange={(e) => setPaketKey(e.target.value)} aria-label="Paket"
+                            className="w-full h-[36px] px-2.5 rounded-lg border bg-white text-[13px] outline-none" style={{ borderColor: "var(--fi-linie)" }}>
+                      <option value="">Paket wählen …</option>
+                      {PAKETE.filter((x) => x.abo).map((x) => <option key={x.key} value={x.key}>{x.label} — {(x.preisCents / 100).toFixed(2).replace(".", ",")} €</option>)}
+                    </select>
+                    <input value={paketGrund} onChange={(e) => setPaketGrund(e.target.value)} placeholder="Grund, z. B. Kunde wollte Pro statt Ultra"
+                           className="w-full h-[36px] px-2.5 rounded-lg border bg-white text-[13px] outline-none" style={{ borderColor: "var(--fi-linie)" }} />
+                    <button type="button" onClick={() => void paketSetzen()} disabled={busy || !paketKey || paketGrund.trim().length < 5}
+                            className="fi-zweitknopf px-3.5 py-2 text-[12.5px] font-semibold disabled:opacity-40">Paket und Betrag setzen</button>
+                  </div>
+                  <p className="text-[11.5px] mt-1.5" style={{ color: "var(--fi-text-still)" }}>Betrag kommt aus dem Katalog. Danach die Zahlungsdaten neu senden — die alte Mail nennt den alten Betrag. Nach der Zahlung: Vorgesetzter.</p>
+                </div>
                 {daten.bestellungen?.length > 0 && (
                   <div className="mt-4">
                     <p className="text-[11px] font-semibold uppercase tracking-[.07em] mb-1.5"

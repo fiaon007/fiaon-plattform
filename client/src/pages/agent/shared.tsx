@@ -5,6 +5,7 @@ import { TerminErinnerung } from "@/components/TerminErinnerung";
 import { VerkaufsstartBanner } from "@/components/VerkaufsstartBanner";
 import { Users, Calendar, Wallet, LogOut, RefreshCw, LayoutDashboard, MoreHorizontal, Sparkles, X, PhoneCall, AlertTriangle, Menu, ChevronRight, ListChecks, Mail } from "lucide-react";
 import OnboardingGate from "./onboarding";
+import { MarkeMenschen, MarkeStart, MarkeGeld, MarkePost, MarkeAufgaben, MarkeKalender, MarkeMehr, MarkeForderung, MarkeGespraech, MarkeVertrieb } from "@/lib/fiaon-marken";
 import {
   AGENT_UPDATES, getUnseenCount, fmtUpdateDate,
   getUnseenImportant, markImportantSeen, type AgentUpdate,

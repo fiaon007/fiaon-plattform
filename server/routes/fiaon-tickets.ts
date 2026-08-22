@@ -69,6 +69,34 @@ router.post("/kunde/:ref/tickets", requireKunde, async (req: KundeRequest, res: 
   } catch (err) { console.error("[TICKETS] neu:", err); res.status(500).json({ ok: false, error: "Das Anliegen konnte nicht gespeichert werden." }); }
 });
 
+/** GET /agent/tickets/zaehler — wie viele offene Anliegen warten auf mich (für das Menü). */
+router.get("/agent/tickets/zaehler", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    await tabelle();
+    const { rolleVon } = await import("../lib/fiaon-kundenzugriff");
+    const rolle = await rolleVon(req.agent!.id);
+    const alle = rolle === "admin" || rolle === "vertriebsleiter";
+    const [z] = (await sqlPool`
+      SELECT COUNT(*) FILTER (WHERE status = 'offen')::int AS offen,
+             COUNT(*) FILTER (WHERE status = 'offen' AND agent_id = ${req.agent!.id})::int AS meine,
+             COUNT(*) FILTER (WHERE status = 'offen' AND agent_id IS NULL)::int AS pool
+      FROM fiaon_tickets WHERE ${alle} OR agent_id = ${req.agent!.id} OR agent_id IS NULL`) as any[];
+    res.json({ ok: true, offen: z.offen, meine: z.meine, pool: z.pool });
+  } catch (err) { console.error("[TICKETS] zaehler:", err); res.status(500).json({ ok: false }); }
+});
+
+/** POST /agent/tickets/:id/uebernehmen — ein Anliegen aus dem Pool an mich ziehen. */
+router.post("/agent/tickets/:id/uebernehmen", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    await tabelle();
+    const id = Number(req.params.id);
+    const [t] = (await sqlPool`UPDATE fiaon_tickets SET agent_id = ${req.agent!.id}, updated_at = NOW()
+      WHERE id = ${id} AND (agent_id IS NULL OR agent_id = ${req.agent!.id}) RETURNING id`) as any[];
+    if (!t) return res.status(409).json({ ok: false, error: "Dieses Anliegen betreut bereits jemand anderes." });
+    res.json({ ok: true });
+  } catch (err) { console.error("[TICKETS] uebernehmen:", err); res.status(500).json({ ok: false, error: "Serverfehler" }); }
+});
+
 /** GET /agent/tickets — offene Anliegen: eigene Kunden zuerst, dann der Pool. */
 router.get("/agent/tickets", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
@@ -77,11 +105,15 @@ router.get("/agent/tickets", requireAgent, async (req: AgentRequest, res: Respon
     const rolle = await rolleVon(req.agent!.id);
     const alle = rolle === "admin" || rolle === "vertriebsleiter";
     const rows = await sqlPool`
-      SELECT t.id, t.ref, t.betreff, t.text, t.status, t.antwort, t.created_at, t.agent_id,
-             TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')) AS kunde
+      SELECT t.id, t.ref, t.betreff, t.text, t.status, t.antwort, t.created_at, t.updated_at, t.agent_id, t.beantwortet_am,
+             TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')) AS kunde,
+             p.primary_email AS email, p.primary_phone AS telefon,
+             (SELECT g.name FROM fiaon_agents g WHERE g.id = t.agent_id) AS betreuer,
+             (t.agent_id = ${req.agent!.id}) AS meins
       FROM fiaon_tickets t LEFT JOIN fiaon_persons p ON p.id = t.person_id
-      WHERE t.status <> 'erledigt' AND (${alle} OR t.agent_id = ${req.agent!.id} OR t.agent_id IS NULL)
-      ORDER BY (t.agent_id = ${req.agent!.id}) DESC, t.created_at ASC LIMIT 200`;
+      WHERE (t.status <> 'erledigt' OR t.updated_at > NOW() - INTERVAL '14 days')
+        AND (${alle} OR t.agent_id = ${req.agent!.id} OR t.agent_id IS NULL)
+      ORDER BY (t.status = 'offen') DESC, (t.agent_id = ${req.agent!.id}) DESC, t.created_at ASC LIMIT 300`;
     res.json({ ok: true, tickets: rows });
   } catch (err) { console.error("[TICKETS] agent:", err); res.status(500).json({ ok: false, error: "Serverfehler" }); }
 });

@@ -69,6 +69,14 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
     const start = termine.find((t) => t.quelle === "onboarding_call" && t.status === "erledigt")
       || termine.find((t) => t.quelle === "onboarding_call" && t.status === "gebucht") || null;
 
+    // Die Bonitätsauskunft ist eine EIGENE Bestellung (type='schufa') mit eigenem
+    // Verwendungszweck — der Kunde soll sie VOR dem Startgespräch bezahlen können.
+    const [schufa] = a.person_id ? ((await sqlPool`
+      SELECT ref, payment_reference, payment_status, amount_due FROM fiaon_applications
+      WHERE person_id = ${a.person_id} AND merged_into IS NULL AND archived_at IS NULL
+        AND (type = 'schufa' OR ref LIKE 'FIAON-SCHUFA-%')
+      ORDER BY created_at DESC LIMIT 1`) as any[]) : [null];
+
     // Abo-Raten
     const raten = (await sqlPool`
       SELECT rate_nr, betrag_cents, faellig_am, status, bezahlt_am, zahlungsreferenz
@@ -156,6 +164,8 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
         stufe: bonitaet.stufe, fuerKunden: bonitaet.fuerKunden, naechsterSchritt: bonitaet.naechsterSchritt,
         bezahlt: bonitaet.bezahlt, hatDokument: bonitaet.hatDokument, geprueft: bonitaet.dokumentGeprueft,
         darfKaufen: bonitaet.darfKaufen, darfHochladen: bonitaet.darfHochladen, bestellRef: bonitaet.bestellRef,
+        zahlungsreferenz: schufa?.payment_reference || null, zahlungsstatus: schufa?.payment_status || null,
+        preisEuro: schufa?.amount_due != null ? Number(schufa.amount_due) : 74,
       } : null,
       unterlagen: {
         kontoauszug: !!a.hat_kontoauszug, ausweis: !!a.hat_ausweis, auskunft: auskunftDa,

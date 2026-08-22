@@ -21,7 +21,7 @@ interface Bereich {
   kunde: { ref: string; vorname: string; nachname: string; email: string; telefon: string; strasse: string; plz: string; ort: string; land: string; geburtsdatum: string | null; kundeSeit: string | null; profilRueckfrage: boolean; profilHinweis: string | null };
   paket: { key: string | null; name: string; abo: boolean; rahmen: number | null; wunschlimit: number | null; monatlichCents: number | null; zahlungsstatus: string; zahlungsreferenz: string | null; faelligAm: string | null };
   stufe: { stufe: string | null; text: string | null; grund: string | null; naechsterSchritt: string | null; vollAktiv: boolean; pflicht: boolean; bezahlt: boolean };
-  bonitaet: { stufe: string; fuerKunden: string; naechsterSchritt: string; bezahlt: boolean; hatDokument: boolean; geprueft: boolean; darfKaufen: boolean; darfHochladen: boolean; bestellRef: string | null } | null;
+  bonitaet: { stufe: string; fuerKunden: string; naechsterSchritt: string; bezahlt: boolean; hatDokument: boolean; geprueft: boolean; darfKaufen: boolean; darfHochladen: boolean; bestellRef: string | null; zahlungsreferenz: string | null; zahlungsstatus: string | null; preisEuro: number } | null;
   unterlagen: { kontoauszug: boolean; ausweis: boolean; auskunft: boolean; erneutKontoauszug: boolean; erneutAusweis: boolean; kycStatus: string; kontoStatus: string };
   abo: { naechste: { nr: number; betragCents: number; faelligAm: string | null; status: string; referenz: string } | null; offen: number; bezahlt: number; raten: { nr: number; betragCents: number; faelligAm: string | null; faelligIso: string | null; status: string; bezahltAm: string | null }[] };
   termin: { beginn: string; status: string; agent: string | null } | null;
@@ -269,12 +269,22 @@ export default function MeinBereichPage() {
 
             {/* ═══ ZAHLUNG OFFEN — davor gibt es keinen Termin ═══ */}
             {!d.stufe.bezahlt && (
-              <div className="mb-pflicht">
-                <div><h3>Ihre Zahlung ist noch nicht eingegangen</h3><p>Sobald Ihre erste Rate bei uns ist, schalten wir den nächsten Schritt frei: Ihr Startgespräch. Am einfachsten richten Sie die Lastschrift ein — dann läuft jede Rate automatisch. Oder Sie überweisen mit dem Verwendungszweck {d.paket.zahlungsreferenz ? <b className="zahl">{d.paket.zahlungsreferenz}</b> : "aus Ihrer Rechnung"}.</p></div>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {d.paket.abo && <button className="mb-knopf" type="button" onClick={lastschriftStarten}>Lastschrift einrichten</button>}
-                  {d.paket.zahlungsreferenz && <a className="mb-knopf still" href={`/zahlung/${encodeURIComponent(d.paket.zahlungsreferenz)}`}>Überweisen</a>}
+              <div className="mb-pflicht" style={{ gridTemplateColumns: "1fr" }}>
+                <div><h3>Zwei Zahlungen — dann geht es los</h3><p>Sobald Ihre erste Zahlung bei uns ist, schalten wir Ihr Startgespräch frei. Wer die Bonitätsauskunft gleich mitbezahlt, startet im Gespräch direkt mit der Analyse — das spart eine Runde.</p></div>
+                <div className="mb-raster" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))" }}>
+                  <div className="mb-kachel"><div className="mb-eyebrow">1 · Ihr Paket</div><h4>{d.paket.name}</h4>
+                    <p>{d.paket.monatlichCents != null ? `${eurCents(d.paket.monatlichCents)} · erste Rate per Überweisung` : "erste Rate per Überweisung"}{d.paket.zahlungsreferenz ? <><br />Verwendungszweck: <b className="zahl">{d.paket.zahlungsreferenz}</b></> : null}</p>
+                    <div className="mb-kachel-fuss"><span className="mb-lage frist">Offen</span>{d.paket.zahlungsreferenz && <a className="mb-knopf klein" href={`/zahlung/${encodeURIComponent(d.paket.zahlungsreferenz)}`}>Jetzt überweisen</a>}</div></div>
+                  <div className="mb-kachel"><div className="mb-eyebrow">2 · Bonitätsauskunft</div><h4>{eur(d.bonitaet?.preisEuro ?? 74)} einmalig — am besten gleich mit</h4>
+                    <p>Tagesaktuell, neutral abgerufen, kein Abo. Die Grundlage für alles Weitere.{d.bonitaet?.zahlungsreferenz && d.bonitaet.zahlungsstatus !== "paid" ? <><br />Verwendungszweck: <b className="zahl">{d.bonitaet.zahlungsreferenz}</b></> : null}</p>
+                    <div className="mb-kachel-fuss">
+                      <span className={`mb-lage ${d.bonitaet?.zahlungsstatus === "paid" ? "gut" : d.bonitaet?.zahlungsreferenz ? "frist" : "ruht"}`}>{d.bonitaet?.zahlungsstatus === "paid" ? "Bezahlt" : d.bonitaet?.zahlungsreferenz ? "Offen" : "Noch nicht bestellt"}</span>
+                      {d.bonitaet?.zahlungsstatus !== "paid" && (d.bonitaet?.zahlungsreferenz
+                        ? <a className="mb-knopf klein" href={`/zahlung/${encodeURIComponent(d.bonitaet.zahlungsreferenz)}`}>Jetzt überweisen</a>
+                        : d.bonitaet?.darfKaufen ? <a className="mb-knopf klein" href="/bonitaet-antrag">Dazu bestellen</a> : null)}
+                    </div></div>
                 </div>
+                <p style={{ margin: 0, fontSize: 12.5, color: "var(--text-still)" }}>Die Lastschrift für die weiteren Raten richten Sie ein, sobald Ihre erste Zahlung eingegangen ist — dann läuft alles automatisch.</p>
               </div>
             )}
             {/* ═══ STARTGESPRÄCH — Termin gebucht, noch nicht geführt ═══ */}
@@ -315,7 +325,9 @@ export default function MeinBereichPage() {
                       <h4 style={{ fontSize: 16, fontWeight: 700 }}>Bonitätsauskunft — der Grundstein</h4>
                       <p style={{ margin: "8px 0 0", fontSize: 13.5, color: "var(--text-leise)", maxWidth: "56ch" }}>Bevor irgendetwas anderes Sinn hat, braucht es einen Überblick: Was steht über Sie in den Auskunfteien? Die Auskunft wird neutral abgerufen und verändert Ihren Wert nicht. Einmalig 74 €, kein Abo.</p>
                       <div style={{ marginTop: 16, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        {d.bonitaet?.darfKaufen && <a className="mb-knopf" href="/bonitaet-antrag">Auskunft beauftragen</a>}
+                        {d.bonitaet?.zahlungsreferenz && d.bonitaet.zahlungsstatus !== "paid"
+                          ? <a className="mb-knopf" href={`/zahlung/${encodeURIComponent(d.bonitaet.zahlungsreferenz)}`}>Auskunft jetzt bezahlen</a>
+                          : d.bonitaet?.darfKaufen ? <a className="mb-knopf" href="/bonitaet-antrag">Auskunft beauftragen</a> : null}
                         {d.bonitaet?.darfHochladen && <a className="mb-knopf still" href="#unterlagen">Eigene Auskunft hochladen</a>}
                       </div>
                     </div>
@@ -428,11 +440,13 @@ export default function MeinBereichPage() {
                   <div className="mb-zeile"><span>Kündbar</span><span>zum Monatsende, formlos per E-Mail</span></div>
                   <div className="mb-zeile"><span>Lastschrift</span><span>{d.lastschrift.aktiv ? "eingerichtet — Raten werden automatisch eingezogen" : d.lastschrift.mandat ? "wird von Ihrer Bank bestätigt" : "nicht eingerichtet"}</span></div>
                   <div style={{ marginTop: 14, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {!d.lastschrift.aktiv && d.paket.abo && <button className="mb-knopf klein" type="button" onClick={lastschriftStarten}>Lastschrift einrichten</button>}
+                    {!d.lastschrift.aktiv && d.paket.abo && d.stufe.bezahlt && <button className="mb-knopf klein" type="button" onClick={lastschriftStarten}>Lastschrift einrichten</button>}
                     {d.abo.naechste && d.abo.naechste.status !== "bezahlt" && d.abo.naechste.referenz && <a className={`mb-knopf klein${d.lastschrift.aktiv ? " still" : ""}`} href={`/zahlung/${encodeURIComponent(d.abo.naechste.referenz)}`}>Jetzt überweisen</a>}
                     <a className="mb-knopf still klein" href="/abo-kuendigen">Abo kündigen</a>
                   </div>
-                  {!d.lastschrift.aktiv && d.paket.abo && <p style={{ margin: "10px 0 0", fontSize: 12, color: "var(--text-still)" }}>Mit der Lastschrift geben Sie Ihre IBAN einmal sicher bei unserem Zahlungspartner GoCardless ein — FIAON sieht sie nie. Danach wird jede Rate pünktlich eingezogen, ohne dass Sie an die Überweisung denken müssen.</p>}
+                  {!d.lastschrift.aktiv && d.paket.abo && (d.stufe.bezahlt
+                    ? <p style={{ margin: "10px 0 0", fontSize: 12, color: "var(--text-still)" }}>Mit der Lastschrift geben Sie Ihre IBAN einmal sicher bei unserem Zahlungspartner GoCardless ein — FIAON sieht sie nie. Danach wird jede weitere Rate pünktlich eingezogen, ohne dass Sie an die Überweisung denken müssen.</p>
+                    : <p style={{ margin: "10px 0 0", fontSize: 12, color: "var(--text-still)" }}>Die Lastschrift können Sie einrichten, sobald Ihre erste Zahlung eingegangen ist.</p>)}
                 </div>
                 <Passwort refKunde={d.kunde.ref} />
                 <Hilfe refKunde={d.kunde.ref} ansprechpartner={d.ansprechpartner?.name || null} />

@@ -30,6 +30,7 @@ interface Bereich {
   ansprechpartner: { name: string; rolle: string | null } | null;
   lastschrift: { mandat: string | null; status: string | null; aktiv: boolean };
   kontoVerbunden: boolean;
+  finanzen?: any;
 }
 
 const eur = (n: number | null | undefined) => n == null ? "—" : new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", minimumFractionDigits: 0 }).format(n);
@@ -424,8 +425,9 @@ export default function MeinBereichPage() {
             {/* ═══ FINANZEN ═══ */}
             <section id="finanzen">
               <div className="mb-abschnitt-kopf"><div><h2>Ihre Finanzen</h2><p>Wohin Ihr Geld geht — nicht geschätzt, gezählt.</p></div></div>
+              <FinanzAnalyse a={d.finanzen ?? null} hatAuszug={d.unterlagen.kontoauszug} />
               <Zahlungskalender raten={d.abo.raten} paket={d.paket.name} />
-              <div className="mb-hinweis" style={{ marginTop: 16 }}><b>Sobald Ihr Konto verbunden ist,</b> erscheinen hier auch Miete, Strom, Versicherungen, Abos und alle anderen festen Zahlungen — mit Datum, Betrag und Verwendungszweck. Dazu Ihr Ausgabenprofil nach Bereichen und ein Merksatz, der benennt, wo Spielraum ist.</div>
+              {!d.finanzen && <div className="mb-hinweis" style={{ marginTop: 16 }}><b>Sobald Ihr Kontoauszug vorliegt</b> (oder Ihr Konto verbunden ist), erscheinen hier Miete, Strom, Versicherungen, Abos und alle anderen festen Zahlungen — mit Betrag und Rhythmus. Dazu Ihr Ausgabenprofil nach Bereichen und Merksätze, die benennen, wo Spielraum ist.</div>}
             </section>
 
             {/* ═══ VORTEILE ═══ */}
@@ -583,6 +585,72 @@ function Zahlungskalender({ raten, paket }: { raten: Bereich["abo"]["raten"]; pa
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Die Auswertung des Kontoauszugs ───────────────────────────────────────
+function FinanzAnalyse({ a, hatAuszug }: { a: any; hatAuszug: boolean }) {
+  if (!a) {
+    if (!hatAuszug) return null;
+    return <div className="mb-karte" style={{ marginBottom: 16 }}><h4 style={{ fontSize: 15 }}>Ihre Auswertung wird vorbereitet</h4><p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-leise)" }}>Ihr Kontoauszug liegt vor. Die Auswertung erscheint hier, sobald sie fertig ist — laden Sie die Seite in ein paar Minuten neu.</p></div>;
+  }
+  if (a.status === "laeuft") return <div className="mb-karte" style={{ marginBottom: 16 }}><h4 style={{ fontSize: 15 }}>Ihr Kontoauszug wird gerade ausgewertet</h4><p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-leise)" }}>Das dauert in der Regel unter einer Minute. Laden Sie die Seite gleich neu.</p></div>;
+  if (a.status === "unlesbar") return <div className="mb-karte" style={{ marginBottom: 16 }}><h4 style={{ fontSize: 15 }}>Ihr Kontoauszug ließ sich nicht auswerten</h4><p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-leise)" }}>{a.fehler}</p><a className="mb-knopf still" href="#unterlagen" style={{ marginTop: 10, display: "inline-block" }}>Neue Datei hochladen</a></div>;
+  if (a.status === "fehler") return <div className="mb-karte" style={{ marginBottom: 16 }}><h4 style={{ fontSize: 15 }}>Die Auswertung ist nicht gelungen</h4><p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-leise)" }}>Wir prüfen das und melden uns. Ihr Kontoauszug ist sicher gespeichert.</p></div>;
+  const zeitraum = a.zeitraumVon && a.zeitraumBis ? `${a.zeitraumVon.split("-").reverse().join(".")} – ${a.zeitraumBis.split("-").reverse().join(".")}` : "Zeitraum des Auszugs";
+  const rest = (a.einnahmenCents ?? 0) - (a.ausgabenCents ?? 0);
+  const ton = (art: string) => (art === "inkasso" || art === "pfaendung" || art === "ruecklastschrift") ? "var(--kritisch)" : art === "dispo" || art === "mahnung" || art === "kredit" ? "var(--frist)" : "var(--text-leise)";
+  return (
+    <div style={{ display: "grid", gap: 14, marginBottom: 16 }}>
+      <div className="mb-karte">
+        <p style={{ margin: 0, fontSize: 11, fontWeight: 700, letterSpacing: ".14em", textTransform: "uppercase", color: "var(--text-still)" }}>Aus Ihrem Kontoauszug · {zeitraum}</p>
+        <div className="mb-raster" style={{ marginTop: 12 }}>
+          {[["Einnahmen", a.einnahmenCents, "var(--gut)"], ["Ausgaben", a.ausgabenCents, "var(--text)"], ["Bleibt übrig", rest, rest >= 0 ? "var(--gut)" : "var(--kritisch)"], ["Gehalt / Rente", a.gehaltCents, "var(--text)"]].map(([t, v, c]) => (
+            <article className="mb-kachel" key={String(t)}><p style={{ margin: 0, fontSize: 11.5, color: "var(--text-still)" }}>{t as string}</p><p className="zahl" style={{ margin: "4px 0 0", fontSize: 22, fontWeight: 700, color: c as string }}>{v == null ? "—" : eurCents(v as number)}</p></article>
+          ))}
+        </div>
+        {(a.dispoGenutzt || a.ruecklastschriften > 0) && (
+          <p style={{ margin: "12px 0 0", fontSize: 13, color: "var(--frist)", fontWeight: 600 }}>
+            {a.dispoGenutzt ? `Dispo genutzt${a.dispoTiefstCents != null ? ` (tiefster Stand ${eurCents(a.dispoTiefstCents)})` : ""}` : ""}
+            {a.dispoGenutzt && a.ruecklastschriften > 0 ? " · " : ""}
+            {a.ruecklastschriften > 0 ? `${a.ruecklastschriften} Rücklastschrift${a.ruecklastschriften === 1 ? "" : "en"}` : ""}
+          </p>
+        )}
+      </div>
+      {a.merksaetze?.length > 0 && (
+        <div className="mb-karte" style={{ background: "linear-gradient(135deg,rgba(37,99,235,.07),rgba(40,141,250,.04))" }}>
+          <h4 style={{ fontSize: 15, marginBottom: 6 }}>Was das für Sie heißt</h4>
+          {a.merksaetze.map((m: string, i: number) => <p key={i} style={{ margin: "6px 0 0", fontSize: 14, lineHeight: 1.55 }}>{m}</p>)}
+        </div>
+      )}
+      {a.fixkosten?.length > 0 && (
+        <div className="mb-karte">
+          <h4 style={{ fontSize: 15, marginBottom: 8 }}>Ihre festen Zahlungen</h4>
+          {a.fixkosten.map((f: any, i: number) => (
+            <div className="mb-zeile" key={i}><span>{f.name}<small style={{ display: "block", color: "var(--text-still)" }}>{f.kategorie} · {f.rhythmus}</small></span><span className="zahl">{eurCents(f.betragCents)}</span></div>
+          ))}
+        </div>
+      )}
+      {a.kategorien?.length > 0 && (
+        <div className="mb-karte">
+          <h4 style={{ fontSize: 15, marginBottom: 8 }}>Wohin Ihr Geld geht</h4>
+          {a.kategorien.slice().sort((x: any, y: any) => y.betragCents - x.betragCents).map((k: any, i: number) => (
+            <div key={i} style={{ margin: "8px 0" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}><span>{k.name}</span><span className="zahl">{eurCents(k.betragCents)} · {Math.round((k.anteil || 0) * 100)} %</span></div>
+              <div style={{ height: 6, borderRadius: 6, background: "var(--flaeche-still)", marginTop: 4, overflow: "hidden" }}><div style={{ width: `${Math.min(100, Math.round((k.anteil || 0) * 100))}%`, height: "100%", background: "linear-gradient(90deg,#288DFA,#1D4ED8)" }} /></div>
+            </div>
+          ))}
+        </div>
+      )}
+      {a.warnungen?.length > 0 && (
+        <div className="mb-karte">
+          <h4 style={{ fontSize: 15, marginBottom: 8 }}>Was für Ihre Bonität zählt</h4>
+          {a.warnungen.map((w: any, i: number) => (
+            <p key={i} style={{ margin: "6px 0 0", fontSize: 13.5, color: ton(w.art) }}>{w.text}{w.betragCents != null ? ` (${eurCents(w.betragCents)})` : ""}</p>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

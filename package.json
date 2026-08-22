@@ -138,7 +138,8 @@
     "wouter": "^3.3.5",
     "ws": "^8.18.0",
     "zod": "^3.24.2",
-    "zod-validation-error": "^3.4.0"
+    "zod-validation-error": "^3.4.0",
+    "pdfjs-dist": "^6.2.108"
   },
   "devDependencies": {
     "@playwright/test": "1.57.0",
@@ -155,7 +156,6 @@
     "@types/three": "^0.184.1",
     "@types/ws": "^8.5.13",
     "dependency-cruiser": "^17.3.6",
-    "pdfjs-dist": "^6.2.108",
     "tsx": "^4.19.1"
   },
   "optionalDependencies": {

@@ -3218,10 +3218,21 @@ router.post("/upload-kyc", (req, res, next) => {
               ((NOW() AT TIME ZONE 'Europe/Berlin')::date + 2))
     `.catch((e) => console.error("[FIAON-KYC] Aufgabe nicht angelegt:", e?.message));
 
+    // Die Auswertung läuft sofort los — der Kunde sieht sie in wenigen Minuten
+    // unter „Ihre Finanzen". Nicht awaited: Der Upload ist fertig, die Analyse
+    // ist ein Folgeschritt und darf die Antwort nicht aufhalten.
+    if (files.bankStatement) {
+      void import("../lib/fiaon-kontoauszug-analyse")
+        .then(({ kontoauszugAnalysieren }) => kontoauszugAnalysieren(String(ref), { erzwingen: true }))
+        .catch((e) => console.error("[FIAON-KYC] Analyse:", e));
+    }
+
     const hasSchufa = !!(files.schufaDoc || currentApp.schufa_pdf);
     res.json({ 
       ok: true, 
-      message: "Eingegangen. Wir prüfen Ihre Unterlagen innerhalb von zwei Werktagen und melden uns.",
+      message: files.bankStatement
+        ? "Eingegangen. Ihr Kontoauszug wird jetzt ausgewertet — in wenigen Minuten sehen Sie das Ergebnis unter „Ihre Finanzen“. Die Prüfung Ihrer Unterlagen dauert bis zu zwei Werktage."
+        : "Eingegangen. Wir prüfen Ihre Unterlagen innerhalb von zwei Werktagen und melden uns.",
       hasBankStatement: !!hasBankStatement,
       hasIdCard: !!hasIdCard,
       hasSchufa,
@@ -3233,6 +3244,27 @@ router.post("/upload-kyc", (req, res, next) => {
   } catch (err) {
     console.error("[FIAON-KYC]", err);
     res.status(500).json({ error: "Fehler beim Hochladen der Dokumente" });
+  }
+});
+
+/** Verwaltung: Kontoauszug (erneut) auswerten / Ergebnis lesen. */
+router.post("/admin/kontoauszug/:ref/analysieren", async (req, res) => {
+  try {
+    const { kontoauszugAnalysieren } = await import("../lib/fiaon-kontoauszug-analyse");
+    const a = await kontoauszugAnalysieren(String(req.params.ref), { erzwingen: true });
+    if (!a) return res.status(404).json({ ok: false, error: "Kein Kontoauszug hinterlegt." });
+    res.json({ ok: true, analyse: a });
+  } catch (err) {
+    console.error("[ADMIN] kontoauszug analysieren:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+router.get("/admin/kontoauszug/:ref", async (req, res) => {
+  try {
+    const { analyseFuer } = await import("../lib/fiaon-kontoauszug-analyse");
+    res.json({ ok: true, analyse: await analyseFuer(String(req.params.ref)) });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });
 

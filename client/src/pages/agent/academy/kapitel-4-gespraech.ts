@@ -4,14 +4,24 @@
 // Einwand-Trainer (lokale Daten), Anruf-Simulator (Server, gpt-4.1-mini).
 // Wortregeln: shared/fiaon-lead-strecke.ts VERBOTENE_WORTE.
 // ═══════════════════════════════════════════════════════════════════════════
-import { type KapitelInhalt, type Block, p, ul, merk, warn, sagen, frage } from "./typen";
+import { type KapitelInhalt, type Block, p, ul, merk, warn, sagen, link, frage } from "./typen";
 import { PAKETE, SCHUFA_PREIS_EURO } from "@shared/fiaon-pakete";
 import { SUPPORT } from "@shared/fiaon-wissen";
+import { LEITFAEDEN, type Leitfaden } from "./leitfaeden";
 
 const eur = (c: number) => (c / 100).toFixed(2).replace(".", ",") + " €";
 const preis = (key: string) => eur(PAKETE.find((x) => x.key === key)?.preisCents ?? 0);
 const schufa = SCHUFA_PREIS_EURO.toFixed(2).replace(".", ",") + " €";
 const leitfaden = (...phasen: { titel: string; ziel: string; saetze: string[]; hinweis?: string }[]): Block => ({ art: "leitfaden", phasen });
+const stufe = (l: Leitfaden) => ({
+  einleitung: `${l.wann} Ziel: ${l.ziel}`,
+  bloecke: [
+    { art: "kacheln" as const, kacheln: l.kurz.map((k, i) => ({ titel: `${i + 1}`, text: k })) },
+    { art: "leitfaden" as const, phasen: l.phasen },
+    merk(l.merke),
+    link("/agent/academy/leitfaeden", "Alle Leitfäden auf Abruf (Kurzfassung, kopierbar)"),
+  ],
+});
 
 export const KAPITEL_4: KapitelInhalt = {
   inhalte: {
@@ -30,19 +40,9 @@ export const KAPITEL_4: KapitelInhalt = {
         p("Was du vor jedem Anruf tust: Gesprächsblatt öffnen (fünf Sekunden: Phase, letzter Kontakt, offene Punkte). Was du nach jedem Anruf tust: Ergebnis klicken, nächsten Schritt mit Datum. Nichts dazwischen ist optional."),
       ],
     },
-    erstanruf: {
-      einleitung: "Der Erstanruf auf einen Facebook-Lead oder einen offenen Antrag. Ziel: Vertrauen, Verständnis, ein nächster Schritt. Dauer 5–10 Minuten.",
-      bloecke: [
-        leitfaden(
-          { titel: "1 · Öffnen (30 Sekunden)", ziel: "Der Kunde weiß, wer anruft und warum – und dass es kurz wird.", saetze: ["„Guten Tag, [Name] von FIAON. Sie haben sich gerade bei uns gemeldet – ich bin Ihr Ansprechpartner. Passt es kurz, fünf Minuten?“", "„Sie haben vorhin eine Nachricht mit meinem Namen bekommen – das war ich.“"], hinweis: "Wenn es nicht passt: sofort einen Zeitpunkt vereinbaren, nicht „ich rufe später nochmal an“." },
-          { titel: "2 · Verstehen (2 Minuten)", ziel: "Sein Ziel in seinen Worten. Seine Angst. Die konkrete Situation.", saetze: ["„Erzählen Sie mir kurz, was passiert ist.“", "„Was wäre für Sie in drei Monaten ein gutes Ergebnis – Konto, Karte, Wohnung, Ruhe?“", "„Wissen Sie, welcher Eintrag das ist, oder vermuten Sie es?“"], hinweis: "Notiere das Ziel wörtlich. Es ist der Satz, mit dem du das Startgespräch eröffnest." },
-          { titel: "3 · Einordnen (2 Minuten)", ziel: "Der Kunde versteht, was wir tun – in drei Sätzen.", saetze: ["„FIAON holt Ihre Auskunft mit Vollmacht, erklärt Ihnen jeden Eintrag und prüft, ob er überhaupt zulässig gemeldet wurde – oft fehlen Mahnungen oder Fristen.“", "„Für angreifbare Einträge bereiten wir die Schreiben vor, versenden sie per Einschreiben und halten die Fristen. Sie sehen jeden Schritt in Ihrem Bereich.“", "„Und wir bereiten Konto und Karte vor – über die entscheidet die Bank, nicht wir.“"], hinweis: "Keine Garantie, kein „Score verbessern“. Wenn er fragt „Klappt das?“: „Bei vielen ja – weil oft Voraussetzungen fehlen. Ob bei Ihnen, sehen wir in der Auskunft.“" },
-          { titel: "4 · Preis (1 Minute)", ziel: "Der Preis ist klar, bevor er fragt.", saetze: [`„Das Paket Start kostet ${preis("start")} im Monat, Pro ${preis("pro")} – zwölf Raten, danach entscheiden Sie, ob Sie bleiben. Die Bonitätsauskunft allein gibt es für ${schufa} einmalig.“`, "„Kündbar formlos, ohne Grund. Das steht auch in Ihrem Bereich.“"], hinweis: "Preise nur aus dem Katalog. Nie Rabatte versprechen, nie „nur heute“." },
-          { titel: "5 · Nächster Schritt (1 Minute)", ziel: "Eine Verabredung – jetzt oder mit Datum.", saetze: ["„Wollen wir den Antrag jetzt gemeinsam machen? Das sind zwei Minuten, ich bleibe dran.“", "„Oder ich schicke Ihnen den Link und wir sprechen am [Tag] um [Uhr] – dann ist das auch gleich Ihr Startgespräch.“", "„Ich trage das ein. Sie bekommen eine Bestätigung per Mail.“"], hinweis: "Ergebnis klicken: Antrag gemacht / Termin / Rückruf / nicht erreicht / abgelehnt." },
-        ),
-        merk("Nicht erreicht? Ergebnis klicken – das System sendet einen Terminlink. Falsche Nummer? Ergebnis klicken – das System fragt den Kunden per Mail nach der richtigen und legt den Fall schlafen."),
-      ],
-    },
+    "stufe-a": stufe(LEITFAEDEN[0]),
+    "stufe-b": stufe(LEITFAEDEN[1]),
+    "stufe-c": stufe(LEITFAEDEN[2]),
     rueckruf: {
       einleitung: "Der Rückruf: Der Kunde hat um einen Anruf gebeten oder war beim letzten Mal nicht erreichbar. Kürzer, konkreter, mit Bezug.",
       bloecke: [
@@ -88,6 +88,7 @@ export const KAPITEL_4: KapitelInhalt = {
           ["„FIAON begleitet Sie“ / „zeigt Ihnen“ / „sortiert das“ / „bereitet vor“ / „versendet“ / „verfolgt die Frist“", "„Auskunft“, „Übersicht“, „Handlungsplan“, „Einschätzung“", "„Die Bank entscheidet“ / „die Auskunftei prüft“", "„Das prüfe ich und melde mich bis … Uhr.“", "„Bonitätsmanager/in“, „Ansprechpartner/in“", "„Sie“ – immer"],
           ["beraten / Beratung / Empfehlung / empfehlen", "Garantie / garantiert / sicher / auf jeden Fall / 100 %", "Score verbessern / wir verbessern Ihren …", "Kredit / Sofortkredit / Kreditkarte garantiert / Limit / ohne SCHUFA / schufafrei", "nur heute / letzte Chance / läuft ab / verfällt", "„Schuldner“, „Mahnung mit Stimme“, Drohung mit Eintrag"],
         ),
+        p("Am Telefon ist die Kreditkarte das Ziel des Kunden – du darfst sie nennen und stark dafür sprechen: „Genau dafür bauen wir die Grundlage.“ Verboten bleibt das Versprechen: nie „Kreditkarte garantiert“, nie ein Limit zusagen, nie „Kredit ohne SCHUFA“. In Nachfass-Mails und Textvorlagen sind „Kredit“ und „Kreditkarte“ komplett gesperrt (Prüfstand der Lead-Strecke)."),
         p("Warum so streng: Rechts- und Finanzberatung sind erlaubnispflichtig; Kreditvermittlung ebenso. Ein einziger Satz mit „garantiert“ in einer Nachricht ist ein Beweisstück. Und Druckwörter zerstören das Einzige, was wir verkaufen: Vertrauen."),
         merk("Wenn du nicht weißt, ob ein Wort erlaubt ist: Der Wortwächter (Kapitel 1) benutzt dieselbe Liste wie der Prüfstand für unsere Mails."),
       ],
@@ -170,6 +171,16 @@ export const KAPITEL_4: KapitelInhalt = {
           { text: "„Verstehe. Der Auszug der letzten drei Monate dient zwei Dingen: Wir erkennen Rücklastschriften, bevor sie zum Eintrag werden, und die Zahlen sind später die Vorqualifizierung für Konto und Karte – ohne eine Anfrage, die Ihren Wert senkt. Gespeichert verschlüsselt in der EU, nur für Ihre Akte. Sie können Beträge, die Sie nicht zeigen wollen, schwärzen – Gehalt und Fixkosten brauchen wir lesbar.“", bewertung: "gut", begruendung: "Zweck, Schutz, Kontrolle – und ein praktischer Kompromiss." },
           { text: "„Das machen alle Kunden so.“", bewertung: "schlecht", begruendung: "Sozialer Druck statt Erklärung." },
         ] },
+        { einwand: "„Ich habe doch schon bezahlt – wozu brauche ich jetzt noch einen Termin?“", kontext: "Stufe A: Der Kunde hat „Ich habe überwiesen“ geklickt.", antworten: [
+          { text: "„Das Startgespräch ist Pflicht, ohne geht es nicht weiter.“", bewertung: "mittel", begruendung: "Stimmt, klingt aber nach Hürde. Besser den Nutzen nennen: Aktivierung, Fahrplan, Unterlagen – und den Termin sofort anbieten." },
+          { text: "„Weil ich in diesem Gespräch Ihr Konto vollwertig aktiviere: Wir gehen Ihren Fahrplan durch, klären, welche Unterlagen fehlen, und Sie wissen danach genau, was als Nächstes passiert. Fünfzehn Minuten – ich hätte morgen 10:30 oder 15:00.“", bewertung: "gut", begruendung: "Nutzen statt Pflicht, konkrete Dauer, zwei Zeiten aus der eigenen Availability – und der Termin wird sofort eingetragen." },
+          { text: "„Dann brauchen Sie keinen Termin, ich schalte Sie einfach frei.“", bewertung: "schlecht", begruendung: "Ohne Startgespräch keine Freischaltung – und ohne Startgespräch beginnt der häufigste Streitfall („Ich dachte, das war einmalig“)." },
+        ] },
+        { einwand: "„Schicken Sie mir erst mal die Rechnung, ich überlege dann.“", kontext: "Stufe B: Antrag fertig, nicht bezahlt.", antworten: [
+          { text: "„Gern – die Zahlungsdaten mit Ihrer Referenz gehen gleich raus. Damit Sie nicht ins Leere überlegen: Ich trage uns ein kurzes Startgespräch ein, Donnerstag 11:00 oder 16:30. Wenn die Überweisung bis dahin da ist, aktiviere ich direkt im Gespräch – wenn nicht, besprechen wir Ihre Fragen trotzdem.“", bewertung: "gut", begruendung: "Der Termin kommt vor dem Geld, die Zahlungsdaten gehen sofort raus, und der Kunde hat einen Grund, nicht zu verschleppen." },
+          { text: "„Okay, ich schicke die Rechnung. Melden Sie sich, wenn Sie so weit sind.“", bewertung: "mittel", begruendung: "Kein Termin, kein Datum – Stufe B bleibt Stufe B. Die meisten melden sich nicht." },
+          { text: "„Überlegen können Sie später – erst die Zahlung, sonst geht gar nichts.“", bewertung: "schlecht", begruendung: "Druck statt Verabredung. Der Kunde fühlt sich abgefertigt, nicht willkommen." },
+        ] },
         { einwand: "„Können Sie mir versprechen, dass ich in drei Monaten eine Kreditkarte habe?“", antworten: [
           { text: "„Ja, drei Monate sind realistisch.“", bewertung: "schlecht", begruendung: "Ein Versprechen für etwas, das die Bank entscheidet. Verboten." },
           { text: "„Nein, das entscheidet die Bank. Was ich Ihnen zeigen kann: Ihre Karten-Readiness in Ihrem Bereich – wie weit Sie entfernt sind und welcher Schritt was bringt. Wenn der letzte angreifbare Eintrag fällt, bereiten wir den Antrag vor.“", bewertung: "gut", begruendung: "Klare Grenze, dann das Werkzeug, das die Frage ehrlich beantwortet." },
@@ -178,11 +189,12 @@ export const KAPITEL_4: KapitelInhalt = {
       ] },
     },
     simulator: {
-      einleitung: "Ein KI-Kunde spielt einen realen Fall – am Telefon, in kurzen Sätzen. Du schreibst, was du sagen würdest. Wenn das Gespräch am Ende ist, klickst du „Gespräch beenden“ und bekommst eine Bewertung (Note 1–5, Stärken, Schwächen, Wortregel-Verstöße). Der Schritt gilt als abgeschlossen, sobald ein Gespräch bewertet wurde – Note 3 oder besser. Du kannst jedes Szenario beliebig oft spielen.",
+      einleitung: "Ein KI-Kunde spielt einen realen Fall – darunter Stufe A (bezahlt, kein Termin) und Stufe B (Antrag offen) – am Telefon, in kurzen Sätzen. Du schreibst, was du sagen würdest. Wenn das Gespräch am Ende ist, klickst du „Gespräch beenden“ und bekommst eine Bewertung (Note 1–5, Stärken, Schwächen, Wortregel-Verstöße). Der Schritt gilt als abgeschlossen, sobald ein Gespräch bewertet wurde – Note 3 oder besser. Du kannst jedes Szenario beliebig oft spielen.",
       uebung: { art: "simulator" },
     },
   },
   test: [
+    frage("Stufe A, der Kunde hat „Ich habe überwiesen“ geklickt. Richtige Reihenfolge im Anruf?", ["Zahlung prüfen → Termin → Willkommen", "Willkommen → Karte als Ziel → Termin sofort eintragen → Zahlung beiläufig bestätigen", "Termin → Preis → Zahlung", "Nur die Zahlung bestätigen"], 1, "Willkommen, Karte, Termin, Zahlung – nie umgekehrt."),
     frage("Womit endet jedes Gespräch?", ["Mit einem Gruß", "Mit einer Verabredung (wer tut was bis wann) und einem Klick im Gesprächsblatt", "Mit der Preisliste", "Mit einem Rabatt"], 1, "Eine Verabredung, kein Gruß – und das Ergebnis im System."),
     frage("Der Kunde fragt nach einer Garantie. Richtig ist:", ["„Ja, zu 100 Prozent.“", "Klar nein, dann den Prüfmechanismus erklären (§ 31 BDSG, Löschung bei fehlenden Voraussetzungen)", "„Wir haben gute Erfahrungswerte.“", "Thema wechseln"], 1, "Ehrlichkeit ist das Argument."),
     frage("„Rufen Sie später an.“ – Beste Reaktion?", ["„Irgendwann nochmal.“", "Zwei konkrete Zeiten anbieten, eintragen, Bestätigung", "Weiterreden", "Auflegen"], 1, "Ein Rückruf ohne Termin findet nicht statt."),

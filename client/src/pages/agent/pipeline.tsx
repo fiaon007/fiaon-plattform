@@ -1,29 +1,39 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// /agent/pipeline — Raum 2: Die Pipeline (23.08.2026, Plan §4/§11)
+// /agent/pipeline — Raum 2: Die Pipeline, der Umsatz-Raum (23.08.2026, Plan §4/§11)
 //
-// Neubau der Arbeitsliste aus kunden-neu.tsx auf der dunklen Office-Bühne:
-//   · Überblick nach Stufen A (Zahlung gemeldet) · B (Antrag fertig) · C (Lead)
-//     · ✓ (bezahlt) mit großen Zahlen — dieselben Zähler wie bisher
-//     (/agent/kunden/liste → vorrat, zaehler).
-//   · Suche, Filter (Stufe, Land, letzter Kontakt, Rückruf fällig) und die
-//     bisherigen Server-Ansichten als Chips.
-//   · Kundenkarten: Name, Paket, Stufe, letzter Kontakt, nächster Schritt,
-//     Anrufen / Akte / Notiz.
-//   · Die AKTE als seitliche Glas-Lade (?person=ID) — alle Aktionen der alten
-//     Seite, dieselben Endpunkte (Ergebnis, Notiz, Zahlungsdaten, Beleg,
-//     Produkt, Buchungen wegräumen, Stammdaten, E-Mails/Versand, SCHUFA- und
-//     Paketbuchungen, Zustimmungs-Link, Nummer-Land, Testeintrag).
-// Reihenfolge der Liste kommt weiter vom Server (fiaon-agent-start.ts) und
-// bleibt stehen, bis der Mitarbeiter bewusst neu ordnet.
-// Die bisherige Seite bleibt als /agent/kunden-alt erreichbar.
+// Neubau der Übersicht nach Justins Vorgabe („keine Buchstaben, alle Grenzen
+// sprengend, 3D – der Bereich, wo Umsatz passiert, muss der beste sein“):
+//   · Umsatz-Leiste: Heute erreichbar · Meine Provision möglich · Aktive Kunden
+//     (von max. 10) – Zahlen zählen hoch. Stufen-Chips filtern den Strom.
+//   · Stufen nach Hitze statt A/B/C: „Bezahlt – Termin offen“ (glüht),
+//     „Antrag fertig – Rechnung offen“ (warm), „Registriert – noch kein
+//     Antrag“ (Leads), „Aktiv – betreut“ (ruhig). Intern bleiben die
+//     Serverfelder (priority_tier, tier_reason, termin …).
+//   · Fokus-Karte „Jetzt anrufen“: die wertvollste nächste Aktion – Name,
+//     Stufe, warum jetzt, erwarteter Wert (Paketpreis × 12, meine Provision
+//     mit Satz aus GET /agent/provision-satz), großer Anruf-Knopf
+//     (fiaon-anrufen), daneben der Leitfaden der Stufe (tools/gespraech.tsx,
+//     ARTEN stufe_a/b/c) als aufklappbare Glas-Karte. Nach einem Ergebnis
+//     rückt die nächste Karte nach.
+//   · 3D-Kundenstrom: Glas-Karten auf einer perspektivischen Bahn (CSS 3D,
+//     Parallax auf die Maus, heiße vorn und groß, kalte hinten), Pfeile,
+//     Tastatur, Wischen; Klick = Akte. Handy: flache Bahn mit Scroll-Snap.
+//     Höchstens ~40 Karten im DOM, prefers-reduced-motion wird beachtet.
+//   · Suche, Filter (Land, letzter Kontakt, Rückruf fällig), Sortierung und
+//     die bisherigen Server-Ansichten als schlanke Glas-Leiste.
+//   · Die AKTE als Glas-Lade (?person=ID) bleibt mit allen Aktionen.
+// Regel (Justin): Die erste Zahlung ist immer eine Überweisung – nirgends
+// Lastschrift. Liste: GET /agent/kunden/liste (+ filter=bezahlt für Aktive).
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Phone, Search, X, Plus, Copy, Send, Mail, FileText, StickyNote, RefreshCw, Check, ExternalLink } from "lucide-react";
+import { Phone, Search, X, Plus, Copy, Send, Mail, FileText, RefreshCw, Check, ExternalLink, ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
 import { AgentShell, api, useFragen } from "./shared";
 import { useOffice } from "./OfficeShell";
 import { ToastAnbieter, useToast, eur } from "@/lib/fiaon-ui";
-import { STUFEN, statusAusTierGrund, type Stufe } from "@shared/fiaon-kundenstatus";
+import { statusAusTierGrund, type Stufe } from "@shared/fiaon-kundenstatus";
 import { ERGEBNIS_TEXT } from "@shared/fiaon-kontakt-ergebnis-liste";
+import { PAKETE } from "@shared/fiaon-pakete";
+import { ARTEN, type Art as LeitfadenArt } from "./tools/gespraech";
 import { ProduktDialog } from "@/components/agent/ProduktDialog";
 import { KundeAnlegen } from "@/components/agent/KundeAnlegen";
 import { SendeMenue } from "@/components/SendeMenue";
@@ -31,6 +41,7 @@ import { Gespraechsblatt } from "@/components/Gespraechsblatt";
 import { RechnungBestaetigung } from "@/components/agent/RechnungBestaetigung";
 import { ErgebnisWahl, type ErgebnisAusgang } from "@/components/agent/ErgebnisWahl";
 import "@/styles/office-pipeline.css";
+
 
 // ── Der Kunde, wie ihn /agent/kunden/liste und /agent/crm/kunden/:id liefern ──
 interface Kunde {
@@ -174,6 +185,106 @@ const paketText = (k: Kunde): string => {
   return k.produkt || "kein Paket";
 };
 
+// ── Stufen nach Hitze (keine Buchstaben) – Übersetzung der Serverfelder ─────
+type Hitze = "heiss" | "warm" | "lead" | "aktiv";
+const STUFE: Record<Hitze, { name: string; kurz: string; farbe: string; leitfaden: LeitfadenArt; rang: number }> = {
+  heiss: { name: "Bezahlt – Termin offen", kurz: "heiß", farbe: "#fb923c", leitfaden: "stufe_a", rang: 1 },
+  warm: { name: "Antrag fertig – Rechnung offen", kurz: "warm", farbe: "#fbbf24", leitfaden: "stufe_b", rang: 2 },
+  lead: { name: "Registriert – noch kein Antrag", kurz: "Lead", farbe: "#60a5fa", leitfaden: "stufe_c", rang: 3 },
+  aktiv: { name: "Aktiv – betreut", kurz: "aktiv", farbe: "#34d399", leitfaden: "startgespraech", rang: 4 },
+};
+const STUFEN_REIHE: Hitze[] = ["heiss", "warm", "lead", "aktiv"];
+const MAX_AKTIV = 10;
+
+/** Die Stufe aus priority_tier + Termin: Tier 1 = „bezahlt“ gemeldet, Tier 0 ohne Termin = bezahlt ohne Termin – beides heiß. */
+function stufeVon(k: Kunde): Hitze {
+  if (k.tier === 1) return "heiss";
+  if (k.tier === 0) return (k.termin || k.terminAm) ? "aktiv" : "heiss";
+  if (k.tier === 2) return "warm";
+  return "lead";
+}
+/** 0 … 1 – für Glühen und Größe im Strom. */
+function hitzeVon(k: Kunde): number {
+  if (rueckrufFaellig(k)) return 1;
+  const s = stufeVon(k);
+  return s === "heiss" ? (k.tier === 0 ? 0.95 : 0.85) : s === "warm" ? 0.6 : s === "lead" ? 0.3 : 0.12;
+}
+/** Monatspreis des Pakets in Cent – aus der Buchung, sonst Betrag, sonst Katalog über den Namen. */
+function paketPreis(k: Kunde): number {
+  const b = (k.buchungen ?? []).filter((x) => !x.erledigt && x.art === "paket");
+  const p = b.find((x) => x.offen) ?? b[0];
+  if (p?.betragCents) return p.betragCents;
+  if (k.betrag) return k.betrag;
+  const name = (k.produkt || "").toLowerCase().replace(/\s+/g, " ");
+  const t = PAKETE.find((x) => name && name.includes(x.label.toLowerCase().replace(" (standard)", "")));
+  return t?.preisCents ?? 0;
+}
+function jungAm(k: Kunde): number {
+  const b = (k.buchungen ?? []).map((x) => x.gestelltAm).filter(Boolean) as string[];
+  const d = b.length ? Math.max(...b.map((x) => new Date(x).getTime())) : (k.betreutSeit ? new Date(k.betreutSeit).getTime() : 0);
+  return d;
+}
+/**
+ * Die Reihenfolge für Fokus und Strom: Rückruf/Zusage fällig → bezahlt ohne
+ * Termin → „bezahlt“ gemeldet → Antrag fertig ohne Zahlung (jüngste zuerst) →
+ * Leads (jüngste zuerst) → aktiv. Ruhende und gesperrte ganz nach hinten.
+ */
+function rang(k: Kunde): number[] {
+  if (k.gesperrt) return [9, 0];
+  if (k.ruhtSeit) return [8, 0];
+  if (rueckrufFaellig(k)) {
+    const t = k.rueckrufAm ? new Date(k.rueckrufAm).getTime() : (k.zusagedatum ? new Date(k.zusagedatum).getTime() : 0);
+    return [0, t];
+  }
+  const s = stufeVon(k);
+  if (s === "heiss") return [k.tier === 0 ? 1 : 2, -(jungAm(k))];
+  if (s === "warm") return [3, -(jungAm(k))];
+  if (s === "lead") return [4, -(jungAm(k))];
+  return [5, -(jungAm(k))];
+}
+function vergleich(a: Kunde, b: Kunde): number {
+  const ra = rang(a), rb = rang(b);
+  return ra[0] - rb[0] || ra[1] - rb[1];
+}
+/** Warum jetzt – ein Satz für die Fokus-Karte. */
+function warumJetzt(k: Kunde): string {
+  if (k.rueckrufAm && new Date(k.rueckrufAm).getTime() <= Date.now()) return `Rückruf war für ${terminText(k.rueckrufAm)} vereinbart – er wartet auf dich.`;
+  const z = relativ(k.zusagedatum);
+  if (z?.dringend) return `Zahlungszusage ${z.text} – jetzt nachfassen, Zahlungsdaten zur Hand.`;
+  const s = stufeVon(k);
+  if (s === "heiss" && k.tier === 0) return "Bezahlt, aber noch kein Termin. Willkommen heißen und den nächsten freien Termin vergeben.";
+  if (s === "heiss") return "Der Kunde hat „bezahlt“ gemeldet. Termin vergeben, Zahlung bestätigen lassen – das ist der heißeste Anruf im Haus.";
+  if (s === "warm") return k.hinweis || "Antrag fertig, Geld fehlt. Zahlungsdaten senden, Überweisung vereinbaren, Termin setzen.";
+  if (s === "lead") return k.hinweis || "Registriert, noch kein Antrag. Daten aufnehmen, Paket am Telefon annehmen lassen.";
+  return k.termin ? `${terminText(k.termin.beginn)} · ${k.termin.art}` : (k.hinweis || "Betreuter Kunde.");
+}
+
+// ── Kleine Haken ──────────────────────────────────────────────────────────
+function useMedia(q: string): boolean {
+  const [m, setM] = useState(() => typeof window !== "undefined" && window.matchMedia(q).matches);
+  useEffect(() => { const mq = window.matchMedia(q); const h = () => setM(mq.matches); mq.addEventListener("change", h); return () => mq.removeEventListener("change", h); }, [q]);
+  return m;
+}
+/** Zahl zählt in ~300 ms auf den Zielwert. */
+function useZaehlen(ziel: number, ms = 300): number {
+  const [wert, setWert] = useState(ziel);
+  const stand = useRef(ziel);
+  useEffect(() => {
+    const von = stand.current; const start = performance.now();
+    if (von === ziel) return;
+    let id = 0;
+    const tick = (t: number) => {
+      const p = Math.min(1, (t - start) / ms); const e = 1 - Math.pow(1 - p, 3);
+      const w = von + (ziel - von) * e; stand.current = w; setWert(w);
+      if (p < 1) id = requestAnimationFrame(tick);
+    };
+    id = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(id);
+  }, [ziel, ms]);
+  return wert;
+}
+const euro0 = (c: number) => (c / 100).toLocaleString("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+
 export default function AgentPipelinePage() {
   return <AgentShell><ToastAnbieter><PipelineInnen /></ToastAnbieter></AgentShell>;
 }
@@ -184,7 +295,6 @@ function PipelineInnen() {
 
   const [liste, setListe] = useState<Kunde[]>([]);
   const [zaehler, setZaehler] = useState<Zaehler>({});
-  const [vorrat, setVorrat] = useState<Record<string, number>>({});
   const [erledigt, setErledigt] = useState<Set<number>>(new Set());
   const [laedt, setLaedt] = useState(true);
   const [fehler, setFehler] = useState<string | null>(null);
@@ -193,16 +303,17 @@ function PipelineInnen() {
   const [suche, setSuche] = useState("");
   const [nurPerson, setNurPerson] = useState<number | null>(null);
   const [rolle, setRolle] = useState<string>("agent");
-  const [naechsterTermin, setNaechsterTermin] = useState<string | null>(null);
-  // Client-Filter auf der geladenen Liste
-  const [stufe, setStufe] = useState<"alle" | "A" | "B" | "C">("alle");
+  const [satz, setSatz] = useState(0.25);
+  const [stufe, setStufe] = useState<Hitze | "alle">("alle");
   const [land, setLand] = useState("");
   const [kontakt, setKontakt] = useState<"alle" | "heute" | "3" | "7" | "nie">("alle");
   const [nurRueckruf, setNurRueckruf] = useState(false);
   const [anlageOffen, setAnlageOffen] = useState(false);
-  // Die Akte
+  const [aktiv, setAktiv] = useState(0);
   const [offen, setOffen] = useState<number | null>(null);
-  const [fremd, setFremd] = useState<Kunde | null>(null); // ?person=, der nicht in der Liste steht
+  const [fremd, setFremd] = useState<Kunde | null>(null);
+  const handy = useMedia("(max-width: 700px)");
+  const ruhig = useMedia("(prefers-reduced-motion: reduce)");
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
@@ -210,6 +321,7 @@ function PipelineInnen() {
     if (f && ANSICHTEN.some((x) => x.key === f)) setAnsicht(f);
     const person = p.get("person");
     if (person && Number(person) > 0) { setOffen(Number(person)); setNurPerson(Number(person)); }
+    api("/agent/provision-satz").then((r) => { if (r.ok && r.json?.satz) setSatz(Number(r.json.satz)); }).catch(() => {});
   }, []);
 
   const laden = useCallback(async (leise = false, nurZaehler = false) => {
@@ -217,14 +329,25 @@ function PipelineInnen() {
     const p = new URLSearchParams({ filter: ansicht, sort, limit: "500" });
     if (suche.trim()) p.set("q", suche.trim());
     if (nurPerson) p.set("person", String(nurPerson));
-    const r = await api(`/agent/kunden/liste?${p.toString()}`);
+    // In der Standardansicht kommen die bezahlten Kunden dazu (eigener Serverfilter):
+    // sie sind „Aktiv – betreut“ – oder heiß, wenn noch kein Termin steht.
+    const mitAktiven = ansicht === "alle" && !suche.trim();
+    const [r, b] = await Promise.all([
+      api(`/agent/kunden/liste?${p.toString()}`),
+      mitAktiven ? api(`/agent/kunden/liste?filter=bezahlt&sort=neu&limit=200`) : Promise.resolve(null),
+    ]);
     if (r.ok) {
       setFehler(null);
-      if (!nurZaehler) { setListe(r.json.kunden); setErledigt(new Set()); }
+      if (!nurZaehler) {
+        const haupt: Kunde[] = r.json.kunden || [];
+        const ids = new Set(haupt.map((k) => k.personId));
+        const extra: Kunde[] = b?.ok ? (b.json.kunden || []).filter((k: Kunde) => !ids.has(k.personId)) : [];
+        setListe([...haupt, ...extra]);
+        setErledigt(new Set());
+        setAktiv(0);
+      }
       setZaehler({ ...(r.json.zaehler ?? {}), ...(r.json.zaehlerUeberschrieben ?? {}) });
-      setVorrat(r.json.vorrat || {});
       setRolle(r.json.rolle ?? "agent");
-      setNaechsterTermin(r.json.naechsterTermin ?? null);
     } else setFehler(r.json?.error || "Die Pipeline konnte nicht geladen werden.");
     setLaedt(false);
   }, [ansicht, sort, suche, nurPerson]);
@@ -240,13 +363,12 @@ function PipelineInnen() {
   }, [laden]);
   useEffect(() => { const t = setTimeout(() => void laden(), suche ? 280 : 0); return () => clearTimeout(t); }, [laden, suche]);
 
-  // ?person= → Akte öffnen; steht der Kunde nicht in der Liste, wird er einzeln geholt.
   useEffect(() => {
     if (!offen || laedt) { setFremd(null); return; }
     if (liste.some((k) => k.personId === offen)) { setFremd(null); return; }
-    let aktiv = true;
-    api(`/agent/crm/kunden/${offen}`).then((r) => { if (aktiv) setFremd(r.ok && r.json?.kunde ? r.json.kunde : null); });
-    return () => { aktiv = false; };
+    let an = true;
+    api(`/agent/crm/kunden/${offen}`).then((r) => { if (an) setFremd(r.ok && r.json?.kunde ? r.json.kunde : null); });
+    return () => { an = false; };
   }, [offen, laedt, liste]);
 
   const oeffnen = (id: number | null) => {
@@ -255,10 +377,7 @@ function PipelineInnen() {
     if (id) u.searchParams.set("person", String(id)); else u.searchParams.delete("person");
     window.history.replaceState(null, "", u.toString());
   };
-  useEffect(() => {
-    document.body.style.overflow = offen ? "hidden" : "";
-    return () => { document.body.style.overflow = ""; };
-  }, [offen]);
+  useEffect(() => { document.body.style.overflow = offen ? "hidden" : ""; return () => { document.body.style.overflow = ""; }; }, [offen]);
 
   const entfernen = (personId: number) => {
     setListe((l) => l.filter((k) => k.personId !== personId));
@@ -269,144 +388,147 @@ function PipelineInnen() {
     setFremd((f) => (f && f.personId === k.personId ? k : f));
   };
 
-  const laender = useMemo(() => Array.from(new Set(liste.map((k) => k.stammdaten?.land).filter(Boolean) as string[])).sort(), [liste]);
-  const sichtbar = useMemo(() => liste.filter((k) => {
-    if (stufe !== "alle" && k.stufe?.marke !== stufe) return false;
-    if (land && k.stammdaten?.land !== land) return false;
-    if (kontakt !== "alle") {
-      const t = kontaktTage(k.letzterKontakt);
-      if (kontakt === "nie" && t != null) return false;
-      if (kontakt === "heute" && (t == null || t > 0)) return false;
-      if (kontakt === "3" && (t == null || t < 3)) return false;
-      if (kontakt === "7" && (t == null || t < 7)) return false;
-    }
-    if (nurRueckruf && !rueckrufFaellig(k)) return false;
-    return true;
-  }), [liste, stufe, land, kontakt, nurRueckruf]);
+  // ── Zahlen ──────────────────────────────────────────────────────────────
+  const jeStufe = useMemo(() => {
+    const z: Record<Hitze, number> = { heiss: 0, warm: 0, lead: 0, aktiv: 0 };
+    for (const k of liste) z[stufeVon(k)]++;
+    return z;
+  }, [liste]);
+  const erreichbar = useMemo(() => liste.filter((k) => !erledigt.has(k.personId) && ["heiss", "warm"].includes(stufeVon(k))).reduce((s, k) => s + paketPreis(k), 0), [liste, erledigt]);
+  const aktive = ansicht === "alle" ? jeStufe.aktiv + liste.filter((k) => k.tier === 0 && stufeVon(k) === "heiss").length : (zaehler.bezahlt ?? 0);
+  const zErreichbar = useZaehlen(erreichbar), zProvision = useZaehlen(Math.round(erreichbar * satz)), zAktive = useZaehlen(aktive);
 
+  // ── Der Strom: gefiltert, nach Hitze geordnet, Erledigte hinten ────────
+  const laender = useMemo(() => Array.from(new Set(liste.map((k) => k.stammdaten?.land).filter(Boolean) as string[])).sort(), [liste]);
+  const strom = useMemo(() => {
+    const f = liste.filter((k) => {
+      if (stufe !== "alle" && stufeVon(k) !== stufe) return false;
+      if (land && k.stammdaten?.land !== land) return false;
+      if (kontakt !== "alle") {
+        const t = kontaktTage(k.letzterKontakt);
+        if (kontakt === "nie" && t != null) return false;
+        if (kontakt === "heute" && (t == null || t > 0)) return false;
+        if (kontakt === "3" && (t == null || t < 3)) return false;
+        if (kontakt === "7" && (t == null || t < 7)) return false;
+      }
+      if (nurRueckruf && !rueckrufFaellig(k)) return false;
+      return true;
+    });
+    if (sort !== "arbeit") return f; // Sortierung des Servers (Name, Betrag, neu) bleibt sichtbar
+    return [...f].sort((a, b) => (Number(erledigt.has(a.personId)) - Number(erledigt.has(b.personId))) || vergleich(a, b));
+  }, [liste, stufe, land, kontakt, nurRueckruf, sort, erledigt]);
+  useEffect(() => { if (aktiv > strom.length - 1) setAktiv(Math.max(0, strom.length - 1)); }, [strom.length, aktiv]);
+  const fokus = strom[aktiv] ?? null;
   const geoeffnet = useMemo(() => liste.find((k) => k.personId === offen) || fremd || null, [liste, offen, fremd]);
-  const pflicht = (vorrat.A ?? 0) + (vorrat.B ?? 0);
+
+  // Tastatur: Pfeile blättern, solange keine Lade und kein Eingabefeld offen ist.
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => {
+      if (offen) return;
+      const ziel = e.target as HTMLElement | null;
+      if (ziel && /^(INPUT|TEXTAREA|SELECT)$/.test(ziel.tagName)) return;
+      if (e.key === "ArrowRight") { setAktiv((a) => Math.min(strom.length - 1, a + 1)); e.preventDefault(); }
+      if (e.key === "ArrowLeft") { setAktiv((a) => Math.max(0, a - 1)); e.preventDefault(); }
+      if (e.key === "Enter" && fokus) oeffnen(fokus.personId);
+    };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [offen, strom.length, fokus]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const vor = () => setAktiv((a) => Math.min(strom.length - 1, a + 1));
+  const zurueck = () => setAktiv((a) => Math.max(0, a - 1));
 
   return (
     <div className="pi">
-      <section className="pi-kopf">
-        <div>
-          <span className="pi-pille">Pipeline · {rolle === "onboarding" ? "Startgespräche" : "dein Bestand"}</span>
-          <h1>
-            {laedt ? <>Lade <span className="pi-verlauf">deine Kunden …</span></>
-              : rolle === "onboarding" ? <><span className="pi-verlauf">{zaehler.alle ?? 0}</span> Startgespräche – heute zuerst.</>
-              : pflicht > 0 ? <><span className="pi-verlauf">{pflicht}</span> in der Pflicht, dann die Leads.</>
-              : (vorrat.C ?? 0) > 0 ? <>A und B sind leer – <span className="pi-verlauf">jetzt die Leads.</span></>
-              : <>Nichts offen – <span className="pi-verlauf">Zeit für neue Kunden.</span></>}
-          </h1>
-          <p>Von oben nach unten. Die Reihenfolge steht und bleibt stehen, bis du neu ordnest. Ein Klick: anrufen, Akte oder Notiz.</p>
+      {/* Umsatz-Leiste */}
+      <section className="pi-umsatz">
+        <div className="pi-umsatz-zahl">
+          <small>Heute erreichbar</small>
+          <b>{laedt ? "–" : euro0(zErreichbar)}</b>
+          <span>erste Raten der heißen und warmen Kunden – per Überweisung</span>
         </div>
-        <div className="pi-kopf-knoepfe">
-          <button type="button" className="pi-knopf" onClick={() => setAnlageOffen((v) => !v)}><Plus size={15} strokeWidth={1.75} /> Kunde anlegen</button>
-          <button type="button" className="pi-knopf still" onClick={() => void laden()} title="Neu laden"><RefreshCw size={15} strokeWidth={1.75} /> Neu ordnen</button>
+        <div className="pi-umsatz-zahl hervor">
+          <small>Meine Provision möglich</small>
+          <b>{laedt ? "–" : euro0(zProvision)}</b>
+          <span>{Math.round(satz * 100)} % je bankbestätigter Rate</span>
+        </div>
+        <div className="pi-umsatz-zahl">
+          <small>Aktive Kunden</small>
+          <b>{laedt ? "–" : Math.round(zAktive)}<em> / {MAX_AKTIV}</em></b>
+          <span>{aktive >= MAX_AKTIV ? "voll – erst Termine abarbeiten" : `${MAX_AKTIV - aktive} Plätze frei`}</span>
+          <i className="pi-umsatz-balken"><i style={{ width: `${Math.min(100, (aktive / MAX_AKTIV) * 100)}%` }} /></i>
         </div>
       </section>
-
-      {anlageOffen && (
-        <div className="pi-hell">
-          <KundeAnlegen offen={anlageOffen} aufKlappen={setAnlageOffen} fertig={() => { void laden(true); }} />
-        </div>
-      )}
 
       {fehler && <p className="pi-fehler">{fehler}</p>}
 
+      {/* Stufen-Chips */}
       <section className="pi-stufen">
-        {([
-          ["A", vorrat.A ?? 0, STUFEN.A.text, "heiß – hat „bezahlt“ gemeldet"],
-          ["B", vorrat.B ?? 0, STUFEN.B.text, "Antrag fertig, Geld fehlt"],
-          ["C", vorrat.C ?? 0, STUFEN.C.text, "erst, wenn A und B leer sind"],
-        ] as [("A" | "B" | "C"), number, string, string][]).map(([m, n, t, u]) => (
-          <button key={m} type="button" className={`pi-stufe-kachel${stufe === m && ansicht !== "bezahlt" ? " an" : ""}`}
-                  onClick={() => { if (ansicht === "bezahlt") setAnsicht("alle"); setStufe(stufe === m ? "alle" : m); }}
-                  style={{ opacity: n === 0 && stufe !== m ? .6 : 1 }}>
-            <span className={`marke pi-marke-${m}`}>{m}</span>
-            <b>{n}</b><span>{t}</span><small>{u}</small>
+        <button type="button" className={`pi-stufe-chip${stufe === "alle" ? " an" : ""}`} onClick={() => setStufe("alle")}><b>{liste.length}</b><span>Alle</span></button>
+        {STUFEN_REIHE.map((s) => (
+          <button key={s} type="button" className={`pi-stufe-chip${stufe === s ? " an" : ""}`} style={{ ["--hitze" as string]: STUFE[s].farbe }} onClick={() => setStufe(stufe === s ? "alle" : s)}>
+            <i className="pi-glut" />
+            <b>{jeStufe[s]}</b><span>{STUFE[s].name}</span>
           </button>
         ))}
-        <button type="button" className={`pi-stufe-kachel${ansicht === "bezahlt" ? " an" : ""}`}
-                onClick={() => { setStufe("alle"); setAnsicht(ansicht === "bezahlt" ? "alle" : "bezahlt"); }}>
-          <span className="marke pi-marke-OK"><Check size={16} strokeWidth={2.2} /></span>
-          <b>{zaehler.bezahlt ?? 0}</b><span>Bezahlt · aktiv</span><small>kein Arbeitsvorrat, dein Bestand</small>
-        </button>
       </section>
 
-      <section className="pi-werkzeuge">
+      {/* Fokus-Karte + Leitfaden */}
+      <section className="pi-fokus">
+        {laedt ? (
+          <div className="pi-fokus-karte"><span className="pi-pille">Jetzt anrufen</span><h1>Lade <span className="pi-verlauf">deine Kunden …</span></h1></div>
+        ) : !fokus ? (
+          <div className="pi-fokus-karte">
+            <span className="pi-pille">Jetzt anrufen</span>
+            <h1>{liste.length === 0 ? (rolle === "onboarding" ? "Keine Startgespräche offen." : ansicht === "alle" ? "Dir ist gerade kein Kunde zugewiesen." : "In dieser Ansicht ist nichts offen.") : "Mit diesen Filtern ist nichts offen."}</h1>
+            <p className="pi-fokus-warum">{liste.length === 0 ? "Neue Kunden kommen automatisch dazu, sobald deine Verfügbarkeit steht." : "Nimm einen Filter zurück oder such direkt nach einem Namen."}</p>
+          </div>
+        ) : (
+          <FokusKarte key={fokus.personId} k={fokus} satz={satz} erledigt={erledigt.has(fokus.personId)} position={aktiv + 1} von={strom.length}
+                      onAkte={() => oeffnen(fokus.personId)} onVor={vor} onZurueck={zurueck} ruhig={ruhig} />
+        )}
+        <Leitfaden art={fokus ? STUFE[stufeVon(fokus)].leitfaden : "stufe_a"} stufe={fokus ? stufeVon(fokus) : "heiss"} />
+      </section>
+
+      {/* Suche, Filter, Sortierung – eine Leiste */}
+      <section className="pi-leiste">
         <label className="pi-suche">
-          <Search size={16} strokeWidth={1.75} />
+          <Search size={15} strokeWidth={1.75} />
           <input value={suche} onChange={(e) => setSuche(e.target.value)} placeholder="Name, E-Mail, Nummer, Referenz" />
-          {suche && <button type="button" className="pi-link" onClick={() => setSuche("")}>leeren</button>}
+          {suche && <button type="button" className="pi-link" onClick={() => setSuche("")} aria-label="Suche leeren"><X size={14} /></button>}
         </label>
-        <div className="pi-filterzeile">
-          <label className={`pi-feld${land ? " an" : ""}`}>Land
-            <select value={land} onChange={(e) => setLand(e.target.value)}>
-              <option value="">alle</option>
-              {laender.map((l) => <option key={l} value={l}>{LAND_NAME[l] || l}</option>)}
-            </select>
-          </label>
-          <label className={`pi-feld${kontakt !== "alle" ? " an" : ""}`}>Letzter Kontakt
-            <select value={kontakt} onChange={(e) => setKontakt(e.target.value as typeof kontakt)}>
-              <option value="alle">egal</option>
-              <option value="heute">heute</option>
-              <option value="3">3+ Tage her</option>
-              <option value="7">7+ Tage her</option>
-              <option value="nie">noch nie</option>
-            </select>
-          </label>
-          <label className={`pi-feld pi-schalter${nurRueckruf ? " an" : ""}`}>
-            <input type="checkbox" checked={nurRueckruf} onChange={(e) => setNurRueckruf(e.target.checked)} /> Rückruf / Zusage fällig
-          </label>
-          <label className="pi-feld">Sortierung
-            <select value={sort} onChange={(e) => setSort(e.target.value)}>{SORT.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}</select>
-          </label>
-        </div>
-        <div className="pi-chips">
-          {ANSICHTEN.map((f) => {
-            const n = zaehler[f.key] ?? 0;
-            const an = ansicht === f.key;
-            if (!an && n === 0 && f.key !== "alle") return null;
-            return <button key={f.key} type="button" className={`pi-chip${an ? " an" : ""}`} onClick={() => setAnsicht(f.key)}>{f.label}<em>{n}</em></button>;
-          })}
-        </div>
+        <label className={`pi-feld${land ? " an" : ""}`}>Land
+          <select value={land} onChange={(e) => setLand(e.target.value)}><option value="">alle</option>{laender.map((l) => <option key={l} value={l}>{LAND_NAME[l] || l}</option>)}</select>
+        </label>
+        <label className={`pi-feld${kontakt !== "alle" ? " an" : ""}`}>Kontakt
+          <select value={kontakt} onChange={(e) => setKontakt(e.target.value as typeof kontakt)}>
+            <option value="alle">egal</option><option value="heute">heute</option><option value="3">3+ Tage her</option><option value="7">7+ Tage her</option><option value="nie">noch nie</option>
+          </select>
+        </label>
+        <label className={`pi-feld pi-schalter${nurRueckruf ? " an" : ""}`}><input type="checkbox" checked={nurRueckruf} onChange={(e) => setNurRueckruf(e.target.checked)} /> Rückruf fällig</label>
+        <label className={`pi-feld${ansicht !== "alle" ? " an" : ""}`}>Ansicht
+          <select value={ansicht} onChange={(e) => { setAnsicht(e.target.value); setStufe("alle"); }}>
+            {ANSICHTEN.map((f) => <option key={f.key} value={f.key}>{f.label}{zaehler[f.key] != null ? ` (${zaehler[f.key]})` : ""}</option>)}
+          </select>
+        </label>
+        <label className="pi-feld">Sortierung
+          <select value={sort} onChange={(e) => setSort(e.target.value)}>{SORT.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}</select>
+        </label>
+        <span className="pi-leiste-rechts">
+          <button type="button" className="pi-knopf still klein" onClick={() => void laden()} title="Neu laden"><RefreshCw size={14} strokeWidth={1.75} />{erledigt.size > 0 ? ` ${erledigt.size} neu ordnen` : ""}</button>
+          <button type="button" className="pi-knopf klein" onClick={() => setAnlageOffen((v) => !v)}><Plus size={14} strokeWidth={1.75} /> Kunde anlegen</button>
+        </span>
       </section>
-
+      {anlageOffen && <div className="pi-hell"><KundeAnlegen offen={anlageOffen} aufKlappen={setAnlageOffen} fertig={() => { void laden(true); }} /></div>}
       {(zaehler.wartet ?? 0) > 0 && ansicht !== "nicht_erreicht" && (
         <button type="button" className="pi-hinweis" onClick={() => setAnsicht("nicht_erreicht")}>
           <span className="zahl">{zaehler.wartet}</span>
-          <span><b>{zaehler.wartet === 1 ? "Einer wartet auf seinen Termin" : `${zaehler.wartet} warten auf ihren Termin`}</b>
-            <small>Nicht erreicht – sie haben den Buchungslink und wählen selbst. Nicht erneut anrufen. Antippen, um sie zu sehen.</small></span>
-        </button>
-      )}
-      {erledigt.size > 0 && (
-        <button type="button" className="pi-hinweis blau" onClick={() => void laden()}>
-          <span className="zahl">{erledigt.size}</span>
-          <span><b>{erledigt.size === 1 ? "Ein Ergebnis gebucht" : `${erledigt.size} Ergebnisse gebucht`}</b>
-            <small>Die Reihenfolge ist absichtlich stehen geblieben, damit du deine Zeile behältst. Hier tippen, um neu zu ordnen.</small></span>
+          <span><b>{zaehler.wartet === 1 ? "Einer wartet auf seinen Termin" : `${zaehler.wartet} warten auf ihren Termin`}</b><small>Nicht erreicht – sie haben den Buchungslink und wählen selbst. Nicht erneut anrufen.</small></span>
         </button>
       )}
 
-      <section className="pi-liste">
-        {laedt && <div className="pi-laedt">Lade …</div>}
-        {!laedt && sichtbar.length === 0 && (
-          <div className="pi-leer">
-            <b>{suche ? "Kein Treffer." : liste.length > 0 ? "Mit diesen Filtern ist nichts offen." : rolle === "onboarding"
-              ? (naechsterTermin ? `Für jetzt nichts offen. Nächstes Startgespräch: ${new Date(naechsterTermin).toLocaleString("de-DE", { timeZone: "Europe/Berlin", weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })} Uhr.` : "Keine Startgespräche geplant.")
-              : ansicht === "alle" ? "Dir ist gerade kein Kunde zugewiesen." : "In dieser Ansicht ist nichts offen."}</b>
-            <p>{suche ? "Suche über Name, E-Mail, Telefonnummer oder Referenz." : liste.length > 0 ? "Nimm einen Filter zurück – die Kunden sind da." : ansicht === "alle" ? "Neue Kunden kommen automatisch dazu. Betreute Kunden bleiben bei dir." : "Wechsle auf „Alle“, um deinen gesamten Bestand zu sehen."}</p>
-          </div>
-        )}
-        {!laedt && sichtbar.map((k) => (
-          <KundenKarte key={k.personId} k={k} erledigt={erledigt.has(k.personId)} onAkte={() => oeffnen(k.personId)}
-                       onNotiz={() => { setErledigt((e) => new Set(e).add(k.personId)); void laden(true, true); }} />
-        ))}
-      </section>
-      {!laedt && liste.length > 0 && (
-        <p className="pi-fussnote">Diese Liste ist dein Bestand. Kunden, die du dokumentiert hast, bleiben bei dir. Bezahlte Kunden stehen unter „Bezahlt · aktiv“.</p>
-      )}
+      {/* 3D-Kundenstrom */}
+      <Strom liste={strom} aktiv={aktiv} setAktiv={setAktiv} erledigt={erledigt} onAkte={(id) => oeffnen(id)} flach={handy || ruhig} ruhig={ruhig} laedt={laedt} />
 
       {offen && (
         <>
@@ -431,68 +553,174 @@ function PipelineInnen() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Die Kundenkarte in der Liste
+// Die Fokus-Karte: „Jetzt anrufen“
 // ═══════════════════════════════════════════════════════════════════════════
-function KundenKarte({ k, erledigt, onAkte, onNotiz }: { k: Kunde; erledigt: boolean; onAkte: () => void; onNotiz: () => void }) {
-  const { zeige } = useToast();
-  const [notizOffen, setNotizOffen] = useState(false);
-  const [notiz, setNotiz] = useState("");
-  const [laeuft, setLaeuft] = useState(false);
-  const [meldung, setMeldung] = useState<string | null>(null);
-  const zusage = relativ(k.zusagedatum);
-  const rueckruf = k.rueckrufAm ? new Date(k.rueckrufAm) : null;
-  const rueckrufJetzt = rueckruf ? rueckruf.getTime() <= Date.now() : false;
-  const kante = zusage?.dringend || rueckrufJetzt ? "#dc2626" : k.tier === 1 ? "#dc2626" : k.tier === 2 ? "#d97706" : k.tier === 0 ? "#059669" : "rgba(255,255,255,.15)";
-  const tage = kontaktTage(k.letzterKontakt);
+function FokusKarte({ k, satz, erledigt, position, von, onAkte, onVor, onZurueck, ruhig }: {
+  k: Kunde; satz: number; erledigt: boolean; position: number; von: number; onAkte: () => void; onVor: () => void; onZurueck: () => void; ruhig: boolean;
+}) {
+  const s = stufeVon(k); const st = STUFE[s];
+  const preis = paketPreis(k); const wert = preis * 12;
+  const zWert = useZaehlen(wert), zProv = useZaehlen(Math.round(wert * satz));
+  const faellig = rueckrufFaellig(k);
+  const paket = (k.buchungen ?? []).find((b) => !b.erledigt && b.art === "paket")?.bezeichnung || k.produkt || "noch kein Paket";
+  return (
+    <div className={`pi-fokus-karte${ruhig ? "" : " tief"}`} style={{ ["--hitze" as string]: faellig ? "#f87171" : st.farbe }}>
+      <div className="pi-fokus-kopf">
+        <span className="pi-pille">{faellig ? "Rückruf fällig" : "Jetzt anrufen"}</span>
+        <span className="pi-fokus-zaehler"><button type="button" onClick={onZurueck} disabled={position <= 1} aria-label="vorheriger Kunde"><ChevronLeft size={16} /></button>{position} / {von}<button type="button" onClick={onVor} disabled={position >= von} aria-label="nächster Kunde"><ChevronRight size={16} /></button></span>
+      </div>
+      <h1>{k.name}</h1>
+      <div className="pi-fokus-stufe"><i className="pi-glut" /><b>{st.name}</b><span>· {paket}{preis ? ` · ${eur(preis)} im Monat` : ""}</span></div>
+      <p className="pi-fokus-warum">{warumJetzt(k)}</p>
+      <div className="pi-fokus-wert">
+        <div><small>Erwarteter Wert</small><b>{preis ? euro0(zWert) : "–"}</b><span>12 Raten · erste per Überweisung</span></div>
+        <div className="hervor"><small>Meine Provision</small><b>{preis ? euro0(zProv) : "–"}</b><span>{Math.round(satz * 100)} % je bankbestätigter Rate</span></div>
+        <div><small>Letzter Kontakt</small><b className="klein">{wartezeit(k.letzterKontakt).replace(" kontaktiert", "")}</b><span>{k.nichtErreicht > 0 ? `${k.nichtErreicht}× nicht erreicht` : k.stammdaten?.land ? (LAND_NAME[k.stammdaten.land] || k.stammdaten.land) : "—"}</span></div>
+      </div>
+      <div className="pi-fokus-knoepfe">
+        {k.telefonWaehlbar ? (
+          <button type="button" className="pi-knopf riesig" onClick={() => anrufen(k.telefonWaehlbar, k.personId, k.name)}><Phone size={20} strokeWidth={1.75} /> Anrufen</button>
+        ) : (
+          <button type="button" className="pi-knopf riesig warn" onClick={onAkte} title={k.telefon ? "Ländervorwahl fehlt – in der Akte ergänzen" : "keine Nummer – in der Akte nachtragen"}><Phone size={20} strokeWidth={1.75} /> {k.telefon ? "Vorwahl ergänzen" : "Nummer fehlt"}</button>
+        )}
+        <button type="button" className="pi-knopf still gross" onClick={onAkte}><FileText size={16} strokeWidth={1.75} /> Akte</button>
+        <button type="button" className={`pi-knopf gross ${erledigt ? "gut" : "still"}`} onClick={onAkte}>{erledigt ? <><Check size={16} strokeWidth={2} /> Ergebnis gebucht</> : "Ergebnis festhalten"}</button>
+      </div>
+      {erledigt && <p className="pi-fussnote">Erledigt – die nächste Karte rückt nach, sobald du weiterblätterst oder neu ordnest.</p>}
+    </div>
+  );
+}
 
-  const notizSpeichern = async () => {
-    if (notiz.trim().length < 2) return;
-    setLaeuft(true);
-    const r = await api(`/agent/crm/kunden/${k.personId}/aktivitaet`, { method: "POST", body: JSON.stringify({ art: "notiz", notiz: notiz.trim() }) });
-    setLaeuft(false);
-    if (r.ok) { setNotiz(""); setNotizOffen(false); setMeldung("Notiz gespeichert."); zeige("erfolg", "Notiz gespeichert", k.name); onNotiz(); setTimeout(() => setMeldung(null), 2500); }
-    else { setMeldung(r.json?.error || "Nicht gespeichert."); }
+// ── Der Leitfaden der Stufe (tools/gespraech.tsx) als aufklappbare Glas-Karte ──
+function Leitfaden({ art, stufe }: { art: LeitfadenArt; stufe: Hitze }) {
+  const [auf, setAuf] = useState(false);
+  const [schritt, setSchritt] = useState<number | null>(0);
+  const v = ARTEN.find((a) => a.key === art) ?? ARTEN[0];
+  useEffect(() => { setSchritt(0); }, [art]);
+  return (
+    <aside className={`pi-leitfaden${auf ? " auf" : ""}`} style={{ ["--hitze" as string]: STUFE[stufe].farbe }}>
+      <button type="button" className="pi-leitfaden-kopf" onClick={() => setAuf((a) => !a)} aria-expanded={auf}>
+        <span><small>Leitfaden</small><b>{v.label}</b></span>
+        <ChevronDown size={18} strokeWidth={1.75} className="pfeil" />
+      </button>
+      <p className="pi-leitfaden-kurz">{v.kurz}</p>
+      <div className="pi-leitfaden-koerper">
+        <ol className="pi-leitfaden-schritte">
+          {v.schritte.map((s, i) => (
+            <li key={s.titel} className={schritt === i ? "an" : ""}>
+              <button type="button" onClick={() => setSchritt(schritt === i ? null : i)}><i>{i + 1}</i><b>{s.titel}</b></button>
+              {schritt === i && <div className="pi-leitfaden-text">{s.text && <p>{s.text}</p>}{s.satz && <q>{s.satz}</q>}</div>}
+            </li>
+          ))}
+        </ol>
+        <div className="pi-leitfaden-einwaende">
+          <small>Einwände</small>
+          {v.einwaende.map((e) => <details key={e.frage}><summary>{e.frage}</summary><p>{e.antwort}</p></details>)}
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Der 3D-Kundenstrom – Glas-Karten auf einer perspektivischen Bahn
+// ═══════════════════════════════════════════════════════════════════════════
+const FENSTER = 18; // Karten je Seite im DOM (max. ~37)
+function Strom({ liste, aktiv, setAktiv, erledigt, onAkte, flach, ruhig, laedt }: {
+  liste: Kunde[]; aktiv: number; setAktiv: (f: (a: number) => number) => void; erledigt: Set<number>; onAkte: (id: number) => void; flach: boolean; ruhig: boolean; laedt: boolean;
+}) {
+  const [maus, setMaus] = useState({ x: 0, y: 0 });
+  const buehne = useRef<HTMLDivElement | null>(null);
+  const flachRef = useRef<HTMLDivElement | null>(null);
+  const touch = useRef<{ x: number; t: number } | null>(null);
+  const radGesperrt = useRef(0);
+  const vor = () => setAktiv((a) => Math.min(liste.length - 1, a + 1));
+  const zurueck = () => setAktiv((a) => Math.max(0, a - 1));
+
+  // Handy: die aktive Karte in die Mitte rollen.
+  useEffect(() => {
+    if (!flach || !flachRef.current) return;
+    const el = flachRef.current.querySelector<HTMLElement>(`[data-i="${aktiv}"]`);
+    el?.scrollIntoView({ behavior: ruhig ? "auto" : "smooth", inline: "center", block: "nearest" });
+  }, [aktiv, flach, ruhig]);
+
+  const bewegen = (e: React.MouseEvent) => {
+    if (ruhig || !buehne.current) return;
+    const r = buehne.current.getBoundingClientRect();
+    setMaus({ x: ((e.clientX - r.left) / r.width - 0.5) * 2, y: ((e.clientY - r.top) / r.height - 0.5) * 2 });
+  };
+  const rad = (e: React.WheelEvent) => {
+    const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : (e.shiftKey ? e.deltaY : 0);
+    if (!d || Date.now() < radGesperrt.current) return;
+    radGesperrt.current = Date.now() + 260;
+    if (d > 0) vor(); else zurueck();
+  };
+  const touchStart = (e: React.TouchEvent) => { touch.current = { x: e.touches[0].clientX, t: Date.now() }; };
+  const touchEnd = (e: React.TouchEvent) => {
+    if (!touch.current) return;
+    const dx = e.changedTouches[0].clientX - touch.current.x;
+    if (Math.abs(dx) > 40 && Date.now() - touch.current.t < 600) { if (dx < 0) vor(); else zurueck(); }
+    touch.current = null;
   };
 
+  const karte = (k: Kunde, i: number) => {
+    const s = stufeVon(k); const h = hitzeVon(k); const fertig = erledigt.has(k.personId);
+    const preis = paketPreis(k);
+    const faellig = rueckrufFaellig(k);
+    return (
+      <button type="button" key={k.personId} data-i={i} data-fi-kunde={k.personId}
+              className={`pi-sk${i === aktiv ? " an" : ""}${fertig ? " erledigt" : ""}`}
+              style={{ ["--hitze" as string]: faellig ? "#f87171" : STUFE[s].farbe, ["--glut" as string]: String(fertig ? 0.05 : h), ...(flach ? {} : stil3d(i - aktiv, h)) }}
+              onClick={() => { if (flach || i === aktiv) onAkte(k.personId); else setAktiv(() => i); }}
+              title={i === aktiv || flach ? "Akte öffnen" : "nach vorn holen"}>
+        <span className="pi-sk-kopf"><i className="pi-glut" /><small>{faellig ? "Rückruf fällig" : STUFE[s].kurz}</small>{fertig && <em><Check size={11} strokeWidth={2.5} /> gebucht</em>}</span>
+        <b>{k.name}</b>
+        <span className="pi-sk-paket">{(k.buchungen ?? []).find((b) => !b.erledigt && b.art === "paket")?.bezeichnung || k.produkt || "kein Paket"}{preis ? ` · ${eur(preis)}` : ""}</span>
+        <span className="pi-sk-fuss">{k.termin ? `${terminText(k.termin.beginn)} · ${k.termin.art}` : k.rueckrufAm ? `Rückruf ${terminText(k.rueckrufAm)}` : relativ(k.zusagedatum) ? `Zusage ${relativ(k.zusagedatum)!.text}` : wartezeit(k.letzterKontakt)}</span>
+      </button>
+    );
+  };
+
+  if (laedt) return <section className="pi-strom-rahmen"><div className="pi-laedt">Lade den Kundenstrom …</div></section>;
+  if (liste.length === 0) return null;
+
+  if (flach) {
+    return (
+      <section className="pi-strom-rahmen">
+        <div className="pi-strom-kopf"><b>Dein Kundenstrom</b><small>{liste.length} Kunden · antippen für die Akte</small></div>
+        <div className="pi-strom-flach" ref={flachRef}>{liste.map((k, i) => karte(k, i))}</div>
+      </section>
+    );
+  }
+  const von = Math.max(0, aktiv - FENSTER), bis = Math.min(liste.length, aktiv + FENSTER + 1);
   return (
-    <article className={`pi-karte${erledigt ? " erledigt" : ""}`} style={{ ["--pi-kante" as string]: kante }} data-fi-kunde={k.personId}>
-      <div className="pi-karte-kopf">
-        <span className={`pi-stufe pi-marke-${k.stufe?.marke ?? (k.tier === 0 ? "OK" : "C")}`} title={k.stufe ? `Stufe ${k.stufe.marke} – ${k.stufe.text}` : "Bezahlt"}>{k.stufe?.marke ?? <Check size={14} strokeWidth={2.2} />}</span>
-        <button type="button" className="pi-karte-wer" onClick={onAkte}>
-          <b>{k.name}</b>
-          <small><i>{statusAusTierGrund(k.tierGrund).anzeige}</i> · {paketText(k)}</small>
-        </button>
-        <div className="pi-marken">
-          {erledigt && <span className="pi-marke gut">Ergebnis gebucht</span>}
-          {k.termin && <span className={`pi-marke${k.termin.erledigt ? " gut" : ""}`}>{terminText(k.termin.beginn)} · {k.termin.art}</span>}
-          {!k.termin && k.terminAm && <span className="pi-marke">Termin {terminText(k.terminAm)}</span>}
-          {zusage && <span className={`pi-marke${zusage.dringend ? " dringend" : ""}`}>Zusage {zusage.text}</span>}
-          {rueckruf && <span className={`pi-marke${rueckrufJetzt ? " dringend" : " warn"}`}>Rückruf {rueckruf.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })} {rueckruf.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}</span>}
-          {k.ruhtSeit && <span className="pi-marke still">ruht</span>}
-          {k.gesperrt && <span className="pi-marke dringend">gesperrt</span>}
+    <section className="pi-strom-rahmen" onWheel={rad} onTouchStart={touchStart} onTouchEnd={touchEnd}>
+      <div className="pi-strom-kopf">
+        <b>Dein Kundenstrom</b><small>{liste.length} Kunden · heiße vorn · Pfeile, Tasten oder Wischen · Klick auf die vordere Karte öffnet die Akte</small>
+        <span className="pi-strom-pfeile">
+          <button type="button" className="pi-lade-zu" onClick={zurueck} disabled={aktiv <= 0} aria-label="zurück"><ChevronLeft size={18} /></button>
+          <button type="button" className="pi-lade-zu" onClick={vor} disabled={aktiv >= liste.length - 1} aria-label="weiter"><ChevronRight size={18} /></button>
+        </span>
+      </div>
+      <div className="pi-strom" ref={buehne} onMouseMove={bewegen} onMouseLeave={() => setMaus({ x: 0, y: 0 })}>
+        <div className="pi-strom-buehne" style={ruhig ? undefined : { transform: `rotateX(${(-maus.y * 2.5).toFixed(2)}deg) rotateY(${(maus.x * 5).toFixed(2)}deg)` }}>
+          <div className="pi-strom-boden" aria-hidden="true" />
+          {liste.slice(von, bis).map((k, j) => karte(k, von + j))}
         </div>
       </div>
-      <p className="pi-karte-schritt">{k.hinweis}</p>
-      <div className="pi-karte-fuss">
-        <small className={tage != null && tage >= 3 && k.tier !== 0 ? "warn" : ""}>
-          {wartezeit(k.letzterKontakt)}{k.nichtErreicht > 0 && ` · ${k.nichtErreicht}× nicht erreicht`}{k.stammdaten?.land && ` · ${LAND_NAME[k.stammdaten.land] || k.stammdaten.land}`}
-        </small>
-        <div className="pi-knoepfe">
-          <button type="button" className="pi-knopf" disabled={!k.telefonWaehlbar} onClick={() => anrufen(k.telefonWaehlbar, k.personId, k.name)} title={k.telefonWaehlbar ? k.telefonWaehlbar : (k.telefon ? "Ländervorwahl fehlt – in der Akte ergänzen" : "keine Nummer")}><Phone size={15} strokeWidth={1.75} /> Anrufen</button>
-          <button type="button" className="pi-knopf still" onClick={onAkte}><FileText size={15} strokeWidth={1.75} /> Akte</button>
-          <button type="button" className="pi-knopf still" onClick={() => setNotizOffen((v) => !v)}><StickyNote size={15} strokeWidth={1.75} /> Notiz</button>
-        </div>
-      </div>
-      {notizOffen && (
-        <div className="pi-schnellnotiz">
-          <input className="pi-eingabe" value={notiz} onChange={(e) => setNotiz(e.target.value)} placeholder="Kurze Notiz zum Kunden" autoFocus
-                 onKeyDown={(e) => { if (e.key === "Enter") void notizSpeichern(); }} />
-          <button type="button" className="pi-knopf klein" disabled={laeuft || notiz.trim().length < 2} onClick={() => void notizSpeichern()}>{laeuft ? "…" : "Speichern"}</button>
-        </div>
-      )}
-      {meldung && <p className="pi-fussnote">{meldung}</p>}
-    </article>
+    </section>
   );
+}
+/** Lage einer Karte relativ zur vorderen: vorn groß, nach hinten rechts in die Tiefe, Vergangenes links heraus. */
+function stil3d(d: number, hitze: number): React.CSSProperties {
+  const ad = Math.abs(d);
+  if (d === 0) return { transform: `translate(-50%,-50%) translateZ(60px) scale(${1 + hitze * 0.06})`, zIndex: 200, opacity: 1 };
+  if (d > 0) {
+    const x = 150 + d * 165, y = -d * 14, z = -90 - d * 150, s = Math.max(0.5, 0.92 - d * 0.07);
+    return { transform: `translate(-50%,-50%) translate3d(${x}px, ${y}px, ${z}px) rotateY(-26deg) scale(${s})`, zIndex: 200 - d, opacity: Math.max(0, 1 - d * 0.09) };
+  }
+  const x = -170 - ad * 120, z = -120 - ad * 160, s = Math.max(0.45, 0.8 - ad * 0.1);
+  return { transform: `translate(-50%,-50%) translate3d(${x}px, ${ad * 10}px, ${z}px) rotateY(34deg) scale(${s})`, zIndex: 200 - ad, opacity: Math.max(0, 0.7 - ad * 0.14) };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -695,12 +923,12 @@ function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
   return (
     <aside className="pi-lade" role="dialog" aria-modal="true" aria-label={`Akte ${k.name}`}>
       <div className="pi-lade-kopf">
-        <span className={`pi-stufe pi-marke-${k.stufe?.marke ?? (k.tier === 0 ? "OK" : "C")}`} style={{ marginTop: 4 }}>{k.stufe?.marke ?? <Check size={14} strokeWidth={2.2} />}</span>
+        <span className="pi-lade-glut" style={{ ["--hitze" as string]: STUFE[stufeVon(k)].farbe }} aria-hidden="true"><i className="pi-glut" /></span>
         <div>
           <h2>{k.name}</h2>
           <div className="status">
             <i style={{ color: k.tier === 1 ? "#fca5a5" : k.tier === 2 ? "#fcd34d" : k.tier === 0 ? "#6ee7b7" : "#cbd5e1" }}>{status.anzeige}</i>
-            {k.stufe && <span>Stufe {k.stufe.marke} · {k.stufe.text}</span>}
+            <span>{STUFE[stufeVon(k)].name}</span>
             {termin && <span className="pi-marke">Termin {terminText(k.terminAm!)}</span>}
             {k.termin && !termin && <span className="pi-marke">{terminText(k.termin.beginn)} · {k.termin.art}</span>}
             {zusage && <span className={`pi-marke${zusage.dringend ? " dringend" : ""}`}>Zusage {zusage.text}</span>}
@@ -903,7 +1131,7 @@ function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
           {!verlauf && <p className="leise">Lade …</p>}
           {verlauf && verlauf.length === 0 && <p className="leise">Noch kein Eintrag.</p>}
           {verlauf && verlauf.length > 0 && (
-            <ul className="pi-verlauf">
+            <ul className="pi-protokoll">
               {verlauf.map((v: any, i: number) => (
                 <li key={v.id ?? i}>
                   <b>{new Date(v.am).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</b>

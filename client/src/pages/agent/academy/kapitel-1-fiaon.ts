@@ -93,7 +93,7 @@ export const KAPITEL_1: KapitelInhalt = {
       bloecke: [
         tab(["Rolle", "Wer", "Aufgabe"],
           ["Bonitätsmanager", "alle bisherigen Vertriebs- und Onboarding-Kollegen", "Eigener Kundenstamm: Lead, Verkauf, Startgespräch, Begleitung, Raten im Blick. Ein Kunde, ein Betreuer (E-035)."],
-          ["Leitung Forderungen & Zahlungen (Back-Office)", "Diana", "Schreiben an Gläubiger und Auskunfteien (Einschreiben), Fristen, Eskalation; täglicher Kontoabgleich, Lastschrift-Rückgaben, Erstattungen; Mahnwesen ab Tag 30, Sperren, Übergaben. Aufträge kommen von dir als Ticket."],
+          ["Leitung Forderungen & Zahlungen (Back-Office)", "Diana", "Schreiben an Gläubiger und Auskunfteien (Einschreiben), Fristen, Eskalation; täglicher Kontoabgleich, Lastschrift-Rückgaben, Erstattungen; Mahnwesen ab Tag 30, Sperren, Übergaben. Aufträge kommen von dir als Ticket. Feste Vergütung, keine Provisionsbeteiligung."],
           ["Teamleitung / Qualität", "Florentine", "Verteilung, Gesprächsqualität, Eskalationen, Zahlen."],
           ["Geschäftsführung", "Justin", "Admin-Office, Freigaben, Aufgabenpipeline, „Dringend melden“."],
         ),

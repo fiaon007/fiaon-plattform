@@ -75,9 +75,11 @@ export const LEHRPLAN: LehrplanKapitel[] = [
     t("provision", "Deine Provision: 25 % jeder bezahlten Rate", 150),
     test(),
   ] },
-  { key: "gespraech", nr: 4, titel: "Das Gespräch", untertitel: "Leitfäden, Einwände, Wortregeln – und ein Simulator.", dauerMin: 150, schritte: [
+  { key: "gespraech", nr: 4, titel: "Das Gespräch", untertitel: "Leitfäden, Einwände, Wortregeln – und ein Simulator.", dauerMin: 180, schritte: [
     t("haltung", "Grundhaltung: Wir sprechen mit Menschen", 120),
-    t("erstanruf", "Leitfaden: Der Erstanruf", 180, "leitfaden"),
+    t("stufe-a", "Leitfaden Stufe A: „Ich habe bezahlt“ – Willkommen, Karte, Termin", 180, "leitfaden"),
+    t("stufe-b", "Leitfaden Stufe B: Antrag fertig, nicht bezahlt", 180, "leitfaden"),
+    t("stufe-c", "Leitfaden Stufe C: Facebook-Lead – Vertrag am Telefon", 210, "leitfaden"),
     t("rueckruf", "Leitfaden: Der Rückruf", 150, "leitfaden"),
     t("startgespraech", "Leitfaden: Das Startgespräch", 180, "leitfaden"),
     t("zahlungserinnerung", "Leitfaden: Die Zahlungserinnerung (Tag 14)", 150, "leitfaden"),

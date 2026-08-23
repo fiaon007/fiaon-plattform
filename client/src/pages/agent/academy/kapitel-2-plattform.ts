@@ -43,7 +43,7 @@ export const KAPITEL_2: KapitelInhalt = {
         tab(["Paket (Geschäft)", "Monat", "Deine Provision je Rate (25 %)"], ...BUSINESS.map((x) => [x.label, eur(x.preisCents), eur(Math.round(x.preisCents * 0.25))])),
         p(`Ohne Paket, einmalig: Bonitätsauskunft ${schufa} – kein Abo, erzeugt nie eine Rate. Sie wird im Kundenbereich angeboten, sobald das Paket bezahlt ist. Im Startgespräch erklärst du sie als Auskunft, nicht als Rat; der Kunde entscheidet selbst.`),
         ul(
-          "Zwölf Raten: erste Rate per Überweisung (QR-Code im Bereich) oder Lastschrift, weitere Raten per SEPA-Lastschrift (GoCardless) – Geld landet direkt auf dem FIAON-Konto bei Wise.",
+          "Zwölf Raten: Die erste Rate immer direkt per Überweisung mit Zahlungsreferenz (QR-Code im Bereich, Zahlungsdaten per E-Mail) – nie Lastschrift. Die weiteren Raten per SEPA-Lastschrift (GoCardless) oder Überweisung – Geld landet direkt auf dem FIAON-Konto bei Wise.",
           "Nach der zwölften Rate entscheidet der Kunde, ob er bleibt. Deine Provision läuft auch in der Verlängerung.",
           "Paketwechsel ist im Antrag und im Startgespräch möglich. Ein Upgrade wird dezent angeboten, nie gedrückt.",
           `Der Provisionssatz ist eine Einstellung der Geschäftsführung (Standard 25 %); Zertifizierte Bonitätsmanager erhalten 5 Prozentpunkte mehr.`,
@@ -157,7 +157,7 @@ export const KAPITEL_2: KapitelInhalt = {
           ["Make + Brevo", "Alle E-Mail- und Nachrichten-Events: Antrag-Erinnerungen, Zahlungsbestätigung, Terminbestätigung/-erinnerung, Raten-Erinnerungen, Mahnungen, Zugangslinks", "Mail-Log in der Akte: was wann an den Kunden ging"],
           ["Facebook → Make „FIAON Lead #1“", "Lead landet per POST /api/leads/intake bei uns; Vorab-Nachricht mit deinem Namen, Foto und Buchungslink", "Neuer Lead im Dashboard, Speed-to-Lead ≤ 5 Minuten"],
           ["Twilio", "Telefonie (DE/AT-Nummern, Aufzeichnung), SMS, künftig WhatsApp in der Akte", "Softphone im Office, Gesprächsblatt, KI-Zusammenfassung"],
-          ["Wise + GoCardless", "Überweisungen (QR/EPC) und SEPA-Lastschriften; kein Stripe mehr (E-037)", "Zahlungsdaten im Bereich; „bezahlt“ erst nach Kontoabgleich"],
+          ["Wise + GoCardless", "Erste Zahlung immer direkt per Überweisung mit Referenz (QR/EPC, Zahlungsdaten per Mail); SEPA-Lastschrift über GoCardless nur für Folgeraten; kein Stripe mehr (E-037)", "Zahlungsdaten im Bereich; „bezahlt“ erst nach Kontoabgleich"],
           ["Kontoabgleich", "Täglich durch das Back-Office: Wise-Auszug einspielen, Zuordnungen bestätigen", "Status springt von „Kunde meldet Zahlung“ auf „Bezahlt“; deine Provision entsteht"],
           ["Abo-Motor + Mahnstufen", "Erzeugt jede Rate, erinnert Tag 0/3/7, mahnt Tag 14/21, wiederholt Lastschriften", "Collections zeigt dir, wer an Tag 14 deinen Anruf braucht"],
           ["OpenAI (gpt-4.1-mini)", "KI-Assistent auf /kontakt, KI-Erklärer in der Akte, Gesprächszusammenfassung, dieser Simulator", "Erklärungen in drei Sätzen – prüfen, nicht blind weitergeben"],
@@ -174,7 +174,7 @@ export const KAPITEL_2: KapitelInhalt = {
     frage("Welche Unterlagen braucht der Kunde im Bereich?", ["Steuerbescheid", "Kontoauszug der letzten drei Monate und Ausweis – Handyfoto genügt", "Arbeitsvertrag", "Mietvertrag"], 1, "Fehlende Unterlagen sind der häufigste Grund, warum es nicht weitergeht."),
     frage("Wo landet ein Anliegen aus „Hilfe“ im Kundenbereich?", ["In deiner privaten Mail", "Unter Tickets im Office – eigene Kunden zuerst", "Bei der SCHUFA", "Nirgends"], 1, "Anliegen sind Datensätze mit Zustand, keine Mails ins Nirgendwo."),
     frage("Was ist FIAON-DEMO?", ["Ein echter Kunde", "Ein Prüfkonto mit echten Zahlungen", "Ein festes Demo-Konto mit Platzhalterdaten – nie ein Datensatz", "Die Admin-Ansicht"], 2, "Feste Referenz ohne Datenbank, für Präsentationen und diesen Rundgang."),
-    frage("Welche Zahlungswege gibt es seit E-037?", ["Stripe", "Überweisung (Wise, QR/EPC) und SEPA-Lastschrift (GoCardless)", "PayPal", "Kreditkarte über FIAON"], 1, "Stripe ist komplett entfernt."),
+    frage("Wie wird die erste Rate bezahlt?", ["SEPA-Lastschrift über GoCardless", "Immer direkt per Überweisung mit Zahlungsreferenz; GoCardless nur für Folgeraten", "Stripe", "PayPal"], 1, "Stripe ist komplett entfernt; Rate 1 immer direkt."),
     frage("Was passiert nach vier Minuten ohne Maus oder Tastatur im Office?", ["Nichts", "„Bist du noch da?“ mit 60-Sekunden-Ring – ohne Antwort Pause", "Automatische Abmeldung", "Der Kunde wird angerufen"], 1, "Pause heißt: keine Anrufe, keine neuen Kunden."),
   ],
 };

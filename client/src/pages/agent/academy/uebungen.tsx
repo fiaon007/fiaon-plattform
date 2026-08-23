@@ -254,7 +254,7 @@ export function KapitelTest({ fragen, schwelle, gesperrt, bestanden, letztePunkt
   const [sendet, setSendet] = useState(false);
   const [ergebnisBestanden, setErgebnisBestanden] = useState<boolean | null>(null);
   const mischung = useMemo(() => fragen.map((f) => { const idx = f.antworten.map((_, i) => i); for (let i = idx.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [idx[i], idx[j]] = [idx[j], idx[i]]; } return idx; }), [fragen]);
-  const punkte = antworten.reduce((s, a, i) => s + (a === fragen[i].richtig ? 1 : 0), 0);
+  const punkte = antworten.reduce<number>((s, a, i) => s + (a === fragen[i].richtig ? 1 : 0), 0);
   const alle = antworten.every((a) => a !== null);
   if (gesperrt) return <div className="ac-test-gesperrt"><p>Der Kapiteltest öffnet sich, wenn alle Schritte und Übungen dieses Kapitels abgeschlossen sind.</p></div>;
   const abgeben = async () => { setSendet(true); const ok = await onErgebnis(punkte, fragen.length); setSendet(false); setAbgegeben(true); setErgebnisBestanden(ok); };

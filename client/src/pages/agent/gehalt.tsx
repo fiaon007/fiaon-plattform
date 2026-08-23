@@ -18,16 +18,21 @@ const MIX_STANDARD: Record<string, number> = { start: 69, pro: 108, ultra: 67, h
 const BONI = [{ titel: "Quartalsbonus", betrag: 250, wann: "≥ 85 % der Raten im eigenen Stamm pünktlich" }, { titel: "50 aktive Kunden", betrag: 500, wann: "einmalig" }, { titel: "100 aktive Kunden", betrag: 1000, wann: "einmalig" }];
 const euro = (n: number) => n.toLocaleString("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
 
-function rechne(proTag: number, satz: number, mix: Record<string, number>, tage = 21, r2 = 0.8, halt = 0.92) {
+const SCHUFA_BONUS = 10; // E-042: 10 € je 74-€-SCHUFA-Zahlung im Onboarding
+const REAKT_ANTEIL = 0.5; // E-042: 50 % des Zahlungswerts je reaktivierter überfälliger Rate
+
+function rechne(proTag: number, satz: number, mix: Record<string, number>, reaktWoche: number, tage = 21, r2 = 0.8, halt = 0.92) {
   const n = Object.values(mix).reduce((a, b) => a + b, 0) || 1;
   const avg = Object.entries(mix).reduce((s, [k, c]) => s + (PAKETE.find((p) => p.key === k)?.preisCents ?? 0) * c, 0) / n / 100;
   const proMonat = proTag * tage; const monate: { m: number; geld: number; aktiv: number }[] = [];
+  const schufaMonat = proMonat * SCHUFA_BONUS;               // jeder neue Kunde zahlt die 74 € im Onboarding
+  const reaktMonat = reaktWoche * 4.33 * avg * REAKT_ANTEIL; // Reaktivierungen: 50 % der zurückgeholten Rate
   for (let m = 1; m <= 12; m++) {
-    let geld = 0, aktiv = 0;
+    let geld = schufaMonat + reaktMonat, aktiv = 0;
     for (let alter = 0; alter < m; alter++) { const anteil = alter === 0 ? 1 : r2 * Math.pow(halt, alter - 1); geld += proMonat * anteil * avg * satz; aktiv += proMonat * anteil; }
     monate.push({ m, geld, aktiv });
   }
-  return { avg, proMonat, monate, jahr: monate.reduce((s, x) => s + x.geld, 0) };
+  return { avg, proMonat, schufaMonat, reaktMonat, monate, jahr: monate.reduce((s, x) => s + x.geld, 0) };
 }
 
 export default function AgentGehaltPage() { return <AgentShell><GehaltInnen /></AgentShell>; }
@@ -35,11 +40,14 @@ export default function AgentGehaltPage() { return <AgentShell><GehaltInnen /></
 function GehaltInnen() {
   const { dunkel, titel } = useOffice();
   useEffect(() => { dunkel(true); titel("Earnings"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  const [satz, setSatz] = useState(0.25);
+  const [basisSatz, setBasisSatz] = useState(0.25);
+  const [zertifikat, setZertifikat] = useState(false); // Academy bestanden → +5 Punkte (E-040)
   const [proTag, setProTag] = useState(5);
+  const [reaktWoche, setReaktWoche] = useState(0);
   const [mix, setMix] = useState<Record<string, number>>(MIX_STANDARD);
-  useEffect(() => { api("/agent/provision-satz").then((r) => { if (r.ok && r.json?.satz) setSatz(Number(r.json.satz)); }).catch(() => {}); }, []);
-  const e = useMemo(() => rechne(proTag, satz, mix), [proTag, satz, mix]);
+  useEffect(() => { api("/agent/provision-satz").then((r) => { if (r.ok && r.json?.satz) setBasisSatz(Number(r.json.satz)); }).catch(() => {}); }, []);
+  const satz = basisSatz + (zertifikat ? 0.05 : 0);
+  const e = useMemo(() => rechne(proTag, satz, mix, reaktWoche), [proTag, satz, mix, reaktWoche]);
   const max = Math.max(...e.monate.map((x) => x.geld), 1);
   const m12 = e.monate[11], m6 = e.monate[5], m3 = e.monate[2], m1 = e.monate[0];
 
@@ -49,14 +57,29 @@ function GehaltInnen() {
         <section className="gh-hero">
           <span className="gh-pille">Dein Verdienst · {Math.round(satz * 100)} % jeder bezahlten Rate</span>
           <h1>Was du verdienst, wenn du <span className="gh-verlauf">dranbleibst.</span></h1>
-          <p>Du bekommst {Math.round(satz * 100)} % jeder Rate, die ein Kunde von dir bezahlt – ab der Startzahlung, zwölf Monate lang, auch bei Verlängerung. Nicht der Termin zählt, sondern der Kunde, der bleibt. Stell ein, wie viele Kunden du am Tag abschließt – fünf sind das Minimum, fünfzig sind möglich.</p>
+          <p>Vier Bausteine: {Math.round(satz * 100)} % jeder Rate, die dein Kunde bezahlt – zwölf Monate lang, auch bei Verlängerung. Dazu {SCHUFA_BONUS} € für jede 74-€-Auskunftszahlung im Onboarding, 50 % jeder überfälligen Rate, die du zurückholst – und nach der Academy-Prüfung dauerhaft 5 Punkte mehr auf alles.</p>
+        </section>
+
+        <section className="gh-bausteine">
+          {[
+            [`${Math.round(satz * 100)} %`, "je bezahlter Paket-Rate", "ab der Startzahlung, 12 Monate, auch Verlängerung"],
+            [`${SCHUFA_BONUS} €`, "je SCHUFA-Zahlung (74 €)", "Ziel jedes Onboarding-Termins; entfällt, wenn schon bezahlt"],
+            ["50 %", "je reaktivierter Rate", "überfälligen Kunden weich zurückholen – die halbe Rate gehört dir"],
+            ["+5 %", "mit Academy-Zertifikat", "Zertifizierter Bonitätsmanager: dauerhaft auf alle Raten"],
+          ].map(([z, t, u], i) => (
+            <div key={String(t)} className="gh-baustein" style={{ animationDelay: `${i * 70}ms` }}><b>{z}</b><span>{t}</span><small>{u}</small></div>
+          ))}
         </section>
 
         <section className="gh-regler">
           <div className="gh-regler-kopf"><b>Abschlüsse pro Tag</b><span className="gh-zahl">{proTag}</span></div>
           <input type="range" min={1} max={50} step={1} value={proTag} onChange={(ev) => setProTag(Number(ev.target.value))} aria-label="Abschlüsse pro Tag" />
           <div className="gh-skala">{[1, 5, 10, 20, 30, 40, 50].map((n) => <span key={n} className={n === 5 ? "ziel" : ""}>{n}{n === 5 ? " · Minimum" : ""}</span>)}</div>
-          <small>{e.proMonat} Abschlüsse im Monat (21 Arbeitstage) · Ø Rate {e.avg.toFixed(2).replace(".", ",")} € nach eurem echten Paketmix · Haltequote 80 % ab Rate 2, danach 92 % je Monat</small>
+          <small>{e.proMonat} Abschlüsse im Monat (21 Arbeitstage) · Ø Rate {e.avg.toFixed(2).replace(".", ",")} € nach eurem echten Paketmix · Haltequote 80 % ab Rate 2, danach 92 % je Monat · dazu {euro(e.schufaMonat)} SCHUFA-Boni im Monat</small>
+          <div className="gh-nebenregler">
+            <label className="gh-schalter"><input type="checkbox" checked={zertifikat} onChange={(ev) => setZertifikat(ev.target.checked)} /><span>Mit Academy-Zertifikat rechnen ({Math.round((basisSatz + 0.05) * 100)} % statt {Math.round(basisSatz * 100)} %)</span></label>
+            <label className="gh-reakt"><span>Reaktivierungen pro Woche (überfällige Kunden, die zahlen)</span><input type="range" min={0} max={25} value={reaktWoche} onChange={(ev) => setReaktWoche(Number(ev.target.value))} /><em>{reaktWoche} · {euro(e.reaktMonat)}/Monat</em></label>
+          </div>
         </section>
 
         <section className="gh-zahlen">
@@ -85,7 +108,7 @@ function GehaltInnen() {
         </section>
 
         <section className="gh-regeln">
-          <div><b>Ausgezahlt wird, was angekommen ist.</b><p>Provision entsteht nur auf bankbestätigte Eingänge – den Stand siehst du jederzeit im Wallet. Auszahlung monatlich.</p></div>
+          <div><b>Ausgezahlt wird, was angekommen ist.</b><p>Provision entsteht nur auf bankbestätigte Eingänge – die erste Zahlung eines Kunden ist immer eine direkte Überweisung. Den Stand siehst du jederzeit im Wallet. Auszahlung monatlich.</p></div>
           <div><b>Dein Kunde bleibt dein Kunde.</b><p>Vom ersten Gespräch bis zur zwölften Rate – und in der Verlängerung. Wer gut betreut, verdient länger.</p></div>
           <div><b>Kein Deckel.</b><p>Deine Kunden bleiben deine Kunden – egal wie viele. Wächst dein Stamm über das, was du allein betreuen kannst, bekommst du Unterstützung, keine Abzüge.</p></div>
         </section>

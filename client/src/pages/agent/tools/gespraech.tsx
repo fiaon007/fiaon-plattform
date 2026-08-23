@@ -15,11 +15,11 @@ import { AgentShell, api } from "../shared";
 import { useOffice } from "../OfficeShell";
 import "@/styles/office-tools.css";
 
-type Art = "stufe_a" | "stufe_b" | "stufe_c" | "erstanruf" | "rueckruf" | "startgespraech" | "zahlung";
-interface Schritt { titel: string; text?: string; satz?: string }
-interface Einwand { frage: string; antwort: string }
+export type Art = "stufe_a" | "stufe_b" | "stufe_c" | "erstanruf" | "rueckruf" | "startgespraech" | "zahlung";
+export interface Schritt { titel: string; text?: string; satz?: string }
+export interface Einwand { frage: string; antwort: string }
 
-const ARTEN: { key: Art; label: string; kurz: string; schritte: Schritt[]; einwaende: Einwand[] }[] = [
+export const ARTEN: { key: Art; label: string; kurz: string; schritte: Schritt[]; einwaende: Einwand[] }[] = [
   // ── Justins Leitfäden je Stufe (23.08.2026, Plan §13) – erste Zahlung IMMER direkt, nie Lastschrift ──
   {
     key: "stufe_a", label: "Stufe A · bezahlt, kein Termin", kurz: "Kunde hat „bezahlt“ geklickt – willkommen heißen, Karte pitchen, Termin sofort vergeben",

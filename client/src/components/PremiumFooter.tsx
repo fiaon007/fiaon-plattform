@@ -88,7 +88,9 @@ export default function PremiumFooter() {
             <ul className="space-y-4">
               {[
                 ["/was-ist-fiaon", "Über FIAON"],
-                ["/plattform-konzept", "Technologie & Sicherheit"],
+                ["/sicherheit", "Datenschutz & Sicherheit"],
+                ["/preise", "Preise & Pakete"],
+                ["/kreditkarte", "Kreditkarte"],
                 ["/team", "Team"],
                 ["/karriere", "Karriere — Werden Sie Teil des Teams"],
                 ["/partner", "Partner"],

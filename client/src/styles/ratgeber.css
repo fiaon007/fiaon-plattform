@@ -151,3 +151,9 @@
 .wz-tabelle tr.summe td{border-bottom:0;font-weight:500;color:#0f172a;padding-top:12px}
 .wz-knoepfe{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
 @media(max-width:640px){.wz-felder.drei,.wz-optionen.zwei{grid-template-columns:1fr}.dk-hero.kurz{padding:110px 0 40px}}
+/* Datenschutz-Check (Sicherheit) */
+.sc-frage{display:block;width:100%;text-align:left;cursor:pointer;font:inherit}
+.sc-frage h3{position:relative;padding-right:30px}
+.sc-frage h3::after{content:"+";position:absolute;right:0;top:0;font-weight:300;color:#2563eb;font-size:22px;line-height:1}
+.sc-frage.offen h3::after{content:"–"}
+.sc-antwort{margin:12px 0 0;font:300 15px/1.7 'Inter',sans-serif;color:#334155}

@@ -74,6 +74,9 @@ KOSTENLOSE WERKZEUGE UND RATGEBER
 - fiaon.com/business: Geschäftskunden – Firmenkarte, Zahlungsziel bis 58 Tage, Pakete Business Starter bis Enterprise, Zielrahmen 5.000 bis 250.000 € (Bank entscheidet), Werkzeuge Zahlungsziel-Rechner und Limit-Bedarf. Anfrage: fiaon.com/business-antrag.
 - fiaon.com/plattform-konzept: die ganze Plattform erklärt, Paketfinder, Weg Tag für Tag.
 - fiaon.com/preise: alle Pakete im Leistungsvergleich, Werkzeug „Was kostet Selbermachen?“.
+- fiaon.com/kreditkarte: Kreditkarte trotz Eintrag – drei Wege, Rahmen-Zeitachse.
+- fiaon.com/oesterreich: FIAON in Österreich (KSV1870, CRIF). fiaon.com/schweiz: FIAON in der Schweiz (CRIF, Intrum, Betreibungsregister).
+- fiaon.com/sicherheit: Datenschutz und Technik.
 - fiaon.com/ratgeber: Artikel zu Einträgen löschen, Auskunft, Kreditkarte trotz Eintrag, Score, Inkasso, Basiskonto, Österreich/Schweiz.
 - fiaon.com/demo/kundenbereich: Präsentation des Kundenbereichs (Platzhalterdaten).
 

@@ -1,0 +1,22 @@
+/* ═══ Kreditkarte (23.08.2026) ═══ */
+.kk-zeit{display:grid;grid-template-columns:280px 1fr;gap:28px;margin-top:40px;align-items:start}
+.kk-punkte{display:grid;gap:4px;position:relative}
+.kk-punkte::before{content:"";position:absolute;left:13px;top:18px;bottom:18px;width:2px;background:linear-gradient(180deg,rgba(37,99,235,.5),rgba(37,99,235,.08))}
+.kk-punkt{position:relative;display:grid;gap:2px;text-align:left;padding:10px 12px 10px 40px;border:0;border-radius:12px;background:transparent;cursor:pointer;color:#475569;transition:background .2s,color .2s}
+.kk-punkt::before{content:"";position:absolute;left:8px;top:16px;width:12px;height:12px;border-radius:50%;background:#fff;border:2px solid #cbd5e1;transition:all .25s}
+.kk-punkt span{font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.12em;text-transform:uppercase}
+.kk-punkt b{font:400 14px/1.3 'Inter',sans-serif;color:#0f172a}
+.kk-punkt.vorbei::before{background:#2563eb;border-color:#2563eb}
+.kk-punkt.an{background:#fff;box-shadow:0 10px 30px rgba(37,99,235,.12);color:#2563eb}
+.kk-punkt.an::before{background:#2563eb;border-color:#2563eb;box-shadow:0 0 0 5px rgba(37,99,235,.18)}
+.kk-karte{padding:34px 36px;border-radius:24px;background:#fff;border:1px solid rgba(15,23,42,.07);box-shadow:0 2px 4px rgba(15,23,42,.03),0 30px 70px rgba(37,99,235,.12);animation:kkAuf .4s cubic-bezier(.2,.8,.2,1) both}
+@keyframes kkAuf{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.kk-karte small{font:500 11px/1 'Inter',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#2563eb}
+.kk-karte h3{margin:14px 0 12px;font:400 30px/1.15 'Inter',sans-serif;letter-spacing:-.02em;color:#0f172a}
+.kk-karte p{margin:0;font:300 16px/1.75 'Inter',sans-serif;color:#334155;max-width:60ch}
+.kk-rahmen{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-top:20px;padding:14px 18px;border-radius:14px;background:rgba(37,99,235,.06);border:1px solid rgba(37,99,235,.15)}
+.kk-rahmen span{font:500 11px/1 'Inter',sans-serif;letter-spacing:.1em;text-transform:uppercase;color:#64748b}
+.kk-rahmen b{font:300 24px/1 'Inter',sans-serif;color:#0f172a;letter-spacing:-.02em;white-space:nowrap}
+.kk-knoepfe{display:flex;gap:10px;flex-wrap:wrap;margin-top:24px}
+@media(max-width:960px){.kk-zeit{grid-template-columns:1fr}.kk-punkte{grid-auto-flow:column;grid-auto-columns:minmax(140px,1fr);overflow-x:auto;padding-bottom:8px;scrollbar-width:none}.kk-punkte::before{display:none}.kk-punkt{padding:10px 12px;border:1px solid rgba(15,23,42,.1);background:#fff}.kk-punkt::before{display:none}}
+@media(max-width:560px){.kk-karte{padding:24px 20px}.kk-karte h3{font-size:24px}.kk-rahmen{flex-direction:column;align-items:flex-start}}

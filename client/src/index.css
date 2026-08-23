@@ -1139,7 +1139,7 @@ html {
 .nav-mega-fuss { color: #6b7280; font-size: 11px; margin: 6px 10px 0; }
 
 /* ═══ Karriere-Popup „Wir stellen ein" (23.08.2026) ═══ */
-.kp-wrap { position: fixed; right: 22px; bottom: 22px; z-index: 95; animation: kpRein .55s cubic-bezier(.22,1,.36,1) both; }
+.kp-wrap { position: fixed; right: 22px; bottom: 22px; z-index: 35; animation: kpRein .55s cubic-bezier(.22,1,.36,1) both; }
 .kp-karte { position: relative; width: min(380px, calc(100vw - 44px)); padding: 26px 24px 22px; border-radius: 24px; color: #fff;
   background: linear-gradient(160deg, rgba(10,22,40,.94), rgba(17,26,51,.94)); border: 1px solid rgba(255,255,255,.1);
   box-shadow: 0 40px 100px rgba(2,6,23,.55), inset 0 1px 0 rgba(255,255,255,.08); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);

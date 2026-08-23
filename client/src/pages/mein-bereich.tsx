@@ -260,7 +260,11 @@ export default function MeinBereichPage() {
       <div className="mb-rahmen">
         <div className={`mb-grundriss${eingeklappt ? " eingeklappt" : ""}`}>
           <nav className="mb-leiste" aria-label="Bereiche">
-            <button className="mb-klapp" type="button" onClick={leisteUmschalten} aria-expanded={!eingeklappt}>{eingeklappt ? "Menü" : "Menü einklappen"}</button>
+            <button className="mb-klapp" type="button" onClick={leisteUmschalten} aria-expanded={!eingeklappt} title={eingeklappt ? "Menü ausklappen" : "Menü einklappen"}>
+              {eingeklappt
+                ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+                : <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg><span>Menü einklappen</span></>}
+            </button>
             <div className="mb-panel">
               {gruppen.map((g) => (<div key={g} style={{ display: "contents" }}>
                 <div className="mb-leiste-titel">{g}</div>

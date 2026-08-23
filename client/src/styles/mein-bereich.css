@@ -365,3 +365,26 @@
 .ein-fertig p{margin:0;font-size:13.5px;line-height:1.6;color:var(--text-leise)}
 .ein-fertig .mb-knopf{justify-self:start;margin-top:6px}
 @media(max-width:640px){.mb-vorhang.ein{padding:70px 10px 30px}.ein-innen{padding:20px 18px 22px}.ein-wahl,.ein-zahlung{grid-template-columns:1fr}.ein-zeile{grid-template-columns:90px 1fr auto}}
+
+/* ═══ Eingeklappte Leiste, sauber (Justin, 23.08.2026: „passt nicht") ═══
+   Schmaler Rail (64 px), klebt beim Scrollen, Kacheln 44 px mit Monogramm,
+   Gruppen als feine Linien, Beschriftung als Tooltip rechts beim Überfahren. */
+.mb-grundriss.eingeklappt{grid-template-columns:64px 1fr;gap:24px}
+.eingeklappt .mb-leiste{position:sticky;top:76px;align-self:start;max-height:calc(100vh - 92px);overflow:visible;gap:10px}
+.mb-klapp{display:inline-flex;align-items:center;gap:8px}
+.eingeklappt .mb-klapp{width:64px;height:44px;padding:0;justify-content:center;border-radius:14px;color:var(--blau-tief);background:var(--flaeche);border:1px solid var(--linie);box-shadow:var(--sch-ruhe),var(--glanz)}
+.eingeklappt .mb-panel{width:64px;padding:8px 0;display:flex;flex-direction:column;align-items:center;gap:5px;border-radius:18px;max-height:calc(100vh - 150px);overflow:auto;scrollbar-width:none}
+.eingeklappt .mb-panel::-webkit-scrollbar{display:none}
+.eingeklappt .mb-panel .mb-leiste-titel{display:block;width:28px;height:1px;padding:0;margin:5px 0;background:var(--linie-stark);font-size:0;color:transparent;overflow:hidden}
+.eingeklappt .mb-panel .mb-leiste-titel:first-child{display:none}
+.eingeklappt .mb-leiste a,.eingeklappt .mb-leiste button.mb-link{position:relative;width:44px;height:44px;padding:0;border-radius:13px;justify-content:center;background:transparent;border:1px solid transparent;box-shadow:none;color:var(--text-leise);transition:background .2s,color .2s,border-color .2s}
+.eingeklappt .mb-leiste a::before,.eingeklappt .mb-leiste button.mb-link::before{content:attr(data-kurz);font:600 11.5px/1 'Inter',sans-serif;letter-spacing:.06em}
+.eingeklappt .mb-leiste a:hover,.eingeklappt .mb-leiste button.mb-link:hover{background:var(--flaeche-still);color:var(--text);border-color:var(--linie);transform:none}
+.eingeklappt .mb-leiste a.aktiv{background:linear-gradient(180deg,#2563EB,#1D4ED8);color:#fff;border-color:transparent;box-shadow:0 8px 18px rgba(37,99,235,.3)}
+.eingeklappt .mb-leiste a .mb-marke{display:block;position:absolute;top:6px;right:6px;width:8px;height:8px;padding:0;border-radius:50%;background:var(--frist);font-size:0;color:transparent}
+/* Tooltip rechts */
+.eingeklappt .mb-leiste a::after,.eingeklappt .mb-leiste button.mb-link::after{content:attr(title);position:absolute;left:calc(100% + 12px);top:50%;transform:translate(-6px,-50%);white-space:nowrap;padding:7px 11px;border-radius:9px;background:#0f172a;color:#fff;font:500 12px/1 'Inter',sans-serif;opacity:0;pointer-events:none;transition:opacity .18s,transform .18s;z-index:30;box-shadow:0 10px 24px rgba(15,23,42,.25)}
+.eingeklappt .mb-leiste a:hover::after,.eingeklappt .mb-leiste button.mb-link:hover::after,.eingeklappt .mb-leiste a:focus-visible::after{opacity:1;transform:translate(0,-50%)}
+.eingeklappt .mb-panel .mb-nutzer{width:44px;justify-content:center;padding:8px 0 4px;margin-top:4px;border-top:1px solid var(--linie)}
+.eingeklappt .mb-panel .mb-nutzer .mb-gesicht{width:34px;height:34px;font-size:11px}
+@media(max-width:960px){.mb-grundriss.eingeklappt{grid-template-columns:1fr}.eingeklappt .mb-leiste{position:static;max-height:none}}

@@ -15,6 +15,14 @@ import {
   pegelAusZeitdaten, pegelText, HOERBAR_AB, SPERRE_NACH_SEKUNDEN,
   WARNUNG_NACH_SEKUNDEN, probeBestanden, probeMerken, type Eingabegeraet,
 } from "@/lib/fiaon-mikrofon";
+// ── DIE STYLES LIEGEN JETZT IN EINER EIGENEN DATEI (23.08.2026) ────────────
+// Vorher standen ~600 Zeilen CSS als Template-Strings in dieser Datei und
+// wurden bei jedem Öffnen als <style>-Knoten eingehängt. Die Klassen und der
+// Präfix .fi-tel- sind UNVERÄNDERT — die Prüfstände und der Rest des Systems
+// finden sie weiter. Nur der schwebende Knopf und der Statuspunkt bleiben
+// unten eingebettet (scripts/pruef-feinschliff.ts misst beide im Quelltext
+// dieser Komponente).
+import "@/styles/softphone.css";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SOFTPHONE — der schwebende Knopf und das Gerät dahinter
@@ -209,7 +217,6 @@ function RichtlinienTafel({
           <p className="mt-1.5 text-[11px]" style={{ color: "var(--fi-text-still)" }}>
             Deine Annahme wird mit Zeitpunkt, Fassung {t.version} und Gerätekennung festgehalten.
           </p>
-          <style>{RICHTLINIE_CSS}</style>
         </>
       ) : null}
       fuss={
@@ -467,6 +474,39 @@ export function Softphone() {
   // Zustand: Ein neu gerendertes Gerät würde die Verbindung abreißen.
   const geraet = useRef<any>(null);
   const verbindung = useRef<any>(null);
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // REINE DARSTELLUNG (23.08.2026) — nichts hiervon berührt Twilio
+  //
+  // Der Vorgesetzte: „Am Handy ist es eine Katastrophe zu bedienen — man muss
+  // darin scrollen. Es darf am Handy nicht zu scrollen sein im Phone, da
+  // verklickt man sich immer."
+  //
+  // `schmal` (≤ 700 px, dieselbe Grenze wie im FiaonGeraet) entscheidet
+  // deshalb, WIE bestehende Dinge gezeigt werden — nie, WAS passiert:
+  //   · Tastatur im Gespräch und Notiz werden eigene Vollbild-Ansichten
+  //     (umschalten statt scrollen),
+  //   · die offenen Anrufe werden ein Chip, der eine Vollbild-Liste öffnet,
+  //   · der Mikrofon-Kasten klappt zu einer schmalen Pegelzeile zusammen,
+  //     solange er nichts zu melden hat (`mikroAuf` öffnet ihn von Hand).
+  // `gnotizOffen` zeigt das Notizfeld WÄHREND des Gesprächs — es schreibt in
+  // denselben `notiz`-Zustand, den der Ergebnis-Schritt schon immer mitsendet.
+  // ══════════════════════════════════════════════════════════════════════════
+  const [schmal, setSchmal] = useState(
+    () => typeof window !== "undefined" && window.innerWidth <= 700,
+  );
+  const [gnotizOffen, setGnotizOffen] = useState(false);
+  const [offeneAuf, setOffeneAuf] = useState(false);
+  const [mikroAuf, setMikroAuf] = useState(false);
+  useEffect(() => {
+    const messen = () => setSchmal(window.innerWidth <= 700);
+    window.addEventListener("resize", messen);
+    return () => window.removeEventListener("resize", messen);
+  }, []);
+  // Muss der Mikrofon-Kasten offen stehen? Nur, wenn er etwas zu MELDEN hat.
+  // Abgeleitet, nicht gespeichert — derselbe Grund wie bei `stummVerdacht`.
+  const mikMuss = stummVerdacht || probePflicht || !!geraetFehler || !!probeFehler
+    || probe === "laeuft" || probe === "spielt";
 
   const laden = useCallback(async () => {
     const r = await fetch("/api/fiaon/telefon/stand", { credentials: "include" }).catch(() => null);
@@ -1534,10 +1574,28 @@ export function Softphone() {
   const cockpitDaten = gespraechsDaten && kunde
     && gespraechsDaten.personId === kunde.personId ? gespraechsDaten.kunde : null;
 
+  // ── DIE OFFENEN ANRUFE, EINMAL GEBAUT ───────────────────────────────────
+  // Sie werden an zwei Stellen gezeigt (Liste am Rechner, Vollbild-Ansicht
+  // am Handy) — zwei Abschriften derselben Zeile liefen auseinander. Der
+  // Klick tut exakt das von vorher: Kennung setzen, Nummer setzen, in den
+  // Ergebnis-Schritt. `setOffeneAuf(false)` schließt nur die Handy-Ansicht.
+  const offeneZeilen = (stand.offene ?? []).slice(0, 4).map((a) => (
+    <button key={a.id} type="button"
+            onClick={() => {
+              setCallId(a.id); setNummer(a.nummer); setZustand("ergebnis");
+              setOffeneAuf(false);
+            }}
+            className="fi-tel-offen-zeile">
+      <b>{a.name}</b>
+      <span>{new Date(a.beginn).toLocaleString("de-DE", {
+        day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
+        timeZone: "Europe/Berlin",
+      })}</span>
+    </button>
+  ));
+
   return (
     <>
-      <style>{EINGEHEND_CSS}</style>
-
       {cockpitOffen && cockpitDaten?.termin && kunde && (
         <OnboardingCockpit
           termin={{
@@ -1731,6 +1789,27 @@ export function Softphone() {
           .fi-telefonknopf { transition: none !important; }
           .fi-telefonknopf:hover { transform: none; }
         }
+
+        /* ── DER STATUSPUNKT ─────────────────────────────────────────────
+           Er pulst im Gespräch — dort ist die Zeit das Wichtigste. Diese
+           Regeln bleiben absichtlich HIER (nicht in softphone.css):
+           scripts/pruef-feinschliff.ts misst sie im Quelltext der
+           Komponente. */
+        .fi-tel-punkt {
+          width: 8px; height: 8px; border-radius: 999px; flex-shrink: 0;
+          background: rgba(191,214,247,.5);
+        }
+        .fi-tel-punkt[data-zustand="waehlt"] { background: #fcd34d; animation: fiTelPuls 1.1s ease-in-out infinite; }
+        .fi-tel-punkt[data-zustand="klingelt"] { background: #fcd34d; animation: fiTelPuls 1.1s ease-in-out infinite; }
+        .fi-tel-punkt[data-zustand="gespraech"] { background: #34d399; animation: fiTelPuls 1.6s ease-in-out infinite; }
+        .fi-tel-punkt[data-zustand="ergebnis"] { background: #fb923c; }
+        @keyframes fiTelPuls {
+          0%, 100% { opacity: 1; box-shadow: 0 0 0 0 currentColor; }
+          50% { opacity: .55; box-shadow: 0 0 0 5px rgba(255,255,255,.06); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .fi-tel-punkt { animation: none !important; }
+        }
       `}</style>
 
       {/* ── Das Gerät auf der FiaonEbene ───────────────────────────────
@@ -1746,12 +1825,13 @@ export function Softphone() {
           Minute tut.
           ══════════════════════════════════════════════════════════════════ */}
       <FiaonGeraet offen={offen} onZu={() => setOffen(false)} titel="Telefon">
-        <style>{TELEFON_CSS}</style>
-        <style>{TELEFON_DATEN_CSS}</style>
         {/* Der Sparmodus steht in index.css, nicht hier: Er gilt auch für die
             Seite DAHINTER — Space-Video, Mail-Glasflächen, Blasen-Schatten.
-            Als Komponenten-Stil griff er nicht; die Stile der Komponenten
-            werden später eingefügt und gewinnen bei gleicher Spezifität. */}
+            Die übrigen Styles liegen in styles/softphone.css. */}
+        {/* `.fi-tel` ist die Zonen-Spalte: Am Handy füllt sie die ganze
+            Vollbild-Ebene, und die Bedienleisten pinnen sich mit
+            margin-top:auto nach unten — deshalb muss dort nichts rollen. */}
+        <div className="fi-tel" data-schmal={schmal ? "1" : "0"}>
 
         {/* ── Statuszeile im Display ──────────────────────────────────── */}
         <div className="fi-tel-statuszeile">
@@ -1768,6 +1848,16 @@ export function Softphone() {
               // erst merkt, wenn sich jemand beschwert.
               : stand.bereit ? (erreichbar ? "Bereit · erreichbar" : "Bereit") : "Bald verfügbar"}
           </span>
+          {/* ── DER AUFNAHME-PUNKT ──────────────────────────────────────
+              Gespräche werden aufgezeichnet (der Pflichtsatz sagt es dem
+              Kunden) — die Anzeige sagt es dem Agenten, dauerhaft und ohne
+              Text-Suche: roter Punkt, solange die Aufnahme läuft; „ohne
+              Aufnahme", sobald sie auf Kundenwunsch beendet wurde. */}
+          {zustand === "gespraech" && (
+            ohneAufnahme
+              ? <span className="fi-tel-rec" data-aus="1">ohne Aufnahme</span>
+              : <span className="fi-tel-rec"><i aria-hidden="true" />Aufnahme</span>
+          )}
           <button type="button" onClick={() => setOffen(false)} aria-label="Schließen"
                   className="fi-tel-zu">
             <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor"
@@ -1918,7 +2008,25 @@ export function Softphone() {
             Schalter am Kabel. Der Agent sagt „Test" und SIEHT, ob es ankommt —
             bevor ein Kunde in der Leitung ist.
             ══════════════════════════════════════════════════════════════════ */}
-        {mikrofon === "erlaubt" && zustand === "bereit" && (
+        {/* ── AM HANDY: EINE SCHMALE PEGELZEILE STATT DES GANZEN KASTENS ──
+            Der Kasten (Gerätewahl + Sprechprobe + Hinweise) kostete auf
+            375 px rund 100 px Höhe — mit ihm passte die Wählansicht nicht
+            auf einen Bildschirm. Solange er nichts zu MELDEN hat
+            (`mikMuss`), zeigt das Handy nur den Balken; ein Tipp öffnet den
+            vollen Kasten. Sperre, Warnungen und Probenpflicht erzwingen ihn
+            weiterhin von selbst — die Sicherheitslogik ist unverändert. */}
+        {mikrofon === "erlaubt" && zustand === "bereit" && schmal && !(mikroAuf || mikMuss) && (
+          <button type="button" className="fi-tel-mik-zeile"
+                  onClick={() => setMikroAuf(true)}
+                  aria-label="Mikrofon-Einstellungen öffnen (Gerätewahl und Sprechprobe)">
+            <span className="fi-tel-pegel-marke">Mikrofon</span>
+            <span className="fi-tel-pegel-bahn" aria-hidden="true">
+              <span className="fi-tel-pegel-fuellung" style={{ width: `${pegel ?? 0}%` }} />
+            </span>
+            <span className="fi-tel-pegel-text">{pegelText(pegel)}</span>
+          </button>
+        )}
+        {mikrofon === "erlaubt" && zustand === "bereit" && (!schmal || mikroAuf || mikMuss) && (
           <div className="fi-tel-mik" data-stumm={stummVerdacht ? "1" : "0"}>
             <div className="fi-tel-pegel">
               <span className="fi-tel-pegel-marke">Mikrofon</span>
@@ -2012,6 +2120,14 @@ export function Softphone() {
               </span>
             </div>
             {probeFehler && <p className="fi-tel-mik-warnung">{probeFehler}</p>}
+            {/* Zuklappen nur am Handy, und nur wenn der Kasten nichts melden
+                muss — eine Warnung, die man wegklappen kann, ist keine. */}
+            {schmal && !mikMuss && (
+              <button type="button" className="fi-tel-mik-zu-knopf"
+                      onClick={() => setMikroAuf(false)}>
+                Einklappen
+              </button>
+            )}
           </div>
         )}
 
@@ -2072,7 +2188,7 @@ export function Softphone() {
 
         {/* ── Wählen ──────────────────────────────────────────────────── */}
         {stand.bereit && !stand.testkonto && zustand === "bereit" && !richtlinie?.offen && (
-          <>
+          <div className="fi-tel-waehlen">
             {/* ══════════════════════════════════════════════════════════════
                 DER TAGESSTAND DER NUMMER — DEZENT, UND OHNE FOLGEN
 
@@ -2163,13 +2279,36 @@ export function Softphone() {
               </div>
             )}
 
-            <input value={nummer} onChange={(e) => setNummer(e.target.value)}
-                   inputMode="tel" placeholder="+49 …" aria-label="Rufnummer"
-                   className="fi-tel-anzeige" />
+            {/* ── DIE NUMMERNZEILE ────────────────────────────────────────
+                Die Löschtaste steht NEBEN der Nummer, nicht mehr als
+                schwebender Knopf unten rechts an der Tastatur: Dort lag sie
+                über der #-Taste — am Handy ein Verklick-Herd, und auf dem
+                Gerät verdeckte sie eine Taste. Gelöscht wird dasselbe wie
+                vorher: die letzte Ziffer. */}
+            <div className="fi-tel-nummernzeile">
+              <input value={nummer} onChange={(e) => setNummer(e.target.value)}
+                     inputMode="tel" placeholder="+49 …" aria-label="Rufnummer"
+                     className="fi-tel-anzeige" />
+              {nummer.length > 0 && (
+                <button type="button" className="fi-tel-loeschen"
+                        onClick={() => setNummer((n) => n.slice(0, -1))}
+                        aria-label="Letzte Ziffer löschen">
+                  <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                       strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M20 5H9.5L3 12l6.5 7H20a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1Z" />
+                    <path d="m12 9.5 5 5M17 9.5l-5 5" />
+                  </svg>
+                </button>
+              )}
+            </div>
 
-            <FiaonTastatur onZiffer={(z) => setNummer((n) => n + z)}
-                           onLoeschen={() => setNummer((n) => n.slice(0, -1))} />
+            <FiaonTastatur onZiffer={(z) => setNummer((n) => n + z)} />
 
+            {/* ── DER FUSS DER WÄHLANSICHT ────────────────────────────────
+                Pflichtsatz und Anrufknopf. Am Handy pinnt sich dieser Block
+                mit margin-top:auto an die Unterkante — der grüne Knopf liegt
+                damit immer in der Daumenzone, egal wie viel darüber steht. */}
+            <div className="fi-tel-wahl-fuss">
             {/* ── DER PFLICHTSATZ ─────────────────────────────────────────
                 Er steht ÜBER dem Anrufknopf, nicht darunter und nicht in
                 einem Hinweisfeld. Wer ihn vergisst, macht sich nach
@@ -2222,7 +2361,8 @@ export function Softphone() {
                 Anderen Kunden wählen
               </button>
             )}
-          </>
+            </div>
+          </div>
         )}
 
         {/* ══════════════════════════════════════════════════════════════════
@@ -2243,15 +2383,52 @@ export function Softphone() {
             Knoten mit diesem Merkmal, und mehr als einer ist ein Fehlschlag.
             Eine Regel, die man nachzählen kann, hält.
             ══════════════════════════════════════════════════════════════════ */}
+        {/* ══════════════════════════════════════════════════════════════════
+            DIE GESPRÄCHSANSICHT IN DREI ZONEN (23.08.2026)
+
+            Oben der KUNDENKONTEXT (wer, Nummer, Paket/Stand, Akte-Link),
+            in der Mitte die STATUSANZEIGE (große Uhr, Hinweise, Warnungen),
+            unten die BEDIENLEISTE (Stumm/Tastatur/Notiz, darunter — mit
+            Abstand, gegen Verklicken — der große rote Auflegen-Knopf).
+            Am Handy pinnt sich die Leiste in die Daumenzone; nichts rollt.
+            Alle Handler sind unverändert die von vorher.
+            ══════════════════════════════════════════════════════════════════ */}
         {(zustand === "waehlt" || zustand === "klingelt" || zustand === "gespraech") && (
-          <div style={{ textAlign: "center", paddingTop: 18 }}
+          <div className="fi-tel-gespraech"
                data-ansicht="gespraech" data-zustand={zustand}>
-            <p className="fi-tel-gross-name" data-rolle="kundenname">{kunde?.name ?? nummer}</p>
+            {/* ── Zone 1: Kundenkontext ─────────────────────────────────── */}
+            <div className="fi-tel-kontext">
+              <p className="fi-tel-gross-name" data-rolle="kundenname">{kunde?.name ?? nummer}</p>
+              {kunde && <p className="fi-tel-nummer">{nummer}</p>}
+              {(cockpitDaten?.paket || cockpitDaten?.zahlungsstand || cockpitDaten?.kundeSeit || kunde) && (
+                <div className="fi-tel-kontext-zeile">
+                  {cockpitDaten?.paket && <span className="fi-tel-chip">{cockpitDaten.paket}</span>}
+                  {cockpitDaten?.zahlungsstand && (
+                    <span className="fi-tel-chip fi-tel-chip-leise">{cockpitDaten.zahlungsstand}</span>
+                  )}
+                  {cockpitDaten?.kundeSeit && (
+                    <span className="fi-tel-chip fi-tel-chip-leise">Kunde seit {cockpitDaten.kundeSeit}</span>
+                  )}
+                  {/* Die Akte in einem NEUEN Tab: Wer im selben Tab
+                      navigiert, reißt die laufende Twilio-Verbindung ab —
+                      der Aufräum-Effekt legt beim Verlassen auf. */}
+                  {kunde && (
+                    <a className="fi-tel-akte"
+                       href={`/agent/kunden?person=${kunde.personId}`}
+                       target="_blank" rel="noopener noreferrer">
+                      Akte öffnen
+                    </a>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* ── Zone 2: Statusanzeige ─────────────────────────────────── */}
+            <div className="fi-tel-mitte">
             {/* Die Uhr läuft NUR im Gespräch. Im klingelnden Zustand stand hier
                 bis zum 31.08.2026 „00:00" mit laufendem Timer — der Agent hielt
                 die Leitung für offen und sprach ins Freizeichen. */}
             <p className="fi-tel-uhr">{zustand === "gespraech" ? dauerText(sekunden) : "···"}</p>
-            {kunde && <p className="fi-tel-nummer">{nummer}</p>}
 
             {/* ══════════════════════════════════════════════════════════════
                 DER HINWEIS IM KLINGELNDEN ZUSTAND
@@ -2267,6 +2444,7 @@ export function Softphone() {
             {zustand === "waehlt" && (
               <p className="fi-tel-klingelt-hinweis">Verbinde …</p>
             )}
+            </div>
 
             {/* ══════════════════════════════════════════════════════════════
                 DIE STAMMDATEN WÄHREND DES GESPRÄCHS
@@ -2382,34 +2560,76 @@ export function Softphone() {
               <p className="fi-tel-ohne-marke">Aufzeichnung beendet — auf Kundenwunsch</p>
             )}
 
-            <div className="fi-tel-dreier">
-              <button type="button" onClick={stummSchalten}
-                      className="fi-tel-rund" data-an={stumm ? "1" : "0"} aria-label="Stumm">
-                <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                     strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 3a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3Z" />
-                  <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
-                  {stumm && <path d="m4 4 16 16" />}
-                </svg>
-              </button>
+            {/* ── DIE NOTIZ WÄHREND DES GESPRÄCHS ────────────────────────
+                „Notizfeld griffbereit" — sie schreibt in denselben `notiz`-
+                Zustand, den `dokumentieren` seit jeher mitsendet
+                (`notiz: notiz.trim() || null`). Kein zweiter Speicherweg.
+                Auf dem Rechner ein Feld über der Leiste, am Handy eine
+                eigene Vollbild-Ansicht (nichts rollt). */}
+            {gnotizOffen && !schmal && (
+              <div className="fi-tel-gnotiz">
+                <textarea value={notiz} onChange={(e) => setNotiz(e.target.value)}
+                          rows={3} autoFocus
+                          placeholder="Notiz zum Gespräch — geht mit dem Ergebnis in die Akte."
+                          aria-label="Notiz zum Gespräch"
+                          className="fi-tel-notiz" />
+                <p className="fi-tel-notiz-fuss">Bleibt stehen und wird mit dem Ergebnis gespeichert.</p>
+              </div>
+            )}
+
+            {/* ── Zone 3: Bedienleiste ───────────────────────────────────
+                Auflegen steht ALLEIN unter der Reihe, groß und rot, mit
+                Abstand — wer Stumm oder Tastatur will, kann nicht aus
+                Versehen auflegen. */}
+            <div className="fi-tel-leiste">
+              <div className="fi-tel-dreier">
+                <button type="button" onClick={stummSchalten}
+                        className="fi-tel-rund" data-an={stumm ? "1" : "0"} aria-label="Stumm"
+                        title={stumm ? "Stummschaltung aufheben" : "Stummschalten"}>
+                  <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                       strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 3a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3Z" />
+                    <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+                    {stumm && <path d="m4 4 16 16" />}
+                  </svg>
+                  <span className="fi-tel-rund-wort">{stumm ? "Stumm an" : "Stumm"}</span>
+                </button>
+                <button type="button" onClick={() => setTastenOffen((t) => !t)}
+                        className="fi-tel-rund" data-an={tastenOffen ? "1" : "0"} aria-label="Tastatur"
+                        title="Wähltastatur für Sprachmenüs">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    {[0, 1, 2].map((r) => [0, 1, 2].map((c) => (
+                      <circle key={`${r}-${c}`} cx={6 + c * 6} cy={5 + r * 6} r="1.5" />
+                    )))}
+                  </svg>
+                  <span className="fi-tel-rund-wort">Tastatur</span>
+                </button>
+                <button type="button" onClick={() => setGnotizOffen((v) => !v)}
+                        className="fi-tel-rund" data-an={gnotizOffen || notiz.trim() ? "1" : "0"}
+                        aria-label="Notiz" title="Notiz zum Gespräch">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                       strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M12 20h9" />
+                    <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                  </svg>
+                  <span className="fi-tel-rund-wort">Notiz</span>
+                </button>
+              </div>
               <button type="button" onClick={auflegen} className="fi-tel-auflegen" aria-label="Auflegen">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                      strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"
                      style={{ transform: "rotate(135deg)" }}>
                   <path d="M4.5 3.5h3.6l1.8 4.5-2.3 1.4a12 12 0 0 0 5.5 5.5l1.4-2.3 4.5 1.8v3.6a1.5 1.5 0 0 1-1.7 1.5A16.5 16.5 0 0 1 3 5.2 1.5 1.5 0 0 1 4.5 3.5Z" />
                 </svg>
-              </button>
-              <button type="button" onClick={() => setTastenOffen((t) => !t)}
-                      className="fi-tel-rund" data-an={tastenOffen ? "1" : "0"} aria-label="Tastatur">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                  {[0, 1, 2].map((r) => [0, 1, 2].map((c) => (
-                    <circle key={`${r}-${c}`} cx={6 + c * 6} cy={5 + r * 6} r="1.5" />
-                  )))}
-                </svg>
+                <span className="fi-tel-auflegen-wort">Auflegen</span>
               </button>
             </div>
 
-            {tastenOffen && (
+            {/* ── DTMF: am Rechner unter der Leiste, am Handy Vollbild ────
+                „Wähltastatur als eigene Vollbild-Ansicht (umschalten, nicht
+                scrollen)." Beide Wege senden über dasselbe `tasteSenden`
+                (sendDigits) — nur die Darstellung unterscheidet sich. */}
+            {tastenOffen && !schmal && (
               <div style={{ marginTop: 14 }}>
                 <FiaonTastatur klein onZiffer={tasteSenden} />
               </div>
@@ -2420,9 +2640,66 @@ export function Softphone() {
           </div>
         )}
 
-        {/* ── Ergebnis ───────────────────────────────────────────────── */}
+        {/* ── Vollbild-Ansichten am Handy (Tastatur / Notiz) ────────────── */}
+        {tastenOffen && schmal
+          && (zustand === "waehlt" || zustand === "klingelt" || zustand === "gespraech") && (
+          <div className="fi-tel-voll" role="dialog" aria-label="Wähltastatur im Gespräch">
+            <div className="fi-tel-voll-kopf">
+              <div className="min-w-0">
+                <p className="fi-tel-voll-titel">Ziffern ins Gespräch</p>
+                <p className="fi-tel-voll-unter">
+                  {kunde?.name ?? nummer}{zustand === "gespraech" ? ` · ${dauerText(sekunden)}` : ""}
+                </p>
+              </div>
+              <button type="button" onClick={() => setTastenOffen(false)}
+                      aria-label="Tastatur schließen" className="fi-tel-zu">
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+                     strokeWidth={1.8} strokeLinecap="round"><path d="m5 5 10 10M15 5 5 15" /></svg>
+              </button>
+            </div>
+            <div className="fi-tel-voll-mitte">
+              <FiaonTastatur onZiffer={tasteSenden} />
+            </div>
+            <button type="button" className="fi-tel-voll-zurueck"
+                    onClick={() => setTastenOffen(false)}>
+              Zurück zum Gespräch
+            </button>
+          </div>
+        )}
+        {gnotizOffen && schmal
+          && (zustand === "waehlt" || zustand === "klingelt" || zustand === "gespraech") && (
+          <div className="fi-tel-voll" role="dialog" aria-label="Notiz zum Gespräch">
+            <div className="fi-tel-voll-kopf">
+              <div className="min-w-0">
+                <p className="fi-tel-voll-titel">Notiz</p>
+                <p className="fi-tel-voll-unter">
+                  {kunde?.name ?? nummer}{zustand === "gespraech" ? ` · ${dauerText(sekunden)}` : ""}
+                </p>
+              </div>
+              <button type="button" onClick={() => setGnotizOffen(false)}
+                      aria-label="Notiz schließen" className="fi-tel-zu">
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+                     strokeWidth={1.8} strokeLinecap="round"><path d="m5 5 10 10M15 5 5 15" /></svg>
+              </button>
+            </div>
+            <textarea value={notiz} onChange={(e) => setNotiz(e.target.value)}
+                      autoFocus
+                      placeholder="Notiz zum Gespräch — geht mit dem Ergebnis in die Akte."
+                      aria-label="Notiz zum Gespräch"
+                      className="fi-tel-notiz fi-tel-voll-notiz" />
+            <button type="button" className="fi-tel-voll-zurueck"
+                    onClick={() => setGnotizOffen(false)}>
+              Fertig — zurück zum Gespräch
+            </button>
+          </div>
+        )}
+
+        {/* ── Ergebnis ─────────────────────────────────────────────────
+            Am Handy ist das der eigene Vollbild-Schritt nach dem Auflegen:
+            Die Ansicht ersetzt die Gesprächszonen vollständig, die Knöpfe
+            sind ≥ 52 px hoch, nichts rollt. */}
         {zustand === "ergebnis" && (
-          <div data-ansicht="ergebnis">
+          <div data-ansicht="ergebnis" className="fi-tel-ergebnis-schritt">
             <p className="fi-tel-karte-text" style={{ marginBottom: 12 }}>
               Ein Klick, dann ist es dokumentiert — Wiedervorlage und Zusage setzt das System selbst.
             </p>
@@ -2490,23 +2767,45 @@ export function Softphone() {
 
         {meldung && <p className="fi-tel-meldung">{meldung}</p>}
 
-        {/* ── Offene Gespräche ───────────────────────────────────────── */}
-        {zustand === "bereit" && offeneAnzahl > 0 && (
+        {/* ── Offene Gespräche ─────────────────────────────────────────
+            Am Rechner die Liste wie gehabt. Am Handy nur ein Chip — die
+            Liste würde die Wählansicht unter die Bildschirmkante drücken —
+            der eine eigene Vollbild-Ansicht öffnet. */}
+        {zustand === "bereit" && offeneAnzahl > 0 && !schmal && (
           <div className="fi-tel-offen">
             <p className="fi-tel-offen-titel">{offeneAnzahl} ohne Ergebnis</p>
-            {stand.offene.slice(0, 4).map((a) => (
-              <button key={a.id} type="button"
-                      onClick={() => { setCallId(a.id); setNummer(a.nummer); setZustand("ergebnis"); }}
-                      className="fi-tel-offen-zeile">
-                <b>{a.name}</b>
-                <span>{new Date(a.beginn).toLocaleString("de-DE", {
-                  day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
-                  timeZone: "Europe/Berlin",
-                })}</span>
-              </button>
-            ))}
+            {offeneZeilen}
           </div>
         )}
+        {zustand === "bereit" && offeneAnzahl > 0 && schmal && (
+          <button type="button" className="fi-tel-offen-chip"
+                  onClick={() => setOffeneAuf(true)}>
+            {offeneAnzahl} ohne Ergebnis — jetzt nachtragen
+          </button>
+        )}
+        {offeneAuf && schmal && zustand === "bereit" && offeneAnzahl > 0 && (
+          <div className="fi-tel-voll" role="dialog" aria-label="Anrufe ohne Ergebnis">
+            <div className="fi-tel-voll-kopf">
+              <div className="min-w-0">
+                <p className="fi-tel-voll-titel">Ohne Ergebnis</p>
+                <p className="fi-tel-voll-unter">Ein Tipp öffnet den Ergebnis-Schritt.</p>
+              </div>
+              <button type="button" onClick={() => setOffeneAuf(false)}
+                      aria-label="Schließen" className="fi-tel-zu">
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+                     strokeWidth={1.8} strokeLinecap="round"><path d="m5 5 10 10M15 5 5 15" /></svg>
+              </button>
+            </div>
+            <div className="fi-tel-voll-mitte fi-tel-voll-liste">
+              {offeneZeilen}
+            </div>
+            <button type="button" className="fi-tel-voll-zurueck"
+                    onClick={() => setOffeneAuf(false)}>
+              Zurück
+            </button>
+          </div>
+        )}
+        </div>
       </FiaonGeraet>
 
       {/* ── DIE TAFEL ALS RÜCKFALL, ÜBER DEM GERÄT ───────────────────────

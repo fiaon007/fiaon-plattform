@@ -1,4 +1,5 @@
 import { lazy, Suspense, type ComponentType } from "react";
+import "@/styles/laden.css";
 import { Umleitung } from "@/components/Umleitung";
 import { Switch, Route, Redirect, useLocation } from "wouter";
 import { useSeitenTitel } from "@/lib/fiaon-titel";
@@ -188,12 +189,23 @@ function admin(Component: ComponentType) {
 }
 
 /** Dezenter Platzhalter, solange ein nachgeladener Seitenteil unterwegs ist. */
+// Der Lade-Bildschirm beim Seitenwechsel (Justin 23.08.): kein graues Gerippe
+// mehr, sondern unsere Weltkugel — dunkel, Glas, ein Satellit auf der Bahn.
+// Bewusst reines CSS (keine three.js-Szene): Er erscheint für Sekundenbruchteile
+// und darf selbst nichts laden müssen.
 function SeiteLaedt() {
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8 space-y-4">
-      <div className="agent-skeleton h-8 w-52 rounded-lg" />
-      <div className="agent-skeleton h-40 rounded-2xl" />
-      <div className="agent-skeleton h-64 rounded-2xl" />
+    <div className="ld" role="status" aria-label="Seite wird geladen">
+      <div className="ld-glut" /><div className="ld-sterne" />
+      <div className="ld-mitte">
+        <div className="ld-kugel">
+          <div className="ld-kern" />
+          <div className="ld-ring r1" /><div className="ld-ring r2" /><div className="ld-ring r3" />
+          <div className="ld-bahn"><i className="ld-satellit" /></div>
+        </div>
+        <span className="ld-wort">FIAON</span>
+        <div className="ld-balken"><i /></div>
+      </div>
     </div>
   );
 }

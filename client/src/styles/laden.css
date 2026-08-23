@@ -1,0 +1,23 @@
+/* ═══ Lade-Bildschirm (23.08.2026, Justin: „unsere Weltkugel, dunkel, Glas, macht Spaß zuzusehen") ═══ */
+.ld{position:fixed;inset:0;z-index:60;display:grid;place-items:center;background:#0a1628;overflow:hidden;animation:ldEin .25s ease both}
+@keyframes ldEin{from{opacity:0}to{opacity:1}}
+.ld-glut{position:absolute;inset:0;background:radial-gradient(ellipse 60% 45% at 50% 58%,rgba(37,99,235,.22),transparent 70%),radial-gradient(ellipse 40% 30% at 20% 15%,rgba(37,99,235,.1),transparent 70%)}
+.ld-sterne{position:absolute;inset:0;background-image:radial-gradient(1px 1px at 12% 22%,rgba(255,255,255,.5),transparent),radial-gradient(1px 1px at 78% 12%,rgba(255,255,255,.35),transparent),radial-gradient(1.5px 1.5px at 88% 68%,rgba(147,197,253,.45),transparent),radial-gradient(1px 1px at 32% 82%,rgba(255,255,255,.3),transparent),radial-gradient(1px 1px at 56% 34%,rgba(255,255,255,.25),transparent),radial-gradient(1.5px 1.5px at 8% 62%,rgba(147,197,253,.35),transparent),radial-gradient(1px 1px at 66% 88%,rgba(255,255,255,.3),transparent),radial-gradient(1px 1px at 42% 8%,rgba(255,255,255,.4),transparent);animation:ldFunkeln 5s ease-in-out infinite alternate}
+@keyframes ldFunkeln{from{opacity:.55}to{opacity:1}}
+.ld-mitte{position:relative;display:grid;justify-items:center;gap:26px}
+.ld-kugel{position:relative;width:150px;height:150px;perspective:600px}
+.ld-kern{position:absolute;inset:14px;border-radius:50%;background:radial-gradient(circle at 34% 30%,rgba(96,165,250,.35),rgba(37,99,235,.12) 45%,rgba(10,22,40,.2) 72%);box-shadow:inset 0 0 34px rgba(37,99,235,.5),0 0 60px rgba(37,99,235,.35);backdrop-filter:blur(2px)}
+.ld-ring{position:absolute;inset:0;border-radius:50%;border:1.5px solid rgba(147,197,253,.5);transform-style:preserve-3d}
+.ld-ring.r1{animation:ldDrehY 3.2s linear infinite}
+.ld-ring.r2{inset:7px;border-color:rgba(147,197,253,.32);animation:ldDrehY 4.6s linear infinite reverse}
+.ld-ring.r3{inset:0;border-color:rgba(96,165,250,.38);transform:rotateX(72deg);animation:ldDrehX 5.5s linear infinite}
+@keyframes ldDrehY{from{transform:rotateY(0)}to{transform:rotateY(360deg)}}
+@keyframes ldDrehX{from{transform:rotateX(72deg) rotateZ(0)}to{transform:rotateX(72deg) rotateZ(360deg)}}
+.ld-bahn{position:absolute;inset:-16px;border-radius:50%;border:1px dashed rgba(147,197,253,.18);animation:ldBahn 7s linear infinite}
+@keyframes ldBahn{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+.ld-satellit{position:absolute;top:-3px;left:50%;width:7px;height:7px;margin-left:-3.5px;border-radius:50%;background:#93c5fd;box-shadow:0 0 12px 3px rgba(147,197,253,.65)}
+.ld-wort{font:600 15px/1 'Inter',sans-serif;letter-spacing:.34em;color:#fff;padding-left:.34em}
+.ld-balken{width:148px;height:2.5px;border-radius:999px;background:rgba(255,255,255,.09);overflow:hidden}
+.ld-balken i{display:block;height:100%;width:40%;border-radius:999px;background:linear-gradient(90deg,transparent,#3b82f6,#93c5fd,transparent);animation:ldLauf 1.15s ease-in-out infinite}
+@keyframes ldLauf{from{transform:translateX(-110%)}to{transform:translateX(390%)}}
+@media(prefers-reduced-motion:reduce){.ld-ring,.ld-bahn,.ld-balken i,.ld-sterne{animation:none}}

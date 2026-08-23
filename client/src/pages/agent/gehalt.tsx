@@ -15,7 +15,11 @@ import { PAKETE } from "@shared/fiaon-pakete";
 import "@/styles/office-gehalt.css";
 
 const MIX_STANDARD: Record<string, number> = { start: 69, pro: 108, ultra: 67, highend: 93 };
-const BONI = [{ titel: "Quartalsbonus", betrag: 250, wann: "≥ 85 % der Raten im eigenen Stamm pünktlich" }, { titel: "50 aktive Kunden", betrag: 500, wann: "einmalig" }, { titel: "100 aktive Kunden", betrag: 1000, wann: "einmalig" }];
+const BONI = [
+  { titel: "Quartalsbonus", betrag: 500, wann: "≥ 85 % der Raten im eigenen Stamm pünktlich" },
+  { titel: "100 aktive Kunden", betrag: 1500, wann: "einmalig, bei Erreichen" },
+  { titel: "500 aktive Kunden", betrag: 5000, wann: "einmalig, bei Erreichen" },
+];
 const euro = (n: number) => n.toLocaleString("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
 
 const SCHUFA_BONUS = 10; // E-042: 10 € je 74-€-SCHUFA-Zahlung im Onboarding
@@ -74,7 +78,7 @@ function GehaltInnen() {
         <section className="gh-regler">
           <div className="gh-regler-kopf"><b>Abschlüsse pro Tag</b><span className="gh-zahl">{proTag}</span></div>
           <input type="range" min={1} max={50} step={1} value={proTag} onChange={(ev) => setProTag(Number(ev.target.value))} aria-label="Abschlüsse pro Tag" />
-          <div className="gh-skala">{[1, 5, 10, 20, 30, 40, 50].map((n) => <span key={n} className={n === 5 ? "ziel" : ""}>{n}{n === 5 ? " · Minimum" : ""}</span>)}</div>
+          <div className="gh-skala">{[1, 5, 10, 20, 30, 40, 50].map((n) => <span key={n} className={n === 5 ? "ziel" : ""} style={{ left: `${((n - 1) / 49) * 100}%` }}>{n}{n === 5 ? " · Min." : ""}</span>)}</div>
           <small>{e.proMonat} Abschlüsse im Monat (21 Arbeitstage) · Ø Rate {e.avg.toFixed(2).replace(".", ",")} € nach eurem echten Paketmix · Haltequote 80 % ab Rate 2, danach 92 % je Monat · dazu {euro(e.schufaMonat)} SCHUFA-Boni im Monat</small>
           <div className="gh-nebenregler">
             <label className="gh-schalter"><input type="checkbox" checked={zertifikat} onChange={(ev) => setZertifikat(ev.target.checked)} /><span>Mit Academy-Zertifikat rechnen ({Math.round((basisSatz + 0.05) * 100)} % statt {Math.round(basisSatz * 100)} %)</span></label>

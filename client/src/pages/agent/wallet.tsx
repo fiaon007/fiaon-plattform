@@ -113,7 +113,7 @@ function Guthaben({ earnings, onWechsel }: { earnings: any; onWechsel: (r: Reite
         </section>
       )}
 
-      <Wunschgehalt />
+
 
       <section className="wa-block">
         <div className="wa-block-kopf">

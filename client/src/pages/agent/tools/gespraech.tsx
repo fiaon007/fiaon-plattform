@@ -68,12 +68,12 @@ export const ARTEN: { key: Art; label: string; kurz: string; schritte: Schritt[]
     ],
   },
   {
-    key: "reaktivierung", label: "Reaktivierung · Rate überfällig", kurz: "Weich zurückholen – vorstellen, entschuldigen, Zahlung oder 1 Monat aussetzen (E-042)",
+    key: "reaktivierung", label: "Reaktivierung · Rate überfällig", kurz: "Altbestand weich zurückholen – vorstellen, entschuldigen, Zahlung oder 1 Monat aussetzen (E-042a: 50 % nur Altbestand)",
     schritte: [
       { titel: "Vorstellen, nicht mahnen", text: "Kein Inkasso-Ton. Du stellst dich als neuer Ansprechpartner vor – der Kunde hat lange gewartet.", satz: "Guten Tag, mein Name ist … von FIAON – ich rufe an, um mich bei Ihnen vorzustellen. Ich weiß, Sie hatten einen echt schwierigen Start bei uns …" },
       { titel: "Entschuldigen und zuhören", text: "Ehrlich entschuldigen, dann zuhören. Was ist beim Kunden passiert? Nichts rechtfertigen.", satz: "Dafür möchte ich mich zuerst entschuldigen – das war nicht die Betreuung, die Sie verdienen. Ab heute bin ich persönlich für Sie da. Wie ist es Ihnen zwischenzeitlich ergangen?" },
       { titel: "Neustart anbieten", text: "Der Plan: Konto wieder aktiv, ein fester Termin, ab jetzt ein Ansprechpartner.", satz: "Mein Vorschlag: Wir machen einen sauberen Neustart – ich aktiviere Ihre Betreuung wieder und wir gehen Ihre Lage gemeinsam durch." },
-      { titel: "Weg A: Zahlung", text: "Wenn der Kunde kann: offene Rate per Überweisung (Referenz vorlesen). Dein Bonus: 50 % dieser Zahlung.", satz: "Die offene Rate sind … € – wenn Sie die in den nächsten Tagen überweisen, läuft ab dann wieder alles für Sie. Ich schicke Ihnen die Zahlungsdaten gleich per E-Mail." },
+      { titel: "Weg A: Zahlung", text: "Wenn der Kunde kann: offene Rate per Überweisung (Referenz vorlesen). Dein Bonus (nur Altbestand): 50 % dieser Zahlung.", satz: "Die offene Rate sind … € – wenn Sie die in den nächsten Tagen überweisen, läuft ab dann wieder alles für Sie. Ich schicke Ihnen die Zahlungsdaten gleich per E-Mail." },
       { titel: "Weg B: 1 Monat aussetzen", text: "Wenn der Kunde gerade nicht kann: Rate einen Monat aussetzen (in der Akte festhalten). Keine Vergütung – aber Beziehung gerettet.", satz: "Wenn es diesen Monat eng ist, setze ich Ihre Rate einen Monat aus – ohne Kosten, ohne Haken. Dann starten wir im … frisch." },
       { titel: "Onboarding-Termin buchen", text: "Immer, egal ob A oder B: Termin aus deiner Availability vergeben und eintragen.", satz: "Damit wir sauber starten: Wann passt Ihnen ein kurzes Gespräch, in dem ich alles mit Ihnen durchgehe – … um … Uhr?" },
       { titel: "Ergebnis festhalten", text: "„Zahlt am …“ mit Bonusvermerk oder „ausgesetzt bis …“ + Termin – in der Akte buchen.", satz: "Danke für das Gespräch – Sie hören von mir, und alles Besprochene steht in Ihrem Bereich." },

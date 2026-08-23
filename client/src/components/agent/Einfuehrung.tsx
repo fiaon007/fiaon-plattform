@@ -160,7 +160,7 @@ function schritteFuer(rolle: string): Schritt[] {
     key: "reaktivierung", lage: "rand", ziel: "/agent/collections", Icon: Landmark, titel: "Reaktivierung & Collections",
     absaetze: [
       "Wird eine Rate überfällig, gibst du deinen Kunden nicht ab – du holst ihn selbst zurück. Weich, nie hart: vorstellen, entschuldigen, zuhören.",
-      "Erreichst du die Zahlung, gehören 50 % dieser Rate dir. Oder du setzt den Kunden einen Monat aus – ohne Vergütung, aber mit direkt gebuchtem Onboarding-Termin.",
+      "Erreichst du die Zahlung bei einem Altkunden (Bestand von vor dem Office-Start), gehören 50 % dieser Rate dir. Oder du setzt den Kunden einen Monat aus – ohne Vergütung, aber mit direkt gebuchtem Onboarding-Termin.",
       "In Collections siehst du deine überfälligen Kunden mit Fristfenster und hältst je Rate genau ein Ergebnis fest.",
       ...(istInkasso ? ["Als Back-Office Forderungen & Zahlungen siehst du hier nicht nur deine eigenen, sondern ALLE überfälligen Kunden."] : []),
     ],
@@ -189,7 +189,7 @@ function schritteFuer(rolle: string): Schritt[] {
   s.push({
     key: "wallet", lage: "rand", ziel: "/agent/wallet", Icon: Wallet, titel: "Wallet – deine Vergütung",
     absaetze: [
-      "25 % je bankbestätigter Paket-Rate – mit Academy-Zertifikat 30 %. Dazu 10 € je 74-€-SCHUFA-Zahlung im Onboarding und 50 % des Zahlungswerts bei jeder Reaktivierung.",
+      "25 % je bankbestätigter Paket-Rate – mit Academy-Zertifikat 30 %. Dazu 10 € je 74-€-SCHUFA-Zahlung im Onboarding und 50 % des Zahlungswerts bei jeder Reaktivierung aus dem Altbestand.",
       "Boni obendrauf: 500 € je Quartal bei pünktlichem Stamm, 1.500 € bei 100 und 5.000 € bei 500 aktiven Kunden.",
       "Ausgezahlt wird, was angekommen ist: Provision entsteht erst, wenn die Rate bankbestätigt ist.",
       "Eine feste Regel: Die erste Zahlung eines Kunden läuft immer direkt per Überweisung – nie per Lastschrift.",

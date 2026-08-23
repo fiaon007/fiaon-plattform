@@ -23,7 +23,7 @@ const BONI = [
 const euro = (n: number) => n.toLocaleString("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
 
 const SCHUFA_BONUS = 10; // E-042: 10 € je 74-€-SCHUFA-Zahlung im Onboarding
-const REAKT_ANTEIL = 0.5; // E-042: 50 % des Zahlungswerts je reaktivierter überfälliger Rate
+const REAKT_ANTEIL = 0.5; // E-042a: 50 % je reaktivierter Rate – NUR Altbestand (Kunden vor Office-Start); vorher: alle überfälligen Raten
 
 function rechne(proTag: number, satz: number, mix: Record<string, number>, reaktWoche: number, tage = 21, r2 = 0.8, halt = 0.92) {
   const n = Object.values(mix).reduce((a, b) => a + b, 0) || 1;
@@ -61,14 +61,14 @@ function GehaltInnen() {
         <section className="gh-hero">
           <span className="gh-pille">Dein Verdienst · {Math.round(satz * 100)} % jeder bezahlten Rate</span>
           <h1>Was du verdienst, wenn du <span className="gh-verlauf">dranbleibst.</span></h1>
-          <p>Vier Bausteine: {Math.round(satz * 100)} % jeder Rate, die dein Kunde bezahlt – zwölf Monate lang, auch bei Verlängerung. Dazu {SCHUFA_BONUS} € für jede 74-€-Auskunftszahlung im Onboarding, 50 % jeder überfälligen Rate, die du zurückholst – und nach der Academy-Prüfung dauerhaft 5 Punkte mehr auf alles.</p>
+          <p>Vier Bausteine: {Math.round(satz * 100)} % jeder Rate, die dein Kunde bezahlt – zwölf Monate lang, auch bei Verlängerung. Dazu {SCHUFA_BONUS} € für jede 74-€-Auskunftszahlung im Onboarding, 50 % jeder überfälligen Rate, die du aus dem Altbestand zurückholst – und nach der Academy-Prüfung dauerhaft 5 Punkte mehr auf alles.</p>
         </section>
 
         <section className="gh-bausteine">
           {[
             [`${Math.round(satz * 100)} %`, "je bezahlter Paket-Rate", "ab der Startzahlung, 12 Monate, auch Verlängerung"],
             [`${SCHUFA_BONUS} €`, "je SCHUFA-Zahlung (74 €)", "Ziel jedes Onboarding-Termins; entfällt, wenn schon bezahlt"],
-            ["50 %", "je reaktivierter Rate", "überfälligen Kunden weich zurückholen – die halbe Rate gehört dir"],
+            ["50 %", "je Rate aus dem Altbestand", "überfällige Altkunden weich zurückholen – die halbe Rate gehört dir"],
             ["+5 %", "mit Academy-Zertifikat", "Zertifizierter Bonitätsmanager: dauerhaft auf alle Raten"],
           ].map(([z, t, u], i) => (
             <div key={String(t)} className="gh-baustein" style={{ animationDelay: `${i * 70}ms` }}><b>{z}</b><span>{t}</span><small>{u}</small></div>
@@ -82,7 +82,7 @@ function GehaltInnen() {
           <small>{e.proMonat} Abschlüsse im Monat (21 Arbeitstage) · Ø Rate {e.avg.toFixed(2).replace(".", ",")} € nach eurem echten Paketmix · Haltequote 80 % ab Rate 2, danach 92 % je Monat · dazu {euro(e.schufaMonat)} SCHUFA-Boni im Monat</small>
           <div className="gh-nebenregler">
             <label className="gh-schalter"><input type="checkbox" checked={zertifikat} onChange={(ev) => setZertifikat(ev.target.checked)} /><span>Mit Academy-Zertifikat rechnen ({Math.round((basisSatz + 0.05) * 100)} % statt {Math.round(basisSatz * 100)} %)</span></label>
-            <label className="gh-reakt"><span>Reaktivierungen pro Woche (überfällige Kunden, die zahlen)</span><input type="range" min={0} max={25} value={reaktWoche} onChange={(ev) => setReaktWoche(Number(ev.target.value))} /><em>{reaktWoche} · {euro(e.reaktMonat)}/Monat</em></label>
+            <label className="gh-reakt"><span>Reaktivierungen pro Woche (Altbestand – überfällige Altkunden, die zahlen)</span><input type="range" min={0} max={25} value={reaktWoche} onChange={(ev) => setReaktWoche(Number(ev.target.value))} /><em>{reaktWoche} · {euro(e.reaktMonat)}/Monat</em></label>
           </div>
         </section>
 

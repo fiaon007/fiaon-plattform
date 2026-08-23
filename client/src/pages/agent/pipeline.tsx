@@ -237,7 +237,7 @@ const STUFE: Record<Hitze, { name: string; kurz: string; farbe: string; leitfade
   aktiv: { name: "Aktiv – betreut", kurz: "aktiv", farbe: "#34d399", leitfaden: "startgespraech", rang: 5 },
 };
 const STUFEN_REIHE: Hitze[] = ["heiss", "rate", "warm", "lead", "aktiv"];
-/** E-042: Reaktivierungsbonus – 50 % der zurückgeholten Rate für den Bonitätsmanager. */
+/** E-042a: Reaktivierungsbonus – 50 % der zurückgeholten Rate, NUR für den Altbestand (Kunden von vor dem Office-Start). Vorher: alle überfälligen Raten. */
 const REAKTIVIERUNG_ANTEIL = 0.5;
 /** SCHUFA-Bonus im Onboarding: 10 € je 74-€-Zahlung (Bonitätsauskunft). */
 const SCHUFA_BONUS_TEXT = "+10 € SCHUFA-Bonus je 74-€-Zahlung im Onboarding";
@@ -251,7 +251,7 @@ const REAKTIVIERUNG = {
     { titel: "Zuhören", text: "Was ist passiert? Nicht unterbrechen, nichts rechtfertigen. Der Grund entscheidet über den Weg.", satz: "Erzählen Sie mir kurz, wo es gehakt hat – ich möchte verstehen, was bei Ihnen los war." },
     { titel: "Den Wert wieder aufbauen", text: "Was FIAON für sein Ziel schon getan hat und noch tut – Auskunft, Schreiben, Konto, Karte.", satz: "Ihr Ziel steht ja weiter: … Genau daran arbeiten wir – und Ihr Bereich zeigt Ihnen jeden Schritt." },
     { titel: "Zwei Wege anbieten", text: "Weg 1: Die offene Rate jetzt per Überweisung begleichen – dann läuft alles weiter. Weg 2: Einen Monat aussetzen und ein Onboarding-Gespräch buchen. Nie Lastschrift anbieten.", satz: "Ich sehe zwei Wege für Sie: Sie begleichen die offene Rate per Überweisung, dann läuft alles nahtlos weiter – oder wir setzen einen Monat aus und starten mit einem gemeinsamen Gespräch neu. Was passt besser?" },
-    { titel: "Ergebnis festhalten", text: "Ausgang 1: Kunde zahlt → dein Reaktivierungsbonus (50 % der Rate). Ausgang 2: 1 Monat ausgesetzt + Onboarding-Termin gebucht → 0 €, aber der Kunde bleibt.", satz: "Danke für das Gespräch – Sie hören sofort von mir, sobald alles eingetragen ist." },
+    { titel: "Ergebnis festhalten", text: "Ausgang 1: Kunde zahlt → dein Reaktivierungsbonus (Altbestand: 50 % der Rate). Ausgang 2: 1 Monat ausgesetzt + Onboarding-Termin gebucht → 0 €, aber der Kunde bleibt.", satz: "Danke für das Gespräch – Sie hören sofort von mir, sobald alles eingetragen ist." },
   ],
   einwaende: [
     { frage: "„Ich will kündigen.“", antwort: "Das können Sie jederzeit – bevor Sie es tun: Lassen Sie uns einen Monat aussetzen und in einem Gespräch schauen, was FIAON für Ihr Ziel schon erreicht hat. Kostet Sie nichts, und Sie entscheiden danach." },
@@ -769,7 +769,7 @@ function PipelineInnen() {
           {stufe === "rate" && ratenQuelle !== "ok" && (
             <div className="pi-hinweis blau" style={{ cursor: "default" }}>
               <span><b>{ratenQuelle === "leer" ? "Keine Rate überfällig – stark." : "Rate überfällig – kommt mit dem Zahlungsmotor."}</b>
-                <small>{ratenQuelle === "leer" ? "Sobald eine Rate deiner Kunden überfällig ist, steht sie hier – mit 50 % Bonus je zurückgeholter Rate." : "Die überfälligen Raten liegen heute noch bei Collections. Hier wird nichts geraten."}</small></span>
+                <small>{ratenQuelle === "leer" ? "Sobald eine Rate deiner Kunden überfällig ist, steht sie hier – Altbestand mit 50 % Bonus je zurückgeholter Rate." : "Die überfälligen Raten liegen heute noch bei Collections. Hier wird nichts geraten."}</small></span>
             </div>
           )}
 

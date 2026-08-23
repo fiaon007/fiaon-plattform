@@ -120,10 +120,9 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
     if (await istInkasso(req.agent!.id)) {
       return res.status(404).json({ ok: false, error: "Diese Liste gibt es für dich nicht — deine Arbeit steht unter „Forderungen“." });
     }
-    const { istOnboarding } = await import("./fiaon-onboarding-bereich");
-    if (await istOnboarding(req.agent!.id)) {
-      return res.json({ ok: true, rolle: "onboarding", slots: [], zaehler: {}, mandate: { anzahl: 0, max: MANDATE_MAX } });
-    }
+    // E-045 (Plan §17): VORHER bekam die Rolle „onboarding" eine leere Liste —
+    // NACHHER ist sie Bonitätsmanager wie alle und arbeitet ihre zugewiesenen
+    // Kunden. (Ohne Bestand ist die Liste von selbst leer.)
 
     await ensureKartenSpalten();
     await ensureBetreuungSpalte(sqlPool);

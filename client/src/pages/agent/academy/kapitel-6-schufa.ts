@@ -1,0 +1,193 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// Academy · Kapitel 6 — SCHUFA, Deutschland (23.08.2026, Plan §11 Nachtrag)
+// Tiefes Modul: Arbeitsweise, Datenquellen, Score, EuGH 2023, Verhaltensregeln,
+// Rechtswidrigkeit, Wege mit Musterformulierungen, Insider-Wissen mit Quelle.
+// Quellen: server/lib/fiaon-ratgeber-insider.ts, -start.ts, -start-2.ts,
+// shared/fiaon-wissen.ts. Nur belastbare Aussagen; Beobachtungen aus Akten sind
+// als solche gekennzeichnet.
+// ═══════════════════════════════════════════════════════════════════════════
+import { type KapitelInhalt, p, ul, ol, merk, warn, tab, sagen, muster, schritte, zitat, quellen, frage } from "./typen";
+
+export const KAPITEL_6: KapitelInhalt = {
+  inhalte: {
+    wer: {
+      einleitung: "Die SCHUFA Holding AG, Wiesbaden – gegründet 1927 als „Schutzgemeinschaft für allgemeine Kreditsicherung“. Ein privates Unternehmen, das Banken, Händlern und Sparkassen gehört. Keine Behörde.",
+      bloecke: [
+        ul(
+          "Daten zu rund 68 Millionen natürlichen Personen in Deutschland – praktisch jeder Erwachsene – und zu Millionen Unternehmen.",
+          "Mehr als 100 Millionen Anfragen von Vertragspartnern im Jahr: Banken, Händler, Mobilfunkanbieter, Energieversorger, Vermieter.",
+          "Zu mehr als 90 Prozent der gespeicherten Personen liegen ausschließlich positive Informationen vor. Der negative Eintrag ist statistisch die Ausnahme – aber eine Ausnahme von mehreren Millionen Menschen.",
+          "Geschäftsmodell: Vertragspartner melden Daten (Gegenseitigkeitsprinzip) und fragen Daten ab. Die SCHUFA verkauft Auskünfte und Scores – nicht an die Betroffenen, sondern an ihre Vertragspartner.",
+          "Daneben: Creditreform Boniversum, CRIF, infoscore (Arvato) – alle unter denselben Regeln (DSGVO, BDSG, Verhaltensregeln). Wer seine Datenkopie prüft, sollte sie bei mehreren anfordern.",
+        ),
+        p("Die SCHUFA entscheidet nichts. Sie liefert eine Zahl und eine Liste; die Bank, der Vermieter, der Mobilfunkanbieter entscheiden. Das ist der Satz, den Kunden hören müssen, wenn sie sagen: „Die SCHUFA hat mich abgelehnt.“"),
+        merk("Der Kunde ist nicht Kunde der SCHUFA. Er ist Betroffener im Sinne der DSGVO – und hat genau deshalb Rechte, die ein Kunde nicht hätte."),
+        quellen("SCHUFA Holding AG: Unternehmensangaben und Jahresberichte (schufa.de)", "Ratgeber „Bonität in Zahlen“ (fiaon.com/ratgeber)"),
+      ],
+    },
+    daten: {
+      einleitung: "Woher weiß die SCHUFA, was sie weiß? Aus drei Quellen – und aus keiner anderen.",
+      bloecke: [
+        tab(["Quelle", "Was gemeldet wird", "Beispiele"],
+          ["Vertragspartner (Positivdaten)", "Eröffnung und Ende von Konten, Karten, Krediten, Leasing, Mobilfunk- und Energieverträgen; Kreditanfragen", "Girokonto eröffnet, Kreditkarte beantragt, Handyvertrag abgeschlossen, Ratenkredit getilgt"],
+          ["Vertragspartner (Negativdaten)", "Offene Forderungen unter den Voraussetzungen des § 31 Abs. 2 BDSG; Kündigung wegen Zahlungsverzug; Kartenmissbrauch", "Mobilfunkrechnung gemeldet nach zwei Mahnungen; Konto durch die Bank gekündigt"],
+          ["Öffentliche Verzeichnisse", "Schuldnerverzeichnis (Vermögensauskunft), Insolvenzbekanntmachungen, Restschuldbefreiung", "Eidesstattliche Versicherung, Eröffnung eines Insolvenzverfahrens"],
+          ["Der Betroffene selbst", "Personendaten (Name, Geburtsdatum, Anschriften) aus den Meldungen der Partner – die SCHUFA fragt keine Melderegister routinemäßig ab", "Anschriftenwechsel durch neue Vertragsmeldung"],
+        ),
+        p("Was die SCHUFA nicht hat und nicht haben darf: Einkommen, Vermögen, Beruf, Familienstand, Nationalität, Daten aus sozialen Netzwerken, Gesundheitsdaten. Eine Reform des Bundesdatenschutzgesetzes zum Scoring (auf den Weg gebracht 2024) soll unter anderem Anschriftendaten und Daten aus sozialen Netzwerken für Scores ausdrücklich ausschließen – den aktuellen Stand gibt das Bundesministerium des Innern."),
+        ul(
+          "Die Meldung ist eine Entscheidung des Vertragspartners, nicht der SCHUFA. Die SCHUFA prüft die Meldevoraussetzungen nicht inhaltlich – sie vertraut der Erklärung des Partners. Deshalb stehen falsche Einträge so lange, bis jemand widerspricht.",
+          "Im Streitfall muss die SCHUFA beim Partner nachfragen (Art. 16/17 DSGVO, Art. 18 Einschränkung während der Prüfung). Das ist der Hebel: Die Nachfrage zwingt den Gläubiger, Mahnungen vorzulegen.",
+          "Branchen mit den meisten Negativmeldungen (Beobachtung aus FIAON-Akten und Beschwerdestatistiken): Telekommunikation, Versandhandel, Energie, Banken.",
+        ),
+        quellen("§ 31 BDSG; Art. 5, 6, 16, 17, 18 DSGVO", "Bundesnetzagentur: Jahresberichte Verbraucherservice Telekommunikation", "Bundesministerium des Innern: Entwurf zur Änderung des BDSG (Scoring), 2024"),
+      ],
+    },
+    score: {
+      einleitung: "„97,5 Prozent – und trotzdem ein Nein?“ Der SCHUFA-Score ist kein Wert, sondern mehrere. Wer den Unterschied erklären kann, beruhigt Kunden in einem Satz.",
+      bloecke: [
+        tab(["Score", "Wer sieht ihn", "Form", "Aktualisierung"],
+          ["Basisscore", "Nur der Betroffene (in der Datenkopie)", "Prozentwert (z. B. 97,5 %) – Wahrscheinlichkeit, dass Verpflichtungen erfüllt werden", "alle drei Monate"],
+          ["Branchenscores", "Vertragspartner (Banken, Handel, Telekommunikation, Versandhandel, Energie …)", "Ratingstufen (A bis P) mit Punktwerten – je Branche ein eigenes Verfahren", "tagesaktuell bei Abfrage"],
+          ["Orientierungswert", "Vermieter (SCHUFA-BonitätsAuskunft)", "Kennzahl als Orientierung, keine Bankentscheidung", "bei Erstellung"],
+        ),
+        p("Die Formel ist Geschäftsgeheimnis – das hat der Bundesgerichtshof 2014 bestätigt (VI ZR 156/13). Bekannt sind die Merkmalsgruppen, die die SCHUFA selbst nennt: Anzahl und Alter von Konten, Karten und Krediten; Kreditanfragen; Negativmerkmale und ihr Alter; Länge der Vertragsbeziehungen; Adress- und Namenswechsel. Nach den EuGH-Urteilen 2023 erklärt die Datenkopie ausführlicher, welche Gruppen den Wert beeinflussen."),
+        ul(
+          "Kreditanfragen drücken den Wert, wenn viele in kurzer Zeit gestellt werden – Konditionsanfragen nicht. Deshalb im Vergleich immer „Konditionsanfrage“ verlangen.",
+          "Ein einziger Negativeintrag wirkt stärker als zehn ordentliche Verträge – und er wirkt bis zur Löschung, nicht bis zur Zahlung.",
+          "Mythen, die Kunden glauben: „Die Anschrift macht den Score“ (Anschriftendaten werden nur benutzt, wenn sonst nichts vorliegt – und sollen per Gesetz ausgeschlossen werden), „Eine Datenkopie anzufordern senkt den Score“ (falsch: die Eigenauskunft ist neutral), „Die Bank sieht meinen Basisscore“ (falsch: sie sieht einen Branchenscore).",
+          "Was den Wert bewegt, ist keine Stellschraube, sondern Zeit und Fakten: Einträge löschen lassen, die rechtswidrig sind; berechtigte Forderungen innerhalb von 100 Tagen erledigen; keine unnötigen Kreditanfragen; bestehende Verträge ordentlich laufen lassen.",
+        ),
+        warn("„Wir verbessern Ihren Score“ ist verboten. Richtig: „Ein gelöschter rechtswidriger Eintrag ist ein Fakt. Was der Score daraus macht, berechnet die SCHUFA – und das sehen Sie beim nächsten Abruf.“"),
+        quellen("BGH, Urteil vom 28.1.2014, VI ZR 156/13 (Scoreformel als Geschäftsgeheimnis)", "SCHUFA Holding AG: Erläuterungen zu Basisscore und Branchenscores", "Ratgeber „SCHUFA-Score verstehen“ (fiaon.com/ratgeber)"),
+      ],
+    },
+    eugh: {
+      einleitung: "7. Dezember 2023, Luxemburg. Zwei Urteile, die Betroffenen Rechte geben, die sie vorher nicht hatten – und eine Frist, die vorher sechsmal länger war.",
+      bloecke: [
+        schritte("Urteil 1 · C-634/21 – Der Score ist eine Entscheidung",
+          ["Der Fall", "Eine Frau aus Hessen bekam keinen Kredit wegen ihres Scores und verlangte Auskunft über die Berechnung. Die SCHUFA verwies auf das Geschäftsgeheimnis und darauf, dass nicht sie, sondern die Bank entscheide. Das Verwaltungsgericht Wiesbaden legte vor."],
+          ["Die Antwort", "Wenn ein Vertragspartner dem Score-Wert bei seiner Entscheidung maßgeblich folgt, ist bereits die Berechnung des Scores eine „automatisierte Entscheidung im Einzelfall“ nach Art. 22 DSGVO – nicht erst das Nein der Bank."],
+          ["Die Folge", "Art. 22 verbietet solche Entscheidungen, es sei denn, ein Gesetz erlaubt sie ausdrücklich mit Schutzmaßnahmen: Recht auf menschliches Eingreifen, auf Darlegung des eigenen Standpunkts, auf Anfechtung und auf aussagekräftige Informationen über die involvierte Logik."],
+          ["Für den Kunden", "Wer wegen eines Scores abgelehnt wird, kann verlangen, dass ein Mensch die Entscheidung prüft, und hat Anspruch darauf, die wesentlichen Gründe zu erfahren. „Der Computer sagt Nein“ reicht nicht mehr. Die Formel bleibt geheim – der Anspruch auf Erklärung ist neu."],
+        ),
+        schritte("Urteil 2 · C-26/22 und C-64/22 – Sechs Monate, nicht drei Jahre",
+          ["Der Fall", "Menschen nach einer Privatinsolvenz: Die Restschuldbefreiung wird im öffentlichen Insolvenzportal nach sechs Monaten gelöscht – die SCHUFA speicherte sie drei Jahre. Drei weitere Jahre ohne Mietvertrag, Handyvertrag, normales Konto."],
+          ["Die Antwort", "Eine private Auskunftei darf diese Daten nicht länger vorhalten als das öffentliche Register. Speicherung über sechs Monate hinaus ist nicht mit der DSGVO vereinbar."],
+          ["Die Praxis", "Die SCHUFA hatte ihre Praxis bereits im März 2023 nach Urteilen des Oberlandesgerichts Schleswig auf sechs Monate umgestellt; der EuGH machte daraus die verbindliche Linie für alle Auskunfteien."],
+          ["Für den Kunden", "Sechs Monate nach der Restschuldbefreiung muss der Eintrag weg sein. Eine ältere Speicherung in der Datenkopie ist ein klarer Löschanspruch – mit einem Urteil, das jede Sachbearbeiterin kennt."],
+        ),
+        ul(
+          "Seitdem: Datenkopien sind ausführlicher (Merkmalsgruppen, übermittelte Branchenscores der letzten zwölf Monate mit Datum und Empfänger).",
+          "Banken müssen Ablehnungen begründen können, wenn der Score maßgeblich war.",
+          "Die Verhaltensregeln wurden 2024 überarbeitet – unter anderem mit der 100-Tage-Regel.",
+        ),
+        merk("Der Score ist nicht verboten. Aber er ist seit 2023 angreifbar: Ein Mensch muss hinschauen, und die Gründe müssen erklärbar sein."),
+        quellen("EuGH, Urteile vom 7.12.2023, C-634/21 sowie C-26/22 und C-64/22 (curia.europa.eu)", "OLG Schleswig, Urteile vom 2.7.2021 (17 U 15/21) und 3.2.2023 (17 U 40/22)", "SCHUFA Holding AG: Mitteilung zur Speicherdauer der Restschuldbefreiung, März 2023"),
+      ],
+    },
+    fristen: {
+      einleitung: "Die Verhaltensregeln („Code of Conduct“) des Verbands „Die Wirtschaftsauskunfteien e. V.“ – eine Selbstverpflichtung, abgestimmt mit den Datenschutzbehörden. Hier stehen die Fristen, die in Kapitel 5 schon standen – jetzt mit den Feinheiten.",
+      bloecke: [
+        tab(["Daten", "Prüf-/Löschfrist", "Feinheit"],
+          ["Girokonto", "bis zur Auflösung", "Die Meldung der Auflösung kommt vom Institut – prüfen, ob alte Konten noch „offen“ stehen"],
+          ["Kreditkarte", "bis zur Auflösung", "dito; eine gekündigte Karte ohne Vertragsverstoß ist kein Negativmerkmal"],
+          ["Kredit", "3 Jahre nach Tilgung, taggenau", "das Tilgungsdatum meldet die Bank"],
+          ["Kreditanfrage", "12 Monate; 10 Tage für Dritte sichtbar", "Konditionsanfragen sind neutral und werden nicht an Dritte übermittelt"],
+          ["Erledigte Forderung", "3 Jahre taggenau ab Erledigung", "100-Tage-Regel: 18 Monate, wenn innerhalb von 100 Tagen nach Meldung beglichen und ohne weitere Negativmerkmale"],
+          ["Offene Forderung", "keine Frist – bis zur Erledigung", "Prüfung: war die Meldung zulässig?"],
+          ["Titulierte Forderung", "3 Jahre nach Erledigung", "Der Titel selbst (30 Jahre Verjährung) ist eine andere Frage als die Speicherung"],
+          ["Schuldnerverzeichnis (Vermögensauskunft)", "3 Jahre, Löschung mit Löschung im Verzeichnis", "Löschung im Verzeichnis bei vollständiger Befriedigung beantragen (§ 882e ZPO)"],
+          ["Insolvenzverfahren", "bis 3 Jahre nach Beendigung, spätestens mit Restschuldbefreiung", "–"],
+          ["Restschuldbefreiung", "6 Monate ab Erteilung", "EuGH 7.12.2023; SCHUFA seit März 2023"],
+          ["Anschriften", "3 Jahre nach der letzten Meldung", "Anschriftenwechsel sind keine Negativmerkmale"],
+        ),
+        p("Die Fristen gelten taggenau – nicht mehr „zum Jahresende“, wie es bis 2018 üblich war. Wer in einer alten Datenkopie eine Jahresend-Löschung sieht, kann die taggenaue Löschung verlangen."),
+        ul(
+          "Erledigung muss gemeldet werden – vom Gläubiger. Nach jeder Zahlung: Beleg sichern, Gläubiger schriftlich zur Erledigungsmeldung auffordern (Frist zwei Wochen), nach vier bis sechs Wochen Datenkopie prüfen.",
+          "Die SCHUFA löscht nach Fristablauf automatisch – aber nur, wenn das gemeldete Erledigungsdatum stimmt. Ein falsches Datum verschiebt drei Jahre.",
+          "Bei Zweifeln gilt die Fassung der Verhaltensregeln, die bei der Meldung galt. Für Meldungen vor 2024 kann die frühere Kleinbetragsregel (bis 2.000 €, binnen sechs Wochen beglichen) relevant sein – im Einzelfall mit der Auskunftei klären.",
+        ),
+        quellen("Die Wirtschaftsauskunfteien e. V.: Verhaltensregeln für die Prüf- und Löschfristen von personenbezogenen Daten durch die deutschen Wirtschaftsauskunfteien, Fassung 2024", "§ 882e ZPO", "Ratgeber „Die 100-Tage-Regel“ und „Eintrag trotz Zahlung“ (fiaon.com/ratgeber)"),
+      ],
+    },
+    rechtswidrig: {
+      einleitung: "Was rechtswidrig ist – und warum. Die Liste, mit der du jede Datenkopie durchgehst. Jeder Punkt hat eine Rechtsgrundlage; das ist der Unterschied zwischen „gefällt mir nicht“ und „angreifbar“.",
+      bloecke: [
+        tab(["Befund", "Warum rechtswidrig", "Grundlage", "Weg"],
+          ["Meldung ohne zwei Mahnungen / ohne vier Wochen Abstand / ohne Hinweis", "Die Meldevoraussetzungen fehlen; die Verarbeitung ist ohne Rechtsgrundlage", "§ 31 Abs. 2 Nr. 4 BDSG; Art. 6, 17 Abs. 1 lit. d DSGVO", "Nachweisanforderung an den Gläubiger; Löschung bei Auskunftei"],
+          ["Forderung war bestritten", "Bestrittene Forderungen dürfen nicht gemeldet werden – unabhängig davon, ob das Bestreiten berechtigt war", "§ 31 Abs. 2 Nr. 4 BDSG", "Schriftwechsel vorlegen; Rücknahme der Meldung verlangen"],
+          ["Forderung war verjährt", "Eine verjährte Forderung ist nicht „fällig“ im Sinne einer durchsetzbaren Forderung; Meldung unzulässig", "§§ 195, 199, 214 BGB; § 31 BDSG", "Einrede erheben; Löschung verlangen"],
+          ["Frist abgelaufen, Eintrag steht noch", "Speicherung über die Frist hinaus ist nicht mehr erforderlich", "Art. 5 Abs. 1 lit. e, Art. 17 DSGVO; Verhaltensregeln", "Löschung mit Fristberechnung verlangen"],
+          ["Restschuldbefreiung länger als 6 Monate", "Private Auskunftei darf nicht länger speichern als das Insolvenzportal", "EuGH C-26/22, C-64/22; Art. 17 DSGVO", "Löschung mit Verweis auf das Urteil"],
+          ["Falsche Daten (Betrag, Datum, Person verwechselt)", "Daten müssen sachlich richtig sein", "Art. 5 Abs. 1 lit. d, Art. 16 DSGVO", "Berichtigung mit Beleg"],
+          ["Erledigung nicht vermerkt", "Unvollständige Daten; der Gläubiger ist zur Meldung der Erledigung verpflichtet", "Art. 16 DSGVO; Verhaltensregeln", "Zahlungsbeleg, Aufforderung an Gläubiger und Auskunftei"],
+          ["Keine Antwort auf die Datenkopie innerhalb eines Monats", "Frist verletzt", "Art. 12 Abs. 3, Art. 15 DSGVO", "Erinnerung; Beschwerde Art. 77"],
+          ["Ablehnung allein aufgrund des Scores ohne Erklärung", "Automatisierte Entscheidung ohne Schutzmaßnahmen", "Art. 22 DSGVO; EuGH C-634/21", "Menschliche Prüfung und Begründung verlangen (beim Vertragspartner)"],
+          ["Inkassokosten über RVG-Niveau", "Nicht erstattungsfähig", "§ 13e RDG; RVG", "Teilzahlung mit Zurückweisung"],
+        ),
+        p("Was nicht rechtswidrig ist – und was du deshalb nie versprichst: Ein berechtigter Eintrag mit ordnungsgemäßen Mahnungen bleibt drei Jahre (oder 18 Monate). Ein bezahlter Eintrag verschwindet nicht durch die Zahlung. Ein Score, der einem nicht gefällt, ist kein Verstoß. Hier ist die Einigung der Weg: zahlen, möglichst innerhalb der 100 Tage, Erledigung nachhalten."),
+        warn("Unrechtmäßig ist auch, was manche Anbieter verkaufen: „SCHUFA-Löschung garantiert“, „Score-Hack“, „Kontakte zur SCHUFA“. FIAON tut nichts davon. Unser Weg sind die Rechte des Betroffenen – schriftlich, belegt, mit Frist."),
+        quellen("§ 31 BDSG; Art. 5, 6, 12, 15, 16, 17, 22, 77 DSGVO", "EuGH C-634/21, C-26/22, C-64/22", "§ 13e RDG"),
+      ],
+    },
+    wege: {
+      einleitung: "Widerspruch und Löschung, Schritt für Schritt – mit den Formulierungen, die FIAON in seinen Schreiben benutzt. Du bereitest vor, der Kunde gibt frei, das Back-Office versendet per Einschreiben.",
+      bloecke: [
+        schritte("Der Weg",
+          ["1 · Datenkopie (Art. 15)", "Kostenlos, bei SCHUFA und den anderen Auskunfteien. FIAON beschafft sie mit Vollmacht. Darin: Gläubiger, Betrag, Meldedatum, Erledigungsvermerk, Scores, Empfänger."],
+          ["2 · Unterlagen des Kunden", "Kündigung? Rücksendebeleg? Schriftwechsel mit Bestreiten? Umzugsdatum? Zahlungsbelege? Alles fotografiert in den Tresor."],
+          ["3 · Nachweisanforderung an den Gläubiger", "Mahnungen mit Zugangsnachweis und Forderungsaufstellung vorlegen lassen. Frist 14 Tage. Einschreiben."],
+          ["4 · Prüfbitte an die Auskunftei", "Gleichzeitig: Meldevoraussetzungen werden bestritten; Bitte um Prüfung und Einschränkung der Verarbeitung (Art. 18) bis zur Klärung. Die Auskunftei muss beim Gläubiger nachfragen."],
+          ["5 · Löschung / Berichtigung (Art. 17 / 16)", "Kommt kein Nachweis oder ist er unvollständig: Rücknahme der Meldung beim Gläubiger, Löschung bei der Auskunftei verlangen. Bei falschen Daten: Berichtigung mit Beleg."],
+          ["6 · Eskalation", "Bei Weigerung: Beschwerde bei der Datenschutzbehörde (Art. 77) – für die SCHUFA der Hessische Beauftragte für Datenschutz; Ombudsmann der SCHUFA. Schadensersatz (Art. 82) ist Anwaltssache."],
+          ["7 · Nachhalten", "Jede Frist in der Akte. Nach Löschzusage: neue Datenkopie nach vier Wochen. Bei berechtigter Forderung: Erledigung organisieren, 100-Tage-Uhr im Blick."],
+        ),
+        muster("Nachweisanforderung an den Gläubiger", "Sehr geehrte Damen und Herren, Sie haben zu meiner Person eine Forderung in Höhe von [Betrag] an die [Auskunftei] gemeldet (Meldedatum laut Datenkopie: [Datum]). Ich bestreite, dass die Voraussetzungen des § 31 Abs. 2 BDSG vorlagen. Bitte legen Sie mir innerhalb von 14 Tagen die beiden schriftlichen Mahnungen mit Nachweis des Zugangs, den Hinweis auf die bevorstehende Meldung sowie eine Forderungsaufstellung vor. Sollten die Voraussetzungen nicht nachgewiesen werden, fordere ich Sie auf, die Meldung unverzüglich zurückzunehmen."),
+        muster("Prüfbitte und Löschantrag an die Auskunftei", "Sehr geehrte Damen und Herren, in meiner Datenkopie vom [Datum] ist ein Eintrag des Gläubigers [Name] über [Betrag] enthalten. Die Meldevoraussetzungen des § 31 Abs. 2 BDSG lagen nach meiner Kenntnis nicht vor [Begründung: bestritten / keine zwei Mahnungen / kein Hinweis / Fristen]. Ich beantrage die Löschung nach Art. 17 Abs. 1 lit. d DSGVO, hilfsweise die Einschränkung der Verarbeitung nach Art. 18 DSGVO bis zur Klärung, und bitte um Bestätigung innerhalb eines Monats (Art. 12 Abs. 3 DSGVO)."),
+        muster("Löschung nach Fristablauf / Restschuldbefreiung", "Der Eintrag [Bezeichnung] ist laut Datenkopie am [Datum] erledigt worden. Die Löschfrist nach den Verhaltensregeln der Wirtschaftsauskunfteien ([3 Jahre taggenau / 18 Monate nach der 100-Tage-Regel]) ist am [Datum] abgelaufen. [Bei Restschuldbefreiung: Die Restschuldbefreiung wurde am [Datum] erteilt; nach dem Urteil des EuGH vom 7.12.2023 (C-26/22, C-64/22) ist eine Speicherung über sechs Monate hinaus unzulässig.] Ich fordere die unverzügliche Löschung nach Art. 17 DSGVO und eine Bestätigung."),
+        muster("Beschwerde bei der Datenschutzbehörde (Art. 77)", "Ich lege Beschwerde gegen [Auskunftei/Gläubiger] ein. Sachverhalt: [kurz]. Mein Löschantrag vom [Datum] wurde [nicht beantwortet / abgelehnt mit Begründung …]. Ich bitte um Prüfung und Anordnung der Löschung. Anlagen: Datenkopie, Schriftwechsel, Belege."),
+        merk("Drei Regeln für jedes Schreiben: schriftlich, per Einschreiben, mit Frist. Und jede Antwort wird bewertet, bevor der nächste Schritt kommt – nie zwei Stufen auf einmal."),
+        quellen("Art. 12, 15, 16, 17, 18, 77 DSGVO; § 31 BDSG", "Werkzeug fiaon.com/werkzeuge/selbstauskunft", "Ratgeber „SCHUFA-Eintrag löschen lassen“ (fiaon.com/ratgeber)"),
+      ],
+    },
+    insider: {
+      einleitung: "Was Profis wissen und Mahnungen verschweigen – nur mit Quelle. Beobachtungen aus FIAON-Akten sind als solche gekennzeichnet und keine Statistik.",
+      bloecke: [
+        zitat("Die 100-Tage-Regel steht in den Verhaltensregeln, nicht in Mahnungen. Inkassounternehmen erwähnen sie in ihren Schreiben nicht. Die meisten Betroffenen erfahren erst von ihr, wenn die 100 Tage vorbei sind.", "Ratgeber „Die 100-Tage-Regel“, Quelle: Verhaltensregeln 2024"),
+        ul(
+          "Der typische Negativeintrag ist eine Mobilfunk- oder Versandhausforderung zwischen 50 und 500 Euro – und genau diese Einträge scheitern besonders oft an § 31: bestritten, Mahnung nicht zugegangen, Fristen. In FIAON-Akten sehen wir regelmäßig, dass der Gläubiger auf Nachfrage die Mahnungen nicht vollständig vorlegen kann (Beobachtung, keine Statistik).",
+          "Industrialisiertes Forderungsmanagement meldet nach festem Schema – ob die Mahnungen zugegangen sind oder nicht. Die Nachweisanforderung trifft genau diese Schwachstelle.",
+          "Die SCHUFA prüft Meldungen nicht inhaltlich; sie vertraut der Erklärung des Partners. Ein Eintrag steht deshalb so lange, bis jemand widerspricht – und die Nachfrage der Auskunftei beim Gläubiger ist ein Hebel, den der Betroffene allein nicht hat.",
+          "Eigenauskünfte (Datenkopie) sind für den Score neutral. Kreditanfragen nicht. Wer Kredite vergleicht, verlangt „Konditionsanfrage“ – das steht in keinem Werbebanner.",
+          "Der Erledigungsvermerk kommt vom Gläubiger, nicht automatisch. Wer nach der Zahlung nicht nachhält, wartet auf eine Löschung, die nie beginnt.",
+          "Mehr als 90 Prozent der gespeicherten Personen haben nur Positivdaten. Ein Negativeintrag macht jemanden zur Ausnahme – und eine Ausnahme fällt auf, bei jeder Abfrage, drei Jahre lang.",
+          "Die Inkassobranche bearbeitet nach BDIU mehr als 20 Millionen Forderungen im Jahr; die Kostengrenzen seit 2021 stehen auf keinem Brief. Wer sie kennt, zahlt rund 125 statt 210 Euro im Beispielfall.",
+          "Nach Destatis beginnt die Mehrheit der Überschuldungen mit Arbeitslosigkeit, Krankheit oder Trennung – der Eintrag ist oft die zweite Katastrophe. Das ist kein Verkaufsargument, sondern die Haltung am Telefon.",
+        ),
+        warn("Insider heißt: mehr wissen als der Brief. Es heißt nicht: Tricks. Alles, was FIAON tut, steht in der DSGVO, im BDSG, im BGB, im RDG und in den Verhaltensregeln – und würde vor jeder Datenschutzbehörde Bestand haben."),
+        quellen("Creditreform: SchuldnerAtlas Deutschland 2023/2024", "Destatis: Überschuldungsstatistik 2023; Insolvenzstatistik", "SCHUFA Holding AG: Unternehmensangaben", "BDIU: Branchenreports", "Die Wirtschaftsauskunfteien e. V.: Verhaltensregeln 2024", "Bundesnetzagentur, vzbv: Beschwerdestatistiken", "Beobachtungen aus FIAON-Akten (anonymisiert, keine Statistik)"),
+      ],
+    },
+    sagen: {
+      einleitung: "Was ich dem Kunden sage – gesiezt. Und was ich nie sage.",
+      bloecke: [
+        sagen(
+          ["„Die SCHUFA entscheidet nichts – sie liefert der Bank eine Zahl. Ob die Bank Ja sagt, entscheidet die Bank.“", "„Ihre Datenkopie ist kostenlos und muss innerhalb eines Monats kommen. Wir beschaffen sie mit Ihrer Vollmacht.“", "„Ein Eintrag darf nur gemeldet werden, wenn zweimal gemahnt wurde, vier Wochen dazwischen lagen, auf die Meldung hingewiesen wurde und Sie nicht widersprochen haben. Wir prüfen, ob das bei Ihnen so war.“", "„Ein bezahlter Eintrag bleibt in der Regel drei Jahre – wer innerhalb von 100 Tagen nach der Meldung zahlt, ist nach 18 Monaten raus.“", "„Die Restschuldbefreiung darf seit 2023 nur sechs Monate gespeichert werden. Steht sie länger, verlangen wir die Löschung – mit dem Urteil des EuGH.“", "„Ich sage Ihnen, was die Regel ist und was wir übernehmen. Entscheiden müssen Sie.“"],
+          ["„Wir löschen Ihren Eintrag garantiert.“", "„Wir verbessern Ihren Score.“", "„Wir haben Kontakte zur SCHUFA.“", "„Ich rate Ihnen, nicht zu zahlen.“", "„Das ist illegal, Sie bekommen Schadensersatz.“", "„Die SCHUFA hat Sie abgelehnt.“"],
+        ),
+        merk("Wenn der Kunde fragt „Und was bringt das?“: „Ein rechtswidriger Eintrag fällt. Ein berechtigter wird schneller erledigt. Beides sehen Sie in Ihrem Bereich – Schritt für Schritt, mit Datum.“"),
+      ],
+    },
+  },
+  test: [
+    frage("Die SCHUFA ist …", ["eine Behörde", "ein privates Unternehmen, das Banken und Händlern gehört und nichts entscheidet", "Teil der Bundesbank", "ein Inkassounternehmen"], 1, "Sie liefert Zahl und Liste; Vertragspartner entscheiden."),
+    frage("Welchen Score sieht die Bank?", ["Den Basisscore", "Einen Branchenscore (Ratingstufe)", "Den Orientierungswert", "Gar keinen"], 1, "Der Basisscore steht nur in der Datenkopie."),
+    frage("Was folgt aus EuGH C-634/21?", ["Scoring ist verboten", "Der Score kann eine automatisierte Entscheidung sein – Recht auf menschliches Eingreifen und Erklärung", "Die SCHUFA muss die Formel veröffentlichen", "Nichts"], 1, "Art. 22 DSGVO greift, wenn Vertragspartner dem Score maßgeblich folgen."),
+    frage("Ein Versandhaus meldete, obwohl der Kunde schriftlich „Ware nie erhalten“ reklamiert hatte.", ["Zulässig", "Unzulässig – bestrittene Forderung (§ 31 Abs. 2 BDSG)", "Zulässig ab 100 €", "Nur unzulässig mit Anwalt"], 1, "Bestreiten vor der Meldung sperrt die Meldung – egal, ob es berechtigt war."),
+    frage("Erster Schritt bei einem angreifbaren Mobilfunk-Eintrag?", ["Klage", "Nachweisanforderung an den Gläubiger (Mahnungen mit Zugangsnachweis, Frist 14 Tage) plus Prüfbitte an die Auskunftei", "Zahlung unter Vorbehalt", "Neue Kreditanfrage"], 1, "Die Nachweisanforderung trifft die Schwachstelle automatisierter Meldungen."),
+    frage("Die Datenkopie kam nach sechs Wochen nicht.", ["Normal", "Frist nach Art. 12 Abs. 3 DSGVO überschritten – erinnern, dann Beschwerde", "Daten gelöscht", "Kostenpflichtig neu bestellen"], 1, "Ein Monat, verlängerbar nur mit Begründung."),
+    frage("Was ist KEIN Löschgrund?", ["Frist abgelaufen", "Restschuldbefreiung älter als 6 Monate", "Ein berechtigter Eintrag mit ordnungsgemäßen Mahnungen, der dem Kunden nicht gefällt", "Meldung ohne zwei Mahnungen"], 2, "Hier ist die Einigung der Weg – 100-Tage-Regel, Erledigung nachhalten."),
+    frage("Ist eine Eigenauskunft (Datenkopie) schlecht für den Score?", ["Ja", "Nein – sie ist neutral; nur Kreditanfragen wirken", "Nur bei mehreren", "Nur bei der SCHUFA"], 1, "Eigenauskünfte sind neutral; Konditionsanfragen auch."),
+  ],
+};

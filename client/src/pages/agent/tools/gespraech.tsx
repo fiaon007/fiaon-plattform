@@ -15,11 +15,58 @@ import { AgentShell, api } from "../shared";
 import { useOffice } from "../OfficeShell";
 import "@/styles/office-tools.css";
 
-type Art = "erstanruf" | "rueckruf" | "startgespraech" | "zahlung";
+type Art = "stufe_a" | "stufe_b" | "stufe_c" | "erstanruf" | "rueckruf" | "startgespraech" | "zahlung";
 interface Schritt { titel: string; text?: string; satz?: string }
 interface Einwand { frage: string; antwort: string }
 
 const ARTEN: { key: Art; label: string; kurz: string; schritte: Schritt[]; einwaende: Einwand[] }[] = [
+  // ── Justins Leitfäden je Stufe (23.08.2026, Plan §13) – erste Zahlung IMMER direkt, nie Lastschrift ──
+  {
+    key: "stufe_a", label: "Stufe A · bezahlt, kein Termin", kurz: "Kunde hat „bezahlt“ geklickt – willkommen heißen, Karte pitchen, Termin sofort vergeben",
+    schritte: [
+      { titel: "Willkommen als Kunde", text: "Name, FIAON, Akzeptanz bestätigen. Der Kunde ist schon drin – Ton: Glückwunsch, nicht Verkauf.", satz: "Hi, hier ist … von FIAON. Ich habe gesehen, Sie, Herr …, sind bei uns erfolgreich akzeptiert worden – ich heiße Sie herzlich willkommen als Kunde bei FIAON." },
+      { titel: "Karte und Ziel oben halten", text: "Stark Kreditkarten-pitchend: Was die Karte für ihn bedeutet, was als Nächstes passiert. Kunde emotional oben halten.", satz: "Damit sind Sie auf dem Weg zu Ihrer Karte – wir bereiten jetzt Konto und Karte vor, und Sie sehen jeden Schritt in Ihrem Bereich." },
+      { titel: "Der eigentliche Grund: Termin", text: "Sofort den nächsten freien Termin aus deiner Availability nennen und im Calendar eintragen – der Slot ist dann wirklich blockiert.", satz: "Ich würde mir gerne einen Termin mit Ihnen vereinbaren, damit ich Ihr Konto aktivieren kann – wann haben Sie Zeit? Ich hätte … um … Uhr frei." },
+      { titel: "Zahlung bestätigen lassen", text: "Erste Zahlung ist immer die Überweisung mit Referenz. Nicht nachbohren – nur bestätigen lassen und den Nutzen des Termins daran hängen.", satz: "Ich habe gesehen, Sie haben die Zahlung bereits eingeleitet, richtig? Ich frage nur, weil ich dann am … das Konto vollwertig aktivieren kann und Sie gleich loslegen können." },
+      { titel: "Ergebnis festhalten", text: "Termin gebucht, Zahlung eingeleitet ja/nein – in der Akte buchen.", satz: "Dann sehen wir uns am … um … Uhr – Sie bekommen die Bestätigung per E-Mail." },
+    ],
+    einwaende: [
+      { frage: "„Ich habe noch nicht überwiesen.“", antwort: "Kein Problem – ich schicke Ihnen die Zahlungsdaten gleich noch einmal. Wenn die erste Rate vor unserem Termin eingeht, aktiviere ich am Termin sofort vollwertig." },
+      { frage: "„Wann bekomme ich die Karte?“", antwort: "Über Karte und Rahmen entscheidet die Bank – wir bereiten alles so vor, dass Ihre Unterlagen sauber sind. Den Stand sehen Sie jederzeit in Ihrem Bereich." },
+      { frage: "„Brauche ich den Termin wirklich?“", antwort: "Ja – im Termin aktiviere ich Ihr Konto vollwertig, prüfe Ihre Angaben und starte den ersten Schritt. Das dauert 15 Minuten und spart Ihnen Wochen." },
+    ],
+  },
+  {
+    key: "stufe_b", label: "Stufe B · Antrag, nicht bezahlt", kurz: "Antrag liegt vor, keine Zahlung – Bezug auf Karte und Konzept, Termin, Zahlungsdaten",
+    schritte: [
+      { titel: "Anlass nennen", text: "Bezug auf den Antrag, Kreditkarte und das FIAON-Konzept. Kurz fragen, ob es passt.", satz: "Ich grüße Sie, Herr …, hier ist … von FIAON – bezüglich Ihres Antrags wegen einer Kreditkarte und zum FIAON-Konzept. Haben Sie einen Moment?" },
+      { titel: "Konzept in drei Sätzen", text: "Auskunft beschaffen und erklären, Schreiben versenden und verfolgen, Konto und Karte vorbereiten. Über die Karte entscheidet die Bank.", satz: "FIAON beschafft Ihre Auskunft, erklärt jeden Eintrag, versendet die Schreiben in Ihrem Namen und bereitet Konto und Karte vor." },
+      { titel: "Termin vereinbaren", text: "Nächsten freien Termin aus deiner Availability nennen und eintragen.", satz: "Ich würde gerne einen Termin mit Ihnen vereinbaren, in dem ich Ihr Konto aktiviere – wann passt es Ihnen, … um … Uhr?" },
+      { titel: "Rechnung ansprechen, Zahlungsdaten senden", text: "Erste Zahlung immer per Überweisung mit Referenz. Zahlungsdaten aus der Akte senden (E-Mail), Verwendungszweck vorlesen.", satz: "Ich schicke Ihnen jetzt die Zahlungsdaten. Wenn die erste Rate vor dem Termin eingeht, aktiviere ich Ihr Konto direkt im Gespräch." },
+      { titel: "Ergebnis festhalten", text: "Termin, zahlt am …, Rückruf – in der Akte buchen.", satz: "Dann bis … – die Bestätigung und die Zahlungsdaten sind gleich in Ihrem Postfach." },
+    ],
+    einwaende: [
+      { frage: "„Was kostet das?“", antwort: "Das Paket … kostet … € im Monat, zwölf Raten – die erste per Überweisung, danach entscheiden Sie, ob Sie bleiben." },
+      { frage: "„Ich überlege noch.“", antwort: "Verstehe. Lassen Sie uns den Termin trotzdem festhalten – dann haben Sie bis dahin alles in Ihrem Bereich gesehen und entscheiden mit vollem Bild." },
+      { frage: "„Schicken Sie mir das per Mail.“", antwort: "Mache ich sofort – Zahlungsdaten und Übersicht. Und damit es nicht liegen bleibt: Passt Ihnen … um … Uhr für das Aktivierungsgespräch?" },
+    ],
+  },
+  {
+    key: "stufe_c", label: "Stufe C · Facebook-Lead", kurz: "Nur registriert – Daten aufnehmen, Vertrag am Telefon, Zugänge senden, Termin",
+    schritte: [
+      { titel: "Anlass nennen", text: "Bezug auf die Registrierung. Kurz fragen, ob es passt. Aufnahme-Einwilligung einholen, bevor es um den Vertrag geht.", satz: "Hi, hier ist … von FIAON – ich rufe an, weil Sie sich bei uns für eine Kreditkarte registriert haben. Haben Sie einen Augenblick?" },
+      { titel: "Daten aufnehmen", text: "Name, Geburtsdatum, Adresse mit Hausnummer, E-Mail, Telefon, Ziel, Einträge bekannt? – Antrag für den Kunden ausfüllen.", satz: "Ich nehme kurz Ihre Daten auf, damit ich Ihren Antrag für Sie anlegen kann – Ihre vollständige Adresse bitte?" },
+      { titel: "Paket und Vertrag", text: "Paketfinder nutzen. Annahmesatz vorlesen, hörbare Bestätigung (Gespräch wird aufgezeichnet). Bestätigung in Textform folgt per E-Mail.", satz: "Für Ihre Lage passt das Paket … zu … € im Monat. Nehmen Sie das Paket so an? – Danke, ich habe Ihr Ja festgehalten; die Bestätigung kommt per E-Mail." },
+      { titel: "Zugänge senden", text: "Zugangsdaten-Mail auslösen (Akte), damit der Kunde sofort in seinen Bereich kommt.", satz: "Sie bekommen jetzt eine E-Mail mit Ihrem Zugang – damit sehen Sie alles, was wir gerade besprochen haben." },
+      { titel: "Termin und Rechnung", text: "Termin aus deiner Availability vergeben. Erste Zahlung immer per Überweisung mit Referenz.", satz: "Wenn Sie vor dem Termin bitte die Rechnung begleichen, dann kann ich Ihr Konto im Gespräch gleich aktivieren – passt Ihnen … um … Uhr?" },
+      { titel: "Ergebnis festhalten", text: "Vertrag angenommen, Zugänge gesendet, Termin, zahlt am … – alles in der Akte.", satz: "Dann bis … – Zugang und Zahlungsdaten sind in Ihrem Postfach." },
+    ],
+    einwaende: [
+      { frage: "„Ich wollte nur mal schauen.“", antwort: "Genau dafür ist das Gespräch da: In zwei Minuten wissen Sie, ob FIAON für Sie passt. Was wäre Ihnen am wichtigsten – Karte, Kredit oder erst mal Klarheit über Ihre Einträge?" },
+      { frage: "„Das klingt nach Abzocke.“", antwort: "Verstehe ich – deshalb läuft alles transparent in Ihrem Bereich: Sie sehen jeden Schritt, jede Rate, jedes Schreiben. Die erste Rate überweisen Sie selbst, niemand bucht etwas ab." },
+      { frage: "„Ich habe kein Geld dafür.“", antwort: "Dann schauen wir auf den Einstieg mit FIAON Start – die Auskunft erklärt und die Schreiben zum Selbstversand. Und wir legen die erste Rate auf ein Datum, das für Sie passt." },
+    ],
+  },
   {
     key: "erstanruf", label: "Erstanruf", kurz: "Lead oder abgebrochener Antrag – Interesse prüfen, zum Antrag führen",
     schritte: [
@@ -96,7 +143,7 @@ export default function AgentGespraechPage() { return <AgentShell><GespraechInne
 function GespraechInnen() {
   const { dunkel, titel } = useOffice();
   useEffect(() => { dunkel(true); titel("Tools · Gesprächs-Begleiter"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  const [art, setArt] = useState<Art>("erstanruf");
+  const [art, setArt] = useState<Art>("stufe_a");
   const vorlage = useMemo(() => ARTEN.find((a) => a.key === art)!, [art]);
   const [haken, setHaken] = useState<Set<number>>(new Set());
   const [notiz, setNotiz] = useState("");

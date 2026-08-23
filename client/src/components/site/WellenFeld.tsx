@@ -25,7 +25,7 @@ export default function WellenFeld({ unten = false, className = "" }: { unten?: 
       r.addColorStop(0, "rgba(255,255,255,.95)"); r.addColorStop(.25, farbe); r.addColorStop(1, "rgba(0,0,0,0)");
       g.fillStyle = r; g.fillRect(0, 0, 24, 24); return s;
     };
-    const cyan = punkt("rgba(94,231,255,.9)"), blau = punkt("rgba(96,165,250,.85)"), tief = punkt("rgba(37,99,235,.7)");
+    const cyan = punkt("rgba(94,231,255,.9)"), blau = punkt("rgba(96,165,250,.85)"), tief = punkt("rgba(37,99,235,.75)");
 
     const groesse = () => {
       dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -46,7 +46,8 @@ export default function WellenFeld({ unten = false, className = "" }: { unten?: 
         const basis = H * (0.22 + f * 0.62);
         const amp1 = H * (0.16 - f * 0.07), amp2 = H * 0.06;
         const sprite = f < 0.35 ? cyan : f < 0.7 ? blau : tief;
-        const alpha = (unten ? f : 1 - f) * 0.85 + 0.1;
+        // Im dunklen Teil leuchten die Punkte, im hellen werden sie leise — so trägt das Feld den Übergang, statt ihn zu markieren.
+        const alpha = (unten ? f : 1 - f) * 0.78 + 0.06;
         const gr = 4 + (1 - f) * 5;
         ctx.globalAlpha = alpha;
         for (let i = 0; i < spalten; i++) {

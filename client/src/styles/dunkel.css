@@ -355,7 +355,7 @@
 @keyframes flugPunkt{from{transform:scaleX(0)}to{transform:scaleX(1)}}
 .flug-film .kino-scroll{z-index:3}
 @media (max-width:767px){
-  .flug-film{min-height:100svh}
+  .flug-film{min-height:560px}
   .flug-mitte{padding:110px 18px 70px;gap:20px;justify-content:center}
   .flug-momente{min-height:clamp(220px,34vh,320px)}
   .flug-lichtkegel{width:140vw;height:70vh}

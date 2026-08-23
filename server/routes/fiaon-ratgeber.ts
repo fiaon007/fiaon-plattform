@@ -21,6 +21,7 @@ import { sqlPool } from "../lib/db-pool";
 import { AUTORIN, HAUSSTIL, THEMEN, pruefstand, slugify, lesezeitVon, type Artikel } from "@shared/fiaon-ratgeber";
 import { START_ARTIKEL } from "../lib/fiaon-ratgeber-start";
 import { START_ARTIKEL_2 } from "../lib/fiaon-ratgeber-start-2";
+import { INSIDER_ARTIKEL } from "../lib/fiaon-ratgeber-insider";
 
 const router = Router();
 let tabelleDa = false;
@@ -54,7 +55,7 @@ export async function ensureRatgeberTabelle(): Promise<void> {
     )`;
   await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_ratgeber_status_idx ON fiaon_ratgeber (status, published_at DESC)`;
   // Die drei Startartikel — einmalig, von Hand geschrieben, sofort veröffentlicht.
-  for (const a of [...START_ARTIKEL, ...START_ARTIKEL_2]) {
+  for (const a of [...START_ARTIKEL, ...START_ARTIKEL_2, ...INSIDER_ARTIKEL]) {
     const p = pruefstand({ titel: a.titel, teaser: a.teaser, inhalt: a.inhalt, faq: a.faq, metaTitel: a.metaTitel, metaBeschreibung: a.metaBeschreibung, keyword: a.keyword });
     await sqlPool`
       INSERT INTO fiaon_ratgeber (slug, titel, untertitel, teaser, inhalt, kategorie, land, keyword, schlagworte, faq, meta_titel, meta_beschreibung, lesezeit, status, quelle, pruefung, thema_slug, published_at)

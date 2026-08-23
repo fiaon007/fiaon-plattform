@@ -312,3 +312,7 @@
   .kb-intro-karte{max-width:280px}
 }
 @media(prefers-reduced-motion:reduce){.kb-kurve-linie,.kb-kurve-flaeche,.kb-intro-karte,.kb-puls,.kb-zeitleiste li.frist::before{animation:none;stroke-dashoffset:0;opacity:1}}
+/* Abschluss: stille Knöpfe auf dunklem Grund bleiben weiß (Justin, 23.08.) */
+.mb .kb-fuss-knoepfe a.mb-knopf.still,.mb .kb-fuss-knoepfe button.mb-knopf.still{color:#fff;background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.2)}
+.mb .kb-fuss-knoepfe a.mb-knopf.still:hover,.mb .kb-fuss-knoepfe button.mb-knopf.still:hover{color:#fff;background:rgba(255,255,255,.14)}
+.mb .kb-fuehrung-knoepfe button.mb-knopf.still{color:#fff}

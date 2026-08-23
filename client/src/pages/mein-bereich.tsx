@@ -13,6 +13,7 @@
 // GoCardless), Schreiben-Generator, KI-Auswertung der Auskunft (E-015).
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useMemo, useRef, useState } from "react";
+import { LayoutDashboard, ShieldCheck, Link2, Wallet, Map, FileText, FolderOpen, Gift, UserRound, CreditCard, Lock, LifeBuoy, LogOut, ChevronLeft, ChevronRight } from "lucide-react";
 import "@/styles/mein-bereich.css";
 import { Einrichtung, einrichtungsPhase } from "@/components/kunde/Einrichtung";
 
@@ -188,18 +189,18 @@ export default function MeinBereichPage() {
   const grussWorte = `${gruss()}, ${name}.`.split(" ");
 
   const punkte = [
-    { id: "buehne", kurz: "ÜB", label: "Übersicht", gruppe: "Einsicht" },
-    { id: "bonitaet", kurz: "BO", label: "Meine Bonität", gruppe: "Einsicht" },
-    { id: "kontoanbindung", kurz: "KV", label: "Konto verbinden", gruppe: "Einsicht" },
-    { id: "finanzen", kurz: "MF", label: "Meine Finanzen", gruppe: "Einsicht" },
-    { id: "fahrplan", kurz: "FP", label: "Mein Fahrplan", gruppe: "Aktion" },
-    { id: "schreiben", kurz: "MS", label: "Meine Schreiben", gruppe: "Aktion" },
-    { id: "unterlagen", kurz: "UN", label: "Unterlagen", gruppe: "Aktion", marke: [!d.unterlagen.kontoauszug || d.unterlagen.erneutKontoauszug, !d.unterlagen.ausweis || d.unterlagen.erneutAusweis].filter(Boolean).length || undefined },
-    { id: "vorteile", kurz: "MV", label: "Meine Vorteile", gruppe: "Zugang" },
-    { id: "konto", kurz: "MK", label: "Mein Konto", gruppe: "Konto" },
-    { id: "abo", kurz: "AZ", label: "Abo & Zahlungen", gruppe: "Konto" },
-    { id: "sicherheit", kurz: "PS", label: "Passwort & Sicherheit", gruppe: "Konto" },
-    { id: "hilfe", kurz: "HI", label: "Hilfe", gruppe: "Konto" },
+    { id: "buehne", kurz: "ÜB", label: "Übersicht", gruppe: "Einsicht", Icon: LayoutDashboard },
+    { id: "bonitaet", kurz: "BO", label: "Meine Bonität", gruppe: "Einsicht", Icon: ShieldCheck },
+    { id: "kontoanbindung", kurz: "KV", label: "Konto verbinden", gruppe: "Einsicht", Icon: Link2 },
+    { id: "finanzen", kurz: "MF", label: "Meine Finanzen", gruppe: "Einsicht", Icon: Wallet },
+    { id: "fahrplan", kurz: "FP", label: "Mein Fahrplan", gruppe: "Aktion", Icon: Map },
+    { id: "schreiben", kurz: "MS", label: "Meine Schreiben", gruppe: "Aktion", Icon: FileText },
+    { id: "unterlagen", kurz: "UN", label: "Unterlagen", gruppe: "Aktion", Icon: FolderOpen, marke: [!d.unterlagen.kontoauszug || d.unterlagen.erneutKontoauszug, !d.unterlagen.ausweis || d.unterlagen.erneutAusweis].filter(Boolean).length || undefined },
+    { id: "vorteile", kurz: "MV", label: "Meine Vorteile", gruppe: "Zugang", Icon: Gift },
+    { id: "konto", kurz: "MK", label: "Mein Konto", gruppe: "Konto", Icon: UserRound },
+    { id: "abo", kurz: "AZ", label: "Abo & Zahlungen", gruppe: "Konto", Icon: CreditCard },
+    { id: "sicherheit", kurz: "PS", label: "Passwort & Sicherheit", gruppe: "Konto", Icon: Lock },
+    { id: "hilfe", kurz: "HI", label: "Hilfe", gruppe: "Konto", Icon: LifeBuoy },
   ];
   const gruppen = ["Einsicht", "Aktion", "Zugang", "Konto"];
 
@@ -263,21 +264,20 @@ export default function MeinBereichPage() {
         <div className={`mb-grundriss${eingeklappt ? " eingeklappt" : ""}`}>
           <nav className="mb-leiste" aria-label="Bereiche">
             <button className="mb-klapp" type="button" onClick={leisteUmschalten} aria-expanded={!eingeklappt} title={eingeklappt ? "Menü ausklappen" : "Menü einklappen"}>
-              {eingeklappt
-                ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
-                : <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg><span>Menü einklappen</span></>}
+              {eingeklappt ? <ChevronRight size={18} strokeWidth={2} aria-hidden="true" /> : <><ChevronLeft size={16} strokeWidth={2} aria-hidden="true" /><span>Menü einklappen</span></>}
             </button>
             <div className="mb-panel">
               {gruppen.map((g) => (<div key={g} style={{ display: "contents" }}>
                 <div className="mb-leiste-titel">{g}</div>
                 {punkte.filter((p) => p.gruppe === g).map((p) => (
-                  <a key={p.id} href={`#${p.id}`} data-kurz={p.kurz} title={p.label} className={aktiv === p.id ? "aktiv" : ""}>
+                  <a key={p.id} href={`#${p.id}`} title={p.label} className={aktiv === p.id ? "aktiv" : ""}>
+                    <i className="mb-symbol" aria-hidden="true"><p.Icon size={18} strokeWidth={1.75} /></i>
                     <span>{p.label}</span>{p.marke ? <span className="mb-marke">{p.marke}</span> : null}
                   </a>
                 ))}
               </div>))}
               <div className="mb-nutzer"><div className="mb-gesicht" aria-hidden="true">{initialen}</div><div style={{ minWidth: 0 }}><b>{name}</b><small>{d.paket.name}</small></div></div>
-              <button type="button" className="mb-link" data-kurz="AB" title="Abmelden" onClick={abmelden}><span>Abmelden</span></button>
+              <button type="button" className="mb-link" title="Abmelden" onClick={abmelden}><i className="mb-symbol" aria-hidden="true"><LogOut size={18} strokeWidth={1.75} /></i><span>Abmelden</span></button>
             </div>
           </nav>
 

@@ -137,6 +137,10 @@ const SiteDemo = lazy(() => import("@/pages/site/demo"));
 const SiteRatgeber = lazy(() => import("@/pages/site/ratgeber"));
 const SiteKontakt = lazy(() => import("@/pages/site/kontakt"));
 const SitePreise = lazy(() => import("@/pages/site/preise"));
+const SiteKreditkarte = lazy(() => import("@/pages/site/kreditkarte"));
+const SiteOesterreich = lazy(() => import("@/pages/site/oesterreich"));
+const SiteSchweiz = lazy(() => import("@/pages/site/schweiz"));
+const SiteSicherheit = lazy(() => import("@/pages/site/sicherheit"));
 const WzLoeschfrist = lazy(() => import("@/pages/site/werkzeuge/loeschfrist"));
 const WzInkassokosten = lazy(() => import("@/pages/site/werkzeuge/inkassokosten"));
 const WzVerjaehrung = lazy(() => import("@/pages/site/werkzeuge/verjaehrung"));
@@ -194,6 +198,10 @@ function Router() {
       <Route path="/ratgeber" component={SiteRatgeber} />
       <Route path="/kontakt" component={SiteKontakt} />
       <Route path="/preise" component={SitePreise} />
+      <Route path="/kreditkarte" component={SiteKreditkarte} />
+      <Route path="/oesterreich" component={SiteOesterreich} />
+      <Route path="/schweiz" component={SiteSchweiz} />
+      <Route path="/sicherheit" component={SiteSicherheit} />
       <Route path="/werkzeuge/loeschfrist" component={WzLoeschfrist} />
       <Route path="/werkzeuge/inkassokosten" component={WzInkassokosten} />
       <Route path="/werkzeuge/verjaehrung" component={WzVerjaehrung} />

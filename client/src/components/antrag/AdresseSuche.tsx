@@ -53,9 +53,15 @@ export function AdresseSuche({ wert, land, onChange, errors, platzhalter }: {
     }, 160);
   };
 
-  const tippen = (v: string) => { setGewaehlt(false); onChange({ street: v }); suchen(v); };
+  const [nummerFehlt, setNummerFehlt] = useState(false);
+  const tippen = (v: string) => { setGewaehlt(false); if (/\d/.test(v)) setNummerFehlt(false); onChange({ street: v }); suchen(v); };
   const waehlen = (v: Vorschlag) => {
-    onChange({ street: v.strasse, zip: v.plz, city: v.ort, country: v.land });
+    // Justin, 23.08.2026: „Hausnummer muss angeführt werden." Hat der Vorschlag keine Nummer,
+    // bleibt die getippte erhalten (Löwengasse 20 → Vorschlag „Löwengasse" → „Löwengasse 20").
+    const getippt = String(wert.street || "").match(/\s(\d+\s?[a-zA-Z]?(?:[\/-]\d+)?)\s*$/);
+    const strasse = v.vollstaendig ? v.strasse : getippt ? `${v.strasse} ${getippt[1].trim()}` : `${v.strasse} `;
+    setNummerFehlt(!v.vollstaendig && !getippt);
+    onChange({ street: strasse, zip: v.plz, city: v.ort, country: v.land });
     setGewaehlt(true); setManuell(true); setOffen(false); setListe([]);
   };
   const taste = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -100,6 +106,7 @@ export function AdresseSuche({ wert, land, onChange, errors, platzhalter }: {
         )}
       </div>
       {errors.street && <p className="mt-1 text-xs text-red-500">{errors.street}</p>}
+      {nummerFehlt && <p className="mt-1.5 text-[12px] font-medium" style={{ color: "#f59e0b" }}>Bitte noch die Hausnummer ergänzen – einfach hinter die Straße tippen.</p>}
       {!manuell && !errors.zip && !errors.city && (
         <p className="mt-1.5 text-[11.5px] text-gray-400">Straße und Hausnummer tippen – PLZ und Ort ergänzen sich. <button type="button" className="antrag-adresse-link" onClick={() => setManuell(true)}>Lieber selbst eingeben</button></p>
       )}

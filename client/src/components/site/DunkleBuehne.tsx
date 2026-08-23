@@ -8,6 +8,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
 import NeuralSphere from "@/components/home3d/NeuralSphere";
+import WellenFeld from "@/components/site/WellenFeld";
 import "@/styles/dunkel.css";
 
 type Seite = "startseite" | "investoren" | "karriere" | "presse" | "partner" | "datenraum" | "team" | "demo" | "was-ist-fiaon";
@@ -299,14 +300,11 @@ export function Szenenbild({ src, titel, text }: { src: string; titel?: ReactNod
 }
 
 /** Lichtband: mehrere Blöcke auf hellem Grund — die Bühne bleibt dunkel, die Mitte atmet hell. Ein- und Ausblendung in Nachtblau. */
-/** Die Welle am Übergang dunkel ↔ hell (23.08.2026, Justin: „die Verläufe sehen schrecklich aus — eine animierte Welle, die durchgehend schwingt"). Drei Lagen, verschieden schnell, eine gegenläufig. */
+/** Der Übergang dunkel ↔ hell: ein fließendes Punktfeld auf weichem Farbverlauf (23.08.2026, nach Justins Bildvorlage). */
 function Welle({ unten = false }: { unten?: boolean }) {
-  const d = "M0,78 C180,118 360,38 540,78 C720,118 900,38 1080,78 C1260,118 1440,38 1440,78 L1440,78 C1620,118 1800,38 1980,78 C2160,118 2340,38 2520,78 C2700,118 2880,38 2880,78 L2880,0 L0,0 Z";
   return (
     <div className={`dk-welle${unten ? " unten" : ""}`} aria-hidden="true">
-      <svg className="w3" viewBox="0 0 2880 140" preserveAspectRatio="none"><path d={d} /></svg>
-      <svg className="w2" viewBox="0 0 2880 140" preserveAspectRatio="none"><path d={d} /></svg>
-      <svg className="w1" viewBox="0 0 2880 140" preserveAspectRatio="none"><path d={d} /></svg>
+      <WellenFeld unten={unten} />
     </div>
   );
 }

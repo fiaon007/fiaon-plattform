@@ -1,278 +1,137 @@
-import { useState } from "react";
+// ═══════════════════════════════════════════════════════════════════════════
+// /login — neu gebaut auf der dunklen Bühne (23.08.2026, Justin: „muss so
+// high end sein wie der Rest — denk mit, neue Sektionen, mach es perfekt").
+//
+// Links das Glas mit dem Formular (E-Mail, Passwort, angemeldet bleiben), rechts
+// die 3D-Karte und das, was im Bereich wartet. Darunter im Licht: drei Wege,
+// wenn jemand nicht hineinkommt (Passwort vergessen, Antrag unterbrochen, noch
+// kein Konto), und die Sicherheitszeile. Die Server-Antwort bleibt dieselbe:
+// /api/fiaon/login mit Gründen AUTH-01…05, Hinweis und Aktion.
+// ═══════════════════════════════════════════════════════════════════════════
+import { useEffect, useState } from "react";
 import { EmailVorschlaege } from "@/components/EmailVorschlaege";
-import GlassNav from "@/components/GlassNav";
-import PremiumFooter from "@/components/PremiumFooter";
+import { Dunkel, Licht, Block, Knopf, Auf, Glas } from "@/components/site/DunkleBuehne";
+import KartenSzene from "@/components/home3d/KartenSzene";
+import "@/styles/login.css";
 
-/**
- * Antwort des Logins auf einen fehlgeschlagenen Versuch. Der Server unterscheidet
- * die Gründe bewusst (AUTH-01 … AUTH-05) — vorher sah jeder Grund gleich aus
- * („Ungültige Anmeldedaten"), auch ein technischer Fehler.
- */
-type LoginProblem = {
-  code?: string;
-  error: string;
-  hint?: string;
-  action?: string;
-  actionHref?: string;
-  retryable?: boolean;
-};
+type LoginProblem = { code?: string; error: string; hint?: string; action?: string; actionHref?: string; retryable?: boolean };
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
-  const [bleiben, setBleiben] = useState(true);
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
+  const [zeigen, setZeigen] = useState(false);
+  const [bleiben, setBleiben] = useState(true);
   const [problem, setProblem] = useState<LoginProblem | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [laeuft, setLaeuft] = useState(false);
+  const [schonDrin, setSchonDrin] = useState<{ ref: string; vorname: string | null } | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setProblem(null);
+  // Wer ein gültiges Cookie hat, muss nichts tippen.
+  useEffect(() => {
+    fetch("/api/fiaon/kunde/me", { credentials: "include" }).then((r) => r.json()).then((j) => { if (j?.eingeloggt && j.ref) setSchonDrin({ ref: j.ref, vorname: j.vorname || null }); }).catch(() => {});
+    document.title = "Anmelden · FIAON";
+  }, []);
 
+  const absenden = async (e: React.FormEvent) => {
+    e.preventDefault(); setLaeuft(true); setProblem(null);
     try {
-      const response = await fetch("/api/fiaon/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, bleiben }),
-      });
-
-      const data = await response.json().catch(() => null);
-
-      if (!response.ok || !data?.ok) {
-        setProblem({
-          code: data?.code,
-          error: data?.error || "Anmeldung derzeit nicht möglich.",
-          hint: data?.hint,
-          action: data?.action,
-          actionHref: data?.actionHref,
-          retryable: data?.retryable,
-        });
-        setIsLoading(false);
-        return;
+      const r = await fetch("/api/fiaon/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password, bleiben }) });
+      const data = await r.json().catch(() => null);
+      if (!r.ok || !data?.ok) {
+        setProblem({ code: data?.code, error: data?.error || "Anmeldung derzeit nicht möglich.", hint: data?.hint, action: data?.action, actionHref: data?.actionHref, retryable: data?.retryable });
+        setLaeuft(false); return;
       }
-
-      // Die Referenz für den Bereich — im Tab UND dauerhaft, damit der Kunde
-      // morgen ohne neuen Login wieder hineinkommt (das Cookie lebt 30 Tage).
       sessionStorage.setItem("fiaon_user", JSON.stringify(data));
       try { if (bleiben) localStorage.setItem("fiaon_user", JSON.stringify(data)); else localStorage.removeItem("fiaon_user"); } catch { /* privater Modus */ }
-
-      // Redirect to dashboard
       window.location.href = "/dashboard";
-    } catch (error) {
-      // Netzwerkfehler ist ein technisches Problem — nicht „falsche Daten".
-      setProblem({
-        error: "Technisches Problem — bitte in einem Moment erneut versuchen.",
-        hint: "Deine Anmeldedaten sind in Ordnung. Wir konnten den Server gerade nicht erreichen.",
-        retryable: true,
-      });
-      setIsLoading(false);
+    } catch {
+      setProblem({ error: "Technisches Problem – bitte in einem Moment erneut versuchen.", hint: "Ihre Anmeldedaten sind in Ordnung. Wir konnten den Server gerade nicht erreichen.", retryable: true });
+      setLaeuft(false);
     }
   };
 
-  // AUTH-01 (falsche Daten) bleibt sachlich-rot; alles andere ist KEIN Fehler des
-  // Kunden, sondern ein Zustand — daher ruhige, hilfreiche Darstellung.
-  const isNeutralInfo = !!problem?.code && problem.code !== "AUTH-01";
-
   return (
-    <div className="min-h-screen bg-white relative overflow-hidden">
-      {/* Ambient background orbs */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <div className="absolute top-0 left-1/4 w-[600px] h-[600px] rounded-full opacity-[0.04]" style={{ background: "radial-gradient(circle, #2563eb, transparent 70%)" }} />
-        <div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] rounded-full opacity-[0.03]" style={{ background: "radial-gradient(circle, #2563eb, transparent 70%)" }} />
-      </div>
+    <Dunkel seite="login" titel="Anmelden" beschreibung="Melden Sie sich in Ihrem FIAON-Bereich an: Fahrplan, Auskunft, Schreiben und Fristen, Abo – alles an einem Ort.">
+      <section className="dk-hero lg-hero">
+        <div className="dk-hero-bild" aria-hidden="true"><img src="/kino/hero.jpg" alt="" decoding="async" fetchPriority="high" /><div className="schleier" /></div>
+        <div className="dk-rahmen lg-raster">
+          <Auf>
+            <form className="lg-karte" onSubmit={absenden} noValidate>
+              <span className="dk-pille">Mein Bereich</span>
+              <h1 className="lg-titel">Willkommen <span className="dk-verlauf">zurück.</span></h1>
+              <p className="lg-lead">Ihre Akte, Ihre Fristen, Ihr nächster Schritt – alles an einem Ort.</p>
 
-      <GlassNav activePage="login" />
-
-      {/* Main Content */}
-      <div className="relative z-10 max-w-[480px] mx-auto px-4 pt-32 pb-16">
-        {/* Login Card */}
-        <div className="animate-[fadeInUp_.6s_ease]">
-          <div className="fiaon-glass-panel rounded-3xl p-8 sm:p-10 relative overflow-hidden">
-            {/* Animated gradient background */}
-            <div className="absolute inset-0 rounded-3xl overflow-hidden pointer-events-none">
-              <div className="absolute inset-0 opacity-15" style={{
-                background: "linear-gradient(135deg, rgba(37,99,235,0.1), rgba(147,197,253,0.2), rgba(37,99,235,0.1))",
-                backgroundSize: "200% 200%",
-                animation: "limitGlow 8s ease-in-out infinite"
-              }} />
-              <div className="absolute inset-0 opacity-10" style={{
-                background: "radial-gradient(circle at 50% 0%, rgba(255,255,255,0.8), transparent 70%)"
-              }} />
-            </div>
-
-            <div className="relative z-10">
-              {/* Header */}
-              <div className="text-center mb-8">
-                <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-3 fiaon-gradient-text-animated">
-                  Willkommen zurück
-                </h1>
-                <p className="text-[15px] text-gray-500 leading-relaxed">
-                  Melde dich an, um auf dein FIAON Dashboard zuzugreifen
-                </p>
-              </div>
-
-              {/* Login Form */}
-              <form onSubmit={handleSubmit} className="space-y-5">
-                {/* Email/Username */}
-                <div>
-                  <label className="block text-[13px] font-semibold text-gray-700 mb-2">
-                    E-Mail
-                  </label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="deine@email.de"
-                    inputMode="email" autoCapitalize="none" autoCorrect="off" spellCheck={false}
-                    className="w-full px-4 py-3 rounded-xl bg-white/50 border border-gray-200 focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/20 outline-none transition-all text-base"
-                    required
-                  />
-                  <EmailVorschlaege wert={email} onWahl={setEmail} />
-                </div>
-
-                {/* Password */}
-                <div>
-                  <label className="block text-[13px] font-semibold text-gray-700 mb-2">
-                    Passwort
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showPassword ? "text" : "password"}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••"
-                      className="w-full px-4 py-3 rounded-xl bg-white/50 border border-gray-200 focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/20 outline-none transition-all text-base"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                    >
-                      {showPassword ? (
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-                          <line x1="1" y1="1" x2="23" y2="23" />
-                        </svg>
-                      ) : (
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                          <circle cx="12" cy="12" r="3" />
-                        </svg>
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Remember Me & Forgot Password */}
-                <div className="flex items-center justify-between">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox" checked={bleiben} onChange={(e) => setBleiben(e.target.checked)}
-                      className="w-4 h-4 rounded border-gray-300 text-[#2563eb] focus:ring-[#2563eb]"
-                    />
-                    <span className="text-[13px] text-gray-600">Angemeldet bleiben</span>
-                  </label>
-                  <a href="/passwort-vergessen" className="text-[13px] font-medium text-[#2563eb] hover:underline">
-                    Passwort vergessen?
-                  </a>
-                </div>
-
-                {/* Login Button */}
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full py-4 rounded-xl text-[15px] font-semibold text-white transition-all fiaon-btn-gradient disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden group"
-                >
-                  <span className="relative z-10">
-                    {isLoading ? "Wird geladen..." : "Anmelden"}
-                  </span>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out" />
-                  </div>
-                </button>
-
-                {/* Fehler/Zustand — mit Grund und Handlungsweg */}
-                {problem && (
-                  <div
-                    role="alert"
-                    aria-live="polite"
-                    className={`p-4 rounded-xl border text-[13px] space-y-2 ${
-                      isNeutralInfo
-                        ? "bg-blue-50/70 border-blue-200 text-blue-900"
-                        : "bg-red-50 border-red-200 text-red-700"
-                    }`}
-                  >
-                    <p className="font-semibold leading-snug">{problem.error}</p>
-                    {problem.hint && (
-                      <p className={`leading-relaxed ${isNeutralInfo ? "text-blue-800/90" : "text-red-600/90"}`}>
-                        {problem.hint}
-                      </p>
-                    )}
-                    {problem.action && problem.actionHref && (
-                      <a
-                        href={problem.actionHref}
-                        className={`inline-block font-semibold underline decoration-2 underline-offset-2 ${
-                          isNeutralInfo ? "text-[#2563eb]" : "text-red-700"
-                        }`}
-                      >
-                        {problem.action}
-                      </a>
-                    )}
-                    {problem.retryable && (
-                      <button
-                        type="submit"
-                        className="block font-semibold text-[#2563eb] underline decoration-2 underline-offset-2"
-                      >
-                        Erneut versuchen
-                      </button>
-                    )}
-                    {problem.code && (
-                      <p className="text-[11px] opacity-60 font-mono pt-1">Fehlercode: {problem.code}</p>
-                    )}
-                  </div>
-                )}
-              </form>
-
-              {/* Divider */}
-              <div className="relative my-8">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-200" />
-                </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-4 bg-white/80 backdrop-blur text-gray-500">oder</span>
-                </div>
-              </div>
-
-              {/* Register Link */}
-              <div className="text-center">
-                <p className="text-[14px] text-gray-600 mb-3">
-                  Noch kein FIAON Konto?
-                </p>
-                <a
-                  href="/antrag"
-                  className="inline-block px-6 py-3 rounded-xl text-[14px] font-semibold text-[#2563eb] border-2 border-[#2563eb] bg-transparent hover:bg-[#2563eb] hover:text-white transition-all duration-300"
-                >
-                  Konto eröffnen
+              {schonDrin && (
+                <a href="/dashboard" className="lg-drin">
+                  <span>Sie sind noch angemeldet{schonDrin.vorname ? `, ${schonDrin.vorname}` : ""}.</span><b>Direkt in den Bereich →</b>
                 </a>
-              </div>
+              )}
+
+              <label className="lg-feld">
+                <span>E-Mail-Adresse</span>
+                <input type="email" inputMode="email" autoComplete="email" autoCapitalize="none" spellCheck={false} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="max@beispiel.de" required />
+              </label>
+              <div className="lg-vorschlaege"><EmailVorschlaege wert={email} land={null} onWahl={(v) => setEmail(v)} /></div>
+              <label className="lg-feld">
+                <span>Passwort <a href="/passwort-vergessen" className="lg-klein">Vergessen?</a></span>
+                <div className="lg-pw">
+                  <input type={zeigen ? "text" : "password"} autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Ihr Passwort" required />
+                  <button type="button" onClick={() => setZeigen(!zeigen)} aria-label={zeigen ? "Passwort verbergen" : "Passwort anzeigen"}>{zeigen ? "Verbergen" : "Anzeigen"}</button>
+                </div>
+              </label>
+              <label className="lg-bleiben">
+                <input type="checkbox" checked={bleiben} onChange={(e) => setBleiben(e.target.checked)} />
+                <span><b>Angemeldet bleiben</b><small>30 Tage auf diesem Gerät – nicht auf fremden Rechnern.</small></span>
+              </label>
+
+              {problem && (
+                <div className="lg-problem" role="alert">
+                  <b>{problem.error}</b>
+                  {problem.hint && <p>{problem.hint}</p>}
+                  {problem.action && problem.actionHref && <a href={problem.actionHref}>{problem.action} →</a>}
+                </div>
+              )}
+
+              <button type="submit" className="dk-knopf lg-knopf" disabled={laeuft}>{laeuft ? "Wird geprüft …" : "Anmelden"}</button>
+              <p className="lg-unten">Noch kein Konto? <a href="/antrag">In zwei Minuten eröffnen</a></p>
+            </form>
+          </Auf>
+          <Auf verzoegerung={150}>
+            <div className="lg-rechts">
+              <div className="dk-szene gross lg-szene"><KartenSzene anzahl={1} className="absolute inset-0" /></div>
+              <ul className="lg-punkte">
+                <li><b>Ihr Fahrplan</b><span>Welche Etappe jetzt dran ist – und was FIAON gerade für Sie tut.</span></li>
+                <li><b>Ihre Auskunft</b><span>Jeder Eintrag erklärt, mit Einschätzung und nächstem Schritt.</span></li>
+                <li><b>Schreiben &amp; Fristen</b><span>Was versendet wurde, was läuft, was Sie freigeben können.</span></li>
+                <li><b>Ihre Ansprechpartnerin</b><span>Mit Namen. Nachrichten und Termine an einem Ort.</span></li>
+              </ul>
             </div>
+          </Auf>
+        </div>
+      </section>
+
+      <Licht>
+        <Block pille="Wenn es hakt" titel={<>Drei Wege <span className="dk-verlauf">hinein.</span></>} mitte
+               lead="Die meisten Anmeldeprobleme haben einen von drei Gründen. Für jeden gibt es einen kurzen Weg.">
+          <div className="dk-raster" style={{ textAlign: "left", marginTop: 36 }}>
+            <Auf><Glas tag="Passwort vergessen" titel="Neu setzen in einer Minute">Sie bekommen einen Link an Ihre E-Mail-Adresse. Der Link ist 60 Minuten gültig; danach fordern Sie einfach einen neuen an.<div className="dk-knoepfe" style={{ marginTop: 16 }}><Knopf href="/passwort-vergessen" still>Passwort zurücksetzen</Knopf></div></Glas></Auf>
+            <Auf verzoegerung={80}><Glas tag="Antrag unterbrochen" titel="Genau dort weitermachen">Ihre Angaben sind gespeichert. Mit dem Link aus unserer E-Mail landen Sie im Antrag an der Stelle, an der Sie aufgehört haben – ohne neu zu beginnen.<div className="dk-knoepfe" style={{ marginTop: 16 }}><Knopf href="/antrag" still>Zum Antrag</Knopf></div></Glas></Auf>
+            <Auf verzoegerung={160}><Glas tag="Noch kein Konto" titel="In zwei Minuten eröffnen">Paket wählen, wenige Angaben, Vertrag annehmen – und Sie sind in Ihrem Bereich. Die Zahlung und das erste Gespräch wählen Sie dort.<div className="dk-knoepfe" style={{ marginTop: 16 }}><Knopf href="/antrag">Konto eröffnen</Knopf></div></Glas></Auf>
           </div>
-        </div>
+        </Block>
+        <Block pille="Sicherheit" mitte>
+          <div className="lg-sicher">
+            {[["Verschlüsselt", "Jede Verbindung per TLS, jedes Passwort als Hash – niemand bei FIAON kann es lesen."], ["Server in der EU", "Ihre Akte liegt auf europäischen Servern, DSGVO-konform, täglich gesichert."], ["Sie bestimmen", "Abmelden jederzeit, Passwort ändern im Bereich, Daten löschen auf Anfrage."]].map(([t, s]) => (
+              <div key={t} className="lg-sicher-karte"><b>{t}</b><span>{s}</span></div>
+            ))}
+          </div>
+        </Block>
+      </Licht>
 
-        {/* Additional Links */}
-        <div className="mt-8 text-center space-y-2">
-          <a href="/terms" className="block text-[13px] text-gray-500 hover:text-gray-700">
-            AGB
-          </a>
-          <a href="/privacy" className="block text-[13px] text-gray-500 hover:text-gray-700">
-            Datenschutz
-          </a>
+      <section className="dk-block" style={{ paddingTop: 40 }}>
+        <div className="dk-rahmen mitte">
+          <p className="dk-leise">Sie wollen sehen, wie der Bereich aussieht, bevor Sie ein Konto haben? <a href="/demo/kundenbereich" className="lg-link">Zur Präsentation</a></p>
         </div>
-      </div>
-
-      <PremiumFooter />
-    </div>
+      </section>
+    </Dunkel>
   );
 }

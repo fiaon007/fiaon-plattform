@@ -556,7 +556,7 @@ export default function ZahlungPage() {
             <div className="rounded-xl bg-slate-50 border border-slate-100 p-4 sm:p-5 mb-6">
               <p className="text-[13px] text-slate-600 leading-relaxed">
                 <b className="text-slate-800">Warum Überweisung?</b> Sie behalten die volle Kontrolle: keine
-                automatischen Kartenabbuchungen, keine gespeicherten Zahlungsdaten. Du entscheidest bei jeder Zahlung
+                automatischen Kartenabbuchungen, keine gespeicherten Zahlungsdaten. Sie entscheiden bei jeder Zahlung
                 selbst.
               </p>
             </div>
@@ -581,7 +581,7 @@ export default function ZahlungPage() {
               </button>
             </div>
             <p className="text-center text-[12px] text-slate-400 mt-2.5">
-              Tippe hier erst, nachdem du die Überweisung in deiner Banking-App abgeschickt hast.
+              Bitte erst tippen, wenn Sie die Überweisung in Ihrer Banking-App abgeschickt haben.
             </p>
           </div>
         )}

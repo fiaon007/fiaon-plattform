@@ -135,6 +135,8 @@ const SiteKarriere = lazy(() => import("@/pages/site/karriere"));
 const SiteTeam = lazy(() => import("@/pages/site/team"));
 const SiteDemo = lazy(() => import("@/pages/site/demo"));
 const SiteRatgeber = lazy(() => import("@/pages/site/ratgeber"));
+const SiteEintragPruefen = lazy(() => import("@/pages/site/werkzeuge/eintrag-pruefen"));
+const SiteSelbstauskunft = lazy(() => import("@/pages/site/werkzeuge/selbstauskunft"));
 const SiteRatgeberArtikel = lazy(() => import("@/pages/site/ratgeber-artikel"));
 const AdminRatgeberPage = lazy(() => import("@/pages/admin-ratgeber"));
 const DemoKundenbereich = lazy(() => import("@/pages/demo-kundenbereich"));
@@ -182,6 +184,8 @@ function Router() {
       <Route path="/team" component={SiteTeam} />
       <Route path="/demo" component={SiteDemo} />
       <Route path="/ratgeber" component={SiteRatgeber} />
+      <Route path="/werkzeuge/eintrag-pruefen" component={SiteEintragPruefen} />
+      <Route path="/werkzeuge/selbstauskunft" component={SiteSelbstauskunft} />
       <Route path="/ratgeber/:slug" component={SiteRatgeberArtikel} />
       <Route path="/demo/kundenbereich" component={DemoKundenbereich} />
       <Route path="/demo/produkt" component={MeinBereichPage} />

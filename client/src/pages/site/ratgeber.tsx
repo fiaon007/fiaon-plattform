@@ -61,6 +61,13 @@ export default function Ratgeber() {
           </div>
         </Block>
 
+        <Block pille="Werkzeuge" titel={<>Kostenlos, sofort, <span className="dk-verlauf">ohne Anmeldung.</span></>} mitte>
+          <div className="rg-liste" style={{ gridTemplateColumns: "repeat(2,1fr)", textAlign: "left", marginTop: 28 }}>
+            <a href="/werkzeuge/eintrag-pruefen" className="rg-karte"><div className="rg-kopfzeile"><span>Werkzeug</span></div><h3>Ist mein Eintrag angreifbar?</h3><p>Fünf Fragen, eine ehrliche Einschätzung nach § 31 BDSG, Löschfristen und BGH-Rechtsprechung – mit Ihrem nächsten Schritt.</p><div className="rg-karte-fuss"><span>2 Minuten</span><b>Prüfen →</b></div></a>
+            <a href="/werkzeuge/selbstauskunft" className="rg-karte"><div className="rg-kopfzeile"><span>Werkzeug</span></div><h3>Selbstauskunft-Generator</h3><p>Der fertige Brief für Ihre kostenlose Datenkopie nach Art. 15 DSGVO – an SCHUFA, KSV1870, CRIF oder Intrum. Kopieren, drucken, absenden.</p><div className="rg-karte-fuss"><span>1 Minute</span><b>Brief erstellen →</b></div></a>
+          </div>
+        </Block>
+
         <Block pille="Wer schreibt" mitte>
           <div className="rg-autorin" style={{ maxWidth: 760, margin: "0 auto", textAlign: "left" }}>
             <img src={AUTORIN.bild} alt={AUTORIN.name} />

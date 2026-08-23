@@ -1,0 +1,45 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   LOGIN — Glas auf der dunklen Bühne (23.08.2026)
+   ═══════════════════════════════════════════════════════════════════════════ */
+.lg-hero{min-height:auto;padding-bottom:40px}
+.lg-raster{display:grid;grid-template-columns:minmax(340px,460px) 1fr;gap:56px;align-items:center}
+.lg-karte{display:grid;gap:14px;padding:30px 30px 26px;border-radius:26px;background:rgba(15,23,42,.55);border:1px solid rgba(255,255,255,.12);box-shadow:0 30px 80px rgba(2,6,23,.5),inset 0 1px 0 rgba(255,255,255,.08);backdrop-filter:blur(20px) saturate(160%);-webkit-backdrop-filter:blur(20px) saturate(160%)}
+.lg-karte .dk-pille{justify-self:start}
+.lg-titel{font:300 clamp(30px,3.4vw,42px)/1.1 'Inter',sans-serif;letter-spacing:-.03em;color:#fff;margin:4px 0 0}
+.lg-lead{margin:0 0 6px;font:300 15px/1.6 'Inter',sans-serif;color:#cbd5e1}
+.lg-drin{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:12px 14px;border-radius:14px;background:rgba(37,99,235,.18);border:1px solid rgba(96,165,250,.4);text-decoration:none;color:#e5e7eb;font-size:13px}
+.lg-drin b{color:#bfdbfe;font-weight:500;white-space:nowrap}
+.lg-feld{display:grid;gap:7px}
+.lg-feld>span{display:flex;justify-content:space-between;font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#9ca3af}
+.lg-klein{font:400 11px/1 'Inter',sans-serif;letter-spacing:0;text-transform:none;color:#93c5fd;text-decoration:none}
+.lg-feld input,.lg-pw input{width:100%;padding:13px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05);color:#fff;font:400 16px/1.3 'Inter',sans-serif;outline:none;transition:border-color .25s,box-shadow .25s}
+.lg-feld input::placeholder{color:#64748b}
+.lg-feld input:focus,.lg-pw input:focus{border-color:#60a5fa;box-shadow:0 0 0 4px rgba(37,99,235,.22)}
+.lg-vorschlaege:empty{display:none}
+.lg-pw{position:relative}
+.lg-pw input{padding-right:92px}
+.lg-pw button{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:0;color:#93c5fd;font:400 12px/1 'Inter',sans-serif;cursor:pointer}
+.lg-bleiben{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);cursor:pointer}
+.lg-bleiben input{margin-top:3px;accent-color:#2563eb;width:16px;height:16px}
+.lg-bleiben b{display:block;font-weight:400;font-size:13.5px;color:#e5e7eb}
+.lg-bleiben small{display:block;font-size:11.5px;color:#8b95a7;margin-top:2px}
+.lg-problem{padding:12px 14px;border-radius:12px;background:rgba(220,38,38,.12);border:1px solid rgba(248,113,113,.35);font-size:13px;color:#fecaca;display:grid;gap:4px}
+.lg-problem b{font-weight:500;color:#fff}
+.lg-problem p{margin:0;color:#fca5a5;line-height:1.5}
+.lg-problem a{color:#fff;text-decoration:underline;text-underline-offset:3px}
+.lg-knopf{justify-content:center;width:100%;padding:14px 20px;font-size:15px}
+.lg-unten{margin:2px 0 0;text-align:center;font-size:13px;color:#8b95a7}
+.lg-unten a{color:#93c5fd;text-decoration:none}
+.lg-rechts{display:grid;gap:22px}
+.lg-szene{min-height:320px}
+.lg-punkte{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.lg-punkte li{padding:14px 16px;border-radius:16px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)}
+.lg-punkte b{display:block;font-weight:400;font-size:14.5px;color:#fff;margin-bottom:4px}
+.lg-punkte span{font-size:12.5px;line-height:1.5;color:#9ca3af}
+.lg-sicher{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:24px;text-align:left}
+.lg-sicher-karte{padding:18px 20px;border-radius:16px;background:#fff;border:1px solid rgba(15,23,42,.07);box-shadow:0 2px 4px rgba(15,23,42,.03),0 14px 36px rgba(37,99,235,.08)}
+.lg-sicher-karte b{display:block;font-weight:500;font-size:15px;color:#0f172a;margin-bottom:6px}
+.lg-sicher-karte span{font-size:13px;line-height:1.55;color:#475569}
+.lg-link{color:#93c5fd;text-decoration:underline;text-underline-offset:3px}
+@media(max-width:960px){.lg-raster{grid-template-columns:1fr;gap:28px}.lg-rechts{order:-1}.lg-szene{min-height:220px}.lg-sicher{grid-template-columns:1fr}}
+@media(max-width:560px){.lg-karte{padding:22px 18px}.lg-punkte{grid-template-columns:1fr}}

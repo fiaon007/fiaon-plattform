@@ -625,32 +625,33 @@ export default function AntragPage() {
   }, [step]);
 
   // Weiter zum Passwort-Setup — danach folgt die Zahlungsseite (Banküberweisung/Vorkasse)
+  const [einrichtungLaeuft, setEinrichtungLaeuft] = useState(false);
+  const [einrichtungFehler, setEinrichtungFehler] = useState<string | null>(null);
   const handleProceedToPayment = useCallback(async () => {
-    if (!pack) return;
+    if (!pack || einrichtungLaeuft) return;
+    setEinrichtungLaeuft(true); setEinrichtungFehler(null);
     try {
-      // Antrag in DB speichern (Status: submitted — Zahlung folgt per Überweisung)
+      // 1) Antrag speichern (Status: submitted — Zahlung folgt im Bereich)
       await fetch("/api/fiaon/application", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ref,
-          type: "private",
-          status: "submitted",
-          currentStep: 8,
-          ...d,
-          packKey: pack.key,
-          // Einzeilig in die Daten — der Beisatz gehört dazu, der Umbruch nicht.
-          packName: paketNameFuerDaten(pack.key) ?? pack.name,
-          approvedLimit: approved,
-        }),
-      }).catch(() => {});
-
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ref, type: "private", status: "submitted", currentStep: 8, ...d, packKey: pack.key, packName: paketNameFuerDaten(pack.key) ?? pack.name, approvedLimit: approved }),
+      });
+      // 2) Zahlungsauftrag anlegen (Verwendungszweck, Betrag, Frist)
+      await fetch("/api/fiaon/payment-order", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ref }) }).catch(() => null);
+      // 3) Einloggen — der frische Antrag darf ohne Passwort hinein; das Passwort folgt im Bereich
+      const r = await fetch(`/api/fiaon/antrag/${encodeURIComponent(ref)}/einloggen`, { method: "POST", credentials: "include" });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j?.ok) { setEinrichtungFehler(j?.error || "Der Bereich konnte nicht geöffnet werden. Bitte melden Sie sich mit Ihrer E-Mail an."); setEinrichtungLaeuft(false); return; }
+      try { sessionStorage.setItem("fiaon_user", JSON.stringify({ ref })); localStorage.setItem("fiaon_user", JSON.stringify({ ref })); sessionStorage.removeItem("mb_begruesst"); } catch { /* egal */ }
       track("checkout_bank_transfer", { ref, packKey: pack.key }, ref);
-      setStep(9);
+      clearPersistentRef("fiaon_antrag_ref");
+      window.location.href = "/mein-bereich?einrichten=1";
     } catch (err) {
-      console.error("[FIAON] handleProceedToPayment failed:", err);
+      console.error("[FIAON] Einrichtung:", err);
+      setEinrichtungFehler("Keine Verbindung. Bitte versuchen Sie es gleich noch einmal.");
+      setEinrichtungLaeuft(false);
     }
-  }, [pack, ref, d, approved]);
+  }, [pack, ref, d, approved, einrichtungLaeuft]);
 
   // Synchronized progress for verification screen
   useEffect(() => {
@@ -1052,10 +1053,7 @@ export default function AntragPage() {
                   <h2 className="text-xl sm:text-2xl font-semibold tracking-tight fiaon-gradient-text-animated mb-1">Beruf & Finanzen</h2>
                   <p className="text-[14px] text-gray-400 mb-6">Helfen bei der Limit-Berechnung.</p>
                   <Field label="Beschäftigungsstatus" req error={errors.employment}><Sel value={d.employment} onChange={(v: string) => up("employment", v)}><option value="">Wählen</option><option>Angestellt</option><option>Selbstständig</option><option>Freiberuflich</option><option>Beamter/in</option><option>Student/in</option><option>Rentner/in</option></Sel></Field>
-                  <div className="grid grid-cols-2 gap-4">
-                    <Field label="Arbeitgeber"><Inp value={d.employer} onChange={(v: string) => up("employer", v)} placeholder="Optional" /></Field>
-                    <Field label="Beschäftigt seit" req error={errors.employedSince}><Sel value={d.employedSince} onChange={(v: string) => up("employedSince", v)}><option value="">Wählen</option><option>{"< 6 Monate"}</option><option>6–12 Monate</option><option>1–3 Jahre</option><option>3–5 Jahre</option><option>{"> 5 Jahre"}</option></Sel></Field>
-                  </div>
+                  <Field label="Beschäftigt seit" req error={errors.employedSince}><Sel value={d.employedSince} onChange={(v: string) => up("employedSince", v)}><option value="">Wählen</option><option>{"< 6 Monate"}</option><option>6–12 Monate</option><option>1–3 Jahre</option><option>3–5 Jahre</option><option>{"> 5 Jahre"}</option></Sel></Field>
                   <Field label="Monatliches Nettoeinkommen" req>
                     <div className="relative mb-3">
                       <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-semibold text-[15px] pointer-events-none select-none">€</span>
@@ -1075,20 +1073,6 @@ export default function AntragPage() {
                     <input type="range" min={500} max={15000} step={100} value={d.income || 500} onChange={e => up("income", +e.target.value)} className="fiaon-range w-full cursor-pointer" />
                     <div className="flex justify-between text-[10px] text-gray-400 font-mono mt-1"><span>€ 500</span><span>€ 15.000</span></div>
                   </Field>
-                  <div className="grid grid-cols-2 gap-4">
-                    <Field label="Monatliche Miete" hint="Kaltmiete in EUR">
-                      <div className="relative">
-                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-semibold text-[15px] pointer-events-none select-none">€</span>
-                        <input type="number" inputMode="numeric" pattern="[0-9]*" min={0} value={d.rent || ""} onChange={e => up("rent", +e.target.value || 0)} placeholder="850" className="w-full pl-9 pr-4 py-3 rounded-xl fiaon-input-glass text-base text-gray-900 outline-none placeholder:text-gray-300" />
-                      </div>
-                    </Field>
-                    <Field label="Verbindlichkeiten" hint="Ratenkredite etc.">
-                      <div className="relative">
-                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-semibold text-[15px] pointer-events-none select-none">€</span>
-                        <input type="number" inputMode="numeric" pattern="[0-9]*" min={0} value={d.debts || ""} onChange={e => up("debts", +e.target.value || 0)} placeholder="200" className="w-full pl-9 pr-4 py-3 rounded-xl fiaon-input-glass text-base text-gray-900 outline-none placeholder:text-gray-300" />
-                      </div>
-                    </Field>
-                  </div>
                   <Field label="Wohnsituation" req error={errors.housing}><Sel value={d.housing} onChange={(v: string) => up("housing", v)}><option value="">Wählen</option><option>Zur Miete</option><option>Eigentum</option><option>Bei Familie</option><option>Sonstiges</option></Sel></Field>
                 </>}
 
@@ -1305,7 +1289,6 @@ export default function AntragPage() {
                 { ab: 18, t: "Anschrift geprüft", s: [d.zip, d.city].filter(Boolean).join(" ") || "Wohnsitz" },
                 { ab: 34, t: "Auskunftei angefragt", s: d.country === "AT" ? "KSV1870 · CRIF Austria" : d.country === "CH" ? "ZEK · CRIF Schweiz" : "SCHUFA · CRIF Bürgel" },
                 { ab: 52, t: "Einkommen plausibilisiert", s: d.income ? `${Number(d.income).toLocaleString("de-DE")} € netto` : "Beschäftigung" },
-                { ab: 68, t: "Haushaltsrechnung", s: "Miete, Verbindlichkeiten, Spielraum" },
                 { ab: 84, t: "Ziel-Rahmen berechnet", s: pack ? `Paket ${pack.name}` : "Paket" },
                 { ab: 100, t: "Freigabe", s: "Ihr Programm steht" },
               ];
@@ -1392,131 +1375,39 @@ export default function AntragPage() {
           </div>
         )}
 
-        {/* === STEP 8: Welcome + Konto aktivieren === */}
+        {/* === STEP 8: Vertrag angenommen → direkt in den Bereich (23.08.2026, Justin) ===
+            Kein Passwort mehr hier, keine Zahlungsdaten hier: Der Kunde wird eingeloggt,
+            sieht seinen Bereich (unscharf), legt dort das Passwort fest und wählt dann
+            Zahlung oder Gespräch. Ein Weg, ein Knopf, zentriert. */}
         {step === 8 && (
-          <div className="animate-[fadeInUp_.4s_ease] max-w-2xl mx-auto w-full px-4 sm:px-6 py-8 sm:py-16">
-            {/* HERO: Checkmark + Heading + Namen */}
-            <div className="text-center mb-8 sm:mb-10">
-              <div className="w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-5 sm:mb-6 rounded-full relative flex items-center justify-center">
-                <div className="absolute inset-[-2px] rounded-full animate-[spin_4s_linear_infinite]" style={{ background: "conic-gradient(#2563eb,#93c5fd,#2563eb)" }} />
-                <div className="w-[56px] h-[56px] sm:w-[72px] sm:h-[72px] rounded-full bg-white flex items-center justify-center relative z-10">
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="1.5" className="sm:w-8 sm:h-8"><polyline points="6 12 10 16 18 8"/></svg>
-                </div>
-              </div>
-              <h2 className="text-2xl sm:text-4xl font-bold tracking-tight fiaon-gradient-text-animated mb-3 leading-tight">Herzlich Willkommen</h2>
-              <p className="text-[14px] sm:text-[16px] text-gray-500 leading-relaxed max-w-md mx-auto">
-                Ihr FIAON-Bereich wird in Kürze aktiviert.
-              </p>
-              <p className="text-[12px] sm:text-[13px] text-gray-400 mt-2 break-words px-2">
-                {d.firstName} {d.lastName} · {pack?.name?.replace(/\n/g, " ")} · Ref. {ref}
-              </p>
-            </div>
-
-            {/* PRIMARY CTA — direkt unter Welcome */}
-            {pack && (
-              <div className="mb-6 sm:mb-8">
-                <button
-                  type="button"
-                  onClick={handleProceedToPayment}
-                  className="relative w-full sm:w-auto sm:min-w-[340px] mx-auto inline-flex items-center justify-center gap-2.5 overflow-hidden rounded-full fiaon-btn-gradient py-3.5 px-7 text-white font-medium text-[15px] shadow-xl shadow-blue-500/30 transition-all duration-300 hover:shadow-2xl hover:shadow-blue-600/40 hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus:ring-4 focus:ring-blue-300"
-                  style={{ minHeight: 46 }}
-                >
-                  <span className="absolute inset-0 pointer-events-none" style={{
-                    background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.22), transparent)",
-                    animation: "startShimmer 2.8s ease-in-out infinite",
-                  }} />
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="relative z-10 flex-shrink-0">
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                  </svg>
-                  <span className="relative z-10">Konto aktivieren</span>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="relative z-10 flex-shrink-0"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
-                </button>
-
-                {/* Preis direkt unter Button */}
-                <p className="text-center text-[13px] sm:text-[14px] text-slate-500 mt-3">
-                  <span className="font-bold text-slate-900">{pack.fee.toFixed(2)} €</span>
-                  <span className="mx-1.5 text-slate-300">·</span>
-                  <span>monatlich · inkl. Kartenversand</span>
-                </p>
-              </div>
-            )}
-
-            {/* Oder zuerst sprechen: Termin mit dem Vertrieb (Justin, 23.08.2026) */}
-            <div className="antrag-oder mb-6">
-              <span className="antrag-oder-linie" /><span>oder</span><span className="antrag-oder-linie" />
-            </div>
-            <button type="button" onClick={async () => {
-                track("termin_vertrieb_klick", { ref }, ref);
-                try {
-                  const r = await fetch(`/api/fiaon/antrag/${encodeURIComponent(ref)}/termin-link`);
-                  const j = await r.json().catch(() => null);
-                  if (j?.ok && j.url) window.location.href = j.url;
-                  else alert(j?.error || "Der Terminlink konnte gerade nicht erzeugt werden. Bitte versuchen Sie es gleich noch einmal.");
-                } catch { alert("Keine Verbindung. Bitte versuchen Sie es gleich noch einmal."); }
-              }}
-              className="antrag-termin-knopf w-full sm:w-auto sm:min-w-[340px] mx-auto flex items-center justify-center gap-2.5 rounded-full py-3 px-6 text-[14.5px] font-medium mb-8">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/></svg>
-              Lieber zuerst sprechen? Termin mit dem Vertrieb buchen
-            </button>
-
-            {/* Dezente Info: Aktivierung per Banküberweisung */}
-            <div className="antrag-hinweisbox rounded-xl bg-slate-50/70 border border-slate-100 p-4 sm:p-5 mb-6">
-              <div className="flex items-start gap-3">
-                <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                  </svg>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[12px] sm:text-[13px] font-semibold text-slate-700 mb-0.5">Aktivierung per Banküberweisung – Zugang nach Zahlungseingang</p>
-                  <p className="text-[11px] sm:text-[12px] text-slate-500 leading-relaxed">
-                    Nach dem Passwort erhalten Sie Ihre persönlichen Zahlungsdaten inkl. QR-Code für Ihre Banking-App. Mit der Zahlung geht auch Ihre Karte auf den Weg.
-                  </p>
-                </div>
+          <div className="animate-[fadeInUp_.4s_ease] max-w-xl mx-auto w-full px-4 sm:px-6 py-10 sm:py-16 text-center">
+            <div className="w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-5 sm:mb-6 rounded-full relative flex items-center justify-center">
+              <div className="absolute inset-[-2px] rounded-full animate-[spin_4s_linear_infinite]" style={{ background: "conic-gradient(#2563eb,#93c5fd,#2563eb)" }} />
+              <div className="w-[56px] h-[56px] sm:w-[72px] sm:h-[72px] rounded-full bg-white flex items-center justify-center relative z-10">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="1.5" className="sm:w-8 sm:h-8"><polyline points="6 12 10 16 18 8"/></svg>
               </div>
             </div>
-
-            {/* Trust-Badges Mini-Row */}
-            <div className="flex items-center justify-center gap-4 sm:gap-6 flex-wrap mb-6">
-              <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] text-slate-400 font-medium">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                </svg>
-                SSL-Verschlüsselt
-              </div>
-              <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] text-slate-400 font-medium">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-                  <path d="M2 17l10 5 10-5"/>
-                  <path d="M2 12l10 5 10-5"/>
-                </svg>
-                SEPA-Überweisung
-              </div>
-              <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] text-slate-400 font-medium">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="20 6 9 17 4 12"/>
-                </svg>
-                Aktivierung nach Zahlungseingang
-              </div>
-            </div>
-
-            {/* Contract Download Link */}
-            <div className="flex items-center justify-center gap-2">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" className="flex-shrink-0"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-              <button 
-                onClick={() => { window.open(`/api/fiaon/contract/${ref}`, '_blank'); track("contract_download", { ref }, ref); }} 
-                className="text-[11px] sm:text-[12px] text-gray-400 hover:text-[#2563eb] transition-colors underline decoration-gray-300 hover:decoration-[#2563eb]"
-              >
-                Vertrag herunterladen
+            <h2 className="text-2xl sm:text-4xl font-bold tracking-tight fiaon-gradient-text-animated mb-3 leading-tight">Vertrag angenommen</h2>
+            <p className="text-[14px] sm:text-[16px] text-gray-500 leading-relaxed max-w-md mx-auto">Ihr Bereich ist angelegt. Dort legen Sie Ihr Passwort fest und entscheiden, wie es weitergeht: jetzt aktivieren – oder zuerst mit einem Mitarbeiter sprechen.</p>
+            <p className="text-[12px] sm:text-[13px] text-gray-400 mt-2 break-words px-2">{d.firstName} {d.lastName} · {pack?.name?.replace(/\n/g, " ")} · Ref. {ref}</p>
+            <div className="mt-8 flex justify-center">
+              <button type="button" onClick={handleProceedToPayment} disabled={einrichtungLaeuft}
+                className="relative inline-flex items-center justify-center gap-2.5 overflow-hidden rounded-full fiaon-btn-gradient py-3.5 px-8 text-white font-medium text-[15px] shadow-xl shadow-blue-500/30 transition-all duration-300 hover:-translate-y-0.5 disabled:opacity-60"
+                style={{ minHeight: 46, minWidth: 300 }}>
+                <span className="absolute inset-0 pointer-events-none" style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.22), transparent)", animation: "startShimmer 2.8s ease-in-out infinite" }} />
+                <span className="relative z-10">{einrichtungLaeuft ? "Ihr Bereich wird eingerichtet …" : "Weiter in meinen Bereich"}</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="relative z-10"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
               </button>
             </div>
+            {einrichtungFehler && <p className="mt-4 text-[13px] text-red-400">{einrichtungFehler}</p>}
+            <p className="text-center text-[12.5px] text-gray-400 mt-5">{pack ? `${pack.fee.toFixed(2).replace(".", ",")} € monatlich · inkl. Kartenversand` : ""} · Zahlung und Termin wählen Sie im Bereich</p>
+            <div className="flex items-center justify-center gap-4 sm:gap-6 flex-wrap mt-8">
+              {["SSL-verschlüsselt", "SEPA-Überweisung", "Server in der EU"].map((t) => <span key={t} className="text-[11px] text-slate-400">{t}</span>)}
+            </div>
+            <button type="button" onClick={() => { window.open(`/api/fiaon/contract/${ref}`, '_blank'); track("contract_download", { ref }, ref); }} className="mt-6 text-[12px] text-slate-400 underline underline-offset-4">Vertrag herunterladen</button>
           </div>
         )}
 
-        {/* === STEP 9: Password Selection === */}
         {step === 9 && (
           <div className="animate-[fadeInUp_.4s_ease] max-w-md mx-auto py-12 sm:py-20">
             <div className="text-center mb-12">

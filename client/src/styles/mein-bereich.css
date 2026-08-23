@@ -316,3 +316,52 @@
 .mb-demo-band span{padding:5px 11px;border-radius:999px;background:#2563eb;color:#fff;font-size:12px}
 .mb-demo-band:hover span{background:#1d4fd8}
 @media (max-width:640px){.mb-demo-band{left:12px;right:12px;transform:none;white-space:normal;justify-content:space-between;font-size:12px}}
+
+/* ── Einrichtung nach dem Vertrag (23.08.2026): Passwort → Wahl → Zahlung/Gespräch ── */
+.mb-vorhang.ein{align-items:flex-start;padding:90px 16px 40px;overflow:auto;background:rgba(247,249,252,.55);backdrop-filter:blur(22px) saturate(140%);-webkit-backdrop-filter:blur(22px) saturate(140%)}
+.ein-karte{width:min(760px,100%);background:#fff;border:1px solid var(--linie);border-radius:var(--r-gross);box-shadow:var(--sch-schweb),var(--glanz);overflow:hidden;animation:mbVorhangAuf .5s ease both}
+.ein-schritte{display:flex;gap:6px;padding:14px 22px 0}
+.ein-schritte span{flex:1;text-align:center;font:600 10.5px/1 'Inter',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--text-still);padding:8px 0 10px;border-bottom:2px solid var(--linie)}
+.ein-schritte span.ok{color:var(--gut);border-color:var(--gut)}
+.ein-schritte span.an{color:var(--blau-tief);border-color:var(--blau)}
+.ein-innen{padding:26px 30px 30px;display:grid;gap:14px}
+.ein-ueber{margin:0;font:600 11px/1 'Inter',sans-serif;letter-spacing:.16em;text-transform:uppercase;color:var(--blau)}
+.ein-innen h2{font:500 clamp(22px,2.6vw,30px)/1.15 'Outfit',sans-serif;letter-spacing:-.025em;color:var(--text)}
+.ein-innen h2 span{color:var(--blau-tief);font-weight:400}
+.ein-text{margin:0;font-size:14.5px;line-height:1.6;color:var(--text-leise);max-width:60ch}
+.ein-feld{display:grid;gap:6px}
+.ein-feld span{font:600 10.5px/1 'Inter',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--text-still)}
+.ein-feld input{width:100%;padding:13px 14px;border-radius:12px;border:1px solid var(--linie-stark);font:inherit;font-size:16px;color:var(--text);background:#fff;outline:none}
+.ein-feld input:focus{border-color:var(--blau);box-shadow:0 0 0 3px rgba(37,99,235,.14)}
+.ein-pw{position:relative}
+.ein-pw button{position:absolute;right:10px;top:50%;transform:translateY(-50%);font:500 11.5px/1 'Inter',sans-serif;color:var(--blau-tief);background:none;border:0;cursor:pointer}
+.ein-staerke{display:flex;gap:6px}
+.ein-staerke i{flex:1;height:4px;border-radius:999px;background:var(--linie)}
+.ein-staerke i.ok{background:linear-gradient(90deg,#2563EB,#60A5FA)}
+.ein-fehler{margin:0;padding:10px 12px;border-radius:10px;background:rgba(220,38,38,.08);color:#b91c1c;font-size:13px}
+.ein-wahl{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:6px}
+.ein-option{text-align:left;padding:20px 20px 18px;border-radius:18px;border:1px solid var(--linie);background:var(--flaeche-still);cursor:pointer;font:inherit;display:grid;gap:6px;transition:transform .25s,box-shadow .25s,border-color .25s}
+.ein-option:hover{transform:translateY(-2px);box-shadow:var(--sch-hoch);border-color:rgba(37,99,235,.35)}
+.ein-option.haupt{background:linear-gradient(160deg,#fff,rgba(37,99,235,.07));border-color:rgba(37,99,235,.3)}
+.ein-option small{font:600 10.5px/1 'Inter',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--blau-tief)}
+.ein-option b{font:500 17px/1.2 'Outfit',sans-serif;color:var(--text)}
+.ein-option p{margin:0;font-size:13px;line-height:1.55;color:var(--text-leise)}
+.ein-option span{font-size:12px;color:var(--text-still);margin-top:4px}
+.ein-leise{justify-self:center;background:none;border:0;font:inherit;font-size:12.5px;color:var(--text-still);text-decoration:underline;text-underline-offset:3px;cursor:pointer;margin-top:4px}
+.ein-zahlung{display:grid;grid-template-columns:1fr 200px;gap:18px;align-items:start}
+.ein-zahlung-daten{display:grid;gap:6px}
+.ein-zeile{display:grid;grid-template-columns:120px 1fr auto;align-items:center;gap:12px;width:100%;padding:10px 12px;border-radius:12px;border:1px solid var(--linie);background:var(--flaeche-still);text-align:left;font:inherit;cursor:pointer;transition:border-color .2s}
+.ein-zeile:hover{border-color:rgba(37,99,235,.4)}
+.ein-zeile span{font-size:11.5px;color:var(--text-still)}
+.ein-zeile b{font-weight:600;font-size:14px;color:var(--text);word-break:break-all}
+.ein-zeile small{font:600 10.5px/1 'Inter',sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--blau-tief)}
+.ein-hinweis{margin:6px 0 0;font-size:12.5px;line-height:1.55;color:var(--text-leise)}
+.ein-qr{text-align:center}
+.ein-qr-bild{display:inline-block;padding:10px;border-radius:14px;background:#fff;border:1px solid var(--linie);box-shadow:var(--sch-hoch)}
+.ein-qr p{margin:8px 0 0;font-size:11.5px;color:var(--text-still);line-height:1.5}
+.ein-knoepfe{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px}
+.ein-fertig{padding:18px 20px;border-radius:14px;background:rgba(5,150,105,.08);border:1px solid rgba(5,150,105,.25);display:grid;gap:8px}
+.ein-fertig b{font-size:15px;color:var(--text)}
+.ein-fertig p{margin:0;font-size:13.5px;line-height:1.6;color:var(--text-leise)}
+.ein-fertig .mb-knopf{justify-self:start;margin-top:6px}
+@media(max-width:640px){.mb-vorhang.ein{padding:70px 10px 30px}.ein-innen{padding:20px 18px 22px}.ein-wahl,.ein-zahlung{grid-template-columns:1fr}.ein-zeile{grid-template-columns:90px 1fr auto}}

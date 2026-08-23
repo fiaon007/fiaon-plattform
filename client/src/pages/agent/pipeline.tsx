@@ -4,7 +4,7 @@
 // Neubau der Übersicht nach Justins Vorgabe („keine Buchstaben, alle Grenzen
 // sprengend, 3D – der Bereich, wo Umsatz passiert, muss der beste sein“):
 //   · Umsatz-Leiste: Heute erreichbar · Meine Provision möglich · Aktive Kunden
-//     (von max. 10) – Zahlen zählen hoch. Stufen-Chips filtern den Strom.
+//     (Bestand bis 500, dann wird abgegeben) – Zahlen zählen hoch. Stufen-Chips filtern den Strom.
 //   · Stufen nach Hitze statt A/B/C: „Bezahlt – Termin offen“ (glüht),
 //     „Antrag fertig – Rechnung offen“ (warm), „Registriert – noch kein
 //     Antrag“ (Leads), „Aktiv – betreut“ (ruhig). Intern bleiben die
@@ -235,7 +235,7 @@ const REAKTIVIERUNG = {
     { frage: "„Bei euch ist nichts passiert.“", antwort: "Das nehme ich ernst – genau deshalb rufe ich an. Lassen Sie uns im Gespräch durchgehen, was schon läuft und was als Nächstes kommt. Danach entscheiden Sie." },
   ],
 };
-const MAX_AKTIV = 10;
+const MAX_AKTIV = 500; // Justin 23.08.: Bestand bis 500 Kunden, erst dann muss abgegeben werden
 
 /** Die Stufe aus priority_tier + Termin: Tier 1 = „bezahlt“ gemeldet, Tier 0 ohne Termin = bezahlt ohne Termin – beides heiß. */
 function stufeVon(k: Kunde): Hitze {
@@ -610,7 +610,7 @@ function PipelineInnen() {
         <div className="pi-umsatz-zahl">
           <small>Aktive Kunden</small>
           <b>{laedt ? "–" : Math.round(zAktive)}<em> / {MAX_AKTIV}</em></b>
-          <span>{aktive >= MAX_AKTIV ? "voll – erst Termine abarbeiten" : `${MAX_AKTIV - aktive} Plätze frei`}</span>
+          <span>{aktive >= MAX_AKTIV ? "Bestand voll – Kunden an Kollegen übergeben" : "dein Bestand wächst mit dir"}</span>
           <i className="pi-umsatz-balken"><i style={{ width: `${Math.min(100, (aktive / MAX_AKTIV) * 100)}%` }} /></i>
         </div>
       </section>

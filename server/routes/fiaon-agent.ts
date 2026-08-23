@@ -1107,7 +1107,7 @@ export async function updateCustomerContact(
   loginEmailChanged?: boolean;
 }> {
   const rows = await sqlPool`
-    SELECT ref, first_name, last_name, email, phone, phone_country_code, contact_phone, street, zip, city, utm::text AS utm_string, password
+    SELECT ref, first_name, last_name, email, phone, phone_country_code, contact_phone, street, zip, city, birthdate, utm::text AS utm_string, password
     FROM fiaon_applications WHERE ref = ${ref} AND merged_into IS NULL
   `;
   if (rows.length === 0) return { error: { code: 404, msg: "Kunde nicht gefunden" } };
@@ -1131,6 +1131,15 @@ export async function updateCustomerContact(
   const street = body.street !== undefined ? String(body.street).trim().slice(0, 160) : null;
   const zip = body.zip !== undefined ? String(body.zip).trim().slice(0, 10) : null;
   const city = body.city !== undefined ? String(body.city).trim().slice(0, 80) : null;
+  // ── E-047 (Justin 24.08., Plan §18 Nr. 4): GEBURTSDATUM ─────────────────
+  // VORHER wurde `birthdate` hier stillschweigend verworfen (die Route in
+  // fiaon-agent-anlage.ts hat es dokumentiert: „ok gemeldet und nichts
+  // getan“). NACHHER wird es verarbeitet: JJJJ-MM-TT, an Bestellung UND
+  // Person geschrieben, mit Audit-Zeile wie jedes andere Feld.
+  const birthdate = body.birthdate !== undefined ? String(body.birthdate).trim() : null;
+  if (birthdate !== null && birthdate !== "" && !/^\d{4}-\d{2}-\d{2}$/.test(birthdate)) {
+    return { error: { code: 400, msg: "Geburtsdatum bitte als JJJJ-MM-TT." } };
+  }
 
   // ── EIN FELD, DAS NUR LEERRAUM ENTHIELT, IST LEER ─────────────────────
   // `nameSauber` gibt dafür `null` zurück. Die alte Prüfung („!firstName")
@@ -1159,6 +1168,7 @@ export async function updateCustomerContact(
   if (street !== null && street !== (cur.street || "")) changes.push({ field: "Straße", from: cur.street || "—", to: street || "—" });
   if (zip !== null && zip !== (cur.zip || "")) changes.push({ field: "PLZ", from: cur.zip || "—", to: zip || "—" });
   if (city !== null && city !== (cur.city || "")) changes.push({ field: "Ort", from: cur.city || "—", to: city || "—" });
+  if (birthdate !== null && birthdate !== String(cur.birthdate || "").slice(0, 10)) changes.push({ field: "Geburtsdatum", from: String(cur.birthdate || "").slice(0, 10) || "—", to: birthdate || "—" });
   if (changes.length === 0) return { changes: [], duplicate: null, loginEmailChanged: false };
 
   // Duplikat-Warnung (Paket AC5): Kollision mit anderem Kunden derselben E-Mail?
@@ -1189,9 +1199,18 @@ export async function updateCustomerContact(
       street = ${street !== null ? (street || null) : cur.street},
       zip = ${zip !== null ? (zip || null) : cur.zip},
       city = ${city !== null ? (city || null) : cur.city},
+      birthdate = ${birthdate !== null ? (birthdate || null) : cur.birthdate},
       updated_at = NOW()
     WHERE ref = ${ref}
   `;
+  // E-047: Das Geburtsdatum auch an der PERSON — dieselbe Regel wie bei
+  // Nummer und E-Mail: zwei Wahrheiten wären eine Verabredung, wer sich irrt.
+  if (birthdate !== null && birthdate !== "") {
+    await sqlPool`
+      UPDATE fiaon_persons p SET birthdate = ${birthdate}, updated_at = NOW()
+      WHERE p.id = (SELECT person_id FROM fiaon_applications WHERE ref = ${ref})
+    `.catch(() => {});
+  }
 
   // ══════════════════════════════════════════════════════════════════════
   // DIE ÄNDERUNG MUSS AN DER PERSON ANKOMMEN — SONST SIEHT SIE NUR EINER

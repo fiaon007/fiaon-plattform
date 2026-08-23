@@ -525,7 +525,7 @@ function Startgespraeche() {
     return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
   }, [offene, erledigte, reiter]);
 
-  if (zusageOffen) return <div className="ca-hell"><ZusageTafel basis="/agent/onboarding/zusage" onAngenommen={() => { setZusageOffen(false); setLaedt(true); void laden(); }} /></div>;
+  if (zusageOffen) return <div className="ca-hell"><ZusageTafel basis="/agent/onboarding/zusage" ton="dunkel" onAngenommen={() => { setZusageOffen(false); setLaedt(true); void laden(); }} /></div>;
 
   return (
     <>

@@ -470,6 +470,34 @@ export function Softphone() {
   const mikMuss = stummVerdacht || probePflicht || !!geraetFehler || !!probeFehler
     || probe === "laeuft" || probe === "spielt";
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // MINIMIEREN IM GESPRÄCH (E-047 Nr. 7, Plan §18, 23.08.2026)
+  //
+  // Justin: „Der Mitarbeiter muss während des Telefonierens agieren können —
+  // Kalender sehen, Termin vergeben, Rechnung senden."
+  //
+  // Die Vollbild-Ansicht verdeckte die ganze Arbeit. Minimieren heißt hier
+  // NUR: `offen = false` — das Gerät (FiaonGeraet) verschwindet aus dem DOM,
+  // und stattdessen steht die Gesprächs-Pille unten. Die Twilio-Verbindung
+  // wohnt in Refs DIESER Komponente, und die bleibt eingehängt: nichts wird
+  // getrennt, nichts neu aufgebaut, kein Ruf-Zustand angefasst. Deshalb
+  // braucht „minimiert" auch keinen eigenen Zustand — es IST `imRuf && !offen`.
+  //
+  // Ein Nebeneffekt aus dem Bestand, absichtlich NICHT verändert: Die
+  // Pegelmesskette hängt an `offen` und pausiert, solange die Pille steht.
+  // Sie umzuhängen hieße, an der Mess- und Meldelogik zu drehen
+  // (stumm_verdacht-Meldung) — das verbietet die Eiserne Regel.
+  const imRuf = zustand === "waehlt" || zustand === "klingelt" || zustand === "gespraech";
+
+  // ── AUS DER PILLE ZURÜCK ZUM ERGEBNIS ────────────────────────────────────
+  // Endet das Gespräch minimiert (Auflegen auf der Pille oder der Kunde legt
+  // auf), öffnet sich das Gerät von selbst wieder: Der Ergebnis-Schritt darf
+  // nicht in einer Pille verschwinden — ein Ergebnis, das man nicht sieht,
+  // wird nicht dokumentiert. Ist das Gerät schon offen, ist das ein Leerlauf.
+  useEffect(() => {
+    if (zustand === "ergebnis") setOffen(true);
+  }, [zustand]);
+
   const laden = useCallback(async () => {
     const r = await fetch("/api/fiaon/telefon/stand", { credentials: "include" }).catch(() => null);
     const j = await r?.json().catch(() => null);
@@ -1674,7 +1702,10 @@ export function Softphone() {
         </div>
       )}
 
-      {/* ── Der schwebende Knopf ─────────────────────────────────────────── */}
+      {/* ── Der schwebende Knopf ───────────────────────────────────────────
+          Im minimierten Gespräch ERSETZT ihn die Gesprächs-Pille — beide an
+          derselben Stelle wären übereinander (E-047 Nr. 7). */}
+      {!(imRuf && !offen) && (
       <button
         type="button"
         onClick={() => setOffen((o) => !o)}
@@ -1706,6 +1737,7 @@ export function Softphone() {
           </span>
         )}
       </button>
+      )}
       <style>{`
         /* ── DER SCHWEBENDE KNOPF ─────────────────────────────────────────
            Vier Schichten Schatten: ein weiter blauer Wurf für die Höhe, ein
@@ -1774,6 +1806,51 @@ export function Softphone() {
         }
       `}</style>
 
+      {/* ══════════════════════════════════════════════════════════════════
+          DIE GESPRÄCHS-PILLE (E-047 Nr. 7, Plan §18, 23.08.2026)
+
+          Sie steht genau dann da, wenn ein Ruf läuft UND das Gerät minimiert
+          ist — an der Stelle des schwebenden Knopfs, den sie ersetzt (keine
+          Überlappung). Tippen auf den Namen macht das Gespräch wieder groß;
+          Stumm und Auflegen sind DIESELBEN Handler wie im Gerät. Kein
+          eigener Komponentenbaum, kein Unmount der Verbindung: Die Refs
+          leben in dieser weiterhin eingehängten Komponente.
+          ══════════════════════════════════════════════════════════════════ */}
+      {imRuf && !offen && (
+        <div className="fi-tel-pille" role="group"
+             aria-label={`Laufendes Gespräch: ${kunde?.name ?? nummer}`}>
+          <button type="button" className="fi-tel-pille-auf"
+                  onClick={() => setOffen(true)}
+                  aria-label="Gespräch wieder groß anzeigen">
+            {zustand === "gespraech" && !ohneAufnahme && (
+              <i className="fi-tel-pille-rec" aria-hidden="true" title="Aufnahme läuft" />
+            )}
+            <span className="fi-tel-pille-name">{kunde?.name ?? nummer}</span>
+            <span className="fi-tel-pille-uhr">
+              {zustand === "gespraech" ? dauerText(sekunden)
+                : zustand === "klingelt" ? "klingelt …" : "verbinde …"}
+            </span>
+          </button>
+          <button type="button" onClick={stummSchalten}
+                  className="fi-tel-pille-rund" data-an={stumm ? "1" : "0"} aria-label="Stumm">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 3a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3Z" />
+              <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+              {stumm && <path d="m4 4 16 16" />}
+            </svg>
+          </button>
+          <button type="button" onClick={auflegen}
+                  className="fi-tel-pille-rot" aria-label="Auflegen">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"
+                 style={{ transform: "rotate(135deg)" }}>
+              <path d="M4.5 3.5h3.6l1.8 4.5-2.3 1.4a12 12 0 0 0 5.5 5.5l1.4-2.3 4.5 1.8v3.6a1.5 1.5 0 0 1-1.7 1.5A16.5 16.5 0 0 1 3 5.2 1.5 1.5 0 0 1 4.5 3.5Z" />
+            </svg>
+          </button>
+        </div>
+      )}
+
       {/* ── Das Gerät auf der FiaonEbene ───────────────────────────────
           Rechts unten angedockt, damit es aus dem Knopf zu wachsen scheint.
           Der Gerätekörper ist eine dunkle Fassung UM die helle Anzeige — ein
@@ -1820,11 +1897,31 @@ export function Softphone() {
               ? <span className="fi-tel-rec" data-aus="1">ohne Aufnahme</span>
               : <span className="fi-tel-rec"><i aria-hidden="true" />Aufnahme</span>
           )}
-          <button type="button" onClick={() => setOffen(false)} aria-label="Schließen"
-                  className="fi-tel-zu">
-            <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor"
-                 strokeWidth={1.8} strokeLinecap="round"><path d="m5 5 10 10M15 5 5 15" /></svg>
-          </button>
+          {/* ── MINIMIEREN STATT SCHLIESSEN (E-047 Nr. 7) ──────────────
+              Während eines Rufs heißt dieser Knopf „Minimieren": Das Gerät
+              geht zu, unten steht die Gesprächs-Pille, und die Seite
+              darunter (Akte, Kalender, Arbeitsliste) ist voll bedienbar.
+              Der Handler ist derselbe wie immer — setOffen(false) trennt
+              nichts, die Verbindung wohnt in Refs. Am Handy tut der Wisch
+              nach unten am Anfasser (FiaonGeraet) dasselbe. */}
+          {imRuf ? (
+            <button type="button" onClick={() => setOffen(false)}
+                    aria-label="Minimieren — das Gespräch läuft weiter"
+                    title="Minimieren — das Gespräch läuft weiter"
+                    className="fi-tel-zu fi-tel-minimieren">
+              <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+                   strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                <path d="m5 8 5 5 5-5" />
+              </svg>
+              <span className="fi-tel-minimieren-wort">Minimieren</span>
+            </button>
+          ) : (
+            <button type="button" onClick={() => setOffen(false)} aria-label="Schließen"
+                    className="fi-tel-zu">
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+                   strokeWidth={1.8} strokeLinecap="round"><path d="m5 5 10 10M15 5 5 15" /></svg>
+            </button>
+          )}
         </div>
 
         {/* ── Die Richtlinie ist nicht angenommen ─────────────────────── */}

@@ -971,3 +971,98 @@
   .fi-tel-rec i { animation: none; }
   .fi-tel-voll-zurueck, .fi-tel-loeschen, .fi-tel-mik-zeile { transition: none !important; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   NACHTRAG 23.08.2026 — DIE GESPRÄCHS-PILLE (E-047 Nr. 7, Plan §18)
+   „Der Mitarbeiter muss während des Telefonierens agieren können."
+   Minimiertes Gespräch: schwebende Pille unten (ersetzt den Anruf-Knopf),
+   die Seite darunter bleibt voll bedienbar. Tippen = wieder groß.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.fi-tel-pille {
+  position: fixed; z-index: 290;
+  right: 16px; bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 8px 7px 15px;
+  border-radius: 999px;
+  background: linear-gradient(158deg, #16305f, #0b1b3f 58%, #071129);
+  box-shadow:
+    0 2px 8px -3px rgba(7,17,41,.5),
+    0 24px 50px -20px rgba(7,17,41,.85),
+    inset 0 1px 0 rgba(255,255,255,.14),
+    inset 0 0 0 1px rgba(255,255,255,.1);
+  animation: fiPilleAuf 260ms cubic-bezier(.32,.72,0,1) both;
+}
+@keyframes fiPilleAuf {
+  from { opacity: 0; transform: translateY(10px) scale(.97); }
+  to   { opacity: 1; transform: none; }
+}
+/* Der Namens-Teil ist selbst der „Wieder groß"-Knopf — die größte Fläche
+   bekommt den häufigsten Griff. */
+.fi-tel-pille-auf {
+  display: inline-flex; align-items: center; gap: 8px;
+  min-height: 44px; max-width: min(46vw, 250px); min-width: 0;
+  border: 0; cursor: pointer; background: none; padding: 0; text-align: left;
+  color: inherit;
+}
+.fi-tel-pille-rec {
+  width: 8px; height: 8px; flex-shrink: 0; border-radius: 999px;
+  background: #ef4444; box-shadow: 0 0 6px rgba(239,68,68,.8);
+  animation: fiTelRec 1.8s ease-in-out infinite;
+}
+.fi-tel-pille-name {
+  min-width: 0; font-size: 13.5px; font-weight: 700; color: #f4f8ff;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.fi-tel-pille-uhr {
+  flex-shrink: 0; font-size: 12px; color: rgba(191,214,247,.78);
+  font-variant-numeric: tabular-nums;
+}
+.fi-tel-pille-rund, .fi-tel-pille-rot {
+  width: 44px; height: 44px; flex-shrink: 0;
+  border: 0; cursor: pointer; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: transform 100ms, filter 150ms, background 150ms;
+}
+.fi-tel-pille-rund {
+  color: rgba(238,243,251,.86);
+  background: rgba(255,255,255,.1);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.12);
+}
+.fi-tel-pille-rund:hover { background: rgba(255,255,255,.18); }
+.fi-tel-pille-rund[data-an="1"] { background: #eef3fb; color: #0a1a3c; }
+.fi-tel-pille-rot {
+  color: #fff;
+  background: linear-gradient(178deg, #f87171, #ef4444 58%, #dc2626);
+  box-shadow: 0 10px 22px -10px rgba(220,38,38,.8), inset 0 1px 0 rgba(255,255,255,.3);
+}
+.fi-tel-pille-rot:hover { filter: brightness(1.08); }
+.fi-tel-pille-rund:active, .fi-tel-pille-rot:active { transform: scale(.93); }
+
+/* Der Minimieren-Knopf in der Statuszeile: blau getönt und am Rechner mit
+   Wortmarke — er ist während des Gesprächs der wichtigste Weg zurück zur
+   Arbeit und darf nicht wie ein Schließen-Kreuz aussehen. */
+.fi-tel-minimieren {
+  width: auto; min-width: 40px; padding: 0 12px; gap: 6px;
+  color: #bfdbfe; background: rgba(59,130,246,.18);
+  box-shadow: inset 0 0 0 1px rgba(96,165,250,.32);
+}
+.fi-tel-minimieren:hover { background: rgba(59,130,246,.3); color: #eef3fb; }
+.fi-tel-minimieren-wort { font-size: 11px; font-weight: 700; letter-spacing: .04em; }
+
+@media (max-width: 700px) {
+  /* Am Handy über die ganze Breite in der Daumenzone — safe-area beachtet. */
+  .fi-tel-pille {
+    left: 10px; right: 10px;
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  }
+  .fi-tel-pille-auf { flex: 1; max-width: none; }
+  .fi-tel-pille-rund, .fi-tel-pille-rot { width: 48px; height: 48px; }
+  .fi-tel-minimieren-wort { display: none; }
+  .fi-tel-minimieren { padding: 0; width: 40px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fi-tel-pille { animation: none; }
+  .fi-tel-pille-rec { animation: none; }
+  .fi-tel-pille-rund, .fi-tel-pille-rot { transition: none !important; }
+}

@@ -925,7 +925,9 @@ function AgentShellInnen({ children, onRefresh }: { children: ReactNode; onRefre
     // Pflicht, nicht der Grund, morgens hier zu sein. Der Space zeigt zuerst,
     // was das Team gemacht hat; die Zahlen sind einen Klick entfernt und
     // stehen als Tagesleiste ohnehin über dem Feed.
-    if (checked && agent && location === "/agent") navigate("/agent/space", { replace: true });
+    // Vorher (11.08.): Space als Startseite. Nachher (24.08., Office): Das
+    // Dashboard ist die Startseite des Büros – der Space lebt im Team-Raum.
+    if (checked && agent && location === "/agent") navigate("/agent/start", { replace: true });
   }, [checked, agent, location, navigate]);
 
   const logout = async (e: React.MouseEvent) => {

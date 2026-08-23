@@ -653,7 +653,8 @@ router.post("/agent/customers/:ref/termin-anbieten", requireAgent, async (req: A
     const { mailSenden } = await import("../lib/fiaon-mail-senden");
     const v = await mailSenden({
       event: "nicht_erreicht_termin",
-      ref,
+      // E-047-Nebenbefund: `SendeEingabe` kennt kein `ref` (mailSenden löst
+      // die Bestellung über personId) — der Alt-Parameter flog beim Typcheck.
       personId: Number(a.person_id),
       akteur: { name: req.agent!.name, agentId: req.agent!.id, rolle: rolle as any },
     }).catch((e) => ({ ok: false, grund: e instanceof Error ? e.message : String(e) }));
@@ -716,15 +717,10 @@ router.post("/agent/customers/:ref/stammdaten", requireAgent, async (req: AgentR
     // Beträge, keine Zahlungszustände, kein Paket über diesen Weg. Wer den
     // Preis ändern will, legt ein Produkt aus dem Katalog an.
     // ── WARUM `country` HIER (NOCH) NICHT STEHT (20.08.2026) ─────────────
-    // Der Auftrag nennt Land und Geburtsdatum. `updateCustomerContact`
-    // (fiaon-agent.ts) verarbeitet aber nur firstName, lastName, email, phone,
-    // street, zip, city — `country` und `birthdate` werden dort stillschweigend
-    // verworfen. Sie hier zu erlauben haette ein Feld angeboten, das „ok"
-    // meldet und nichts tut. Das ist die Fehlerklasse, die dieses Repo an sechs
-    // Stellen beseitigt hat; sie wird nicht an einer siebten eingebaut.
-    //
-    // `birthdate` steht in der Liste, weil es dort schon stand — auch es wird
-    // von der Schreibfunktion nicht verarbeitet und ist im Report benannt.
+    // `updateCustomerContact` verarbeitet `country` nicht — es hier zu
+    // erlauben hieße ein Feld anzubieten, das „ok" meldet und nichts tut.
+    // E-047 (24.08.): `birthdate` WIRD jetzt verarbeitet (Bestellung + Person,
+    // mit Audit) — der alte Hinweis, es werde verworfen, ist Geschichte.
     const erlaubt = ["firstName", "lastName", "email", "phone", "street", "zip", "city", "birthdate"];
     const koerper: any = {};
     const abgelehnt: string[] = [];

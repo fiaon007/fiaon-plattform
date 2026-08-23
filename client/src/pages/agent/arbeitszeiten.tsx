@@ -33,12 +33,13 @@ export default function AgentArbeitszeitenPage() { return <AgentShell><Arbeitsze
 
 function ArbeitszeitenInnen() {
   const { dunkel, titel } = useOffice();
-  useEffect(() => { dunkel(true); titel("Arbeitszeiten"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { dunkel(true); titel("Availability"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [raster, setRaster] = useState<Raster>(leer());
   const [mindest, setMindest] = useState(15);
   const [geladen, setGeladen] = useState(false);
   const [stand, setStand] = useState<string | null>(null);
   const [speichert, setSpeichert] = useState(false);
+  const [handyTag, setHandyTag] = useState(() => Math.min(6, Math.max(0, (new Date().getDay() + 6) % 7))); // Handy: ein Tag auf einmal
   const malen = useRef<{ wert: boolean } | null>(null);
   useEffect(() => { api("/agent/arbeitszeiten").then((r) => { if (r.ok) { setRaster(ausBloecken(r.json.bloecke || [])); setMindest(r.json.mindestStunden || 15); } }).finally(() => setGeladen(true)); }, []);
   const stunden = useMemo(() => raster.reduce((s, t) => s + t.filter(Boolean).length, 0) / 2, [raster]);
@@ -59,7 +60,7 @@ function ArbeitszeitenInnen() {
     <div className="az">
       <section className="az-kopf">
         <div>
-          <span className="az-pille">Raum 9 · Pflicht</span>
+          <span className="az-pille">Availability · Pflicht</span>
           <h1>Wann <span className="az-verlauf">arbeitest du?</span></h1>
           <p>Termine und Leads kommen nur in Zeiten, die hier eingetragen sind. Male deine Woche – mindestens {mindest} Stunden. Du kannst sie jederzeit ändern; gebuchte Termine bleiben.</p>
         </div>
@@ -70,6 +71,28 @@ function ArbeitszeitenInnen() {
         <span>Schnell füllen:</span>
         {VORLAGEN.map(([n, bl]) => <button key={n} type="button" onClick={() => vorlage(bl, [0, 1, 2, 3, 4])}>{n} · Mo–Fr</button>)}
         <button type="button" className="leer" onClick={() => setRaster(leer())}>Alles löschen</button>
+      </section>
+
+      {/* Handy: ein Tag pro Ansicht, große Felder – Stunde für Stunde, zwei halbe Stunden je Zeile */}
+      <section className="az-handy" aria-label="Wochenplan (Handy)">
+        <div className="az-handy-tage" role="tablist">
+          {TAGE.map((tag, t) => <button key={tag} type="button" role="tab" aria-selected={handyTag === t} className={`az-handy-tag${handyTag === t ? " an" : ""}${proTag[t] ? " voll" : ""}`} onClick={() => setHandyTag(t)}><b>{tag}</b><small>{proTag[t] ? `${proTag[t].toLocaleString("de-DE")} h` : "–"}</small></button>)}
+        </div>
+        <div className="az-handy-vorlagen">
+          {VORLAGEN.map(([n, bl]) => <button key={n} type="button" onClick={() => vorlage(bl, [handyTag])}>{n.split(" ")[0]} {n.split(" ")[1]}</button>)}
+          <button type="button" className="leer" onClick={() => setRaster((r) => { const n = r.map((x) => x.slice()); n[handyTag] = Array(SLOTS).fill(false); return n; })}>{TAGE[handyTag]} leeren</button>
+        </div>
+        <div className="az-handy-stunden">
+          {Array.from({ length: SLOTS / 2 }, (_, h) => (
+            <div key={h} className="az-handy-zeile">
+              <span>{String(START + h).padStart(2, "0")} Uhr</span>
+              {[0, 1].map((k) => { const i = h * 2 + k; const an = raster[handyTag][i]; const bis = i + 1 >= SLOTS ? `${ENDE}:00` : slotZeit(i + 1); return (
+                <button key={k} type="button" className={`az-handy-slot${an ? " an" : ""}`} aria-pressed={an} aria-label={`${TAGE[handyTag]} ${slotZeit(i)} bis ${bis}`} onClick={() => setze(handyTag, i, !an)}>{slotZeit(i)}<i>–</i>{bis}</button>
+              ); })}
+            </div>
+          ))}
+        </div>
+        <p className="az-handy-hinweis">Jedes Feld ist eine halbe Stunde – antippen schaltet es an oder aus. Die Knöpfe oben füllen ganze Blöcke für den gewählten Tag.</p>
       </section>
 
       <section className="az-raster" aria-label="Wochenplan">

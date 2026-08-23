@@ -23,14 +23,14 @@ export default function AgentSchreibtischPage() { return <AgentShell><Schreibtis
 
 function SchreibtischInnen() {
   const { dunkel, titel } = useOffice();
-  useEffect(() => { dunkel(true); titel("Schreibtisch"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { dunkel(true); titel("Dashboard"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [start, setStart] = useState<any>(null);
   const [termine, setTermine] = useState<any[]>([]);
   const [aufgaben, setAufgaben] = useState<number>(0);
   const [fehler, setFehler] = useState<string | null>(null);
   const laden = () => {
     Promise.all([api("/agent/start"), api("/agent/termine"), api("/agent/tickets/zaehler")]).then(([s, t, z]) => {
-      if (s.ok) setStart(s.json); else setFehler(s.json?.error || "Der Schreibtisch konnte nicht geladen werden.");
+      if (s.ok) setStart(s.json); else setFehler(s.json?.error || "Das Dashboard konnte nicht geladen werden.");
       if (t.ok) setTermine(t.json.termine || []);
       if (z.ok) setAufgaben((z.json.meine || 0) + (z.json.pool || 0));
     }).catch(() => setFehler("Keine Verbindung."));
@@ -58,7 +58,7 @@ function SchreibtischInnen() {
           <div className="st-ziel-zahl"><b>{k.bezahlt ?? "–"}</b><span>aktive Kunden</span></div>
           <div className="st-ziel-zeile"><span>Diesen Monat</span><b>{v.monatCents != null ? euro(v.monatCents) : "–"}</b></div>
           <div className="st-ziel-zeile"><span>Guthaben</span><b>{v.guthabenCents != null ? euro(v.guthabenCents) : "–"}</b></div>
-          <Link href="/agent/verdienst" className="st-link">Zur Kasse <ArrowRight size={14} /></Link>
+          <Link href="/agent/verdienst" className="st-link">Zum Wallet <ArrowRight size={14} /></Link>
         </div>
       </section>
 
@@ -74,7 +74,7 @@ function SchreibtischInnen() {
       <section className="st-spalten">
         <div className="st-block">
           <div className="st-block-kopf"><b>Jetzt dran</b><small>Termine heute, dann Rückrufe</small></div>
-          {termineHeute.length === 0 && zusagen.length === 0 && <p className="st-leer">Nichts Dringendes. Öffne das Kundenbuch und nimm dir die heißesten Kunden vor.</p>}
+          {termineHeute.length === 0 && zusagen.length === 0 && <p className="st-leer">Nichts Dringendes. Öffne die Pipeline und nimm dir die heißesten Kunden vor.</p>}
           {termineHeute.map((t) => (
             <div key={`t${t.id}`} className="st-zeile">
               <div className="st-zeit"><b>{uhr(t.beginn)}</b><small>{t.dauer_min || 15} min</small></div>
@@ -106,7 +106,7 @@ function SchreibtischInnen() {
               <Link href={`/agent/kunden?person=${t.person_id}`} className="st-knopf still">Akte</Link>
             </div>
           ))}
-          <div className="st-block-kopf" style={{ marginTop: 18 }}><b>Kundenbuch</b><small>nach Stufe</small></div>
+          <div className="st-block-kopf" style={{ marginTop: 18 }}><b>Pipeline</b><small>nach Stufe</small></div>
           <div className="st-stufen">
             {[["A", k.tier1, "hat „bezahlt“ geklickt"], ["B", k.tier2, "Antrag fertig"], ["C", k.tier3, "Lead"], ["✓", k.bezahlt, "bezahlt"]].map(([s, n, l]) => <Link key={String(s)} href="/agent/kunden" className="st-stufe"><b>{s}</b><span>{n ?? 0}</span><small>{l}</small></Link>)}
           </div>
@@ -114,9 +114,9 @@ function SchreibtischInnen() {
       </section>
 
       <section className="st-schnell">
-        <Link href="/agent/arbeitszeiten" className="st-schnell-karte"><b>Arbeitszeiten pflegen</b><span>Termine kommen nur in deinen Zeiten.</span></Link>
-        <Link href="/agent/gehalt" className="st-schnell-karte"><b>Gehaltsrechner</b><span>Was 5 Abschlüsse am Tag bringen.</span></Link>
-        <Link href="/agent/academy" className="st-schnell-karte"><b>Akademie</b><span>Leitfäden, Einwände, Demo-Rundgang.</span></Link>
+        <Link href="/agent/arbeitszeiten" className="st-schnell-karte"><b>Availability</b><span>Termine kommen nur in deinen Zeiten.</span></Link>
+        <Link href="/agent/gehalt" className="st-schnell-karte"><b>Earnings</b><span>Was 5 Abschlüsse am Tag bringen.</span></Link>
+        <Link href="/agent/academy" className="st-schnell-karte"><b>Academy</b><span>Leitfäden, Einwände, Demo-Rundgang.</span></Link>
         <Link href="/agent/start-alt" className="st-schnell-karte still"><b>Bisherige Startseite</b><span>Übergangsweise weiter erreichbar.</span></Link>
       </section>
     </div>

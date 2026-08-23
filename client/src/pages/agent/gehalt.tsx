@@ -34,7 +34,7 @@ export default function AgentGehaltPage() { return <AgentShell><GehaltInnen /></
 
 function GehaltInnen() {
   const { dunkel, titel } = useOffice();
-  useEffect(() => { dunkel(true); titel("Gehaltsrechner"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { dunkel(true); titel("Earnings"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [satz, setSatz] = useState(0.25);
   const [proTag, setProTag] = useState(5);
   const [mix, setMix] = useState<Record<string, number>>(MIX_STANDARD);
@@ -85,7 +85,7 @@ function GehaltInnen() {
         </section>
 
         <section className="gh-regeln">
-          <div><b>Ausgezahlt wird, was angekommen ist.</b><p>Provision entsteht nur auf bankbestätigte Eingänge – den Stand siehst du jederzeit in der Kasse. Auszahlung monatlich.</p></div>
+          <div><b>Ausgezahlt wird, was angekommen ist.</b><p>Provision entsteht nur auf bankbestätigte Eingänge – den Stand siehst du jederzeit im Wallet. Auszahlung monatlich.</p></div>
           <div><b>Dein Kunde bleibt dein Kunde.</b><p>Vom ersten Gespräch bis zur zwölften Rate – und in der Verlängerung. Wer gut betreut, verdient länger.</p></div>
           <div><b>Kein Deckel.</b><p>Deine Kunden bleiben deine Kunden – egal wie viele. Wächst dein Stamm über das, was du allein betreuen kannst, bekommst du Unterstützung, keine Abzüge.</p></div>
         </section>

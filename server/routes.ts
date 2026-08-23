@@ -514,6 +514,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.send(await fiaonRatgeber.sitemapXml(statisch));
     } catch (e) { console.error('[SITEMAP]', e); res.status(500).end(); }
   });
+  // Ratgeber vorgerendert für Suchmaschinen (Kopf + Inhalt im HTML) — VOR der SPA-Auslieferung.
+  app.get(['/ratgeber', '/ratgeber/:slug'], async (req, res, next) => {
+    try {
+      const { ratgeberSeitenHtml } = await import('./lib/fiaon-ratgeber-seo');
+      const html = await ratgeberSeitenHtml(req.params.slug ? String(req.params.slug) : null);
+      if (!html) return next();
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Cache-Control', 'public, max-age=300');
+      res.send(html);
+    } catch (e) { console.error('[RATGEBER-SEO]', e); next(); }
+  });
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('ratgeber-entwuerfe', () => { fiaonRatgeber.ratgeberTageslauf().catch((e) => console.error('[RATGEBER] Tageslauf:', e)); }, 30 * 60 * 1000, { beimStartNach: 120_000 });
   });

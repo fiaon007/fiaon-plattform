@@ -116,7 +116,7 @@ export default function RatgeberArtikel() {
             <aside className="rg-toc">
               <p>Inhalt</p>
               <ol>{toc.map((t) => <li key={t.id}><a href={`#${t.id}`} className={`${t.ebene === 3 ? "e3" : ""}${aktiv === t.id ? " aktiv" : ""}`} onClick={springen(t.id)}>{t.text}</a></li>)}</ol>
-              <div className="rg-toc-cta"><a className="dk-knopf" href="/antrag">Auskunft beschaffen lassen</a></div>
+              <div className="rg-toc-cta"><a className="dk-knopf" href="/antrag">Auskunft beschaffen</a><small>Konto in zwei Minuten · Einsicht in 24 Stunden</small></div>
             </aside>
             <article>
               <div ref={inhaltRef} className="rg-inhalt" dangerouslySetInnerHTML={{ __html: html }} />

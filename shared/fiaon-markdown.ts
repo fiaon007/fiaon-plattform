@@ -54,7 +54,7 @@ export function markdownZuHtml(md: string): string {
     if (/^\d+\. /.test(t)) { flush(); const li: string[] = []; while (i < zeilen.length && /^\d+\. /.test(zeilen[i].trim())) { li.push(`<li>${inline(zeilen[i].trim().replace(/^\d+\. /, ""))}</li>`); i++; } out.push(`<ol>${li.join("")}</ol>`); continue; }
     if (t.startsWith("|")) {
       flush(); const rows: string[][] = [];
-      while (i < zeilen.length && zeilen[i].trim().startsWith("|")) { const r = zeilen[i].trim(); i++; if (/^\|[\s:-]+\|?$/.test(r.replace(/\|/g, "|"))) continue; rows.push(r.split("|").slice(1, -1).map((c) => c.trim())); }
+      while (i < zeilen.length && zeilen[i].trim().startsWith("|")) { const r = zeilen[i].trim(); i++; if (/^\|?(\s*:?-{2,}:?\s*\|)+\s*$/.test(r)) continue; rows.push(r.split("|").slice(1, -1).map((c) => c.trim())); }
       if (rows.length) {
         const [kopf, ...rest] = rows;
         out.push(`<div class="rg-tabelle"><table><thead><tr>${kopf.map((c) => `<th>${inline(c)}</th>`).join("")}</tr></thead><tbody>${rest.map((r) => `<tr>${r.map((c) => `<td>${inline(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`);

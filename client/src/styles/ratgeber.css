@@ -114,3 +114,19 @@
 .wz-formular input:focus,.wz-formular select:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.14)}
 .wz-brief{white-space:pre-wrap;padding:34px 36px;border-radius:6px;background:#fff;border:1px solid rgba(15,23,42,.1);box-shadow:0 30px 70px rgba(15,23,42,.14);font:400 13.5px/1.6 Georgia,'Times New Roman',serif;color:#111;min-height:520px}
 @media(max-width:860px){.wz-generator{grid-template-columns:1fr}.wz-optionen{grid-template-columns:1fr}.wz-brief{padding:22px 20px;font-size:12.5px}}
+
+/* ── Feinschliff 23.08. (Justin: „alles sehr seriös") ── */
+.rg-toc{padding:18px 16px 16px}
+.rg-toc a{font-size:12.5px;line-height:1.45;padding:6px 9px;color:#475569}
+.rg-toc-cta{display:grid;gap:8px}
+.rg-toc-cta .dk-knopf{width:100%;box-sizing:border-box;justify-content:center;padding:11px 12px;font-size:13px;white-space:nowrap;color:#fff}
+.rg-toc-cta small{font-size:11px;line-height:1.4;color:#64748b;text-align:center}
+.rg-tabelle td:first-child{white-space:nowrap;color:#0f172a;font-weight:500}
+.rg-tabelle th:first-child:empty{width:0}
+.rg-inhalt h2{font-weight:500}
+.rg-einschub .dk-knopf{white-space:nowrap}
+.rg-faq summary{font-weight:500;font-size:15.5px}
+.rg-faq details p{font-size:14.5px}
+.rg-artikel-hero .dk-lead{font-size:16px;color:#cbd5e1;max-width:62ch}
+.rg-meta{font-size:12.5px}
+@media(max-width:640px){.rg-tabelle td:first-child{white-space:normal}}

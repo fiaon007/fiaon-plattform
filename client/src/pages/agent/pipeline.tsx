@@ -146,7 +146,8 @@ interface Kunde {
   rateAnzahl?: number;
   rateSummeCents?: number;
   /** E-045: die überfälligen Raten selbst (aus /inkasso/liste) – für die zwei Ausgänge in der Akte. */
-  rateListe?: { id: number; rateNr: number; betragCents: number; faelligAm: string | null; status: string }[];
+  rateListe?: { id: number; rateNr: number; betragCents: number; faelligAm: string | null; status: string;
+    lastschriftStatus?: string | null; lastschriftGrund?: string | null; sepaEingerichtet?: boolean }[];
   // ── E-044/§16a: vom Vertriebs-Router geliefert ──
   mandatSeit?: string | null;
   vollstaendig?: boolean;
@@ -228,6 +229,15 @@ function rueckrufFaellig(k: Kunde): boolean {
   const z = relativ(k.zusagedatum);
   return !!z?.dringend;
 }
+/** E-047/§18 Nr. 9: Der GRUND an einer offenen Rate — eine Formulierung für
+ *  Akte, Collections-Sicht und Raten-Gruppe. Erste Rechnung + SCHUFA zahlt der
+ *  Kunde aktiv per Überweisung; die Folgeraten laufen per Lastschrift. */
+function sepaGrund(r: { lastschriftStatus?: string | null; lastschriftGrund?: string | null; sepaEingerichtet?: boolean }): { text: string; ton: "rot" | "gelb" | "still" } {
+  if (r.lastschriftStatus === "fehlgeschlagen") return { text: `Rücklastschrift${r.lastschriftGrund ? ` – ${r.lastschriftGrund}` : " – der Einzug kam zurück"}`, ton: "rot" };
+  if (!r.sepaEingerichtet) return { text: "Kein SEPA eingerichtet – bitte den Kunden im Gespräch, die Lastschrift im Kundenbereich einzurichten", ton: "gelb" };
+  return { text: "offen – Zahlung noch nicht bestätigt", ton: "still" };
+}
+
 async function inZwischenablage(text: string): Promise<boolean> {
   try { await navigator.clipboard.writeText(text); return true; } catch { /* Rückfall */ }
   try {
@@ -346,8 +356,12 @@ function warumJetzt(k: Kunde): string {
   const s = stufeVon(k);
   if (s === "rate") return `Rate${k.rateNr ? ` ${k.rateNr}` : ""} über ${k.rateCents ? eur(k.rateCents) : "—"} ist ${k.rateFaelligAm ? `seit ${dtag(k.rateFaelligAm)} ` : ""}überfällig. Weich einsteigen: vorstellen, entschuldigen, zuhören – kein Inkasso-Ton.`;
   if (s === "heiss" && k.tier === 0) return "Bezahlt, aber noch kein Termin. Willkommen heißen und den nächsten freien Termin vergeben.";
-  if (s === "heiss") return "Der Kunde hat „bezahlt“ gemeldet. Termin vergeben, Zahlung bestätigen lassen – das ist der heißeste Anruf im Haus.";
-  if (s === "warm") return k.hinweis || "Antrag fertig, Geld fehlt. Zahlungsdaten senden, Überweisung vereinbaren, Termin setzen.";
+  // E-047/§18 Nr. 6: VORHER stand hier der tier-Hinweis („keine Rechnung
+  // verschickt – kein Verwendungszweck“) — fachlich falsch: Nach dem
+  // Antragsabschluss geht die Rechnung mit Verwendungszweck IMMER automatisch
+  // raus. NACHHER die richtigen Sätze:
+  if (s === "heiss") return "Der Kunde hat die Zahlung angekündigt – das Geld ist noch nicht bestätigt. Termin sichern, Beleg erbitten, Eingang prüfen.";
+  if (s === "warm") return "Antrag und Rechnung sind da – die Zahlung fehlt noch. Ruf an, vereinbare den Termin und weise dezent darauf hin: Geht die Rechnung vor dem Termin ein, aktivierst du im Gespräch direkt.";
   if (s === "lead") return k.hinweis || "Registriert, noch kein Antrag. Daten aufnehmen, Paket am Telefon annehmen lassen.";
   return k.termin ? `${terminText(k.termin.beginn)} · ${k.termin.art}` : (k.hinweis || "Betreuter Kunde.");
 }
@@ -495,6 +509,10 @@ function PipelineInnen() {
                 id: Number(x.rate_id ?? x.id), rateNr: Number(x.rate_nr),
                 betragCents: Number(x.betrag_cents || 0), faelligAm: x.faellig_am ?? null,
                 status: String(x.status || "offen"),
+                // E-047/§18 Nr. 9: der Grund an der Rate (SEPA fehlt / Rücklastschrift / offen)
+                lastschriftStatus: x.lastschrift_status ?? null,
+                lastschriftGrund: x.lastschrift_grund ?? null,
+                sepaEingerichtet: String(x.gc_mandate_status || "") === "active",
               })),
             };
             const da = pers.personId != null ? zusammen.find((k) => k.personId === Number(pers.personId)) : undefined;
@@ -553,7 +571,14 @@ function PipelineInnen() {
     if (id) u.searchParams.set("person", String(id)); else u.searchParams.delete("person");
     window.history.replaceState(null, "", u.toString());
   };
-  useEffect(() => { document.body.style.overflow = offen ? "hidden" : ""; return () => { document.body.style.overflow = ""; }; }, [offen]);
+  // E-047 Nr. 2: VORHER document.body — der Hintergrund scrollte am Handy
+  // trotzdem mit. NACHHER wie die Office-Schublade: #root wird gesperrt.
+  useEffect(() => {
+    const r = document.getElementById("root");
+    if (r) r.style.overflow = offen ? "hidden" : "";
+    document.body.style.overflow = offen ? "hidden" : "";
+    return () => { if (r) r.style.overflow = ""; document.body.style.overflow = ""; };
+  }, [offen]);
 
   const entfernen = (personId: number) => {
     setListe((l) => l.filter((k) => k.personId !== personId));
@@ -692,7 +717,7 @@ function PipelineInnen() {
                 : "Gerade wartet niemand auf einen Anruf. Neue Kunden rücken automatisch nach – oder schau in deinen Bestand."}</p>
             </div>
           ) : (
-            <section className="pi-arbeit">
+            <section className="pi-arbeit einspaltig">
               <div className="pi-arbeit-haupt">
                 {fokusSlot && (
                   <ArbeitsFokus key={fokusSlot.kunde.personId} k={fokusSlot.kunde} gruppe={fokusSlot.gruppe} satz={satz}
@@ -702,7 +727,10 @@ function PipelineInnen() {
                                 onEntfernen={() => void karteileiche(fokusSlot.kunde)}
                                 melden={(art, text) => setMeldungA({ art, text })} />
                 )}
-                <div className="pi-arbeit-klein">
+                {/* E-047 (Justin, Screenshot): Trenner zwischen JETZT und DANACH —
+                  animierte Zeile „Deine nächsten Kunden“, Linien beidseits. */}
+              <div className="pi-trenner"><span className="linie" aria-hidden="true" /><b>Deine nächsten Kunden</b><span className="linie" aria-hidden="true" /></div>
+              <div className="pi-arbeit-klein">
                   {kleine.map((s) => (
                     <KleineKarte key={s.kunde.personId} k={s.kunde} gruppe={s.gruppe} geht={geht.has(s.kunde.personId)}
                                  onFokus={() => setFokusId(s.kunde.personId)}
@@ -716,9 +744,11 @@ function PipelineInnen() {
                   „{GRUPPE_INFO.lead.name}“ ({slotsZaehler.lead ?? 0}). Erledigt = der nächste rückt sofort nach.
                 </p>
               </div>
-              <Leitfaden stufe={fokusSlot ? (GRUPPE_INFO[fokusSlot.gruppe]?.stufe ?? "heiss") : "heiss"} />
             </section>
           )}
+          {/* E-047: VORHER stand rechts neben der Fokus-Karte NUR der Leitfaden
+              der aktuellen Situation. NACHHER (Justin): eine dezente LEGENDE
+              mit ALLEN Leitfäden ganz unten — siehe LeitfadenLegende. */}
           {/* VORHER: „Dein Hebel“ als große Kachel oben. NACHHER (Justin):
               schmale, ruhige Zeile unter der Arbeitsliste — Zusammenwachsen
               statt Tageswert. */}
@@ -727,6 +757,7 @@ function PipelineInnen() {
             mit wachsendem Bestand jeden Monat mehr, weil jedes Mandat 12 Raten zahlt.
             {" "}<Link href="/agent/gehalt">Rechne selbst → Earnings</Link>
           </p>
+          <LeitfadenLegende aktiv={fokusSlot ? (GRUPPE_INFO[fokusSlot.gruppe]?.stufe ?? null) : null} />
         </>
       )}
 
@@ -851,7 +882,9 @@ function ArbeitsFokus({ k, gruppe, satz, geht, onAkte, onErgebnis, onEntfernen, 
   const info = GRUPPE_INFO[gruppe] ?? GRUPPE_INFO.lead;
   const st = STUFE[info.stufe];
   const preis = paketPreis(k); const wert = preis * 12;
-  const zWert = useZaehlen(wert), zProv = useZaehlen(Math.round(wert * satz));
+  // E-047 Nr. 5: VORHER drei große Zähl-Kacheln („viel zu wuchtig“) —
+  // NACHHER eine schlanke Chip-Zeile ohne Zählanimation.
+  const [warumAuf, setWarumAuf] = useState(false);
   const [laeuft, setLaeuft] = useState<string | null>(null);
   const [negativOffen, setNegativOffen] = useState(false);
   const [terminOffen, setTerminOffen] = useState(false);
@@ -938,18 +971,19 @@ function ArbeitsFokus({ k, gruppe, satz, geht, onAkte, onErgebnis, onEntfernen, 
   };
 
   return (
-    <div className={`pi-fokus-karte${geht ? " geht" : " tief"}`} style={{ ["--hitze" as string]: faellig ? "#f87171" : st.farbe }}>
+    <div className={`pi-fokus-karte kompakt${geht ? " geht" : " tief"}`} style={{ ["--hitze" as string]: faellig ? "#f87171" : st.farbe }}>
       <div className="pi-fokus-kopf">
         <span className="pi-pille">{faellig ? "Rückruf fällig" : "Jetzt anrufen"}</span>
         <button type="button" className="pi-link" style={{ color: "#64748b" }} onClick={onEntfernen} title="Karteileiche? Sperren statt löschen – mit Rückfrage.">Entfernen</button>
       </div>
       <h1>{k.name}</h1>
       <div className="pi-fokus-stufe"><i className="pi-glut" /><b>{info.name}</b><span>· {(k.buchungen ?? []).find((b) => !b.erledigt && b.art === "paket")?.bezeichnung || k.produkt || "noch kein Paket"}{preis ? ` · ${eur(preis)} im Monat` : ""}</span></div>
-      <p className="pi-fokus-warum">{warumJetzt(k)}</p>
-      <div className="pi-fokus-wert">
-        <div><small>Erwarteter Wert</small><b>{preis ? euro0(zWert) : "–"}</b><span>12 Raten · erste per Überweisung</span></div>
-        <div className="hervor"><small>Meine Provision</small><b>{preis ? euro0(zProv) : "–"}</b><span>{Math.round(satz * 100)} % je bankbestätigter Rate</span></div>
-        <div><small>Letzter Kontakt</small><b className="klein">{wartezeit(k.letzterKontakt).replace(" kontaktiert", "")}</b><span>{k.nichtErreicht > 0 ? `${k.nichtErreicht}× nicht erreicht` : k.stammdaten?.land ? (LAND_NAME[k.stammdaten.land] || k.stammdaten.land) : "—"}</span></div>
+      {/* E-047 Nr. 5+6: max. 2 Zeilen mit Ausklapp; fachlich richtige Texte in warumJetzt(). */}
+      <p className={`pi-fokus-warum${warumAuf ? "" : " knapp"}`} onClick={() => setWarumAuf((v) => !v)} title={warumAuf ? "einklappen" : "ganzen Text zeigen"}>{warumJetzt(k)}</p>
+      <div className="pi-fokus-chips">
+        <span className="pi-marke">Wert: {preis ? euro0(wert) : "–"} · 12 Raten</span>
+        <span className="pi-marke gut">Deine Provision: {preis ? euro0(Math.round(wert * satz)) : "–"}</span>
+        <span className="pi-marke still">{wartezeit(k.letzterKontakt)}{k.nichtErreicht > 0 ? ` · ${k.nichtErreicht}× nicht erreicht` : ""}</span>
       </div>
 
       {/* Während des Gesprächs: alles Nötige, ein Klick */}
@@ -1042,6 +1076,38 @@ function KleineKarte({ k, gruppe, geht, onFokus, onAkte, onEntfernen }: {
   );
 }
 
+/** E-047: Die Leitfäden-LEGENDE — vier Aufklapp-Chips ganz unten (Klartext
+ *  führt, das Kürzel steht klein dahinter); der zur Fokus-Situation passende
+ *  Chip trägt einen Glut-Punkt. Nichts ist vorausgeklappt. */
+function LeitfadenLegende({ aktiv }: { aktiv: Hitze | null }) {
+  const [offenL, setOffenL] = useState<Hitze | null>(null);
+  const CHIPS: { stufe: Hitze; name: string; kurz: string }[] = [
+    { stufe: "heiss", name: "Zahlung gemeldet", kurz: "A" },
+    { stufe: "warm", name: "Antrag offen", kurz: "B" },
+    { stufe: "lead", name: "Neukunde", kurz: "C" },
+    { stufe: "rate", name: "Rate zurückholen", kurz: "" },
+  ];
+  return (
+    <div className="pi-legende">
+      <div className="pi-legende-zeile">
+        <span className="linie" aria-hidden="true" />
+        <small>Leitfäden</small>
+        {CHIPS.map((c) => (
+          <button key={c.stufe} type="button" className={`pi-legende-chip${offenL === c.stufe ? " an" : ""}`}
+                  style={{ ["--hitze" as string]: STUFE[c.stufe].farbe }}
+                  aria-expanded={offenL === c.stufe}
+                  onClick={() => setOffenL(offenL === c.stufe ? null : c.stufe)}>
+            {aktiv === c.stufe && <i className="pi-glut" aria-hidden="true" title="passt zur aktuellen Fokus-Situation" />}
+            {c.name}{c.kurz && <em>{c.kurz}</em>}
+          </button>
+        ))}
+        <span className="linie" aria-hidden="true" />
+      </div>
+      {offenL && <Leitfaden key={offenL} stufe={offenL} startAuf />}
+    </div>
+  );
+}
+
 // ── Der Leitfaden der Stufe (tools/gespraech.tsx) als aufklappbare Glas-Karte ──
 function Leitfaden({ stufe, startAuf }: { stufe: Hitze; startAuf?: boolean }) {
   const [auf, setAuf] = useState(!!startAuf);
@@ -1128,7 +1194,7 @@ function Strom({ liste, aktiv, setAktiv, erledigt, onAkte, flach, ruhig, laedt }
         <span className="pi-sk-kopf"><i className="pi-glut" /><small>{faellig ? "Rückruf fällig" : STUFE[s].kurz}</small>{fertig && <em><Check size={11} strokeWidth={2.5} /> gebucht</em>}</span>
         <b>{k.name}</b>
         <span className="pi-sk-paket">{s === "rate" ? `Rate${k.rateNr ? ` ${k.rateNr}` : ""}${(k.rateAnzahl ?? 1) > 1 ? ` · ${k.rateAnzahl} offen` : ""} · zurückholen` : `${(k.buchungen ?? []).find((b) => !b.erledigt && b.art === "paket")?.bezeichnung || k.produkt || "kein Paket"}${preis ? ` · ${eur(preis)}` : ""}`}</span>
-        <span className="pi-sk-fuss">{s === "rate" ? `${k.rateCents ? eur(k.rateCents) : "Rate"} überfällig${k.rateFaelligAm ? ` seit ${dtag(k.rateFaelligAm)}` : ""} · Bonus ${k.rateCents ? eur(Math.round(k.rateCents * REAKTIVIERUNG_ANTEIL)) : "50 %"}` : k.termin ? `${terminText(k.termin.beginn)} · ${k.termin.art}` : k.rueckrufAm ? `Rückruf ${terminText(k.rueckrufAm)}` : relativ(k.zusagedatum) ? `Zusage ${relativ(k.zusagedatum)!.text}` : wartezeit(k.letzterKontakt)}</span>
+        <span className="pi-sk-fuss">{s === "rate" ? `${k.rateCents ? eur(k.rateCents) : "Rate"} überfällig${k.rateFaelligAm ? ` seit ${dtag(k.rateFaelligAm)}` : ""} · ${k.rateListe?.[0] ? (sepaGrund(k.rateListe[0]).ton === "rot" ? "Rücklastschrift" : sepaGrund(k.rateListe[0]).ton === "gelb" ? "kein SEPA" : "offen") : "offen"}` : k.termin ? `${terminText(k.termin.beginn)} · ${k.termin.art}` : k.rueckrufAm ? `Rückruf ${terminText(k.rueckrufAm)}` : relativ(k.zusagedatum) ? `Zusage ${relativ(k.zusagedatum)!.text}` : wartezeit(k.letzterKontakt)}</span>
       </button>
     );
   };
@@ -1231,6 +1297,7 @@ function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
   };
   const [reiter, setReiter] = useState<AkteReiter>("ueberblick");
   const [bearbeiten, setBearbeiten] = useState(false);
+  const [bearbeitenFokus, setBearbeitenFokus] = useState<string | null>(null);
   const [mailNachtrag, setMailNachtrag] = useState("");
   const [produktOffen, setProduktOffen] = useState(false);
   const [datumWert] = useState(tagPlus(1));
@@ -1323,7 +1390,7 @@ function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
       : k.tier === 0 ? ((k.termin || k.terminAm) ? "alles_gut" : "bezahlt_ohne_termin")
       : k.tier === 1 ? "zahlung_gemeldet"
       : k.tier === 2 ? "rechnung_offen" : "lead_ohne_antrag");
-  const sitRate: { id: number; nr: number; betragCents: number; faelligAm: string | null; tage: number; referenz: string | null } | null =
+  const sitRate: { id: number; nr: number; betragCents: number; faelligAm: string | null; tage: number; referenz: string | null; lastschriftStatus?: string | null; lastschriftGrund?: string | null; sepaEingerichtet?: boolean } | null =
     sit?.rate ?? (k.rateListe?.[0] ? {
       id: k.rateListe[0].id, nr: k.rateListe[0].rateNr, betragCents: k.rateListe[0].betragCents,
       faelligAm: k.rateListe[0].faelligAm, tage: k.rateListe[0].faelligAm ? Math.max(0, kontaktTage(k.rateListe[0].faelligAm) ?? 0) : 0,
@@ -1598,7 +1665,7 @@ function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
                     : sitArt === "rueckruf_faellig" ? "Der Kunde hat diese Zeit selbst gewählt – ruf jetzt an und knüpf ans letzte Gespräch an."
                     : sitArt === "bezahlt_ohne_termin" ? "Der Kunde hat bezahlt und wartet. Im Startgespräch aktivierst du sein Konto – vergib den nächsten freien Termin."
                     : sitArt === "zahlung_gemeldet" ? "Bitte um den Überweisungsbeleg und sichere den Termin – mit dem Eingang aktivierst du direkt im Gespräch."
-                    : sitArt === "rechnung_offen" ? "Der Antrag ist durch, das Geld fehlt. Erste Zahlung immer per Überweisung mit Referenz – danach Termin vereinbaren."
+                    : sitArt === "rechnung_offen" ? "Antrag und Rechnung sind da – die Zahlung fehlt noch. Ruf an, vereinbare den Termin und weise dezent darauf hin: Geht die Rechnung vor dem Termin ein, aktivierst du im Gespräch direkt."
                     : sitArt === "lead_ohne_antrag" ? "Daten aufnehmen, Paket am Telefon annehmen lassen, Zugänge senden – der Leitfaden führt dich durch."
                     : sitArt === "termin_heute" ? "Akte kurz durchsehen, pünktlich anrufen – Termintreue wird gemessen."
                     : "Betreuter Kunde ohne offenen Schritt. Eine kurze Notiz nach jedem Kontakt hält die Akte lebendig."}
@@ -1752,6 +1819,8 @@ function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
                  kopfRechts={<button type="button" className="pi-knopf still klein" onClick={() => void ratenKopieren()}><Copy size={13} strokeWidth={1.75} /> {kopiert ? "Kopiert" : "Bankdaten kopieren"}</button>}>
               <p className="pi-zweck-zahl">{sitRate.referenz ?? k.zahlung?.referenz ?? "—"}</p>
               <p className="pi-sek-satz">Rate {sitRate.nr} · {eur(sitRate.betragCents)} · fällig {sitRate.faelligAm ? dtag(sitRate.faelligAm) : "—"} · per Überweisung</p>
+              <p className={`pi-sek-satz ${sepaGrund(sit?.rate ?? {}).ton === "rot" ? "warn" : sepaGrund(sit?.rate ?? {}).ton === "gelb" ? "warn" : "leise"}`}>{sepaGrund(sit?.rate ?? {}).text}</p>
+              <p className="pi-sek-satz leise">Zahlungen bestätigt der Admin von Hand – bis dahin gilt die Rate als offen.</p>
               <div className="pi-reihe">
                 <button type="button" className="pi-knopf still klein" disabled={laeuft === "sit-erinnerung"} onClick={() => void sitErinnerung()}>{laeuft === "sit-erinnerung" ? "…" : "Zahlungserinnerung senden"}</button>
                 <button type="button" className="pi-link" onClick={() => setReiter("zahlungen")}>Alle Raten im Reiter „Zahlungen & Raten“</button>
@@ -1926,19 +1995,27 @@ function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
         {reiter === "daten" && (
           <Sek titel="Stammdaten" erklaer="So steht der Kunde in der Akte. Jede Änderung wird mit altem und neuem Wert festgehalten."
                kopfRechts={<button type="button" className="pi-link" onClick={() => setBearbeiten((v) => !v)}>{bearbeiten ? "Schließen" : "Kunde bearbeiten"}</button>}>
-            {bearbeiten && <KundeBearbeiten k={k} melden={melden} onFertig={async () => { setBearbeiten(false); await frisch(); }} />}
+            {bearbeiten && <KundeBearbeiten k={k} melden={melden} fokus={bearbeitenFokus} onFertig={async () => { setBearbeiten(false); setBearbeitenFokus(null); await frisch(); }} />}
+            {/* E-047 Nr. 4, NEUE REGEL: Jeder „fehlt“-Hinweis ist klickbar und
+                öffnet das Formular MIT Fokus auf dem fehlenden Feld. */}
             <dl className="pi-dl">
               {([
-                ["Adresse", [k.stammdaten?.strasse, [k.stammdaten?.plz, k.stammdaten?.ort].filter(Boolean).join(" ")].filter(Boolean).join(", ") || null],
-                ["Land", k.stammdaten?.land ? (LAND_NAME[k.stammdaten.land] || k.stammdaten.land) : null],
-                ["Geburtsdatum", k.stammdaten?.geburtsdatum ? dtag(String(k.stammdaten.geburtsdatum)) : null],
-                ["E-Mail", k.email], ["Telefon", k.telefon],
-                ["Verwendungszweck", k.zahlung?.referenz],
-                ["Wiedervorlage", k.wiedervorlage ? dtag(k.wiedervorlage) : null],
-                ["Betreut seit", k.betreutSeit ? dtag(k.betreutSeit) : null],
-                ["Mandat seit", k.mandatSeit ? dtag(k.mandatSeit) : null],
-              ] as [string, string | null | undefined][]).map(([l, w]) => (
-                <div key={l}><dt>{l}</dt><dd className={w ? "" : "fehlt"}>{w || "nicht hinterlegt"}</dd></div>
+                ["Adresse", [k.stammdaten?.strasse, [k.stammdaten?.plz, k.stammdaten?.ort].filter(Boolean).join(" ")].filter(Boolean).join(", ") || null, "street"],
+                ["Land", k.stammdaten?.land ? (LAND_NAME[k.stammdaten.land] || k.stammdaten.land) : null, null],
+                ["Geburtsdatum", k.stammdaten?.geburtsdatum ? dtag(String(k.stammdaten.geburtsdatum)) : null, "birthdate"],
+                ["E-Mail", k.email, "email"], ["Telefon", k.telefon, "phone"],
+                ["Verwendungszweck", k.zahlung?.referenz, null],
+                ["Wiedervorlage", k.wiedervorlage ? dtag(k.wiedervorlage) : null, null],
+                ["Betreut seit", k.betreutSeit ? dtag(k.betreutSeit) : null, null],
+                ["Mandat seit", k.mandatSeit ? dtag(k.mandatSeit) : null, null],
+              ] as [string, string | null | undefined, string | null][]).map(([l, w, feldKey]) => (
+                <div key={l}><dt>{l}</dt>
+                  <dd className={w ? "" : "fehlt"}>
+                    {w || (feldKey
+                      ? <button type="button" className="pi-link" onClick={() => { setBearbeiten(true); setBearbeitenFokus(feldKey); }}>{l} fehlt – jetzt nachtragen</button>
+                      : "nicht hinterlegt")}
+                  </dd>
+                </div>
               ))}
             </dl>
             {!k.telefonWaehlbar && k.telefon && <NummerLandNachtragen k={k} onFertig={onNeu} />}
@@ -2002,12 +2079,15 @@ function RatenBlock({ k, melden, fragen, onZaehler }: {
     <section className="pi-sek" style={{ ["--hitze" as string]: STUFE.rate.farbe }}>
       <div className="pi-sek-kopf"><div><b>Rate überfällig – zurückholen</b>
         <p>Jede Rate, wie sie auf dem Konto ankommen sollte. Weich einsteigen (Leitfaden in der Pipeline) – holst du sie zurück, gehören 50 % dir.</p></div></div>
+      <p className="pi-sek-satz leise">Zahlungen bestätigt der Admin von Hand – bis dahin gilt eine Rate als offen.</p>
       {k.rateListe.map((r) => (
         <div key={r.id} className="pi-rate">
           <span className="pi-glut" aria-hidden="true" />
           <div className="wer">
             <b>Rate {r.rateNr} · {eur(r.betragCents)}</b>
             <small>{r.faelligAm ? `fällig ${dtag(r.faelligAm)}` : "fällig"} · {r.status}{r.betragCents ? ` · Bonus bei Rückholung ${eur(Math.round(r.betragCents * REAKTIVIERUNG_ANTEIL))}` : ""}</small>
+            {/* E-047/§18 Nr. 9: der Grund an der Rate */}
+            <small className={`sepa ${sepaGrund(r).ton}`}>{sepaGrund(r).text}</small>
           </div>
           <span className="pi-reihe">
             <button type="button" className="pi-knopf still klein" disabled={laeuft === `er-${r.id}`} onClick={() => void erinnern(r)}>{laeuft === `er-${r.id}` ? "…" : "Erinnerung senden"}</button>
@@ -2342,12 +2422,23 @@ function Versandzentrum({ personId }: { personId: number }) {
 }
 
 // ── Kunde bearbeiten (POST /agent/customers/:ref/stammdaten) ──────────────
-function KundeBearbeiten({ k, melden, onFertig }: { k: Kunde; melden: (art: "gut" | "schlecht" | "info", titel: string, text?: string) => void; onFertig: () => Promise<void> }) {
+// E-047 Nr. 4: VORHER fehlten E-Mail und Geburtsdatum im Formular („Kunde
+// bearbeiten muss ALLE Felder haben“); der Server verarbeitet birthdate jetzt
+// (updateCustomerContact). `fokus` springt direkt ins fehlende Feld.
+function KundeBearbeiten({ k, melden, onFertig, fokus }: { k: Kunde; melden: (art: "gut" | "schlecht" | "info", titel: string, text?: string) => void; onFertig: () => Promise<void>; fokus?: string | null }) {
   const [f, setF] = useState({
     firstName: (k.name || "").split(" ").slice(0, -1).join(" ") || k.name || "", lastName: (k.name || "").split(" ").slice(-1).join(""),
-    phone: k.telefon || "", street: k.stammdaten?.strasse || "", zip: k.stammdaten?.plz || "", city: k.stammdaten?.ort || "",
+    email: k.email || "", phone: k.telefon || "",
+    street: k.stammdaten?.strasse || "", zip: k.stammdaten?.plz || "", city: k.stammdaten?.ort || "",
+    birthdate: k.stammdaten?.geburtsdatum ? String(k.stammdaten.geburtsdatum).slice(0, 10) : "",
   });
   const [busy, setBusy] = useState(false);
+  const felderRef = useRef<Record<string, HTMLInputElement | null>>({});
+  useEffect(() => {
+    if (!fokus) return;
+    const el = felderRef.current[fokus];
+    if (el) { el.scrollIntoView({ behavior: "smooth", block: "center" }); el.focus(); }
+  }, [fokus]);
   const ref = k.zahlung?.ref || k.buchungen?.[0]?.ref || null;
   const speichern = async () => {
     if (!ref) { melden("schlecht", "Keine Bestellung", "Ohne Bestellung gibt es keine Akte, an der die Daten hängen."); return; }
@@ -2358,19 +2449,21 @@ function KundeBearbeiten({ k, melden, onFertig }: { k: Kunde; melden: (art: "gut
     melden("gut", "Gespeichert", "Die Änderungen stehen mit altem und neuem Wert in der Akte.");
     await onFertig();
   };
-  const feld = (key: keyof typeof f, label: string, breit = false) => (
-    <label className={breit ? "breit" : ""}>{label}<input className="pi-eingabe" value={f[key]} onChange={(e) => setF({ ...f, [key]: e.target.value })} /></label>
+  const feld = (key: keyof typeof f, label: string, breit = false, typ = "text") => (
+    <label className={breit ? "breit" : ""}>{label}<input ref={(el) => { felderRef.current[key] = el; }} type={typ} className="pi-eingabe" value={f[key]} onChange={(e) => setF({ ...f, [key]: e.target.value })} /></label>
   );
   return (
     <div style={{ display: "grid", gap: 10 }}>
       <div className="pi-form">
         {feld("firstName", "Vorname")}{feld("lastName", "Nachname")}
+        {feld("email", "E-Mail", true, "email")}
         {feld("phone", "Telefon", true)}{feld("street", "Straße", true)}
         {feld("zip", "PLZ")}{feld("city", "Ort")}
+        {feld("birthdate", "Geburtsdatum", true, "date")}
       </div>
       <div className="pi-reihe">
         <button type="button" className="pi-knopf klein" onClick={() => void speichern()} disabled={busy}>{busy ? "Speichert …" : "Speichern"}</button>
-        <span className="pi-luecke">Geburtsdatum und Land ändert die Vertriebsleitung.</span>
+        <span className="pi-luecke">Das Land ändert die Vertriebsleitung.</span>
       </div>
     </div>
   );

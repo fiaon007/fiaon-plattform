@@ -89,8 +89,22 @@ function CollectionsInnen() {
   if (zugang === "kein") return <div className="co"><p className="co-leer karte" style={{ marginTop: 40 }}>Dieser Raum ist für Forderungen & Zahlungen reserviert. Dein Konto hat hier keinen Zugang.</p></div>;
   if (zugang === "offen") return <div className="co"><ZusageTafel basis="/inkasso/zusage" onAngenommen={() => void laden()} /></div>;
 
-  const z = daten?.zahlen ?? {}; const v = daten?.verdienst ?? {};
   const liste: Fall[] = daten?.liste ?? []; const menschen: Mensch[] = daten?.personen ?? [];
+  // ── E-047/§18 Nr. 8: KEIN WIDERSPRUCH KOPF/LISTE ────────────────────────
+  // VORHER kamen die Kopfzahlen immer aus den globalen Kennzahlen — für einen
+  // Bonitätsmanager (Antwort `beschraenkt: true`, nur eigene Kunden) sagte der
+  // Kopf „Nichts überfällig“, während die Liste 2 Überfällige zeigte.
+  // NACHHER: Im beschränkten Zugriff werden die Kopfzahlen aus der EIGENEN
+  // Liste gerechnet; Dianas globale Kennzahlen bleiben für die volle Sicht.
+  const beschraenkt = !!daten?.beschraenkt;
+  const eigene = {
+    ueberfaellig_anzahl: liste.filter((f: any) => f.ueberfaellig).length,
+    ueberfaellig_cents: liste.filter((f: any) => f.ueberfaellig).reduce((sum: number, f: any) => sum + Number(f.betrag_cents || 0), 0),
+    heute_anzahl: liste.filter((f: any) => !f.ueberfaellig && String(f.faellig_am ?? "").slice(0, 10) === new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" })).length,
+    heute_cents: liste.filter((f: any) => !f.ueberfaellig && String(f.faellig_am ?? "").slice(0, 10) === new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" })).reduce((sum: number, f: any) => sum + Number(f.betrag_cents || 0), 0),
+  };
+  const z = beschraenkt ? { ...eigene } as any : (daten?.zahlen ?? {});
+  const v = daten?.verdienst ?? {};
   const FENSTER: [Frist, string, number, string][] = [["ueberfaellig", "Überfällig", daten?.fenster?.ueberfaellig ?? 0, "rot"], ["heute", "Heute fällig", daten?.fenster?.heute ?? 0, "gelb"], ["woche", "Nächste 7 Tage", daten?.fenster?.woche ?? 0, "blau"], ["alle", "Alle drei", daten?.fenster?.alle ?? 0, "grau"]];
   const darfPipeline = agent?.rolle !== "inkasso";
 
@@ -102,6 +116,16 @@ function CollectionsInnen() {
           <h1>{Number(z.ueberfaellig_anzahl) > 0 ? <><span className="co-verlauf">{z.ueberfaellig_anzahl} {Number(z.ueberfaellig_anzahl) === 1 ? "Rate" : "Raten"}</span> überfällig – {eur(z.ueberfaellig_cents)}.</> : <>Nichts überfällig – <span className="co-verlauf">gut gemacht.</span></>}</h1>
           <p>Von oben nach unten. Die Reihenfolge macht das System – der dringendste Fall steht zuerst. Eine Karte je Mensch, ein Klick: anrufen, Akte, senden, Ergebnis.</p>
         </div>
+        {/* E-047: VORHER stand hier für ALLE der Stundensatz-/Prämien-Block —
+            das ist Dianas Vergütungsmodell. NACHHER sehen Bonitätsmanager
+            (beschraenkt) stattdessen den 50 %-Hinweis. */}
+        {beschraenkt ? (
+          <div className="co-verdienst">
+            <small>Dein Anteil</small>
+            <b>50 %</b>
+            <span>Reaktivierte Altbestands-Raten: 50 % für dich (Verbuchung folgt mit dem Zahlungsmotor).</span>
+          </div>
+        ) : (
         <div className="co-verdienst">
           <small>Dein Verdienst diesen Monat</small>
           <b>{eur(v.gesamtCents)}</b>
@@ -109,24 +133,28 @@ function CollectionsInnen() {
           {Number(v.offeneMinuten) > 0 && <span>{Math.floor(Number(v.offeneMinuten) / 60)} Std {Number(v.offeneMinuten) % 60} Min warten noch auf die monatliche Bestätigung.</span>}
           {!v.verguetungBestaetigt && <span className="warn">Stundensatz und Prämie sind noch nicht bestätigt. Bis dahin werden keine Prämien gebucht – deine Arbeit wird aber vollständig festgehalten.</span>}
         </div>
+        )}
       </section>
 
       {meldung && <p className={`co-meldung ${meldung.art === "schlecht" ? "schlecht" : ""}`}>{meldung.text} <button type="button" className="co-klapp" style={{ marginTop: 0, marginLeft: 8 }} onClick={() => setMeldung(null)}>ausblenden</button></p>}
 
       <section className="co-kacheln">
-        {[
+        {(beschraenkt ? [
+          ["Überfällig (deine Kunden)", eur(z.ueberfaellig_cents), `${z.ueberfaellig_anzahl ?? 0} Raten`, "rot"],
+          ["Heute fällig (deine Kunden)", eur(z.heute_cents), `${z.heute_anzahl ?? 0} Raten`, ""],
+        ] : [
           ["Heute fällig", eur(z.heute_cents), `${z.heute_anzahl ?? 0} Raten`, ""],
           ["Überfällig", eur(z.ueberfaellig_cents), `${z.ueberfaellig_anzahl ?? 0} Raten`, "rot"],
           ["Eingezogen (war überfällig)", eur(z.eingezogen_monat_cents), `${z.eingezogen_monat_anzahl ?? 0} ${(z.eingezogen_monat_anzahl ?? 0) === 1 ? "Rate" : "Raten"} · diesen Monat`, "gut"],
           ["Pünktlich eingegangen", eur(z.puenktlich_monat_cents ?? 0), `${z.puenktlich_monat_anzahl ?? 0} Raten · ohne Nachfassen`, ""],
           ["Einzugsquote", z.quote != null ? `${z.quote} %` : "—", z.quote_nenner ? `von ${z.quote_nenner} fällig` : "keine Basis", ""],
           ["Aktive Zusagen", String(z.zusagen_aktiv ?? 0), `${z.zusagen_gebrochen ?? 0} gebrochen`, ""],
-        ].map(([t, w, u, k], i) => <div key={t} className={`co-kachel ${k}`} style={{ animationDelay: `${i * 50}ms` }}><small>{t}</small><b>{w}</b><span>{u}</span></div>)}
+        ]).map(([t, w, u, k], i) => <div key={t} className={`co-kachel ${k}`} style={{ animationDelay: `${i * 50}ms` }}><small>{t}</small><b>{w}</b><span>{u}</span></div>)}
       </section>
 
       <nav className="co-reiter" aria-label="Bereiche">
         <button type="button" className={reiter === "liste" ? "an" : ""} onClick={() => setReiter("liste")}><ListChecks size={16} strokeWidth={1.75} />Arbeitsliste ({liste.length})</button>
-        <button type="button" className={reiter === "stunden" ? "an" : ""} onClick={() => setReiter("stunden")}><Clock size={16} strokeWidth={1.75} />Meine Zeiten</button>
+        {!beschraenkt && <button type="button" className={reiter === "stunden" ? "an" : ""} onClick={() => setReiter("stunden")}><Clock size={16} strokeWidth={1.75} />Meine Zeiten</button>}
       </nav>
 
       {reiter === "stunden" && <Zeiten onMeldung={setMeldung} />}
@@ -136,6 +164,7 @@ function CollectionsInnen() {
           <div className="co-fenster">{FENSTER.map(([w, t, n, f]) => <button key={w} type="button" className={frist === w ? `an ${f}` : ""} onClick={() => setFrist(w)}>{t}<em>{n}</em></button>)}</div>
           {daten?.nurMeine && <p className="co-hinweis">Du siehst deine zugeteilten Fälle zuerst – und darunter alles, was noch niemandem gehört.</p>}
           {menschen.length > 0 && <p className="co-hinweis">{menschen.length} {menschen.length === 1 ? "Mensch" : "Menschen"} · {liste.length} {liste.length === 1 ? "offene Rate" : "offene Raten"} · eine Karte je Mensch{laedt ? " · aktualisiere …" : ""}</p>}
+          <p className="co-hinweis">Zahlungen bestätigt der Admin von Hand – bis dahin gilt eine Rate als offen.</p>
           {liste.length === 0 && !laedt && (
             <p className="co-leer karte">{frist === "ueberfaellig" ? "Keine überfällige Rate. Das ist die beste Nachricht des Tages – schau in „Heute fällig“ oder „Nächste 7 Tage“, was ansteht." : frist === "heute" ? "Heute wird keine Rate fällig." : frist === "woche" ? "In den nächsten sieben Tagen wird keine Rate fällig." : "Nichts offen. Alle fälligen Raten sind bearbeitet oder haben eine Wiedervorlage in der Zukunft."}</p>
           )}
@@ -148,6 +177,8 @@ function CollectionsInnen() {
                   {(f.anruf_pflicht || f.zusage_gebrochen) && <p className={`co-band ${f.anruf_pflicht ? "rot" : "gelb"}`}>{f.anruf_pflicht ? "Anruf-Pflicht — der automatische Versand ist zu Ende" : `Zusage gebrochen — zugesagt war der ${datum(f.inkasso_zusage_am)}`}</p>}
                   {f.lastschrift_status === "fehlgeschlagen" && <p className="co-band rot">Lastschrift geplatzt{f.lastschrift_am ? ` am ${datum(f.lastschrift_am)}` : ""}{f.lastschrift_grund ? ` — ${f.lastschrift_grund}` : ""}</p>}
                   {f.lastschrift_status !== "fehlgeschlagen" && mandatText(f.gc_mandate_status) && <p className={`co-band ${f.gc_mandate_status === "active" ? "gut" : "gelb"}`}>{mandatText(f.gc_mandate_status)}</p>}
+                  {/* E-047/§18 Nr. 9: VORHER fehlte der Fall „gar kein Mandat“ (mandatText → null, kein Band). */}
+                  {f.lastschrift_status !== "fehlgeschlagen" && !f.gc_mandate_status && <p className="co-band gelb">Kein SEPA eingerichtet – bitte den Kunden im Gespräch, die Lastschrift im Kundenbereich einzurichten.</p>}
                   {m.zweitAbo && <p className="co-band gelb">Zweites Abo — {m.bestellungen} Bestellungen laufen parallel. Vor dem Mahnen klären.</p>}
                   <div className="co-karte-kopf">
                     <div><span className="name">{m.name}</span><span className="unter">{m.anzahl === 1 ? `Rate ${f.rate_nr} von ${f.raten_gesamt} · ${f.paket || "—"} · ${f.raten_bezahlt} bezahlt` : `${m.anzahl} offene Raten · ${f.paket || "—"} · ${f.raten_bezahlt} bezahlt`}</span></div>

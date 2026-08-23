@@ -1,0 +1,417 @@
+/* ═══ Team-Space (NEU) — 23.08.2026, Plan §4/§11 ═══
+   Dunkle Bühne, Feed als Herzstück: mittige Spalte (max. 640 px), schwebende
+   Glas-Karten mit Tiefe, 3D-Tilt, Reaktions-Federsprung, Threads mit Linie,
+   Glutflecken + Punktfeld als Parallax-Hintergrund. Präfix: .sp- */
+
+.sp{position:relative;max-width:100%;margin:0 auto;color:#e5e7eb;font-family:'Inter',sans-serif}
+
+/* ── Tiefe: Glutflecken (wandern per --sp-par langsamer als der Inhalt) ── */
+.sp-glut{position:fixed;inset:-20% -10%;z-index:0;pointer-events:none;
+  transform:translateY(var(--sp-par,0));will-change:transform;
+  background:
+    radial-gradient(560px 420px at 18% 12%,rgba(37,99,235,.16),transparent 70%),
+    radial-gradient(640px 480px at 84% 34%,rgba(59,130,246,.1),transparent 72%),
+    radial-gradient(520px 420px at 40% 92%,rgba(29,78,216,.12),transparent 70%)}
+.sp-punkte{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5;
+  background-image:radial-gradient(rgba(147,197,253,.14) 1px,transparent 1.5px);
+  background-size:26px 26px}
+
+.sp-spalte{position:relative;z-index:1;max-width:640px;margin:0 auto;padding:8px 0 96px}
+
+/* ── Kopf ── */
+.sp-kopf{padding:22px 0 14px}
+.sp-pille{display:inline-block;font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.16em;
+  text-transform:uppercase;color:#93c5fd;padding:8px 12px;border:1px solid rgba(147,197,253,.35);
+  border-radius:999px;margin-bottom:14px}
+.sp-kopf h1{margin:0;font:300 clamp(26px,3.6vw,40px)/1.1 'Inter',sans-serif;
+  letter-spacing:-.03em;color:#fff}
+.sp-verlauf{background:linear-gradient(90deg,#93c5fd,#3b82f6);-webkit-background-clip:text;
+  background-clip:text;color:transparent}
+
+/* ── Team-Präsenz: überlappende Avatare, klebt oben ── */
+.sp-praesenz-klebt{position:sticky;top:8px;z-index:30;margin-bottom:18px}
+.sp-praesenz{display:flex;align-items:center;gap:12px;min-height:52px;padding:8px 16px;
+  border-radius:999px;text-decoration:none;color:inherit;
+  background:rgba(15,23,42,.72);border:1px solid rgba(255,255,255,.12);
+  backdrop-filter:blur(16px) saturate(150%);-webkit-backdrop-filter:blur(16px) saturate(150%);
+  box-shadow:0 4px 12px -4px rgba(2,6,23,.5),0 18px 40px -22px rgba(37,99,235,.4);
+  transition:border-color .2s,transform .2s cubic-bezier(.32,.72,0,1)}
+.sp-praesenz:hover{border-color:rgba(96,165,250,.4);transform:translateY(-1px)}
+.sp-praesenz-avatare{display:flex;align-items:center}
+.sp-praesenz-avatar{display:inline-flex;border-radius:999px;position:relative;
+  box-shadow:0 0 0 2px #0f172a}
+.sp-praesenz-avatar+.sp-praesenz-avatar{margin-left:-10px}
+.sp-praesenz-leer{font-size:12.5px;color:#9ca3af}
+.sp-praesenz-text{font-size:13px;color:#cbd5e1}
+.sp-praesenz-text b{color:#fff;font-weight:600}
+.sp-praesenz-pfeil{margin-left:auto;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  color:#93c5fd;white-space:nowrap}
+
+/* ── Tagesleiste: Blau-Glut-Kacheln, am Handy wischbar ── */
+.sp-tagesleiste{display:flex;gap:10px;margin-bottom:18px;overflow-x:auto;
+  scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;padding-bottom:4px;
+  scrollbar-width:none}
+.sp-tagesleiste::-webkit-scrollbar{height:0}
+.sp-tag-kachel{flex:1 0 auto;min-width:140px;scroll-snap-align:start;padding:14px 16px;
+  border-radius:18px;display:grid;gap:2px;
+  background:linear-gradient(135deg,rgba(37,99,235,.3),rgba(37,99,235,.08));
+  border:1px solid rgba(96,165,250,.35)}
+.sp-tag-kachel b{font:300 24px/1.1 'Inter',sans-serif;letter-spacing:-.03em;color:#fff;
+  font-variant-numeric:tabular-nums}
+.sp-tag-kachel span{font-size:10px;font-weight:600;letter-spacing:.11em;text-transform:uppercase;
+  color:#93c5fd}
+.sp-tag-kachel small{font-size:11px;color:#9ca3af}
+
+/* ── Pin-Leiste ── */
+.sp-pinleiste{margin-bottom:18px;border-radius:20px;overflow:hidden;
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.sp-pinzeile+.sp-pinzeile{border-top:1px solid rgba(255,255,255,.08)}
+.sp-pinknopf{width:100%;display:flex;align-items:center;gap:9px;padding:11px 16px;border:0;
+  cursor:pointer;background:none;text-align:left;color:#93c5fd;min-height:44px;
+  transition:background .16s;font-family:inherit}
+.sp-pinknopf:hover{background:rgba(96,165,250,.08)}
+.sp-pintext{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-size:12.5px;font-weight:600;color:#e5e7eb}
+.sp-pinpfeil{flex-shrink:0;transition:transform .24s cubic-bezier(.32,.72,0,1)}
+.sp-pinzeile[data-offen="1"] .sp-pinpfeil{transform:rotate(180deg)}
+.sp-pininhalt{padding:0 18px 16px 41px;animation:spAufklappen .26s cubic-bezier(.32,.72,0,1) both}
+.sp-pinloesen{margin-top:10px;background:none;border:0;cursor:pointer;padding:6px 0;
+  font-size:11.5px;font-weight:600;color:#9ca3af;font-family:inherit}
+.sp-pinloesen:hover{color:#93c5fd;text-decoration:underline}
+
+/* ── Die Glas-Karte: mehrschichtige Schatten, 3D-Tilt am Zeiger ── */
+.sp-karte{position:relative;margin-bottom:18px;padding:20px 22px;border-radius:22px;
+  background:rgba(15,23,42,.6);border:1px solid rgba(255,255,255,.12);
+  backdrop-filter:blur(16px) saturate(150%);-webkit-backdrop-filter:blur(16px) saturate(150%);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.06) inset,
+    0 4px 10px -4px rgba(2,6,23,.55),
+    0 24px 56px -28px rgba(2,6,23,.8),
+    0 32px 72px -36px rgba(37,99,235,.28)}
+.sp-post{transform:perspective(900px) rotateX(var(--sp-rx,0deg)) rotateY(var(--sp-ry,0deg));
+  transition:transform .18s ease-out,box-shadow .28s cubic-bezier(.32,.72,0,1),
+    opacity .5s cubic-bezier(.32,.72,0,1);
+  opacity:0;translate:0 22px}
+.sp-post.sp-da{opacity:1;translate:0 0;
+  transition:transform .18s ease-out,box-shadow .28s cubic-bezier(.32,.72,0,1),
+    opacity .5s cubic-bezier(.32,.72,0,1),translate .5s cubic-bezier(.32,.72,0,1)}
+@media(min-width:700px){
+  .sp-post:hover{box-shadow:
+    0 1px 0 rgba(255,255,255,.09) inset,
+    0 6px 14px -5px rgba(2,6,23,.6),
+    0 32px 68px -30px rgba(2,6,23,.85),
+    0 40px 88px -38px rgba(37,99,235,.4);
+    border-color:rgba(147,197,253,.22)}
+}
+
+/* Systemkarten („Gedanke des Tages", Ansagen): Blau-Glut statt Grau-Glas. */
+.sp-post-system{background:linear-gradient(135deg,rgba(37,99,235,.28),rgba(15,23,42,.72) 62%);
+  border-color:rgba(96,165,250,.35)}
+
+/* Erfolgs-Posts: dezenter Konfetti-Schimmer, rein CSS. */
+.sp-konfetti{position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:.55;
+  background-image:
+    radial-gradient(3px 3px at 12% 18%,rgba(147,197,253,.8),transparent 60%),
+    radial-gradient(2px 2px at 34% 8%,rgba(52,211,153,.7),transparent 60%),
+    radial-gradient(3px 3px at 58% 14%,rgba(251,191,36,.7),transparent 60%),
+    radial-gradient(2px 2px at 78% 6%,rgba(96,165,250,.8),transparent 60%),
+    radial-gradient(2px 2px at 92% 20%,rgba(52,211,153,.6),transparent 60%),
+    radial-gradient(3px 3px at 22% 4%,rgba(251,191,36,.55),transparent 60%);
+  background-repeat:no-repeat;animation:spSchimmer 4.5s ease-in-out infinite alternate}
+@keyframes spSchimmer{from{opacity:.3;transform:translateY(0)}to{opacity:.7;transform:translateY(6px)}}
+
+/* ── Kopfzeile des Beitrags: wie bei X ── */
+.sp-post-kopf{display:flex;align-items:center;gap:13px;margin-bottom:12px}
+.sp-post-wer{min-width:0;flex:1}
+.sp-autor{display:flex;align-items:center;gap:8px;font-size:14.5px;font-weight:600;color:#fff;
+  margin:0;line-height:1.3;letter-spacing:-.01em;min-width:0}
+.sp-rolle-chip{flex-shrink:0;font-size:9.5px;font-weight:600;letter-spacing:.1em;
+  text-transform:uppercase;color:#93c5fd;padding:3px 8px;border-radius:999px;
+  border:1px solid rgba(147,197,253,.35)}
+.sp-rolle-system{color:#bfdbfe;border-color:rgba(191,219,254,.4)}
+.sp-zeit{font-size:11.5px;color:#9ca3af;margin:2px 0 0}
+.sp-bearbeitet{color:#64748b;font-style:italic}
+
+/* Avatar mit Glüh-Ring bei frischen Beiträgen. */
+.sp-avatar-ring{display:inline-flex;border-radius:999px;flex-shrink:0}
+.sp-avatar-frisch{box-shadow:0 0 0 2px #0f172a,0 0 0 4px rgba(96,165,250,.75),
+  0 0 18px 2px rgba(59,130,246,.5);animation:spGluehen 2.6s ease-in-out infinite alternate}
+@keyframes spGluehen{from{box-shadow:0 0 0 2px #0f172a,0 0 0 4px rgba(96,165,250,.55),
+  0 0 12px 1px rgba(59,130,246,.35)}
+  to{box-shadow:0 0 0 2px #0f172a,0 0 0 4px rgba(96,165,250,.9),0 0 22px 4px rgba(59,130,246,.6)}}
+
+.sp-systemavatar{flex-shrink:0;border-radius:14px;display:inline-flex;align-items:center;
+  justify-content:center;background:linear-gradient(158deg,#14264f,#0a1a3c 62%,#071129);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 0 0 1px rgba(96,165,250,.35),
+    0 6px 16px -6px rgba(2,6,23,.7)}
+
+.sp-artmarke{flex-shrink:0;font-size:9.5px;font-weight:700;letter-spacing:.1em;
+  text-transform:uppercase;white-space:nowrap;padding:4px 10px;border-radius:999px;color:#fff;
+  background:linear-gradient(135deg,#2563eb,#3b82f6);
+  box-shadow:0 6px 14px -6px rgba(37,99,235,.6),inset 0 1px 0 rgba(255,255,255,.25)}
+
+.sp-postmenue{display:flex;align-items:center;gap:2px;flex-shrink:0}
+.sp-postmenue-knopf{background:none;border:0;cursor:pointer;border-radius:9px;padding:8px 10px;
+  font-size:11.5px;font-weight:600;color:#9ca3af;transition:background .16s,color .16s;
+  min-height:34px;font-family:inherit}
+.sp-postmenue-knopf:hover{background:rgba(255,255,255,.07);color:#fff}
+.sp-postmenue-weg:hover{background:rgba(248,113,113,.12);color:#f87171}
+
+/* ── Inhalt: groß und luftig ── */
+.sp-text{font:300 15.5px/1.7 'Inter',sans-serif;color:#e5e7eb;margin:0;white-space:pre-wrap;
+  overflow-wrap:anywhere}
+.sp-text::first-line{font-weight:500;color:#fff}
+
+/* Bilder: edge-to-edge gerundet, öffnen die Lightbox. */
+.sp-bildknopf-auf{display:block;width:calc(100% + 44px);margin:14px -22px 0;padding:0;border:0;
+  background:none;cursor:zoom-in}
+.sp-bild{display:block;width:100%;object-fit:cover;max-height:560px;
+  border-top:1px solid rgba(255,255,255,.08);border-bottom:1px solid rgba(255,255,255,.08)}
+
+/* ── Akten-Chip ── */
+.sp-aktechip{display:flex;align-items:center;gap:12px;margin-top:14px;padding:12px 14px;
+  border-radius:16px;text-decoration:none;color:inherit;
+  background:linear-gradient(135deg,rgba(37,99,235,.22),rgba(37,99,235,.06));
+  border:1px solid rgba(96,165,250,.3);
+  transition:border-color .2s,transform .2s cubic-bezier(.32,.72,0,1)}
+a.sp-aktechip:hover{border-color:rgba(147,197,253,.5);transform:translateY(-1.5px)}
+.sp-aktechip-wahl{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.12)}
+.sp-aktechip-marke{width:34px;height:34px;border-radius:12px;flex-shrink:0;display:inline-flex;
+  align-items:center;justify-content:center;color:#fff;
+  background:linear-gradient(135deg,#2563eb,#3b82f6);
+  box-shadow:0 6px 14px -6px rgba(37,99,235,.6)}
+.sp-aktechip-rest{min-width:0;flex:1}
+.sp-aktechip b{display:block;font-size:12.5px;font-weight:600;color:#93c5fd;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:-.01em}
+.sp-aktechip-hinweis{display:block;font-size:11px;color:#9ca3af;margin-top:1px}
+.sp-aktechip-weg{flex-shrink:0;width:30px;height:30px;border:0;cursor:pointer;border-radius:999px;
+  display:inline-flex;align-items:center;justify-content:center;
+  background:rgba(255,255,255,.08);color:#9ca3af}
+
+/* ── Bestätigung in der Karte ── */
+.sp-bestaetigung{margin-top:14px;padding:14px 16px;border-radius:16px;
+  background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.25);
+  animation:spAufklappen .32s cubic-bezier(.32,.72,0,1) both}
+.sp-bestaetigung-titel{font-size:13px;font-weight:600;color:#f87171;margin:0}
+.sp-bestaetigung-text{font-size:12.5px;line-height:1.55;color:#fca5a5;margin:4px 0 0}
+.sp-bestaetigung-knoepfe{display:flex;align-items:center;gap:8px;margin-top:12px}
+.sp-gefahr{margin-left:auto;padding:10px 18px;border:0;cursor:pointer;border-radius:999px;
+  min-height:40px;font-size:12.5px;font-weight:600;color:#fff;
+  background:linear-gradient(135deg,#dc2626,#b91c1c);
+  box-shadow:0 10px 24px -12px rgba(220,38,38,.6);font-family:inherit}
+
+/* ── Ändern ── */
+.sp-bearbeiten{margin-top:2px}
+.sp-bearbeiten-feld{width:100%;resize:none;outline:none;border:1px solid rgba(96,165,250,.35);
+  padding:12px 14px;border-radius:16px;background:rgba(2,6,23,.5);
+  font:300 15px/1.6 'Inter',sans-serif;color:#fff}
+.sp-bearbeiten-knoepfe{display:flex;align-items:center;gap:8px;margin-top:10px}
+
+/* ── Reaktionen: Micro-Animation ── */
+.sp-reaktionen{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:14px;
+  padding-top:12px;border-top:1px solid rgba(255,255,255,.08)}
+.sp-reaktion{display:inline-flex;align-items:center;gap:6px;height:38px;min-width:44px;
+  padding:0 13px;border:1px solid transparent;cursor:pointer;border-radius:999px;
+  color:#9ca3af;background:transparent;justify-content:center;
+  transition:background .18s,color .18s,border-color .2s,transform .16s cubic-bezier(.32,.72,0,1);
+  font-family:inherit}
+.sp-reaktion:hover{background:rgba(255,255,255,.06);color:#e5e7eb;transform:translateY(-1.5px)}
+.sp-reaktion:active{transform:scale(.9)}
+.sp-reaktion[data-an="1"]{color:#fff;background:linear-gradient(135deg,#2563eb,#3b82f6);
+  box-shadow:0 8px 18px -8px rgba(37,99,235,.7),inset 0 1px 0 rgba(255,255,255,.28)}
+.sp-reaktion[data-an="1"] .sp-reaktion-zeichen{animation:spHupf .42s cubic-bezier(.28,1.6,.4,1) both}
+@keyframes spHupf{0%{transform:scale(.6) rotate(-14deg)}55%{transform:scale(1.3) rotate(8deg)}
+  100%{transform:none}}
+.sp-zaehler{font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;
+  animation:spFeder .46s cubic-bezier(.28,1.6,.4,1) both}
+@keyframes spFeder{0%{transform:translateY(7px) scale(.55);opacity:0}
+  58%{transform:translateY(-3px) scale(1.24);opacity:1}100%{transform:none;opacity:1}}
+.sp-kommentarknopf{margin-left:auto;display:inline-flex;align-items:center;gap:7px;
+  background:none;border:0;cursor:pointer;padding:0 8px;height:38px;font-size:12.5px;
+  font-weight:600;color:#9ca3af;transition:color .18s;font-family:inherit}
+.sp-kommentarknopf:hover{color:#93c5fd}
+
+/* ── Kommentare: Thread mit Verbindungslinie ── */
+.sp-kommentare{margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.08);
+  animation:spAufklappen .3s cubic-bezier(.32,.72,0,1) both}
+.sp-kommentar{display:flex;gap:11px;margin-bottom:11px}
+.sp-kommentar-rest{min-width:0;flex:1}
+.sp-kommentar-blase{margin:0;padding:10px 14px;border-radius:6px 18px 18px 18px;
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);
+  font:300 13.5px/1.55 'Inter',sans-serif;color:#e5e7eb;overflow-wrap:anywhere}
+.sp-kommentar-blase b{font-weight:600;color:#fff;margin-right:4px}
+.sp-kommentar-zeit{font-size:10.5px;color:#64748b;margin:3px 0 0 14px}
+.sp-kommentar-tat{background:none;border:0;cursor:pointer;padding:4px 2px;margin-left:9px;
+  font-size:10.5px;font-weight:600;color:#9ca3af;transition:color .16s;font-family:inherit}
+.sp-kommentar-tat:hover{color:#93c5fd}
+.sp-antworten{margin:0 0 5px 40px;padding-left:14px;
+  border-left:2px solid rgba(96,165,250,.28);border-radius:1px}
+.sp-mehr-kommentare{background:none;border:0;cursor:pointer;padding:6px 0 10px;font-size:12px;
+  font-weight:600;color:#93c5fd;font-family:inherit}
+.sp-mehr-kommentare:hover{text-decoration:underline}
+
+/* Die Eingabe klebt unten am Kommentarblock — „Antwort an …" steht direkt darüber. */
+.sp-kommentar-eingabe{position:sticky;bottom:0;padding-top:8px;margin:0 -6px;padding-left:6px;
+  padding-right:6px;background:linear-gradient(180deg,transparent,rgba(15,23,42,.85) 30%);
+  border-radius:0 0 18px 18px}
+.sp-antwort-hinweis{font-size:11.5px;color:#9ca3af;margin:0 0 6px 40px}
+.sp-antwort-hinweis b{color:#e5e7eb}
+.sp-antwort-hinweis button{background:none;border:0;cursor:pointer;padding:2px 4px;margin-left:8px;
+  font-size:11.5px;color:#93c5fd;text-decoration:underline;font-family:inherit}
+.sp-kommentar-neu{display:flex;gap:11px;align-items:center}
+.sp-kommentar-feld{flex:1 1 auto;height:44px;padding:0 16px;border:1px solid rgba(255,255,255,.12);
+  outline:none;border-radius:999px;background:rgba(2,6,23,.5);font-size:13.5px;color:#fff;
+  font-family:inherit;transition:border-color .2s,box-shadow .2s}
+.sp-kommentar-feld:focus{border-color:rgba(96,165,250,.5);
+  box-shadow:0 0 0 4px rgba(37,99,235,.15)}
+.sp-kommentar-feld::placeholder{color:#64748b}
+
+/* ── Composer ── */
+.sp-komposer{transition:box-shadow .34s cubic-bezier(.32,.72,0,1),
+  border-color .34s,transform .34s cubic-bezier(.32,.72,0,1)}
+.sp-komposer-gross{border-color:rgba(96,165,250,.35);transform:scale(1.008);
+  box-shadow:0 1px 0 rgba(255,255,255,.08) inset,0 8px 18px -8px rgba(2,6,23,.6),
+    0 34px 76px -30px rgba(37,99,235,.45)}
+.sp-komposer-kopf{display:flex;align-items:flex-start;gap:13px}
+.sp-komposer-feld{flex:1 1 auto;border:0;outline:none;resize:none;background:none;
+  font:300 16px/1.6 'Inter',sans-serif;color:#fff;padding:10px 0;min-height:46px}
+.sp-komposer-feld::placeholder{color:#64748b}
+.sp-komposer-fuss{margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,.08);
+  animation:spAuf .3s cubic-bezier(.32,.72,0,1) both}
+.sp-komposer-knoepfe{display:flex;align-items:center;gap:8px;margin-top:14px}
+.sp-hinweis{font-size:11.5px;color:#9ca3af;line-height:1.55;margin:0}
+.sp-hinweis b{color:#cbd5e1;font-weight:600}
+.sp-versteckt{display:none}
+.sp-bildknopf{display:inline-flex;align-items:center;gap:7px;cursor:pointer;padding:0 16px;
+  min-height:44px;border-radius:999px;font-size:12.5px;font-weight:600;color:#cbd5e1;
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);
+  transition:background .18s,color .18s,border-color .2s,transform .16s}
+.sp-bildknopf:hover{background:rgba(37,99,235,.15);color:#93c5fd;
+  border-color:rgba(96,165,250,.35);transform:translateY(-1px)}
+.sp-abbrechen{background:none;border:0;cursor:pointer;padding:10px 8px;min-height:44px;
+  font-size:13px;font-weight:600;color:#9ca3af;font-family:inherit}
+.sp-senden{margin-left:auto;padding:0 24px;min-height:44px;border:0;cursor:pointer;
+  border-radius:999px;font-size:13.5px;font-weight:600;color:#fff;font-family:inherit;
+  background:linear-gradient(135deg,#2563eb,#3b82f6);
+  box-shadow:0 12px 28px rgba(37,99,235,.35),inset 0 1px 0 rgba(255,255,255,.3);
+  transition:transform .14s cubic-bezier(.32,.72,0,1),filter .18s,box-shadow .2s}
+.sp-senden:hover:not(:disabled){filter:brightness(1.08);transform:translateY(-1.5px)}
+.sp-senden:active:not(:disabled){transform:translateY(1px) scale(.985)}
+.sp-senden:disabled{opacity:.32;cursor:default;box-shadow:none}
+
+.sp-bildvorschau{position:relative;margin-top:14px}
+.sp-bildvorschau img{display:block;width:100%;max-height:280px;object-fit:cover;
+  border-radius:16px;border:1px solid rgba(255,255,255,.1)}
+.sp-bildvorschau button{position:absolute;top:10px;right:10px;width:32px;height:32px;border:0;
+  cursor:pointer;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;
+  background:rgba(2,6,23,.7);color:#fff;backdrop-filter:blur(10px);
+  -webkit-backdrop-filter:blur(10px)}
+
+/* ── Aktensuche ── */
+.sp-aktesuche{position:relative;margin-bottom:12px}
+.sp-aktesuche-feld{width:100%;height:44px;padding:0 16px;border:1px solid rgba(255,255,255,.12);
+  outline:none;border-radius:999px;background:rgba(2,6,23,.5);font-size:13.5px;color:#fff;
+  font-family:inherit;transition:border-color .2s,box-shadow .2s}
+.sp-aktesuche-feld:focus{border-color:rgba(96,165,250,.5);box-shadow:0 0 0 4px rgba(37,99,235,.15)}
+.sp-aktesuche-feld::placeholder{color:#64748b}
+.sp-aktesuche-liste{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:40;
+  border-radius:18px;overflow:hidden;padding:6px;background:rgba(15,23,42,.96);
+  border:1px solid rgba(255,255,255,.14);
+  backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
+  box-shadow:0 28px 60px -24px rgba(2,6,23,.9);
+  animation:spListeAuf .22s cubic-bezier(.32,.72,0,1) both}
+@keyframes spListeAuf{from{opacity:0;transform:translateY(-8px) scale(.97)}
+  to{opacity:1;transform:none}}
+.sp-aktesuche-zeile{width:100%;display:flex;align-items:baseline;gap:8px;padding:11px 13px;
+  border:0;cursor:pointer;border-radius:13px;background:none;text-align:left;
+  transition:background .16s;font-family:inherit;min-height:42px}
+.sp-aktesuche-zeile:hover{background:rgba(37,99,235,.18)}
+.sp-aktesuche-zeile b{font-size:13.5px;font-weight:500;color:#fff}
+.sp-aktesuche-zeile span{margin-left:auto;font-size:11px;color:#9ca3af;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+
+/* ── „Neue Beiträge"-Pille: schwebt oben ── */
+.sp-neu-pille{position:sticky;top:72px;z-index:31;display:flex;align-items:center;gap:7px;
+  margin:0 auto 18px;padding:0 21px;min-height:44px;border:0;cursor:pointer;border-radius:999px;
+  font-size:12.5px;font-weight:600;color:#fff;font-family:inherit;
+  background:linear-gradient(135deg,#2563eb,#3b82f6);
+  box-shadow:0 18px 38px -14px rgba(37,99,235,.7),inset 0 1px 0 rgba(255,255,255,.3);
+  animation:spPillAuf .42s cubic-bezier(.32,.72,0,1) both}
+@keyframes spPillAuf{from{opacity:0;transform:translateY(-16px) scale(.86)}
+  to{opacity:1;transform:none}}
+.sp-neu-pille:hover{filter:brightness(1.08)}
+
+/* ── Skeleton ── */
+.sp-skelett{display:grid;gap:12px}
+.sp-skelett-kopf{display:flex;align-items:center;gap:13px}
+.sp-skelett-kreis{width:44px;height:44px;border-radius:999px;flex-shrink:0;
+  background:rgba(255,255,255,.07);animation:spPuls 1.4s ease-in-out infinite}
+.sp-skelett-zeilen{display:grid;gap:8px;flex:1}
+.sp-skelett-balken{display:block;height:11px;border-radius:6px;background:rgba(255,255,255,.07);
+  animation:spPuls 1.4s ease-in-out infinite}
+@keyframes spPuls{0%,100%{opacity:.5}50%{opacity:1}}
+
+/* ── Rand- und Leerzustände ── */
+.sp-fehler{padding:13px 16px;border-radius:16px;margin-bottom:14px;
+  background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);
+  color:#f87171;font-size:12.5px;font-weight:500;line-height:1.55}
+.sp-lade{text-align:center;padding:24px 0;font-size:13px;color:#9ca3af}
+.sp-ende{text-align:center;padding:26px 0 44px;font-size:12px;color:#64748b}
+.sp-leer-karte{text-align:center;padding:44px 26px;display:grid;justify-items:center;gap:4px;
+  color:#60a5fa}
+.sp-leer-titel{font-size:16px;font-weight:600;color:#fff;margin:8px 0 0}
+.sp-leer-text{font-size:13.5px;color:#9ca3af;line-height:1.62;margin:6px 0 0;max-width:38ch}
+
+/* ── Handy-Knopf: Composer von unten erreichbar ── */
+.sp-fab{display:none}
+
+/* ── Lightbox ── */
+.sp-lightbox{position:fixed;inset:0;z-index:120;display:flex;align-items:center;
+  justify-content:center;padding:24px;background:rgba(2,6,23,.88);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  animation:spAuf .2s ease-out both;cursor:zoom-out}
+.sp-lightbox img{max-width:100%;max-height:92vh;border-radius:14px;
+  box-shadow:0 40px 120px -30px rgba(2,6,23,1)}
+.sp-lightbox-zu{position:absolute;top:18px;right:18px;width:44px;height:44px;border:0;
+  cursor:pointer;border-radius:999px;display:inline-flex;align-items:center;
+  justify-content:center;background:rgba(255,255,255,.1);color:#fff;
+  border:1px solid rgba(255,255,255,.18)}
+
+@keyframes spAuf{from{opacity:0}to{opacity:1}}
+@keyframes spAufklappen{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+
+/* ── Handy zuerst: eine Spalte, keine Überläufe, Touch-Ziele ≥ 44 px ── */
+@media(max-width:960px){
+  .sp-spalte{max-width:min(640px,100%);padding-left:4px;padding-right:4px}
+}
+@media(max-width:700px){
+  .sp-kopf{padding:14px 0 10px}
+  .sp-karte{padding:16px;border-radius:20px;margin-bottom:14px}
+  .sp-bildknopf-auf{width:calc(100% + 32px);margin:12px -16px 0}
+  .sp-praesenz-klebt{top:4px}
+  .sp-praesenz-pfeil{display:none}
+  .sp-artmarke{display:none}
+  .sp-fab{position:fixed;right:16px;bottom:18px;z-index:60;display:inline-flex;
+    align-items:center;gap:8px;min-height:48px;padding:0 20px;border:0;cursor:pointer;
+    border-radius:999px;font-size:13px;font-weight:600;color:#fff;font-family:inherit;
+    background:linear-gradient(135deg,#2563eb,#3b82f6);
+    box-shadow:0 12px 28px rgba(37,99,235,.35),inset 0 1px 0 rgba(255,255,255,.3)}
+}
+@media(max-width:560px){
+  .sp-kopf h1{font-size:24px}
+  .sp-praesenz{padding:6px 12px;gap:10px}
+  .sp-tag-kachel{min-width:124px}
+  .sp-post-kopf{gap:11px}
+}
+
+/* ── Ruhe für alle, die Bewegung reduziert haben ── */
+@media(prefers-reduced-motion:reduce){
+  .sp-post{opacity:1;translate:0 0;transform:none}
+  .sp-konfetti,.sp-avatar-frisch,.sp-zaehler,.sp-reaktion[data-an="1"] .sp-reaktion-zeichen,
+  .sp-neu-pille,.sp-aktesuche-liste,.sp-bestaetigung,.sp-kommentare,.sp-komposer-fuss,
+  .sp-pininhalt,.sp-skelett-kreis,.sp-skelett-balken,.sp-lightbox{animation:none !important}
+  .sp-post,.sp-komposer,.sp-reaktion,.sp-senden,.sp-aktechip,.sp-bildknopf,
+  .sp-praesenz{transition:none !important}
+  .sp-glut{transform:none}
+}

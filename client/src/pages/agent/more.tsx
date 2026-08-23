@@ -201,20 +201,12 @@ function Profil({ melden }: { melden: (m: Meldung) => void }) {
         <div className="mo-formzeile"><input className="mo-feld" type="tel" value={telefon} onChange={(e) => setTelefon(e.target.value)} placeholder="+49 …" aria-label="Telefonnummer" /><button type="button" className="mo-knopf" disabled={busy === "phone"} onClick={telefonSpeichern}>{busy === "phone" ? "…" : "Speichern"}</button></div>
       </section>
 
+      {/* Vorher: komplettes Erreichbarkeits-Formular (Wochentage + Zeiten) direkt im Profil.
+          Nachher (Justin 24.08.): nur noch ein Verweis – gepflegt wird auf der Availability-Seite. */}
       <section className="mo-block leicht" id="erreichbarkeit">
-        <div className="mo-block-kopf"><b><Clock size={15} strokeWidth={1.75} />Erreichbarkeit für Termine</b><Link href="/agent/arbeitszeiten" className="mo-link">Wochenplan (Availability) →</Link></div>
-        <p className="mo-hinweis" style={{ marginBottom: 12 }}>Kunden, die du nicht erreichst, bekommen einen Buchungslink und wählen selbst eine Zeit – aus diesen Zeiten, in {slot}-Minuten-Schritten (Europe/Berlin).{vorgabe && " Aktuell gilt die Vorgabe Mo–Fr 09:00–18:00."}</p>
-        {!fensterGeladen ? <p className="mo-laedt">Lade …</p> : (
-          <>
-            <div className="mo-tage">{WOCHENTAGE.map(([nr, kurz, lang]) => { const f = fuerTag(nr); return (
-              <div key={nr} className="mo-tag">
-                <button type="button" className={f ? "an" : ""} aria-pressed={!!f} onClick={() => setFenster((l) => f ? l.filter((x) => x.wochentag !== nr) : [...l, { wochentag: nr, von: "09:00", bis: "18:00", aktiv: true }])}>{kurz}</button>
-                {f ? <><input type="time" className="mo-feld mono" value={f.von} step={60} aria-label={`${lang} von`} onChange={(e) => setFenster((l) => l.map((x) => x.wochentag === nr ? { ...x, von: e.target.value } : x))} /><span>bis</span><input type="time" className="mo-feld mono" value={f.bis} step={60} aria-label={`${lang} bis`} onChange={(e) => setFenster((l) => l.map((x) => x.wochentag === nr ? { ...x, bis: e.target.value } : x))} /></> : <span>nicht buchbar</span>}
-              </div>
-            ); })}</div>
-            <button type="button" className="mo-knopf" style={{ marginTop: 14 }} disabled={busy === "fenster"} onClick={fensterSpeichern}>{busy === "fenster" ? "…" : "Erreichbarkeit speichern"}</button>
-          </>
-        )}
+        <div className="mo-block-kopf"><b><Clock size={15} strokeWidth={1.75} />Erreichbarkeit für Termine</b></div>
+        <p className="mo-hinweis" style={{ marginBottom: 12 }}>Deine buchbaren Zeiten pflegst du zentral im Wochenplan – dort entstehen Termine und Leads.</p>
+        <Link href="/agent/arbeitszeiten" className="mo-knopf" style={{ display: "inline-flex", textDecoration: "none" }}>Zeiten einrichten oder ändern</Link>
       </section>
 
       <section className="mo-block">

@@ -50,10 +50,14 @@ export function MarkeBrief({ size = 16 }: { size?: number }) {
   );
 }
 
-function Ampel({ e }: { e: EventZeile }) {
-  const farbe = e.erlaubt ? "#059669" : "#94a3b8";
+// E-052: VORHER eine Farbwahl für alle — NACHHER trägt die dunkle Fassung
+// (ton="dunkel") kräftigere Chips: sendbar grün, gesperrt GELB (im dunklen
+// Glas ist Grau nicht mehr von „aus“ zu unterscheiden). Hell bleibt wie es war.
+function Ampel({ e, dunkel }: { e: EventZeile; dunkel?: boolean }) {
+  const farbe = e.erlaubt ? (dunkel ? "#34d399" : "#059669") : (dunkel ? "#fcd34d" : "#94a3b8");
   return (
-    <span className="inline-flex items-center gap-1.5 shrink-0" title={e.erlaubt ? "sendbar" : (e.grund || "")}>
+    <span className="inline-flex items-center gap-1.5 shrink-0" title={e.erlaubt ? "sendbar" : (e.grund || "")}
+          style={dunkel ? { padding: "4px 9px", borderRadius: 999, background: e.erlaubt ? "rgba(16,185,129,.14)" : "rgba(217,119,6,.14)" } : undefined}>
       <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: 99, background: farbe }} />
       <span className="text-[11px] font-semibold" style={{ color: farbe }}>
         {e.erlaubt ? "sendbar" : "gesperrt"}
@@ -62,15 +66,24 @@ function Ampel({ e }: { e: EventZeile }) {
   );
 }
 
+// E-052 (Justin 24.08., Screenshot Akte → E-Mails → „E-Mail senden“): VORHER
+// öffnete sich im dunklen Office das alte HELLE Versandzentrum — NACHHER wählt
+// `ton="dunkel"` die Office-Glas-Fassung (FiaonEbene ton="dunkel", dunkle
+// Karten über die --fi-Variablen, Status-Chips in Dunkel-Farben). Die gesamte
+// Logik (Zweige, Sperrgründe, GET/POST über `basis`, Bestätigung, Vorschau)
+// ist unverändert; helle Alt-Nutzungen (Admin, kunden-neu, collections)
+// bleiben ohne den Prop exakt wie vorher.
 export function SendeMenue({
-  personId, basis = "/api/fiaon/agent/mail", offen, onSchliessen, onGesendet,
+  personId, basis = "/api/fiaon/agent/mail", offen, onSchliessen, onGesendet, ton = "hell",
 }: {
   personId: number;
   basis?: string;
   offen: boolean;
   onSchliessen: () => void;
   onGesendet?: () => void;
+  ton?: "hell" | "dunkel";
 }) {
+  const dunkel = ton === "dunkel";
   const [daten, setDaten] = useState<{ events: EventZeile[]; historie: HistorieZeile[] } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [meldung, setMeldung] = useState<{ art: "gut" | "schlecht"; text: string } | null>(null);
@@ -184,18 +197,20 @@ export function SendeMenue({
           Kacheln brauchen etwas mehr Luft an den Seiten.
           ══════════════════════════════════════════════════════════════════ */}
       <div className="px-0.5 sm:px-1.5">
+        {/* E-052: Meldungs- und Fehlerflächen in der Dunkel-Fassung mit
+            lesbaren Dunkel-Farben — hell unverändert. */}
         {meldung && (
           <p className="mb-3 px-3 py-2.5 rounded-xl text-[12.5px] font-semibold"
              style={meldung.art === "gut"
-               ? { background: "rgba(5,150,105,.08)", color: "#047857" }
-               : { background: "rgba(217,119,6,.08)", color: "#b45309" }}>
+               ? (dunkel ? { background: "rgba(16,185,129,.14)", color: "#a7f3d0" } : { background: "rgba(5,150,105,.08)", color: "#047857" })
+               : (dunkel ? { background: "rgba(217,119,6,.16)", color: "#fde68a" } : { background: "rgba(217,119,6,.08)", color: "#b45309" })}>
             {meldung.text}
           </p>
         )}
 
         {ladeFehler && (
           <div className="px-3.5 py-3 rounded-xl mb-3"
-               style={{ background: "rgba(217,119,6,.08)", color: "#b45309" }}>
+               style={dunkel ? { background: "rgba(217,119,6,.16)", color: "#fde68a" } : { background: "rgba(217,119,6,.08)", color: "#b45309" }}>
             <p className="text-[12.5px] font-semibold leading-relaxed">{ladeFehler}</p>
             <button type="button" onClick={() => void laden()}
                     className="mt-2 text-[12px] font-bold underline">

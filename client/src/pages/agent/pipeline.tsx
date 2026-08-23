@@ -64,6 +64,19 @@
 //     Router), eine Klartext-Karte mit EINEM Primär-Knopf, Sekundäres im
 //     „Mehr“-Menü, Ergebnisse situativ (3–5 passende, „Alle Ergebnisse“ als
 //     Ausklapp), Zahlungsbereich zeigt bei überfälliger Rate die RATE.
+//   · E-047 (Justins Live-Test 24.08., Plan §18): Mehr-Menü im Viewport
+//     (Handy: Bottom-Sheet) · Akte sperrt den Hintergrund-Scroll (#root wie
+//     die Office-Schublade) · Stammdaten-Raster ohne Überlappung (Handy:
+//     Label über Wert) · „Kunde bearbeiten“ mit ALLEN Feldern inkl.
+//     Geburtsdatum (Server verarbeitet birthdate jetzt), jeder „fehlt“-
+//     Hinweis klickbar mit Feld-Fokus · Fokus-Karte kompakt (Chips statt
+//     Kacheln, „Warum jetzt“ 2 Zeilen mit Ausklapp) · fachlich richtige
+//     Situationstexte (Rechnung geht nach Antragsabschluss IMMER automatisch
+//     raus) · Leitfäden als LEGENDE unten (alle vier, nichts vorausgeklappt)
+//     statt Seitenkasten · Trenner „Deine nächsten Kunden“ mit Schimmern und
+//     mehr Luft zwischen Fokus und den nächsten fünf · SEPA-Grund an jeder
+//     offenen Rate (kein SEPA / Rücklastschrift / offen) + Hinweis „Admin
+//     bestätigt von Hand“.
 //   · Aktive Kunden (§16a): VORHER alle bezahlten/zugewiesenen Kunden der
 //     Liste – NACHHER zählen NUR übernommene Mandate
 //     (fiaon_persons.mandat_seit, gesetzt beim Buchen von „Mandat

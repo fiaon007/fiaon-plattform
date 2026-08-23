@@ -71,6 +71,13 @@ router.put("/agent/arbeitszeiten", requireAgent, async (req: AgentRequest, res: 
     await sqlPool.begin(async (tx) => {
       await tx`DELETE FROM fiaon_arbeitszeiten WHERE agent_id = ${req.agent!.id}`;
       for (const b of sauber) await tx`INSERT INTO fiaon_arbeitszeiten (agent_id, wochentag, von, bis) VALUES (${req.agent!.id}, ${b.wochentag}, ${b.von}::time, ${b.bis}::time)`;
+      // ── EINE VERFÜGBARKEIT, ZWEI TABELLEN (Befund 24.08., E-048) ─────────
+      // Vorher schrieb dieser Raum nur fiaon_arbeitszeiten – die Terminmaschine
+      // (rohSlots, Buchungs-Wand, Kunden-Terminlink) liest aber
+      // fiaon_agent_verfuegbarkeit und fiel auf die Vorgabe Mo–Fr 09–18 zurück.
+      // Der Wochenplan hier ist ab jetzt die eine Wahrheit und wird gespiegelt.
+      const { verfuegbarkeitSetzen } = await import("../lib/fiaon-termine");
+      await verfuegbarkeitSetzen(req.agent!.id, sauber.map((b) => ({ wochentag: b.wochentag, von: b.von, bis: b.bis, aktiv: true })), tx as any);
     });
     res.json({ ok: true, ...(await arbeitszeitenVon(req.agent!.id)), mindestStunden: MINDEST_STUNDEN_WOCHE });
   } catch (err) { console.error("[OFFICE] arbeitszeiten speichern:", err); res.status(500).json({ ok: false, error: "Serverfehler" }); }

@@ -368,7 +368,7 @@ router.get("/agent/vertrieb/frei", requireAgent, async (req: AgentRequest, res: 
     // Der Takt der Buchung: POST /agent/termine bucht mit quelle "agent_manuell".
     const takt = dauerFuer("agent_manuell");
     // Nur ich selbst; der Vorname wird in der Anzeige nicht gebraucht.
-    const alle = await rohSlots([{ id: req.agent!.id, vorname: "" }], takt);
+    const alle = await rohSlots([{ id: req.agent!.id, vorname: "" }], takt, sqlPool, 15 * 60_000);
     const grenze = Date.now() + FREI_TAGE * 86_400_000;
     const slots = alle
       .filter((s) => new Date(s.beginn).getTime() <= grenze)

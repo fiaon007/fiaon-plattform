@@ -556,9 +556,13 @@ export interface SlotAuskunft {
  */
 export async function rohSlots(
   agenten: { id: number; vorname: string }[], takt: number, lauf: Lauf = sqlPool,
+  // Vorher fest 2 h Vorlauf. Nachher (24.08., E-048): optional übersteuerbar –
+  // der Mitarbeiter vereinbart am Telefon auch „gleich in 30 Minuten"
+  // (agent_manuell erlässt den Vorlauf bei der Annahme ohnehin, Z. ~978).
+  vorlaufMs: number = VORLAUF_STUNDEN * 3600_000,
 ): Promise<Slot[]> {
   if (agenten.length === 0) return [];
-  const frühestens = new Date(Date.now() + VORLAUF_STUNDEN * 3600_000);
+  const frühestens = new Date(Date.now() + vorlaufMs);
   const spätestens = new Date(Date.now() + HORIZONT_TAGE * 86_400_000);
 
   const belegt = new Set(

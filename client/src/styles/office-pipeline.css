@@ -216,6 +216,40 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
 .pi-nummer-land .vorschau{font-size:11.5px;color:#bfdbfe;font-variant-numeric:tabular-nums}
 .pi-nummer-land .grau{color:#94a3b8}
 .pi-nummer-land .rot{color:#fca5a5}
+/* ── E-043: Reiter + Arbeitsliste 2+2+2 ── */
+.pi-tabs{display:flex;gap:6px}
+.pi-tab{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 18px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:#cbd5e1;font:500 13px/1 'Inter',sans-serif;cursor:pointer}
+.pi-tab em{font-style:normal;font-variant-numeric:tabular-nums;color:#93c5fd;font-weight:400}
+.pi-tab.an{background:linear-gradient(135deg,#2563eb,#3b82f6);border-color:transparent;color:#fff;box-shadow:0 10px 24px rgba(37,99,235,.35)}
+.pi-tab.an em{color:#dbeafe}
+.pi-arbeit{display:grid;grid-template-columns:1.55fr 1fr;gap:14px;align-items:start}
+.pi-arbeit-haupt{display:grid;gap:12px;min-width:0}
+.pi-arbeit-klein{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pi-ak{position:relative;display:grid;gap:8px;padding:12px 14px;border-radius:18px;background:rgba(15,23,42,.6);border:1px solid color-mix(in srgb,var(--hitze,#60a5fa) 30%,rgba(255,255,255,.12));backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 14px 34px rgba(2,6,23,.4),0 0 18px color-mix(in srgb,var(--hitze,#60a5fa) 16%,transparent);animation:piAk .4s cubic-bezier(.2,.8,.2,1) both;transition:transform .25s,opacity .25s}
+@keyframes piAk{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.pi-ak-kern{display:grid;gap:4px;background:none;border:0;padding:0;text-align:left;color:inherit;cursor:pointer;font-family:'Inter',sans-serif;min-width:0}
+.pi-ak-kopf{display:flex;align-items:center;gap:7px}
+.pi-ak-kopf small{font:500 10px/1.2 'Inter',sans-serif;letter-spacing:.08em;text-transform:uppercase;color:color-mix(in srgb,var(--hitze,#93c5fd) 85%,#fff)}
+.pi-ak b{font:500 14.5px/1.25 'Inter',sans-serif;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pi-ak-fuss{font-size:11.5px;color:#9ca3af;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pi-ak-tun{display:flex;align-items:center;gap:6px}
+.pi-ak-tun .pi-link{margin-left:auto}
+/* Erledigt: gleitet hinaus, der nächste rückt nach */
+.pi-ak.geht,.pi-fokus-karte.geht{animation:piGeht .4s cubic-bezier(.4,0,.8,.4) both;pointer-events:none}
+@keyframes piGeht{to{opacity:0;transform:translateX(28px) scale(.96)}}
+.pi-termin{display:grid;gap:8px;padding:12px 14px;border-radius:16px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12)}
+.pi-fokus-erinnerung{margin:0;padding:10px 14px;border-radius:12px;background:rgba(16,185,129,.1);border:1px solid rgba(52,211,153,.3);color:#a7f3d0;font:400 12.5px/1.5 'Inter',sans-serif}
+.pi-ergebnisweg{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding-top:12px;border-top:1px solid rgba(255,255,255,.1)}
+@media(max-width:960px){.pi-arbeit{grid-template-columns:1fr}}
+@media(max-width:700px){
+  .pi-arbeit-klein{grid-template-columns:1fr;gap:8px}
+  .pi-ak{grid-template-columns:1fr auto;align-items:center;padding:10px 12px}
+  .pi-ak-tun{flex-direction:column;align-items:flex-end;gap:4px}
+  .pi-ak-tun .pi-link{margin-left:0}
+  .pi-tabs{position:sticky;top:62px;z-index:20;padding:6px 0}
+  .pi-ergebnisweg .pi-knopf.gross{flex:1 1 100%}
+  .pi-termin .pi-reihe .pi-eingabe{flex:1 1 46%}
+}
 /* ── Handy ── */
 @media(max-width:960px){
   .pi-umsatz{grid-template-columns:1fr 1fr}

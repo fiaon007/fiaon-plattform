@@ -419,6 +419,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/fiaon', fiaonOffice.default);
   const fiaonOfficeInbox = await import('./routes/fiaon-office-inbox');
   app.use('/api/fiaon', fiaonOfficeInbox.default);
+  const fiaonOfficeVertrieb = await import('./routes/fiaon-office-vertrieb');
+  app.use('/api/fiaon', fiaonOfficeVertrieb.default);
 
   const fiaonZugangRetten = await import('./routes/fiaon-zugang-retten');
   app.use('/api/fiaon', fiaonZugangRetten.default);

@@ -21,6 +21,16 @@
 //     Höchstens ~40 Karten im DOM, prefers-reduced-motion wird beachtet.
 //   · Suche, Filter (Land, letzter Kontakt, Rückruf fällig), Sortierung und
 //     die bisherigen Server-Ansichten als schlanke Glas-Leiste.
+//   · E-043 (Plan §15): Startansicht ist die ARBEITSLISTE mit genau 6 Karten
+//     (je 2 „Bezahlt gemeldet – Termin fehlt“ / „Antrag fertig – Rechnung
+//     offen“ / „Registriert – noch kein Antrag“) aus GET /agent/vertrieb/
+//     arbeitsliste; erledigt = der nächste rückt nach. Der 3D-Strom ist der
+//     zweite Reiter „Mein Bestand“ (Suche/Filter dort). EIN Ergebnisweg je
+//     Anruf: „Erfolgreich vereinbart“ (nur mit gebuchtem Termin, POST
+//     /agent/termine) oder „Negativ“ (Nicht erreicht / Nummer falsch / Kein
+//     Interesse) – alles über den bestehenden aktivitaet-Endpunkt: die
+//     Nicht-erreicht-Staffel (fiaon-nicht-erreicht.ts), die Nummern-Mail und
+//     die Sperre (is_blocked) hängen dort schon dran.
 //   · Die AKTE als Glas-Lade (?person=ID) bleibt mit allen Aktionen.
 // Regel (Justin): Die erste Zahlung ist immer eine Überweisung – nirgends
 // Lastschrift. Liste: GET /agent/kunden/liste (+ filter=bezahlt für Aktive).
@@ -324,10 +334,30 @@ export default function AgentPipelinePage() {
   return <AgentShell><ToastAnbieter><PipelineInnen /></ToastAnbieter></AgentShell>;
 }
 
+// ── E-043: Die drei Gruppen der Arbeitsliste (Serverfeld: priority_tier) ────
+const GRUPPE_INFO: Record<string, { name: string; stufe: Hitze }> = {
+  bezahlt_gemeldet: { name: "Bezahlt gemeldet – Termin fehlt", stufe: "heiss" },
+  rechnung_offen: { name: "Antrag fertig – Rechnung offen", stufe: "warm" },
+  lead: { name: "Registriert – noch kein Antrag", stufe: "lead" },
+};
+interface Slot { gruppe: string; kunde: Kunde }
+
 function PipelineInnen() {
   const { dunkel, titel } = useOffice();
   useEffect(() => { dunkel(true); titel("Pipeline"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const fragen = useFragen();
 
+  // ── Reiter: Arbeitsliste (Start) · Mein Bestand (3D-Strom) ──────────────
+  const [tab, setTab] = useState<"arbeit" | "bestand">("arbeit");
+  // Arbeitsliste (E-043): genau 6 Slots vom Server.
+  const [slots, setSlots] = useState<Slot[]>([]);
+  const [slotsZaehler, setSlotsZaehler] = useState<Record<string, number>>({});
+  const [slotsLaedt, setSlotsLaedt] = useState(true);
+  const [slotsFehler, setSlotsFehler] = useState<string | null>(null);
+  const [fokusId, setFokusId] = useState<number | null>(null);
+  const [geht, setGeht] = useState<Set<number>>(new Set());
+  const [meldungA, setMeldungA] = useState<{ art: "gut" | "schlecht" | "info"; text: string } | null>(null);
+  // Mein Bestand
   const [liste, setListe] = useState<Kunde[]>([]);
   const [zaehler, setZaehler] = useState<Zaehler>({});
   const [erledigt, setErledigt] = useState<Set<number>>(new Set());
@@ -345,8 +375,6 @@ function PipelineInnen() {
   const [nurRueckruf, setNurRueckruf] = useState(false);
   const [anlageOffen, setAnlageOffen] = useState(false);
   const [aktiv, setAktiv] = useState(0);
-  // E-042: Woher die überfälligen Raten kommen – "ok" (Daten da), "leer" (Zugriff da, nichts offen),
-  // "keine" (der Server gibt sie hier noch nicht her → „kommt mit dem Zahlungsmotor“, nicht raten).
   const [ratenQuelle, setRatenQuelle] = useState<"ok" | "leer" | "keine">("keine");
   const [offen, setOffen] = useState<number | null>(null);
   const [fremd, setFremd] = useState<Kunde | null>(null);
@@ -356,26 +384,38 @@ function PipelineInnen() {
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
     const f = p.get("filter");
-    if (f && ANSICHTEN.some((x) => x.key === f)) setAnsicht(f);
+    if (f && ANSICHTEN.some((x) => x.key === f)) { setAnsicht(f); setTab("bestand"); }
+    if (p.get("tab") === "bestand") setTab("bestand");
     const person = p.get("person");
     if (person && Number(person) > 0) { setOffen(Number(person)); setNurPerson(Number(person)); }
     api("/agent/provision-satz").then((r) => { if (r.ok && r.json?.satz) setSatz(Number(r.json.satz)); }).catch(() => {});
   }, []);
+
+  // ── E-043: Die 6 Slots kommen fertig vom Server (GET /agent/vertrieb/arbeitsliste) ──
+  const arbeitslisteLaden = useCallback(async (leise = false) => {
+    if (!leise) setSlotsLaedt(true);
+    const r = await api("/agent/vertrieb/arbeitsliste");
+    if (r.ok) {
+      setSlots(r.json.slots || []);
+      setSlotsZaehler(r.json.zaehler || {});
+      if (r.json.rolle) setRolle(r.json.rolle);
+      setSlotsFehler(null);
+    } else setSlotsFehler(r.json?.error || "Die Arbeitsliste konnte nicht geladen werden.");
+    setSlotsLaedt(false);
+    setGeht(new Set());
+  }, []);
+  useEffect(() => { void arbeitslisteLaden(); }, [arbeitslisteLaden]);
 
   const laden = useCallback(async (leise = false, nurZaehler = false) => {
     if (!leise) setLaedt(true);
     const p = new URLSearchParams({ filter: ansicht, sort, limit: "500" });
     if (suche.trim()) p.set("q", suche.trim());
     if (nurPerson) p.set("person", String(nurPerson));
-    // In der Standardansicht kommen die bezahlten Kunden dazu (eigener Serverfilter):
-    // sie sind „Aktiv – betreut“ – oder heiß, wenn noch kein Termin steht.
     const mitAktiven = ansicht === "alle" && !suche.trim();
     const [r, b, ink] = await Promise.all([
       api(`/agent/kunden/liste?${p.toString()}`),
       mitAktiven ? api(`/agent/kunden/liste?filter=bezahlt&sort=neu&limit=200`) : Promise.resolve(null),
-      // E-042: überfällige Raten. /agent/kunden/liste kennt sie nicht; die Collections-Liste
-      // (/inkasso/liste) hat sie – sie ist aber für die Inkasso-Rolle gebaut. Wir fragen an
-      // und nehmen NUR echte Daten; ohne Zugriff bleibt die Gruppe ehrlich leer.
+      // E-042: überfällige Raten – nur echte Daten, ohne Zugriff bleibt die Gruppe ehrlich leer.
       mitAktiven ? api(`/inkasso/liste?limit=60`).catch(() => null) : Promise.resolve(null),
     ]);
     if (r.ok) {
@@ -384,7 +424,6 @@ function PipelineInnen() {
         const haupt: Kunde[] = r.json.kunden || [];
         const ids = new Set(haupt.map((k) => k.personId));
         const extra: Kunde[] = b?.ok ? (b.json.kunden || []).filter((k: Kunde) => !ids.has(k.personId)) : [];
-        // Überfällige Raten an vorhandene Karten heften oder als eigene Karte aufnehmen.
         const zusammen = [...haupt, ...extra];
         if (ink?.ok && Array.isArray(ink.json?.personen)) {
           setRatenQuelle(ink.json.personen.length > 0 ? "ok" : "leer");
@@ -431,22 +470,22 @@ function PipelineInnen() {
       const d = (e as CustomEvent).detail || {};
       if (d.personId) setErledigt((v) => new Set(v).add(Number(d.personId)));
       void laden(true, true);
+      void arbeitslisteLaden(true);
     };
     window.addEventListener("fiaon-ergebnis", h);
     return () => window.removeEventListener("fiaon-ergebnis", h);
-  }, [laden]);
+  }, [laden, arbeitslisteLaden]);
   useEffect(() => { const t = setTimeout(() => void laden(), suche ? 280 : 0); return () => clearTimeout(t); }, [laden, suche]);
 
   useEffect(() => {
     if (!offen || laedt) { setFremd(null); return; }
-    if (liste.some((k) => k.personId === offen)) { setFremd(null); return; }
+    if (liste.some((k) => k.personId === offen) || slots.some((s) => s.kunde.personId === offen)) { setFremd(null); return; }
     let an = true;
     api(`/agent/crm/kunden/${offen}`).then((r) => { if (an) setFremd(r.ok && r.json?.kunde ? r.json.kunde : null); });
     return () => { an = false; };
-  }, [offen, laedt, liste]);
+  }, [offen, laedt, liste, slots]);
 
   const oeffnen = (id: number | null) => {
-    // Karten aus der Raten-Gruppe ohne echte Personen-Kennung haben keine Akte im Vertrieb.
     if (id != null && id < 0) return;
     setOffen(id);
     const u = new URL(window.location.href);
@@ -458,13 +497,41 @@ function PipelineInnen() {
   const entfernen = (personId: number) => {
     setListe((l) => l.filter((k) => k.personId !== personId));
     setErledigt((e) => { const n = new Set(e); n.delete(personId); return n; });
+    setSlots((sl) => sl.filter((s) => s.kunde.personId !== personId));
   };
   const ersetzen = (k: Kunde) => {
     setListe((l) => (l.some((x) => x.personId === k.personId) ? l.map((x) => (x.personId === k.personId ? k : x)) : l));
+    setSlots((sl) => sl.map((s) => (s.kunde.personId === k.personId ? { ...s, kunde: k } : s)));
     setFremd((f) => (f && f.personId === k.personId ? k : f));
   };
 
-  // ── Zahlen ──────────────────────────────────────────────────────────────
+  // ── E-043: EIN Ergebnisweg – alles über den bestehenden aktivitaet-Endpunkt.
+  //    „Nicht erreicht“ löst dort die Staffel aus (fiaon-nicht-erreicht.ts),
+  //    „Nummer falsch“ die Nummern-Mail, „erreicht_abgelehnt“ die Sperre
+  //    (is_blocked → aus allen Listen und aus der Verteilung).
+  const ergebnisSchnell = async (k: Kunde, art: string, notiz?: string): Promise<boolean> => {
+    const r = await api(`/agent/crm/kunden/${k.personId}/aktivitaet`, {
+      method: "POST", body: JSON.stringify({ art, notiz }),
+    });
+    if (!r.ok) { setMeldungA({ art: "schlecht", text: r.json?.error || "Nicht gespeichert. Bitte erneut versuchen." }); return false; }
+    setMeldungA({ art: "gut", text: r.json?.meldung || "Gespeichert." });
+    // Karte gleitet hinaus, der nächste rückt nach (Server füllt die 6 Slots neu).
+    setGeht((g) => new Set(g).add(k.personId));
+    setFokusId(null);
+    window.setTimeout(() => { void arbeitslisteLaden(true); void laden(true, true); }, 420);
+    return true;
+  };
+  const karteileiche = async (k: Kunde) => {
+    if (!(await fragen({
+      titel: `${k.name} aus dem Vertrieb entfernen?`,
+      text: "Der Kunde wird gesperrt: Er erscheint bei keinem Mitarbeiter mehr und die Verteilung fasst ihn nicht mehr an. Zahlungs- und Vertragsdaten bleiben erhalten – gelöscht wird nichts.",
+      folge: "Der Vorgang steht mit Grund im Kontaktprotokoll.",
+      ja: "Entfernen", gefaehrlich: true,
+    }))) return;
+    await ergebnisSchnell(k, "erreicht_abgelehnt", "Karteileiche – aus dem Vertrieb entfernt (Sperre, kein Löschen).");
+  };
+
+  // ── Zahlen für die Umsatz-Leiste (aus dem Bestand) ──────────────────────
   const jeStufe = useMemo(() => {
     const z: Record<Hitze, number> = { heiss: 0, rate: 0, warm: 0, lead: 0, aktiv: 0 };
     for (const k of liste) z[stufeVon(k)]++;
@@ -476,7 +543,6 @@ function PipelineInnen() {
     if (st === "rate") return s + (k.rateCents ?? 0);
     return s;
   }, 0), [liste, erledigt]);
-  // Provision: Satz auf heiß/warm, 50 % Reaktivierungsbonus auf überfällige Raten (E-042).
   const provisionMoeglich = useMemo(() => liste.filter((k) => !erledigt.has(k.personId)).reduce((s, k) => {
     const st = stufeVon(k);
     if (st === "heiss" || st === "warm") return s + Math.round(paketPreis(k) * satz);
@@ -486,7 +552,7 @@ function PipelineInnen() {
   const aktive = ansicht === "alle" ? jeStufe.aktiv + liste.filter((k) => k.tier === 0 && stufeVon(k) === "heiss").length : (zaehler.bezahlt ?? 0);
   const zErreichbar = useZaehlen(erreichbar), zProvision = useZaehlen(provisionMoeglich), zAktive = useZaehlen(aktive);
 
-  // ── Der Strom: gefiltert, nach Hitze geordnet, Erledigte hinten ────────
+  // ── Der Bestand-Strom: gefiltert, nach Hitze ────────────────────────────
   const laender = useMemo(() => Array.from(new Set(liste.map((k) => k.stammdaten?.land).filter(Boolean) as string[])).sort(), [liste]);
   const strom = useMemo(() => {
     const f = liste.filter((k) => {
@@ -502,29 +568,30 @@ function PipelineInnen() {
       if (nurRueckruf && !rueckrufFaellig(k)) return false;
       return true;
     });
-    if (sort !== "arbeit") return f; // Sortierung des Servers (Name, Betrag, neu) bleibt sichtbar
+    if (sort !== "arbeit") return f;
     return [...f].sort((a, b) => (Number(erledigt.has(a.personId)) - Number(erledigt.has(b.personId))) || vergleich(a, b));
   }, [liste, stufe, land, kontakt, nurRueckruf, sort, erledigt]);
   useEffect(() => { if (aktiv > strom.length - 1) setAktiv(Math.max(0, strom.length - 1)); }, [strom.length, aktiv]);
-  const fokus = strom[aktiv] ?? null;
-  const geoeffnet = useMemo(() => liste.find((k) => k.personId === offen) || fremd || null, [liste, offen, fremd]);
 
-  // Tastatur: Pfeile blättern, solange keine Lade und kein Eingabefeld offen ist.
+  const geoeffnet = useMemo(() => liste.find((k) => k.personId === offen) || slots.find((s) => s.kunde.personId === offen)?.kunde || fremd || null, [liste, slots, offen, fremd]);
+
+  // Tastatur nur im Bestand-Reiter: Pfeile blättern den Strom, Enter öffnet die Akte.
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
-      if (offen) return;
+      if (offen || tab !== "bestand") return;
       const ziel = e.target as HTMLElement | null;
       if (ziel && /^(INPUT|TEXTAREA|SELECT)$/.test(ziel.tagName)) return;
       if (e.key === "ArrowRight") { setAktiv((a) => Math.min(strom.length - 1, a + 1)); e.preventDefault(); }
       if (e.key === "ArrowLeft") { setAktiv((a) => Math.max(0, a - 1)); e.preventDefault(); }
-      if (e.key === "Enter" && fokus) oeffnen(fokus.personId);
+      if (e.key === "Enter" && strom[aktiv]) oeffnen(strom[aktiv].personId);
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [offen, strom.length, fokus]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [offen, tab, strom, aktiv]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const vor = () => setAktiv((a) => Math.min(strom.length - 1, a + 1));
-  const zurueck = () => setAktiv((a) => Math.max(0, a - 1));
+  // ── Arbeitsliste: Fokus = gewählter Slot, sonst der erste ───────────────
+  const fokusSlot = useMemo(() => slots.find((s) => s.kunde.personId === fokusId) ?? slots[0] ?? null, [slots, fokusId]);
+  const kleine = useMemo(() => slots.filter((s) => s.kunde.personId !== (fokusSlot?.kunde.personId ?? -1)), [slots, fokusSlot]);
 
   return (
     <div className="pi">
@@ -548,95 +615,132 @@ function PipelineInnen() {
         </div>
       </section>
 
-      {fehler && <p className="pi-fehler">{fehler}</p>}
+      {/* Reiter */}
+      <div className="pi-tabs" role="tablist">
+        <button type="button" role="tab" aria-selected={tab === "arbeit"} className={`pi-tab${tab === "arbeit" ? " an" : ""}`} onClick={() => setTab("arbeit")}>
+          Arbeitsliste<em>{slots.length}</em>
+        </button>
+        <button type="button" role="tab" aria-selected={tab === "bestand"} className={`pi-tab${tab === "bestand" ? " an" : ""}`} onClick={() => setTab("bestand")}>
+          Mein Bestand<em>{liste.length}</em>
+        </button>
+      </div>
 
-      {/* Stufen-Chips */}
-      <section className="pi-stufen">
-        <button type="button" className={`pi-stufe-chip${stufe === "alle" ? " an" : ""}`} onClick={() => setStufe("alle")}><b>{liste.length}</b><span>Alle</span></button>
-        {STUFEN_REIHE.map((s) => (
-          <button key={s} type="button" className={`pi-stufe-chip${stufe === s ? " an" : ""}`} style={{ ["--hitze" as string]: STUFE[s].farbe }} onClick={() => setStufe(stufe === s ? "alle" : s)}>
-            <i className="pi-glut" />
-            <b>{jeStufe[s]}</b><span>{STUFE[s].name}</span>
-          </button>
-        ))}
-      </section>
-
-      {/* Fokus-Karte + Leitfaden */}
-      <section className="pi-fokus">
-        {laedt ? (
-          <div className="pi-fokus-karte"><span className="pi-pille">Jetzt anrufen</span><h1>Lade <span className="pi-verlauf">deine Kunden …</span></h1></div>
-        ) : !fokus ? (
-          stufe === "rate" && ratenQuelle !== "ok" ? (
-            <div className="pi-fokus-karte" style={{ ["--hitze" as string]: STUFE.rate.farbe }}>
-              <span className="pi-pille">Rate überfällig · zurückholen</span>
-              <h1>{ratenQuelle === "leer" ? "Keine Rate überfällig – stark." : "Kommt mit dem Zahlungsmotor."}</h1>
-              <p className="pi-fokus-warum">{ratenQuelle === "leer"
-                ? "Sobald eine Rate deiner Kunden überfällig ist, steht sie hier – mit weichem Reaktivierungs-Leitfaden und 50 % Bonus je zurückgeholter Rate."
-                : "Die überfälligen Raten liegen heute noch bei Collections. Sobald der Zahlungsmotor sie hier hereinreicht, stehen sie in dieser Gruppe – mit weichem Reaktivierungs-Leitfaden und 50 % Bonus je zurückgeholter Rate. Hier wird nichts geraten."}</p>
+      {tab === "arbeit" && (
+        <>
+          {meldungA && <p className={`pi-meldung ${meldungA.art === "gut" ? "gut" : meldungA.art === "schlecht" ? "schlecht" : ""}`}>{meldungA.text}</p>}
+          {slotsFehler && <p className="pi-fehler">{slotsFehler}</p>}
+          {slotsLaedt ? (
+            <div className="pi-laedt">Lade deine Arbeitsliste …</div>
+          ) : slots.length === 0 && !slotsFehler ? (
+            <div className="pi-fokus-karte">
+              <span className="pi-pille">Arbeitsliste</span>
+              <h1>{rolle === "onboarding" ? "Dein Tag läuft über den Calendar." : "Alles abgearbeitet – stark."}</h1>
+              <p className="pi-fokus-warum">{rolle === "onboarding"
+                ? "Onboarding arbeitet Startgespräche, keinen Vertrieb – deine Termine stehen im Calendar."
+                : "Gerade wartet niemand auf einen Anruf. Neue Kunden rücken automatisch nach – oder schau in deinen Bestand."}</p>
             </div>
           ) : (
-          <div className="pi-fokus-karte">
-            <span className="pi-pille">Jetzt anrufen</span>
-            <h1>{liste.length === 0 ? (rolle === "onboarding" ? "Keine Startgespräche offen." : ansicht === "alle" ? "Dir ist gerade kein Kunde zugewiesen." : "In dieser Ansicht ist nichts offen.") : "Mit diesen Filtern ist nichts offen."}</h1>
-            <p className="pi-fokus-warum">{liste.length === 0 ? "Neue Kunden kommen automatisch dazu, sobald deine Verfügbarkeit steht." : "Nimm einen Filter zurück oder such direkt nach einem Namen."}</p>
-          </div>
-          )
-        ) : (
-          <FokusKarte key={fokus.personId} k={fokus} satz={satz} erledigt={erledigt.has(fokus.personId)} position={aktiv + 1} von={strom.length}
-                      onAkte={() => oeffnen(fokus.personId)} onVor={vor} onZurueck={zurueck} ruhig={ruhig} />
-        )}
-        <Leitfaden stufe={fokus ? stufeVon(fokus) : (stufe === "rate" ? "rate" : "heiss")} />
-      </section>
-
-      {/* Suche, Filter, Sortierung – eine Leiste */}
-      <section className="pi-leiste">
-        <label className="pi-suche">
-          <Search size={15} strokeWidth={1.75} />
-          <input value={suche} onChange={(e) => setSuche(e.target.value)} placeholder="Name, E-Mail, Nummer, Referenz" />
-          {suche && <button type="button" className="pi-link" onClick={() => setSuche("")} aria-label="Suche leeren"><X size={14} /></button>}
-        </label>
-        <label className={`pi-feld${land ? " an" : ""}`}>Land
-          <select value={land} onChange={(e) => setLand(e.target.value)}><option value="">alle</option>{laender.map((l) => <option key={l} value={l}>{LAND_NAME[l] || l}</option>)}</select>
-        </label>
-        <label className={`pi-feld${kontakt !== "alle" ? " an" : ""}`}>Kontakt
-          <select value={kontakt} onChange={(e) => setKontakt(e.target.value as typeof kontakt)}>
-            <option value="alle">egal</option><option value="heute">heute</option><option value="3">3+ Tage her</option><option value="7">7+ Tage her</option><option value="nie">noch nie</option>
-          </select>
-        </label>
-        <label className={`pi-feld pi-schalter${nurRueckruf ? " an" : ""}`}><input type="checkbox" checked={nurRueckruf} onChange={(e) => setNurRueckruf(e.target.checked)} /> Rückruf fällig</label>
-        <label className={`pi-feld${ansicht !== "alle" ? " an" : ""}`}>Ansicht
-          <select value={ansicht} onChange={(e) => { setAnsicht(e.target.value); setStufe("alle"); }}>
-            {ANSICHTEN.map((f) => <option key={f.key} value={f.key}>{f.label}{zaehler[f.key] != null ? ` (${zaehler[f.key]})` : ""}</option>)}
-          </select>
-        </label>
-        <label className="pi-feld">Sortierung
-          <select value={sort} onChange={(e) => setSort(e.target.value)}>{SORT.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}</select>
-        </label>
-        <span className="pi-leiste-rechts">
-          <button type="button" className="pi-knopf still klein" onClick={() => void laden()} title="Neu laden"><RefreshCw size={14} strokeWidth={1.75} />{erledigt.size > 0 ? ` ${erledigt.size} neu ordnen` : ""}</button>
-          <button type="button" className="pi-knopf klein" onClick={() => setAnlageOffen((v) => !v)}><Plus size={14} strokeWidth={1.75} /> Kunde anlegen</button>
-        </span>
-      </section>
-      {anlageOffen && <div className="pi-hell"><KundeAnlegen offen={anlageOffen} aufKlappen={setAnlageOffen} fertig={() => { void laden(true); }} /></div>}
-      {(zaehler.wartet ?? 0) > 0 && ansicht !== "nicht_erreicht" && (
-        <button type="button" className="pi-hinweis" onClick={() => setAnsicht("nicht_erreicht")}>
-          <span className="zahl">{zaehler.wartet}</span>
-          <span><b>{zaehler.wartet === 1 ? "Einer wartet auf seinen Termin" : `${zaehler.wartet} warten auf ihren Termin`}</b><small>Nicht erreicht – sie haben den Buchungslink und wählen selbst. Nicht erneut anrufen.</small></span>
-        </button>
+            <section className="pi-arbeit">
+              <div className="pi-arbeit-haupt">
+                {fokusSlot && (
+                  <ArbeitsFokus key={fokusSlot.kunde.personId} k={fokusSlot.kunde} gruppe={fokusSlot.gruppe} satz={satz}
+                                geht={geht.has(fokusSlot.kunde.personId)}
+                                onAkte={() => oeffnen(fokusSlot.kunde.personId)}
+                                onErgebnis={(art, notiz) => ergebnisSchnell(fokusSlot.kunde, art, notiz)}
+                                onEntfernen={() => void karteileiche(fokusSlot.kunde)}
+                                melden={(art, text) => setMeldungA({ art, text })} />
+                )}
+                <div className="pi-arbeit-klein">
+                  {kleine.map((s) => (
+                    <KleineKarte key={s.kunde.personId} k={s.kunde} gruppe={s.gruppe} geht={geht.has(s.kunde.personId)}
+                                 onFokus={() => setFokusId(s.kunde.personId)}
+                                 onAkte={() => oeffnen(s.kunde.personId)}
+                                 onEntfernen={() => void karteileiche(s.kunde)} />
+                  ))}
+                </div>
+                <p className="pi-fussnote">
+                  Höchstens 6 auf einmal – je 2 „{GRUPPE_INFO.bezahlt_gemeldet.name}“ ({slotsZaehler.bezahlt_gemeldet ?? 0}),
+                  „{GRUPPE_INFO.rechnung_offen.name}“ ({slotsZaehler.rechnung_offen ?? 0}),
+                  „{GRUPPE_INFO.lead.name}“ ({slotsZaehler.lead ?? 0}). Erledigt = der nächste rückt sofort nach.
+                </p>
+              </div>
+              <Leitfaden stufe={fokusSlot ? (GRUPPE_INFO[fokusSlot.gruppe]?.stufe ?? "heiss") : "heiss"} />
+            </section>
+          )}
+        </>
       )}
 
-      {/* 3D-Kundenstrom */}
-      <Strom liste={strom} aktiv={aktiv} setAktiv={setAktiv} erledigt={erledigt} onAkte={(id) => oeffnen(id)} flach={handy || ruhig} ruhig={ruhig} laedt={laedt} />
+      {tab === "bestand" && (
+        <>
+          {fehler && <p className="pi-fehler">{fehler}</p>}
+          <section className="pi-stufen">
+            <button type="button" className={`pi-stufe-chip${stufe === "alle" ? " an" : ""}`} onClick={() => setStufe("alle")}><b>{liste.length}</b><span>Alle</span></button>
+            {STUFEN_REIHE.map((s) => (
+              <button key={s} type="button" className={`pi-stufe-chip${stufe === s ? " an" : ""}`} style={{ ["--hitze" as string]: STUFE[s].farbe }} onClick={() => setStufe(stufe === s ? "alle" : s)}>
+                <i className="pi-glut" />
+                <b>{jeStufe[s]}</b><span>{STUFE[s].name}</span>
+              </button>
+            ))}
+          </section>
+
+          <section className="pi-leiste">
+            <label className="pi-suche">
+              <Search size={15} strokeWidth={1.75} />
+              <input value={suche} onChange={(e) => setSuche(e.target.value)} placeholder="Name, E-Mail, Nummer, Referenz" />
+              {suche && <button type="button" className="pi-link" onClick={() => setSuche("")} aria-label="Suche leeren"><X size={14} /></button>}
+            </label>
+            <label className={`pi-feld${land ? " an" : ""}`}>Land
+              <select value={land} onChange={(e) => setLand(e.target.value)}><option value="">alle</option>{laender.map((l) => <option key={l} value={l}>{LAND_NAME[l] || l}</option>)}</select>
+            </label>
+            <label className={`pi-feld${kontakt !== "alle" ? " an" : ""}`}>Kontakt
+              <select value={kontakt} onChange={(e) => setKontakt(e.target.value as typeof kontakt)}>
+                <option value="alle">egal</option><option value="heute">heute</option><option value="3">3+ Tage her</option><option value="7">7+ Tage her</option><option value="nie">noch nie</option>
+              </select>
+            </label>
+            <label className={`pi-feld pi-schalter${nurRueckruf ? " an" : ""}`}><input type="checkbox" checked={nurRueckruf} onChange={(e) => setNurRueckruf(e.target.checked)} /> Rückruf fällig</label>
+            <label className={`pi-feld${ansicht !== "alle" ? " an" : ""}`}>Ansicht
+              <select value={ansicht} onChange={(e) => { setAnsicht(e.target.value); setStufe("alle"); }}>
+                {ANSICHTEN.map((f) => <option key={f.key} value={f.key}>{f.label}{zaehler[f.key] != null ? ` (${zaehler[f.key]})` : ""}</option>)}
+              </select>
+            </label>
+            <label className="pi-feld">Sortierung
+              <select value={sort} onChange={(e) => setSort(e.target.value)}>{SORT.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}</select>
+            </label>
+            <span className="pi-leiste-rechts">
+              <button type="button" className="pi-knopf still klein" onClick={() => void laden()} title="Neu laden"><RefreshCw size={14} strokeWidth={1.75} />{erledigt.size > 0 ? ` ${erledigt.size} neu ordnen` : ""}</button>
+              <button type="button" className="pi-knopf klein" onClick={() => setAnlageOffen((v) => !v)}><Plus size={14} strokeWidth={1.75} /> Kunde anlegen</button>
+            </span>
+          </section>
+          {anlageOffen && <div className="pi-hell"><KundeAnlegen offen={anlageOffen} aufKlappen={setAnlageOffen} fertig={() => { void laden(true); void arbeitslisteLaden(true); }} /></div>}
+          {(zaehler.wartet ?? 0) > 0 && ansicht !== "nicht_erreicht" && (
+            <button type="button" className="pi-hinweis" onClick={() => setAnsicht("nicht_erreicht")}>
+              <span className="zahl">{zaehler.wartet}</span>
+              <span><b>{zaehler.wartet === 1 ? "Einer wartet auf seinen Termin" : `${zaehler.wartet} warten auf ihren Termin`}</b><small>Nicht erreicht – sie haben den Buchungslink und wählen selbst. Nicht erneut anrufen.</small></span>
+            </button>
+          )}
+          {stufe === "rate" && ratenQuelle !== "ok" && (
+            <div className="pi-hinweis blau" style={{ cursor: "default" }}>
+              <span><b>{ratenQuelle === "leer" ? "Keine Rate überfällig – stark." : "Rate überfällig – kommt mit dem Zahlungsmotor."}</b>
+                <small>{ratenQuelle === "leer" ? "Sobald eine Rate deiner Kunden überfällig ist, steht sie hier – mit 50 % Bonus je zurückgeholter Rate." : "Die überfälligen Raten liegen heute noch bei Collections. Hier wird nichts geraten."}</small></span>
+            </div>
+          )}
+
+          <Strom liste={strom} aktiv={aktiv} setAktiv={setAktiv} erledigt={erledigt} onAkte={(id) => oeffnen(id)} flach={handy || ruhig} ruhig={ruhig} laedt={laedt} />
+          {!laedt && liste.length > 0 && (
+            <p className="pi-fussnote">Dein Bestand: bis zu {MAX_AKTIV} betreute Kunden plus alles Offene. Gearbeitet wird in der Arbeitsliste – hier suchst und findest du.</p>
+          )}
+        </>
+      )}
 
       {offen && (
         <>
           <div className="pi-lade-hintergrund" onClick={() => oeffnen(null)} aria-hidden="true" />
           {geoeffnet ? (
             <Akte key={geoeffnet.personId} k={geoeffnet} onZu={() => oeffnen(null)}
-                  onWeg={() => { entfernen(geoeffnet.personId); oeffnen(null); }}
+                  onWeg={() => { entfernen(geoeffnet.personId); oeffnen(null); void arbeitslisteLaden(true); }}
                   onNeu={ersetzen}
                   onErledigt={() => setErledigt((e) => new Set(e).add(geoeffnet.personId))}
-                  onZaehler={() => void laden(true, true)} />
+                  onZaehler={() => { void laden(true, true); void arbeitslisteLaden(true); }} />
           ) : (
             <aside className="pi-lade" role="dialog" aria-modal="true">
               <div className="pi-lade-kopf"><span /><h2>{laedt ? "Lade …" : "Akte nicht gefunden"}</h2>
@@ -651,42 +755,109 @@ function PipelineInnen() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Die Fokus-Karte: „Jetzt anrufen“
+// E-043: Die Fokus-Karte der Arbeitsliste — Herz des Umsatz-Raums.
+// Während des Gesprächs: Anrufen, Akte, Zugänge senden, Zahlungsdaten senden,
+// Termin einbuchen. Am Ende EIN Ergebnis: „Erfolgreich vereinbart“ (nur mit
+// gebuchtem Termin) oder „Negativ“ (Nicht erreicht / Nummer falsch / Kein
+// Interesse). Alles über Bestandsendpunkte.
 // ═══════════════════════════════════════════════════════════════════════════
-function FokusKarte({ k, satz, erledigt, position, von, onAkte, onVor, onZurueck, ruhig }: {
-  k: Kunde; satz: number; erledigt: boolean; position: number; von: number; onAkte: () => void; onVor: () => void; onZurueck: () => void; ruhig: boolean;
+function ArbeitsFokus({ k, gruppe, satz, geht, onAkte, onErgebnis, onEntfernen, melden }: {
+  k: Kunde; gruppe: string; satz: number; geht: boolean;
+  onAkte: () => void;
+  onErgebnis: (art: string, notiz?: string) => Promise<boolean>;
+  onEntfernen: () => void;
+  melden: (art: "gut" | "schlecht" | "info", text: string) => void;
 }) {
-  const s = stufeVon(k); const st = STUFE[s];
-  const preis = s === "rate" ? (k.rateCents ?? 0) : paketPreis(k);
-  const wert = s === "rate" ? (k.rateSummeCents || k.rateCents || 0) : preis * 12;
-  const prov = s === "rate" ? Math.round((k.rateCents ?? 0) * REAKTIVIERUNG_ANTEIL) : Math.round(preis * 12 * satz);
-  const zWert = useZaehlen(wert), zProv = useZaehlen(prov);
+  const fragen = useFragen();
+  const info = GRUPPE_INFO[gruppe] ?? GRUPPE_INFO.lead;
+  const st = STUFE[info.stufe];
+  const preis = paketPreis(k); const wert = preis * 12;
+  const zWert = useZaehlen(wert), zProv = useZaehlen(Math.round(wert * satz));
+  const [laeuft, setLaeuft] = useState<string | null>(null);
+  const [negativOffen, setNegativOffen] = useState(false);
+  const [terminOffen, setTerminOffen] = useState(false);
+  const [datum, setDatum] = useState(tagPlus(1));
+  const [zeit, setZeit] = useState("10:00");
+  const [gebucht, setGebucht] = useState<string | null>(null);
+  const [bestaetigen, setBestaetigen] = useState(false);
+  const [sendeFehler, setSendeFehler] = useState<string | null>(null);
   const faellig = rueckrufFaellig(k);
-  const paket = (k.buchungen ?? []).find((b) => !b.erledigt && b.art === "paket")?.bezeichnung || k.produkt || (s === "rate" ? `Rate${k.rateNr ? ` ${k.rateNr}` : ""} überfällig` : "noch kein Paket");
+  // „Erfolgreich vereinbart“ zählt nur mit echtem Termin: eben gebucht oder
+  // schon gebucht und in der Zukunft.
+  const hatTermin = !!gebucht
+    || (!!k.termin && !k.termin.erledigt && new Date(k.termin.beginn).getTime() > Date.now())
+    || (!!k.terminAm && new Date(k.terminAm).getTime() > Date.now());
+
+  const terminBuchen = async () => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(datum) || !/^\d{2}:\d{2}$/.test(zeit)) { melden("schlecht", "Bitte Datum und Uhrzeit angeben."); return; }
+    setLaeuft("termin");
+    const r = await api("/agent/termine", { method: "POST", body: JSON.stringify({ personId: k.personId, beginn: `${datum}T${zeit}:00` }) });
+    setLaeuft(null);
+    if (!r.ok) { melden("schlecht", r.json?.error || "Der Termin konnte nicht gebucht werden."); return; }
+    const text = `${r.json.termin?.datumText ?? datum}, ${r.json.termin?.uhrzeit ?? zeit} Uhr`;
+    setGebucht(text); setTerminOffen(false);
+    melden("gut", `Termin gebucht: ${text}. Der Slot ist blockiert, die Bestätigung geht an den Kunden.`);
+  };
+  const zugaengeSenden = async () => {
+    if (!(await fragen({ titel: `Zugänge („Willkommen und Zugang“) an ${k.name} senden?`, ja: "Senden" }))) return;
+    setLaeuft("zugang");
+    const r = await api(`/agent/versand/${k.personId}/welcome`, { method: "POST", body: JSON.stringify({}) });
+    setLaeuft(null);
+    melden(r.ok ? "gut" : "schlecht", r.json?.meldung || r.json?.error || (r.ok ? "Verschickt." : "Nicht verschickt."));
+  };
+  const zahlungsdaten = async (ref: string | null) => {
+    setLaeuft("rechnung");
+    const r = await api(`/agent/crm/kunden/${k.personId}/rechnung`, { method: "POST", body: JSON.stringify({ ref }) });
+    setLaeuft(null);
+    if (!r.ok) { setSendeFehler(r.json?.error || "Der Server hat den Versand abgelehnt."); return; }
+    setSendeFehler(null); setBestaetigen(false);
+    melden("gut", r.json.warnung || `Zahlungsdaten und Rechnung an ${r.json.versandtAn} gesendet.`);
+  };
+  const vereinbart = async () => {
+    if (!hatTermin) {
+      setTerminOffen(true);
+      melden("info", "„Erfolgreich vereinbart“ heißt: Der Termin steht. Buch ihn hier ein – dann zählt es.");
+      return;
+    }
+    setLaeuft("vereinbart");
+    await onErgebnis("erreicht_sonstiges",
+      `Erfolgreich vereinbart – Termin ${gebucht ?? (k.termin ? terminText(k.termin.beginn) : terminText(k.terminAm!))} gebucht. Kunde erinnert: Rechnung vor dem Termin begleichen, dann wird im Gespräch direkt aktiviert.`);
+    setLaeuft(null);
+  };
+  const negativ = async (grund: "nicht_erreicht" | "nummer_falsch" | "kein_interesse") => {
+    setLaeuft(grund);
+    if (grund === "kein_interesse") {
+      if (!(await fragen({
+        titel: `${k.name} – kein Interesse?`,
+        text: "Der Kunde wird gesperrt: Er erscheint bei keinem Mitarbeiter mehr und die Verteilung fasst ihn nicht mehr an. Zahlungs- und Vertragsdaten bleiben erhalten.",
+        folge: "Der Vorgang steht mit Grund im Kontaktprotokoll.",
+        ja: "Sperren", gefaehrlich: true,
+      }))) { setLaeuft(null); return; }
+      await onErgebnis("erreicht_abgelehnt", "Kein Interesse – vom Kunden im Gespräch erklärt.");
+    } else if (grund === "nummer_falsch") {
+      await onErgebnis("nummer_falsch");
+    } else {
+      await onErgebnis("nicht_erreicht");
+    }
+    setLaeuft(null); setNegativOffen(false);
+  };
+
   return (
-    <div className={`pi-fokus-karte${ruhig ? "" : " tief"}`} style={{ ["--hitze" as string]: faellig ? "#f87171" : st.farbe }}>
+    <div className={`pi-fokus-karte${geht ? " geht" : " tief"}`} style={{ ["--hitze" as string]: faellig ? "#f87171" : st.farbe }}>
       <div className="pi-fokus-kopf">
         <span className="pi-pille">{faellig ? "Rückruf fällig" : "Jetzt anrufen"}</span>
-        <span className="pi-fokus-zaehler"><button type="button" onClick={onZurueck} disabled={position <= 1} aria-label="vorheriger Kunde"><ChevronLeft size={16} /></button>{position} / {von}<button type="button" onClick={onVor} disabled={position >= von} aria-label="nächster Kunde"><ChevronRight size={16} /></button></span>
+        <button type="button" className="pi-link" style={{ color: "#64748b" }} onClick={onEntfernen} title="Karteileiche? Sperren statt löschen – mit Rückfrage.">Entfernen</button>
       </div>
       <h1>{k.name}</h1>
-      <div className="pi-fokus-stufe"><i className="pi-glut" /><b>{st.name}</b><span>· {paket}{preis ? ` · ${eur(preis)} im Monat` : ""}</span></div>
+      <div className="pi-fokus-stufe"><i className="pi-glut" /><b>{info.name}</b><span>· {(k.buchungen ?? []).find((b) => !b.erledigt && b.art === "paket")?.bezeichnung || k.produkt || "noch kein Paket"}{preis ? ` · ${eur(preis)} im Monat` : ""}</span></div>
       <p className="pi-fokus-warum">{warumJetzt(k)}</p>
       <div className="pi-fokus-wert">
-        {s === "rate" ? (
-          <>
-            <div><small>Offen</small><b>{wert ? euro0(zWert) : "–"}</b><span>{(k.rateAnzahl ?? 1) > 1 ? `${k.rateAnzahl} Raten überfällig` : `Rate${k.rateNr ? ` ${k.rateNr}` : ""}${k.rateFaelligAm ? ` · fällig ${dtag(k.rateFaelligAm)}` : ""}`} · per Überweisung</span></div>
-            <div className="hervor"><small>Reaktivierungsbonus</small><b>{prov ? euro0(zProv) : "–"}</b><span>50 % dieser Rate für dich, wenn der Kunde zahlt</span></div>
-            <div><small>Zwei Ausgänge</small><b className="klein">zahlt · oder pausiert</b><span>„Kunde zahlt“ → Bonus · „1 Monat ausgesetzt + Onboarding-Termin“ → 0 €</span></div>
-          </>
-        ) : (
-          <>
-            <div><small>Erwarteter Wert</small><b>{preis ? euro0(zWert) : "–"}</b><span>12 Raten · erste per Überweisung</span></div>
-            <div className="hervor"><small>Meine Provision</small><b>{preis ? euro0(zProv) : "–"}</b><span>{Math.round(satz * 100)} % je bankbestätigter Rate{s === "aktiv" ? ` · ${SCHUFA_BONUS_TEXT}` : ""}</span></div>
-            <div><small>Letzter Kontakt</small><b className="klein">{wartezeit(k.letzterKontakt).replace(" kontaktiert", "")}</b><span>{k.nichtErreicht > 0 ? `${k.nichtErreicht}× nicht erreicht` : k.stammdaten?.land ? (LAND_NAME[k.stammdaten.land] || k.stammdaten.land) : "—"}</span></div>
-          </>
-        )}
+        <div><small>Erwarteter Wert</small><b>{preis ? euro0(zWert) : "–"}</b><span>12 Raten · erste per Überweisung</span></div>
+        <div className="hervor"><small>Meine Provision</small><b>{preis ? euro0(zProv) : "–"}</b><span>{Math.round(satz * 100)} % je bankbestätigter Rate</span></div>
+        <div><small>Letzter Kontakt</small><b className="klein">{wartezeit(k.letzterKontakt).replace(" kontaktiert", "")}</b><span>{k.nichtErreicht > 0 ? `${k.nichtErreicht}× nicht erreicht` : k.stammdaten?.land ? (LAND_NAME[k.stammdaten.land] || k.stammdaten.land) : "—"}</span></div>
       </div>
+
+      {/* Während des Gesprächs: alles Nötige, ein Klick */}
       <div className="pi-fokus-knoepfe">
         {k.telefonWaehlbar ? (
           <button type="button" className="pi-knopf riesig" onClick={() => anrufen(k.telefonWaehlbar, k.personId, k.name)}><Phone size={20} strokeWidth={1.75} /> Anrufen</button>
@@ -694,9 +865,76 @@ function FokusKarte({ k, satz, erledigt, position, von, onAkte, onVor, onZurueck
           <button type="button" className="pi-knopf riesig warn" onClick={onAkte} title={k.telefon ? "Ländervorwahl fehlt – in der Akte ergänzen" : "keine Nummer – in der Akte nachtragen"}><Phone size={20} strokeWidth={1.75} /> {k.telefon ? "Vorwahl ergänzen" : "Nummer fehlt"}</button>
         )}
         <button type="button" className="pi-knopf still gross" onClick={onAkte}><FileText size={16} strokeWidth={1.75} /> Akte</button>
-        <button type="button" className={`pi-knopf gross ${erledigt ? "gut" : "still"}`} onClick={onAkte}>{erledigt ? <><Check size={16} strokeWidth={2} /> Ergebnis gebucht</> : "Ergebnis festhalten"}</button>
+        <button type="button" className="pi-knopf still gross" disabled={laeuft === "zugang"} onClick={() => void zugaengeSenden()}><Mail size={15} strokeWidth={1.75} /> {laeuft === "zugang" ? "Sende …" : "Zugänge senden"}</button>
+        <button type="button" className="pi-knopf still gross" disabled={laeuft === "rechnung"} onClick={() => setBestaetigen(true)}><Send size={15} strokeWidth={1.75} /> Zahlungsdaten senden</button>
+        <button type="button" className={`pi-knopf gross ${hatTermin ? "gut" : "still"}`} onClick={() => setTerminOffen((v) => !v)}>
+          {hatTermin ? <><Check size={15} strokeWidth={2} /> Termin steht</> : "Termin einbuchen"}
+        </button>
       </div>
-      {erledigt && <p className="pi-fussnote">Erledigt – die nächste Karte rückt nach, sobald du weiterblätterst oder neu ordnest.</p>}
+
+      {terminOffen && (
+        <div className="pi-termin">
+          <div className="pi-reihe">
+            <input type="date" className="pi-eingabe" style={{ flex: "0 0 160px" }} value={datum} min={heuteIso()} onChange={(e) => setDatum(e.target.value)} aria-label="Datum" />
+            <input type="time" className="pi-eingabe" style={{ flex: "0 0 110px" }} value={zeit} step={900} onChange={(e) => setZeit(e.target.value)} aria-label="Uhrzeit" />
+            <button type="button" className="pi-knopf" disabled={laeuft === "termin"} onClick={() => void terminBuchen()}>{laeuft === "termin" ? "Bucht …" : "Termin buchen"}</button>
+            <button type="button" className="pi-link" onClick={() => setTerminOffen(false)}>Schließen</button>
+          </div>
+          <p className="pi-fussnote">Der Slot kommt aus deiner Availability und wird echt blockiert – liegt er außerhalb oder ist er belegt, lehnt der Server ab.</p>
+        </div>
+      )}
+      {hatTermin && (
+        <p className="pi-fokus-erinnerung">Erinnere den Kunden: Rechnung vor dem Termin begleichen → im Gespräch wird direkt aktiviert.{gebucht ? ` (Termin: ${gebucht})` : ""}</p>
+      )}
+
+      {/* Am Ende: EIN Ergebnis */}
+      <div className="pi-ergebnisweg">
+        <button type="button" className="pi-knopf gross" disabled={!!laeuft}
+                style={hatTermin ? undefined : { opacity: .75 }}
+                title={hatTermin ? "Termin steht – Ergebnis buchen" : "Erst Termin einbuchen – der Knopf führt dich hin"}
+                onClick={() => void vereinbart()}>
+          <Check size={16} strokeWidth={2} /> {laeuft === "vereinbart" ? "Speichert …" : "Erfolgreich vereinbart"}
+        </button>
+        {!negativOffen ? (
+          <button type="button" className="pi-knopf warn gross" disabled={!!laeuft} onClick={() => setNegativOffen(true)}>Negativ …</button>
+        ) : (
+          <span className="pi-reihe">
+            <button type="button" className="pi-knopf still" disabled={!!laeuft} onClick={() => void negativ("nicht_erreicht")}>{laeuft === "nicht_erreicht" ? "…" : "Nicht erreicht"}</button>
+            <button type="button" className="pi-knopf still" disabled={!!laeuft} onClick={() => void negativ("nummer_falsch")}>{laeuft === "nummer_falsch" ? "…" : "Nummer falsch"}</button>
+            <button type="button" className="pi-knopf warn" disabled={!!laeuft} onClick={() => void negativ("kein_interesse")}>{laeuft === "kein_interesse" ? "…" : "Kein Interesse"}</button>
+            <button type="button" className="pi-link" onClick={() => setNegativOffen(false)}>zurück</button>
+          </span>
+        )}
+      </div>
+
+      {bestaetigen && (
+        <RechnungBestaetigung personId={k.personId} kundeName={k.name} laeuft={laeuft === "rechnung"}
+                              onAbbrechen={() => { setBestaetigen(false); setSendeFehler(null); }}
+                              onSenden={(ref) => void zahlungsdaten(ref)} sendeFehler={sendeFehler} />
+      )}
+    </div>
+  );
+}
+
+/** Eine der 5 kleinen Karten der Arbeitsliste. */
+function KleineKarte({ k, gruppe, geht, onFokus, onAkte, onEntfernen }: {
+  k: Kunde; gruppe: string; geht: boolean; onFokus: () => void; onAkte: () => void; onEntfernen: () => void;
+}) {
+  const info = GRUPPE_INFO[gruppe] ?? GRUPPE_INFO.lead;
+  const st = STUFE[info.stufe];
+  const faellig = rueckrufFaellig(k);
+  return (
+    <div className={`pi-ak${geht ? " geht" : ""}`} style={{ ["--hitze" as string]: faellig ? "#f87171" : st.farbe }}>
+      <button type="button" className="pi-ak-kern" onClick={onFokus} title="Nach vorn holen">
+        <span className="pi-ak-kopf"><i className="pi-glut" /><small>{faellig ? "Rückruf fällig" : info.name}</small></span>
+        <b>{k.name}</b>
+        <span className="pi-ak-fuss">{(k.buchungen ?? []).find((b) => !b.erledigt && b.art === "paket")?.bezeichnung || k.produkt || "kein Paket"} · {wartezeit(k.letzterKontakt)}</span>
+      </button>
+      <span className="pi-ak-tun">
+        <button type="button" className="pi-knopf klein" disabled={!k.telefonWaehlbar} onClick={() => anrufen(k.telefonWaehlbar, k.personId, k.name)} title={k.telefonWaehlbar ?? "nicht anrufbar"}><Phone size={13} strokeWidth={1.75} /></button>
+        <button type="button" className="pi-knopf still klein" onClick={onAkte}><FileText size={13} strokeWidth={1.75} /></button>
+        <button type="button" className="pi-link" style={{ color: "#64748b", fontSize: 11 }} onClick={onEntfernen} title="Karteileiche? Sperren statt löschen – mit Rückfrage.">Entfernen</button>
+      </span>
     </div>
   );
 }

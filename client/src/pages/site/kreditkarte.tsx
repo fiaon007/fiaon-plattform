@@ -6,7 +6,7 @@
 // Karten-Check-Einstieg, Fragen, Abschluss. Keine Zusagen — die Bank entscheidet.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useState } from "react";
-import { Dunkel, Hero, Block, Licht, Knopf, Auf, Glas, Kennzahlen, Zeilen, Fragen, Zwischenruf, Abschluss, Szenenbild } from "@/components/site/DunkleBuehne";
+import { Dunkel, Block, Licht, Knopf, Auf, Glas, Kennzahlen, Zeilen, Fragen, Zwischenruf, Abschluss } from "@/components/site/DunkleBuehne";
 import "@/styles/kreditkarte.css";
 
 const ETAPPEN = [
@@ -21,10 +21,18 @@ export default function Kreditkarte() {
   const [i, setI] = useState(0);
   return (
     <Dunkel seite="privatkunden" titel="Kreditkarte trotz SCHUFA-Eintrag · Der Weg über die Auskunft" beschreibung="Kreditkarte trotz Eintrag: Welche Karte heute realistisch ist, wie der Rahmen in zwölf Monaten wächst und was Herausgeber wirklich sehen. FIAON bereitet vor – die Bank entscheidet.">
-      <Hero pille="Kreditkarte" titel={<>Die Karte kommt <span className="dk-verlauf">über die Auskunft.</span></>}
-            lead="Nicht über Tricks, nicht über Anbieter, die „garantiert“ versprechen – sondern darüber, dass das, was Herausgeber über Sie lesen, stimmt. FIAON sorgt dafür. Über Karte und Rahmen entscheidet die Bank."
-            knoepfe={<><Knopf href="/werkzeuge/karten-check">Karten-Check (kostenlos)</Knopf><Knopf href="#weg" still>Wie der Rahmen wächst</Knopf></>}
-            szene={<Szenenbild src="/kino/karte.jpg" tief />} />
+      <section className="dk-film-hero">
+        <video autoPlay muted loop playsInline poster="/kino/karte.jpg" aria-hidden="true"><source src="/kino/karte.mp4" type="video/mp4" /></video>
+        <div className="schleier" />
+        <div className="dk-rahmen">
+          <Auf>
+            <span className="dk-pille">Kreditkarte</span>
+            <h1 className="dk-h1">Die Karte kommt <span className="dk-verlauf">über die Auskunft.</span></h1>
+            <p className="dk-lead">Nicht über Tricks, nicht über Anbieter, die „garantiert“ versprechen – sondern darüber, dass das, was Herausgeber über Sie lesen, stimmt. FIAON sorgt dafür. Über Karte und Rahmen entscheidet die Bank.</p>
+            <div className="dk-knoepfe"><Knopf href="/werkzeuge/karten-check">Karten-Check (kostenlos)</Knopf><Knopf href="#weg" still>Wie der Rahmen wächst</Knopf></div>
+          </Auf>
+        </div>
+      </section>
 
       <section className="dk-block" style={{ paddingTop: 10 }}>
         <div className="dk-rahmen"><Kennzahlen items={[{ wert: "25k", label: "Euro Rahmen bei guter Bonität – die Schwelle des Kartenpartners" }, { wert: "10", label: "Tage, die eine Kreditanfrage für andere sichtbar bleibt" }, { wert: "18", label: "Monate Speicherfrist bei Zahlung innerhalb von 100 Tagen" }, { wert: "0", label: "Anfragen, die FIAON ohne Ihre Freigabe stellt" }]} /></div>

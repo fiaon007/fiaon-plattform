@@ -428,3 +428,17 @@
 .hw-mehr{margin-top:6px;font:500 13.5px/1 'Inter',sans-serif;color:#fff}
 .hw-mehr::after{content:" →"}
 @media(max-width:720px){.hw-raster{grid-template-columns:1fr}.hw-karte{padding:22px 20px}}
+/* ── Zeilen (Begriff | Erklärung) richtig gesetzt (Justin, 23.08.: „Die fünf Dinge … richtig formatieren") ── */
+.dk-zeile{display:grid;grid-template-columns:minmax(150px,220px) 1fr;gap:24px;align-items:start;padding:16px 0;font-size:14.5px;line-height:1.65}
+.dk-zeile span{font:500 12px/1.4 'Inter',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#93c5fd;padding-top:3px}
+.dk-licht .dk-zeile span{color:#2563eb}
+.dk-zeile b{text-align:left;font-weight:300}
+.dk-licht .dk-zeile b{color:#1e293b}
+@media(max-width:640px){.dk-zeile{grid-template-columns:1fr;gap:6px;padding:14px 0}}
+/* ── Film-Bühne, wiederverwendbar (wie /business) ── */
+.dk-film-hero{position:relative;min-height:92vh;display:flex;align-items:center;overflow:hidden;padding:140px 0 90px}
+.dk-film-hero video,.dk-film-hero>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.8}
+.dk-film-hero .schleier{position:absolute;inset:0;background:linear-gradient(90deg,rgba(10,22,40,.92) 0%,rgba(10,22,40,.7) 45%,rgba(10,22,40,.25) 100%),linear-gradient(180deg,rgba(10,22,40,.3),rgba(10,22,40,.1) 50%,#0a1628 100%)}
+.dk-film-hero .dk-rahmen{position:relative;z-index:1}
+.dk-film-hero .dk-lead{max-width:54ch}
+@media(max-width:720px){.dk-film-hero{min-height:auto;padding:120px 0 60px}}

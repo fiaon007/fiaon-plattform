@@ -1,0 +1,50 @@
+/* ═══ FIAON Business (Neubau 23.08.2026) ═══ */
+.bz-hero{position:relative;min-height:92vh;display:flex;align-items:center;overflow:hidden;padding:140px 0 90px}
+.bz-film{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.8}
+.bz-schleier{position:absolute;inset:0;background:linear-gradient(90deg,rgba(10,22,40,.92) 0%,rgba(10,22,40,.7) 45%,rgba(10,22,40,.25) 100%),linear-gradient(180deg,rgba(10,22,40,.3),rgba(10,22,40,.1) 50%,#0a1628 100%)}
+.bz-hero-inhalt{position:relative;z-index:1;max-width:640px}
+.bz-hero .dk-lead{max-width:54ch}
+/* Werkzeuge */
+.bz-werkzeug{max-width:860px;margin:36px auto 0;text-align:left;display:grid;gap:18px}
+.bz-felder{display:grid;gap:16px;padding:26px 28px;border-radius:22px;background:#fff;border:1px solid rgba(15,23,42,.07);box-shadow:0 2px 4px rgba(15,23,42,.03),0 24px 60px rgba(37,99,235,.08)}
+.bz-felder.zwei{grid-template-columns:1fr 1fr}
+.bz-felder label{display:grid;gap:8px}
+.bz-felder label span{font:500 11px/1.3 'Inter',sans-serif;letter-spacing:.1em;text-transform:uppercase;color:#64748b}
+.bz-felder label span b{color:#2563eb;font-weight:500}
+.bz-felder input[inputmode]{padding:13px 16px;border-radius:12px;border:1px solid rgba(15,23,42,.14);font:inherit;font-size:17px;color:#0f172a;background:#fff;outline:none;min-height:48px}
+.bz-felder input:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.14)}
+.bz-felder input[type=range]{width:100%;accent-color:#2563eb}
+.bz-felder small{font-size:12.5px;color:#64748b;font-weight:300;line-height:1.5}
+.bz-ergebnis{padding:30px 32px;border-radius:22px;background:linear-gradient(135deg,#0b1733,#132a5c);color:#fff;box-shadow:0 30px 70px rgba(11,23,51,.3);animation:bzAuf .45s cubic-bezier(.2,.8,.2,1) both}
+@keyframes bzAuf{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.bz-ergebnis small{font:500 11px/1 'Inter',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#93c5fd}
+.bz-ergebnis h3{margin:10px 0 10px;font:400 28px/1.2 'Inter',sans-serif;letter-spacing:-.02em;color:#fff}
+.bz-ergebnis p{margin:0;font:300 15px/1.7 'Inter',sans-serif;color:#dbeafe}
+.bz-zeile{display:flex;justify-content:space-between;gap:16px;margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,.14);font-size:14px;color:#bfdbfe}
+.bz-zeile b{color:#fff;font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap}
+/* Pakete */
+.bz-pakete{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:40px}
+.bz-paket{display:grid;gap:0;border-radius:24px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);text-decoration:none;color:inherit;overflow:hidden;transition:transform .3s,border-color .3s,box-shadow .3s}
+.bz-paket:hover{transform:translateY(-4px);border-color:rgba(147,197,253,.4);box-shadow:0 30px 70px rgba(2,6,23,.5)}
+.bz-paket.empfohlen{border-color:rgba(96,165,250,.6);box-shadow:0 0 0 1px rgba(96,165,250,.3),0 30px 70px rgba(37,99,235,.25)}
+.bz-karte{position:relative;margin:18px;aspect-ratio:1.586;border-radius:16px;padding:18px;display:flex;flex-direction:column;justify-content:flex-end;gap:2px;box-shadow:0 20px 40px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.25);overflow:hidden}
+.bz-karte::before{content:"";position:absolute;inset:0;background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.18) 48%,transparent 62%);transform:translateX(-100%);transition:transform .9s}
+.bz-paket:hover .bz-karte::before{transform:translateX(100%)}
+.bz-karte span{font:600 11px/1 'Inter',sans-serif;letter-spacing:.28em;position:absolute;top:16px;left:18px;opacity:.9}
+.bz-karte b{font:400 17px/1.2 'Inter',sans-serif;letter-spacing:-.01em}
+.bz-karte small{font-size:11.5px;opacity:.8}
+.bz-paket.silber .bz-karte{background:linear-gradient(135deg,#64748b,#94a3b8,#cbd5e1);color:#0f172a}
+.bz-paket.gold .bz-karte{background:linear-gradient(135deg,#8f6a1f,#d4af37,#f1dc8a);color:#1a1200}
+.bz-paket.navy .bz-karte{background:linear-gradient(135deg,#0b1628,#1a3560,#2a5090);color:#fff}
+.bz-paket.schwarz .bz-karte{background:linear-gradient(135deg,#0a0a0a,#1c1c1c,#333);color:#fff}
+.bz-paket-text{padding:4px 22px 22px;display:grid;gap:10px}
+.bz-preis{margin:0;font:300 26px/1.1 'Inter',sans-serif;color:#fff;letter-spacing:-.02em}
+.bz-preis span{display:block;font-size:12px;color:#93c5fd;margin-top:4px;letter-spacing:0}
+.bz-fuer{margin:0;font-size:13px;color:#9ca3af;min-height:36px}
+.bz-paket ul{list-style:none;margin:0;padding:0;display:grid;gap:7px}
+.bz-paket li{position:relative;padding-left:18px;font:300 13.5px/1.5 'Inter',sans-serif;color:#e5e7eb}
+.bz-paket li::before{content:"";position:absolute;left:0;top:8px;width:8px;height:8px;border-radius:50%;background:#3b82f6}
+.bz-paket-knopf{margin-top:8px;display:inline-flex;justify-content:center;align-items:center;min-height:44px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);color:#fff;font:500 13.5px/1 'Inter',sans-serif}
+.bz-paket.empfohlen .bz-paket-knopf{background:linear-gradient(135deg,#2563eb,#3b82f6);border-color:transparent;box-shadow:0 10px 26px rgba(37,99,235,.32)}
+@media(max-width:1100px){.bz-pakete{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:720px){.bz-hero{min-height:auto;padding:120px 0 60px}.bz-pakete{grid-template-columns:1fr}.bz-felder.zwei{grid-template-columns:1fr}.bz-felder{padding:20px}.bz-ergebnis{padding:24px 20px}.bz-ergebnis h3{font-size:23px}.bz-zeile{flex-direction:column;gap:4px}}

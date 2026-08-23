@@ -11,7 +11,7 @@ import NeuralSphere from "@/components/home3d/NeuralSphere";
 import WellenFeld from "@/components/site/WellenFeld";
 import "@/styles/dunkel.css";
 
-type Seite = "startseite" | "investoren" | "karriere" | "presse" | "partner" | "datenraum" | "team" | "demo" | "ratgeber" | "login" | "privatkunden" | "kontakt" | "was-ist-fiaon";
+type Seite = "startseite" | "investoren" | "karriere" | "presse" | "partner" | "datenraum" | "team" | "demo" | "ratgeber" | "login" | "privatkunden" | "kontakt" | "business" | "plattform-konzept" | "was-ist-fiaon";
 
 export function Dunkel({ seite, titel, beschreibung, children }: { seite: Seite; titel: string; beschreibung: string; children: ReactNode }) {
   useEffect(() => {

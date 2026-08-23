@@ -61,13 +61,15 @@ export default function Ratgeber() {
           </div>
         </Block>
 
-        <Block pille="Werkzeuge" titel={<>Kostenlos, sofort, <span className="dk-verlauf">ohne Anmeldung.</span></>} mitte>
+        <Block id="werkzeuge" pille="Werkzeuge" titel={<>Kostenlos, sofort, <span className="dk-verlauf">ohne Anmeldung.</span></>} mitte>
           <div className="rg-liste" style={{ gridTemplateColumns: "repeat(2,1fr)", textAlign: "left", marginTop: 28 }}>
             <a href="/werkzeuge/eintrag-pruefen" className="rg-karte"><div className="rg-kopfzeile"><span>Werkzeug</span></div><h3>Ist mein Eintrag angreifbar?</h3><p>Fünf Fragen, eine ehrliche Einschätzung nach § 31 BDSG, Löschfristen und BGH-Rechtsprechung – mit Ihrem nächsten Schritt.</p><div className="rg-karte-fuss"><span>2 Minuten</span><b>Prüfen →</b></div></a>
             <a href="/werkzeuge/selbstauskunft" className="rg-karte"><div className="rg-kopfzeile"><span>Werkzeug</span></div><h3>Selbstauskunft-Generator</h3><p>Der fertige Brief für Ihre kostenlose Datenkopie nach Art. 15 DSGVO – an SCHUFA, KSV1870, CRIF oder Intrum. Kopieren, drucken, absenden.</p><div className="rg-karte-fuss"><span>1 Minute</span><b>Brief erstellen →</b></div></a>
             <a href="/werkzeuge/loeschfrist" className="rg-karte"><div className="rg-kopfzeile"><span>Werkzeug</span></div><h3>Löschfrist-Rechner</h3><p>Art des Eintrags und Daten eingeben – das taggenaue Löschdatum, inklusive 100-Tage-Regel und Sechs-Monats-Frist nach Insolvenz.</p><div className="rg-fuss"><span>Sofort, ohne Anmeldung</span></div></a>
             <a href="/werkzeuge/inkassokosten" className="rg-karte"><div className="rg-kopfzeile"><span>Werkzeug</span></div><h3>Inkassokosten-Prüfer</h3><p>Rechnet die zulässigen Gebühren nach RVG und § 13e RDG nach – und liefert die Formulierung für die Zurückweisung überhöhter Posten.</p><div className="rg-fuss"><span>Sofort, ohne Anmeldung</span></div></a>
             <a href="/werkzeuge/verjaehrung" className="rg-karte"><div className="rg-kopfzeile"><span>Werkzeug</span></div><h3>Verjährungs-Rechner</h3><p>Fälligkeit, Titel, Anerkennung – ist die Forderung verjährt? Mit fertiger Einrede zum Kopieren.</p><div className="rg-fuss"><span>Sofort, ohne Anmeldung</span></div></a>
+            <a href="/werkzeuge/karten-check" className="rg-karte"><div className="rg-kopfzeile"><span>Werkzeug</span></div><h3>Karten-Check</h3><p>Fünf Angaben – welche Kreditkarte heute realistisch ist (Debit, Prepaid, Rahmen) und was den nächsten Schritt öffnet.</p><div className="rg-fuss"><span>Sofort, ohne Anmeldung</span></div></a>
+            <a href="/werkzeuge/spielraum" className="rg-karte"><div className="rg-kopfzeile"><span>Werkzeug</span></div><h3>Spielraum-Rechner</h3><p>Einnahmen und Fixkosten – Spielraum, Fixkostenquote und der Richtwert für einen Kartenrahmen.</p><div className="rg-fuss"><span>Sofort, ohne Anmeldung</span></div></a>
           </div>
         </Block>
 

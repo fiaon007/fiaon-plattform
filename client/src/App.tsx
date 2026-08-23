@@ -11,7 +11,7 @@ import { KundenansichtBanner } from "@/components/KundenansichtBanner";
 import FiaonHome from "@/pages/fiaon-home";
 import FiaonLanding from "@/pages/fiaon-landing";
 import StartPage from "@/pages/start";
-import BusinessPage from "@/pages/business";
+const BusinessPage = lazy(() => import("@/pages/site/business"));
 // Antrags- und Kundenstrecken: umfangreich und fuer Agenten irrelevant.
 // Sie werden erst beim Aufruf geladen, damit das Agent-Portal auf dem Handy
 // nicht die komplette Kundenstrecke mitziehen muss.
@@ -25,7 +25,7 @@ const AdminKundeAktePage = lazy(() => import("@/pages/admin-kunde"));
 const AdminAntraegePage = lazy(() => import("@/pages/admin-antraege"));
 const AdminFunktionenPage = lazy(() => import("@/pages/admin-funktionen"));
 const WasIstFiaonPage = lazy(() => import("@/pages/site/was-ist-fiaon"));
-import PlattformKonzeptPage from "@/pages/plattform-konzept";
+const PlattformKonzeptPage = lazy(() => import("@/pages/site/plattform-konzept"));
 import LoginPage from "@/pages/login";
 const DashboardPage = lazy(() => import("@/pages/dashboard"));
 // Mein Bereich — der neue Kundenbereich (E-013). Bis zur Abnahme unter eigener Route.
@@ -136,9 +136,12 @@ const SiteTeam = lazy(() => import("@/pages/site/team"));
 const SiteDemo = lazy(() => import("@/pages/site/demo"));
 const SiteRatgeber = lazy(() => import("@/pages/site/ratgeber"));
 const SiteKontakt = lazy(() => import("@/pages/site/kontakt"));
+const SitePreise = lazy(() => import("@/pages/site/preise"));
 const WzLoeschfrist = lazy(() => import("@/pages/site/werkzeuge/loeschfrist"));
 const WzInkassokosten = lazy(() => import("@/pages/site/werkzeuge/inkassokosten"));
 const WzVerjaehrung = lazy(() => import("@/pages/site/werkzeuge/verjaehrung"));
+const WzKartenCheck = lazy(() => import("@/pages/site/werkzeuge/karten-check"));
+const WzSpielraum = lazy(() => import("@/pages/site/werkzeuge/spielraum"));
 const SitePrivatkunden = lazy(() => import("@/pages/site/privatkunden"));
 const SiteEintragPruefen = lazy(() => import("@/pages/site/werkzeuge/eintrag-pruefen"));
 const SiteSelbstauskunft = lazy(() => import("@/pages/site/werkzeuge/selbstauskunft"));
@@ -190,9 +193,12 @@ function Router() {
       <Route path="/demo" component={SiteDemo} />
       <Route path="/ratgeber" component={SiteRatgeber} />
       <Route path="/kontakt" component={SiteKontakt} />
+      <Route path="/preise" component={SitePreise} />
       <Route path="/werkzeuge/loeschfrist" component={WzLoeschfrist} />
       <Route path="/werkzeuge/inkassokosten" component={WzInkassokosten} />
       <Route path="/werkzeuge/verjaehrung" component={WzVerjaehrung} />
+      <Route path="/werkzeuge/karten-check" component={WzKartenCheck} />
+      <Route path="/werkzeuge/spielraum" component={WzSpielraum} />
       <Route path="/werkzeuge/eintrag-pruefen" component={SiteEintragPruefen} />
       <Route path="/werkzeuge/selbstauskunft" component={SiteSelbstauskunft} />
       <Route path="/ratgeber/:slug" component={SiteRatgeberArtikel} />

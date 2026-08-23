@@ -231,6 +231,14 @@ export default function FiaonHome() {
         ]} />
       </Block>
 
+      <Block pille="Werkzeuge" titel={<>Kostenlos, sofort, <span className="dk-verlauf">ohne Anmeldung.</span></>} lead="Zwei Rechner, die Ihnen heute schon etwas bringen – keine Anfrage bei einer Auskunftei, keine Spur im Score, nichts wird gespeichert." mitte>
+        <div className="hw-raster">
+          <Auf><a href="/werkzeuge/karten-check" className="hw-karte"><span className="hw-tag">Karten-Check</span><h3>Welche Kreditkarte ist für mich realistisch?</h3><p>Fünf Angaben – eine ehrliche Einordnung: Debit, Prepaid oder Rahmen. Und der Schritt, der die nächste Tür öffnet.</p><span className="hw-mehr">Jetzt prüfen</span></a></Auf>
+          <Auf verzoegerung={90}><a href="/werkzeuge/spielraum" className="hw-karte"><span className="hw-tag">Spielraum-Rechner</span><h3>Was bleibt im Monat – und was liest eine Bank daraus?</h3><p>Einnahmen und Fixkosten eingeben: Spielraum, Fixkostenquote und der Richtwert für einen Kartenrahmen.</p><span className="hw-mehr">Jetzt rechnen</span></a></Auf>
+        </div>
+        <p className="dk-leise" style={{ marginTop: 22 }}><a href="/ratgeber#werkzeuge" style={{ color: "#93c5fd" }}>Alle sieben Werkzeuge im Ratgeber →</a></p>
+      </Block>
+
       <Abschluss
         titel={<>Ihr Weg beginnt <span className="dk-verlauf">mit einer E-Mail-Adresse.</span></>}
         text="Konto in zwei Minuten. Ihre Auskunft innerhalb von 24 Stunden. Ein Mensch, der Sie durch alles Weitere begleitet. SEPA-Lastschrift · EU-Hosting · DSGVO-konform · Anwaltlich geprüft."

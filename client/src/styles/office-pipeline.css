@@ -250,12 +250,18 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
   .pi-ergebnisweg .pi-knopf.gross{flex:1 1 100%}
   .pi-termin .pi-reihe .pi-eingabe{flex:1 1 46%}
 }
-/* ── E-044: Motto, Akte-Reiter, Zeitleiste ── */
-.pi-motto{gap:8px}
-.pi-motto-satz{margin:0;font:300 clamp(17px,1.9vw,22px)/1.35 'Inter',sans-serif;color:#e5e7eb;letter-spacing:-.01em}
-.pi-motto-satz b{font:300 1.35em/1 'Inter',sans-serif;color:#fff;font-variant-numeric:tabular-nums;background:linear-gradient(90deg,#93c5fd,#3b82f6);-webkit-background-clip:text;background-clip:text;color:transparent;font-weight:400}
-.pi-motto-link{font:500 12px/1 'Inter',sans-serif;color:#93c5fd;text-decoration:none;justify-self:start}
-.pi-motto-link:hover{text-decoration:underline}
+/* ── E-044/045: Umsatz-Leiste schmal, Hebel-Zeile, Akte-Reiter, Zeitleiste ── */
+.pi-umsatz.schmal{grid-template-columns:1fr;padding-top:16px}
+.pi-umsatz.schmal .pi-umsatz-zahl{grid-template-columns:auto 1fr;grid-template-rows:auto auto;column-gap:18px;align-items:center;padding:16px 20px}
+.pi-umsatz.schmal .pi-umsatz-zahl small{grid-column:1/3}
+.pi-umsatz.schmal .pi-umsatz-zahl b{font-size:clamp(26px,3vw,34px)}
+.pi-umsatz.schmal .pi-umsatz-balken{grid-column:2;align-self:center;margin:0}
+.pi-umsatz.schmal .pi-umsatz-zahl>span{grid-column:1/3}
+/* Der Hebel: schmal, ruhig, unter der Arbeitsliste (Justin) */
+.pi-hebel{margin:0;padding:12px 16px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);font:300 13px/1.6 'Inter',sans-serif;color:#9ca3af}
+.pi-hebel b{font-weight:500;color:#bfdbfe;font-variant-numeric:tabular-nums}
+.pi-hebel a{color:#93c5fd;text-decoration:none;font-weight:500;white-space:nowrap}
+.pi-hebel a:hover{text-decoration:underline}
 .pi-lade-tabs{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .pi-lade-tabs .pi-tab{min-height:38px;padding:0 14px;font-size:12.5px}
 .pi-chip-akt{min-height:34px;padding:0 12px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:#cbd5e1;font:500 12px/1 'Inter',sans-serif;cursor:pointer}
@@ -275,6 +281,41 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
 .pi-zeit .text small{display:block;font-size:11.5px;color:#9ca3af;overflow-wrap:anywhere}
 .pi-zeit .text em{display:block;font-style:normal;font-size:10px;color:#475569;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
 @media(max-width:700px){.pi-zeit li{grid-template-columns:40px 12px 1fr}.pi-motto-satz{font-size:16px}}
+/* ── Die Akte, HIGH END (Justin 23.08.): Sektionen, Reiter, viel Luft ── */
+.pi-lade-kopf-tun{display:flex;align-items:center;gap:8px}
+.pi-lade .pi-lade-tabs{padding:10px 20px;border-bottom:1px solid rgba(255,255,255,.08);background:rgba(10,18,36,.5);overflow-x:auto;scrollbar-width:none;flex-wrap:nowrap}
+.pi-lade .pi-lade-tabs::-webkit-scrollbar{display:none}
+.pi-lade .pi-lade-tabs .pi-tab{flex:0 0 auto}
+.pi-lade-koerper{gap:24px;padding:22px 24px 56px}
+.pi-sek{display:grid;gap:14px;padding:22px 24px;border-radius:22px;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.1)}
+.pi-sek-kopf{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.pi-sek-kopf b{display:block;font:400 16px/1.25 'Inter',sans-serif;color:#fff;letter-spacing:-.01em}
+.pi-sek-kopf p{margin:5px 0 0;font:300 12.5px/1.55 'Inter',sans-serif;color:#9ca3af;max-width:56ch}
+.pi-sek-satz{margin:0;font:300 13.5px/1.6 'Inter',sans-serif;color:#cbd5e1}
+.pi-sek-satz.leise{font-size:12.5px;color:#9ca3af}
+.pi-sek-satz.warn{color:#fde68a}
+.pi-sek-satz.gut{color:#a7f3d0}
+.pi-sek-neben{font-size:12px;color:#64748b}
+.pi-zweck-zahl{margin:0;font:300 26px/1.2 'Inter',sans-serif;letter-spacing:.04em;color:#fff;font-variant-numeric:tabular-nums}
+.pi-ew{display:grid;gap:10px}
+.pi-ew-feld{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;padding:12px 14px;border-radius:14px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1)}
+.pi-ew-feld label{display:grid;gap:4px;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:#64748b}
+.pi-ew-feld.breit{display:grid}
+.pi-ew-feld textarea{min-height:88px}
+.pi-produkt{display:grid;gap:12px;padding:16px 18px;border-radius:16px;background:rgba(37,99,235,.1);border:1px solid rgba(96,165,250,.3)}
+.pi-anruf{display:grid;gap:8px;padding:12px 14px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)}
+.pi-anruf-kopf{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.pi-anruf-kopf b{font:500 13.5px/1.3 'Inter',sans-serif;color:#fff}
+.pi-anruf-kopf span{font-size:12px;color:#64748b;font-variant-numeric:tabular-nums}
+.pi-doku{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:12px 14px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)}
+.pi-doku .punkt{width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,.18)}
+.pi-doku .punkt.da{background:#34d399;box-shadow:0 0 10px rgba(52,211,153,.6)}
+.pi-doku .wer b{display:block;font:500 13.5px/1.3 'Inter',sans-serif;color:#fff}
+.pi-doku .wer small{display:block;margin-top:2px;font-size:12px;color:#9ca3af}
+.pi-rate{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:12px 14px;border-radius:14px;background:rgba(248,113,113,.07);border:1px solid rgba(248,113,113,.25)}
+.pi-rate .wer b{display:block;font:500 13.5px/1.3 'Inter',sans-serif;color:#fff;font-variant-numeric:tabular-nums}
+.pi-rate .wer small{display:block;margin-top:2px;font-size:12px;color:#fca5a5}
+.pi-rate-form{grid-column:1/4;display:grid;gap:8px;padding-top:8px;border-top:1px solid rgba(248,113,113,.2)}
 /* ── Handy ── */
 @media(max-width:960px){
   .pi-umsatz{grid-template-columns:1fr 1fr}
@@ -295,7 +336,11 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
   .pi-leiste-rechts .pi-knopf{flex:1}
   .pi-feld select{max-width:130px}
   .pi-lade{width:100vw}
-  .pi-lade-koerper{padding:12px 12px 40px}
+  .pi-lade .pi-lade-tabs{position:sticky;top:0;z-index:5;padding:8px 12px}
+  .pi-lade-koerper{padding:14px 12px 48px;gap:14px}
+  .pi-sek{padding:16px 14px}
+  .pi-doku,.pi-rate{grid-template-columns:auto 1fr}
+  .pi-doku a,.pi-rate .pi-reihe{grid-column:1/3}
   .pi-block{padding:14px}
   .pi-form{grid-template-columns:1fr}
   .pi-form label.breit{grid-column:auto}

@@ -47,6 +47,16 @@
 //     – NACHHER ein Motivationssatz mit echter Zahl (5 Mandate/Tag × 21 Tage
 //     × Ø-Rate aus dem echten Paketmix × Provisionssatz + 10-€-SCHUFA-Bonus
 //     je Abschluss; Mix wie gehalt.tsx), darunter „Rechne selbst → Earnings“.
+//   · E-045 (Plan §17): Die Bereichs-Trennung ist aufgehoben — die Raten-
+//     Gruppe bekommt echte Daten aus /inkasso/liste (für jeden Bonitäts-
+//     manager auf die eigenen Kunden beschränkt); die zwei Ausgänge
+//     (Erinnerung · Ergebnis) sitzen in der Akte unter „Zahlungen & Raten“.
+//   · Umsatz-Leiste (Justin, nach E-045): VORHER drei Kacheln („Heute
+//     erreichbar“, „Dein Hebel“, „Aktive Kunden“) — NACHHER nur noch
+//     „Aktive Kunden x/500“; der Hebel steht als schmale, ruhige Zeile
+//     UNTER der Arbeitsliste und betont das Zusammenwachsen des Bestands.
+//   · Akte: HIGH-END-Neubau (dunkles Glas, Reiter, Erklärzeilen) — Details
+//     am Akte-Abschnitt unten.
 //   · Aktive Kunden (§16a): VORHER alle bezahlten/zugewiesenen Kunden der
 //     Liste – NACHHER zählen NUR übernommene Mandate
 //     (fiaon_persons.mandat_seit, gesetzt beim Buchen von „Mandat
@@ -55,22 +65,22 @@
 // Regel (Justin): Die erste Zahlung ist immer eine Überweisung – nirgends
 // Lastschrift. Liste: GET /agent/kunden/liste (+ filter=bezahlt für Aktive).
 // ═══════════════════════════════════════════════════════════════════════════
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "wouter";
 import { Phone, Search, X, Plus, Copy, Send, Mail, FileText, RefreshCw, Check, ExternalLink, ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
 import { AgentShell, api, useFragen } from "./shared";
 import { useOffice } from "./OfficeShell";
 import { ToastAnbieter, useToast, eur } from "@/lib/fiaon-ui";
 import { statusAusTierGrund, type Stufe } from "@shared/fiaon-kundenstatus";
-import { ERGEBNIS_TEXT } from "@shared/fiaon-kontakt-ergebnis-liste";
+import { ERGEBNIS_TEXT, ERGEBNIS_LISTE, NOTIZ_MINDESTLAENGE } from "@shared/fiaon-kontakt-ergebnis-liste";
+import { RATEN_ERGEBNISSE, type RatenErgebnis } from "@shared/fiaon-raten-ergebnisse";
+import { AnrufPlayer } from "@/components/AnrufPlayer";
 import { PAKETE } from "@shared/fiaon-pakete";
 import { ARTEN, type Art as LeitfadenArt } from "./tools/gespraech";
-import { ProduktDialog } from "@/components/agent/ProduktDialog";
 import { KundeAnlegen } from "@/components/agent/KundeAnlegen";
 import { SendeMenue } from "@/components/SendeMenue";
 import { Gespraechsblatt } from "@/components/Gespraechsblatt";
 import { RechnungBestaetigung } from "@/components/agent/RechnungBestaetigung";
-import { ErgebnisWahl, type ErgebnisAusgang } from "@/components/agent/ErgebnisWahl";
 import "@/styles/office-pipeline.css";
 
 
@@ -128,6 +138,8 @@ interface Kunde {
   rateFaelligAm?: string | null;
   rateAnzahl?: number;
   rateSummeCents?: number;
+  /** E-045: die überfälligen Raten selbst (aus /inkasso/liste) – für die zwei Ausgänge in der Akte. */
+  rateListe?: { id: number; rateNr: number; betragCents: number; faelligAm: string | null; status: string }[];
   // ── E-044/§16a: vom Vertriebs-Router geliefert ──
   mandatSeit?: string | null;
   vollstaendig?: boolean;
@@ -237,7 +249,7 @@ const STUFE: Record<Hitze, { name: string; kurz: string; farbe: string; leitfade
   aktiv: { name: "Aktiv – betreut", kurz: "aktiv", farbe: "#34d399", leitfaden: "startgespraech", rang: 5 },
 };
 const STUFEN_REIHE: Hitze[] = ["heiss", "rate", "warm", "lead", "aktiv"];
-/** E-042a: Reaktivierungsbonus – 50 % der zurückgeholten Rate, NUR für den Altbestand (Kunden von vor dem Office-Start). Vorher: alle überfälligen Raten. */
+/** E-042: Reaktivierungsbonus – 50 % der zurückgeholten Rate für den Bonitätsmanager. */
 const REAKTIVIERUNG_ANTEIL = 0.5;
 /** SCHUFA-Bonus im Onboarding: 10 € je 74-€-Zahlung (Bonitätsauskunft). */
 const SCHUFA_BONUS_TEXT = "+10 € SCHUFA-Bonus je 74-€-Zahlung im Onboarding";
@@ -251,7 +263,7 @@ const REAKTIVIERUNG = {
     { titel: "Zuhören", text: "Was ist passiert? Nicht unterbrechen, nichts rechtfertigen. Der Grund entscheidet über den Weg.", satz: "Erzählen Sie mir kurz, wo es gehakt hat – ich möchte verstehen, was bei Ihnen los war." },
     { titel: "Den Wert wieder aufbauen", text: "Was FIAON für sein Ziel schon getan hat und noch tut – Auskunft, Schreiben, Konto, Karte.", satz: "Ihr Ziel steht ja weiter: … Genau daran arbeiten wir – und Ihr Bereich zeigt Ihnen jeden Schritt." },
     { titel: "Zwei Wege anbieten", text: "Weg 1: Die offene Rate jetzt per Überweisung begleichen – dann läuft alles weiter. Weg 2: Einen Monat aussetzen und ein Onboarding-Gespräch buchen. Nie Lastschrift anbieten.", satz: "Ich sehe zwei Wege für Sie: Sie begleichen die offene Rate per Überweisung, dann läuft alles nahtlos weiter – oder wir setzen einen Monat aus und starten mit einem gemeinsamen Gespräch neu. Was passt besser?" },
-    { titel: "Ergebnis festhalten", text: "Ausgang 1: Kunde zahlt → dein Reaktivierungsbonus (Altbestand: 50 % der Rate). Ausgang 2: 1 Monat ausgesetzt + Onboarding-Termin gebucht → 0 €, aber der Kunde bleibt.", satz: "Danke für das Gespräch – Sie hören sofort von mir, sobald alles eingetragen ist." },
+    { titel: "Ergebnis festhalten", text: "Ausgang 1: Kunde zahlt → dein Reaktivierungsbonus (50 % der Rate). Ausgang 2: 1 Monat ausgesetzt + Onboarding-Termin gebucht → 0 €, aber der Kunde bleibt.", satz: "Danke für das Gespräch – Sie hören sofort von mir, sobald alles eingetragen ist." },
   ],
   einwaende: [
     { frage: "„Ich will kündigen.“", antwort: "Das können Sie jederzeit – bevor Sie es tun: Lassen Sie uns einen Monat aussetzen und in einem Gespräch schauen, was FIAON für Ihr Ziel schon erreicht hat. Kostet Sie nichts, und Sie entscheiden danach." },
@@ -471,6 +483,12 @@ function PipelineInnen() {
               rateFaelligAm: d.faellig_am ?? null,
               rateAnzahl: Number(pers.anzahl || pers.raten?.length || 1),
               rateSummeCents: Number(pers.summeCents || 0),
+              // E-045: die Raten selbst – die Akte bucht darauf Erinnerung/Ergebnis.
+              rateListe: (pers.raten || []).map((x: any) => ({
+                id: Number(x.rate_id ?? x.id), rateNr: Number(x.rate_nr),
+                betragCents: Number(x.betrag_cents || 0), faelligAm: x.faellig_am ?? null,
+                status: String(x.status || "offen"),
+              })),
             };
             const da = pers.personId != null ? zusammen.find((k) => k.personId === Number(pers.personId)) : undefined;
             if (da) Object.assign(da, felder);
@@ -573,12 +591,6 @@ function PipelineInnen() {
     for (const k of liste) z[stufeVon(k)]++;
     return z;
   }, [liste]);
-  const erreichbar = useMemo(() => liste.filter((k) => !erledigt.has(k.personId)).reduce((s, k) => {
-    const st = stufeVon(k);
-    if (st === "heiss" || st === "warm") return s + paketPreis(k);
-    if (st === "rate") return s + (k.rateCents ?? 0);
-    return s;
-  }, 0), [liste, erledigt]);
   // §16a: VORHER zählten hier alle bezahlten/zugewiesenen Kunden – NACHHER nur Mandate.
   const aktive = mandate.anzahl;
   // Motivationssatz: 5 Mandate/Tag × 21 Arbeitstage × (Ø-Rate × Satz + 10 € SCHUFA-Bonus).
@@ -587,7 +599,7 @@ function PipelineInnen() {
     const avg = Object.entries(MIX_MOTTO).reduce((sum, [key, c]) => sum + (PAKETE.find((x) => x.key === key)?.preisCents ?? 0) * c, 0) / n;
     return Math.round(5 * 21 * (avg * satz + SCHUFA_BONUS_CENTS));
   }, [satz]);
-  const zErreichbar = useZaehlen(erreichbar), zAktive = useZaehlen(aktive);
+  const zAktive = useZaehlen(aktive);
 
   // ── Der Bestand-Strom: gefiltert, nach Hitze ────────────────────────────
   const laender = useMemo(() => Array.from(new Set(liste.map((k) => k.stammdaten?.land).filter(Boolean) as string[])).sort(), [liste]);
@@ -635,20 +647,11 @@ function PipelineInnen() {
 
   return (
     <div className="pi">
-      {/* Umsatz-Leiste */}
-      <section className="pi-umsatz">
-        <div className="pi-umsatz-zahl">
-          <small>Heute erreichbar</small>
-          <b>{laedt ? "–" : euro0(zErreichbar)}</b>
-          <span>erste Raten der heißen und warmen Kunden – per Überweisung</span>
-        </div>
-        {/* VORHER: Kachel „Meine Provision möglich“ – bei 6 sichtbaren Kunden klein und
-            demotivierend. NACHHER: Motivationssatz mit echter Zahl (Justin 23.08.). */}
-        <div className="pi-umsatz-zahl hervor pi-motto">
-          <small>Dein Hebel</small>
-          <MottoSatz cents={mottoCents} />
-          <Link href="/agent/gehalt" className="pi-motto-link">Rechne selbst → Earnings</Link>
-        </div>
+      {/* Umsatz-Leiste. VORHER (bis 23.08. abends): drei Kacheln — „Heute
+          erreichbar“, „Dein Hebel“ (groß), „Aktive Kunden“. NACHHER (Justin):
+          nur noch „Aktive Kunden x/500“; der Hebel steht als schmale Zeile
+          unter der Arbeitsliste. */}
+      <section className="pi-umsatz schmal">
         <div className="pi-umsatz-zahl">
           <small>Aktive Kunden · Mandate</small>
           <b>{laedt ? "–" : Math.round(zAktive)}<em> / {MAX_AKTIV}</em></b>
@@ -709,6 +712,14 @@ function PipelineInnen() {
               <Leitfaden stufe={fokusSlot ? (GRUPPE_INFO[fokusSlot.gruppe]?.stufe ?? "heiss") : "heiss"} />
             </section>
           )}
+          {/* VORHER: „Dein Hebel“ als große Kachel oben. NACHHER (Justin):
+              schmale, ruhige Zeile unter der Arbeitsliste — Zusammenwachsen
+              statt Tageswert. */}
+          <p className="pi-hebel">
+            Jeden Tag 5 Mandate – und dein Gehalt wächst von selbst: im ersten Monat <b>{euro0(mottoCents)}</b>,
+            mit wachsendem Bestand jeden Monat mehr, weil jedes Mandat 12 Raten zahlt.
+            {" "}<Link href="/agent/gehalt">Rechne selbst → Earnings</Link>
+          </p>
         </>
       )}
 
@@ -759,17 +770,27 @@ function PipelineInnen() {
               <button type="button" className="pi-knopf klein" onClick={() => setAnlageOffen((v) => !v)}><Plus size={14} strokeWidth={1.75} /> Kunde anlegen</button>
             </span>
           </section>
-          {anlageOffen && <div className="pi-hell"><KundeAnlegen offen={anlageOffen} aufKlappen={setAnlageOffen} fertig={() => { void laden(true); void arbeitslisteLaden(true); }} /></div>}
+          {anlageOffen && (
+            <div style={{ display: "grid", gap: 6 }}>
+              {/* Helle Einlage, bewusst gerahmt: KundeAnlegen ist die geprüfte
+                  Anlage-Strecke (anlegen → Zahlungsdaten → Termin) und bleibt
+                  vorerst hell — Rest, siehe Bericht. */}
+              <p className="pi-fussnote">Kunde anlegen öffnet die geprüfte Anlage-Strecke:</p>
+              <div className="pi-hell"><KundeAnlegen offen={anlageOffen} aufKlappen={setAnlageOffen} fertig={() => { void laden(true); void arbeitslisteLaden(true); }} /></div>
+            </div>
+          )}
           {(zaehler.wartet ?? 0) > 0 && ansicht !== "nicht_erreicht" && (
             <button type="button" className="pi-hinweis" onClick={() => setAnsicht("nicht_erreicht")}>
               <span className="zahl">{zaehler.wartet}</span>
               <span><b>{zaehler.wartet === 1 ? "Einer wartet auf seinen Termin" : `${zaehler.wartet} warten auf ihren Termin`}</b><small>Nicht erreicht – sie haben den Buchungslink und wählen selbst. Nicht erneut anrufen.</small></span>
             </button>
           )}
+          {/* E-045: VORHER hieß es hier „kommt mit dem Zahlungsmotor“ – die
+              Collections-Wand ist offen, jeder sieht die Raten seiner Kunden. */}
           {stufe === "rate" && ratenQuelle !== "ok" && (
             <div className="pi-hinweis blau" style={{ cursor: "default" }}>
-              <span><b>{ratenQuelle === "leer" ? "Keine Rate überfällig – stark." : "Rate überfällig – kommt mit dem Zahlungsmotor."}</b>
-                <small>{ratenQuelle === "leer" ? "Sobald eine Rate deiner Kunden überfällig ist, steht sie hier – Altbestand mit 50 % Bonus je zurückgeholter Rate." : "Die überfälligen Raten liegen heute noch bei Collections. Hier wird nichts geraten."}</small></span>
+              <span><b>{ratenQuelle === "leer" ? "Keine Rate überfällig – stark." : "Die überfälligen Raten sind gerade nicht abrufbar."}</b>
+                <small>{ratenQuelle === "leer" ? "Sobald eine Rate deiner Kunden überfällig ist, steht sie hier – mit 50 % Bonus je zurückgeholter Rate." : "Lade neu – sobald der Server antwortet, stehen die Raten deiner Kunden hier."}</small></span>
             </div>
           )}
 
@@ -800,15 +821,6 @@ function PipelineInnen() {
       )}
     </div>
   );
-}
-
-/** Der Motivationssatz der Umsatz-Leiste — 2–3 Varianten je Tageszeit, immer mit echter Zahl. */
-function MottoSatz({ cents }: { cents: number }) {
-  const zahl = euro0(useZaehlen(cents));
-  const stunde = new Date().getHours();
-  if (stunde < 12) return <p className="pi-motto-satz">5 neue Mandate am Tag sind <b>{zahl}</b> am Monatsende.</p>;
-  if (stunde < 17) return <p className="pi-motto-satz">Jedes Mandat zahlt 12 Raten – 5 am Tag sind <b>{zahl}</b> im ersten Monat.</p>;
-  return <p className="pi-motto-satz">Dein Bestand zahlt dich jeden Monat – 5 Mandate am Tag sind <b>{zahl}</b>.</p>;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1157,8 +1169,48 @@ function stil3d(d: number, hitze: number): React.CSSProperties {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// DIE AKTE — alle Aktionen der alten Kundenkarte, in der Glas-Lade
+// DIE AKTE — HIGH-END-NEUBAU (Justin 23.08.: „darin wird gearbeitet, also
+// wirklich PERFEKT, immer erklärend, gut formatiert, clean, genügend Platz“).
+//
+// VORHER: eine lange Block-Spalte mit hellen Alt-Einlagen (.pi-hell mit
+// ErgebnisWahl/ProduktDialog) — der Stilbruch, den Justin gemeldet hat.
+// NACHHER: durchgängig dunkles Glas im Office-Stil, großzügige Sektionen mit
+// Erklärzeile unter jeder Überschrift, Reiter:
+//   Überblick · Zahlungen & Raten · Gespräche · E-Mails · Dokumente ·
+//   Aktivität · Daten
+// Dunkel NACHGEBAUT (dieselben Endpunkte): Ergebniswahl (ErgebnisWahlDunkel,
+// shared/fiaon-kontakt-ergebnis-liste), Produktwechsel (ProduktDunkel,
+// GET /agent/katalog + POST /agent/customers/:ref/produkt).
+// HELLE RESTE (Vorschau-Pflicht, bewusst nicht nachgebaut): SendeMenue und
+// Gesprächsblatt (eigene Overlays) sowie RechnungBestaetigung (Modal mit
+// Rechnungs-Vorschau) — sie öffnen ÜBER der Lade, nicht darin.
+// E-045: Reiter „Zahlungen & Raten“ trägt die überfälligen Raten mit den zwei
+// Ausgängen (Erinnerung senden · Ergebnis buchen) über die Collections-
+// Endpunkte /inkasso/rate/:id/erinnerung und /inkasso/rate/:id/ergebnis.
+// Alle bisherigen Funktionen bleiben erreichbar.
 // ═══════════════════════════════════════════════════════════════════════════
+/** Eine Sektion der Akte: Überschrift, Erklärzeile (Justin: „immer erklärend“), Inhalt.
+ *  Auf Modulebene, nicht im Renderer — sonst remountet jede Eingabe (Fokusverlust). */
+function Sek({ titel, erklaer, children, kopfRechts }: { titel: string; erklaer: string; children: ReactNode; kopfRechts?: ReactNode }) {
+  return (
+    <section className="pi-sek">
+      <div className="pi-sek-kopf"><div><b>{titel}</b><p>{erklaer}</p></div>{kopfRechts}</div>
+      {children}
+    </section>
+  );
+}
+
+type AkteReiter = "ueberblick" | "zahlungen" | "gespraeche" | "mails" | "dokumente" | "aktivitaet" | "daten";
+const AKTE_REITER: { key: AkteReiter; label: string }[] = [
+  { key: "ueberblick", label: "Überblick" },
+  { key: "zahlungen", label: "Zahlungen & Raten" },
+  { key: "gespraeche", label: "Gespräche" },
+  { key: "mails", label: "E-Mails" },
+  { key: "dokumente", label: "Dokumente" },
+  { key: "aktivitaet", label: "Aktivität" },
+  { key: "daten", label: "Daten" },
+];
+
 function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
   k: Kunde; onZu: () => void; onWeg: () => void; onNeu: (k: Kunde) => void; onErledigt: () => void; onZaehler: () => void;
 }) {
@@ -1170,16 +1222,13 @@ function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
     setMeldung({ art, text: text ? `${titel} – ${text}` : titel });
     zeige(art === "gut" ? "erfolg" : art === "schlecht" ? "fehler" : "info", titel, text);
   };
+  const [reiter, setReiter] = useState<AkteReiter>("ueberblick");
   const [bearbeiten, setBearbeiten] = useState(false);
   const [mailNachtrag, setMailNachtrag] = useState("");
   const [produktOffen, setProduktOffen] = useState(false);
   const [datumWert] = useState(tagPlus(1));
   const [notiz, setNotiz] = useState("");
   const [verlauf, setVerlauf] = useState<any[] | null>(null);
-  // ── E-044/§16: Reiter „Aktivität“ + Vollständigkeit (Kartenstatus) ──
-  const [reiter, setReiter] = useState<"akte" | "aktivitaet">("akte");
-  const [akt, setAkt] = useState<{ ereignisse: any[]; vollstaendig: { vollstaendig: boolean; paketBezahlt: boolean; schufaBezahlt: boolean; kontoauszug: boolean; ausweis: boolean } } | null>(null);
-  const [aktFehler, setAktFehler] = useState<string | null>(null);
   const [sendeMenue, setSendeMenue] = useState(false);
   const [blatt, setBlatt] = useState(false);
   const [linkKopiert, setLinkKopiert] = useState(false);
@@ -1193,7 +1242,13 @@ function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
   const [auswahl, setAuswahl] = useState<Set<string>>(new Set());
   const [bestaetigen, setBestaetigen] = useState(false);
   const [sendeFehler, setSendeFehler] = useState<string | null>(null);
-  const notizFeld = useRef<HTMLInputElement | null>(null);
+  // E-044/§16: Aktivität + Vollständigkeit (Kartenstatus-Weiche)
+  const [akt, setAkt] = useState<{ ereignisse: any[]; vollstaendig: { vollstaendig: boolean; paketBezahlt: boolean; schufaBezahlt: boolean; kontoauszug: boolean; ausweis: boolean } } | null>(null);
+  const [aktFehler, setAktFehler] = useState<string | null>(null);
+  // Gespräche: Anrufe mit Aufnahme (lazy je Reiter)
+  const [anrufe, setAnrufe] = useState<any[] | null>(null);
+  // Dokumente-Stand (lazy)
+  const [doku, setDoku] = useState<any | null | "fehlt">(null);
 
   const zusage = relativ(k.zusagedatum);
   const rueckruf = k.rueckrufAm ? new Date(k.rueckrufAm) : null;
@@ -1202,7 +1257,6 @@ function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
   const status = statusAusTierGrund(k.tierGrund);
 
   useEffect(() => {
-    // Escape schließt die Lade – aber nicht, solange ein Dialog darüber liegt.
     const h = (e: KeyboardEvent) => { if (e.key === "Escape" && !bestaetigen && !sendeMenue && !blatt) onZu(); };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
@@ -1227,12 +1281,22 @@ function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
     });
     return () => { an = false; };
   }, [k.personId]);
+  // Anrufe und Dokumente erst laden, wenn der Reiter sie braucht.
+  useEffect(() => {
+    if (reiter === "gespraeche" && anrufe === null) {
+      api(`/telefon/person/${k.personId}/anrufe`).then((r) => setAnrufe(r.ok ? (r.json.anrufe || []) : []));
+    }
+    if (reiter === "dokumente" && doku === null) {
+      api(`/dokumente/${k.personId}`).then((r) => setDoku(r.ok && r.json.stand ? r.json.stand : "fehlt"));
+    }
+  }, [reiter, k.personId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // §16: Der Kartenstatus ist überall der Platzhalter, bis der Kunde vollständig ist.
   const vollstaendig = akt?.vollstaendig?.vollstaendig ?? k.vollstaendig ?? false;
   const kartenText = vollstaendig ? "Vollständig – liegt bei FIAON zur Bearbeitung" : "In Bearbeitung";
 
   // ── Ergebnis / Notiz (POST /agent/crm/kunden/:id/aktivitaet) ───────────
-  const ergebnis = async (art: string, zusatz: Record<string, unknown> = {}): Promise<ErgebnisAusgang> => {
+  const ergebnis = async (art: string, zusatz: Record<string, unknown> = {}): Promise<boolean> => {
     setLaeuft(art);
     const eigeneNotiz = typeof zusatz.notiz === "string" ? zusatz.notiz.trim() : "";
     const r = await api(`/agent/crm/kunden/${k.personId}/aktivitaet`, {
@@ -1240,9 +1304,8 @@ function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
     });
     setLaeuft(null);
     if (!r.ok) {
-      const grund = r.json?.error || "Nicht gespeichert. Bitte erneut versuchen.";
-      melden("schlecht", "Nicht gespeichert", grund);
-      return { ok: false, fehler: grund };
+      melden("schlecht", "Nicht gespeichert", r.json?.error || "Bitte erneut versuchen.");
+      return false;
     }
     melden(r.json.uebergabe && !r.json.uebergabe.ok ? "info" : "gut", r.json.meldung || "Gespeichert", k.name);
     setNotiz("");
@@ -1253,7 +1316,7 @@ function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
     else onErledigt();
     if (art === "notiz") await verlaufNachladen(); else void verlaufNachladen();
     onZaehler();
-    return { ok: true };
+    return true;
   };
 
   // ── Zahlungsbeleg (POST …/zahlungsbeleg, multipart) ─────────────────────
@@ -1371,6 +1434,7 @@ function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
 
   return (
     <aside className="pi-lade" role="dialog" aria-modal="true" aria-label={`Akte ${k.name}`}>
+      {/* Kopf: Wer, wo er steht, ein großer Anruf-Knopf. */}
       <div className="pi-lade-kopf">
         <span className="pi-lade-glut" style={{ ["--hitze" as string]: STUFE[stufeVon(k)].farbe }} aria-hidden="true"><i className="pi-glut" /></span>
         <div>
@@ -1378,154 +1442,135 @@ function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
           <div className="status">
             <i style={{ color: k.tier === 1 ? "#fca5a5" : k.tier === 2 ? "#fcd34d" : k.tier === 0 ? "#6ee7b7" : "#cbd5e1" }}>{status.anzeige}</i>
             <span>{STUFE[stufeVon(k)].name}</span>
+            <span className={`pi-marke${vollstaendig ? " gut" : " still"}`}
+                  title={akt ? `Paket ${akt.vollstaendig.paketBezahlt ? "✓" : "–"} · SCHUFA ${akt.vollstaendig.schufaBezahlt ? "✓" : "–"} · Kontoauszug ${akt.vollstaendig.kontoauszug ? "✓" : "–"} · Ausweis ${akt.vollstaendig.ausweis ? "✓" : "–"}` : undefined}>
+              Karte: {kartenText}
+            </span>
+            {k.mandatSeit && <span className="pi-marke">Mandat seit {dtag(k.mandatSeit)}</span>}
             {termin && <span className="pi-marke">Termin {terminText(k.terminAm!)}</span>}
             {k.termin && !termin && <span className="pi-marke">{terminText(k.termin.beginn)} · {k.termin.art}</span>}
             {zusage && <span className={`pi-marke${zusage.dringend ? " dringend" : ""}`}>Zusage {zusage.text}</span>}
             {rueckruf && <span className={`pi-marke${rueckrufJetzt ? " dringend" : " warn"}`}>Rückruf {rueckruf.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })} {rueckruf.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}</span>}
           </div>
         </div>
-        <button type="button" className="pi-lade-zu" onClick={onZu} aria-label="Akte schließen"><X size={18} strokeWidth={1.75} /></button>
+        <div className="pi-lade-kopf-tun">
+          {k.telefonWaehlbar && <button type="button" className="pi-knopf gross" onClick={() => anrufen(k.telefonWaehlbar, k.personId, k.name)}><Phone size={16} strokeWidth={1.75} /> Anrufen</button>}
+          <button type="button" className="pi-lade-zu" onClick={onZu} aria-label="Akte schließen"><X size={18} strokeWidth={1.75} /></button>
+        </div>
+      </div>
+
+      {/* Reiter — am Handy oben festgeklebt */}
+      <div className="pi-lade-tabs" role="tablist">
+        {AKTE_REITER.map((t) => (
+          <button key={t.key} type="button" role="tab" aria-selected={reiter === t.key} className={`pi-tab${reiter === t.key ? " an" : ""}`} onClick={() => setReiter(t.key)}>
+            {t.label}{t.key === "aktivitaet" && akt ? <em>{akt.ereignisse.length}</em> : null}
+          </button>
+        ))}
       </div>
 
       <div className="pi-lade-koerper">
         {meldung && <p className={`pi-meldung ${meldung.art === "gut" ? "gut" : meldung.art === "schlecht" ? "schlecht" : ""}`}>{meldung.text}</p>}
 
-        {/* E-044: Reiter Akte · Aktivität */}
-        <div className="pi-lade-tabs" role="tablist">
-          <button type="button" role="tab" aria-selected={reiter === "akte"} className={`pi-tab${reiter === "akte" ? " an" : ""}`} onClick={() => setReiter("akte")}>Akte</button>
-          <button type="button" role="tab" aria-selected={reiter === "aktivitaet"} className={`pi-tab${reiter === "aktivitaet" ? " an" : ""}`} onClick={() => setReiter("aktivitaet")}>Aktivität{akt ? <em>{akt.ereignisse.length}</em> : null}</button>
-          <span className={`pi-marke${vollstaendig ? " gut" : " still"}`} style={{ marginLeft: "auto" }} title={akt ? `Paket ${akt.vollstaendig.paketBezahlt ? "✓" : "–"} · SCHUFA ${akt.vollstaendig.schufaBezahlt ? "✓" : "–"} · Kontoauszug ${akt.vollstaendig.kontoauszug ? "✓" : "–"} · Ausweis ${akt.vollstaendig.ausweis ? "✓" : "–"}` : undefined}>
-            Karte: {kartenText}
-          </span>
-        </div>
-
-        {reiter === "aktivitaet" && <AktivitaetsZeit akt={akt} fehler={aktFehler} />}
-        {reiter === "akte" && <>
-        {/* Nächster Schritt + Aktionen */}
-        <div className="pi-block hervor">
-          <div className="pi-block-kopf"><b>Nächster Schritt</b><small style={{ color: "#9ca3af", fontSize: 12 }}>{wartezeit(k.letzterKontakt)}</small></div>
-          <p>{k.hinweis}</p>
-          <div className="pi-reihe oben">
-            {k.telefonWaehlbar ? (
-              <button type="button" className="pi-knopf gross" onClick={() => anrufen(k.telefonWaehlbar, k.personId, k.name)}><Phone size={16} strokeWidth={1.75} /> Anrufen</button>
-            ) : k.telefon ? (
-              <NummerLandNachtragen k={k} onFertig={onNeu} />
-            ) : (
-              <span className="pi-sperre">keine Nummer</span>
-            )}
-
-            {!sperre ? (
-              <span className="pi-stapel">
-                <button type="button" className="pi-knopf gut gross" onClick={() => setBestaetigen(true)} disabled={!!laeuft} title={`Zahlungsdaten und Rechnung an ${k.email}`}>
-                  <Send size={15} strokeWidth={1.75} /> {laeuft === "rechnung" ? "Sende …" : "Zahlungsdaten senden"}
-                </button>
-                <VertragsLuecke k={k} melden={melden} />
-              </span>
-            ) : (
-              <span className="pi-stapel">
-                <span className="pi-sperre"><Send size={14} strokeWidth={1.75} /> Zahlungsdaten: gesperrt</span>
-                <span className="pi-luecke" style={{ color: "#fde68a" }}>{sperre.grund}</span>
-                <VertragsLuecke k={k} melden={melden} />
-                {sperre.ziel === "stammdaten" && (
-                  <span className="pi-reihe">
-                    <input className="pi-eingabe" value={mailNachtrag} onChange={(e) => setMailNachtrag(e.target.value)} placeholder="E-Mail nachtragen" type="email" inputMode="email" style={{ minWidth: 200 }} />
-                    <button type="button" className="pi-knopf still" disabled={!!laeuft || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(mailNachtrag.trim())} onClick={() => void mailNachtragen()}>{laeuft === "mailnachtrag" ? "Speichert …" : "Speichern"}</button>
-                  </span>
-                )}
-                {sperre.ziel === "produkt" && <button type="button" className="pi-knopf still" onClick={() => setProduktOffen(true)}>Produkt anlegen</button>}
-              </span>
-            )}
-          </div>
-          <div className="pi-reihe">
-            <button type="button" className="pi-knopf still" onClick={() => setProduktOffen((v) => !v)} title="Ein Paket aus dem Katalog an diese Akte hängen. Ein offenes Paket wird dabei ersetzt.">
-              {buchungen.some((b) => b.offen && b.art === "paket") ? "Produkt tauschen" : "Produkt hinzufügen"}
-            </button>
-            {k.email && <a href={`mailto:${k.email}`} className="pi-knopf still" title={`Öffnet dein eigenes Mailprogramm mit ${k.email}`}><Mail size={14} strokeWidth={1.75} /> eigenes Mailprogramm</a>}
-            <button type="button" className="pi-knopf still" onClick={() => void nummerKorrektur()} disabled={!!laeuft || !k.email} title="Schickt dem Kunden einen Link, mit dem er seine Telefonnummer selbst korrigiert">
-              {laeuft === "nummer" ? "Sende …" : "Nummer korrigieren lassen"}
-            </button>
-            <button type="button" className="pi-knopf still" onClick={() => setBlatt(true)}>Gesprächsblatt</button>
-            <button type="button" className="pi-knopf still" onClick={() => setSendeMenue(true)}><Mail size={14} strokeWidth={1.75} /> E-Mail senden</button>
-          </div>
-          {produktOffen && (
-            <div className="pi-hell">
-              <ProduktDialog offen={produktOffen} personId={k.personId} buchungen={buchungen as any} aufKlappen={setProduktOffen}
-                             fertig={async (m) => { melden("gut", "Produkt gespeichert", m); await frisch(); onZaehler(); }} />
-            </div>
-          )}
-        </div>
-
-        {/* Vorgeschichte */}
-        {(k.nichtErreicht >= 2 || k.ruhtSeit) && (
-          <div className={`pi-block ${k.ruhtSeit ? "still" : "warn"}`}>
-            <div className="pi-block-kopf"><b>Vorgeschichte</b></div>
-            <p className={k.ruhtSeit ? "leise" : "warn"}>
-              {k.nichtErreicht}× nicht erreicht
-              {k.letzterKontakt && `, zuletzt ${dtag(k.letzterKontakt)}`}
-              {k.terminlinkMailAm && `, Terminlink versandt ${dtag(k.terminlinkMailAm)}`}
-            </p>
-            {k.ruhtSeit && <p className="leise">Ruht bis {k.wiedervorlage ? dtag(k.wiedervorlage) : "zur Wiedervorlage"}. Nicht anrufen — er hat den Terminlink und meldet sich selbst.</p>}
-            {!k.email && (
-              <div className="pi-reihe">
-                <p className="leise">Keine E-Mail hinterlegt — es ging keine Mail raus.</p>
-                <button type="button" className="pi-knopf still klein" onClick={() => void terminlinkKopieren()}><Copy size={13} strokeWidth={1.75} /> {linkKopiert ? "Kopiert" : "Terminlink für WhatsApp kopieren"}</button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Zahlung: Verwendungszweck + Beleg */}
-        {k.zahlung?.referenz && (
-          <div className="pi-block">
-            <div className="pi-zweck">
-              <span><small>Verwendungszweck</small><b>{k.zahlung.referenz}</b></span>
-              <button type="button" className="pi-knopf still klein" style={{ marginLeft: "auto" }} disabled={!k.zahlung.klartext} onClick={() => void zahlungsdatenKopieren()} title="Empfänger, IBAN, Betrag und Verwendungszweck als Text — fertig für WhatsApp">
-                <Copy size={13} strokeWidth={1.75} /> {kopiert ? "Kopiert" : "Zahlungsdaten kopieren"}
-              </button>
-            </div>
-            {kopiert && <p className="gut">Empfänger, IBAN, Betrag und Verwendungszweck liegen in der Zwischenablage.</p>}
-            {!belegOffen ? (
-              <button type="button" className="pi-link" onClick={() => setBelegOffen(true)}>Überweisungsbeleg hinterlegen</button>
-            ) : (
-              <div style={{ display: "grid", gap: 8 }}>
-                <p className="leise">Foto oder PDF der Überweisung. Es erscheint bei der Zahlungsprüfung neben dem Bankeingang. Gebucht wird dadurch nichts.</p>
-                <div className="pi-reihe">
-                  <input type="file" accept="image/*,application/pdf" className="pi-eingabe" style={{ paddingTop: 8 }} onChange={(e) => setBelegDatei(e.target.files?.[0] ?? null)} />
-                  <input type="date" className="pi-eingabe" style={{ flex: "0 0 160px" }} value={belegDatum} onChange={(e) => setBelegDatum(e.target.value)} max={new Date().toISOString().slice(0, 10)} title="Überweisungsdatum laut Beleg" />
-                </div>
-                <div className="pi-reihe">
-                  <input className="pi-eingabe" value={belegNotiz} onChange={(e) => setBelegNotiz(e.target.value)} placeholder="Notiz (freiwillig)" />
-                  <button type="button" className="pi-knopf klein" disabled={!belegDatei || !belegDatum || !!laeuft} onClick={() => void belegHochladen()}>{laeuft === "beleg" ? "Lädt …" : "Hinterlegen"}</button>
-                  <button type="button" className="pi-link" onClick={() => { setBelegOffen(false); setBelegDatei(null); }}>Abbrechen</button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Ergebnis festhalten */}
-        <div className="pi-block">
-          <div className="pi-block-kopf"><b>Ergebnis festhalten</b>
-            <small style={{ color: "#64748b", fontSize: 12 }}>
-              {k.nichtErreicht > 0 && `${k.nichtErreicht}× nicht erreicht`}{k.nichtErreicht > 0 && k.rechnungVersandt > 0 && " · "}{k.rechnungVersandt > 0 && `${k.rechnungVersandt}× Zahlungsdaten`}
-            </small>
-          </div>
-          <div className="pi-hell">
-            <ErgebnisWahl onErgebnis={(art, zusatz) => ergebnis(art, zusatz)} laeuft={laeuft} kundeName={k.name} heute={heuteIso()} vorgabeDatum={datumWert} />
-          </div>
-        </div>
-
-        {/* Buchungen */}
-        {buchungen.length > 0 && (
-          <div className="pi-block">
-            <div className="pi-block-kopf"><b>Buchungen</b>
-              {auswahl.size > 0 && (
-                <>
-                  <button type="button" className="pi-knopf warn klein" disabled={laeuft === "arch-auswahl"} onClick={() => void auswahlWegraeumen()}>{laeuft === "arch-auswahl" ? "Wird weggeräumt …" : `Auswahl wegräumen (${auswahl.size})`}</button>
-                  <button type="button" className="pi-link" onClick={() => setAuswahl(new Set())}>Auswahl aufheben</button>
-                </>
+        {/* ═══ ÜBERBLICK ═══ */}
+        {reiter === "ueberblick" && <>
+          <Sek titel="Nächster Schritt" erklaer="Was dieser Kunde jetzt von dir braucht – und alles fürs Gespräch mit einem Klick.">
+            <p className="pi-sek-satz">{k.hinweis || warumJetzt(k)}</p>
+            <div className="pi-reihe oben">
+              {!k.telefonWaehlbar && k.telefon && <NummerLandNachtragen k={k} onFertig={onNeu} />}
+              {!k.telefonWaehlbar && !k.telefon && <span className="pi-sperre">keine Nummer – unter „Daten“ nachtragen</span>}
+              {!sperre ? (
+                <span className="pi-stapel">
+                  <button type="button" className="pi-knopf gut gross" onClick={() => setBestaetigen(true)} disabled={!!laeuft} title={`Zahlungsdaten und Rechnung an ${k.email}`}>
+                    <Send size={15} strokeWidth={1.75} /> {laeuft === "rechnung" ? "Sende …" : "Zahlungsdaten senden"}
+                  </button>
+                  <VertragsLuecke k={k} melden={melden} />
+                </span>
+              ) : (
+                <span className="pi-stapel">
+                  <span className="pi-sperre"><Send size={14} strokeWidth={1.75} /> Zahlungsdaten: gesperrt</span>
+                  <span className="pi-luecke" style={{ color: "#fde68a" }}>{sperre.grund}</span>
+                  <VertragsLuecke k={k} melden={melden} />
+                  {sperre.ziel === "stammdaten" && (
+                    <span className="pi-reihe">
+                      <input className="pi-eingabe" value={mailNachtrag} onChange={(e) => setMailNachtrag(e.target.value)} placeholder="E-Mail nachtragen" type="email" inputMode="email" style={{ minWidth: 200 }} />
+                      <button type="button" className="pi-knopf still" disabled={!!laeuft || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(mailNachtrag.trim())} onClick={() => void mailNachtragen()}>{laeuft === "mailnachtrag" ? "Speichert …" : "Speichern"}</button>
+                    </span>
+                  )}
+                  {sperre.ziel === "produkt" && <button type="button" className="pi-knopf still" onClick={() => setProduktOffen(true)}>Produkt anlegen</button>}
+                </span>
               )}
             </div>
+            <div className="pi-reihe">
+              <button type="button" className="pi-knopf still" onClick={() => setProduktOffen((v) => !v)} title="Ein Paket aus dem Katalog an diese Akte hängen. Ein offenes Paket wird dabei ersetzt.">
+                {buchungen.some((b) => b.offen && b.art === "paket") ? "Produkt tauschen" : "Produkt hinzufügen"}
+              </button>
+              {k.email && <a href={`mailto:${k.email}`} className="pi-knopf still" title={`Öffnet dein eigenes Mailprogramm mit ${k.email}`}><Mail size={14} strokeWidth={1.75} /> eigenes Mailprogramm</a>}
+              <button type="button" className="pi-knopf still" onClick={() => void nummerKorrektur()} disabled={!!laeuft || !k.email} title="Schickt dem Kunden einen Link, mit dem er seine Telefonnummer selbst korrigiert">
+                {laeuft === "nummer" ? "Sende …" : "Nummer korrigieren lassen"}
+              </button>
+              <button type="button" className="pi-knopf still" onClick={() => setBlatt(true)}>Gesprächsblatt</button>
+              <button type="button" className="pi-knopf still" onClick={() => setSendeMenue(true)}><Mail size={14} strokeWidth={1.75} /> E-Mail senden</button>
+            </div>
+            {produktOffen && <ProduktDunkel k={k} aufKlappen={setProduktOffen} fertig={async (m) => { melden("gut", "Produkt gespeichert", m); await frisch(); onZaehler(); }} />}
+          </Sek>
+
+          {(k.nichtErreicht >= 2 || k.ruhtSeit) && (
+            <Sek titel="Vorgeschichte" erklaer="Was mit diesem Kunden schon versucht wurde – damit niemand zum fünften Mal dieselbe Nummer wählt.">
+              <p className={k.ruhtSeit ? "pi-sek-satz leise" : "pi-sek-satz warn"}>
+                {k.nichtErreicht}× nicht erreicht
+                {k.letzterKontakt && `, zuletzt ${dtag(k.letzterKontakt)}`}
+                {k.terminlinkMailAm && `, Terminlink versandt ${dtag(k.terminlinkMailAm)}`}
+              </p>
+              {k.ruhtSeit && <p className="pi-sek-satz leise">Ruht bis {k.wiedervorlage ? dtag(k.wiedervorlage) : "zur Wiedervorlage"}. Nicht anrufen — er hat den Terminlink und meldet sich selbst.</p>}
+              {!k.email && (
+                <div className="pi-reihe">
+                  <p className="pi-sek-satz leise">Keine E-Mail hinterlegt — es ging keine Mail raus.</p>
+                  <button type="button" className="pi-knopf still klein" onClick={() => void terminlinkKopieren()}><Copy size={13} strokeWidth={1.75} /> {linkKopiert ? "Kopiert" : "Terminlink für WhatsApp kopieren"}</button>
+                </div>
+              )}
+            </Sek>
+          )}
+
+          {k.zahlung?.referenz && (
+            <Sek titel="Verwendungszweck" erklaer="Die erste Zahlung ist immer eine Überweisung mit dieser Referenz – so ordnet die Buchhaltung das Geld dem Kunden zu."
+                 kopfRechts={<button type="button" className="pi-knopf still klein" disabled={!k.zahlung.klartext} onClick={() => void zahlungsdatenKopieren()} title="Empfänger, IBAN, Betrag und Verwendungszweck als Text — fertig für WhatsApp"><Copy size={13} strokeWidth={1.75} /> {kopiert ? "Kopiert" : "Zahlungsdaten kopieren"}</button>}>
+              <p className="pi-zweck-zahl">{k.zahlung.referenz}</p>
+              {kopiert && <p className="pi-sek-satz gut">Empfänger, IBAN, Betrag und Verwendungszweck liegen in der Zwischenablage.</p>}
+              {!belegOffen ? (
+                <button type="button" className="pi-link" onClick={() => setBelegOffen(true)}>Überweisungsbeleg hinterlegen</button>
+              ) : (
+                <div style={{ display: "grid", gap: 8 }}>
+                  <p className="pi-sek-satz leise">Foto oder PDF der Überweisung. Es erscheint bei der Zahlungsprüfung neben dem Bankeingang. Gebucht wird dadurch nichts.</p>
+                  <div className="pi-reihe">
+                    <input type="file" accept="image/*,application/pdf" className="pi-eingabe" style={{ paddingTop: 8 }} onChange={(e) => setBelegDatei(e.target.files?.[0] ?? null)} />
+                    <input type="date" className="pi-eingabe" style={{ flex: "0 0 160px" }} value={belegDatum} onChange={(e) => setBelegDatum(e.target.value)} max={new Date().toISOString().slice(0, 10)} title="Überweisungsdatum laut Beleg" />
+                  </div>
+                  <div className="pi-reihe">
+                    <input className="pi-eingabe" value={belegNotiz} onChange={(e) => setBelegNotiz(e.target.value)} placeholder="Notiz (freiwillig)" />
+                    <button type="button" className="pi-knopf klein" disabled={!belegDatei || !belegDatum || !!laeuft} onClick={() => void belegHochladen()}>{laeuft === "beleg" ? "Lädt …" : "Hinterlegen"}</button>
+                    <button type="button" className="pi-link" onClick={() => { setBelegOffen(false); setBelegDatei(null); }}>Abbrechen</button>
+                  </div>
+                </div>
+              )}
+            </Sek>
+          )}
+
+          <Sek titel="Ergebnis festhalten" erklaer="Ein Klick nach jedem Kontakt – daraus entstehen Wiedervorlage, Zähler und die Reihenfolge deiner Liste."
+               kopfRechts={<small className="pi-sek-neben">{k.nichtErreicht > 0 && `${k.nichtErreicht}× nicht erreicht`}{k.nichtErreicht > 0 && k.rechnungVersandt > 0 && " · "}{k.rechnungVersandt > 0 && `${k.rechnungVersandt}× Zahlungsdaten`}</small>}>
+            <ErgebnisWahlDunkel onErgebnis={(art, zusatz) => ergebnis(art, zusatz)} laeuft={laeuft} kundeName={k.name} vorgabeDatum={datumWert} fragen={fragen} />
+          </Sek>
+        </>}
+
+        {/* ═══ ZAHLUNGEN & RATEN ═══ */}
+        {reiter === "zahlungen" && <>
+          <Sek titel="Buchungen" erklaer="Jede Bestellung dieses Kunden – was gebucht ist, was bezahlt ist, was offen bleibt."
+               kopfRechts={auswahl.size > 0 ? (
+                 <span className="pi-reihe">
+                   <button type="button" className="pi-knopf warn klein" disabled={laeuft === "arch-auswahl"} onClick={() => void auswahlWegraeumen()}>{laeuft === "arch-auswahl" ? "Wird weggeräumt …" : `Auswahl wegräumen (${auswahl.size})`}</button>
+                   <button type="button" className="pi-link" onClick={() => setAuswahl(new Set())}>aufheben</button>
+                 </span>
+               ) : undefined}>
+            {buchungen.length === 0 && <p className="pi-sek-satz leise">Noch keine Bestellung. Unter „Überblick“ legst du ein Produkt an.</p>}
             {buchungen.map((b) => (
               <div key={b.ref} className={`pi-buchung${b.bezahlt ? " bezahlt" : b.erledigt ? " erledigt" : " offen"}`}>
                 <b>{b.bezeichnung}</b>
@@ -1534,8 +1579,7 @@ function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
                 <span className="zustand">{b.zahlungText}</span>
                 {!b.erledigt && <a href={`/api/fiaon/agent/customers/${encodeURIComponent(b.ref)}/invoice.pdf`} target="_blank" rel="noreferrer">Rechnung (PDF) <ExternalLink size={11} /></a>}
                 <span className="rechts">gestellt {b.gestelltAm ? dtag(b.gestelltAm) : "—"}{b.faelligAm && !b.bezahlt && ` · fällig ${dtag(b.faelligAm)}`}</span>
-                {/* §16 (E-044): VORHER stand hier der Servertext – `Karte: {k.karte.text} (seit …)`.
-                    NACHHER überall der Platzhalter, bis der Kunde vollständig ist (kundeVollstaendig). */}
+                {/* §16 (E-044): VORHER stand hier der Servertext k.karte.text – NACHHER die Vollständigkeits-Weiche. */}
                 {b.art !== "bonitaet" && b.bezahlt && <span className="voll">Karte: {kartenText}</span>}
                 {b.verwendungszweck && !b.bezahlt && <span className="voll mono">Verwendungszweck: {b.verwendungszweck}</span>}
                 {!b.bezahlt && !b.erledigt && buchungen.filter((x) => !x.erledigt).length > 1 && (
@@ -1547,89 +1591,329 @@ function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
               </div>
             ))}
             {offeneBuchungen.length >= 2 && (
-              <p className="leise" style={{ color: "#bfdbfe" }}>
+              <p className="pi-sek-satz" style={{ color: "#bfdbfe" }}>
                 {gemeldet.length === 1
                   ? <>Der Kunde hat für <b style={{ color: "#fff" }}>{gemeldet[0].bezeichnung}</b> eine Zahlung gemeldet — sehr wahrscheinlich die gewollte Buchung. Die anderen kannst du wegräumen.</>
                   : <>{offeneBuchungen.length} offene Buchungen. Frag am Telefon, welche der Kunde will — die anderen räumst du hier weg.</>}
               </p>
             )}
-            {offeneBuchungen.length > 0 && <p className="warn">Offen insgesamt: <b style={{ color: "#fff" }}>{eur(offeneBuchungen.reduce((s, b) => s + (b.betragCents ?? 0), 0))}</b></p>}
-          </div>
-        )}
+            {offeneBuchungen.length > 0 && <p className="pi-sek-satz warn">Offen insgesamt: <b style={{ color: "#fff" }}>{eur(offeneBuchungen.reduce((s, b) => s + (b.betragCents ?? 0), 0))}</b></p>}
+          </Sek>
+          <RatenBlock k={k} melden={melden} fragen={fragen} onZaehler={onZaehler} />
+        </>}
 
-        {/* Stammdaten */}
-        <div className="pi-block">
-          <div className="pi-block-kopf"><b>Stammdaten</b><button type="button" className="pi-link" onClick={() => setBearbeiten((v) => !v)}>{bearbeiten ? "Schließen" : "Kunde bearbeiten"}</button></div>
-          {bearbeiten && <KundeBearbeiten k={k} melden={melden} onFertig={async () => { setBearbeiten(false); await frisch(); }} />}
-          <dl className="pi-dl">
-            {([
-              ["Adresse", [k.stammdaten?.strasse, [k.stammdaten?.plz, k.stammdaten?.ort].filter(Boolean).join(" ")].filter(Boolean).join(", ") || null],
-              ["Land", k.stammdaten?.land ? (LAND_NAME[k.stammdaten.land] || k.stammdaten.land) : null],
-              ["Geburtsdatum", k.stammdaten?.geburtsdatum ? dtag(String(k.stammdaten.geburtsdatum)) : null],
-              ["E-Mail", k.email], ["Telefon", k.telefon],
-              ["Verwendungszweck", k.zahlung?.referenz],
-              ["Wiedervorlage", k.wiedervorlage ? dtag(k.wiedervorlage) : null],
-              ["Betreut seit", k.betreutSeit ? dtag(k.betreutSeit) : null],
-            ] as [string, string | null | undefined][]).map(([l, w]) => (
-              <div key={l}><dt>{l}</dt><dd className={w ? "" : "fehlt"}>{w || "nicht hinterlegt"}</dd></div>
+        {/* ═══ GESPRÄCHE ═══ */}
+        {reiter === "gespraeche" && <>
+          <Sek titel="Verlauf" erklaer="Jedes festgehaltene Ergebnis und jede Notiz – wer wann was mit diesem Kunden besprochen hat."
+               kopfRechts={<small className="pi-sek-neben">{wartezeit(k.letzterKontakt)}</small>}>
+            {!verlauf && <p className="pi-sek-satz leise">Lade …</p>}
+            {verlauf && verlauf.length === 0 && <p className="pi-sek-satz leise">Noch kein Eintrag.</p>}
+            {verlauf && verlauf.length > 0 && (
+              <ul className="pi-protokoll">
+                {verlauf.map((v: any, i: number) => (
+                  <li key={v.id ?? i}>
+                    <b>{new Date(v.am).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</b>
+                    {" · "}<span>{v.von || v.agentName || v.agent || "System"}: {(ERGEBNIS_TEXT as Record<string, string>)[String(v.ergebnis)] || (v.art === "note" ? "Notiz" : v.art)}</span>
+                    {v.notiz && <> — {v.notiz}</>}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="pi-reihe">
+              <input className="pi-eingabe" value={notiz} onChange={(e) => setNotiz(e.target.value)} placeholder="Notiz hinzufügen"
+                     onKeyDown={(e) => { if (e.key === "Enter" && notiz.trim().length >= 2 && !laeuft) void ergebnis("notiz"); }} />
+              <button type="button" className="pi-knopf klein" disabled={notiz.trim().length < 2 || !!laeuft} onClick={() => void ergebnis("notiz")}>{laeuft === "notiz" ? "…" : "Speichern"}</button>
+            </div>
+          </Sek>
+          <Sek titel="Anrufe & Aufnahmen" erklaer="Jeder Anruf über das System – mit Aufnahme und Zusammenfassung, solange die Aufbewahrungsfrist läuft.">
+            {anrufe === null && <p className="pi-sek-satz leise">Lade Anrufe …</p>}
+            {anrufe && anrufe.length === 0 && <p className="pi-sek-satz leise">Noch kein Anruf über das System. Anrufe von Hand tauchen hier nicht auf – halte ihr Ergebnis im Verlauf fest.</p>}
+            {anrufe && anrufe.map((a: any) => (
+              <div key={a.id} className="pi-anruf">
+                <div className="pi-anruf-kopf">
+                  <b>{a.richtung === "eingehend" ? "Kunde rief an" : "Anruf an den Kunden"}</b>
+                  <span>{new Date(a.beginn).toLocaleString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}{a.dauer_sek ? ` · ${Math.round(Number(a.dauer_sek) / 60)} Min` : ""}{a.agent ? ` · ${a.agent}` : ""}</span>
+                </div>
+                {a.zusammenfassung && <p className="pi-sek-satz leise">{a.zusammenfassung}</p>}
+                {a.hat_aufnahme && <AnrufPlayer anrufId={Number(a.id)} ton="dunkel" />}
+              </div>
             ))}
-          </dl>
-        </div>
-
-        {/* E-Mails / Versand */}
-        <div className="pi-block">
-          <div className="pi-block-kopf"><b>E-Mails</b>
-            <button type="button" className="pi-knopf still klein" onClick={() => setBlatt(true)}>Gesprächsblatt</button>
-            <button type="button" className="pi-knopf klein" onClick={() => setSendeMenue(true)}><Mail size={13} strokeWidth={1.75} /> E-Mail senden</button>
-          </div>
-          <Versandzentrum personId={k.personId} />
-        </div>
-        <SendeMenue personId={k.personId} offen={sendeMenue} onSchliessen={() => setSendeMenue(false)} onGesendet={onZaehler} />
-        <Gespraechsblatt personId={k.personId} offen={blatt} onZu={() => setBlatt(false)} />
-
-        {/* Verlauf + Notiz + Testeintrag */}
-        <div className="pi-block">
-          <div className="pi-block-kopf"><b>Verlauf</b><small style={{ color: "#64748b", fontSize: 12 }}>{wartezeit(k.letzterKontakt)}</small></div>
-          {!verlauf && <p className="leise">Lade …</p>}
-          {verlauf && verlauf.length === 0 && <p className="leise">Noch kein Eintrag.</p>}
-          {verlauf && verlauf.length > 0 && (
-            <ul className="pi-protokoll">
-              {verlauf.map((v: any, i: number) => (
-                <li key={v.id ?? i}>
-                  <b>{new Date(v.am).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</b>
-                  {" · "}<span>{v.von || v.agentName || v.agent || "System"}: {(ERGEBNIS_TEXT as Record<string, string>)[String(v.ergebnis)] || (v.art === "note" ? "Notiz" : v.art)}</span>
-                  {v.notiz && <> — {v.notiz}</>}
-                </li>
-              ))}
-            </ul>
-          )}
-          <div className="pi-reihe">
-            <input ref={notizFeld} className="pi-eingabe" value={notiz} onChange={(e) => setNotiz(e.target.value)} placeholder="Notiz hinzufügen"
-                   onKeyDown={(e) => { if (e.key === "Enter" && notiz.trim().length >= 2 && !laeuft) void ergebnis("notiz"); }} />
-            <button type="button" className="pi-knopf klein" disabled={notiz.trim().length < 2 || !!laeuft} onClick={() => void ergebnis("notiz")}>{laeuft === "notiz" ? "…" : "Speichern"}</button>
-          </div>
-          {!testOffen ? (
-            <button type="button" className="pi-link" style={{ color: "#64748b", justifySelf: "start" }} onClick={() => setTestOffen(true)}>Kein echter Kunde? Als Testeintrag melden</button>
-          ) : (
-            <div style={{ display: "grid", gap: 8 }}>
-              <p className="leise">Die Vertriebsleitung prüft und legt die Bestellung ins Archiv, wenn es stimmt. Du entfernst hier nichts selbst — der Kunde bleibt bis zur Entscheidung in deiner Liste.</p>
+          </Sek>
+          <Sek titel="Kein echter Kunde?" erklaer="Melden statt löschen – die Vertriebsleitung prüft, der Kunde bleibt bis zur Entscheidung in deiner Liste.">
+            {!testOffen ? (
+              <button type="button" className="pi-link" style={{ justifySelf: "start" }} onClick={() => setTestOffen(true)}>Als Testeintrag melden</button>
+            ) : (
               <div className="pi-reihe">
                 <input className="pi-eingabe" value={testNotiz} onChange={(e) => setTestNotiz(e.target.value)} placeholder="Woran erkennst du das? (ein Satz)" />
                 <button type="button" className="pi-knopf still klein" disabled={testNotiz.trim().length < 5 || !!laeuft} onClick={() => void testeintragMelden()}>{laeuft === "test" ? "Meldet …" : "Melden"}</button>
                 <button type="button" className="pi-link" onClick={() => { setTestOffen(false); setTestNotiz(""); }}>Abbrechen</button>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </Sek>
         </>}
+
+        {/* ═══ E-MAILS ═══ */}
+        {reiter === "mails" && (
+          <Sek titel="Versand" erklaer="Was an diesen Kunden rausging und was du erneut schicken kannst. Freie E-Mails mit Vorschau öffnen im Sendefenster darüber."
+               kopfRechts={<button type="button" className="pi-knopf klein" onClick={() => setSendeMenue(true)}><Mail size={13} strokeWidth={1.75} /> E-Mail senden</button>}>
+            <Versandzentrum personId={k.personId} />
+          </Sek>
+        )}
+
+        {/* ═══ DOKUMENTE ═══ */}
+        {reiter === "dokumente" && (
+          <Sek titel="Dokumente" erklaer="Was der Kunde hochgeladen hat – Ausweis, Kontoauszug, Auskunft. Zum Prüfen antippen, es öffnet in einem neuen Fenster.">
+            {doku === null && <p className="pi-sek-satz leise">Lade den Stand …</p>}
+            {doku === "fehlt" && <p className="pi-sek-satz leise">Zu diesem Kunden liegt noch keine Bestellung mit Unterlagen vor.</p>}
+            {doku && doku !== "fehlt" && (
+              <>
+                {(doku.dokumente || []).map((d: any) => (
+                  <div key={d.art} className="pi-doku">
+                    <span className={`punkt${d.vorhanden ? " da" : ""}`} aria-hidden="true" />
+                    <div className="wer"><b>{d.label}</b><small>{d.vorhanden ? `${d.typ === "bild" ? "Foto" : d.typ === "pdf" ? "PDF" : "Datei"}${d.groesseKb ? ` · ${d.groesseKb} KB` : ""}${d.seit ? ` · seit ${dtag(d.seit)}` : ""}` : d.benoetigt ? "fehlt noch – der Kunde lädt es in seinem Bereich hoch" : "für dieses Paket nicht nötig"}{d.erneutAngefordert ? " · erneut angefordert" : ""}</small></div>
+                    {d.vorhanden && <a className="pi-knopf still klein" href={`/api/fiaon/agent/dokumente/${k.personId}/${d.art}/datei`} target="_blank" rel="noreferrer">Öffnen <ExternalLink size={12} /></a>}
+                  </div>
+                ))}
+                <p className="pi-sek-satz leise">Vollständig heißt: Paket bezahlt, SCHUFA (74 €) bezahlt, Kontoauszug und Ausweis da – erst dann liegt der Kunde bei FIAON zur Bearbeitung. Stand: {kartenText}.</p>
+              </>
+            )}
+          </Sek>
+        )}
+
+        {/* ═══ AKTIVITÄT ═══ */}
+        {reiter === "aktivitaet" && <AktivitaetsZeit akt={akt} fehler={aktFehler} />}
+
+        {/* ═══ DATEN ═══ */}
+        {reiter === "daten" && (
+          <Sek titel="Stammdaten" erklaer="So steht der Kunde in der Akte. Jede Änderung wird mit altem und neuem Wert festgehalten."
+               kopfRechts={<button type="button" className="pi-link" onClick={() => setBearbeiten((v) => !v)}>{bearbeiten ? "Schließen" : "Kunde bearbeiten"}</button>}>
+            {bearbeiten && <KundeBearbeiten k={k} melden={melden} onFertig={async () => { setBearbeiten(false); await frisch(); }} />}
+            <dl className="pi-dl">
+              {([
+                ["Adresse", [k.stammdaten?.strasse, [k.stammdaten?.plz, k.stammdaten?.ort].filter(Boolean).join(" ")].filter(Boolean).join(", ") || null],
+                ["Land", k.stammdaten?.land ? (LAND_NAME[k.stammdaten.land] || k.stammdaten.land) : null],
+                ["Geburtsdatum", k.stammdaten?.geburtsdatum ? dtag(String(k.stammdaten.geburtsdatum)) : null],
+                ["E-Mail", k.email], ["Telefon", k.telefon],
+                ["Verwendungszweck", k.zahlung?.referenz],
+                ["Wiedervorlage", k.wiedervorlage ? dtag(k.wiedervorlage) : null],
+                ["Betreut seit", k.betreutSeit ? dtag(k.betreutSeit) : null],
+                ["Mandat seit", k.mandatSeit ? dtag(k.mandatSeit) : null],
+              ] as [string, string | null | undefined][]).map(([l, w]) => (
+                <div key={l}><dt>{l}</dt><dd className={w ? "" : "fehlt"}>{w || "nicht hinterlegt"}</dd></div>
+              ))}
+            </dl>
+            {!k.telefonWaehlbar && k.telefon && <NummerLandNachtragen k={k} onFertig={onNeu} />}
+          </Sek>
+        )}
       </div>
 
+      {/* Helle Reste mit Vorschau-Pflicht — öffnen ÜBER der Lade, nicht darin. */}
+      <SendeMenue personId={k.personId} offen={sendeMenue} onSchliessen={() => setSendeMenue(false)} onGesendet={onZaehler} />
+      <Gespraechsblatt personId={k.personId} offen={blatt} onZu={() => setBlatt(false)} />
       {bestaetigen && (
         <RechnungBestaetigung personId={k.personId} kundeName={k.name} laeuft={laeuft === "rechnung"}
                               onAbbrechen={() => { setBestaetigen(false); setSendeFehler(null); }}
                               onSenden={(ref) => void zahlungsdaten(ref)} sendeFehler={sendeFehler} />
       )}
     </aside>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E-045: Überfällige Raten in der Akte — die zwei Ausgänge über die
+// Collections-Endpunkte (POST /inkasso/rate/:id/erinnerung · …/ergebnis).
+// Daten kommen mit dem Kunden aus /inkasso/liste (rateListe).
+// ═══════════════════════════════════════════════════════════════════════════
+function RatenBlock({ k, melden, fragen, onZaehler }: {
+  k: Kunde; melden: (art: "gut" | "schlecht" | "info", titel: string, text?: string) => void;
+  fragen: ReturnType<typeof useFragen>; onZaehler: () => void;
+}) {
+  const [laeuft, setLaeuft] = useState<string | null>(null);
+  const [offenFuer, setOffenFuer] = useState<number | null>(null);
+  const [wahl, setWahl] = useState<RatenErgebnis | "">("");
+  const [datum, setDatum] = useState(tagPlus(1));
+  const [notizR, setNotizR] = useState("");
+  if (!k.istRate || !(k.rateListe?.length)) return null;
+  const gewaehlt = RATEN_ERGEBNISSE.find((e) => e.art === wahl) || null;
+
+  const erinnern = async (rate: NonNullable<Kunde["rateListe"]>[number]) => {
+    if (!(await fragen({ titel: `Zahlungserinnerung für Rate ${rate.rateNr} an den Kunden schicken?`, ja: "Senden" }))) return;
+    setLaeuft(`er-${rate.id}`);
+    const r = await api(`/inkasso/rate/${rate.id}/erinnerung`, { method: "POST", body: JSON.stringify({}) });
+    setLaeuft(null);
+    melden(r.ok ? "gut" : "schlecht", r.ok ? "Erinnerung verschickt" : "Nicht verschickt", r.json?.meldung || r.json?.error || undefined);
+  };
+  const buchen = async (rate: NonNullable<Kunde["rateListe"]>[number]) => {
+    if (!gewaehlt) return;
+    if (gewaehlt.braucht === "datum" && !/^\d{4}-\d{2}-\d{2}$/.test(datum)) { melden("schlecht", "Bitte das zugesagte Datum angeben."); return; }
+    if (gewaehlt.braucht === "notiz" && notizR.trim().length < 5) { melden("schlecht", "Bitte kurz begründen – ein Satz genügt."); return; }
+    setLaeuft(`erg-${rate.id}`);
+    const r = await api(`/inkasso/rate/${rate.id}/ergebnis`, {
+      method: "POST",
+      body: JSON.stringify({ ergebnis: gewaehlt.art, zusageDatum: gewaehlt.braucht === "datum" ? datum : undefined, notiz: notizR.trim() || undefined }),
+    });
+    setLaeuft(null);
+    if (!r.ok) { melden("schlecht", "Nicht gebucht", r.json?.error || "Bitte erneut versuchen."); return; }
+    melden("gut", "Ergebnis gebucht", r.json?.meldung || gewaehlt.label);
+    setOffenFuer(null); setWahl(""); setNotizR("");
+    onZaehler();
+  };
+
+  return (
+    <section className="pi-sek" style={{ ["--hitze" as string]: STUFE.rate.farbe }}>
+      <div className="pi-sek-kopf"><div><b>Rate überfällig – zurückholen</b>
+        <p>Jede Rate, wie sie auf dem Konto ankommen sollte. Weich einsteigen (Leitfaden in der Pipeline) – holst du sie zurück, gehören 50 % dir.</p></div></div>
+      {k.rateListe.map((r) => (
+        <div key={r.id} className="pi-rate">
+          <span className="pi-glut" aria-hidden="true" />
+          <div className="wer">
+            <b>Rate {r.rateNr} · {eur(r.betragCents)}</b>
+            <small>{r.faelligAm ? `fällig ${dtag(r.faelligAm)}` : "fällig"} · {r.status}{r.betragCents ? ` · Bonus bei Rückholung ${eur(Math.round(r.betragCents * REAKTIVIERUNG_ANTEIL))}` : ""}</small>
+          </div>
+          <span className="pi-reihe">
+            <button type="button" className="pi-knopf still klein" disabled={laeuft === `er-${r.id}`} onClick={() => void erinnern(r)}>{laeuft === `er-${r.id}` ? "…" : "Erinnerung senden"}</button>
+            <button type="button" className="pi-knopf klein" onClick={() => { setOffenFuer(offenFuer === r.id ? null : r.id); setWahl(""); }}>Ergebnis buchen</button>
+          </span>
+          {offenFuer === r.id && (
+            <div className="pi-rate-form">
+              <div className="pi-reihe">
+                <select className="pi-eingabe" style={{ minHeight: 40 }} value={wahl} onChange={(e) => setWahl(e.target.value as RatenErgebnis)}>
+                  <option value="">— Ergebnis wählen —</option>
+                  {RATEN_ERGEBNISSE.map((e) => <option key={e.art} value={e.art}>{e.label}</option>)}
+                </select>
+                {gewaehlt?.braucht === "datum" && <input type="date" className="pi-eingabe" style={{ flex: "0 0 160px" }} value={datum} min={heuteIso()} onChange={(e) => setDatum(e.target.value)} />}
+                <button type="button" className="pi-knopf klein" disabled={!gewaehlt || laeuft === `erg-${r.id}`} onClick={() => void buchen(r)}>{laeuft === `erg-${r.id}` ? "…" : "Buchen"}</button>
+              </div>
+              {gewaehlt?.braucht === "notiz" && <input className="pi-eingabe" value={notizR} onChange={(e) => setNotizR(e.target.value)} placeholder="Begründung (ein Satz)" />}
+              {gewaehlt && <p className="pi-sek-satz leise">{gewaehlt.hinweis}</p>}
+            </div>
+          )}
+        </div>
+      ))}
+    </section>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Die Ergebniswahl, DUNKEL nachgebaut (Justin 23.08.: keine hellen Einlagen).
+// VORHER: helle Einlage mit components/agent/ErgebnisWahl. NACHHER: dieselbe
+// Liste (shared/fiaon-kontakt-ergebnis-liste), dieselben Pflichten (Zusage-
+// Datum, Termin, Notiz ab NOTIZ_MINDESTLAENGE Zeichen, Rückfrage bei Übergabe)
+// — nur die Oberfläche ist Office-Glas. Der Endpunkt bleibt der des Aufrufers.
+// ═══════════════════════════════════════════════════════════════════════════
+function ErgebnisWahlDunkel({ onErgebnis, laeuft, kundeName, vorgabeDatum, fragen }: {
+  onErgebnis: (art: string, zusatz: { notiz?: string; zusageDatum?: string; terminDatum?: string; terminZeit?: string }) => Promise<boolean>;
+  laeuft: string | null; kundeName: string; vorgabeDatum: string;
+  fragen: ReturnType<typeof useFragen>;
+}) {
+  const [offen, setOffen] = useState<null | { art: string; braucht: "zusage" | "termin" | "notiz" }>(null);
+  const [notiz, setNotiz] = useState("");
+  const [datum, setDatum] = useState(vorgabeDatum);
+  const [zeit, setZeit] = useState("10:00");
+  const fehlt = Math.max(0, NOTIZ_MINDESTLAENGE - notiz.trim().length);
+
+  const anklicken = async (art: string) => {
+    const e = ERGEBNIS_LISTE.find((x) => x.art === art)!;
+    if (e.braucht && offen?.art === art) { setOffen(null); return; }
+    if (e.braucht) { setOffen({ art, braucht: e.braucht }); return; }
+    if (e.gibtAb && !(await fragen({
+      titel: `${kundeName || "Der Kunde"} hat deine Nummer blockiert?`,
+      text: "Der Kunde geht sofort an den Kollegen mit dem kleinsten Bestand, der bei ihm noch nicht blockiert wurde. Er verschwindet aus deiner Liste.",
+      folge: "Die Provision folgt dem, der den Abschluss dokumentiert.",
+      ja: "Übergeben",
+    }))) return;
+    if (await onErgebnis(art, {})) setOffen(null);
+  };
+  const speichern = async () => {
+    if (!offen) return;
+    const zusatz = offen.braucht === "zusage" ? { zusageDatum: datum }
+      : offen.braucht === "termin" ? { terminDatum: datum, terminZeit: zeit }
+      : { notiz: notiz.trim() };
+    if (await onErgebnis(offen.art, zusatz)) { setOffen(null); setNotiz(""); }
+  };
+
+  return (
+    <div className="pi-ew">
+      <div className="pi-reihe">
+        {ERGEBNIS_LISTE.map((e) => (
+          <button key={e.art} type="button" disabled={!!laeuft}
+                  className={`pi-knopf klein ${offen?.art === e.art ? "" : "still"}`}
+                  aria-expanded={offen?.art === e.art ? true : undefined}
+                  title={e.klartext}
+                  onClick={() => void anklicken(e.art)}>
+            {laeuft === e.art ? "…" : e.knopf}
+          </button>
+        ))}
+      </div>
+      {offen?.braucht === "zusage" && (
+        <div className="pi-ew-feld">
+          <label>Zahlt am<input type="date" className="pi-eingabe" value={datum} min={heuteIso()} onChange={(e) => setDatum(e.target.value)} /></label>
+          <button type="button" className="pi-knopf klein" disabled={!!laeuft} onClick={() => void speichern()}>Speichern</button>
+        </div>
+      )}
+      {offen?.braucht === "termin" && (
+        <div className="pi-ew-feld">
+          <label>Rückruf am<input type="date" className="pi-eingabe" value={datum} min={heuteIso()} onChange={(e) => setDatum(e.target.value)} /></label>
+          <label>Uhrzeit<input type="time" className="pi-eingabe" value={zeit} step={900} onChange={(e) => setZeit(e.target.value)} /></label>
+          <button type="button" className="pi-knopf klein" disabled={!!laeuft} onClick={() => void speichern()}>Speichern</button>
+        </div>
+      )}
+      {offen?.braucht === "notiz" && (
+        <div className="pi-ew-feld breit">
+          <textarea className="pi-eingabe" value={notiz} onChange={(e) => setNotiz(e.target.value)} placeholder="Was wurde besprochen? Der nächste Anrufer fängt sonst bei null an." autoFocus />
+          <div className="pi-reihe">
+            <button type="button" className="pi-knopf klein" disabled={!!laeuft || fehlt > 0} onClick={() => void speichern()}>Speichern</button>
+            <small className="pi-sek-neben">{fehlt > 0 ? `noch ${fehlt} Zeichen` : "bereit"}</small>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Produkt wechseln, DUNKEL nachgebaut. VORHER: helle Einlage mit
+// components/agent/ProduktDialog. NACHHER: derselbe Katalog
+// (GET /agent/katalog) und derselbe Schreibweg
+// (POST /agent/customers/:ref/produkt { packKey }) — Office-Glas.
+// ═══════════════════════════════════════════════════════════════════════════
+function ProduktDunkel({ k, aufKlappen, fertig }: { k: Kunde; aufKlappen: (v: boolean) => void; fertig: (meldung: string) => void }) {
+  const [pakete, setPakete] = useState<any[]>([]);
+  const [gewaehlt, setGewaehlt] = useState("");
+  const [laeuft, setLaeuft] = useState(false);
+  const [fehler, setFehler] = useState<string | null>(null);
+  useEffect(() => {
+    api("/agent/katalog").then((r) => { if (r.ok) setPakete(r.json.pakete ?? []); else setFehler("Der Paketkatalog ließ sich nicht laden."); });
+  }, []);
+  const buchungen = k.buchungen ?? [];
+  const offenesPaket = buchungen.find((b) => b.offen && b.art === "paket");
+  const istTausch = !!offenesPaket;
+  const paket = pakete.find((p) => p.key === gewaehlt);
+  const anlegen = async () => {
+    if (!paket) return;
+    setLaeuft(true); setFehler(null);
+    const ref = offenesPaket?.ref ?? buchungen.find((b) => !b.erledigt)?.ref ?? buchungen[0]?.ref;
+    if (!ref) { setLaeuft(false); setFehler("Diese Akte hat keine Bestellung, an die ein Produkt gehängt werden kann."); return; }
+    const r = await api(`/agent/customers/${encodeURIComponent(ref)}/produkt`, { method: "POST", body: JSON.stringify({ packKey: paket.key }) });
+    setLaeuft(false);
+    if (!r.ok) { setFehler(String(r.json?.error ?? "Der Server hat abgelehnt. Bitte erneut versuchen.")); return; }
+    aufKlappen(false);
+    fertig(r.json.hinweis ? `${paket.label} angelegt. ${r.json.hinweis}` : `${paket.label} angelegt — Verwendungszweck ${r.json.zahlungsreferenz ?? "in der Akte"}.`);
+  };
+  return (
+    <div className="pi-produkt">
+      <div className="pi-sek-kopf"><div><b>{istTausch ? "Produkt tauschen" : "Produkt hinzufügen"}</b>
+        <p>{istTausch ? `Das offene Paket (${offenesPaket?.bezeichnung}) wird ersetzt – Preis und Verwendungszweck kommen aus dem Katalog.` : "Ein Paket aus dem Katalog an diese Akte hängen – Preis und Verwendungszweck kommen aus dem Katalog."}</p></div>
+        <button type="button" className="pi-link" onClick={() => aufKlappen(false)}>Schließen</button></div>
+      <div className="pi-reihe">
+        <select className="pi-eingabe" style={{ minHeight: 42, flex: 1 }} value={gewaehlt} onChange={(e) => setGewaehlt(e.target.value)} aria-label="Paket wählen">
+          <option value="">— Paket wählen —</option>
+          {pakete.map((p: any) => <option key={p.key} value={p.key}>{p.label} · {(Number(p.preisCents) / 100).toFixed(2).replace(".", ",")} €{p.abo ? "/Monat" : " einmalig"}</option>)}
+        </select>
+        <button type="button" className="pi-knopf" disabled={!paket || laeuft} onClick={() => void anlegen()}>{laeuft ? "Speichert …" : istTausch ? "Tauschen" : "Hinzufügen"}</button>
+      </div>
+      {fehler && <p className="pi-sek-satz warn">{fehler}</p>}
+    </div>
   );
 }
 

@@ -13,7 +13,7 @@
 // GoCardless), Schreiben-Generator, KI-Auswertung der Auskunft (E-015).
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useMemo, useRef, useState } from "react";
-import { LayoutDashboard, ShieldCheck, Link2, Wallet, Map, FileText, FolderOpen, Gift, UserRound, CreditCard, Lock, LifeBuoy, LogOut, ChevronLeft, ChevronRight } from "lucide-react";
+import { LayoutDashboard, ShieldCheck, Link2, Wallet, Map, FileText, FolderOpen, Gift, UserRound, CreditCard, Lock, LifeBuoy, LogOut, ChevronLeft, ChevronRight, X } from "lucide-react";
 import "@/styles/mein-bereich.css";
 import { Einrichtung, einrichtungsPhase } from "@/components/kunde/Einrichtung";
 
@@ -125,6 +125,7 @@ export default function MeinBereichPage() {
   const [einrichtungStart, setEinrichtungStart] = useState<"auto" | "zahlung" | null>(null);
   const [eingeklappt, setEingeklappt] = useState(() => localStorage.getItem("mb_leiste") === "zu");
   const [menueOffen, setMenueOffen] = useState(false);
+  useEffect(() => { const r = document.getElementById("root"); if (!r) return; r.style.overflow = menueOffen ? "hidden" : ""; return () => { r.style.overflow = ""; }; }, [menueOffen]);
   const [aktiv, setAktiv] = useState("buehne");
 
   // Die Referenz: aus dem Tab, sonst dauerhaft gespeichert, sonst fragt die
@@ -191,7 +192,7 @@ export default function MeinBereichPage() {
   const punkte = [
     { id: "buehne", kurz: "ÜB", label: "Übersicht", gruppe: "Einsicht", Icon: LayoutDashboard },
     { id: "bonitaet", kurz: "BO", label: "Meine Bonität", gruppe: "Einsicht", Icon: ShieldCheck },
-    { id: "kontoanbindung", kurz: "KV", label: "Konto verbinden", gruppe: "Einsicht", Icon: Link2 },
+    { id: "kontoanbindung", kurz: "KV", label: "Konto verbinden", gruppe: "Einsicht", Icon: Link2, marke: "Bald" },
     { id: "finanzen", kurz: "MF", label: "Meine Finanzen", gruppe: "Einsicht", Icon: Wallet },
     { id: "fahrplan", kurz: "FP", label: "Mein Fahrplan", gruppe: "Aktion", Icon: Map },
     { id: "schreiben", kurz: "MS", label: "Meine Schreiben", gruppe: "Aktion", Icon: FileText },
@@ -233,6 +234,7 @@ export default function MeinBereichPage() {
 
       <header className="mb-kopf">
         <div className="mb-kopf-innen">
+          <button type="button" className="mb-burger" aria-label="Menü öffnen" aria-expanded={menueOffen} onClick={() => setMenueOffen(true)}><span /><span /><span /></button>
           <a className="mb-wort fiaon-gradient-text-animated" href="/mein-bereich">FIAON</a>
           <span className="mb-bereich-marke">Mitgliedsbereich</span>
           <div className="mb-kopf-rechts">
@@ -242,23 +244,32 @@ export default function MeinBereichPage() {
         </div>
       </header>
 
-      <nav className="mb-unten" aria-label="Bereiche">
-        {[["buehne","ÜB","Übersicht"],["bonitaet","BO","Bonität"],["fahrplan","FP","Fahrplan"],["konto","MK","Konto"]].map(([id,k,l]) => (
-          <a key={id} href={`#${id}`} className={aktiv === id ? "aktiv" : ""}><span className="mono">{k}</span>{l}</a>
-        ))}
-        <button type="button" onClick={() => setMenueOffen(true)} aria-expanded={menueOffen}><span className="mono">···</span>Mehr</button>
-      </nav>
-      {menueOffen && (
-        <div className="mb-blatt" role="dialog" aria-label="Alle Bereiche" onClick={() => setMenueOffen(false)}>
-          <div className="mb-blatt-innen" onClick={(e) => e.stopPropagation()}>
-            <div className="mb-blatt-griff" />
-            {gruppen.map((g) => (<div key={g}><div className="mb-blatt-titel">{g}</div>
-              {punkte.filter((p) => p.gruppe === g).map((p) => <a key={p.id} href={`#${p.id}`} onClick={() => setMenueOffen(false)}><span>{p.label}</span>{p.marke ? <span className="mb-marke">{p.marke}</span> : null}</a>)}
-              {g === "Konto" && <button type="button" className="mb-link" onClick={abmelden}><span>Abmelden</span></button>}
-            </div>))}
-          </div>
+      {/* ═══ Handy: klassisches linkes Schubladen-Menü (Justin, 23.08.2026) — Glas, Symbole, Gruppen,
+          Nutzerkarte, Kontakt, Abmelden. Ersetzt die Leiste unten und das Blatt „Mehr". ═══ */}
+      <div className={`mb-schublade-hintergrund${menueOffen ? " offen" : ""}`} onClick={() => setMenueOffen(false)} aria-hidden="true" />
+      <aside className={`mb-schublade${menueOffen ? " offen" : ""}`} aria-label="Menü" aria-hidden={!menueOffen}>
+        <div className="mb-schublade-kopf">
+          <span className="mb-wort fiaon-gradient-text-animated">FIAON</span>
+          <button type="button" className="mb-schublade-zu" onClick={() => setMenueOffen(false)} aria-label="Menü schließen"><X size={20} strokeWidth={2} /></button>
         </div>
-      )}
+        <div className="mb-schublade-nutzer"><div className="mb-gesicht" aria-hidden="true">{initialen}</div><div><b>{name}</b><small>{d.paket.name}</small></div></div>
+        <nav className="mb-schublade-liste">
+          {gruppen.map((g) => (
+            <div key={g} className="mb-schublade-gruppe">
+              <div className="mb-schublade-titel">{g}</div>
+              {punkte.filter((p) => p.gruppe === g).map((p, i) => (
+                <a key={p.id} href={`#${p.id}`} className={aktiv === p.id ? "aktiv" : ""} style={{ animationDelay: `${60 + i * 35}ms` }} onClick={() => setMenueOffen(false)}>
+                  <i className="mb-symbol" aria-hidden="true"><p.Icon size={18} strokeWidth={1.75} /></i><span>{p.label}</span>{p.marke ? <span className="mb-marke">{p.marke}</span> : null}
+                </a>
+              ))}
+            </div>
+          ))}
+        </nav>
+        <div className="mb-schublade-fuss">
+          <a href="/kontakt" onClick={() => setMenueOffen(false)}><LifeBuoy size={18} strokeWidth={1.75} /><span>Kontakt &amp; Support</span></a>
+          <button type="button" onClick={abmelden}><LogOut size={18} strokeWidth={1.75} /><span>Abmelden</span></button>
+        </div>
+      </aside>
 
       <div className="mb-rahmen">
         <div className={`mb-grundriss${eingeklappt ? " eingeklappt" : ""}`}>
@@ -425,7 +436,13 @@ export default function MeinBereichPage() {
                   <div className="mb-freigabe"><b>Was wir lesen dürfen — und was nicht</b>
                     <ul><li>Lesen: Kontostand, Umsätze der letzten 12 Monate, Daueraufträge.</li><li>Nicht möglich: Überweisungen auslösen, Limits ändern, Zugangsdaten speichern.</li><li>Grundlage: EU-Zahlungsdiensterichtlinie PSD2 über einen zugelassenen Kontoinformationsdienst.</li></ul></div>
                 </div>
-                <div className="mb-bank-glas">
+                <div className="mb-bank-glas gesperrt">
+                  <div className="mb-sperre" role="status">
+                    <span className="mb-sperre-symbol" aria-hidden="true"><Lock size={20} strokeWidth={1.75} /></span>
+                    <b>In Kürze verfügbar</b>
+                    <p>Die Kontoanbindung wird gerade freigeschaltet. Bis dahin laden Sie Ihre Kontoauszüge bitte manuell hoch – ein Handyfoto oder PDF genügt.</p>
+                    <a className="mb-knopf" href="#unterlagen">Kontoauszüge hochladen</a>
+                  </div>
                   <div className="mb-eyebrow" style={{ marginBottom: 12 }}>Ihre Bank</div>
                   <div className="mb-suche"><input type="text" placeholder="Name, BLZ oder BIC" aria-label="Bank suchen" disabled /><span className="kuerzel">BLZ · BIC</span></div>
                   <div style={{ marginTop: 16, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>

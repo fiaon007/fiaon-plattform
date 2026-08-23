@@ -9,6 +9,7 @@ import "@/styles/dunkel.css";
 import "@/styles/antrag-dunkel.css";
 import { AntragStart } from "@/components/antrag/AntragStart";
 import { AdresseSuche } from "@/components/antrag/AdresseSuche";
+import { EmailBekannt } from "@/components/antrag/EmailBekannt";
 import PremiumFooter from "@/components/PremiumFooter";
 import { checkPhone } from "@/lib/phone";
 
@@ -737,6 +738,7 @@ export default function AntragPage() {
       if (!d.phoneCountryCode || !d.phone) e.phone = "Telefonnummer eingeben";
       else if (!checkPhone(`${d.phoneCountryCode}${d.phone}`).valid) e.phone = checkPhone(`${d.phoneCountryCode}${d.phone}`).reason || "Bitte gültige Telefonnummer eingeben";
       if (!d.street) e.street = "Adresse eingeben";
+      else if (!/\d/.test(d.street)) e.street = "Bitte die Hausnummer angeben";
       if (!d.zip) e.zip = "PLZ eingeben";
       if (!d.city) e.city = "Ort eingeben";
       if (!d.country) e.country = "Land wählen";
@@ -1027,6 +1029,7 @@ export default function AntragPage() {
                                     type="email" inputMode="email" autoCapitalize="none" autoCorrect="off" spellCheck={false} />
                       <EmailVorschlaege wert={d.email} land={land || d.country} onWahl={(v) => up("email", v)} />
                       <p className="mt-1.5 text-[11.5px] text-gray-400">Damit Sie jederzeit genau hier weitermachen können.</p>
+                      <EmailBekannt email={d.email} />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <PremiumInput label="Vorname" value={d.firstName} onChange={(v: string) => up("firstName", v)} placeholder="Max" isValid={!!d.firstName} error={errors.firstName} />

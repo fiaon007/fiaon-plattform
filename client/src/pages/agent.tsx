@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { Link } from "wouter";
 import { ArrowRight, Wallet, Users, CheckCircle2, ChevronRight } from "lucide-react";
 import { AgentShell, api, fmtCents, isToday, inputCls, ACCENT } from "./agent/shared";
-import { AuthLayout, SubmitButton, Reveal, LiveCount } from "./agent/motion";
+import { Reveal, LiveCount } from "./agent/motion";
+import Anmeldung from "./agent/Anmeldung";
 import { gruss, monatName } from "./agent/zeit";
 import { KUNDENSTATUS, zahlungsstatusText } from "@shared/fiaon-kundenstatus";
 
@@ -75,101 +76,21 @@ function kundenName(a: Abschluss): string {
 }
 
 export default function AgentPortalPage() {
+  // Anmeldung (23.08.2026): eigene Bühne OHNE AgentShell — die Shell gehört zum
+  // eingeloggten Cockpit. Nicht angemeldet → Anmeldung (pages/agent/Anmeldung.tsx).
+  const [agent, setAgent] = useState<{ name: string; email: string } | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+  useEffect(() => { api("/agent/me").then((r) => { setAgent(r.ok ? r.json.agent : null); setAuthChecked(true); }); }, []);
+  if (!authChecked) return <div style={{ minHeight: "100vh", background: "#0a1628" }} />;
+  if (!agent) return <Anmeldung onLogin={setAgent} />;
   return (
     <AgentShell>
-      <AgentHome />
+      <Dashboard agentName={agent.name} />
     </AgentShell>
   );
 }
 
-function AgentHome() {
-  const [agent, setAgent] = useState<{ name: string; email: string } | null>(null);
-  const [authChecked, setAuthChecked] = useState(false);
-
-  useEffect(() => {
-    api("/agent/me").then((r) => {
-      setAgent(r.ok ? r.json.agent : null);
-      setAuthChecked(true);
-    });
-  }, []);
-
-  if (!authChecked) return <p className="py-16 text-center text-[13px] text-slate-400">Lädt …</p>;
-  if (!agent) return <LoginView onLogin={setAgent} />;
-  return <Dashboard agentName={agent.name} />;
-}
-
-// ═══════════════ Login (inkl. „Passwort vergessen", F2) ═══════════════
-
-function LoginView({ onLogin }: { onLogin: (a: { name: string; email: string }) => void }) {
-  const [form, setForm] = useState({ email: "", password: "" });
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [forgotMode, setForgotMode] = useState(false);
-  const [info, setInfo] = useState<string | null>(null);
-
-  const login = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    const r = await api("/agent/login", { method: "POST", body: JSON.stringify(form) });
-    setBusy(false);
-    if (r.ok) {
-      onLogin(r.json.agent);
-      window.location.reload();
-    } else setError(r.json?.error || "Anmeldung fehlgeschlagen");
-  };
-
-  const forgot = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    const r = await api("/agent/forgot-password", { method: "POST", body: JSON.stringify({ email: form.email }) });
-    setBusy(false);
-    setInfo(r.json?.message || "Falls ein Konto existiert, wurde eine E-Mail versendet.");
-  };
-
-  return (
-    <AuthLayout
-      title={forgotMode ? "Passwort zurücksetzen" : "Mitarbeiter-Anmeldung"}
-      subtitle={forgotMode ? "Gib deine Login-E-Mail ein — wir senden dir einen Link." : "Dein Vertriebs-Cockpit wartet."}
-    >
-      {forgotMode ? (
-        <form onSubmit={forgot} className="space-y-4">
-          <div>
-            <label className="block text-[12px] font-semibold text-slate-600 mb-1.5">Login-E-Mail</label>
-            <input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} className={inputCls} autoComplete="username" style={{ minHeight: 46 }} />
-          </div>
-          {info && <p className="text-[12px] text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 leading-relaxed">{info}</p>}
-          <SubmitButton loading={busy} disabled={!form.email}>
-            {busy ? "Sende …" : "Reset-Link anfordern"}
-          </SubmitButton>
-          <button type="button" onClick={(e) => { e.stopPropagation(); setForgotMode(false); setInfo(null); }}
-            className="block w-full text-center text-[12px] text-slate-400 hover:text-slate-600 transition-colors">
-            Zurück zur Anmeldung
-          </button>
-        </form>
-      ) : (
-        <form onSubmit={login} className="space-y-4">
-          <div>
-            <label className="block text-[12px] font-semibold text-slate-600 mb-1.5">E-Mail</label>
-            <input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} className={inputCls} autoComplete="username" style={{ minHeight: 46 }} />
-          </div>
-          <div>
-            <label className="block text-[12px] font-semibold text-slate-600 mb-1.5">Passwort</label>
-            <input type="password" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} className={inputCls} autoComplete="current-password" style={{ minHeight: 46 }} />
-          </div>
-          {error && <p className="text-[12px] font-medium text-slate-700 border border-slate-300 rounded-lg px-3 py-2.5">{error}</p>}
-          <SubmitButton loading={busy} disabled={!form.email || !form.password}>
-            {busy ? "Anmelden …" : "Anmelden"}
-          </SubmitButton>
-          <button type="button" onClick={(e) => { e.stopPropagation(); setForgotMode(true); setError(null); }}
-            className="block w-full text-center text-[12px] text-slate-400 hover:text-slate-600 transition-colors">
-            Passwort vergessen?
-          </button>
-        </form>
-      )}
-    </AuthLayout>
-  );
-}
+// Login: siehe pages/agent/Anmeldung.tsx (Neubau 23.08.2026).
 
 // ═══════════════ Startseite: Begrüßung · Kontostand · Handlung · Bestand ═══════════════
 

@@ -413,3 +413,59 @@
 .mb-offen p{margin:0;font-size:13.5px;line-height:1.6;color:var(--text-leise);max-width:70ch}
 .mb-offen-knoepfe{display:flex;flex-direction:column;align-items:flex-end;gap:10px}
 @media(max-width:640px){.ein-zeilen{grid-template-columns:1fr}.mb-offen{grid-template-columns:1fr}.mb-offen-knoepfe{flex-direction:row;align-items:center}}
+
+/* ═══ Handy-Menü als Schublade links (Justin, 23.08.2026: „klassisches linkes Menü, Glas, Animationen") ═══ */
+.mb-unten,.mb-blatt{display:none !important}
+.mb-burger{display:none;width:42px;height:42px;border-radius:12px;border:1px solid var(--linie);background:var(--flaeche);box-shadow:var(--sch-ruhe);flex-direction:column;align-items:center;justify-content:center;gap:5px;cursor:pointer;padding:0;flex:0 0 42px}
+.mb-burger span{display:block;width:18px;height:2px;border-radius:2px;background:var(--blau-tief);transition:transform .25s,opacity .25s}
+.mb-schublade-hintergrund{position:fixed;inset:0;z-index:80;background:rgba(10,22,40,.42);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);opacity:0;pointer-events:none;transition:opacity .3s}
+.mb-schublade-hintergrund.offen{opacity:1;pointer-events:auto}
+.mb-schublade{position:fixed;top:0;left:0;bottom:0;z-index:81;width:min(86vw,340px);display:flex;flex-direction:column;background:rgba(255,255,255,.86);backdrop-filter:blur(24px) saturate(170%);-webkit-backdrop-filter:blur(24px) saturate(170%);border-right:1px solid rgba(255,255,255,.7);box-shadow:24px 0 70px rgba(10,22,40,.28);transform:translateX(-104%);transition:transform .38s cubic-bezier(.2,.8,.2,1);padding-top:env(safe-area-inset-top)}
+.mb-schublade.offen{transform:none}
+.mb-schublade-kopf{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 10px 20px}
+.mb-schublade-kopf .mb-wort{font-size:20px}
+.mb-schublade-zu{width:38px;height:38px;border-radius:11px;border:1px solid var(--linie);background:var(--flaeche);display:grid;place-items:center;color:var(--text-leise);cursor:pointer}
+.mb-schublade-nutzer{display:flex;align-items:center;gap:12px;margin:4px 14px 10px;padding:12px 14px;border-radius:16px;background:linear-gradient(135deg,rgba(37,99,235,.12),rgba(37,99,235,.04));border:1px solid rgba(37,99,235,.18)}
+.mb-schublade-nutzer .mb-gesicht{width:40px;height:40px;font-size:12px}
+.mb-schublade-nutzer b{display:block;font:500 14px/1.2 'Inter',sans-serif;color:var(--text)}
+.mb-schublade-nutzer small{display:block;font-size:11.5px;color:var(--text-still);margin-top:2px}
+.mb-schublade-liste{flex:1;overflow:auto;padding:4px 10px 10px;scrollbar-width:none}
+.mb-schublade-liste::-webkit-scrollbar{display:none}
+.mb-schublade-titel{font:600 10px/1 'Inter',sans-serif;letter-spacing:.16em;text-transform:uppercase;color:var(--text-still);padding:14px 10px 6px}
+.mb-schublade-liste a{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:13px;text-decoration:none;color:var(--text-leise);font:400 14.5px/1.2 'Inter',sans-serif;opacity:0;transform:translateX(-8px)}
+.mb-schublade.offen .mb-schublade-liste a{animation:mbSchubAuf .35s cubic-bezier(.2,.8,.2,1) forwards}
+@keyframes mbSchubAuf{to{opacity:1;transform:none}}
+.mb-schublade-liste a .mb-symbol{color:var(--text-still)}
+.mb-schublade-liste a span:first-of-type{flex:1}
+.mb-schublade-liste a.aktiv{background:linear-gradient(180deg,#2563EB,#1D4ED8);color:#fff;box-shadow:0 10px 22px rgba(37,99,235,.28)}
+.mb-schublade-liste a.aktiv .mb-symbol{color:#fff}
+.mb-schublade-liste a .mb-marke{margin-left:auto}
+.mb-schublade-fuss{display:grid;gap:4px;padding:10px 10px calc(14px + env(safe-area-inset-bottom));border-top:1px solid var(--linie)}
+.mb-schublade-fuss a,.mb-schublade-fuss button{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:13px;border:0;background:transparent;text-decoration:none;color:var(--text-leise);font:400 14px/1.2 'Inter',sans-serif;cursor:pointer;text-align:left}
+.mb-schublade-fuss a:hover,.mb-schublade-fuss button:hover{background:var(--flaeche-still);color:var(--text)}
+@media(max-width:960px){
+  .mb-burger{display:flex}
+  .mb-leiste,.mb-leiste.offen{display:none !important}
+  .mb-klapp{display:none}
+  .mb-kopf-innen{padding:10px 14px;gap:12px}
+  .mb-kopf-name{display:none}
+}
+@media(min-width:961px){.mb-schublade,.mb-schublade-hintergrund{display:none}}
+@media(prefers-reduced-motion:reduce){.mb-schublade{transition:none}.mb-schublade-liste a{animation:none !important;opacity:1;transform:none}}
+
+/* ═══ Kontoanbindung gesperrt: „In Kürze verfügbar" (Justin, 23.08.2026) ═══ */
+.mb-bank-glas.gesperrt{position:relative;overflow:hidden}
+.mb-bank-glas.gesperrt>*:not(.mb-sperre){filter:blur(3px);opacity:.45;pointer-events:none;user-select:none}
+.mb-sperre{position:absolute;inset:0;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;gap:8px;filter:none !important;opacity:1 !important;pointer-events:auto !important}
+.mb-sperre-symbol{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:linear-gradient(180deg,#2563EB,#1D4ED8);color:#fff;box-shadow:0 10px 22px rgba(37,99,235,.3)}
+.mb-sperre b{font:500 17px/1.2 'Inter',sans-serif;color:var(--text);margin-top:4px}
+.mb-sperre p{margin:0;font:300 13.5px/1.6 'Inter',sans-serif;color:var(--text-leise);max-width:34ch}
+.mb-sperre .mb-knopf{margin-top:8px}
+
+/* ═══ Zahlungsdaten: Beschriftung bricht nicht mehr in den Wert (Justin, 23.08.2026) ═══ */
+.ein-zeile span{white-space:normal;line-height:1.25}
+.ein-zeile b{word-break:normal;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+@media(max-width:640px){
+  .ein-zeile{grid-template-columns:1fr auto;grid-template-areas:"l k" "w k";row-gap:3px;column-gap:12px}
+  .ein-zeile span{grid-area:l}.ein-zeile b{grid-area:w}.ein-zeile small{grid-area:k;align-self:center}
+}

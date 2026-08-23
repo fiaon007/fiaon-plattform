@@ -107,6 +107,15 @@ const AgentSchreibtischPage = lazy(() => import("@/pages/agent/schreibtisch"));
 const AgentArbeitszeitenPage = lazy(() => import("@/pages/agent/arbeitszeiten"));
 import AgentUpdatesPage from "@/pages/agent/updates";
 import AgentFeedbackPage from "@/pages/agent/feedback";
+// Office-Räume (23.08.2026, Plan §4): native dunkle Räume; alte Seiten bleiben unter -alt erreichbar
+const AgentCalendarPage = lazy(() => import("@/pages/agent/calendar"));
+const AgentTasksPage = lazy(() => import("@/pages/agent/tasks"));
+const AgentTicketsPage = lazy(() => import("@/pages/agent/tickets"));
+const AgentFeedPage = lazy(() => import("@/pages/agent/feed"));
+const AgentWalletPage = lazy(() => import("@/pages/agent/wallet"));
+const AgentCollectionsPage = lazy(() => import("@/pages/agent/collections"));
+const AgentInboxPage = lazy(() => import("@/pages/agent/inbox"));
+const AgentMorePage = lazy(() => import("@/pages/agent/more"));
 import AgentMehrPage from "@/pages/agent/mehr";
 const AgentAcademyPage = lazy(() => import("@/pages/agent/academy"));
 const AgentSchulungPage = lazy(() => import("@/pages/agent/schulung"));
@@ -308,11 +317,15 @@ function Router() {
       <Route path="/agent" component={AgentPortalPage} />
       <Route path="/agent/setup/:token" component={AgentSetupPage} />
       <Route path="/agent/passwort" component={AgentPasswortPage} />
-      <Route path="/agent/profil" component={AgentProfilPage} />
-      <Route path="/agent/auszahlung" component={AgentAuszahlungPage} />
+      <Route path="/agent/profil"><Redirect to="/agent/more/profil" /></Route>
+      <Route path="/agent/profil-alt" component={AgentProfilPage} />
+      <Route path="/agent/auszahlung"><Redirect to="/agent/wallet/auszahlung" /></Route>
+      <Route path="/agent/auszahlung-alt" component={AgentAuszahlungPage} />
       <Route path="/agent/skripte" component={AgentSkriptePage} />
-      <Route path="/agent/kalender" component={AgentKalenderPage} />
-      <Route path="/agent/partner-programm" component={AgentPartnerProgrammPage} />
+      <Route path="/agent/kalender" component={AgentCalendarPage} />
+      <Route path="/agent/kalender-alt" component={AgentKalenderPage} />
+      <Route path="/agent/partner-programm"><Redirect to="/agent/wallet/partner" /></Route>
+      <Route path="/agent/partner-programm-alt" component={AgentPartnerProgrammPage} />
       {/* Offene Kartei (neu) — löst /agent/leads und /agent/kunden ab. */}
       {/* Die Arbeitsseite, die die offene Kartei abloest: zugewiesene Kunden
           nach Dringlichkeit statt gemeinsamer Bestand. */}
@@ -326,11 +339,15 @@ function Router() {
       {/* Der Space — fuer jede Mitarbeiterrolle. */}
       {/* Forderungsmanagement — nur fuer die Rolle 'inkasso'. Wer sie nicht
           hat, bekommt vom Server 404 und die Seite zeigt „gibt es nicht". */}
-      <Route path="/agent/inkasso" component={AgentInkassoPage} />
+      <Route path="/agent/inkasso" component={AgentCollectionsPage} />
+      <Route path="/agent/collections" component={AgentCollectionsPage} />
+      <Route path="/agent/inkasso-alt" component={AgentInkassoPage} />
       <Route path="/agent/space">{() => <AgentSpacePage />}</Route>
       {/* Mail-Zentrale — Team und Vorgesetzter. Die Rolle entscheidet der Server:
           ein Teammitglied sieht nur eigene Kunden und darf an höchstens zehn. */}
-      <Route path="/agent/mail-zentrale" component={MailZentralePage} />
+      <Route path="/agent/mail-zentrale"><Redirect to="/agent/inbox" /></Route>
+      <Route path="/agent/inbox" component={AgentInboxPage} />
+      <Route path="/agent/mail-zentrale-alt" component={MailZentralePage} />
       {/* Der Vorgesetzte hat SEINE Mail-Zentrale: gleiche Oberflaeche, gleiche
           Bausteine, aber ohne Agent-Anmeldung und ohne 10-Empfaenger-Grenze.
           Der Menuepunkt zeigte bis zum 11.08.2026 auf die Team-Fassung und
@@ -343,11 +360,14 @@ function Router() {
       {/* Die Startgespräche. Der Pfad heißt bewusst NICHT /agent/onboarding —
           das ist seit jeher die Vertrags-Schranke für neue Mitarbeiter. Zwei
           Dinge mit demselben Namen sind eine Fehlerquelle mit Ansage. */}
-      <Route path="/agent/startgespraeche" component={AgentStartgespraechePage} />
+      <Route path="/agent/startgespraeche" component={AgentCalendarPage} />
+      <Route path="/agent/startgespraeche-alt" component={AgentStartgespraechePage} />
       <Route path="/agent/vertrieb" component={AgentVertriebPage} />
       {/* Aufgaben und Hinweise, die die Verwaltung dem Mitarbeiter zuweist. */}
-      <Route path="/agent/aufgaben" component={AgentAufgabenPage} />
-      <Route path="/agent/anliegen" component={AgentAnliegenPage} />
+      <Route path="/agent/aufgaben" component={AgentTasksPage} />
+      <Route path="/agent/aufgaben-alt" component={AgentAufgabenPage} />
+      <Route path="/agent/anliegen" component={AgentTicketsPage} />
+      <Route path="/agent/anliegen-alt" component={AgentAnliegenPage} />
       {/* Die Kartei ist abgeschaltet. Beide Pfade zeigen NICHT mehr auf sie,
           sondern leiten weiter — ein Lesezeichen darf nicht auf einer Seite
           landen, deren Endpunkte mit 410 antworten. Die Seiten selbst bleiben
@@ -382,13 +402,19 @@ function Router() {
           Gelöscht am 22.08.2026 (E-022, Scheibe 3); gemerkte Links landen in
           der einen Arbeitsliste. */}
       <Route path="/agent/leads" component={() => <Umleitung nach="/agent/kunden?filter=leads" />} />
-      <Route path="/agent/verdienst" component={AgentVerdienstPage} />
+      <Route path="/agent/verdienst"><Redirect to="/agent/wallet" /></Route>
+      <Route path="/agent/wallet/:reiter?" component={AgentWalletPage} />
+      <Route path="/agent/verdienst-alt" component={AgentVerdienstPage} />
       <Route path="/agent/gehalt" component={AgentGehaltPage} />
       <Route path="/agent/flur" component={AgentFlurPage} />
       <Route path="/agent/arbeitszeiten" component={AgentArbeitszeitenPage} />
-      <Route path="/agent/updates" component={AgentUpdatesPage} />
-      <Route path="/agent/feedback" component={AgentFeedbackPage} />
-      <Route path="/agent/mehr" component={AgentMehrPage} />
+      <Route path="/agent/updates" component={AgentFeedPage} />
+      <Route path="/agent/updates-alt" component={AgentUpdatesPage} />
+      <Route path="/agent/feedback" component={AgentFeedPage} />
+      <Route path="/agent/feedback-alt" component={AgentFeedbackPage} />
+      <Route path="/agent/mehr"><Redirect to="/agent/more" /></Route>
+      <Route path="/agent/more/:bereich?" component={AgentMorePage} />
+      <Route path="/agent/mehr-alt" component={AgentMehrPage} />
       {/* ── DIE ACADEMY FÜR DAS TEAM (28.08.2026) ──────────────────────────
           Jede Rolle bekommt IHRE Reise. Die Filterung liegt im SERVER
           (fiaon-academy.ts): Wer die Adresse einer fremden Reise eintippt,
@@ -401,7 +427,8 @@ function Router() {
       <Route path="/agent/schulung" component={AgentSchulungPage} />
       <Route path="/agent/academy" component={AgentAcademyPage} />
       <Route path="/agent/academy/:reise" component={AgentAcademyPage} />
-      <Route path="/agent/dokumente" component={AgentDokumentePage} />
+      <Route path="/agent/dokumente"><Redirect to="/agent/more/dokumente" /></Route>
+      <Route path="/agent/dokumente-alt" component={AgentDokumentePage} />
       <Route path="/admin/agent-portal" component={admin(AdminAgentPortalPage)} />
       <Route path="/admin/team" component={admin(AdminTeamZentralePage)} />
       {/* ── ZWEITER WEG ENTFERNT (10.08.2026) ──────────────────────────
@@ -426,7 +453,8 @@ function Router() {
       <Route path="/admin/leistung" component={() => <Umleitung nach="/admin/team?rang=1" />} />
       <Route path="/admin/changelog" component={admin(AdminChangelogPage)} />
       <Route path="/admin/diagnose" component={admin(AdminDiagnosePage)} />
-      <Route path="/agent/leistung" component={AgentLeistungPage} />
+      <Route path="/agent/leistung"><Redirect to="/agent/wallet/leistung" /></Route>
+      <Route path="/agent/leistung-alt" component={AgentLeistungPage} />
       {/* Terminbuchung — oeffentlich, kein Login. Das signierte Token im Pfad
           ist der Ausweis (Muster der signierten Rechnungs-Links). */}
       {/* Die Schleuse in die Kundensicht (Verwaltung/Leitung, Nur-Ansicht). */}

@@ -1,0 +1,114 @@
+/* ═══ Feed (Raum) — 23.08.2026, Plan §4/§11 ═══
+   Update-Protokoll (was neu ist) + Feedback geben, zwei Reiter.
+   Dunkle Bühne, Glas. Präfix .fe- */
+.fe{display:grid;gap:18px;max-width:1100px;margin:0 auto;color:#e5e7eb}
+.fe-pille{display:inline-block;font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.16em;text-transform:uppercase;color:#93c5fd;padding:8px 12px;border:1px solid rgba(147,197,253,.35);border-radius:999px;margin-bottom:14px}
+.fe-verlauf{background:linear-gradient(90deg,#93c5fd,#3b82f6);-webkit-background-clip:text;background-clip:text;color:transparent}
+.fe-kopf{display:grid;grid-template-columns:1fr 300px;gap:24px;align-items:end;padding:30px 0 4px}
+.fe-kopf h1{margin:0;font:300 clamp(30px,4.2vw,50px)/1.08 'Inter',sans-serif;letter-spacing:-.03em;color:#fff}
+.fe-kopf p{margin:14px 0 0;font:300 15px/1.65 'Inter',sans-serif;color:#cbd5e1;max-width:60ch}
+.fe-lage{padding:18px 20px;border-radius:20px;background:rgba(15,23,42,.6);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);display:grid;gap:8px}
+.fe-lage small{font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#93c5fd}
+.fe-lage-zahl{display:flex;align-items:baseline;gap:10px}
+.fe-lage-zahl b{font:300 44px/1 'Inter',sans-serif;letter-spacing:-.03em;color:#fff;font-variant-numeric:tabular-nums}
+.fe-lage-zahl span{font-size:13px;color:#9ca3af}
+.fe-lage-zeile{display:flex;justify-content:space-between;font-size:13px;color:#9ca3af;border-top:1px solid rgba(255,255,255,.08);padding-top:8px}
+.fe-lage-zeile b{color:#fff;font-weight:500;font-variant-numeric:tabular-nums}
+.fe-fehler{margin:0;padding:10px 14px;border-radius:12px;background:rgba(220,38,38,.14);border:1px solid rgba(248,113,113,.35);color:#fecaca;font-size:13px}
+.fe-meldung{margin:0;padding:10px 14px;border-radius:12px;background:rgba(16,185,129,.14);border:1px solid rgba(52,211,153,.35);color:#a7f3d0;font-size:13px}
+.fe-lade{margin:0;font-size:13px;color:#64748b}
+
+.fe-leiste{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.fe-reiter{display:inline-flex;padding:4px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1)}
+.fe-reiter button{min-height:40px;padding:0 16px;border-radius:999px;border:0;background:transparent;color:#cbd5e1;font:500 13px/1 'Inter',sans-serif;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.fe-reiter button.an{background:linear-gradient(135deg,#2563eb,#3b82f6);color:#fff;box-shadow:0 8px 18px rgba(37,99,235,.3)}
+.fe-reiter button em{font-style:normal;font-size:11px;padding:2px 7px;border-radius:999px;background:rgba(255,255,255,.12)}
+.fe-filter{display:flex;flex-wrap:wrap;gap:6px;margin-left:auto}
+.fe-filter button{min-height:36px;padding:0 12px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:#9ca3af;font:500 12px/1 'Inter',sans-serif;cursor:pointer}
+.fe-filter button.an{color:#fff;border-color:rgba(96,165,250,.5);background:rgba(37,99,235,.25)}
+
+/* Updates */
+.fe-liste{display:grid;gap:10px}
+.fe-update{border-radius:20px;background:rgba(15,23,42,.6);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);overflow:hidden}
+.fe-update.neu{border-color:rgba(96,165,250,.4)}
+.fe-update-kopf{width:100%;display:grid;grid-template-columns:1fr auto;gap:12px;align-items:start;padding:16px 18px;border:0;background:transparent;color:inherit;text-align:left;cursor:pointer}
+.fe-update-kopf:hover{background:rgba(255,255,255,.03)}
+.fe-marken{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:6px}
+.fe-kat{display:inline-flex;padding:3px 9px;border-radius:999px;font:500 10.5px/1.3 'Inter',sans-serif;letter-spacing:.08em;text-transform:uppercase;border:1px solid rgba(255,255,255,.14);color:#cbd5e1}
+.fe-kat.Neu{background:linear-gradient(135deg,#2563eb,#3b82f6);border-color:transparent;color:#fff}
+.fe-kat.Verbessert{color:#c7d2fe;border-color:rgba(165,180,252,.4)}
+.fe-kat.Behoben{color:#a7f3d0;border-color:rgba(52,211,153,.4)}
+.fe-kat.Hintergrund{color:#9ca3af}
+.fe-kat.Geändert{color:#fde68a;border-color:rgba(251,191,36,.4)}
+.fe-punkt{width:7px;height:7px;border-radius:50%;background:#60a5fa;box-shadow:0 0 0 3px rgba(96,165,250,.25)}
+.fe-datum{font-size:11.5px;color:#64748b;font-variant-numeric:tabular-nums}
+.fe-wichtig{font-size:10.5px;color:#fbbf24;letter-spacing:.08em;text-transform:uppercase}
+.fe-update h3{margin:0;font:400 16px/1.35 'Inter',sans-serif;color:#fff;overflow-wrap:anywhere}
+.fe-update-kopf > span:first-child > p{margin:4px 0 0;font:300 13.5px/1.55 'Inter',sans-serif;color:#cbd5e1}
+.fe-pfeil{color:#64748b;transition:transform .3s;margin-top:4px}
+.fe-update.auf .fe-pfeil{transform:rotate(180deg)}
+.fe-update-innen{padding:0 18px 18px;display:grid;gap:16px;border-top:1px solid rgba(255,255,255,.08);padding-top:14px}
+.fe-titel{display:flex;align-items:center;gap:6px;font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#93c5fd;margin:0 0 8px}
+.fe-update ul,.fe-update ol{margin:0;padding:0;list-style:none;display:grid;gap:6px}
+.fe-update li{display:flex;gap:10px;font:300 13.5px/1.55 'Inter',sans-serif;color:#e5e7eb;overflow-wrap:anywhere}
+.fe-update ul li::before{content:"";flex:0 0 6px;width:6px;height:6px;border-radius:50%;background:#60a5fa;margin-top:8px}
+.fe-update ol li i{flex:0 0 22px;width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#2563eb,#3b82f6);color:#fff;font:500 11px/22px 'Inter',sans-serif;font-style:normal;text-align:center}
+.fe-knopf{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:44px;padding:0 18px;border-radius:999px;border:0;background:linear-gradient(135deg,#2563eb,#3b82f6);color:#fff;font:500 13.5px/1 'Inter',sans-serif;cursor:pointer;text-decoration:none;box-shadow:0 12px 28px rgba(37,99,235,.35);white-space:nowrap}
+.fe-knopf.still{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);box-shadow:none;color:#e5e7eb}
+.fe-knopf.klein{min-height:36px;padding:0 13px;font-size:12.5px}
+.fe-knopf:disabled{opacity:.45;cursor:default;box-shadow:none}
+.fe-hinweis{display:flex;align-items:center;gap:12px;padding:16px 18px;border-radius:18px;background:linear-gradient(135deg,rgba(37,99,235,.3),rgba(37,99,235,.08));border:1px solid rgba(96,165,250,.35)}
+.fe-hinweis i{display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:rgba(255,255,255,.1);color:#bfdbfe;flex:0 0 38px}
+.fe-hinweis b{display:block;font:400 14.5px/1.3 'Inter',sans-serif;color:#fff}
+.fe-hinweis span{display:block;font-size:12.5px;color:#bfdbfe;margin-top:2px}
+.fe-hinweis button{margin-left:auto}
+
+/* Feedback */
+.fe-spalten{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+.fe-block{padding:20px 22px;border-radius:22px;background:rgba(15,23,42,.6);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+.fe-block-kopf{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:12px}
+.fe-block-kopf b{font:400 16px/1.2 'Inter',sans-serif;color:#fff}
+.fe-block-kopf small{font-size:12px;color:#64748b}
+.fe-form{display:grid;gap:10px}
+.fe-kats{display:flex;flex-wrap:wrap;gap:6px}
+.fe-kats button{min-height:38px;padding:0 13px;border-radius:999px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05);color:#cbd5e1;font:500 12.5px/1 'Inter',sans-serif;cursor:pointer}
+.fe-kats button.an{background:linear-gradient(135deg,#2563eb,#3b82f6);border-color:transparent;color:#fff}
+.fe-feld{width:100%;min-height:46px;padding:12px 14px;border-radius:14px;border:1px solid rgba(255,255,255,.14);background:rgba(2,6,23,.4);color:#fff;font:400 14px/1.5 'Inter',sans-serif;outline:none;resize:vertical}
+.fe-feld:focus{border-color:rgba(96,165,250,.6);box-shadow:0 0 0 3px rgba(37,99,235,.2)}
+.fe-feld::placeholder{color:#64748b}
+.fe-bild{display:flex;align-items:center;gap:10px}
+.fe-bild img{height:48px;border-radius:10px;border:1px solid rgba(255,255,255,.14);object-fit:cover}
+.fe-bild-knopf{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 4px;border:0;background:none;color:#93c5fd;font:500 13px/1 'Inter',sans-serif;cursor:pointer}
+.fe-danke{padding:24px 10px;text-align:center}
+.fe-danke b{display:block;font:400 15px/1.3 'Inter',sans-serif;color:#fff;margin-top:8px}
+.fe-danke span{display:block;font-size:13px;color:#9ca3af;margin-top:3px}
+.fe-leer{margin:0;font:300 13.5px/1.6 'Inter',sans-serif;color:#9ca3af}
+.fe-ticket{border-top:1px solid rgba(255,255,255,.08);padding:10px 0}
+.fe-ticket:first-of-type{border-top:0}
+.fe-ticket-kopf{width:100%;display:flex;align-items:center;gap:10px;min-height:44px;border:0;background:transparent;color:inherit;text-align:left;cursor:pointer;padding:0}
+.fe-ticket-kopf b{display:block;font:400 14px/1.3 'Inter',sans-serif;color:#fff;overflow-wrap:anywhere}
+.fe-ticket-kopf small{display:block;font-size:11.5px;color:#9ca3af;margin-top:2px}
+.fe-ticket-kopf small em{font-style:normal;color:#93c5fd;font-weight:500}
+.fe-status{display:inline-flex;padding:3px 9px;border-radius:999px;font:500 10.5px/1.3 'Inter',sans-serif;letter-spacing:.06em;text-transform:uppercase;border:1px solid rgba(255,255,255,.14);color:#cbd5e1;white-space:nowrap}
+.fe-status.umgesetzt{color:#a7f3d0;border-color:rgba(52,211,153,.4)}
+.fe-status.abgelehnt{color:#fecaca;border-color:rgba(248,113,113,.4)}
+.fe-status.geprueft{color:#bfdbfe;border-color:rgba(96,165,250,.4)}
+.fe-verlauf-liste{display:grid;gap:8px;margin-top:12px}
+.fe-blase{max-width:88%;padding:9px 12px;border-radius:14px;font-size:13px;line-height:1.45;overflow-wrap:anywhere;white-space:pre-wrap}
+.fe-blase.admin{background:rgba(255,255,255,.08);color:#e5e7eb;border-bottom-left-radius:4px}
+.fe-blase.agent{margin-left:auto;background:linear-gradient(135deg,#2563eb,#3b82f6);color:#fff;border-bottom-right-radius:4px}
+.fe-blase.system{margin:0 auto;background:none;color:#64748b;font-size:11.5px;text-align:center;max-width:100%;padding:2px 0;white-space:normal}
+.fe-blase small{display:block;font:500 10px/1 'Inter',sans-serif;letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px;opacity:.8}
+.fe-antwort{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;margin-top:10px}
+.fe-kleinhinweis{margin:10px 0 0;font-size:12px;color:#9ca3af;line-height:1.5}
+
+@media(max-width:960px){.fe-kopf,.fe-spalten{grid-template-columns:1fr}.fe-filter{margin-left:0}}
+@media(max-width:700px){
+  .fe-lage-zahl b{font-size:36px}
+  .fe-reiter{width:100%}
+  .fe-reiter button{flex:1;justify-content:center}
+  .fe-block{padding:16px}
+  .fe-hinweis{flex-wrap:wrap}
+  .fe-hinweis button{margin-left:0;width:100%}
+  .fe-antwort{grid-template-columns:1fr}
+}

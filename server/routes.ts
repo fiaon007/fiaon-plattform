@@ -413,6 +413,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 🏢 FIAON Office: Arbeitszeiten, Präsenz, Provisionssatz (23.08.2026).
   const fiaonOffice = await import('./routes/fiaon-office');
   app.use('/api/fiaon', fiaonOffice.default);
+  const fiaonOfficeInbox = await import('./routes/fiaon-office-inbox');
+  app.use('/api/fiaon', fiaonOfficeInbox.default);
 
   const fiaonZugangRetten = await import('./routes/fiaon-zugang-retten');
   app.use('/api/fiaon', fiaonZugangRetten.default);

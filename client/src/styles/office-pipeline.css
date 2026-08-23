@@ -1,0 +1,170 @@
+/* ═══ Pipeline (Raum 2) — 23.08.2026, Plan §4/§11 ═══
+   Überblick nach Stufen, Kundenkarten, Akte als seitliche Glas-Lade. Präfix .pi- */
+.pi{display:grid;gap:18px;max-width:1180px;margin:0 auto;color:#e5e7eb}
+.pi-pille{display:inline-block;font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.16em;text-transform:uppercase;color:#93c5fd;padding:8px 12px;border:1px solid rgba(147,197,253,.35);border-radius:999px;margin-bottom:14px}
+.pi-verlauf{background:linear-gradient(90deg,#93c5fd,#3b82f6);-webkit-background-clip:text;background-clip:text;color:transparent}
+.pi-kopf{display:grid;grid-template-columns:1fr auto;gap:24px;align-items:end;padding:30px 0 4px}
+.pi-kopf h1{margin:0;font:300 clamp(30px,4.2vw,50px)/1.08 'Inter',sans-serif;letter-spacing:-.03em;color:#fff}
+.pi-kopf p{margin:12px 0 0;font:300 15px/1.6 'Inter',sans-serif;color:#cbd5e1;max-width:60ch}
+.pi-kopf-knoepfe{display:flex;gap:8px;flex-wrap:wrap}
+.pi-fehler{margin:0;padding:10px 14px;border-radius:12px;background:rgba(220,38,38,.14);border:1px solid rgba(248,113,113,.35);color:#fecaca;font-size:13px}
+.pi-meldung{margin:0;padding:10px 14px;border-radius:12px;background:rgba(37,99,235,.16);border:1px solid rgba(96,165,250,.35);color:#dbeafe;font-size:13px}
+.pi-meldung.gut{background:rgba(16,185,129,.14);border-color:rgba(52,211,153,.35);color:#a7f3d0}
+.pi-meldung.schlecht{background:rgba(220,38,38,.14);border-color:rgba(248,113,113,.35);color:#fecaca}
+/* Stufen */
+.pi-stufen{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.pi-stufe-kachel{display:grid;gap:4px;padding:18px 20px;border-radius:20px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);text-align:left;color:inherit;cursor:pointer;transition:transform .25s,border-color .25s,background .25s;font-family:'Inter',sans-serif}
+.pi-stufe-kachel:hover{transform:translateY(-2px);border-color:rgba(147,197,253,.4)}
+.pi-stufe-kachel.an{background:linear-gradient(135deg,rgba(37,99,235,.3),rgba(37,99,235,.08));border-color:rgba(96,165,250,.45)}
+.pi-stufe-kachel .marke{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:9px;font:600 13px/1 'Inter',sans-serif;color:#fff;margin-bottom:6px}
+.pi-stufe-kachel b{font:300 40px/1 'Inter',sans-serif;letter-spacing:-.03em;color:#fff;font-variant-numeric:tabular-nums}
+.pi-stufe-kachel span{font-size:12.5px;color:#9ca3af}
+.pi-stufe-kachel small{font-size:11px;color:#64748b}
+.pi-marke-A{background:#dc2626}.pi-marke-B{background:#d97706}.pi-marke-C{background:#475569}.pi-marke-OK{background:#059669}
+/* Suche und Filter */
+.pi-werkzeuge{display:grid;gap:10px;padding:16px 18px;border-radius:22px;background:rgba(15,23,42,.6);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+.pi-suche{display:flex;align-items:center;gap:10px;min-height:46px;padding:0 14px;border-radius:14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#94a3b8}
+.pi-suche input{flex:1;min-width:0;background:transparent;border:0;outline:none;color:#fff;font:400 14px/1 'Inter',sans-serif}
+.pi-suche input::placeholder{color:#64748b}
+.pi-filterzeile{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.pi-feld{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 12px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#cbd5e1;font:400 12.5px/1 'Inter',sans-serif}
+.pi-feld select{background:transparent;border:0;outline:none;color:#fff;font:500 12.5px/1 'Inter',sans-serif;cursor:pointer;max-width:190px}
+.pi-feld select option{color:#0f172a}
+.pi-feld.an{background:rgba(37,99,235,.22);border-color:rgba(96,165,250,.45);color:#fff}
+.pi-schalter{cursor:pointer}
+.pi-schalter input{accent-color:#3b82f6;width:16px;height:16px}
+.pi-chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.pi-chips::-webkit-scrollbar{display:none}
+.pi-chip{flex:0 0 auto;min-height:36px;padding:0 12px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:#cbd5e1;font:400 12px/1 'Inter',sans-serif;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+.pi-chip em{font-style:normal;font-variant-numeric:tabular-nums;color:#93c5fd}
+.pi-chip.an{background:linear-gradient(135deg,#2563eb,#3b82f6);border-color:transparent;color:#fff}
+.pi-chip.an em{color:#dbeafe}
+/* Hinweise über der Liste */
+.pi-hinweis{display:flex;align-items:center;gap:14px;width:100%;padding:12px 16px;border-radius:16px;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);color:#fde68a;text-align:left;cursor:pointer;font-family:'Inter',sans-serif}
+.pi-hinweis.blau{background:rgba(37,99,235,.14);border-color:rgba(96,165,250,.35);color:#dbeafe}
+.pi-hinweis b{display:block;font:500 13.5px/1.2 'Inter',sans-serif}
+.pi-hinweis small{display:block;margin-top:2px;font-size:12px;opacity:.8}
+.pi-hinweis .zahl{font:300 30px/1 'Inter',sans-serif;letter-spacing:-.03em;flex:0 0 auto;color:#fff}
+/* Kundenkarten */
+.pi-liste{display:grid;gap:10px}
+.pi-leer{padding:26px 22px;border-radius:20px;background:rgba(15,23,42,.6);border:1px solid rgba(255,255,255,.12);text-align:center}
+.pi-leer b{display:block;font:400 15px/1.3 'Inter',sans-serif;color:#fff}
+.pi-leer p{margin:6px 0 0;font:300 13px/1.6 'Inter',sans-serif;color:#9ca3af}
+.pi-laedt{padding:18px 22px;border-radius:20px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);color:#64748b;font-size:13px}
+.pi-karte{position:relative;display:grid;gap:8px;padding:16px 18px 14px 20px;border-radius:20px;background:rgba(15,23,42,.6);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);overflow:hidden;animation:piAuf .35s cubic-bezier(.2,.8,.2,1) both}
+@keyframes piAuf{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.pi-karte::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--pi-kante,rgba(255,255,255,.15))}
+.pi-karte.erledigt{opacity:.55}
+.pi-karte-kopf{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:start}
+.pi-stufe{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:8px;font:600 12px/1 'Inter',sans-serif;color:#fff;margin-top:2px}
+.pi-karte-wer{min-width:0;cursor:pointer;background:none;border:0;text-align:left;color:inherit;padding:0;font-family:'Inter',sans-serif}
+.pi-karte-wer b{display:block;font:500 15.5px/1.2 'Inter',sans-serif;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pi-karte-wer small{display:block;margin-top:3px;font-size:12.5px;color:#9ca3af;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pi-karte-wer small i{font-style:normal;color:#cbd5e1}
+.pi-karte-wer small .bez{color:#34d399}
+.pi-marken{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.pi-marke{display:inline-block;padding:4px 8px;border-radius:8px;font:500 11px/1 'Inter',sans-serif;background:rgba(37,99,235,.18);color:#93c5fd;white-space:nowrap}
+.pi-marke.dringend{background:rgba(220,38,38,.16);color:#fca5a5}
+.pi-marke.gut{background:rgba(16,185,129,.16);color:#6ee7b7}
+.pi-marke.warn{background:rgba(217,119,6,.16);color:#fcd34d}
+.pi-marke.still{background:rgba(255,255,255,.06);color:#94a3b8}
+.pi-karte-schritt{margin:0;font:300 13px/1.55 'Inter',sans-serif;color:#cbd5e1}
+.pi-karte-fuss{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.pi-karte-fuss small{font-size:12px;color:#64748b}
+.pi-karte-fuss small.warn{color:#fbbf24}
+.pi-knoepfe{display:flex;gap:6px;flex-wrap:wrap}
+.pi-knopf{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:40px;padding:0 14px;border-radius:999px;border:0;background:linear-gradient(135deg,#2563eb,#3b82f6);color:#fff;font:500 12.5px/1 'Inter',sans-serif;cursor:pointer;text-decoration:none;box-shadow:0 8px 18px rgba(37,99,235,.3);white-space:nowrap}
+.pi-knopf:disabled{opacity:.4;cursor:default;box-shadow:none}
+.pi-knopf.still{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);box-shadow:none;color:#e5e7eb}
+.pi-knopf.warn{background:rgba(217,119,6,.18);border:1px solid rgba(251,191,36,.35);box-shadow:none;color:#fde68a}
+.pi-knopf.gut{background:rgba(16,185,129,.16);border:1px solid rgba(52,211,153,.35);box-shadow:none;color:#a7f3d0}
+.pi-knopf.klein{min-height:34px;padding:0 11px;font-size:12px}
+.pi-knopf.gross{min-height:46px;padding:0 20px;font-size:13.5px}
+.pi-link{background:none;border:0;padding:0;color:#93c5fd;font:500 12.5px/1 'Inter',sans-serif;cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px}
+.pi-link:disabled{opacity:.5;cursor:default}
+.pi-schnellnotiz{display:flex;gap:8px;align-items:center}
+.pi-eingabe{flex:1;min-width:0;min-height:40px;padding:0 12px;border-radius:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);color:#fff;font:400 13px/1.3 'Inter',sans-serif;outline:none}
+.pi-eingabe::placeholder{color:#64748b}
+.pi-eingabe:focus{border-color:rgba(96,165,250,.55)}
+textarea.pi-eingabe{min-height:72px;padding:10px 12px;resize:vertical}
+select.pi-eingabe{cursor:pointer}
+select.pi-eingabe option{color:#0f172a}
+input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
+.pi-fussnote{margin:0;font-size:12px;color:#64748b;line-height:1.55}
+/* ═══ Die Akte (Glas-Lade) ═══ */
+.pi-lade-hintergrund{position:fixed;inset:0;z-index:60;background:rgba(2,6,23,.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);animation:piEin .25s ease both}
+@keyframes piEin{from{opacity:0}to{opacity:1}}
+.pi-lade{position:fixed;top:0;right:0;bottom:0;z-index:61;width:min(100vw,760px);display:flex;flex-direction:column;background:linear-gradient(180deg,rgba(17,26,46,.94),rgba(10,22,40,.96));border-left:1px solid rgba(255,255,255,.12);backdrop-filter:blur(28px) saturate(160%);-webkit-backdrop-filter:blur(28px) saturate(160%);box-shadow:-30px 0 80px rgba(2,6,23,.6);animation:piSchieb .38s cubic-bezier(.2,.8,.2,1) both;color:#e5e7eb;padding-top:env(safe-area-inset-top)}
+@keyframes piSchieb{from{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}
+.pi-lade-kopf{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:start;padding:18px 20px 14px;border-bottom:1px solid rgba(255,255,255,.08)}
+.pi-lade-kopf h2{margin:0;font:400 20px/1.2 'Inter',sans-serif;color:#fff;letter-spacing:-.01em}
+.pi-lade-kopf .status{margin-top:4px;font-size:12.5px;color:#9ca3af;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
+.pi-lade-kopf .status i{font-style:normal;font-weight:500}
+.pi-lade-zu{width:40px;height:40px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#cbd5e1;display:grid;place-items:center;cursor:pointer}
+.pi-lade-koerper{flex:1;overflow-y:auto;padding:16px 20px 40px;display:grid;gap:14px;align-content:start;overscroll-behavior:contain}
+.pi-block{padding:16px 18px;border-radius:18px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);display:grid;gap:10px}
+.pi-block.hervor{background:linear-gradient(135deg,rgba(37,99,235,.26),rgba(37,99,235,.06));border-color:rgba(96,165,250,.35)}
+.pi-block.warn{background:rgba(217,119,6,.08);border-color:rgba(251,191,36,.3)}
+.pi-block.still{background:rgba(100,116,139,.1);border-color:rgba(255,255,255,.08)}
+.pi-block-kopf{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pi-block-kopf b{font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#93c5fd;flex:1}
+.pi-block p{margin:0;font:300 13px/1.55 'Inter',sans-serif;color:#cbd5e1}
+.pi-block p.leise{font-size:12px;color:#9ca3af}
+.pi-block p.warn{color:#fde68a}
+.pi-block p.gut{color:#a7f3d0}
+.pi-hell{background:rgba(248,250,252,.96);color:#0f172a;border-radius:16px;padding:12px 14px;box-shadow:inset 0 1px 0 #fff}
+.pi-hell p{color:#334155}
+.pi-zweck{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.pi-zweck b{font:500 16px/1.2 'Inter',sans-serif;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.pi-zweck small{display:block;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:#93c5fd}
+.pi-reihe{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.pi-reihe.oben{align-items:flex-start}
+.pi-stapel{display:inline-flex;flex-direction:column;gap:6px;max-width:360px}
+.pi-sperre{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:0 14px;border-radius:999px;background:rgba(217,119,6,.14);border:1px solid rgba(251,191,36,.35);color:#fde68a;font:500 12.5px/1 'Inter',sans-serif}
+.pi-luecke{font-size:12px;color:#9ca3af;line-height:1.5}
+.pi-luecke-link{font-size:11.5px;color:#cbd5e1;word-break:break-all;padding:8px 10px;border-radius:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12)}
+.pi-dl{display:grid;gap:4px;margin:0}
+.pi-dl div{display:grid;grid-template-columns:120px 1fr;gap:8px;font-size:12.5px;padding:3px 0}
+.pi-dl dt{color:#64748b}
+.pi-dl dd{margin:0;color:#e5e7eb;word-break:break-word}
+.pi-dl dd.fehlt{color:#64748b}
+.pi-form{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.pi-form label{display:grid;gap:4px;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:#64748b}
+.pi-form label.breit{grid-column:1/3}
+.pi-buchung{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 10px;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);font-size:12.5px}
+.pi-buchung.bezahlt{border-color:rgba(52,211,153,.3)}
+.pi-buchung.offen{border-color:rgba(251,191,36,.3)}
+.pi-buchung.erledigt{opacity:.55}
+.pi-buchung b{color:#fff;font-weight:500}
+.pi-buchung .art{font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding:3px 6px;border-radius:6px;background:rgba(37,99,235,.18);color:#93c5fd}
+.pi-buchung .art.zusatz{background:rgba(124,58,237,.2);color:#c4b5fd}
+.pi-buchung .betrag{font-variant-numeric:tabular-nums;color:#fff}
+.pi-buchung .zustand{color:#fbbf24}
+.pi-buchung.bezahlt .zustand{color:#34d399}
+.pi-buchung .rechts{margin-left:auto;font-size:11px;color:#64748b;font-variant-numeric:tabular-nums}
+.pi-buchung .voll{width:100%;font-size:11px;color:#94a3b8}
+.pi-buchung .voll.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.pi-buchung a{color:#93c5fd;text-decoration:none;font-size:11.5px}
+.pi-buchung label{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:#94a3b8;cursor:pointer}
+.pi-buchung label input{accent-color:#f59e0b}
+.pi-verlauf{list-style:none;margin:0;padding:0;display:grid;gap:6px;max-height:260px;overflow-y:auto}
+.pi-verlauf li{font-size:12.5px;line-height:1.45;color:#cbd5e1;padding-left:10px;border-left:2px solid rgba(255,255,255,.1)}
+.pi-verlauf li b{color:#fff;font-weight:500;font-variant-numeric:tabular-nums}
+.pi-verlauf li span{color:#94a3b8}
+.pi-versand{display:flex;flex-wrap:wrap;gap:6px}
+.pi-versand-grund{margin:0;padding:0;list-style:none;display:grid;gap:2px;font-size:11.5px;color:#64748b}
+.pi-historie{display:grid;gap:4px}
+.pi-historie div{display:flex;flex-wrap:wrap;gap:4px 8px;font-size:12px;padding:6px 0;border-top:1px solid rgba(255,255,255,.06)}
+.pi-historie b{color:#fff;font-weight:500}
+.pi-historie .ok{color:#34d399}.pi-historie .nein{color:#fbbf24}
+.pi-historie span{color:#64748b}
+.pi-historie small{width:100%;color:#64748b}
+.pi-nummer-land{display:inline-grid;gap:6px;padding:10px 12px;border-radius:14px;background:rgba(217,119,6,.1);border:1px solid rgba(251,191,36,.35);max-width:360px}
+.pi-nummer-land b{font-variant-numeric:tabular-nums;color:#fde68a}
+.pi-nummer-land small{font-size:11px;color:#fcd34d;line-height:1.4}
+.pi-nummer-land .vorschau{font-size:11.5px;color:#bfdbfe;font-variant-numeric:tabular-nums}
+.pi-nummer-land .grau{color:#94a3b8}
+.pi-nummer-land .rot{color:#fca5a5}
+@media(max-width:960px){.pi-stufen{grid-template-columns:repeat(2,1fr)}.pi-kopf{grid-template-columns:1fr}}
+@media(max-width:700px){.pi-stufe-kachel b{font-size:32px}.pi-karte{padding:14px 14px 12px 16px}.pi-karte-kopf{grid-template-columns:auto 1fr}.pi-marken{grid-column:1/3;flex-direction:row;flex-wrap:wrap;align-items:flex-start}.pi-karte-fuss{flex-direction:column;align-items:stretch}.pi-knoepfe{display:grid;grid-template-columns:1fr 1fr 1fr}.pi-lade{width:100vw}.pi-lade-koerper{padding:12px 12px 40px}.pi-block{padding:14px}.pi-form{grid-template-columns:1fr}.pi-form label.breit{grid-column:auto}.pi-dl div{grid-template-columns:96px 1fr}.pi-feld select{max-width:140px}}
+@media(prefers-reduced-motion:reduce){.pi-karte,.pi-lade,.pi-lade-hintergrund{animation:none}}

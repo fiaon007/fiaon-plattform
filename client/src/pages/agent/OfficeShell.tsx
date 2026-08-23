@@ -23,17 +23,17 @@ export const RAEUME: Raum[] = [
   { href: "/agent/kunden", label: "Pipeline", Icon: BookUser, match: ["/agent/kunden"], szene: "kundenbuch", gruppe: "arbeit", badge: "/agent/kunden" },
   { href: "/agent/kalender", label: "Calendar", Icon: Calendar, match: ["/agent/kalender", "/agent/startgespraeche"], szene: "schreibtisch", gruppe: "arbeit" },
   { href: "/agent/aufgaben", label: "Tasks", Icon: ListChecks, match: ["/agent/aufgaben"], szene: "schreibtisch", gruppe: "arbeit", badge: "/agent/aufgaben" },
-  { href: "/agent/mail-zentrale", label: "Inbox", Icon: Mail, match: ["/agent/mail-zentrale"], szene: "schreibtisch", gruppe: "arbeit", badge: "/agent/mail-zentrale" },
+  { href: "/agent/inbox", label: "Inbox", Icon: Mail, match: ["/agent/inbox", "/agent/mail-zentrale"], szene: "schreibtisch", gruppe: "arbeit", badge: "/agent/mail-zentrale" },
   { href: "/agent/anliegen", label: "Tickets", Icon: Inbox, match: ["/agent/anliegen"], szene: "schreibtisch", gruppe: "arbeit", badge: "/agent/anliegen" },
-  { href: "/agent/inkasso", label: "Collections", Icon: Landmark, match: ["/agent/inkasso"], szene: "kasse", gruppe: "arbeit", badge: "/agent/inkasso" },
+  { href: "/agent/collections", label: "Collections", Icon: Landmark, match: ["/agent/collections", "/agent/inkasso"], szene: "kasse", gruppe: "arbeit", badge: "/agent/inkasso" },
   { href: "/agent/flur", label: "Team", Icon: Users, match: ["/agent/flur", "/agent/space"], szene: "flur", gruppe: "team", badge: "/agent/space" },
   { href: "/agent/updates", label: "Feed", Icon: Megaphone, match: ["/agent/updates", "/agent/feedback"], szene: "flur", gruppe: "team", badge: "/agent/updates" },
   { href: "/agent/academy", label: "Academy", Icon: GraduationCap, match: ["/agent/academy", "/agent/schulung", "/agent/skripte"], szene: "akademie", gruppe: "team" },
-  { href: "/agent/verdienst", label: "Wallet", Icon: Wallet, match: ["/agent/verdienst", "/agent/auszahlung", "/agent/partner-programm", "/agent/leistung"], szene: "kasse", gruppe: "ich" },
+  { href: "/agent/wallet", label: "Wallet", Icon: Wallet, match: ["/agent/wallet", "/agent/verdienst", "/agent/auszahlung", "/agent/partner-programm", "/agent/leistung"], szene: "kasse", gruppe: "ich" },
   { href: "/agent/gehalt", label: "Earnings", Icon: Calculator, match: ["/agent/gehalt"], szene: "kasse", gruppe: "ich" },
   { href: "/agent/arbeitszeiten", label: "Availability", Icon: Clock, match: ["/agent/arbeitszeiten"], szene: "schreibtisch", gruppe: "ich" },
   { href: "/agent/vertrieb", label: "Management", Icon: LayoutDashboard, match: ["/agent/vertrieb"], szene: "flur", gruppe: "mehr", nurRolle: "vertriebsleiter" },
-  { href: "/agent/mehr", label: "More", Icon: MoreHorizontal, match: ["/agent/mehr", "/agent/profil", "/agent/dokumente", "/agent/passwort"], szene: "schreibtisch", gruppe: "mehr" },
+  { href: "/agent/more", label: "More", Icon: MoreHorizontal, match: ["/agent/more", "/agent/mehr", "/agent/profil", "/agent/dokumente", "/agent/passwort"], szene: "schreibtisch", gruppe: "mehr" },
 ];
 const GRUPPEN: Record<Raum["gruppe"], string> = { arbeit: "Workspace", team: "Team", ich: "Me", mehr: "" };
 
@@ -133,7 +133,7 @@ export function OfficeShell({ children, agent, rolle, zaehler, onRefresh, logout
               <select value={praesenz} onChange={(e) => setPraesenz(e.target.value as Praesenz)} aria-label="Präsenz">{WAEHLBAR.map((k) => <option key={k} value={k}>{PRAESENZ[k][0]}</option>)}</select>
             </div>
             {onRefresh && <button type="button" className="of-rund aktualisieren" title="Aktualisieren" onClick={onRefresh}>↻</button>}
-            <Link href="/agent/profil" className="of-gesicht" title={agent.name}>{agent.avatar ? <img src={agent.avatar} alt="" /> : initialen}</Link>
+            <Link href="/agent/more/profil" className="of-gesicht" title={agent.name}>{agent.avatar ? <img src={agent.avatar} alt="" /> : initialen}</Link>
             <button type="button" className="of-rund" title="Abmelden" onClick={logout}><LogOut size={15} /></button>
           </div>
         </header>

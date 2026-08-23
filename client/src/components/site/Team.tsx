@@ -31,13 +31,20 @@ export const PERSONEN = [
 
 /** Das Team im Betrieb — vollständige Namen, Bereich. Fotos unter /portraits/<kuerzel>.jpg, sonst Monogramm. */
 export const MITARBEITER = [
-  { kuerzel: "nikita", name: "Nikita Boychenko", rolle: "Vertrieb" },
-  { kuerzel: "lucas", name: "Lucas Böhnert", rolle: "Vertrieb" },
-  { kuerzel: "angelique", name: "Angelique Laukert", rolle: "Vertrieb" },
-  { kuerzel: "viktoria", name: "Viktoria Reichert", rolle: "Onboarding" },
-  { kuerzel: "rifka", name: "Rifka Rovcanin", rolle: "Onboarding" },
-  { kuerzel: "diana", name: "Diana Zeller", rolle: "Forderungsmanagement" },
-  { kuerzel: "hans-juergen", name: "Hans-Jürgen Gerhold", rolle: "Forderungsmanagement" },
+  { kuerzel: "nikita", name: "Nikita Boychenko", rolle: "Vertrieb", titel: "Der erste Anruf",
+    text: "Nikita ist oft die erste Stimme, die ein Kunde von FIAON hört. Er erklärt in fünf Minuten, was eine Auskunft ist, was sie nicht ist – und welches Paket zu der Lage des Menschen passt, nicht zu seinem Wunsch." },
+  { kuerzel: "lucas", name: "Lucas Böhnert", rolle: "Vertrieb", titel: "Klartext statt Verkaufsdruck",
+    text: "Lucas führt Gespräche so, wie er sie selbst gern hätte: ehrlich, ohne Versprechen, mit einem klaren nächsten Schritt. Wer bei ihm ‚Nein‘ sagt, bekommt trotzdem einen Rat, was er selbst tun kann." },
+  { kuerzel: "angelique", name: "Angelique Laukert", rolle: "Vertrieb", titel: "Die Brücke zur Akte",
+    text: "Angelique sorgt dafür, dass aus einem Interessenten ein Kunde mit vollständigen Unterlagen wird – Paket, Zahlung, Termin. Nichts bleibt liegen, und niemand muss zweimal dasselbe erzählen." },
+  { kuerzel: "viktoria", name: "Viktoria Reichert", rolle: "Onboarding", titel: "Das Startgespräch",
+    text: "Viktoria führt die ersten fünfzehn Minuten eines jeden Kunden: Bereich gemeinsam öffnen, Fahrplan erklären, Unterlagen klären. Danach weiß der Kunde, wo er steht – und kennt seine Ansprechpartnerin mit Namen." },
+  { kuerzel: "rifka", name: "Rifka Rovcanin", rolle: "Onboarding", titel: "Die ersten Wochen",
+    text: "Rifka begleitet Kunden von der Zahlung bis zur ersten Auskunft: Sie erinnert an fehlende Unterlagen, erklärt Wartezeiten ehrlich und meldet sich, bevor der Kunde fragen muss." },
+  { kuerzel: "diana", name: "Diana Zeller", rolle: "Forderungsmanagement", titel: "Fristen, die jemand hält",
+    text: "Diana behält jede Frist und jede Antwort im Blick: Löschanträge, Widersprüche, Ratenvereinbarungen. Wenn eine Gegenseite schweigt, ist sie diejenige, die nachfasst – freundlich, bestimmt, dokumentiert." },
+  { kuerzel: "hans-juergen", name: "Hans-Jürgen Gerhold", rolle: "Forderungsmanagement", titel: "Erfahrung am Telefon mit Gläubigern",
+    text: "Hans-Jürgen verhandelt mit Inkassounternehmen und Gläubigern auf Augenhöhe: Vergleiche, Ratenpläne, Erledigungsvermerke. Er kennt die Abläufe auf der anderen Seite – und nutzt das für unsere Kunden." },
 ] as const;
 
 export const INVESTOR = {
@@ -119,17 +126,32 @@ const BEREICH_SATZ: Record<string, string> = {
 };
 export function Mitarbeiter() {
   return (
-    <div className="dk-raster" style={{ marginTop: 48 }}>
+    <div className="team-ma">
       {MITARBEITER.map((m, i) => (
         <Auf key={m.kuerzel} verzoegerung={i * 70}>
-          <Glas ruhig style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
-            <Portrait kuerzel={m.kuerzel} name={m.name} gross />
-            <span className="tag" style={{ marginTop: 18 }}>{m.rolle}</span>
-            <h3 className="dk-h3">{m.name}</h3>
-            <p className="dk-text" style={{ marginTop: 10 }}>{BEREICH_SATZ[m.rolle] || ""}</p>
+          <Glas ruhig className="team-ma-karte">
+            <div className="team-ma-bild"><Portrait kuerzel={m.kuerzel} name={m.name} gross /></div>
+            <div className="team-ma-text">
+              <span className="tag">{m.rolle}</span>
+              <h3 className="dk-h3">{m.name}</h3>
+              <p className="team-ma-titel">{m.titel}</p>
+              <p className="dk-text">{m.text}</p>
+            </div>
           </Glas>
         </Auf>
       ))}
+      <Auf verzoegerung={MITARBEITER.length * 70}>
+        <a href="/karriere" className="dk-glas team-ma-karte team-ma-du">
+          <div className="team-ma-bild"><span className="team-ma-platz" aria-hidden="true">Sie?</span></div>
+          <div className="team-ma-text">
+            <span className="tag">Offene Plätze</span>
+            <h3 className="dk-h3">Möchten Sie auch hier stehen?</h3>
+            <p className="team-ma-titel">Fest oder frei, remote in Deutschland, Österreich und der Schweiz</p>
+            <p className="dk-text">Ein junges Legal- und FinTech auf dem Weg zum Unicorn sucht Menschen für Vertrieb, Onboarding, Forderungsmanagement, Kundenservice, Produkt, Marketing und Recht. Bewerbung in vier Schritten.</p>
+            <span className="dk-knopf" style={{ marginTop: 18 }}>Bereiche ansehen</span>
+          </div>
+        </a>
+      </Auf>
     </div>
   );
 }

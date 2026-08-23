@@ -86,7 +86,7 @@ export default function EintragPruefen() {
             knoepfe={<><Knopf href="#pruefer">Prüfung starten</Knopf><Knopf href="/ratgeber" still>Zum Ratgeber</Knopf></>} />
       <Licht>
         <Block id="pruefer" pille="Die Prüfung" titel={<>Fünf Fragen. <span className="dk-verlauf">Eine Antwort.</span></>} mitte>
-          <div className="rg-filter" style={{ marginTop: 8 }}>
+          <div className="rg-filter" style={{ marginTop: 30 }}>
             {(["DE", "AT", "CH"] as Land[]).map((l) => <button key={l} type="button" data-an={land === l ? "1" : undefined} onClick={() => setLand(l)}>{l === "DE" ? "Deutschland · SCHUFA" : l === "AT" ? "Österreich · KSV/CRIF" : "Schweiz · CRIF/Intrum"}</button>)}
           </div>
           <div className="wz-fragen">

@@ -528,7 +528,8 @@ function Sel({ value, onChange, children, ...p }: any) {
 
 /* === MAIN COMPONENT === */
 export default function AntragPage() {
-  const [step, setStep] = useState(0);
+  // Mit ?pack=… (Privatkunden-Seite, WhatsApp) beginnt der Antrag sofort bei Schritt 1 — ohne dass die Paketwahl kurz aufblitzt.
+  const [step, setStep] = useState(() => { try { const k = new URLSearchParams(window.location.search).get("pack"); return k && PACKS.some((p) => p.key === k) ? 1 : 0; } catch { return 0; } });
   // ── WIEDEREINSTIEG (E-023) ──────────────────────────────────────────────
   // Kommt der Kunde mit ?weiter=<ref.exp.sig> aus der Erinnerungsmail, wird
   // DIESE Referenz die Referenz des Antrags — sonst legte jeder Klick auf den

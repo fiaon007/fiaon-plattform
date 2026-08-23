@@ -103,6 +103,7 @@
 // Regel (Justin): Die erste Zahlung ist immer eine Überweisung – nirgends
 // Lastschrift. Liste: GET /agent/kunden/liste (+ filter=bezahlt für Aktive).
 // ═══════════════════════════════════════════════════════════════════════════
+import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "wouter";
 // E-050: Search/Plus/RefreshCw gingen mit dem Bestand-Reiter nach bestand.tsx.
@@ -852,7 +853,10 @@ function PipelineInnen() {
           <LeitfadenLegende aktiv={fokusSlot ? (GRUPPE_INFO[fokusSlot.gruppe]?.stufe ?? null) : null} />
       </>
 
-      {offen && (
+      {/* VORHER lag die Lade im Stapel-Kontext von .of-grund (z-index 1) – der
+          Office-Kopf (z-30) malte IMMER über den Akte-Kopf („oben abgeschnitten",
+          Justin 3×). NACHHER: Portal an document.body, eigener Kontext. */}
+      {offen && createPortal(
         <>
           <div className="pi-lade-hintergrund" onClick={() => oeffnen(null)} aria-hidden="true" />
           {geoeffnet ? (
@@ -869,8 +873,8 @@ function PipelineInnen() {
               {!laedt && <div className="pi-lade-koerper"><p className="pi-fussnote">Dieser Kunde gehört nicht zu deinem Bestand oder die Kennung stimmt nicht.</p></div>}
             </aside>
           )}
-        </>
-      )}
+        </>, document.body)
+      }
     </div>
   );
 }

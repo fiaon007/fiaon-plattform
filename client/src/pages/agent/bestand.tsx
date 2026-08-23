@@ -24,6 +24,7 @@
 //   · Leerzustand motivierend mit Link in die Pipeline. Handytauglich.
 // Wording: FIAON berät nicht — „begleitet“, „zeigt“, „sortiert“.
 // ═══════════════════════════════════════════════════════════════════════════
+import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { Phone, FileText, Search, Send, RefreshCw, X } from "lucide-react";
@@ -347,8 +348,9 @@ function BestandInnen() {
       {/* ── Senden: dieselbe Komponente wie in der Akte, dunkle Fassung ── */}
       {sendeAn != null && <SendeSchnell personId={sendeAn} onZu={() => setSendeAn(null)} onGesendet={() => void laden(true)} />}
 
-      {/* ── Akte: importiert aus pipeline.tsx — EINE Lade, kein Duplikat ── */}
-      {offen && (
+      {/* ── Akte: importiert aus pipeline.tsx — EINE Lade, kein Duplikat.
+          Portal an body: sonst malt der Office-Kopf über den Akte-Kopf. ── */}
+      {offen && createPortal(
         <>
           <div className="pi-lade-hintergrund" onClick={() => oeffnen(null)} aria-hidden="true" />
           {geoeffnet ? (
@@ -364,8 +366,8 @@ function BestandInnen() {
               {!laedt && <div className="pi-lade-koerper"><p className="pi-fussnote">Dieser Kunde gehört nicht zu deinem Bestand oder die Kennung stimmt nicht.</p></div>}
             </aside>
           )}
-        </>
-      )}
+        </>, document.body)
+      }
     </div>
   );
 }

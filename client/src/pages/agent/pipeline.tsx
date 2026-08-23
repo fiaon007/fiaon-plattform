@@ -32,10 +32,31 @@
 //     Nicht-erreicht-Staffel (fiaon-nicht-erreicht.ts), die Nummern-Mail und
 //     die Sperre (is_blocked) hängen dort schon dran.
 //   · Die AKTE als Glas-Lade (?person=ID) bleibt mit allen Aktionen.
+//   · Wording: Erfolgreich/Negativ → Mandat angenommen / nicht zustande
+//     gekommen (Justin 23.08., E-044) – Kanzlei-Ton, technische Ergebnisse
+//     dahinter unverändert; neuer Grund „Überlegt noch“ nutzt das bestehende
+//     Rückruf-Ergebnis (rueckruf_termin).
+//   · Kartenstatus (E-044/§16): VORHER zeigte die Akte den Servertext
+//     k.karte.text – NACHHER überall der Platzhalter „In Bearbeitung“, außer
+//     der Kunde ist vollständig (Paket + SCHUFA bezahlt, Kontoauszug + Ausweis
+//     da; eine Wahrheit: kundeVollstaendig() in fiaon-office-vertrieb.ts) →
+//     „Vollständig – liegt bei FIAON zur Bearbeitung“. Neuer Akte-Reiter
+//     „Aktivität“: Zeitleiste aller Kundenereignisse inkl. fiaon_click_events
+//     (GET /agent/vertrieb/aktivitaet/:id).
+//   · Umsatz-Leiste (Justin 23.08.): VORHER Kachel „Meine Provision möglich“
+//     – NACHHER ein Motivationssatz mit echter Zahl (5 Mandate/Tag × 21 Tage
+//     × Ø-Rate aus dem echten Paketmix × Provisionssatz + 10-€-SCHUFA-Bonus
+//     je Abschluss; Mix wie gehalt.tsx), darunter „Rechne selbst → Earnings“.
+//   · Aktive Kunden (§16a): VORHER alle bezahlten/zugewiesenen Kunden der
+//     Liste – NACHHER zählen NUR übernommene Mandate
+//     (fiaon_persons.mandat_seit, gesetzt beim Buchen von „Mandat
+//     angenommen“), x/500. Der Bestand-Reiter trennt „Mandate (dein Bestand)“
+//     und „Zugewiesen, Mandat offen“.
 // Regel (Justin): Die erste Zahlung ist immer eine Überweisung – nirgends
 // Lastschrift. Liste: GET /agent/kunden/liste (+ filter=bezahlt für Aktive).
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "wouter";
 import { Phone, Search, X, Plus, Copy, Send, Mail, FileText, RefreshCw, Check, ExternalLink, ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
 import { AgentShell, api, useFragen } from "./shared";
 import { useOffice } from "./OfficeShell";
@@ -107,6 +128,9 @@ interface Kunde {
   rateFaelligAm?: string | null;
   rateAnzahl?: number;
   rateSummeCents?: number;
+  // ── E-044/§16a: vom Vertriebs-Router geliefert ──
+  mandatSeit?: string | null;
+  vollstaendig?: boolean;
 }
 
 type Zaehler = Record<string, number>;
@@ -236,6 +260,11 @@ const REAKTIVIERUNG = {
   ],
 };
 const MAX_AKTIV = 500; // Justin 23.08.: Bestand bis 500 Kunden, erst dann muss abgegeben werden
+// §16a: In die x/500-Zählung gehen NUR übernommene Mandate (mandat_seit) ein.
+/** Echter Paketmix Juli/August – dieselben Zahlen wie gehalt.tsx (MIX_STANDARD). */
+const MIX_MOTTO: Record<string, number> = { start: 69, pro: 108, ultra: 67, highend: 93 };
+/** SCHUFA-Bonus je Abschluss im Onboarding (E-042): 10 €. */
+const SCHUFA_BONUS_CENTS = 1000;
 
 /** Die Stufe aus priority_tier + Termin: Tier 1 = „bezahlt“ gemeldet, Tier 0 ohne Termin = bezahlt ohne Termin – beides heiß. */
 function stufeVon(k: Kunde): Hitze {
@@ -376,6 +405,9 @@ function PipelineInnen() {
   const [anlageOffen, setAnlageOffen] = useState(false);
   const [aktiv, setAktiv] = useState(0);
   const [ratenQuelle, setRatenQuelle] = useState<"ok" | "leer" | "keine">("keine");
+  // §16a: Nur übernommene Mandate zählen als „Aktive Kunden“ (mandat_seit).
+  const [mandate, setMandate] = useState<{ anzahl: number; ids: Set<number> }>({ anzahl: 0, ids: new Set() });
+  const [mandatFilter, setMandatFilter] = useState<"alle" | "mandat" | "offen">("alle");
   const [offen, setOffen] = useState<number | null>(null);
   const [fremd, setFremd] = useState<Kunde | null>(null);
   const handy = useMedia("(max-width: 700px)");
@@ -399,6 +431,7 @@ function PipelineInnen() {
       setSlots(r.json.slots || []);
       setSlotsZaehler(r.json.zaehler || {});
       if (r.json.rolle) setRolle(r.json.rolle);
+      if (r.json.mandate) setMandate((m) => ({ ...m, anzahl: Number(r.json.mandate.anzahl || 0) }));
       setSlotsFehler(null);
     } else setSlotsFehler(r.json?.error || "Die Arbeitsliste konnte nicht geladen werden.");
     setSlotsLaedt(false);
@@ -418,6 +451,9 @@ function PipelineInnen() {
       // E-042: überfällige Raten – nur echte Daten, ohne Zugriff bleibt die Gruppe ehrlich leer.
       mitAktiven ? api(`/inkasso/liste?limit=60`).catch(() => null) : Promise.resolve(null),
     ]);
+    // §16a: Mandats-Kennungen für Zählung und Bestand-Gruppen.
+    const man = await api(`/agent/vertrieb/mandate`).catch(() => null);
+    if (man?.ok) setMandate({ anzahl: Number(man.json.anzahl || 0), ids: new Set<number>((man.json.ids || []).map(Number)) });
     if (r.ok) {
       setFehler(null);
       if (!nurZaehler) {
@@ -509,9 +545,9 @@ function PipelineInnen() {
   //    „Nicht erreicht“ löst dort die Staffel aus (fiaon-nicht-erreicht.ts),
   //    „Nummer falsch“ die Nummern-Mail, „erreicht_abgelehnt“ die Sperre
   //    (is_blocked → aus allen Listen und aus der Verteilung).
-  const ergebnisSchnell = async (k: Kunde, art: string, notiz?: string): Promise<boolean> => {
+  const ergebnisSchnell = async (k: Kunde, art: string, notiz?: string, zusatz?: Record<string, unknown>): Promise<boolean> => {
     const r = await api(`/agent/crm/kunden/${k.personId}/aktivitaet`, {
-      method: "POST", body: JSON.stringify({ art, notiz }),
+      method: "POST", body: JSON.stringify({ art, notiz, ...(zusatz ?? {}) }),
     });
     if (!r.ok) { setMeldungA({ art: "schlecht", text: r.json?.error || "Nicht gespeichert. Bitte erneut versuchen." }); return false; }
     setMeldungA({ art: "gut", text: r.json?.meldung || "Gespeichert." });
@@ -543,14 +579,15 @@ function PipelineInnen() {
     if (st === "rate") return s + (k.rateCents ?? 0);
     return s;
   }, 0), [liste, erledigt]);
-  const provisionMoeglich = useMemo(() => liste.filter((k) => !erledigt.has(k.personId)).reduce((s, k) => {
-    const st = stufeVon(k);
-    if (st === "heiss" || st === "warm") return s + Math.round(paketPreis(k) * satz);
-    if (st === "rate") return s + Math.round((k.rateCents ?? 0) * REAKTIVIERUNG_ANTEIL);
-    return s;
-  }, 0), [liste, erledigt, satz]);
-  const aktive = ansicht === "alle" ? jeStufe.aktiv + liste.filter((k) => k.tier === 0 && stufeVon(k) === "heiss").length : (zaehler.bezahlt ?? 0);
-  const zErreichbar = useZaehlen(erreichbar), zProvision = useZaehlen(provisionMoeglich), zAktive = useZaehlen(aktive);
+  // §16a: VORHER zählten hier alle bezahlten/zugewiesenen Kunden – NACHHER nur Mandate.
+  const aktive = mandate.anzahl;
+  // Motivationssatz: 5 Mandate/Tag × 21 Arbeitstage × (Ø-Rate × Satz + 10 € SCHUFA-Bonus).
+  const mottoCents = useMemo(() => {
+    const n = Object.values(MIX_MOTTO).reduce((a, b) => a + b, 0) || 1;
+    const avg = Object.entries(MIX_MOTTO).reduce((sum, [key, c]) => sum + (PAKETE.find((x) => x.key === key)?.preisCents ?? 0) * c, 0) / n;
+    return Math.round(5 * 21 * (avg * satz + SCHUFA_BONUS_CENTS));
+  }, [satz]);
+  const zErreichbar = useZaehlen(erreichbar), zAktive = useZaehlen(aktive);
 
   // ── Der Bestand-Strom: gefiltert, nach Hitze ────────────────────────────
   const laender = useMemo(() => Array.from(new Set(liste.map((k) => k.stammdaten?.land).filter(Boolean) as string[])).sort(), [liste]);
@@ -602,15 +639,17 @@ function PipelineInnen() {
           <b>{laedt ? "–" : euro0(zErreichbar)}</b>
           <span>erste Raten der heißen und warmen Kunden – per Überweisung</span>
         </div>
-        <div className="pi-umsatz-zahl hervor">
-          <small>Meine Provision möglich</small>
-          <b>{laedt ? "–" : euro0(zProvision)}</b>
-          <span>{Math.round(satz * 100)} % je bankbestätigter Rate · 50 % je zurückgeholter Rate</span>
+        {/* VORHER: Kachel „Meine Provision möglich“ – bei 6 sichtbaren Kunden klein und
+            demotivierend. NACHHER: Motivationssatz mit echter Zahl (Justin 23.08.). */}
+        <div className="pi-umsatz-zahl hervor pi-motto">
+          <small>Dein Hebel</small>
+          <MottoSatz cents={mottoCents} />
+          <Link href="/agent/gehalt" className="pi-motto-link">Rechne selbst → Earnings</Link>
         </div>
         <div className="pi-umsatz-zahl">
-          <small>Aktive Kunden</small>
+          <small>Aktive Kunden · Mandate</small>
           <b>{laedt ? "–" : Math.round(zAktive)}<em> / {MAX_AKTIV}</em></b>
-          <span>{aktive >= MAX_AKTIV ? "Bestand voll – Kunden an Kollegen übergeben" : "dein Bestand wächst mit dir"}</span>
+          <span>{aktive >= MAX_AKTIV ? "Bestand voll – Kunden an Kollegen übergeben" : "nur übernommene Mandate zählen – Zuweisung allein nicht"}</span>
           <i className="pi-umsatz-balken"><i style={{ width: `${Math.min(100, (aktive / MAX_AKTIV) * 100)}%` }} /></i>
         </div>
       </section>
@@ -646,7 +685,7 @@ function PipelineInnen() {
                   <ArbeitsFokus key={fokusSlot.kunde.personId} k={fokusSlot.kunde} gruppe={fokusSlot.gruppe} satz={satz}
                                 geht={geht.has(fokusSlot.kunde.personId)}
                                 onAkte={() => oeffnen(fokusSlot.kunde.personId)}
-                                onErgebnis={(art, notiz) => ergebnisSchnell(fokusSlot.kunde, art, notiz)}
+                                onErgebnis={(art, notiz, zusatz) => ergebnisSchnell(fokusSlot.kunde, art, notiz, zusatz)}
                                 onEntfernen={() => void karteileiche(fokusSlot.kunde)}
                                 melden={(art, text) => setMeldungA({ art, text })} />
                 )}
@@ -754,17 +793,29 @@ function PipelineInnen() {
   );
 }
 
+/** Der Motivationssatz der Umsatz-Leiste — 2–3 Varianten je Tageszeit, immer mit echter Zahl. */
+function MottoSatz({ cents }: { cents: number }) {
+  const zahl = euro0(useZaehlen(cents));
+  const stunde = new Date().getHours();
+  if (stunde < 12) return <p className="pi-motto-satz">5 neue Mandate am Tag sind <b>{zahl}</b> am Monatsende.</p>;
+  if (stunde < 17) return <p className="pi-motto-satz">Jedes Mandat zahlt 12 Raten – 5 am Tag sind <b>{zahl}</b> im ersten Monat.</p>;
+  return <p className="pi-motto-satz">Dein Bestand zahlt dich jeden Monat – 5 Mandate am Tag sind <b>{zahl}</b>.</p>;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // E-043: Die Fokus-Karte der Arbeitsliste — Herz des Umsatz-Raums.
 // Während des Gesprächs: Anrufen, Akte, Zugänge senden, Zahlungsdaten senden,
-// Termin einbuchen. Am Ende EIN Ergebnis: „Erfolgreich vereinbart“ (nur mit
-// gebuchtem Termin) oder „Negativ“ (Nicht erreicht / Nummer falsch / Kein
-// Interesse). Alles über Bestandsendpunkte.
+// Termin einbuchen. Am Ende EIN Ergebnis — Wording: Erfolgreich/Negativ →
+// „Mandat angenommen“ / „Mandat nicht zustande gekommen“ (Justin 23.08.,
+// E-044): Mandat angenommen nur mit gebuchtem Termin; nicht zustande gekommen
+// mit Grund (Nicht erreicht / Nummer falsch / Kein Interesse / Überlegt noch
+// → Rückruf über das bestehende rueckruf_termin-Ergebnis). Beim Mandat setzt
+// POST /agent/vertrieb/mandat/:id die Mandatsmarke (§16a). Bestandsendpunkte.
 // ═══════════════════════════════════════════════════════════════════════════
 function ArbeitsFokus({ k, gruppe, satz, geht, onAkte, onErgebnis, onEntfernen, melden }: {
   k: Kunde; gruppe: string; satz: number; geht: boolean;
   onAkte: () => void;
-  onErgebnis: (art: string, notiz?: string) => Promise<boolean>;
+  onErgebnis: (art: string, notiz?: string, zusatz?: Record<string, unknown>) => Promise<boolean>;
   onEntfernen: () => void;
   melden: (art: "gut" | "schlecht" | "info", text: string) => void;
 }) {
@@ -813,33 +864,49 @@ function ArbeitsFokus({ k, gruppe, satz, geht, onAkte, onErgebnis, onEntfernen, 
     setSendeFehler(null); setBestaetigen(false);
     melden("gut", r.json.warnung || `Zahlungsdaten und Rechnung an ${r.json.versandtAn} gesendet.`);
   };
-  const vereinbart = async () => {
+  // E-044: „Mandat angenommen“ – der Kunde nimmt die Betreuung an. Setzt die
+  // Mandatsmarke (§16a, zählt in x/500) und bucht das bestehende Ergebnis.
+  const mandatAngenommen = async () => {
     if (!hatTermin) {
       setTerminOffen(true);
-      melden("info", "„Erfolgreich vereinbart“ heißt: Der Termin steht. Buch ihn hier ein – dann zählt es.");
+      melden("info", "Ein Mandat gilt als angenommen, wenn der Termin steht. Buchen Sie ihn hier ein – dann zählt es.");
       return;
     }
     setLaeuft("vereinbart");
-    await onErgebnis("erreicht_sonstiges",
-      `Erfolgreich vereinbart – Termin ${gebucht ?? (k.termin ? terminText(k.termin.beginn) : terminText(k.terminAm!))} gebucht. Kunde erinnert: Rechnung vor dem Termin begleichen, dann wird im Gespräch direkt aktiviert.`);
+    await api(`/agent/vertrieb/mandat/${k.personId}`, { method: "POST", body: JSON.stringify({}) }).catch(() => null);
+    const ok = await onErgebnis("erreicht_sonstiges",
+      `Mandat angenommen – Termin ${gebucht ?? (k.termin ? terminText(k.termin.beginn) : terminText(k.terminAm!))} gebucht. Kunde erinnert: Rechnung vor dem Termin begleichen, dann wird im Gespräch direkt aktiviert.`);
+    if (ok) melden("gut", `Mandat angenommen – ${k.name} zählt jetzt zu deinem Bestand.`);
     setLaeuft(null);
   };
-  const negativ = async (grund: "nicht_erreicht" | "nummer_falsch" | "kein_interesse") => {
+  // E-044: „Mandat nicht zustande gekommen“ – mit Grund. Technisch dieselben
+  // Ergebnisse wie bisher; „Überlegt noch“ nutzt das Rückruf-Ergebnis.
+  const [rueckrufOffen, setRueckrufOffen] = useState(false);
+  const [rueckrufDatum, setRueckrufDatum] = useState(tagPlus(1));
+  const [rueckrufZeit, setRueckrufZeit] = useState("10:00");
+  const nichtZustande = async (grund: "nicht_erreicht" | "nummer_falsch" | "kein_interesse" | "ueberlegt") => {
+    if (grund === "ueberlegt") { setRueckrufOffen(true); setNegativOffen(false); return; }
     setLaeuft(grund);
     if (grund === "kein_interesse") {
       if (!(await fragen({
-        titel: `${k.name} – kein Interesse?`,
+        titel: `Mandat nicht zustande gekommen – ${k.name} hat kein Interesse?`,
         text: "Der Kunde wird gesperrt: Er erscheint bei keinem Mitarbeiter mehr und die Verteilung fasst ihn nicht mehr an. Zahlungs- und Vertragsdaten bleiben erhalten.",
         folge: "Der Vorgang steht mit Grund im Kontaktprotokoll.",
         ja: "Sperren", gefaehrlich: true,
       }))) { setLaeuft(null); return; }
-      await onErgebnis("erreicht_abgelehnt", "Kein Interesse – vom Kunden im Gespräch erklärt.");
+      await onErgebnis("erreicht_abgelehnt", "Mandat nicht zustande gekommen – kein Interesse, vom Kunden im Gespräch erklärt.");
     } else if (grund === "nummer_falsch") {
-      await onErgebnis("nummer_falsch");
+      await onErgebnis("nummer_falsch", "Mandat nicht zustande gekommen – hinterlegte Rufnummer stimmt nicht.");
     } else {
       await onErgebnis("nicht_erreicht");
     }
     setLaeuft(null); setNegativOffen(false);
+  };
+  const rueckrufBuchen = async () => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(rueckrufDatum) || !/^\d{2}:\d{2}$/.test(rueckrufZeit)) { melden("schlecht", "Bitte Datum und Uhrzeit für den Rückruf angeben."); return; }
+    setLaeuft("ueberlegt");
+    await onErgebnis("rueckruf_termin", "Mandat noch offen – Kunde überlegt, Rückruf vereinbart.", { terminDatum: rueckrufDatum, terminZeit: rueckrufZeit });
+    setLaeuft(null); setRueckrufOffen(false);
   };
 
   return (
@@ -884,25 +951,33 @@ function ArbeitsFokus({ k, gruppe, satz, geht, onAkte, onErgebnis, onEntfernen, 
         </div>
       )}
       {hatTermin && (
-        <p className="pi-fokus-erinnerung">Erinnere den Kunden: Rechnung vor dem Termin begleichen → im Gespräch wird direkt aktiviert.{gebucht ? ` (Termin: ${gebucht})` : ""}</p>
+        <p className="pi-fokus-erinnerung">Erinnere den Kunden: Rechnung vor dem Termin begleichen → im Gespräch wird direkt aktiviert.{gebucht ? ` (Termin: ${gebucht})` : ""} Danach: „Mandat angenommen“ buchen.</p>
       )}
 
-      {/* Am Ende: EIN Ergebnis */}
+      {/* Am Ende: EIN Ergebnis – Mandats-Wording (E-044), seriöser Kanzlei-Ton */}
       <div className="pi-ergebnisweg">
         <button type="button" className="pi-knopf gross" disabled={!!laeuft}
                 style={hatTermin ? undefined : { opacity: .75 }}
-                title={hatTermin ? "Termin steht – Ergebnis buchen" : "Erst Termin einbuchen – der Knopf führt dich hin"}
-                onClick={() => void vereinbart()}>
-          <Check size={16} strokeWidth={2} /> {laeuft === "vereinbart" ? "Speichert …" : "Erfolgreich vereinbart"}
+                title={hatTermin ? "Der Termin steht – Mandat buchen" : "Ein Mandat gilt mit gebuchtem Termin als angenommen – der Knopf führt zur Terminbuchung"}
+                onClick={() => void mandatAngenommen()}>
+          <Check size={16} strokeWidth={2} /> {laeuft === "vereinbart" ? "Speichert …" : "Mandat angenommen"}
         </button>
-        {!negativOffen ? (
-          <button type="button" className="pi-knopf warn gross" disabled={!!laeuft} onClick={() => setNegativOffen(true)}>Negativ …</button>
+        {!negativOffen && !rueckrufOffen ? (
+          <button type="button" className="pi-knopf warn gross" disabled={!!laeuft} onClick={() => setNegativOffen(true)}>Mandat nicht zustande gekommen …</button>
+        ) : negativOffen ? (
+          <span className="pi-reihe">
+            <button type="button" className="pi-knopf still" disabled={!!laeuft} onClick={() => void nichtZustande("nicht_erreicht")}>{laeuft === "nicht_erreicht" ? "…" : "Nicht erreicht"}</button>
+            <button type="button" className="pi-knopf still" disabled={!!laeuft} onClick={() => void nichtZustande("nummer_falsch")}>{laeuft === "nummer_falsch" ? "…" : "Nummer falsch"}</button>
+            <button type="button" className="pi-knopf still" disabled={!!laeuft} onClick={() => void nichtZustande("ueberlegt")}>Überlegt noch – Rückruf</button>
+            <button type="button" className="pi-knopf warn" disabled={!!laeuft} onClick={() => void nichtZustande("kein_interesse")}>{laeuft === "kein_interesse" ? "…" : "Kein Interesse"}</button>
+            <button type="button" className="pi-link" onClick={() => setNegativOffen(false)}>zurück</button>
+          </span>
         ) : (
           <span className="pi-reihe">
-            <button type="button" className="pi-knopf still" disabled={!!laeuft} onClick={() => void negativ("nicht_erreicht")}>{laeuft === "nicht_erreicht" ? "…" : "Nicht erreicht"}</button>
-            <button type="button" className="pi-knopf still" disabled={!!laeuft} onClick={() => void negativ("nummer_falsch")}>{laeuft === "nummer_falsch" ? "…" : "Nummer falsch"}</button>
-            <button type="button" className="pi-knopf warn" disabled={!!laeuft} onClick={() => void negativ("kein_interesse")}>{laeuft === "kein_interesse" ? "…" : "Kein Interesse"}</button>
-            <button type="button" className="pi-link" onClick={() => setNegativOffen(false)}>zurück</button>
+            <input type="date" className="pi-eingabe" style={{ flex: "0 0 150px" }} value={rueckrufDatum} min={heuteIso()} onChange={(e) => setRueckrufDatum(e.target.value)} aria-label="Rückruf-Datum" />
+            <input type="time" className="pi-eingabe" style={{ flex: "0 0 104px" }} value={rueckrufZeit} step={900} onChange={(e) => setRueckrufZeit(e.target.value)} aria-label="Rückruf-Uhrzeit" />
+            <button type="button" className="pi-knopf" disabled={!!laeuft} onClick={() => void rueckrufBuchen()}>{laeuft === "ueberlegt" ? "…" : "Rückruf vereinbaren"}</button>
+            <button type="button" className="pi-link" onClick={() => setRueckrufOffen(false)}>zurück</button>
           </span>
         )}
       </div>
@@ -1092,6 +1167,10 @@ function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
   const [datumWert] = useState(tagPlus(1));
   const [notiz, setNotiz] = useState("");
   const [verlauf, setVerlauf] = useState<any[] | null>(null);
+  // ── E-044/§16: Reiter „Aktivität“ + Vollständigkeit (Kartenstatus) ──
+  const [reiter, setReiter] = useState<"akte" | "aktivitaet">("akte");
+  const [akt, setAkt] = useState<{ ereignisse: any[]; vollstaendig: { vollstaendig: boolean; paketBezahlt: boolean; schufaBezahlt: boolean; kontoauszug: boolean; ausweis: boolean } } | null>(null);
+  const [aktFehler, setAktFehler] = useState<string | null>(null);
   const [sendeMenue, setSendeMenue] = useState(false);
   const [blatt, setBlatt] = useState(false);
   const [linkKopiert, setLinkKopiert] = useState(false);
@@ -1130,6 +1209,18 @@ function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
     if (r.ok) setVerlauf(r.json.verlauf ?? []);
   };
   useEffect(() => { void verlaufNachladen(); }, [k.personId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    let an = true;
+    api(`/agent/vertrieb/aktivitaet/${k.personId}`).then((r) => {
+      if (!an) return;
+      if (r.ok) { setAkt({ ereignisse: r.json.ereignisse || [], vollstaendig: r.json.vollstaendig }); setAktFehler(null); }
+      else setAktFehler(r.json?.error || "Die Aktivität konnte nicht geladen werden.");
+    });
+    return () => { an = false; };
+  }, [k.personId]);
+  // §16: Der Kartenstatus ist überall der Platzhalter, bis der Kunde vollständig ist.
+  const vollstaendig = akt?.vollstaendig?.vollstaendig ?? k.vollstaendig ?? false;
+  const kartenText = vollstaendig ? "Vollständig – liegt bei FIAON zur Bearbeitung" : "In Bearbeitung";
 
   // ── Ergebnis / Notiz (POST /agent/crm/kunden/:id/aktivitaet) ───────────
   const ergebnis = async (art: string, zusatz: Record<string, unknown> = {}): Promise<ErgebnisAusgang> => {
@@ -1290,6 +1381,17 @@ function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
       <div className="pi-lade-koerper">
         {meldung && <p className={`pi-meldung ${meldung.art === "gut" ? "gut" : meldung.art === "schlecht" ? "schlecht" : ""}`}>{meldung.text}</p>}
 
+        {/* E-044: Reiter Akte · Aktivität */}
+        <div className="pi-lade-tabs" role="tablist">
+          <button type="button" role="tab" aria-selected={reiter === "akte"} className={`pi-tab${reiter === "akte" ? " an" : ""}`} onClick={() => setReiter("akte")}>Akte</button>
+          <button type="button" role="tab" aria-selected={reiter === "aktivitaet"} className={`pi-tab${reiter === "aktivitaet" ? " an" : ""}`} onClick={() => setReiter("aktivitaet")}>Aktivität{akt ? <em>{akt.ereignisse.length}</em> : null}</button>
+          <span className={`pi-marke${vollstaendig ? " gut" : " still"}`} style={{ marginLeft: "auto" }} title={akt ? `Paket ${akt.vollstaendig.paketBezahlt ? "✓" : "–"} · SCHUFA ${akt.vollstaendig.schufaBezahlt ? "✓" : "–"} · Kontoauszug ${akt.vollstaendig.kontoauszug ? "✓" : "–"} · Ausweis ${akt.vollstaendig.ausweis ? "✓" : "–"}` : undefined}>
+            Karte: {kartenText}
+          </span>
+        </div>
+
+        {reiter === "aktivitaet" && <AktivitaetsZeit akt={akt} fehler={aktFehler} />}
+        {reiter === "akte" && <>
         {/* Nächster Schritt + Aktionen */}
         <div className="pi-block hervor">
           <div className="pi-block-kopf"><b>Nächster Schritt</b><small style={{ color: "#9ca3af", fontSize: 12 }}>{wartezeit(k.letzterKontakt)}</small></div>
@@ -1423,7 +1525,9 @@ function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
                 <span className="zustand">{b.zahlungText}</span>
                 {!b.erledigt && <a href={`/api/fiaon/agent/customers/${encodeURIComponent(b.ref)}/invoice.pdf`} target="_blank" rel="noreferrer">Rechnung (PDF) <ExternalLink size={11} /></a>}
                 <span className="rechts">gestellt {b.gestelltAm ? dtag(b.gestelltAm) : "—"}{b.faelligAm && !b.bezahlt && ` · fällig ${dtag(b.faelligAm)}`}</span>
-                {b.art !== "bonitaet" && b.bezahlt && k.karte?.text && <span className="voll">Karte: {k.karte.text}{k.karte.am ? ` (seit ${dtag(k.karte.am)})` : ""}</span>}
+                {/* §16 (E-044): VORHER stand hier der Servertext – `Karte: {k.karte.text} (seit …)`.
+                    NACHHER überall der Platzhalter, bis der Kunde vollständig ist (kundeVollstaendig). */}
+                {b.art !== "bonitaet" && b.bezahlt && <span className="voll">Karte: {kartenText}</span>}
                 {b.verwendungszweck && !b.bezahlt && <span className="voll mono">Verwendungszweck: {b.verwendungszweck}</span>}
                 {!b.bezahlt && !b.erledigt && buchungen.filter((x) => !x.erledigt).length > 1 && (
                   <span className="rechts" style={{ display: "inline-flex", gap: 10, alignItems: "center" }}>
@@ -1508,6 +1612,7 @@ function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
             </div>
           )}
         </div>
+        </>}
       </div>
 
       {bestaetigen && (
@@ -1516,6 +1621,66 @@ function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
                               onSenden={(ref) => void zahlungsdaten(ref)} sendeFehler={sendeFehler} />
       )}
     </aside>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E-044/§16: Die Zeitleiste der Akte — ALLE Kundenereignisse, nach Tag
+// gruppiert, mit Filter-Chips. Daten: GET /agent/vertrieb/aktivitaet/:id
+// (Klicks aus fiaon_click_events, Bestellungen/Zahlungen/Raten, Mails,
+// Anrufe, Gesprächsergebnisse). Rohe Event-Namen nur als Nebentext.
+// ═══════════════════════════════════════════════════════════════════════════
+const AKT_FILTER: { key: string; label: string }[] = [
+  { key: "alle", label: "Alles" },
+  { key: "klick", label: "Klicks" },
+  { key: "zahlung", label: "Zahlungen" },
+  { key: "gespraech", label: "Gespräche" },
+  { key: "mail", label: "Mails" },
+];
+function AktivitaetsZeit({ akt, fehler }: { akt: { ereignisse: any[] } | null; fehler: string | null }) {
+  const [filter, setFilter] = useState("alle");
+  const liste = useMemo(() => {
+    const e = akt?.ereignisse ?? [];
+    return filter === "alle" ? e : e.filter((x) => x.kat === filter || (filter === "klick" && x.kat === "system"));
+  }, [akt, filter]);
+  const tage = useMemo(() => {
+    const m = new Map<string, any[]>();
+    for (const e of liste) {
+      const tag = new Date(e.am).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin", weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" });
+      if (!m.has(tag)) m.set(tag, []);
+      m.get(tag)!.push(e);
+    }
+    return Array.from(m.entries());
+  }, [liste]);
+  if (fehler) return <div className="pi-block"><p className="warn">{fehler}</p></div>;
+  if (!akt) return <div className="pi-block"><p className="leise">Lade die Zeitleiste …</p></div>;
+  return (
+    <div className="pi-block" style={{ gap: 12 }}>
+      <div className="pi-reihe">
+        {AKT_FILTER.map((f) => (
+          <button key={f.key} type="button" className={`pi-chip-akt${filter === f.key ? " an" : ""}`} onClick={() => setFilter(f.key)}>{f.label}</button>
+        ))}
+      </div>
+      {tage.length === 0 && <p className="leise">Für diese Auswahl ist noch nichts festgehalten.</p>}
+      {tage.map(([tag, eintraege]) => (
+        <div key={tag} className="pi-zeit-tag">
+          <b>{tag}</b>
+          <ol className="pi-zeit">
+            {eintraege.map((e: any, i: number) => (
+              <li key={`${e.am}-${i}`} className={`kat-${e.kat}`}>
+                <span className="uhr">{new Date(e.am).toLocaleTimeString("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit" })}</span>
+                <span className="punkt" aria-hidden="true" />
+                <span className="text">
+                  <b>{e.titel}</b>
+                  {e.detail && <small>{e.detail}</small>}
+                  {e.roh && <em>{e.roh}</em>}
+                </span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      ))}
+    </div>
   );
 }
 

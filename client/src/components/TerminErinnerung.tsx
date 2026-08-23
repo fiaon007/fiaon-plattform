@@ -17,17 +17,22 @@
 // Fenster, ohne Abhängigkeit. Beides zusammen ist besser als eines von beiden:
 // Die Mail erreicht ihn, wenn er weg ist; die Leiste, wenn er da ist.
 //
-// ── WAS SIE NICHT TUT ──────────────────────────────────────────────────────
-// Sie blockiert nichts, sie klingelt nicht, sie springt nicht in die Mitte.
-// Ein Termin in zwanzig Minuten ist kein Notfall. Sie steht am oberen Rand,
-// zählt herunter und lässt sich mit einem Klick auf den Kunden auflösen.
-//
-// Wer sie wegklickt, sieht sie in fünf Minuten wieder — ein Termin, den man
-// wegklickt, ist nicht erledigt.
+// ── ZWEI STUFEN STATT EINER (23.08.2026, Plan §16, E-044) ──────────────────
+// 1. DIE LEISTE (unverändert): steht am oberen Rand, zählt herunter, deckt
+//    Rückrufe UND Termine ab, auch überfällige. Sie blockiert nichts.
+// 2. DAS POPUP (neu): 5, 2 und 1 Minute vor jedem eigenen gebuchten Termin
+//    springt einmal je Schwelle ein zentriertes Glas-Popup auf — denn ab
+//    jetzt wird Pünktlichkeit serverseitig GEMESSEN (fiaon_termin_treue),
+//    und wer den Anruf verpasst, wird der Leitung gemeldet. Ein Popup, das
+//    man nicht übersehen kann, ist die faire Vorstufe dieser Messung.
+//    Merker je Termin+Schwelle in sessionStorage: einmal gezeigt ist gezeigt,
+//    auch nach einem Seitenwechsel. Datenquelle ist /agent/termine — die
+//    Terminliste liefert Name, Uhrzeit UND Telefonnummer für „Jetzt anrufen".
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "wouter";
+import "@/styles/office-termintreue.css";
 
 interface Faellig {
   logId: number;
@@ -41,6 +46,19 @@ interface Faellig {
   art: "rueckruf" | "startgespraech";
 }
 
+/** Ein eigener gebuchter Termin aus /agent/termine — die Quelle des Popups. */
+interface EigenTermin {
+  id: number;
+  personId: number;
+  name: string;
+  telefon: string | null;
+  /** ISO-Zeitpunkt des Beginns. */
+  beginn: string;
+  /** „14:30" — vom Server in Europe/Berlin gerechnet. */
+  uhrzeit: string;
+  status: string;
+}
+
 /** Wie weit im Voraus wird erinnert? */
 const VORLAUF_MIN = 30;
 
@@ -50,15 +68,32 @@ const TAKT_MS = 60_000;
 /** Nach dem Wegklicken: wie lange Ruhe? */
 const SCHLUMMER_MS = 5 * 60_000;
 
+/** Die Popup-Schwellen in Minuten vor dem Beginn — je Termin einmal. */
+const SCHWELLEN = [5, 2, 1] as const;
+
+/** Der sessionStorage-Merker: dieser Termin, diese Schwelle — schon gezeigt? */
+const merker = (terminId: number, schwelle: number) => `fiaon-tt-${terminId}-${schwelle}`;
+
 export function TerminErinnerung() {
   const [faellig, setFaellig] = useState<Faellig[]>([]);
   const [schlummert, setSchlummert] = useState<Record<number, number>>({});
+  const [termine, setTermine] = useState<EigenTermin[]>([]);
+  const [popup, setPopup] = useState<EigenTermin | null>(null);
+  // Der Sekundentakt für Schwellen und Countdown. Er tickt nur, wenn er
+  // gebraucht wird — siehe den Effekt unten.
+  const [, setTick] = useState(0);
 
   const holen = useCallback(async () => {
-    const r = await fetch(`/api/fiaon/agent/termine/faellig?vorlauf=${VORLAUF_MIN}`,
-      { credentials: "include" }).catch(() => null);
-    const j = await r?.json().catch(() => null);
-    if (j?.ok) setFaellig(j.termine ?? []);
+    const [leiste, liste] = await Promise.all([
+      fetch(`/api/fiaon/agent/termine/faellig?vorlauf=${VORLAUF_MIN}`,
+        { credentials: "include" }).then((r) => r.json()).catch(() => null),
+      fetch(`/api/fiaon/agent/termine`,
+        { credentials: "include" }).then((r) => r.json()).catch(() => null),
+    ]);
+    if (leiste?.ok) setFaellig(leiste.termine ?? []);
+    if (liste?.ok) {
+      setTermine(((liste.termine ?? []) as EigenTermin[]).filter((t) => t.status === "gebucht"));
+    }
   }, []);
 
   useEffect(() => {
@@ -77,12 +112,49 @@ export function TerminErinnerung() {
     };
   }, [holen]);
 
+  // ── DER SEKUNDENTAKT — NUR WENN ETWAS ANSTEHT ──────────────────────────
+  // Der 1-Sekunden-Tick läuft ausschließlich, solange das Popup offen ist
+  // oder ein Termin in den nächsten sechs Minuten beginnt. Den ganzen Tag
+  // sekündlich zu rendern wäre Arbeit ohne Publikum.
+  const naechsterBeginn = termine.reduce<number | null>((min, t) => {
+    const b = new Date(t.beginn).getTime();
+    return b > Date.now() && (min === null || b < min) ? b : min;
+  }, null);
+  const tickNoetig = popup !== null
+    || (naechsterBeginn !== null && naechsterBeginn - Date.now() < 6 * 60_000);
+  useEffect(() => {
+    if (!tickNoetig) return;
+    const i = window.setInterval(() => setTick((n) => n + 1), 1_000);
+    return () => window.clearInterval(i);
+  }, [tickNoetig]);
+
+  // ── DIE SCHWELLENPRÜFUNG (T−5 / T−2 / T−1) ─────────────────────────────
+  // Bei jedem Tick: Für jeden gebuchten Termin und jede noch nicht gezeigte
+  // Schwelle, deren Fenster erreicht ist, wird der Merker gesetzt und das
+  // Popup geöffnet. Wer die Seite erst bei T−90 s lädt, verbraucht 5 und 2
+  // in einem Zug und sieht EIN Popup — nicht drei nacheinander.
+  useEffect(() => {
+    const jetzt = Date.now();
+    let zeigen: EigenTermin | null = null;
+    for (const t of termine) {
+      const rest = new Date(t.beginn).getTime() - jetzt;
+      if (rest <= 0 || rest > SCHWELLEN[0] * 60_000) continue;
+      for (const s of SCHWELLEN) {
+        if (rest > s * 60_000) continue;
+        const key = merker(t.id, s);
+        if (sessionStorage.getItem(key)) continue;
+        try { sessionStorage.setItem(key, "1"); } catch { /* voll oder gesperrt — dann eben mehrfach */ }
+        zeigen = t;
+      }
+    }
+    if (zeigen) setPopup(zeigen);
+  });
+
   const jetzt = Date.now();
-  const zeigen = faellig.filter((t) => (schlummert[t.logId] ?? 0) < jetzt);
-  if (zeigen.length === 0) return null;
+  const zeigenListe = faellig.filter((t) => (schlummert[t.logId] ?? 0) < jetzt);
 
   // Der dringendste zuerst — überfällige vor anstehenden.
-  const sortiert = [...zeigen].sort((a, b) => a.inMinuten - b.inMinuten);
+  const sortiert = [...zeigenListe].sort((a, b) => a.inMinuten - b.inMinuten);
   const erste = sortiert[0];
   const weitere = sortiert.length - 1;
 
@@ -96,49 +168,98 @@ export function TerminErinnerung() {
     }) + " Uhr";
   };
 
+  // Countdown des Popups: m:ss bis zum Beginn, „jetzt" ab dem Beginn.
+  const restSek = popup ? Math.max(0, Math.round((new Date(popup.beginn).getTime() - jetzt) / 1000)) : 0;
+  const countdown = restSek > 0
+    ? `${Math.floor(restSek / 60)}:${String(restSek % 60).padStart(2, "0")}`
+    : "jetzt";
+
+  const anrufen = () => {
+    if (!popup?.telefon) return;
+    window.dispatchEvent(new CustomEvent("fiaon-anrufen", {
+      detail: { nummer: popup.telefon, personId: popup.personId, name: popup.name },
+    }));
+    setPopup(null);
+  };
+
   return (
     <>
-      <style>{ERINNERUNG_CSS}</style>
-      <div className="fi-erin" role="status" aria-live="polite"
-           data-ueberfaellig={erste.inMinuten < 0 ? "1" : "0"}>
-        <span className="fi-erin-punkt" aria-hidden="true" />
-        {/* ── DIE ART AUS DER EINEN ABLEITUNG (30.08.2026) ────────────────
-            Hier stand „Startgespräch" / „Rückruf" aus einem Feld, das nur
-            diese Leiste kennt — die dritte Fassung derselben Frage. Jetzt
-            kommt der Text vom Server aus shared/fiaon-termin-art.ts, damit
-            Leiste, Kalender, Termin-Zentrale und Mail dasselbe Wort benutzen.
-            Der Rückfall bleibt, damit ein alter Client nichts Leeres zeigt. */}
-        <span className="fi-erin-art"
-              title={(erste as any).terminArtErklaerung || undefined}
-              style={(erste as any).terminArtTon
-                ? { color: (erste as any).terminArtTon }
-                : undefined}>
-          {(erste as any).terminArtText
-            || (erste.art === "startgespraech" ? "Onboarding" : "Rückruf")}
-        </span>
-        <span className="fi-erin-zeit">{zeit(erste)}</span>
+      {erste && (
+        <>
+          <style>{ERINNERUNG_CSS}</style>
+          <div className="fi-erin" role="status" aria-live="polite"
+               data-ueberfaellig={erste.inMinuten < 0 ? "1" : "0"}>
+            <span className="fi-erin-punkt" aria-hidden="true" />
+            {/* ── DIE ART AUS DER EINEN ABLEITUNG (30.08.2026) ────────────────
+                Hier stand „Startgespräch" / „Rückruf" aus einem Feld, das nur
+                diese Leiste kennt — die dritte Fassung derselben Frage. Jetzt
+                kommt der Text vom Server aus shared/fiaon-termin-art.ts, damit
+                Leiste, Kalender, Termin-Zentrale und Mail dasselbe Wort benutzen.
+                Der Rückfall bleibt, damit ein alter Client nichts Leeres zeigt. */}
+            <span className="fi-erin-art"
+                  title={(erste as any).terminArtErklaerung || undefined}
+                  style={(erste as any).terminArtTon
+                    ? { color: (erste as any).terminArtTon }
+                    : undefined}>
+              {(erste as any).terminArtText
+                || (erste.art === "startgespraech" ? "Onboarding" : "Rückruf")}
+            </span>
+            <span className="fi-erin-zeit">{zeit(erste)}</span>
 
-        {/* Der Klick führt DIREKT zum Kunden — Punkt 8 derselben Rückmeldung:
-            „Beim Klick auf den Termin direkt den zugehörigen Kundendatensatz
-            öffnen." */}
-        <Link href={`/agent/kunden?person=${erste.personId}`} className="fi-erin-name">
-          {erste.name}
-        </Link>
+            {/* Der Klick führt DIREKT zum Kunden — Punkt 8 derselben Rückmeldung:
+                „Beim Klick auf den Termin direkt den zugehörigen Kundendatensatz
+                öffnen." */}
+            <Link href={`/agent/kunden?person=${erste.personId}`} className="fi-erin-name">
+              {erste.name}
+            </Link>
 
-        {erste.notiz && <span className="fi-erin-notiz">{erste.notiz}</span>}
+            {erste.notiz && <span className="fi-erin-notiz">{erste.notiz}</span>}
 
-        {weitere > 0 && (
-          <span className="fi-erin-mehr">
-            +{weitere} {weitere === 1 ? "weiterer" : "weitere"}
-          </span>
-        )}
+            {weitere > 0 && (
+              <span className="fi-erin-mehr">
+                +{weitere} {weitere === 1 ? "weiterer" : "weitere"}
+              </span>
+            )}
 
-        <button type="button" className="fi-erin-zu"
-                aria-label="Erinnerung für fünf Minuten ausblenden"
-                onClick={() => setSchlummert((s) => ({ ...s, [erste.logId]: Date.now() + SCHLUMMER_MS }))}>
-          Später
-        </button>
-      </div>
+            <button type="button" className="fi-erin-zu"
+                    aria-label="Erinnerung für fünf Minuten ausblenden"
+                    onClick={() => setSchlummert((s) => ({ ...s, [erste.logId]: Date.now() + SCHLUMMER_MS }))}>
+              Später
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* ── DAS POPUP (E-044) ──────────────────────────────────────────────
+          Zentriertes Glas im Office-Stil: .of-modal aus office.css, eigene
+          Ergänzungen unter .tt- in office-termintreue.css. */}
+      {popup && (
+        <div className="of-modal-hintergrund tt-hintergrund" role="dialog" aria-modal="true"
+             aria-label={`Terminerinnerung: ${popup.name}`}>
+          <div className="of-modal tt-popup">
+            <span className="of-modal-pille blau">Dein Termin</span>
+            <h2>{popup.name}</h2>
+            <p>Das Gespräch beginnt um <span className="tt-uhrzeit">{popup.uhrzeit} Uhr</span>.
+              {" "}Ruf pünktlich an — der Kunde wartet.</p>
+            <div className={`tt-countdown${restSek <= 60 ? " knapp" : ""}`} aria-live="polite">
+              {countdown}
+              <small>{restSek > 0 ? "bis zum Beginn" : "es geht los"}</small>
+            </div>
+            <div className="of-modal-knoepfe">
+              <button type="button" className="of-modal-knopf" onClick={anrufen} disabled={!popup.telefon}>
+                Jetzt anrufen
+              </button>
+              <Link href={`/agent/pipeline?person=${popup.personId}`} className="of-modal-knopf still"
+                    onClick={() => setPopup(null)}>
+                Zur Akte
+              </Link>
+              <button type="button" className="tt-zu" onClick={() => setPopup(null)}>
+                Schließen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

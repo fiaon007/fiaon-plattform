@@ -14,6 +14,7 @@ import { AgentShell, api } from "./shared";
 import { useOffice } from "./OfficeShell";
 import { useAcademyFortschritt } from "./academy/fortschritt";
 import "@/styles/office-schreibtisch.css";
+import "@/styles/office-termintreue.css";
 
 const euro = (c: number) => (c / 100).toLocaleString("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
 const uhr = (iso: string) => new Date(iso).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" });
@@ -81,11 +82,11 @@ function SchreibtischInnen() {
           {termineHeute.length === 0 && zusagen.length === 0 && <p className="st-leer">Nichts Dringendes. Öffne die Pipeline und nimm dir die heißesten Kunden vor.</p>}
           {termineHeute.map((t) => (
             <div key={`t${t.id}`} className="st-zeile">
-              <div className="st-zeit"><b>{uhr(t.beginn)}</b><small>{t.dauer_min || 15} min</small></div>
+              <div className="st-zeit"><b>{uhr(t.beginn)}</b><small>{t.dauerMin || t.dauer_min || 15} min</small></div>
               <div className="st-wer"><b>{t.name}</b><small>{t.art || t.quelle || "Gespräch"}{t.status === "verpasst" ? " · verpasst" : ""}</small></div>
               <div className="st-aktion">
-                <button type="button" className="st-knopf" onClick={() => anrufen(t.primary_phone, t.person_id, t.name)} disabled={!t.primary_phone}><Phone size={15} /> Anrufen</button>
-                <Link href={`/agent/kunden?person=${t.person_id}`} className="st-knopf still">Akte</Link>
+                <button type="button" className="st-knopf" onClick={() => anrufen(t.telefon ?? t.primary_phone, t.personId ?? t.person_id, t.name)} disabled={!(t.telefon ?? t.primary_phone)}><Phone size={15} /> Anrufen</button>
+                <Link href={`/agent/kunden?person=${t.personId ?? t.person_id}`} className="st-knopf still">Akte</Link>
               </div>
             </div>
           ))}
@@ -107,7 +108,7 @@ function SchreibtischInnen() {
             <div key={`s${t.id}`} className="st-zeile klein">
               <div className="st-zeit"><b>{new Date(t.beginn).toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", timeZone: "Europe/Berlin" })}</b><small>{uhr(t.beginn)}</small></div>
               <div className="st-wer"><b>{t.name}</b><small>{t.art || t.quelle || "Gespräch"}</small></div>
-              <Link href={`/agent/kunden?person=${t.person_id}`} className="st-knopf still">Akte</Link>
+              <Link href={`/agent/kunden?person=${t.personId ?? t.person_id}`} className="st-knopf still">Akte</Link>
             </div>
           ))}
           <div className="st-block-kopf" style={{ marginTop: 18 }}><b>Pipeline</b><small>nach Stufe</small></div>
@@ -117,6 +118,8 @@ function SchreibtischInnen() {
         </div>
       </section>
 
+      <TermintreueKarte />
+
       <section className="st-schnell">
         <Link href="/agent/arbeitszeiten" className="st-schnell-karte"><b>Availability</b><span>Termine kommen nur in deinen Zeiten.</span></Link>
         <Link href="/agent/gehalt" className="st-schnell-karte"><b>Earnings</b><span>Was 5 Abschlüsse am Tag bringen.</span></Link>
@@ -124,6 +127,33 @@ function SchreibtischInnen() {
         <Link href="/agent/start-alt" className="st-schnell-karte still"><b>Bisherige Startseite</b><span>Übergangsweise weiter erreichbar.</span></Link>
       </section>
     </div>
+  );
+}
+
+/**
+ * Termintreue-Karte (E-044, Plan §16): Pünktlichkeit wird serverseitig
+ * gemessen (fiaon_termin_treue, Lauf „termintreue-bewerten"). Hier sieht der
+ * Mitarbeiter seine eigene Bilanz der letzten 30 Tage — und ab dem ersten
+ * verpassten Termin einen ruhigen, aber unmissverständlichen Hinweis.
+ */
+function TermintreueKarte() {
+  const [treue, setTreue] = useState<{ puenktlich: number; verspaetet: number; verpasst: number } | null>(null);
+  useEffect(() => {
+    api("/agent/termintreue").then((r) => { if (r.ok) setTreue(r.json); }).catch(() => {});
+  }, []);
+  if (!treue) return null;
+  return (
+    <section className="tt-karte">
+      <div className="tt-karte-kopf"><b>Termintreue</b><small>letzte 30 Tage</small></div>
+      <div className="tt-zahlen">
+        <div className="tt-zahl gut"><b>{treue.puenktlich}</b><span>pünktlich</span></div>
+        <div className="tt-zahl warn"><b>{treue.verspaetet}</b><span>verspätet</span></div>
+        <div className="tt-zahl rot"><b>{treue.verpasst}</b><span>verpasst</span></div>
+      </div>
+      {treue.verpasst >= 1 && (
+        <p className="tt-warnhinweis">Verpasste Termine werden der Leitung gemeldet – ab 5 endet die Zusammenarbeit.</p>
+      )}
+    </section>
   );
 }
 

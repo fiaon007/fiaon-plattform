@@ -8,6 +8,24 @@ export default function PremiumFooter() {
 
       {/* Main Footer Content */}
       <div className="max-w-[1280px] mx-auto px-6 py-16">
+        {/* Die Demo-Präsentation — der Kundenbereich, wie er gemeint ist (Justin, 23.08.2026: „in der Fußzeile schön präsentieren") */}
+        <a href="/demo/kundenbereich" className="pf-demo" aria-label="Demo-Präsentation des Kundenbereichs öffnen">
+          <div className="pf-demo-karte" aria-hidden="true">
+            <div className="pf-demo-kk">
+              <span className="w">FIAON</span><span className="chip" />
+              <span className="r"><small>Paket-Rahmen</small><b>5.000 €</b></span>
+              <span className="n">Max Mustermann</span>
+            </div>
+            <div className="pf-demo-ebene e1" /><div className="pf-demo-ebene e2" />
+          </div>
+          <div className="pf-demo-text">
+            <span className="pf-demo-ueber">Demo · Präsentation</span>
+            <h3>Der Kundenbereich, <em>wie er gemeint ist.</em></h3>
+            <p>Fünfzehn Stationen, ein Kunde nach vier Monaten: Einträge als Daten, Schreiben mit Fristen, Karten-Readiness, Simulator. Wir führen Sie durch – und erklären, warum FIAON das Problem löst.</p>
+            <span className="pf-demo-knopf">Präsentation starten<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg></span>
+          </div>
+        </a>
+
         {/* 4-Column Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-16 mb-16">
           {/* Column 1: Brand & Mission */}

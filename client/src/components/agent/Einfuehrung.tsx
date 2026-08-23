@@ -3,22 +3,32 @@
 //
 // Öffnet sich beim ERSTEN Login automatisch (Merker serverseitig je Konto:
 // GET/POST /agent/einfuehrung, server/routes/fiaon-office-einfuehrung.ts;
-// localStorage nur als schneller Cache) und erklärt in ~14–16 Glas-Karten
-// jeden Raum. Schritte mit `ziel` wechseln WIRKLICH in den Raum (wouter),
+// localStorage nur als schneller Cache) und erzählt in 17 Glas-Karten den
+// ganzen Weg. Schritte mit `ziel` wechseln WIRKLICH in den Raum (wouter),
 // die Karte steht dann am Rand, damit man den Raum dahinter sieht.
+//
+// ── E-045 (Plan §17), Vorher → Nachher ─────────────────────────────────────
+// VORHER:  drei Rollen-Fassungen (Vertrieb 16 Schritte; Onboarding mit
+//          vertieftem Calendar-Schritt; Inkasso 13 Schritte mit Collections
+//          statt Pipeline/Ergebnisweg/Bestand).
+// NACHHER: EINE Fassung für alle. Es gibt nur noch die Rolle Bonitäts-
+//          manager, die den Kunden komplett übernimmt: Mandat gewinnen
+//          (Arbeitsliste) → Startgespräch/Onboarding selbst führen (Ziel:
+//          74-€-SCHUFA-Zahlung, 10 € Bonus) → Betreuung über 12 Raten →
+//          Reaktivierung überfälliger Raten (50 %-Bonus, weicher Leitfaden).
+//          Collections- und Startgespräch-Schritt gehören für ALLE hinein.
+//          Die `rolle`-Prop bleibt nur für eine Kleinigkeit: Bei 'inkasso'
+//          (Diana, Back-Office Forderungen & Zahlungen) kommt ein Zusatzsatz,
+//          dass sie ALLE überfälligen Kunden sieht.
 //
 // Weil jede Agentenseite ihre eigene AgentShell/OfficeShell aufbaut, wird
 // diese Komponente bei jedem Raumwechsel NEU eingehängt — der laufende
 // Rundgang überlebt das über sessionStorage (fiaon_ef_schritt).
 //
 // Neustart jederzeit: CustomEvent „fiaon-einfuehrung-starten“ (Kachel auf
-// /agent/more, Knopf im Schubladen-Fuß der OfficeShell).
-//
-// Rollen: Forderungen & Zahlungen (inkasso) bekommt Collections statt
-// Pipeline/Bestand; die Onboarding-Rolle bekommt den vertieften
-// Startgespräch-Teil im Calendar-Schritt. Die Rolle kommt als Prop aus der
-// OfficeShell — bewusst NICHT über useAgentInfo(), weil das einen
-// Import-Kreis OfficeShell → Einfuehrung → shared → OfficeShell zöge.
+// /agent/more, Knopf im Schubladen-Fuß der OfficeShell). Die Rolle kommt als
+// Prop aus der OfficeShell — bewusst NICHT über useAgentInfo(), weil das
+// einen Import-Kreis OfficeShell → Einfuehrung → shared → OfficeShell zöge.
 //
 // Wortregeln: Mitarbeiter geduzt, Kunden in zitierten Sätzen gesiezt,
 // nie „beraten“/„Garantie“, keine Emojis. Bestand: KEIN 10er-Limit (Plan
@@ -50,17 +60,15 @@ async function api(pfad: string, init?: RequestInit): Promise<{ ok: boolean; jso
   return { ok: res.ok && json?.ok, json };
 }
 
+/** EINE Schrittfolge für alle (E-045). `rolle` nur für den Inkasso-Zusatzsatz. */
 function schritteFuer(rolle: string): Schritt[] {
   const istInkasso = rolle === "inkasso";
-  const istOnboarding = rolle === "onboarding";
   const s: Schritt[] = [];
 
   s.push({
     key: "willkommen", lage: "mitte", Icon: Sparkles, titel: "Willkommen im FIAON Office",
     absaetze: [
-      istInkasso
-        ? "Schön, dass du da bist. In Forderungen & Zahlungen sorgst du dafür, dass zugesagte Raten auch wirklich ankommen – ruhig, klar und immer respektvoll."
-        : "Schön, dass du da bist. Als Bonitätsmanager begleitest du Menschen, die ihre Bonität ordnen wollen – am Telefon, mit klaren nächsten Schritten.",
+      "Schön, dass du da bist. Als Bonitätsmanager übernimmst du deine Kunden komplett: Du gewinnst das Mandat, führst das Startgespräch selbst, begleitest über alle 12 Raten – und holst überfällige Kunden selbst zurück.",
       "Wichtig für jedes Gespräch: FIAON zeigt, sortiert und begleitet. Wir versprechen nichts, was eine Bank entscheidet – genau das macht uns glaubwürdig.",
       "Dieser Rundgang führt dich einmal durch alle Räume. Weiter geht es mit dem Knopf oder den Pfeiltasten – und neu starten kannst du ihn jederzeit unter More.",
     ],
@@ -92,55 +100,41 @@ function schritteFuer(rolle: string): Schritt[] {
     ],
   });
 
-  if (istInkasso) {
-    s.push({
-      key: "collections", lage: "rand", ziel: "/agent/collections", Icon: Landmark, titel: "Collections – Forderungen & Zahlungen",
-      absaetze: [
-        "Dein Arbeitsraum: eine Karte je Mensch, vom Server sortiert – überfällige Raten, Fristfenster und dein Verdienst auf einen Blick.",
-        "Je Rate hältst du genau ein Ergebnis fest: Zusage mit Datum, Notiz oder Härtefall an den Vorgesetzten. Erlass, Stundung oder Storno gibt es hier nicht.",
-        "Rechnung oder Erinnerung schickst du direkt aus der Karte – der Ton bleibt dabei immer ruhig.",
-      ],
-    });
-  } else {
-    s.push({
-      key: "pipeline", lage: "rand", ziel: "/agent/pipeline", Icon: BookUser, titel: "Pipeline – der Umsatz-Raum",
-      absaetze: [
-        "Deine Startansicht ist die Arbeitsliste: immer genau 6 frische Kunden – je 2 aus drei Gruppen.",
-        "„Bezahlt gemeldet – Termin fehlt“ ist am heißesten, dann „Antrag fertig – Rechnung offen“, dann „Registriert – noch kein Antrag“.",
-        "Anrufen, Ergebnis buchen, der Kunde wandert weiter – und der nächste rückt sofort nach. Ein endloser, aufgeräumter Fluss, nie überladen.",
-      ],
-    });
-    s.push({
-      key: "ergebnis", lage: "rand", ziel: "/agent/pipeline", Icon: CheckCircle2, titel: "Ein Anruf, EIN Ergebnis",
-      absaetze: [
-        "Am Ende jedes Anrufs gibt es genau einen Ergebnisweg mit vier Ausgängen – kein Menü mit hundert Möglichkeiten.",
-        "Erfolgreich vereinbart: Der Termin ist gebucht, direkt aus deiner Availability – der Slot ist echt geblockt.",
-        "Nicht erreicht: Die Automatik übernimmt. Wiedervorlage, nach dem 2. Versuch geht die Terminlink-Mail raus, nach dem 4. Versuch ruht der Kunde 14 Tage.",
-        "Nummer falsch: Der Kunde bekommt eine Mail zum Aktualisieren. Kein Interesse: Der Kunde wird gesperrt und verschwindet aus allen Listen.",
-      ],
-    });
-    s.push({
-      key: "bestand", lage: "rand", ziel: "/agent/pipeline", Icon: Layers, titel: "Mein Bestand – dein Kunde bleibt dein Kunde",
-      absaetze: [
-        "Der zweite Reiter zeigt deine betreuten Kunden. Jede bankbestätigte Rate deiner Kunden bringt dir Provision – Monat für Monat.",
-        "Dein Bestand darf auf bis zu 500 Kunden wachsen; erst danach musst du abgeben.",
-        "Du kannst einen Kunden jederzeit freiwillig an einen Kollegen übergeben – damit geht aber auch der Provisionsanspruch an ihn über. Provision folgt der Betreuung.",
-      ],
-    });
-  }
+  s.push({
+    key: "pipeline", lage: "rand", ziel: "/agent/pipeline", Icon: BookUser, titel: "Pipeline – hier gewinnst du das Mandat",
+    absaetze: [
+      "Deine Startansicht ist die Arbeitsliste: immer genau 6 frische Kunden – je 2 aus drei Gruppen.",
+      "„Bezahlt gemeldet – Termin fehlt“ ist am heißesten, dann „Antrag fertig – Rechnung offen“, dann „Registriert – noch kein Antrag“.",
+      "Anrufen, Ergebnis buchen, der Kunde wandert weiter – und der nächste rückt sofort nach. Ein endloser, aufgeräumter Fluss, nie überladen.",
+    ],
+  });
 
   s.push({
-    key: "akte", lage: "rand", ziel: istInkasso ? "/agent/collections" : "/agent/pipeline", Icon: FileText, titel: "Die Akte",
-    absaetze: istInkasso
-      ? [
-          "Ein Klick auf eine Karte öffnet die Akte: Bank, Kunde, Raten, Gespräche, Mails und der ganze Verlauf an einem Ort.",
-          "Alles, was du besprichst, hältst du hier fest – so weiß das ganze Team jederzeit, was Stand ist.",
-        ]
-      : [
-          "Ein Klick auf einen Kunden öffnet die Akte: Daten, Paket, Zahlungen, Gespräche und Notizen an einem Ort.",
-          "Während des Gesprächs machst du alles direkt hier: Zugänge senden, Zahlungsdaten schicken, Termin einbuchen, Leitfaden der Stufe aufklappen.",
-          "Jede Notiz und jedes Ergebnis landet im Kontaktprotokoll – so weiß das ganze Team, was Stand ist.",
-        ],
+    key: "ergebnis", lage: "rand", ziel: "/agent/pipeline", Icon: CheckCircle2, titel: "Ein Anruf, EIN Ergebnis",
+    absaetze: [
+      "Am Ende jedes Anrufs gibt es genau einen Ergebnisweg mit vier Ausgängen – kein Menü mit hundert Möglichkeiten.",
+      "Erfolgreich vereinbart: Der Termin ist gebucht, direkt aus deiner Availability – der Slot ist echt geblockt.",
+      "Nicht erreicht: Die Automatik übernimmt. Wiedervorlage, nach dem 2. Versuch geht die Terminlink-Mail raus, nach dem 4. Versuch ruht der Kunde 14 Tage.",
+      "Nummer falsch: Der Kunde bekommt eine Mail zum Aktualisieren. Kein Interesse: Der Kunde wird gesperrt und verschwindet aus allen Listen.",
+    ],
+  });
+
+  s.push({
+    key: "bestand", lage: "rand", ziel: "/agent/pipeline", Icon: Layers, titel: "Mein Bestand – dein Kunde bleibt dein Kunde",
+    absaetze: [
+      "Der zweite Reiter zeigt deine betreuten Kunden. Du begleitest jeden über alle 12 Raten – und jede bankbestätigte Rate bringt dir Provision, Monat für Monat.",
+      "Dein Bestand darf auf bis zu 500 Kunden wachsen; erst danach musst du abgeben.",
+      "Du kannst einen Kunden jederzeit freiwillig an einen Kollegen übergeben – damit geht aber auch der Provisionsanspruch an ihn über. Provision folgt der Betreuung.",
+    ],
+  });
+
+  s.push({
+    key: "akte", lage: "rand", ziel: "/agent/pipeline", Icon: FileText, titel: "Die Akte",
+    absaetze: [
+      "Ein Klick auf einen Kunden öffnet die Akte: Daten, Paket, Zahlungen, Gespräche und Notizen an einem Ort.",
+      "Während des Gesprächs machst du alles direkt hier: Zugänge senden, Zahlungsdaten schicken, Termin einbuchen, Leitfaden der Stufe aufklappen.",
+      "Jede Notiz und jedes Ergebnis landet im Kontaktprotokoll – so weiß das ganze Team, was Stand ist.",
+    ],
   });
 
   s.push({
@@ -153,13 +147,22 @@ function schritteFuer(rolle: string): Schritt[] {
   });
 
   s.push({
-    key: "calendar", lage: "rand", ziel: "/agent/kalender", Icon: Calendar, titel: "Calendar",
+    key: "calendar", lage: "rand", ziel: "/agent/kalender", Icon: Calendar, titel: "Calendar & Startgespräch",
     absaetze: [
-      "Deine Termine, Rückrufe und Zusagen in einem Raster – deine Availability liegt als Fläche dahinter.",
-      "Ein vergebener Termin blockiert den Slot wirklich – auch für die Online-Buchung über den Terminlink des Kunden.",
-      istOnboarding
-        ? "Für dich als Onboarding-Rolle liegen hier auch die Startgespräche: Ziel jedes Termins ist die 74-€-SCHUFA-Zahlung (dafür gibt es 10 € Bonus) und die Aktivierung des Kontos – das Gesprächs-Cockpit führt dich Schritt für Schritt hindurch."
-        : "Über den Terminlink bucht jeder Kunde automatisch das Richtige: Wer bezahlt hat, ein Startgespräch – wer noch nicht bezahlt hat, ein Gespräch bei seinem Betreuer.",
+      "Deine Termine, Rückrufe und Zusagen in einem Raster – die Availability liegt als Fläche dahinter. Ein vergebener Termin blockiert den Slot wirklich, auch für die Online-Buchung über den Terminlink.",
+      "Das Startgespräch führst du selbst – du reichst deinen Kunden nicht weiter. Das Gesprächs-Cockpit führt dich Schritt für Schritt hindurch.",
+      "Ziel des Termins: die 74-€-SCHUFA-Zahlung – dafür bekommst du 10 € Bonus – und die Aktivierung des Kontos.",
+      "Über den Terminlink bucht jeder Kunde automatisch das Richtige: Wer bezahlt hat, ein Startgespräch – wer noch nicht bezahlt hat, ein Vertriebsgespräch bei dir.",
+    ],
+  });
+
+  s.push({
+    key: "reaktivierung", lage: "rand", ziel: "/agent/collections", Icon: Landmark, titel: "Reaktivierung & Collections",
+    absaetze: [
+      "Wird eine Rate überfällig, gibst du deinen Kunden nicht ab – du holst ihn selbst zurück. Weich, nie hart: vorstellen, entschuldigen, zuhören.",
+      "Erreichst du die Zahlung, gehören 50 % dieser Rate dir. Oder du setzt den Kunden einen Monat aus – ohne Vergütung, aber mit direkt gebuchtem Onboarding-Termin.",
+      "In Collections siehst du deine überfälligen Kunden mit Fristfenster und hältst je Rate genau ein Ergebnis fest.",
+      ...(istInkasso ? ["Als Back-Office Forderungen & Zahlungen siehst du hier nicht nur deine eigenen, sondern ALLE überfälligen Kunden."] : []),
     ],
   });
 
@@ -173,17 +176,15 @@ function schritteFuer(rolle: string): Schritt[] {
     ],
   });
 
-  if (!istInkasso) {
-    s.push({
-      key: "leitfaeden", lage: "rand", ziel: "/agent/tools/gespraech", Icon: MessagesSquare, titel: "Leitfäden A, B, C – und Reaktivierung",
-      absaetze: [
-        "Stufe A (bezahlt geklickt): willkommen heißen, die Karte als Ziel oben halten, Termin sofort aus deinen Zeiten vergeben, Zahlung bestätigen lassen.",
-        "Stufe B (Antrag, unbezahlt): Bezug auf Antrag und Konzept, Termin vereinbaren, dann die Rechnung ansprechen und Zahlungsdaten senden.",
-        "Stufe C (Lead): Daten aufnehmen, Vertrag am Telefon, Zugänge senden, Termin – „Wenn Sie vor dem Termin die Rechnung begleichen, aktivieren wir sofort.“",
-        "Reaktivierung (Rate überfällig): weich, nie hart – vorstellen, entschuldigen, dann Zahlung erreichen oder einen Monat aussetzen und direkt den Termin buchen.",
-      ],
-    });
-  }
+  s.push({
+    key: "leitfaeden", lage: "rand", ziel: "/agent/tools/gespraech", Icon: MessagesSquare, titel: "Leitfäden A, B, C – und Reaktivierung",
+    absaetze: [
+      "Stufe A (bezahlt geklickt): willkommen heißen, die Karte als Ziel oben halten, Termin sofort aus deinen Zeiten vergeben, Zahlung bestätigen lassen.",
+      "Stufe B (Antrag, unbezahlt): Bezug auf Antrag und Konzept, Termin vereinbaren, dann die Rechnung ansprechen und Zahlungsdaten senden.",
+      "Stufe C (Lead): Daten aufnehmen, Vertrag am Telefon, Zugänge senden, Termin – „Wenn Sie vor dem Termin die Rechnung begleichen, aktivieren wir sofort.“",
+      "Reaktivierung (Rate überfällig): weich, nie hart – vorstellen, entschuldigen, dann Zahlung erreichen oder einen Monat aussetzen und direkt den Termin buchen.",
+    ],
+  });
 
   s.push({
     key: "wallet", lage: "rand", ziel: "/agent/wallet", Icon: Wallet, titel: "Wallet – deine Vergütung",
@@ -215,7 +216,7 @@ function schritteFuer(rolle: string): Schritt[] {
   s.push({
     key: "fertig", lage: "mitte", Icon: Flag, titel: "Das war der Rundgang",
     absaetze: [
-      `Du kennst jetzt jeden Raum. Starte mit deiner Availability, dann mit ${istInkasso ? "deiner Arbeitsliste in Collections" : "der Arbeitsliste in der Pipeline"} – der Rest kommt beim Tun.`,
+      "Du kennst jetzt den ganzen Weg: Mandat gewinnen, Startgespräch selbst führen, über 12 Raten begleiten, Überfällige zurückholen. Starte mit deiner Availability, dann mit der Arbeitsliste – der Rest kommt beim Tun.",
       "Du kannst diese Einführung jederzeit neu starten: unter More („Einführung neu starten“) oder unten in der Raumliste.",
     ],
   });

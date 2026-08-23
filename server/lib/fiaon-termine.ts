@@ -547,12 +547,22 @@ export interface SlotAuskunft {
  * Sie steht getrennt, weil `rollenFuerBuchung` sie braucht, um „gibt es
  * überhaupt eine freie Onboarding-Zeit?" zu beantworten. Eine zweite
  * Rechnung dafür wäre die zweite Wahrheit über dieselbe Frage.
+ *
+ * E-048 (23.08.2026): VORHER modul-intern — NACHHER exportiert, weil
+ * GET /agent/vertrieb/frei (fiaon-office-vertrieb.ts) dem Mitarbeiter seine
+ * eigenen freien Zeiten als Klick-Auswahl anbietet. Dieselbe Rechnung wie
+ * bei der Kundenbuchung, keine Kopie — sonst böte die Pipeline Zeiten an,
+ * die die Annahme (terminBuchen, Raster-Wand) ablehnt.
  */
-async function rohSlots(
+export async function rohSlots(
   agenten: { id: number; vorname: string }[], takt: number, lauf: Lauf = sqlPool,
+  // Vorher fest 2 h Vorlauf. Nachher (24.08., E-048): optional übersteuerbar –
+  // der Mitarbeiter vereinbart am Telefon auch „gleich in 30 Minuten"
+  // (agent_manuell erlässt den Vorlauf bei der Annahme ohnehin, Z. ~978).
+  vorlaufMs: number = VORLAUF_STUNDEN * 3600_000,
 ): Promise<Slot[]> {
   if (agenten.length === 0) return [];
-  const frühestens = new Date(Date.now() + VORLAUF_STUNDEN * 3600_000);
+  const frühestens = new Date(Date.now() + vorlaufMs);
   const spätestens = new Date(Date.now() + HORIZONT_TAGE * 86_400_000);
 
   const belegt = new Set(

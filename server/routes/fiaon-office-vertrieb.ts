@@ -7,6 +7,12 @@
 //   GET  /agent/vertrieb/mandate             → Mandats-Kennungen + Anzahl (x/500)
 //   GET  /agent/vertrieb/aktivitaet/:personId→ Zeitleiste ALLER Kundenereignisse
 //                                              + Vollständigkeit (Kartenstatus)
+//   GET  /agent/vertrieb/frei                → E-048: meine nächsten freien
+//                                              Termin-Zeiten (klickbare Slots)
+//   GET  /agent/vertrieb/bestand             → E-050 (§19): Portfolio der
+//                                              MANDATIERTEN Kunden — je Mandat
+//                                              Karte + Raten-Stand + SEPA +
+//                                              Monatsrate (für /agent/bestand)
 //
 // ── §16a: „Aktive Kunden“ zählen NUR übernommene Mandate ───────────────────
 // VORHER zählte die Oberfläche alle bezahlten/zugewiesenen Kunden. GEPRÜFT:
@@ -36,6 +42,7 @@ import { ruhtSql } from "../lib/fiaon-nicht-erreicht";
 import { wartetSql } from "../lib/fiaon-warten";
 import { ensureKartenSpalten } from "../lib/fiaon-kartenstatus";
 import { ensureBetreuungSpalte } from "../lib/tier";
+import { rohSlots, dauerFuer } from "../lib/fiaon-termine";
 
 const router = Router();
 
@@ -340,6 +347,104 @@ router.post("/agent/vertrieb/mandat/:personId", requireAgent, async (req: AgentR
     res.json({ ok: true, mandatSeit: r?.mandat_seit ?? null, anzahl: zahlen.anzahl, max: MANDATE_MAX });
   } catch (err) {
     console.error("[OFFICE-VERTRIEB] mandat:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E-048 Nr. 1: GET /agent/vertrieb/frei — meine nächsten freien Zeiten.
+//
+// VORHER tippte der Mitarbeiter beim „Termin buchen" Datum und Uhrzeit frei
+// ein und erfuhr erst NACH dem Abschicken, ob die Zeit im Raster seiner
+// Availability liegt oder schon belegt ist (409 aus terminBuchen).
+// NACHHER liefert dieser Endpunkt die nächsten freien Slots zum Anklicken —
+// mit DERSELBEN Rechnung wie die Kundenbuchung: `rohSlots` aus
+// lib/fiaon-termine (Signatur: rohSlots(agenten, takt, lauf)) rechnet die
+// aktiven Zeitfenster des Agenten abzüglich seiner Termine (status gebucht/
+// erledigt/verpasst; abgesagte geben die Zeit frei). Keine Kopie der Logik —
+// sonst böte die Pipeline Zeiten an, die die Annahme ablehnt. Gebucht wird
+// weiter über POST /agent/termine, der serverseitig erneut prüft.
+// ═══════════════════════════════════════════════════════════════════════════
+const FREI_TAGE = 7;
+const FREI_ANZAHL = 30;
+router.get("/agent/vertrieb/frei", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    // Der Takt der Buchung: POST /agent/termine bucht mit quelle "agent_manuell".
+    const takt = dauerFuer("agent_manuell");
+    // Nur ich selbst; der Vorname wird in der Anzeige nicht gebraucht.
+    const alle = await rohSlots([{ id: req.agent!.id, vorname: "" }], takt, sqlPool, 15 * 60_000);
+    const grenze = Date.now() + FREI_TAGE * 86_400_000;
+    const slots = alle
+      .filter((s) => new Date(s.beginn).getTime() <= grenze)
+      .slice(0, FREI_ANZAHL)
+      .map((s) => ({ beginn: s.beginn, datum: s.datum, uhrzeit: s.uhrzeit, dauerMin: takt }));
+    res.json({ ok: true, slots, dauerMin: takt });
+  } catch (err) {
+    console.error("[OFFICE-VERTRIEB] frei:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E-050 (Plan §19): GET /agent/vertrieb/bestand — das Portfolio der Mandate.
+//
+// VORHER gab es keinen Portfolio-Endpunkt: Der Bestand-Reiter der Pipeline
+// mischte alle zugewiesenen Kunden aus /agent/kunden/liste mit /inkasso/liste.
+// NACHHER liefert dieser Endpunkt NUR die mandatierten Kunden (mandat_seit
+// IS NOT NULL, §16a) — je Mandat die bekannte Karte (KARTE_SQL/karte, keine
+// zweite Kartenform) plus Raten-Stand (bezahlt/offen/überfällig, dieselben
+// Regeln wie kundenSituation: status <> 'bezahlt', storniert_am IS NULL,
+// Stichtag Berlin-heute), SEPA-Status (gc_mandate_status = 'active' wie in
+// kundenSituation) und Monatsrate (Ratenbetrag, sonst amount_due der Karte).
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/agent/vertrieb/bestand", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    await ensureKartenSpalten();
+    await ensureBetreuungSpalte(sqlPool);
+    await ensureVertriebSpalten();
+    const rows = (await sqlPool.unsafe(
+      `SELECT ${KARTE_SQL}, p.mandat_seit,
+         (SELECT JSON_BUILD_OBJECT(
+            'bezahlt',      COUNT(*) FILTER (WHERE r.status = 'bezahlt'),
+            'offen',        COUNT(*) FILTER (WHERE r.status <> 'bezahlt' AND r.faellig_am >= ${HEUTE}),
+            'ueberfaellig', COUNT(*) FILTER (WHERE r.status <> 'bezahlt' AND r.faellig_am < ${HEUTE}),
+            'ueberfaelligSeit', MIN(r.faellig_am) FILTER (WHERE r.status <> 'bezahlt' AND r.faellig_am < ${HEUTE}),
+            'ruecklastschrift', COALESCE(BOOL_OR(r.lastschrift_status = 'fehlgeschlagen' AND r.status <> 'bezahlt'), FALSE),
+            'rateCents',    MAX(r.betrag_cents)
+          ) FROM fiaon_abo_raten r JOIN fiaon_applications ar ON ar.ref = r.ref
+          WHERE ar.person_id = p.id AND ar.merged_into IS NULL AND r.storniert_am IS NULL) AS raten_stand,
+         (SELECT COALESCE(BOOL_OR(ax.gc_mandate_status = 'active'), FALSE) FROM fiaon_applications ax
+          WHERE ax.person_id = p.id AND ax.merged_into IS NULL AND ax.archived_at IS NULL) AS sepa_aktiv
+       FROM fiaon_persons p
+       WHERE p.assigned_agent_id = $1 AND p.mandat_seit IS NOT NULL
+         AND p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL AND NOT p.is_blocked
+       ORDER BY p.mandat_seit DESC, p.id DESC`, [req.agent!.id],
+    )) as any[];
+    const heute = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+    const tage = (iso: string | null): number | null => iso
+      ? Math.max(0, Math.round((new Date(`${heute}T12:00:00Z`).getTime() - new Date(`${String(iso).slice(0, 10)}T12:00:00Z`).getTime()) / 86_400_000))
+      : null;
+    const mandate = rows.map((r) => {
+      const s = r.raten_stand || {};
+      const k = karte(r);
+      return {
+        kunde: { ...k, mandatSeit: r.mandat_seit ?? null },
+        raten: {
+          bezahlt: Number(s.bezahlt || 0),
+          offen: Number(s.offen || 0),
+          ueberfaellig: Number(s.ueberfaellig || 0),
+          ueberfaelligSeitTagen: tage(s.ueberfaelligSeit ?? null),
+          ruecklastschrift: !!s.ruecklastschrift,
+        },
+        sepaAktiv: !!r.sepa_aktiv,
+        // Monatsrate: der echte Ratenbetrag; solange keine Raten existieren,
+        // der offene Kartenbetrag (amount_due) als bester bekannter Wert.
+        monatsrateCents: s.rateCents != null ? Number(s.rateCents) : (k as any).betrag ?? null,
+      };
+    });
+    res.json({ ok: true, mandate, max: MANDATE_MAX });
+  } catch (err) {
+    console.error("[OFFICE-VERTRIEB] bestand:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

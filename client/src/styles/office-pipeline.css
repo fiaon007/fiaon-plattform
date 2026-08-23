@@ -33,7 +33,9 @@
 .pi-fokus{display:grid;grid-template-columns:1.5fr 1fr;gap:14px;align-items:start}
 .pi-fokus-karte{position:relative;display:grid;gap:12px;padding:26px 28px;border-radius:26px;background:rgba(15,23,42,.62);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(22px) saturate(160%);-webkit-backdrop-filter:blur(22px) saturate(160%);box-shadow:0 30px 80px rgba(2,6,23,.5),inset 0 1px 0 rgba(255,255,255,.08);overflow:hidden}
 .pi-fokus-karte::before{content:"";position:absolute;inset:-40% -20% auto;height:80%;background:radial-gradient(ellipse at 50% 0%,color-mix(in srgb,var(--hitze,#2563eb) 26%,transparent),transparent 65%);pointer-events:none}
-.pi-fokus-karte.tief{animation:piTief .5s cubic-bezier(.2,.8,.2,1) both}
+/* E-048 Nr. 2: VORHER glitt der neue Fokus in .5s herein — NACHHER ~350 ms,
+   gleiche Kurve wie das Hinausgleiten (piGeht): ein Atem, kein Nachzügler. */
+.pi-fokus-karte.tief{animation:piTief .35s cubic-bezier(.2,.8,.2,1) both}
 @keyframes piTief{from{opacity:0;transform:perspective(900px) translateZ(-60px) translateY(8px)}to{opacity:1;transform:none}}
 .pi-fokus-kopf{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
 .pi-fokus-zaehler{display:inline-flex;align-items:center;gap:8px;font:400 12.5px/1 'Inter',sans-serif;color:#9ca3af;font-variant-numeric:tabular-nums}
@@ -150,8 +152,19 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
 /* ═══ Die Akte (Glas-Lade) ═══ */
 .pi-lade-hintergrund{position:fixed;inset:0;z-index:60;background:rgba(2,6,23,.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);animation:piEin .25s ease both}
 @keyframes piEin{from{opacity:0}to{opacity:1}}
-.pi-lade{position:fixed;top:0;right:0;bottom:0;z-index:61;width:min(100vw,760px);display:flex;flex-direction:column;background:linear-gradient(180deg,rgba(17,26,46,.94),rgba(10,22,40,.96));border-left:1px solid rgba(255,255,255,.12);backdrop-filter:blur(28px) saturate(160%);-webkit-backdrop-filter:blur(28px) saturate(160%);box-shadow:-30px 0 80px rgba(2,6,23,.6);animation:piSchieb .38s cubic-bezier(.2,.8,.2,1) both;color:#e5e7eb;padding-top:env(safe-area-inset-top)}
+/* E-049 Nr. 1 (Justin, Screenshot): VORHER war die Lade eine Flex-Spalte
+   (Kopf, Reiter, scrollender Körper) — in der Praxis scrollte der Kopf mit
+   aus dem Bild, nur die Reiter blieben (alte Handy-sticky-Regel griff nur
+   auf die Tabs). NACHHER ist die LADE SELBST der Scroll-Container; Kopf und
+   Reiter sitzen zusammen in .pi-lade-fest (sticky, top:0, Glas + Blur,
+   safe-area wandert vom Ladenrand in den festen Block) und bleiben immer
+   sichtbar; der Inhalt scrollt darunter. z-Ordnung: .pi-lade (z 61) liegt
+   über .of-kopf (z 30, office.css); innerhalb der Lade liegt .pi-lade-fest
+   (z 30) über dem Inhalt, das Handy-Bottom-Sheet .pi-mehr-menue (z 75)
+   weiter darüber. */
+.pi-lade{position:fixed;top:0;right:0;bottom:0;z-index:61;width:min(100vw,760px);overflow-y:auto;overscroll-behavior:contain;background:linear-gradient(180deg,rgba(17,26,46,.94),rgba(10,22,40,.96));border-left:1px solid rgba(255,255,255,.12);backdrop-filter:blur(28px) saturate(160%);-webkit-backdrop-filter:blur(28px) saturate(160%);box-shadow:-30px 0 80px rgba(2,6,23,.6);animation:piSchieb .38s cubic-bezier(.2,.8,.2,1) both;color:#e5e7eb}
 @keyframes piSchieb{from{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}
+.pi-lade-fest{position:sticky;top:0;z-index:30;background:linear-gradient(180deg,rgba(15,24,44,.97),rgba(12,20,38,.93));backdrop-filter:blur(24px) saturate(160%);-webkit-backdrop-filter:blur(24px) saturate(160%);padding-top:env(safe-area-inset-top);box-shadow:0 10px 30px rgba(2,6,23,.35)}
 .pi-lade-kopf{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:start;padding:18px 20px 14px;border-bottom:1px solid rgba(255,255,255,.08)}
 /* E-046: VORHER umbrach der Name dreizeilig (Screenshot 604px) – NACHHER
    einzeilig mit Ellipsis, Status-Chips als eine rollbare Zeile. */
@@ -162,7 +175,8 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
 .pi-lade-glut{display:grid;place-items:center;width:26px;height:26px;margin-top:4px}
 .pi-lade-zu{width:40px;height:40px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#cbd5e1;display:grid;place-items:center;cursor:pointer}
 .pi-lade-zu:disabled{opacity:.35;cursor:default}
-.pi-lade-koerper{flex:1;overflow-y:auto;padding:16px 20px 40px;display:grid;gap:14px;align-content:start;overscroll-behavior:contain}
+/* E-049 Nr. 1: VORHER flex:1 + eigener Scroll — NACHHER scrollt die Lade selbst. */
+.pi-lade-koerper{padding:16px 20px 40px;display:grid;gap:14px;align-content:start}
 .pi-block{padding:16px 18px;border-radius:18px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);display:grid;gap:10px}
 .pi-block.hervor{background:linear-gradient(135deg,rgba(37,99,235,.26),rgba(37,99,235,.06));border-color:rgba(96,165,250,.35)}
 .pi-block.warn{background:rgba(217,119,6,.08);border-color:rgba(251,191,36,.3)}
@@ -184,6 +198,14 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
 .pi-sperre{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:0 14px;border-radius:999px;background:rgba(217,119,6,.14);border:1px solid rgba(251,191,36,.35);color:#fde68a;font:500 12.5px/1 'Inter',sans-serif}
 .pi-luecke{font-size:12px;color:#9ca3af;line-height:1.5}
 .pi-luecke-link{font-size:11.5px;color:#cbd5e1;word-break:break-all;padding:8px 10px;border-radius:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12)}
+/* E-049 Nr. 2: VORHER zwei fast gleiche Textzeilen („fehlen noch: …" +
+   Erklärung) — NACHHER EINE Fehlt-Liste aus Chips; klickbare Chips springen
+   in „Kunde bearbeiten" (Feld-Fokus), stille Chips sind reine Nennung. */
+.pi-stapel.breit{max-width:none}
+.pi-luecke-liste{display:flex;flex-wrap:wrap;gap:6px}
+.pi-luecke-chip{display:inline-flex;align-items:center;min-height:34px;padding:0 12px;border-radius:999px;border:1px solid rgba(96,165,250,.4);background:rgba(37,99,235,.14);color:#bfdbfe;font:500 12px/1 'Inter',sans-serif;cursor:pointer;transition:border-color .2s,background .2s}
+.pi-luecke-chip:hover{background:rgba(37,99,235,.26);border-color:rgba(96,165,250,.65)}
+.pi-luecke-chip.still{border-color:rgba(255,255,255,.14);background:rgba(255,255,255,.05);color:#94a3b8;cursor:default}
 /* E-047 Nr. 3: VORHER lief „Verwendungszweck“ über die 120px-Spalte in den
    Wert hinein — NACHHER feste Labelbreite mit Umbruch, am Handy Label über Wert. */
 .pi-dl{display:grid;gap:4px;margin:0}
@@ -252,7 +274,23 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
 .pi-legende-chip .pi-glut{width:7px;height:7px}
 .pi-legende-chip:hover{border-color:color-mix(in srgb,var(--hitze,#93c5fd) 45%,transparent)}
 .pi-legende-chip.an{background:color-mix(in srgb,var(--hitze,#2563eb) 18%,rgba(15,23,42,.6));border-color:color-mix(in srgb,var(--hitze,#60a5fa) 55%,transparent);color:#fff}
+/* E-051 Nr. 1: VORHER 2-spaltiges Raster (.pi-arbeit-klein, FLIP) — NACHHER
+   das 3D-Karussell: eine Karte mittig vorn, Nachbarn perspektivisch dahinter;
+   das Nachrücken ist eine transform-Transition (350 ms, Kurve wie piGeht).
+   Das Raster bleibt nur noch für Alt-Stellen definiert. */
 .pi-arbeit-klein{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pi-kar{display:flex;align-items:center;gap:8px}
+.pi-kar-pfeil{flex:0 0 auto}
+.pi-kar-buehne{position:relative;flex:1;height:196px;perspective:1100px;transform-style:preserve-3d;overflow:hidden;border-radius:20px}
+.pi-kar-zelle{position:absolute;left:50%;top:50%;width:min(340px,92%);transition:transform .35s cubic-bezier(.2,.8,.2,1),opacity .35s;will-change:transform,opacity}
+.pi-kar-zelle:not(.mitte) .pi-ak{filter:saturate(.7) brightness(.82);cursor:pointer}
+.pi-kar-zelle.mitte .pi-ak{box-shadow:0 24px 60px rgba(2,6,23,.55),0 0 26px color-mix(in srgb,var(--hitze,#60a5fa) 26%,transparent),inset 0 1px 0 rgba(255,255,255,.08)}
+/* Flache Wisch-Reihe (Handy / prefers-reduced-motion): Scroll-Snap, Mitte zentriert */
+.pi-kar-flach{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;padding:6px 4px 12px;scrollbar-width:none}
+.pi-kar-flach::-webkit-scrollbar{display:none}
+.pi-kar-flach-zelle{flex:0 0 min(80vw,300px);scroll-snap-align:center}
+.pi-kar-flach-zelle:first-child{margin-left:max(0px,calc(50% - 150px))}
+.pi-kar-flach-zelle:last-child{margin-right:max(0px,calc(50% - 150px))}
 .pi-ak{position:relative;display:grid;gap:9px;padding:15px 17px;border-radius:18px;background:rgba(15,23,42,.6);border:1px solid color-mix(in srgb,var(--hitze,#60a5fa) 30%,rgba(255,255,255,.12));backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 14px 34px rgba(2,6,23,.4),0 0 18px color-mix(in srgb,var(--hitze,#60a5fa) 16%,transparent);animation:piAk .4s cubic-bezier(.2,.8,.2,1) both;transition:transform .25s,opacity .25s}
 @keyframes piAk{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 .pi-ak-kern{display:grid;gap:4px;background:none;border:0;padding:0;text-align:left;color:inherit;cursor:pointer;font-family:'Inter',sans-serif;min-width:0}
@@ -262,10 +300,27 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
 .pi-ak-fuss{font-size:11.5px;color:#9ca3af;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pi-ak-tun{display:flex;align-items:center;gap:6px}
 .pi-ak-tun .pi-link{margin-left:auto}
-/* Erledigt: gleitet hinaus, der nächste rückt nach */
-.pi-ak.geht,.pi-fokus-karte.geht{animation:piGeht .4s cubic-bezier(.4,0,.8,.4) both;pointer-events:none}
-@keyframes piGeht{to{opacity:0;transform:translateX(28px) scale(.96)}}
+/* Erledigt: gleitet hinaus, der nächste rückt nach.
+   E-048 Nr. 2: VORHER .4s cubic-bezier(.4,0,.8,.4), flach — NACHHER ~350 ms,
+   cubic-bezier(.2,.8,.2,1) und leichte Tiefe (translateZ), passend zu piTief. */
+.pi-ak.geht,.pi-fokus-karte.geht{animation:piGeht .35s cubic-bezier(.2,.8,.2,1) both;pointer-events:none}
+@keyframes piGeht{to{opacity:0;transform:perspective(900px) translateZ(-50px) translateX(30px) scale(.97)}}
 .pi-termin{display:grid;gap:8px;padding:12px 14px;border-radius:16px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12)}
+/* ── E-048 Nr. 1: Slot-Wahl — klickbare freie Zeiten statt Datum/Zeit-Feldern.
+   VORHER: zwei .pi-eingabe-Felder (Freitext) in .pi-termin — NACHHER:
+   Glas-Kacheln, gruppiert nach Tag (Heute · Morgen · Mi 27.08.), ein Klick
+   wählt, „Bestätigen“ bucht. Handytauglich: Kacheln füllen die Zeile. ── */
+.pi-slots{display:grid;gap:12px}
+.pi-slot-tag{display:grid;gap:7px}
+.pi-slot-tag>b{font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#93c5fd}
+.pi-slot-reihe{display:flex;flex-wrap:wrap;gap:7px}
+.pi-slot{min-height:42px;min-width:76px;padding:0 14px;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);color:#e5e7eb;font:500 13px/1 'Inter',sans-serif;font-variant-numeric:tabular-nums;cursor:pointer;transition:border-color .2s,background .2s,box-shadow .2s}
+.pi-slot:hover{border-color:rgba(96,165,250,.5)}
+.pi-slot.an{background:linear-gradient(135deg,rgba(37,99,235,.55),rgba(37,99,235,.22));border-color:rgba(96,165,250,.7);color:#fff;box-shadow:0 10px 24px rgba(37,99,235,.3)}
+.pi-slot-fuss{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-top:10px;border-top:1px solid rgba(255,255,255,.08)}
+.pi-slot-fuss>b{font:500 13px/1.3 'Inter',sans-serif;color:#fff;font-variant-numeric:tabular-nums}
+.pi-slot-fuss .pi-link{margin-left:auto}
+@media(max-width:700px){.pi-slot{flex:1 1 30%;min-width:0}.pi-slot-fuss .pi-knopf{flex:1 1 100%}}
 .pi-fokus-erinnerung{margin:0;padding:10px 14px;border-radius:12px;background:rgba(16,185,129,.1);border:1px solid rgba(52,211,153,.3);color:#a7f3d0;font:400 12.5px/1.5 'Inter',sans-serif}
 .pi-ergebnisweg{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding-top:12px;border-top:1px solid rgba(255,255,255,.1)}
 @media(max-width:960px){.pi-arbeit{grid-template-columns:1fr}}
@@ -389,7 +444,10 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
   .pi-arbeit-haupt{gap:20px}
   .pi-legende-zeile .linie{display:none}
   .pi-situation-tun .pi-knopf.riesig{min-height:50px;padding:0 18px;font-size:14.5px;flex:1}
-  .pi-lade .pi-lade-tabs{position:sticky;top:0;z-index:5;padding:8px 12px}
+  /* E-049 Nr. 1: VORHER waren am Handy NUR die Reiter sticky (deshalb blieb
+     beim Scrollen der Kopf nicht stehen) — NACHHER hält .pi-lade-fest Kopf
+     UND Reiter zusammen fest; hier bleibt nur das kompakte Padding. */
+  .pi-lade .pi-lade-tabs{padding:8px 12px}
   .pi-lade-koerper{padding:14px 12px 48px;gap:14px}
   .pi-sek{padding:16px 14px}
   .pi-doku,.pi-rate{grid-template-columns:auto 1fr}
@@ -401,4 +459,14 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
   .pi-dl dt{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase}
 }
 @media(max-width:560px){.pi-umsatz{grid-template-columns:1fr}.pi-umsatz-zahl:nth-child(2){grid-column:auto}}
-@media(prefers-reduced-motion:reduce){.pi-fokus-karte.tief,.pi-lade,.pi-lade-hintergrund{animation:none}.pi-sk,.pi-strom-buehne,.pi-umsatz-balken i{transition:none}.pi-trenner b{animation:none;background-position:50% 50%}}
+/* E-048 Nr. 2: VORHER schaltete reduced-motion die Fokus-Animation nur ab
+   (und .geht glitt weiter) — NACHHER blendet ALLES nur sanft: hinein (piEin),
+   hinaus (piBlende); das FLIP-Nachrücken misst dann nur, ohne zu bewegen. */
+@keyframes piBlende{to{opacity:0}}
+@media(prefers-reduced-motion:reduce){
+  .pi-lade,.pi-lade-hintergrund{animation:none}
+  .pi-fokus-karte.tief,.pi-ak{animation:piEin .25s ease both}
+  .pi-ak.geht,.pi-fokus-karte.geht{animation:piBlende .3s ease both}
+  .pi-sk,.pi-strom-buehne,.pi-umsatz-balken i,.pi-kar-zelle{transition:none}
+  .pi-trenner b{animation:none;background-position:50% 50%}
+}

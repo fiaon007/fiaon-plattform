@@ -768,8 +768,40 @@ router.get("/agent/onboarding/kennzahlen", requireAgent, nurOnboarding, nurMitZu
     const gefuehrt = erledigt + verpasst;
     // Wie viele Konten wurden diese Woche freigeschaltet? Das ist die Zahl, die
     // den Zweck des Bereichs misst — nicht die Zahl der Gespräche.
-    const { wartendeZaehlen } = await import("../lib/fiaon-kontostufe");
-    const stufen = await wartendeZaehlen();
+    //
+    // ── E-051 (Justin 24.08., Plan §20): DIE WARTENDEN-ZAHL WAR GLOBAL ─────
+    // VORHER: `wartendeZaehlen()` zählte hausweit — ein Bonitätsmanager sah
+    // „Wartet auf Gespräch 374", obwohl seine Wartenden-LISTE (Route oben,
+    // E-045) längst auf den eigenen Bestand gefiltert war. Kachel und Liste
+    // widersprachen sich.
+    // NACHHER: Onboarding-Pool/Leitung (siehtAlleWartenden) bekommen weiter
+    // die Hauszahl; Rolle „agent" bekommt wartend/ohneTermin/freigeschaltet
+    // über die EIGENEN Kunden (assigned_agent_id = ich) — dieselbe Zählweise
+    // wie in `wartendeZaehlen`, nur mit der Bestandsgrenze.
+    const alle = await siehtAlleWartenden(req.agent!.id);
+    let stufen: { wartend: number; mitTermin: number; ohneTermin: number; freigeschaltetWoche: number };
+    if (alle) {
+      const { wartendeZaehlen } = await import("../lib/fiaon-kontostufe");
+      stufen = await wartendeZaehlen();
+    } else {
+      const [w] = (await sqlPool`
+        SELECT
+          COUNT(DISTINCT a.person_id) FILTER (WHERE a.onboarding_stufe = 'wartet_auf_onboarding')::int AS wartend,
+          COUNT(DISTINCT a.person_id) FILTER (WHERE a.onboarding_stufe = 'wartet_auf_onboarding'
+            AND EXISTS (SELECT 1 FROM fiaon_termine t WHERE t.person_id = a.person_id
+                          AND t.quelle = 'onboarding_call' AND t.status = 'gebucht'))::int AS mit_termin,
+          COUNT(DISTINCT a.person_id) FILTER (WHERE a.freigeschaltet_am IS NOT NULL
+            AND a.freigeschaltet_am >= ((NOW() AT TIME ZONE 'Europe/Berlin')::date - 7))::int AS frei_woche
+        FROM fiaon_applications a
+        JOIN fiaon_persons p ON p.id = a.person_id
+        WHERE a.payment_status = 'paid' AND a.merged_into IS NULL AND a.person_id IS NOT NULL
+          AND p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL AND NOT COALESCE(p.is_blocked, FALSE)
+          AND p.assigned_agent_id = ${req.agent!.id}
+      `) as any[];
+      const wartend = Number(w?.wartend || 0);
+      const mitTermin = Number(w?.mit_termin || 0);
+      stufen = { wartend, mitTermin, ohneTermin: Math.max(0, wartend - mitTermin), freigeschaltetWoche: Number(w?.frei_woche || 0) };
+    }
     res.json({
       ok: true,
       dieseWoche: Number(z?.diese_woche || 0),
@@ -782,10 +814,11 @@ router.get("/agent/onboarding/kennzahlen", requireAgent, nurOnboarding, nurMitZu
       dauerSchnittMin: z?.dauer_schnitt != null
         ? Math.round(Number(z.dauer_schnitt) / 60) : null,
       freigeschaltetWoche: stufen.freigeschaltetWoche,
-      // Wer wartet insgesamt noch auf sein Gespräch? Das ist die Arbeit, die
-      // vor dem Bereich liegt.
+      // Wer wartet noch auf sein Gespräch? Für Onboarding/Leitung hausweit,
+      // für einen Bonitätsmanager nur der eigene Bestand (E-051, siehe oben).
       wartend: stufen.wartend,
       wartendOhneTermin: stufen.ohneTermin,
+      nurEigene: !alle,
       // Ohne ein einziges abgeschlossenes Gespräch gibt es keine Quote. Eine
       // „0 %" wäre an dieser Stelle eine Behauptung über nichts.
       erledigungsquote: gefuehrt > 0 ? Math.round((erledigt / gefuehrt) * 1000) / 10 : null,

@@ -11,7 +11,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, BookUser, Users, Phone, Megaphone, Wallet, Calculator, GraduationCap, ListChecks, Mail, Calendar, Inbox, Landmark, MoreHorizontal, Clock, Wrench, LogOut, ChevronLeft, ChevronRight, X, Menu, Compass } from "lucide-react";
+import { LayoutDashboard, BookUser, Users, Phone, Megaphone, Wallet, Calculator, GraduationCap, ListChecks, Mail, Calendar, Inbox, Landmark, MoreHorizontal, Clock, Wrench, Handshake, Boxes, LogOut, ChevronLeft, ChevronRight, X, Menu, Compass } from "lucide-react";
 import { Einfuehrung } from "@/components/agent/Einfuehrung";
 import "@/styles/office.css";
 
@@ -22,7 +22,9 @@ export interface Raum { href: string; label: string; Icon: any; match: string[];
 export const RAEUME: Raum[] = [
   { href: "/agent/start", label: "Dashboard", Icon: LayoutDashboard, match: ["/agent/start", "/agent/heute", "/agent"], szene: "schreibtisch", gruppe: "arbeit" },
   { href: "/agent/pipeline", label: "Pipeline", Icon: BookUser, match: ["/agent/pipeline", "/agent/kunden"], szene: "kundenbuch", gruppe: "arbeit", badge: "/agent/kunden" },
-  { href: "/agent/kalender", label: "Calendar", Icon: Calendar, match: ["/agent/kalender", "/agent/startgespraeche"], szene: "schreibtisch", gruppe: "arbeit" },
+  { href: "/agent/bestand", label: "Bestand", Icon: Boxes, match: ["/agent/bestand"], szene: "kundenbuch", gruppe: "arbeit" },
+  { href: "/agent/kalender", label: "Calendar", Icon: Calendar, match: ["/agent/kalender"], szene: "schreibtisch", gruppe: "arbeit" },
+  { href: "/agent/onboarding", label: "Onboarding", Icon: Handshake, match: ["/agent/onboarding", "/agent/startgespraeche"], szene: "akademie", gruppe: "arbeit" },
   { href: "/agent/aufgaben", label: "Tasks", Icon: ListChecks, match: ["/agent/aufgaben"], szene: "schreibtisch", gruppe: "arbeit", badge: "/agent/aufgaben" },
   { href: "/agent/inbox", label: "Inbox", Icon: Mail, match: ["/agent/inbox", "/agent/mail-zentrale"], szene: "schreibtisch", gruppe: "arbeit", badge: "/agent/mail-zentrale" },
   { href: "/agent/anliegen", label: "Tickets", Icon: Inbox, match: ["/agent/anliegen"], szene: "schreibtisch", gruppe: "arbeit", badge: "/agent/anliegen" },

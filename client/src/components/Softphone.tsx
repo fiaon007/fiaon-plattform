@@ -153,13 +153,25 @@ function dauerText(sek: number): string {
  * telefoniert, wäre eine Beruhigung für die Firma und keine Absicherung für
  * den Menschen, der aufzeichnet.
  */
+// ── DIE TAFEL IN DER HAUS-CI (24.08.2026, Plan §4/§11) ─────────────────────
+// Der Auftrag: „Die Annahme-Tafel wirkt fremd." Sie war die helle FiaonEbene
+// mitten im dunklen Office. NACHHER trägt dieselbe Ebene die dunkle
+// Glas-Fassung des Office (Referenz: .of-modal in office.css und die
+// ZusageTafel mit ton="dunkel"): Pille oben, ruhige Überschrift mit wenig
+// Gewicht, Kopf und Fuß als Glas fest stehend, der Text rollt dazwischen in
+// seiner eigenen Fläche. Umgeschaltet wird NUR über CSS — der Wrapper
+// `.fi-ri-ueber-geraet` (unten am Einbau) ist der Geltungsbereich, die
+// Regeln stehen in styles/softphone.css. Aufbau, Haken, Namensfeld und der
+// Weg der Annahme sind unverändert; NEU ist allein `fehler`: die Absage des
+// Servers, sichtbar direkt unter dem Knopf statt unsichtbar hinter der Tafel.
 function RichtlinienTafel({
-  offen, daten, name, onName, gelesen, onGelesen, onZu, onAnnehmen,
+  offen, daten, name, onName, gelesen, onGelesen, onZu, onAnnehmen, fehler,
 }: {
   offen: boolean; daten: any;
   name: string; onName: (v: string) => void;
   gelesen: boolean; onGelesen: (v: boolean) => void;
   onZu: () => void; onAnnehmen: () => void;
+  fehler?: string | null;
 }) {
   const t = daten?.text;
   return (
@@ -202,8 +214,9 @@ function RichtlinienTafel({
           <p className="mt-4 text-[13px] leading-relaxed" style={{ color: "var(--fi-text-leise)" }}>
             {t.schlusssatz}
           </p>
-          <p className="mt-3 px-3.5 py-2.5 rounded-xl text-[11.5px] leading-relaxed"
-             style={{ background: "rgba(15,23,42,.04)", color: "var(--fi-text-still)" }}>
+          {/* Vorher trug dieser Kasten sein helles Grau als Inline-Stil —
+              auf der dunklen Tafel wäre er unsichtbar. Jetzt eine Klasse. */}
+          <p className="fi-ri-protokoll">
             {t.hinweisProtokoll}
           </p>
 
@@ -220,23 +233,32 @@ function RichtlinienTafel({
         </>
       ) : null}
       fuss={
-        <div className="flex items-center gap-2">
-          <button type="button" onClick={onZu}
-                  className="text-[13px] font-semibold" style={{ color: "var(--fi-text-still)" }}>
-            Später
-          </button>
-          <button type="button" onClick={onAnnehmen}
-                  disabled={!gelesen || name.trim().length < 3}
-                  className="ml-auto fi-knopf-primaer px-5">
-            Annehmen und telefonieren
-          </button>
-        </div>
+        <>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={onZu}
+                    className="text-[13px] font-semibold" style={{ color: "var(--fi-text-still)" }}>
+              Später
+            </button>
+            <button type="button" onClick={onAnnehmen}
+                    disabled={!gelesen || name.trim().length < 3}
+                    className="ml-auto fi-knopf-primaer px-5">
+              Annehmen und telefonieren
+            </button>
+          </div>
+          {/* ── DIE ABSAGE DES SERVERS, UNÜBERSEHBAR (24.08.2026) ──────────
+              Der Server lehnt mit Text ab (z. B. falscher Name). Vorher
+              landete der Satz in `meldung` — im Gerät, HINTER dieser Tafel.
+              Jetzt steht er hier, direkt unter dem Knopf, den man gedrückt
+              hat. `role="alert"`, damit auch Vorleseprogramme ihn melden. */}
+          {fehler && <p className="fi-ri-fehler" role="alert">{fehler}</p>}
+        </>
       }
     />
   );
 }
 
-// Die Styles der Tafel (.fi-ri-*) liegen in styles/softphone.css (23.08.2026).
+// Die Styles der Tafel (.fi-ri-*) liegen in styles/softphone.css — seit dem
+// 24.08.2026 mit der dunklen Office-Fassung unter `.fi-ri-ueber-geraet`.
 
 export function Softphone() {
   const [stand, setStand] = useState<Stand | null>(null);
@@ -321,6 +343,14 @@ export function Softphone() {
   const [richtlinie, setRichtlinie] = useState<any>(null);
   const [tafelOffen, setTafelOffen] = useState(false);
   const [nameGetippt, setNameGetippt] = useState("");
+  // ── DIE ABSAGE DES SERVERS ZUR ANNAHME (24.08.2026, Plan §4/§11) ────────
+  // VORHER landete sie in `meldung` — und `meldung` steht IM Gerät, während
+  // die Tafel DARÜBER liegt. Der Server lehnt inzwischen mit Text ab (z. B.
+  // falscher Name), und genau dieser Satz war unsichtbar: Der Mensch drückte
+  // „Annehmen", nichts passierte. Eigener Zustand, angezeigt direkt UNTER dem
+  // Annehmen-Knopf — in der Tafel und im Display. Reine Darstellung: Der
+  // POST auf /telefon/richtlinie bleibt unverändert.
+  const [riFehler, setRiFehler] = useState<string | null>(null);
   // ── ERREICHBARKEIT UND EINGEHENDE ANRUFE ────────────────────────────────
   // „Erreichbar" heißt: Twilio kennt diesen Browser und kann ihn klingeln
   // lassen. Es steht klein im Display — wer es nicht ist, soll das wissen,
@@ -469,6 +499,18 @@ export function Softphone() {
   // Abgeleitet, nicht gespeichert — derselbe Grund wie bei `stummVerdacht`.
   const mikMuss = stummVerdacht || probePflicht || !!geraetFehler || !!probeFehler
     || probe === "laeuft" || probe === "spielt";
+  // ── EINMAL ERZWUNGEN, BLEIBT ER OFFEN (24.08.2026, Plan §4/§11) ─────────
+  // VORHER galt die schmale Pegelzeile nur am Handy; am Rechner stand der
+  // volle Kasten immer da — einer der Gründe, warum die Wählansicht am PC
+  // nicht auf das Panel passte („am PC muss/kann ich darin scrollen").
+  // NACHHER ist die Zeile der Normalfall auf ALLEN Breiten; der Kasten
+  // erscheint bei Sperre/Probenpflicht/Fehler von selbst (`mikMuss`,
+  // unveränderte Logik). Dieser Effekt macht das Erzwingen KLEBRIG: Ohne ihn
+  // klappte der Kasten in der Sekunde zu, in der die Sprechprobe bestanden
+  // ist — mitten unter der Hand des Nutzers (und unter dem Blick des
+  // Browser-Prüfstands, der danach den Probentext liest). Zu geht er erst
+  // über „Einklappen". Nur Darstellung — Messung und Sperren unberührt.
+  useEffect(() => { if (mikMuss) setMikroAuf(true); }, [mikMuss]);
 
   // ══════════════════════════════════════════════════════════════════════════
   // MINIMIEREN IM GESPRÄCH (E-047 Nr. 7, Plan §18, 23.08.2026)
@@ -845,12 +887,19 @@ export function Softphone() {
   const offeneAnzahl = stand.offene?.length ?? 0;
 
   const richtlinieAnnehmen = async () => {
+    setRiFehler(null);
     const r = await fetch("/api/fiaon/telefon/richtlinie", {
       method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: nameGetippt, gelesen, pruefwert: richtlinie?.pruefwert }),
     }).catch(() => null);
     const j = await r?.json().catch(() => null);
-    if (!j?.ok) { setMeldung(j?.error || "Annahme fehlgeschlagen."); return; }
+    // ── DIE ABLEHNUNG STEHT UNTER DEM KNOPF (24.08.2026) ──────────────────
+    // Vorher: `setMeldung(j?.error || …)` — die Meldung lag im Gerät, die
+    // Tafel darüber. Der Server begründet Ablehnungen inzwischen (falscher
+    // Name, abgelaufener Prüfwert), und niemand sah den Satz. `riFehler`
+    // wird direkt unter „Annehmen und telefonieren" gezeigt — an beiden
+    // Stellen (Tafel und Display). Der POST selbst ist unverändert.
+    if (!j?.ok) { setRiFehler(j?.error || "Annahme fehlgeschlagen."); return; }
     setTafelOffen(false);
     setRichtlinie((v: any) => v && { ...v, offen: false });
   };
@@ -1751,15 +1800,17 @@ export function Softphone() {
         .fi-telefonknopf {
           perspective: 600px;
           transform-style: preserve-3d;
+          /* 24.08.2026: 300 ms → 180 ms. Justin: „die Bedienung ist zäh."
+             Kurze, gezielte Übergänge; die Geste (translateZ) bleibt. */
           transition:
-            transform 300ms cubic-bezier(.32,.72,0,1),
-            box-shadow 300ms cubic-bezier(.32,.72,0,1),
-            filter 200ms;
+            transform 180ms cubic-bezier(.32,.72,0,1),
+            box-shadow 180ms cubic-bezier(.32,.72,0,1),
+            filter 150ms;
         }
         .fi-telefonknopf::after {
           content: ""; position: absolute; inset: -9px; border-radius: 999px;
           background: radial-gradient(circle, rgba(37,99,235,.30), transparent 70%);
-          opacity: 0; transition: opacity 300ms; pointer-events: none;
+          opacity: 0; transition: opacity 180ms; pointer-events: none;
         }
         .fi-telefonknopf:hover {
           transform: translateY(-5px) translateZ(30px) scale(1.07);
@@ -1998,7 +2049,8 @@ export function Softphone() {
                      onChange={(e) => setGelesen(e.target.checked)} />
               <span>Ich habe die Richtlinie gelesen und verstanden.</span>
             </label>
-            <input value={nameGetippt} onChange={(e) => setNameGetippt(e.target.value)}
+            <input value={nameGetippt}
+                   onChange={(e) => { setNameGetippt(e.target.value); setRiFehler(null); }}
                    placeholder="Dein vollständiger Name" aria-label="Vollständiger Name"
                    className="fi-tel-ri-name" autoComplete="name" />
             <button type="button" onClick={() => void richtlinieAnnehmen()}
@@ -2006,6 +2058,9 @@ export function Softphone() {
                     className="fi-tel-ri-knopf">
               Annehmen und telefonieren
             </button>
+            {/* Die Absage des Servers (z. B. falscher Name) — direkt unter dem
+                Knopf, nicht mehr als `meldung` am Fuß des Geräts. */}
+            {riFehler && <p className="fi-tel-ri-fehler" role="alert">{riFehler}</p>}
             <p className="fi-tel-ri-fuss">
               Festgehalten mit Zeitpunkt, Fassung {richtlinie.text?.version ?? "—"} und Gerätekennung.
             </p>
@@ -2067,30 +2122,37 @@ export function Softphone() {
             Schalter am Kabel. Der Agent sagt „Test" und SIEHT, ob es ankommt —
             bevor ein Kunde in der Leitung ist.
             ══════════════════════════════════════════════════════════════════ */}
-        {/* ── AM HANDY: EINE SCHMALE PEGELZEILE STATT DES GANZEN KASTENS ──
+        {/* ── DIE SCHMALE PEGELZEILE STATT DES GANZEN KASTENS ─────────────
             Der Kasten (Gerätewahl + Sprechprobe + Hinweise) kostete auf
             375 px rund 100 px Höhe — mit ihm passte die Wählansicht nicht
-            auf einen Bildschirm. Solange er nichts zu MELDEN hat
-            (`mikMuss`), zeigt das Handy nur den Balken; ein Tipp öffnet den
+            auf einen Bildschirm. Seit dem 24.08.2026 gilt das auf ALLEN
+            Breiten (vorher nur am Handy): Auch am PC musste man mit dem
+            offenen Kasten im Panel scrollen. Solange er nichts zu MELDEN
+            hat (`mikMuss`), steht nur der Balken; ein Klick öffnet den
             vollen Kasten. Sperre, Warnungen und Probenpflicht erzwingen ihn
             weiterhin von selbst — die Sicherheitslogik ist unverändert. */}
-        {mikrofon === "erlaubt" && zustand === "bereit" && schmal && !(mikroAuf || mikMuss) && (
+        {mikrofon === "erlaubt" && zustand === "bereit" && !(mikroAuf || mikMuss) && (
           <button type="button" className="fi-tel-mik-zeile"
                   onClick={() => setMikroAuf(true)}
                   aria-label="Mikrofon-Einstellungen öffnen (Gerätewahl und Sprechprobe)">
             <span className="fi-tel-pegel-marke">Mikrofon</span>
             <span className="fi-tel-pegel-bahn" aria-hidden="true">
-              <span className="fi-tel-pegel-fuellung" style={{ width: `${pegel ?? 0}%` }} />
+              {/* scaleX statt width: Eine Breitenänderung im 200-ms-Takt ist
+                  eine Dauer-Layoutrechnung im Panel — genau das „Zähe". */}
+              <span className="fi-tel-pegel-fuellung"
+                    style={{ transform: `scaleX(${(pegel ?? 0) / 100})` }} />
             </span>
             <span className="fi-tel-pegel-text">{pegelText(pegel)}</span>
           </button>
         )}
-        {mikrofon === "erlaubt" && zustand === "bereit" && (!schmal || mikroAuf || mikMuss) && (
+        {mikrofon === "erlaubt" && zustand === "bereit" && (mikroAuf || mikMuss) && (
           <div className="fi-tel-mik" data-stumm={stummVerdacht ? "1" : "0"}>
             <div className="fi-tel-pegel">
               <span className="fi-tel-pegel-marke">Mikrofon</span>
               <span className="fi-tel-pegel-bahn" aria-hidden="true">
-                <span className="fi-tel-pegel-fuellung" style={{ width: `${pegel ?? 0}%` }} />
+                {/* scaleX statt width — siehe Pegelzeile oben. */}
+                <span className="fi-tel-pegel-fuellung"
+                      style={{ transform: `scaleX(${(pegel ?? 0) / 100})` }} />
               </span>
               <span className="fi-tel-pegel-text">{pegelText(pegel)}</span>
             </div>
@@ -2179,9 +2241,10 @@ export function Softphone() {
               </span>
             </div>
             {probeFehler && <p className="fi-tel-mik-warnung">{probeFehler}</p>}
-            {/* Zuklappen nur am Handy, und nur wenn der Kasten nichts melden
-                muss — eine Warnung, die man wegklappen kann, ist keine. */}
-            {schmal && !mikMuss && (
+            {/* Zuklappen nur, wenn der Kasten nichts melden muss — eine
+                Warnung, die man wegklappen kann, ist keine. (Seit 24.08.2026
+                auch am Rechner: Dort ist die Zeile jetzt der Normalfall.) */}
+            {!mikMuss && (
               <button type="button" className="fi-tel-mik-zu-knopf"
                       onClick={() => setMikroAuf(false)}>
                 Einklappen
@@ -2372,12 +2435,20 @@ export function Softphone() {
                 Er steht ÜBER dem Anrufknopf, nicht darunter und nicht in
                 einem Hinweisfeld. Wer ihn vergisst, macht sich nach
                 § 201 StGB persönlich strafbar — das ist keine Zeile für
-                das Kleingedruckte. */}
+                das Kleingedruckte.
+
+                ── ALS AUFKLAPPER (24.08.2026, Plan §4/§11) ────────────────
+                VORHER stand der volle Satz immer offen — am PC einer der
+                Blöcke, an denen die Wählansicht über die Panelhöhe wuchs.
+                NACHHER ist er ein <details>: Am Rechner zu (die Marke
+                „Zu Beginn sagen" bleibt sichtbar, ein Klick zeigt den
+                Wortlaut), am Handy wie bisher offen — dort passte er schon.
+                Klasse und Platz über dem grünen Knopf sind unverändert. */}
             {richtlinie?.hinweisSatz && (
-              <p className="fi-tel-pflichtsatz">
-                <span className="fi-tel-pflichtsatz-marke">Zu Beginn sagen</span>
+              <details className="fi-tel-pflichtsatz" open={schmal}>
+                <summary className="fi-tel-pflichtsatz-marke">Zu Beginn sagen</summary>
                 „{richtlinie.hinweisSatz}“
-              </p>
+              </details>
             )}
 
             {/* ══════════════════════════════════════════════════════════════
@@ -2881,10 +2952,11 @@ export function Softphone() {
       <RichtlinienTafel
         offen={tafelOffen}
         daten={richtlinie}
-        name={nameGetippt} onName={setNameGetippt}
+        name={nameGetippt} onName={(v) => { setNameGetippt(v); setRiFehler(null); }}
         gelesen={gelesen} onGelesen={setGelesen}
         onZu={() => setTafelOffen(false)}
         onAnnehmen={() => void richtlinieAnnehmen()}
+        fehler={riFehler}
       />
       </div>
     </>

@@ -82,12 +82,31 @@
 //     (fiaon_persons.mandat_seit, gesetzt beim Buchen von „Mandat
 //     angenommen“), x/500. Der Bestand-Reiter trennt „Mandate (dein Bestand)“
 //     und „Zugewiesen, Mandat offen“.
+//   · E-050 (Justin 24.08., Plan §19): Pipeline und Bestand getrennt. VORHER
+//     zwei Reiter (Arbeitsliste · Mein Bestand mit 3D-Strom, Suche, Filtern,
+//     Server-Ansichten) — NACHHER ist /agent/pipeline NUR die Arbeitsliste;
+//     das Portfolio der Mandate wohnt in /agent/bestand (bestand.tsx). Diese
+//     Datei exportiert dafür Akte, Strom und den Kunde-Typ (keine Duplikate).
+//     „Kunde anlegen“ und der Warte-Hinweis blieben hier (Arbeit, kein
+//     Portfolio); die unsichtbare Liste (laden) bleibt als Datenrücken der
+//     Akte-Lade bestehen. NICHT übernommen (siehe Bericht): Server-Ansichten-
+//     Wahl, Land-/Kontakt-Filter, Suche über ALLE Zugewiesenen, Gruppe
+//     „Zugewiesen, Mandat offen“.
+//   · E-048 (Justin 23.08.): 1. Termin buchen = klickbare freie Zeiten,
+//     nichts tippen — SlotWahl (GET /agent/vertrieb/frei, dieselbe Rechnung
+//     wie die Kundenbuchung) ersetzt die Datum/Zeit-Felder in Fokus-Karte und
+//     Akte; gebucht wird weiter über POST /agent/termine. 2. Karten-Wechsel
+//     mit Animation ohne Neuladen: hinaus/herein je ~350 ms
+//     cubic-bezier(.2,.8,.2,1) mit leichter Tiefe, kleine Karten rücken per
+//     FLIP nach (useFlip), Liste füllt sich still über GET /agent/vertrieb/
+//     arbeitsliste; prefers-reduced-motion blendet nur.
 // Regel (Justin): Die erste Zahlung ist immer eine Überweisung – nirgends
 // Lastschrift. Liste: GET /agent/kunden/liste (+ filter=bezahlt für Aktive).
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "wouter";
-import { Phone, Search, X, Plus, Copy, Send, Mail, FileText, RefreshCw, Check, ExternalLink, ChevronLeft, ChevronRight, ChevronDown, MoreHorizontal } from "lucide-react";
+// E-050: Search/Plus/RefreshCw gingen mit dem Bestand-Reiter nach bestand.tsx.
+import { Phone, X, Copy, Send, Mail, FileText, Check, ExternalLink, ChevronLeft, ChevronRight, ChevronDown, MoreHorizontal } from "lucide-react";
 import { AgentShell, api, useFragen } from "./shared";
 import { useOffice } from "./OfficeShell";
 import { ToastAnbieter, useToast, eur } from "@/lib/fiaon-ui";
@@ -105,7 +124,8 @@ import "@/styles/office-pipeline.css";
 
 
 // ── Der Kunde, wie ihn /agent/kunden/liste und /agent/crm/kunden/:id liefern ──
-interface Kunde {
+// E-050: exportiert — bestand.tsx (Portfolio-Raum) nutzt dieselbe Form.
+export interface Kunde {
   karte?: { status: string | null; text: string | null; am: string | null } | null;
   personId: number;
   name: string;
@@ -405,8 +425,108 @@ function useZaehlen(ziel: number, ms = 300): number {
 }
 const euro0 = (c: number) => (c / 100).toLocaleString("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// E-048 Nr. 1: TERMIN BUCHEN = KLICKBARE FREIE ZEITEN, NICHTS TIPPEN.
+//
+// VORHER: An allen drei Stellen (Fokus-Karte „Termin einbuchen“, Situations-
+// Karte der Akte, „Mehr“-Menü → Termin buchen) standen ein Datum- und ein
+// Uhrzeit-Feld — der Mitarbeiter tippte blind und erfuhr erst nach dem
+// Abschicken, ob die Zeit in seiner Availability liegt oder belegt ist.
+// NACHHER: SlotWahl lädt GET /agent/vertrieb/frei (dieselbe Slot-Rechnung wie
+// die Kundenbuchung: rohSlots in server/lib/fiaon-termine), zeigt die Zeiten
+// als Glas-Kacheln gruppiert nach Tag (Heute · Morgen · Mi 27.08.), ein Klick
+// wählt, „Bestätigen“ bucht über den bestehenden POST /agent/termine — der
+// serverseitig erneut prüft. Schlägt die Buchung fehl (Slot inzwischen weg),
+// lädt die Auswahl neu statt den Fehler stehen zu lassen.
+// ═══════════════════════════════════════════════════════════════════════════
+interface FreiSlot { beginn: string; datum: string; uhrzeit: string; dauerMin: number }
+
+/** „Heute“ · „Morgen“ · „Mi 27.08.“ — Tage in Berliner Zeit. */
+function slotTagLabel(datum: string): string {
+  const berlin = (t: number) => new Date(t).toLocaleDateString("en-CA", { timeZone: "Europe/Berlin" });
+  if (datum === berlin(Date.now())) return "Heute";
+  if (datum === berlin(Date.now() + 86_400_000)) return "Morgen";
+  const d = new Date(`${datum}T12:00:00`);
+  return `${d.toLocaleDateString("de-DE", { weekday: "short" }).replace(".", "")} ${d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}.`;
+}
+
+function SlotWahl({ laeuft, onBuchen, onZu }: {
+  laeuft: boolean;
+  /** Bucht den Slot; false = fehlgeschlagen (Auswahl lädt dann neu). */
+  onBuchen: (beginnIso: string, label: string) => Promise<boolean>;
+  onZu: () => void;
+}) {
+  const [slots, setSlots] = useState<FreiSlot[] | null>(null);
+  const [ladeFehler, setLadeFehler] = useState<string | null>(null);
+  const [wahl, setWahl] = useState<FreiSlot | null>(null);
+  const laden = useCallback(() => {
+    setSlots(null); setLadeFehler(null); setWahl(null);
+    api("/agent/vertrieb/frei").then((r) => {
+      if (r.ok) setSlots(r.json.slots || []);
+      else setLadeFehler(r.json?.error || "Die freien Zeiten konnten nicht geladen werden.");
+    }).catch(() => setLadeFehler("Die freien Zeiten konnten nicht geladen werden."));
+  }, []);
+  useEffect(() => { laden(); }, [laden]);
+  const tage = useMemo(() => {
+    const m = new Map<string, FreiSlot[]>();
+    for (const s of slots ?? []) { if (!m.has(s.datum)) m.set(s.datum, []); m.get(s.datum)!.push(s); }
+    return Array.from(m.entries()).map(([datum, liste]) => ({ datum, label: slotTagLabel(datum), liste }));
+  }, [slots]);
+  const wahlLabel = wahl ? `${slotTagLabel(wahl.datum)}, ${wahl.uhrzeit} Uhr` : null;
+
+  return (
+    <div className="pi-termin">
+      {ladeFehler ? (
+        <p className="pi-fehler">{ladeFehler} <button type="button" className="pi-link" onClick={laden}>Erneut laden</button></p>
+      ) : slots === null ? (
+        <p className="pi-fussnote">Lade deine freien Zeiten …</p>
+      ) : slots.length === 0 ? (
+        <p className="pi-fussnote">Keine freien Zeiten – erweitere deine <Link href="/agent/arbeitszeiten">Availability</Link>.</p>
+      ) : (
+        <div className="pi-slots">
+          {tage.map((t) => (
+            <div key={t.datum} className="pi-slot-tag">
+              <b>{t.label}</b>
+              <div className="pi-slot-reihe">
+                {t.liste.map((s) => (
+                  <button key={s.beginn} type="button" className={`pi-slot${wahl?.beginn === s.beginn ? " an" : ""}`}
+                          aria-pressed={wahl?.beginn === s.beginn}
+                          onClick={() => setWahl(wahl?.beginn === s.beginn ? null : s)}>
+                    {s.uhrzeit}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="pi-slot-fuss">
+        {wahl ? (
+          <>
+            <b>{wahlLabel} · {wahl.dauerMin} Min</b>
+            <button type="button" className="pi-knopf" disabled={laeuft}
+                    onClick={async () => { if (wahl && !(await onBuchen(wahl.beginn, wahlLabel!))) laden(); }}>
+              {laeuft ? "Bucht …" : "Bestätigen"}
+            </button>
+          </>
+        ) : (slots?.length ?? 0) > 0 ? <span className="pi-fussnote">Zeit antippen, dann bestätigen.</span> : null}
+        <button type="button" className="pi-link" onClick={onZu}>Schließen</button>
+      </div>
+      <p className="pi-fussnote">Die Zeiten kommen aus deiner Availability abzüglich deiner Termine – beim Bestätigen prüft der Server erneut und blockiert den Slot.</p>
+    </div>
+  );
+}
+
+// E-048 Nr. 2 → E-051 Nr. 1 (Justin 24.08.): VORHER rückten die kleinen
+// Karten in einem RASTER per FLIP-Messung nach — NACHHER sind sie ein
+// 3D-KARUSSELL (KleinesKarussell, unten bei KleineKarte): eine Karte steht
+// immer mittig vorn, die Nachbarn perspektivisch dahinter; das Nachrücken
+// nach einem Ergebnis ist eine transform-Transition, keine Messung mehr.
+// Der FLIP-Haken (useFlip) ist damit ersatzlos entfallen.
+
 export default function AgentPipelinePage() {
-  return <AgentShell><ToastAnbieter><PipelineInnen /></ToastAnbieter></AgentShell>;
+  // E-053: Toast im Office unten mittig, dunkles Glas (ton="dunkel").
+  return <AgentShell><ToastAnbieter ton="dunkel"><PipelineInnen /></ToastAnbieter></AgentShell>;
 }
 
 // ── E-043: Die drei Gruppen der Arbeitsliste (Serverfeld: priority_tier) ────
@@ -422,8 +542,13 @@ function PipelineInnen() {
   useEffect(() => { dunkel(true); titel("Pipeline"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const fragen = useFragen();
 
-  // ── Reiter: Arbeitsliste (Start) · Mein Bestand (3D-Strom) ──────────────
-  const [tab, setTab] = useState<"arbeit" | "bestand">("arbeit");
+  // ── E-050 (Plan §19): VORHER zwei Reiter (Arbeitsliste · Mein Bestand mit
+  //    3D-Strom, Suche, Filtern, Server-Ansichten) — NACHHER ist /agent/
+  //    pipeline NUR noch die Arbeitsliste; das Portfolio der Mandate wohnt im
+  //    neuen Raum /agent/bestand (bestand.tsx), der Akte und Strom von hier
+  //    importiert. Die Liste (laden) bleibt UNSICHTBAR bestehen: Die Akte-Lade
+  //    (?person=) braucht die zusammengeführten Daten (inkl. Raten aus
+  //    /inkasso/liste) weiterhin. ─────────────────────────────────────────────
   // Arbeitsliste (E-043): genau 6 Slots vom Server.
   const [slots, setSlots] = useState<Slot[]>([]);
   const [slotsZaehler, setSlotsZaehler] = useState<Record<string, number>>({});
@@ -432,38 +557,29 @@ function PipelineInnen() {
   const [fokusId, setFokusId] = useState<number | null>(null);
   const [geht, setGeht] = useState<Set<number>>(new Set());
   const [meldungA, setMeldungA] = useState<{ art: "gut" | "schlecht" | "info"; text: string } | null>(null);
-  // Mein Bestand
+  // Datenrücken für die Akte (unsichtbar, siehe Kommentar oben)
   const [liste, setListe] = useState<Kunde[]>([]);
   const [zaehler, setZaehler] = useState<Zaehler>({});
   const [erledigt, setErledigt] = useState<Set<number>>(new Set());
   const [laedt, setLaedt] = useState(true);
-  const [fehler, setFehler] = useState<string | null>(null);
-  const [ansicht, setAnsicht] = useState("alle");
-  const [sort, setSort] = useState("arbeit");
-  const [suche, setSuche] = useState("");
+  const [ansicht] = useState("alle");
+  const [sort] = useState("arbeit");
+  const [suche] = useState("");
   const [nurPerson, setNurPerson] = useState<number | null>(null);
   const [rolle, setRolle] = useState<string>("agent");
   const [satz, setSatz] = useState(0.25);
-  const [stufe, setStufe] = useState<Hitze | "alle">("alle");
-  const [land, setLand] = useState("");
-  const [kontakt, setKontakt] = useState<"alle" | "heute" | "3" | "7" | "nie">("alle");
-  const [nurRueckruf, setNurRueckruf] = useState(false);
   const [anlageOffen, setAnlageOffen] = useState(false);
-  const [aktiv, setAktiv] = useState(0);
-  const [ratenQuelle, setRatenQuelle] = useState<"ok" | "leer" | "keine">("keine");
   // §16a: Nur übernommene Mandate zählen als „Aktive Kunden“ (mandat_seit).
   const [mandate, setMandate] = useState<{ anzahl: number; ids: Set<number> }>({ anzahl: 0, ids: new Set() });
-  const [mandatFilter, setMandatFilter] = useState<"alle" | "mandat" | "offen">("alle");
   const [offen, setOffen] = useState<number | null>(null);
   const [fremd, setFremd] = useState<Kunde | null>(null);
-  const handy = useMedia("(max-width: 700px)");
   const ruhig = useMedia("(prefers-reduced-motion: reduce)");
+  const handy = useMedia("(max-width: 700px)"); // E-051: Karussell → Wisch-Reihe am Handy
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
-    const f = p.get("filter");
-    if (f && ANSICHTEN.some((x) => x.key === f)) { setAnsicht(f); setTab("bestand"); }
-    if (p.get("tab") === "bestand") setTab("bestand");
+    // E-050: `?filter=`/`?tab=bestand` steuerten den entfernten Bestand-Reiter —
+    // sie werden ignoriert; der Bestand wohnt unter /agent/bestand.
     const person = p.get("person");
     if (person && Number(person) > 0) { setOffen(Number(person)); setNurPerson(Number(person)); }
     api("/agent/provision-satz").then((r) => { if (r.ok && r.json?.satz) setSatz(Number(r.json.satz)); }).catch(() => {});
@@ -501,14 +617,12 @@ function PipelineInnen() {
     const man = await api(`/agent/vertrieb/mandate`).catch(() => null);
     if (man?.ok) setMandate({ anzahl: Number(man.json.anzahl || 0), ids: new Set<number>((man.json.ids || []).map(Number)) });
     if (r.ok) {
-      setFehler(null);
       if (!nurZaehler) {
         const haupt: Kunde[] = r.json.kunden || [];
         const ids = new Set(haupt.map((k) => k.personId));
         const extra: Kunde[] = b?.ok ? (b.json.kunden || []).filter((k: Kunde) => !ids.has(k.personId)) : [];
         const zusammen = [...haupt, ...extra];
         if (ink?.ok && Array.isArray(ink.json?.personen)) {
-          setRatenQuelle(ink.json.personen.length > 0 ? "ok" : "leer");
           ink.json.personen.forEach((pers: any, i: number) => {
             const d = pers.dringendste || pers.raten?.[0] || {};
             const felder = {
@@ -546,14 +660,15 @@ function PipelineInnen() {
               stammdaten: null, zahlung: null, ...felder,
             });
           });
-        } else if (mitAktiven) setRatenQuelle("keine");
+        }
         setListe(zusammen);
         setErledigt(new Set());
-        setAktiv(0);
       }
       setZaehler({ ...(r.json.zaehler ?? {}), ...(r.json.zaehlerUeberschrieben ?? {}) });
       setRolle(r.json.rolle ?? "agent");
-    } else setFehler(r.json?.error || "Die Pipeline konnte nicht geladen werden.");
+    }
+    // E-050: Ein Fehler der (unsichtbaren) Liste bleibt still — die Akte
+    // fällt dann auf /agent/crm/kunden/:id zurück (fremd).
     setLaedt(false);
   }, [ansicht, sort, suche, nurPerson]);
 
@@ -614,10 +729,13 @@ function PipelineInnen() {
     });
     if (!r.ok) { setMeldungA({ art: "schlecht", text: r.json?.error || "Nicht gespeichert. Bitte erneut versuchen." }); return false; }
     setMeldungA({ art: "gut", text: r.json?.meldung || "Gespeichert." });
-    // Karte gleitet hinaus, der nächste rückt nach (Server füllt die 6 Slots neu).
+    // E-048 Nr. 2: Karte gleitet hinaus (piGeht, 350 ms), erst DANACH füllt
+    // der Server die 6 Slots leise nach — kein Neuladen, kein Flackern; die
+    // kleinen Karten rücken per FLIP nach (useFlip). VORHER 420 ms auf eine
+    // 400-ms-Animation — NACHHER 380 ms auf 350 ms, dieselbe Reserve.
     setGeht((g) => new Set(g).add(k.personId));
     setFokusId(null);
-    window.setTimeout(() => { void arbeitslisteLaden(true); void laden(true, true); }, 420);
+    window.setTimeout(() => { void arbeitslisteLaden(true); void laden(true, true); }, 380);
     return true;
   };
   const karteileiche = async (k: Kunde) => {
@@ -630,61 +748,15 @@ function PipelineInnen() {
     await ergebnisSchnell(k, "erreicht_abgelehnt", "Karteileiche – aus dem Vertrieb entfernt (Sperre, kein Löschen).");
   };
 
-  // ── Zahlen für die Umsatz-Leiste (aus dem Bestand) ──────────────────────
-  const jeStufe = useMemo(() => {
-    const z: Record<Hitze, number> = { heiss: 0, rate: 0, warm: 0, lead: 0, aktiv: 0 };
-    for (const k of liste) z[stufeVon(k)]++;
-    return z;
-  }, [liste]);
+  // ── Zahlen für die Umsatz-Leiste ────────────────────────────────────────
   // §16a: VORHER zählten hier alle bezahlten/zugewiesenen Kunden – NACHHER nur Mandate.
+  // E-051 Nr. 2: Der Motivationssatz („mottoCents“) ist mit der Hebel-Zeile entfallen.
   const aktive = mandate.anzahl;
-  // Motivationssatz: 5 Mandate/Tag × 21 Arbeitstage × (Ø-Rate × Satz + 10 € SCHUFA-Bonus).
-  const mottoCents = useMemo(() => {
-    const n = Object.values(MIX_MOTTO).reduce((a, b) => a + b, 0) || 1;
-    const avg = Object.entries(MIX_MOTTO).reduce((sum, [key, c]) => sum + (PAKETE.find((x) => x.key === key)?.preisCents ?? 0) * c, 0) / n;
-    return Math.round(5 * 21 * (avg * satz + SCHUFA_BONUS_CENTS));
-  }, [satz]);
   const zAktive = useZaehlen(aktive);
 
-  // ── Der Bestand-Strom: gefiltert, nach Hitze ────────────────────────────
-  const laender = useMemo(() => Array.from(new Set(liste.map((k) => k.stammdaten?.land).filter(Boolean) as string[])).sort(), [liste]);
-  const strom = useMemo(() => {
-    const f = liste.filter((k) => {
-      if (stufe !== "alle" && stufeVon(k) !== stufe) return false;
-      if (land && k.stammdaten?.land !== land) return false;
-      if (kontakt !== "alle") {
-        const t = kontaktTage(k.letzterKontakt);
-        if (kontakt === "nie" && t != null) return false;
-        if (kontakt === "heute" && (t == null || t > 0)) return false;
-        if (kontakt === "3" && (t == null || t < 3)) return false;
-        if (kontakt === "7" && (t == null || t < 7)) return false;
-      }
-      if (nurRueckruf && !rueckrufFaellig(k)) return false;
-      // §16a: Bestand nach Mandat trennen – übernommene Mandate vs. nur zugewiesen.
-      if (mandatFilter === "mandat" && !mandate.ids.has(k.personId)) return false;
-      if (mandatFilter === "offen" && mandate.ids.has(k.personId)) return false;
-      return true;
-    });
-    if (sort !== "arbeit") return f;
-    return [...f].sort((a, b) => (Number(erledigt.has(a.personId)) - Number(erledigt.has(b.personId))) || vergleich(a, b));
-  }, [liste, stufe, land, kontakt, nurRueckruf, sort, erledigt, mandatFilter, mandate.ids]);
-  useEffect(() => { if (aktiv > strom.length - 1) setAktiv(Math.max(0, strom.length - 1)); }, [strom.length, aktiv]);
-
+  // E-050: Stufen-Chips, Filter, 3D-Strom und Tastatur-Blättern sind mit dem
+  // Bestand-Reiter nach /agent/bestand umgezogen (bestand.tsx).
   const geoeffnet = useMemo(() => liste.find((k) => k.personId === offen) || slots.find((s) => s.kunde.personId === offen)?.kunde || fremd || null, [liste, slots, offen, fremd]);
-
-  // Tastatur nur im Bestand-Reiter: Pfeile blättern den Strom, Enter öffnet die Akte.
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => {
-      if (offen || tab !== "bestand") return;
-      const ziel = e.target as HTMLElement | null;
-      if (ziel && /^(INPUT|TEXTAREA|SELECT)$/.test(ziel.tagName)) return;
-      if (e.key === "ArrowRight") { setAktiv((a) => Math.min(strom.length - 1, a + 1)); e.preventDefault(); }
-      if (e.key === "ArrowLeft") { setAktiv((a) => Math.max(0, a - 1)); e.preventDefault(); }
-      if (e.key === "Enter" && strom[aktiv]) oeffnen(strom[aktiv].personId);
-    };
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  }, [offen, tab, strom, aktiv]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Arbeitsliste: Fokus = gewählter Slot, sonst der erste ───────────────
   const fokusSlot = useMemo(() => slots.find((s) => s.kunde.personId === fokusId) ?? slots[0] ?? null, [slots, fokusId]);
@@ -696,27 +768,44 @@ function PipelineInnen() {
           erreichbar“, „Dein Hebel“ (groß), „Aktive Kunden“. NACHHER (Justin):
           nur noch „Aktive Kunden x/500“; der Hebel steht als schmale Zeile
           unter der Arbeitsliste. */}
+      {/* E-050: VORHER trug die Leiste nur die Zahl — NACHHER verlinkt sie in
+          den neuen Bestand-Raum (/agent/bestand), denn dort WOHNT das
+          Portfolio jetzt. Daneben: „Kunde anlegen“ (blieb beim Umzug hier,
+          weil ein neuer Kunde Arbeit ist, kein Mandat). */}
       <section className="pi-umsatz schmal">
         <div className="pi-umsatz-zahl">
           <small>Aktive Kunden · Mandate</small>
           <b>{laedt ? "–" : Math.round(zAktive)}<em> / {MAX_AKTIV}</em></b>
           <span>{aktive >= MAX_AKTIV ? "Bestand voll – Kunden an Kollegen übergeben" : "nur übernommene Mandate zählen – Zuweisung allein nicht"}</span>
           <i className="pi-umsatz-balken"><i style={{ width: `${Math.min(100, (aktive / MAX_AKTIV) * 100)}%` }} /></i>
+          <span className="pi-umsatz-links">
+            <Link href="/agent/bestand" className="pi-link">Zum Bestand → dein Portfolio</Link>
+            <button type="button" className="pi-link" onClick={() => setAnlageOffen((v) => !v)}>{anlageOffen ? "Anlage schließen" : "+ Kunde anlegen"}</button>
+          </span>
         </div>
       </section>
+      {anlageOffen && (
+        <div style={{ display: "grid", gap: 6 }}>
+          {/* Helle Einlage, bewusst gerahmt: KundeAnlegen ist die geprüfte
+              Anlage-Strecke (anlegen → Zahlungsdaten → Termin) und bleibt
+              vorerst hell — Rest, siehe Bericht. */}
+          <p className="pi-fussnote">Kunde anlegen öffnet die geprüfte Anlage-Strecke:</p>
+          <div className="pi-hell"><KundeAnlegen offen={anlageOffen} aufKlappen={setAnlageOffen} fertig={() => { void laden(true); void arbeitslisteLaden(true); }} /></div>
+        </div>
+      )}
+      {/* Der Warte-Hinweis (Banner) blieb beim Umzug hier — er betrifft die
+          Arbeit, nicht das Portfolio. VORHER sprang er in die Server-Ansicht
+          „nicht_erreicht“ des entfernten Bestand-Reiters — NACHHER reine Info. */}
+      {(zaehler.wartet ?? 0) > 0 && (
+        <div className="pi-hinweis" style={{ cursor: "default" }}>
+          <span className="zahl">{zaehler.wartet}</span>
+          <span><b>{zaehler.wartet === 1 ? "Einer wartet auf seinen Termin" : `${zaehler.wartet} warten auf ihren Termin`}</b><small>Nicht erreicht – sie haben den Buchungslink und wählen selbst. Nicht erneut anrufen.</small></span>
+        </div>
+      )}
 
-      {/* Reiter */}
-      <div className="pi-tabs" role="tablist">
-        <button type="button" role="tab" aria-selected={tab === "arbeit"} className={`pi-tab${tab === "arbeit" ? " an" : ""}`} onClick={() => setTab("arbeit")}>
-          Arbeitsliste<em>{slots.length}</em>
-        </button>
-        <button type="button" role="tab" aria-selected={tab === "bestand"} className={`pi-tab${tab === "bestand" ? " an" : ""}`} onClick={() => setTab("bestand")}>
-          Mein Bestand<em>{liste.length}</em>
-        </button>
-      </div>
-
-      {tab === "arbeit" && (
-        <>
+      {/* E-050: VORHER zwei Reiter (Arbeitsliste · Mein Bestand) — NACHHER ist
+          diese Seite NUR die Arbeitsliste; der Bestand wohnt in /agent/bestand. */}
+      <>
           {meldungA && <p className={`pi-meldung ${meldungA.art === "gut" ? "gut" : meldungA.art === "schlecht" ? "schlecht" : ""}`}>{meldungA.text}</p>}
           {slotsFehler && <p className="pi-fehler">{slotsFehler}</p>}
           {slotsLaedt ? (
@@ -743,114 +832,25 @@ function PipelineInnen() {
                 {/* E-047 (Justin, Screenshot): Trenner zwischen JETZT und DANACH —
                   animierte Zeile „Deine nächsten Kunden“, Linien beidseits. */}
               <div className="pi-trenner"><span className="linie" aria-hidden="true" /><b>Deine nächsten Kunden</b><span className="linie" aria-hidden="true" /></div>
-              <div className="pi-arbeit-klein">
-                  {kleine.map((s) => (
-                    <KleineKarte key={s.kunde.personId} k={s.kunde} gruppe={s.gruppe} geht={geht.has(s.kunde.personId)}
-                                 onFokus={() => setFokusId(s.kunde.personId)}
-                                 onAkte={() => oeffnen(s.kunde.personId)}
-                                 onEntfernen={() => void karteileiche(s.kunde)} />
-                  ))}
-                </div>
-                <p className="pi-fussnote">
-                  Höchstens 6 auf einmal – je 2 „{GRUPPE_INFO.bezahlt_gemeldet.name}“ ({slotsZaehler.bezahlt_gemeldet ?? 0}),
-                  „{GRUPPE_INFO.rechnung_offen.name}“ ({slotsZaehler.rechnung_offen ?? 0}),
-                  „{GRUPPE_INFO.lead.name}“ ({slotsZaehler.lead ?? 0}). Erledigt = der nächste rückt sofort nach.
-                </p>
+              {/* E-051 Nr. 1 (Justin): VORHER ein 2-spaltiges Raster (FLIP) —
+                  NACHHER ein 3D-Karussell: eine Karte mittig vorn, Nachbarn
+                  perspektivisch dahinter; Pfeile, Wischen, Tastatur; Klick auf
+                  die Mitte holt sie in den Fokus. Handy/reduced-motion: flache
+                  Wisch-Reihe mit Scroll-Snap. */}
+              <KleinesKarussell kinder={kleine} geht={geht} gesperrt={offen != null} flach={handy || ruhig}
+                                onFokus={(id) => setFokusId(id)}
+                                onAkte={(id) => oeffnen(id)}
+                                onEntfernen={(k) => void karteileiche(k)} />
               </div>
             </section>
           )}
-          {/* E-047: VORHER stand rechts neben der Fokus-Karte NUR der Leitfaden
-              der aktuellen Situation. NACHHER (Justin): eine dezente LEGENDE
-              mit ALLEN Leitfäden ganz unten — siehe LeitfadenLegende. */}
-          {/* VORHER: „Dein Hebel“ als große Kachel oben. NACHHER (Justin):
-              schmale, ruhige Zeile unter der Arbeitsliste — Zusammenwachsen
-              statt Tageswert. */}
-          <p className="pi-hebel">
-            Jeden Tag 5 Mandate – und dein Gehalt wächst von selbst: im ersten Monat <b>{euro0(mottoCents)}</b>,
-            mit wachsendem Bestand jeden Monat mehr, weil jedes Mandat 12 Raten zahlt.
-            {" "}<Link href="/agent/gehalt">Rechne selbst → Earnings</Link>
-          </p>
+          {/* E-051 Nr. 2 (Justin): VORHER standen hier die Fußzeile
+              „Höchstens 6 auf einmal – je 2 …“ und die Hebel-Zeile
+              („Jeden Tag 5 Mandate … Rechne selbst → Earnings“) — NACHHER
+              beide entfernt; die Leitfäden-Legende ist das einzige Element
+              unter der Arbeitsliste. */}
           <LeitfadenLegende aktiv={fokusSlot ? (GRUPPE_INFO[fokusSlot.gruppe]?.stufe ?? null) : null} />
-        </>
-      )}
-
-      {tab === "bestand" && (
-        <>
-          {fehler && <p className="pi-fehler">{fehler}</p>}
-          {/* §16a: zwei Gruppen im Bestand – Mandate und „Zugewiesen, Mandat offen“ */}
-          <div className="pi-tabs" role="group" aria-label="Mandate">
-            <button type="button" className={`pi-tab${mandatFilter === "alle" ? " an" : ""}`} onClick={() => setMandatFilter("alle")}>Alle<em>{liste.length}</em></button>
-            <button type="button" className={`pi-tab${mandatFilter === "mandat" ? " an" : ""}`} onClick={() => setMandatFilter("mandat")}>Mandate · dein Bestand<em>{liste.filter((x) => mandate.ids.has(x.personId)).length}</em></button>
-            <button type="button" className={`pi-tab${mandatFilter === "offen" ? " an" : ""}`} onClick={() => setMandatFilter("offen")}>Zugewiesen, Mandat offen<em>{liste.filter((x) => !mandate.ids.has(x.personId)).length}</em></button>
-          </div>
-          <section className="pi-stufen">
-            <button type="button" className={`pi-stufe-chip${stufe === "alle" ? " an" : ""}`} onClick={() => setStufe("alle")}><b>{liste.length}</b><span>Alle</span></button>
-            {STUFEN_REIHE.map((s) => (
-              <button key={s} type="button" className={`pi-stufe-chip${stufe === s ? " an" : ""}`} style={{ ["--hitze" as string]: STUFE[s].farbe }} onClick={() => setStufe(stufe === s ? "alle" : s)}>
-                <i className="pi-glut" />
-                <b>{jeStufe[s]}</b><span>{STUFE[s].name}</span>
-              </button>
-            ))}
-          </section>
-
-          <section className="pi-leiste">
-            <label className="pi-suche">
-              <Search size={15} strokeWidth={1.75} />
-              <input value={suche} onChange={(e) => setSuche(e.target.value)} placeholder="Name, E-Mail, Nummer, Referenz" />
-              {suche && <button type="button" className="pi-link" onClick={() => setSuche("")} aria-label="Suche leeren"><X size={14} /></button>}
-            </label>
-            <label className={`pi-feld${land ? " an" : ""}`}>Land
-              <select value={land} onChange={(e) => setLand(e.target.value)}><option value="">alle</option>{laender.map((l) => <option key={l} value={l}>{LAND_NAME[l] || l}</option>)}</select>
-            </label>
-            <label className={`pi-feld${kontakt !== "alle" ? " an" : ""}`}>Kontakt
-              <select value={kontakt} onChange={(e) => setKontakt(e.target.value as typeof kontakt)}>
-                <option value="alle">egal</option><option value="heute">heute</option><option value="3">3+ Tage her</option><option value="7">7+ Tage her</option><option value="nie">noch nie</option>
-              </select>
-            </label>
-            <label className={`pi-feld pi-schalter${nurRueckruf ? " an" : ""}`}><input type="checkbox" checked={nurRueckruf} onChange={(e) => setNurRueckruf(e.target.checked)} /> Rückruf fällig</label>
-            <label className={`pi-feld${ansicht !== "alle" ? " an" : ""}`}>Ansicht
-              <select value={ansicht} onChange={(e) => { setAnsicht(e.target.value); setStufe("alle"); }}>
-                {ANSICHTEN.map((f) => <option key={f.key} value={f.key}>{f.label}{zaehler[f.key] != null ? ` (${zaehler[f.key]})` : ""}</option>)}
-              </select>
-            </label>
-            <label className="pi-feld">Sortierung
-              <select value={sort} onChange={(e) => setSort(e.target.value)}>{SORT.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}</select>
-            </label>
-            <span className="pi-leiste-rechts">
-              <button type="button" className="pi-knopf still klein" onClick={() => void laden()} title="Neu laden"><RefreshCw size={14} strokeWidth={1.75} />{erledigt.size > 0 ? ` ${erledigt.size} neu ordnen` : ""}</button>
-              <button type="button" className="pi-knopf klein" onClick={() => setAnlageOffen((v) => !v)}><Plus size={14} strokeWidth={1.75} /> Kunde anlegen</button>
-            </span>
-          </section>
-          {anlageOffen && (
-            <div style={{ display: "grid", gap: 6 }}>
-              {/* Helle Einlage, bewusst gerahmt: KundeAnlegen ist die geprüfte
-                  Anlage-Strecke (anlegen → Zahlungsdaten → Termin) und bleibt
-                  vorerst hell — Rest, siehe Bericht. */}
-              <p className="pi-fussnote">Kunde anlegen öffnet die geprüfte Anlage-Strecke:</p>
-              <div className="pi-hell"><KundeAnlegen offen={anlageOffen} aufKlappen={setAnlageOffen} fertig={() => { void laden(true); void arbeitslisteLaden(true); }} /></div>
-            </div>
-          )}
-          {(zaehler.wartet ?? 0) > 0 && ansicht !== "nicht_erreicht" && (
-            <button type="button" className="pi-hinweis" onClick={() => setAnsicht("nicht_erreicht")}>
-              <span className="zahl">{zaehler.wartet}</span>
-              <span><b>{zaehler.wartet === 1 ? "Einer wartet auf seinen Termin" : `${zaehler.wartet} warten auf ihren Termin`}</b><small>Nicht erreicht – sie haben den Buchungslink und wählen selbst. Nicht erneut anrufen.</small></span>
-            </button>
-          )}
-          {/* E-045: VORHER hieß es hier „kommt mit dem Zahlungsmotor“ – die
-              Collections-Wand ist offen, jeder sieht die Raten seiner Kunden. */}
-          {stufe === "rate" && ratenQuelle !== "ok" && (
-            <div className="pi-hinweis blau" style={{ cursor: "default" }}>
-              <span><b>{ratenQuelle === "leer" ? "Keine Rate überfällig – stark." : "Die überfälligen Raten sind gerade nicht abrufbar."}</b>
-                <small>{ratenQuelle === "leer" ? "Sobald eine Rate deiner Kunden überfällig ist, steht sie hier – mit 50 % Bonus je zurückgeholter Rate." : "Lade neu – sobald der Server antwortet, stehen die Raten deiner Kunden hier."}</small></span>
-            </div>
-          )}
-
-          <Strom liste={strom} aktiv={aktiv} setAktiv={setAktiv} erledigt={erledigt} onAkte={(id) => oeffnen(id)} flach={handy || ruhig} ruhig={ruhig} laedt={laedt} />
-          {!laedt && liste.length > 0 && (
-            <p className="pi-fussnote">Dein Bestand: bis zu {MAX_AKTIV} übernommene Mandate ({mandate.anzahl} aktuell) plus alles Zugewiesene ohne Mandat. Gearbeitet wird in der Arbeitsliste – hier suchst und findest du.</p>
-          )}
-        </>
-      )}
+      </>
 
       {offen && (
         <>
@@ -863,8 +863,9 @@ function PipelineInnen() {
                   onZaehler={() => { void laden(true, true); void arbeitslisteLaden(true); }} />
           ) : (
             <aside className="pi-lade" role="dialog" aria-modal="true">
-              <div className="pi-lade-kopf"><span /><h2>{laedt ? "Lade …" : "Akte nicht gefunden"}</h2>
-                <button type="button" className="pi-lade-zu" onClick={() => oeffnen(null)} aria-label="Schließen"><X size={18} /></button></div>
+              {/* E-049 Nr. 1: Kopf im selben sticky Glas-Block wie in der vollen Akte. */}
+              <div className="pi-lade-fest"><div className="pi-lade-kopf"><span /><h2>{laedt ? "Lade …" : "Akte nicht gefunden"}</h2>
+                <button type="button" className="pi-lade-zu" onClick={() => oeffnen(null)} aria-label="Schließen"><X size={18} /></button></div></div>
               {!laedt && <div className="pi-lade-koerper"><p className="pi-fussnote">Dieser Kunde gehört nicht zu deinem Bestand oder die Kennung stimmt nicht.</p></div>}
             </aside>
           )}
@@ -901,8 +902,8 @@ function ArbeitsFokus({ k, gruppe, satz, geht, onAkte, onErgebnis, onEntfernen, 
   const [laeuft, setLaeuft] = useState<string | null>(null);
   const [negativOffen, setNegativOffen] = useState(false);
   const [terminOffen, setTerminOffen] = useState(false);
-  const [datum, setDatum] = useState(tagPlus(1));
-  const [zeit, setZeit] = useState("10:00");
+  // E-048 Nr. 1: VORHER eigene datum/zeit-Felder (Freitext) — NACHHER wählt
+  // SlotWahl einen echten freien Slot; hier bleibt nur das Ergebnis.
   const [gebucht, setGebucht] = useState<string | null>(null);
   const [bestaetigen, setBestaetigen] = useState(false);
   const [sendeFehler, setSendeFehler] = useState<string | null>(null);
@@ -913,15 +914,18 @@ function ArbeitsFokus({ k, gruppe, satz, geht, onAkte, onErgebnis, onEntfernen, 
     || (!!k.termin && !k.termin.erledigt && new Date(k.termin.beginn).getTime() > Date.now())
     || (!!k.terminAm && new Date(k.terminAm).getTime() > Date.now());
 
-  const terminBuchen = async () => {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(datum) || !/^\d{2}:\d{2}$/.test(zeit)) { melden("schlecht", "Bitte Datum und Uhrzeit angeben."); return; }
+  // E-048 Nr. 1: VORHER baute die Funktion `${datum}T${zeit}:00` aus zwei
+  // Freitext-Feldern — NACHHER kommt der Beginn als ISO-Zeitpunkt eines echten
+  // freien Slots aus SlotWahl; der Server (POST /agent/termine) prüft erneut.
+  const terminBuchen = async (beginnIso: string, label: string): Promise<boolean> => {
     setLaeuft("termin");
-    const r = await api("/agent/termine", { method: "POST", body: JSON.stringify({ personId: k.personId, beginn: `${datum}T${zeit}:00` }) });
+    const r = await api("/agent/termine", { method: "POST", body: JSON.stringify({ personId: k.personId, beginn: beginnIso }) });
     setLaeuft(null);
-    if (!r.ok) { melden("schlecht", r.json?.error || "Der Termin konnte nicht gebucht werden."); return; }
-    const text = `${r.json.termin?.datumText ?? datum}, ${r.json.termin?.uhrzeit ?? zeit} Uhr`;
+    if (!r.ok) { melden("schlecht", r.json?.error || "Der Termin konnte nicht gebucht werden."); return false; }
+    const text = r.json.termin?.datumText ? `${r.json.termin.datumText}, ${r.json.termin.uhrzeit} Uhr` : label;
     setGebucht(text); setTerminOffen(false);
     melden("gut", `Termin gebucht: ${text}. Der Slot ist blockiert, die Bestätigung geht an den Kunden.`);
+    return true;
   };
   const zugaengeSenden = async () => {
     if (!(await fragen({ titel: `Zugänge („Willkommen und Zugang“) an ${k.name} senden?`, ja: "Senden" }))) return;
@@ -1014,16 +1018,9 @@ function ArbeitsFokus({ k, gruppe, satz, geht, onAkte, onErgebnis, onEntfernen, 
         </button>
       </div>
 
+      {/* E-048 Nr. 1: VORHER Datum-/Uhrzeit-Freitext — NACHHER klickbare freie Zeiten. */}
       {terminOffen && (
-        <div className="pi-termin">
-          <div className="pi-reihe">
-            <input type="date" className="pi-eingabe" style={{ flex: "0 0 160px" }} value={datum} min={heuteIso()} onChange={(e) => setDatum(e.target.value)} aria-label="Datum" />
-            <input type="time" className="pi-eingabe" style={{ flex: "0 0 110px" }} value={zeit} step={900} onChange={(e) => setZeit(e.target.value)} aria-label="Uhrzeit" />
-            <button type="button" className="pi-knopf" disabled={laeuft === "termin"} onClick={() => void terminBuchen()}>{laeuft === "termin" ? "Bucht …" : "Termin buchen"}</button>
-            <button type="button" className="pi-link" onClick={() => setTerminOffen(false)}>Schließen</button>
-          </div>
-          <p className="pi-fussnote">Der Slot kommt aus deiner Availability und wird echt blockiert – liegt er außerhalb oder ist er belegt, lehnt der Server ab.</p>
-        </div>
+        <SlotWahl laeuft={laeuft === "termin"} onBuchen={terminBuchen} onZu={() => setTerminOffen(false)} />
       )}
       {hatTermin && (
         <p className="pi-fokus-erinnerung">Erinnere den Kunden: Rechnung vor dem Termin begleichen → im Gespräch wird direkt aktiviert.{gebucht ? ` (Termin: ${gebucht})` : ""} Danach: „Mandat angenommen“ buchen.</p>
@@ -1085,6 +1082,95 @@ function KleineKarte({ k, gruppe, geht, onFokus, onAkte, onEntfernen }: {
         <button type="button" className="pi-knopf still klein" onClick={onAkte}><FileText size={13} strokeWidth={1.75} /></button>
         <button type="button" className="pi-link" style={{ color: "#64748b", fontSize: 11 }} onClick={onEntfernen} title="Karteileiche? Sperren statt löschen – mit Rückfrage.">Entfernen</button>
       </span>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E-051 Nr. 1 (Justin 24.08.): „Deine nächsten Kunden“ als 3D-KARUSSELL.
+//
+// VORHER: ein 2-spaltiges Raster (.pi-arbeit-klein) mit FLIP-Nachrücken.
+// NACHHER: Eine Karte steht IMMER mittig vorn (groß, scharf), die Nachbarn
+// links/rechts perspektivisch dahinter (rotateY/translateZ/scale, gedimmt).
+// Pfeile + Wischen + Pfeiltasten blättern; Klick auf eine Seitenkarte holt
+// sie in die Mitte, Klick auf die Mitte holt den Kunden nach vorn in den
+// Fokus (onFokus, wie bisher der Raster-Klick). Nach einem Ergebnis ändern
+// sich die Indizes und die Karten GLEITEN auf ihre neuen Plätze (transition
+// auf transform, 350 ms, dieselbe Kurve wie piGeht/piTief). `flach` (Handy
+// oder prefers-reduced-motion): flache Wisch-Reihe mit Scroll-Snap, die
+// Mitte zentriert — keine 3D-Bewegung.
+// ═══════════════════════════════════════════════════════════════════════════
+function KleinesKarussell({ kinder, geht, gesperrt, flach, onFokus, onAkte, onEntfernen }: {
+  kinder: Slot[]; geht: Set<number>; gesperrt: boolean; flach: boolean;
+  onFokus: (id: number) => void; onAkte: (id: number) => void; onEntfernen: (k: Kunde) => void;
+}) {
+  const [mitte, setMitte] = useState(0);
+  const touch = useRef<{ x: number; t: number } | null>(null);
+  const flachRef = useRef<HTMLDivElement | null>(null);
+  // Rückt ein Kunde nach oder geht einer, bleibt die Mitte im gültigen Bereich.
+  useEffect(() => { setMitte((m) => Math.min(m, Math.max(0, kinder.length - 1))); }, [kinder.length]);
+  const vor = () => setMitte((m) => Math.min(kinder.length - 1, m + 1));
+  const zurueck = () => setMitte((m) => Math.max(0, m - 1));
+  // Pfeiltasten blättern das Karussell — nur solange keine Akte offen ist.
+  useEffect(() => {
+    if (flach) return;
+    const h = (e: KeyboardEvent) => {
+      if (gesperrt) return;
+      const ziel = e.target as HTMLElement | null;
+      if (ziel && /^(INPUT|TEXTAREA|SELECT)$/.test(ziel.tagName)) return;
+      if (e.key === "ArrowRight") { setMitte((m) => Math.min(kinder.length - 1, m + 1)); e.preventDefault(); }
+      if (e.key === "ArrowLeft") { setMitte((m) => Math.max(0, m - 1)); e.preventDefault(); }
+    };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [gesperrt, flach, kinder.length]);
+
+  if (kinder.length === 0) return null;
+
+  const karte = (s: Slot) => (
+    <KleineKarte k={s.kunde} gruppe={s.gruppe} geht={geht.has(s.kunde.personId)}
+                 onFokus={() => onFokus(s.kunde.personId)}
+                 onAkte={() => onAkte(s.kunde.personId)}
+                 onEntfernen={() => onEntfernen(s.kunde)} />
+  );
+
+  if (flach) {
+    return (
+      <div className="pi-kar-flach" ref={flachRef}>
+        {kinder.map((s) => <div key={s.kunde.personId} className="pi-kar-flach-zelle">{karte(s)}</div>)}
+      </div>
+    );
+  }
+
+  const touchStart = (e: React.TouchEvent) => { touch.current = { x: e.touches[0].clientX, t: Date.now() }; };
+  const touchEnd = (e: React.TouchEvent) => {
+    if (!touch.current) return;
+    const dx = e.changedTouches[0].clientX - touch.current.x;
+    if (Math.abs(dx) > 40 && Date.now() - touch.current.t < 600) { if (dx < 0) vor(); else zurueck(); }
+    touch.current = null;
+  };
+  return (
+    <div className="pi-kar" onTouchStart={touchStart} onTouchEnd={touchEnd}>
+      <button type="button" className="pi-lade-zu pi-kar-pfeil" onClick={zurueck} disabled={mitte <= 0} aria-label="vorherige Karte"><ChevronLeft size={18} /></button>
+      <div className="pi-kar-buehne">
+        {kinder.map((s, i) => {
+          const d = i - mitte; const ad = Math.abs(d);
+          return (
+            <div key={s.kunde.personId} className={`pi-kar-zelle${d === 0 ? " mitte" : ""}`}
+                 style={{
+                   transform: `translate(-50%,-50%) translateX(${d * 190}px) translateZ(${-ad * 130}px) rotateY(${d > 0 ? -22 : d < 0 ? 22 : 0}deg) scale(${Math.max(0.66, 1 - ad * 0.13)})`,
+                   opacity: Math.max(0, 1 - ad * 0.3), zIndex: 100 - ad,
+                   pointerEvents: ad > 2 ? "none" : undefined,
+                 }}
+                 // Seitenkarte anklicken = in die Mitte drehen (die inneren
+                 // Knöpfe gehören nur der vorderen Karte).
+                 onClickCapture={d !== 0 ? (e) => { e.preventDefault(); e.stopPropagation(); setMitte(i); } : undefined}>
+              {karte(s)}
+            </div>
+          );
+        })}
+      </div>
+      <button type="button" className="pi-lade-zu pi-kar-pfeil" onClick={vor} disabled={mitte >= kinder.length - 1} aria-label="nächste Karte"><ChevronRight size={18} /></button>
     </div>
   );
 }
@@ -1157,7 +1243,9 @@ function Leitfaden({ stufe, startAuf }: { stufe: Hitze; startAuf?: boolean }) {
 // Der 3D-Kundenstrom – Glas-Karten auf einer perspektivischen Bahn
 // ═══════════════════════════════════════════════════════════════════════════
 const FENSTER = 18; // Karten je Seite im DOM (max. ~37)
-function Strom({ liste, aktiv, setAktiv, erledigt, onAkte, flach, ruhig, laedt }: {
+// E-050: exportiert — der Strom ist in den Bestand-Raum umgezogen (bestand.tsx,
+// Ansicht „Strom“); hier bleibt nur der Baustein, keine Nutzung mehr.
+export function Strom({ liste, aktiv, setAktiv, erledigt, onAkte, flach, ruhig, laedt }: {
   liste: Kunde[]; aktiv: number; setAktiv: (f: (a: number) => number) => void; erledigt: Set<number>; onAkte: (id: number) => void; flach: boolean; ruhig: boolean; laedt: boolean;
 }) {
   const [maus, setMaus] = useState({ x: 0, y: 0 });
@@ -1297,7 +1385,10 @@ const AKTE_REITER: { key: AkteReiter; label: string }[] = [
   { key: "daten", label: "Daten" },
 ];
 
-function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
+// E-050: exportiert — bestand.tsx öffnet DIESELBE Akte-Lade (?person=), kein
+// Duplikat. Voraussetzung beim Einbetten: ToastAnbieter + FragenAnbieter
+// (useFragen) liegen außen herum, wie hier über AgentShell/ToastAnbieter.
+export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
   k: Kunde; onZu: () => void; onWeg: () => void; onNeu: (k: Kunde) => void; onErledigt: () => void; onZaehler: () => void;
 }) {
   const fragen = useFragen();
@@ -1335,8 +1426,8 @@ function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
   // ── E-046: Situations-Kopf (Justin: „auf 1 Blick sehen, auf 1 Klick handeln“) ──
   const [mehrOffen, setMehrOffen] = useState(false);
   const [terminOffen, setTerminOffen] = useState(false);
-  const [terminDatum, setTerminDatum] = useState(tagPlus(1));
-  const [terminZeit, setTerminZeit] = useState("10:00");
+  // E-048 Nr. 1: VORHER terminDatum/terminZeit als Freitext — NACHHER wählt
+  // SlotWahl einen echten freien Slot; hier bleibt nur das Ergebnis.
   const [terminGebucht, setTerminGebucht] = useState<string | null>(null);
   const [leitfadenAuf, setLeitfadenAuf] = useState(false);
   const [alleErgebnisse, setAlleErgebnisse] = useState(false);
@@ -1416,15 +1507,18 @@ function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
     : sitArt === "lead_ohne_antrag" ? "lead"
     : sitArt === "rechnung_offen" ? "warm" : "heiss";
 
-  const terminBuchen = async () => {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(terminDatum) || !/^\d{2}:\d{2}$/.test(terminZeit)) { melden("schlecht", "Bitte Datum und Uhrzeit angeben."); return; }
+  // E-048 Nr. 1: VORHER baute die Funktion `${terminDatum}T${terminZeit}:00`
+  // aus zwei Freitext-Feldern — NACHHER kommt der Beginn als ISO-Zeitpunkt
+  // eines echten freien Slots aus SlotWahl; POST /agent/termine prüft erneut.
+  const terminBuchen = async (beginnIso: string, label: string): Promise<boolean> => {
     setLaeuft("termin");
-    const r = await api("/agent/termine", { method: "POST", body: JSON.stringify({ personId: k.personId, beginn: `${terminDatum}T${terminZeit}:00` }) });
+    const r = await api("/agent/termine", { method: "POST", body: JSON.stringify({ personId: k.personId, beginn: beginnIso }) });
     setLaeuft(null);
-    if (!r.ok) { melden("schlecht", "Nicht gebucht", r.json?.error || "Der Termin konnte nicht gebucht werden."); return; }
-    const text = `${r.json.termin?.datumText ?? terminDatum}, ${r.json.termin?.uhrzeit ?? terminZeit} Uhr`;
+    if (!r.ok) { melden("schlecht", "Nicht gebucht", r.json?.error || "Der Termin konnte nicht gebucht werden."); return false; }
+    const text = r.json.termin?.datumText ? `${r.json.termin.datumText}, ${r.json.termin.uhrzeit} Uhr` : label;
     setTerminGebucht(text); setTerminOffen(false);
     melden("gut", `Termin gebucht: ${text}. Der Slot ist blockiert, die Bestätigung geht an den Kunden.`);
+    return true;
   };
   const mandatBuchen = async () => {
     if (!hatTermin) { setTerminOffen(true); melden("info", "Ein Mandat gilt als angenommen, wenn der Termin steht – buch ihn hier ein, dann zählt es."); return; }
@@ -1611,6 +1705,13 @@ function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
 
   return (
     <aside className="pi-lade" role="dialog" aria-modal="true" aria-label={`Akte ${k.name}`}>
+      {/* E-049 Nr. 1 (Justin, Screenshot): VORHER verschwand der Akte-Kopf
+          (Name, Status, Anrufen, Schließen) beim Scrollen — nur die Reiter
+          blieben (alte sticky-Regel griff nur auf die Tabs). NACHHER: Die
+          Lade ist selbst der Scroll-Container, Kopf UND Reiter sitzen in
+          EINEM sticky Glas-Block (.pi-lade-fest, top:0, Blur, safe-area);
+          der Inhalt scrollt darunter, nichts wird abgeschnitten. */}
+      <div className="pi-lade-fest">
       {/* Kopf: Wer, wo er steht, ein großer Anruf-Knopf. */}
       <div className="pi-lade-kopf">
         <span className="pi-lade-glut" style={{ ["--hitze" as string]: STUFE[stufeVon(k)].farbe }} aria-hidden="true"><i className="pi-glut" /></span>
@@ -1636,13 +1737,14 @@ function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
         </div>
       </div>
 
-      {/* Reiter — am Handy oben festgeklebt */}
+      {/* Reiter — direkt unter dem Kopf, im selben sticky Block */}
       <div className="pi-lade-tabs" role="tablist">
         {AKTE_REITER.map((t) => (
           <button key={t.key} type="button" role="tab" aria-selected={reiter === t.key} className={`pi-tab${reiter === t.key ? " an" : ""}`} onClick={() => setReiter(t.key)}>
             {t.label}{t.key === "aktivitaet" && akt ? <em>{akt.ereignisse.length}</em> : null}
           </button>
         ))}
+      </div>
       </div>
 
       <div className="pi-lade-koerper">
@@ -1668,7 +1770,11 @@ function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
                     : sitArt === "zahlung_gemeldet" ? "Kunde meldet Zahlung – das Geld ist noch nicht da. Sichere den Termin"
                     : sitArt === "rechnung_offen" ? `Antrag fertig – ${paketPreis(k) ? `${eur(paketPreis(k))} offen` : "Rechnung offen"}. Schick die Zahlungsdaten`
                     : sitArt === "lead_ohne_antrag" ? "Registriert, noch kein Antrag – hol das Mandat"
-                    : sitArt === "termin_heute" ? `Heute ${sit?.terminHeute ? terminText(sit.terminHeute) : "Termin"} – das Gespräch steht`
+                    /* E-051 Nr. 3: VORHER „Heute ${terminText(…)}“ — terminText liefert
+                       selbst schon „Heute 14:20“ (Berlin-Zeit), also stand dort
+                       „Heute Heute 14:20“. NACHHER nur terminText (formatiert mit
+                       timeZone Europe/Berlin, keine UTC-Uhrzeit). */
+                    : sitArt === "termin_heute" ? `${sit?.terminHeute ? terminText(sit.terminHeute) : "Heute"} – das Gespräch steht`
                     : sit?.naechsteRate ? `Alles läuft – nächste Rate ${eur(sit.naechsteRate.betragCents)} am ${dtag(sit.naechsteRate.faelligAm)}`
                     : "Alles läuft – nichts fällig"}
                 </h3>
@@ -1732,16 +1838,9 @@ function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
               </div>
             )}
             {!k.telefonWaehlbar && k.telefon && <NummerLandNachtragen k={k} onFertig={onNeu} />}
+            {/* E-048 Nr. 1: VORHER Datum-/Uhrzeit-Freitext — NACHHER klickbare freie Zeiten. */}
             {terminOffen && (
-              <div className="pi-termin">
-                <div className="pi-reihe">
-                  <input type="date" className="pi-eingabe" style={{ flex: "0 0 160px" }} value={terminDatum} min={heuteIso()} onChange={(e) => setTerminDatum(e.target.value)} aria-label="Datum" />
-                  <input type="time" className="pi-eingabe" style={{ flex: "0 0 110px" }} value={terminZeit} step={900} onChange={(e) => setTerminZeit(e.target.value)} aria-label="Uhrzeit" />
-                  <button type="button" className="pi-knopf" disabled={laeuft === "termin"} onClick={() => void terminBuchen()}>{laeuft === "termin" ? "Bucht …" : "Termin buchen"}</button>
-                  <button type="button" className="pi-link" onClick={() => setTerminOffen(false)}>Schließen</button>
-                </div>
-                <p className="pi-fussnote">Der Slot kommt aus deiner Availability und wird echt blockiert. Erinnere den Kunden: Rechnung vor dem Termin begleichen → im Gespräch wird direkt aktiviert.</p>
-              </div>
+              <SlotWahl laeuft={laeuft === "termin"} onBuchen={terminBuchen} onZu={() => setTerminOffen(false)} />
             )}
             {produktOffen && <ProduktDunkel k={k} aufKlappen={setProduktOffen} fertig={async (m) => { melden("gut", "Produkt gespeichert", m); await frisch(); onZaehler(); }} />}
           </section>
@@ -1844,7 +1943,8 @@ function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
                  kopfRechts={<button type="button" className="pi-knopf still klein" disabled={!k.zahlung.klartext} onClick={() => void zahlungsdatenKopieren()} title="Empfänger, IBAN, Betrag und Verwendungszweck als Text — fertig für WhatsApp"><Copy size={13} strokeWidth={1.75} /> {kopiert ? "Kopiert" : "Zahlungsdaten kopieren"}</button>}>
               <p className="pi-zweck-zahl">{k.zahlung.referenz}</p>
               {kopiert && <p className="pi-sek-satz gut">Empfänger, IBAN, Betrag und Verwendungszweck liegen in der Zwischenablage.</p>}
-              <VertragsLuecke k={k} melden={melden} />
+              {/* E-049 Nr. 2: Einträge springen in „Kunde bearbeiten“ (Daten-Reiter, Feld-Fokus). */}
+              <VertragsLuecke k={k} melden={melden} onNachtragen={(feldKey) => { setReiter("daten"); setBearbeiten(true); setBearbeitenFokus(feldKey); }} />
               {!belegOffen ? (
                 <button type="button" className="pi-link" onClick={() => setBelegOffen(true)}>Überweisungsbeleg hinterlegen</button>
               ) : (
@@ -2036,8 +2136,10 @@ function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
         )}
       </div>
 
-      {/* Helle Reste mit Vorschau-Pflicht — öffnen ÜBER der Lade, nicht darin. */}
-      <SendeMenue personId={k.personId} offen={sendeMenue} onSchliessen={() => setSendeMenue(false)} onGesendet={onZaehler} />
+      {/* E-052: VORHER öffnete hier das HELLE Versandzentrum über der dunklen
+          Akte (Justins Screenshot) — NACHHER dieselbe Komponente in der
+          Office-Glas-Fassung (ton="dunkel"); Logik und Endpunkte unverändert. */}
+      <SendeMenue personId={k.personId} offen={sendeMenue} onSchliessen={() => setSendeMenue(false)} onGesendet={onZaehler} ton="dunkel" />
       <Gespraechsblatt personId={k.personId} offen={blatt} onZu={() => setBlatt(false)} />
       {bestaetigen && (
         <RechnungBestaetigung personId={k.personId} kundeName={k.name} laeuft={laeuft === "rechnung"}
@@ -2310,7 +2412,26 @@ function AktivitaetsZeit({ akt, fehler }: { akt: { ereignisse: any[] } | null; f
 }
 
 // ── Vertragslücke: fehlende Felder + Zustimmungs-Link (POST …/zustimmungs-link) ──
-function VertragsLuecke({ k, melden }: { k: Kunde; melden: (art: "gut" | "schlecht" | "info", titel: string, text?: string) => void }) {
+// E-049 Nr. 2 (Justin, Screenshot „Verwendungszweck“): VORHER stand die Liste
+// DOPPELT — „Für den Vertrag fehlen noch: …“ und direkt darunter fast derselbe
+// Text als Erklärung („… kannst du am Telefon aufnehmen — über Kunde
+// bearbeiten“). NACHHER: EINE Fehlt-Liste; jeder Eintrag, den „Kunde
+// bearbeiten“ kennt, ist selbst der klickbare „jetzt nachtragen“-Sprung
+// (öffnet den Daten-Reiter mit Fokus auf dem Feld — dieselbe Mechanik wie
+// E-047 Nr. 4). Antragsfelder ohne Formularfeld bleiben stille Chips,
+// Zustimmungen behalten den Kunden-Link (nur der Kunde darf zustimmen).
+/** Feldname (Server-Klartext) → Feld in „Kunde bearbeiten“. */
+const LUECKE_SPRUNG: Record<string, string> = {
+  "Vorname": "firstName", "Nachname": "lastName", "Geburtsdatum": "birthdate",
+  "Telefonnummer": "phone", "Straße": "street", "PLZ": "zip", "Ort": "city",
+  "E-Mail-Adresse": "email",
+};
+function VertragsLuecke({ k, melden, onNachtragen }: {
+  k: Kunde;
+  melden: (art: "gut" | "schlecht" | "info", titel: string, text?: string) => void;
+  /** Springt in „Kunde bearbeiten“ (Daten-Reiter) mit Fokus auf dem Feld. */
+  onNachtragen?: (feldKey: string) => void;
+}) {
   const [laeuft, setLaeuft] = useState(false);
   const [link, setLink] = useState<string | null>(null);
   if (!k.fehlendeFelder) return null;
@@ -2325,9 +2446,21 @@ function VertragsLuecke({ k, melden }: { k: Kunde; melden: (art: "gut" | "schlec
     melden(r.json.gesendet ? "gut" : "schlecht", r.json.gesendet ? "Link verschickt" : "Mail nicht zugestellt", r.json.meldung);
   };
   return (
-    <span className="pi-stapel">
-      <span className="pi-luecke">Für den Vertrag fehlen noch: {k.fehlendeFelder}</span>
-      {sachangaben.length > 0 && <span className="pi-luecke">{sachangaben.join(", ")} kannst du am Telefon aufnehmen — über „Kunde bearbeiten“.</span>}
+    <span className="pi-stapel breit">
+      <span className="pi-luecke">Für den Vertrag fehlt noch:</span>
+      <span className="pi-luecke-liste">
+        {sachangaben.map((name) => (LUECKE_SPRUNG[name] && onNachtragen ? (
+          <button key={name} type="button" className="pi-luecke-chip" title="Öffnet „Kunde bearbeiten“ mit dem Feld im Fokus."
+                  onClick={() => onNachtragen(LUECKE_SPRUNG[name])}>
+            {name} – jetzt nachtragen
+          </button>
+        ) : (
+          <span key={name} className="pi-luecke-chip still" title="Steht im Antrag – nimmt der Kunde dort auf, oder du gehst den Antrag mit ihm am Telefon durch.">{name}</span>
+        )))}
+        {zustimmungen.map((name) => (
+          <span key={name} className="pi-luecke-chip still" title="Zustimmungen darf nur der Kunde selbst geben — der Link unten führt ihn hin.">{name} · nur der Kunde</span>
+        ))}
+      </span>
       {zustimmungen.length > 0 && (
         <>
           <button type="button" className="pi-link" style={{ justifySelf: "start", alignSelf: "flex-start" }} onClick={() => void linkSenden()} disabled={laeuft} title="Zustimmungen darf nur der Kunde selbst geben — dieser Link führt ihn hin.">

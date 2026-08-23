@@ -631,6 +631,26 @@ router.get("/agent/termine/faellig", requireAgent, async (req: AgentRequest, res
     const vorlauf = Math.min(120, Math.max(5, Number(req.query.vorlauf) || 30));
     const me = req.agent!.id;
 
+    // ── DAS GESPRÄCH VON HEUTE ZÄHLT (24.08.2026, Justins Meldung) ─────────
+    // VORHER: Die Leiste erinnerte an einen Rückruf, obwohl der Kunde HEUTE
+    // längst erreicht war und „Mandat nicht zustande gekommen“ (abgelehnt)
+    // bzw. „Anrufer blockiert“ gebucht wurde — die Erinnerung überlebte ihr
+    // eigenes Ergebnis.
+    // NACHHER: Ist das LETZTE heutige Kontakt-Ergebnis der Person (Berliner
+    // Tag, nicht storniert) „erreicht_abgelehnt“ oder „nummer_blockiert“,
+    // fällt der Eintrag aus der Leiste. Ein späteres neues Ergebnis (z. B.
+    // erneuter Rückruf-Termin) holt ihn zurück, weil dann ES das letzte ist.
+    const ohneHeutigeAbsage = () => sqlPool`
+      COALESCE((
+        SELECT cl2.outcome FROM fiaon_contact_log cl2
+        JOIN fiaon_applications a2 ON a2.ref = cl2.ref
+        WHERE a2.person_id = p.id AND cl2.voided_at IS NULL AND cl2.outcome IS NOT NULL
+          AND (cl2.created_at AT TIME ZONE 'Europe/Berlin')::date
+            = (NOW() AT TIME ZONE 'Europe/Berlin')::date
+        ORDER BY cl2.created_at DESC LIMIT 1
+      ), '') NOT IN ('erreicht_abgelehnt', 'nummer_blockiert')
+    `;
+
     const [rueckrufe, gespraeche] = await Promise.all([
       // Rückrufe aus dem Kontaktverlauf.
       sqlPool`
@@ -648,9 +668,14 @@ router.get("/agent/termine/faellig", requireAgent, async (req: AgentRequest, res
           AND cl.scheduled_at BETWEEN NOW() - INTERVAL '2 hours'
                                   AND NOW() + (${vorlauf} || ' minutes')::interval
           AND p.merged_into_person_id IS NULL
+          AND ${ohneHeutigeAbsage()}
         ORDER BY a.person_id, cl.scheduled_at DESC
       `,
       // Und gebuchte Startgespräche.
+      // 24.08.2026: `abgesagt_am IS NULL` fehlte — eine Absage lässt den
+      // Status auf 'gebucht' stehen (siehe fiaon-onboarding-bereich.ts), die
+      // Leiste erinnerte also an abgesagte Termine. Erledigte und verpasste
+      // hält weiterhin `status = 'gebucht'` fern.
       sqlPool`
         SELECT t.id AS log_id, t.person_id, t.beginn AS scheduled_at, NULL::text AS note,
                t.quelle,
@@ -659,9 +684,11 @@ router.get("/agent/termine/faellig", requireAgent, async (req: AgentRequest, res
         FROM fiaon_termine t
         JOIN fiaon_persons p ON p.id = t.person_id
         WHERE t.agent_id = ${me} AND t.status = 'gebucht'
+          AND t.abgesagt_am IS NULL
           AND t.beginn BETWEEN NOW() - INTERVAL '2 hours'
                            AND NOW() + (${vorlauf} || ' minutes')::interval
           AND p.merged_into_person_id IS NULL
+          AND ${ohneHeutigeAbsage()}
       `.catch(() => [] as any[]),
     ]);
 

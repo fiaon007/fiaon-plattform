@@ -41,9 +41,11 @@ function SchreibtischInnen() {
 
   const heute = heuteIso();
   const termineHeute = useMemo(() => termine.filter((t) => new Date(t.beginn).toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" }) === heute).sort((a, b) => new Date(a.beginn).getTime() - new Date(b.beginn).getTime()), [termine, heute]);
-  const termineSpaeter = useMemo(() => termine.filter((t) => new Date(t.beginn).toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" }) > heute).slice(0, 5), [termine, heute]);
+  const termineSpaeter = useMemo(() => termine.filter((t) => new Date(t.beginn).toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" }) > heute), [termine, heute]);
   const zusagen: any[] = start?.zusagen || [];
   const v = start?.verdienst || {}; const k = start?.kunden || {};
+  const [mandate, setMandate] = useState<number | null>(null);
+  useEffect(() => { api("/agent/vertrieb/mandate").then((r) => { if (r.ok) setMandate(Number(r.json.anzahl ?? r.json.mandate ?? 0)); }).catch(() => {}); }, []);
   const [jetzt, setJetzt] = useState(() => new Date());
   useEffect(() => { const i = setInterval(() => setJetzt(new Date()), 1_000); return () => clearInterval(i); }, []); // Uhr live (Justin 23.08.)
   const datum = jetzt.toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long", timeZone: "Europe/Berlin" });
@@ -58,22 +60,16 @@ function SchreibtischInnen() {
           <h1>{termineHeute.length ? <>Heute <span className="st-verlauf">{termineHeute.length} {termineHeute.length === 1 ? "Gespräch" : "Gespräche"}</span>{zusagen.length ? <> und {zusagen.length} Rückrufe.</> : "."}</> : zusagen.length ? <>Heute <span className="st-verlauf">{zusagen.length} Rückrufe</span>.</> : <>Ein ruhiger Tag – <span className="st-verlauf">Zeit für neue Kunden.</span></>}</h1>
           <p>{naechster ? <>Als Nächstes: <b>{uhr(naechster.beginn)} Uhr – {naechster.name}</b>. Die Akte liegt bereit.</> : "Alles, was heute zählt, steht hier in Reihenfolge. Ein Klick: anrufen oder Akte."}</p>
         </div>
-        <div className="st-ziel">
-          <small>Dein Tag</small>
-          <div className="st-ziel-zahl"><b>{k.bezahlt ?? "–"}</b><span>aktive Kunden</span></div>
-          <div className="st-ziel-zeile"><span>Diesen Monat</span><b>{v.monatCents != null ? euro(v.monatCents) : "–"}</b></div>
-          <div className="st-ziel-zeile"><span>Guthaben</span><b>{v.guthabenCents != null ? euro(v.guthabenCents) : "–"}</b></div>
-          <Link href="/agent/verdienst" className="st-link">Zum Wallet <ArrowRight size={14} /></Link>
-        </div>
+        {/* Vorher: „Dein Tag"-Karte. Nachher (E-052): entfernt – die Zahlen leben im Wallet/Bestand. */}
       </section>
 
       {fehler && <p className="st-fehler">{fehler}</p>}
 
-      <section className="st-kacheln">
+      {/* Vorher: 4 Kacheln (auch Rückrufe/heiße Kunden). Nachher (E-052): Termine heute · Aufgaben & Anliegen · Mein Bestand. */}
+      <section className="st-kacheln drei">
         <Link href="/agent/kalender" className="st-kachel"><b>{termineHeute.length}</b><span>Termine heute</span></Link>
-        <Link href="/agent/kunden?filter=leads" className="st-kachel"><b>{zusagen.length}</b><span>Rückrufe fällig</span></Link>
         <Link href="/agent/aufgaben" className="st-kachel"><b>{aufgaben}</b><span>Aufgaben &amp; Anliegen</span></Link>
-        <Link href="/agent/kunden" className="st-kachel"><b>{(k.tier1 ?? 0) + (k.tier2 ?? 0)}</b><span>heiße Kunden</span></Link>
+        <Link href="/agent/bestand" className="st-kachel"><b>{mandate ?? "–"}</b><span>Mein Bestand</span></Link>
       </section>
 
       <section className="st-spalten">
@@ -102,8 +98,10 @@ function SchreibtischInnen() {
           ))}
         </div>
         <div className="st-block">
-          <div className="st-block-kopf"><b>Die nächsten Tage</b><small>gebuchte Gespräche</small></div>
+          {/* Vorher: „Die nächsten Tage" (5) + Pipeline-Stufen. Nachher (E-052): ALLE bevorstehenden Termine, scrollbar; Stufen weg. */}
+          <div className="st-block-kopf"><b>Termine in den nächsten Tagen</b><small>{termineSpaeter.length} bevorstehend</small></div>
           {termineSpaeter.length === 0 && <p className="st-leer">Keine weiteren Termine gebucht. Schick deinen wartenden Kunden den Terminlink.</p>}
+          <div className="st-blaettern">
           {termineSpaeter.map((t) => (
             <div key={`s${t.id}`} className="st-zeile klein">
               <div className="st-zeit"><b>{new Date(t.beginn).toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", timeZone: "Europe/Berlin" })}</b><small>{uhr(t.beginn)}</small></div>
@@ -111,14 +109,11 @@ function SchreibtischInnen() {
               <Link href={`/agent/kunden?person=${t.personId ?? t.person_id}`} className="st-knopf still">Akte</Link>
             </div>
           ))}
-          <div className="st-block-kopf" style={{ marginTop: 18 }}><b>Pipeline</b><small>nach Stufe</small></div>
-          <div className="st-stufen">
-            {[["A", k.tier1, "hat „bezahlt“ geklickt"], ["B", k.tier2, "Antrag fertig"], ["C", k.tier3, "Lead"], ["✓", k.bezahlt, "bezahlt"]].map(([s, n, l]) => <Link key={String(s)} href="/agent/kunden" className="st-stufe"><b>{s}</b><span>{n ?? 0}</span><small>{l}</small></Link>)}
           </div>
         </div>
       </section>
 
-      <TermintreueKarte />
+      {/* Vorher: Termintreue-Karte. Nachher (E-052): Termintreue sieht nur der Admin je Mitarbeiter (Chefbüro). */}
 
       <section className="st-schnell">
         <Link href="/agent/arbeitszeiten" className="st-schnell-karte"><b>Availability</b><span>Termine kommen nur in deinen Zeiten.</span></Link>

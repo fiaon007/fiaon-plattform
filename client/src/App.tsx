@@ -118,6 +118,8 @@ const AgentCollectionsPage = lazy(() => import("@/pages/agent/collections"));
 const AgentInboxPage = lazy(() => import("@/pages/agent/inbox"));
 const AgentMorePage = lazy(() => import("@/pages/agent/more"));
 const AgentSpaceNeuPage = lazy(() => import("@/pages/agent/space-neu")); // Team-Feed neu (Justin 24.08.)
+const AgentOnboardingRaumPage = lazy(() => import("@/pages/agent/onboarding-raum")); // E-051
+const AgentBestandPage = lazy(() => import("@/pages/agent/bestand")); // E-050 Portfolio-Raum
 const AgentPipelinePage = lazy(() => import("@/pages/agent/pipeline"));
 const AgentToolsPage = lazy(() => import("@/pages/agent/tools/index"));
 const AgentPaketfinderPage = lazy(() => import("@/pages/agent/tools/paketfinder"));
@@ -381,7 +383,8 @@ function Router() {
       {/* Die Startgespräche. Der Pfad heißt bewusst NICHT /agent/onboarding —
           das ist seit jeher die Vertrags-Schranke für neue Mitarbeiter. Zwei
           Dinge mit demselben Namen sind eine Fehlerquelle mit Ansage. */}
-      <Route path="/agent/startgespraeche" component={AgentCalendarPage} />
+      <Route path="/agent/onboarding" component={AgentOnboardingRaumPage} />
+      <Route path="/agent/startgespraeche" component={AgentOnboardingRaumPage} />
       <Route path="/agent/startgespraeche-alt" component={AgentStartgespraechePage} />
       <Route path="/agent/vertrieb" component={AgentVertriebPage} />
       {/* Aufgaben und Hinweise, die die Verwaltung dem Mitarbeiter zuweist. */}
@@ -405,6 +408,7 @@ function Router() {
           verloren geht. */}
       <Route path="/agent/kunden" component={AgentPipelinePage} />
       <Route path="/agent/pipeline" component={AgentPipelinePage} />
+      <Route path="/agent/bestand" component={AgentBestandPage} />
       <Route path="/agent/kunden-alt" component={AgentKundenNeuPage} />
       <Route path="/agent/tools" component={AgentToolsPage} />
       <Route path="/agent/tools/paketfinder" component={AgentPaketfinderPage} />

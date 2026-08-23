@@ -57,6 +57,15 @@ export interface EbeneProps {
   andocken?: "mitte" | "rechts-unten";
   /** Kein Schließkreuz — für Ebenen, aus denen man nur über eine Aktion kommt. */
   ohneKreuz?: boolean;
+  /**
+   * E-052 (Justin 24.08., Screenshot „E-Mail senden“ in der Akte): VORHER war
+   * jede Ebene hell — im dunklen Office-Raum (Pipeline-Akte) wirkte das wie
+   * ein Fremdkörper. NACHHER wählt `ton="dunkel"` die Glas-Fassung im
+   * Office-Stil (dunkles Glas, Lichtkante, helle Schrift); die --fi-Variablen
+   * werden nur INNERHALB der Ebene umgefärbt, Alt-Nutzungen (Admin, helle
+   * Räume) bleiben unberührt hell.
+   */
+  ton?: "hell" | "dunkel";
   kinder: React.ReactNode;
 }
 
@@ -74,7 +83,7 @@ let ebenenZaehler = 0;
 
 export function FiaonEbene({
   offen, onZu, titel, ueberschrift, unterzeile, kopf, fuss, marke,
-  breite = 560, andocken = "mitte", ohneKreuz = false, kinder,
+  breite = 560, andocken = "mitte", ohneKreuz = false, ton = "hell", kinder,
 }: EbeneProps) {
   const [schmal, setSchmal] = useState(() => typeof window !== "undefined" && window.innerWidth < 640);
   const [zieht, setZieht] = useState(0);
@@ -149,7 +158,7 @@ export function FiaonEbene({
           ein weicher blauer Schein von unten, der die Ebene wie beleuchtet
           erscheinen lässt. */}
       <div
-        className={`fi-ebene-schleier ${geht ? "fi-ebene-schleier-weg" : ""}`}
+        className={`fi-ebene-schleier ${ton === "dunkel" ? "fi-ebene-schleier-dunkel " : ""}${geht ? "fi-ebene-schleier-weg" : ""}`}
         onClick={schliessen}
         aria-hidden="true"
       />
@@ -163,7 +172,7 @@ export function FiaonEbene({
           role="dialog"
           aria-modal="true"
           aria-label={titel}
-          className={`fi-ebene ${schmal ? "fi-ebene-blatt" : "fi-ebene-mitte"} ${geht ? "fi-ebene-weg" : ""}`}
+          className={`fi-ebene ${ton === "dunkel" ? "fi-ebene-dunkel " : ""}${schmal ? "fi-ebene-blatt" : "fi-ebene-mitte"} ${geht ? "fi-ebene-weg" : ""}`}
           style={{
             maxWidth: schmal ? "100%" : breite,
             transform: zieht ? `translateY(${zieht}px)` : undefined,
@@ -367,6 +376,59 @@ const EBENEN_CSS = `
      Wischleiste des Systems. */
   .fi-ebene-fuss { padding: 13px 18px calc(13px + env(safe-area-inset-bottom, 0px)); }
 }
+
+/* ── E-052: DIE DUNKLE FASSUNG (ton="dunkel") ──────────────────────────────
+   VORHER hell im dunklen Office-Raum — NACHHER dasselbe Bauteil im
+   Office-Glas (wie die Akte-Lade der Pipeline): dunkler Schleier, dunkles
+   Glas mit Lichtkante, helle Schrift. Die --fi-Variablen werden NUR im
+   Geltungsbereich der dunklen Ebene umgefärbt — .fi-karte, Linien und
+   Textstufen im Inhalt folgen automatisch; helle Alt-Nutzungen bleiben. */
+.fi-ebene-schleier-dunkel {
+  background: rgba(2,6,23,.55);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+}
+.fi-ebene-dunkel {
+  --fi-karte: rgba(255,255,255,.05);
+  --fi-linie: rgba(255,255,255,.12);
+  --fi-linie-hover: rgba(255,255,255,.24);
+  --fi-text: #f1f5f9;
+  --fi-text-leise: #cbd5e1;
+  --fi-text-still: #94a3b8;
+  --fi-primaer: #93c5fd;
+  --fi-flaeche-akzent: rgba(37,99,235,.14);
+  --fi-glanzkante: inset 0 1px 0 rgba(255,255,255,.08);
+  color: #e5e7eb;
+  background: linear-gradient(180deg, rgba(17,26,46,.96), rgba(10,22,40,.97));
+  backdrop-filter: blur(28px) saturate(160%);
+  -webkit-backdrop-filter: blur(28px) saturate(160%);
+  box-shadow:
+    0 60px 140px -40px rgba(2,6,23,.8),
+    0 0 0 1px rgba(255,255,255,.12),
+    0 0 60px -18px rgba(37,99,235,.35),
+    inset 0 1px 0 rgba(255,255,255,.08);
+}
+.fi-ebene-dunkel .fi-ebene-kopf {
+  background: rgba(15,24,44,.72);
+  box-shadow: inset 0 -1px 0 rgba(255,255,255,.08), 0 10px 22px -20px rgba(2,6,23,.85);
+}
+.fi-ebene-dunkel .fi-ebene-titel { color: #fff; }
+.fi-ebene-dunkel .fi-ebene-ueberschrift { color: #93c5fd; }
+.fi-ebene-dunkel .fi-ebene-unterzeile { color: #9ca3af; }
+.fi-ebene-dunkel .fi-ebene-koerper { background: transparent; }
+.fi-ebene-dunkel .fi-ebene-fuss {
+  background: rgba(15,24,44,.78);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 -12px 24px -22px rgba(2,6,23,.85);
+}
+.fi-ebene-dunkel .fi-ebene-kreuz { background: rgba(255,255,255,.06); color: #cbd5e1; }
+.fi-ebene-dunkel .fi-ebene-kreuz:hover { background: rgba(255,255,255,.12); color: #fff; }
+.fi-ebene-dunkel .fi-ebene-marke {
+  background: linear-gradient(160deg, rgba(37,99,235,.35), rgba(37,99,235,.12));
+  color: #93c5fd;
+  box-shadow: inset 0 0 0 1px rgba(96,165,250,.35);
+}
+.fi-ebene-dunkel .fi-ebene-grabber span { background: rgba(255,255,255,.22); }
+.fi-ebene-dunkel .fi-karte { box-shadow: none; }
 
 /* ── Bewegung abschaltbar. Die Tiefe bleibt über die Schatten. ─────────── */
 @media (prefers-reduced-motion: reduce) {

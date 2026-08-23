@@ -1,6 +1,6 @@
-/* ═══ Calendar (Raum) — 23.08.2026, Plan §4/§11 ═══
-   Dunkle Bühne, Glas. Wochen- und Tagesansicht, Verfügbarkeit grau/blau,
-   Startgespräche als Reiter. Präfix .ca- */
+/* ═══ Calendar (Raum) — 23.08.2026, Plan §4/§11 · pur seit 24.08.2026 (E-051, Plan §20) ═══
+   Dunkle Bühne, Glas. Wochen- und Tagesansicht, Verfügbarkeit grau/blau.
+   Startgespräche leben im eigenen Raum Onboarding (office-onboarding.css). Präfix .ca- */
 .ca{display:grid;gap:18px;max-width:1180px;margin:0 auto;color:#e5e7eb}
 .ca-pille{display:inline-block;font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.16em;text-transform:uppercase;color:#93c5fd;padding:8px 12px;border:1px solid rgba(147,197,253,.35);border-radius:999px;margin-bottom:14px}
 .ca-verlauf{background:linear-gradient(90deg,#93c5fd,#3b82f6);-webkit-background-clip:text;background-clip:text;color:transparent}
@@ -20,6 +20,13 @@
 .ca-fehler{margin:0;padding:10px 14px;border-radius:12px;background:rgba(220,38,38,.14);border:1px solid rgba(248,113,113,.35);color:#fecaca;font-size:13px}
 .ca-meldung{margin:0;padding:10px 14px;border-radius:12px;background:rgba(16,185,129,.14);border:1px solid rgba(52,211,153,.35);color:#a7f3d0;font-size:13px}
 .ca-meldung.warn{background:rgba(245,158,11,.14);border-color:rgba(251,191,36,.35);color:#fde68a}
+
+/* Wegweiser zum Raum Onboarding (E-051 – der Calendar ist pur) */
+.ca-hinweiskarte{display:flex;align-items:center;gap:10px;padding:12px 16px;border-radius:16px;background:linear-gradient(135deg,rgba(37,99,235,.22),rgba(37,99,235,.05));border:1px solid rgba(96,165,250,.3);color:#cbd5e1;font:300 13.5px/1.5 'Inter',sans-serif;text-decoration:none}
+.ca-hinweiskarte:hover{border-color:rgba(96,165,250,.5)}
+.ca-hinweiskarte svg{color:#93c5fd;flex:0 0 auto}
+.ca-hinweiskarte b{color:#fff;font-weight:500}
+.ca-hinweiskarte em{margin-left:auto;font-style:normal;display:inline-flex;align-items:center;gap:4px;color:#93c5fd;font-weight:500;font-size:13px;white-space:nowrap}
 
 /* Werkzeugleiste */
 .ca-leiste{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -65,6 +72,9 @@
 .ca-marke.rot{color:#fecaca;border-color:rgba(248,113,113,.4)}
 .ca-marke.blau{color:#bfdbfe;border-color:rgba(96,165,250,.4)}
 .ca-aktion{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+/* Zeitbalken links wie im Wochenraster – Tag, Überfällig, Handy-Tageskarten */
+.ca-zeile.mit-ton{position:relative;padding-left:13px}
+.ca-zeile.mit-ton::before{content:"";position:absolute;left:0;top:16px;bottom:16px;width:3px;border-radius:99px;background:var(--ca-ton,#3b82f6)}
 .ca-hinweis{display:block;font:500 11px/1.3 'Inter',sans-serif;letter-spacing:.06em;text-transform:uppercase;margin-top:4px}
 .ca-hinweis.warn{color:#fbbf24}
 .ca-hinweis.rot{color:#f87171}
@@ -77,31 +87,40 @@
 .ca-tagband-legende{display:flex;gap:14px;font-size:11.5px;color:#64748b;margin-bottom:10px;flex-wrap:wrap}
 .ca-tagband-legende i{display:inline-block;width:10px;height:10px;border-radius:3px;vertical-align:-1px;margin-right:5px}
 
-/* Wochenraster */
-.ca-woche{display:grid;grid-template-columns:52px repeat(7,minmax(0,1fr));gap:4px;padding:16px;border-radius:24px;background:rgba(15,23,42,.6);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);overflow-x:auto}
-.ca-w-zeiten{display:grid;grid-template-rows:58px 1fr}
+/* Wochenraster: 00–24 h im Scrollrahmen (JS springt zu 08:00), Köpfe kleben oben */
+.ca-woche{display:grid;grid-template-columns:52px repeat(7,minmax(0,1fr));gap:4px;padding:0 16px 16px;border-radius:24px;background:rgba(15,23,42,.6);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);overflow:auto;max-height:min(72vh,680px);overscroll-behavior:contain}
+.ca-w-zeiten{min-width:0}
+.ca-w-ecke{position:sticky;top:0;z-index:6;height:58px;background:rgba(15,23,42,.94)}
 .ca-w-zeitspalte{position:relative}
-.ca-w-zeitspalte span{position:absolute;right:8px;transform:translateY(-7px);font-size:10.5px;color:#64748b;font-variant-numeric:tabular-nums}
-.ca-w-tag{display:grid;grid-template-rows:58px 1fr;min-width:0}
-.ca-w-kopf{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border-radius:12px;padding:6px 2px}
+.ca-w-zeitspalte span{position:absolute;right:8px;transform:translateY(-6px);font-size:10.5px;color:#64748b;font-variant-numeric:tabular-nums}
+.ca-w-tag{min-width:0}
+.ca-w-kopf{position:sticky;top:0;z-index:5;width:100%;height:58px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border:0;border-radius:0 0 12px 12px;padding:6px 2px;background:rgba(15,23,42,.94);cursor:pointer}
 .ca-w-kopf b{font:500 13px/1 'Inter',sans-serif;color:#fff}
 .ca-w-kopf small{font-size:11px;color:#9ca3af;font-variant-numeric:tabular-nums}
 .ca-w-kopf em{font-style:normal;font-size:10px;color:#93c5fd;letter-spacing:.08em;text-transform:uppercase}
-.ca-w-tag.heute .ca-w-kopf{background:linear-gradient(135deg,rgba(37,99,235,.3),rgba(37,99,235,.08));border:1px solid rgba(96,165,250,.35)}
-.ca-w-spalte{position:relative;border-radius:10px;background:rgba(255,255,255,.025);overflow:hidden;min-height:420px}
+.ca-w-tag.heute .ca-w-kopf{background:linear-gradient(135deg,rgba(37,99,235,.3),rgba(37,99,235,.08)),rgba(15,23,42,.94);box-shadow:inset 0 0 0 1px rgba(96,165,250,.35);border-radius:12px}
+.ca-w-spalte{position:relative;border-radius:10px;background:rgba(255,255,255,.025);overflow:hidden}
 .ca-w-tag.heute .ca-w-spalte{box-shadow:inset 0 0 0 1px rgba(96,165,250,.25)}
 .ca-w-linie{position:absolute;left:0;right:0;height:1px;background:rgba(255,255,255,.06)}
 .ca-w-frei{position:absolute;left:0;right:0;background:rgba(59,130,246,.12)}
 .ca-w-ausser{position:absolute;left:0;right:0;background:repeating-linear-gradient(135deg,rgba(255,255,255,.04) 0 6px,transparent 6px 12px)}
 .ca-w-jetzt{position:absolute;left:0;right:0;height:2px;background:#fbbf24;z-index:2}
-.ca-w-termin{position:absolute;left:3px;right:3px;min-height:26px;padding:4px 7px;border-radius:9px;background:linear-gradient(180deg,#3b82f6,#2563eb);color:#fff;border:0;text-align:left;cursor:pointer;overflow:hidden;z-index:1;box-shadow:0 6px 14px rgba(37,99,235,.35);display:grid;gap:1px;align-content:start}
+/* Terminblock: Mindesthöhe 34px, Verlauf je Terminart (--ca-ton), 1px-Lichtkante, Zeitbalken links */
+.ca-w-termin{position:absolute;min-height:34px;padding:5px 8px 5px 13px;border-radius:10px;--ca-ton:#3b82f6;background:linear-gradient(180deg,color-mix(in srgb,var(--ca-ton) 88%,#fff),color-mix(in srgb,var(--ca-ton) 78%,#0b1220));color:#fff;border:1px solid color-mix(in srgb,var(--ca-ton) 45%,rgba(255,255,255,.25));text-align:left;cursor:pointer;overflow:hidden;z-index:1;box-shadow:0 4px 12px rgba(2,6,23,.35),inset 0 1px 0 rgba(255,255,255,.25);display:grid;gap:1px;align-content:start}
+.ca-w-termin::before{content:"";position:absolute;left:4px;top:5px;bottom:5px;width:3px;border-radius:99px;background:color-mix(in srgb,var(--ca-ton) 55%,#fff)}
+.ca-w-termin:hover{filter:brightness(1.08)}
 .ca-w-termin b{font:500 11px/1.15 'Inter',sans-serif;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ca-w-termin span{font-size:10.5px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#dbeafe}
-.ca-w-termin.verlauf{background:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,.1));border:1px solid rgba(255,255,255,.2);box-shadow:none}
-.ca-w-termin.ausser{border:1px dashed rgba(251,191,36,.5)}
-.ca-w-termin.abgesagt{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#9ca3af;box-shadow:none;text-decoration:line-through}
+.ca-w-termin>span{font-size:10.5px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:rgba(255,255,255,.85)}
+.ca-w-termin.kompakt{align-content:center}
+.ca-w-termin .eins{display:block;font:400 10.5px/1.25 'Inter',sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff}
+.ca-w-termin .eins b{font-weight:600;display:inline}
+.ca-w-termin.verlauf{background:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,.09));border:1px solid rgba(255,255,255,.22);box-shadow:inset 0 1px 0 rgba(255,255,255,.18)}
+.ca-w-termin.ausser{border:1px dashed rgba(251,191,36,.55)}
+.ca-w-termin.abgesagt{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:#9ca3af;box-shadow:none;text-decoration:line-through}
+.ca-w-termin.abgesagt::before{background:rgba(148,163,184,.45)}
 .ca-w-termin.vorbei{opacity:.6}
-.ca-w-termin.verpasst{background:linear-gradient(180deg,#b45309,#92400e)}
+.ca-w-termin.verpasst{background:linear-gradient(180deg,#b45309,#92400e);border-color:rgba(251,191,36,.4)}
+.ca-w-termin.verpasst::before{background:#fbbf24}
 .ca-w-legende{display:flex;gap:16px;flex-wrap:wrap;font-size:11.5px;color:#64748b}
 .ca-w-legende i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin-right:6px}
 
@@ -145,36 +164,25 @@ select.ca-feld option{color:#0f172a}
 .ca-notiz{margin:10px 0 0;padding:12px 14px;border-radius:14px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);font-size:13.5px;line-height:1.55;color:#cbd5e1;white-space:pre-wrap;overflow-wrap:anywhere}
 .ca-dialog-aktionen{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
 
-/* Startgespräche */
-.ca-zahlen{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
-.ca-zahl{padding:14px 16px;border-radius:16px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1)}
-.ca-zahl small{display:block;font:500 10px/1.3 'Inter',sans-serif;letter-spacing:.1em;text-transform:uppercase;color:#93c5fd}
-.ca-zahl b{display:block;margin-top:6px;font:300 30px/1 'Inter',sans-serif;letter-spacing:-.03em;color:#fff;font-variant-numeric:tabular-nums}
-.ca-zahl.hervor{background:linear-gradient(135deg,rgba(37,99,235,.3),rgba(37,99,235,.08));border-color:rgba(96,165,250,.35)}
-.ca-sg-karte{padding:16px 18px;border-radius:18px;background:rgba(15,23,42,.6);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
-.ca-sg-karte.heute{border-color:rgba(52,211,153,.35)}
-.ca-sg-kopf{display:grid;grid-template-columns:64px 1fr auto;gap:14px;align-items:center}
-.ca-sg-kopf .ca-wer{cursor:pointer}
-.ca-sg-auf{margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,.08);display:grid;gap:16px}
-.ca-sg-titel{display:block;font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#93c5fd;margin-bottom:8px}
-.ca-hell{padding:14px 16px;border-radius:16px;background:rgba(248,250,252,.96);color:#0f172a}
-.ca-verlauf-liste{display:grid;gap:6px;max-height:220px;overflow:auto;margin:10px 0 0;padding:0;list-style:none}
-.ca-verlauf-liste li{font-size:12.5px;line-height:1.45;color:#cbd5e1}
-.ca-verlauf-liste li b{color:#fff;font-weight:500;font-variant-numeric:tabular-nums}
-.ca-verlauf-liste li span{color:#9ca3af}
-.ca-tag-titel{display:block;font:500 11px/1 'Inter',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#64748b;margin:6px 0 8px}
-.ca-tag-titel.heute{color:#34d399}
-.ca-sg-liste{display:grid;gap:10px}
-.ca-wartend-filter{display:inline-flex;gap:6px}
-.ca-wartend-filter button{min-height:36px;padding:0 13px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#cbd5e1;font:500 12.5px/1 'Inter',sans-serif;cursor:pointer}
-.ca-wartend-filter button.an{background:linear-gradient(135deg,#2563eb,#3b82f6);border-color:transparent;color:#fff}
-.ca-stand{font-size:12.5px;font-weight:500;margin-top:3px}
-.ca-stand.gut{color:#34d399}.ca-stand.warn{color:#fbbf24}.ca-stand.rot{color:#f87171}
-.ca-code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;color:#93c5fd;overflow-wrap:anywhere}
+/* Glas-Popover am Terminblock (Hover flüchtig, Klick fest; Handy: Bottom-Sheet) */
+.ca-popover-hintergrund{position:fixed;inset:0;z-index:290;background:transparent}
+.ca-popover{position:fixed;z-index:295;width:300px;max-width:calc(100vw - 16px);padding:16px 18px;border-radius:18px;background:linear-gradient(180deg,rgba(30,41,59,.92),rgba(15,23,42,.95));border:1px solid rgba(255,255,255,.16);backdrop-filter:blur(24px) saturate(160%);-webkit-backdrop-filter:blur(24px) saturate(160%);box-shadow:0 24px 60px rgba(2,6,23,.55),inset 0 1px 0 rgba(255,255,255,.12);animation:caEin .18s ease both}
+.ca-popover-kopf{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.ca-popover-kopf b{font:500 15px/1.3 'Inter',sans-serif;color:#fff;overflow-wrap:anywhere}
+.ca-zu.klein{width:34px;height:34px;flex:0 0 34px;border-radius:10px}
+.ca-popover-zeit{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:13px;color:#e5e7eb}
+.ca-popover-zeit svg{color:#93c5fd;flex:0 0 auto}
+.ca-popover-zeit span{font-variant-numeric:tabular-nums}
+.ca-popover-zeit small{color:#9ca3af;font-size:11.5px;white-space:nowrap}
+.ca-popover-marken{display:flex;flex-wrap:wrap;gap:4px 6px;margin-top:8px}
+.ca-popover-notiz{margin:10px 0 0;font-size:12.5px;line-height:1.5;color:#cbd5e1;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.ca-popover-knoepfe{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+
+/* Die Startgespräche-Styles (E-051) sind mit der Sektion in den Raum
+   Onboarding umgezogen: office-onboarding.css, Präfix .ob- */
 
 @media(max-width:960px){
   .ca-kopf{grid-template-columns:1fr}
-  .ca-zahlen{grid-template-columns:repeat(3,1fr)}
   .ca-woche{grid-template-columns:44px repeat(7,minmax(92px,1fr))}
 }
 @media(max-width:700px){
@@ -184,12 +192,16 @@ select.ca-feld option{color:#0f172a}
   .ca-nav b{flex:1}
   .ca-zeile{grid-template-columns:64px 1fr;row-gap:8px}
   .ca-aktion{grid-column:1/3;justify-content:flex-start}
-  .ca-zahlen{grid-template-columns:repeat(2,1fr)}
-  .ca-sg-kopf{grid-template-columns:56px 1fr}
-  .ca-sg-kopf .ca-aktion{grid-column:1/3}
+  .ca-hinweiskarte{flex-wrap:wrap}
+  .ca-hinweiskarte em{margin-left:26px}
   .ca-dialog-hintergrund{place-items:end center;padding:0}
   .ca-dialog{width:100%;max-height:92vh;border-radius:26px 26px 0 0;animation-name:caHoch}
   @keyframes caHoch{from{transform:translateY(30px);opacity:0}to{transform:none;opacity:1}}
   .ca-knopf{flex:1 1 auto}
   .ca-lage-zahl b{font-size:36px}
+  /* Popover wird am Handy zum Bottom-Sheet (überschreibt die Inline-Position) */
+  .ca-popover-hintergrund{background:rgba(2,6,23,.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+  .ca-popover{left:0 !important;right:0;top:auto !important;bottom:0;width:100%;max-width:none;max-height:80vh;overflow:auto;border-radius:22px 22px 0 0;padding:20px 20px 24px;animation-name:caHoch}
+  /* Erster Tap = Popover; „Zur Akte“ ist darin der große Hauptweg. */
+  .ca-popover-knoepfe .ca-knopf.akte{flex:1 1 100%;min-height:50px;font-size:14.5px}
 }

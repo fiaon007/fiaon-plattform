@@ -7,6 +7,8 @@
 //   GET  /agent/vertrieb/mandate             → Mandats-Kennungen + Anzahl (x/500)
 //   GET  /agent/vertrieb/aktivitaet/:personId→ Zeitleiste ALLER Kundenereignisse
 //                                              + Vollständigkeit (Kartenstatus)
+//   GET  /agent/vertrieb/frei                → E-048: meine nächsten freien
+//                                              Termin-Zeiten (klickbare Slots)
 //
 // ── §16a: „Aktive Kunden“ zählen NUR übernommene Mandate ───────────────────
 // VORHER zählte die Oberfläche alle bezahlten/zugewiesenen Kunden. GEPRÜFT:
@@ -36,6 +38,7 @@ import { ruhtSql } from "../lib/fiaon-nicht-erreicht";
 import { wartetSql } from "../lib/fiaon-warten";
 import { ensureKartenSpalten } from "../lib/fiaon-kartenstatus";
 import { ensureBetreuungSpalte } from "../lib/tier";
+import { rohSlots, dauerFuer } from "../lib/fiaon-termine";
 
 const router = Router();
 
@@ -340,6 +343,40 @@ router.post("/agent/vertrieb/mandat/:personId", requireAgent, async (req: AgentR
     res.json({ ok: true, mandatSeit: r?.mandat_seit ?? null, anzahl: zahlen.anzahl, max: MANDATE_MAX });
   } catch (err) {
     console.error("[OFFICE-VERTRIEB] mandat:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E-048 Nr. 1: GET /agent/vertrieb/frei — meine nächsten freien Zeiten.
+//
+// VORHER tippte der Mitarbeiter beim „Termin buchen" Datum und Uhrzeit frei
+// ein und erfuhr erst NACH dem Abschicken, ob die Zeit im Raster seiner
+// Availability liegt oder schon belegt ist (409 aus terminBuchen).
+// NACHHER liefert dieser Endpunkt die nächsten freien Slots zum Anklicken —
+// mit DERSELBEN Rechnung wie die Kundenbuchung: `rohSlots` aus
+// lib/fiaon-termine (Signatur: rohSlots(agenten, takt, lauf)) rechnet die
+// aktiven Zeitfenster des Agenten abzüglich seiner Termine (status gebucht/
+// erledigt/verpasst; abgesagte geben die Zeit frei). Keine Kopie der Logik —
+// sonst böte die Pipeline Zeiten an, die die Annahme ablehnt. Gebucht wird
+// weiter über POST /agent/termine, der serverseitig erneut prüft.
+// ═══════════════════════════════════════════════════════════════════════════
+const FREI_TAGE = 7;
+const FREI_ANZAHL = 30;
+router.get("/agent/vertrieb/frei", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    // Der Takt der Buchung: POST /agent/termine bucht mit quelle "agent_manuell".
+    const takt = dauerFuer("agent_manuell");
+    // Nur ich selbst; der Vorname wird in der Anzeige nicht gebraucht.
+    const alle = await rohSlots([{ id: req.agent!.id, vorname: "" }], takt);
+    const grenze = Date.now() + FREI_TAGE * 86_400_000;
+    const slots = alle
+      .filter((s) => new Date(s.beginn).getTime() <= grenze)
+      .slice(0, FREI_ANZAHL)
+      .map((s) => ({ beginn: s.beginn, datum: s.datum, uhrzeit: s.uhrzeit, dauerMin: takt }));
+    res.json({ ok: true, slots, dauerMin: takt });
+  } catch (err) {
+    console.error("[OFFICE-VERTRIEB] frei:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

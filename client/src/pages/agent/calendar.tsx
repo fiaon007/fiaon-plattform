@@ -18,8 +18,14 @@
 //         POST /agent/onboarding/person/:id/notiz { notiz } · /einladung
 //         POST /agent/onboarding/wartende/:id/einladung
 // Anruf: Ereignis `fiaon-anrufen`. Akte: /agent/kunden?person=<ID>.
+//
+// 23.08.2026 abends (Justins Auftrag, Screenshot Wochenansicht): Terminblöcke
+// waren gequetscht. Neu: Raster 00–24 h im Scrollrahmen (Start bei 08:00),
+// Mindesthöhe 34 px je Block, Spaltenaufteilung bei Überlappung statt Stapeln,
+// Glas-Popover bei Hover/Klick (Handy: Bottom-Sheet), Verlauf je Terminart
+// mit Lichtkante und Zeitbalken links – konsistent bis in die Tageskarten.
 // ═══════════════════════════════════════════════════════════════════════════
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Link } from "wouter";
 import { Phone, Check, X, ChevronLeft, ChevronRight, Plus, CalendarClock, StickyNote, ExternalLink, Clock, UserRoundCheck, Search } from "lucide-react";
 import { AgentShell, api } from "./shared";
@@ -57,7 +63,9 @@ function berlinIso(local: string): string | null {
 }
 const hm = (s: string) => Number(s.slice(0, 2)) * 60 + Number(s.slice(3, 5));
 const TAGE = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
-const RASTER_VON = 7 * 60, RASTER_BIS = 21 * 60; // Wochenraster 07–21 Uhr
+const STUNDE_PX = 44;               // Wochenraster: Höhe einer Stunde in Pixeln (00–24 h)
+const MIN_BLOCK = 34;               // Mindesthöhe eines Terminblocks – lesbar auch bei 20 min
+const SCROLL_START = 8 * STUNDE_PX; // beim Öffnen automatisch zu 08:00 scrollen
 const anrufen = (nummer: string | null | undefined, personId: number | null | undefined, name: string) => { if (!nummer) return; window.dispatchEvent(new CustomEvent("fiaon-anrufen", { detail: { nummer, personId: personId ?? null, name } })); };
 
 // ── Termin (zwei Quellen: Verlauf = eigene Notiz, Termin = vom Kunden gebucht) ──
@@ -77,6 +85,40 @@ const tKey = (a: Termin) => a.schluessel ?? `${a.art ?? "verlauf"}:${a.id}`;
 const akteHref = (a: { person_id?: number | null; personId?: number | null; ref?: string | null }) => a.person_id || a.personId ? `/agent/kunden?person=${a.person_id ?? a.personId}` : `/agent/kunden?ref=${encodeURIComponent(a.ref || "")}`;
 
 interface Block { wochentag: number; von: string; bis: string }
+
+// ── Spaltenaufteilung im Wochenraster ───────────────────────────────────────
+// Blöcke bekommen eine Mindesthöhe (MIN_BLOCK); wer sich dadurch – oder echt –
+// überlappt, wird nebeneinander versetzt statt übereinander gestapelt.
+interface WLage { top: number; hoehe: number; links: number; breite: number } // top/hoehe px, links/breite %
+function wochenLayout(liste: Termin[]): Map<string, WLage> {
+  const H = STUNDE_PX;
+  const its = liste.map((a) => {
+    const dauer = Math.max(15, Number(a.dauer_min) || 30);
+    const hoehe = Math.max(MIN_BLOCK, (dauer / 60) * H);
+    const top = Math.max(0, Math.min((minuten(tZeit(a)) / 60) * H, 24 * H - hoehe));
+    return { key: tKey(a), top, ende: top + hoehe };
+  }).sort((x, y) => x.top - y.top || y.ende - x.ende);
+  const res = new Map<string, WLage>();
+  let gruppe: typeof its = []; let gruppenEnde = -1;
+  const abschliessen = () => {
+    if (!gruppe.length) return;
+    const spaltenEnde: number[] = []; const spalte = new Map<string, number>();
+    for (const it of gruppe) {
+      let s = spaltenEnde.findIndex((e) => e <= it.top + 1);
+      if (s === -1) { s = spaltenEnde.length; spaltenEnde.push(0); }
+      spaltenEnde[s] = it.ende + 2; spalte.set(it.key, s); // 2 px Luft = „beinahe überlappend“ zählt mit
+    }
+    const n = spaltenEnde.length;
+    for (const it of gruppe) res.set(it.key, { top: it.top, hoehe: it.ende - it.top, links: (spalte.get(it.key)! / n) * 100, breite: 100 / n });
+    gruppe = [];
+  };
+  for (const it of its) {
+    if (gruppe.length && it.top >= gruppenEnde) { abschliessen(); gruppenEnde = -1; }
+    gruppe.push(it); gruppenEnde = Math.max(gruppenEnde, it.ende + 2);
+  }
+  abschliessen();
+  return res;
+}
 
 export default function AgentCalendarPage() { return <AgentShell><CalendarInnen /></AgentShell>; }
 
@@ -172,6 +214,34 @@ function CalendarInnen() {
     if (r.ok) { flash("Termin abgesagt – der Kunde wird informiert."); setDetail(null); laden(); } else flash(r.json?.error || "Das hat nicht geklappt.", true);
   };
 
+  // ── Glas-Popover im Wochenraster (Hover = flüchtig, Klick = fest) ────────
+  const [popover, setPopover] = useState<{ a: Termin; fest: boolean; links: number; oben: number } | null>(null);
+  const wocheRef = useRef<HTMLDivElement | null>(null);
+  const hoverTimer = useRef<number | null>(null);
+  const zuTimer = useRef<number | null>(null);
+  useEffect(() => () => { if (hoverTimer.current) window.clearTimeout(hoverTimer.current); if (zuTimer.current) window.clearTimeout(zuTimer.current); }, []);
+  const popAuf = (a: Termin, el: HTMLElement, fest: boolean) => {
+    if (hoverTimer.current) window.clearTimeout(hoverTimer.current);
+    if (zuTimer.current) window.clearTimeout(zuTimer.current);
+    const r = el.getBoundingClientRect();
+    const links = r.right + 316 < window.innerWidth ? r.right + 10 : Math.max(8, r.left - 312);
+    const oben = Math.max(12, Math.min(window.innerHeight - 320, r.top - 6));
+    setPopover({ a, fest, links, oben });
+  };
+  const hoverAuf = (a: Termin, el: HTMLElement) => {
+    if (popover?.fest || detail) return;
+    if (zuTimer.current) window.clearTimeout(zuTimer.current);
+    if (hoverTimer.current) window.clearTimeout(hoverTimer.current);
+    hoverTimer.current = window.setTimeout(() => popAuf(a, el, false), 120);
+  };
+  const hoverZu = () => {
+    if (hoverTimer.current) window.clearTimeout(hoverTimer.current);
+    if (zuTimer.current) window.clearTimeout(zuTimer.current);
+    zuTimer.current = window.setTimeout(() => setPopover((p) => (p && !p.fest ? null : p)), 250);
+  };
+  // Beim Öffnen der Woche zu 08:00 springen – Randtermine bleiben per Scroll erreichbar.
+  useEffect(() => { if (ansicht === "woche" && !laedt && wocheRef.current) wocheRef.current.scrollTop = SCROLL_START; }, [ansicht, laedt]);
+
   const wochenTitel = `${datumKurz(ausKey(wochenKeys[0]))} – ${datumKurz(ausKey(wochenKeys[6]))}`;
   const tagDate = ausKey(tagKey);
 
@@ -232,27 +302,40 @@ function CalendarInnen() {
 
       {ansicht === "woche" && !laedt && (
         <>
-          <section className="ca-woche" aria-label="Wochenansicht">
-            <div className="ca-w-zeiten"><div /><div className="ca-w-zeitspalte">{Array.from({ length: (RASTER_BIS - RASTER_VON) / 60 + 1 }, (_, i) => <span key={i} style={{ top: `${(i * 60) / (RASTER_BIS - RASTER_VON) * 100}%` }}>{String(RASTER_VON / 60 + i).padStart(2, "0")}</span>)}</div></div>
+          <section className="ca-woche" aria-label="Wochenansicht" ref={wocheRef} onScroll={() => setPopover(null)}>
+            <div className="ca-w-zeiten">
+              <div className="ca-w-ecke" />
+              <div className="ca-w-zeitspalte" style={{ height: 24 * STUNDE_PX }}>
+                {Array.from({ length: 25 }, (_, i) => <span key={i} style={{ top: i * STUNDE_PX }}>{String(i % 24).padStart(2, "0")}</span>)}
+              </div>
+            </div>
             {wochenKeys.map((key, i) => {
               const d = ausKey(key); const liste = proTag(key); const frei = freiAm(i + 1); const istHeute = key === heuteKey;
-              const pos = (m: number) => Math.max(0, Math.min(100, ((m - RASTER_VON) / (RASTER_BIS - RASTER_VON)) * 100));
+              const lage = wochenLayout(liste);
+              const px = (m: number) => (m / 60) * STUNDE_PX;
               return (
                 <div key={key} className={`ca-w-tag${istHeute ? " heute" : ""}`}>
-                  <button type="button" className="ca-w-kopf" style={{ border: 0, background: istHeute ? undefined : "transparent", cursor: "pointer" }} onClick={() => { setTagKey(key); setAnsicht("tag"); }} title="Tag öffnen">
+                  <button type="button" className="ca-w-kopf" onClick={() => { setTagKey(key); setAnsicht("tag"); }} title="Tag öffnen">
                     {istHeute ? <em>Heute</em> : <b>{TAGE[i]}</b>}<small>{datumKurz(d)}</small>{istHeute && <b style={{ fontSize: 11 }}>{TAGE[i]}</b>}
                   </button>
-                  <div className="ca-w-spalte">
+                  <div className="ca-w-spalte" style={{ height: 24 * STUNDE_PX }}>
                     <div className="ca-w-ausser" style={{ top: 0, bottom: 0 }} />
-                    {frei.map(([v, b], k) => <div key={k} className="ca-w-frei" style={{ top: `${pos(v)}%`, height: `${pos(b) - pos(v)}%` }} />)}
-                    {Array.from({ length: (RASTER_BIS - RASTER_VON) / 60 + 1 }, (_, h) => <div key={h} className="ca-w-linie" style={{ top: `${(h * 60) / (RASTER_BIS - RASTER_VON) * 100}%` }} />)}
-                    {istHeute && <div className="ca-w-jetzt" style={{ top: `${pos(minuten(jetzt))}%` }} />}
+                    {frei.map(([v, b], k) => <div key={k} className="ca-w-frei" style={{ top: px(v), height: px(b) - px(v) }} />)}
+                    {Array.from({ length: 25 }, (_, h) => <div key={h} className="ca-w-linie" style={{ top: h * STUNDE_PX }} />)}
+                    {istHeute && <div className="ca-w-jetzt" style={{ top: px(minuten(jetzt)) }} />}
                     {liste.map((a) => {
-                      const m = minuten(tZeit(a)); const dauer = Math.max(30, Number(a.dauer_min) || 30);
+                      const l = lage.get(tKey(a))!;
+                      const kompakt = l.hoehe < 50; // erst ab ausreichender Höhe zweizeilig
+                      const ton = a.terminArtTon || (a.art === "verlauf" ? "#94a3b8" : "#3b82f6");
                       return (
-                        <button key={tKey(a)} type="button" className={`ca-w-termin${a.art === "verlauf" ? " verlauf" : ""}${a.abgesagt ? " abgesagt" : ""}${a.status === "verpasst" ? " verpasst" : ""}${tZeit(a) < jetzt && !a.abgesagt ? " vorbei" : ""}${!inVerfuegbarkeit(tZeit(a)) ? " ausser" : ""}`}
-                                style={{ top: `${pos(m)}%`, height: `${Math.max(4, pos(m + dauer) - pos(m))}%` }} onClick={() => setDetail(a)} title={`${uhr(tZeit(a))} ${tName(a)}`}>
-                          <b>{uhr(tZeit(a))}</b><span>{tName(a)}</span>
+                        <button key={tKey(a)} type="button"
+                                className={`ca-w-termin${a.art === "verlauf" ? " verlauf" : ""}${a.abgesagt ? " abgesagt" : ""}${a.status === "verpasst" ? " verpasst" : ""}${tZeit(a) < jetzt && !a.abgesagt ? " vorbei" : ""}${!inVerfuegbarkeit(tZeit(a)) ? " ausser" : ""}${kompakt ? " kompakt" : ""}`}
+                                style={{ top: l.top, height: l.hoehe, left: `calc(${l.links}% + 3px)`, width: `calc(${l.breite}% - 6px)`, "--ca-ton": ton } as CSSProperties}
+                                onClick={(e) => popAuf(a, e.currentTarget, true)}
+                                onMouseEnter={(e) => hoverAuf(a, e.currentTarget)}
+                                onMouseLeave={hoverZu}
+                                title={`${uhr(tZeit(a))} ${tName(a)}`}>
+                          {kompakt ? <span className="eins"><b>{uhr(tZeit(a))}</b> · {tName(a)}</span> : <><b>{uhr(tZeit(a))}</b><span>{tName(a)}</span></>}
                         </button>
                       );
                     })}
@@ -286,6 +369,14 @@ function CalendarInnen() {
 
       {ansicht === "start" && <Startgespraeche />}
 
+      {popover && (
+        <Popover a={popover.a} fest={popover.fest} links={popover.links} oben={popover.oben}
+                 ausser={!inVerfuegbarkeit(tZeit(popover.a))}
+                 onZu={() => setPopover(null)}
+                 onHalten={() => { if (zuTimer.current) window.clearTimeout(zuTimer.current); }}
+                 onLoslassen={hoverZu}
+                 onDetails={() => { setDetail(popover.a); setPopover(null); }} />
+      )}
       {detail && (
         <Detail a={detail} busy={busy === tKey(detail)} ausser={!inVerfuegbarkeit(tZeit(detail))} onZu={() => setDetail(null)}
                 onErledigt={() => erledigt(detail)} onVerpasst={() => verpasst(detail)} onVerschieben={(w) => verschieben(detail, w)}
@@ -299,8 +390,9 @@ function CalendarInnen() {
 // ── Eine Terminzeile ─────────────────────────────────────────────────────────
 function Zeile({ a, datum, busy, ausser, onOeffnen, onErledigt }: { a: Termin; datum?: boolean; busy: boolean; ausser: boolean; onOeffnen: () => void; onErledigt: () => void }) {
   const tel = tPhone(a); const d = tZeit(a);
+  const ton = a.terminArtTon || (a.quelle === "termin" ? "#3b82f6" : "#94a3b8"); // gleicher Zeitbalken wie im Wochenraster
   return (
-    <div className={`ca-zeile${a.abgesagt ? " abgesagt" : ""}`} onClick={onOeffnen} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter") onOeffnen(); }}>
+    <div className={`ca-zeile mit-ton${a.abgesagt ? " abgesagt" : ""}`} style={{ "--ca-ton": ton } as CSSProperties} onClick={onOeffnen} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter") onOeffnen(); }}>
       <div className={`ca-zeit${ausser ? " ausser" : ""}`}><b>{uhr(d)}</b><small>{datum ? datumKurz(d) : a.dauer_min ? `${a.dauer_min} min` : ausser ? "außerhalb" : ""}</small></div>
       <div className="ca-wer">
         <b>{tName(a)}</b>
@@ -332,6 +424,44 @@ function Tagband({ frei, jetzt }: { frei: [number, number][]; jetzt: number | nu
         {jetzt != null && jetzt >= VON && jetzt <= BIS && <em style={{ left: pos(jetzt) }} />}
       </div>
       <div className="ca-tagband-legende"><span><i style={{ background: "rgba(59,130,246,.45)" }} />deine Zeiten</span><span><i style={{ background: "rgba(255,255,255,.08)" }} />außerhalb (grau)</span>{jetzt != null && <span><i style={{ background: "#fbbf24", width: 2 }} />jetzt</span>}</div>
+    </>
+  );
+}
+
+// ── Glas-Popover: der Block darf klein sein, die Bedienung liegt hier ────────
+// Hover zeigt es flüchtig, Klick pinnt es (mit Hintergrund zum Schließen).
+// Am Handy (≤700px) wird es per CSS zum Bottom-Sheet.
+function Popover({ a, fest, links, oben, ausser, onZu, onHalten, onLoslassen, onDetails }: {
+  a: Termin; fest: boolean; links: number; oben: number; ausser: boolean;
+  onZu: () => void; onHalten: () => void; onLoslassen: () => void; onDetails: () => void;
+}) {
+  const tel = tPhone(a); const d = tZeit(a);
+  const dauer = Number(a.dauer_min) || null;
+  const ende = dauer ? new Date(+d + dauer * 60000) : null;
+  useEffect(() => { const f = (e: KeyboardEvent) => { if (e.key === "Escape") onZu(); }; window.addEventListener("keydown", f); return () => window.removeEventListener("keydown", f); }, [onZu]);
+  return (
+    <>
+      {fest && <div className="ca-popover-hintergrund" onClick={onZu} />}
+      <div className="ca-popover" role="dialog" aria-label={tName(a)} style={{ left: links, top: oben }} onMouseEnter={onHalten} onMouseLeave={onLoslassen}>
+        <div className="ca-popover-kopf">
+          <b>{tName(a)}</b>
+          {fest && <button type="button" className="ca-zu klein" onClick={onZu} aria-label="Schließen"><X size={15} /></button>}
+        </div>
+        <div className="ca-popover-zeit"><CalendarClock size={14} strokeWidth={1.75} /><span>{zeitTag(d.toISOString())} Uhr</span><small>{ende && dauer ? `bis ${uhr(ende)} · ${dauer} min` : "ohne feste Dauer"}</small></div>
+        <div className="ca-popover-marken">
+          {a.terminArtText && <span className="ca-marke blau" title={a.terminArtErklaerung || undefined} style={a.terminArtTon ? { color: a.terminArtTon, borderColor: `${a.terminArtTon}66` } : undefined}>{a.terminArtText}</span>}
+          {a.quelle === "termin" ? <span className="ca-marke kunde">Kunde hat gebucht</span> : <span className="ca-marke">{a.scheduled_at ? "selbst notiert" : "Zahlungs-Zusage"}</span>}
+          {a.abgesagt && <span className="ca-marke warn">{a.absageText || "abgesagt"}</span>}
+          {a.status === "verpasst" && <span className="ca-marke rot">nicht erschienen – offen</span>}
+          {ausser && <span className="ca-marke warn">außerhalb deiner Zeiten</span>}
+        </div>
+        {a.note && <p className="ca-popover-notiz">{a.note}</p>}
+        <div className="ca-popover-knoepfe">
+          {tel && <button type="button" className="ca-knopf klein" onClick={() => anrufen(tel, a.person_id, tName(a))}><Phone size={13} strokeWidth={1.75} /> Anrufen</button>}
+          <Link href={akteHref(a)} className="ca-knopf klein still"><ExternalLink size={13} strokeWidth={1.75} /> Akte</Link>
+          <button type="button" className="ca-knopf klein still" onClick={onDetails}>Details</button>
+        </div>
+      </div>
     </>
   );
 }

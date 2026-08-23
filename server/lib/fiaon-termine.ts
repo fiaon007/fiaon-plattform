@@ -547,8 +547,14 @@ export interface SlotAuskunft {
  * Sie steht getrennt, weil `rollenFuerBuchung` sie braucht, um „gibt es
  * überhaupt eine freie Onboarding-Zeit?" zu beantworten. Eine zweite
  * Rechnung dafür wäre die zweite Wahrheit über dieselbe Frage.
+ *
+ * E-048 (23.08.2026): VORHER modul-intern — NACHHER exportiert, weil
+ * GET /agent/vertrieb/frei (fiaon-office-vertrieb.ts) dem Mitarbeiter seine
+ * eigenen freien Zeiten als Klick-Auswahl anbietet. Dieselbe Rechnung wie
+ * bei der Kundenbuchung, keine Kopie — sonst böte die Pipeline Zeiten an,
+ * die die Annahme (terminBuchen, Raster-Wand) ablehnt.
  */
-async function rohSlots(
+export async function rohSlots(
   agenten: { id: number; vorname: string }[], takt: number, lauf: Lauf = sqlPool,
 ): Promise<Slot[]> {
   if (agenten.length === 0) return [];

@@ -1693,13 +1693,21 @@ router.post("/telefon/richtlinie", requireAgent, async (req: AgentRequest, res: 
         error: "Bitte schreib deinen Namen in das Feld. Das ist die Unterschrift.",
       });
     }
-    await zusageSpeichern({
+    // ── VORHER→NACHHER (24.08.2026, Befund Justin) ────────────────────────
+    // Vorher wurde das Ergebnis von zusageSpeichern IGNORIERT und immer
+    // { ok: true } geantwortet. Lehnte die Speicherung ab (falscher Name,
+    // Roboter-Wand …), schloss der Client die Tafel trotzdem – und das
+    // nächste Wählen öffnete sie wieder: eine Endlosschleife ohne Erklärung.
+    const ergebnis = await zusageSpeichern({
       agentId: req.agent!.id, agentName: req.agent!.name, bereich: "telefon",
       version: TELEFON_ZUSAGE_VERSION, sollVersion: TELEFON_ZUSAGE_VERSION,
       text: TELEFON_ZUSAGE_TEXT, nameGetippt: getippt,
       gelesen: req.body?.gelesen === true,
       ip: ip || null, userAgent: ua || null,
     });
+    if (!ergebnis.ok) {
+      return res.status(400).json({ ok: false, error: ergebnis.grund || "Annahme fehlgeschlagen." });
+    }
     console.log(`[TELEFON] Richtlinie angenommen: ${req.agent!.name} (${TELEFON_ZUSAGE_VERSION})`);
     res.json({ ok: true });
   } catch (err) {

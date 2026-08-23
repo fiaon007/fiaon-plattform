@@ -33,7 +33,9 @@
 .pi-fokus{display:grid;grid-template-columns:1.5fr 1fr;gap:14px;align-items:start}
 .pi-fokus-karte{position:relative;display:grid;gap:12px;padding:26px 28px;border-radius:26px;background:rgba(15,23,42,.62);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(22px) saturate(160%);-webkit-backdrop-filter:blur(22px) saturate(160%);box-shadow:0 30px 80px rgba(2,6,23,.5),inset 0 1px 0 rgba(255,255,255,.08);overflow:hidden}
 .pi-fokus-karte::before{content:"";position:absolute;inset:-40% -20% auto;height:80%;background:radial-gradient(ellipse at 50% 0%,color-mix(in srgb,var(--hitze,#2563eb) 26%,transparent),transparent 65%);pointer-events:none}
-.pi-fokus-karte.tief{animation:piTief .5s cubic-bezier(.2,.8,.2,1) both}
+/* E-048 Nr. 2: VORHER glitt der neue Fokus in .5s herein — NACHHER ~350 ms,
+   gleiche Kurve wie das Hinausgleiten (piGeht): ein Atem, kein Nachzügler. */
+.pi-fokus-karte.tief{animation:piTief .35s cubic-bezier(.2,.8,.2,1) both}
 @keyframes piTief{from{opacity:0;transform:perspective(900px) translateZ(-60px) translateY(8px)}to{opacity:1;transform:none}}
 .pi-fokus-kopf{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
 .pi-fokus-zaehler{display:inline-flex;align-items:center;gap:8px;font:400 12.5px/1 'Inter',sans-serif;color:#9ca3af;font-variant-numeric:tabular-nums}
@@ -262,10 +264,27 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
 .pi-ak-fuss{font-size:11.5px;color:#9ca3af;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pi-ak-tun{display:flex;align-items:center;gap:6px}
 .pi-ak-tun .pi-link{margin-left:auto}
-/* Erledigt: gleitet hinaus, der nächste rückt nach */
-.pi-ak.geht,.pi-fokus-karte.geht{animation:piGeht .4s cubic-bezier(.4,0,.8,.4) both;pointer-events:none}
-@keyframes piGeht{to{opacity:0;transform:translateX(28px) scale(.96)}}
+/* Erledigt: gleitet hinaus, der nächste rückt nach.
+   E-048 Nr. 2: VORHER .4s cubic-bezier(.4,0,.8,.4), flach — NACHHER ~350 ms,
+   cubic-bezier(.2,.8,.2,1) und leichte Tiefe (translateZ), passend zu piTief. */
+.pi-ak.geht,.pi-fokus-karte.geht{animation:piGeht .35s cubic-bezier(.2,.8,.2,1) both;pointer-events:none}
+@keyframes piGeht{to{opacity:0;transform:perspective(900px) translateZ(-50px) translateX(30px) scale(.97)}}
 .pi-termin{display:grid;gap:8px;padding:12px 14px;border-radius:16px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12)}
+/* ── E-048 Nr. 1: Slot-Wahl — klickbare freie Zeiten statt Datum/Zeit-Feldern.
+   VORHER: zwei .pi-eingabe-Felder (Freitext) in .pi-termin — NACHHER:
+   Glas-Kacheln, gruppiert nach Tag (Heute · Morgen · Mi 27.08.), ein Klick
+   wählt, „Bestätigen“ bucht. Handytauglich: Kacheln füllen die Zeile. ── */
+.pi-slots{display:grid;gap:12px}
+.pi-slot-tag{display:grid;gap:7px}
+.pi-slot-tag>b{font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#93c5fd}
+.pi-slot-reihe{display:flex;flex-wrap:wrap;gap:7px}
+.pi-slot{min-height:42px;min-width:76px;padding:0 14px;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);color:#e5e7eb;font:500 13px/1 'Inter',sans-serif;font-variant-numeric:tabular-nums;cursor:pointer;transition:border-color .2s,background .2s,box-shadow .2s}
+.pi-slot:hover{border-color:rgba(96,165,250,.5)}
+.pi-slot.an{background:linear-gradient(135deg,rgba(37,99,235,.55),rgba(37,99,235,.22));border-color:rgba(96,165,250,.7);color:#fff;box-shadow:0 10px 24px rgba(37,99,235,.3)}
+.pi-slot-fuss{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-top:10px;border-top:1px solid rgba(255,255,255,.08)}
+.pi-slot-fuss>b{font:500 13px/1.3 'Inter',sans-serif;color:#fff;font-variant-numeric:tabular-nums}
+.pi-slot-fuss .pi-link{margin-left:auto}
+@media(max-width:700px){.pi-slot{flex:1 1 30%;min-width:0}.pi-slot-fuss .pi-knopf{flex:1 1 100%}}
 .pi-fokus-erinnerung{margin:0;padding:10px 14px;border-radius:12px;background:rgba(16,185,129,.1);border:1px solid rgba(52,211,153,.3);color:#a7f3d0;font:400 12.5px/1.5 'Inter',sans-serif}
 .pi-ergebnisweg{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding-top:12px;border-top:1px solid rgba(255,255,255,.1)}
 @media(max-width:960px){.pi-arbeit{grid-template-columns:1fr}}
@@ -401,4 +420,14 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
   .pi-dl dt{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase}
 }
 @media(max-width:560px){.pi-umsatz{grid-template-columns:1fr}.pi-umsatz-zahl:nth-child(2){grid-column:auto}}
-@media(prefers-reduced-motion:reduce){.pi-fokus-karte.tief,.pi-lade,.pi-lade-hintergrund{animation:none}.pi-sk,.pi-strom-buehne,.pi-umsatz-balken i{transition:none}.pi-trenner b{animation:none;background-position:50% 50%}}
+/* E-048 Nr. 2: VORHER schaltete reduced-motion die Fokus-Animation nur ab
+   (und .geht glitt weiter) — NACHHER blendet ALLES nur sanft: hinein (piEin),
+   hinaus (piBlende); das FLIP-Nachrücken misst dann nur, ohne zu bewegen. */
+@keyframes piBlende{to{opacity:0}}
+@media(prefers-reduced-motion:reduce){
+  .pi-lade,.pi-lade-hintergrund{animation:none}
+  .pi-fokus-karte.tief,.pi-ak{animation:piEin .25s ease both}
+  .pi-ak.geht,.pi-fokus-karte.geht{animation:piBlende .3s ease both}
+  .pi-sk,.pi-strom-buehne,.pi-umsatz-balken i{transition:none}
+  .pi-trenner b{animation:none;background-position:50% 50%}
+}

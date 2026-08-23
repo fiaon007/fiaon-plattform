@@ -82,10 +82,19 @@
 //     (fiaon_persons.mandat_seit, gesetzt beim Buchen von „Mandat
 //     angenommen“), x/500. Der Bestand-Reiter trennt „Mandate (dein Bestand)“
 //     und „Zugewiesen, Mandat offen“.
+//   · E-048 (Justin 23.08.): 1. Termin buchen = klickbare freie Zeiten,
+//     nichts tippen — SlotWahl (GET /agent/vertrieb/frei, dieselbe Rechnung
+//     wie die Kundenbuchung) ersetzt die Datum/Zeit-Felder in Fokus-Karte und
+//     Akte; gebucht wird weiter über POST /agent/termine. 2. Karten-Wechsel
+//     mit Animation ohne Neuladen: hinaus/herein je ~350 ms
+//     cubic-bezier(.2,.8,.2,1) mit leichter Tiefe, kleine Karten rücken per
+//     FLIP nach (useFlip), Liste füllt sich still über GET /agent/vertrieb/
+//     arbeitsliste; prefers-reduced-motion blendet nur.
 // Regel (Justin): Die erste Zahlung ist immer eine Überweisung – nirgends
 // Lastschrift. Liste: GET /agent/kunden/liste (+ filter=bezahlt für Aktive).
 // ═══════════════════════════════════════════════════════════════════════════
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+// E-048 Nr. 2: useLayoutEffect neu — für die FLIP-Messung der Arbeitsliste.
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "wouter";
 import { Phone, Search, X, Plus, Copy, Send, Mail, FileText, RefreshCw, Check, ExternalLink, ChevronLeft, ChevronRight, ChevronDown, MoreHorizontal } from "lucide-react";
 import { AgentShell, api, useFragen } from "./shared";
@@ -405,6 +414,139 @@ function useZaehlen(ziel: number, ms = 300): number {
 }
 const euro0 = (c: number) => (c / 100).toLocaleString("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// E-048 Nr. 1: TERMIN BUCHEN = KLICKBARE FREIE ZEITEN, NICHTS TIPPEN.
+//
+// VORHER: An allen drei Stellen (Fokus-Karte „Termin einbuchen“, Situations-
+// Karte der Akte, „Mehr“-Menü → Termin buchen) standen ein Datum- und ein
+// Uhrzeit-Feld — der Mitarbeiter tippte blind und erfuhr erst nach dem
+// Abschicken, ob die Zeit in seiner Availability liegt oder belegt ist.
+// NACHHER: SlotWahl lädt GET /agent/vertrieb/frei (dieselbe Slot-Rechnung wie
+// die Kundenbuchung: rohSlots in server/lib/fiaon-termine), zeigt die Zeiten
+// als Glas-Kacheln gruppiert nach Tag (Heute · Morgen · Mi 27.08.), ein Klick
+// wählt, „Bestätigen“ bucht über den bestehenden POST /agent/termine — der
+// serverseitig erneut prüft. Schlägt die Buchung fehl (Slot inzwischen weg),
+// lädt die Auswahl neu statt den Fehler stehen zu lassen.
+// ═══════════════════════════════════════════════════════════════════════════
+interface FreiSlot { beginn: string; datum: string; uhrzeit: string; dauerMin: number }
+
+/** „Heute“ · „Morgen“ · „Mi 27.08.“ — Tage in Berliner Zeit. */
+function slotTagLabel(datum: string): string {
+  const berlin = (t: number) => new Date(t).toLocaleDateString("en-CA", { timeZone: "Europe/Berlin" });
+  if (datum === berlin(Date.now())) return "Heute";
+  if (datum === berlin(Date.now() + 86_400_000)) return "Morgen";
+  const d = new Date(`${datum}T12:00:00`);
+  return `${d.toLocaleDateString("de-DE", { weekday: "short" }).replace(".", "")} ${d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}.`;
+}
+
+function SlotWahl({ laeuft, onBuchen, onZu }: {
+  laeuft: boolean;
+  /** Bucht den Slot; false = fehlgeschlagen (Auswahl lädt dann neu). */
+  onBuchen: (beginnIso: string, label: string) => Promise<boolean>;
+  onZu: () => void;
+}) {
+  const [slots, setSlots] = useState<FreiSlot[] | null>(null);
+  const [ladeFehler, setLadeFehler] = useState<string | null>(null);
+  const [wahl, setWahl] = useState<FreiSlot | null>(null);
+  const laden = useCallback(() => {
+    setSlots(null); setLadeFehler(null); setWahl(null);
+    api("/agent/vertrieb/frei").then((r) => {
+      if (r.ok) setSlots(r.json.slots || []);
+      else setLadeFehler(r.json?.error || "Die freien Zeiten konnten nicht geladen werden.");
+    }).catch(() => setLadeFehler("Die freien Zeiten konnten nicht geladen werden."));
+  }, []);
+  useEffect(() => { laden(); }, [laden]);
+  const tage = useMemo(() => {
+    const m = new Map<string, FreiSlot[]>();
+    for (const s of slots ?? []) { if (!m.has(s.datum)) m.set(s.datum, []); m.get(s.datum)!.push(s); }
+    return Array.from(m.entries()).map(([datum, liste]) => ({ datum, label: slotTagLabel(datum), liste }));
+  }, [slots]);
+  const wahlLabel = wahl ? `${slotTagLabel(wahl.datum)}, ${wahl.uhrzeit} Uhr` : null;
+
+  return (
+    <div className="pi-termin">
+      {ladeFehler ? (
+        <p className="pi-fehler">{ladeFehler} <button type="button" className="pi-link" onClick={laden}>Erneut laden</button></p>
+      ) : slots === null ? (
+        <p className="pi-fussnote">Lade deine freien Zeiten …</p>
+      ) : slots.length === 0 ? (
+        <p className="pi-fussnote">Keine freien Zeiten – erweitere deine <Link href="/agent/arbeitszeiten">Availability</Link>.</p>
+      ) : (
+        <div className="pi-slots">
+          {tage.map((t) => (
+            <div key={t.datum} className="pi-slot-tag">
+              <b>{t.label}</b>
+              <div className="pi-slot-reihe">
+                {t.liste.map((s) => (
+                  <button key={s.beginn} type="button" className={`pi-slot${wahl?.beginn === s.beginn ? " an" : ""}`}
+                          aria-pressed={wahl?.beginn === s.beginn}
+                          onClick={() => setWahl(wahl?.beginn === s.beginn ? null : s)}>
+                    {s.uhrzeit}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="pi-slot-fuss">
+        {wahl ? (
+          <>
+            <b>{wahlLabel} · {wahl.dauerMin} Min</b>
+            <button type="button" className="pi-knopf" disabled={laeuft}
+                    onClick={async () => { if (wahl && !(await onBuchen(wahl.beginn, wahlLabel!))) laden(); }}>
+              {laeuft ? "Bucht …" : "Bestätigen"}
+            </button>
+          </>
+        ) : (slots?.length ?? 0) > 0 ? <span className="pi-fussnote">Zeit antippen, dann bestätigen.</span> : null}
+        <button type="button" className="pi-link" onClick={onZu}>Schließen</button>
+      </div>
+      <p className="pi-fussnote">Die Zeiten kommen aus deiner Availability abzüglich deiner Termine – beim Bestätigen prüft der Server erneut und blockiert den Slot.</p>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E-048 Nr. 2: FLIP für die kleinen Karten der Arbeitsliste.
+//
+// VORHER: Nach einem gebuchten Ergebnis glitt die erledigte Karte zwar hinaus
+// (piGeht) und der neue Fokus herein (piTief), aber die kleinen Karten
+// SPRANGEN auf ihre neuen Plätze, sobald der Server die 6 Slots neu füllte.
+// NACHHER: Vor jedem Render merkt sich der Haken die Lage jeder Karte
+// (relativ zum Behälter, damit Scrollen keine falschen Wege misst); nach dem
+// Render animiert er sie vom alten zum neuen Platz (First–Last–Invert–Play,
+// 350 ms, cubic-bezier(.2,.8,.2,1)). Neue Karten behalten ihren CSS-Einzug
+// (piAk). Bei prefers-reduced-motion wird nur gemessen, nicht bewegt.
+// ═══════════════════════════════════════════════════════════════════════════
+function useFlip(behaelter: React.RefObject<HTMLElement | null>, stand: string, ruhig: boolean) {
+  const vorher = useRef<Map<string, { x: number; y: number }>>(new Map());
+  useLayoutEffect(() => {
+    const el = behaelter.current;
+    if (!el) { vorher.current = new Map(); return; }
+    const rahmen = el.getBoundingClientRect();
+    const kinder = Array.from(el.querySelectorAll<HTMLElement>("[data-flip]"));
+    const neu = new Map<string, { x: number; y: number }>();
+    for (const kind of kinder) {
+      const r = kind.getBoundingClientRect();
+      neu.set(kind.dataset.flip!, { x: r.left - rahmen.left, y: r.top - rahmen.top });
+    }
+    if (!ruhig && typeof HTMLElement.prototype.animate === "function") {
+      for (const kind of kinder) {
+        const alt = vorher.current.get(kind.dataset.flip!);
+        if (!alt) continue; // neu montiert → CSS-Einzug piAk übernimmt
+        const ziel = neu.get(kind.dataset.flip!)!;
+        const dx = alt.x - ziel.x, dy = alt.y - ziel.y;
+        if (Math.abs(dx) < 1 && Math.abs(dy) < 1) continue;
+        kind.animate(
+          [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "translate(0, 0)" }],
+          { duration: 350, easing: "cubic-bezier(.2,.8,.2,1)" },
+        );
+      }
+    }
+    vorher.current = neu;
+  }, [stand]); // eslint-disable-line react-hooks/exhaustive-deps
+}
+
 export default function AgentPipelinePage() {
   return <AgentShell><ToastAnbieter><PipelineInnen /></ToastAnbieter></AgentShell>;
 }
@@ -614,10 +756,13 @@ function PipelineInnen() {
     });
     if (!r.ok) { setMeldungA({ art: "schlecht", text: r.json?.error || "Nicht gespeichert. Bitte erneut versuchen." }); return false; }
     setMeldungA({ art: "gut", text: r.json?.meldung || "Gespeichert." });
-    // Karte gleitet hinaus, der nächste rückt nach (Server füllt die 6 Slots neu).
+    // E-048 Nr. 2: Karte gleitet hinaus (piGeht, 350 ms), erst DANACH füllt
+    // der Server die 6 Slots leise nach — kein Neuladen, kein Flackern; die
+    // kleinen Karten rücken per FLIP nach (useFlip). VORHER 420 ms auf eine
+    // 400-ms-Animation — NACHHER 380 ms auf 350 ms, dieselbe Reserve.
     setGeht((g) => new Set(g).add(k.personId));
     setFokusId(null);
-    window.setTimeout(() => { void arbeitslisteLaden(true); void laden(true, true); }, 420);
+    window.setTimeout(() => { void arbeitslisteLaden(true); void laden(true, true); }, 380);
     return true;
   };
   const karteileiche = async (k: Kunde) => {
@@ -689,6 +834,9 @@ function PipelineInnen() {
   // ── Arbeitsliste: Fokus = gewählter Slot, sonst der erste ───────────────
   const fokusSlot = useMemo(() => slots.find((s) => s.kunde.personId === fokusId) ?? slots[0] ?? null, [slots, fokusId]);
   const kleine = useMemo(() => slots.filter((s) => s.kunde.personId !== (fokusSlot?.kunde.personId ?? -1)), [slots, fokusSlot]);
+  // E-048 Nr. 2: FLIP — die kleinen Karten rücken animiert nach statt zu springen.
+  const kleineRef = useRef<HTMLDivElement | null>(null);
+  useFlip(kleineRef, kleine.map((s) => s.kunde.personId).join(","), ruhig);
 
   return (
     <div className="pi">
@@ -743,7 +891,8 @@ function PipelineInnen() {
                 {/* E-047 (Justin, Screenshot): Trenner zwischen JETZT und DANACH —
                   animierte Zeile „Deine nächsten Kunden“, Linien beidseits. */}
               <div className="pi-trenner"><span className="linie" aria-hidden="true" /><b>Deine nächsten Kunden</b><span className="linie" aria-hidden="true" /></div>
-              <div className="pi-arbeit-klein">
+              {/* E-048 Nr. 2: ref für die FLIP-Messung (useFlip oben). */}
+              <div className="pi-arbeit-klein" ref={kleineRef}>
                   {kleine.map((s) => (
                     <KleineKarte key={s.kunde.personId} k={s.kunde} gruppe={s.gruppe} geht={geht.has(s.kunde.personId)}
                                  onFokus={() => setFokusId(s.kunde.personId)}
@@ -901,8 +1050,8 @@ function ArbeitsFokus({ k, gruppe, satz, geht, onAkte, onErgebnis, onEntfernen, 
   const [laeuft, setLaeuft] = useState<string | null>(null);
   const [negativOffen, setNegativOffen] = useState(false);
   const [terminOffen, setTerminOffen] = useState(false);
-  const [datum, setDatum] = useState(tagPlus(1));
-  const [zeit, setZeit] = useState("10:00");
+  // E-048 Nr. 1: VORHER eigene datum/zeit-Felder (Freitext) — NACHHER wählt
+  // SlotWahl einen echten freien Slot; hier bleibt nur das Ergebnis.
   const [gebucht, setGebucht] = useState<string | null>(null);
   const [bestaetigen, setBestaetigen] = useState(false);
   const [sendeFehler, setSendeFehler] = useState<string | null>(null);
@@ -913,15 +1062,18 @@ function ArbeitsFokus({ k, gruppe, satz, geht, onAkte, onErgebnis, onEntfernen, 
     || (!!k.termin && !k.termin.erledigt && new Date(k.termin.beginn).getTime() > Date.now())
     || (!!k.terminAm && new Date(k.terminAm).getTime() > Date.now());
 
-  const terminBuchen = async () => {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(datum) || !/^\d{2}:\d{2}$/.test(zeit)) { melden("schlecht", "Bitte Datum und Uhrzeit angeben."); return; }
+  // E-048 Nr. 1: VORHER baute die Funktion `${datum}T${zeit}:00` aus zwei
+  // Freitext-Feldern — NACHHER kommt der Beginn als ISO-Zeitpunkt eines echten
+  // freien Slots aus SlotWahl; der Server (POST /agent/termine) prüft erneut.
+  const terminBuchen = async (beginnIso: string, label: string): Promise<boolean> => {
     setLaeuft("termin");
-    const r = await api("/agent/termine", { method: "POST", body: JSON.stringify({ personId: k.personId, beginn: `${datum}T${zeit}:00` }) });
+    const r = await api("/agent/termine", { method: "POST", body: JSON.stringify({ personId: k.personId, beginn: beginnIso }) });
     setLaeuft(null);
-    if (!r.ok) { melden("schlecht", r.json?.error || "Der Termin konnte nicht gebucht werden."); return; }
-    const text = `${r.json.termin?.datumText ?? datum}, ${r.json.termin?.uhrzeit ?? zeit} Uhr`;
+    if (!r.ok) { melden("schlecht", r.json?.error || "Der Termin konnte nicht gebucht werden."); return false; }
+    const text = r.json.termin?.datumText ? `${r.json.termin.datumText}, ${r.json.termin.uhrzeit} Uhr` : label;
     setGebucht(text); setTerminOffen(false);
     melden("gut", `Termin gebucht: ${text}. Der Slot ist blockiert, die Bestätigung geht an den Kunden.`);
+    return true;
   };
   const zugaengeSenden = async () => {
     if (!(await fragen({ titel: `Zugänge („Willkommen und Zugang“) an ${k.name} senden?`, ja: "Senden" }))) return;
@@ -1014,16 +1166,9 @@ function ArbeitsFokus({ k, gruppe, satz, geht, onAkte, onErgebnis, onEntfernen, 
         </button>
       </div>
 
+      {/* E-048 Nr. 1: VORHER Datum-/Uhrzeit-Freitext — NACHHER klickbare freie Zeiten. */}
       {terminOffen && (
-        <div className="pi-termin">
-          <div className="pi-reihe">
-            <input type="date" className="pi-eingabe" style={{ flex: "0 0 160px" }} value={datum} min={heuteIso()} onChange={(e) => setDatum(e.target.value)} aria-label="Datum" />
-            <input type="time" className="pi-eingabe" style={{ flex: "0 0 110px" }} value={zeit} step={900} onChange={(e) => setZeit(e.target.value)} aria-label="Uhrzeit" />
-            <button type="button" className="pi-knopf" disabled={laeuft === "termin"} onClick={() => void terminBuchen()}>{laeuft === "termin" ? "Bucht …" : "Termin buchen"}</button>
-            <button type="button" className="pi-link" onClick={() => setTerminOffen(false)}>Schließen</button>
-          </div>
-          <p className="pi-fussnote">Der Slot kommt aus deiner Availability und wird echt blockiert – liegt er außerhalb oder ist er belegt, lehnt der Server ab.</p>
-        </div>
+        <SlotWahl laeuft={laeuft === "termin"} onBuchen={terminBuchen} onZu={() => setTerminOffen(false)} />
       )}
       {hatTermin && (
         <p className="pi-fokus-erinnerung">Erinnere den Kunden: Rechnung vor dem Termin begleichen → im Gespräch wird direkt aktiviert.{gebucht ? ` (Termin: ${gebucht})` : ""} Danach: „Mandat angenommen“ buchen.</p>
@@ -1074,7 +1219,8 @@ function KleineKarte({ k, gruppe, geht, onFokus, onAkte, onEntfernen }: {
   const st = STUFE[info.stufe];
   const faellig = rueckrufFaellig(k);
   return (
-    <div className={`pi-ak${geht ? " geht" : ""}`} style={{ ["--hitze" as string]: faellig ? "#f87171" : st.farbe }}>
+    // E-048 Nr. 2: data-flip = Kennung für die FLIP-Messung (useFlip).
+    <div className={`pi-ak${geht ? " geht" : ""}`} data-flip={k.personId} style={{ ["--hitze" as string]: faellig ? "#f87171" : st.farbe }}>
       <button type="button" className="pi-ak-kern" onClick={onFokus} title="Nach vorn holen">
         <span className="pi-ak-kopf"><i className="pi-glut" /><small>{faellig ? "Rückruf fällig" : info.name}</small></span>
         <b>{k.name}</b>
@@ -1335,8 +1481,8 @@ function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
   // ── E-046: Situations-Kopf (Justin: „auf 1 Blick sehen, auf 1 Klick handeln“) ──
   const [mehrOffen, setMehrOffen] = useState(false);
   const [terminOffen, setTerminOffen] = useState(false);
-  const [terminDatum, setTerminDatum] = useState(tagPlus(1));
-  const [terminZeit, setTerminZeit] = useState("10:00");
+  // E-048 Nr. 1: VORHER terminDatum/terminZeit als Freitext — NACHHER wählt
+  // SlotWahl einen echten freien Slot; hier bleibt nur das Ergebnis.
   const [terminGebucht, setTerminGebucht] = useState<string | null>(null);
   const [leitfadenAuf, setLeitfadenAuf] = useState(false);
   const [alleErgebnisse, setAlleErgebnisse] = useState(false);
@@ -1416,15 +1562,18 @@ function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
     : sitArt === "lead_ohne_antrag" ? "lead"
     : sitArt === "rechnung_offen" ? "warm" : "heiss";
 
-  const terminBuchen = async () => {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(terminDatum) || !/^\d{2}:\d{2}$/.test(terminZeit)) { melden("schlecht", "Bitte Datum und Uhrzeit angeben."); return; }
+  // E-048 Nr. 1: VORHER baute die Funktion `${terminDatum}T${terminZeit}:00`
+  // aus zwei Freitext-Feldern — NACHHER kommt der Beginn als ISO-Zeitpunkt
+  // eines echten freien Slots aus SlotWahl; POST /agent/termine prüft erneut.
+  const terminBuchen = async (beginnIso: string, label: string): Promise<boolean> => {
     setLaeuft("termin");
-    const r = await api("/agent/termine", { method: "POST", body: JSON.stringify({ personId: k.personId, beginn: `${terminDatum}T${terminZeit}:00` }) });
+    const r = await api("/agent/termine", { method: "POST", body: JSON.stringify({ personId: k.personId, beginn: beginnIso }) });
     setLaeuft(null);
-    if (!r.ok) { melden("schlecht", "Nicht gebucht", r.json?.error || "Der Termin konnte nicht gebucht werden."); return; }
-    const text = `${r.json.termin?.datumText ?? terminDatum}, ${r.json.termin?.uhrzeit ?? terminZeit} Uhr`;
+    if (!r.ok) { melden("schlecht", "Nicht gebucht", r.json?.error || "Der Termin konnte nicht gebucht werden."); return false; }
+    const text = r.json.termin?.datumText ? `${r.json.termin.datumText}, ${r.json.termin.uhrzeit} Uhr` : label;
     setTerminGebucht(text); setTerminOffen(false);
     melden("gut", `Termin gebucht: ${text}. Der Slot ist blockiert, die Bestätigung geht an den Kunden.`);
+    return true;
   };
   const mandatBuchen = async () => {
     if (!hatTermin) { setTerminOffen(true); melden("info", "Ein Mandat gilt als angenommen, wenn der Termin steht – buch ihn hier ein, dann zählt es."); return; }
@@ -1732,16 +1881,9 @@ function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
               </div>
             )}
             {!k.telefonWaehlbar && k.telefon && <NummerLandNachtragen k={k} onFertig={onNeu} />}
+            {/* E-048 Nr. 1: VORHER Datum-/Uhrzeit-Freitext — NACHHER klickbare freie Zeiten. */}
             {terminOffen && (
-              <div className="pi-termin">
-                <div className="pi-reihe">
-                  <input type="date" className="pi-eingabe" style={{ flex: "0 0 160px" }} value={terminDatum} min={heuteIso()} onChange={(e) => setTerminDatum(e.target.value)} aria-label="Datum" />
-                  <input type="time" className="pi-eingabe" style={{ flex: "0 0 110px" }} value={terminZeit} step={900} onChange={(e) => setTerminZeit(e.target.value)} aria-label="Uhrzeit" />
-                  <button type="button" className="pi-knopf" disabled={laeuft === "termin"} onClick={() => void terminBuchen()}>{laeuft === "termin" ? "Bucht …" : "Termin buchen"}</button>
-                  <button type="button" className="pi-link" onClick={() => setTerminOffen(false)}>Schließen</button>
-                </div>
-                <p className="pi-fussnote">Der Slot kommt aus deiner Availability und wird echt blockiert. Erinnere den Kunden: Rechnung vor dem Termin begleichen → im Gespräch wird direkt aktiviert.</p>
-              </div>
+              <SlotWahl laeuft={laeuft === "termin"} onBuchen={terminBuchen} onZu={() => setTerminOffen(false)} />
             )}
             {produktOffen && <ProduktDunkel k={k} aufKlappen={setProduktOffen} fertig={async (m) => { melden("gut", "Produkt gespeichert", m); await frisch(); onZaehler(); }} />}
           </section>

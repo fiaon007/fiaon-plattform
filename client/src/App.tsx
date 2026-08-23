@@ -102,6 +102,7 @@ const AgentStartgespraechePage = lazy(() => import("@/pages/agent/startgespraech
 const AgentVertriebPage = lazy(() => import("@/pages/agent/vertrieb"));
 import AgentVerdienstPage from "@/pages/agent/verdienst";
 const AgentGehaltPage = lazy(() => import("@/pages/agent/gehalt"));
+const AgentSchreibtischPage = lazy(() => import("@/pages/agent/schreibtisch"));
 const AgentArbeitszeitenPage = lazy(() => import("@/pages/agent/arbeitszeiten"));
 import AgentUpdatesPage from "@/pages/agent/updates";
 import AgentFeedbackPage from "@/pages/agent/feedback";
@@ -318,7 +319,8 @@ function Router() {
           Aus der Tagesliste "Heute" wurde die Startseite. Die alte Adresse
           bleibt bestehen und leitet um — gemerkte Links und offene Browser-Tabs
           duerfen nicht ins Leere laufen. */}
-      <Route path="/agent/start" component={AgentStartPage} />
+      <Route path="/agent/start" component={AgentSchreibtischPage} />
+      <Route path="/agent/start-alt" component={AgentStartPage} />
       <Route path="/agent/heute"><Redirect to="/agent/start" /></Route>
       {/* Der Space — fuer jede Mitarbeiterrolle. */}
       {/* Forderungsmanagement — nur fuer die Rolle 'inkasso'. Wer sie nicht

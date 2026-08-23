@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import KarrierePopup from "@/components/site/KarrierePopup";
 
 interface GlassNavProps {
-  activePage?: "startseite" | "privatkunden" | "business" | "was-ist-fiaon" | "plattform-konzept" | "login" | "investoren" | "karriere" | "presse" | "partner" | "datenraum" | "team" | "demo" | "ratgeber";
+  activePage?: "startseite" | "privatkunden" | "business" | "was-ist-fiaon" | "plattform-konzept" | "login" | "investoren" | "karriere" | "presse" | "partner" | "datenraum" | "team" | "demo" | "ratgeber" | "kontakt";
 }
 
 export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
@@ -210,6 +210,7 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
                     { href: "/partner", label: "Partner", text: "Banken, Auskunfteien, Vermittler", key: "partner" },
                     { href: "/presse", label: "Presse", text: "Fakten, Zahlen, Ansprechpartner", key: "presse" },
                     { href: "/investoren", label: "Investoren", text: "Das Modell, der Datenraum", key: "investoren" },
+                    { href: "/kontakt", label: "Kontakt & Support", text: "Telefon, E-Mail, Assistent, Dringend melden", key: "kontakt" },
                   ] },
                 ].map((g, gi) => (
                   <div key={g.titel} className={gi ? "mt-4" : ""} style={{ animation: `mobItemIn .45s cubic-bezier(.22,1,.36,1) ${0.06 + gi * 0.08}s both` }}>

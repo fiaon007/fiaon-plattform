@@ -496,6 +496,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 📅 Termin mit dem Vertrieb aus dem Antrag (23.08.2026).
   const fiaonAntragTermin = await import('./routes/fiaon-antrag-termin');
   app.use('/api/fiaon', fiaonAntragTermin.default);
+  // ☎️ Kontakt & Support: KI-Assistent und „Dringend melden“ (23.08.2026).
+  const fiaonKontakt = await import('./routes/fiaon-kontakt');
+  app.use('/api/fiaon', fiaonKontakt.default);
+
   // 🔑 Einrichtung nach dem Vertrag: Auto-Login + erstes Passwort (23.08.2026).
   const fiaonEinrichtung = await import('./routes/fiaon-einrichtung');
   app.use('/api/fiaon', fiaonEinrichtung.default);

@@ -208,7 +208,15 @@ const ToastCtx = createContext<{ zeige: (art: ToastArt, titel: string, text?: st
 });
 export const useToast = () => useContext(ToastCtx);
 
-export function ToastAnbieter({ children }: { children: ReactNode }) {
+// E-053 (Justin 24.08., Screenshot): VORHER erschien der Toast oben rechts als
+// weißer Kasten — im Office lag er hinter dem Seitenkopf und war oben
+// abgeschnitten; im dunklen Raum war er ein Fremdkörper. NACHHER wählt
+// `ton="dunkel"` die Office-Fassung: fixed UNTEN MITTIG (bottom 24px +
+// safe-area, max-width 480px, z über der Akte-Lade z 61), gleitet von unten
+// ein und trägt dunkles Glas mit Lichtkante und farbigem Akzent. Helle
+// Alt-Nutzungen (Admin) bleiben ohne den Prop exakt wie vorher (oben rechts,
+// weiß).
+export function ToastAnbieter({ children, ton = "hell" }: { children: ReactNode; ton?: "hell" | "dunkel" }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const naechsteId = useRef(1);
   const zeige = useCallback((art: ToastArt, titel: string, text?: string) => {
@@ -216,20 +224,26 @@ export function ToastAnbieter({ children }: { children: ReactNode }) {
     setToasts((t) => [...t, { id, art, titel, text }]);
   }, []);
   const weg = useCallback((id: number) => setToasts((t) => t.filter((x) => x.id !== id)), []);
+  const dunkel = ton === "dunkel";
 
   return (
     <ToastCtx.Provider value={{ zeige }}>
       {children}
-      <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2 w-[min(92vw,360px)]" role="status" aria-live="polite">
+      <div
+        className={dunkel
+          ? "fixed bottom-0 left-1/2 -translate-x-1/2 z-[120] flex flex-col-reverse gap-2 w-[min(92vw,480px)]"
+          : "fixed top-4 right-4 z-[100] flex flex-col gap-2 w-[min(92vw,360px)]"}
+        style={dunkel ? { paddingBottom: "calc(24px + env(safe-area-inset-bottom, 0px))" } : undefined}
+        role="status" aria-live="polite">
         <AnimatePresence initial={false}>
-          {toasts.map((t) => <ToastKarte key={t.id} toast={t} onWeg={() => weg(t.id)} />)}
+          {toasts.map((t) => <ToastKarte key={t.id} toast={t} onWeg={() => weg(t.id)} dunkel={dunkel} />)}
         </AnimatePresence>
       </div>
     </ToastCtx.Provider>
   );
 }
 
-function ToastKarte({ toast, onWeg }: { toast: Toast; onWeg: () => void }) {
+function ToastKarte({ toast, onWeg, dunkel }: { toast: Toast; onWeg: () => void; dunkel?: boolean }) {
   const reduziert = useReduzierteBewegung();
   const [pausiert, setPausiert] = useState(false);
   const [rest, setRest] = useState(1);
@@ -251,35 +265,49 @@ function ToastKarte({ toast, onWeg }: { toast: Toast; onWeg: () => void }) {
     return () => cancelAnimationFrame(frame);
   }, [pausiert, onWeg]);
 
-  const farbe =
-    toast.art === "erfolg" ? "var(--fi-erfolg)" : toast.art === "fehler" ? "var(--fi-fehler)" : "var(--fi-primaer)";
+  // E-053: In der Dunkel-Fassung kräftigere Akzentfarben — die hellen Töne
+  // (#059669 …) versinken auf dunklem Glas.
+  const farbe = dunkel
+    ? (toast.art === "erfolg" ? "#34d399" : toast.art === "fehler" ? "#f87171" : "#60a5fa")
+    : (toast.art === "erfolg" ? "var(--fi-erfolg)" : toast.art === "fehler" ? "var(--fi-fehler)" : "var(--fi-primaer)");
   const Ikon = toast.art === "erfolg" ? Check : toast.art === "fehler" ? AlertTriangle : Info;
+  // E-053: Dunkel gleitet von UNTEN ein (der Stapel sitzt unten mittig).
+  const versatz = dunkel ? { y: 24 } : { x: 24 };
 
   return (
     <motion.div
-      initial={reduziert ? { opacity: 0 } : { opacity: 0, x: 24, scale: 0.96 }}
-      animate={reduziert ? { opacity: 1 } : { opacity: 1, x: 0, scale: 1 }}
-      exit={reduziert ? { opacity: 0 } : { opacity: 0, x: 24, scale: 0.98 }}
+      initial={reduziert ? { opacity: 0 } : { opacity: 0, ...versatz, scale: 0.96 }}
+      animate={reduziert ? { opacity: 1 } : { opacity: 1, x: 0, y: 0, scale: 1 }}
+      exit={reduziert ? { opacity: 0 } : { opacity: 0, ...versatz, scale: 0.98 }}
       transition={reduziert ? { duration: 0.15 } : { type: "spring", stiffness: 420, damping: 26 }}
       onMouseEnter={() => setPausiert(true)}
       onMouseLeave={() => setPausiert(false)}
-      className="relative overflow-hidden bg-white border rounded-xl shadow-lg"
-      style={{ borderColor: "var(--fi-linie)" }}
+      className={`relative overflow-hidden rounded-xl ${dunkel ? "" : "bg-white border shadow-lg"}`}
+      style={dunkel
+        ? {
+            background: "linear-gradient(180deg, rgba(17,26,46,.95), rgba(10,22,40,.97))",
+            border: "1px solid rgba(255,255,255,.14)",
+            boxShadow: "0 24px 60px rgba(2,6,23,.6), inset 0 1px 0 rgba(255,255,255,.1)",
+            backdropFilter: "blur(20px) saturate(160%)",
+            WebkitBackdropFilter: "blur(20px) saturate(160%)",
+          }
+        : { borderColor: "var(--fi-linie)" }}
     >
       <div className="flex items-start gap-2.5 p-3">
         <span className="mt-0.5 w-5 h-5 rounded-full flex items-center justify-center shrink-0"
               style={{ background: farbe }}>
-          <Ikon size={12} className="text-white" />
+          <Ikon size={12} style={{ color: dunkel ? "#0b1224" : "#fff" }} />
         </span>
         <div className="flex-1 min-w-0">
-          <p className="text-[13px] font-bold" style={{ color: "var(--fi-text)" }}>{toast.titel}</p>
-          {toast.text && <p className="text-[12px] mt-0.5" style={{ color: "var(--fi-text-leise)" }}>{toast.text}</p>}
+          <p className="text-[13px] font-bold" style={{ color: dunkel ? "#fff" : "var(--fi-text)" }}>{toast.titel}</p>
+          {toast.text && <p className="text-[12px] mt-0.5" style={{ color: dunkel ? "#cbd5e1" : "var(--fi-text-leise)" }}>{toast.text}</p>}
         </div>
         <button onClick={onWeg} aria-label="Schließen"
-                className="shrink-0 w-6 h-6 rounded-md flex items-center justify-center transition-colors hover:bg-slate-100">
-          <X size={13} style={{ color: "var(--fi-text-still)" }} />
+                className={`shrink-0 w-6 h-6 rounded-md flex items-center justify-center transition-colors ${dunkel ? "hover:bg-white/10" : "hover:bg-slate-100"}`}>
+          <X size={13} style={{ color: dunkel ? "#94a3b8" : "var(--fi-text-still)" }} />
         </button>
       </div>
+      {/* Der farbige Balken links unten bleibt in beiden Fassungen die Zeitleiste. */}
       <div className="absolute bottom-0 left-0 h-[2px] origin-left"
            style={{ background: farbe, width: "100%", transform: `scaleX(${rest})` }} />
     </motion.div>

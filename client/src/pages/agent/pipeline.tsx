@@ -525,7 +525,8 @@ function SlotWahl({ laeuft, onBuchen, onZu }: {
 // Der FLIP-Haken (useFlip) ist damit ersatzlos entfallen.
 
 export default function AgentPipelinePage() {
-  return <AgentShell><ToastAnbieter><PipelineInnen /></ToastAnbieter></AgentShell>;
+  // E-053: Toast im Office unten mittig, dunkles Glas (ton="dunkel").
+  return <AgentShell><ToastAnbieter ton="dunkel"><PipelineInnen /></ToastAnbieter></AgentShell>;
 }
 
 // ── E-043: Die drei Gruppen der Arbeitsliste (Serverfeld: priority_tier) ────
@@ -2135,8 +2136,10 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
         )}
       </div>
 
-      {/* Helle Reste mit Vorschau-Pflicht — öffnen ÜBER der Lade, nicht darin. */}
-      <SendeMenue personId={k.personId} offen={sendeMenue} onSchliessen={() => setSendeMenue(false)} onGesendet={onZaehler} />
+      {/* E-052: VORHER öffnete hier das HELLE Versandzentrum über der dunklen
+          Akte (Justins Screenshot) — NACHHER dieselbe Komponente in der
+          Office-Glas-Fassung (ton="dunkel"); Logik und Endpunkte unverändert. */}
+      <SendeMenue personId={k.personId} offen={sendeMenue} onSchliessen={() => setSendeMenue(false)} onGesendet={onZaehler} ton="dunkel" />
       <Gespraechsblatt personId={k.personId} offen={blatt} onZu={() => setBlatt(false)} />
       {bestaetigen && (
         <RechnungBestaetigung personId={k.personId} kundeName={k.name} laeuft={laeuft === "rechnung"}

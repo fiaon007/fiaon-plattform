@@ -311,9 +311,10 @@ export function SendeMenue({
         ueberschrift="An diesen Kunden"
         marke={<MarkeBrief size={17} />}
         breite={580}
+        ton={ton}
         kinder={inhalt}
       />
-      {vorschau && <MailVorschau event={vorschau} onZu={() => setVorschau(null)} />}
+      {vorschau && <MailVorschau event={vorschau} onZu={() => setVorschau(null)} ton={ton} />}
     </>
   );
 }
@@ -329,9 +330,10 @@ export function SendeMenue({
 // Rand und Kerbe. Wer beurteilen soll, ob eine Mail auf dem Telefon gut
 // aussieht, braucht den Eindruck eines Telefons.
 // ═══════════════════════════════════════════════════════════════════════════
-export function MailVorschau({ event, onZu }: { event: string; onZu: () => void }) {
+export function MailVorschau({ event, onZu, ton = "hell" }: { event: string; onZu: () => void; ton?: "hell" | "dunkel" }) {
   const [daten, setDaten] = useState<{ html: string | null; betreff?: string; grund?: string } | null>(null);
   const [geraet, setGeraet] = useState<"desktop" | "handy">("desktop");
+  const dunkel = ton === "dunkel";
 
   useEffect(() => {
     fetch(`/api/fiaon/admin/mail/vorschau/${encodeURIComponent(event)}`, { credentials: "include" })
@@ -346,6 +348,7 @@ export function MailVorschau({ event, onZu }: { event: string; onZu: () => void 
       titel={daten?.betreff || event}
       ueberschrift="So sieht der Kunde sie"
       breite={800}
+      ton={ton}
       kopf={
         <div className="flex items-center gap-3 flex-wrap">
           <div className="min-w-0 flex-1">
@@ -359,8 +362,8 @@ export function MailVorschau({ event, onZu }: { event: string; onZu: () => void 
               <button key={g} type="button" onClick={() => setGeraet(g)}
                       className="px-3 py-1.5 rounded-xl text-[12px] font-semibold"
                       style={geraet === g
-                        ? { background: "var(--fi-primaer)", color: "#fff" }
-                        : { background: "rgba(15,23,42,.05)", color: "var(--fi-text-leise)" }}>
+                        ? { background: dunkel ? "linear-gradient(135deg,#2563eb,#3b82f6)" : "var(--fi-primaer)", color: "#fff" }
+                        : { background: dunkel ? "rgba(255,255,255,.07)" : "rgba(15,23,42,.05)", color: "var(--fi-text-leise)" }}>
                 {g === "desktop" ? "Bildschirm" : "Telefon"}
               </button>
             ))}

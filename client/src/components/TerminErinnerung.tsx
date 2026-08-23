@@ -18,19 +18,35 @@
 // Die Mail erreicht ihn, wenn er weg ist; die Leiste, wenn er da ist.
 //
 // ── ZWEI STUFEN STATT EINER (23.08.2026, Plan §16, E-044) ──────────────────
-// 1. DIE LEISTE (unverändert): steht am oberen Rand, zählt herunter, deckt
-//    Rückrufe UND Termine ab, auch überfällige. Sie blockiert nichts.
-// 2. DAS POPUP (neu): 5, 2 und 1 Minute vor jedem eigenen gebuchten Termin
-//    springt einmal je Schwelle ein zentriertes Glas-Popup auf — denn ab
-//    jetzt wird Pünktlichkeit serverseitig GEMESSEN (fiaon_termin_treue),
-//    und wer den Anruf verpasst, wird der Leitung gemeldet. Ein Popup, das
-//    man nicht übersehen kann, ist die faire Vorstufe dieser Messung.
-//    Merker je Termin+Schwelle in sessionStorage: einmal gezeigt ist gezeigt,
-//    auch nach einem Seitenwechsel. Datenquelle ist /agent/termine — die
-//    Terminliste liefert Name, Uhrzeit UND Telefonnummer für „Jetzt anrufen".
+// 1. DIE LEISTE: steht am oberen Rand, zählt herunter, deckt Rückrufe UND
+//    Termine ab, auch überfällige. Sie blockiert nichts.
+// 2. DAS POPUP: 5, 2 und 1 Minute vor jedem eigenen gebuchten Termin springt
+//    einmal je Schwelle ein zentriertes Glas-Popup auf — denn ab jetzt wird
+//    Pünktlichkeit serverseitig GEMESSEN (fiaon_termin_treue). Merker je
+//    Termin+Schwelle in sessionStorage. Datenquelle ist /agent/termine.
+//
+// ── DIE LEISTE, NEU (24.08.2026, Justins Meldung) ──────────────────────────
+// VORHER: flex-wrap ließ die Leiste am Handy zwei-/dreizeilig umbrechen und
+// den Office-Kopf verdecken (der ist sticky top:0 und rutschte DARUNTER);
+// „Später" schlummerte nur fünf Minuten und kam wieder; lange Inhalte wurden
+// hart abgeschnitten.
+// NACHHER:
+//   1. Eine Zeile, feste Höhe 40 px + safe-area-top, Ellipsis. Der Inhalt
+//      rückt per body-padding nach unten, und die stickigen Office-Teile
+//      (.of-kopf, .of-leiste) bekommen hier ihren top-Versatz — die Leiste
+//      reiht sich ÜBER dem Office-Kopf ein statt ihn zu überlappen.
+//   2. Passt der Inhalt nicht in die Zeile, läuft er ruhig durch (~30–40 s
+//      je Runde), pausiert bei Hover/Touch; prefers-reduced-motion: statisch
+//      mit Ellipsis (erster Eintrag + „+N"-Zähler).
+//   3. „Später" merkt sich JEDEN gerade gezeigten Eintrag in sessionStorage
+//      (fiaon-erin-weg-<art>-<id>) — weggeklickt bleibt weg, bis ein NEUER
+//      Eintrag ansteht. Die T−5/2/1-Popups bleiben davon unberührt.
+//   4. Abgesagte/erledigte/verpasste Termine und Personen, deren letztes
+//      heutiges Ergebnis „abgelehnt/blockiert" war, filtert der Server
+//      (/agent/termine/faellig, fiaon-agent-start.ts) seit demselben Tag.
 // ═══════════════════════════════════════════════════════════════════════════
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import "@/styles/office-termintreue.css";
 
@@ -44,6 +60,9 @@ interface Faellig {
   inMinuten: number;
   notiz: string | null;
   art: "rueckruf" | "startgespraech";
+  terminArtText?: string | null;
+  terminArtTon?: string | null;
+  terminArtErklaerung?: string | null;
 }
 
 /** Ein eigener gebuchter Termin aus /agent/termine — die Quelle des Popups. */
@@ -65,23 +84,24 @@ const VORLAUF_MIN = 30;
 /** Wie oft wird nachgesehen? */
 const TAKT_MS = 60_000;
 
-/** Nach dem Wegklicken: wie lange Ruhe? */
-const SCHLUMMER_MS = 5 * 60_000;
-
 /** Die Popup-Schwellen in Minuten vor dem Beginn — je Termin einmal. */
 const SCHWELLEN = [5, 2, 1] as const;
 
 /** Der sessionStorage-Merker: dieser Termin, diese Schwelle — schon gezeigt? */
 const merker = (terminId: number, schwelle: number) => `fiaon-tt-${terminId}-${schwelle}`;
 
+/** Der sessionStorage-Merker der Leiste: dieser Eintrag wurde weggeklickt. */
+const wegMerker = (t: Faellig) => `fiaon-erin-weg-${t.art}-${t.logId}`;
+
 export function TerminErinnerung() {
   const [faellig, setFaellig] = useState<Faellig[]>([]);
-  const [schlummert, setSchlummert] = useState<Record<number, number>>({});
   const [termine, setTermine] = useState<EigenTermin[]>([]);
   const [popup, setPopup] = useState<EigenTermin | null>(null);
   // Der Sekundentakt für Schwellen und Countdown. Er tickt nur, wenn er
   // gebraucht wird — siehe den Effekt unten.
   const [, setTick] = useState(0);
+  // Zwingt nach „Später" einen neuen Render — die Wahrheit liegt im Storage.
+  const [, setWegTick] = useState(0);
 
   const holen = useCallback(async () => {
     const [leiste, liste] = await Promise.all([
@@ -150,13 +170,49 @@ export function TerminErinnerung() {
     if (zeigen) setPopup(zeigen);
   });
 
-  const jetzt = Date.now();
-  const zeigenListe = faellig.filter((t) => (schlummert[t.logId] ?? 0) < jetzt);
-
+  // ── DIE LEISTE: was gezeigt wird ───────────────────────────────────────
+  // Weggeklickte Einträge bleiben weg (sessionStorage, Punkt 3 oben).
+  const zeigenListe = faellig.filter((t) => {
+    try { return !sessionStorage.getItem(wegMerker(t)); } catch { return true; }
+  });
   // Der dringendste zuerst — überfällige vor anstehenden.
   const sortiert = [...zeigenListe].sort((a, b) => a.inMinuten - b.inMinuten);
   const erste = sortiert[0];
   const weitere = sortiert.length - 1;
+
+  const ausblenden = () => {
+    for (const t of sortiert) {
+      try { sessionStorage.setItem(wegMerker(t), "1"); } catch { /* dann eben wieder */ }
+    }
+    setWegTick((n) => n + 1);
+  };
+
+  // ── DAS LAUFBAND ───────────────────────────────────────────────────────
+  // Passt alles in die Zeile: statisch. Sonst: eine ruhige Runde in 30–40 s,
+  // zwei identische Gruppen, Verschiebung um -50 % = nahtloser Übergang.
+  const bandRef = useRef<HTMLDivElement | null>(null);
+  const [laeuft, setLaeuft] = useState(false);
+  const [dauer, setDauer] = useState(35);
+  const [pause, setPause] = useState(false);
+  const pauseTimer = useRef<number | null>(null);
+  const listeKey = sortiert.map((t) => `${t.art}:${t.logId}`).join("|");
+  useEffect(() => { setLaeuft(false); }, [listeKey]);
+  useEffect(() => {
+    if (laeuft) return;
+    const el = bandRef.current;
+    if (!el) return;
+    if (el.scrollWidth > el.clientWidth + 4) {
+      // ~30–40 s je Runde, längerer Inhalt läuft etwas länger.
+      setDauer(Math.min(40, Math.max(30, Math.round(el.scrollWidth / 30))));
+      setLaeuft(true);
+    }
+  }, [laeuft, listeKey]);
+  useEffect(() => () => { if (pauseTimer.current) window.clearTimeout(pauseTimer.current); }, []);
+  const anfassen = () => {
+    setPause(true);
+    if (pauseTimer.current) window.clearTimeout(pauseTimer.current);
+    pauseTimer.current = window.setTimeout(() => setPause(false), 4000);
+  };
 
   const zeit = (t: Faellig) => {
     if (t.inMinuten < -60) return `seit ${Math.round(-t.inMinuten / 60)} Std überfällig`;
@@ -167,6 +223,25 @@ export function TerminErinnerung() {
       hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin",
     }) + " Uhr";
   };
+
+  /** Ein Eintrag im Band: Art · Zeit · Name (Klick → Akte) · Notiz. */
+  const eintrag = (t: Faellig, praefix: string) => (
+    <span className="fi-erin-seg" key={`${praefix}${t.art}-${t.logId}`}>
+      <span className="fi-erin-art"
+            title={t.terminArtErklaerung || undefined}
+            style={t.terminArtTon ? { color: t.terminArtTon } : undefined}>
+        {t.terminArtText || (t.art === "startgespraech" ? "Onboarding" : "Rückruf")}
+      </span>
+      <span className="fi-erin-zeit" data-ueber={t.inMinuten < 0 ? "1" : "0"}>{zeit(t)}</span>
+      {/* Der Klick führt DIREKT zum Kunden — Punkt 8 der Rückmeldung vom
+          11.08.: „Beim Klick auf den Termin direkt den zugehörigen
+          Kundendatensatz öffnen." */}
+      <Link href={`/agent/kunden?person=${t.personId}`} className="fi-erin-name">{t.name}</Link>
+      {t.notiz && <span className="fi-erin-notiz">{t.notiz}</span>}
+    </span>
+  );
+
+  const jetzt = Date.now();
 
   // Countdown des Popups: m:ss bis zum Beginn, „jetzt" ab dem Beginn.
   const restSek = popup ? Math.max(0, Math.round((new Date(popup.beginn).getTime() - jetzt) / 1000)) : 0;
@@ -188,42 +263,22 @@ export function TerminErinnerung() {
         <>
           <style>{ERINNERUNG_CSS}</style>
           <div className="fi-erin" role="status" aria-live="polite"
-               data-ueberfaellig={erste.inMinuten < 0 ? "1" : "0"}>
+               data-ueberfaellig={erste.inMinuten < 0 ? "1" : "0"}
+               onMouseEnter={() => setPause(true)}
+               onMouseLeave={() => setPause(false)}
+               onTouchStart={anfassen}>
             <span className="fi-erin-punkt" aria-hidden="true" />
-            {/* ── DIE ART AUS DER EINEN ABLEITUNG (30.08.2026) ────────────────
-                Hier stand „Startgespräch" / „Rückruf" aus einem Feld, das nur
-                diese Leiste kennt — die dritte Fassung derselben Frage. Jetzt
-                kommt der Text vom Server aus shared/fiaon-termin-art.ts, damit
-                Leiste, Kalender, Termin-Zentrale und Mail dasselbe Wort benutzen.
-                Der Rückfall bleibt, damit ein alter Client nichts Leeres zeigt. */}
-            <span className="fi-erin-art"
-                  title={(erste as any).terminArtErklaerung || undefined}
-                  style={(erste as any).terminArtTon
-                    ? { color: (erste as any).terminArtTon }
-                    : undefined}>
-              {(erste as any).terminArtText
-                || (erste.art === "startgespraech" ? "Onboarding" : "Rückruf")}
-            </span>
-            <span className="fi-erin-zeit">{zeit(erste)}</span>
-
-            {/* Der Klick führt DIREKT zum Kunden — Punkt 8 derselben Rückmeldung:
-                „Beim Klick auf den Termin direkt den zugehörigen Kundendatensatz
-                öffnen." */}
-            <Link href={`/agent/kunden?person=${erste.personId}`} className="fi-erin-name">
-              {erste.name}
-            </Link>
-
-            {erste.notiz && <span className="fi-erin-notiz">{erste.notiz}</span>}
-
-            {weitere > 0 && (
-              <span className="fi-erin-mehr">
-                +{weitere} {weitere === 1 ? "weiterer" : "weitere"}
-              </span>
-            )}
-
+            <div className="fi-erin-band" ref={bandRef}>
+              <div className={`fi-erin-lauf${laeuft ? " laufend" : ""}${pause ? " pause" : ""}`}
+                   style={laeuft ? { animationDuration: `${dauer}s` } : undefined}>
+                <span className="fi-erin-gruppe">{sortiert.map((t) => eintrag(t, ""))}</span>
+                {laeuft && <span className="fi-erin-gruppe kopie" aria-hidden="true">{sortiert.map((t) => eintrag(t, "kopie-"))}</span>}
+              </div>
+            </div>
+            {weitere > 0 && <span className="fi-erin-mehr">+{weitere}</span>}
             <button type="button" className="fi-erin-zu"
-                    aria-label="Erinnerung für fünf Minuten ausblenden"
-                    onClick={() => setSchlummert((s) => ({ ...s, [erste.logId]: Date.now() + SCHLUMMER_MS }))}>
+                    aria-label="Diese Erinnerungen ausblenden — neue erscheinen wieder"
+                    onClick={ausblenden}>
               Später
             </button>
           </div>
@@ -266,13 +321,15 @@ export function TerminErinnerung() {
 
 const ERINNERUNG_CSS = `
 /* ── DIE ERINNERUNGSLEISTE ──────────────────────────────────────────────────
-   Am oberen Rand, über allem, aber nur 38 px hoch. Sie nimmt keine Arbeit
-   weg — man kann darunter weiterlesen und weiterklicken. */
+   Eine Zeile, feste Höhe 40 px + safe-area-top. Sie nimmt keine Arbeit weg —
+   man kann darunter weiterlesen und weiterklicken. */
 .fi-erin {
   position: fixed; z-index: 280;
   top: 0; left: 0; right: 0;
-  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-  min-height: 38px; padding: 7px 14px;
+  display: flex; align-items: center; gap: 10px; flex-wrap: nowrap;
+  height: calc(40px + env(safe-area-inset-top, 0px));
+  padding: env(safe-area-inset-top, 0px) 12px 0 14px;
+  overflow: hidden;
   background: linear-gradient(178deg, #16305f, #0b1b3f 70%);
   box-shadow: 0 6px 20px -10px rgba(7,17,41,.6), inset 0 -1px 0 rgba(255,255,255,.08);
   animation: fiErinAuf 300ms cubic-bezier(.32,.72,0,1) both;
@@ -294,53 +351,84 @@ const ERINNERUNG_CSS = `
   100% { box-shadow: 0 0 0 0 rgba(252,211,77,0); }
 }
 
+/* ── DAS LAUFBAND ───────────────────────────────────────────────────────────
+   Statisch, solange alles passt. Läuft der Inhalt über, schiebt sich das Band
+   in 30–40 s um eine Gruppenbreite (-50 %) — zwei identische Gruppen machen
+   den Übergang nahtlos. Hover/Touch pausiert. */
+.fi-erin-band {
+  flex: 1 1 auto; min-width: 0; overflow: hidden; align-self: stretch;
+  display: flex; align-items: center;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 12px, #000 calc(100% - 12px), transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 12px, #000 calc(100% - 12px), transparent);
+}
+.fi-erin-lauf { display: inline-flex; align-items: center; flex: 0 0 auto; max-width: 100%; }
+.fi-erin-lauf.laufend { max-width: none; animation: fiErinLauf 35s linear infinite; }
+@keyframes fiErinLauf { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.fi-erin:hover .fi-erin-lauf.laufend, .fi-erin-lauf.laufend.pause { animation-play-state: paused; }
+.fi-erin-gruppe { display: inline-flex; align-items: center; gap: 26px; padding-right: 26px; min-width: 0; }
+.fi-erin-seg { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; min-width: 0; }
+
 /* Jede Schriftfarbe steht ausdrücklich: Auf dunklem Grund gewinnt sonst eine
    geerbte Tailwind-Farbe, und der Text ist unlesbar (gemessen am 11.08.2026
    in der Kostenleiste). */
 .fi-erin-art {
   font-size: 9.5px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase;
-  color: rgba(191,214,247,.8) !important;
+  color: rgba(191,214,247,.8) !important; flex-shrink: 0;
 }
 .fi-erin-zeit {
-  font-size: 12.5px; font-weight: 700;
+  font-size: 12.5px; font-weight: 700; flex-shrink: 0;
   color: #fcd34d !important;
 }
-.fi-erin[data-ueberfaellig="1"] .fi-erin-zeit { color: #fca5a5 !important; }
+.fi-erin-zeit[data-ueber="1"] { color: #fca5a5 !important; }
 .fi-erin-name {
   font-size: 13.5px; font-weight: 700; text-decoration: none;
   color: #f4f8ff !important;
   border-bottom: 1px solid rgba(244,248,255,.35);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 34ch;
 }
 .fi-erin-name:hover { border-bottom-color: #f4f8ff; }
 .fi-erin-notiz {
   font-size: 12px; min-width: 0; overflow: hidden; text-overflow: ellipsis;
-  white-space: nowrap; max-width: 40ch;
+  white-space: nowrap; max-width: 34ch;
   color: rgba(214,231,255,.72) !important;
 }
 .fi-erin-mehr {
-  font-size: 11.5px;
-  color: rgba(191,214,247,.62) !important;
+  flex-shrink: 0; font-size: 11px; font-weight: 700;
+  padding: 2px 8px; border-radius: 999px;
+  background: rgba(255,255,255,.1);
+  color: rgba(191,214,247,.85) !important;
 }
 .fi-erin-zu {
-  margin-left: auto; flex-shrink: 0; border: 0; cursor: pointer;
+  flex-shrink: 0; border: 0; cursor: pointer;
   padding: 5px 12px; border-radius: 999px;
   font-size: 11.5px; font-weight: 700;
   background: rgba(255,255,255,.13); color: #e8f0fc !important;
 }
 .fi-erin-zu:hover { background: rgba(255,255,255,.2); }
 
-/* Der Seiteninhalt rutscht nach unten, damit die Leiste nichts verdeckt. */
-body:has(.fi-erin) { padding-top: 38px; }
+/* ── DIE EINREIHUNG ÜBER DEM OFFICE-KOPF ────────────────────────────────────
+   Der Seiteninhalt rutscht per body-padding nach unten. Der Office-Kopf ist
+   sticky top:0 und würde beim Scrollen UNTER die Leiste rutschen (gemessen am
+   24.08.2026 am Handy) — deshalb bekommen .of-kopf und .of-leiste hier ihren
+   Versatz. office.css bleibt unangetastet; die Regel lebt bei der Leiste,
+   die sie verursacht. */
+body:has(.fi-erin) { --fi-erin-hoehe: calc(40px + env(safe-area-inset-top, 0px)); padding-top: var(--fi-erin-hoehe); }
+body:has(.fi-erin) .of-kopf { top: var(--fi-erin-hoehe); }
+body:has(.fi-erin) .of-leiste { top: calc(84px + var(--fi-erin-hoehe)); max-height: calc(100vh - 100px - var(--fi-erin-hoehe)); }
 
 @media (max-width: 639px) {
-  .fi-erin { padding: 6px 11px; gap: 7px; }
+  .fi-erin { padding-left: 11px; padding-right: 9px; gap: 7px; }
+  .fi-erin-gruppe { gap: 18px; padding-right: 18px; }
+  .fi-erin-name { font-size: 13px; max-width: 24ch; }
   .fi-erin-notiz { display: none; }
-  .fi-erin-name { font-size: 13px; }
-  body:has(.fi-erin) { padding-top: 44px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .fi-erin { animation: none; }
   .fi-erin-punkt { animation: none; box-shadow: 0 0 0 3px rgba(252,211,77,.3); }
+  /* Statisch mit Ellipsis: erster Eintrag + „+N"-Zähler, kein Laufband. */
+  .fi-erin-lauf.laufend { animation: none; max-width: 100%; }
+  .fi-erin-gruppe.kopie { display: none; }
+  .fi-erin-gruppe .fi-erin-seg:not(:first-child) { display: none; }
 }
 `;

@@ -15,7 +15,7 @@ import { AgentShell, api } from "../shared";
 import { useOffice } from "../OfficeShell";
 import "@/styles/office-tools.css";
 
-export type Art = "stufe_a" | "stufe_b" | "stufe_c" | "erstanruf" | "rueckruf" | "startgespraech" | "zahlung";
+export type Art = "stufe_a" | "stufe_b" | "stufe_c" | "reaktivierung" | "erstanruf" | "rueckruf" | "startgespraech" | "zahlung";
 export interface Schritt { titel: string; text?: string; satz?: string }
 export interface Einwand { frage: string; antwort: string }
 
@@ -65,6 +65,23 @@ export const ARTEN: { key: Art; label: string; kurz: string; schritte: Schritt[]
       { frage: "„Ich wollte nur mal schauen.“", antwort: "Genau dafür ist das Gespräch da: In zwei Minuten wissen Sie, ob FIAON für Sie passt. Was wäre Ihnen am wichtigsten – Karte, Kredit oder erst mal Klarheit über Ihre Einträge?" },
       { frage: "„Das klingt nach Abzocke.“", antwort: "Verstehe ich – deshalb läuft alles transparent in Ihrem Bereich: Sie sehen jeden Schritt, jede Rate, jedes Schreiben. Die erste Rate überweisen Sie selbst, niemand bucht etwas ab." },
       { frage: "„Ich habe kein Geld dafür.“", antwort: "Dann schauen wir auf den Einstieg mit FIAON Start – die Auskunft erklärt und die Schreiben zum Selbstversand. Und wir legen die erste Rate auf ein Datum, das für Sie passt." },
+    ],
+  },
+  {
+    key: "reaktivierung", label: "Reaktivierung · Rate überfällig", kurz: "Weich zurückholen – vorstellen, entschuldigen, Zahlung oder 1 Monat aussetzen (E-042)",
+    schritte: [
+      { titel: "Vorstellen, nicht mahnen", text: "Kein Inkasso-Ton. Du stellst dich als neuer Ansprechpartner vor – der Kunde hat lange gewartet.", satz: "Guten Tag, mein Name ist … von FIAON – ich rufe an, um mich bei Ihnen vorzustellen. Ich weiß, Sie hatten einen echt schwierigen Start bei uns …" },
+      { titel: "Entschuldigen und zuhören", text: "Ehrlich entschuldigen, dann zuhören. Was ist beim Kunden passiert? Nichts rechtfertigen.", satz: "Dafür möchte ich mich zuerst entschuldigen – das war nicht die Betreuung, die Sie verdienen. Ab heute bin ich persönlich für Sie da. Wie ist es Ihnen zwischenzeitlich ergangen?" },
+      { titel: "Neustart anbieten", text: "Der Plan: Konto wieder aktiv, ein fester Termin, ab jetzt ein Ansprechpartner.", satz: "Mein Vorschlag: Wir machen einen sauberen Neustart – ich aktiviere Ihre Betreuung wieder und wir gehen Ihre Lage gemeinsam durch." },
+      { titel: "Weg A: Zahlung", text: "Wenn der Kunde kann: offene Rate per Überweisung (Referenz vorlesen). Dein Bonus: 50 % dieser Zahlung.", satz: "Die offene Rate sind … € – wenn Sie die in den nächsten Tagen überweisen, läuft ab dann wieder alles für Sie. Ich schicke Ihnen die Zahlungsdaten gleich per E-Mail." },
+      { titel: "Weg B: 1 Monat aussetzen", text: "Wenn der Kunde gerade nicht kann: Rate einen Monat aussetzen (in der Akte festhalten). Keine Vergütung – aber Beziehung gerettet.", satz: "Wenn es diesen Monat eng ist, setze ich Ihre Rate einen Monat aus – ohne Kosten, ohne Haken. Dann starten wir im … frisch." },
+      { titel: "Onboarding-Termin buchen", text: "Immer, egal ob A oder B: Termin aus deiner Availability vergeben und eintragen.", satz: "Damit wir sauber starten: Wann passt Ihnen ein kurzes Gespräch, in dem ich alles mit Ihnen durchgehe – … um … Uhr?" },
+      { titel: "Ergebnis festhalten", text: "„Zahlt am …“ mit Bonusvermerk oder „ausgesetzt bis …“ + Termin – in der Akte buchen.", satz: "Danke für das Gespräch – Sie hören von mir, und alles Besprochene steht in Ihrem Bereich." },
+    ],
+    einwaende: [
+      { frage: "„Bei euch hat sich monatelang niemand gemeldet.“", antwort: "Sie haben recht, und genau deshalb rufe ich an. Das war unser Fehler, nicht Ihrer. Ab heute haben Sie mit mir einen festen Ansprechpartner – und ich zeige Ihnen im Gespräch, was in Ihrem Bereich schon alles vorbereitet ist." },
+      { frage: "„Ich will kündigen.“", antwort: "Das können Sie jederzeit – aber bevor Sie entscheiden: Lassen Sie mich Ihnen in 15 Minuten zeigen, wo Sie gerade stehen und was schon bezahlt ist. Danach entscheiden Sie mit vollem Bild. Wann passt es Ihnen?" },
+      { frage: "„Ich kann gerade nicht zahlen.“", antwort: "Dann setze ich Ihre Rate einen Monat aus – ohne Kosten. Wichtig ist mir nur, dass wir im Gespräch bleiben und Ihren Neustart planen." },
     ],
   },
   {

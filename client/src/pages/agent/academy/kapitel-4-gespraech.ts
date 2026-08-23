@@ -94,7 +94,7 @@ export const KAPITEL_4: KapitelInhalt = {
       ],
     },
     einwand: {
-      einleitung: "Sechzehn Einwände, wie sie täglich fallen. Zu jedem drei Antworten – eine ist gut, eine geht, eine schadet. Wähle, dann kommt die Bewertung mit Begründung. Der Schritt gilt als abgeschlossen, wenn du alle Einwände bearbeitet hast; dein Ergebnis wird gespeichert.",
+      einleitung: "Achtzehn Einwände, wie sie täglich fallen. Zu jedem drei Antworten – eine ist gut, eine geht, eine schadet. Wähle, dann kommt die Bewertung mit Begründung. Der Schritt gilt als abgeschlossen, wenn du alle Einwände bearbeitet hast; dein Ergebnis wird gespeichert.",
       uebung: { art: "einwand", einwaende: [
         { einwand: "„Das kann ich doch alles selbst machen – die Datenkopie ist kostenlos.“", antworten: [
           { text: "„Stimmt, die Datenkopie nach Art. 15 ist kostenlos – das sagen wir auch so. FIAON übernimmt, was danach kommt: jeden Eintrag einordnen, prüfen, ob die Meldung zulässig war, die Schreiben vorbereiten, per Einschreiben versenden und die Fristen halten. Sie sehen jeden Schritt.“", bewertung: "gut", begruendung: "Ehrlich (die Kopie ist kostenlos), dann konkret, was FIAON zusätzlich leistet. Kein Druck." },

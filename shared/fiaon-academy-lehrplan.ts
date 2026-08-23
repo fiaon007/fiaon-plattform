@@ -82,7 +82,7 @@ export const LEHRPLAN: LehrplanKapitel[] = [
     t("stufe-c", "Leitfaden Stufe C: Facebook-Lead – Vertrag am Telefon", 210, "leitfaden"),
     t("rueckruf", "Leitfaden: Der Rückruf", 150, "leitfaden"),
     t("startgespraech", "Leitfaden: Das Startgespräch", 180, "leitfaden"),
-    t("zahlungserinnerung", "Leitfaden: Die Zahlungserinnerung (Tag 14)", 150, "leitfaden"),
+    t("zahlungserinnerung", "Leitfaden: Die Reaktivierung – weich, mit Entschuldigung", 180, "leitfaden"),
     t("wortregeln", "Wortregeln im Gespräch", 120),
     t("einwand", "Einwand-Trainer", 0, "einwand"),
     t("simulator", "Anruf-Simulator: Sprich mit einem KI-Kunden", 0, "simulator"),
@@ -151,6 +151,7 @@ export const LEHRPLAN: LehrplanKapitel[] = [
     t("fall-8", "Fall 8: „Ich dachte, das war einmalig.“", 0, "fall"),
     t("fall-9", "Fall 9: Restschuldbefreiung vor zwei Jahren", 0, "fall"),
     t("fall-10", "Fall 10: Kunde aus Wien", 0, "fall"),
+    t("fall-11", "Fall 11: Der Kunde, der lange gewartet hat", 0, "fall"),
     test(),
   ] },
 ];

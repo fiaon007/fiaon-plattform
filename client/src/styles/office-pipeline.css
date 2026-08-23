@@ -1,88 +1,132 @@
-/* ═══ Pipeline (Raum 2) — 23.08.2026, Plan §4/§11 ═══
-   Überblick nach Stufen, Kundenkarten, Akte als seitliche Glas-Lade. Präfix .pi- */
-.pi{display:grid;gap:18px;max-width:1180px;margin:0 auto;color:#e5e7eb}
-.pi-pille{display:inline-block;font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.16em;text-transform:uppercase;color:#93c5fd;padding:8px 12px;border:1px solid rgba(147,197,253,.35);border-radius:999px;margin-bottom:14px}
+/* ═══ Pipeline — der Umsatz-Raum (23.08.2026, Plan §4/§11) ═══
+   Umsatz-Leiste, Hitze-Stufen, Fokus-Karte, Leitfaden, 3D-Kundenstrom,
+   Akte als Glas-Lade. Präfix .pi- */
+.pi{display:grid;gap:16px;max-width:1220px;margin:0 auto;color:#e5e7eb}
+.pi-pille{display:inline-block;font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.16em;text-transform:uppercase;color:#93c5fd;padding:8px 12px;border:1px solid rgba(147,197,253,.35);border-radius:999px}
 .pi-verlauf{background:linear-gradient(90deg,#93c5fd,#3b82f6);-webkit-background-clip:text;background-clip:text;color:transparent}
-.pi-kopf{display:grid;grid-template-columns:1fr auto;gap:24px;align-items:end;padding:30px 0 4px}
-.pi-kopf h1{margin:0;font:300 clamp(30px,4.2vw,50px)/1.08 'Inter',sans-serif;letter-spacing:-.03em;color:#fff}
-.pi-kopf p{margin:12px 0 0;font:300 15px/1.6 'Inter',sans-serif;color:#cbd5e1;max-width:60ch}
-.pi-kopf-knoepfe{display:flex;gap:8px;flex-wrap:wrap}
 .pi-fehler{margin:0;padding:10px 14px;border-radius:12px;background:rgba(220,38,38,.14);border:1px solid rgba(248,113,113,.35);color:#fecaca;font-size:13px}
 .pi-meldung{margin:0;padding:10px 14px;border-radius:12px;background:rgba(37,99,235,.16);border:1px solid rgba(96,165,250,.35);color:#dbeafe;font-size:13px}
 .pi-meldung.gut{background:rgba(16,185,129,.14);border-color:rgba(52,211,153,.35);color:#a7f3d0}
 .pi-meldung.schlecht{background:rgba(220,38,38,.14);border-color:rgba(248,113,113,.35);color:#fecaca}
-/* Stufen */
-.pi-stufen{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
-.pi-stufe-kachel{display:grid;gap:4px;padding:18px 20px;border-radius:20px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);text-align:left;color:inherit;cursor:pointer;transition:transform .25s,border-color .25s,background .25s;font-family:'Inter',sans-serif}
-.pi-stufe-kachel:hover{transform:translateY(-2px);border-color:rgba(147,197,253,.4)}
-.pi-stufe-kachel.an{background:linear-gradient(135deg,rgba(37,99,235,.3),rgba(37,99,235,.08));border-color:rgba(96,165,250,.45)}
-.pi-stufe-kachel .marke{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:9px;font:600 13px/1 'Inter',sans-serif;color:#fff;margin-bottom:6px}
-.pi-stufe-kachel b{font:300 40px/1 'Inter',sans-serif;letter-spacing:-.03em;color:#fff;font-variant-numeric:tabular-nums}
-.pi-stufe-kachel span{font-size:12.5px;color:#9ca3af}
-.pi-stufe-kachel small{font-size:11px;color:#64748b}
-.pi-marke-A{background:#dc2626}.pi-marke-B{background:#d97706}.pi-marke-C{background:#475569}.pi-marke-OK{background:#059669}
-/* Suche und Filter */
-.pi-werkzeuge{display:grid;gap:10px;padding:16px 18px;border-radius:22px;background:rgba(15,23,42,.6);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
-.pi-suche{display:flex;align-items:center;gap:10px;min-height:46px;padding:0 14px;border-radius:14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#94a3b8}
-.pi-suche input{flex:1;min-width:0;background:transparent;border:0;outline:none;color:#fff;font:400 14px/1 'Inter',sans-serif}
+.pi-laedt{padding:18px 22px;border-radius:20px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);color:#64748b;font-size:13px}
+/* Das Glühen – überall, wo Hitze ist */
+.pi-glut{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--hitze,#60a5fa);box-shadow:0 0 10px var(--hitze,#60a5fa),0 0 22px color-mix(in srgb,var(--hitze,#60a5fa) 55%,transparent);flex:0 0 auto}
+/* ── Umsatz-Leiste ── */
+.pi-umsatz{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding-top:22px}
+.pi-umsatz-zahl{position:relative;display:grid;gap:5px;padding:20px 22px;border-radius:22px;background:rgba(15,23,42,.6);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(18px) saturate(160%);-webkit-backdrop-filter:blur(18px) saturate(160%);box-shadow:0 24px 60px rgba(2,6,23,.4),inset 0 1px 0 rgba(255,255,255,.08);overflow:hidden}
+.pi-umsatz-zahl small{font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#93c5fd}
+.pi-umsatz-zahl b{font:300 clamp(30px,3.4vw,42px)/1 'Inter',sans-serif;letter-spacing:-.03em;color:#fff;font-variant-numeric:tabular-nums}
+.pi-umsatz-zahl b em{font-style:normal;font-size:.55em;color:#64748b}
+.pi-umsatz-zahl span{font-size:12px;color:#9ca3af}
+.pi-umsatz-zahl.hervor{background:linear-gradient(135deg,rgba(37,99,235,.42),rgba(37,99,235,.1));border-color:rgba(96,165,250,.5);box-shadow:0 24px 60px rgba(37,99,235,.28)}
+.pi-umsatz-balken{display:block;height:5px;border-radius:999px;background:rgba(255,255,255,.1);overflow:hidden;margin-top:4px}
+.pi-umsatz-balken i{display:block;height:100%;background:linear-gradient(90deg,#2563eb,#60a5fa);transition:width .4s}
+/* ── Stufen-Chips (Hitze) ── */
+.pi-stufen{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.pi-stufen::-webkit-scrollbar{display:none}
+.pi-stufe-chip{flex:0 0 auto;display:inline-flex;align-items:center;gap:9px;min-height:44px;padding:0 16px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:#cbd5e1;font-family:'Inter',sans-serif;cursor:pointer;transition:border-color .2s,background .2s}
+.pi-stufe-chip b{font:300 20px/1 'Inter',sans-serif;letter-spacing:-.02em;color:#fff;font-variant-numeric:tabular-nums}
+.pi-stufe-chip span{font-size:12.5px}
+.pi-stufe-chip:hover{border-color:color-mix(in srgb,var(--hitze,#93c5fd) 55%,transparent)}
+.pi-stufe-chip.an{background:color-mix(in srgb,var(--hitze,#2563eb) 22%,rgba(15,23,42,.6));border-color:color-mix(in srgb,var(--hitze,#60a5fa) 60%,transparent);color:#fff}
+/* ── Fokus-Karte + Leitfaden ── */
+.pi-fokus{display:grid;grid-template-columns:1.5fr 1fr;gap:14px;align-items:start}
+.pi-fokus-karte{position:relative;display:grid;gap:12px;padding:26px 28px;border-radius:26px;background:rgba(15,23,42,.62);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(22px) saturate(160%);-webkit-backdrop-filter:blur(22px) saturate(160%);box-shadow:0 30px 80px rgba(2,6,23,.5),inset 0 1px 0 rgba(255,255,255,.08);overflow:hidden}
+.pi-fokus-karte::before{content:"";position:absolute;inset:-40% -20% auto;height:80%;background:radial-gradient(ellipse at 50% 0%,color-mix(in srgb,var(--hitze,#2563eb) 26%,transparent),transparent 65%);pointer-events:none}
+.pi-fokus-karte.tief{animation:piTief .5s cubic-bezier(.2,.8,.2,1) both}
+@keyframes piTief{from{opacity:0;transform:perspective(900px) translateZ(-60px) translateY(8px)}to{opacity:1;transform:none}}
+.pi-fokus-kopf{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.pi-fokus-zaehler{display:inline-flex;align-items:center;gap:8px;font:400 12.5px/1 'Inter',sans-serif;color:#9ca3af;font-variant-numeric:tabular-nums}
+.pi-fokus-zaehler button{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#cbd5e1;cursor:pointer}
+.pi-fokus-zaehler button:disabled{opacity:.35;cursor:default}
+.pi-fokus-karte h1{margin:0;font:300 clamp(26px,3.4vw,40px)/1.1 'Inter',sans-serif;letter-spacing:-.03em;color:#fff}
+.pi-fokus-stufe{display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-size:13px;color:#9ca3af}
+.pi-fokus-stufe b{font-weight:500;color:color-mix(in srgb,var(--hitze,#93c5fd) 80%,#fff)}
+.pi-fokus-warum{margin:0;font:300 14.5px/1.6 'Inter',sans-serif;color:#cbd5e1;max-width:60ch}
+.pi-fokus-wert{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.pi-fokus-wert>div{display:grid;gap:4px;padding:13px 15px;border-radius:16px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1)}
+.pi-fokus-wert small{font:500 10px/1 'Inter',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#93c5fd}
+.pi-fokus-wert b{font:300 24px/1.1 'Inter',sans-serif;letter-spacing:-.02em;color:#fff;font-variant-numeric:tabular-nums}
+.pi-fokus-wert b.klein{font-size:16px;line-height:1.3}
+.pi-fokus-wert span{font-size:11px;color:#9ca3af}
+.pi-fokus-wert>div.hervor{background:linear-gradient(135deg,rgba(37,99,235,.4),rgba(37,99,235,.12));border-color:rgba(96,165,250,.5)}
+.pi-fokus-knoepfe{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+/* Leitfaden */
+.pi-leitfaden{display:grid;gap:8px;padding:18px 20px;border-radius:24px;background:rgba(15,23,42,.55);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);align-content:start}
+.pi-leitfaden-kopf{display:flex;align-items:center;justify-content:space-between;gap:10px;background:none;border:0;padding:0;cursor:pointer;text-align:left;color:inherit;font-family:'Inter',sans-serif;min-height:40px}
+.pi-leitfaden-kopf small{display:block;font:500 10px/1 'Inter',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:color-mix(in srgb,var(--hitze,#93c5fd) 80%,#fff)}
+.pi-leitfaden-kopf b{display:block;margin-top:4px;font:400 15px/1.25 'Inter',sans-serif;color:#fff}
+.pi-leitfaden-kopf .pfeil{color:#93c5fd;transition:transform .25s;flex:0 0 auto}
+.pi-leitfaden.auf .pi-leitfaden-kopf .pfeil{transform:rotate(180deg)}
+.pi-leitfaden-kurz{margin:0;font:300 12.5px/1.55 'Inter',sans-serif;color:#9ca3af}
+.pi-leitfaden-koerper{display:none;gap:12px}
+.pi-leitfaden.auf .pi-leitfaden-koerper{display:grid}
+.pi-leitfaden-schritte{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.pi-leitfaden-schritte button{display:flex;align-items:center;gap:10px;width:100%;min-height:40px;padding:7px 10px;border-radius:12px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:#e5e7eb;cursor:pointer;text-align:left;font-family:'Inter',sans-serif}
+.pi-leitfaden-schritte li.an button{background:rgba(37,99,235,.16);border-color:rgba(96,165,250,.35)}
+.pi-leitfaden-schritte i{display:grid;place-items:center;width:22px;height:22px;border-radius:8px;background:rgba(37,99,235,.2);color:#93c5fd;font:500 11px/1 'Inter',sans-serif;font-style:normal;flex:0 0 22px}
+.pi-leitfaden-schritte b{font:500 13px/1.3 'Inter',sans-serif;color:#fff}
+.pi-leitfaden-text{padding:8px 10px 4px 42px}
+.pi-leitfaden-text p{margin:0;font:300 12.5px/1.55 'Inter',sans-serif;color:#cbd5e1}
+.pi-leitfaden-text q{display:block;margin-top:6px;font:400 12.5px/1.55 'Inter',sans-serif;color:#bfdbfe;quotes:"„" "“"}
+.pi-leitfaden-einwaende{display:grid;gap:4px}
+.pi-leitfaden-einwaende small{font:500 10px/1 'Inter',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#64748b;padding:4px 0}
+.pi-leitfaden-einwaende details{border:1px solid rgba(255,255,255,.08);border-radius:12px;background:rgba(255,255,255,.04);overflow:hidden}
+.pi-leitfaden-einwaende summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:40px;padding:8px 12px;cursor:pointer;font:500 12.5px/1.35 'Inter',sans-serif;color:#fff}
+.pi-leitfaden-einwaende summary::-webkit-details-marker{display:none}
+.pi-leitfaden-einwaende summary::after{content:"+";color:#93c5fd;font-size:16px;font-weight:300}
+.pi-leitfaden-einwaende details[open] summary::after{content:"–"}
+.pi-leitfaden-einwaende p{margin:0;padding:0 12px 10px;font:300 12.5px/1.55 'Inter',sans-serif;color:#cbd5e1}
+/* ── Die schlanke Leiste: Suche, Filter, Sortierung ── */
+.pi-leiste{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 12px;border-radius:18px;background:rgba(15,23,42,.55);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+.pi-suche{display:flex;align-items:center;gap:8px;min-height:42px;padding:0 12px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#94a3b8;flex:1 1 220px;min-width:180px}
+.pi-suche input{flex:1;min-width:0;background:transparent;border:0;outline:none;color:#fff;font:400 13.5px/1 'Inter',sans-serif}
 .pi-suche input::placeholder{color:#64748b}
-.pi-filterzeile{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.pi-feld{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 12px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#cbd5e1;font:400 12.5px/1 'Inter',sans-serif}
-.pi-feld select{background:transparent;border:0;outline:none;color:#fff;font:500 12.5px/1 'Inter',sans-serif;cursor:pointer;max-width:190px}
+.pi-feld{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 12px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#cbd5e1;font:400 12px/1 'Inter',sans-serif}
+.pi-feld select{background:transparent;border:0;outline:none;color:#fff;font:500 12.5px/1 'Inter',sans-serif;cursor:pointer;max-width:180px}
 .pi-feld select option{color:#0f172a}
 .pi-feld.an{background:rgba(37,99,235,.22);border-color:rgba(96,165,250,.45);color:#fff}
 .pi-schalter{cursor:pointer}
 .pi-schalter input{accent-color:#3b82f6;width:16px;height:16px}
-.pi-chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
-.pi-chips::-webkit-scrollbar{display:none}
-.pi-chip{flex:0 0 auto;min-height:36px;padding:0 12px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:#cbd5e1;font:400 12px/1 'Inter',sans-serif;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
-.pi-chip em{font-style:normal;font-variant-numeric:tabular-nums;color:#93c5fd}
-.pi-chip.an{background:linear-gradient(135deg,#2563eb,#3b82f6);border-color:transparent;color:#fff}
-.pi-chip.an em{color:#dbeafe}
-/* Hinweise über der Liste */
+.pi-leiste-rechts{display:inline-flex;gap:8px;margin-left:auto}
 .pi-hinweis{display:flex;align-items:center;gap:14px;width:100%;padding:12px 16px;border-radius:16px;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);color:#fde68a;text-align:left;cursor:pointer;font-family:'Inter',sans-serif}
-.pi-hinweis.blau{background:rgba(37,99,235,.14);border-color:rgba(96,165,250,.35);color:#dbeafe}
 .pi-hinweis b{display:block;font:500 13.5px/1.2 'Inter',sans-serif}
 .pi-hinweis small{display:block;margin-top:2px;font-size:12px;opacity:.8}
 .pi-hinweis .zahl{font:300 30px/1 'Inter',sans-serif;letter-spacing:-.03em;flex:0 0 auto;color:#fff}
-/* Kundenkarten */
-.pi-liste{display:grid;gap:10px}
-.pi-leer{padding:26px 22px;border-radius:20px;background:rgba(15,23,42,.6);border:1px solid rgba(255,255,255,.12);text-align:center}
-.pi-leer b{display:block;font:400 15px/1.3 'Inter',sans-serif;color:#fff}
-.pi-leer p{margin:6px 0 0;font:300 13px/1.6 'Inter',sans-serif;color:#9ca3af}
-.pi-laedt{padding:18px 22px;border-radius:20px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);color:#64748b;font-size:13px}
-.pi-karte{position:relative;display:grid;gap:8px;padding:16px 18px 14px 20px;border-radius:20px;background:rgba(15,23,42,.6);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);overflow:hidden;animation:piAuf .35s cubic-bezier(.2,.8,.2,1) both}
-@keyframes piAuf{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-.pi-karte::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--pi-kante,rgba(255,255,255,.15))}
-.pi-karte.erledigt{opacity:.55}
-.pi-karte-kopf{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:start}
-.pi-stufe{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:8px;font:600 12px/1 'Inter',sans-serif;color:#fff;margin-top:2px}
-.pi-karte-wer{min-width:0;cursor:pointer;background:none;border:0;text-align:left;color:inherit;padding:0;font-family:'Inter',sans-serif}
-.pi-karte-wer b{display:block;font:500 15.5px/1.2 'Inter',sans-serif;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pi-karte-wer small{display:block;margin-top:3px;font-size:12.5px;color:#9ca3af;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pi-karte-wer small i{font-style:normal;color:#cbd5e1}
-.pi-karte-wer small .bez{color:#34d399}
-.pi-marken{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
-.pi-marke{display:inline-block;padding:4px 8px;border-radius:8px;font:500 11px/1 'Inter',sans-serif;background:rgba(37,99,235,.18);color:#93c5fd;white-space:nowrap}
-.pi-marke.dringend{background:rgba(220,38,38,.16);color:#fca5a5}
-.pi-marke.gut{background:rgba(16,185,129,.16);color:#6ee7b7}
-.pi-marke.warn{background:rgba(217,119,6,.16);color:#fcd34d}
-.pi-marke.still{background:rgba(255,255,255,.06);color:#94a3b8}
-.pi-karte-schritt{margin:0;font:300 13px/1.55 'Inter',sans-serif;color:#cbd5e1}
-.pi-karte-fuss{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
-.pi-karte-fuss small{font-size:12px;color:#64748b}
-.pi-karte-fuss small.warn{color:#fbbf24}
-.pi-knoepfe{display:flex;gap:6px;flex-wrap:wrap}
-.pi-knopf{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:40px;padding:0 14px;border-radius:999px;border:0;background:linear-gradient(135deg,#2563eb,#3b82f6);color:#fff;font:500 12.5px/1 'Inter',sans-serif;cursor:pointer;text-decoration:none;box-shadow:0 8px 18px rgba(37,99,235,.3);white-space:nowrap}
+/* ── 3D-Kundenstrom ── */
+.pi-strom-rahmen{display:grid;gap:8px}
+.pi-strom-kopf{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:0 4px}
+.pi-strom-kopf b{font:400 15px/1.2 'Inter',sans-serif;color:#fff}
+.pi-strom-kopf small{font-size:11.5px;color:#64748b;flex:1}
+.pi-strom-pfeile{display:inline-flex;gap:6px}
+.pi-strom{position:relative;height:340px;border-radius:26px;background:rgba(10,18,36,.45);border:1px solid rgba(255,255,255,.08);overflow:hidden;perspective:1100px;perspective-origin:50% 38%}
+.pi-strom::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(10,22,40,.85),transparent 18%,transparent 82%,rgba(10,22,40,.85));pointer-events:none}
+.pi-strom-buehne{position:absolute;inset:0;transform-style:preserve-3d;transition:transform .3s ease-out;will-change:transform}
+.pi-strom-boden{position:absolute;left:50%;top:78%;width:1600px;height:700px;transform:translateX(-50%) rotateX(84deg);background:radial-gradient(ellipse at 50% 18%,rgba(37,99,235,.28),transparent 60%),repeating-linear-gradient(90deg,rgba(147,197,253,.08) 0 1px,transparent 1px 80px),repeating-linear-gradient(0deg,rgba(147,197,253,.06) 0 1px,transparent 1px 80px);pointer-events:none}
+.pi-sk{position:absolute;left:50%;top:50%;width:250px;display:grid;gap:6px;padding:16px 18px;border-radius:20px;text-align:left;color:inherit;cursor:pointer;font-family:'Inter',sans-serif;background:linear-gradient(180deg,rgba(23,33,56,.9),rgba(13,22,42,.92));border:1px solid color-mix(in srgb,var(--hitze,#60a5fa) calc(var(--glut,.3)*60%),rgba(255,255,255,.12));box-shadow:0 24px 60px rgba(2,6,23,.55),0 0 calc(var(--glut,.3)*46px) color-mix(in srgb,var(--hitze,#60a5fa) calc(var(--glut,.3)*55%),transparent),inset 0 1px 0 rgba(255,255,255,.08);transition:transform .45s cubic-bezier(.2,.8,.2,1),opacity .45s,box-shadow .3s;will-change:transform,opacity;backface-visibility:hidden}
+.pi-sk.an{border-color:color-mix(in srgb,var(--hitze,#60a5fa) 70%,transparent)}
+.pi-sk.erledigt{filter:saturate(.4);opacity:.5}
+.pi-sk-kopf{display:flex;align-items:center;gap:8px}
+.pi-sk-kopf small{font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.1em;text-transform:uppercase;color:color-mix(in srgb,var(--hitze,#93c5fd) 85%,#fff)}
+.pi-sk-kopf em{margin-left:auto;display:inline-flex;align-items:center;gap:4px;font:600 10px/1 'Inter',sans-serif;font-style:normal;color:#6ee7b7}
+.pi-sk b{font:500 16px/1.25 'Inter',sans-serif;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pi-sk-paket{font-size:12px;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pi-sk-fuss{font-size:11.5px;color:#9ca3af;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Handy / reduzierte Bewegung: flache Bahn mit Schnapp-Punkten */
+.pi-strom-flach{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;padding:6px 4px 14px;scrollbar-width:none}
+.pi-strom-flach::-webkit-scrollbar{display:none}
+.pi-strom-flach .pi-sk{position:static;width:min(78vw,250px);flex:0 0 auto;scroll-snap-align:center;transition:border-color .2s}
+/* ── Knöpfe, Eingaben, Kleinkram ── */
+.pi-knopf{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:40px;padding:0 14px;border-radius:999px;border:0;background:linear-gradient(135deg,#2563eb,#3b82f6);color:#fff;font:500 12.5px/1 'Inter',sans-serif;cursor:pointer;text-decoration:none;box-shadow:0 8px 18px rgba(37,99,235,.3);white-space:nowrap}
 .pi-knopf:disabled{opacity:.4;cursor:default;box-shadow:none}
 .pi-knopf.still{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);box-shadow:none;color:#e5e7eb}
 .pi-knopf.warn{background:rgba(217,119,6,.18);border:1px solid rgba(251,191,36,.35);box-shadow:none;color:#fde68a}
 .pi-knopf.gut{background:rgba(16,185,129,.16);border:1px solid rgba(52,211,153,.35);box-shadow:none;color:#a7f3d0}
-.pi-knopf.klein{min-height:34px;padding:0 11px;font-size:12px}
+.pi-knopf.klein{min-height:36px;padding:0 12px;font-size:12px}
 .pi-knopf.gross{min-height:46px;padding:0 20px;font-size:13.5px}
+.pi-knopf.riesig{min-height:56px;padding:0 30px;font-size:16px;border-radius:999px;box-shadow:0 16px 36px rgba(37,99,235,.45)}
 .pi-link{background:none;border:0;padding:0;color:#93c5fd;font:500 12.5px/1 'Inter',sans-serif;cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px}
 .pi-link:disabled{opacity:.5;cursor:default}
-.pi-schnellnotiz{display:flex;gap:8px;align-items:center}
 .pi-eingabe{flex:1;min-width:0;min-height:40px;padding:0 12px;border-radius:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);color:#fff;font:400 13px/1.3 'Inter',sans-serif;outline:none}
 .pi-eingabe::placeholder{color:#64748b}
 .pi-eingabe:focus{border-color:rgba(96,165,250,.55)}
@@ -91,6 +135,11 @@ select.pi-eingabe{cursor:pointer}
 select.pi-eingabe option{color:#0f172a}
 input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
 .pi-fussnote{margin:0;font-size:12px;color:#64748b;line-height:1.55}
+.pi-marke{display:inline-block;padding:4px 8px;border-radius:8px;font:500 11px/1 'Inter',sans-serif;background:rgba(37,99,235,.18);color:#93c5fd;white-space:nowrap}
+.pi-marke.dringend{background:rgba(220,38,38,.16);color:#fca5a5}
+.pi-marke.gut{background:rgba(16,185,129,.16);color:#6ee7b7}
+.pi-marke.warn{background:rgba(217,119,6,.16);color:#fcd34d}
+.pi-marke.still{background:rgba(255,255,255,.06);color:#94a3b8}
 /* ═══ Die Akte (Glas-Lade) ═══ */
 .pi-lade-hintergrund{position:fixed;inset:0;z-index:60;background:rgba(2,6,23,.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);animation:piEin .25s ease both}
 @keyframes piEin{from{opacity:0}to{opacity:1}}
@@ -100,7 +149,9 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
 .pi-lade-kopf h2{margin:0;font:400 20px/1.2 'Inter',sans-serif;color:#fff;letter-spacing:-.01em}
 .pi-lade-kopf .status{margin-top:4px;font-size:12.5px;color:#9ca3af;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
 .pi-lade-kopf .status i{font-style:normal;font-weight:500}
+.pi-lade-glut{display:grid;place-items:center;width:26px;height:26px;margin-top:4px}
 .pi-lade-zu{width:40px;height:40px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#cbd5e1;display:grid;place-items:center;cursor:pointer}
+.pi-lade-zu:disabled{opacity:.35;cursor:default}
 .pi-lade-koerper{flex:1;overflow-y:auto;padding:16px 20px 40px;display:grid;gap:14px;align-content:start;overscroll-behavior:contain}
 .pi-block{padding:16px 18px;border-radius:18px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);display:grid;gap:10px}
 .pi-block.hervor{background:linear-gradient(135deg,rgba(37,99,235,.26),rgba(37,99,235,.06));border-color:rgba(96,165,250,.35)}
@@ -147,10 +198,10 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
 .pi-buchung a{color:#93c5fd;text-decoration:none;font-size:11.5px}
 .pi-buchung label{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:#94a3b8;cursor:pointer}
 .pi-buchung label input{accent-color:#f59e0b}
-.pi-verlauf{list-style:none;margin:0;padding:0;display:grid;gap:6px;max-height:260px;overflow-y:auto}
-.pi-verlauf li{font-size:12.5px;line-height:1.45;color:#cbd5e1;padding-left:10px;border-left:2px solid rgba(255,255,255,.1)}
-.pi-verlauf li b{color:#fff;font-weight:500;font-variant-numeric:tabular-nums}
-.pi-verlauf li span{color:#94a3b8}
+.pi-protokoll{list-style:none;margin:0;padding:0;display:grid;gap:6px;max-height:260px;overflow-y:auto}
+.pi-protokoll li{font-size:12.5px;line-height:1.45;color:#cbd5e1;padding-left:10px;border-left:2px solid rgba(255,255,255,.1)}
+.pi-protokoll li b{color:#fff;font-weight:500;font-variant-numeric:tabular-nums}
+.pi-protokoll li span{color:#94a3b8}
 .pi-versand{display:flex;flex-wrap:wrap;gap:6px}
 .pi-versand-grund{margin:0;padding:0;list-style:none;display:grid;gap:2px;font-size:11.5px;color:#64748b}
 .pi-historie{display:grid;gap:4px}
@@ -165,6 +216,31 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
 .pi-nummer-land .vorschau{font-size:11.5px;color:#bfdbfe;font-variant-numeric:tabular-nums}
 .pi-nummer-land .grau{color:#94a3b8}
 .pi-nummer-land .rot{color:#fca5a5}
-@media(max-width:960px){.pi-stufen{grid-template-columns:repeat(2,1fr)}.pi-kopf{grid-template-columns:1fr}}
-@media(max-width:700px){.pi-stufe-kachel b{font-size:32px}.pi-karte{padding:14px 14px 12px 16px}.pi-karte-kopf{grid-template-columns:auto 1fr}.pi-marken{grid-column:1/3;flex-direction:row;flex-wrap:wrap;align-items:flex-start}.pi-karte-fuss{flex-direction:column;align-items:stretch}.pi-knoepfe{display:grid;grid-template-columns:1fr 1fr 1fr}.pi-lade{width:100vw}.pi-lade-koerper{padding:12px 12px 40px}.pi-block{padding:14px}.pi-form{grid-template-columns:1fr}.pi-form label.breit{grid-column:auto}.pi-dl div{grid-template-columns:96px 1fr}.pi-feld select{max-width:140px}}
-@media(prefers-reduced-motion:reduce){.pi-karte,.pi-lade,.pi-lade-hintergrund{animation:none}}
+/* ── Handy ── */
+@media(max-width:960px){
+  .pi-umsatz{grid-template-columns:1fr 1fr}
+  .pi-umsatz-zahl:nth-child(2){grid-column:1/3;order:-1}
+  .pi-fokus{grid-template-columns:1fr}
+  .pi-strom{height:300px}
+}
+@media(max-width:700px){
+  .pi{gap:12px}
+  .pi-umsatz{grid-template-columns:1fr 1fr;gap:8px;padding-top:14px}
+  .pi-umsatz-zahl{padding:14px 16px}
+  .pi-fokus-karte{padding:18px 16px}
+  .pi-fokus-wert{grid-template-columns:1fr 1fr}
+  .pi-fokus-wert>div.hervor{grid-column:1/3;order:-1}
+  .pi-fokus-knoepfe .pi-knopf.riesig{flex:1 1 100%}
+  .pi-leiste{padding:8px}
+  .pi-leiste-rechts{margin-left:0;width:100%}
+  .pi-leiste-rechts .pi-knopf{flex:1}
+  .pi-feld select{max-width:130px}
+  .pi-lade{width:100vw}
+  .pi-lade-koerper{padding:12px 12px 40px}
+  .pi-block{padding:14px}
+  .pi-form{grid-template-columns:1fr}
+  .pi-form label.breit{grid-column:auto}
+  .pi-dl div{grid-template-columns:96px 1fr}
+}
+@media(max-width:560px){.pi-umsatz{grid-template-columns:1fr}.pi-umsatz-zahl:nth-child(2){grid-column:auto}}
+@media(prefers-reduced-motion:reduce){.pi-fokus-karte.tief,.pi-lade,.pi-lade-hintergrund{animation:none}.pi-sk,.pi-strom-buehne,.pi-umsatz-balken i{transition:none}}

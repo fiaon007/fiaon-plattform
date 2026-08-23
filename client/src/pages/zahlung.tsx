@@ -202,7 +202,7 @@ export function ZahlungDankePage() {
     <div className="antrag-dk dk min-h-screen antialiased">
       <div className="dk-grund" aria-hidden="true"><span className="dk-nebel a" /><span className="dk-nebel b" /><span className="dk-nebel c" /></div>
       <GlassNav />
-      <div className="max-w-xl mx-auto px-4 sm:px-6 pt-28 sm:pt-32 pb-16">
+      <div className="relative z-10 max-w-xl mx-auto px-4 sm:px-6 pt-28 sm:pt-32 pb-16">
         <div className="text-center py-16">
           <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>
@@ -371,7 +371,7 @@ export default function ZahlungPage() {
       <div className="dk-grund" aria-hidden="true"><span className="dk-nebel a" /><span className="dk-nebel b" /><span className="dk-nebel c" /></div>
       <GlassNav />
 
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 pt-28 sm:pt-32 pb-16">
+      <div className="relative z-10 max-w-2xl mx-auto px-4 sm:px-6 pt-28 sm:pt-32 pb-16">
         {loading && (
           <div className="flex flex-col items-center py-24">
             <div className="w-12 h-12 rounded-full border-[3px] border-transparent border-t-[#2563eb] animate-spin mb-4" />

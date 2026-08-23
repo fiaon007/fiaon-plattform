@@ -129,3 +129,18 @@
   .antrag-dk .antrag-knopfzeile .antrag-weiter{flex:1}
   .antrag-dk input:not([type="range"]):not([type="checkbox"]):not([type="radio"]),.antrag-dk select{font-size:16px}
 }
+
+/* ── 23.08.2026 (Justin): Prüfschritt heller lesbar, Aktivierungs-Hinweis lesbar ── */
+.antrag-dk .antrag-teilschritte .text b{color:#f3f4f6}
+.antrag-dk .antrag-teilschritte .text small{color:#aab4c5}
+.antrag-dk .antrag-teilschritte li{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.12)}
+.antrag-dk .antrag-teilschritte li[data-zustand="wartet"]{opacity:.6}
+.antrag-dk .antrag-pruef-text{color:#cbd5e1}
+.antrag-dk .antrag-hinweisbox{background:rgba(255,255,255,.06) !important;border-color:rgba(255,255,255,.12) !important}
+.antrag-dk .antrag-hinweisbox .bg-white{background:rgba(255,255,255,.1)}
+.antrag-dk .antrag-hinweisbox .text-slate-700{color:#f3f4f6}
+.antrag-dk .antrag-hinweisbox .text-slate-500{color:#cbd5e1}
+.antrag-dk .antrag-oder{display:flex;align-items:center;gap:14px;max-width:340px;margin-left:auto;margin-right:auto;color:#8b95a7;font-size:12px;letter-spacing:.12em;text-transform:uppercase}
+.antrag-dk .antrag-oder-linie{flex:1;height:1px;background:rgba(255,255,255,.12)}
+.antrag-dk .antrag-termin-knopf{color:#e5e7eb;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.16);transition:background .25s,border-color .25s}
+.antrag-dk .antrag-termin-knopf:hover{background:rgba(255,255,255,.09);border-color:rgba(147,197,253,.5)}

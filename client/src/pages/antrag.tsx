@@ -1442,8 +1442,26 @@ export default function AntragPage() {
               </div>
             )}
 
+            {/* Oder zuerst sprechen: Termin mit dem Vertrieb (Justin, 23.08.2026) */}
+            <div className="antrag-oder mb-6">
+              <span className="antrag-oder-linie" /><span>oder</span><span className="antrag-oder-linie" />
+            </div>
+            <button type="button" onClick={async () => {
+                track("termin_vertrieb_klick", { ref }, ref);
+                try {
+                  const r = await fetch(`/api/fiaon/antrag/${encodeURIComponent(ref)}/termin-link`);
+                  const j = await r.json().catch(() => null);
+                  if (j?.ok && j.url) window.location.href = j.url;
+                  else alert(j?.error || "Der Terminlink konnte gerade nicht erzeugt werden. Bitte versuchen Sie es gleich noch einmal.");
+                } catch { alert("Keine Verbindung. Bitte versuchen Sie es gleich noch einmal."); }
+              }}
+              className="antrag-termin-knopf w-full sm:w-auto sm:min-w-[340px] mx-auto flex items-center justify-center gap-2.5 rounded-full py-3 px-6 text-[14.5px] font-medium mb-8">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/></svg>
+              Lieber zuerst sprechen? Termin mit dem Vertrieb buchen
+            </button>
+
             {/* Dezente Info: Aktivierung per Banküberweisung */}
-            <div className="rounded-xl bg-slate-50/70 border border-slate-100 p-4 sm:p-5 mb-6">
+            <div className="antrag-hinweisbox rounded-xl bg-slate-50/70 border border-slate-100 p-4 sm:p-5 mb-6">
               <div className="flex items-start gap-3">
                 <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1454,7 +1472,7 @@ export default function AntragPage() {
                 <div className="flex-1 min-w-0">
                   <p className="text-[12px] sm:text-[13px] font-semibold text-slate-700 mb-0.5">Aktivierung per Banküberweisung – Zugang nach Zahlungseingang</p>
                   <p className="text-[11px] sm:text-[12px] text-slate-500 leading-relaxed">
-                    Nach dem Passwort erhalten Sie Ihre persönlichen Zahlungsdaten inkl. QR-Code für Ihre Banking-App. Mit der Zahlung versenden wir auch direkt deine Karte.
+                    Nach dem Passwort erhalten Sie Ihre persönlichen Zahlungsdaten inkl. QR-Code für Ihre Banking-App. Mit der Zahlung geht auch Ihre Karte auf den Weg.
                   </p>
                 </div>
               </div>

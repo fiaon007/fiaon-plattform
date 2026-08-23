@@ -274,7 +274,23 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
 .pi-legende-chip .pi-glut{width:7px;height:7px}
 .pi-legende-chip:hover{border-color:color-mix(in srgb,var(--hitze,#93c5fd) 45%,transparent)}
 .pi-legende-chip.an{background:color-mix(in srgb,var(--hitze,#2563eb) 18%,rgba(15,23,42,.6));border-color:color-mix(in srgb,var(--hitze,#60a5fa) 55%,transparent);color:#fff}
+/* E-051 Nr. 1: VORHER 2-spaltiges Raster (.pi-arbeit-klein, FLIP) — NACHHER
+   das 3D-Karussell: eine Karte mittig vorn, Nachbarn perspektivisch dahinter;
+   das Nachrücken ist eine transform-Transition (350 ms, Kurve wie piGeht).
+   Das Raster bleibt nur noch für Alt-Stellen definiert. */
 .pi-arbeit-klein{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pi-kar{display:flex;align-items:center;gap:8px}
+.pi-kar-pfeil{flex:0 0 auto}
+.pi-kar-buehne{position:relative;flex:1;height:196px;perspective:1100px;transform-style:preserve-3d;overflow:hidden;border-radius:20px}
+.pi-kar-zelle{position:absolute;left:50%;top:50%;width:min(340px,92%);transition:transform .35s cubic-bezier(.2,.8,.2,1),opacity .35s;will-change:transform,opacity}
+.pi-kar-zelle:not(.mitte) .pi-ak{filter:saturate(.7) brightness(.82);cursor:pointer}
+.pi-kar-zelle.mitte .pi-ak{box-shadow:0 24px 60px rgba(2,6,23,.55),0 0 26px color-mix(in srgb,var(--hitze,#60a5fa) 26%,transparent),inset 0 1px 0 rgba(255,255,255,.08)}
+/* Flache Wisch-Reihe (Handy / prefers-reduced-motion): Scroll-Snap, Mitte zentriert */
+.pi-kar-flach{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;padding:6px 4px 12px;scrollbar-width:none}
+.pi-kar-flach::-webkit-scrollbar{display:none}
+.pi-kar-flach-zelle{flex:0 0 min(80vw,300px);scroll-snap-align:center}
+.pi-kar-flach-zelle:first-child{margin-left:max(0px,calc(50% - 150px))}
+.pi-kar-flach-zelle:last-child{margin-right:max(0px,calc(50% - 150px))}
 .pi-ak{position:relative;display:grid;gap:9px;padding:15px 17px;border-radius:18px;background:rgba(15,23,42,.6);border:1px solid color-mix(in srgb,var(--hitze,#60a5fa) 30%,rgba(255,255,255,.12));backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 14px 34px rgba(2,6,23,.4),0 0 18px color-mix(in srgb,var(--hitze,#60a5fa) 16%,transparent);animation:piAk .4s cubic-bezier(.2,.8,.2,1) both;transition:transform .25s,opacity .25s}
 @keyframes piAk{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 .pi-ak-kern{display:grid;gap:4px;background:none;border:0;padding:0;text-align:left;color:inherit;cursor:pointer;font-family:'Inter',sans-serif;min-width:0}
@@ -451,6 +467,6 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
   .pi-lade,.pi-lade-hintergrund{animation:none}
   .pi-fokus-karte.tief,.pi-ak{animation:piEin .25s ease both}
   .pi-ak.geht,.pi-fokus-karte.geht{animation:piBlende .3s ease both}
-  .pi-sk,.pi-strom-buehne,.pi-umsatz-balken i{transition:none}
+  .pi-sk,.pi-strom-buehne,.pi-umsatz-balken i,.pi-kar-zelle{transition:none}
   .pi-trenner b{animation:none;background-position:50% 50%}
 }

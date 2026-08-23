@@ -1085,6 +1085,95 @@ function KleineKarte({ k, gruppe, geht, onFokus, onAkte, onEntfernen }: {
   );
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// E-051 Nr. 1 (Justin 24.08.): „Deine nächsten Kunden“ als 3D-KARUSSELL.
+//
+// VORHER: ein 2-spaltiges Raster (.pi-arbeit-klein) mit FLIP-Nachrücken.
+// NACHHER: Eine Karte steht IMMER mittig vorn (groß, scharf), die Nachbarn
+// links/rechts perspektivisch dahinter (rotateY/translateZ/scale, gedimmt).
+// Pfeile + Wischen + Pfeiltasten blättern; Klick auf eine Seitenkarte holt
+// sie in die Mitte, Klick auf die Mitte holt den Kunden nach vorn in den
+// Fokus (onFokus, wie bisher der Raster-Klick). Nach einem Ergebnis ändern
+// sich die Indizes und die Karten GLEITEN auf ihre neuen Plätze (transition
+// auf transform, 350 ms, dieselbe Kurve wie piGeht/piTief). `flach` (Handy
+// oder prefers-reduced-motion): flache Wisch-Reihe mit Scroll-Snap, die
+// Mitte zentriert — keine 3D-Bewegung.
+// ═══════════════════════════════════════════════════════════════════════════
+function KleinesKarussell({ kinder, geht, gesperrt, flach, onFokus, onAkte, onEntfernen }: {
+  kinder: Slot[]; geht: Set<number>; gesperrt: boolean; flach: boolean;
+  onFokus: (id: number) => void; onAkte: (id: number) => void; onEntfernen: (k: Kunde) => void;
+}) {
+  const [mitte, setMitte] = useState(0);
+  const touch = useRef<{ x: number; t: number } | null>(null);
+  const flachRef = useRef<HTMLDivElement | null>(null);
+  // Rückt ein Kunde nach oder geht einer, bleibt die Mitte im gültigen Bereich.
+  useEffect(() => { setMitte((m) => Math.min(m, Math.max(0, kinder.length - 1))); }, [kinder.length]);
+  const vor = () => setMitte((m) => Math.min(kinder.length - 1, m + 1));
+  const zurueck = () => setMitte((m) => Math.max(0, m - 1));
+  // Pfeiltasten blättern das Karussell — nur solange keine Akte offen ist.
+  useEffect(() => {
+    if (flach) return;
+    const h = (e: KeyboardEvent) => {
+      if (gesperrt) return;
+      const ziel = e.target as HTMLElement | null;
+      if (ziel && /^(INPUT|TEXTAREA|SELECT)$/.test(ziel.tagName)) return;
+      if (e.key === "ArrowRight") { setMitte((m) => Math.min(kinder.length - 1, m + 1)); e.preventDefault(); }
+      if (e.key === "ArrowLeft") { setMitte((m) => Math.max(0, m - 1)); e.preventDefault(); }
+    };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [gesperrt, flach, kinder.length]);
+
+  if (kinder.length === 0) return null;
+
+  const karte = (s: Slot) => (
+    <KleineKarte k={s.kunde} gruppe={s.gruppe} geht={geht.has(s.kunde.personId)}
+                 onFokus={() => onFokus(s.kunde.personId)}
+                 onAkte={() => onAkte(s.kunde.personId)}
+                 onEntfernen={() => onEntfernen(s.kunde)} />
+  );
+
+  if (flach) {
+    return (
+      <div className="pi-kar-flach" ref={flachRef}>
+        {kinder.map((s) => <div key={s.kunde.personId} className="pi-kar-flach-zelle">{karte(s)}</div>)}
+      </div>
+    );
+  }
+
+  const touchStart = (e: React.TouchEvent) => { touch.current = { x: e.touches[0].clientX, t: Date.now() }; };
+  const touchEnd = (e: React.TouchEvent) => {
+    if (!touch.current) return;
+    const dx = e.changedTouches[0].clientX - touch.current.x;
+    if (Math.abs(dx) > 40 && Date.now() - touch.current.t < 600) { if (dx < 0) vor(); else zurueck(); }
+    touch.current = null;
+  };
+  return (
+    <div className="pi-kar" onTouchStart={touchStart} onTouchEnd={touchEnd}>
+      <button type="button" className="pi-lade-zu pi-kar-pfeil" onClick={zurueck} disabled={mitte <= 0} aria-label="vorherige Karte"><ChevronLeft size={18} /></button>
+      <div className="pi-kar-buehne">
+        {kinder.map((s, i) => {
+          const d = i - mitte; const ad = Math.abs(d);
+          return (
+            <div key={s.kunde.personId} className={`pi-kar-zelle${d === 0 ? " mitte" : ""}`}
+                 style={{
+                   transform: `translate(-50%,-50%) translateX(${d * 190}px) translateZ(${-ad * 130}px) rotateY(${d > 0 ? -22 : d < 0 ? 22 : 0}deg) scale(${Math.max(0.66, 1 - ad * 0.13)})`,
+                   opacity: Math.max(0, 1 - ad * 0.3), zIndex: 100 - ad,
+                   pointerEvents: ad > 2 ? "none" : undefined,
+                 }}
+                 // Seitenkarte anklicken = in die Mitte drehen (die inneren
+                 // Knöpfe gehören nur der vorderen Karte).
+                 onClickCapture={d !== 0 ? (e) => { e.preventDefault(); e.stopPropagation(); setMitte(i); } : undefined}>
+              {karte(s)}
+            </div>
+          );
+        })}
+      </div>
+      <button type="button" className="pi-lade-zu pi-kar-pfeil" onClick={vor} disabled={mitte >= kinder.length - 1} aria-label="nächste Karte"><ChevronRight size={18} /></button>
+    </div>
+  );
+}
+
 /** E-047: Die Leitfäden-LEGENDE — vier Aufklapp-Chips ganz unten (Klartext
  *  führt, das Kürzel steht klein dahinter); der zur Fokus-Situation passende
  *  Chip trägt einen Glut-Punkt. Nichts ist vorausgeklappt. */

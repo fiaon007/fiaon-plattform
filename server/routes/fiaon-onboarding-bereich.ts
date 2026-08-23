@@ -39,12 +39,31 @@ export async function istOnboarding(agentId: number): Promise<boolean> {
   return String(a?.rolle || "agent") === "onboarding";
 }
 
-/** 404 statt 403 — die Rolle liest bei JEDEM Aufruf aus der Datenbank. */
+/** 404 statt 403 — die Rolle liest bei JEDEM Aufruf aus der Datenbank.
+ *
+ * ── E-045 (Justin 23.08., Plan §17): DIE ROLLEN-WAND IST OFFEN ────────────
+ * VORHER: nur die Rolle „onboarding" kam in diesen Bereich (404 für alle
+ * anderen) — Startgespräche waren ein eigener Pool.
+ * NACHHER: EINE Rolle Bonitätsmanager führt ihre Startgespräche selbst.
+ * Jeder außer der Rolle „inkasso" (Diana, Back-Office Forderungen &
+ * Zahlungen) kommt hinein; die Termin-Routen sind ohnehin auf
+ * `t.agent_id = ich` gescopt, und die Wartenden-Routen beschränken
+ * Nicht-Onboarding-Rollen unten auf die eigenen Kunden.
+ * Der Name bleibt, damit jede Route ihre Wand behält. */
 async function nurOnboarding(req: AgentRequest, res: Response, next: any) {
-  if (!(await istOnboarding(req.agent!.id))) {
+  const { rolleVon } = await import("../lib/fiaon-kundenzugriff");
+  if ((await rolleVon(req.agent!.id)) === "inkasso") {
     return res.status(404).json({ ok: false, error: "Nicht gefunden" });
   }
   return next();
+}
+
+/** E-045: Sieht dieser Mitarbeiter ALLE Wartenden (Onboarding-Pool, Leitung)
+ *  oder nur die eigenen Kunden (Bonitätsmanager)? */
+async function siehtAlleWartenden(agentId: number): Promise<boolean> {
+  const { rolleVon } = await import("../lib/fiaon-kundenzugriff");
+  const rolle = await rolleVon(agentId);
+  return rolle === "onboarding" || rolle === "vertriebsleiter" || rolle === "admin";
 }
 
 async function nurMitZusage(req: AgentRequest, res: Response, next: any) {
@@ -563,6 +582,10 @@ router.post("/agent/onboarding/termine/:id/ergebnis", requireAgent, nurOnboardin
 // ═══════════════════════════════════════════════════════════════════════════
 router.get("/agent/onboarding/wartende", requireAgent, nurOnboarding, nurMitZusage, async (_req: AgentRequest, res: Response) => {
   try {
+    // E-045: VORHER sahen hier alle (Onboarding-Pool) die komplette Warteliste.
+    // NACHHER: Onboarding/Leitung weiter alles; ein Bonitätsmanager nur die
+    // Wartenden aus dem EIGENEN Bestand (assigned_agent_id = ich).
+    const alle = await siehtAlleWartenden(_req.agent!.id);
     const zeilen = (await sqlPool`
       SELECT p.id AS person_id,
              COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''), p.company_name, p.contact_name, p.primary_email) AS name,
@@ -582,6 +605,7 @@ router.get("/agent/onboarding/wartende", requireAgent, nurOnboarding, nurMitZusa
                 AND t.status = 'verpasst') AS verpasst
       FROM fiaon_persons p
       WHERE p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL AND NOT COALESCE(p.is_blocked, FALSE)
+        AND (${alle} OR p.assigned_agent_id = ${_req.agent!.id})
         AND EXISTS (SELECT 1 FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL
               AND a.archived_at IS NULL AND a.payment_status = 'paid' AND a.onboarding_stufe = 'wartet_auf_onboarding')
         AND NOT EXISTS (SELECT 1 FROM fiaon_termine t WHERE t.person_id = p.id AND t.quelle = 'onboarding_call' AND t.status = 'erledigt')
@@ -616,6 +640,14 @@ router.get("/agent/onboarding/wartende", requireAgent, nurOnboarding, nurMitZusa
 router.post("/agent/onboarding/wartende/:id/einladung", requireAgent, nurOnboarding, nurMitZusage, async (req: AgentRequest, res: Response) => {
   try {
     const id = Number(req.params.id);
+    // E-045: Ein Bonitätsmanager lädt nur EIGENE Kunden ein (Onboarding/Leitung: alle).
+    if (!(await siehtAlleWartenden(req.agent!.id))) {
+      const [meiner] = (await sqlPool`
+        SELECT 1 AS ok FROM fiaon_persons
+        WHERE id = ${id} AND assigned_agent_id = ${req.agent!.id} AND merged_into_person_id IS NULL
+      `) as any[];
+      if (!meiner) return res.status(404).json({ ok: false, error: "Dieser Kunde gehört nicht zu deinem Bestand." });
+    }
     const [p] = (await sqlPool`
       SELECT p.id, COALESCE(NULLIF(p.first_name, ''), p.contact_name) AS vorname,
              COALESCE(NULLIF(p.primary_email, ''), (
@@ -662,6 +694,14 @@ router.post("/agent/onboarding/wartende/:id/einladung", requireAgent, nurOnboard
 router.post("/agent/onboarding/person/:id/einladung", requireAgent, nurOnboarding, nurMitZusage, async (req: AgentRequest, res: Response) => {
   try {
     const id = Number(req.params.id);
+    // E-045: Ein Bonitätsmanager lädt nur EIGENE Kunden ein (Onboarding/Leitung: alle).
+    if (!(await siehtAlleWartenden(req.agent!.id))) {
+      const [meiner] = (await sqlPool`
+        SELECT 1 AS ok FROM fiaon_persons
+        WHERE id = ${id} AND assigned_agent_id = ${req.agent!.id} AND merged_into_person_id IS NULL
+      `) as any[];
+      if (!meiner) return res.status(404).json({ ok: false, error: "Dieser Kunde gehört nicht zu deinem Bestand." });
+    }
     const [p] = (await sqlPool`
       SELECT p.id, COALESCE(NULLIF(p.first_name, ''), p.contact_name) AS vorname,
              COALESCE(NULLIF(p.primary_email, ''), (

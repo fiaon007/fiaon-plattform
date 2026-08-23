@@ -813,7 +813,13 @@ function AgentShellInnen({ children, onRefresh }: { children: ReactNode; onRefre
       .catch(() => {});
     holen();
     const iv = setInterval(holen, 120_000);
-    return () => clearInterval(iv);
+    // Sofort statt in bis zu zwei Minuten: Ein gebuchtes Ergebnis ändert die
+    // Zahl JETZT (Event aus Akte/Arbeitsliste), und wer ins Fenster
+    // zurückkommt, sieht den echten Stand (Justin 23.08.: „die Marken müssen
+    // wirklich funktionieren").
+    window.addEventListener("fiaon-ergebnis", holen);
+    window.addEventListener("focus", holen);
+    return () => { clearInterval(iv); window.removeEventListener("fiaon-ergebnis", holen); window.removeEventListener("focus", holen); };
   }, [agent]);
 
   useEffect(() => {
@@ -868,8 +874,9 @@ function AgentShellInnen({ children, onRefresh }: { children: ReactNode; onRefre
     holen();
     const geaendert = () => holen();
     window.addEventListener("agent-aufgaben-geaendert", geaendert);
+    window.addEventListener("focus", geaendert);
     const iv = setInterval(holen, 120_000);
-    return () => { window.removeEventListener("agent-aufgaben-geaendert", geaendert); clearInterval(iv); };
+    return () => { window.removeEventListener("agent-aufgaben-geaendert", geaendert); window.removeEventListener("focus", geaendert); clearInterval(iv); };
   }, [agent]);
 
   // Menue schliesst sich beim Seitenwechsel — sonst bleibt es nach einem
@@ -947,8 +954,9 @@ function AgentShellInnen({ children, onRefresh }: { children: ReactNode; onRefre
     "/agent/aufgaben": aufgabenFaellig,
     // Offene Anliegen: meine plus Pool — beides wartet auf eine Antwort.
     "/agent/anliegen": anliegenOffen,
-    // Neuerungen und Vorgesetzten-Antworten liegen beide unter „Mehr".
-    "/agent/mehr": neueUpdates + fbUnread,
+    // Neuerungen und Vorgesetzten-Antworten liegen im Office beide unter „Feed"
+    // (vorher „Mehr" – dort trägt die Leiste keine Marke mehr).
+    "/agent/updates": neueUpdates + fbUnread,
     // Ungelesene Beiträge im Space. Sie zählen bewusst mit in die Menü-Marke
     // auf dem Telefon: Der Space ist kein Nebenschauplatz, sondern der Ort,
     // an dem etwas vom Team steht.

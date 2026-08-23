@@ -60,6 +60,49 @@ async function wand(req: AgentRequest, res: Response): Promise<boolean> {
   return true;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// E-045 (Justin 23.08., Plan §17): DIE BEREICHS-TRENNUNG IST AUFGEHOBEN
+//
+// VORHER: `wand()` = nur Rolle „inkasso" (404 für alle anderen) — Collections
+// war Dianas Bereich, ein Vertriebsmitarbeiter kam nicht an die überfälligen
+// Raten seiner eigenen Kunden.
+// NACHHER: `zugriff()` — jeder Bonitätsmanager arbeitet die überfälligen
+// Raten SEINER Kunden (Reaktivierung, 50 %-Bonus); Diana (inkasso) und die
+// Leitung (vertriebsleiter/admin) sehen weiter ALLE. Die Inkasso-Zusage
+// bleibt Dianas Rechtsstrecke (nur Rolle inkasso); für die Leitung und für
+// Bonitätsmanager auf eigenen Kunden gilt sie nicht.
+// `wand()` bleibt unverändert für die Diana-spezifischen Routen (/inkasso/
+// stunden…, Vergütung) — die fasst E-045 ausdrücklich nicht an.
+// ═══════════════════════════════════════════════════════════════════════════
+async function zugriff(req: AgentRequest, res: Response): Promise<{ ok: boolean; voll: boolean }> {
+  const { rolleVon } = await import("../lib/fiaon-kundenzugriff");
+  const rolle = await rolleVon(req.agent!.id);
+  if (rolle === "inkasso") {
+    const stand = await zusageStand(req.agent!.id, "inkasso", INKASSO_ZUSAGE_VERSION);
+    if (stand.offen) {
+      res.status(403).json({ ok: false, error: "Zusage offen", zusageOffen: true });
+      return { ok: false, voll: true };
+    }
+    return { ok: true, voll: true };
+  }
+  if (rolle === "vertriebsleiter" || rolle === "admin") return { ok: true, voll: true };
+  // Bonitätsmanager: nur die Raten der eigenen Kunden.
+  return { ok: true, voll: false };
+}
+
+/** Gehört die Rate zu einem Kunden dieses Betreuers? (für den beschränkten Zugriff) */
+async function darfRate(agentId: number, rateId: number): Promise<boolean> {
+  const [r] = (await sqlPool`
+    SELECT 1 AS ok
+    FROM fiaon_abo_raten r
+    JOIN fiaon_applications a ON a.ref = r.ref
+    JOIN fiaon_persons p ON p.id = a.person_id
+    WHERE r.id = ${rateId} AND p.assigned_agent_id = ${agentId}
+      AND p.merged_into_person_id IS NULL
+  `) as any[];
+  return !!r;
+}
+
 // ── Zugang ─────────────────────────────────────────────────────────────────
 
 /**
@@ -141,7 +184,25 @@ router.post("/inkasso/zusage", requireAgent, async (req: AgentRequest, res: Resp
 /** GET /inkasso/liste — Kennzahlen und die eine Reihenfolge. */
 router.get("/inkasso/liste", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
-    if (!(await wand(req, res))) return;
+    // E-045: VORHER wand() = nur Rolle inkasso. NACHHER zugriff():
+    // Bonitätsmanager beschränkt auf eigene Kunden, Diana/Leitung voll.
+    const z = await zugriff(req, res);
+    if (!z.ok) return;
+    if (!z.voll) {
+      const nurBetreuer = req.agent!.id;
+      const frist = String(req.query.frist || "") || null;
+      const { arbeitslistePersonen } = await import("../lib/fiaon-inkasso");
+      const [liste, personen] = await Promise.all([
+        arbeitsliste({ limit: Number(req.query.limit) || 60, nurBetreuer, frist }),
+        arbeitslistePersonen({ limit: Number(req.query.limit) || 60, nurBetreuer, frist }),
+      ]);
+      return res.json({
+        ok: true, liste, personen, ergebnisse: RATEN_ERGEBNISSE,
+        heute: berlinToday(), frist, fenster: null, zahlen: null, verdienst: null,
+        nurMeine: true, beschraenkt: true,
+        zeilen: liste.length, menschen: personen.length,
+      });
+    }
     // ── NUR DIE EIGENEN, WENN ZUGETEILT ─────────────────────────────────
     // Ein Mitarbeiter mit zugeteilten Raten sieht seine. Wer noch keine hat,
     // sieht alle unzugeteilten — sonst stünde er vor einer leeren Liste und
@@ -188,8 +249,13 @@ router.get("/inkasso/liste", requireAgent, async (req: AgentRequest, res: Respon
 /** GET /inkasso/rate/:id — Mahnhistorie und Kontakte einer Rate. */
 router.get("/inkasso/rate/:id", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
-    if (!(await wand(req, res))) return;
+    // E-045: VORHER nur Rolle inkasso — NACHHER auch der Betreuer der Rate.
+    const z = await zugriff(req, res);
+    if (!z.ok) return;
     const id = Number(req.params.id);
+    if (!z.voll && !(await darfRate(req.agent!.id, id))) {
+      return res.status(404).json({ ok: false, error: "Diese Rate gehört nicht zu deinen Kunden." });
+    }
     // Über das SICHTFELD geprüft, nicht über die Kennung: Wer eine fremde
     // Ratennummer errät, bekommt trotzdem nichts.
     const [rate] = (await sqlPool`
@@ -350,7 +416,12 @@ router.get("/inkasso/rate/:id", requireAgent, async (req: AgentRequest, res: Res
 /** POST /inkasso/rate/:id/ergebnis */
 router.post("/inkasso/rate/:id/ergebnis", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
-    if (!(await wand(req, res))) return;
+    // E-045: VORHER nur Rolle inkasso — NACHHER auch der Betreuer der Rate.
+    const z = await zugriff(req, res);
+    if (!z.ok) return;
+    if (!z.voll && !(await darfRate(req.agent!.id, Number(req.params.id)))) {
+      return res.status(404).json({ ok: false, error: "Diese Rate gehört nicht zu deinen Kunden." });
+    }
     const ergebnis = String(req.body?.ergebnis || "");
     if (!istRatenErgebnis(ergebnis)) {
       return res.status(400).json({ ok: false, error: "Unbekanntes Ergebnis." });
@@ -619,8 +690,13 @@ router.post("/admin/inkasso/verguetung/:agentId", async (req, res: Response) => 
  */
 router.post("/inkasso/rate/:id/erinnerung", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
-    if (!(await wand(req, res))) return;
+    // E-045: VORHER nur Rolle inkasso — NACHHER auch der Betreuer der Rate.
+    const z = await zugriff(req, res);
+    if (!z.ok) return;
     const id = Number(req.params.id);
+    if (!z.voll && !(await darfRate(req.agent!.id, id))) {
+      return res.status(404).json({ ok: false, error: "Diese Rate gehört nicht zu deinen Kunden." });
+    }
     const [r] = (await sqlPool`
       SELECT r.*, a.person_id, a.ref,
              COALESCE(NULLIF(a.email, ''), NULLIF(a.contact_email, ''),

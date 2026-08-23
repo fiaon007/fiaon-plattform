@@ -78,7 +78,7 @@ export default function WasIstFiaon() {
         </div>
       </Block>
 
-      <Szenenbild src="/kino/tuer.jpg" titel={<>Dann die <span className="dk-verlauf">Tür.</span></>} text="Wer Einsicht hat und gehandelt hat, soll etwas bekommen. Das ist das Versprechen – und der Grund, warum niemand bei FIAON ohne nächstes Ziel bleibt." />
+      <Szenenbild tief src="/kino/tuer.jpg" titel={<>Dann die <span className="dk-verlauf">Tür.</span></>} text="Wer Einsicht hat und gehandelt hat, soll etwas bekommen. Das ist das Versprechen – und der Grund, warum niemand bei FIAON ohne nächstes Ziel bleibt." />
 
       {/* 6 · Schicht 3: Zugang */}
       <Block pille="Schicht 3 · Zugang" titel={<>Niemand geht leer aus. <span className="dk-verlauf">Jeder hat ein nächstes Ziel.</span></>}

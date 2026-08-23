@@ -134,6 +134,9 @@ const SitePartner = lazy(() => import("@/pages/site/partner"));
 const SiteKarriere = lazy(() => import("@/pages/site/karriere"));
 const SiteTeam = lazy(() => import("@/pages/site/team"));
 const SiteDemo = lazy(() => import("@/pages/site/demo"));
+const SiteRatgeber = lazy(() => import("@/pages/site/ratgeber"));
+const SiteRatgeberArtikel = lazy(() => import("@/pages/site/ratgeber-artikel"));
+const AdminRatgeberPage = lazy(() => import("@/pages/admin-ratgeber"));
 const DemoKundenbereich = lazy(() => import("@/pages/demo-kundenbereich"));
 
 // Paket N1: JEDE /admin-Seite läuft in der AdminShell (Sidebar, Breadcrumb,
@@ -178,6 +181,8 @@ function Router() {
       <Route path="/karriere" component={SiteKarriere} />
       <Route path="/team" component={SiteTeam} />
       <Route path="/demo" component={SiteDemo} />
+      <Route path="/ratgeber" component={SiteRatgeber} />
+      <Route path="/ratgeber/:slug" component={SiteRatgeberArtikel} />
       <Route path="/demo/kundenbereich" component={DemoKundenbereich} />
       <Route path="/demo/produkt" component={MeinBereichPage} />
       <Route path="/start" component={StartPage} />
@@ -198,6 +203,7 @@ function Router() {
           Punkt erreichbar: /admin/dashboard. */}
       <Route path="/admin" component={() => <Umleitung nach="/admin/space" />} />
       <Route path="/admin/dashboard" component={admin(AdminHubPage)} />
+      <Route path="/admin/ratgeber" component={admin(AdminRatgeberPage)} />
       {/* ── UMGEZOGEN (09.08.2026) ────────────────────────────────────
           „Anträge & KYC" ist in der Kunden-Zentrale aufgegangen. Der Filter
           „KYC zu prüfen" zeigt genau die Arbeit, für die es die Seite gab. */}

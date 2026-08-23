@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import KarrierePopup from "@/components/site/KarrierePopup";
 
 interface GlassNavProps {
-  activePage?: "startseite" | "privatkunden" | "business" | "was-ist-fiaon" | "plattform-konzept" | "login" | "investoren" | "karriere" | "presse" | "partner" | "datenraum" | "team" | "demo";
+  activePage?: "startseite" | "privatkunden" | "business" | "was-ist-fiaon" | "plattform-konzept" | "login" | "investoren" | "karriere" | "presse" | "partner" | "datenraum" | "team" | "demo" | "ratgeber";
 }
 
 export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
@@ -198,6 +198,7 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
                   { titel: "Für Kunden", eintraege: [
                     { href: "/", label: "Startseite", text: "Einsicht · Aktion · Zugang", key: "startseite" },
                     { href: "/was-ist-fiaon", label: "Was ist FIAON", text: "Die Plattform in drei Schichten", key: "was-ist-fiaon" },
+                    { href: "/ratgeber", label: "Ratgeber", text: "Einträge, Auskunft, Karte – ehrlich erklärt", key: "ratgeber" },
                     { href: "/privatkunden", label: "Privatkunden", text: "Pakete, Ablauf, Preise", key: "privatkunden" },
                     { href: "/bonitaet", label: "Bonitäts-Auszug", text: "Ihre Auskunft, beantragt durch FIAON", key: "bonitaet" },
                     { href: "/business", label: "Business", text: "Firmenbonität und Geschäftskonto", key: "business" },

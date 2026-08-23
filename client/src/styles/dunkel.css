@@ -363,3 +363,21 @@
   .flug-film .flug-satz{font-size:14px;max-width:34ch}
 }
 @media (prefers-reduced-motion:reduce){.flug-film .flug-text.rein,.flug-film .flug-text.raus,.flug-knoepfe,.flug-punkte button i{animation:none}}
+
+/* ── Die Welle am Übergang dunkel ↔ hell (23.08.2026) ─────────────────────── */
+.dk-licht::before,.dk-licht::after{display:none}
+.dk-licht{padding-top:clamp(60px,8vw,120px);padding-bottom:clamp(60px,8vw,120px)}
+.dk-welle{position:absolute;left:0;right:0;top:-1px;height:clamp(72px,9vw,140px);overflow:hidden;pointer-events:none;z-index:2;transform-origin:center}
+.dk-welle.unten{top:auto;bottom:-1px;transform:scaleY(-1)}
+.dk-welle svg{position:absolute;left:0;top:0;width:200%;height:100%;display:block;will-change:transform}
+.dk-welle .w1 path{fill:#0a1628}
+.dk-welle .w2 path{fill:rgba(37,99,235,.28)}
+.dk-welle .w3 path{fill:rgba(10,22,40,.45)}
+.dk-welle .w1{animation:welleLauf 26s linear infinite}
+@keyframes welleLauf{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.dk-welle .w2{animation:welleLauf2 19s linear infinite reverse}
+.dk-welle .w3{animation:welleLauf3 33s linear infinite}
+@keyframes welleLauf2{from{transform:translate(0,6px)}to{transform:translate(-50%,6px)}}
+@keyframes welleLauf3{from{transform:translate(0,14px)}to{transform:translate(-50%,14px)}}
+@media (prefers-reduced-motion:reduce){.dk-welle svg{animation:none}}
+.dk-licht{background:linear-gradient(180deg,#f6f9ff 0,#ffffff 45%,#f3f7ff 100%)}

@@ -1,0 +1,93 @@
+/* ═══ Tasks (Raum) — 23.08.2026, Plan §4/§11 ═══
+   Aufgaben der Verwaltung, Aufträge vom Betreiber, Hinweise, Erledigtes.
+   Dunkle Bühne, Glas. Präfix .ta- */
+.ta{display:grid;gap:18px;max-width:1100px;margin:0 auto;color:#e5e7eb}
+.ta-pille{display:inline-block;font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.16em;text-transform:uppercase;color:#93c5fd;padding:8px 12px;border:1px solid rgba(147,197,253,.35);border-radius:999px;margin-bottom:14px}
+.ta-verlauf{background:linear-gradient(90deg,#93c5fd,#3b82f6);-webkit-background-clip:text;background-clip:text;color:transparent}
+.ta-kopf{display:grid;grid-template-columns:1fr 300px;gap:24px;align-items:end;padding:30px 0 4px}
+.ta-kopf h1{margin:0;font:300 clamp(30px,4.2vw,50px)/1.08 'Inter',sans-serif;letter-spacing:-.03em;color:#fff}
+.ta-kopf p{margin:14px 0 0;font:300 15px/1.65 'Inter',sans-serif;color:#cbd5e1;max-width:60ch}
+.ta-lage{padding:18px 20px;border-radius:20px;background:rgba(15,23,42,.6);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);display:grid;gap:8px}
+.ta-lage small{font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#93c5fd}
+.ta-lage-zahl{display:flex;align-items:baseline;gap:10px}
+.ta-lage-zahl b{font:300 44px/1 'Inter',sans-serif;letter-spacing:-.03em;color:#fff;font-variant-numeric:tabular-nums}
+.ta-lage-zahl span{font-size:13px;color:#9ca3af}
+.ta-lage-zeile{display:flex;justify-content:space-between;font-size:13px;color:#9ca3af;border-top:1px solid rgba(255,255,255,.08);padding-top:8px}
+.ta-lage-zeile b{color:#fff;font-weight:500;font-variant-numeric:tabular-nums}
+.ta-lage-zeile b.warn{color:#fbbf24}.ta-lage-zeile b.rot{color:#f87171}
+.ta-fehler{margin:0;padding:10px 14px;border-radius:12px;background:rgba(220,38,38,.14);border:1px solid rgba(248,113,113,.35);color:#fecaca;font-size:13px}
+.ta-lade{margin:0;font-size:13px;color:#64748b}
+.ta-leer{padding:26px 22px;border-radius:22px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);text-align:center}
+.ta-leer b{display:block;font:400 15px/1.3 'Inter',sans-serif;color:#fff}
+.ta-leer span{display:block;margin-top:4px;font-size:13px;color:#9ca3af}
+
+.ta-reiter{display:inline-flex;flex-wrap:wrap;padding:4px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1)}
+.ta-reiter button{min-height:40px;padding:0 16px;border-radius:999px;border:0;background:transparent;color:#cbd5e1;font:500 13px/1 'Inter',sans-serif;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.ta-reiter button.an{background:linear-gradient(135deg,#2563eb,#3b82f6);color:#fff;box-shadow:0 8px 18px rgba(37,99,235,.3)}
+.ta-reiter button em{font-style:normal;font-size:11px;padding:2px 7px;border-radius:999px;background:rgba(255,255,255,.12)}
+
+.ta-liste{display:grid;gap:10px}
+.ta-karte{display:grid;grid-template-columns:44px 1fr;gap:14px;padding:16px 18px;border-radius:18px;background:rgba(15,23,42,.6);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);position:relative;overflow:hidden}
+.ta-karte::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:transparent}
+.ta-karte.ueberfaellig::before{background:#f87171}
+.ta-karte.heute::before{background:#3b82f6}
+.ta-karte.dringend::before{background:#fbbf24}
+.ta-karte.erledigt{opacity:.6}
+.ta-haken{width:44px;height:44px;border-radius:13px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05);color:#64748b;display:grid;place-items:center;cursor:pointer;transition:all .2s}
+.ta-haken:hover{border-color:#34d399;color:#34d399}
+.ta-haken.an{background:linear-gradient(180deg,#10b981,#059669);border-color:transparent;color:#fff;box-shadow:0 8px 18px rgba(16,185,129,.35)}
+.ta-haken:disabled{opacity:.5;cursor:default}
+.ta-zeichen{width:44px;height:44px;border-radius:13px;background:rgba(37,99,235,.18);color:#93c5fd;display:grid;place-items:center}
+.ta-text{min-width:0}
+.ta-text p{margin:0;font:400 14.5px/1.45 'Inter',sans-serif;color:#fff;overflow-wrap:anywhere}
+.ta-karte.erledigt .ta-text p{color:#9ca3af;text-decoration:line-through}
+.ta-meta{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:6px;font-size:12px;color:#9ca3af;align-items:center}
+.ta-meta b{color:#cbd5e1;font-weight:500}
+.ta-meta .rot{color:#f87171;font-weight:500}.ta-meta .blau{color:#93c5fd;font-weight:500}.ta-meta .warn{color:#fbbf24;font-weight:500}.ta-meta .gut{color:#34d399;font-weight:500}
+.ta-link{display:inline-flex;align-items:center;gap:5px;margin-top:8px;font-size:13px;color:#93c5fd;text-decoration:none}
+.ta-fuss{margin:0;font-size:12px;color:#64748b;line-height:1.5}
+
+/* Aufträge vom Betreiber */
+.ta-auftrag{padding:0;border-radius:20px;background:rgba(15,23,42,.6);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);overflow:hidden;position:relative}
+.ta-auftrag::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px}
+.ta-auftrag.offen::before{background:#fbbf24}.ta-auftrag.in_arbeit::before{background:#3b82f6}.ta-auftrag.wartet::before{background:#f59e0b}.ta-auftrag.erledigt{opacity:.7}.ta-auftrag.erledigt::before{background:#34d399}
+.ta-auftrag-innen{padding:16px 18px 14px}
+.ta-status{display:inline-flex;align-items:center;gap:6px;font:500 11px/1 'Inter',sans-serif;letter-spacing:.08em;text-transform:uppercase}
+.ta-status i{width:7px;height:7px;border-radius:50%;background:currentColor}
+.ta-auftrag-kopf{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+.ta-auftrag-kopf small{font-size:12px;color:#9ca3af}
+.ta-auftrag h3{margin:0;font:400 16px/1.35 'Inter',sans-serif;color:#fff;overflow-wrap:anywhere}
+.ta-auftrag.erledigt h3{color:#9ca3af;text-decoration:line-through}
+.ta-auftrag-text{margin:8px 0 0;font:300 13.5px/1.6 'Inter',sans-serif;color:#cbd5e1;white-space:pre-wrap;overflow-wrap:anywhere}
+.ta-kasten{margin-top:12px;padding:10px 14px;border-radius:14px;font-size:13px;line-height:1.5}
+.ta-kasten.warn{background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.35);color:#fde68a}
+.ta-kasten.gut{background:rgba(16,185,129,.12);border:1px solid rgba(52,211,153,.35);color:#a7f3d0}
+.ta-knoepfe{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;align-items:center}
+.ta-knopf{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:42px;padding:0 16px;border-radius:999px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#e5e7eb;font:500 13px/1 'Inter',sans-serif;cursor:pointer;text-decoration:none;white-space:nowrap}
+.ta-knopf.haupt{border:0;background:linear-gradient(135deg,#2563eb,#3b82f6);color:#fff;box-shadow:0 12px 28px rgba(37,99,235,.35)}
+.ta-knopf.gut{border:0;background:linear-gradient(135deg,#059669,#34d399);color:#fff;box-shadow:0 12px 28px rgba(16,185,129,.3)}
+.ta-knopf:disabled{opacity:.45;cursor:default;box-shadow:none}
+.ta-form{display:grid;gap:10px;margin-top:12px;padding:14px;border-radius:16px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1)}
+.ta-form p{margin:0;font-size:12.5px;color:#9ca3af;line-height:1.5}
+.ta-feld{width:100%;min-height:44px;padding:10px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:rgba(2,6,23,.4);color:#fff;font:400 14px/1.45 'Inter',sans-serif;outline:none;resize:vertical}
+.ta-feld:focus{border-color:rgba(96,165,250,.6);box-shadow:0 0 0 3px rgba(37,99,235,.2)}
+.ta-feld::placeholder{color:#64748b}
+.ta-zeitleiste-knopf{width:100%;text-align:left;padding:12px 18px;border:0;border-top:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03);color:#9ca3af;font:500 12.5px/1 'Inter',sans-serif;cursor:pointer;display:flex;align-items:center;gap:8px}
+.ta-zeitleiste{display:flex;flex-direction:column;gap:8px;padding:12px 18px 16px;background:rgba(255,255,255,.03)}
+.ta-blase{max-width:88%;padding:9px 12px;border-radius:14px;font-size:13px;line-height:1.45;overflow-wrap:anywhere}
+.ta-blase.betreiber{background:rgba(255,255,255,.08);color:#e5e7eb;border-bottom-left-radius:4px}
+.ta-blase.agent{margin-left:auto;background:linear-gradient(135deg,#2563eb,#3b82f6);color:#fff;border-bottom-right-radius:4px}
+.ta-blase.system{margin:0 auto;background:none;color:#64748b;font-size:11.5px;text-align:center;max-width:100%;padding:2px 0}
+.ta-blase.frage{border:1px solid rgba(251,191,36,.5)}.ta-blase.ergebnis{border:1px solid rgba(52,211,153,.5)}
+.ta-blase strong{display:block;font:500 10px/1 'Inter',sans-serif;letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px;opacity:.85}
+.ta-blase small{display:block;font-size:10.5px;opacity:.7;margin-top:4px}
+
+@media(max-width:960px){.ta-kopf{grid-template-columns:1fr}}
+@media(max-width:700px){
+  .ta-lage-zahl b{font-size:36px}
+  .ta-karte{grid-template-columns:40px 1fr;padding:14px}
+  .ta-haken,.ta-zeichen{width:40px;height:40px}
+  .ta-knopf{flex:1 1 auto}
+  .ta-reiter{width:100%}
+  .ta-reiter button{flex:1 1 auto;justify-content:center;padding:0 10px}
+}

@@ -787,19 +787,36 @@ router.post("/telefon/status", async (req: Request, res: Response) => {
     const anrufId = Number(String(req.query?.anruf || "").replace(/\D/g, "")) || null;
     const agentAusClient = Number(/^client:agent-(\d+)$/.exec(String(b?.From || ""))?.[1] || 0) || null;
     if (sid) {
-      await sqlPool`
-        UPDATE fiaon_calls
-        SET twilio_sid = COALESCE(twilio_sid, ${sid}),
-            ende = NOW(), dauer_sek = ${dauer || null},
-            status = ${status === "completed" ? "beendet" : status === "no-answer" || status === "busy" ? "abgelehnt" : "fehlgeschlagen"},
-            updated_at = NOW()
-        WHERE id = COALESCE(
-          (SELECT id FROM fiaon_calls WHERE id = ${anrufId} AND (twilio_sid IS NULL OR twilio_sid = ${sid})),
-          (SELECT id FROM fiaon_calls WHERE twilio_sid = ${sid} ORDER BY id LIMIT 1),
-          (SELECT id FROM fiaon_calls WHERE twilio_sid IS NULL AND status = 'gewaehlt'
-             AND agent_id = ${agentAusClient} ORDER BY beginn DESC LIMIT 1)
-        )
-      `;
+      // Erst die Zeile bestimmen, DANN schreiben — damit der Weg dorthin
+      // aufgeschrieben werden kann. Weg 3 (jüngste Zeile desselben Agenten,
+      // ohne Kennung) ist eine Vermutung: Er funktioniert, aber er wird als
+      // solcher markiert, damit der Tagesabgleich ihn gegenprüft.
+      const [ziel] = (await sqlPool`
+        SELECT id, weg FROM (
+          SELECT id, 1 AS weg FROM fiaon_calls WHERE id = ${anrufId} AND (twilio_sid IS NULL OR twilio_sid = ${sid})
+          UNION ALL
+          SELECT id, 2 FROM fiaon_calls WHERE twilio_sid = ${sid}
+          UNION ALL
+          SELECT id, 3 FROM fiaon_calls WHERE twilio_sid IS NULL AND status = 'gewaehlt'
+            AND ${agentAusClient}::int IS NOT NULL AND agent_id = ${agentAusClient}
+          ORDER BY weg, id DESC
+        ) t ORDER BY weg LIMIT 1
+      `) as any[];
+      if (ziel) {
+        await sqlPool`
+          UPDATE fiaon_calls
+          SET twilio_sid = COALESCE(twilio_sid, ${sid}),
+              ende = NOW(), dauer_sek = ${dauer || null},
+              status = ${status === "completed" ? "beendet" : status === "no-answer" || status === "busy" ? "abgelehnt" : "fehlgeschlagen"},
+              zuordnung_unklar_grund = CASE WHEN ${Number(ziel.weg) === 3} AND zuordnung_unklar_grund IS NULL
+                THEN 'status-ohne-kennung (Fallback jüngste Zeile des Agenten)' ELSE zuordnung_unklar_grund END,
+              updated_at = NOW()
+          WHERE id = ${ziel.id}
+        `;
+        if (Number(ziel.weg) === 3) console.warn(`[TELEFON] Status ohne Kennung: SID ${sid} per Fallback an Anruf ${ziel.id} (Agent ${agentAusClient}) gebunden — bitte Abgleich beachten.`);
+      } else {
+        console.error(`[TELEFON] Status-Callback ohne passende Zeile: SID ${sid}, anruf=${anrufId}, From=${String(b?.From || "")} — NICHT zugeordnet (kein Raten).`);
+      }
     }
     res.type("text/xml").send('<?xml version="1.0" encoding="UTF-8"?><Response/>');
   } catch (err) {
@@ -819,9 +836,14 @@ router.post("/telefon/aufnahme", async (req: Request, res: Response) => {
     // Zusammenfassung eines fremden Gesprächs in der Akte eines Kunden.
     const anrufId = Number(String(req.query?.anruf || "").replace(/\D/g, "")) || null;
     if (sid && url) {
+      // `recording_url` wird NIE überschrieben: Hängt an der Zeile schon eine
+      // andere Aufnahme (anderer RecordingSid), ist das ein Konfliktfall —
+      // dann lieber laut scheitern als leise die Akte eines Kunden mit einem
+      // fremden Gespräch füllen (das war der Kern von E-012).
       const [c] = (await sqlPool`
         UPDATE fiaon_calls
-        SET recording_url = ${`${url}.mp3`}, recording_sid = ${String(b?.RecordingSid || "")},
+        SET recording_url = COALESCE(recording_url, ${`${url}.mp3`}),
+            recording_sid = COALESCE(recording_sid, ${String(b?.RecordingSid || "")}),
             twilio_sid = COALESCE(twilio_sid, ${sid}),
             dauer_sek = COALESCE(dauer_sek, ${Number(b?.RecordingDuration ?? 0) || null}),
             updated_at = NOW()
@@ -829,8 +851,20 @@ router.post("/telefon/aufnahme", async (req: Request, res: Response) => {
           (SELECT id FROM fiaon_calls WHERE id = ${anrufId} AND (twilio_sid IS NULL OR twilio_sid = ${sid})),
           (SELECT id FROM fiaon_calls WHERE twilio_sid = ${sid} ORDER BY id LIMIT 1)
         )
+          AND (recording_sid IS NULL OR recording_sid = ${String(b?.RecordingSid || "")})
         RETURNING id
       `) as any[];
+      if (!c) {
+        // Eine Aufnahme ohne Zeile ist ein Datenschutz-Vorfall in Wartestellung:
+        // Sie darf NIRGENDS hingeraten werden. Laut melden + in Justins Liste.
+        console.error(`[TELEFON] AUFNAHME OHNE ZEILE: CallSid ${sid}, RecordingSid ${String(b?.RecordingSid || "")}, anruf=${anrufId} — nicht zugeordnet.`);
+        await sqlPool`
+          INSERT INTO fiaon_betreiber_todos (titel, text, bereich, prioritaet, quelle, letzte_aktivitaet)
+          VALUES ('Telefon: Aufnahme ohne Zuordnung',
+                  ${`Twilio meldete eine Aufnahme, die zu keiner Anruf-Zeile passt. CallSid ${sid}, RecordingSid ${String(b?.RecordingSid || "")}, anruf-Kennung ${anrufId ?? "fehlt"}. In Twilio prüfen und von Hand zuordnen — nichts raten.`},
+                  'telefon', 1, 'telefon-abgleich', NOW())
+        `.catch(() => {});
+      }
       // Nachbereitung im Hintergrund: Der Rückruf von Twilio darf nicht
       // minutenlang offen bleiben, sonst wiederholt Twilio ihn.
       if (c) {
@@ -1833,5 +1867,70 @@ tageslauf("anruf-zuordnung-pruefen", () => {
       + "Beheben: npx tsx scripts/anruf-zuordnung-bereinigen.ts --schreiben");
   })().catch((err) => console.error("[TELEFON] Tageslauf Anruf-Zuordnung:", err));
 }, 24 * 60 * 60 * 1000, { beimStartNach: 90_000 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TÄGLICH: STIMMT UNSERE ZUORDNUNG MIT TWILIOS EIGENER AUFZEICHNUNG ÜBEREIN?
+//
+// Der Bestandslauf oben prüft nur in sich (Name ↔ Nummer in unserer Zeile).
+// Der Kern von E-012 war aber eine VERTAUSCHTE SID: Unsere Zeile war in sich
+// stimmig — nur gehörte die Aufnahme zu einem anderen Gespräch. Das sieht man
+// ausschließlich bei Twilio: Der Kind-Leg des Anrufs (ParentCallSid) trägt die
+// wirklich gewählte Nummer. Dieser Lauf holt sie für die Anrufe der letzten
+// 48 Stunden und vergleicht die letzten 9 Ziffern mit unserer Zeile.
+// Bei Abweichung: Marke „Zuordnung unklar" + Aufgabe in Justins Liste.
+// KEINE automatische Korrektur — ein geratener Anruf in einer Kundenakte ist
+// schlimmer als eine offene Frage.
+// ═══════════════════════════════════════════════════════════════════════════
+tageslauf("anruf-twilio-abgleich", () => {
+  void (async () => {
+    const acc = process.env.TWILIO_ACCOUNT_SID || "", tok = process.env.TWILIO_AUTH_TOKEN || "";
+    if (!acc || !tok) return;
+    const auth = "Basic " + Buffer.from(`${acc}:${tok}`).toString("base64");
+    // Merkzettel statt neuer Spalte: bis zu welcher Anruf-Kennung wurde schon
+    // abgeglichen? (Eine ALTER-TABLE-Spalte wäre schöner, aber der Lauf soll
+    // auch ohne Schema-Änderung sicher sein.)
+    const { getSettings, setSetting } = await import("./fiaon-agent");
+    const abId = Number((await getSettings()).telefon_abgleich_bis_id) || 0;
+    const rows = (await sqlPool`
+      SELECT id, twilio_sid, nummer FROM fiaon_calls
+      WHERE twilio_sid IS NOT NULL AND nummer IS NOT NULL
+        AND beginn > NOW() - INTERVAL '48 hours'
+        AND id > ${abId}
+        AND zuordnung_unklar_am IS NULL
+      ORDER BY id ASC LIMIT 400
+    `) as any[];
+    let falsch = 0, geprueft = 0;
+    for (const r of rows) {
+      try {
+        const kinder = await fetch(
+          `https://api.twilio.com/2010-04-01/Accounts/${acc}/Calls.json?ParentCallSid=${encodeURIComponent(r.twilio_sid)}&PageSize=5`,
+          { headers: { Authorization: auth } },
+        ).then((x) => (x.ok ? x.json() : null)).catch(() => null);
+        const gewaehlt: string[] = ((kinder as any)?.calls ?? []).map((c: any) => String(c.to || "").replace(/\D/g, "").slice(-9)).filter(Boolean);
+        geprueft++;
+        const unsere = String(r.nummer).replace(/\D/g, "").slice(-9);
+        if (gewaehlt.length && unsere && !gewaehlt.includes(unsere)) {
+          falsch++;
+          await sqlPool`
+            UPDATE fiaon_calls SET zuordnung_unklar_am = NOW(),
+              zuordnung_unklar_grund = ${`twilio-abgleich: Twilio wählte ${gewaehlt.join("/")}, Zeile trägt …${unsere}`},
+              updated_at = NOW() WHERE id = ${r.id}
+          `;
+        }
+        await setSetting("telefon_abgleich_bis_id", String(r.id));
+        await new Promise((x) => setTimeout(x, 150)); // Twilio-Ratenlimit schonen
+      } catch { /* nächster */ }
+    }
+    if (falsch > 0) {
+      console.warn(`[TELEFON] Twilio-Abgleich: ${falsch} von ${geprueft} Anrufen passen NICHT zu Twilios Aufzeichnung — als „Zuordnung unklar" markiert.`);
+      await sqlPool`
+        INSERT INTO fiaon_betreiber_todos (titel, text, bereich, prioritaet, quelle, letzte_aktivitaet)
+        VALUES ('Telefon: Zuordnungs-Abgleich meldet Abweichungen',
+                ${`${falsch} Anruf(e) der letzten 48 Stunden tragen eine andere Nummer als Twilios eigene Aufzeichnung. In der Team-Zentrale unter „Zuordnung prüfen" ansehen.`},
+                'telefon', 1, 'telefon-abgleich', NOW())
+      `.catch(() => {});
+    }
+  })().catch((err) => console.error("[TELEFON] Twilio-Abgleich:", err));
+}, 24 * 60 * 60 * 1000, { beimStartNach: 10 * 60_000 });
 
 export default router;

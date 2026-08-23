@@ -371,6 +371,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Jede Rolle bekommt IHRE Reise, mit gespeichertem Fortschritt. Die
   // Rollenfilterung lag seit dem 26.08. vorbereitet in shared/fiaon-academy.ts
   // und wird hier zum ersten Mal benutzt.
+  // Ausbildung (E-040): eigener Router VOR fiaon-academy, sonst fängt dessen
+  // GET /agent/academy/:reise die Pfade fortschritt/szenarien/urkunde.pdf ab.
+  const fiaonOfficeAcademy = await import('./routes/fiaon-office-academy');
+  app.use('/api/fiaon', fiaonOfficeAcademy.default);
   const fiaonAcademyRoutes = await import('./routes/fiaon-academy');
   app.use('/api/fiaon', fiaonAcademyRoutes.default);
 
@@ -410,6 +414,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/fiaon', fiaonMailRoutes.default);
 
   // 🔑 Zugang retten — Setz-Link, Einmal-Passwort, Freischalten.
+  // 🏢 FIAON Office: Arbeitszeiten, Präsenz, Provisionssatz (23.08.2026).
+  const fiaonOffice = await import('./routes/fiaon-office');
+  app.use('/api/fiaon', fiaonOffice.default);
+  const fiaonOfficeInbox = await import('./routes/fiaon-office-inbox');
+  app.use('/api/fiaon', fiaonOfficeInbox.default);
+  const fiaonOfficeVertrieb = await import('./routes/fiaon-office-vertrieb');
+  app.use('/api/fiaon', fiaonOfficeVertrieb.default);
+  const fiaonOfficeEinfuehrung = await import('./routes/fiaon-office-einfuehrung');
+  app.use('/api/fiaon', fiaonOfficeEinfuehrung.default);
+  const fiaonOfficeTermintreue = await import('./routes/fiaon-office-termintreue');
+  app.use('/api/fiaon', fiaonOfficeTermintreue.default);
+
   const fiaonZugangRetten = await import('./routes/fiaon-zugang-retten');
   app.use('/api/fiaon', fiaonZugangRetten.default);
 

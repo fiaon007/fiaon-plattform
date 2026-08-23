@@ -208,12 +208,23 @@ export const ZUSTAENDIG_GRUND: Record<ZustaendigeRolle, string> = {
   vertrieb: "Kein Rückstand und kein offenes Startgespräch — Vertrieb betreut.",
 };
 
-/** Welche Mitarbeiter-Rollen erfüllen diese Zuständigkeit? */
+/** Welche Mitarbeiter-Rollen erfüllen diese Zuständigkeit?
+ *
+ * ── E-045 (Justin 23.08., Plan §17): Bereiche zusammengelegt ─────────────
+ * VORHER: onboarding: ["onboarding", …], vertrieb: ["agent", …] — getrennte
+ * Bereiche, ein Vertriebsmitarbeiter galt beim Startgespräch als Vertretung.
+ * NACHHER: EINE Rolle „Bonitätsmanager“ macht den ganzen Kundenweg — 'agent'
+ * erfüllt auch die Onboarding-Zuständigkeit und umgekehrt. Die Terminart-
+ * Beschriftung (Vertrieb/Startgespräch) bleibt; nur wer zuständig ist, ändert
+ * sich. inkasso bleibt getrennt: Diana ist Back-Office Forderungen &
+ * Zahlungen — die Reaktivierung eigener Kunden läuft für Bonitätsmanager
+ * über den Besitz (freieSlots/terminBuchen buchen bei Besitz IMMER beim
+ * Betreuer), nicht über diese Liste. */
 export const ROLLEN_FUER: Record<ZustaendigeRolle, string[]> = {
   // Die Leitung darf überall einspringen, ohne dass es eine Vertretung ist.
   inkasso: ["inkasso", "vertriebsleiter", "admin"],
-  onboarding: ["onboarding", "vertriebsleiter", "admin"],
-  vertrieb: ["agent", "vertriebsleiter", "admin"],
+  onboarding: ["agent", "onboarding", "vertriebsleiter", "admin"],
+  vertrieb: ["agent", "onboarding", "vertriebsleiter", "admin"],
 };
 
 /** Die eine Ableitung für EINEN Menschen. */

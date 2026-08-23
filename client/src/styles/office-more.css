@@ -1,0 +1,92 @@
+/* ═══ More (23.08.2026) — Profil, Dokumente, Passwort, Abmelden auf der Office-Bühne. Plan §4/§11 ═══ */
+.mo{display:grid;gap:18px;max-width:1100px;margin:0 auto;color:#e5e7eb}
+.mo-pille{display:inline-block;font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.16em;text-transform:uppercase;color:#93c5fd;padding:8px 12px;border:1px solid rgba(147,197,253,.35);border-radius:999px;margin-bottom:14px}
+.mo-verlauf{background:linear-gradient(90deg,#93c5fd,#3b82f6);-webkit-background-clip:text;background-clip:text;color:transparent}
+.mo-kopf{display:grid;grid-template-columns:1fr auto;gap:24px;align-items:end;padding:30px 0 4px}
+.mo-kopf h1{margin:0;font:300 clamp(30px,4.2vw,48px)/1.08 'Inter',sans-serif;letter-spacing:-.03em;color:#fff}
+.mo-kopf p{margin:14px 0 0;font:300 15px/1.65 'Inter',sans-serif;color:#cbd5e1;max-width:60ch}
+.mo-fehler{margin:0;padding:10px 14px;border-radius:12px;background:rgba(220,38,38,.14);border:1px solid rgba(248,113,113,.35);color:#fecaca;font-size:13px}
+.mo-meldung{margin:0;padding:10px 14px;border-radius:12px;background:rgba(16,185,129,.14);border:1px solid rgba(52,211,153,.35);color:#a7f3d0;font-size:13px}
+.mo-meldung.schlecht{background:rgba(245,158,11,.14);border-color:rgba(251,191,36,.35);color:#fde68a}
+.mo-laedt,.mo-leer{margin:0;font:300 13.5px/1.6 'Inter',sans-serif;color:#9ca3af}
+.mo-hinweis{margin:0;font:300 12.5px/1.6 'Inter',sans-serif;color:#9ca3af}
+.mo-link{display:inline-flex;align-items:center;gap:6px;font:400 13px/1 'Inter',sans-serif;color:#93c5fd;text-decoration:none;background:none;border:0;cursor:pointer;padding:0;min-height:32px}
+.mo-link:hover{color:#fff}
+/* Reiter */
+.mo-reiter{display:flex;gap:6px;flex-wrap:wrap;padding:6px;border-radius:999px;background:rgba(15,23,42,.55);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);width:fit-content;max-width:100%}
+.mo-reiter a{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:0 16px;border-radius:999px;color:#cbd5e1;font:400 13px/1 'Inter',sans-serif;text-decoration:none;white-space:nowrap}
+.mo-reiter a:hover{color:#fff;background:rgba(255,255,255,.06)}
+.mo-reiter a.an{background:linear-gradient(135deg,#2563eb,#3b82f6);color:#fff;box-shadow:0 8px 20px rgba(37,99,235,.35)}
+/* Ich-Karte + Kacheln */
+.mo-ich{display:flex;align-items:center;gap:16px;padding:20px 22px;border-radius:22px;background:linear-gradient(135deg,rgba(37,99,235,.3),rgba(37,99,235,.08));border:1px solid rgba(96,165,250,.35);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+.mo-gesicht{width:64px;height:64px;border-radius:20px;display:grid;place-items:center;background:linear-gradient(180deg,#2563EB,#1D4ED8);color:#fff;font:500 20px/1 'Inter',sans-serif;overflow:hidden;flex:0 0 64px}
+.mo-gesicht.gross{width:96px;height:96px;border-radius:28px;font-size:30px;flex-basis:96px}
+.mo-gesicht img{width:100%;height:100%;object-fit:cover}
+.mo-ich b{display:block;font:400 20px/1.2 'Inter',sans-serif;color:#fff}
+.mo-ich small{display:block;font-size:13px;color:#cbd5e1;margin-top:3px}
+.mo-ich .rolle{display:inline-block;margin-top:8px;font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#93c5fd}
+.mo-kacheln{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.mo-kachel{display:flex;align-items:center;gap:14px;padding:18px 20px;border-radius:18px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);text-decoration:none;color:inherit;transition:transform .25s,border-color .25s;cursor:pointer;font-family:'Inter',sans-serif;text-align:left;min-height:76px}
+.mo-kachel:hover{transform:translateY(-2px);border-color:rgba(147,197,253,.4)}
+.mo-kachel i{display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:rgba(37,99,235,.18);color:#93c5fd;flex:0 0 40px}
+.mo-kachel b{display:flex;align-items:center;gap:8px;font:400 14.5px/1.2 'Inter',sans-serif;color:#fff}
+.mo-kachel span{display:block;font-size:12px;color:#9ca3af;margin-top:3px;line-height:1.4}
+.mo-kachel em{font:600 10.5px/1 'Inter',sans-serif;font-style:normal;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:#2563eb;color:#fff;display:grid;place-items:center}
+.mo-kachel.aus{background:rgba(248,113,113,.08);border-color:rgba(248,113,113,.25)}
+.mo-kachel.aus i{background:rgba(248,113,113,.15);color:#fca5a5}
+/* Blöcke */
+.mo-block{padding:20px 22px;border-radius:22px;background:rgba(15,23,42,.6);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+.mo-block.leicht{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.1)}
+.mo-block-kopf{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.mo-block-kopf b{font:400 16px/1.2 'Inter',sans-serif;color:#fff;display:flex;align-items:center;gap:8px}
+.mo-block-kopf small{font-size:12px;color:#64748b}
+.mo-form{display:grid;gap:10px}
+.mo-raster2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.mo-raster-bank{display:grid;grid-template-columns:1fr 180px;gap:8px}
+.mo-feld{width:100%;min-height:46px;padding:10px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#fff;font:400 14px/1.3 'Inter',sans-serif;outline:none;box-sizing:border-box;color-scheme:dark}
+.mo-feld::placeholder{color:#64748b}
+.mo-feld:focus{border-color:rgba(96,165,250,.6);box-shadow:0 0 0 3px rgba(37,99,235,.2)}
+.mo-feld.mono{font-family:ui-monospace,"SF Mono",Menlo,monospace}
+.mo-feld:disabled{opacity:.6}
+.mo-formzeile{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.mo-formzeile .mo-feld{flex:1;min-width:180px}
+.mo-knopf{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:46px;padding:0 22px;border-radius:999px;border:0;background:linear-gradient(135deg,#2563eb,#3b82f6);color:#fff;font:500 14px/1 'Inter',sans-serif;cursor:pointer;text-decoration:none;box-shadow:0 12px 28px rgba(37,99,235,.35);white-space:nowrap}
+.mo-knopf:disabled{opacity:.45;cursor:default;box-shadow:none}
+.mo-knopf.still{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);color:#e5e7eb;box-shadow:none}
+.mo-knopf.klein{min-height:40px;padding:0 16px;font-size:13px}
+.mo-knopf.rot{background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.3);color:#fecaca;box-shadow:none}
+.mo-label{display:block;font:500 11.5px/1 'Inter',sans-serif;color:#93c5fd;margin-bottom:6px}
+.mo-hinterlegt{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;padding:12px 14px;border-radius:12px;background:rgba(37,99,235,.12);border:1px solid rgba(96,165,250,.25);font-size:13px;color:#e5e7eb}
+.mo-hinterlegt small{font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#93c5fd}
+.mo-hinterlegt .mono{font-family:ui-monospace,"SF Mono",Menlo,monospace;color:#fff}
+/* Erste Schritte */
+.mo-schritte{display:grid;gap:4px}
+.mo-schritt{display:flex;align-items:center;gap:10px;min-height:36px;font-size:13.5px;color:#e5e7eb}
+.mo-schritt .punkt{width:22px;height:22px;border-radius:50%;border:1.5px solid rgba(255,255,255,.25);display:grid;place-items:center;flex:0 0 22px;color:transparent}
+.mo-schritt.fertig .punkt{background:#2563eb;border-color:transparent;color:#fff}
+.mo-schritt.fertig span{color:#64748b;text-decoration:line-through}
+.mo-schritt a{color:#e5e7eb;text-decoration:none}
+.mo-schritt a:hover{color:#fff}
+.mo-schritt .mo-link{margin-left:auto}
+/* Erreichbarkeit */
+.mo-tage{display:grid;gap:8px}
+.mo-tag{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.mo-tag>button{width:52px;min-height:40px;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05);color:#9ca3af;font:500 12.5px/1 'Inter',sans-serif;cursor:pointer}
+.mo-tag>button.an{background:linear-gradient(135deg,#2563eb,#3b82f6);border-color:transparent;color:#fff}
+.mo-tag .mo-feld{width:120px;min-height:40px}
+.mo-tag span{font-size:12.5px;color:#64748b}
+/* Dokumente */
+.mo-doks{display:grid;gap:8px}
+.mo-dok{display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:16px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08)}
+.mo-dok i{display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:rgba(37,99,235,.18);color:#93c5fd;flex:0 0 40px}
+.mo-dok>div{flex:1;min-width:0}
+.mo-dok b{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font:400 14.5px/1.2 'Inter',sans-serif;color:#fff}
+.mo-dok small{display:block;font-size:12px;color:#9ca3af;margin-top:3px;line-height:1.4}
+.mo-dok .hash{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;color:#475569;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mo-marke{display:inline-block;font:500 10px/1 'Inter',sans-serif;letter-spacing:.08em;text-transform:uppercase;padding:4px 7px;border-radius:6px;border:1px solid rgba(255,255,255,.18);color:#cbd5e1}
+.mo-marke.gut{border-color:rgba(52,211,153,.4);color:#a7f3d0}
+.mo-marke.warten{border-color:rgba(251,191,36,.4);color:#fde68a}
+.mo-lesen{margin-top:10px;padding:16px 18px;border-radius:14px;background:#fff;color:#0f172a;font:400 13.5px/1.6 'Inter',sans-serif;max-height:360px;overflow:auto}
+.mo-lesen h1,.mo-lesen h2,.mo-lesen h3{color:#0f172a}
+@media(max-width:960px){.mo-kopf{grid-template-columns:1fr}.mo-kacheln{grid-template-columns:1fr 1fr}.mo-reiter{width:100%;border-radius:20px;overflow-x:auto;scrollbar-width:none}}
+@media(max-width:700px){.mo-kopf{padding-top:18px}.mo-kacheln{grid-template-columns:1fr}.mo-raster2,.mo-raster-bank{grid-template-columns:1fr}.mo-block{padding:16px}.mo-ich{padding:16px}.mo-gesicht.gross{width:72px;height:72px;flex-basis:72px;font-size:24px}.mo-dok{flex-wrap:wrap}.mo-tag .mo-feld{width:104px}}

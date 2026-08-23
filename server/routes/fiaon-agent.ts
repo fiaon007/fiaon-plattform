@@ -1451,6 +1451,18 @@ router.post("/agent/login", async (req, res) => {
     const { email, password } = req.body || {};
     if (!email || !password) return res.status(400).json({ ok: false, error: "E-Mail und Passwort erforderlich" });
     const rows = await sqlPool`SELECT * FROM fiaon_agents WHERE LOWER(email) = ${String(email).trim().toLowerCase()}`;
+    // ── OFFICE-UMBAU (E-038, 23.08.2026) ─────────────────────────────────
+    // Solange die Einstellung office_umbau = 'an' ist, sehen deaktivierte
+    // Mitarbeiter mit richtigem Passwort die Update-Bühne statt „ungültig".
+    // Justin aktiviert jeden einzeln im Admin (active = TRUE).
+    if (rows.length === 1 && !rows[0].active && rows[0].password_hash && (await bcrypt.compare(password, rows[0].password_hash))) {
+      const einst = await getSettings().catch(() => ({} as Record<string, string>));
+      if (String(einst.office_umbau || "").toLowerCase() === "an") {
+        // Vorname mitgeben – die Bühne begrüßt persönlich („Wir bauen gerade für dich um, Nikita.")
+        const vorname = String(rows[0].first_name || String(rows[0].name || "").split(" ")[0] || "");
+        return res.status(423).json({ ok: false, umbau: true, vorname, error: "Wir bauen gerade euer neues Büro." });
+      }
+    }
     if (rows.length === 0 || !rows[0].active || !rows[0].password_hash || !(await bcrypt.compare(password, rows[0].password_hash))) {
       return res.status(401).json({ ok: false, error: "Anmeldedaten ungültig oder Zugang deaktiviert" });
     }

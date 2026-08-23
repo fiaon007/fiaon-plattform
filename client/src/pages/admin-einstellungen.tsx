@@ -208,6 +208,7 @@ export default function AdminEinstellungenPage() {
   const [form, setForm] = useState({ rate: "", min: "" });
   const [reminder, setReminder] = useState({ max: "6", start: "10", end: "11", enabled: true });
   const [distribution, setDistribution] = useState({ enabled: true, cap: "50" });
+  const [officeUmbau, setOfficeUmbau] = useState(false); // E-038: Mitarbeiter-Sperre bis zur Freigabe des neuen Office
   const [partner, setPartner] = useState<{ overrideRate: string; thresholds: Array<{ key: string; label: string; min: string; bonus: string }>; prizes: Record<string, { title: string; description: string }> }>({ overrideRate: "5", thresholds: [], prizes: {} });
   const [statusMap, setStatusMap] = useState<Record<string, string>>({});
   const [sys, setSys] = useState<any>(null);
@@ -232,6 +233,7 @@ export default function AdminEinstellungenPage() {
             end: String(j.settings.reminderWindowEnd ?? 11),
             enabled: Boolean(j.settings.reminderEngineEnabled),
           });
+          setOfficeUmbau(Boolean(j.settings.officeUmbau));
           setDistribution({
             enabled: Boolean(j.settings.distributionEnabled),
             cap: String(j.settings.distributionCap ?? 50),
@@ -274,6 +276,7 @@ export default function AdminEinstellungenPage() {
         reminderEngineEnabled: reminder.enabled,
         distributionEnabled: distribution.enabled,
         distributionCap: Math.round(Number(distribution.cap)),
+        officeUmbau,
         partnerOverrideBp: Math.round(Number(partner.overrideRate.replace(",", ".")) * 100),
         partnerThresholds: partner.thresholds.map((t) => ({
           key: t.key, label: t.label,
@@ -315,6 +318,22 @@ export default function AdminEinstellungenPage() {
           </div>
         </div>
         <button type="submit" disabled={busy} className={`${btnPrimary} mt-4`}>{busy ? "…" : "Speichern"}</button>
+      </form>
+
+      {/* E-038: Office-Umbau – Sperre für Mitarbeiter */}
+      <form onSubmit={save} className="bg-white border border-slate-200 rounded-2xl p-5 mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
+          <h2 className="text-[14px] font-bold text-slate-900">Mitarbeiter-Office: Umbau-Sperre</h2>
+          <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+            <input type="checkbox" checked={officeUmbau} onChange={(e) => setOfficeUmbau(e.target.checked)} className="w-4 h-4 accent-[#2563eb]" />
+            <span className="text-[12px] font-semibold text-slate-700">{officeUmbau ? "Sperre aktiv" : "Sperre aus"}</span>
+          </label>
+        </div>
+        <p className="text-[12px] text-slate-400 mb-4">
+          Bei aktiver Sperre sehen deaktivierte Mitarbeiter nach dem Login die Umbau-Bühne („Großes Update – seid gespannt“) statt des Office.
+          Aktive Mitarbeiter sind nicht betroffen. Der Provisionssatz oben (Standard-Provisionssatz) gilt auch für den Gehaltsrechner im Office.
+        </p>
+        <button type="submit" disabled={busy} className={`${btnPrimary}`}>{busy ? "…" : "Speichern"}</button>
       </form>
 
       {/* Paket V2: Tägliche Reminder-Engine */}

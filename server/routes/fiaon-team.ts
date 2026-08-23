@@ -1402,6 +1402,8 @@ router.get("/admin/settings", async (_req, res) => {
         partnerOverrideBp: Number(settings.partner_override_bp),
         partnerThresholds: JSON.parse(settings.partner_thresholds || "[]"),
         partnerPrizes: JSON.parse(settings.partner_prizes || "{}"),
+        // Office-Umbau (E-038): Mitarbeiter sehen statt Login die Umbau-Bühne, bis Justin freigibt
+        officeUmbau: settings.office_umbau === "an",
       },
     });
   } catch (err) {
@@ -1455,6 +1457,9 @@ router.post("/admin/settings", async (req, res) => {
     }
     if (reminderEngineEnabled != null) {
       await setSetting("reminder_engine_enabled", reminderEngineEnabled ? "1" : "0");
+    }
+    if (req.body?.officeUmbau != null) {
+      await setSetting("office_umbau", req.body.officeUmbau ? "an" : "aus");
     }
     // Paket AE1: Verteilung an/aus + Obergrenze
     const { distributionEnabled, distributionCap, partnerOverrideBp, partnerThresholds: pThresholds, partnerPrizes: pPrizes } = req.body || {};

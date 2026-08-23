@@ -725,15 +725,13 @@ router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: R
     // Adresse steht weiter offen, und wer sie einmal gesehen hat, ruft sie
     // wieder auf. Dieselbe Bauweise wie beim Vertrieb und beim Onboarding.
     // ══════════════════════════════════════════════════════════════════════
-    const { istInkasso } = await import("./fiaon-inkasso-bereich");
-    if (await istInkasso(req.agent!.id)) {
-      return res.status(404).json({
-        ok: false,
-        error: "Diese Liste gibt es für dich nicht. Deine Arbeit steht unter „Forderungen“ — "
-          + "dort stehen ausschließlich Kunden mit einer offenen Rate.",
-      });
-    }
-
+    // ── E-045 (Justin 23.08., Plan §17): DIE WAND IST OFFEN ───────────────
+    // VORHER: 404 für die Rolle „inkasso" (Block oben, seitdem Geschichte).
+    // NACHHER: Die Bereichs-Trennung ist aufgehoben — Diana (Back-Office
+    // Forderungen & Zahlungen) darf LESEN. Die Liste bleibt trotzdem sauber:
+    // Sie zeigt nur `assigned_agent_id = ich`, und Diana betreut niemanden —
+    // ihre Liste ist leer, ihre Fälle erreicht sie über die Akte
+    // (/agent/crm/kunden/:id, dort lesend geöffnet) und /inkasso/liste.
     await ensureBetreuungSpalte(sqlPool);
     const me = req.agent!.id;
     const filter = String(req.query.filter || "alle");

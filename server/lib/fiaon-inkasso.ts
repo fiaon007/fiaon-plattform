@@ -335,7 +335,11 @@ export async function ratenErgebnisAnwenden(
  * 5. Alles andere.
  */
 export async function arbeitsliste(
-  opts: { limit?: number; nurMeine?: number | null; frist?: string | null } = {},
+  // E-045 (Plan §17): `nurBetreuer` — VORHER gab es nur `nurMeine`
+  // (Zuteilung über inkasso_agent_id). NACHHER arbeitet jeder Bonitätsmanager
+  // die überfälligen Raten SEINER Kunden: Filter über den Besitz
+  // (fiaon_persons.assigned_agent_id), nicht über die Inkasso-Zuteilung.
+  opts: { limit?: number; nurMeine?: number | null; frist?: string | null; nurBetreuer?: number | null } = {},
   lauf: Lauf = sqlPool,
 ): Promise<any[]> {
   const heute = berlinToday();
@@ -401,6 +405,12 @@ export async function arbeitsliste(
       -- liegengebliebene Arbeit. Wer den Bereich öffnet, muss sie sehen.
       ${opts.nurMeine
         ? lauf`AND (r.inkasso_agent_id = ${opts.nurMeine} OR r.inkasso_agent_id IS NULL)`
+        : lauf``}
+      -- E-045: Bonitätsmanager sehen NUR die Raten ihrer eigenen Kunden.
+      ${opts.nurBetreuer
+        ? lauf`AND EXISTS (SELECT 1 FROM fiaon_persons pb
+                 WHERE pb.id = a.person_id AND pb.assigned_agent_id = ${opts.nurBetreuer}
+                   AND pb.merged_into_person_id IS NULL)`
         : lauf``}
     ORDER BY
       -- Die eigenen zuerst: Wer zugeteilt ist, hat Vorrang vor dem, was
@@ -537,7 +547,7 @@ export interface InkassoPerson {
  * zweite Definition von „dringend".
  */
 export async function arbeitslistePersonen(
-  opts: { limit?: number; nurMeine?: number | null; frist?: string | null } = {},
+  opts: { limit?: number; nurMeine?: number | null; frist?: string | null; nurBetreuer?: number | null } = {},
   lauf: Lauf = sqlPool,
 ): Promise<InkassoPerson[]> {
   const raten = await arbeitsliste(opts, lauf);

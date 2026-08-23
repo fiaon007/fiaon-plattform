@@ -403,7 +403,28 @@ router.get("/agent/crm/kunden/:personId", requireAgent, async (req: AgentRequest
     const personId = Number(req.params.personId);
     if (!Number.isFinite(personId)) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
 
-    const p = await meinePerson(personId, req.agent!.id);
+    let p = await meinePerson(personId, req.agent!.id);
+    // ── E-045 (Justin 23.08., Plan §17): LESE-AKTE FÜR DIANA ──────────────
+    // VORHER: nur der Betreuer (assigned_agent_id = ich) — die Rolle
+    // „inkasso" bekam 404, obwohl ihre Fälle (überfällige Raten) genau hier
+    // ihre Akte haben. NACHHER: Die Rolle „inkasso" darf jede Akte LESEN.
+    // Nur diese GET-Route — alle Schreibwege (aktivitaet, rechnung,
+    // stammdaten …) bleiben beim Betreuer.
+    if (!p) {
+      const { rolleVon } = await import("../lib/fiaon-kundenzugriff");
+      if ((await rolleVon(req.agent!.id)) === "inkasso") {
+        const [frei] = await sqlPool`
+          SELECT ${sqlPool.unsafe(KARTE_SQL)},
+                 p.assigned_at,
+                 (SELECT a.ref FROM fiaon_applications a
+                   WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
+                   ORDER BY a.created_at DESC LIMIT 1) AS schreib_ref
+          FROM fiaon_persons p
+          WHERE p.id = ${personId} AND p.merged_into_person_id IS NULL
+        `;
+        p = frei ?? null;
+      }
+    }
     if (!p) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
 
     const verlauf = await sqlPool`

@@ -1,0 +1,65 @@
+/* ═══ Tickets (Raum) — 23.08.2026, Plan §4/§11 ═══
+   Anliegen der Kunden: zugeteilt, Pool, erledigt. Antworten, übernehmen.
+   Dunkle Bühne, Glas. Präfix .ti- */
+.ti{display:grid;gap:18px;max-width:1100px;margin:0 auto;color:#e5e7eb}
+.ti-pille{display:inline-block;font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.16em;text-transform:uppercase;color:#93c5fd;padding:8px 12px;border:1px solid rgba(147,197,253,.35);border-radius:999px;margin-bottom:14px}
+.ti-verlauf{background:linear-gradient(90deg,#93c5fd,#3b82f6);-webkit-background-clip:text;background-clip:text;color:transparent}
+.ti-kopf{display:grid;grid-template-columns:1fr 300px;gap:24px;align-items:end;padding:30px 0 4px}
+.ti-kopf h1{margin:0;font:300 clamp(30px,4.2vw,50px)/1.08 'Inter',sans-serif;letter-spacing:-.03em;color:#fff}
+.ti-kopf p{margin:14px 0 0;font:300 15px/1.65 'Inter',sans-serif;color:#cbd5e1;max-width:60ch}
+.ti-lage{padding:18px 20px;border-radius:20px;background:rgba(15,23,42,.6);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);display:grid;gap:8px}
+.ti-lage small{font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#93c5fd}
+.ti-lage-zahl{display:flex;align-items:baseline;gap:10px}
+.ti-lage-zahl b{font:300 44px/1 'Inter',sans-serif;letter-spacing:-.03em;color:#fff;font-variant-numeric:tabular-nums}
+.ti-lage-zahl span{font-size:13px;color:#9ca3af}
+.ti-lage-zeile{display:flex;justify-content:space-between;font-size:13px;color:#9ca3af;border-top:1px solid rgba(255,255,255,.08);padding-top:8px}
+.ti-lage-zeile b{color:#fff;font-weight:500;font-variant-numeric:tabular-nums}
+.ti-lage-zeile b.warn{color:#fbbf24}.ti-lage-zeile b.rot{color:#f87171}
+.ti-fehler{margin:0;padding:10px 14px;border-radius:12px;background:rgba(220,38,38,.14);border:1px solid rgba(248,113,113,.35);color:#fecaca;font-size:13px}
+.ti-meldung{margin:0;padding:10px 14px;border-radius:12px;background:rgba(16,185,129,.14);border:1px solid rgba(52,211,153,.35);color:#a7f3d0;font-size:13px}
+.ti-lade{margin:0;font-size:13px;color:#64748b}
+.ti-leer{padding:26px 22px;border-radius:22px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);text-align:center}
+.ti-leer b{display:block;font:400 15px/1.3 'Inter',sans-serif;color:#fff}
+.ti-leer span{display:block;margin-top:4px;font-size:13px;color:#9ca3af}
+
+.ti-reiter{display:inline-flex;padding:4px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1)}
+.ti-reiter button{min-height:40px;padding:0 16px;border-radius:999px;border:0;background:transparent;color:#cbd5e1;font:500 13px/1 'Inter',sans-serif;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.ti-reiter button.an{background:linear-gradient(135deg,#2563eb,#3b82f6);color:#fff;box-shadow:0 8px 18px rgba(37,99,235,.3)}
+.ti-reiter button em{font-style:normal;font-size:11px;padding:2px 7px;border-radius:999px;background:rgba(255,255,255,.12)}
+
+.ti-liste{display:grid;gap:10px}
+.ti-karte{position:relative;overflow:hidden;padding:16px 18px;border-radius:20px;background:rgba(15,23,42,.6);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+.ti-karte::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px}
+.ti-karte.offen::before{background:#3b82f6}.ti-karte.alt::before{background:#f87171}.ti-karte.pool::before{background:#fbbf24}.ti-karte.erledigt{opacity:.62}.ti-karte.erledigt::before{background:#34d399}
+.ti-karte-kopf{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.ti-karte h3{margin:0;font:400 16px/1.35 'Inter',sans-serif;color:#fff;overflow-wrap:anywhere}
+.ti-meta{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:6px;font-size:12px;color:#9ca3af;align-items:center}
+.ti-meta b{color:#cbd5e1;font-weight:500}
+.ti-meta a,.ti-meta button{color:#93c5fd;text-decoration:none;background:none;border:0;padding:0;font:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:4px;min-height:24px}
+.ti-lage-marke{display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;font:500 11px/1.3 'Inter',sans-serif;letter-spacing:.04em;border:1px solid rgba(255,255,255,.14);color:#cbd5e1;white-space:nowrap;flex:0 0 auto}
+.ti-lage-marke.offen{color:#bfdbfe;border-color:rgba(96,165,250,.4)}
+.ti-lage-marke.beantwortet{color:#a7f3d0;border-color:rgba(52,211,153,.4)}
+.ti-lage-marke.pool{color:#fde68a;border-color:rgba(251,191,36,.4)}
+.ti-text{margin:12px 0 0;font:300 14px/1.6 'Inter',sans-serif;color:#e5e7eb;white-space:pre-wrap;overflow-wrap:anywhere}
+.ti-antwort{margin-top:12px;padding:12px 14px;border-radius:14px;background:linear-gradient(135deg,rgba(37,99,235,.22),rgba(37,99,235,.06));border:1px solid rgba(96,165,250,.3)}
+.ti-antwort small{display:block;font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#93c5fd;margin-bottom:6px}
+.ti-antwort p{margin:0;font:300 13.5px/1.55 'Inter',sans-serif;color:#e5e7eb;white-space:pre-wrap;overflow-wrap:anywhere}
+.ti-knoepfe{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.ti-knopf{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:42px;padding:0 16px;border-radius:999px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#e5e7eb;font:500 13px/1 'Inter',sans-serif;cursor:pointer;text-decoration:none;white-space:nowrap}
+.ti-knopf.haupt{border:0;background:linear-gradient(135deg,#2563eb,#3b82f6);color:#fff;box-shadow:0 12px 28px rgba(37,99,235,.35)}
+.ti-knopf:disabled{opacity:.45;cursor:default;box-shadow:none}
+.ti-form{display:grid;gap:10px;margin-top:12px}
+.ti-feld{width:100%;min-height:96px;padding:12px 14px;border-radius:14px;border:1px solid rgba(255,255,255,.14);background:rgba(2,6,23,.4);color:#fff;font:400 14px/1.5 'Inter',sans-serif;outline:none;resize:vertical}
+.ti-feld:focus{border-color:rgba(96,165,250,.6);box-shadow:0 0 0 3px rgba(37,99,235,.2)}
+.ti-feld::placeholder{color:#64748b}
+.ti-fuss{margin:0;font-size:12px;color:#64748b;line-height:1.5}
+
+@media(max-width:960px){.ti-kopf{grid-template-columns:1fr}}
+@media(max-width:700px){
+  .ti-lage-zahl b{font-size:36px}
+  .ti-reiter{width:100%}
+  .ti-reiter button{flex:1;justify-content:center;padding:0 10px}
+  .ti-karte{padding:14px}
+  .ti-karte-kopf{flex-direction:column}
+  .ti-knopf{flex:1 1 auto}
+}

@@ -15,6 +15,14 @@ import {
   pegelAusZeitdaten, pegelText, HOERBAR_AB, SPERRE_NACH_SEKUNDEN,
   WARNUNG_NACH_SEKUNDEN, probeBestanden, probeMerken, type Eingabegeraet,
 } from "@/lib/fiaon-mikrofon";
+// ── DIE STYLES LIEGEN JETZT IN EINER EIGENEN DATEI (23.08.2026) ────────────
+// Vorher standen ~600 Zeilen CSS als Template-Strings in dieser Datei und
+// wurden bei jedem Öffnen als <style>-Knoten eingehängt. Die Klassen und der
+// Präfix .fi-tel- sind UNVERÄNDERT — die Prüfstände und der Rest des Systems
+// finden sie weiter. Nur der schwebende Knopf und der Statuspunkt bleiben
+// unten eingebettet (scripts/pruef-feinschliff.ts misst beide im Quelltext
+// dieser Komponente).
+import "@/styles/softphone.css";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SOFTPHONE — der schwebende Knopf und das Gerät dahinter
@@ -209,7 +217,6 @@ function RichtlinienTafel({
           <p className="mt-1.5 text-[11px]" style={{ color: "var(--fi-text-still)" }}>
             Deine Annahme wird mit Zeitpunkt, Fassung {t.version} und Gerätekennung festgehalten.
           </p>
-          <style>{RICHTLINIE_CSS}</style>
         </>
       ) : null}
       fuss={
@@ -229,45 +236,7 @@ function RichtlinienTafel({
   );
 }
 
-const RICHTLINIE_CSS = `
-.fi-ri-titel {
-  font-size: 10.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
-  color: var(--fi-text-still, #64748b); margin: 22px 0 9px;
-}
-.fi-ri-kann {
-  padding: 11px 14px; border-radius: 14px; margin-bottom: 7px;
-  background: linear-gradient(158deg, rgba(59,130,246,.07), rgba(29,78,216,.025));
-  box-shadow: inset 0 0 0 1px rgba(37,99,235,.14);
-}
-.fi-ri-kann-titel { font-size: 13px; font-weight: 700; color: #1d4ed8; margin: 0; }
-.fi-ri-kann-text { font-size: 12.5px; line-height: 1.55; color: var(--fi-text-leise, #475569); margin: 2px 0 0; }
-.fi-ri-nicht { margin: 0; padding-left: 18px; }
-.fi-ri-nicht li {
-  font-size: 12.5px; line-height: 1.6; color: #92400e; margin-bottom: 5px;
-}
-.fi-ri-pflicht { display: flex; gap: 12px; margin-bottom: 13px; }
-.fi-ri-ziffer {
-  flex-shrink: 0; width: 26px; height: 26px; border-radius: 9px;
-  display: inline-flex; align-items: center; justify-content: center;
-  font-size: 12.5px; font-weight: 700; color: #fff;
-  background: linear-gradient(158deg, #2563eb, #1d4ed8);
-  box-shadow: 0 5px 12px -6px rgba(29,78,216,.6);
-}
-.fi-ri-pflicht-titel { font-size: 13.5px; font-weight: 700; color: var(--fi-text, #0f172a); margin: 2px 0 0; }
-.fi-ri-pflicht-text { font-size: 12.5px; line-height: 1.62; color: var(--fi-text-leise, #475569); margin: 3px 0 0; }
-.fi-ri-haken {
-  display: flex; align-items: flex-start; gap: 10px; margin-top: 18px; cursor: pointer;
-  font-size: 13px; font-weight: 600; color: var(--fi-text, #0f172a);
-}
-.fi-ri-haken input { margin-top: 2px; width: 17px; height: 17px; flex-shrink: 0; }
-.fi-ri-name {
-  width: 100%; margin-top: 11px; padding: 11px 14px; border: 0; outline: none;
-  border-radius: 14px; background: rgba(15,23,42,.04);
-  box-shadow: inset 0 0 0 1px rgba(15,23,42,.08);
-  font-size: 14px; font-family: inherit; color: var(--fi-text, #0f172a);
-}
-.fi-ri-name:focus { box-shadow: inset 0 0 0 1px rgba(37,99,235,.34), 0 0 0 4px rgba(37,99,235,.09); }
-`;
+// Die Styles der Tafel (.fi-ri-*) liegen in styles/softphone.css (23.08.2026).
 
 export function Softphone() {
   const [stand, setStand] = useState<Stand | null>(null);
@@ -467,6 +436,39 @@ export function Softphone() {
   // Zustand: Ein neu gerendertes Gerät würde die Verbindung abreißen.
   const geraet = useRef<any>(null);
   const verbindung = useRef<any>(null);
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // REINE DARSTELLUNG (23.08.2026) — nichts hiervon berührt Twilio
+  //
+  // Der Vorgesetzte: „Am Handy ist es eine Katastrophe zu bedienen — man muss
+  // darin scrollen. Es darf am Handy nicht zu scrollen sein im Phone, da
+  // verklickt man sich immer."
+  //
+  // `schmal` (≤ 700 px, dieselbe Grenze wie im FiaonGeraet) entscheidet
+  // deshalb, WIE bestehende Dinge gezeigt werden — nie, WAS passiert:
+  //   · Tastatur im Gespräch und Notiz werden eigene Vollbild-Ansichten
+  //     (umschalten statt scrollen),
+  //   · die offenen Anrufe werden ein Chip, der eine Vollbild-Liste öffnet,
+  //   · der Mikrofon-Kasten klappt zu einer schmalen Pegelzeile zusammen,
+  //     solange er nichts zu melden hat (`mikroAuf` öffnet ihn von Hand).
+  // `gnotizOffen` zeigt das Notizfeld WÄHREND des Gesprächs — es schreibt in
+  // denselben `notiz`-Zustand, den der Ergebnis-Schritt schon immer mitsendet.
+  // ══════════════════════════════════════════════════════════════════════════
+  const [schmal, setSchmal] = useState(
+    () => typeof window !== "undefined" && window.innerWidth <= 700,
+  );
+  const [gnotizOffen, setGnotizOffen] = useState(false);
+  const [offeneAuf, setOffeneAuf] = useState(false);
+  const [mikroAuf, setMikroAuf] = useState(false);
+  useEffect(() => {
+    const messen = () => setSchmal(window.innerWidth <= 700);
+    window.addEventListener("resize", messen);
+    return () => window.removeEventListener("resize", messen);
+  }, []);
+  // Muss der Mikrofon-Kasten offen stehen? Nur, wenn er etwas zu MELDEN hat.
+  // Abgeleitet, nicht gespeichert — derselbe Grund wie bei `stummVerdacht`.
+  const mikMuss = stummVerdacht || probePflicht || !!geraetFehler || !!probeFehler
+    || probe === "laeuft" || probe === "spielt";
 
   const laden = useCallback(async () => {
     const r = await fetch("/api/fiaon/telefon/stand", { credentials: "include" }).catch(() => null);
@@ -1534,10 +1536,28 @@ export function Softphone() {
   const cockpitDaten = gespraechsDaten && kunde
     && gespraechsDaten.personId === kunde.personId ? gespraechsDaten.kunde : null;
 
+  // ── DIE OFFENEN ANRUFE, EINMAL GEBAUT ───────────────────────────────────
+  // Sie werden an zwei Stellen gezeigt (Liste am Rechner, Vollbild-Ansicht
+  // am Handy) — zwei Abschriften derselben Zeile liefen auseinander. Der
+  // Klick tut exakt das von vorher: Kennung setzen, Nummer setzen, in den
+  // Ergebnis-Schritt. `setOffeneAuf(false)` schließt nur die Handy-Ansicht.
+  const offeneZeilen = (stand.offene ?? []).slice(0, 4).map((a) => (
+    <button key={a.id} type="button"
+            onClick={() => {
+              setCallId(a.id); setNummer(a.nummer); setZustand("ergebnis");
+              setOffeneAuf(false);
+            }}
+            className="fi-tel-offen-zeile">
+      <b>{a.name}</b>
+      <span>{new Date(a.beginn).toLocaleString("de-DE", {
+        day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
+        timeZone: "Europe/Berlin",
+      })}</span>
+    </button>
+  ));
+
   return (
     <>
-      <style>{EINGEHEND_CSS}</style>
-
       {cockpitOffen && cockpitDaten?.termin && kunde && (
         <OnboardingCockpit
           termin={{
@@ -1731,6 +1751,27 @@ export function Softphone() {
           .fi-telefonknopf { transition: none !important; }
           .fi-telefonknopf:hover { transform: none; }
         }
+
+        /* ── DER STATUSPUNKT ─────────────────────────────────────────────
+           Er pulst im Gespräch — dort ist die Zeit das Wichtigste. Diese
+           Regeln bleiben absichtlich HIER (nicht in softphone.css):
+           scripts/pruef-feinschliff.ts misst sie im Quelltext der
+           Komponente. */
+        .fi-tel-punkt {
+          width: 8px; height: 8px; border-radius: 999px; flex-shrink: 0;
+          background: rgba(191,214,247,.5);
+        }
+        .fi-tel-punkt[data-zustand="waehlt"] { background: #fcd34d; animation: fiTelPuls 1.1s ease-in-out infinite; }
+        .fi-tel-punkt[data-zustand="klingelt"] { background: #fcd34d; animation: fiTelPuls 1.1s ease-in-out infinite; }
+        .fi-tel-punkt[data-zustand="gespraech"] { background: #34d399; animation: fiTelPuls 1.6s ease-in-out infinite; }
+        .fi-tel-punkt[data-zustand="ergebnis"] { background: #fb923c; }
+        @keyframes fiTelPuls {
+          0%, 100% { opacity: 1; box-shadow: 0 0 0 0 currentColor; }
+          50% { opacity: .55; box-shadow: 0 0 0 5px rgba(255,255,255,.06); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .fi-tel-punkt { animation: none !important; }
+        }
       `}</style>
 
       {/* ── Das Gerät auf der FiaonEbene ───────────────────────────────
@@ -1746,12 +1787,13 @@ export function Softphone() {
           Minute tut.
           ══════════════════════════════════════════════════════════════════ */}
       <FiaonGeraet offen={offen} onZu={() => setOffen(false)} titel="Telefon">
-        <style>{TELEFON_CSS}</style>
-        <style>{TELEFON_DATEN_CSS}</style>
         {/* Der Sparmodus steht in index.css, nicht hier: Er gilt auch für die
             Seite DAHINTER — Space-Video, Mail-Glasflächen, Blasen-Schatten.
-            Als Komponenten-Stil griff er nicht; die Stile der Komponenten
-            werden später eingefügt und gewinnen bei gleicher Spezifität. */}
+            Die übrigen Styles liegen in styles/softphone.css. */}
+        {/* `.fi-tel` ist die Zonen-Spalte: Am Handy füllt sie die ganze
+            Vollbild-Ebene, und die Bedienleisten pinnen sich mit
+            margin-top:auto nach unten — deshalb muss dort nichts rollen. */}
+        <div className="fi-tel" data-schmal={schmal ? "1" : "0"}>
 
         {/* ── Statuszeile im Display ──────────────────────────────────── */}
         <div className="fi-tel-statuszeile">
@@ -1768,6 +1810,16 @@ export function Softphone() {
               // erst merkt, wenn sich jemand beschwert.
               : stand.bereit ? (erreichbar ? "Bereit · erreichbar" : "Bereit") : "Bald verfügbar"}
           </span>
+          {/* ── DER AUFNAHME-PUNKT ──────────────────────────────────────
+              Gespräche werden aufgezeichnet (der Pflichtsatz sagt es dem
+              Kunden) — die Anzeige sagt es dem Agenten, dauerhaft und ohne
+              Text-Suche: roter Punkt, solange die Aufnahme läuft; „ohne
+              Aufnahme", sobald sie auf Kundenwunsch beendet wurde. */}
+          {zustand === "gespraech" && (
+            ohneAufnahme
+              ? <span className="fi-tel-rec" data-aus="1">ohne Aufnahme</span>
+              : <span className="fi-tel-rec"><i aria-hidden="true" />Aufnahme</span>
+          )}
           <button type="button" onClick={() => setOffen(false)} aria-label="Schließen"
                   className="fi-tel-zu">
             <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor"
@@ -1918,7 +1970,25 @@ export function Softphone() {
             Schalter am Kabel. Der Agent sagt „Test" und SIEHT, ob es ankommt —
             bevor ein Kunde in der Leitung ist.
             ══════════════════════════════════════════════════════════════════ */}
-        {mikrofon === "erlaubt" && zustand === "bereit" && (
+        {/* ── AM HANDY: EINE SCHMALE PEGELZEILE STATT DES GANZEN KASTENS ──
+            Der Kasten (Gerätewahl + Sprechprobe + Hinweise) kostete auf
+            375 px rund 100 px Höhe — mit ihm passte die Wählansicht nicht
+            auf einen Bildschirm. Solange er nichts zu MELDEN hat
+            (`mikMuss`), zeigt das Handy nur den Balken; ein Tipp öffnet den
+            vollen Kasten. Sperre, Warnungen und Probenpflicht erzwingen ihn
+            weiterhin von selbst — die Sicherheitslogik ist unverändert. */}
+        {mikrofon === "erlaubt" && zustand === "bereit" && schmal && !(mikroAuf || mikMuss) && (
+          <button type="button" className="fi-tel-mik-zeile"
+                  onClick={() => setMikroAuf(true)}
+                  aria-label="Mikrofon-Einstellungen öffnen (Gerätewahl und Sprechprobe)">
+            <span className="fi-tel-pegel-marke">Mikrofon</span>
+            <span className="fi-tel-pegel-bahn" aria-hidden="true">
+              <span className="fi-tel-pegel-fuellung" style={{ width: `${pegel ?? 0}%` }} />
+            </span>
+            <span className="fi-tel-pegel-text">{pegelText(pegel)}</span>
+          </button>
+        )}
+        {mikrofon === "erlaubt" && zustand === "bereit" && (!schmal || mikroAuf || mikMuss) && (
           <div className="fi-tel-mik" data-stumm={stummVerdacht ? "1" : "0"}>
             <div className="fi-tel-pegel">
               <span className="fi-tel-pegel-marke">Mikrofon</span>
@@ -2012,6 +2082,14 @@ export function Softphone() {
               </span>
             </div>
             {probeFehler && <p className="fi-tel-mik-warnung">{probeFehler}</p>}
+            {/* Zuklappen nur am Handy, und nur wenn der Kasten nichts melden
+                muss — eine Warnung, die man wegklappen kann, ist keine. */}
+            {schmal && !mikMuss && (
+              <button type="button" className="fi-tel-mik-zu-knopf"
+                      onClick={() => setMikroAuf(false)}>
+                Einklappen
+              </button>
+            )}
           </div>
         )}
 
@@ -2072,7 +2150,7 @@ export function Softphone() {
 
         {/* ── Wählen ──────────────────────────────────────────────────── */}
         {stand.bereit && !stand.testkonto && zustand === "bereit" && !richtlinie?.offen && (
-          <>
+          <div className="fi-tel-waehlen">
             {/* ══════════════════════════════════════════════════════════════
                 DER TAGESSTAND DER NUMMER — DEZENT, UND OHNE FOLGEN
 
@@ -2163,13 +2241,36 @@ export function Softphone() {
               </div>
             )}
 
-            <input value={nummer} onChange={(e) => setNummer(e.target.value)}
-                   inputMode="tel" placeholder="+49 …" aria-label="Rufnummer"
-                   className="fi-tel-anzeige" />
+            {/* ── DIE NUMMERNZEILE ────────────────────────────────────────
+                Die Löschtaste steht NEBEN der Nummer, nicht mehr als
+                schwebender Knopf unten rechts an der Tastatur: Dort lag sie
+                über der #-Taste — am Handy ein Verklick-Herd, und auf dem
+                Gerät verdeckte sie eine Taste. Gelöscht wird dasselbe wie
+                vorher: die letzte Ziffer. */}
+            <div className="fi-tel-nummernzeile">
+              <input value={nummer} onChange={(e) => setNummer(e.target.value)}
+                     inputMode="tel" placeholder="+49 …" aria-label="Rufnummer"
+                     className="fi-tel-anzeige" />
+              {nummer.length > 0 && (
+                <button type="button" className="fi-tel-loeschen"
+                        onClick={() => setNummer((n) => n.slice(0, -1))}
+                        aria-label="Letzte Ziffer löschen">
+                  <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                       strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M20 5H9.5L3 12l6.5 7H20a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1Z" />
+                    <path d="m12 9.5 5 5M17 9.5l-5 5" />
+                  </svg>
+                </button>
+              )}
+            </div>
 
-            <FiaonTastatur onZiffer={(z) => setNummer((n) => n + z)}
-                           onLoeschen={() => setNummer((n) => n.slice(0, -1))} />
+            <FiaonTastatur onZiffer={(z) => setNummer((n) => n + z)} />
 
+            {/* ── DER FUSS DER WÄHLANSICHT ────────────────────────────────
+                Pflichtsatz und Anrufknopf. Am Handy pinnt sich dieser Block
+                mit margin-top:auto an die Unterkante — der grüne Knopf liegt
+                damit immer in der Daumenzone, egal wie viel darüber steht. */}
+            <div className="fi-tel-wahl-fuss">
             {/* ── DER PFLICHTSATZ ─────────────────────────────────────────
                 Er steht ÜBER dem Anrufknopf, nicht darunter und nicht in
                 einem Hinweisfeld. Wer ihn vergisst, macht sich nach
@@ -2222,7 +2323,8 @@ export function Softphone() {
                 Anderen Kunden wählen
               </button>
             )}
-          </>
+            </div>
+          </div>
         )}
 
         {/* ══════════════════════════════════════════════════════════════════
@@ -2243,15 +2345,52 @@ export function Softphone() {
             Knoten mit diesem Merkmal, und mehr als einer ist ein Fehlschlag.
             Eine Regel, die man nachzählen kann, hält.
             ══════════════════════════════════════════════════════════════════ */}
+        {/* ══════════════════════════════════════════════════════════════════
+            DIE GESPRÄCHSANSICHT IN DREI ZONEN (23.08.2026)
+
+            Oben der KUNDENKONTEXT (wer, Nummer, Paket/Stand, Akte-Link),
+            in der Mitte die STATUSANZEIGE (große Uhr, Hinweise, Warnungen),
+            unten die BEDIENLEISTE (Stumm/Tastatur/Notiz, darunter — mit
+            Abstand, gegen Verklicken — der große rote Auflegen-Knopf).
+            Am Handy pinnt sich die Leiste in die Daumenzone; nichts rollt.
+            Alle Handler sind unverändert die von vorher.
+            ══════════════════════════════════════════════════════════════════ */}
         {(zustand === "waehlt" || zustand === "klingelt" || zustand === "gespraech") && (
-          <div style={{ textAlign: "center", paddingTop: 18 }}
+          <div className="fi-tel-gespraech"
                data-ansicht="gespraech" data-zustand={zustand}>
-            <p className="fi-tel-gross-name" data-rolle="kundenname">{kunde?.name ?? nummer}</p>
+            {/* ── Zone 1: Kundenkontext ─────────────────────────────────── */}
+            <div className="fi-tel-kontext">
+              <p className="fi-tel-gross-name" data-rolle="kundenname">{kunde?.name ?? nummer}</p>
+              {kunde && <p className="fi-tel-nummer">{nummer}</p>}
+              {(cockpitDaten?.paket || cockpitDaten?.zahlungsstand || cockpitDaten?.kundeSeit || kunde) && (
+                <div className="fi-tel-kontext-zeile">
+                  {cockpitDaten?.paket && <span className="fi-tel-chip">{cockpitDaten.paket}</span>}
+                  {cockpitDaten?.zahlungsstand && (
+                    <span className="fi-tel-chip fi-tel-chip-leise">{cockpitDaten.zahlungsstand}</span>
+                  )}
+                  {cockpitDaten?.kundeSeit && (
+                    <span className="fi-tel-chip fi-tel-chip-leise">Kunde seit {cockpitDaten.kundeSeit}</span>
+                  )}
+                  {/* Die Akte in einem NEUEN Tab: Wer im selben Tab
+                      navigiert, reißt die laufende Twilio-Verbindung ab —
+                      der Aufräum-Effekt legt beim Verlassen auf. */}
+                  {kunde && (
+                    <a className="fi-tel-akte"
+                       href={`/agent/kunden?person=${kunde.personId}`}
+                       target="_blank" rel="noopener noreferrer">
+                      Akte öffnen
+                    </a>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* ── Zone 2: Statusanzeige ─────────────────────────────────── */}
+            <div className="fi-tel-mitte">
             {/* Die Uhr läuft NUR im Gespräch. Im klingelnden Zustand stand hier
                 bis zum 31.08.2026 „00:00" mit laufendem Timer — der Agent hielt
                 die Leitung für offen und sprach ins Freizeichen. */}
             <p className="fi-tel-uhr">{zustand === "gespraech" ? dauerText(sekunden) : "···"}</p>
-            {kunde && <p className="fi-tel-nummer">{nummer}</p>}
 
             {/* ══════════════════════════════════════════════════════════════
                 DER HINWEIS IM KLINGELNDEN ZUSTAND
@@ -2267,6 +2406,7 @@ export function Softphone() {
             {zustand === "waehlt" && (
               <p className="fi-tel-klingelt-hinweis">Verbinde …</p>
             )}
+            </div>
 
             {/* ══════════════════════════════════════════════════════════════
                 DIE STAMMDATEN WÄHREND DES GESPRÄCHS
@@ -2382,34 +2522,76 @@ export function Softphone() {
               <p className="fi-tel-ohne-marke">Aufzeichnung beendet — auf Kundenwunsch</p>
             )}
 
-            <div className="fi-tel-dreier">
-              <button type="button" onClick={stummSchalten}
-                      className="fi-tel-rund" data-an={stumm ? "1" : "0"} aria-label="Stumm">
-                <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                     strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 3a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3Z" />
-                  <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
-                  {stumm && <path d="m4 4 16 16" />}
-                </svg>
-              </button>
+            {/* ── DIE NOTIZ WÄHREND DES GESPRÄCHS ────────────────────────
+                „Notizfeld griffbereit" — sie schreibt in denselben `notiz`-
+                Zustand, den `dokumentieren` seit jeher mitsendet
+                (`notiz: notiz.trim() || null`). Kein zweiter Speicherweg.
+                Auf dem Rechner ein Feld über der Leiste, am Handy eine
+                eigene Vollbild-Ansicht (nichts rollt). */}
+            {gnotizOffen && !schmal && (
+              <div className="fi-tel-gnotiz">
+                <textarea value={notiz} onChange={(e) => setNotiz(e.target.value)}
+                          rows={3} autoFocus
+                          placeholder="Notiz zum Gespräch — geht mit dem Ergebnis in die Akte."
+                          aria-label="Notiz zum Gespräch"
+                          className="fi-tel-notiz" />
+                <p className="fi-tel-notiz-fuss">Bleibt stehen und wird mit dem Ergebnis gespeichert.</p>
+              </div>
+            )}
+
+            {/* ── Zone 3: Bedienleiste ───────────────────────────────────
+                Auflegen steht ALLEIN unter der Reihe, groß und rot, mit
+                Abstand — wer Stumm oder Tastatur will, kann nicht aus
+                Versehen auflegen. */}
+            <div className="fi-tel-leiste">
+              <div className="fi-tel-dreier">
+                <button type="button" onClick={stummSchalten}
+                        className="fi-tel-rund" data-an={stumm ? "1" : "0"} aria-label="Stumm"
+                        title={stumm ? "Stummschaltung aufheben" : "Stummschalten"}>
+                  <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                       strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 3a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3Z" />
+                    <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+                    {stumm && <path d="m4 4 16 16" />}
+                  </svg>
+                  <span className="fi-tel-rund-wort">{stumm ? "Stumm an" : "Stumm"}</span>
+                </button>
+                <button type="button" onClick={() => setTastenOffen((t) => !t)}
+                        className="fi-tel-rund" data-an={tastenOffen ? "1" : "0"} aria-label="Tastatur"
+                        title="Wähltastatur für Sprachmenüs">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    {[0, 1, 2].map((r) => [0, 1, 2].map((c) => (
+                      <circle key={`${r}-${c}`} cx={6 + c * 6} cy={5 + r * 6} r="1.5" />
+                    )))}
+                  </svg>
+                  <span className="fi-tel-rund-wort">Tastatur</span>
+                </button>
+                <button type="button" onClick={() => setGnotizOffen((v) => !v)}
+                        className="fi-tel-rund" data-an={gnotizOffen || notiz.trim() ? "1" : "0"}
+                        aria-label="Notiz" title="Notiz zum Gespräch">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                       strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M12 20h9" />
+                    <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                  </svg>
+                  <span className="fi-tel-rund-wort">Notiz</span>
+                </button>
+              </div>
               <button type="button" onClick={auflegen} className="fi-tel-auflegen" aria-label="Auflegen">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                      strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"
                      style={{ transform: "rotate(135deg)" }}>
                   <path d="M4.5 3.5h3.6l1.8 4.5-2.3 1.4a12 12 0 0 0 5.5 5.5l1.4-2.3 4.5 1.8v3.6a1.5 1.5 0 0 1-1.7 1.5A16.5 16.5 0 0 1 3 5.2 1.5 1.5 0 0 1 4.5 3.5Z" />
                 </svg>
-              </button>
-              <button type="button" onClick={() => setTastenOffen((t) => !t)}
-                      className="fi-tel-rund" data-an={tastenOffen ? "1" : "0"} aria-label="Tastatur">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                  {[0, 1, 2].map((r) => [0, 1, 2].map((c) => (
-                    <circle key={`${r}-${c}`} cx={6 + c * 6} cy={5 + r * 6} r="1.5" />
-                  )))}
-                </svg>
+                <span className="fi-tel-auflegen-wort">Auflegen</span>
               </button>
             </div>
 
-            {tastenOffen && (
+            {/* ── DTMF: am Rechner unter der Leiste, am Handy Vollbild ────
+                „Wähltastatur als eigene Vollbild-Ansicht (umschalten, nicht
+                scrollen)." Beide Wege senden über dasselbe `tasteSenden`
+                (sendDigits) — nur die Darstellung unterscheidet sich. */}
+            {tastenOffen && !schmal && (
               <div style={{ marginTop: 14 }}>
                 <FiaonTastatur klein onZiffer={tasteSenden} />
               </div>
@@ -2420,9 +2602,66 @@ export function Softphone() {
           </div>
         )}
 
-        {/* ── Ergebnis ───────────────────────────────────────────────── */}
+        {/* ── Vollbild-Ansichten am Handy (Tastatur / Notiz) ────────────── */}
+        {tastenOffen && schmal
+          && (zustand === "waehlt" || zustand === "klingelt" || zustand === "gespraech") && (
+          <div className="fi-tel-voll" role="dialog" aria-label="Wähltastatur im Gespräch">
+            <div className="fi-tel-voll-kopf">
+              <div className="min-w-0">
+                <p className="fi-tel-voll-titel">Ziffern ins Gespräch</p>
+                <p className="fi-tel-voll-unter">
+                  {kunde?.name ?? nummer}{zustand === "gespraech" ? ` · ${dauerText(sekunden)}` : ""}
+                </p>
+              </div>
+              <button type="button" onClick={() => setTastenOffen(false)}
+                      aria-label="Tastatur schließen" className="fi-tel-zu">
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+                     strokeWidth={1.8} strokeLinecap="round"><path d="m5 5 10 10M15 5 5 15" /></svg>
+              </button>
+            </div>
+            <div className="fi-tel-voll-mitte">
+              <FiaonTastatur onZiffer={tasteSenden} />
+            </div>
+            <button type="button" className="fi-tel-voll-zurueck"
+                    onClick={() => setTastenOffen(false)}>
+              Zurück zum Gespräch
+            </button>
+          </div>
+        )}
+        {gnotizOffen && schmal
+          && (zustand === "waehlt" || zustand === "klingelt" || zustand === "gespraech") && (
+          <div className="fi-tel-voll" role="dialog" aria-label="Notiz zum Gespräch">
+            <div className="fi-tel-voll-kopf">
+              <div className="min-w-0">
+                <p className="fi-tel-voll-titel">Notiz</p>
+                <p className="fi-tel-voll-unter">
+                  {kunde?.name ?? nummer}{zustand === "gespraech" ? ` · ${dauerText(sekunden)}` : ""}
+                </p>
+              </div>
+              <button type="button" onClick={() => setGnotizOffen(false)}
+                      aria-label="Notiz schließen" className="fi-tel-zu">
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+                     strokeWidth={1.8} strokeLinecap="round"><path d="m5 5 10 10M15 5 5 15" /></svg>
+              </button>
+            </div>
+            <textarea value={notiz} onChange={(e) => setNotiz(e.target.value)}
+                      autoFocus
+                      placeholder="Notiz zum Gespräch — geht mit dem Ergebnis in die Akte."
+                      aria-label="Notiz zum Gespräch"
+                      className="fi-tel-notiz fi-tel-voll-notiz" />
+            <button type="button" className="fi-tel-voll-zurueck"
+                    onClick={() => setGnotizOffen(false)}>
+              Fertig — zurück zum Gespräch
+            </button>
+          </div>
+        )}
+
+        {/* ── Ergebnis ─────────────────────────────────────────────────
+            Am Handy ist das der eigene Vollbild-Schritt nach dem Auflegen:
+            Die Ansicht ersetzt die Gesprächszonen vollständig, die Knöpfe
+            sind ≥ 52 px hoch, nichts rollt. */}
         {zustand === "ergebnis" && (
-          <div data-ansicht="ergebnis">
+          <div data-ansicht="ergebnis" className="fi-tel-ergebnis-schritt">
             <p className="fi-tel-karte-text" style={{ marginBottom: 12 }}>
               Ein Klick, dann ist es dokumentiert — Wiedervorlage und Zusage setzt das System selbst.
             </p>
@@ -2490,23 +2729,45 @@ export function Softphone() {
 
         {meldung && <p className="fi-tel-meldung">{meldung}</p>}
 
-        {/* ── Offene Gespräche ───────────────────────────────────────── */}
-        {zustand === "bereit" && offeneAnzahl > 0 && (
+        {/* ── Offene Gespräche ─────────────────────────────────────────
+            Am Rechner die Liste wie gehabt. Am Handy nur ein Chip — die
+            Liste würde die Wählansicht unter die Bildschirmkante drücken —
+            der eine eigene Vollbild-Ansicht öffnet. */}
+        {zustand === "bereit" && offeneAnzahl > 0 && !schmal && (
           <div className="fi-tel-offen">
             <p className="fi-tel-offen-titel">{offeneAnzahl} ohne Ergebnis</p>
-            {stand.offene.slice(0, 4).map((a) => (
-              <button key={a.id} type="button"
-                      onClick={() => { setCallId(a.id); setNummer(a.nummer); setZustand("ergebnis"); }}
-                      className="fi-tel-offen-zeile">
-                <b>{a.name}</b>
-                <span>{new Date(a.beginn).toLocaleString("de-DE", {
-                  day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
-                  timeZone: "Europe/Berlin",
-                })}</span>
-              </button>
-            ))}
+            {offeneZeilen}
           </div>
         )}
+        {zustand === "bereit" && offeneAnzahl > 0 && schmal && (
+          <button type="button" className="fi-tel-offen-chip"
+                  onClick={() => setOffeneAuf(true)}>
+            {offeneAnzahl} ohne Ergebnis — jetzt nachtragen
+          </button>
+        )}
+        {offeneAuf && schmal && zustand === "bereit" && offeneAnzahl > 0 && (
+          <div className="fi-tel-voll" role="dialog" aria-label="Anrufe ohne Ergebnis">
+            <div className="fi-tel-voll-kopf">
+              <div className="min-w-0">
+                <p className="fi-tel-voll-titel">Ohne Ergebnis</p>
+                <p className="fi-tel-voll-unter">Ein Tipp öffnet den Ergebnis-Schritt.</p>
+              </div>
+              <button type="button" onClick={() => setOffeneAuf(false)}
+                      aria-label="Schließen" className="fi-tel-zu">
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+                     strokeWidth={1.8} strokeLinecap="round"><path d="m5 5 10 10M15 5 5 15" /></svg>
+              </button>
+            </div>
+            <div className="fi-tel-voll-mitte fi-tel-voll-liste">
+              {offeneZeilen}
+            </div>
+            <button type="button" className="fi-tel-voll-zurueck"
+                    onClick={() => setOffeneAuf(false)}>
+              Zurück
+            </button>
+          </div>
+        )}
+        </div>
       </FiaonGeraet>
 
       {/* ── DIE TAFEL ALS RÜCKFALL, ÜBER DEM GERÄT ───────────────────────
@@ -2543,679 +2804,13 @@ export function anrufStarten(
 
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Das Gerät. Dunkle Fassung um eine helle Anzeige, Tasten mit Druckgefühl.
+// DIE STYLES SIND AUSGEZOGEN (23.08.2026)
 //
-// Warum eine Fassung: Ein Telefon-Panel, das aussieht wie ein Formular, wird
-// wie ein Formular bedient — man liest erst, dann klickt man. Ein Gerät greift
-// man. Die Form entscheidet, wie schnell jemand ist.
+// Hier standen TELEFON_CSS, EINGEHEND_CSS und TELEFON_DATEN_CSS — rund 600
+// Zeilen Gerätestyling als Template-Strings. Sie liegen jetzt unverändert
+// (gleiche Klassen, gleicher .fi-tel-/.fi-ein-Präfix) in
+// client/src/styles/softphone.css, zusammen mit den neuen Zonen- und
+// Handy-Regeln. Nur der schwebende Knopf und der Statuspunkt sind oben im
+// JSX eingebettet geblieben — scripts/pruef-feinschliff.ts misst beide im
+// Quelltext dieser Komponente.
 // ═══════════════════════════════════════════════════════════════════════════
-const TELEFON_CSS = `
-/* ═══════════════════════════════════════════════════════════════════════════
-   IM DISPLAY — helle Schrift auf dunklem CI-Navy
-   Alles hier lebt im Gerätekörper (FiaonGeraet). Deshalb sind die Farben
-   umgekehrt zum Rest des Systems: hell auf dunkel, nicht dunkel auf hell.
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-.fi-tel-statuszeile {
-  display: flex; align-items: center; gap: 9px; margin-bottom: 16px;
-}
-.fi-tel-status-text {
-  flex: 1 1 auto; font-size: 10.5px; font-weight: 700;
-  letter-spacing: .18em; text-transform: uppercase;
-  color: rgba(191,214,247,.7); font-variant-numeric: tabular-nums;
-}
-.fi-tel-zu {
-  flex-shrink: 0; width: 28px; height: 28px; border: 0; cursor: pointer;
-  border-radius: 999px; display: inline-flex; align-items: center; justify-content: center;
-  background: rgba(255,255,255,.09); color: rgba(238,243,251,.8);
-}
-.fi-tel-zu:hover { background: rgba(255,255,255,.16); color: #fff; }
-
-/* Der Statuspunkt pulst im Gespräch — dort ist die Zeit das Wichtigste. */
-.fi-tel-punkt {
-  width: 8px; height: 8px; border-radius: 999px; flex-shrink: 0;
-  background: rgba(191,214,247,.5);
-}
-.fi-tel-punkt[data-zustand="waehlt"] { background: #fcd34d; animation: fiTelPuls 1.1s ease-in-out infinite; }
-.fi-tel-punkt[data-zustand="gespraech"] { background: #34d399; animation: fiTelPuls 1.6s ease-in-out infinite; }
-.fi-tel-punkt[data-zustand="ergebnis"] { background: #fb923c; }
-@keyframes fiTelPuls {
-  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 currentColor; }
-  50% { opacity: .55; box-shadow: 0 0 0 5px rgba(255,255,255,.06); }
-}
-
-/* ── Die Sperre, solange die Richtlinie offen ist ──────────────────────── */
-.fi-tel-sperre {
-  width: 100%; display: flex; align-items: center; gap: 12px;
-  padding: 14px 15px; border: 0; cursor: pointer; border-radius: 18px;
-  background: linear-gradient(158deg, rgba(252,211,77,.16), rgba(217,119,6,.08));
-  box-shadow: inset 0 0 0 1px rgba(252,211,77,.28);
-  transition: box-shadow 200ms, transform 160ms;
-}
-.fi-tel-sperre:hover { transform: translateY(-1px); box-shadow: inset 0 0 0 1px rgba(252,211,77,.5); }
-.fi-tel-sperre-marke {
-  width: 36px; height: 36px; border-radius: 12px; flex-shrink: 0;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: rgba(252,211,77,.18); color: #fcd34d;
-}
-.fi-tel-sperre-titel { display: block; font-size: 13.5px; font-weight: 700; color: #fde68a; }
-.fi-tel-sperre-text { display: block; font-size: 11.5px; color: rgba(253,230,138,.72); margin-top: 2px; line-height: 1.45; }
-
-/* ── Die Richtlinie IM Display ─────────────────────────────────────────────
-   Sie lag zuerst als eigene Ebene HINTER dem Gerät (z-index 400 gegen 420) —
-   sichtbar nur als Schemen hinter einer Weichzeichnung. Jetzt steht sie dort,
-   wo sie gebraucht wird. */
-.fi-tel-richtlinie {
-  margin-bottom: 14px; padding: 16px 16px 14px; border-radius: 20px;
-  background: linear-gradient(178deg, rgba(252,211,77,.1), rgba(217,119,6,.05));
-  box-shadow: inset 0 0 0 1px rgba(252,211,77,.26);
-}
-.fi-tel-ri-kopf {
-  font-size: 9.5px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase;
-  color: #fcd34d; margin-bottom: 4px;
-}
-.fi-tel-ri-titel {
-  font-size: 15.5px; font-weight: 700; color: #eef3fb; line-height: 1.3; margin-bottom: 10px;
-}
-/* Rollbar mit fester Höhe: Der volle Text passt nicht in ein Telefondisplay,
-   und ihn zu kürzen wäre bei einer Erklärung, die man unterschreibt, falsch. */
-.fi-tel-ri-text {
-  max-height: 232px; overflow-y: auto; padding-right: 8px;
-  font-size: 12.5px; line-height: 1.62; color: rgba(203,222,248,.86);
-  -webkit-overflow-scrolling: touch;
-}
-.fi-tel-ri-text p { margin: 0 0 8px; }
-.fi-tel-ri-text b { color: #eef3fb; font-weight: 650; }
-.fi-tel-ri-stark { font-weight: 650; color: #eef3fb !important; }
-.fi-tel-ri-zwisch {
-  margin: 13px 0 6px !important; font-size: 10px; font-weight: 700;
-  letter-spacing: .1em; text-transform: uppercase; color: rgba(148,183,236,.8);
-}
-.fi-tel-ri-nicht { padding-left: 14px; position: relative; }
-.fi-tel-ri-nicht::before {
-  content: ""; position: absolute; left: 2px; top: 8px;
-  width: 5px; height: 5px; border-radius: 999px; background: rgba(252,165,165,.7);
-}
-.fi-tel-ri-leise { font-size: 11.5px; color: rgba(148,183,236,.62); }
-.fi-tel-ri-text::-webkit-scrollbar { width: 4px; }
-.fi-tel-ri-text::-webkit-scrollbar-thumb {
-  background: rgba(148,183,236,.28); border-radius: 999px;
-}
-
-.fi-tel-ri-haken {
-  display: flex; align-items: flex-start; gap: 9px; margin-top: 13px; cursor: pointer;
-  font-size: 12.5px; line-height: 1.45; color: #eef3fb;
-}
-.fi-tel-ri-haken input {
-  width: 17px; height: 17px; margin-top: 1px; flex-shrink: 0; accent-color: #3b82f6;
-}
-.fi-tel-ri-name {
-  width: 100%; margin-top: 10px; padding: 11px 14px; border: 0; border-radius: 14px;
-  font-size: 14px; color: #eef3fb; background: rgba(9,17,34,.5);
-  box-shadow: inset 0 0 0 1px rgba(148,183,236,.24); outline: none;
-}
-.fi-tel-ri-name::placeholder { color: rgba(148,183,236,.42); }
-.fi-tel-ri-name:focus { box-shadow: inset 0 0 0 1.5px rgba(59,130,246,.6); }
-.fi-tel-ri-knopf {
-  width: 100%; margin-top: 11px; padding: 13px; border: 0; cursor: pointer;
-  border-radius: 16px; font-size: 14.5px; font-weight: 700; color: #fff;
-  background: linear-gradient(178deg, #3b82f6, #1d4ed8);
-  box-shadow: 0 12px 26px -12px rgba(29,78,216,.7);
-  transition: filter 160ms, transform 140ms;
-}
-.fi-tel-ri-knopf:hover:not(:disabled) { filter: brightness(1.08); }
-.fi-tel-ri-knopf:active:not(:disabled) { transform: translateY(1px); }
-.fi-tel-ri-knopf:disabled { opacity: .3; cursor: default; box-shadow: none; }
-.fi-tel-ri-fuss {
-  margin-top: 8px; font-size: 10.5px; line-height: 1.45; color: rgba(148,183,236,.6);
-}
-
-/* ── Mikrofon-Schritt ──────────────────────────────────────────────────── */
-/* ── DER PEGELBALKEN ───────────────────────────────────────────────────────
-   Bernstein bei Stille, nicht Rot: Stille ist ein HINWEIS, kein Fehler — es
-   könnte auch einfach niemand sprechen. Eine Farbe, die anklagt, wird
-   weggeklickt.
-
-   Er sitzt IM Mikrofon-Kasten und braucht deshalb keine eigene Fläche: Der
-   erste Entwurf hatte eine (helle) und stand als weiße Pille im dunklen
-   Display — sichtbar erst auf dem Screenshot der Abnahme. */
-.fi-tel-pegel { display: flex; align-items: center; gap: 9px; }
-.fi-tel-pegel-marke {
-  font-size: 9.5px; font-weight: 700; letter-spacing: .14em;
-  text-transform: uppercase; color: #93c5fd; flex-shrink: 0;
-}
-.fi-tel-pegel-bahn {
-  position: relative; flex: 1; height: 6px; min-width: 40px;
-  border-radius: 999px; background: rgba(9,20,45,.6); overflow: hidden;
-  box-shadow: inset 0 0 0 1px rgba(147,197,253,.18);
-}
-.fi-tel-pegel-fuellung {
-  display: block; height: 100%; border-radius: 999px;
-  background: linear-gradient(90deg, #34d399, #10b981);
-  transition: width .12s linear;
-}
-.fi-tel-pegel[data-still="1"] .fi-tel-pegel-fuellung { background: #fcd34d; }
-.fi-tel-pegel-text {
-  font-size: 11px; color: rgba(191,214,247,.7); flex-shrink: 0;
-}
-.fi-tel-pegel[data-still="1"] .fi-tel-pegel-text { color: #fcd34d; font-weight: 600; }
-.fi-tel-mik[data-stumm="1"] .fi-tel-pegel-text { color: #fecaca; }
-.fi-tel-mik[data-stumm="1"] .fi-tel-pegel-marke { color: #fecaca; }
-
-/* ══════════════════════════════════════════════════════════════════════════
-   DER MIKROFON-KASTEN — IM DUNKLEN GERÄT
-
-   ── AUFGEFALLEN AM SCREENSHOT (31.08.2026) ──────────────────────────────
-   Der erste Entwurf trug helle Flächen (Weiß bei 75 Prozent, Text in Grau
-   #64748b). Auf einer weißen Seite wäre das richtig gewesen — das
-   Telefon ist aber ein dunkelblaues Gerät. Auf dem Bild stand eine weiße Pille
-   mitten im dunklen Display, und die grauen Beschriftungen waren darauf kaum
-   zu lesen.
-
-   Genau das meint AGENTS.md mit „Der Screenshot ist Teil der Abnahme": Der
-   Client-Build war grün, der Prüfstand war grün, und das Bild zeigte einen
-   Fremdkörper.
-
-   Jetzt dieselbe Sprache wie der Rest des Displays: durchscheinendes Weiß über
-   dem Navy, Text in #dbe8fb, Beschriftungen in #93c5fd.
-   ══════════════════════════════════════════════════════════════════════════ */
-.fi-tel-mik {
-  margin: 14px 0 4px; padding: 11px 13px; border-radius: 15px;
-  background: linear-gradient(158deg, rgba(255,255,255,.09), rgba(255,255,255,.04));
-  box-shadow: inset 0 0 0 1px rgba(147,197,253,.2);
-}
-/* Bernstein, nicht Rot, solange nur der Pegel fehlt — und Rot erst, wenn der
-   Anruf dadurch gesperrt ist. Ein Zustand, der etwas VERHINDERT, darf kräftiger
-   sprechen als einer, der nur hinweist. */
-.fi-tel-mik[data-stumm="1"] {
-  background: linear-gradient(158deg, rgba(248,113,113,.16), rgba(248,113,113,.07));
-  box-shadow: inset 0 0 0 1px rgba(248,113,113,.42);
-}
-.fi-tel-mik-warnung {
-  margin: 8px 0 0; font-size: 12px; line-height: 1.5; color: #fecaca;
-}
-.fi-tel-mik-warnung b { color: #fff; }
-/* Der Probenhinweis: bernstein, nicht rot — es ist kein Defekt, sondern ein
-   fehlender Nachweis. */
-.fi-tel-mik-hinweis {
-  margin: 8px 0 0; font-size: 12px; line-height: 1.5; color: #fcd34d;
-}
-.fi-tel-mik-hinweis b { color: #fff; }
-.fi-tel-mik-wahl { display: flex; align-items: center; gap: 9px; margin-top: 10px; }
-.fi-tel-mik-wahl > span {
-  font-size: 9.5px; font-weight: 700; letter-spacing: .14em;
-  text-transform: uppercase; color: #93c5fd; flex-shrink: 0;
-}
-.fi-tel-mik-wahl select {
-  flex: 1; min-width: 0; font-size: 12px; padding: 6px 8px;
-  border-radius: 9px; border: 0;
-  box-shadow: inset 0 0 0 1px rgba(147,197,253,.28);
-  background: rgba(9,20,45,.72); color: #dbe8fb;
-}
-.fi-tel-mik-probe { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
-.fi-tel-mik-probe-knopf {
-  flex-shrink: 0; font-size: 12px; font-weight: 650; padding: 7px 13px;
-  border-radius: 999px; border: 0; cursor: pointer;
-  color: #0a1a3c; background: linear-gradient(178deg, #bfdbfe, #93c5fd);
-}
-.fi-tel-mik-probe-knopf:disabled { opacity: .5; cursor: default; }
-.fi-tel-mik-probe-text { font-size: 11px; line-height: 1.4; color: rgba(191,214,247,.66); }
-
-/* Der Hinweis im klingelnden Zustand — „sprich nicht ins Freizeichen". */
-.fi-tel-klingelt-hinweis {
-  margin: 12px auto 0; max-width: 236px;
-  font-size: 12.5px; line-height: 1.5; color: #fcd34d;
-}
-
-.fi-tel-stillwarnung {
-  margin: 8px 0; padding: 9px 11px; border-radius: 10px;
-  background: rgba(180,83,9,.1); border: 1px solid rgba(180,83,9,.3);
-  color: #92400e; font-size: 12px; line-height: 1.45;
-}
-
-.fi-tel-mikrofon {
-  width: 100%; display: flex; align-items: center; gap: 12px;
-  margin: 16px 0 0; padding: 13px 15px; border: 0; cursor: pointer; border-radius: 18px;
-  background: linear-gradient(158deg, rgba(147,197,253,.16), rgba(59,130,246,.07));
-  box-shadow: inset 0 0 0 1px rgba(147,197,253,.28);
-  transition: box-shadow 200ms, transform 160ms;
-}
-.fi-tel-mikrofon:hover { transform: translateY(-1px); box-shadow: inset 0 0 0 1px rgba(147,197,253,.5); }
-.fi-tel-mikrofon[data-stand="verweigert"] {
-  background: linear-gradient(158deg, rgba(252,211,77,.16), rgba(217,119,6,.08));
-  box-shadow: inset 0 0 0 1px rgba(252,211,77,.3);
-}
-.fi-tel-mikrofon-marke {
-  width: 34px; height: 34px; border-radius: 12px; flex-shrink: 0;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: rgba(147,197,253,.2); color: #93c5fd;
-}
-.fi-tel-mikrofon[data-stand="verweigert"] .fi-tel-mikrofon-marke {
-  background: rgba(252,211,77,.2); color: #fcd34d;
-}
-.fi-tel-mikrofon-titel { display: block; font-size: 13.5px; font-weight: 700; color: #eef3fb; }
-.fi-tel-mikrofon-text {
-  display: block; font-size: 11.5px; color: rgba(191,214,247,.76);
-  margin-top: 2px; line-height: 1.45;
-}
-
-/* ── Der Nächste aus der Liste ─────────────────────────────────────────── */
-.fi-tel-naechster {
-  display: flex; align-items: center; gap: 9px; flex-wrap: wrap;
-  margin-bottom: 12px; padding: 11px 14px; border-radius: 16px;
-  background: linear-gradient(158deg, rgba(16,185,129,.16), rgba(5,150,105,.07));
-  box-shadow: inset 0 0 0 1px rgba(16,185,129,.28);
-}
-.fi-tel-naechster-marke {
-  font-size: 9.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
-  color: #6ee7b7; white-space: nowrap;
-}
-.fi-tel-naechster-name {
-  width: 100%; font-size: 15px; font-weight: 700; color: #eef3fb;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.fi-tel-naechster-weg {
-  margin-left: auto; border: 0; background: none; cursor: pointer;
-  font-size: 11.5px; font-weight: 600; color: rgba(191,214,247,.7);
-}
-.fi-tel-naechster-weg:hover { color: #eef3fb; }
-
-.fi-tel-holen {
-  width: 100%; margin-bottom: 10px; padding: 10px 14px; border: 0; cursor: pointer;
-  border-radius: 14px; font-size: 12.5px; font-weight: 600;
-  color: rgba(191,214,247,.86);
-  background: rgba(148,183,236,.08);
-  box-shadow: inset 0 0 0 1px rgba(148,183,236,.16);
-  transition: background 180ms, color 180ms;
-}
-.fi-tel-holen:hover { background: rgba(148,183,236,.14); color: #eef3fb; }
-
-/* ── Kundensuche und Anzeige ───────────────────────────────────────────── */
-.fi-tel-suche-feld { position: relative; margin-bottom: 12px; }
-.fi-tel-suche {
-  width: 100%; height: 42px; padding: 0 15px; border: 0; outline: none;
-  border-radius: 999px; background: rgba(255,255,255,.08);
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,.1);
-  font-size: 14px; color: #eef3fb; font-family: inherit;
-}
-.fi-tel-suche::placeholder { color: rgba(191,214,247,.5); }
-.fi-tel-suche:focus { background: rgba(255,255,255,.13); box-shadow: inset 0 0 0 1px rgba(147,197,253,.4); }
-.fi-tel-treffer {
-  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 10;
-  border-radius: 16px; overflow: hidden; padding: 5px;
-  background: rgba(13,28,63,.96);
-  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
-  box-shadow: 0 24px 50px -20px rgba(3,8,22,.9), inset 0 0 0 1px rgba(255,255,255,.1);
-}
-.fi-tel-treffer-zeile {
-  width: 100%; display: flex; align-items: baseline; gap: 8px;
-  padding: 9px 11px; border: 0; cursor: pointer; border-radius: 11px;
-  background: none; text-align: left; transition: background 140ms;
-}
-.fi-tel-treffer-zeile:hover { background: rgba(255,255,255,.09); }
-.fi-tel-treffer-zeile b { font-size: 13.5px; font-weight: 600; color: #eef3fb; }
-.fi-tel-treffer-zeile span {
-  margin-left: auto; font-size: 11.5px; color: rgba(191,214,247,.62);
-  font-variant-numeric: tabular-nums;
-}
-
-.fi-tel-notiz {
-  width: 100%; border-radius: 10px; padding: 9px 11px; font-size: 13px; line-height: 1.5;
-  color: #eef3fb; background: rgba(255,255,255,.06); border: 0; outline: none; resize: vertical;
-  box-shadow: inset 0 0 0 1px rgba(191,214,247,.18);
-}
-.fi-tel-notiz:focus { box-shadow: inset 0 0 0 1px rgba(120,170,240,.42); }
-.fi-tel-notiz-fuss {
-  margin: 5px 0 0; font-size: 11px; color: rgba(191,214,247,.62);
-}
-.fi-tel-notiz-fuss[data-fehler="ja"] { color: #f3b9b9; font-weight: 600; }
-.fi-tel-notiz-auf {
-  margin-top: 10px; font-size: 11.5px; font-weight: 600; color: rgba(191,214,247,.72);
-  background: none; border: 0; text-decoration: underline; text-underline-offset: 2px;
-}
-.fi-tel-ergebnis[data-pflicht="ja"]::after {
-  content: "·"; margin-left: 5px; color: rgba(240,220,180,.9);
-}
-.fi-tel-kunde {
-  text-align: center; font-size: 15px; font-weight: 700; color: #eef3fb;
-  margin: 0 0 12px; letter-spacing: -.01em;
-}
-/* „Du rufst [Name] an." — die Auskunft, wem die Nummer gehört. */
-.fi-tel-wem {
-  text-align: center; font-size: 12.5px; font-weight: 600; margin: 0 0 12px;
-  padding: 7px 10px; border-radius: 9px; line-height: 1.35;
-  color: #bfe3c8; background: rgba(48,132,74,.16);
-  box-shadow: inset 0 0 0 1px rgba(120,200,150,.24);
-}
-.fi-tel-wem[data-unbekannt="ja"] {
-  color: #f0dcb4; background: rgba(160,120,30,.18);
-  box-shadow: inset 0 0 0 1px rgba(220,180,90,.26);
-}
-.fi-tel-wem[data-mehrdeutig="ja"] {
-  color: #f3cfcf; background: rgba(150,50,50,.18);
-  box-shadow: inset 0 0 0 1px rgba(220,120,120,.28);
-}
-.fi-tel-anzeige {
-  width: 100%; text-align: center; border: 0; outline: none; background: none;
-  font-size: 27px; font-weight: 300; letter-spacing: .02em;
-  color: #eef3fb; padding: 8px 0 16px; font-variant-numeric: tabular-nums;
-  font-family: inherit;
-}
-.fi-tel-anzeige::placeholder { color: rgba(191,214,247,.34); }
-
-/* ── Der Pflichtsatz ──────────────────────────────────────────────────────
-   Er steht ÜBER dem Anrufknopf. Wer ihn vergisst, macht sich persönlich
-   strafbar — deshalb keine kleine graue Zeile. */
-.fi-tel-pflichtsatz {
-  margin: 18px 0 14px; padding: 12px 14px; border-radius: 15px;
-  background: linear-gradient(158deg, rgba(255,255,255,.09), rgba(255,255,255,.04));
-  box-shadow: inset 0 0 0 1px rgba(147,197,253,.2);
-  font-size: 12.5px; line-height: 1.55; color: #dbe8fb; font-style: italic;
-}
-.fi-tel-pflichtsatz-marke {
-  display: block; font-size: 9.5px; font-weight: 700; letter-spacing: .14em;
-  text-transform: uppercase; color: #93c5fd; margin-bottom: 5px; font-style: normal;
-}
-
-/* ── Knöpfe ────────────────────────────────────────────────────────────── */
-.fi-tel-gruen {
-  width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 9px;
-  height: 54px; border: 0; cursor: pointer; border-radius: 999px;
-  font-size: 15.5px; font-weight: 650; color: #fff;
-  background: linear-gradient(178deg, #34d399, #10b981 58%, #059669);
-  box-shadow: 0 16px 34px -14px rgba(5,150,105,.8), inset 0 1px 0 rgba(255,255,255,.3);
-  transition: transform 140ms, filter 180ms, box-shadow 200ms;
-}
-.fi-tel-gruen:hover:not(:disabled) { filter: brightness(1.07); transform: translateY(-1.5px); }
-.fi-tel-gruen:active:not(:disabled) { transform: translateY(1px) scale(.99); box-shadow: inset 0 2px 6px rgba(3,40,26,.5); }
-.fi-tel-gruen:disabled { opacity: .3; box-shadow: none; cursor: default; }
-
-.fi-tel-neben {
-  height: 40px; padding: 0 16px; border: 0; cursor: pointer; border-radius: 999px;
-  font-size: 12.5px; font-weight: 600; color: rgba(238,243,251,.82);
-  background: rgba(255,255,255,.08);
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,.09);
-  transition: background 160ms;
-}
-.fi-tel-neben:hover:not(:disabled) { background: rgba(255,255,255,.15); }
-.fi-tel-neben:disabled { opacity: .35; cursor: default; }
-.fi-tel-neben[data-an="1"] { background: rgba(147,197,253,.24); color: #fff; }
-
-.fi-tel-dreier {
-  display: flex; align-items: center; justify-content: center; gap: 26px; margin-top: 26px;
-}
-.fi-tel-rund {
-  width: 54px; height: 54px; border: 0; cursor: pointer; border-radius: 999px;
-  display: inline-flex; align-items: center; justify-content: center;
-  color: rgba(238,243,251,.86);
-  background: linear-gradient(178deg, rgba(255,255,255,.14), rgba(255,255,255,.06));
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.2), 0 6px 14px -8px rgba(0,0,0,.7);
-  transition: background 160ms, transform 100ms;
-}
-.fi-tel-rund:hover { background: rgba(255,255,255,.2); }
-.fi-tel-rund:active { transform: scale(.93); }
-.fi-tel-rund[data-an="1"] { background: #eef3fb; color: #0a1a3c; }
-.fi-tel-auflegen {
-  width: 66px; height: 66px; border: 0; cursor: pointer; border-radius: 999px;
-  display: inline-flex; align-items: center; justify-content: center; color: #fff;
-  background: linear-gradient(178deg, #f87171, #ef4444 58%, #dc2626);
-  box-shadow: 0 16px 34px -12px rgba(220,38,38,.8), inset 0 1px 0 rgba(255,255,255,.3);
-  transition: transform 120ms, filter 180ms;
-}
-.fi-tel-auflegen:hover { filter: brightness(1.08); }
-.fi-tel-auflegen:active { transform: scale(.93); }
-
-.fi-tel-widerspruch {
-  margin-top: 18px; padding: 10px 18px; border: 0; cursor: pointer; border-radius: 999px;
-  font-size: 12.5px; font-weight: 650; color: #fde68a;
-  background: rgba(252,211,77,.13);
-  box-shadow: inset 0 0 0 1px rgba(252,211,77,.3);
-  transition: background 160ms;
-}
-.fi-tel-widerspruch:hover { background: rgba(252,211,77,.22); }
-.fi-tel-ohne-marke {
-  margin-top: 18px; font-size: 12px; font-weight: 650; color: #fcd34d;
-}
-
-/* ── Gespräch ──────────────────────────────────────────────────────────── */
-.fi-tel-gross-name {
-  font-size: 22px; font-weight: 600; color: #eef3fb; margin: 0;
-  letter-spacing: -.015em; overflow-wrap: anywhere;
-}
-.fi-tel-uhr {
-  font-size: 34px; font-weight: 200; color: #eef3fb; margin: 8px 0 0;
-  font-variant-numeric: tabular-nums; letter-spacing: .03em;
-}
-.fi-tel-nummer {
-  font-size: 13px; color: rgba(191,214,247,.62); margin: 4px 0 0;
-  font-variant-numeric: tabular-nums;
-}
-
-/* ── Karten und Randfälle ──────────────────────────────────────────────── */
-.fi-tel-karte {
-  text-align: center; padding: 26px 18px; border-radius: 20px;
-  background: linear-gradient(158deg, rgba(255,255,255,.08), rgba(255,255,255,.035));
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.12), inset 0 0 0 1px rgba(255,255,255,.07);
-}
-.fi-tel-karte-marke {
-  width: 46px; height: 46px; border-radius: 15px; margin: 0 auto 12px;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: rgba(147,197,253,.16); color: #93c5fd;
-}
-.fi-tel-karte-titel { font-size: 15px; font-weight: 700; color: #eef3fb; margin: 0; }
-.fi-tel-karte-text {
-  font-size: 12.5px; line-height: 1.6; color: rgba(191,214,247,.78); margin: 7px 0 0;
-}
-.fi-tel-karte-klein { font-size: 11px; line-height: 1.55; color: rgba(191,214,247,.55); margin: 8px 0 0; }
-
-.fi-tel-datum {
-  width: 100%; height: 44px; padding: 0 14px; border: 0; outline: none;
-  border-radius: 14px; margin-bottom: 11px;
-  background: rgba(255,255,255,.09); color: #eef3fb;
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,.1);
-  font-size: 14px; font-family: inherit;
-}
-.fi-tel-ergebnisse { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.fi-tel-ergebnis {
-  padding: 13px 11px; border: 0; cursor: pointer; border-radius: 15px;
-  font-size: 12.5px; font-weight: 600; color: #eef3fb; text-align: center;
-  background: linear-gradient(178deg, rgba(255,255,255,.12), rgba(255,255,255,.06));
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.16);
-  transition: background 160ms, transform 110ms;
-}
-.fi-tel-ergebnis:hover { background: rgba(255,255,255,.2); }
-.fi-tel-ergebnis:active { transform: scale(.97); }
-
-.fi-tel-meldung {
-  margin-top: 14px; padding: 11px 14px; border-radius: 14px;
-  background: rgba(252,211,77,.12); color: #fde68a;
-  font-size: 12px; line-height: 1.55; font-weight: 600;
-}
-
-.fi-tel-offen { margin-top: 22px; padding-top: 16px; box-shadow: inset 0 1px 0 rgba(255,255,255,.09); }
-.fi-tel-offen-titel {
-  font-size: 10.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
-  color: #fcd34d; margin: 0 0 8px;
-}
-.fi-tel-offen-zeile {
-  width: 100%; display: flex; align-items: baseline; gap: 8px;
-  padding: 9px 12px; border: 0; cursor: pointer; border-radius: 12px;
-  background: rgba(255,255,255,.055); margin-bottom: 5px; text-align: left;
-  transition: background 150ms;
-}
-.fi-tel-offen-zeile:hover { background: rgba(255,255,255,.12); }
-.fi-tel-offen-zeile b { font-size: 13px; font-weight: 600; color: #eef3fb; }
-.fi-tel-offen-zeile span {
-  margin-left: auto; font-size: 11px; color: rgba(191,214,247,.6);
-  font-variant-numeric: tabular-nums;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .fi-tel-punkt { animation: none !important; }
-  .fi-tel-gruen, .fi-tel-rund, .fi-tel-auflegen, .fi-tel-ergebnis { transition: none !important; }
-}
-`;
-
-
-const EINGEHEND_CSS = `
-/* ═══════════════════════════════════════════════════════════════════════════
-   DAS KLINGELFENSTER
-
-   „Irgendwie bauen, dass es smart ist und nicht stört!"
-
-   Eine Karte oben rechts. Sie überdeckt keine Arbeit, blockiert keine Eingabe
-   und verschwindet von selbst, wenn der Anrufer auflegt. Was sie hat:
-
-     * einen ruhigen Puls (kein Blinken — Blinken ist Alarm, nicht Anruf)
-     * genug Kontrast, um im Augenwinkel aufzufallen
-     * zwei Knöpfe, groß genug für den Daumen
-   ═══════════════════════════════════════════════════════════════════════════ */
-.fi-ein {
-  position: fixed; z-index: 300;
-  top: 14px; right: 14px; width: min(340px, calc(100vw - 28px));
-  padding: 14px 16px 13px;
-  border-radius: 20px;
-  background: linear-gradient(158deg, #16305f, #0b1b3f 58%, #071129);
-  box-shadow:
-    0 2px 8px -3px rgba(7,17,41,.5),
-    0 28px 60px -26px rgba(7,17,41,.85),
-    inset 0 1px 0 rgba(255,255,255,.14),
-    inset 0 0 0 1px rgba(255,255,255,.08);
-  animation: fiEinAuf 340ms cubic-bezier(.32,.72,0,1) both;
-}
-@keyframes fiEinAuf {
-  from { opacity: 0; transform: translateY(-12px) scale(.97); }
-  to   { opacity: 1; transform: none; }
-}
-
-.fi-ein-kopf { display: flex; align-items: center; gap: 7px; margin-bottom: 8px; }
-/* Ein Puls, kein Blinken: Er atmet zweimal je Sekunde und zieht das Auge an,
-   ohne zu hetzen. */
-.fi-ein-puls {
-  width: 8px; height: 8px; border-radius: 999px; flex-shrink: 0;
-  background: #34d399; box-shadow: 0 0 0 0 rgba(52,211,153,.7);
-  animation: fiEinPuls 1.6s ease-out infinite;
-}
-@keyframes fiEinPuls {
-  0%   { box-shadow: 0 0 0 0 rgba(52,211,153,.6); }
-  70%  { box-shadow: 0 0 0 9px rgba(52,211,153,0); }
-  100% { box-shadow: 0 0 0 0 rgba(52,211,153,0); }
-}
-.fi-ein-marke {
-  font-size: 9.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
-  color: rgba(191,214,247,.8) !important;
-}
-.fi-ein-nummer {
-  margin-left: auto; font-size: 11px; font-variant-numeric: tabular-nums;
-  color: rgba(191,214,247,.6) !important;
-}
-
-/* Der Name ist die wichtigste Zeile — er entscheidet, ob man rangeht. */
-.fi-ein-name {
-  font-size: 18px; font-weight: 700; line-height: 1.2;
-  color: #f4f8ff !important;
-  overflow-wrap: anywhere;
-}
-.fi-ein-grund {
-  margin-top: 4px; font-size: 12.5px; line-height: 1.45;
-  color: rgba(214,231,255,.86) !important;
-}
-/* Eine offene Rate ist der Grund, bei dem der erste Satz anders klingt. */
-.fi-ein-grund[data-dringend="1"] { color: #fcd34d !important; font-weight: 600; }
-.fi-ein-paket {
-  margin-top: 2px; font-size: 11.5px;
-  color: rgba(191,214,247,.66) !important;
-}
-.fi-ein-vertretung {
-  margin-top: 7px; padding: 6px 9px; border-radius: 9px;
-  background: rgba(255,255,255,.07);
-  font-size: 11.5px; line-height: 1.45;
-  color: rgba(214,231,255,.82) !important;
-}
-
-.fi-ein-tun { display: flex; gap: 8px; margin-top: 12px; }
-.fi-ein-an, .fi-ein-ab {
-  flex: 1 1 0; min-height: 42px; border: 0; border-radius: 13px; cursor: pointer;
-  font-size: 13.5px; font-weight: 700;
-  transition: transform 120ms ease, filter 120ms ease;
-}
-.fi-ein-an {
-  background: linear-gradient(180deg, #34d399, #10b981);
-  color: #04231a !important;
-  box-shadow: 0 8px 18px -8px rgba(16,185,129,.7), inset 0 1px 0 rgba(255,255,255,.3);
-}
-.fi-ein-ab {
-  background: rgba(255,255,255,.1);
-  color: #e8f0fc !important;
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,.14);
-}
-.fi-ein-an:active, .fi-ein-ab:active { transform: scale(.97); }
-.fi-ein-an:hover { filter: brightness(1.06); }
-
-@media (max-width: 639px) {
-  /* Auf dem Telefon oben über die ganze Breite: Dort ist rechts oben kein
-     ruhiger Platz, und eine schmale Karte wäre schwer zu treffen. */
-  .fi-ein { top: 10px; right: 10px; left: 10px; width: auto; border-radius: 18px; }
-  .fi-ein-name { font-size: 17px; }
-  .fi-ein-an, .fi-ein-ab { min-height: 46px; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .fi-ein { animation: none; }
-  .fi-ein-puls { animation: none; box-shadow: 0 0 0 3px rgba(52,211,153,.35); }
-}
-`;
-
-const TELEFON_DATEN_CSS = `
-/* ── STAMMDATEN IM GESPRÄCH ────────────────────────────────────────────────
-   Eingeklappt, damit die große Uhr sichtbar bleibt. Wer sie braucht, tippt
-   einmal — das ist schneller, als das Gespräch zu verlassen. */
-.fi-tel-daten {
-  margin: 12px 14px 0; text-align: left;
-  border-radius: 12px; overflow: hidden;
-  background: rgba(255,255,255,.06);
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,.09);
-}
-.fi-tel-daten > summary {
-  padding: 8px 12px; cursor: pointer; list-style: none;
-  font-size: 11.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
-  color: rgba(191,214,247,.8) !important;
-}
-.fi-tel-daten > summary::-webkit-details-marker { display: none; }
-.fi-tel-daten > summary::after { content: " ▾"; opacity: .55; }
-.fi-tel-daten[open] > summary::after { content: " ▴"; }
-.fi-tel-daten-raster { padding: 2px 12px 10px; display: flex; flex-direction: column; gap: 6px; }
-.fi-tel-daten-raster > div { display: flex; gap: 9px; align-items: baseline; }
-.fi-tel-daten-marke {
-  width: 92px; flex-shrink: 0;
-  font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
-  color: rgba(191,214,247,.6) !important;
-}
-.fi-tel-daten-wert {
-  min-width: 0; flex: 1; font-size: 12.5px; line-height: 1.4;
-  overflow-wrap: anywhere;
-  color: #eef4ff !important;
-}
-.fi-tel-daten-laedt {
-  padding: 2px 12px 10px; font-size: 12px;
-  color: rgba(191,214,247,.6) !important;
-}
-/* Der GRUND, warum keine Daten da sind. Bernstein, nicht Grau: „Wird geladen"
-   in Grau war genau die Meldung „ich sehe nichts". */
-.fi-tel-daten-fehler {
-  padding: 2px 12px 10px; font-size: 12px; line-height: 1.45; font-weight: 600;
-  color: #fcd34d !important;
-}
-/* ── „GESPRÄCH FÜHREN" ────────────────────────────────────────────────────
-   Er steht IM Datenblock und nicht in der Knopfleiste: Dort konkurriert er
-   mit Stumm, Tastatur und Auflegen — drei Knöpfe, die man im Reflex trifft. */
-.fi-tel-cockpit {
-  display: block; width: calc(100% - 24px); margin: 2px 12px 12px;
-  padding: 10px 12px; min-height: 44px;
-  border: 0; border-radius: 10px; cursor: pointer;
-  font-size: 12.5px; font-weight: 700; text-align: left;
-  background: rgba(96,165,250,.22); color: #eef4ff;
-  box-shadow: inset 0 0 0 1px rgba(147,197,253,.35);
-}
-.fi-tel-cockpit:hover { background: rgba(96,165,250,.32); }
-`;

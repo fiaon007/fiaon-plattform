@@ -135,6 +135,7 @@ const SiteKarriere = lazy(() => import("@/pages/site/karriere"));
 const SiteTeam = lazy(() => import("@/pages/site/team"));
 const SiteDemo = lazy(() => import("@/pages/site/demo"));
 const SiteRatgeber = lazy(() => import("@/pages/site/ratgeber"));
+const SitePrivatkunden = lazy(() => import("@/pages/site/privatkunden"));
 const SiteEintragPruefen = lazy(() => import("@/pages/site/werkzeuge/eintrag-pruefen"));
 const SiteSelbstauskunft = lazy(() => import("@/pages/site/werkzeuge/selbstauskunft"));
 const SiteRatgeberArtikel = lazy(() => import("@/pages/site/ratgeber-artikel"));
@@ -192,7 +193,7 @@ function Router() {
       <Route path="/start" component={StartPage} />
       <Route path="/karte-sichern" component={StartPage} />
       <Route path="/business" component={BusinessPage} />
-      <Route path="/privatkunden" component={FiaonLanding} />
+      <Route path="/privatkunden" component={SitePrivatkunden} />
       <Route path="/antrag" component={AntragPage} />
       <Route path="/business-antrag" component={BusinessAntragPage} />
       <Route path="/login" component={LoginPage} />

@@ -1,0 +1,41 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   PRIVATKUNDEN — Pakete als Karten, Vergleich, Readiness (23.08.2026)
+   ═══════════════════════════════════════════════════════════════════════════ */
+.pk-pakete{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin-top:40px;text-align:left}
+.pk-paket{position:relative;display:flex;flex-direction:column;gap:6px;padding:22px 22px 24px;border-radius:24px;background:#fff;border:1px solid rgba(15,23,42,.07);box-shadow:0 2px 4px rgba(15,23,42,.03),0 20px 50px rgba(37,99,235,.1);text-align:left;font:inherit;cursor:pointer;transition:transform .35s,box-shadow .35s,border-color .35s;height:100%}
+.pk-paket:hover{transform:translateY(-6px);box-shadow:0 4px 8px rgba(15,23,42,.04),0 34px 70px rgba(37,99,235,.2);border-color:rgba(37,99,235,.35)}
+.pk-paket[data-top="1"]{border-color:rgba(37,99,235,.4);box-shadow:0 24px 60px rgba(37,99,235,.18)}
+.pk-paket .band{position:absolute;top:-12px;left:50%;transform:translateX(-50%);padding:6px 14px;border-radius:999px;background:linear-gradient(135deg,#2563eb,#3b82f6);color:#fff;font:500 11px/1 'Inter',sans-serif;letter-spacing:.12em;text-transform:uppercase;box-shadow:0 8px 20px rgba(37,99,235,.35)}
+.pk-karte{position:relative;aspect-ratio:1.586/1;border-radius:14px;padding:14px 16px;margin-bottom:14px;color:#fff;display:grid;grid-template-rows:auto 1fr auto;box-shadow:0 18px 40px rgba(15,23,42,.25),inset 0 1px 0 rgba(255,255,255,.25);overflow:hidden;transform:rotateX(6deg);transition:transform .4s}
+.pk-paket:hover .pk-karte{transform:rotateX(0) translateY(-2px)}
+.pk-karte::after{content:"";position:absolute;inset:-30%;background:linear-gradient(115deg,transparent 42%,rgba(255,255,255,.22) 50%,transparent 58%);transform:translateX(-70%);transition:transform .9s}
+.pk-paket:hover .pk-karte::after{transform:translateX(70%)}
+.pk-karte .chip{width:28px;height:20px;border-radius:4px;background:linear-gradient(135deg,#c9a227,#f7e39a 40%,#d4af37 60%,#fff3b0)}
+.pk-karte .wort{position:absolute;right:16px;top:12px;font:700 13px/1 'Inter',sans-serif;letter-spacing:.02em;opacity:.9}
+.pk-karte .limit{align-self:end;font:500 22px/1 'Inter',sans-serif;letter-spacing:-.02em}
+.pk-karte .inhaber{font:500 9px/1 'Inter',sans-serif;letter-spacing:.18em;text-transform:uppercase;opacity:.6;margin-top:6px}
+.pk-paket .name{margin:0;font:400 19px/1.2 'Inter',sans-serif;color:#0f172a;letter-spacing:-.015em}
+.pk-paket .sub{margin:0;font-size:13px;color:#64748b}
+.pk-paket .betrag{margin:10px 0 2px;font-size:30px;font-weight:300;letter-spacing:-.03em}
+.pk-paket .betrag small{font-size:12px;color:#64748b;margin-left:4px;-webkit-text-fill-color:#64748b}
+.pk-paket .ziel{margin:0 0 8px;font-size:12.5px;color:#1d4ed8}
+.pk-paket .dk-liste{margin:0 0 18px;flex:1}
+.pk-paket .dk-liste li{color:#475569;font-size:13.5px}
+.pk-paket .dk-knopf{justify-content:center;width:100%}
+.pk-vergleich{overflow-x:auto;margin-top:34px;border-radius:20px;border:1px solid rgba(15,23,42,.08);background:#fff;box-shadow:0 2px 4px rgba(15,23,42,.03),0 18px 44px rgba(37,99,235,.08);text-align:left}
+.pk-vergleich table{width:100%;border-collapse:collapse;font-size:14px}
+.pk-vergleich th{padding:16px 18px;text-align:left;font-weight:500;color:#64748b;border-bottom:1px solid rgba(15,23,42,.08);background:#f8fafc}
+.pk-vergleich th.fiaon,.pk-vergleich td.fiaon{background:rgba(37,99,235,.06);color:#1d4ed8;font-weight:500}
+.pk-vergleich th.fiaon{color:#1d4ed8;font-size:15px}
+.pk-vergleich td{padding:14px 18px;border-bottom:1px solid rgba(15,23,42,.06);color:#334155;vertical-align:top}
+.pk-vergleich td:first-child{color:#0f172a;font-weight:500}
+.pk-vergleich tr:last-child td{border-bottom:0}
+.pk-ready-buehne{display:grid;justify-items:center;gap:18px;padding:34px 28px;border-radius:26px;background:linear-gradient(160deg,rgba(37,99,235,.16),rgba(255,255,255,.03));border:1px solid rgba(96,165,250,.25);box-shadow:0 30px 80px rgba(4,10,24,.45)}
+.pk-ready-buehne p{margin:0;font-size:13.5px;line-height:1.6;color:#cbd5e1;text-align:center;max-width:38ch}
+.pk-ready{position:relative;width:180px;height:180px;display:grid;place-items:center}
+.pk-ready svg{position:absolute;inset:0;filter:drop-shadow(0 10px 24px rgba(37,99,235,.45))}
+.pk-ready-mitte{text-align:center;position:relative}
+.pk-ready-mitte b{display:block;font:300 38px/1 'Inter',sans-serif;color:#fff;letter-spacing:-.03em}
+.pk-ready-mitte small{display:block;font:500 10px/1 'Inter',sans-serif;letter-spacing:.16em;text-transform:uppercase;color:#93c5fd;margin-top:8px}
+@media(max-width:1100px){.pk-pakete{grid-template-columns:1fr 1fr}}
+@media(max-width:640px){.pk-pakete{grid-template-columns:1fr}.pk-vergleich table{font-size:13px}.pk-vergleich th,.pk-vergleich td{padding:11px 12px}}

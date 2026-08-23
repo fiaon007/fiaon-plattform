@@ -118,7 +118,8 @@ export type SituationsArt = "rate_ueberfaellig" | "zusage_gebrochen" | "rueckruf
   | "termin_heute" | "alles_gut";
 export interface KundenSituation {
   art: SituationsArt;
-  rate: { id: number; nr: number; betragCents: number; faelligAm: string; tage: number; referenz: string | null } | null;
+  rate: { id: number; nr: number; betragCents: number; faelligAm: string; tage: number; referenz: string | null;
+    lastschriftStatus: string | null; lastschriftGrund: string | null; sepaEingerichtet: boolean } | null;
   zusageAm: string | null;
   rueckrufAm: string | null;
   /** Nächster gebuchter Termin in der Zukunft. */
@@ -132,7 +133,9 @@ export async function kundenSituation(personId: number): Promise<KundenSituation
     SELECT p.priority_tier, p.promised_payment_date,
       (SELECT row_to_json(x) FROM (
          SELECT r.id, r.rate_nr, r.betrag_cents, r.faellig_am, r.zahlungsreferenz,
-                ((NOW() AT TIME ZONE 'Europe/Berlin')::date - r.faellig_am)::int AS tage
+                ((NOW() AT TIME ZONE 'Europe/Berlin')::date - r.faellig_am)::int AS tage,
+                -- E-047/§18 Nr. 9: der GRUND an der Rate (SEPA fehlt / Rücklastschrift / offen)
+                r.lastschrift_status, r.lastschrift_grund, p.gc_mandate_status
          FROM fiaon_abo_raten r JOIN fiaon_applications a ON a.ref = r.ref
          WHERE a.person_id = p.id AND a.merged_into IS NULL
            AND r.status <> 'bezahlt' AND r.storniert_am IS NULL
@@ -170,6 +173,9 @@ export async function kundenSituation(personId: number): Promise<KundenSituation
     id: Number(z.rate.id), nr: Number(z.rate.rate_nr), betragCents: Number(z.rate.betrag_cents || 0),
     faelligAm: String(z.rate.faellig_am), tage: Number(z.rate.tage || 0),
     referenz: z.rate.zahlungsreferenz ?? null,
+    lastschriftStatus: z.rate.lastschrift_status ?? null,
+    lastschriftGrund: z.rate.lastschrift_grund ?? null,
+    sepaEingerichtet: String(z.rate.gc_mandate_status || "") === "active",
   } : null;
   const zusageGebrochen = z.promised_payment_date && String(z.promised_payment_date).slice(0, 10) < heute;
   const art: SituationsArt =

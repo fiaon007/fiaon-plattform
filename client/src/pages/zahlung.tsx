@@ -371,7 +371,7 @@ export default function ZahlungPage() {
       <div className="dk-grund" aria-hidden="true"><span className="dk-nebel a" /><span className="dk-nebel b" /><span className="dk-nebel c" /></div>
       <GlassNav />
 
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 pt-28 sm:pt-32 pb-16">
+      <div className="relative z-10 max-w-2xl mx-auto px-4 sm:px-6 pt-28 sm:pt-32 pb-16">
         {loading && (
           <div className="flex flex-col items-center py-24">
             <div className="w-12 h-12 rounded-full border-[3px] border-transparent border-t-[#2563eb] animate-spin mb-4" />

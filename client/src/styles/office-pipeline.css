@@ -250,6 +250,31 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
   .pi-ergebnisweg .pi-knopf.gross{flex:1 1 100%}
   .pi-termin .pi-reihe .pi-eingabe{flex:1 1 46%}
 }
+/* ── E-044: Motto, Akte-Reiter, Zeitleiste ── */
+.pi-motto{gap:8px}
+.pi-motto-satz{margin:0;font:300 clamp(17px,1.9vw,22px)/1.35 'Inter',sans-serif;color:#e5e7eb;letter-spacing:-.01em}
+.pi-motto-satz b{font:300 1.35em/1 'Inter',sans-serif;color:#fff;font-variant-numeric:tabular-nums;background:linear-gradient(90deg,#93c5fd,#3b82f6);-webkit-background-clip:text;background-clip:text;color:transparent;font-weight:400}
+.pi-motto-link{font:500 12px/1 'Inter',sans-serif;color:#93c5fd;text-decoration:none;justify-self:start}
+.pi-motto-link:hover{text-decoration:underline}
+.pi-lade-tabs{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.pi-lade-tabs .pi-tab{min-height:38px;padding:0 14px;font-size:12.5px}
+.pi-chip-akt{min-height:34px;padding:0 12px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:#cbd5e1;font:500 12px/1 'Inter',sans-serif;cursor:pointer}
+.pi-chip-akt.an{background:linear-gradient(135deg,#2563eb,#3b82f6);border-color:transparent;color:#fff}
+.pi-zeit-tag{display:grid;gap:6px}
+.pi-zeit-tag>b{font:500 11px/1 'Inter',sans-serif;letter-spacing:.1em;text-transform:uppercase;color:#93c5fd;padding-top:4px}
+.pi-zeit{list-style:none;margin:0;padding:0;display:grid}
+.pi-zeit li{display:grid;grid-template-columns:44px 14px 1fr;gap:8px;align-items:start;padding:7px 0;border-top:1px solid rgba(255,255,255,.06)}
+.pi-zeit .uhr{font-size:11.5px;color:#64748b;font-variant-numeric:tabular-nums;padding-top:2px}
+.pi-zeit .punkt{width:9px;height:9px;border-radius:50%;margin-top:4px;background:#64748b;box-shadow:0 0 8px rgba(100,116,139,.5)}
+.pi-zeit li.kat-klick .punkt{background:#60a5fa;box-shadow:0 0 8px rgba(96,165,250,.6)}
+.pi-zeit li.kat-zahlung .punkt{background:#34d399;box-shadow:0 0 8px rgba(52,211,153,.6)}
+.pi-zeit li.kat-gespraech .punkt{background:#fbbf24;box-shadow:0 0 8px rgba(251,191,36,.6)}
+.pi-zeit li.kat-mail .punkt{background:#c4b5fd;box-shadow:0 0 8px rgba(196,181,253,.6)}
+.pi-zeit .text{min-width:0}
+.pi-zeit .text b{display:block;font:400 13px/1.4 'Inter',sans-serif;color:#fff}
+.pi-zeit .text small{display:block;font-size:11.5px;color:#9ca3af;overflow-wrap:anywhere}
+.pi-zeit .text em{display:block;font-style:normal;font-size:10px;color:#475569;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+@media(max-width:700px){.pi-zeit li{grid-template-columns:40px 12px 1fr}.pi-motto-satz{font-size:16px}}
 /* ── Handy ── */
 @media(max-width:960px){
   .pi-umsatz{grid-template-columns:1fr 1fr}

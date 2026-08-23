@@ -603,11 +603,14 @@ function PipelineInnen() {
         if (kontakt === "7" && (t == null || t < 7)) return false;
       }
       if (nurRueckruf && !rueckrufFaellig(k)) return false;
+      // §16a: Bestand nach Mandat trennen – übernommene Mandate vs. nur zugewiesen.
+      if (mandatFilter === "mandat" && !mandate.ids.has(k.personId)) return false;
+      if (mandatFilter === "offen" && mandate.ids.has(k.personId)) return false;
       return true;
     });
     if (sort !== "arbeit") return f;
     return [...f].sort((a, b) => (Number(erledigt.has(a.personId)) - Number(erledigt.has(b.personId))) || vergleich(a, b));
-  }, [liste, stufe, land, kontakt, nurRueckruf, sort, erledigt]);
+  }, [liste, stufe, land, kontakt, nurRueckruf, sort, erledigt, mandatFilter, mandate.ids]);
   useEffect(() => { if (aktiv > strom.length - 1) setAktiv(Math.max(0, strom.length - 1)); }, [strom.length, aktiv]);
 
   const geoeffnet = useMemo(() => liste.find((k) => k.personId === offen) || slots.find((s) => s.kunde.personId === offen)?.kunde || fremd || null, [liste, slots, offen, fremd]);
@@ -712,6 +715,12 @@ function PipelineInnen() {
       {tab === "bestand" && (
         <>
           {fehler && <p className="pi-fehler">{fehler}</p>}
+          {/* §16a: zwei Gruppen im Bestand – Mandate und „Zugewiesen, Mandat offen“ */}
+          <div className="pi-tabs" role="group" aria-label="Mandate">
+            <button type="button" className={`pi-tab${mandatFilter === "alle" ? " an" : ""}`} onClick={() => setMandatFilter("alle")}>Alle<em>{liste.length}</em></button>
+            <button type="button" className={`pi-tab${mandatFilter === "mandat" ? " an" : ""}`} onClick={() => setMandatFilter("mandat")}>Mandate · dein Bestand<em>{liste.filter((x) => mandate.ids.has(x.personId)).length}</em></button>
+            <button type="button" className={`pi-tab${mandatFilter === "offen" ? " an" : ""}`} onClick={() => setMandatFilter("offen")}>Zugewiesen, Mandat offen<em>{liste.filter((x) => !mandate.ids.has(x.personId)).length}</em></button>
+          </div>
           <section className="pi-stufen">
             <button type="button" className={`pi-stufe-chip${stufe === "alle" ? " an" : ""}`} onClick={() => setStufe("alle")}><b>{liste.length}</b><span>Alle</span></button>
             {STUFEN_REIHE.map((s) => (
@@ -766,7 +775,7 @@ function PipelineInnen() {
 
           <Strom liste={strom} aktiv={aktiv} setAktiv={setAktiv} erledigt={erledigt} onAkte={(id) => oeffnen(id)} flach={handy || ruhig} ruhig={ruhig} laedt={laedt} />
           {!laedt && liste.length > 0 && (
-            <p className="pi-fussnote">Dein Bestand: bis zu {MAX_AKTIV} betreute Kunden plus alles Offene. Gearbeitet wird in der Arbeitsliste – hier suchst und findest du.</p>
+            <p className="pi-fussnote">Dein Bestand: bis zu {MAX_AKTIV} übernommene Mandate ({mandate.anzahl} aktuell) plus alles Zugewiesene ohne Mandat. Gearbeitet wird in der Arbeitsliste – hier suchst und findest du.</p>
           )}
         </>
       )}

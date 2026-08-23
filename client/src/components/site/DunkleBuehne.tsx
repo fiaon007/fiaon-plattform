@@ -111,9 +111,9 @@ export function Block({ id, pille, titel, lead, children, mitte = false, eng = f
   );
 }
 
-export function Glas({ children, tag, titel, ruhig = false, style }: { children?: ReactNode; tag?: string; titel?: ReactNode; ruhig?: boolean; style?: React.CSSProperties }) {
+export function Glas({ children, tag, titel, ruhig = false, style, className = "" }: { children?: ReactNode; tag?: string; titel?: ReactNode; ruhig?: boolean; style?: React.CSSProperties; className?: string }) {
   return (
-    <div className={`dk-glas${ruhig ? " ruhig" : ""}`} style={style}>
+    <div className={`dk-glas${ruhig ? " ruhig" : ""} ${className}`} style={style}>
       {tag && <span className="tag">{tag}</span>}
       {titel && <h3 className="dk-h3">{titel}</h3>}
       {typeof children === "string" ? <p className="dk-text">{children}</p> : children}

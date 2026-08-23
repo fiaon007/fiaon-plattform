@@ -184,73 +184,62 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
             Zwei Gruppen (Für Kunden · Unternehmen), jede Zeile mit Zweitzeile,
             darunter die beiden Knöpfe und die Vertrauenszeile. Gleiche Sprache wie die Website. */}
         {mob && (
-          <div className="lg:hidden fixed inset-0 z-40" style={{ animation: "mobMenuIn .25s ease both" }}>
-            <div className="absolute inset-0" style={{ background: "linear-gradient(160deg,#0a1628 0%,#111a33 55%,#0b0f24 100%)" }} />
-            <div className="absolute -top-24 -left-20 w-[420px] h-[420px] rounded-full pointer-events-none" style={{ background: "radial-gradient(circle, rgba(59,130,246,.28), transparent 65%)", filter: "blur(60px)" }} />
-            <div className="absolute bottom-0 -right-24 w-[380px] h-[380px] rounded-full pointer-events-none" style={{ background: "radial-gradient(circle, rgba(37,99,235,.22), transparent 65%)", filter: "blur(60px)" }} />
-            <button
-              onClick={() => setMob(false)}
-              aria-label="Menü schließen"
-              className="absolute top-5 right-5 z-50 w-11 h-11 rounded-full flex items-center justify-center text-white active:scale-90 transition-transform"
-              style={{ background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.16)", animation: "mobItemIn .4s cubic-bezier(.22,1,.36,1) both" }}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
-            </button>
-            <div className="relative h-full flex flex-col pt-[88px] px-5 pb-8 overflow-y-auto">
-              <a href="/" onClick={() => setMob(false)} className="text-[22px] tracking-tight text-white mb-6" style={{ fontWeight: 500, animation: "mobItemIn .5s cubic-bezier(.22,1,.36,1) both" }}>FIAON</a>
-              {[
-                { titel: "Für Kunden", eintraege: [
-                  { href: "/", label: "Startseite", text: "Einsicht · Aktion · Zugang", key: "startseite" },
-                  { href: "/was-ist-fiaon", label: "Was ist FIAON", text: "Die Plattform in drei Schichten", key: "was-ist-fiaon" },
-                  { href: "/privatkunden", label: "Privatkunden", text: "Pakete, Ablauf, Preise", key: "privatkunden" },
-                  { href: "/bonitaet", label: "Bonitäts-Auszug", text: "Ihre Auskunft, beantragt durch FIAON", key: "bonitaet" },
-                  { href: "/business", label: "Business", text: "Firmenbonität und Geschäftskonto", key: "business" },
-                ] },
-                { titel: "Unternehmen", eintraege: [
-                  { href: "/team", label: "Team", text: "Wer FIAON baut", key: "team" },
-                  { href: "/karriere", label: "Karriere", text: "Von zuhause für FIAON arbeiten", key: "karriere" },
-                  { href: "/partner", label: "Partner", text: "Banken, Auskunfteien, Vermittler", key: "partner" },
-                  { href: "/presse", label: "Presse", text: "Fakten, Zahlen, Ansprechpartner", key: "presse" },
-                  { href: "/investoren", label: "Investoren", text: "Das Modell, der Datenraum", key: "investoren" },
-                ] },
-              ].map((g, gi) => (
-                <div key={g.titel} className="mb-5" style={{ animation: `mobItemIn .5s cubic-bezier(.22,1,.36,1) ${0.08 + gi * 0.1}s both` }}>
-                  <p className="text-[10.5px] uppercase tracking-[.2em] mb-2 px-1" style={{ color: "#60a5fa" }}>{g.titel}</p>
-                  <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,.05)", border: "1px solid rgba(255,255,255,.1)" }}>
-                    {g.eintraege.map((e, i) => (
-                      <a key={e.href} href={e.href} onClick={() => setMob(false)}
-                         className="flex items-center justify-between gap-3 px-4 py-3.5"
-                         style={{ borderTop: i ? "1px solid rgba(255,255,255,.07)" : undefined, background: activePage === e.key ? "rgba(37,99,235,.16)" : undefined }}>
-                        <span className="min-w-0">
-                          <span className="block text-[15.5px] text-white" style={{ fontWeight: 400 }}>{e.label}</span>
-                          <span className="block text-[12px] mt-0.5" style={{ color: "#9ca3af" }}>{e.text}</span>
-                        </span>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="1.8" strokeLinecap="round" className="shrink-0"><path d="M9 18l6-6-6-6" /></svg>
-                      </a>
-                    ))}
+          <div className="lg:hidden fixed inset-0 z-40" style={{ animation: "mobMenuIn .22s ease both" }}>
+            {/* Leichter Schleier — tippen daneben schließt */}
+            <button type="button" aria-label="Menü schließen" onClick={() => setMob(false)} className="absolute inset-0 w-full h-full"
+                    style={{ background: "rgba(10,22,40,.28)", backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)" }} />
+            {/* Die schwebende Karte unter der Kopfzeile: helles Glas, dunkle Schrift */}
+            <div className="absolute left-3 right-3 top-[82px] rounded-[26px] overflow-hidden flex flex-col"
+                 style={{ maxHeight: "calc(100dvh - 100px)", background: "rgba(255,255,255,.86)", border: "1px solid rgba(255,255,255,.9)",
+                          boxShadow: "0 30px 80px rgba(15,23,42,.28), inset 0 1px 0 #fff", backdropFilter: "blur(28px) saturate(160%)", WebkitBackdropFilter: "blur(28px) saturate(160%)",
+                          animation: "mobItemIn .45s cubic-bezier(.22,1,.36,1) both" }}>
+              <div className="overflow-y-auto px-4 pt-4 pb-3">
+                {[
+                  { titel: "Für Kunden", eintraege: [
+                    { href: "/", label: "Startseite", text: "Einsicht · Aktion · Zugang", key: "startseite" },
+                    { href: "/was-ist-fiaon", label: "Was ist FIAON", text: "Die Plattform in drei Schichten", key: "was-ist-fiaon" },
+                    { href: "/privatkunden", label: "Privatkunden", text: "Pakete, Ablauf, Preise", key: "privatkunden" },
+                    { href: "/bonitaet", label: "Bonitäts-Auszug", text: "Ihre Auskunft, beantragt durch FIAON", key: "bonitaet" },
+                    { href: "/business", label: "Business", text: "Firmenbonität und Geschäftskonto", key: "business" },
+                  ] },
+                  { titel: "Unternehmen", eintraege: [
+                    { href: "/team", label: "Team", text: "Wer FIAON baut", key: "team" },
+                    { href: "/karriere", label: "Karriere", text: "Fest oder frei, remote in DACH", key: "karriere" },
+                    { href: "/partner", label: "Partner", text: "Banken, Auskunfteien, Vermittler", key: "partner" },
+                    { href: "/presse", label: "Presse", text: "Fakten, Zahlen, Ansprechpartner", key: "presse" },
+                    { href: "/investoren", label: "Investoren", text: "Das Modell, der Datenraum", key: "investoren" },
+                  ] },
+                ].map((g, gi) => (
+                  <div key={g.titel} className={gi ? "mt-4" : ""} style={{ animation: `mobItemIn .45s cubic-bezier(.22,1,.36,1) ${0.06 + gi * 0.08}s both` }}>
+                    <p className="text-[10.5px] uppercase tracking-[.2em] mb-1.5 px-2" style={{ color: "#2563eb" }}>{g.titel}</p>
+                    <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,.55)", border: "1px solid rgba(15,23,42,.06)" }}>
+                      {g.eintraege.map((e, i) => (
+                        <a key={e.href} href={e.href} onClick={() => setMob(false)}
+                           className="flex items-center justify-between gap-3 px-3.5 py-3 active:bg-blue-50"
+                           style={{ borderTop: i ? "1px solid rgba(15,23,42,.06)" : undefined, background: activePage === e.key ? "rgba(37,99,235,.08)" : undefined }}>
+                          <span className="min-w-0">
+                            <span className="block text-[15px]" style={{ fontWeight: 400, color: "#0f172a" }}>{e.label}</span>
+                            <span className="block text-[11.5px] mt-0.5" style={{ color: "#64748b" }}>{e.text}</span>
+                          </span>
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="1.8" strokeLinecap="round" className="shrink-0"><path d="M9 18l6-6-6-6" /></svg>
+                        </a>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
-
-              <div className="mt-auto pt-4 space-y-3" style={{ animation: "mobItemIn .5s cubic-bezier(.22,1,.36,1) .32s both" }}>
-                <button
-                  onClick={handleAntragClick}
-                  className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl text-[15.5px] text-white active:scale-[.98] transition-transform"
-                  style={{ fontWeight: 400, background: "linear-gradient(135deg,#2563eb,#3b82f6)", boxShadow: "0 12px 30px rgba(37,99,235,.35), inset 0 1px 0 rgba(255,255,255,.2)" }}
-                >
+                ))}
+              </div>
+              <div className="px-4 pb-4 pt-2 flex gap-2.5" style={{ borderTop: "1px solid rgba(15,23,42,.06)", animation: "mobItemIn .45s cubic-bezier(.22,1,.36,1) .22s both" }}>
+                <button onClick={handleAntragClick}
+                        className="flex-1 flex items-center justify-center gap-2 py-3 rounded-full text-[14.5px] text-white active:scale-[.98] transition-transform"
+                        style={{ fontWeight: 400, background: "linear-gradient(135deg,#2563eb,#3b82f6)", boxShadow: "0 10px 24px rgba(37,99,235,.3), inset 0 1px 0 rgba(255,255,255,.25)" }}>
                   Konto eröffnen
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
                 </button>
-                <a
-                  href={eingeloggt ? "/dashboard" : "/login"}
-                  className="w-full flex items-center justify-center py-4 rounded-2xl text-[15px] text-white active:scale-[.98] transition-transform"
-                  style={{ fontWeight: 400, background: "rgba(255,255,255,.06)", border: "1px solid rgba(255,255,255,.14)" }}
-                >
+                <a href={eingeloggt ? "/dashboard" : "/login"}
+                   className="flex-1 flex items-center justify-center py-3 rounded-full text-[14.5px] active:scale-[.98] transition-transform"
+                   style={{ fontWeight: 400, color: "#1d4ed8", background: "#fff", border: "1px solid rgba(37,99,235,.35)" }}>
                   {eingeloggt ? "Mein Bereich" : "Login"}
                 </a>
-                <p className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 pt-2 text-center text-[11px]" style={{ color: "#6b7280" }}>
-                  <span>SEPA-Lastschrift</span><span>·</span><span>EU-Hosting</span><span>·</span><span>Anwaltlich geprüft</span>
-                </p>
               </div>
             </div>
           </div>

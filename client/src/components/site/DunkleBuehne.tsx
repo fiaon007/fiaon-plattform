@@ -299,6 +299,18 @@ export function Szenenbild({ src, titel, text }: { src: string; titel?: ReactNod
 }
 
 /** Lichtband: mehrere Blöcke auf hellem Grund — die Bühne bleibt dunkel, die Mitte atmet hell. Ein- und Ausblendung in Nachtblau. */
+/** Die Welle am Übergang dunkel ↔ hell (23.08.2026, Justin: „die Verläufe sehen schrecklich aus — eine animierte Welle, die durchgehend schwingt"). Drei Lagen, verschieden schnell, eine gegenläufig. */
+function Welle({ unten = false }: { unten?: boolean }) {
+  const d = "M0,78 C180,118 360,38 540,78 C720,118 900,38 1080,78 C1260,118 1440,38 1440,78 L1440,78 C1620,118 1800,38 1980,78 C2160,118 2340,38 2520,78 C2700,118 2880,38 2880,78 L2880,0 L0,0 Z";
+  return (
+    <div className={`dk-welle${unten ? " unten" : ""}`} aria-hidden="true">
+      <svg className="w3" viewBox="0 0 2880 140" preserveAspectRatio="none"><path d={d} /></svg>
+      <svg className="w2" viewBox="0 0 2880 140" preserveAspectRatio="none"><path d={d} /></svg>
+      <svg className="w1" viewBox="0 0 2880 140" preserveAspectRatio="none"><path d={d} /></svg>
+    </div>
+  );
+}
+
 export function Licht({ children }: { children: ReactNode }) {
-  return <div className="dk-licht">{children}</div>;
+  return <div className="dk-licht"><Welle />{children}<Welle unten /></div>;
 }

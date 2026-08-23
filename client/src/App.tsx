@@ -102,6 +102,7 @@ const AgentStartgespraechePage = lazy(() => import("@/pages/agent/startgespraech
 const AgentVertriebPage = lazy(() => import("@/pages/agent/vertrieb"));
 import AgentVerdienstPage from "@/pages/agent/verdienst";
 const AgentGehaltPage = lazy(() => import("@/pages/agent/gehalt"));
+const AgentFlurPage = lazy(() => import("@/pages/agent/flur"));
 const AgentSchreibtischPage = lazy(() => import("@/pages/agent/schreibtisch"));
 const AgentArbeitszeitenPage = lazy(() => import("@/pages/agent/arbeitszeiten"));
 import AgentUpdatesPage from "@/pages/agent/updates";
@@ -383,6 +384,7 @@ function Router() {
       <Route path="/agent/leads" component={() => <Umleitung nach="/agent/kunden?filter=leads" />} />
       <Route path="/agent/verdienst" component={AgentVerdienstPage} />
       <Route path="/agent/gehalt" component={AgentGehaltPage} />
+      <Route path="/agent/flur" component={AgentFlurPage} />
       <Route path="/agent/arbeitszeiten" component={AgentArbeitszeitenPage} />
       <Route path="/agent/updates" component={AgentUpdatesPage} />
       <Route path="/agent/feedback" component={AgentFeedbackPage} />

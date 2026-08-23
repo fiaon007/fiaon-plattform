@@ -25,7 +25,7 @@ export const RAEUME: Raum[] = [
   { href: "/agent/mail-zentrale", label: "Post", Icon: Mail, match: ["/agent/mail-zentrale"], szene: "schreibtisch", gruppe: "arbeit", badge: "/agent/mail-zentrale" },
   { href: "/agent/anliegen", label: "Anliegen", Icon: Inbox, match: ["/agent/anliegen"], szene: "schreibtisch", gruppe: "arbeit", badge: "/agent/anliegen" },
   { href: "/agent/inkasso", label: "Forderungen", Icon: Landmark, match: ["/agent/inkasso"], szene: "kasse", gruppe: "arbeit", badge: "/agent/inkasso" },
-  { href: "/agent/space", label: "Flur", Icon: Users, match: ["/agent/space"], szene: "flur", gruppe: "team", badge: "/agent/space" },
+  { href: "/agent/flur", label: "Flur", Icon: Users, match: ["/agent/flur", "/agent/space"], szene: "flur", gruppe: "team", badge: "/agent/space" },
   { href: "/agent/updates", label: "Schwarzes Brett", Icon: Megaphone, match: ["/agent/updates", "/agent/feedback"], szene: "flur", gruppe: "team", badge: "/agent/updates" },
   { href: "/agent/academy", label: "Akademie", Icon: GraduationCap, match: ["/agent/academy", "/agent/schulung", "/agent/skripte"], szene: "akademie", gruppe: "team" },
   { href: "/agent/verdienst", label: "Kasse", Icon: Wallet, match: ["/agent/verdienst", "/agent/auszahlung", "/agent/partner-programm", "/agent/leistung"], szene: "kasse", gruppe: "ich" },
@@ -52,7 +52,7 @@ export function OfficeShell({ children, agent, rolle, zaehler, onRefresh, logout
   const [menueOffen, setMenueOffen] = useState(false);
   const [praesenz, setPraesenz] = useState<Praesenz>(() => { try { return (sessionStorage.getItem("fiaon_praesenz") as Praesenz) || "da"; } catch { return "da"; } });
   useEffect(() => { try { localStorage.setItem("fiaon_office_leiste", eingeklappt ? "zu" : "auf"); } catch { /* egal */ } }, [eingeklappt]);
-  useEffect(() => { try { sessionStorage.setItem("fiaon_praesenz", praesenz); } catch { /* egal */ } }, [praesenz]);
+  useEffect(() => { try { sessionStorage.setItem("fiaon_praesenz", praesenz); } catch { /* egal */ } fetch("/api/fiaon/agent/praesenz", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: praesenz }) }).catch(() => {}); const i = setInterval(() => fetch("/api/fiaon/agent/praesenz", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: praesenz }) }).catch(() => {}), 10 * 60_000); return () => clearInterval(i); }, [praesenz]);
   const vorherigerOrt = useRef(location);
   useEffect(() => { if (vorherigerOrt.current === location) return; vorherigerOrt.current = location; setMenueOffen(false); setDunkel(false); setTitel(null); }, [location]);
   useEffect(() => { const r = document.getElementById("root"); if (r) r.style.overflow = menueOffen ? "hidden" : ""; return () => { if (r) r.style.overflow = ""; }; }, [menueOffen]);

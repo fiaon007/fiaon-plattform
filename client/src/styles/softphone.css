@@ -406,6 +406,20 @@
   display: block; font-size: 9.5px; font-weight: 700; letter-spacing: .14em;
   text-transform: uppercase; color: #93c5fd; margin-bottom: 5px; font-style: normal;
 }
+/* ── ALS AUFKLAPPER (24.08.2026, Plan §4/§11) ─────────────────────────────
+   Der Block ist jetzt ein <details>: Die Marke „Zu Beginn sagen" ist die
+   summary und bleibt immer sichtbar, der Wortlaut klappt am Rechner erst
+   auf Klick auf — einer der Blöcke, an denen die PC-Wählansicht über die
+   Panelhöhe wuchs. Am Handy rendert Softphone.tsx das details offen. */
+.fi-tel-pflichtsatz > summary {
+  cursor: pointer; list-style: none; user-select: none; margin-bottom: 0;
+}
+.fi-tel-pflichtsatz > summary::-webkit-details-marker { display: none; }
+.fi-tel-pflichtsatz > summary::after {
+  content: " ▾"; letter-spacing: 0; color: rgba(147,197,253,.7);
+}
+.fi-tel-pflichtsatz[open] > summary { margin-bottom: 5px; }
+.fi-tel-pflichtsatz[open] > summary::after { content: " ▴"; }
 
 /* ── Knöpfe ────────────────────────────────────────────────────────────── */
 .fi-tel-gruen {
@@ -1089,4 +1103,150 @@
   .fi-tel-pille { animation: none; }
   .fi-tel-pille-rec { animation: none; }
   .fi-tel-pille-rund, .fi-tel-pille-rot { transition: none !important; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   NACHTRAG 24.08.2026 — PC OHNE INNEN-SCROLLEN (Plan §4/§11)
+   Justin: „Am PC muss/kann ich darin scrollen und die Bedienung ist zäh."
+
+   Ziel: Die Wähl-/Bereit-Ansicht passt bei einem 900-px-Fenster VOLLSTÄNDIG
+   in das Gerätedisplay (812 px Körper − 54 px Insel − 26 px Fuß ≈ 732 px).
+   Drei Bausteine wurden dafür verkleinert oder zusammengeklappt (Mikrofon-
+   Zeile statt Kasten, Pflichtsatz als Aufklapper, flache Wähltasten — siehe
+   Softphone.tsx und FiaonGeraet.tsx); hier stehen die engeren ABSTÄNDE.
+   Nur Werte über 700 px — die Handy-Blöcke oben bleiben unberührt.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (min-width: 701px) {
+  .fi-tel-statuszeile { margin-bottom: 10px; }
+  .fi-tel-kunde { margin: 0 0 8px; }
+  .fi-tel-wem { margin: 0 0 8px; padding: 6px 10px; }
+  /* Der Mikrofon-Kasten erscheint am Rechner nur noch aufgeklappt oder bei
+     einer Meldung — dann mit denselben Rändern wie die schmale Zeile. */
+  .fi-tel-mik { margin: 0 0 10px; padding: 10px 12px; }
+  .fi-tel-mikrofon { margin-top: 10px; }
+  .fi-tel-naechster { margin-bottom: 8px; padding: 9px 12px; }
+  .fi-tel-holen { margin-bottom: 8px; padding: 9px 14px; }
+  .fi-tel-suche-feld { margin-bottom: 8px; }
+  .fi-tel-suche { height: 40px; }
+  .fi-tel-anzeige { font-size: 24px; padding: 4px 40px 10px; }
+  .fi-tel-pflichtsatz { margin: 12px 0 10px; padding: 10px 13px; }
+  .fi-tel-gruen { height: 52px; }
+  /* Die offenen Anrufe rollen IN ihrer Liste, nie das Panel: Vier Zeilen
+     plus Wählansicht sprengten sonst auch die kompakte Fassung. */
+  .fi-tel-offen { margin-top: 14px; padding-top: 12px; max-height: 196px; overflow-y: auto; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   NACHTRAG 24.08.2026 — DIE RICHTLINIEN-TAFEL IN DER HAUS-CI (Plan §4/§11)
+
+   Der Auftrag: „Die Annahme-Tafel wirkt fremd." Sie war die HELLE FiaonEbene
+   (weißer Körper, heller Schleier) mitten im dunklen Office. Diese Regeln
+   schalten sie im Geltungsbereich `.fi-ri-ueber-geraet` (der Wrapper am
+   Einbau in Softphone.tsx) auf die dunkle Glas-Fassung des Office um —
+   Referenz: `.of-modal` in office.css und die ZusageTafel mit ton="dunkel".
+
+   Der AUFBAU der Ebene bleibt unangetastet und ist genau der gewollte:
+   Kopf (Glas, steht fest) → Körper (eigene Scroll-Fläche) → Fuß (Glas,
+   steht fest, mit Haken, Namensfeld, Primärknopf und Fehlermeldung).
+   Nichts wird abgeschnitten, am Handy greifen die safe-area-Polster der
+   FiaonEbene weiter.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.fi-ri-ueber-geraet {
+  /* Die Tafel schreibt ihre Texte über die fi-Variablen — im Dunkeln werden
+     sie HIER umgeschaltet (dasselbe Muster wie .zt-dunkel der ZusageTafel). */
+  --fi-text: #f1f5f9;
+  --fi-text-leise: #cbd5e1;
+  --fi-text-still: #94a3b8;
+}
+/* Schleier: dunkel und ruhig statt aufhellend — unter der Tafel liegt das
+   dunkle Gerät, ein heller Schleier riss die Szene auseinander. */
+.fi-ri-ueber-geraet .fi-ebene-schleier {
+  background:
+    radial-gradient(120% 90% at 50% 115%, rgba(37,99,235,.18), transparent 60%),
+    rgba(2,6,23,.6);
+  backdrop-filter: blur(14px) saturate(120%);
+  -webkit-backdrop-filter: blur(14px) saturate(120%);
+}
+/* Der Körper der Tafel: dunkles Glas mit blauem Schein — .of-modal. */
+.fi-ri-ueber-geraet .fi-ebene {
+  background: linear-gradient(180deg, rgba(21,31,54,.97), rgba(11,20,38,.98));
+  box-shadow:
+    0 40px 120px rgba(2,6,23,.7),
+    0 0 60px rgba(37,99,235,.18),
+    inset 0 1px 0 rgba(255,255,255,.1),
+    inset 0 0 0 1px rgba(255,255,255,.12);
+}
+.fi-ri-ueber-geraet .fi-ebene-kopf {
+  background: rgba(10,18,36,.72);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  box-shadow: inset 0 -1px 0 rgba(255,255,255,.08);
+}
+.fi-ri-ueber-geraet .fi-ebene-koerper {
+  background: transparent;
+  scrollbar-width: thin; scrollbar-color: rgba(147,197,253,.3) transparent;
+}
+.fi-ri-ueber-geraet .fi-ebene-fuss {
+  background: rgba(10,18,36,.72);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
+}
+/* Pille oben (statt kleiner grauer Zeile) und ruhige Überschrift mit wenig
+   Gewicht — die Formensprache der Office-Tafeln. */
+.fi-ri-ueber-geraet .fi-ebene-ueberschrift {
+  display: inline-block;
+  font-size: 10.5px; font-weight: 500; letter-spacing: .16em;
+  text-transform: uppercase; color: #93c5fd;
+  padding: 7px 11px; border: 1px solid rgba(147,197,253,.35);
+  border-radius: 999px;
+}
+.fi-ri-ueber-geraet .fi-ebene-titel {
+  margin-top: 9px;
+  font-size: 24px; font-weight: 300; letter-spacing: -.02em; color: #fff;
+}
+.fi-ri-ueber-geraet .fi-ebene-kreuz { background: rgba(255,255,255,.07); color: #cbd5e1; }
+.fi-ri-ueber-geraet .fi-ebene-kreuz:hover { background: rgba(255,255,255,.14); color: #fff; }
+.fi-ri-ueber-geraet .fi-ebene-grabber span { background: rgba(255,255,255,.26); }
+/* Die Inhaltsbausteine der Tafel, dunkel gefasst. */
+.fi-ri-ueber-geraet .fi-ri-titel { color: #93c5fd; }
+.fi-ri-ueber-geraet .fi-ri-kann {
+  background: rgba(255,255,255,.05);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.1), inset 0 1px 0 rgba(255,255,255,.06);
+}
+.fi-ri-ueber-geraet .fi-ri-kann-titel { color: #93c5fd; }
+.fi-ri-ueber-geraet .fi-ri-kann-text { color: var(--fi-text-leise); }
+/* Bernstein statt dunklem Braun: #92400e wäre auf Navy unlesbar. */
+.fi-ri-ueber-geraet .fi-ri-nicht li { color: #fde68a; }
+.fi-ri-ueber-geraet .fi-ri-nicht li::marker { color: rgba(252,165,165,.7); }
+.fi-ri-ueber-geraet .fi-ri-pflicht-titel { color: var(--fi-text); }
+.fi-ri-ueber-geraet .fi-ri-pflicht-text { color: var(--fi-text-leise); }
+.fi-ri-ueber-geraet .fi-ri-haken { color: var(--fi-text); }
+.fi-ri-ueber-geraet .fi-ri-haken input { accent-color: #3b82f6; }
+.fi-ri-ueber-geraet .fi-ri-name {
+  background: rgba(255,255,255,.06); color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.14);
+}
+.fi-ri-ueber-geraet .fi-ri-name::placeholder { color: #64748b; }
+.fi-ri-ueber-geraet .fi-ri-name:focus { box-shadow: inset 0 0 0 1.5px rgba(59,130,246,.6); }
+/* Der Primärknopf im Office-Look (Verlauf 135°, Farbschatten, Pille). */
+.fi-ri-ueber-geraet .fi-knopf-primaer {
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  box-shadow: 0 12px 28px rgba(37,99,235,.35), inset 0 1px 0 rgba(255,255,255,.26);
+  min-height: 44px;
+}
+/* Der Protokoll-Hinweis — vorher ein Inline-Grau, auf Dunkel unsichtbar. */
+.fi-ri-protokoll {
+  margin-top: 12px; padding: 10px 14px; border-radius: 12px;
+  font-size: 11.5px; line-height: 1.6; color: var(--fi-text-still, #64748b);
+  background: rgba(255,255,255,.05);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
+}
+/* Die Absage des Servers (z. B. falscher Name): unter dem Knopf, im Fuß,
+   der fest steht — sie kann nicht mehr aus dem Blick rollen. */
+.fi-ri-fehler {
+  margin: 10px 0 0; padding: 10px 13px; border-radius: 12px;
+  font-size: 12.5px; line-height: 1.5; font-weight: 600; color: #fecaca;
+  background: rgba(248,113,113,.14);
+  box-shadow: inset 0 0 0 1px rgba(248,113,113,.38);
 }

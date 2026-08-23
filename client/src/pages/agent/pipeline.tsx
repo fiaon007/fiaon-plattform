@@ -82,6 +82,16 @@
 //     (fiaon_persons.mandat_seit, gesetzt beim Buchen von „Mandat
 //     angenommen“), x/500. Der Bestand-Reiter trennt „Mandate (dein Bestand)“
 //     und „Zugewiesen, Mandat offen“.
+//   · E-050 (Justin 24.08., Plan §19): Pipeline und Bestand getrennt. VORHER
+//     zwei Reiter (Arbeitsliste · Mein Bestand mit 3D-Strom, Suche, Filtern,
+//     Server-Ansichten) — NACHHER ist /agent/pipeline NUR die Arbeitsliste;
+//     das Portfolio der Mandate wohnt in /agent/bestand (bestand.tsx). Diese
+//     Datei exportiert dafür Akte, Strom und den Kunde-Typ (keine Duplikate).
+//     „Kunde anlegen“ und der Warte-Hinweis blieben hier (Arbeit, kein
+//     Portfolio); die unsichtbare Liste (laden) bleibt als Datenrücken der
+//     Akte-Lade bestehen. NICHT übernommen (siehe Bericht): Server-Ansichten-
+//     Wahl, Land-/Kontakt-Filter, Suche über ALLE Zugewiesenen, Gruppe
+//     „Zugewiesen, Mandat offen“.
 //   · E-048 (Justin 23.08.): 1. Termin buchen = klickbare freie Zeiten,
 //     nichts tippen — SlotWahl (GET /agent/vertrieb/frei, dieselbe Rechnung
 //     wie die Kundenbuchung) ersetzt die Datum/Zeit-Felder in Fokus-Karte und
@@ -93,8 +103,7 @@
 // Regel (Justin): Die erste Zahlung ist immer eine Überweisung – nirgends
 // Lastschrift. Liste: GET /agent/kunden/liste (+ filter=bezahlt für Aktive).
 // ═══════════════════════════════════════════════════════════════════════════
-// E-048 Nr. 2: useLayoutEffect neu — für die FLIP-Messung der Arbeitsliste.
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "wouter";
 // E-050: Search/Plus/RefreshCw gingen mit dem Bestand-Reiter nach bestand.tsx.
 import { Phone, X, Copy, Send, Mail, FileText, Check, ExternalLink, ChevronLeft, ChevronRight, ChevronDown, MoreHorizontal } from "lucide-react";
@@ -508,46 +517,12 @@ function SlotWahl({ laeuft, onBuchen, onZu }: {
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// E-048 Nr. 2: FLIP für die kleinen Karten der Arbeitsliste.
-//
-// VORHER: Nach einem gebuchten Ergebnis glitt die erledigte Karte zwar hinaus
-// (piGeht) und der neue Fokus herein (piTief), aber die kleinen Karten
-// SPRANGEN auf ihre neuen Plätze, sobald der Server die 6 Slots neu füllte.
-// NACHHER: Vor jedem Render merkt sich der Haken die Lage jeder Karte
-// (relativ zum Behälter, damit Scrollen keine falschen Wege misst); nach dem
-// Render animiert er sie vom alten zum neuen Platz (First–Last–Invert–Play,
-// 350 ms, cubic-bezier(.2,.8,.2,1)). Neue Karten behalten ihren CSS-Einzug
-// (piAk). Bei prefers-reduced-motion wird nur gemessen, nicht bewegt.
-// ═══════════════════════════════════════════════════════════════════════════
-function useFlip(behaelter: React.RefObject<HTMLElement | null>, stand: string, ruhig: boolean) {
-  const vorher = useRef<Map<string, { x: number; y: number }>>(new Map());
-  useLayoutEffect(() => {
-    const el = behaelter.current;
-    if (!el) { vorher.current = new Map(); return; }
-    const rahmen = el.getBoundingClientRect();
-    const kinder = Array.from(el.querySelectorAll<HTMLElement>("[data-flip]"));
-    const neu = new Map<string, { x: number; y: number }>();
-    for (const kind of kinder) {
-      const r = kind.getBoundingClientRect();
-      neu.set(kind.dataset.flip!, { x: r.left - rahmen.left, y: r.top - rahmen.top });
-    }
-    if (!ruhig && typeof HTMLElement.prototype.animate === "function") {
-      for (const kind of kinder) {
-        const alt = vorher.current.get(kind.dataset.flip!);
-        if (!alt) continue; // neu montiert → CSS-Einzug piAk übernimmt
-        const ziel = neu.get(kind.dataset.flip!)!;
-        const dx = alt.x - ziel.x, dy = alt.y - ziel.y;
-        if (Math.abs(dx) < 1 && Math.abs(dy) < 1) continue;
-        kind.animate(
-          [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "translate(0, 0)" }],
-          { duration: 350, easing: "cubic-bezier(.2,.8,.2,1)" },
-        );
-      }
-    }
-    vorher.current = neu;
-  }, [stand]); // eslint-disable-line react-hooks/exhaustive-deps
-}
+// E-048 Nr. 2 → E-051 Nr. 1 (Justin 24.08.): VORHER rückten die kleinen
+// Karten in einem RASTER per FLIP-Messung nach — NACHHER sind sie ein
+// 3D-KARUSSELL (KleinesKarussell, unten bei KleineKarte): eine Karte steht
+// immer mittig vorn, die Nachbarn perspektivisch dahinter; das Nachrücken
+// nach einem Ergebnis ist eine transform-Transition, keine Messung mehr.
+// Der FLIP-Haken (useFlip) ist damit ersatzlos entfallen.
 
 export default function AgentPipelinePage() {
   return <AgentShell><ToastAnbieter><PipelineInnen /></ToastAnbieter></AgentShell>;
@@ -598,6 +573,7 @@ function PipelineInnen() {
   const [offen, setOffen] = useState<number | null>(null);
   const [fremd, setFremd] = useState<Kunde | null>(null);
   const ruhig = useMedia("(prefers-reduced-motion: reduce)");
+  const handy = useMedia("(max-width: 700px)"); // E-051: Karussell → Wisch-Reihe am Handy
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
@@ -773,13 +749,8 @@ function PipelineInnen() {
 
   // ── Zahlen für die Umsatz-Leiste ────────────────────────────────────────
   // §16a: VORHER zählten hier alle bezahlten/zugewiesenen Kunden – NACHHER nur Mandate.
+  // E-051 Nr. 2: Der Motivationssatz („mottoCents“) ist mit der Hebel-Zeile entfallen.
   const aktive = mandate.anzahl;
-  // Motivationssatz: 5 Mandate/Tag × 21 Arbeitstage × (Ø-Rate × Satz + 10 € SCHUFA-Bonus).
-  const mottoCents = useMemo(() => {
-    const n = Object.values(MIX_MOTTO).reduce((a, b) => a + b, 0) || 1;
-    const avg = Object.entries(MIX_MOTTO).reduce((sum, [key, c]) => sum + (PAKETE.find((x) => x.key === key)?.preisCents ?? 0) * c, 0) / n;
-    return Math.round(5 * 21 * (avg * satz + SCHUFA_BONUS_CENTS));
-  }, [satz]);
   const zAktive = useZaehlen(aktive);
 
   // E-050: Stufen-Chips, Filter, 3D-Strom und Tastatur-Blättern sind mit dem
@@ -789,9 +760,6 @@ function PipelineInnen() {
   // ── Arbeitsliste: Fokus = gewählter Slot, sonst der erste ───────────────
   const fokusSlot = useMemo(() => slots.find((s) => s.kunde.personId === fokusId) ?? slots[0] ?? null, [slots, fokusId]);
   const kleine = useMemo(() => slots.filter((s) => s.kunde.personId !== (fokusSlot?.kunde.personId ?? -1)), [slots, fokusSlot]);
-  // E-048 Nr. 2: FLIP — die kleinen Karten rücken animiert nach statt zu springen.
-  const kleineRef = useRef<HTMLDivElement | null>(null);
-  useFlip(kleineRef, kleine.map((s) => s.kunde.personId).join(","), ruhig);
 
   return (
     <div className="pi">
@@ -863,34 +831,23 @@ function PipelineInnen() {
                 {/* E-047 (Justin, Screenshot): Trenner zwischen JETZT und DANACH —
                   animierte Zeile „Deine nächsten Kunden“, Linien beidseits. */}
               <div className="pi-trenner"><span className="linie" aria-hidden="true" /><b>Deine nächsten Kunden</b><span className="linie" aria-hidden="true" /></div>
-              {/* E-048 Nr. 2: ref für die FLIP-Messung (useFlip oben). */}
-              <div className="pi-arbeit-klein" ref={kleineRef}>
-                  {kleine.map((s) => (
-                    <KleineKarte key={s.kunde.personId} k={s.kunde} gruppe={s.gruppe} geht={geht.has(s.kunde.personId)}
-                                 onFokus={() => setFokusId(s.kunde.personId)}
-                                 onAkte={() => oeffnen(s.kunde.personId)}
-                                 onEntfernen={() => void karteileiche(s.kunde)} />
-                  ))}
-                </div>
-                <p className="pi-fussnote">
-                  Höchstens 6 auf einmal – je 2 „{GRUPPE_INFO.bezahlt_gemeldet.name}“ ({slotsZaehler.bezahlt_gemeldet ?? 0}),
-                  „{GRUPPE_INFO.rechnung_offen.name}“ ({slotsZaehler.rechnung_offen ?? 0}),
-                  „{GRUPPE_INFO.lead.name}“ ({slotsZaehler.lead ?? 0}). Erledigt = der nächste rückt sofort nach.
-                </p>
+              {/* E-051 Nr. 1 (Justin): VORHER ein 2-spaltiges Raster (FLIP) —
+                  NACHHER ein 3D-Karussell: eine Karte mittig vorn, Nachbarn
+                  perspektivisch dahinter; Pfeile, Wischen, Tastatur; Klick auf
+                  die Mitte holt sie in den Fokus. Handy/reduced-motion: flache
+                  Wisch-Reihe mit Scroll-Snap. */}
+              <KleinesKarussell kinder={kleine} geht={geht} gesperrt={offen != null} flach={handy || ruhig}
+                                onFokus={(id) => setFokusId(id)}
+                                onAkte={(id) => oeffnen(id)}
+                                onEntfernen={(k) => void karteileiche(k)} />
               </div>
             </section>
           )}
-          {/* E-047: VORHER stand rechts neben der Fokus-Karte NUR der Leitfaden
-              der aktuellen Situation. NACHHER (Justin): eine dezente LEGENDE
-              mit ALLEN Leitfäden ganz unten — siehe LeitfadenLegende. */}
-          {/* VORHER: „Dein Hebel“ als große Kachel oben. NACHHER (Justin):
-              schmale, ruhige Zeile unter der Arbeitsliste — Zusammenwachsen
-              statt Tageswert. */}
-          <p className="pi-hebel">
-            Jeden Tag 5 Mandate – und dein Gehalt wächst von selbst: im ersten Monat <b>{euro0(mottoCents)}</b>,
-            mit wachsendem Bestand jeden Monat mehr, weil jedes Mandat 12 Raten zahlt.
-            {" "}<Link href="/agent/gehalt">Rechne selbst → Earnings</Link>
-          </p>
+          {/* E-051 Nr. 2 (Justin): VORHER standen hier die Fußzeile
+              „Höchstens 6 auf einmal – je 2 …“ und die Hebel-Zeile
+              („Jeden Tag 5 Mandate … Rechne selbst → Earnings“) — NACHHER
+              beide entfernt; die Leitfäden-Legende ist das einzige Element
+              unter der Arbeitsliste. */}
           <LeitfadenLegende aktiv={fokusSlot ? (GRUPPE_INFO[fokusSlot.gruppe]?.stufe ?? null) : null} />
       </>
 
@@ -1113,8 +1070,7 @@ function KleineKarte({ k, gruppe, geht, onFokus, onAkte, onEntfernen }: {
   const st = STUFE[info.stufe];
   const faellig = rueckrufFaellig(k);
   return (
-    // E-048 Nr. 2: data-flip = Kennung für die FLIP-Messung (useFlip).
-    <div className={`pi-ak${geht ? " geht" : ""}`} data-flip={k.personId} style={{ ["--hitze" as string]: faellig ? "#f87171" : st.farbe }}>
+    <div className={`pi-ak${geht ? " geht" : ""}`} style={{ ["--hitze" as string]: faellig ? "#f87171" : st.farbe }}>
       <button type="button" className="pi-ak-kern" onClick={onFokus} title="Nach vorn holen">
         <span className="pi-ak-kopf"><i className="pi-glut" /><small>{faellig ? "Rückruf fällig" : info.name}</small></span>
         <b>{k.name}</b>
@@ -1339,7 +1295,10 @@ const AKTE_REITER: { key: AkteReiter; label: string }[] = [
   { key: "daten", label: "Daten" },
 ];
 
-function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
+// E-050: exportiert — bestand.tsx öffnet DIESELBE Akte-Lade (?person=), kein
+// Duplikat. Voraussetzung beim Einbetten: ToastAnbieter + FragenAnbieter
+// (useFragen) liegen außen herum, wie hier über AgentShell/ToastAnbieter.
+export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
   k: Kunde; onZu: () => void; onWeg: () => void; onNeu: (k: Kunde) => void; onErledigt: () => void; onZaehler: () => void;
 }) {
   const fragen = useFragen();
@@ -1721,7 +1680,11 @@ function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
                     : sitArt === "zahlung_gemeldet" ? "Kunde meldet Zahlung – das Geld ist noch nicht da. Sichere den Termin"
                     : sitArt === "rechnung_offen" ? `Antrag fertig – ${paketPreis(k) ? `${eur(paketPreis(k))} offen` : "Rechnung offen"}. Schick die Zahlungsdaten`
                     : sitArt === "lead_ohne_antrag" ? "Registriert, noch kein Antrag – hol das Mandat"
-                    : sitArt === "termin_heute" ? `Heute ${sit?.terminHeute ? terminText(sit.terminHeute) : "Termin"} – das Gespräch steht`
+                    /* E-051 Nr. 3: VORHER „Heute ${terminText(…)}“ — terminText liefert
+                       selbst schon „Heute 14:20“ (Berlin-Zeit), also stand dort
+                       „Heute Heute 14:20“. NACHHER nur terminText (formatiert mit
+                       timeZone Europe/Berlin, keine UTC-Uhrzeit). */
+                    : sitArt === "termin_heute" ? `${sit?.terminHeute ? terminText(sit.terminHeute) : "Heute"} – das Gespräch steht`
                     : sit?.naechsteRate ? `Alles läuft – nächste Rate ${eur(sit.naechsteRate.betragCents)} am ${dtag(sit.naechsteRate.faelligAm)}`
                     : "Alles läuft – nichts fällig"}
                 </h3>

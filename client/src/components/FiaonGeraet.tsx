@@ -188,7 +188,7 @@ const GERAET_CSS = `
      kostet einen Kunden.
 
      ── KEIN ÜBERGANG AUF DEM FILTER (24.08.2026) ──────────────────────────
-     Hier stand `transition: backdrop-filter 200ms, background 200ms`. Eine
+     Hier stand "transition: backdrop-filter 200ms, background 200ms". Eine
      ANIMIERTE Weichzeichnung über den ganzen Bildschirm ist das Teuerste,
      was CSS zu vergeben hat — beim Umschalten in den Sparmodus zeichnete der
      Browser 200 ms lang Zwischenstufen des Blurs. Der Wechsel ist jetzt

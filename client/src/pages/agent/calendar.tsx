@@ -338,10 +338,10 @@ function CalendarInnen() {
                         <button key={tKey(a)} type="button"
                                 className={`ca-w-termin${a.art === "verlauf" ? " verlauf" : ""}${a.abgesagt ? " abgesagt" : ""}${a.status === "verpasst" ? " verpasst" : ""}${tZeit(a) < jetzt && !a.abgesagt ? " vorbei" : ""}${!inVerfuegbarkeit(tZeit(a)) ? " ausser" : ""}${kompakt ? " kompakt" : ""}`}
                                 style={{ top: l.top, height: l.hoehe, left: `calc(${l.links}% + 3px)`, width: `calc(${l.breite}% - 6px)`, "--ca-ton": ton } as CSSProperties}
-                                onClick={(e) => popAuf(a, e.currentTarget, true)}
+                                onClick={(e) => window.matchMedia("(hover: none)").matches ? popAuf(a, e.currentTarget, true) : zurAkte(a)}
                                 onMouseEnter={(e) => hoverAuf(a, e.currentTarget)}
                                 onMouseLeave={hoverZu}
-                                title={`${uhr(tZeit(a))} ${tName(a)}`}>
+                                title={`${uhr(tZeit(a))} ${tName(a)} – Klick öffnet die Akte`}>
                           {kompakt ? <span className="eins"><b>{uhr(tZeit(a))}</b> · {tName(a)}</span> : <><b>{uhr(tZeit(a))}</b><span>{tName(a)}</span></>}
                         </button>
                       );
@@ -374,8 +374,6 @@ function CalendarInnen() {
         </>
       )}
 
-      {ansicht === "start" && <Startgespraeche />}
-
       {popover && (
         <Popover a={popover.a} fest={popover.fest} links={popover.links} oben={popover.oben}
                  ausser={!inVerfuegbarkeit(tZeit(popover.a))}
@@ -395,11 +393,12 @@ function CalendarInnen() {
 }
 
 // ── Eine Terminzeile ─────────────────────────────────────────────────────────
-function Zeile({ a, datum, busy, ausser, onOeffnen, onErledigt }: { a: Termin; datum?: boolean; busy: boolean; ausser: boolean; onOeffnen: () => void; onErledigt: () => void }) {
+function Zeile({ a, datum, busy, ausser, onAkte, onOeffnen, onErledigt }: { a: Termin; datum?: boolean; busy: boolean; ausser: boolean; onAkte: () => void; onOeffnen: () => void; onErledigt: () => void }) {
   const tel = tPhone(a); const d = tZeit(a);
   const ton = a.terminArtTon || (a.quelle === "termin" ? "#3b82f6" : "#94a3b8"); // gleicher Zeitbalken wie im Wochenraster
+  // E-051: 1 Klick auf die Zeile → Kundenakte; „Mehr“ öffnet weiter den Dialog.
   return (
-    <div className={`ca-zeile mit-ton${a.abgesagt ? " abgesagt" : ""}`} style={{ "--ca-ton": ton } as CSSProperties} onClick={onOeffnen} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter") onOeffnen(); }}>
+    <div className={`ca-zeile mit-ton${a.abgesagt ? " abgesagt" : ""}`} style={{ "--ca-ton": ton } as CSSProperties} onClick={onAkte} role="button" tabIndex={0} title="Klick öffnet die Akte" onKeyDown={(e) => { if (e.key === "Enter") onAkte(); }}>
       <div className={`ca-zeit${ausser ? " ausser" : ""}`}><b>{uhr(d)}</b><small>{datum ? datumKurz(d) : a.dauer_min ? `${a.dauer_min} min` : ausser ? "außerhalb" : ""}</small></div>
       <div className="ca-wer">
         <b>{tName(a)}</b>
@@ -464,8 +463,9 @@ function Popover({ a, fest, links, oben, ausser, onZu, onHalten, onLoslassen, on
         </div>
         {a.note && <p className="ca-popover-notiz">{a.note}</p>}
         <div className="ca-popover-knoepfe">
-          {tel && <button type="button" className="ca-knopf klein" onClick={() => anrufen(tel, a.person_id, tName(a))}><Phone size={13} strokeWidth={1.75} /> Anrufen</button>}
-          <Link href={akteHref(a)} className="ca-knopf klein still"><ExternalLink size={13} strokeWidth={1.75} /> Akte</Link>
+          {/* E-051: „Akte“ ist der Hauptweg – am Handy groß im Bottom-Sheet. */}
+          <Link href={akteHref(a)} className="ca-knopf klein akte"><ExternalLink size={13} strokeWidth={1.75} /> Zur Akte</Link>
+          {tel && <button type="button" className="ca-knopf klein still" onClick={() => anrufen(tel, a.person_id, tName(a))}><Phone size={13} strokeWidth={1.75} /> Anrufen</button>}
           <button type="button" className="ca-knopf klein still" onClick={onDetails}>Details</button>
         </div>
       </div>
@@ -617,235 +617,5 @@ function Anlegen({ vorschlag, onZu, onFertig }: { vorschlag: string; onZu: () =>
         </div>
       </div>
     </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// STARTGESPRÄCHE (aus startgespraeche.tsx, Onboarding-Rolle)
-// ═══════════════════════════════════════════════════════════════════════════
-interface SgTermin {
-  id: number; personId: number; name: string; vorname: string | null; telefon: string | null; email: string | null;
-  beginn: string; datum: string; datumText: string; uhrzeit: string; dauerMin: number; status: string; notiz: string | null;
-  heute: boolean; vorbei: boolean; erledigtAm?: string | null; abgesagtAm?: string | null; quelle?: string | null;
-  terminArtText?: string | null; terminArtTon?: string | null;
-}
-interface Kennzahlen { heuteGeplant?: number; heuteErledigt?: number; heuteNoShow?: number; wartend?: number; wartendOhneTermin?: number; freigeschaltetWoche?: number }
-interface Wartender { personId: number; name: string; telefon: string | null; email: string | null; paket: string | null; tage: number | null; terminAm: string | null; eingeladenAm: string | null; verpasst: number }
-const sgErledigt = (t: SgTermin) => t.status === "erledigt" || t.status === "verpasst" || !!t.erledigtAm || !!t.abgesagtAm;
-
-function Startgespraeche() {
-  const [termine, setTermine] = useState<SgTermin[]>([]);
-  const [zahlen, setZahlen] = useState<Kennzahlen | null>(null);
-  const [laedt, setLaedt] = useState(true);
-  const [zusageOffen, setZusageOffen] = useState(false);
-  const [reiter, setReiter] = useState<"offen" | "erledigt" | "wartende">("offen");
-  const [offen, setOffen] = useState<number | null>(null);
-  const [cockpit, setCockpit] = useState<SgTermin | null>(null);
-  const [meldung, setMeldung] = useState<{ text: string; warn?: boolean } | null>(null);
-  const flash = (text: string, warn = false) => { setMeldung({ text, warn }); setTimeout(() => setMeldung(null), 4500); };
-
-  const laden = useCallback(async () => {
-    const r = await api("/agent/onboarding/termine");
-    if (r.status === 403 && r.json?.code === "zusage_erforderlich") { setZusageOffen(true); setLaedt(false); return; }
-    if (r.ok) setTermine(r.json.termine || []);
-    const k = await api("/agent/onboarding/kennzahlen");
-    if (k.ok) setZahlen(k.json);
-    setLaedt(false);
-  }, []);
-  useEffect(() => { void laden(); }, [laden]);
-
-  const offene = useMemo(() => termine.filter((t) => !sgErledigt(t)), [termine]);
-  const erledigte = useMemo(() => termine.filter(sgErledigt).sort((a, b) => +new Date(b.erledigtAm ?? b.beginn) - +new Date(a.erledigtAm ?? a.beginn)), [termine]);
-  const tage = useMemo(() => {
-    const map = new Map<string, SgTermin[]>();
-    for (const t of (reiter === "erledigt" ? erledigte : offene)) { const l = map.get(t.datum) || []; l.push(t); map.set(t.datum, l); }
-    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-  }, [offene, erledigte, reiter]);
-
-  if (zusageOffen) return <div className="ca-hell"><ZusageTafel basis="/agent/onboarding/zusage" ton="dunkel" onAngenommen={() => { setZusageOffen(false); setLaedt(true); void laden(); }} /></div>;
-
-  return (
-    <>
-      {meldung && <p className={`ca-meldung${meldung.warn ? " warn" : ""}`}>{meldung.text}</p>}
-      <section className="ca-zahlen">
-        {[
-          ["Heute geplant", zahlen?.heuteGeplant, "Startgespräche, die heute stattfinden sollen."],
-          ["Heute erledigt", zahlen?.heuteErledigt, "Heute geführte Gespräche – jedes hat ein Konto freigeschaltet."],
-          ["Nicht erschienen", zahlen?.heuteNoShow, "Heute nicht erschienen. Diese Kunden werden automatisch erneut eingeladen."],
-          ["Wartet auf Gespräch", zahlen?.wartend, "Bezahlte Kunden, deren Konto bis zum Startgespräch eingeschränkt bleibt – hausweit."],
-          ["Davon ohne Termin", zahlen?.wartendOhneTermin, "Wartende, die noch keinen Termin gewählt haben."],
-          ["Freigeschaltet (7 Tage)", zahlen?.freigeschaltetWoche, "Konten, die in den letzten sieben Tagen voll freigeschaltet wurden."],
-        ].map(([t, w, h], i) => <div key={String(t)} className={`ca-zahl${i === 3 ? " hervor" : ""}`} title={String(h)}><small>{t}</small><b>{zahlen ? (w ?? 0) : "–"}</b></div>)}
-      </section>
-
-      <div className="ca-reiter" role="tablist">
-        {([["offen", "Offen", offene.length], ["erledigt", "Erledigt", erledigte.length], ["wartende", "Wartende", zahlen?.wartendOhneTermin ?? 0]] as const).map(([k, l, n]) => (
-          <button key={k} type="button" role="tab" aria-selected={reiter === k} className={reiter === k ? "an" : ""} onClick={() => setReiter(k)}>{l} <em>{n}</em></button>
-        ))}
-      </div>
-
-      {reiter === "wartende" && <Wartende onGeaendert={() => void laden()} flash={flash} />}
-
-      {reiter !== "wartende" && (
-        <section className="ca-sg-liste">
-          {laedt && <p className="ca-lade">Lade …</p>}
-          {!laedt && tage.length === 0 && (
-            <div className="ca-block"><p className="ca-leer">{reiter === "erledigt" ? "Noch nichts abgeschlossen. Geführte und verpasste Gespräche stehen hier – mit Haken und Uhrzeit." : `Kein offenes Startgespräch. Bezahlte Kunden werden beim ersten Login eingeladen und wählen ihre Zeit selbst.${erledigte.length ? ` ${erledigte.length} bereits bearbeitete stehen unter „Erledigt“.` : ""}`}</p></div>
-          )}
-          {!laedt && tage.map(([datum, liste]) => (
-            <div key={datum}>
-              <span className={`ca-tag-titel${liste[0].heute ? " heute" : ""}`}>{liste[0].heute ? "Heute" : liste[0].datumText}</span>
-              <div className="ca-sg-liste">
-                {liste.map((t) => <SgKarte key={t.id} t={t} offen={offen === t.id} onOeffnen={() => setOffen(offen === t.id ? null : t.id)} onFertig={() => void laden()} onCockpit={() => setCockpit(t)} flash={flash} />)}
-              </div>
-            </div>
-          ))}
-        </section>
-      )}
-
-      {cockpit && (
-        <OnboardingCockpit
-          termin={{ id: cockpit.id, personId: cockpit.personId, name: cockpit.name, telefon: cockpit.telefon ?? null, email: cockpit.email ?? null, beginn: cockpit.beginn, datumText: cockpit.datumText, uhrzeit: cockpit.uhrzeit, dauerMin: cockpit.dauerMin, status: cockpit.status }}
-          onZu={() => setCockpit(null)}
-          onFertig={(m) => { setCockpit(null); flash(`Startgespräch abgeschlossen. ${m || ""}`); void laden(); }}
-          onAnrufen={(nummer, personId, name) => anrufen(nummer, personId, name)}
-        />
-      )}
-    </>
-  );
-}
-
-function SgKarte({ t, offen, onOeffnen, onFertig, onCockpit, flash }: { t: SgTermin; offen: boolean; onOeffnen: () => void; onFertig: () => void; onCockpit: () => void; flash: (text: string, warn?: boolean) => void }) {
-  const [notiz, setNotiz] = useState("");
-  const [busy, setBusy] = useState<string | null>(null);
-  const [verlauf, setVerlauf] = useState<any[] | null>(null);
-  const [notizFehler, setNotizFehler] = useState<string | null>(null);
-  useEffect(() => {
-    if (!offen) return;
-    let weg = false;
-    void api(`/agent/onboarding/person/${t.personId}/verlauf`).then((r) => { if (!weg) setVerlauf(r.ok ? (r.json.verlauf ?? []) : []); });
-    return () => { weg = true; };
-  }, [offen, t.personId]);
-  const notizSpeichern = async () => {
-    const text = notiz.trim();
-    if (text.length < 2) { setNotizFehler("Bitte etwas mehr als ein Zeichen."); return; }
-    setBusy("notiz"); setNotizFehler(null);
-    const r = await api(`/agent/onboarding/person/${t.personId}/notiz`, { method: "POST", body: JSON.stringify({ notiz: text }) });
-    setBusy(null);
-    if (!r.ok) { setNotizFehler(r.json?.error || "Die Notiz wurde nicht gespeichert."); return; }
-    setNotiz(""); setVerlauf(r.json.verlauf ?? []); flash("Notiz gespeichert – sie steht im Verlauf des Kunden.");
-  };
-  const dokumentieren = async (ergebnis: "erledigt" | "verpasst") => {
-    setBusy(ergebnis);
-    const r = await api(`/agent/onboarding/termine/${t.id}/ergebnis`, { method: "POST", body: JSON.stringify({ ergebnis, notiz: notiz.trim() || undefined }) });
-    setBusy(null);
-    if (!r.ok) { flash(r.json?.error || "Nicht gespeichert – bitte erneut versuchen.", true); return; }
-    flash(r.json.hinweis || "Festgehalten."); setNotiz(""); onFertig();
-  };
-  const einladen = async () => {
-    setBusy("einladung");
-    const r = await api(`/agent/onboarding/person/${t.personId}/einladung`, { method: "POST" });
-    setBusy(null);
-    flash(r.ok ? `Einladung verschickt an ${t.email}` : (r.json?.error || r.json?.grund || "Nicht verschickt – bitte später erneut."), !r.ok);
-  };
-  return (
-    <div className={`ca-sg-karte${t.heute ? " heute" : ""}`}>
-      <div className="ca-sg-kopf">
-        <div className="ca-zeit"><b>{t.uhrzeit}</b><small>{t.dauerMin} min</small></div>
-        <div className="ca-wer" onClick={onOeffnen} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter") onOeffnen(); }}>
-          <b>{t.name}</b>
-          <small>
-            {t.terminArtText && <span className="ca-marke blau" style={t.terminArtTon ? { color: t.terminArtTon, borderColor: `${t.terminArtTon}66` } : undefined}>{t.terminArtText}</span>}
-            <span>{t.telefon || "keine Nummer hinterlegt"}</span>
-            {t.status === "erledigt" && <span className="ca-marke kunde"><Check size={10} style={{ marginRight: 3 }} />erledigt{t.erledigtAm ? ` · ${uhr(new Date(t.erledigtAm))}` : ""}</span>}
-            {t.status === "verpasst" && <span className="ca-marke warn">nicht erschienen</span>}
-            {!!t.abgesagtAm && <span className="ca-marke">vom Kunden abgesagt · {zeitTag(t.abgesagtAm)}</span>}
-          </small>
-        </div>
-        <div className="ca-aktion">
-          {t.status === "gebucht" && <button type="button" className="ca-knopf klein" onClick={onCockpit}>Gespräch führen</button>}
-          {t.telefon && <button type="button" className="ca-knopf klein still" onClick={() => anrufen(t.telefon, t.personId, t.name)}><Phone size={14} strokeWidth={1.75} /> Anrufen</button>}
-          <button type="button" className="ca-knopf klein still" onClick={onOeffnen}>{offen ? "Zu" : "Mehr"}</button>
-        </div>
-      </div>
-      {offen && (
-        <div className="ca-sg-auf">
-          <div><span className="ca-sg-titel">Lage des Kunden</span><div className="ca-hell"><LageTafel personId={t.personId} basis="/agent/onboarding/person" /></div></div>
-          {t.status === "gebucht" && (
-            <div>
-              <span className="ca-sg-titel">Ergebnis festhalten</span>
-              <div className="ca-aktion" style={{ justifyContent: "flex-start" }}>
-                <button type="button" className="ca-knopf klein" onClick={onCockpit} disabled={!!busy}>Gespräch führen</button>
-                <button type="button" className="ca-knopf klein still" onClick={() => void dokumentieren("erledigt")} disabled={!!busy}>{busy === "erledigt" ? "…" : "Nachtragen: geführt"}</button>
-                <button type="button" className="ca-knopf klein still" onClick={() => void dokumentieren("verpasst")} disabled={!!busy}>{busy === "verpasst" ? "…" : "Nicht erschienen"}</button>
-                <button type="button" className="ca-knopf klein still" onClick={() => void einladen()} disabled={!!busy}>{busy === "einladung" ? "…" : "Einladung erneut senden"}</button>
-              </div>
-              <p className="ca-lade" style={{ marginTop: 8 }}>„Nicht erschienen“ zählt wie ein erfolgloser Anruf und lädt den Kunden erneut ein.</p>
-            </div>
-          )}
-          <div>
-            <span className="ca-sg-titel">Notiz zum Kunden</span>
-            <textarea className="ca-feld" rows={2} value={notiz} onChange={(e) => { setNotiz(e.target.value); setNotizFehler(null); }} placeholder="Was ist zu wissen? Steht danach im Verlauf des Kunden." aria-label="Notiz zum Kunden" />
-            <div className="ca-form-knoepfe" style={{ marginTop: 8 }}>
-              <button type="button" className="ca-knopf klein still" onClick={() => void notizSpeichern()} disabled={busy === "notiz" || notiz.trim().length < 2}>{busy === "notiz" ? "Speichert …" : "Notiz speichern"}</button>
-              {notizFehler && <small style={{ color: "#f87171" }} role="alert">{notizFehler}</small>}
-            </div>
-            {!verlauf && <p className="ca-lade" style={{ marginTop: 8 }}>Lade Verlauf …</p>}
-            {verlauf && verlauf.length === 0 && <p className="ca-lade" style={{ marginTop: 8 }}>Noch kein Eintrag.</p>}
-            {verlauf && verlauf.length > 0 && <ul className="ca-verlauf-liste">{verlauf.map((v: any, i: number) => <li key={i}><b>{zeitTag(v.am)}</b> · <span>{v.agent_name || "System"}</span>{v.notiz && <> — {v.notiz}</>}</li>)}</ul>}
-          </div>
-          {t.notiz && <p className="ca-notiz">Gesprächsnotiz: {t.notiz}</p>}
-          <Link href={`/agent/kunden?person=${t.personId}`} className="ca-link"><ExternalLink size={14} /> Zur Akte</Link>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Wartende({ onGeaendert, flash }: { onGeaendert: () => void; flash: (text: string, warn?: boolean) => void }) {
-  const [zeilen, setZeilen] = useState<Wartender[] | null>(null);
-  const [fehler, setFehler] = useState<string | null>(null);
-  const [nur, setNur] = useState<"ohne_termin" | "alle">("ohne_termin");
-  const [busy, setBusy] = useState<number | null>(null);
-  const [link, setLink] = useState<Record<number, string>>({});
-  const laden = useCallback(async () => {
-    const r = await api("/agent/onboarding/wartende");
-    if (r.ok) { setZeilen(r.json.wartende || []); setFehler(null); } else setFehler(r.json?.error || `Die Liste kam nicht (HTTP ${r.status}).`);
-  }, []);
-  useEffect(() => { void laden(); }, [laden]);
-  const einladen = async (w: Wartender) => {
-    setBusy(w.personId);
-    const r = await api(`/agent/onboarding/wartende/${w.personId}/einladung`, { method: "POST" });
-    setBusy(null);
-    if (r.json?.terminLink) setLink((l) => ({ ...l, [w.personId]: r.json.terminLink }));
-    if (r.ok) { flash(`Einladung verschickt – ${w.name} hat den Terminlink per E-Mail bekommen.`); void laden(); onGeaendert(); }
-    else flash(r.json?.error || r.json?.grund || "Nicht verschickt – bitte anrufen und den Link durchgeben.", true);
-  };
-  const sichtbar = (zeilen ?? []).filter((w) => nur === "alle" || !w.terminAm);
-  return (
-    <section className="ca-block">
-      <div className="ca-block-kopf">
-        <div><b>Bezahlt, aber noch kein Startgespräch</b><br /><small>Hausweit, nach Wartezeit sortiert. Ohne Termin: Terminlink mit einem Klick. Ohne Reaktion: anrufen.</small></div>
-        <div className="ca-wartend-filter">{([["ohne_termin", "Ohne Termin"], ["alle", "Alle Wartenden"]] as const).map(([k, l]) => <button key={k} type="button" className={nur === k ? "an" : ""} onClick={() => setNur(k)}>{l}</button>)}</div>
-      </div>
-      {fehler && <p className="ca-fehler">{fehler} <button type="button" className="ca-knopf klein still" style={{ marginLeft: 8 }} onClick={() => void laden()}>Noch einmal laden</button></p>}
-      {!zeilen && !fehler && <p className="ca-lade">Lade …</p>}
-      {zeilen && sichtbar.length === 0 && <p className="ca-leer">Niemand wartet{nur === "ohne_termin" ? " ohne Termin" : ""}.</p>}
-      {sichtbar.map((w) => (
-        <div key={w.personId} className="ca-zeile" style={{ gridTemplateColumns: "1fr auto", cursor: "default" }}>
-          <div className="ca-wer">
-            <b>{w.name}</b>
-            <small><span>{w.paket || "Paket"}</span>{w.tage != null && <span>· bezahlt vor {w.tage} {w.tage === 1 ? "Tag" : "Tagen"}</span>}{w.verpasst > 0 && <span>· {w.verpasst}× nicht erschienen</span>}</small>
-            <span className={`ca-stand ${w.terminAm ? "gut" : w.eingeladenAm ? "warn" : "rot"}`}>{w.terminAm ? `Termin gebucht: ${zeitTag(w.terminAm)}` : w.eingeladenAm ? `Eingeladen am ${zeitTag(w.eingeladenAm)} — noch keine Buchung` : "Noch nie eingeladen"}</span>
-            {link[w.personId] && <span className="ca-code">Terminlink zum Durchgeben: {link[w.personId]}</span>}
-          </div>
-          <div className="ca-aktion">
-            {w.telefon && <button type="button" className="ca-knopf klein" onClick={() => anrufen(w.telefon, w.personId, w.name)}><Phone size={14} strokeWidth={1.75} /> Anrufen</button>}
-            {!w.terminAm && <button type="button" className="ca-knopf klein still" disabled={busy === w.personId} onClick={() => void einladen(w)}>{busy === w.personId ? "Sendet …" : w.eingeladenAm ? "Erneut einladen" : "Einladung senden"}</button>}
-            <Link href={`/agent/kunden?person=${w.personId}`} className="ca-knopf klein still">Akte</Link>
-          </div>
-        </div>
-      ))}
-    </section>
   );
 }

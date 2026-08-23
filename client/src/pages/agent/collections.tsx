@@ -87,7 +87,7 @@ function CollectionsInnen() {
 
   if (zugang === "pruefe" || (laedt && !daten)) return <div className="co"><p className="co-laedt" style={{ padding: "40px 0", textAlign: "center" }}>Lade …</p></div>;
   if (zugang === "kein") return <div className="co"><p className="co-leer karte" style={{ marginTop: 40 }}>Dieser Raum ist für Forderungen & Zahlungen reserviert. Dein Konto hat hier keinen Zugang.</p></div>;
-  if (zugang === "offen") return <div className="co"><ZusageTafel basis="/inkasso/zusage" onAngenommen={() => void laden()} /></div>;
+  if (zugang === "offen") return <div className="co"><ZusageTafel basis="/inkasso/zusage" ton="dunkel" onAngenommen={() => void laden()} /></div>;
 
   const liste: Fall[] = daten?.liste ?? []; const menschen: Mensch[] = daten?.personen ?? [];
   // ── E-047/§18 Nr. 8: KEIN WIDERSPRUCH KOPF/LISTE ────────────────────────

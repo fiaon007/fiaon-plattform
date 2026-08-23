@@ -62,7 +62,7 @@ async function api(pfad: string, init?: RequestInit) {
   return { status: res.status, ok: res.ok && json?.ok, json };
 }
 
-export function VertriebZusage({ daten, onAngenommen, basis = "/agent/vertrieb/zusage" }: {
+export function VertriebZusage({ daten, onAngenommen, basis = "/agent/vertrieb/zusage", ton = "hell" }: {
   daten: ZusageDaten; onAngenommen: () => void;
   /**
    * Welcher Bereich seine Erklärung vorlegt. Vertriebsleitung und Onboarding
@@ -70,7 +70,17 @@ export function VertriebZusage({ daten, onAngenommen, basis = "/agent/vertrieb/z
    * Nachweisqualität sind identisch, nur der Text kommt von woanders.
    */
   basis?: string;
+  /**
+   * ── E-047-Nachtrag (Justin, Screenshot Calendar → Startgespräche) ────────
+   * VORHER erschien die Tafel im dunklen Office als heller Fremdkörper, oben
+   * und unten abgeschnitten. NACHHER: `ton="dunkel"` schaltet auf die
+   * Office-Glas-Fassung (zt-Klassen unten) — Wortlaut, Lesesperre,
+   * Unterschrift und der POST der Zusage bleiben unverändert; die alten
+   * hellen Nutzungen (Vertrieb, Alt-Seiten) bleiben unangetastet.
+   */
+  ton?: "hell" | "dunkel";
 }) {
+  const d = ton === "dunkel";
   const reduziert = useReduzierteBewegung();
   const [gelesen, setGelesen] = useState(false);
   const [bisEnde, setBisEnde] = useState(false);
@@ -131,13 +141,17 @@ export function VertriebZusage({ daten, onAngenommen, basis = "/agent/vertrieb/z
            aria-hidden="true" />
       <div className="fixed inset-0 z-[201] flex items-center justify-center p-3 sm:p-6 fi-buehne">
         <div role="dialog" aria-modal="true" aria-labelledby="zusage-titel"
-             className="w-full flex flex-col overflow-hidden"
+             className={`w-full flex flex-col overflow-hidden${d ? " zt-dunkel" : ""}`}
              style={{
                maxWidth: 780,
-               maxHeight: "92vh",
-               background: "var(--fi-karte, #fff)",
+               // `dvh` gegen das Abschneiden am Handy (Browserleisten zählen mit).
+               maxHeight: "min(92vh, 92dvh)",
+               background: d ? "linear-gradient(180deg, rgba(21,31,54,.96), rgba(11,20,38,.97))" : "var(--fi-karte, #fff)",
                borderRadius: 24,
-               boxShadow: "0 40px 120px -24px rgba(13,26,63,.55), inset 0 1px 0 rgba(255,255,255,.7)",
+               border: d ? "1px solid rgba(255,255,255,.12)" : undefined,
+               boxShadow: d
+                 ? "0 40px 120px rgba(2,6,23,.7), 0 0 60px rgba(37,99,235,.18), inset 0 1px 0 rgba(255,255,255,.1)"
+                 : "0 40px 120px -24px rgba(13,26,63,.55), inset 0 1px 0 rgba(255,255,255,.7)",
                animation: reduziert ? "none" : "zusageAuf 620ms cubic-bezier(.32,.72,0,1) both",
                transformStyle: "preserve-3d",
              }}>
@@ -147,20 +161,24 @@ export function VertriebZusage({ daten, onAngenommen, basis = "/agent/vertrieb/z
               zuerst auch die Einleitung — dann blieben vom Leseraum 150 Pixel,
               und die Erklärung, die man lesen SOLL, lag in einem Guckloch. Der
               Fließtext gehört deshalb in den scrollenden Körper. */}
-          <div className="fi-glas px-6 sm:px-9 pt-6 pb-5 shrink-0" style={{ transform: "translateZ(24px)" }}>
-            <p className="text-[10.5px] font-semibold uppercase tracking-[.22em]"
-               style={{ color: "var(--fi-text-still)" }}>
-              {daten.neufassung ? "Neue Fassung" : "Neue Verantwortung"}
-            </p>
-            <h1 id="zusage-titel" className="mt-2 text-[22px] sm:text-[32px] font-bold tracking-tight leading-[1.1]">
-              <span className="fi-gradient-text">{daten.text.gratulation}</span>
+          <div className={`${d ? "zt-kopf" : "fi-glas"} px-6 sm:px-9 pt-6 pb-5 shrink-0`} style={{ transform: "translateZ(24px)" }}>
+            {d ? (
+              <span className="zt-pille">{daten.neufassung ? "Neue Fassung" : "Neue Verantwortung"}</span>
+            ) : (
+              <p className="text-[10.5px] font-semibold uppercase tracking-[.22em]"
+                 style={{ color: "var(--fi-text-still)" }}>
+                {daten.neufassung ? "Neue Fassung" : "Neue Verantwortung"}
+              </p>
+            )}
+            <h1 id="zusage-titel" className={`mt-2 tracking-tight leading-[1.12] ${d ? "zt-titel" : "text-[22px] sm:text-[32px] font-bold"}`}>
+              <span className={d ? "zt-verlauf" : "fi-gradient-text"}>{daten.text.gratulation}</span>
             </h1>
             {/* Haarlinie statt Trennbalken: Die Ebene endet, sie wird nicht zerschnitten. */}
-            <div className="mt-4 sm:mt-5" style={{ height: 1, background: "linear-gradient(90deg, rgba(29,78,216,.28), rgba(15,23,42,.06) 40%, transparent)" }} />
+            <div className="mt-4 sm:mt-5" style={{ height: 1, background: d ? "linear-gradient(90deg, rgba(147,197,253,.4), rgba(147,197,253,.08) 40%, transparent)" : "linear-gradient(90deg, rgba(29,78,216,.28), rgba(15,23,42,.06) 40%, transparent)" }} />
           </div>
 
           {/* ── Körper: massiv, scrollend ──────────────────────────────────── */}
-          <div ref={koerper} className="flex-1 overflow-y-auto px-6 sm:px-9 py-7" style={{ background: "#fff" }}>
+          <div ref={koerper} className="flex-1 overflow-y-auto px-6 sm:px-9 py-7 zt-koerper" style={{ background: d ? "transparent" : "#fff" }}>
 
             <p className="mb-7 text-[13.5px] sm:text-[14.5px] leading-relaxed" style={{ color: "var(--fi-text-leise)" }}>
               {daten.text.einleitung}
@@ -169,10 +187,10 @@ export function VertriebZusage({ daten, onAngenommen, basis = "/agent/vertrieb/z
             <Abschnitt nummer="01" titel="Was du jetzt kannst">
               <div className="grid sm:grid-cols-2 gap-3">
                 {daten.text.kann.map((k, i) => (
-                  <div key={k.titel} className="p-4 rounded-2xl"
+                  <div key={k.titel} className="p-4 rounded-2xl zt-kachel"
                        style={{
                          border: "1px solid var(--fi-linie)",
-                         background: "linear-gradient(180deg, rgba(29,78,216,.026), transparent 60%)",
+                         background: d ? "rgba(255,255,255,.05)" : "linear-gradient(180deg, rgba(29,78,216,.026), transparent 60%)",
                          animation: reduziert ? "none" : `fiKarteAuf 420ms cubic-bezier(.32,.72,0,1) both`,
                          animationDelay: reduziert ? undefined : `${120 + i * 70}ms`,
                        }}>
@@ -229,8 +247,8 @@ export function VertriebZusage({ daten, onAngenommen, basis = "/agent/vertrieb/z
           </div>
 
           {/* ── Fuß: schwebende Ebene, also Glas ───────────────────────────── */}
-          <div className="fi-glas px-6 sm:px-9 py-5 shrink-0"
-               style={{ transform: "translateZ(24px)", boxShadow: "inset 0 1px 0 var(--fi-glas-linie), inset 0 2px 0 rgba(255,255,255,.7)" }}>
+          <div className={`${d ? "zt-fuss" : "fi-glas"} px-6 sm:px-9 py-5 shrink-0`}
+               style={{ transform: "translateZ(24px)", boxShadow: d ? "inset 0 1px 0 rgba(255,255,255,.1)" : "inset 0 1px 0 var(--fi-glas-linie), inset 0 2px 0 rgba(255,255,255,.7)" }}>
             {fertig ? (
               <div className="fi-puls-erfolg rounded-xl px-1 py-1">
                 <p className="text-[14.5px] font-bold">Angenommen.</p>
@@ -263,8 +281,12 @@ export function VertriebZusage({ daten, onAngenommen, basis = "/agent/vertrieb/z
                     <input value={name} onChange={(e) => { setName(e.target.value); setFehler(null); }}
                            disabled={!bisEnde} placeholder={daten.name}
                            autoComplete="off" spellCheck={false}
-                           className={`w-full h-[42px] px-3 rounded-xl bg-white text-[14px] outline-none ${fehler ? "fi-shake" : ""}`}
-                           style={{ border: `1px solid ${fehler ? "var(--fi-tier1)" : "var(--fi-linie)"}` }} />
+                           className={`w-full h-[44px] px-3 rounded-xl text-[14px] outline-none ${d ? "" : "bg-white"} ${fehler ? "fi-shake" : ""}`}
+                           style={{
+                             border: `1px solid ${fehler ? "var(--fi-tier1)" : "var(--fi-linie)"}`,
+                             background: d ? "rgba(255,255,255,.06)" : undefined,
+                             color: d ? "#fff" : undefined,
+                           }} />
                   </label>
                   <button type="button" disabled={!bereit} onClick={() => void annehmen()}
                           className="fi-primaerknopf px-5 h-[42px] text-[13.5px] font-semibold text-white whitespace-nowrap"
@@ -302,6 +324,47 @@ export function VertriebZusage({ daten, onAngenommen, basis = "/agent/vertrieb/z
         }
         @media (prefers-reduced-motion: reduce) {
           @keyframes zusageAuf { from { opacity: 0 } to { opacity: 1 } }
+        }
+        /* ── E-047-Nachtrag: die dunkle Office-Fassung (ton="dunkel") ──────
+           Die Tafel schreibt ihre Farben über die fi-Variablen — im Dunkeln
+           werden sie HIER umgeschaltet, der Aufbau bleibt EINER. */
+        .zt-dunkel {
+          --fi-text: #f1f5f9;
+          --fi-text-leise: #cbd5e1;
+          --fi-text-still: #94a3b8;
+          --fi-linie: rgba(255,255,255,.12);
+          --fi-seite: rgba(255,255,255,.05);
+          --fi-karte: rgba(255,255,255,.05);
+          --fi-primaer: #93c5fd;
+          color: #e5e7eb;
+          font-family: 'Inter', -apple-system, sans-serif;
+        }
+        .zt-dunkel .zt-koerper { scrollbar-width: thin; scrollbar-color: rgba(147,197,253,.3) transparent; }
+        .zt-kopf, .zt-fuss {
+          background: rgba(10,18,36,.72);
+          backdrop-filter: blur(20px) saturate(160%);
+          -webkit-backdrop-filter: blur(20px) saturate(160%);
+        }
+        .zt-kopf { border-bottom: 1px solid rgba(255,255,255,.08); }
+        .zt-fuss { border-top: 1px solid rgba(255,255,255,.08); }
+        .zt-pille {
+          display: inline-block; font: 500 10.5px/1 'Inter', sans-serif;
+          letter-spacing: .16em; text-transform: uppercase; color: #93c5fd;
+          padding: 8px 12px; border: 1px solid rgba(147,197,253,.35); border-radius: 999px;
+        }
+        .zt-titel { font: 300 clamp(24px,4vw,34px)/1.12 'Inter', sans-serif; letter-spacing: -.02em; color: #fff; }
+        .zt-verlauf {
+          background: linear-gradient(90deg, #93c5fd, #3b82f6);
+          -webkit-background-clip: text; background-clip: text; color: transparent;
+        }
+        .zt-dunkel .zt-kachel { box-shadow: inset 0 1px 0 rgba(255,255,255,.06); }
+        .zt-dunkel .zt-kachel p:first-child { color: #fff; font-weight: 500; }
+        .zt-dunkel h2 { color: #fff; font-weight: 500; }
+        .zt-dunkel input[type="checkbox"] { accent-color: #3b82f6; width: 17px; height: 17px; }
+        .zt-dunkel input::placeholder { color: #64748b; }
+        .zt-dunkel .fi-primaerknopf {
+          background: linear-gradient(135deg, #2563eb, #3b82f6);
+          border-radius: 999px; box-shadow: 0 12px 28px rgba(37,99,235,.35); min-height: 44px;
         }
       `}</style>
     </>
@@ -367,7 +430,7 @@ export function useZusage(basis = "/agent/vertrieb/zusage") {
  * Der Vertriebsbereich hat seine eigene Verdrahtung (er braucht den Stand
  * ohnehin für andere Zwecke). Für neue Bereiche genügt diese eine Zeile.
  */
-export function ZusageTafel({ basis, onAngenommen }: { basis: string; onAngenommen: () => void }) {
+export function ZusageTafel({ basis, onAngenommen, ton = "hell" }: { basis: string; onAngenommen: () => void; ton?: "hell" | "dunkel" }) {
   const { zusage, geprueft, erneutPruefen } = useZusage(basis);
   if (!geprueft) return null;
   if (!zusage) { onAngenommen(); return null; }
@@ -375,6 +438,7 @@ export function ZusageTafel({ basis, onAngenommen }: { basis: string; onAngenomm
     <VertriebZusage
       daten={zusage}
       basis={basis}
+      ton={ton}
       onAngenommen={() => { void erneutPruefen(); onAngenommen(); }}
     />
   );

@@ -120,6 +120,8 @@ const AgentMorePage = lazy(() => import("@/pages/agent/more"));
 const AgentSpaceNeuPage = lazy(() => import("@/pages/agent/space-neu")); // Team-Feed neu (Justin 24.08.)
 const AgentOnboardingRaumPage = lazy(() => import("@/pages/agent/onboarding-raum")); // E-051
 const AgentBestandPage = lazy(() => import("@/pages/agent/bestand")); // E-050 Portfolio-Raum
+const ChefPage = lazy(() => import("@/pages/chef")); // E-053 Chefbüro
+const AgentPraesentationPage = lazy(() => import("@/pages/agent/praesentation")); // E-054
 const AgentPipelinePage = lazy(() => import("@/pages/agent/pipeline"));
 const AgentToolsPage = lazy(() => import("@/pages/agent/tools/index"));
 const AgentPaketfinderPage = lazy(() => import("@/pages/agent/tools/paketfinder"));
@@ -409,6 +411,9 @@ function Router() {
       <Route path="/agent/kunden" component={AgentPipelinePage} />
       <Route path="/agent/pipeline" component={AgentPipelinePage} />
       <Route path="/agent/bestand" component={AgentBestandPage} />
+      <Route path="/agent/praesentation" component={AgentPraesentationPage} />
+      <Route path="/chef" component={ChefPage} />
+      <Route path="/chef/:raum" component={ChefPage} />
       <Route path="/agent/kunden-alt" component={AgentKundenNeuPage} />
       <Route path="/agent/tools" component={AgentToolsPage} />
       <Route path="/agent/tools/paketfinder" component={AgentPaketfinderPage} />

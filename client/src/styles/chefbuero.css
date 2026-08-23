@@ -1,0 +1,110 @@
+/* ═══ FIAON Chefbüro — dunkle AdminShell (24.08.2026) ═══
+   Bezug: CHEFBUERO_PLAN_2026-08-24.md §2.3 (E-053), Scheibe 2.
+   Eigener Präfix .cb- ; Formensprache 1:1 aus office.css übernommen,
+   aber bewusst getrennt: office.css bleibt unangetastet. */
+.cb{--cb-blau:#2563eb;--cb-blau-hell:#93c5fd;position:relative;min-height:100vh;color:#e5e7eb;font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:#0a1628}
+.cb-buehne{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.cb-buehne img{width:100%;height:100%;object-fit:cover;opacity:.3;transform:scale(1.03)}
+.cb-schleier{position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,22,40,.74) 0%,rgba(10,22,40,.88) 40%,rgba(10,22,40,.97) 100%),radial-gradient(ellipse at 15% 20%,rgba(37,99,235,.16),transparent 55%)}
+/* Kopf */
+.cb-kopf{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:14px;height:62px;padding:0 18px;background:rgba(10,22,40,.55);backdrop-filter:blur(20px) saturate(160%);-webkit-backdrop-filter:blur(20px) saturate(160%);border-bottom:1px solid rgba(255,255,255,.08)}
+.cb-wort{font:600 18px/1 'Inter',sans-serif;letter-spacing:.08em;color:#fff;text-decoration:none}
+.cb-marke{font:500 10px/1 'Inter',sans-serif;letter-spacing:.16em;text-transform:uppercase;color:var(--cb-blau-hell);padding:5px 9px;border:1px solid rgba(147,197,253,.35);border-radius:999px}
+.cb-kopf-titel{margin-left:10px;min-width:0}
+.cb-kopf-titel b{display:block;font:400 15px/1.2 'Inter',sans-serif;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cb-kopf-titel small{display:block;font-size:11.5px;color:#9ca3af;margin-top:1px}
+.cb-kopf-rechts{margin-left:auto;display:flex;align-items:center;gap:10px}
+/* Suche — Platzhalter, ⌘K kommt in einer späteren Scheibe */
+.cb-suche{display:flex;align-items:center;gap:8px;min-width:200px;padding:8px 12px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#94a3b8;font:400 12.5px/1 'Inter',sans-serif;cursor:default}
+.cb-suche kbd{margin-left:auto;font:500 10px/1 'Inter',sans-serif;color:#64748b;border:1px solid rgba(255,255,255,.14);border-radius:6px;padding:3px 5px}
+/* Stufen-Chip */
+.cb-stufe{display:flex;align-items:center;gap:7px;padding:7px 12px;border-radius:999px;background:linear-gradient(135deg,rgba(37,99,235,.3),rgba(37,99,235,.08));border:1px solid rgba(96,165,250,.35);color:#93c5fd;font:500 11px/1 'Inter',sans-serif;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+.cb-stufe .punkt{width:8px;height:8px;border-radius:50%;background:#34d399;box-shadow:0 0 0 3px rgba(52,211,153,.18)}
+.cb-rund{width:36px;height:36px;border-radius:11px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#cbd5e1;display:grid;place-items:center;cursor:pointer;font-size:15px}
+.cb-rund:hover{background:rgba(255,255,255,.12);color:#fff}
+.cb-burger{display:none;width:40px;height:40px;border-radius:11px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#e5e7eb;place-items:center;cursor:pointer}
+/* Grund: Leiste + Inhalt */
+.cb-grund{position:relative;z-index:1;display:grid;grid-template-columns:236px 1fr;gap:22px;max-width:1440px;margin:0 auto;padding:22px 22px 60px}
+.cb-leiste{position:sticky;top:84px;align-self:start;display:flex;flex-direction:column;gap:4px;padding:10px;border-radius:22px;background:rgba(15,23,42,.5);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(18px) saturate(160%);-webkit-backdrop-filter:blur(18px) saturate(160%);box-shadow:0 20px 50px rgba(2,6,23,.4),inset 0 1px 0 rgba(255,255,255,.08);max-height:calc(100vh - 100px);overflow:auto;scrollbar-width:none}
+.cb-leiste::-webkit-scrollbar{display:none}
+.cb-leiste-titel{font:600 9.5px/1 'Inter',sans-serif;letter-spacing:.16em;text-transform:uppercase;color:#64748b;padding:12px 12px 6px}
+.cb-punkt{position:relative;display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:12px;color:#cbd5e1;text-decoration:none;font:400 13.5px/1.2 'Inter',sans-serif;transition:background .2s,color .2s;border:0;background:transparent;width:100%;text-align:left;cursor:pointer}
+.cb-punkt i{display:grid;place-items:center;width:22px;height:22px;color:#94a3b8;flex:0 0 22px}
+.cb-punkt span{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cb-punkt:hover{background:rgba(255,255,255,.07);color:#fff}
+.cb-punkt:hover i{color:#fff}
+.cb-punkt.an{background:linear-gradient(180deg,#2563EB,#1D4ED8);color:#fff;box-shadow:0 10px 24px rgba(37,99,235,.35)}
+.cb-punkt.an i{color:#fff}
+/* Raum gesperrt (Stufe reicht nicht): ausgegraut, Schloss statt Pfeil */
+.cb-punkt.gesperrt{opacity:.38;cursor:not-allowed}
+.cb-punkt.gesperrt:hover{background:transparent;color:#cbd5e1}
+.cb-punkt .schloss{display:grid;place-items:center;color:#64748b;flex:0 0 16px}
+/* Inhalt (immer dunkel — das Chefbüro liegt direkt auf der Bühne) */
+.cb-inhalt{min-width:0;animation:cbAuf .45s cubic-bezier(.2,.8,.2,1) both}
+@keyframes cbAuf{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+/* Raum-Seite: Kopf + Glas-Kachelliste */
+.cb-pille{display:inline-block;font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.16em;text-transform:uppercase;color:#93c5fd;padding:7px 12px;border:1px solid rgba(147,197,253,.35);border-radius:999px}
+.cb-raum-kopf{margin:14px 0 22px}
+.cb-raum-kopf h1{margin:12px 0 0;font:300 clamp(26px,4vw,38px)/1.12 'Inter',sans-serif;letter-spacing:-.02em;color:#fff}
+.cb-raum-kopf h1 .cb-verlauf{background:linear-gradient(90deg,#93c5fd,#3b82f6);-webkit-background-clip:text;background-clip:text;color:transparent}
+.cb-raum-kopf p{margin:10px 0 0;max-width:640px;font:300 14.5px/1.65 'Inter',sans-serif;color:#cbd5e1}
+.cb-kacheln{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px}
+.cb-kachel{display:flex;align-items:flex-start;gap:14px;padding:18px 18px 16px;border-radius:20px;background:rgba(15,23,42,.6);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);text-decoration:none;color:#e5e7eb;transition:transform .2s,border-color .2s,background .2s}
+.cb-kachel:hover{transform:translateY(-2px);border-color:rgba(96,165,250,.35);background:rgba(15,23,42,.72)}
+.cb-kachel i{display:grid;place-items:center;width:38px;height:38px;flex:0 0 38px;border-radius:12px;background:linear-gradient(135deg,rgba(37,99,235,.3),rgba(37,99,235,.08));border:1px solid rgba(96,165,250,.35);color:#93c5fd}
+.cb-kachel b{display:block;font:500 14px/1.3 'Inter',sans-serif;color:#fff}
+.cb-kachel small{display:block;margin-top:4px;font:300 12.5px/1.55 'Inter',sans-serif;color:#9ca3af}
+.cb-kachel .pfeil{margin-left:auto;align-self:center;color:#64748b;flex:0 0 16px;transition:color .2s,transform .2s}
+.cb-kachel:hover .pfeil{color:#93c5fd;transform:translateX(2px)}
+/* Hinweiskarte (z. B. Raum gesperrt) */
+.cb-hinweis{max-width:560px;padding:24px 22px;border-radius:20px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+.cb-hinweis b{display:flex;align-items:center;gap:9px;font:500 14.5px/1.3 'Inter',sans-serif;color:#fff}
+.cb-hinweis p{margin:8px 0 0;font:300 13.5px/1.6 'Inter',sans-serif;color:#cbd5e1}
+.cb-fehler{margin:8px 0 0;font:400 13px/1.5 'Inter',sans-serif;color:#f87171}
+/* Schublade (Handy) — Muster OfficeShell */
+.cb-schublade-hintergrund{position:fixed;inset:0;z-index:80;background:rgba(2,6,23,.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);opacity:0;pointer-events:none;transition:opacity .3s}
+.cb-schublade-hintergrund.offen{opacity:1;pointer-events:auto}
+.cb-schublade{position:fixed;top:0;left:0;bottom:0;z-index:81;width:min(86vw,330px);display:flex;flex-direction:column;background:rgba(15,23,42,.92);backdrop-filter:blur(24px) saturate(160%);-webkit-backdrop-filter:blur(24px) saturate(160%);border-right:1px solid rgba(255,255,255,.1);transform:translateX(-104%);transition:transform .38s cubic-bezier(.2,.8,.2,1);padding-top:env(safe-area-inset-top)}
+.cb-schublade.offen{transform:none}
+.cb-schublade-kopf{display:flex;align-items:center;gap:10px;padding:16px 14px 10px 18px}
+.cb-schublade-kopf .cb-rund{margin-left:auto}
+.cb-schublade-liste{flex:1;overflow:auto;padding:8px 10px;scrollbar-width:none}
+.cb-schublade-fuss{padding:10px 10px calc(14px + env(safe-area-inset-bottom));border-top:1px solid rgba(255,255,255,.08)}
+.cb-schublade-fuss button{display:flex;align-items:center;gap:12px;width:100%;padding:11px 12px;border-radius:12px;border:0;background:transparent;color:#cbd5e1;font:400 14px/1.2 'Inter',sans-serif;cursor:pointer;text-align:left;min-height:44px}
+/* ═══ Anmeldung (ChefAnmeldung.tsx) ═══ */
+.cb-anmeldung{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;padding:24px;overflow:hidden;background:radial-gradient(1000px 620px at 50% -12%,rgba(37,99,235,.34),transparent 62%),radial-gradient(760px 520px at 108% 108%,rgba(29,78,216,.2),transparent 60%),#070b16}
+.cb-anmeldung-karte{position:relative;width:100%;max-width:400px;padding:34px 28px 26px;border-radius:26px;background:linear-gradient(180deg,rgba(255,255,255,.12) 0%,rgba(255,255,255,.05) 100%);backdrop-filter:blur(26px) saturate(180%);-webkit-backdrop-filter:blur(26px) saturate(180%);border:1px solid rgba(255,255,255,.16);box-shadow:inset 0 1px 0 rgba(255,255,255,.28),0 30px 80px rgba(3,7,18,.62);animation:cbAuf .46s cubic-bezier(.32,.72,0,1) both}
+.cb-anmeldung-marke{font:800 22px/1 'Inter',sans-serif;letter-spacing:-.02em;color:#fff;text-align:center}
+.cb-anmeldung-unter{margin-top:5px;font:700 10px/1 'Inter',sans-serif;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.44);text-align:center}
+.cb-anmeldung-satz{margin:16px 0 0;font:300 13px/1.55 'Inter',sans-serif;color:rgba(255,255,255,.62);text-align:center}
+.cb-anmeldung form{margin-top:20px;display:grid;gap:12px}
+.cb-feld{display:grid;gap:6px}
+.cb-feld label{font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#93c5fd}
+.cb-feld input{min-height:46px;padding:0 14px;border-radius:13px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#fff;font:400 14.5px/1 'Inter',sans-serif;outline:none;transition:border-color .2s,background .2s}
+.cb-feld input::placeholder{color:#64748b}
+.cb-feld input:focus{border-color:rgba(96,165,250,.55);background:rgba(255,255,255,.09)}
+.cb-anmeldung-knopf{margin-top:6px;min-height:48px;border-radius:999px;border:0;background:linear-gradient(135deg,#2563eb,#3b82f6);color:#fff;font:500 14.5px/1 'Inter',sans-serif;cursor:pointer;box-shadow:0 12px 28px rgba(37,99,235,.35)}
+.cb-anmeldung-knopf:disabled{opacity:.55;cursor:wait}
+.cb-anmeldung-fehler{min-height:18px;margin:4px 0 0;font:600 12.5px/1.45 'Inter',sans-serif;color:#fca5a5;text-align:center}
+.cb-anmeldung-fuss{margin-top:16px;font:400 11px/1.5 'Inter',sans-serif;color:rgba(255,255,255,.36);text-align:center}
+.cb-anmeldung-fuss a{color:rgba(255,255,255,.62);text-decoration:none}
+.cb-anmeldung-fuss a:hover{color:#fff}
+/* ═══ Handy ═══ */
+@media(max-width:960px){
+  .cb-grund{grid-template-columns:1fr;padding:14px 12px 40px}
+  .cb-leiste{display:none}
+  .cb-burger{display:grid}
+  .cb{overflow-x:hidden}
+  .cb-kopf{gap:8px;padding:0 10px;height:58px}
+  .cb-kopf .cb-marke{display:none}
+  .cb-kopf-titel{display:none}
+  .cb-suche{display:none}
+  .cb-kopf-rechts{gap:6px}
+}
+@media(max-width:700px){
+  .cb-kacheln{grid-template-columns:1fr}
+  .cb-stufe{padding:6px 10px;font-size:10px}
+  .cb-anmeldung-karte{padding:28px 20px 20px}
+}
+@media(min-width:961px){.cb-schublade,.cb-schublade-hintergrund{display:none}}
+@media(prefers-reduced-motion:reduce){.cb-inhalt,.cb-schublade,.cb-anmeldung-karte{animation:none;transition:none}}

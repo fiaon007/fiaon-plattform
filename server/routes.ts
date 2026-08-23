@@ -425,6 +425,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/fiaon', fiaonOfficeEinfuehrung.default);
   const fiaonOfficeTermintreue = await import('./routes/fiaon-office-termintreue');
   app.use('/api/fiaon', fiaonOfficeTermintreue.default);
+  // Chefbüro (E-053): persönliche Admin-Sitzungen mit Stufen; /chef/* läuft
+  // bewusst VOR blockAgentsFromAdmin/adminCodeGate (Pfade beginnen nicht mit /admin).
+  const fiaonChefZugang = await import('./routes/fiaon-chef-zugang');
+  app.use('/api/fiaon', fiaonChefZugang.default);
 
   const fiaonZugangRetten = await import('./routes/fiaon-zugang-retten');
   app.use('/api/fiaon', fiaonZugangRetten.default);

@@ -28,6 +28,8 @@ function kopfEinsetzen(html: string, kopf: { titel: string; beschreibung: string
   out = out.replace(/<meta name="description" content="[^"]*"\s*\/?>/, `<meta name="description" content="${esc(kopf.beschreibung)}" />`);
   out = out.replace(/<meta property="og:url" content="[^"]*"\s*\/?>/, `<meta property="og:url" content="${esc(kopf.url)}" />`);
   out = out.replace(/<meta property="og:title" content="[^"]*"\s*\/?>/, `<meta property="og:title" content="${esc(kopf.titel)}" />`);
+  out = out.replace(/<meta name="twitter:title" content="[^"]*"\s*\/?>/, `<meta name="twitter:title" content="${esc(kopf.titel)}" />`);
+  out = out.replace(/<meta name="twitter:description" content="[^"]*"\s*\/?>/, `<meta name="twitter:description" content="${esc(kopf.beschreibung)}" />`);
   out = out.replace(/<meta property="og:description" content="[^"]*"\s*\/?>/, `<meta property="og:description" content="${esc(kopf.beschreibung)}" />`);
   if (kopf.og?.type) out = out.replace(/<meta property="og:type" content="[^"]*"\s*\/?>/, `<meta property="og:type" content="${esc(kopf.og.type)}" />`);
   const extra = [`<link rel="canonical" href="${esc(kopf.url)}" />`, `<meta name="robots" content="index,follow,max-image-preview:large" />`,

@@ -95,7 +95,7 @@ export default function PremiumFooter() {
                 ["/presse", "Presse"],
                 ["/investoren", "Investoren"],
                 ["/datenraum", "Datenraum (Due Diligence)"],
-                ["mailto:support@fiaon.com", "Kontakt & Support"],
+                ["/kontakt", "Kontakt & Support"],
               ].map(([href, label]) => (
                 <li key={href}>
                   <a href={href} className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">{label}</a>

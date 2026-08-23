@@ -135,6 +135,10 @@ const SiteKarriere = lazy(() => import("@/pages/site/karriere"));
 const SiteTeam = lazy(() => import("@/pages/site/team"));
 const SiteDemo = lazy(() => import("@/pages/site/demo"));
 const SiteRatgeber = lazy(() => import("@/pages/site/ratgeber"));
+const SiteKontakt = lazy(() => import("@/pages/site/kontakt"));
+const WzLoeschfrist = lazy(() => import("@/pages/site/werkzeuge/loeschfrist"));
+const WzInkassokosten = lazy(() => import("@/pages/site/werkzeuge/inkassokosten"));
+const WzVerjaehrung = lazy(() => import("@/pages/site/werkzeuge/verjaehrung"));
 const SitePrivatkunden = lazy(() => import("@/pages/site/privatkunden"));
 const SiteEintragPruefen = lazy(() => import("@/pages/site/werkzeuge/eintrag-pruefen"));
 const SiteSelbstauskunft = lazy(() => import("@/pages/site/werkzeuge/selbstauskunft"));
@@ -185,6 +189,10 @@ function Router() {
       <Route path="/team" component={SiteTeam} />
       <Route path="/demo" component={SiteDemo} />
       <Route path="/ratgeber" component={SiteRatgeber} />
+      <Route path="/kontakt" component={SiteKontakt} />
+      <Route path="/werkzeuge/loeschfrist" component={WzLoeschfrist} />
+      <Route path="/werkzeuge/inkassokosten" component={WzInkassokosten} />
+      <Route path="/werkzeuge/verjaehrung" component={WzVerjaehrung} />
       <Route path="/werkzeuge/eintrag-pruefen" component={SiteEintragPruefen} />
       <Route path="/werkzeuge/selbstauskunft" component={SiteSelbstauskunft} />
       <Route path="/ratgeber/:slug" component={SiteRatgeberArtikel} />

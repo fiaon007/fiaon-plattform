@@ -130,3 +130,24 @@
 .rg-artikel-hero .dk-lead{font-size:16px;color:#cbd5e1;max-width:62ch}
 .rg-meta{font-size:12.5px}
 @media(max-width:640px){.rg-tabelle td:first-child{white-space:normal}}
+/* ── Werkzeuge, zweite Runde (23.08.): Felder, Tabellen, Knöpfe, kurze Heldenbühne ── */
+.dk-hero.kurz{min-height:auto;padding:140px 0 60px}
+.dk-hero.kurz .dk-lead{max-width:58ch}
+.wz-felder{display:grid;gap:12px;margin-top:14px;max-width:520px}
+.wz-felder.drei{grid-template-columns:1fr 1fr;max-width:none}
+.wz-felder label{display:grid;gap:6px}
+.wz-felder label span{font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#64748b}
+.wz-felder input{padding:12px 14px;border-radius:12px;border:1px solid rgba(15,23,42,.14);font:inherit;font-size:16px;color:#0f172a;background:#fff;outline:none;min-height:46px}
+.wz-felder input:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.14)}
+.wz-optionen.zwei{grid-template-columns:1fr 1fr}
+.wz-option b{display:block;font-weight:500}
+.wz-option small{display:block;margin-top:3px;font-size:12.5px;color:#64748b;font-weight:300}
+.wz-option.an small{color:rgba(255,255,255,.8)}
+.wz-ergebnis.alarm{border-color:#b91c1c}
+.wz-ergebnis.gut{border-color:#047857}
+.wz-tabelle{width:100%;border-collapse:collapse;margin:14px 0 6px;font-size:14px}
+.wz-tabelle td{padding:9px 0;border-bottom:1px solid rgba(15,23,42,.08);color:#334155}
+.wz-tabelle td:last-child{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;color:#0f172a}
+.wz-tabelle tr.summe td{border-bottom:0;font-weight:500;color:#0f172a;padding-top:12px}
+.wz-knoepfe{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+@media(max-width:640px){.wz-felder.drei,.wz-optionen.zwei{grid-template-columns:1fr}.dk-hero.kurz{padding:110px 0 40px}}

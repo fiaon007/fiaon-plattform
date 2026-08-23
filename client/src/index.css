@@ -1159,3 +1159,8 @@ html {
 @keyframes kpDreh { to { transform: rotate(360deg); } }
 @media (max-width: 640px) { .kp-wrap { left: 12px; right: 12px; bottom: 12px; } .kp-karte { width: 100%; } }
 @media (prefers-reduced-motion: reduce) { .kp-wrap, .kp-kugel img, .kp-karte::after { animation: none; } }
+
+/* ── Kein Zoomen am Handy (Justin, 23.08.2026): iOS ignoriert user-scalable=no seit Jahren —
+   touch-action sperrt die Zwei-Finger-Geste und den Doppeltipp. Eingaben bleiben 16 px. ── */
+html, body { touch-action: pan-x pan-y; -webkit-text-size-adjust: 100%; }
+a, button, input, select, textarea, label { touch-action: manipulation; }

@@ -20,7 +20,11 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const CRONS_AN =
-  process.env.NODE_ENV === "production" || String(process.env.CRONS || "").toLowerCase() === "an";
+  // CRONS=aus schaltet die Läufe auch in Produktion ab — nötig beim Umzug (23.08.2026):
+  // Der neue Frankfurt-Service läuft vor der Umschaltung auf einer Datenkopie und darf
+  // keine Erinnerungen, Mails oder Buchungen doppelt auslösen.
+  String(process.env.CRONS || "").toLowerCase() !== "aus" &&
+  (process.env.NODE_ENV === "production" || String(process.env.CRONS || "").toLowerCase() === "an");
 
 let gemeldet = false;
 

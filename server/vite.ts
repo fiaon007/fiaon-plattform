@@ -85,7 +85,15 @@ export function serveStatic(app: Express) {
     );
   }
 
-  app.use(express.static(distPath));
+  // Gehashte Bauartefakte dürfen lange im Browser bleiben; index.html NIE — sonst
+  // lädt ein Handy nach einem Deploy noch tagelang das alte Bündel (23.08.2026).
+  app.use(express.static(distPath, {
+    maxAge: "30d",
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith(".html")) res.setHeader("Cache-Control", "no-cache, must-revalidate");
+      else if (/\/assets\//.test(filePath)) res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    },
+  }));
 
   // fall through to index.html if the file doesn't exist
   // CRITICAL: Never serve index.html for /api/* routes - they must return JSON 404
@@ -97,6 +105,7 @@ export function serveStatic(app: Express) {
         path: req.originalUrl,
       });
     }
+    res.setHeader("Cache-Control", "no-cache, must-revalidate");
     res.sendFile(path.resolve(distPath, "index.html"));
   });
 }

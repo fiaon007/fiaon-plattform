@@ -26,7 +26,24 @@ export function FlugHero({ knoepfe }: { knoepfe: ReactNode }) {
   const [moment, setMoment] = useState(0);
   const [vorher, setVorher] = useState<number | null>(null);
   const ruhe = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-  const handy = typeof window !== "undefined" && window.innerWidth < 768;
+  // Die Höhe kommt aus dem echten Fenster — 100svh lief im Handy-Browser aus dem Ruder
+  // (gemessen: 2.194 px statt 844) und schob den Text „viel zu weit nach unten".
+  // Am Handy wird nur bei Breitenänderung (Drehen) neu gemessen, nicht beim Ein- und
+  // Ausfahren der Adressleiste — sonst springt die Bühne beim Scrollen.
+  const [hoehe, setHoehe] = useState(() => (typeof window !== "undefined" ? window.innerHeight : 800));
+  useEffect(() => {
+    let breite = window.innerWidth;
+    const fn = () => { if (window.innerWidth < 768 && window.innerWidth === breite) return; breite = window.innerWidth; setHoehe(window.innerHeight); };
+    window.addEventListener("resize", fn); window.addEventListener("orientationchange", fn);
+    return () => { window.removeEventListener("resize", fn); window.removeEventListener("orientationchange", fn); };
+  }, []);
+  // Hochkant-Fassung am Handy — und zwar nach dem tatsächlichen Fenster, auch wenn es sich dreht.
+  const [handy, setHandy] = useState(() => typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const fn = () => setHandy(mq.matches);
+    mq.addEventListener("change", fn); return () => mq.removeEventListener("change", fn);
+  }, []);
 
   useEffect(() => { landErkennen().then((l) => { if (l && (LAENDER as readonly string[]).includes(l)) setLand(l); }).catch(() => {}); }, []);
   const landWaehlen = (l: string) => { setLand(l); try { sessionStorage.setItem("fiaon_land", l); } catch { /* egal */ } };
@@ -40,15 +57,19 @@ export function FlugHero({ knoepfe }: { knoepfe: ReactNode }) {
   // Video: stumm, in Schleife, nur sichtbar laufen lassen
   useEffect(() => {
     const v = videoRef.current; if (!v) return;
-    v.muted = true; v.defaultMuted = true; v.setAttribute("muted", "");
-    const spielen = () => { if (!ruhe) v.play().catch(() => {}); };
+    v.muted = true; v.defaultMuted = true; v.setAttribute("muted", ""); v.setAttribute("playsinline", ""); v.setAttribute("webkit-playsinline", "");
+    const spielen = () => { if (!ruhe && v.paused) v.play().catch(() => {}); };
+    v.addEventListener("loadeddata", spielen);
+    // iOS im Stromsparmodus spielt erst nach einer Berührung — die erste genügt.
+    const beruehrt = () => { spielen(); window.removeEventListener("touchstart", beruehrt); };
+    window.addEventListener("touchstart", beruehrt, { passive: true });
     const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) spielen(); else v.pause(); }, { threshold: 0.05 });
     io.observe(v);
     const sicht = () => { if (document.hidden) v.pause(); else spielen(); };
     document.addEventListener("visibilitychange", sicht);
     spielen();
-    return () => { io.disconnect(); document.removeEventListener("visibilitychange", sicht); };
-  }, [ruhe]);
+    return () => { io.disconnect(); document.removeEventListener("visibilitychange", sicht); v.removeEventListener("loadeddata", spielen); window.removeEventListener("touchstart", beruehrt); };
+  }, [ruhe, handy]);
 
   // Textmomente: alle sechs Sekunden weiter (nicht bei reduzierter Bewegung, nicht im Hintergrund)
   useEffect(() => {
@@ -65,7 +86,7 @@ export function FlugHero({ knoepfe }: { knoepfe: ReactNode }) {
   const aktuell = MOMENTE[moment];
 
   return (
-    <section className="flug flug-film">
+    <section className="flug flug-film" style={{ height: Math.max(560, hoehe) }}>
       <img className="flug-poster" src={handy ? "/kino/flug-start-m.jpg" : "/kino/flug-start.jpg"} alt="" aria-hidden="true" style={{ opacity: bereit ? 0 : 1 }} decoding="async" fetchPriority="high" />
       <video ref={videoRef} className="flug-video" src={handy ? "/kino/flug-m.mp4" : "/kino/flug.mp4"} muted loop playsInline autoPlay preload="auto"
              onPlaying={() => setBereit(true)} onCanPlay={() => setBereit(true)} style={{ opacity: bereit ? 1 : 0 }} aria-hidden="true" />

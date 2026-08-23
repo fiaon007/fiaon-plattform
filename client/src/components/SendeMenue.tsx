@@ -236,7 +236,7 @@ export function SendeMenue({
                         {e.klartext}
                       </p>
                     </div>
-                    <Ampel e={e} />
+                    <Ampel e={e} dunkel={dunkel} />
                   </div>
 
                   {/* Der Grund im Klartext — nicht als Wolke am Mauszeiger,
@@ -250,7 +250,7 @@ export function SendeMenue({
                   <div className="mt-2.5 pt-2.5 flex flex-wrap items-center gap-2"
                        style={{ borderTop: "1px solid var(--fi-linie)" }}>
                     <span className="text-[10.5px] font-semibold" title={e.verifikationsText}
-                          style={{ color: e.verifikation === "bestaetigt" ? "#059669" : "var(--fi-text-still)" }}>
+                          style={{ color: e.verifikation === "bestaetigt" ? (dunkel ? "#34d399" : "#059669") : "var(--fi-text-still)" }}>
                       {e.verifikation === "bestaetigt" ? "Zweig bestätigt"
                         : e.verifikation === "nicht_bestaetigt" ? "Zweig nicht bestätigt"
                         : "Zweig ungeprüft"}
@@ -280,7 +280,7 @@ export function SendeMenue({
               <div key={h.id} className="py-1.5 text-[12px] flex flex-wrap items-baseline gap-x-2"
                    style={{ boxShadow: "inset 0 -1px 0 var(--fi-linie)" }}>
                 <span className="font-semibold">{h.titel}</span>
-                <span style={{ color: h.status === "versandt" ? "#059669" : "#b45309" }}>
+                <span style={{ color: h.status === "versandt" ? (dunkel ? "#34d399" : "#059669") : (dunkel ? "#fcd34d" : "#b45309") }}>
                   {h.zustellung
                     ? h.zustellung
                     : h.status === "versandt" ? "angenommen" : h.status === "uebersprungen" ? "übersprungen" : "fehlgeschlagen"}

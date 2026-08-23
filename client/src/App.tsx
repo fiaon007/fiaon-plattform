@@ -120,7 +120,7 @@ const AgentMorePage = lazy(() => import("@/pages/agent/more"));
 const AgentSpaceNeuPage = lazy(() => import("@/pages/agent/space-neu")); // Team-Feed neu (Justin 24.08.)
 const AgentOnboardingRaumPage = lazy(() => import("@/pages/agent/onboarding-raum")); // E-051
 // E-050: bestand.tsx kommt aus der laufenden Baustelle – bis dahin zeigt /agent/bestand auf die Pipeline.
-const AgentBestandPage = AgentPipelinePage;
+const AgentBestandPage = lazy(() => import("@/pages/agent/pipeline"));
 const AgentPipelinePage = lazy(() => import("@/pages/agent/pipeline"));
 const AgentToolsPage = lazy(() => import("@/pages/agent/tools/index"));
 const AgentPaketfinderPage = lazy(() => import("@/pages/agent/tools/paketfinder"));

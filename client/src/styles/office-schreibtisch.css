@@ -1,6 +1,7 @@
 /* ═══ Schreibtisch (Raum 1) ═══ */
 .st{display:grid;gap:18px;max-width:1180px;margin:0 auto;color:#e5e7eb}
 .st-pille{display:inline-block;font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.16em;text-transform:uppercase;color:#93c5fd;padding:8px 12px;border:1px solid rgba(147,197,253,.35);border-radius:999px;margin-bottom:14px}
+.st-pille .st-uhr{font-style:normal;color:#fff;margin-left:8px;padding-left:10px;border-left:1px solid rgba(147,197,253,.35);font-variant-numeric:tabular-nums;letter-spacing:.08em}
 .st-verlauf{background:linear-gradient(90deg,#93c5fd,#3b82f6);-webkit-background-clip:text;background-clip:text;color:transparent}
 .st-kopf{display:grid;grid-template-columns:1fr 300px;gap:24px;align-items:end;padding:30px 0 4px}
 .st-kopf h1{margin:0;font:300 clamp(30px,4.2vw,50px)/1.08 'Inter',sans-serif;letter-spacing:-.03em;color:#fff}

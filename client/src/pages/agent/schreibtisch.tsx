@@ -42,14 +42,17 @@ function SchreibtischInnen() {
   const termineSpaeter = useMemo(() => termine.filter((t) => new Date(t.beginn).toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" }) > heute).slice(0, 5), [termine, heute]);
   const zusagen: any[] = start?.zusagen || [];
   const v = start?.verdienst || {}; const k = start?.kunden || {};
-  const datum = new Date().toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long", timeZone: "Europe/Berlin" });
+  const [jetzt, setJetzt] = useState(() => new Date());
+  useEffect(() => { const i = setInterval(() => setJetzt(new Date()), 1_000); return () => clearInterval(i); }, []); // Uhr live (Justin 23.08.)
+  const datum = jetzt.toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long", timeZone: "Europe/Berlin" });
+  const uhrzeit = jetzt.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Europe/Berlin" });
   const naechster = termineHeute.find((t) => new Date(t.beginn).getTime() > Date.now() - 15 * 60000);
 
   return (
     <div className="st">
       <section className="st-kopf">
         <div>
-          <span className="st-pille">{datum}</span>
+          <span className="st-pille">{datum} <i className="st-uhr">{uhrzeit}</i></span>
           <h1>{termineHeute.length ? <>Heute <span className="st-verlauf">{termineHeute.length} {termineHeute.length === 1 ? "Gespräch" : "Gespräche"}</span>{zusagen.length ? <> und {zusagen.length} Rückrufe.</> : "."}</> : zusagen.length ? <>Heute <span className="st-verlauf">{zusagen.length} Rückrufe</span>.</> : <>Ein ruhiger Tag – <span className="st-verlauf">Zeit für neue Kunden.</span></>}</h1>
           <p>{naechster ? <>Als Nächstes: <b>{uhr(naechster.beginn)} Uhr – {naechster.name}</b>. Die Akte liegt bereit.</> : "Alles, was heute zählt, steht hier in Reihenfolge. Ein Klick: anrufen oder Akte."}</p>
         </div>

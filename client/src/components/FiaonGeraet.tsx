@@ -185,9 +185,15 @@ const GERAET_CSS = `
 
      Deshalb: Sobald ein Ruf aufgebaut wird, geht die Weichzeichnung aus. Eine
      matte Fläche sieht ein wenig schlichter aus; ein knackendes Gespräch
-     kostet einen Kunden. */
-  transition: backdrop-filter 200ms, background 200ms;
-  animation: fiGerAuf 320ms ease both;
+     kostet einen Kunden.
+
+     ── KEIN ÜBERGANG AUF DEM FILTER (24.08.2026) ──────────────────────────
+     Hier stand `transition: backdrop-filter 200ms, background 200ms`. Eine
+     ANIMIERTE Weichzeichnung über den ganzen Bildschirm ist das Teuerste,
+     was CSS zu vergeben hat — beim Umschalten in den Sparmodus zeichnete der
+     Browser 200 ms lang Zwischenstufen des Blurs. Der Wechsel ist jetzt
+     hart; das sieht niemand, aber jeder spürt es. */
+  animation: fiGerAuf 200ms ease both;
 }
 @keyframes fiGerAuf { from { opacity: 0 } to { opacity: 1 } }
 
@@ -224,7 +230,10 @@ const GERAET_CSS = `
     inset -1.5px 0 0 rgba(0,0,0,.3);
   transform: translateZ(-180px) rotateX(9deg) scale(.94);
   opacity: 0;
-  transition: transform 620ms cubic-bezier(.22,.68,0,1), opacity 380ms ease;
+  /* 24.08.2026: 620/380 ms → 200 ms. Justin: „die Bedienung ist zäh." Der
+     Auftritt aus der Tiefe bleibt (transform/opacity, einmalig) — er dauert
+     nur nicht mehr länger als ein Wimpernschlag. */
+  transition: transform 200ms cubic-bezier(.22,.68,0,1), opacity 200ms ease;
 }
 .fi-ger-koerper[data-drin="1"] { transform: none; opacity: 1; }
 
@@ -381,16 +390,24 @@ export function FiaonTastatur({
 }
 
 const TASTATUR_CSS = `
+/* ── ENGER AUF DEM RECHNER (24.08.2026, Plan §4/§11) ───────────────────────
+   VORHER: Kreise mit aspect-ratio 1 in einem 292-px-Raster — vier Reihen
+   waren zusammen rund 380 px hoch, und die Wählansicht wuchs am PC über die
+   Panelhöhe („am PC muss/kann ich darin scrollen"). NACHHER: flache Pillen
+   mit fester Höhe 54 px — vier Reihen sind ~243 px, die Ansicht passt bei
+   900 px Fensterhöhe ohne Rollen. Beschriftung, Reihenfolge, Rütteln und
+   das Einsinken beim Drücken sind unverändert; das Handy (≤ 700 px) hatte
+   seine flachen Tasten schon und behält sie über den Media-Block unten. */
 .fi-tast {
   display: grid; grid-template-columns: repeat(3, 1fr);
-  gap: 14px 20px; margin: 0 auto; max-width: 292px;
+  gap: 9px 16px; margin: 0 auto; max-width: 286px;
   position: relative;
 }
-.fi-tast-klein { gap: 9px 14px; max-width: 250px; }
+.fi-tast-klein { gap: 8px 12px; max-width: 250px; }
 
 .fi-tast-taste {
   position: relative;
-  aspect-ratio: 1; border: 0; cursor: pointer; border-radius: 999px;
+  height: 54px; border: 0; cursor: pointer; border-radius: 999px;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 1px; color: #eef3fb;
   /* Eine Taste hat oben Licht und unten Schatten — sonst ist es ein Kreis. */
@@ -401,7 +418,7 @@ const TASTATUR_CSS = `
     0 6px 14px -8px rgba(0,0,0,.7);
   transition: background 120ms, box-shadow 140ms, transform 90ms;
 }
-.fi-tast-klein .fi-tast-taste { aspect-ratio: 1.28; }
+.fi-tast-klein .fi-tast-taste { height: 44px; }
 .fi-tast-taste:hover { background: linear-gradient(178deg, rgba(255,255,255,.2), rgba(255,255,255,.1)); }
 /* Beim Drücken SINKT die Taste ein und der Schatten darunter verschwindet.
    Das ist der ganze Unterschied zwischen „Fläche" und „Knopf". */
@@ -411,10 +428,10 @@ const TASTATUR_CSS = `
   box-shadow: inset 0 2px 6px rgba(0,0,0,.5);
 }
 .fi-tast-ziffer {
-  font-size: 27px; font-weight: 400; line-height: 1;
+  font-size: 23px; font-weight: 400; line-height: 1;
   letter-spacing: -.01em; font-variant-numeric: tabular-nums;
 }
-.fi-tast-klein .fi-tast-ziffer { font-size: 21px; }
+.fi-tast-klein .fi-tast-ziffer { font-size: 20px; }
 .fi-tast-buchstaben {
   font-size: 9.5px; font-weight: 600; letter-spacing: .16em;
   color: rgba(191,214,247,.62); text-transform: uppercase;

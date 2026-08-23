@@ -152,8 +152,19 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
 /* ═══ Die Akte (Glas-Lade) ═══ */
 .pi-lade-hintergrund{position:fixed;inset:0;z-index:60;background:rgba(2,6,23,.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);animation:piEin .25s ease both}
 @keyframes piEin{from{opacity:0}to{opacity:1}}
-.pi-lade{position:fixed;top:0;right:0;bottom:0;z-index:61;width:min(100vw,760px);display:flex;flex-direction:column;background:linear-gradient(180deg,rgba(17,26,46,.94),rgba(10,22,40,.96));border-left:1px solid rgba(255,255,255,.12);backdrop-filter:blur(28px) saturate(160%);-webkit-backdrop-filter:blur(28px) saturate(160%);box-shadow:-30px 0 80px rgba(2,6,23,.6);animation:piSchieb .38s cubic-bezier(.2,.8,.2,1) both;color:#e5e7eb;padding-top:env(safe-area-inset-top)}
+/* E-049 Nr. 1 (Justin, Screenshot): VORHER war die Lade eine Flex-Spalte
+   (Kopf, Reiter, scrollender Körper) — in der Praxis scrollte der Kopf mit
+   aus dem Bild, nur die Reiter blieben (alte Handy-sticky-Regel griff nur
+   auf die Tabs). NACHHER ist die LADE SELBST der Scroll-Container; Kopf und
+   Reiter sitzen zusammen in .pi-lade-fest (sticky, top:0, Glas + Blur,
+   safe-area wandert vom Ladenrand in den festen Block) und bleiben immer
+   sichtbar; der Inhalt scrollt darunter. z-Ordnung: .pi-lade (z 61) liegt
+   über .of-kopf (z 30, office.css); innerhalb der Lade liegt .pi-lade-fest
+   (z 30) über dem Inhalt, das Handy-Bottom-Sheet .pi-mehr-menue (z 75)
+   weiter darüber. */
+.pi-lade{position:fixed;top:0;right:0;bottom:0;z-index:61;width:min(100vw,760px);overflow-y:auto;overscroll-behavior:contain;background:linear-gradient(180deg,rgba(17,26,46,.94),rgba(10,22,40,.96));border-left:1px solid rgba(255,255,255,.12);backdrop-filter:blur(28px) saturate(160%);-webkit-backdrop-filter:blur(28px) saturate(160%);box-shadow:-30px 0 80px rgba(2,6,23,.6);animation:piSchieb .38s cubic-bezier(.2,.8,.2,1) both;color:#e5e7eb}
 @keyframes piSchieb{from{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}
+.pi-lade-fest{position:sticky;top:0;z-index:30;background:linear-gradient(180deg,rgba(15,24,44,.97),rgba(12,20,38,.93));backdrop-filter:blur(24px) saturate(160%);-webkit-backdrop-filter:blur(24px) saturate(160%);padding-top:env(safe-area-inset-top);box-shadow:0 10px 30px rgba(2,6,23,.35)}
 .pi-lade-kopf{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:start;padding:18px 20px 14px;border-bottom:1px solid rgba(255,255,255,.08)}
 /* E-046: VORHER umbrach der Name dreizeilig (Screenshot 604px) – NACHHER
    einzeilig mit Ellipsis, Status-Chips als eine rollbare Zeile. */
@@ -164,7 +175,8 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
 .pi-lade-glut{display:grid;place-items:center;width:26px;height:26px;margin-top:4px}
 .pi-lade-zu{width:40px;height:40px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#cbd5e1;display:grid;place-items:center;cursor:pointer}
 .pi-lade-zu:disabled{opacity:.35;cursor:default}
-.pi-lade-koerper{flex:1;overflow-y:auto;padding:16px 20px 40px;display:grid;gap:14px;align-content:start;overscroll-behavior:contain}
+/* E-049 Nr. 1: VORHER flex:1 + eigener Scroll — NACHHER scrollt die Lade selbst. */
+.pi-lade-koerper{padding:16px 20px 40px;display:grid;gap:14px;align-content:start}
 .pi-block{padding:16px 18px;border-radius:18px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);display:grid;gap:10px}
 .pi-block.hervor{background:linear-gradient(135deg,rgba(37,99,235,.26),rgba(37,99,235,.06));border-color:rgba(96,165,250,.35)}
 .pi-block.warn{background:rgba(217,119,6,.08);border-color:rgba(251,191,36,.3)}
@@ -186,6 +198,14 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
 .pi-sperre{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:0 14px;border-radius:999px;background:rgba(217,119,6,.14);border:1px solid rgba(251,191,36,.35);color:#fde68a;font:500 12.5px/1 'Inter',sans-serif}
 .pi-luecke{font-size:12px;color:#9ca3af;line-height:1.5}
 .pi-luecke-link{font-size:11.5px;color:#cbd5e1;word-break:break-all;padding:8px 10px;border-radius:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12)}
+/* E-049 Nr. 2: VORHER zwei fast gleiche Textzeilen („fehlen noch: …" +
+   Erklärung) — NACHHER EINE Fehlt-Liste aus Chips; klickbare Chips springen
+   in „Kunde bearbeiten" (Feld-Fokus), stille Chips sind reine Nennung. */
+.pi-stapel.breit{max-width:none}
+.pi-luecke-liste{display:flex;flex-wrap:wrap;gap:6px}
+.pi-luecke-chip{display:inline-flex;align-items:center;min-height:34px;padding:0 12px;border-radius:999px;border:1px solid rgba(96,165,250,.4);background:rgba(37,99,235,.14);color:#bfdbfe;font:500 12px/1 'Inter',sans-serif;cursor:pointer;transition:border-color .2s,background .2s}
+.pi-luecke-chip:hover{background:rgba(37,99,235,.26);border-color:rgba(96,165,250,.65)}
+.pi-luecke-chip.still{border-color:rgba(255,255,255,.14);background:rgba(255,255,255,.05);color:#94a3b8;cursor:default}
 /* E-047 Nr. 3: VORHER lief „Verwendungszweck“ über die 120px-Spalte in den
    Wert hinein — NACHHER feste Labelbreite mit Umbruch, am Handy Label über Wert. */
 .pi-dl{display:grid;gap:4px;margin:0}
@@ -408,7 +428,10 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
   .pi-arbeit-haupt{gap:20px}
   .pi-legende-zeile .linie{display:none}
   .pi-situation-tun .pi-knopf.riesig{min-height:50px;padding:0 18px;font-size:14.5px;flex:1}
-  .pi-lade .pi-lade-tabs{position:sticky;top:0;z-index:5;padding:8px 12px}
+  /* E-049 Nr. 1: VORHER waren am Handy NUR die Reiter sticky (deshalb blieb
+     beim Scrollen der Kopf nicht stehen) — NACHHER hält .pi-lade-fest Kopf
+     UND Reiter zusammen fest; hier bleibt nur das kompakte Padding. */
+  .pi-lade .pi-lade-tabs{padding:8px 12px}
   .pi-lade-koerper{padding:14px 12px 48px;gap:14px}
   .pi-sek{padding:16px 14px}
   .pi-doku,.pi-rate{grid-template-columns:auto 1fr}

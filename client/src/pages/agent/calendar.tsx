@@ -1,38 +1,40 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // /agent/kalender — Raum „Calendar“ (23.08.2026, Plan §4/§11)
 //
-// Ersetzt kalender.tsx und führt startgespraeche.tsx als Reiter mit (die
-// Leiste führt beide unter Calendar). Dunkle Bühne, Glas, handytauglich.
+// Ersetzt kalender.tsx. Dunkle Bühne, Glas, handytauglich.
 //
 // Daten:  GET /agent/calendar?from&to   (eigene Rückrufe/Zusagen + vom Kunden
 //                                         gebuchte Termine, zwei Quellen)
 //         GET /agent/arbeitszeiten       (Verfügbarkeit → grau/blau im Raster)
 //         GET /agent/termine/uebernehmer?termin=ID (Übergabe)
 //         GET /agent/kunden/liste?q=     (Kundensuche für „Termin anlegen“)
-//         GET /agent/onboarding/…        (Startgespräche, nur Onboarding-Rolle)
 // Aktionen wie bisher (gleiche Pfade, gleiche Payloads):
 //         POST /agent/calendar/:id/done · /reschedule { scheduledAt }
 //         POST /agent/termine/:id/ergebnis { ergebnis } · /uebergeben { agentId, grund }
 //         POST /agent/termine { personId, beginn } · POST /agent/termine/:id/absagen
-//         POST /agent/onboarding/termine/:id/ergebnis { ergebnis, notiz }
-//         POST /agent/onboarding/person/:id/notiz { notiz } · /einladung
-//         POST /agent/onboarding/wartende/:id/einladung
-// Anruf: Ereignis `fiaon-anrufen`. Akte: /agent/kunden?person=<ID>.
+// Anruf: Ereignis `fiaon-anrufen`. Akte: /agent/kunden?person=<ID>
+// (identisch mit /agent/pipeline — beide Routen zeigen dieselbe Seite).
 //
 // 23.08.2026 abends (Justins Auftrag, Screenshot Wochenansicht): Terminblöcke
 // waren gequetscht. Neu: Raster 00–24 h im Scrollrahmen (Start bei 08:00),
 // Mindesthöhe 34 px je Block, Spaltenaufteilung bei Überlappung statt Stapeln,
 // Glas-Popover bei Hover/Klick (Handy: Bottom-Sheet), Verlauf je Terminart
 // mit Lichtkante und Zeitbalken links – konsistent bis in die Tageskarten.
+//
+// 24.08.2026 (E-051, Plan §20): DER CALENDAR IST PUR.
+// VORHER: der Startgespräche-Reiter samt Kennzahl-Kacheln lebte hier mit drin.
+// NACHHER: Der Calendar zeigt NUR die gebuchten Termine (Startgespräche
+// erscheinen als normale Einträge mit ihrer Terminart-Farbe), Tag/Woche, der
+// Reihe nach. 1 Klick auf einen Termin öffnet die Kundenakte; das Popover
+// (Hover, am Handy erster Tap) behält Anrufen/Details und trägt „Akte“ groß.
+// Die Startgespräche-Sektion arbeitet jetzt im eigenen Raum Onboarding
+// (onboarding-raum.tsx) — hier steht nur noch eine Hinweis-Karte mit Link.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { Link } from "wouter";
-import { Phone, Check, X, ChevronLeft, ChevronRight, Plus, CalendarClock, StickyNote, ExternalLink, Clock, UserRoundCheck, Search } from "lucide-react";
+import { Link, useLocation } from "wouter";
+import { Phone, Check, X, ChevronLeft, ChevronRight, Plus, CalendarClock, StickyNote, ExternalLink, Clock, UserRoundCheck, Search, Sparkles } from "lucide-react";
 import { AgentShell, api } from "./shared";
 import { useOffice } from "./OfficeShell";
-import { ZusageTafel } from "./vertrieb-zusage";
-import { LageTafel } from "./vertrieb-service";
-import { OnboardingCockpit } from "@/components/agent/OnboardingCockpit";
 import "@/styles/office-calendar.css";
 
 // ── Zeit in Europe/Berlin (nie über toISOString, AGENTS.md) ─────────────────
@@ -126,7 +128,11 @@ function CalendarInnen() {
   const { dunkel, titel } = useOffice();
   useEffect(() => { dunkel(true); titel("Calendar"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const [ansicht, setAnsicht] = useState<"tag" | "woche" | "start">("woche");
+  const [ansicht, setAnsicht] = useState<"tag" | "woche">("woche");
+  const [, navigiere] = useLocation();
+  // E-051: 1 Klick auf einen Termin → Kundenakte. Am Handy (kein Hover)
+  // öffnet der erste Tap stattdessen das Popover mit großem „Akte“-Knopf.
+  const zurAkte = (a: Termin) => navigiere(akteHref(a));
   const [jetzt, setJetzt] = useState(() => new Date());
   useEffect(() => { const i = setInterval(() => setJetzt(new Date()), 60_000); return () => clearInterval(i); }, []);
   const heuteKey = dayKey(jetzt);
@@ -143,7 +149,6 @@ function CalendarInnen() {
   const [vollstaendig, setVollstaendig] = useState(true);
   const [detail, setDetail] = useState<Termin | null>(null);
   const [anlegen, setAnlegen] = useState(false);
-  const [onboarding, setOnboarding] = useState<boolean | null>(null); // Reiter nur, wenn die Rolle ihn hat
 
   const flash = (text: string, warn = false) => { setMeldung({ text, warn }); setTimeout(() => setMeldung(null), 4500); };
 
@@ -163,8 +168,6 @@ function CalendarInnen() {
   useEffect(() => { laden(); }, [laden]);
   useEffect(() => {
     api("/agent/arbeitszeiten").then((r) => { if (r.ok) { setBloecke(r.json.bloecke || []); setStundenWoche(Number(r.json.stundenProWoche ?? 0)); setVollstaendig(!!r.json.vollstaendig); } }).catch(() => {});
-    // Onboarding? 404 = Rolle hat den Bereich nicht → kein Reiter.
-    api("/agent/onboarding/kennzahlen").then((r) => setOnboarding(r.status !== 404)).catch(() => setOnboarding(false));
   }, []);
 
   const freiAm = useCallback((wd: number) => bloecke.filter((b) => b.wochentag === wd).map((b) => [hm(b.von), hm(b.bis)] as [number, number]), [bloecke]);
@@ -265,29 +268,33 @@ function CalendarInnen() {
       {fehler && <p className="ca-fehler">{fehler}</p>}
       {meldung && <p className={`ca-meldung${meldung.warn ? " warn" : ""}`}>{meldung.text}</p>}
 
+      {/* E-051: Startgespräche haben ihren eigenen Raum – hier nur der Wegweiser. */}
+      <Link href="/agent/onboarding" className="ca-hinweiskarte">
+        <Sparkles size={16} strokeWidth={1.75} />
+        <span>Deine Startgespräche führst du im Raum <b>Onboarding</b> – mit Kacheln, Wartenden und dem Gesprächs-Cockpit.</span>
+        <em>Zum Raum <ChevronRight size={14} /></em>
+      </Link>
+
       <section className="ca-leiste">
         <div className="ca-reiter" role="tablist">
           <button type="button" role="tab" aria-selected={ansicht === "tag"} className={ansicht === "tag" ? "an" : ""} onClick={() => { setAnsicht("tag"); setTagKey(heuteKey); }}>Tag</button>
           <button type="button" role="tab" aria-selected={ansicht === "woche"} className={ansicht === "woche" ? "an" : ""} onClick={() => setAnsicht("woche")}>Woche</button>
-          {onboarding && <button type="button" role="tab" aria-selected={ansicht === "start"} className={ansicht === "start" ? "an" : ""} onClick={() => setAnsicht("start")}>Startgespräche</button>}
         </div>
-        {ansicht !== "start" && (
-          <div className="ca-nav">
-            <button type="button" aria-label="Zurück" onClick={() => ansicht === "tag" ? setTagKey(plusTage(tagKey, -1)) : setWochenVersatz(wochenVersatz - 1)}><ChevronLeft size={18} /></button>
-            <b>{ansicht === "tag" ? (tagKey === heuteKey ? `Heute, ${datumKurz(tagDate)}` : tagDate.toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", timeZone: "Europe/Berlin" })) : wochenTitel}</b>
-            <button type="button" aria-label="Weiter" onClick={() => ansicht === "tag" ? setTagKey(plusTage(tagKey, 1)) : setWochenVersatz(wochenVersatz + 1)}><ChevronRight size={18} /></button>
-            {(ansicht === "tag" ? tagKey !== heuteKey : wochenVersatz !== 0) && <button type="button" style={{ width: "auto", padding: "0 12px" }} onClick={() => { setTagKey(heuteKey); setWochenVersatz(0); }}>Heute</button>}
-          </div>
-        )}
-        {ansicht !== "start" && <button type="button" className="ca-knopf" onClick={() => setAnlegen(true)}><Plus size={16} strokeWidth={1.75} /> Termin anlegen</button>}
+        <div className="ca-nav">
+          <button type="button" aria-label="Zurück" onClick={() => ansicht === "tag" ? setTagKey(plusTage(tagKey, -1)) : setWochenVersatz(wochenVersatz - 1)}><ChevronLeft size={18} /></button>
+          <b>{ansicht === "tag" ? (tagKey === heuteKey ? `Heute, ${datumKurz(tagDate)}` : tagDate.toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", timeZone: "Europe/Berlin" })) : wochenTitel}</b>
+          <button type="button" aria-label="Weiter" onClick={() => ansicht === "tag" ? setTagKey(plusTage(tagKey, 1)) : setWochenVersatz(wochenVersatz + 1)}><ChevronRight size={18} /></button>
+          {(ansicht === "tag" ? tagKey !== heuteKey : wochenVersatz !== 0) && <button type="button" style={{ width: "auto", padding: "0 12px" }} onClick={() => { setTagKey(heuteKey); setWochenVersatz(0); }}>Heute</button>}
+        </div>
+        <button type="button" className="ca-knopf" onClick={() => setAnlegen(true)}><Plus size={16} strokeWidth={1.75} /> Termin anlegen</button>
       </section>
 
-      {ansicht !== "start" && laedt && <p className="ca-lade">Lade …</p>}
+      {laedt && <p className="ca-lade">Lade …</p>}
 
-      {ansicht !== "start" && !laedt && ueberfaellig.length > 0 && (
+      {!laedt && ueberfaellig.length > 0 && (
         <section className="ca-block">
           <div className="ca-block-kopf"><b className="warn">Überfällig ({ueberfaellig.length})</b><small>Erst das, dann der Tag.</small></div>
-          {ueberfaellig.map((a) => <Zeile key={tKey(a)} a={a} datum busy={busy === tKey(a)} onOeffnen={() => setDetail(a)} onErledigt={() => erledigt(a)} ausser={!inVerfuegbarkeit(tZeit(a))} />)}
+          {ueberfaellig.map((a) => <Zeile key={tKey(a)} a={a} datum busy={busy === tKey(a)} onAkte={() => zurAkte(a)} onOeffnen={() => setDetail(a)} onErledigt={() => erledigt(a)} ausser={!inVerfuegbarkeit(tZeit(a))} />)}
         </section>
       )}
 
@@ -296,7 +303,7 @@ function CalendarInnen() {
           <div className="ca-block-kopf"><b>{tagKey === heuteKey ? "Heute" : datumLang(tagDate)}</b><small>{tagListe.length ? `${tagListe.length} ${tagListe.length === 1 ? "Termin" : "Termine"}` : "nichts geplant"}</small></div>
           <Tagband frei={freiAm(teile(tagDate).wd)} jetzt={tagKey === heuteKey ? minuten(jetzt) : null} />
           {tagListe.length === 0 && <p className="ca-leer">{freiAm(teile(tagDate).wd).length ? "Kein Termin an diesem Tag. Deine Zeiten sind frei für Buchungen." : "Kein Termin – und keine Verfügbarkeit an diesem Tag. Kunden können hier nichts buchen."}</p>}
-          {tagListe.map((a) => <Zeile key={tKey(a)} a={a} busy={busy === tKey(a)} onOeffnen={() => setDetail(a)} onErledigt={() => erledigt(a)} ausser={!inVerfuegbarkeit(tZeit(a))} />)}
+          {tagListe.map((a) => <Zeile key={tKey(a)} a={a} busy={busy === tKey(a)} onAkte={() => zurAkte(a)} onOeffnen={() => setDetail(a)} onErledigt={() => erledigt(a)} ausser={!inVerfuegbarkeit(tZeit(a))} />)}
         </section>
       )}
 
@@ -359,7 +366,7 @@ function CalendarInnen() {
                 <div key={key} className={`ca-tageskarte${istHeute ? " heute" : ""}`}>
                   <div className="ca-tageskarte-kopf"><b>{istHeute ? "Heute" : `${TAGE[i]}, ${datumKurz(ausKey(key))}`}</b><small>{frei.length ? frei.map(([v, b]) => `${String(Math.floor(v / 60)).padStart(2, "0")}:${String(v % 60).padStart(2, "0")}–${String(Math.floor(b / 60)).padStart(2, "0")}:${String(b % 60).padStart(2, "0")}`).join(" · ") : "nicht verfügbar"}</small></div>
                   {liste.length === 0 && <p className="ca-leer">–</p>}
-                  {liste.map((a) => <Zeile key={tKey(a)} a={a} busy={busy === tKey(a)} onOeffnen={() => setDetail(a)} onErledigt={() => erledigt(a)} ausser={!inVerfuegbarkeit(tZeit(a))} />)}
+                  {liste.map((a) => <Zeile key={tKey(a)} a={a} busy={busy === tKey(a)} onAkte={() => zurAkte(a)} onOeffnen={() => setDetail(a)} onErledigt={() => erledigt(a)} ausser={!inVerfuegbarkeit(tZeit(a))} />)}
                 </div>
               );
             })}

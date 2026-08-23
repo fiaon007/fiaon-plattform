@@ -17,6 +17,8 @@
 .st-link{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#93c5fd;text-decoration:none;margin-top:2px}
 .st-fehler{margin:0;padding:10px 14px;border-radius:12px;background:rgba(220,38,38,.14);border:1px solid rgba(248,113,113,.35);color:#fecaca;font-size:13px}
 .st-kacheln{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.st-kacheln.drei{grid-template-columns:repeat(3,1fr)}
+.st-blaettern{max-height:340px;overflow-y:auto;scrollbar-width:thin;padding-right:4px}
 .st-kachel{display:grid;gap:4px;padding:18px 20px;border-radius:18px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);text-decoration:none;color:inherit;transition:transform .25s,border-color .25s}
 .st-kachel:hover{transform:translateY(-2px);border-color:rgba(147,197,253,.4)}
 .st-kachel i{display:grid;place-items:center;width:36px;height:36px;border-radius:11px;background:rgba(37,99,235,.18);color:#93c5fd;margin-bottom:6px}

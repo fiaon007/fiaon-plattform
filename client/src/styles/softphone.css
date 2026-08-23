@@ -42,7 +42,9 @@
   padding: 14px 15px; border: 0; cursor: pointer; border-radius: 18px;
   background: linear-gradient(158deg, rgba(252,211,77,.16), rgba(217,119,6,.08));
   box-shadow: inset 0 0 0 1px rgba(252,211,77,.28);
-  transition: box-shadow 200ms, transform 160ms;
+  /* 24.08.2026: nur noch transform — ein animierter Schatten ist Anstrich-
+     arbeit ohne sichtbaren Gewinn („zähe Bedienung"). */
+  transition: transform 160ms;
 }
 .fi-tel-sperre:hover { transform: translateY(-1px); box-shadow: inset 0 0 0 1px rgba(252,211,77,.5); }
 .fi-tel-sperre-marke {
@@ -113,11 +115,20 @@
   border-radius: 16px; font-size: 14.5px; font-weight: 700; color: #fff;
   background: linear-gradient(178deg, #3b82f6, #1d4ed8);
   box-shadow: 0 12px 26px -12px rgba(29,78,216,.7);
-  transition: filter 160ms, transform 140ms;
+  transition: transform 140ms;
 }
 .fi-tel-ri-knopf:hover:not(:disabled) { filter: brightness(1.08); }
 .fi-tel-ri-knopf:active:not(:disabled) { transform: translateY(1px); }
 .fi-tel-ri-knopf:disabled { opacity: .3; cursor: default; box-shadow: none; }
+/* ── DIE ABSAGE DES SERVERS (24.08.2026) ──────────────────────────────────
+   Sie stand vorher in `meldung` am Gerätefuß und ging unter. Jetzt direkt
+   unter dem Annehmen-Knopf: rot, ruhig, unübersehbar. */
+.fi-tel-ri-fehler {
+  margin: 9px 0 0; padding: 9px 12px; border-radius: 12px;
+  font-size: 12.5px; line-height: 1.5; font-weight: 600; color: #fecaca;
+  background: rgba(248,113,113,.14);
+  box-shadow: inset 0 0 0 1px rgba(248,113,113,.38);
+}
 .fi-tel-ri-fuss {
   margin-top: 8px; font-size: 10.5px; line-height: 1.45; color: rgba(148,183,236,.6);
 }
@@ -142,9 +153,17 @@
   box-shadow: inset 0 0 0 1px rgba(147,197,253,.18);
 }
 .fi-tel-pegel-fuellung {
-  display: block; height: 100%; border-radius: 999px;
+  display: block; height: 100%; width: 100%; border-radius: 999px;
   background: linear-gradient(90deg, #34d399, #10b981);
-  transition: width .12s linear;
+  /* ── scaleX STATT width (24.08.2026) ────────────────────────────────────
+     Der Balken bekommt fünfmal je Sekunde einen neuen Wert. Eine animierte
+     BREITE ist jedes Mal Layout + Anstrich für das Panel — genau die Sorte
+     Dauerarbeit, die sich als „zähe Bedienung" anfühlt. Ein transform läuft
+     am Layout vorbei auf dem Compositor. Der Wert kommt aus Softphone.tsx
+     als `scaleX(pegel/100)`; gemessen wird exakt wie vorher. */
+  transform-origin: left center;
+  transform: scaleX(0);
+  transition: transform .12s linear;
 }
 .fi-tel-pegel[data-still="1"] .fi-tel-pegel-fuellung { background: #fcd34d; }
 .fi-tel-pegel-text {
@@ -230,7 +249,8 @@
   margin: 16px 0 0; padding: 13px 15px; border: 0; cursor: pointer; border-radius: 18px;
   background: linear-gradient(158deg, rgba(147,197,253,.16), rgba(59,130,246,.07));
   box-shadow: inset 0 0 0 1px rgba(147,197,253,.28);
-  transition: box-shadow 200ms, transform 160ms;
+  /* 24.08.2026: nur noch transform — siehe .fi-tel-sperre. */
+  transition: transform 160ms;
 }
 .fi-tel-mikrofon:hover { transform: translateY(-1px); box-shadow: inset 0 0 0 1px rgba(147,197,253,.5); }
 .fi-tel-mikrofon[data-stand="verweigert"] {
@@ -295,8 +315,10 @@
 .fi-tel-treffer {
   position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 10;
   border-radius: 16px; overflow: hidden; padding: 5px;
-  background: rgba(13,28,63,.96);
-  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+  /* 24.08.2026: Die Weichzeichnung ist raus. Bei 97 % Deckung sah man sie
+     nicht — gerechnet wurde sie trotzdem, bei jedem Tastendruck in der
+     Suche, während die Liste neu aufbaut. */
+  background: rgba(13,28,63,.97);
   box-shadow: 0 24px 50px -20px rgba(3,8,22,.9), inset 0 0 0 1px rgba(255,255,255,.1);
 }
 .fi-tel-treffer-zeile {
@@ -392,7 +414,9 @@
   font-size: 15.5px; font-weight: 650; color: #fff;
   background: linear-gradient(178deg, #34d399, #10b981 58%, #059669);
   box-shadow: 0 16px 34px -14px rgba(5,150,105,.8), inset 0 1px 0 rgba(255,255,255,.3);
-  transition: transform 140ms, filter 180ms, box-shadow 200ms;
+  /* 24.08.2026: Schatten- und Filterfahrt raus, transform bleibt — der
+     wichtigste Knopf des Panels darf keinen Anstrich-Takt kosten. */
+  transition: transform 140ms;
 }
 .fi-tel-gruen:hover:not(:disabled) { filter: brightness(1.07); transform: translateY(-1.5px); }
 .fi-tel-gruen:active:not(:disabled) { transform: translateY(1px) scale(.99); box-shadow: inset 0 2px 6px rgba(3,40,26,.5); }

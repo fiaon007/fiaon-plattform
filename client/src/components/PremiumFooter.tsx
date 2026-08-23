@@ -68,13 +68,13 @@ export default function PremiumFooter() {
                 </a>
               </li>
               <li>
-                <a href="/plattform-konzept" className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">
+                <a href="/preise" className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">
                   Preise & Pakete
                 </a>
               </li>
               <li>
-                <a href="/plattform-konzept" className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">
-                  Kartenkompass (Daten-Insights)
+                <a href="/kreditkarte" className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">
+                  Kreditkarte trotz Eintrag
                 </a>
               </li>
             </ul>

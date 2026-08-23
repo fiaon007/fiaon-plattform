@@ -101,7 +101,7 @@ export default function Investoren() {
           <Auf><Glas tag="Kundensicht" titel="Der Kundenbereich, 1:1">Dieselbe Oberfläche, die ein zahlender Kunde sieht: Fahrplan, Bonität, Finanzen, Schreiben, Abo – alles auf dem Stand eines Kunden nach vier Monaten. Nur die Daten sind erfunden.</Glas></Auf>
           <Auf verzoegerung={100}><Glas tag="Mitarbeitersicht" titel="Das Startgespräch, geführt">Sechs Schritte, kuratierte Stichpunkte, Notizen während des Gesprächs und ein Knopf, der am Ende freischaltet. So wird aus einem Antrag ein betreuter Kunde.</Glas></Auf>
         </div>
-        <div className="dk-knoepfe" style={{ marginTop: 28 }}><Knopf href="/demo">Demo-Konto öffnen</Knopf><Knopf href="/demo/kundenbereich" still>Direkt in den Kundenbereich</Knopf></div>
+        <div className="dk-knoepfe" style={{ marginTop: 28 }}><Knopf href="/demo">Demo-Konto öffnen</Knopf><Knopf href="/demo/kundenbereich" still>Die Präsentation des Kundenbereichs</Knopf></div>
       </Block>
 
       <Block pille="Team" titel={<>Wer das <span className="dk-verlauf">baut.</span></>}

@@ -8,8 +8,8 @@ export default function TeamSeite() {
     <Dunkel seite="team" titel="Team" beschreibung="Das Team hinter FIAON: Justin Schwarzott (Gründer), Florentine Lombardi (Menschen & Onboarding), Daniel Stripling (Vertrieb) – und Schwarzott Capital Partners AG als Investor.">
       <Hero
         pille="Team"
-        titel={<>Drei Menschen, die selbst <span className="dk-verlauf">im Betrieb stehen.</span></>}
-        lead="FIAON wird nicht von einer Zentrale geführt, sondern von Gesellschaftern, die täglich Kunden sehen: im Startgespräch, im Vertrieb, in der Akte. Wer uns schreibt, bekommt eine Antwort von einem der drei."
+        titel={<>Ein junges Legal- und FinTech <span className="dk-verlauf">auf dem Weg zum Unicorn.</span></>}
+        lead="FIAON ist ein Team aus Vertrieb, Onboarding und Forderungsmanagement – und drei Gesellschaftern, die selbst im Betrieb stehen. Wir bauen das Betriebssystem für Bonität in Deutschland, Österreich und der Schweiz: Einsicht, Aktion, Zugang für 100 Millionen Menschen. Und wir suchen Menschen, die das mit uns bauen."
         knoepfe={<><Knopf href="#kontakt">Kontakt aufnehmen</Knopf><Knopf href="/karriere" still>Teil des Teams werden</Knopf></>}
         szene={<SchichtenSzene namen={["Vertrieb", "Onboarding", "Betreuung"]} className="absolute inset-0" />}
         bild="/kino/presse.jpg"

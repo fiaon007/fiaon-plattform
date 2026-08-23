@@ -135,7 +135,7 @@ export default function Demo() {
         pille="Demo-Konto · Platzhalterdaten"
         titel={<>Das perfekte Konto, <span className="dk-verlauf">einmal durchgespielt.</span></>}
         lead="So sieht FIAON aus, wenn alles läuft: ein Kunde nach vier Monaten, Auskunft ausgewertet, zwei Einträge angegangen, Kreditkarte in Sicht. Und daneben der Mitarbeiter, der ihn dorthin geführt hat. Alle Namen und Zahlen sind erfunden."
-        knoepfe={<><Knopf href="/demo/kundenbereich">Kundenbereich öffnen</Knopf><Knopf href="#onboarding" still>Mitarbeitersicht ansehen</Knopf></>}
+        knoepfe={<><Knopf href="/demo/kundenbereich">Präsentation starten</Knopf><Knopf href="#onboarding" still>Mitarbeitersicht ansehen</Knopf></>}
         szene={<KartenSzene anzahl={1} className="absolute inset-0" />}
       />
 
@@ -160,7 +160,7 @@ export default function Demo() {
             { tag: "Abo & Zahlungen", titel: "Vier von zwölf Raten bezahlt", text: "SEPA-Mandat aktiv, nächste Rate angekündigt. Nach der zwölften fragt FIAON, ob er bleibt. Seine Ansprechpartnerin steht mit Namen im Bereich." },
           ].map((k, i) => <Auf key={k.tag} verzoegerung={i * 80}><Glas tag={k.tag} titel={k.titel}>{k.text}</Glas></Auf>)}
         </div>
-        <div className="dk-knoepfe" style={{ marginTop: 32 }}><Knopf href="/demo/kundenbereich">Kundenbereich öffnen</Knopf></div>
+        <div className="dk-knoepfe" style={{ marginTop: 32 }}><Knopf href="/demo/kundenbereich">Präsentation starten</Knopf><Knopf href="/demo/produkt" still>Der heutige Bereich, 1:1</Knopf></div>
       </Block>
 
       <Block id="onboarding" pille="Mitarbeitersicht" titel={<>Das Startgespräch, <span className="dk-verlauf">wie FIAON es führt.</span></>}

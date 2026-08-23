@@ -1,0 +1,67 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   EINFÜHRUNG (.ef-) — Glas-Ebene für den geführten Rundgang (23.08.2026,
+   Plan §4/§11). Liegt über allem im Office (Modals: 320), aber UNTER dem
+   Softphone-Gespräch (Gerät 420, Vollbild-Ebene 440) — ein laufender Anruf
+   gewinnt immer. Handy zuerst: Karte als Bogen unten in der Daumenzone,
+   safe-area, kurze Texte, kein Scrollzwang.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.ef{position:fixed;inset:0;z-index:400;font-family:'Inter',sans-serif}
+
+/* Schleier: bei Rand-Schritten bewusst leicht, damit der Raum dahinter
+   sichtbar bleibt — der Raumwechsel IST der Rundgang. */
+.ef-schleier{position:absolute;inset:0;background:rgba(2,6,23,.28);animation:efSchleier .35s ease both}
+.ef.ef-mitte .ef-schleier{background:rgba(2,6,23,.6);backdrop-filter:blur(12px) saturate(120%);-webkit-backdrop-filter:blur(12px) saturate(120%)}
+
+/* Die Karte */
+.ef-karte{position:absolute;display:flex;flex-direction:column;width:min(440px,calc(100vw - 32px));padding:22px 22px 16px;border-radius:24px;background:rgba(15,23,42,.74);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(18px) saturate(150%);-webkit-backdrop-filter:blur(18px) saturate(150%);box-shadow:0 30px 80px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.08);color:#e5e7eb;animation:efKarte .4s cubic-bezier(.2,.8,.2,1) both}
+.ef.ef-mitte .ef-karte{left:50%;top:50%;transform:translate(-50%,-50%)}
+.ef.ef-rand .ef-karte{right:26px;bottom:26px}
+
+.ef-zu{position:absolute;top:12px;right:12px;display:grid;place-items:center;width:32px;height:32px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#9ca3af;cursor:pointer}
+.ef-zu:hover{color:#fff;background:rgba(255,255,255,.1)}
+
+/* Mini-Illustration: Glas-Orb mit blauem Leuchten hinter dem Icon */
+.ef-bild{position:relative;display:grid;place-items:center;width:52px;height:52px;margin-bottom:12px;border-radius:16px;color:#93c5fd;background:linear-gradient(135deg,rgba(37,99,235,.3),rgba(37,99,235,.08));border:1px solid rgba(96,165,250,.35)}
+.ef-bild::after{content:"";position:absolute;inset:-14px;border-radius:50%;background:radial-gradient(closest-side,rgba(59,130,246,.28),transparent 70%);pointer-events:none}
+
+.ef-pille{font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:#93c5fd}
+.ef-karte h2{margin:6px 0 8px;font-size:22px;font-weight:300;letter-spacing:-.02em;color:#fff;line-height:1.2}
+.ef-text p{margin:0 0 8px;font-size:13.5px;line-height:1.55;color:#cbd5e1}
+.ef-text p:last-child{margin-bottom:0}
+
+/* Schritt-Punkte */
+.ef-punkte{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0 12px}
+.ef-punkte button{width:7px;height:7px;padding:0;border:0;border-radius:999px;background:rgba(255,255,255,.18);cursor:pointer;transition:background .2s,width .2s}
+.ef-punkte button.war{background:rgba(96,165,250,.45)}
+.ef-punkte button.an{width:20px;background:linear-gradient(90deg,#2563eb,#3b82f6)}
+
+/* Knöpfe: Weiter groß und rechts (Daumenzone), Zurück still */
+.ef-knoepfe{display:flex;gap:10px;align-items:center}
+.ef-knopf{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;padding:0 20px;border-radius:999px;border:0;font:600 14px/1 'Inter',sans-serif;cursor:pointer}
+.ef-knopf.weiter{flex:1;color:#fff;background:linear-gradient(135deg,#2563eb,#3b82f6);box-shadow:0 12px 28px rgba(37,99,235,.35)}
+.ef-knopf.weiter:hover{filter:brightness(1.08)}
+.ef-knopf.still{color:#cbd5e1;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12)}
+.ef-skip{margin:10px auto 0;padding:6px 10px;border:0;background:transparent;color:#64748b;font:400 12.5px/1 'Inter',sans-serif;cursor:pointer}
+.ef-skip:hover{color:#9ca3af;text-decoration:underline}
+
+@keyframes efKarte{from{opacity:0;translate:0 14px}to{opacity:1;translate:0 0}}
+@keyframes efSchleier{from{opacity:0}to{opacity:1}}
+
+/* ── Handy: Karte als Bogen unten, 100 % ohne Scrollen lesbar ───────────── */
+@media (max-width:700px){
+  .ef.ef-mitte .ef-karte,.ef.ef-rand .ef-karte{left:10px;right:10px;top:auto;bottom:calc(10px + env(safe-area-inset-bottom));transform:none;width:auto;max-height:calc(100dvh - 80px);overflow:auto;padding:18px 16px 14px;border-radius:22px}
+  .ef-bild{width:44px;height:44px;margin-bottom:10px;border-radius:14px}
+  .ef-karte h2{font-size:19px}
+  .ef-text p{font-size:13px;line-height:1.5;margin-bottom:7px}
+  .ef-punkte{margin:12px 0 10px}
+  .ef-punkte button{width:6px;height:6px}
+  .ef-punkte button.an{width:16px}
+  .ef-knopf{min-height:48px}
+}
+
+/* Ruhe für alle, die Bewegung reduziert haben */
+@media (prefers-reduced-motion:reduce){
+  .ef-karte,.ef-schleier{animation:none}
+  .ef-punkte button{transition:none}
+}

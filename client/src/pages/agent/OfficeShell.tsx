@@ -11,7 +11,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, BookUser, Users, Phone, Megaphone, Wallet, Calculator, GraduationCap, ListChecks, Mail, Calendar, Inbox, Landmark, MoreHorizontal, Clock, Wrench, LogOut, ChevronLeft, ChevronRight, X, Menu } from "lucide-react";
+import { LayoutDashboard, BookUser, Users, Phone, Megaphone, Wallet, Calculator, GraduationCap, ListChecks, Mail, Calendar, Inbox, Landmark, MoreHorizontal, Clock, Wrench, LogOut, ChevronLeft, ChevronRight, X, Menu, Compass } from "lucide-react";
+import { Einfuehrung } from "@/components/agent/Einfuehrung";
 import "@/styles/office.css";
 
 export interface Raum { href: string; label: string; Icon: any; match: string[]; szene: string; gruppe: "arbeit" | "team" | "ich" | "mehr"; nurRolle?: string; nichtRolle?: string[]; badge?: string }
@@ -182,8 +183,9 @@ export function OfficeShell({ children, agent, rolle, zaehler, onRefresh, logout
           <div className="of-schublade-kopf"><span className="of-wort">FIAON</span><span className="of-marke">Office</span><button type="button" className="of-rund" onClick={() => setMenueOffen(false)} aria-label="Schließen"><X size={18} /></button></div>
           <div className="of-schublade-nutzer"><span className="of-gesicht">{agent.avatar ? <img src={agent.avatar} alt="" /> : initialen}</span><div><b>{agent.name}</b><small>{PRAESENZ[praesenz][0]}</small></div></div>
           <nav className="of-schublade-liste"><Liste inSchublade /></nav>
-          <div className="of-schublade-fuss"><button type="button" onClick={logout}><LogOut size={17} /><span>Abmelden</span></button></div>
+          <div className="of-schublade-fuss"><button type="button" onClick={() => { setMenueOffen(false); window.dispatchEvent(new CustomEvent("fiaon-einfuehrung-starten")); }}><Compass size={17} /><span>Einführung</span></button><button type="button" onClick={logout}><LogOut size={17} /><span>Abmelden</span></button></div>
         </aside>
+        <Einfuehrung rolle={rolle} />
       </div>
     </Ctx.Provider>
   );

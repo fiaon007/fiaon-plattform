@@ -18,7 +18,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { User, FileText, KeyRound, LogOut, GraduationCap, Sparkles, MessageSquarePlus, Wallet, Camera, Trash2, CheckCircle2, X, FileSignature, ShieldCheck, Download, Clock } from "lucide-react";
+import { User, FileText, KeyRound, LogOut, GraduationCap, Sparkles, MessageSquarePlus, Wallet, Camera, Trash2, CheckCircle2, X, FileSignature, ShieldCheck, Download, Clock, Compass } from "lucide-react";
 import { AgentShell, api, useAgentInfo, fmtDT, fmtCents } from "./shared";
 import { useOffice } from "./OfficeShell";
 import { getUnseenCount } from "./updates-data";
@@ -97,6 +97,8 @@ function Uebersicht({ agent, onAbmelden }: { agent: { name: string; email: strin
         <Link href="/agent/updates" className="mo-kachel"><i><Sparkles size={19} strokeWidth={1.75} /></i><div><b>Updates{updates > 0 && <em>{updates}</em>}</b><span>Neuerungen im Office</span></div></Link>
         <Link href="/agent/feedback" className="mo-kachel"><i><MessageSquarePlus size={19} strokeWidth={1.75} /></i><div><b>Feedback</b><span>Verbesserungen vorschlagen – Umsetzung wird belohnt</span></div></Link>
         <Link href="/agent/wallet" className="mo-kachel"><i><Wallet size={19} strokeWidth={1.75} /></i><div><b>Wallet</b><span>Guthaben, Auszahlung, Leistung, Partnerprogramm</span></div></Link>
+        {/* Einführung (23.08.2026): startet den geführten Rundgang neu — Einfuehrung.tsx hört auf dieses Ereignis. */}
+        <button type="button" className="mo-kachel" onClick={() => window.dispatchEvent(new CustomEvent("fiaon-einfuehrung-starten"))}><i><Compass size={19} strokeWidth={1.75} /></i><div><b>Einführung neu starten</b><span>Der geführte Rundgang durch alle Räume des Office</span></div></button>
         <button type="button" className="mo-kachel aus" onClick={onAbmelden}><i><LogOut size={19} strokeWidth={1.75} /></i><div><b>Abmelden</b><span>Du bist danach offline – keine Anrufe, keine neuen Kunden.</span></div></button>
       </section>
     </>

@@ -371,6 +371,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Jede Rolle bekommt IHRE Reise, mit gespeichertem Fortschritt. Die
   // Rollenfilterung lag seit dem 26.08. vorbereitet in shared/fiaon-academy.ts
   // und wird hier zum ersten Mal benutzt.
+  // Ausbildung (E-040): eigener Router VOR fiaon-academy, sonst fängt dessen
+  // GET /agent/academy/:reise die Pfade fortschritt/szenarien/urkunde.pdf ab.
+  const fiaonOfficeAcademy = await import('./routes/fiaon-office-academy');
+  app.use('/api/fiaon', fiaonOfficeAcademy.default);
   const fiaonAcademyRoutes = await import('./routes/fiaon-academy');
   app.use('/api/fiaon', fiaonAcademyRoutes.default);
 

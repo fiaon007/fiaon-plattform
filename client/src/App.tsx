@@ -124,6 +124,7 @@ const AgentRechtPage = lazy(() => import("@/pages/agent/tools/recht"));
 const AgentTagescheckPage = lazy(() => import("@/pages/agent/tools/tagescheck"));
 import AgentMehrPage from "@/pages/agent/mehr";
 const AgentAcademyPage = lazy(() => import("@/pages/agent/academy"));
+const AgentAcademyNeuPage = lazy(() => import("@/pages/agent/academy/index")); // Ausbildung (E-040)
 const AgentSchulungPage = lazy(() => import("@/pages/agent/schulung"));
 const AdminAgentPortalPage = lazy(() => import("@/pages/admin-agent-portal"));
 const AdminLeadsPage = lazy(() => import("@/pages/admin-leads"));
@@ -438,8 +439,11 @@ function Router() {
           Florentine und Daniel schulen selbst. Die Seite prüft `istLeitung`,
           das der Server liefert — kein eigener Rollen-Vergleich in der Anzeige. */}
       <Route path="/agent/schulung" component={AgentSchulungPage} />
-      <Route path="/agent/academy" component={AgentAcademyPage} />
-      <Route path="/agent/academy/:reise" component={AgentAcademyPage} />
+      <Route path="/agent/academy" component={AgentAcademyNeuPage} />
+      <Route path="/agent/academy/:kapitel" component={AgentAcademyNeuPage} />
+      <Route path="/agent/academy/:kapitel/:schritt" component={AgentAcademyNeuPage} />
+      <Route path="/agent/academy-alt" component={AgentAcademyPage} />
+      <Route path="/agent/academy-alt/:reise" component={AgentAcademyPage} />
       <Route path="/agent/dokumente"><Redirect to="/agent/more/dokumente" /></Route>
       <Route path="/agent/dokumente-alt" component={AgentDokumentePage} />
       <Route path="/admin/agent-portal" component={admin(AdminAgentPortalPage)} />

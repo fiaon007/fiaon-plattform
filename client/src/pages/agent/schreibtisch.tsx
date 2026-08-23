@@ -12,6 +12,7 @@ import { Link } from "wouter";
 import { Phone, ArrowRight, Calendar, PhoneCall, ListChecks, Wallet, Sparkles } from "lucide-react";
 import { AgentShell, api } from "./shared";
 import { useOffice } from "./OfficeShell";
+import { useAcademyFortschritt } from "./academy/fortschritt";
 import "@/styles/office-schreibtisch.css";
 
 const euro = (c: number) => (c / 100).toLocaleString("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
@@ -119,9 +120,21 @@ function SchreibtischInnen() {
       <section className="st-schnell">
         <Link href="/agent/arbeitszeiten" className="st-schnell-karte"><b>Availability</b><span>Termine kommen nur in deinen Zeiten.</span></Link>
         <Link href="/agent/gehalt" className="st-schnell-karte"><b>Earnings</b><span>Was 5 Abschlüsse am Tag bringen.</span></Link>
-        <Link href="/agent/academy" className="st-schnell-karte"><b>Academy</b><span>Leitfäden, Einwände, Demo-Rundgang.</span></Link>
+        <AcademyKarte />
         <Link href="/agent/start-alt" className="st-schnell-karte still"><b>Bisherige Startseite</b><span>Übergangsweise weiter erreichbar.</span></Link>
       </section>
     </div>
+  );
+}
+
+/** Academy-Kachel mit echtem Ausbildungsstand (E-040). */
+function AcademyKarte() {
+  const { stand } = useAcademyFortschritt();
+  const p = stand?.prozent ?? null;
+  return (
+    <Link href="/agent/academy" className="st-schnell-karte">
+      <b>Academy{stand?.zertifikat ? " · Zertifiziert" : p != null && p > 0 ? ` · ${p} %` : ""}</b>
+      <span>{stand?.zertifikat ? "Zertifizierter Bonitätsmanager – 30 % Provision." : p != null && p > 0 ? "Deine Ausbildung läuft – mach weiter." : "Deine Ausbildung zum Bonitätsmanager."}</span>
+    </Link>
   );
 }

@@ -4,7 +4,7 @@
 // Plan: 01_Plattform/MITARBEITER_OFFICE_PLAN_2026-08-23.md §4 (Raum 9), §5.
 //   GET  /agent/arbeitszeiten          → { bloecke[], stundenProWoche, vollstaendig }
 //   PUT  /agent/arbeitszeiten          { bloecke: [{ wochentag 1..7, von "09:00", bis "13:00" }] } ersetzt alles
-//   GET  /agent/provision-satz         → { satz: 0.25 }   (Einstellung provision_satz, Vorgabe 25 %)
+//   GET  /agent/provision-satz         → { satz: 0.25 }   (Admin-Einstellung default_commission_rate_bp, Vorgabe 25 %)
 //   POST /agent/praesenz               { status: da|pause|telefon|weg } → Flur
 //   GET  /agent/flur                   → wer ist da (alle aktiven Mitarbeiter mit letztem Status)
 // ═══════════════════════════════════════════════════════════════════════════
@@ -76,8 +76,16 @@ router.put("/agent/arbeitszeiten", requireAgent, async (req: AgentRequest, res: 
   } catch (err) { console.error("[OFFICE] arbeitszeiten speichern:", err); res.status(500).json({ ok: false, error: "Serverfehler" }); }
 });
 
+/** Provisionssatz als Anteil (0.25 = 25 %). Eine Quelle: Admin-Einstellung `default_commission_rate_bp` (Basispunkte), Vorgabe 25 %. */
+export async function provisionsSatz(): Promise<number> {
+  const s = await getSettings();
+  const bp = Number(s.default_commission_rate_bp);
+  if (Number.isFinite(bp) && bp > 0 && bp <= 10000) return bp / 10000;
+  return 0.25;
+}
+
 router.get("/agent/provision-satz", requireAgent, async (_req: AgentRequest, res: Response) => {
-  try { const s = await getSettings(); const satz = Number(s.provision_satz); res.json({ ok: true, satz: Number.isFinite(satz) && satz > 0 && satz < 1 ? satz : 0.25 }); }
+  try { res.json({ ok: true, satz: await provisionsSatz() }); }
   catch { res.json({ ok: true, satz: 0.25 }); }
 });
 

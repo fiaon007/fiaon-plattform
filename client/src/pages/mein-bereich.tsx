@@ -14,7 +14,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useMemo, useRef, useState } from "react";
 import "@/styles/mein-bereich.css";
-import { Einrichtung } from "@/components/kunde/Einrichtung";
+import { Einrichtung, einrichtungsPhase } from "@/components/kunde/Einrichtung";
 
 // Demo-Konto (23.08.2026): unter /demo/kundenbereich zeigt dieselbe Seite die
 // Platzhalterdaten von FIAON-DEMO (server/routes/fiaon-demo.ts) — ohne Login.
@@ -121,6 +121,7 @@ export default function MeinBereichPage() {
   const einrichten = new URLSearchParams(window.location.search).get("einrichten") === "1";
   const [vorhang, setVorhang] = useState(() => !einrichten && (DEMO || sessionStorage.getItem("mb_begruesst") !== "1"));
   const [einrichtungFertig, setEinrichtungFertig] = useState(false);
+  const [einrichtungStart, setEinrichtungStart] = useState<"auto" | "zahlung" | null>(null);
   const [eingeklappt, setEingeklappt] = useState(() => localStorage.getItem("mb_leiste") === "zu");
   const [menueOffen, setMenueOffen] = useState(false);
   const [aktiv, setAktiv] = useState("buehne");
@@ -207,8 +208,9 @@ export default function MeinBereichPage() {
       <div className="mb-lichter" aria-hidden="true"><div className="mb-licht a" /><div className="mb-licht b" /></div>
       {DEMO && <a className="mb-demo-band" href="/demo">Demo-Konto mit Platzhalterdaten<span>Zurück zur Demo-Übersicht</span></a>}
 
-      {!DEMO && !einrichtungFertig && (einrichten || d.passwortGesetzt === false) && (
-        <Einrichtung bereich={d} name={name} onFertig={() => { setEinrichtungFertig(true); history.replaceState(null, "", "/mein-bereich"); }} />
+      {/* Die Einrichtungs-Ebene (E-032): Passwort → Wahl; bezahlt ohne Startgespräch → versperrt bis zur Buchung. */}
+      {!DEMO && (einrichtungStart !== null || (!einrichtungFertig && (einrichten || ["passwort", "wahl", "terminPflicht"].includes(einrichtungsPhase(d))))) && (
+        <Einrichtung bereich={d} name={name} start={einrichtungStart ?? "auto"} onFertig={() => { setEinrichtungFertig(true); setEinrichtungStart(null); history.replaceState(null, "", "/mein-bereich"); }} />
       )}
       {vorhang && <Begruessung name={name} paket={d.paket.name} rahmen={d.paket.rahmen} zeile={begruessungsZeile}
         onZu={() => { sessionStorage.setItem("mb_begruesst", "1"); setVorhang(false); }} />}
@@ -298,24 +300,18 @@ export default function MeinBereichPage() {
               <Mitgliedskarte name={name} paket={d.paket.name} rahmen={d.paket.rahmen} />
             </section>
 
-            {/* ═══ ZAHLUNG OFFEN — davor gibt es keinen Termin ═══ */}
-            {!d.stufe.bezahlt && (
-              <div className="mb-pflicht" style={{ gridTemplateColumns: "1fr" }}>
-                <div><h3>Zwei Zahlungen — dann geht es los</h3><p>Sobald Ihre erste Zahlung bei uns ist, schalten wir Ihr Startgespräch frei. Wer die Bonitätsauskunft gleich mitbezahlt, startet im Gespräch direkt mit der Analyse — das spart eine Runde.</p></div>
-                <div className="mb-raster" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))" }}>
-                  <div className="mb-kachel"><div className="mb-eyebrow">1 · Ihr Paket</div><h4>{d.paket.name}</h4>
-                    <p>{d.paket.monatlichCents != null ? `${eurCents(d.paket.monatlichCents)} · erste Rate per Überweisung` : "erste Rate per Überweisung"}{d.paket.zahlungsreferenz ? <><br />Verwendungszweck: <b className="zahl">{d.paket.zahlungsreferenz}</b></> : null}</p>
-                    <div className="mb-kachel-fuss"><span className="mb-lage frist">Offen</span>{d.paket.zahlungsreferenz && <a className="mb-knopf klein" href={`/zahlung/${encodeURIComponent(d.paket.zahlungsreferenz)}`}>Jetzt überweisen</a>}</div></div>
-                  <div className="mb-kachel"><div className="mb-eyebrow">2 · Bonitätsauskunft</div><h4>{eur(d.bonitaet?.preisEuro ?? 74)} einmalig — am besten gleich mit</h4>
-                    <p>Tagesaktuell, neutral abgerufen, kein Abo. Die Grundlage für alles Weitere.{d.bonitaet?.zahlungsreferenz && d.bonitaet.zahlungsstatus !== "paid" ? <><br />Verwendungszweck: <b className="zahl">{d.bonitaet.zahlungsreferenz}</b></> : null}</p>
-                    <div className="mb-kachel-fuss">
-                      <span className={`mb-lage ${d.bonitaet?.zahlungsstatus === "paid" ? "gut" : d.bonitaet?.zahlungsreferenz ? "frist" : "ruht"}`}>{d.bonitaet?.zahlungsstatus === "paid" ? "Bezahlt" : d.bonitaet?.zahlungsreferenz ? "Offen" : "Noch nicht bestellt"}</span>
-                      {d.bonitaet?.zahlungsstatus !== "paid" && (d.bonitaet?.zahlungsreferenz
-                        ? <a className="mb-knopf klein" href={`/zahlung/${encodeURIComponent(d.bonitaet.zahlungsreferenz)}`}>Jetzt überweisen</a>
-                        : d.bonitaet?.darfKaufen ? <a className="mb-knopf klein" href={`/bonitaet-antrag?ref=${encodeURIComponent(d.kunde.ref)}`}>Dazu bestellen</a> : null)}
-                    </div></div>
+            {/* ═══ ZAHLUNG OFFEN (E-032): Gespräch gebucht, Paket noch offen — sichtbar, nicht versperrt ═══ */}
+            {!DEMO && !d.stufe.bezahlt && einrichtungsPhase(d) === "zahlungOffen" && (
+              <div className="mb-offen">
+                <div>
+                  <div className="mb-eyebrow">Ihr Paket ist noch offen</div>
+                  <h3>{d.termin ? `Ihr Gespräch ist gebucht${d.termin.beginn ? ` – ${new Date(d.termin.beginn).toLocaleString("de-DE", { weekday: "long", day: "2-digit", month: "long", hour: "2-digit", minute: "2-digit" })} Uhr` : ""}.` : "Ihr Gespräch ist gebucht."}</h3>
+                  <p>Damit daraus Ihr Startgespräch wird und FIAON Ihre Auskunft beantragen kann, fehlt noch die erste Rate: {d.paket.monatlichCents != null ? eurCents(d.paket.monatlichCents) : "Ihr Paket"}{d.paket.zahlungsreferenz ? ` · Verwendungszweck ${d.paket.zahlungsreferenz}` : ""}. Überweisen Sie jetzt – oder im Gespräch gemeinsam mit Ihrer Ansprechpartnerin.</p>
                 </div>
-                <p style={{ margin: 0, fontSize: 12.5, color: "var(--text-still)" }}>Die Lastschrift für die weiteren Raten richten Sie ein, sobald Ihre erste Zahlung eingegangen ist — dann läuft alles automatisch.</p>
+                <div className="mb-offen-knoepfe">
+                  <button type="button" className="mb-knopf" onClick={() => setEinrichtungStart("zahlung")}>Jetzt bezahlen</button>
+                  <span className="mb-lage frist">Offen</span>
+                </div>
               </div>
             )}
             {/* ═══ STARTGESPRÄCH — Termin gebucht, noch nicht geführt ═══ */}
@@ -356,7 +352,9 @@ export default function MeinBereichPage() {
                       <h4 style={{ fontSize: 16, fontWeight: 700 }}>Bonitätsauskunft — der Grundstein</h4>
                       <p style={{ margin: "8px 0 0", fontSize: 13.5, color: "var(--text-leise)", maxWidth: "56ch" }}>Bevor irgendetwas anderes Sinn hat, braucht es einen Überblick: Was steht über Sie in den Auskunfteien? Die Auskunft wird neutral abgerufen und verändert Ihren Wert nicht. Einmalig 74 €, kein Abo.</p>
                       <div style={{ marginTop: 16, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        {d.bonitaet?.zahlungsreferenz && d.bonitaet.zahlungsstatus !== "paid"
+                        {!d.stufe.bezahlt && !DEMO
+                          ? <span className="mb-hinweis" style={{ display: "block" }}>Sobald Ihr Paket bezahlt ist, beauftragen Sie hier Ihre Bonitätsauskunft – ein Schritt nach dem anderen.</span>
+                          : d.bonitaet?.zahlungsreferenz && d.bonitaet.zahlungsstatus !== "paid"
                           ? <a className="mb-knopf" href={`/zahlung/${encodeURIComponent(d.bonitaet.zahlungsreferenz)}`}>Auskunft jetzt bezahlen</a>
                           : d.bonitaet?.darfKaufen ? <a className="mb-knopf" href={`/bonitaet-antrag?ref=${encodeURIComponent(d.kunde.ref)}`}>Auskunft beauftragen</a> : null}
                         {d.bonitaet?.darfHochladen && <a className="mb-knopf still" href="#unterlagen">Sie haben schon eine Auskunft? Hochladen</a>}

@@ -17,7 +17,7 @@ import { useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { buildEpcQrPayload } from "@/lib/epc-qr";
 
-interface BereichMin { kunde: { ref: string; vorname: string }; paket: { name: string; monatlichCents: number | null; zahlungsreferenz: string | null; zahlungsstatus: string; faelligAm: string | null }; passwortGesetzt?: boolean; termin: { beginn: string; status: string; agent: string | null } | null }
+interface BereichMin { kunde: { ref: string; vorname: string }; paket: { name: string; monatlichCents: number | null; zahlungsreferenz: string | null; zahlungsstatus: string; faelligAm: string | null }; stufe: { bezahlt: boolean; vollAktiv: boolean }; passwortGesetzt?: boolean; termin: { beginn: string; status: string; agent: string | null } | null }
 interface Order { paymentReference: string; amountDue: string; dueDate: string; status: string; bank: { recipient: string; iban: string; ibanDisplay?: string; bic: string } }
 
 async function api(pfad: string, init?: RequestInit) {
@@ -26,8 +26,22 @@ async function api(pfad: string, init?: RequestInit) {
 }
 const eurCents = (c: number | null | undefined) => c == null ? "—" : new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(c / 100);
 
-export function Einrichtung({ bereich, name, onFertig }: { bereich: BereichMin; name: string; onFertig: () => void }) {
-  const [schritt, setSchritt] = useState<"passwort" | "wahl" | "zahlung" | "termin">(bereich.passwortGesetzt ? "wahl" : "passwort");
+/** Welche Stufe der Einrichtung ist dran? Reine Funktion — der Bereich fragt dieselbe. */
+export function einrichtungsPhase(b: BereichMin): "passwort" | "wahl" | "terminPflicht" | "zahlungOffen" | "fertig" {
+  const bezahlt = b.stufe.bezahlt || b.paket.zahlungsstatus === "claimed_paid";
+  const terminDa = !!b.termin && (b.termin.status === "gebucht" || b.termin.status === "erledigt");
+  if (b.passwortGesetzt === false) return "passwort";
+  if (b.stufe.vollAktiv) return "fertig";
+  if (!bezahlt && !terminDa) return "wahl";
+  if (bezahlt && !terminDa) return "terminPflicht";   // bezahlt, aber kein Startgespräch: die Plattform bleibt versperrt
+  if (!bezahlt && terminDa) return "zahlungOffen";    // Gespräch gebucht, Paket offen: sichtbar, aber nicht versperrt
+  return "fertig";
+}
+
+export function Einrichtung({ bereich, name, start = "auto", onFertig }: { bereich: BereichMin; name: string; start?: "auto" | "zahlung"; onFertig: () => void }) {
+  const phase = einrichtungsPhase(bereich);
+  const [schritt, setSchritt] = useState<"passwort" | "wahl" | "zahlung" | "termin" | "terminPflicht">(
+    start === "zahlung" ? "zahlung" : phase === "passwort" ? "passwort" : phase === "terminPflicht" ? "terminPflicht" : "wahl");
   const [pw, setPw] = useState(""); const [pw2, setPw2] = useState(""); const [zeigen, setZeigen] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
   const [laeuft, setLaeuft] = useState(false);
@@ -50,11 +64,13 @@ export function Einrichtung({ bereich, name, onFertig }: { bereich: BereichMin; 
     setLaeuft(true);
     const r = await api(`/kunde/${encodeURIComponent(ref)}/passwort-setzen`, { method: "POST", body: JSON.stringify({ neu: pw }) });
     setLaeuft(false);
-    if (r.ok || r.status === 409) setSchritt("wahl"); else setFehler(r.json?.error || "Das Passwort konnte nicht gespeichert werden.");
+    if (r.ok || r.status === 409) setSchritt(phase === "terminPflicht" || (bereich.stufe.bezahlt && !bereich.termin) ? "terminPflicht" : "wahl"); else setFehler(r.json?.error || "Das Passwort konnte nicht gespeichert werden.");
   };
   const kopieren = async (was: string, wert: string) => { try { await navigator.clipboard.writeText(wert); setKopiert(was); setTimeout(() => setKopiert(null), 1800); } catch { /* egal */ } };
   const terminBuchen = async () => {
     setLaeuft(true); setFehler(null);
+    const s1 = await api(`/kunde/${encodeURIComponent(ref)}/startgespraech`);
+    if (s1.ok && s1.json?.token) { window.location.href = `/termin/${encodeURIComponent(s1.json.token)}`; return; }
     const r = await api(`/antrag/${encodeURIComponent(ref)}/termin-link`);
     setLaeuft(false);
     if (r.ok && r.json.url) window.location.href = r.json.url; else setFehler(r.json?.error || "Der Terminlink konnte nicht erzeugt werden.");
@@ -72,7 +88,7 @@ export function Einrichtung({ bereich, name, onFertig }: { bereich: BereichMin; 
     <div className="mb-vorhang ein" role="dialog" aria-label="Ihr Konto einrichten">
       <div className="ein-karte">
         <div className="ein-schritte" aria-hidden="true">
-          {["Passwort", "Wie weiter", schritt === "termin" ? "Gespräch" : "Zahlung"].map((t, i) => {
+          {["Passwort", "Wie weiter", schritt === "termin" || schritt === "terminPflicht" ? "Gespräch" : "Zahlung"].map((t, i) => {
             const nr = schritt === "passwort" ? 0 : schritt === "wahl" ? 1 : 2;
             return <span key={t} className={i < nr ? "ok" : i === nr ? "an" : ""}>{t}</span>;
           })}
@@ -98,7 +114,8 @@ export function Einrichtung({ bereich, name, onFertig }: { bereich: BereichMin; 
             <p className="ein-text">Beides ist richtig. Wer zuerst sprechen möchte, bekommt einen Termin mit einem Mitarbeiter – und derselbe Termin wird zum Startgespräch, sobald die Zahlung da ist. Niemand telefoniert zweimal.</p>
             <div className="ein-wahl">
               <button type="button" className="ein-option haupt" onClick={() => setSchritt("zahlung")}>
-                <small>Weg 1 · empfohlen</small><b>Jetzt aktivieren</b>
+                <span className="ein-band">Empfohlen</span>
+                <small>Weg 1</small><b>Jetzt aktivieren</b>
                 <p>Zahlungsdaten mit QR-Code für Ihre Banking-App. Nach Zahlungseingang ist Ihr Bereich vollständig aktiv und Ihre Auskunft wird beantragt.</p>
                 <span>{eurCents(bereich.paket.monatlichCents)} · monatlich</span>
               </button>
@@ -143,10 +160,28 @@ export function Einrichtung({ bereich, name, onFertig }: { bereich: BereichMin; 
             {gemeldet && (
               <div className="ein-fertig">
                 <b>Danke – wir prüfen den Eingang.</b>
-                <p>Sobald die Zahlung bei uns ist, wird Ihr Bereich vollständig freigeschaltet und Ihre Auskunft beantragt. Sie erhalten dazu eine Nachricht – und die Einladung zu Ihrem Startgespräch.</p>
-                <button type="button" className="mb-knopf" onClick={onFertig}>Zu meinem Bereich</button>
+                <p>Ein Schritt noch: Ihr Startgespräch. Fünfzehn Minuten mit Ihrer Ansprechpartnerin – danach ist Ihr Bereich vollständig freigeschaltet und Ihre Auskunft wird beantragt.</p>
+                <button type="button" className="mb-knopf" onClick={() => setSchritt("terminPflicht")}>Startgespräch buchen</button>
               </div>
             )}
+          </div>
+        )}
+
+        {schritt === "terminPflicht" && (
+          <div className="ein-innen">
+            <p className="ein-ueber">Noch ein Schritt</p>
+            <h2>Buchen Sie Ihr <span>Startgespräch.</span></h2>
+            <p className="ein-text">Ihre Zahlung ist {bereich.stufe.bezahlt ? "eingegangen" : "gemeldet"}. Bevor Ihr Bereich vollständig freigeschaltet wird, geht Ihre Ansprechpartnerin den Bereich mit Ihnen durch: Fahrplan, Unterlagen, Auskunft – fünfzehn Minuten am Telefon. Wählen Sie jetzt eine Zeit.</p>
+            <div className="ein-zeilen">
+              <div className="ein-merk"><b>15 Minuten</b><span>am Telefon, zur Zeit Ihrer Wahl</span></div>
+              <div className="ein-merk"><b>Ein Mensch</b><span>der danach Ihre Akte kennt</span></div>
+              <div className="ein-merk"><b>Danach frei</b><span>alle Bereiche, Auskunft wird beantragt</span></div>
+            </div>
+            {fehler && <p className="ein-fehler">{fehler}</p>}
+            <div className="ein-knoepfe">
+              <button type="button" className="mb-knopf" onClick={terminBuchen} disabled={laeuft}>{laeuft ? "Einen Moment …" : "Zeit wählen"}</button>
+            </div>
+            <p className="ein-hinweis">Ohne Startgespräch bleibt der Bereich noch geschlossen – es ist der Moment, in dem aus einem Antrag eine betreute Akte wird.</p>
           </div>
         )}
 

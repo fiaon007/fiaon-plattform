@@ -49,13 +49,13 @@ function GehaltInnen() {
         <section className="gh-hero">
           <span className="gh-pille">Dein Verdienst · {Math.round(satz * 100)} % jeder bezahlten Rate</span>
           <h1>Was du verdienst, wenn du <span className="gh-verlauf">dranbleibst.</span></h1>
-          <p>Du bekommst {Math.round(satz * 100)} % jeder Rate, die ein Kunde von dir bezahlt – ab der Startzahlung, zwölf Monate lang, auch bei Verlängerung. Nicht der Termin zählt, sondern der Kunde, der bleibt. Stell ein, wie viele Kunden du am Tag abschließt.</p>
+          <p>Du bekommst {Math.round(satz * 100)} % jeder Rate, die ein Kunde von dir bezahlt – ab der Startzahlung, zwölf Monate lang, auch bei Verlängerung. Nicht der Termin zählt, sondern der Kunde, der bleibt. Stell ein, wie viele Kunden du am Tag abschließt – fünf sind das Minimum, fünfzig sind möglich.</p>
         </section>
 
         <section className="gh-regler">
           <div className="gh-regler-kopf"><b>Abschlüsse pro Tag</b><span className="gh-zahl">{proTag}</span></div>
-          <input type="range" min={1} max={10} step={1} value={proTag} onChange={(ev) => setProTag(Number(ev.target.value))} aria-label="Abschlüsse pro Tag" />
-          <div className="gh-skala">{[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => <span key={n} className={n === 5 ? "ziel" : ""}>{n}{n === 5 ? " · Ziel" : ""}</span>)}</div>
+          <input type="range" min={1} max={50} step={1} value={proTag} onChange={(ev) => setProTag(Number(ev.target.value))} aria-label="Abschlüsse pro Tag" />
+          <div className="gh-skala">{[1, 5, 10, 20, 30, 40, 50].map((n) => <span key={n} className={n === 5 ? "ziel" : ""}>{n}{n === 5 ? " · Minimum" : ""}</span>)}</div>
           <small>{e.proMonat} Abschlüsse im Monat (21 Arbeitstage) · Ø Rate {e.avg.toFixed(2).replace(".", ",")} € nach eurem echten Paketmix · Haltequote 80 % ab Rate 2, danach 92 % je Monat</small>
         </section>
 
@@ -87,7 +87,7 @@ function GehaltInnen() {
         <section className="gh-regeln">
           <div><b>Ausgezahlt wird, was angekommen ist.</b><p>Provision entsteht nur auf bankbestätigte Eingänge – den Stand siehst du jederzeit in der Kasse. Auszahlung monatlich.</p></div>
           <div><b>Dein Kunde bleibt dein Kunde.</b><p>Vom ersten Gespräch bis zur zwölften Rate – und in der Verlängerung. Wer gut betreut, verdient länger.</p></div>
-          <div><b>Ab 150 aktiven Kunden wird geteilt.</b><p>Dann übernimmt ein Kollege einen Teil deines Stamms – du behältst 12 Monate lang 5 % dieser Raten als Aufbauprämie.</p></div>
+          <div><b>Kein Deckel.</b><p>Deine Kunden bleiben deine Kunden – egal wie viele. Wächst dein Stamm über das, was du allein betreuen kannst, bekommst du Unterstützung, keine Abzüge.</p></div>
         </section>
         <p className="gh-leise">Rechenmodell, keine Zusage: Die Zahlen hängen von deinen Abschlüssen, dem Paketmix und der Zahlungstreue deiner Kunden ab. Der Provisionssatz wird von der Geschäftsführung festgelegt und gilt ab Freigabe des neuen Office.</p>
       </div>

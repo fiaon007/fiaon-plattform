@@ -93,7 +93,7 @@ export function OfficeShell({ children, agent, rolle, zaehler, onRefresh, logout
               <span className="punkt" style={{ background: PRAESENZ[praesenz][1] }} />
               <select value={praesenz} onChange={(e) => setPraesenz(e.target.value as Praesenz)} aria-label="Präsenz">{(Object.keys(PRAESENZ) as Praesenz[]).map((k) => <option key={k} value={k}>{PRAESENZ[k][0]}</option>)}</select>
             </div>
-            {onRefresh && <button type="button" className="of-rund" title="Aktualisieren" onClick={onRefresh}>↻</button>}
+            {onRefresh && <button type="button" className="of-rund aktualisieren" title="Aktualisieren" onClick={onRefresh}>↻</button>}
             <Link href="/agent/profil" className="of-gesicht" title={agent.name}>{agent.avatar ? <img src={agent.avatar} alt="" /> : initialen}</Link>
             <button type="button" className="of-rund" title="Abmelden" onClick={logout}><LogOut size={15} /></button>
           </div>

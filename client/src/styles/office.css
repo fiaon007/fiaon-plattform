@@ -71,9 +71,14 @@
   .of.zu .of-grund{grid-template-columns:1fr}
   .of-leiste{display:none}
   .of-burger{display:grid}
-  .of-kopf{gap:10px;padding:0 12px}
-  .of-kopf-titel small{display:none}
-  .of-praesenz select{max-width:90px}
+  .of{overflow-x:hidden}
+  .of-kopf{gap:8px;padding:0 10px;height:58px}
+  .of-kopf .of-marke{display:none}
+  .of-kopf-titel{display:none}
+  .of-kopf-rechts{gap:6px}
+  .of-praesenz{padding:6px 8px;gap:6px}
+  .of-praesenz select{max-width:78px;font-size:12px}
+  .of-rund.aktualisieren{display:none}
   .of-flaeche{padding:18px 14px;border-radius:20px}
 }
 @media(min-width:961px){.of-schublade,.of-schublade-hintergrund{display:none}}

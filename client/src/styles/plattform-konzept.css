@@ -1,0 +1,56 @@
+/* ═══ Plattform-Konzept (23.08.2026) ═══ */
+.pk-schichten{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:40px}
+.pk-schicht{position:relative;padding:30px 26px 26px;border-radius:22px;background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.1);box-shadow:inset 0 1px 0 rgba(255,255,255,.08);overflow:hidden}
+.pk-schicht::after{content:"";position:absolute;inset:auto -40px -60px auto;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(37,99,235,.35),transparent 65%);pointer-events:none}
+.pk-nr{display:inline-block;font:300 13px/1 'Inter',sans-serif;letter-spacing:.2em;color:#93c5fd;padding:6px 10px;border:1px solid rgba(147,197,253,.35);border-radius:8px}
+.pk-schicht h3{margin:18px 0 10px;font:400 26px/1.15 'Inter',sans-serif;letter-spacing:-.02em;color:#fff}
+.pk-schicht p{margin:0;font:300 14.5px/1.7 'Inter',sans-serif;color:#cbd5e1}
+.pk-schicht small{display:block;margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,.08);font-size:12.5px;color:#93c5fd}
+/* Der Weg */
+.pk-weg{display:grid;grid-template-columns:300px 1fr;gap:28px;margin-top:40px;align-items:start}
+.pk-weg-leiste{display:grid;gap:4px;position:relative}
+.pk-weg-leiste::before{content:"";position:absolute;left:13px;top:18px;bottom:18px;width:2px;background:linear-gradient(180deg,rgba(37,99,235,.5),rgba(37,99,235,.08))}
+.pk-weg-punkt{position:relative;display:grid;gap:2px;text-align:left;padding:10px 12px 10px 40px;border:0;border-radius:12px;background:transparent;cursor:pointer;color:#475569;transition:background .2s,color .2s}
+.pk-weg-punkt::before{content:"";position:absolute;left:8px;top:16px;width:12px;height:12px;border-radius:50%;background:#fff;border:2px solid #cbd5e1;transition:all .25s}
+.pk-weg-punkt span{font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.12em;text-transform:uppercase}
+.pk-weg-punkt b{font:400 14px/1.3 'Inter',sans-serif;color:#0f172a}
+.pk-weg-punkt:hover{background:rgba(37,99,235,.05)}
+.pk-weg-punkt.vorbei::before{background:#2563eb;border-color:#2563eb}
+.pk-weg-punkt.an{background:#fff;box-shadow:0 10px 30px rgba(37,99,235,.12);color:#2563eb}
+.pk-weg-punkt.an::before{background:#2563eb;border-color:#2563eb;box-shadow:0 0 0 5px rgba(37,99,235,.18)}
+.pk-weg-karte{position:sticky;top:100px;padding:34px 36px;border-radius:24px;background:#fff;border:1px solid rgba(15,23,42,.07);box-shadow:0 2px 4px rgba(15,23,42,.03),0 30px 70px rgba(37,99,235,.12);animation:pkAuf .4s cubic-bezier(.2,.8,.2,1) both}
+@keyframes pkAuf{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.pk-weg-karte small{font:500 11px/1 'Inter',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#2563eb}
+.pk-weg-karte h3{margin:14px 0 12px;font:400 30px/1.15 'Inter',sans-serif;letter-spacing:-.02em;color:#0f172a}
+.pk-weg-karte p{margin:0;font:300 16px/1.75 'Inter',sans-serif;color:#334155;max-width:60ch}
+.pk-weg-knoepfe{display:flex;gap:10px;flex-wrap:wrap;margin-top:24px}
+/* Paketfinder */
+.pk-finder{max-width:820px;margin:36px auto 0;display:grid;gap:14px;text-align:left}
+.pk-frage{padding:24px 26px;border-radius:20px;background:#fff;border:1px solid rgba(15,23,42,.07);box-shadow:0 2px 4px rgba(15,23,42,.03)}
+.pk-frage.beantwortet{border-color:rgba(37,99,235,.25)}
+.pk-frage-nr{margin:0;font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#64748b}
+.pk-frage h3{margin:8px 0 14px;font:400 20px/1.25 'Inter',sans-serif;color:#0f172a}
+.pk-optionen{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.pk-option{padding:12px 14px;border-radius:12px;border:1px solid rgba(15,23,42,.12);background:#fff;color:#0f172a;font:400 14px/1.3 'Inter',sans-serif;text-align:left;cursor:pointer;transition:all .2s}
+.pk-option:hover{border-color:#2563eb}
+.pk-option.an{background:linear-gradient(180deg,#2563EB,#1D4ED8);border-color:transparent;color:#fff;box-shadow:0 8px 20px rgba(37,99,235,.28)}
+.pk-ergebnis{padding:30px 32px;border-radius:22px;background:linear-gradient(135deg,#0b1733,#132a5c);color:#fff;box-shadow:0 30px 70px rgba(11,23,51,.3);animation:pkAuf .45s cubic-bezier(.2,.8,.2,1) both}
+.pk-ergebnis small{font:500 11px/1 'Inter',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#93c5fd}
+.pk-ergebnis h3{margin:10px 0 4px;font:400 30px/1.15 'Inter',sans-serif;letter-spacing:-.02em}
+.pk-preis{margin:0 0 12px;font:300 24px/1.2 'Inter',sans-serif}
+.pk-preis span{font-size:13px;color:#93c5fd;margin-left:6px}
+.pk-ergebnis p{font:300 15px/1.7 'Inter',sans-serif;color:#dbeafe;margin:0}
+/* Räume */
+.pk-raeume{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:36px}
+.pk-raum{padding:20px 18px;border-radius:16px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);min-height:120px;transition:background .25s,border-color .25s}
+.pk-raum:hover{background:rgba(255,255,255,.07);border-color:rgba(147,197,253,.35)}
+.pk-raum b{display:block;font:400 15px/1.3 'Inter',sans-serif;color:#fff;margin-bottom:6px}
+.pk-raum p{margin:0;font:300 13px/1.6 'Inter',sans-serif;color:#9ca3af}
+/* Agenda */
+.pk-agenda{list-style:none;margin:36px 0 0;padding:0;display:grid;gap:10px;max-width:820px}
+.pk-agenda li{display:grid;grid-template-columns:40px 1fr;gap:16px;align-items:start;padding:18px 20px;border-radius:16px;background:#fff;border:1px solid rgba(15,23,42,.07)}
+.pk-agenda li span{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(180deg,#2563EB,#1D4ED8);color:#fff;font:500 14px/1 'Inter',sans-serif}
+.pk-agenda li b{display:block;font:400 16px/1.3 'Inter',sans-serif;color:#0f172a;margin-bottom:4px}
+.pk-agenda li p{margin:0;font:300 14px/1.65 'Inter',sans-serif;color:#475569}
+@media(max-width:960px){.pk-schichten{grid-template-columns:1fr}.pk-weg{grid-template-columns:1fr}.pk-weg-karte{position:static}.pk-weg-leiste{grid-auto-flow:column;grid-auto-columns:minmax(150px,1fr);overflow-x:auto;padding-bottom:8px;scrollbar-width:none}.pk-weg-leiste::before{display:none}.pk-weg-punkt{padding:10px 12px;border:1px solid rgba(15,23,42,.1);background:#fff}.pk-weg-punkt::before{display:none}.pk-raeume{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:560px){.pk-optionen{grid-template-columns:1fr}.pk-raeume{grid-template-columns:1fr}.pk-weg-karte{padding:24px 20px}.pk-weg-karte h3{font-size:24px}.pk-ergebnis{padding:24px 20px}}

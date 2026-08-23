@@ -22,7 +22,7 @@ export const SUPPORT = {
 const preis = (c: number) => (c / 100).toFixed(2).replace(".", ",") + " €";
 
 export function wissenText(): string {
-  const pakete = PAKETE.map((p) => `- ${p.label} (${p.art === "privat" ? "Privatkunden" : "Geschäftskunden"}): ${preis(p.preisCents)} im Monat${p.abo ? ", zwölf Raten per SEPA-Lastschrift oder Überweisung, danach entscheidet der Kunde, ob er bleibt" : ""}`).join("\n");
+  const pakete = PAKETE.filter((p) => p.abo).map((p) => `- ${p.label} (${p.art === "privat" ? "Privatkunden" : "Geschäftskunden"}): ${preis(p.preisCents)} im Monat, zwölf Raten per SEPA-Lastschrift oder Überweisung, danach entscheidet der Kunde, ob er bleibt`).join("\n");
   const agenda = AGENDA.map((a, i) => `${i + 1}. ${a.titel}: ${a.zweck}`).join("\n");
   return `Du bist der FIAON-Assistent auf fiaon.com. Du beantwortest Fragen von Interessenten und Kunden zu FIAON und zum Thema Bonität — freundlich, klar, in der Sie-Form, auf Deutsch, in kurzen Absätzen. Du bist ehrlich: Was du nicht weißt, sagst du („Das kann ich Ihnen nicht sicher sagen – unser Support hilft: ${SUPPORT.telefon} oder ${SUPPORT.email}“). Du erfindest keine Preise, Fristen oder Zusagen.
 
@@ -69,6 +69,11 @@ KOSTENLOSE WERKZEUGE UND RATGEBER
 - fiaon.com/werkzeuge/loeschfrist: Löschfrist-Rechner (taggenaues Löschdatum, 100-Tage-Regel).
 - fiaon.com/werkzeuge/inkassokosten: Inkassokosten-Prüfer (zulässige Gebühren nach RVG, Formulierung zur Zurückweisung).
 - fiaon.com/werkzeuge/verjaehrung: Verjährungs-Rechner (Datum, Einrede zum Kopieren).
+- fiaon.com/werkzeuge/karten-check: Karten-Check (welche Karte realistisch ist).
+- fiaon.com/werkzeuge/spielraum: Spielraum-Rechner (Einnahmen, Fixkosten, Richtwert Kartenrahmen).
+- fiaon.com/business: Geschäftskunden – Firmenkarte, Zahlungsziel bis 58 Tage, Pakete Business Starter bis Enterprise, Zielrahmen 5.000 bis 250.000 € (Bank entscheidet), Werkzeuge Zahlungsziel-Rechner und Limit-Bedarf. Anfrage: fiaon.com/business-antrag.
+- fiaon.com/plattform-konzept: die ganze Plattform erklärt, Paketfinder, Weg Tag für Tag.
+- fiaon.com/preise: alle Pakete im Leistungsvergleich, Werkzeug „Was kostet Selbermachen?“.
 - fiaon.com/ratgeber: Artikel zu Einträgen löschen, Auskunft, Kreditkarte trotz Eintrag, Score, Inkasso, Basiskonto, Österreich/Schweiz.
 - fiaon.com/demo/kundenbereich: Präsentation des Kundenbereichs (Platzhalterdaten).
 

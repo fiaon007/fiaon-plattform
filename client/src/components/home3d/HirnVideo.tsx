@@ -38,16 +38,29 @@ export default function HirnVideo({ className = "", ruhig = false }: { className
 
     // Poster sofort, Video sobald es läuft — beide additiv
     // Sobald das Poster da ist, einmal zeichnen — auch wenn der Tab gerade im Hintergrund liegt.
-    const poster = new THREE.TextureLoader().load("/kino/kugel.jpg", (t) => { t.colorSpace = THREE.SRGBColorSpace; mat.needsUpdate = true; renderer.render(scene, camera); });
+    const poster = new THREE.TextureLoader().load("/kino/kugel.jpg", (t) => { t.colorSpace = THREE.SRGBColorSpace; renderer.render(scene, camera); });
     // Additiv für die Farbe, aber die Deckkraft der Fläche NICHT mitschreiben — sonst
     // wird die durchsichtige Leinwand dort deckend und das Schwarz des Videos bleibt
     // als Quadrat stehen. (Farbe mit Alpha 0 zeigt der Browser als reines Licht.)
-    const mat = new THREE.MeshBasicMaterial({ map: poster, transparent: true, depthWrite: false, opacity: ruhig ? 0.8 : 1,
-      blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor, blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.OneFactor });
+    // Justin, 23.08.2026: „Rahmen um die Erde entfernen" — das Navy des Videos/Posters
+    // ist heller als die Bühne und blieb additiv als Quadrat stehen. Der Shader
+    // schneidet alles weg, was dunkler als ein Schwellwert ist: Nur die leuchtende
+    // Kugel bleibt, die Fläche dahinter wird unsichtbar.
+    const uni = { map: { value: poster as THREE.Texture }, deckkraft: { value: ruhig ? 0.8 : 1 } };
+    const mat = new THREE.ShaderMaterial({
+      uniforms: uni, transparent: true, depthWrite: false,
+      blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor, blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.OneFactor,
+      vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+      fragmentShader: `uniform sampler2D map; uniform float deckkraft; varying vec2 vUv;
+        void main(){ vec4 c = texture2D(map, vUv); float hell = max(max(c.r, c.g), c.b);
+          float maske = smoothstep(0.09, 0.26, hell);
+          vec2 d = vUv - 0.5; float rund = 1.0 - smoothstep(0.40, 0.50, length(d));
+          gl_FragColor = vec4(c.rgb * maske * rund * deckkraft, 0.0); }`,
+    });
     const groesse = 2.6;
     const ebene = new THREE.Mesh(new THREE.PlaneGeometry(groesse, groesse), mat);
     scene.add(ebene);
-    video.addEventListener("playing", () => { mat.map = tex; mat.needsUpdate = true; renderer.render(scene, camera); }, { once: true });
+    video.addEventListener("playing", () => { uni.map.value = tex; renderer.render(scene, camera); }, { once: true });
 
     const aura = new THREE.Sprite(new THREE.SpriteMaterial({ map: leuchtTextur("#2563eb"), transparent: true, opacity: ruhig ? 0.3 : 0.45, depthWrite: false, blending: THREE.AdditiveBlending }));
     aura.scale.setScalar(3.4); aura.position.z = -0.2;

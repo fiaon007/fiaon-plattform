@@ -135,10 +135,11 @@ export async function versendenUndProtokollieren(
     await lauf`
       INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note, created_at)
       VALUES (${opts.verlaufRef}, NULL, 'System', 'system', ${text}, NOW())
-    // Ein verschluckter Fehler hier heißt: Die Mail ging raus (oder eben nicht),
-    // und im Verlauf steht davon nichts. Genau das erlebt ein Agent als
-    // „ich habe gedrückt und sehe keine Spur".
     `.catch((e) => console.error(
+      // Ein verschluckter Fehler hier heißt: Die Mail ging raus (oder eben nicht),
+      // und im Verlauf steht davon nichts. Genau das erlebt ein Agent als
+      // „ich habe gedrückt und sehe keine Spur". (Der Kommentar stand bis 23.08.2026
+      // IM SQL-Text und erzeugte „syntax error at or near //" — kein Verlaufseintrag.)
       `[MAIL-LOG] Verlaufseintrag ${opts.verlaufRef} nicht geschrieben:`, e));
   }
 

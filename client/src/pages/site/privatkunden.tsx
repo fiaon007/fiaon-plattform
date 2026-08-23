@@ -166,7 +166,6 @@ export default function Privatkunden() {
       </Block>
 
       <Block eng schmal>
-        <Zitat text="Ich dachte, der Eintrag bleibt ewig. Nach sechs Wochen war er weg – und ich wusste zum ersten Mal, warum er überhaupt da war." wer="Kundin aus Wien, Paket Pro (Platzhalter)" />
       </Block>
 
       <Zwischenruf text="Unsicher, welches Paket passt? Wählen Sie eines – im Startgespräch prüfen wir es gemeinsam und ändern es, wenn nötig." knopf="Paket wählen" href="#pakete" still={{ knopf: "Erst die Auskunft", href: "/bonitaet" }} />

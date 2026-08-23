@@ -496,6 +496,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 📅 Termin mit dem Vertrieb aus dem Antrag (23.08.2026).
   const fiaonAntragTermin = await import('./routes/fiaon-antrag-termin');
   app.use('/api/fiaon', fiaonAntragTermin.default);
+  // 📉 Alte Startseiten-Variante sendet Klick-Statistik an /api/track — es gibt keinen Empfänger.
+  // Antwort 204 statt 404, damit das Fehlerprotokoll sauber bleibt.
+  app.post('/api/track', (_req, res) => res.status(204).end());
+
   // ☎️ Kontakt & Support: KI-Assistent und „Dringend melden“ (23.08.2026).
   const fiaonKontakt = await import('./routes/fiaon-kontakt');
   app.use('/api/fiaon', fiaonKontakt.default);

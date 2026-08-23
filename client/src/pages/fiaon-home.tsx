@@ -6,7 +6,7 @@
 // dunkle Töne, gute Animationen, die 3D-Elemente der fünf Seiten, Gänsehaut."
 //
 // Dieselben zwölf Abschnitte wie v3 (Hero · Zahlen · Problem · So funktioniert
-// es · Vertrauen · Plattform · Für wen · Pakete · Ablauf · Kundenstimmen · FAQ ·
+// es · Vertrauen · Plattform · Für wen · Pakete · Ablauf · FAQ ·
 // Abschluss) — jetzt auf der dunklen Bühne (DunkleBuehne), mit Video-Hero,
 // echter 3D-Karte, Gyroskop-Kern, Glasplatten und ruhiger Schlusskugel.
 // Preise kommen aus dem Paketkatalog. Marke: FIAON — sonst nichts.
@@ -60,7 +60,7 @@ function CustomerModal({ open, onClose }: { open: boolean; onClose: () => void }
 const PRIVATE_PACKS = [
   { key: "start", name: "FIAON Start", sub: "Der Einstieg", scenario: "Einsicht in Ihre Bonität", feats: ["Bonitätsauskunft einsehen und verstehen", "Kontoauszug-Analyse mit Spielraum", "Ihr Bereich mit Fahrplan", "Unterstützung per E-Mail"] },
   { key: "pro", name: "FIAON Pro", sub: "Standard", scenario: "Einträge bereinigen, Konto eröffnen", rec: true, feats: ["Alles aus Start", "Löschanträge und Widersprüche – vorbereitet und versendet", "Ratenvereinbarungen mit Antwort-Verfolgung", "Startgespräch und fester Ansprechpartner"] },
-  { key: "ultra", name: "FIAON Ultra", sub: "Mit Karte", scenario: "Kreditkarte bis 25.000 € bei guter Bonität", feats: ["Alles aus Pro", "Begleitung bis zur Kreditkarte", "Bevorzugte Bearbeitung Ihrer Schreiben", "Telefonische Betreuung"] },
+  { key: "ultra", name: "FIAON Ultra", sub: "Mit Karte", scenario: "Kreditkarte bis 15.000 € bei guter Bonität", feats: ["Alles aus Pro", "Begleitung bis zur Kreditkarte", "Bevorzugte Bearbeitung Ihrer Schreiben", "Telefonische Betreuung"] },
   { key: "highend", name: "FIAON High End", sub: "Das Maximum", scenario: "Finanzierung und persönliche Betreuung", feats: ["Alles aus Ultra", "Persönlicher Betreuer für Ihre Akte", "Vorbereitung auf Finanzierungen", "Erreichbar auch außerhalb der Bürozeiten"] },
 ];
 const BUSINESS_PACKS = [
@@ -210,15 +210,8 @@ export default function FiaonHome() {
 
       </Licht>
 
-      <Block pille="Kundenstimmen" titel={<>Klarheit, <span className="dk-verlauf">die bleibt.</span></>} mitte>
-        <div style={{ textAlign: "left" }}>
-          <Karten items={[
-            { tag: "Sara W. · Angestellte", titel: "„Zwei Einträge waren längst erledigt.“", text: "Zum ersten Mal habe ich gesehen, was die SCHUFA über mich gespeichert hat – und zwei Einträge waren längst erledigt. Der Löschantrag war in einer Minute unterwegs." },
-            { tag: "Markus R. · Selbstständiger", titel: "„Die Forderung ist vom Tisch.“", text: "Als Selbstständiger bin ich überall durchgefallen. Mit der Ratenvereinbarung über FIAON ist die Forderung vom Tisch, und das Geschäftskonto steht." },
-            { tag: "Julia B. · Studentin", titel: "„Bonität ist ein Zustand, kein Urteil.“", text: "Ich dachte, meine Bonität sei ein Urteil. Sie ist ein Zustand. Den kann man ändern – das hat mir vorher niemand gesagt." },
-          ]} />
-        </div>
-      </Block>
+      {/* Kundenstimmen bewusst entfernt (23.08.2026): Bis echte, freigegebene Stimmen vorliegen,
+          steht hier nichts — erfundene Bewertungen sind unzulässig (UWG) und wirkten „fake" (Florentine). */}
 
       <Block id="faq" schmal pille="Häufige Fragen">
         <Fragen items={[

@@ -358,7 +358,7 @@
 
 /* Leitfäden auf Abruf */
 .ac-lf{display:grid;gap:14px}
-.ac-lf-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.ac-lf-tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
 .ac-lf-tab{display:flex;align-items:center;gap:14px;padding:14px 18px;border-radius:16px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:#cbd5e1;text-align:left;cursor:pointer;min-height:60px}
 .ac-lf-tab b{display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:rgba(255,255,255,.08);font:300 22px/1 'Inter',sans-serif;color:#fff;flex:0 0 40px}
 .ac-lf-tab span{font:400 13px/1.35 'Inter',sans-serif}
@@ -391,7 +391,7 @@
   .ac-sichten{grid-template-columns:1fr}
   .ac-pr-regeln{grid-template-columns:1fr 1fr}
   .ac-pr-kapitel{grid-template-columns:repeat(3,1fr)}
-  .ac-lf-tabs{grid-template-columns:1fr}
+  .ac-lf-tabs{grid-template-columns:1fr 1fr}
   .ac-sim-wahl{grid-template-columns:1fr}
   .ac-urkunde{grid-template-columns:auto 1fr}
   .ac-urkunde-knoepfe{grid-column:1/3}

@@ -90,6 +90,13 @@ interface Kunde {
   letztesErgebnis: string | null;
   stammdaten: { strasse: string | null; plz: string | null; ort: string | null; land: string | null; geburtsdatum: string | null } | null;
   zahlung: { referenz: string | null; status: string | null; ref: string | null; empfaenger?: string | null; iban?: string | null; bic?: string | null; klartext?: string | null } | null;
+  // ── E-042: „Rate überfällig – zurückholen“ – gefüllt aus /inkasso/liste, wenn erreichbar ──
+  istRate?: boolean;
+  rateCents?: number | null;
+  rateNr?: number | null;
+  rateFaelligAm?: string | null;
+  rateAnzahl?: number;
+  rateSummeCents?: number;
 }
 
 type Zaehler = Record<string, number>;
@@ -186,18 +193,43 @@ const paketText = (k: Kunde): string => {
 };
 
 // ── Stufen nach Hitze (keine Buchstaben) – Übersetzung der Serverfelder ─────
-type Hitze = "heiss" | "warm" | "lead" | "aktiv";
-const STUFE: Record<Hitze, { name: string; kurz: string; farbe: string; leitfaden: LeitfadenArt; rang: number }> = {
+type Hitze = "heiss" | "rate" | "warm" | "lead" | "aktiv";
+const STUFE: Record<Hitze, { name: string; kurz: string; farbe: string; leitfaden: LeitfadenArt | "reaktivierung"; rang: number }> = {
   heiss: { name: "Bezahlt – Termin offen", kurz: "heiß", farbe: "#fb923c", leitfaden: "stufe_a", rang: 1 },
-  warm: { name: "Antrag fertig – Rechnung offen", kurz: "warm", farbe: "#fbbf24", leitfaden: "stufe_b", rang: 2 },
-  lead: { name: "Registriert – noch kein Antrag", kurz: "Lead", farbe: "#60a5fa", leitfaden: "stufe_c", rang: 3 },
-  aktiv: { name: "Aktiv – betreut", kurz: "aktiv", farbe: "#34d399", leitfaden: "startgespraech", rang: 4 },
+  // E-042: heißeste Farbe neben „Bezahlt – Termin offen“; weicher Reaktivierungs-Leitfaden, kein Inkasso-Ton.
+  rate: { name: "Rate überfällig – zurückholen", kurz: "überfällig", farbe: "#f87171", leitfaden: "reaktivierung", rang: 2 },
+  warm: { name: "Antrag fertig – Rechnung offen", kurz: "warm", farbe: "#fbbf24", leitfaden: "stufe_b", rang: 3 },
+  lead: { name: "Registriert – noch kein Antrag", kurz: "Lead", farbe: "#60a5fa", leitfaden: "stufe_c", rang: 4 },
+  aktiv: { name: "Aktiv – betreut", kurz: "aktiv", farbe: "#34d399", leitfaden: "startgespraech", rang: 5 },
 };
-const STUFEN_REIHE: Hitze[] = ["heiss", "warm", "lead", "aktiv"];
+const STUFEN_REIHE: Hitze[] = ["heiss", "rate", "warm", "lead", "aktiv"];
+/** E-042: Reaktivierungsbonus – 50 % der zurückgeholten Rate für den Bonitätsmanager. */
+const REAKTIVIERUNG_ANTEIL = 0.5;
+/** SCHUFA-Bonus im Onboarding: 10 € je 74-€-Zahlung (Bonitätsauskunft). */
+const SCHUFA_BONUS_TEXT = "+10 € SCHUFA-Bonus je 74-€-Zahlung im Onboarding";
+/** Der weiche Reaktivierungs-Leitfaden (Justin, E-042) – bewusst KEIN Inkasso-Ton. */
+const REAKTIVIERUNG = {
+  key: "reaktivierung" as const,
+  label: "Rate überfällig · zurückholen",
+  kurz: "Weich einsteigen: vorstellen, zuhören, entschuldigen – dann zwei Wege anbieten. Kein Inkasso-Ton.",
+  schritte: [
+    { titel: "Vorstellung und Entschuldigung", text: "Du rufst an, um dich vorzustellen – nicht, um Geld einzutreiben. Der Kunde hatte einen schwierigen Start.", satz: "Guten Tag, mein Name ist … von FIAON – ich rufe an, um mich vorzustellen. Ich weiß, Sie hatten einen echt schwierigen Start bei uns, und dafür möchte ich mich entschuldigen." },
+    { titel: "Zuhören", text: "Was ist passiert? Nicht unterbrechen, nichts rechtfertigen. Der Grund entscheidet über den Weg.", satz: "Erzählen Sie mir kurz, wo es gehakt hat – ich möchte verstehen, was bei Ihnen los war." },
+    { titel: "Den Wert wieder aufbauen", text: "Was FIAON für sein Ziel schon getan hat und noch tut – Auskunft, Schreiben, Konto, Karte.", satz: "Ihr Ziel steht ja weiter: … Genau daran arbeiten wir – und Ihr Bereich zeigt Ihnen jeden Schritt." },
+    { titel: "Zwei Wege anbieten", text: "Weg 1: Die offene Rate jetzt per Überweisung begleichen – dann läuft alles weiter. Weg 2: Einen Monat aussetzen und ein Onboarding-Gespräch buchen. Nie Lastschrift anbieten.", satz: "Ich sehe zwei Wege für Sie: Sie begleichen die offene Rate per Überweisung, dann läuft alles nahtlos weiter – oder wir setzen einen Monat aus und starten mit einem gemeinsamen Gespräch neu. Was passt besser?" },
+    { titel: "Ergebnis festhalten", text: "Ausgang 1: Kunde zahlt → dein Reaktivierungsbonus (50 % der Rate). Ausgang 2: 1 Monat ausgesetzt + Onboarding-Termin gebucht → 0 €, aber der Kunde bleibt.", satz: "Danke für das Gespräch – Sie hören sofort von mir, sobald alles eingetragen ist." },
+  ],
+  einwaende: [
+    { frage: "„Ich will kündigen.“", antwort: "Das können Sie jederzeit – bevor Sie es tun: Lassen Sie uns einen Monat aussetzen und in einem Gespräch schauen, was FIAON für Ihr Ziel schon erreicht hat. Kostet Sie nichts, und Sie entscheiden danach." },
+    { frage: "„Ich habe gerade kein Geld.“", antwort: "Verstehe ich. Dann setzen wir einen Monat aus und buchen ein Gespräch – kein Druck, keine Mahnung. Wann ist Ihr nächster Gehaltseingang?" },
+    { frage: "„Bei euch ist nichts passiert.“", antwort: "Das nehme ich ernst – genau deshalb rufe ich an. Lassen Sie uns im Gespräch durchgehen, was schon läuft und was als Nächstes kommt. Danach entscheiden Sie." },
+  ],
+};
 const MAX_AKTIV = 10;
 
 /** Die Stufe aus priority_tier + Termin: Tier 1 = „bezahlt“ gemeldet, Tier 0 ohne Termin = bezahlt ohne Termin – beides heiß. */
 function stufeVon(k: Kunde): Hitze {
+  if (k.istRate) return "rate";
   if (k.tier === 1) return "heiss";
   if (k.tier === 0) return (k.termin || k.terminAm) ? "aktiv" : "heiss";
   if (k.tier === 2) return "warm";
@@ -207,7 +239,7 @@ function stufeVon(k: Kunde): Hitze {
 function hitzeVon(k: Kunde): number {
   if (rueckrufFaellig(k)) return 1;
   const s = stufeVon(k);
-  return s === "heiss" ? (k.tier === 0 ? 0.95 : 0.85) : s === "warm" ? 0.6 : s === "lead" ? 0.3 : 0.12;
+  return s === "heiss" ? (k.tier === 0 ? 0.95 : 0.85) : s === "rate" ? 0.9 : s === "warm" ? 0.6 : s === "lead" ? 0.3 : 0.12;
 }
 /** Monatspreis des Pakets in Cent – aus der Buchung, sonst Betrag, sonst Katalog über den Namen. */
 function paketPreis(k: Kunde): number {
@@ -237,10 +269,12 @@ function rang(k: Kunde): number[] {
     return [0, t];
   }
   const s = stufeVon(k);
-  if (s === "heiss") return [k.tier === 0 ? 1 : 2, -(jungAm(k))];
-  if (s === "warm") return [3, -(jungAm(k))];
-  if (s === "lead") return [4, -(jungAm(k))];
-  return [5, -(jungAm(k))];
+  // E-042: Die überfälligen Raten stehen direkt nach den Rückrufen.
+  if (s === "rate") return [1, k.rateFaelligAm ? new Date(k.rateFaelligAm).getTime() : 0];
+  if (s === "heiss") return [k.tier === 0 ? 2 : 3, -(jungAm(k))];
+  if (s === "warm") return [4, -(jungAm(k))];
+  if (s === "lead") return [5, -(jungAm(k))];
+  return [6, -(jungAm(k))];
 }
 function vergleich(a: Kunde, b: Kunde): number {
   const ra = rang(a), rb = rang(b);
@@ -252,6 +286,7 @@ function warumJetzt(k: Kunde): string {
   const z = relativ(k.zusagedatum);
   if (z?.dringend) return `Zahlungszusage ${z.text} – jetzt nachfassen, Zahlungsdaten zur Hand.`;
   const s = stufeVon(k);
+  if (s === "rate") return `Rate${k.rateNr ? ` ${k.rateNr}` : ""} über ${k.rateCents ? eur(k.rateCents) : "—"} ist ${k.rateFaelligAm ? `seit ${dtag(k.rateFaelligAm)} ` : ""}überfällig. Weich einsteigen: vorstellen, entschuldigen, zuhören – kein Inkasso-Ton.`;
   if (s === "heiss" && k.tier === 0) return "Bezahlt, aber noch kein Termin. Willkommen heißen und den nächsten freien Termin vergeben.";
   if (s === "heiss") return "Der Kunde hat „bezahlt“ gemeldet. Termin vergeben, Zahlung bestätigen lassen – das ist der heißeste Anruf im Haus.";
   if (s === "warm") return k.hinweis || "Antrag fertig, Geld fehlt. Zahlungsdaten senden, Überweisung vereinbaren, Termin setzen.";
@@ -310,6 +345,9 @@ function PipelineInnen() {
   const [nurRueckruf, setNurRueckruf] = useState(false);
   const [anlageOffen, setAnlageOffen] = useState(false);
   const [aktiv, setAktiv] = useState(0);
+  // E-042: Woher die überfälligen Raten kommen – "ok" (Daten da), "leer" (Zugriff da, nichts offen),
+  // "keine" (der Server gibt sie hier noch nicht her → „kommt mit dem Zahlungsmotor“, nicht raten).
+  const [ratenQuelle, setRatenQuelle] = useState<"ok" | "leer" | "keine">("keine");
   const [offen, setOffen] = useState<number | null>(null);
   const [fremd, setFremd] = useState<Kunde | null>(null);
   const handy = useMedia("(max-width: 700px)");
@@ -332,9 +370,13 @@ function PipelineInnen() {
     // In der Standardansicht kommen die bezahlten Kunden dazu (eigener Serverfilter):
     // sie sind „Aktiv – betreut“ – oder heiß, wenn noch kein Termin steht.
     const mitAktiven = ansicht === "alle" && !suche.trim();
-    const [r, b] = await Promise.all([
+    const [r, b, ink] = await Promise.all([
       api(`/agent/kunden/liste?${p.toString()}`),
       mitAktiven ? api(`/agent/kunden/liste?filter=bezahlt&sort=neu&limit=200`) : Promise.resolve(null),
+      // E-042: überfällige Raten. /agent/kunden/liste kennt sie nicht; die Collections-Liste
+      // (/inkasso/liste) hat sie – sie ist aber für die Inkasso-Rolle gebaut. Wir fragen an
+      // und nehmen NUR echte Daten; ohne Zugriff bleibt die Gruppe ehrlich leer.
+      mitAktiven ? api(`/inkasso/liste?limit=60`).catch(() => null) : Promise.resolve(null),
     ]);
     if (r.ok) {
       setFehler(null);
@@ -342,7 +384,39 @@ function PipelineInnen() {
         const haupt: Kunde[] = r.json.kunden || [];
         const ids = new Set(haupt.map((k) => k.personId));
         const extra: Kunde[] = b?.ok ? (b.json.kunden || []).filter((k: Kunde) => !ids.has(k.personId)) : [];
-        setListe([...haupt, ...extra]);
+        // Überfällige Raten an vorhandene Karten heften oder als eigene Karte aufnehmen.
+        const zusammen = [...haupt, ...extra];
+        if (ink?.ok && Array.isArray(ink.json?.personen)) {
+          setRatenQuelle(ink.json.personen.length > 0 ? "ok" : "leer");
+          ink.json.personen.forEach((pers: any, i: number) => {
+            const d = pers.dringendste || pers.raten?.[0] || {};
+            const felder = {
+              istRate: true, rateCents: d.betrag_cents != null ? Number(d.betrag_cents) : null,
+              rateNr: d.rate_nr != null ? Number(d.rate_nr) : null,
+              rateFaelligAm: d.faellig_am ?? null,
+              rateAnzahl: Number(pers.anzahl || pers.raten?.length || 1),
+              rateSummeCents: Number(pers.summeCents || 0),
+            };
+            const da = pers.personId != null ? zusammen.find((k) => k.personId === Number(pers.personId)) : undefined;
+            if (da) Object.assign(da, felder);
+            else zusammen.push({
+              personId: pers.personId != null ? Number(pers.personId) : -(i + 1),
+              name: String(pers.name || "Ohne Namen"),
+              telefon: pers.telefonAnzeige ?? pers.phone ?? null,
+              telefonWaehlbar: pers.telefonWaehlbar ?? null,
+              telefonHinweis: pers.telefonHinweis ?? null,
+              email: pers.email ?? null,
+              tier: 0, tierGrund: "bezahlt", titel: "", hinweis: "",
+              produkt: null, buchungen: [], betrag: felder.rateCents,
+              zusagedatum: null, wiedervorlage: null, rueckrufAm: null,
+              nichtErreicht: 0, rechnungVersandt: 0, stufe: null, ruhtSeit: null,
+              terminlinkMailAm: null, terminAm: null, terminLink: "", gesperrt: false,
+              betreutSeit: null, letzterKontakt: null, letztesErgebnis: null,
+              stammdaten: null, zahlung: null, ...felder,
+            });
+          });
+        } else if (mitAktiven) setRatenQuelle("keine");
+        setListe(zusammen);
         setErledigt(new Set());
         setAktiv(0);
       }
@@ -372,6 +446,8 @@ function PipelineInnen() {
   }, [offen, laedt, liste]);
 
   const oeffnen = (id: number | null) => {
+    // Karten aus der Raten-Gruppe ohne echte Personen-Kennung haben keine Akte im Vertrieb.
+    if (id != null && id < 0) return;
     setOffen(id);
     const u = new URL(window.location.href);
     if (id) u.searchParams.set("person", String(id)); else u.searchParams.delete("person");
@@ -390,13 +466,25 @@ function PipelineInnen() {
 
   // ── Zahlen ──────────────────────────────────────────────────────────────
   const jeStufe = useMemo(() => {
-    const z: Record<Hitze, number> = { heiss: 0, warm: 0, lead: 0, aktiv: 0 };
+    const z: Record<Hitze, number> = { heiss: 0, rate: 0, warm: 0, lead: 0, aktiv: 0 };
     for (const k of liste) z[stufeVon(k)]++;
     return z;
   }, [liste]);
-  const erreichbar = useMemo(() => liste.filter((k) => !erledigt.has(k.personId) && ["heiss", "warm"].includes(stufeVon(k))).reduce((s, k) => s + paketPreis(k), 0), [liste, erledigt]);
+  const erreichbar = useMemo(() => liste.filter((k) => !erledigt.has(k.personId)).reduce((s, k) => {
+    const st = stufeVon(k);
+    if (st === "heiss" || st === "warm") return s + paketPreis(k);
+    if (st === "rate") return s + (k.rateCents ?? 0);
+    return s;
+  }, 0), [liste, erledigt]);
+  // Provision: Satz auf heiß/warm, 50 % Reaktivierungsbonus auf überfällige Raten (E-042).
+  const provisionMoeglich = useMemo(() => liste.filter((k) => !erledigt.has(k.personId)).reduce((s, k) => {
+    const st = stufeVon(k);
+    if (st === "heiss" || st === "warm") return s + Math.round(paketPreis(k) * satz);
+    if (st === "rate") return s + Math.round((k.rateCents ?? 0) * REAKTIVIERUNG_ANTEIL);
+    return s;
+  }, 0), [liste, erledigt, satz]);
   const aktive = ansicht === "alle" ? jeStufe.aktiv + liste.filter((k) => k.tier === 0 && stufeVon(k) === "heiss").length : (zaehler.bezahlt ?? 0);
-  const zErreichbar = useZaehlen(erreichbar), zProvision = useZaehlen(Math.round(erreichbar * satz)), zAktive = useZaehlen(aktive);
+  const zErreichbar = useZaehlen(erreichbar), zProvision = useZaehlen(provisionMoeglich), zAktive = useZaehlen(aktive);
 
   // ── Der Strom: gefiltert, nach Hitze geordnet, Erledigte hinten ────────
   const laender = useMemo(() => Array.from(new Set(liste.map((k) => k.stammdaten?.land).filter(Boolean) as string[])).sort(), [liste]);
@@ -450,7 +538,7 @@ function PipelineInnen() {
         <div className="pi-umsatz-zahl hervor">
           <small>Meine Provision möglich</small>
           <b>{laedt ? "–" : euro0(zProvision)}</b>
-          <span>{Math.round(satz * 100)} % je bankbestätigter Rate</span>
+          <span>{Math.round(satz * 100)} % je bankbestätigter Rate · 50 % je zurückgeholter Rate</span>
         </div>
         <div className="pi-umsatz-zahl">
           <small>Aktive Kunden</small>
@@ -478,16 +566,26 @@ function PipelineInnen() {
         {laedt ? (
           <div className="pi-fokus-karte"><span className="pi-pille">Jetzt anrufen</span><h1>Lade <span className="pi-verlauf">deine Kunden …</span></h1></div>
         ) : !fokus ? (
+          stufe === "rate" && ratenQuelle !== "ok" ? (
+            <div className="pi-fokus-karte" style={{ ["--hitze" as string]: STUFE.rate.farbe }}>
+              <span className="pi-pille">Rate überfällig · zurückholen</span>
+              <h1>{ratenQuelle === "leer" ? "Keine Rate überfällig – stark." : "Kommt mit dem Zahlungsmotor."}</h1>
+              <p className="pi-fokus-warum">{ratenQuelle === "leer"
+                ? "Sobald eine Rate deiner Kunden überfällig ist, steht sie hier – mit weichem Reaktivierungs-Leitfaden und 50 % Bonus je zurückgeholter Rate."
+                : "Die überfälligen Raten liegen heute noch bei Collections. Sobald der Zahlungsmotor sie hier hereinreicht, stehen sie in dieser Gruppe – mit weichem Reaktivierungs-Leitfaden und 50 % Bonus je zurückgeholter Rate. Hier wird nichts geraten."}</p>
+            </div>
+          ) : (
           <div className="pi-fokus-karte">
             <span className="pi-pille">Jetzt anrufen</span>
             <h1>{liste.length === 0 ? (rolle === "onboarding" ? "Keine Startgespräche offen." : ansicht === "alle" ? "Dir ist gerade kein Kunde zugewiesen." : "In dieser Ansicht ist nichts offen.") : "Mit diesen Filtern ist nichts offen."}</h1>
             <p className="pi-fokus-warum">{liste.length === 0 ? "Neue Kunden kommen automatisch dazu, sobald deine Verfügbarkeit steht." : "Nimm einen Filter zurück oder such direkt nach einem Namen."}</p>
           </div>
+          )
         ) : (
           <FokusKarte key={fokus.personId} k={fokus} satz={satz} erledigt={erledigt.has(fokus.personId)} position={aktiv + 1} von={strom.length}
                       onAkte={() => oeffnen(fokus.personId)} onVor={vor} onZurueck={zurueck} ruhig={ruhig} />
         )}
-        <Leitfaden art={fokus ? STUFE[stufeVon(fokus)].leitfaden : "stufe_a"} stufe={fokus ? stufeVon(fokus) : "heiss"} />
+        <Leitfaden stufe={fokus ? stufeVon(fokus) : (stufe === "rate" ? "rate" : "heiss")} />
       </section>
 
       {/* Suche, Filter, Sortierung – eine Leiste */}
@@ -559,10 +657,12 @@ function FokusKarte({ k, satz, erledigt, position, von, onAkte, onVor, onZurueck
   k: Kunde; satz: number; erledigt: boolean; position: number; von: number; onAkte: () => void; onVor: () => void; onZurueck: () => void; ruhig: boolean;
 }) {
   const s = stufeVon(k); const st = STUFE[s];
-  const preis = paketPreis(k); const wert = preis * 12;
-  const zWert = useZaehlen(wert), zProv = useZaehlen(Math.round(wert * satz));
+  const preis = s === "rate" ? (k.rateCents ?? 0) : paketPreis(k);
+  const wert = s === "rate" ? (k.rateSummeCents || k.rateCents || 0) : preis * 12;
+  const prov = s === "rate" ? Math.round((k.rateCents ?? 0) * REAKTIVIERUNG_ANTEIL) : Math.round(preis * 12 * satz);
+  const zWert = useZaehlen(wert), zProv = useZaehlen(prov);
   const faellig = rueckrufFaellig(k);
-  const paket = (k.buchungen ?? []).find((b) => !b.erledigt && b.art === "paket")?.bezeichnung || k.produkt || "noch kein Paket";
+  const paket = (k.buchungen ?? []).find((b) => !b.erledigt && b.art === "paket")?.bezeichnung || k.produkt || (s === "rate" ? `Rate${k.rateNr ? ` ${k.rateNr}` : ""} überfällig` : "noch kein Paket");
   return (
     <div className={`pi-fokus-karte${ruhig ? "" : " tief"}`} style={{ ["--hitze" as string]: faellig ? "#f87171" : st.farbe }}>
       <div className="pi-fokus-kopf">
@@ -573,9 +673,19 @@ function FokusKarte({ k, satz, erledigt, position, von, onAkte, onVor, onZurueck
       <div className="pi-fokus-stufe"><i className="pi-glut" /><b>{st.name}</b><span>· {paket}{preis ? ` · ${eur(preis)} im Monat` : ""}</span></div>
       <p className="pi-fokus-warum">{warumJetzt(k)}</p>
       <div className="pi-fokus-wert">
-        <div><small>Erwarteter Wert</small><b>{preis ? euro0(zWert) : "–"}</b><span>12 Raten · erste per Überweisung</span></div>
-        <div className="hervor"><small>Meine Provision</small><b>{preis ? euro0(zProv) : "–"}</b><span>{Math.round(satz * 100)} % je bankbestätigter Rate</span></div>
-        <div><small>Letzter Kontakt</small><b className="klein">{wartezeit(k.letzterKontakt).replace(" kontaktiert", "")}</b><span>{k.nichtErreicht > 0 ? `${k.nichtErreicht}× nicht erreicht` : k.stammdaten?.land ? (LAND_NAME[k.stammdaten.land] || k.stammdaten.land) : "—"}</span></div>
+        {s === "rate" ? (
+          <>
+            <div><small>Offen</small><b>{wert ? euro0(zWert) : "–"}</b><span>{(k.rateAnzahl ?? 1) > 1 ? `${k.rateAnzahl} Raten überfällig` : `Rate${k.rateNr ? ` ${k.rateNr}` : ""}${k.rateFaelligAm ? ` · fällig ${dtag(k.rateFaelligAm)}` : ""}`} · per Überweisung</span></div>
+            <div className="hervor"><small>Reaktivierungsbonus</small><b>{prov ? euro0(zProv) : "–"}</b><span>50 % dieser Rate für dich, wenn der Kunde zahlt</span></div>
+            <div><small>Zwei Ausgänge</small><b className="klein">zahlt · oder pausiert</b><span>„Kunde zahlt“ → Bonus · „1 Monat ausgesetzt + Onboarding-Termin“ → 0 €</span></div>
+          </>
+        ) : (
+          <>
+            <div><small>Erwarteter Wert</small><b>{preis ? euro0(zWert) : "–"}</b><span>12 Raten · erste per Überweisung</span></div>
+            <div className="hervor"><small>Meine Provision</small><b>{preis ? euro0(zProv) : "–"}</b><span>{Math.round(satz * 100)} % je bankbestätigter Rate{s === "aktiv" ? ` · ${SCHUFA_BONUS_TEXT}` : ""}</span></div>
+            <div><small>Letzter Kontakt</small><b className="klein">{wartezeit(k.letzterKontakt).replace(" kontaktiert", "")}</b><span>{k.nichtErreicht > 0 ? `${k.nichtErreicht}× nicht erreicht` : k.stammdaten?.land ? (LAND_NAME[k.stammdaten.land] || k.stammdaten.land) : "—"}</span></div>
+          </>
+        )}
       </div>
       <div className="pi-fokus-knoepfe">
         {k.telefonWaehlbar ? (
@@ -592,10 +702,11 @@ function FokusKarte({ k, satz, erledigt, position, von, onAkte, onVor, onZurueck
 }
 
 // ── Der Leitfaden der Stufe (tools/gespraech.tsx) als aufklappbare Glas-Karte ──
-function Leitfaden({ art, stufe }: { art: LeitfadenArt; stufe: Hitze }) {
+function Leitfaden({ stufe }: { stufe: Hitze }) {
   const [auf, setAuf] = useState(false);
   const [schritt, setSchritt] = useState<number | null>(0);
-  const v = ARTEN.find((a) => a.key === art) ?? ARTEN[0];
+  const art = STUFE[stufe].leitfaden;
+  const v = art === "reaktivierung" ? REAKTIVIERUNG : (ARTEN.find((a) => a.key === art) ?? ARTEN[0]);
   useEffect(() => { setSchritt(0); }, [art]);
   return (
     <aside className={`pi-leitfaden${auf ? " auf" : ""}`} style={{ ["--hitze" as string]: STUFE[stufe].farbe }}>
@@ -675,8 +786,8 @@ function Strom({ liste, aktiv, setAktiv, erledigt, onAkte, flach, ruhig, laedt }
               title={i === aktiv || flach ? "Akte öffnen" : "nach vorn holen"}>
         <span className="pi-sk-kopf"><i className="pi-glut" /><small>{faellig ? "Rückruf fällig" : STUFE[s].kurz}</small>{fertig && <em><Check size={11} strokeWidth={2.5} /> gebucht</em>}</span>
         <b>{k.name}</b>
-        <span className="pi-sk-paket">{(k.buchungen ?? []).find((b) => !b.erledigt && b.art === "paket")?.bezeichnung || k.produkt || "kein Paket"}{preis ? ` · ${eur(preis)}` : ""}</span>
-        <span className="pi-sk-fuss">{k.termin ? `${terminText(k.termin.beginn)} · ${k.termin.art}` : k.rueckrufAm ? `Rückruf ${terminText(k.rueckrufAm)}` : relativ(k.zusagedatum) ? `Zusage ${relativ(k.zusagedatum)!.text}` : wartezeit(k.letzterKontakt)}</span>
+        <span className="pi-sk-paket">{s === "rate" ? `Rate${k.rateNr ? ` ${k.rateNr}` : ""}${(k.rateAnzahl ?? 1) > 1 ? ` · ${k.rateAnzahl} offen` : ""} · zurückholen` : `${(k.buchungen ?? []).find((b) => !b.erledigt && b.art === "paket")?.bezeichnung || k.produkt || "kein Paket"}${preis ? ` · ${eur(preis)}` : ""}`}</span>
+        <span className="pi-sk-fuss">{s === "rate" ? `${k.rateCents ? eur(k.rateCents) : "Rate"} überfällig${k.rateFaelligAm ? ` seit ${dtag(k.rateFaelligAm)}` : ""} · Bonus ${k.rateCents ? eur(Math.round(k.rateCents * REAKTIVIERUNG_ANTEIL)) : "50 %"}` : k.termin ? `${terminText(k.termin.beginn)} · ${k.termin.art}` : k.rueckrufAm ? `Rückruf ${terminText(k.rueckrufAm)}` : relativ(k.zusagedatum) ? `Zusage ${relativ(k.zusagedatum)!.text}` : wartezeit(k.letzterKontakt)}</span>
       </button>
     );
   };

@@ -278,7 +278,7 @@ function LeitfaedenSeite() {
         <Link href="/agent/academy" className="ac-zurueck"><ArrowLeft size={15} />Academy</Link>
         <div className="ac-kap-hero-innen">
           <span className="ac-kap-nr"><FileText size={34} strokeWidth={1.5} /></span>
-          <div><span className="ac-pille">Leitfäden auf Abruf</span><h1>Stufe A, B, C – <span className="ac-verlauf">kurz, kopierbar.</span></h1><p>Die Kurzfassung für den Anruf, die Langfassung zum Üben. Regeln: Kunden siezen, keine Garantie, erste Zahlung immer direkt, Termin sofort aus deiner Availability.</p></div>
+          <div><span className="ac-pille">Leitfäden auf Abruf</span><h1>Stufe A, B, C und R – <span className="ac-verlauf">kurz, kopierbar.</span></h1><p>Die Kurzfassung für den Anruf, die Langfassung zum Üben. Regeln: Kunden siezen, keine Garantie, erste Zahlung immer direkt, Termin sofort aus deiner Availability.</p></div>
         </div>
       </section>
       <div className="ac-lf">
@@ -290,7 +290,7 @@ function LeitfaedenSeite() {
           <div className="ac-lf-knoepfe">
             <button type="button" className="ac-knopf" onClick={kopieren}>{kopiert ? <Check size={15} /> : <Copy size={15} />}{kopiert ? "Kopiert" : "Kurzfassung kopieren"}</button>
             <button type="button" className="ac-knopf still" onClick={() => setLang(!lang)}>{lang ? "Langfassung ausblenden" : "Langfassung zeigen"}</button>
-            <Link href={`/agent/academy/gespraech/stufe-${l.key}`} className="ac-knopf still"><GraduationCap size={15} />Im Kapitel üben</Link>
+            <Link href={`/agent/academy/gespraech/${l.schrittKey}`} className="ac-knopf still"><GraduationCap size={15} />Im Kapitel üben</Link>
           </div>
           {lang && <Bloecke bloecke={[{ art: "leitfaden", phasen: l.phasen }]} />}
         </div>

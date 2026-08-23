@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // Academy · Kapitel 10 — Reale Situationen (23.08.2026, Plan §11)
-// Zehn Fallstudien aus anonymisierten echten Fällen (Betriebslage 08/2026,
+// Elf Fallstudien aus anonymisierten echten Fällen (Betriebslage 08/2026,
 // Chat-Auswertung, Telefonie-Bug E-012, Dubletten, Fehlbeträge). Entscheidung,
 // dann Auflösung. Preise aus dem Katalog.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -132,6 +132,18 @@ export const KAPITEL_10: KapitelInhalt = {
       aufloesung: "Drei Auskünfte, eine Rechtsgrundlage (DSGVO), eine Behörde (Datenschutzbehörde Wien), keine deutsche Regel. Der verspätet bezahlte Versandhauseintrag ist nach zwei Jahren wahrscheinlich noch gespeichert – zu prüfen ist, ob die Meldung zulässig war (fällig, unbestritten, informiert) und ob das Erledigungsdatum stimmt.",
       lehre: "Land zuerst, dann Regel. Nie umgekehrt.",
     }),
+    "fall-11": fall({
+      situation: `Frau D. (FIAON Pro, ${preis("pro")}) ist seit fünf Monaten Kundin. Nach der Startzahlung ist praktisch nichts passiert – alter Ablauf, niemand war zuständig. Zwei Raten sind überfällig, die Erinnerungen hat sie ignoriert. Sie wird dir jetzt als Kundin zugewiesen; ein Onboarding-Gespräch gab es nie.`,
+      akte: ["Startzahlung vor 5 Monaten, danach kaum Bewegung in der Akte", "Rate 4 und 5 überfällig, Erinnerungen ohne Antwort", "Kein Onboarding-Termin, keine Bonitätsauskunft", "Kein fester Ansprechpartner bis heute"],
+      frage: "Wie führst du das Gespräch?",
+      optionen: [
+        { text: "„Guten Tag, hier ist FIAON – bei Ihnen sind zwei Raten offen. Bis wann können Sie überweisen?“", folge: "Inkasso-Ton bei einer Kundin, die zu Recht enttäuscht ist. Sie kündigt – und hat dabei noch das bessere Argument." },
+        { text: "„Guten Tag, mein Name ist [Name] von FIAON – ich rufe an, um mich vorzustellen: Ich bin ab jetzt Ihre feste Ansprechpartnerin. Ich weiß, Sie hatten einen echt schwierigen Start, und dafür möchte ich mich zuerst entschuldigen.“ Dann zuhören, die Akte aufräumen, zwei Wege anbieten: Rate zahlen (dann geht es sofort los) – oder eine Rate einen Monat aussetzen und jetzt den Onboarding-Termin buchen.", richtig: true, folge: "Die Entschuldigung entwaffnet, das Aussetzen zeigt guten Willen. Frau D. nimmt den Termin – und bleibt. Zahlt sie, bekommst du 50 % des Zahlungswerts; setzt du aus, lebt deine laufende Provision ab der nächsten Rate wieder." },
+        { text: "Die Akte an das Back-Office geben – überfällig ist überfällig.", folge: "Tag 30 ist noch nicht erreicht, und ein Back-Office-Brief gewinnt keine enttäuschte Kundin zurück. Dieser Anruf ist genau deine Aufgabe – und deine Chance." },
+      ],
+      aufloesung: "Reaktivierung (E-042): weich, mit ehrlicher Entschuldigung – diese Kunden haben lange gewartet, der Fehler lag bei uns. Zwei gute Ausgänge: Zahlung (Reaktivierungsbonus 50 % des Zahlungswerts) oder einen Monat aussetzen (0 € Vergütung, aber vorgestellt, Onboarding-Termin gebucht, Kundin gehalten). Im Onboarding ist die Bonitätsauskunft das Ziel – zahlt sie sie, kommen 10 € dazu.",
+      lehre: "Eine gehaltene Kundin ist mehr wert als eine eingetriebene Rate.",
+    }),
   },
   test: [
     frage("Kunde überweist den Ultra-Preis, wollte aber die Auskunft. Richtig ist:", ["Stillschweigend umbuchen", "Anrufen, klären, Differenz über das Back-Office erstatten oder anrechnen, Entscheidung notieren", "Als Provision verbuchen", "Abwarten"], 1, "Nie stillschweigend umbuchen."),
@@ -141,6 +153,7 @@ export const KAPITEL_10: KapitelInhalt = {
     frage("Tag-14-Anruf – welcher Satz ist tabu?", ["„Ist etwas dazwischengekommen?“", "„Sonst melden wir Sie bei der SCHUFA.“", "„Passt der 28.?“", "„Die Lastschrift ist zurückgegangen.“"], 1, "Keine Drohung mit Eintrag."),
     frage("Interessent will eine schriftliche Löschgarantie in drei Monaten.", ["Schriftlich geben", "Klar nein; erklären, was FIAON schriftlich gibt: jeden Schritt mit Datum; Prüfmechanismus erklären", "„90 Prozent Erfolgsquote“", "Thema wechseln"], 1, "Ehrlichkeit ist das Verkaufsargument."),
     frage("Restschuldbefreiung vor 20 Monaten, Vermerk noch da, Konto verweigert.", ["Warten", "Löschung nach Art. 17 DSGVO (EuGH C-26/22) und Basiskonto nach ZKG – Ablehnung begründen lassen, BaFin", "Drei Kreditanfragen", "Neu Insolvenz anmelden"], 1, "Sechs Monate – und ein Konto ist ein Rechtsanspruch."),
+    frage("Kundin mit zwei überfälligen Raten, schwieriger Start, nie Onboarding. Bester Einstieg?", ["„Zwei Raten offen – wann zahlen Sie?“", "Vorstellen, ehrlich entschuldigen, zuhören, dann zwei Wege: zahlen oder einen Monat aussetzen + Onboarding-Termin", "An das Back-Office geben", "Kündigung nahelegen"], 1, "Reaktivierung ist Rückgewinnung."),
     frage("Kundin aus Wien fragt nach der 100-Tage-Regel und der SCHUFA.", ["Beides gilt", "KSV1870/CRIF/Warnliste; deutsche Regel gilt nicht; Art. 15 DSGVO; Datenschutzbehörde Wien", "SCHUFA bestellen", "Prüfen und melden"], 1, "Land zuerst, dann Regel."),
   ],
 };

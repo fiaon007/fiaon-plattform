@@ -14,6 +14,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useMemo, useRef, useState } from "react";
 import "@/styles/mein-bereich.css";
+import { Einrichtung } from "@/components/kunde/Einrichtung";
 
 // Demo-Konto (23.08.2026): unter /demo/kundenbereich zeigt dieselbe Seite die
 // Platzhalterdaten von FIAON-DEMO (server/routes/fiaon-demo.ts) — ohne Login.
@@ -35,6 +36,7 @@ interface Bereich {
   ansprechpartner: { name: string; rolle: string | null } | null;
   lastschrift: { mandat: string | null; status: string | null; aktiv: boolean };
   kontoVerbunden: boolean;
+  passwortGesetzt?: boolean;
   finanzen?: any;
 }
 
@@ -116,7 +118,9 @@ function Begruessung({ name, paket, rahmen, zeile, onZu }: { name: string; paket
 export default function MeinBereichPage() {
   const [d, setD] = useState<Bereich | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
-  const [vorhang, setVorhang] = useState(() => DEMO || sessionStorage.getItem("mb_begruesst") !== "1");
+  const einrichten = new URLSearchParams(window.location.search).get("einrichten") === "1";
+  const [vorhang, setVorhang] = useState(() => !einrichten && (DEMO || sessionStorage.getItem("mb_begruesst") !== "1"));
+  const [einrichtungFertig, setEinrichtungFertig] = useState(false);
   const [eingeklappt, setEingeklappt] = useState(() => localStorage.getItem("mb_leiste") === "zu");
   const [menueOffen, setMenueOffen] = useState(false);
   const [aktiv, setAktiv] = useState("buehne");
@@ -203,6 +207,9 @@ export default function MeinBereichPage() {
       <div className="mb-lichter" aria-hidden="true"><div className="mb-licht a" /><div className="mb-licht b" /></div>
       {DEMO && <a className="mb-demo-band" href="/demo">Demo-Konto mit Platzhalterdaten<span>Zurück zur Demo-Übersicht</span></a>}
 
+      {!DEMO && !einrichtungFertig && (einrichten || d.passwortGesetzt === false) && (
+        <Einrichtung bereich={d} name={name} onFertig={() => { setEinrichtungFertig(true); history.replaceState(null, "", "/mein-bereich"); }} />
+      )}
       {vorhang && <Begruessung name={name} paket={d.paket.name} rahmen={d.paket.rahmen} zeile={begruessungsZeile}
         onZu={() => { sessionStorage.setItem("mb_begruesst", "1"); setVorhang(false); }} />}
 
@@ -434,6 +441,7 @@ export default function MeinBereichPage() {
               <div className="mb-abschnitt-kopf"><div><h2>Ihre Finanzen</h2><p>Wohin Ihr Geld geht — nicht geschätzt, gezählt.</p></div></div>
               <FinanzAnalyse a={d.finanzen ?? null} hatAuszug={d.unterlagen.kontoauszug} />
               <Zahlungskalender raten={d.abo.raten} paket={d.paket.name} />
+                  <p style={{ margin: "14px 0 0", fontSize: 12, color: "var(--text-still)" }}>Sie möchten nicht weitermachen? <a href="/abo-kuendigen" style={{ color: "var(--text-leise)", textDecoration: "underline", textUnderlineOffset: 3 }}>Abo kündigen</a> – wir sagen Ihnen vorher ehrlich, was Sie verlieren.</p>
               {!d.finanzen && <div className="mb-hinweis" style={{ marginTop: 16 }}><b>Sobald Ihr Kontoauszug vorliegt</b> (oder Ihr Konto verbunden ist), erscheinen hier Miete, Strom, Versicherungen, Abos und alle anderen festen Zahlungen — mit Betrag und Rhythmus. Dazu Ihr Ausgabenprofil nach Bereichen und Merksätze, die benennen, wo Spielraum ist.</div>}
             </section>
 

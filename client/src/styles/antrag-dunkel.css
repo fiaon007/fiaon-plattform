@@ -144,3 +144,15 @@
 .antrag-dk .antrag-oder-linie{flex:1;height:1px;background:rgba(255,255,255,.12)}
 .antrag-dk .antrag-termin-knopf{color:#e5e7eb;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.16);transition:background .25s,border-color .25s}
 .antrag-dk .antrag-termin-knopf:hover{background:rgba(255,255,255,.09);border-color:rgba(147,197,253,.5)}
+
+/* ── Zahlungsseite: alle hellen Flächen in Glas, Schrift hell (Justin, 23.08.) ── */
+.antrag-dk .bg-slate-50,.antrag-dk .bg-slate-50\/60,.antrag-dk .bg-slate-50\/70,.antrag-dk .bg-blue-50\/40,.antrag-dk .bg-blue-50\/60,.antrag-dk .bg-blue-50\/70,.antrag-dk .bg-white\/40{background-color:rgba(255,255,255,.06)}
+.antrag-dk .bg-emerald-50{background-color:rgba(5,150,105,.14)}
+.antrag-dk .bg-red-50{background-color:rgba(220,38,38,.14)}
+.antrag-dk .text-slate-800,.antrag-dk .text-slate-900{color:#f3f4f6}
+.antrag-dk .text-blue-800,.antrag-dk .text-blue-900{color:#bfdbfe}
+.antrag-dk .text-blue-700{color:#93c5fd}
+.antrag-dk .text-emerald-700,.antrag-dk .text-emerald-800{color:#6ee7b7}
+.antrag-dk .text-amber-700,.antrag-dk .text-amber-800,.antrag-dk .text-orange-600{color:#fcd34d}
+.antrag-dk .border-slate-300{border-color:rgba(255,255,255,.18)}
+.antrag-dk .bg-white.text-slate-900,.antrag-dk .hover\:bg-slate-50:hover{background-color:rgba(255,255,255,.1)}

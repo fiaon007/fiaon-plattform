@@ -199,6 +199,7 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
                     { href: "/", label: "Startseite", text: "Einsicht · Aktion · Zugang", key: "startseite" },
                     { href: "/was-ist-fiaon", label: "Was ist FIAON", text: "Die Plattform in drei Schichten", key: "was-ist-fiaon" },
                     { href: "/ratgeber", label: "Ratgeber", text: "Einträge, Auskunft, Karte – ehrlich erklärt", key: "ratgeber" },
+                    { href: "/werkzeuge/eintrag-pruefen", label: "Eintrag prüfen", text: "Fünf Fragen – ist Ihr Eintrag angreifbar?", key: "werkzeuge" },
                     { href: "/privatkunden", label: "Privatkunden", text: "Pakete, Ablauf, Preise", key: "privatkunden" },
                     { href: "/bonitaet", label: "Bonitäts-Auszug", text: "Ihre Auskunft, beantragt durch FIAON", key: "bonitaet" },
                     { href: "/business", label: "Business", text: "Firmenbonität und Geschäftskonto", key: "business" },

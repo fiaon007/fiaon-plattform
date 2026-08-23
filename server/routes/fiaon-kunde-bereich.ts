@@ -12,7 +12,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { Router, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
-import { requireKunde, kundenSitzungLoeschen, kundeAusCookie, passwortPasst, passwortHashen, type KundeRequest } from "../lib/fiaon-kunde-session";
+import { requireKunde, kundenSitzungLoeschen, kundeAusCookie, passwortPasst, passwortHashen, istGehasht, type KundeRequest } from "../lib/fiaon-kunde-session";
 import { effectiveLimit } from "./fiaon-antrag";
 import { paket as paketVon } from "@shared/fiaon-pakete";
 
@@ -96,7 +96,7 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
     const ref = req.kundeRef!;
     await (await import("./fiaon-abo")).ensureAboTabellen();
     const [a] = (await sqlPool`
-      SELECT a.abo_verlaengerung_gefragt_am, a.abo_verlaengert_am, a.abo_gestoppt_am, a.ref, a.person_id, a.first_name, a.last_name, a.email, a.phone, a.phone_country_code,
+      SELECT a.password, a.abo_verlaengerung_gefragt_am, a.abo_verlaengert_am, a.abo_gestoppt_am, a.ref, a.person_id, a.first_name, a.last_name, a.email, a.phone, a.phone_country_code,
              a.street, a.zip, a.city, a.country, a.birthdate,
              a.pack_key, a.pack_name, a.approved_limit, a.wanted_limit,
              a.payment_status, a.payment_reference, a.amount_due, a.payment_due_date,
@@ -130,8 +130,11 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
       FROM fiaon_termine t WHERE t.person_id = ${a.person_id}
       ORDER BY beginn DESC LIMIT 5
     `) as any[]) : [];
+    // Ein Gespräch, nicht zwei (23.08.2026): Wer vor der Zahlung einen Termin gebucht hat, sieht ihn hier
+    // als sein Gespräch — die Gesprächsart leitet die Terminlogik aus dem Zustand ab.
     const start = termine.find((t) => t.quelle === "onboarding_call" && t.status === "erledigt")
-      || termine.find((t) => t.quelle === "onboarding_call" && t.status === "gebucht") || null;
+      || termine.find((t) => t.quelle === "onboarding_call" && t.status === "gebucht")
+      || termine.find((t) => t.status === "gebucht" && new Date(t.beginn) > new Date()) || null;
 
     // Die Bonitätsauskunft ist eine EIGENE Bestellung (type='schufa') mit eigenem
     // Verwendungszweck — der Kunde soll sie VOR dem Startgespräch bezahlen können.
@@ -253,6 +256,8 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
       ansprechpartner: a.betreuer_name ? { name: a.betreuer_name, rolle: a.betreuer_rolle || null } : null,
       lastschrift: { mandat: a.gc_mandate_ref || null, status: a.gc_mandate_status || null, aktiv: a.gc_mandate_status === "active" },
       kontoVerbunden: false,
+      // Einrichtung (23.08.2026): Ohne Passwort zeigt der Bereich die Einrichtungs-Ebene.
+      passwortGesetzt: istGehasht(a.password),
       // Die Auswertung des Kontoauszugs (22.08.2026) — null, solange keiner da ist.
       finanzen: await (await import("../lib/fiaon-kontoauszug-analyse")).analyseFuer(ref).catch(() => null),
     });

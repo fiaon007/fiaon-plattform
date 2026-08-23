@@ -11,21 +11,10 @@ export default function PremiumFooter() {
         {/* Die Demo-Präsentation — der Kundenbereich, wie er gemeint ist (Justin, 23.08.2026: „in der Fußzeile schön präsentieren") */}
         {/* Nicht im Antrag und auf Zahlungsseiten — dort hat die Demo nichts verloren (Justin, 23.08.). */}
         {!/^\/(antrag|bonitaet-antrag|business-antrag|zahlung|termin|login|dashboard|mein-bereich)/.test(typeof window !== "undefined" ? window.location.pathname : "") && (
-        <a href="/demo/kundenbereich" className="pf-demo" aria-label="Demo-Präsentation des Kundenbereichs öffnen">
-          <div className="pf-demo-karte" aria-hidden="true">
-            <div className="pf-demo-kk">
-              <span className="w">FIAON</span><span className="chip" />
-              <span className="r"><small>Paket-Rahmen</small><b>5.000 €</b></span>
-              <span className="n">Max Mustermann</span>
-            </div>
-            <div className="pf-demo-ebene e1" /><div className="pf-demo-ebene e2" />
-          </div>
-          <div className="pf-demo-text">
-            <span className="pf-demo-ueber">Demo · Präsentation</span>
-            <h3>Der Kundenbereich, <em>wie er gemeint ist.</em></h3>
-            <p>Fünfzehn Stationen, ein Kunde nach vier Monaten – wir führen Sie durch und erklären, warum FIAON das Problem löst.</p>
-            <span className="pf-demo-knopf">Präsentation starten<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg></span>
-          </div>
+        <a href="/demo/kundenbereich" className="pf-demo" aria-label="Präsentation des Kundenbereichs öffnen">
+          <span className="pf-demo-marke" aria-hidden="true"><i /></span>
+          <span className="pf-demo-text"><b>Für Investoren und Partner:</b> Sehen Sie den Kundenbereich, wie er gemeint ist – eine geführte Präsentation in fünfzehn Stationen.</span>
+          <span className="pf-demo-knopf">Präsentation ansehen<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg></span>
         </a>
         )}
 
@@ -144,11 +133,6 @@ export default function PremiumFooter() {
               <li>
                 <a href="/cookie-einstellungen" className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">
                   Cookie-Einstellungen
-                </a>
-              </li>
-              <li>
-                <a href="/abo-kuendigen" className="text-[14px] text-rose-300/80 hover:text-rose-200 transition-all duration-200 hover:translate-x-1">
-                  Abo kündigen
                 </a>
               </li>
             </ul>

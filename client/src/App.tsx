@@ -116,6 +116,12 @@ const AgentWalletPage = lazy(() => import("@/pages/agent/wallet"));
 const AgentCollectionsPage = lazy(() => import("@/pages/agent/collections"));
 const AgentInboxPage = lazy(() => import("@/pages/agent/inbox"));
 const AgentMorePage = lazy(() => import("@/pages/agent/more"));
+const AgentPipelinePage = lazy(() => import("@/pages/agent/pipeline"));
+const AgentToolsPage = lazy(() => import("@/pages/agent/tools/index"));
+const AgentPaketfinderPage = lazy(() => import("@/pages/agent/tools/paketfinder"));
+const AgentGespraechPage = lazy(() => import("@/pages/agent/tools/gespraech"));
+const AgentRechtPage = lazy(() => import("@/pages/agent/tools/recht"));
+const AgentTagescheckPage = lazy(() => import("@/pages/agent/tools/tagescheck"));
 import AgentMehrPage from "@/pages/agent/mehr";
 const AgentAcademyPage = lazy(() => import("@/pages/agent/academy"));
 const AgentSchulungPage = lazy(() => import("@/pages/agent/schulung"));
@@ -382,7 +388,14 @@ function Router() {
       {/* Die EINE Arbeitsliste (personenbasiert). Die alte, bestellungsbasierte
           Ansicht bleibt unter /agent/meine-kunden erreichbar, damit nichts
           verloren geht. */}
-      <Route path="/agent/kunden" component={AgentKundenNeuPage} />
+      <Route path="/agent/kunden" component={AgentPipelinePage} />
+      <Route path="/agent/pipeline" component={AgentPipelinePage} />
+      <Route path="/agent/kunden-alt" component={AgentKundenNeuPage} />
+      <Route path="/agent/tools" component={AgentToolsPage} />
+      <Route path="/agent/tools/paketfinder" component={AgentPaketfinderPage} />
+      <Route path="/agent/tools/gespraech" component={AgentGespraechPage} />
+      <Route path="/agent/tools/recht" component={AgentRechtPage} />
+      <Route path="/agent/tools/tagescheck" component={AgentTagescheckPage} />
       {/* ══════════════════════════════════════════════════════════════════
           DIE ALTE KUNDENSEITE IST WEG (28.08.2026)
 

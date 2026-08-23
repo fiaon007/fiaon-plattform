@@ -11,7 +11,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, BookUser, Users, Phone, Megaphone, Wallet, Calculator, GraduationCap, ListChecks, Mail, Calendar, Inbox, Landmark, MoreHorizontal, Clock, LogOut, ChevronLeft, ChevronRight, X, Menu } from "lucide-react";
+import { LayoutDashboard, BookUser, Users, Phone, Megaphone, Wallet, Calculator, GraduationCap, ListChecks, Mail, Calendar, Inbox, Landmark, MoreHorizontal, Clock, Wrench, LogOut, ChevronLeft, ChevronRight, X, Menu } from "lucide-react";
 import "@/styles/office.css";
 
 export interface Raum { href: string; label: string; Icon: any; match: string[]; szene: string; gruppe: "arbeit" | "team" | "ich" | "mehr"; nurRolle?: string; nichtRolle?: string[]; badge?: string }
@@ -20,11 +20,12 @@ export interface Raum { href: string; label: string; Icon: any; match: string[];
  *  Namen auf Englisch (Justin 23.08.: „Schreibtisch, Kundenbuch … hört sich nicht nach internationalem Unicorn an") – Inhalte bleiben Deutsch. */
 export const RAEUME: Raum[] = [
   { href: "/agent/start", label: "Dashboard", Icon: LayoutDashboard, match: ["/agent/start", "/agent/heute", "/agent"], szene: "schreibtisch", gruppe: "arbeit" },
-  { href: "/agent/kunden", label: "Pipeline", Icon: BookUser, match: ["/agent/kunden"], szene: "kundenbuch", gruppe: "arbeit", badge: "/agent/kunden" },
+  { href: "/agent/pipeline", label: "Pipeline", Icon: BookUser, match: ["/agent/pipeline", "/agent/kunden"], szene: "kundenbuch", gruppe: "arbeit", badge: "/agent/kunden" },
   { href: "/agent/kalender", label: "Calendar", Icon: Calendar, match: ["/agent/kalender", "/agent/startgespraeche"], szene: "schreibtisch", gruppe: "arbeit" },
   { href: "/agent/aufgaben", label: "Tasks", Icon: ListChecks, match: ["/agent/aufgaben"], szene: "schreibtisch", gruppe: "arbeit", badge: "/agent/aufgaben" },
   { href: "/agent/inbox", label: "Inbox", Icon: Mail, match: ["/agent/inbox", "/agent/mail-zentrale"], szene: "schreibtisch", gruppe: "arbeit", badge: "/agent/mail-zentrale" },
   { href: "/agent/anliegen", label: "Tickets", Icon: Inbox, match: ["/agent/anliegen"], szene: "schreibtisch", gruppe: "arbeit", badge: "/agent/anliegen" },
+  { href: "/agent/tools", label: "Tools", Icon: Wrench, match: ["/agent/tools"], szene: "schreibtisch", gruppe: "arbeit" },
   { href: "/agent/collections", label: "Collections", Icon: Landmark, match: ["/agent/collections", "/agent/inkasso"], szene: "kasse", gruppe: "arbeit", badge: "/agent/inkasso" },
   { href: "/agent/flur", label: "Team", Icon: Users, match: ["/agent/flur", "/agent/space"], szene: "flur", gruppe: "team", badge: "/agent/space" },
   { href: "/agent/updates", label: "Feed", Icon: Megaphone, match: ["/agent/updates", "/agent/feedback"], szene: "flur", gruppe: "team", badge: "/agent/updates" },

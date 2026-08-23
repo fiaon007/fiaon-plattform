@@ -413,8 +413,9 @@ router.get("/agent/vertrieb/bestand", requireAgent, async (req: AgentRequest, re
             'rateCents',    MAX(r.betrag_cents)
           ) FROM fiaon_abo_raten r JOIN fiaon_applications ar ON ar.ref = r.ref
           WHERE ar.person_id = p.id AND ar.merged_into IS NULL AND r.storniert_am IS NULL) AS raten_stand,
-         (SELECT COALESCE(BOOL_OR(ax.gc_mandate_status = 'active'), FALSE) FROM fiaon_applications ax
-          WHERE ax.person_id = p.id AND ax.merged_into IS NULL AND ax.archived_at IS NULL) AS sepa_aktiv
+         -- Vorher las die Unterabfrage gc_mandate_status aus fiaon_applications –
+         -- die Spalte lebt an der PERSON (Befund 24.08., 500er im Live-Betrieb).
+         (p.gc_mandate_status = 'active') AS sepa_aktiv
        FROM fiaon_persons p
        WHERE p.assigned_agent_id = $1 AND p.mandat_seit IS NOT NULL
          AND p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL AND NOT p.is_blocked

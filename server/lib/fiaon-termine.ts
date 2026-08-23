@@ -85,7 +85,14 @@ export function dauerFuer(quelle: TerminQuelle | string): number {
  */
 export function rolleFuerQuelle(quelle: TerminQuelle | string): string | null {
   const q = String(quelle);
-  if (q === "onboarding_call") return "onboarding";
+  // ── E-045 (Justin 23.08., Plan §17): VORHER band `onboarding_call` an die
+  // Rolle „onboarding" — Startgespräche gingen an einen Onboarding-Pool.
+  // NACHHER: `null` = der Betreuer bzw. jeder verteilende Bonitätsmanager.
+  // Bei Besitz bucht der Terminlink damit IMMER beim Betreuer (freieSlots),
+  // ohne Betreuer fällt es auf alle aktiven Bonitätsmanager zurück. Die
+  // Beschriftung „Startgespräch" bleibt an der Quelle, nur die Vergabe ändert
+  // sich. `inkasso_call` bleibt gebunden: ohne Betreuer gehört ein reines
+  // Zahlungsgespräch zu Diana (Back-Office), nicht in die Verteilung.
   if (q === "inkasso_call") return "inkasso";
   return null;
 }
@@ -708,23 +715,29 @@ export async function freieSlots(
   // Wer darf angeboten werden? Bei Besitz: nur der Betreuer. Sonst: alle, die
   // im Verteilbetrieb stehen — Testkonten ausdrücklich nicht, sonst bucht ein
   // echter Kunde ein Gespräch mit einem Konto, hinter dem niemand sitzt.
-  // Verlangt die Quelle eine bestimmte Rolle (Startgespräch → Onboarding), zählt
-  // NUR sie. Der Betreuer des Kunden ist dann unerheblich: Ein Startgespräch
-  // führt das Onboarding, auch wenn der Kunde längst einen Betreuer hat.
-  const betreuerAktiv = !nurRolle && person.assigned_agent_id && person.agent_aktiv;
-  const agenten = nurRollen
-    ? await agentenMitRolle(nurRollen, lauf)
-    : betreuerAktiv
-      ? [{ id: Number(person.assigned_agent_id), vorname: String(person.agent_vorname || person.agent_name || "dein Ansprechpartner") }]
+  //
+  // ── E-045 (Justin 23.08., Plan §17): DER BETREUER GEWINNT IMMER ─────────
+  // VORHER: `!nurRolle && …` — verlangte die Quelle eine Rolle (Startgespräch
+  // → Onboarding), war der Betreuer unerheblich und der Termin ging an den
+  // Rollen-Pool. NACHHER: Ein Bonitätsmanager macht den ganzen Kundenweg —
+  // bei Besitz bucht der Terminlink IMMER beim Betreuer, auch Startgespräch
+  // und Zahlungsgespräch. Nur ohne (aktiven) Betreuer greift die Rollen-
+  // bzw. Verteilliste.
+  const betreuerAktiv = person.assigned_agent_id && person.agent_aktiv;
+  const agenten = betreuerAktiv
+    ? [{ id: Number(person.assigned_agent_id), vorname: String(person.agent_vorname || person.agent_name || "dein Ansprechpartner") }]
+    : nurRollen
+      ? await agentenMitRolle(nurRollen, lauf)
       : ((await lauf`
           SELECT id, COALESCE(NULLIF(first_name, ''), name) AS vorname
           FROM fiaon_agents
           WHERE active AND distribution_active AND NOT is_test_account
-            -- Nur Vertrieb: Ein Kunde, der einen Termin bucht, will einen
-            -- Verkäufer sprechen. Dass ein Inkasso-Konto in dieser Liste stand,
-            -- war dieselbe Lücke wie in der Lead-Zuteilung — die Rolle wurde
-            -- nicht geprüft.
-            AND COALESCE(rolle, 'agent') IN ('agent', 'vertriebsleiter')
+            -- Kein Inkasso-Konto: Dass eines in dieser Liste stand, war
+            -- dieselbe Lücke wie in der Lead-Zuteilung — die Rolle wurde
+            -- nicht geprüft. E-045: VORHER ('agent','vertriebsleiter') —
+            -- NACHHER auch 'onboarding': eine Rolle Bonitätsmanager, alle
+            -- verteilen. Nur Diana (inkasso) bleibt draußen.
+            AND COALESCE(rolle, 'agent') IN ('agent', 'onboarding', 'vertriebsleiter')
           ORDER BY id
         `) as any[]).map((a) => ({ id: Number(a.id), vorname: String(a.vorname) }));
   if (agenten.length === 0) {
@@ -748,7 +761,9 @@ export async function freieSlots(
   // wird je Zeitpunkt genau ein Slot angeboten, und zwar der des Agenten mit
   // den wenigsten anstehenden Terminen. Das verteilt die Last von selbst und
   // bleibt trotzdem deterministisch (bei Gleichstand die kleinere Kennung).
-  if ((!betreuerAktiv || nurRolle) && slots.length > 0) {
+  // E-045: VORHER `(!betreuerAktiv || nurRolle)` — beim Rollen-Pool wurde auch
+  // mit Betreuer verteilt. NACHHER zählt nur noch: Gibt es KEINEN Betreuer?
+  if (!betreuerAktiv && slots.length > 0) {
     const last = new Map<number, number>();
     for (const a of agenten) last.set(a.id, 0);
     for (const t of (await lauf`
@@ -1031,17 +1046,27 @@ export async function terminBuchen(
   if (nurRolle) {
     const entscheid = abgeleitet ?? await rollenFuerBuchung(wirkQuelle, eingabe.personId, lauf);
     const rolle = String(agent.rolle || "agent");
-    if (entscheid.rollen && !entscheid.rollen.includes(rolle)) {
+    // ── E-045: DER BETREUER DARF IMMER (Justin 23.08., Plan §17) ──────────
+    // VORHER lehnte die Wand jeden ab, dessen Rolle nicht auf der Liste
+    // stand — auch den Betreuer des Kunden. NACHHER: Was `freieSlots` bei
+    // Besitz anbietet (den Betreuer), nimmt die Annahme auch an. Dieselbe
+    // Regel an beiden Stellen, sonst ist es wieder die Falle vom 19.08.
+    const [besitz] = (await lauf`
+      SELECT 1 AS ok FROM fiaon_persons
+      WHERE id = ${eingabe.personId} AND assigned_agent_id = ${eingabe.agentId}
+        AND merged_into_person_id IS NULL
+    `) as any[];
+    const istBetreuer = !!besitz;
+    if (!istBetreuer && entscheid.rollen && !entscheid.rollen.includes(rolle)) {
       throw new TerminFehler(
         "falsche_rolle",
         `Diese Person führt keine Gespräche dieser Art (${QUELLEN[wirkQuelle as TerminQuelle]?.text ?? wirkQuelle}). `
         + "Bitte wähl eine andere Zeit — die angebotenen Zeiten gehören zu den zuständigen Mitarbeitern.",
       );
     }
-    // Vertretung ist es nur, wenn der Rückfall greift UND der Gebuchte
-    // tatsächlich nicht die zuständige Rolle hat. Ein Onboarding-Mensch, der
-    // während eines Rückfalls doch noch gebucht wird, ist keine Vertretung.
-    vertretung = entscheid.rueckfall && rolle !== nurRolle;
+    // Vertretung ist es nur, wenn der Rückfall greift UND der Gebuchte weder
+    // die zuständige Rolle hat noch der Betreuer ist.
+    vertretung = entscheid.rueckfall && rolle !== nurRolle && !istBetreuer;
   }
 
   // ══════════════════════════════════════════════════════════════════════════

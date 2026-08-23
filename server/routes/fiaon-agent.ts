@@ -1458,7 +1458,9 @@ router.post("/agent/login", async (req, res) => {
     if (rows.length === 1 && !rows[0].active && rows[0].password_hash && (await bcrypt.compare(password, rows[0].password_hash))) {
       const einst = await getSettings().catch(() => ({} as Record<string, string>));
       if (String(einst.office_umbau || "").toLowerCase() === "an") {
-        return res.status(423).json({ ok: false, umbau: true, error: "Wir bauen gerade euer neues Büro." });
+        // Vorname mitgeben – die Bühne begrüßt persönlich („Wir bauen gerade für dich um, Nikita.")
+        const vorname = String(rows[0].first_name || String(rows[0].name || "").split(" ")[0] || "");
+        return res.status(423).json({ ok: false, umbau: true, vorname, error: "Wir bauen gerade euer neues Büro." });
       }
     }
     if (rows.length === 0 || !rows[0].active || !rows[0].password_hash || !(await bcrypt.compare(password, rows[0].password_hash))) {

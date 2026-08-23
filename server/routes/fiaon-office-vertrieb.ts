@@ -47,7 +47,14 @@ let vertriebBereit: Promise<void> | null = null;
 function ensureVertriebSpalten(): Promise<void> {
   if (!vertriebBereit) {
     vertriebBereit = (async () => {
-      await sqlPool`ALTER TABLE fiaon_persons ADD COLUMN IF NOT EXISTS mandat_seit TIMESTAMPTZ`;
+      // lock_timeout: Ein ALTER, das hinter einer langen Transaktion wartet
+      // (z. B. der Bereinigung vom 23.08.), würde ALLE nachfolgenden Abfragen
+      // auf fiaon_persons in die Warteschlange zwingen – die Seite stünde.
+      // Lieber nach 3 s aufgeben und beim nächsten Aufruf erneut versuchen.
+      await sqlPool.begin(async (tx: any) => {
+        await tx`SET LOCAL lock_timeout = '3s'`;
+        await tx`ALTER TABLE fiaon_persons ADD COLUMN IF NOT EXISTS mandat_seit TIMESTAMPTZ`;
+      });
       await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_persons_mandat_idx ON fiaon_persons (assigned_agent_id) WHERE mandat_seit IS NOT NULL`;
     })().catch((e) => { vertriebBereit = null; throw e; });
   }
@@ -92,6 +99,98 @@ export async function kundeVollstaendig(personId: number): Promise<{
   `) as any[];
   const paketBezahlt = !!z?.paket, schufaBezahlt = !!z?.schufa, kontoauszug = !!z?.kontoauszug, ausweis = !!z?.ausweis;
   return { vollstaendig: paketBezahlt && schufaBezahlt && kontoauszug && ausweis, paketBezahlt, schufaBezahlt, kontoauszug, ausweis };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E-046: DIE EINE SITUATION JE KUNDE (Justin 23.08.: „Ich sehe nicht, was ich
+// zu tun habe – das muss auf 1 Blick zu sehen und auf 1 Klick zu handeln sein“)
+//
+// VORHER zeigte die Akte den tier-Hinweis („Die Zahlung ist eingegangen …“)
+// NEBEN einer überfälligen Rate — zwei Wahrheiten, ein Widerspruch. NACHHER
+// wird die Situation HIER abgeleitet, serverseitig und exportiert (das
+// Chefbüro spiegelt sie später). Priorität:
+//   rate_ueberfaellig → zusage_gebrochen → rueckruf_faellig →
+//   bezahlt_ohne_termin → zahlung_gemeldet → rechnung_offen →
+//   lead_ohne_antrag → termin_heute → alles_gut
+// ═══════════════════════════════════════════════════════════════════════════
+export type SituationsArt = "rate_ueberfaellig" | "zusage_gebrochen" | "rueckruf_faellig"
+  | "bezahlt_ohne_termin" | "zahlung_gemeldet" | "rechnung_offen" | "lead_ohne_antrag"
+  | "termin_heute" | "alles_gut";
+export interface KundenSituation {
+  art: SituationsArt;
+  rate: { id: number; nr: number; betragCents: number; faelligAm: string; tage: number; referenz: string | null } | null;
+  zusageAm: string | null;
+  rueckrufAm: string | null;
+  /** Nächster gebuchter Termin in der Zukunft. */
+  terminAm: string | null;
+  terminHeute: string | null;
+  naechsteRate: { faelligAm: string; betragCents: number } | null;
+  tier: number;
+}
+export async function kundenSituation(personId: number): Promise<KundenSituation | null> {
+  const [z] = (await sqlPool`
+    SELECT p.priority_tier, p.promised_payment_date,
+      (SELECT row_to_json(x) FROM (
+         SELECT r.id, r.rate_nr, r.betrag_cents, r.faellig_am, r.zahlungsreferenz,
+                ((NOW() AT TIME ZONE 'Europe/Berlin')::date - r.faellig_am)::int AS tage
+         FROM fiaon_abo_raten r JOIN fiaon_applications a ON a.ref = r.ref
+         WHERE a.person_id = p.id AND a.merged_into IS NULL
+           AND r.status <> 'bezahlt' AND r.storniert_am IS NULL
+           AND r.faellig_am < (NOW() AT TIME ZONE 'Europe/Berlin')::date
+         ORDER BY r.faellig_am LIMIT 1) x) AS rate,
+      (SELECT cl.scheduled_at FROM fiaon_contact_log cl
+         JOIN fiaon_applications a2 ON a2.ref = cl.ref
+         WHERE a2.person_id = p.id AND cl.outcome = 'rueckruf_termin'
+           AND cl.done_at IS NULL AND cl.voided_at IS NULL
+           AND cl.scheduled_at IS NOT NULL AND cl.scheduled_at <= NOW()
+         ORDER BY cl.scheduled_at DESC LIMIT 1) AS rueckruf_am,
+      EXISTS (SELECT 1 FROM fiaon_applications a3 WHERE a3.person_id = p.id
+        AND a3.merged_into IS NULL AND a3.archived_at IS NULL
+        AND a3.payment_status = 'paid') AS bezahlt,
+      (SELECT t.beginn FROM fiaon_termine t WHERE t.person_id = p.id AND t.status = 'gebucht'
+         AND t.abgesagt_am IS NULL AND t.beginn > NOW() ORDER BY t.beginn LIMIT 1) AS termin_am,
+      (SELECT t.beginn FROM fiaon_termine t WHERE t.person_id = p.id AND t.status = 'gebucht'
+         AND t.abgesagt_am IS NULL
+         AND (t.beginn AT TIME ZONE 'Europe/Berlin')::date = (NOW() AT TIME ZONE 'Europe/Berlin')::date
+         ORDER BY t.beginn LIMIT 1) AS termin_heute,
+      (SELECT row_to_json(y) FROM (
+         SELECT r.faellig_am, r.betrag_cents
+         FROM fiaon_abo_raten r JOIN fiaon_applications a4 ON a4.ref = r.ref
+         WHERE a4.person_id = p.id AND a4.merged_into IS NULL
+           AND r.status <> 'bezahlt' AND r.storniert_am IS NULL
+           AND r.faellig_am >= (NOW() AT TIME ZONE 'Europe/Berlin')::date
+         ORDER BY r.faellig_am LIMIT 1) y) AS naechste_rate
+    FROM fiaon_persons p
+    WHERE p.id = ${personId} AND p.merged_into_person_id IS NULL
+  `.catch(() => [] as any[])) as any[];
+  if (!z) return null;
+  const heute = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+  const tier = Number(z.priority_tier);
+  const rate = z.rate ? {
+    id: Number(z.rate.id), nr: Number(z.rate.rate_nr), betragCents: Number(z.rate.betrag_cents || 0),
+    faelligAm: String(z.rate.faellig_am), tage: Number(z.rate.tage || 0),
+    referenz: z.rate.zahlungsreferenz ?? null,
+  } : null;
+  const zusageGebrochen = z.promised_payment_date && String(z.promised_payment_date).slice(0, 10) < heute;
+  const art: SituationsArt =
+    rate ? "rate_ueberfaellig"
+    : zusageGebrochen ? "zusage_gebrochen"
+    : z.rueckruf_am ? "rueckruf_faellig"
+    : (z.bezahlt && !z.termin_am && !z.termin_heute) ? "bezahlt_ohne_termin"
+    : tier === 1 ? "zahlung_gemeldet"
+    : tier === 2 ? "rechnung_offen"
+    : tier === 3 ? "lead_ohne_antrag"
+    : z.termin_heute ? "termin_heute"
+    : "alles_gut";
+  return {
+    art, rate,
+    zusageAm: z.promised_payment_date ? String(z.promised_payment_date).slice(0, 10) : null,
+    rueckrufAm: z.rueckruf_am ?? null,
+    terminAm: z.termin_am ?? null,
+    terminHeute: z.termin_heute ?? null,
+    naechsteRate: z.naechste_rate ? { faelligAm: String(z.naechste_rate.faellig_am), betragCents: Number(z.naechste_rate.betrag_cents || 0) } : null,
+    tier,
+  };
 }
 
 /** Die Mandats-Zahlen eines Mitarbeiters — nur mandat_seit zählt (§16a). */
@@ -307,7 +406,7 @@ router.get("/agent/vertrieb/aktivitaet/:personId", requireAgent, async (req: Age
     `.catch(() => [] as any[])) as any[]).map((r) => String(r.ref));
 
     const leer: any[] = [];
-    const [klicks, apps, raten, mails, anrufe, kontakte, voll] = await Promise.all([
+    const [klicks, apps, raten, mails, anrufe, kontakte, voll, situation] = await Promise.all([
       refs.length ? sqlPool`
         SELECT event, step, page, data, created_at FROM fiaon_click_events
         WHERE application_ref = ANY(${refs}::text[])
@@ -337,6 +436,7 @@ router.get("/agent/vertrieb/aktivitaet/:personId", requireAgent, async (req: Age
         ORDER BY c.created_at DESC LIMIT 200
       `.catch(() => leer),
       kundeVollstaendig(personId),
+      kundenSituation(personId),
     ]);
 
     const e: Ereignis[] = [];
@@ -364,7 +464,7 @@ router.get("/agent/vertrieb/aktivitaet/:personId", requireAgent, async (req: Age
     }
     e.sort((a, b) => new Date(b.am).getTime() - new Date(a.am).getTime());
 
-    res.json({ ok: true, ereignisse: e.slice(0, 500), vollstaendig: voll });
+    res.json({ ok: true, ereignisse: e.slice(0, 500), vollstaendig: voll, situation });
   } catch (err) {
     console.error("[OFFICE-VERTRIEB] aktivitaet:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });

@@ -59,6 +59,11 @@ export default function PremiumFooter() {
                 </a>
               </li>
               <li>
+                <a href="/ratgeber" className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">
+                  Ratgeber
+                </a>
+              </li>
+              <li>
                 <a href="/privatkunden" className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">
                   Privatkunden Setup
                 </a>

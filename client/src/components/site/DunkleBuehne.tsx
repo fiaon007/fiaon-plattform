@@ -11,7 +11,7 @@ import NeuralSphere from "@/components/home3d/NeuralSphere";
 import WellenFeld from "@/components/site/WellenFeld";
 import "@/styles/dunkel.css";
 
-type Seite = "startseite" | "investoren" | "karriere" | "presse" | "partner" | "datenraum" | "team" | "demo" | "was-ist-fiaon";
+type Seite = "startseite" | "investoren" | "karriere" | "presse" | "partner" | "datenraum" | "team" | "demo" | "ratgeber" | "was-ist-fiaon";
 
 export function Dunkel({ seite, titel, beschreibung, children }: { seite: Seite; titel: string; beschreibung: string; children: ReactNode }) {
   useEffect(() => {
@@ -282,15 +282,25 @@ export function Anfrage({ art, felder, knopf, hinweis, vorbelegt }: {
 }
 
 /** Szenenbild: ein Higgsfield-Bild in voller Breite, gedimmt, mit Schleier nach oben und unten — ein Atemzug zwischen zwei Blöcken. */
-export function Szenenbild({ src, titel, text }: { src: string; titel?: ReactNode; text?: ReactNode }) {
+export function Szenenbild({ src, titel, text, tief = false }: { src: string; titel?: ReactNode; text?: ReactNode; tief?: boolean }) {
+  // „tief": der Text steht als dreidimensionales Relief im Raum, neigt sich zur Maus und schwebt leicht
+  // (Justin, 23.08.2026: „Dann die Tür — schlecht zu lesen, muss 3D-mäßig animiert sein").
+  const neigen = (e: React.MouseEvent<HTMLElement>) => {
+    if (!tief) return;
+    const el = e.currentTarget; const b = el.getBoundingClientRect();
+    el.style.setProperty("--nx", String(((e.clientX - b.left) / b.width - 0.5) * 2));
+    el.style.setProperty("--ny", String(((e.clientY - b.top) / b.height - 0.5) * 2));
+  };
+  const gerade = (e: React.MouseEvent<HTMLElement>) => { if (tief) { e.currentTarget.style.setProperty("--nx", "0"); e.currentTarget.style.setProperty("--ny", "0"); } };
   return (
-    <section className="dk-szenenbild" aria-hidden={!titel}>
+    <section className={`dk-szenenbild${tief ? " tief" : ""}`} aria-hidden={!titel} onMouseMove={neigen} onMouseLeave={gerade}>
       <img src={src} alt="" loading="lazy" decoding="async" />
       <div className="schleier" />
+      {tief && <div className="dk-szenenbild-kegel" aria-hidden="true" />}
       {(titel || text) && (
         <div className="dk-rahmen schmal mitte inhalt">
           <Auf>
-            {titel && <h2 className="dk-h2" style={{ marginTop: 0 }}>{titel}</h2>}
+            {titel && <h2 className={`dk-h2${tief ? " dk-relief" : ""}`} style={{ marginTop: 0 }}>{titel}</h2>}
             {text && <p className="dk-lead">{text}</p>}
           </Auf>
         </div>

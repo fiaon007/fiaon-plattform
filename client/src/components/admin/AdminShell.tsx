@@ -74,6 +74,8 @@ export const ADMIN_NAV: NavGroup[] = [
       // landet nach der Anmeldung dort.
       { path: "/admin/space", label: "Space", desc: "Der Feed des Teams — mitlesen, reagieren, anpinnen, moderieren", icon: Users },
       { path: "/admin/todo", label: "Meine Liste", desc: "Was nur du tun kannst — Make, Brevo, Konten, Entscheidungen", icon: ListChecks, badgeKey: "todoOffen" },
+      // Ratgeber-Redaktion (23.08.2026): täglich drei Entwürfe, Justin prüft und veröffentlicht.
+      { path: "/admin/ratgeber", label: "Ratgeber-Redaktion", desc: "Entwürfe lesen, Vorschau, Prüfstand, veröffentlichen — täglich drei aus dem Themenplan, eigene jederzeit", icon: FileText },
       { path: "/admin/aufgaben", label: "Notizen & Aufgaben", desc: "Alles, was an Personen festgehalten oder ans Team vergeben wurde — mit Frist und Sichtbarkeit", icon: ListChecks, badgeKey: "aufgabenOffen" },
     ],
   },

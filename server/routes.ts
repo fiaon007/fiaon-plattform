@@ -497,6 +497,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonAntragTermin = await import('./routes/fiaon-antrag-termin');
   app.use('/api/fiaon', fiaonAntragTermin.default);
 
+  // 📰 Ratgeber (23.08.2026): öffentliche Artikel, Redaktion unter /admin, täglicher Generator, Sitemap.
+  const fiaonRatgeber = await import('./routes/fiaon-ratgeber');
+  app.use('/api/fiaon', fiaonRatgeber.default);
+  app.get('/sitemap.xml', async (_req, res) => {
+    try {
+      const fs = await import('fs'); const path = await import('path');
+      const kandidaten = [path.resolve(import.meta.dirname, 'public', 'sitemap.xml'), path.resolve(process.cwd(), 'client', 'public', 'sitemap.xml')];
+      const datei = kandidaten.find((k) => fs.existsSync(k));
+      const statisch = datei ? fs.readFileSync(datei, 'utf8') : '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n</urlset>';
+      res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+      res.setHeader('Cache-Control', 'public, max-age=600');
+      res.send(await fiaonRatgeber.sitemapXml(statisch));
+    } catch (e) { console.error('[SITEMAP]', e); res.status(500).end(); }
+  });
+  import('./lib/fiaon-crons').then(({ tageslauf }) => {
+    tageslauf('ratgeber-entwuerfe', () => { fiaonRatgeber.ratgeberTageslauf().catch((e) => console.error('[RATGEBER] Tageslauf:', e)); }, 30 * 60 * 1000, { beimStartNach: 120_000 });
+  });
+
   // 🧭 MEIN BEREICH — der neue Kundenbereich (E-013). Hinter signiertem Cookie.
   const fiaonKundeBereich = await import('./routes/fiaon-kunde-bereich');
   app.use('/api/fiaon', fiaonKundeBereich.default);

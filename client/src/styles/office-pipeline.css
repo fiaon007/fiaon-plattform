@@ -145,9 +145,12 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
 @keyframes piEin{from{opacity:0}to{opacity:1}}
 .pi-lade{position:fixed;top:0;right:0;bottom:0;z-index:61;width:min(100vw,760px);display:flex;flex-direction:column;background:linear-gradient(180deg,rgba(17,26,46,.94),rgba(10,22,40,.96));border-left:1px solid rgba(255,255,255,.12);backdrop-filter:blur(28px) saturate(160%);-webkit-backdrop-filter:blur(28px) saturate(160%);box-shadow:-30px 0 80px rgba(2,6,23,.6);animation:piSchieb .38s cubic-bezier(.2,.8,.2,1) both;color:#e5e7eb;padding-top:env(safe-area-inset-top)}
 @keyframes piSchieb{from{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}
-.pi-lade-kopf{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:start;padding:18px 20px 14px;border-bottom:1px solid rgba(255,255,255,.08)}
-.pi-lade-kopf h2{margin:0;font:400 20px/1.2 'Inter',sans-serif;color:#fff;letter-spacing:-.01em}
-.pi-lade-kopf .status{margin-top:4px;font-size:12.5px;color:#9ca3af;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
+.pi-lade-kopf{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:start;padding:18px 20px 14px;border-bottom:1px solid rgba(255,255,255,.08)}
+/* E-046: VORHER umbrach der Name dreizeilig (Screenshot 604px) – NACHHER
+   einzeilig mit Ellipsis, Status-Chips als eine rollbare Zeile. */
+.pi-lade-kopf h2{margin:0;font:400 20px/1.2 'Inter',sans-serif;color:#fff;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pi-lade-kopf .status{margin-top:4px;font-size:12.5px;color:#9ca3af;display:flex;flex-wrap:nowrap;gap:6px 10px;align-items:center;overflow-x:auto;scrollbar-width:none;white-space:nowrap}
+.pi-lade-kopf .status::-webkit-scrollbar{display:none}
 .pi-lade-kopf .status i{font-style:normal;font-weight:500}
 .pi-lade-glut{display:grid;place-items:center;width:26px;height:26px;margin-top:4px}
 .pi-lade-zu{width:40px;height:40px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#cbd5e1;display:grid;place-items:center;cursor:pointer}
@@ -281,6 +284,18 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
 .pi-zeit .text small{display:block;font-size:11.5px;color:#9ca3af;overflow-wrap:anywhere}
 .pi-zeit .text em{display:block;font-style:normal;font-size:10px;color:#475569;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
 @media(max-width:700px){.pi-zeit li{grid-template-columns:40px 12px 1fr}.pi-motto-satz{font-size:16px}}
+/* ── E-046: Situations-Kopf der Akte ── */
+.pi-situation{position:relative;display:grid;gap:14px;padding:22px 24px;border-radius:22px;background:linear-gradient(135deg,color-mix(in srgb,var(--hitze,#2563eb) 16%,rgba(15,23,42,.6)),rgba(15,23,42,.55));border:1px solid color-mix(in srgb,var(--hitze,#60a5fa) 40%,rgba(255,255,255,.12));box-shadow:0 24px 60px rgba(2,6,23,.4),0 0 34px color-mix(in srgb,var(--hitze,#60a5fa) 18%,transparent)}
+.pi-situation-kopf{display:flex;gap:16px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
+.pi-situation-text{min-width:min(100%,38ch);flex:1}
+.pi-situation h3{margin:0;font:400 clamp(18px,2.4vw,24px)/1.3 'Inter',sans-serif;letter-spacing:-.015em;color:#fff;text-wrap:balance}
+.pi-situation-text p{margin:8px 0 0;font:300 13px/1.6 'Inter',sans-serif;color:#cbd5e1;max-width:56ch}
+.pi-situation-tun{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pi-mehr{position:relative;display:inline-block}
+.pi-mehr-menue{position:absolute;right:0;top:calc(100% + 8px);z-index:20;display:grid;min-width:230px;padding:6px;border-radius:16px;background:rgba(15,23,42,.96);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);box-shadow:0 24px 60px rgba(2,6,23,.6)}
+.pi-mehr-menue button,.pi-mehr-menue a{display:block;width:100%;text-align:left;padding:10px 12px;border-radius:10px;border:0;background:none;color:#e5e7eb;font:400 13px/1.3 'Inter',sans-serif;cursor:pointer;text-decoration:none}
+.pi-mehr-menue button:hover,.pi-mehr-menue a:hover{background:rgba(255,255,255,.07)}
+.pi-mehr-menue button:disabled{color:#64748b;cursor:default}
 /* ── Die Akte, HIGH END (Justin 23.08.): Sektionen, Reiter, viel Luft ── */
 .pi-lade-kopf-tun{display:flex;align-items:center;gap:8px}
 .pi-lade .pi-lade-tabs{padding:10px 20px;border-bottom:1px solid rgba(255,255,255,.08);background:rgba(10,18,36,.5);overflow-x:auto;scrollbar-width:none;flex-wrap:nowrap}
@@ -336,6 +351,11 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
   .pi-leiste-rechts .pi-knopf{flex:1}
   .pi-feld select{max-width:130px}
   .pi-lade{width:100vw}
+  .pi-lade-kopf{padding:12px 12px 10px;gap:8px}
+  .pi-lade-kopf h2{font-size:17px}
+  .pi-lade-kopf-tun .pi-knopf.gross{min-height:42px;padding:0 14px;font-size:12.5px}
+  .pi-situation{padding:16px 14px}
+  .pi-situation-tun .pi-knopf.riesig{min-height:50px;padding:0 18px;font-size:14.5px;flex:1}
   .pi-lade .pi-lade-tabs{position:sticky;top:0;z-index:5;padding:8px 12px}
   .pi-lade-koerper{padding:14px 12px 48px;gap:14px}
   .pi-sek{padding:16px 14px}

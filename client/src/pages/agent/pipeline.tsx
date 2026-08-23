@@ -57,6 +57,13 @@
 //     UNTER der Arbeitsliste und betont das Zusammenwachsen des Bestands.
 //   · Akte: HIGH-END-Neubau (dunkles Glas, Reiter, Erklärzeilen) — Details
 //     am Akte-Abschnitt unten.
+//   · E-046 (Justin 23.08., Screenshot „Ueberfael Prüfstand-Rate“): Überblick
+//     = SITUATIONS-KOPF. VORHER tier-Hinweis („alles bezahlt“) neben
+//     überfälliger Rate + Knopf-Wüste + volle Ergebnisliste. NACHHER: EINE
+//     serverseitig abgeleitete Situation (kundenSituation() im Vertriebs-
+//     Router), eine Klartext-Karte mit EINEM Primär-Knopf, Sekundäres im
+//     „Mehr“-Menü, Ergebnisse situativ (3–5 passende, „Alle Ergebnisse“ als
+//     Ausklapp), Zahlungsbereich zeigt bei überfälliger Rate die RATE.
 //   · Aktive Kunden (§16a): VORHER alle bezahlten/zugewiesenen Kunden der
 //     Liste – NACHHER zählen NUR übernommene Mandate
 //     (fiaon_persons.mandat_seit, gesetzt beim Buchen von „Mandat
@@ -67,7 +74,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "wouter";
-import { Phone, Search, X, Plus, Copy, Send, Mail, FileText, RefreshCw, Check, ExternalLink, ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
+import { Phone, Search, X, Plus, Copy, Send, Mail, FileText, RefreshCw, Check, ExternalLink, ChevronLeft, ChevronRight, ChevronDown, MoreHorizontal } from "lucide-react";
 import { AgentShell, api, useFragen } from "./shared";
 import { useOffice } from "./OfficeShell";
 import { ToastAnbieter, useToast, eur } from "@/lib/fiaon-ui";
@@ -1036,8 +1043,8 @@ function KleineKarte({ k, gruppe, geht, onFokus, onAkte, onEntfernen }: {
 }
 
 // ── Der Leitfaden der Stufe (tools/gespraech.tsx) als aufklappbare Glas-Karte ──
-function Leitfaden({ stufe }: { stufe: Hitze }) {
-  const [auf, setAuf] = useState(false);
+function Leitfaden({ stufe, startAuf }: { stufe: Hitze; startAuf?: boolean }) {
+  const [auf, setAuf] = useState(!!startAuf);
   const [schritt, setSchritt] = useState<number | null>(0);
   const art = STUFE[stufe].leitfaden;
   const v = art === "reaktivierung" ? REAKTIVIERUNG : (ARTEN.find((a) => a.key === art) ?? ARTEN[0]);
@@ -1243,8 +1250,19 @@ function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
   const [bestaetigen, setBestaetigen] = useState(false);
   const [sendeFehler, setSendeFehler] = useState<string | null>(null);
   // E-044/§16: Aktivität + Vollständigkeit (Kartenstatus-Weiche)
-  const [akt, setAkt] = useState<{ ereignisse: any[]; vollstaendig: { vollstaendig: boolean; paketBezahlt: boolean; schufaBezahlt: boolean; kontoauszug: boolean; ausweis: boolean } } | null>(null);
+  const [akt, setAkt] = useState<{ ereignisse: any[]; vollstaendig: { vollstaendig: boolean; paketBezahlt: boolean; schufaBezahlt: boolean; kontoauszug: boolean; ausweis: boolean }; situation?: any } | null>(null);
   const [aktFehler, setAktFehler] = useState<string | null>(null);
+  // ── E-046: Situations-Kopf (Justin: „auf 1 Blick sehen, auf 1 Klick handeln“) ──
+  const [mehrOffen, setMehrOffen] = useState(false);
+  const [terminOffen, setTerminOffen] = useState(false);
+  const [terminDatum, setTerminDatum] = useState(tagPlus(1));
+  const [terminZeit, setTerminZeit] = useState("10:00");
+  const [terminGebucht, setTerminGebucht] = useState<string | null>(null);
+  const [leitfadenAuf, setLeitfadenAuf] = useState(false);
+  const [alleErgebnisse, setAlleErgebnisse] = useState(false);
+  const [sitFeld, setSitFeld] = useState<null | "zahlt_am" | "ausgesetzt" | "rueckruf">(null);
+  const [sitDatum, setSitDatum] = useState(tagPlus(1));
+  const [sitZeit, setSitZeit] = useState("10:00");
   // Gespräche: Anrufe mit Aufnahme (lazy je Reiter)
   const [anrufe, setAnrufe] = useState<any[] | null>(null);
   // Dokumente-Stand (lazy)
@@ -1276,7 +1294,7 @@ function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
     let an = true;
     api(`/agent/vertrieb/aktivitaet/${k.personId}`).then((r) => {
       if (!an) return;
-      if (r.ok) { setAkt({ ereignisse: r.json.ereignisse || [], vollstaendig: r.json.vollstaendig }); setAktFehler(null); }
+      if (r.ok) { setAkt({ ereignisse: r.json.ereignisse || [], vollstaendig: r.json.vollstaendig, situation: r.json.situation ?? null }); setAktFehler(null); }
       else setAktFehler(r.json?.error || "Die Aktivität konnte nicht geladen werden.");
     });
     return () => { an = false; };
@@ -1294,6 +1312,85 @@ function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
   // §16: Der Kartenstatus ist überall der Platzhalter, bis der Kunde vollständig ist.
   const vollstaendig = akt?.vollstaendig?.vollstaendig ?? k.vollstaendig ?? false;
   const kartenText = vollstaendig ? "Vollständig – liegt bei FIAON zur Bearbeitung" : "In Bearbeitung";
+
+  // ── E-046: DIE EINE SITUATION (serverseitig aus kundenSituation; Rückfall
+  //    aus den Kartendaten, solange die Antwort lädt). VORHER stand hier der
+  //    tier-Hinweis NEBEN einer überfälligen Rate — der Widerspruch
+  //    „alles bezahlt / Rate offen“ vom 23.08. ──────────────────────────────
+  const sit = akt?.situation ?? null;
+  const sitArt: string = sit?.art
+    ?? (k.istRate ? "rate_ueberfaellig"
+      : k.tier === 0 ? ((k.termin || k.terminAm) ? "alles_gut" : "bezahlt_ohne_termin")
+      : k.tier === 1 ? "zahlung_gemeldet"
+      : k.tier === 2 ? "rechnung_offen" : "lead_ohne_antrag");
+  const sitRate: { id: number; nr: number; betragCents: number; faelligAm: string | null; tage: number; referenz: string | null } | null =
+    sit?.rate ?? (k.rateListe?.[0] ? {
+      id: k.rateListe[0].id, nr: k.rateListe[0].rateNr, betragCents: k.rateListe[0].betragCents,
+      faelligAm: k.rateListe[0].faelligAm, tage: k.rateListe[0].faelligAm ? Math.max(0, kontaktTage(k.rateListe[0].faelligAm) ?? 0) : 0,
+      referenz: null,
+    } : null);
+  const hatTermin = !!terminGebucht || !!sit?.terminAm
+    || (!!k.termin && !k.termin.erledigt && new Date(k.termin.beginn).getTime() > Date.now())
+    || (!!k.terminAm && new Date(k.terminAm).getTime() > Date.now());
+  const sitLeitfaden: Hitze = sitArt === "rate_ueberfaellig" ? "rate"
+    : sitArt === "lead_ohne_antrag" ? "lead"
+    : sitArt === "rechnung_offen" ? "warm" : "heiss";
+
+  const terminBuchen = async () => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(terminDatum) || !/^\d{2}:\d{2}$/.test(terminZeit)) { melden("schlecht", "Bitte Datum und Uhrzeit angeben."); return; }
+    setLaeuft("termin");
+    const r = await api("/agent/termine", { method: "POST", body: JSON.stringify({ personId: k.personId, beginn: `${terminDatum}T${terminZeit}:00` }) });
+    setLaeuft(null);
+    if (!r.ok) { melden("schlecht", "Nicht gebucht", r.json?.error || "Der Termin konnte nicht gebucht werden."); return; }
+    const text = `${r.json.termin?.datumText ?? terminDatum}, ${r.json.termin?.uhrzeit ?? terminZeit} Uhr`;
+    setTerminGebucht(text); setTerminOffen(false);
+    melden("gut", `Termin gebucht: ${text}. Der Slot ist blockiert, die Bestätigung geht an den Kunden.`);
+  };
+  const mandatBuchen = async () => {
+    if (!hatTermin) { setTerminOffen(true); melden("info", "Ein Mandat gilt als angenommen, wenn der Termin steht – buch ihn hier ein, dann zählt es."); return; }
+    setLaeuft("mandat");
+    await api(`/agent/vertrieb/mandat/${k.personId}`, { method: "POST", body: JSON.stringify({}) }).catch(() => null);
+    const ok = await ergebnis("erreicht_sonstiges", {
+      notiz: `Mandat angenommen – Termin ${terminGebucht ?? (sit?.terminAm ? terminText(sit.terminAm) : k.termin ? terminText(k.termin.beginn) : k.terminAm ? terminText(k.terminAm) : "gebucht")} steht. Kunde erinnert: Rechnung vor dem Termin begleichen, dann wird im Gespräch direkt aktiviert.`,
+    });
+    if (ok) melden("gut", `Mandat angenommen – ${k.name} zählt jetzt zu deinem Bestand.`);
+    setLaeuft(null);
+  };
+  /** Situatives Raten-Ergebnis auf die dringendste Rate (Collections-Endpunkt). */
+  const sitRatenErgebnis = async (art: RatenErgebnis, zusatz: { zusageDatum?: string; notiz?: string } = {}) => {
+    if (!sitRate) return;
+    if (art === "nummer_blockiert" && !(await fragen({
+      titel: "Kein Kontakt mehr möglich?",
+      text: "Die Nummer wird markiert und die Rate ruht 30 Tage – der Weg läuft dann über Mail und Mahnung.",
+      ja: "Festhalten",
+    }))) return;
+    setLaeuft(`sit-${art}`);
+    const r = await api(`/inkasso/rate/${sitRate.id}/ergebnis`, { method: "POST", body: JSON.stringify({ ergebnis: art, ...zusatz }) });
+    setLaeuft(null);
+    if (!r.ok) { melden("schlecht", "Nicht gebucht", r.json?.error || "Bitte erneut versuchen."); return; }
+    melden("gut", "Ergebnis gebucht", r.json?.meldung || undefined);
+    setSitFeld(null); onErledigt(); onZaehler();
+  };
+  /** Die Erinnerung zur dringendsten Rate — derselbe Endpunkt wie im Raten-Reiter. */
+  const sitErinnerung = async () => {
+    if (!sitRate) return;
+    if (!(await fragen({ titel: `Zahlungserinnerung für Rate ${sitRate.nr} an den Kunden schicken?`, ja: "Senden" }))) return;
+    setLaeuft("sit-erinnerung");
+    const r = await api(`/inkasso/rate/${sitRate.id}/erinnerung`, { method: "POST", body: JSON.stringify({}) });
+    setLaeuft(null);
+    melden(r.ok ? "gut" : "schlecht", r.ok ? "Erinnerung verschickt" : "Nicht verschickt", r.json?.meldung || r.json?.error || undefined);
+  };
+  const ratenKopieren = async () => {
+    if (!sitRate) return;
+    const text = [
+      k.zahlung?.empfaenger ? `Empfänger: ${k.zahlung.empfaenger}` : null,
+      k.zahlung?.iban ? `IBAN: ${k.zahlung.iban}` : null,
+      `Betrag: ${eur(sitRate.betragCents)}`,
+      `Verwendungszweck: ${sitRate.referenz ?? k.zahlung?.referenz ?? "siehe Akte"}`,
+    ].filter(Boolean).join("\n");
+    if (await inZwischenablage(text)) { setKopiert(true); setTimeout(() => setKopiert(false), 2500); }
+    else melden("schlecht", "Kopieren nicht möglich", "Bitte die Daten von Hand übernehmen.");
+  };
 
   // ── Ergebnis / Notiz (POST /agent/crm/kunden/:id/aktivitaet) ───────────
   const ergebnis = async (art: string, zusatz: Record<string, unknown> = {}): Promise<boolean> => {
@@ -1471,71 +1568,201 @@ function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
       <div className="pi-lade-koerper">
         {meldung && <p className={`pi-meldung ${meldung.art === "gut" ? "gut" : meldung.art === "schlecht" ? "schlecht" : ""}`}>{meldung.text}</p>}
 
-        {/* ═══ ÜBERBLICK ═══ */}
+        {/* ═══ ÜBERBLICK — DER SITUATIONS-KOPF (E-046) ═══
+            VORHER: „Nächster Schritt“-Text aus dem tier-Hinweis + eine Reihe
+            gleichrangiger Knöpfe („Knopf-Wüste“) + volle Ergebnisliste — bei
+            überfälliger Rate stand daneben „alles bezahlt“ (Widerspruch,
+            Justin 23.08.). NACHHER: EINE Situations-Karte mit Klartext-
+            Überschrift, einer Erklärzeile und EINEM Primär-Knopf; sekundäre
+            Aktionen im „Mehr“-Menü und in den Fach-Reitern; Ergebnisse
+            situativ (3–5 passende Ausgänge, „Alle Ergebnisse“ zum Ausklappen). */}
         {reiter === "ueberblick" && <>
-          <Sek titel="Nächster Schritt" erklaer="Was dieser Kunde jetzt von dir braucht – und alles fürs Gespräch mit einem Klick.">
-            <p className="pi-sek-satz">{k.hinweis || warumJetzt(k)}</p>
-            <div className="pi-reihe oben">
-              {!k.telefonWaehlbar && k.telefon && <NummerLandNachtragen k={k} onFertig={onNeu} />}
-              {!k.telefonWaehlbar && !k.telefon && <span className="pi-sperre">keine Nummer – unter „Daten“ nachtragen</span>}
-              {!sperre ? (
-                <span className="pi-stapel">
-                  <button type="button" className="pi-knopf gut gross" onClick={() => setBestaetigen(true)} disabled={!!laeuft} title={`Zahlungsdaten und Rechnung an ${k.email}`}>
-                    <Send size={15} strokeWidth={1.75} /> {laeuft === "rechnung" ? "Sende …" : "Zahlungsdaten senden"}
+          <section className="pi-situation" style={{ ["--hitze" as string]: sitArt === "rate_ueberfaellig" || sitArt === "zusage_gebrochen" ? "#f87171" : STUFE[sitLeitfaden].farbe }}>
+            <div className="pi-situation-kopf">
+              <div className="pi-situation-text">
+                <h3>
+                  {sitArt === "rate_ueberfaellig" && sitRate ? `Rate ${sitRate.nr} · ${eur(sitRate.betragCents)} · seit ${sitRate.tage} ${sitRate.tage === 1 ? "Tag" : "Tagen"} überfällig – hol sie zurück`
+                    : sitArt === "zusage_gebrochen" ? `Zusage vom ${dtag(sit?.zusageAm ?? k.zusagedatum)} nicht gehalten – fass nach`
+                    : sitArt === "rueckruf_faellig" ? `Rückruf war für ${sit?.rueckrufAm ? terminText(sit.rueckrufAm) : "heute"} vereinbart – er wartet auf dich`
+                    : sitArt === "bezahlt_ohne_termin" ? "Mandat da, Termin fehlt – buche das Startgespräch"
+                    : sitArt === "zahlung_gemeldet" ? "Kunde meldet Zahlung – das Geld ist noch nicht da. Sichere den Termin"
+                    : sitArt === "rechnung_offen" ? `Antrag fertig – ${paketPreis(k) ? `${eur(paketPreis(k))} offen` : "Rechnung offen"}. Schick die Zahlungsdaten`
+                    : sitArt === "lead_ohne_antrag" ? "Registriert, noch kein Antrag – hol das Mandat"
+                    : sitArt === "termin_heute" ? `Heute ${sit?.terminHeute ? terminText(sit.terminHeute) : "Termin"} – das Gespräch steht`
+                    : sit?.naechsteRate ? `Alles läuft – nächste Rate ${eur(sit.naechsteRate.betragCents)} am ${dtag(sit.naechsteRate.faelligAm)}`
+                    : "Alles läuft – nichts fällig"}
+                </h3>
+                <p>
+                  {sitArt === "rate_ueberfaellig" ? `Weich einsteigen: vorstellen, entschuldigen, zuhören – kein Inkasso-Ton. Holst du die Rate zurück, gehören ${sitRate ? eur(Math.round(sitRate.betragCents * REAKTIVIERUNG_ANTEIL)) : "50 %"} dir.`
+                    : sitArt === "zusage_gebrochen" ? "Kein Vorwurf am Telefon – frag, was dazwischenkam, und vereinbare ein neues, konkretes Datum."
+                    : sitArt === "rueckruf_faellig" ? "Der Kunde hat diese Zeit selbst gewählt – ruf jetzt an und knüpf ans letzte Gespräch an."
+                    : sitArt === "bezahlt_ohne_termin" ? "Der Kunde hat bezahlt und wartet. Im Startgespräch aktivierst du sein Konto – vergib den nächsten freien Termin."
+                    : sitArt === "zahlung_gemeldet" ? "Bitte um den Überweisungsbeleg und sichere den Termin – mit dem Eingang aktivierst du direkt im Gespräch."
+                    : sitArt === "rechnung_offen" ? "Der Antrag ist durch, das Geld fehlt. Erste Zahlung immer per Überweisung mit Referenz – danach Termin vereinbaren."
+                    : sitArt === "lead_ohne_antrag" ? "Daten aufnehmen, Paket am Telefon annehmen lassen, Zugänge senden – der Leitfaden führt dich durch."
+                    : sitArt === "termin_heute" ? "Akte kurz durchsehen, pünktlich anrufen – Termintreue wird gemessen."
+                    : "Betreuter Kunde ohne offenen Schritt. Eine kurze Notiz nach jedem Kontakt hält die Akte lebendig."}
+                </p>
+              </div>
+              <div className="pi-situation-tun">
+                {(sitArt === "rate_ueberfaellig" || sitArt === "lead_ohne_antrag") && (
+                  k.telefonWaehlbar
+                    ? <button type="button" className="pi-knopf riesig" onClick={() => { anrufen(k.telefonWaehlbar, k.personId, k.name); setLeitfadenAuf(true); }}><Phone size={18} strokeWidth={1.75} /> Anrufen mit Leitfaden</button>
+                    : <button type="button" className="pi-knopf riesig warn" onClick={() => setLeitfadenAuf(true)}><Phone size={18} strokeWidth={1.75} /> {k.telefon ? "Vorwahl fehlt – unten ergänzen" : "Nummer fehlt – unter „Daten“"}</button>
+                )}
+                {(sitArt === "zusage_gebrochen" || sitArt === "rueckruf_faellig" || sitArt === "termin_heute") && (
+                  <button type="button" className="pi-knopf riesig" disabled={!k.telefonWaehlbar} onClick={() => anrufen(k.telefonWaehlbar, k.personId, k.name)}><Phone size={18} strokeWidth={1.75} /> Anrufen</button>
+                )}
+                {(sitArt === "bezahlt_ohne_termin" || sitArt === "zahlung_gemeldet") && (
+                  <button type="button" className={`pi-knopf riesig${hatTermin ? " gut" : ""}`} onClick={() => setTerminOffen((v) => !v)}>{hatTermin ? <><Check size={17} strokeWidth={2} /> Termin steht</> : "Termin buchen"}</button>
+                )}
+                {sitArt === "rechnung_offen" && (
+                  <button type="button" className="pi-knopf riesig gut" disabled={!!laeuft || !!sperre} title={sperre ? sperre.grund : `Zahlungsdaten und Rechnung an ${k.email}`} onClick={() => setBestaetigen(true)}>
+                    <Send size={17} strokeWidth={1.75} /> {laeuft === "rechnung" ? "Sende …" : "Zahlungsdaten senden"}
                   </button>
-                  <VertragsLuecke k={k} melden={melden} />
-                </span>
-              ) : (
-                <span className="pi-stapel">
-                  <span className="pi-sperre"><Send size={14} strokeWidth={1.75} /> Zahlungsdaten: gesperrt</span>
-                  <span className="pi-luecke" style={{ color: "#fde68a" }}>{sperre.grund}</span>
-                  <VertragsLuecke k={k} melden={melden} />
-                  {sperre.ziel === "stammdaten" && (
-                    <span className="pi-reihe">
-                      <input className="pi-eingabe" value={mailNachtrag} onChange={(e) => setMailNachtrag(e.target.value)} placeholder="E-Mail nachtragen" type="email" inputMode="email" style={{ minWidth: 200 }} />
-                      <button type="button" className="pi-knopf still" disabled={!!laeuft || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(mailNachtrag.trim())} onClick={() => void mailNachtragen()}>{laeuft === "mailnachtrag" ? "Speichert …" : "Speichern"}</button>
+                )}
+                {/* Sekundäres wandert ins „Mehr“-Menü – die Knopf-Wüste ist Geschichte. */}
+                <span className="pi-mehr">
+                  <button type="button" className="pi-lade-zu" aria-label="Mehr Aktionen" aria-expanded={mehrOffen} onClick={() => setMehrOffen((v) => !v)}><MoreHorizontal size={18} strokeWidth={1.75} /></button>
+                  {mehrOffen && (
+                    <span className="pi-mehr-menue" onClick={() => setMehrOffen(false)}>
+                      <button type="button" onClick={() => setBestaetigen(true)} disabled={!!sperre}>Zahlungsdaten senden{sperre ? " (gesperrt)" : ""}</button>
+                      <button type="button" onClick={() => setTerminOffen(true)}>Termin buchen</button>
+                      <button type="button" onClick={() => setProduktOffen(true)}>{buchungen.some((b) => b.offen && b.art === "paket") ? "Produkt tauschen" : "Produkt hinzufügen"}</button>
+                      <button type="button" onClick={() => setBlatt(true)}>Gesprächsblatt</button>
+                      <button type="button" onClick={() => setSendeMenue(true)}>E-Mail senden</button>
+                      <button type="button" onClick={() => void nummerKorrektur()} disabled={!k.email}>Nummer korrigieren lassen</button>
+                      <button type="button" onClick={() => void terminlinkKopieren()}>{linkKopiert ? "Terminlink kopiert" : "Terminlink kopieren"}</button>
+                      {k.email && <a href={`mailto:${k.email}`}>eigenes Mailprogramm</a>}
                     </span>
                   )}
-                  {sperre.ziel === "produkt" && <button type="button" className="pi-knopf still" onClick={() => setProduktOffen(true)}>Produkt anlegen</button>}
                 </span>
-              )}
+              </div>
             </div>
-            <div className="pi-reihe">
-              <button type="button" className="pi-knopf still" onClick={() => setProduktOffen((v) => !v)} title="Ein Paket aus dem Katalog an diese Akte hängen. Ein offenes Paket wird dabei ersetzt.">
-                {buchungen.some((b) => b.offen && b.art === "paket") ? "Produkt tauschen" : "Produkt hinzufügen"}
-              </button>
-              {k.email && <a href={`mailto:${k.email}`} className="pi-knopf still" title={`Öffnet dein eigenes Mailprogramm mit ${k.email}`}><Mail size={14} strokeWidth={1.75} /> eigenes Mailprogramm</a>}
-              <button type="button" className="pi-knopf still" onClick={() => void nummerKorrektur()} disabled={!!laeuft || !k.email} title="Schickt dem Kunden einen Link, mit dem er seine Telefonnummer selbst korrigiert">
-                {laeuft === "nummer" ? "Sende …" : "Nummer korrigieren lassen"}
-              </button>
-              <button type="button" className="pi-knopf still" onClick={() => setBlatt(true)}>Gesprächsblatt</button>
-              <button type="button" className="pi-knopf still" onClick={() => setSendeMenue(true)}><Mail size={14} strokeWidth={1.75} /> E-Mail senden</button>
-            </div>
+            {sperre && sitArt === "rechnung_offen" && (
+              <div className="pi-stapel">
+                <span className="pi-luecke" style={{ color: "#fde68a" }}>{sperre.grund}</span>
+                {sperre.ziel === "stammdaten" && (
+                  <span className="pi-reihe">
+                    <input className="pi-eingabe" value={mailNachtrag} onChange={(e) => setMailNachtrag(e.target.value)} placeholder="E-Mail nachtragen" type="email" inputMode="email" style={{ minWidth: 200 }} />
+                    <button type="button" className="pi-knopf still" disabled={!!laeuft || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(mailNachtrag.trim())} onClick={() => void mailNachtragen()}>{laeuft === "mailnachtrag" ? "Speichert …" : "Speichern"}</button>
+                  </span>
+                )}
+                {sperre.ziel === "produkt" && <button type="button" className="pi-knopf still" onClick={() => setProduktOffen(true)}>Produkt anlegen</button>}
+              </div>
+            )}
+            {!k.telefonWaehlbar && k.telefon && <NummerLandNachtragen k={k} onFertig={onNeu} />}
+            {terminOffen && (
+              <div className="pi-termin">
+                <div className="pi-reihe">
+                  <input type="date" className="pi-eingabe" style={{ flex: "0 0 160px" }} value={terminDatum} min={heuteIso()} onChange={(e) => setTerminDatum(e.target.value)} aria-label="Datum" />
+                  <input type="time" className="pi-eingabe" style={{ flex: "0 0 110px" }} value={terminZeit} step={900} onChange={(e) => setTerminZeit(e.target.value)} aria-label="Uhrzeit" />
+                  <button type="button" className="pi-knopf" disabled={laeuft === "termin"} onClick={() => void terminBuchen()}>{laeuft === "termin" ? "Bucht …" : "Termin buchen"}</button>
+                  <button type="button" className="pi-link" onClick={() => setTerminOffen(false)}>Schließen</button>
+                </div>
+                <p className="pi-fussnote">Der Slot kommt aus deiner Availability und wird echt blockiert. Erinnere den Kunden: Rechnung vor dem Termin begleichen → im Gespräch wird direkt aktiviert.</p>
+              </div>
+            )}
             {produktOffen && <ProduktDunkel k={k} aufKlappen={setProduktOffen} fertig={async (m) => { melden("gut", "Produkt gespeichert", m); await frisch(); onZaehler(); }} />}
+          </section>
+
+          {leitfadenAuf && <Leitfaden stufe={sitLeitfaden} startAuf />}
+
+          {/* Ergebnis festhalten — SITUATIV (Justin: „viel zu viele – der
+              Situation angepasst“). 3–5 passende Ausgänge, dieselben
+              Endpunkte/Schlüssel; alles andere unter „Alle Ergebnisse“. */}
+          <Sek titel="Ergebnis festhalten" erklaer="Ein Klick nach dem Gespräch – nur die Ausgänge, die zu dieser Situation passen."
+               kopfRechts={<button type="button" className="pi-link" onClick={() => setAlleErgebnisse((v) => !v)}>{alleErgebnisse ? "nur passende" : "Alle Ergebnisse"}</button>}>
+            {!alleErgebnisse && sitArt === "rate_ueberfaellig" && sitRate && (
+              <div className="pi-ew">
+                <div className="pi-reihe">
+                  <button type="button" className={`pi-knopf klein ${sitFeld === "zahlt_am" ? "" : "still"}`} disabled={!!laeuft} onClick={() => { setSitFeld(sitFeld === "zahlt_am" ? null : "zahlt_am"); setSitDatum(tagPlus(1)); }}>Zahlt Rate am …</button>
+                  <button type="button" className={`pi-knopf klein ${sitFeld === "ausgesetzt" ? "" : "still"}`} disabled={!!laeuft} onClick={() => { setSitFeld(sitFeld === "ausgesetzt" ? null : "ausgesetzt"); setSitDatum(tagPlus(30)); }}>1 Monat ausgesetzt + Termin</button>
+                  <button type="button" className="pi-knopf klein still" disabled={!!laeuft} onClick={() => void sitRatenErgebnis("nicht_erreicht")}>{laeuft === "sit-nicht_erreicht" ? "…" : "Nicht erreicht"}</button>
+                  <button type="button" className="pi-knopf klein warn" disabled={!!laeuft} onClick={() => void sitRatenErgebnis("nummer_blockiert")}>{laeuft === "sit-nummer_blockiert" ? "…" : "Kein Kontakt mehr möglich"}</button>
+                </div>
+                {sitFeld === "zahlt_am" && (
+                  <div className="pi-ew-feld">
+                    <label>Zahlt am<input type="date" className="pi-eingabe" value={sitDatum} min={heuteIso()} onChange={(e) => setSitDatum(e.target.value)} /></label>
+                    <button type="button" className="pi-knopf klein" disabled={!!laeuft} onClick={() => void sitRatenErgebnis("zahlt_am", { zusageDatum: sitDatum })}>Speichern</button>
+                  </div>
+                )}
+                {sitFeld === "ausgesetzt" && (
+                  <div className="pi-ew-feld">
+                    <label>Zahlt wieder am<input type="date" className="pi-eingabe" value={sitDatum} min={heuteIso()} onChange={(e) => setSitDatum(e.target.value)} /></label>
+                    <button type="button" className="pi-knopf klein" disabled={!!laeuft} onClick={() => void sitRatenErgebnis("zahlt_am", { zusageDatum: sitDatum, notiz: "1 Monat ausgesetzt – Neustart mit Termin vereinbart." })}>Speichern</button>
+                    <small className="pi-sek-neben">Buch danach oben den Termin – ausgesetzt ohne Gespräch verliert den Kunden.</small>
+                  </div>
+                )}
+              </div>
+            )}
+            {!alleErgebnisse && (sitArt === "bezahlt_ohne_termin" || sitArt === "zahlung_gemeldet") && (
+              <div className="pi-ew">
+                <div className="pi-reihe">
+                  <button type="button" className="pi-knopf klein" disabled={!!laeuft} onClick={() => void mandatBuchen()}>{laeuft === "mandat" ? "…" : "Termin gebucht (Mandat)"}</button>
+                  <button type="button" className="pi-knopf klein still" disabled={!!laeuft} onClick={() => void ergebnis("nicht_erreicht")}>{laeuft === "nicht_erreicht" ? "…" : "Nicht erreicht"}</button>
+                  <button type="button" className="pi-knopf klein still" disabled={!!laeuft} onClick={() => void ergebnis("nummer_falsch")}>{laeuft === "nummer_falsch" ? "…" : "Nummer falsch"}</button>
+                  <button type="button" className={`pi-knopf klein ${sitFeld === "rueckruf" ? "" : "still"}`} disabled={!!laeuft} onClick={() => setSitFeld(sitFeld === "rueckruf" ? null : "rueckruf")}>Überlegt noch – Rückruf</button>
+                </div>
+                {sitFeld === "rueckruf" && (
+                  <div className="pi-ew-feld">
+                    <label>Rückruf am<input type="date" className="pi-eingabe" value={sitDatum} min={heuteIso()} onChange={(e) => setSitDatum(e.target.value)} /></label>
+                    <label>Uhrzeit<input type="time" className="pi-eingabe" value={sitZeit} step={900} onChange={(e) => setSitZeit(e.target.value)} /></label>
+                    <button type="button" className="pi-knopf klein" disabled={!!laeuft} onClick={async () => { if (await ergebnis("rueckruf_termin", { terminDatum: sitDatum, terminZeit: sitZeit, notiz: "Mandat noch offen – Kunde überlegt, Rückruf vereinbart." })) setSitFeld(null); }}>Speichern</button>
+                  </div>
+                )}
+              </div>
+            )}
+            {!alleErgebnisse && (sitArt === "rechnung_offen" || sitArt === "lead_ohne_antrag" || sitArt === "zusage_gebrochen" || sitArt === "rueckruf_faellig" || sitArt === "termin_heute") && (
+              <div className="pi-ew">
+                <div className="pi-reihe">
+                  <button type="button" className="pi-knopf klein" disabled={!!laeuft} onClick={() => void mandatBuchen()}>{laeuft === "mandat" ? "…" : "Mandat angenommen"}</button>
+                  <button type="button" className="pi-knopf klein still" disabled={!!laeuft} onClick={() => void ergebnis("nicht_erreicht")}>{laeuft === "nicht_erreicht" ? "…" : "Nicht erreicht"}</button>
+                  <button type="button" className="pi-knopf klein still" disabled={!!laeuft} onClick={() => void ergebnis("nummer_falsch")}>{laeuft === "nummer_falsch" ? "…" : "Nummer falsch"}</button>
+                  <button type="button" className={`pi-knopf klein ${sitFeld === "rueckruf" ? "" : "still"}`} disabled={!!laeuft} onClick={() => setSitFeld(sitFeld === "rueckruf" ? null : "rueckruf")}>Überlegt noch – Rückruf</button>
+                  <button type="button" className="pi-knopf klein warn" disabled={!!laeuft} onClick={async () => {
+                    if (!(await fragen({
+                      titel: `Mandat nicht zustande gekommen – ${k.name} hat kein Interesse?`,
+                      text: "Der Kunde wird gesperrt: Er erscheint bei keinem Mitarbeiter mehr und die Verteilung fasst ihn nicht mehr an. Zahlungs- und Vertragsdaten bleiben erhalten.",
+                      folge: "Der Vorgang steht mit Grund im Kontaktprotokoll.", ja: "Sperren", gefaehrlich: true,
+                    }))) return;
+                    await ergebnis("erreicht_abgelehnt", { notiz: "Mandat nicht zustande gekommen – kein Interesse, vom Kunden im Gespräch erklärt." });
+                  }}>{laeuft === "erreicht_abgelehnt" ? "…" : "Kein Interesse"}</button>
+                </div>
+                {sitFeld === "rueckruf" && (
+                  <div className="pi-ew-feld">
+                    <label>Rückruf am<input type="date" className="pi-eingabe" value={sitDatum} min={heuteIso()} onChange={(e) => setSitDatum(e.target.value)} /></label>
+                    <label>Uhrzeit<input type="time" className="pi-eingabe" value={sitZeit} step={900} onChange={(e) => setSitZeit(e.target.value)} /></label>
+                    <button type="button" className="pi-knopf klein" disabled={!!laeuft} onClick={async () => { if (await ergebnis("rueckruf_termin", { terminDatum: sitDatum, terminZeit: sitZeit, notiz: "Mandat noch offen – Kunde überlegt, Rückruf vereinbart." })) setSitFeld(null); }}>Speichern</button>
+                  </div>
+                )}
+              </div>
+            )}
+            {!alleErgebnisse && sitArt === "alles_gut" && (
+              <p className="pi-sek-satz leise">Nichts fällig. Halte besondere Absprachen als Notiz im Reiter „Gespräche“ fest – oder klapp „Alle Ergebnisse“ auf.</p>
+            )}
+            {alleErgebnisse && <ErgebnisWahlDunkel onErgebnis={(art, zusatz) => ergebnis(art, zusatz)} laeuft={laeuft} kundeName={k.name} vorgabeDatum={datumWert} fragen={fragen} />}
           </Sek>
 
-          {(k.nichtErreicht >= 2 || k.ruhtSeit) && (
-            <Sek titel="Vorgeschichte" erklaer="Was mit diesem Kunden schon versucht wurde – damit niemand zum fünften Mal dieselbe Nummer wählt.">
-              <p className={k.ruhtSeit ? "pi-sek-satz leise" : "pi-sek-satz warn"}>
-                {k.nichtErreicht}× nicht erreicht
-                {k.letzterKontakt && `, zuletzt ${dtag(k.letzterKontakt)}`}
-                {k.terminlinkMailAm && `, Terminlink versandt ${dtag(k.terminlinkMailAm)}`}
-              </p>
-              {k.ruhtSeit && <p className="pi-sek-satz leise">Ruht bis {k.wiedervorlage ? dtag(k.wiedervorlage) : "zur Wiedervorlage"}. Nicht anrufen — er hat den Terminlink und meldet sich selbst.</p>}
-              {!k.email && (
-                <div className="pi-reihe">
-                  <p className="pi-sek-satz leise">Keine E-Mail hinterlegt — es ging keine Mail raus.</p>
-                  <button type="button" className="pi-knopf still klein" onClick={() => void terminlinkKopieren()}><Copy size={13} strokeWidth={1.75} /> {linkKopiert ? "Kopiert" : "Terminlink für WhatsApp kopieren"}</button>
-                </div>
-              )}
+          {/* E-046: Bei überfälliger Rate zeigt der Zahlungsbereich die RATE —
+              VORHER stand hier „Zahlungsdaten: gesperrt – alles bezahlt“
+              neben der offenen Rate (der gemeldete Widerspruch). */}
+          {sitArt === "rate_ueberfaellig" && sitRate ? (
+            <Sek titel="Offene Rate" erklaer="Diese Rate fehlt auf dem Konto. Referenz mitgeben – so ordnet die Buchhaltung die Zahlung sofort zu."
+                 kopfRechts={<button type="button" className="pi-knopf still klein" onClick={() => void ratenKopieren()}><Copy size={13} strokeWidth={1.75} /> {kopiert ? "Kopiert" : "Bankdaten kopieren"}</button>}>
+              <p className="pi-zweck-zahl">{sitRate.referenz ?? k.zahlung?.referenz ?? "—"}</p>
+              <p className="pi-sek-satz">Rate {sitRate.nr} · {eur(sitRate.betragCents)} · fällig {sitRate.faelligAm ? dtag(sitRate.faelligAm) : "—"} · per Überweisung</p>
+              <div className="pi-reihe">
+                <button type="button" className="pi-knopf still klein" disabled={laeuft === "sit-erinnerung"} onClick={() => void sitErinnerung()}>{laeuft === "sit-erinnerung" ? "…" : "Zahlungserinnerung senden"}</button>
+                <button type="button" className="pi-link" onClick={() => setReiter("zahlungen")}>Alle Raten im Reiter „Zahlungen & Raten“</button>
+              </div>
             </Sek>
-          )}
-
-          {k.zahlung?.referenz && (
+          ) : k.zahlung?.referenz && sitArt !== "alles_gut" ? (
             <Sek titel="Verwendungszweck" erklaer="Die erste Zahlung ist immer eine Überweisung mit dieser Referenz – so ordnet die Buchhaltung das Geld dem Kunden zu."
                  kopfRechts={<button type="button" className="pi-knopf still klein" disabled={!k.zahlung.klartext} onClick={() => void zahlungsdatenKopieren()} title="Empfänger, IBAN, Betrag und Verwendungszweck als Text — fertig für WhatsApp"><Copy size={13} strokeWidth={1.75} /> {kopiert ? "Kopiert" : "Zahlungsdaten kopieren"}</button>}>
               <p className="pi-zweck-zahl">{k.zahlung.referenz}</p>
               {kopiert && <p className="pi-sek-satz gut">Empfänger, IBAN, Betrag und Verwendungszweck liegen in der Zwischenablage.</p>}
+              <VertragsLuecke k={k} melden={melden} />
               {!belegOffen ? (
                 <button type="button" className="pi-link" onClick={() => setBelegOffen(true)}>Überweisungsbeleg hinterlegen</button>
               ) : (
@@ -1553,12 +1780,24 @@ function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
                 </div>
               )}
             </Sek>
-          )}
+          ) : null}
 
-          <Sek titel="Ergebnis festhalten" erklaer="Ein Klick nach jedem Kontakt – daraus entstehen Wiedervorlage, Zähler und die Reihenfolge deiner Liste."
-               kopfRechts={<small className="pi-sek-neben">{k.nichtErreicht > 0 && `${k.nichtErreicht}× nicht erreicht`}{k.nichtErreicht > 0 && k.rechnungVersandt > 0 && " · "}{k.rechnungVersandt > 0 && `${k.rechnungVersandt}× Zahlungsdaten`}</small>}>
-            <ErgebnisWahlDunkel onErgebnis={(art, zusatz) => ergebnis(art, zusatz)} laeuft={laeuft} kundeName={k.name} vorgabeDatum={datumWert} fragen={fragen} />
-          </Sek>
+          {(k.nichtErreicht >= 2 || k.ruhtSeit) && (
+            <Sek titel="Vorgeschichte" erklaer="Was mit diesem Kunden schon versucht wurde – damit niemand zum fünften Mal dieselbe Nummer wählt.">
+              <p className={k.ruhtSeit ? "pi-sek-satz leise" : "pi-sek-satz warn"}>
+                {k.nichtErreicht}× nicht erreicht
+                {k.letzterKontakt && `, zuletzt ${dtag(k.letzterKontakt)}`}
+                {k.terminlinkMailAm && `, Terminlink versandt ${dtag(k.terminlinkMailAm)}`}
+              </p>
+              {k.ruhtSeit && <p className="pi-sek-satz leise">Ruht bis {k.wiedervorlage ? dtag(k.wiedervorlage) : "zur Wiedervorlage"}. Nicht anrufen — er hat den Terminlink und meldet sich selbst.</p>}
+              {!k.email && (
+                <div className="pi-reihe">
+                  <p className="pi-sek-satz leise">Keine E-Mail hinterlegt — es ging keine Mail raus.</p>
+                  <button type="button" className="pi-knopf still klein" onClick={() => void terminlinkKopieren()}><Copy size={13} strokeWidth={1.75} /> {linkKopiert ? "Kopiert" : "Terminlink für WhatsApp kopieren"}</button>
+                </div>
+              )}
+            </Sek>
+          )}
         </>}
 
         {/* ═══ ZAHLUNGEN & RATEN ═══ */}

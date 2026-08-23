@@ -70,10 +70,10 @@ function SchreibtischInnen() {
       {fehler && <p className="st-fehler">{fehler}</p>}
 
       <section className="st-kacheln">
-        <Link href="/agent/kalender" className="st-kachel"><i><Calendar size={20} /></i><b>{termineHeute.length}</b><span>Termine heute</span></Link>
-        <Link href="/agent/kunden?filter=leads" className="st-kachel"><i><PhoneCall size={20} /></i><b>{zusagen.length}</b><span>Rückrufe fällig</span></Link>
-        <Link href="/agent/aufgaben" className="st-kachel"><i><ListChecks size={20} /></i><b>{aufgaben}</b><span>Aufgaben &amp; Anliegen</span></Link>
-        <Link href="/agent/kunden" className="st-kachel"><i><Sparkles size={20} /></i><b>{(k.tier1 ?? 0) + (k.tier2 ?? 0)}</b><span>heiße Kunden (A+B)</span></Link>
+        <Link href="/agent/kalender" className="st-kachel"><b>{termineHeute.length}</b><span>Termine heute</span></Link>
+        <Link href="/agent/kunden?filter=leads" className="st-kachel"><b>{zusagen.length}</b><span>Rückrufe fällig</span></Link>
+        <Link href="/agent/aufgaben" className="st-kachel"><b>{aufgaben}</b><span>Aufgaben &amp; Anliegen</span></Link>
+        <Link href="/agent/kunden" className="st-kachel"><b>{(k.tier1 ?? 0) + (k.tier2 ?? 0)}</b><span>heiße Kunden</span></Link>
       </section>
 
       <section className="st-spalten">

@@ -11,7 +11,7 @@
 //     Datensätze mit KI-Einschätzung, Schreiben & Fristen, Finanzen per
 //     Kontoanbindung, Einigung mit Gläubigern, Nachrichten, Tresor, Abo, Zugang.
 //     Alle Daten sind erfunden (Max Mustermann, kein Kunde, keine Datenbank).
-//  2. DIE FÜHRUNG — zwölf Stationen. Jede rückt einen Bereich ins Licht, dimmt
+//  2. DIE FÜHRUNG — fünfzehn Stationen. Jede rückt einen Bereich ins Licht, dimmt
 //     den Rest und erklärt in drei Sätzen: das Problem, die Lösung, warum das
 //     niemand sonst so kann. Pfeiltasten, Weiter/Zurück, jederzeit „frei erkunden".
 //
@@ -291,13 +291,22 @@ export default function DemoKundenbereich() {
   const [nachricht, setNachricht] = useState("");
   const [chat, setChat] = useState(NACHRICHTEN);
   const aktiv = modus === "fuehrung" ? STATIONEN[station].ziel : null;
+  useEffect(() => { const alt = document.title; document.title = "Demo-Kundenbereich · FIAON"; return () => { document.title = alt; }; }, []);
   const s = STATIONEN[station];
 
   // Zur Station rollen — die App scrollt in #root, scrollIntoView trifft trotzdem.
   useEffect(() => {
     if (modus !== "fuehrung") return;
     const el = document.getElementById(s.ziel); if (!el) return;
-    const t = window.setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: window.innerWidth < 900 ? "start" : "center" }), 60);
+    // Der Scroll-Container ist #root (html/body/#root haben height:100%, overflow auto) —
+    // deshalb nicht window scrollen, sondern den nächsten scrollbaren Vorfahren.
+    const container = (() => { let p: HTMLElement | null = el.parentElement; while (p) { const o = getComputedStyle(p).overflowY; if ((o === "auto" || o === "scroll") && p.scrollHeight > p.clientHeight) return p; p = p.parentElement; } return document.scrollingElement as HTMLElement; })();
+    const t = window.setTimeout(() => {
+      const r = el.getBoundingClientRect(), cr = container === document.scrollingElement ? { top: 0, height: window.innerHeight } : container.getBoundingClientRect();
+      const handy = window.innerWidth < 900;
+      const ziel = container.scrollTop + (r.top - cr.top) - (handy ? 74 : Math.max(60, (cr.height - r.height) / 2));
+      container.scrollTo({ top: Math.max(0, ziel), behavior: document.hidden ? "auto" : "smooth" });
+    }, 60);
     return () => window.clearTimeout(t);
   }, [modus, station, s.ziel]);
 
@@ -332,7 +341,7 @@ export default function DemoKundenbereich() {
             <div className="kb-intro-karte"><Mitgliedskarte /></div>
             <p className="kb-intro-ueber">Demo · Platzhalterdaten · kein Kunde, keine Datenbank</p>
             <h1>Der Kundenbereich, <span>wie er gemeint ist.</span></h1>
-            <p className="kb-intro-text">Zwölf Stationen, ein Kunde nach vier Monaten. Wir führen Sie durch jeden Bereich und erklären, warum FIAON das Problem löst – und warum der Kunde bleibt.</p>
+            <p className="kb-intro-text">Fünfzehn Stationen, ein Kunde nach vier Monaten. Wir führen Sie durch jeden Bereich und erklären, warum FIAON das Problem löst – und warum der Kunde bleibt.</p>
             <div className="kb-intro-knoepfe">
               <button type="button" className="mb-knopf" onClick={() => { setStation(0); setModus("fuehrung"); }}>Präsentation starten</button>
               <button type="button" className="mb-knopf still" onClick={() => setModus("frei")}>Frei erkunden</button>

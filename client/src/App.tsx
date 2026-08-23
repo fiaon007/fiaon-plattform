@@ -117,6 +117,7 @@ const AgentWalletPage = lazy(() => import("@/pages/agent/wallet"));
 const AgentCollectionsPage = lazy(() => import("@/pages/agent/collections"));
 const AgentInboxPage = lazy(() => import("@/pages/agent/inbox"));
 const AgentMorePage = lazy(() => import("@/pages/agent/more"));
+const AgentSpaceNeuPage = lazy(() => import("@/pages/agent/space-neu")); // Team-Feed neu (Justin 24.08.)
 const AgentPipelinePage = lazy(() => import("@/pages/agent/pipeline"));
 const AgentToolsPage = lazy(() => import("@/pages/agent/tools/index"));
 const AgentPaketfinderPage = lazy(() => import("@/pages/agent/tools/paketfinder"));
@@ -361,7 +362,8 @@ function Router() {
       <Route path="/agent/inkasso" component={AgentCollectionsPage} />
       <Route path="/agent/collections" component={AgentCollectionsPage} />
       <Route path="/agent/inkasso-alt" component={AgentInkassoPage} />
-      <Route path="/agent/space">{() => <AgentSpacePage />}</Route>
+      <Route path="/agent/space">{() => <AgentSpaceNeuPage />}</Route>
+      <Route path="/agent/space-alt">{() => <AgentSpacePage />}</Route>
       {/* Mail-Zentrale — Team und Vorgesetzter. Die Rolle entscheidet der Server:
           ein Teammitglied sieht nur eigene Kunden und darf an höchstens zehn. */}
       <Route path="/agent/mail-zentrale"><Redirect to="/agent/inbox" /></Route>

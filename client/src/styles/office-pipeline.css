@@ -51,6 +51,13 @@
 .pi-fokus-wert span{font-size:11px;color:#9ca3af}
 .pi-fokus-wert>div.hervor{background:linear-gradient(135deg,rgba(37,99,235,.4),rgba(37,99,235,.12));border-color:rgba(96,165,250,.5)}
 .pi-fokus-knoepfe{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+/* E-047 Nr. 5: VORHER wuchtig (großes h1, drei Zähl-Kacheln) — NACHHER kompakt. */
+.pi-fokus-karte.kompakt{padding:20px 22px;gap:10px}
+.pi-fokus-karte.kompakt h1{font-size:clamp(20px,2.4vw,27px)}
+.pi-fokus-karte.kompakt .pi-fokus-knoepfe .pi-knopf.riesig{min-height:48px;padding:0 22px;font-size:14px}
+.pi-fokus-warum.knapp{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer}
+.pi-fokus-chips{display:flex;gap:6px;flex-wrap:wrap}
+.pi-fokus-chips .pi-marke{font-size:11.5px;padding:5px 9px}
 /* Leitfaden */
 .pi-leitfaden{display:grid;gap:8px;padding:18px 20px;border-radius:24px;background:rgba(15,23,42,.55);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);align-content:start}
 .pi-leitfaden-kopf{display:flex;align-items:center;justify-content:space-between;gap:10px;background:none;border:0;padding:0;cursor:pointer;text-align:left;color:inherit;font-family:'Inter',sans-serif;min-height:40px}
@@ -177,9 +184,11 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
 .pi-sperre{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:0 14px;border-radius:999px;background:rgba(217,119,6,.14);border:1px solid rgba(251,191,36,.35);color:#fde68a;font:500 12.5px/1 'Inter',sans-serif}
 .pi-luecke{font-size:12px;color:#9ca3af;line-height:1.5}
 .pi-luecke-link{font-size:11.5px;color:#cbd5e1;word-break:break-all;padding:8px 10px;border-radius:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12)}
+/* E-047 Nr. 3: VORHER lief „Verwendungszweck“ über die 120px-Spalte in den
+   Wert hinein — NACHHER feste Labelbreite mit Umbruch, am Handy Label über Wert. */
 .pi-dl{display:grid;gap:4px;margin:0}
-.pi-dl div{display:grid;grid-template-columns:120px 1fr;gap:8px;font-size:12.5px;padding:3px 0}
-.pi-dl dt{color:#64748b}
+.pi-dl div{display:grid;grid-template-columns:132px minmax(0,1fr);gap:8px;font-size:12.5px;padding:3px 0;align-items:start}
+.pi-dl dt{color:#64748b;overflow-wrap:anywhere;line-height:1.4;font-size:11.5px;padding-top:1px}
 .pi-dl dd{margin:0;color:#e5e7eb;word-break:break-word}
 .pi-dl dd.fehlt{color:#64748b}
 .pi-form{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -226,9 +235,25 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
 .pi-tab.an{background:linear-gradient(135deg,#2563eb,#3b82f6);border-color:transparent;color:#fff;box-shadow:0 10px 24px rgba(37,99,235,.35)}
 .pi-tab.an em{color:#dbeafe}
 .pi-arbeit{display:grid;grid-template-columns:1.55fr 1fr;gap:14px;align-items:start}
-.pi-arbeit-haupt{display:grid;gap:12px;min-width:0}
+/* E-047: VORHER Leitfaden-Spalte rechts — NACHHER einspaltig, Legende unten. */
+.pi-arbeit.einspaltig{grid-template-columns:1fr}
+/* E-047: VORHER gap 12px („klebt aneinander“) — NACHHER Luft: oben stark, dann Trenner, dann die nächsten fünf. */
+.pi-arbeit-haupt{display:grid;gap:32px;min-width:0}
+.pi-trenner{display:flex;align-items:center;gap:16px;margin:-6px 4px}
+.pi-trenner .linie{flex:1;height:1px;background:linear-gradient(90deg,transparent,rgba(96,165,250,.35),transparent)}
+.pi-trenner b{font:500 11px/1 'Inter',sans-serif;letter-spacing:.22em;text-transform:uppercase;background:linear-gradient(90deg,#64748b,#93c5fd,#3b82f6,#93c5fd,#64748b);background-size:220% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:piSchimmer 5.5s ease-in-out infinite;white-space:nowrap}
+@keyframes piSchimmer{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+.pi-legende{display:grid;gap:12px;margin-top:6px}
+.pi-legende-zeile{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pi-legende-zeile .linie{flex:1;min-width:24px;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.14),transparent)}
+.pi-legende-zeile small{font:500 10px/1 'Inter',sans-serif;letter-spacing:.18em;text-transform:uppercase;color:#64748b}
+.pi-legende-chip{display:inline-flex;align-items:center;gap:7px;min-height:36px;padding:0 13px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:#cbd5e1;font:400 12px/1 'Inter',sans-serif;cursor:pointer}
+.pi-legende-chip em{font-style:normal;font-size:10px;color:#64748b}
+.pi-legende-chip .pi-glut{width:7px;height:7px}
+.pi-legende-chip:hover{border-color:color-mix(in srgb,var(--hitze,#93c5fd) 45%,transparent)}
+.pi-legende-chip.an{background:color-mix(in srgb,var(--hitze,#2563eb) 18%,rgba(15,23,42,.6));border-color:color-mix(in srgb,var(--hitze,#60a5fa) 55%,transparent);color:#fff}
 .pi-arbeit-klein{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.pi-ak{position:relative;display:grid;gap:8px;padding:12px 14px;border-radius:18px;background:rgba(15,23,42,.6);border:1px solid color-mix(in srgb,var(--hitze,#60a5fa) 30%,rgba(255,255,255,.12));backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 14px 34px rgba(2,6,23,.4),0 0 18px color-mix(in srgb,var(--hitze,#60a5fa) 16%,transparent);animation:piAk .4s cubic-bezier(.2,.8,.2,1) both;transition:transform .25s,opacity .25s}
+.pi-ak{position:relative;display:grid;gap:9px;padding:15px 17px;border-radius:18px;background:rgba(15,23,42,.6);border:1px solid color-mix(in srgb,var(--hitze,#60a5fa) 30%,rgba(255,255,255,.12));backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 14px 34px rgba(2,6,23,.4),0 0 18px color-mix(in srgb,var(--hitze,#60a5fa) 16%,transparent);animation:piAk .4s cubic-bezier(.2,.8,.2,1) both;transition:transform .25s,opacity .25s}
 @keyframes piAk{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 .pi-ak-kern{display:grid;gap:4px;background:none;border:0;padding:0;text-align:left;color:inherit;cursor:pointer;font-family:'Inter',sans-serif;min-width:0}
 .pi-ak-kopf{display:flex;align-items:center;gap:7px}
@@ -292,7 +317,9 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
 .pi-situation-text p{margin:8px 0 0;font:300 13px/1.6 'Inter',sans-serif;color:#cbd5e1;max-width:56ch}
 .pi-situation-tun{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .pi-mehr{position:relative;display:inline-block}
-.pi-mehr-menue{position:absolute;right:0;top:calc(100% + 8px);z-index:20;display:grid;min-width:230px;padding:6px;border-radius:16px;background:rgba(15,23,42,.96);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);box-shadow:0 24px 60px rgba(2,6,23,.6)}
+/* E-047 Nr. 1: VORHER lief das Menü am Handy aus dem Sichtbereich —
+   NACHHER Desktop im Viewport verankert, am Handy ein Bottom-Sheet. */
+.pi-mehr-menue{position:absolute;right:0;top:calc(100% + 8px);z-index:20;display:grid;min-width:230px;max-width:min(280px,calc(100vw - 24px));max-height:min(60vh,420px);overflow:auto;padding:6px;border-radius:16px;background:rgba(15,23,42,.96);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);box-shadow:0 24px 60px rgba(2,6,23,.6)}
 .pi-mehr-menue button,.pi-mehr-menue a{display:block;width:100%;text-align:left;padding:10px 12px;border-radius:10px;border:0;background:none;color:#e5e7eb;font:400 13px/1.3 'Inter',sans-serif;cursor:pointer;text-decoration:none}
 .pi-mehr-menue button:hover,.pi-mehr-menue a:hover{background:rgba(255,255,255,.07)}
 .pi-mehr-menue button:disabled{color:#64748b;cursor:default}
@@ -330,6 +357,9 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
 .pi-rate{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:12px 14px;border-radius:14px;background:rgba(248,113,113,.07);border:1px solid rgba(248,113,113,.25)}
 .pi-rate .wer b{display:block;font:500 13.5px/1.3 'Inter',sans-serif;color:#fff;font-variant-numeric:tabular-nums}
 .pi-rate .wer small{display:block;margin-top:2px;font-size:12px;color:#fca5a5}
+.pi-rate .wer small.sepa.gelb{color:#fcd34d}
+.pi-rate .wer small.sepa.rot{color:#fca5a5;font-weight:600}
+.pi-rate .wer small.sepa.still{color:#94a3b8}
 .pi-rate-form{grid-column:1/4;display:grid;gap:8px;padding-top:8px;border-top:1px solid rgba(248,113,113,.2)}
 /* ── Handy ── */
 @media(max-width:960px){
@@ -355,6 +385,9 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
   .pi-lade-kopf h2{font-size:17px}
   .pi-lade-kopf-tun .pi-knopf.gross{min-height:42px;padding:0 14px;font-size:12.5px}
   .pi-situation{padding:16px 14px}
+  .pi-mehr-menue{position:fixed;left:10px;right:10px;bottom:10px;top:auto;min-width:0;max-width:none;z-index:75}
+  .pi-arbeit-haupt{gap:20px}
+  .pi-legende-zeile .linie{display:none}
   .pi-situation-tun .pi-knopf.riesig{min-height:50px;padding:0 18px;font-size:14.5px;flex:1}
   .pi-lade .pi-lade-tabs{position:sticky;top:0;z-index:5;padding:8px 12px}
   .pi-lade-koerper{padding:14px 12px 48px;gap:14px}
@@ -364,7 +397,8 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
   .pi-block{padding:14px}
   .pi-form{grid-template-columns:1fr}
   .pi-form label.breit{grid-column:auto}
-  .pi-dl div{grid-template-columns:96px 1fr}
+  .pi-dl div{grid-template-columns:1fr;gap:1px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+  .pi-dl dt{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase}
 }
 @media(max-width:560px){.pi-umsatz{grid-template-columns:1fr}.pi-umsatz-zahl:nth-child(2){grid-column:auto}}
-@media(prefers-reduced-motion:reduce){.pi-fokus-karte.tief,.pi-lade,.pi-lade-hintergrund{animation:none}.pi-sk,.pi-strom-buehne,.pi-umsatz-balken i{transition:none}}
+@media(prefers-reduced-motion:reduce){.pi-fokus-karte.tief,.pi-lade,.pi-lade-hintergrund{animation:none}.pi-sk,.pi-strom-buehne,.pi-umsatz-balken i{transition:none}.pi-trenner b{animation:none;background-position:50% 50%}}

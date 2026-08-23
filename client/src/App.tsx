@@ -121,8 +121,7 @@ const AgentSpaceNeuPage = lazy(() => import("@/pages/agent/space-neu")); // Team
 const AgentOnboardingRaumPage = lazy(() => import("@/pages/agent/onboarding-raum")); // E-051
 const AgentBestandPage = lazy(() => import("@/pages/agent/bestand")); // E-050 Portfolio-Raum
 const ChefPage = lazy(() => import("@/pages/chef")); // E-053 Chefbüro
-// E-054: praesentation.tsx kommt aus der laufenden Baustelle
-const AgentPraesentationPage = lazy(() => import("@/pages/agent/academy/index"));
+const AgentPraesentationPage = lazy(() => import("@/pages/agent/praesentation")); // E-054
 const AgentPipelinePage = lazy(() => import("@/pages/agent/pipeline"));
 const AgentToolsPage = lazy(() => import("@/pages/agent/tools/index"));
 const AgentPaketfinderPage = lazy(() => import("@/pages/agent/tools/paketfinder"));

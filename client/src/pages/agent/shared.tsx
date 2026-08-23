@@ -5,6 +5,7 @@ import { TerminErinnerung } from "@/components/TerminErinnerung";
 import { VerkaufsstartBanner } from "@/components/VerkaufsstartBanner";
 import { Users, Calendar, Wallet, LogOut, RefreshCw, LayoutDashboard, MoreHorizontal, Sparkles, X, PhoneCall, AlertTriangle, Menu, ChevronRight, ListChecks, Mail } from "lucide-react";
 import OnboardingGate from "./onboarding";
+import { OfficeShell } from "./OfficeShell";
 import { MarkeMenschen, MarkeStart, MarkeGeld, MarkePost, MarkeAufgaben, MarkeKalender, MarkeMehr, MarkeForderung, MarkeGespraech, MarkeVertrieb } from "@/lib/fiaon-marken";
 import {
   AGENT_UPDATES, getUnseenCount, fmtUpdateDate,
@@ -970,150 +971,19 @@ function AgentShellInnen({ children, onRefresh }: { children: ReactNode; onRefre
     return <OnboardingGate onComplete={() => window.location.reload()} />;
   }
 
+  // ── DAS OFFICE (23.08.2026) ────────────────────────────────────────────
+  // Der bisherige Rahmen (helle Kopfleiste, Tailwind-Karten) ist durch die
+  // cinematische Bühne in OfficeShell ersetzt. Alle Seiten laufen unverändert
+  // auf der hellen Glasfläche; Banner, Terminerinnerung und Telefon bleiben.
   return (
     <AgentCtx.Provider value={{ agent, reload: load }}>
-      {/* pb-20 hielt Platz für den entfernten schwebenden Knopf frei. Ohne ihn
-          braucht die Seite unten nur noch normalen Auslauf. */}
-      {/* ── NUR-ANSICHT: der Banner, den man nicht übersehen kann ─────────
-          Dunkelblaue Leiste ganz oben, über allem, nicht wegklickbar. Wer
-          sie übersieht, hat sie nicht gesehen — deshalb trägt sie den Namen
-          des Menschen und die verbleibende Zeit. */}
       {agent?.ansicht && <AnsichtsBanner agent={agent} />}
-      <div className={`agent-scope agent-ambient min-h-screen text-slate-900 pb-10 ${agent?.ansicht ? "pt-11" : ""}`}>
-        {/* Kopfbereich ist eine SCHWEBENDE Ebene und deshalb Glas: blur(20px)
-            mit saturate(180%), heller Innenrand oben, darunter eine haarfeine
-            Linie. Der Inhalt darunter bleibt erahnbar — das verankert die
-            Leiste räumlich, statt sie wie ein Deckel aufzusetzen.
-            Karten bekommen dieses Glas NICHT; sie sind massiv. */}
-        <header className="fi-glas sticky top-0 z-30">
-          <div className="mx-auto px-4 h-14 flex items-center justify-between gap-4"
-               style={{ maxWidth: "var(--fi-breite-max)" }}>
-            <div className="flex items-center gap-3 md:gap-6 min-w-0">
-              {/* Menue-Ausloeser: nur mobil, oben links im Daumenbereich. */}
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); setMenueOffen(true); }}
-                aria-label="Menü öffnen"
-                aria-expanded={menueOffen}
-                className="md:hidden relative -ml-1.5 w-11 h-11 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-50 flex items-center justify-center transition-colors shrink-0"
-              >
-                <Menu size={20} strokeWidth={1.9} />
-                {menuBadge > 0 && (
-                  <span
-                    className="absolute top-1.5 right-1.5 min-w-[16px] h-4 px-1 rounded-full text-[9.5px] font-bold text-white flex items-center justify-center tabular-nums"
-                    style={{ background: ACCENT }}
-                  >
-                    {menuBadge}
-                  </span>
-                )}
-              </button>
-              <Link href="/agent" className="shrink-0">
-                <span className="text-[15px] font-bold tracking-tight" style={{ color: ACCENT }}>FIAON</span>
-                <span className="ml-2 text-[11px] font-semibold uppercase tracking-[.14em] text-slate-400">Team</span>
-              </Link>
-              <nav className="hidden md:flex items-center gap-1">
-                {NAV.filter((n) => (!n.nurRolle || n.nurRolle === rolle)
-                  && !(n.nichtRolle ?? []).includes(String(rolle))).map((n) => {
-                  const active = n.match.includes(location);
-                  const badge = zaehler[n.href] || 0;
-                  return (
-                    <Link
-                      key={n.href}
-                      href={n.href}
-                      className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors ${
-                        active ? "text-slate-900 bg-slate-100" : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
-                      }`}
-                    >
-                      {n.label}
-                      {/* Die Zahl steht NEBEN der Beschriftung, nicht darüber.
-                          Absolut positioniert lag sie auf dem Wort — bei „Kunden 57"
-                          war beides gleichzeitig unlesbar. */}
-                      {badge > 0 && (
-                        <span className="min-w-[17px] h-[17px] px-1 rounded-full text-[10px] font-bold text-white inline-flex items-center justify-center tabular-nums" style={{ background: ACCENT }}>
-                          {badge}
-                        </span>
-                      )}
-                    </Link>
-                  );
-                })}
-              </nav>
-            </div>
-            <div className="flex items-center gap-2">
-              {onRefresh && (
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); onRefresh(); }}
-                  title="Aktualisieren"
-                  className="w-9 h-9 rounded-lg border border-slate-200 text-slate-400 hover:text-slate-600 hover:border-slate-300 flex items-center justify-center transition-colors"
-                >
-                  <RefreshCw size={15} strokeWidth={1.8} />
-                </button>
-              )}
-              <Link href="/agent/profil" className="hidden sm:block">
-                <Avatar src={agent.avatar ?? null} name={agent.name} size={32} />
-              </Link>
-              <button
-                type="button"
-                onClick={logout}
-                title="Abmelden"
-                className="w-9 h-9 rounded-lg border border-slate-200 text-slate-400 hover:text-slate-600 hover:border-slate-300 flex items-center justify-center transition-colors"
-              >
-                <LogOut size={15} strokeWidth={1.8} />
-              </button>
-            </div>
-          </div>
-        </header>
-
-        {/* Persönliche Nachrichten der Leitung stehen ÜBER den Produkt-
-            Updates: Eine Ansage an genau diesen Menschen ist dringlicher als
-            eine Neuerung, die alle betrifft. */}
-        {/* ── DER VERKAUFSSTART STEHT GANZ OBEN ──────────────────────────
-            Über allem, auch über den Team-Nachrichten: Er ist die Ansage, die
-            heute den Arbeitstag ändert. Wer ihn gelesen hat, sieht ihn nie
-            wieder — anders als die Update-Zeile, die eine Zahl hochzählt. */}
-        <VerkaufsstartBanner rolle={rolle} />
-        <TeamNachrichten />
-        <UpdateBanner />
-        <ImportantUpdateHint />
-
-        <main className="max-w-6xl mx-auto px-4 py-5">{children}</main>
-
-        {/* Das Telefon liegt über allem — in jeder Team-, Vertriebs- und
-            Onboarding-Ansicht. Es entscheidet selbst, ob es einsatzbereit ist
-            oder den Einrichtungs-Zustand zeigt. */}
-        {/* Die Erinnerungsleiste: Sie zeigt anstehende und überfällige Termine
-            im Portal — unabhängig von Make und einem offenen Postfach. */}
-        <TerminErinnerung />
-        <Softphone />
-
-        {/* HIER STAND EIN SCHWEBENDER KNOPF „Nächste Akte" — entfernt am
-            03.08.2026.
-            ────────────────────────────────────────────────────────────────
-            Er stammte aus dem Pool-System: Damals zog der Agent sich die
-            nächste Akte selbst aus einem gemeinsamen Bestand, und dieser Knopf
-            war die zentrale Handlung. Dieses System ist abgeschafft — Kunden
-            sind heute fest zugewiesen. Es gibt keine „nächste Akte" mehr, die
-            man ziehen könnte.
-
-            Der Knopf zeigte auf /agent/kartei. Diese Route ist abgeschaltet und
-            wird in App.tsx auf /agent/heute umgeleitet: Ein Tipp führte also im
-            Kreis zurück auf die Seite, auf der man ohnehin landet. Auf dem Handy
-            verdeckte er dabei dauerhaft den unteren Bildrand und damit die
-            Aktionsreihe der letzten Kundenkarte.
-
-            Ein Knopf, der nichts tut, ist schlimmer als kein Knopf: Er lässt den
-            Agenten glauben, er habe etwas falsch gemacht. Ersatz braucht es
-            keinen — „Heute" ist die Arbeitsliste und steht im Menü an erster
-            Stelle. */}
-
-        <AgentDrawer
-          open={menueOffen}
-          onClose={() => setMenueOffen(false)}
-          location={location}
-          zaehler={zaehler}
-          rolle={rolle}
-        />
-      </div>
+      <OfficeShell agent={agent} rolle={rolle} zaehler={zaehler} onRefresh={onRefresh} logout={logout}
+                   banner={<TeamNachrichten />} /* Verkaufsstart/Update-Hinweise wandern ins Schwarze Brett (Office-Plan §4) */>
+        <div className="agent-scope">{children}</div>
+      </OfficeShell>
+      <TerminErinnerung />
+      <Softphone />
     </AgentCtx.Provider>
   );
 }

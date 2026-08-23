@@ -101,6 +101,7 @@ const MailZentralePage = lazy(() => import("@/pages/mail-zentrale"));
 const AgentStartgespraechePage = lazy(() => import("@/pages/agent/startgespraeche"));
 const AgentVertriebPage = lazy(() => import("@/pages/agent/vertrieb"));
 import AgentVerdienstPage from "@/pages/agent/verdienst";
+const AgentGehaltPage = lazy(() => import("@/pages/agent/gehalt"));
 import AgentUpdatesPage from "@/pages/agent/updates";
 import AgentFeedbackPage from "@/pages/agent/feedback";
 import AgentMehrPage from "@/pages/agent/mehr";
@@ -378,6 +379,7 @@ function Router() {
           der einen Arbeitsliste. */}
       <Route path="/agent/leads" component={() => <Umleitung nach="/agent/kunden?filter=leads" />} />
       <Route path="/agent/verdienst" component={AgentVerdienstPage} />
+      <Route path="/agent/gehalt" component={AgentGehaltPage} />
       <Route path="/agent/updates" component={AgentUpdatesPage} />
       <Route path="/agent/feedback" component={AgentFeedbackPage} />
       <Route path="/agent/mehr" component={AgentMehrPage} />

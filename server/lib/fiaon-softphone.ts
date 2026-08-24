@@ -596,13 +596,25 @@ export function twimlAusgehend(opts: {
   // Gespräch ohne Hinweis aufzuzeichnen ist nach §201 StGB strafbar — und der
   // Hinweis muss den erreichen, der aufgezeichnet wird.
   //
-  // ── DIE LÖSUNG: `url` AM <Number> ─────────────────────────────────────────
+  // ── DIE LÖSUNG WAR: `url` AM <Number> ─────────────────────────────────────
   // Twilio spielt die dort hinterlegte TwiML ab, sobald der ANGERUFENE
-  // abnimmt — bevor die beiden Seiten verbunden werden. Genau dafür ist das
-  // Attribut da.
+  // abnimmt — bevor die beiden Seiten verbunden werden.
   //
-  // Der Agent hört die Ansage nicht mehr; er weiß ohnehin, dass aufgezeichnet
-  // wird, und musste bisher bei jedem Anruf zwölf Sekunden warten.
+  // ── UND SIE IST AM 24.08.2026 WIEDER ENTFALLEN ────────────────────────────
+  // Justin: „Früher, wenn man angerufen wurde und der Kunde abhebt, kam so ein
+  // Tonband von uns ‚Wir zeichnen den Anruf auf …' — das bitte ausstellen, das
+  // sagt der Mitarbeiter zu Beginn!"
+  //
+  // Der Hinweis nach §201 StGB entfällt damit NICHT — er wechselt nur den
+  // Sprecher. Die Pflicht ist, dass der Aufgezeichnete es erfährt, bevor
+  // aufgezeichnet wird; ob das eine Stimme vom Band oder der Mensch am anderen
+  // Ende sagt, ist gleichwertig. Im Softphone steht der Pflichtsatz weiterhin
+  // ÜBER dem Anrufknopf und ist nicht wegklickbar.
+  //
+  // Warum es besser ist: Das Band lief, bevor der Mitarbeiter „Guten Tag"
+  // sagen konnte. Der Kunde hörte als Erstes eine Maschine, die von Aufnahme
+  // spricht — der denkbar schlechteste Einstieg in ein Gespräch über seine
+  // Schulden. Aufgelegt wurde dabei häufiger als danach.
   // ══════════════════════════════════════════════════════════════════════════
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -612,7 +624,7 @@ export function twimlAusgehend(opts: {
         recordingStatusCallbackEvent="completed"
         answerOnBridge="true"
         action="${esc(opts.statusCallback)}">
-    <Number url="${esc(opts.ansageUrl)}">${esc(an)}</Number>
+    <Number>${esc(an)}</Number>
   </Dial>
 </Response>`;
 }

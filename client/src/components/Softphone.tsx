@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FiaonTastatur } from "@/components/FiaonGeraet";
 import { AnrufBuehne, type BuehnenGroesse } from "@/components/agent/AnrufBuehne";
+import { nachbereitungsWege, nachLageSatz, type NachEingang, type NachLage }
+  from "@shared/fiaon-anruf-nachbereitung";
 import { telefonFehler, telefonFehlerText } from "@shared/fiaon-telefon-fehler";
 import { ERGEBNIS_LISTE, NOTIZ_MINDESTLAENGE } from "@shared/fiaon-kontakt-ergebnis-liste";
 import { RATEN_ERGEBNISSE } from "@shared/fiaon-raten-ergebnisse";
@@ -360,7 +362,7 @@ export function Softphone() {
   const [lage, setLage] = useState<{
     hatTermin: boolean; terminText: string | null;
     hatZusage: boolean; zusageText: string | null;
-    zahlungOffen: boolean; hatProdukt: boolean;
+    hatMandat: boolean; art: NachLage; vorname: string;
   } | null>(null);
   // ── DIE NOTIZ ZUM ERGEBNIS ──────────────────────────────────────────────
   // Bei „Erreicht — Sonstiges" Pflicht (min. 10 Zeichen), bei allen anderen
@@ -588,7 +590,10 @@ export function Softphone() {
       .then((j) => {
         if (!an || !j?.ok || !j.kunde) return;
         const k = j.kunde;
-        const terminIso = k.terminAm ?? k.termin?.beginn ?? null;
+        // Ein Termin heute zählt genauso wie einer morgen: Wurde er im
+        // Gespräch für heute Nachmittag gebucht, darf die Nachbereitung nicht
+        // erneut nach einem Termin fragen.
+        const terminIso = k.terminAm ?? k.termin?.beginn ?? j.situation?.terminAm ?? j.situation?.terminHeute ?? null;
         const zusage = k.zusagedatum ?? null;
         setLage({
           hatTermin: !!terminIso,
@@ -598,8 +603,12 @@ export function Softphone() {
             : null,
           hatZusage: !!zusage,
           zusageText: zusage ? new Date(zusage).toLocaleDateString("de-DE") : null,
-          zahlungOffen: !!k.zahlung?.offen || k.karte?.status === "rechnung_offen",
-          hatProdukt: Array.isArray(k.buchungen) ? k.buchungen.some((b: any) => b.art === "paket") : true,
+          // DIE Leitfrage der ganzen Nachbereitung (Justin 24.08.):
+          // „FALLS ER NOCH KEIN MANDAT HAT: Mandat gewonnen oder nicht.
+          //  Wenn schon Mandat: Termin gebucht, Zahlung bestätigt, Sonstiges."
+          hatMandat: !!k.mandatSeit,
+          art: (j.situation?.art ?? "alles_gut") as NachLage,
+          vorname: String(k.name || "").trim().split(/\s+/)[0] || "",
         });
       })
       .catch(() => { /* ohne Lage fragt die Nachbereitung eben alles */ });
@@ -2961,10 +2970,20 @@ export function Softphone() {
               </div>
             )}
 
-            {urteil !== null && (
-            <p className="fi-tel-karte-text" style={{ marginBottom: 12 }}>
-              Ein Klick, dann ist es dokumentiert — Wiedervorlage und Zusage setzt das System selbst.
-            </p>
+            {/* Der Lagesatz sagt, WORUM es bei diesem Menschen geht — damit
+                die Wege darunter nicht geraten werden müssen. Er kommt aus
+                derselben geprüften Datei wie die Wege selbst. */}
+            {urteil !== null && !kunde?.rateId && (
+              <p className="ab-lagesatz">
+                {nachLageSatz({
+                  lage: (lage?.art ?? "alles_gut"),
+                  hatMandat: !!lage?.hatMandat,
+                  hatTermin: !!lage?.hatTermin,
+                  hatZusage: !!lage?.hatZusage,
+                  ohneKunde: !kunde?.personId,
+                  mitRate: !!kunde?.rateId,
+                } as NachEingang, lage?.vorname ?? "")}
+              </p>
             )}
             {datumFeld && (
               <input type="date" value={datum} onChange={(e) => setDatum(e.target.value)}
@@ -2997,34 +3016,33 @@ export function Softphone() {
                 Forderungsmanagement — das Ergebnis gilt für die Rate, nicht für den Vertrieb.
               </p>
             )}
+            {/* ══════════════════════════════════════════════════════════
+                DIE WEGE KOMMEN AUS DER GEPRÜFTEN ENTSCHEIDUNG
+                Justin, 24.08.2026: „Der gesamte Ablauf muss realitätsnah und
+                an die Situation angepasst werden — also prüfe das bitte
+                doppelt und dreifach, bevor es live geht."
+                Deshalb liegt die Entscheidung NICHT hier, sondern als reine
+                Funktion in shared/fiaon-anruf-nachbereitung.ts. Der Prüfstand
+                `scripts/pruef-nachbereitung.ts` schickt vor jedem Deploy alle
+                Lagen hindurch (228 Fälle, sieben Regeln) — unter anderem die,
+                dass nie nach einem Termin gefragt wird, der schon steht.
+                ══════════════════════════════════════════════════════════ */}
             <div className="fi-tel-ergebnisse">
-              {/* ── DIE LISTE DENKT MIT ────────────────────────────────────
-                  Sie zeigt nur, was zur Antwort passt UND noch offen ist:
-                    · „Gut gelaufen"   → die Erreicht-Ergebnisse. Steht der
-                      Termin schon, fällt „Rückruf vereinbart" weg — genau
-                      Justins Beispiel („dann wäre es dumm, wenn wir ihn
-                      fragen, wann er einen Termin buchen mag"). Steht die
-                      Zusage schon, fällt „Zahlt am …" weg.
-                    · „Nicht erreicht" → nicht erreicht, Mailbox, falsche
-                      Nummer. Alles andere wäre in dieser Lage gelogen.
-                    · „Kein Interesse" → abgelehnt oder blockiert.
-                  Die Liste selbst bleibt die EINE aus shared/ — hier wird nur
-                  gefiltert, nie ergänzt. */}
-              {ergebnisListe.filter((e) => {
-                if (urteil === null) return false;
-                if (kunde?.rateId) return true;   // Forderungsmanagement hat seine eigene Liste
-                if (urteil === "nicht_erreicht") return ["nicht_erreicht", "mailbox", "nummer_falsch"].includes(e.art);
-                if (urteil === "schlecht") return ["erreicht_abgelehnt", "nummer_blockiert", "nummer_falsch"].includes(e.art);
-                // „Gut gelaufen"
-                if (["nicht_erreicht", "mailbox", "nummer_falsch", "nummer_blockiert", "erreicht_abgelehnt"].includes(e.art)) return false;
-                if (e.art === "rueckruf_termin" && lage?.hatTermin) return false;
-                if (e.art === "erreicht_zahlt_am" && lage?.hatZusage) return false;
-                return true;
-              }).map((e) => (
-                <button key={e.art} type="button"
+              {(kunde?.rateId
+                ? ergebnisListe.map((e) => ({ art: e.art, label: e.label, hinweis: undefined as string | undefined,
+                    braucht: e.braucht ?? null, notizPflicht: !!e.notizPflicht, mandat: false, zurAkte: false, ton: "still" as const }))
+                : nachbereitungsWege({
+                    lage: (lage?.art ?? "alles_gut"),
+                    hatMandat: !!lage?.hatMandat,
+                    hatTermin: !!lage?.hatTermin,
+                    hatZusage: !!lage?.hatZusage,
+                    ohneKunde: !kunde?.personId,
+                    mitRate: !!kunde?.rateId,
+                  }, urteil ?? "gut")
+              ).map((e: any) => (
+                <button key={e.art + e.label} type="button"
                         onClick={() => {
                           if (e.braucht && datumFeld !== e.braucht) { setDatumFeld(e.braucht); return; }
-                          // Pflicht-Notiz: erst das Feld zeigen, dann senden.
                           if (e.notizPflicht && notiz.trim().length < NOTIZ_MINDESTLAENGE) {
                             setNotizFuer(e.art);
                             setNotizFehler(notiz.trim().length > 0
@@ -3032,11 +3050,25 @@ export function Softphone() {
                               : null);
                             return;
                           }
+                          // „Mandat gewonnen" mit stehendem Termin verbucht das
+                          // Mandat gleich mit. Ohne Termin führt der Weg in die
+                          // Akte — dort steht die Slot-Wahl fürs Startgespräch.
+                          // Das Softphone hat keinen `api`-Helfer — es spricht
+                          // durchgehend über `fetch`. Ein zweiter Zugangsweg
+                          // hier wäre die Gelegenheit, dass beide auseinander
+                          // laufen (Anmeldedaten, Fehlerbehandlung).
+                          if (e.mandat && kunde?.personId) {
+                            void fetch(`/api/fiaon/agent/vertrieb/mandat/${kunde.personId}`, {
+                              method: "POST", credentials: "include",
+                              headers: { "Content-Type": "application/json" }, body: "{}",
+                            }).catch(() => null);
+                          }
                           void dokumentieren(e.art);
                         }}
-                        className="fi-tel-ergebnis"
+                        className={`fi-tel-ergebnis fi-tel-weg ton-${e.ton ?? "still"}`}
                         data-pflicht={e.notizPflicht ? "ja" : undefined}>
-                  {e.label}
+                  <b>{e.label}</b>
+                  {e.hinweis && <small>{e.hinweis}</small>}
                 </button>
               ))}
             </div>

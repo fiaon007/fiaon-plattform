@@ -80,9 +80,12 @@
 .ru-weiter:hover{filter:brightness(1.07)}
 
 /* ── Der dezente Knopf zum Wiederabspielen ───────────────────────────────── */
-/* Unten LINKS — unten rechts sitzt der Telefonknopf, und der ist wichtiger. */
+/* 24.08.2026: VORHER unten LINKS — dort steht am Rechner aber die Menüleiste,
+   und der Knopf legte sich über den Eintrag „Earnings" (von Justin gemeldet).
+   NACHHER unten RECHTS, ÜBER dem Telefonknopf: Der Telefonknopf bleibt der
+   unterste und wichtigste, der Rundgang sitzt darüber und verdeckt nichts. */
 .ru-knopf{
-  position:fixed;left:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:280;
+  position:fixed;right:18px;bottom:calc(92px + env(safe-area-inset-bottom,0px));z-index:280;
   display:inline-flex;align-items:center;gap:7px;min-height:38px;padding:0 14px;
   border-radius:999px;cursor:pointer;
   background:rgba(15,23,42,.72);border:1px solid rgba(255,255,255,.14);
@@ -94,9 +97,9 @@
 .ru-knopf:hover{color:#fff;border-color:rgba(147,197,253,.4);transform:translateY(-1px)}
 
 @media (max-width:700px){
-  /* Am Handy sitzt links unten die Menüleiste — der Knopf rückt darüber und
-     zeigt nur das Zeichen, damit er nichts verdeckt. */
-  .ru-knopf{left:12px;bottom:calc(74px + env(safe-area-inset-bottom,0px));padding:0 11px;min-height:36px}
+  /* Am Handy sitzt der Telefonknopf unten rechts — der Rundgang rückt darüber
+     und zeigt nur das Zeichen, damit er nichts verdeckt. */
+  .ru-knopf{right:14px;bottom:calc(88px + env(safe-area-inset-bottom,0px));padding:0 11px;min-height:36px}
   .ru-knopf span{display:none}
   .ru-karte{padding:17px 18px;gap:11px;border-radius:20px}
   .ru-karte h3{font-size:17.5px}

@@ -424,6 +424,46 @@ router.get("/agent/crm/kunden", requireAgent, async (req: AgentRequest, res: Res
 });
 
 // ───────────────────────────────────────────────────────────────────────────
+// GET /agent/crm/person-zu-ref/:ref — von der Bestellreferenz zur Person.
+//
+// 24.08.2026 (Justin): Aus einer Aufgabe führte „Kunde öffnen" auf
+// /agent/kunden?ref=… — die Pipeline liest aber ausschließlich `?person=`.
+// Der Aufruf landete deshalb einfach auf der Pipeline, ohne dass sich etwas
+// öffnete. Statt den Link an einer Stelle zu flicken, gibt es jetzt den
+// sauberen Weg von der Referenz zur Person; jede Stelle, die nur die
+// Referenz kennt, kann ihn nutzen.
+//
+// Die Rechte sind dieselben wie beim Öffnen der Akte: eigener Kunde, oder
+// `darfAnKunde` erlaubt es. Wer keinen Zugriff hat, bekommt 404 — dieselbe
+// Antwort wie bei einem Kunden, den es nicht gibt. Eine Referenz darf nicht
+// verraten, dass es den Menschen gibt.
+// ───────────────────────────────────────────────────────────────────────────
+router.get("/agent/crm/person-zu-ref/:ref", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const ref = String(req.params.ref || "").trim();
+    if (!ref) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+    const [z] = (await sqlPool`
+      SELECT a.person_id FROM fiaon_applications a
+      WHERE a.ref = ${ref} AND a.merged_into IS NULL
+      ORDER BY a.created_at DESC LIMIT 1`) as any[];
+    const personId = Number(z?.person_id || 0);
+    if (!personId) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+
+    const meins = await meinePerson(personId, req.agent!.id);
+    if (!meins) {
+      const { rolleVon, darfAnKunde } = await import("../lib/fiaon-kundenzugriff");
+      if (!(await darfAnKunde(req.agent!.id, await rolleVon(req.agent!.id), personId))) {
+        return res.status(404).json({ ok: false, error: "Dieser Kunde wird von jemand anderem betreut." });
+      }
+    }
+    res.json({ ok: true, personId });
+  } catch (err) {
+    console.error("[AGENT-KUNDEN] person-zu-ref:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ───────────────────────────────────────────────────────────────────────────
 // GET /agent/kunden/:personId — Detail mit Verlauf. Fremde Person → 404.
 // ───────────────────────────────────────────────────────────────────────────
 router.get("/agent/crm/kunden/:personId", requireAgent, async (req: AgentRequest, res: Response) => {

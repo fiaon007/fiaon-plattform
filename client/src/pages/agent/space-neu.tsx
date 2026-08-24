@@ -132,8 +132,6 @@ function KommentarZeile({ k, onAntwort, onWeg }: {
           )}
         </p>
       </div>
-      {/* 24.08.2026: Rundgang je Raum (E-063). */}
-      <Rundgang raum="space" titel={RUNDGAENGE.space.titel} schritte={RUNDGAENGE.space.schritte} />
     </div>
   );
 }
@@ -822,6 +820,9 @@ function SpaceInnen() {
           </button>
         </div>
       )}
+      {/* 24.08.2026: Rundgang je Raum (E-063). Ein erster Einbau war
+          versehentlich in einer Kommentarzeile gelandet. */}
+      <Rundgang raum="space" titel={RUNDGAENGE.space.titel} schritte={RUNDGAENGE.space.schritte} />
     </div>
   );
 }

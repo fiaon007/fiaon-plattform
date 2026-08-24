@@ -151,7 +151,12 @@ export function OfficeShell({ children, agent, rolle, zaehler, onRefresh, logout
         <header className="of-kopf">
           <button type="button" className="of-burger" aria-label="Räume öffnen" onClick={() => setMenueOffen(true)}><Menu size={20} /></button>
           <Link href="/agent/start" className="of-wort">FIAON</Link><span className="of-marke">Office</span>
-          <div className="of-kopf-titel"><b>{titel ?? aktiv?.label ?? "Office"}</b><small>{gruss}, {vorname}.</small></div>
+          {/* 24.08.2026 (Justin: „das ‚More' löschen"): VORHER stand hier der
+              Raumname — derselbe, der in der Leiste links ohnehin blau
+              hervorgehoben ist. Bei „More" las er sich zudem wie ein
+              abgeschnittenes Wort. NACHHER bleibt nur die Begrüßung; wo man
+              ist, sagt die Leiste. */}
+          <div className="of-kopf-titel"><b>{gruss}, {vorname}.</b></div>
           <div className="of-kopf-rechts">
             <div className="of-praesenz" title="Präsenz">
               <span className="punkt" style={{ background: PRAESENZ[praesenz][1] }} />

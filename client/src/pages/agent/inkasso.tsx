@@ -6,6 +6,11 @@ import { MarkeFunke, MarkeHoerer, anrufStarten } from "@/components/Softphone";
 import { ZusageTafel } from "./vertrieb-zusage";
 import { AnrufPlayer } from "@/components/AnrufPlayer";
 
+// 24.08.2026 (Justin): Der Nenner ist die VERTRAGSLAUFZEIT (12 Raten), nicht
+// die Zahl der bisher angelegten Ratenzeilen — die entstehen fortlaufend,
+// immer nur die naechste faellige. Vorher stand bei einem Kunden im zweiten
+// Monat „Rate 2 von 2", was wie ein Zweimonatsvertrag aussah.
+
 // ═══════════════════════════════════════════════════════════════════════════
 // FORDERUNGSMANAGEMENT — eine Liste, von oben nach unten
 //
@@ -399,7 +404,7 @@ export default function AgentInkasso() {
                   <p className="text-[14.5px] font-bold" style={{ color: "var(--fi-text)" }}>{m.name}</p>
                   <p className="text-[11.5px]" style={{ color: "var(--fi-text-still)" }}>
                     {m.anzahl === 1
-                      ? `Rate ${f.rate_nr} von ${f.raten_gesamt} · ${f.paket || "—"} · ${f.raten_bezahlt} bezahlt`
+                      ? `Rate ${f.rate_nr} von 12 · ${f.paket || "—"} · ${f.raten_bezahlt} bezahlt`
                       : `${m.anzahl} offene Raten · ${f.paket || "—"} · ${f.raten_bezahlt} bezahlt`}
                   </p>
                 </div>
@@ -969,7 +974,7 @@ function InkassoAkte({
               <p className="fi-ak-marke">Diese Rate</p>
               <p className="fi-ak-gross">{eur(fall.betrag_cents)}</p>
               <p className="fi-ak-klein">
-                Rate {fall.rate_nr}{k?.raten_gesamt ? ` von ${k.raten_gesamt}` : ""}
+                Rate {fall.rate_nr} von 12
               </p>
             </div>
             {Number(k?.offen_gesamt_cents) > Number(fall.betrag_cents) && (

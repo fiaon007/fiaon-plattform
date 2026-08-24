@@ -367,6 +367,12 @@ router.get("/inkasso/rate/:id", requireAgent, async (req: AgentRequest, res: Res
                -- als jemand, der noch keine gezahlt hat.
                (SELECT COUNT(*)::int FROM fiaon_abo_raten x
                  WHERE x.ref = a.ref AND x.status = 'bezahlt') AS raten_bezahlt,
+               -- 24.08.2026: Das ist die Menge der bisher ANGELEGTEN Ratenzeilen — sie
+               -- entstehen fortlaufend, immer nur die naechste faellige (siehe
+               -- server/lib/fiaon-abo-pflicht.ts). Es ist NICHT die Vertragslaufzeit.
+               -- Die Oberflaeche zeigt deshalb „von 12" und nicht diesen Wert; wer ihn
+               -- als Laufzeit anzeigt, schreibt bei einem Kunden im zweiten Monat
+               -- „Rate 2 von 2" — genau das war der Fehler, den Justin gemeldet hat.
                (SELECT COUNT(*)::int FROM fiaon_abo_raten x WHERE x.ref = a.ref) AS raten_gesamt,
                (SELECT COALESCE(SUM(x.betrag_cents), 0)::bigint FROM fiaon_abo_raten x
                  WHERE x.ref = a.ref AND x.status <> 'bezahlt'

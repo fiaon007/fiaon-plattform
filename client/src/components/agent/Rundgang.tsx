@@ -85,7 +85,16 @@ export function Rundgang({ raum, titel, schritte }: {
       // über eine Arbeit, die gerade läuft, und der Merker wäre verbraucht,
       // ohne dass jemand den Rundgang gesehen hat. Der Knopf unten links
       // bleibt davon unberührt.
-      else if (schritte.length > 0 && !document.querySelector('[role="dialog"]')) setLaeuft(true);
+      // Kurz warten, bevor er von selbst aufgeht: Die Seite lädt ihre Daten
+      // noch, und ein Rundgang, der über einen leeren Bildschirm läuft,
+      // erklärt nichts (24.08.2026, von Justin gemeldet).
+      else if (schritte.length > 0) {
+        window.setTimeout(() => {
+          if (!an) return;
+          if (document.querySelector('[role="dialog"]')) return;  // Akte/Telefon offen
+          setLaeuft(true);
+        }, 900);
+      }
       setBereit(true);
     }).catch(() => setBereit(true));
     return () => { an = false; };
@@ -111,17 +120,42 @@ export function Rundgang({ raum, titel, schritte }: {
     setRahmen({ top: r.top - LUFT, left: r.left - LUFT, width: r.width + LUFT * 2, height: r.height + LUFT * 2 });
   }, [schritte, i]);
 
+  // ── AUF DAS ELEMENT WARTEN (24.08.2026) ──────────────────────────────────
+  // VORHER wurde EINMAL nach 380 ms gemessen. Wer eine Seite öffnet, deren
+  // Daten noch unterwegs sind, bekam einen Leuchtrahmen um NICHTS gelegt —
+  // Justin hat genau das gemeldet („die Einführung passt nicht"). NACHHER
+  // wird bis zu 4 Sekunden lang alle 150 ms nachgesehen, ob das Element da
+  // ist und eine Größe hat. Taucht es auf, rollt der Rundgang hin und rahmt
+  // es. Bleibt es aus (leerer Raum, Element gibt es hier nicht), steht die
+  // Karte mittig ohne Scheinwerfer — erklärt wird trotzdem.
   useEffect(() => {
     if (!laeuft) return;
     const s = schritte[i];
-    if (s?.ziel) {
-      const el = document.querySelector(s.ziel) as HTMLElement | null;
-      // Erst ins Bild rollen, dann messen — sonst rahmt der Scheinwerfer eine
-      // Stelle, die der Mitarbeiter gar nicht sieht.
-      el?.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-    const t = window.setTimeout(messen, s?.ziel ? 380 : 0);
-    return () => window.clearTimeout(t);
+    if (!s?.ziel) { setRahmen(null); return; }
+
+    let abgebrochen = false;
+    let gerollt = false;
+    let versuche = 0;
+    const HOECHSTENS = 27;          // 27 × 150 ms ≈ 4 s
+    const pruefen = () => {
+      if (abgebrochen) return;
+      const el = document.querySelector(s.ziel!) as HTMLElement | null;
+      const r = el?.getBoundingClientRect();
+      const da = !!r && (r.width > 4 || r.height > 4);
+      if (da && !gerollt) {
+        gerollt = true;
+        // Erst ins Bild rollen, dann rahmen — sonst zeigt der Scheinwerfer
+        // auf eine Stelle, die der Mitarbeiter gar nicht sieht.
+        el!.scrollIntoView({ behavior: "smooth", block: "center" });
+        window.setTimeout(() => { if (!abgebrochen) messen(); }, 340);
+        return;
+      }
+      if (da) { messen(); return; }
+      setRahmen(null);
+      if (++versuche < HOECHSTENS) window.setTimeout(pruefen, 150);
+    };
+    pruefen();
+    return () => { abgebrochen = true; };
   }, [laeuft, i, schritte, messen]);
 
   useEffect(() => {

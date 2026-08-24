@@ -44,6 +44,11 @@ import { Rundgang } from "@/components/agent/Rundgang";
 import { RUNDGAENGE } from "./rundgaenge";
 import "@/styles/office-rundgang.css";
 
+// 24.08.2026 (Justin): Der Nenner ist die VERTRAGSLAUFZEIT (12 Raten), nicht
+// die Zahl der bisher angelegten Ratenzeilen — die entstehen fortlaufend,
+// immer nur die naechste faellige. Vorher stand bei einem Kunden im zweiten
+// Monat „Rate 2 von 2", was wie ein Zweimonatsvertrag aussah.
+
 interface Fall {
   rate_id: number; ref: string; rate_nr: number; betrag_cents: number; zahlungsreferenz: string; faellig_am: string;
   mahnstufe: number; erinnerungen: number; letzte_erinnerung_at: string | null; inkasso_wiedervorlage: string | null;
@@ -315,7 +320,7 @@ function CollectionsInnen() {
                   {f.lastschrift_status !== "fehlgeschlagen" && !f.gc_mandate_status && <p className="co-band gelb">Kein SEPA eingerichtet – bitte den Kunden im Gespräch, die Lastschrift im Kundenbereich einzurichten.</p>}
                   {m.zweitAbo && <p className="co-band gelb">Zweites Abo — {m.bestellungen} Bestellungen laufen parallel. Vor dem Mahnen klären.</p>}
                   <div className="co-karte-kopf">
-                    <div><span className="name">{m.name}</span><span className="unter">{m.anzahl === 1 ? `Rate ${f.rate_nr} von ${f.raten_gesamt} · ${f.paket || "—"} · ${f.raten_bezahlt} bezahlt` : `${m.anzahl} offene Raten · ${f.paket || "—"} · ${f.raten_bezahlt} bezahlt`}</span></div>
+                    <div><span className="name">{m.name}</span><span className="unter">{m.anzahl === 1 ? `Rate ${f.rate_nr} von 12 · ${f.paket || "—"} · ${f.raten_bezahlt} bezahlt` : `${m.anzahl} offene Raten · ${f.paket || "—"} · ${f.raten_bezahlt} bezahlt`}</span></div>
                     <div className="geld"><b>{eur(m.summeCents)}</b><small className={f.ueberfaellig ? "rot" : ""}>{f.ueberfaellig ? `seit ${f.tage_ueberfaellig} ${Number(f.tage_ueberfaellig) === 1 ? "Tag" : "Tagen"} fällig` : `fällig ${datum(f.faellig_am)}`}</small></div>
                   </div>
                   <div className="co-meta">

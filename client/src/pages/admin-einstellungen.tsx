@@ -336,6 +336,13 @@ export default function AdminEinstellungenPage() {
         <button type="submit" disabled={busy} className={`${btnPrimary}`}>{busy ? "…" : "Speichern"}</button>
       </form>
 
+      {/* 24.08.2026 (Justin: „Wo bzw. wie schalte ich die Mitarbeiter frei?"):
+          VORHER war das Zurückschalten Handarbeit an zwei Orten — hier die
+          Sperre aus, dann jedes der elf Konten einzeln in der Team-Zentrale.
+          NACHHER erledigt ein Knopf beides, genau für die Konten, die vor der
+          Aussperrung aktiv waren. */}
+      <OfficeFreischaltung />
+
       {/* Paket V2: Tägliche Reminder-Engine */}
       <form onSubmit={save} className="bg-white border border-slate-200 rounded-2xl p-5 mb-4">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
@@ -510,6 +517,85 @@ export default function AdminEinstellungenPage() {
       <p className="text-[12px] text-slate-400">
         Skript-Zuordnung nach Zahlungsstatus findest du bei den <Link href="/admin/team#skripte" className="font-semibold text-[#2563eb] hover:underline">Skripten in der Team-Übersicht</Link>.
       </p>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MITARBEITER WIEDER FREISCHALTEN — der Rückweg aus der Umbau-Sperre (E-038)
+//
+// Zeigt zuerst, WER freigeschaltet würde (aus der Merkliste, die beim
+// Aussperren geschrieben wurde), und sagt je Konto dazu, ob es danach auch
+// wieder Kunden aus der Verteilung bekommt. Erst dann der Knopf.
+// ═══════════════════════════════════════════════════════════════════════════
+type FreiKonto = { id: number; name: string; rolle: string; aktiv: boolean; inVerteilung: boolean };
+
+function OfficeFreischaltung() {
+  const [stand, setStand] = useState<{ umbauSperre: boolean; leadVerteilung: boolean; konten: FreiKonto[] } | null>(null);
+  const [laeuft, setLaeuft] = useState(false);
+  const [meldung, setMeldung] = useState<string | null>(null);
+  const [fehler, setFehler] = useState<string | null>(null);
+
+  const laden = async () => {
+    try {
+      const r = await fetch("/api/fiaon/admin/office-freischaltung", { credentials: "include" });
+      const j = await r.json();
+      if (j?.ok) setStand({ umbauSperre: j.umbauSperre, leadVerteilung: j.leadVerteilung, konten: j.konten || [] });
+    } catch { /* stiller Fehlschlag – der Block ist eine Hilfe, kein Muss */ }
+  };
+  useEffect(() => { void laden(); }, []);
+
+  const freischalten = async () => {
+    if (!confirm("Alle Mitarbeiter der Merkliste wieder freischalten und die Umbau-Sperre ausschalten?")) return;
+    setLaeuft(true); setFehler(null); setMeldung(null);
+    try {
+      const r = await fetch("/api/fiaon/admin/office-freischaltung", {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" }, body: JSON.stringify({}),
+      });
+      const j = await r.json();
+      if (!j?.ok) { setFehler(j?.error || "Nicht freigeschaltet."); return; }
+      setMeldung(j.meldung || "Freigeschaltet.");
+      await laden();
+    } catch {
+      setFehler("Der Server war nicht erreichbar.");
+    } finally { setLaeuft(false); }
+  };
+
+  if (!stand || stand.konten.length === 0) return null;
+  const gesperrte = stand.konten.filter((k) => !k.aktiv);
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-2xl p-5 mb-4">
+      <h2 className="text-[14px] font-bold text-slate-900 mb-1">Mitarbeiter wieder freischalten</h2>
+      <p className="text-[12px] text-slate-400 mb-3">
+        {gesperrte.length > 0
+          ? `${gesperrte.length} von ${stand.konten.length} Konten sind für den Umbau ausgesperrt. Ein Klick schaltet genau diese wieder frei und schaltet die Umbau-Sperre aus.`
+          : "Alle Konten der Merkliste sind aktiv."}
+        {" "}Verteilung und Lead-Automatik laufen danach von selbst weiter – dort ist nichts zusätzlich einzuschalten
+        {stand.leadVerteilung ? "" : " (Achtung: die Lead-Verteilung ist derzeit ausgeschaltet)"}.
+      </p>
+      <ul className="mb-4 divide-y divide-slate-100 border border-slate-100 rounded-xl overflow-hidden">
+        {stand.konten.map((k) => (
+          <li key={k.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+            <span className="text-[12.5px] text-slate-700">
+              <b className="font-semibold text-slate-900">{k.name}</b> <span className="text-slate-400">· {k.rolle}</span>
+            </span>
+            <span className="text-[11.5px] font-semibold">
+              <span className={k.aktiv ? "text-emerald-600" : "text-amber-600"}>{k.aktiv ? "aktiv" : "ausgesperrt"}</span>
+              <span className="text-slate-400 font-normal">
+                {" · "}{k.inVerteilung ? "bekommt neue Kunden" : "ohne Verteilung"}
+              </span>
+            </span>
+          </li>
+        ))}
+      </ul>
+      {meldung && <p className="text-[12px] font-semibold text-emerald-600 mb-3">{meldung}</p>}
+      {fehler && <p className="text-[12px] font-semibold text-red-600 mb-3">{fehler}</p>}
+      <button type="button" onClick={() => void freischalten()} disabled={laeuft || gesperrte.length === 0}
+              className="inline-flex items-center justify-center h-10 px-4 rounded-xl bg-[#2563eb] text-white text-[13px] font-semibold disabled:opacity-40">
+        {laeuft ? "Schaltet frei …" : `${gesperrte.length} Mitarbeiter freischalten`}
+      </button>
     </div>
   );
 }

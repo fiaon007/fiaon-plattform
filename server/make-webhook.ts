@@ -49,6 +49,7 @@ export type MakeEventType =
   //   erreicht' klickt muss der Kunde eine Email bekommen … hier neuen Termin
   //   buchen".
   | "termin_verpasst"        // Startgespraech nicht zustande gekommen — neuer Terminlink
+  | "sepa_einrichten"        // Bitte, die Lastschrift fuer die Folgeraten einzurichten
   | "onboarding_einladung"   // bezahlter Kunde soll sein Startgespraech buchen
   | "antrag_erinnerung"      // Antrag begonnen, nicht beendet — Kette nach E-023 (10 min, 16:30, 19:00, 07:30, 15:00 …)
   | "abo_verlaengerung_frage" // 12. Rate bezahlt — „Möchten Sie bleiben?" (E-024)

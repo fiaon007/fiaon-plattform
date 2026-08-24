@@ -36,6 +36,7 @@ import { Phone, Check, X, ChevronLeft, ChevronRight, Plus, CalendarClock, Sticky
 import { AgentShell, api } from "./shared";
 import { useOffice } from "./OfficeShell";
 import "@/styles/office-calendar.css";
+import { TERMIN_ARTEN } from "@shared/fiaon-termin-art";
 
 // ── Zeit in Europe/Berlin (nie über toISOString, AGENTS.md) ─────────────────
 interface Teile { y: number; m: number; d: number; h: number; min: number; wd: number }
@@ -283,11 +284,28 @@ function CalendarInnen() {
       {meldung && <p className={`ca-meldung${meldung.warn ? " warn" : ""}`}>{meldung.text}</p>}
 
       {/* E-051: Startgespräche haben ihren eigenen Raum – hier nur der Wegweiser. */}
-      <Link href="/agent/onboarding" className="ca-hinweiskarte">
-        <Sparkles size={16} strokeWidth={1.75} />
-        <span>Deine Startgespräche führst du im Raum <b>Onboarding</b> – mit Kacheln, Wartenden und dem Gesprächs-Cockpit.</span>
-        <em>Zum Raum <ChevronRight size={14} /></em>
-      </Link>
+      {/* 24.08.2026 (Justin): VORHER stand hier nur der Onboarding-Wegweiser —
+          wer ihn las, hielt ALLE Termine im Kalender für Startgespräche.
+          NACHHER sagt der Banner zuerst, was dieser Kalender zeigt (nämlich
+          jede Art von Termin), und verweist danach auf den Raum, in dem eine
+          davon geführt wird. Die Farblegende darunter macht die Arten
+          unterscheidbar. */}
+      <div className="ca-arten">
+        <p className="ca-arten-satz">
+          Hier stehen <b>alle deine Termine</b> — Vertriebsgespräche, Rückrufe, Zahlungsgespräche
+          und Startgespräche. Die Farbe links an jedem Termin sagt dir, welche Art es ist.
+        </p>
+        <span className="ca-arten-legende">
+          {TERMIN_ARTEN.map((a) => (
+            <em key={a.text} title={a.erklaerung}><i style={{ background: a.ton }} />{a.text}</em>
+          ))}
+        </span>
+        <Link href="/agent/onboarding" className="ca-hinweiskarte schmal">
+          <Sparkles size={15} strokeWidth={1.75} />
+          <span>Startgespräche <b>führst</b> du im Raum Onboarding – mit Cockpit und Wartenden.</span>
+          <em>Zum Raum <ChevronRight size={14} /></em>
+        </Link>
+      </div>
 
       <section className="ca-leiste">
         <div className="ca-reiter" role="tablist">

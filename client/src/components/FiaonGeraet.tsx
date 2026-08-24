@@ -304,13 +304,28 @@ const GERAET_CSS = `
    Sicherheitsnetz für sehr kleine Fenster — im Regelfall (375×667 aufwärts)
    passt jede Ansicht auf einen Bildschirm. */
 .fi-ger-blatt {
-  position: fixed; inset: 0; z-index: 421;
-  height: 100dvh; max-height: 100dvh;
+  /* ── 24.08.2026, Justin: „nimmt es ALLES ein, zudem wirkt es veraltet" ──
+     VORHER: inset:0, 100dvh, eckige Kanten, deckende Fläche — eine
+     Vollbild-Seite aus der Zeit vor den Blättern. Man sah nicht, dass man
+     ÜBER dem Office steht, sondern hatte den Eindruck, die App gewechselt zu
+     haben.
+     NACHHER: ein schwebendes Glas-Blatt. Oben bleiben 46 px frei, durch die
+     man das Office unscharf durchschimmern sieht — das allein nimmt dem
+     Telefon das „alles einnehmen". Dazu 30-px-Rundung, Milchglas statt
+     deckender Farbe, eine Lichtkante oben und ein weiter Schatten nach unten.
+     Der Inhalt passt weiterhin OHNE Rollen (Tasten und Pflichtsatz sind dafür
+     enger gesetzt, siehe softphone.css). */
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 421;
+  top: calc(46px + env(safe-area-inset-top, 0px));
   display: flex; flex-direction: column;
-  border-radius: 0;
-  padding-top: env(safe-area-inset-top, 0px);
-  background: linear-gradient(178deg, #0d1c3f 0%, #0a1a3c 46%, #070f22 100%);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.12);
+  border-radius: 30px 30px 0 0;
+  background:
+    linear-gradient(178deg, rgba(23,42,84,.92) 0%, rgba(12,24,54,.94) 52%, rgba(7,15,34,.96) 100%);
+  backdrop-filter: blur(30px) saturate(150%);
+  -webkit-backdrop-filter: blur(30px) saturate(150%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.18),
+    0 -18px 60px rgba(2,6,23,.6);
   transform: translateY(100%);
   transition: transform 460ms cubic-bezier(.22,.68,0,1);
 }
@@ -325,7 +340,7 @@ const GERAET_CSS = `
 .fi-ger-blatt-inhalt {
   flex: 1; min-height: 0;
   display: flex; flex-direction: column;
-  padding: 4px 16px calc(14px + env(safe-area-inset-bottom, 0px));
+  padding: 2px 18px calc(12px + env(safe-area-inset-bottom, 0px));
   overflow-y: auto; overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 }
@@ -461,20 +476,23 @@ const TASTATUR_CSS = `
    iPhone SE (375×667) genauso ohne Rollen passt wie auf einem großen Gerät. */
 @media (max-width: 700px) {
   .fi-tast { max-width: none; gap: 9px 12px; }
+  /* 24.08.2026: VORHER gefüllte graue Kästen — genau das, was Justin
+     „veraltet" nennt. NACHHER nur ein feiner Ring um die Ziffer; die Fläche
+     entsteht erst beim Drücken. Das ist die Formensprache heutiger Geräte
+     und lässt die Tastatur leichter wirken, ohne Platz zu kosten. */
   .fi-tast-taste {
     aspect-ratio: auto;
-    height: clamp(48px, 7.4dvh, 60px);
+    height: clamp(46px, 6.9dvh, 56px);
     border-radius: 999px;
     flex-direction: row; gap: 0; align-items: center; justify-content: center;
-    /* Ruhiger als der alte Verlauf: eine Fläche, eine Lichtkante. */
-    background: rgba(255,255,255,.085);
-    box-shadow: inset 0 0 0 1px rgba(255,255,255,.1);
+    background: transparent;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.13);
   }
   .fi-tast-taste:active {
-    background: rgba(255,255,255,.22);
-    box-shadow: inset 0 1px 4px rgba(0,0,0,.4);
+    background: rgba(255,255,255,.16);
+    box-shadow: inset 0 0 0 1px rgba(147,197,253,.5);
   }
-  .fi-tast-ziffer { font-size: 25px; font-weight: 300; letter-spacing: 0; }
+  .fi-tast-ziffer { font-size: 24px; font-weight: 300; letter-spacing: 0; }
   .fi-tast-buchstaben { display: none; }
 }
 @media (max-width: 700px) and (max-height: 620px) {

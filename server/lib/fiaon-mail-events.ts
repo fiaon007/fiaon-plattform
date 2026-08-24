@@ -133,6 +133,12 @@ const ZUSATZ: Partial<Record<MakeEventType, EventZusatz>> = {
     gruppe: "termin", zielgruppe: "kunde", rollen: ["admin", "vertriebsleiter", "onboarding"],
     klartext: "Einladung zum 15-minütigen Startgespräch für bezahlte Kunden.",
   },
+  // NEU 24.08.2026: Aus dem Bestand-Raum heraus. VORHER stand auf der
+  // Kundenkarte nur „kein SEPA" — ein Zustand ohne Weg. NACHHER ein Klick.
+  sepa_einrichten: {
+    gruppe: "konto", zielgruppe: "kunde", rollen: ["admin", "vertriebsleiter", "agent", "onboarding"],
+    klartext: "Bitte an den Kunden, die Folgeraten per Lastschrift einzurichten — die erste Zahlung bleibt eine Überweisung.",
+  },
   number_update_request: {
     gruppe: "konto", zielgruppe: "kunde", rollen: ["admin", "vertriebsleiter", "agent"],
     klartext: "Bitte an den Kunden, seine Rufnummer selbst zu berichtigen.",

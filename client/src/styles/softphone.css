@@ -1280,7 +1280,7 @@
   .fi-tel { padding-left: 16px; padding-right: 16px; }
 
   /* ── Kopf: schmal, ruhig ─────────────────────────────────────────────── */
-  .fi-tel-statuszeile { margin-bottom: 14px; }
+  .fi-tel-statuszeile { margin-bottom: 12px; }
 
   /* ── Aktionsblock: EINE Hauptaktion, dann die Suche ──────────────────── */
   /* „Nächsten aus meiner Liste holen" ist der Weg, den ein Mitarbeiter
@@ -1293,20 +1293,32 @@
     background: rgba(37,99,235,.22);
     box-shadow: inset 0 0 0 1px rgba(96,165,250,.34);
   }
-  .fi-tel-suche { height: 46px; font-size: 15px; }
+  .fi-tel-suche {
+    height: 46px; font-size: 15px;
+    background: rgba(255,255,255,.05);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.11);
+  }
   .fi-tel-suche-feld { margin-bottom: 0; }
 
   /* Der Mikrofon-Hinweis ist eine Nebensache — er war der lauteste und
      höchste Block der ganzen Ansicht (98 px für einen Satz, den man einmal
      im Leben liest) und einer der Gründe, warum die Wählansicht am Handy
      wieder rollen musste. Jetzt: eine Zeile, gedämpft, mit kurzem Text. */
+  /* 24.08.2026, zweiter Durchgang: VORHER standen hier DREI gleich große
+     Kästen übereinander (Mikrofon, „Nächsten holen", Suche) — das ist der
+     Kasten-Stapel, der die Ansicht altbacken wirken ließ. NACHHER trägt nur
+     die Hauptaktion eine Fläche; der Mikrofon-Hinweis ist eine reine Zeile
+     ohne Rahmen, die Suche ein ruhiges Feld. */
   .fi-tel-mikrofon {
-    margin: 0 0 10px; padding: 10px 13px; gap: 10px; border-radius: 14px;
-    background: rgba(147,197,253,.1);
-    box-shadow: inset 0 0 0 1px rgba(147,197,253,.2);
+    margin: 0 0 4px; padding: 6px 2px; gap: 9px; border-radius: 0;
+    background: none; box-shadow: none;
   }
-  .fi-tel-mikrofon-marke { width: 28px; height: 28px; border-radius: 9px; }
-  .fi-tel-mikrofon-titel { font-size: 13px; }
+  .fi-tel-mikrofon-marke {
+    width: 24px; height: 24px; border-radius: 999px;
+    background: rgba(147,197,253,.16);
+  }
+  .fi-tel-mikrofon-titel { font-size: 12.5px; font-weight: 400; color: #bfdbfe; }
+  .fi-tel-mikrofon[data-stand="verweigert"] .fi-tel-mikrofon-titel { color: #fcd34d; }
   /* Der Erklärsatz steht nur noch da, wenn das Mikrofon GESPERRT ist —
      dann muss man wirklich wissen, was zu tun ist. */
   .fi-tel-mikrofon-text { display: none; }
@@ -1321,10 +1333,10 @@
   .fi-tel-mik-hinweis { font-size: 12px; line-height: 1.45; }
 
   /* ── Die Rufnummer: das Wichtigste, also das Größte ──────────────────── */
-  .fi-tel-nummernzeile { margin-top: 16px; }
+  .fi-tel-nummernzeile { margin-top: 12px; }
   .fi-tel-anzeige {
-    font-size: 32px; font-weight: 300; letter-spacing: .01em;
-    color: #fff; padding: 6px 44px 10px;
+    font-size: 31px; font-weight: 300; letter-spacing: .01em;
+    color: #fff; padding: 4px 44px 8px;
   }
   .fi-tel-anzeige::placeholder { color: rgba(191,214,247,.28); }
 
@@ -1334,13 +1346,21 @@
   .fi-tel-waehlen .fi-tast { margin: auto 0; padding: 4px 0; }
 
   /* ── Fuß: Pflichtsatz, dann der grüne Knopf ──────────────────────────── */
+  /* 24.08.2026: Das Blatt beginnt jetzt 46 px tiefer (schwebendes Glas statt
+     Vollbild). Die Zeilen holt sich der Pflichtsatz zurück: enger gesetzt,
+     kleinere Marke, kein Kasten-Look — der Wortlaut bleibt vollständig
+     sichtbar, denn wer ihn vergisst, macht sich persönlich strafbar. */
+  /* Auch der Pflichtsatz verliert seinen Kasten: eine Haarlinie trennt ihn
+     vom Wählfeld, der Wortlaut bleibt vollständig lesbar. */
   .fi-tel-pflichtsatz {
-    margin: 0 0 12px; padding: 11px 13px; border-radius: 14px;
-    font-size: 12px; line-height: 1.5; font-style: normal;
+    margin: 0 0 10px; padding: 10px 2px 0; border-radius: 0;
+    background: none; box-shadow: none;
+    border-top: 1px solid rgba(255,255,255,.1);
+    font-size: 11.5px; line-height: 1.45; font-style: normal;
   }
-  .fi-tel-pflichtsatz-marke { margin-bottom: 4px; }
-  .fi-tel-wahl-fuss { padding-top: 12px; }
-  .fi-tel-gruen { height: 58px; font-size: 16px; font-weight: 500; }
+  .fi-tel-pflichtsatz-marke { margin-bottom: 2px; font-size: 9.5px; }
+  .fi-tel-wahl-fuss { padding-top: 8px; }
+  .fi-tel-gruen { height: 56px; font-size: 15.5px; font-weight: 500; }
   /* Gesperrt heißt „hier fehlt noch etwas" — nicht „kaputt". Deshalb keine
      Ausbleichung, sondern eine ruhige Fläche mit lesbarer Aufschrift. */
   .fi-tel-gruen:disabled {

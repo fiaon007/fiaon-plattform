@@ -76,6 +76,14 @@ export type VersandArt =
   //   der Akte auch von Hand wiederholen.
   // GRUND: Auftrag des Inhabers vom 24.08.2026.
   | "termin_verpasst"          // Termin nicht zustande gekommen — neuer Terminlink
+  // ── NEU 24.08.2026, zweiter Nachtrag ────────────────────────────────────
+  // VORHER: Die Karte im Bestand-Raum sagte nur „kein SEPA" — ein Zustand
+  //   ohne Weg. Wer ihn ändern wollte, musste den Kunden anrufen.
+  // NACHHER: Ein Klick auf der Kundenkarte schickt die Bitte, die Lastschrift
+  //   im Kundenbereich einzurichten. Die erste Zahlung bleibt IMMER eine
+  //   Überweisung — die Lastschrift betrifft nur die Folgeraten.
+  // GRUND: Auftrag des Inhabers vom 24.08.2026.
+  | "sepa_einrichten"          // Bitte, die Lastschrift für die Folgeraten einzurichten
   | "number_update_request";   // Bitte um Korrektur der Rufnummer
 
 export interface VersandKnopf {
@@ -114,6 +122,11 @@ export const VERSAND_TEXT: Record<VersandArt, { titel: string; zweck: string }> 
     titel: "Termin nicht zustande gekommen",
     zweck: "„Wir haben Sie leider nicht erreicht“ — mit dem Link auf einen neuen Termin.",
   },
+  // NEU 24.08.2026 (siehe VersandArt oben).
+  sepa_einrichten: {
+    titel: "Lastschrift einrichten",
+    zweck: "Bitte an den Kunden, die Folgeraten per Lastschrift laufen zu lassen — mit dem Weg in seinen Kundenbereich.",
+  },
   number_update_request: {
     titel: "Bitte um neue Rufnummer",
     zweck: "Wenn die hinterlegte Nummer nicht stimmt.",
@@ -125,8 +138,8 @@ export function artenFuerRolle(rolle: string): VersandArt[] {
   // VORHER 24.08.2026: ohne "termin_verpasst". NACHHER: mit. Die Rolle
   // „onboarding" bekommt sie zuerst — sie ist es, die den No-Show meldet.
   // GRUND: Auftrag des Inhabers vom 24.08.2026.
-  if (rolle === "onboarding") return ["onboarding_einladung", "termin_verpasst", "welcome"];
-  return ["payment_details", "welcome", "nicht_erreicht_termin", "onboarding_einladung", "termin_verpasst", "number_update_request"];
+  if (rolle === "onboarding") return ["onboarding_einladung", "termin_verpasst", "welcome", "sepa_einrichten"];
+  return ["payment_details", "welcome", "nicht_erreicht_termin", "onboarding_einladung", "termin_verpasst", "sepa_einrichten", "number_update_request"];
 }
 
 interface Zustand {
@@ -222,6 +235,13 @@ function bewerten(
   }
   if (art === "welcome" && !z.bezahlt) {
     return { erlaubt: false, grund: "Der Zugang wird erst nach der Zahlung freigeschaltet.", warnung: null, heute };
+  }
+  // NEU 24.08.2026: Die Bitte um die Lastschrift ergibt nur Sinn, wenn es
+  // überhaupt Folgeraten gibt — also nach der ersten, überwiesenen Zahlung.
+  // Vorher wäre sie eine Aufforderung ins Leere und würde den Kunden über
+  // den eigentlichen Weg (Überweisung mit Verwendungszweck) verwirren.
+  if (art === "sepa_einrichten" && !z.bezahlt) {
+    return { erlaubt: false, grund: "Die Lastschrift betrifft die Folgeraten — die erste Zahlung ist immer eine Überweisung.", warnung: null, heute };
   }
   if (art === "onboarding_einladung") {
     if (!z.bezahlt) return { erlaubt: false, grund: "Startgespräche bekommen nur bezahlte Kunden.", warnung: null, heute };

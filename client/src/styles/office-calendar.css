@@ -240,3 +240,19 @@ select.ca-feld option{color:#0f172a}
   /* Erster Tap = Popover; „Zur Akte“ ist darin der große Hauptweg. */
   .ca-popover-knoepfe .ca-knopf.akte{flex:1 1 100%;min-height:50px;font-size:14.5px}
 }
+
+/* ── Arten-Legende über dem Kalender (24.08.2026) ─────────────────────────── */
+/* VORHER stand dort nur der Onboarding-Wegweiser — wer ihn las, hielt ALLE
+   Termine für Startgespräche. NACHHER sagt der Block zuerst, was der Kalender
+   zeigt, und macht die vier Arten über ihre Farbe unterscheidbar. */
+.ca-arten{display:grid;gap:10px;padding:16px 18px;border-radius:20px;background:rgba(15,23,42,.55);border:1px solid rgba(255,255,255,.1)}
+.ca-arten-satz{margin:0;font:300 13.5px/1.6 'Inter',sans-serif;color:#cbd5e1}
+.ca-arten-satz b{color:#fff;font-weight:500}
+.ca-arten-legende{display:flex;flex-wrap:wrap;gap:8px 16px}
+.ca-arten-legende em{display:inline-flex;align-items:center;gap:7px;font-style:normal;font-size:12px;color:#9ca3af}
+.ca-arten-legende i{width:10px;height:10px;border-radius:3px;flex:0 0 10px}
+.ca-hinweiskarte.schmal{padding:10px 14px;font-size:12.5px}
+@media(max-width:700px){
+  .ca-arten{padding:14px 15px;gap:11px}
+  .ca-arten-legende{gap:8px 14px}
+}

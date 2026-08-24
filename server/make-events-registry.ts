@@ -234,6 +234,42 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       termin_link: "https://www.fiaon.com/termin/7f3a…",
     },
   },
+  // ══════════════════════════════════════════════════════════════════════════
+  // TEXTVORSCHLAG „sepa_einrichten" (Sie-Form, sachlich, kein Druck):
+  //
+  //   Betreff: Ihre Folgeraten bequem per Lastschrift
+  //
+  //   Guten Tag {{vorname}},
+  //
+  //   Ihre erste Zahlung haben Sie bereits überwiesen — vielen Dank dafür.
+  //   Damit Sie an die kommenden Raten nicht mehr denken müssen, können Sie
+  //   die Lastschrift in Ihrem Kundenbereich in einer Minute einrichten:
+  //
+  //   {{kundenbereich_link}}
+  //
+  //   Sie behalten dabei jederzeit die Kontrolle und können die Lastschrift
+  //   selbst wieder beenden. Wenn Sie lieber weiter überweisen, ist das
+  //   ebenfalls in Ordnung — sagen Sie uns einfach kurz Bescheid.
+  //
+  //   Ihr Team von FIAON
+  //
+  // WICHTIG fuer die Vorlage: Die ERSTE Zahlung ist IMMER eine Ueberweisung.
+  // Die Lastschrift betrifft ausschliesslich die Folgeraten — ein Text, der
+  // das vermischt, erzeugt Rueckfragen und Rueckbuchungen.
+  // ══════════════════════════════════════════════════════════════════════════
+  {
+    type: "sepa_einrichten",
+    label: "Lastschrift einrichten (Kunde)",
+    description:
+      "Wird vom Mitarbeiter im Bestand-Raum ausgelöst, wenn ein Kunde noch keine Lastschrift für die Folgeraten hinterlegt hat. Kein Automatiklauf — immer ein bewusster Klick auf der Kundenkarte. Vorgesetzten-TODO: Make-Zweig 'sepa_einrichten' + Brevo-Vorlage in Sie-Form anlegen (Variablen: vorname, kundenbereich_link, agent_vorname). Textvorschlag: siehe Kommentar über diesem Eintrag.",
+    customerBound: true,
+    example: {
+      email: "max.mustermann@example.com",
+      vorname: "Max",
+      agent_vorname: "Daniel",
+      kundenbereich_link: "https://www.fiaon.com/kundenbereich",
+    },
+  },
   {
     type: "antrag_erinnerung",
     label: "Antrag abgebrochen — Erinnerung mit Wiedereinstiegs-Link",

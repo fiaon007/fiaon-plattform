@@ -27,7 +27,7 @@
 import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
-import { Phone, FileText, Search, Send, RefreshCw, X } from "lucide-react";
+import { Phone, FileText, Search, Send, RefreshCw, X, Landmark } from "lucide-react";
 import { AgentShell, api } from "./shared";
 import { useOffice } from "./OfficeShell";
 import { ToastAnbieter, eur } from "@/lib/fiaon-ui";
@@ -85,15 +85,18 @@ const anrufen = (nummer: string | null | undefined, personId: number, name: stri
 };
 const euro0 = (c: number) => (c / 100).toLocaleString("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
 
+// 24.08.2026 (Justin): VORHER fünf Filter, darunter „Kein SEPA" und
+// „> 14 Tage kein Kontakt" — NACHHER nur noch drei, und die müssen ALLE
+// tun, was draufsteht. Der SEPA-Zustand wandert auf die Kundenkarte, wo er
+// mit einem Klick änderbar ist statt nur gezählt zu werden.
 const FILTER: { key: string; label: string }[] = [
   { key: "alle", label: "Alle" },
   { key: "ueberfaellig", label: "Überfällig" },
-  { key: "kein_sepa", label: "Kein SEPA" },
   { key: "termin_faellig", label: "Termin fällig" },
-  { key: "kontakt14", label: "> 14 Tage kein Kontakt" },
 ];
+// „Gesundheit" ist als Sortierung entfallen (Justin) — sie sortierte nach
+// einer Ampel, die es in dieser Form nicht mehr gibt.
 const SORT: { key: string; label: string }[] = [
-  { key: "gesundheit", label: "Gesundheit" },
   { key: "mandat", label: "Mandat seit" },
   { key: "rate", label: "Nach Rate" },
 ];
@@ -118,8 +121,22 @@ function BestandInnen() {
   const [offen, setOffen] = useState<number | null>(null);
   const [fremd, setFremd] = useState<Kunde | null>(null);
   const [sendeAn, setSendeAn] = useState<number | null>(null);
+  // 24.08.2026: Läuft gerade eine SEPA-Anfrage? (Person-ID, sonst null)
+  const [sepaLaeuft, setSepaLaeuft] = useState<number | null>(null);
+  const [sepaMeldung, setSepaMeldung] = useState<{ art: "gut" | "schlecht"; text: string } | null>(null);
   const handy = useMedia("(max-width: 700px)");
   const ruhig = useMedia("(prefers-reduced-motion: reduce)");
+
+  /** Bittet den Kunden per Mail, die Lastschrift für die Folgeraten
+   *  einzurichten. Kein Automatiklauf — immer ein bewusster Klick. */
+  const sepaBitten = async (personId: number, name: string) => {
+    setSepaLaeuft(personId); setSepaMeldung(null);
+    const r = await api(`/agent/versand/${personId}/sepa_einrichten`, { method: "POST", body: JSON.stringify({}) });
+    setSepaLaeuft(null);
+    setSepaMeldung(r.ok
+      ? { art: "gut", text: `${name} hat die Bitte bekommen, die Lastschrift im Kundenbereich einzurichten.` }
+      : { art: "schlecht", text: r.json?.error || "Die Anfrage konnte nicht gesendet werden." });
+  };
 
   const laden = useCallback(async (leise = false) => {
     if (!leise) setLaedt(true);
@@ -162,16 +179,25 @@ function BestandInnen() {
     const f = mandate.filter((m) => {
       const g = gesundVon(m);
       if (filter === "ueberfaellig" && g.art !== "ueberfaellig") return false;
-      if (filter === "kein_sepa" && m.sepaAktiv) return false;
+
       // „Termin fällig“ = es steht KEIN kommender Termin — einer gehört gebucht.
-      if (filter === "termin_faellig" && m.kunde.terminAm) return false;
-      if (filter === "kontakt14" && (kontaktTage(m.kunde.letzterKontakt) ?? 999) <= 14) return false;
+      // 24.08.2026: VORHER blendete „Termin fällig" alle Kunden aus, die einen
+      // Termin HABEN — es zeigte also das Gegenteil seines Namens. NACHHER
+      // heißt fällig, was fällig heißt: Ein gebuchter Termin, dessen Zeitpunkt
+      // heute erreicht oder schon vorbei ist.
+      if (filter === "termin_faellig") {
+        const tAm = m.kunde.terminAm ? new Date(m.kunde.terminAm).getTime() : null;
+        const tagesende = new Date(); tagesende.setHours(23, 59, 59, 999);
+        if (tAm == null || tAm > tagesende.getTime()) return false;
+      }
       if (q && !(`${m.kunde.name} ${m.kunde.email ?? ""} ${m.kunde.telefon ?? ""}`.toLowerCase().includes(q))) return false;
       return true;
     });
     return [...f].sort((a, b) => {
       if (sort === "rate") return (b.monatsrateCents ?? 0) - (a.monatsrateCents ?? 0);
       if (sort === "mandat") return new Date(b.kunde.mandatSeit ?? 0).getTime() - new Date(a.kunde.mandatSeit ?? 0).getTime();
+      // Ohne Wahl: das jüngste Mandat zuerst.
+      return new Date(b.kunde.mandatSeit ?? 0).getTime() - new Date(a.kunde.mandatSeit ?? 0).getTime();
       const ga = gesundVon(a), gb = gesundVon(b);
       return GESUND_RANG[ga.art] - GESUND_RANG[gb.art]
         || (b.raten.ueberfaelligSeitTagen ?? 0) - (a.raten.ueberfaelligSeitTagen ?? 0);
@@ -237,32 +263,20 @@ function BestandInnen() {
             <b>{laedt ? "–" : euro0(kopf.monatlichCents)}<em> / Monat</em></b>
             <span>Summe der Monatsraten × {Math.round(satz * 100)} % Provision je bankbestätigter Rate</span>
           </div>
-          <div className="be-zahl">
-            <small>Ratengesundheit</small>
-            {kopf.ratenGesamt > 0 ? (
-              <>
-                <span className="be-balken" role="img" aria-label={`${kopf.bez} pünktlich, ${kopf.off} offen, ${kopf.ueb} überfällig`}>
-                  <i className="gruen" style={{ flexGrow: kopf.bez }} />
-                  <i className="blau" style={{ flexGrow: kopf.off }} />
-                  <i className="rot" style={{ flexGrow: kopf.ueb }} />
-                </span>
-                <span className="be-legende">
-                  <em className="gruen">{kopf.bez} pünktlich</em>
-                  <em className="blau">{kopf.off} offen</em>
-                  <em className="rot">{kopf.ueb} überfällig</em>
-                </span>
-              </>
-            ) : <span className="be-leise">Noch keine Raten — sie entstehen mit der ersten Aktivierung.</span>}
-          </div>
-          <div className="be-zahl">
-            <small>SEPA-Quote</small>
-            <b>{laedt ? "–" : `${kopf.sepaQuote} %`}</b>
-            <span>Folgeraten laufen per Lastschrift — die erste Zahlung ist immer eine Überweisung.</span>
-          </div>
+          {/* 24.08.2026 (Justin): Die Kacheln „Ratengesundheit" (pünktlich /
+              offen / überfällig) und „SEPA-Quote" sind entfallen. Beides waren
+              Zahlen zum Anschauen; was fehlt, steht jetzt dort, wo man es
+              ändern kann — auf der Kundenkarte. */}
         </div>
       </section>
 
       {fehler && <p className="pi-fehler">{fehler}</p>}
+      {sepaMeldung && (
+        <p className={`pi-meldung ${sepaMeldung.art === "gut" ? "gut" : "schlecht"}`}>
+          {sepaMeldung.text}
+          <button type="button" className="pi-link" style={{ marginLeft: 8 }} onClick={() => setSepaMeldung(null)}>ausblenden</button>
+        </p>
+      )}
 
       {/* ── Filter, Suche, Sortierung, Ansicht ── */}
       <section className="be-leiste">
@@ -329,6 +343,18 @@ function BestandInnen() {
                       : "noch kein Kontakt"}
                   </span>
                 </button>
+                {/* 24.08.2026 (Justin): VORHER war „kein SEPA" nur eine Ampel-
+                    Beschriftung — ein Zustand ohne Weg. NACHHER steht auf der
+                    Karte, was zu tun ist, und ein Klick schickt dem Kunden die
+                    Bitte, die Lastschrift im Kundenbereich einzurichten. */}
+                {!m.sepaAktiv && (
+                  <button type="button" className="be-sepa" disabled={sepaLaeuft === m.kunde.personId}
+                          onClick={() => void sepaBitten(m.kunde.personId, m.kunde.name)}
+                          title="Schickt dem Kunden die Bitte, die Lastschrift für die Folgeraten einzurichten.">
+                    <Landmark size={13} strokeWidth={1.75} />
+                    {sepaLaeuft === m.kunde.personId ? "Sende …" : "Lastschrift nicht eingerichtet — jetzt anfragen"}
+                  </button>
+                )}
                 <span className="be-karte-tun">
                   <button type="button" className="pi-knopf klein" disabled={!m.kunde.telefonWaehlbar}
                           onClick={() => anrufen(m.kunde.telefonWaehlbar, m.kunde.personId, m.kunde.name)}

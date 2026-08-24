@@ -93,6 +93,15 @@ const anrufen = (nummer: string | null | undefined, personId: number, name: stri
   if (!nummer) return;
   window.dispatchEvent(new CustomEvent("fiaon-anrufen", { detail: { nummer, personId, name } }));
 };
+// 24.08.2026 (Justin: „warum steht da 1 von 2 Raten bezahlt — der Kunde
+// bezahlt ja 12 Monate?"): VORHER zählte die Anzeige die ANGELEGTEN
+// Ratenzeilen. Die entstehen aber fortlaufend, immer nur die nächste fällige
+// (server/lib/fiaon-abo-pflicht.ts) — bei einem Kunden im zweiten Monat gibt
+// es also genau zwei Zeilen, und die Karte behauptete „von 2". GEMESSEN am
+// 24.08.2026: 239 von 379 Bestellungen haben zwei Zeilen, keine einzige hat
+// zwölf. NACHHER steht die LAUFZEIT des Vertrags im Nenner — dieselbe Zahl,
+// mit der überall der Vertragswert gerechnet wird (Preis × 12).
+const VERTRAGSRATEN = 12;
 const euro0 = (c: number) => (c / 100).toLocaleString("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
 
 // 24.08.2026 (Justin): VORHER fünf Filter, darunter „Kein SEPA" und
@@ -366,7 +375,7 @@ function BestandInnen() {
                   <b>{m.kunde.name}</b>
                   <span className="be-karte-zeile">
                     {m.monatsrateCents ? `${eur(m.monatsrateCents)} / Monat` : "Rate folgt mit der Aktivierung"}
-                    {" · "}{m.raten.bezahlt} von {m.raten.bezahlt + m.raten.offen + m.raten.ueberfaellig || 12} Raten bezahlt
+                    {" · "}{m.raten.bezahlt} von {VERTRAGSRATEN} Raten bezahlt
                   </span>
                   <span className={`be-karte-fuss${stille && !m.kunde.terminAm ? " warn" : ""}`}>
                     {m.kunde.terminAm ? `Termin ${terminText(m.kunde.terminAm)}`

@@ -53,6 +53,16 @@ function TasksInnen() {
   const [laedt, setLaedt] = useState(true);
   const [fehler, setFehler] = useState<string | null>(null);
   const [busy, setBusy] = useState<number | null>(null);
+  // 24.08.2026: Von der Bestellreferenz zur Person — siehe Kommentar am Knopf.
+  const [oeffnet, setOeffnet] = useState<number | null>(null);
+  const [kundeFehler, setKundeFehler] = useState<{ id: number; text: string } | null>(null);
+  const kundeOeffnen = async (ref: string, id: number) => {
+    setOeffnet(id); setKundeFehler(null);
+    const r = await api(`/agent/crm/person-zu-ref/${encodeURIComponent(ref)}`);
+    setOeffnet(null);
+    if (r.ok && r.json?.personId) { window.location.href = `/agent/pipeline?person=${r.json.personId}`; return; }
+    setKundeFehler({ id, text: r.json?.error || "Zu dieser Aufgabe gibt es keinen Kunden, den du öffnen darfst." });
+  };
   const [reiter, setReiter] = useState<"offen" | "auftraege" | "hinweise" | "erledigt">("offen");
   // E-029 (24.08.2026): VORHER nur EINE Zahl („auftraege"), die alles zählte,
   // was nicht erledigt war — auch das, was auf Justins Antwort wartet.
@@ -154,7 +164,20 @@ function TasksInnen() {
                     {v.status === "erledigt" && <span className="gut">erledigt {zeit(v.erledigtAm)}{v.erledigtVon ? ` · ${v.erledigtVon}` : ""}</span>}
                     <span>von {v.autorName}</span>
                   </div>
-                  {v.ref && <Link href={`/agent/kunden?ref=${encodeURIComponent(v.ref)}`} className="ta-link"><ExternalLink size={13} strokeWidth={1.75} /> Kunde öffnen</Link>}
+                  {/* 24.08.2026 (Justin): VORHER führte „Kunde öffnen" auf
+                      /agent/kunden?ref=… — die Pipeline liest aber nur
+                      `?person=`, also landete man einfach auf der Pipeline und
+                      es öffnete sich gar nichts. NACHHER wird die Referenz
+                      erst in eine Person aufgelöst (mit derselben
+                      Rechteprüfung wie die Akte). Gehört der Kunde jemand
+                      anderem, sagt der Knopf das — statt ins Leere zu führen. */}
+                  {v.ref && (
+                    <button type="button" className="ta-link" disabled={oeffnet === v.id}
+                            onClick={() => void kundeOeffnen(v.ref!, v.id)}>
+                      <ExternalLink size={13} strokeWidth={1.75} /> {oeffnet === v.id ? "Öffne …" : "Kunde öffnen"}
+                    </button>
+                  )}
+                  {kundeFehler?.id === v.id && <p className="ta-kunde-fehler">{kundeFehler.text}</p>}
                 </div>
               </div>
             );

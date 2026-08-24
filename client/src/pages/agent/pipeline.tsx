@@ -512,8 +512,6 @@ function SlotWahl({ laeuft, onBuchen, onZu }: {
         <button type="button" className="pi-link" onClick={onZu}>Schließen</button>
       </div>
       <p className="pi-fussnote">Die Zeiten kommen aus deiner Availability abzüglich deiner Termine – beim Bestätigen prüft der Server erneut und blockiert den Slot.</p>
-      {/* 24.08.2026: Rundgang je Raum (E-063). */}
-      <Rundgang raum="pipeline" titel={RUNDGAENGE.pipeline.titel} schritte={RUNDGAENGE.pipeline.schritte} />
     </div>
   );
 }
@@ -860,6 +858,11 @@ function PipelineInnen() {
           )}
         </>, document.body)
       }
+      {/* 24.08.2026: Rundgang je Raum (E-063). Steht bewusst HIER am Ende der
+          Seiten-Komponente — ein erster Einbau war versehentlich in der
+          Terminauswahl gelandet, die nur beim Buchen erscheint; auf der
+          Pipeline kam deshalb gar nichts. */}
+      <Rundgang raum="pipeline" titel={RUNDGAENGE.pipeline.titel} schritte={RUNDGAENGE.pipeline.schritte} />
     </div>
   );
 }
@@ -2288,17 +2291,54 @@ function ProduktDunkel({ k, aufKlappen, fertig }: { k: Kunde; aufKlappen: (v: bo
     aufKlappen(false);
     fertig(r.json.hinweis ? `${paket.label} angelegt. ${r.json.hinweis}` : `${paket.label} angelegt — Verwendungszweck ${r.json.zahlungsreferenz ?? "in der Akte"}.`);
   };
+  // 24.08.2026 (Justin: „stehen keine Preise"): VORHER las die Anzeige
+  // `p.preisCents` — der Katalog liefert aber `preisEuro`. Number(undefined)
+  // ergibt NaN, und so stand bei JEDEM Paket „NaN €/Monat". NACHHER liest sie
+  // das Feld, das wirklich kommt, und fängt einen fehlenden Preis ab, statt
+  // ihn zu erfinden.
+  const preisText = (p: any): string => {
+    // Der Katalog liefert `preisEuro`; die geteilte Paketliste
+    // (shared/fiaon-pakete.ts) führt dieselbe Zahl als `preisCents`. Beide
+    // Schreibweisen werden gelesen — an genau dieser Verwechslung stand bei
+    // jedem Paket „NaN €". Fehlt der Preis wirklich, sagt die Anzeige das,
+    // statt eine Zahl zu erfinden.
+    const euro = Number.isFinite(Number(p?.preisEuro)) ? Number(p.preisEuro)
+      : Number.isFinite(Number(p?.preisCents)) ? Number(p.preisCents) / 100
+      : NaN;
+    if (!Number.isFinite(euro)) return "Preis nicht hinterlegt";
+    return `${euro.toFixed(2).replace(".", ",")} €${p.abo ? " / Monat" : " einmalig"}`;
+  };
+
   return (
     <div className="pi-produkt">
       <div className="pi-sek-kopf"><div><b>{istTausch ? "Produkt tauschen" : "Produkt hinzufügen"}</b>
         <p>{istTausch ? `Das offene Paket (${offenesPaket?.bezeichnung}) wird ersetzt – Preis und Verwendungszweck kommen aus dem Katalog.` : "Ein Paket aus dem Katalog an diese Akte hängen – Preis und Verwendungszweck kommen aus dem Katalog."}</p></div>
         <button type="button" className="pi-link" onClick={() => aufKlappen(false)}>Schließen</button></div>
-      <div className="pi-reihe">
-        <select className="pi-eingabe" style={{ minHeight: 42, flex: 1 }} value={gewaehlt} onChange={(e) => setGewaehlt(e.target.value)} aria-label="Paket wählen">
-          <option value="">— Paket wählen —</option>
-          {pakete.map((p: any) => <option key={p.key} value={p.key}>{p.label} · {(Number(p.preisCents) / 100).toFixed(2).replace(".", ",")} €{p.abo ? "/Monat" : " einmalig"}</option>)}
-        </select>
-        <button type="button" className="pi-knopf" disabled={!paket || laeuft} onClick={() => void anlegen()}>{laeuft ? "Speichert …" : istTausch ? "Tauschen" : "Hinzufügen"}</button>
+
+      {/* 24.08.2026 (Justin: „sieht schrecklich aus — alles perfekt in unserer
+          CI"): VORHER ein natives <select>. Das malt der Browser in seinem
+          eigenen Stil — auf dem Mac eine weiße Liste mitten im dunklen Glas.
+          NACHHER Karten in der Office-CI: Name groß, Preis darunter, die
+          gewählte Karte leuchtet. Kein Fremdkörper mehr. */}
+      {pakete.length === 0 && !fehler && <p className="pi-sek-satz leise">Lade den Katalog …</p>}
+      <div className="pi-pakete">
+        {pakete.map((p: any) => (
+          <button key={p.key} type="button"
+                  className={`pi-paket${gewaehlt === p.key ? " an" : ""}`}
+                  aria-pressed={gewaehlt === p.key}
+                  onClick={() => setGewaehlt(gewaehlt === p.key ? "" : p.key)}>
+            <b>{p.label}</b>
+            <span>{preisText(p)}</span>
+            {p.art && <em>{p.art === "privat" ? "Privat" : p.art === "business" ? "Geschäftlich" : p.art}</em>}
+          </button>
+        ))}
+      </div>
+
+      <div className="pi-reihe" style={{ marginTop: 12 }}>
+        <button type="button" className="pi-knopf gross" disabled={!paket || laeuft} onClick={() => void anlegen()}>
+          {laeuft ? "Speichert …" : istTausch ? "Paket tauschen" : "Paket hinzufügen"}
+        </button>
+        {paket && <span className="pi-sek-neben">{paket.label} · {preisText(paket)}</span>}
       </div>
       {fehler && <p className="pi-sek-satz warn">{fehler}</p>}
     </div>

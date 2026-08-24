@@ -375,6 +375,12 @@ export async function arbeitsliste(
            (r.inkasso_zusage_am IS NOT NULL AND r.inkasso_zusage_am < ${heute}::date) AS zusage_gebrochen,
            (SELECT COUNT(*)::int FROM fiaon_abo_raten x
              WHERE x.ref = r.ref AND x.status = 'bezahlt') AS raten_bezahlt,
+           -- 24.08.2026: Das ist die Menge der bisher ANGELEGTEN Ratenzeilen — sie
+           -- entstehen fortlaufend, immer nur die naechste faellige (siehe
+           -- server/lib/fiaon-abo-pflicht.ts). Es ist NICHT die Vertragslaufzeit.
+           -- Die Oberflaeche zeigt deshalb „von 12" und nicht diesen Wert; wer ihn
+           -- als Laufzeit anzeigt, schreibt bei einem Kunden im zweiten Monat
+           -- „Rate 2 von 2" — genau das war der Fehler, den Justin gemeldet hat.
            (SELECT COUNT(*)::int FROM fiaon_abo_raten x WHERE x.ref = r.ref) AS raten_gesamt,
            (SELECT w.agent_name FROM fiaon_raten_arbeit w
              WHERE w.rate_id = r.id ORDER BY w.created_at DESC LIMIT 1) AS letzter_bearbeiter,

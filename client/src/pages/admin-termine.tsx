@@ -47,6 +47,9 @@ function AdminTerminePage() {
   const [ansicht, setAnsicht] = useState(() => ausAdresse("ansicht", "woche"));
   const [agent, setAgent] = useState(() => ausAdresse("agent"));
   const [quelle, setQuelle] = useState(() => ausAdresse("quelle"));
+  // 24.08.2026: NEU — nach dem BUCHUNGSWEG filtern. „Quelle" sagt, welche
+  // Art Gespräch es ist; „Herkunft" sagt, worüber der Kunde gebucht hat.
+  const [herkunft, setHerkunft] = useState(() => ausAdresse("herkunft"));
   const [status, setStatus] = useState(() => ausAdresse("status"));
   const [daten, setDaten] = useState<any>(null);
   const [laedt, setLaedt] = useState(true);
@@ -55,23 +58,24 @@ function AdminTerminePage() {
 
   useEffect(() => {
     const p = new URLSearchParams();
-    for (const [k, v] of Object.entries({ ansicht, agent, quelle, status })) {
+    for (const [k, v] of Object.entries({ ansicht, agent, quelle, herkunft, status })) {
       if (v) p.set(k, v);
     }
     window.history.replaceState(null, "", `${window.location.pathname}?${p.toString()}`);
-  }, [ansicht, agent, quelle, status]);
+  }, [ansicht, agent, quelle, herkunft, status]);
 
   const laden = useCallback(async () => {
     setLaedt(true);
     const p = new URLSearchParams({ ansicht });
     if (agent) p.set("agent", agent);
     if (quelle) p.set("quelle", quelle);
+    if (herkunft) p.set("herkunft", herkunft);
     if (status) p.set("status", status);
     const r = await fetch(`/api/fiaon/admin/termine?${p}`, { credentials: "include" })
       .then((x) => x.json()).catch(() => null);
     setDaten(r?.ok ? r : null);
     setLaedt(false);
-  }, [ansicht, agent, quelle, status]);
+  }, [ansicht, agent, quelle, herkunft, status]);
 
   useEffect(() => { void laden(); }, [laden]);
 
@@ -321,6 +325,16 @@ function AdminTerminePage() {
             </select>
           </label>
           <label className="block">
+            <span className="block text-[11px] font-semibold text-slate-500 mb-1">Gebucht über</span>
+            <select value={herkunft} onChange={(e) => setHerkunft(e.target.value)} className={feld}
+                    style={{ borderColor: "#e4e9f2", minHeight: 38 }}>
+              <option value="">Alle Wege</option>
+              {Object.entries(daten?.herkuenfte ?? {}).map(([k, v]) => (
+                <option key={k} value={k}>{String(v)}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
             <span className="block text-[11px] font-semibold text-slate-500 mb-1">Status</span>
             <select value={status} onChange={(e) => setStatus(e.target.value)} className={feld}
                     style={{ borderColor: "#e4e9f2", minHeight: 38 }}>
@@ -330,8 +344,8 @@ function AdminTerminePage() {
               ))}
             </select>
           </label>
-          {(agent || quelle || status) && (
-            <button type="button" onClick={() => { setAgent(""); setQuelle(""); setStatus(""); }}
+          {(agent || quelle || herkunft || status) && (
+            <button type="button" onClick={() => { setAgent(""); setQuelle(""); setHerkunft(""); setStatus(""); }}
                     className="px-3 py-2 rounded-lg text-[12px] font-semibold text-slate-500"
                     style={{ minHeight: 38 }}>
               Filter zurücksetzen
@@ -355,7 +369,7 @@ function AdminTerminePage() {
           {laedt && <p className="py-8 text-center text-[13px] text-slate-400">Lädt …</p>}
           {!laedt && daten?.termine?.length === 0 && (
             <p className="py-8 text-center text-[13px] text-slate-500">
-              Keine Termine in diesem Zeitraum{agent || quelle || status ? " mit diesen Filtern" : ""}.
+              Keine Termine in diesem Zeitraum{agent || quelle || herkunft || status ? " mit diesen Filtern" : ""}.
             </p>
           )}
 
@@ -429,7 +443,14 @@ function AdminTerminePage() {
                           </span>
                         )}
                       </td>
-                      <td className="py-2.5 px-2 text-slate-500">{t.quelleText}</td>
+                      {/* 24.08.2026: Unter der Art steht jetzt der WEG, über den
+                          gebucht wurde — vorher war er nirgends ablesbar. */}
+                      <td className="py-2.5 px-2 text-slate-500">
+                        {t.quelleText}
+                        {t.herkunftText && (
+                          <span className="block text-[11px] text-slate-400">über {t.herkunftText}</span>
+                        )}
+                      </td>
                       <td className="py-2.5 pl-2">
                         <span className="px-2 py-0.5 rounded text-[11.5px] font-semibold"
                               style={{ background: `${t.ton}18`, color: t.ton }}>

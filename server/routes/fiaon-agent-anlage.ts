@@ -780,4 +780,127 @@ router.post("/agent/customers/:ref/stammdaten", requireAgent, async (req: AgentR
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// EINE BESTELLUNG FÜR EINEN MENSCHEN, DEN ES SCHON GIBT
+//
+// ── DER BEFUND (Justin, 24.08.2026) ────────────────────────────────────────
+// „Wenn ich ein Produkt bei Lead A hinzufügen will, steht da: ‚Diese Akte hat
+// keine Bestellung, an die ein Produkt gehängt werden kann.' HÄ? Bei A-Leads
+// muss ich ja genau das machen …"
+//
+// Er hat recht, und der Fehler ist ein Denkfehler, kein Tippfehler: Das
+// Hinzufügen hing an einer vorhandenen Bestellung und konnte deshalb nur
+// TAUSCHEN, nie ANLEGEN. Ein Lead ist aber per Definition jemand OHNE
+// Bestellung — bei ihm ist das Anlegen der einzige sinnvolle Fall. Die
+// Oberfläche bot also genau dort einen Knopf an, wo er nicht funktionieren
+// konnte, und begründete es auch noch mit dem Zustand, den man gerade ändern
+// wollte.
+//
+// ── WAS DIESE ROUTE TUT ────────────────────────────────────────────────────
+// Sie legt für eine BESTEHENDE Person eine Bestellung an — mit deren eigenen
+// Stammdaten, dem Preis aus dem Katalog und einem frischen Verwendungszweck.
+// Danach hängt sie die Bestellung über `bindePersonAnAntrag` an dieselbe
+// Person; es entsteht kein zweiter Mensch.
+//
+// Bewusst NICHT über `/agent/kunden/neu`: Der legt einen neuen Menschen an und
+// prüft auf Dubletten. Hier steht der Mensch schon fest — eine Dublettenprüfung
+// gegen sich selbst würde ihn nur blockieren.
+// ═══════════════════════════════════════════════════════════════════════════
+router.post("/agent/crm/kunden/:personId/bestellung", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const personId = Number(req.params.personId);
+    if (!Number.isFinite(personId)) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+
+    const { rolleVon, darfAnKunde } = await import("../lib/fiaon-kundenzugriff");
+    const rolle = await rolleVon(req.agent!.id);
+    if (!(await darfAnKunde(req.agent!.id, rolle, personId))) {
+      return res.status(403).json({ ok: false, error: "Dieser Kunde wird von jemand anderem betreut." });
+    }
+
+    const paketKey = String(req.body?.packKey ?? "").trim().toLowerCase();
+    const pk = paket(paketKey);
+    if (!pk) {
+      return res.status(400).json({ ok: false, error: "Unbekanntes Paket. Preise kommen nur aus dem Katalog." });
+    }
+
+    const [person] = (await sqlPool`
+      SELECT id, first_name, last_name, primary_email, primary_phone,
+             street, zip, city, country, birthdate, assigned_agent_id
+      FROM fiaon_persons WHERE id = ${personId} AND merged_into_person_id IS NULL
+    `) as any[];
+    if (!person) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+
+    // ── SCHON EINE OFFENE BESTELLUNG? ─────────────────────────────────────
+    // Dann ist das ein TAUSCH und gehört auf den bestehenden Weg
+    // (/agent/customers/:ref/produkt). Zwei offene Pakete an einem Menschen
+    // hießen zwei Rechnungen und zwei Abo-Reihen.
+    const [offen] = (await sqlPool`
+      SELECT ref FROM fiaon_applications
+      WHERE person_id = ${personId} AND merged_into IS NULL AND archived_at IS NULL
+        AND pack_key IS NOT NULL AND payment_status IS DISTINCT FROM 'paid'
+      ORDER BY created_at DESC LIMIT 1
+    `) as any[];
+    if (offen) {
+      return res.status(409).json({
+        ok: false, grund: "offen_vorhanden", ref: offen.ref,
+        error: "Zu diesem Kunden steht schon eine offene Bestellung. Bitte dort das Produkt tauschen.",
+      });
+    }
+
+    const ref = neueRef();
+    const zahlungsreferenz = neueZahlungsreferenz(ref);
+
+    await sqlPool`
+      INSERT INTO fiaon_applications (
+        ref, type, status, payment_status, current_step,
+        pack_key, pack_name, amount_due, currency, payment_reference,
+        first_name, last_name, email, phone,
+        street, zip, city, birthdate,
+        person_id, assigned_agent_id, created_at, updated_at
+      ) VALUES (
+        ${ref},
+        ${pk.art === "business" ? "business" : "private"},
+        'payment_pending', 'pending_payment', 5,
+        ${paketKey}, ${pk.label},
+        ${paketPreisEuro(paketKey)}, 'EUR', ${zahlungsreferenz},
+        ${person.first_name ?? null}, ${person.last_name ?? null},
+        ${person.primary_email ?? null}, ${person.primary_phone ?? null},
+        ${person.street ?? null}, ${person.zip ?? null}, ${person.city ?? null},
+        ${person.birthdate ?? null},
+        ${personId},
+        -- Wer das Produkt anlegt, betreut den Kunden weiter. Steht schon ein
+        -- Betreuer an der Person, bleibt der: Ein Produkt anzulegen ist keine
+        -- Übernahme.
+        ${person.assigned_agent_id ?? req.agent!.id}, NOW(), NOW()
+      )
+    `;
+
+    // Dieselbe Funktion wie bei der Neuanlage — sie bindet die Bestellung an
+    // die bestehende Person, statt ein zweites Personenmodell zu erfinden.
+    const { bindePersonAnAntrag } = await import("../fiaon-person-model");
+    await bindePersonAnAntrag(ref).catch((e) => console.error("[ANLAGE] Person binden:", e));
+
+    const [ap] = (await sqlPool`SELECT ref FROM fiaon_applications WHERE ref = ${ref}`) as any[];
+    if (ap) {
+      await sqlPool`
+        INSERT INTO fiaon_contact_log (person_id, agent_id, agent_name, type, note, ref, created_at)
+        VALUES (${personId}, ${req.agent!.id}, ${req.agent!.name}, 'system',
+                ${`Bestellung angelegt: ${pk.label} (${paketPreisEuro(paketKey).toFixed(2)} € aus dem Katalog).`},
+                ${ref}, NOW())
+      `.catch(() => {});
+    }
+
+    res.json({
+      ok: true,
+      ref,
+      zahlungsreferenz,
+      paket: { key: pk.key, label: pk.label, preisEuro: paketPreisEuro(paketKey) },
+      hinweis: "Die Bestellung steht auf „Zahlung offen“ — jetzt kannst du die Zahlungsdaten schicken.",
+    });
+  } catch (err) {
+    console.error("[ANLAGE] Bestellung zu Person:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 export default router;

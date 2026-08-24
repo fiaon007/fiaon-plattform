@@ -284,3 +284,25 @@
   .ab-urteil-zeichen{width:42px;height:42px}
   .ab-urteil-knopf b{font-size:15px}
 }
+
+/* ── Das Zahnrad und die einzeilige Mikrofon-Warnung (24.08.2026) ──────────
+   Justin: „Mach ein Zahnrad, was als Einstellung gilt … [der Mikrofon-Kasten]
+   gehört weggeblendet und nur dort angezeigt. Wenn es notwendig ist, soll ein
+   Link angezeigt werden."
+   Das Zahnrad ist im Ruhezustand still; ist es aufgeklappt, trägt es Blau.
+   Die Warnung darunter ist EINE Zeile statt eines Kastens — sie sagt, was ist,
+   und führt mit einem Klick dorthin, wo man es ändert. */
+.fi-tel-zahnrad[data-an="1"]{background:rgba(37,99,235,.28);color:#bfdbfe}
+.fi-tel-mik-warnung{
+  display:flex;align-items:center;gap:9px;width:100%;margin-bottom:12px;
+  padding:9px 12px;border-radius:12px;cursor:pointer;text-align:left;
+  background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.34);
+  color:#fde68a;font:400 12px/1.4 'Inter',sans-serif;
+}
+.fi-tel-mik-warnung:hover{background:rgba(251,191,36,.2);border-color:rgba(251,191,36,.6)}
+.fi-tel-mik-warnung span:nth-of-type(2){flex:1 1 auto;min-width:0}
+.fi-tel-mik-warnung-punkt{
+  flex:0 0 auto;width:7px;height:7px;border-radius:50%;background:#fbbf24;
+  animation:abRec 1.8s ease-in-out infinite;
+}
+@media (prefers-reduced-motion:reduce){.fi-tel-mik-warnung-punkt{animation:none}}

@@ -2517,9 +2517,25 @@ function ProduktDunkel({ k, aufKlappen, fertig }: { k: Kunde; aufKlappen: (v: bo
   const anlegen = async () => {
     if (!paket) return;
     setLaeuft(true); setFehler(null);
+    // ── ZWEI WEGE, JE NACHDEM OB ES SCHON ETWAS GIBT ────────────────────
+    // 24.08.2026, Justin: „Wenn ich ein Produkt bei Lead A hinzufügen will,
+    // steht da: ‚Diese Akte hat keine Bestellung, an die ein Produkt gehängt
+    // werden kann.' HÄ? Bei A-Leads muss ich ja genau das machen …"
+    //
+    // Er hat recht, und es war ein Denkfehler, kein Tippfehler: Das Hinzufügen
+    // hing an einer VORHANDENEN Bestellung und konnte deshalb nur tauschen.
+    // Ein Lead ist aber per Definition jemand OHNE Bestellung — bei ihm ist
+    // das Anlegen der einzige sinnvolle Fall. Die Oberfläche bot also genau
+    // dort einen Knopf an, wo er nicht funktionieren konnte, und begründete es
+    // mit dem Zustand, den man gerade ändern wollte.
+    //
+    // NACHHER: Gibt es eine Bestellung, wird getauscht. Gibt es keine, wird
+    // eine angelegt — mit den Stammdaten der Person, dem Preis aus dem Katalog
+    // und einem frischen Verwendungszweck.
     const ref = offenesPaket?.ref ?? buchungen.find((b) => !b.erledigt)?.ref ?? buchungen[0]?.ref;
-    if (!ref) { setLaeuft(false); setFehler("Diese Akte hat keine Bestellung, an die ein Produkt gehängt werden kann."); return; }
-    const r = await api(`/agent/customers/${encodeURIComponent(ref)}/produkt`, { method: "POST", body: JSON.stringify({ packKey: paket.key }) });
+    const r = ref
+      ? await api(`/agent/customers/${encodeURIComponent(ref)}/produkt`, { method: "POST", body: JSON.stringify({ packKey: paket.key }) })
+      : await api(`/agent/crm/kunden/${k.personId}/bestellung`, { method: "POST", body: JSON.stringify({ packKey: paket.key }) });
     setLaeuft(false);
     if (!r.ok) { setFehler(String(r.json?.error ?? "Der Server hat abgelehnt. Bitte erneut versuchen.")); return; }
     aufKlappen(false);

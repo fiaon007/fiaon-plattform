@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DER GERÄTEKÖRPER — ein Telefon, kein Kasten
@@ -367,6 +367,61 @@ const TASTEN: [string, string][] = [
   ["*", ""], ["0", "+"], ["#", ""],
 ];
 
+/**
+ * Eine Taste — und bei der 0 zusätzlich das „+" beim Halten.
+ *
+ * Justin, 24.08.2026: „Das ‚+' muss gewählt werden können, wenn man länger auf
+ * die 0 klickt."
+ * Genau so macht es jedes Telefon, und genau deshalb sucht niemand danach: Man
+ * hält die Null, es wird ein Plus. Bisher stand unter der 0 zwar ein kleines
+ * „+", aber es tat nichts — ein Zeichen, das ein Versprechen gibt und es nicht
+ * hält, ist schlimmer als keines.
+ *
+ * 500 ms sind die Schwelle: kürzer, und ein normaler Tippfehler wird zum Plus;
+ * länger, und es fühlt sich nach Hängen an. Wird gehalten, kommt das Plus —
+ * und die Ziffer beim Loslassen NICHT mehr, sonst stünde „+0" da.
+ */
+function TelefonTaste({ ziffer, buchstaben, onZiffer }: {
+  ziffer: string; buchstaben: string; onZiffer: (z: string) => void;
+}) {
+  const halten = useRef<number | null>(null);
+  const ausgeloest = useRef(false);
+
+  const start = () => {
+    if (ziffer !== "0") return;
+    ausgeloest.current = false;
+    halten.current = window.setTimeout(() => {
+      ausgeloest.current = true;
+      onZiffer("+");
+      if (navigator.vibrate) navigator.vibrate(18);
+    }, 500);
+  };
+  const ende = () => {
+    if (halten.current) { window.clearTimeout(halten.current); halten.current = null; }
+  };
+
+  return (
+    <button type="button" className="fi-tast-taste"
+            onPointerDown={start}
+            onPointerUp={ende}
+            onPointerLeave={ende}
+            onPointerCancel={ende}
+            onContextMenu={(e) => { if (ziffer === "0") e.preventDefault(); }}
+            onClick={() => {
+              // Wurde das Plus schon gesetzt, darf die 0 nicht hinterherkommen.
+              if (ausgeloest.current) { ausgeloest.current = false; return; }
+              onZiffer(ziffer);
+              // Ein kurzes Rütteln, wo das Gerät es kann. Auf dem Rechner
+              // passiert nichts — kein Fehler, nur keine Wirkung.
+              if (navigator.vibrate) navigator.vibrate(8);
+            }}
+            aria-label={ziffer === "0" ? "0 — halten für Plus" : buchstaben ? `${ziffer} ${buchstaben}` : ziffer}>
+      <span className="fi-tast-ziffer">{ziffer}</span>
+      {buchstaben && <span className="fi-tast-buchstaben">{buchstaben}</span>}
+    </button>
+  );
+}
+
 export function FiaonTastatur({
   onZiffer, onLoeschen, klein = false,
 }: {
@@ -378,17 +433,7 @@ export function FiaonTastatur({
   return (
     <div className={`fi-tast ${klein ? "fi-tast-klein" : ""}`}>
       {TASTEN.map(([z, b]) => (
-        <button key={z} type="button" className="fi-tast-taste"
-                onClick={() => {
-                  onZiffer(z);
-                  // Ein kurzes Rütteln, wo das Gerät es kann. Auf dem
-                  // Rechner passiert nichts — kein Fehler, nur keine Wirkung.
-                  if (navigator.vibrate) navigator.vibrate(8);
-                }}
-                aria-label={b ? `${z} ${b}` : z}>
-          <span className="fi-tast-ziffer">{z === "0" ? "0" : z}</span>
-          {b && <span className="fi-tast-buchstaben">{b}</span>}
-        </button>
+        <TelefonTaste key={z} ziffer={z} buchstaben={b} onZiffer={onZiffer} />
       ))}
       {onLoeschen && (
         <button type="button" className="fi-tast-weg" onClick={onLoeschen} aria-label="Letzte Ziffer löschen">

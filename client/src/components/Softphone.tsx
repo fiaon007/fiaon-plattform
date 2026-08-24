@@ -2051,24 +2051,28 @@ export function Softphone() {
               Der Handler ist derselbe wie immer — setOffen(false) trennt
               nichts, die Verbindung wohnt in Refs. Am Handy tut der Wisch
               nach unten am Anfasser (FiaonGeraet) dasselbe. */}
-          {imRuf ? (
-            <button type="button" onClick={() => setOffen(false)}
-                    aria-label="Minimieren — das Gespräch läuft weiter"
-                    title="Minimieren — das Gespräch läuft weiter"
-                    className="fi-tel-zu fi-tel-minimieren">
-              <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor"
-                   strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-                <path d="m5 8 5 5 5-5" />
+          {/* ── DAS ZAHNRAD (24.08.2026) ───────────────────────────────
+              Justin: „Mach ein Zahnrad, was als Einstellung gilt."
+              Hinter ihm liegt alles, was mit dem Mikrofon zu tun hat:
+              Gerätewahl, Pegel, Sprechprobe. Im Alltag interessiert davon
+              nichts — es interessiert erst, wenn etwas nicht geht, und dann
+              führt die einzeilige Warnung über der Tastatur genau hierher. */}
+          {mikrofon === "erlaubt" && !imRuf && (
+            <button type="button" onClick={() => setMikroAuf((v) => !v)}
+                    aria-label="Einstellungen — Mikrofon und Sprechprobe"
+                    title="Einstellungen — Mikrofon und Sprechprobe"
+                    aria-expanded={mikroAuf}
+                    className="fi-tel-zu fi-tel-zahnrad" data-an={mikroAuf ? "1" : "0"}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1Z" />
               </svg>
-              <span className="fi-tel-minimieren-wort">Minimieren</span>
-            </button>
-          ) : (
-            <button type="button" onClick={() => setOffen(false)} aria-label="Schließen"
-                    className="fi-tel-zu">
-              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor"
-                   strokeWidth={1.8} strokeLinecap="round"><path d="m5 5 10 10M15 5 5 15" /></svg>
             </button>
           )}
+          {/* Minimieren und Schließen sitzen seit dem Umbau am Griff der
+              Anrufbühne (24.08.2026). Hier standen sie ein zweites Mal —
+              zwei Kreuze übereinander, von Justin im Bild gemeldet. */}
         </div>
 
         {/* ── Die Richtlinie ist nicht angenommen ─────────────────────── */}
@@ -2227,21 +2231,31 @@ export function Softphone() {
             hat (`mikMuss`), steht nur der Balken; ein Klick öffnet den
             vollen Kasten. Sperre, Warnungen und Probenpflicht erzwingen ihn
             weiterhin von selbst — die Sicherheitslogik ist unverändert. */}
-        {mikrofon === "erlaubt" && zustand === "bereit" && !(mikroAuf || mikMuss) && (
-          <button type="button" className="fi-tel-mik-zeile"
-                  onClick={() => setMikroAuf(true)}
-                  aria-label="Mikrofon-Einstellungen öffnen (Gerätewahl und Sprechprobe)">
-            <span className="fi-tel-pegel-marke">Mikrofon</span>
-            <span className="fi-tel-pegel-bahn" aria-hidden="true">
-              {/* scaleX statt width: Eine Breitenänderung im 200-ms-Takt ist
-                  eine Dauer-Layoutrechnung im Panel — genau das „Zähe". */}
-              <span className="fi-tel-pegel-fuellung"
-                    style={{ transform: `scaleX(${(pegel ?? 0) / 100})` }} />
+        {/* ── DAS ZAHNRAD (24.08.2026) ─────────────────────────────────────
+            Justin: „Mach ein Zahnrad, was als Einstellung gilt — und sowas wie
+            [Mikrofon-Kasten] gehört weggeblendet und nur dort angezeigt. Wenn
+            es notwendig ist, soll ein Link angezeigt werden, sowas wie ‚Mikro
+            Zugriff erlauben', mit Klick darauf öffnet sich das dann in den
+            Einstellungen."
+            VORHER stand im Normalfall eine Pegelzeile über der Tastatur —
+            eine Zeile, die im Alltag nichts sagt und trotzdem Platz und Blick
+            kostet. NACHHER liegt alles hinter einem Zahnrad; sichtbar wird nur
+            noch eine EINZEILIGE Warnung, wenn wirklich etwas nicht stimmt.
+            Die Sicherheitslogik ist unverändert: `mikMuss` sperrt weiterhin
+            das Anrufen, es zeigt sich jetzt nur kleiner. */}
+        {mikrofon === "erlaubt" && zustand === "bereit" && !mikroAuf && mikMuss && (
+          <button type="button" className="fi-tel-mik-warnung" onClick={() => setMikroAuf(true)}>
+            <span className="fi-tel-mik-warnung-punkt" aria-hidden="true" />
+            <span>
+              {geraetFehler || probeFehler
+                ? "Mikrofon prüfen — Einstellungen öffnen"
+                : stummVerdacht ? "Kein Signal vom Mikrofon — Einstellungen öffnen"
+                : "Sprechprobe nötig — Einstellungen öffnen"}
             </span>
-            <span className="fi-tel-pegel-text">{pegelText(pegel)}</span>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
           </button>
         )}
-        {mikrofon === "erlaubt" && zustand === "bereit" && (mikroAuf || mikMuss) && (
+        {mikrofon === "erlaubt" && zustand === "bereit" && mikroAuf && (
           <div className="fi-tel-mik" data-stumm={stummVerdacht ? "1" : "0"}>
             <div className="fi-tel-pegel">
               <span className="fi-tel-pegel-marke">Mikrofon</span>
@@ -2433,69 +2447,14 @@ export function Softphone() {
               </p>
             )}
 
-            {/* ── DER NÄCHSTE AUS DER LISTE ─────────────────────────────────
-                Nach einem dokumentierten Ergebnis steht er hier schon: Name,
-                Nummer, ein Griff zum grünen Knopf. Die Marke sagt, woher er
-                kommt — ein Kunde, der ungefragt im Wählfeld auftaucht,
-                verunsichert mehr, als er hilft. */}
-            {kunde && ausListe && (
-              <div className="fi-tel-naechster">
-                <span className="fi-tel-naechster-marke">Nächster aus deiner Liste</span>
-                <span className="fi-tel-naechster-name">{kunde.name}</span>
-                <button type="button"
-                        onClick={() => { setKunde(null); setNummer(""); setAusListe(false); }}
-                        className="fi-tel-naechster-weg">
-                  Anderen wählen
-                </button>
-              </div>
-            )}
-
-            {/* Kundensuche zuerst: Man ruft einen Menschen an, nicht eine
-                Nummer. Die Nummer ist das Ergebnis, nicht der Anfang. */}
-            {!kunde && (
-              <button type="button"
-                      onClick={async () => {
-                        // Für den Fall, dass jemand mitten in der Liste
-                        // aussteigt und wieder einsteigen will.
-                        const n = await fetch(
-                          `/api/fiaon/telefon/naechster?ausser=${erledigte.join(",")}`,
-                          { credentials: "include" },
-                        ).catch(() => null);
-                        const nj = await n?.json().catch(() => null);
-                        if (nj?.ok && nj.kunde) {
-                          setNummer(nj.kunde.nummer);
-                          setKunde({ personId: nj.kunde.personId, name: nj.kunde.name });
-                          setAusListe(true);
-                          setMeldung(null);
-                        } else setMeldung(nj?.hinweis || "Keiner mehr offen.");
-                      }}
-                      className="fi-tel-holen">
-                Nächsten aus meiner Liste holen
-              </button>
-            )}
-
-            {!kunde && (
-              <div className="fi-tel-suche-feld">
-                <input value={suche} onChange={(e) => setSuche(e.target.value)}
-                       placeholder="Kunde suchen …" aria-label="Kunde suchen"
-                       className="fi-tel-suche" />
-                {treffer.length > 0 && (
-                  <div className="fi-tel-treffer">
-                    {treffer.slice(0, 5).map((t: any) => (
-                      <button key={t.personId} type="button" className="fi-tel-treffer-zeile"
-                              onClick={() => {
-                                setKunde({ personId: t.personId, name: t.name });
-                                setNummer(t.nummer || "");
-                                setAusListe(false);
-                                setSuche(""); setTreffer([]);
-                              }}>
-                        <b>{t.name}</b><span>{t.nummer}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+            {/* ── DER NÄCHSTE AUS DER LISTE — ENTFERNT (24.08.2026) ────────
+                Justin: „NÄCHSTER AUS DEINER LISTE / Paula Muster-Heiss /
+                Anderen wählen — WEG bitte."
+                Der Kasten wiederholte den Namen, der zwei Zeilen darüber schon
+                als Überschrift stand, und trug einen Knopf, den man in der
+                Wählansicht nicht braucht: Wer jemand anderen will, tippt die
+                Nummer oder sucht. Unter dem Anrufknopf steht weiterhin
+                „Anderen Kunden wählen" — einmal reicht. */}
 
             {/* ── DIE NUMMERNZEILE ────────────────────────────────────────
                 Die Löschtaste steht NEBEN der Nummer, nicht mehr als

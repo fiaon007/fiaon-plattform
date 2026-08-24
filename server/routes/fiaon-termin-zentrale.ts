@@ -32,13 +32,30 @@ import { terminArtAusQuelle } from "../../shared/fiaon-termin-art";
 
 const router = Router();
 
-/** Die Quellen, wie `fiaon_termine.quelle` sie führt — mit Klartext. */
+/** Die Quellen, wie `fiaon_termine.quelle` sie führt — mit Klartext.
+ *
+ *  24.08.2026: `quelle` sagt, welche ART Gespräch es ist (sie steuert Rolle
+ *  und Slot-Wahl) — NICHT, über welchen Weg gebucht wurde. VORHER standen
+ *  hier beide Bedeutungen gemischt; „Nach Nummern-Korrektur" wurde nie in
+ *  `quelle` geschrieben, der Filter konnte also nie etwas finden. NACHHER
+ *  steht der WEG in der eigenen Spalte `herkunft` (siehe HERKUNFT_TEXT). */
 export const QUELLE_TEXT: Record<string, string> = {
-  nichterreicht_mail: "Nicht erreicht — Terminlink",
+  nichterreicht_mail: "Vertrieb",
   onboarding_call: "Startgespräch (Onboarding)",
-  nummer_korrektur: "Nach Nummern-Korrektur",
+  inkasso_call: "Zahlungsgespräch",
   agent_manuell: "Vom Agenten eingetragen",
-  portal: "Vom Kunden im Portal",
+};
+
+/** Der WEG, über den gebucht wurde (`fiaon_termine.herkunft`, seit 24.08.). */
+export const HERKUNFT_TEXT: Record<string, string> = {
+  antrag_vor_zahlung: "Erstgespräch vor der Zahlung",
+  nicht_erreicht_mail: "Nach „nicht erreicht“ — Terminlink",
+  nummer_korrektur: "Nach Nummern-Korrektur",
+  onboarding_einladung: "Einladung zum Startgespräch",
+  termin_verpasst_mail: "Nach verpasstem Termin",
+  wiedereinstieg_mail: "Wiedereinstieg",
+  agent: "Vom Agenten eingetragen",
+  unbekannt: "Weg nicht erfasst",
 };
 
 /** Status mit Klartext und Farbton. Bernstein heißt „jemand muss etwas tun". */
@@ -80,6 +97,8 @@ router.get("/admin/termine", async (req: Request, res: Response) => {
       ? String(req.query.ansicht) : "heute";
     const agentFilter = Number(req.query.agent) || null;
     const quelleFilter = String(req.query.quelle || "").trim() || null;
+    // 24.08.2026: NEU — nach dem Buchungsweg filtern (siehe HERKUNFT_TEXT).
+    const herkunftFilter = String(req.query.herkunft || "").trim() || null;
     const statusFilter = String(req.query.status || "").trim() || null;
 
     const von = zeitraumSql(ansicht);
@@ -91,6 +110,9 @@ router.get("/admin/termine", async (req: Request, res: Response) => {
     // ein Filter aus der Adresszeile darf nie in die Abfrage eingesetzt werden.
     const zeilen = (await sqlPool.unsafe(`
       SELECT t.id, t.beginn, t.dauer_min, t.status, t.quelle, t.notiz,
+             -- Über to_jsonb gelesen, damit die Abfrage auch auf einer
+             -- Datenbank ohne die junge Spalte nicht bricht.
+             (to_jsonb(t) ->> 'herkunft') AS herkunft,
              t.erledigt_am, t.abgesagt_am, t.abgesagt_von,
              t.agent_id, ag.name AS agent_name,
              t.person_id,
@@ -108,9 +130,10 @@ router.get("/admin/termine", async (req: Request, res: Response) => {
         AND ($1::int IS NULL OR t.agent_id = $1)
         AND ($2::text IS NULL OR t.quelle = $2)
         AND ($3::text IS NULL OR t.status = $3)
+        AND ($4::text IS NULL OR (to_jsonb(t) ->> 'herkunft') = $4)
       ORDER BY t.beginn ASC
       LIMIT 500
-    `, [agentFilter, quelleFilter, statusFilter])) as any[];
+    `, [agentFilter, quelleFilter, statusFilter, herkunftFilter])) as any[];
 
     // ── DIE KENNZAHLEN ─────────────────────────────────────────────────────
     const [zahlen] = (await sqlPool`
@@ -292,7 +315,7 @@ router.get("/admin/termine", async (req: Request, res: Response) => {
     res.json({
       ok: true,
       ansicht,
-      filter: { agent: agentFilter, quelle: quelleFilter, status: statusFilter },
+      filter: { agent: agentFilter, quelle: quelleFilter, status: statusFilter, herkunft: herkunftFilter },
       zahlen: {
         ...zahlen,
         // Die Quote nur über VERGANGENE Termine — sonst rechnet man die Zukunft
@@ -308,6 +331,8 @@ router.get("/admin/termine", async (req: Request, res: Response) => {
         statusText: STATUS_TEXT[String(z.status)]?.text ?? String(z.status),
         ton: STATUS_TEXT[String(z.status)]?.ton ?? "#64748b",
         quelle: z.quelle,
+        herkunft: z.herkunft ?? null,
+        herkunftText: z.herkunft ? (HERKUNFT_TEXT[String(z.herkunft)] || String(z.herkunft)) : null,
         quelleText: QUELLE_TEXT[String(z.quelle)] ?? String(z.quelle),
         // Die ART neben der Quelle: Die Quelle sagt, WOHER der Termin kommt,
         // die Art sagt, WAS gleich passiert. Beides ist nützlich, aber nur die
@@ -408,6 +433,7 @@ router.get("/admin/termine", async (req: Request, res: Response) => {
         })),
       },
       quellen: QUELLE_TEXT,
+      herkuenfte: HERKUNFT_TEXT,
       statusListe: STATUS_TEXT,
     });
   } catch (err) {
@@ -483,9 +509,13 @@ router.post("/admin/termine/einladen", async (req: Request, res: Response) => {
     let gesendet = 0;
     const fehler: string[] = [];
     for (const k of kandidaten) {
+      // 24.08.2026: VORHER wurde `ref` als eigenes Feld übergeben — das kennt
+      // `SendeEingabe` gar nicht, der Wert fiel also still unter den Tisch
+      // (und die Typprüfung meldete es seit Längerem). NACHHER geht die
+      // Referenz dorthin, wo Zusatzfelder hingehören: in die Payload.
       const v = await mailSenden({
         event: "onboarding_einladung",
-        ref: String(k.ref),
+        zusatz: { ref: String(k.ref) },
         personId: Number(k.person_id),
         akteur: { name: "Vorgesetzter (Termin-Zentrale)", agentId: null, rolle: "admin" },
       }).catch((e) => ({ ok: false, grund: e instanceof Error ? e.message : String(e) }));

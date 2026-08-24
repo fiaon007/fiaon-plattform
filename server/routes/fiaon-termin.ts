@@ -20,7 +20,7 @@ import {
   terminTokenPruefen, verfuegbarkeitSetzen, verfuegbarkeitVon,
   berlinDatumText, berlinUhrzeit, TerminFehler,
   HORIZONT_TAGE, SLOT_MINUTEN, VORLAUF_STUNDEN, dauerFuer,
-  versuchProtokollieren,
+  versuchProtokollieren, herkunftPruefen,
 } from "../lib/fiaon-termine";
 import { terminArtAusQuelle } from "../../shared/fiaon-termin-art";
 import { versendenUndProtokollieren } from "../lib/fiaon-mail-log";
@@ -188,9 +188,19 @@ router.get("/termin/:token", async (req: Request, res: Response) => {
       console.warn(`[TERMIN] Person ${person.id} sieht KEINE freie Zeit (${quelle}) — Aufgabe angelegt.`);
     }
 
+    // ── DIE HERKUNFT REIST MIT (24.08.2026) ─────────────────────────────
+    // VORHER kannte die Seite nur das Token — welcher WEG den Kunden
+    // hergebracht hat, war nach dem Klick verloren. NACHHER nimmt der Link
+    // `?von=` mit (terminLink), die Seite gibt es beim Buchen zurück, und dort
+    // wird es als `herkunft` festgehalten. Sie ändert NICHTS an den
+    // angebotenen Zeiten oder an der Rolle — das steht bewusst so hier, damit
+    // niemand später auf die Idee kommt, sie in die Slot-Auswahl zu ziehen.
+    const von = herkunftPruefen(req.query.von);
+
     res.json({
       ok: true,
       art: quelle,
+      herkunft: von,
       // Die Zuständigkeit steht in der Antwort, damit die Seite dem Kunden
       // sagen kann, mit WEM er sprechen wird — und der Prüfstand es messen kann.
       zustaendig: auskunft.zustaendig ?? null,
@@ -240,7 +250,38 @@ router.post("/termin/:token/buchen", async (req: Request, res: Response) => {
   //
   // `terminBuchen` leitet die Art jetzt selbst aus dem Zustand ab. Der Wunsch
   // wird nur noch zum Protokollieren mitgenommen.
-  const { beginn, agentId, quelle } = req.body || {};
+  //
+  // ══════════════════════════════════════════════════════════════════════════
+  // DIE HERKUNFT VON AUSSEN IST NICHT MEHR FÄLSCHBAR (24.08.2026)
+  //
+  // ── DER FUND ────────────────────────────────────────────────────────────
+  // VORHER reichte diese ÖFFENTLICHE Route `req.body.quelle` ungeprüft an
+  // `terminBuchen` weiter (unten: `quelle: wunsch ?? "auto"`). Dort gibt es die
+  // Ausnahme `eigenerRueckruf` (server/lib/fiaon-termine.ts): Bei
+  // „agent_manuell" und „onboarding" wird die Ableitung aus dem Kundenzustand
+  // ÜBERSPRUNGEN und der Wert unverändert gespeichert — und die
+  // 2-Stunden-Vorlaufprüfung entfällt.
+  //
+  // Wirkung: Wer {"quelle":"agent_manuell"} sendet, erzeugt einen Termin, der
+  // im Kalender als vom Mitarbeiter notierter „Rückruf" erscheint (die Marke
+  // kommt aus derselben Spalte, shared/fiaon-termin-art.ts) — und der zudem in
+  // der nächsten Minute liegen darf. Ein Fremder schreibt damit in den
+  // Arbeitstag eines Mitarbeiters und tarnt es als dessen eigene Notiz.
+  //
+  // ── NACHHER ─────────────────────────────────────────────────────────────
+  // Der Body-Wert wird VERWORFEN. Hier geht fest „auto" an `terminBuchen`,
+  // damit die Ableitung arbeitet. Bewusst ein fester Wert und keine Sperrliste
+  // gegen die zwei bekannten Werte: Käme in `eigenerRueckruf` je eine dritte
+  // Ausnahme dazu, wäre die Lücke lautlos wieder offen.
+  //
+  // Der Wunsch geht weiter ins Protokoll (`versuchProtokollieren`) — was ein
+  // Client wollte, bleibt nachlesbar, es entscheidet nur nichts mehr.
+  //
+  // Die Mitarbeiter-Route POST /agent/termine (weiter unten, hinter
+  // `requireAgent`) behält „agent_manuell" — dort steht ein angemeldeter
+  // Mensch dahinter, und genau das ist der Unterschied.
+  // ══════════════════════════════════════════════════════════════════════════
+  const { beginn, agentId, quelle, herkunft } = req.body || {};
   const gewuenscht = "auto";
   const wunsch = quelle ? String(quelle) : null;
   let personId: number | null = null;
@@ -290,14 +331,25 @@ router.post("/termin/:token/buchen", async (req: Request, res: Response) => {
             + "bei deinem Ansprechpartner.");
     }
 
+    if (wunsch && wunsch !== "auto") {
+      // Der Wunsch entscheidet nichts mehr — aber er soll nachlesbar bleiben.
+      console.log(`[TERMIN] Person ${geprueft.personId}: mitgeschickte Quelle „${wunsch}" `
+        + "aus dem Anfragerumpf verworfen (öffentliche Route bucht immer „auto“).");
+    }
     const buchung = await terminBuchen({
       personId: geprueft.personId,
       agentId: Number(agentId),
       beginn: String(beginn),
-      // Der Wunsch geht mit, damit `terminBuchen` ihn verwerfen und vermerken
-      // kann. Übergäbe man hier „auto", stünde im Protokoll nicht mehr, was
-      // der Client eigentlich wollte.
-      quelle: wunsch ?? "auto",
+      // ── FEST „auto" (24.08.2026) ──────────────────────────────────────────
+      // VORHER: `quelle: wunsch ?? "auto"` — der Body entschied mit und konnte
+      // über `eigenerRueckruf` die Ableitung UND den Vorlauf aushebeln (siehe
+      // den Block oben). NACHHER entscheidet ausschliesslich der Zustand des
+      // Menschen; der Wunsch steht nur noch im Protokoll.
+      quelle: "auto",
+      // Die HERKUNFT dagegen darf mitkommen: Sie steuert nichts, sie beschreibt
+      // nur den Weg — und ungültige Werte fallen in `herkunftPruefen` auf
+      // „unbekannt", statt gespeichert zu werden, wie sie kamen.
+      herkunft: herkunft ?? null,
     });
     await buchungAnwenden(buchung);
     await bestaetigungSenden(buchung);
@@ -351,6 +403,9 @@ router.post("/termin/absagen/:stornoToken", async (req: Request, res: Response) 
     // Umbuchen = absagen und neu buchen. Der frische Link kommt gleich mit,
     // damit der Kunde nicht in einer Sackgasse steht.
     const { terminLink } = await import("../lib/fiaon-termine");
+    // Bewusst OHNE Herkunft (24.08.2026): Wer nach einer Absage neu bucht, kam
+    // ursprünglich über irgendeinen Weg — welchen, weiß dieser Link nicht mehr.
+    // „unbekannt" ist hier ehrlicher als ein geratener Wert.
     res.json({ ok: true, neuBuchen: terminLink(Number(ergebnis.termin.person_id)) });
   } catch (err) {
     console.error("[TERMIN] absagen:", err);
@@ -875,7 +930,11 @@ router.post("/agent/termine", requireAgent, async (req: AgentRequest, res: Respo
 
     const buchung = await terminBuchen({
       personId: Number(personId), agentId: req.agent!.id,
-      beginn: String(beginn), quelle: "agent_manuell",
+      // „agent_manuell" bleibt HIER — und nur hier. Diese Route steht hinter
+      // `requireAgent`: Ein angemeldeter Mensch notiert seinen EIGENEN Rückruf.
+      // Die öffentliche Route darf diesen Wert seit dem 24.08.2026 nicht mehr
+      // setzen (siehe den Fund oben bei POST /termin/:token/buchen).
+      beginn: String(beginn), quelle: "agent_manuell", herkunft: "agent",
     });
     await buchungAnwenden(buchung);
     await bestaetigungSenden(buchung);

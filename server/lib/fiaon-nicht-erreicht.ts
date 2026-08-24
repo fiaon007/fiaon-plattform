@@ -218,7 +218,11 @@ export async function automatikNachFehlversuch(
           vorname: p.vorname || null,
           nachname: p.nachname || null,
           agent_vorname: agentVorname,
-          termin_link: terminLink(personId),
+          // ── HERKUNFT STATT FOLGENLOSER QUELLE (24.08.2026) ──────────────
+          // VORHER ohne zweites Argument — der Link trug keinen Hinweis auf
+          // seinen Weg, und im Bestand war diese Mail nicht von einem Termin
+          // aus der Antragsstrecke zu unterscheiden. NACHHER `?von=`.
+          termin_link: terminLink(personId, "nicht_erreicht_mail"),
         },
         {
           personId,

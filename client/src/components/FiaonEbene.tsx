@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // FIAON-EBENE — das eine Bauteil für jeden Dialog im Haus
@@ -129,17 +130,39 @@ export function FiaonEbene({
   // ── Wischen zum Schließen (nur schmal) ───────────────────────────────────
   // Ab 90 px Zugweg geht sie zu. Darunter federt sie zurück — ein versehentlich
   // angetippter Dialog soll nicht verschwinden.
+  /** Steht der rollende Körper ganz oben? Nur dann darf gewischt werden. */
+  const rolleOben = () =>
+    (blatt.current?.querySelector("[data-ebene-rolle]")?.scrollTop ?? 0) <= 4;
+
   const zugStart = (e: React.TouchEvent) => {
     if (!schmal) return;
     // Nur greifen, wenn der Inhalt oben steht. Sonst würde jedes Scrollen im
     // Dialog als Wischen gelesen.
-    if ((blatt.current?.querySelector("[data-ebene-rolle]")?.scrollTop ?? 0) > 4) return;
+    if (!rolleOben()) return;
     startY.current = e.touches[0].clientY;
   };
+  // ── 24.08.2026, E-054 (Justin: „man kann am Handy kaum scrollen") ─────────
+  // VORHER wurde nur BEIM AUFSETZEN geprüft, ob der Körper oben steht. Bei
+  // einem langen Inhalt (Onboarding-Cockpit) beginnt jeder Finger genau dort:
+  // Der Zug war damit von der ersten Bewegung an aktiv, jeder kleine Wackler
+  // beim Lesen schob das Blatt an, und weil nur `d > 0` geschrieben wurde,
+  // blieb `zieht` beim Zurückwischen nach oben auf seinem letzten Wert stehen —
+  // das Blatt hing versetzt, bis der Finger losließ. Das fühlt sich an wie
+  // „klemmt beim Scrollen".
+  // NACHHER: 8 px Totgang, bevor überhaupt gezogen wird; bei jedem Zug wird
+  // erneut geprüft, ob der Körper noch oben steht; und ein Zug nach oben bricht
+  // ab und setzt das Blatt zurück — der Finger gehört dann wieder dem Rollen.
+  const TOTGANG = 8;
   const zugLauf = (e: React.TouchEvent) => {
     if (startY.current == null) return;
     const d = e.touches[0].clientY - startY.current;
-    if (d > 0) setZieht(d);
+    if (d < 0 || !rolleOben()) {   // nach oben gewischt oder inzwischen gerollt
+      startY.current = null;
+      setZieht(0);
+      return;
+    }
+    if (d <= TOTGANG) { if (zieht) setZieht(0); return; }
+    setZieht(d - TOTGANG);
   };
   const zugEnde = () => {
     if (zieht > 90) schliessen();
@@ -149,7 +172,18 @@ export function FiaonEbene({
 
   const rechtsUnten = andocken === "rechts-unten" && !schmal;
 
-  return (
+  // ── WARUM EIN PORTAL AN <body> (24.08.2026) ──────────────────────────────
+  // VORHER wurde die Ebene dort gerendert, wo sie aufgerufen wurde — im
+  // Office also INNERHALB von `.of-grund`, und das Element trägt
+  // `z-index: 1`. Damit entsteht ein eigener Stapel-Kontext: Alles darin
+  // liegt geschlossen UNTER dem Office-Kopf (`.of-kopf`, z-index 30), egal
+  // wie hoch die Ebene selbst zählt (401). Sichtbar wurde das am
+  // Onboarding-Cockpit: Der Kopf des Office malte über den Kopf des
+  // Gesprächs. Dasselbe Muster hatte die Kunden-Akte schon (Justin meldete
+  // es dreimal als „oben abgeschnitten"); dort wurde es einzeln gelöst.
+  // NACHHER hängt JEDE Ebene direkt an <body> und hat ihren eigenen
+  // Stapel-Kontext — der Fehler kann an keiner Aufrufstelle mehr auftreten.
+  return createPortal(
     <>
       <style>{EBENEN_CSS}</style>
 
@@ -213,7 +247,8 @@ export function FiaonEbene({
           {fuss && <div className="fi-ebene-fuss">{fuss}</div>}
         </div>
       </div>
-    </>
+    </>,
+    document.body,
   );
 }
 

@@ -138,8 +138,15 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
   {
     type: "nicht_erreicht_termin",
     label: "Nicht erreicht — Terminlink an den Kunden",
+    // ── DOKU-DRIFT KORRIGIERT (24.08.2026) ──────────────────────────────────
+    // VORHER: „nach dem ZWEITEN erfolglosen Anrufversuch". Der Code sagt seit
+    // der neuen Staffel `SCHWELLE_MAIL = 6` (server/lib/fiaon-nicht-erreicht.ts).
+    // NACHHER steht die echte Zahl da — die SCHWELLE bleibt unverändert. GRUND:
+    // Ein Text, der eine andere Zahl nennt als der Code, kostet beim nächsten
+    // „warum kommt die Mail nicht?" einen halben Tag Suche an der falschen
+    // Stelle.
     description:
-      "Feuert automatisch nach dem ZWEITEN erfolglosen Anrufversuch (nicht erreicht oder Mailbox), genau einmal je Kunde in 30 Tagen. Der Kunde bekommt einen persönlichen Buchungslink auf die Slots SEINES Betreuers und wählt selbst eine Uhrzeit. Ohne diese Mail folgt der dritte, vierte und fünfte Anruf ins Leere. Vorgesetzten-TODO: Make-Zweig 'nicht_erreicht_termin' + Brevo-Template anlegen (Variablen: vorname, nachname, agent_vorname, termin_link).",
+      "Feuert automatisch nach dem SECHSTEN erfolglosen Anrufversuch (nicht erreicht oder Mailbox), genau einmal je Kunde in 30 Tagen. Der Kunde bekommt einen persönlichen Buchungslink auf die Slots SEINES Betreuers und wählt selbst eine Uhrzeit. Ohne diese Mail folgt der siebte, achte und neunte Anruf ins Leere. Vorgesetzten-TODO: Make-Zweig 'nicht_erreicht_termin' + Brevo-Template anlegen (Variablen: vorname, nachname, agent_vorname, termin_link).",
     customerBound: true,
     example: {
       email: "max.mustermann@example.com",
@@ -174,6 +181,57 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       // mit, damit die Brevo-Vorlage ihn nur einsetzen muss.
       hinweis_anruf: "Daniel ruft dich zur vereinbarten Zeit an — halte dein Telefon bereit.",
       hinweis_absage: "Passt es doch nicht? Über den Link in der Bestätigungs-E-Mail kannst du jederzeit absagen oder eine andere Zeit wählen.",
+    },
+  },
+  // ══════════════════════════════════════════════════════════════════════════
+  // NEU AM 24.08.2026 — „Leider nicht erschienen … hier neuen Termin buchen"
+  //
+  // VORHER: Ein Mitarbeiter klickte im Onboarding auf „Nicht erschienen", und
+  //   beim Kunden passierte NICHTS. Die Kette danach: unreachable_count + 1,
+  //   die Automatik aus fiaon-nicht-erreicht.ts (schreibt erst ab dem sechsten
+  //   erfolglosen Versuch UND ist gesperrt, solange ein Termin existiert — beim
+  //   No-Show existiert er) und der 48-Stunden-Lauf, der irgendwann die
+  //   generische `onboarding_einladung` schickt. Zwei Tage Funkstille, dann ein
+  //   Text, der so klingt, als hätte es nie einen Termin gegeben.
+  // NACHHER: Dieses Ereignis geht SOFORT raus, wenn der Termin als verpasst
+  //   gemeldet wird — einmal je Termin (fiaon_termine.verpasst_mail_am).
+  // GRUND: Auftrag des Inhabers vom 24.08.2026.
+  //
+  // ── TEXTVORSCHLAG FÜR DIE BREVO-VORLAGE (Kunde wird GESIEZT) ─────────────
+  //   Betreff:  Ihr Termin bei FIAON — wir haben Sie nicht erreicht
+  //   Vorschau: Kein Problem — hier wählen Sie einen neuen Termin.
+  //
+  //   Guten Tag {{ params.vorname }},
+  //
+  //   wir haben Sie zum vereinbarten Termin am {{ params.termin_datum }} um
+  //   {{ params.termin_uhrzeit }} Uhr leider nicht erreicht.
+  //
+  //   Das ist kein Problem. Wählen Sie einfach einen neuen Termin, der Ihnen
+  //   passt — {{ params.agent_vorname }} nimmt sich die Zeit dafür.
+  //
+  //   [ Neuen Termin wählen ]  → {{ params.termin_link }}
+  //
+  //   Sollte etwas dazwischengekommen sein oder eine andere Rufnummer besser
+  //   passen, sagen Sie uns bitte kurz Bescheid.
+  //
+  //   Ihr Team von FIAON
+  //
+  // Kein Vorwurf, keine Schuldzuweisung, kein Versprechen. Die ausgearbeitete
+  // HTML-Fassung liegt unter docs/brevo-templates/termin_verpasst.html.
+  // ══════════════════════════════════════════════════════════════════════════
+  {
+    type: "termin_verpasst",
+    label: "Termin nicht zustande gekommen (Kunde)",
+    description:
+      "Feuert SOFORT, wenn ein Startgespräch im Onboarding-Bereich als „verpasst“ gemeldet wird — einmal je Termin (fiaon_termine.verpasst_mail_am). Ruhiger Ton, kein Vorwurf, mit dem Link auf einen neuen Termin. Lässt sich aus der Akte von Hand nachsenden. Vorgesetzten-TODO: Make-Zweig 'termin_verpasst' + Brevo-Template in Sie-Form anlegen (Variablen: vorname, agent_vorname, termin_datum, termin_uhrzeit, termin_link). Textvorschlag: siehe Kommentar über diesem Eintrag und docs/brevo-templates/termin_verpasst.html.",
+    customerBound: true,
+    example: {
+      email: "max.mustermann@example.com",
+      vorname: "Max",
+      agent_vorname: "Daniel",
+      termin_datum: "24.08.2026",
+      termin_uhrzeit: "14:20",
+      termin_link: "https://www.fiaon.com/termin/7f3a…",
     },
   },
   {

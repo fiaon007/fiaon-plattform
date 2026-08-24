@@ -266,8 +266,19 @@ export async function ergebnisAnwenden(
   // ── Nicht-erreicht-Automatik ──────────────────────────────────────────────
   // Zwei Richtungen, beide hier, weil hier JEDES Ergebnis vorbeikommt:
   //   erreicht_*        Der Kunde hat sich gemeldet → Zähler und Ruhe zurück.
-  //   nicht erreicht    Zähler wurde eben erhöht → Schwellen prüfen (Mail bei 2,
-  //                     Ruhe bei 4). Die Regeln stehen in fiaon-nicht-erreicht.ts.
+  //   nicht erreicht    Zähler wurde eben erhöht → Schwellen prüfen. Die Regeln
+  //                     stehen in fiaon-nicht-erreicht.ts.
+  //
+  // ── DOKU-DRIFT KORRIGIERT (24.08.2026) ────────────────────────────────────
+  // VORHER stand hier „Mail bei 2, Ruhe bei 4". Der Code sagt seit der neuen
+  // Staffel `SCHWELLE_MAIL = 6` und `SCHWELLE_RUHEND = 9`
+  // (server/lib/fiaon-nicht-erreicht.ts:90/94), dazu `SCHWELLE_STRECKEN = 3`.
+  // NACHHER stehen die echten Werte da — geändert wurde nur der TEXT:
+  //     ab dem 3. Versuch  Wiedervorlage +3 Tage
+  //     ab dem 6. Versuch  Wiedervorlage +7 Tage UND Terminlink-Mail
+  //     ab dem 9. Versuch  „Ruhend" — raus aus der Tagesliste
+  // GRUND: Zwei Zahlen im Kommentar, zwei andere im Code — wer hier liest,
+  // sucht den Fehler danach an der falschen Stelle.
   //
   // „Abgelehnt" setzt den Zähler ebenfalls zurück: Der Mensch war am Apparat,
   // er hat nur nein gesagt. Er ist gesperrt, nicht unerreichbar — und wenn er

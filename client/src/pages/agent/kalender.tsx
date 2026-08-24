@@ -47,6 +47,18 @@ interface Appointment {
   absageText?: string | null;
   buchungsquelle?: string;
   person_id?: number | null;
+  // ── WER HAT GEBUCHT? (24.08.2026) ──────────────────────────────────────
+  // `quelle === "termin"` sagt nur, aus WELCHER TABELLE der Eintrag kommt.
+  // Wer gebucht hat, sagt der Server jetzt eigens.
+  selbstGebucht?: boolean;
+  herkunft?: string | null;
+}
+
+// Die eine Antwort für die Marke. Der zweite Teil ist der Rückfall, falls eine
+// ältere Antwort `selbstGebucht` noch nicht trägt.
+function selbstGebucht(a: Appointment): boolean {
+  return (a as any).quelle === "termin"
+    && (a.selbstGebucht ?? a.buchungsquelle !== "agent_manuell");
 }
 
 function apptName(a: Appointment): string {
@@ -310,8 +322,17 @@ function KalenderContent() {
               {/* Der Weg bleibt daneben: „vom Kunden gebucht" ist verbindlicher
                   als eine selbst notierte Wiedervorlage — das soll man weiter
                   sehen, nur nicht ANSTELLE der Art. */}
+              {/* ── DER KOMMENTAR OBEN BESCHRIEB DEN FEHLER, DER HIER STAND ──
+                  VORHER: `quelle === "termin"` → „Kunde hat gebucht". Das ist
+                  aber nur die DATENQUELLE. Ein Rückruf, den der Mitarbeiter
+                  selbst eingetragen hat (`buchungsquelle='agent_manuell'`),
+                  steht in derselben Tabelle — und stand hier mit „Rückruf" UND
+                  „Kunde hat gebucht" nebeneinander. NACHHER entscheidet
+                  `selbstGebucht` aus der Antwort des Servers (24.08.2026). */}
               {(a as any).quelle === "termin" ? (
-                <span className="text-emerald-700">Kunde hat gebucht</span>
+                selbstGebucht(a)
+                  ? <span className="text-emerald-700">Kunde hat gebucht</span>
+                  : <span>selbst eingetragen</span>
               ) : (
                 <span>{a.scheduled_at ? "selbst notiert" : "Zahlungs-Zusage"}</span>
               )}
@@ -334,10 +355,17 @@ function KalenderContent() {
               // verschoben: Der Kunde hat die Zeit gewählt, und eine
               // Verschiebung hinter seinem Rücken wäre ein Wortbruch. Er
               // bekommt seinen Absage-Link in der Bestätigungsmail.
+              // Der Knopf bleibt für ALLE Einträge aus `fiaon_termine`
+              // gesperrt — die Verschiebe-Route kennt nur Verlaufseinträge.
+              // Der HINWEIS dagegen darf nicht mehr behaupten, der Kunde habe
+              // gewählt, wenn der Mitarbeiter den Termin selbst eingetragen hat
+              // (24.08.2026).
               disabled={(a as any).quelle === "termin"}
-              title={(a as any).quelle === "termin"
+              title={selbstGebucht(a)
                 ? "Diesen Termin hat der Kunde selbst gewählt. Ruf ihn an, wenn er nicht passt."
-                : undefined}
+                : (a as any).quelle === "termin"
+                  ? "Selbst eingetragener Termin — zum Ändern absagen und neu setzen."
+                  : undefined}
               onClick={(e) => { e.stopPropagation(); setReschedule({ id: a.id, value: "" }); }}
               className={`${btnGhost} px-3 py-2 text-[12px] disabled:opacity-30`}
             >

@@ -33,6 +33,12 @@ interface Slot {
 
 interface Auskunft {
   vorname: string | null;
+  /**
+   * Der geprüfte Weg, über den dieser Link kam (24.08.2026) — der Server hat
+   * ihn schon auf die erlaubten Werte gebracht. Die Seite zeigt ihn nicht an,
+   * sie gibt ihn beim Buchen zurück.
+   */
+  herkunft?: string;
   betreuer: { id: number; vorname: string } | null;
   slots: Slot[];
   slotMinuten: number;
@@ -93,11 +99,21 @@ export default function TerminPage() {
   // ══════════════════════════════════════════════════════════════════════════
   const art = new URLSearchParams(window.location.search).get("art") === "start"
     ? "start" : null;
-  const anhang = art ? "?art=start" : "";
+  // ── DIE HERKUNFT REIST MIT (24.08.2026) ───────────────────────────────────
+  // VORHER trug der Link keinen Hinweis darauf, welcher WEG den Kunden
+  // hergebracht hat — „vor der Zahlung aus dem Antrag" und „nach vergeblichen
+  // Anrufen" waren im Bestand nicht zu unterscheiden. NACHHER hängt
+  // `terminLink` ein `?von=` an; diese Seite reicht es beim Laden UND beim
+  // Buchen zurück, der Server prüft es und legt es in `fiaon_termine.herkunft`
+  // ab. Es ändert nichts an den angebotenen Zeiten — reine Buchführung.
+  const von = new URLSearchParams(window.location.search).get("von");
+  const anhang = [art ? "art=start" : "", von ? `von=${encodeURIComponent(von)}` : ""]
+    .filter(Boolean).join("&");
+  const frage = anhang ? `?${anhang}` : "";
 
   const laden = useCallback(async () => {
     setLaedt(true);
-    const res = await fetch(`/api/fiaon/termin/${encodeURIComponent(token)}${anhang}`)
+    const res = await fetch(`/api/fiaon/termin/${encodeURIComponent(token)}${frage}`)
       .catch(() => null);
     const json = await res?.json().catch(() => null);
     if (!res?.ok || !json?.ok) {
@@ -107,7 +123,7 @@ export default function TerminPage() {
     }
     setDaten(json);
     setLaedt(false);
-  }, [token, anhang]);
+  }, [token, frage]);
 
   useEffect(() => { void laden(); }, [laden]);
 
@@ -162,12 +178,16 @@ export default function TerminPage() {
     const res = await fetch(`/api/fiaon/termin/${encodeURIComponent(token)}/buchen`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      // Die Quelle MUSS mit: Ohne sie bucht der Server als „nichterreicht_mail",
-      // während die Zeiten als Startgespräch geladen wurden. Zwei Quellen in
-      // einem Vorgang — und die Rollenprüfung lehnt zu Recht ab.
+      // ── OHNE `quelle` (24.08.2026) ────────────────────────────────────────
+      // VORHER schickte die Seite bei `?art=start` ein `quelle:
+      // "onboarding_call"` mit. Das war schon folgenlos — der Server leitet die
+      // Gesprächsart seit dem 21.08. aus dem Kundenzustand ab — und seit heute
+      // verwirft die öffentliche Route jeden mitgeschickten Wert (er liess sich
+      // von aussen zu „agent_manuell" fälschen). NACHHER geht nur noch die
+      // HERKUNFT mit: Sie beschreibt den Weg und steuert nichts.
       body: JSON.stringify({
         beginn: gewaehlt.beginn, agentId: gewaehlt.agentId,
-        ...(art ? { quelle: "onboarding_call" } : {}),
+        ...(daten?.herkunft ? { herkunft: daten.herkunft } : von ? { herkunft: von } : {}),
       }),
     }).catch(() => null);
     const json = await res?.json().catch(() => null);

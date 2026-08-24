@@ -285,7 +285,10 @@ export async function runStartgespraechEinladungen(): Promise<number> {
       {
         email: String(p.email || ""),
         vorname: p.vorname || null,
-        termin_link: terminLink(Number(p.id), "onboarding_call"),
+        // ── HERKUNFT STATT FOLGENLOSER QUELLE (24.08.2026) ────────────────
+        // VORHER „onboarding_call" — von `terminLink` verworfen. NACHHER der
+        // WEG, der am gebuchten Termin als `herkunft` steht.
+        termin_link: terminLink(Number(p.id), "onboarding_einladung"),
       },
       {
         personId: Number(p.id), verlaufRef: p.ref || null,

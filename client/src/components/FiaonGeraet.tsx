@@ -448,26 +448,39 @@ const TASTATUR_CSS = `
 .fi-tast-weg:hover { color: #eef3fb; }
 .fi-tast-weg:active { transform: scale(.9); }
 
-/* ── Handy (23.08.2026): breite Tasten statt Kreise ────────────────────────
-   Kreise mit aspect-ratio 1 wurden auf 375 px zu einer 378-px-Säule — der
-   Hauptgrund, warum im Telefon gescrollt werden musste. Breite, flache
-   Tasten (mindestens 48 px, höchstens 62 px, dazwischen an der
-   Bildschirmhöhe orientiert) halten die ganze Wählansicht auf einem
-   Bildschirm — auch auf einem iPhone SE (375×667). */
+/* ── Handy: ruhige Pillen, Ziffer allein (24.08.2026) ──────────────────────
+   VORHER (23.08.): breite Tasten mit flex-direction:row und
+   align-items:baseline — die Ziffer stand links, die Buchstaben rechts
+   daneben auf der Grundlinie. Das Ergebnis waren asymmetrische graue Kästen;
+   Justin: „die Formatierung vom Handy ist schrecklich".
+   NACHHER: Die Ziffer steht ALLEIN und mittig, groß und leicht. Die
+   ABC-Belegung entfällt am Telefon — sie stammt aus der Zeit, als man Namen
+   auf Tasten buchstabierte; hier wählt niemand nach Buchstaben, und sie war
+   der Grund für die schiefe Optik. Volle Breite, Pillenform, gleichmäßiges
+   Raster; die Höhe wächst mit dem Bildschirm, damit die Ansicht auf einem
+   iPhone SE (375×667) genauso ohne Rollen passt wie auf einem großen Gerät. */
 @media (max-width: 700px) {
-  .fi-tast { max-width: none; gap: 8px 10px; }
+  .fi-tast { max-width: none; gap: 9px 12px; }
   .fi-tast-taste {
     aspect-ratio: auto;
-    height: clamp(48px, 8dvh, 62px);
-    border-radius: 16px;
-    flex-direction: row; gap: 7px; align-items: baseline;
+    height: clamp(48px, 7.4dvh, 60px);
+    border-radius: 999px;
+    flex-direction: row; gap: 0; align-items: center; justify-content: center;
+    /* Ruhiger als der alte Verlauf: eine Fläche, eine Lichtkante. */
+    background: rgba(255,255,255,.085);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.1);
   }
-  .fi-tast-ziffer { font-size: 23px; }
-  .fi-tast-buchstaben { font-size: 8.5px; }
+  .fi-tast-taste:active {
+    background: rgba(255,255,255,.22);
+    box-shadow: inset 0 1px 4px rgba(0,0,0,.4);
+  }
+  .fi-tast-ziffer { font-size: 25px; font-weight: 300; letter-spacing: 0; }
+  .fi-tast-buchstaben { display: none; }
 }
 @media (max-width: 700px) and (max-height: 620px) {
-  .fi-tast { gap: 6px 8px; }
-  .fi-tast-taste { height: 44px; }
+  .fi-tast { gap: 7px 10px; }
+  .fi-tast-taste { height: 46px; }
+  .fi-tast-ziffer { font-size: 22px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

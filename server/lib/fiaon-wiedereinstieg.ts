@@ -231,7 +231,11 @@ export async function wiedereinstiegTagesstaffel(
         vorname: k._vorname || null,
         nachname: k._nachname || null,
         agent_vorname: String(k._agent || "Ihr Ansprechpartner"),
-        termin_link: terminLink(k.personId),
+        // ── HERKUNFT (24.08.2026) ──────────────────────────────────────────
+        // VORHER ohne zweites Argument: Die Wiedereinstiegs-Staffel benutzt
+        // dieselbe Vorlage wie „nicht erreicht" und war im Bestand von ihr
+        // nicht zu unterscheiden. NACHHER ein eigener Weg.
+        termin_link: terminLink(k.personId, "wiedereinstieg_mail"),
       },
       {
         personId: k.personId,

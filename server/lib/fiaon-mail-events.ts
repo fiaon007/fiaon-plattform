@@ -118,6 +118,17 @@ const ZUSATZ: Partial<Record<MakeEventType, EventZusatz>> = {
     gruppe: "termin", zielgruppe: "kunde", rollen: ["admin"],
     klartext: "24 Stunden vor dem Gespräch.",
   },
+  // ── NEU 24.08.2026 ────────────────────────────────────────────────────
+  // VORHER: Es gab dieses Ereignis nicht. Wer „Nicht erschienen" meldete,
+  //   hatte keine Mail, die er dem Kunden schicken konnte — auch nicht von
+  //   Hand.
+  // NACHHER: Steht im Sende-Menü. Die Rolle „onboarding" darf sie auslösen,
+  //   weil genau diese Rolle den No-Show meldet.
+  // GRUND: Auftrag des Inhabers vom 24.08.2026.
+  termin_verpasst: {
+    gruppe: "termin", zielgruppe: "kunde", rollen: ["admin", "vertriebsleiter", "onboarding"],
+    klartext: "Der Termin ist nicht zustande gekommen — der Kunde wählt selbst eine neue Uhrzeit.",
+  },
   onboarding_einladung: {
     gruppe: "termin", zielgruppe: "kunde", rollen: ["admin", "vertriebsleiter", "onboarding"],
     klartext: "Einladung zum 15-minütigen Startgespräch für bezahlte Kunden.",

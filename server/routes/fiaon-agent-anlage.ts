@@ -637,7 +637,11 @@ router.post("/agent/customers/:ref/termin-anbieten", requireAgent, async (req: A
     }
 
     const { terminLink } = await import("../lib/fiaon-termine");
-    const link = terminLink(Number(a.person_id));
+    // ── HERKUNFT (24.08.2026) ────────────────────────────────────────────
+    // VORHER ohne zweites Argument. NACHHER „agent": Diesen Link gibt ein
+    // Mitarbeiter weiter (Kopierknopf oder Versand) — im Bestand soll er nicht
+    // wie eine automatische Mail aussehen.
+    const link = terminLink(Number(a.person_id), "agent");
     const senden = req.body?.senden === true;
 
     if (!senden) {

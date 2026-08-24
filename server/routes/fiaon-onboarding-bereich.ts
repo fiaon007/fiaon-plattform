@@ -39,6 +39,111 @@ export async function istOnboarding(agentId: number): Promise<boolean> {
   return String(a?.rolle || "agent") === "onboarding";
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// „LEIDER NICHT ERSCHIENEN — HIER NEUEN TERMIN BUCHEN" (NEU AM 24.08.2026)
+//
+// VORHER: Es gab diese Mail nicht. Wer im Onboarding „Nicht erschienen"
+//   klickte, löste beim Kunden nichts aus (Begründung an der Aufrufstelle in
+//   `startgespraechErgebnis`).
+// NACHHER: Diese beiden Funktionen. Die erste legt die Merkspalte an, die
+//   zweite verschickt — genau EINMAL je Termin.
+// GRUND: Auftrag des Inhabers vom 24.08.2026.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Die Merkspalte `fiaon_termine.verpasst_mail_am` — additiv und lazy.
+ *
+ * Vorbild: `ensureVertriebSpalten` in fiaon-office-vertrieb.ts. `lock_timeout`,
+ * weil ein ALTER, das hinter einer langen Transaktion wartet, ALLE folgenden
+ * Abfragen auf fiaon_termine in die Warteschlange zwingen würde — der Kalender
+ * stünde. Lieber nach drei Sekunden aufgeben und beim nächsten Mal erneut.
+ *
+ * Die Wanderfassung liegt zusätzlich als db/migrations/075_termin_verpasst_mail.sql.
+ */
+let verpasstSpalteBereit: Promise<void> | null = null;
+function ensureVerpasstSpalte(): Promise<void> {
+  if (!verpasstSpalteBereit) {
+    verpasstSpalteBereit = (async () => {
+      await sqlPool.begin(async (tx: any) => {
+        await tx`SET LOCAL lock_timeout = '3s'`;
+        await tx`ALTER TABLE fiaon_termine ADD COLUMN IF NOT EXISTS verpasst_mail_am TIMESTAMPTZ`;
+      });
+    })().catch((e) => { verpasstSpalteBereit = null; throw e; });
+  }
+  return verpasstSpalteBereit;
+}
+
+/**
+ * Schickt dem Kunden die „Wir haben Sie nicht erreicht"-Mail — einmal je Termin.
+ *
+ * WARUM DIE MARKE AM TERMIN HÄNGT UND NICHT AM MENSCHEN: Wer im Herbst ein
+ * zweites Startgespräch verpasst, soll wieder eine Mail bekommen. Wer denselben
+ * Termin zweimal als verpasst meldet (nachgetragen, Doppelklick, Kalender und
+ * Cockpit nacheinander), nicht.
+ *
+ * Gibt einen Satz für den Mitarbeiter zurück oder null, wenn es nichts zu sagen
+ * gibt. WIRFT NIE.
+ */
+async function verpasstMailSenden(
+  terminId: number, personId: number, beginn: Date | string | null, ref: string | null,
+): Promise<string | null> {
+  try {
+    await ensureVerpasstSpalte();
+
+    // Die Marke ZUERST setzen, und nur wenn sie noch frei war. Zwei Klicks
+    // nebeneinander (Cockpit und Kalender) laufen sonst beide durch — das
+    // UPDATE ... WHERE verpasst_mail_am IS NULL entscheidet, wer sendet.
+    const gesetzt = (await sqlPool`
+      UPDATE fiaon_termine SET verpasst_mail_am = NOW()
+      WHERE id = ${terminId} AND verpasst_mail_am IS NULL
+      RETURNING id
+    `) as any[];
+    if (gesetzt.length === 0) return "Die Absage-Mail ist für diesen Termin bereits raus.";
+
+    const [k] = (await sqlPool`
+      SELECT COALESCE(NULLIF(p.first_name, ''), p.contact_name) AS vorname,
+             COALESCE(NULLIF(p.primary_email, ''), (
+               SELECT NULLIF(COALESCE(a.email, a.contact_email, a.billing_email), '')
+               FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL
+               ORDER BY a.created_at DESC LIMIT 1)) AS email,
+             COALESCE(NULLIF(ag.first_name, ''), ag.name) AS agent_vorname
+      FROM fiaon_persons p
+      LEFT JOIN fiaon_termine t ON t.id = ${terminId}
+      LEFT JOIN fiaon_agents ag ON ag.id = t.agent_id
+      WHERE p.id = ${personId}
+    `) as any[];
+
+    const erg = await versendenUndProtokollieren(
+      "termin_verpasst",
+      {
+        email: String(k?.email || ""),
+        vorname: k?.vorname || null,
+        agent_vorname: k?.agent_vorname || "Ihr Ansprechpartner",
+        termin_datum: beginn ? berlinDatumText(beginn as any) : null,
+        termin_uhrzeit: beginn ? berlinUhrzeit(beginn as any) : null,
+        // Zweiter Parameter = HERKUNFT (seit 24.08.2026, siehe fiaon-termine.ts).
+        // Sie landet als `?von=` im Link und macht im Bestand unterscheidbar,
+        // wer nach einem verpassten Termin neu gebucht hat.
+        termin_link: terminLink(personId, "termin_verpasst_mail"),
+      },
+      {
+        personId, verlaufRef: ref,
+        verlaufText: "Termin nicht zustande gekommen — E-Mail mit neuem Buchungslink versandt.",
+      },
+    );
+
+    if (erg.status === "versandt") return "Die E-Mail mit dem neuen Buchungslink ist raus.";
+    // Kein Erfolg: Die Marke wieder freigeben, sonst blockiert ein einmaliger
+    // Fehlschlag den nächsten Versuch für immer. Der Fehlschlag steht mit Grund
+    // im Zustellprotokoll.
+    await sqlPool`UPDATE fiaon_termine SET verpasst_mail_am = NULL WHERE id = ${terminId}`;
+    return `Die E-Mail ging NICHT raus (${erg.grund || erg.status}) — sie steht mit Grund im Protokoll und lässt sich aus der Akte nachsenden.`;
+  } catch (e) {
+    console.error("[ONBOARDING] termin_verpasst:", e);
+    return "Die E-Mail an den Kunden konnte nicht verschickt werden — bitte aus der Akte nachsenden.";
+  }
+}
+
 /** 404 statt 403 — die Rolle liest bei JEDEM Aufruf aus der Datenbank.
  *
  * ── E-045 (Justin 23.08., Plan §17): DIE ROLLEN-WAND IST OFFEN ────────────
@@ -473,7 +578,37 @@ export async function startgespraechErgebnis(opts: {
         SET startgespraech_mail_am = NULL, startgespraech_spaeter_am = NOW(), updated_at = NOW()
         WHERE id = ${termin.person_id}
       `;
-      hinweis = `Nicht erschienen — zählt als erfolgloser Versuch, und der Kunde wird erneut eingeladen.${wirkung.hinweis ? ` ${wirkung.hinweis}` : ""}`;
+
+      // ══════════════════════════════════════════════════════════════════
+      // DIE MAIL, DIE HIER GEFEHLT HAT (24.08.2026)
+      //
+      // VORHER: Nach diesem Punkt war der Vorgang zu Ende. Der Kunde bekam
+      //   NICHTS. Die drei Dinge, die aussahen, als würden sie greifen,
+      //   greifen alle nicht:
+      //     · `automatikNachFehlversuch` schreibt erst ab dem SECHSTEN
+      //       erfolglosen Versuch (SCHWELLE_MAIL = 6) — und ist zusätzlich
+      //       gesperrt, solange ein Termin existiert; beim No-Show existiert
+      //       er ja gerade.
+      //     · Die 48-Stunden-Uhr oben lässt den Lauf
+      //       `runStartgespraechEinladungen` frühestens ZWEI TAGE später die
+      //       generische Einladung schicken.
+      //     · Deren Text klingt, als hätte es nie einen Termin gegeben.
+      //   Der Hinweis in der Oberfläche („der Kunde wird erneut eingeladen")
+      //   war damit nur halb wahr.
+      // NACHHER: Sofort eine eigene Mail mit ruhigem Ton und dem Link auf
+      //   einen neuen Termin. Die Kette oben bleibt unangetastet — sie ist
+      //   das Netz darunter, nicht die Antwort.
+      // GRUND: Auftrag des Inhabers vom 24.08.2026 — „wenn man ‚Kunde nicht
+      //   erreicht' klickt muss der Kunde eine Email bekommen mit ‚Leider
+      //   nicht erschienen.. hier neuen Termin buchen'".
+      //
+      // WIRFT NIE: Ein Versandfehler darf einen dokumentierten No-Show nicht
+      // ungültig machen. Was schiefging, steht im Zustellprotokoll und lässt
+      // sich aus der Akte von Hand nachsenden.
+      // ══════════════════════════════════════════════════════════════════
+      const verpasstMail = await verpasstMailSenden(id, Number(termin.person_id), termin.beginn, ref?.ref || null);
+
+      hinweis = `Nicht erschienen — zählt als erfolgloser Versuch, und der Kunde bekommt sofort eine E-Mail mit dem Link für einen neuen Termin.${verpasstMail ? ` ${verpasstMail}` : ""}${wirkung.hinweis ? ` ${wirkung.hinweis}` : ""}`;
     } else {
       const { erreichtZuruecksetzen } = await import("../lib/fiaon-nicht-erreicht");
       await erreichtZuruecksetzen(Number(termin.person_id));
@@ -672,7 +807,10 @@ router.post("/agent/onboarding/wartende/:id/einladung", requireAgent, nurOnboard
 
     const erg = await versendenUndProtokollieren(
       "onboarding_einladung",
-      { email: String(p.email), vorname: p.vorname || null, termin_link: terminLink(id, "onboarding_call") },
+      // ── HERKUNFT STATT FOLGENLOSER QUELLE (24.08.2026) ──────────────────
+      // VORHER „onboarding_call" — eine QUELLE, die `terminLink` verworfen hat.
+      // NACHHER der WEG; er landet als `fiaon_termine.herkunft` am Termin.
+      { email: String(p.email), vorname: p.vorname || null, termin_link: terminLink(id, "onboarding_einladung") },
       {
         personId: id, verlaufRef: p.ref || null,
         verlaufText: `Einladung zum Startgespräch versandt von ${req.agent!.name} (aus der Liste der Wartenden).`,
@@ -683,7 +821,7 @@ router.post("/agent/onboarding/wartende/:id/einladung", requireAgent, nurOnboard
       await sqlPool`UPDATE fiaon_persons SET startgespraech_mail_am = NOW(), updated_at = NOW() WHERE id = ${id}`.catch(() => {});
     }
     res.json({ ok: erg.status === "versandt", status: erg.status, grund: erg.grund,
-      terminLink: terminLink(id, "onboarding_call") });
+      terminLink: terminLink(id, "onboarding_einladung") });
   } catch (err) {
     console.error("[ONBOARDING] wartende/einladung:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
@@ -721,7 +859,8 @@ router.post("/agent/onboarding/person/:id/einladung", requireAgent, nurOnboardin
 
     const erg = await versendenUndProtokollieren(
       "onboarding_einladung",
-      { email: String(p.email || ""), vorname: p.vorname || null, termin_link: terminLink(id, "onboarding_call") },
+      // Herkunft statt folgenloser Quelle (24.08.2026) — wie oben.
+      { email: String(p.email || ""), vorname: p.vorname || null, termin_link: terminLink(id, "onboarding_einladung") },
       {
         personId: id, verlaufRef: p.ref || null,
         verlaufText: `Einladung zum Startgespräch erneut versandt von ${req.agent!.name}.`,

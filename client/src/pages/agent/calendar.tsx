@@ -78,12 +78,26 @@ interface Termin {
   payment_status: string; phone: string | null; phone_country_code: string | null; contact_phone: string | null;
   art?: "verlauf" | "termin"; schluessel?: string; status?: string; abgesagt?: boolean; absageText?: string | null;
   buchungsquelle?: string; person_id?: number | null; quelle?: string; dauer_min?: number | null;
+  // ── WER HAT GEBUCHT? (24.08.2026) ────────────────────────────────────────
+  // VORHER leitete die Anzeige das aus `quelle === "termin"` ab — und das ist
+  // nur die DATENQUELLE (fiaon_termine statt Verlauf). Ein vom Mitarbeiter
+  // selbst eingetragener Rückruf (`buchungsquelle='agent_manuell'`) steht auch
+  // dort und wurde deshalb als „Kunde hat gebucht" ausgegeben. NACHHER sagt es
+  // der Server (`selbstGebucht`), und die Marke folgt ihm.
+  selbstGebucht?: boolean; herkunft?: string | null;
   terminArtText?: string | null; terminArtTon?: string | null; terminArtErklaerung?: string | null;
 }
 const tName = (a: Termin) => a.company_name || [a.first_name, a.last_name].filter(Boolean).join(" ") || a.contact_name || a.ref;
 const tPhone = (a: Termin) => a.phone ? `${a.phone_country_code || ""}${a.phone}`.replace(/\s/g, "") : a.contact_phone ? a.contact_phone.replace(/\s/g, "") : null;
 const tZeit = (a: Termin) => new Date(a.scheduled_at || a.promised_date || 0);
 const tKey = (a: Termin) => a.schluessel ?? `${a.art ?? "verlauf"}:${a.id}`;
+// ── HAT DER KUNDE SELBST GEWÄHLT? (24.08.2026) ──────────────────────────────
+// Die eine Antwort für alle drei Anzeigen (Zeile, Popover, Dialog) und für den
+// Hinweis „verschieben geht nicht". Der Server liefert `selbstGebucht`; die
+// zweite Bedingung ist der Rückfall, falls eine ältere Antwort das Feld noch
+// nicht trägt — dann entscheidet dieselbe Regel aus der Buchungsquelle.
+const tSelbstGebucht = (a: Termin) =>
+  a.quelle === "termin" && (a.selbstGebucht ?? a.buchungsquelle !== "agent_manuell");
 const akteHref = (a: { person_id?: number | null; personId?: number | null; ref?: string | null }) => a.person_id || a.personId ? `/agent/kunden?person=${a.person_id ?? a.personId}` : `/agent/kunden?ref=${encodeURIComponent(a.ref || "")}`;
 
 interface Block { wochentag: number; von: string; bis: string }
@@ -406,7 +420,14 @@ function Zeile({ a, datum, busy, ausser, onAkte, onOeffnen, onErledigt }: { a: T
         {a.status === "verpasst" && <span className="ca-hinweis rot">Ohne Ergebnis verstrichen – mit „Nicht erschienen“ abschließen</span>}
         <small>
           {a.terminArtText && <span className="ca-marke blau" title={a.terminArtErklaerung || undefined} style={a.terminArtTon ? { color: a.terminArtTon, borderColor: `${a.terminArtTon}66` } : undefined}>{a.terminArtText}</span>}
-          {a.quelle === "termin" ? <span className="ca-marke kunde">Kunde hat gebucht</span> : <span>{a.scheduled_at ? "selbst notiert" : "Zahlungs-Zusage"}</span>}
+          {/* VORHER: „Kunde hat gebucht" bei JEDEM Datensatz aus fiaon_termine —
+              also auch bei einem Rückruf, den der Mitarbeiter selbst
+              eingetragen hat. NACHHER entscheidet `selbstGebucht`. */}
+          {a.quelle === "termin"
+            ? (tSelbstGebucht(a)
+                ? <span className="ca-marke kunde">Kunde hat gebucht</span>
+                : <span>selbst eingetragen</span>)
+            : <span>{a.scheduled_at ? "selbst notiert" : "Zahlungs-Zusage"}</span>}
           {ausser && <span className="ca-marke warn" title="Liegt außerhalb deiner eingetragenen Verfügbarkeit"><Clock size={10} style={{ marginRight: 4 }} />außerhalb deiner Zeiten</span>}
         </small>
       </div>
@@ -456,7 +477,12 @@ function Popover({ a, fest, links, oben, ausser, onZu, onHalten, onLoslassen, on
         <div className="ca-popover-zeit"><CalendarClock size={14} strokeWidth={1.75} /><span>{zeitTag(d.toISOString())} Uhr</span><small>{ende && dauer ? `bis ${uhr(ende)} · ${dauer} min` : "ohne feste Dauer"}</small></div>
         <div className="ca-popover-marken">
           {a.terminArtText && <span className="ca-marke blau" title={a.terminArtErklaerung || undefined} style={a.terminArtTon ? { color: a.terminArtTon, borderColor: `${a.terminArtTon}66` } : undefined}>{a.terminArtText}</span>}
-          {a.quelle === "termin" ? <span className="ca-marke kunde">Kunde hat gebucht</span> : <span className="ca-marke">{a.scheduled_at ? "selbst notiert" : "Zahlungs-Zusage"}</span>}
+          {/* Wie in der Zeile: nur bei `selbstGebucht` (24.08.2026). */}
+          {a.quelle === "termin"
+            ? (tSelbstGebucht(a)
+                ? <span className="ca-marke kunde">Kunde hat gebucht</span>
+                : <span className="ca-marke">selbst eingetragen</span>)
+            : <span className="ca-marke">{a.scheduled_at ? "selbst notiert" : "Zahlungs-Zusage"}</span>}
           {a.abgesagt && <span className="ca-marke warn">{a.absageText || "abgesagt"}</span>}
           {a.status === "verpasst" && <span className="ca-marke rot">nicht erschienen – offen</span>}
           {ausser && <span className="ca-marke warn">außerhalb deiner Zeiten</span>}
@@ -503,7 +529,13 @@ function Detail({ a, busy, ausser, onZu, onErledigt, onVerpasst, onVerschieben, 
         <div className="ca-dialog-zeile"><CalendarClock size={16} strokeWidth={1.75} /><span>{zeitTag(d.toISOString())} Uhr</span><small>deutsche Zeit{a.dauer_min ? ` · ${a.dauer_min} min` : ""}</small></div>
         <div className="ca-dialog-zeile" style={{ flexWrap: "wrap" }}>
           {a.terminArtText && <span className="ca-marke blau" style={a.terminArtTon ? { color: a.terminArtTon, borderColor: `${a.terminArtTon}66` } : undefined}>{a.terminArtText}</span>}
-          {a.quelle === "termin" ? <span className="ca-marke kunde">Kunde hat gebucht</span> : <span className="ca-marke">{a.scheduled_at ? "Rückruf-Termin" : "Zahlungs-Zusage"}</span>}
+          {/* Wie in der Zeile: nur bei `selbstGebucht` (24.08.2026). Ein selbst
+              eingetragener Rückruf heisst hier weiter „Rückruf-Termin". */}
+          {a.quelle === "termin"
+            ? (tSelbstGebucht(a)
+                ? <span className="ca-marke kunde">Kunde hat gebucht</span>
+                : <span className="ca-marke">selbst eingetragen</span>)
+            : <span className="ca-marke">{a.scheduled_at ? "Rückruf-Termin" : "Zahlungs-Zusage"}</span>}
           {a.abgesagt && <span className="ca-marke warn">{a.absageText || "abgesagt"}</span>}
           {a.status === "verpasst" && <span className="ca-marke rot">nicht erschienen – offen</span>}
           {ausser && <span className="ca-marke warn">außerhalb deiner Zeiten</span>}
@@ -521,7 +553,11 @@ function Detail({ a, busy, ausser, onZu, onErledigt, onVerpasst, onVerschieben, 
             {gebucht && <button type="button" className="ca-knopf rot" disabled={busy} onClick={() => setModus("absagen")}>Absagen</button>}
           </div>
         )}
-        {a.quelle === "termin" && !modus && <p className="ca-lade" style={{ marginTop: 12 }}>Diesen Termin hat der Kunde selbst gewählt – verschieben geht nicht. Wenn die Zeit nicht passt: anrufen oder absagen, dann bucht der Kunde neu.</p>}
+        {/* VORHER stand dieser Satz bei jedem Datensatz aus fiaon_termine —
+            auch bei einem Rückruf, den der Mitarbeiter SELBST eingetragen hat.
+            Der behauptete dann, der Kunde habe die Zeit gewählt. NACHHER nur
+            noch bei `selbstGebucht` (24.08.2026). */}
+        {tSelbstGebucht(a) && !modus && <p className="ca-lade" style={{ marginTop: 12 }}>Diesen Termin hat der Kunde selbst gewählt – verschieben geht nicht. Wenn die Zeit nicht passt: anrufen oder absagen, dann bucht der Kunde neu.</p>}
 
         {modus === "verschieben" && (
           <div className="ca-form">

@@ -1412,6 +1412,106 @@ router.get("/admin/settings", async (_req, res) => {
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// MITARBEITER WIEDER FREISCHALTEN (E-038, Rückweg) — 24.08.2026
+//
+// Justin: „Wo bzw. wie schalte ich die Mitarbeiter frei? Und läuft es dann
+// automatisch mit der Kunden-/Lead-Automatik?"
+//
+// VORHER war das Zurückschalten Handarbeit an ZWEI Orten: erst den Schalter
+// „Umbau-Sperre" ausschalten, dann jedes der elf Konten einzeln in der
+// Team-Zentrale wieder aktivieren. Elf Klicks, und wer eines übersieht, merkt
+// es erst, wenn der Mitarbeiter sich beschwert.
+//
+// NACHHER macht dieser Weg beides in einem Zug — und zwar GENAU für die
+// Konten, die vor der Aussperrung aktiv waren (Merkliste `umbau_vorher_aktiv`,
+// beim Aussperren geschrieben). Wer seither dazugekommen oder absichtlich
+// stillgelegt ist, bleibt unangetastet.
+//
+// Zur zweiten Frage: Ja. Verteilung und Lead-Automatik fragen bei jedem Lauf
+// `active AND distribution_active AND NOT is_test_account` ab — sobald ein
+// Konto wieder aktiv ist, bekommt es beim nächsten Lauf wieder Kunden. Es muss
+// nichts zusätzlich eingeschaltet werden. Die Antwort liefert deshalb mit,
+// wer danach wirklich in der Verteilung steht und wer nicht (Justins eigene
+// Alt-Konten stehen z. B. bewusst draußen).
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Wer stand vor der Aussperrung auf „aktiv"? Liest die Merkliste. */
+async function umbauMerkliste(): Promise<number[]> {
+  const settings = await getSettings();
+  return String(settings.umbau_vorher_aktiv || "")
+    .split(",").map((t) => Number(String(t).trim()))
+    .filter((n) => Number.isFinite(n) && n > 0);
+}
+
+/** Vorschau: Wer würde freigeschaltet, und was passiert danach mit ihm? */
+router.get("/admin/office-freischaltung", async (_req, res) => {
+  try {
+    await ensureAgentTables();
+    const settings = await getSettings();
+    const ids = await umbauMerkliste();
+    const konten = ids.length
+      ? await sqlPool`
+          SELECT id, name, rolle, active, distribution_active, is_test_account
+          FROM fiaon_agents WHERE id = ANY(${ids}) ORDER BY id`
+      : [];
+    res.json({
+      ok: true,
+      umbauSperre: settings.office_umbau === "an",
+      leadVerteilung: settings.lead_distribution_enabled === "1",
+      konten: konten.map((k: any) => ({
+        id: Number(k.id),
+        name: k.name,
+        rolle: k.rolle,
+        aktiv: k.active === true,
+        // Ehrlich sagen, was NACH dem Freischalten gilt: Ein Konto ohne
+        // `distribution_active` bekommt weiterhin keine neuen Kunden — das
+        // ist eine eigene Entscheidung und wird hier nicht mit umgelegt.
+        inVerteilung: k.distribution_active === true && k.is_test_account !== true,
+      })),
+    });
+  } catch (err) {
+    console.error("[FIAON-TEAM] office-freischaltung lesen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/** Freischalten: Sperre aus, alle Konten der Merkliste wieder aktiv. */
+router.post("/admin/office-freischaltung", async (req, res) => {
+  try {
+    await ensureAgentTables();
+    const ids = await umbauMerkliste();
+    if (ids.length === 0) {
+      return res.status(400).json({ ok: false, error: "Es ist keine Merkliste hinterlegt — es wurde niemand ausgesperrt." });
+    }
+    // Die Sperre bleibt auf Wunsch stehen (z. B. um erst einen einzelnen
+    // Mitarbeiter zu testen), ist aber der Normalfall.
+    const sperreLassen = req.body?.sperreLassen === true;
+    if (!sperreLassen) await setSetting("office_umbau", "aus");
+
+    const wieder = await sqlPool`
+      UPDATE fiaon_agents SET active = TRUE, updated_at = NOW()
+      WHERE id = ANY(${ids}) AND active IS DISTINCT FROM TRUE
+      RETURNING id, name, distribution_active, is_test_account`;
+
+    res.json({
+      ok: true,
+      umbauSperre: sperreLassen,
+      freigeschaltet: wieder.map((k: any) => ({
+        id: Number(k.id), name: k.name,
+        inVerteilung: k.distribution_active === true && k.is_test_account !== true,
+      })),
+      meldung: wieder.length === 0
+        ? "Alle Konten der Merkliste waren bereits aktiv."
+        : `${wieder.length} ${wieder.length === 1 ? "Konto" : "Konten"} wieder freigeschaltet.`
+          + (sperreLassen ? " Die Umbau-Sperre steht weiterhin." : " Die Umbau-Sperre ist aus — das Office ist offen."),
+    });
+  } catch (err) {
+    console.error("[FIAON-TEAM] office-freischaltung:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 router.post("/admin/settings", async (req, res) => {
   try {
     await ensureAgentTables();

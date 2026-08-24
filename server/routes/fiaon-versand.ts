@@ -20,6 +20,7 @@ import { versendenUndProtokollieren } from "../lib/fiaon-mail-log";
 // Berlin-Formatierer — die Mail „termin_verpasst" nennt Datum und Uhrzeit des
 // Termins, der nicht zustande kam. GRUND: Auftrag des Inhabers vom 24.08.2026.
 import { terminLink, berlinDatumText, berlinUhrzeit } from "../lib/fiaon-termine";
+import { absoluteUrl } from "../fiaon-base-url";
 
 const router = Router();
 
@@ -158,7 +159,16 @@ router.post("/agent/versand/:personId/:art", requireAgent, async (req: AgentRequ
                 termin_uhrzeit: verpasst?.beginn ? berlinUhrzeit(verpasst.beginn) : null,
                 termin_link: terminLink(personId, "termin_verpasst_mail"),
               }
-            : {};
+            : art === "sepa_einrichten"
+              ? {
+                  // NEU 24.08.2026: Der Weg in den Kundenbereich, wo die
+                  // Lastschrift eingerichtet wird. Die ERSTE Zahlung bleibt
+                  // immer eine Überweisung — die Vorlage darf das nicht
+                  // vermischen, sonst kommen Rückfragen und Rückbuchungen.
+                  agent_vorname: p.agent_vorname || "Ihr Ansprechpartner",
+                  kundenbereich_link: absoluteUrl("/kundenbereich"),
+                }
+              : {};
 
     const erg = await versendenUndProtokollieren(art as any, { ...basis, ...zusatz }, {
       personId,

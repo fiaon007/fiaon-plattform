@@ -70,3 +70,15 @@
   .be-karte-tun .pi-knopf{min-height:40px;flex:1}
 }
 @media(prefers-reduced-motion:reduce){.be-karte{animation:none}}
+
+/* ── Lastschrift-Hinweis auf der Kundenkarte (24.08.2026) ────────────────── */
+/* VORHER stand „kein SEPA" nur als Ampel-Beschriftung da — ein Zustand ohne
+   Weg. NACHHER sagt die Karte, was fehlt, und ein Klick schickt dem Kunden
+   die Bitte, die Lastschrift im Kundenbereich einzurichten. */
+.be-sepa{display:flex;align-items:center;gap:7px;width:100%;margin:2px 0 8px;padding:8px 11px;border-radius:12px;cursor:pointer;text-align:left;
+  font:400 11.5px/1.35 'Inter',sans-serif;color:#fde68a;
+  background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.28);
+  transition:background .18s,border-color .18s}
+.be-sepa:hover:not(:disabled){background:rgba(251,191,36,.16);border-color:rgba(251,191,36,.5)}
+.be-sepa:disabled{opacity:.6;cursor:default}
+.be-sepa svg{flex:0 0 auto}

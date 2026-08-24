@@ -134,9 +134,19 @@ export function terminArtRueckruf(): TerminArtMarke {
 }
 
 /** Alle Marken — für Filterleisten und Legenden. */
+/**
+ * Alle Arten in einer Liste — für Legenden und Auswahlfelder.
+ *
+ * 24.08.2026 (Justin: „Nicht JEDER Termin ist Onboarding, das muss deutlicher
+ * kommuniziert werden"): Der Kalender zeigt diese Liste jetzt offen als
+ * Legende. Reihenfolge nach dem Alltag: erst das Verkaufsgespräch, dann das
+ * Startgespräch, dann Rückruf und Zahlung. Es gibt bewusst NUR diese eine
+ * Liste — ein zweites Wörterbuch für dieselbe Sache war schon dreimal die
+ * Ursache dafür, dass eine Auswahl garantiert nichts gefunden hat.
+ */
 export const TERMIN_ARTEN: TerminArtMarke[] = [
-  { ...MARKEN.onboarding, grund: "" },
   { ...MARKEN.vertrieb, grund: "" },
-  { ...MARKEN.forderung, grund: "" },
+  { ...MARKEN.onboarding, grund: "" },
   { ...MARKEN.rueckruf, grund: "" },
+  { ...MARKEN.forderung, grund: "" },
 ];

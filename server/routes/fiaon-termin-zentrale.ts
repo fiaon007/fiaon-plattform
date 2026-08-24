@@ -135,7 +135,18 @@ router.get("/admin/termine", async (req: Request, res: Response) => {
         AND ($1::int IS NULL OR t.agent_id = $1)
         AND ($2::text IS NULL OR t.quelle = $2)
         AND ($3::text IS NULL OR t.status = $3)
-        AND ($4::text IS NULL OR (to_jsonb(t) ->> 'herkunft') = $4)
+        -- ── 24.08.2026: COALESCE, NICHT nur Gleichheit ────────────────────
+        -- VORHER stand hier schlicht "herkunft = $4". GEMESSEN am 24.08.2026:
+        -- alle 311 Termine im Bestand haben herkunft IS NULL — die Spalte gibt
+        -- es erst seit heute, geschrieben wird sie nur beim Buchen. Die
+        -- Auswahl "Weg nicht mitgeführt" hätte damit GARANTIERT nichts
+        -- gefunden, also genau der Fehler, der hier behoben werden soll, nur
+        -- eine Zeile tiefer. NACHHER zählt NULL als 'unbekannt': Ein
+        -- Altbestand ohne mitgeführten Weg IST ein unbekannter Weg.
+        -- (Neue Buchungen schreiben nie NULL — herkunftPruefen gibt
+        -- schlimmstenfalls 'unbekannt' zurück. NULL heißt also: vor heute.)
+        AND ($4::text IS NULL
+             OR COALESCE(to_jsonb(t) ->> 'herkunft', 'unbekannt') = $4)
       ORDER BY t.beginn ASC
       LIMIT 500
     `, [agentFilter, quelleFilter, statusFilter, herkunftFilter])) as any[];
@@ -337,6 +348,12 @@ router.get("/admin/termine", async (req: Request, res: Response) => {
         ton: STATUS_TEXT[String(z.status)]?.ton ?? "#64748b",
         quelle: z.quelle,
         herkunft: z.herkunft ?? null,
+        // Bewusst ASYMMETRISCH zum Filter oben (24.08.2026): Der Filter zählt
+        // NULL als `unbekannt`, die Anzeige lässt NULL LEER. GRUND: 311 alte
+        // Termine tragen keinen Weg. Stünde unter jedem „über Weg nicht
+        // mitgeführt", wäre die Tabelle voller Rauschen, das nichts aussagt.
+        // Wer den Altbestand SUCHT, findet ihn über den Filter; wer die Liste
+        // nur liest, wird nicht mit Leermeldungen zugestellt.
         herkunftText: z.herkunft ? (HERKUNFT_TEXT[String(z.herkunft)] || String(z.herkunft)) : null,
         quelleText: QUELLE_TEXT[String(z.quelle)] ?? String(z.quelle),
         // Die ART neben der Quelle: Die Quelle sagt, WOHER der Termin kommt,

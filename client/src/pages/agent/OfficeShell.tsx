@@ -19,22 +19,43 @@ export interface Raum { href: string; label: string; Icon: any; match: string[];
 
 /** Die Räume des Büros. Reihenfolge = Leiste. Szene = Higgsfield-Bühne (client/public/office/).
  *  Namen auf Englisch (Justin 23.08.: „Schreibtisch, Kundenbuch … hört sich nicht nach internationalem Unicorn an") – Inhalte bleiben Deutsch. */
+// ── DIE REIHENFOLGE FOLGT DEM TAG (24.08.2026) ────────────────────────────
+// Justin: „Die Menüanreihung muss besser gemacht werden, also sinnvoller."
+// VORHER: Dashboard · Pipeline · Bestand · Calendar · Onboarding · Tasks ·
+//   Inbox · Tickets · Tools · Collections. Der Bestand stand zwischen Pipeline
+//   und Kalender, „Tools" mitten zwischen den Kundenräumen, und Collections —
+//   der Raum, in dem Geld zurückgeholt wird — ganz am Ende hinter allem.
+// NACHHER folgt der Arbeitsblock dem Ablauf eines Tages:
+//   1. Dashboard    Was steht heute an?
+//   2. Pipeline     Die sechs, die jetzt angerufen werden.
+//   3. Calendar     Die Termine, die daraus entstanden sind.
+//   4. Onboarding   Die Startgespräche des Tages.
+//   5. Bestand      Die Kunden, die schon da sind — gepflegt, nicht gejagt.
+//   6. Collections  Das Geld, das fehlt.
+// Danach erst der Schreibtisch-Teil (Inbox · Tasks · Tickets) und ganz zuletzt
+// die Werkzeuge. Wer von oben nach unten geht, hat seinen Tag abgearbeitet.
 export const RAEUME: Raum[] = [
   { href: "/agent/start", label: "Dashboard", Icon: LayoutDashboard, match: ["/agent/start", "/agent/heute", "/agent"], szene: "schreibtisch", gruppe: "arbeit" },
   { href: "/agent/pipeline", label: "Pipeline", Icon: BookUser, match: ["/agent/pipeline", "/agent/kunden"], szene: "kundenbuch", gruppe: "arbeit", badge: "/agent/kunden" },
-  { href: "/agent/bestand", label: "Bestand", Icon: Boxes, match: ["/agent/bestand"], szene: "kundenbuch", gruppe: "arbeit" },
   { href: "/agent/kalender", label: "Calendar", Icon: Calendar, match: ["/agent/kalender"], szene: "schreibtisch", gruppe: "arbeit" },
   { href: "/agent/onboarding", label: "Onboarding", Icon: Handshake, match: ["/agent/onboarding", "/agent/startgespraeche"], szene: "akademie", gruppe: "arbeit" },
+  { href: "/agent/bestand", label: "Bestand", Icon: Boxes, match: ["/agent/bestand"], szene: "kundenbuch", gruppe: "arbeit" },
+  { href: "/agent/collections", label: "Collections", Icon: Landmark, match: ["/agent/collections", "/agent/inkasso"], szene: "kasse", gruppe: "arbeit" },
+  // Der Schreibtisch-Teil: was hereinkommt und beantwortet werden will.
+  // 24.08.2026: VORHER trug „Inbox" den Marken-Schlüssel /agent/mail-zentrale
+  // und „Collections" den Schlüssel /agent/inkasso. Für BEIDE liefert
+  // AgentShell keinen Zähler — GEMESSEN stand die Marke bei jedem Konto
+  // dauerhaft auf 0 und sah damit aus wie „nichts offen", war aber „nicht
+  // gezählt". NACHHER trägt nur eine Marke, wer wirklich gezählt wird.
+  { href: "/agent/inbox", label: "Inbox", Icon: Mail, match: ["/agent/inbox", "/agent/mail-zentrale"], szene: "schreibtisch", gruppe: "arbeit" },
   { href: "/agent/aufgaben", label: "Tasks", Icon: ListChecks, match: ["/agent/aufgaben"], szene: "schreibtisch", gruppe: "arbeit", badge: "/agent/aufgaben" },
-  { href: "/agent/inbox", label: "Inbox", Icon: Mail, match: ["/agent/inbox", "/agent/mail-zentrale"], szene: "schreibtisch", gruppe: "arbeit", badge: "/agent/mail-zentrale" },
   { href: "/agent/anliegen", label: "Tickets", Icon: Inbox, match: ["/agent/anliegen"], szene: "schreibtisch", gruppe: "arbeit", badge: "/agent/anliegen" },
   { href: "/agent/tools", label: "Tools", Icon: Wrench, match: ["/agent/tools"], szene: "schreibtisch", gruppe: "arbeit" },
-  { href: "/agent/collections", label: "Collections", Icon: Landmark, match: ["/agent/collections", "/agent/inkasso"], szene: "kasse", gruppe: "arbeit", badge: "/agent/inkasso" },
   { href: "/agent/flur", label: "Team", Icon: Users, match: ["/agent/flur", "/agent/space"], szene: "flur", gruppe: "team", badge: "/agent/space" },
   { href: "/agent/updates", label: "Feed", Icon: Megaphone, match: ["/agent/updates", "/agent/feedback"], szene: "flur", gruppe: "team", badge: "/agent/updates" },
   { href: "/agent/academy", label: "Academy", Icon: GraduationCap, match: ["/agent/academy", "/agent/schulung", "/agent/skripte"], szene: "akademie", gruppe: "team" },
-  { href: "/agent/wallet", label: "Wallet", Icon: Wallet, match: ["/agent/wallet", "/agent/verdienst", "/agent/auszahlung", "/agent/partner-programm", "/agent/leistung"], szene: "kasse", gruppe: "ich" },
   { href: "/agent/gehalt", label: "Earnings", Icon: Calculator, match: ["/agent/gehalt"], szene: "kasse", gruppe: "ich" },
+  { href: "/agent/wallet", label: "Wallet", Icon: Wallet, match: ["/agent/wallet", "/agent/verdienst", "/agent/auszahlung", "/agent/partner-programm", "/agent/leistung"], szene: "kasse", gruppe: "ich" },
   { href: "/agent/arbeitszeiten", label: "Availability", Icon: Clock, match: ["/agent/arbeitszeiten"], szene: "schreibtisch", gruppe: "ich" },
   { href: "/agent/vertrieb", label: "Management", Icon: LayoutDashboard, match: ["/agent/vertrieb"], szene: "flur", gruppe: "mehr", nurRolle: "vertriebsleiter" },
   { href: "/agent/more", label: "More", Icon: MoreHorizontal, match: ["/agent/more", "/agent/mehr", "/agent/profil", "/agent/dokumente", "/agent/passwort"], szene: "schreibtisch", gruppe: "mehr" },

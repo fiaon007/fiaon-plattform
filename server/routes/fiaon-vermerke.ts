@@ -415,8 +415,17 @@ router.get("/agent/vermerke/zahlen", requireAgent, async (req: AgentRequest, res
       FROM fiaon_vermerke WHERE entfernt_am IS NULL
     `;
     // Aufträge der Leitung (E-028) zählen mit — sie liegen auf derselben Seite.
-    const auftraege = await (await import("./fiaon-betreiber-todo")).agentAuftraegeOffen(id).catch(() => 0);
-    res.json({ ok: true, offen: Number(z.offen), ueberfaellig: Number(z.ueberfaellig), heute: Number(z.heute), auftraege });
+    // E-029 (24.08.2026): VORHER kam hier nur EINE Zahl, und die zählte auch die
+    // Aufträge mit, die auf Justins Antwort warten — eine Marke für Arbeit, die
+    // der Mitarbeiter gar nicht tun kann. NACHHER liefert agentAuftraegeLage die
+    // ehrliche Aufteilung: „auftraege" ist nur, was wirklich bei ihm liegt;
+    // „auftraegeWartet" und „auftraegeNeu" sind Anzeige, keine Marke.
+    const lage = await (await import("./fiaon-betreiber-todo"))
+      .agentAuftraegeLage(id).catch(() => ({ offen: 0, wartet: 0, neu: 0, frageAnMich: 0 }));
+    res.json({
+      ok: true, offen: Number(z.offen), ueberfaellig: Number(z.ueberfaellig), heute: Number(z.heute),
+      auftraege: lage.offen, auftraegeWartet: lage.wartet, auftraegeNeu: lage.neu, auftraegeFrageAnMich: lage.frageAnMich,
+    });
   } catch (err) {
     console.error("[FIAON-VERMERK] agent-zahlen:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });

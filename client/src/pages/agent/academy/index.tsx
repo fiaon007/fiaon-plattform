@@ -24,6 +24,11 @@ import { EinwandTrainer, Simulator, Rechner, FallStudie, KapitelTest } from "./u
 import { Pruefung, Urkunde } from "./pruefung";
 import { LEITFAEDEN, leitfadenKurzText } from "./leitfaeden";
 import "@/styles/office-academy.css";
+// 24.08.2026: Der Seiten-Rundgang (E-063) heißt hier bewusst anders —
+// „Rundgang" ist in dieser Datei schon der Name einer Academy-Übung.
+import { Rundgang as SeitenRundgang } from "@/components/agent/Rundgang";
+import { RUNDGAENGE } from "../rundgaenge";
+import "@/styles/office-rundgang.css";
 
 export default function AgentAcademyNeuPage() { return <AgentShell><AcademyInnen /></AgentShell>; }
 
@@ -49,6 +54,8 @@ function Ring({ prozent, groesse = 132 }: { prozent: number; groesse?: number })
     <div className="ac-ring" style={{ width: groesse, height: groesse }}>
       <svg viewBox="0 0 104 104"><circle className="spur" cx="52" cy="52" r={r} /><circle className="lauf" cx="52" cy="52" r={r} strokeDasharray={umfang} strokeDashoffset={umfang * (1 - Math.max(0, Math.min(100, prozent)) / 100)} /></svg>
       <div className="ac-ring-innen"><b>{prozent}</b><small>Prozent</small></div>
+      {/* 24.08.2026: Rundgang je Raum (E-063). */}
+      <SeitenRundgang raum="academy" titel={RUNDGAENGE.academy.titel} schritte={RUNDGAENGE.academy.schritte} />
     </div>
   );
 }

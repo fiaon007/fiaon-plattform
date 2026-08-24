@@ -122,6 +122,9 @@ import { SendeMenue } from "@/components/SendeMenue";
 import { Gespraechsblatt } from "@/components/Gespraechsblatt";
 import { RechnungBestaetigung } from "@/components/agent/RechnungBestaetigung";
 import "@/styles/office-pipeline.css";
+import { Rundgang } from "@/components/agent/Rundgang";
+import { RUNDGAENGE } from "./rundgaenge";
+import "@/styles/office-rundgang.css";
 
 
 // ── Der Kunde, wie ihn /agent/kunden/liste und /agent/crm/kunden/:id liefern ──
@@ -165,6 +168,11 @@ export interface Kunde {
   ruhtSeit: string | null;
   terminlinkMailAm: string | null;
   terminAm: string | null;
+  /** 24.08.2026: Ein gebuchter Termin, dessen Zeitpunkt erreicht oder
+   *  überschritten ist und der noch nicht erledigt wurde. `terminAm`
+   *  liefert nur ZUKÜNFTIGE Termine — ohne dieses Feld konnte der Filter
+   *  „Termin fällig" im Bestand-Raum per Konstruktion nie etwas finden. */
+  terminFaelligAm?: string | null;
   terminLink: string;
   gesperrt: boolean;
   betreutSeit: string | null;
@@ -217,9 +225,17 @@ const SORT: { key: string; label: string }[] = [
 const LAND_NAME: Record<string, string> = { DE: "Deutschland", AT: "Österreich", CH: "Schweiz", IT: "Italien", RO: "Rumänien", SK: "Slowakei" };
 
 // ── Helfer ────────────────────────────────────────────────────────────────
-const anrufen = (nummer: string | null | undefined, personId: number, name: string) => {
+// 24.08.2026 (Justin, Auftrag 2 — Collections öffnet DIESELBE Akte):
+// VORHER ging der Anruf aus der Akte immer ohne Rate-Kennung raus. Das
+// Telefon entscheidet aber an genau dieser Kennung, WELCHE Ergebnisliste es
+// nach dem Gespräch anbietet — ohne sie bekam ein Anruf wegen einer
+// überfälligen Rate die Vertriebs-Ergebnisse statt „Zahlt Rate am … / Nicht
+// erreicht / Kein Kontakt mehr möglich", und das Ergebnis wurde nicht an der
+// Rate gebucht. NACHHER reicht die Akte die Rate der aktuellen Situation mit
+// — in der Pipeline wie in Collections.
+const anrufen = (nummer: string | null | undefined, personId: number, name: string, rateId?: number | null) => {
   if (!nummer) return;
-  window.dispatchEvent(new CustomEvent("fiaon-anrufen", { detail: { nummer, personId, name } }));
+  window.dispatchEvent(new CustomEvent("fiaon-anrufen", { detail: { nummer, personId, name, rateId: rateId ?? null } }));
 };
 function heuteIso(): string { const d = new Date(); d.setHours(12, 0, 0, 0); return d.toISOString().slice(0, 10); }
 function tagPlus(n: number): string { const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); }
@@ -496,6 +512,8 @@ function SlotWahl({ laeuft, onBuchen, onZu }: {
         <button type="button" className="pi-link" onClick={onZu}>Schließen</button>
       </div>
       <p className="pi-fussnote">Die Zeiten kommen aus deiner Availability abzüglich deiner Termine – beim Bestätigen prüft der Server erneut und blockiert den Slot.</p>
+      {/* 24.08.2026: Rundgang je Raum (E-063). */}
+      <Rundgang raum="pipeline" titel={RUNDGAENGE.pipeline.titel} schritte={RUNDGAENGE.pipeline.schritte} />
     </div>
   );
 }
@@ -1627,7 +1645,7 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
           </div>
         </div>
         <div className="pi-lade-kopf-tun">
-          {k.telefonWaehlbar && <button type="button" className="pi-knopf gross" onClick={() => anrufen(k.telefonWaehlbar, k.personId, k.name)}><Phone size={16} strokeWidth={1.75} /> Anrufen</button>}
+          {k.telefonWaehlbar && <button type="button" className="pi-knopf gross" onClick={() => anrufen(k.telefonWaehlbar, k.personId, k.name, sitRate?.id ?? null)}><Phone size={16} strokeWidth={1.75} /> Anrufen</button>}
           <button type="button" className="pi-lade-zu" onClick={onZu} aria-label="Akte schließen"><X size={18} strokeWidth={1.75} /></button>
         </div>
       </div>
@@ -1688,11 +1706,11 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
               <div className="pi-situation-tun">
                 {(sitArt === "rate_ueberfaellig" || sitArt === "lead_ohne_antrag") && (
                   k.telefonWaehlbar
-                    ? <button type="button" className="pi-knopf riesig" onClick={() => { anrufen(k.telefonWaehlbar, k.personId, k.name); setLeitfadenAuf(true); }}><Phone size={18} strokeWidth={1.75} /> Anrufen mit Leitfaden</button>
+                    ? <button type="button" className="pi-knopf riesig" onClick={() => { anrufen(k.telefonWaehlbar, k.personId, k.name, sitRate?.id ?? null); setLeitfadenAuf(true); }}><Phone size={18} strokeWidth={1.75} /> Anrufen mit Leitfaden</button>
                     : <button type="button" className="pi-knopf riesig warn" onClick={() => setLeitfadenAuf(true)}><Phone size={18} strokeWidth={1.75} /> {k.telefon ? "Vorwahl fehlt – unten ergänzen" : "Nummer fehlt – unter „Daten“"}</button>
                 )}
                 {(sitArt === "zusage_gebrochen" || sitArt === "rueckruf_faellig" || sitArt === "termin_heute") && (
-                  <button type="button" className="pi-knopf riesig" disabled={!k.telefonWaehlbar} onClick={() => anrufen(k.telefonWaehlbar, k.personId, k.name)}><Phone size={18} strokeWidth={1.75} /> Anrufen</button>
+                  <button type="button" className="pi-knopf riesig" disabled={!k.telefonWaehlbar} onClick={() => anrufen(k.telefonWaehlbar, k.personId, k.name, sitRate?.id ?? null)}><Phone size={18} strokeWidth={1.75} /> Anrufen</button>
                 )}
                 {(sitArt === "bezahlt_ohne_termin" || sitArt === "zahlung_gemeldet") && (
                   <button type="button" className={`pi-knopf riesig${hatTermin ? " gut" : ""}`} onClick={() => setTerminOffen((v) => !v)}>{hatTermin ? <><Check size={17} strokeWidth={2} /> Termin steht</> : "Termin buchen"}</button>

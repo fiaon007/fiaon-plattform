@@ -29,7 +29,10 @@ interface Beitrag { id: number; autorArt: "betreiber" | "agent" | "system"; auto
 interface Auftrag {
   id: number; titel: string; text: string | null; bereich: string; prioritaet: number; faelligAm: string | null; link: string | null;
   status: "offen" | "in_arbeit" | "wartet" | "erledigt"; frageOffen: boolean; ergebnis: string | null; erledigtAm: string | null; delegiertAm: string | null; zeitleiste: Beitrag[];
+  // E-029 (24.08.2026): der Austausch geht in beide Richtungen.
+  frageAnAgent: boolean; neuFuerAgent: number; ergebnisPflicht: boolean; erledigtVon: string | null;
 }
+interface Lage { offen: number; wartet: number; neu: number; frageAnMich: number }
 
 const tag = (iso: string | null) => iso ? new Date(`${iso}T12:00:00Z`).toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit" }) : "";
 const zeit = (v: string | null) => v ? new Date(v).toLocaleString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
@@ -51,14 +54,21 @@ function TasksInnen() {
   const [fehler, setFehler] = useState<string | null>(null);
   const [busy, setBusy] = useState<number | null>(null);
   const [reiter, setReiter] = useState<"offen" | "auftraege" | "hinweise" | "erledigt">("offen");
-  const [auftraegeZahl, setAuftraegeZahl] = useState(0);
+  // E-029 (24.08.2026): VORHER nur EINE Zahl („auftraege"), die alles zählte,
+  // was nicht erledigt war — auch das, was auf Justins Antwort wartet.
+  // NACHHER die ehrliche Lage vom Server: offen zählt nur, was WIRKLICH bei mir
+  // liegt; wartet und neu stehen daneben und sind Anzeige, keine Marke.
+  const [lage, setLage] = useState<Lage>({ offen: 0, wartet: 0, neu: 0, frageAnMich: 0 });
 
   const laden = useCallback(async () => {
     const r = await api("/agent/vermerke");
     if (r.ok) { setListe(r.json.vermerke || []); setFehler(null); } else setFehler(r.json?.error || "Die Aufgaben konnten nicht geladen werden.");
     setLaedt(false);
     const z = await api("/agent/vermerke/zahlen");
-    if (z.ok) setAuftraegeZahl(Number(z.json.auftraege || 0));
+    if (z.ok) setLage({
+      offen: Number(z.json.auftraege || 0), wartet: Number(z.json.auftraegeWartet || 0),
+      neu: Number(z.json.auftraegeNeu || 0), frageAnMich: Number(z.json.auftraegeFrageAnMich || 0),
+    });
   }, []);
   useEffect(() => { void laden(); }, [laden]);
 
@@ -78,7 +88,7 @@ function TasksInnen() {
   const ueberfaellig = aufgabenOffen.filter((v) => v.ueberfaellig).length;
   const heute = aufgabenOffen.filter((v) => v.heuteFaellig).length;
   const sichtbar = reiter === "offen" ? aufgabenOffen : reiter === "hinweise" ? hinweise : reiter === "erledigt" ? erledigt : [];
-  const gesamtOffen = aufgabenOffen.length + auftraegeZahl;
+  const gesamtOffen = aufgabenOffen.length + lage.offen;
 
   return (
     <div className="ta">
@@ -93,7 +103,11 @@ function TasksInnen() {
           <div className="ta-lage-zahl"><b>{aufgabenOffen.length}</b><span>zu tun</span></div>
           <div className="ta-lage-zeile"><span>Heute fällig</span><b className={heute ? "warn" : ""}>{heute}</b></div>
           <div className="ta-lage-zeile"><span>Überfällig</span><b className={ueberfaellig ? "rot" : ""}>{ueberfaellig}</b></div>
-          <div className="ta-lage-zeile"><span>Aufträge vom Betreiber</span><b>{auftraegeZahl}</b></div>
+          <div className="ta-lage-zeile"><span>Aufträge vom Betreiber</span><b>{lage.offen}</b></div>
+          {/* E-029: nur zeigen, was es gibt. Eine Zeile mit einer Null ist eine
+              Zeile, die man wegsieht — und dann sieht man auch die Eins nicht. */}
+          {lage.wartet > 0 && <div className="ta-lage-zeile"><span>Wartet auf Justin</span><b>{lage.wartet}</b></div>}
+          {lage.neu > 0 && <div className="ta-lage-zeile"><span>Neu von Justin</span><b className="warn">{lage.neu}</b></div>}
         </div>
       </section>
 
@@ -101,7 +115,12 @@ function TasksInnen() {
 
       <div className="ta-reiter" role="tablist">
         <button type="button" role="tab" aria-selected={reiter === "offen"} className={reiter === "offen" ? "an" : ""} onClick={() => setReiter("offen")}>Zu tun {aufgabenOffen.length > 0 && <em>{aufgabenOffen.length}</em>}</button>
-        <button type="button" role="tab" aria-selected={reiter === "auftraege"} className={reiter === "auftraege" ? "an" : ""} onClick={() => setReiter("auftraege")}>Aufträge {auftraegeZahl > 0 && <em>{auftraegeZahl}</em>}</button>
+        {/* E-029: die Zahl im Reiter ist die ehrliche Zahl. Der Punkt daneben
+            erscheint nur, wenn Justin geschrieben hat und ich es noch nicht
+            gelesen habe — und verschwindet, sobald ich die Zeitleiste öffne. */}
+        <button type="button" role="tab" aria-selected={reiter === "auftraege"} className={reiter === "auftraege" ? "an" : ""} onClick={() => setReiter("auftraege")}>
+          Aufträge {lage.offen > 0 && <em>{lage.offen}</em>}{lage.neu > 0 && <i className="ta-punkt" aria-label="Neu von Justin" />}
+        </button>
         <button type="button" role="tab" aria-selected={reiter === "hinweise"} className={reiter === "hinweise" ? "an" : ""} onClick={() => setReiter("hinweise")}>Hinweise {hinweise.length > 0 && <em>{hinweise.length}</em>}</button>
         <button type="button" role="tab" aria-selected={reiter === "erledigt"} className={reiter === "erledigt" ? "an" : ""} onClick={() => setReiter("erledigt")}>Erledigt</button>
       </div>
@@ -147,35 +166,80 @@ function TasksInnen() {
   );
 }
 
-// ── Aufträge vom Betreiber (E-028) ──────────────────────────────────────────
+// ── Aufträge vom Betreiber (E-028, Austausch E-029 am 24.08.2026) ───────────
+//
+// VORHER: eine einzige Liste, in der offene und erledigte Aufträge gemischt
+// standen — der Mitarbeiter hakte etwas ab und die Karte blieb, wo sie war.
+// NACHHER: Was zu tun ist, steht oben. Erledigtes rutscht in einen
+// eingeklappten Abschnitt darunter, ist aber nicht weg — man muss nachlesen
+// können, was man gemeldet hat. Grund: Justins Auftrag vom 24.08.,
+// „danach verschwindet die Aufgabe aus seiner offenen Liste".
 function Auftraege({ onGeaendert }: { onGeaendert: () => void }) {
   const [liste, setListe] = useState<Auftrag[] | null>(null);
+  const [fertig, setFertig] = useState<Auftrag[]>([]);
+  const [fertigAuf, setFertigAuf] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
   const laden = useCallback(async () => {
     const r = await api("/agent/auftraege");
-    if (r.ok) { setListe(r.json.auftraege || []); setFehler(null); } else setFehler(r.json?.error || "Die Aufträge kamen nicht.");
+    if (r.ok) { setListe(r.json.auftraege || []); setFertig(r.json.erledigt || []); setFehler(null); }
+    else setFehler(r.json?.error || "Die Aufträge kamen nicht.");
   }, []);
   useEffect(() => { void laden(); }, [laden]);
-  const ersetzen = (t: Auftrag) => { setListe((alt) => (alt || []).map((x) => (x.id === t.id ? t : x))); onGeaendert(); geaendert(); };
+  // Ein erledigter Auftrag gehört nicht mehr in die offene Liste: neu laden,
+  // damit er dort verschwindet und unten bei „Zuletzt erledigt" auftaucht.
+  const ersetzen = (t: Auftrag) => {
+    if (t.status === "erledigt") { void laden(); } else setListe((alt) => (alt || []).map((x) => (x.id === t.id ? t : x)));
+    onGeaendert(); geaendert();
+  };
   const weg = () => { void laden(); onGeaendert(); geaendert(); };
 
   if (liste === null && !fehler) return <p className="ta-lade">Lade …</p>;
   return (
     <div className="ta-liste">
-      <p className="ta-fuss">Aufgaben, die Justin dir aus seiner Liste übergeben hat. Annehmen, Rückfrage stellen, Ergebnis melden – alles hier, in einer Zeitleiste, die beide Seiten sehen.</p>
+      <p className="ta-fuss">Aufgaben, die Justin dir aus seiner Liste übergeben hat. Annehmen, Rückfrage stellen, antworten, Ergebnis melden – alles hier, in einer Zeitleiste, die beide Seiten sehen.</p>
       {fehler && <p className="ta-fehler">{fehler}</p>}
-      {liste && liste.length === 0 && <div className="ta-leer"><b>Keine Aufträge.</b><span>Wenn Justin dir eine Aufgabe übergibt, steht sie hier – mit allem, was du dazu wissen musst.</span></div>}
+      {liste && liste.length === 0 && (
+        <div className="ta-leer">
+          <b>Nichts offen.</b>
+          <span>{fertig.length > 0 ? "Alles gemeldet. Was du erledigt hast, steht unten." : "Wenn Justin dir eine Aufgabe übergibt, steht sie hier – mit allem, was du dazu wissen musst."}</span>
+        </div>
+      )}
       {(liste || []).map((a) => <AuftragKarte key={a.id} a={a} onChange={ersetzen} onWeg={weg} />)}
+
+      {fertig.length > 0 && (
+        <>
+          <button type="button" className="ta-zeitleiste-knopf ta-fertig-knopf" onClick={() => setFertigAuf((v) => !v)}>
+            {fertigAuf ? <ChevronUp size={14} /> : <ChevronDown size={14} />} Zuletzt erledigt ({fertig.length})
+          </button>
+          {fertigAuf && fertig.map((a) => <AuftragKarte key={a.id} a={a} onChange={ersetzen} onWeg={weg} />)}
+        </>
+      )}
     </div>
   );
 }
 
+// E-029 (24.08.2026) — die Karte eines Auftrags.
+//
+// VORHER: annehmen, fragen, Notiz, Ergebnis (immer Pflichttext), zurückgeben.
+// Justins Frage konnte es nicht geben, und ob er geantwortet hatte, stand
+// eingeklappt in der Zeitleiste.
+//
+// NACHHER, entlang Justins Auftrag „das es Austausch zwischen Admins und
+// Mitarbeiter gibt":
+//   · Hat Justin geschrieben und ich es noch nicht gelesen, sagt die Karte das
+//     oben und klappt die Zeitleiste von selbst auf. Das Aufklappen meldet dem
+//     Server „gesehen" — die Marke verschwindet dadurch, nicht durch Zeitablauf.
+//   · Stellt Justin eine Frage, steht sie als Kasten da, MIT Antwort-Knopf.
+//     Kein Zustand ohne sichtbaren nächsten Schritt.
+//   · „Erledigt melden" verlangt den Ergebnis-Satz nur, wenn eine Frage im
+//     Spiel war (ergebnisPflicht vom Server) — sonst ist er freiwillig.
 function AuftragKarte({ a, onChange, onWeg }: { a: Auftrag; onChange: (t: Auftrag) => void; onWeg: () => void }) {
-  const [modus, setModus] = useState<null | "frage" | "ergebnis" | "zurueck" | "kommentar">(null);
+  const [modus, setModus] = useState<null | "frage" | "ergebnis" | "zurueck" | "kommentar" | "antwort">(null);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
-  const [zeitleisteAuf, setZeitleisteAuf] = useState(a.status === "wartet" || a.status === "in_arbeit");
+  const [zeitleisteAuf, setZeitleisteAuf] = useState(a.neuFuerAgent > 0 || a.frageAnAgent || a.status === "wartet" || a.status === "in_arbeit");
+
   const tun = async (pfad: string, body?: any) => {
     setBusy(true); setFehler(null);
     const r = await api(`/agent/auftraege/${a.id}/${pfad}`, { method: "POST", body: body ? JSON.stringify(body) : undefined });
@@ -184,24 +248,52 @@ function AuftragKarte({ a, onChange, onWeg }: { a: Auftrag; onChange: (t: Auftra
     if (r.json?.todo) onChange(r.json.todo); else onWeg();
     setModus(null); setText("");
   };
+
+  // Aufgeklappte Zeitleiste heißt gelesen. Der Server setzt den Zeitpunkt, die
+  // Marke leitet sich daraus ab — sie kann also nicht stehen bleiben.
+  useEffect(() => {
+    if (!zeitleisteAuf || a.neuFuerAgent < 1 || a.status === "erledigt") return;
+    let lebt = true;
+    void api(`/agent/auftraege/${a.id}/gelesen`, { method: "POST" }).then((r) => { if (lebt && r.ok && r.json?.todo) onChange(r.json.todo); });
+    return () => { lebt = false; };
+  }, [zeitleisteAuf, a.id, a.neuFuerAgent, a.status]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const st = STATUS[a.status];
-  const letzteFrage = a.frageOffen ? [...a.zeitleiste].reverse().find((b) => b.art === "frage") : null;
-  const mindest = modus === "ergebnis" ? 5 : modus === "kommentar" ? 2 : 3;
+  const letzteFrage = a.frageOffen ? [...a.zeitleiste].reverse().find((b) => b.art === "frage" && b.autorArt === "agent") : null;
+  const frageVonJustin = a.frageAnAgent ? [...a.zeitleiste].reverse().find((b) => b.art === "frage" && b.autorArt === "betreiber") : null;
+  const letzteAntwort = a.neuFuerAgent > 0 ? [...a.zeitleiste].reverse().find((b) => b.autorArt === "betreiber") : null;
+  // Freiwilliger Satz: leer abschicken ist erlaubt. Pflicht: mindestens ein Satz.
+  const mindest = modus === "ergebnis" ? (a.ergebnisPflicht ? 5 : 0) : modus === "kommentar" || modus === "antwort" ? 2 : 3;
+
   return (
-    <div className={`ta-auftrag ${a.status}`}>
+    <div className={`ta-auftrag ${a.status}${a.frageAnAgent ? " gefragt" : ""}`}>
       <div className="ta-auftrag-innen">
-        <div className="ta-auftrag-kopf"><span className="ta-status" style={{ color: st.farbe }}><i />{st.label}</span><small>{a.faelligAm ? `bis ${tag(a.faelligAm)}` : `Priorität ${a.prioritaet} · ${PRIO[a.prioritaet] || ""}`}</small></div>
+        <div className="ta-auftrag-kopf">
+          <span className="ta-status" style={{ color: a.frageAnAgent ? "#fbbf24" : st.farbe }}><i />{a.frageAnAgent ? "Justin wartet auf deine Antwort" : st.label}</span>
+          <small>{a.status === "erledigt" ? `gemeldet ${zeit(a.erledigtAm)}` : a.faelligAm ? `bis ${tag(a.faelligAm)}` : `Priorität ${a.prioritaet} · ${PRIO[a.prioritaet] || ""}`}</small>
+        </div>
         <h3>{a.titel}</h3>
         {a.text && <p className="ta-auftrag-text">{a.text}</p>}
         {a.link && <a href={a.link} target={a.link.startsWith("http") ? "_blank" : undefined} rel="noreferrer" className="ta-link"><ExternalLink size={13} strokeWidth={1.75} /> Öffnen</a>}
+
+        {frageVonJustin && <div className="ta-kasten warn"><b>Justin fragt dich:</b> „{frageVonJustin.text}“</div>}
+        {!frageVonJustin && letzteAntwort && a.status !== "erledigt" && (
+          <div className="ta-kasten neu"><b>Neu von Justin:</b> „{letzteAntwort.text}“</div>
+        )}
         {letzteFrage && <div className="ta-kasten warn">Deine Frage ist bei Justin: „{letzteFrage.text}“ — sobald er antwortet, läuft der Auftrag weiter.</div>}
-        {a.ergebnis && a.status === "erledigt" && <div className="ta-kasten gut"><b>Ergebnis:</b> {a.ergebnis}</div>}
+        {a.status === "erledigt" && (
+          <div className="ta-kasten gut">
+            {a.ergebnis ? <><b>Dein Ergebnis:</b> {a.ergebnis}</> : <>Als erledigt gemeldet{a.erledigtVon ? ` von ${a.erledigtVon}` : ""}. Justin sieht das in seiner Liste.</>}
+          </div>
+        )}
         {fehler && <p className="ta-fehler" style={{ marginTop: 12 }}>{fehler}</p>}
+
         {a.status !== "erledigt" && !modus && (
           <div className="ta-knoepfe">
-            {a.status === "offen" && <button type="button" className="ta-knopf haupt" disabled={busy} onClick={() => void tun("annehmen")}>Annehmen</button>}
-            {a.status !== "offen" && <button type="button" className="ta-knopf gut" disabled={busy} onClick={() => setModus("ergebnis")}>Ergebnis melden</button>}
-            {!a.frageOffen && <button type="button" className="ta-knopf" disabled={busy} onClick={() => setModus("frage")}>Rückfrage an Justin</button>}
+            {a.frageAnAgent && <button type="button" className="ta-knopf haupt" disabled={busy} onClick={() => setModus("antwort")}>Justin antworten</button>}
+            {!a.frageAnAgent && a.status === "offen" && <button type="button" className="ta-knopf haupt" disabled={busy} onClick={() => void tun("annehmen")}>Ich mach das</button>}
+            {a.status !== "offen" && <button type="button" className="ta-knopf gut" disabled={busy} onClick={() => setModus("ergebnis")}>Als erledigt melden</button>}
+            {!a.frageOffen && !a.frageAnAgent && <button type="button" className="ta-knopf" disabled={busy} onClick={() => setModus("frage")}>Rückfrage an Justin</button>}
             <button type="button" className="ta-knopf" disabled={busy} onClick={() => setModus("kommentar")}>Notiz</button>
             <button type="button" className="ta-knopf" disabled={busy} onClick={() => setModus("zurueck")}>Zurückgeben</button>
           </div>
@@ -210,29 +302,39 @@ function AuftragKarte({ a, onChange, onWeg }: { a: Auftrag; onChange: (t: Auftra
           <div className="ta-form">
             <p>
               {modus === "frage" && "Was musst du wissen, um weiterzumachen? Die Frage geht sofort an Justin; der Auftrag wartet so lange."}
-              {modus === "ergebnis" && "Was ist dabei herausgekommen? Justin liest genau das – bitte so konkret, dass er nichts nachfragen muss."}
+              {modus === "antwort" && "Deine Antwort geht direkt an Justin und steht in der Zeitleiste, die er sieht."}
+              {modus === "ergebnis" && (a.ergebnisPflicht
+                ? "Zu diesem Auftrag gab es eine Frage – halte bitte in einem Satz fest, wie sie ausgegangen ist. Justin liest genau das."
+                : "Was hast du gemacht? Ein Satz genügt, und er ist freiwillig – du kannst auch direkt melden.")}
               {modus === "zurueck" && "Warum kannst du den Auftrag nicht übernehmen? Er geht mit deiner Begründung zurück an Justin."}
               {modus === "kommentar" && "Eine Notiz für die Zeitleiste – Justin sieht sie, der Auftrag läuft weiter."}
             </p>
-            <textarea className="ta-feld" rows={3} value={text} onChange={(e) => setText(e.target.value)} autoFocus placeholder={modus === "frage" ? "Deine Frage …" : modus === "ergebnis" ? "Das Ergebnis …" : modus === "zurueck" ? "Der Grund …" : "Deine Notiz …"} />
+            <textarea className="ta-feld" rows={3} value={text} onChange={(e) => setText(e.target.value)} autoFocus
+              placeholder={modus === "frage" ? "Deine Frage …" : modus === "antwort" ? "Deine Antwort …" : modus === "ergebnis" ? (a.ergebnisPflicht ? "Das Ergebnis …" : "Was hast du gemacht? (freiwillig)") : modus === "zurueck" ? "Der Grund …" : "Deine Notiz …"} />
             <div className="ta-knoepfe" style={{ marginTop: 0 }}>
               <button type="button" className="ta-knopf haupt" disabled={busy || text.trim().length < mindest}
-                onClick={() => void tun(modus === "ergebnis" ? "erledigt" : modus, modus === "frage" ? { text } : modus === "ergebnis" ? { ergebnis: text } : modus === "zurueck" ? { grund: text } : { text })}>
-                {busy ? "…" : modus === "frage" ? "Frage senden" : modus === "ergebnis" ? "Als erledigt melden" : modus === "zurueck" ? "Zurückgeben" : "Speichern"}
+                onClick={() => void tun(
+                  modus === "ergebnis" ? "erledigt" : modus === "antwort" ? "kommentar" : modus,
+                  modus === "frage" ? { text } : modus === "ergebnis" ? { ergebnis: text } : modus === "zurueck" ? { grund: text } : { text },
+                )}>
+                {busy ? "…" : modus === "frage" ? "Frage senden" : modus === "antwort" ? "Antwort senden" : modus === "ergebnis" ? (text.trim() ? "Als erledigt melden" : "Ohne Text melden") : modus === "zurueck" ? "Zurückgeben" : "Speichern"}
               </button>
               <button type="button" className="ta-knopf" onClick={() => { setModus(null); setText(""); }}>Abbrechen</button>
             </div>
           </div>
         )}
       </div>
-      <button type="button" className="ta-zeitleiste-knopf" onClick={() => setZeitleisteAuf((v) => !v)}>{zeitleisteAuf ? <ChevronUp size={14} /> : <ChevronDown size={14} />} Zeitleiste{a.zeitleiste.length ? ` (${a.zeitleiste.length})` : ""}</button>
+      <button type="button" className="ta-zeitleiste-knopf" onClick={() => setZeitleisteAuf((v) => !v)}>
+        {zeitleisteAuf ? <ChevronUp size={14} /> : <ChevronDown size={14} />} Zeitleiste{a.zeitleiste.length ? ` (${a.zeitleiste.length})` : ""}
+        {a.neuFuerAgent > 0 && <em className="ta-punkt-zeile">{a.neuFuerAgent} neu</em>}
+      </button>
       {zeitleisteAuf && (
         <div className="ta-zeitleiste">
           <div className="ta-blase system">Übergeben {zeit(a.delegiertAm)}</div>
           {a.zeitleiste.map((b) => (
             <div key={b.id} className={`ta-blase ${b.autorArt} ${b.art === "frage" || b.art === "ergebnis" ? b.art : ""}`}>
-              {b.art === "frage" && <strong>Frage</strong>}
-              {b.art === "antwort" && <strong>Antwort von Justin</strong>}
+              {b.art === "frage" && <strong>{b.autorArt === "agent" ? "Deine Frage" : "Frage von Justin"}</strong>}
+              {b.art === "antwort" && <strong>{b.autorArt === "agent" ? "Deine Antwort" : "Antwort von Justin"}</strong>}
               {b.art === "ergebnis" && <strong>Ergebnis</strong>}
               {b.text}
               {b.autorArt !== "system" && <small>{b.autorArt === "agent" ? "Du" : b.autorName} · {zeit(b.am)}</small>}

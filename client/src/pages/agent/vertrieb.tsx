@@ -57,6 +57,8 @@ interface Person {
 interface AgentZeile {
   id: number; name: string; rolle: string;
   tier1: number; tier2: number; tier3: number; betreut: number; gesamt: number;
+  /** Übernommene Mandate (mandat_seit, §16a) — dieselbe Zahl wie /agent/bestand. */
+  mandate?: number;
 }
 
 async function api(pfad: string, init?: RequestInit) {
@@ -556,7 +558,16 @@ function Inhalt() {
                         [a.tier1, "gemeldet", "var(--fi-tier1)"],
                         [a.tier2, "offen", "var(--fi-tier2)"],
                         [a.tier3, "Leads", "var(--fi-tier3)"],
-                        [a.betreut, "betreut", "var(--fi-text-still)"],
+                        // 24.08.2026: VORHER stand hier nur „betreut"
+                        // (betreuung_seit). Das setzt lib/tier.ts bei JEDEM
+                        // Ergebnis, auch bei „nicht erreicht" — hausweit 1678
+                        // Personen gegen 411 echte Mandate. Die Überschrift
+                        // der Tabelle heißt „Bestand je Mitarbeiter", und
+                        // Bestand sind laut §16a die MANDATE. Sie stehen
+                        // jetzt daneben, mit derselben Rechnung wie
+                        // /agent/bestand.
+                        [a.mandate ?? 0, "Mandate", "var(--fi-erfolg)"],
+                        [a.betreut, "berührt", "var(--fi-text-still)"],
                       ] as const).map(([wert, wort, farbe]) => (
                         <span key={wort} className="fi-vb-paar">
                           <b style={{ color: farbe }}>{wert}</b>
@@ -568,7 +579,26 @@ function Inhalt() {
                   <ZeichenWinkel richtung="rechts" size={13} className="fi-vb-winkel" />
                 </button>
               ))}
-              {agenten.length === 0 && <p className="px-4 py-4 text-[13px]" style={{ color: "var(--fi-text-still)" }}>Wird geladen …</p>}
+              {/* ── 24.08.2026: „WIRD GELADEN …" ÜBER EINER LEEREN TABELLE ───
+                  VORHER stand hier immer „Wird geladen …", sobald die Liste
+                  leer war — auch dann, wenn die Antwort längst da war und
+                  einfach keine Zeile enthielt. Das sind zwei völlig
+                  verschiedene Lagen (AGENTS.md: eine Anzeige muss zwischen
+                  „es ist kaputt" und „ich kann es nicht messen" unterscheiden).
+                  GEMESSEN am 24.08.2026: Die Abfrage filtert auf
+                  fiaon_agents.active — und während des Office-Umbaus (E-038)
+                  steht active bei ALLEN echten Mitarbeitern auf FALSE (Daniel,
+                  Nikita, Angelique, Rifka, Viktoria, Florentine, Lucas,
+                  Hans-Jürgen, Diana). Die Tabelle lieferte also 0 Zeilen,
+                  während die Kacheln darüber 199 Stufe-A-Kunden zeigten.
+                  NACHHER sagt die Seite, WARUM sie leer ist. */}
+              {agenten.length === 0 && (
+                <p className="px-4 py-4 text-[13px]" style={{ color: "var(--fi-text-still)" }}>
+                  {zahlen == null
+                    ? "Wird geladen …"
+                    : "Kein freigeschalteter Mitarbeiter. Diese Tabelle zeigt nur Konten, die im Admin aktiv gesetzt sind — während des Office-Umbaus ist das keines. Die Kundenzahlen oben zählen trotzdem den ganzen Bestand."}
+                </p>
+              )}
             </div>
           </section>
         </Reveal>

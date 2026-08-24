@@ -82,6 +82,19 @@
 .ta-blase strong{display:block;font:500 10px/1 'Inter',sans-serif;letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px;opacity:.85}
 .ta-blase small{display:block;font-size:10.5px;opacity:.7;margin-top:4px}
 
+/* ── E-029 (24.08.2026): der Austausch wird sichtbar ────────────────────────
+   VORHER sah man erst nach dem Aufklappen der Zeitleiste, dass Justin
+   geschrieben hat. NACHHER drei ruhige Zeichen im Bernstein der CI: ein Punkt
+   am Reiter, eine Zeile am Zeitleisten-Knopf, ein Kasten in der Karte. Kein
+   Rot, kein Fettdruck — und alle drei verschwinden, sobald gelesen wurde. */
+.ta-punkt{display:inline-block;width:7px;height:7px;margin-left:2px;border-radius:50%;background:#fbbf24;box-shadow:0 0 8px rgba(251,191,36,.8)}
+.ta-punkt-zeile{margin-left:auto;font-style:normal;font:500 11px/1 'Inter',sans-serif;color:#fbbf24;padding:3px 9px;border-radius:999px;background:rgba(251,191,36,.14);border:1px solid rgba(251,191,36,.35)}
+.ta-kasten.neu{background:rgba(37,99,235,.16);border:1px solid rgba(96,165,250,.4);color:#dbeafe}
+.ta-kasten b{font-weight:500}
+.ta-auftrag.gefragt{border-color:rgba(251,191,36,.4)}
+.ta-auftrag.gefragt::before{background:#fbbf24}
+.ta-fertig-knopf{margin-top:6px;border:1px solid rgba(255,255,255,.1);border-radius:16px;background:rgba(255,255,255,.04)}
+
 @media(max-width:960px){.ta-kopf{grid-template-columns:1fr}}
 @media(max-width:700px){
   .ta-lage-zahl b{font-size:36px}
@@ -90,4 +103,11 @@
   .ta-knopf{flex:1 1 auto}
   .ta-reiter{width:100%}
   .ta-reiter button{flex:1 1 auto;justify-content:center;padding:0 10px}
+  /* E-029: VORHER 14px — iOS zoomt beim Hineintippen in jedes Feld unter 16px
+     die ganze Seite heran, und der Mitarbeiter schreibt seine Antwort in einer
+     verrutschten Ansicht. NACHHER 16px, nur am Handy. */
+  .ta-feld{font-size:16px}
+  .ta-auftrag-innen{padding:16px 16px 14px}
+  .ta-knoepfe{gap:10px}
+  .ta-punkt-zeile{margin-left:8px}
 }

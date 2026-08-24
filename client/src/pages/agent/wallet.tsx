@@ -20,6 +20,9 @@ import { TrendingUp, CheckCircle2, Clock, Wallet, Award, ShieldCheck, Users, Sen
 import { AgentShell, api, fmtCents, fmtDT, fmtD, useFragen } from "./shared";
 import { useOffice } from "./OfficeShell";
 import "@/styles/office-wallet.css";
+import { Rundgang } from "@/components/agent/Rundgang";
+import { RUNDGAENGE } from "./rundgaenge";
+import "@/styles/office-rundgang.css";
 
 type Reiter = "guthaben" | "auszahlung" | "leistung" | "partner";
 const REITER: { key: Reiter; label: string; Icon: any }[] = [
@@ -84,6 +87,8 @@ function WalletInnen() {
       {reiter === "auszahlung" && <Auszahlung />}
       {reiter === "leistung" && <Leistung />}
       {reiter === "partner" && <Partner />}
+      {/* 24.08.2026: Rundgang je Raum (E-063). */}
+      <Rundgang raum="wallet" titel={RUNDGAENGE.wallet.titel} schritte={RUNDGAENGE.wallet.schritte} />
     </div>
   );
 }
@@ -118,7 +123,13 @@ function Guthaben({ earnings, onWechsel }: { earnings: any; onWechsel: (r: Reite
       <section className="wa-block">
         <div className="wa-block-kopf">
           <b>Deine Provisionen je Rate</b>
-          <small>{e ? `${e.entries.length} Buchungen` : ""}{e?.overrideCents > 0 ? ` · davon Team-Beteiligung ${fmtCents(e.overrideCents)}` : ""}</small>
+          {/* 24.08.2026: VORHER stand hier die Länge der gelieferten Liste als
+              „N Buchungen". Die Abfrage im Server hat LIMIT 50. GEMESSEN bei
+              Daniel Stripling (Konto 8): 276 Buchungen — die Überschrift sagte
+              50. NACHHER nennt sie beides. */}
+          <small>{e ? (e.entriesGesamt != null && Number(e.entriesGesamt) > e.entries.length
+            ? `${e.entries.length} von ${e.entriesGesamt} Buchungen · die jüngsten zuerst`
+            : `${e.entries.length} Buchungen`) : ""}{e?.overrideCents > 0 ? ` · davon Team-Beteiligung ${fmtCents(e.overrideCents)}` : ""}</small>
           <button type="button" className="wa-link" onClick={() => onWechsel("auszahlung")}>Auszahlung beantragen →</button>
         </div>
         {!e && <p className="wa-laedt">Lade …</p>}

@@ -78,6 +78,29 @@ async function eigene(personId: number, agentId: number): Promise<boolean> {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// DARF DIESER MENSCH DIE AKTE LESEN? (24.08.2026, Justin)
+//
+// VORHER: Die Akte-Zeitleiste (/agent/vertrieb/aktivitaet/:personId) fragte
+// NUR `eigene()`. Seit Collections dieselbe Akte öffnet wie die Pipeline,
+// stand das Forderungsmanagement damit vor einer verschlossenen Tür: Diana
+// (Rolle „inkasso") betreut niemanden, ihre Fälle sind fremde Kunden mit
+// offener Rate. Ergebnis wäre eine Akte ohne Situations-Kopf gewesen — genau
+// der Zweig „Rate überfällig" hängt an dieser Antwort.
+//
+// NACHHER: erst der eigene Kunde (billig, eine Zeile), sonst die EINE
+// Definition aus fiaon-kundenzugriff (`darfAnKunde`): Leitung alles, Inkasso
+// nur Menschen mit offener Rate, Onboarding nur seine Startgespräche. Für den
+// gewöhnlichen Bonitätsmanager ändert sich nichts — er kommt schon über
+// `eigene()` durch. Umgangen wird nichts: Geschrieben wird weiterhin nur, wo
+// die jeweilige Route es erlaubt.
+// ═══════════════════════════════════════════════════════════════════════════
+async function darfAkteLesen(personId: number, agentId: number): Promise<boolean> {
+  if (await eigene(personId, agentId)) return true;
+  const { rolleVon, darfAnKunde } = await import("../lib/fiaon-kundenzugriff");
+  return darfAnKunde(agentId, await rolleVon(agentId), personId);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // §16: Ist der Kunde VOLLSTÄNDIG? — die eine, exportierte Wahrheit.
 //   Paket bezahlt UND SCHUFA (74 €, pack_key='schufa') bezahlt UND
 //   Kontoauszug (bank_statement_pdf) UND Ausweis (id_card_pdf) vorhanden.
@@ -131,6 +154,8 @@ export interface KundenSituation {
   rueckrufAm: string | null;
   /** Nächster gebuchter Termin in der Zukunft. */
   terminAm: string | null;
+  /** Ein gebuchter Termin, dessen Zeitpunkt erreicht/ueberschritten ist. */
+  terminFaelligAm?: string | null;
   terminHeute: string | null;
   naechsteRate: { faelligAm: string; betragCents: number } | null;
   tier: number;
@@ -163,6 +188,15 @@ export async function kundenSituation(personId: number): Promise<KundenSituation
          AND t.abgesagt_am IS NULL
          AND (t.beginn AT TIME ZONE 'Europe/Berlin')::date = (NOW() AT TIME ZONE 'Europe/Berlin')::date
          ORDER BY t.beginn LIMIT 1) AS termin_heute,
+      -- 24.08.2026: NEU. Der Filter „Termin faellig" im Bestand-Raum konnte
+      -- per Konstruktion nie etwas finden: termin_am liefert nur Termine in
+      -- der ZUKUNFT (t.beginn > NOW()), und ein faelliger Termin liegt per
+      -- Definition in der Vergangenheit. Dieses Feld nennt den aeltesten
+      -- gebuchten Termin, dessen Zeitpunkt erreicht oder ueberschritten ist
+      -- und der noch nicht erledigt wurde — genau das, was „faellig" heisst.
+      (SELECT t.beginn FROM fiaon_termine t WHERE t.person_id = p.id AND t.status = 'gebucht'
+         AND t.abgesagt_am IS NULL AND t.erledigt_am IS NULL AND t.beginn <= NOW()
+         ORDER BY t.beginn LIMIT 1) AS termin_faellig_am,
       (SELECT row_to_json(y) FROM (
          SELECT r.faellig_am, r.betrag_cents
          FROM fiaon_abo_raten r JOIN fiaon_applications a4 ON a4.ref = r.ref
@@ -200,6 +234,7 @@ export async function kundenSituation(personId: number): Promise<KundenSituation
     zusageAm: z.promised_payment_date ? String(z.promised_payment_date).slice(0, 10) : null,
     rueckrufAm: z.rueckruf_am ?? null,
     terminAm: z.termin_am ?? null,
+    terminFaelligAm: z.termin_faellig_am ?? null,
     terminHeute: z.termin_heute ?? null,
     naechsteRate: z.naechste_rate ? { faelligAm: String(z.naechste_rate.faellig_am), betragCents: Number(z.naechste_rate.betrag_cents || 0) } : null,
     tier,
@@ -511,7 +546,8 @@ router.get("/agent/vertrieb/aktivitaet/:personId", requireAgent, async (req: Age
   try {
     const personId = Number(req.params.personId);
     if (!Number.isFinite(personId) || personId <= 0) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
-    if (!(await eigene(personId, req.agent!.id))) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+    // 24.08.2026 (Justin): VORHER `eigene(...)` — siehe darfAkteLesen oben.
+    if (!(await darfAkteLesen(personId, req.agent!.id))) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
 
     const refs = ((await sqlPool`
       SELECT ref FROM fiaon_applications WHERE person_id = ${personId} AND merged_into IS NULL

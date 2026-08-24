@@ -2722,10 +2722,24 @@ router.get("/agent/earnings", requireAgent, async (req: AgentRequest, res) => {
     const agentRow = await sqlPool`SELECT commission_rate_bp, monthly_goal_cents FROM fiaon_agents WHERE id = ${me}`;
     const rateBp = agentRateBp(agentRow[0] as any, settings);
     // Potenziell (Anzeige, kein Anspruch): zugewiesene, noch unbezahlte Kunden × Satz
+    //
+    // ── 24.08.2026: DIESELBE FRAGE, ZWEI ANTWORTEN ──────────────────────────
+    // VORHER las diese Abfrage `fiaon_applications.assigned_agent_id` — die
+    // Zuordnung an der BESTELLUNG. Die Startseite (/agent/start, Feld
+    // `moeglichCents`) rechnet dieselbe Zahl über die Zuordnung an der PERSON
+    // (`fiaon_persons.assigned_agent_id`), und die ist laut Hausmodell §16a
+    // die Betreuung. Zwei Wege, zwei Zahlen.
+    // GEMESSEN am 24.08.2026: Daniel Stripling (Konto 8) 199 gegen 213
+    // Bestellungen, Nikita Boychenko (Konto 13) 236 gegen 264, Testkonto 928
+    // 0 gegen 6.
+    // NACHHER liest auch das Wallet über die Person — eine Wahrheit.
     const potential = await sqlPool`
-      SELECT COALESCE(SUM(ROUND(ROUND(COALESCE(amount_due::numeric,0) * 100) * ${rateBp} / 10000.0)),0) AS s, COUNT(*) AS c
-      FROM fiaon_applications
-      WHERE assigned_agent_id = ${me} AND payment_status IN ('pending_payment','claimed_paid') AND merged_into IS NULL
+      SELECT COALESCE(SUM(ROUND(ROUND(COALESCE(a.amount_due::numeric,0) * 100) * ${rateBp} / 10000.0)),0) AS s,
+             COUNT(*) AS c
+      FROM fiaon_applications a
+      JOIN fiaon_persons p ON p.id = a.person_id
+      WHERE p.assigned_agent_id = ${me} AND p.merged_into_person_id IS NULL
+        AND a.merged_into IS NULL AND a.payment_status IN ('pending_payment','claimed_paid')
     `;
     const sums = await sqlPool`
       SELECT status, COALESCE(SUM(amount_cents),0) AS s, COUNT(*) AS c
@@ -2746,6 +2760,15 @@ router.get("/agent/earnings", requireAgent, async (req: AgentRequest, res) => {
       LEFT JOIN fiaon_applications a ON a.ref = c.ref
       WHERE c.agent_id = ${me} ORDER BY c.created_at DESC LIMIT 50
     `;
+    // ── 24.08.2026: „N BUCHUNGEN" WAR IN WAHRHEIT „DIE ERSTEN 50" ──────────
+    // Das Wallet schrieb über die Liste `entries.length` und nannte es
+    // „Buchungen". Die Abfrage darüber hat LIMIT 50.
+    // GEMESSEN: Daniel Stripling (Konto 8) hat 276 Provisionsbuchungen — die
+    // Überschrift sagte 50. NACHHER reist die echte Gesamtzahl mit, und die
+    // Oberfläche schreibt „50 von 276".
+    const [entriesGesamtR] = (await sqlPool`
+      SELECT COUNT(*)::int AS n FROM fiaon_commissions WHERE agent_id = ${me}
+    `) as any[];
     // Paket AE2: Team-Umsatzbeteiligung getrennt ausweisen (fließt ins selbe Guthaben)
     const overrides = await sqlPool`
       SELECT COALESCE(SUM(amount_cents),0) AS s, COUNT(*) FILTER (WHERE amount_cents > 0) AS c
@@ -2764,6 +2787,8 @@ router.get("/agent/earnings", requireAgent, async (req: AgentRequest, res) => {
       overrideCents: Number(overrides[0].s),
       overrideCount: Number(overrides[0].c),
       entries,
+      // Wie viele es insgesamt sind — `entries` zeigt nur die jüngsten 50.
+      entriesGesamt: Number(entriesGesamtR?.n ?? 0),
     });
   } catch (err) {
     console.error("[FIAON-AGENT] earnings:", err);

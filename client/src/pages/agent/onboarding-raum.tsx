@@ -32,6 +32,9 @@ import { ZusageTafel } from "./vertrieb-zusage";
 import { LageTafel } from "./vertrieb-service";
 import { OnboardingCockpit } from "@/components/agent/OnboardingCockpit";
 import "@/styles/office-onboarding.css";
+import { Rundgang } from "@/components/agent/Rundgang";
+import { RUNDGAENGE } from "./rundgaenge";
+import "@/styles/office-rundgang.css";
 
 const uhr = (d: Date) => new Date(d).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" });
 const zeitTag = (iso: string) => new Date(iso).toLocaleString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
@@ -93,10 +96,23 @@ function OnboardingInnen() {
   }, []);
   useEffect(() => { void laden(); }, [laden]);
 
+  // ── 24.08.2026: DIE KACHELN ZÄHLTEN HEUTE, DIE LISTEN ZEIGTEN DREISSIG TAGE
+  // ────────────────────────────────────────────────────────────────────────
+  // VORHER liest die Kachel „Heute erledigt" den Serverwert `heuteErledigt`
+  // (nur der heutige Tag), der Klick darauf zeigte aber ALLE abgeschlossenen
+  // Gespräche des 30-Tage-Fensters. Dasselbe bei „Nicht erschienen".
+  // GEMESSEN bei Rifka Rovcanin (Konto 811) am 24.08.2026: Kachel
+  // „Heute erledigt" stand auf 0 — die Liste darunter hatte 54 Zeilen. Kachel
+  // „Nicht erschienen" stand auf 0 — die Liste hatte 21 Zeilen.
+  // NACHHER zeigt die Liste denselben Tag, den die Kachel zählt.
+  const heuteBerlin = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+  const amHeute = (iso: string | null | undefined) => !!iso
+    && new Date(iso).toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" }) === heuteBerlin;
   const offene = useMemo(() => termine.filter((t) => !sgErledigt(t)), [termine]);
-  const erledigte = useMemo(() => termine.filter(sgErledigt).sort((a, b) => +new Date(b.erledigtAm ?? b.beginn) - +new Date(a.erledigtAm ?? a.beginn)), [termine]);
+  const erledigte = useMemo(() => termine.filter((t) => sgErledigt(t) && amHeute(t.erledigtAm ?? t.abgesagtAm))
+    .sort((a, b) => +new Date(b.erledigtAm ?? b.beginn) - +new Date(a.erledigtAm ?? a.beginn)), [termine, heuteBerlin]); // eslint-disable-line react-hooks/exhaustive-deps
   const heutige = useMemo(() => termine.filter((t) => t.heute), [termine]);
-  const noshows = useMemo(() => termine.filter((t) => t.status === "verpasst"), [termine]);
+  const noshows = useMemo(() => termine.filter((t) => t.status === "verpasst" && amHeute(t.erledigtAm)), [termine, heuteBerlin]); // eslint-disable-line react-hooks/exhaustive-deps
   // Das Herz der Seite: der nächste offene Termin (überfällige zuerst — die sind JETZT dran).
   const naechster = offene.find((t) => t.status === "gebucht") ?? null;
 
@@ -111,8 +127,10 @@ function OnboardingInnen() {
 
   const kacheln: { k: Filter; label: string; wert: number | undefined; hinweis: string }[] = [
     { k: "heute", label: "Heute geplant", wert: zahlen?.heuteGeplant, hinweis: "Startgespräche, die heute stattfinden sollen. Klick zeigt den heutigen Tag." },
-    { k: "erledigt", label: "Heute erledigt", wert: zahlen?.heuteErledigt, hinweis: "Heute geführte Gespräche – jedes hat ein Konto freigeschaltet. Klick zeigt alle abgeschlossenen." },
-    { k: "noshow", label: "Nicht erschienen", wert: zahlen?.heuteNoShow, hinweis: "Heute nicht erschienen. Diese Kunden werden automatisch erneut eingeladen. Klick zeigt alle offenen No-Shows." },
+    // 24.08.2026: Beide Beschriftungen sagen jetzt „heute" — und die Liste
+    // darunter zeigt genau diesen Tag (vorher: 30 Tage, siehe oben).
+    { k: "erledigt", label: "Heute erledigt", wert: zahlen?.heuteErledigt, hinweis: "Heute geführte Gespräche – jedes hat ein Konto freigeschaltet. Klick zeigt sie." },
+    { k: "noshow", label: "Heute nicht erschienen", wert: zahlen?.heuteNoShow, hinweis: "Heute nicht erschienen. Diese Kunden werden automatisch erneut eingeladen. Klick zeigt sie." },
     { k: "wartende", label: "Wartet auf Gespräch", wert: zahlen?.wartend, hinweis: "Bezahlte Kunden, deren Konto bis zum Startgespräch eingeschränkt bleibt. Klick öffnet die Liste zum Einladen." },
   ];
 
@@ -161,7 +179,7 @@ function OnboardingInnen() {
         <section className="ob-liste">
           {laedt && <p className="ob-lade">Lade …</p>}
           {!laedt && tage.length === 0 && (
-            <div className="ob-block"><p className="ob-leer">{filter === "erledigt" ? "Noch nichts abgeschlossen. Geführte und verpasste Gespräche stehen hier – mit Haken und Uhrzeit." : filter === "noshow" ? "Kein offener No-Show. Gut so." : filter === "heute" ? "Heute steht kein Startgespräch an." : `Kein offenes Startgespräch. Bezahlte Kunden werden beim ersten Login eingeladen und wählen ihre Zeit selbst.${erledigte.length ? ` ${erledigte.length} bereits bearbeitete stehen unter „Heute erledigt“.` : ""}`}</p></div>
+            <div className="ob-block"><p className="ob-leer">{filter === "erledigt" ? "Heute noch nichts abgeschlossen. Geführte und verpasste Gespräche von heute stehen hier – mit Haken und Uhrzeit." : filter === "noshow" ? "Heute ist niemand ausgeblieben. Gut so." : filter === "heute" ? "Heute steht kein Startgespräch an." : `Kein offenes Startgespräch. Bezahlte Kunden werden beim ersten Login eingeladen und wählen ihre Zeit selbst.${erledigte.length ? ` ${erledigte.length} heute bearbeitete stehen unter „Heute erledigt“.` : ""}`}</p></div>
           )}
           {!laedt && tage.map(([datum, dl]) => (
             <div key={datum}>
@@ -182,6 +200,9 @@ function OnboardingInnen() {
           onAnrufen={(nummer, personId, name) => anrufen(nummer, personId, name)}
         />
       )}
+      {/* 24.08.2026 (Justin): Jeder Raum erklaert sich beim ersten
+          Betreten selbst — danach jederzeit ueber den Knopf unten links. */}
+      <Rundgang raum="onboarding" titel={RUNDGAENGE.onboarding.titel} schritte={RUNDGAENGE.onboarding.schritte} />
     </div>
   );
 }

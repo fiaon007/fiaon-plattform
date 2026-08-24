@@ -20,6 +20,9 @@ import {
 import { AgentShell, Avatar, api } from "./shared";
 import { useOffice } from "./OfficeShell";
 import "@/styles/office-space.css";
+import { Rundgang } from "@/components/agent/Rundgang";
+import { RUNDGAENGE } from "./rundgaenge";
+import "@/styles/office-rundgang.css";
 
 // ── Datenformen (wie in space.tsx) ──────────────────────────────────────────
 interface Kommentar {
@@ -129,6 +132,8 @@ function KommentarZeile({ k, onAntwort, onWeg }: {
           )}
         </p>
       </div>
+      {/* 24.08.2026: Rundgang je Raum (E-063). */}
+      <Rundgang raum="space" titel={RUNDGAENGE.space.titel} schritte={RUNDGAENGE.space.schritte} />
     </div>
   );
 }

@@ -23,6 +23,9 @@ import { AgentShell, api, useAgentInfo, fmtDT, fmtCents } from "./shared";
 import { useOffice } from "./OfficeShell";
 import { getUnseenCount } from "./updates-data";
 import "@/styles/office-more.css";
+import { Rundgang } from "@/components/agent/Rundgang";
+import { RUNDGAENGE } from "./rundgaenge";
+import "@/styles/office-rundgang.css";
 
 type Bereich = "" | "profil" | "dokumente" | "passwort";
 type Meldung = { art: "gut" | "schlecht"; text: string } | null;
@@ -65,6 +68,8 @@ function MoreInnen() {
       {bereich === "profil" && <Profil melden={melden} />}
       {bereich === "dokumente" && <Dokumente />}
       {bereich === "passwort" && <Passwort email={agent?.email} melden={melden} />}
+      {/* 24.08.2026: Rundgang je Raum (E-063). */}
+      <Rundgang raum="more" titel={RUNDGAENGE.more.titel} schritte={RUNDGAENGE.more.schritte} />
     </div>
   );
 }

@@ -177,9 +177,34 @@ router.get("/agent/crm/dashboard", requireAgent, async (req: AgentRequest, res: 
         count(*) FILTER (WHERE NOT is_blocked AND priority_tier = 2)::int AS tier2,
         count(*) FILTER (WHERE NOT is_blocked AND priority_tier = 3)::int AS tier3,
         count(*) FILTER (WHERE is_blocked)::int AS gesperrt,
-        count(*)::int AS gesamt
+        count(*)::int AS gesamt,
+        -- ── DIE MARKE IN DER LEISTE: MENSCHEN, NICHT GRÜNDE (24.08.2026) ────
+        -- VORHER addierte die Oberfläche heuteFaellig + ohneDatum +
+        -- ueberfaellig zu EINER Marke. Die drei Mengen überschneiden sich:
+        -- Ein Kunde mit Wiedervorlage heute UND überfälliger Zusage steckt in
+        -- zwei Töpfen, ein Stufe-A-Kunde ohne Zusagedatum mit Wiedervorlage
+        -- ebenfalls.
+        -- GEMESSEN am 24.08.2026 bei Daniel Stripling (Konto 8):
+        -- 176 + 27 + 30 = 233, aber nur 188 verschiedene Menschen — 45
+        -- doppelt. Bei Nikita Boychenko (Konto 13): 190 + 54 + 13 = 257
+        -- gegen 205 Menschen.
+        -- NACHHER zählt der Server EINMAL die Personen, auf die mindestens
+        -- einer der drei Gründe zutrifft. Eine Marke, eine Menge.
+        count(*) FILTER (
+          WHERE NOT is_blocked AND (
+            (priority_tier IN (1, 2)
+              AND (promised_payment_date = CURRENT_DATE
+                   OR (follow_up_date IS NOT NULL AND follow_up_date <= CURRENT_DATE)))
+            OR (priority_tier = 1 AND promised_payment_date IS NULL)
+            OR (promised_payment_date IS NOT NULL AND promised_payment_date < CURRENT_DATE)
+          )
+        )::int AS zu_tun
       FROM fiaon_persons
       WHERE assigned_agent_id = ${agentId} AND merged_into_person_id IS NULL
+        -- Prüfstands-Personen gehören in keine Arbeitsmarke: Sie stehen in
+        -- keiner Arbeitsliste (dort filtert ist_test_am seit E-043) und
+        -- würden die Marke dauerhaft über null halten.
+        AND ist_test_am IS NULL
     `;
 
     // Eskalation: seit ESKALATION_TAGE keine dokumentierte Aktivität.
@@ -237,6 +262,9 @@ router.get("/agent/crm/dashboard", requireAgent, async (req: AgentRequest, res: 
         heuteFaellig: z.heute_faellig,
         ohneDatum: z.ohne_datum,
         ueberfaellig: z.ueberfaellig,
+        // Die EINE Zahl für die Marke an „Pipeline" — verschiedene Menschen,
+        // nicht die Summe dreier sich überschneidender Gründe (siehe oben).
+        zuTun: z.zu_tun,
         eskalation: esk?.anzahl ?? 0,
         neuHeute: neu?.anzahl ?? 0,
         tier1: z.tier1,
@@ -410,9 +438,19 @@ router.get("/agent/crm/kunden/:personId", requireAgent, async (req: AgentRequest
     // ihre Akte haben. NACHHER: Die Rolle „inkasso" darf jede Akte LESEN.
     // Nur diese GET-Route — alle Schreibwege (aktivitaet, rechnung,
     // stammdaten …) bleiben beim Betreuer.
+    // ── 24.08.2026 (Justin, Auftrag 2): DIESELBE AKTE IN JEDEM RAUM ──────
+    // VORHER stand hier die Erlaubnisliste `rolleVon(...) === "inkasso"` —
+    // genau die Bauform, an der wir schon zweimal gescheitert sind: Sie muss
+    // bei JEDER neuen Rolle erweitert werden, und man merkt es erst, wenn ein
+    // Mensch vor einer verschlossenen Tür steht. Die Leitung, die in
+    // Collections ALLE Fälle sieht, bekam beim Öffnen der Akte 404.
+    // NACHHER: die EINE Definition aus fiaon-kundenzugriff (`darfAnKunde`) —
+    // Leitung alles, Inkasso Menschen mit offener Rate, Onboarding seine
+    // Startgespräche. Der gewöhnliche Bonitätsmanager kommt wie bisher über
+    // `meinePerson` durch; für ihn ändert sich nichts.
     if (!p) {
-      const { rolleVon } = await import("../lib/fiaon-kundenzugriff");
-      if ((await rolleVon(req.agent!.id)) === "inkasso") {
+      const { rolleVon, darfAnKunde } = await import("../lib/fiaon-kundenzugriff");
+      if (await darfAnKunde(req.agent!.id, await rolleVon(req.agent!.id), personId)) {
         const [frei] = await sqlPool`
           SELECT ${sqlPool.unsafe(KARTE_SQL)},
                  p.assigned_at,

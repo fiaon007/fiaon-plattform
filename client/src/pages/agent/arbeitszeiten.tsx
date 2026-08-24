@@ -9,6 +9,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AgentShell, api } from "./shared";
 import { useOffice } from "./OfficeShell";
 import "@/styles/office-arbeitszeiten.css";
+import { Rundgang } from "@/components/agent/Rundgang";
+import { RUNDGAENGE } from "./rundgaenge";
+import "@/styles/office-rundgang.css";
 
 const TAGE = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 const START = 6, ENDE = 22; // Stunden
@@ -114,6 +117,8 @@ function ArbeitszeitenInnen() {
         <button type="button" className="az-knopf" onClick={speichern} disabled={!geladen || speichert}>{speichert ? "Speichere …" : "Wochenplan speichern"}</button>
         <small>Zeiten in Europe/Berlin. Urlaub und Ausnahmen kommen als Nächstes.</small>
       </section>
+      {/* 24.08.2026: Rundgang je Raum (E-063). */}
+      <Rundgang raum="availability" titel={RUNDGAENGE.availability.titel} schritte={RUNDGAENGE.availability.schritte} />
     </div>
   );
 }

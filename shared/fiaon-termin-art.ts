@@ -96,8 +96,18 @@ export function terminArtAusQuelle(quelle: unknown): TerminArtMarke {
     case "onboarding":
     case "onboarding_call":
       return { ...MARKEN.onboarding, grund: `Quelle „${q}“` };
+    // ── 24.08.2026: `nummer_korrektur` ist hier RAUS ──────────────────────
+    // VORHER stand der Wert als zweiter Fall neben `agent_manuell` und sah aus
+    // wie eine gelebte Quelle. NACHHER nicht mehr: In `fiaon_termine.quelle`
+    // wird er NIE geschrieben — er ist ein BUCHUNGSWEG und steht seit heute in
+    // `fiaon_termine.herkunft` (HERKUENFTE in server/lib/fiaon-termine.ts).
+    // GRUND: Ein toter Fall in einer Ableitung liest sich wie ein lebender.
+    // Genau das hat die Anzeige-Wörterbücher glauben lassen, es gäbe diesen
+    // Quellwert — und den Admin-Filter „Nach Nummern-Korrektur" ins Leere
+    // laufen lassen. Sollte der Wert je doch in `quelle` auftauchen, fällt er
+    // jetzt in den `default`-Zweig und wird dort als unbekannt AUSGEWIESEN,
+    // statt still als Rückruf durchzugehen.
     case "agent_manuell":
-    case "nummer_korrektur":
       return { ...MARKEN.rueckruf, grund: `Quelle „${q}“` };
     case "inkasso_call":
       return { ...MARKEN.forderung, grund: `Quelle „${q}“` };

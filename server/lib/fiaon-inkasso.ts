@@ -625,7 +625,7 @@ export async function arbeitslistePersonen(
  * Wer sieht „Überfällig 29", weiß, wo er anfängt.
  */
 export async function fristZaehler(
-  opts: { nurMeine?: number | null } = {}, lauf: Lauf = sqlPool,
+  opts: { nurMeine?: number | null; nurBetreuer?: number | null } = {}, lauf: Lauf = sqlPool,
 ): Promise<{ ueberfaellig: number; heute: number; woche: number; alle: number }> {
   const heute = berlinToday();
   const [z] = (await lauf`
@@ -642,6 +642,18 @@ export async function fristZaehler(
       -- schlimmere Fehler — dann traut man keiner Zahl mehr.
       ${opts.nurMeine
         ? lauf`AND (r.inkasso_agent_id = ${opts.nurMeine} OR r.inkasso_agent_id IS NULL)`
+        : lauf``}
+      -- 24.08.2026: VORHER kannte der Zaehler die Betreuer-Sicht nicht, und der
+      -- beschränkte Zugriff (Bonitätsmanager) rief ihn deshalb gar nicht auf —
+      -- die Filter-Reiter standen dort dauerhaft auf 0, während im Kopf
+      -- „2 Raten überfällig" stand. Genau der Widerspruch, vor dem der
+      -- Kommentar oben warnt. NACHHER zählt er dieselbe Menge, die die Liste
+      -- zeigt: die Raten der eigenen Kunden.
+      ${opts.nurBetreuer
+        ? lauf`AND EXISTS (SELECT 1 FROM fiaon_applications ab
+                 JOIN fiaon_persons pb ON pb.id = ab.person_id
+                 WHERE ab.ref = r.ref AND pb.assigned_agent_id = ${opts.nurBetreuer}
+                   AND pb.merged_into_person_id IS NULL)`
         : lauf``}
   `) as any[];
   return {

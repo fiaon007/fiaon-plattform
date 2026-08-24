@@ -137,3 +137,9 @@ details.co-block[open]>summary::after{content:" ▴"}
 @media(max-width:700px){.co-kopf{padding-top:18px}.co-kacheln{grid-template-columns:1fr 1fr;gap:8px}.co-kachel{padding:14px}.co-kachel b{font-size:24px}.co-karte{padding:16px}.co-karte-kopf{grid-template-columns:1fr}.co-karte-kopf .geld{text-align:left;display:flex;align-items:baseline;gap:10px}.co-tun .co-knopf{flex:1 1 45%}.co-dialog-hintergrund{padding:0;align-items:end}.co-dialog{width:100%;max-height:94vh;border-radius:26px 26px 0 0}.co-dialog-kopf,.co-dialog-inhalt,.co-dialog-fuss{padding-left:18px;padding-right:18px}.co-zeiten-form{grid-template-columns:1fr}.co-akte-rate .stand{margin-left:0;width:100%}.co-verdienst b{font-size:34px}}
 @media(max-width:560px){.co-kacheln{grid-template-columns:1fr 1fr}.co-fenster button{flex:1 1 45%;justify-content:center}}
 @media(prefers-reduced-motion:reduce){.co-karte,.co-kachel,.co-dialog{animation:none}}
+
+/* Aufklappbare Erklärung (24.08.2026, Justin: der Dauertext im Kopf ist raus,
+   die Erklärung steht jetzt nur da, wenn man sie braucht). */
+.co-erklaerung{display:grid;gap:8px;margin-top:10px;padding:14px 16px;border-radius:16px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1)}
+.co-erklaerung p{margin:0;font:300 12.5px/1.6 'Inter',sans-serif;color:#cbd5e1}
+.co-erklaerung b{color:#fff;font-weight:500}

@@ -28,7 +28,15 @@ router.get("/antrag/:ref/termin-link", async (req: Request, res: Response) => {
       personId = z?.personId ?? null;
     }
     if (!personId) return res.status(409).json({ ok: false, error: "Bitte speichern Sie zuerst Ihre Angaben – dann lässt sich ein Termin buchen." });
-    res.json({ ok: true, url: `/termin/${terminTokenErzeugen(personId)}` });
+    // ── DER WEG STEHT JETZT IM LINK (24.08.2026) ──────────────────────────
+    // VORHER `/termin/<token>` ohne Zusatz. Ein Termin aus der Antragsstrecke
+    // (also VOR der Zahlung) landete damit im Bestand als
+    // `quelle='nichterreicht_mail'` — genau wie ein Termin aus der Mail „Wir
+    // haben Sie nicht erreicht". Zwei völlig verschiedene Lagen, ein Datensatz.
+    // NACHHER trägt der Link `?von=antrag_vor_zahlung`; die Buchung legt das
+    // als `fiaon_termine.herkunft` ab. An der Gesprächsart ändert es NICHTS —
+    // die bleibt aus dem Kundenzustand abgeleitet.
+    res.json({ ok: true, url: `/termin/${terminTokenErzeugen(personId)}?von=antrag_vor_zahlung` });
   } catch (err) {
     console.error("[ANTRAG-TERMIN] termin-link:", err);
     res.status(500).json({ ok: false, error: "Der Terminlink konnte nicht erzeugt werden." });

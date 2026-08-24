@@ -16,7 +16,10 @@ import {
   type VersandArt,
 } from "../lib/fiaon-versand";
 import { versendenUndProtokollieren } from "../lib/fiaon-mail-log";
-import { terminLink } from "../lib/fiaon-termine";
+// VORHER 24.08.2026: nur `terminLink`. NACHHER: zusätzlich die beiden
+// Berlin-Formatierer — die Mail „termin_verpasst" nennt Datum und Uhrzeit des
+// Termins, der nicht zustande kam. GRUND: Auftrag des Inhabers vom 24.08.2026.
+import { terminLink, berlinDatumText, berlinUhrzeit } from "../lib/fiaon-termine";
 
 const router = Router();
 
@@ -117,12 +120,45 @@ router.post("/agent/versand/:personId/:art", requireAgent, async (req: AgentRequ
       betrag: p.betrag != null ? String(p.betrag) : null,
       paket: p.paket ? String(p.paket).split("\n")[0].trim() : null,
     };
+    // ══════════════════════════════════════════════════════════════════════
+    // NEU 24.08.2026 — die Angaben für „termin_verpasst"
+    //
+    // VORHER: Diese Art gab es nicht.
+    // NACHHER: Die Mail nennt den Termin, der nicht zustande kam. Dafür wird
+    //   der ZULETZT verpasste Startgesprächstermin gelesen — steht keiner da
+    //   (jemand sendet die Mail ohne No-Show), bleiben Datum und Uhrzeit leer
+    //   und die Vorlage lässt den Satz weg. Kein erfundenes Datum.
+    // GRUND: Auftrag des Inhabers vom 24.08.2026.
+    // ══════════════════════════════════════════════════════════════════════
+    let verpasst: { beginn: Date | null; agent_vorname: string | null } | null = null;
+    if (art === "termin_verpasst") {
+      const [t] = (await sqlPool`
+        SELECT t.beginn, COALESCE(NULLIF(ag.first_name, ''), ag.name) AS agent_vorname
+        FROM fiaon_termine t LEFT JOIN fiaon_agents ag ON ag.id = t.agent_id
+        WHERE t.person_id = ${personId} AND t.status = 'verpasst'
+        ORDER BY t.beginn DESC LIMIT 1
+      `) as any[];
+      verpasst = t ? { beginn: t.beginn, agent_vorname: t.agent_vorname } : null;
+    }
+
+    // ── HERKUNFT STATT FOLGENLOSER QUELLE (24.08.2026) ────────────────────
+    // VORHER stand hier dreimal „onboarding_call" bzw. gar nichts — eine
+    // QUELLE, die `terminLink` mit `void quelle;` weggeworfen hat. NACHHER
+    // trägt der zweite Parameter den WEG; er landet als `fiaon_termine.herkunft`
+    // am gebuchten Termin und ändert an Slots und Rolle nichts.
     const zusatz: Record<string, unknown> =
       art === "nicht_erreicht_termin"
-        ? { agent_vorname: p.agent_vorname || "dein Ansprechpartner", termin_link: terminLink(personId) }
+        ? { agent_vorname: p.agent_vorname || "dein Ansprechpartner", termin_link: terminLink(personId, "nicht_erreicht_mail") }
         : art === "onboarding_einladung"
-          ? { termin_link: terminLink(personId, "onboarding_call") }
-          : {};
+          ? { termin_link: terminLink(personId, "onboarding_einladung") }
+          : art === "termin_verpasst"
+            ? {
+                agent_vorname: verpasst?.agent_vorname || p.agent_vorname || "Ihr Ansprechpartner",
+                termin_datum: verpasst?.beginn ? berlinDatumText(verpasst.beginn) : null,
+                termin_uhrzeit: verpasst?.beginn ? berlinUhrzeit(verpasst.beginn) : null,
+                termin_link: terminLink(personId, "termin_verpasst_mail"),
+              }
+            : {};
 
     const erg = await versendenUndProtokollieren(art as any, { ...basis, ...zusatz }, {
       personId,

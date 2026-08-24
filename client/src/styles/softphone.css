@@ -1250,3 +1250,104 @@
   background: rgba(248,113,113,.14);
   box-shadow: inset 0 0 0 1px rgba(248,113,113,.38);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   HANDY-ANSICHT NEU — 24.08.2026
+
+   Justin: „wenn man das Softphone öffnet am Handy nimmt es den ganzen
+   Bildschirm ein — die Formatierung vom Handy (also das Design) ist
+   schrecklich. Überleg dir was Neues, Modernes, Cleanes, das PERFEKT
+   aussieht, mit Textabständen und allem."
+
+   WAS FALSCH WAR (aus dem Bildschirmfoto):
+   · Drei gleich große, gleich laute Kästen untereinander (Mikrofon-Hinweis,
+     „Nächsten holen", Suche) — keine Rangordnung. Der technische
+     Mikrofon-Hinweis war so laut wie die Hauptaktion.
+   · Zwischen Tastatur und Fuß klaffte ein totes Loch von rund 200 px, weil
+     nur der Fuß per margin-top:auto nach unten gedrückt wurde.
+   · Die Rufnummer — beim Wählen das Wichtigste — stand blass und klein da
+     wie ein Platzhalter.
+   · Der gesperrte Anruf-Knopf war mit opacity .3 ein grauer Fleck; er sah
+     kaputt aus statt „hier fehlt noch etwas".
+
+   WAS JETZT GILT: eine Spalte mit klarem Takt — Kopf, ein ruhiger
+   Aktionsblock, die große Nummer, die Tastatur mittig im freien Raum, unten
+   Pflichtsatz und Anrufen. Gleiche Ränder überall (16 px), ein einziger
+   Abstandswert zwischen den Gruppen (14 px), nichts klebt, nichts schreit.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 700px) {
+  /* Ein Rand für alles — vorher trugen die Bausteine eigene Ränder. */
+  .fi-tel { padding-left: 16px; padding-right: 16px; }
+
+  /* ── Kopf: schmal, ruhig ─────────────────────────────────────────────── */
+  .fi-tel-statuszeile { margin-bottom: 14px; }
+
+  /* ── Aktionsblock: EINE Hauptaktion, dann die Suche ──────────────────── */
+  /* „Nächsten aus meiner Liste holen" ist der Weg, den ein Mitarbeiter
+     sechzig Mal am Tag geht — er trägt jetzt die Akzentfarbe. Die Suche
+     bleibt ein ruhiges Feld daneben, nicht gleichrangig. */
+  .fi-tel-holen {
+    margin-bottom: 10px; min-height: 48px; padding: 0 16px;
+    border-radius: 16px; font-size: 14px; font-weight: 500;
+    color: #dbeafe;
+    background: rgba(37,99,235,.22);
+    box-shadow: inset 0 0 0 1px rgba(96,165,250,.34);
+  }
+  .fi-tel-suche { height: 46px; font-size: 15px; }
+  .fi-tel-suche-feld { margin-bottom: 0; }
+
+  /* Der Mikrofon-Hinweis ist eine Nebensache — er war der lauteste und
+     höchste Block der ganzen Ansicht (98 px für einen Satz, den man einmal
+     im Leben liest) und einer der Gründe, warum die Wählansicht am Handy
+     wieder rollen musste. Jetzt: eine Zeile, gedämpft, mit kurzem Text. */
+  .fi-tel-mikrofon {
+    margin: 0 0 10px; padding: 10px 13px; gap: 10px; border-radius: 14px;
+    background: rgba(147,197,253,.1);
+    box-shadow: inset 0 0 0 1px rgba(147,197,253,.2);
+  }
+  .fi-tel-mikrofon-marke { width: 28px; height: 28px; border-radius: 9px; }
+  .fi-tel-mikrofon-titel { font-size: 13px; }
+  /* Der Erklärsatz steht nur noch da, wenn das Mikrofon GESPERRT ist —
+     dann muss man wirklich wissen, was zu tun ist. */
+  .fi-tel-mikrofon-text { display: none; }
+  .fi-tel-mikrofon[data-stand="verweigert"] .fi-tel-mikrofon-text {
+    display: block; font-size: 11.5px; line-height: 1.4; margin-top: 2px;
+  }
+  .fi-tel-mik {
+    margin: 0 0 10px; padding: 10px 12px; border-radius: 14px;
+    background: rgba(255,255,255,.05);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.09);
+  }
+  .fi-tel-mik-hinweis { font-size: 12px; line-height: 1.45; }
+
+  /* ── Die Rufnummer: das Wichtigste, also das Größte ──────────────────── */
+  .fi-tel-nummernzeile { margin-top: 16px; }
+  .fi-tel-anzeige {
+    font-size: 32px; font-weight: 300; letter-spacing: .01em;
+    color: #fff; padding: 6px 44px 10px;
+  }
+  .fi-tel-anzeige::placeholder { color: rgba(191,214,247,.28); }
+
+  /* ── Die Tastatur nimmt den freien Raum ein ──────────────────────────── */
+  /* margin:auto verteilt den Rest gleichmäßig über und unter der Tastatur —
+     damit ist das Loch zwischen Tastatur und Fuß verschwunden. */
+  .fi-tel-waehlen .fi-tast { margin: auto 0; padding: 4px 0; }
+
+  /* ── Fuß: Pflichtsatz, dann der grüne Knopf ──────────────────────────── */
+  .fi-tel-pflichtsatz {
+    margin: 0 0 12px; padding: 11px 13px; border-radius: 14px;
+    font-size: 12px; line-height: 1.5; font-style: normal;
+  }
+  .fi-tel-pflichtsatz-marke { margin-bottom: 4px; }
+  .fi-tel-wahl-fuss { padding-top: 12px; }
+  .fi-tel-gruen { height: 58px; font-size: 16px; font-weight: 500; }
+  /* Gesperrt heißt „hier fehlt noch etwas" — nicht „kaputt". Deshalb keine
+     Ausbleichung, sondern eine ruhige Fläche mit lesbarer Aufschrift. */
+  .fi-tel-gruen:disabled {
+    opacity: 1;
+    color: rgba(191,214,247,.62);
+    background: rgba(255,255,255,.06);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.1);
+  }
+  .fi-tel-gruen:disabled svg { opacity: .5; }
+}

@@ -1,0 +1,52 @@
+-- ═══════════════════════════════════════════════════════════════════════════
+-- „LEIDER NICHT ERSCHIENEN — HIER NEUEN TERMIN BUCHEN"
+--
+-- ── DER AUFTRAG (Inhaber, 24.08.2026) ─────────────────────────────────────
+-- „Wenn man im Onboarding Prozess ‚Kunde nicht erreicht' klickt muss der Kunde
+-- ja eine Email bekommen mit ‚Leider nicht erschienen.. hier neuen Termin
+-- buchen' — haben wir das?"
+--
+-- ── WAS VORHER PASSIERTE: NICHTS ──────────────────────────────────────────
+-- Ein als „verpasst" gemeldetes Startgespräch löste drei Dinge aus, von denen
+-- KEINES beim Kunden ankam:
+--   1. unreachable_count + 1
+--   2. automatikNachFehlversuch() — schreibt erst ab dem SECHSTEN erfolglosen
+--      Versuch (SCHWELLE_MAIL = 6) und ist zusätzlich gesperrt, solange ein
+--      Termin existiert. Beim No-Show existiert er gerade.
+--   3. Die 48-Stunden-Uhr wurde neu gestellt, damit der Lauf
+--      `runStartgespraechEinladungen` irgendwann wieder die GENERISCHE
+--      Einladung schickt — deren Text klingt, als hätte es nie einen Termin
+--      gegeben.
+-- Zwei Tage Funkstille also, danach ein Text, der nicht passt. Der Hinweis in
+-- der Oberfläche („der Kunde wird erneut eingeladen") war nur halb wahr.
+--
+-- ── WAS DIESE SPALTE TUT ──────────────────────────────────────────────────
+--   fiaon_termine.verpasst_mail_am
+--     Der Zeitpunkt, zu dem das Ereignis `termin_verpasst` für DIESEN Termin
+--     rausging. Sie ist die Sperre gegen den Doppelversand: Wer denselben
+--     Termin zweimal als verpasst meldet (Nachtragen, Doppelklick, erst im
+--     Cockpit und dann im Kalender), löst die Mail nur einmal aus.
+--
+--     Die Marke hängt am TERMIN, nicht am Menschen — wer im Herbst ein zweites
+--     Startgespräch verpasst, soll wieder eine Mail bekommen.
+--
+--     Geht der Versand schief, wird sie im Code wieder auf NULL gesetzt: Ein
+--     einmaliger Fehlschlag darf den nächsten Versuch nicht für immer
+--     blockieren.
+--
+-- ── ADDITIV UND IDEMPOTENT ────────────────────────────────────────────────
+-- Nur ein ADD COLUMN IF NOT EXISTS. Keine Zeile wird verändert, keine alte
+-- Absage wird nachträglich verschickt: Für Termine, die vor dem 24.08.2026
+-- verpasst wurden, bleibt die Spalte NULL und niemand bekommt Post über einen
+-- Termin von vorletzter Woche.
+--
+-- Der Code legt die Spalte zusätzlich beim ersten Bedarf selbst an
+-- (`ensureVerpasstSpalte` in server/routes/fiaon-onboarding-bereich.ts), damit
+-- ein Deploy ohne Wanderlauf nicht scheitert. Diese Datei ist die
+-- nachvollziehbare Fassung derselben Änderung.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+ALTER TABLE fiaon_termine ADD COLUMN IF NOT EXISTS verpasst_mail_am TIMESTAMPTZ;
+
+COMMENT ON COLUMN fiaon_termine.verpasst_mail_am IS
+  'Wann das Ereignis termin_verpasst fuer diesen Termin an den Kunden ging. NULL = noch nicht. Sperre gegen Doppelversand (24.08.2026).';

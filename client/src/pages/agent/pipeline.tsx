@@ -107,7 +107,7 @@ import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "wouter";
 // E-050: Search/Plus/RefreshCw gingen mit dem Bestand-Reiter nach bestand.tsx.
-import { Phone, X, Copy, Send, Mail, FileText, Check, ExternalLink, ChevronLeft, ChevronRight, ChevronDown, MoreHorizontal } from "lucide-react";
+import { Phone, X, Copy, Send, Mail, FileText, Check, ExternalLink, ChevronLeft, ChevronRight, ChevronDown, MoreHorizontal, Play } from "lucide-react";
 import { AgentShell, api, useFragen } from "./shared";
 import { useOffice } from "./OfficeShell";
 import { ToastAnbieter, useToast, eur } from "@/lib/fiaon-ui";
@@ -322,8 +322,8 @@ const REAKTIVIERUNG = {
     { frage: "„Bei euch ist nichts passiert.“", antwort: "Das nehme ich ernst – genau deshalb rufe ich an. Lassen Sie uns im Gespräch durchgehen, was schon läuft und was als Nächstes kommt. Danach entscheiden Sie." },
   ],
 };
-const MAX_AKTIV = 500; // Justin 23.08.: Bestand bis 500 Kunden, erst dann muss abgegeben werden
-// §16a: In die x/500-Zählung gehen NUR übernommene Mandate (mandat_seit) ein.
+// §16a-Zählung x/500 (nur übernommene Mandate): steht seit 24.08. allein im
+// Bestand-Raum (bestand.tsx) — die Kachel hier ist auf Justins Wunsch entfallen.
 /** Echter Paketmix Juli/August – dieselben Zahlen wie gehalt.tsx (MIX_STANDARD). */
 const MIX_MOTTO: Record<string, number> = { start: 69, pro: 108, ultra: 67, highend: 93 };
 /** SCHUFA-Bonus je Abschluss im Onboarding (E-042): 10 €. */
@@ -405,24 +405,6 @@ function useMedia(q: string): boolean {
   const [m, setM] = useState(() => typeof window !== "undefined" && window.matchMedia(q).matches);
   useEffect(() => { const mq = window.matchMedia(q); const h = () => setM(mq.matches); mq.addEventListener("change", h); return () => mq.removeEventListener("change", h); }, [q]);
   return m;
-}
-/** Zahl zählt in ~300 ms auf den Zielwert. */
-function useZaehlen(ziel: number, ms = 300): number {
-  const [wert, setWert] = useState(ziel);
-  const stand = useRef(ziel);
-  useEffect(() => {
-    const von = stand.current; const start = performance.now();
-    if (von === ziel) return;
-    let id = 0;
-    const tick = (t: number) => {
-      const p = Math.min(1, (t - start) / ms); const e = 1 - Math.pow(1 - p, 3);
-      const w = von + (ziel - von) * e; stand.current = w; setWert(w);
-      if (p < 1) id = requestAnimationFrame(tick);
-    };
-    id = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(id);
-  }, [ziel, ms]);
-  return wert;
 }
 const euro0 = (c: number) => (c / 100).toLocaleString("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
 
@@ -575,7 +557,6 @@ function PipelineInnen() {
   const [offen, setOffen] = useState<number | null>(null);
   const [fremd, setFremd] = useState<Kunde | null>(null);
   const ruhig = useMedia("(prefers-reduced-motion: reduce)");
-  const handy = useMedia("(max-width: 700px)"); // E-051: Karussell → Wisch-Reihe am Handy
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
@@ -749,11 +730,8 @@ function PipelineInnen() {
     await ergebnisSchnell(k, "erreicht_abgelehnt", "Karteileiche – aus dem Vertrieb entfernt (Sperre, kein Löschen).");
   };
 
-  // ── Zahlen für die Umsatz-Leiste ────────────────────────────────────────
-  // §16a: VORHER zählten hier alle bezahlten/zugewiesenen Kunden – NACHHER nur Mandate.
-  // E-051 Nr. 2: Der Motivationssatz („mottoCents“) ist mit der Hebel-Zeile entfallen.
-  const aktive = mandate.anzahl;
-  const zAktive = useZaehlen(aktive);
+  // §16a-Zählung (x/500): VORHER als Kachel „Aktive Kunden · Mandate“ hier
+  // oben — NACHHER (Justin 24.08.) wohnt die Zahl NUR noch im Bestand-Raum.
 
   // E-050: Stufen-Chips, Filter, 3D-Strom und Tastatur-Blättern sind mit dem
   // Bestand-Reiter nach /agent/bestand umgezogen (bestand.tsx).
@@ -773,18 +751,13 @@ function PipelineInnen() {
           den neuen Bestand-Raum (/agent/bestand), denn dort WOHNT das
           Portfolio jetzt. Daneben: „Kunde anlegen“ (blieb beim Umzug hier,
           weil ein neuer Kunde Arbeit ist, kein Mandat). */}
-      <section className="pi-umsatz schmal">
-        <div className="pi-umsatz-zahl">
-          <small>Aktive Kunden · Mandate</small>
-          <b>{laedt ? "–" : Math.round(zAktive)}<em> / {MAX_AKTIV}</em></b>
-          <span>{aktive >= MAX_AKTIV ? "Bestand voll – Kunden an Kollegen übergeben" : "nur übernommene Mandate zählen – Zuweisung allein nicht"}</span>
-          <i className="pi-umsatz-balken"><i style={{ width: `${Math.min(100, (aktive / MAX_AKTIV) * 100)}%` }} /></i>
-          <span className="pi-umsatz-links">
-            <Link href="/agent/bestand" className="pi-link">Zum Bestand → dein Portfolio</Link>
-            <button type="button" className="pi-link" onClick={() => setAnlageOffen((v) => !v)}>{anlageOffen ? "Anlage schließen" : "+ Kunde anlegen"}</button>
-          </span>
-        </div>
-      </section>
+      {/* VORHER (bis 24.08. früh): große Kachel „Aktive Kunden · Mandate x/500“
+          mit Balken — NACHHER (Justin 24.08.): Kachel weg; die beiden Funktionen
+          (Bestand-Link, Kunde anlegen) bleiben als stille Zeile erhalten. */}
+      <div className="pi-kopfzeile">
+        <Link href="/agent/bestand" className="pi-link">Dein Bestand → Portfolio</Link>
+        <button type="button" className="pi-link" onClick={() => setAnlageOffen((v) => !v)}>{anlageOffen ? "Anlage schließen" : "+ Kunde anlegen"}</button>
+      </div>
       {anlageOffen && (
         <div style={{ display: "grid", gap: 6 }}>
           {/* Helle Einlage, bewusst gerahmt: KundeAnlegen ist die geprüfte
@@ -794,15 +767,8 @@ function PipelineInnen() {
           <div className="pi-hell"><KundeAnlegen offen={anlageOffen} aufKlappen={setAnlageOffen} fertig={() => { void laden(true); void arbeitslisteLaden(true); }} /></div>
         </div>
       )}
-      {/* Der Warte-Hinweis (Banner) blieb beim Umzug hier — er betrifft die
-          Arbeit, nicht das Portfolio. VORHER sprang er in die Server-Ansicht
-          „nicht_erreicht“ des entfernten Bestand-Reiters — NACHHER reine Info. */}
-      {(zaehler.wartet ?? 0) > 0 && (
-        <div className="pi-hinweis" style={{ cursor: "default" }}>
-          <span className="zahl">{zaehler.wartet}</span>
-          <span><b>{zaehler.wartet === 1 ? "Einer wartet auf seinen Termin" : `${zaehler.wartet} warten auf ihren Termin`}</b><small>Nicht erreicht – sie haben den Buchungslink und wählen selbst. Nicht erneut anrufen.</small></span>
-        </div>
-      )}
+      {/* VORHER stand hier die gelbe Kachel „x warten auf ihren Termin“ —
+          NACHHER (Justin 24.08.) ersatzlos entfernt. */}
 
       {/* E-050: VORHER zwei Reiter (Arbeitsliste · Mein Bestand) — NACHHER ist
           diese Seite NUR die Arbeitsliste; der Bestand wohnt in /agent/bestand. */}
@@ -826,9 +792,7 @@ function PipelineInnen() {
                   <ArbeitsFokus key={fokusSlot.kunde.personId} k={fokusSlot.kunde} gruppe={fokusSlot.gruppe} satz={satz}
                                 geht={geht.has(fokusSlot.kunde.personId)}
                                 onAkte={() => oeffnen(fokusSlot.kunde.personId)}
-                                onErgebnis={(art, notiz, zusatz) => ergebnisSchnell(fokusSlot.kunde, art, notiz, zusatz)}
-                                onEntfernen={() => void karteileiche(fokusSlot.kunde)}
-                                melden={(art, text) => setMeldungA({ art, text })} />
+                                onEntfernen={() => void karteileiche(fokusSlot.kunde)} />
                 )}
                 {/* E-047 (Justin, Screenshot): Trenner zwischen JETZT und DANACH —
                   animierte Zeile „Deine nächsten Kunden“, Linien beidseits. */}
@@ -836,9 +800,12 @@ function PipelineInnen() {
               {/* E-051 Nr. 1 (Justin): VORHER ein 2-spaltiges Raster (FLIP) —
                   NACHHER ein 3D-Karussell: eine Karte mittig vorn, Nachbarn
                   perspektivisch dahinter; Pfeile, Wischen, Tastatur; Klick auf
-                  die Mitte holt sie in den Fokus. Handy/reduced-motion: flache
-                  Wisch-Reihe mit Scroll-Snap. */}
-              <KleinesKarussell kinder={kleine} geht={geht} gesperrt={offen != null} flach={handy || ruhig}
+                  die Mitte holt sie in den Fokus.
+                  24.08.2026: VORHER lief am Handy die flache Wisch-Reihe —
+                  Justin sieht das Office aber vor allem am Handy und will
+                  DORT das 3D-Karussell zum Wischen. NACHHER bleibt flach nur
+                  für „Bewegung reduzieren" (Systemeinstellung). */}
+              <KleinesKarussell kinder={kleine} geht={geht} gesperrt={offen != null} flach={ruhig}
                                 onFokus={(id) => setFokusId(id)}
                                 onAkte={(id) => oeffnen(id)}
                                 onEntfernen={(k) => void karteileiche(k)} />
@@ -880,116 +847,29 @@ function PipelineInnen() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// E-043: Die Fokus-Karte der Arbeitsliste — Herz des Umsatz-Raums.
-// Während des Gesprächs: Anrufen, Akte, Zugänge senden, Zahlungsdaten senden,
-// Termin einbuchen. Am Ende EIN Ergebnis — Wording: Erfolgreich/Negativ →
-// „Mandat angenommen“ / „Mandat nicht zustande gekommen“ (Justin 23.08.,
-// E-044): Mandat angenommen nur mit gebuchtem Termin; nicht zustande gekommen
-// mit Grund (Nicht erreicht / Nummer falsch / Kein Interesse / Überlegt noch
-// → Rückruf über das bestehende rueckruf_termin-Ergebnis). Beim Mandat setzt
-// POST /agent/vertrieb/mandat/:id die Mandatsmarke (§16a). Bestandsendpunkte.
+// Die Fokus-Karte der Arbeitsliste — Herz des Umsatz-Raums.
+//
+// VORHER (E-043/E-044, bis 24.08. früh): Die Karte trug die ganze Werkbank —
+// Anrufen · Akte · Zugänge senden · Zahlungsdaten senden · Termin buchen und
+// darunter den Ergebnisweg (Mandat angenommen / nicht zustande gekommen mit
+// Gründen). Die Akte trug dieselben Knöpfe ein zweites Mal.
+// NACHHER (Justin 24.08.): Die Karte SAGT nur noch, wer dran ist und warum —
+// und hat EINEN Knopf: „Starten“. Er öffnet die Akte; dort steht alles, was
+// hier entfernt wurde, an der passenderen Stelle (Situations-Kopf mit dem
+// richtigen Primär-Knopf, „Mehr“-Menü, Mandats-Abschluss). Ein Weg statt zwei.
 // ═══════════════════════════════════════════════════════════════════════════
-function ArbeitsFokus({ k, gruppe, satz, geht, onAkte, onErgebnis, onEntfernen, melden }: {
+function ArbeitsFokus({ k, gruppe, satz, geht, onAkte, onEntfernen }: {
   k: Kunde; gruppe: string; satz: number; geht: boolean;
   onAkte: () => void;
-  onErgebnis: (art: string, notiz?: string, zusatz?: Record<string, unknown>) => Promise<boolean>;
   onEntfernen: () => void;
-  melden: (art: "gut" | "schlecht" | "info", text: string) => void;
 }) {
-  const fragen = useFragen();
   const info = GRUPPE_INFO[gruppe] ?? GRUPPE_INFO.lead;
   const st = STUFE[info.stufe];
   const preis = paketPreis(k); const wert = preis * 12;
   // E-047 Nr. 5: VORHER drei große Zähl-Kacheln („viel zu wuchtig“) —
   // NACHHER eine schlanke Chip-Zeile ohne Zählanimation.
   const [warumAuf, setWarumAuf] = useState(false);
-  const [laeuft, setLaeuft] = useState<string | null>(null);
-  const [negativOffen, setNegativOffen] = useState(false);
-  const [terminOffen, setTerminOffen] = useState(false);
-  // E-048 Nr. 1: VORHER eigene datum/zeit-Felder (Freitext) — NACHHER wählt
-  // SlotWahl einen echten freien Slot; hier bleibt nur das Ergebnis.
-  const [gebucht, setGebucht] = useState<string | null>(null);
-  const [bestaetigen, setBestaetigen] = useState(false);
-  const [sendeFehler, setSendeFehler] = useState<string | null>(null);
   const faellig = rueckrufFaellig(k);
-  // „Erfolgreich vereinbart“ zählt nur mit echtem Termin: eben gebucht oder
-  // schon gebucht und in der Zukunft.
-  const hatTermin = !!gebucht
-    || (!!k.termin && !k.termin.erledigt && new Date(k.termin.beginn).getTime() > Date.now())
-    || (!!k.terminAm && new Date(k.terminAm).getTime() > Date.now());
-
-  // E-048 Nr. 1: VORHER baute die Funktion `${datum}T${zeit}:00` aus zwei
-  // Freitext-Feldern — NACHHER kommt der Beginn als ISO-Zeitpunkt eines echten
-  // freien Slots aus SlotWahl; der Server (POST /agent/termine) prüft erneut.
-  const terminBuchen = async (beginnIso: string, label: string): Promise<boolean> => {
-    setLaeuft("termin");
-    const r = await api("/agent/termine", { method: "POST", body: JSON.stringify({ personId: k.personId, beginn: beginnIso }) });
-    setLaeuft(null);
-    if (!r.ok) { melden("schlecht", r.json?.error || "Der Termin konnte nicht gebucht werden."); return false; }
-    const text = r.json.termin?.datumText ? `${r.json.termin.datumText}, ${r.json.termin.uhrzeit} Uhr` : label;
-    setGebucht(text); setTerminOffen(false);
-    melden("gut", `Termin gebucht: ${text}. Der Slot ist blockiert, die Bestätigung geht an den Kunden.`);
-    return true;
-  };
-  const zugaengeSenden = async () => {
-    if (!(await fragen({ titel: `Zugänge („Willkommen und Zugang“) an ${k.name} senden?`, ja: "Senden" }))) return;
-    setLaeuft("zugang");
-    const r = await api(`/agent/versand/${k.personId}/welcome`, { method: "POST", body: JSON.stringify({}) });
-    setLaeuft(null);
-    melden(r.ok ? "gut" : "schlecht", r.json?.meldung || r.json?.error || (r.ok ? "Verschickt." : "Nicht verschickt."));
-  };
-  const zahlungsdaten = async (ref: string | null) => {
-    setLaeuft("rechnung");
-    const r = await api(`/agent/crm/kunden/${k.personId}/rechnung`, { method: "POST", body: JSON.stringify({ ref }) });
-    setLaeuft(null);
-    if (!r.ok) { setSendeFehler(r.json?.error || "Der Server hat den Versand abgelehnt."); return; }
-    setSendeFehler(null); setBestaetigen(false);
-    melden("gut", r.json.warnung || `Zahlungsdaten und Rechnung an ${r.json.versandtAn} gesendet.`);
-  };
-  // E-044: „Mandat angenommen“ – der Kunde nimmt die Betreuung an. Setzt die
-  // Mandatsmarke (§16a, zählt in x/500) und bucht das bestehende Ergebnis.
-  const mandatAngenommen = async () => {
-    if (!hatTermin) {
-      setTerminOffen(true);
-      melden("info", "Ein Mandat gilt als angenommen, wenn der Termin steht. Buchen Sie ihn hier ein – dann zählt es.");
-      return;
-    }
-    setLaeuft("vereinbart");
-    await api(`/agent/vertrieb/mandat/${k.personId}`, { method: "POST", body: JSON.stringify({}) }).catch(() => null);
-    const ok = await onErgebnis("erreicht_sonstiges",
-      `Mandat angenommen – Termin ${gebucht ?? (k.termin ? terminText(k.termin.beginn) : terminText(k.terminAm!))} gebucht. Kunde erinnert: Rechnung vor dem Termin begleichen, dann wird im Gespräch direkt aktiviert.`);
-    if (ok) melden("gut", `Mandat angenommen – ${k.name} zählt jetzt zu deinem Bestand.`);
-    setLaeuft(null);
-  };
-  // E-044: „Mandat nicht zustande gekommen“ – mit Grund. Technisch dieselben
-  // Ergebnisse wie bisher; „Überlegt noch“ nutzt das Rückruf-Ergebnis.
-  const [rueckrufOffen, setRueckrufOffen] = useState(false);
-  const [rueckrufDatum, setRueckrufDatum] = useState(tagPlus(1));
-  const [rueckrufZeit, setRueckrufZeit] = useState("10:00");
-  const nichtZustande = async (grund: "nicht_erreicht" | "nummer_falsch" | "kein_interesse" | "ueberlegt") => {
-    if (grund === "ueberlegt") { setRueckrufOffen(true); setNegativOffen(false); return; }
-    setLaeuft(grund);
-    if (grund === "kein_interesse") {
-      if (!(await fragen({
-        titel: `Mandat nicht zustande gekommen – ${k.name} hat kein Interesse?`,
-        text: "Der Kunde wird gesperrt: Er erscheint bei keinem Mitarbeiter mehr und die Verteilung fasst ihn nicht mehr an. Zahlungs- und Vertragsdaten bleiben erhalten.",
-        folge: "Der Vorgang steht mit Grund im Kontaktprotokoll.",
-        ja: "Sperren", gefaehrlich: true,
-      }))) { setLaeuft(null); return; }
-      await onErgebnis("erreicht_abgelehnt", "Mandat nicht zustande gekommen – kein Interesse, vom Kunden im Gespräch erklärt.");
-    } else if (grund === "nummer_falsch") {
-      await onErgebnis("nummer_falsch", "Mandat nicht zustande gekommen – hinterlegte Rufnummer stimmt nicht.");
-    } else {
-      await onErgebnis("nicht_erreicht");
-    }
-    setLaeuft(null); setNegativOffen(false);
-  };
-  const rueckrufBuchen = async () => {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(rueckrufDatum) || !/^\d{2}:\d{2}$/.test(rueckrufZeit)) { melden("schlecht", "Bitte Datum und Uhrzeit für den Rückruf angeben."); return; }
-    setLaeuft("ueberlegt");
-    await onErgebnis("rueckruf_termin", "Mandat noch offen – Kunde überlegt, Rückruf vereinbart.", { terminDatum: rueckrufDatum, terminZeit: rueckrufZeit });
-    setLaeuft(null); setRueckrufOffen(false);
-  };
 
   return (
     <div className={`pi-fokus-karte kompakt${geht ? " geht" : " tief"}`} style={{ ["--hitze" as string]: faellig ? "#f87171" : st.farbe }}>
@@ -1007,62 +887,13 @@ function ArbeitsFokus({ k, gruppe, satz, geht, onAkte, onErgebnis, onEntfernen, 
         <span className="pi-marke still">{wartezeit(k.letzterKontakt)}{k.nichtErreicht > 0 ? ` · ${k.nichtErreicht}× nicht erreicht` : ""}</span>
       </div>
 
-      {/* Während des Gesprächs: alles Nötige, ein Klick */}
+      {/* Justin 24.08.: EIN Knopf statt sieben — „Starten“ öffnet die Akte. */}
       <div className="pi-fokus-knoepfe">
-        {k.telefonWaehlbar ? (
-          <button type="button" className="pi-knopf riesig" onClick={() => anrufen(k.telefonWaehlbar, k.personId, k.name)}><Phone size={20} strokeWidth={1.75} /> Anrufen</button>
-        ) : (
-          <button type="button" className="pi-knopf riesig warn" onClick={onAkte} title={k.telefon ? "Ländervorwahl fehlt – in der Akte ergänzen" : "keine Nummer – in der Akte nachtragen"}><Phone size={20} strokeWidth={1.75} /> {k.telefon ? "Vorwahl ergänzen" : "Nummer fehlt"}</button>
-        )}
-        <button type="button" className="pi-knopf still gross" onClick={onAkte}><FileText size={16} strokeWidth={1.75} /> Akte</button>
-        <button type="button" className="pi-knopf still gross" disabled={laeuft === "zugang"} onClick={() => void zugaengeSenden()}><Mail size={15} strokeWidth={1.75} /> {laeuft === "zugang" ? "Sende …" : "Zugänge senden"}</button>
-        <button type="button" className="pi-knopf still gross" disabled={laeuft === "rechnung"} onClick={() => setBestaetigen(true)}><Send size={15} strokeWidth={1.75} /> Zahlungsdaten senden</button>
-        <button type="button" className={`pi-knopf gross ${hatTermin ? "gut" : "still"}`} onClick={() => setTerminOffen((v) => !v)}>
-          {hatTermin ? <><Check size={15} strokeWidth={2} /> Termin steht</> : "Termin einbuchen"}
+        <button type="button" className="pi-knopf riesig pi-starten" onClick={onAkte}>
+          <Play size={19} strokeWidth={2} /> Starten
         </button>
+        <span className="pi-starten-neben">Öffnet die Akte: anrufen, Schritt erledigen, Ergebnis festhalten.</span>
       </div>
-
-      {/* E-048 Nr. 1: VORHER Datum-/Uhrzeit-Freitext — NACHHER klickbare freie Zeiten. */}
-      {terminOffen && (
-        <SlotWahl laeuft={laeuft === "termin"} onBuchen={terminBuchen} onZu={() => setTerminOffen(false)} />
-      )}
-      {hatTermin && (
-        <p className="pi-fokus-erinnerung">Erinnere den Kunden: Rechnung vor dem Termin begleichen → im Gespräch wird direkt aktiviert.{gebucht ? ` (Termin: ${gebucht})` : ""} Danach: „Mandat angenommen“ buchen.</p>
-      )}
-
-      {/* Am Ende: EIN Ergebnis – Mandats-Wording (E-044), seriöser Kanzlei-Ton */}
-      <div className="pi-ergebnisweg">
-        <button type="button" className="pi-knopf gross" disabled={!!laeuft}
-                style={hatTermin ? undefined : { opacity: .75 }}
-                title={hatTermin ? "Der Termin steht – Mandat buchen" : "Ein Mandat gilt mit gebuchtem Termin als angenommen – der Knopf führt zur Terminbuchung"}
-                onClick={() => void mandatAngenommen()}>
-          <Check size={16} strokeWidth={2} /> {laeuft === "vereinbart" ? "Speichert …" : "Mandat angenommen"}
-        </button>
-        {!negativOffen && !rueckrufOffen ? (
-          <button type="button" className="pi-knopf warn gross" disabled={!!laeuft} onClick={() => setNegativOffen(true)}>Mandat nicht zustande gekommen …</button>
-        ) : negativOffen ? (
-          <span className="pi-reihe">
-            <button type="button" className="pi-knopf still" disabled={!!laeuft} onClick={() => void nichtZustande("nicht_erreicht")}>{laeuft === "nicht_erreicht" ? "…" : "Nicht erreicht"}</button>
-            <button type="button" className="pi-knopf still" disabled={!!laeuft} onClick={() => void nichtZustande("nummer_falsch")}>{laeuft === "nummer_falsch" ? "…" : "Nummer falsch"}</button>
-            <button type="button" className="pi-knopf still" disabled={!!laeuft} onClick={() => void nichtZustande("ueberlegt")}>Überlegt noch – Rückruf</button>
-            <button type="button" className="pi-knopf warn" disabled={!!laeuft} onClick={() => void nichtZustande("kein_interesse")}>{laeuft === "kein_interesse" ? "…" : "Kein Interesse"}</button>
-            <button type="button" className="pi-link" onClick={() => setNegativOffen(false)}>zurück</button>
-          </span>
-        ) : (
-          <span className="pi-reihe">
-            <input type="date" className="pi-eingabe" style={{ flex: "0 0 150px" }} value={rueckrufDatum} min={heuteIso()} onChange={(e) => setRueckrufDatum(e.target.value)} aria-label="Rückruf-Datum" />
-            <input type="time" className="pi-eingabe" style={{ flex: "0 0 104px" }} value={rueckrufZeit} step={900} onChange={(e) => setRueckrufZeit(e.target.value)} aria-label="Rückruf-Uhrzeit" />
-            <button type="button" className="pi-knopf" disabled={!!laeuft} onClick={() => void rueckrufBuchen()}>{laeuft === "ueberlegt" ? "…" : "Rückruf vereinbaren"}</button>
-            <button type="button" className="pi-link" onClick={() => setRueckrufOffen(false)}>zurück</button>
-          </span>
-        )}
-      </div>
-
-      {bestaetigen && (
-        <RechnungBestaetigung personId={k.personId} kundeName={k.name} laeuft={laeuft === "rechnung"}
-                              onAbbrechen={() => { setBestaetigen(false); setSendeFehler(null); }}
-                              onSenden={(ref) => void zahlungsdaten(ref)} sendeFehler={sendeFehler} />
-      )}
     </div>
   );
 }
@@ -1109,7 +940,17 @@ function KleinesKarussell({ kinder, geht, gesperrt, flach, onFokus, onAkte, onEn
   onFokus: (id: number) => void; onAkte: (id: number) => void; onEntfernen: (k: Kunde) => void;
 }) {
   const [mitte, setMitte] = useState(0);
-  const touch = useRef<{ x: number; t: number } | null>(null);
+  // Am Handy sind die Karten schmaler, also rücken die Nachbarn enger
+  // zusammen (sonst stünde die vordere Karte allein auf weiter Flur).
+  // Der Hook steht GANZ OBEN: unterhalb der frühen Rückgaben (leere Liste,
+  // flache Fassung) wäre die Hook-Reihenfolge nicht mehr stabil.
+  const eng = useMedia("(max-width: 700px)");
+  // Justin 24.08.: „das man nach rechts und links wischen kann“ — der Zug
+  // folgt dem Finger/der Maus in Echtzeit (zieh in Karten-Anteilen), beim
+  // Loslassen rastet die nächste Karte ein.
+  const [zug, setZug] = useState(0);
+  const zieh = useRef<{ x: number; start: number; t: number; id: number } | null>(null);
+  const buehne = useRef<HTMLDivElement | null>(null);
   const flachRef = useRef<HTMLDivElement | null>(null);
   // Rückt ein Kunde nach oder geht einer, bleibt die Mitte im gültigen Bereich.
   useEffect(() => { setMitte((m) => Math.min(m, Math.max(0, kinder.length - 1))); }, [kinder.length]);
@@ -1146,35 +987,64 @@ function KleinesKarussell({ kinder, geht, gesperrt, flach, onFokus, onAkte, onEn
     );
   }
 
-  const touchStart = (e: React.TouchEvent) => { touch.current = { x: e.touches[0].clientX, t: Date.now() }; };
-  const touchEnd = (e: React.TouchEvent) => {
-    if (!touch.current) return;
-    const dx = e.changedTouches[0].clientX - touch.current.x;
-    if (Math.abs(dx) > 40 && Date.now() - touch.current.t < 600) { if (dx < 0) vor(); else zurueck(); }
-    touch.current = null;
+  // Ein Karten-Schritt in Pixeln — daran misst sich der Zug (`eng` steht oben).
+  const SCHRITT = eng ? 150 : 210;
+  const zugStart = (x: number, id: number) => { zieh.current = { x, start: x, t: Date.now(), id }; };
+  const zugLauf = (x: number) => {
+    if (!zieh.current) return;
+    const dx = x - zieh.current.start;
+    // An den Enden zäh laufen lassen (Gummiband), damit der Rand spürbar ist.
+    const roh = -dx / SCHRITT;
+    const ziel = mitte + roh;
+    const gebremst = ziel < 0 ? roh * 0.35 : ziel > kinder.length - 1 ? roh * 0.35 : roh;
+    setZug(gebremst);
   };
+  const zugEnde = (x: number) => {
+    if (!zieh.current) return;
+    const dx = x - zieh.current.start;
+    const schnell = Date.now() - zieh.current.t < 400 && Math.abs(dx) > 45;
+    const schritte = schnell ? (dx < 0 ? 1 : -1) : Math.round(-dx / SCHRITT);
+    setMitte((m) => Math.max(0, Math.min(kinder.length - 1, m + schritte)));
+    setZug(0);
+    zieh.current = null;
+  };
+
+  const versatz = mitte + zug; // gebrochener Stand während des Ziehens
   return (
-    <div className="pi-kar" onTouchStart={touchStart} onTouchEnd={touchEnd}>
+    <div className="pi-kar">
       <button type="button" className="pi-lade-zu pi-kar-pfeil" onClick={zurueck} disabled={mitte <= 0} aria-label="vorherige Karte"><ChevronLeft size={18} /></button>
-      <div className="pi-kar-buehne">
+      <div className={`pi-kar-buehne${zieh.current ? " zieht" : ""}`} ref={buehne}
+           onTouchStart={(e) => zugStart(e.touches[0].clientX, 0)}
+           onTouchMove={(e) => zugLauf(e.touches[0].clientX)}
+           onTouchEnd={(e) => zugEnde(e.changedTouches[0].clientX)}
+           onPointerDown={(e) => { if (e.pointerType === "touch") return; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); zugStart(e.clientX, e.pointerId); }}
+           onPointerMove={(e) => { if (zieh.current && e.pointerType !== "touch") zugLauf(e.clientX); }}
+           onPointerUp={(e) => { if (e.pointerType !== "touch") zugEnde(e.clientX); }}
+           onPointerCancel={() => { setZug(0); zieh.current = null; }}>
         {kinder.map((s, i) => {
-          const d = i - mitte; const ad = Math.abs(d);
+          const d = i - versatz; const ad = Math.abs(d);
+          const dreh = Math.max(-1, Math.min(1, d)) * -34; // Nachbarn drehen sich weg
           return (
-            <div key={s.kunde.personId} className={`pi-kar-zelle${d === 0 ? " mitte" : ""}`}
+            <div key={s.kunde.personId} className={`pi-kar-zelle${Math.abs(d) < 0.5 ? " mitte" : ""}${zieh.current ? " frei" : ""}`}
                  style={{
-                   transform: `translate(-50%,-50%) translateX(${d * 190}px) translateZ(${-ad * 130}px) rotateY(${d > 0 ? -22 : d < 0 ? 22 : 0}deg) scale(${Math.max(0.66, 1 - ad * 0.13)})`,
-                   opacity: Math.max(0, 1 - ad * 0.3), zIndex: 100 - ad,
+                   transform: `translate(-50%,-50%) translateX(${d * SCHRITT}px) translateZ(${-ad * 190}px) rotateY(${dreh}deg) scale(${Math.max(0.6, 1 - ad * 0.11)})`,
+                   opacity: Math.max(0, 1 - ad * 0.34), zIndex: 100 - Math.round(ad * 10),
                    pointerEvents: ad > 2 ? "none" : undefined,
+                   filter: ad > 0.5 ? `blur(${Math.min(3, (ad - 0.5) * 2.2)}px)` : undefined,
                  }}
                  // Seitenkarte anklicken = in die Mitte drehen (die inneren
                  // Knöpfe gehören nur der vorderen Karte).
-                 onClickCapture={d !== 0 ? (e) => { e.preventDefault(); e.stopPropagation(); setMitte(i); } : undefined}>
+                 onClickCapture={Math.abs(d) >= 0.5 ? (e) => { e.preventDefault(); e.stopPropagation(); setMitte(i); } : undefined}>
               {karte(s)}
             </div>
           );
         })}
       </div>
       <button type="button" className="pi-lade-zu pi-kar-pfeil" onClick={vor} disabled={mitte >= kinder.length - 1} aria-label="nächste Karte"><ChevronRight size={18} /></button>
+      {/* Punkte: wo stehe ich in der Reihe? */}
+      <div className="pi-kar-punkte" aria-hidden="true">
+        {kinder.map((s, i) => <i key={s.kunde.personId} className={i === mitte ? "an" : ""} onClick={() => setMitte(i)} />)}
+      </div>
     </div>
   );
 }
@@ -1436,6 +1306,12 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
   const [leitfadenAuf, setLeitfadenAuf] = useState(false);
   const [alleErgebnisse, setAlleErgebnisse] = useState(false);
   const [sitFeld, setSitFeld] = useState<null | "zahlt_am" | "ausgesetzt" | "rueckruf">(null);
+  // Justin 24.08.: Der Abschluss der Akte kennt zwei Wege — „Mandat
+  // angenommen“ (bucht bei fehlendem Termin direkt einen) und „Kunde
+  // abgelehnt“ (fragt nach dem Grund). `abschlussTermin` zeigt die Slot-Wahl
+  // im Abschluss selbst, damit der Weg nicht nach oben springt.
+  const [abschluss, setAbschluss] = useState<null | "abgelehnt">(null);
+  const [abschlussTermin, setAbschlussTermin] = useState(false);
   const [sitDatum, setSitDatum] = useState(tagPlus(1));
   const [sitZeit, setSitZeit] = useState("10:00");
   // Gespräche: Anrufe mit Aufnahme (lazy je Reiter)
@@ -1524,15 +1400,27 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
     melden("gut", `Termin gebucht: ${text}. Der Slot ist blockiert, die Bestätigung geht an den Kunden.`);
     return true;
   };
-  const mandatBuchen = async () => {
-    if (!hatTermin) { setTerminOffen(true); melden("info", "Ein Mandat gilt als angenommen, wenn der Termin steht – buch ihn hier ein, dann zählt es."); return; }
+  /** Setzt die Mandatsmarke (§16a) und bucht das Ergebnis. `terminLabel` ist
+   *  der Termin, der dabei steht — beim frisch gebuchten Termin direkt
+   *  durchgereicht, weil der State (terminGebucht) im selben Zug noch nicht
+   *  gelesen werden kann. */
+  const mandatVerbuchen = async (terminLabel?: string) => {
     setLaeuft("mandat");
     await api(`/agent/vertrieb/mandat/${k.personId}`, { method: "POST", body: JSON.stringify({}) }).catch(() => null);
+    const wann = terminLabel ?? terminGebucht ?? (sit?.terminAm ? terminText(sit.terminAm) : k.termin ? terminText(k.termin.beginn) : k.terminAm ? terminText(k.terminAm) : "gebucht");
     const ok = await ergebnis("erreicht_sonstiges", {
-      notiz: `Mandat angenommen – Termin ${terminGebucht ?? (sit?.terminAm ? terminText(sit.terminAm) : k.termin ? terminText(k.termin.beginn) : k.terminAm ? terminText(k.terminAm) : "gebucht")} steht. Kunde erinnert: Rechnung vor dem Termin begleichen, dann wird im Gespräch direkt aktiviert.`,
+      notiz: `Mandat angenommen – Termin ${wann} steht. Kunde erinnert: Rechnung vor dem Termin begleichen, dann wird im Gespräch direkt aktiviert.`,
     });
     if (ok) melden("gut", `Mandat angenommen – ${k.name} zählt jetzt zu deinem Bestand.`);
     setLaeuft(null);
+    return ok;
+  };
+  const mandatBuchen = async () => {
+    // Justin 24.08.: „bei Mandat angenommen bucht man dann direkt den Termin
+    // ein (aber nur falls man mit dem noch keinen Termin gebucht hat)“ —
+    // steht der Termin schon, wird das Mandat sofort verbucht.
+    if (!hatTermin) { setAbschlussTermin(true); setAbschluss(null); return; }
+    await mandatVerbuchen();
   };
   /** Situatives Raten-Ergebnis auf die dringendste Rate (Collections-Endpunkt). */
   const sitRatenErgebnis = async (art: RatenErgebnis, zusatz: { zusageDatum?: string; notiz?: string } = {}) => {
@@ -1706,6 +1594,9 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
     : buchungen.length === 0 ? { grund: "Keine Bestellung vorhanden — es gibt nichts zu bezahlen.", ziel: "produkt" as const } : null;
   const offeneBuchungen = buchungen.filter((b) => b.offen);
   const gemeldet = offeneBuchungen.filter((b) => b.zahlungText?.startsWith("Zahlung gemeldet"));
+  // Stammdaten hängen an der Bestellung (Referenz) — ohne sie ist Speichern
+  // im Reiter „Daten“ zwecklos. Trifft praktisch nur Neukunden (Gruppe C).
+  const hatBestellung = !!(k.zahlung?.ref || buchungen[0]?.ref);
 
   return (
     <aside className="pi-lade" role="dialog" aria-modal="true" aria-label={`Akte ${k.name}`}>
@@ -1851,11 +1742,19 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
 
           {leitfadenAuf && <Leitfaden stufe={sitLeitfaden} startAuf />}
 
-          {/* Ergebnis festhalten — SITUATIV (Justin: „viel zu viele – der
-              Situation angepasst“). 3–5 passende Ausgänge, dieselben
-              Endpunkte/Schlüssel; alles andere unter „Alle Ergebnisse“. */}
-          <Sek titel="Ergebnis festhalten" erklaer="Ein Klick nach dem Gespräch – nur die Ausgänge, die zu dieser Situation passen."
-               kopfRechts={<button type="button" className="pi-link" onClick={() => setAlleErgebnisse((v) => !v)}>{alleErgebnisse ? "nur passende" : "Alle Ergebnisse"}</button>}>
+          {/* ═══ GESPRÄCH ABSCHLIESSEN (Justin 24.08.) ═══
+              VORHER: „Ergebnis festhalten“ mit 4–5 gleichrangigen Knöpfen
+              (Termin gebucht (Mandat) · Nicht erreicht · Nummer falsch ·
+              Überlegt noch · Kein Interesse) — dieselben Wege standen zusätzlich
+              in der Fokus-Karte der Pipeline.
+              NACHHER: ZWEI Wege, so wie das Gespräch wirklich endet —
+              „Mandat angenommen“ (steht kein Termin, wird er direkt hier
+              gebucht und das Mandat danach automatisch verbucht) oder
+              „Kunde abgelehnt“ (danach der Grund). Die überfällige Rate behält
+              ihre eigenen Ausgänge (Reaktivierung, E-042a) — dort gibt es kein
+              neues Mandat zu gewinnen. */}
+          <Sek titel="Gespräch abschließen" erklaer={sitArt === "rate_ueberfaellig" ? "Wie ist das Reaktivierungs-Gespräch ausgegangen?" : "Zwei Wege: Mandat angenommen oder Kunde abgelehnt."}
+               kopfRechts={<button type="button" className="pi-link" onClick={() => setAlleErgebnisse((v) => !v)}>{alleErgebnisse ? "zurück" : "anderes Ergebnis"}</button>}>
             {!alleErgebnisse && sitArt === "rate_ueberfaellig" && sitRate && (
               <div className="pi-ew">
                 <div className="pi-reihe">
@@ -1879,50 +1778,70 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
                 )}
               </div>
             )}
-            {!alleErgebnisse && (sitArt === "bezahlt_ohne_termin" || sitArt === "zahlung_gemeldet") && (
-              <div className="pi-ew">
-                <div className="pi-reihe">
-                  <button type="button" className="pi-knopf klein" disabled={!!laeuft} onClick={() => void mandatBuchen()}>{laeuft === "mandat" ? "…" : "Termin gebucht (Mandat)"}</button>
-                  <button type="button" className="pi-knopf klein still" disabled={!!laeuft} onClick={() => void ergebnis("nicht_erreicht")}>{laeuft === "nicht_erreicht" ? "…" : "Nicht erreicht"}</button>
-                  <button type="button" className="pi-knopf klein still" disabled={!!laeuft} onClick={() => void ergebnis("nummer_falsch")}>{laeuft === "nummer_falsch" ? "…" : "Nummer falsch"}</button>
-                  <button type="button" className={`pi-knopf klein ${sitFeld === "rueckruf" ? "" : "still"}`} disabled={!!laeuft} onClick={() => setSitFeld(sitFeld === "rueckruf" ? null : "rueckruf")}>Überlegt noch – Rückruf</button>
-                </div>
-                {sitFeld === "rueckruf" && (
-                  <div className="pi-ew-feld">
-                    <label>Rückruf am<input type="date" className="pi-eingabe" value={sitDatum} min={heuteIso()} onChange={(e) => setSitDatum(e.target.value)} /></label>
-                    <label>Uhrzeit<input type="time" className="pi-eingabe" value={sitZeit} step={900} onChange={(e) => setSitZeit(e.target.value)} /></label>
-                    <button type="button" className="pi-knopf klein" disabled={!!laeuft} onClick={async () => { if (await ergebnis("rueckruf_termin", { terminDatum: sitDatum, terminZeit: sitZeit, notiz: "Mandat noch offen – Kunde überlegt, Rückruf vereinbart." })) setSitFeld(null); }}>Speichern</button>
+
+            {!alleErgebnisse && sitArt !== "rate_ueberfaellig" && (
+              <div className="pi-abschluss">
+                {/* Die zwei Wege — groß, klar, nebeneinander. */}
+                {abschluss === null && !abschlussTermin && (
+                  <div className="pi-abschluss-wege">
+                    <button type="button" className="pi-abschluss-weg gut" disabled={!!laeuft} onClick={() => void mandatBuchen()}>
+                      <Check size={20} strokeWidth={2} />
+                      <b>{laeuft === "mandat" ? "Speichert …" : "Mandat angenommen"}</b>
+                      <small>{hatTermin ? "Termin steht – zählt sofort zu deinem Bestand." : "Termin fehlt noch – du buchst ihn gleich hier."}</small>
+                    </button>
+                    <button type="button" className="pi-abschluss-weg warn" disabled={!!laeuft} onClick={() => setAbschluss("abgelehnt")}>
+                      <X size={20} strokeWidth={2} />
+                      <b>Kunde abgelehnt</b>
+                      <small>Danach wählst du den Grund.</small>
+                    </button>
+                  </div>
+                )}
+
+                {/* Mandat ohne Termin: erst den Termin klicken, dann verbucht
+                    sich das Mandat von selbst. */}
+                {abschlussTermin && (
+                  <div className="pi-abschluss-schritt">
+                    <p className="pi-sek-satz">Ein Mandat zählt mit gebuchtem Termin. Wähle die Zeit – danach wird das Mandat automatisch verbucht.</p>
+                    <SlotWahl laeuft={laeuft === "termin" || laeuft === "mandat"}
+                              onBuchen={async (iso, label) => {
+                                const ok = await terminBuchen(iso, label);
+                                if (!ok) return false;
+                                setAbschlussTermin(false);
+                                await mandatVerbuchen(label);
+                                return true;
+                              }}
+                              onZu={() => setAbschlussTermin(false)} />
+                  </div>
+                )}
+
+                {/* Ablehnung: der Grund. */}
+                {abschluss === "abgelehnt" && (
+                  <div className="pi-abschluss-schritt">
+                    <p className="pi-sek-satz">Warum ist das Mandat nicht zustande gekommen?</p>
+                    <div className="pi-reihe">
+                      <button type="button" className="pi-knopf klein still" disabled={!!laeuft} onClick={async () => { if (await ergebnis("nicht_erreicht")) setAbschluss(null); }}>{laeuft === "nicht_erreicht" ? "…" : "Nicht erreicht"}</button>
+                      <button type="button" className="pi-knopf klein still" disabled={!!laeuft} onClick={async () => { if (await ergebnis("nummer_falsch")) setAbschluss(null); }}>{laeuft === "nummer_falsch" ? "…" : "Nummer falsch"}</button>
+                      <button type="button" className={`pi-knopf klein ${sitFeld === "rueckruf" ? "" : "still"}`} disabled={!!laeuft} onClick={() => setSitFeld(sitFeld === "rueckruf" ? null : "rueckruf")}>Überlegt noch – Rückruf</button>
+                      <button type="button" className="pi-knopf klein warn" disabled={!!laeuft} onClick={async () => {
+                        if (!(await fragen({
+                          titel: `Mandat nicht zustande gekommen – ${k.name} hat kein Interesse?`,
+                          text: "Der Kunde wird gesperrt: Er erscheint bei keinem Mitarbeiter mehr und die Verteilung fasst ihn nicht mehr an. Zahlungs- und Vertragsdaten bleiben erhalten.",
+                          folge: "Der Vorgang steht mit Grund im Kontaktprotokoll.", ja: "Sperren", gefaehrlich: true,
+                        }))) return;
+                        await ergebnis("erreicht_abgelehnt", { notiz: "Mandat nicht zustande gekommen – kein Interesse, vom Kunden im Gespräch erklärt." });
+                      }}>{laeuft === "erreicht_abgelehnt" ? "…" : "Kein Interesse"}</button>
+                      <button type="button" className="pi-link" onClick={() => { setAbschluss(null); setSitFeld(null); }}>zurück</button>
+                    </div>
+                    {sitFeld === "rueckruf" && (
+                      <div className="pi-ew-feld">
+                        <label>Rückruf am<input type="date" className="pi-eingabe" value={sitDatum} min={heuteIso()} onChange={(e) => setSitDatum(e.target.value)} /></label>
+                        <label>Uhrzeit<input type="time" className="pi-eingabe" value={sitZeit} step={900} onChange={(e) => setSitZeit(e.target.value)} /></label>
+                        <button type="button" className="pi-knopf klein" disabled={!!laeuft} onClick={async () => { if (await ergebnis("rueckruf_termin", { terminDatum: sitDatum, terminZeit: sitZeit, notiz: "Mandat noch offen – Kunde überlegt, Rückruf vereinbart." })) { setSitFeld(null); setAbschluss(null); } }}>Speichern</button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
-            )}
-            {!alleErgebnisse && (sitArt === "rechnung_offen" || sitArt === "lead_ohne_antrag" || sitArt === "zusage_gebrochen" || sitArt === "rueckruf_faellig" || sitArt === "termin_heute") && (
-              <div className="pi-ew">
-                <div className="pi-reihe">
-                  <button type="button" className="pi-knopf klein" disabled={!!laeuft} onClick={() => void mandatBuchen()}>{laeuft === "mandat" ? "…" : "Mandat angenommen"}</button>
-                  <button type="button" className="pi-knopf klein still" disabled={!!laeuft} onClick={() => void ergebnis("nicht_erreicht")}>{laeuft === "nicht_erreicht" ? "…" : "Nicht erreicht"}</button>
-                  <button type="button" className="pi-knopf klein still" disabled={!!laeuft} onClick={() => void ergebnis("nummer_falsch")}>{laeuft === "nummer_falsch" ? "…" : "Nummer falsch"}</button>
-                  <button type="button" className={`pi-knopf klein ${sitFeld === "rueckruf" ? "" : "still"}`} disabled={!!laeuft} onClick={() => setSitFeld(sitFeld === "rueckruf" ? null : "rueckruf")}>Überlegt noch – Rückruf</button>
-                  <button type="button" className="pi-knopf klein warn" disabled={!!laeuft} onClick={async () => {
-                    if (!(await fragen({
-                      titel: `Mandat nicht zustande gekommen – ${k.name} hat kein Interesse?`,
-                      text: "Der Kunde wird gesperrt: Er erscheint bei keinem Mitarbeiter mehr und die Verteilung fasst ihn nicht mehr an. Zahlungs- und Vertragsdaten bleiben erhalten.",
-                      folge: "Der Vorgang steht mit Grund im Kontaktprotokoll.", ja: "Sperren", gefaehrlich: true,
-                    }))) return;
-                    await ergebnis("erreicht_abgelehnt", { notiz: "Mandat nicht zustande gekommen – kein Interesse, vom Kunden im Gespräch erklärt." });
-                  }}>{laeuft === "erreicht_abgelehnt" ? "…" : "Kein Interesse"}</button>
-                </div>
-                {sitFeld === "rueckruf" && (
-                  <div className="pi-ew-feld">
-                    <label>Rückruf am<input type="date" className="pi-eingabe" value={sitDatum} min={heuteIso()} onChange={(e) => setSitDatum(e.target.value)} /></label>
-                    <label>Uhrzeit<input type="time" className="pi-eingabe" value={sitZeit} step={900} onChange={(e) => setSitZeit(e.target.value)} /></label>
-                    <button type="button" className="pi-knopf klein" disabled={!!laeuft} onClick={async () => { if (await ergebnis("rueckruf_termin", { terminDatum: sitDatum, terminZeit: sitZeit, notiz: "Mandat noch offen – Kunde überlegt, Rückruf vereinbart." })) setSitFeld(null); }}>Speichern</button>
-                  </div>
-                )}
-              </div>
-            )}
-            {!alleErgebnisse && sitArt === "alles_gut" && (
-              <p className="pi-sek-satz leise">Nichts fällig. Halte besondere Absprachen als Notiz im Reiter „Gespräche“ fest – oder klapp „Alle Ergebnisse“ auf.</p>
             )}
             {alleErgebnisse && <ErgebnisWahlDunkel onErgebnis={(art, zusatz) => ergebnis(art, zusatz)} laeuft={laeuft} kundeName={k.name} vorgabeDatum={datumWert} fragen={fragen} />}
           </Sek>
@@ -2112,7 +2031,20 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
         {reiter === "daten" && (
           <Sek titel="Stammdaten" erklaer="So steht der Kunde in der Akte. Jede Änderung wird mit altem und neuem Wert festgehalten."
                kopfRechts={<button type="button" className="pi-link" onClick={() => setBearbeiten((v) => !v)}>{bearbeiten ? "Schließen" : "Kunde bearbeiten"}</button>}>
-            {bearbeiten && <KundeBearbeiten k={k} melden={melden} fokus={bearbeitenFokus} onFertig={async () => { setBearbeiten(false); setBearbeitenFokus(null); await frisch(); }} />}
+            {/* Justin 24.08.: VORHER lief man bei Kunden OHNE Bestellung (fast
+                immer Neukunden) hier in eine Sackgasse — beim Speichern kam nur
+                die rote Meldung „Keine Bestellung – ohne Bestellung gibt es
+                keine Akte, an der die Daten hängen“. NACHHER steht der Hinweis
+                VOR dem Tippen da und trägt den Ausweg als Knopf: ein Klick legt
+                das Produkt an, danach lassen sich die Daten speichern. */}
+            {!hatBestellung && (
+              <div className="pi-sackgasse">
+                <span><b>Noch keine Bestellung</b>Die Stammdaten hängen an der Bestellung – ohne Paket gibt es nichts, woran sie hängen.</span>
+                <button type="button" className="pi-knopf klein" onClick={() => setProduktOffen(true)}>Produkt hinzufügen</button>
+              </div>
+            )}
+            {produktOffen && <ProduktDunkel k={k} aufKlappen={setProduktOffen} fertig={async (m) => { melden("gut", "Produkt gespeichert", m); await frisch(); onZaehler(); }} />}
+            {bearbeiten && <KundeBearbeiten k={k} melden={melden} fokus={bearbeitenFokus} onProdukt={() => setProduktOffen(true)} onFertig={async () => { setBearbeiten(false); setBearbeitenFokus(null); await frisch(); }} />}
             {/* E-047 Nr. 4, NEUE REGEL: Jeder „fehlt“-Hinweis ist klickbar und
                 öffnet das Formular MIT Fokus auf dem fehlenden Feld. */}
             <dl className="pi-dl">
@@ -2575,7 +2507,7 @@ function Versandzentrum({ personId }: { personId: number }) {
 // E-047 Nr. 4: VORHER fehlten E-Mail und Geburtsdatum im Formular („Kunde
 // bearbeiten muss ALLE Felder haben“); der Server verarbeitet birthdate jetzt
 // (updateCustomerContact). `fokus` springt direkt ins fehlende Feld.
-function KundeBearbeiten({ k, melden, onFertig, fokus }: { k: Kunde; melden: (art: "gut" | "schlecht" | "info", titel: string, text?: string) => void; onFertig: () => Promise<void>; fokus?: string | null }) {
+function KundeBearbeiten({ k, melden, onFertig, fokus, onProdukt }: { k: Kunde; melden: (art: "gut" | "schlecht" | "info", titel: string, text?: string) => void; onFertig: () => Promise<void>; fokus?: string | null; onProdukt?: () => void }) {
   const [f, setF] = useState({
     firstName: (k.name || "").split(" ").slice(0, -1).join(" ") || k.name || "", lastName: (k.name || "").split(" ").slice(-1).join(""),
     email: k.email || "", phone: k.telefon || "",
@@ -2591,7 +2523,10 @@ function KundeBearbeiten({ k, melden, onFertig, fokus }: { k: Kunde; melden: (ar
   }, [fokus]);
   const ref = k.zahlung?.ref || k.buchungen?.[0]?.ref || null;
   const speichern = async () => {
-    if (!ref) { melden("schlecht", "Keine Bestellung", "Ohne Bestellung gibt es keine Akte, an der die Daten hängen."); return; }
+    // Justin 24.08.: VORHER endete der Weg hier mit einer roten Meldung —
+    // NACHHER führt der Hinweis über dem Formular direkt zum Produkt-Anlegen;
+    // diese Meldung ist nur noch der Rückfall, falls jemand doch hier landet.
+    if (!ref) { melden("schlecht", "Keine Bestellung", "Leg oben mit einem Klick ein Produkt an – daran hängen die Stammdaten."); onProdukt?.(); return; }
     setBusy(true);
     const r = await api(`/agent/customers/${encodeURIComponent(ref)}/stammdaten`, { method: "POST", body: JSON.stringify(f) });
     setBusy(false);
@@ -2612,7 +2547,8 @@ function KundeBearbeiten({ k, melden, onFertig, fokus }: { k: Kunde; melden: (ar
         {feld("birthdate", "Geburtsdatum", true, "date")}
       </div>
       <div className="pi-reihe">
-        <button type="button" className="pi-knopf klein" onClick={() => void speichern()} disabled={busy}>{busy ? "Speichert …" : "Speichern"}</button>
+        <button type="button" className="pi-knopf klein" onClick={() => void speichern()} disabled={busy || !ref} title={ref ? undefined : "Erst ein Produkt anlegen – daran hängen die Stammdaten."}>{busy ? "Speichert …" : "Speichern"}</button>
+        {!ref && onProdukt && <button type="button" className="pi-knopf klein still" onClick={onProdukt}>Produkt hinzufügen</button>}
         <span className="pi-luecke">Das Land ändert die Vertriebsleitung.</span>
       </div>
     </div>

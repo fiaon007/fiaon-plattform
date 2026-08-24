@@ -203,7 +203,11 @@ export function OnboardingCockpit({
   const nichtErschienen = async () => {
     if (!(await fragen({
       titel: `„${termin.name}“ als nicht erschienen vermerken?`,
-      text: "Das zählt als erfolgloser Versuch, und der Kunde wird erneut eingeladen. Das Konto bleibt eingeschränkt.",
+      // VORHER (bis 24.08.2026): „…und der Kunde wird erneut eingeladen." Das
+      // stimmte nicht — es ging tagelang gar nichts raus. NACHHER: Der Server
+      // verschickt sofort das Ereignis `termin_verpasst`. GRUND: Auftrag des
+      // Inhabers vom 24.08.2026.
+      text: "Das zählt als erfolgloser Versuch. Der Kunde bekommt sofort eine E-Mail mit dem Link für einen neuen Termin. Das Konto bleibt eingeschränkt.",
       ja: "Nicht erschienen",
     }))) return;
     setBusy("noshow");
@@ -225,12 +229,20 @@ export function OnboardingCockpit({
   const ueberzogen = sekunden > (termin.dauerMin || 15) * 60;
 
   return (
+    // ── E-054 (Justin 24.08.2026) ─────────────────────────────────────────
+    // VORHER: Die Ebene stand hell (Weiß, #0f172a, Gewichte 700/800) mitten im
+    // dunklen Office-Raum — Justin: „das ist aktuell noch immer weiß und viel
+    // zu wuchtig". NACHHER: `ton="dunkel"` schaltet dieselbe Ebene auf die
+    // Office-CI (dunkles Glas, Lichtkante, helle Schrift); der ganze Stil
+    // unten folgt derselben Formensprache wie office-pipeline.css /
+    // office-onboarding.css. An der Fachlogik ändert sich nichts.
     <FiaonEbene
       offen
       onZu={onZu}
+      ton="dunkel"
       titel={`Startgespräch mit ${termin.name}`}
       breite={720}
-      marke={<span style={{ color: "#1d4ed8" }}><Hoerer size={16} /></span>}
+      marke={<span style={{ color: "#93c5fd" }}><Hoerer size={16} /></span>}
       kopf={
         <div className="min-w-0 flex-1">
           <p className="fi-ob-ueber">Startgespräch · {termin.datumText}, {termin.uhrzeit} Uhr</p>
@@ -306,15 +318,22 @@ export function OnboardingCockpit({
         <>
           <style>{COCKPIT_CSS}</style>
 
+          {/* ── E-054 (Justin 24.08.2026): EIN RASTER STATT GESTAPELTER
+              MARGINS ─────────────────────────────────────────────────────
+              VORHER lagen Leiste, Balken, Agenda und Lage lose nebeneinander,
+              jeder Block mit eigenem margin-bottom — die Abstände waren
+              ungleich und der Inhalt wirkte gedrängt („viel zu wuchtig").
+              NACHHER trägt EIN Grid mit festem Abstand alle Blöcke; die
+              Abstände sind damit überall gleich. Reine Darstellung. */}
+          <div className="fi-ob-koerper">
+
           {/* ── KOPFLEISTE: ANRUFEN, UHR, FORTSCHRITT ────────────────── */}
+          {/* 24.08.2026: VORHER stand hier ein ZWEITER „Anrufen"-Knopf, direkt
+              unter dem großen im Kopf — zwei gleiche Knöpfe übereinander, von
+              denen einer überflüssig war. NACHHER trägt der Kopf den Anruf
+              (dort steht auch die Nummer zum Ablesen), diese Leiste nur noch
+              Uhr und Gesprächsblatt. */}
           <div className="fi-ob-leiste">
-            {termin.telefon && onAnrufen && (
-              <button type="button"
-                      onClick={() => onAnrufen(termin.telefon!, termin.personId, termin.name)}
-                      className="fi-ob-anrufen">
-                <Hoerer /> Anrufen
-              </button>
-            )}
             <span className="fi-ob-uhr" data-ueber={ueberzogen ? "ja" : undefined}
                   title={`Zugesagt sind ${termin.dauerMin || 15} Minuten`}>
               {mmss}
@@ -324,15 +343,20 @@ export function OnboardingCockpit({
             </a>
           </div>
 
-          {/* ── FORTSCHRITT ──────────────────────────────────────────── */}
-          <div className="fi-ob-balken-halter" role="progressbar"
-               aria-valuenow={prozent} aria-valuemin={0} aria-valuemax={100}
-               aria-label="Fortschritt der Agenda">
-            <div className="fi-ob-balken" style={{ width: `${prozent}%` }} />
+          {/* ── FORTSCHRITT ──────────────────────────────────────────────
+              24.08.2026: VORHER 4 px Balken mit eigenem margin darunter —
+              NACHHER ein 3-px-Haarstrich mit seiner Beschriftung in einer
+              eigenen kleinen Gruppe. Der Balken BLEIBT, nur dezenter. */}
+          <div className="fi-ob-fortschritt">
+            <div className="fi-ob-balken-halter" role="progressbar"
+                 aria-valuenow={prozent} aria-valuemin={0} aria-valuemax={100}
+                 aria-label="Fortschritt der Agenda">
+              <div className="fi-ob-balken" style={{ width: `${prozent}%` }} />
+            </div>
+            <p className="fi-ob-balken-text">
+              {stand.erledigt.length} von {AGENDA.length} Schritten · {prozent} %
+            </p>
           </div>
-          <p className="fi-ob-balken-text">
-            {stand.erledigt.length} von {AGENDA.length} Schritten · {prozent} %
-          </p>
 
           {/* ── DIE AGENDA ───────────────────────────────────────────── */}
           <ol className="fi-ob-agenda">
@@ -387,16 +411,17 @@ export function OnboardingCockpit({
                           Dasselbe Bauteil wie in der Academy — eine zweite
                           Fassung wären zwei Sätze, die auseinanderlaufen.
                           ══════════════════════════════════════════════════ */}
+                      {/* 24.08.2026: VORHER Inline-Stile mit fontWeight 700 und
+                          eigenen Rändern, dazu die HELLE Kernbotschaft-Karte auf
+                          dunklem Grund — NACHHER Versalien-Label im Haus-Muster
+                          (500 / 10,5 px / .14em / #93c5fd) und dieselbe Karte in
+                          ihrer dunklen Fassung. Der Wortlaut bleibt unberührt. */}
                       {a.key === "abo_klarheit" && (
-                        <div style={{ margin: "12px 0 14px" }}>
-                          <p style={{
-                            margin: "0 0 8px", fontSize: 11, fontWeight: 700,
-                            letterSpacing: ".1em", textTransform: "uppercase",
-                            color: "var(--fi-text-still)",
-                          }}>
+                        <div className="fi-ob-kern">
+                          <p className="fi-ob-kern-titel">
                             Das sagst du dem Kunden — wörtlich
                           </p>
-                          <KernbotschaftKarte />
+                          <KernbotschaftKarte dunkel />
                         </div>
                       )}
                       <textarea
@@ -439,113 +464,210 @@ export function OnboardingCockpit({
               {lage.bonitaet && <p className="fi-ob-lage-zeile">Bonitätsauskunft: {lage.bonitaet}</p>}
             </div>
           )}
+          </div>
         </>
       }
     />
   );
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DER STIL — 24.08.2026, E-054
+//
+// ── WARUM NEU (Justin, wörtlich) ───────────────────────────────────────────
+// „hier bitte neu machen, in unseren CI — das ist aktuell noch immer weiß und
+// viel zu wuchtig, man kann am Handy kaum scrollen — das muss flüssiger laufen
+// und cleanere Darstellung."
+//
+// ── VORHER / NACHHER ───────────────────────────────────────────────────────
+// VORHER: weiße Flächen (#fff), Text #0f172a, Schriftgewichte 700/800, ein
+// Rahmen um jeden Kasten, Abstände über gestapelte margins.
+// NACHHER: Office-Glas — rgba(15,23,42,.6), 1 px rgba(255,255,255,.12),
+// backdrop-filter blur(14–16px) —, 'Inter' in 300/400/500 (NIE 700/800: genau
+// das war das „Wuchtige"), Titel und Zahlen LEICHT und groß statt fett, ein
+// einziges Raster mit gleichem Abstand statt margin-Stapeln.
+//
+// Die Werte sind nicht neu erfunden, sondern 1:1 aus office-pipeline.css und
+// office-onboarding.css übernommen — ein Raum, eine Formensprache.
+// ═══════════════════════════════════════════════════════════════════════════
 const COCKPIT_CSS = `
-/* ── DIE NUMMER IM KOPF (19.08.2026) ─────────────────────────────────────
-   Sie wird zur Terminzeit abgelesen und abgetippt. Deshalb 19 px,
-   tabellarische Ziffern (damit die Gruppen untereinander stehen) und genug
-   Abstand, um sie mit dem Finger zu treffen. */
-.fi-ob-nummer-zeile{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px}
-.fi-ob-nummer{
-  font-size:19px;font-weight:700;letter-spacing:.01em;
-  font-variant-numeric:tabular-nums;color:#0f172a;text-decoration:none;
-  padding:2px 0;border-bottom:1px solid rgba(15,23,42,.14);
-}
-.fi-ob-nummer:hover{border-bottom-color:#1d4ed8;color:#1d4ed8}
-.fi-ob-nummer-knopf{
-  display:inline-flex;align-items:center;gap:6px;flex-shrink:0;
-  padding:5px 12px;border-radius:999px;border:0;cursor:pointer;
-  font-size:12px;font-weight:700;color:#fff;background:#1d4ed8;
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.18);
-}
-.fi-ob-nummer-knopf:hover{background:#1e40af}
+/* ── DER KOPF ─────────────────────────────────────────────────────────────
+   24.08.2026: VORHER 11-px-Versalien in Grau, Titel 19 px/800, Nummer 700 auf
+   Weiß — NACHHER das Haus-Label (500 / 10,5 px / .14em / #93c5fd), der Name
+   groß und LEICHT (300), die Nummer als Glaskachel zum Ablesen. */
+.fi-ob-ueber{margin:0;font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.14em;
+  text-transform:uppercase;color:#93c5fd}
+.fi-ob-titel{margin:10px 0 0;font:300 27px/1.15 'Inter',sans-serif;letter-spacing:-.02em;
+  color:#fff;overflow-wrap:anywhere}
+.fi-ob-unter{margin:5px 0 0;font:300 13px/1.55 'Inter',sans-serif;color:#9ca3af}
+
+/* ── DIE NUMMER IM KOPF (19.08.2026, Form 24.08.2026) ─────────────────────
+   Sie wird zur Terminzeit abgelesen und abgetippt. Deshalb weiterhin 19 px und
+   tabellarische Ziffern — aber in 400 statt 700 und auf einer Glaskachel, die
+   groß genug ist, um sie mit dem Finger zu treffen. */
+.fi-ob-nummer-zeile{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px}
+.fi-ob-nummer{display:inline-flex;align-items:center;min-height:44px;padding:0 14px;
+  border-radius:14px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);
+  font:400 19px/1 'Inter',sans-serif;letter-spacing:.01em;font-variant-numeric:tabular-nums;
+  color:#fff;text-decoration:none;transition:border-color 200ms}
+.fi-ob-nummer:hover{border-color:rgba(96,165,250,.5)}
+.fi-ob-nummer-knopf{display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  flex:0 0 auto;min-height:40px;padding:0 16px;border-radius:999px;border:0;cursor:pointer;
+  font:500 12.5px/1 'Inter',sans-serif;color:#fff;
+  background:linear-gradient(135deg,#2563eb,#3b82f6);box-shadow:0 10px 24px rgba(37,99,235,.3);
+  touch-action:manipulation}
 /* Keine Nummer heißt: Dieses Gespräch kann nicht stattfinden. Das ist ein
    Hinweis in Bernstein, keine graue Nebenbemerkung. */
-.fi-ob-nummer-fehlt{
-  margin-top:8px;font-size:12.5px;font-weight:600;line-height:1.45;color:#b45309;
+.fi-ob-nummer-fehlt{margin:14px 0 0;padding:10px 14px;border-radius:12px;
+  background:rgba(245,158,11,.12);border:1px solid rgba(251,191,36,.35);
+  font:400 12.5px/1.5 'Inter',sans-serif;color:#fde68a}
+
+/* ── DER KÖRPER: EIN RASTER ───────────────────────────────────────────────
+   24.08.2026: VORHER trug jeder Block seinen eigenen margin — die Abstände
+   waren ungleich (14 / 16 / 6 px). NACHHER EIN Grid, ein Abstand. */
+.fi-ob-koerper{display:grid;gap:22px;font-family:'Inter',sans-serif}
+
+/* ── LEISTE: ANRUFEN, UHR, GESPRÄCHSBLATT ─────────────────────────────── */
+.fi-ob-leiste{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.fi-ob-anrufen{display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  min-height:44px;padding:0 18px;border:0;border-radius:999px;cursor:pointer;
+  background:linear-gradient(135deg,#2563eb,#3b82f6);color:#fff;
+  font:500 13.5px/1 'Inter',sans-serif;box-shadow:0 12px 28px rgba(37,99,235,.35);
+  touch-action:manipulation}
+.fi-ob-anrufen:hover{filter:brightness(1.06)}
+/* Die Uhr ist eine Auskunft, kein Alarm: groß, aber LEICHT (300). */
+.fi-ob-uhr{display:inline-flex;align-items:center;min-height:44px;padding:0 16px;
+  border-radius:999px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);
+  font:300 20px/1 'Inter',sans-serif;letter-spacing:-.02em;font-variant-numeric:tabular-nums;color:#fff}
+.fi-ob-uhr[data-ueber="ja"]{color:#fbbf24;background:rgba(245,158,11,.12);
+  border-color:rgba(251,191,36,.4)}
+.fi-ob-blatt{margin-left:auto;display:inline-flex;align-items:center;min-height:44px;
+  font:500 12.5px/1 'Inter',sans-serif;color:#93c5fd;text-decoration:none}
+.fi-ob-blatt:hover{text-decoration:underline;text-underline-offset:3px}
+
+/* ── FORTSCHRITT: bleibt, aber dezent ─────────────────────────────────── */
+.fi-ob-fortschritt{display:grid;gap:9px}
+.fi-ob-balken-halter{height:3px;border-radius:999px;background:rgba(255,255,255,.1);overflow:hidden}
+.fi-ob-balken{height:100%;border-radius:999px;background:linear-gradient(90deg,#2563eb,#3b82f6);
+  transition:width 320ms cubic-bezier(.32,.72,0,1)}
+.fi-ob-balken-text{margin:0;font:400 11.5px/1 'Inter',sans-serif;letter-spacing:.04em;
+  color:#64748b;font-variant-numeric:tabular-nums}
+
+/* ── DIE AGENDA: ruhige Glaskarten ────────────────────────────────────────
+   24.08.2026: VORHER weiße Kästen mit Rahmen, darin ein zweiter Kasten für die
+   Notiz („Kasten im Kasten"). NACHHER eine Glasfläche je Schritt, die Anleitung
+   durch EINE Haarlinie abgetrennt — kein zweiter Rahmen, kein Grau-in-Grau. */
+.fi-ob-agenda{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.fi-ob-schritt{border-radius:20px;background:rgba(15,23,42,.6);
+  border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(14px);
+  -webkit-backdrop-filter:blur(14px);transition:border-color 200ms}
+.fi-ob-schritt[data-auf="ja"]{border-color:rgba(96,165,250,.35)}
+.fi-ob-schritt[data-getan="ja"]{border-color:rgba(52,211,153,.32)}
+.fi-ob-schritt-kopf{display:grid;grid-template-columns:auto minmax(0,1fr);gap:13px;
+  align-items:center;padding:15px 17px}
+.fi-ob-haken{width:32px;height:32px;border-radius:11px;flex:0 0 auto;display:inline-flex;
+  align-items:center;justify-content:center;cursor:pointer;
+  border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05);color:#93c5fd;
+  transition:background 200ms,border-color 200ms;touch-action:manipulation}
+.fi-ob-haken:hover{border-color:rgba(96,165,250,.5)}
+.fi-ob-haken[data-an="ja"]{background:linear-gradient(135deg,#059669,#34d399);
+  border-color:transparent;color:#04241b}
+.fi-ob-nr{font:400 12.5px/1 'Inter',sans-serif;color:#93c5fd;font-variant-numeric:tabular-nums}
+.fi-ob-schritt-titel{min-width:0;padding:0;text-align:left;background:none;border:0;cursor:pointer;
+  display:flex;align-items:center;gap:9px;flex-wrap:wrap;min-height:32px;
+  font:400 14.5px/1.35 'Inter',sans-serif;color:#fff}
+/* Die zwei Merker: Umriss statt Farbfläche — sie sollen den Titel nicht
+   überstimmen. */
+.fi-ob-pflicht,.fi-ob-mahnt{display:inline-flex;align-items:center;padding:4px 9px;
+  border-radius:999px;font:500 10px/1 'Inter',sans-serif;letter-spacing:.12em;
+  text-transform:uppercase;border:1px solid rgba(255,255,255,.12);color:#64748b}
+.fi-ob-mahnt{color:#fde68a;border-color:rgba(251,191,36,.4)}
+.fi-ob-schritt-koerper{display:grid;gap:14px;margin:0 17px;padding:15px 0 17px;
+  border-top:1px solid rgba(255,255,255,.08)}
+.fi-ob-zweck{margin:0;font:300 13px/1.6 'Inter',sans-serif;color:#9ca3af}
+.fi-ob-punkte{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.fi-ob-punkte li{position:relative;padding-left:17px;font:300 13.5px/1.55 'Inter',sans-serif;
+  color:#e5e7eb}
+.fi-ob-punkte li::before{content:"";position:absolute;left:0;top:.62em;width:5px;height:5px;
+  border-radius:999px;background:#93c5fd;opacity:.85}
+.fi-ob-kern{display:grid;gap:10px}
+.fi-ob-kern-titel{margin:0;font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.14em;
+  text-transform:uppercase;color:#93c5fd}
+/* Das Notizfeld: 15 px, am Handy 16 px — darunter zoomt iOS beim Antippen
+   hinein, und dann steht das halbe Cockpit außerhalb des Bildes. */
+.fi-ob-notiz{width:100%;min-height:84px;border-radius:14px;padding:12px 14px;
+  font:400 15px/1.55 'Inter',sans-serif;color:#fff;background:rgba(2,6,23,.4);
+  border:1px solid rgba(255,255,255,.14);outline:none;resize:vertical;color-scheme:dark}
+.fi-ob-notiz::placeholder{color:#64748b}
+.fi-ob-notiz:focus{border-color:rgba(96,165,250,.6);box-shadow:0 0 0 3px rgba(37,99,235,.2)}
+.fi-ob-notiz-fuss{margin:0;font:400 11.5px/1.4 'Inter',sans-serif;color:#64748b}
+.fi-ob-notiz-fuss[data-fehlt="ja"]{color:#fde68a}
+
+/* ── DIE LAGE DES KUNDEN ──────────────────────────────────────────────── */
+.fi-ob-lage{display:grid;gap:8px;padding:17px 19px;border-radius:20px;
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1)}
+.fi-ob-lage-titel{margin:0;font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.14em;
+  text-transform:uppercase;color:#93c5fd}
+.fi-ob-lage-zeile{margin:0;font:300 13px/1.6 'Inter',sans-serif;color:#e5e7eb}
+.fi-ob-lage-zeile[data-warn="ja"]{color:#fde68a}
+
+/* ── DIE FUSSLEISTE ───────────────────────────────────────────────────────
+   Sie ist die Fußleiste der Ebene und bleibt damit IMMER sichtbar — auch am
+   Handy: .fi-ebene-fuss ist flex-shrink:0 im Blatt und bringt unter 640 px
+   den Sicherheitsabstand der iOS-Wischleiste schon selbst mit
+   (padding-bottom: calc(13px + env(safe-area-inset-bottom)), FiaonEbene.tsx).
+   Deshalb hier KEIN zweites env() — sonst steht die Leiste doppelt hoch. */
+.fi-ob-fuss{display:grid;gap:11px;width:100%;font-family:'Inter',sans-serif}
+.fi-ob-fehler{margin:0;padding:10px 14px;border-radius:12px;background:rgba(220,38,38,.14);
+  border:1px solid rgba(248,113,113,.35);color:#fecaca;font:400 12.5px/1.5 'Inter',sans-serif}
+.fi-ob-fuss-zeile{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.fi-ob-knopf-still{min-height:46px;padding:0 18px;border-radius:999px;cursor:pointer;
+  border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#e5e7eb;
+  font:500 13px/1 'Inter',sans-serif;touch-action:manipulation}
+.fi-ob-knopf-still:hover{border-color:rgba(255,255,255,.24)}
+/* Der Abschluss-Knopf: still, solange etwas fehlt — grün, sobald freigeschaltet
+   werden darf. Auch er trägt 500, nicht 700. */
+.fi-ob-knopf-haupt{margin-left:auto;min-height:52px;padding:0 24px;border-radius:999px;
+  cursor:pointer;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);
+  color:#9ca3af;font:500 14px/1 'Inter',sans-serif;touch-action:manipulation;
+  transition:background 200ms,color 200ms}
+.fi-ob-knopf-haupt[data-bereit="ja"]{background:linear-gradient(135deg,#059669,#34d399);
+  border-color:transparent;color:#04241b;box-shadow:0 14px 30px rgba(5,150,105,.32)}
+.fi-ob-knopf-haupt:disabled,.fi-ob-knopf-still:disabled{opacity:.4;cursor:default}
+.fi-ob-fuss-hinweis{margin:0;font:300 11.5px/1.5 'Inter',sans-serif;color:#64748b}
+
+/* Sichtbarer Tastatur-Fokus — auf dunklem Glas ist der Browser-Standard weg. */
+.fi-ob-haken:focus-visible,.fi-ob-schritt-titel:focus-visible,.fi-ob-anrufen:focus-visible,
+.fi-ob-nummer:focus-visible,.fi-ob-nummer-knopf:focus-visible,.fi-ob-blatt:focus-visible,
+.fi-ob-knopf-still:focus-visible,.fi-ob-knopf-haupt:focus-visible{
+  outline:2px solid rgba(96,165,250,.75);outline-offset:2px}
+
+/* ── DAS HANDY ────────────────────────────────────────────────────────────
+   Justins Hauptbeschwerde: „man kann am Handy kaum scrollen — das muss
+   flüssiger laufen."
+   VORHER: sechs Agenda-Karten mit je eigenem backdrop-filter INNERHALB der
+   ohnehin schon unscharfen Ebene. Jede Blur-Fläche wird beim Rollen neu
+   gerechnet; auf dem Telefon ruckelt genau das.
+   NACHHER: unter 640 px tragen die Karten nur noch ihre Glasfarbe, der Blur
+   bleibt der Ebene. Dazu 16 px im Notizfeld (kein iOS-Zoom) und die beiden
+   Fußknöpfe untereinander, damit der Abschluss-Knopf nie aus dem Bild fällt.
+   Feste Höhen oder overflow:hidden gibt es hier bewusst NIRGENDS — der
+   Scroll-Container ist allein .fi-ebene-koerper (FiaonEbene.tsx). */
+@media (max-width: 640px) {
+  .fi-ob-schritt{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(15,23,42,.72)}
+  .fi-ob-koerper{gap:18px}
+  .fi-ob-titel{font-size:23px}
+  .fi-ob-notiz{font-size:16px}
+  .fi-ob-schritt-kopf{padding:13px 15px}
+  .fi-ob-schritt-koerper{margin:0 15px;padding:14px 0 15px}
+  .fi-ob-blatt{margin-left:0}
+  .fi-ob-fuss-zeile{flex-direction:column-reverse;align-items:stretch}
+  .fi-ob-knopf-haupt{margin-left:0;width:100%}
+  .fi-ob-knopf-still{width:100%}
+  .fi-ob-nummer{width:100%;justify-content:center}
+  .fi-ob-nummer-knopf{flex:1 1 auto}
 }
-
-.fi-ob-ueber { margin:0; font-size:11px; font-weight:700; letter-spacing:.08em;
-  text-transform:uppercase; color:rgba(71,85,105,.7); }
-.fi-ob-titel { margin:3px 0 0; font-size:19px; font-weight:800; letter-spacing:-.02em; color:#0f172a; }
-.fi-ob-unter { margin:2px 0 0; font-size:12.5px; color:#64748b; }
-
-.fi-ob-leiste { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
-.fi-ob-anrufen { display:inline-flex; align-items:center; gap:7px; min-height:38px; padding:0 14px;
-  border:0; border-radius:11px; background:#1d4ed8; color:#fff; font-size:13px; font-weight:700; }
-.fi-ob-anrufen:hover { background:#1e40af; }
-.fi-ob-uhr { font-size:15px; font-weight:700; font-variant-numeric:tabular-nums; color:#334155;
-  padding:0 10px; min-height:38px; display:inline-flex; align-items:center; border-radius:10px;
-  background:rgba(15,23,42,.04); }
-.fi-ob-uhr[data-ueber="ja"] { color:#b45309; background:rgba(180,83,9,.09); }
-.fi-ob-blatt { margin-left:auto; font-size:12.5px; font-weight:600; color:#1d4ed8;
-  text-decoration:underline; text-underline-offset:2px; }
-
-.fi-ob-balken-halter { height:4px; border-radius:99px; background:rgba(15,23,42,.07); overflow:hidden; }
-.fi-ob-balken { height:100%; border-radius:99px; background:linear-gradient(90deg,#2563eb,#1d4ed8);
-  transition:width 320ms cubic-bezier(.32,.72,0,1); }
-.fi-ob-balken-text { margin:6px 0 16px; font-size:11.5px; color:#64748b; font-variant-numeric:tabular-nums; }
-
-.fi-ob-agenda { list-style:none; margin:0; padding:0; display:grid; gap:8px; }
-.fi-ob-schritt { border:1px solid rgba(15,23,42,.08); border-radius:14px; background:#fff;
-  transition:border-color 200ms, box-shadow 200ms; }
-.fi-ob-schritt[data-auf="ja"] { border-color:rgba(37,99,235,.28); box-shadow:0 1px 3px rgba(15,23,42,.06); }
-.fi-ob-schritt[data-getan="ja"] { background:rgba(5,150,105,.035); border-color:rgba(5,150,105,.2); }
-.fi-ob-schritt-kopf { display:flex; align-items:center; gap:10px; padding:11px 13px; }
-.fi-ob-haken { width:28px; height:28px; border-radius:9px; flex-shrink:0; display:inline-flex;
-  align-items:center; justify-content:center; border:1px solid rgba(15,23,42,.14);
-  background:#fff; color:#94a3b8; }
-.fi-ob-haken[data-an="ja"] { background:#059669; border-color:#059669; color:#fff; }
-.fi-ob-nr { font-size:12px; font-weight:700; color:#94a3b8; }
-.fi-ob-schritt-titel { flex:1; min-width:0; text-align:left; background:none; border:0;
-  font-size:13.5px; font-weight:700; color:#0f172a; display:flex; align-items:center;
-  gap:8px; flex-wrap:wrap; }
-.fi-ob-pflicht { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.06em;
-  color:#64748b; background:rgba(15,23,42,.05); padding:2px 6px; border-radius:6px; }
-.fi-ob-mahnt { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.06em;
-  color:#b45309; background:rgba(180,83,9,.1); padding:2px 6px; border-radius:6px; }
-.fi-ob-schritt-koerper { padding:0 13px 13px 51px; }
-.fi-ob-zweck { margin:0 0 8px; font-size:12.5px; color:#475569; line-height:1.5; }
-.fi-ob-punkte { margin:0 0 10px; padding-left:16px; display:grid; gap:5px; }
-.fi-ob-punkte li { font-size:13px; line-height:1.5; color:#0f172a; }
-.fi-ob-notiz { width:100%; border-radius:10px; padding:8px 10px; font-size:13px; line-height:1.5;
-  color:#0f172a; background:#f8fafc; border:1px solid rgba(15,23,42,.1); outline:none; resize:vertical; }
-.fi-ob-notiz:focus { border-color:rgba(37,99,235,.45); background:#fff; }
-.fi-ob-notiz-fuss { margin:4px 0 0; font-size:11px; color:#94a3b8; }
-.fi-ob-notiz-fuss[data-fehlt="ja"] { color:#b45309; font-weight:600; }
-
-.fi-ob-lage { margin-top:16px; padding:12px 14px; border-radius:14px;
-  border:1px solid rgba(15,23,42,.08); background:#f8fafc; }
-.fi-ob-lage-titel { margin:0 0 6px; font-size:10.5px; font-weight:700; text-transform:uppercase;
-  letter-spacing:.07em; color:#94a3b8; }
-.fi-ob-lage-zeile { margin:0; font-size:12.5px; color:#475569; line-height:1.6; }
-.fi-ob-lage-zeile[data-warn="ja"] { color:#b45309; font-weight:600; }
-
-.fi-ob-fuss { width:100%; }
-.fi-ob-fehler { margin:0 0 8px; font-size:12.5px; font-weight:600; color:#b91c1c; }
-.fi-ob-fuss-zeile { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-.fi-ob-knopf-still { min-height:44px; padding:0 14px; border-radius:12px; border:1px solid rgba(15,23,42,.12);
-  background:#fff; font-size:13px; font-weight:600; color:#475569; }
-.fi-ob-knopf-haupt { margin-left:auto; min-height:44px; padding:0 18px; border:0; border-radius:12px;
-  background:rgba(15,23,42,.22); color:#fff; font-size:14px; font-weight:700; }
-.fi-ob-knopf-haupt[data-bereit="ja"] { background:#059669; }
-.fi-ob-knopf-haupt:disabled { opacity:.5; }
-.fi-ob-fuss-hinweis { margin:7px 0 0; font-size:11.5px; color:#94a3b8; }
-
-/* ── 380 px ────────────────────────────────────────────────────────────────
-   Der Abschluss-Knopf darf nie außerhalb des Bildes liegen; deshalb rutschen
-   die beiden Knöpfe untereinander und der Hauptknopf nach oben. */
-@media (max-width: 460px) {
-  .fi-ob-schritt-koerper { padding-left:13px; }
-  .fi-ob-fuss-zeile { flex-direction:column-reverse; align-items:stretch; }
-  .fi-ob-knopf-haupt { margin-left:0; width:100%; }
-  .fi-ob-knopf-still { width:100%; }
-  .fi-ob-blatt { margin-left:0; }
+@media (prefers-reduced-motion: reduce) {
+  .fi-ob-balken,.fi-ob-schritt,.fi-ob-haken,.fi-ob-knopf-haupt{transition:none}
 }
-@media (prefers-reduced-motion: reduce) { .fi-ob-balken { transition:none; } }
 `;

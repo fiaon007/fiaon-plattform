@@ -3006,6 +3006,14 @@ router.get("/agent/calendar", requireAgent, async (req: AgentRequest, res) => {
     const gebucht = await sqlPool`
       SELECT t.id, t.person_id, t.beginn AS scheduled_at, t.dauer_min, t.status,
              t.quelle AS buchungsquelle, t.storno_token,
+             -- ── DER BUCHUNGSWEG REIST MIT (24.08.2026) ──────────────────
+             -- Über to_jsonb(t) und nicht als t.herkunft: Die Spalte ist
+             -- additiv und entsteht lazy beim ersten Buchen
+             -- (ensureHerkunftSpalte in server/lib/fiaon-termine.ts). Ein
+             -- direkter Verweis würde den Kalender auf jeder Datenbank
+             -- zerlegen, auf der sie noch fehlt — dieser Weg liefert dort
+             -- NULL und sonst den Wert.
+             (to_jsonb(t) ->> 'herkunft') AS herkunft,
              t.abgesagt_am, t.abgesagt_von, t.erledigt_am,
              (SELECT a.ref FROM fiaon_applications a
                WHERE a.person_id = t.person_id AND a.merged_into IS NULL AND a.archived_at IS NULL
@@ -3086,7 +3094,25 @@ router.get("/agent/calendar", requireAgent, async (req: AgentRequest, res) => {
       // Notiz, die der Agent sich selbst gemacht hat.
       gebuchteTermine: (gebucht as any[]).map((t) => ({
         ...t,
-        outcome: "kunde_hat_gebucht",
+        // ══════════════════════════════════════════════════════════════════
+        // „KUNDE HAT GEBUCHT" WAR EINE BEHAUPTUNG, KEINE AUSKUNFT (24.08.2026)
+        //
+        // VORHER bekam JEDE Zeile aus `fiaon_termine` pauschal
+        // `outcome: "kunde_hat_gebucht"`. In dieser Tabelle stehen aber auch
+        // die Termine, die ein MITARBEITER selbst einträgt (POST
+        // /agent/termine, `quelle='agent_manuell'` — ein Rückruf, den er sich
+        // notiert). Der Client rendert die Marke unbedingt; bei einem selbst
+        // eingetragenen Rückruf stand deshalb gleichzeitig „Rückruf" UND
+        // „Kunde hat gebucht", und darunter der Satz „Diesen Termin hat der
+        // Kunde selbst gewählt – verschieben geht nicht".
+        //
+        // NACHHER sagt die Route, wer gebucht hat, und die Anzeige entscheidet
+        // danach. `quelle: "termin"` bleibt — der Client unterscheidet damit
+        // die beiden Datenquellen (Verlauf/Termin), nicht den Buchenden.
+        // ══════════════════════════════════════════════════════════════════
+        selbstGebucht: String(t.buchungsquelle || "") !== "agent_manuell",
+        outcome: String(t.buchungsquelle || "") !== "agent_manuell"
+          ? "kunde_hat_gebucht" : "agent_hat_eingetragen",
         quelle: "termin",
         art: "termin",
         schluessel: `termin:${t.id}`,

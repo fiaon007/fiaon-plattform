@@ -70,6 +70,61 @@ export const QUELLEN = {
 
 export type TerminQuelle = keyof typeof QUELLEN;
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE HERKUNFT — WELCHER WEG HAT ZU DIESEM TERMIN GEFÜHRT? (24.08.2026)
+//
+// ── VORHER ────────────────────────────────────────────────────────────────
+// Der Buchungsweg hinterliess keine Spur. Zwei Fälle standen im Bestand
+// identisch da:
+//   · Ein Kunde, der VOR der Zahlung aus der Antragsstrecke heraus bucht
+//     (server/routes/fiaon-antrag-termin.ts).
+//   · Ein Kunde, der nach vergeblichen Anrufen die „nicht erreicht"-Mail
+//     bekommt (server/lib/fiaon-nicht-erreicht.ts).
+// Beide bekamen `quelle='nichterreicht_mail'`. Und der Weg über die
+// Nummern-Korrektur (server/fiaon-number-update.ts) hinterliess gar nichts:
+// Der Wert `nummer_korrektur` steht in den Anzeige-Wörterbüchern
+// (fiaon-termin-zentrale.ts, shared/fiaon-termin-art.ts), wurde aber NIE
+// geschrieben — der Admin-Filter „Nach Nummern-Korrektur" konnte deshalb
+// garantiert nichts finden.
+//
+// ── NACHHER ───────────────────────────────────────────────────────────────
+// Ein ZWEITES, rein beschreibendes Feld: `fiaon_termine.herkunft`.
+//
+// GRUND für das zweite Feld statt neuer Quellwerte: `quelle` beschreibt die
+// ZUSTÄNDIGKEIT (welche Art Gespräch — Onboarding/Vertrieb/Inkasso) und
+// steuert Rollen- und Slot-Logik. Wer den Buchungsweg dort hineinschreibt,
+// ändert die Vergabe. Die Herkunft ändert NICHTS: keine Slot-Auswahl, keine
+// Rolle, keine Dauer. Sie ist Buchführung.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Die Wege, auf denen ein Terminlink zum Menschen kommt — mit Klartext. */
+export const HERKUENFTE = {
+  antrag_vor_zahlung: "Terminlink aus der Antragsstrecke (vor der Zahlung)",
+  nicht_erreicht_mail: "Mail „Wir haben Sie nicht erreicht“",
+  nummer_korrektur: "Mail zur Nummern-Korrektur",
+  onboarding_einladung: "Einladung zum Startgespräch",
+  termin_verpasst_mail: "Einladung nach einem verpassten Termin",
+  wiedereinstieg_mail: "Wiedereinstiegs-Mail nach langer Funkstille",
+  agent: "Von einem Mitarbeiter weitergegeben oder eingetragen",
+  unbekannt: "Weg nicht mitgeführt",
+} as const;
+
+export type TerminHerkunft = keyof typeof HERKUENFTE;
+
+/**
+ * Eine mitgeschickte Herkunft prüfen.
+ *
+ * Alles, was nicht auf der Liste steht, wird zu `unbekannt` — NICHT
+ * gespeichert, wie es kam. Der Wert stammt aus einer Adresszeile und damit von
+ * aussen; eine offene Spalte wäre eine Einladung, sich die Buchführung selbst
+ * zu schreiben. Und da die Herkunft nichts steuert, ist „unbekannt" der
+ * ehrlichste Ausgang.
+ */
+export function herkunftPruefen(wert: unknown): TerminHerkunft {
+  const h = String(wert ?? "").trim().toLowerCase();
+  return (h in HERKUENFTE ? h : "unbekannt") as TerminHerkunft;
+}
+
 /** Wie lange dauert ein Gespräch dieser Quelle? */
 export function dauerFuer(quelle: TerminQuelle | string): number {
   return (QUELLEN as Record<string, { minuten: number }>)[String(quelle)]?.minuten ?? SLOT_MINUTEN;
@@ -434,14 +489,28 @@ export function terminTokenPruefen(token: unknown): { personId: number; abgelauf
  * aufrief), buchte ein VERTRIEBSGESPRÄCH für einen Menschen, der das Paket
  * längst besitzt.
  *
- * Jetzt leitet die Seite die Gesprächsart aus dem Zustand ab. `quelle` bleibt
- * als Parameter, weil rund zwanzig Aufrufer ihn übergeben — er wird nur nicht
- * mehr in die Adresse geschrieben. Ein mitgeschicktes `?art=` verwirft die
- * Ableitung und vermerkt es (`fiaon_termine.quelle_verworfen`).
+ * Jetzt leitet die Seite die Gesprächsart aus dem Zustand ab. Ein
+ * mitgeschicktes `?art=` verwirft die Ableitung und vermerkt es
+ * (`fiaon_termine.quelle_verworfen`).
+ *
+ * ── DER ZWEITE PARAMETER TRÄGT JETZT DIE HERKUNFT (24.08.2026) ────────────
+ * VORHER stand hier `quelle` — und in der ersten Zeile `void quelle;`. Der
+ * Parameter wurde also entgegengenommen und weggeworfen; rund ein Dutzend
+ * Aufrufer übergaben folgenlos „onboarding_call". Damit war nirgends
+ * festgehalten, welcher WEG einen Termin erzeugt hat.
+ *
+ * NACHHER trägt er die HERKUNFT und landet als `?von=` in der Adresse. Sie
+ * beschreibt den Weg, nicht das Gespräch — die Gesprächsart bleibt abgeleitet.
+ * GRUND: Ohne diese Spur sind „vor der Zahlung aus dem Antrag" und „nach
+ * vergeblichen Anrufen" im Bestand nicht zu unterscheiden.
+ *
+ * `unbekannt` hängt bewusst NICHTS an: Ein leerer Zusatz in einer Kundenmail
+ * ist besser als ein Wort, das nichts sagt.
  */
-export function terminLink(personId: number, quelle: TerminQuelle | string = "auto"): string {
-  void quelle;
-  return absoluteUrl(`/termin/${terminTokenErzeugen(personId)}`);
+export function terminLink(personId: number, herkunft: TerminHerkunft | string = "unbekannt"): string {
+  const von = herkunftPruefen(herkunft);
+  const anhang = von === "unbekannt" ? "" : `?von=${von}`;
+  return absoluteUrl(`/termin/${terminTokenErzeugen(personId)}${anhang}`);
 }
 
 /** Der Storno-Link zu einem Termin. */
@@ -940,6 +1009,11 @@ export interface Buchung {
   /** Eine mitgeschickte Gesprächsart, die die Ableitung verworfen hat. */
   verworfen?: string | null;
   /**
+   * Der Weg, der zu dieser Buchung geführt hat (24.08.2026) — rein
+   * beschreibend, ohne Wirkung auf Slots, Rolle oder Dauer.
+   */
+  herkunft?: TerminHerkunft;
+  /**
    * Führt jemand aus einer anderen Rolle, weil beim Onboarding nichts frei war?
    *
    * Sie steht am Termin und nicht nur im Log: Ein Betreiber, der morgens seine
@@ -947,6 +1021,34 @@ export interface Buchung {
    * zu suchen.
    */
   vertretung: boolean;
+}
+
+// ── DIE SPALTE `herkunft` ENTSTEHT BEIM ERSTEN BUCHEN (24.08.2026) ─────────
+// Muster wie `ensureVertriebSpalten` (server/routes/fiaon-office-vertrieb.ts):
+// lazy, memoisiert, in einer Transaktion mit `lock_timeout`. Ohne das Zeitlimit
+// stellt sich ein ALTER hinter eine lange laufende Transaktion und ZWINGT jede
+// folgende Abfrage auf `fiaon_termine` in dieselbe Warteschlange — die Seite
+// stünde. Lieber nach 3 s aufgeben und beim nächsten Aufruf erneut versuchen.
+//
+// Der Rückgabewert sagt, ob die Spalte da ist. Eine Buchung darf NIE daran
+// scheitern, dass eine beschreibende Spalte fehlt: Ist sie nicht da, wird der
+// Termin trotzdem gebucht und nur die Herkunft nicht geschrieben.
+let herkunftBereit: Promise<boolean> | null = null;
+export function ensureHerkunftSpalte(): Promise<boolean> {
+  if (!herkunftBereit) {
+    herkunftBereit = (async () => {
+      await sqlPool.begin(async (tx: any) => {
+        await tx`SET LOCAL lock_timeout = '3s'`;
+        await tx`ALTER TABLE fiaon_termine ADD COLUMN IF NOT EXISTS herkunft VARCHAR`;
+      });
+      return true;
+    })().catch((e) => {
+      herkunftBereit = null;
+      console.error("[TERMINE] Spalte `herkunft` konnte nicht angelegt werden:", e);
+      return false;
+    });
+  }
+  return herkunftBereit;
 }
 
 /**
@@ -969,6 +1071,14 @@ export async function terminBuchen(
      * abgeleitete Art landet in der Datenbank.
      */
     quelle: TerminQuelle | string;
+    /**
+     * Der WEG, auf dem der Mensch zur Buchung kam (24.08.2026).
+     *
+     * Rein beschreibend: Sie ändert weder Slot-Auswahl noch Rolle noch Dauer.
+     * Deshalb steht sie NEBEN `quelle` und nicht darin — `quelle` steuert die
+     * Zuständigkeit, und ein Buchungsweg darf sie nicht verschieben.
+     */
+    herkunft?: TerminHerkunft | string | null;
   },
   lauf: Lauf = sqlPool,
 ): Promise<Buchung> {
@@ -1141,6 +1251,8 @@ export async function terminBuchen(
   if (!imRaster) throw new TerminFehler("kein_slot", "Zu dieser Zeit werden keine Gespräche angeboten.");
 
   const stornoToken = randomBytes(24).toString("hex");
+  const herkunft = herkunftPruefen(eingabe.herkunft);
+  const herkunftSpalteDa = await ensureHerkunftSpalte();
   let gebucht: any;
   try {
     // ── DIE ZUSTÄNDIGKEIT WIRD MITGESCHRIEBEN (Migration 073) ───────────
@@ -1164,8 +1276,20 @@ export async function terminBuchen(
     throw err;
   }
 
+  // ── DIE HERKUNFT WIRD NACHGETRAGEN, NICHT MITGESCHRIEBEN (24.08.2026) ────
+  // Bewusst eine zweite Anweisung statt zweier INSERT-Fassungen: Der INSERT
+  // oben ist die Stelle, an der ein Termin ENTSTEHT — dort zwei Varianten
+  // nebeneinander zu führen (mit und ohne Spalte) heisst, den kritischen Weg zu
+  // verdoppeln. Die Herkunft ist Buchführung; misslingt sie, fehlt eine
+  // Auskunft, aber kein Termin.
+  if (herkunftSpalteDa) {
+    await lauf`UPDATE fiaon_termine SET herkunft = ${herkunft} WHERE id = ${Number(gebucht.id)}`
+      .catch((e: unknown) => console.error("[TERMINE] Herkunft nicht vermerkt:", e));
+  }
+
   return {
     id: Number(gebucht.id),
+    herkunft,
     personId: eingabe.personId,
     agentId: eingabe.agentId,
     agentVorname: String(agent.vorname),

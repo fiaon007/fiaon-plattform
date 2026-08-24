@@ -283,7 +283,13 @@ function SgKarte({ t, offen, onOeffnen, onFertig, onCockpit, flash }: { t: SgTer
                 <button type="button" className="ob-knopf klein still" onClick={() => void dokumentieren("verpasst")} disabled={!!busy}>{busy === "verpasst" ? "…" : "Nicht erschienen"}</button>
                 <button type="button" className="ob-knopf klein still" onClick={() => void einladen()} disabled={!!busy}>{busy === "einladung" ? "…" : "Einladung erneut senden"}</button>
               </div>
-              <p className="ob-lade" style={{ marginTop: 8 }}>„Nicht erschienen“ zählt wie ein erfolgloser Anruf und lädt den Kunden erneut ein.</p>
+              {/* VORHER (bis 24.08.2026): „…und lädt den Kunden erneut ein."
+                  Das stimmte nicht: Nach einem No-Show ging tagelang gar nichts
+                  raus, frühestens nach 48 Stunden die generische Einladung.
+                  NACHHER: Der Server verschickt sofort das Ereignis
+                  `termin_verpasst`. Der Satz sagt jetzt, was wirklich geschieht.
+                  GRUND: Auftrag des Inhabers vom 24.08.2026. */}
+              <p className="ob-lade" style={{ marginTop: 8 }}>„Nicht erschienen“ zählt wie ein erfolgloser Anruf. Der Kunde bekommt sofort eine E-Mail mit dem Link für einen neuen Termin.</p>
             </div>
           )}
           <div>

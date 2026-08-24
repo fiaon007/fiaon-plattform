@@ -15,6 +15,7 @@ import { useOffice } from "./OfficeShell";
 import { useAcademyFortschritt } from "./academy/fortschritt";
 import "@/styles/office-schreibtisch.css";
 import "@/styles/office-termintreue.css";
+import { terminArtAusQuelle } from "@shared/fiaon-termin-art";
 
 const euro = (c: number) => (c / 100).toLocaleString("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
 const uhr = (iso: string) => new Date(iso).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" });
@@ -79,7 +80,11 @@ function SchreibtischInnen() {
           {termineHeute.map((t) => (
             <div key={`t${t.id}`} className="st-zeile">
               <div className="st-zeit"><b>{uhr(t.beginn)}</b><small>{t.dauerMin || t.dauer_min || 15} min</small></div>
-              <div className="st-wer"><b>{t.name}</b><small>{t.art || t.quelle || "Gespräch"}{t.status === "verpasst" ? " · verpasst" : ""}</small></div>
+              {/* 24.08.2026: VORHER fiel die Anzeige auf den TECHNISCHEN Quellwert
+                      zurück — auf dem Dashboard stand wörtlich „agent_manuell"
+                      und „onboarding_call". NACHHER übersetzt derselbe Helfer
+                      wie im Kalender in Klartext (Onboarding/Vertrieb/Rückruf/Zahlung). */}
+              <div className="st-wer"><b>{t.name}</b><small>{t.art || terminArtAusQuelle(t.quelle).text}{t.status === "verpasst" ? " · verpasst" : ""}</small></div>
               <div className="st-aktion">
                 <button type="button" className="st-knopf" onClick={() => anrufen(t.telefon ?? t.primary_phone, t.personId ?? t.person_id, t.name)} disabled={!(t.telefon ?? t.primary_phone)}><Phone size={15} /> Anrufen</button>
                 <Link href={`/agent/kunden?person=${t.personId ?? t.person_id}`} className="st-knopf still">Akte</Link>
@@ -105,7 +110,7 @@ function SchreibtischInnen() {
           {termineSpaeter.map((t) => (
             <div key={`s${t.id}`} className="st-zeile klein">
               <div className="st-zeit"><b>{new Date(t.beginn).toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", timeZone: "Europe/Berlin" })}</b><small>{uhr(t.beginn)}</small></div>
-              <div className="st-wer"><b>{t.name}</b><small>{t.art || t.quelle || "Gespräch"}</small></div>
+              <div className="st-wer"><b>{t.name}</b><small>{t.art || terminArtAusQuelle(t.quelle).text}</small></div>
               <Link href={`/agent/kunden?person=${t.personId ?? t.person_id}`} className="st-knopf still">Akte</Link>
             </div>
           ))}

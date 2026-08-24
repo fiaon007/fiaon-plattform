@@ -287,7 +287,11 @@ export function karte(p: any) {
     terminAm: p.termin_am || null,
     // Der persoenliche Buchungslink — fuer den Kopierknopf, wenn keine
     // E-Mail hinterlegt ist („per WhatsApp senden").
-    terminLink: terminLink(Number(p.id)),
+    // ── HERKUNFT (24.08.2026) ──────────────────────────────────────────────
+    // VORHER ohne zweites Argument. NACHHER „agent": Diesen Link gibt ein
+    // Mitarbeiter von Hand weiter — er soll im Bestand nicht wie eine
+    // automatische Mail aussehen.
+    terminLink: terminLink(Number(p.id), "agent"),
     betreutSeit: p.betreuung_seit,
     letzterKontakt: p.letzter_kontakt,
     letztesErgebnis: p.letztes_ergebnis,

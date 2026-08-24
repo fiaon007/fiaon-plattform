@@ -187,11 +187,46 @@ select.ca-feld option{color:#0f172a}
 }
 @media(max-width:700px){
   .ca-woche,.ca-w-legende{display:none}
-  .ca-wochenliste{display:grid}
+  .ca-wochenliste{display:grid;gap:16px}
   .ca-nav{margin-left:0;width:100%}
   .ca-nav b{flex:1}
-  .ca-zeile{grid-template-columns:64px 1fr;row-gap:8px}
-  .ca-aktion{grid-column:1/3;justify-content:flex-start}
+  /* ── Justin 24.08.: „das klebt alles zu sehr, cleaner bitte“ ───────────────
+     VORHER: die Termine lagen als 2-Spalten-Raster (64px Zeit | Rest) direkt
+     untereinander, nur durch Haarlinien getrennt; die Uhrzeit stieß mit dem
+     farbigen Zeitbalken zusammen (abgeschnittenes „00:00“) und die drei
+     Knöpfe zogen sich über die volle Breite.
+     NACHHER: jeder Termin ist eine eigene ruhige Karte mit Luft — Zeitzeile
+     oben, Name groß darunter, Merkmale, dann eine Knopfzeile, in der nur
+     „Anrufen“ mitwächst. */
+  .ca{gap:22px;padding-bottom:88px}
+  .ca-zeile{
+    grid-template-columns:1fr;
+    grid-template-areas:"zeit" "wer" "tun";
+    gap:9px;
+    padding:14px 15px;
+    margin-top:10px;
+    border-top:0;
+    border-radius:18px;
+    background:rgba(255,255,255,.04);
+    border:1px solid rgba(255,255,255,.08);
+  }
+  .ca-zeile:first-of-type{margin-top:0}
+  .ca-zeile.mit-ton{padding-left:19px}
+  .ca-zeile.mit-ton::before{top:14px;bottom:14px;left:8px}
+  .ca-zeit{grid-area:zeit;display:flex;align-items:baseline;gap:9px}
+  .ca-zeit b{font-size:14px;color:#bfdbfe}
+  .ca-zeit small{margin-top:0;font-size:11.5px}
+  .ca-wer{grid-area:wer}
+  .ca-wer b{font-size:16px;line-height:1.3}
+  .ca-wer small{gap:6px;margin-top:7px}
+  .ca-aktion{grid-area:tun;justify-content:flex-start;gap:8px;margin-top:2px}
+  /* Nur „Anrufen“ wächst — Haken und „Mehr“ bleiben kompakt. */
+  .ca-aktion .ca-knopf{flex:0 0 auto;min-height:42px}
+  .ca-aktion .ca-knopf:first-child{flex:1 1 auto}
+  .ca-tageskarte{padding:16px 15px 17px}
+  .ca-tageskarte .ca-zeile{grid-template-columns:1fr;padding:14px 15px}
+  .ca-tageskarte .ca-aktion{grid-column:auto}
+  .ca-tageskarte-kopf{margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid rgba(255,255,255,.08)}
   .ca-hinweiskarte{flex-wrap:wrap}
   .ca-hinweiskarte em{margin-left:26px}
   .ca-dialog-hintergrund{place-items:end center;padding:0}

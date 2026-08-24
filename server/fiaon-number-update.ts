@@ -110,7 +110,14 @@ export async function maybeSendNumberUpdateMail(
         : ((await sql`SELECT person_id FROM fiaon_leads WHERE id = ${Number(id)}`) as any[]);
       if (personId?.person_id) {
         const { terminLink: linkFuer } = await import("./lib/fiaon-termine");
-        terminLink = linkFuer(Number(personId.person_id));
+        // ── DIESER WEG HINTERLIESS BISHER GAR NICHTS (24.08.2026) ────────
+        // VORHER ohne zweites Argument. Der Wert `nummer_korrektur` stand
+        // zwar in den Anzeige-Wörterbüchern (fiaon-termin-zentrale.ts,
+        // shared/fiaon-termin-art.ts), wurde aber NIE geschrieben — der
+        // Admin-Filter „Nach Nummern-Korrektur" konnte deshalb garantiert
+        // nichts finden. NACHHER trägt der Link `?von=nummer_korrektur`, und
+        // der gebuchte Termin bekommt diese `herkunft`.
+        terminLink = linkFuer(Number(personId.person_id), "nummer_korrektur");
       }
     } catch { /* ohne Termin-Link ist die Mail nicht falsch, nur ärmer */ }
 

@@ -140,6 +140,46 @@ antwortet im selben Ticket weiter (kein neues Ticket).
 
 ---
 
+## NEU (24.08.2026): `termin_verpasst` — „Leider nicht erschienen"
+
+**Wann:** Ein Mitarbeiter meldet im Onboarding-Bereich ein Startgespräch als
+„nicht erschienen" (Cockpit, Terminkarte oder Kalender). Die Mail geht SOFORT
+raus, genau einmal je Termin (`fiaon_termine.verpasst_mail_am`). Nachsendbar aus
+der Akte (Versandzentrum) und über `/admin/events`.
+
+**Warum:** VORHER passierte beim Kunden nach einem No-Show gar nichts — die
+Automatik „nicht erreicht" greift erst ab dem sechsten erfolglosen Versuch, und
+die generische Einladung kommt frühestens nach 48 Stunden. NACHHER bekommt der
+Kunde sofort eine Antwort und einen Link auf einen neuen Termin.
+
+**Payload:**
+
+| Feld | Beispiel | Bedeutung |
+| --- | --- | --- |
+| `event_type` | `termin_verpasst` | Zweig-Auswahl in Make |
+| `email` | `max.mustermann@example.com` | Empfänger (Kunde) |
+| `vorname` | `Max` | Anrede (kann leer sein) |
+| `agent_vorname` | `Daniel` | wer angerufen hat |
+| `termin_datum` | `24.08.2026` | Termin, der nicht zustande kam (kann leer sein) |
+| `termin_uhrzeit` | `14:20` | dito (kann leer sein) |
+| `termin_link` | `https://www.fiaon.com/termin/7f3a…` | Link „Neuen Termin wählen" |
+
+**In Make anzulegen:**
+
+1. Neuen Router-Zweig: `event_type = termin_verpasst`.
+2. Brevo-Template in **Sie-Form** anlegen. Fertige HTML-Fassung liegt bei:
+   `docs/brevo-templates/termin_verpasst.html`.
+   Betreff: „Ihr Termin bei FIAON — wir haben Sie nicht erreicht".
+3. `termin_datum` / `termin_uhrzeit` können leer sein (Nachsenden ohne
+   Terminbezug) — der Satz steht deshalb in einer Bedingung.
+4. Empfänger = `{{email}}`.
+5. Test über `/admin/events` → Event „Termin nicht zustande gekommen (Kunde)".
+
+**Ton:** kein Vorwurf, keine Schuldzuweisung, kein Versprechen. „Wir haben Sie
+nicht erreicht" — nicht „Sie waren nicht da".
+
+---
+
 ## Noch offen (bereits im Code, Zweig/Template prüfen)
 
 | Event | Wann | Status |

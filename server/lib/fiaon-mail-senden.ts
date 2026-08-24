@@ -135,8 +135,13 @@ export async function mailSenden(ein: SendeEingabe): Promise<SendeErgebnis> {
   // Die Zustandsregeln kennt fiaon-versand.ts. Ereignisse, die dort keine
   // eigene Regel haben, kommen durch — sie sind vom Vorgesetzten ausgelöste
   // Einzelfälle (Storno, DSGVO), bei denen der Mensch die Lage kennt.
+  // VORHER 24.08.2026: ohne "termin_verpasst" — die Art gab es nicht.
+  // NACHHER: mit. Ihre Regel in fiaon-versand.ts lässt sie bewusst durch,
+  // auch wenn ein Termin existiert (beim No-Show existiert er ja).
+  // GRUND: Auftrag des Inhabers vom 24.08.2026.
   const mitRegel: VersandArt[] = [
-    "payment_details", "welcome", "nicht_erreicht_termin", "onboarding_einladung", "number_update_request",
+    "payment_details", "welcome", "nicht_erreicht_termin", "onboarding_einladung",
+    "termin_verpasst", "number_update_request",
   ];
   if (mitRegel.includes(def.type as VersandArt)) {
     const pruefung = await versandErlaubt(ein.personId, def.type as VersandArt, lauf);
@@ -149,8 +154,20 @@ export async function mailSenden(ein: SendeEingabe): Promise<SendeErgebnis> {
 
   // Links, die nur der Server bauen kann.
   const links: Record<string, unknown> = {};
-  if (def.type === "nicht_erreicht_termin") links.termin_link = terminLink(ein.personId);
-  if (def.type === "onboarding_einladung") links.termin_link = terminLink(ein.personId, "onboarding_call");
+  // ── HERKUNFT STATT FOLGENLOSER QUELLE (24.08.2026) ────────────────────────
+  // VORHER stand hier „onboarding_call" — eine QUELLE, die `terminLink` mit
+  // `void quelle;` weggeworfen hat. NACHHER trägt der zweite Parameter die
+  // HERKUNFT und landet als `?von=` im Link; die Gesprächsart bleibt abgeleitet.
+  if (def.type === "nicht_erreicht_termin") links.termin_link = terminLink(ein.personId, "nicht_erreicht_mail");
+  if (def.type === "onboarding_einladung") links.termin_link = terminLink(ein.personId, "onboarding_einladung");
+  // NEU 24.08.2026: Auch die No-Show-Mail trägt einen Buchungslink. Datum und
+  // Uhrzeit des verpassten Termins kann dieser Weg nicht kennen — er sendet aus
+  // /admin/events ohne Terminbezug; die Vorlage lässt den Satz dann weg. Der
+  // automatische Versand aus dem Onboarding-Bereich liefert beides mit.
+  // Auch hier die Herkunft statt der folgenlosen Quelle (24.08.2026): Die
+  // Einladung nach einem verpassten Termin ist ein eigener Weg und soll im
+  // Bestand als solcher erkennbar sein.
+  if (def.type === "termin_verpasst") links.termin_link = terminLink(ein.personId, "termin_verpasst_mail");
 
   const ref = basis._ref as string | null;
   delete basis._ref;

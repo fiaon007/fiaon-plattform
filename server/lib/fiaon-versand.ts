@@ -69,6 +69,13 @@ export type VersandArt =
   | "welcome"                  // Willkommen / Zugang
   | "nicht_erreicht_termin"    // Terminlink (Vertriebsgespräch)
   | "onboarding_einladung"     // Einladung zum Startgespräch
+  // ── NEU 24.08.2026 ──────────────────────────────────────────────────────
+  // VORHER: Nach einem No-Show gab es nichts zum Nachsenden. Wer am Telefon
+  //   hörte „ich habe nie eine neue Einladung bekommen", hatte keinen Knopf.
+  // NACHHER: Die Mail, die beim Melden automatisch rausgeht, lässt sich aus
+  //   der Akte auch von Hand wiederholen.
+  // GRUND: Auftrag des Inhabers vom 24.08.2026.
+  | "termin_verpasst"          // Termin nicht zustande gekommen — neuer Terminlink
   | "number_update_request";   // Bitte um Korrektur der Rufnummer
 
 export interface VersandKnopf {
@@ -102,6 +109,11 @@ export const VERSAND_TEXT: Record<VersandArt, { titel: string; zweck: string }> 
     titel: "Einladung zum Startgespräch",
     zweck: "Die 15 Minuten, in denen ihm jemand das System erklärt.",
   },
+  // NEU 24.08.2026 (siehe VersandArt oben).
+  termin_verpasst: {
+    titel: "Termin nicht zustande gekommen",
+    zweck: "„Wir haben Sie leider nicht erreicht“ — mit dem Link auf einen neuen Termin.",
+  },
   number_update_request: {
     titel: "Bitte um neue Rufnummer",
     zweck: "Wenn die hinterlegte Nummer nicht stimmt.",
@@ -110,8 +122,11 @@ export const VERSAND_TEXT: Record<VersandArt, { titel: string; zweck: string }> 
 
 /** Was diese Rolle überhaupt senden darf. */
 export function artenFuerRolle(rolle: string): VersandArt[] {
-  if (rolle === "onboarding") return ["onboarding_einladung", "welcome"];
-  return ["payment_details", "welcome", "nicht_erreicht_termin", "onboarding_einladung", "number_update_request"];
+  // VORHER 24.08.2026: ohne "termin_verpasst". NACHHER: mit. Die Rolle
+  // „onboarding" bekommt sie zuerst — sie ist es, die den No-Show meldet.
+  // GRUND: Auftrag des Inhabers vom 24.08.2026.
+  if (rolle === "onboarding") return ["onboarding_einladung", "termin_verpasst", "welcome"];
+  return ["payment_details", "welcome", "nicht_erreicht_termin", "onboarding_einladung", "termin_verpasst", "number_update_request"];
 }
 
 interface Zustand {
@@ -211,6 +226,30 @@ function bewerten(
   if (art === "onboarding_einladung") {
     if (!z.bezahlt) return { erlaubt: false, grund: "Startgespräche bekommen nur bezahlte Kunden.", warnung: null, heute };
     if (z.hatTermin) return { erlaubt: false, grund: "Der Kunde hat bereits einen Termin.", warnung: null, heute };
+  }
+  // ══════════════════════════════════════════════════════════════════════
+  // „termin_verpasst" STEHT ABSICHTLICH VOR DER TERMIN-SPERRE (24.08.2026)
+  //
+  // VORHER: Es gab diese Art nicht. Hätte sie einfach in der Sperre unten
+  //   mitgehangen, wäre genau der Fall blockiert, für den sie gebaut ist:
+  //   Beim No-Show EXISTIERT der Termin ja — nur eben als verpasster. Und
+  //   hat der Kunde nach dem Fehlversuch längst neu gebucht, ist die Mail
+  //   trotzdem nicht falsch; sie erklärt, was mit dem alten Termin war.
+  // NACHHER: Keine Termin-Sperre. Es bleiben DSGVO, Kontaktsperre, fehlende
+  //   Adresse und Archiv — die Prüfungen, die Recht und Sicherheit verlangen.
+  // GRUND: Auftrag des Inhabers vom 24.08.2026.
+  //
+  // Eine Warnung statt einer Wand: Wer schon wieder einen Termin hat, soll es
+  // WISSEN, bevor er drückt — aufgehalten wird er nicht.
+  // ══════════════════════════════════════════════════════════════════════
+  if (art === "termin_verpasst") {
+    if (z.archiviert) return { erlaubt: false, grund: "Alle Bestellungen dieses Kunden sind archiviert.", warnung: null, heute };
+    return {
+      erlaubt: true, grund: null, heute,
+      warnung: z.hatTermin
+        ? "Der Kunde hat inzwischen wieder einen Termin — die Mail lädt ihn erneut zum Buchen ein."
+        : null,
+    };
   }
   if (art === "nicht_erreicht_termin" && z.hatTermin) {
     return { erlaubt: false, grund: "Der Kunde hat bereits einen Termin.", warnung: null, heute };

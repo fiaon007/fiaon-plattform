@@ -2481,8 +2481,12 @@ export function Softphone() {
                   ist in Ordnung, es fehlt nur der Nachweis. Ein Knopf, der den
                   falschen Grund nennt, schickt jemanden auf die falsche Suche. */}
               <MarkeHoerer size={19} />{" "}
+              {/* 24.08.2026: VORHER stand auch ohne Nummer „Anrufen" auf dem
+                  gesperrten Knopf — er sah aus, als sei er kaputt. NACHHER
+                  sagt jeder Sperrgrund, was fehlt. */}
               {stummVerdacht ? "Mikrofon prüfen"
                 : probePflicht ? "Erst Sprechprobe"
+                : nummer.length < 4 ? "Nummer eingeben"
                 : "Anrufen"}
             </button>
             {kunde && (

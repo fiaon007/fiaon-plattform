@@ -37,6 +37,18 @@ export type MakeEventType =
   | "nicht_erreicht_termin"  // 2× nicht erreicht → Kunde bucht selbst einen Termin
   | "termin_bestaetigung"    // Termin gebucht — mit Storno-Link
   | "termin_erinnerung"      // 24 h vor dem Termin
+  // ── NEU 24.08.2026: der No-Show bekommt eine Antwort ──────────────────────
+  // VORHER: Wurde ein Startgespraech als „verpasst" gemeldet, bekam der Kunde
+  //   GAR NICHTS. Die Automatik aus fiaon-nicht-erreicht.ts schreibt erst ab
+  //   dem sechsten erfolglosen Versuch, und der Lauf `runStartgespraechEin-
+  //   ladungen` schickt fruehestens nach 48 Stunden wieder die generische
+  //   Einladung — deren Text so klingt, als waere nie ein Termin gewesen.
+  // NACHHER: Dieses Ereignis feuert SOFORT beim Melden, mit eigenem, ruhigem
+  //   Text und dem Link auf einen neuen Termin.
+  // GRUND: Auftrag des Inhabers vom 24.08.2026 — „wenn man ‚Kunde nicht
+  //   erreicht' klickt muss der Kunde eine Email bekommen … hier neuen Termin
+  //   buchen".
+  | "termin_verpasst"        // Startgespraech nicht zustande gekommen — neuer Terminlink
   | "onboarding_einladung"   // bezahlter Kunde soll sein Startgespraech buchen
   | "antrag_erinnerung"      // Antrag begonnen, nicht beendet — Kette nach E-023 (10 min, 16:30, 19:00, 07:30, 15:00 …)
   | "abo_verlaengerung_frage" // 12. Rate bezahlt — „Möchten Sie bleiben?" (E-024)

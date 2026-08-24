@@ -83,7 +83,10 @@ export function bausteineFuellen(text: string, e: Empfaenger): string {
   return text
     .replace(/\{Anrede\}/g, e.vorname || "du")
     .replace(/\{Zahlungsdaten\}/g, zahlung)
-    .replace(/\{Terminlink\}/g, e.personId ? terminLink(e.personId) : "(kein Terminlink für externe Adressen)")
+    // Herkunft „agent" (24.08.2026): Diesen Baustein setzt ein Mitarbeiter in
+    // eine selbst geschriebene Mail — im Bestand soll der Termin nicht wie eine
+    // automatische Strecke aussehen.
+    .replace(/\{Terminlink\}/g, e.personId ? terminLink(e.personId, "agent") : "(kein Terminlink für externe Adressen)")
     .replace(/\{Portal-Login\}/g, absoluteUrl("/login"))
     .replace(/\{Agent-Vorname\}/g, e.agentVorname || "dein Ansprechpartner");
 }

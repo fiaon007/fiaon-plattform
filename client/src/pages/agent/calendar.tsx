@@ -97,9 +97,45 @@ function berlinIso(local: string): string | null {
 }
 const hm = (s: string) => Number(s.slice(0, 2)) * 60 + Number(s.slice(3, 5));
 const TAGE = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
-const STUNDE_PX = 44;               // Wochenraster: Höhe einer Stunde in Pixeln (00–24 h)
+// ═══════════════════════════════════════════════════════════════════════════
+// DAS ZEITFENSTER DER WOCHENANSICHT
+//
+// Justin, 24.08.2026: „Mach den Kalender bitte so ‚kleiner', dass man darin
+// nicht mehr scrollen muss — man soll auf 1 Blick eine volle und cleane
+// Übersicht haben."
+//
+// VORHER wurden immer volle 24 Stunden gezeichnet, fest mit 44 px je Stunde:
+// 1.056 px hoch in einem Kasten mit `max-height: 72vh`. Das Raster MUSSTE
+// scrollen — und zwar durch acht Stunden Nacht, in denen nie ein Termin liegt.
+//
+// NACHHER zeigt die Woche nur das Fenster, in dem wirklich etwas passiert:
+// die hinterlegten Arbeitszeiten, erweitert um jeden Termin, der außerhalb
+// davon liegt (sonst würde er verschwinden — das wäre der schlimmere Fehler),
+// plus eine Stunde Luft oben und unten. Die Stundenhöhe wird danach so
+// gerechnet, dass dieses Fenster in den freien Platz passt. Ergebnis: ein Blick
+// statt Scrollen, ohne dass ein einziger Termin verlorengeht.
+// ═══════════════════════════════════════════════════════════════════════════
 const MIN_BLOCK = 34;               // Mindesthöhe eines Terminblocks – lesbar auch bei 20 min
-const SCROLL_START = 8 * STUNDE_PX; // beim Öffnen automatisch zu 08:00 scrollen
+const MIN_SPANNE = 8;               // nie weniger als 8 Stunden zeigen – sonst wirkt der Tag gestaucht
+const STUNDE_PX_MIN = 26;           // darunter wird eine Stunde unlesbar
+const STUNDE_PX_MAX = 62;           // darüber wirkt ein leerer Tag auseinandergezogen
+
+/** Das Fenster [vonStunde, bisStunde) aus Arbeitszeiten und Terminen. */
+function zeitFenster(bloecke: [number, number][], termineMin: number[]): [number, number] {
+  const werte: number[] = [];
+  for (const [v, b] of bloecke) { werte.push(v); werte.push(b); }
+  // Termine zählen mit ihrem Ende (großzügig 60 min), damit der letzte nicht
+  // halb am unteren Rand klebt.
+  for (const m of termineMin) { werte.push(m); werte.push(m + 60); }
+  if (!werte.length) return [8, 20];                       // nichts hinterlegt: der klassische Bürotag
+  let von = Math.floor(Math.min(...werte) / 60) - 1;
+  let bis = Math.ceil(Math.max(...werte) / 60) + 1;
+  von = Math.max(0, von); bis = Math.min(24, bis);
+  // Auf die Mindestspanne aufziehen – erst nach unten, dann nach oben.
+  while (bis - von < MIN_SPANNE && bis < 24) bis++;
+  while (bis - von < MIN_SPANNE && von > 0) von--;
+  return [von, bis];
+}
 const anrufen = (nummer: string | null | undefined, personId: number | null | undefined, name: string) => { if (!nummer) return; window.dispatchEvent(new CustomEvent("fiaon-anrufen", { detail: { nummer, personId: personId ?? null, name } })); };
 
 // ── Termin (zwei Quellen: Verlauf = eigene Notiz, Termin = vom Kunden gebucht) ──
@@ -138,12 +174,13 @@ interface Block { wochentag: number; von: string; bis: string }
 // Blöcke bekommen eine Mindesthöhe (MIN_BLOCK); wer sich dadurch – oder echt –
 // überlappt, wird nebeneinander versetzt statt übereinander gestapelt.
 interface WLage { top: number; hoehe: number; links: number; breite: number } // top/hoehe px, links/breite %
-function wochenLayout(liste: Termin[]): Map<string, WLage> {
-  const H = STUNDE_PX;
+function wochenLayout(liste: Termin[], H: number, vonMin: number, gesamtPx: number): Map<string, WLage> {
   const its = liste.map((a) => {
     const dauer = Math.max(15, Number(a.dauer_min) || 30);
     const hoehe = Math.max(MIN_BLOCK, (dauer / 60) * H);
-    const top = Math.max(0, Math.min((minuten(tZeit(a)) / 60) * H, 24 * H - hoehe));
+    // Der Versatz um `vonMin` ist der Kern: 09:00 sitzt jetzt bei 09:00 minus
+    // Fensteranfang, nicht mehr bei „neun Stunden ab Mitternacht".
+    const top = Math.max(0, Math.min(((minuten(tZeit(a)) - vonMin) / 60) * H, gesamtPx - hoehe));
     return { key: tKey(a), top, ende: top + hoehe };
   }).sort((x, y) => x.top - y.top || y.ende - x.ende);
   const res = new Map<string, WLage>();
@@ -312,6 +349,41 @@ function CalendarInnen() {
   // ── Glas-Popover im Wochenraster (Hover = flüchtig, Klick = fest) ────────
   const [popover, setPopover] = useState<{ a: Termin; fest: boolean; links: number; oben: number } | null>(null);
   const wocheRef = useRef<HTMLDivElement | null>(null);
+
+  // ── DAS ZEITFENSTER UND DIE STUNDENHÖHE (24.08.2026) ─────────────────────
+  // Siehe den Kopfkommentar bei `zeitFenster`. Hier wird beides für die gerade
+  // gezeigte Woche gerechnet: erst das Fenster aus Arbeitszeiten UND Terminen,
+  // dann die Stundenhöhe, die dieses Fenster in den freien Platz einpasst.
+  const [platzH, setPlatzH] = useState(620);
+  const [vonStunde, bisStunde] = useMemo(() => {
+    const alleBloecke: [number, number][] = [];
+    for (let wd = 1; wd <= 7; wd++) alleBloecke.push(...freiAm(wd));
+    const inWoche = termine.filter((a) => wochenKeys.includes(dayKey(tZeit(a))));
+    return zeitFenster(alleBloecke, inWoche.map((a) => minuten(tZeit(a))));
+  }, [freiAm, termine, wochenKeys]);
+  const spanne = Math.max(1, bisStunde - vonStunde);
+  const vonMin = vonStunde * 60;
+  const stundePx = Math.min(STUNDE_PX_MAX, Math.max(STUNDE_PX_MIN, Math.floor(platzH / spanne)));
+  const rasterPx = spanne * stundePx;
+
+  // Wie viel Platz ist da? Vom oberen Rand des Rasters bis zum Fensterende,
+  // abzüglich Legende und Luft. Wird bei jeder Größenänderung neu gemessen.
+  useEffect(() => {
+    if (ansicht !== "woche" || laedt) return;
+    const messen = () => {
+      const el = wocheRef.current;
+      if (!el) return;
+      const oben = el.getBoundingClientRect().top;
+      const KOPFZEILE = 58;   // die klebende Tagesleiste im Raster
+      const RESERVE = 96;     // Legende darunter + Luft zum Rand
+      const frei = window.innerHeight - oben - KOPFZEILE - RESERVE;
+      setPlatzH((alt) => (Math.abs(alt - frei) > 4 ? Math.max(200, frei) : alt));
+    };
+    messen();
+    window.addEventListener("resize", messen);
+    const t = window.setTimeout(messen, 120);   // nach dem ersten Aufbau nachfassen
+    return () => { window.removeEventListener("resize", messen); window.clearTimeout(t); };
+  }, [ansicht, laedt, spanne]);
   const hoverTimer = useRef<number | null>(null);
   const zuTimer = useRef<number | null>(null);
   useEffect(() => () => { if (hoverTimer.current) window.clearTimeout(hoverTimer.current); if (zuTimer.current) window.clearTimeout(zuTimer.current); }, []);
@@ -335,7 +407,9 @@ function CalendarInnen() {
     zuTimer.current = window.setTimeout(() => setPopover((p) => (p && !p.fest ? null : p)), 250);
   };
   // Beim Öffnen der Woche zu 08:00 springen – Randtermine bleiben per Scroll erreichbar.
-  useEffect(() => { if (ansicht === "woche" && !laedt && wocheRef.current) wocheRef.current.scrollTop = SCROLL_START; }, [ansicht, laedt]);
+  // 24.08.2026: Das automatische Scrollen auf 08:00 ist entfallen — das Raster
+  // beginnt jetzt selbst am Anfang des Arbeitsfensters, es gibt nichts mehr
+  // wegzuscrollen.
 
   const wochenTitel = `${datumKurz(ausKey(wochenKeys[0]))} – ${datumKurz(ausKey(wochenKeys[6]))}`;
   const tagDate = ausKey(tagKey);
@@ -427,24 +501,26 @@ function CalendarInnen() {
           <section className="ca-woche" aria-label="Wochenansicht" ref={wocheRef} onScroll={() => setPopover(null)}>
             <div className="ca-w-zeiten">
               <div className="ca-w-ecke" />
-              <div className="ca-w-zeitspalte" style={{ height: 24 * STUNDE_PX }}>
-                {Array.from({ length: 25 }, (_, i) => <span key={i} style={{ top: i * STUNDE_PX }}>{String(i % 24).padStart(2, "0")}</span>)}
+              <div className="ca-w-zeitspalte" style={{ height: rasterPx }}>
+                {Array.from({ length: spanne + 1 }, (_, i) => <span key={i} style={{ top: i * stundePx }}>{String((vonStunde + i) % 24).padStart(2, "0")}</span>)}
               </div>
             </div>
             {wochenKeys.map((key, i) => {
               const d = ausKey(key); const liste = proTag(key); const frei = freiAm(i + 1); const istHeute = key === heuteKey;
-              const lage = wochenLayout(liste);
-              const px = (m: number) => (m / 60) * STUNDE_PX;
+              const lage = wochenLayout(liste, stundePx, vonMin, rasterPx);
+              // Minuten seit Mitternacht → Pixel im Fenster. Der Versatz um
+              // `vonMin` ist der Unterschied zu vorher.
+              const px = (m: number) => ((m - vonMin) / 60) * stundePx;
               return (
                 <div key={key} className={`ca-w-tag${istHeute ? " heute" : ""}`}>
                   <button type="button" className="ca-w-kopf" onClick={() => { setTagKey(key); setAnsicht("tag"); }} title="Tag öffnen">
                     {istHeute ? <em>Heute</em> : <b>{TAGE[i]}</b>}<small>{datumKurz(d)}</small>{istHeute && <b style={{ fontSize: 11 }}>{TAGE[i]}</b>}
                   </button>
-                  <div className="ca-w-spalte" style={{ height: 24 * STUNDE_PX }}>
+                  <div className="ca-w-spalte" style={{ height: rasterPx }}>
                     <div className="ca-w-ausser" style={{ top: 0, bottom: 0 }} />
                     {frei.map(([v, b], k) => <div key={k} className="ca-w-frei" style={{ top: px(v), height: px(b) - px(v) }} />)}
-                    {Array.from({ length: 25 }, (_, h) => <div key={h} className="ca-w-linie" style={{ top: h * STUNDE_PX }} />)}
-                    {istHeute && <div className="ca-w-jetzt" style={{ top: px(minuten(jetzt)) }} />}
+                    {Array.from({ length: spanne + 1 }, (_, h) => <div key={h} className="ca-w-linie" style={{ top: h * stundePx }} />)}
+                    {istHeute && minuten(jetzt) >= vonMin && minuten(jetzt) <= bisStunde * 60 && <div className="ca-w-jetzt" style={{ top: px(minuten(jetzt)) }} />}
                     {liste.map((a) => {
                       const l = lage.get(tKey(a))!;
                       const kompakt = l.hoehe < 50; // erst ab ausreichender Höhe zweizeilig
@@ -462,9 +538,6 @@ function CalendarInnen() {
                       );
                     })}
                   </div>
-                  {/* 24.08.2026 (Justin): Jeder Raum erklaert sich beim ersten
-                      Betreten selbst — danach jederzeit ueber den Knopf unten links. */}
-                  <Rundgang raum="calendar" titel={RUNDGAENGE.calendar.titel} schritte={RUNDGAENGE.calendar.schritte} />
                 </div>
               );
             })}
@@ -506,6 +579,15 @@ function CalendarInnen() {
                 onUebergeben={(id, g) => uebergeben(detail, id, g)} onAbsagen={() => absagen(detail)} />
       )}
       {anlegen && <Anlegen vorschlag={tagKey === heuteKey ? "" : `${tagKey}T10:00`} onZu={() => setAnlegen(false)} onFertig={(t) => { setAnlegen(false); flash(t); laden(); }} />}
+
+      {/* ── Der Rundgang: GENAU EINMAL ────────────────────────────────────────
+          24.08.2026: VORHER stand er INNERHALB der Tagesschleife der
+          Wochenansicht — also siebenmal nebeneinander. Sieben Rundgänge
+          bedeuten sieben Scheinwerfer, sieben Karten übereinander und sieben
+          Wiederhol-Knöpfe an derselben Stelle. NACHHER steht er einmal an der
+          Wurzel der Seite, unabhängig davon, ob gerade Tag oder Woche gezeigt
+          wird. */}
+      <Rundgang raum="calendar" titel={RUNDGAENGE.calendar.titel} schritte={RUNDGAENGE.calendar.schritte} />
     </div>
   );
 }

@@ -6,10 +6,30 @@
    liegt DECKUNGSGLEICH über dem Bild, nicht an dessen Stelle. Solange er lädt,
    sieht man das Standbild darunter; sobald er läuft, deckt er es. Er blendet
    über eine Sekunde auf, damit der Wechsel nicht springt. */
-.of-film{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.32;transform:scale(1.03);
+.of-film{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.72;transform:scale(1.03);
   animation:ofFilmAuf 1s ease both}
-@keyframes ofFilmAuf{from{opacity:0}to{opacity:.32}}
+@keyframes ofFilmAuf{from{opacity:0}to{opacity:.72}}
 @media (prefers-reduced-motion:reduce){.of-film{display:none}}
+/* 24.08.2026 (Justin: „Das Video im Hintergrund sieht man sehr schlecht. Mach
+   es sichtbarer!"): VORHER lief der Film mit denselben 32 % Deckkraft wie das
+   Standbild und darüber lag der volle Schleier (.72 → .86 → .97) — zusammen
+   blieben rund 5 % vom Bild übrig, die Bewegung war praktisch unsichtbar.
+   NACHHER läuft der Film mit 72 %, und der Schleier wird NUR dort, wo ein Film
+   liegt, deutlich dünner. Oben, wo Kopfzeile und Überschrift stehen, bleibt er
+   am kräftigsten; nach unten hin öffnet er sich, weil dort die Glasflächen der
+   Inhalte selbst schon für Kontrast sorgen. Die Räume ohne Film behalten ihren
+   bisherigen Schleier unverändert. */
+.of-buehne.mit-film .of-schleier{
+  background:linear-gradient(180deg,rgba(10,22,40,.58) 0%,rgba(10,22,40,.52) 45%,rgba(10,22,40,.72) 100%),
+             radial-gradient(ellipse at 15% 20%,rgba(37,99,235,.14),transparent 55%)}
+/* Am Handy steht der Text dichter am Rand und hat weniger Glas unter sich —
+   dort bleibt der Schleier kräftiger, sonst leidet die Lesbarkeit. */
+@media (max-width:700px){
+  .of-buehne.mit-film .of-schleier{
+    background:linear-gradient(180deg,rgba(10,22,40,.68) 0%,rgba(10,22,40,.66) 45%,rgba(10,22,40,.84) 100%),
+               radial-gradient(ellipse at 15% 20%,rgba(37,99,235,.14),transparent 55%)}
+  .of-buehne.mit-film .of-film{opacity:.62}
+}
 .of-schleier{position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,22,40,.72) 0%,rgba(10,22,40,.86) 40%,rgba(10,22,40,.97) 100%),radial-gradient(ellipse at 15% 20%,rgba(37,99,235,.16),transparent 55%)}
 /* Kopf */
 /* 24.08.2026 (Justin): „Ausloggen, Profilbild, Online-Status brauchen mehr

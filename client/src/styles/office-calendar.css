@@ -87,8 +87,17 @@
 .ca-tagband-legende{display:flex;gap:14px;font-size:11.5px;color:#64748b;margin-bottom:10px;flex-wrap:wrap}
 .ca-tagband-legende i{display:inline-block;width:10px;height:10px;border-radius:3px;vertical-align:-1px;margin-right:5px}
 
-/* Wochenraster: 00–24 h im Scrollrahmen (JS springt zu 08:00), Köpfe kleben oben */
-.ca-woche{display:grid;grid-template-columns:52px repeat(7,minmax(0,1fr));gap:4px;padding:0 16px 16px;border-radius:24px;background:rgba(15,23,42,.6);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);overflow:auto;max-height:min(72vh,680px);overscroll-behavior:contain}
+/* Wochenraster — 24.08.2026 (Justin: „mach den Kalender so ‚kleiner', dass man
+   darin nicht mehr scrollen muss — man soll auf 1 Blick eine volle und cleane
+   Übersicht haben"):
+   VORHER `max-height: min(72vh,680px)` um ein Raster von 1.056 px (volle 24
+   Stunden à 44 px) — es MUSSTE immer scrollen, und zwar durch acht Stunden
+   Nacht. NACHHER zeichnet calendar.tsx nur das Arbeitsfenster und rechnet die
+   Stundenhöhe so, dass es in den freien Platz passt. Hier bleibt `overflow`
+   nur als Notbremse: Sie greift erst, wenn selbst die kleinste Stundenhöhe
+   nicht mehr reicht (sehr flaches Fenster bei sehr weit gestreuten Terminen).
+   Im Alltag scrollt hier nichts mehr. Die Tagesköpfe kleben weiter oben. */
+.ca-woche{display:grid;grid-template-columns:52px repeat(7,minmax(0,1fr));gap:4px;padding:0 16px 16px;border-radius:24px;background:rgba(15,23,42,.6);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);overflow:auto;overscroll-behavior:contain}
 .ca-w-zeiten{min-width:0}
 .ca-w-ecke{position:sticky;top:0;z-index:6;height:58px;background:rgba(15,23,42,.94)}
 .ca-w-zeitspalte{position:relative}

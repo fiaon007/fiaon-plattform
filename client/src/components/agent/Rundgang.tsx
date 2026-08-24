@@ -36,7 +36,7 @@
 // besonders in einem Raum, in dem echte Kunden stehen.
 // ═══════════════════════════════════════════════════════════════════════════
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api } from "@/pages/agent/shared";
 
@@ -67,6 +67,10 @@ export function Rundgang({ raum, titel, schritte }: {
   const [i, setI] = useState(0);
   const [rahmen, setRahmen] = useState<Rahmen | null>(null);
   const [bereit, setBereit] = useState(false);   // Merker vom Server gelesen?
+  // Die WIRKLICHE Höhe der Karte. Der Anfangswert ist nur für den allerersten
+  // Bildaufbau da; danach steht hier immer der gemessene Wert.
+  const [karteH, setKarteH] = useState(240);
+  const karteRef = useRef<HTMLDivElement | null>(null);
   const gemerkt = useRef(false);
 
   // ── Beim ersten Betreten von selbst starten ──────────────────────────────
@@ -108,6 +112,26 @@ export function Rundgang({ raum, titel, schritte }: {
   }, [raum]);
 
   const schliessen = useCallback(() => { setLaeuft(false); setI(0); merken(); }, [merken]);
+
+  // ── Die Karte AUSMESSEN, bevor sie sitzt ─────────────────────────────────
+  // `useLayoutEffect` läuft nach dem Aufbau, aber VOR dem Zeichnen: Der
+  // Betrachter sieht die Karte nie an der falschen Stelle aufblitzen. Der
+  // Beobachter fängt die Fälle, in denen sich die Höhe nachträglich ändert —
+  // etwa wenn eine Schriftart nachlädt und der Text auf eine Zeile mehr
+  // umbricht.
+  useLayoutEffect(() => {
+    const el = karteRef.current;
+    if (!el) return;
+    const nachmessen = () => {
+      const h = el.getBoundingClientRect().height;
+      if (h > 0) setKarteH((alt) => (Math.abs(alt - h) > 1 ? h : alt));
+    };
+    nachmessen();
+    if (typeof ResizeObserver === "undefined") return;
+    const beobachter = new ResizeObserver(nachmessen);
+    beobachter.observe(el);
+    return () => beobachter.disconnect();
+  }, [laeuft, i, bereit]);
 
   // ── Das erklärte Element suchen und im Bild halten ───────────────────────
   const messen = useCallback(() => {
@@ -210,17 +234,37 @@ export function Rundgang({ raum, titel, schritte }: {
   const s = schritte[i];
   const letzter = i === schritte.length - 1;
 
-  // ── Die Karte platzieren: unter dem Element, sonst darüber, sonst mittig ──
+  // ── Die Karte platzieren ─────────────────────────────────────────────────
+  //
+  // 24.08.2026, Justin: „Das 6/6-Fenster schneidet unten ab und ist nicht
+  // vollständig ersichtlich" — und auf dem Dashboard dasselbe bei 3/3.
+  //
+  // VORHER wurde mit einer GESCHÄTZTEN Höhe von 220 px gerechnet. Schritte mit
+  // langem Text und Praxis-Kasten sind aber gut doppelt so hoch: Die Rechnung
+  // „passt unten" ging auf, die Karte lief trotzdem aus dem Bild.
+  //
+  // NACHHER wird die WIRKLICHE Höhe gemessen (`karteH`, siehe useLayoutEffect
+  // weiter unten) und die Karte danach in drei Stufen platziert:
+  //   1. unter das Element, wenn sie dort ganz hineinpasst,
+  //   2. sonst darüber, wenn sie dort ganz hineinpasst,
+  //   3. sonst an den Rand geschoben und, falls sie höher ist als das Fenster,
+  //      in sich selbst scrollbar (`max-height` im CSS).
+  // In jedem Fall wird der Wert zuletzt in das Fenster geklemmt — abgeschnitten
+  // wird nichts mehr.
   const fensterB = window.innerWidth;
   const fensterH = window.innerHeight;
   const breite = Math.min(KARTE_BREIT, fensterB - 24);
+  const RAND = 12;
   let karte: { top: number; left: number } | null = null;
   if (rahmen) {
-    const unten = rahmen.top + rahmen.height + 14;
-    const passtUnten = unten + 220 < fensterH;
+    const unter = rahmen.top + rahmen.height + 14;
+    const ueber = rahmen.top - 14 - karteH;
+    const passtUnter = unter + karteH <= fensterH - RAND;
+    const passtUeber = ueber >= RAND;
+    const roh = passtUnter ? unter : passtUeber ? ueber : unter;
     karte = {
-      top: passtUnten ? unten : Math.max(12, rahmen.top - 232),
-      left: Math.min(Math.max(12, rahmen.left + rahmen.width / 2 - breite / 2), fensterB - breite - 12),
+      top: Math.max(RAND, Math.min(roh, fensterH - karteH - RAND)),
+      left: Math.min(Math.max(RAND, rahmen.left + rahmen.width / 2 - breite / 2), fensterB - breite - RAND),
     };
   }
 
@@ -251,7 +295,7 @@ export function Rundgang({ raum, titel, schritte }: {
                  style={{ top: rahmen.top, left: rahmen.left, width: rahmen.width, height: rahmen.height }} />
           )}
 
-          <div className={`ru-karte${karte ? "" : " mitte"}`}
+          <div ref={karteRef} className={`ru-karte${karte ? "" : " mitte"}`}
                style={karte ? { top: karte.top, left: karte.left, width: breite } : { width: breite }}>
             <div className="ru-kopf">
               <span className="ru-raum">{titel}</span>

@@ -100,7 +100,7 @@ function Buehne({ szene }: { szene: string }) {
   // im nächsten nicht dauerhaft abschalten.
   useEffect(() => { setFilmAus(false); }, [szene]);
   return (
-    <div className="of-buehne" aria-hidden="true">
+    <div className={`of-buehne${mitFilm ? " mit-film" : ""}`} aria-hidden="true">
       <img src={`/office/${szene}.jpg`} alt="" decoding="async" />
       {mitFilm && (
         <video

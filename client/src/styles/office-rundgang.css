@@ -37,8 +37,17 @@
 }
 
 /* ── Die Karte ───────────────────────────────────────────────────────────── */
+/* 24.08.2026 (Justin: „Das 6/6-Fenster schneidet unten ab … kontrolliere es
+   ÜBERALL, es darf NIEMALS abschneiden!"): Zwei Sicherungen übereinander.
+   Erstens rechnet Rundgang.tsx jetzt mit der GEMESSENEN Höhe und klemmt die
+   Karte ins Fenster. Zweitens — falls ein Schritt trotzdem einmal höher wird
+   als der Bildschirm (kleines Handy, große Schrift, langer Text) — begrenzt
+   `max-height` sie auf das Fenster und macht sie in sich scrollbar. Damit ist
+   der letzte Absatz immer erreichbar, statt unter dem Rand zu verschwinden. */
 .ru-karte{
   position:fixed;pointer-events:auto;z-index:2;
+  max-height:calc(100vh - 24px);max-height:calc(100dvh - 24px);
+  overflow-y:auto;overscroll-behavior:contain;
   display:grid;gap:12px;padding:20px 22px;border-radius:22px;
   background:linear-gradient(178deg,rgba(23,42,84,.96),rgba(11,22,48,.97));
   border:1px solid rgba(147,197,253,.24);
@@ -48,7 +57,7 @@
   animation:ruKarte .34s cubic-bezier(.2,.8,.2,1) both;
   transition:top .32s cubic-bezier(.2,.8,.2,1),left .32s cubic-bezier(.2,.8,.2,1);
 }
-.ru-karte.mitte{top:50%;left:50%;transform:translate(-50%,-50%);transition:none}
+.ru-karte.mitte{top:50%;left:50%;transform:translate(-50%,-50%);transition:none;max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px)}
 @keyframes ruKarte{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 .ru-karte.mitte{animation-name:ruKarteMitte}
 @keyframes ruKarteMitte{

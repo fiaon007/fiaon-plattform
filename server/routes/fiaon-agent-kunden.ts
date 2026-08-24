@@ -531,8 +531,132 @@ router.get("/agent/crm/kunden/:personId", requireAgent, async (req: AgentRequest
     const { produktstand } = await import("../lib/fiaon-produktstand");
     const produkt = await produktstand(personId).catch(() => null);
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // DER GANZE ANTRAG — WAS DER MENSCH UNS SELBST ERZÄHLT HAT
+    //
+    // Justin, 24.08.2026: „Warum haben wir in der Akte nirgendwo ALLE Details
+    // des Kunden? Also wirklich ALLES, was wir im Antragsprozess aufnehmen —
+    // das gilt für A, B und C Kunden! Und wie gesagt: REALITÄTSNAHE, wie es
+    // also wirklich abläuft."
+    //
+    // ── DER BEFUND (gemessen am 24.08.2026 über 2.358 lebende Anträge) ─────
+    // Der Reiter „Daten" zeigte NEUN Felder: Adresse, Land, Geburtsdatum,
+    // E-Mail, Telefon, Verwendungszweck, Wiedervorlage, Betreut seit,
+    // Mandat seit. Der Antrag erhebt ein Vielfaches — und es ist gefüllt:
+    //   Beschäftigung 84 % · beschäftigt seit 82 % · Einkommen 83 % ·
+    //   Wohnsituation 83 % · Miete 70 % · Schulden 54 % · Wunschrahmen 78 % ·
+    //   Wozu 82 % · Staatsangehörigkeit 91 % · Gehaltseingang 61 %
+    // Ein Mitarbeiter ruft also jemanden wegen seiner Schulden an und sieht
+    // weder dessen Einkommen noch die Schuldenhöhe noch, wofür der Rahmen
+    // gedacht war — obwohl der Mensch uns das alles selbst geschrieben hat.
+    // Das ist der Unterschied zwischen einem Gespräch, in dem sich jemand
+    // erkannt fühlt, und einem, in dem er alles zweimal erzählen muss.
+    //
+    // ── WAS BEWUSST NICHT MITGEHT ─────────────────────────────────────────
+    // · Die IBAN nur mit den letzten vier Stellen (außer für die Leitung).
+    //   Zum Wiedererkennen im Gespräch reicht das.
+    // · Ausweisnummer, IP-Adresse, Browserkennung, Passwortfelder gehen gar
+    //   nicht an den Mitarbeiter: Sie helfen im Gespräch nicht und stehen
+    //   unter derselben Grenze wie die Ausweiskopie.
+    // ═══════════════════════════════════════════════════════════════════════
+    const { rolleVon: rolleFuerAntrag } = await import("../lib/fiaon-kundenzugriff");
+    const darfGanzeIban = (await rolleFuerAntrag(req.agent!.id)) === "admin";
+
+    const [ant] = (await sqlPool`
+      SELECT ref, pack_name, type,
+             first_name, last_name, birthdate, nationality,
+             street, zip, city, country,
+             moved_recently, previous_street, previous_zip, previous_city, previous_country,
+             email, phone, phone_country_code,
+             employment, employer, employed_since, income, salary_receipt_day,
+             has_additional_income, additional_income_sources, additional_income_amount,
+             housing, rent, debts,
+             expenses_food, expenses_transport, expenses_insurance,
+             expenses_loans, expenses_subscriptions, expenses_other,
+             wanted_limit, purpose, addon, billing, billing_method,
+             iban, consent_agb, consent_schufa, consent_contract,
+             utm, submitted_at, completed_at, profile_completed_at, created_at,
+             company_name, legal_form, tax_id, established_year, industry,
+             annual_revenue, employees, monthly_expenses, contact_name
+      FROM fiaon_applications
+      WHERE person_id = ${personId} AND merged_into IS NULL
+      ORDER BY (archived_at IS NOT NULL), created_at DESC
+      LIMIT 1
+    `) as any[];
+
+    const txt = (v: any) => (v === null || v === undefined || String(v).trim() === "" ? null : String(v).trim());
+    const zahl = (v: any) => (v === null || v === undefined || !Number.isFinite(Number(v)) || Number(v) === 0 ? null : Number(v));
+    const ibanKurz = (v: any) => {
+      const s = txt(v); if (!s) return null;
+      return darfGanzeIban ? s : "•••• " + s.replace(/\s/g, "").slice(-4);
+    };
+    // Einzelausgaben nur zeigen, wenn der Mensch überhaupt welche genannt hat:
+    // Bei über 90 % ist der Block leer, und eine Tabelle voller Nullen sagt
+    // weniger als gar keine Tabelle.
+    const ausgaben = (ant ? [
+      ["Lebenshaltung", zahl(ant.expenses_food)],
+      ["Mobilität", zahl(ant.expenses_transport)],
+      ["Versicherungen", zahl(ant.expenses_insurance)],
+      ["Kredite und Raten", zahl(ant.expenses_loans)],
+      ["Abos und Verträge", zahl(ant.expenses_subscriptions)],
+      ["Sonstiges", zahl(ant.expenses_other)],
+    ] : []).filter((r) => r[1] != null) as [string, number][];
+
+    const antrag = !ant ? null : {
+      ref: ant.ref,
+      art: txt(ant.type),
+      paket: ant.pack_name ? String(ant.pack_name).split("\n")[0].trim() : null,
+      eingereichtAm: ant.submitted_at ?? ant.created_at ?? null,
+      abgeschlossenAm: ant.completed_at ?? null,
+      profilFertigAm: ant.profile_completed_at ?? null,
+      person: {
+        vorname: txt(ant.first_name), nachname: txt(ant.last_name),
+        geburtsdatum: txt(ant.birthdate), staatsangehoerigkeit: txt(ant.nationality),
+        strasse: txt(ant.street), plz: txt(ant.zip), ort: txt(ant.city), land: txt(ant.country),
+        umgezogen: ant.moved_recently === true,
+        vorherStrasse: txt(ant.previous_street), vorherPlz: txt(ant.previous_zip),
+        vorherOrt: txt(ant.previous_city), vorherLand: txt(ant.previous_country),
+      },
+      kontakt: {
+        email: txt(ant.email),
+        telefon: [txt(ant.phone_country_code), txt(ant.phone)].filter(Boolean).join(" ") || null,
+      },
+      arbeit: {
+        beschaeftigung: txt(ant.employment), arbeitgeber: txt(ant.employer),
+        seit: txt(ant.employed_since), einkommen: zahl(ant.income),
+        gehaltseingang: txt(ant.salary_receipt_day),
+        zusatzEinkommen: ant.has_additional_income === true,
+        zusatzQuelle: txt(ant.additional_income_sources),
+        zusatzBetrag: zahl(ant.additional_income_amount),
+      },
+      lage: {
+        wohnen: txt(ant.housing), miete: zahl(ant.rent), schulden: zahl(ant.debts),
+        ausgaben,
+        ausgabenSumme: ausgaben.length ? ausgaben.reduce((s, r) => s + r[1], 0) : null,
+      },
+      wunsch: {
+        rahmen: zahl(ant.wanted_limit), wozu: txt(ant.purpose),
+        zusatz: txt(ant.addon), abrechnung: txt(ant.billing) || txt(ant.billing_method),
+      },
+      bank: { iban: ibanKurz(ant.iban) },
+      zustimmungen: {
+        agb: ant.consent_agb === true,
+        schufa: ant.consent_schufa === true,
+        vertrag: ant.consent_contract === true,
+      },
+      herkunft: ant.utm ?? null,
+      firma: txt(ant.company_name) ? {
+        name: txt(ant.company_name), rechtsform: txt(ant.legal_form),
+        steuernummer: txt(ant.tax_id), gegruendet: txt(ant.established_year),
+        branche: txt(ant.industry), umsatz: zahl(ant.annual_revenue),
+        mitarbeitende: zahl(ant.employees), kostenMonat: zahl(ant.monthly_expenses),
+        ansprechpartner: txt(ant.contact_name),
+      } : null,
+    };
+
     res.json({
       ok: true,
+      antrag,
       kunde: kartePayload(p, (verlauf as any[])[0]),
       verlauf: (verlauf as any[]).map((v) => ({
         id: v.id,

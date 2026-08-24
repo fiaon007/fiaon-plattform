@@ -1300,15 +1300,40 @@ function Sek({ titel, erklaer, children, kopfRechts }: { titel: string; erklaer:
   );
 }
 
-type AkteReiter = "ueberblick" | "zahlungen" | "gespraeche" | "mails" | "dokumente" | "aktivitaet" | "daten";
+type AkteReiter = "ueberblick" | "antrag" | "zahlungen" | "gespraeche" | "mails" | "dokumente" | "aktivitaet" | "daten";
 const AKTE_REITER: { key: AkteReiter; label: string }[] = [
   { key: "ueberblick", label: "Überblick" },
+  // 24.08.2026 (Justin): „Warum haben wir in der Akte nirgendwo ALLE Details
+  // des Kunden?" — Der Reiter steht bewusst an ZWEITER Stelle, direkt nach dem
+  // Überblick: Er ist das, was man VOR dem Gespräch liest, nicht das, was man
+  // hinterher nachschlägt.
+  { key: "antrag", label: "Sein Antrag" },
   { key: "zahlungen", label: "Zahlungen & Raten" },
   { key: "gespraeche", label: "Gespräche" },
   { key: "mails", label: "E-Mails" },
   { key: "dokumente", label: "Dokumente" },
   { key: "aktivitaet", label: "Aktivität" },
   { key: "daten", label: "Daten" },
+];
+
+/**
+ * Wann ein Mandat OHNE Startgespräch zustande kommt.
+ *
+ * 24.08.2026, Justin: „Was ist aber, wenn er einen Kunden hat, mit dem er
+ * sofort ALLES macht — oder der das Mandat annimmt und es keinen weiteren
+ * Termin gibt (warum auch immer)?"
+ *
+ * Die drei Fälle aus dem Alltag. Der Grund landet im Verlauf: Ein Mandat ohne
+ * Startgespräch muss später erklärbar sein, sonst sieht es aus wie ein
+ * vergessener Termin.
+ */
+const OHNE_TERMIN: { key: string; text: string; notiz: string }[] = [
+  { key: "sofort", text: "Im Gespräch schon alles erledigt",
+    notiz: "Im selben Gespräch bezahlt und freigeschaltet – ein Startgespräch war nicht mehr nötig." },
+  { key: "meldet_sich", text: "Kunde meldet sich selbst",
+    notiz: "Der Kunde bucht sich seinen Termin selbst über den Link." },
+  { key: "will_keinen", text: "Kunde will keinen Termin",
+    notiz: "Der Kunde wünscht ausdrücklich kein Startgespräch." },
 ];
 
 // E-050: exportiert — bestand.tsx öffnet DIESELBE Akte-Lade (?person=), kein
@@ -1373,6 +1398,9 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
   // Welche Dokumentart lädt gerade hoch? (Justin 24.08.: Der Mitarbeiter soll
   // für den Kunden hochladen können, wenn der es selbst nicht schafft.)
   const [laedtDoku, setLaedtDoku] = useState<string | null>(null);
+  // Der ganze Antrag (24.08.2026). Kommt mit derselben Antwort wie die Akte —
+  // kein zweiter Aufruf, kein Warten beim Reiterwechsel.
+  const [antrag, setAntrag] = useState<any | null>(null);
 
   const zusage = relativ(k.zusagedatum);
   const rueckruf = k.rueckrufAm ? new Date(k.rueckrufAm) : null;
@@ -1389,10 +1417,11 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
   const frisch = async () => {
     const r = await api(`/agent/crm/kunden/${k.personId}`);
     if (r.ok && r.json?.kunde) onNeu(r.json.kunde);
-    if (r.ok) setVerlauf(r.json.verlauf ?? []);
+    if (r.ok) { setVerlauf(r.json.verlauf ?? []); setAntrag(r.json.antrag ?? null); }
   };
   const verlaufNachladen = async () => {
     const r = await api(`/agent/crm/kunden/${k.personId}`);
+    if (r.ok) setAntrag(r.json.antrag ?? null);
     if (r.ok) setVerlauf(r.json.verlauf ?? []);
   };
   useEffect(() => { void verlaufNachladen(); }, [k.personId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1486,14 +1515,18 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
    *  der Termin, der dabei steht — beim frisch gebuchten Termin direkt
    *  durchgereicht, weil der State (terminGebucht) im selben Zug noch nicht
    *  gelesen werden kann. */
-  const mandatVerbuchen = async (terminLabel?: string) => {
+  const mandatVerbuchen = async (terminLabel?: string, ohneTerminGrund?: string) => {
     setLaeuft("mandat");
     await api(`/agent/vertrieb/mandat/${k.personId}`, { method: "POST", body: JSON.stringify({}) }).catch(() => null);
-    const wann = terminLabel ?? terminGebucht ?? (sit?.terminAm ? terminText(sit.terminAm) : k.termin ? terminText(k.termin.beginn) : k.terminAm ? terminText(k.terminAm) : "gebucht");
-    const ok = await ergebnis("erreicht_sonstiges", {
-      notiz: `Mandat angenommen – Termin ${wann} steht. Kunde erinnert: Rechnung vor dem Termin begleichen, dann wird im Gespräch direkt aktiviert.`,
-    });
-    if (ok) melden("gut", `Mandat angenommen – ${k.name} zählt jetzt zu deinem Bestand.`);
+    // Ohne Termin bekommt der Verlauf den GRUND statt einer erfundenen Zeit.
+    // Sonst stünde später ein Mandat ohne Startgespräch da und niemand wüsste,
+    // ob es vergessen wurde oder gar nicht nötig war.
+    const notiz = ohneTerminGrund
+      ? `Mandat angenommen – kein Startgespräch nötig: ${ohneTerminGrund}`
+      : `Mandat angenommen – Termin ${terminLabel ?? terminGebucht ?? (sit?.terminAm ? terminText(sit.terminAm) : k.termin ? terminText(k.termin.beginn) : k.terminAm ? terminText(k.terminAm) : "gebucht")} steht. Kunde erinnert: Rechnung vor dem Termin begleichen, dann wird im Gespräch direkt aktiviert.`;
+    const ok = await ergebnis("erreicht_sonstiges", { notiz });
+    if (ok) melden("gut", `Mandat angenommen – ${k.name} zählt jetzt zu deinem Bestand.`,
+      ohneTerminGrund ? "Ohne Startgespräch verbucht – der Grund steht im Verlauf." : undefined);
     setLaeuft(null);
     return ok;
   };
@@ -1955,11 +1988,29 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
                   </div>
                 )}
 
-                {/* Mandat ohne Termin: erst den Termin klicken, dann verbucht
-                    sich das Mandat von selbst. */}
+                {/* ── Mandat ohne Termin ────────────────────────────────────
+                    24.08.2026, Justin: „Was ist aber, wenn er einen Kunden hat,
+                    mit dem er sofort ALLES macht — oder der das Mandat annimmt
+                    und es keinen weiteren Termin gibt (warum auch immer)? Und
+                    der Satz ist unpassend … denke daher immer realitätsnahe."
+
+                    VORHER stand hier „Ein Mandat zählt mit gebuchtem Termin" —
+                    das las sich wie eine Bedingung fürs Mandat und war zudem
+                    falsch: Es geht um das Startgespräch, nicht um irgendeinen
+                    Termin. Und es gab KEINEN Weg vorbei: Wer im Gespräch schon
+                    alles erledigt hatte, musste einen Termin erfinden, um sein
+                    eigenes Mandat verbuchen zu können.
+
+                    NACHHER sagt der Satz, worum es geht, und darunter steht der
+                    zweite Weg für die Fälle, in denen es keinen Termin braucht.
+                    Der Grund wird festgehalten — sonst steht später ein Mandat
+                    ohne Startgespräch da und niemand weiß, warum. */}
                 {abschlussTermin && (
                   <div className="pi-abschluss-schritt">
-                    <p className="pi-sek-satz">Ein Mandat zählt mit gebuchtem Termin. Wähle die Zeit – danach wird das Mandat automatisch verbucht.</p>
+                    <p className="pi-sek-satz">
+                      Wähle die Zeit für das <b>Startgespräch</b> mit deinem neuen Kunden – dort schaltest du sein Konto frei.
+                      Sobald der Termin steht, wird das Mandat automatisch verbucht.
+                    </p>
                     <SlotWahl laeuft={laeuft === "termin" || laeuft === "mandat"}
                               onBuchen={async (iso, label) => {
                                 const ok = await terminBuchen(iso, label);
@@ -1969,6 +2020,16 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
                                 return true;
                               }}
                               onZu={() => setAbschlussTermin(false)} />
+                    <div className="pi-ohne-termin">
+                      <span>Es braucht keinen Termin?</span>
+                      {OHNE_TERMIN.map((g) => (
+                        <button key={g.key} type="button" className="pi-knopf still klein" disabled={!!laeuft}
+                                onClick={async () => {
+                                  setAbschlussTermin(false);
+                                  await mandatVerbuchen(undefined, g.notiz);
+                                }}>{g.text}</button>
+                      ))}
+                    </div>
                   </div>
                 )}
 
@@ -2199,6 +2260,9 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
             )}
           </Sek>
         )}
+
+        {/* ═══ SEIN ANTRAG ═══ */}
+        {reiter === "antrag" && <AntragsBlatt antrag={antrag} name={k.name} />}
 
         {/* ═══ AKTIVITÄT ═══ */}
         {reiter === "aktivitaet" && <AktivitaetsZeit akt={akt} fehler={aktFehler} />}
@@ -2513,6 +2577,168 @@ const AKT_FILTER: { key: string; label: string }[] = [
   { key: "gespraech", label: "Gespräche" },
   { key: "mail", label: "Mails" },
 ];
+// ═══════════════════════════════════════════════════════════════════════════
+// SEIN ANTRAG — alles, was der Mensch uns selbst geschrieben hat
+//
+// Justin, 24.08.2026: „Warum haben wir in der Akte nirgendwo ALLE Details des
+// Kunden? Also wirklich ALLES, was wir im Antragsprozess aufnehmen — das gilt
+// für A, B und C Kunden! Und wie gesagt: REALITÄTSNAHE."
+//
+// Der Reiter ist nicht als Datenbankabzug gebaut, sondern als das Blatt, das
+// man vor einem Gespräch überfliegt. Deshalb:
+//   · OBEN das, worüber im Gespräch wirklich geredet wird — Einkommen,
+//     Verpflichtungen, was übrig bleibt. Nicht die Adresse.
+//   · „Bleibt im Monat" wird AUSGERECHNET. Der Mitarbeiter soll nicht im Kopf
+//     rechnen, während der Kunde spricht.
+//   · LEERE FELDER FALLEN WEG. Eine Zeile „Arbeitgeber: —" sagt nichts; eine
+//     Liste voller Striche macht die drei gefüllten Zeilen unsichtbar. Was
+//     fehlt, sagt der Hinweis am Ende in einem Satz — mit dem Nutzen, es im
+//     Gespräch zu erfragen.
+// ═══════════════════════════════════════════════════════════════════════════
+function AntragsBlatt({ antrag, name }: { antrag: any | null; name: string }) {
+  if (antrag === null) {
+    return (
+      <Sek titel="Sein Antrag" erklaer="Alles, was dieser Mensch uns beim Antrag selbst geschrieben hat.">
+        <p className="pi-sek-satz leise">Zu diesem Kunden liegt kein Antrag vor — es gibt also noch keine Angaben, die er selbst gemacht hat. Sobald er einen Antrag ausfüllt, steht hier alles.</p>
+      </Sek>
+    );
+  }
+
+  const e = (v: number | null | undefined) => (v == null ? null : `${Math.round(v).toLocaleString("de-DE")} €`);
+  const A = antrag.arbeit ?? {}, L = antrag.lage ?? {}, W = antrag.wunsch ?? {}, P = antrag.person ?? {};
+
+  // Was bleibt im Monat übrig? Nur rechnen, wenn ein Einkommen dasteht —
+  // sonst wäre das Ergebnis eine erfundene Zahl.
+  const einnahmen = (A.einkommen ?? 0) + (A.zusatzBetrag ?? 0);
+  const abzuege = (L.miete ?? 0) + (L.ausgabenSumme ?? 0);
+  const bleibt = A.einkommen ? einnahmen - abzuege : null;
+
+  /** Eine Zeile — fällt weg, wenn nichts dasteht. */
+  const Z = ({ was, wert, ton }: { was: string; wert: any; ton?: "gut" | "warn" }) =>
+    wert === null || wert === undefined || wert === "" ? null : (
+      <div className="pi-ab-zeile"><span>{was}</span><b className={ton ? `ton-${ton}` : ""}>{wert}</b></div>
+    );
+
+  const luecken = [
+    !A.beschaeftigung && "was er beruflich macht",
+    !A.einkommen && "sein Einkommen",
+    L.schulden == null && "die Höhe seiner Verpflichtungen",
+    !W.wozu && "wofür er den Rahmen braucht",
+  ].filter(Boolean) as string[];
+
+  return (
+    <>
+      {/* ── Das Gesprächsblatt: Zahlen, über die wirklich geredet wird ── */}
+      <Sek titel="Seine Lage in Zahlen"
+           erklaer={`Das hat ${String(name).split(" ")[0] || "der Kunde"} beim Antrag selbst angegeben. Wer das vor dem Wählen liest, muss im Gespräch nichts zweimal fragen.`}>
+        <div className="pi-ab-zahlen">
+          <div className="pi-ab-kachel">
+            <small>Einkommen im Monat</small>
+            <b>{e(A.einkommen) ?? "nicht angegeben"}</b>
+            {A.zusatzEinkommen && A.zusatzBetrag ? <span>zzgl. {e(A.zusatzBetrag)}{A.zusatzQuelle ? ` (${A.zusatzQuelle})` : ""}</span> : null}
+            {A.gehaltseingang ? <span>Geldeingang: {A.gehaltseingang}</span> : null}
+          </div>
+          <div className="pi-ab-kachel">
+            <small>Feste Ausgaben</small>
+            <b>{e(abzuege || null) ?? "nicht angegeben"}</b>
+            {L.miete ? <span>davon Miete {e(L.miete)}</span> : null}
+          </div>
+          <div className={`pi-ab-kachel${bleibt != null && bleibt < 0 ? " rot" : bleibt != null ? " gut" : ""}`}>
+            <small>Bleibt im Monat</small>
+            <b>{bleibt != null ? e(bleibt) : "nicht berechenbar"}</b>
+            <span>{bleibt != null ? "aus seinen eigenen Angaben gerechnet" : "ohne Einkommensangabe nicht zu rechnen"}</span>
+          </div>
+        </div>
+        <div className="pi-ab-liste">
+          <Z was="Offene Verpflichtungen" wert={e(L.schulden)} ton={L.schulden && L.schulden > 10000 ? "warn" : undefined} />
+          <Z was="Wohnsituation" wert={L.wohnen} />
+          <Z was="Gewünschter Rahmen" wert={e(W.rahmen)} />
+          <Z was="Wofür" wert={W.wozu} />
+        </div>
+        {L.ausgaben?.length > 0 && (
+          <div className="pi-ab-liste" style={{ marginTop: 10 }}>
+            {L.ausgaben.map(([was, wert]: [string, number]) => <Z key={was} was={was} wert={e(wert)} />)}
+          </div>
+        )}
+      </Sek>
+
+      {/* ── Beruf ── */}
+      {(A.beschaeftigung || A.arbeitgeber || A.seit) && (
+        <Sek titel="Beruf" erklaer="Woher sein Geld kommt – die Grundlage jeder Ratenvereinbarung.">
+          <div className="pi-ab-liste">
+            <Z was="Beschäftigung" wert={A.beschaeftigung} />
+            <Z was="Arbeitgeber" wert={A.arbeitgeber} />
+            <Z was="Dort seit" wert={A.seit} />
+          </div>
+        </Sek>
+      )}
+
+      {/* ── Person ── */}
+      <Sek titel="Zur Person" erklaer="Die Angaben aus dem Antrag. Stimmt etwas nicht mehr, änderst du es unter „Daten“.">
+        <div className="pi-ab-liste">
+          <Z was="Name laut Antrag" wert={[P.vorname, P.nachname].filter(Boolean).join(" ") || null} />
+          <Z was="Geburtsdatum" wert={P.geburtsdatum} />
+          <Z was="Staatsangehörigkeit" wert={P.staatsangehoerigkeit} />
+          <Z was="Anschrift" wert={[P.strasse, [P.plz, P.ort].filter(Boolean).join(" ")].filter(Boolean).join(", ") || null} />
+          <Z was="Land" wert={P.land} />
+          <Z was="E-Mail laut Antrag" wert={antrag.kontakt?.email} />
+          <Z was="Telefon laut Antrag" wert={antrag.kontakt?.telefon} />
+          <Z was="Bankverbindung" wert={antrag.bank?.iban} />
+        </div>
+        {P.umgezogen && (
+          <p className="pi-sek-satz leise" style={{ marginTop: 10 }}>
+            <b style={{ color: "#fde68a" }}>Kürzlich umgezogen.</b>{" "}
+            Vorher: {[P.vorherStrasse, [P.vorherPlz, P.vorherOrt].filter(Boolean).join(" "), P.vorherLand].filter(Boolean).join(", ") || "keine frühere Anschrift hinterlegt"}.
+            {" "}Bei einer Bonitätsauskunft ist die alte Anschrift wichtig — dort liegen ältere Einträge.
+          </p>
+        )}
+      </Sek>
+
+      {/* ── Firma, falls es ein Geschäftskunde ist ── */}
+      {antrag.firma && (
+        <Sek titel="Firma" erklaer="Dieser Antrag läuft auf ein Unternehmen.">
+          <div className="pi-ab-liste">
+            <Z was="Name" wert={antrag.firma.name} />
+            <Z was="Rechtsform" wert={antrag.firma.rechtsform} />
+            <Z was="Branche" wert={antrag.firma.branche} />
+            <Z was="Gegründet" wert={antrag.firma.gegruendet} />
+            <Z was="Steuernummer" wert={antrag.firma.steuernummer} />
+            <Z was="Jahresumsatz" wert={e(antrag.firma.umsatz)} />
+            <Z was="Mitarbeitende" wert={antrag.firma.mitarbeitende} />
+            <Z was="Kosten im Monat" wert={e(antrag.firma.kostenMonat)} />
+            <Z was="Ansprechpartner" wert={antrag.firma.ansprechpartner} />
+          </div>
+        </Sek>
+      )}
+
+      {/* ── Antrag und Zustimmungen ── */}
+      <Sek titel="Der Antrag selbst" erklaer="Wann er kam, was gewählt wurde und wozu er zugestimmt hat.">
+        <div className="pi-ab-liste">
+          <Z was="Vorgangsnummer" wert={antrag.ref} />
+          <Z was="Gewähltes Paket" wert={antrag.paket} />
+          <Z was="Zusatz" wert={W.zusatz} />
+          <Z was="Abrechnung" wert={W.abrechnung} />
+          <Z was="Eingereicht am" wert={antrag.eingereichtAm ? dtag(antrag.eingereichtAm) : null} />
+          <Z was="Abgeschlossen am" wert={antrag.abgeschlossenAm ? dtag(antrag.abgeschlossenAm) : null} />
+          <Z was="Profil vervollständigt am" wert={antrag.profilFertigAm ? dtag(antrag.profilFertigAm) : null} />
+        </div>
+        <div className="pi-ab-haken">
+          {[["AGB", antrag.zustimmungen?.agb], ["Bonitätsauskunft", antrag.zustimmungen?.schufa], ["Vertrag", antrag.zustimmungen?.vertrag]].map(([w, ja]) => (
+            <span key={String(w)} className={ja ? "ja" : "nein"}>{ja ? <Check size={13} strokeWidth={2.5} /> : <X size={13} strokeWidth={2.5} />}{String(w)}</span>
+          ))}
+        </div>
+      </Sek>
+
+      {luecken.length > 0 && (
+        <p className="pi-sek-satz leise">
+          Nicht angegeben hat er {luecken.length === 1 ? luecken[0] : luecken.slice(0, -1).join(", ") + " und " + luecken[luecken.length - 1]}.
+          {" "}Frag im Gespräch danach und trag es unter „Daten“ nach — beim nächsten Anruf steht es hier, und der Mensch muss es nicht wieder erzählen.
+        </p>
+      )}
+    </>
+  );
+}
+
 function AktivitaetsZeit({ akt, fehler }: { akt: { ereignisse: any[] } | null; fehler: string | null }) {
   const [filter, setFilter] = useState("alle");
   const liste = useMemo(() => {

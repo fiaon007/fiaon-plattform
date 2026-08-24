@@ -57,7 +57,7 @@
 .ca-lade{margin:0;font-size:13px;color:#64748b}
 
 /* Termin-Zeile (Tag, Überfällig) */
-.ca-zeile{display:grid;grid-template-columns:84px 1fr auto;align-items:center;gap:14px;padding:12px 0;border-top:1px solid rgba(255,255,255,.07);cursor:pointer}
+.ca-zeile{display:grid;grid-template-columns:minmax(84px,max-content) 1fr auto;align-items:center;gap:14px;padding:12px 0;border-top:1px solid rgba(255,255,255,.07);cursor:pointer}
 .ca-zeile:first-of-type{border-top:0}
 .ca-zeile.abgesagt{opacity:.55}
 .ca-zeit b{display:block;font:500 15px/1.1 'Inter',sans-serif;color:#fff;font-variant-numeric:tabular-nums}
@@ -140,7 +140,7 @@
 .ca-tageskarte-kopf{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:6px}
 .ca-tageskarte-kopf b{font:500 14px/1.2 'Inter',sans-serif;color:#fff}
 .ca-tageskarte-kopf small{font-size:11.5px;color:#93c5fd;font-variant-numeric:tabular-nums}
-.ca-tageskarte .ca-zeile{grid-template-columns:64px 1fr;padding:10px 0}
+.ca-tageskarte .ca-zeile{grid-template-columns:minmax(64px,max-content) 1fr;padding:10px 0}
 .ca-tageskarte .ca-aktion{grid-column:1/3;justify-content:flex-start}
 
 /* Formulare (Verschieben, Übergeben, Anlegen, Notiz) */

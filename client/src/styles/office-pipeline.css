@@ -248,8 +248,14 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
 /* E-046: VORHER umbrach der Name dreizeilig (Screenshot 604px) – NACHHER
    einzeilig mit Ellipsis, Status-Chips als eine rollbare Zeile. */
 .pi-lade-kopf h2{margin:0;font:400 20px/1.2 'Inter',sans-serif;color:#fff;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pi-lade-kopf .status{margin-top:4px;font-size:12.5px;color:#9ca3af;display:flex;flex-wrap:nowrap;gap:6px 10px;align-items:center;overflow-x:auto;scrollbar-width:none;white-space:nowrap}
-.pi-lade-kopf .status::-webkit-scrollbar{display:none}
+/* 24.08.2026 (Justin: „prüfe bitte, dass man den Text immer lesen kann"):
+   VORHER lief die Statuszeile als EINE nicht umbrechende Reihe mit
+   `overflow-x:auto`. Technisch war alles erreichbar — sichtbar war es nicht:
+   Am Handy stand der zweite Chip halb im Bild und sah abgeschnitten aus, und
+   dass man ihn seitwärts schieben kann, sieht man einer Zeile ohne Rollbalken
+   nicht an. NACHHER darf sie umbrechen. Zwei Zeilen sind kein Schaden; ein
+   halber Text ist einer. */
+.pi-lade-kopf .status{margin-top:4px;font-size:12.5px;color:#9ca3af;display:flex;flex-wrap:wrap;gap:5px 10px;align-items:center}
 .pi-lade-kopf .status i{font-style:normal;font-weight:500}
 .pi-lade-glut{display:grid;place-items:center;width:26px;height:26px;margin-top:4px}
 .pi-lade-zu{width:40px;height:40px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#cbd5e1;display:grid;place-items:center;cursor:pointer}
@@ -828,4 +834,60 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
   .pi-lade .pi-eingabe,.pi-lade input,.pi-lade textarea,.pi-lade select{font-size:16px}
   .pi-form{gap:12px}
   .pi-form label{font-size:10.5px}
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   REITER „SEIN ANTRAG" (24.08.2026)
+   Justin: „Warum haben wir in der Akte nirgendwo ALLE Details des Kunden?"
+   Gebaut als Gesprächsblatt, nicht als Datenbankabzug: drei große Zahlen oben
+   (Einkommen, feste Ausgaben, was bleibt), darunter ruhige Zeilen. Präfix
+   .pi-ab- (AntragsBlatt).
+   ═══════════════════════════════════════════════════════════════════════════ */
+.pi-ab-zahlen{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.pi-ab-kachel{display:grid;gap:5px;align-content:start;padding:16px 18px;border-radius:18px;
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1)}
+.pi-ab-kachel small{font:500 10px/1 'Inter',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#93c5fd}
+.pi-ab-kachel b{font:300 25px/1.1 'Inter',sans-serif;letter-spacing:-.02em;color:#fff;font-variant-numeric:tabular-nums}
+.pi-ab-kachel span{font-size:11.5px;line-height:1.45;color:#9ca3af}
+/* „Bleibt im Monat" trägt die Aussage: grün, wenn Luft ist; rot, wenn nicht.
+   Das ist die eine Zahl, die im Gespräch über den Ratenvorschlag entscheidet. */
+.pi-ab-kachel.gut{background:linear-gradient(135deg,rgba(5,150,105,.26),rgba(5,150,105,.07));border-color:rgba(52,211,153,.42)}
+.pi-ab-kachel.gut b{color:#a7f3d0}
+.pi-ab-kachel.rot{background:linear-gradient(135deg,rgba(220,38,38,.24),rgba(220,38,38,.06));border-color:rgba(248,113,113,.45)}
+.pi-ab-kachel.rot b{color:#fecaca}
+
+.pi-ab-liste{display:grid;margin-top:14px}
+.pi-ab-zeile{display:grid;grid-template-columns:1fr auto;gap:16px;align-items:baseline;
+  padding:10px 0;border-top:1px solid rgba(255,255,255,.07)}
+.pi-ab-zeile:first-child{border-top:0}
+.pi-ab-zeile span{font:300 13px/1.45 'Inter',sans-serif;color:#9ca3af}
+.pi-ab-zeile b{font:400 13.5px/1.45 'Inter',sans-serif;color:#fff;text-align:right;overflow-wrap:anywhere}
+.pi-ab-zeile b.ton-warn{color:#fde68a}
+.pi-ab-zeile b.ton-gut{color:#a7f3d0}
+
+.pi-ab-haken{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.pi-ab-haken span{display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:0 11px;border-radius:999px;
+  font:400 12px/1 'Inter',sans-serif;border:1px solid rgba(255,255,255,.12)}
+.pi-ab-haken span.ja{color:#a7f3d0;border-color:rgba(52,211,153,.35);background:rgba(5,150,105,.12)}
+.pi-ab-haken span.nein{color:#9ca3af;background:rgba(255,255,255,.04)}
+
+@media (max-width:700px){
+  .pi-ab-zahlen{grid-template-columns:1fr;gap:10px}
+  .pi-ab-kachel{padding:13px 15px}
+  .pi-ab-kachel b{font-size:22px}
+  .pi-ab-zeile{grid-template-columns:1fr;gap:2px;padding:9px 0}
+  .pi-ab-zeile b{text-align:left;font-size:13px}
+  .pi-ab-zeile span{font-size:11.5px}
+}
+
+/* Der zweite Weg beim Mandat: ohne Startgespräch (24.08.2026, Justin: „was ist,
+   wenn er mit dem Kunden sofort ALLES macht"). Bewusst RUHIG gesetzt — der
+   Regelfall ist der gebuchte Termin, das hier ist die Ausnahme und soll nicht
+   danebenstehen wie eine gleichwertige Wahl. */
+.pi-ohne-termin{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,.08)}
+.pi-ohne-termin > span{font:300 12.5px/1.4 'Inter',sans-serif;color:#9ca3af;margin-right:2px}
+@media (max-width:700px){
+  .pi-ohne-termin{gap:7px}
+  .pi-ohne-termin > span{flex:1 0 100%;margin-bottom:2px}
 }

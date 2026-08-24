@@ -30,9 +30,17 @@
 .st-block-kopf b{font:400 16px/1.2 'Inter',sans-serif;color:#fff}
 .st-block-kopf small{font-size:12px;color:#64748b}
 .st-leer{margin:0;font:300 13.5px/1.6 'Inter',sans-serif;color:#9ca3af}
-.st-zeile{display:grid;grid-template-columns:78px 1fr auto;align-items:center;gap:14px;padding:12px 0;border-top:1px solid rgba(255,255,255,.07)}
-.st-zeile.klein{grid-template-columns:92px 1fr auto}
-.st-zeit b{display:block;font:500 15px/1.1 'Inter',sans-serif;color:#fff;font-variant-numeric:tabular-nums}
+/* 24.08.2026 (Justin: „Die Banner in der Handyansicht, ‚Rückruf' z. B., sind
+   abgeschnitten — prüfe das bitte, dass man den Text immer lesen kann"):
+   Die erste Spalte trug eine FESTE Breite. Für eine Uhrzeit reicht das, für das
+   Wort „RÜCKRUF" in Versalien mit Sperrung nicht — es braucht rund 80 px und
+   hatte am Handy nur 64. `minmax(…, max-content)` lässt die Spalte so breit
+   werden, wie ihr Inhalt es braucht, ohne dass sie bei kurzen Uhrzeiten
+   auseinanderläuft. */
+.st-zeile{display:grid;grid-template-columns:minmax(78px,max-content) 1fr auto;align-items:center;gap:14px;padding:12px 0;border-top:1px solid rgba(255,255,255,.07)}
+.st-zeile.klein{grid-template-columns:minmax(92px,max-content) 1fr auto}
+.st-zeit{min-width:0}
+.st-zeit b{display:block;font:500 15px/1.1 'Inter',sans-serif;color:#fff;font-variant-numeric:tabular-nums;white-space:nowrap}
 .st-zeit small{display:block;font-size:11px;color:#64748b;margin-top:2px}
 .st-zeile.rueckruf .st-zeit b{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#fbbf24}
 .st-wer b{display:block;font:400 14.5px/1.2 'Inter',sans-serif;color:#fff}
@@ -52,4 +60,13 @@
 .st-schnell-karte b{font:400 14px/1.2 'Inter',sans-serif;color:#fff}
 .st-schnell-karte span{font-size:12px;color:#9ca3af}
 @media(max-width:1100px){.st-kacheln,.st-schnell{grid-template-columns:1fr 1fr}.st-spalten{grid-template-columns:1fr}}
-@media(max-width:700px){.st-kopf{grid-template-columns:1fr}.st-kacheln,.st-schnell{grid-template-columns:1fr 1fr}.st-zeile{grid-template-columns:64px 1fr;row-gap:8px}.st-aktion{grid-column:1/3}.st-stufen{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:700px){
+  .st-kopf{grid-template-columns:1fr}
+  .st-kacheln,.st-schnell{grid-template-columns:1fr 1fr}
+  /* VORHER `64px 1fr` — dort wurde „RÜCKRUF" beschnitten (Justin 24.08.).
+     NACHHER richtet sich die Spalte nach ihrem Inhalt; die Uhrzeit bleibt
+     schmal, das Wort bekommt seinen Platz. */
+  .st-zeile{grid-template-columns:minmax(64px,max-content) 1fr;row-gap:8px;column-gap:12px}
+  .st-aktion{grid-column:1/3}
+  .st-stufen{grid-template-columns:repeat(2,1fr)}
+}

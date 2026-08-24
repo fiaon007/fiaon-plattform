@@ -1868,4 +1868,176 @@ router.post("/agent/buchungen/:ref/archivieren", requireAgent, async (req: Agent
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// KONTO UND KARTE — die Routen
+//
+// Justin, 24.08.2026: „In der Akte muss es eine Funktion geben ‚Konto und
+// Kreditkarte', und ERST wenn der Kunde [alle Bedingungen erfüllt],
+// verschicken wir über den Knopf ‚Karte bestellen' den Link."
+//
+// Die Bedingungen werden HIER noch einmal geprüft, nicht nur in der
+// Oberfläche. Ein Knopf, den man nicht sieht, ist keine Sperre: Wer die
+// Adresse kennt, könnte den Aufruf sonst von Hand absetzen und einem Kunden
+// den Weg öffnen, der die zwei Raten nie gezahlt hat. Genau davor sollen die
+// zwei Monate schützen.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** GET /agent/karte/:personId — der Stand mit allen drei Toren. */
+router.get("/agent/karte/:personId", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const personId = Number(req.params.personId);
+    if (!Number.isFinite(personId)) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+    const { rolleVon, darfAnKunde } = await import("../lib/fiaon-kundenzugriff");
+    if (!(await darfAnKunde(req.agent!.id, await rolleVon(req.agent!.id), personId))) {
+      return res.status(403).json({ ok: false, error: "Dieser Kunde wird von jemand anderem betreut." });
+    }
+    const { kartenStand } = await import("../lib/fiaon-konto-karte");
+    const stand = await kartenStand(personId);
+    if (!stand) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+    res.json({ ok: true, stand });
+  } catch (err) {
+    console.error("[KARTE] stand:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/**
+ * POST /agent/karte/:personId/senden — den Weg zum Girokonto schicken.
+ *
+ * Drei Wände hintereinander, absichtlich:
+ *   1. Darf dieser Mitarbeiter überhaupt an diesen Kunden?
+ *   2. Sind alle drei Bedingungen erfüllt? (nochmal, serverseitig)
+ *   3. Wurde nicht schon geschickt? Ein zweiter Link an denselben Menschen
+ *      wirkt wie eine Mahnung und kostet Vertrauen.
+ */
+router.post("/agent/karte/:personId/senden", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const personId = Number(req.params.personId);
+    if (!Number.isFinite(personId)) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+
+    const { rolleVon, darfAnKunde } = await import("../lib/fiaon-kundenzugriff");
+    const rolle = await rolleVon(req.agent!.id);
+    if (!(await darfAnKunde(req.agent!.id, rolle, personId))) {
+      return res.status(403).json({ ok: false, error: "Dieser Kunde wird von jemand anderem betreut." });
+    }
+
+    const { kartenStand, partnerLink, KARTEN_BONUS_CENTS, ensureKartenTabelle } =
+      await import("../lib/fiaon-konto-karte");
+    const stand = await kartenStand(personId);
+    if (!stand) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+
+    if (!stand.bereit) {
+      return res.status(400).json({
+        ok: false,
+        error: "Noch nicht so weit: " + (stand.esFehlt || "es fehlen Voraussetzungen") + ".",
+      });
+    }
+    if (stand.versand) {
+      return res.status(400).json({
+        ok: false,
+        error: "Der Weg wurde diesem Kunden bereits am "
+          + new Date(stand.versand.am).toLocaleDateString("de-DE") + " geschickt"
+          + (stand.versand.vonName ? " (von " + stand.versand.vonName + ")" : "") + ".",
+      });
+    }
+
+    const link = partnerLink(personId, req.agent!.id);
+    const { mailSenden } = await import("../lib/fiaon-mail-senden");
+    const erg = await mailSenden({
+      event: "konto_karte_einladung",
+      personId,
+      zusatz: { partner_link: link },
+      akteur: { name: req.agent!.name, agentId: req.agent!.id, rolle: rolle as any },
+    });
+    if (!erg?.ok) {
+      return res.status(400).json({ ok: false, error: (erg as any)?.error || "Die Mail ging nicht raus." });
+    }
+
+    await ensureKartenTabelle();
+    await sqlPool`
+      INSERT INTO fiaon_konto_karte (person_id, agent_id, agent_name, kanal, status, bonus_cents)
+      VALUES (${personId}, ${req.agent!.id}, ${req.agent!.name}, 'mail', 'gesendet', ${KARTEN_BONUS_CENTS})
+    `;
+
+    // Der Verlauf hält fest, WER geschickt hat. Ein Kunde, der später fragt
+    // „von wem kam das?", bekommt eine Antwort.
+    const [ap] = (await sqlPool`
+      SELECT ref FROM fiaon_applications
+      WHERE person_id = ${personId} AND merged_into IS NULL
+      ORDER BY created_at DESC LIMIT 1
+    `) as any[];
+    if (ap) {
+      await sqlPool`
+        INSERT INTO fiaon_contact_log (person_id, agent_id, agent_name, type, note, ref, created_at)
+        VALUES (${personId}, ${req.agent!.id}, ${req.agent!.name}, 'system',
+                'Konto & Karte: Weg zum Girokonto beim Kooperationspartner geschickt.', ${ap.ref}, NOW())
+      `.catch(() => {});
+    }
+
+    res.json({
+      ok: true,
+      meldung: "Der Weg zum Girokonto ist unterwegs.",
+      hinweis: "10 € stehen als vorgemerkt in deinem Konto – auszahlbar, sobald der Partner die Eröffnung bestätigt.",
+      stand: await kartenStand(personId),
+    });
+  } catch (err) {
+    console.error("[KARTE] senden:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/**
+ * GET /agent/karte/bereit/liste — wer ist bereit?
+ *
+ * Justin: „in die Tagesliste bitte bei den Mitarbeitern, die die Kunden
+ * betreuen." Deshalb IMMER auf die eigenen Kunden eingegrenzt — die Leitung
+ * sieht ihre eigenen, nicht die aller.
+ */
+router.get("/agent/karte/bereit/liste", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const { bereiteKunden } = await import("../lib/fiaon-konto-karte");
+    const liste = await bereiteKunden({ agentId: req.agent!.id, ohneVersand: true, grenze: 100 });
+    res.json({ ok: true, anzahl: liste.length, kunden: liste });
+  } catch (err) {
+    console.error("[KARTE] liste:", err);
+    // Eine Liste, die klemmt, darf die Tagesliste nicht mitreissen.
+    res.json({ ok: true, anzahl: 0, kunden: [] });
+  }
+});
+
+/**
+ * GET /agent/karte/verdienst — was aus Konto & Karte für mich liegt.
+ *
+ * Justin, 24.08.2026: „Wenn ja, dann muss es überall kommuniziert werden,
+ * alles angepasst." Wer 10 € verdient hat, muss sie sehen — sonst hält er die
+ * Provision für ein Gerücht und drückt den Knopf beim nächsten Kunden nicht
+ * mehr.
+ *
+ * Vorgemerkt und bestätigt bleiben GETRENNT. Eine Summe aus beidem wäre eine
+ * Zahl, die zu hoch ist und wieder fällt — und nichts zerstört Vertrauen in
+ * eine Provisionsabrechnung schneller als ein Guthaben, das schrumpft.
+ */
+router.get("/agent/karte/verdienst", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const { ensureKartenTabelle } = await import("../lib/fiaon-konto-karte");
+    await ensureKartenTabelle();
+    const [z] = (await sqlPool`
+      SELECT
+        COALESCE(SUM(bonus_cents) FILTER (WHERE status IN ('gesendet','eroeffnet')), 0)::int AS vorgemerkt,
+        COALESCE(SUM(bonus_cents) FILTER (WHERE status = 'bestaetigt'), 0)::int AS bestaetigt,
+        COUNT(*) FILTER (WHERE status <> 'verfallen')::int AS anzahl
+      FROM fiaon_konto_karte WHERE agent_id = ${req.agent!.id}
+    `) as any[];
+    res.json({ ok: true, stand: {
+      vorgemerkt: Number(z?.vorgemerkt || 0),
+      bestaetigt: Number(z?.bestaetigt || 0),
+      anzahl: Number(z?.anzahl || 0),
+    } });
+  } catch (err) {
+    console.error("[KARTE] verdienst:", err);
+    // Eine klemmende Nebenzahl darf das Wallet nicht mitreissen.
+    res.json({ ok: true, stand: { vorgemerkt: 0, bestaetigt: 0, anzahl: 0 } });
+  }
+});
+
 export default router;

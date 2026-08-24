@@ -97,6 +97,18 @@ function WalletInnen() {
 function Guthaben({ earnings, onWechsel }: { earnings: any; onWechsel: (r: Reiter) => void }) {
   const [abrechnungen, setAbrechnungen] = useState<any[] | null>(null);
   useEffect(() => { api("/agent/abrechnungen").then((r) => setAbrechnungen(r.ok ? r.json.abrechnungen || [] : [])).catch(() => setAbrechnungen([])); }, []);
+  // ── Konto & Karte: was vorgemerkt liegt (24.08.2026) ─────────────────────
+  // Justin: „wenn ja, dann muss es überall kommuniziert werden, alles
+  // angepasst." Wer 10 € verdient hat, muss sie sehen — sonst glaubt er, es
+  // gäbe sie nicht, und drückt den Knopf beim nächsten Kunden nicht mehr.
+  // Bewusst als EIGENE Zeile und nicht in „Potenziell" eingerechnet: Das sind
+  // zwei verschiedene Versprechen. „Potenziell" hängt an einer Rate, die der
+  // Kunde noch zahlen muss; das hier hängt an einer Bestätigung, die der
+  // Partner noch schickt.
+  const [karte, setKarte] = useState<{ vorgemerkt: number; bestaetigt: number; anzahl: number } | null>(null);
+  useEffect(() => {
+    api("/agent/karte/verdienst").then((r) => { if (r.ok) setKarte(r.json.stand); }).catch(() => {});
+  }, []);
   const e = earnings;
   return (
     <>
@@ -110,6 +122,24 @@ function Guthaben({ earnings, onWechsel }: { earnings: any; onWechsel: (r: Reite
           <div key={String(t)} className={`wa-kachel ${k}`} style={{ animationDelay: `${i * 70}ms` }}><i><Icon size={18} strokeWidth={1.75} /></i><small>{t as string}</small><b>{c != null ? fmtCents(c as number) : "–"}</b><span>{u as string}</span></div>
         ); })}
       </section>
+
+      {karte && (karte.vorgemerkt > 0 || karte.bestaetigt > 0) && (
+        <section className="wa-block leicht wa-karte">
+          <div className="wa-block-kopf">
+            <b>Konto &amp; Karte</b>
+            <small>{karte.anzahl} {karte.anzahl === 1 ? "Kunde" : "Kunden"} · 10 € je bestätigter Eröffnung</small>
+          </div>
+          <div className="wa-karte-zahlen">
+            <div><small>Vorgemerkt</small><b>{fmtCents(karte.vorgemerkt)}</b><span>wartet auf die Bestätigung des Partners</span></div>
+            <div><small>Bestätigt</small><b>{fmtCents(karte.bestaetigt)}</b><span>zählt zu deinem Guthaben</span></div>
+          </div>
+          <p className="wa-karte-satz">
+            Der Partner meldet eine Eröffnung erst nach einigen Wochen endgültig und kann sie auch wieder
+            streichen — deshalb steht sie bis dahin als vorgemerkt und nicht als Guthaben. Ruf deine Kunden
+            ein paar Tage nach dem Versand an: Wer beim Video-Ident hängen bleibt, bricht ab und sagt es niemandem.
+          </p>
+        </section>
+      )}
 
       {e?.monthlyGoalCents > 0 && (
         <section className="wa-block leicht">

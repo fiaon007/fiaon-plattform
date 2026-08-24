@@ -93,6 +93,86 @@ export const LEITFAEDEN: Leitfaden[] = [
     ],
     merke: "Entschuldigen → zuhören → aufräumen → zwei Wege → Termin. Kein Inkasso-Ton, nie.",
   },
+  // ══════════════════════════════════════════════════════════════════════════
+  // NEU 24.08.2026 — Justin: „Der Kunde kommt ja mit der Erwartungshaltung
+  // ‚Ich brauche eine Kreditkarte' — das müssen wir nun auch erfüllen … das
+  // kann auch in die Akademie, Leitfäden und Co. kommen, damit der Ablauf klar
+  // ist."
+  //
+  // Dies ist das Gespräch, auf das die ganze Betreuung hinarbeitet. Es ist
+  // KEIN Verkaufsgespräch — der Kunde hat schon bezahlt. Es ist die Einlösung
+  // des Versprechens aus Leitfaden A und B („Sie haben sich wegen der
+  // Kreditkarte gemeldet"). Deshalb ist der Ton stolz, nicht werbend.
+  //
+  // Wortwahl bindend: KOOPERATIONSPARTNER oder Partnerbank, nie „Affiliate".
+  // Die Bank darf genannt werden — ihre Leistungen SIND das Argument.
+  // ══════════════════════════════════════════════════════════════════════════
+  {
+    key: "k", stufe: "K", schrittKey: "stufe-a",
+    titel: "Konto & Karte – der Anruf, auf den alles hinauslief",
+    wann: "Der Kunde erfüllt alle drei Bedingungen: Antrag vollständig, Paket und Auskunft bezahlt mit mindestens zwei gelaufenen Raten, Kontoauszug und Ausweis liegen vor. In der Akte steht „Bereit für Konto & Karte“, auf deinem Dashboard steht er in der Tagesliste.",
+    ziel: "Dem Kunden sagen, dass er am Ziel ist — und ihm den Weg in der richtigen Reihenfolge erklären: erst das Girokonto, dann die Kreditkarte. Danach den Link schicken und einen Rückruf verabreden.",
+    kurz: [
+      "„Herr [Name], ich rufe an, weil bei Ihnen jetzt alles zusammen ist — und ich habe gute Nachrichten.“",
+      "Was er geschafft hat, konkret nennen: Auskunft da, Unterlagen da, zwei Raten gelaufen. „Genau darauf haben wir hingearbeitet.“",
+      "Die Reihenfolge erklären: „Zuerst eröffnen Sie ein kostenloses Girokonto bei unserem Kooperationspartner, der DKB. Aus diesem Konto heraus buchen Sie dann die Kreditkarte dazu — anders geht es bei keiner Bank.“",
+      "Die Vorteile nennen (kostenlos ab 700 € Geldeingang oder unter 28, Visa Debitkarte inklusive, Echtzeitüberweisungen, aktuell bis zu 200 € Startguthaben).",
+      "„Ich schicke Ihnen den Weg jetzt per Mail. Fünf Minuten, Ausweis bereithalten fürs Video-Ident — genau den, den Sie bei uns schon hinterlegt haben.“",
+      "Rückruf verabreden: „Ich melde mich in drei Tagen kurz, ob alles geklappt hat.“ → Ergebnis „Rückruf vereinbart“ klicken.",
+    ],
+    phasen: [
+      {
+        titel: "1 · Die gute Nachricht (30 Sekunden)",
+        ziel: "Der Kunde merkt, dass sich sein Geld gelohnt hat — bevor irgendetwas Neues kommt.",
+        saetze: [
+          "„Herr [Name], ich rufe an, weil bei Ihnen jetzt alles zusammen ist. Ihre Auskunft liegt vor, Ihre Unterlagen sind vollständig, und Ihre ersten Raten sind gelaufen.“",
+          "„Genau darauf haben wir die letzten Monate hingearbeitet — jetzt können wir den nächsten Schritt gehen: Ihr eigenes Konto und die Karte.“",
+        ],
+        hinweis: "Erst die Anerkennung, dann der Weg. Wer sofort mit dem Link anfängt, macht aus einem Erfolg eine Werbemail.",
+      },
+      {
+        titel: "2 · Warum erst das Konto (1 Minute)",
+        ziel: "Die Reihenfolge sitzt — sonst versucht er es direkt bei der Karte und wird abgelehnt.",
+        saetze: [
+          "„Der Weg hat zwei Schritte, und der erste ist der wichtige: Sie eröffnen ein kostenloses Girokonto bei unserem Kooperationspartner, der DKB.“",
+          "„Aus diesem Konto heraus buchen Sie danach die Kreditkarte dazu — mit einem Klick in Ihrem Banking. Ohne Girokonto geht das bei keiner Bank, deshalb diese Reihenfolge.“",
+          "Wenn er fragt, warum nicht direkt: „Weil ein Kartenantrag ohne Konto abgelehnt wird — und jede Ablehnung steht wieder in Ihrer Auskunft. Genau das wollen wir bei Ihnen ja gerade nicht.“",
+        ],
+        hinweis: "Der Satz mit der Ablehnung ist der wichtigste im ganzen Gespräch: Er erklärt die Reihenfolge aus dem Interesse des Kunden heraus, nicht aus unserem.",
+      },
+      {
+        titel: "3 · Was das Konto ihm bringt (1 Minute)",
+        ziel: "Er sieht das Konto als Gewinn, nicht als Bedingung.",
+        saetze: [
+          "„Das Konto kostet Sie nichts, wenn monatlich 700 Euro eingehen — bei unter 28 Jahren generell nicht.“",
+          "„Die Visa Debitkarte ist dabei, ohne Jahresgebühr, weltweit und mit Apple Pay oder Google Pay.“",
+          "„Überweisungen kommen in zehn Sekunden an, rund um die Uhr.“",
+          "„Und aktuell läuft eine Aktion mit bis zu 200 Euro Startguthaben.“",
+          "Wenn er ein Konto hat: „Sie können das als Zweitkonto führen — oder mit dem Wechselservice umziehen, das dauert unter zehn Minuten und alle Ihre Vertragspartner werden automatisch informiert.“",
+        ],
+        hinweis: "Nie „garantiert“ und nie versprechen, dass die Bank ihn annimmt. Die Bank entscheidet — das sagst du ehrlich, wenn er fragt.",
+      },
+      {
+        titel: "4 · Den Weg schicken (30 Sekunden)",
+        ziel: "Der Link ist raus, während er noch am Telefon ist.",
+        saetze: [
+          "„Ich schicke Ihnen den Weg jetzt per Mail — Sie müssten ihn in einer Minute haben.“",
+          "„Rechnen Sie mit fünf Minuten. Halten Sie Ihren Ausweis bereit fürs Video-Ident — genau den, den Sie bei uns schon hinterlegt haben.“",
+          "„Sagen Sie mir kurz, wenn die Mail da ist?“",
+        ],
+        hinweis: "In der Akte unter „Sein Antrag“ → Konto & Karte → „Karte bestellen“. Der Knopf erscheint nur, wenn wirklich alle drei Bedingungen erfüllt sind. Für dich sind das 10 € — auszahlbar, sobald der Partner die Eröffnung bestätigt.",
+      },
+      {
+        titel: "5 · Rückruf verabreden",
+        ziel: "Wer beim Video-Ident hängen bleibt, bricht ab und sagt es niemandem.",
+        saetze: [
+          "„Ich melde mich in drei Tagen kurz und frage, ob alles geklappt hat. Wenn vorher etwas hakt, rufen Sie mich einfach an.“",
+        ],
+        hinweis: "Ergebnis klicken: „Rückruf vereinbart“ mit Datum. Ohne diesen Rückruf verlierst du die Hälfte der Eröffnungen an eine Frage, die niemand gestellt hat.",
+      },
+    ],
+    merke: "Anerkennen → Reihenfolge erklären → Vorteile → Link → Rückruf. Erst das Konto, dann die Karte — immer.",
+  },
 ];
 
 export const leitfaden = (key: string): Leitfaden | null => LEITFAEDEN.find((l) => l.key === key) ?? null;

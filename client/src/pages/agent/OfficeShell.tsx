@@ -172,7 +172,7 @@ function Begruessung({ gruss, vorname }: { gruss: string; vorname: string }) {
   const zeit = uhr.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" });
 
   return (
-    <div className="of-kopf-titel">
+    <div className="of-gruss-huelle">
       <b className="of-gruss">
         <span className="of-gruss-name">{gruss}, {vorname}.</span>
         <span className="of-gruss-zeit"> Es ist {zeit} Uhr{wetter ? "," : "."}</span>
@@ -183,7 +183,11 @@ function Begruessung({ gruss, vorname }: { gruss: string; vorname: string }) {
             <span className="of-gruss-zeichen" aria-hidden="true"> {wetter.zeichen}</span>
           </span>
         )}
-        <span className="of-gruss-wunsch"> Wir wünschen dir einen erfolgreichen Tag!</span>
+        {/* `{" "}` ausdrücklich statt eines Leerzeichens im Text: Wird der
+            Wunsch am Handy ausgeblendet (display:none), verschwände ein
+            Leerzeichen aus dem Textknoten mit — so bleibt der Abstand vor dem
+            Satz in jedem Fall richtig. */}
+        <span className="of-gruss-wunsch">{" "}Wir wünschen dir einen erfolgreichen Tag!</span>
       </b>
     </div>
   );
@@ -276,9 +280,10 @@ export function OfficeShell({ children, agent, rolle, zaehler, onRefresh, logout
           {/* 24.08.2026 (Justin: „das ‚More' löschen"): VORHER stand hier der
               Raumname — derselbe, der in der Leiste links ohnehin blau
               hervorgehoben ist. Bei „More" las er sich zudem wie ein
-              abgeschnittenes Wort. NACHHER bleibt nur die Begrüßung; wo man
-              ist, sagt die Leiste. */}
-          <Begruessung gruss={gruss} vorname={vorname} />
+              abgeschnittenes Wort. NACHHER steht hier gar nichts mehr; wo man
+              ist, sagt die Leiste, und die Begrüßung hat ihre eigene Zeile
+              unter dem Kopf (siehe unten). */}
+          <span className="of-kopf-luecke" aria-hidden="true" />
           <div className="of-kopf-rechts">
             <div className="of-praesenz" title="Präsenz">
               <span className="punkt" style={{ background: PRAESENZ[praesenz][1] }} />
@@ -289,6 +294,21 @@ export function OfficeShell({ children, agent, rolle, zaehler, onRefresh, logout
             <button type="button" className="of-rund" title="Abmelden" onClick={logout}><LogOut size={15} /></button>
           </div>
         </header>
+
+        {/* ── DIE BEGRÜSSUNG, ZWEITER ANLAUF (24.08.2026) ───────────────────
+            Justin: „ist abgeschnitten und kann man nicht lesen … das gehört
+            viel dezenter und animiert."
+            VORHER stand der Satz IN der Kopfzeile und stritt dort mit Logo,
+            Präsenz, Profilbild und Abmelden um die Breite — der Rest wurde mit
+            Auslassungspunkten abgeschnitten. Ein Satz, den man nicht zu Ende
+            lesen kann, ist schlechter als keiner.
+            NACHHER hat er eine eigene schmale Zeile UNTER dem Kopf, über die
+            volle Breite. Dort konkurriert er mit nichts, ist kleiner und
+            leiser gesetzt (dezent, wie gewünscht) und der Glanz läuft ruhig
+            hindurch. Am Handy darf er über zwei Zeilen gehen. */}
+        <div className="of-grusszeile">
+          <Begruessung gruss={gruss} vorname={vorname} />
+        </div>
 
         <div className="of-grund">
           <aside className="of-leiste" aria-label="Räume">

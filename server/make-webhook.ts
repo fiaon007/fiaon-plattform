@@ -50,6 +50,11 @@ export type MakeEventType =
   //   buchen".
   | "termin_verpasst"        // Startgespraech nicht zustande gekommen — neuer Terminlink
   | "sepa_einrichten"        // Bitte, die Lastschrift fuer die Folgeraten einzurichten
+  // NEU 24.08.2026: Der Weg zum Girokonto beim Kooperationspartner (DKB) —
+  // Voraussetzung fuer die Kreditkarte. Nur nach bestandener Pruefung aller
+  // drei Bedingungen aus fiaon-konto-karte.ts. Wortwahl bindend: NIE
+  // "Affiliate", immer Kooperationspartner.
+  | "konto_karte_einladung"  // Girokonto beim Kooperationspartner, dann Kreditkarte
   | "onboarding_einladung"   // bezahlter Kunde soll sein Startgespraech buchen
   | "antrag_erinnerung"      // Antrag begonnen, nicht beendet — Kette nach E-023 (10 min, 16:30, 19:00, 07:30, 15:00 …)
   | "abo_verlaengerung_frage" // 12. Rate bezahlt — „Möchten Sie bleiben?" (E-024)

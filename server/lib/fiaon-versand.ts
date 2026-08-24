@@ -84,6 +84,11 @@ export type VersandArt =
   //   Überweisung — die Lastschrift betrifft nur die Folgeraten.
   // GRUND: Auftrag des Inhabers vom 24.08.2026.
   | "sepa_einrichten"          // Bitte, die Lastschrift für die Folgeraten einzurichten
+  // NEU 24.08.2026: Der Weg zum Girokonto bei unserem Kooperationspartner.
+  // Er geht NUR auf, wenn alle drei Bedingungen aus fiaon-konto-karte.ts
+  // erfüllt sind — deshalb steht er bewusst NICHT im allgemeinen Sendemenü,
+  // sondern nur am eigenen Knopf in der Akte.
+  | "konto_karte_einladung"    // Girokonto beim Kooperationspartner — Tür zur Kreditkarte
   | "number_update_request";   // Bitte um Korrektur der Rufnummer
 
 export interface VersandKnopf {
@@ -126,6 +131,11 @@ export const VERSAND_TEXT: Record<VersandArt, { titel: string; zweck: string }> 
   sepa_einrichten: {
     titel: "Lastschrift einrichten",
     zweck: "Bitte an den Kunden, die Folgeraten per Lastschrift laufen zu lassen — mit dem Weg in seinen Kundenbereich.",
+  },
+  // NEU 24.08.2026 (siehe VersandArt oben).
+  konto_karte_einladung: {
+    titel: "Konto & Karte",
+    zweck: "Der Weg zum kostenlosen Girokonto bei unserem Kooperationspartner — und darüber zur Kreditkarte.",
   },
   number_update_request: {
     titel: "Bitte um neue Rufnummer",

@@ -139,6 +139,15 @@ const ZUSATZ: Partial<Record<MakeEventType, EventZusatz>> = {
     gruppe: "konto", zielgruppe: "kunde", rollen: ["admin", "vertriebsleiter", "agent", "onboarding"],
     klartext: "Bitte an den Kunden, die Folgeraten per Lastschrift einzurichten — die erste Zahlung bleibt eine Überweisung.",
   },
+  // NEU 24.08.2026: Der Weg zum Girokonto bei unserem Kooperationspartner —
+  // Voraussetzung für die Kreditkarte. Geht NUR, wenn alle drei Bedingungen
+  // erfüllt sind (fiaon-konto-karte.ts); der Server prüft das noch einmal
+  // selbst, nicht nur die Oberfläche. Bewusst „Kooperationspartner", nie
+  // „Affiliate" — Justins ausdrückliche Vorgabe.
+  konto_karte_einladung: {
+    gruppe: "konto", zielgruppe: "kunde", rollen: ["admin", "vertriebsleiter", "agent", "onboarding"],
+    klartext: "Der Weg zum kostenlosen Girokonto bei unserem Kooperationspartner — Voraussetzung für die Kreditkarte.",
+  },
   number_update_request: {
     gruppe: "konto", zielgruppe: "kunde", rollen: ["admin", "vertriebsleiter", "agent"],
     klartext: "Bitte an den Kunden, seine Rufnummer selbst zu berichtigen.",

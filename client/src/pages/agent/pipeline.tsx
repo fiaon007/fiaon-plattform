@@ -107,7 +107,7 @@ import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "wouter";
 // E-050: Search/Plus/RefreshCw gingen mit dem Bestand-Reiter nach bestand.tsx.
-import { Phone, X, Copy, Send, Mail, FileText, Check, ExternalLink, ChevronLeft, ChevronRight, ChevronDown, MoreHorizontal, Play } from "lucide-react";
+import { Phone, X, Copy, Send, Mail, FileText, Check, ExternalLink, ChevronLeft, ChevronRight, ChevronDown, MoreHorizontal, Play, CreditCard } from "lucide-react";
 import { AgentShell, api, useFragen } from "./shared";
 import { useOffice } from "./OfficeShell";
 import { ToastAnbieter, useToast, eur } from "@/lib/fiaon-ui";
@@ -2262,7 +2262,7 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
         )}
 
         {/* ═══ SEIN ANTRAG ═══ */}
-        {reiter === "antrag" && <AntragsBlatt antrag={antrag} name={k.name} />}
+        {reiter === "antrag" && <><KontoKarte personId={k.personId} name={k.name} melden={melden} onProdukt={() => setProduktOffen(true)} /><AntragsBlatt antrag={antrag} name={k.name} /></>}
 
         {/* ═══ AKTIVITÄT ═══ */}
         {reiter === "aktivitaet" && <AktivitaetsZeit akt={akt} fehler={aktFehler} />}
@@ -2577,6 +2577,146 @@ const AKT_FILTER: { key: string; label: string }[] = [
   { key: "gespraech", label: "Gespräche" },
   { key: "mail", label: "Mails" },
 ];
+// ═══════════════════════════════════════════════════════════════════════════
+// KONTO UND KARTE
+//
+// Justin, 24.08.2026: „Der Kunde kommt ja mit der Erwartungshaltung: ‚Ich
+// brauche eine Kreditkarte' — das müssen wir nun auch erfüllen … Binde ÜBERALL
+// den Prozess ein, wo er notwendig ist und hingehört, es MUSS vermerkt werden,
+// also wenn alle Bedingungen bei einem Kunden erfüllt sind, muss es der
+// Mitarbeiter ja auch sehen!"
+//
+// Der Abschnitt ist NICHT als Sperre gebaut, sondern als Weg. Ein ausgegrauter
+// Knopf sagt „geht nicht" und lässt den Mitarbeiter ratlos zurück. Hier steht
+// stattdessen, WAS fehlt, WARUM es diese Bedingung gibt (in seinen Worten und
+// in denen für den Kunden) und WAS der nächste Schritt ist — anklickbar.
+//
+// Wortwahl bindend: KOOPERATIONSPARTNER, nie „Affiliate". Die Bank darf beim
+// Namen genannt werden (DKB) — ihre Vorteile sind das Argument.
+// ═══════════════════════════════════════════════════════════════════════════
+function KontoKarte({ personId, name, melden, onProdukt }: {
+  personId: number; name: string;
+  melden: (art: "gut" | "schlecht" | "info", titel: string, text?: string) => void;
+  onProdukt: () => void;
+}) {
+  const [stand, setStand] = useState<any | null>(null);
+  const [laedt, setLaedt] = useState(true);
+  const [sendet, setSendet] = useState(false);
+  const [warum, setWarum] = useState<string | null>(null);
+
+  useEffect(() => {
+    let an = true;
+    api(`/agent/karte/${personId}`).then((r) => {
+      if (!an) return;
+      setStand(r.ok ? r.json.stand : null); setLaedt(false);
+    });
+    return () => { an = false; };
+  }, [personId]);
+
+  const senden = async () => {
+    setSendet(true);
+    const r = await api(`/agent/karte/${personId}/senden`, { method: "POST", body: JSON.stringify({}) });
+    setSendet(false);
+    if (!r.ok) { melden("schlecht", "Nicht geschickt", r.json?.error || "Bitte erneut versuchen."); return; }
+    setStand(r.json.stand ?? stand);
+    melden("gut", r.json.meldung || "Unterwegs", r.json.hinweis);
+  };
+
+  if (laedt) return <Sek titel="Konto & Karte" erklaer="Prüfe den Stand …"><p className="pi-sek-satz leise">Einen Moment.</p></Sek>;
+  if (!stand) return null;
+
+  const vorname = String(name).split(" ")[0] || "der Kunde";
+
+  return (
+    <Sek titel="Konto & Karte"
+         erklaer={`Fast jeder kommt mit dem Satz „Ich brauche eine Kreditkarte“. Über unseren Kooperationspartner, die DKB, können wir ihn einlösen — sobald ${vorname} so weit ist.`}>
+
+      {/* Schon geschickt: dann zählt nur noch, was daraus geworden ist. */}
+      {stand.versand ? (
+        <div className="pi-kk-fertig">
+          <span className="pi-kk-haken"><Check size={17} strokeWidth={2.5} /></span>
+          <div>
+            <b>Der Weg ist geschickt</b>
+            <small>
+              Am {dtag(stand.versand.am)}{stand.versand.vonName ? ` von ${stand.versand.vonName}` : ""}.
+              {" "}{stand.versand.status === "bestaetigt"
+                ? `Der Partner hat die Eröffnung bestätigt – ${eur(stand.versand.bonusCents)} sind dir gutgeschrieben.`
+                : `${eur(stand.versand.bonusCents)} stehen als vorgemerkt in deinem Konto – auszahlbar, sobald der Partner die Eröffnung bestätigt.`}
+            </small>
+            <small className="pi-kk-nachfassen">
+              Ruf {vorname} in ein paar Tagen an und frag, ob es geklappt hat. Wer beim Video-Ident hängen bleibt,
+              bricht ab und sagt es niemandem.
+            </small>
+          </div>
+        </div>
+      ) : stand.bereit ? (
+        <>
+          <div className="pi-kk-bereit">
+            <div className="pi-kk-bereit-text">
+              <b>{vorname} erfüllt alle drei Bedingungen.</b>
+              <span>
+                Der Knopf schickt den Weg zum kostenlosen Girokonto. <b>Erst das Konto, dann die Karte</b> — die
+                Kreditkarte gibt es nur als Zubuchung aus dem fertigen Banking heraus. Wer direkt zur Karte
+                geschickt wird, läuft in eine Ablehnung und schreibt sie uns zu.
+              </span>
+            </div>
+            <button type="button" className="pi-knopf riesig gut pi-kk-knopf" disabled={sendet} onClick={() => void senden()}>
+              <CreditCard size={18} strokeWidth={1.75} /> {sendet ? "Schickt …" : "Karte bestellen"}
+            </button>
+          </div>
+          <p className="pi-sek-satz leise">
+            Für dich: <b>10 € je bestätigter Kontoeröffnung.</b> Sie stehen sofort als vorgemerkt in deinem
+            Konto und werden auszahlbar, wenn der Partner die Eröffnung endgültig meldet — das dauert
+            einige Wochen und kann auch entfallen, deshalb erst dann.
+            {" "}<a href="/agent/academy/leitfaeden" className="pi-link" target="_blank" rel="noreferrer">
+              Leitfaden für dieses Gespräch
+            </a> — er sagt dir Satz für Satz, wie du es erklärst.
+          </p>
+        </>
+      ) : (
+        <div className="pi-kk-nochnicht">
+          <b>Noch nicht so weit.</b>
+          <span>{stand.esFehlt}. Sobald alles steht, erscheint hier der Knopf.</span>
+        </div>
+      )}
+
+      {/* Die drei Tore — immer sichtbar, auch wenn erfüllt: Der Mitarbeiter
+          soll dem Kunden sagen können, WARUM es sie gibt. */}
+      <div className="pi-kk-tore">
+        {stand.tore.map((t: any) => (
+          <div key={t.schluessel} className={`pi-kk-tor${t.erfuellt ? " ja" : ""}`}>
+            <span className="pi-kk-punkt">{t.erfuellt ? <Check size={13} strokeWidth={3} /> : <span className="pi-kk-offen" />}</span>
+            <div>
+              <b>{t.titel}</b>
+              {!t.erfuellt && t.fehlt && <small className="pi-kk-fehlt">{t.fehlt}</small>}
+              {!t.erfuellt && t.wieWeiter && <small className="pi-kk-weiter">{t.wieWeiter}</small>}
+              <button type="button" className="pi-link pi-kk-warum"
+                      onClick={() => setWarum(warum === t.schluessel ? null : t.schluessel)}>
+                {warum === t.schluessel ? "Begründung schließen" : "Warum diese Bedingung?"}
+              </button>
+              {warum === t.schluessel && (
+                <div className="pi-kk-grund">
+                  <p><b>Für dich:</b> {t.warumIntern}</p>
+                  <p><b>So sagst du es dem Kunden:</b> „{t.warumFuerKunden}“</p>
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Ohne Bestellung gibt es keine Raten — dann ist der Weg dorthin der
+          eigentliche nächste Schritt, nicht die Karte. */}
+      {stand.zahlen.ratenBezahlt === 0 && (
+        <div className="pi-sackgasse" style={{ marginTop: 12 }}>
+          <span><b>Noch keine Rate gelaufen</b>Ohne bezahltes Paket beginnt die Zählung nicht.</span>
+          <button type="button" className="pi-knopf klein" onClick={onProdukt}>Produkt ansehen</button>
+        </div>
+      )}
+    </Sek>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // SEIN ANTRAG — alles, was der Mensch uns selbst geschrieben hat
 //

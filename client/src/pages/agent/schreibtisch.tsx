@@ -96,6 +96,20 @@ function SchreibtischInnen() {
   // darunter Zeile für Zeile zeigt. Die Überschrift darf nichts anderes zählen.
   const dranGesamt = termineHeute.length + rueckrufeFaellig.length + zusagenFaellig.length;
 
+  // ── KONTO & KARTE: WER IST HEUTE BEREIT? (24.08.2026) ────────────────────
+  // Justin: „Ja, in die Tagesliste bitte bei den Mitarbeitern, die die Kunden
+  // betreuen." Bewusst eine EIGENE Gruppe unten in „Jetzt dran" und nicht
+  // zwischen den Terminen: Ein Termin um 10:00 ist zeitgebunden, ein bereiter
+  // Kunde nicht — er darf die Reihenfolge des Tages nicht durcheinanderbringen,
+  // aber er darf auch nicht untergehen. Die Liste blendet aus, wem schon
+  // geschickt wurde; ein zweiter Link wirkt wie eine Mahnung.
+  const [karteBereit, setKarteBereit] = useState<any[]>([]);
+  useEffect(() => {
+    let an = true;
+    api("/agent/karte/bereit/liste").then((r) => { if (an && r.ok) setKarteBereit(r.json.kunden || []); });
+    return () => { an = false; };
+  }, []);
+
   return (
     <div className="st">
       <section className="st-kopf">
@@ -122,6 +136,14 @@ function SchreibtischInnen() {
         <Link href="/agent/aufgaben" className="st-kachel"><b>{aufgabenOffen}</b><span>Aufgaben fällig</span></Link>
         <Link href="/agent/anliegen" className="st-kachel"><b>{anliegen}</b><span>Anliegen offen</span></Link>
         <Link href="/agent/bestand" className="st-kachel"><b>{mandate ?? "–"}</b><span>Mein Bestand</span></Link>
+        {/* Nur zeigen, wenn es etwas zu zeigen gibt: Eine Kachel mit 0 lehrt
+            den Blick, sie zu überspringen — und dann sieht man auch die 3
+            nicht mehr. */}
+        {karteBereit.length > 0 && (
+          <Link href="/agent/bestand?filter=karte" className="st-kachel karte">
+            <b>{karteBereit.length}</b><span>Bereit für Konto &amp; Karte</span>
+          </Link>
+        )}
       </section>
 
       <section className="st-spalten">
@@ -170,6 +192,27 @@ function SchreibtischInnen() {
               </div>
             </div>
           ))}
+          {/* ── Bereit für Konto & Karte ──────────────────────────────────
+              Steht bewusst UNTER den zeitgebundenen Punkten: Wer heute seine
+              zweite Rate bezahlt hat, soll heute den Anruf bekommen — aber
+              erst, nachdem der 10-Uhr-Termin gelaufen ist. */}
+          {karteBereit.length > 0 && (
+            <>
+              <div className="st-gruppe-titel">
+                <b>Bereit für Konto &amp; Karte</b>
+                <small>Alle Bedingungen erfüllt – ein Anruf, dann der Weg zum Girokonto</small>
+              </div>
+              {karteBereit.map((k: any) => (
+                <div key={`kk${k.personId}`} className="st-zeile karte">
+                  <div className="st-zeit"><b>Karte</b><small>bereit</small></div>
+                  <div className="st-wer"><b>{k.name}</b><small>Antrag, Zahlungen und Unterlagen stehen</small></div>
+                  <div className="st-aktion">
+                    <Link href={`/agent/kunden?person=${k.personId}`} className="st-knopf">Akte öffnen</Link>
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
         </div>
         <div className="st-block">
           {/* Vorher: „Die nächsten Tage" (5) + Pipeline-Stufen. Nachher (E-052): ALLE bevorstehenden Termine, scrollbar; Stufen weg. */}

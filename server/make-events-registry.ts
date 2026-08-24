@@ -270,6 +270,62 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       kundenbereich_link: "https://www.fiaon.com/kundenbereich",
     },
   },
+  // ══════════════════════════════════════════════════════════════════════════
+  // TEXTVORSCHLAG "konto_karte_einladung" (Sie-Form, hochwertig, kein Druck)
+  //
+  //   Betreff: Ihr naechster Schritt: kostenloses Girokonto und Kreditkarte
+  //
+  //   Guten Tag {{vorname}},
+  //
+  //   Sie sind bei uns an dem Punkt, auf den Sie hingearbeitet haben: Ihre
+  //   Unterlagen liegen vollstaendig vor, Ihre Auskunft ist da und Ihre
+  //   ersten Raten sind gelaufen. Damit ist der Weg frei fuer das, weshalb
+  //   die meisten Menschen zu uns kommen - eine eigene Karte.
+  //
+  //   Wir arbeiten dafuer mit der DKB als Kooperationspartner zusammen. Der
+  //   Weg besteht aus zwei Schritten, und der erste ist der wichtige:
+  //
+  //   1. Girokonto eroeffnen - kostenlos ab 700 EUR Geldeingang im Monat
+  //      oder generell fuer alle unter 28 Jahren. Die Visa Debitkarte ist
+  //      dabei, Echtzeitueberweisungen ebenfalls. Aktuell gibt es zusaetzlich
+  //      bis zu 200 EUR Startguthaben.
+  //   2. Kreditkarte dazubuchen - direkt aus Ihrem neuen Banking heraus.
+  //      Ohne Girokonto geht das nicht, deshalb diese Reihenfolge.
+  //
+  //   Hier geht es zur Eroeffnung:
+  //   {{partner_link}}
+  //
+  //   Sie brauchen dafuer rund fuenf Minuten und Ihren Ausweis fuer das
+  //   Video-Ident - denselben, den Sie bei uns schon hinterlegt haben.
+  //
+  //   Wenn etwas unklar ist, rufen Sie einfach {{agent_vorname}} an.
+  //
+  //   Ihr Team von FIAON
+  //
+  // WICHTIG fuer die Vorlage:
+  //  - Das Wort "Affiliate" darf NIRGENDS vorkommen. Es heisst
+  //    Kooperationspartner oder Partnerbank. Ausdrueckliche Vorgabe des
+  //    Inhabers vom 24.08.2026.
+  //  - Die Reihenfolge Konto -> Karte ist keine Empfehlung, sondern die Regel
+  //    der Bank. Ein Text, der direkt die Kreditkarte anpreist, schickt den
+  //    Kunden in eine Ablehnung, die er UNS zuschreibt.
+  //  - {{partner_link}} traegt eine Kennung mit Kunden- und Mitarbeiternummer.
+  //    Sie darf nicht gekuerzt oder ersetzt werden, sonst laesst sich die
+  //    Eroeffnung niemandem zuordnen und die Provision nicht abrechnen.
+  // ══════════════════════════════════════════════════════════════════════════
+  {
+    type: "konto_karte_einladung",
+    label: "Konto & Karte beim Kooperationspartner (Kunde)",
+    description:
+      "Wird vom Mitarbeiter in der Akte ausgeloest, sobald ein Kunde alle drei Bedingungen erfuellt: Antrag vollstaendig, Paket und Auskunft bezahlt mit mindestens zwei gelaufenen Raten, Kontoauszug und Ausweis vorhanden. Kein Automatiklauf - immer ein bewusster Klick, und der Server prueft die Bedingungen selbst noch einmal. Vorgesetzten-TODO: Make-Zweig 'konto_karte_einladung' + Brevo-Vorlage in Sie-Form anlegen (Variablen: vorname, partner_link, agent_vorname). Textvorschlag: siehe Kommentar ueber diesem Eintrag. Das Wort 'Affiliate' darf in der Vorlage NICHT vorkommen.",
+    customerBound: true,
+    example: {
+      email: "max.mustermann@example.com",
+      vorname: "Max",
+      agent_vorname: "Daniel",
+      partner_link: "https://www.awin1.com/cread.php?awinmid=11329&awinaffid=3050049&clickref=FIAON-P12345&clickref2=A928",
+    },
+  },
   {
     type: "antrag_erinnerung",
     label: "Antrag abgebrochen — Erinnerung mit Wiedereinstiegs-Link",

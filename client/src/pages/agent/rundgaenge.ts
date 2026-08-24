@@ -103,10 +103,14 @@ export const RUNDGANG_BESTAND: RundgangSchritt[] = [
   },
   {
     ziel: ".be-chips",
-    titel: "Drei Filter, die dir den Tag sortieren.",
+    // 24.08.2026 nachgezogen: Mit „Bereit für Konto & Karte" sind es vier statt
+    // drei. Ein Rundgang, der „drei Filter" sagt und vier zeigt, ist der
+    // schnellste Weg, dass ihm niemand mehr glaubt (AGENTS.md).
+    titel: "Vier Filter, die dir den Tag sortieren.",
     text: "„Überfällig“ zeigt dir, wo Geld fehlt. „Termin fällig“ zeigt, mit wem du heute sprichst. "
-      + "„Alle“ ist dein ganzer Bestand. Mehr Filter gibt es bewusst nicht — wer zehn Filter hat, "
-      + "benutzt keinen.",
+      + "„Bereit für Konto & Karte“ zeigt die, bei denen alles zusammen ist — der Anruf, auf den die "
+      + "ganze Betreuung hinausläuft. „Alle“ ist dein ganzer Bestand. Mehr gibt es bewusst nicht: "
+      + "Wer zehn Filter hat, benutzt keinen.",
   },
   {
     ziel: ".be-karte",
@@ -115,6 +119,20 @@ export const RUNDGANG_BESTAND: RundgangSchritt[] = [
       + "Steht dort ein bernsteinfarbener Hinweis, fehlt die Lastschrift für die Folgeraten — ein "
       + "Klick darauf bittet den Kunden per E-Mail, sie in seinem Kundenbereich einzurichten.",
     tipp: "Kunden ohne Lastschrift werden am häufigsten überfällig. Diesen Hinweis solltest du nie stehen lassen.",
+  },
+  {
+    // 24.08.2026, mit der Konto-&-Karte-Funktion zusammen angelegt (AGENTS.md:
+    // keine sichtbare Änderung ohne Abgleich mit den Rundgängen). Kein `ziel`:
+    // Der Hinweis erscheint nur auf Karten, deren Kunde wirklich bereit ist —
+    // bei allen anderen läge der Scheinwerfer auf nichts.
+    titel: "Konto & Karte — worauf alles hinausläuft.",
+    text: "Fast jeder kommt mit dem Satz „Ich brauche eine Kreditkarte“. Sobald ein Kunde drei Dinge "
+      + "erfüllt — Antrag vollständig, Paket und Auskunft bezahlt mit zwei gelaufenen Raten, "
+      + "Kontoauszug und Ausweis da — steht auf seiner Karte „Bereit für Konto & Karte“, und der "
+      + "Filter oben zeigt dir alle auf einmal. In der Akte schickst du ihm dann den Weg zum "
+      + "kostenlosen Girokonto bei unserem Kooperationspartner. Erst das Konto, dann die Karte: "
+      + "Die Kreditkarte gibt es nur als Zubuchung aus dem fertigen Banking heraus.",
+    tipp: "Ruf vorher an, statt den Link wortlos zu schicken. Für dich sind es 10 € je bestätigter Eröffnung — und der Kunde bleibt, weil er endlich das bekommt, weswegen er gekommen ist.",
   },
 ];
 

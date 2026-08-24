@@ -112,6 +112,11 @@ const FILTER: { key: string; label: string }[] = [
   { key: "alle", label: "Alle" },
   { key: "ueberfaellig", label: "Überfällig" },
   { key: "termin_faellig", label: "Termin fällig" },
+  // NEU 24.08.2026 (Justin): „es MUSS vermerkt werden, wenn alle Bedingungen
+  // bei einem Kunden erfüllt sind, muss es der Mitarbeiter ja auch sehen!"
+  // Ein eigener Filter, damit man die wenigen Bereiten nicht in 500 Karten
+  // suchen muss.
+  { key: "karte", label: "Bereit für Konto & Karte" },
 ];
 // „Gesundheit" ist als Sortierung entfallen (Justin) — sie sortierte nach
 // einer Ampel, die es in dieser Form nicht mehr gibt.
@@ -206,6 +211,19 @@ function BestandInnen() {
     };
   }, [mandate, satz]);
 
+  // ── Wer ist bereit für Konto & Karte? ────────────────────────────────────
+  // Als MENGE geladen, nicht je Karte einzeln: Der Bestand zeigt bis zu 500
+  // Kunden, und 500 Einzelabfragen wären eine halbe Sekunde Wartezeit für
+  // einen Hinweis. Der Server rechnet alle drei Bedingungen in einer Abfrage.
+  const [kartenBereit, setKartenBereit] = useState<Set<number>>(new Set());
+  useEffect(() => {
+    let an = true;
+    api("/agent/karte/bereit/liste").then((r) => {
+      if (an && r.ok) setKartenBereit(new Set((r.json.kunden || []).map((k: any) => Number(k.personId))));
+    });
+    return () => { an = false; };
+  }, []);
+
   // ── Filter, Suche, Sortierung ───────────────────────────────────────────
   const sichtbar = useMemo(() => {
     const q = suche.trim().toLowerCase();
@@ -231,6 +249,7 @@ function BestandInnen() {
         const heuteNoch = kommt != null && kommt <= tagesende.getTime();
         if (faellig == null && !heuteNoch) return false;
       }
+      if (filter === "karte" && !kartenBereit.has(Number(m.kunde.personId))) return false;
       if (q && !(`${m.kunde.name} ${m.kunde.email ?? ""} ${m.kunde.telefon ?? ""}`.toLowerCase().includes(q))) return false;
       return true;
     });
@@ -243,7 +262,11 @@ function BestandInnen() {
       // beim Lesen so aussah, als tue er etwas. Entfernt.
       return new Date(b.kunde.mandatSeit ?? 0).getTime() - new Date(a.kunde.mandatSeit ?? 0).getTime();
     });
-  }, [mandate, filter, suche, sort]);
+    // `kartenBereit` gehört in die Abhängigkeiten: Die Menge kommt erst nach
+    // dem ersten Aufbau vom Server. Ohne sie bliebe der Filter „Bereit für
+    // Konto & Karte" beim ersten Klick leer, bis irgendetwas anderes die
+    // Liste neu rechnet.
+  }, [mandate, filter, suche, sort, kartenBereit]);
   useEffect(() => { if (aktiv > sichtbar.length - 1) setAktiv(Math.max(0, sichtbar.length - 1)); }, [sichtbar.length, aktiv]);
 
   // ── Akte (?person=) — DIESELBE Lade wie in der Pipeline ─────────────────
@@ -384,6 +407,18 @@ function BestandInnen() {
                       : "noch kein Kontakt"}
                   </span>
                 </button>
+                {/* 24.08.2026 (Justin): „Es MUSS vermerkt werden — wenn alle
+                    Bedingungen bei einem Kunden erfüllt sind, muss es der
+                    Mitarbeiter ja auch sehen!" Der Hinweis führt in die Akte,
+                    nicht direkt zum Versand: Vor dem Link steht ein Anruf, in
+                    dem der Ablauf erklärt wird. Wer den Weg wortlos zuschickt,
+                    bekommt einen Kunden, der beim Video-Ident abbricht. */}
+                {kartenBereit.has(Number(m.kunde.personId)) && (
+                  <button type="button" className="be-karte-bereit" onClick={() => oeffnen(m.kunde.personId)}>
+                    <b>Bereit für Konto &amp; Karte</b>
+                    <span>Alle drei Bedingungen erfüllt – anrufen und den Weg zum Girokonto erklären.</span>
+                  </button>
+                )}
                 {/* 24.08.2026 (Justin): VORHER war „kein SEPA" nur eine Ampel-
                     Beschriftung — ein Zustand ohne Weg. NACHHER steht auf der
                     Karte, was zu tun ist, und ein Klick schickt dem Kunden die

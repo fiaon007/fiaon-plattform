@@ -117,3 +117,20 @@ textarea.wa-feld{resize:vertical;min-height:90px}
 @media(max-width:700px){.wa-kopf{padding-top:18px}.wa-stand b{font-size:36px}.wa-kachel b{font-size:26px}.wa-kachel.hervor b{font-size:30px}.wa-zeile{grid-template-columns:1fr;gap:8px}.wa-geld{justify-content:space-between}.wa-belege .wa-zeile{grid-template-columns:1fr}.wa-team{grid-template-columns:1fr 1fr 1fr;gap:6px}.wa-statusbox{grid-template-columns:1fr}.wa-statusbox .rechts{text-align:left}.wa-raster2{grid-template-columns:1fr}.wa-block{padding:16px}}
 @media(max-width:560px){.wa-kacheln,.wa-kacheln.drei,.wa-meilensteine{grid-template-columns:1fr}.wa-reiter button{padding:0 13px;font-size:12.5px}.wa-gross{font-size:30px}}
 @media(prefers-reduced-motion:reduce){.wa-kachel{animation:none}}
+
+/* ── Konto & Karte im Wallet (24.08.2026) ───────────────────────────────────
+   Justin: „wenn ja, dann muss es überall kommuniziert werden, alles
+   angepasst." Vorgemerkt und bestätigt stehen NEBENEINANDER, nicht als Summe:
+   Eine Zahl, die erst hoch ist und dann fällt, zerstört das Vertrauen in die
+   ganze Abrechnung. */
+.wa-karte-zahlen{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:4px}
+.wa-karte-zahlen > div{display:grid;gap:3px;padding:14px 16px;border-radius:15px;
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1)}
+.wa-karte-zahlen small{font:500 10px/1 'Inter',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#93c5fd}
+.wa-karte-zahlen b{font:300 25px/1.1 'Inter',sans-serif;color:#fff;font-variant-numeric:tabular-nums}
+.wa-karte-zahlen span{font-size:11.5px;line-height:1.45;color:#9ca3af}
+.wa-karte-zahlen > div:last-child{background:linear-gradient(135deg,rgba(5,150,105,.22),rgba(5,150,105,.05));
+  border-color:rgba(52,211,153,.4)}
+.wa-karte-zahlen > div:last-child b{color:#a7f3d0}
+.wa-karte-satz{margin:12px 0 0;font:300 12.5px/1.65 'Inter',sans-serif;color:#9ca3af;max-width:72ch}
+@media(max-width:700px){.wa-karte-zahlen{grid-template-columns:1fr}}

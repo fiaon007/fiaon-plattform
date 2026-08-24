@@ -22,7 +22,13 @@ import { sqlPool } from "../lib/db-pool";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
 
 const router = Router();
-export const TODO_BEREICHE = ["make", "brevo", "konten", "entscheidung", "pruefen", "partner", "sonstiges"] as const;
+// E-030 (24.08.2026): VORHER gab es sieben Bereiche, alle aus Justins eigener
+// Liste — für einen technischen Fehler, den ein MITARBEITER meldet, war keiner
+// davon ehrlich („sonstiges" verschwindet zwischen Presse-Fakten und
+// Higgsfield-Guthaben). NACHHER gibt es „technik": alles, was aus dem Haus
+// gemeldet wird und repariert werden muss. Grund: Justins Auftrag vom
+// 24.08.2026, ein unzustellbarer Brief soll an die IT gehen können.
+export const TODO_BEREICHE = ["make", "brevo", "konten", "entscheidung", "pruefen", "partner", "technik", "sonstiges"] as const;
 export const TODO_STATUS = ["offen", "in_arbeit", "wartet", "erledigt"] as const;
 type Status = (typeof TODO_STATUS)[number];
 const BETREIBER_NAME = "Justin";
@@ -137,6 +143,76 @@ export async function todoAnlegen(schluessel: string, t: { titel: string; text?:
     VALUES (${schluessel}, ${t.titel}, ${t.text ?? null}, ${t.bereich ?? "sonstiges"}, ${t.prioritaet ?? 2}, ${t.faelligAm ?? null}, ${t.link ?? null}, ${t.quelle ?? "system"})
     ON CONFLICT (schluessel) DO UPDATE SET titel = EXCLUDED.titel, text = EXCLUDED.text, link = EXCLUDED.link, updated_at = NOW()
   `;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E-030 (24.08.2026) — MELDUNGEN AUS DEM HAUS AN DIE IT
+//
+// ── VORHER ────────────────────────────────────────────────────────────────
+// Stiess ein Mitarbeiter im Alltag auf einen technischen Fehler — etwa eine
+// Mail, die beim Kunden nicht ankommt —, stand der Hinweis in seinem
+// Posteingang und endete dort. Ein Satz ohne Empfänger. Wer es trotzdem
+// melden wollte, schrieb es irgendwohin oder liess es bleiben.
+//
+// ── NACHHER (Auftrag Justin, 24.08.2026 wörtlich: es muss in der
+//    Fehlermeldung etwas geben wie „Problem an die IT senden", und dann kommt
+//    das zu den Admins) ───────────────────────────────────────────────────
+// Die Meldung wird eine Aufgabe des Betreibers im Bereich „technik" — auf
+// demselben Brett, das der Betreiber ohnehin täglich ansieht, mit Status,
+// Übergabe an einen Mitarbeiter und Zeitleiste. Weil zustaendig_art auf
+// „betreiber" steht, zählt todoOffenZahl() sie sofort mit: die Meldung ist
+// unübersehbar, ohne dass irgendwo ein zweiter Zähler entsteht.
+//
+// KEINE dritte Tabelle, und bewusst KEIN Ticket (fiaon_tickets): Ein Ticket
+// hängt immer an einer Kundenkennung, und der Kunde LIEST seine Tickets in
+// seinem Bereich (GET /kunde/:ref/tickets). Eine interne Fehlermeldung über
+// ihn hätte dort nichts zu suchen.
+//
+// ── DOPPELTE MELDUNGEN ────────────────────────────────────────────────────
+// Verhindert der SCHLÜSSEL, nicht die Oberfläche. Er wird aus dem gemeldeten
+// Datensatz gebildet (etwa aus der Kennung der Protokollzeile) und ist in der
+// Tabelle eindeutig. Ein zweiter Klick — auch von einem Kollegen, auch morgen
+// — trifft auf ON CONFLICT DO NOTHING und legt nichts Neues an. Ein
+// mitgeschickter Satz geht trotzdem nicht verloren: er wird an die Zeitleiste
+// der bestehenden Meldung gehängt.
+// ═══════════════════════════════════════════════════════════════════════════
+export async function todoMeldung(
+  schluessel: string,
+  t: { titel: string; text: string; bereich?: string; prioritaet?: number; link?: string | null },
+  melder: { name: string; agentId: number | null; notiz?: string | null },
+): Promise<{ id: number; neu: boolean }> {
+  await ensureTodoTabelle();
+  const bereich = (TODO_BEREICHE as readonly string[]).includes(String(t.bereich)) ? String(t.bereich) : "technik";
+  const notiz = String(melder.notiz ?? "").trim().slice(0, 2000);
+  const [neu] = (await sqlPool`
+    INSERT INTO fiaon_betreiber_todos (schluessel, titel, text, bereich, prioritaet, link, quelle, letzte_aktivitaet)
+    VALUES (${schluessel}, ${t.titel}, ${t.text}, ${bereich}, ${t.prioritaet ?? 2}, ${t.link ?? null}, 'meldung', NOW())
+    ON CONFLICT (schluessel) DO NOTHING
+    RETURNING id`) as any[];
+  if (neu) {
+    await beitrag(Number(neu.id), {
+      autorArt: "agent", autorName: melder.name, autorAgentId: melder.agentId, art: "kommentar",
+      text: notiz ? `Gemeldet von ${melder.name}: ${notiz}` : `Gemeldet von ${melder.name}.`,
+    });
+    return { id: Number(neu.id), neu: true };
+  }
+  const [alt] = (await sqlPool`SELECT id FROM fiaon_betreiber_todos WHERE schluessel = ${schluessel}`) as any[];
+  if (!alt) throw new Error("Die Meldung konnte nicht abgelegt werden.");
+  if (notiz) {
+    await beitrag(Number(alt.id), {
+      autorArt: "agent", autorName: melder.name, autorAgentId: melder.agentId, art: "kommentar",
+      text: `Noch einmal beobachtet von ${melder.name}: ${notiz}`,
+    });
+  }
+  return { id: Number(alt.id), neu: false };
+}
+
+/** Welche dieser Schlüssel sind schon gemeldet? Für Knöpfe, die „gemeldet" zeigen sollen. */
+export async function todoSchluesselVorhanden(schluessel: string[]): Promise<Set<string>> {
+  if (schluessel.length === 0) return new Set();
+  await ensureTodoTabelle();
+  const rows = (await sqlPool`SELECT schluessel FROM fiaon_betreiber_todos WHERE schluessel = ANY(${schluessel})`) as any[];
+  return new Set(rows.map((r) => String(r.schluessel)));
 }
 
 /** Was bei Justin liegt: eigene offene Aufgaben plus alles, wo ein Mitarbeiter eine Frage gestellt hat. */

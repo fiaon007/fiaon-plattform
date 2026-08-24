@@ -3,11 +3,11 @@
 //
 // ── DER AUFTRAG ────────────────────────────────────────────────────────────
 // „JEDER Agent kann einen Kunden komplett anlegen und pflegen — bis zu dem
-// Punkt, an dem der Kunde zahlen kann." Und der Fluss endet mit dem Termin.
+// Punkt, an dem der Kunde zahlen kann.“ Und der Fluss endet mit dem Termin.
 //
 // ── WARUM EIN FLUSS UND KEIN FORMULAR ──────────────────────────────────────
 // Der Agent hat den Menschen am TELEFON. Er kann nicht sagen „einen Moment, ich
-// wechsle die Seite" — viermal. Deshalb: ein Feld nach dem anderen, und nach
+// wechsle die Seite“ — viermal. Deshalb: ein Feld nach dem anderen, und nach
 // dem Anlegen bleibt derselbe Dialog offen und zeigt die drei nächsten
 // Schritte:
 //
@@ -21,16 +21,50 @@
 //
 // ── DER DUBLETTEN-CHECK LÄUFT WÄHREND DES TIPPENS ──────────────────────────
 // Nicht erst beim Speichern: Wer den Namen schon eingetippt hat und dann hört
-// „gibt es bereits", hat umsonst gearbeitet. Der Hinweis erscheint, sobald
+// „gibt es bereits“, hat umsonst gearbeitet. Der Hinweis erscheint, sobald
 // E-Mail oder Nummer vollständig sind.
 //
 // ── PREISE ─────────────────────────────────────────────────────────────────
-// Kommen aus `/agent/katalog`, also aus `shared/fiaon-pakete.ts`. Diese Datei
+// Kommen aus /agent/katalog, also aus shared/fiaon-pakete.ts. Diese Datei
 // hat KEINE eigene Preisliste — eine zweite Liste war der Grund, warum
 // Ultra-Kunden für 79,99 kauften und 99,99 in Rechnung bekamen.
+//
+// ═══ UMBAU 24.08.2026 (Justin) ═════════════════════════════════════════════
+// „Wenn man auf /agent/pipeline ‚neuen Kunden anlegen‘ klickt: 1. muss das neu
+// und besser dargestellt werden und 2. wenn man es öffnet und einen neuen
+// Kunden anlegt, muss alles synchronisiert verlaufen, alles richtig
+// dargestellt, gespeichert und so weiter … es muss perfekt zu unserer CI
+// passen, HIGH END Design!“
+//
+// AUSSEHEN — VORHER: alles in hellem Tailwind (bg-white, border-slate-200,
+// text-slate-500), an der Aufrufstelle in den Rahmen .pi-hell gesteckt: ein
+// weißer Kasten mitten im dunklen Office. NACHHER: dieselbe Formensprache wie
+// Fokus-Karte und Akte (.pi-anl in office-pipeline.css) — Glas, Radien 12–26px,
+// Schriftgewichte 300/400/500, Versalien-Labels in #93c5fd, EINE farbige
+// Hauptaktion. Kein natives select mehr: Der Browser malt es in seinem eigenen
+// Stil (weiße Liste im dunklen Glas), deshalb die Paketkarten .pi-pakete.
+//
+// FACHLICH — behoben in diesem Zug:
+//   1. VORHER führte „Zur Akte“ (und „Akte öffnen“ am Dubletten-Treffer) auf
+//      /agent/kunden?ref=… — die Seite liest aber NUR ?person=. Der Weg endete
+//      also auf einer Seite ohne geöffnete Akte: der geschlossene Kasten, den
+//      Justin meint. NACHHER geht der Weg über die personId; im selben Raum
+//      öffnet er die Glas-Lade direkt (aufAkte), ohne Seitenwechsel.
+//   2. VORHER prüfte die Oberfläche „E-Mail ODER Telefon“ nur auf „nicht
+//      leer“, der Server dagegen auf ein echtes Adressmuster bzw. mindestens
+//      sechs Ziffern. „max@“ oder „0176“ ließen den Knopf frei und liefen in
+//      einen 400er. NACHHER prüft die Oberfläche DASSELBE und sagt am Feld,
+//      was fehlt.
+//   3. VORHER stand erst NACH dem Anlegen da, dass ohne Paket keine Bestellung
+//      entsteht. NACHHER steht es VOR dem Klick — mit dem Ausweg dazu.
 // ═══════════════════════════════════════════════════════════════════════════
-import { useEffect, useState } from "react";
+import { useEffect, useState, type MouseEvent } from "react";
 import { LABEL_VERTRIEB } from "@shared/fiaon-zustaendigkeit-text";
+// Das Bauteil bringt seine Formensprache selbst mit: Es steht in pipeline.tsx
+// (lädt die Datei ohnehin) UND in kunden-neu.tsx (/agent/kunden-alt, lädt sie
+// nicht). Ohne diesen Import wäre es dort unformatiert. Die Datei enthält
+// ausschließlich .pi-Klassen, sie kann keine fremde Seite umfärben.
+import "@/styles/office-pipeline.css";
 
 interface Paket {
   key: string; label: string; preisEuro: number;
@@ -46,6 +80,24 @@ interface Treffer {
 const euro = (n: number) =>
   new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n);
 
+/** Dasselbe Muster wie normMail auf dem Server (fiaon-agent-anlage.ts). */
+const MAIL_MUSTER = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+/** Dieselbe Grenze wie normNummer auf dem Server: unter sechs Ziffern → null. */
+const NUMMER_MINDEST = 6;
+
+/**
+ * Der Weg zur Akte.
+ *
+ * VORHER: /agent/kunden?ref=FIAON-… — die Seite (pipeline.tsx) wertet aber nur
+ * ?person= aus, der Parameter lief ins Leere und die Lade blieb zu.
+ * NACHHER: über die personId. Nur wenn die fehlt (dann fehlt auch die Person),
+ * bleibt die Referenz als letzte Spur.
+ */
+function akteWeg(personId: number | null | undefined, ref: string | null | undefined): string {
+  if (personId != null && Number(personId) > 0) return `/agent/kunden?person=${Number(personId)}`;
+  return `/agent/kunden${ref ? `?ref=${encodeURIComponent(String(ref))}` : ""}`;
+}
+
 async function ruf(pfad: string, koerper?: unknown): Promise<any> {
   const r = await fetch(`/api/fiaon${pfad}`, {
     method: "POST", credentials: "include",
@@ -55,11 +107,17 @@ async function ruf(pfad: string, koerper?: unknown): Promise<any> {
   return (await r?.json().catch(() => null)) ?? { ok: false, error: "Nicht erreichbar." };
 }
 
-export function KundeAnlegen({ offen, aufKlappen, fertig }: {
+export function KundeAnlegen({ offen, aufKlappen, fertig, aufAkte }: {
   offen: boolean;
   aufKlappen: (v: boolean) => void;
   /** Wird nach erfolgreicher Anlage gerufen, damit die Liste neu lädt. */
-  fertig?: (ref: string) => void;
+  fertig?: (ref: string, personId?: number | null) => void;
+  /**
+   * Öffnet die Akte IM SELBEN RAUM (die Glas-Lade der Pipeline), statt die
+   * Seite zu wechseln. Fehlt die Funktion, bleibt der Link als Weg — deshalb
+   * ist „Zur Akte“ weiterhin ein echtes a-Element mit href.
+   */
+  aufAkte?: (personId: number) => void;
 }) {
   const [pakete, setPakete] = useState<Paket[]>([]);
   const [f, setF] = useState({
@@ -86,9 +144,9 @@ export function KundeAnlegen({ offen, aufKlappen, fertig }: {
 
   // ── DER DUBLETTEN-CHECK WÄHREND DES TIPPENS ─────────────────────────────
   // Mit Verzögerung: Ohne sie schickt jeder Tastendruck eine Abfrage, und bei
-  // „max@muster.de" wären das 13.
+  // „max@muster.de“ wären das 13.
   useEffect(() => {
-    const mailFertig = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(f.email.trim());
+    const mailFertig = MAIL_MUSTER.test(f.email.trim());
     const nummerFertig = f.phone.replace(/[^\d]/g, "").length >= 9;
     if (!mailFertig && !nummerFertig) { setTreffer([]); return; }
     const t = setTimeout(() => {
@@ -111,7 +169,7 @@ export function KundeAnlegen({ offen, aufKlappen, fertig }: {
       return;
     }
     setErfolg(j);
-    fertig?.(String(j.ref));
+    fertig?.(String(j.ref), j.personId != null ? Number(j.personId) : null);
   };
 
   const kopieren = async (text: string, was: string) => {
@@ -129,42 +187,60 @@ export function KundeAnlegen({ offen, aufKlappen, fertig }: {
 
   if (!offen) {
     return (
-      <button type="button" onClick={() => aufKlappen(true)}
-              className="px-4 py-2.5 rounded-xl text-white text-[13px] font-semibold"
-              style={{ background: "#1d4ed8", minHeight: 44 }}>
+      <button type="button" onClick={() => aufKlappen(true)} className="pi-knopf gross">
         + Kunde anlegen
       </button>
     );
   }
 
-  const feld = "w-full px-3 py-2.5 rounded-xl border border-slate-200 text-[13px] "
-    + "focus:outline-none focus:ring-2 focus:ring-blue-100";
+  // ── WAS DER SERVER VERLANGT, VERLANGT AUCH DIE OBERFLÄCHE ───────────────
+  // VORHER prüfte sie nur auf „nicht leer“ — „max@“ und „0176“ ließen den
+  // Knopf frei, und der Server antwortete mit 400. NACHHER dieselbe Regel an
+  // beiden Enden, und der Grund steht am Feld.
+  const mailRoh = f.email.trim();
+  const nummerZiffern = f.phone.replace(/[^\d]/g, "").length;
+  const mailOk = MAIL_MUSTER.test(mailRoh);
+  const nummerOk = nummerZiffern >= NUMMER_MINDEST;
+  const mailKlemmt = mailRoh.length > 0 && !mailOk;
+  const nummerKlemmt = f.phone.trim().length > 0 && !nummerOk;
+  const erreichbar = mailOk || nummerOk;
+
+  const fehlt: string[] = [];
+  if (!f.firstName.trim()) fehlt.push("Vorname");
+  if (!f.lastName.trim()) fehlt.push("Nachname");
+  if (!erreichbar) fehlt.push("E-Mail oder Telefon");
+
+  const kannAnlegen = fehlt.length === 0 && !laeuft;
   const gewaehlt = pakete.find((p) => p.key === f.packKey);
-  const kannAnlegen = f.firstName.trim() && f.lastName.trim()
-    && (f.email.trim() || f.phone.trim()) && !laeuft;
+  const konten = pakete.filter((p) => p.key !== "schufa");
+  const auskunft = pakete.filter((p) => p.key === "schufa");
+  const akteZiel = akteWeg(erfolg?.personId, erfolg?.ref);
+
+  /** „Zur Akte“ öffnet die Lade im selben Raum, wenn der Raum es anbietet. */
+  const akteKlick = (e: MouseEvent) => {
+    const id = erfolg?.personId != null ? Number(erfolg.personId) : 0;
+    if (aufAkte && id > 0) { e.preventDefault(); aufAkte(id); }
+  };
 
   return (
-    /* `data-fiaon="kunde-anlegen"`: Der Browsertest muss IN diesem Bauteil
-       suchen können. Ohne Kennzeichen traf `locator("select").first()` die
-       Sortier-Auswahl der Seite und `getByPlaceholder("E-Mail")` zusätzlich das
+    /* data-fiaon="kunde-anlegen": Der Browsertest muss IN diesem Bauteil
+       suchen können. Ohne Kennzeichen traf locator("select").first() die
+       Sortier-Auswahl der Seite und getByPlaceholder("E-Mail") zusätzlich das
        Suchfeld — zwei Fehlalarme, die wie Fehler aussahen. (Dieselbe Lehre wie
        am 20.08.2026: Wer eine Tafel prüft, misst IN der Tafel.) */
-    <div data-fiaon="kunde-anlegen"
-         className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 mb-4">
-      <div className="flex items-start justify-between gap-3 mb-3">
+    <div data-fiaon="kunde-anlegen" className="pi-anl">
+      <div className="pi-anl-kopf">
         <div>
-          <h2 className="text-[14px] font-bold text-slate-900">
-            {erfolg ? "Kunde angelegt — und jetzt?" : "Kunde anlegen"}
-          </h2>
-          <p className="text-[12px] text-slate-500 mt-0.5">
+          <span className="pi-pille">{erfolg ? "Angelegt" : "Neuer Kunde"}</span>
+          <h2>{erfolg ? "Kunde angelegt — und jetzt?" : "Kunde anlegen"}</h2>
+          <p>
             {erfolg
               ? "Der Kunde steht auf „Zahlung offen“. Diese drei Schritte schließen das Gespräch ab."
               : "Vor- und Nachname, dazu E-Mail oder Telefon. Das Paket kannst du auch später wählen."}
           </p>
         </div>
         <button type="button" onClick={() => { zuruecksetzen(); aufKlappen(false); }}
-                className="text-[12px] font-semibold text-slate-400 shrink-0"
-                style={{ minHeight: 44, minWidth: 44 }}>
+                className="pi-anl-zu">
           Schließen
         </button>
       </div>
@@ -173,33 +249,47 @@ export function KundeAnlegen({ offen, aufKlappen, fertig }: {
           NACH DEM ANLEGEN: DIE DREI SCHRITTE
           ══════════════════════════════════════════════════════════════════ */}
       {erfolg ? (
-        <div className="space-y-3">
-          <div className="px-3.5 py-3 rounded-xl"
-               style={{ background: "rgba(5,150,105,.08)", boxShadow: "inset 0 0 0 1px rgba(5,150,105,.22)" }}>
-            <p className="text-[13px] font-bold" style={{ color: "#047857" }}>
-              {erfolg.name} ist angelegt
-            </p>
-            <p className="text-[12px] mt-0.5" style={{ color: "#065f46" }}>
-              {erfolg.paket
-                ? `${erfolg.paket.label} · ${euro(erfolg.paket.preisEuro)} · Verwendungszweck ${erfolg.zahlungsreferenz}`
-                : "Noch kein Paket — du kannst es in der Akte hinzufügen."}
-            </p>
+        <>
+          <div className="pi-anl-gut">
+            <b>{erfolg.name} ist angelegt</b>
+            {erfolg.paket ? (
+              <>
+                <span>{erfolg.paket.label} · {euro(erfolg.paket.preisEuro)}</span>
+                <span className="zweck">Verwendungszweck {erfolg.zahlungsreferenz}</span>
+              </>
+            ) : (
+              <span>Der Kunde gehört dir — er steht ab sofort in deiner Arbeitsliste.</span>
+            )}
           </div>
 
-          {meldung && (
-            <p className="px-3.5 py-2.5 rounded-xl text-[12.5px] font-semibold"
-               style={{ background: "rgba(29,78,216,.08)", color: "#1e40af" }}>
-              {meldung}
-            </p>
+          {/* Der seltene, aber teure Fall: Der Kontakt ist gespeichert, die
+              Person nicht. Dann gehört der Kunde niemandem, steht in keiner
+              Arbeitsliste und hat keinen Terminlink — das darf nicht still
+              bleiben (der Server sagt es in „warnung“). */}
+          {erfolg.warnung && <p className="pi-fehler">{erfolg.warnung}</p>}
+
+          {/* Ohne Paket gibt es keine Bestellung: kein Betrag, keine Rechnung,
+              kein Verwendungszweck. Das ehrlich sagen — mit dem Ausweg. */}
+          {!erfolg.paket && (
+            <div className="pi-sackgasse">
+              <span>
+                <b>Noch kein Paket gewählt</b>
+                Ohne Produkt gibt es keine Rechnung und keinen Verwendungszweck — der
+                Kunde kann noch nicht zahlen. In der Akte legst du es in einem Klick nach.
+              </span>
+              <a href={akteZiel} onClick={akteKlick} className="pi-knopf still">
+                Produkt in der Akte hinzufügen
+              </a>
+            </div>
           )}
+
+          {meldung && <p className="pi-meldung">{meldung}</p>}
 
           {/* ── 1. ZAHLUNGSDATEN ──────────────────────────────────────────── */}
           {erfolg.zahlungsreferenz && (
-            <div className="px-3.5 py-3 rounded-xl" style={{ background: "rgba(15,23,42,.035)" }}>
-              <p className="text-[11px] font-bold uppercase tracking-[.1em] text-slate-500">
-                1 · Zahlungsdaten
-              </p>
-              <div className="mt-2 flex flex-wrap gap-2">
+            <div className="pi-anl-schritt">
+              <b><i>1</i> Zahlungsdaten</b>
+              <div className="pi-reihe">
                 <button type="button" disabled={laeuft}
                         onClick={async () => {
                           setLaeuft(true);
@@ -209,8 +299,7 @@ export function KundeAnlegen({ offen, aufKlappen, fertig }: {
                             ? "Zahlungsdaten sind unterwegs."
                             : `Die Mail ging nicht raus: ${j?.error ?? "unbekannt"}`);
                         }}
-                        className="px-4 py-2.5 rounded-xl text-white text-[12.5px] font-semibold"
-                        style={{ background: "#1d4ed8", minHeight: 44 }}>
+                        className="pi-knopf gross">
                   Zahlungsdaten senden
                 </button>
                 {/* ── DER WHATSAPP-WEG ────────────────────────────────────
@@ -226,14 +315,12 @@ export function KundeAnlegen({ offen, aufKlappen, fertig }: {
                               + (erfolg.paket ? `Betrag: ${euro(erfolg.paket.preisEuro)}\n` : ""))
                           + `\nRechnung: ${window.location.origin}${erfolg.weiter?.rechnung ?? ""}`,
                           "zahlung")}
-                        className="px-4 py-2.5 rounded-xl border border-slate-200 text-[12.5px] font-semibold text-slate-700"
-                        style={{ minHeight: 44 }}>
+                        className="pi-knopf still gross">
                   {kopiert === "zahlung" ? "Kopiert" : "Zahlungsdaten kopieren"}
                 </button>
                 {erfolg.weiter?.rechnung && (
                   <a href={erfolg.weiter.rechnung} target="_blank" rel="noreferrer"
-                     className="px-4 py-2.5 rounded-xl border border-slate-200 text-[12.5px] font-semibold text-slate-700 no-underline inline-flex items-center"
-                     style={{ minHeight: 44 }}>
+                     className="pi-knopf still gross">
                     Rechnung (PDF)
                   </a>
                 )}
@@ -242,15 +329,13 @@ export function KundeAnlegen({ offen, aufKlappen, fertig }: {
           )}
 
           {/* ── 2. TERMIN ─────────────────────────────────────────────────── */}
-          <div className="px-3.5 py-3 rounded-xl" style={{ background: "rgba(15,23,42,.035)" }}>
-            <p className="text-[11px] font-bold uppercase tracking-[.1em] text-slate-500">
-              2 · Termin anbieten
-            </p>
-            <p className="text-[12px] text-slate-500 mt-1 leading-relaxed">
+          <div className="pi-anl-schritt">
+            <b><i>2</i> Termin anbieten</b>
+            <p>
               Alle 120 gebuchten Termine kamen aus einem verschickten Link. Wer
               jetzt einen bekommt, bucht — später erreicht ihn niemand mehr.
             </p>
-            <div className="mt-2 flex flex-wrap gap-2">
+            <div className="pi-reihe">
               <button type="button" disabled={laeuft}
                       onClick={async () => {
                         setLaeuft(true);
@@ -262,8 +347,7 @@ export function KundeAnlegen({ offen, aufKlappen, fertig }: {
                           ? `Terminlink ist unterwegs${j.an ? ` an ${j.an}` : ""}.`
                           : `${j?.error ?? "Der Versand ging nicht."}`);
                       }}
-                      className="px-4 py-2.5 rounded-xl text-white text-[12.5px] font-semibold"
-                      style={{ background: "#1d4ed8", minHeight: 44 }}>
+                      className="pi-knopf gross">
                 Terminlink senden
               </button>
               <button type="button" disabled={laeuft}
@@ -277,84 +361,104 @@ export function KundeAnlegen({ offen, aufKlappen, fertig }: {
                           setMeldung(String(j?.error ?? "Kein Link verfügbar."));
                         }
                       }}
-                      className="px-4 py-2.5 rounded-xl border border-slate-200 text-[12.5px] font-semibold text-slate-700"
-                      style={{ minHeight: 44 }}>
+                      className="pi-knopf still gross">
                 {kopiert === "termin" ? "Kopiert" : "Terminlink kopieren"}
               </button>
             </div>
-            {terminLink && (
-              <p className="mt-2 text-[11px] font-mono text-slate-400 break-all">{terminLink}</p>
-            )}
+            {terminLink && <p className="pi-anl-link">{terminLink}</p>}
           </div>
 
           {/* ── 3. WEITER ─────────────────────────────────────────────────── */}
-          <div className="flex flex-wrap gap-2 pt-1">
-            <a href={erfolg.weiter?.akte ?? "#"}
-               className="px-4 py-2.5 rounded-xl border border-slate-200 text-[12.5px] font-semibold text-slate-700 no-underline inline-flex items-center"
-               style={{ minHeight: 44 }}>
-              Zur Akte
-            </a>
-            <button type="button" onClick={zuruecksetzen}
-                    className="px-4 py-2.5 rounded-xl text-[12.5px] font-semibold"
-                    style={{ color: "#1d4ed8", minHeight: 44 }}>
-              Nächsten Kunden anlegen
-            </button>
+          <div className="pi-anl-schritt">
+            <b><i>3</i> Weiter</b>
+            <div className="pi-reihe">
+              <a href={akteZiel} onClick={akteKlick} className="pi-knopf still gross">
+                Zur Akte
+              </a>
+              <button type="button" onClick={zuruecksetzen} className="pi-link">
+                Nächsten Kunden anlegen
+              </button>
+            </div>
           </div>
-        </div>
+        </>
       ) : (
         /* ══════════════════════════════════════════════════════════════════
            DAS FORMULAR
            ══════════════════════════════════════════════════════════════════ */
-        <div className="space-y-3">
-          {/* 380 px: eine Spalte. Ab sm zwei — Vor- und Nachname gehören
-              nebeneinander, weil sie zusammen gelesen werden. */}
-          <div className="grid gap-2.5 sm:grid-cols-2">
-            <input value={f.firstName} onChange={(e) => setF({ ...f, firstName: e.target.value })}
-                   placeholder="Vorname" className={feld} style={{ minHeight: 44 }} autoFocus />
-            <input value={f.lastName} onChange={(e) => setF({ ...f, lastName: e.target.value })}
-                   placeholder="Nachname" className={feld} style={{ minHeight: 44 }} />
-            <input value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })}
-                   placeholder="E-Mail" type="email" inputMode="email"
-                   className={feld} style={{ minHeight: 44 }} />
-            <input value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })}
-                   placeholder="Telefon" type="tel" inputMode="tel"
-                   className={feld} style={{ minHeight: 44 }} />
+        <>
+          <div className="pi-anl-teil">
+            <span className="pi-anl-titel">Wer ist es?</span>
+            {/* Am Handy eine Spalte. Ab 700 px zwei — Vor- und Nachname gehören
+                nebeneinander, weil sie zusammen gelesen werden. */}
+            <div className="pi-anl-raster">
+              <label className="pi-anl-feld">
+                <span>Vorname</span>
+                <input value={f.firstName} onChange={(e) => setF({ ...f, firstName: e.target.value })}
+                       placeholder="Vorname" className="pi-eingabe" autoFocus />
+              </label>
+              <label className="pi-anl-feld">
+                <span>Nachname</span>
+                <input value={f.lastName} onChange={(e) => setF({ ...f, lastName: e.target.value })}
+                       placeholder="Nachname" className="pi-eingabe" />
+              </label>
+              <label className={`pi-anl-feld${mailKlemmt ? " klemmt" : ""}`}>
+                <span>E-Mail</span>
+                <input value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })}
+                       placeholder="E-Mail" type="email" inputMode="email" className="pi-eingabe" />
+                {mailKlemmt && (
+                  <em>Noch keine vollständige Adresse — es fehlt das @ oder die Endung.</em>
+                )}
+              </label>
+              <label className={`pi-anl-feld${nummerKlemmt ? " klemmt" : ""}`}>
+                <span>Telefon</span>
+                <input value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })}
+                       placeholder="Telefon" type="tel" inputMode="tel" className="pi-eingabe" />
+                {nummerKlemmt && (
+                  <em>
+                    Zu kurz: {nummerZiffern} von mindestens {NUMMER_MINDEST} Ziffern. Mit 0
+                    beginnen oder +49 davorsetzen — beides wird erkannt.
+                  </em>
+                )}
+              </label>
+            </div>
+            <p className="pi-anl-hinweis">
+              E-Mail <b>oder</b> Telefon genügt — aber eines von beiden muss da sein.
+              Ohne Erreichbarkeit entsteht ein Datensatz, den niemand erreichen kann.
+            </p>
           </div>
-          <p className="text-[11.5px] text-slate-400">
-            E-Mail <b>oder</b> Telefon genügt — aber eines von beiden muss da sein.
-            Ohne Erreichbarkeit entsteht ein Datensatz, den niemand erreichen kann.
-          </p>
 
           {/* ── DER DUBLETTEN-HINWEIS ──────────────────────────────────────
               Er erscheint WÄHREND des Tippens, nicht erst beim Speichern. Wer
               alles eingetippt hat und dann hört „gibt es bereits“, hat umsonst
               gearbeitet. */}
           {treffer.length > 0 && (
-            <div className="px-3.5 py-3 rounded-xl"
-                 style={{ background: "rgba(217,119,6,.09)", boxShadow: "inset 0 0 0 1px rgba(217,119,6,.25)" }}>
-              <p className="text-[12.5px] font-bold" style={{ color: "#92400e" }}>
+            <div className="pi-anl-dublette">
+              <b>
                 {treffer.length === 1
                   ? "Diesen Menschen gibt es schon"
                   : `${treffer.length} Menschen tragen diese Daten`}
-              </p>
-              <ul className="mt-1.5 space-y-1.5">
+              </b>
+              <ul>
                 {treffer.map((t) => (
-                  <li key={t.personId} className="text-[12px]" style={{ color: "#92400e" }}>
-                    <b>{t.name}</b> — Treffer über {t.treffer}
-                    {/* Beschriftet statt „betreut von" (30.08.2026) — siehe
+                  <li key={t.personId}>
+                    <b>{t.name}</b>
+                    <span>Treffer über {t.treffer}</span>
+                    {/* Beschriftet statt „betreut von“ (30.08.2026) — siehe
                         shared/fiaon-zustaendigkeit-text.ts. */}
-                    {t.agentName ? ` · ${LABEL_VERTRIEB}: ${t.agentName}` : ""}
-                    {t.bezahlt ? " · zahlender Kunde" : ""}
-                    {t.ref && (
-                      <a href={`/agent/kunden?ref=${encodeURIComponent(t.ref)}`}
-                         className="ml-2 font-semibold no-underline" style={{ color: "#b45309" }}>
+                    {t.agentName ? <span>· {LABEL_VERTRIEB}: {t.agentName}</span> : null}
+                    {t.bezahlt ? <span className="pi-marke gut">zahlender Kunde</span> : null}
+                    {/* VORHER ?ref= — die Seite liest nur ?person=, der Link
+                        landete auf einer Seite ohne geöffnete Akte. */}
+                    {t.personId > 0 && (
+                      <a href={akteWeg(t.personId, t.ref)}
+                         onClick={(e) => { if (aufAkte) { e.preventDefault(); aufAkte(Number(t.personId)); } }}>
                         Akte öffnen →
                       </a>
                     )}
                   </li>
                 ))}
               </ul>
-              <p className="text-[11.5px] mt-2 leading-relaxed" style={{ color: "#92400e" }}>
+              <p>
                 Ein zweiter Datensatz für denselben Menschen lässt sich nur mit
                 Aufwand zusammenführen. Wenn es derselbe ist: Akte öffnen und
                 dort ein Produkt hinzufügen.
@@ -362,65 +466,97 @@ export function KundeAnlegen({ offen, aufKlappen, fertig }: {
             </div>
           )}
 
-          {/* ── DAS PAKET AUS DEM KATALOG ──────────────────────────────── */}
-          <div>
-            <label className="block text-[11px] font-bold uppercase tracking-[.1em] text-slate-500 mb-1.5">
-              Paket (optional)
-            </label>
-            <select value={f.packKey} onChange={(e) => setF({ ...f, packKey: e.target.value })}
-                    className={feld} style={{ minHeight: 44 }}>
-              <option value="">— noch kein Paket —</option>
-              {pakete.filter((p) => p.key !== "schufa").map((p) => (
-                <option key={p.key} value={p.key}>
-                  {p.label} — {euro(p.preisEuro)}{p.abo ? " / Monat" : ""}
-                </option>
+          {/* ── DAS PAKET AUS DEM KATALOG ────────────────────────────────
+              VORHER ein natives select: Der Browser malt es in seinem eigenen
+              Stil — auf dem Mac eine weiße Liste mitten im dunklen Glas.
+              NACHHER Karten in der Office-Formensprache; die gewählte
+              leuchtet, der Preis steht an der Karte. */}
+          <div className="pi-anl-teil">
+            <span className="pi-anl-titel">Paket (optional)</span>
+            <div className="pi-pakete">
+              <button type="button" onClick={() => setF({ ...f, packKey: "" })}
+                      className={`pi-paket${f.packKey === "" ? " an" : ""}`}>
+                <b>Noch kein Paket</b>
+                <span>—</span>
+                <em>später in der Akte</em>
+              </button>
+              {konten.map((p) => (
+                <button key={p.key} type="button" onClick={() => setF({ ...f, packKey: p.key })}
+                        className={`pi-paket${f.packKey === p.key ? " an" : ""}`}>
+                  <b>{p.label}</b>
+                  <span>{euro(p.preisEuro)}</span>
+                  <em>{p.abo ? "monatlich" : "einmalig"}</em>
+                </button>
               ))}
-              {/* Die Auskunft steht getrennt: Sie ist ein Einmalkauf, kein Konto. */}
-              {pakete.filter((p) => p.key === "schufa").map((p) => (
-                <option key={p.key} value={p.key}>
-                  {p.label} — {euro(p.preisEuro)} einmalig
-                </option>
+              {/* Die Auskunft steht am Ende: Sie ist ein Einmalkauf, kein Konto. */}
+              {auskunft.map((p) => (
+                <button key={p.key} type="button" onClick={() => setF({ ...f, packKey: p.key })}
+                        className={`pi-paket${f.packKey === p.key ? " an" : ""}`}>
+                  <b>{p.label}</b>
+                  <span>{euro(p.preisEuro)}</span>
+                  <em>einmalig</em>
+                </button>
               ))}
-            </select>
-            {gewaehlt && (
-              <p className="text-[11.5px] text-slate-500 mt-1.5">
-                {euro(gewaehlt.preisEuro)}{gewaehlt.abo ? " monatlich" : " einmalig"} —
-                der Preis kommt aus dem Katalog und ist nicht änderbar.
+            </div>
+            {pakete.length === 0 && <p className="pi-anl-hinweis">Der Katalog lädt …</p>}
+            {gewaehlt ? (
+              <p className="pi-anl-hinweis">
+                {euro(gewaehlt.preisEuro)}{gewaehlt.abo ? " monatlich" : " einmalig"} — der Preis
+                kommt aus dem Katalog und ist nicht änderbar. Der Kunde steht danach sofort
+                auf „Zahlung offen“ und bekommt einen Verwendungszweck.
+              </p>
+            ) : (
+              <p className="pi-anl-hinweis warn">
+                Ohne Paket entsteht nur der Kontakt, keine Bestellung: keine Rechnung,
+                kein Verwendungszweck, keine Zahlung. Das ist in Ordnung, wenn das Paket
+                noch offen ist — nachlegen kannst du es später in der Akte unter
+                „Produkt hinzufügen“.
               </p>
             )}
           </div>
 
           {/* Adresse: eingeklappt, weil sie am Telefon selten sofort kommt. */}
-          <details>
-            <summary className="text-[12px] font-semibold text-slate-500 cursor-pointer"
-                     style={{ minHeight: 44, display: "flex", alignItems: "center" }}>
-              Adresse und Geburtsdatum (optional)
-            </summary>
-            <div className="grid gap-2.5 sm:grid-cols-2 mt-2">
-              <input value={f.street} onChange={(e) => setF({ ...f, street: e.target.value })}
-                     placeholder="Straße und Hausnummer" className={feld} style={{ minHeight: 44 }} />
-              <input value={f.zip} onChange={(e) => setF({ ...f, zip: e.target.value })}
-                     placeholder="PLZ" inputMode="numeric" className={feld} style={{ minHeight: 44 }} />
-              <input value={f.city} onChange={(e) => setF({ ...f, city: e.target.value })}
-                     placeholder="Ort" className={feld} style={{ minHeight: 44 }} />
-              <input value={f.birthdate} onChange={(e) => setF({ ...f, birthdate: e.target.value })}
-                     type="date" className={feld} style={{ minHeight: 44 }} />
+          <details className="pi-anl-mehr">
+            <summary>Adresse und Geburtsdatum (optional)</summary>
+            <div>
+              <div className="pi-anl-raster">
+                <label className="pi-anl-feld">
+                  <span>Straße</span>
+                  <input value={f.street} onChange={(e) => setF({ ...f, street: e.target.value })}
+                         placeholder="Straße und Hausnummer" className="pi-eingabe" />
+                </label>
+                <label className="pi-anl-feld">
+                  <span>PLZ</span>
+                  <input value={f.zip} onChange={(e) => setF({ ...f, zip: e.target.value })}
+                         placeholder="PLZ" inputMode="numeric" className="pi-eingabe" />
+                </label>
+                <label className="pi-anl-feld">
+                  <span>Ort</span>
+                  <input value={f.city} onChange={(e) => setF({ ...f, city: e.target.value })}
+                         placeholder="Ort" className="pi-eingabe" />
+                </label>
+                <label className="pi-anl-feld">
+                  <span>Geburtsdatum</span>
+                  <input value={f.birthdate} onChange={(e) => setF({ ...f, birthdate: e.target.value })}
+                         type="date" className="pi-eingabe" />
+                </label>
+              </div>
             </div>
           </details>
 
-          {fehler && (
-            <p className="px-3.5 py-2.5 rounded-xl text-[12.5px] font-semibold"
-               style={{ background: "rgba(220,38,38,.07)", color: "#b91c1c" }}>
-              {fehler}
-            </p>
-          )}
+          {fehler && <p className="pi-fehler">{fehler}</p>}
 
-          <button type="button" onClick={() => void anlegen()} disabled={!kannAnlegen}
-                  className="w-full sm:w-auto px-5 py-3 rounded-xl text-white text-[13.5px] font-semibold disabled:opacity-40"
-                  style={{ background: "#1d4ed8", minHeight: 48 }}>
-            {laeuft ? "Legt an …" : "Kunde anlegen"}
-          </button>
-        </div>
+          <div className="pi-anl-fuss">
+            <button type="button" onClick={() => void anlegen()} disabled={!kannAnlegen}
+                    className="pi-knopf riesig">
+              {laeuft ? "Legt an …" : "Kunde anlegen"}
+            </button>
+            {/* Eine gesperrte Schaltfläche ohne Grund ist eine Sackgasse. */}
+            {!laeuft && fehlt.length > 0 && (
+              <span className="pi-anl-fehlt">Es fehlt noch: <b>{fehlt.join(" · ")}</b></span>
+            )}
+          </div>
+        </>
       )}
     </div>
   );

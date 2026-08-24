@@ -31,7 +31,13 @@ interface Agent { id: number; name: string; rolle: string }
 
 const BEREICH: Record<string, { label: string; farbe: string }> = {
   make: { label: "Make", farbe: "#7c3aed" }, brevo: { label: "Brevo", farbe: "#0ea5e9" }, konten: { label: "Konten & Zugänge", farbe: "#1d4ed8" },
-  entscheidung: { label: "Entscheidung", farbe: "#d97706" }, pruefen: { label: "Prüfen", farbe: "#059669" }, partner: { label: "Partner", farbe: "#db2777" }, sonstiges: { label: "Sonstiges", farbe: "#64748b" },
+  entscheidung: { label: "Entscheidung", farbe: "#d97706" }, pruefen: { label: "Prüfen", farbe: "#059669" }, partner: { label: "Partner", farbe: "#db2777" },
+  // 24.08.2026: NEU. VORHER landete alles, was aus dem Haus gemeldet wird, in
+  // „Sonstiges" und ging dort zwischen Presse-Fakten und Guthaben unter.
+  // NACHHER hat die Meldung aus dem Posteingang („Problem an die IT melden")
+  // einen eigenen Bereich. Grund: Justins Auftrag vom 24.08.2026.
+  technik: { label: "Technik", farbe: "#0891b2" },
+  sonstiges: { label: "Sonstiges", farbe: "#64748b" },
 };
 const PRIO: Record<number, string> = { 1: "heute", 2: "diese Woche", 3: "wenn Zeit ist" };
 const SPALTEN: { key: Spalte; label: string; leer: string }[] = [

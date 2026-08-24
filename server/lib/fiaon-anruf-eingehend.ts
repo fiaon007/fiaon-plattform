@@ -274,7 +274,19 @@ export async function zustaendigFuer(
     };
   }
 
-  // ── 3. DER BETREUENDE AGENT ───────────────────────────────────────────────
+  // ── 3. DER MANDATSINHABER ─────────────────────────────────────────────────
+  // Justin (24.08.2026): „wenn der Kunde zurückruft, muss es bei dem
+  // Mitarbeiter klingeln, der das Mandat des Kunden hat."
+  // `assigned_agent_id` IST der Mandatsinhaber: Das Mandat (`mandat_seit`)
+  // wird an der Person geführt, und wer sie betreut, hält es. Es gibt bewusst
+  // keine zweite Spalte dafür — zwei Besitz-Begriffe für dieselbe Sache haben
+  // im Forderungsmanagement schon einmal dazu geführt, dass die Oberfläche
+  // Kunden als „herrenlos" bezeichnete, die sehr wohl jemandem gehörten.
+  //
+  // Die beiden Stufen davor sind Absicht und kein Widerspruch: Wer wegen
+  // einer offenen Rate anruft, will darüber sprechen; wer morgen sein
+  // Startgespräch hat, will den, der es führt. Danach kommt immer der
+  // Mandatsinhaber.
   const betreuer = await agentLaden(p.assigned_agent_id);
   if (betreuer) {
     // Weiter an die Vertriebsleitung — sie darf an jeden Kunden und kann

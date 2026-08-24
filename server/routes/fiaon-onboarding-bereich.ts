@@ -51,26 +51,87 @@ export async function istOnboarding(agentId: number): Promise<boolean> {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Die Merkspalte `fiaon_termine.verpasst_mail_am` — additiv und lazy.
+ * Die Merkspalten am Termin — additiv und lazy.
+ *
+ *   `verpasst_mail_am`  Wann die Mail „Termin nicht zustande gekommen“ rausging.
+ *   `verpasst_grund`    WARUM das Gespräch nicht stattgefunden hat (24.08.2026).
+ *
+ * VORHER (bis 24.08.2026): nur `verpasst_mail_am`. Ein No-Show hatte damit
+ * keinen Grund — jeder ausgebliebene Kunde sah aus wie jeder andere, und
+ * niemand konnte hinterher sagen, ob die Nummer falsch war oder der Mensch
+ * einfach nicht wollte.
+ * NACHHER: Der gewählte Grund steht am Termin. Er STEUERT nichts (die Folge
+ * entscheidet die Route unten, im selben Augenblick); er ist Buchführung.
+ * GRUND: Auftrag des Inhabers vom 24.08.2026 — „dann wählt man aus WARUM“.
  *
  * Vorbild: `ensureVertriebSpalten` in fiaon-office-vertrieb.ts. `lock_timeout`,
  * weil ein ALTER, das hinter einer langen Transaktion wartet, ALLE folgenden
  * Abfragen auf fiaon_termine in die Warteschlange zwingen würde — der Kalender
  * stünde. Lieber nach drei Sekunden aufgeben und beim nächsten Mal erneut.
  *
- * Die Wanderfassung liegt zusätzlich als db/migrations/075_termin_verpasst_mail.sql.
+ * Die Wanderfassung liegt zusätzlich als db/migrations/075_termin_verpasst_mail.sql
+ * und db/migrations/077_termin_verpasst_grund.sql.
  */
 let verpasstSpalteBereit: Promise<void> | null = null;
-function ensureVerpasstSpalte(): Promise<void> {
+function ensureVerpasstSpalten(): Promise<void> {
   if (!verpasstSpalteBereit) {
     verpasstSpalteBereit = (async () => {
       await sqlPool.begin(async (tx: any) => {
         await tx`SET LOCAL lock_timeout = '3s'`;
         await tx`ALTER TABLE fiaon_termine ADD COLUMN IF NOT EXISTS verpasst_mail_am TIMESTAMPTZ`;
+        await tx`ALTER TABLE fiaon_termine ADD COLUMN IF NOT EXISTS verpasst_grund TEXT`;
       });
     })().catch((e) => { verpasstSpalteBereit = null; throw e; });
   }
   return verpasstSpalteBereit;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE GRÜNDE — UND WAS JEDER AUSLÖST (NEU AM 24.08.2026)
+//
+// VORHER: Es gab genau einen Knopf, „Nicht erschienen“, und genau eine Folge.
+//   Ein Kunde mit falscher Rufnummer, einer der abgesagt hatte und einer, der
+//   gar nicht mehr wollte, bekamen alle dieselbe Mail — beim letzten war das
+//   eine Aufforderung an jemanden, der gerade abgesagt hatte.
+// NACHHER: Der Grund entscheidet, was passiert. Diese Liste ist die EINZIGE
+//   Fassung davon im Server; die Oberfläche schickt nur den Schlüssel.
+// GRUND: Auftrag des Inhabers vom 24.08.2026 — „dann wählt man aus WARUM, und
+//   basierend darauf löst sich was aus“.
+// ═══════════════════════════════════════════════════════════════════════════
+export const NICHT_ERSCHIENEN_GRUENDE = {
+  /** Niemand am Apparat, niemand im Gespräch — der Regelfall. */
+  nicht_erschienen: { folge: "termin_verpasst", notizPflicht: false },
+  /** Die hinterlegte Nummer stimmt nicht — der Kunde berichtigt sie selbst. */
+  nummer_falsch: { folge: "number_update_request", notizPflicht: false },
+  /** Der Kunde hat abgesagt oder es passt gerade nicht — neuer Termin. */
+  kunde_abgesagt: { folge: "onboarding_einladung", notizPflicht: false },
+  /** Der Kunde will kein Startgespräch mehr — KEINE Mail, nur die Akte. */
+  kein_interesse: { folge: null, notizPflicht: true },
+} as const;
+
+export type NichtErschienenGrund = keyof typeof NICHT_ERSCHIENEN_GRUENDE;
+
+/** Mindestlänge der Pflicht-Notiz. Zehn Zeichen wie im Cockpit — ein Wort ist
+ *  keine Begründung, drei Wörter sind eine. */
+const NOTIZ_MINDEST = 10;
+
+/**
+ * Den gewählten Grund am Termin vermerken.
+ *
+ * ABSICHTLICH EIN EIGENER, SCHWEIGENDER SCHRITT: Die Spalte entsteht lazy.
+ * Stünde sie im großen UPDATE von `startgespraechErgebnis`, würde ein
+ * hängendes ALTER (Sperre auf fiaon_termine) das Abschließen eines Gesprächs
+ * verhindern — für eine Angabe, die nichts steuert. Dieselbe Begründung wie
+ * bei der Herkunft in fiaon-termine.ts: Buchführung darf die Arbeit nicht
+ * anhalten. WIRFT NIE.
+ */
+async function verpasstGrundVermerken(terminId: number, grund: string): Promise<void> {
+  try {
+    await ensureVerpasstSpalten();
+    await sqlPool`UPDATE fiaon_termine SET verpasst_grund = ${grund} WHERE id = ${terminId}`;
+  } catch (e) {
+    console.error("[ONBOARDING] Grund nicht vermerkt:", e);
+  }
 }
 
 /**
@@ -81,14 +142,19 @@ function ensureVerpasstSpalte(): Promise<void> {
  * Termin zweimal als verpasst meldet (nachgetragen, Doppelklick, Kalender und
  * Cockpit nacheinander), nicht.
  *
- * Gibt einen Satz für den Mitarbeiter zurück oder null, wenn es nichts zu sagen
- * gibt. WIRFT NIE.
+ * Gibt einen Satz für den Mitarbeiter zurück UND ob die Mail wirklich rausging.
+ *
+ * VORHER (bis 24.08.2026) kam nur der Satz zurück. Die Oberfläche musste ihn
+ * nach Wörtern durchsuchen, um zu wissen, ob sie grün oder bernstein melden
+ * soll — eine Regel, die beim ersten umformulierten Satz stillschweigend
+ * kippt. NACHHER steht die Auskunft als eigenes Feld daneben.
+ * WIRFT NIE.
  */
 async function verpasstMailSenden(
   terminId: number, personId: number, beginn: Date | string | null, ref: string | null,
-): Promise<string | null> {
+): Promise<{ satz: string | null; geglueckt: boolean }> {
   try {
-    await ensureVerpasstSpalte();
+    await ensureVerpasstSpalten();
 
     // Die Marke ZUERST setzen, und nur wenn sie noch frei war. Zwei Klicks
     // nebeneinander (Cockpit und Kalender) laufen sonst beide durch — das
@@ -98,7 +164,9 @@ async function verpasstMailSenden(
       WHERE id = ${terminId} AND verpasst_mail_am IS NULL
       RETURNING id
     `) as any[];
-    if (gesetzt.length === 0) return "Die Absage-Mail ist für diesen Termin bereits raus.";
+    if (gesetzt.length === 0) {
+      return { satz: "Die E-Mail mit dem neuen Buchungslink ist für diesen Termin bereits raus — es geht keine zweite.", geglueckt: true };
+    }
 
     const [k] = (await sqlPool`
       SELECT COALESCE(NULLIF(p.first_name, ''), p.contact_name) AS vorname,
@@ -132,15 +200,21 @@ async function verpasstMailSenden(
       },
     );
 
-    if (erg.status === "versandt") return "Die E-Mail mit dem neuen Buchungslink ist raus.";
+    if (erg.status === "versandt") return { satz: "Die E-Mail mit dem neuen Buchungslink ist raus.", geglueckt: true };
     // Kein Erfolg: Die Marke wieder freigeben, sonst blockiert ein einmaliger
     // Fehlschlag den nächsten Versuch für immer. Der Fehlschlag steht mit Grund
     // im Zustellprotokoll.
     await sqlPool`UPDATE fiaon_termine SET verpasst_mail_am = NULL WHERE id = ${terminId}`;
-    return `Die E-Mail ging NICHT raus (${erg.grund || erg.status}) — sie steht mit Grund im Protokoll und lässt sich aus der Akte nachsenden.`;
+    return {
+      satz: `Die E-Mail ging NICHT raus (${erg.grund || erg.status}) — sie steht mit Grund im Protokoll und lässt sich aus der Akte nachsenden.`,
+      geglueckt: false,
+    };
   } catch (e) {
     console.error("[ONBOARDING] termin_verpasst:", e);
-    return "Die E-Mail an den Kunden konnte nicht verschickt werden — bitte aus der Akte nachsenden.";
+    return {
+      satz: "Die E-Mail an den Kunden konnte nicht verschickt werden — bitte aus der Akte nachsenden.",
+      geglueckt: false,
+    };
   }
 }
 
@@ -494,6 +568,21 @@ export async function startgespraechErgebnis(opts: {
   agenda?: unknown;
   dauerSek?: unknown;
   jederZustaendige?: boolean;
+  // ── ZWEI ZUSÄTZE VOM 24.08.2026 ─────────────────────────────────────────
+  // VORHER: „verpasst“ hatte genau eine Bedeutung und genau eine Folge.
+  // NACHHER: Die Grund-Wahl (Route weiter unten) benutzt DIESELBE Funktion —
+  // sie reicht nur den Grund durch und schaltet, wo nötig, die eine Mail ab,
+  // die zu einem anderen Grund nicht passt.
+  // GRUND: Auftrag des Inhabers vom 24.08.2026. Ein zweiter Abschlussweg wäre
+  // genau der Fehler, den der Kommentar über dieser Funktion beschreibt.
+  /** Warum das Gespräch nicht stattgefunden hat — reine Buchführung. */
+  grund?: NichtErschienenGrund | null;
+  /**
+   * Die Mail „Termin nicht zustande gekommen“ NICHT schicken.
+   * Nur für Gründe, die eine eigene, passendere Mail auslösen (falsche
+   * Rufnummer). Ohne das bekäme derselbe Mensch zwei Mails auf einmal.
+   */
+  ohneVerpasstMail?: boolean;
 }): Promise<{ status: number; body: any }> {
     const id = Number(opts.terminId);
     const ergebnis = opts.ergebnis;
@@ -562,6 +651,10 @@ export async function startgespraechErgebnis(opts: {
     `) as any[];
 
     let hinweis = "Startgespräch als erledigt vermerkt.";
+    // 24.08.2026: Ging die Mail an den Kunden wirklich raus? Die Oberfläche
+    // meldet danach grün oder bernstein — ohne das Feld müsste sie den Satz
+    // nach Wörtern absuchen.
+    let versandOk = true;
     if (ergebnis === "verpasst") {
       await sqlPool`
         UPDATE fiaon_persons SET unreachable_count = unreachable_count + 1, updated_at = NOW()
@@ -606,9 +699,19 @@ export async function startgespraechErgebnis(opts: {
       // ungültig machen. Was schiefging, steht im Zustellprotokoll und lässt
       // sich aus der Akte von Hand nachsenden.
       // ══════════════════════════════════════════════════════════════════
-      const verpasstMail = await verpasstMailSenden(id, Number(termin.person_id), termin.beginn, ref?.ref || null);
+      //
+      // 24.08.2026, Zusatz: `ohneVerpasstMail` überspringt genau diesen einen
+      // Schritt — für den Grund „Telefonnummer stimmt nicht“, der stattdessen
+      // die Bitte um eine neue Rufnummer schickt. Alles andere (Zähler,
+      // Automatik, 48-Stunden-Uhr, Verlaufseintrag) bleibt gleich.
+      const verpasstMail = opts.ohneVerpasstMail === true
+        ? { satz: null, geglueckt: true }
+        : await verpasstMailSenden(id, Number(termin.person_id), termin.beginn, ref?.ref || null);
+      versandOk = verpasstMail.geglueckt;
 
-      hinweis = `Nicht erschienen — zählt als erfolgloser Versuch, und der Kunde bekommt sofort eine E-Mail mit dem Link für einen neuen Termin.${verpasstMail ? ` ${verpasstMail}` : ""}${wirkung.hinweis ? ` ${wirkung.hinweis}` : ""}`;
+      hinweis = opts.ohneVerpasstMail === true
+        ? `Nicht erschienen — zählt als erfolgloser Versuch.${wirkung.hinweis ? ` ${wirkung.hinweis}` : ""}`
+        : `Nicht erschienen — zählt als erfolgloser Versuch, und der Kunde bekommt sofort eine E-Mail mit dem Link für einen neuen Termin.${verpasstMail.satz ? ` ${verpasstMail.satz}` : ""}${wirkung.hinweis ? ` ${wirkung.hinweis}` : ""}`;
     } else {
       const { erreichtZuruecksetzen } = await import("../lib/fiaon-nicht-erreicht");
       await erreichtZuruecksetzen(Number(termin.person_id));
@@ -679,16 +782,27 @@ export async function startgespraechErgebnis(opts: {
       else if (geld.cents > 0) hinweis += ` (${geld.grund})`;
     }
 
+    // 24.08.2026: Der Grund wandert an den Termin. Schweigend und nach der
+    // eigentlichen Arbeit — siehe `verpasstGrundVermerken`.
+    if (opts.grund) await verpasstGrundVermerken(id, String(opts.grund));
+
     if (ref) {
+      // VORHER (bis 24.08.2026) stand hier für JEDEN verpassten Termin
+      // „Kunde nicht erschienen“ — auch wenn die Nummer falsch war. Wer die
+      // Akte später las, sah einen Menschen, der dreimal nicht erschienen ist,
+      // und nicht drei falsche Ziffern. NACHHER steht der Grund im Klartext.
+      const grundText = opts.grund === "nummer_falsch"
+        ? "Kunde nicht erreicht — die hinterlegte Rufnummer stimmt nicht"
+        : "Kunde nicht erschienen";
       const text = ergebnis === "erledigt"
         ? `Startgespräch geführt (${berlinDatumText(termin.beginn)}, ${berlinUhrzeit(termin.beginn)} Uhr).${notiz ? ` ${String(notiz).slice(0, 2000)}` : ""}`
-        : `Startgespräch verpasst — Kunde nicht erschienen (${berlinDatumText(termin.beginn)}, ${berlinUhrzeit(termin.beginn)} Uhr).${notiz ? ` ${String(notiz).slice(0, 2000)}` : ""}`;
+        : `Startgespräch verpasst — ${grundText} (${berlinDatumText(termin.beginn)}, ${berlinUhrzeit(termin.beginn)} Uhr).${notiz ? ` ${String(notiz).slice(0, 2000)}` : ""}`;
       await sqlPool`
         INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note, created_at)
         VALUES (${ref.ref}, ${req.agent!.id}, ${req.agent!.name}, 'result', ${text}, NOW())
       `.catch(() => {});
     }
-    return { status: 200, body: { ok: true, hinweis } };
+    return { status: 200, body: { ok: true, hinweis, versandOk } };
 }
 
 router.post("/agent/onboarding/termine/:id/ergebnis", requireAgent, nurOnboarding, nurMitZusage, async (req: AgentRequest, res: Response) => {
@@ -702,6 +816,329 @@ router.post("/agent/onboarding/termine/:id/ergebnis", requireAgent, nurOnboardin
     res.status(erg.status).json(erg.body);
   } catch (err) {
     console.error("[ONBOARDING] ergebnis:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// „KUNDE NICHT ERSCHIENEN“ — DER GRUND ENTSCHEIDET, WAS PASSIERT
+// (NEU AM 24.08.2026)
+//
+// ── DER AUFTRAG (Justin, wörtlich) ─────────────────────────────────────────
+// „man braucht aber auch so was wie ‚Kunde nicht erschienen‘, dann wählt man
+// aus WARUM, und basierend darauf löst sich was aus: ‚Telefonnummer nicht
+// korrekt‘ → Mail für neue Nummer, ‚nicht erschienen‘ → Mail mit neuem Termin“
+//
+// ── VORHER ─────────────────────────────────────────────────────────────────
+// Ein Knopf, eine Folge. Vier verschiedene Menschen — der Ausgebliebene, der
+// mit der falschen Nummer, der Absager und der, der nicht mehr will — bekamen
+// alle dieselbe Behandlung. Beim letzten war das eine Aufforderung an
+// jemanden, der gerade abgesagt hatte.
+//
+// ── NACHHER ────────────────────────────────────────────────────────────────
+//   nicht_erschienen  → Mail „termin_verpasst“ mit Link auf einen neuen Termin
+//   nummer_falsch     → Mail „number_update_request“ (Kunde berichtigt selbst,
+//                       der Terminlink fährt mit)
+//   kunde_abgesagt    → Termin absagen + Mail „onboarding_einladung“
+//   kein_interesse    → KEINE Mail. Nur die Akte, mit Pflicht-Notiz — und die
+//                       48-Stunden-Automatik wird angehalten. Ein Mensch, der
+//                       abgesagt hat, bekommt keine Aufforderung mehr.
+//
+// ── KEIN DOPPELVERSAND ─────────────────────────────────────────────────────
+// Für jeden Grund gibt es eine Marke, und sie wird ATOMAR gesetzt — nicht
+// „vorher nachschauen, dann senden“ (zwei Klicks nebeneinander kämen beide
+// durch):
+//   nicht_erschienen  `fiaon_termine.verpasst_mail_am` (UPDATE … WHERE IS NULL)
+//   nummer_falsch     `fiaon_number_update_requests` — höchstens eine Bitte je
+//                     Person und 24 Stunden (server/fiaon-number-update.ts)
+//   kunde_abgesagt    der Termin selbst: das Absagen greift nur, solange er
+//                     „gebucht“ oder „verpasst“ ist. Der zweite Klick findet
+//                     nichts mehr und sagt das auch.
+//   kein_interesse    dieselbe Marke — und es geht ohnehin keine Mail raus.
+// Eine neue Spalte je Grund wäre vier Spalten für eine Frage, die drei
+// vorhandene Marken schon beantworten.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Meldet einen Termin als nicht zustande gekommen — MIT Grund und Folge.
+ *
+ * Gibt einen Satz zurück, der sagt, WAS geschehen ist (nicht „gespeichert“),
+ * und `versandOk: false`, wenn die Mail nicht rausging. Der Vorgang bleibt
+ * dann trotzdem korrekt dokumentiert: Ein Versandfehler darf einen
+ * dokumentierten No-Show nicht ungültig machen.
+ */
+export async function nichtErschienenMelden(opts: {
+  terminId: number;
+  agent: { id: number; name: string };
+  grund: unknown;
+  notiz?: unknown;
+}): Promise<{ status: number; body: any }> {
+  const id = Number(opts.terminId);
+  const grund = String(opts.grund ?? "") as NichtErschienenGrund;
+  // `hasOwnProperty` und NICHT `in`: Der Wert kommt von aussen, und `in` sucht
+  // auch die Prototypenkette ab — „toString“ und „constructor“ kämen damit
+  // als gültige Gründe durch und fielen unten in den letzten Zweig.
+  if (!Object.prototype.hasOwnProperty.call(NICHT_ERSCHIENEN_GRUENDE, grund)) {
+    return { status: 400, body: { ok: false, error: "Unbekannter Grund." } };
+  }
+  const notiz = String(opts.notiz ?? "").trim();
+  if (NICHT_ERSCHIENEN_GRUENDE[grund].notizPflicht && notiz.length < NOTIZ_MINDEST) {
+    return {
+      status: 400,
+      body: {
+        ok: false,
+        error: "Bitte halte in einem Satz fest, was der Kunde gesagt hat — "
+          + "ohne Mail ist deine Notiz das Einzige, was davon bleibt.",
+      },
+    };
+  }
+
+  const [termin] = (await sqlPool`
+    SELECT t.id, t.person_id, t.agent_id, t.beginn, t.status, t.abgesagt_am,
+           COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''),
+                    p.company_name, p.contact_name, p.primary_email) AS name,
+           COALESCE(NULLIF(p.first_name, ''), p.contact_name) AS vorname,
+           COALESCE(NULLIF(p.primary_email, ''), (
+             SELECT NULLIF(COALESCE(a.email, a.contact_email, a.billing_email), '')
+             FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL
+             ORDER BY a.created_at DESC LIMIT 1)) AS email
+    FROM fiaon_termine t
+    JOIN fiaon_persons p ON p.id = t.person_id
+    WHERE t.id = ${id} AND t.quelle = 'onboarding_call'
+      AND p.merged_into_person_id IS NULL
+  `) as any[];
+  if (!termin) return { status: 404, body: { ok: false, error: "Termin nicht gefunden." } };
+
+  // ── DIE RECHTE, SERVERSEITIG ─────────────────────────────────────────────
+  // Der eigene Termin immer. Sonst entscheidet `darfAnKunde` — dieselbe
+  // Fassung, die Telefon, Mail und Kalender benutzen (Vertretung und Übergabe
+  // sind dort schon eingebaut). Eine eigene Regel an dieser Stelle wäre die
+  // fünfte Fassung derselben Frage.
+  const personId = Number(termin.person_id);
+  if (Number(termin.agent_id) !== opts.agent.id) {
+    const { rolleVon, darfAnKunde } = await import("../lib/fiaon-kundenzugriff");
+    const rolle = await rolleVon(opts.agent.id);
+    if (!(await darfAnKunde(opts.agent.id, rolle, personId))) {
+      return { status: 404, body: { ok: false, error: "Dieser Termin gehört nicht zu deinem Bestand." } };
+    }
+  }
+
+  const name = String(termin.name || "Der Kunde");
+  const [ref] = (await sqlPool`
+    SELECT ref FROM fiaon_applications
+    WHERE person_id = ${personId} AND merged_into IS NULL AND archived_at IS NULL
+    ORDER BY created_at DESC LIMIT 1
+  `) as any[];
+
+  // ══════════════════════════════════════════════════════════════════════
+  // ZWEI GRÜNDE GEHEN DEN VORHANDENEN WEG: „verpasst“
+  //
+  // Beides ist ein erfolgloser Versuch — Zähler, Automatik, 48-Stunden-Uhr
+  // und Verlaufseintrag sind identisch. Nur die Mail unterscheidet sich.
+  // Deshalb wird `startgespraechErgebnis` benutzt und nicht nachgebaut; ein
+  // zweiter Abschlussweg war schon einmal die Ursache dafür, dass Konten
+  // gesperrt blieben (siehe den Kommentar über jener Funktion).
+  //
+  // `jederZustaendige: true`, weil die Rechte oben bereits geprüft sind —
+  // strenger als dort (nur der eigene Termin) und milder als gar nicht.
+  // ══════════════════════════════════════════════════════════════════════
+  if (grund === "nicht_erschienen" || grund === "nummer_falsch") {
+    const erg = await startgespraechErgebnis({
+      terminId: id,
+      agent: opts.agent,
+      ergebnis: "verpasst",
+      notiz: notiz || undefined,
+      jederZustaendige: true,
+      grund,
+      ohneVerpasstMail: grund === "nummer_falsch",
+    });
+    if (erg.status !== 200) return erg;
+
+    if (grund === "nicht_erschienen") {
+      // Was mit der Mail war, sagt `verpasstMailSenden` im Hinweis — wörtlich
+      // und mit Grund, wenn sie nicht rausging. Hier kommt nur der Name davor.
+      return {
+        status: 200,
+        body: {
+          ok: true,
+          versandOk: erg.body?.versandOk !== false,
+          hinweis: `${name}: ${erg.body?.hinweis || "Als nicht erschienen vermerkt."}`,
+        },
+      };
+    }
+
+    // ── FALSCHE NUMMER: DER KUNDE BERICHTIGT SIE SELBST ──────────────────
+    // Dieselbe Mail wie im Vertrieb (Kontakt-Ergebnis „Falsche Nummer“) —
+    // signierter Link auf ein schlankes Formular, die neue Nummer landet
+    // direkt im Datensatz. Der Terminlink fährt mit.
+    // BETREIBER-TODO (bekannt, nicht Teil dieses Auftrags): Die Brevo-Vorlage
+    // T23 zeigt `params.termin_link` noch nicht an.
+    let satz: string;
+    let versandOk = false;
+    if (!ref?.ref) {
+      satz = "Ohne Bestellung gibt es keinen Korrektur-Link — bitte die neue Nummer selbst erfragen und in der Akte nachtragen.";
+    } else if (!termin.email) {
+      satz = "Ohne E-Mail-Adresse konnte die Bitte um eine neue Rufnummer nicht rausgehen — hier hilft nur ein anderer Weg.";
+    } else {
+      const { maybeSendNumberUpdateMail } = await import("../fiaon-number-update");
+      const versand = await maybeSendNumberUpdateMail("app", String(ref.ref), {
+        email: String(termin.email), firstName: termin.vorname || null,
+      });
+      versandOk = versand.sent;
+      satz = versand.sent
+        ? `${name} hat die Bitte um eine neue Rufnummer bekommen — mit Formular und Terminlink.`
+        : versand.reason === "rate_limit"
+          ? "Die Bitte um eine neue Rufnummer ging heute schon raus — eine zweite geht nicht."
+          : versand.reason === "keine_email"
+            ? "Ohne E-Mail-Adresse konnte die Bitte um eine neue Rufnummer nicht rausgehen."
+            : "Die Bitte um eine neue Rufnummer ging NICHT raus — sie steht mit Grund im Protokoll und lässt sich aus der Akte nachsenden.";
+    }
+    return {
+      status: 200,
+      body: {
+        ok: true,
+        versandOk,
+        hinweis: `${name}: falsche Rufnummer festgehalten, zählt als erfolgloser Versuch. ${satz}`,
+      },
+    };
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // DIE BEIDEN ANDEREN GRÜNDE SAGEN DEN TERMIN AB
+  //
+  // Nicht „verpasst“: Der Kunde HAT sich gemeldet. Ihn als unerreichbar zu
+  // zählen, würde die Statistik verfälschen und im Zweifel eine Sperre
+  // auslösen, die niemand gemeint hat.
+  //
+  // WARUM NICHT `terminAbsagen` aus fiaon-termine.ts: Die Funktion braucht
+  // einen Storno-Token (den hat nur der Kunde in seiner Mail) und meldet die
+  // Absage per Mail an den zuständigen Mitarbeiter — an genau den, der hier
+  // gerade klickt. Der Slot wird trotzdem frei, das macht der Status.
+  //
+  // Das UPDATE ist zugleich die Doppelklick-Sperre: Es greift nur, solange
+  // der Termin noch offen ist.
+  // ══════════════════════════════════════════════════════════════════════
+  const [abgesagt] = (await sqlPool`
+    UPDATE fiaon_termine
+    SET status = 'abgesagt', abgesagt_am = NOW(), abgesagt_von = 'kunde', updated_at = NOW(),
+        notiz = COALESCE(${notiz ? notiz.slice(0, 4000) : null}, notiz)
+    WHERE id = ${id} AND status IN ('gebucht', 'verpasst') AND abgesagt_am IS NULL
+    RETURNING id
+  `) as any[];
+  if (!abgesagt) {
+    return {
+      status: 409,
+      body: { ok: false, error: `Der Termin von ${name} ist bereits abgesagt — es geht nichts ein zweites Mal raus.` },
+    };
+  }
+  await verpasstGrundVermerken(id, grund);
+
+  if (grund === "kein_interesse") {
+    // ── KEINE MAIL. UND AUCH SPÄTER KEINE ────────────────────────────────
+    // Die 48-Stunden-Automatik (runStartgespraechEinladungen in
+    // fiaon-startgespraech.ts) verschickt eine generische Einladung, solange
+    // `startgespraech_spaeter_am` gesetzt und `startgespraech_mail_am` leer
+    // ist. Ohne diese Zeile bekäme ein Mensch, der eben abgesagt hat,
+    // übermorgen doch noch eine Aufforderung — von einer Automatik, die von
+    // dem Gespräch nichts weiß.
+    //
+    // Bewusst NICHT gesetzt wird eine Kontaktsperre (`is_blocked`): Der Kunde
+    // hat bezahlt und will keinen TERMIN — das ist etwas anderes als „nie
+    // wieder anrufen“. Meldet er sich, läuft alles normal weiter.
+    await sqlPool`
+      UPDATE fiaon_persons SET startgespraech_spaeter_am = NULL, updated_at = NOW()
+      WHERE id = ${personId}
+    `.catch(() => {});
+    await verlaufSchreiben(ref?.ref, opts.agent, termin.beginn,
+      `Startgespräch abgesagt — der Kunde möchte keines mehr. ${notiz.slice(0, 2000)}`);
+    return {
+      status: 200,
+      body: {
+        ok: true,
+        versandOk: true,
+        hinweis: `${name} will kein Startgespräch mehr. Nur festgehalten — es geht KEINE E-Mail raus, `
+          + "und die automatischen Erinnerungen sind für ihn aus. Deine Notiz steht in der Akte.",
+      },
+    };
+  }
+
+  // ── ABGESAGT: EINLADUNG FÜR EINEN NEUEN TERMIN ───────────────────────────
+  // Dieselbe Vorlage wie in der Wartenden-Liste — der Kunde wählt seine Zeit
+  // selbst. `versandErlaubt` prüft vorher DSGVO, Kontaktsperre, Adresse und
+  // Zustand; die Termin-Sperre darin greift nicht mehr, weil der alte Termin
+  // eine Zeile weiter oben abgesagt wurde.
+  const { versandErlaubt } = await import("../lib/fiaon-versand");
+  const pruefung = await versandErlaubt(personId, "onboarding_einladung");
+  let satz: string;
+  let versandOk = false;
+  if (!pruefung.erlaubt) {
+    satz = `Die Einladung ging NICHT raus: ${pruefung.grund}`;
+  } else {
+    const erg = await versendenUndProtokollieren(
+      "onboarding_einladung",
+      {
+        email: String(termin.email || ""),
+        vorname: termin.vorname || null,
+        termin_link: terminLink(personId, "onboarding_einladung"),
+      },
+      {
+        personId, verlaufRef: ref?.ref || null,
+        verlaufText: `Termin abgesagt (Kunde) — Einladung für einen neuen Termin versandt von ${opts.agent.name}.`,
+        ausgeloestVon: opts.agent.name, ausgeloestAgentId: opts.agent.id,
+      },
+    );
+    versandOk = erg.status === "versandt";
+    if (versandOk) {
+      // Wie in der Wartenden-Liste: Die Einladung IST raus, die Automatik
+      // braucht nicht nachzulegen.
+      await sqlPool`UPDATE fiaon_persons SET startgespraech_mail_am = NOW(), updated_at = NOW() WHERE id = ${personId}`.catch(() => {});
+      satz = `${name} hat die Einladung für einen neuen Termin bekommen.`;
+    } else {
+      // Der Versand hat nicht geklappt — dann soll wenigstens das Netz
+      // darunter greifen: die 48-Stunden-Automatik neu stellen.
+      await sqlPool`
+        UPDATE fiaon_persons
+        SET startgespraech_mail_am = NULL,
+            startgespraech_spaeter_am = COALESCE(startgespraech_spaeter_am, NOW()),
+            updated_at = NOW()
+        WHERE id = ${personId}
+      `.catch(() => {});
+      satz = `Die Einladung ging NICHT raus (${erg.grund || erg.status}) — sie steht mit Grund im Protokoll `
+        + "und lässt sich aus der Akte nachsenden.";
+    }
+  }
+  await verlaufSchreiben(ref?.ref, opts.agent, termin.beginn,
+    `Startgespräch abgesagt — der Kunde konnte nicht. ${notiz.slice(0, 2000)}`);
+  return {
+    status: 200,
+    body: { ok: true, versandOk, hinweis: `Der Termin von ${name} ist abgesagt. ${satz}` },
+  };
+}
+
+/** Ein Ergebnis in den Kundenverlauf — dieselbe Ablage wie oben, WIRFT NIE. */
+async function verlaufSchreiben(
+  ref: string | null | undefined, agent: { id: number; name: string },
+  beginn: Date | string | null, text: string,
+): Promise<void> {
+  if (!ref) return;
+  const wann = beginn ? ` (${berlinDatumText(beginn as any)}, ${berlinUhrzeit(beginn as any)} Uhr)` : "";
+  await sqlPool`
+    INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note, created_at)
+    VALUES (${ref}, ${agent.id}, ${agent.name}, 'result', ${`${text.trim()}${wann}`.slice(0, 4000)}, NOW())
+  `.catch(() => {});
+}
+
+router.post("/agent/onboarding/termine/:id/nicht-erschienen", requireAgent, nurOnboarding, nurMitZusage, async (req: AgentRequest, res: Response) => {
+  try {
+    const erg = await nichtErschienenMelden({
+      terminId: Number(req.params.id),
+      agent: { id: req.agent!.id, name: req.agent!.name },
+      grund: req.body?.grund,
+      notiz: req.body?.notiz,
+    });
+    res.status(erg.status).json(erg.body);
+  } catch (err) {
+    console.error("[ONBOARDING] nicht-erschienen:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

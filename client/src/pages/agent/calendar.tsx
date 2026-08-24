@@ -52,6 +52,34 @@ function teile(d: Date): Teile {
 const dayKey = (d: Date) => { const t = teile(d); return `${t.y}-${String(t.m).padStart(2, "0")}-${String(t.d).padStart(2, "0")}`; };
 const minuten = (d: Date) => { const t = teile(d); return t.h * 60 + t.min; };
 const uhr = (d: Date) => new Date(d).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" });
+
+/**
+ * Wie lange noch bis zum Termin — 24.08.2026.
+ *
+ * Justin: „neben der Uhrzeit steht überall ‚20 min' — da soll stehen, wie
+ * viele Minuten noch bis zum Termin, oder Stunden, wenn es zu lange ist."
+ * VORHER stand dort die DAUER des Gesprächs. Die ist bei jedem Termin
+ * dieselbe (20 Minuten) und sagt deshalb nichts — sie stand bei allen
+ * Karten gleich da. NACHHER sagt die Zeile, wann es so weit ist: „in 12 Min",
+ * „in 3 Std", „gleich", oder bei einem verstrichenen Termin „seit 5 Min".
+ */
+function bisZumTermin(d: Date, jetzt: number): string {
+  const min = Math.round((new Date(d).getTime() - jetzt) / 60000);
+  if (min >= -1 && min <= 1) return "jetzt";
+  if (min > 0) {
+    if (min < 60) return `in ${min} Min`;
+    const std = Math.floor(min / 60);
+    if (std < 24) return min % 60 === 0 ? `in ${std} Std` : `in ${std} Std ${min % 60} Min`;
+    const tage = Math.round(std / 24);
+    return tage === 1 ? "morgen" : `in ${tage} Tagen`;
+  }
+  const weg = -min;
+  if (weg < 60) return `seit ${weg} Min`;
+  const std = Math.floor(weg / 60);
+  if (std < 24) return `seit ${std} Std`;
+  const tage = Math.round(std / 24);
+  return tage === 1 ? "seit gestern" : `seit ${tage} Tagen`;
+}
 const datumKurz = (d: Date) => d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", timeZone: "Europe/Berlin" });
 const datumLang = (d: Date) => d.toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long", timeZone: "Europe/Berlin" });
 const zeitTag = (iso: string) => new Date(iso).toLocaleString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
@@ -226,6 +254,32 @@ function CalendarInnen() {
     setBusy(null);
     if (r.ok) { flash(r.json?.hinweis || "Termin als erledigt markiert."); entfernen(a); setDetail(null); laden(); } else flash(r.json?.error || "Das hat nicht geklappt.", true);
   };
+  /**
+   * Der Termin kam nicht zustande — mit Grund, und der Grund entscheidet.
+   * 24.08.2026 (Justin): „wenn man aufs X klickt, eben wieder gefragt warum
+   * nicht, und entsprechend dann ein E-Mail-Event auslösen (aber auch die
+   * Funktion: Kunde löschen!)". Der Server bekommt den Grund und löst die
+   * passende Nachricht aus; die Karte sagt danach, WAS passiert ist.
+   */
+  const nichtZustande = async (a: Termin, grund: string) => {
+    if (grund === "kein_interesse") {
+      const sicher = window.confirm(
+        `${tName(a)} will nicht mehr?\n\n`
+        + "Der Mensch wird gesperrt: Er erscheint bei keinem Mitarbeiter mehr, "
+        + "und die Verteilung fasst ihn nicht mehr an. Zahlungs- und "
+        + "Vertragsdaten bleiben erhalten — gelöscht wird nichts.",
+      );
+      if (!sicher) return;
+    }
+    setBusy(tKey(a));
+    const r = a.art === "termin"
+      ? await api(`/agent/termine/${a.id}/nicht-zustande`, { method: "POST", body: JSON.stringify({ grund }) })
+      : await api(`/agent/calendar/${a.id}/done`, { method: "POST" });
+    setBusy(null);
+    if (r.ok) { flash(r.json?.hinweis || "Vermerkt."); entfernen(a); setDetail(null); laden(); }
+    else flash(r.json?.error || "Das hat nicht geklappt.", true);
+  };
+
   const verpasst = async (a: Termin) => {
     if (a.art !== "termin") return;
     setBusy(tKey(a));
@@ -353,7 +407,7 @@ function CalendarInnen() {
       {!laedt && ueberfaellig.length > 0 && (
         <section className="ca-block">
           <div className="ca-block-kopf"><b className="warn">Überfällig ({ueberfaellig.length})</b><small>Erst das, dann der Tag.</small></div>
-          {ueberfaellig.map((a) => <Zeile key={tKey(a)} a={a} datum busy={busy === tKey(a)} onAkte={() => zurAkte(a)} onOeffnen={() => setDetail(a)} onErledigt={() => erledigt(a)} ausser={!inVerfuegbarkeit(tZeit(a))} />)}
+          {ueberfaellig.map((a) => <Zeile key={tKey(a)} a={a} datum busy={busy === tKey(a)} onAkte={() => zurAkte(a)} onOeffnen={() => setDetail(a)} onErledigt={() => erledigt(a)} ausser={!inVerfuegbarkeit(tZeit(a))} jetzt={jetzt.getTime()} onNichtZustande={(g) => void nichtZustande(a, g)} />)}
         </section>
       )}
 
@@ -364,7 +418,7 @@ function CalendarInnen() {
           <small>{tagListe.length ? `${tagListe.length} ${tagListe.length === 1 ? "Eintrag" : "Einträge"}` : "nichts geplant"}</small></div>
           <Tagband frei={freiAm(teile(tagDate).wd)} jetzt={tagKey === heuteKey ? minuten(jetzt) : null} />
           {tagListe.length === 0 && <p className="ca-leer">{freiAm(teile(tagDate).wd).length ? "Kein Termin an diesem Tag. Deine Zeiten sind frei für Buchungen." : "Kein Termin – und keine Verfügbarkeit an diesem Tag. Kunden können hier nichts buchen."}</p>}
-          {tagListe.map((a) => <Zeile key={tKey(a)} a={a} busy={busy === tKey(a)} onAkte={() => zurAkte(a)} onOeffnen={() => setDetail(a)} onErledigt={() => erledigt(a)} ausser={!inVerfuegbarkeit(tZeit(a))} />)}
+          {tagListe.map((a) => <Zeile key={tKey(a)} a={a} busy={busy === tKey(a)} onAkte={() => zurAkte(a)} onOeffnen={() => setDetail(a)} onErledigt={() => erledigt(a)} ausser={!inVerfuegbarkeit(tZeit(a))} jetzt={jetzt.getTime()} onNichtZustande={(g) => void nichtZustande(a, g)} />)}
         </section>
       )}
 
@@ -430,7 +484,7 @@ function CalendarInnen() {
                 <div key={key} className={`ca-tageskarte${istHeute ? " heute" : ""}`}>
                   <div className="ca-tageskarte-kopf"><b>{istHeute ? "Heute" : `${TAGE[i]}, ${datumKurz(ausKey(key))}`}</b><small>{frei.length ? frei.map(([v, b]) => `${String(Math.floor(v / 60)).padStart(2, "0")}:${String(v % 60).padStart(2, "0")}–${String(Math.floor(b / 60)).padStart(2, "0")}:${String(b % 60).padStart(2, "0")}`).join(" · ") : "nicht verfügbar"}</small></div>
                   {liste.length === 0 && <p className="ca-leer">–</p>}
-                  {liste.map((a) => <Zeile key={tKey(a)} a={a} busy={busy === tKey(a)} onAkte={() => zurAkte(a)} onOeffnen={() => setDetail(a)} onErledigt={() => erledigt(a)} ausser={!inVerfuegbarkeit(tZeit(a))} />)}
+                  {liste.map((a) => <Zeile key={tKey(a)} a={a} busy={busy === tKey(a)} onAkte={() => zurAkte(a)} onOeffnen={() => setDetail(a)} onErledigt={() => erledigt(a)} ausser={!inVerfuegbarkeit(tZeit(a))} jetzt={jetzt.getTime()} onNichtZustande={(g) => void nichtZustande(a, g)} />)}
                 </div>
               );
             })}
@@ -457,13 +511,38 @@ function CalendarInnen() {
 }
 
 // ── Eine Terminzeile ─────────────────────────────────────────────────────────
-function Zeile({ a, datum, busy, ausser, onAkte, onOeffnen, onErledigt }: { a: Termin; datum?: boolean; busy: boolean; ausser: boolean; onAkte: () => void; onOeffnen: () => void; onErledigt: () => void }) {
+/**
+ * Warum ein Termin nicht zustande kam — und was jeder Grund auslöst.
+ *
+ * 24.08.2026 (Justin): „wenn man aufs X klickt, eben wieder gefragt warum
+ * nicht, und entsprechend dann ein E-Mail-Event auslösen (aber auch die
+ * Funktion: Kunde löschen!)". Der Grund darf nicht nur dokumentiert werden —
+ * der Kunde muss die passende Nachricht bekommen. Die `folge` steht bewusst
+ * unter jedem Knopf: Wer klickt, soll vorher wissen, was der Kunde erhält.
+ */
+const GRUENDE: { key: string; label: string; folge: string }[] = [
+  { key: "nicht_erschienen", label: "Nicht erschienen / nicht abgenommen",
+    folge: "Er bekommt eine Mail mit dem Link auf einen neuen Termin." },
+  { key: "nummer_falsch", label: "Telefonnummer stimmt nicht",
+    folge: "Er wird gebeten, seine Rufnummer selbst zu berichtigen." },
+  { key: "abgesagt", label: "Hat abgesagt / passte nicht",
+    folge: "Der Termin wird abgesagt, er bekommt eine neue Einladung." },
+];
+
+function Zeile({ a, datum, busy, ausser, jetzt, onAkte, onOeffnen, onErledigt, onNichtZustande }: { a: Termin; datum?: boolean; busy: boolean; ausser: boolean; jetzt: number; onAkte: () => void; onOeffnen: () => void; onErledigt: () => void; onNichtZustande: (grund: string) => void }) {
   const tel = tPhone(a); const d = tZeit(a);
-  const ton = a.terminArtTon || (a.quelle === "termin" ? "#3b82f6" : "#94a3b8"); // gleicher Zeitbalken wie im Wochenraster
-  // E-051: 1 Klick auf die Zeile → Kundenakte; „Mehr“ öffnet weiter den Dialog.
+  const [grundOffen, setGrundOffen] = useState(false);
+  // 24.08.2026 (Justin): „Entferne den farbigen Strich auf der linken Seite
+  // der Karte." Die Art des Termins steht ohnehin als Marke im Text — der
+  // Strich war eine zweite Aussage über dieselbe Sache. Die Klasse `mit-ton`
+  // (und mit ihr der Balken) ist damit weg; im Wochenraster bleibt sie.
+  // E-051: 1 Klick auf die Zeile → Kundenakte; das X öffnet die Gründe.
   return (
-    <div className={`ca-zeile mit-ton${a.abgesagt ? " abgesagt" : ""}`} style={{ "--ca-ton": ton } as CSSProperties} onClick={onAkte} role="button" tabIndex={0} title="Klick öffnet die Akte" onKeyDown={(e) => { if (e.key === "Enter") onAkte(); }}>
-      <div className={`ca-zeit${ausser ? " ausser" : ""}`}><b>{uhr(d)}</b><small>{datum ? datumKurz(d) : a.dauer_min ? `${a.dauer_min} min` : ausser ? "außerhalb" : ""}</small></div>
+    <div className={`ca-zeile${a.abgesagt ? " abgesagt" : ""}`} onClick={onAkte} role="button" tabIndex={0} title="Klick öffnet die Akte" onKeyDown={(e) => { if (e.key === "Enter") onAkte(); }}>
+      <div className={`ca-zeit${ausser ? " ausser" : ""}`}>
+        <b>{uhr(d)}</b>
+        <small>{datum ? datumKurz(d) : ausser ? "außerhalb" : bisZumTermin(d, jetzt)}</small>
+      </div>
       <div className="ca-wer">
         <b>{tName(a)}</b>
         {a.absageText && <span className="ca-hinweis warn">{a.absageText}</span>}
@@ -481,11 +560,40 @@ function Zeile({ a, datum, busy, ausser, onAkte, onOeffnen, onErledigt }: { a: T
           {ausser && <span className="ca-marke warn" title="Liegt außerhalb deiner eingetragenen Verfügbarkeit"><Clock size={10} style={{ marginRight: 4 }} />außerhalb deiner Zeiten</span>}
         </small>
       </div>
+      {/* 24.08.2026 (Justin): VORHER „Anrufen · Haken · Mehr". „Mehr" führte in
+          einen Dialog und sagte nicht, wofür es gut ist. NACHHER sagen die drei
+          Knöpfe, wie der Termin ausgeht: anrufen, erledigt (Haken), oder er kam
+          nicht zustande (X) — dann fragt die Karte nach dem Grund, und der
+          Grund löst das Passende aus. */}
       <div className="ca-aktion" onClick={(e) => e.stopPropagation()}>
         {tel && <button type="button" className="ca-knopf klein" onClick={() => anrufen(tel, a.person_id, tName(a))}><Phone size={14} strokeWidth={1.75} /> Anrufen</button>}
-        <button type="button" className="ca-knopf klein still" disabled={busy || a.abgesagt === true} title={a.abgesagt ? "Dieser Termin ist abgesagt." : "Erledigt"} onClick={onErledigt} aria-label="Erledigt"><Check size={15} strokeWidth={2} /></button>
-        <button type="button" className="ca-knopf klein still" onClick={onOeffnen}>Mehr</button>
+        <button type="button" className="ca-knopf klein gut" disabled={busy || a.abgesagt === true}
+                title={a.abgesagt ? "Dieser Termin ist abgesagt." : "Gespräch hat stattgefunden"}
+                onClick={onErledigt} aria-label="Erledigt"><Check size={15} strokeWidth={2} /></button>
+        <button type="button" className="ca-knopf klein rot" disabled={busy || a.abgesagt === true}
+                title="Termin kam nicht zustande — Grund wählen"
+                onClick={() => setGrundOffen((v) => !v)} aria-label="Termin kam nicht zustande" aria-expanded={grundOffen}>
+          <X size={15} strokeWidth={2} />
+        </button>
+        <button type="button" className="ca-knopf klein still" onClick={onOeffnen} title="Alle Angaben zum Termin">Details</button>
       </div>
+
+      {grundOffen && (
+        <div className="ca-gruende" onClick={(e) => e.stopPropagation()}>
+          <p>Warum kam der Termin nicht zustande?</p>
+          {GRUENDE.map((g) => (
+            <button key={g.key} type="button" className="ca-grund" disabled={busy}
+                    onClick={() => { setGrundOffen(false); onNichtZustande(g.key); }}>
+              <b>{g.label}</b><small>{g.folge}</small>
+            </button>
+          ))}
+          <button type="button" className="ca-grund rot" disabled={busy}
+                  onClick={() => { setGrundOffen(false); onNichtZustande("kein_interesse"); }}>
+            <b>Kunde will nicht mehr</b><small>Keine Mail. Der Mensch wird gesperrt und erscheint bei niemandem mehr.</small>
+          </button>
+          <button type="button" className="ca-link-klein" onClick={() => setGrundOffen(false)}>zurück</button>
+        </div>
+      )}
     </div>
   );
 }

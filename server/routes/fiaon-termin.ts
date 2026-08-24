@@ -513,6 +513,123 @@ router.get("/agent/termine", requireAgent, async (req: AgentRequest, res: Respon
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// POST /agent/termine/:id/nicht-zustande — mit GRUND, und der Grund handelt
+//
+// Justin (24.08.2026): „wenn man aufs X klickt, eben wieder gefragt warum
+// nicht, und entsprechend dann ein E-Mail-Event auslösen (aber auch die
+// Funktion: Kunde löschen!)"
+//
+// VORHER kannte der Kalender nur „erledigt" und „verpasst". „Verpasst" hieß
+// für JEDEN Fall dasselbe: Zähler hoch, fertig. Ob die Nummer falsch war, der
+// Kunde abgesagt hat oder gar nicht mehr will — der Kunde bekam in allen drei
+// Fällen dieselbe (oder gar keine) Nachricht.
+// NACHHER entscheidet der Grund, was ausgelöst wird. Die Mailarten sind die
+// vorhandenen; es entsteht KEINE zweite Versandlogik neben fiaon-versand.
+//
+// Wichtig: Der Vorgang wird IMMER dokumentiert, auch wenn der Versand
+// scheitert (fehlender Make-Zweig). Ein Termin, der nicht zustande kam, darf
+// nicht deshalb offen bleiben, weil eine Mail hängt.
+// ═══════════════════════════════════════════════════════════════════════════
+const NICHT_ZUSTANDE: Record<string, { art: string | null; hinweis: (name: string) => string; notiz: string }> = {
+  nicht_erschienen: {
+    art: "termin_verpasst",
+    hinweis: (n) => `${n} hat den Link für einen neuen Termin bekommen.`,
+    notiz: "Termin kam nicht zustande — nicht erschienen bzw. nicht abgenommen.",
+  },
+  nummer_falsch: {
+    art: "number_update_request",
+    hinweis: (n) => `${n} wurde gebeten, die Rufnummer zu berichtigen.`,
+    notiz: "Termin kam nicht zustande — hinterlegte Rufnummer stimmt nicht.",
+  },
+  abgesagt: {
+    art: "onboarding_einladung",
+    hinweis: (n) => `${n} hat eine neue Einladung bekommen.`,
+    notiz: "Termin kam nicht zustande — vom Kunden abgesagt bzw. passte nicht.",
+  },
+  kein_interesse: {
+    // Kein Versand. Wer abgesagt hat, bekommt keine Aufforderung mehr.
+    art: null,
+    hinweis: (n) => `${n} ist gesperrt und erscheint bei niemandem mehr.`,
+    notiz: "Termin kam nicht zustande — kein Interesse mehr, vom Kunden erklärt.",
+  },
+};
+
+router.post("/agent/termine/:id/nicht-zustande", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const grund = String(req.body?.grund || "");
+    const regel = NICHT_ZUSTANDE[grund];
+    if (!regel) return res.status(400).json({ ok: false, error: "Unbekannter Grund." });
+
+    const [termin] = (await sqlPool`
+      SELECT t.id, t.person_id, t.beginn, t.agent_id, t.quelle, t.status,
+             COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''),
+                      p.company_name, 'Der Kunde') AS name
+      FROM fiaon_termine t LEFT JOIN fiaon_persons p ON p.id = t.person_id
+      WHERE t.id = ${id} AND t.status IN ('gebucht', 'verpasst')`) as any[];
+    if (!termin) return res.status(404).json({ ok: false, error: "Termin nicht gefunden." });
+
+    // Dieselbe Grenze wie beim Abhaken: eigener Termin, oder darfAnKunde.
+    if (Number(termin.agent_id) !== req.agent!.id) {
+      const { darfAnKunde, rolleVon } = await import("../lib/fiaon-kundenzugriff");
+      if (!(await darfAnKunde(req.agent!.id, await rolleVon(req.agent!.id), Number(termin.person_id)))) {
+        return res.status(404).json({ ok: false, error: "Termin nicht gefunden." });
+      }
+    }
+
+    await sqlPool`
+      UPDATE fiaon_termine
+      SET status = 'verpasst', erledigt_am = NOW(),
+          notiz = COALESCE(notiz || ' · ', '') || ${regel.notiz}, updated_at = NOW()
+      WHERE id = ${id}`;
+    await sqlPool`
+      UPDATE fiaon_persons SET unreachable_count = unreachable_count + 1, updated_at = NOW()
+      WHERE id = ${termin.person_id}`.catch(() => {});
+
+    // „Kunde will nicht mehr" sperrt — derselbe Weg wie „Kein Interesse" im
+    // Vertrieb: Er verschwindet aus jeder Liste, die Daten bleiben.
+    if (grund === "kein_interesse") {
+      await sqlPool`
+        UPDATE fiaon_persons SET is_blocked = TRUE, follow_up_date = NULL, updated_at = NOW()
+        WHERE id = ${termin.person_id}`;
+    }
+
+    // Der Versand läuft über den EINEN Weg des Hauses (mailSenden): Er kennt
+    // die Rollenrechte, baut den Terminlink selbst und schreibt ins
+    // Zustellprotokoll. Eine zweite Versandlogik neben ihm wäre die zweite
+    // Wahrheit, an der wir heute schon mehrfach hängengeblieben sind.
+    let versandFehler: string | null = null;
+    if (regel.art) {
+      const { mailSenden } = await import("../lib/fiaon-mail-senden");
+      const { rolleVon } = await import("../lib/fiaon-kundenzugriff");
+      const erg = await mailSenden({
+        event: regel.art,
+        personId: Number(termin.person_id),
+        akteur: { name: req.agent!.name, agentId: req.agent!.id, rolle: (await rolleVon(req.agent!.id)) as any },
+      }).catch((e) => ({ ok: false, grund: e instanceof Error ? e.message : String(e) }));
+      if (!(erg as any).ok) versandFehler = (erg as any).grund || "Die Nachricht konnte nicht gesendet werden.";
+    }
+
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note, created_at)
+      SELECT a.ref, ${req.agent!.id}, ${req.agent!.name}, 'termin_nicht_zustande', ${regel.notiz}, NOW()
+      FROM fiaon_applications a
+      WHERE a.person_id = ${termin.person_id} AND a.merged_into IS NULL
+      ORDER BY a.created_at DESC LIMIT 1`.catch(() => {});
+
+    res.json({
+      ok: true,
+      hinweis: versandFehler
+        ? `Vermerkt. Die Nachricht ging NICHT raus: ${versandFehler}`
+        : regel.hinweis(String(termin.name)),
+    });
+  } catch (err) {
+    console.error("[TERMIN] nicht-zustande:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 /**
  * POST /agent/termine/:id/ergebnis — erledigt oder nicht erschienen.
  *

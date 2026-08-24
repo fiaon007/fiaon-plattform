@@ -31,6 +31,9 @@ import { useOffice } from "./OfficeShell";
 import { ZusageTafel } from "./vertrieb-zusage";
 import { LageTafel } from "./vertrieb-service";
 import { OnboardingCockpit } from "@/components/agent/OnboardingCockpit";
+// 24.08.2026: Der Weg „Kunde nicht erschienen“ liegt in einem eigenen Bauteil —
+// er steht hier auf der Fokus-Karte, unten an der Terminkarte UND im Cockpit.
+import { NichtErschienenWahl } from "@/components/agent/NichtErschienen";
 import "@/styles/office-onboarding.css";
 import { Rundgang } from "@/components/agent/Rundgang";
 import { RUNDGAENGE } from "./rundgaenge";
@@ -148,7 +151,8 @@ function OnboardingInnen() {
       {!fehler && (
         <section className={`ob-fokus${naechster ? "" : " leer"}`} aria-label="Dein nächstes Onboarding">
           {laedt ? <p className="ob-lade">Lade …</p> : naechster ? (
-            <FokusKarte t={naechster} jetzt={jetzt} onCockpit={() => setCockpit(naechster)} />
+            <FokusKarte t={naechster} jetzt={jetzt} onCockpit={() => setCockpit(naechster)}
+                        onFertig={() => void laden()} flash={flash} />
           ) : (
             <div className="ob-fokus-leer">
               <b>Kein offenes Startgespräch.</b>
@@ -196,7 +200,11 @@ function OnboardingInnen() {
         <OnboardingCockpit
           termin={{ id: cockpit.id, personId: cockpit.personId, name: cockpit.name, telefon: cockpit.telefon ?? null, email: cockpit.email ?? null, beginn: cockpit.beginn, datumText: cockpit.datumText, uhrzeit: cockpit.uhrzeit, dauerMin: cockpit.dauerMin, status: cockpit.status }}
           onZu={() => setCockpit(null)}
-          onFertig={(m) => { setCockpit(null); flash(`Startgespräch abgeschlossen. ${m || ""}`); void laden(); }}
+          // 24.08.2026: VORHER stand vor JEDER Meldung „Startgespräch
+          // abgeschlossen." — auch vor „Nicht erschienen …". NACHHER steht
+          // da, was der Server wirklich getan hat; und `warn` färbt die
+          // Meldung bernstein, wenn die E-Mail an den Kunden nicht rausging.
+          onFertig={(m, warn) => { setCockpit(null); flash(m || "Festgehalten.", warn); void laden(); }}
           onAnrufen={(nummer, personId, name) => anrufen(nummer, personId, name)}
         />
       )}
@@ -208,7 +216,14 @@ function OnboardingInnen() {
 }
 
 // ── Fokus-Karte: nächster Termin, Countdown, Lage-Kurzzeile, großer Knopf ────
-function FokusKarte({ t, jetzt, onCockpit }: { t: SgTermin; jetzt: Date; onCockpit: () => void }) {
+function FokusKarte({ t, jetzt, onCockpit, onFertig, flash }: {
+  t: SgTermin; jetzt: Date; onCockpit: () => void;
+  onFertig: () => void; flash: (text: string, warn?: boolean) => void;
+}) {
+  // 24.08.2026: Die Grund-Wahl klappt UNTER der Karte auf — sie ersetzt die
+  // Karte nicht. Wer sie versehentlich öffnet, sieht weiter, um wen es geht.
+  const [neOffen, setNeOffen] = useState(false);
+  useEffect(() => { setNeOffen(false); }, [t.id]);
   const [lage, setLage] = useState<{ paket?: string | null; zahlungsstand?: string | null; bonitaet?: string | null } | null>(null);
   useEffect(() => {
     let weg = false;
@@ -219,6 +234,7 @@ function FokusKarte({ t, jetzt, onCockpit }: { t: SgTermin; jetzt: Date; onCockp
   const cd = countdown(t.beginn, jetzt);
   const kurz = lage ? [lage.paket, lage.zahlungsstand, lage.bonitaet].filter(Boolean).join(" · ") : null;
   return (
+    <>
     <div className="ob-fokus-innen">
       <div className="ob-fokus-links">
         <small>Dein nächstes Onboarding</small>
@@ -232,9 +248,29 @@ function FokusKarte({ t, jetzt, onCockpit }: { t: SgTermin; jetzt: Date; onCockp
           <button type="button" className="ob-knopf gross" onClick={onCockpit}><Headset size={17} strokeWidth={1.75} /> Gespräch führen</button>
           {t.telefon && <button type="button" className="ob-knopf still" onClick={() => anrufen(t.telefon, t.personId, t.name)}><Phone size={15} strokeWidth={1.75} /> Anrufen</button>}
           <Link href={`/agent/kunden?person=${t.personId}`} className="ob-knopf still"><ExternalLink size={15} strokeWidth={1.75} /> Akte</Link>
+          {/* ── 24.08.2026 (Auftrag des Inhabers) ────────────────────────────
+              VORHER: Auf dieser Karte gab es nur „Gespräch führen“, „Anrufen“
+              und „Akte“. Wer allein am Hörer saß, hatte hier keinen Weg — er
+              musste die Karte unten aufklappen und fand dort einen einzigen
+              Knopf mit einer einzigen Folge.
+              NACHHER: der leise Knopf hier, und die Gründe klappen darunter
+              auf. LEISE mit Absicht: Das Ziel ist das Gespräch, nicht der
+              No-Show. */}
+          <button type="button" className="ob-knopf leise" aria-expanded={neOffen}
+                  onClick={() => setNeOffen((v) => !v)}>
+            {neOffen ? "Doch nicht" : "Kunde nicht erschienen"}
+          </button>
         </div>
       </div>
     </div>
+    {neOffen && (
+      <NichtErschienenWahl
+        termin={{ id: t.id, name: t.name }}
+        onAbbruch={() => setNeOffen(false)}
+        onFertig={(hinweis, warn) => { setNeOffen(false); flash(hinweis, warn); onFertig(); }}
+      />
+    )}
+    </>
   );
 }
 
@@ -244,6 +280,9 @@ function SgKarte({ t, offen, onOeffnen, onFertig, onCockpit, flash }: { t: SgTer
   const [busy, setBusy] = useState<string | null>(null);
   const [verlauf, setVerlauf] = useState<any[] | null>(null);
   const [notizFehler, setNotizFehler] = useState<string | null>(null);
+  // 24.08.2026: derselbe Weg wie auf der Fokus-Karte, damit niemand zwei
+  // verschiedene Bedeutungen von „nicht erschienen“ lernen muss.
+  const [neOffen, setNeOffen] = useState(false);
   useEffect(() => {
     if (!offen) return;
     let weg = false;
@@ -259,7 +298,9 @@ function SgKarte({ t, offen, onOeffnen, onFertig, onCockpit, flash }: { t: SgTer
     if (!r.ok) { setNotizFehler(r.json?.error || "Die Notiz wurde nicht gespeichert."); return; }
     setNotiz(""); setVerlauf(r.json.verlauf ?? []); flash("Notiz gespeichert – sie steht im Verlauf des Kunden.");
   };
-  const dokumentieren = async (ergebnis: "erledigt" | "verpasst") => {
+  // 24.08.2026: Nur noch „Nachtragen: geführt“ geht diesen Weg. „Nicht
+  // erschienen“ läuft über die Grund-Wahl — siehe unten.
+  const dokumentieren = async (ergebnis: "erledigt") => {
     setBusy(ergebnis);
     const r = await api(`/agent/onboarding/termine/${t.id}/ergebnis`, { method: "POST", body: JSON.stringify({ ergebnis, notiz: notiz.trim() || undefined }) });
     setBusy(null);
@@ -301,16 +342,27 @@ function SgKarte({ t, offen, onOeffnen, onFertig, onCockpit, flash }: { t: SgTer
               <div className="ob-aktion" style={{ justifyContent: "flex-start" }}>
                 <button type="button" className="ob-knopf klein" onClick={onCockpit} disabled={!!busy}>Gespräch führen</button>
                 <button type="button" className="ob-knopf klein still" onClick={() => void dokumentieren("erledigt")} disabled={!!busy}>{busy === "erledigt" ? "…" : "Nachtragen: geführt"}</button>
-                <button type="button" className="ob-knopf klein still" onClick={() => void dokumentieren("verpasst")} disabled={!!busy}>{busy === "verpasst" ? "…" : "Nicht erschienen"}</button>
+                {/* VORHER (bis 24.08.2026): Dieser Knopf schickte sofort und
+                    ohne Rückfrage die Mail „Termin verpasst“ — auch wenn der
+                    Kunde in Wahrheit abgesagt hatte oder die Nummer falsch war.
+                    NACHHER klappt derselbe Weg wie auf der Fokus-Karte auf: erst
+                    der Grund, dann die dazu passende Folge.
+                    GRUND: Auftrag des Inhabers vom 24.08.2026. */}
+                <button type="button" className="ob-knopf klein still" aria-expanded={neOffen}
+                        onClick={() => setNeOffen((v) => !v)} disabled={!!busy}>
+                  {neOffen ? "Doch nicht" : "Kunde nicht erschienen"}
+                </button>
                 <button type="button" className="ob-knopf klein still" onClick={() => void einladen()} disabled={!!busy}>{busy === "einladung" ? "…" : "Einladung erneut senden"}</button>
               </div>
-              {/* VORHER (bis 24.08.2026): „…und lädt den Kunden erneut ein."
-                  Das stimmte nicht: Nach einem No-Show ging tagelang gar nichts
-                  raus, frühestens nach 48 Stunden die generische Einladung.
-                  NACHHER: Der Server verschickt sofort das Ereignis
-                  `termin_verpasst`. Der Satz sagt jetzt, was wirklich geschieht.
-                  GRUND: Auftrag des Inhabers vom 24.08.2026. */}
-              <p className="ob-lade" style={{ marginTop: 8 }}>„Nicht erschienen“ zählt wie ein erfolgloser Anruf. Der Kunde bekommt sofort eine E-Mail mit dem Link für einen neuen Termin.</p>
+              {neOffen ? (
+                <NichtErschienenWahl
+                  termin={{ id: t.id, name: t.name }}
+                  onAbbruch={() => setNeOffen(false)}
+                  onFertig={(hinweis, warn) => { setNeOffen(false); flash(hinweis, warn); onFertig(); }}
+                />
+              ) : (
+                <p className="ob-lade" style={{ marginTop: 8 }}>Nicht zustande gekommen? Der Grund entscheidet, was der Kunde bekommt — neuer Termin, Bitte um die richtige Nummer, oder gar nichts.</p>
+              )}
             </div>
           )}
           <div>

@@ -140,7 +140,7 @@ function Buehne({ szene }: { szene: string }) {
 //     Sekundenanzeige in der Kopfzeile zieht den Blick den ganzen Tag lang auf
 //     sich, ohne dass jemand etwas davon hat.
 // ═══════════════════════════════════════════════════════════════════════════
-function Begruessung({ gruss, vorname }: { gruss: string; vorname: string }) {
+function Begruessung({ gruss, vorname, imKopf }: { gruss: string; vorname: string; imKopf?: boolean }) {
   const [uhr, setUhr] = useState(() => new Date());
   const [wetter, setWetter] = useState<{ wort: string; zeichen: string; grad: number | null } | null>(null);
 
@@ -172,7 +172,7 @@ function Begruessung({ gruss, vorname }: { gruss: string; vorname: string }) {
   const zeit = uhr.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" });
 
   return (
-    <div className="of-gruss-huelle">
+    <div className={`of-gruss-huelle${imKopf ? " im-kopf" : ""}`}>
       <b className="of-gruss">
         <span className="of-gruss-name">{gruss}, {vorname}.</span>
         <span className="of-gruss-zeit"> Es ist {zeit} Uhr{wetter ? "," : "."}</span>
@@ -283,7 +283,16 @@ export function OfficeShell({ children, agent, rolle, zaehler, onRefresh, logout
               abgeschnittenes Wort. NACHHER steht hier gar nichts mehr; wo man
               ist, sagt die Leiste, und die Begrüßung hat ihre eigene Zeile
               unter dem Kopf (siehe unten). */}
-          <span className="of-kopf-luecke" aria-hidden="true" />
+          {/* 24.08.2026, dritter Anlauf (Justin: „Das soll dezent in der obigen
+              Leiste stehen, rechts neben dem OFFICE, in dem gleichen STIL wie
+              ‚OFFICE'"): Die Begrüßung steht wieder in der Kopfzeile — aber in
+              der Sprache der OFFICE-Pille: dieselbe Größe, dasselbe Gewicht,
+              dieselbe Sperrung, dieselbe blaue Farbe. Nur nicht in Versalien:
+              Ein ganzer Satz in Großbuchstaben wäre doppelt so breit und
+              schlecht zu lesen. Sie steht in der Kopfzeile nur, solange dort
+              Platz ist (ab 1100 px); darunter rutscht sie in ihre eigene
+              ruhige Zeile — abgeschnitten wird sie nie. */}
+          <Begruessung gruss={gruss} vorname={vorname} imKopf />
           <div className="of-kopf-rechts">
             <div className="of-praesenz" title="Präsenz">
               <span className="punkt" style={{ background: PRAESENZ[praesenz][1] }} />
@@ -306,6 +315,9 @@ export function OfficeShell({ children, agent, rolle, zaehler, onRefresh, logout
             volle Breite. Dort konkurriert er mit nichts, ist kleiner und
             leiser gesetzt (dezent, wie gewünscht) und der Glanz läuft ruhig
             hindurch. Am Handy darf er über zwei Zeilen gehen. */}
+        {/* Dieselbe Begrüßung noch einmal — sie zeigt sich nur dann, wenn in
+            der Kopfzeile kein Platz mehr ist (CSS entscheidet, nicht JS: So
+            wechselt sie beim Verkleinern des Fensters ohne Sprung). */}
         <div className="of-grusszeile">
           <Begruessung gruss={gruss} vorname={vorname} />
         </div>

@@ -282,6 +282,21 @@ function BestandInnen() {
     document.body.style.overflow = offen ? "hidden" : "";
     return () => { if (r) r.style.overflow = ""; document.body.style.overflow = ""; };
   }, [offen]);
+
+  // ── AUS DEM TELEFON IN DIE AKTE (24.08.2026) ─────────────────────────────
+  // Justin: „Je nachdem, was man klickt, kommt man in die Akte."
+  // Das Softphone meldet nach dem Dokumentieren, welchen Menschen es weiter
+  // bearbeitet sehen will. Bewusst über ein Ereignis und NICHT über einen
+  // Seitenwechsel: Ein voller Wechsel würde die Twilio-Verbindung abbauen —
+  // und damit auch den nächsten Anruf.
+  useEffect(() => {
+    const auf = (e: Event) => {
+      const id = Number((e as CustomEvent).detail?.personId);
+      if (Number.isFinite(id) && id > 0) oeffnen(id);
+    };
+    window.addEventListener("fiaon-akte-oeffnen", auf as EventListener);
+    return () => window.removeEventListener("fiaon-akte-oeffnen", auf as EventListener);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!offen || laedt) { setFremd(null); return; }
     if (mandate.some((m) => m.kunde.personId === offen)) { setFremd(null); return; }

@@ -583,6 +583,21 @@ function PipelineInnen() {
     api("/agent/provision-satz").then((r) => { if (r.ok && r.json?.satz) setSatz(Number(r.json.satz)); }).catch(() => {});
   }, []);
 
+  // ── AUS DEM TELEFON IN DIE AKTE (24.08.2026) ─────────────────────────────
+  // Justin: „Je nachdem, was man klickt, kommt man in die Akte."
+  // Das Softphone meldet nach dem Dokumentieren, welchen Menschen es weiter
+  // bearbeitet sehen will. Bewusst über ein Ereignis und NICHT über einen
+  // Seitenwechsel: Ein voller Wechsel würde die Twilio-Verbindung abbauen —
+  // und damit auch den nächsten Anruf.
+  useEffect(() => {
+    const auf = (e: Event) => {
+      const id = Number((e as CustomEvent).detail?.personId);
+      if (Number.isFinite(id) && id > 0) setOffen(id);
+    };
+    window.addEventListener("fiaon-akte-oeffnen", auf as EventListener);
+    return () => window.removeEventListener("fiaon-akte-oeffnen", auf as EventListener);
+  }, []);
+
   // ── E-043: Die 6 Slots kommen fertig vom Server (GET /agent/vertrieb/arbeitsliste) ──
   const arbeitslisteLaden = useCallback(async (leise = false) => {
     if (!leise) setSlotsLaedt(true);

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FiaonGeraet, FiaonTastatur } from "@/components/FiaonGeraet";
+import { FiaonTastatur } from "@/components/FiaonGeraet";
+import { AnrufBuehne, type BuehnenGroesse } from "@/components/agent/AnrufBuehne";
 import { telefonFehler, telefonFehlerText } from "@shared/fiaon-telefon-fehler";
 import { ERGEBNIS_LISTE, NOTIZ_MINDESTLAENGE } from "@shared/fiaon-kontakt-ergebnis-liste";
 import { RATEN_ERGEBNISSE } from "@shared/fiaon-raten-ergebnisse";
@@ -327,6 +328,40 @@ export function Softphone() {
   const [stumm, setStumm] = useState(false);
   const [meldung, setMeldung] = useState<string | null>(null);
   const [datumFeld, setDatumFeld] = useState<"zusage" | "termin" | null>(null);
+  // ═══════════════════════════════════════════════════════════════════════
+  // DIE NACHBEREITUNG, NEU (24.08.2026)
+  //
+  // Justin: „Nach dem Gespräch soll man knappe Antworten zum Auswählen haben,
+  // weil ich ja während des Telefonats schon am Arbeiten bin — also am Ende
+  // des Telefonats sowas wie Daumen rauf oder Daumen runter … und dann ist es
+  // wichtig, dass du mitdenkst: Wenn er bereits einen Termin mit dem Kunden
+  // gebucht hat, dann wäre es dumm, wenn wir ihn fragen, wann er einen Termin
+  // buchen mag."
+  //
+  // VORHER: elf gleich aussehende Knöpfe, sofort nach dem Auflegen. Wer
+  // nebenher gearbeitet hat, musste erst lesen, was er selbst gerade getan
+  // hatte.
+  // NACHHER zwei Stufen:
+  //   1. EINE Frage mit drei großen Antworten — gut, nicht erreicht, kein
+  //      Interesse. Ein Griff, kein Lesen.
+  //   2. Danach NUR die Schritte, die wirklich noch offen sind. Was während
+  //      des Gesprächs schon passiert ist, wird BESTÄTIGT statt gefragt.
+  //
+  // Die Lage kommt vom Server (dieselbe Antwort wie die Akte), nicht aus
+  // mitgezählten Klicks: Wer in einem zweiten Tab einen Termin bucht, wäre
+  // sonst nicht erfasst. Der Server weiß es immer.
+  // ═══════════════════════════════════════════════════════════════════════
+  const [urteil, setUrteil] = useState<"gut" | "nicht_erreicht" | "schlecht" | null>(null);
+  /** Wen die Akte danach zeigen soll — gemerkt, BEVOR `kunde` auf den nächsten
+   *  Menschen aus der Liste wechselt. Steht hier oben bei den übrigen Haken:
+   *  Ein `useRef` weiter unten läge hinter einem frühen `return` und damit in
+   *  wechselnder Reihenfolge — das verbietet React zu Recht. */
+  const personIdFuerAkte = useRef<number | null>(null);
+  const [lage, setLage] = useState<{
+    hatTermin: boolean; terminText: string | null;
+    hatZusage: boolean; zusageText: string | null;
+    zahlungOffen: boolean; hatProdukt: boolean;
+  } | null>(null);
   // ── DIE NOTIZ ZUM ERGEBNIS ──────────────────────────────────────────────
   // Bei „Erreicht — Sonstiges" Pflicht (min. 10 Zeichen), bei allen anderen
   // freiwillig. GEMESSEN: siebenmal im Panel gedrückt — es gab hier gar kein
@@ -539,6 +574,37 @@ export function Softphone() {
   useEffect(() => {
     if (zustand === "ergebnis") setOffen(true);
   }, [zustand]);
+
+  // ── DIE LAGE NACH DEM GESPRÄCH HOLEN ─────────────────────────────────────
+  // Sobald aufgelegt ist, fragen wir den Server, wie der Kunde JETZT dasteht —
+  // nach allem, was der Mitarbeiter währenddessen in der Akte getan hat.
+  // Daraus entscheidet sich, was die Nachbereitung überhaupt noch fragt.
+  useEffect(() => {
+    if (zustand !== "ergebnis" || !kunde?.personId) { setLage(null); return; }
+    let an = true;
+    setUrteil(null);
+    fetch(`/api/fiaon/agent/crm/kunden/${kunde.personId}`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((j) => {
+        if (!an || !j?.ok || !j.kunde) return;
+        const k = j.kunde;
+        const terminIso = k.terminAm ?? k.termin?.beginn ?? null;
+        const zusage = k.zusagedatum ?? null;
+        setLage({
+          hatTermin: !!terminIso,
+          terminText: terminIso
+            ? new Date(terminIso).toLocaleString("de-DE",
+                { weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" })
+            : null,
+          hatZusage: !!zusage,
+          zusageText: zusage ? new Date(zusage).toLocaleDateString("de-DE") : null,
+          zahlungOffen: !!k.zahlung?.offen || k.karte?.status === "rechnung_offen",
+          hatProdukt: Array.isArray(k.buchungen) ? k.buchungen.some((b: any) => b.art === "paket") : true,
+        });
+      })
+      .catch(() => { /* ohne Lage fragt die Nachbereitung eben alles */ });
+    return () => { an = false; };
+  }, [zustand, kunde?.personId]);
 
   const laden = useCallback(async () => {
     const r = await fetch("/api/fiaon/telefon/stand", { credentials: "include" }).catch(() => null);
@@ -1488,6 +1554,7 @@ export function Softphone() {
     kunde?.rateId ? RATEN_ERGEBNISSE_PANEL : (ERGEBNISSE as any);
 
   const dokumentieren = async (art: string) => {
+    personIdFuerAkte.current = kunde?.personId ?? null;
     // Die Kennung des Anrufs — gesetzt beim Wählen, sonst aus den offenen
     // Gesprächen dieses Menschen nachgeschlagen (eingehender Anruf).
     const nummerGleich = (a: string, b: string) =>
@@ -1588,6 +1655,22 @@ export function Softphone() {
       { credentials: "include" },
     ).catch(() => null);
     const nj = await n?.json().catch(() => null);
+
+    // ── „JE NACHDEM WAS MAN KLICKT KOMMT MAN IN DIE AKTE" ─────────────────
+    // Justin, 24.08.2026. Das Ergebnis ist dokumentiert — jetzt geht es weiter
+    // dort, wo man weiterarbeitet. Nur bei den Ergebnissen, nach denen wirklich
+    // noch etwas zu tun ist: Nach „nicht erreicht" oder „falsche Nummer" wäre
+    // die Akte eine Sackgasse, dort ruft man den Nächsten an.
+    const inDieAkte = ["erreicht_zahlt_gleich", "erreicht_zahlt_am", "rueckruf_termin", "erreicht_sonstiges"];
+    const zurAkte = personIdFuerAkte.current;
+    if (inDieAkte.includes(art) && zurAkte) {
+      setOffen(false);
+      setUrteil(null);
+      // Ein voller Seitenwechsel würde die Twilio-Verbindung abbauen. Deshalb
+      // derselbe Weg, den die Räume untereinander nutzen: die Adresse ändern
+      // und die Akte per Ereignis öffnen.
+      window.dispatchEvent(new CustomEvent("fiaon-akte-oeffnen", { detail: { personId: zurAkte } }));
+    }
 
     if (nj?.ok && nj.kunde) {
       // Die Nummer steht, der Name steht — es fehlt nur noch der Griff zum
@@ -1857,51 +1940,6 @@ export function Softphone() {
         }
       `}</style>
 
-      {/* ══════════════════════════════════════════════════════════════════
-          DIE GESPRÄCHS-PILLE (E-047 Nr. 7, Plan §18, 23.08.2026)
-
-          Sie steht genau dann da, wenn ein Ruf läuft UND das Gerät minimiert
-          ist — an der Stelle des schwebenden Knopfs, den sie ersetzt (keine
-          Überlappung). Tippen auf den Namen macht das Gespräch wieder groß;
-          Stumm und Auflegen sind DIESELBEN Handler wie im Gerät. Kein
-          eigener Komponentenbaum, kein Unmount der Verbindung: Die Refs
-          leben in dieser weiterhin eingehängten Komponente.
-          ══════════════════════════════════════════════════════════════════ */}
-      {imRuf && !offen && (
-        <div className="fi-tel-pille" role="group"
-             aria-label={`Laufendes Gespräch: ${kunde?.name ?? nummer}`}>
-          <button type="button" className="fi-tel-pille-auf"
-                  onClick={() => setOffen(true)}
-                  aria-label="Gespräch wieder groß anzeigen">
-            {zustand === "gespraech" && !ohneAufnahme && (
-              <i className="fi-tel-pille-rec" aria-hidden="true" title="Aufnahme läuft" />
-            )}
-            <span className="fi-tel-pille-name">{kunde?.name ?? nummer}</span>
-            <span className="fi-tel-pille-uhr">
-              {zustand === "gespraech" ? dauerText(sekunden)
-                : zustand === "klingelt" ? "klingelt …" : "verbinde …"}
-            </span>
-          </button>
-          <button type="button" onClick={stummSchalten}
-                  className="fi-tel-pille-rund" data-an={stumm ? "1" : "0"} aria-label="Stumm">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                 strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 3a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3Z" />
-              <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
-              {stumm && <path d="m4 4 16 16" />}
-            </svg>
-          </button>
-          <button type="button" onClick={auflegen}
-                  className="fi-tel-pille-rot" aria-label="Auflegen">
-            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                 strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"
-                 style={{ transform: "rotate(135deg)" }}>
-              <path d="M4.5 3.5h3.6l1.8 4.5-2.3 1.4a12 12 0 0 0 5.5 5.5l1.4-2.3 4.5 1.8v3.6a1.5 1.5 0 0 1-1.7 1.5A16.5 16.5 0 0 1 3 5.2 1.5 1.5 0 0 1 4.5 3.5Z" />
-            </svg>
-          </button>
-        </div>
-      )}
-
       {/* ── Das Gerät auf der FiaonEbene ───────────────────────────────
           Rechts unten angedockt, damit es aus dem Knopf zu wachsen scheint.
           Der Gerätekörper ist eine dunkle Fassung UM die helle Anzeige — ein
@@ -1914,7 +1952,65 @@ export function Softphone() {
           Anruf ist keine Randnotiz, sondern das Einzige, was man in dieser
           Minute tut.
           ══════════════════════════════════════════════════════════════════ */}
-      <FiaonGeraet offen={offen} onZu={() => setOffen(false)} titel="Telefon">
+      {/* ══════════════════════════════════════════════════════════════════
+          DIE ANRUFBÜHNE (24.08.2026, Justin: „weg mit dem Handy, das ist
+          unpraktisch — irgendwas 3D mit guten Animationen")
+
+          VORHER: `FiaonGeraet` — ein gezeichnetes Telefon, mittig, hinter
+          einem Schleier, der die Seite sperrte. Genau währenddessen soll der
+          Mitarbeiter aber in der Akte arbeiten.
+          NACHHER: eine Glaskonsole in drei Größen. Welche gilt, entscheidet
+          sich aus dem Zustand — es gibt keinen eigenen Schalter dafür:
+            · minimiert und im Ruf → `pille` (bleibt IMMER sichtbar)
+            · offen und im Ruf/Ergebnis → `konsole` (Ecke, Akte bleibt frei)
+            · sonst → `voll` (Tastatur, Suche — dort arbeitet niemand nebenher)
+          ══════════════════════════════════════════════════════════════════ */}
+      <AnrufBuehne
+        /* Die Bühne ist eingehängt, sobald das Telefon offen ist ODER ein Ruf
+           läuft. Der zweite Fall ist der wichtige: Er hält die minimierte
+           Leiste am Leben, statt sie mit dem Zuklappen zu entfernen. */
+        offen={offen || imRuf}
+        groesse={
+          (!offen && imRuf) ? "pille"
+            : (imRuf || zustand === "ergebnis") ? "konsole"
+            : "voll"
+        }
+        onGroesse={(g: BuehnenGroesse) => setOffen(g !== "pille")}
+        onZu={() => setOffen(false)}
+        titel="Telefon"
+        kopf={
+          /* Was in der minimierten Leiste steht. Stumm und Auflegen sind
+             DIESELBEN Handler wie in der Konsole — kein zweiter
+             Komponentenbaum, kein Abbau der Verbindung. */
+          <>
+            <button type="button" className="ab-kopf-name" onClick={() => setOffen(true)}
+                    aria-label="Gespräch wieder groß anzeigen">
+              <b>{kunde?.name ?? nummer}</b>
+              <span>
+                {zustand === "gespraech" ? dauerText(sekunden)
+                  : zustand === "klingelt" ? "klingelt …" : "verbinde …"}
+                {zustand === "gespraech" && !ohneAufnahme && <i className="ab-rec" aria-hidden="true" />}
+              </span>
+            </button>
+            <button type="button" onClick={stummSchalten}
+                    className="ab-kopf-rund" data-an={stumm ? "1" : "0"} aria-label="Stumm">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 3a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3Z" />
+                <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+                {stumm && <path d="m4 4 16 16" />}
+              </svg>
+            </button>
+            <button type="button" onClick={auflegen} className="ab-kopf-rot" aria-label="Auflegen">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"
+                   style={{ transform: "rotate(135deg)" }}>
+                <path d="M4.5 3.5h3.6l1.8 4.5-2.3 1.4a12 12 0 0 0 5.5 5.5l1.4-2.3 4.5 1.8v3.6a1.5 1.5 0 0 1-1.7 1.5A16.5 16.5 0 0 1 3 5.2 1.5 1.5 0 0 1 4.5 3.5Z" />
+              </svg>
+            </button>
+          </>
+        }
+      >
         {/* Der Sparmodus steht in index.css, nicht hier: Er gilt auch für die
             Seite DAHINTER — Space-Video, Mail-Glasflächen, Blasen-Schatten.
             Die übrigen Styles liegen in styles/softphone.css. */}
@@ -2834,9 +2930,83 @@ export function Softphone() {
             sind ≥ 52 px hoch, nichts rollt. */}
         {zustand === "ergebnis" && (
           <div data-ansicht="ergebnis" className="fi-tel-ergebnis-schritt">
+            {/* ── STUFE 1: EINE FRAGE, DREI ANTWORTEN ──────────────────
+                Justin: „Am Ende des Telefonats soll sowas wie Daumen rauf oder
+                Daumen runter kommen — weil ich ja während des Telefonats schon
+                am Arbeiten bin."
+                Drei große Flächen, ein Griff, kein Lesen. Erst danach wird es
+                genauer — und dann nur noch um das, was wirklich offen ist. */}
+            {urteil === null && (
+              <>
+                <p className="fi-tel-karte-text" style={{ marginBottom: 14 }}>
+                  Wie lief das Gespräch{kunde?.name ? ` mit ${String(kunde.name).split(" ")[0]}` : ""}?
+                </p>
+                <div className="ab-urteil">
+                  <button type="button" className="ab-urteil-knopf gut" onClick={() => setUrteil("gut")}>
+                    <span className="ab-urteil-zeichen" aria-hidden="true">
+                      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M7 11v9H4a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3Z" />
+                        <path d="M7 11l4-7a2 2 0 0 1 3.7 1.4L14 9h4.6a2 2 0 0 1 2 2.5l-1.6 6.4A2 2 0 0 1 17 19.5H7" />
+                      </svg>
+                    </span>
+                    <b>Gut gelaufen</b>
+                    <small>Erreicht und einig geworden</small>
+                  </button>
+                  <button type="button" className="ab-urteil-knopf grau" onClick={() => setUrteil("nicht_erreicht")}>
+                    <span className="ab-urteil-zeichen" aria-hidden="true">
+                      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M4.5 3.5h3.6l1.8 4.5-2.3 1.4a12 12 0 0 0 5.5 5.5l1.4-2.3 4.5 1.8v3.6a1.5 1.5 0 0 1-1.7 1.5A16.5 16.5 0 0 1 3 5.2 1.5 1.5 0 0 1 4.5 3.5Z" />
+                        <path d="m3 3 18 18" />
+                      </svg>
+                    </span>
+                    <b>Nicht erreicht</b>
+                    <small>Niemand dran oder Mailbox</small>
+                  </button>
+                  <button type="button" className="ab-urteil-knopf rot" onClick={() => setUrteil("schlecht")}>
+                    <span className="ab-urteil-zeichen" aria-hidden="true">
+                      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M17 13V4h3a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1h-3Z" />
+                        <path d="M17 13l-4 7a2 2 0 0 1-3.7-1.4L10 15H5.4a2 2 0 0 1-2-2.5l1.6-6.4A2 2 0 0 1 7 4.5h10" />
+                      </svg>
+                    </span>
+                    <b>Kein Interesse</b>
+                    <small>Abgelehnt oder falsche Nummer</small>
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* ── STUFE 2: WAS SCHON ERLEDIGT IST — UND WAS NOCH FEHLT ──
+                Justin: „Wenn er bereits einen Termin mit dem Kunden gebucht
+                hat, dann wäre es dumm, wenn wir ihn fragen, wann er einen
+                Termin buchen mag."
+                Was während des Gesprächs passiert ist, wird BESTÄTIGT. Gefragt
+                wird nur nach dem Rest. */}
+            {urteil !== null && (
+              <div className="ab-nach">
+                <button type="button" className="ab-zurueck" onClick={() => { setUrteil(null); setDatumFeld(null); setNotizFuer(null); }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+                  andere Antwort
+                </button>
+                {urteil === "gut" && lage && (lage.hatTermin || lage.hatZusage) && (
+                  <div className="ab-erledigt">
+                    {lage.hatTermin && (
+                      <span><i aria-hidden="true">✓</i>Termin steht: <b>{lage.terminText}</b></span>
+                    )}
+                    {lage.hatZusage && (
+                      <span><i aria-hidden="true">✓</i>Zahlung zugesagt für <b>{lage.zusageText}</b></span>
+                    )}
+                    <small>Das hast du im Gespräch schon erledigt — danach wird nicht mehr gefragt.</small>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {urteil !== null && (
             <p className="fi-tel-karte-text" style={{ marginBottom: 12 }}>
               Ein Klick, dann ist es dokumentiert — Wiedervorlage und Zusage setzt das System selbst.
             </p>
+            )}
             {datumFeld && (
               <input type="date" value={datum} onChange={(e) => setDatum(e.target.value)}
                      aria-label="Datum" className="fi-tel-datum" />
@@ -2869,7 +3039,29 @@ export function Softphone() {
               </p>
             )}
             <div className="fi-tel-ergebnisse">
-              {ergebnisListe.map((e) => (
+              {/* ── DIE LISTE DENKT MIT ────────────────────────────────────
+                  Sie zeigt nur, was zur Antwort passt UND noch offen ist:
+                    · „Gut gelaufen"   → die Erreicht-Ergebnisse. Steht der
+                      Termin schon, fällt „Rückruf vereinbart" weg — genau
+                      Justins Beispiel („dann wäre es dumm, wenn wir ihn
+                      fragen, wann er einen Termin buchen mag"). Steht die
+                      Zusage schon, fällt „Zahlt am …" weg.
+                    · „Nicht erreicht" → nicht erreicht, Mailbox, falsche
+                      Nummer. Alles andere wäre in dieser Lage gelogen.
+                    · „Kein Interesse" → abgelehnt oder blockiert.
+                  Die Liste selbst bleibt die EINE aus shared/ — hier wird nur
+                  gefiltert, nie ergänzt. */}
+              {ergebnisListe.filter((e) => {
+                if (urteil === null) return false;
+                if (kunde?.rateId) return true;   // Forderungsmanagement hat seine eigene Liste
+                if (urteil === "nicht_erreicht") return ["nicht_erreicht", "mailbox", "nummer_falsch"].includes(e.art);
+                if (urteil === "schlecht") return ["erreicht_abgelehnt", "nummer_blockiert", "nummer_falsch"].includes(e.art);
+                // „Gut gelaufen"
+                if (["nicht_erreicht", "mailbox", "nummer_falsch", "nummer_blockiert", "erreicht_abgelehnt"].includes(e.art)) return false;
+                if (e.art === "rueckruf_termin" && lage?.hatTermin) return false;
+                if (e.art === "erreicht_zahlt_am" && lage?.hatZusage) return false;
+                return true;
+              }).map((e) => (
                 <button key={e.art} type="button"
                         onClick={() => {
                           if (e.braucht && datumFeld !== e.braucht) { setDatumFeld(e.braucht); return; }
@@ -2940,7 +3132,7 @@ export function Softphone() {
           </div>
         )}
         </div>
-      </FiaonGeraet>
+      </AnrufBuehne>
 
       {/* ── DIE TAFEL ALS RÜCKFALL, ÜBER DEM GERÄT ───────────────────────
           Der Vorgesetzte: „Es erscheint hinter dem Telefon (da ist alles

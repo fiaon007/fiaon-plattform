@@ -64,6 +64,48 @@
   max-width:1440px;margin:0 auto;padding:10px 28px 0;
 }
 .of-gruss-huelle{min-width:0}
+
+/* ── IN DER KOPFZEILE, NEBEN „OFFICE" (24.08.2026, dritter Anlauf) ──────────
+   Justin: „Das soll dezent in der obigen Leiste stehen, rechts neben dem
+   OFFICE, in dem gleichen STIL wie ‚OFFICE'."
+   Übernommen sind Größe (10,5 px), Gewicht (500), Farbe (#93c5fd) und die
+   Sperrung der OFFICE-Pille. NICHT übernommen sind Versalien und Rahmen: Ein
+   ganzer Satz in Großbuchstaben mit .16em Sperrung wäre über 1.500 px breit
+   und schwer zu lesen — die Pille trägt EIN Wort, hier steht ein Satz.
+   Sie steht in der Kopfzeile nur, solange dort wirklich Platz ist; darunter
+   übernimmt die eigene Zeile. Abgeschnitten wird sie in keinem Fall. */
+.of-gruss-huelle.im-kopf{flex:1 1 auto;min-width:0;margin-left:4px;overflow:hidden}
+.of-gruss-huelle.im-kopf .of-gruss{
+  font:500 10.5px/1.5 'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+  letter-spacing:.09em;white-space:nowrap;overflow:hidden;
+  background:linear-gradient(100deg,
+    #93c5fd 0%, #93c5fd 40%, #eaf3ff 47%, #93c5fd 54%, #93c5fd 100%);
+  background-size:340% 100%;
+}
+.of-gruss-huelle.im-kopf .of-gruss-name{color:#bfdbfe;-webkit-text-fill-color:#bfdbfe}
+
+/* ── DIE SCHWELLEN SIND GEMESSEN, NICHT GERATEN ────────────────────────────
+   Am 24.08.2026 mit dem echten Satz in genau dieser Schrift ausgemessen:
+     ganzer Satz                       856 px
+     ohne den Schlusswunsch            604 px
+     nur Name, Uhrzeit und Zeichen     217 px
+   Der feste Rest der Kopfzeile (Logo, OFFICE-Pille, Präsenz, Bild, Abmelden,
+   Abstände, Innenrand) belegt rund 510 px. Verfügbar ist also Fensterbreite
+   minus 510 — daraus ergeben sich die Grenzen unten. Gekürzt wird immer von
+   HINTEN; der Name bleibt in jedem Fall stehen. */
+.of-grusszeile{display:none}
+/* unter 1400 px: der Schlusswunsch geht (604 px passen bis herunter zu 1200) */
+@media (max-width:1399px){.of-gruss-huelle.im-kopf .of-gruss-wunsch{display:none}}
+/* unter 1200 px: auch der Wetter-Halbsatz; das Zeichen bleibt und sagt dasselbe */
+@media (max-width:1199px){
+  .of-gruss-huelle.im-kopf .of-gruss-wetter{font-size:0;letter-spacing:0}
+  .of-gruss-huelle.im-kopf .of-gruss-wetter .of-gruss-zeichen{font-size:12px;letter-spacing:0}
+}
+/* unter 1100 px: die Kopfzeile ist voll — der Satz zieht in seine eigene Zeile */
+@media (max-width:1099px){
+  .of-gruss-huelle.im-kopf{display:none}
+  .of-grusszeile{display:block}
+}
 .of-gruss{
   display:block;font:300 13px/1.5 'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
   letter-spacing:.005em;

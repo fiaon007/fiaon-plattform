@@ -16,7 +16,7 @@ import {
   twimlAusgehend, wahlProtokoll, wahlPruefen, zugangsAusweis,
   nummerKontingent, nummerWarnungMelden,
 } from "../lib/fiaon-softphone";
-import { dokumentInhalt, dokumentStand, istDokumentArt } from "../lib/fiaon-dokumente";
+import { DOKUMENTE, dokumentInhalt, dokumentStand, istDokumentArt } from "../lib/fiaon-dokumente";
 import { gespraechsblatt } from "../lib/fiaon-gespraechsblatt";
 import { anrufNachbereiten } from "../lib/fiaon-transkript";
 import { ergebnisNachbereiten, istErgebnis } from "../lib/fiaon-kontakt-ergebnis";
@@ -1357,6 +1357,136 @@ router.get("/agent/dokumente/:personId/:art/datei", requireAgent, async (req: Ag
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });
+
+/**
+ * POST /agent/dokumente/:personId/:art/hochladen — der Mitarbeiter lädt HOCH.
+ *
+ * ── WARUM (Justin, 24.08.2026) ────────────────────────────────────────────
+ * „Wenn man die Akte geöffnet hat, unter ‚Dokumente‘ soll auch der Mitarbeiter
+ * für den Kunden was hochladen können (PRAXIS: falls der Kunde es nicht
+ * schafft…)."
+ *
+ * Der gemessene Alltag gibt ihm recht: Viele Kunden schicken den Ausweis als
+ * Handyfoto per WhatsApp oder Mail an den Mitarbeiter, weil sie am Portal
+ * scheitern. Bisher endete das dort — der Mitarbeiter konnte das Dokument
+ * ansehen, aber nicht in die Akte legen. Der Kunde galt weiter als „Unterlagen
+ * fehlen", obwohl sie längst da waren.
+ *
+ * ── DIE GRENZE BLEIBT ─────────────────────────────────────────────────────
+ * HOCHLADEN darf jeder, der den Kunden betreut. ANSEHEN darf weiterhin nur die
+ * Leitung (`darfInhalt`) — das steht so in der Verpflichtungserklärung, die
+ * jeder unterschrieben hat, und ändert sich hier nicht. Der Mitarbeiter legt
+ * das Dokument also ab, ohne es danach im Portal wieder öffnen zu können.
+ * Das ist gewollt: Er hat es ohnehin schon auf dem Telefon.
+ *
+ * ── NACHVOLLZIEHBARKEIT ───────────────────────────────────────────────────
+ * Jeder Upload durch einen Mitarbeiter schreibt eine Zeile in den Verlauf, mit
+ * Name, Dokumentart und Dateigröße. Ein Ausweis, der ohne Zutun des Kunden in
+ * der Akte auftaucht, muss erklärbar sein.
+ */
+router.post(
+  "/agent/dokumente/:personId/:art/hochladen",
+  requireAgent,
+  (req: AgentRequest, res: Response, next) => {
+    // Multer erst hier laden — die Route ist selten, der Speicher liegt im RAM.
+    import("multer")
+      .then(({ default: multer }) => {
+        multer({
+          storage: multer.memoryStorage(),
+          limits: { fileSize: 25 * 1024 * 1024 },
+        }).single("datei")(req as any, res as any, (err: any) => {
+          if (err) {
+            const zuGross = err?.code === "LIMIT_FILE_SIZE";
+            return res.status(400).json({
+              ok: false,
+              error: zuGross
+                ? "Die Datei ist größer als 25 MB. Bitte als PDF oder verkleinertes Foto schicken."
+                : "Die Datei konnte nicht gelesen werden.",
+            });
+          }
+          next();
+        });
+      })
+      .catch(() => res.status(500).json({ ok: false, error: "Upload nicht verfügbar." }));
+  },
+  async (req: AgentRequest, res: Response) => {
+    try {
+      const personId = Number(req.params.personId);
+      const art = String(req.params.art);
+      if (!istDokumentArt(art)) {
+        return res.status(400).json({ ok: false, error: "Unbekannte Dokumentart." });
+      }
+      const rolle = await rolleVon(req.agent!.id);
+      if (!(await darfAnKunde(req.agent!.id, rolle, personId))) {
+        return res.status(403).json({ ok: false, error: "Dieser Kunde wird von jemand anderem betreut." });
+      }
+
+      const datei = (req as any).file as { buffer: Buffer; mimetype: string; originalname: string } | undefined;
+      if (!datei || !datei.buffer?.length) {
+        return res.status(400).json({ ok: false, error: "Es wurde keine Datei mitgeschickt." });
+      }
+
+      // Nur das, was hinterher auch wieder angezeigt werden kann. Eine .docx in
+      // der Ausweisspalte wäre eine Datei, die niemand mehr öffnet.
+      const kopf = datei.buffer.subarray(0, 4);
+      const istPdf = kopf.toString("latin1").startsWith("%PDF");
+      const istJpg = kopf[0] === 0xff && kopf[1] === 0xd8;
+      const istPng = kopf[0] === 0x89 && kopf[1] === 0x50 && kopf[2] === 0x4e && kopf[3] === 0x47;
+      if (!istPdf && !istJpg && !istPng) {
+        return res.status(400).json({
+          ok: false,
+          error: "Nur PDF, JPG oder PNG. Ein Handyfoto genügt, wenn alles lesbar ist.",
+        });
+      }
+
+      const [antrag] = (await sqlPool`
+        SELECT ref FROM fiaon_applications
+        WHERE person_id = ${personId} AND merged_into IS NULL
+        ORDER BY created_at DESC LIMIT 1
+      `) as any[];
+      if (!antrag) {
+        return res.status(400).json({
+          ok: false,
+          error: "Zu diesem Kunden gibt es keine Bestellung — Dokumente hängen an der Bestellung.",
+        });
+      }
+
+      const spalte = DOKUMENTE.find((d) => d.art === art)!.spalte;
+      const label = DOKUMENTE.find((d) => d.art === art)!.label;
+      // Spaltenname kommt aus der festen Liste oben, nicht aus der Anfrage.
+      await sqlPool.unsafe(
+        `UPDATE fiaon_applications
+            SET ${spalte} = $1, documents_uploaded_at = NOW()
+          WHERE ref = $2`,
+        [datei.buffer, antrag.ref],
+      );
+
+      // Hat der Kunde damit alles beisammen? Dann rückt der Antrag weiter —
+      // dieselbe Regel wie beim Upload durch den Kunden selbst.
+      await sqlPool`
+        UPDATE fiaon_applications
+           SET status = 'documents_submitted'
+         WHERE ref = ${antrag.ref}
+           AND bank_statement_pdf IS NOT NULL AND id_card_pdf IS NOT NULL
+           AND status IN ('pending', 'documents_requested')
+      `.catch(() => {});
+
+      const kb = Math.max(1, Math.round(datei.buffer.length / 1024));
+      await sqlPool`
+        INSERT INTO fiaon_contact_log (person_id, agent_id, agent_name, type, note, created_at)
+        VALUES (${personId}, ${req.agent!.id}, ${req.agent!.name}, 'system',
+                ${`${label} für den Kunden hochgeladen (${kb} KB, ${istPdf ? "PDF" : istJpg ? "JPG" : "PNG"}).`},
+                NOW())
+      `.catch(() => {});
+
+      const stand = await dokumentStand({ personId, rolle }, sqlPool);
+      res.json({ ok: true, stand, meldung: `${label} liegt jetzt in der Akte.` });
+    } catch (err) {
+      console.error("[DOK] agent hochladen:", err);
+      res.status(500).json({ ok: false, error: "Serverfehler" });
+    }
+  },
+);
 
 /** POST /dokumente/:personId/anfordern — über die Registry, mit Zustandsprüfung. */
 router.post("/dokumente/:personId/anfordern", requireAgent, async (req: AgentRequest, res: Response) => {

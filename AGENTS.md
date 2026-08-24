@@ -1487,3 +1487,32 @@ verloren** — als Nebenwirkung einer Aufräumarbeit.
 „Wer ist zuständig?" hat eine Antwort je Mensch. „Wen bearbeitet Inkasso?" ist
 eine Menge und darf breiter sein. Wer sie zusammenlegt, kürzt eine Arbeitsliste
 aus Ordnungsliebe.
+
+## Der Rundgang wandert mit (24.08.2026)
+
+Justin: „Sowas wie Zahlungsdaten per WhatsApp muss unbedingt mit aufgenommen
+werden für die Einführung! Denke an sowas IMMER mit! Auch wenn wir was
+verändern, dass es dort dementsprechend abgeändert wird, falls es betroffen
+ist."
+
+**Wer eine Funktion im Office hinzufügt, ändert oder entfernt, zieht im selben
+Zug den Rundgang der betroffenen Seite nach** —
+`client/src/pages/agent/rundgaenge.ts`. Kein Deploy einer sichtbaren Änderung
+ohne diesen Abgleich.
+
+Der Rundgang ist die einzige Einarbeitung, die es gibt: kein Handbuch, keine
+Schulung außerhalb der Academy. Erklärt er einen Knopf, den es nicht mehr gibt,
+oder verschweigt er einen neuen, lernen die Mitarbeiter die Plattform falsch —
+und ein Rundgang, dem man nicht trauen kann, wird weggeklickt. Dann war die
+ganze Arbeit daran umsonst.
+
+Zwei Fallen dabei:
+
+* **Bedingt sichtbare Elemente bekommen KEIN `ziel`.** Der WhatsApp-Knopf
+  erscheint nur bei offener Zahlung und hinterlegter Nummer. Ein `ziel` darauf
+  würde bei allen anderen Kunden einen Scheinwerfer um nichts legen — genau der
+  Fehler, den Justin am 24.08. gemeldet hat. Ohne `ziel` steht die Karte mittig
+  und erklärt trotzdem.
+* **Die Karte darf nie abschneiden.** Sie wird zur Laufzeit ausgemessen und ins
+  Fenster geklemmt (`Rundgang.tsx`); wer dort etwas ändert, prüft es an einem
+  langen Schritt mit Praxis-Kasten auf einem flachen Fenster nach.

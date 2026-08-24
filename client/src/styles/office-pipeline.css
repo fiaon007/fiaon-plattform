@@ -36,9 +36,49 @@
    VORHER lief sie über die volle Spaltenbreite und ging optisch in der
    Seite auf. NACHHER steht sie mittig, mit einer ruhigen Höchstbreite —
    sie ist das eine, was zählt, und sieht auch so aus. */
-.pi-fokus-karte{position:relative;display:grid;gap:12px;padding:30px 32px;border-radius:26px;
-  max-width:760px;margin:0 auto;width:100%;background:rgba(15,23,42,.62);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(22px) saturate(160%);-webkit-backdrop-filter:blur(22px) saturate(160%);box-shadow:0 30px 80px rgba(2,6,23,.5),inset 0 1px 0 rgba(255,255,255,.08);overflow:hidden}
+/* ── 24.08.2026, Justin: „Die Karte MUSS am Handy und am PC mehr zentriert
+   sein vom Display, also weiter nach unten — 3D sein! Die ganze Seite mehr
+   atmen lassen, die Abstände weiter."
+   Drei Dinge zusammen:
+   1. LUFT DAVOR: Die Karte klebte unter der Brotkrume am oberen Rand. Sie
+      bekommt jetzt Vorlauf, der mit dem Fenster wächst (clamp), damit sie in
+      der Fläche schwebt statt oben anzustoßen.
+   2. TIEFE: Der Rahmen bringt eine Perspektive mit, die Karte steht leicht
+      angekippt darin und trägt zwei Schatten übereinander — einen harten
+      nahen und einen weiten weichen. Dazu ein Lichtsaum an der Oberkante.
+      Auf Zeigergeräten neigt sie sich zusätzlich zur Maus (siehe pipeline.tsx,
+      --pi-neig-x/y). Das ist der 3D-Eindruck: nicht ein Bild von 3D, sondern
+      echte Transformationen.
+   3. RUHE: `will-change` und `transform-style` halten die Bewegung flüssig,
+      ohne dass Text unscharf wird. ── */
+.pi-fokus-buehne{perspective:1400px;perspective-origin:50% 30%;
+  padding-top:clamp(18px,7vh,84px);padding-bottom:clamp(10px,3vh,34px)}
+.pi-fokus-karte{position:relative;display:grid;gap:14px;padding:34px 36px;border-radius:28px;
+  max-width:760px;margin:0 auto;width:100%;background:linear-gradient(168deg,rgba(23,37,68,.72),rgba(12,21,44,.68));
+  border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(22px) saturate(165%);-webkit-backdrop-filter:blur(22px) saturate(165%);
+  box-shadow:
+    0 2px 6px rgba(2,6,23,.5),
+    0 18px 40px -12px rgba(2,6,23,.65),
+    0 60px 120px -30px rgba(2,6,23,.75),
+    inset 0 1px 0 rgba(255,255,255,.16),
+    inset 0 -1px 0 rgba(0,0,0,.3);
+  overflow:hidden;transform-style:preserve-3d;will-change:transform;
+  transform:rotateX(var(--pi-neig-x,1.6deg)) rotateY(var(--pi-neig-y,0deg)) translateZ(0);
+  transition:transform .5s cubic-bezier(.2,.8,.2,1),box-shadow .5s ease}
+.pi-fokus-karte:hover{box-shadow:
+    0 2px 6px rgba(2,6,23,.5),
+    0 22px 48px -12px rgba(2,6,23,.7),
+    0 70px 140px -30px rgba(37,99,235,.28),
+    inset 0 1px 0 rgba(255,255,255,.2),
+    inset 0 -1px 0 rgba(0,0,0,.3)}
+/* Der Lichtschein von oben — folgt der Hitzefarbe der Lage. */
 .pi-fokus-karte::before{content:"";position:absolute;inset:-40% -20% auto;height:80%;background:radial-gradient(ellipse at 50% 0%,color-mix(in srgb,var(--hitze,#2563eb) 26%,transparent),transparent 65%);pointer-events:none}
+/* Eine Kante Licht auf der Oberseite: Sie macht aus einer Fläche eine Platte. */
+.pi-fokus-karte::after{content:"";position:absolute;left:12%;right:12%;top:0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(147,197,253,.75),transparent);pointer-events:none}
+@media (prefers-reduced-motion:reduce){
+  .pi-fokus-karte{transform:none;transition:none}
+}
 /* E-048 Nr. 2: VORHER glitt der neue Fokus in .5s herein — NACHHER ~350 ms,
    gleiche Kurve wie das Hinausgleiten (piGeht): ein Atem, kein Nachzügler. */
 .pi-fokus-karte.tief{animation:piTief .35s cubic-bezier(.2,.8,.2,1) both}
@@ -140,6 +180,39 @@
 .pi-knopf.klein{min-height:36px;padding:0 12px;font-size:12px}
 .pi-knopf.gross{min-height:46px;padding:0 20px;font-size:13.5px}
 .pi-knopf.riesig{min-height:56px;padding:0 30px;font-size:16px;border-radius:999px;box-shadow:0 16px 36px rgba(37,99,235,.45)}
+
+/* ── Zahlungsdaten per WhatsApp (24.08.2026) ───────────────────────────────
+   Justin: „mach einen Button, aber irgendwie geil dargestellt!"
+   Er trägt WhatsApps eigenes Grün, damit im Gespräch niemand suchen muss, was
+   der Knopf tut — aber in unserer Machart: Glas, weicher Verlauf, ein leises
+   Leuchten unter dem Zeichen. Das Zeichen sitzt in einem eigenen Kreis, damit
+   es auch neben dem blauen Mail-Knopf sofort als anderer Kanal liest.
+   Bewusst NICHT in Navy: Dies ist der einzige Knopf in der Akte, der den
+   Mitarbeiter aus FIAON heraus in eine fremde App schickt. Das darf man
+   sehen. */
+.pi-knopf.wa{
+  background:linear-gradient(135deg,#128C7E,#25D366);
+  color:#04231c;font-weight:500;
+  border:1px solid rgba(37,211,102,.5);
+  box-shadow:0 16px 36px rgba(18,140,126,.38),inset 0 1px 0 rgba(255,255,255,.35);
+  position:relative;overflow:hidden;
+}
+.pi-knopf.wa::after{
+  /* Ein Lichtstreif, der einmal langsam durchwandert — Bewegung, die auffällt,
+     ohne zu blinken. */
+  content:"";position:absolute;top:0;bottom:0;width:38%;
+  background:linear-gradient(100deg,transparent,rgba(255,255,255,.42),transparent);
+  transform:translateX(-160%);animation:piWaGlanz 4.5s ease-in-out infinite;
+  pointer-events:none;
+}
+@keyframes piWaGlanz{0%,62%{transform:translateX(-160%)}86%,100%{transform:translateX(320%)}}
+.pi-knopf.wa:hover{filter:brightness(1.06)}
+.pi-wa-zeichen{
+  display:grid;place-items:center;width:28px;height:28px;border-radius:50%;
+  background:rgba(255,255,255,.9);color:#128C7E;flex:0 0 28px;
+  box-shadow:0 2px 8px rgba(4,35,28,.28);
+}
+@media (prefers-reduced-motion:reduce){.pi-knopf.wa::after{animation:none;opacity:0}}
 .pi-link{background:none;border:0;padding:0;color:#93c5fd;font:500 12.5px/1 'Inter',sans-serif;cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px}
 .pi-link:disabled{opacity:.5;cursor:default}
 .pi-eingabe{flex:1;min-width:0;min-height:40px;padding:0 12px;border-radius:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);color:#fff;font:400 13px/1.3 'Inter',sans-serif;outline:none}
@@ -269,7 +342,12 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
 /* 24.08.2026: mehr Luft zwischen der Fokus-Karte und dem, was danach
    kommt — vorher 32px, jetzt 52px. Der Blick soll erst bei EINEM
    Kunden landen und dann weiterwandern, nicht alles auf einmal sehen. */
-.pi-arbeit-haupt{display:grid;gap:52px;min-width:0;justify-items:center}
+/* 24.08.2026, zweiter Durchgang (Justin: „die ganze Seite mehr atmen lassen,
+   die Abstände weiter"): Der Abstand wächst jetzt mit dem Fenster mit. Am
+   kleinen Handy bleiben 40 px — mehr wäre dort Scrollen ohne Inhalt; am
+   großen Bildschirm werden daraus bis zu 96 px, und die Seite wirkt nicht
+   mehr wie eine zusammengeschobene Liste. */
+.pi-arbeit-haupt{display:grid;gap:clamp(40px,7vh,96px);min-width:0;justify-items:center}
 .pi-arbeit-haupt > *{width:100%}
 .pi-trenner{display:flex;align-items:center;gap:16px;margin:0 4px}
 .pi-trenner .linie{flex:1;height:1px;background:linear-gradient(90deg,transparent,rgba(96,165,250,.35),transparent)}
@@ -277,7 +355,7 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
 @keyframes piSchimmer{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
 /* Die Leitfäden stehen ganz unten und bekommen Abstand — sie sind
    Nachschlagewerk, nicht Arbeitsschritt (Justin 24.08.). */
-.pi-legende{display:grid;gap:12px;margin-top:44px}
+.pi-legende{display:grid;gap:14px;margin-top:clamp(44px,8vh,110px)}
 .pi-legende-zeile{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .pi-legende-zeile .linie{flex:1;min-width:24px;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.14),transparent)}
 .pi-legende-zeile small{font:500 10px/1 'Inter',sans-serif;letter-spacing:.18em;text-transform:uppercase;color:#64748b}

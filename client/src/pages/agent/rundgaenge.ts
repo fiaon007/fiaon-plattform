@@ -49,6 +49,20 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
     tipp: "Die Akte bleibt während des Telefonats offen. Ändert sich etwas — Adresse, E-Mail, Paket — trägst du es sofort ein.",
   },
   {
+    // 24.08.2026, mit dem WhatsApp-Knopf zusammen angelegt. Justin: „Sowas muss
+    // unbedingt mit aufgenommen werden für die Einführung — denke da IMMER mit."
+    // Es gibt kein Ziel-Element, das immer da ist (der Knopf erscheint nur bei
+    // offener Zahlung und vorhandener Nummer). Ohne `ziel` steht die Karte
+    // mittig und erklärt trotzdem — besser als ein Scheinwerfer auf nichts.
+    titel: "Zahlungsdaten auch per WhatsApp.",
+    text: "Viele Menschen sagen im Gespräch „schicken Sie mir das bitte per WhatsApp“. Frag ruhig "
+      + "selbst danach: „Darf ich Ihnen die Zahlungsdaten per WhatsApp UND per E-Mail schicken?“ Steht "
+      + "eine Zahlung offen, findest du in der Akte einen grünen Knopf „Per WhatsApp“. Er öffnet "
+      + "WhatsApp — am Rechner im Browser, am Telefon in der App — mit der fertigen Nachricht samt "
+      + "Empfänger, IBAN und Verwendungszweck. Abschicken musst du selbst.",
+    tipp: "Beides zu schicken zahlt sich aus: Die Mail ist der Beleg, WhatsApp wird gelesen. Jeder Versand steht danach im Verlauf der Akte.",
+  },
+  {
     ziel: ".pi-trenner",
     titel: "Darunter stehen die, die danach kommen.",
     text: "Deine Arbeitsliste hat immer genau sechs Plätze: zwei Menschen, die eine Zahlung gemeldet "

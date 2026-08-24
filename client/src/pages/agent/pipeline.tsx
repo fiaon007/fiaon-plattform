@@ -895,7 +895,34 @@ function ArbeitsFokus({ k, gruppe, satz, geht, onAkte, onEntfernen }: {
   const [warumAuf, setWarumAuf] = useState(false);
   const faellig = rueckrufFaellig(k);
 
+  // ── DIE KARTE NEIGT SICH ZUM ZEIGER (24.08.2026) ─────────────────────────
+  // Justin: „3D sein!" — Statt eines gemalten 3D-Effekts kippt die Karte
+  // wirklich: Der Zeiger bestimmt zwei Winkel, die als CSS-Variablen an die
+  // `transform` in office-pipeline.css gehen. Die Ausschläge sind klein
+  // (±5°/±7°), sonst wird der Text unruhig statt plastisch.
+  //
+  // Nur auf Geräten mit echtem Zeiger: Am Telefon gibt es kein Schweben, dort
+  // stünde die Karte nach dem ersten Tippen dauerhaft schief. Sie behält dort
+  // die feste leichte Neigung aus dem CSS — Tiefe kommt am Handy aus Schatten
+  // und Lichtkante, nicht aus Bewegung.
+  const buehne = useRef<HTMLDivElement | null>(null);
+  const zeigerDa = useMedia("(hover: hover) and (pointer: fine)");
+  const neigen = (e: React.MouseEvent) => {
+    const el = buehne.current; if (!el || !zeigerDa) return;
+    const r = el.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width - 0.5;    // −0,5 … +0,5
+    const y = (e.clientY - r.top) / r.height - 0.5;
+    el.style.setProperty("--pi-neig-y", `${(x * 7).toFixed(2)}deg`);
+    el.style.setProperty("--pi-neig-x", `${(1.6 - y * 5).toFixed(2)}deg`);
+  };
+  const geradeStellen = () => {
+    const el = buehne.current; if (!el) return;
+    el.style.removeProperty("--pi-neig-y");
+    el.style.removeProperty("--pi-neig-x");
+  };
+
   return (
+    <div className="pi-fokus-buehne" ref={buehne} onMouseMove={neigen} onMouseLeave={geradeStellen}>
     <div className={`pi-fokus-karte kompakt${geht ? " geht" : " tief"}`} style={{ ["--hitze" as string]: faellig ? "#f87171" : st.farbe }}>
       <div className="pi-fokus-kopf">
         <span className="pi-pille">{faellig ? "Rückruf fällig" : "Jetzt anrufen"}</span>
@@ -918,6 +945,7 @@ function ArbeitsFokus({ k, gruppe, satz, geht, onAkte, onEntfernen }: {
         </button>
         <span className="pi-starten-neben">Öffnet die Akte: anrufen, Schritt erledigen, Ergebnis festhalten.</span>
       </div>
+    </div>
     </div>
   );
 }
@@ -1560,6 +1588,65 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
     else melden("schlecht", "Kopieren nicht möglich", "Bitte den Link von Hand übernehmen.");
   };
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ZAHLUNGSDATEN PER WHATSAPP
+  //
+  // Justin, 24.08.2026: „Viele Kunden sagen ja ‚schicken Sie es mir bitte per
+  // WhatsApp' — oder wir könnten sagen ‚darf ich Ihnen die Zahlungsdaten per
+  // WhatsApp UND per Mail senden?'. Mach in der Akte einen Button, und wenn man
+  // drauf klickt, öffnet sich der Chat mit fertig ausgefüllter Nachricht.
+  // Geht das, bis wir WhatsApp selbst anbinden?"
+  //
+  // Ja — und zwar ohne jede Anbindung. `wa.me` ist WhatsApps eigener Klick-zum-
+  // Chatten-Weg: Am Rechner öffnet er WhatsApp Web, am Telefon die App, in
+  // beiden Fällen mit vorgeschriebener Nachricht im Eingabefeld. ABSENDEN muss
+  // der Mitarbeiter selbst — genau richtig so:
+  //   · Es geht nichts ungefragt raus. Der Kunde hat am Telefon zugestimmt,
+  //     der Mitarbeiter tippt auf Senden. Kein automatischer Versand über einen
+  //     Kanal, für den uns die Einwilligung fehlt.
+  //   · Es kostet nichts und braucht keine Freigabe von Meta.
+  //   · Es fällt weg, ohne dass etwas kaputtgeht, sobald die echte Anbindung
+  //     steht — dann ersetzt ein Serveraufruf diesen Link.
+  //
+  // Was hier NICHT passiert: Die Bankdaten werden nicht im Browser erfunden.
+  // Sie kommen aus `k.zahlung`, also aus derselben Serverantwort, aus der auch
+  // die Mail sie nimmt. Zwei Quellen für einen Verwendungszweck wären der Weg
+  // zu Geld, das die Buchhaltung niemandem zuordnen kann.
+  // ═══════════════════════════════════════════════════════════════════════════
+  const waNummer = (k.telefonWaehlbar || "").replace(/[^\d]/g, "");
+  const waText = () => {
+    const vorname = String(k.name || "").trim().split(/\s+/)[0] || "";
+    const daten = k.zahlung?.klartext || [
+      k.zahlung?.empfaenger ? `Empfänger: ${k.zahlung.empfaenger}` : null,
+      k.zahlung?.iban ? `IBAN: ${k.zahlung.iban}` : null,
+      sitRate ? `Betrag: ${eur(sitRate.betragCents)}` : null,
+      `Verwendungszweck: ${sitRate?.referenz ?? k.zahlung?.referenz ?? "siehe Ihre E-Mail"}`,
+    ].filter(Boolean).join("\n");
+    return [
+      `Guten Tag${vorname ? ` ${vorname}` : ""},`,
+      "",
+      "wie eben besprochen hier Ihre Zahlungsdaten:",
+      "",
+      daten,
+      "",
+      "Bitte geben Sie den Verwendungszweck genau so an — dann ist Ihre Zahlung sofort Ihrem Konto zugeordnet.",
+      "",
+      "Freundliche Grüße",
+      "FIAON",
+    ].join("\n");
+  };
+  const perWhatsApp = () => {
+    if (!waNummer) { melden("schlecht", "Keine Nummer", "Ohne Telefonnummer gibt es keinen WhatsApp-Chat. Trag sie unter „Daten“ nach."); return; }
+    // ERST öffnen, DANN protokollieren: Ein `window.open` nach einem `await`
+    // gilt dem Browser nicht mehr als Folge des Klicks und wird geblockt.
+    window.open(`https://wa.me/${waNummer}?text=${encodeURIComponent(waText())}`, "_blank", "noopener,noreferrer");
+    void api(`/agent/crm/kunden/${k.personId}/aktivitaet`, {
+      method: "POST",
+      body: JSON.stringify({ art: "notiz", notiz: "Zahlungsdaten per WhatsApp geöffnet und an den Kunden geschickt." }),
+    }).catch(() => null);
+    melden("info", "WhatsApp geöffnet", "Die Nachricht steht fertig im Chat — abschicken musst du sie selbst.");
+  };
+
   // ── Buchungen wegräumen (POST /agent/buchungen/:ref/archivieren) ────────
   const umschalten = (ref: string) => setAuswahl((v) => { const n = new Set(v); if (n.has(ref)) n.delete(ref); else n.add(ref); return n; });
   const auswahlWegraeumen = async () => {
@@ -1756,12 +1843,29 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
                     <Send size={17} strokeWidth={1.75} /> {laeuft === "rechnung" ? "Sende …" : "Zahlungsdaten senden"}
                   </button>
                 )}
+                {/* Der zweite Weg zum selben Ziel — steht direkt neben der Mail,
+                    weil er im Gespräch direkt nach ihr kommt: „Darf ich Ihnen
+                    das auch per WhatsApp schicken?" */}
+                {(sitArt === "rechnung_offen" || sitArt === "zusage_gebrochen" || sitArt === "rate_offen" || sitArt === "rate_ueberfaellig") && waNummer && (
+                  <button type="button" className="pi-knopf riesig wa" onClick={perWhatsApp}
+                          title={`Öffnet WhatsApp mit fertiger Nachricht an ${k.telefonWaehlbar}`}>
+                    <span className="pi-wa-zeichen" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor">
+                        <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2Zm0 18.13h-.01a8.2 8.2 0 0 1-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.2 8.2 0 0 1-1.26-4.36c0-4.54 3.7-8.24 8.25-8.24 2.2 0 4.27.86 5.83 2.42a8.19 8.19 0 0 1 2.41 5.83c0 4.54-3.7 8.21-8.24 8.21Zm4.52-6.16c-.25-.12-1.47-.72-1.69-.81-.23-.08-.39-.12-.56.13-.16.24-.64.8-.79.97-.14.16-.29.19-.54.06-.25-.12-1.05-.39-1.99-1.23-.74-.66-1.23-1.47-1.38-1.72-.14-.25-.01-.38.11-.5.11-.11.25-.29.37-.43.13-.15.17-.25.25-.41.08-.17.04-.31-.02-.43-.06-.12-.56-1.34-.76-1.84-.2-.48-.4-.42-.56-.43h-.47c-.17 0-.43.06-.66.31-.22.25-.87.85-.87 2.07s.9 2.4 1.02 2.56c.12.17 1.75 2.67 4.25 3.75.59.26 1.06.41 1.42.52.6.19 1.14.16 1.57.1.48-.07 1.47-.6 1.68-1.18.21-.58.21-1.08.14-1.18-.06-.11-.22-.17-.47-.29Z"/>
+                      </svg>
+                    </span>
+                    Per WhatsApp
+                  </button>
+                )}
                 {/* Sekundäres wandert ins „Mehr“-Menü – die Knopf-Wüste ist Geschichte. */}
                 <span className="pi-mehr">
                   <button type="button" className="pi-lade-zu" aria-label="Mehr Aktionen" aria-expanded={mehrOffen} onClick={() => setMehrOffen((v) => !v)}><MoreHorizontal size={18} strokeWidth={1.75} /></button>
                   {mehrOffen && (
                     <span className="pi-mehr-menue" onClick={() => setMehrOffen(false)}>
                       <button type="button" onClick={() => setBestaetigen(true)} disabled={!!sperre}>Zahlungsdaten senden{sperre ? " (gesperrt)" : ""}</button>
+                      {/* Auch hier, damit der Weg in JEDER Lage erreichbar ist —
+                          nicht nur, wenn eine Rechnung offen steht. */}
+                      <button type="button" onClick={perWhatsApp} disabled={!waNummer}>Zahlungsdaten per WhatsApp{waNummer ? "" : " (keine Nummer)"}</button>
                       <button type="button" onClick={() => setTerminOffen(true)}>Termin buchen</button>
                       <button type="button" onClick={() => setProduktOffen(true)}>{buchungen.some((b) => b.offen && b.art === "paket") ? "Produkt tauschen" : "Produkt hinzufügen"}</button>
                       <button type="button" onClick={() => setBlatt(true)}>Gesprächsblatt</button>

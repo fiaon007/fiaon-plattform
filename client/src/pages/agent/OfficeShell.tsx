@@ -117,6 +117,78 @@ function Buehne({ szene }: { szene: string }) {
   );
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE BEGRÜSSUNG IN DER KOPFZEILE
+//
+// Justin, 24.08.2026: „Mach daraus ‚Guten Tag, Justin. Es ist 00:00 Uhr, das
+// Wetter an deinem heutigen Standort ist stürmisch. Wir wünschen dir einen
+// erfolgreichen Tag!' ANIMIERT, mit Farbverlauf, dass es so glänzend wirkt —
+// und perfekt formatiert auf PC und Handy."
+//
+// VORHER stand hier nur „Guten Tag, Justin."
+//
+// Drei Entscheidungen, die den Satz alltagstauglich machen:
+//
+//  1. DER SATZ WÄCHST MIT DEM PLATZ. Am Rechner steht er ganz da. Am Telefon
+//     wäre er drei Zeilen lang und würde die Kopfzeile sprengen — dort bleiben
+//     Gruß, Uhrzeit und Wetterzeichen. Weggelassen wird von hinten, also
+//     zuerst der Wunsch, dann der Wetter-Halbsatz. Nie der Name.
+//  2. DAS WETTER DARF FEHLEN. Antwortet der Dienst nicht, steht der Satz ohne
+//     Wetter da. Ein „—" oder eine Fehlermeldung in der Begrüßung wäre der
+//     unfreundlichste denkbare Empfang.
+//  3. DIE UHR LÄUFT, ABER LEISE. Einmal je Minute, nicht je Sekunde: Eine
+//     Sekundenanzeige in der Kopfzeile zieht den Blick den ganzen Tag lang auf
+//     sich, ohne dass jemand etwas davon hat.
+// ═══════════════════════════════════════════════════════════════════════════
+function Begruessung({ gruss, vorname }: { gruss: string; vorname: string }) {
+  const [uhr, setUhr] = useState(() => new Date());
+  const [wetter, setWetter] = useState<{ wort: string; zeichen: string; grad: number | null } | null>(null);
+
+  useEffect(() => {
+    // Auf die volle Minute einschwenken, damit der Sprung mit der echten Uhr
+    // zusammenfällt und nicht 40 Sekunden daneben liegt.
+    const bisMinute = 60_000 - (Date.now() % 60_000);
+    let takt: number | undefined;
+    const start = window.setTimeout(() => {
+      setUhr(new Date());
+      takt = window.setInterval(() => setUhr(new Date()), 60_000);
+    }, bisMinute);
+    return () => { window.clearTimeout(start); if (takt) window.clearInterval(takt); };
+  }, []);
+
+  useEffect(() => {
+    let tz = "Europe/Berlin";
+    try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || tz; } catch { /* Standard bleibt */ }
+    let an = true;
+    const holen = () => fetch(`/api/fiaon/agent/wetter?tz=${encodeURIComponent(tz)}`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((j) => { if (an && j?.ok && j.wetter) setWetter(j.wetter); })
+      .catch(() => { /* ohne Wetter ist auch gut */ });
+    holen();
+    const i = window.setInterval(holen, 30 * 60_000);
+    return () => { an = false; window.clearInterval(i); };
+  }, []);
+
+  const zeit = uhr.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" });
+
+  return (
+    <div className="of-kopf-titel">
+      <b className="of-gruss">
+        <span className="of-gruss-name">{gruss}, {vorname}.</span>
+        <span className="of-gruss-zeit"> Es ist {zeit} Uhr{wetter ? "," : "."}</span>
+        {wetter && (
+          <span className="of-gruss-wetter">
+            {" "}das Wetter an deinem heutigen Standort ist {wetter.wort}
+            {wetter.grad != null ? ` bei ${wetter.grad} °C` : ""}.
+            <span className="of-gruss-zeichen" aria-hidden="true"> {wetter.zeichen}</span>
+          </span>
+        )}
+        <span className="of-gruss-wunsch"> Wir wünschen dir einen erfolgreichen Tag!</span>
+      </b>
+    </div>
+  );
+}
+
 export function OfficeShell({ children, agent, rolle, zaehler, onRefresh, logout, banner }: {
   children: ReactNode; agent: { name: string; avatar?: string | null; email?: string; rolle?: string }; rolle: string;
   zaehler: Record<string, number>; onRefresh?: () => void; logout: (e: React.MouseEvent) => void; banner?: ReactNode;
@@ -206,7 +278,7 @@ export function OfficeShell({ children, agent, rolle, zaehler, onRefresh, logout
               hervorgehoben ist. Bei „More" las er sich zudem wie ein
               abgeschnittenes Wort. NACHHER bleibt nur die Begrüßung; wo man
               ist, sagt die Leiste. */}
-          <div className="of-kopf-titel"><b>{gruss}, {vorname}.</b></div>
+          <Begruessung gruss={gruss} vorname={vorname} />
           <div className="of-kopf-rechts">
             <div className="of-praesenz" title="Präsenz">
               <span className="punkt" style={{ background: PRAESENZ[praesenz][1] }} />

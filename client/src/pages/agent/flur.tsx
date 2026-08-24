@@ -23,6 +23,23 @@ function FlurInnen() {
   const [leute, setLeute] = useState<any[]>([]);
   const laden = () => api("/agent/flur").then((r) => { if (r.ok) setLeute(r.json.leute || []); });
   useEffect(() => { laden(); const i = setInterval(laden, 60_000); return () => clearInterval(i); }, [praesenz]);
+
+  // ── DIE MARKE MUSS SICHTBAR MACHEN, WO SIE HINZEIGT (24.08.2026) ──────────
+  // Justin: „Hier steht z. B. 4 und dann ist nichts."
+  // GEPRÜFT: Die 4 war richtig — es lagen wirklich vier ungelesene Beiträge im
+  // Team-Feed. Falsch war der WEG: Die Marke sitzt am Menüpunkt „Team", und der
+  // führt auf DIESE Seite (Anwesenheit). Der Feed liegt einen Klick weiter.
+  // Wer also auf die 4 klickte, landete bei „niemand online" und hielt die Zahl
+  // für kaputt.
+  // NACHHER trägt die Karte zum Team-Feed die Zahl selbst — man sieht auf einen
+  // Blick, wo die vier Sachen liegen, und ein Klick räumt sie weg.
+  const [feedNeu, setFeedNeu] = useState(0);
+  useEffect(() => {
+    const holen = () => api("/agent/space/ungelesen").then((r) => { if (r.ok) setFeedNeu(r.json.anzahl || 0); }).catch(() => {});
+    holen();
+    const i = setInterval(holen, 60_000);
+    return () => clearInterval(i);
+  }, []);
   const da = leute.filter((l) => l.status === "da"), tel = leute.filter((l) => l.status === "telefon"), pause = leute.filter((l) => l.status === "pause"), weg = leute.filter((l) => !["da", "telefon", "pause"].includes(l.status));
   const stunde = new Date().getHours();
 
@@ -34,7 +51,12 @@ function FlurInnen() {
           <h1>{da.length + tel.length ? <><span className="fl-verlauf">{da.length + tel.length}</span> {da.length + tel.length === 1 ? "Kollege ist" : "Kollegen sind"} gerade online.</> : <>Gerade ist <span className="fl-verlauf">niemand</span> online.</>}</h1>
           <p>Dein Status steht oben rechts im Kopf: <b>Online</b> oder <b>Pause</b>. Wer abgemeldet ist, ist offline. Wer online ist, bekommt Anrufe vom Empfang und neue Kunden.</p>
         </div>
-        <Link href="/agent/space" className="fl-feed"><b>Team-Feed öffnen</b><span>Ansagen, Fragen, Erfolge</span></Link>
+        <Link href="/agent/space" className={`fl-feed${feedNeu ? " neu" : ""}`}>
+          <b>Team-Feed öffnen{feedNeu > 0 && <em className="fl-feed-marke">{feedNeu}</em>}</b>
+          <span>{feedNeu > 0
+            ? `${feedNeu} ${feedNeu === 1 ? "neuer Beitrag wartet" : "neue Beiträge warten"} – das ist die Zahl am Menüpunkt Team`
+            : "Ansagen, Fragen, Erfolge"}</span>
+        </Link>
       </section>
 
       {[["Online", [...da, ...tel]], ["Pause", pause], ["Offline", weg]].map(([t, l]) => (

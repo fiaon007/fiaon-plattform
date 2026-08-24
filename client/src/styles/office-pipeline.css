@@ -454,6 +454,12 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
 .pi-doku .punkt.da{background:#34d399;box-shadow:0 0 10px rgba(52,211,153,.6)}
 .pi-doku .wer b{display:block;font:500 13.5px/1.3 'Inter',sans-serif;color:#fff}
 .pi-doku .wer small{display:block;margin-top:2px;font-size:12px;color:#9ca3af}
+/* Die Knopfreihe rechts. Das Etikett ist der Knopf: Der Dateidialog steckt in
+   einem unsichtbaren Feld darin, damit der Systemknopf nicht durchschlägt und
+   der Auslöser im CI bleibt. */
+.pi-doku-tun{display:flex;align-items:center;gap:8px;justify-self:end;flex-wrap:wrap}
+.pi-doku-tun label{cursor:pointer;user-select:none}
+.pi-doku-tun label.laedt{opacity:.55;cursor:progress}
 .pi-rate{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:12px 14px;border-radius:14px;background:rgba(248,113,113,.07);border:1px solid rgba(248,113,113,.25)}
 .pi-rate .wer b{display:block;font:500 13.5px/1.3 'Inter',sans-serif;color:#fff;font-variant-numeric:tabular-nums}
 .pi-rate .wer small{display:block;margin-top:2px;font-size:12px;color:#fca5a5}
@@ -496,7 +502,7 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
   .pi-lade-koerper{padding:14px 12px 48px;gap:14px}
   .pi-sek{padding:16px 14px}
   .pi-doku,.pi-rate{grid-template-columns:auto 1fr}
-  .pi-doku a,.pi-rate .pi-reihe{grid-column:1/3}
+  .pi-doku .pi-doku-tun,.pi-rate .pi-reihe{grid-column:1/3}
   .pi-block{padding:14px}
   .pi-form{grid-template-columns:1fr}
   .pi-form label.breit{grid-column:auto}

@@ -1342,6 +1342,9 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
   const [anrufe, setAnrufe] = useState<any[] | null>(null);
   // Dokumente-Stand (lazy)
   const [doku, setDoku] = useState<any | null | "fehlt">(null);
+  // Welche Dokumentart lädt gerade hoch? (Justin 24.08.: Der Mitarbeiter soll
+  // für den Kunden hochladen können, wenn der es selbst nicht schafft.)
+  const [laedtDoku, setLaedtDoku] = useState<string | null>(null);
 
   const zusage = relativ(k.zusagedatum);
   const rueckruf = k.rueckrufAm ? new Date(k.rueckrufAm) : null;
@@ -1383,6 +1386,33 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
       api(`/dokumente/${k.personId}`).then((r) => setDoku(r.ok && r.json.stand ? r.json.stand : "fehlt"));
     }
   }, [reiter, k.personId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Dokument FÜR den Kunden hochladen ──────────────────────────────────────
+  // Bewusst mit `fetch` statt mit dem `api`-Helfer: Der setzt bei vorhandenem
+  // Body „Content-Type: application/json“, und genau dieser Kopf zerstört eine
+  // FormData-Sendung — der Browser muss die Grenzmarke selbst setzen dürfen.
+  async function dokuHochladen(art: string, datei: File) {
+    setLaedtDoku(art);
+    try {
+      const fd = new FormData();
+      fd.append("datei", datei);
+      const res = await fetch(`/api/fiaon/agent/dokumente/${k.personId}/${art}/hochladen`, {
+        method: "POST", credentials: "include", body: fd,
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.ok) {
+        melden("schlecht", "Hochladen fehlgeschlagen", json?.error || "Die Datei kam nicht an.");
+        return;
+      }
+      if (json.stand) setDoku(json.stand);
+      melden("gut", json.meldung || "Dokument liegt in der Akte", "Der Verlauf hält fest, dass du es hochgeladen hast.");
+      await frisch();
+    } catch {
+      melden("schlecht", "Hochladen fehlgeschlagen", "Keine Verbindung zum Server.");
+    } finally {
+      setLaedtDoku(null);
+    }
+  }
 
   // §16: Der Kartenstatus ist überall der Platzhalter, bis der Kunde vollständig ist.
   const vollstaendig = akt?.vollstaendig?.vollstaendig ?? k.vollstaendig ?? false;
@@ -2030,7 +2060,7 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
 
         {/* ═══ DOKUMENTE ═══ */}
         {reiter === "dokumente" && (
-          <Sek titel="Dokumente" erklaer="Was der Kunde hochgeladen hat – Ausweis, Kontoauszug, Auskunft. Zum Prüfen antippen, es öffnet in einem neuen Fenster.">
+          <Sek titel="Dokumente" erklaer="Was zum Kunden vorliegt – Ausweis, Kontoauszug, Auskunft. Schickt der Kunde dir etwas per Mail oder WhatsApp, weil er im Portal nicht weiterkommt, lädst du es hier für ihn hoch.">
             {doku === null && <p className="pi-sek-satz leise">Lade den Stand …</p>}
             {doku === "fehlt" && <p className="pi-sek-satz leise">Zu diesem Kunden liegt noch keine Bestellung mit Unterlagen vor.</p>}
             {doku && doku !== "fehlt" && (
@@ -2039,9 +2069,27 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
                   <div key={d.art} className="pi-doku">
                     <span className={`punkt${d.vorhanden ? " da" : ""}`} aria-hidden="true" />
                     <div className="wer"><b>{d.label}</b><small>{d.vorhanden ? `${d.typ === "bild" ? "Foto" : d.typ === "pdf" ? "PDF" : "Datei"}${d.groesseKb ? ` · ${d.groesseKb} KB` : ""}${d.seit ? ` · seit ${dtag(d.seit)}` : ""}` : d.benoetigt ? "fehlt noch – der Kunde lädt es in seinem Bereich hoch" : "für dieses Paket nicht nötig"}{d.erneutAngefordert ? " · erneut angefordert" : ""}</small></div>
-                    {d.vorhanden && <a className="pi-knopf still klein" href={`/api/fiaon/agent/dokumente/${k.personId}/${d.art}/datei`} target="_blank" rel="noreferrer">Öffnen <ExternalLink size={12} /></a>}
+                    <div className="pi-doku-tun">
+                      {/* Justin 24.08.: „PRAXIS: Falls der Kunde es nicht schafft…“
+                          Das Feld liegt unsichtbar auf dem Etikett – so bleibt der
+                          Knopf im CI und trägt trotzdem den Dateidialog. */}
+                      <label className={`pi-knopf still klein${laedtDoku === d.art ? " laedt" : ""}`}>
+                        {laedtDoku === d.art ? "Lädt …" : d.vorhanden ? "Ersetzen" : "Hochladen"}
+                        <input
+                          type="file" accept="application/pdf,image/jpeg,image/png" hidden
+                          disabled={laedtDoku !== null}
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            e.target.value = "";           // damit dieselbe Datei erneut gewählt werden kann
+                            if (f) void dokuHochladen(d.art, f);
+                          }}
+                        />
+                      </label>
+                      {d.vorhanden && <a className="pi-knopf still klein" href={`/api/fiaon/agent/dokumente/${k.personId}/${d.art}/datei`} target="_blank" rel="noreferrer">Öffnen <ExternalLink size={12} /></a>}
+                    </div>
                   </div>
                 ))}
+                <p className="pi-sek-satz leise">PDF, JPG oder PNG bis 25 MB. Jeder Upload steht mit deinem Namen im Verlauf – ein Ausweis, der ohne Zutun des Kunden in der Akte auftaucht, muss erklärbar bleiben.</p>
                 <p className="pi-sek-satz leise">Vollständig heißt: Paket bezahlt, SCHUFA (74 €) bezahlt, Kontoauszug und Ausweis da – erst dann liegt der Kunde bei FIAON zur Bearbeitung. Stand: {kartenText}.</p>
               </>
             )}

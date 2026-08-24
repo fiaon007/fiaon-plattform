@@ -67,6 +67,56 @@ type Praesenz = "da" | "pause" | "telefon" | "weg";
 const Ctx = createContext<OfficeCtx>({ dunkel: () => {}, titel: () => {}, praesenz: "da", setPraesenz: () => {} });
 export const useOffice = () => useContext(Ctx);
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE BÜHNE — Bild oder Film
+//
+// Justin, 24.08.2026: „Der Hintergrund ist aktuell ein Bild, mach daraus ein
+// Video, dass es cinematischer ist."
+//
+// VORHER: ein festes <img> je Raum. NACHHER: Liegt zum Raum ein Film
+// (/office/<raum>.mp4), läuft er stumm in Schleife; sonst bleibt es beim Bild.
+// Drei Dinge sind dabei absichtlich so gebaut:
+//
+//  1. Das Bild bleibt IMMER darunter liegen und ist das `poster` des Films.
+//     Der Raum ist damit in dem Moment da, in dem die Seite da ist — ein Film
+//     lädt Sekunden, eine Kachel „lädt noch" hinter der Arbeitsfläche wäre
+//     schlechter als das Standbild.
+//  2. Scheitert der Film (kein Netz, altes Gerät, Codec), fällt die Bühne
+//     still auf das Bild zurück. Ein schwarzer Hintergrund wäre der teuerste
+//     Fehler an dieser Stelle, weil die halbe Oberfläche darauf sitzt.
+//  3. Wer „weniger Bewegung" eingestellt hat, bekommt das Standbild. Ein
+//     dauerlaufender Film hinter dem Arbeitsplatz ist genau der Fall, für den
+//     es diese Einstellung gibt.
+// ═══════════════════════════════════════════════════════════════════════════
+const FILM_RAEUME = new Set(["schreibtisch"]);
+
+function Buehne({ szene }: { szene: string }) {
+  const [filmAus, setFilmAus] = useState(false);
+  const wenigerBewegung = useMemo(() => {
+    try { return window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch { return false; }
+  }, []);
+  const mitFilm = FILM_RAEUME.has(szene) && !filmAus && !wenigerBewegung;
+  // Beim Raumwechsel wieder von vorn: Ein Fehler im einen Raum darf den Film
+  // im nächsten nicht dauerhaft abschalten.
+  useEffect(() => { setFilmAus(false); }, [szene]);
+  return (
+    <div className="of-buehne" aria-hidden="true">
+      <img src={`/office/${szene}.jpg`} alt="" decoding="async" />
+      {mitFilm && (
+        <video
+          key={szene}
+          className="of-film"
+          src={`/office/${szene}.mp4`}
+          poster={`/office/${szene}.jpg`}
+          autoPlay muted loop playsInline preload="auto"
+          onError={() => setFilmAus(true)}
+        />
+      )}
+      <div className="of-schleier" />
+    </div>
+  );
+}
+
 export function OfficeShell({ children, agent, rolle, zaehler, onRefresh, logout, banner }: {
   children: ReactNode; agent: { name: string; avatar?: string | null; email?: string; rolle?: string }; rolle: string;
   zaehler: Record<string, number>; onRefresh?: () => void; logout: (e: React.MouseEvent) => void; banner?: ReactNode;
@@ -146,7 +196,7 @@ export function OfficeShell({ children, agent, rolle, zaehler, onRefresh, logout
   return (
     <Ctx.Provider value={ctx}>
       <div className={`of szene-${szene}${dunkel ? " dunkel" : ""}${eingeklappt ? " zu" : ""}`}>
-        <div className="of-buehne" aria-hidden="true"><img src={`/office/${szene}.jpg`} alt="" decoding="async" /><div className="of-schleier" /></div>
+        <Buehne szene={szene} />
         {banner}
         <header className="of-kopf">
           <button type="button" className="of-burger" aria-label="Räume öffnen" onClick={() => setMenueOffen(true)}><Menu size={20} /></button>

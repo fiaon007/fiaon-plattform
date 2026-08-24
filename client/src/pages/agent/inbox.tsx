@@ -19,6 +19,7 @@
 //
 //   Übersicht   GET /agent/inbox/uebersicht?filter=&suche=&tage=&seite=
 //   Kunde       GET /agent/inbox/kunde/:personId
+//   IT melden   POST /agent/inbox/post/:mailId/it-melden
 //   Antworten   POST /agent/tickets/:id/antwort        (bestehende Route)
 //   Standardmail GET/POST /agent/mail/:personId[/:event] (bestehende Routen)
 //   Schreiben   /mail/zentrale/{gruppen,suche,vorschau,senden,test,ki}
@@ -29,12 +30,25 @@
 // Schreiben laufen in einer Lade von rechts. Am Handy ist die Lade der ganze
 // Bildschirm — damit entfällt die alte Zwei-Ebenen-Krücke mit dem versteckten
 // Zurück-Knopf.
+//
+// ── NACHTRAG 24.08.2026 (Auftrag Justin, zweite Runde) ─────────────────────
+// Zwei Befunde aus Justins Bildschirmfoto sind hier eingearbeitet; die
+// ausführliche Begründung steht bei den beiden Laden weiter unten:
+//   · Beide Laden hängen jetzt per createPortal an <body>. Vorher lagen sie
+//     im Stapel-Kontext von .of-grund (z-index: 1) und damit unter dem
+//     Office-Kopf — die Lade war oben abgeschnitten.
+//   · Die Kundenlade ist neu gebaut: schmaler, ohne Reiter, als EIN Strang
+//     Gesprächsverlauf statt fünf Abschnitten. Sie soll sich beim Öffnen
+//     hörbar anders anfühlen als die Kunden-Akte.
+//   · Eine unzustellbare Mail hat einen Ausweg bekommen: den Knopf
+//     „Problem an die IT melden".
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "wouter";
 import {
   Mail, PenLine, Search, X, Sparkles, Users, Check, FolderOpen, Phone, PhoneMissed,
-  MessageSquare, AlertTriangle, RefreshCw, Send, PhoneIncoming, PhoneOutgoing,
+  MessageSquare, AlertTriangle, RefreshCw, Send, PhoneIncoming, PhoneOutgoing, LifeBuoy,
 } from "lucide-react";
 import { AgentShell, api, fmtD, fmtDT, useAgentInfo, useFragen } from "./shared";
 import { useOffice } from "./OfficeShell";
@@ -309,16 +323,96 @@ function KundenKarte({ k, onOeffnen }: { k: KundenZeile; onOeffnen: () => void }
   );
 }
 
-// ───────────────────────────────────────────────────────────────────────────
-// Die Lade: ein Kunde, alles was ihn betrifft
-// ───────────────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE LADE: EIN MENSCH, SEIN VERLAUF
+//
+// ── VORHER (24.08.2026 früh) ───────────────────────────────────────────────
+// Die Lade war eine zweite Akte: 720 px breit, ein Kopf mit vier Angaben,
+// darunter fünf Abschnitte mit Überschriften („Zu beantworten",
+// „Rückruf-Wünsche", „Anrufe", „Post an diesen Kunden", „Frühere Anliegen"),
+// jeder Abschnitt seine eigene Kästchenwelt. Zwei Dinge stimmten nicht:
+//   1. SIE WAR OBEN ABGESCHNITTEN. Justins Bildschirmfoto beginnt mitten im
+//      Text, der Name fehlt. Ursache ist nicht die Lade, sondern ihr Ort im
+//      Baum: Sie wurde innerhalb von .of-grund gerendert, und das Element
+//      trägt z-index: 1 — ein eigener Stapel-Kontext. Alles darin liegt
+//      geschlossen UNTER dem Office-Kopf (.of-kopf, z-index 30), egal wie
+//      hoch die Lade selbst zählt. Derselbe Fehler war schon dreimal an der
+//      Kunden-Akte gemeldet.
+//   2. SIE SAH AUS WIE DIE AKTE. Justin: „es soll nicht aussehen wie die
+//      Akte, sondern anders."
+//
+// ── NACHHER (Auftrag Justin, 24.08.2026) ───────────────────────────────────
+// · ORT: createPortal an document.body. Die Lade hat damit ihren eigenen
+//   Stapel-Kontext und kann von keinem Kopf mehr überdeckt werden. Vorbilder:
+//   bestand.tsx, collections.tsx, FiaonEbene.tsx.
+// · FORM: bewusst NICHT die Akte. Die Akte ist eine breite Lade mit Reitern.
+//   Diese hier ist SCHMAL (560 statt 760), hat KEINE Reiter und liest sich als
+//   Gesprächsverlauf: oben in einer Zeile, wer da ist (Name, Paket, betreut
+//   seit), darunter EIN Strang aus ruhigen Karten am Zeitfaden, das Neueste
+//   zuerst. Anliegen, Anrufe, Rückrufe und Post stehen nicht mehr in fünf
+//   Schubladen, sondern nacheinander — so, wie es dem Kunden passiert ist.
+// · GEWICHT: nur 300/400/500, keine 700er, keine Kästen um Kästen. Abstände
+//   kommen aus grid+gap.
+// · KOPF: sitzt fest (flex-Spalte, der Körper darunter rollt) — der Name
+//   verschwindet beim Scrollen nicht.
+//
+// ── EINE BEGRÜNDETE ABWEICHUNG ─────────────────────────────────────────────
+// Streng chronologisch würde ein seit fünf Tagen offenes Anliegen unter die
+// Automatikpost von heute Morgen rutschen — genau das, was der Mitarbeiter
+// suchen muss, läge am weitesten unten. Deshalb EIN Strang, aber in zwei
+// Abschnitten mit je einer Haarlinien-Zeile: erst „Liegt an", dann „Was
+// bisher geschah", beide für sich nach Zeit sortiert. Das sind keine Reiter
+// und keine Kästen — nur zwei Wörter im Faden.
+// ═══════════════════════════════════════════════════════════════════════════
+interface PostZeile {
+  id: number; titel: string; betreff: string | null; status: string; grund: string | null;
+  zustellung: string | null; empfaenger: string | null; am: string; von: string; vonMir: boolean;
+  kaputt: boolean; itGemeldet: boolean;
+}
 interface KundenDaten {
-  kunde: { personId: number; name: string; email: string | null; telefon: string | null; telefonWaehlbar: string | null; telefonHinweis: string | null; ref: string | null; betreutSeit: string | null };
+  kunde: { personId: number; name: string; email: string | null; telefon: string | null; telefonWaehlbar: string | null; telefonHinweis: string | null; ref: string | null; betreutSeit: string | null; paket: string | null };
   anliegen: { id: number; betreff: string; text: string; status: string; antwort: string | null; beantwortetAm: string | null; am: string }[];
   anrufe: { id: number; richtung: string; status: string; am: string | null; dauer: number; ergebnis: string | null; notiz: string | null; nummer: string | null }[];
   rueckrufe: { id: number; anliegen: string; kontakt: string | null; quelle: string; fristBis: string | null; erledigtAm: string | null; notiz: string | null; am: string }[];
-  post: { id: number; titel: string; betreff: string | null; status: string; grund: string | null; zustellung: string | null; empfaenger: string | null; am: string; von: string; vonMir: boolean }[];
+  post: PostZeile[];
   zustellText: Record<string, string>;
+}
+
+/** Eine Karte im Strang – mehr braucht eine Zeile Lebenslauf nicht. */
+interface Eintrag {
+  schluessel: string;
+  am: string | null;
+  dran: boolean;
+  ton: "" | "bernstein" | "rot";
+  zeichen: ReactNode;
+  titel: string;
+  unter: string | null;
+  text?: string | null;
+  aktion?: ReactNode;
+}
+
+/**
+ * Escape schließt, der Hintergrund rollt nicht mit.
+ *
+ * Seit die Laden per Portal an <body> hängen, muss BEIDES gesperrt werden:
+ * #root trägt im Office das Rollen, body wäre sonst der zweite Weg.
+ */
+function useLadeSperre(onZu: () => void) {
+  const zuRef = useRef(onZu); zuRef.current = onZu;
+  useEffect(() => {
+    const zu = (e: KeyboardEvent) => { if (e.key === "Escape") zuRef.current(); };
+    window.addEventListener("keydown", zu);
+    const r = document.getElementById("root");
+    const vorherRoot = r?.style.overflow ?? "";
+    const vorherBody = document.body.style.overflow;
+    if (r) r.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", zu);
+      if (r) r.style.overflow = vorherRoot;
+      document.body.style.overflow = vorherBody;
+    };
+  }, []);
 }
 
 function KundenLade({ personId, nameVorab, rolle, onZu, onGeaendert, onSchreiben }: {
@@ -336,165 +430,169 @@ function KundenLade({ personId, nameVorab, rolle, onZu, onGeaendert, onSchreiben
     setDaten(r.json as KundenDaten);
   }, [personId]);
   useEffect(() => { void laden(); }, [laden]);
-
-  // Escape schließt, der Hintergrund scrollt nicht mit.
-  const zuRef = useRef(onZu); zuRef.current = onZu;
-  useEffect(() => {
-    const zu = (e: KeyboardEvent) => { if (e.key === "Escape") zuRef.current(); };
-    window.addEventListener("keydown", zu);
-    const r = document.getElementById("root"); const vorher = r?.style.overflow ?? ""; if (r) r.style.overflow = "hidden";
-    return () => { window.removeEventListener("keydown", zu); if (r) r.style.overflow = vorher; };
-  }, []);
+  useLadeSperre(onZu);
 
   const k = daten?.kunde;
   const name = k?.name || nameVorab;
-  const offeneAnliegen = (daten?.anliegen || []).filter((a) => a.status === "offen");
-  const offeneRueckrufe = (daten?.rueckrufe || []).filter((r) => !r.erledigtAm);
+  const gut = useCallback((text: string) => { setMeldung({ art: "gut", text }); void laden(); onGeaendert(); }, [laden, onGeaendert]);
+  const schlecht = useCallback((text: string) => setMeldung({ art: "schlecht", text }), []);
 
-  return (
+  // ── Der Strang ───────────────────────────────────────────────────────────
+  // Vier Quellen werden zu EINER Liste. Was noch anliegt, trägt seine
+  // Handlung gleich bei sich – man muss nirgendwo hinspringen.
+  const eintraege = useMemo<Eintrag[]>(() => {
+    if (!daten) return [];
+    const l: Eintrag[] = [];
+
+    for (const a of daten.anliegen) {
+      const offen = a.status === "offen";
+      l.push({
+        schluessel: `t${a.id}`, am: a.am, dran: offen, ton: offen ? "rot" : "",
+        zeichen: <MessageSquare size={14} strokeWidth={1.75} />,
+        titel: a.betreff,
+        unter: offen ? "Anliegen aus dem Kundenbereich – wartet auf deine Antwort."
+          : a.beantwortetAm ? `Beantwortet ${seit(a.beantwortetAm)}` : "Anliegen aus dem Kundenbereich",
+        text: a.text,
+        aktion: offen
+          ? <AnliegenAntwort a={a} onFertig={gut} onFehler={schlecht} />
+          : a.antwort ? <p className="iv-antwort">{a.antwort}</p> : undefined,
+      });
+    }
+
+    for (const r of daten.rueckrufe) {
+      const offen = !r.erledigtAm;
+      l.push({
+        schluessel: `r${r.id}`, am: r.am, dran: offen, ton: offen ? "bernstein" : "",
+        zeichen: <Phone size={14} strokeWidth={1.75} />,
+        titel: offen ? `Rückruf ${r.fristBis ? `bis ${fmtDT(r.fristBis)}` : "zugesagt"}` : "Rückruf erledigt",
+        unter: [`aufgenommen über ${r.quelle}`, r.kontakt ? `erreichbar unter ${r.kontakt}` : null, r.notiz].filter(Boolean).join(" · "),
+        text: r.anliegen,
+        aktion: offen && k?.telefonWaehlbar
+          ? <button type="button" className="in-knopf klein" onClick={() => anrufen(k.telefonWaehlbar, personId, name)}><Phone size={14} strokeWidth={1.75} /> Jetzt zurückrufen</button>
+          : undefined,
+      });
+    }
+
+    for (const c of daten.anrufe) {
+      const rein = c.richtung === "eingehend";
+      const verpasst = rein && c.status === "verpasst";
+      l.push({
+        schluessel: `c${c.id}`, am: c.am, dran: false, ton: verpasst ? "bernstein" : "",
+        zeichen: verpasst ? <PhoneMissed size={14} strokeWidth={1.75} /> : rein ? <PhoneIncoming size={14} strokeWidth={1.75} /> : <PhoneOutgoing size={14} strokeWidth={1.75} />,
+        titel: verpasst ? "Angerufen, niemanden erreicht" : rein ? "Eingehendes Gespräch" : "Ausgehender Anruf",
+        unter: [c.nummer, c.dauer > 0 ? `${Math.round(c.dauer / 60)} Min` : null, c.ergebnis, c.notiz].filter(Boolean).join(" · ") || c.status,
+      });
+    }
+
+    for (const p of daten.post) {
+      const nichtRaus = p.status !== "versandt";
+      const stand = nichtRaus ? `nicht verschickt${p.grund ? ` – ${p.grund}` : ""}`
+        : p.zustellung ? (daten.zustellText?.[p.zustellung] ?? p.zustellung) : "versandt";
+      l.push({
+        schluessel: `m${p.id}`, am: p.am,
+        // Nur die unzustellbare Post „liegt an" – ein Versand, der schlicht
+        // nicht losging, ist Sache der Automatik, nicht des Betreuers.
+        dran: p.kaputt, ton: p.kaputt ? "bernstein" : nichtRaus ? "bernstein" : "",
+        zeichen: p.kaputt || nichtRaus ? <AlertTriangle size={14} strokeWidth={1.75} /> : <Mail size={14} strokeWidth={1.75} />,
+        titel: p.betreff || p.titel,
+        unter: [p.titel, stand, p.vonMir ? "von dir" : p.von, p.empfaenger].filter(Boolean).join(" · "),
+        aktion: p.kaputt
+          ? <ItMelden mailId={p.id} schonGemeldet={p.itGemeldet} onFertig={gut} onFehler={schlecht} />
+          : undefined,
+      });
+    }
+
+    const zeit = (v: string | null) => (v ? new Date(v).getTime() : 0);
+    return l.sort((a, b) => zeit(b.am) - zeit(a.am));
+  }, [daten, k?.telefonWaehlbar, personId, name, gut, schlecht]);
+
+  const liegtAn = eintraege.filter((e) => e.dran);
+  const geschehen = eintraege.filter((e) => !e.dran);
+
+  return createPortal(
     <>
-      <div className="in-lade-hintergrund" onClick={onZu} role="presentation" />
-      <aside className="in-lade" role="dialog" aria-modal="true" aria-label={`Posteingang von ${name}`}>
-        <div className="in-lade-kopf">
-          <div style={{ minWidth: 0 }}>
-            <span className="ueber">Kunde</span>
-            <h2>{name}</h2>
-            <span className="unter">
-              {[k?.email, k?.telefon, k?.ref, k?.betreutSeit ? `betreut seit ${fmtD(k.betreutSeit)}` : null].filter(Boolean).join(" · ") || "Wird geladen …"}
-            </span>
+      <div className="iv-schleier" onClick={onZu} role="presentation" />
+      <aside className="iv" role="dialog" aria-modal="true" aria-label={`Verlauf von ${name}`}>
+        {/* Der feste Teil: Wer da ist und was man mit ihm tun kann. */}
+        <header className="iv-fest">
+          <div className="iv-kopf">
+            <div className="iv-wer">
+              <span className="iv-ueber">Verlauf</span>
+              <h2>{name}</h2>
+              <p className="iv-unter">
+                {daten
+                  ? [k?.paket, k?.betreutSeit ? `betreut seit ${fmtD(k.betreutSeit)}` : null, k?.ref].filter(Boolean).join(" · ") || "Keine Zuordnung hinterlegt."
+                  : "Wird geladen …"}
+              </p>
+              {daten && (k?.email || k?.telefon) && (
+                <p className="iv-still">{[k?.email, k?.telefon].filter(Boolean).join(" · ")}</p>
+              )}
+            </div>
+            <button type="button" className="iv-zu" onClick={onZu} aria-label="Schließen"><X size={18} /></button>
           </div>
-          <button type="button" className="in-lade-zu" onClick={onZu} aria-label="Schließen"><X size={18} /></button>
-        </div>
+          <div className="iv-tun">
+            {/* Solange nichts geladen ist, steht hier NICHT „Keine Nummer" — das
+                wäre eine Behauptung über etwas, das noch niemand nachgesehen hat. */}
+            {k?.telefonWaehlbar
+              ? <button type="button" className="in-knopf still klein" onClick={() => anrufen(k.telefonWaehlbar, personId, name)}><Phone size={14} strokeWidth={1.75} /> Anrufen</button>
+              : <button type="button" className="in-knopf still klein" disabled title={k?.telefonHinweis || "Keine wählbare Nummer hinterlegt."}><Phone size={14} strokeWidth={1.75} /> {daten ? "Keine Nummer" : "Anrufen"}</button>}
+            <button type="button" className="in-knopf still klein" disabled={!k?.email}
+              onClick={() => k?.email && onSchreiben({ personId, name, email: k.email, extern: false })}>
+              <PenLine size={14} strokeWidth={1.75} /> Mail schreiben
+            </button>
+            {rolle !== "inkasso" && <Link href={`/agent/kunden?person=${personId}`} className="in-knopf still klein"><FolderOpen size={14} strokeWidth={1.75} /> Akte</Link>}
+            <Vorlagen personId={personId} name={name} onGesendet={(text, ok) => (ok ? gut(text) : schlecht(text))} />
+          </div>
+        </header>
 
-        <div className="in-lade-tun">
-          {/* Solange nichts geladen ist, steht hier NICHT „Keine Nummer" — das
-              wäre eine Behauptung über etwas, das noch niemand nachgesehen hat. */}
-          {k?.telefonWaehlbar
-            ? <button type="button" className="in-knopf klein" onClick={() => anrufen(k.telefonWaehlbar, personId, name)}><Phone size={14} strokeWidth={1.75} /> Anrufen</button>
-            : <button type="button" className="in-knopf klein still" disabled title={k?.telefonHinweis || "Keine wählbare Nummer hinterlegt."}><Phone size={14} strokeWidth={1.75} /> {daten ? "Keine Nummer" : "Anrufen"}</button>}
-          <button type="button" className="in-knopf still klein" disabled={!k?.email}
-            onClick={() => k?.email && onSchreiben({ personId, name, email: k.email, extern: false })}>
-            <PenLine size={14} strokeWidth={1.75} /> Mail schreiben
-          </button>
-          {rolle !== "inkasso" && <Link href={`/agent/kunden?person=${personId}`} className="in-knopf still klein"><FolderOpen size={14} strokeWidth={1.75} /> Akte öffnen</Link>}
-        </div>
-
-        <div className="in-lade-koerper">
+        <div className="iv-koerper">
           {fehler && <p className="in-fehler">{fehler} <button type="button" className="in-link" onClick={() => void laden()}>Erneut</button></p>}
           {meldung && <p className={`in-meldung ${meldung.art === "schlecht" ? "schlecht" : ""}`}>{meldung.text}</p>}
           {!daten && !fehler && <p className="in-laedt">Anliegen, Anrufe und Post werden geladen …</p>}
 
-          {daten && (
+          {daten && eintraege.length === 0 && (
+            <p className="in-laedt">Mit diesem Kunden ist noch nichts passiert: kein Anliegen, kein Anruf, keine Post.</p>
+          )}
+
+          {liegtAn.length > 0 && (
             <>
-              {offeneAnliegen.length > 0 && (
-                <section className="in-abschnitt">
-                  <p className="titel">Zu beantworten</p>
-                  {offeneAnliegen.map((a) => (
-                    <Anliegen key={a.id} a={a} onFertig={(text) => { setMeldung({ art: "gut", text }); void laden(); onGeaendert(); }}
-                      onFehler={(text) => setMeldung({ art: "schlecht", text })} />
-                  ))}
-                </section>
-              )}
-
-              {offeneRueckrufe.length > 0 && (
-                <section className="in-abschnitt">
-                  <p className="titel">Rückruf-Wünsche</p>
-                  {offeneRueckrufe.map((r) => (
-                    <div key={r.id} className="in-block dringend">
-                      <div className="kopf">
-                        <b>Rückruf {r.fristBis ? `bis ${fmtDT(r.fristBis)}` : "offen"}</b>
-                        <em>{seit(r.am)}</em>
-                      </div>
-                      <p className="text">{r.anliegen}</p>
-                      <p className="in-hinweis">Aufgenommen über {r.quelle}{r.kontakt ? ` · erreichbar unter ${r.kontakt}` : ""}. Abgehakt wird der Rückruf im Aufgaben-Raum, sobald du das Ergebnis notierst.</p>
-                      {k?.telefonWaehlbar && (
-                        <div className="tun">
-                          <button type="button" className="in-knopf klein" onClick={() => anrufen(k.telefonWaehlbar, personId, name)}><Phone size={14} strokeWidth={1.75} /> Jetzt zurückrufen</button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </section>
-              )}
-
-              <Vorlagen personId={personId} name={name} onGesendet={(text, gut) => { setMeldung({ art: gut ? "gut" : "schlecht", text }); void laden(); onGeaendert(); }} />
-
-              {daten.anrufe.length > 0 && (
-                <section className="in-abschnitt">
-                  <p className="titel">Anrufe</p>
-                  <div>
-                    {daten.anrufe.map((c) => {
-                      const rein = c.richtung === "eingehend";
-                      const verpasst = rein && c.status === "verpasst";
-                      return (
-                        <div key={c.id} className="in-zeile">
-                          <i style={verpasst ? { color: "#fbbf24" } : undefined}>
-                            {verpasst ? <PhoneMissed size={15} strokeWidth={1.75} /> : rein ? <PhoneIncoming size={15} strokeWidth={1.75} /> : <PhoneOutgoing size={15} strokeWidth={1.75} />}
-                          </i>
-                          <b>{verpasst ? "Angerufen, nicht erreicht" : rein ? "Eingehendes Gespräch" : "Ausgehender Anruf"}</b>
-                          <em>{c.am ? fmtDT(c.am) : "ohne Zeit"}</em>
-                          <small className={verpasst ? "schlecht" : ""}>
-                            {[c.nummer, c.dauer > 0 ? `${Math.round(c.dauer / 60)} Min` : null, c.ergebnis, c.notiz].filter(Boolean).join(" · ") || c.status}
-                          </small>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </section>
-              )}
-
-              <section className="in-abschnitt">
-                <p className="titel">Post an diesen Kunden</p>
-                {daten.post.length === 0 && <p className="in-leer">An diesen Kunden ging noch nichts raus.</p>}
-                <div>
-                  {daten.post.map((p) => {
-                    const kaputt = ["gebounct", "blockiert", "spam", "fehler"].includes(String(p.zustellung));
-                    const nichtRaus = p.status !== "versandt";
-                    const stand = nichtRaus ? `nicht verschickt${p.grund ? ` – ${p.grund}` : ""}`
-                      : p.zustellung ? (daten.zustellText?.[p.zustellung] ?? p.zustellung) : "versandt";
-                    return (
-                      <div key={p.id} className="in-zeile">
-                        <i style={kaputt || nichtRaus ? { color: "#fbbf24" } : undefined}>
-                          {kaputt || nichtRaus ? <AlertTriangle size={15} strokeWidth={1.75} /> : <Mail size={15} strokeWidth={1.75} />}
-                        </i>
-                        <b>{p.betreff || p.titel}</b>
-                        <em>{fmtDT(p.am)}</em>
-                        <small className={kaputt || nichtRaus ? "schlecht" : p.zustellung === "geoeffnet" || p.zustellung === "geklickt" ? "gut" : ""}>
-                          {p.titel} · {stand} · {p.vonMir ? "von dir" : p.von}{p.empfaenger ? ` · ${p.empfaenger}` : ""}
-                        </small>
-                      </div>
-                    );
-                  })}
-                </div>
-                {daten.post.some((p) => ["gebounct", "blockiert", "spam", "fehler"].includes(String(p.zustellung))) && (
-                  <p className="in-hinweis">
-                    Kommt Post nicht an, hilft kein zweiter Versand: Die Adresse muss in der Akte berichtigt werden – oder du rufst an und fragst nach der richtigen.
-                  </p>
-                )}
-              </section>
-
-              {daten.anliegen.filter((a) => a.status !== "offen").length > 0 && (
-                <section className="in-abschnitt">
-                  <p className="titel">Frühere Anliegen</p>
-                  {daten.anliegen.filter((a) => a.status !== "offen").map((a) => (
-                    <div key={a.id} className="in-block">
-                      <div className="kopf"><b>{a.betreff}</b><em>{fmtDT(a.am)}</em></div>
-                      <p className="text">{a.text}</p>
-                      {a.antwort && <p className="antwort">Antwort{a.beantwortetAm ? ` vom ${fmtDT(a.beantwortetAm)}` : ""}: {a.antwort}</p>}
-                    </div>
-                  ))}
-                </section>
-              )}
+              <p className="iv-faden-titel">Liegt an</p>
+              <ol className="iv-strang">{liegtAn.map((e) => <StrangKarte key={e.schluessel} e={e} />)}</ol>
+            </>
+          )}
+          {geschehen.length > 0 && (
+            <>
+              {liegtAn.length > 0 && <p className="iv-faden-titel">Was bisher geschah</p>}
+              <ol className="iv-strang">{geschehen.map((e) => <StrangKarte key={e.schluessel} e={e} />)}</ol>
             </>
           )}
         </div>
       </aside>
-    </>
+    </>,
+    document.body,
+  );
+}
+
+/** Eine ruhige Karte am Zeitfaden. Kein Rahmen um jeden Preis – Luft und ein Punkt. */
+function StrangKarte({ e }: { e: Eintrag }) {
+  return (
+    <li className={`iv-punkt${e.dran ? " dran" : ""}${e.ton ? ` ${e.ton}` : ""}`}>
+      <span className="iv-zeichen" aria-hidden="true">{e.zeichen}</span>
+      <div className="iv-inhalt">
+        <p className="iv-erste">
+          <b>{e.titel}</b>
+          <em title={e.am ? fmtDT(e.am) : undefined}>{e.am ? seit(e.am) : "ohne Zeit"}</em>
+        </p>
+        {e.unter && <p className="iv-zweite">{e.unter}</p>}
+        {e.text && <p className="iv-text">{e.text}</p>}
+        {e.aktion && <div className="iv-aktion">{e.aktion}</div>}
+      </div>
+    </li>
   );
 }
 
 // ── Ein offenes Anliegen beantworten ───────────────────────────────────────
-function Anliegen({ a, onFertig, onFehler }: {
+function AnliegenAntwort({ a, onFertig, onFehler }: {
   a: { id: number; betreff: string; text: string; am: string };
   onFertig: (text: string) => void; onFehler: (text: string) => void;
 }) {
@@ -516,22 +614,87 @@ function Anliegen({ a, onFertig, onFehler }: {
   };
 
   return (
-    <div className="in-block dringend">
-      <div className="kopf"><b>{a.betreff}</b><em>{seit(a.am)}</em></div>
-      <p className="text">{a.text}</p>
-      <textarea className="in-feld" rows={4} value={antwort} onChange={(e) => setAntwort(e.target.value)}
+    <>
+      <textarea className="in-feld" rows={3} value={antwort} onChange={(e) => setAntwort(e.target.value)}
         placeholder="Antwort an den Kunden – er liest sie in seinem Kundenbereich." aria-label="Antwort" />
-      <div className="tun">
+      <div className="iv-reihe">
         <button type="button" className="in-knopf klein" disabled={busy || antwort.trim().length < 2} onClick={() => void senden()}>
           <Send size={14} strokeWidth={1.75} /> {busy ? "…" : "Antwort senden"}
         </button>
-        <label className="in-hinweis" style={{ display: "inline-flex", alignItems: "center", gap: 8, minHeight: 44, cursor: "pointer" }}>
-          <input type="checkbox" checked={erledigt} onChange={(e) => setErledigt(e.target.checked)} style={{ width: 18, height: 18, accentColor: "#2563eb" }} />
+        <label className="iv-haken">
+          <input type="checkbox" checked={erledigt} onChange={(e) => setErledigt(e.target.checked)} />
           und damit erledigt
         </label>
       </div>
-      <p className="in-hinweis">Die Antwort steht danach auch im Verlauf der Akte – der nächste Kollege findet sie dort.</p>
-    </div>
+    </>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// „Problem an die IT melden" (24.08.2026, Auftrag Justin)
+//
+// VORHER endete eine unzustellbare Mail mit einem Rat ohne Knopf. NACHHER
+// gibt es einen Ausweg: ein Klick legt beim Betreiber eine Meldung im Bereich
+// „technik" an. Was die IT braucht — Kunde, Mail-Art, Adresse, Zeitpunkt,
+// Fehlertext aus dem Zustellprotokoll — schreibt der SERVER hinein; der
+// Mitarbeiter tippt nichts ab und darf höchstens einen Satz ergänzen.
+//
+// Doppelte Meldungen sind auf drei Ebenen ausgeschlossen: Der Knopf ist
+// während des Sendens gesperrt, nach dem Senden steht dort „gemeldet", und
+// selbst ein Klick aus einem zweiten Fenster legt nichts Neues an — der
+// Schlüssel der Meldung kommt aus der Kennung der Protokollzeile und ist in
+// der Tabelle eindeutig.
+// ═══════════════════════════════════════════════════════════════════════════
+function ItMelden({ mailId, schonGemeldet, onFertig, onFehler }: {
+  mailId: number; schonGemeldet: boolean;
+  onFertig: (text: string) => void; onFehler: (text: string) => void;
+}) {
+  const [gemeldet, setGemeldet] = useState(schonGemeldet);
+  const [offen, setOffen] = useState(false);
+  const [notiz, setNotiz] = useState("");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { setGemeldet(schonGemeldet); }, [schonGemeldet]);
+
+  if (gemeldet) {
+    return (
+      <p className="iv-gemeldet"><Check size={13} strokeWidth={2} /> An die IT gemeldet – du musst nichts weiter tun.</p>
+    );
+  }
+
+  const melden = async () => {
+    if (busy) return;
+    setBusy(true);
+    const r = await api(`/agent/inbox/post/${mailId}/it-melden`, { method: "POST", body: JSON.stringify({ notiz: notiz.trim() }) });
+    setBusy(false);
+    if (!r.ok) { onFehler(r.json?.error || "Die Meldung konnte nicht abgeschickt werden."); return; }
+    setGemeldet(true); setOffen(false); setNotiz("");
+    onFertig(r.json?.meldung || "An die IT gemeldet.");
+  };
+
+  return (
+    <>
+      <p className="in-hinweis">
+        Kommt Post nicht an, hilft kein zweiter Versand: Entweder die Adresse stimmt nicht – dann berichtige sie in der Akte
+        oder frag am Telefon nach –, oder es liegt an der Technik. Im zweiten Fall meldest du es hier.
+      </p>
+      {!offen ? (
+        <button type="button" className="in-knopf still klein" onClick={() => setOffen(true)}>
+          <LifeBuoy size={14} strokeWidth={1.75} /> Problem an die IT melden
+        </button>
+      ) : (
+        <>
+          <textarea className="in-feld" rows={2} value={notiz} onChange={(e) => setNotiz(e.target.value)}
+            placeholder="Optional: ein Satz dazu. Adresse, Zeitpunkt und Fehlertext gehen von selbst mit."
+            aria-label="Ergänzung für die IT" />
+          <div className="iv-reihe">
+            <button type="button" className="in-knopf klein" disabled={busy} onClick={() => void melden()}>
+              <LifeBuoy size={14} strokeWidth={1.75} /> {busy ? "Wird gemeldet …" : "Jetzt melden"}
+            </button>
+            <button type="button" className="in-link" onClick={() => setOffen(false)}>Abbrechen</button>
+          </div>
+        </>
+      )}
+    </>
   );
 }
 
@@ -543,6 +706,10 @@ function Anliegen({ a, onFertig, onFehler }: {
 // wirklich geht, und erst auf Klick: Im Posteingang will jemand antworten,
 // nicht ein Menü studieren. Die vollständige Liste samt Sperrgründen steht
 // weiter in der Akte, wo man sie sucht, wenn man sie braucht.
+//
+// 24.08.2026 zusätzlich: Die Vorlagen sind kein eigener ABSCHNITT mehr im
+// Verlauf, sondern ein Knopf in der Handlungszeile oben — sie sind eine
+// Handlung, keine Geschichte. Die Liste selbst klappt darunter auf.
 function Vorlagen({ personId, name, onGesendet }: { personId: number; name: string; onGesendet: (text: string, gut: boolean) => void }) {
   const fragen = useFragen();
   const [events, setEvents] = useState<any[] | null>(null);
@@ -562,46 +729,45 @@ function Vorlagen({ personId, name, onGesendet }: { personId: number; name: stri
     setBusy(e.type);
     const r = await api(`/agent/mail/${personId}/${e.type}`, { method: "POST", body: "{}" });
     setBusy(null);
+    setOffen(false);
     onGesendet(r.json?.meldung || r.json?.error || (r.ok ? "Verschickt." : "Unbekannter Fehler."), !!r.ok);
   };
 
   if (events === null || events.length === 0) return null;
   return (
-    <section className="in-abschnitt">
-      <p className="titel">Standardmail senden</p>
-      {!offen ? (
-        <button type="button" className="in-knopf still klein" onClick={() => setOffen(true)} style={{ justifySelf: "start" }}>
-          <Mail size={14} strokeWidth={1.75} /> {events.length} Vorlagen anzeigen
-        </button>
-      ) : (
-        <div className="in-block">
+    <>
+      <button type="button" className={`in-knopf still klein${offen ? " an" : ""}`} onClick={() => setOffen((o) => !o)} aria-expanded={offen}>
+        <Mail size={14} strokeWidth={1.75} /> Standardmail
+      </button>
+      {offen && (
+        <div className="iv-vorlagen">
           {events.map((e: any) => (
-            <div key={e.type} className="in-vorlage">
+            <div key={e.type} className="iv-vorlage">
               <div>
                 <b>{e.label}</b>
-                <p className="in-hinweis" style={{ marginTop: 3 }}>{e.klartext}{e.heute > 0 ? ` · heute schon ${e.heute}×` : ""}</p>
+                <p className="in-hinweis">{e.klartext}{e.heute > 0 ? ` · heute schon ${e.heute}×` : ""}</p>
               </div>
               <button type="button" className="in-knopf still klein" disabled={busy === e.type} onClick={() => void senden(e)}>{busy === e.type ? "…" : "Senden"}</button>
             </div>
           ))}
         </div>
       )}
-    </section>
+    </>
   );
 }
 
 // ───────────────────────────────────────────────────────────────────────────
 // Die Lade zum Schreiben — die Mail-Zentrale, in der Funktion unverändert
+//
+// 24.08.2026: VORHER wurde auch sie innerhalb von .of-grund gerendert und lag
+// damit unter dem Office-Kopf (derselbe Stapel-Fehler wie bei der Kundenlade).
+// NACHHER hängt sie per Portal an <body>. Die FORM bleibt hier bewusst die
+// breite Lade: Das ist ein Formular mit Empfängern, Bausteinen und Vorschau —
+// etwas anderes als ein Verlauf, und es soll auch anders aussehen.
 // ───────────────────────────────────────────────────────────────────────────
 function SchreibenLade({ basis, vorbelegt, onZu, onGesendet }: { basis: string; vorbelegt: Treffer | null; onZu: () => void; onGesendet: () => void }) {
-  const zuRef = useRef(onZu); zuRef.current = onZu;
-  useEffect(() => {
-    const zu = (e: KeyboardEvent) => { if (e.key === "Escape") zuRef.current(); };
-    window.addEventListener("keydown", zu);
-    const r = document.getElementById("root"); const vorher = r?.style.overflow ?? ""; if (r) r.style.overflow = "hidden";
-    return () => { window.removeEventListener("keydown", zu); if (r) r.style.overflow = vorher; };
-  }, []);
-  return (
+  useLadeSperre(onZu);
+  return createPortal(
     <>
       <div className="in-lade-hintergrund" onClick={onZu} role="presentation" />
       <aside className="in-lade" role="dialog" aria-modal="true" aria-label="Neue Mail">
@@ -617,7 +783,8 @@ function SchreibenLade({ basis, vorbelegt, onZu, onGesendet }: { basis: string; 
           <Schreiben basis={basis} vorbelegt={vorbelegt} onGesendet={onGesendet} />
         </div>
       </aside>
-    </>
+    </>,
+    document.body,
   );
 }
 

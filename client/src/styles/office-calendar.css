@@ -199,20 +199,22 @@ select.ca-feld option{color:#0f172a}
      oben, Name groß darunter, Merkmale, dann eine Knopfzeile, in der nur
      „Anrufen“ mitwächst. */
   .ca{gap:22px;padding-bottom:88px}
+  /* 24.08.2026, zweiter Durchgang (Justin): „lass der ganzen Karte oben und
+     unten mehr Platz, nicht so aneinandergeklebt" — 10px Abstand waren zu
+     wenig, und der farbige Strich links ist ersatzlos entfallen (die Art des
+     Termins steht ohnehin als Marke im Text). */
   .ca-zeile{
     grid-template-columns:1fr;
     grid-template-areas:"zeit" "wer" "tun";
-    gap:9px;
-    padding:14px 15px;
-    margin-top:10px;
+    gap:11px;
+    padding:18px 17px;
+    margin-top:16px;
     border-top:0;
-    border-radius:18px;
+    border-radius:20px;
     background:rgba(255,255,255,.04);
     border:1px solid rgba(255,255,255,.08);
   }
   .ca-zeile:first-of-type{margin-top:0}
-  .ca-zeile.mit-ton{padding-left:19px}
-  .ca-zeile.mit-ton::before{top:14px;bottom:14px;left:8px}
   .ca-zeit{grid-area:zeit;display:flex;align-items:baseline;gap:9px}
   .ca-zeit b{font-size:14px;color:#bfdbfe}
   .ca-zeit small{margin-top:0;font-size:11.5px}
@@ -256,3 +258,29 @@ select.ca-feld option{color:#0f172a}
   .ca-arten{padding:14px 15px;gap:11px}
   .ca-arten-legende{gap:8px 14px}
 }
+
+
+/* ── Gründe, warum ein Termin nicht zustande kam (24.08.2026) ─────────────── */
+/* Justin: „wenn man aufs X klickt, eben wieder gefragt warum nicht, und
+   entsprechend dann ein E-Mail-Event auslösen." Unter jedem Grund steht, was
+   der Kunde daraufhin bekommt — wer klickt, soll es vorher wissen. */
+.ca-gruende{display:grid;gap:7px;margin-top:12px;padding:13px 14px;border-radius:16px;
+  background:rgba(15,23,42,.55);border:1px solid rgba(255,255,255,.1)}
+.ca-gruende p{margin:0 0 3px;font:400 12.5px/1.4 'Inter',sans-serif;color:#e5e7eb}
+.ca-grund{display:grid;gap:2px;justify-items:start;text-align:left;padding:10px 12px;border-radius:12px;cursor:pointer;
+  background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.1);
+  transition:border-color .18s,background .18s}
+.ca-grund:hover:not(:disabled){background:rgba(255,255,255,.08);border-color:rgba(147,197,253,.4)}
+.ca-grund:disabled{opacity:.55;cursor:default}
+.ca-grund b{font:400 13px/1.25 'Inter',sans-serif;color:#fff}
+.ca-grund small{font:300 11.5px/1.4 'Inter',sans-serif;color:#9ca3af}
+.ca-grund.rot{background:rgba(248,113,113,.1);border-color:rgba(252,165,165,.28)}
+.ca-grund.rot b{color:#fecaca}
+.ca-link-klein{background:none;border:0;padding:6px 2px;cursor:pointer;color:#93c5fd;
+  font:400 12px/1 'Inter',sans-serif;justify-self:start}
+/* Die beiden Ergebnis-Knöpfe: grün heißt „hat stattgefunden", rot „kam nicht
+   zustande". Sie sind bewusst gleich groß — beides ist ein gültiger Ausgang. */
+.ca-knopf.klein.gut{background:rgba(16,185,129,.18);border:1px solid rgba(52,211,153,.4);color:#a7f3d0;box-shadow:none}
+.ca-knopf.klein.gut:hover:not(:disabled){background:rgba(16,185,129,.28)}
+.ca-knopf.klein.rot{background:rgba(248,113,113,.14);border:1px solid rgba(252,165,165,.36);color:#fecaca;box-shadow:none}
+.ca-knopf.klein.rot:hover:not(:disabled){background:rgba(248,113,113,.24)}

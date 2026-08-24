@@ -84,6 +84,78 @@ textarea.in-feld{resize:vertical;line-height:1.6}
 .in-marke.gruen{background:rgba(16,185,129,.14);border-color:rgba(52,211,153,.32);color:#a7f3d0}
 .in-marke.leise{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.12);color:#9ca3af}
 
+/* ═══ .iv — DIE VERLAUFS-LADE ══════════════════════════════════════════════
+   VORHER (24.08.2026 früh): dieselbe Lade wie fürs Schreiben — 720 px breit,
+   fünf Abschnitte mit Überschriften, jeder Vorgang in einem eigenen Kasten.
+   Justin (Bildschirmfoto): „wenn man es öffnet, ist es zu wuchtig und oben
+   wieder abgeschnitten — es soll nicht aussehen wie die Akte, sondern anders."
+   NACHHER: bewusst eine ANDERE Form als die Akte (die ist breit und hat
+   Reiter). Diese Lade ist schmal (560), hat keine Reiter und liest sich als
+   Gesprächsverlauf an einem Zeitfaden: ein Punkt je Vorgang, das Neueste
+   zuerst, keine Kästen um Kästen. „Zu wuchtig" heißt bei Justin fette Schrift
+   und grosse Kästen — deshalb 300/400/500, kaum Rahmen, Luft über grid+gap.
+   Das Abschneiden löst nicht das CSS, sondern das Portal an <body> (siehe
+   inbox.tsx); hier sorgt nur die feste Kopfleiste dafür, dass der Name auch
+   beim Rollen stehen bleibt.
+   Tokens 1:1 aus office-pipeline.css. ═══════════════════════════════════════ */
+.iv-schleier{position:fixed;inset:0;z-index:60;background:rgba(2,6,23,.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);animation:inEin .25s ease both}
+.iv{position:fixed;top:0;right:0;bottom:0;z-index:61;width:min(100vw,560px);display:flex;flex-direction:column;overflow:hidden;background:linear-gradient(180deg,rgba(17,26,46,.94),rgba(10,22,40,.96));border-left:1px solid rgba(255,255,255,.12);backdrop-filter:blur(28px) saturate(160%);-webkit-backdrop-filter:blur(28px) saturate(160%);box-shadow:-30px 0 80px rgba(2,6,23,.6);animation:inSchieb .38s cubic-bezier(.2,.8,.2,1) both;color:#e5e7eb}
+
+/* Der feste Teil. Als flex-Spalte statt sticky: der Kopf kann gar nicht
+   wegrollen, weil nur .iv-koerper überhaupt rollt. */
+.iv-fest{flex:0 0 auto;padding-top:env(safe-area-inset-top);background:linear-gradient(180deg,rgba(15,24,44,.97),rgba(12,20,38,.9));box-shadow:0 10px 30px rgba(2,6,23,.35)}
+.iv-kopf{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:start;padding:18px 22px 12px}
+.iv-wer{min-width:0;display:grid;gap:5px}
+.iv-ueber{font:500 10px/1 'Inter',sans-serif;letter-spacing:.16em;text-transform:uppercase;color:#93c5fd}
+.iv-kopf h2{margin:0;font:300 24px/1.15 'Inter',sans-serif;letter-spacing:-.02em;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.iv-unter{margin:0;font:400 12.5px/1.5 'Inter',sans-serif;color:#cbd5e1}
+.iv-still{margin:0;font:300 12px/1.5 'Inter',sans-serif;color:#64748b;overflow:hidden;text-overflow:ellipsis}
+.iv-zu{width:40px;height:40px;border-radius:13px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#cbd5e1;display:grid;place-items:center;cursor:pointer}
+.iv-zu:hover{background:rgba(255,255,255,.11);color:#fff}
+.iv-tun{display:flex;flex-wrap:wrap;gap:7px;padding:0 22px 14px;border-bottom:1px solid rgba(255,255,255,.08)}
+.iv-tun .in-knopf.an{background:rgba(37,99,235,.22);border-color:rgba(96,165,250,.4);color:#dbeafe}
+.iv-koerper{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:16px 22px calc(44px + env(safe-area-inset-bottom));display:grid;gap:12px;align-content:start}
+
+/* Standardmail-Vorlagen: eine Handlung, keine Geschichte — sie klappen in der
+   Handlungszeile auf und nehmen die volle Breite. */
+.iv-vorlagen{flex:1 1 100%;display:grid;gap:2px;margin-top:2px;padding:4px 14px;border-radius:16px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1)}
+.iv-vorlage{display:flex;align-items:center;gap:14px;padding:11px 0;border-top:1px solid rgba(255,255,255,.07)}
+.iv-vorlage:first-child{border-top:0}
+.iv-vorlage>div{flex:1;min-width:0}
+.iv-vorlage b{display:block;font:400 13.5px/1.35 'Inter',sans-serif;color:#fff}
+.iv-vorlage .in-hinweis{margin-top:2px}
+
+/* ── Der Strang: ein Zeitfaden, links die Punkte ── */
+.iv-faden-titel{margin:6px 0 0;font:500 10px/1 'Inter',sans-serif;letter-spacing:.16em;text-transform:uppercase;color:#93c5fd}
+.iv-strang{list-style:none;margin:0;padding:0;display:grid;gap:2px;position:relative}
+/* Die Linie liegt HINTER den Punkten und endet oben und unten in der Karte —
+   ein Faden, kein Rahmen. */
+.iv-strang::before{content:"";position:absolute;left:14px;top:14px;bottom:14px;width:1px;background:rgba(255,255,255,.1)}
+.iv-punkt{display:grid;grid-template-columns:28px minmax(0,1fr);gap:0 13px;padding:11px 0;position:relative}
+.iv-zeichen{grid-column:1;display:grid;place-items:center;width:28px;height:28px;border-radius:10px;background:rgba(15,23,42,.9);border:1px solid rgba(255,255,255,.12);color:#93c5fd;position:relative;z-index:1}
+.iv-inhalt{grid-column:2;min-width:0;display:grid;gap:5px;align-content:start;padding-top:2px}
+.iv-erste{margin:0;display:flex;align-items:baseline;gap:10px;min-width:0}
+.iv-erste b{font:400 14px/1.4 'Inter',sans-serif;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.iv-erste em{margin-left:auto;flex:0 0 auto;font-style:normal;font:400 11.5px/1.4 'Inter',sans-serif;color:#64748b;white-space:nowrap;font-variant-numeric:tabular-nums}
+.iv-zweite{margin:0;font:300 12px/1.55 'Inter',sans-serif;color:#9ca3af;word-break:break-word}
+.iv-text{margin:0;font:300 13px/1.6 'Inter',sans-serif;color:#e5e7eb;white-space:pre-wrap;word-break:break-word}
+.iv-antwort{margin:0;padding:10px 13px;border-radius:13px;background:rgba(16,185,129,.1);border:1px solid rgba(52,211,153,.22);font:300 12.5px/1.6 'Inter',sans-serif;color:#a7f3d0;white-space:pre-wrap}
+.iv-aktion{display:grid;gap:8px;margin-top:3px}
+.iv-reihe{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.iv-haken{display:inline-flex;align-items:center;gap:8px;min-height:38px;cursor:pointer;font:300 12.5px/1.5 'Inter',sans-serif;color:#9ca3af}
+.iv-haken input{width:18px;height:18px;accent-color:#2563eb}
+.iv-gemeldet{display:inline-flex;align-items:center;gap:7px;margin:0;padding:8px 13px;border-radius:999px;background:rgba(16,185,129,.12);border:1px solid rgba(52,211,153,.28);color:#a7f3d0;font:400 12px/1.4 'Inter',sans-serif;justify-self:start}
+
+/* Was noch anliegt, bekommt eine Fläche statt eines lauten Rahmens. Die Fläche
+   liegt auf .iv-inhalt und NICHT auf .iv-punkt — sonst schöbe ihre Polsterung
+   den Punkt vom Zeitfaden weg und die Linie liefe daneben. */
+.iv-punkt.dran .iv-inhalt{padding:13px 15px;border-radius:18px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1)}
+.iv-punkt.dran.bernstein .iv-inhalt{background:rgba(251,191,36,.08);border-color:rgba(251,191,36,.24)}
+.iv-punkt.dran.rot .iv-inhalt{background:rgba(220,38,38,.1);border-color:rgba(248,113,113,.26)}
+.iv-punkt.bernstein .iv-zeichen{color:#fbbf24}
+.iv-punkt.rot .iv-zeichen{color:#fca5a5}
+.iv-punkt.dran .iv-zeichen{background:rgba(15,23,42,.75)}
+
 /* ── Lade von rechts: Kunde und Schreiben ── */
 .in-lade-hintergrund{position:fixed;inset:0;z-index:60;background:rgba(2,6,23,.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);animation:inEin .25s ease both}
 @keyframes inEin{from{opacity:0}to{opacity:1}}
@@ -97,32 +169,16 @@ textarea.in-feld{resize:vertical;line-height:1.6}
 .in-lade-tun{display:flex;flex-wrap:wrap;gap:8px;padding:14px 22px;border-bottom:1px solid rgba(255,255,255,.08)}
 .in-lade-koerper{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:18px 22px calc(40px + env(safe-area-inset-bottom));display:grid;gap:18px;align-content:start}
 
-/* Abschnitte in der Lade */
+/* Abschnitte in der Lade (nur noch das Schreiben nutzt sie) */
 .in-abschnitt{display:grid;gap:10px}
 .in-abschnitt>.titel{margin:0;font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#93c5fd}
-.in-block{display:grid;gap:8px;padding:16px 18px;border-radius:18px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1)}
-.in-block.dringend{background:rgba(251,191,36,.09);border-color:rgba(251,191,36,.28)}
-.in-block .kopf{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
-.in-block .kopf b{font:400 15px/1.3 'Inter',sans-serif;color:#fff}
-.in-block .kopf em{margin-left:auto;font-style:normal;font:400 11.5px/1.3 'Inter',sans-serif;color:#64748b;font-variant-numeric:tabular-nums}
-.in-block .text{margin:0;font:300 13.5px/1.65 'Inter',sans-serif;color:#e5e7eb;white-space:pre-wrap;word-break:break-word}
-.in-block .antwort{margin:0;padding:12px 14px;border-radius:14px;background:rgba(16,185,129,.1);border:1px solid rgba(52,211,153,.25);font:300 13px/1.6 'Inter',sans-serif;color:#a7f3d0;white-space:pre-wrap}
-.in-block .tun{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-/* Vorlagenzeile: Text links, EIN ruhiger Knopf rechts — keine Kästchenreihe. */
-.in-vorlage{display:flex;align-items:center;gap:14px;padding:11px 0;border-top:1px solid rgba(255,255,255,.07)}
-.in-vorlage:first-child{border-top:0;padding-top:0}
-.in-vorlage>div{flex:1;min-width:0}
-.in-vorlage b{display:block;font:400 14px/1.35 'Inter',sans-serif;color:#fff}
 
-/* Verlauf: ruhige Zeilen mit Luft (Vorbild .ca-zeile) */
-.in-zeile{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:baseline;gap:6px 14px;padding:12px 0;border-top:1px solid rgba(255,255,255,.07)}
-.in-zeile:first-of-type{border-top:0}
-.in-zeile i{grid-row:1/3;align-self:center;display:grid;place-items:center;width:30px;height:30px;border-radius:10px;background:rgba(255,255,255,.06);color:#93c5fd;font-style:normal}
-.in-zeile b{font:400 13.5px/1.35 'Inter',sans-serif;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.in-zeile em{font-style:normal;font:400 11.5px/1.35 'Inter',sans-serif;color:#64748b;white-space:nowrap;font-variant-numeric:tabular-nums}
-.in-zeile small{grid-column:2/4;font:300 12px/1.55 'Inter',sans-serif;color:#9ca3af}
-.in-zeile small.schlecht{color:#fca5a5}
-.in-zeile small.gut{color:#6ee7b7}
+/* ENTFERNT AM 24.08.2026: .in-block, .in-vorlage und .in-zeile.
+   VORHER waren das die Bauteile der alten Kundenlade — ein Kasten je Vorgang,
+   fünf Abschnitte übereinander. NACHHER liest sich die Kundenlade als Strang
+   (.iv-strang, weiter oben); die alten Regeln hätte niemand mehr aufgerufen.
+   Tote Stilregeln stehen lassen heisst, dass der nächste Kollege rät, welche
+   der beiden Fassungen die gültige ist. */
 
 /* ── Schreiben (Mail-Zentrale, unverändert in der Funktion) ── */
 .in-zeilen{display:grid;gap:12px}
@@ -200,16 +256,27 @@ textarea.in-feld{resize:vertical;line-height:1.6}
   .in-lade{width:100%;border-left:0;border-radius:0}
   .in-lade-kopf,.in-lade-tun,.in-lade-koerper{padding-left:16px;padding-right:16px}
   .in-lade-tun .in-knopf{flex:1 1 45%}
+  /* Die Verlaufs-Lade nimmt am Handy den ganzen Bildschirm. Tap-Ziele 44,
+     Felder 16px (steht schon in .in-feld). */
+  .iv{width:100%;border-left:0}
+  .iv-kopf{padding:14px 16px 10px}
+  .iv-kopf h2{font-size:21px}
+  .iv-tun{padding:0 16px 12px}
+  .iv-tun .in-knopf{flex:1 1 44%;min-height:44px}
+  .iv-koerper{padding-left:16px;padding-right:16px}
+  .iv-punkt{grid-template-columns:26px minmax(0,1fr);gap:0 11px}
+  .iv-zeichen{width:26px;height:26px}
+  .iv-strang::before{left:13px}
+  .iv-erste{flex-wrap:wrap;gap:2px 10px}
+  .iv-erste b{white-space:normal}
+  .iv-erste em{margin-left:0;width:100%}
+  .iv-reihe .in-knopf{flex:1 1 100%;min-height:44px}
+  .iv-vorlage{flex-wrap:wrap;gap:8px}
+  .iv-vorlage .in-knopf{width:100%;min-height:44px}
   .in-senden .in-knopf{flex:1 1 45%}
-  .in-vorlage{flex-wrap:wrap;gap:8px}
-  .in-vorlage .in-knopf{width:100%}
-  .in-zeile{grid-template-columns:auto minmax(0,1fr);row-gap:4px;padding:14px 15px;margin-top:8px;border-top:0;border-radius:16px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09)}
-  .in-zeile:first-of-type{margin-top:0}
-  .in-zeile em{grid-column:2;margin-top:2px}
-  .in-zeile small{grid-column:2}
   .in-dialog-hintergrund{padding:0;align-items:end}
   .in-dialog{width:100%;max-height:94vh;border-radius:26px 26px 0 0}
   .in-dialog-kopf,.in-dialog-inhalt,.in-dialog-fuss{padding-left:18px;padding-right:18px}
   .in-vorschau iframe{height:320px}
 }
-@media(prefers-reduced-motion:reduce){.in-lade{animation:none}.in-feld.eingefuegt{animation:none}}
+@media(prefers-reduced-motion:reduce){.in-lade,.iv,.iv-schleier{animation:none}.in-feld.eingefuegt{animation:none}}

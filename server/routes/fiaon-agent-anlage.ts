@@ -282,7 +282,13 @@ router.post("/agent/kunden/neu", requireAgent, async (req: AgentRequest, res: Re
         vorschlag: t,
         // Der Weg, den der Agent wirklich will: die Akte öffnen und dort ein
         // Produkt anlegen.
-        weiter: t.ref ? { akte: `/agent/kunden?ref=${encodeURIComponent(t.ref)}`, ref: t.ref } : null,
+        // ── 24.08.2026: ÜBER DIE PERSON, NICHT ÜBER DIE REFERENZ ──────────
+        // VORHER /agent/kunden?ref=FIAON-… — die Seite hinter /agent/kunden
+        // (pipeline.tsx) wertet aber AUSSCHLIESSLICH ?person= aus. Der Link
+        // führte also auf eine Seite ohne geöffnete Akte: der Agent stand vor
+        // einem geschlossenen Kasten. NACHHER die personId, die hier ohnehin
+        // vorliegt; die Referenz bleibt als Angabe erhalten.
+        weiter: { akte: `/agent/kunden?person=${t.personId}`, personId: t.personId, ref: t.ref },
       });
     }
     if (bestehende.length > 1) {
@@ -392,11 +398,28 @@ router.post("/agent/kunden/neu", requireAgent, async (req: AgentRequest, res: Re
       // Der fertige Text für WhatsApp — aus derselben Funktion wie Karte und
       // Rechnung. Der handgeschriebene Text im Client hatte keine IBAN.
       zahlungsKlartext: paketKey ? await zahlungsKlartextFuer(zahlungsreferenz, p ? paketPreisEuro(paketKey) : null) : null,
+      // ── DIE PERSON FEHLT: DAS DARF NICHT STILL BLEIBEN (24.08.2026) ──────
+      // Ohne Person hängt die Bestellung an niemandem: Die Arbeitsliste und
+      // alle Zuständigkeitsprüfungen lesen fiaon_persons, und der Terminlink
+      // wird über die Person gebildet. Der Fall ist selten (er setzt voraus,
+      // dass bindePersonAnAntrag scheitert, obwohl E-Mail oder Nummer da
+      // sind) — aber wortlos wäre er der teuerste: ein Kunde, der niemandem
+      // gehört und in keiner Liste auftaucht.
+      warnung: person?.personId
+        ? null
+        : "Der Kontakt ist gespeichert, aber die Person konnte nicht angelegt werden. "
+          + "Solange das so ist, steht der Kunde in keiner Arbeitsliste und es gibt "
+          + "keinen Terminlink. Bitte in der Akte E-Mail oder Telefonnummer erneut speichern.",
       // Was der Agent als nächstes tun kann — in der Reihenfolge des Gesprächs.
       weiter: {
         zahlungsdatenSenden: paketKey ? `/agent/customers/${encodeURIComponent(ref)}/send-payment-email` : null,
         rechnung: paketKey ? `/api/fiaon/invoice/${encodeURIComponent(ref)}` : null,
-        akte: `/agent/kunden?ref=${encodeURIComponent(ref)}`,
+        // 24.08.2026: VORHER ?ref= — die Seite liest nur ?person=, der Weg zur
+        // Akte endete auf einer Seite ohne geöffnete Akte. NACHHER über die
+        // personId; nur wenn die fehlt, bleibt die Referenz als letzte Spur.
+        akte: person?.personId
+          ? `/agent/kunden?person=${person.personId}`
+          : `/agent/kunden?ref=${encodeURIComponent(ref)}`,
       },
     });
   } catch (err) {

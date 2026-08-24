@@ -21,7 +21,9 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useFragen } from "@/pages/agent/shared";
+// 24.08.2026: Der Weg „Kunde nicht erschienen“ ist ein eigenes Bauteil — hier
+// UND im Onboarding-Raum dasselbe (siehe dortigen Kommentar).
+import { NichtErschienenWahl } from "@/components/agent/NichtErschienen";
 import { KernbotschaftKarte } from "@/components/KernbotschaftKarte";
 import { FiaonEbene } from "@/components/FiaonEbene";
 import {
@@ -93,7 +95,16 @@ export function OnboardingCockpit({
 }: {
   termin: CockpitTermin;
   onZu: () => void;
-  onFertig: (meldung: string) => void;
+  /**
+   * Der Vorgang ist durch — mit der Meldung, die der Server geschickt hat.
+   *
+   * 24.08.2026: `warn` kam dazu. VORHER wurde jeder Ausgang gleich gemeldet;
+   * ein No-Show, dessen E-Mail NICHT rausging, sah aus wie einer, dessen Mail
+   * ankam. NACHHER sagt das zweite Feld, dass der Vorgang zwar dokumentiert
+   * ist, die Nachricht an den Kunden aber nicht rausging. Freiwillig, damit
+   * die anderen Aufrufer (Softphone, Startgespräche) unverändert bleiben.
+   */
+  onFertig: (meldung: string, warn?: boolean) => void;
   /** Öffnet das Softphone MIT Kundenkontext — nicht ein zweites Telefon. */
   onAnrufen?: (nummer: string, personId: number, name: string) => void;
 }) {
@@ -103,7 +114,6 @@ export function OnboardingCockpit({
   // Jetzt liegt der Stand je Termin im Browser, bis das Gespräch abgeschlossen
   // ist. Kein Server-Weg: Es ist der Entwurf des Mitarbeiters, nicht die Akte.
   const speicherKey = `fiaon-cockpit-${termin.id}`;
-  const fragen = useFragen();
   const [stand, setStand] = useState<AgendaStand>(() => {
     try {
       const roh = window.localStorage.getItem(speicherKey);
@@ -126,7 +136,10 @@ export function OnboardingCockpit({
   }, [stand]);
   const [offen, setOffen] = useState<string | null>(AGENDA[0]?.key ?? null);
   const [lage, setLage] = useState<Lage | null>(null);
-  const [busy, setBusy] = useState<"" | "fertig" | "noshow">("");
+  const [busy, setBusy] = useState<"" | "fertig">("");
+  // 24.08.2026: Die Grund-Wahl. Sie ERSETZT die beiden Fußknöpfe, solange sie
+  // offen ist — am Handy wäre die Fußleiste sonst höher als das halbe Bild.
+  const [noshowOffen, setNoshowOffen] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
   const [sekunden, setSekunden] = useState(0);
   const gestartet = useRef(Date.now());
@@ -200,30 +213,19 @@ export function OnboardingCockpit({
     }
   };
 
-  const nichtErschienen = async () => {
-    if (!(await fragen({
-      titel: `„${termin.name}“ als nicht erschienen vermerken?`,
-      // VORHER (bis 24.08.2026): „…und der Kunde wird erneut eingeladen." Das
-      // stimmte nicht — es ging tagelang gar nichts raus. NACHHER: Der Server
-      // verschickt sofort das Ereignis `termin_verpasst`. GRUND: Auftrag des
-      // Inhabers vom 24.08.2026.
-      text: "Das zählt als erfolgloser Versuch. Der Kunde bekommt sofort eine E-Mail mit dem Link für einen neuen Termin. Das Konto bleibt eingeschränkt.",
-      ja: "Nicht erschienen",
-    }))) return;
-    setBusy("noshow");
-    const r = await fetch(`/api/fiaon/agent/onboarding/termine/${termin.id}/ergebnis`, {
-      method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ergebnis: "verpasst",
-        notiz: stand.notizen.begruessung || null,
-        dauerSek: sekunden,
-      }),
-    }).catch(() => null);
-    const j = await r?.json().catch(() => null);
-    setBusy("");
-    if (j?.ok) onFertig(j.hinweis || "Als nicht erschienen vermerkt.");
-    else setFehler(j?.error || "Das hat nicht geklappt.");
-  };
+  // ══════════════════════════════════════════════════════════════════════
+  // „KUNDE NICHT ERSCHIENEN“ — 24.08.2026
+  //
+  // VORHER stand hier eine Sicherheitsfrage mit EINEM Ausgang: Ja/Nein, und
+  // im Ja-Fall ging die Mail „Termin verpasst“ raus — auch an den Kunden, der
+  // gerade abgesagt hatte, und an den mit der falschen Nummer, der sie nie
+  // lesen wird.
+  // NACHHER klappt an dieser Stelle die Grund-Wahl auf (NichtErschienen.tsx).
+  // Sie sagt vor dem Klick, was passieren WIRD, und danach, was passiert IST.
+  // Die Sicherheitsfrage entfällt: Der Grund selbst ist die Rückfrage, und
+  // jeder Grund trägt seine Folge im Klartext.
+  // GRUND: Auftrag des Inhabers vom 24.08.2026.
+  // ══════════════════════════════════════════════════════════════════════
 
   const mmss = `${String(Math.floor(sekunden / 60)).padStart(2, "0")}:${String(sekunden % 60).padStart(2, "0")}`;
   const ueberzogen = sekunden > (termin.dauerMin || 15) * 60;
@@ -297,20 +299,36 @@ export function OnboardingCockpit({
       fuss={
         <div className="fi-ob-fuss">
           {fehler && <p className="fi-ob-fehler">{fehler}</p>}
-          <div className="fi-ob-fuss-zeile">
-            <button type="button" onClick={() => void nichtErschienen()} disabled={busy !== ""}
-                    className="fi-ob-knopf-still">
-              {busy === "noshow" ? "Wird vermerkt …" : "Kunde nicht erschienen"}
-            </button>
-            <button type="button" onClick={() => void abschliessen()} disabled={busy !== ""}
-                    className="fi-ob-knopf-haupt" data-bereit={pruefung.ok ? "ja" : undefined}>
-              {busy === "fertig" ? "Wird abgeschlossen …" : "Gespräch abschließen & freischalten"}
-            </button>
-          </div>
-          {!pruefung.ok && (
-            <p className="fi-ob-fuss-hinweis">
-              Noch offen: {pruefung.fehlt.join(" · ")}
-            </p>
+          {noshowOffen ? (
+            <NichtErschienenWahl
+              termin={{ id: termin.id, name: termin.name }}
+              onAbbruch={() => setNoshowOffen(false)}
+              onFertig={(hinweis, warn) => {
+                // Die Notizen dieses Gesprächs braucht niemand mehr — der
+                // Vorgang ist dokumentiert, das Cockpit schließt.
+                try { window.localStorage.removeItem(speicherKey); } catch { /* egal */ }
+                setNoshowOffen(false);
+                onFertig(hinweis, warn);
+              }}
+            />
+          ) : (
+            <>
+              <div className="fi-ob-fuss-zeile">
+                <button type="button" onClick={() => setNoshowOffen(true)} disabled={busy !== ""}
+                        aria-expanded={false} className="fi-ob-knopf-still">
+                  Kunde nicht erschienen
+                </button>
+                <button type="button" onClick={() => void abschliessen()} disabled={busy !== ""}
+                        className="fi-ob-knopf-haupt" data-bereit={pruefung.ok ? "ja" : undefined}>
+                  {busy === "fertig" ? "Wird abgeschlossen …" : "Gespräch abschließen & freischalten"}
+                </button>
+              </div>
+              {!pruefung.ok && (
+                <p className="fi-ob-fuss-hinweis">
+                  Noch offen: {pruefung.fehlt.join(" · ")}
+                </p>
+              )}
+            </>
           )}
         </div>
       }

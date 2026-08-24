@@ -184,12 +184,16 @@ async function main(): Promise<void> {
     // Entwurf las die Optionen sofort und fand nur „— noch kein Paket —" —
     // drei rote Prüfungen, obwohl die Route einwandfrei antwortet (nachgeprüft:
     // HTTP 200 mit allen neun Paketen).
-    const auswahl = tafel.locator("select").first();
-    await auswahl.locator("option", { hasText: /59,99/ })
-      .first().waitFor({ state: "attached", timeout: 15_000 })
+    // 24.08.2026 (Justin, HIGH-END-Umbau): VORHER ein natives select mit
+    // option-Zeilen — NACHHER Paketkarten (.pi-paket), weil der Browser ein
+    // select in seinem eigenen Stil malt: eine weiße Liste im dunklen Glas.
+    // Der Prüfstand misst dieselben drei Dinge, nur an den Karten.
+    const karten = tafel.locator(".pi-paket");
+    await karten.filter({ hasText: /59,99/ })
+      .first().waitFor({ state: "visible", timeout: 15_000 })
       .catch(() => {});
-    const optionen = await auswahl.locator("option").allInnerTexts();
-    pruef("Die Paketauswahl ist gefüllt", optionen.length > 3, `${optionen.length} Einträge`);
+    const optionen = await karten.allInnerTexts();
+    pruef("Die Paketauswahl ist gefüllt", optionen.length > 3, `${optionen.length} Karten`);
     pruef("… mit Preisen aus dem Katalog",
       optionen.some((o) => /59,99/.test(o)) && optionen.some((o) => /74,00/.test(o)),
       optionen.join(" | ").slice(0, 140));
@@ -232,7 +236,10 @@ async function main(): Promise<void> {
     console.log("        reports/vollpfleger/formular.png");
 
     // ── ANLEGEN UND DER ABSCHLUSS ────────────────────────────────────────
-    await tafel.locator("select").first().selectOption("pro");
+    await karten.filter({ hasText: "FIAON Pro (Standard)" }).first().click();
+    pruef("Die gewählte Paketkarte ist sichtbar markiert",
+      await tafel.locator(".pi-paket.an").filter({ hasText: "FIAON Pro (Standard)" }).count() > 0,
+      "eine Wahl, die man nicht sieht, ist keine Wahl");
     await anlegenKnopf.click();
     await seite.getByText(/ist angelegt/i).first()
       .waitFor({ state: "visible", timeout: 12_000 }).catch(() => {});
@@ -307,7 +314,7 @@ async function main(): Promise<void> {
     pruef("Die Felder nehmen die ganze Breite", breiten.every((b) => b > 250),
       `${breiten.join(", ")} px — zwei Spalten wären hier je 160 px`);
 
-    await tafelS.locator("select").first().selectOption("pro");
+    await tafelS.locator(".pi-paket").filter({ hasText: "FIAON Pro (Standard)" }).first().click();
     await tafelS.getByRole("button", { name: /^Kunde anlegen$/i }).first().click();
     await schmal.getByText(/ist angelegt/i).first()
       .waitFor({ state: "visible", timeout: 12_000 }).catch(() => {});

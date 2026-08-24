@@ -776,11 +776,14 @@ function PipelineInnen() {
       </div>
       {anlageOffen && (
         <div style={{ display: "grid", gap: 6 }}>
-          {/* Helle Einlage, bewusst gerahmt: KundeAnlegen ist die geprüfte
-              Anlage-Strecke (anlegen → Zahlungsdaten → Termin) und bleibt
-              vorerst hell — Rest, siehe Bericht. */}
-          <p className="pi-fussnote">Kunde anlegen öffnet die geprüfte Anlage-Strecke:</p>
-          <div className="pi-hell"><KundeAnlegen offen={anlageOffen} aufKlappen={setAnlageOffen} fertig={() => { void laden(true); void arbeitslisteLaden(true); }} /></div>
+          {/* 24.08.2026 (Justin): VORHER steckte KundeAnlegen in .pi-hell —
+              ein weißer Kasten mitten im dunklen Office; die Fußnote darüber
+              sagte noch einmal, was der Kopf des Bauteils ohnehin sagt.
+              NACHHER trägt das Bauteil die Office-CI selbst (.pi-anl in
+              office-pipeline.css), also fällt beides weg. aufAkte öffnet die
+              Akte in DIESEM Raum (Glas-Lade) statt über einen Seitenwechsel —
+              der alte Weg zeigte auf ?ref=, das diese Seite gar nicht liest. */}
+          <KundeAnlegen offen={anlageOffen} aufKlappen={setAnlageOffen} fertig={() => { void laden(true); void arbeitslisteLaden(true); }} aufAkte={(id) => { setAnlageOffen(false); oeffnen(id); }} />
         </div>
       )}
       {/* VORHER stand hier die gelbe Kachel „x warten auf ihren Termin“ —

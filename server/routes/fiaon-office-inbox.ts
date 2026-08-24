@@ -38,9 +38,23 @@
 //   GET /agent/inbox/kunde/:personId
 //       → alles zu EINEM meiner Kunden: Anliegen, Anrufe, Rückrufe, Postverlauf.
 //
-// Geschrieben wird hier nichts. Antworten auf ein Anliegen laufen weiter über
-// die bestehende Route /agent/tickets/:id/antwort, Standardmails über
-// /agent/mail/:personId/:event — eine Logik, ein Ort.
+// Antworten auf ein Anliegen laufen weiter über die bestehende Route
+// /agent/tickets/:id/antwort, Standardmails über /agent/mail/:personId/:event
+// — eine Logik, ein Ort.
+//
+// ── ERGÄNZUNG 24.08.2026 (Auftrag Justin) ──────────────────────────────────
+// VORHER endete eine unzustellbare Mail im Verlauf mit einem Satz ohne Knopf
+// („Kommt Post nicht an, hilft kein zweiter Versand …"). Der Mitarbeiter sah
+// den Fehler und hatte keinen Ausweg. NACHHER gibt es genau einen:
+//
+//   POST /agent/inbox/post/:mailId/it-melden   → legt eine Meldung für die IT an
+//
+// Sie landet als Aufgabe des Betreibers im Bereich „technik" (siehe die
+// ausführliche Begründung bei todoMeldung in fiaon-betreiber-todo.ts) und
+// nimmt von selbst mit, was die IT braucht — Kunde, Mail-Art, Adresse,
+// Zeitpunkt, Zustellstand und den Fehlertext des Versands. Der Mitarbeiter
+// ergänzt höchstens einen Satz. Die Route ist damit die EINZIGE Stelle dieser
+// Datei, die schreibt; alles andere liest weiterhin nur.
 // ═══════════════════════════════════════════════════════════════════════════
 import { Router, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
@@ -48,6 +62,7 @@ import { requireAgent, type AgentRequest } from "./fiaon-agent";
 import { VERSAND_TEXT, type VersandArt } from "../lib/fiaon-versand";
 import { ZUSTELL_TEXT } from "../lib/fiaon-zustellung";
 import { waehlbareNummer } from "../lib/fiaon-telefon";
+import { todoMeldung, todoSchluesselVorhanden } from "./fiaon-betreiber-todo";
 
 const router = Router();
 
@@ -67,7 +82,15 @@ const titelVon = (event: string): string => (VERSAND_TEXT as Record<string, { ti
  * Steht als fester Textbaustein und NICHT als Parameter im SQL: Es sind
  * Konstanten aus fiaon-zustellung.ts, nichts davon kommt aus einer Anfrage.
  */
-const ZUSTELL_KAPUTT_SQL = "('gebounct', 'blockiert', 'spam', 'fehler')";
+// 24.08.2026: VORHER stand die Liste NUR als SQL-Textbaustein da. Seit die
+// IT-Meldung auch in JavaScript wissen muss, ob eine Zeile kaputt ist, gibt es
+// EINE Quelle und der Textbaustein wird daraus gebaut — sonst laufen die
+// beiden Listen früher oder später auseinander.
+const ZUSTELL_KAPUTT = ["gebounct", "blockiert", "spam", "fehler"] as const;
+const ZUSTELL_KAPUTT_SQL = `(${ZUSTELL_KAPUTT.map((v) => `'${v}'`).join(", ")})`;
+const istKaputt = (v: unknown): boolean => (ZUSTELL_KAPUTT as readonly string[]).includes(String(v));
+/** Der Schlüssel einer IT-Meldung — aus der Protokollzeile, damit er sich nie doppelt vergibt. */
+const MELDE_SCHLUESSEL = (mailId: number): string => `it-mail-${mailId}`;
 /** Zustellwerte, die beweisen, dass die Adresse wieder funktioniert. */
 const ZUSTELL_OK_SQL = "('zugestellt', 'geoeffnet', 'geklickt')";
 
@@ -341,7 +364,14 @@ router.get("/agent/inbox/kunde/:personId", requireAgent, async (req: AgentReques
       SELECT p.id, p.first_name, p.last_name, p.primary_email, p.primary_phone, p.country, p.assigned_at,
              (SELECT a.ref FROM fiaon_applications a
                WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
-               ORDER BY a.created_at DESC LIMIT 1) AS ref
+               ORDER BY a.created_at DESC LIMIT 1) AS ref,
+             -- 24.08.2026: NEU. Der Kopf der Lade sagt jetzt in einer Zeile, wer
+             -- da ist — und dazu gehört das Paket (Justins Vorgabe „Name, Paket,
+             -- betreut seit"). pack_name steht mehrzeilig in der Tabelle, davon
+             -- ist nur die erste Zeile der Name (Vorbild fiaon-agent-kunden.ts).
+             (SELECT a.pack_name FROM fiaon_applications a
+               WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
+               ORDER BY a.created_at DESC LIMIT 1) AS pack_name
       FROM fiaon_persons p
       WHERE p.id = ${personId}
         AND p.assigned_agent_id = ${ich}
@@ -375,6 +405,15 @@ router.get("/agent/inbox/kunde/:personId", requireAgent, async (req: AgentReques
       `,
     ]);
 
+    // 24.08.2026: Welche unzustellbare Mail wurde schon an die IT gemeldet?
+    // Wird HIER beantwortet, damit der Knopf beim Öffnen der Lade bereits
+    // „gemeldet" zeigt — auch wenn ein Kollege gestern gemeldet hat oder der
+    // Mitarbeiter die Seite neu geladen hat. Fällt die Abfrage aus, bleibt der
+    // Posteingang trotzdem stehen: die Meldung wäre dann nur ein zweites Mal
+    // anklickbar, und dagegen schützt der eindeutige Schlüssel in der Tabelle.
+    const kaputteIds = (post as any[]).filter((l) => istKaputt(l.zustellung)).map((l) => Number(l.id));
+    const gemeldet = await todoSchluesselVorhanden(kaputteIds.map(MELDE_SCHLUESSEL)).catch(() => new Set<string>());
+
     const tel = waehlbareNummer([{ nummer: p.primary_phone }], p.country);
     res.json({
       ok: true,
@@ -385,6 +424,7 @@ router.get("/agent/inbox/kunde/:personId", requireAgent, async (req: AgentReques
         email: p.primary_email ?? null,
         telefon: tel.anzeige, telefonWaehlbar: tel.waehlbar, telefonHinweis: tel.hinweis,
         ref: p.ref ?? null, betreutSeit: p.assigned_at ?? null,
+        paket: p.pack_name ? String(p.pack_name).split("\n")[0].trim() || null : null,
       },
       anliegen: (anliegen as any[]).map((t) => ({
         id: Number(t.id), betreff: t.betreff, text: t.text, status: t.status,
@@ -407,11 +447,110 @@ router.get("/agent/inbox/kunde/:personId", requireAgent, async (req: AgentReques
         empfaenger: l.empfaenger ?? null, am: l.created_at,
         von: l.ausgeloest_agent_id == null ? "Automatik" : (l.von ?? "Kollege"),
         vonMir: l.ausgeloest_agent_id != null && Number(l.ausgeloest_agent_id) === ich,
+        // Der Server sagt, ob gemeldet werden KANN und ob es schon geschehen ist —
+        // die Oberfläche rät nichts (24.08.2026).
+        kaputt: istKaputt(l.zustellung),
+        itGemeldet: gemeldet.has(MELDE_SCHLUESSEL(Number(l.id))),
       })),
     });
   } catch (err) {
     console.error("[OFFICE-INBOX] kunde:", err);
     res.status(500).json({ ok: false, error: "Der Kunde konnte nicht geladen werden." });
+  }
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// POST /agent/inbox/post/:mailId/it-melden — „Problem an die IT melden"
+//
+// ── VORHER (bis 24.08.2026) ────────────────────────────────────────────────
+// Eine unzustellbare Mail stand im Verlauf und blieb dort liegen. Der Hinweis
+// darunter endete mit einem Rat („die Adresse muss in der Akte berichtigt
+// werden") — was aber, wenn die Adresse stimmt und trotzdem nichts ankommt?
+// Dann war der Mitarbeiter am Ende der Straße.
+//
+// ── NACHHER (Auftrag Justin, 24.08.2026) ───────────────────────────────────
+// Ein Knopf legt eine Meldung an, die beim Betreiber landet. Die Meldung
+// schreibt sich SELBST: Kunde, Mail-Art, Empfängeradresse, Zeitpunkt,
+// Zustellstand und der Fehlertext aus dem Versandprotokoll stehen darin, weil
+// der Server sie ohnehin vor sich hat. Der Mitarbeiter tippt nichts ab; er
+// darf einen Satz ergänzen, muss aber nicht.
+//
+// ── RECHTE ─────────────────────────────────────────────────────────────────
+// Nur eigene Kunden. Der Besitz steht in derselben Abfrage, die die Zeile holt
+// (JOIN auf fiaon_persons mit assigned_agent_id) — es gibt keinen Weg, eine
+// fremde Protokollzeile zu melden und dabei Name und Adresse zu erfahren.
+// Fremde oder unbekannte Kennung: 404, wie im ganzen Haus.
+//
+// ── ZWEITER KLICK ──────────────────────────────────────────────────────────
+// Legt nichts Neues an. Der Schlüssel der Meldung kommt aus der Kennung der
+// Protokollzeile und ist in fiaon_betreiber_todos eindeutig; der zweite Klick
+// bekommt „ist schon gemeldet" zurück (und hängt einen ergänzten Satz an die
+// bestehende Meldung, damit er nicht verloren geht).
+// ───────────────────────────────────────────────────────────────────────────
+router.post("/agent/inbox/post/:mailId/it-melden", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const ich = req.agent!.id;
+    const mailId = Number(req.params.mailId);
+    if (!Number.isFinite(mailId) || mailId <= 0) return res.status(404).json({ ok: false, error: "Diese Mail gibt es nicht." });
+    const notiz = String(req.body?.notiz ?? "").trim().slice(0, 1000);
+
+    const [l] = (await sqlPool`
+      SELECT l.id, l.event, l.betreff, l.status, l.grund, l.zustellung, l.empfaenger, l.created_at,
+             p.id AS person_id, p.first_name, p.last_name, p.primary_email,
+             (SELECT a.ref FROM fiaon_applications a
+               WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
+               ORDER BY a.created_at DESC LIMIT 1) AS ref
+      FROM fiaon_mail_log l
+      JOIN fiaon_persons p ON p.id = l.person_id
+      WHERE l.id = ${mailId}
+        AND p.assigned_agent_id = ${ich}
+        AND p.merged_into_person_id IS NULL
+    `) as any[];
+    if (!l) return res.status(404).json({ ok: false, error: "Diese Mail gehört zu keinem Kunden aus deinem Bestand." });
+    if (!istKaputt(l.zustellung)) {
+      return res.status(400).json({ ok: false, error: "Diese Mail ist unterwegs oder angekommen — dazu gibt es für die IT nichts zu tun." });
+    }
+
+    const name = `${l.first_name ?? ""} ${l.last_name ?? ""}`.replace(/\s+/g, " ").trim() || "Ohne Namen";
+    const art = titelVon(String(l.event));
+    const adresse = l.empfaenger ?? l.primary_email ?? "keine Adresse im Protokoll";
+    const stand = (ZUSTELL_TEXT as Record<string, string>)[String(l.zustellung)] ?? String(l.zustellung);
+    const wann = new Date(l.created_at).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Berlin" });
+
+    // Der Text ist bewusst eine Liste aus Zeilen und kein Fliesstext: Die IT
+    // sucht darin nach Adresse und Fehlertext, nicht nach einer Erzählung.
+    const zeilen = [
+      `Kunde: ${name} (Person ${Number(l.person_id)}${l.ref ? `, Kennung ${l.ref}` : ""})`,
+      `Mail: ${art}${l.betreff ? ` — Betreff „${l.betreff}“` : ""}`,
+      `An: ${adresse}`,
+      `Verschickt: ${wann} Uhr (Protokollzeile ${Number(l.id)})`,
+      `Zustellung: ${stand} (${String(l.zustellung)})`,
+      `Versandstand: ${String(l.status)}`,
+      `Fehlertext des Versands: ${l.grund ? String(l.grund) : "keiner im Protokoll"}`,
+      `Gemeldet von: ${req.agent!.name}`,
+    ];
+    if (notiz) zeilen.push(`Beobachtung des Mitarbeiters: ${notiz}`);
+
+    const { neu } = await todoMeldung(
+      MELDE_SCHLUESSEL(Number(l.id)),
+      {
+        titel: `Mail kommt bei ${name} nicht an (${stand})`,
+        text: zeilen.join("\n"),
+        bereich: "technik",
+        prioritaet: 2,
+      },
+      { name: req.agent!.name, agentId: ich, notiz },
+    );
+
+    res.json({
+      ok: true, neu,
+      meldung: neu
+        ? "An die IT gemeldet. Adresse, Zeitpunkt und Fehlertext sind mitgegangen — du musst nichts weiter tun."
+        : "Das war schon gemeldet. Deine Ergänzung ist an die bestehende Meldung gegangen.",
+    });
+  } catch (err) {
+    console.error("[OFFICE-INBOX] it-melden:", err);
+    res.status(500).json({ ok: false, error: "Die Meldung konnte nicht abgeschickt werden. Bitte gleich noch einmal versuchen." });
   }
 });
 

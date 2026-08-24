@@ -31,7 +31,13 @@
 .pi-stufe-chip.an{background:color-mix(in srgb,var(--hitze,#2563eb) 22%,rgba(15,23,42,.6));border-color:color-mix(in srgb,var(--hitze,#60a5fa) 60%,transparent);color:#fff}
 /* ── Fokus-Karte + Leitfaden ── */
 .pi-fokus{display:grid;grid-template-columns:1.5fr 1fr;gap:14px;align-items:start}
-.pi-fokus-karte{position:relative;display:grid;gap:12px;padding:26px 28px;border-radius:26px;background:rgba(15,23,42,.62);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(22px) saturate(160%);-webkit-backdrop-filter:blur(22px) saturate(160%);box-shadow:0 30px 80px rgba(2,6,23,.5),inset 0 1px 0 rgba(255,255,255,.08);overflow:hidden}
+/* 24.08.2026 (Justin): „Die große Karte soll am PC und Handy zentrierter
+   sein … man muss direkt erkennen, dass es jetzt um DEN Kunden geht."
+   VORHER lief sie über die volle Spaltenbreite und ging optisch in der
+   Seite auf. NACHHER steht sie mittig, mit einer ruhigen Höchstbreite —
+   sie ist das eine, was zählt, und sieht auch so aus. */
+.pi-fokus-karte{position:relative;display:grid;gap:12px;padding:30px 32px;border-radius:26px;
+  max-width:760px;margin:0 auto;width:100%;background:rgba(15,23,42,.62);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(22px) saturate(160%);-webkit-backdrop-filter:blur(22px) saturate(160%);box-shadow:0 30px 80px rgba(2,6,23,.5),inset 0 1px 0 rgba(255,255,255,.08);overflow:hidden}
 .pi-fokus-karte::before{content:"";position:absolute;inset:-40% -20% auto;height:80%;background:radial-gradient(ellipse at 50% 0%,color-mix(in srgb,var(--hitze,#2563eb) 26%,transparent),transparent 65%);pointer-events:none}
 /* E-048 Nr. 2: VORHER glitt der neue Fokus in .5s herein — NACHHER ~350 ms,
    gleiche Kurve wie das Hinausgleiten (piGeht): ein Atem, kein Nachzügler. */
@@ -260,12 +266,18 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
 /* E-047: VORHER Leitfaden-Spalte rechts — NACHHER einspaltig, Legende unten. */
 .pi-arbeit.einspaltig{grid-template-columns:1fr}
 /* E-047: VORHER gap 12px („klebt aneinander“) — NACHHER Luft: oben stark, dann Trenner, dann die nächsten fünf. */
-.pi-arbeit-haupt{display:grid;gap:32px;min-width:0}
-.pi-trenner{display:flex;align-items:center;gap:16px;margin:-6px 4px}
+/* 24.08.2026: mehr Luft zwischen der Fokus-Karte und dem, was danach
+   kommt — vorher 32px, jetzt 52px. Der Blick soll erst bei EINEM
+   Kunden landen und dann weiterwandern, nicht alles auf einmal sehen. */
+.pi-arbeit-haupt{display:grid;gap:52px;min-width:0;justify-items:center}
+.pi-arbeit-haupt > *{width:100%}
+.pi-trenner{display:flex;align-items:center;gap:16px;margin:0 4px}
 .pi-trenner .linie{flex:1;height:1px;background:linear-gradient(90deg,transparent,rgba(96,165,250,.35),transparent)}
 .pi-trenner b{font:500 11px/1 'Inter',sans-serif;letter-spacing:.22em;text-transform:uppercase;background:linear-gradient(90deg,#64748b,#93c5fd,#3b82f6,#93c5fd,#64748b);background-size:220% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:piSchimmer 5.5s ease-in-out infinite;white-space:nowrap}
 @keyframes piSchimmer{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
-.pi-legende{display:grid;gap:12px;margin-top:6px}
+/* Die Leitfäden stehen ganz unten und bekommen Abstand — sie sind
+   Nachschlagewerk, nicht Arbeitsschritt (Justin 24.08.). */
+.pi-legende{display:grid;gap:12px;margin-top:44px}
 .pi-legende-zeile{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .pi-legende-zeile .linie{flex:1;min-width:24px;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.14),transparent)}
 .pi-legende-zeile small{font:500 10px/1 'Inter',sans-serif;letter-spacing:.18em;text-transform:uppercase;color:#64748b}
@@ -570,4 +582,166 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
 @media(max-width:700px){
   .pi-pakete{grid-template-columns:1fr 1fr;gap:8px}
   .pi-paket{padding:11px 12px}
+}
+
+/* ═══ Kunde anlegen — die Anlage-Strecke in der Office-CI (24.08.2026) ═════
+   Justin: „wenn man auf /agent/pipeline ‚neuen Kunden anlegen‘ klickt, muss
+   das neu und besser dargestellt werden … es muss perfekt zu unserer CI
+   passen, HIGH END Design!“
+
+   VORHER: KundeAnlegen.tsx war komplett in hellem Tailwind gebaut
+   (bg-white, border-slate-200, text-slate-500) und wurde an der Aufrufstelle
+   in einen Rahmen .pi-hell gesteckt — ein weißer Kasten mitten im dunklen
+   Office. NACHHER: dieselbe Formensprache wie Fokus-Karte und Akte —
+   Glasfläche rgba(15,23,42,.6…), 1px Rand rgba(255,255,255,.12), blur,
+   Radien 12–26px, Schriftgewichte 300/400/500 (nie 700/800, das liest Justin
+   als „wuchtig“), Versalien-Labels in #93c5fd, EINE farbige Hauptaktion.
+
+   Präfix .pi-anl-, damit keine bestehende Regel angefasst wird. ══════════ */
+.pi-anl{position:relative;display:grid;gap:20px;padding:26px 28px;border-radius:26px;
+  /* Etwas dichter als .pi-fokus-karte: Das Bauteil steht auch auf der hellen
+     Alt-Seite /agent/kunden-alt; dort soll es wie eine bewusste dunkle Karte
+     wirken und nicht wie ein durchscheinender Fleck. */
+  background:linear-gradient(180deg,rgba(15,23,42,.72),rgba(10,22,40,.66));
+  border:1px solid rgba(255,255,255,.12);
+  backdrop-filter:blur(22px) saturate(160%);-webkit-backdrop-filter:blur(22px) saturate(160%);
+  box-shadow:0 30px 80px rgba(2,6,23,.5),inset 0 1px 0 rgba(255,255,255,.08);
+  color:#e5e7eb;font-family:'Inter',sans-serif;overflow:hidden}
+.pi-anl::before{content:"";position:absolute;inset:-50% -20% auto;height:70%;
+  background:radial-gradient(ellipse at 50% 0%,rgba(37,99,235,.22),transparent 65%);pointer-events:none}
+.pi-anl>*{position:relative}
+.pi-anl-kopf{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.pi-anl-kopf h2{margin:10px 0 0;font:300 clamp(21px,2.6vw,27px)/1.2 'Inter',sans-serif;letter-spacing:-.025em;color:#fff}
+.pi-anl-kopf p{margin:7px 0 0;font:300 13px/1.6 'Inter',sans-serif;color:#9ca3af;max-width:58ch}
+.pi-anl-zu{min-height:44px;padding:0 6px;background:none;border:0;color:#64748b;
+  font:500 12.5px/1 'Inter',sans-serif;cursor:pointer;flex:0 0 auto}
+.pi-anl-zu:hover{color:#cbd5e1}
+/* Ein Abschnitt = eine Frage. Die Rangordnung entsteht durch Luft, nicht
+   durch Rahmen: gleich laute Kästen waren genau das Alte. */
+.pi-anl-teil{display:grid;gap:11px}
+.pi-anl-teil>legend,.pi-anl-titel{font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.14em;
+  text-transform:uppercase;color:#93c5fd;padding:0}
+.pi-anl-raster{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+.pi-anl-feld{display:grid;gap:6px;min-width:0}
+.pi-anl-feld>span{font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#93c5fd}
+.pi-anl .pi-eingabe{min-height:46px;font-size:14px;border-radius:14px}
+.pi-anl .pi-eingabe:focus{border-color:rgba(96,165,250,.65);box-shadow:0 0 0 3px rgba(37,99,235,.18)}
+/* Ein Feld, das etwas verlangt, sagt es AN SICH SELBST — nicht erst der
+   Server nach dem Klick. */
+.pi-anl-feld.klemmt .pi-eingabe{border-color:rgba(248,113,113,.5)}
+.pi-anl-feld em{font-style:normal;font:400 11.5px/1.45 'Inter',sans-serif;color:#fca5a5}
+.pi-anl-hinweis{margin:0;font:300 12.5px/1.6 'Inter',sans-serif;color:#64748b}
+.pi-anl-hinweis b{font-weight:500;color:#cbd5e1}
+.pi-anl-hinweis.warn{color:#fcd34d}
+/* Der Dubletten-Hinweis: Bernstein, weil er nicht verbietet, sondern warnt. */
+.pi-anl-dublette{display:grid;gap:9px;padding:15px 17px;border-radius:18px;
+  background:rgba(251,191,36,.09);border:1px solid rgba(251,191,36,.3)}
+.pi-anl-dublette>b{font:500 13.5px/1.3 'Inter',sans-serif;color:#fde68a}
+.pi-anl-dublette ul{list-style:none;margin:0;padding:0;display:grid;gap:7px}
+.pi-anl-dublette li{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;
+  padding:9px 11px;border-radius:12px;background:rgba(255,255,255,.05);
+  border:1px solid rgba(255,255,255,.09);font:300 12.5px/1.4 'Inter',sans-serif;color:#cbd5e1}
+.pi-anl-dublette li b{font:500 13px/1.3 'Inter',sans-serif;color:#fff}
+.pi-anl-dublette li a{margin-left:auto;color:#fcd34d;text-decoration:none;font:500 12px/1 'Inter',sans-serif;
+  white-space:nowrap;min-height:36px;display:inline-flex;align-items:center}
+.pi-anl-dublette li a:hover{text-decoration:underline}
+.pi-anl-dublette p{margin:0;font:300 12px/1.55 'Inter',sans-serif;color:#fcd34d;opacity:.9}
+/* Adresse und Geburtsdatum: eingeklappt, weil sie am Telefon selten sofort
+   kommen — dieselbe Bauform wie die Einwände im Leitfaden. */
+.pi-anl-mehr{border:1px solid rgba(255,255,255,.09);border-radius:16px;background:rgba(255,255,255,.035);overflow:hidden}
+.pi-anl-mehr summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:10px;
+  min-height:46px;padding:0 16px;cursor:pointer;font:400 13px/1.3 'Inter',sans-serif;color:#cbd5e1}
+.pi-anl-mehr summary::-webkit-details-marker{display:none}
+.pi-anl-mehr summary::after{content:"+";color:#93c5fd;font-size:18px;font-weight:300}
+.pi-anl-mehr[open] summary::after{content:"–"}
+.pi-anl-mehr>div{padding:2px 16px 16px}
+/* Die Fußzeile: EINE farbige Hauptaktion, daneben leise, was noch fehlt. */
+.pi-anl-fuss{display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  padding-top:16px;border-top:1px solid rgba(255,255,255,.08)}
+.pi-anl-fehlt{font:300 12.5px/1.5 'Inter',sans-serif;color:#9ca3af}
+.pi-anl-fehlt b{font-weight:500;color:#fcd34d}
+/* ── Nach dem Anlegen: der Abschluss ────────────────────────────────────── */
+.pi-anl-gut{display:grid;gap:4px;padding:16px 18px;border-radius:18px;
+  background:linear-gradient(135deg,rgba(16,185,129,.2),rgba(15,23,42,.45));border:1px solid rgba(52,211,153,.35)}
+.pi-anl-gut b{font:400 16px/1.25 'Inter',sans-serif;color:#fff}
+.pi-anl-gut span{font:300 12.5px/1.55 'Inter',sans-serif;color:#a7f3d0}
+.pi-anl-gut span.zweck{font-variant-numeric:tabular-nums;letter-spacing:.02em;color:#6ee7b7}
+.pi-anl-schritt{display:grid;gap:10px;padding:16px 18px;border-radius:18px;
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1)}
+.pi-anl-schritt>b{display:flex;align-items:center;gap:9px;font:500 10.5px/1 'Inter',sans-serif;
+  letter-spacing:.14em;text-transform:uppercase;color:#93c5fd}
+.pi-anl-schritt>b i{display:grid;place-items:center;width:22px;height:22px;border-radius:8px;
+  background:rgba(37,99,235,.22);color:#bfdbfe;font:500 11px/1 'Inter',sans-serif;font-style:normal;letter-spacing:0}
+.pi-anl-schritt p{margin:0;font:300 12.5px/1.6 'Inter',sans-serif;color:#9ca3af}
+.pi-anl-schritt .pi-reihe{gap:9px}
+.pi-anl-link{font:400 11.5px/1.5 'Inter',sans-serif;color:#64748b;word-break:break-all;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+@media(max-width:700px){
+  .pi-anl{padding:20px 16px;gap:16px;border-radius:22px}
+  .pi-anl-raster{grid-template-columns:1fr}
+  /* 16px, sonst zoomt iOS beim Antippen in das Feld hinein und der Rest der
+     Seite rutscht aus dem Bild. */
+  .pi-anl .pi-eingabe{font-size:16px;min-height:48px}
+  .pi-anl-fuss .pi-knopf{flex:1 1 100%}
+  .pi-anl-dublette li a{margin-left:0}
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DIE AKTE AM TELEFON — 24.08.2026
+
+   Justin: „Die Akte am Telefon (jede Aktenansicht am Telefon) ist die Schrift
+   zu groß, alles zusammengequetscht — kaum übersichtlich. Lass mehr Platz,
+   Schriftgröße überall 3–4 Pixel runter, mehr Abstände oben und unten —
+   einfach cleaner und nicht so überladen."
+
+   Am Rechner stimmen die Größen; auf 375 px trägt dieselbe Schrift viel
+   weniger Wörter je Zeile, und alles rückt zusammen. Dieser Block gilt NUR
+   für die Akte am Handy: kleinere Schrift, dafür deutlich mehr Luft. Eine
+   Ausnahme bleibt bewusst groß — Eingabefelder unter 16 px lassen iOS beim
+   Antippen hineinzoomen.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media(max-width:700px){
+  /* Kopf: Name kleiner, Zeile luftiger */
+  .pi-lade-kopf{padding:14px 14px 12px;gap:10px}
+  .pi-lade-kopf h2{font-size:16px;line-height:1.25;font-weight:400}
+  .pi-lade-kopf .status{gap:5px 8px;margin-top:5px}
+  .pi-lade-kopf .status i,.pi-lade-kopf .status span{font-size:11px}
+  .pi-marke{font-size:10px;padding:2px 7px}
+
+  /* Reiter: kleiner, mit Luft dazwischen */
+  .pi-lade .pi-lade-tabs{padding:9px 12px;gap:7px}
+  .pi-tab{font-size:11.5px;padding:0 12px;min-height:34px}
+
+  /* Körper: mehr Abstand zwischen den Blöcken, weniger Enge im Block */
+  .pi-lade-koerper{padding:18px 14px 64px;gap:20px}
+  .pi-sek{padding:18px 15px;gap:11px}
+  .pi-sek-kopf b{font-size:14px;font-weight:400}
+  .pi-sek-kopf p,.pi-sek-satz,.pi-sek-neben{font-size:12px;line-height:1.6}
+  .pi-block{padding:16px 15px}
+
+  /* Situations-Kopf: der Satz oben war der größte Brocken */
+  .pi-situation{padding:18px 15px}
+  .pi-situation h3{font-size:16px;line-height:1.35;font-weight:400}
+  .pi-situation p{font-size:12.5px;line-height:1.6;margin-top:7px}
+  .pi-situation-tun{gap:9px;margin-top:12px}
+
+  /* Listen und Zeilen: Luft oben und unten statt Haarlinien-Enge */
+  .pi-dl div{padding:9px 0}
+  .pi-dl dt{font-size:10px}
+  .pi-dl dd{font-size:12.5px}
+  .pi-doku,.pi-rate{padding:12px 0;gap:9px}
+  .pi-doku .wer b,.pi-rate b{font-size:13px;font-weight:400}
+  .pi-doku .wer small,.pi-rate small{font-size:11.5px;line-height:1.5}
+
+  /* Knöpfe: kleiner beschriftet, aber weiterhin daumenfreundlich hoch */
+  .pi-lade .pi-knopf{font-size:12.5px}
+  .pi-lade .pi-knopf.klein{font-size:11.5px;min-height:38px}
+  .pi-abschluss-weg{padding:14px 15px}
+  .pi-abschluss-weg b{font-size:14.5px}
+  .pi-abschluss-weg small{font-size:11.5px}
+
+  /* Eingaben bleiben bei 16px — darunter zoomt iOS beim Antippen hinein. */
+  .pi-lade .pi-eingabe,.pi-lade input,.pi-lade textarea,.pi-lade select{font-size:16px}
+  .pi-form{gap:12px}
+  .pi-form label{font-size:10.5px}
 }

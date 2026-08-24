@@ -148,11 +148,10 @@ const WOCHENTAGE = [[1, "Mo", "Montag"], [2, "Di", "Dienstag"], [3, "Mi", "Mittw
 function Profil({ melden }: { melden: (m: Meldung) => void }) {
   const { reload } = useAgentInfo();
   const [profil, setProfil] = useState<any>(null);
-  const [telefon, setTelefon] = useState("");
   const [bank, setBank] = useState({ holder: "", iban: "", bic: "" });
   const [busy, setBusy] = useState<string | null>(null);
   const datei = useRef<HTMLInputElement>(null);
-  const laden = () => { api("/agent/profile").then((r) => { if (r.ok) { setProfil(r.json.profile); setTelefon(r.json.profile.phone || ""); setBank((b) => ({ ...b, holder: r.json.profile.bankHolder || "" })); } else melden({ art: "schlecht", text: r.json?.error || "Profil konnte nicht geladen werden." }); }); };
+  const laden = () => { api("/agent/profile").then((r) => { if (r.ok) { setProfil(r.json.profile); setBank((b) => ({ ...b, holder: r.json.profile.bankHolder || "" })); } else melden({ art: "schlecht", text: r.json?.error || "Profil konnte nicht geladen werden." }); }); };
   useEffect(laden, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Erreichbarkeit für Terminbuchungen (/agent/verfuegbarkeit)
@@ -173,7 +172,6 @@ function Profil({ melden }: { melden: (m: Meldung) => void }) {
     finally { setBusy(null); }
   };
   const bildEntfernen = async () => { setBusy("avatar"); const r = await api("/agent/profile/avatar", { method: "POST", body: JSON.stringify({ avatar: "" }) }); setBusy(null); if (r.ok) { melden({ art: "gut", text: "Profilbild entfernt" }); laden(); reload(); } };
-  const telefonSpeichern = async () => { setBusy("phone"); const r = await api("/agent/profile/phone", { method: "POST", body: JSON.stringify({ phone: telefon }) }); setBusy(null); melden(r.ok ? { art: "gut", text: "Telefonnummer gespeichert" } : { art: "schlecht", text: r.json?.error || "Fehler" }); };
   const fensterSpeichern = async () => {
     const kaputt = fenster.find((f) => f.bis <= f.von);
     if (kaputt) { melden({ art: "schlecht", text: `${WOCHENTAGE.find((w) => w[0] === kaputt.wochentag)?.[2]}: „bis" muss nach „von" liegen.` }); return; }
@@ -202,8 +200,22 @@ function Profil({ melden }: { melden: (m: Meldung) => void }) {
       </section>
 
       <section className="mo-block leicht">
-        <div className="mo-block-kopf"><b>Telefonnummer</b><small>für Rückrufe und das Softphone</small></div>
-        <div className="mo-formzeile"><input className="mo-feld" type="tel" value={telefon} onChange={(e) => setTelefon(e.target.value)} placeholder="+49 …" aria-label="Telefonnummer" /><button type="button" className="mo-knopf" disabled={busy === "phone"} onClick={telefonSpeichern}>{busy === "phone" ? "…" : "Speichern"}</button></div>
+        {/* 24.08.2026 (Justin): VORHER konnte hier jeder eine eigene Rufnummer
+            „für Rückrufe und das Softphone" eintragen. Sie wurde NIE benutzt:
+            Ruft ein Kunde die FIAON-Nummer an, klingelt es im BROWSER des
+            Zuständigen (Twilio ruft <Client>agent-ID</Client>) — nicht auf
+            einer hinterlegten Nummer. Das Feld hat also nur den Eindruck
+            erweckt, man müsse etwas eintragen, damit man erreichbar ist.
+            NACHHER steht dort, wie es wirklich läuft. */}
+        <div className="mo-block-kopf"><b>Rückrufe</b><small>so erreichen dich deine Kunden</small></div>
+        <p className="mo-hinweis">
+          Ruft einer deiner Kunden die FIAON-Nummer an, klingelt es <b>hier im Office</b> —
+          in dem Browserfenster, in dem du angemeldet bist. Du brauchst dafür keine eigene
+          Nummer zu hinterlegen. Wer angerufen wird, entscheidet der Fall: Bei einer offenen
+          Rate übernimmt das Forderungsmanagement, vor einem Startgespräch der Kollege mit
+          dem Termin — sonst <b>du als Betreuer</b>. Nimmt niemand ab, hört der Kunde eine
+          Ansage und der Anruf steht in deiner Inbox.
+        </p>
       </section>
 
       {/* Vorher: komplettes Erreichbarkeits-Formular (Wochentage + Zeiten) direkt im Profil.

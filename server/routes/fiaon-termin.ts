@@ -924,8 +924,22 @@ router.post("/agent/termine", requireAgent, async (req: AgentRequest, res: Respo
       WHERE id = ${Number(personId)} AND merged_into_person_id IS NULL
     `) as any[];
     if (!person) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden." });
+    // ── 24.08.2026 (Justin, Auftrag 2 / Praxisprobe) ──────────────────────
+    // VORHER endete der Weg für das Forderungsmanagement hier mit 403: Diana
+    // betreut niemanden, ihre Fälle gehören immer einem Kollegen. In der Akte
+    // steht aber ausdrücklich „1 Monat ausgesetzt + Termin — buch danach oben
+    // den Termin"; ausgesetzt ohne Gespräch verliert den Kunden. Der
+    // Mitarbeiter musste den Raum wechseln und konnte es dort auch nicht.
+    // NACHHER entscheidet die EINE Definition (`darfAnKunde`): Betreuer ja,
+    // Leitung ja, Forderungsmanagement bei einem Menschen mit offener Rate
+    // ja — sonst weiter 403. Für den gewöhnlichen Bonitätsmanager ändert sich
+    // nichts: `darfAnKunde` fragt für ihn nach genau derselben Betreuung.
     if (person.assigned_agent_id && Number(person.assigned_agent_id) !== req.agent!.id) {
-      return res.status(403).json({ ok: false, error: "Dieser Kunde wird von einem Kollegen betreut." });
+      const { rolleVon, darfAnKunde } = await import("../lib/fiaon-kundenzugriff");
+      const rolle = await rolleVon(req.agent!.id);
+      if (!(await darfAnKunde(req.agent!.id, rolle, Number(personId)))) {
+        return res.status(403).json({ ok: false, error: "Dieser Kunde wird von einem Kollegen betreut." });
+      }
     }
 
     const buchung = await terminBuchen({

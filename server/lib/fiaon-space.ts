@@ -194,9 +194,25 @@ export async function tageszahlen(
       (SELECT COUNT(*)::int FROM fiaon_contact_log cl
         WHERE cl.agent_id = ${agentId} AND cl.type <> 'system'
           AND cl.created_at >= date_trunc('day', ${heute}::date)) AS kontakte,
+      -- 24.08.2026 (Justin: „Wie kann da stehen Stufe A 4 offen? Jeder hat ja
+      -- nur das 2+2+2-Modell!"): Diese Zahl zählt ALLE Stufe-A-Kunden im
+      -- Bestand, nicht die Arbeitsliste. Sie war damit rechnerisch richtig und
+      -- trotzdem falsch, weil die Beschriftung „warten auf dich" nach der
+      -- Arbeitsliste klang. Sie bleibt als HINWEIS erhalten, die große Zahl
+      -- ist jetzt die Arbeitsliste selbst (siehe unten).
       (SELECT COUNT(*)::int FROM fiaon_persons p
         WHERE p.assigned_agent_id = ${agentId} AND p.merged_into_person_id IS NULL
           AND p.priority_tier = 1 AND NOT p.is_blocked) AS stufe_a,
+      -- Die Arbeitsliste: höchstens 2 je Stufe, höchstens 6 gesamt — dieselbe
+      -- Rechnung wie in GET /agent/vertrieb/arbeitsliste (SLOTS=6, JE_GRUPPE=2).
+      LEAST(6,
+        LEAST(2, (SELECT COUNT(*)::int FROM fiaon_persons p WHERE p.assigned_agent_id = ${agentId}
+                    AND p.merged_into_person_id IS NULL AND NOT p.is_blocked AND p.priority_tier = 1))
+      + LEAST(2, (SELECT COUNT(*)::int FROM fiaon_persons p WHERE p.assigned_agent_id = ${agentId}
+                    AND p.merged_into_person_id IS NULL AND NOT p.is_blocked AND p.priority_tier = 2))
+      + LEAST(2, (SELECT COUNT(*)::int FROM fiaon_persons p WHERE p.assigned_agent_id = ${agentId}
+                    AND p.merged_into_person_id IS NULL AND NOT p.is_blocked AND p.priority_tier = 3))
+      )::int AS arbeitsliste,
       (SELECT COUNT(*)::int FROM fiaon_commissions c
         WHERE c.agent_id = ${agentId} AND c.status <> 'storniert'
           AND COALESCE(c.kind,'') <> 'stunden'
@@ -206,7 +222,11 @@ export async function tageszahlen(
     { titel: "Verdienst Monat", wert: `${(Number(m.verdienst) / 100).toFixed(2).replace(".", ",")} €`,
       hinweis: `${m.abschluesse} ${Number(m.abschluesse) === 1 ? "Abschluss" : "Abschlüsse"}` },
     { titel: "Kontakte heute", wert: String(m.kontakte), hinweis: "von dir dokumentiert" },
-    { titel: "Stufe A offen", wert: String(m.stufe_a), hinweis: "warten auf dich" },
+    // VORHER: „Stufe A offen · warten auf dich" mit der Bestandszahl — las sich
+    // wie die Arbeitsliste und widersprach dem 2+2+2-Modell. NACHHER steht dort
+    // die Arbeitsliste, und der Bestand steht als Hinweis daneben.
+    { titel: "In deiner Arbeitsliste", wert: String(m.arbeitsliste),
+      hinweis: `von ${m.stufe_a} Stufe A im Bestand` },
   ];
 }
 

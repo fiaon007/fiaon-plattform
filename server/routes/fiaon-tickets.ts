@@ -125,6 +125,27 @@ router.post("/agent/tickets/:id/antwort", requireAgent, async (req: AgentRequest
     const id = Number(req.params.id); const antwort = String(req.body?.antwort || "").trim().slice(0, 4000);
     const erledigt = req.body?.erledigt === true;
     if (antwort.length < 2) return res.status(400).json({ ok: false, error: "Antwort fehlt." });
+
+    // ── BESITZ PRÜFEN (24.08.2026) ────────────────────────────────────────
+    // VORHER schrieb diese Route direkt per UPDATE auf die Kennung aus der
+    // Adresszeile — OHNE zu fragen, ob das Anliegen überhaupt zu einem Kunden
+    // dieses Mitarbeiters gehört. Wer eine fremde Kennung kannte oder erriet,
+    // konnte im Namen von FIAON an den Kunden eines Kollegen schreiben. Die
+    // Oberfläche zeigte zwar nur eigene Anliegen an, aber eine Grenze, die nur
+    // in der Anzeige existiert, ist keine Grenze.
+    // NACHHER gilt dieselbe Regel wie beim Zähler und beim Übernehmen: eigenes
+    // Anliegen, herrenloses Anliegen aus dem Pool — oder Leitung/Admin.
+    // GRUND: Befund aus dem Inbox-Umbau, Auftrag des Inhabers vom 24.08.2026.
+    const { rolleVon } = await import("../lib/fiaon-kundenzugriff");
+    const rolle = await rolleVon(req.agent!.id);
+    const alle = rolle === "admin" || rolle === "vertriebsleiter";
+    if (!alle) {
+      const [darf] = (await sqlPool`
+        SELECT 1 AS ok FROM fiaon_tickets
+        WHERE id = ${id} AND (agent_id = ${req.agent!.id} OR agent_id IS NULL)`) as any[];
+      if (!darf) return res.status(404).json({ ok: false, error: "Anliegen nicht gefunden." });
+    }
+
     const [t] = (await sqlPool`UPDATE fiaon_tickets SET antwort = ${antwort}, beantwortet_am = NOW(), beantwortet_von = ${req.agent!.id},
       agent_id = COALESCE(agent_id, ${req.agent!.id}), status = ${erledigt ? "erledigt" : "beantwortet"}, updated_at = NOW()
       WHERE id = ${id} RETURNING ref, betreff`) as any[];

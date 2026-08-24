@@ -22,6 +22,10 @@ interface Todo {
   delegiertAm: string | null; angenommenAm: string | null; erledigtVon: string | null; ergebnis: string | null; frageOffen: boolean;
   letzteAktivitaet: string | null; beitraege: number; letzterBeitrag: { art: string; autor: string; text: string; am: string } | null;
   zeitleiste?: Beitrag[];
+  // E-029 (24.08.2026): der Austausch geht in beide Richtungen — frageAnAgent
+  // ist DEINE Frage an den Mitarbeiter, neuFuerBetreiber das, was er
+  // geschrieben hat und du noch nicht gesehen hast.
+  frageAnAgent: boolean; neuFuerBetreiber: number; neuFuerAgent: number; ergebnisPflicht: boolean;
 }
 interface Agent { id: number; name: string; rolle: string }
 
@@ -63,6 +67,10 @@ const CSS = `
 .td-chip{display:inline-flex;align-items:center;gap:5px;font-weight:500}
 .td-chip i{width:7px;height:7px;border-radius:50%;background:var(--c,#64748b)}
 .td-frage{display:inline-flex;align-items:center;gap:5px;color:#b45309;font-weight:600}
+/* E-029 (24.08.2026): zwei neue Zeichen. VORHER sah man nur die Frage AUS dem
+   Team; deine eigene Frage AN das Team und alles Ungelesene waren unsichtbar. */
+.td-wartet{display:inline-flex;align-items:center;gap:5px;color:#7c3aed;font-weight:500}
+.td-neu{display:inline-flex;align-items:center;font-size:10.5px;font-weight:500;color:#1d4ed8;padding:2px 8px;border-radius:999px;background:rgba(37,99,235,.1);border:1px solid rgba(37,99,235,.25)}
 .td-letzt{margin-top:8px;font-size:11.5px;color:#475569;line-height:1.4;background:#f8fafc;border-radius:8px;padding:6px 8px}
 .td-letzt b{font-weight:600;color:#0f172a}
 .td-leer{font-size:12.5px;color:#94a3b8;padding:14px 8px;line-height:1.5}
@@ -133,11 +141,15 @@ export default function AdminTodoPage() {
         <button type="button" onClick={() => setNeu(true)} className="a3-knopf inline-flex shrink-0" data-haupt="1"><Plus size={13} /> Neu</button>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3 mb-5">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5 sm:gap-3 mb-5">
         {[
           { label: "Bei mir", wert: nachSpalte.offen.length, ton: nachSpalte.offen.some((t) => t.prioritaet === 1) ? ("offen" as const) : undefined },
           { label: "Beim Team", wert: nachSpalte.team.length, ton: undefined },
           { label: "Rückfragen", wert: nachSpalte.rueckfrage.length, ton: nachSpalte.rueckfrage.length ? ("warnung" as const) : undefined },
+          // E-029 (24.08.2026): NEU — was man sonst nirgends sieht: ungelesene
+          // Nachrichten aus dem Team. Die Zahl fällt auf null, sobald du die
+          // Akten geöffnet hast; sie kann nicht stehen bleiben.
+          { label: "Neu vom Team", wert: (todos || []).filter((t) => t.neuFuerBetreiber > 0).length, ton: (todos || []).some((t) => t.neuFuerBetreiber > 0) ? ("warnung" as const) : undefined },
           { label: "Überfällig", wert: [...nachSpalte.offen, ...nachSpalte.team, ...nachSpalte.rueckfrage].filter((t) => t.faelligAm && t.faelligAm < heute).length, ton: undefined },
         ].map((k, i) => (
           <div key={k.label} className="a3-kachel a3-auf p-4 pl-[18px]" data-ton={k.ton} style={{ ["--i" as any]: i }}>
@@ -170,6 +182,10 @@ export default function AdminTodoPage() {
                     {t.faelligAm && t.spalte !== "erledigt" && <span style={{ color: t.faelligAm < heute ? "#dc2626" : undefined, fontWeight: t.faelligAm < heute ? 600 : undefined }}>bis {tag(t.faelligAm)}</span>}
                     {t.zustaendig.art === "agent" && <span className="td-chip"><UserRound size={11} />{t.zustaendig.name} · {STATUS_TEXT[t.status]}</span>}
                     {t.frageOffen && <span className="td-frage"><MessageCircleQuestion size={12} /> Frage</span>}
+                    {/* E-029: deine eigene Frage steht beim Mitarbeiter — du wartest, nicht er. */}
+                    {t.frageAnAgent && <span className="td-wartet"><MessageCircleQuestion size={12} /> wartet auf Antwort</span>}
+                    {/* E-029: zählt nur, was du noch nicht gesehen hast, und fällt beim Öffnen weg. */}
+                    {t.neuFuerBetreiber > 0 && <span className="td-neu">{t.neuFuerBetreiber} neu</span>}
                     {t.spalte === "erledigt" && <span style={{ color: "#059669", fontWeight: 600 }}>{t.erledigtVon || "erledigt"} · {tag(t.erledigtAm)}</span>}
                   </div>
                   {t.letzterBeitrag && t.letzterBeitrag.art !== "status" && (
@@ -194,6 +210,8 @@ export default function AdminTodoPage() {
           "Aufgabe anklicken: rechts öffnet sich die Akte mit Zeitleiste. Dort erledigen, übergeben, antworten, löschen.",
           "Übergibst du eine Aufgabe, sieht der Mitarbeiter sie im Portal unter Aufgaben → Aufträge. Er nimmt an, fragt zurück oder meldet ein Ergebnis.",
           "Eine Rückfrage kommt sofort zu dir zurück (Spalte „Rückfrage“). Deine Antwort setzt die Aufgabe wieder in Arbeit.",
+          "Du kannst auch selbst fragen: „Als Frage senden“ unten in der Akte. Beim Mitarbeiter steht sie mit einem Antwort-Knopf, bis er antwortet.",
+          "„Neu vom Team“ zählt nur, was du noch nicht gesehen hast. Öffnest du die Akte, ist es gelesen und die Zahl fällt — sie bleibt nicht stehen.",
         ]} />
     </div>
   );
@@ -209,9 +227,16 @@ function Lade({ todo, agenten, onClose, onChange, onDelete, melden }: { todo: To
   const [uebergabe, setUebergabe] = useState<{ agentId: string; hinweis: string } | null>(null);
   const [meta, setMeta] = useState({ prioritaet: todo.prioritaet, faelligAm: todo.faelligAm || "", bereich: todo.bereich, link: todo.link || "" });
 
+  // E-029 (24.08.2026): VORHER holte das Öffnen nur die Akte. NACHHER meldet es
+  // dem Server zusätzlich „gesehen" — die Marke „neu vom Team" verschwindet
+  // dadurch, nicht durch Zeitablauf. Wer die Akte offen hatte, hat gelesen.
   const laden = useCallback(async () => {
     const r = await api(`/admin/todo/${todo.id}`);
-    if (r.ok) { setDetail(r.json.todo); onChange(r.json.todo); } else setFehler(r.error || "Akte kam nicht.");
+    if (r.ok) { setDetail(r.json.todo); onChange(r.json.todo); } else { setFehler(r.error || "Akte kam nicht."); return; }
+    if (Number(r.json.todo?.neuFuerBetreiber || 0) > 0) {
+      const g = await api(`/admin/todo/${todo.id}/gelesen`, { method: "POST" });
+      if (g.ok && g.json?.todo) { setDetail(g.json.todo); onChange(g.json.todo); }
+    }
   }, [todo.id, onChange]);
   useEffect(() => { void laden(); }, [laden]);
   useEffect(() => { setMeta({ prioritaet: todo.prioritaet, faelligAm: todo.faelligAm || "", bereich: todo.bereich, link: todo.link || "" }); }, [todo.id, todo.prioritaet, todo.faelligAm, todo.bereich, todo.link]);
@@ -229,7 +254,13 @@ function Lade({ todo, agenten, onClose, onChange, onDelete, melden }: { todo: To
 
   const erledigen = async () => { if (await tun(`/admin/todo/${t.id}`, { erledigt: true, ergebnis: ergebnis.trim() || undefined }, "PATCH", "Erledigt.")) { setErgebnis(""); setErgebnisOffen(false); } };
   const oeffnen = () => tun(`/admin/todo/${t.id}`, { erledigt: false }, "PATCH", "Wieder offen.");
-  const antworten = async () => { if (await tun(`/admin/todo/${t.id}/beitrag`, { text: antwort }, "POST", t.frageOffen ? "Antwort gesendet." : "Kommentar gespeichert.")) setAntwort(""); };
+  // E-029 (24.08.2026): VORHER war jede Nachricht ein Kommentar, den niemand
+  // beantworten musste. NACHHER kannst du mit „Als Frage senden" eine Antwort
+  // VERLANGEN — beim Mitarbeiter steht sie als Frage mit Antwort-Knopf.
+  const antworten = async (alsFrage = false) => {
+    const meldung = alsFrage ? "Frage an den Mitarbeiter gesendet." : t.frageOffen ? "Antwort gesendet." : "Nachricht gespeichert.";
+    if (await tun(`/admin/todo/${t.id}/beitrag`, { text: antwort, art: alsFrage ? "frage" : undefined }, "POST", meldung)) setAntwort("");
+  };
   const uebergeben = async () => {
     if (!uebergabe?.agentId) return;
     if (await tun(`/admin/todo/${t.id}/delegieren`, { agentId: Number(uebergabe.agentId), hinweis: uebergabe.hinweis }, "POST", "Übergeben.")) setUebergabe(null);
@@ -320,7 +351,9 @@ function Lade({ todo, agenten, onClose, onChange, onDelete, melden }: { todo: To
             <div className="td-blase" data-wer="system">Eingetragen {zeit(t.createdAt)} · {t.quelle === "hand" ? "von Hand" : "vom Entwickler"}</div>
             {(t.zeitleiste || []).map((b) => (
               <div key={b.id} className="td-blase" data-wer={b.autorArt} data-art={b.art}>
-                {b.art === "frage" && <strong className="block text-[11px] uppercase tracking-wide mb-0.5" style={{ color: "#b45309" }}>Frage von {b.autorName}</strong>}
+                {b.art === "frage" && <strong className="block text-[11px] uppercase tracking-wide mb-0.5" style={{ color: "#b45309" }}>Frage von {b.autorArt === "betreiber" ? "dir" : b.autorName}</strong>}
+                {/* E-029: Antworten sind jetzt auf beiden Seiten möglich — der Verlauf muss sagen, wessen. */}
+                {b.art === "antwort" && <strong className="block text-[11px] uppercase tracking-wide mb-0.5" style={{ color: "#1d4ed8" }}>Antwort von {b.autorArt === "betreiber" ? "dir" : b.autorName}</strong>}
                 {b.art === "ergebnis" && <strong className="block text-[11px] uppercase tracking-wide mb-0.5" style={{ color: "#047857" }}>Ergebnis von {b.autorName}</strong>}
                 {b.text}
                 {b.autorArt !== "system" && <small>{b.autorArt === "betreiber" ? "Du" : b.autorName} · {zeit(b.am)}</small>}
@@ -333,10 +366,19 @@ function Lade({ todo, agenten, onClose, onChange, onDelete, melden }: { todo: To
         {t.status !== "erledigt" && (
           <div className="td-lade-fuss">
             {t.frageOffen && <p className="text-[12px] font-medium mb-1.5" style={{ color: "#b45309" }}>{t.zustaendig.name} wartet auf deine Antwort.</p>}
+            {t.frageAnAgent && <p className="text-[12px] font-medium mb-1.5" style={{ color: "#7c3aed" }}>Deine Frage liegt bei {t.zustaendig.name} — du wartest auf die Antwort.</p>}
             <div className="flex gap-2">
               <input className="td-feld" placeholder={t.frageOffen ? "Antwort schreiben …" : t.zustaendig.art === "agent" ? `Nachricht an ${t.zustaendig.name} …` : "Notiz für dich …"} value={antwort} onChange={(e) => setAntwort(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && antwort.trim().length >= 2) void antworten(); }} />
-              <button type="button" className="a3-knopf inline-flex shrink-0" data-haupt="1" disabled={busy || antwort.trim().length < 2} onClick={() => void antworten()}><Send size={13} /></button>
+              <button type="button" className="a3-knopf inline-flex shrink-0" data-haupt="1" disabled={busy || antwort.trim().length < 2} onClick={() => void antworten()} title="Senden"><Send size={13} /></button>
             </div>
+            {/* E-029: Der zweite Knopf verlangt eine Antwort. Er erscheint nur,
+                wenn die Aufgabe bei einem Mitarbeiter liegt — eine Frage an
+                niemanden wäre eine Sackgasse. */}
+            {t.zustaendig.art === "agent" && (
+              <button type="button" className="a3-knopf inline-flex mt-2" disabled={busy || antwort.trim().length < 2} onClick={() => void antworten(true)}>
+                <MessageCircleQuestion size={13} /> Als Frage senden — {t.zustaendig.name} muss antworten
+              </button>
+            )}
           </div>
         )}
       </div>

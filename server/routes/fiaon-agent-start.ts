@@ -444,6 +444,13 @@ router.get("/agent/start", requireAgent, async (req: AgentRequest, res: Response
              a.person_id, cl.scheduled_at, cl.note,
              COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''),
                       p.company_name, p.contact_name, p.primary_email) AS name,
+             -- 24.08.2026: VORHER fehlte hier die Rufnummer. Das Dashboard
+             -- konnte die ECHTEN Rückrufe deshalb nicht anbieten (kein
+             -- Anruf-Knopf ohne Nummer) und zeigte stattdessen die
+             -- Zahlungszusagen unter der Überschrift „Rückrufe".
+             -- GEMESSEN bei Daniel Stripling (Konto 8): 9 echte Rückrufe
+             -- standen nirgends, 35 Zahlungszusagen standen als „Rückrufe" da.
+             p.primary_phone,
              p.priority_tier, p.tier_reason
       FROM fiaon_contact_log cl
       JOIN fiaon_applications a ON a.ref = cl.ref
@@ -514,6 +521,8 @@ router.get("/agent/start", requireAgent, async (req: AgentRequest, res: Response
           personId: Number(r.person_id),
           name: r.name,
           am: r.scheduled_at,
+          // 24.08.2026 mitgeliefert — ohne sie war der Anruf-Knopf tot.
+          telefon: r.primary_phone ?? null,
           notiz: r.note,
           tier: Number(r.priority_tier),
           tierGrund: r.tier_reason,

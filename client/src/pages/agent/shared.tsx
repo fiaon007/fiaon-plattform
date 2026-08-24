@@ -808,7 +808,18 @@ function AgentShellInnen({ children, onRefresh }: { children: ReactNode; onRefre
           return;
         }
         const z = r.json.zahlen ?? {};
-        setRuecklaeufer((z.heuteFaellig || 0) + (z.ohneDatum || 0) + (z.ueberfaellig || 0));
+        // ── 24.08.2026: EINE MARKE, EINE MENGE ────────────────────────────
+        // VORHER: heuteFaellig + ohneDatum + ueberfaellig. Die drei Mengen
+        // überschneiden sich, die Summe zählte Menschen doppelt.
+        // GEMESSEN bei Daniel Stripling (Konto 8): 176 + 27 + 30 = 233,
+        // tatsächlich nur 188 verschiedene Kunden — 45 zu viel. Bei Nikita
+        // Boychenko (Konto 13): 257 statt 205.
+        // NACHHER liefert der Server `zuTun`: die Zahl der Kunden, auf die
+        // mindestens einer der drei Gründe zutrifft. Die alte Summe bleibt
+        // nur als Rückfall für Server, die das Feld noch nicht kennen.
+        setRuecklaeufer(z.zuTun != null
+          ? Number(z.zuTun)
+          : (z.heuteFaellig || 0) + (z.ohneDatum || 0) + (z.ueberfaellig || 0));
       })
       .catch(() => {});
     holen();

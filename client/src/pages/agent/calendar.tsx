@@ -37,6 +37,9 @@ import { AgentShell, api } from "./shared";
 import { useOffice } from "./OfficeShell";
 import "@/styles/office-calendar.css";
 import { TERMIN_ARTEN } from "@shared/fiaon-termin-art";
+import { Rundgang } from "@/components/agent/Rundgang";
+import { RUNDGAENGE } from "./rundgaenge";
+import "@/styles/office-rundgang.css";
 
 // ── Zeit in Europe/Berlin (nie über toISOString, AGENTS.md) ─────────────────
 interface Teile { y: number; m: number; d: number; h: number; min: number; wd: number }
@@ -193,6 +196,26 @@ function CalendarInnen() {
   const heuteListe = useMemo(() => proTag(heuteKey), [proTag, heuteKey]);
   const tagListe = useMemo(() => proTag(tagKey), [proTag, tagKey]);
 
+  // ── 24.08.2026: „HEUTE N TERMINE" HIESS HIER ETWAS ANDERES ALS AUF DEM
+  // DASHBOARD ──────────────────────────────────────────────────────────────
+  // Diese Seite mischt ZWEI Quellen (GET /agent/calendar): gebuchte Termine
+  // aus fiaon_termine UND selbst notierte Rückrufe/Zahlungs-Zusagen aus
+  // fiaon_contact_log — und zählte beides zusammen als „Termine",
+  // einschließlich der abgesagten. Das Dashboard zählt über /agent/termine
+  // NUR die gebuchten, nicht abgesagten Termine.
+  // GEMESSEN am 24.08.2026: Daniel Stripling (Konto 8) Dashboard 3 gegen
+  // Kalender 6, Nikita Boychenko (Konto 13) 1 gegen 2, Rifka Rovcanin
+  // (Konto 811) 2 gegen 3.
+  // NACHHER trennt der Kopf die beiden Mengen und benennt sie. Die Zahl
+  // „Termine" ist damit dieselbe wie auf dem Dashboard; die Liste darunter
+  // zeigt weiter beides, denn beides ist Arbeit für heute.
+  const heuteTermine = useMemo(() => heuteListe.filter((a) => a.quelle === "termin" && !a.abgesagt), [heuteListe]);
+  const heuteRueckrufe = useMemo(() => heuteListe.filter((a) => a.quelle !== "termin"), [heuteListe]);
+  const wocheGesamt = useMemo(
+    () => wochenKeys.reduce((s, k) => s + proTag(k).filter((a) => !a.abgesagt).length, 0),
+    [wochenKeys, proTag],
+  );
+
   // ── Aktionen (unverändert aus kalender.tsx) ──────────────────────────────
   const entfernen = (a: Termin) => setTermine((v) => v.filter((x) => tKey(x) !== tKey(a)));
   const erledigt = async (a: Termin) => {
@@ -268,12 +291,16 @@ function CalendarInnen() {
       <section className="ca-kopf">
         <div>
           <span className="ca-pille">{datumLang(jetzt)} · {uhr(jetzt)} Uhr</span>
-          <h1>{heuteListe.length ? <>Heute <span className="ca-verlauf">{heuteListe.length} {heuteListe.length === 1 ? "Termin" : "Termine"}</span>{ueberfaellig.length ? <>, {ueberfaellig.length} überfällig.</> : "."}</> : ueberfaellig.length ? <><span className="ca-verlauf">{ueberfaellig.length} überfällig</span> – heute frei.</> : <>Heute <span className="ca-verlauf">frei.</span></>}</h1>
+          <h1>{heuteListe.length ? <>Heute <span className="ca-verlauf">{heuteTermine.length} {heuteTermine.length === 1 ? "Termin" : "Termine"}</span>{heuteRueckrufe.length ? <>, {heuteRueckrufe.length} {heuteRueckrufe.length === 1 ? "Rückruf" : "Rückrufe"}</> : null}{ueberfaellig.length ? <>, {ueberfaellig.length} überfällig.</> : "."}</> : ueberfaellig.length ? <><span className="ca-verlauf">{ueberfaellig.length} überfällig</span> – heute frei.</> : <>Heute <span className="ca-verlauf">frei.</span></>}</h1>
           <p>Rückrufe, Zusagen und Termine, die Kunden bei dir gebucht haben. Grau ist außerhalb deiner Verfügbarkeit – dort kommen keine neuen Buchungen.</p>
         </div>
         <div className="ca-lage">
           <small>Diese Woche</small>
-          <div className="ca-lage-zahl"><b>{wochenKeys.reduce((s, k) => s + proTag(k).filter((a) => !a.abgesagt).length, 0)}</b><span>Termine</span></div>
+          {/* 24.08.2026: Die Wochenzahl schloss Abgesagte schon immer aus, die
+              Tageszahl darüber nicht — zwei Auffassungen von „Termin" auf
+              EINER Seite. Jetzt sagt die Beschriftung, was gezählt wird:
+              gebuchte Termine UND notierte Rückrufe, ohne die abgesagten. */}
+          <div className="ca-lage-zahl"><b>{wocheGesamt}</b><span>Termine &amp; Rückrufe</span></div>
           <div className="ca-lage-zeile"><span>Überfällig</span><b className={ueberfaellig.length ? "warn" : ""}>{ueberfaellig.length}</b></div>
           <div className="ca-lage-zeile"><span>Verfügbarkeit</span><b className={vollstaendig ? "" : "warn"}>{stundenWoche == null ? "–" : `${stundenWoche.toLocaleString("de-DE")} h / Woche`}</b></div>
           <Link href="/agent/arbeitszeiten" className="ca-link">{vollstaendig ? "Zeiten ändern" : "Verfügbarkeit eintragen"} <ChevronRight size={14} /></Link>
@@ -332,7 +359,9 @@ function CalendarInnen() {
 
       {ansicht === "tag" && !laedt && (
         <section className="ca-block">
-          <div className="ca-block-kopf"><b>{tagKey === heuteKey ? "Heute" : datumLang(tagDate)}</b><small>{tagListe.length ? `${tagListe.length} ${tagListe.length === 1 ? "Termin" : "Termine"}` : "nichts geplant"}</small></div>
+          <div className="ca-block-kopf"><b>{tagKey === heuteKey ? "Heute" : datumLang(tagDate)}</b>{/* 24.08.2026: Die Zeile zählt genau das, was darunter steht — gebuchte
+             Termine und notierte Rückrufe. Vorher hieß beides „Termine". */}
+          <small>{tagListe.length ? `${tagListe.length} ${tagListe.length === 1 ? "Eintrag" : "Einträge"}` : "nichts geplant"}</small></div>
           <Tagband frei={freiAm(teile(tagDate).wd)} jetzt={tagKey === heuteKey ? minuten(jetzt) : null} />
           {tagListe.length === 0 && <p className="ca-leer">{freiAm(teile(tagDate).wd).length ? "Kein Termin an diesem Tag. Deine Zeiten sind frei für Buchungen." : "Kein Termin – und keine Verfügbarkeit an diesem Tag. Kunden können hier nichts buchen."}</p>}
           {tagListe.map((a) => <Zeile key={tKey(a)} a={a} busy={busy === tKey(a)} onAkte={() => zurAkte(a)} onOeffnen={() => setDetail(a)} onErledigt={() => erledigt(a)} ausser={!inVerfuegbarkeit(tZeit(a))} />)}
@@ -379,6 +408,9 @@ function CalendarInnen() {
                       );
                     })}
                   </div>
+                  {/* 24.08.2026 (Justin): Jeder Raum erklaert sich beim ersten
+                      Betreten selbst — danach jederzeit ueber den Knopf unten links. */}
+                  <Rundgang raum="calendar" titel={RUNDGAENGE.calendar.titel} schritte={RUNDGAENGE.calendar.schritte} />
                 </div>
               );
             })}

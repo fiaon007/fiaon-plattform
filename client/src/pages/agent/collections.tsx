@@ -10,19 +10,39 @@
 //   POST /inkasso/rate/:id/ergebnis   Ergebnis festhalten (Zusage-Datum, Notiz, Härtefall)
 //   POST /inkasso/rate/:id/erinnerung Rechnung/Erinnerung jetzt schicken
 //   GET/POST /inkasso/stunden · POST /inkasso/stunden/:id/entfernen  Meine Zeiten
-//   Senden → SendeMenue (/api/fiaon/agent/mail), Anrufen → Ereignis `fiaon-anrufen`
 // Die Reihenfolge macht der Server. Erlass, Stundung, Kürzung, Storno gibt es
 // hier nicht – nur „Härtefall an den Vorgesetzten".
+//
+// ── 24.08.2026 (Justin), ZWEI ÄNDERUNGEN AN EINEM TAG ─────────────────────
+// 1. VORHER trug jede Kundenkarte fünf gleichrangige Knöpfe (Anrufen · Akte ·
+//    Senden · Ergebnis festhalten · Kundenakte) — eine Knopf-Wüste, dieselbe
+//    wie in der Pipeline vor dem Umbau. NACHHER sagt die Karte nur noch, wer
+//    dran ist und warum, und trägt EINEN Knopf „Starten". Hausregel dahinter:
+//    Eine Handlung wohnt an genau EINER Stelle — gehandelt wird in der Akte.
+// 2. VORHER öffnete dieser Raum eine EIGENE, ärmere Akte (nur Lesen: Bank,
+//    Raten, Gespräche, Mails). Justin: „Wenn ich da die Akte öffne, hat die
+//    plötzlich eine ganz andere Ansicht … was ist, wenn der Kunde im Call
+//    sagt: ‚ah, meine Adresse hat sich geändert!'" — dann ging genau das
+//    nicht. NACHHER öffnet „Starten" DIESELBE Akte wie die Pipeline
+//    (`Akte` aus pipeline.tsx): Reiter, Situations-Kopf, „Kunde bearbeiten"
+//    mit allen Feldern, Termin buchen, Ergebnis festhalten — in EINEM Raum.
 // ═══════════════════════════════════════════════════════════════════════════
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Link } from "wouter";
-import { Phone, FolderOpen, Mail, ClipboardCheck, Clock, X, Landmark, ListChecks } from "lucide-react";
-import { AgentShell, useAgentInfo } from "./shared";
+import { createPortal } from "react-dom";
+import { useCallback, useEffect, useState } from "react";
+import { Clock, X, ListChecks, Play } from "lucide-react";
+import { AgentShell, api } from "./shared";
 import { useOffice } from "./OfficeShell";
-import { SendeMenue } from "@/components/SendeMenue";
-import { AnrufPlayer } from "@/components/AnrufPlayer";
+import { ToastAnbieter } from "@/lib/fiaon-ui";
+import { Akte, type Kunde } from "./pipeline";
 import { ZusageTafel } from "./vertrieb-zusage";
+// Die gemeinsame Akte bringt ihr eigenes Kleid mit — ohne diese Datei stünde
+// sie in Collections ungestylt da. Die Klassen sind `pi-`, unsere `co-`:
+// die beiden Blätter gehen sich nicht ins Gehege.
+import "@/styles/office-pipeline.css";
 import "@/styles/office-collections.css";
+import { Rundgang } from "@/components/agent/Rundgang";
+import { RUNDGAENGE } from "./rundgaenge";
+import "@/styles/office-rundgang.css";
 
 interface Fall {
   rate_id: number; ref: string; rate_nr: number; betrag_cents: number; zahlungsreferenz: string; faellig_am: string;
@@ -32,6 +52,9 @@ interface Fall {
   telefonAnzeige: string | null; telefonWaehlbar: string | null; telefonHinweis: string | null;
   ueberfaellig: boolean; tage_ueberfaellig: number; anruf_pflicht: boolean; zusage_gebrochen: boolean;
   raten_bezahlt: number; raten_gesamt: number; letzter_bearbeiter: string | null; letztes_ergebnis: string | null;
+  // 24.08.2026: Der Stand der Rate steht in /inkasso/liste — die gemeinsame
+  // Akte (RatenBlock) zeigt ihn je Rate an, deshalb hier im Typ nachgetragen.
+  status?: string | null;
   lastschrift_status?: string | null; lastschrift_grund?: string | null; lastschrift_am?: string | null; gc_mandate_status?: string | null;
 }
 interface Mensch {
@@ -44,8 +67,6 @@ type Frist = "ueberfaellig" | "heute" | "woche" | "alle";
 
 const eur = (c: unknown) => `${(Number(c ?? 0) / 100).toFixed(2).replace(".", ",")} €`;
 const datum = (v: string | null | undefined) => v ? new Date(v).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit", timeZone: "Europe/Berlin" }) : "—";
-const zeit = (v: string | null | undefined) => v ? new Date(v).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" }) : "—";
-const anrufen = (nummer: string, personId: number | null, name: string, rateId: number | null) => window.dispatchEvent(new CustomEvent("fiaon-anrufen", { detail: { nummer, personId, name, rateId } }));
 const STUFE: Record<number, [string, string]> = { 0: ["noch nicht gemahnt", "#9ca3af"], 1: ["Mahnstufe 1", "#93c5fd"], 2: ["Mahnstufe 2", "#93c5fd"], 3: ["Mahnstufe 3", "#fde68a"], 4: ["Mahnstufe 4", "#fde68a"], 5: ["Mahnstufe 5 — Versand beendet", "#fca5a5"] };
 function mandatText(status: unknown): string | null {
   const s = String(status ?? ""); if (!s) return null;
@@ -57,12 +78,43 @@ function mandatText(status: unknown): string | null {
   return `Lastschrift: ${s}`;
 }
 
-export default function AgentCollectionsPage() { return <AgentShell><CollectionsInnen /></AgentShell>; }
+// 24.08.2026 (Justin, Auftrag 2): VORHER stand hier nur die Hülle. NACHHER
+// liegt ein ToastAnbieter darin — die gemeinsame Akte meldet über Toasts
+// („Gespeichert", „Termin gebucht"). Ohne Anbieter liefe jede Rückmeldung
+// der Akte in den leeren Standardwert und der Mitarbeiter sähe nichts.
+export default function AgentCollectionsPage() {
+  return <AgentShell><ToastAnbieter ton="dunkel"><CollectionsInnen /></ToastAnbieter></AgentShell>;
+}
+
+// ── Die Raten-Felder eines Menschen, wie die gemeinsame Akte sie erwartet ──
+// Dieselbe Übersetzung wie in pipeline.tsx (dort aus /inkasso/liste in die
+// Kundenkarte gemischt). Sie ist der Schlüssel dafür, dass die Akte den Zweig
+// „Rate überfällig" kennt: Ohne `istRate`/`rateListe` fiele sie zurück auf
+// „Lead" und die raten-spezifischen Ergebnisse (Zahlt Rate am … · 1 Monat
+// ausgesetzt · Nicht erreicht · Kein Kontakt mehr möglich) verschwänden.
+function ratenFelder(m: Mensch): Partial<Kunde> {
+  const d = m.dringendste ?? m.raten?.[0];
+  return {
+    istRate: true,
+    rateCents: d?.betrag_cents != null ? Number(d.betrag_cents) : null,
+    rateNr: d?.rate_nr != null ? Number(d.rate_nr) : null,
+    rateFaelligAm: d?.faellig_am ?? null,
+    rateAnzahl: Number(m.anzahl || m.raten?.length || 1),
+    rateSummeCents: Number(m.summeCents || 0),
+    rateListe: (m.raten || []).map((x) => ({
+      id: Number(x.rate_id), rateNr: Number(x.rate_nr),
+      betragCents: Number(x.betrag_cents || 0), faelligAm: x.faellig_am ?? null,
+      status: String(x.status || "offen"),
+      lastschriftStatus: x.lastschrift_status ?? null,
+      lastschriftGrund: x.lastschrift_grund ?? null,
+      sepaEingerichtet: String(x.gc_mandate_status || "") === "active",
+    })),
+  };
+}
 
 function CollectionsInnen() {
   const { dunkel, titel } = useOffice();
   useEffect(() => { dunkel(true); titel("Collections"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  const { agent } = useAgentInfo();
   const [daten, setDaten] = useState<any>(null);
   const [laedt, setLaedt] = useState(true);
   const [zugang, setZugang] = useState<"pruefe" | "offen" | "kein" | "frei">("pruefe");
@@ -70,11 +122,14 @@ function CollectionsInnen() {
   const [frist, setFrist] = useState<Frist>("ueberfaellig");
   // Die Erklärung ist beim ersten Öffnen zu — sie wird einmal gelesen.
   const [erklaerungAuf, setErklaerungAuf] = useState(false);
-  const [sendeMenue, setSendeMenue] = useState<number | null>(null);
-  const [ergebnisFall, setErgebnisFall] = useState<Fall | null>(null);
-  const [akte, setAkte] = useState<Fall | null>(null);
   const [aufgeklappt, setAufgeklappt] = useState<string[]>([]);
   const [meldung, setMeldung] = useState<Meldung>(null);
+  // ── Die EINE Akte (Justin 24.08., Auftrag 2) ────────────────────────────
+  // `offen` ist die personId, deren Akte gerade auf ist; `akteKunde` der
+  // geladene Kunde, wie die gemeinsame Akte ihn braucht.
+  const [offen, setOffen] = useState<number | null>(null);
+  const [akteKunde, setAkteKunde] = useState<Kunde | null>(null);
+  const [akteLaedt, setAkteLaedt] = useState(false);
 
   const laden = useCallback(async () => {
     setLaedt(true);
@@ -86,6 +141,43 @@ function CollectionsInnen() {
     setLaedt(false);
   }, [frist]);
   useEffect(() => { void laden(); }, [laden]);
+
+  // ── Akte öffnen/schließen ───────────────────────────────────────────────
+  // Wie in bestand.tsx: Solange die Akte offen ist, steht die Seite darunter
+  // still (sonst scrollt der Hintergrund mit und man verliert die Zeile).
+  const oeffnen = (id: number | null) => { setOffen(id); if (id == null) setAkteKunde(null); };
+  useEffect(() => {
+    const r = document.getElementById("root");
+    if (r) r.style.overflow = offen != null ? "hidden" : "";
+    document.body.style.overflow = offen != null ? "hidden" : "";
+    return () => { if (r) r.style.overflow = ""; document.body.style.overflow = ""; };
+  }, [offen]);
+  /** Der Mensch aus der Arbeitsliste zu einer personId. Die Liste führt die
+   *  Kennung an zwei Stellen (Kopf und Rate) — beide gelten. */
+  const menschZu = (id: number | null): Mensch | undefined => id == null ? undefined
+    : ((daten?.personen ?? []) as Mensch[]).find((x) => (x.personId ?? x.dringendste?.person_id) === id);
+  // Der Kunde für die gemeinsame Akte: Stammdaten aus dem CRM, die offenen
+  // Raten aus der Liste, die dieser Raum ohnehin schon geladen hat.
+  useEffect(() => {
+    if (offen == null) { setAkteKunde(null); return; }
+    let an = true;
+    setAkteLaedt(true);
+    void api(`/agent/crm/kunden/${offen}`).then((r) => {
+      if (!an) return;
+      setAkteLaedt(false);
+      if (!r.ok || !r.json?.kunde) { setAkteKunde(null); return; }
+      const m = menschZu(offen);
+      setAkteKunde(m ? { ...r.json.kunde, ...ratenFelder(m) } : r.json.kunde);
+    });
+    return () => { an = false; };
+  }, [offen]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Speichert die Akte etwas (z. B. die geänderte Adresse), lädt sie den
+  // Kunden neu — die Raten-Felder müssen dabei erhalten bleiben, sonst
+  // verschwindet der Zweig „Rate überfällig" mitten im Gespräch.
+  const ersetzen = (neu: Kunde) => {
+    const m = menschZu(neu.personId);
+    setAkteKunde(m ? { ...neu, ...ratenFelder(m) } : neu);
+  };
 
   if (zugang === "pruefe" || (laedt && !daten)) return <div className="co"><p className="co-laedt" style={{ padding: "40px 0", textAlign: "center" }}>Lade …</p></div>;
   if (zugang === "kein") return <div className="co"><p className="co-leer karte" style={{ marginTop: 40 }}>Dieser Raum ist für Forderungen & Zahlungen reserviert. Dein Konto hat hier keinen Zugang.</p></div>;
@@ -111,7 +203,10 @@ function CollectionsInnen() {
   // 24.08.2026 (Justin): „Alle drei" ist raus — drei Zeitfenster reichen; der
   // vierte Reiter war nur die Summe der anderen drei und stiftete Verwirrung.
   // Der Wert „alle" bleibt serverseitig gültig (Altlinks brechen nicht).
-  const darfPipeline = agent?.rolle !== "inkasso";
+  // 24.08.2026 (Justin, Auftrag 1): VORHER entschied `darfPipeline`, ob die
+  // Karte zusätzlich den Knopf „Kundenakte" (Sprung nach /agent/kunden) trug.
+  // NACHHER gibt es diesen zweiten Weg nicht mehr — „Starten" öffnet dieselbe
+  // Akte direkt hier, ohne Raumwechsel. Damit fällt auch die Rollenabfrage weg.
 
   return (
     <div className="co">
@@ -128,7 +223,11 @@ function CollectionsInnen() {
           </button>
           {erklaerungAuf && (
             <div className="co-erklaerung">
-              <p>Von oben nach unten. Die Reihenfolge macht das System – der dringendste Fall steht zuerst. Eine Karte je Mensch, ein Klick: anrufen, Akte, senden, Ergebnis.</p>
+              {/* 24.08.2026 (Justin, Auftrag 1): VORHER „ein Klick: anrufen,
+                  Akte, senden, Ergebnis" — das waren vier Klicks und vier
+                  Knöpfe. NACHHER beschreibt der Satz den Weg, den es wirklich
+                  gibt: eine Karte je Mensch, ein Knopf, die Akte. */}
+              <p>Von oben nach unten. Die Reihenfolge macht das System – der dringendste Fall steht zuerst. Eine Karte je Mensch, ein Knopf: „Starten“ öffnet die Akte, und dort passiert alles – anrufen, Daten ändern, Termin, Ergebnis.</p>
               <p>Zahlungen bestätigt der Admin von Hand – bis dahin gilt eine Rate als offen.</p>
               {beschraenkt
                 ? <p>Du siehst ausschließlich die offenen Raten <b>deiner eigenen Kunden</b>.</p>
@@ -204,7 +303,9 @@ function CollectionsInnen() {
           <div className="co-liste">
             {menschen.map((m, i) => {
               const f = m.dringendste; const stufe = STUFE[Math.min(5, Number(f.mahnstufe))] ?? STUFE[0];
-              const schluessel = m.personId != null ? `p:${m.personId}` : `ref:${f.ref}`; const offen = aufgeklappt.includes(schluessel);
+              const schluessel = m.personId != null ? `p:${m.personId}` : `ref:${f.ref}`; const ratenAuf = aufgeklappt.includes(schluessel);
+              // Der Mensch hinter der Rate — die Akte hängt an der Person.
+              const personId: number | null = m.personId ?? (f.person_id != null ? Number(f.person_id) : null);
               return (
                 <article key={schluessel} className="co-karte" style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}>
                   {(f.anruf_pflicht || f.zusage_gebrochen) && <p className={`co-band ${f.anruf_pflicht ? "rot" : "gelb"}`}>{f.anruf_pflicht ? "Anruf-Pflicht — der automatische Versand ist zu Ende" : `Zusage gebrochen — zugesagt war der ${datum(f.inkasso_zusage_am)}`}</p>}
@@ -227,24 +328,38 @@ function CollectionsInnen() {
                   {m.zyklusText && <p className="co-zyklus">{m.zyklusText}</p>}
                   {m.anzahl > 1 && (
                     <>
-                      <button type="button" className="co-klapp" onClick={() => setAufgeklappt((l) => l.includes(schluessel) ? l.filter((x) => x !== schluessel) : [...l, schluessel])}>{offen ? "Raten zuklappen" : `Alle ${m.anzahl} Raten zeigen (${eur(m.summeCents)})`}</button>
-                      {offen && <div className="co-raten">{m.raten.map((r) => (
+                      <button type="button" className="co-klapp" onClick={() => setAufgeklappt((l) => l.includes(schluessel) ? l.filter((x) => x !== schluessel) : [...l, schluessel])}>{ratenAuf ? "Raten zuklappen" : `Alle ${m.anzahl} Raten zeigen (${eur(m.summeCents)})`}</button>
+                      {ratenAuf && <div className="co-raten">{m.raten.map((r) => (
                         <div key={r.rate_id} className={`co-rate${r.rate_id === f.rate_id ? " jetzt" : ""}`}>
                           <b>Rate {r.rate_nr}</b><span className="betrag">{eur(r.betrag_cents)}</span>
                           <span>{r.ueberfaellig ? `seit ${r.tage_ueberfaellig} ${Number(r.tage_ueberfaellig) === 1 ? "Tag" : "Tagen"} offen` : `fällig ${datum(r.faellig_am)}`}</span>
+                          {/* 24.08.2026 (Justin): VORHER stand hier je Rate ein
+                              zweiter „Ergebnis"-Knopf. NACHHER ist die Liste
+                              reine Auskunft — gebucht wird jede einzelne Rate
+                              in der Akte („Rate überfällig – zurückholen":
+                              Erinnerung senden · Ergebnis buchen). */}
                           <span className="co-mono">{r.zahlungsreferenz}</span>{m.zweitAbo && <span className="co-mono">{r.ref}</span>}
-                          <button type="button" className="co-knopf still klein" onClick={() => setErgebnisFall(r)}>Ergebnis</button>
                         </div>
                       ))}</div>}
                     </>
                   )}
+                  {/* ── EIN Knopf statt fünf (Justin 24.08.) ────────────────
+                      VORHER: Anrufen · Akte · Senden · Ergebnis festhalten ·
+                      Kundenakte — fünf gleichrangige Wege, und der Mitarbeiter
+                      musste vor dem Anruf entscheiden, welcher der richtige
+                      ist. NACHHER: „Starten" öffnet die Akte; dort steht
+                      alles, was hier stand, an der passenderen Stelle
+                      (Anrufen im Situations-Kopf, Senden und Termin im
+                      „Mehr"-Menü, Ergebnis im Abschluss). Genau dasselbe
+                      Muster wie ArbeitsFokus in der Pipeline. */}
                   <div className="co-tun">
-                    {f.telefonWaehlbar ? <button type="button" className="co-knopf" onClick={() => anrufen(f.telefonWaehlbar!, f.person_id, f.name, f.rate_id)}><Phone size={15} strokeWidth={1.75} /> Anrufen</button>
-                      : f.telefonHinweis && <span className="co-nummer-hinweis">{f.telefonAnzeige ? `${f.telefonAnzeige} — ` : ""}{f.telefonHinweis}</span>}
-                    <button type="button" className="co-knopf still" onClick={() => setAkte(f)}><FolderOpen size={15} strokeWidth={1.75} /> Akte</button>
-                    <button type="button" className="co-knopf still" onClick={() => setSendeMenue(f.person_id)}><Mail size={15} strokeWidth={1.75} /> Senden</button>
-                    <button type="button" className="co-knopf still" onClick={() => setErgebnisFall(f)}><ClipboardCheck size={15} strokeWidth={1.75} /> Ergebnis festhalten</button>
-                    {darfPipeline && <Link href={`/agent/kunden?person=${f.person_id}`} className="co-knopf still">Kundenakte</Link>}
+                    <button type="button" className="pi-knopf riesig pi-starten"
+                            disabled={personId == null}
+                            title={personId == null ? "Zu dieser Rate ist kein Kunde hinterlegt." : undefined}
+                            onClick={() => oeffnen(personId)}>
+                      <Play size={19} strokeWidth={2} /> Starten
+                    </button>
+                    <span className="pi-starten-neben">Öffnet die Akte: anrufen, Schritt erledigen, Ergebnis festhalten.</span>
                   </div>
                 </article>
               );
@@ -253,57 +368,32 @@ function CollectionsInnen() {
         </>
       )}
 
-      {sendeMenue != null && <SendeMenue personId={sendeMenue} offen basis="/api/fiaon/agent/mail" onSchliessen={() => setSendeMenue(null)} onGesendet={() => { setSendeMenue(null); void laden(); }} />}
-      {akte && <Akte fall={akte} onZu={() => setAkte(null)} onGeaendert={() => void laden()} />}
-      {ergebnisFall && <ErgebnisDialog fall={ergebnisFall} ergebnisse={daten?.ergebnisse ?? []} onZu={() => setErgebnisFall(null)} onFertig={(t) => { setErgebnisFall(null); setMeldung({ art: "gut", text: t }); void laden(); }} />}
+      {/* ── DIE EINE AKTE ────────────────────────────────────────────────
+          Portal an document.body ist Pflicht, nicht Geschmack: Die Seite
+          liegt in `.of-grund` (z-index 1), der Office-Kopf trägt z-index 30 —
+          im Stapel-Kontext der Seite malte der Kopf IMMER über den Akte-Kopf
+          („oben abgeschnitten"). Pipeline und Bestand machen es genauso. */}
+      {offen != null && createPortal(
+        <>
+          <div className="pi-lade-hintergrund" onClick={() => oeffnen(null)} aria-hidden="true" />
+          {akteKunde ? (
+            <Akte key={akteKunde.personId} k={akteKunde} onZu={() => oeffnen(null)}
+                  onWeg={() => { oeffnen(null); void laden(); }}
+                  onNeu={ersetzen}
+                  onErledigt={() => {}}
+                  onZaehler={() => void laden()} />
+          ) : (
+            <aside className="pi-lade" role="dialog" aria-modal="true">
+              <div className="pi-lade-fest"><div className="pi-lade-kopf"><span /><h2>{akteLaedt ? "Lade …" : "Akte nicht gefunden"}</h2>
+                <button type="button" className="pi-lade-zu" onClick={() => oeffnen(null)} aria-label="Schließen"><X size={18} /></button></div></div>
+              {!akteLaedt && <div className="pi-lade-koerper"><p className="pi-fussnote">Diese Akte lässt sich mit deinem Zugang nicht öffnen. Melde dich beim Vorgesetzten – wir schauen uns den Fall gemeinsam an.</p></div>}
+            </aside>
+          )}
+        </>, document.body)
+      }
+      {/* 24.08.2026: Rundgang je Raum (E-063). */}
+      <Rundgang raum="collections" titel={RUNDGAENGE.collections.titel} schritte={RUNDGAENGE.collections.schritte} />
     </div>
-  );
-}
-
-// ── Glas-Dialog (zentriert, am Handy als Blatt von unten) ──────────────────
-function Dialog({ ueber, titel, unter, breite = 540, onZu, fuss, children }: { ueber: string; titel: string; unter?: ReactNode; breite?: number; onZu: () => void; fuss?: ReactNode; children: ReactNode }) {
-  const zuRef = useRef(onZu); zuRef.current = onZu;
-  useEffect(() => {
-    const zu = (e: KeyboardEvent) => { if (e.key === "Escape") zuRef.current(); };
-    window.addEventListener("keydown", zu); const r = document.getElementById("root"); const vorher = r?.style.overflow ?? ""; if (r) r.style.overflow = "hidden";
-    return () => { window.removeEventListener("keydown", zu); if (r) r.style.overflow = vorher; };
-  }, []);
-  return (
-    <div className="co-dialog-hintergrund" onClick={onZu} role="presentation">
-      <div className="co-dialog" role="dialog" aria-modal="true" aria-label={titel} style={{ ["--co-breite" as any]: `${breite}px` }} onClick={(e) => e.stopPropagation()}>
-        <div className="co-dialog-kopf"><div><span className="ueber">{ueber}</span><h2>{titel}</h2>{unter && <span className="unter">{unter}</span>}</div><button type="button" className="co-dialog-zu" onClick={onZu} aria-label="Schließen"><X size={18} /></button></div>
-        <div className="co-dialog-inhalt">{children}</div>
-        {fuss && <div className="co-dialog-fuss">{fuss}</div>}
-      </div>
-    </div>
-  );
-}
-
-// ── Ergebnis festhalten — die Möglichkeiten kommen vom Server ───────────────
-function ErgebnisDialog({ fall, ergebnisse, onZu, onFertig }: { fall: Fall; ergebnisse: { art: string; label: string; braucht?: string; hinweis: string }[]; onZu: () => void; onFertig: (text: string) => void }) {
-  const [gewaehlt, setGewaehlt] = useState<string | null>(null);
-  const [datumWert, setDatumWert] = useState("");
-  const [notiz, setNotiz] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [fehler, setFehler] = useState<string | null>(null);
-  const e = ergebnisse.find((x) => x.art === gewaehlt);
-  const senden = async () => {
-    if (!gewaehlt) return; setBusy(true); setFehler(null);
-    const r = await fetch(`/api/fiaon/inkasso/rate/${fall.rate_id}/ergebnis`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ergebnis: gewaehlt, zusageDatum: datumWert || null, notiz: notiz || null }) }).catch(() => null);
-    const j = await r?.json().catch(() => null); setBusy(false);
-    if (!j?.ok) { setFehler(j?.error || "Fehler."); return; }
-    onFertig(j.meldung);
-  };
-  return (
-    <Dialog ueber={`Rate ${fall.rate_nr} · ${eur(fall.betrag_cents)}`} titel={fall.name} unter={<span className="co-mono">{fall.zahlungsreferenz}</span>} onZu={onZu}
-      fuss={<><button type="button" className="co-knopf still" onClick={onZu}>Abbrechen</button><button type="button" className="co-knopf" disabled={busy || !gewaehlt} onClick={() => void senden()}>{busy ? "…" : "Festhalten"}</button></>}>
-      {fehler && <p className="co-fehler" style={{ marginBottom: 12 }}>{fehler}</p>}
-      <div className="co-wahl">{ergebnisse.map((x) => <button key={x.art} type="button" className={gewaehlt === x.art ? "an" : ""} onClick={() => { setGewaehlt(x.art); setFehler(null); }}><b>{x.label}</b><span>{x.hinweis}</span></button>)}</div>
-      {e?.braucht === "datum" && <><label className="co-label" htmlFor="co-zusage-datum">Welchen Tag hat der Kunde genannt?</label><input id="co-zusage-datum" type="date" className="co-feld" value={datumWert} onChange={(ev) => setDatumWert(ev.target.value)} /></>}
-      {e?.braucht === "notiz" && <><label className="co-label" htmlFor="co-notiz">Was hat der Kunde gesagt? (Pflicht – der Vorgesetzte entscheidet danach)</label><textarea id="co-notiz" className="co-feld" rows={4} value={notiz} onChange={(ev) => setNotiz(ev.target.value)} placeholder="Zwei Sätze genügen. Wörtlich ist besser als zusammengefasst." /></>}
-      {e && e.braucht !== "notiz" && <textarea className="co-feld" rows={2} style={{ marginTop: 12 }} value={notiz} onChange={(ev) => setNotiz(ev.target.value)} placeholder="Notiz (freiwillig)" />}
-      <p className="co-hinweis">Erlass, Stundung und Storno gibt es in diesem Bereich nicht. Wenn ein Kunde wirklich nicht zahlen kann, ist „Härtefall an den Vorgesetzten" die richtige Wahl – nicht mehr Druck.</p>
-    </Dialog>
   );
 }
 
@@ -351,93 +441,17 @@ function Zeiten({ onMeldung }: { onMeldung: (m: Meldung) => void }) {
   );
 }
 
-// ── Die Akte — alles für das Gespräch, in einem Blick. Tatsachen, keine Deutung ─
-const ERG_TEXT: Record<string, string> = { erreicht_zahlt_gleich: "zahlt sofort", erreicht_zahlt_am: "zahlt zum Termin", erreicht_abgelehnt: "abgelehnt", nicht_erreicht: "nicht erreicht", mailbox: "Mailbox besprochen", rueckruf_termin: "Rückruf vereinbart", nummer_falsch: "falsche Nummer", nummer_blockiert: "Nummer blockiert", notiz: "Notiz", zusage: "Zahlung zugesagt", zusage_gebrochen: "Zusage gebrochen" };
-const ZUGANG_TEXT: Record<string, string> = { active: "freigeschaltet", pending: "noch nicht freigeschaltet", suspended: "gesperrt", cancelled: "gekündigt", invited: "eingeladen, noch nicht angemeldet" };
-const BONITAET_TEXT: Record<string, string> = { pending: "beauftragt, läuft noch", ordered: "angefordert", received: "liegt vor", optimizing: "wird optimiert", done: "abgeschlossen", none: "nicht beauftragt", failed: "gescheitert — nachfassen" };
-const MAIL_TEXT: Record<string, string> = { abo_payment_reminder: "Zahlungserinnerung (Rate)", payment_reminder: "Zahlungserinnerung (Erstzahlung)", payment_details: "Zahlungsdaten", payment_confirmed: "Zahlung bestätigt", welcome: "Willkommen", followup_48h: "Nachfassen nach 48 Std" };
 
-function Akte({ fall, onZu, onGeaendert }: { fall: Fall; onZu: () => void; onGeaendert: () => void }) {
-  const [d, setD] = useState<any>(null);
-  const [busy, setBusy] = useState(false);
-  const [meldung, setMeldung] = useState<Meldung>(null);
-  const [fehler, setFehler] = useState<string | null>(null);
-  const [player, setPlayer] = useState<number | null>(null);
-  const laden = useCallback(async () => {
-    const r = await fetch(`/api/fiaon/inkasso/rate/${fall.rate_id}`, { credentials: "include" }).catch(() => null);
-    const j = await r?.json().catch(() => null);
-    if (j?.ok) setD(j); else setFehler(j?.error || "Die Akte konnte nicht geladen werden. Bitte noch einmal öffnen.");
-  }, [fall.rate_id]);
-  useEffect(() => { void laden(); }, [laden]);
-  const k = d?.kunde;
-  const erinnerung = async () => {
-    setBusy(true); setMeldung(null);
-    const r = await fetch(`/api/fiaon/inkasso/rate/${fall.rate_id}/erinnerung`, { method: "POST", credentials: "include" }).catch(() => null);
-    const j = await r?.json().catch(() => null); setBusy(false);
-    setMeldung(j?.ok ? { art: "gut", text: j.meldung } : { art: "schlecht", text: j?.error || "Die Mail ging nicht raus." });
-    // Die Meldung muss stehen bleiben: Liste erst nach vier Sekunden neu laden.
-    if (j?.ok) { void laden(); window.setTimeout(() => onGeaendert(), 4000); }
-  };
-  const tageOffen = Number(fall.tage_ueberfaellig ?? k?.tage_offen ?? Math.max(0, Math.floor((Date.now() - new Date(fall.faellig_am).getTime()) / 86_400_000)));
-  const nummer: string | null = fall.telefonWaehlbar ?? k?.telefonWaehlbar ?? null;
-  const nummerHinweis: string | null = nummer ? null : (fall.telefonHinweis ?? k?.telefonHinweis ?? null);
-  const verlauf = [...(d?.arbeit ?? []).map((a: any) => ({ wann: a.created_at, wer: a.agent_name, was: `${ERG_TEXT[a.ergebnis] ?? a.ergebnis}${a.zusage_am ? ` · Zusage ${datum(a.zusage_am)}` : ""}${a.wiedervorlage ? ` · wieder ${datum(a.wiedervorlage)}` : ""}`, notiz: a.notiz })),
-    ...(d?.kontakte ?? []).map((c: any) => ({ wann: c.created_at, wer: c.agent_name, was: c.outcome || c.type, notiz: c.note }))]
-    .sort((a, b) => new Date(b.wann).getTime() - new Date(a.wann).getTime()).slice(0, 30);
-
-  return (
-    <Dialog ueber={`Rate ${fall.rate_nr} · ${eur(fall.betrag_cents)}`} titel={k?.name ?? fall.name} breite={760} onZu={onZu}>
-      <div className="co-akte-kopf">
-        <div><small>Offen seit</small><b className={tageOffen > 0 ? "rot" : ""}>{tageOffen} {tageOffen === 1 ? "Tag" : "Tagen"}</b><span>fällig war {datum(fall.faellig_am)}</span></div>
-        <div><small>Diese Rate</small><b>{eur(fall.betrag_cents)}</b><span>Rate {fall.rate_nr}{k?.raten_gesamt ? ` von ${k.raten_gesamt}` : ""}</span></div>
-        {Number(k?.offen_gesamt_cents) > Number(fall.betrag_cents) && <div><small>Gesamt überfällig</small><b className="gelb">{eur(k?.offen_gesamt_cents)}</b><span>mehrere Raten offen</span></div>}
-        <div><small>Mahnstufe</small><b className={fall.mahnstufe >= 2 ? "rot" : ""}>{fall.mahnstufe}</b><span>{fall.erinnerungen} {fall.erinnerungen === 1 ? "Erinnerung" : "Erinnerungen"} raus</span></div>
-        {(fall.lastschrift_status || k?.gc_mandate_status) && <div><small>Lastschrift</small><b className={fall.lastschrift_status === "fehlgeschlagen" ? "rot" : k?.gc_mandate_status === "active" ? "gut" : ""}>{fall.lastschrift_status === "fehlgeschlagen" ? "geplatzt" : fall.lastschrift_status === "eingereicht" ? "läuft" : k?.gc_mandate_status === "active" ? "aktiv" : k?.gc_mandate_status ? "inaktiv" : "—"}</b><span>{fall.lastschrift_status === "fehlgeschlagen" ? (fall.lastschrift_grund || "Einzug kam zurück") : (mandatText(k?.gc_mandate_status) || "kein Mandat")}</span></div>}
-        {k && <div><small>Schon bezahlt</small><b className={Number(k.raten_bezahlt) > 0 ? "gut" : ""}>{k.raten_bezahlt}</b><span>{Number(k.raten_bezahlt) > 0 ? "zahlt sonst zuverlässig" : "noch keine Rate"}</span></div>}
-      </div>
-      <div className="co-akte-tun">
-        {nummer && <button type="button" className="co-knopf" onClick={() => anrufen(nummer, fall.person_id, fall.name, fall.rate_id)}><Phone size={15} strokeWidth={1.75} /> Anrufen · {nummer}</button>}
-        {!nummer && nummerHinweis && <span className="co-nummer-hinweis">{nummerHinweis}</span>}
-        <button type="button" className="co-knopf still" disabled={busy} onClick={() => void erinnerung()}><Mail size={15} strokeWidth={1.75} /> {busy ? "Geht raus …" : "Rechnung jetzt schicken"}</button>
-        {!fall.email && d && !k?.bestell_email && !k?.primary_email && <span className="co-hinweis" style={{ color: "#fde68a" }}>Keine E-Mail hinterlegt – Bankdaten am Telefon durchgeben.</span>}
-      </div>
-      {meldung && <p className={`co-meldung ${meldung.art === "schlecht" ? "schlecht" : ""}`} style={{ marginTop: 12 }}>{meldung.text}</p>}
-      {fehler && <p className="co-fehler" style={{ marginTop: 12 }}>{fehler}</p>}
-      {!d && !fehler && <p className="co-laedt" style={{ marginTop: 14 }}>Kundendaten, Raten und Verlauf werden geladen …</p>}
-      {d && (
-        <>
-          <details className="co-block"><summary><Landmark size={13} strokeWidth={1.75} style={{ verticalAlign: -2, marginRight: 6 }} />Bankdaten zum Vorlesen</summary>
-            <div className="co-daten">{([["Empfänger", d.bank?.empfaenger], ["IBAN", d.bank?.iban], ["BIC", d.bank?.bic], ["Verwendungszweck", d.bank?.verwendungszweck]] as const).map(([t, w]) => <div key={t}><small className="marke">{t}</small><p className="co-mono">{w ?? "—"}</p></div>)}</div>
-            <p className="co-hinweis" style={{ marginTop: 10 }}>Der Verwendungszweck ist wichtig: Ohne ihn lässt sich die Überweisung nicht dieser Rate zuordnen, und die Mahnung läuft weiter.</p>
-          </details>
-          <div className="co-block"><p className="titel">Kunde</p>
-            <div className="co-daten">{([["Name", k?.name], ["Paket", k?.pack_name], ["Kunde seit", datum(k?.kunde_seit)], ["E-Mail", k?.bestell_email || k?.primary_email], ["Telefon", nummer], ["Adresse", [k?.strasse, [k?.plz, k?.ort].filter(Boolean).join(" ")].filter(Boolean).join(", ")], ["Zugang", ZUGANG_TEXT[String(k?.account_status ?? "")] ?? k?.account_status], ["Bonität", BONITAET_TEXT[String(k?.schufa_status ?? "")] ?? k?.schufa_status]] as const).filter(([, w]) => w).map(([t, w]) => <div key={t}><small className="marke">{t}</small><p>{w}</p></div>)}</div>
-          </div>
-          <div className="co-block"><p className="titel">Alle Raten</p>
-            <div className="co-akte-raten">{(d.raten ?? []).map((r: any) => { const stand = r.status === "bezahlt" ? "bezahlt" : new Date(r.faellig_am) < new Date() ? "ueberfaellig" : "offen"; return (
-              <div key={r.rate_nr} className={`co-akte-rate ${stand}${r.rate_nr === fall.rate_nr ? " jetzt" : ""}`}><span className="nr">{r.rate_nr}</span><b style={{ color: "#fff", fontWeight: 500 }}>{eur(r.betrag_cents)}</b><span style={{ color: "#9ca3af", fontSize: 11.5 }}>{datum(r.faellig_am)}</span><span className="stand">{stand === "bezahlt" ? `bezahlt ${datum(r.bezahlt_am)}` : stand === "ueberfaellig" ? "überfällig" : "kommt noch"}</span></div>
-            ); })}</div>
-          </div>
-          <div className="co-block"><p className="titel">Gespräche {(d.gespraeche ?? []).length > 0 && `(${d.gespraeche.length})`}</p>
-            {(d.gespraeche ?? []).length === 0 && <p className="co-leer">Mit diesem Kunden wurde über die Plattform noch nicht telefoniert.</p>}
-            {(d.gespraeche ?? []).map((g: any) => (
-              <div key={g.id} className="co-zeile">
-                <div className="co-zeile-kopf"><span className="zeit">{zeit(g.beginn)}</span>{g.dauer_sek != null && <b>{Math.floor(g.dauer_sek / 60)}:{String(g.dauer_sek % 60).padStart(2, "0")}</b>}{g.agent && <span className="wer">{g.agent}</span>}{g.ergebnis && <span className="erg">{ERG_TEXT[g.ergebnis] ?? g.ergebnis}</span>}{g.hat_aufnahme && !g.ohne_aufzeichnung_am && <button type="button" className="hoeren" onClick={() => setPlayer(player === g.id ? null : g.id)}>{player === g.id ? "zu" : "anhören"}</button>}</div>
-                {g.zusammenfassung && <p className="co-fass">{g.zusammenfassung}</p>}
-                {player === g.id && <AnrufPlayer anrufId={g.id} ton="dunkel" kennzeichen="anruf-player-collections" />}
-              </div>
-            ))}
-          </div>
-          <div className="co-block"><p className="titel">Verschickte Mails</p>
-            {(d.mails ?? []).length === 0 && <p className="co-leer">Noch keine Mail an diesen Kunden.</p>}
-            {(d.mails ?? []).map((m: any, i: number) => <div key={i} className="co-zeile"><div className="co-zeile-kopf"><span className="zeit">{zeit(m.gesendet_am)}</span><span className="erg">{MAIL_TEXT[m.event] ?? m.event}</span>{!m.ok && <span className="fehl">nicht angekommen: {m.grund}</span>}</div></div>)}
-          </div>
-          <div className="co-block"><p className="titel">Verlauf</p>
-            {verlauf.length === 0 && <p className="co-leer">Noch kein Eintrag.</p>}
-            {verlauf.map((e: any, i: number) => <div key={i} className="co-zeile"><div className="co-zeile-kopf"><span className="zeit">{zeit(e.wann)}</span>{e.wer && <span className="wer">{e.wer}</span>}<span className="erg">{e.was}</span></div>{e.notiz && <p className="co-fass">{e.notiz}</p>}</div>)}
-          </div>
-        </>
-      )}
-    </Dialog>
-  );
-}
+// ── 24.08.2026 (Justin, Auftrag 2): HIER STAND EINE ZWEITE AKTE ───────────
+// VORHER lebten an dieser Stelle drei Bausteine, die es nur in Collections
+// gab: `Dialog` (Glas-Dialog), `ErgebnisDialog` (Ergebnis festhalten) und
+// eine eigene, ärmere `Akte` (Bank, Raten, Gespräche, Mails — alles nur zum
+// Lesen). Justin: „Wenn ich da die Akte öffne, hat die plötzlich eine ganz
+// andere Ansicht — die Akte selbst soll bitte einheitlich sein.“ Eine
+// Adressänderung im Gespräch war hier nicht möglich.
+// NACHHER: ersatzlos entfernt. Collections öffnet die gemeinsame `Akte` aus
+// pipeline.tsx (oben importiert) — dieselbe Ansicht wie Pipeline und
+// Bestand, mit „Kunde bearbeiten“, Termin, Ergebnis. Die raten-eigenen
+// Ergebnisse gehen dabei nicht verloren: Die Akte kennt den Zweig
+// `sitArt === "rate_ueberfaellig"` und bekommt über `ratenFelder` die
+// offenen Raten mitgeliefert.

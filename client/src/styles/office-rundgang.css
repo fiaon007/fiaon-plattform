@@ -1,0 +1,111 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   DER RUNDGANG — Scheinwerfer, Milchglas, Karte (24.08.2026)
+
+   Justin: „mit gebleurtem Hintergrund und Fokus auf das, was gerade erklärt
+   wird — und wirklich hochwertig machen."
+
+   Die vier Scheiben tragen die Weichzeichnung; das erklärte Element liegt
+   zwischen ihnen und bleibt deshalb scharf. Der Leuchtrahmen zeigt hin, ohne
+   zu bedecken — er hat keine Füllung und nimmt keine Klicks an.
+   Präfix .ru-
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.ru{position:fixed;inset:0;z-index:600;pointer-events:none}
+.ru-scheibe{
+  position:fixed;pointer-events:auto;cursor:pointer;
+  background:rgba(4,9,22,.62);
+  backdrop-filter:blur(7px) saturate(120%);
+  -webkit-backdrop-filter:blur(7px) saturate(120%);
+  animation:ruAuf .28s ease both;
+}
+@keyframes ruAuf{from{opacity:0}to{opacity:1}}
+
+/* Der Leuchtrahmen: zwei Ringe und ein weicher Schein nach außen. */
+.ru-fokus{
+  position:fixed;pointer-events:none;border-radius:18px;
+  box-shadow:
+    0 0 0 2px rgba(147,197,253,.9),
+    0 0 0 7px rgba(37,99,235,.28),
+    0 0 44px 6px rgba(37,99,235,.34);
+  transition:top .32s cubic-bezier(.2,.8,.2,1),left .32s cubic-bezier(.2,.8,.2,1),
+             width .32s cubic-bezier(.2,.8,.2,1),height .32s cubic-bezier(.2,.8,.2,1);
+  animation:ruPuls 2.6s ease-in-out infinite;
+}
+@keyframes ruPuls{
+  0%,100%{box-shadow:0 0 0 2px rgba(147,197,253,.9),0 0 0 7px rgba(37,99,235,.28),0 0 44px 6px rgba(37,99,235,.34)}
+  50%    {box-shadow:0 0 0 2px rgba(147,197,253,1), 0 0 0 9px rgba(37,99,235,.22),0 0 56px 10px rgba(37,99,235,.42)}
+}
+
+/* ── Die Karte ───────────────────────────────────────────────────────────── */
+.ru-karte{
+  position:fixed;pointer-events:auto;z-index:2;
+  display:grid;gap:12px;padding:20px 22px;border-radius:22px;
+  background:linear-gradient(178deg,rgba(23,42,84,.96),rgba(11,22,48,.97));
+  border:1px solid rgba(147,197,253,.24);
+  backdrop-filter:blur(24px) saturate(160%);
+  -webkit-backdrop-filter:blur(24px) saturate(160%);
+  box-shadow:0 30px 80px rgba(2,6,23,.6),inset 0 1px 0 rgba(255,255,255,.14);
+  animation:ruKarte .34s cubic-bezier(.2,.8,.2,1) both;
+  transition:top .32s cubic-bezier(.2,.8,.2,1),left .32s cubic-bezier(.2,.8,.2,1);
+}
+.ru-karte.mitte{top:50%;left:50%;transform:translate(-50%,-50%);transition:none}
+@keyframes ruKarte{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.ru-karte.mitte{animation-name:ruKarteMitte}
+@keyframes ruKarteMitte{
+  from{opacity:0;transform:translate(-50%,calc(-50% + 10px))}
+  to  {opacity:1;transform:translate(-50%,-50%)}
+}
+
+.ru-kopf{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.ru-raum{font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#93c5fd}
+.ru-zaehler{font:400 11.5px/1 'Inter',sans-serif;color:#64748b;font-variant-numeric:tabular-nums}
+.ru-karte h3{margin:0;font:400 19px/1.3 'Inter',sans-serif;color:#fff;letter-spacing:-.01em;text-wrap:balance}
+.ru-karte p{margin:0;font:300 13.5px/1.65 'Inter',sans-serif;color:#e5e7eb}
+.ru-tipp{padding:10px 12px;border-radius:12px;background:rgba(37,99,235,.14);
+  border:1px solid rgba(96,165,250,.24);color:#cbd5e1 !important;font-size:12.5px !important}
+.ru-tipp b{color:#93c5fd;font-weight:500}
+
+.ru-fortschritt{display:flex;gap:5px}
+.ru-fortschritt i{flex:1;height:3px;border-radius:99px;background:rgba(255,255,255,.14);transition:background .3s}
+.ru-fortschritt i.an{background:linear-gradient(90deg,#2563eb,#60a5fa)}
+
+.ru-tun{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:2px}
+.ru-tun-rechts{display:flex;align-items:center;gap:8px}
+.ru-still{min-height:40px;padding:0 14px;border:0;border-radius:12px;cursor:pointer;
+  background:transparent;color:#9ca3af;font:400 13px/1 'Inter',sans-serif}
+.ru-still:hover{color:#e5e7eb;background:rgba(255,255,255,.06)}
+.ru-weiter{min-height:40px;padding:0 20px;border:0;border-radius:12px;cursor:pointer;
+  background:linear-gradient(135deg,#2563eb,#3b82f6);color:#fff;font:500 13.5px/1 'Inter',sans-serif;
+  box-shadow:0 10px 24px -10px rgba(37,99,235,.8)}
+.ru-weiter:hover{filter:brightness(1.07)}
+
+/* ── Der dezente Knopf zum Wiederabspielen ───────────────────────────────── */
+/* Unten LINKS — unten rechts sitzt der Telefonknopf, und der ist wichtiger. */
+.ru-knopf{
+  position:fixed;left:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:280;
+  display:inline-flex;align-items:center;gap:7px;min-height:38px;padding:0 14px;
+  border-radius:999px;cursor:pointer;
+  background:rgba(15,23,42,.72);border:1px solid rgba(255,255,255,.14);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  color:#93c5fd;font:400 12.5px/1 'Inter',sans-serif;
+  box-shadow:0 8px 24px rgba(2,6,23,.4);
+  transition:color .18s,border-color .18s,transform .18s;
+}
+.ru-knopf:hover{color:#fff;border-color:rgba(147,197,253,.4);transform:translateY(-1px)}
+
+@media (max-width:700px){
+  /* Am Handy sitzt links unten die Menüleiste — der Knopf rückt darüber und
+     zeigt nur das Zeichen, damit er nichts verdeckt. */
+  .ru-knopf{left:12px;bottom:calc(74px + env(safe-area-inset-bottom,0px));padding:0 11px;min-height:36px}
+  .ru-knopf span{display:none}
+  .ru-karte{padding:17px 18px;gap:11px;border-radius:20px}
+  .ru-karte h3{font-size:17.5px}
+  .ru-karte p{font-size:13px}
+  .ru-tun{flex-wrap:wrap}
+  .ru-weiter{flex:1}
+}
+
+@media (prefers-reduced-motion:reduce){
+  .ru-fokus{animation:none;transition:none}
+  .ru-karte,.ru-scheibe{animation:none;transition:none}
+}

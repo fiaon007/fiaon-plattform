@@ -16,6 +16,9 @@ import { useAcademyFortschritt } from "./academy/fortschritt";
 import "@/styles/office-schreibtisch.css";
 import "@/styles/office-termintreue.css";
 import { terminArtAusQuelle } from "@shared/fiaon-termin-art";
+import { Rundgang } from "@/components/agent/Rundgang";
+import { RUNDGAENGE } from "./rundgaenge";
+import "@/styles/office-rundgang.css";
 
 const euro = (c: number) => (c / 100).toLocaleString("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
 const uhr = (iso: string) => new Date(iso).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" });
@@ -29,13 +32,29 @@ function SchreibtischInnen() {
   useEffect(() => { dunkel(true); titel("Dashboard"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [start, setStart] = useState<any>(null);
   const [termine, setTermine] = useState<any[]>([]);
-  const [aufgaben, setAufgaben] = useState<number>(0);
+  const [anliegen, setAnliegen] = useState<number>(0);
+  const [aufgabenOffen, setAufgabenOffen] = useState<number>(0);
   const [fehler, setFehler] = useState<string | null>(null);
   const laden = () => {
-    Promise.all([api("/agent/start"), api("/agent/termine"), api("/agent/tickets/zaehler")]).then(([s, t, z]) => {
+    // ── 24.08.2026: DIE KACHEL HIESS „AUFGABEN & ANLIEGEN" UND ZÄHLTE NUR
+    // ANLIEGEN ────────────────────────────────────────────────────────────
+    // VORHER holte diese Seite ausschließlich /agent/tickets/zaehler — das
+    // sind die Kunden-ANLIEGEN — und schrieb die Zahl unter die Beschriftung
+    // „Aufgaben & Anliegen", verlinkt auf /agent/aufgaben.
+    // GEMESSEN bei Daniel Stripling (Konto 8): 22 offene Aufgaben und 1
+    // offenes Anliegen. Die Kachel zeigte 1 und schickte ihn auf eine Seite
+    // mit 22 Zeilen.
+    // NACHHER kommen beide Zahlen aus denselben Quellen wie die Marken in der
+    // Leiste (/agent/vermerke/zahlen und /agent/tickets/zaehler) und stehen
+    // getrennt beschriftet nebeneinander.
+    Promise.all([
+      api("/agent/start"), api("/agent/termine"),
+      api("/agent/tickets/zaehler"), api("/agent/vermerke/zahlen"),
+    ]).then(([s, t, z, v]) => {
       if (s.ok) setStart(s.json); else setFehler(s.json?.error || "Das Dashboard konnte nicht geladen werden.");
       if (t.ok) setTermine(t.json.termine || []);
-      if (z.ok) setAufgaben((z.json.meine || 0) + (z.json.pool || 0));
+      if (z.ok) setAnliegen((z.json.meine || 0) + (z.json.pool || 0));
+      if (v.ok) setAufgabenOffen((v.json.heute || 0) + (v.json.ueberfaellig || 0) + (v.json.auftraege || 0));
     }).catch(() => setFehler("Keine Verbindung."));
   };
   useEffect(() => { laden(); const i = setInterval(laden, 120_000); return () => clearInterval(i); }, []);
@@ -43,7 +62,28 @@ function SchreibtischInnen() {
   const heute = heuteIso();
   const termineHeute = useMemo(() => termine.filter((t) => new Date(t.beginn).toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" }) === heute).sort((a, b) => new Date(a.beginn).getTime() - new Date(b.beginn).getTime()), [termine, heute]);
   const termineSpaeter = useMemo(() => termine.filter((t) => new Date(t.beginn).toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" }) > heute), [termine, heute]);
-  const zusagen: any[] = start?.zusagen || [];
+  // ── 24.08.2026: „RÜCKRUFE" WAREN GAR KEINE RÜCKRUFE ───────────────────────
+  // VORHER stand hier „const zusagen = start?.zusagen || []" — das ist die
+  // Liste ALLER Kunden mit einem Zahlungs-Zusagedatum, ohne jede Zeitgrenze
+  // (die Abfrage in /agent/start hat LIMIT 60). Die Seite schrieb darüber
+  // „Heute … und N Rückrufe" und rendert jede Zeile als „Rückruf".
+  // GEMESSEN bei Daniel Stripling (Konto 8) am 24.08.2026: 35 solcher Zeilen —
+  // davon 0 mit Zusage auf heute, 30 in der Vergangenheit, 5 in der Zukunft.
+  // Seine 9 ECHTEN Rückrufe (Gesprächsergebnis „rueckruf_termin", vom Server
+  // als „rueckrufe" mitgeliefert) standen überhaupt nicht auf der Seite.
+  // NACHHER: zwei getrennte, ehrlich beschriftete Mengen, beide auf „heute
+  // oder früher fällig" begrenzt — nur das gehört auf einen Tagesplan.
+  const zusagenFaellig: any[] = useMemo(
+    () => ((start?.zusagen || []) as any[])
+      .filter((z) => z.zusagedatum && String(z.zusagedatum).slice(0, 10) <= heute)
+      .sort((a, b) => String(a.zusagedatum).localeCompare(String(b.zusagedatum))),
+    [start, heute],
+  );
+  const rueckrufeFaellig: any[] = useMemo(
+    () => ((start?.rueckrufe || []) as any[])
+      .filter((r) => r.am && new Date(r.am).toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" }) <= heute),
+    [start, heute],
+  );
   const v = start?.verdienst || {}; const k = start?.kunden || {};
   const [mandate, setMandate] = useState<number | null>(null);
   useEffect(() => { api("/agent/vertrieb/mandate").then((r) => { if (r.ok) setMandate(Number(r.json.anzahl ?? r.json.mandate ?? 0)); }).catch(() => {}); }, []);
@@ -52,13 +92,20 @@ function SchreibtischInnen() {
   const datum = jetzt.toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long", timeZone: "Europe/Berlin" });
   const uhrzeit = jetzt.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Europe/Berlin" });
   const naechster = termineHeute.find((t) => new Date(t.beginn).getTime() > Date.now() - 15 * 60000);
+  // Was heute wirklich auf dem Tisch liegt — dieselbe Menge, die „Jetzt dran"
+  // darunter Zeile für Zeile zeigt. Die Überschrift darf nichts anderes zählen.
+  const dranGesamt = termineHeute.length + rueckrufeFaellig.length + zusagenFaellig.length;
 
   return (
     <div className="st">
       <section className="st-kopf">
         <div>
           <span className="st-pille">{datum} <i className="st-uhr">{uhrzeit}</i></span>
-          <h1>{termineHeute.length ? <>Heute <span className="st-verlauf">{termineHeute.length} {termineHeute.length === 1 ? "Gespräch" : "Gespräche"}</span>{zusagen.length ? <> und {zusagen.length} Rückrufe.</> : "."}</> : zusagen.length ? <>Heute <span className="st-verlauf">{zusagen.length} Rückrufe</span>.</> : <>Ein ruhiger Tag – <span className="st-verlauf">Zeit für neue Kunden.</span></>}</h1>
+          {/* 24.08.2026: VORHER „Heute N Gespräche und M Rückrufe" — M war die
+              Zahl der Zahlungszusagen ohne Zeitgrenze (bei Daniel 35, davon 0
+              auf heute). NACHHER nennt die Zeile genau die Mengen, die
+              darunter in „Jetzt dran" stehen, jede mit ihrem eigenen Namen. */}
+          <h1>{dranGesamt ? <>Heute <span className="st-verlauf">{termineHeute.length} {termineHeute.length === 1 ? "Termin" : "Termine"}</span>{rueckrufeFaellig.length ? <>, {rueckrufeFaellig.length} {rueckrufeFaellig.length === 1 ? "Rückruf" : "Rückrufe"}</> : null}{zusagenFaellig.length ? <>, {zusagenFaellig.length} fällige {zusagenFaellig.length === 1 ? "Zahlungszusage" : "Zahlungszusagen"}</> : null}.</> : <>Ein ruhiger Tag – <span className="st-verlauf">Zeit für neue Kunden.</span></>}</h1>
           <p>{naechster ? <>Als Nächstes: <b>{uhr(naechster.beginn)} Uhr – {naechster.name}</b>. Die Akte liegt bereit.</> : "Alles, was heute zählt, steht hier in Reihenfolge. Ein Klick: anrufen oder Akte."}</p>
         </div>
         {/* Vorher: „Dein Tag"-Karte. Nachher (E-052): entfernt – die Zahlen leben im Wallet/Bestand. */}
@@ -66,17 +113,21 @@ function SchreibtischInnen() {
 
       {fehler && <p className="st-fehler">{fehler}</p>}
 
-      {/* Vorher: 4 Kacheln (auch Rückrufe/heiße Kunden). Nachher (E-052): Termine heute · Aufgaben & Anliegen · Mein Bestand. */}
-      <section className="st-kacheln drei">
+      {/* Vorher: 4 Kacheln (auch Rückrufe/heiße Kunden). Nachher (E-052): Termine heute · Aufgaben & Anliegen · Mein Bestand.
+          24.08.2026: Aus einer Kachel „Aufgaben & Anliegen" mit NUR den
+          Anliegen (Daniel: 1 statt 22 + 1) werden zwei getrennte Kacheln, jede
+          mit ihrer eigenen Quelle und ihrem eigenen Ziel. */}
+      <section className="st-kacheln">
         <Link href="/agent/kalender" className="st-kachel"><b>{termineHeute.length}</b><span>Termine heute</span></Link>
-        <Link href="/agent/aufgaben" className="st-kachel"><b>{aufgaben}</b><span>Aufgaben &amp; Anliegen</span></Link>
+        <Link href="/agent/aufgaben" className="st-kachel"><b>{aufgabenOffen}</b><span>Aufgaben fällig</span></Link>
+        <Link href="/agent/anliegen" className="st-kachel"><b>{anliegen}</b><span>Anliegen offen</span></Link>
         <Link href="/agent/bestand" className="st-kachel"><b>{mandate ?? "–"}</b><span>Mein Bestand</span></Link>
       </section>
 
       <section className="st-spalten">
         <div className="st-block">
-          <div className="st-block-kopf"><b>Jetzt dran</b><small>Termine heute, dann Rückrufe</small></div>
-          {termineHeute.length === 0 && zusagen.length === 0 && <p className="st-leer">Nichts Dringendes. Öffne die Pipeline und nimm dir die heißesten Kunden vor.</p>}
+          <div className="st-block-kopf"><b>Jetzt dran</b><small>{dranGesamt} heute fällig · Termine, dann Rückrufe, dann Zahlungszusagen</small></div>
+          {dranGesamt === 0 && <p className="st-leer">Nichts Dringendes. Öffne die Pipeline und nimm dir die heißesten Kunden vor.</p>}
           {termineHeute.map((t) => (
             <div key={`t${t.id}`} className="st-zeile">
               <div className="st-zeit"><b>{uhr(t.beginn)}</b><small>{t.dauerMin || t.dauer_min || 15} min</small></div>
@@ -91,10 +142,28 @@ function SchreibtischInnen() {
               </div>
             </div>
           ))}
-          {zusagen.map((z) => (
+          {/* Die ECHTEN Rückrufe: Gesprächsergebnis „Rückruf vereinbart", vom
+              Server als „rueckrufe" geliefert. Sie standen bis zum 24.08.2026
+              überhaupt nicht auf dieser Seite. */}
+          {rueckrufeFaellig.map((r) => (
+            <div key={`r${r.personId}`} className="st-zeile rueckruf">
+              <div className="st-zeit"><b>Rückruf</b><small>{r.am ? new Date(r.am).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" }) : "fällig"}</small></div>
+              <div className="st-wer"><b>{r.name}</b><small>{r.notiz || r.terminArtText || "Rückruf vereinbart"}</small></div>
+              <div className="st-aktion">
+                <button type="button" className="st-knopf" onClick={() => anrufen(r.telefon, r.personId, r.name)} disabled={!r.telefon}><Phone size={15} /> Anrufen</button>
+                <Link href={`/agent/kunden?person=${r.personId}`} className="st-knopf still">Akte</Link>
+              </div>
+            </div>
+          ))}
+          {/* Die Zahlungszusagen — heute oder früher fällig. VORHER standen
+              hier ALLE (bei Daniel 35, davon 5 in der Zukunft) unter der
+              Beschriftung „Rückruf", und das Datum las „z.zusageAm": ein Feld,
+              das „karte()" gar nicht liefert (es heißt „zusagedatum"). Jede
+              Zeile zeigte deshalb wörtlich „fällig" statt eines Datums. */}
+          {zusagenFaellig.map((z) => (
             <div key={`z${z.personId}`} className="st-zeile rueckruf">
-              <div className="st-zeit"><b>Rückruf</b><small>{z.zusageAm ? new Date(z.zusageAm).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }) : "fällig"}</small></div>
-              <div className="st-wer"><b>{z.name}</b><small>{z.hinweis || z.paket || ""}</small></div>
+              <div className="st-zeit"><b>Zusage</b><small>{z.zusagedatum ? new Date(z.zusagedatum).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }) : "fällig"}</small></div>
+              <div className="st-wer"><b>{z.name}</b><small>{z.hinweis || z.produkt || "Zahlung zugesagt"}</small></div>
               <div className="st-aktion">
                 <button type="button" className="st-knopf" onClick={() => anrufen(z.telefonWaehlbar, z.personId, z.name)} disabled={!z.telefonWaehlbar}><Phone size={15} /> Anrufen</button>
                 <Link href={`/agent/kunden?person=${z.personId}`} className="st-knopf still">Akte</Link>
@@ -126,6 +195,9 @@ function SchreibtischInnen() {
         <AcademyKarte />
         <Link href="/agent/start-alt" className="st-schnell-karte still"><b>Bisherige Startseite</b><span>Übergangsweise weiter erreichbar.</span></Link>
       </section>
+      {/* 24.08.2026 (Justin): Jeder Raum erklaert sich beim ersten
+          Betreten selbst — danach jederzeit ueber den Knopf unten links. */}
+      <Rundgang raum="dashboard" titel={RUNDGAENGE.dashboard.titel} schritte={RUNDGAENGE.dashboard.schritte} />
     </div>
   );
 }

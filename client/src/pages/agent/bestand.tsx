@@ -34,6 +34,9 @@ import { ToastAnbieter, eur } from "@/lib/fiaon-ui";
 import { Akte, Strom, type Kunde } from "./pipeline";
 import "@/styles/office-pipeline.css";
 import "@/styles/office-bestand.css";
+import { Rundgang } from "@/components/agent/Rundgang";
+import { RUNDGAENGE } from "./rundgaenge";
+import "@/styles/office-rundgang.css";
 
 const MAX_MANDATE = 500;
 
@@ -45,7 +48,14 @@ interface Mandat {
 }
 
 type Gesund = "ueberfaellig" | "kein_sepa" | "offen" | "laeuft";
+// 24.08.2026: Die Rangfolge wurde nur noch von totem Code hinter einem return
+// gelesen (Sortierung „Gesundheit", die es als Auswahl nicht mehr gibt). Sie
+// bleibt als Dokumentation der Priorität stehen, die `gesundVon` abbildet.
+// (Kein eslint-disable nötig: `void GESUND_RANG` unten markiert die Nutzung.
+//  Die Regel @typescript-eslint/no-unused-vars ist in diesem Projekt gar nicht
+//  eingerichtet — ein Stilllegen dafür ist selbst ein Fehler.)
 const GESUND_RANG: Record<Gesund, number> = { ueberfaellig: 0, kein_sepa: 1, offen: 2, laeuft: 3 };
+void GESUND_RANG;
 
 /** Die EINE Ampel je Mandat — Priorität: überfällig → kein SEPA → offen → läuft. */
 function gesundVon(m: Mandat): { art: Gesund; label: string; farbe: string } {
@@ -114,7 +124,12 @@ function BestandInnen() {
   const [fehler, setFehler] = useState<string | null>(null);
   const [satz, setSatz] = useState(0.25);
   const [filter, setFilter] = useState("alle");
-  const [sort, setSort] = useState("gesundheit");
+  // 24.08.2026: VORHER stand der Anfangswert auf „gesundheit" — eine Option,
+  // die es in SORT gar nicht mehr gibt. Das Auswahlfeld zeigte deshalb beim
+  // Öffnen „Mandat seit" an, obwohl der Zustand etwas anderes hieß: Anzeige
+  // und Wirklichkeit auseinander. NACHHER steht dort der Wert, nach dem auch
+  // wirklich sortiert wird.
+  const [sort, setSort] = useState("mandat");
   const [suche, setSuche] = useState("");
   const [ansicht, setAnsicht] = useState<"karten" | "strom">("karten");
   const [aktiv, setAktiv] = useState(0);
@@ -166,9 +181,18 @@ function BestandInnen() {
     const off = mandate.reduce((s, m) => s + m.raten.offen, 0);
     const ueb = mandate.reduce((s, m) => s + m.raten.ueberfaellig, 0);
     const sepa = mandate.filter((m) => m.sepaAktiv).length;
+    // ── 24.08.2026: NICHT JEDE ZAHL IN DIESER SUMME IST EINE MONATSRATE ────
+    // Der Server (GET /agent/vertrieb/bestand) nimmt als `monatsrateCents` den
+    // echten Ratenbetrag — und wenn zu einem Mandat noch KEINE Rate angelegt
+    // ist, ersatzweise den offenen Bestellbetrag (amount_due), also den
+    // Paketpreis. GEMESSEN am 24.08.2026: bei Nikita Boychenko (Konto 13) 27
+    // von 125 Mandaten ohne eine einzige Rate, bei Justins Testkonto 2 von 4.
+    // Die Zahl bleibt der beste bekannte Wert — aber der Satz darunter darf
+    // nicht behaupten, es seien lauter Monatsraten.
+    const ohneRate = mandate.filter((m) => (m.raten.bezahlt + m.raten.offen + m.raten.ueberfaellig) === 0).length;
     return {
       monatlichCents: Math.round(rate * satz),
-      bez, off, ueb, ratenGesamt: bez + off + ueb,
+      bez, off, ueb, ratenGesamt: bez + off + ueb, ohneRate,
       sepaQuote: mandate.length ? Math.round((sepa / mandate.length) * 100) : 0,
     };
   }, [mandate, satz]);
@@ -185,10 +209,18 @@ function BestandInnen() {
       // Termin HABEN — es zeigte also das Gegenteil seines Namens. NACHHER
       // heißt fällig, was fällig heißt: Ein gebuchter Termin, dessen Zeitpunkt
       // heute erreicht oder schon vorbei ist.
+      // 24.08.2026, zweiter Anlauf: VORHER prüfte der Filter `terminAm` — das
+      // Feld liefert aber NUR Termine in der Zukunft (t.beginn > NOW()), ein
+      // fälliger Termin liegt per Definition dahinter. Der Filter konnte also
+      // nie etwas finden. NACHHER liest er `terminFaelligAm` (erreicht oder
+      // überschritten, noch nicht erledigt) UND lässt zusätzlich Termine gelten,
+      // die heute noch anstehen — beides ist „heute dran".
       if (filter === "termin_faellig") {
-        const tAm = m.kunde.terminAm ? new Date(m.kunde.terminAm).getTime() : null;
+        const faellig = m.kunde.terminFaelligAm ? new Date(m.kunde.terminFaelligAm).getTime() : null;
+        const kommt = m.kunde.terminAm ? new Date(m.kunde.terminAm).getTime() : null;
         const tagesende = new Date(); tagesende.setHours(23, 59, 59, 999);
-        if (tAm == null || tAm > tagesende.getTime()) return false;
+        const heuteNoch = kommt != null && kommt <= tagesende.getTime();
+        if (faellig == null && !heuteNoch) return false;
       }
       if (q && !(`${m.kunde.name} ${m.kunde.email ?? ""} ${m.kunde.telefon ?? ""}`.toLowerCase().includes(q))) return false;
       return true;
@@ -197,10 +229,10 @@ function BestandInnen() {
       if (sort === "rate") return (b.monatsrateCents ?? 0) - (a.monatsrateCents ?? 0);
       if (sort === "mandat") return new Date(b.kunde.mandatSeit ?? 0).getTime() - new Date(a.kunde.mandatSeit ?? 0).getTime();
       // Ohne Wahl: das jüngste Mandat zuerst.
+      // 24.08.2026: Darunter standen noch drei Zeilen Sortierung nach der
+      // alten Gesundheits-Ampel — hinter einem return, also toter Code, der
+      // beim Lesen so aussah, als tue er etwas. Entfernt.
       return new Date(b.kunde.mandatSeit ?? 0).getTime() - new Date(a.kunde.mandatSeit ?? 0).getTime();
-      const ga = gesundVon(a), gb = gesundVon(b);
-      return GESUND_RANG[ga.art] - GESUND_RANG[gb.art]
-        || (b.raten.ueberfaelligSeitTagen ?? 0) - (a.raten.ueberfaelligSeitTagen ?? 0);
     });
   }, [mandate, filter, suche, sort]);
   useEffect(() => { if (aktiv > sichtbar.length - 1) setAktiv(Math.max(0, sichtbar.length - 1)); }, [sichtbar.length, aktiv]);
@@ -261,7 +293,7 @@ function BestandInnen() {
           <div className="be-zahl hervor">
             <small>Dein Bestand zahlt dir</small>
             <b>{laedt ? "–" : euro0(kopf.monatlichCents)}<em> / Monat</em></b>
-            <span>Summe der Monatsraten × {Math.round(satz * 100)} % Provision je bankbestätigter Rate</span>
+            <span>Summe der Monatsraten × {Math.round(satz * 100)} % Provision je bankbestätigter Rate{kopf.ohneRate > 0 ? ` · bei ${kopf.ohneRate} ${kopf.ohneRate === 1 ? "Mandat" : "Mandaten"} steht noch keine Rate — dort ist der Bestellbetrag gerechnet` : ""}</span>
           </div>
           {/* 24.08.2026 (Justin): Die Kacheln „Ratengesundheit" (pünktlich /
               offen / überfällig) und „SEPA-Quote" sind entfallen. Beides waren
@@ -394,6 +426,9 @@ function BestandInnen() {
           )}
         </>, document.body)
       }
+      {/* 24.08.2026 (Justin): Jeder Raum erklaert sich beim ersten
+          Betreten selbst — danach jederzeit ueber den Knopf unten links. */}
+      <Rundgang raum="bestand" titel={RUNDGAENGE.bestand.titel} schritte={RUNDGAENGE.bestand.schritte} />
     </div>
   );
 }

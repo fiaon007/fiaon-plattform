@@ -16,6 +16,9 @@ import { Phone, ExternalLink } from "lucide-react";
 import { AgentShell, api, useAgentInfo } from "./shared";
 import { useOffice } from "./OfficeShell";
 import "@/styles/office-tickets.css";
+import { Rundgang } from "@/components/agent/Rundgang";
+import { RUNDGAENGE } from "./rundgaenge";
+import "@/styles/office-rundgang.css";
 
 interface Anliegen {
   id: number; ref: string; betreff: string; text: string;
@@ -53,7 +56,18 @@ function TicketsInnen() {
   const pool = useMemo(() => liste.filter((a) => a.status !== "erledigt" && a.agent_id == null), [liste]);
   const erledigt = useMemo(() => liste.filter((a) => a.status === "erledigt"), [liste]);
   const sichtbar = reiter === "meine" ? meine : reiter === "pool" ? pool : erledigt;
+  // ── 24.08.2026: DIE KOPFZAHL UND DIE MARKE IN DER LEISTE ZÄHLTEN ANDERS ──
+  // VORHER: Die Marke am Raum „Tickets" kommt aus GET /agent/tickets/zaehler
+  // und zählt `meine + pool` — also was auf MICH wartet. Die Kopfzahl auf
+  // dieser Seite zählte dagegen ALLES, was offen ist. Für einen normalen
+  // Bonitätsmanager ist das dasselbe; Leitung und Admin sehen über dieselbe
+  // Route auch die Anliegen der Kollegen. GEMESSEN am 24.08.2026 bei Daniel
+  // Stripling (Vertriebsleitung, Konto 8): Marke 1, Kopfzeile „2 Anliegen
+  // offen". NACHHER trägt die große Zahl dieselbe Menge wie die Marke, und
+  // was zusätzlich im Haus offen ist, steht als eigene Zeile darunter.
+  const offenFuerMich = liste.filter((a) => a.status === "offen" && (a.meins || a.agent_id == null)).length;
   const offenGesamt = liste.filter((a) => a.status === "offen").length;
+  const offenBeiAnderen = offenGesamt - offenFuerMich;
   const alt24 = (a: Anliegen) => a.status === "offen" && Date.now() - +new Date(a.created_at) > 864e5;
   const aelterAls24h = liste.filter(alt24).length;
 
@@ -78,14 +92,18 @@ function TicketsInnen() {
       <section className="ti-kopf">
         <div>
           <span className="ti-pille">Tickets</span>
-          <h1>{offenGesamt === 0 ? <>Alles beantwortet – <span className="ti-verlauf">nichts offen.</span></> : aelterAls24h > 0 ? <><span className="ti-verlauf">{aelterAls24h} {aelterAls24h === 1 ? "wartet" : "warten"}</span> schon länger als einen Tag.</> : <><span className="ti-verlauf">{offenGesamt} {offenGesamt === 1 ? "Anliegen" : "Anliegen"}</span> offen.</>}</h1>
+          <h1>{offenGesamt === 0 ? <>Alles beantwortet – <span className="ti-verlauf">nichts offen.</span></> : aelterAls24h > 0 ? <><span className="ti-verlauf">{aelterAls24h} {aelterAls24h === 1 ? "wartet" : "warten"}</span> schon länger als einen Tag.</> : <><span className="ti-verlauf">{offenFuerMich} {offenFuerMich === 1 ? "Anliegen" : "Anliegen"}</span> wartet auf dich.</>}</h1>
           <p>Was Kunden über „Hilfe &amp; Anliegen“ schreiben. Deine Antwort sehen sie in ihrem Bereich – und sie steht im Verlauf der Akte, damit der nächste Kollege sie findet.</p>
         </div>
         <div className="ti-lage">
           <small>Lage</small>
-          <div className="ti-lage-zahl"><b>{offenGesamt}</b><span>offen</span></div>
+          {/* Dieselbe Menge wie die Marke am Raum: meine plus Pool. */}
+          <div className="ti-lage-zahl"><b>{offenFuerMich}</b><span>offen für dich</span></div>
           <div className="ti-lage-zeile"><span>Im Pool (ohne Betreuer)</span><b className={pool.length ? "warn" : ""}>{pool.length}</b></div>
           <div className="ti-lage-zeile"><span>Älter als 24 h</span><b className={aelterAls24h ? "rot" : ""}>{aelterAls24h}</b></div>
+          {offenBeiAnderen > 0 && (
+            <div className="ti-lage-zeile"><span>Bei Kollegen offen</span><b>{offenBeiAnderen}</b></div>
+          )}
         </div>
       </section>
 
@@ -147,6 +165,8 @@ function TicketsInnen() {
                   </div>
                 )
               )}
+              {/* 24.08.2026: Rundgang je Raum (E-063). */}
+              <Rundgang raum="tickets" titel={RUNDGAENGE.tickets.titel} schritte={RUNDGAENGE.tickets.schritte} />
             </div>
           );
         })}

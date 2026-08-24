@@ -273,9 +273,25 @@ router.get("/agent/vertrieb/uebersicht", requireAgent, nurLeitung, nurMitZusage,
              COUNT(p.id) FILTER (WHERE p.priority_tier = 1 AND NOT p.is_blocked)::int AS tier1,
              COUNT(p.id) FILTER (WHERE p.priority_tier = 2 AND NOT p.is_blocked)::int AS tier2,
              COUNT(p.id) FILTER (WHERE p.priority_tier = 3 AND NOT p.is_blocked)::int AS tier3,
-             COUNT(p.id) FILTER (WHERE p.betreuung_seit IS NOT NULL)::int AS betreut
+             COUNT(p.id) FILTER (WHERE p.betreuung_seit IS NOT NULL)::int AS betreut,
+             -- ── 24.08.2026: MANDATE GEHÖREN IN DIE LEITUNGSSICHT ──────────
+             -- „Betreut" zählt betreuung_seit — das setzt lib/tier.ts bei
+             -- JEDEM dokumentierten Ergebnis, auch bei „nicht erreicht"
+             -- (§16a). Es ist deshalb KEIN Bestand. Der Bestand des Hauses
+             -- sind die Mandate, und genau die zeigt der Mitarbeiter selbst
+             -- unter /agent/bestand. GEMESSEN am 24.08.2026: 1678 Personen
+             -- mit betreuung_seit gegen 411 echte Mandate.
+             COUNT(p.id) FILTER (WHERE p.mandat_seit IS NOT NULL AND NOT p.is_blocked)::int AS mandate
       FROM fiaon_agents a
-      LEFT JOIN fiaon_persons p ON p.assigned_agent_id = a.id AND p.merged_into_person_id IS NULL
+      -- ── 24.08.2026: DIE KOPFZAHL SCHLOSS PRÜFSTANDS-PERSONEN AUS, DIESE
+      -- TABELLE NICHT ──────────────────────────────────────────────────────
+      -- Der Kommentar an der Kopfzahl behauptet seit dem 22.08. „dieselbe
+      -- Grundmenge wie Bestand je Mitarbeiter". Sie war es nicht: oben steht
+      -- ist_test_am IS NULL, hier stand es nicht — die Summe der Zeilen konnte
+      -- die Kachel per Konstruktion nie erreichen. GEMESSEN am 24.08.2026:
+      -- eine Prüfstands-Person im Bestand von Nikita Boychenko (Konto 13).
+      LEFT JOIN fiaon_persons p ON p.assigned_agent_id = a.id
+        AND p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL
       WHERE a.active AND NOT COALESCE(a.is_test_account, FALSE)
       GROUP BY a.id, a.name, a.rolle
       ORDER BY a.name
@@ -293,6 +309,9 @@ router.get("/agent/vertrieb/uebersicht", requireAgent, nurLeitung, nurMitZusage,
       agenten: (agenten as any[]).map((a) => ({
         id: a.id, name: a.name, rolle: a.rolle,
         tier1: a.tier1, tier2: a.tier2, tier3: a.tier3, betreut: a.betreut,
+        // Die Mandate — dieselbe Zahl, die der Mitarbeiter selbst unter
+        // /agent/bestand sieht (mandat_seit, §16a).
+        mandate: a.mandate,
         gesamt: a.tier1 + a.tier2 + a.tier3,
       })),
     });

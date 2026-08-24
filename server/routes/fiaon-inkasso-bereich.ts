@@ -191,15 +191,28 @@ router.get("/inkasso/liste", requireAgent, async (req: AgentRequest, res: Respon
     if (!z.voll) {
       const nurBetreuer = req.agent!.id;
       const frist = String(req.query.frist || "") || null;
-      const { arbeitslistePersonen } = await import("../lib/fiaon-inkasso");
-      const [liste, personen] = await Promise.all([
+      const { arbeitslistePersonen, fristZaehler: fristZaehlerB } = await import("../lib/fiaon-inkasso");
+      // 24.08.2026: VORHER lieferte dieser Zweig `fenster: null` — die
+      // Filter-Reiter standen dauerhaft auf 0, obwohl im Kopf „2 Raten
+      // überfällig" stand. NACHHER zählt derselbe Zähler wie oben, nur auf
+      // die eigenen Kunden gefiltert.
+      const [liste, personen, fenster] = await Promise.all([
         arbeitsliste({ limit: Number(req.query.limit) || 60, nurBetreuer, frist }),
         arbeitslistePersonen({ limit: Number(req.query.limit) || 60, nurBetreuer, frist }),
+        fristZaehlerB({ nurBetreuer }),
       ]);
       return res.json({
         ok: true, liste, personen, ergebnisse: RATEN_ERGEBNISSE,
-        heute: berlinToday(), frist, fenster: null, zahlen: null, verdienst: null,
-        nurMeine: true, beschraenkt: true,
+        heute: berlinToday(), frist, fenster, zahlen: null, verdienst: null,
+        // 24.08.2026 (Justin: „Es darf niemanden geben, der niemandem gehört"):
+        // VORHER meldete dieser Zweig `nurMeine: true`, und die Oberfläche
+        // schrieb daraufhin „… und darunter alles, was noch niemandem gehört".
+        // Das war für den Bonitätsmanager schlicht falsch: Er bekommt hier
+        // AUSSCHLIESSLICH die Raten seiner eigenen Kunden (`nurBetreuer` filtert
+        // über p.assigned_agent_id) — unzugeteilte sind gar nicht dabei.
+        // NACHHER sagt `umfang` klar, was die Liste ist, und die Oberfläche
+        // schreibt den passenden Satz dazu.
+        umfang: "eigene_kunden", beschraenkt: true,
         zeilen: liste.length, menschen: personen.length,
       });
     }
@@ -234,7 +247,13 @@ router.get("/inkasso/liste", requireAgent, async (req: AgentRequest, res: Respon
     res.json({
       ok: true, liste, personen, zahlen, verdienst: geld, ergebnisse: RATEN_ERGEBNISSE,
       heute: berlinToday(), fenster, frist,
-      nurMeine: nurMeine !== null,
+      // „eigene_und_offene": eigene Zuteilungen zuerst, darunter die Raten,
+      // für die noch KEINE Inkasso-Zuteilung besteht. Wichtig für den Text:
+      // Diese Raten sind NICHT herrenlos — ihre Kunden haben sehr wohl einen
+      // Betreuer (Messung 24.08.: 249 von 250 solchen Raten). Offen ist nur
+      // die gesonderte Inkasso-Zuteilung. Alles andere zu behaupten hat
+      // jahrelang ein Loch in die Zuständigkeit gerissen, das keines war.
+      umfang: nurMeine !== null ? "eigene_und_offene" : "alle_offenen",
       // Die Zahl, die der Betreiber im Teamfeedback gemeint hat: Wie viele
       // Zeilen standen da, und wie viele Menschen sind es wirklich?
       zeilen: liste.length,

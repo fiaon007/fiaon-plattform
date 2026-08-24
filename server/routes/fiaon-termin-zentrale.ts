@@ -27,7 +27,7 @@ import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 // Die Grund-Texte stehen bei der Protokollfunktion, nicht hier — sonst gibt es
 // zwei Wörterbücher für dieselben Codes.
-import { VERSUCH_GRUND_TEXT } from "../lib/fiaon-termine";
+import { HERKUENFTE, VERSUCH_GRUND_TEXT } from "../lib/fiaon-termine";
 import { terminArtAusQuelle } from "../../shared/fiaon-termin-art";
 
 const router = Router();
@@ -46,17 +46,22 @@ export const QUELLE_TEXT: Record<string, string> = {
   agent_manuell: "Vom Agenten eingetragen",
 };
 
-/** Der WEG, über den gebucht wurde (`fiaon_termine.herkunft`, seit 24.08.). */
-export const HERKUNFT_TEXT: Record<string, string> = {
-  antrag_vor_zahlung: "Erstgespräch vor der Zahlung",
-  nicht_erreicht_mail: "Nach „nicht erreicht“ — Terminlink",
-  nummer_korrektur: "Nach Nummern-Korrektur",
-  onboarding_einladung: "Einladung zum Startgespräch",
-  termin_verpasst_mail: "Nach verpasstem Termin",
-  wiedereinstieg_mail: "Wiedereinstieg",
-  agent: "Vom Agenten eingetragen",
-  unbekannt: "Weg nicht erfasst",
-};
+/**
+ * Der WEG, über den gebucht wurde (`fiaon_termine.herkunft`, seit 24.08.).
+ *
+ * ── 24.08.2026 ────────────────────────────────────────────────────────────
+ * VORHER stand hier eine zweite, von Hand gepflegte Liste derselben Codes,
+ * daneben in `server/lib/fiaon-termine.ts` die erste (`HERKUENFTE`).
+ * NACHHER kommen die Anzeige-Texte direkt aus `HERKUENFTE` — von dort, wo die
+ * Werte auch geprüft (`herkunftPruefen`) und geschrieben werden.
+ *
+ * GRUND: Genau ein zweites Wörterbuch hat den Fehler erzeugt, der hier heute
+ * behoben wurde — `nummer_korrektur` stand in der Anzeige, aber nie in den
+ * Daten, und der Filter fand garantiert nichts. Mit einer einzigen Liste kann
+ * die Auswahl keinen Weg mehr anbieten, den niemand bucht, und keinen
+ * verschweigen, den jemand nachträgt.
+ */
+export const HERKUNFT_TEXT: Record<string, string> = { ...HERKUENFTE };
 
 /** Status mit Klartext und Farbton. Bernstein heißt „jemand muss etwas tun". */
 export const STATUS_TEXT: Record<string, { text: string; ton: string }> = {

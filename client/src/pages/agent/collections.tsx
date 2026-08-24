@@ -68,6 +68,8 @@ function CollectionsInnen() {
   const [zugang, setZugang] = useState<"pruefe" | "offen" | "kein" | "frei">("pruefe");
   const [reiter, setReiter] = useState<"liste" | "stunden">(() => (new URLSearchParams(window.location.search).get("tab") === "stunden" ? "stunden" : "liste"));
   const [frist, setFrist] = useState<Frist>("ueberfaellig");
+  // Die Erklärung ist beim ersten Öffnen zu — sie wird einmal gelesen.
+  const [erklaerungAuf, setErklaerungAuf] = useState(false);
   const [sendeMenue, setSendeMenue] = useState<number | null>(null);
   const [ergebnisFall, setErgebnisFall] = useState<Fall | null>(null);
   const [akte, setAkte] = useState<Fall | null>(null);
@@ -105,7 +107,10 @@ function CollectionsInnen() {
   };
   const z = beschraenkt ? { ...eigene } as any : (daten?.zahlen ?? {});
   const v = daten?.verdienst ?? {};
-  const FENSTER: [Frist, string, number, string][] = [["ueberfaellig", "Überfällig", daten?.fenster?.ueberfaellig ?? 0, "rot"], ["heute", "Heute fällig", daten?.fenster?.heute ?? 0, "gelb"], ["woche", "Nächste 7 Tage", daten?.fenster?.woche ?? 0, "blau"], ["alle", "Alle drei", daten?.fenster?.alle ?? 0, "grau"]];
+  const FENSTER: [Frist, string, number, string][] = [["ueberfaellig", "Überfällig", daten?.fenster?.ueberfaellig ?? 0, "rot"], ["heute", "Heute fällig", daten?.fenster?.heute ?? 0, "gelb"], ["woche", "Nächste 7 Tage", daten?.fenster?.woche ?? 0, "blau"]];
+  // 24.08.2026 (Justin): „Alle drei" ist raus — drei Zeitfenster reichen; der
+  // vierte Reiter war nur die Summe der anderen drei und stiftete Verwirrung.
+  // Der Wert „alle" bleibt serverseitig gültig (Altlinks brechen nicht).
   const darfPipeline = agent?.rolle !== "inkasso";
 
   return (
@@ -114,18 +119,32 @@ function CollectionsInnen() {
         <div>
           <span className="co-pille">Collections · Forderungen &amp; Zahlungen</span>
           <h1>{Number(z.ueberfaellig_anzahl) > 0 ? <><span className="co-verlauf">{z.ueberfaellig_anzahl} {Number(z.ueberfaellig_anzahl) === 1 ? "Rate" : "Raten"}</span> überfällig – {eur(z.ueberfaellig_cents)}.</> : <>Nichts überfällig – <span className="co-verlauf">gut gemacht.</span></>}</h1>
-          <p>Von oben nach unten. Die Reihenfolge macht das System – der dringendste Fall steht zuerst. Eine Karte je Mensch, ein Klick: anrufen, Akte, senden, Ergebnis.</p>
+          {/* 24.08.2026 (Justin): VORHER stand die Erklärung dauerhaft im Kopf
+              und kostete jeden Tag drei Zeilen Platz, obwohl man sie einmal
+              liest. NACHHER als Aufklapper — beim ersten Mal da, danach zu. */}
+          <button type="button" className="co-klapp" style={{ marginTop: 6 }}
+                  onClick={() => setErklaerungAuf((v) => !v)} aria-expanded={erklaerungAuf}>
+            {erklaerungAuf ? "Erklärung schließen" : "Wie diese Liste funktioniert"}
+          </button>
+          {erklaerungAuf && (
+            <div className="co-erklaerung">
+              <p>Von oben nach unten. Die Reihenfolge macht das System – der dringendste Fall steht zuerst. Eine Karte je Mensch, ein Klick: anrufen, Akte, senden, Ergebnis.</p>
+              <p>Zahlungen bestätigt der Admin von Hand – bis dahin gilt eine Rate als offen.</p>
+              {beschraenkt
+                ? <p>Du siehst ausschließlich die offenen Raten <b>deiner eigenen Kunden</b>.</p>
+                : <p>Ganz oben stehen die Raten, die dir zugeteilt sind. Darunter die, für die noch keine Inkasso-Zuteilung besteht – einen Betreuer haben diese Kunden trotzdem.</p>}
+            </div>
+          )}
         </div>
         {/* E-047: VORHER stand hier für ALLE der Stundensatz-/Prämien-Block —
             das ist Dianas Vergütungsmodell. NACHHER sehen Bonitätsmanager
             (beschraenkt) stattdessen den 50 %-Hinweis. */}
-        {beschraenkt ? (
-          <div className="co-verdienst">
-            <small>Dein Anteil</small>
-            <b>50 %</b>
-            <span>Reaktivierte Altbestands-Raten: 50 % für dich (Verbuchung folgt mit dem Zahlungsmotor).</span>
-          </div>
-        ) : (
+        {/* 24.08.2026 (Justin): VORHER stand hier für Bonitätsmanager dauerhaft
+            „Dein Anteil 50 %". Das ist falsch aufgehängt — die 50 % gelten NUR
+            für reaktivierte Raten aus dem ALTBESTAND (E-042a), nicht für die
+            Liste als solche. Ein Satz, der immer da steht, wird als Regel für
+            alles gelesen. NACHHER: ersatzlos raus. */}
+        {beschraenkt ? null : (
         <div className="co-verdienst">
           <small>Dein Verdienst diesen Monat</small>
           <b>{eur(v.gesamtCents)}</b>
@@ -139,9 +158,10 @@ function CollectionsInnen() {
       {meldung && <p className={`co-meldung ${meldung.art === "schlecht" ? "schlecht" : ""}`}>{meldung.text} <button type="button" className="co-klapp" style={{ marginTop: 0, marginLeft: 8 }} onClick={() => setMeldung(null)}>ausblenden</button></p>}
 
       <section className="co-kacheln">
+        {/* 24.08.2026 (Justin): Die Kachel „Heute fällig (deine Kunden)" ist
+            raus — dieselbe Zahl steht direkt darunter als Filter-Reiter. */}
         {(beschraenkt ? [
           ["Überfällig (deine Kunden)", eur(z.ueberfaellig_cents), `${z.ueberfaellig_anzahl ?? 0} Raten`, "rot"],
-          ["Heute fällig (deine Kunden)", eur(z.heute_cents), `${z.heute_anzahl ?? 0} Raten`, ""],
         ] : [
           ["Heute fällig", eur(z.heute_cents), `${z.heute_anzahl ?? 0} Raten`, ""],
           ["Überfällig", eur(z.ueberfaellig_cents), `${z.ueberfaellig_anzahl ?? 0} Raten`, "rot"],
@@ -152,19 +172,32 @@ function CollectionsInnen() {
         ]).map(([t, w, u, k], i) => <div key={t} className={`co-kachel ${k}`} style={{ animationDelay: `${i * 50}ms` }}><small>{t}</small><b>{w}</b><span>{u}</span></div>)}
       </section>
 
-      <nav className="co-reiter" aria-label="Bereiche">
-        <button type="button" className={reiter === "liste" ? "an" : ""} onClick={() => setReiter("liste")}><ListChecks size={16} strokeWidth={1.75} />Arbeitsliste ({liste.length})</button>
-        {!beschraenkt && <button type="button" className={reiter === "stunden" ? "an" : ""} onClick={() => setReiter("stunden")}><Clock size={16} strokeWidth={1.75} />Meine Zeiten</button>}
-      </nav>
+      {/* 24.08.2026 (Justin): „Arbeitsliste (2)" weg. Der Reiter war für den
+          Bonitätsmanager der EINZIGE — ein Reiter, der nichts umschaltet, ist
+          nur ein Etikett. Für Diana und die Leitung, die zusätzlich „Meine
+          Zeiten" haben, bleibt die Umschaltung erhalten. */}
+      {!beschraenkt && (
+        <nav className="co-reiter" aria-label="Bereiche">
+          <button type="button" className={reiter === "liste" ? "an" : ""} onClick={() => setReiter("liste")}><ListChecks size={16} strokeWidth={1.75} />Arbeitsliste ({liste.length})</button>
+          <button type="button" className={reiter === "stunden" ? "an" : ""} onClick={() => setReiter("stunden")}><Clock size={16} strokeWidth={1.75} />Meine Zeiten</button>
+        </nav>
+      )}
 
       {reiter === "stunden" && <Zeiten onMeldung={setMeldung} />}
 
       {reiter === "liste" && (
         <>
           <div className="co-fenster">{FENSTER.map(([w, t, n, f]) => <button key={w} type="button" className={frist === w ? `an ${f}` : ""} onClick={() => setFrist(w)}>{t}<em>{n}</em></button>)}</div>
-          {daten?.nurMeine && <p className="co-hinweis">Du siehst deine zugeteilten Fälle zuerst – und darunter alles, was noch niemandem gehört.</p>}
-          {menschen.length > 0 && <p className="co-hinweis">{menschen.length} {menschen.length === 1 ? "Mensch" : "Menschen"} · {liste.length} {liste.length === 1 ? "offene Rate" : "offene Raten"} · eine Karte je Mensch{laedt ? " · aktualisiere …" : ""}</p>}
-          <p className="co-hinweis">Zahlungen bestätigt der Admin von Hand – bis dahin gilt eine Rate als offen.</p>
+          {/* 24.08.2026 (Justin: „Es darf niemanden geben, der niemandem gehört
+              — siehst du den Fehler?"). VORHER stand hier IMMER der Satz
+              „… und darunter alles, was noch niemandem gehört". Er war an
+              beiden Stellen falsch: Der Bonitätsmanager sieht ohnehin nur
+              seine eigenen Kunden, und die vermeintlich herrenlosen Raten
+              haben sehr wohl einen Betreuer — offen ist bei ihnen nur die
+              gesonderte Inkasso-Zuteilung (gemessen: 249 von 250).
+              NACHHER bleibt hier nur die Mengenangabe; die Erklärung wohnt im
+              Aufklapper oben. */}
+          {menschen.length > 0 && <p className="co-hinweis">{menschen.length} {menschen.length === 1 ? "Mensch" : "Menschen"} · {liste.length} {liste.length === 1 ? "offene Rate" : "offene Raten"}{laedt ? " · aktualisiere …" : ""}</p>}
           {liste.length === 0 && !laedt && (
             <p className="co-leer karte">{frist === "ueberfaellig" ? "Keine überfällige Rate. Das ist die beste Nachricht des Tages – schau in „Heute fällig“ oder „Nächste 7 Tage“, was ansteht." : frist === "heute" ? "Heute wird keine Rate fällig." : frist === "woche" ? "In den nächsten sieben Tagen wird keine Rate fällig." : "Nichts offen. Alle fälligen Raten sind bearbeitet oder haben eine Wiedervorlage in der Zukunft."}</p>
           )}

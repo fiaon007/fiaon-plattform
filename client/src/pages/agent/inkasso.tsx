@@ -310,9 +310,17 @@ export default function AgentInkasso() {
           </div>
         )}
 
-        {reiter === "liste" && daten?.nurMeine && (
+        {/* 24.08.2026 (Justin: „Es darf niemanden geben, der niemandem gehört
+            — siehst du den Fehler?"): VORHER hieß es hier „… und darunter
+            alles, was noch niemandem gehört". Das stimmte nie. Gemeint war,
+            dass für diese Raten keine gesonderte INKASSO-Zuteilung besteht —
+            einen Betreuer haben ihre Kunden sehr wohl (gemessen am 24.08.:
+            249 von 250). Der Satz las sich wie „hier liegt herrenlose Arbeit"
+            und stand damit gegen die Hausregel, dass jeder Kunde jemandem
+            gehört. NACHHER benennt er, was wirklich offen ist. */}
+        {reiter === "liste" && daten?.umfang === "eigene_und_offene" && (
           <p className="mb-3 text-[11.5px] leading-relaxed" style={{ color: "var(--fi-text-still)" }}>
-            Du siehst deine zugeteilten Fälle zuerst — und darunter alles, was noch niemandem gehört.
+            Oben deine zugeteilten Fälle, darunter die ohne Inkasso-Zuteilung — einen Betreuer haben diese Kunden.
           </p>
         )}
 

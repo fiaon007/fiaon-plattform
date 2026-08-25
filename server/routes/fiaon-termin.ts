@@ -1254,7 +1254,25 @@ router.put("/agent/verfuegbarkeit", requireAgent, async (req: AgentRequest, res:
     const fenster = Array.isArray(req.body?.fenster) ? req.body.fenster : [];
     // Die Klammer liegt hier, nicht in der Bibliothek: Löschen und Neuschreiben
     // müssen zusammen gelingen, sonst stünde ein Agent kurz ohne Zeiten da.
-    await sqlPool.begin(async (tx) => { await verfuegbarkeitSetzen(req.agent!.id, fenster, tx as any); });
+    await sqlPool.begin(async (tx) => {
+      await verfuegbarkeitSetzen(req.agent!.id, fenster, tx as any);
+      // ── BEIDE TABELLEN, ODER KEINE (25.08.2026) ────────────────────────
+      // Es gibt zwei Formulare fuer dieselbe Sache: den Wochenplan unter
+      // „Availability" (fiaon_arbeitszeiten) und dieses hier
+      // (fiaon_agent_verfuegbarkeit). Die Terminpruefung liest NUR das
+      // zweite. Der Wochenplan spiegelt laengst hierher — dieser Weg
+      // spiegelte aber nicht zurueck. Wer hier etwas aenderte, sah auf der
+      // Seite „Availability" danach die alten Zeiten und glaubte, seine
+      // Aenderung sei verlorengegangen.
+      // GEMESSEN am 25.08.2026: heute noch bei allen fuenf aktiven
+      // Mitarbeitern deckungsgleich — also bevor jemand darueber stolpert.
+      const roh = fenster.filter((f: any) => f && f.aktiv !== false && f.von && f.bis);
+      await tx`DELETE FROM fiaon_arbeitszeiten WHERE agent_id = ${req.agent!.id}`;
+      for (const f of roh) {
+        await tx`INSERT INTO fiaon_arbeitszeiten (agent_id, wochentag, von, bis)
+                 VALUES (${req.agent!.id}, ${Number(f.wochentag)}, ${String(f.von)}::time, ${String(f.bis)}::time)`;
+      }
+    });
     res.json({ ok: true, fenster: await verfuegbarkeitVon(req.agent!.id) });
   } catch (err) {
     console.error("[TERMIN] verfuegbarkeit setzen:", err);

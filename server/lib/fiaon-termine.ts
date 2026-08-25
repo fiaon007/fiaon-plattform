@@ -1082,7 +1082,30 @@ export async function terminBuchen(
   },
   lauf: Lauf = sqlPool,
 ): Promise<Buchung> {
-  const beginn = typeof eingabe.beginn === "string" ? new Date(eingabe.beginn) : eingabe.beginn;
+  // ══════════════════════════════════════════════════════════════════════════
+  // EIN LESER FÜR ALLE TERMINZEITEN (25.08.2026)
+  //
+  // Hier stand `new Date(eingabe.beginn)`. Das ist für eine Zeit MIT Zone
+  // richtig — und für eine nackte Wandzeit falsch: Node liest „2026-08-26T11:00"
+  // nach ECMAScript-Norm als ORTSZEIT DES SERVERS. Der Server läuft in UTC,
+  // also wurde aus 11:00 Berlin still und leise 13:00 Berlin.
+  //
+  // GEMESSEN im Prüfstand: Termin für morgen 11:00 angelegt → bestätigt wurde
+  // „26.08.2026 13:00". Zwei Stunden zu spät, ohne jede Fehlermeldung. Das ist
+  // die gefährlichere Sorte Fehler: Der Kunde wartet um elf, der Mitarbeiter
+  // ruft um eins an.
+  //
+  // Beide Quellen laufen durch DENSELBEN Leser:
+  //   · Kundenseite  → `toISOString()`, also mit Zone → absolut, unverändert.
+  //   · Mitarbeiter  → nackte Wandzeit aus dem Feld → als Berliner Zeit gelesen.
+  // `parseBerlinInput` unterscheidet das an der Zeichenkette und beherrscht die
+  // Zeitumstellung. Das Verschieben nutzt ihn längst — deshalb hat Verschieben
+  // nie gehakt und Anlegen immer.
+  // ══════════════════════════════════════════════════════════════════════════
+  const { parseBerlinInput } = await import("./fiaon-time");
+  const beginn = typeof eingabe.beginn === "string"
+    ? (parseBerlinInput(eingabe.beginn) ?? new Date(NaN))
+    : eingabe.beginn;
   if (isNaN(beginn.getTime())) throw new TerminFehler("zeit_unlesbar", "Der gewählte Zeitpunkt ist unlesbar.");
 
   // Vorlauf und Horizont. Beim Agenten selbst gilt der Vorlauf nicht — er darf

@@ -198,6 +198,21 @@ function TagescheckInnen() {
                 );
               })}
             </div>
+            {/* 25.08.2026: Offene Raten gehören jetzt dem Betreuer — ohne
+                eigene Abteilung gäbe es sonst keinen Ort dafür. Der Kasten
+                erscheint nur, wenn wirklich etwas offen ist. */}
+            {Number(start?.kunden?.rateOffen ?? 0) > 0 && (
+              <Link href="/agent/pipeline?filter=rate_offen" className="to-hinweis-zeile"
+                    style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+                             gap: 12, margin: "10px 0 2px", padding: "10px 14px", borderRadius: 12,
+                             background: "rgba(248,113,113,.09)", border: "1px solid rgba(248,113,113,.22)",
+                             color: "#fecaca", textDecoration: "none" }}>
+                <span style={{ fontWeight: 500 }}>
+                  {start.kunden.rateOffen} {start.kunden.rateOffen === 1 ? "offene Rate" : "offene Raten"}
+                </span>
+                <small style={{ color: "#f87171" }}>Fällig und nicht bezahlt — ansehen</small>
+              </Link>
+            )}
             <div className="to-reihe">
               <Link href="/agent/pipeline" className="to-knopf still">Zur Pipeline</Link>
               <Link href="/agent/kalender" className="to-knopf still">Calendar</Link>

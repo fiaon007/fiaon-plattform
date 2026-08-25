@@ -395,6 +395,15 @@ router.get("/agent/start", requireAgent, async (req: AgentRequest, res: Response
         COUNT(*) FILTER (WHERE promised_payment_date = ${sqlPool.unsafe(HEUTE)} AND NOT is_blocked)::int AS zusage_heute,
         COUNT(*) FILTER (WHERE promised_payment_date < ${sqlPool.unsafe(HEUTE)} AND priority_tier BETWEEN 1 AND 2
                            AND NOT is_blocked)::int AS zusage_ueberfaellig,
+        -- Offene Raten: BEWUSST ohne Stufengrenze (25.08.2026). 185 der 203
+        -- ueberfaelligen Raten haengen an Menschen auf Stufe 0. Waere die
+        -- Grenze hier drin, zeigte der Zaehler 18 statt 203.
+        COUNT(*) FILTER (WHERE EXISTS (
+          SELECT 1 FROM fiaon_abo_raten r8
+          JOIN fiaon_applications a8 ON a8.ref = r8.ref
+          WHERE a8.person_id = fiaon_persons.id AND a8.merged_into IS NULL
+            AND r8.status IN ('offen','ueberfaellig') AND r8.faellig_am < CURRENT_DATE
+            AND r8.storniert_am IS NULL AND r8.bezahlt_am IS NULL))::int AS rate_offen,
         -- Nummer ohne Land: nicht anrufbar, bis jemand die Vorwahl ergaenzt.
         -- Der Zaehler macht die Abarbeitung sichtbar — eine Datei tut das nicht.
         --
@@ -509,6 +518,7 @@ router.get("/agent/start", requireAgent, async (req: AgentRequest, res: Response
         offen: zahlen.offen, tier1: zahlen.tier1, tier2: zahlen.tier2, tier3: zahlen.tier3,
         bezahlt: zahlen.bezahlt,
         zusageHeute: zahlen.zusage_heute, zusageUeberfaellig: zahlen.zusage_ueberfaellig,
+        rateOffen: zahlen.rate_offen,
       },
       zusagen: (zusagen as any[]).map(karte),
       // Auch hier die Art-Marke: Ein selbst notierter Rückruf ist grau und
@@ -910,6 +920,35 @@ router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: R
       else if (filter === "leads") wo.push("p.priority_tier = 3");
       else if (filter === "zusage_heute") wo.push(`p.promised_payment_date = ${HEUTE}`);
       else if (filter === "ueberfaellig") wo.push(`p.promised_payment_date < ${HEUTE}`);
+      // ══════════════════════════════════════════════════════════════════════
+      // OFFENE RATEN GEHÖREN DEM BETREUER (25.08.2026)
+      //
+      // ── DER BEFUND ───────────────────────────────────────────────────────
+      // Justin: „es gibt keine anderen Abteilungen mehr!!!!!" Damit fällt der
+      // eigene Raum fürs Forderungsmanagement weg — und mit ihm der einzige
+      // Ort, an dem eine überfällige Rate bisher sichtbar war.
+      //
+      // GEMESSEN am 25.08.2026: 203 überfällige Raten, davon 185 bei Menschen
+      // auf STUFE 0. Stufe 0 heißt „hat bezahlt" und ist aus der Arbeitsliste
+      // ausgenommen — zu Recht, denn ein zahlender Kunde ist kein Vorrat.
+      // Nur: Wer eine Rate schuldet, zahlt gerade eben NICHT. Ohne diesen
+      // Filter wären 185 Raten in niemandes Liste mehr aufgetaucht.
+      // Sie verteilen sich über neun Mitarbeiter — Daniel 74, Nikita 67,
+      // Florentine 41, Lucas 11, Justin 4.
+      //
+      // Deshalb hebt dieser Filter die Stufengrenze auf, genau wie die Suche:
+      // Er fragt nicht nach dem Vorrat, sondern nach einer Schuld. Die
+      // Zuständigkeit bleibt unberührt — jeder sieht nur seine eigenen Leute.
+      // ══════════════════════════════════════════════════════════════════════
+      else if (filter === "rate_offen") {
+        wo.push(`EXISTS (
+          SELECT 1 FROM fiaon_abo_raten r7
+          JOIN fiaon_applications a7 ON a7.ref = r7.ref
+          WHERE a7.person_id = p.id AND a7.merged_into IS NULL
+            AND r7.status IN ('offen','ueberfaellig')
+            AND r7.faellig_am < CURRENT_DATE
+            AND r7.storniert_am IS NULL AND r7.bezahlt_am IS NULL)`);
+      }
       else if (filter === "rueckruf") {
         wo.push(`EXISTS (
           SELECT 1 FROM fiaon_contact_log cl JOIN fiaon_applications a6 ON a6.ref = cl.ref

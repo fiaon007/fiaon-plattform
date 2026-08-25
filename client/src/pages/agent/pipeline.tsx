@@ -202,6 +202,10 @@ const ANSICHTEN: { key: string; label: string }[] = [
   { key: "alle", label: "Alle" },
   { key: "zusage_heute", label: "Zusage heute" },
   { key: "ueberfaellig", label: "Überfällig" },
+  // 25.08.2026: Mit dem Wegfall der Abteilungen gehört eine offene Rate dem
+  // Betreuer. Bewusst OHNE Stufengrenze — 185 der 203 überfälligen Raten
+  // hängen an Menschen auf Stufe 0, die sonst in keiner Liste stehen.
+  { key: "rate_offen", label: "Rate offen" },
   { key: "rueckruf", label: "Rückruf" },
   { key: "tier1", label: "Zahlung gemeldet" },
   { key: "rechnung_stellen", label: "Rechnung stellen" },

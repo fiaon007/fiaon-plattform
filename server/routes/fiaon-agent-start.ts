@@ -401,7 +401,7 @@ router.get("/agent/start", requireAgent, async (req: AgentRequest, res: Response
         COUNT(*) FILTER (WHERE EXISTS (
           SELECT 1 FROM fiaon_abo_raten r8
           JOIN fiaon_applications a8 ON a8.ref = r8.ref
-          WHERE a8.person_id = fiaon_persons.id AND a8.merged_into IS NULL
+          WHERE a8.person_id = p.id AND a8.merged_into IS NULL
             AND r8.status IN ('offen','ueberfaellig') AND r8.faellig_am < CURRENT_DATE
             AND r8.storniert_am IS NULL AND r8.bezahlt_am IS NULL))::int AS rate_offen,
         -- Nummer ohne Land: nicht anrufbar, bis jemand die Vorwahl ergaenzt.

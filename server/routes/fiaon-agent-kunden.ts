@@ -1888,6 +1888,76 @@ router.post("/agent/buchungen/:ref/archivieren", requireAgent, async (req: Agent
 // ═══════════════════════════════════════════════════════════════════════════
 
 /** GET /agent/karte/:personId — der Stand mit allen drei Toren. */
+// ── REIHENFOLGE IST HIER BEDEUTUNG (25.08.2026) ────────────────────────────
+// GEMESSEN im Prüfstand: GET /agent/karte/verdienst antwortete „Kunde nicht
+// gefunden". Express nimmt den ERSTEN passenden Weg — und
+// „/agent/karte/:personId" passt auch auf „/agent/karte/verdienst", mit
+// personId = "verdienst". Feste Namen gehören deshalb VOR den Platzhalter.
+router.get("/agent/karte/verdienst", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const { ensureKartenTabelle } = await import("../lib/fiaon-konto-karte");
+    await ensureKartenTabelle();
+    const [z] = (await sqlPool`
+      SELECT
+        COALESCE(SUM(bonus_cents) FILTER (WHERE status IN ('gesendet','eroeffnet')), 0)::int AS vorgemerkt,
+        COALESCE(SUM(bonus_cents) FILTER (WHERE status = 'bestaetigt'), 0)::int AS bestaetigt,
+        COUNT(*) FILTER (WHERE status <> 'verfallen')::int AS anzahl
+      FROM fiaon_konto_karte WHERE agent_id = ${req.agent!.id}
+    `) as any[];
+    res.json({ ok: true, stand: {
+      vorgemerkt: Number(z?.vorgemerkt || 0),
+      bestaetigt: Number(z?.bestaetigt || 0),
+      anzahl: Number(z?.anzahl || 0),
+    } });
+  } catch (err) {
+    console.error("[KARTE] verdienst:", err);
+    // Eine klemmende Nebenzahl darf das Wallet nicht mitreissen.
+    res.json({ ok: true, stand: { vorgemerkt: 0, bestaetigt: 0, anzahl: 0 } });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE GESPRÄCHSANGABEN — was der Mitarbeiter am Telefon erfährt
+//
+// ── DER BEFUND (Daniel und Florentine, 25.08.2026) ─────────────────────────
+// „Unter ‚Daten' können aktuell nur allgemeine Stammdaten wie Name, E-Mail,
+// Telefon, Adresse, Wohnort und Geburtsdatum geändert werden. Die
+// antragsrelevanten Angaben können wir als Agenten dort nicht nachtragen …
+// Hier wäre es wichtig, dass wir diese Informationen direkt während des
+// Gesprächs beim Kunden erfragen und anschließend selbst im Kundenprofil
+// hinterlegen können. Beim nächsten Kontakt sind die Informationen dann
+// bereits vorhanden und der Kunde muss nicht alles erneut erzählen."
+//
+// Sie haben recht, und der Grund war eine Erlaubnisliste: `stammdaten` lässt
+// genau acht Kontaktfelder durch. Alles Fachliche — Beruf, Einkommen,
+// Verpflichtungen — kam dort nie vor.
+//
+// ── WARUM DIESELBEN SPALTEN WIE DER ANTRAG ────────────────────────────────
+// Diese Route schreibt in GENAU die Felder, die auch das Antragsformular
+// füllt. Keine zweite Ablage „was der Agent erfragt hat" neben „was der Kunde
+// ausgefüllt hat": Zwei Wahrheiten über dasselbe Einkommen sind schlimmer als
+// eine unvollständige. Wer im Gespräch nachträgt, ergänzt den Antrag — er legt
+// keine Parallelakte an.
+//
+// ── WAS NICHT GESPEICHERT WIRD ────────────────────────────────────────────
+// „Monatlich verbleibender Betrag" ist eine RECHNUNG, kein Feld: Einkommen
+// plus Zusatzeinkommen minus Miete und feste Ausgaben. Als eigene Spalte würde
+// sie beim ersten geänderten Einkommen falsch — und niemand merkte es.
+// ═══════════════════════════════════════════════════════════════════════════
+const ANTRAG_FELDER: Record<string, { spalte: string; art: "text" | "zahl"; label: string }> = {
+  beruf:        { spalte: "employment",     art: "text", label: "Beruf" },
+  arbeitgeber:  { spalte: "employer",       art: "text", label: "Arbeitgeber" },
+  seit:         { spalte: "employed_since", art: "text", label: "Beschäftigt seit" },
+  einkommen:    { spalte: "income",         art: "zahl", label: "Monatliches Einkommen" },
+  miete:        { spalte: "rent",           art: "zahl", label: "Miete" },
+  ausgaben:     { spalte: "expenses_other", art: "zahl", label: "Weitere feste Ausgaben" },
+  schulden:     { spalte: "debts",          art: "zahl", label: "Bestehende Verpflichtungen" },
+  wohnen:       { spalte: "housing",        art: "text", label: "Wohnsituation" },
+  rahmen:       { spalte: "wanted_limit",   art: "zahl", label: "Gewünschter Rahmen" },
+  wozu:         { spalte: "purpose",        art: "text", label: "Wofür der Rahmen gebraucht wird" },
+  gehaltseingang: { spalte: "salary_receipt_day", art: "text", label: "Geldeingang" },
+};
+
 router.get("/agent/karte/:personId", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
     const personId = Number(req.params.personId);
@@ -2022,71 +2092,6 @@ router.get("/agent/karte/bereit/liste", requireAgent, async (req: AgentRequest, 
  * Zahl, die zu hoch ist und wieder fällt — und nichts zerstört Vertrauen in
  * eine Provisionsabrechnung schneller als ein Guthaben, das schrumpft.
  */
-router.get("/agent/karte/verdienst", requireAgent, async (req: AgentRequest, res: Response) => {
-  try {
-    const { ensureKartenTabelle } = await import("../lib/fiaon-konto-karte");
-    await ensureKartenTabelle();
-    const [z] = (await sqlPool`
-      SELECT
-        COALESCE(SUM(bonus_cents) FILTER (WHERE status IN ('gesendet','eroeffnet')), 0)::int AS vorgemerkt,
-        COALESCE(SUM(bonus_cents) FILTER (WHERE status = 'bestaetigt'), 0)::int AS bestaetigt,
-        COUNT(*) FILTER (WHERE status <> 'verfallen')::int AS anzahl
-      FROM fiaon_konto_karte WHERE agent_id = ${req.agent!.id}
-    `) as any[];
-    res.json({ ok: true, stand: {
-      vorgemerkt: Number(z?.vorgemerkt || 0),
-      bestaetigt: Number(z?.bestaetigt || 0),
-      anzahl: Number(z?.anzahl || 0),
-    } });
-  } catch (err) {
-    console.error("[KARTE] verdienst:", err);
-    // Eine klemmende Nebenzahl darf das Wallet nicht mitreissen.
-    res.json({ ok: true, stand: { vorgemerkt: 0, bestaetigt: 0, anzahl: 0 } });
-  }
-});
-
-// ═══════════════════════════════════════════════════════════════════════════
-// DIE GESPRÄCHSANGABEN — was der Mitarbeiter am Telefon erfährt
-//
-// ── DER BEFUND (Daniel und Florentine, 25.08.2026) ─────────────────────────
-// „Unter ‚Daten' können aktuell nur allgemeine Stammdaten wie Name, E-Mail,
-// Telefon, Adresse, Wohnort und Geburtsdatum geändert werden. Die
-// antragsrelevanten Angaben können wir als Agenten dort nicht nachtragen …
-// Hier wäre es wichtig, dass wir diese Informationen direkt während des
-// Gesprächs beim Kunden erfragen und anschließend selbst im Kundenprofil
-// hinterlegen können. Beim nächsten Kontakt sind die Informationen dann
-// bereits vorhanden und der Kunde muss nicht alles erneut erzählen."
-//
-// Sie haben recht, und der Grund war eine Erlaubnisliste: `stammdaten` lässt
-// genau acht Kontaktfelder durch. Alles Fachliche — Beruf, Einkommen,
-// Verpflichtungen — kam dort nie vor.
-//
-// ── WARUM DIESELBEN SPALTEN WIE DER ANTRAG ────────────────────────────────
-// Diese Route schreibt in GENAU die Felder, die auch das Antragsformular
-// füllt. Keine zweite Ablage „was der Agent erfragt hat" neben „was der Kunde
-// ausgefüllt hat": Zwei Wahrheiten über dasselbe Einkommen sind schlimmer als
-// eine unvollständige. Wer im Gespräch nachträgt, ergänzt den Antrag — er legt
-// keine Parallelakte an.
-//
-// ── WAS NICHT GESPEICHERT WIRD ────────────────────────────────────────────
-// „Monatlich verbleibender Betrag" ist eine RECHNUNG, kein Feld: Einkommen
-// plus Zusatzeinkommen minus Miete und feste Ausgaben. Als eigene Spalte würde
-// sie beim ersten geänderten Einkommen falsch — und niemand merkte es.
-// ═══════════════════════════════════════════════════════════════════════════
-const ANTRAG_FELDER: Record<string, { spalte: string; art: "text" | "zahl"; label: string }> = {
-  beruf:        { spalte: "employment",     art: "text", label: "Beruf" },
-  arbeitgeber:  { spalte: "employer",       art: "text", label: "Arbeitgeber" },
-  seit:         { spalte: "employed_since", art: "text", label: "Beschäftigt seit" },
-  einkommen:    { spalte: "income",         art: "zahl", label: "Monatliches Einkommen" },
-  miete:        { spalte: "rent",           art: "zahl", label: "Miete" },
-  ausgaben:     { spalte: "expenses_other", art: "zahl", label: "Weitere feste Ausgaben" },
-  schulden:     { spalte: "debts",          art: "zahl", label: "Bestehende Verpflichtungen" },
-  wohnen:       { spalte: "housing",        art: "text", label: "Wohnsituation" },
-  rahmen:       { spalte: "wanted_limit",   art: "zahl", label: "Gewünschter Rahmen" },
-  wozu:         { spalte: "purpose",        art: "text", label: "Wofür der Rahmen gebraucht wird" },
-  gehaltseingang: { spalte: "salary_receipt_day", art: "text", label: "Geldeingang" },
-};
-
 router.post("/agent/crm/kunden/:personId/antragsdaten", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
     const personId = Number(req.params.personId);

@@ -80,7 +80,7 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
       + "haben, zwei mit offenem Antrag und zwei Neukunden. Sobald du einen abschließt, rückt der "
       + "nächste nach. So arbeitest du nie an einem Berg, sondern immer an sechs Namen.",
     // 25.08.2026 mitgezogen: Der unberührte Vorrat ist seitdem unsichtbar.
-    tipp: "Den Topf dahinter siehst du bewusst nicht — in deinen Listen stehen nur Menschen, mit denen schon etwas passiert ist. Der Nachschub kommt von selbst.",
+    tipp: "Deine sechs kommen aus dem gemeinsamen Kundenpool — niemand besitzt einen Kunden, bevor das Mandat steht. Wen du anrufst, der bleibt bei dir; was du drei Tage liegen lässt, geht zurück in den Pool.",
   },
   {
     ziel: ".pi-kar",

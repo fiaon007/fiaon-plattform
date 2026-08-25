@@ -60,6 +60,19 @@ const router = Router();
  */
 const HEUTE = `(NOW() AT TIME ZONE 'Europe/Berlin')::date`;
 
+
+/** Wie viele Menschen je Stufe im gemeinsamen Kundenpool warten (niemandem zugeteilt). */
+async function poolZahlen(): Promise<{ a: number; b: number; c: number }> {
+  const [z] = (await sqlPool`
+    SELECT COUNT(*) FILTER (WHERE priority_tier = 1)::int AS a,
+           COUNT(*) FILTER (WHERE priority_tier = 2)::int AS b,
+           COUNT(*) FILTER (WHERE priority_tier = 3)::int AS c
+      FROM fiaon_persons
+     WHERE assigned_agent_id IS NULL AND mandat_seit IS NULL
+       AND merged_into_person_id IS NULL AND ist_test_am IS NULL
+       AND NOT is_blocked AND priority_tier IN (1,2,3)`) as any[];
+  return { a: Number(z?.a ?? 0), b: Number(z?.b ?? 0), c: Number(z?.c ?? 0) };
+}
 const NAME_SQL = `COALESCE(
   NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''),
   NULLIF(TRIM(p.company_name), ''),
@@ -519,6 +532,10 @@ router.get("/agent/start", requireAgent, async (req: AgentRequest, res: Response
         bezahlt: zahlen.bezahlt,
         zusageHeute: zahlen.zusage_heute, zusageUeberfaellig: zahlen.zusage_ueberfaellig,
         rateOffen: zahlen.rate_offen,
+        // Seit dem Kundenpool (25.08.2026) ist „dahinter" nicht mehr der eigene
+        // Vorrat, sondern der gemeinsame Topf. Eine Abfrage ohne Zustaendigkeit
+        // — der Pool gehoert per Definition niemandem.
+        pool: await poolZahlen(),
       },
       zusagen: (zusagen as any[]).map(karte),
       // Auch hier die Art-Marke: Ein selbst notierter Rückruf ist grau und

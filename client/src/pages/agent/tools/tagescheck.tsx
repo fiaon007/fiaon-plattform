@@ -192,7 +192,12 @@ function TagescheckInnen() {
                     <b>{vorrat == null ? "–" : `${inArbeit} / 2`}</b>
                     <span>{was}</span>
                     <em style={{ display: "block", fontStyle: "normal", fontSize: 11, color: "#64748b", marginTop: 2 }}>
-                      {v > 2 ? `${v - 2} warten dahinter` : v === 0 ? "Vorrat leer" : "kein Nachschub"}
+                      {/* Seit dem Kundenpool (25.08.2026) kommt der Nachschub aus dem
+                          gemeinsamen Topf — nicht mehr aus einem eigenen Vorrat. */}
+                      {(() => {
+                        const pool = Number((start?.kunden?.pool ?? {})[stufe === "A" ? "a" : stufe === "B" ? "b" : "c"] ?? 0);
+                        return pool > 0 ? `${pool} im Pool` : "Pool leer";
+                      })()}
                     </em>
                   </div>
                 );

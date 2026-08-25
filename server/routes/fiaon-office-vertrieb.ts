@@ -272,6 +272,62 @@ const GRUPPEN: { key: string; tier: number }[] = [
 const JE_GRUPPE = 2;
 const SLOTS = 6;
 
+/**
+ * Zieht Nachschub aus dem Kundenpool, bis der Mitarbeiter je Stufe wieder
+ * zwei arbeitbare Menschen hat. Läuft vor jedem Aufbau der Arbeitsliste.
+ *
+ * Drei Schutzregeln:
+ *  1. Testkonten ziehen NIE — sonst griffe das Prüfkonto nach echten Kunden.
+ *  2. Diana (531) zieht nicht, solange ihr Arbeitssystem ungeklärt ist.
+ *  3. Liegengelassenes fällt zurück: Wer zieht und drei Tage lang nichts tut
+ *     (kein Verlaufseintrag, kein Termin, kein Mandat), gibt den Menschen
+ *     wortlos an den Pool zurück. So sperrt kein Urlaub den Nachschub.
+ *
+ * Reihenfolge im Pool: Leads (Stufe 3) NEUESTE zuerst — die Abschlussquote
+ * fällt mit jeder Stunde seit der Anfrage (Speed-to-Lead). Stufe 1 und 2
+ * ÄLTESTE zuerst — diese Menschen warten auf uns, nicht umgekehrt.
+ */
+const POOL_RUECKFALL_TAGE = 3;
+async function poolNachschub(me: number, istTestkonto: boolean): Promise<void> {
+  if (istTestkonto || me === 531) return;
+
+  // Unberührtes, das seit drei Tagen bei jemandem liegt, zurück in den Pool.
+  await sqlPool.unsafe(`
+    UPDATE fiaon_persons p SET assigned_agent_id = NULL
+     WHERE p.mandat_seit IS NULL AND p.assigned_agent_id IS NOT NULL
+       AND p.assigned_at < NOW() - INTERVAL '${POOL_RUECKFALL_TAGE} days'
+       AND p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL
+       AND NOT p.is_blocked AND p.priority_tier IN (1,2,3)
+       AND NOT EXISTS (SELECT 1 FROM fiaon_contact_log c1 JOIN fiaon_applications ax ON ax.ref = c1.ref WHERE ax.person_id = p.id)
+       AND NOT EXISTS (SELECT 1 FROM fiaon_contact_log c2 WHERE c2.person_id = p.id)
+       AND NOT EXISTS (SELECT 1 FROM fiaon_termine tx WHERE tx.person_id = p.id)`);
+
+  for (const g of GRUPPEN) {
+    const [zeile] = (await sqlPool.unsafe(`
+      SELECT COUNT(*)::int AS n FROM fiaon_persons p
+       WHERE p.assigned_agent_id = $1 AND p.merged_into_person_id IS NULL
+         AND p.ist_test_am IS NULL AND NOT p.is_blocked
+         AND NOT ${ruhtSql("p")} AND NOT ${wartetSql("p")}
+         AND (p.follow_up_date IS NULL OR p.follow_up_date <= ${HEUTE})
+         AND NOT EXISTS (SELECT 1 FROM fiaon_termine tz WHERE tz.person_id = p.id
+               AND tz.status = 'gebucht' AND tz.abgesagt_am IS NULL AND tz.beginn > NOW())
+         AND p.priority_tier = ${g.tier}`, [me])) as any[];
+    const fehlt = JE_GRUPPE - Number(zeile?.n ?? 0);
+    if (fehlt <= 0) continue;
+    await sqlPool.unsafe(`
+      UPDATE fiaon_persons SET assigned_agent_id = $1, assigned_at = NOW()
+       WHERE id IN (
+         SELECT p.id FROM fiaon_persons p
+          WHERE p.assigned_agent_id IS NULL AND p.mandat_seit IS NULL
+            AND p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL
+            AND NOT p.is_blocked AND NOT ${ruhtSql("p")} AND NOT ${wartetSql("p")}
+            AND p.priority_tier = ${g.tier}
+          ORDER BY p.created_at ${g.tier === 3 ? "DESC" : "ASC"}
+          LIMIT ${fehlt}
+          FOR UPDATE SKIP LOCKED)`, [me]);
+  }
+}
+
 router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
     const { istInkasso } = await import("./fiaon-inkasso-bereich");
@@ -286,6 +342,27 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
     await ensureBetreuungSpalte(sqlPool);
     await ensureVertriebSpalten();
     const me = req.agent!.id;
+
+    // ══════════════════════════════════════════════════════════════════════
+    // DER KUNDENPOOL (25.08.2026, Justins Festlegung)
+    //
+    // „KEINE Kunden sind dem Mitarbeiter zugeteilt, bis er das Mandat
+    // akzeptiert — wir geben diese aus einem Kundenpool aus."
+    //
+    // VORHER war jeder Lead fest einem Mitarbeiter zugewiesen; am Mittag des
+    // 25.08. wurde der unberuehrte Vorrat deshalb muehsam fair umverteilt
+    // (2.894 lagen bei den vier Erfahrenen, 3 bei den vier Neuen). Der Pool
+    // macht diese Sorte Pflege ueberfluessig: Unberuehrte Menschen gehoeren
+    // NIEMANDEM (assigned_agent_id IS NULL). Die Arbeitsliste ZIEHT sich ihre
+    // zwei je Stufe hier — wer arbeitet, bekommt Nachschub; wer nicht
+    // arbeitet, hortet nichts. Fairness ist damit eine Eigenschaft des
+    // Systems, keine wiederkehrende Aufraeumaktion.
+    //
+    // Erst „Mandat angenommen" bindet dauerhaft (mandat_seit). Wer angerufen
+    // wurde, bleibt beim Anrufer, bis der Fall entschieden ist — eine
+    // angefangene Beziehung wird nie zerrissen.
+    // ══════════════════════════════════════════════════════════════════════
+    await poolNachschub(me, req.agent!.is_test_account === true);
 
     // Gemeinsame Ausschlüsse — dieselben Bausteine wie die große Liste, plus:
     // ein gebuchter Termin in der Zukunft heißt „Mandat angenommen“ — raus.

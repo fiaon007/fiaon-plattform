@@ -979,3 +979,69 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
 .pi-fokus-zu-zeile b{font-weight:500;color:#fff}
 .pi-fokus-zu-zeile span{color:#9ca3af}
 .pi-fokus-zu-zeile:hover{border-color:rgba(147,197,253,.35)}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DER GESPRÄCHS-MODUS (25.08.2026, §10) — genau eine Sache auf einmal.
+   Erscheint nur bei laufendem Anruf, direkt unter der Reiterleiste der Akte.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.gm-panel {
+  margin: 14px 18px 4px;
+  padding: 16px 18px 14px;
+  border-radius: 16px;
+  background: linear-gradient(160deg, rgba(37, 99, 235, .16), rgba(15, 23, 42, .55));
+  border: 1px solid rgba(59, 130, 246, .32);
+  box-shadow: 0 18px 44px rgba(2, 6, 23, .45), inset 0 1px 0 rgba(255, 255, 255, .08);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  animation: gmAuf .42s cubic-bezier(.32,.72,0,1) both;
+}
+@keyframes gmAuf { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .gm-panel { animation: none; } .gm-puls { animation: none; } }
+
+.gm-kopf { display: flex; align-items: center; gap: 10px; }
+.gm-kopf small {
+  font-size: 10.5px; font-weight: 500; letter-spacing: .12em; text-transform: uppercase;
+  color: #93c5fd;
+}
+.gm-puls {
+  width: 8px; height: 8px; border-radius: 999px; background: #34d399;
+  box-shadow: 0 0 0 0 rgba(52, 211, 153, .5);
+  animation: gmPuls 1.8s ease-out infinite;
+}
+@keyframes gmPuls {
+  0% { box-shadow: 0 0 0 0 rgba(52, 211, 153, .45); }
+  70% { box-shadow: 0 0 0 9px rgba(52, 211, 153, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0); }
+}
+.gm-punkte { margin-left: auto; display: flex; gap: 5px; }
+.gm-punkte i {
+  width: 6px; height: 6px; border-radius: 999px; background: rgba(255, 255, 255, .18);
+  transition: background .25s ease, transform .25s ease;
+}
+.gm-punkte i.war { background: rgba(52, 211, 153, .75); }
+.gm-punkte i.jetzt { background: #3b82f6; transform: scale(1.35); }
+
+.gm-titel {
+  margin: 10px 0 4px;
+  font: 300 22px/1.25 'Inter', system-ui, sans-serif;
+  letter-spacing: -.01em; color: #fff;
+}
+.gm-satz { margin: 0; font-size: 13.5px; line-height: 1.55; color: #9ca3af; max-width: 62ch; }
+.gm-satz::selection { background: rgba(59, 130, 246, .4); }
+
+.gm-tun { display: flex; align-items: center; gap: 10px; margin-top: 13px; flex-wrap: wrap; }
+.gm-knopf {
+  border: 0; cursor: pointer; border-radius: 999px; padding: 9px 18px;
+  font: 500 13px/1 'Inter', system-ui, sans-serif; color: #fff;
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  box-shadow: 0 10px 24px rgba(37, 99, 235, .35);
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.gm-knopf:hover { transform: translateY(-1px); box-shadow: 0 14px 30px rgba(37, 99, 235, .45); }
+.gm-knopf:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
+.gm-knopf.still {
+  background: rgba(255, 255, 255, .07); color: #e5e7eb;
+  border: 1px solid rgba(255, 255, 255, .14); box-shadow: none;
+}
+.gm-knopf.still:hover { background: rgba(255, 255, 255, .12); }
+.gm-fertig { font-size: 12.5px; color: #64748b; }

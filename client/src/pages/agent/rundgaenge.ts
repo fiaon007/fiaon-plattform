@@ -97,6 +97,14 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
       + "die Fragen und die Sätze für die häufigsten Einwände.",
     tipp: "Am Anfang den Leitfaden offen lassen. Nach zwei Wochen brauchst du ihn nur noch bei Einwänden.",
   },
+  {
+    // 25.08.2026 mitgezogen: der Gesprächs-Modus (§10).
+    titel: "Während du telefonierst, denkt die Akte mit.",
+    text: "Sobald ein Anruf läuft, erscheint oben in der Akte der Gesprächs-Modus: genau EIN Schritt, "
+      + "passend zur Lage des Kunden — bei einem Neukunden etwa „Interesse prüfen“, dann „Daten aufnehmen“. "
+      + "Hak ihn ab, und der nächste kommt. Nach dem Auflegen übernimmt die Daumen-Frage.",
+    tipp: "Du musst dir nie merken, was als Nächstes dran ist — es steht immer genau eine Sache da.",
+  },
 ];
 
 export const RUNDGANG_BESTAND: RundgangSchritt[] = [

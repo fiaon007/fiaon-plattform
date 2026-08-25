@@ -585,6 +585,20 @@ export function Softphone() {
   // Sobald aufgelegt ist, fragen wir den Server, wie der Kunde JETZT dasteht —
   // nach allem, was der Mitarbeiter währenddessen in der Akte getan hat.
   // Daraus entscheidet sich, was die Nachbereitung überhaupt noch fragt.
+  // ── DAS SIGNAL FÜR DEN GESPRÄCHS-MODUS (25.08.2026, §10) ────────────────
+  // Die Akte zeigt während eines laufenden Anrufs einen Schrittgeber („genau
+  // eine Sache"). Dafür muss sie wissen, DASS telefoniert wird und MIT WEM —
+  // ohne das Telefon zu importieren. Ein Fenster-Ereignis ist die lose
+  // Kopplung: dieselbe Bauart wie „fiaon-akte-oeffnen" in der Gegenrichtung.
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("fiaon-anruf-stand", {
+      detail: {
+        aktiv: zustand === "gespraech" || zustand === "waehlt" || zustand === "klingelt",
+        personId: kunde?.personId ?? null,
+      },
+    }));
+  }, [zustand, kunde?.personId]);
+
   useEffect(() => {
     if (zustand !== "ergebnis" || !kunde?.personId) { setLage(null); return; }
     let an = true;

@@ -125,6 +125,7 @@ import "@/styles/office-pipeline.css";
 import { Rundgang } from "@/components/agent/Rundgang";
 import { RUNDGAENGE } from "./rundgaenge";
 import "@/styles/office-rundgang.css";
+import { schritteFuer } from "@shared/fiaon-gespraechs-schritte";
 
 
 // ── Der Kunde, wie ihn /agent/kunden/liste und /agent/crm/kunden/:id liefern ──
@@ -1407,6 +1408,53 @@ const OHNE_TERMIN: { key: string; text: string; notiz: string }[] = [
 // E-050: exportiert — bestand.tsx öffnet DIESELBE Akte-Lade (?person=), kein
 // Duplikat. Voraussetzung beim Einbetten: ToastAnbieter + FragenAnbieter
 // (useFragen) liegen außen herum, wie hier über AgentShell/ToastAnbieter.
+// ═══════════════════════════════════════════════════════════════════════════
+// DER GESPRÄCHS-MODUS (25.08.2026, Justins §10)
+//
+// „Kann ein Mitarbeiter ohne Erklärung erkennen, was er als Nächstes tun
+// muss?" Während eines Telefonats: JA — weil hier genau EIN Schritt steht.
+// Die Schritte kommen aus shared/fiaon-gespraechs-schritte.ts und hängen an
+// derselben Lage (situation.art), die auch Fokus-Kachel und Leitfäden speist.
+//
+// Das Panel erscheint NUR bei laufendem Anruf mit genau diesem Menschen
+// (Signal „fiaon-anruf-stand" aus dem Softphone) und verschwindet mit dem
+// Auflegen — dann übernimmt die Daumen-Frage der Anruf-Bühne.
+// ═══════════════════════════════════════════════════════════════════════════
+function GespraechsModus({ art, aufReiter }: { art: string | null; aufReiter: (r: AkteReiter) => void }) {
+  const schritte = schritteFuer(art);
+  const [i, setI] = useState(0);
+  // Wechselt die Lage mitten im Gespräch (z. B. Termin gebucht), beginnt die
+  // neue Schrittfolge vorn — die alte wäre die falsche Anleitung.
+  useEffect(() => { setI(0); }, [art]);
+  const s = schritte[Math.min(i, schritte.length - 1)];
+  const letzter = i >= schritte.length - 1;
+  return (
+    <div className="gm-panel" role="region" aria-label="Gesprächs-Modus">
+      <div className="gm-kopf">
+        <span className="gm-puls" aria-hidden="true" />
+        <small>Im Gespräch · Schritt {Math.min(i + 1, schritte.length)} von {schritte.length}</small>
+        <span className="gm-punkte" aria-hidden="true">
+          {schritte.map((_, n) => <i key={n} className={n < i ? "war" : n === i ? "jetzt" : ""} />)}
+        </span>
+      </div>
+      <p className="gm-titel">{s.titel}</p>
+      <p className="gm-satz">{s.satz}</p>
+      <div className="gm-tun">
+        {s.reiter && (
+          <button type="button" className="gm-knopf still" onClick={() => aufReiter(s.reiter as AkteReiter)}>
+            Passenden Reiter öffnen
+          </button>
+        )}
+        {!letzter ? (
+          <button type="button" className="gm-knopf" onClick={() => setI((n) => n + 1)}>Erledigt — weiter</button>
+        ) : (
+          <span className="gm-fertig">Letzter Schritt. Nach dem Auflegen kommt die Daumen-Frage.</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
   k: Kunde; onZu: () => void; onWeg: () => void; onNeu: (k: Kunde) => void; onErledigt: () => void; onZaehler: () => void;
 }) {
@@ -1419,6 +1467,16 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
     zeige(art === "gut" ? "erfolg" : art === "schlecht" ? "fehler" : "info", titel, text);
   };
   const [reiter, setReiter] = useState<AkteReiter>("ueberblick");
+  // Gesprächs-Modus: läuft gerade ein Anruf mit GENAU diesem Menschen?
+  const [imGespraech, setImGespraech] = useState(false);
+  useEffect(() => {
+    const auf = (e: Event) => {
+      const d = (e as CustomEvent).detail || {};
+      setImGespraech(!!d.aktiv && Number(d.personId) === Number(k.personId));
+    };
+    window.addEventListener("fiaon-anruf-stand", auf as EventListener);
+    return () => window.removeEventListener("fiaon-anruf-stand", auf as EventListener);
+  }, [k.personId]);
   const [bearbeiten, setBearbeiten] = useState(false);
   const [bearbeitenFokus, setBearbeitenFokus] = useState<string | null>(null);
   const [mailNachtrag, setMailNachtrag] = useState("");
@@ -1897,6 +1955,7 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
       </div>
 
       <div className="pi-lade-koerper">
+        {imGespraech && <GespraechsModus art={akt?.situation?.art ?? null} aufReiter={setReiter} />}
         {meldung && <p className={`pi-meldung ${meldung.art === "gut" ? "gut" : meldung.art === "schlecht" ? "schlecht" : ""}`}>{meldung.text}</p>}
 
         {/* ═══ ÜBERBLICK — DER SITUATIONS-KOPF (E-046) ═══

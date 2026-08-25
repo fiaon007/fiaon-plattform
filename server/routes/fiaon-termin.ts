@@ -1183,14 +1183,33 @@ router.post("/agent/termine", requireAgent, async (req: AgentRequest, res: Respo
       }
     }
 
+    // ── DIE ART DES TERMINS (25.08.2026, Florentine Punkt 6) ─────────────
+    // „Wenn ich einen Termin im Kalender anlege, sollte ich direkt angeben
+    // können, um welche Art von Termin es sich handelt: Rückruf mit
+    // Begründung, Zahlung, Vertrieb, Onboarding."
+    // Die Arten sind die BESTEHENDEN Quellen — keine neue Werteliste daneben.
+    // Bei allem außer dem eigenen Rückruf entscheidet wie überall die
+    // Ableitung (`entscheidFuerPerson`) endgültig, was zum Kunden passt.
+    const ART_ZU_QUELLE: Record<string, string> = {
+      rueckruf: "agent_manuell", vertrieb: "agent_manuell",
+      onboarding: "onboarding_call", zahlung: "inkasso_call",
+    };
+    const art = String(req.body?.art || "rueckruf");
+    const notiz = req.body?.notiz ? String(req.body.notiz).trim().slice(0, 500) : null;
+    if (art === "rueckruf" && !notiz) {
+      return res.status(400).json({ ok: false, error: "Bitte kurz begründen, warum der Rückruf stattfindet — das steht dann im Termin." });
+    }
     const buchung = await terminBuchen({
       personId: Number(personId), agentId: req.agent!.id,
-      // „agent_manuell" bleibt HIER — und nur hier. Diese Route steht hinter
+      // „agent_manuell" bleibt der Vorgabewert. Diese Route steht hinter
       // `requireAgent`: Ein angemeldeter Mensch notiert seinen EIGENEN Rückruf.
       // Die öffentliche Route darf diesen Wert seit dem 24.08.2026 nicht mehr
       // setzen (siehe den Fund oben bei POST /termin/:token/buchen).
-      beginn: String(beginn), quelle: "agent_manuell", herkunft: "agent",
+      beginn: String(beginn), quelle: ART_ZU_QUELLE[art] ?? "agent_manuell", herkunft: "agent",
     });
+    if (notiz) {
+      await sqlPool`UPDATE fiaon_termine SET notiz = ${notiz} WHERE id = ${buchung.id}`.catch(() => {});
+    }
     await buchungAnwenden(buchung);
     await bestaetigungSenden(buchung);
     // `akteur: "agent"` trennt die beiden Wege in der Statistik. Für den Agenten

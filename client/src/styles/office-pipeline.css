@@ -971,3 +971,11 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
 .pi-kk-bank-liste li{position:relative;padding-left:16px;font:300 12.5px/1.5 'Inter',sans-serif;color:#cbd5e1}
 .pi-kk-bank-liste li::before{content:"–";position:absolute;left:0;color:#93c5fd}
 .pi-kk-bank-fuss{margin:10px 0 0;font:300 12px/1.5 'Inter',sans-serif;color:#9ca3af}
+
+/* ── Fokus-Karte einklappen (25.08.2026, Florentine Punkt 5) ─────────────── */
+.pi-fokus-einklappen{position:absolute;top:10px;right:10px;z-index:5;width:30px;height:30px;border-radius:10px;border:1px solid rgba(255,255,255,.14);background:rgba(15,23,42,.55);color:#9ca3af;font-size:18px;line-height:1;cursor:pointer;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.pi-fokus-einklappen:hover{color:#fff;border-color:rgba(255,255,255,.28)}
+.pi-fokus-zu-zeile{display:flex;align-items:center;gap:10px;width:100%;padding:12px 16px;border-radius:14px;border:1px solid rgba(255,255,255,.12);background:rgba(15,23,42,.55);color:#e5e7eb;cursor:pointer;font:400 13px/1.4 'Inter',sans-serif;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.pi-fokus-zu-zeile b{font-weight:500;color:#fff}
+.pi-fokus-zu-zeile span{color:#9ca3af}
+.pi-fokus-zu-zeile:hover{border-color:rgba(147,197,253,.35)}

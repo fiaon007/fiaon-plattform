@@ -157,6 +157,8 @@ export interface KundenSituation {
   /** Ein gebuchter Termin, dessen Zeitpunkt erreicht/ueberschritten ist. */
   terminFaelligAm?: string | null;
   terminHeute: string | null;
+  /** Gesprächsart des heutigen Termins — der Leitfaden richtet sich danach. */
+  terminHeuteQuelle: string | null;
   naechsteRate: { faelligAm: string; betragCents: number } | null;
   tier: number;
 }
@@ -188,6 +190,14 @@ export async function kundenSituation(personId: number): Promise<KundenSituation
          AND t.abgesagt_am IS NULL
          AND (t.beginn AT TIME ZONE 'Europe/Berlin')::date = (NOW() AT TIME ZONE 'Europe/Berlin')::date
          ORDER BY t.beginn LIMIT 1) AS termin_heute,
+      -- 25.08.2026 (Florentine): „Ich führe ein Onboarding-Gespräch, bekomme
+      -- aber einen Leitfaden, der zu einem Zahlungsrückstand gehört." Die Art
+      -- des HEUTIGEN Termins entscheidet mit, welcher Leitfaden aufgeht —
+      -- dafür muss sie hier mitkommen.
+      (SELECT t.quelle FROM fiaon_termine t WHERE t.person_id = p.id AND t.status = 'gebucht'
+         AND t.abgesagt_am IS NULL
+         AND (t.beginn AT TIME ZONE 'Europe/Berlin')::date = (NOW() AT TIME ZONE 'Europe/Berlin')::date
+         ORDER BY t.beginn LIMIT 1) AS termin_heute_quelle,
       -- 24.08.2026: NEU. Der Filter „Termin faellig" im Bestand-Raum konnte
       -- per Konstruktion nie etwas finden: termin_am liefert nur Termine in
       -- der ZUKUNFT (t.beginn > NOW()), und ein faelliger Termin liegt per
@@ -236,6 +246,7 @@ export async function kundenSituation(personId: number): Promise<KundenSituation
     terminAm: z.termin_am ?? null,
     terminFaelligAm: z.termin_faellig_am ?? null,
     terminHeute: z.termin_heute ?? null,
+    terminHeuteQuelle: z.termin_heute_quelle ?? null,
     naechsteRate: z.naechste_rate ? { faelligAm: String(z.naechste_rate.faellig_am), betragCents: Number(z.naechste_rate.betrag_cents || 0) } : null,
     tier,
   };
@@ -409,9 +420,29 @@ router.get("/agent/vertrieb/frei", requireAgent, async (req: AgentRequest, res: 
     // Nur ich selbst; der Vorname wird in der Anzeige nicht gebraucht.
     const alle = await rohSlots([{ id: req.agent!.id, vorname: "" }], takt, sqlPool, 15 * 60_000);
     const grenze = Date.now() + FREI_TAGE * 86_400_000;
+    // ══════════════════════════════════════════════════════════════════════
+    // DIE GRENZE GILT JE TAG, NICHT INSGESAMT (25.08.2026)
+    //
+    // Florentine: „Ich wollte einen Termin für Donnerstag buchen. Beim Buchen
+    // kann ich aktuell nur heute und morgen auswählen."
+    // VORHER: `.slice(0, 30)` über die GESAMTE Liste. Wer volle Arbeitstage
+    // hinterlegt hat, verbraucht die 30 Plätze mit heute und morgen — jeder
+    // spätere Tag fiel komplett aus der Auswahl, obwohl der Server ihn
+    // anstandslos gebucht hätte. Je voller der Kalender gepflegt, desto
+    // kürzer der Horizont: genau verkehrt herum.
+    // NACHHER: bis zu 6 Zeiten je Tag über alle 7 Tage. Jeder Tag ist
+    // erreichbar, die Liste bleibt überschaubar.
+    // ══════════════════════════════════════════════════════════════════════
+    const JE_TAG = 6;
+    const proTag = new Map<string, number>();
     const slots = alle
       .filter((s) => new Date(s.beginn).getTime() <= grenze)
-      .slice(0, FREI_ANZAHL)
+      .filter((s) => {
+        const n = proTag.get(s.datum) ?? 0;
+        if (n >= JE_TAG) return false;
+        proTag.set(s.datum, n + 1);
+        return true;
+      })
       .map((s) => ({ beginn: s.beginn, datum: s.datum, uhrzeit: s.uhrzeit, dauerMin: takt }));
     res.json({ ok: true, slots, dauerMin: takt });
   } catch (err) {

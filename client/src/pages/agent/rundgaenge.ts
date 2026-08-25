@@ -172,8 +172,18 @@ export const RUNDGANG_CALENDAR: RundgangSchritt[] = [
   {
     ziel: ".ca-reiter",
     titel: "Tag oder Woche.",
-    text: "Die Wochenansicht ist zum Planen da, die Tagesansicht zum Arbeiten. Am Handy siehst du "
-      + "die Woche als Liste — Tag für Tag, jeder Termin eine eigene Karte mit Anrufen-Knopf.",
+    // 25.08.2026 mitgezogen: Der Kalender öffnet jetzt auf HEUTE (Florentine).
+    text: "Der Kalender öffnet auf dem heutigen Tag — zuerst deine Termine, darunter das Überfällige "
+      + "zum Aufräumen. Die Wochenansicht ist zum Planen da; am Handy siehst du sie als Liste, "
+      + "Tag für Tag, jeder Termin eine eigene Karte mit Anrufen-Knopf.",
+  },
+  {
+    // 25.08.2026 mitgezogen: Terminart beim Anlegen (Florentine Punkt 6).
+    titel: "Beim Anlegen sagst du, worum es geht.",
+    text: "Rückruf, Zahlung, Vertrieb oder Onboarding — die Art steht danach im Termin, und der "
+      + "passende Leitfaden öffnet sich im Gespräch von selbst. Ein Rückruf braucht eine kurze "
+      + "Begründung: Sie steht im Termin, damit du beim Klingeln weißt, warum du anrufst.",
+    tipp: "Sagst DU einen Termin ab, wird diese Zeit dem Kunden nicht wieder angeboten — du hast ja abgesagt, weil du sie nicht kannst.",
   },
 ];
 

@@ -325,6 +325,10 @@ export function Softphone() {
   const [zustand, setZustand] = useState<
     "bereit" | "waehlt" | "klingelt" | "gespraech" | "ergebnis"
   >("bereit");
+  // Der Device-Fehlerbehandler entsteht beim Aufbau des Geräts und würde den
+  // damaligen `zustand` einfrieren — die Ref liest immer den aktuellen.
+  const zustandRef = useRef(zustand);
+  useEffect(() => { zustandRef.current = zustand; }, [zustand]);
   const [callId, setCallId] = useState<number | null>(null);
   const [sekunden, setSekunden] = useState(0);
   const [stumm, setStumm] = useState(false);
@@ -1293,9 +1297,51 @@ export function Softphone() {
         // `codeGesehen` merkt sich das, damit der nachfolgende catch-Zweig
         // die genaue Meldung nicht durch eine allgemeine ersetzt.
         codeGesehen.current = true;
-        setMeldung(telefonFehlerText(e));
         void fehlerMelden("device-error", e);
-        setZustand("ergebnis");
+        // ══════════════════════════════════════════════════════════════════
+        // EIN GERÄTEFEHLER BEENDET KEIN LAUFENDES GESPRÄCH (25.08.2026)
+        //
+        // Florentine, mitten im Kundengespräch: „Während eines Gesprächs
+        // wurde das Telefonat nach einigen Minuten automatisch beendet",
+        // danach stand „Der Zugangsausweis wurde abgelehnt" (20101) auf dem
+        // Bildschirm.
+        //
+        // VORHER schaltete JEDER Gerätefehler hart auf die Ergebnis-Ansicht —
+        // auch einer, der nur die Signalisierung betrifft (Erreichbarkeits-
+        // Anmeldung, ablaufender Ausweis, Netzwerk-Schluckauf). Die
+        // Sprachverbindung läuft in solchen Fällen WEITER; beendet hat sie
+        // erst unser Ansichtswechsel, weil der Mensch auflegte, als die
+        // Oberfläche „vorbei" sagte.
+        //
+        // NACHHER gilt: Läuft ein Gespräch, bleibt die Gesprächsansicht.
+        // Der Fehler erscheint als Zeile IM Gespräch. Beendet wird nur durch
+        // Auflegen oder durch das disconnect-Ereignis des Anrufs selbst —
+        // das ist die einzige Stelle, die wirklich weiß, dass es vorbei ist.
+        // ══════════════════════════════════════════════════════════════════
+        const mittenImGespraech = zustandRef.current === "gespraech" || zustandRef.current === "klingelt";
+        setMeldung(mittenImGespraech
+          ? "Verbindungswarnung: " + telefonFehlerText(e) + " — das Gespräch läuft weiter, solange du es hörst."
+          : telefonFehlerText(e));
+        if (!mittenImGespraech) setZustand("ergebnis");
+      });
+
+      // ── DER AUSWEIS LÄUFT AB, DAS GESPRÄCH NICHT ──────────────────────
+      // Der Ausweis gilt eine Stunde. Ohne Erneuerung meldet Twilio kurz vor
+      // Ablauf einen Fehler und trennt die Signalisierung — bei langen
+      // Gesprächen oder lange offenen Tabs genau der Abbruch, den Florentine
+      // erlebt hat. `tokenWillExpire` kommt rechtzeitig vorher; wir holen
+      // still einen frischen Ausweis. Scheitert das, telefoniert man weiter,
+      // ist danach nur nicht mehr erreichbar — das ist der kleinere Schaden.
+      d.on("tokenWillExpire", async () => {
+        try {
+          const rn = await fetch("/api/fiaon/telefon/ausweis", {
+            method: "POST", credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ nurVerlaengern: true }),
+          });
+          const jn = await rn.json().catch(() => null);
+          if (jn?.ok && jn.token) d.updateToken(jn.token);
+        } catch { /* bewusst still — siehe oben */ }
       });
 
       // ══════════════════════════════════════════════════════════════════

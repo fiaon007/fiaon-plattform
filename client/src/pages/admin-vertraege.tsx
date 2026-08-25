@@ -289,8 +289,12 @@ function AgentDetail({ id, onClose, flash }: { id: number; onClose: () => void; 
   const isCompany = vars?.partnerType === "company";
   const set = (k: keyof AgentVars, val: string) => setVars((v) => (v ? { ...v, [k]: val } : v));
 
-  const Field = ({ label, k, type = "text" }: { label: string; k: keyof AgentVars; type?: string }) => (
-    <div>
+  // 25.08.2026: Funktion statt Komponente — eine im Renderkörper definierte
+  // Komponente ist bei jedem Rendern ein neuer Typ, React baut das Feld neu
+  // auf und der Fokus geht nach jeder Ziffer verloren (derselbe Fehler wie im
+  // Einkommensfeld der Pipeline, von Florentine gemeldet).
+  const field = (label: string, k: keyof AgentVars, type = "text") => (
+    <div key={k}>
       <label className="block text-[11px] font-semibold text-slate-500 mb-1">{label}</label>
       <input type={type} value={(vars?.[k] as string) || ""} onChange={(e) => set(k, e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-[13px]" />
     </div>
@@ -340,22 +344,22 @@ function AgentDetail({ id, onClose, flash }: { id: number; onClose: () => void; 
                 ))}
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <Field label={isCompany ? "Firma (rechtl. Name)" : "Rechtlicher Name"} k={isCompany ? "companyName" : "legalName"} />
-                <Field label="Straße & Nr." k="addressLine" />
-                <Field label="PLZ" k="postalCode" />
-                <Field label="Ort" k="city" />
-                <Field label="Land" k="country" />
-                <Field label={isCompany ? "Gründungsdatum" : "Geburtsdatum"} k={isCompany ? "foundingDate" : "birthDate"} type="date" />
-                {isCompany && <Field label="Rechtsform" k="legalForm" />}
-                {isCompany && <Field label="Register-Nr." k="registerNo" />}
-                {isCompany && <Field label="USt-ID" k="vatId" />}
-                {isCompany && <Field label="Vertretungsberechtigter" k="authorisedRep" />}
-                <Field label="Steuernummer" k="taxId" />
-                <Field label="Vertragsbeginn" k="contractStartDate" type="date" />
-                <Field label="Kündigungsfrist" k="noticePeriod" />
-                <Field label="Auszahlungsmodus/-rhythmus" k="payoutTerms" />
-                <Field label="Governing law" k="governingLaw" />
-                <Field label="Jurisdiction" k="jurisdiction" />
+                {field(isCompany ? "Firma (rechtl. Name)" : "Rechtlicher Name", isCompany ? "companyName" : "legalName")}
+                {field("Straße & Nr.", "addressLine")}
+                {field("PLZ", "postalCode")}
+                {field("Ort", "city")}
+                {field("Land", "country")}
+                {field(isCompany ? "Gründungsdatum" : "Geburtsdatum", isCompany ? "foundingDate" : "birthDate", "date")}
+                {isCompany && field("Rechtsform", "legalForm")}
+                {isCompany && field("Register-Nr.", "registerNo")}
+                {isCompany && field("USt-ID", "vatId")}
+                {isCompany && field("Vertretungsberechtigter", "authorisedRep")}
+                {field("Steuernummer", "taxId")}
+                {field("Vertragsbeginn", "contractStartDate", "date")}
+                {field("Kündigungsfrist", "noticePeriod")}
+                {field("Auszahlungsmodus/-rhythmus", "payoutTerms")}
+                {field("Governing law", "governingLaw")}
+                {field("Jurisdiction", "jurisdiction")}
               </div>
               <div className="mt-3">
                 <label className="block text-[11px] font-semibold text-slate-500 mb-1">Tätigkeitsbeschreibung</label>

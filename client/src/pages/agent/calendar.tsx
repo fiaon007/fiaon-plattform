@@ -243,7 +243,9 @@ function CalendarInnen() {
   const { dunkel, titel } = useOffice();
   useEffect(() => { dunkel(true); titel("Calendar"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const [ansicht, setAnsicht] = useState<"tag" | "woche">("woche");
+  // 25.08.2026 (Florentine): „Der Kalender sollte beim Öffnen standardmäßig
+  // direkt auf heute stehen." Die Woche bleibt einen Klick entfernt.
+  const [ansicht, setAnsicht] = useState<"tag" | "woche">("tag");
   const [, navigiere] = useLocation();
   // E-051: 1 Klick auf einen Termin → Kundenakte. Am Handy (kein Hover)
   // öffnet der erste Tap stattdessen das Popover mit großem „Akte“-Knopf.
@@ -574,13 +576,6 @@ function CalendarInnen() {
 
       {laedt && <p className="ca-lade">Lade …</p>}
 
-      {!laedt && ueberfaellig.length > 0 && (
-        <section className="ca-block">
-          <div className="ca-block-kopf"><b className="warn">Überfällig ({ueberfaellig.length})</b><small>Erst das, dann der Tag.</small></div>
-          {ueberfaellig.map((a) => <Zeile key={tKey(a)} a={a} datum busy={busy === tKey(a)} onAkte={() => zurAkte(a)} onOeffnen={() => setDetail(a)} onErledigt={() => erledigt(a)} ausser={!inVerfuegbarkeit(tZeit(a))} jetzt={jetzt.getTime()} onNichtZustande={(g) => void nichtZustande(a, g)} />)}
-        </section>
-      )}
-
       {ansicht === "tag" && !laedt && (
         <section className="ca-block">
           <div className="ca-block-kopf"><b>{tagKey === heuteKey ? "Heute" : datumLang(tagDate)}</b>{/* 24.08.2026: Die Zeile zählt genau das, was darunter steht — gebuchte
@@ -589,6 +584,15 @@ function CalendarInnen() {
           <Tagband frei={freiAm(teile(tagDate).wd)} jetzt={tagKey === heuteKey ? minuten(jetzt) : null} />
           {tagListe.length === 0 && <p className="ca-leer">{freiAm(teile(tagDate).wd).length ? "Kein Termin an diesem Tag. Deine Zeiten sind frei für Buchungen." : "Kein Termin – und keine Verfügbarkeit an diesem Tag. Kunden können hier nichts buchen."}</p>}
           {tagListe.map((a) => <Zeile key={tKey(a)} a={a} busy={busy === tKey(a)} onAkte={() => zurAkte(a)} onOeffnen={() => setDetail(a)} onErledigt={() => erledigt(a)} ausser={!inVerfuegbarkeit(tZeit(a))} jetzt={jetzt.getTime()} onNichtZustande={(g) => void nichtZustande(a, g)} />)}
+        </section>
+      )}
+
+      {/* 25.08.2026 (Florentine): „zuerst die normalen Termine und darunter
+          die überfälligen" — der Tag zuerst, das Aufräumen danach. */}
+      {!laedt && ueberfaellig.length > 0 && (
+        <section className="ca-block">
+          <div className="ca-block-kopf"><b className="warn">Überfällig ({ueberfaellig.length})</b><small>Nach dem Tagesgeschäft aufräumen: Ergebnis nachtragen oder neu ansetzen.</small></div>
+          {ueberfaellig.map((a) => <Zeile key={tKey(a)} a={a} datum busy={busy === tKey(a)} onAkte={() => zurAkte(a)} onOeffnen={() => setDetail(a)} onErledigt={() => erledigt(a)} ausser={!inVerfuegbarkeit(tZeit(a))} jetzt={jetzt.getTime()} onNichtZustande={(g) => void nichtZustande(a, g)} />)}
         </section>
       )}
 
@@ -954,6 +958,10 @@ function Anlegen({ vorschlag, onZu, onFertig }: { vorschlag: string; onZu: () =>
   const [sucht, setSucht] = useState(false);
   const [gewaehlt, setGewaehlt] = useState<{ personId: number; name: string } | null>(null);
   const [wann, setWann] = useState(vorschlag);
+  // 25.08.2026 (Florentine): „direkt angeben können, um welche Art von Termin
+  // es sich handelt" — die Arten sind die bestehenden Gesprächsarten.
+  const [art, setArt] = useState<"rueckruf" | "zahlung" | "vertrieb" | "onboarding">("rueckruf");
+  const [notiz, setNotiz] = useState("");
   const [busy, setBusy] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
   const timer = useRef<number | null>(null);
@@ -971,7 +979,7 @@ function Anlegen({ vorschlag, onZu, onFertig }: { vorschlag: string; onZu: () =>
     // Die Wandzeit geht so, wie sie eingetippt wurde. Der Server liest sie als
     // Berliner Zeit — siehe den Block oben bei der gelöschten `berlinIso`.
     setBusy(true); setFehler(null);
-    const r = await api("/agent/termine", { method: "POST", body: JSON.stringify({ personId: gewaehlt.personId, beginn: wann }) });
+    const r = await api("/agent/termine", { method: "POST", body: JSON.stringify({ personId: gewaehlt.personId, beginn: wann, art, notiz: notiz.trim() || null }) });
     setBusy(false);
     if (r.ok) onFertig(`Termin angelegt: ${r.json?.termin?.datumText || ""} ${r.json?.termin?.uhrzeit || ""} Uhr – ${gewaehlt.name} bekommt eine Bestätigung.`);
     else setFehler(r.json?.error || "Der Termin konnte nicht angelegt werden.");
@@ -993,6 +1001,15 @@ function Anlegen({ vorschlag, onZu, onFertig }: { vorschlag: string; onZu: () =>
               <div className="ca-treffer"><button type="button" className="an" onClick={() => setGewaehlt(null)}><span>{gewaehlt.name}</span><small>ändern</small></button></div>
               <p>Zeitpunkt (deutsche Zeit). Buchungen außerhalb deiner Verfügbarkeit lehnt das System ab.</p>
               <input type="datetime-local" className="ca-feld" value={wann} onChange={(e) => setWann(e.target.value)} aria-label="Zeitpunkt" />
+              <p style={{ marginBottom: 4 }}>Worum geht es?</p>
+              <div className="ca-treffer" role="radiogroup" aria-label="Art des Termins">
+                {([["rueckruf", "Rückruf"], ["zahlung", "Zahlung"], ["vertrieb", "Vertrieb"], ["onboarding", "Onboarding"]] as const).map(([k, t]) => (
+                  <button key={k} type="button" className={art === k ? "an" : ""} role="radio" aria-checked={art === k} onClick={() => setArt(k)}><span>{t}</span></button>
+                ))}
+              </div>
+              <input className="ca-feld" value={notiz} onChange={(e) => setNotiz(e.target.value)}
+                     placeholder={art === "rueckruf" ? "Warum der Rückruf? (Pflicht — steht im Termin)" : "Notiz (freiwillig)"}
+                     aria-label="Begründung" />
             </>
           )}
           {fehler && <p className="ca-fehler">{fehler}</p>}

@@ -634,11 +634,25 @@ export async function rohSlots(
   const frühestens = new Date(Date.now() + vorlaufMs);
   const spätestens = new Date(Date.now() + HORIZONT_TAGE * 86_400_000);
 
+  // ══════════════════════════════════════════════════════════════════════
+  // EINE ABSAGE DES MITARBEITERS SPERRT DIE ZEIT (25.08.2026)
+  //
+  // Florentine: „Ich habe den 16-Uhr-Call wegen des Teamcalls abgesagt —
+  // kurz darauf hat der gleiche Kunde um 16 Uhr wieder einen Termin gebucht."
+  //
+  // Eine Absage des KUNDEN gibt die Zeit frei — der Mitarbeiter kann sie ja.
+  // Eine Absage des MITARBEITERS heißt das Gegenteil: Er hat abgesagt, WEIL
+  // er zu dieser Zeit nicht kann. Beide Fälle gleich zu behandeln bot dem
+  // Kunden genau den Slot wieder an, der eben erst abgesagt wurde — und die
+  // nächste Absage war programmiert. Deshalb zählt `abgesagt_von = 'agent'`
+  // hier als belegt.
+  // ══════════════════════════════════════════════════════════════════════
   const belegt = new Set(
     ((await lauf`
       SELECT agent_id, beginn FROM fiaon_termine
       WHERE agent_id = ANY(${agenten.map((a) => a.id)})
-        AND status IN ('gebucht', 'erledigt', 'verpasst')
+        AND (status IN ('gebucht', 'erledigt', 'verpasst')
+             OR (status = 'abgesagt' AND abgesagt_von = 'agent'))
         AND beginn BETWEEN ${frühestens} AND ${spätestens}
     `) as any[]).map((t) => `${t.agent_id}@${new Date(t.beginn).toISOString()}`),
   );

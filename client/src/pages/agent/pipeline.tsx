@@ -576,6 +576,9 @@ function PipelineInnen() {
   const [mandate, setMandate] = useState<{ anzahl: number; ids: Set<number> }>({ anzahl: 0, ids: new Set() });
   const [offen, setOffen] = useState<number | null>(null);
   const [fremd, setFremd] = useState<Kunde | null>(null);
+  // Fokus-Karte eingeklappt? Sitzungsweit gemerkt (siehe Kommentar am Einbau).
+  const [fokusZu, setFokusZuRoh] = useState(() => { try { return sessionStorage.getItem("fiaon_fokus_zu") === "1"; } catch { return false; } });
+  const setFokusZu = (v: boolean) => { setFokusZuRoh(v); try { sessionStorage.setItem("fiaon_fokus_zu", v ? "1" : "0"); } catch { /* egal */ } };
   const ruhig = useMedia("(prefers-reduced-motion: reduce)");
 
   useEffect(() => {
@@ -584,6 +587,18 @@ function PipelineInnen() {
     // sie werden ignoriert; der Bestand wohnt unter /agent/bestand.
     const person = p.get("person");
     if (person && Number(person) > 0) { setOffen(Number(person)); setNurPerson(Number(person)); }
+    // ── ?ref WIRD AUFGELÖST, NICHT IGNORIERT (25.08.2026) ─────────────────
+    // Florentine: „Kalender → überfälliger Termin → Akte öffnen — ich lande
+    // in der Pipeline bei einem ANDEREN Kunden." Der Kalender springt bei
+    // Terminen ohne person_id (Onboarding-Ereignisse) auf ?ref=… — und diese
+    // Seite las bisher nur ?person. Der Sprung landete auf der nackten
+    // Pipeline, vorn stand der Fokus-Kunde: also scheinbar „ein anderer".
+    const ref = p.get("ref");
+    if (!person && ref) {
+      api(`/agent/crm/person-zu-ref/${encodeURIComponent(ref)}`).then((r) => {
+        if (r.ok && r.json?.personId) { setOffen(Number(r.json.personId)); setNurPerson(Number(r.json.personId)); }
+      }).catch(() => {});
+    }
     api("/agent/provision-satz").then((r) => { if (r.ok && r.json?.satz) setSatz(Number(r.json.satz)); }).catch(() => {});
   }, []);
 
@@ -826,11 +841,28 @@ function PipelineInnen() {
           ) : (
             <section className="pi-arbeit einspaltig">
               <div className="pi-arbeit-haupt">
-                {fokusSlot && (
-                  <ArbeitsFokus key={fokusSlot.kunde.personId} k={fokusSlot.kunde} gruppe={fokusSlot.gruppe} satz={satz}
-                                geht={geht.has(fokusSlot.kunde.personId)}
-                                onAkte={() => oeffnen(fokusSlot.kunde.personId)}
-                                onEntfernen={() => void karteileiche(fokusSlot.kunde)} />
+                {/* ── EINKLAPPBAR, UND ES BLEIBT EINGEKLAPPT (25.08.2026) ────
+                    Florentine: „Wenn man sie wegdrückt, erscheint sie direkt
+                    wieder." „Entfernen" nahm den KUNDEN aus der Liste — und
+                    der Nachschub stellte sofort den nächsten hin. Was sie
+                    wollte, war die KARTE kleiner haben. Das sind zwei ver-
+                    schiedene Dinge; jetzt gibt es beides: Einklappen faltet
+                    die Karte zu einer Zeile, gemerkt über die Sitzung. */}
+                {fokusSlot && fokusZu && (
+                  <button type="button" className="pi-fokus-zu-zeile" onClick={() => setFokusZu(false)}>
+                    <b>{fokusSlot.kunde.name}</b>
+                    <span>ist dein nächster Anruf — aufklappen</span>
+                  </button>
+                )}
+                {fokusSlot && !fokusZu && (
+                  <div style={{ position: "relative" }}>
+                    <button type="button" className="pi-fokus-einklappen" title="Karte einklappen"
+                            onClick={() => setFokusZu(true)} aria-label="Fokus-Karte einklappen">−</button>
+                    <ArbeitsFokus key={fokusSlot.kunde.personId} k={fokusSlot.kunde} gruppe={fokusSlot.gruppe} satz={satz}
+                                  geht={geht.has(fokusSlot.kunde.personId)}
+                                  onAkte={() => oeffnen(fokusSlot.kunde.personId)}
+                                  onEntfernen={() => void karteileiche(fokusSlot.kunde)} />
+                  </div>
                 )}
                 {/* E-047 (Justin, Screenshot): Trenner zwischen JETZT und DANACH —
                   animierte Zeile „Deine nächsten Kunden“, Linien beidseits. */}
@@ -1245,14 +1277,31 @@ export function Strom({ liste, aktiv, setAktiv, erledigt, onAkte, flach, ruhig, 
     );
   };
 
+  const [sichtbar, setSichtbar] = useState(120);
   if (laedt) return <section className="pi-strom-rahmen"><div className="pi-laedt">Lade den Kundenstrom …</div></section>;
   if (liste.length === 0) return null;
 
   if (flach) {
+    // ══════════════════════════════════════════════════════════════════════
+    // GESTAFFELT ZEICHNEN (25.08.2026, Florentine Punkt 3)
+    //
+    // „Alles lädt sehr langsam / Plattform hängt." GEMESSEN: Der Server
+    // antwortet in ~0,5 s — aber bei 1.285 Kunden kommen bis zu 500 Karten
+    // (1 MB) und wurden ALLE AUF EINMAL in den Baum gezeichnet. Das Zeichnen
+    // blockiert den Browser sekundenlang; genau das fühlt sich wie „hängen"
+    // an. Jetzt stehen die ersten 120 sofort, der Rest kommt auf Knopfdruck.
+    // Die Daten sind vollständig da — nur der Bildaufbau ist gestaffelt.
+    // ══════════════════════════════════════════════════════════════════════
     return (
       <section className="pi-strom-rahmen">
         <div className="pi-strom-kopf"><b>Dein Kundenstrom</b><small>{liste.length} Kunden · antippen für die Akte</small></div>
-        <div className="pi-strom-flach" ref={flachRef}>{liste.map((k, i) => karte(k, i))}</div>
+        <div className="pi-strom-flach" ref={flachRef}>{liste.slice(0, sichtbar).map((k, i) => karte(k, i))}</div>
+        {liste.length > sichtbar && (
+          <button type="button" className="pi-knopf still" style={{ margin: "10px auto 0", display: "block" }}
+                  onClick={() => setSichtbar((v) => v + 200)}>
+            {liste.length - sichtbar} weitere anzeigen
+          </button>
+        )}
       </section>
     );
   }
@@ -1467,11 +1516,13 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
   // Bewusst mit `fetch` statt mit dem `api`-Helfer: Der setzt bei vorhandenem
   // Body „Content-Type: application/json“, und genau dieser Kopf zerstört eine
   // FormData-Sendung — der Browser muss die Grenzmarke selbst setzen dürfen.
-  async function dokuHochladen(art: string, datei: File) {
+  // 25.08.2026: nimmt MEHRERE Dateien — drei Kontoauszüge in einem Rutsch.
+  // Der Server bindet sie zu einer PDF (Erklärung in fiaon-telefonie.ts).
+  async function dokuHochladen(art: string, gewaehlt: File[]) {
     setLaedtDoku(art);
     try {
       const fd = new FormData();
-      fd.append("datei", datei);
+      for (const einzeln of gewaehlt) fd.append("datei", einzeln);
       const res = await fetch(`/api/fiaon/agent/dokumente/${k.personId}/${art}/hochladen`, {
         method: "POST", credentials: "include", body: fd,
       });
@@ -1513,7 +1564,17 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
   const hatTermin = !!terminGebucht || !!sit?.terminAm
     || (!!k.termin && !k.termin.erledigt && new Date(k.termin.beginn).getTime() > Date.now())
     || (!!k.terminAm && new Date(k.terminAm).getTime() > Date.now());
-  const sitLeitfaden: Hitze = sitArt === "rate_ueberfaellig" ? "rate"
+  // ── DAS HEUTIGE GESPRÄCH SCHLÄGT DIE LAGE (25.08.2026) ─────────────────
+  // Florentine: „Ich führe gerade ein Onboarding-Gespräch, bekomme aber einen
+  // Leitfaden, der zu einem Zahlungsrückstand gehört." Der Leitfaden richtete
+  // sich allein nach der Zahlungslage des Kunden — nicht nach dem Termin, der
+  // JETZT ansteht. Wer um 10 Uhr ein Startgespräch führt, braucht den
+  // Startgespräch-Leitfaden, auch wenn nebenbei eine Rate offen ist; die Lage
+  // steht ja weiterhin sichtbar in der Akte.
+  const heuteQuelle = (sit as any)?.terminHeuteQuelle as string | null | undefined;
+  const sitLeitfaden: Hitze = heuteQuelle === "onboarding_call" ? "aktiv"
+    : heuteQuelle === "inkasso_call" ? "rate"
+    : sitArt === "rate_ueberfaellig" ? "rate"
     : sitArt === "lead_ohne_antrag" ? "lead"
     : sitArt === "rechnung_offen" ? "warm" : "heiss";
 
@@ -2260,12 +2321,12 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
                       <label className={`pi-knopf still klein${laedtDoku === d.art ? " laedt" : ""}`}>
                         {laedtDoku === d.art ? "Lädt …" : d.vorhanden ? "Ersetzen" : "Hochladen"}
                         <input
-                          type="file" accept="application/pdf,image/jpeg,image/png" hidden
+                          type="file" accept="application/pdf,image/jpeg,image/png" hidden multiple
                           disabled={laedtDoku !== null}
                           onChange={(e) => {
-                            const f = e.target.files?.[0];
+                            const fs = Array.from(e.target.files ?? []);
                             e.target.value = "";           // damit dieselbe Datei erneut gewählt werden kann
-                            if (f) void dokuHochladen(d.art, f);
+                            if (fs.length) void dokuHochladen(d.art, fs);
                           }}
                         />
                       </label>
@@ -2273,7 +2334,7 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
                     </div>
                   </div>
                 ))}
-                <p className="pi-sek-satz leise">PDF, JPG oder PNG bis 25 MB. Jeder Upload steht mit deinem Namen im Verlauf – ein Ausweis, der ohne Zutun des Kunden in der Akte auftaucht, muss erklärbar bleiben.</p>
+                <p className="pi-sek-satz leise">PDF, JPG oder PNG bis 25 MB — auch mehrere auf einmal, sie werden zu einer PDF gebunden. Jeder Upload steht mit deinem Namen im Verlauf – ein Ausweis, der ohne Zutun des Kunden in der Akte auftaucht, muss erklärbar bleiben.</p>
                 <p className="pi-sek-satz leise">Vollständig heißt: Paket bezahlt, SCHUFA (74 €) bezahlt, Kontoauszug und Ausweis da – erst dann liegt der Kunde bei FIAON zur Bearbeitung. Stand: {kartenText}.</p>
               </>
             )}
@@ -2842,8 +2903,26 @@ function AngabenNachtragen({ personId, antrag, melden, onFertig }: {
     await onFertig();
   };
 
-  const Feld = ({ k, label, hinweis, breit }: { k: keyof typeof f; label: string; hinweis?: string; breit?: boolean }) => (
-    <label className={breit ? "breit" : ""}>
+  // ══════════════════════════════════════════════════════════════════════
+  // KEINE KOMPONENTE IM RENDERKÖRPER (25.08.2026)
+  //
+  // Florentine: „Wenn ich 830 € eingeben möchte, gebe ich 8 ein und muss
+  // danach erneut auf das Feld drücken, um 3 einzugeben."
+  //
+  // VORHER stand hier `const Feld = ({…}) => (<label>…<input …/></label>)` —
+  // eine KOMPONENTE, definiert im Renderkörper. Bei jedem Tastendruck ändert
+  // sich `f`, die Elternkomponente rendert neu, und `Feld` ist dabei eine
+  // NEUE Funktion. Für React ist ein neuer Funktionstyp ein anderes Element:
+  // Es reißt das alte Eingabefeld aus dem Baum und baut ein frisches — und
+  // ein frisches Feld hat keinen Fokus. Daher: eine Ziffer, Fokus weg.
+  //
+  // NACHHER ist `feld` eine gewöhnliche FUNKTION, die JSX zurückgibt (kleines
+  // f, Aufruf statt <Feld/>). Gleicher Elementtyp (<label>/<input>) bei jedem
+  // Rendern → React aktualisiert nur das value, das Feld bleibt stehen, der
+  // Fokus auch.
+  // ══════════════════════════════════════════════════════════════════════
+  const feld = (k: keyof typeof f, label: string, hinweis?: string, breit?: boolean) => (
+    <label key={k} className={breit ? "breit" : ""}>
       {label}
       <input className="pi-eingabe" value={(f as any)[k]}
              onChange={(e) => setF({ ...f, [k]: e.target.value })}
@@ -2858,17 +2937,17 @@ function AngabenNachtragen({ personId, antrag, melden, onFertig }: {
         Kommas sind egal.
       </p>
       <div className="pi-form">
-        <Feld k="beruf" label="Beruf" hinweis="z. B. Angestellter" />
-        <Feld k="arbeitgeber" label="Arbeitgeber" />
-        <Feld k="seit" label="Dort seit" hinweis="z. B. 03/2023" />
-        <Feld k="einkommen" label="Einkommen im Monat" hinweis="1850" />
-        <Feld k="gehaltseingang" label="Geldeingang am" hinweis="z. B. 28." />
-        <Feld k="wohnen" label="Wohnsituation" hinweis="Miete / Eigentum / bei Eltern" />
-        <Feld k="miete" label="Miete im Monat" hinweis="720" />
-        <Feld k="ausgaben" label="Weitere feste Ausgaben" hinweis="Versicherungen, Abos …" />
-        <Feld k="schulden" label="Offene Verpflichtungen" hinweis="Gesamtsumme" />
-        <Feld k="rahmen" label="Gewünschter Rahmen" hinweis="2000" />
-        <Feld k="wozu" label="Wofür er den Rahmen braucht" breit />
+        {feld("beruf", "Beruf", "z. B. Angestellter")}
+        {feld("arbeitgeber", "Arbeitgeber")}
+        {feld("seit", "Dort seit", "z. B. 03/2023")}
+        {feld("einkommen", "Einkommen im Monat", "1850")}
+        {feld("gehaltseingang", "Geldeingang am", "z. B. 28.")}
+        {feld("wohnen", "Wohnsituation", "Miete / Eigentum / bei Eltern")}
+        {feld("miete", "Miete im Monat", "720")}
+        {feld("ausgaben", "Weitere feste Ausgaben", "Versicherungen, Abos …")}
+        {feld("schulden", "Offene Verpflichtungen", "Gesamtsumme")}
+        {feld("rahmen", "Gewünschter Rahmen", "2000")}
+        {feld("wozu", "Wofür er den Rahmen braucht", undefined, true)}
       </div>
       {bleibt !== null && (
         <p className={`pi-sek-satz${bleibt < 0 ? "" : " leise"}`} style={{ marginTop: 10, color: bleibt < 0 ? "#fecaca" : undefined }}>

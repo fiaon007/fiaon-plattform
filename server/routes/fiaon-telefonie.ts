@@ -169,6 +169,18 @@ router.post("/telefon/ausweis", requireAgent, async (req: AgentRequest, res: Res
     if (await istTestkonto(req.agent!.id)) {
       return ablehnen("Testkonten können nicht telefonieren.");
     }
+
+    // ── NUR VERLÄNGERN (25.08.2026) ───────────────────────────────────────
+    // Der Ausweis gilt eine Stunde; ein langes Gespräch oder ein lange
+    // offener Tab braucht rechtzeitig einen frischen. Hier wird KEINE Nummer
+    // geprüft und KEIN Anruf angelegt — nur derselbe Ausweis neu ausgestellt.
+    // Florentines Abbruch mitten im Kundengespräch („Zugangsausweis wurde
+    // abgelehnt") ist genau der Fall, den das verhindert.
+    if (req.body?.nurVerlaengern === true) {
+      const a = await zugangsAusweis(req.agent!.id);
+      if (!a.ok) return res.status(500).json({ ok: false, error: a.grund });
+      return res.json({ ok: true, token: a.token, identitaet: a.identitaet });
+    }
     // ══════════════════════════════════════════════════════════════════════
     // JEDER MITARBEITER DARF TELEFONIEREN
     //
@@ -1395,7 +1407,7 @@ router.post(
         multer({
           storage: multer.memoryStorage(),
           limits: { fileSize: 25 * 1024 * 1024 },
-        }).single("datei")(req as any, res as any, (err: any) => {
+        }).array("datei", 10)(req as any, res as any, (err: any) => {
           if (err) {
             const zuGross = err?.code === "LIMIT_FILE_SIZE";
             return res.status(400).json({
@@ -1422,22 +1434,65 @@ router.post(
         return res.status(403).json({ ok: false, error: "Dieser Kunde wird von jemand anderem betreut." });
       }
 
-      const datei = (req as any).file as { buffer: Buffer; mimetype: string; originalname: string } | undefined;
-      if (!datei || !datei.buffer?.length) {
+      const dateien = ((req as any).files ?? []) as { buffer: Buffer; mimetype: string; originalname: string }[];
+      if (!dateien.length || !dateien[0]?.buffer?.length) {
         return res.status(400).json({ ok: false, error: "Es wurde keine Datei mitgeschickt." });
       }
 
       // Nur das, was hinterher auch wieder angezeigt werden kann. Eine .docx in
       // der Ausweisspalte wäre eine Datei, die niemand mehr öffnet.
-      const kopf = datei.buffer.subarray(0, 4);
-      const istPdf = kopf.toString("latin1").startsWith("%PDF");
-      const istJpg = kopf[0] === 0xff && kopf[1] === 0xd8;
-      const istPng = kopf[0] === 0x89 && kopf[1] === 0x50 && kopf[2] === 0x4e && kopf[3] === 0x47;
-      if (!istPdf && !istJpg && !istPng) {
-        return res.status(400).json({
-          ok: false,
-          error: "Nur PDF, JPG oder PNG. Ein Handyfoto genügt, wenn alles lesbar ist.",
-        });
+      const artVon = (b: Buffer): "pdf" | "jpg" | "png" | null => {
+        if (b.subarray(0, 4).toString("latin1").startsWith("%PDF")) return "pdf";
+        if (b[0] === 0xff && b[1] === 0xd8) return "jpg";
+        if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return "png";
+        return null;
+      };
+      for (const d of dateien) {
+        if (!artVon(d.buffer)) {
+          return res.status(400).json({
+            ok: false,
+            error: `„${d.originalname}": Nur PDF, JPG oder PNG. Ein Handyfoto genügt, wenn alles lesbar ist.`,
+          });
+        }
+      }
+
+      // ══════════════════════════════════════════════════════════════════════
+      // MEHRERE DATEIEN → EINE PDF (25.08.2026)
+      //
+      // Florentine: „Ein Kunde schickt drei Kontoauszüge. Ich kann nicht alle
+      // drei gleichzeitig auswählen, sondern kann nur einen einzigen
+      // hochladen."
+      //
+      // Die Akte hat EINE Spalte je Dokumentart — und das ist richtig so:
+      // Überall (Kundenbereich, Onboarding, Vollständigkeits-Prüfung) heißt
+      // „Kontoauszug da" genau EINE Datei. Statt das ganze Haus umzubauen,
+      // werden mehrere Dateien hier zu EINER PDF gebunden: PDF-Seiten werden
+      // übernommen, Fotos bekommen je eine eigene Seite. Reihenfolge = die
+      // Reihenfolge der Auswahl.
+      // ══════════════════════════════════════════════════════════════════════
+      let datei: { buffer: Buffer; mimetype: string; originalname: string };
+      if (dateien.length === 1) {
+        datei = dateien[0];
+      } else {
+        const { PDFDocument } = await import("pdf-lib");
+        const ziel = await PDFDocument.create();
+        for (const d of dateien) {
+          const art2 = artVon(d.buffer)!;
+          if (art2 === "pdf") {
+            const quelle = await PDFDocument.load(d.buffer, { ignoreEncryption: true });
+            const seiten = await ziel.copyPages(quelle, quelle.getPageIndices());
+            for (const seite of seiten) ziel.addPage(seite);
+          } else {
+            const bild = art2 === "jpg" ? await ziel.embedJpg(d.buffer) : await ziel.embedPng(d.buffer);
+            const seite = ziel.addPage([bild.width, bild.height]);
+            seite.drawImage(bild, { x: 0, y: 0, width: bild.width, height: bild.height });
+          }
+        }
+        datei = {
+          buffer: Buffer.from(await ziel.save()),
+          mimetype: "application/pdf",
+          originalname: `${art}-${dateien.length}-dateien.pdf`,
+        };
       }
 
       const [antrag] = (await sqlPool`
@@ -1476,7 +1531,7 @@ router.post(
       await sqlPool`
         INSERT INTO fiaon_contact_log (person_id, agent_id, agent_name, type, note, created_at)
         VALUES (${personId}, ${req.agent!.id}, ${req.agent!.name}, 'system',
-                ${`${label} für den Kunden hochgeladen (${kb} KB, ${istPdf ? "PDF" : istJpg ? "JPG" : "PNG"}).`},
+                ${`${label} für den Kunden hochgeladen (${kb} KB${dateien.length > 1 ? `, ${dateien.length} Dateien zu einer PDF gebunden` : `, ${(artVon(datei.buffer) ?? "pdf").toUpperCase()}`}).`},
                 NOW())
       `.catch(() => {});
 

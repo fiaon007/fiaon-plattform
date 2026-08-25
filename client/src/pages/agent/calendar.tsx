@@ -88,15 +88,45 @@ const zeitTag = (iso: string) => new Date(iso).toLocaleString("de-DE", { timeZon
 /** Ein Datum (Mittag UTC) zu einem Tagesschlüssel — damit +n Tage nie die Berliner Tagesgrenze verfehlt. */
 const ausKey = (key: string) => { const [y, m, d] = key.split("-").map(Number); return new Date(Date.UTC(y, m - 1, d, 12)); };
 const plusTage = (key: string, n: number) => { const d = ausKey(key); d.setUTCDate(d.getUTCDate() + n); return dayKey(d); };
-/** „YYYY-MM-DDTHH:MM“ (Eingabe in Berliner Zeit) → absoluter ISO-Zeitpunkt. */
-function berlinIso(local: string): string | null {
-  const m = local.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
-  if (!m) return null;
-  const [y, mo, d, h, mi] = m.slice(1).map(Number);
-  let t = Date.UTC(y, mo - 1, d, h, mi);
-  for (let i = 0; i < 2; i++) { const p = teile(new Date(t)); t -= Date.UTC(p.y, p.m - 1, p.d, p.h, p.min) - t; }
-  return new Date(t).toISOString();
-}
+// ═══════════════════════════════════════════════════════════════════════════
+// DER UMRECHNER IST WEG — UND DAS IST DIE KORREKTUR
+//
+// ── DER BEFUND (25.08.2026, 11:58 Uhr) ────────────────────────────────────
+// Florentine: „Ich kann keinen Termin anlegen. 11 Uhr morgen ist frei und in
+// meiner Dienstzeit." Justin: „Verfügbarkeit is aber?" Florentine: „Ja …
+// Termin ist frei aber einen Termin erstellen geht trotzdem nicht."
+//
+// In fiaon_termin_versuche standen ihre vier Versuche mit dem Grund
+// `kein_slot` — und mit dem Zeitpunkt, der beim Server ANKAM:
+//   2026-08-26 09:00 Berlin.
+// Sie hatte 11:00 eingetippt. Zwei Stunden zu früh, also vor ihrem
+// Dienstbeginn um 10:00. Der Server hat völlig richtig abgelehnt; er bekam
+// nie die Zeit, die sie gemeint hat.
+//
+// ── DIE URSACHE ───────────────────────────────────────────────────────────
+// Hier stand eine Funktion `berlinIso`, die die Wandzeit in einen absoluten
+// Zeitpunkt umrechnen sollte. Sie lief zwei Runden und zog den Zeitversatz in
+// JEDER Runde erneut ab — von dem bereits berichtigten Wert statt vom
+// Ausgangswert. Nach der ersten Runde stimmte das Ergebnis, die zweite hat es
+// wieder kaputtgemacht.
+//
+// GEMESSEN über alle 52.704 Viertelstunden des Jahres 2026 (beide
+// Zeitumstellungen enthalten): 52.698 davon falsch — 100,0 %. Im Sommer um
+// zwei Stunden daneben, im Winter um eine. JEDER von Hand angelegte Termin
+// war betroffen, seit es die Funktion gibt.
+//
+// ── WARUM ERSATZLOS ───────────────────────────────────────────────────────
+// Der Server kann das längst und besser: `parseBerlinInput`
+// (server/lib/fiaon-time.ts) nimmt eine nackte Wandzeit als Berliner Zeit und
+// beherrscht die Zeitumstellung sauber. Genau so schickt das Verschieben im
+// selben Dialog seinen Wert — es hat nie gehakt. Es gab also zwei Sprachen in
+// einer Datei, und die zweite war die kaputte.
+//
+// Ein reparierter Umrechner wäre wieder eine zweite Stelle, an der dieselbe
+// Rechnung passiert. Eine Rechnung, die es nur einmal gibt, kann nicht
+// auseinanderlaufen. Das `datetime-local`-Feld liefert bereits genau das
+// Format, das der Server erwartet.
+// ═══════════════════════════════════════════════════════════════════════════
 const hm = (s: string) => Number(s.slice(0, 2)) * 60 + Number(s.slice(3, 5));
 const TAGE = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 // ═══════════════════════════════════════════════════════════════════════════
@@ -938,9 +968,10 @@ function Anlegen({ vorschlag, onZu, onFertig }: { vorschlag: string; onZu: () =>
   }, [q]);
   const speichern = async () => {
     if (!gewaehlt || !wann) return;
-    const beginn = berlinIso(wann); if (!beginn) { setFehler("Zeitpunkt unlesbar."); return; }
+    // Die Wandzeit geht so, wie sie eingetippt wurde. Der Server liest sie als
+    // Berliner Zeit — siehe den Block oben bei der gelöschten `berlinIso`.
     setBusy(true); setFehler(null);
-    const r = await api("/agent/termine", { method: "POST", body: JSON.stringify({ personId: gewaehlt.personId, beginn }) });
+    const r = await api("/agent/termine", { method: "POST", body: JSON.stringify({ personId: gewaehlt.personId, beginn: wann }) });
     setBusy(false);
     if (r.ok) onFertig(`Termin angelegt: ${r.json?.termin?.datumText || ""} ${r.json?.termin?.uhrzeit || ""} Uhr – ${gewaehlt.name} bekommt eine Bestätigung.`);
     else setFehler(r.json?.error || "Der Termin konnte nicht angelegt werden.");

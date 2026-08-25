@@ -41,6 +41,7 @@ import {
 } from "lucide-react";
 import { AgentShell, api } from "./shared";
 import { useOffice } from "./OfficeShell";
+import { ZusageTafel } from "./vertrieb-zusage";
 import { ToastAnbieter, eur, useToast } from "@/lib/fiaon-ui";
 import { Akte, type Kunde } from "./pipeline";
 import "@/styles/office-pipeline.css";
@@ -81,12 +82,21 @@ function LeitungInnen() {
   const [laedt, setLaedt] = useState(true);
   const [fehler, setFehler] = useState<string | null>(null);
   const [offen, setOffen] = useState<number | null>(null);
+  // ── DIE VERPFLICHTUNGSERKLÄRUNG ─────────────────────────────────────────
+  // Der Server lässt niemanden in diesen Raum, der sie nicht angenommen hat
+  // (`nurMitZusage` in server/routes/fiaon-vertrieb.ts, Antwort 403 mit
+  // code "zusage_erforderlich"). Die alte Fassung des Raums zeigte sie; beim
+  // Neubau am 25.08. hatte ich sie vergessen — Justin sah deshalb nur die
+  // helle Notfallfassung mitten auf der dunklen Bühne und schrieb:
+  // „das passt nicht! Optimieren". Sie gehört hierher, und zwar dunkel.
+  const [zusageOffen, setZusageOffen] = useState(false);
 
   const laden = useCallback(async () => {
     setLaedt(true);
     const r = await api("/agent/vertrieb/uebersicht");
     setLaedt(false);
     if (!r.ok) {
+      if (r.json?.code === "zusage_erforderlich") { setZusageOffen(true); setFehler(null); return; }
       // 404 heißt hier nicht „kaputt", sondern „diese Rolle sieht den Raum
       // nicht" (nurLeitung antwortet bewusst mit 404 statt 403). Der Satz sagt
       // das, statt den Menschen raten zu lassen.
@@ -96,6 +106,7 @@ function LeitungInnen() {
       return;
     }
     setFehler(null);
+    setZusageOffen(false);
     setUeber(r.json);
   }, []);
   useEffect(() => { void laden(); }, [laden]);
@@ -119,6 +130,12 @@ function LeitungInnen() {
     window.addEventListener("fiaon-akte-oeffnen", auf as EventListener);
     return () => window.removeEventListener("fiaon-akte-oeffnen", auf as EventListener);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Die Erklärung liegt VOR allem anderen: Ohne sie gibt der Server keine
+  // Kundendaten heraus, also gibt es auch nichts zu zeigen.
+  if (zusageOffen) {
+    return <ZusageTafel basis="/agent/vertrieb/zusage" ton="dunkel" onAngenommen={() => { setZusageOffen(false); void laden(); }} />;
+  }
 
   if (fehler) {
     return (

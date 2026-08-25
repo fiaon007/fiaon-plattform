@@ -29,6 +29,7 @@ import { berlinDatumText, berlinUhrzeit, berlinDatum, terminLink } from "../lib/
 import { versendenUndProtokollieren } from "../lib/fiaon-mail-log";
 import { absoluteUrl } from "../fiaon-base-url";
 import { terminArtAusQuelle } from "../../shared/fiaon-termin-art";
+import { sorgeFuerAkte } from "../lib/fiaon-akte-anker";
 
 const router = Router();
 
@@ -456,15 +457,14 @@ router.post("/agent/onboarding/person/:id/notiz", requireAgent, nurOnboarding, n
       WHERE person_id = ${id} AND merged_into IS NULL AND archived_at IS NULL
       ORDER BY created_at DESC LIMIT 1
     `) as any[];
-    if (!ref?.ref) {
-      return res.status(409).json({
-        ok: false,
-        error: "Zu diesem Kunden gibt es keine Bestellung — ohne sie hat die Notiz keine Akte.",
-      });
-    }
+    // 25.08.2026: Eine Notiz ueber einen Menschen darf nicht daran scheitern,
+    // dass er noch nichts bestellt hat. Siehe server/lib/fiaon-akte-anker.ts.
+    const notizRef = ref?.ref || (await sorgeFuerAkte(id, req.agent!.id));
+    if (!notizRef) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+
     await sqlPool`
       INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
-      VALUES (${ref.ref}, ${id}, ${req.agent!.id}, ${req.agent!.name}, 'note', ${text.slice(0, 4000)}, NOW())
+      VALUES (${notizRef}, ${id}, ${req.agent!.id}, ${req.agent!.name}, 'note', ${text.slice(0, 4000)}, NOW())
     `;
     // Der frische Verlauf geht direkt zurück — die Karte zeigt die Notiz damit
     // sofort, ohne einen zweiten Aufruf und ohne Neuladen.

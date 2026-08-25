@@ -41,6 +41,7 @@ import {
   ERGEBNISSE, ERGEBNIS_TEXT, brauchtDatum, ergebnisNachbereiten, istErgebnis, type Ergebnis,
 } from "../lib/fiaon-kontakt-ergebnis";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
+import { sorgeFuerAkte } from "../lib/fiaon-akte-anker";
 import { hinweisFuer, type TierGrund } from "../lib/tier-hinweise";
 import { sendMakeWebhook, sendMakeWebhookMitGrund, makePayloadFromRow } from "../make-webhook";
 import { signInvoiceUrl } from "../fiaon-invoice";
@@ -749,12 +750,14 @@ router.post("/agent/crm/kunden/:personId/aktivitaet", requireAgent, async (req: 
 
     const p = await meinePerson(personId, req.agent!.id);
     if (!p) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
-    if (!p.schreib_ref) {
-      return res.status(400).json({
-        ok: false,
-        error: "Zu diesem Kunden gibt es keine Bestellung, an der der Verlauf hängen könnte.",
-      });
-    }
+    // ── KEINE BESTELLUNG IST KEIN GRUND, NICHTS FESTHALTEN ZU KOENNEN ──────
+    // 25.08.2026: Hier stand eine Absage. GEMESSEN: 2.863 zugewiesene
+    // Menschen — alle Stufe 3, also Leads — haben keine Bestellung. An keinem
+    // davon liess sich ein Gespraech dokumentieren. Genau die ruft ein
+    // Vertriebler aber den ganzen Tag an. Erklaerung in fiaon-akte-anker.ts.
+    const schreibRef = p.schreib_ref || (await sorgeFuerAkte(personId, req.agent!.id));
+    if (!schreibRef) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+    p.schreib_ref = schreibRef;
 
     // ══════════════════════════════════════════════════════════════════════
     // BERLIN-ZEIT, NICHT UTC
@@ -855,9 +858,11 @@ router.post("/agent/crm/kunden/:personId/zusage", requireAgent, async (req: Agen
 
     const p = await meinePerson(personId, req.agent!.id);
     if (!p) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
-    if (!p.schreib_ref) {
-      return res.status(400).json({ ok: false, error: "Zu diesem Kunden gibt es keine Bestellung." });
-    }
+    // Dieselbe Regel wie oben: Eine Zusage ist eine Aussage des Menschen, kein
+    // Anhaengsel einer Bestellung.
+    const schreibRef2 = p.schreib_ref || (await sorgeFuerAkte(personId, req.agent!.id));
+    if (!schreibRef2) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+    p.schreib_ref = schreibRef2;
 
     await sqlPool.begin(async (tx) => {
       await tx`
@@ -2098,13 +2103,13 @@ router.post("/agent/crm/kunden/:personId/antragsdaten", requireAgent, async (req
       WHERE person_id = ${personId} AND merged_into IS NULL
       ORDER BY (archived_at IS NOT NULL), created_at DESC LIMIT 1
     `) as any[];
-    if (!ant) {
-      return res.status(400).json({
-        ok: false,
-        error: "Zu diesem Kunden gibt es noch keine Bestellung — die Angaben hängen daran. "
-          + "Leg zuerst unter „Daten“ ein Produkt an.",
-      });
-    }
+    // 25.08.2026: Beruf, Einkommen und Ausgaben sind Angaben ueber einen
+    // Menschen. Daniel und Florentine haben genau das gemeldet: „Fehlende
+    // finanzielle Angaben koennen nicht durch Agenten nachgetragen werden."
+    // Fehlt die Akte, wird sie angelegt. Siehe server/lib/fiaon-akte-anker.ts.
+    const angabenRef = ant?.ref || (await sorgeFuerAkte(personId, req.agent!.id));
+    if (!angabenRef) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+
 
     // Nur bekannte Felder, und jedes in seiner eigenen Art. Ein freier
     // Spaltenname aus der Anfrage wäre eine offene Tür in die Tabelle.
@@ -2138,7 +2143,7 @@ router.post("/agent/crm/kunden/:personId/antragsdaten", requireAgent, async (req
 
     if (!setzen.length) return res.status(400).json({ ok: false, error: "Es wurde nichts geändert." });
 
-    werte.push(ant.ref);
+    werte.push(angabenRef);
     await sqlPool.unsafe(
       `UPDATE fiaon_applications SET ${setzen.join(", ")}, updated_at = NOW() WHERE ref = $${werte.length}`,
       werte,
@@ -2151,7 +2156,7 @@ router.post("/agent/crm/kunden/:personId/antragsdaten", requireAgent, async (req
     await sqlPool`
       INSERT INTO fiaon_contact_log (person_id, agent_id, agent_name, type, note, ref, created_at)
       VALUES (${personId}, ${req.agent!.id}, ${req.agent!.name}, 'system',
-              ${`Im Gespräch ergänzt: ${geaendert.join(", ")}.`}, ${ant.ref}, NOW())
+              ${`Im Gespräch ergänzt: ${geaendert.join(", ")}.`}, ${angabenRef}, NOW())
     `.catch(() => {});
 
     res.json({ ok: true, meldung: `${geaendert.length === 1 ? "Angabe" : "Angaben"} gespeichert.`, geaendert });

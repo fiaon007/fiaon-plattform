@@ -21,6 +21,7 @@ import { gespraechsblatt } from "../lib/fiaon-gespraechsblatt";
 import { anrufNachbereiten } from "../lib/fiaon-transkript";
 import { ergebnisNachbereiten, istErgebnis } from "../lib/fiaon-kontakt-ergebnis";
 import { absoluteUrl } from "../fiaon-base-url";
+import { sorgeFuerAkte } from "../lib/fiaon-akte-anker";
 
 const router = Router();
 
@@ -1444,12 +1445,12 @@ router.post(
         WHERE person_id = ${personId} AND merged_into IS NULL
         ORDER BY created_at DESC LIMIT 1
       `) as any[];
-      if (!antrag) {
-        return res.status(400).json({
-          ok: false,
-          error: "Zu diesem Kunden gibt es keine Bestellung — Dokumente hängen an der Bestellung.",
-        });
-      }
+      // 25.08.2026: Ein Ausweis gehoert dem Menschen, nicht seiner Bestellung.
+      // Fehlt die Akte, wird sie angelegt statt den Upload abzuweisen.
+      // Siehe server/lib/fiaon-akte-anker.ts.
+      const anker = antrag?.ref || (await sorgeFuerAkte(personId, req.agent!.id));
+      if (!anker) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+      const antragRef = anker;
 
       const spalte = DOKUMENTE.find((d) => d.art === art)!.spalte;
       const label = DOKUMENTE.find((d) => d.art === art)!.label;
@@ -1458,7 +1459,7 @@ router.post(
         `UPDATE fiaon_applications
             SET ${spalte} = $1, documents_uploaded_at = NOW()
           WHERE ref = $2`,
-        [datei.buffer, antrag.ref],
+        [datei.buffer, antragRef],
       );
 
       // Hat der Kunde damit alles beisammen? Dann rückt der Antrag weiter —
@@ -1466,7 +1467,7 @@ router.post(
       await sqlPool`
         UPDATE fiaon_applications
            SET status = 'documents_submitted'
-         WHERE ref = ${antrag.ref}
+         WHERE ref = ${antragRef}
            AND bank_statement_pdf IS NOT NULL AND id_card_pdf IS NOT NULL
            AND status IN ('pending', 'documents_requested')
       `.catch(() => {});

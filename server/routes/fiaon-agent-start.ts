@@ -894,6 +894,27 @@ router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: R
     }
     else {
       wo.push("p.priority_tier BETWEEN 1 AND 3", "NOT p.is_blocked");
+      // ══════════════════════════════════════════════════════════════════════
+      // DER UNBERÜHRTE VORRAT BLEIBT UNSICHTBAR (25.08.2026)
+      //
+      // Justin, wörtlich und mit Nachdruck: „die Mitarbeiter sehen immer nur
+      // 2A, 2B und 2C Leads" — die Arbeitsliste zeigt zwei je Stufe, nach
+      // jedem Anruf wird nachgeschoben. Der Topf DAHINTER (am 25.08. fair auf
+      // alle acht verteilt, ~360 je Kopf) ist Nachschub, keine Lektüre:
+      // Eine Liste mit 700 Namen wirkt „zu umständlich und zu viel" (Justin)
+      // und verleitet zum Rosinenpicken statt zur Reihenfolge der Liste.
+      //
+      // Sichtbar bleibt in den Stöber-Ansichten deshalb nur, was WIRKLICH
+      // dem Mitarbeiter gehört: Mandate und jeder Mensch, mit dem je etwas
+      // passiert ist (Verlaufseintrag oder Termin). Die SUCHE (Zweig oben)
+      // findet weiterhin jeden eigenen Kunden — wer einen Namen tippt, meint
+      // diesen Menschen. Und der Nachschub der Arbeitsliste greift auf den
+      // vollen Topf zu; er liest nicht über diesen Weg.
+      // ══════════════════════════════════════════════════════════════════════
+      wo.push(`(p.mandat_seit IS NOT NULL
+        OR EXISTS (SELECT 1 FROM fiaon_contact_log clv JOIN fiaon_applications av ON av.ref = clv.ref WHERE av.person_id = p.id)
+        OR EXISTS (SELECT 1 FROM fiaon_contact_log clv2 WHERE clv2.person_id = p.id)
+        OR EXISTS (SELECT 1 FROM fiaon_termine tv WHERE tv.person_id = p.id))`);
       if (filter === "tier1") wo.push("p.priority_tier = 1");
       // ── WER BRAUCHT EINE ERSTE RECHNUNG? ────────────────────────────────
       // Der Vorgesetzte: „ALLE die einen Antrag bei uns gestellt haben brauchen

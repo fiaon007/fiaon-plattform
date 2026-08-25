@@ -79,6 +79,8 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
     text: "Deine Arbeitsliste hat immer genau sechs Plätze: zwei Menschen, die eine Zahlung gemeldet "
       + "haben, zwei mit offenem Antrag und zwei Neukunden. Sobald du einen abschließt, rückt der "
       + "nächste nach. So arbeitest du nie an einem Berg, sondern immer an sechs Namen.",
+    // 25.08.2026 mitgezogen: Der unberührte Vorrat ist seitdem unsichtbar.
+    tipp: "Den Topf dahinter siehst du bewusst nicht — in deinen Listen stehen nur Menschen, mit denen schon etwas passiert ist. Der Nachschub kommt von selbst.",
   },
   {
     ziel: ".pi-kar",

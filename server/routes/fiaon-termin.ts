@@ -1194,8 +1194,11 @@ router.post("/agent/termine", requireAgent, async (req: AgentRequest, res: Respo
       rueckruf: "agent_manuell", vertrieb: "agent_manuell",
       onboarding: "onboarding_call", zahlung: "inkasso_call",
     };
-    const art = String(req.body?.art || "rueckruf");
+    const art = String(req.body?.art || "");
     const notiz = req.body?.notiz ? String(req.body.notiz).trim().slice(0, 500) : null;
+    // Die Begruendung ist nur Pflicht, wenn jemand AUSDRUECKLICH „Rueckruf"
+    // gewaehlt hat. Die Akte bucht ohne Art (Slot-Wahl zur Situation) — sie
+    // darf nicht an einer Pflicht scheitern, die ihr niemand gezeigt hat.
     if (art === "rueckruf" && !notiz) {
       return res.status(400).json({ ok: false, error: "Bitte kurz begründen, warum der Rückruf stattfindet — das steht dann im Termin." });
     }

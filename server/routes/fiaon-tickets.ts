@@ -76,11 +76,17 @@ router.get("/agent/tickets/zaehler", requireAgent, async (req: AgentRequest, res
     const { rolleVon } = await import("../lib/fiaon-kundenzugriff");
     const rolle = await rolleVon(req.agent!.id);
     const alle = rolle === "admin" || rolle === "vertriebsleiter";
+    // Die Marke im Menue zaehlt GENAU das, was die Liste zeigt (25.08.2026).
+    // Zwei verschiedene Grenzen hiessen: eine Marke, hinter der nichts steht.
     const [z] = (await sqlPool`
-      SELECT COUNT(*) FILTER (WHERE status = 'offen')::int AS offen,
-             COUNT(*) FILTER (WHERE status = 'offen' AND agent_id = ${req.agent!.id})::int AS meine,
-             COUNT(*) FILTER (WHERE status = 'offen' AND agent_id IS NULL)::int AS pool
-      FROM fiaon_tickets WHERE ${alle} OR agent_id = ${req.agent!.id} OR agent_id IS NULL`) as any[];
+      SELECT COUNT(*) FILTER (WHERE t.status = 'offen')::int AS offen,
+             COUNT(*) FILTER (WHERE t.status = 'offen' AND t.agent_id = ${req.agent!.id})::int AS meine,
+             COUNT(*) FILTER (WHERE t.status = 'offen' AND t.agent_id IS NULL)::int AS pool
+      FROM fiaon_tickets t
+      LEFT JOIN fiaon_persons p ON p.id = t.person_id
+      WHERE ${alle}
+         OR t.agent_id = ${req.agent!.id}
+         OR (t.agent_id IS NULL AND p.assigned_agent_id = ${req.agent!.id})`) as any[];
     res.json({ ok: true, offen: z.offen, meine: z.meine, pool: z.pool });
   } catch (err) { console.error("[TICKETS] zaehler:", err); res.status(500).json({ ok: false }); }
 });
@@ -111,8 +117,31 @@ router.get("/agent/tickets", requireAgent, async (req: AgentRequest, res: Respon
              (SELECT g.name FROM fiaon_agents g WHERE g.id = t.agent_id) AS betreuer,
              (t.agent_id = ${req.agent!.id}) AS meins
       FROM fiaon_tickets t LEFT JOIN fiaon_persons p ON p.id = t.person_id
+      -- ══════════════════════════════════════════════════════════════════
+      -- NUR DIE EIGENEN ANLIEGEN (25.08.2026)
+      --
+      -- Justin: „Man soll/darf bei den Tickets nicht die Tickets der anderen
+      -- sehen (NUR DER VERTRIEBSLEITER/Admin). Man soll bei Tickets nur seine
+      -- eigenen sehen als normaler Mitarbeiter."
+      --
+      -- VORHER galt ein leeres agent_id als „Pool" und war fuer JEDEN
+      -- sichtbar. Ein Anliegen enthaelt aber, was ein Mensch seinem Betreuer
+      -- geschrieben hat — oft ueber Geld, Schulden oder eine Kuendigung. Das
+      -- geht Kollegen nichts an, die den Menschen nicht betreuen.
+      --
+      -- NACHHER sieht ein Mitarbeiter genau zwei Arten:
+      --   1. Anliegen, die IHM zugewiesen sind
+      --   2. Anliegen SEINER Kunden, auch wenn noch niemand zugewiesen ist
+      -- Der zweite Fall ist wichtig: Sonst verschwaende das Anliegen des
+      -- eigenen Kunden, nur weil niemand es zugeteilt hat.
+      --
+      -- Alles Uebrige — herrenlose Anliegen fremder oder unbekannter Kunden —
+      -- sieht ab jetzt nur die Leitung. Sie teilt sie zu.
+      -- ══════════════════════════════════════════════════════════════════
       WHERE (t.status <> 'erledigt' OR t.updated_at > NOW() - INTERVAL '14 days')
-        AND (${alle} OR t.agent_id = ${req.agent!.id} OR t.agent_id IS NULL)
+        AND (${alle}
+             OR t.agent_id = ${req.agent!.id}
+             OR (t.agent_id IS NULL AND p.assigned_agent_id = ${req.agent!.id}))
       ORDER BY (t.status = 'offen') DESC, (t.agent_id = ${req.agent!.id}) DESC, t.created_at ASC LIMIT 300`;
     res.json({ ok: true, tickets: rows });
   } catch (err) { console.error("[TICKETS] agent:", err); res.status(500).json({ ok: false, error: "Serverfehler" }); }
@@ -142,7 +171,13 @@ router.post("/agent/tickets/:id/antwort", requireAgent, async (req: AgentRequest
     if (!alle) {
       const [darf] = (await sqlPool`
         SELECT 1 AS ok FROM fiaon_tickets
-        WHERE id = ${id} AND (agent_id = ${req.agent!.id} OR agent_id IS NULL)`) as any[];
+        -- 25.08.2026: „agent_id IS NULL" allein hiess, dass jeder JEDES
+        -- herrenlose Anliegen an sich ziehen konnte — auch das eines fremden
+        -- Kunden. Jetzt nur noch die eigenen.
+        WHERE id = ${id}
+          AND (agent_id = ${req.agent!.id}
+               OR (agent_id IS NULL AND person_id IN (
+                     SELECT id FROM fiaon_persons WHERE assigned_agent_id = ${req.agent!.id})))`) as any[];
       if (!darf) return res.status(404).json({ ok: false, error: "Anliegen nicht gefunden." });
     }
 

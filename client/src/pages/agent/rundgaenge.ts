@@ -378,8 +378,58 @@ export const RUNDGANG_AVAILABILITY: RundgangSchritt[] = [
 
 /** Alle Rundgänge unter dem Schlüssel ihres Raums — der Schlüssel wird auch
  *  als Merker gespeichert und darf sich deshalb nie ändern. */
+
+/**
+ * Der Raum der Leitung (25.08.2026, mit dem Neubau angelegt).
+ *
+ * Justin: „Der Vertriebsleiter soll ‚alles' machen können." Genau das muss der
+ * Rundgang sagen — sonst sucht jemand mit voller Berechtigung nach einer
+ * Erlaubnis, die er längst hat.
+ */
+export const RUNDGANG_VERTRIEB: RundgangSchritt[] = [
+  {
+    titel: "Hier siehst du alles.",
+    text: "Dieser Raum kennt keine Grenzen: jeden Menschen in der Kartei, jede Zahlung, jeden "
+      + "Mitarbeiter. Was du hier änderst, wirkt sofort und steht mit deinem Namen im Verlauf — "
+      + "das ist kein Misstrauen, sondern der Grund, warum du es überhaupt darfst.",
+    tipp: "Die fünf Bereiche folgen dem Arbeitstag, nicht der Technik: Lage · Kunden · Team · Geld · Ordnung.",
+  },
+  {
+    ziel: ".lt-punkte",
+    titel: "Die Lage zeigt nur, was eine Entscheidung braucht.",
+    text: "Keine Kachelwand mit allen Zahlen, die es gibt — nur die, zu denen du etwas TUN musst: "
+      + "Menschen ohne Betreuer, gebrochene Zusagen, bezahlte Kunden ohne Startgespräch. Ist die "
+      + "Seite leer, ist wirklich nichts offen.",
+    tipp: "Jeder Punkt ist anklickbar und führt genau dorthin, wo man ihn abarbeitet.",
+  },
+  {
+    ziel: ".lt-such-feld",
+    titel: "Die Suche geht über die GANZE Kartei.",
+    text: "Name, E-Mail, Telefon, Vorgangsnummer oder Verwendungszweck — und sie verzeiht "
+      + "Tippfehler im Namen. Anders als in deiner eigenen Arbeitsliste ist hier niemand "
+      + "ausgeblendet: auch bezahlte Kunden, auch gesperrte, auch die ohne Betreuer.",
+    tipp: "Jede Zeile öffnet DIESELBE Akte wie in Pipeline und Bestand. Es gibt nur eine Akte im ganzen Haus.",
+  },
+  {
+    titel: "Zahlungen buchst du in der Akte, nicht in einer Liste.",
+    text: "Im Bereich „Geld“ siehst du, wo Geld fehlt — buchen tust du es in der Akte unter "
+      + "„Zahlungen & Raten“. Dort liegt der Beleg dabei, das Abo startet und die Provision "
+      + "entsteht. Ein zweiter Weg von der Liste aus wäre ein zweiter Ort, an dem dasselbe "
+      + "passiert, und beide liefen mit der Zeit auseinander.",
+  },
+  {
+    titel: "Ordnung ist die Arbeit, die sonst liegen bleibt.",
+    text: "Dubletten, Testeinträge und die Befunde der Bestandswache. Ein Mensch, der zweimal in "
+      + "der Kartei steht, bekommt zwei Rechnungen und zwei Anrufe. Zusammenführen ist NICHT "
+      + "umkehrbar — deshalb steht der Knopf dafür in der Akte, wo du beide Seiten vollständig "
+      + "siehst, und nicht in der Trefferliste.",
+    tipp: "Einmal die Woche reicht. Aber dann wirklich.",
+  },
+];
+
 export const RUNDGAENGE: Record<string, { titel: string; schritte: RundgangSchritt[] }> = {
   pipeline:    { titel: "Pipeline",     schritte: RUNDGANG_PIPELINE },
+  vertrieb:    { titel: "Leitung",      schritte: RUNDGANG_VERTRIEB },
   bestand:     { titel: "Mein Bestand", schritte: RUNDGANG_BESTAND },
   calendar:    { titel: "Calendar",     schritte: RUNDGANG_CALENDAR },
   onboarding:  { titel: "Onboarding",   schritte: RUNDGANG_ONBOARDING },

@@ -166,11 +166,37 @@ function TagescheckInnen() {
             <p style={{ textAlign: "center" }}>{abschluesse >= ZIEL ? <><Trophy size={14} strokeWidth={1.75} style={{ verticalAlign: "-2px" }} /> Stark. Jeder weitere Abschluss ist Bonus.</> : `${ZIEL - abschluesse} fehlen noch. Du bekommst ${Math.round(Number(start?.verdienst?.satzBp ?? 2500) / 100)} % jeder bezahlten Rate – zwölf Monate lang.`}</p>
           </section>
           <section className="to-block">
-            <div className="to-block-kopf"><b>Dein Vorrat</b><small>Pipeline nach Stufe</small></div>
+            {/* ── ZWEI ZAHLEN, NICHT EINE (25.08.2026) ───────────────────────
+                Justin: „Passt die Anzeige nicht — man hat ja nur 2a, 2b, 2c.
+                Dein Vorrat / Pipeline nach Stufe / A 4 …"
+                Er hat recht, und der Fehler war die Beschriftung, nicht die
+                Zahl: Hier stand der VORRAT je Stufe (alle Menschen, die dort
+                warten), während die Arbeitsliste immer nur ZWEI je Stufe
+                zeigt. „A 4" las sich deshalb wie ein Widerspruch zum
+                2+2+2-Modell, das jeder kennt.
+                NACHHER steht beides nebeneinander: was gerade auf dem Tisch
+                liegt (immer 2, oder weniger wenn der Vorrat leer ist) und was
+                dahinter wartet. Erst zusammen ergeben sie einen Satz. */}
+            <div className="to-block-kopf"><b>Deine sechs Plätze</b><small>2 je Stufe · dahinter der Vorrat</small></div>
             <div className="to-zahlen">
-              <div className="to-zahl"><small>A</small><b>{start?.kunden?.tier1 ?? "–"}</b><span>Zahlung gemeldet</span></div>
-              <div className="to-zahl"><small>B</small><b>{start?.kunden?.tier2 ?? "–"}</b><span>Antrag fertig</span></div>
-              <div className="to-zahl"><small>C</small><b>{start?.kunden?.tier3 ?? "–"}</b><span>Leads</span></div>
+              {([
+                ["A", start?.kunden?.tier1, "Zahlung gemeldet"],
+                ["B", start?.kunden?.tier2, "Antrag fertig"],
+                ["C", start?.kunden?.tier3, "Leads"],
+              ] as const).map(([stufe, vorrat, was]) => {
+                const v = Number(vorrat ?? 0);
+                const inArbeit = Math.min(2, v);
+                return (
+                  <div key={stufe} className="to-zahl">
+                    <small>{stufe}</small>
+                    <b>{vorrat == null ? "–" : `${inArbeit} / 2`}</b>
+                    <span>{was}</span>
+                    <em style={{ display: "block", fontStyle: "normal", fontSize: 11, color: "#64748b", marginTop: 2 }}>
+                      {v > 2 ? `${v - 2} warten dahinter` : v === 0 ? "Vorrat leer" : "kein Nachschub"}
+                    </em>
+                  </div>
+                );
+              })}
             </div>
             <div className="to-reihe">
               <Link href="/agent/pipeline" className="to-knopf still">Zur Pipeline</Link>

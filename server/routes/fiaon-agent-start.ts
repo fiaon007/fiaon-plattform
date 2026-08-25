@@ -853,6 +853,35 @@ router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: R
       // Startgespraech fuehren.
       wo.push("NOT p.is_blocked");
     }
+    // ══════════════════════════════════════════════════════════════════════
+    // WER SUCHT, WILL FINDEN — NICHT ARBEITEN (25.08.2026)
+    //
+    // ── DER BEFUND (Justin) ───────────────────────────────────────────────
+    // „Bei ‚Kunde' in der Suchfunktion findet man seinen eigenen Kunden nicht,
+    // wenn man ihn eintippt."
+    //
+    // URSACHE: Ohne Filter läuft diese Route in den Zweig unten und schränkt
+    // auf `priority_tier BETWEEN 1 AND 3` ein. Das ist für eine ARBEITSLISTE
+    // richtig — wer bezahlt hat, ist kein Arbeitsvorrat mehr. Für eine SUCHE
+    // ist es falsch: Wer einen Namen eintippt, will genau diesen Menschen,
+    // gleich in welcher Stufe er steht.
+    //
+    // GEMESSEN am 25.08.2026: 700 von 5.032 zugewiesenen Menschen waren über
+    // die Suche nicht erreichbar — jeder bezahlte Kunde, also gerade die, die
+    // man am längsten betreut. Bei Justin selbst 3 von 13.
+    //
+    // NACHHER hebt eine Suchanfrage die Stufengrenze auf. Die
+    // Zuständigkeitsgrenze bleibt unberührt: `assigned_agent_id = $1` steht
+    // weiterhin ganz vorn, also findet niemand einen fremden Kunden.
+    // ══════════════════════════════════════════════════════════════════════
+    else if (q && filter === "alle") {
+      // Nur beim Standardfilter. Wer ausdrücklich „Stufe 1" gewählt hat und
+      // DANN sucht, meint die Schnittmenge — eine Suche, die den eben
+      // gewählten Filter stillschweigend übergeht, ist ihre eigene
+      // Fehlerquelle.
+      // Gesperrte bleiben hier sichtbar: Wer nach jemandem sucht, den er
+      // gesperrt hat, sucht meistens genau deshalb.
+    }
     else {
       wo.push("p.priority_tier BETWEEN 1 AND 3", "NOT p.is_blocked");
       if (filter === "tier1") wo.push("p.priority_tier = 1");

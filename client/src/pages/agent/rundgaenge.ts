@@ -63,6 +63,17 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
     tipp: "Beides zu schicken zahlt sich aus: Die Mail ist der Beleg, WhatsApp wird gelesen. Jeder Versand steht danach im Verlauf der Akte.",
   },
   {
+    // 25.08.2026, mit den Gesprächsangaben zusammen angelegt (AGENTS.md: keine
+    // sichtbare Änderung ohne Abgleich mit den Rundgängen). Rückmeldung von
+    // Daniel und Florentine aus dem Plattformtest.
+    titel: "Was du im Gespräch erfährst, gehört in die Akte.",
+    text: "Im Reiter „Sein Antrag“ steht oben rechts „Angaben nachtragen“. Dort trägst du ein, was "
+      + "der Mensch dir am Telefon erzählt: Beruf, Einkommen, Miete, feste Ausgaben, offene "
+      + "Verpflichtungen und wofür er den Rahmen braucht. Was im Monat übrig bleibt, rechnet das "
+      + "System selbst aus — du siehst es schon beim Tippen.",
+    tipp: "Zwei Minuten, die sich beim nächsten Anruf auszahlen: Der Kunde muss nichts wiederholen, und du weißt vor dem Wählen, worüber ihr sprecht.",
+  },
+  {
     ziel: ".pi-trenner",
     titel: "Darunter stehen die, die danach kommen.",
     text: "Deine Arbeitsliste hat immer genau sechs Plätze: zwei Menschen, die eine Zahlung gemeldet "

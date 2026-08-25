@@ -2277,7 +2277,7 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
         )}
 
         {/* ═══ SEIN ANTRAG ═══ */}
-        {reiter === "antrag" && <><KontoKarte personId={k.personId} name={k.name} melden={melden} onProdukt={() => setProduktOffen(true)} /><AntragsBlatt antrag={antrag} name={k.name} /></>}
+        {reiter === "antrag" && <><KontoKarte personId={k.personId} name={k.name} melden={melden} onProdukt={() => setProduktOffen(true)} /><AntragsBlatt antrag={antrag} name={k.name} personId={k.personId} melden={melden} onFrisch={frisch} /></>}
 
         {/* ═══ AKTIVITÄT ═══ */}
         {reiter === "aktivitaet" && <AktivitaetsZeit akt={akt} fehler={aktFehler} />}
@@ -2660,7 +2660,31 @@ function KontoKarte({ personId, name, melden, onProdukt }: {
 
   return (
     <Sek titel="Konto & Karte"
-         erklaer={`Fast jeder kommt mit dem Satz „Ich brauche eine Kreditkarte“. Über unseren Kooperationspartner, die DKB, können wir ihn einlösen — sobald ${vorname} so weit ist.`}>
+         erklaer={`Fast jeder kommt mit dem Satz „Ich brauche eine Kreditkarte“. Über unsere Partnerbank können wir ihn einlösen — sobald ${vorname} so weit ist.`}>
+
+      {/* ── WELCHE BANK? (25.08.2026) ─────────────────────────────────────
+          Daniel und Florentine: „Auch intern ist nicht ersichtlich, welcher
+          Kunde seine Karte von welcher Bank erhält. Da diese Frage von Kunden
+          und Interessenten häufiger kommt …"
+          Sie steht jetzt oben in der Sektion, mit den Vorteilen zum Vorlesen —
+          nicht versteckt in einem Erklärtext. Die Angaben kommen vom Server
+          (PARTNERBANKEN), damit Akte, Mail und Academy dasselbe sagen. */}
+      {stand.bank && (
+        <div className="pi-kk-bank">
+          <div className="pi-kk-bank-kopf">
+            <small>Partnerbank</small>
+            <b>{stand.bank.name}</b>
+          </div>
+          <ul className="pi-kk-bank-liste">
+            {stand.bank.vorteile.map((v: string) => <li key={v}>{v}</li>)}
+          </ul>
+          <p className="pi-kk-bank-fuss">
+            Kreditkarte {stand.bank.kartePreisMonat} im Monat, zubuchbar aus dem fertigen Banking —
+            {" "}{stand.bank.aktion}.
+          </p>
+        </div>
+      )}
+
 
       {/* Schon geschickt: dann zählt nur noch, was daraus geworden ist. */}
       {stand.versand ? (
@@ -2766,7 +2790,149 @@ function KontoKarte({ personId, name, melden, onProdukt }: {
 //     fehlt, sagt der Hinweis am Ende in einem Satz — mit dem Nutzen, es im
 //     Gespräch zu erfragen.
 // ═══════════════════════════════════════════════════════════════════════════
-function AntragsBlatt({ antrag, name }: { antrag: any | null; name: string }) {
+/**
+ * Die Angaben aus dem Gespräch nachtragen.
+ *
+ * Daniel und Florentine, 25.08.2026: „Hier wäre es wichtig, dass wir diese
+ * Informationen direkt während des Gesprächs beim Kunden erfragen und
+ * anschließend selbst im Kundenprofil hinterlegen können. Beim nächsten
+ * Kontakt sind die Informationen dann bereits vorhanden und der Kunde muss
+ * nicht alles erneut erzählen."
+ *
+ * Die Felder schreiben in GENAU die Spalten, die auch das Antragsformular
+ * füllt — keine zweite Ablage neben dem Antrag. „Bleibt im Monat" ist bewusst
+ * kein Feld, sondern eine Rechnung: Als Spalte würde sie beim ersten
+ * geänderten Einkommen falsch, und niemand merkte es.
+ */
+function AngabenNachtragen({ personId, antrag, melden, onFertig }: {
+  personId: number; antrag: any;
+  melden: (art: "gut" | "schlecht" | "info", titel: string, text?: string) => void;
+  onFertig: () => Promise<void>;
+}) {
+  const A = antrag?.arbeit ?? {}, L = antrag?.lage ?? {}, W = antrag?.wunsch ?? {};
+  const [f, setF] = useState({
+    beruf: A.beschaeftigung ?? "", arbeitgeber: A.arbeitgeber ?? "", seit: A.seit ?? "",
+    einkommen: A.einkommen != null ? String(A.einkommen) : "",
+    gehaltseingang: A.gehaltseingang ?? "",
+    wohnen: L.wohnen ?? "",
+    miete: L.miete != null ? String(L.miete) : "",
+    ausgaben: (L.ausgaben ?? []).find((x: any) => x[0] === "Sonstiges")?.[1] != null
+      ? String((L.ausgaben ?? []).find((x: any) => x[0] === "Sonstiges")[1]) : "",
+    schulden: L.schulden != null ? String(L.schulden) : "",
+    rahmen: W.rahmen != null ? String(W.rahmen) : "",
+    wozu: W.wozu ?? "",
+  });
+  const [busy, setBusy] = useState(false);
+
+  // Die Vorschau rechnet mit, während getippt wird — der Mitarbeiter sieht
+  // sofort, was dem Kunden bleibt, und kann im Gespräch nachfragen.
+  const z = (v: string) => { const n = Number(String(v).replace(/[^\d.,-]/g, "").replace(",", ".")); return Number.isFinite(n) ? n : 0; };
+  const bleibt = f.einkommen ? z(f.einkommen) - z(f.miete) - z(f.ausgaben) : null;
+
+  const speichern = async () => {
+    setBusy(true);
+    const r = await api(`/agent/crm/kunden/${personId}/antragsdaten`, { method: "POST", body: JSON.stringify(f) });
+    setBusy(false);
+    if (!r.ok) { melden("schlecht", "Nicht gespeichert", r.json?.error || "Bitte erneut versuchen."); return; }
+    melden("gut", r.json.meldung || "Gespeichert", "Beim nächsten Anruf steht es hier — der Kunde muss es nicht wiederholen.");
+    await onFertig();
+  };
+
+  const Feld = ({ k, label, hinweis, breit }: { k: keyof typeof f; label: string; hinweis?: string; breit?: boolean }) => (
+    <label className={breit ? "breit" : ""}>
+      {label}
+      <input className="pi-eingabe" value={(f as any)[k]}
+             onChange={(e) => setF({ ...f, [k]: e.target.value })}
+             placeholder={hinweis} />
+    </label>
+  );
+
+  return (
+    <div className="pi-block" style={{ marginTop: 12 }}>
+      <p className="pi-sek-satz leise" style={{ marginBottom: 12 }}>
+        Was du im Gespräch erfährst, trägst du hier ein. Beträge in Euro im Monat — Punkte und
+        Kommas sind egal.
+      </p>
+      <div className="pi-form">
+        <Feld k="beruf" label="Beruf" hinweis="z. B. Angestellter" />
+        <Feld k="arbeitgeber" label="Arbeitgeber" />
+        <Feld k="seit" label="Dort seit" hinweis="z. B. 03/2023" />
+        <Feld k="einkommen" label="Einkommen im Monat" hinweis="1850" />
+        <Feld k="gehaltseingang" label="Geldeingang am" hinweis="z. B. 28." />
+        <Feld k="wohnen" label="Wohnsituation" hinweis="Miete / Eigentum / bei Eltern" />
+        <Feld k="miete" label="Miete im Monat" hinweis="720" />
+        <Feld k="ausgaben" label="Weitere feste Ausgaben" hinweis="Versicherungen, Abos …" />
+        <Feld k="schulden" label="Offene Verpflichtungen" hinweis="Gesamtsumme" />
+        <Feld k="rahmen" label="Gewünschter Rahmen" hinweis="2000" />
+        <Feld k="wozu" label="Wofür er den Rahmen braucht" breit />
+      </div>
+      {bleibt !== null && (
+        <p className={`pi-sek-satz${bleibt < 0 ? "" : " leise"}`} style={{ marginTop: 10, color: bleibt < 0 ? "#fecaca" : undefined }}>
+          <b>Bleibt im Monat: {Math.round(bleibt).toLocaleString("de-DE")} €</b> — aus Einkommen minus
+          Miete und festen Ausgaben. Wird mitgerechnet, nicht gespeichert: Sonst stünde die Zahl noch
+          da, wenn das Einkommen sich längst geändert hat.
+          {bleibt < 0 && " Achtung: rechnerisch im Minus — frag nach, ob etwas fehlt."}
+        </p>
+      )}
+      <div className="pi-reihe" style={{ marginTop: 12 }}>
+        <button type="button" className="pi-knopf" disabled={busy} onClick={() => void speichern()}>
+          {busy ? "Speichert …" : "Angaben speichern"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * „Portal ansehen als Kunde" — Nur-Lese-Sitzung, 30 Minuten.
+ *
+ * Die REIHENFOLGE ist der ganze Trick: erst die Sitzung holen (der Server setzt
+ * ein Cookie), dann den Tab öffnen. Wer zuerst öffnet, landet auf der
+ * Anmeldemaske, weil die Sitzung noch nicht steht — genau das haben Daniel und
+ * Florentine gemeldet.
+ */
+function PortalAnsehen({ personId, name, melden }: {
+  personId: number; name: string;
+  melden: (art: "gut" | "schlecht" | "info", titel: string, text?: string) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const vorname = String(name).trim().split(/\s+/)[0] || "dem Kunden";
+  const oeffnen = async () => {
+    setBusy(true);
+    const r = await api(`/agent/vertrieb/person/${personId}/ansicht`, { method: "POST", body: JSON.stringify({}) });
+    setBusy(false);
+    if (!r.ok) {
+      melden("schlecht", "Ansicht nicht möglich",
+        r.json?.error || "Der Server hat abgelehnt. Vielleicht hat dieser Mensch noch keine Bestellung.");
+      return;
+    }
+    window.open("/als-kunde", "_blank", "noopener,noreferrer");
+  };
+  return (
+    <>
+      <div className="pi-reihe">
+        <button type="button" className="pi-knopf" disabled={busy} onClick={() => void oeffnen()}>
+          {busy ? "Öffnet …" : `Portal ansehen als ${vorname}`}
+        </button>
+      </div>
+      <p className="pi-sek-satz leise" style={{ marginTop: 8 }}>
+        Öffnet einen neuen Tab mit genau der Ansicht, die {vorname} nach dem Anmelden sieht.
+        Nur zum Lesen und auf 30 Minuten begrenzt — es entstehen keine Handlungen in seinem Namen,
+        und Anfang und Ende stehen in seinem Verlauf.
+      </p>
+    </>
+  );
+}
+
+function AntragsBlatt({ antrag, name, personId, melden, onFrisch }: {
+  antrag: any | null; name: string; personId: number;
+  melden: (art: "gut" | "schlecht" | "info", titel: string, text?: string) => void;
+  onFrisch: () => Promise<void>;
+}) {
+  // Daniel und Florentine, 25.08.2026: Die Angaben sollen WÄHREND des
+  // Gesprächs nachtragbar sein. Der Schalter steht oben, damit man ihn nicht
+  // sucht — aber die Maske ist zugeklappt, solange niemand sie braucht.
+  const [nachtragen, setNachtragen] = useState(false);
   if (antrag === null) {
     return (
       <Sek titel="Sein Antrag" erklaer="Alles, was dieser Mensch uns beim Antrag selbst geschrieben hat.">
@@ -2801,7 +2967,14 @@ function AntragsBlatt({ antrag, name }: { antrag: any | null; name: string }) {
     <>
       {/* ── Das Gesprächsblatt: Zahlen, über die wirklich geredet wird ── */}
       <Sek titel="Seine Lage in Zahlen"
-           erklaer={`Das hat ${String(name).split(" ")[0] || "der Kunde"} beim Antrag selbst angegeben. Wer das vor dem Wählen liest, muss im Gespräch nichts zweimal fragen.`}>
+           erklaer={`Das hat ${String(name).split(" ")[0] || "der Kunde"} beim Antrag selbst angegeben. Wer das vor dem Wählen liest, muss im Gespräch nichts zweimal fragen.`}
+           kopfRechts={<button type="button" className="pi-link" onClick={() => setNachtragen((v) => !v)}>
+             {nachtragen ? "Schließen" : "Angaben nachtragen"}
+           </button>}>
+        {nachtragen && (
+          <AngabenNachtragen personId={personId} antrag={antrag} melden={melden}
+                             onFertig={async () => { setNachtragen(false); await onFrisch(); }} />
+        )}
         <div className="pi-ab-zahlen">
           <div className="pi-ab-kachel">
             <small>Einkommen im Monat</small>
@@ -2883,6 +3056,23 @@ function AntragsBlatt({ antrag, name }: { antrag: any | null; name: string }) {
       )}
 
       {/* ── Antrag und Zustimmungen ── */}
+      {/* ── PORTAL ANSEHEN (25.08.2026) ─────────────────────────────────────
+          Daniel und Florentine: „Unter Kundenakte → Verwaltung → ‚Portal
+          ansehen als Kunde' sollte man direkt in die Ansicht gelangen, die der
+          Kunde nach seinem Login sieht. Aktuell wird man lediglich auf die
+          FIAON-Homepage weitergeleitet und muss sich erneut einloggen."
+          GEPRÜFT: Der Weg selbst war nie kaputt — er ist im Office-Umbau
+          hängengeblieben. Der Knopf existierte nur im alten Management-Raum
+          (/agent/vertrieb), nicht in dieser Akte. Was die beiden angeklickt
+          haben, war ein gewöhnlicher Portal-Link ohne Sitzung — daher die
+          Anmeldemaske.
+          NACHHER steht er hier. Er holt zuerst eine Nur-Lese-Sitzung vom Server
+          und öffnet DANN den Tab; umgekehrt wäre der Tab da, bevor die Sitzung
+          steht, und man landet wieder auf der Anmeldung. */}
+      <Sek titel="Portal ansehen" erklaer="So sieht der Kunde seinen eigenen Bereich — zum Nachvollziehen, was bei ihm ankommt.">
+        <PortalAnsehen personId={personId} name={name} melden={melden} />
+      </Sek>
+
       <Sek titel="Der Antrag selbst" erklaer="Wann er kam, was gewählt wurde und wozu er zugestimmt hat.">
         <div className="pi-ab-liste">
           <Z was="Vorgangsnummer" wert={antrag.ref} />

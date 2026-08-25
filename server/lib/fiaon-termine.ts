@@ -1273,6 +1273,22 @@ export async function terminBuchen(
     if (String(err?.code) === "23505") {
       throw new TerminFehler("belegt", "Dieser Termin wurde gerade vergeben. Bitte wählen Sie einen anderen.");
     }
+    // ── ÜBERSCHNEIDUNG (25.08.2026) ────────────────────────────────────────
+    // Meldung von Daniel und Florentine: „10:15 Onboarding und 10:20 Vertrieb —
+    // ein Onboarding dauert 15-20 Minuten, der Mitarbeiter ist um 10:20 noch im
+    // ersten Gespräch."
+    // Seitdem verbietet die Datenbank jede Überlappung
+    // (fiaon_termine_keine_ueberschneidung, EXCLUDE USING gist). Kommt der
+    // Fehler hier an, ist das kein Systemfehler, sondern eine fachlich richtige
+    // Ablehnung — und der Mensch davor muss erfahren, WARUM, nicht nur DASS.
+    // 23P01 = exclusion_violation.
+    if (String(err?.code) === "23P01") {
+      throw new TerminFehler(
+        "belegt",
+        `In diesem Zeitraum läuft bereits ein Termin — ein Gespräch dauert ${takt} Minuten. `
+        + "Bitte eine Zeit wählen, die danach beginnt.",
+      );
+    }
     throw err;
   }
 

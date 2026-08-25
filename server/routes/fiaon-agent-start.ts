@@ -978,6 +978,22 @@ router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: R
         AND ($2 = '' OR ${NAME_SQL} ILIKE '%' || $2 || '%'
              OR COALESCE(p.primary_email, '') ILIKE '%' || $2 || '%'
              OR COALESCE(p.primary_phone, '') ILIKE '%' || $2 || '%'
+             -- ── UNSCHARFE NAMENSSUCHE (25.08.2026) ────────────────────────
+             -- Meldung von Daniel und Florentine: „Beim Versuch, den Termin
+             -- neu anzulegen, wird der Kunde nicht gefunden" — für Konstantin
+             -- von Reizenstein.
+             -- GEMESSEN: Der Mensch heißt „von Rei-TZ-enstein". Die Suche
+             -- verglich wörtlich, also fand sie nichts. Genau so verlieren
+             -- Mitarbeiter Kunden: nicht weil die Daten fehlen, sondern weil
+             -- ein Buchstabe anders ist als erinnert.
+             -- NACHHER greift zusätzlich die Ähnlichkeitssuche aus pg_trgm
+             -- (bereits installiert). Für „Konstantin von Reizenstein" liefert
+             -- sie „Konstantin von Reitzenstein" mit 0,82 — gemessen am
+             -- 25.08.2026, und der Treffer steht an erster Stelle.
+             -- Die Schwelle 0.32 ist bewusst nicht niedriger: Darunter kommen
+             -- Namen wie „Rabensteiner" mit, und eine Liste voller Fremder ist
+             -- schlimmer als kein Treffer.
+             OR (length($2) >= 4 AND similarity(${NAME_SQL}, $2) > 0.32)
              OR EXISTS (SELECT 1 FROM fiaon_applications a7 WHERE a7.person_id = p.id
                           AND (a7.ref ILIKE '%' || $2 || '%'
                                OR COALESCE(a7.payment_reference, '') ILIKE '%' || $2 || '%')))

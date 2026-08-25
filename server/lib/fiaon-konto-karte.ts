@@ -47,6 +47,46 @@ type Lauf = typeof sqlPool;
  */
 const PARTNER_LINK = "https://www.awin1.com/cread.php?awinmid=11329&awinaffid=3050049";
 
+/**
+ * Unsere Partnerbanken — namentlich, weil die Frage im Gespräch kommt.
+ *
+ * Daniel und Florentine, 25.08.2026: „Auf der Webseite ist aktuell nirgends
+ * ersichtlich, mit welchen Partnerbanken FIAON arbeitet. Auch intern ist nicht
+ * ersichtlich, welcher Kunde seine Karte von welcher Bank erhält. Da diese
+ * Frage von Kunden und Interessenten häufiger kommt, wäre es sinnvoll, die
+ * Partnerbanken transparent darzustellen."
+ *
+ * Sie haben recht: Eine ungenannte Bank wirkt wie ein Trick. Justin hat am
+ * 24.08. ausdrücklich freigegeben, die DKB beim Namen zu nennen — ihre
+ * Leistungen SIND das Argument.
+ *
+ * Die Liste steht hier und nicht in der Oberfläche, damit Akte, Mail, Academy
+ * und Website dieselbe Auskunft geben. Kommt eine zweite Bank dazu, ist das
+ * EINE Zeile — und alle vier Stellen ziehen mit.
+ */
+export const PARTNERBANKEN = [
+  {
+    key: "dkb",
+    name: "DKB — Deutsche Kreditbank AG",
+    kurz: "DKB",
+    land: "Deutschland",
+    /** Was der Mitarbeiter dem Kunden davon erzählen kann. */
+    vorteile: [
+      "Girokonto kostenlos ab 700 € Geldeingang im Monat, unter 28 Jahren immer",
+      "Visa Debitkarte ohne Jahresgebühr, weltweit, mit Apple Pay und Google Pay",
+      "Echtzeitüberweisungen in zehn Sekunden, rund um die Uhr",
+      "Kontowechsel in unter zehn Minuten, Vertragspartner werden automatisch informiert",
+      "Einlagen bis 100.000 € gesetzlich geschützt",
+    ],
+    /** Die Kreditkarte gibt es nur als Zubuchung aus dem fertigen Banking. */
+    kartePreisMonat: "2,49 €",
+    aktion: "aktuell bis zu 200 € Startguthaben",
+  },
+] as const;
+
+/** Die Bank, über die dieser Weg läuft. Heute genau eine. */
+export const PARTNERBANK = PARTNERBANKEN[0];
+
 export function partnerLink(personId: number, agentId: number | null): string {
   const kunde = `FIAON-P${personId}`;
   const mitarbeiter = agentId ? `A${agentId}` : "A0";
@@ -97,6 +137,9 @@ export interface KartenStand {
     bestaetigtAm: string | null;
     bonusCents: number;
   } | null;
+  /** Welche Bank — damit die Frage „von welcher Bank kriege ich die Karte?"
+   *  in der Akte beantwortet ist und nicht geraten werden muss. */
+  bank: { name: string; kurz: string; vorteile: readonly string[]; kartePreisMonat: string; aktion: string };
   zahlen: { ratenBezahlt: number; minRaten: number };
 }
 
@@ -279,6 +322,12 @@ export async function kartenStand(personId: number, lauf: Lauf = sqlPool): Promi
       bestaetigtAm: v.bestaetigt_am ?? null,
       bonusCents: Number(v.bonus_cents || 0),
     } : null,
+    bank: {
+      name: PARTNERBANK.name, kurz: PARTNERBANK.kurz,
+      vorteile: PARTNERBANK.vorteile,
+      kartePreisMonat: PARTNERBANK.kartePreisMonat,
+      aktion: PARTNERBANK.aktion,
+    },
     zahlen: { ratenBezahlt: Number(r.raten_bezahlt || 0), minRaten: KARTE_MIN_RATEN },
   };
 }

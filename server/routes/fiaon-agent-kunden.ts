@@ -2040,4 +2040,125 @@ router.get("/agent/karte/verdienst", requireAgent, async (req: AgentRequest, res
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE GESPRÄCHSANGABEN — was der Mitarbeiter am Telefon erfährt
+//
+// ── DER BEFUND (Daniel und Florentine, 25.08.2026) ─────────────────────────
+// „Unter ‚Daten' können aktuell nur allgemeine Stammdaten wie Name, E-Mail,
+// Telefon, Adresse, Wohnort und Geburtsdatum geändert werden. Die
+// antragsrelevanten Angaben können wir als Agenten dort nicht nachtragen …
+// Hier wäre es wichtig, dass wir diese Informationen direkt während des
+// Gesprächs beim Kunden erfragen und anschließend selbst im Kundenprofil
+// hinterlegen können. Beim nächsten Kontakt sind die Informationen dann
+// bereits vorhanden und der Kunde muss nicht alles erneut erzählen."
+//
+// Sie haben recht, und der Grund war eine Erlaubnisliste: `stammdaten` lässt
+// genau acht Kontaktfelder durch. Alles Fachliche — Beruf, Einkommen,
+// Verpflichtungen — kam dort nie vor.
+//
+// ── WARUM DIESELBEN SPALTEN WIE DER ANTRAG ────────────────────────────────
+// Diese Route schreibt in GENAU die Felder, die auch das Antragsformular
+// füllt. Keine zweite Ablage „was der Agent erfragt hat" neben „was der Kunde
+// ausgefüllt hat": Zwei Wahrheiten über dasselbe Einkommen sind schlimmer als
+// eine unvollständige. Wer im Gespräch nachträgt, ergänzt den Antrag — er legt
+// keine Parallelakte an.
+//
+// ── WAS NICHT GESPEICHERT WIRD ────────────────────────────────────────────
+// „Monatlich verbleibender Betrag" ist eine RECHNUNG, kein Feld: Einkommen
+// plus Zusatzeinkommen minus Miete und feste Ausgaben. Als eigene Spalte würde
+// sie beim ersten geänderten Einkommen falsch — und niemand merkte es.
+// ═══════════════════════════════════════════════════════════════════════════
+const ANTRAG_FELDER: Record<string, { spalte: string; art: "text" | "zahl"; label: string }> = {
+  beruf:        { spalte: "employment",     art: "text", label: "Beruf" },
+  arbeitgeber:  { spalte: "employer",       art: "text", label: "Arbeitgeber" },
+  seit:         { spalte: "employed_since", art: "text", label: "Beschäftigt seit" },
+  einkommen:    { spalte: "income",         art: "zahl", label: "Monatliches Einkommen" },
+  miete:        { spalte: "rent",           art: "zahl", label: "Miete" },
+  ausgaben:     { spalte: "expenses_other", art: "zahl", label: "Weitere feste Ausgaben" },
+  schulden:     { spalte: "debts",          art: "zahl", label: "Bestehende Verpflichtungen" },
+  wohnen:       { spalte: "housing",        art: "text", label: "Wohnsituation" },
+  rahmen:       { spalte: "wanted_limit",   art: "zahl", label: "Gewünschter Rahmen" },
+  wozu:         { spalte: "purpose",        art: "text", label: "Wofür der Rahmen gebraucht wird" },
+  gehaltseingang: { spalte: "salary_receipt_day", art: "text", label: "Geldeingang" },
+};
+
+router.post("/agent/crm/kunden/:personId/antragsdaten", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const personId = Number(req.params.personId);
+    if (!Number.isFinite(personId)) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+
+    const { rolleVon, darfAnKunde } = await import("../lib/fiaon-kundenzugriff");
+    const rolle = await rolleVon(req.agent!.id);
+    if (!(await darfAnKunde(req.agent!.id, rolle, personId))) {
+      return res.status(403).json({ ok: false, error: "Dieser Kunde wird von jemand anderem betreut." });
+    }
+
+    const [ant] = (await sqlPool`
+      SELECT ref FROM fiaon_applications
+      WHERE person_id = ${personId} AND merged_into IS NULL
+      ORDER BY (archived_at IS NOT NULL), created_at DESC LIMIT 1
+    `) as any[];
+    if (!ant) {
+      return res.status(400).json({
+        ok: false,
+        error: "Zu diesem Kunden gibt es noch keine Bestellung — die Angaben hängen daran. "
+          + "Leg zuerst unter „Daten“ ein Produkt an.",
+      });
+    }
+
+    // Nur bekannte Felder, und jedes in seiner eigenen Art. Ein freier
+    // Spaltenname aus der Anfrage wäre eine offene Tür in die Tabelle.
+    const setzen: string[] = [];
+    const werte: any[] = [];
+    const geaendert: string[] = [];
+    for (const [name, wert] of Object.entries(req.body || {})) {
+      const f = ANTRAG_FELDER[name];
+      if (!f) continue;
+      let v: any;
+      if (f.art === "zahl") {
+        if (wert === "" || wert === null) v = null;
+        else {
+          // „1.250 €", „1250,00", „1250" — alles dasselbe. Wer im Gespräch
+          // tippt, formatiert nicht.
+          const roh = String(wert).replace(/[^\d,.-]/g, "").replace(/\.(?=\d{3}\b)/g, "").replace(",", ".");
+          const n = Math.round(Number(roh));
+          if (!Number.isFinite(n) || n < 0 || n > 10_000_000) {
+            return res.status(400).json({ ok: false, error: `${f.label}: „${wert}“ ist keine gültige Zahl.` });
+          }
+          v = n;
+        }
+      } else {
+        const t = String(wert ?? "").trim().slice(0, 200);
+        v = t === "" ? null : t;
+      }
+      werte.push(v);
+      setzen.push(`${f.spalte} = $${werte.length}`);
+      geaendert.push(f.label);
+    }
+
+    if (!setzen.length) return res.status(400).json({ ok: false, error: "Es wurde nichts geändert." });
+
+    werte.push(ant.ref);
+    await sqlPool.unsafe(
+      `UPDATE fiaon_applications SET ${setzen.join(", ")}, updated_at = NOW() WHERE ref = $${werte.length}`,
+      werte,
+    );
+
+    // Der Verlauf hält fest, WER was ergänzt hat. Bei Angaben zu Einkommen und
+    // Schulden ist das keine Förmlichkeit: Sie entscheiden später über den
+    // Ratenvorschlag, und man muss wissen, ob sie aus dem Antrag stammen oder
+    // aus einem Telefonat.
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (person_id, agent_id, agent_name, type, note, ref, created_at)
+      VALUES (${personId}, ${req.agent!.id}, ${req.agent!.name}, 'system',
+              ${`Im Gespräch ergänzt: ${geaendert.join(", ")}.`}, ${ant.ref}, NOW())
+    `.catch(() => {});
+
+    res.json({ ok: true, meldung: `${geaendert.length === 1 ? "Angabe" : "Angaben"} gespeichert.`, geaendert });
+  } catch (err) {
+    console.error("[AGENT-KUNDEN] antragsdaten:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 export default router;

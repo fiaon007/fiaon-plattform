@@ -769,6 +769,130 @@ router.post("/agent/termine/:id/ergebnis", requireAgent, async (req: AgentReques
 // Der bisherige Zuständige und die Leitung. Nicht jeder: Ein Termin, den
 // beliebige Kollegen umhängen können, ist keine Zuständigkeit mehr.
 // ═══════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
+// EINEN TERMIN VERSCHIEBEN
+//
+// ── DER BEFUND (Daniel und Florentine, 25.08.2026) ─────────────────────────
+// „Bestehende Termine können aktuell nur als ‚erledigt' oder ‚nicht erledigt'
+// markiert werden. Eine Funktion zum Verschieben fehlt. Es sollte bei einem
+// bestehenden Termin direkt die Möglichkeit geben, Datum und Uhrzeit zu
+// ändern, ohne den Termin komplett neu anlegen zu müssen."
+//
+// Sie haben recht — und zwar wörtlich: Es gab keine. Die vorhandene Route
+// `/agent/calendar/:logId/reschedule` verschiebt Einträge im KONTAKTVERLAUF
+// (Rückrufe, Zahlungszusagen), nicht die Termine in `fiaon_termine`. In der
+// Oberfläche war „Verschieben" deshalb an `art !== "termin"` gebunden — bei
+// einem echten Termin erschien der Knopf nie.
+//
+// ── WAS HIER ANDERS IST ALS BEIM NEU ANLEGEN ───────────────────────────────
+// Der Termin behält seine Kennung, seinen Storno-Link und seine Geschichte.
+// Ein Neuanlegen mit anschließender Absage hinterließe zwei Einträge und beim
+// Kunden zwei Mails — eine Absage und eine Einladung, in beliebiger
+// Reihenfolge im Postfach.
+//
+// ── DER KUNDE ERFÄHRT ES ───────────────────────────────────────────────────
+// Wer eine Uhrzeit ändert, an die sich ein Mensch erinnert hat, muss es ihm
+// sagen. Die Mail geht über dieselbe Strecke wie die Terminbestätigung.
+// ═══════════════════════════════════════════════════════════════════════════
+router.post("/agent/termine/:id/verschieben", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const rohBeginn = String(req.body?.beginn ?? "").trim();
+    if (!Number.isFinite(id) || !rohBeginn) {
+      return res.status(400).json({ ok: false, error: "Termin und neue Zeit werden gebraucht." });
+    }
+
+    const { parseBerlinInput } = await import("../lib/fiaon-time");
+    const neu = parseBerlinInput(rohBeginn);
+    if (!neu || Number.isNaN(new Date(neu).getTime())) {
+      return res.status(400).json({ ok: false, error: "Die neue Zeit ist nicht lesbar." });
+    }
+    if (new Date(neu).getTime() < Date.now() - 60_000) {
+      return res.status(400).json({ ok: false, error: "Die neue Zeit liegt in der Vergangenheit." });
+    }
+
+    const [t] = (await sqlPool`
+      SELECT id, person_id, agent_id, beginn, dauer_min, quelle, status
+      FROM fiaon_termine WHERE id = ${id}
+    `) as any[];
+    if (!t) return res.status(404).json({ ok: false, error: "Termin nicht gefunden." });
+    if (t.status !== "gebucht") {
+      return res.status(400).json({ ok: false, error: "Dieser Termin ist nicht mehr offen." });
+    }
+
+    // Wer darf? Der eigene Termin — oder die Leitung. Ein fremder Kalender ist
+    // niemandes Sache.
+    const { rolleVon } = await import("../lib/fiaon-kundenzugriff");
+    const rolle = String(await rolleVon(req.agent!.id));
+    const eigen = Number(t.agent_id) === req.agent!.id;
+    if (!eigen && rolle !== "admin" && rolle !== "vertriebsleiter") {
+      return res.status(403).json({ ok: false, error: "Das ist der Termin einer Kollegin oder eines Kollegen." });
+    }
+
+    const alt = t.beginn;
+    try {
+      await sqlPool`UPDATE fiaon_termine SET beginn = ${neu}, erinnert_am = NULL WHERE id = ${id}`;
+    } catch (err: any) {
+      // 23P01 = exclusion_violation: die neue Zeit überschneidet einen anderen
+      // Termin. Seit dem 25.08.2026 verbietet die Datenbank das selbst.
+      if (String(err?.code) === "23P01") {
+        return res.status(409).json({
+          ok: false,
+          error: `Zu dieser Zeit läuft schon ein Termin — ein Gespräch dauert ${t.dauer_min ?? 20} Minuten. `
+            + "Bitte eine andere Zeit wählen.",
+        });
+      }
+      if (String(err?.code) === "23505") {
+        return res.status(409).json({ ok: false, error: "Diese Zeit ist bereits vergeben." });
+      }
+      throw err;
+    }
+
+    const wann = (d: any) => new Date(d).toLocaleString("de-DE",
+      { timeZone: "Europe/Berlin", weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+
+    const [ap] = (await sqlPool`
+      SELECT ref FROM fiaon_applications
+      WHERE person_id = ${t.person_id} AND merged_into IS NULL
+      ORDER BY created_at DESC LIMIT 1
+    `) as any[];
+    if (ap) {
+      await sqlPool`
+        INSERT INTO fiaon_contact_log (person_id, agent_id, agent_name, type, note, ref, created_at)
+        VALUES (${t.person_id}, ${req.agent!.id}, ${req.agent!.name}, 'system',
+                ${`Termin verschoben: ${wann(alt)} → ${wann(neu)}.`}, ${ap.ref}, NOW())
+      `.catch(() => {});
+    }
+
+    // Der Kunde erfährt die neue Zeit. Misslingt die Mail, ist der Termin
+    // trotzdem verschoben — aber die Antwort sagt es, damit der Mitarbeiter
+    // von sich aus anruft.
+    let mailOk = false;
+    try {
+      const { mailSenden } = await import("../lib/fiaon-mail-senden");
+      const erg = await mailSenden({
+        event: "termin_bestaetigung",
+        personId: Number(t.person_id),
+        zusatz: { termin_datum: wann(neu), verschoben_von: wann(alt) },
+        akteur: { name: req.agent!.name, agentId: req.agent!.id, rolle: rolle as any },
+      });
+      mailOk = !!(erg as any)?.ok;
+    } catch { /* siehe oben */ }
+
+    res.json({
+      ok: true,
+      beginn: neu,
+      meldung: `Verschoben auf ${wann(neu)}.`,
+      hinweis: mailOk
+        ? "Der Kunde hat die neue Zeit per Mail bekommen."
+        : "Die Bestätigungsmail ging nicht raus — bitte den Kunden kurz selbst informieren.",
+    });
+  } catch (err) {
+    console.error("[TERMIN] verschieben:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 router.post("/agent/termine/:id/uebergeben", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
     const id = Number(req.params.id);

@@ -324,11 +324,22 @@ function CalendarInnen() {
     setBusy(null);
     if (r.ok) { flash(r.json?.hinweis || "Als nicht erschienen vermerkt."); entfernen(a); setDetail(null); laden(); } else flash(r.json?.error || "Das hat nicht geklappt.", true);
   };
+  // ── ZWEI ARTEN, ZWEI WEGE (25.08.2026) ──────────────────────────────────
+  // Daniel und Florentine: „Eine Funktion zum Verschieben fehlt."
+  // Sie fehlte wirklich — aber nur für ECHTE Termine. Die vorhandene Route
+  // (/agent/calendar/:logId/reschedule) verschiebt Einträge im Kontaktverlauf,
+  // also Rückrufe und Zahlungszusagen. Termine aus fiaon_termine kannte sie
+  // nicht, deshalb war der Knopf an `art !== "termin"` gebunden und erschien
+  // bei einem gebuchten Termin nie.
+  // NACHHER entscheidet die ART, welcher Weg genommen wird — der Knopf steht
+  // bei beiden.
   const verschieben = async (a: Termin, wert: string) => {
     setBusy(tKey(a));
-    const r = await api(`/agent/calendar/${a.id}/reschedule`, { method: "POST", body: JSON.stringify({ scheduledAt: wert }) });
+    const r = a.art === "termin"
+      ? await api(`/agent/termine/${a.id}/verschieben`, { method: "POST", body: JSON.stringify({ beginn: wert }) })
+      : await api(`/agent/calendar/${a.id}/reschedule`, { method: "POST", body: JSON.stringify({ scheduledAt: wert }) });
     setBusy(null);
-    if (r.ok) { flash("Termin verschoben."); setDetail(null); laden(); return true; }
+    if (r.ok) { flash(r.json?.hinweis ? `${r.json.meldung} ${r.json.hinweis}` : (r.json?.meldung || "Termin verschoben.")); setDetail(null); laden(); return true; }
     flash(r.json?.error || "Das hat nicht geklappt.", true); return false;
   };
   const uebergeben = async (a: Termin, agentId: number, grund: string) => {
@@ -787,7 +798,10 @@ function Detail({ a, busy, ausser, onZu, onErledigt, onVerpasst, onVerschieben, 
             {tel && <button type="button" className="ca-knopf" onClick={() => anrufen(tel, a.person_id, tName(a))}><Phone size={15} strokeWidth={1.75} /> Anrufen</button>}
             <Link href={akteHref(a)} className="ca-knopf still"><ExternalLink size={15} strokeWidth={1.75} /> Zur Akte</Link>
             {!a.abgesagt && <button type="button" className="ca-knopf gut" disabled={busy} onClick={onErledigt}><Check size={15} strokeWidth={2} /> Erledigt</button>}
-            {a.art !== "termin" && <button type="button" className="ca-knopf still" onClick={() => setModus("verschieben")}>Verschieben</button>}
+            {/* 25.08.2026: VORHER nur für Verlaufseinträge — bei einem echten
+                Termin fehlte der Knopf ganz (Meldung Daniel/Florentine).
+                NACHHER bei jedem. */}
+            <button type="button" className="ca-knopf still" onClick={() => setModus("verschieben")}>Verschieben</button>
             {istTermin && !a.abgesagt && <button type="button" className="ca-knopf still" disabled={busy} onClick={onVerpasst} title="Kunde ist nicht erschienen – zählt als Fehlversuch">Nicht erschienen</button>}
             {istTermin && !a.abgesagt && <button type="button" className="ca-knopf still" disabled={busy} onClick={() => setModus("uebergeben")}><UserRoundCheck size={15} strokeWidth={1.75} /> Übergeben</button>}
             {gebucht && <button type="button" className="ca-knopf rot" disabled={busy} onClick={() => setModus("absagen")}>Absagen</button>}
@@ -797,7 +811,11 @@ function Detail({ a, busy, ausser, onZu, onErledigt, onVerpasst, onVerschieben, 
             auch bei einem Rückruf, den der Mitarbeiter SELBST eingetragen hat.
             Der behauptete dann, der Kunde habe die Zeit gewählt. NACHHER nur
             noch bei `selbstGebucht` (24.08.2026). */}
-        {tSelbstGebucht(a) && !modus && <p className="ca-lade" style={{ marginTop: 12 }}>Diesen Termin hat der Kunde selbst gewählt – verschieben geht nicht. Wenn die Zeit nicht passt: anrufen oder absagen, dann bucht der Kunde neu.</p>}
+        {/* 25.08.2026: Der Satz sagte „verschieben geht nicht" — das stimmte,
+            solange es die Funktion nicht gab. Jetzt geht es, und der Hinweis
+            sagt stattdessen, worauf zu achten ist: Der Mensch hat sich diese
+            Zeit selbst ausgesucht, also gehört ein Wort dazu. */}
+        {tSelbstGebucht(a) && !modus && <p className="ca-lade" style={{ marginTop: 12 }}>Diese Zeit hat der Kunde selbst gewählt. Verschieben geht — sag ihm vorher Bescheid; die neue Zeit bekommt er auch per Mail.</p>}
 
         {modus === "verschieben" && (
           <div className="ca-form">

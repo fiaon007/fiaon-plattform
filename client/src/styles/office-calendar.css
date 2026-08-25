@@ -293,3 +293,36 @@ select.ca-feld option{color:#0f172a}
 .ca-knopf.klein.gut:hover:not(:disabled){background:rgba(16,185,129,.28)}
 .ca-knopf.klein.rot{background:rgba(248,113,113,.14);border:1px solid rgba(252,165,165,.36);color:#fecaca;box-shadow:none}
 .ca-knopf.klein.rot:hover:not(:disabled){background:rgba(248,113,113,.24)}
+
+/* ── Termin abschließen: was kam heraus? (25.08.2026) ───────────────────────
+   Justins Frage „wo verschwindet der Kunde dann hin?" hatte bis dahin die
+   Antwort „nirgendwohin". Diese Maske stellt dieselbe Frage wie das Softphone
+   nach dem Auflegen — drei Antworten, dann die Wege, die zur Lage passen. */
+.ca-urteile{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+.ca-urteil{min-height:44px;padding:0 10px;border-radius:13px;cursor:pointer;
+  border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05);
+  color:#cbd5e1;font:400 12.5px/1.25 'Inter',sans-serif;transition:border-color .18s,background .18s,color .18s}
+.ca-urteil:hover{border-color:rgba(147,197,253,.5);color:#fff}
+.ca-urteil.an.ton-gut{background:linear-gradient(135deg,rgba(5,150,105,.3),rgba(5,150,105,.08));
+  border-color:rgba(52,211,153,.6);color:#a7f3d0}
+.ca-urteil.an.ton-nicht_erreicht{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.4);color:#fff}
+.ca-urteil.an.ton-schlecht{background:linear-gradient(135deg,rgba(220,38,38,.24),rgba(220,38,38,.05));
+  border-color:rgba(248,113,113,.55);color:#fecaca}
+
+.ca-wege{display:grid;gap:8px}
+.ca-weg{display:grid;gap:2px;text-align:left;padding:12px 15px;border-radius:14px;cursor:pointer;
+  border:1px solid rgba(255,255,255,.13);background:rgba(255,255,255,.05);color:#e5e7eb;
+  transition:transform .16s,border-color .18s,box-shadow .18s}
+.ca-weg:hover{transform:translateY(-1px)}
+.ca-weg:disabled{opacity:.5;cursor:default;transform:none}
+.ca-weg b{font:500 13.5px/1.3 'Inter',sans-serif;color:#fff}
+.ca-weg small{font:300 11.5px/1.45 'Inter',sans-serif;color:#9ca3af}
+.ca-weg.ton-gut{background:linear-gradient(135deg,rgba(5,150,105,.22),rgba(5,150,105,.05));border-color:rgba(52,211,153,.4)}
+.ca-weg.ton-gut b{color:#a7f3d0}
+.ca-weg.ton-warn{background:linear-gradient(135deg,rgba(220,38,38,.15),rgba(220,38,38,.03));border-color:rgba(248,113,113,.34)}
+.ca-weg.ton-warn b{color:#fecaca}
+.ca-weg.ton-still:hover{border-color:rgba(147,197,253,.5)}
+@media(max-width:700px){
+  .ca-urteile{grid-template-columns:1fr;gap:7px}
+  .ca-urteil{min-height:46px}
+}

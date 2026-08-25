@@ -36,7 +36,9 @@ import { Phone, Check, X, ChevronLeft, ChevronRight, Plus, CalendarClock, Sticky
 import { AgentShell, api } from "./shared";
 import { useOffice } from "./OfficeShell";
 import "@/styles/office-calendar.css";
-import { TERMIN_ARTEN } from "@shared/fiaon-termin-art";
+import { TERMIN_ARTEN, terminArtAusQuelle } from "@shared/fiaon-termin-art";
+import { nachbereitungsWege, nachLageSatz, type NachEingang, type NachLage }
+  from "@shared/fiaon-anruf-nachbereitung";
 import { Rundgang } from "@/components/agent/Rundgang";
 import { RUNDGAENGE } from "./rundgaenge";
 import "@/styles/office-rundgang.css";
@@ -283,13 +285,66 @@ function CalendarInnen() {
 
   // ── Aktionen (unverändert aus kalender.tsx) ──────────────────────────────
   const entfernen = (a: Termin) => setTermine((v) => v.filter((x) => tKey(x) !== tKey(a)));
+  // ══════════════════════════════════════════════════════════════════════════
+  // DER HAKEN — UND WOHIN DER KUNDE DANACH GEHT
+  //
+  // ── DIE FRAGE (Justin, 25.08.2026) ────────────────────────────────────────
+  // „Wenn ich im Kalender auf den Haken klicke, dass es gepasst hat (nicht das
+  // X) — wo verschwindet der Kunde dann hin?"
+  //
+  // ── DIE EHRLICHE ANTWORT WAR: NIRGENDWOHIN ────────────────────────────────
+  // Bei einem STARTGESPRÄCH tat der Haken viel — Konto freischalten, Mail,
+  // Bonus. Bei jedem ANDEREN Termin (Vertrieb, Rückruf, Zahlung) setzte er nur
+  // `status = erledigt` und schrieb eine Zeile in den Verlauf. Kein Ergebnis,
+  // keine Zusage, keine Wiedervorlage. Der Mensch blieb exakt dort, wo er
+  // vorher war — gleiche Stufe, gleiches Zusagedatum — und tauchte in der
+  // Arbeitsliste wieder auf, als hätte das Gespräch nie stattgefunden.
+  //
+  // GEMESSEN am 25.08.2026: 47 von 69 erledigten Nicht-Onboarding-Terminen
+  // haben KEIN Gesprächsergebnis. 68 Prozent.
+  //
+  // Das ist derselbe Fehler, der beim Startgespräch schon einmal behoben wurde
+  // — im Code steht es wörtlich: „Der Kalender war damit eine zweite Tür zur
+  // selben Handlung, und die folgenlose."
+  //
+  // ── NACHHER ───────────────────────────────────────────────────────────────
+  // Der Haken fragt nach dem Ergebnis, bevor er den Termin schließt — mit
+  // GENAU denselben Wegen wie das Softphone nach dem Auflegen (die geprüfte
+  // Entscheidung aus shared/fiaon-anruf-nachbereitung.ts). Eine Wahrheit,
+  // zwei Türen.
+  // Startgespräche behalten ihren eigenen Weg: Dort ist das Ergebnis die
+  // Freischaltung, und die Frage wäre eine zweite, andere.
   const erledigt = async (a: Termin) => {
+    const art = a.terminArtText || (a.quelle ? terminArtAusQuelle(a.quelle).text : "");
+    const istStart = a.quelle === "onboarding_call" || art === "Onboarding";
+    if (!istStart && a.person_id) { setAbschluss(a); return; }
     setBusy(tKey(a));
     const r = a.art === "termin"
       ? await api(`/agent/termine/${a.id}/ergebnis`, { method: "POST", body: JSON.stringify({ ergebnis: "erledigt" }) })
       : await api(`/agent/calendar/${a.id}/done`, { method: "POST" });
     setBusy(null);
     if (r.ok) { flash(r.json?.hinweis || "Termin als erledigt markiert."); entfernen(a); setDetail(null); laden(); } else flash(r.json?.error || "Das hat nicht geklappt.", true);
+  };
+
+  /** Der Termin, für den gerade das Ergebnis gefragt wird. */
+  const [abschluss, setAbschluss] = useState<Termin | null>(null);
+
+  /** Ergebnis festhalten UND den Termin schließen — in dieser Reihenfolge. */
+  const abschlussBuchen = async (a: Termin, art: string, zusatz: Record<string, unknown>) => {
+    setBusy(tKey(a));
+    const e = await api(`/agent/crm/kunden/${a.person_id}/aktivitaet`, {
+      method: "POST", body: JSON.stringify({ art, ...zusatz }),
+    });
+    if (!e.ok) { setBusy(null); flash(e.json?.error || "Das Ergebnis wurde nicht gespeichert.", true); return false; }
+    // Erst wenn das Ergebnis steht, wird der Termin geschlossen. Andersherum
+    // wäre der Termin weg und das Ergebnis verloren.
+    const r = a.art === "termin"
+      ? await api(`/agent/termine/${a.id}/ergebnis`, { method: "POST", body: JSON.stringify({ ergebnis: "erledigt" }) })
+      : await api(`/agent/calendar/${a.id}/done`, { method: "POST" });
+    setBusy(null);
+    flash(r.ok ? (e.json?.meldung || "Ergebnis festgehalten.") : (r.json?.error || "Ergebnis steht, Termin blieb offen."), !r.ok);
+    setAbschluss(null); entfernen(a); setDetail(null); laden();
+    return true;
   };
   /**
    * Der Termin kam nicht zustande — mit Grund, und der Grund entscheidet.
@@ -590,6 +645,12 @@ function CalendarInnen() {
                 onUebergeben={(id, g) => uebergeben(detail, id, g)} onAbsagen={() => absagen(detail)} />
       )}
       {anlegen && <Anlegen vorschlag={tagKey === heuteKey ? "" : `${tagKey}T10:00`} onZu={() => setAnlegen(false)} onFertig={(t) => { setAnlegen(false); flash(t); laden(); }} />}
+
+      {abschluss && (
+        <TerminAbschluss a={abschluss} busy={busy === tKey(abschluss)}
+                         onZu={() => setAbschluss(null)}
+                         onBuchen={(art, zusatz) => abschlussBuchen(abschluss, art, zusatz)} />
+      )}
 
       {/* ── Der Rundgang: GENAU EINMAL ────────────────────────────────────────
           24.08.2026: VORHER stand er INNERHALB der Tagesschleife der
@@ -909,6 +970,130 @@ function Anlegen({ vorschlag, onZu, onFertig }: { vorschlag: string; onZu: () =>
             <button type="button" className="ca-knopf still" onClick={onZu}>Abbrechen</button>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WAS KAM BEI DEM TERMIN HERAUS?
+//
+// Justin, 25.08.2026: „Wenn ich im Kalender auf den Haken klicke — wo
+// verschwindet der Kunde dann hin?"
+//
+// Bis dahin: nirgendwohin. Der Haken schloss den Termin und ließ den Menschen
+// unverändert in seiner Liste stehen. GEMESSEN: 47 von 69 erledigten
+// Nicht-Onboarding-Terminen hatten kein Gesprächsergebnis.
+//
+// Diese Maske stellt dieselbe Frage wie das Softphone nach dem Auflegen und
+// benutzt DIESELBE geprüfte Entscheidung (shared/fiaon-anruf-nachbereitung.ts,
+// 228 Fälle im Prüfstand). Zwei Türen, eine Wahrheit — sonst hängt es davon
+// ab, ob jemand über das Telefon oder über den Kalender abschließt.
+// ═══════════════════════════════════════════════════════════════════════════
+function TerminAbschluss({ a, busy, onZu, onBuchen }: {
+  a: Termin; busy: boolean; onZu: () => void;
+  onBuchen: (art: string, zusatz: Record<string, unknown>) => Promise<boolean>;
+}) {
+  const [urteil, setUrteil] = useState<"gut" | "nicht_erreicht" | "schlecht" | null>("gut");
+  const [lage, setLage] = useState<NachEingang | null>(null);
+  const [vorname, setVorname] = useState("");
+  const [datumFeld, setDatumFeld] = useState<"zusage" | "termin" | null>(null);
+  const [datum, setDatum] = useState("");
+  const [notizFuer, setNotizFuer] = useState<string | null>(null);
+  const [notiz, setNotiz] = useState("");
+
+  // Die Lage kommt vom Server — dieselbe Antwort wie die Akte. Ein Termin, bei
+  // dem der Mitarbeiter währenddessen etwas eingetragen hat, ist damit richtig
+  // erfasst, statt aus dem Kalenderstand geraten.
+  useEffect(() => {
+    let an = true;
+    if (!a.person_id) return;
+    api(`/agent/crm/kunden/${a.person_id}`).then((r) => {
+      if (!an || !r.ok || !r.json?.kunde) return;
+      const k = r.json.kunde;
+      setVorname(String(k.name || "").trim().split(/\s+/)[0] || "");
+      setLage({
+        lage: (r.json.situation?.art ?? "alles_gut") as NachLage,
+        hatMandat: !!k.mandatSeit,
+        // Der Termin, den wir gerade abschließen, zählt NICHT als „hat einen
+        // Termin" — sonst fiele „neuen Termin vereinbart" aus der Auswahl.
+        hatTermin: !!(k.terminAm && new Date(k.terminAm).getTime() !== new Date(a.scheduled_at ?? 0).getTime()),
+        hatZusage: !!k.zusagedatum,
+        ohneKunde: false,
+        mitRate: false,
+      });
+    });
+    return () => { an = false; };
+  }, [a.person_id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const wege = lage && urteil ? nachbereitungsWege(lage, urteil) : [];
+
+  return (
+    <div className="ca-dialog-hintergrund" onClick={onZu}>
+      <div className="ca-dialog" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Ergebnis des Termins">
+        <div className="ca-dialog-kopf">
+          <div>
+            <p className="ca-pille" style={{ marginBottom: 8 }}>Termin abschließen</p>
+            <h2 style={{ margin: 0, font: "300 22px/1.2 'Inter',sans-serif", color: "#fff" }}>{tName(a)}</h2>
+            {lage && <p className="ca-lade" style={{ marginTop: 6 }}>{nachLageSatz(lage, vorname)}</p>}
+          </div>
+          <button type="button" className="ca-zu" onClick={onZu} aria-label="Schließen">
+            <X size={17} />
+          </button>
+        </div>
+
+        {!lage && <p className="ca-lade">Lade den Stand …</p>}
+
+        {lage && (
+          <>
+            <div className="ca-urteile">
+              {([["gut", "Gut gelaufen"], ["nicht_erreicht", "Nicht erschienen"], ["schlecht", "Kein Interesse"]] as const).map(([k, t]) => (
+                <button key={k} type="button"
+                        className={`ca-urteil${urteil === k ? " an" : ""} ton-${k}`}
+                        onClick={() => { setUrteil(k); setDatumFeld(null); setNotizFuer(null); }}>{t}</button>
+              ))}
+            </div>
+
+            {datumFeld && (
+              <input type={datumFeld === "termin" ? "datetime-local" : "date"} value={datum}
+                     onChange={(e) => setDatum(e.target.value)} className="ca-feld"
+                     aria-label={datumFeld === "termin" ? "Neuer Rückruf" : "Zugesagtes Zahlungsdatum"} />
+            )}
+            {notizFuer && (
+              <textarea value={notiz} onChange={(e) => setNotiz(e.target.value)} rows={3} autoFocus
+                        placeholder="Was wurde besprochen oder vereinbart?" className="ca-feld"
+                        aria-label="Notiz zum Ergebnis" />
+            )}
+
+            <div className="ca-wege">
+              {wege.map((w) => (
+                <button key={w.art + w.label} type="button" disabled={busy}
+                        className={`ca-weg ton-${w.ton ?? "still"}`}
+                        onClick={() => {
+                          if (w.braucht && datumFeld !== w.braucht) { setDatumFeld(w.braucht); return; }
+                          if (w.notizPflicht && notiz.trim().length < 10) { setNotizFuer(w.art); return; }
+                          const zusatz: Record<string, unknown> = {};
+                          if (w.braucht === "zusage") zusatz.zusageDatum = datum;
+                          if (w.braucht === "termin") { zusatz.terminDatum = datum.slice(0, 10); zusatz.terminZeit = datum.slice(11, 16); }
+                          if (notiz.trim()) zusatz.notiz = notiz.trim();
+                          void onBuchen(w.art, zusatz);
+                        }}>
+                  <b>{w.label}</b>{w.hinweis && <small>{w.hinweis}</small>}
+                </button>
+              ))}
+            </div>
+
+            <button type="button" className="ca-knopf still" style={{ marginTop: 12, width: "100%" }}
+                    disabled={busy} onClick={() => void onBuchen("notiz", { notiz: notiz.trim() || "Termin ohne festgehaltenes Ergebnis abgeschlossen." })}>
+              Ohne Ergebnis schließen
+            </button>
+            <p className="ca-lade" style={{ marginTop: 8 }}>
+              Ein Termin ohne Ergebnis ist für den nächsten Anruf ein verlorenes Gespräch — der Mensch
+              erzählt dann alles noch einmal.
+            </p>
+          </>
+        )}
       </div>
     </div>
   );

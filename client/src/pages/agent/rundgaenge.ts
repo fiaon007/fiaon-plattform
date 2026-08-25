@@ -301,6 +301,14 @@ export const RUNDGANG_TICKETS: RundgangSchritt[] = [
     text: "Jede Antwort steht im Ticket, mit Namen und Zeitpunkt. Du musst nichts in einem Chat suchen und "
       + "niemand muss raten, was zuletzt besprochen wurde.",
   },
+  {
+    // 25.08.2026 mitgezogen: Die Sichtbarkeit wurde an diesem Tag eingegrenzt.
+    titel: "Du siehst deine — nicht die der anderen.",
+    text: "In der Liste stehen die Anliegen, die dir zugewiesen sind, und die deiner eigenen Kunden. "
+      + "Was Kollegen schreiben, siehst du nicht: In einem Anliegen steht oft, was ein Mensch uns über "
+      + "sein Geld, seine Schulden oder eine Kündigung anvertraut hat. Das gehört zu dem, der ihn betreut.",
+    tipp: "Ein herrenloses Anliegen eines fremden Kunden landet bei der Leitung — sie teilt es zu. Du musst es nicht suchen.",
+  },
 ];
 
 export const RUNDGANG_SPACE: RundgangSchritt[] = [
@@ -367,6 +375,15 @@ export const RUNDGANG_AVAILABILITY: RundgangSchritt[] = [
     text: "Hier trägst du deine Arbeitszeiten ein. Genau daraus entstehen die freien Termine, die ein Kunde über "
       + "seinen Link sehen kann — trägst du nichts ein, bekommt er keinen einzigen Vorschlag und du keinen Termin.",
     tipp: "Trag lieber weniger Zeiten ein und halte sie zuverlässig, als viele, bei denen du nicht ans Telefon gehst. Termintreue wird gemessen.",
+  },
+  {
+    // 25.08.2026 mitgezogen: Florentine konnte einen Termin nicht anlegen und
+    // wusste nicht, dass diese Zeiten auch dafür gelten.
+    titel: "Auch für Termine, die du selbst einträgst.",
+    text: "Diese Zeiten gelten nicht nur für den Kunden-Link. Legst du im Kalender selbst einen Termin an, "
+      + "prüft die Plattform ihn gegen genau dieselben Zeiten. Steht hier für den Mittwoch 10 bis 14:30, "
+      + "lässt sich für Mittwoch 9 Uhr kein Termin eintragen — auch nicht von dir.",
+    tipp: "Bekommst du „Zu dieser Zeit werden keine Gespräche angeboten“, liegt es fast immer an dieser Seite.",
   },
   {
     titel: "Was schon gebucht ist, bleibt gebucht.",

@@ -80,9 +80,58 @@ export interface KundeRequest extends Request {
 }
 
 /** Tür für Kunden-Endpunkte: Cookie muss da sein UND zur :ref in der URL passen. */
-export function requireKunde(req: KundeRequest, res: Response, next: NextFunction): void {
+export async function requireKunde(req: KundeRequest, res: Response, next: NextFunction): Promise<void> {
   const ref = kundeAusCookie(req);
   if (!ref) {
+    // ══════════════════════════════════════════════════════════════════════
+    // DIE ALS-KUNDE-ANSICHT KOMMT HIER OHNE KUNDENSITZUNG AN (25.08.2026)
+    //
+    // ── DER BEFUND (Florentine & Daniel, Testpunkt 6) ────────────────────
+    // „Portal ansehen als Kunde geht noch nicht." Die Schleuse /als-kunde
+    // stammt aus der Zeit, als das Portal alles aus sessionStorage las. Der
+    // NEUE Kundenbereich (E-013) holt seine Daten aber vom Server — und
+    // diese Tür kannte nur das Kunden-Cookie. Ergebnis: Die Leitung startete
+    // die Ansicht, das Portal fragte /kunde/:ref/bereich, bekam 401 und warf
+    // sie zur Kundenanmeldung. GEMESSEN: Token gültig, /kundenansicht/stand
+    // lieferte den Kunden — nur diese Wand hier wusste nichts davon.
+    //
+    // ── DIE REGELN DER AUSNAHME ──────────────────────────────────────────
+    // 1. NUR LESEN: alles außer GET wird abgelehnt. „Es entstehen keine
+    //    Handlungen im Namen des Kunden" ist ein Versprechen der Oberfläche —
+    //    gehalten wird es hier.
+    // 2. DIESELBE BINDUNG wie /kundenansicht/stand: Bei der Leitung muss die
+    //    eigene Anmeldung noch gelten und zum Token passen — ein
+    //    weitergegebenes Cookie ist sonst ein Dauerzugang in ein fremdes
+    //    Konto. Bei der Verwaltung muss der Admin-Code anliegen.
+    // 3. KEINE ECHTE SITZUNG: Die gleitende Verlängerung unten stellt ein
+    //    Kunden-Cookie aus — für einen Ansehenden wäre das eine Anmeldung
+    //    als der Kunde. Deshalb endet dieser Zweig VOR ihr.
+    // ══════════════════════════════════════════════════════════════════════
+    try {
+      const { KUNDENANSICHT_COOKIE, kundenansichtTokenPruefen } = await import("./fiaon-kundenansicht");
+      const tok = kundenansichtTokenPruefen((req as any).cookies?.[KUNDENANSICHT_COOKIE]);
+      if (tok) {
+        if (req.method !== "GET") {
+          res.status(403).json({ ok: false, error: "Nur-Ansicht: In der Als-Kunde-Ansicht sind keine Handlungen möglich.", code: "NUR_ANSICHT" });
+          return;
+        }
+        let gebunden = false;
+        if (tok.art === "leitung") {
+          const { verifyAgentToken, AGENT_COOKIE_NAME } = await import("../routes/fiaon-agent");
+          const eigen = verifyAgentToken((req as any).cookies?.[AGENT_COOKIE_NAME]);
+          gebunden = !!eigen && Number(eigen.id) === tok.ansehenderId;
+        } else {
+          const { hasAdminCode } = await import("../routes/fiaon-admin-zugang");
+          gebunden = hasAdminCode(req as any);
+        }
+        const inUrl2 = String(req.params?.ref || "");
+        if (gebunden && (!inUrl2 || inUrl2 === tok.ref)) {
+          req.kundeRef = tok.ref;
+          next();
+          return;
+        }
+      }
+    } catch { /* fällt auf die normale Absage zurück */ }
     res.status(401).json({ ok: false, error: "Bitte melden Sie sich an.", code: "KEINE_SITZUNG" });
     return;
   }

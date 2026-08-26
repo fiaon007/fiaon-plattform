@@ -60,9 +60,13 @@ export function kopfEinsetzen(html: string, kopf: {
   setz("twitter:title", "name", kopf.titel);
   setz("twitter:description", "name", kopf.beschreibung);
   if (kopf.og?.type) setz("og:type", "property", kopf.og.type);
+  // 25.08.2026: `robots` wird ERSETZT, nicht angehaengt. In client/index.html
+  // steht bereits `index, follow`. Zwei Angaben nebeneinander sind zwar nach
+  // Googles Regel „die strengste gewinnt" ungefaehrlich — andere Crawler
+  // halten sich daran aber nicht, und /login stand dann live auf „index".
+  setz("robots", "name", kopf.robots || "index,follow,max-image-preview:large");
   const extra = [
     `<link rel="canonical" href="${esc(kopf.url)}" />`,
-    `<meta name="robots" content="${esc(kopf.robots || "index,follow,max-image-preview:large")}" />`,
     ...(kopf.ld ?? []).map((l) => `<script type="application/ld+json">${JSON.stringify(l).replace(/</g, "\\u003c")}</script>`),
   ].join("\n    ");
   return out.replace("</head>", `    ${extra}\n  </head>`);

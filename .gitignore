@@ -34,3 +34,12 @@ vite.config.ts.*
 # Playwright-Browser: liegen IM Projekt (Render sieht Build und Laufzeit
 # nur dann in derselben Ablage), gehoeren aber nicht ins Repo.
 .playwright/
+
+# ── Vertrauliche Dokumente (26.08.2026) ─────────────────────────────────────
+# Dieses Repository ist OEFFENTLICH. Vertragsdokumente gehoeren in die
+# Datenbank (Tabelle scp_dokumente, Skript scripts/scp-vertrag-einspielen.ts),
+# niemals hierher — Git vergisst nichts, auch nach dem Loeschen bleibt der
+# Blob in der Historie.
+server/dokumente/
+**/Anteilskaufvertrag*.pdf
+**/SWP_*.pdf

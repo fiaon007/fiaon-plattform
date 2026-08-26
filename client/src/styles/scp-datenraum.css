@@ -523,3 +523,129 @@
   .scp-block { break-inside: avoid; }
   .scp-lauf span { animation: none; opacity: 1; transform: none; }
 }
+
+/* ── Quotentabelle (26.08.2026) ─────────────────────────────────────────── */
+.scp-tabhuelle { overflow-x: auto; margin-top: 8px; }
+.scp-tab {
+  width: 100%;
+  min-width: 620px;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+.scp-tab th {
+  text-align: left;
+  font-size: 9.5px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--gold);
+  font-weight: 600;
+  padding: 0 16px 10px 0;
+  border-bottom: 1px solid var(--gold-hell);
+  vertical-align: bottom;
+}
+.scp-tab td {
+  padding: 11px 16px 11px 0;
+  border-bottom: 1px solid rgba(232, 220, 192, .55);
+  font-variant-numeric: tabular-nums;
+  color: var(--tinte);
+}
+.scp-tab td:first-child {
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--tinte-ganzleise);
+  font-weight: 500;
+  font-variant-numeric: normal;
+  white-space: nowrap;
+}
+.scp-tab tr.stark td { font-weight: 500; }
+.scp-tab tr.stark td:first-child { color: var(--tinte-leise); }
+.scp-tab tr:last-child td { border-bottom: 0; }
+
+/* ── Der Vertrag zum Öffnen ─────────────────────────────────────────────── */
+.scp-akte-oeffnen {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 20px 22px;
+  border: 1px solid var(--gold-hell);
+  background: #fff;
+  text-decoration: none;
+  transition: background .22s ease, border-color .22s ease, transform .18s ease;
+}
+.scp-akte-oeffnen:hover { background: var(--papier-tief); transform: translateY(-1px); }
+.scp-akte-oeffnen:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+.scp-akte-oeffnen .scp-akte-nr {
+  flex: 0 0 auto;
+  font: 300 26px/1 var(--serif);
+  color: var(--gold-hell);
+}
+.scp-akte-oeffnen .scp-akte-text { display: block; flex: 1 1 auto; min-width: 0; }
+.scp-akte-oeffnen .scp-akte-titel { display: block; font-size: 16px; color: var(--tinte); font-weight: 500; margin-bottom: 4px; }
+.scp-akte-oeffnen .scp-akte-was { display: block; font-size: 13px; color: var(--tinte-leise); line-height: 1.55; }
+.scp-akte-oeffnen .scp-akte-stand {
+  flex: 0 0 auto;
+  font-size: 9.5px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--gold);
+  border: 1px solid var(--gold-blass);
+  padding: 7px 14px;
+}
+
+.scp-anlagen { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.scp-anlage {
+  font-size: 11.5px;
+  color: var(--tinte-leise);
+  border: 1px solid var(--gold-blass);
+  padding: 6px 12px;
+  background: #fff;
+}
+
+/* ── Der Beurkundungshinweis — der wichtigste Kasten der Seite ─────────── */
+.scp-form-hinweis {
+  margin-top: 34px;
+  padding: 24px 26px;
+  background: #fff;
+  border: 1px solid var(--gold-hell);
+  border-left-width: 3px;
+}
+.scp-form-kopf {
+  font-size: 10px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--gold);
+  font-weight: 600;
+  margin: 0 0 14px;
+}
+.scp-form-hinweis p { font-size: 13.5px; line-height: 1.76; color: var(--tinte); margin: 0 0 12px; }
+.scp-form-hinweis p:last-child { margin-bottom: 0; }
+
+/* ── Vier Unterschriften ────────────────────────────────────────────────── */
+.scp-unterschriften.vier { grid-template-columns: repeat(2, 1fr); gap: 34px 44px; }
+.scp-uf.ich { position: relative; }
+.scp-uf.ich::before {
+  content: "Ihre Partei";
+  position: absolute;
+  top: -20px;
+  left: 0;
+  font-size: 9px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--gold);
+  font-weight: 600;
+}
+.scp-zaehler {
+  margin: 26px 0 0;
+  font-size: 12.5px;
+  color: var(--tinte-leise);
+  font-variant-numeric: tabular-nums;
+  padding-top: 16px;
+  border-top: 1px solid var(--gold-blass);
+}
+
+@media (max-width: 700px) {
+  .scp-unterschriften.vier { grid-template-columns: 1fr; gap: 34px; }
+  .scp-akte-oeffnen { flex-wrap: wrap; gap: 14px; }
+  .scp-akte-oeffnen .scp-akte-stand { order: 3; }
+}

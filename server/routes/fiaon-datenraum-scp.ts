@@ -35,8 +35,68 @@ const router = Router();
 const COOKIE = "scp_datenraum";
 const TAGE = 7;
 
-/** Der Einladungscode. Sperre, kein Identitätsnachweis. */
-const EINLADUNG = "SCP2026";
+// ═══════════════════════════════════════════════════════════════════════════
+// VIER PARTEIEN, VIER CODES (26.08.2026)
+//
+// Der Vertrag hat vier Unterschriftsfelder: drei Erwerber und den Veräußerer.
+// Ein gemeinsamer Code für alle hieße: Wer eintritt, könnte für jeden
+// unterschreiben. Die Rolle muss deshalb AM CODE hängen, nicht an einer
+// Auswahl in der Oberfläche — sonst ist die Unterschrift wertlos.
+//
+// Die Angaben stammen aus dem Vertrag selbst (§ 2 und Unterschriftenseiten),
+// nicht aus einer Eingabe: Wer eintritt, findet seine Partei vor und kann sie
+// nicht ändern.
+// ═══════════════════════════════════════════════════════════════════════════
+export interface Partei {
+  rolle: string;
+  bezeichnung: string;
+  name: string;
+  sitz: string;
+  register: string | null;
+  vertretung: string | null;
+  quote: string | null;
+  gesamtanteil: string | null;
+}
+
+export const PARTEIEN: Record<string, Partei> = {
+  "SWP-E1-2026": {
+    rolle: "erwerber1", bezeichnung: "Erwerber zu 1",
+    name: "Schwarzott Capital Partners AG",
+    sitz: "Löwenstrasse 20, 8001 Zürich, Schweiz",
+    register: "UID CHE-102.119.428 · Handelsregisteramt des Kantons Zürich",
+    vertretung: "Justin Schwarzott, Verwaltungsrat, mit Einzelunterschrift",
+    quote: "41,50 %", gesamtanteil: "EUR 5.810.000,00",
+  },
+  "SWP-E2-2026": {
+    rolle: "erwerber2", bezeichnung: "Erwerber zu 2",
+    name: "FIAON Ltd.",
+    sitz: "128 City Road, London EC1V 2NX, United Kingdom",
+    register: "Companies House (England & Wales), Reg.-Nr. 17318250",
+    vertretung: null,
+    quote: "15,00 %", gesamtanteil: "EUR 2.100.000,00",
+  },
+  "SWP-E3-2026": {
+    rolle: "erwerber3", bezeichnung: "Erwerber zu 3",
+    name: "Dr. Gerhold",
+    sitz: "Woodland Hills, USA",
+    register: null, vertretung: null,
+    quote: "43,50 %", gesamtanteil: "EUR 6.090.000,00",
+  },
+  "SWP-V-2026": {
+    rolle: "veraeusserer", bezeichnung: "Veräußerer",
+    name: "Christian Schwab",
+    sitz: "Olbersweg 41, 22767 Hamburg, Deutschland",
+    register: "geboren am 26.06.1976 in Hamburg",
+    vertretung: "Alleingesellschafter und alleinvertretungsberechtigter Geschäftsführer der SWP Verwaltungs GmbH",
+    quote: "100 % der Geschäftsanteile (Nennbetrag EUR 25.000,00)", gesamtanteil: null,
+  },
+};
+
+export function parteiVonCode(code: string): { code: string; partei: Partei } | null {
+  const c = String(code ?? "").trim().toUpperCase();
+  const p = PARTEIEN[c];
+  return p ? { code: c, partei: p } : null;
+}
 
 function geheimnis(): string {
   return process.env.SESSION_SECRET || "fiaon-dev-agent-secret";
@@ -75,16 +135,22 @@ export async function ensureScpTabellen(): Promise<void> {
         firma        TEXT,
         email        TEXT NOT NULL,
         telefon      TEXT NOT NULL,
+        rolle        TEXT,
         erste_ip     TEXT,
         erste_ua     TEXT,
         created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         zuletzt_am   TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )`;
+    await tx.unsafe(`ALTER TABLE scp_gaeste ADD COLUMN IF NOT EXISTS rolle TEXT`);
     await tx`CREATE UNIQUE INDEX IF NOT EXISTS scp_gaeste_email ON scp_gaeste (lower(email))`;
+    // Je Partei genau EINE Unterschrift — unabhaengig davon, wer sich anmeldet.
+    await tx.unsafe(`CREATE UNIQUE INDEX IF NOT EXISTS scp_zeichnung_je_rolle
+             ON scp_zeichnungen (rolle, dokument) WHERE rolle IS NOT NULL`);
     await tx`
       CREATE TABLE IF NOT EXISTS scp_zeichnungen (
         id               BIGSERIAL PRIMARY KEY,
         gast_id          BIGINT NOT NULL REFERENCES scp_gaeste(id),
+        rolle            TEXT,
         dokument         TEXT NOT NULL,
         anmerkungen      TEXT,
         betrag_chf       NUMERIC(14,2),
@@ -96,6 +162,7 @@ export async function ensureScpTabellen(): Promise<void> {
         created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )`;
+    await tx.unsafe(`ALTER TABLE scp_zeichnungen ADD COLUMN IF NOT EXISTS rolle TEXT`);
     await tx`CREATE UNIQUE INDEX IF NOT EXISTS scp_zeichnung_je_gast
              ON scp_zeichnungen (gast_id, dokument)`;
     await tx`
@@ -109,6 +176,16 @@ export async function ensureScpTabellen(): Promise<void> {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )`;
     await tx`CREATE INDEX IF NOT EXISTS scp_protokoll_zeit ON scp_protokoll (ip, created_at DESC)`;
+    await tx`
+      CREATE TABLE IF NOT EXISTS scp_dokumente (
+        schluessel  TEXT PRIMARY KEY,
+        dateiname   TEXT,
+        datei       BYTEA,
+        seiten      INTEGER,
+        pruefsumme  TEXT,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )`;
   });
 }
 
@@ -136,11 +213,12 @@ router.post("/scp/anmelden", async (req: Request, res: Response) => {
     if (await zuVieleVersuche(req)) {
       return res.status(429).json({ ok: false, error: "Zu viele Versuche. Bitte in zehn Minuten erneut probieren." });
     }
-    const code = String(req.body?.code ?? "").trim().toUpperCase();
-    if (code !== EINLADUNG) {
+    const treffer = parteiVonCode(String(req.body?.code ?? ""));
+    if (!treffer) {
       await protokoll(null, "code_falsch", null, req);
-      return res.status(403).json({ ok: false, error: "Der Einladungscode stimmt nicht." });
+      return res.status(403).json({ ok: false, error: "Der Zugangscode stimmt nicht." });
     }
+    const { partei } = treffer;
 
     const name = String(req.body?.name ?? "").trim();
     const firma = String(req.body?.firma ?? "").trim() || null;
@@ -158,21 +236,25 @@ router.post("/scp/anmelden", async (req: Request, res: Response) => {
     }
 
     const [gast] = (await sqlPool`
-      INSERT INTO scp_gaeste (name, firma, email, telefon, erste_ip, erste_ua)
-      VALUES (${name}, ${firma}, ${email}, ${telefon}, ${ipVon(req)},
+      INSERT INTO scp_gaeste (name, firma, email, telefon, rolle, erste_ip, erste_ua)
+      VALUES (${name}, ${firma}, ${email}, ${telefon}, ${partei.rolle}, ${ipVon(req)},
               ${String(req.headers["user-agent"] || "").slice(0, 300)})
       ON CONFLICT (lower(email)) DO UPDATE
         SET name = EXCLUDED.name, firma = EXCLUDED.firma,
-            telefon = EXCLUDED.telefon, zuletzt_am = NOW()
-      RETURNING id, name, firma, email, telefon`) as any[];
+            telefon = EXCLUDED.telefon, rolle = EXCLUDED.rolle, zuletzt_am = NOW()
+      RETURNING id, name, firma, email, telefon, rolle`) as any[];
 
     res.cookie(COOKIE, tokenBauen(Number(gast.id)), {
       httpOnly: true, sameSite: "lax", path: "/",
       secure: process.env.NODE_ENV === "production",
       maxAge: TAGE * 24 * 3600_000,
     });
-    await protokoll(Number(gast.id), "angemeldet", email, req);
-    res.json({ ok: true, gast: { name: gast.name, firma: gast.firma, email: gast.email, telefon: gast.telefon } });
+    await protokoll(Number(gast.id), "angemeldet", `${partei.rolle} · ${email}`, req);
+    res.json({
+      ok: true,
+      gast: { name: gast.name, firma: gast.firma, email: gast.email, telefon: gast.telefon },
+      partei,
+    });
   } catch (err) {
     console.error("[SCP] anmelden:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
@@ -185,18 +267,27 @@ router.get("/scp/stand", async (req: Request, res: Response) => {
     await ensureScpTabellen();
     const gastId = tokenPruefen((req as any).cookies?.[COOKIE]);
     if (!gastId) return res.json({ ok: true, angemeldet: false });
-    const [gast] = (await sqlPool`SELECT id, name, firma, email, telefon FROM scp_gaeste WHERE id = ${gastId}`) as any[];
+    const [gast] = (await sqlPool`SELECT id, name, firma, email, telefon, rolle FROM scp_gaeste WHERE id = ${gastId}`) as any[];
     if (!gast) return res.json({ ok: true, angemeldet: false });
-    const zeichnungen = (await sqlPool`
-      SELECT dokument, anmerkungen, betrag_chf, unterschrift, unterzeichnet_am
-        FROM scp_zeichnungen WHERE gast_id = ${gastId}`) as any[];
+    const [meine] = (await sqlPool`
+      SELECT dokument, anmerkungen, unterschrift, unterzeichnet_am
+        FROM scp_zeichnungen WHERE gast_id = ${gastId} LIMIT 1`) as any[];
+    // Der Stand ALLER Parteien: Ein Vertrag mit vier Unterschriften ist erst
+    // dann vollstaendig, wenn alle vier da sind — jede Partei soll sehen,
+    // worauf noch gewartet wird.
+    const alle = (await sqlPool`
+      SELECT rolle, unterschrift, unterzeichnet_am FROM scp_zeichnungen
+       WHERE rolle IS NOT NULL AND unterzeichnet_am IS NOT NULL`) as any[];
+    const partei = gast.rolle ? Object.values(PARTEIEN).find((p) => p.rolle === gast.rolle) ?? null : null;
     res.json({
       ok: true, angemeldet: true,
       gast: { name: gast.name, firma: gast.firma, email: gast.email, telefon: gast.telefon },
-      zeichnungen: zeichnungen.map((z) => ({
-        dokument: z.dokument, anmerkungen: z.anmerkungen, betragChf: z.betrag_chf,
-        unterschrift: z.unterschrift, unterzeichnetAm: z.unterzeichnet_am,
-      })),
+      partei,
+      meine: meine ? {
+        anmerkungen: meine.anmerkungen, unterschrift: meine.unterschrift,
+        unterzeichnetAm: meine.unterzeichnet_am,
+      } : null,
+      stand: alle.map((z) => ({ rolle: z.rolle, unterschrift: z.unterschrift, unterzeichnetAm: z.unterzeichnet_am })),
     });
   } catch (err) {
     console.error("[SCP] stand:", err);
@@ -216,14 +307,13 @@ router.post("/scp/anmerkungen", async (req: Request, res: Response) => {
     if (da?.unterzeichnet_am) {
       return res.status(409).json({ ok: false, error: "Bereits unterzeichnet — der Inhalt ist festgeschrieben." });
     }
-    const betrag = req.body?.betragChf != null && String(req.body.betragChf).trim() !== ""
-      ? Number(String(req.body.betragChf).replace(/[^0-9.]/g, "")) : null;
+    const [g] = (await sqlPool`SELECT rolle FROM scp_gaeste WHERE id = ${gastId}`) as any[];
     await sqlPool`
-      INSERT INTO scp_zeichnungen (gast_id, dokument, anmerkungen, betrag_chf)
-      VALUES (${gastId}, ${dokument}, ${String(req.body?.anmerkungen ?? "").slice(0, 8000)},
-              ${Number.isFinite(betrag as number) ? betrag : null})
+      INSERT INTO scp_zeichnungen (gast_id, rolle, dokument, anmerkungen)
+      VALUES (${gastId}, ${g?.rolle ?? null}, ${dokument},
+              ${String(req.body?.anmerkungen ?? "").slice(0, 8000)})
       ON CONFLICT (gast_id, dokument) DO UPDATE
-        SET anmerkungen = EXCLUDED.anmerkungen, betrag_chf = EXCLUDED.betrag_chf, updated_at = NOW()`;
+        SET anmerkungen = EXCLUDED.anmerkungen, updated_at = NOW()`;
     res.json({ ok: true });
   } catch (err) {
     console.error("[SCP] anmerkungen:", err);
@@ -249,8 +339,25 @@ router.post("/scp/unterzeichnen", async (req: Request, res: Response) => {
     if (req.body?.gelesen !== true) {
       return res.status(400).json({ ok: false, error: "Bitte bestätigen, dass die Unterlagen gelesen wurden." });
     }
-    if (req.body?.risiko !== true) {
-      return res.status(400).json({ ok: false, error: "Bitte die Kenntnisnahme der Risikohinweise bestätigen." });
+    // § 12 des Vertrags: Beide Parteien muessen bestaetigen, dass ihnen das
+    // Beurkundungserfordernis nach § 15 Abs. 3 und 4 GmbHG bekannt ist. Ohne
+    // diese Bestaetigung waere die Unterschrift hier irrefuehrend.
+    if (req.body?.form !== true) {
+      return res.status(400).json({ ok: false, error: "Bitte bestätigen, dass Ihnen das Beurkundungserfordernis nach § 12 bekannt ist." });
+    }
+    const [gr] = (await sqlPool`SELECT rolle FROM scp_gaeste WHERE id = ${gastId}`) as any[];
+    const rolle = gr?.rolle ?? null;
+    if (!rolle) return res.status(403).json({ ok: false, error: "Ihrem Zugang ist keine Vertragspartei zugeordnet." });
+    // Je Partei genau EINE Unterschrift — auch wenn sich zwei Menschen mit
+    // demselben Code anmelden.
+    const [schon] = (await sqlPool`
+      SELECT unterschrift, unterzeichnet_am FROM scp_zeichnungen
+       WHERE rolle = ${rolle} AND dokument = ${dokument} AND unterzeichnet_am IS NOT NULL`) as any[];
+    if (schon) {
+      return res.status(409).json({
+        ok: false,
+        error: `Für diese Vertragspartei liegt bereits eine Unterschrift vor (${schon.unterschrift}).`,
+      });
     }
 
     const [da] = (await sqlPool`
@@ -260,33 +367,68 @@ router.post("/scp/unterzeichnen", async (req: Request, res: Response) => {
     }
 
     const anmerkungen = String(req.body?.anmerkungen ?? "").slice(0, 8000);
-    const betrag = req.body?.betragChf != null && String(req.body.betragChf).trim() !== ""
-      ? Number(String(req.body.betragChf).replace(/[^0-9.]/g, "")) : null;
-    // Die Pruefsumme friert ein, WORUEBER unterschrieben wurde.
+    // Die Pruefsumme friert ein, WORUEBER unterschrieben wurde: Vertragsfassung,
+    // Partei, Unterzeichner und Anmerkungen.
     const pruefsumme = createHash("sha256")
-      .update(JSON.stringify({ dokument, gast: gast.email, anmerkungen, betrag }))
+      .update(JSON.stringify({ dokument, rolle, gast: gast.email, name, anmerkungen }))
       .digest("hex");
 
     await sqlPool`
-      INSERT INTO scp_zeichnungen (gast_id, dokument, anmerkungen, betrag_chf,
+      INSERT INTO scp_zeichnungen (gast_id, rolle, dokument, anmerkungen,
                                    unterschrift, unterzeichnet_am, ip, ua, pruefsumme)
-      VALUES (${gastId}, ${dokument}, ${anmerkungen},
-              ${Number.isFinite(betrag as number) ? betrag : null},
+      VALUES (${gastId}, ${rolle}, ${dokument}, ${anmerkungen},
               ${name}, NOW(), ${ipVon(req)},
               ${String(req.headers["user-agent"] || "").slice(0, 300)}, ${pruefsumme})
       ON CONFLICT (gast_id, dokument) DO UPDATE
-        SET anmerkungen = EXCLUDED.anmerkungen, betrag_chf = EXCLUDED.betrag_chf,
+        SET rolle = EXCLUDED.rolle, anmerkungen = EXCLUDED.anmerkungen,
             unterschrift = EXCLUDED.unterschrift, unterzeichnet_am = NOW(),
             ip = EXCLUDED.ip, ua = EXCLUDED.ua, pruefsumme = EXCLUDED.pruefsumme,
             updated_at = NOW()
       WHERE scp_zeichnungen.unterzeichnet_am IS NULL`;
 
-    await protokoll(gastId, "unterzeichnet", dokument, req);
+    await protokoll(gastId, "unterzeichnet", `${rolle} · ${dokument}`, req);
     const [neu] = (await sqlPool`
       SELECT unterzeichnet_am FROM scp_zeichnungen WHERE gast_id = ${gastId} AND dokument = ${dokument}`) as any[];
     res.json({ ok: true, unterzeichnetAm: neu?.unterzeichnet_am ?? null, pruefsumme: pruefsumme.slice(0, 16) });
   } catch (err) {
     console.error("[SCP] unterzeichnen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ── Der Vertrag als PDF ────────────────────────────────────────────────────
+//
+// ── WARUM DIE DATENBANK UND NICHT DAS REPOSITORY (26.08.2026) ─────────────
+// Der erste Ansatz war eine Datei unter server/dokumente/. Beim Prüfen fiel
+// auf: github.com/fiaon007/fiaon-plattform ist ÖFFENTLICH. Ein Vertrag über
+// 14 Mio. EUR mit Geburtsdatum und Anschrift des Veräußerers wäre damit
+// weltweit abrufbar gewesen — und Git vergisst nichts, auch nach dem Löschen
+// bleibt der Blob in der Historie. Die Datei wurde entfernt, bevor sie in
+// einen Commit geriet.
+//
+// Die Datenbank ist ohnehin der eingeführte Weg: Kontoauszüge und Ausweise
+// liegen dort seit jeher als bytea. Ein zweiter Ablageort für Dokumente wäre
+// ein zweiter Ort, an dem etwas vergessen wird.
+//
+// Eingespielt wird der Vertrag mit scripts/scp-vertrag-einspielen.ts —
+// einmalig, von Justins Rechner, ohne Umweg über Git.
+router.get("/scp/vertrag.pdf", async (req: Request, res: Response) => {
+  try {
+    const gastId = tokenPruefen((req as any).cookies?.[COOKIE]);
+    if (!gastId) return res.status(401).json({ ok: false, error: "Bitte erneut anmelden." });
+    const [d] = (await sqlPool`
+      SELECT datei, dateiname FROM scp_dokumente WHERE schluessel = 'anteilskaufvertrag'`) as any[];
+    if (!d?.datei) {
+      return res.status(404).json({ ok: false, error: "Der Vertrag ist noch nicht hinterlegt." });
+    }
+    await protokoll(gastId, "vertrag_geoeffnet", null, req);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${d.dateiname || "Anteilskaufvertrag.pdf"}"`);
+    res.setHeader("Cache-Control", "private, no-store");
+    res.setHeader("X-Robots-Tag", "noindex, nofollow");
+    res.send(Buffer.from(d.datei));
+  } catch (err) {
+    console.error("[SCP] vertrag:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

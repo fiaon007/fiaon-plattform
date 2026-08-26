@@ -70,17 +70,30 @@ function Zeile({ was, wert }: { was: string; wert: React.ReactNode }) {
 }
 
 type Gast = { name: string; firma: string | null; email: string; telefon: string };
-type Zeichnung = {
-  dokument: string; anmerkungen: string | null; betragChf: string | null;
-  unterschrift: string | null; unterzeichnetAm: string | null;
+type Partei = {
+  rolle: string; bezeichnung: string; name: string; sitz: string;
+  register: string | null; vertretung: string | null;
+  quote: string | null; gesamtanteil: string | null;
 };
+type Meine = { anmerkungen: string | null; unterschrift: string | null; unterzeichnetAm: string | null };
+type Stand = { rolle: string; unterschrift: string | null; unterzeichnetAm: string };
 
-const DOKUMENT = "zeichnungsschein";
+const DOKUMENT = "anteilskaufvertrag";
+
+/** Die vier Parteien in der Reihenfolge der Unterschriftenseiten. */
+const REIHE: { rolle: string; bezeichnung: string; name: string; quote: string }[] = [
+  { rolle: "erwerber1", bezeichnung: "Erwerber zu 1", name: "Schwarzott Capital Partners AG", quote: "41,50 %" },
+  { rolle: "erwerber2", bezeichnung: "Erwerber zu 2", name: "FIAON Ltd.", quote: "15,00 %" },
+  { rolle: "erwerber3", bezeichnung: "Erwerber zu 3", name: "Dr. Gerhold", quote: "43,50 %" },
+  { rolle: "veraeusserer", bezeichnung: "Veräußerer", name: "Christian Schwab", quote: "100 % der Anteile" },
+];
 
 export default function ScpDatenraum(): JSX.Element {
   const [laedt, setLaedt] = useState(true);
   const [gast, setGast] = useState<Gast | null>(null);
-  const [zeichnung, setZeichnung] = useState<Zeichnung | null>(null);
+  const [partei, setPartei] = useState<Partei | null>(null);
+  const [meine, setMeine] = useState<Meine | null>(null);
+  const [stand, setStand] = useState<Stand[]>([]);
   const [fehler, setFehler] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -92,14 +105,13 @@ export default function ScpDatenraum(): JSX.Element {
   const [code, setCode] = useState("");
 
   // Zeichnung
-  const [betrag, setBetrag] = useState("");
   const [anmerkungen, setAnmerkungen] = useState("");
   const [unterschrift, setUnterschrift] = useState("");
   const [gelesen, setGelesen] = useState(false);
-  const [risiko, setRisiko] = useState(false);
+  const [form, setForm] = useState(false);
   const [gespeichert, setGespeichert] = useState<string | null>(null);
 
-  const fertig = !!zeichnung?.unterzeichnetAm;
+  const fertig = !!meine?.unterzeichnetAm;
 
   // ── DIE SCHRIFT NUR HIER LADEN ──────────────────────────────────────────
   // Cormorant Garamond trägt SCPs Erscheinungsbild. Im globalen index.html
@@ -121,12 +133,13 @@ export default function ScpDatenraum(): JSX.Element {
       setLaedt(false);
       if (!r.ok || !r.json?.angemeldet) return;
       setGast(r.json.gast);
-      const z = (r.json.zeichnungen || []).find((x: Zeichnung) => x.dokument === DOKUMENT) || null;
-      if (z) {
-        setZeichnung(z);
-        setBetrag(z.betragChf ? String(z.betragChf) : "");
-        setAnmerkungen(z.anmerkungen || "");
-        setUnterschrift(z.unterschrift || "");
+      setPartei(r.json.partei ?? null);
+      setStand(r.json.stand || []);
+      const m = r.json.meine as Meine | null;
+      if (m) {
+        setMeine(m);
+        setAnmerkungen(m.anmerkungen || "");
+        if (m.unterschrift) setUnterschrift(m.unterschrift);
       }
     });
   }, []);
@@ -138,6 +151,7 @@ export default function ScpDatenraum(): JSX.Element {
     setBusy(false);
     if (!r.ok) { setFehler(r.json?.error || "Der Zugang war nicht möglich."); return; }
     setGast(r.json.gast);
+    setPartei(r.json.partei ?? null);
     if (!unterschrift) setUnterschrift(r.json.gast.name);
   };
 
@@ -147,23 +161,22 @@ export default function ScpDatenraum(): JSX.Element {
     if (!gast || fertig) return;
     if (timer.current) window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => {
-      void ruf("/scp/anmerkungen", { dokument: DOKUMENT, anmerkungen, betragChf: betrag })
+      void ruf("/scp/anmerkungen", { dokument: DOKUMENT, anmerkungen })
         .then((r) => { if (r.ok) setGespeichert(new Date().toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" })); });
     }, 1200);
     return () => { if (timer.current) window.clearTimeout(timer.current); };
-  }, [anmerkungen, betrag, gast, fertig]);
+  }, [anmerkungen, gast, fertig]);
 
   const unterzeichnen = async () => {
     setBusy(true); setFehler(null);
     const r = await ruf("/scp/unterzeichnen", {
-      dokument: DOKUMENT, unterschrift, anmerkungen, betragChf: betrag, gelesen, risiko,
+      dokument: DOKUMENT, unterschrift, anmerkungen, gelesen, form,
     });
     setBusy(false);
-    if (!r.ok) { setFehler(r.json?.error || "Die Zeichnung war nicht möglich."); return; }
-    setZeichnung({
-      dokument: DOKUMENT, anmerkungen, betragChf: betrag || null,
-      unterschrift, unterzeichnetAm: r.json.unterzeichnetAm,
-    });
+    if (!r.ok) { setFehler(r.json?.error || "Die Unterzeichnung war nicht möglich."); return; }
+    setMeine({ anmerkungen, unterschrift, unterzeichnetAm: r.json.unterzeichnetAm });
+    setStand((alt) => [...alt.filter((x) => x.rolle !== partei?.rolle),
+      { rolle: partei?.rolle ?? "", unterschrift, unterzeichnetAm: r.json.unterzeichnetAm }]);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -248,21 +261,22 @@ export default function ScpDatenraum(): JSX.Element {
 
         <section className="scp-auftakt">
           <p className="scp-eyebrow">Vertraulicher Datenraum · Zeichnung</p>
-          <Wortlauf text="Beteiligung an der Schwarzott Capital Partners AG" als="h1" klasse="scp-h1 gross" />
+          <Wortlauf text="Anteilskaufvertrag SWP Verwaltungs GmbH" als="h1" klasse="scp-h1 gross" />
           <p className="scp-lead">
-            Auf den folgenden Seiten finden Sie die Angaben zur Gesellschaft, die Unterlagen zur
-            Zeichnung und das Feld für Ihre Erklärung. Nehmen Sie sich Zeit — der Zwischenstand
-            Ihrer Eingaben bleibt erhalten.
+            Erwerb sämtlicher Geschäftsanteile an der SWP Verwaltungs GmbH, Hamburg, durch drei
+            gemeinschaftlich handelnde Erwerber. Gesamtkaufpreis 14.000.000,00 EUR.
+            {partei && <> Sie sind hier als <b>{partei.bezeichnung}</b> — {partei.name}.</>}
           </p>
         </section>
 
         {fertig && (
           <section className="scp-fertig" role="status">
-            <p className="scp-fertig-kopf">Zeichnung erfasst</p>
+            <p className="scp-fertig-kopf">Unterschrift erfasst</p>
             <p>
-              Ihre Zeichnungserklärung ist am{" "}
-              <b>{new Date(zeichnung!.unterzeichnetAm!).toLocaleString("de-CH", { dateStyle: "long", timeStyle: "short" })}</b>{" "}
-              eingegangen. Die Gesellschaft meldet sich zur Gegenzeichnung bei Ihnen.
+              Ihre Unterschrift als <b>{partei?.bezeichnung}</b> ist am{" "}
+              <b>{new Date(meine!.unterzeichnetAm!).toLocaleString("de-DE", { dateStyle: "long", timeStyle: "short" })}</b>{" "}
+              eingegangen. Der Vertrag wird wirksam, sobald alle vier Parteien unterzeichnet haben
+              und die notarielle Beurkundung nach § 12 erfolgt ist.
             </p>
             <button type="button" className="scp-knopf schmal" onClick={() => window.print()}>
               Ausfertigung als PDF sichern
@@ -270,118 +284,151 @@ export default function ScpDatenraum(): JSX.Element {
           </section>
         )}
 
-        {/* ── Die Gesellschaft ─────────────────────────────────────────── */}
+        {/* ── Der Vertragsgegenstand ───────────────────────────────── */}
         <section className="scp-block">
           <p className="scp-nr">01</p>
-          <Wortlauf text="Die Gesellschaft" als="h2" klasse="scp-h2" />
+          <Wortlauf text="Vertragsgegenstand" als="h2" klasse="scp-h2" />
           <p className="scp-satz">
-            Angaben gemäss Handelsregister des Kantons Zürich, Stand der letzten Publikation
-            vom 23. Juni 2026.
+            Gegenstand ist der Erwerb sämtlicher Geschäftsanteile an der Gesellschaft auf
+            schuldenfreier Basis (Share Deal). Die Due Diligence ist nach § 5 abgeschlossen.
           </p>
           <div className="scp-spiegel">
-            <Zeile was="Firma" wert="Schwarzott Capital Partners AG" />
-            <Zeile was="Rechtsform" wert="Aktiengesellschaft" />
-            <Zeile was="Rechtssitz" wert="Zürich" />
-            <Zeile was="Domizil" wert="Schifflände 26, 8001 Zürich" />
-            <Zeile was="Handelsregister-Nr." wert={<span className="scp-mono">CH-130.0.006.118-6</span>} />
-            <Zeile was="UID / MWST" wert={<span className="scp-mono">CHE-102.119.428</span>} />
-            <Zeile was="Eintrag seit" wert="30. Juni 1992" />
-            <Zeile was="Aktienkapital" wert={<span className="scp-mono">CHF 100'000</span>} />
-            <Zeile was="Branche" wert="Betreiben von übrigen Finanzinstitutionen" />
-            <Zeile was="Verwaltungsrat" wert="Justin Schwarzott" />
-            <Zeile was="Zeichnungsberechtigt" wert="Milia Gioti · Justin Schwarzott" />
+            <Zeile was="Gesellschaft" wert="SWP Verwaltungs GmbH" />
+            <Zeile was="Sitz" wert="Olbersweg 41, 22767 Hamburg" />
+            <Zeile was="Handelsregister" wert={<span className="scp-mono">Amtsgericht Lübeck, HRB 23250 HL</span>} />
+            <Zeile was="Stammkapital" wert={<span className="scp-mono">EUR 25.000,00</span>} />
+            <Zeile was="Gesamtkaufpreis" wert={<span className="scp-mono"><b>EUR 14.000.000,00</b></span>} />
+            <Zeile was="davon Ablösebetrag" wert={<span className="scp-mono">EUR 8.000.000,00 (variabel)</span>} />
+            <Zeile was="davon Gewinnanteil" wert={<span className="scp-mono">EUR 6.000.000,00 (variabel)</span>} />
+            <Zeile was="Erwerbsform" wert="Anteilskauf (Share Deal), schuldenfreie Basis" />
           </div>
-
-          <p className="scp-satz" style={{ marginTop: 26 }}><b>Gesellschaftszweck</b></p>
-          <p className="scp-zweck">
-            Die Gesellschaft bezweckt die Investition und Beteiligung an Unternehmen,
-            Unternehmensberatung und Marketing sowie Immobilieninvestitionen im Ausland. Sie kann
-            alle Geschäfte tätigen, die direkt oder indirekt mit ihrem Zweck in Zusammenhang stehen,
-            Zweigniederlassungen und Tochtergesellschaften im In- und Ausland errichten und sich an
-            anderen Unternehmen beteiligen. Sie ist berechtigt, Grundeigentum im In- und Ausland zu
-            erwerben, zu belasten, zu veräussern und zu verwalten, Finanzierungen für eigene oder
-            fremde Rechnung vorzunehmen sowie Garantien und Bürgschaften für Tochtergesellschaften
-            und Dritte einzugehen.
-          </p>
         </section>
 
-        {/* ── Die Unterlagen ───────────────────────────────────────────── */}
+        {/* ── Die Parteien und Quoten ──────────────────────────────────── */}
         <section className="scp-block">
           <p className="scp-nr">02</p>
-          <Wortlauf text="Die Unterlagen" als="h2" klasse="scp-h2" />
+          <Wortlauf text="Parteien und Quoten" als="h2" klasse="scp-h2" />
           <p className="scp-satz">
-            Die nachstehenden Dokumente sind Bestandteil dieser Zeichnung. Bitte lesen Sie sie
-            vollständig, bevor Sie Ihre Erklärung abgeben.
+            Anlage 1 des Vertrags. Die Summe der Beteiligungsquoten ergibt 100,00 %.
           </p>
-
-          {/* Die Unterlagen werden von SCP eingestellt. Bis dahin steht hier
-              ausdrücklich, dass sie fehlen — ein leerer Bereich ohne Hinweis
-              liesse den Gast glauben, es gäbe nichts zu lesen. */}
-          <div className="scp-akten">
-            {[
-              { nr: "A", titel: "Zeichnungsschein", was: "Die eigentliche Erklärung mit Betrag, Kategorie und Bedingungen." },
-              { nr: "B", titel: "Beteiligungsvertrag", was: "Rechte und Pflichten der Beteiligten, Laufzeit, Übertragung." },
-              { nr: "C", titel: "Statuten der Gesellschaft", was: "Fassung in der bei Zeichnung geltenden Form." },
-              { nr: "D", titel: "Jahresrechnung", was: "Bilanz, Erfolgsrechnung und Anhang des letzten Geschäftsjahres." },
-              { nr: "E", titel: "Risikohinweise", was: "Die mit der Beteiligung verbundenen Risiken im Einzelnen." },
-            ].map((d) => (
-              <article className="scp-akte" key={d.nr}>
-                <span className="scp-akte-nr">{d.nr}</span>
-                <div className="scp-akte-text">
-                  <p className="scp-akte-titel">{d.titel}</p>
-                  <p className="scp-akte-was">{d.was}</p>
-                </div>
-                <span className="scp-akte-stand">wird bereitgestellt</span>
-              </article>
-            ))}
+          <div className="scp-tabhuelle">
+            <table className="scp-tab">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>Erwerber zu 1</th>
+                  <th>Erwerber zu 2</th>
+                  <th>Erwerber zu 3</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>Firma / Name</td><td>Schwarzott Capital Partners AG</td><td>FIAON Ltd.</td><td>Dr. Gerhold</td></tr>
+                <tr><td>Sitz</td><td>Zürich, Schweiz</td><td>London, UK</td><td>Woodland Hills, USA</td></tr>
+                <tr className="stark"><td>Beteiligungsquote</td><td>41,50 %</td><td>15,00 %</td><td>43,50 %</td></tr>
+                <tr><td>Nennbetrag</td><td>EUR 10.375,00</td><td>EUR 3.750,00</td><td>EUR 10.875,00</td></tr>
+                <tr><td>Anteil Gewinnanteil</td><td>EUR 2.490.000,00</td><td>EUR 900.000,00</td><td>EUR 2.610.000,00</td></tr>
+                <tr><td>Anteil Ablösebetrag</td><td>EUR 3.320.000,00</td><td>EUR 1.200.000,00</td><td>EUR 3.480.000,00</td></tr>
+                <tr className="stark"><td>Gesamtanteil Kaufpreis</td><td>EUR 5.810.000,00</td><td>EUR 2.100.000,00</td><td>EUR 6.090.000,00</td></tr>
+              </tbody>
+            </table>
           </div>
-          <p className="scp-hinweis">
-            Die Unterlagen werden von der Gesellschaft eingestellt. Solange sie hier nicht abrufbar
-            sind, geben Sie bitte keine Zeichnungserklärung ab.
+          <p className="scp-satz" style={{ marginTop: 18 }}>
+            <b>Veräußerer:</b> Christian Schwab, geboren am 26.06.1976 in Hamburg, Olbersweg 41,
+            22767 Hamburg — Alleingesellschafter und alleinvertretungsberechtigter Geschäftsführer,
+            100 % der Geschäftsanteile.
           </p>
         </section>
 
-        {/* ── Die Erklärung ────────────────────────────────────────────── */}
+        {/* ── Der Vertrag ──────────────────────────────────────────── */}
         <section className="scp-block">
           <p className="scp-nr">03</p>
-          <Wortlauf text="Ihre Zeichnungserklärung" als="h2" klasse="scp-h2" />
+          <Wortlauf text="Der Vertrag" als="h2" klasse="scp-h2" />
+          <p className="scp-satz">
+            Der vollständige Anteilskaufvertrag nebst Konsortialerklärung, 33 Seiten mit fünf
+            Anlagen. Bitte lesen Sie ihn vollständig, bevor Sie unterzeichnen.
+          </p>
+          <a className="scp-akte-oeffnen" href={`${API}/scp/vertrag.pdf`} target="_blank" rel="noopener noreferrer">
+            <span className="scp-akte-nr">§</span>
+            <span className="scp-akte-text">
+              <span className="scp-akte-titel">Anteilskaufvertrag SWP Verwaltungs GmbH</span>
+              <span className="scp-akte-was">33 Seiten · Kaufpreis EUR 14.000.000,00 · nebst Anlagen 1 bis 5</span>
+            </span>
+            <span className="scp-akte-stand">öffnen</span>
+          </a>
 
-          <div className="scp-spiegel eng">
-            <Zeile was="Zeichnende Person" wert={gast.name} />
-            {gast.firma && <Zeile was="Für die Gesellschaft" wert={gast.firma} />}
-            <Zeile was="E-Mail" wert={<span className="scp-mono">{gast.email}</span>} />
-            <Zeile was="Telefon" wert={<span className="scp-mono">{gast.telefon}</span>} />
+          <div className="scp-anlagen">
+            {[
+              ["1", "Beteiligungs- und Quotentabelle"],
+              ["2", "Objektverzeichnis"],
+              ["3", "Abzulösende Finanzierungen"],
+              ["4", "Bankverbindung und Aufstellung des Veräußerers"],
+              ["5", "Ablauf- und Fristenplan"],
+            ].map(([nr, titel]) => (
+              <span key={nr} className="scp-anlage">Anlage {nr} · {titel}</span>
+            ))}
           </div>
 
-          <label className="scp-label gross" htmlFor="scp-betrag">Zeichnungsbetrag in CHF</label>
-          {fertig ? (
-            <p className="scp-betrag-fest">{betrag ? `CHF ${betrag}` : "— nicht angegeben —"}</p>
-          ) : (
-            <input id="scp-betrag" className="scp-feld scp-feld-betrag" value={betrag} inputMode="decimal"
-                   onChange={(e) => setBetrag(e.target.value)} placeholder="z. B. 250000" />
+          {/* § 12 des Vertrags — das Wichtigste für jeden, der hier
+              unterschreibt. Es steht so im Vertrag selbst, auf Seite 1 und in
+              § 12 Abs. 4. Eine Unterschrift in einem Datenraum, die den
+              Eindruck erweckte, damit sei der Anteilskauf vollzogen, wäre
+              irreführend. */}
+          <div className="scp-form-hinweis">
+            <p className="scp-form-kopf">§ 12 — Notarielle Beurkundung</p>
+            <p>
+              Sowohl die Verpflichtung zur Übertragung von GmbH-Geschäftsanteilen als auch die
+              Abtretung selbst bedürfen nach <b>§ 15 Abs. 3 und 4 GmbHG der notariellen
+              Beurkundung</b>. Bis dahin kann der Vertrag nach § 125 Satz 1 BGB formunwirksam sein;
+              ein Formmangel wird erst durch die notarielle Abtretung nach § 15 Abs. 4 Satz 2 GmbHG
+              geheilt.
+            </p>
+            <p>
+              Ihre Unterschrift in diesem Datenraum dokumentiert Ihr Einverständnis mit dem
+              vorliegenden Text und Ihre Bereitschaft zur notariellen Wiederholung nach § 12 Abs. 2.
+              Sie ersetzt die Beurkundung <b>nicht</b>. Die Parteien haben vereinbart, dass die
+              §§ 6 bis 11 hiervon unberührt bleiben und als selbständige, formfrei wirksame
+              Vereinbarung über die Abwicklung gelten.
+            </p>
+          </div>
+        </section>
+
+        {/* ── Die Unterzeichnung ───────────────────────────────────── */}
+        <section className="scp-block">
+          <p className="scp-nr">04</p>
+          <Wortlauf text="Ihre Unterzeichnung" als="h2" klasse="scp-h2" />
+
+          {partei && (
+            <div className="scp-spiegel eng">
+              <Zeile was="Sie unterzeichnen als" wert={<b>{partei.bezeichnung}</b>} />
+              <Zeile was="Partei" wert={partei.name} />
+              <Zeile was="Sitz laut Vertrag" wert={partei.sitz} />
+              {partei.register && <Zeile was="Register" wert={<span className="scp-mono">{partei.register}</span>} />}
+              {partei.vertretung && <Zeile was="Vertreten durch" wert={partei.vertretung} />}
+              {partei.quote && <Zeile was="Beteiligungsquote" wert={<b>{partei.quote}</b>} />}
+              {partei.gesamtanteil && <Zeile was="Anteil am Kaufpreis" wert={<span className="scp-mono">{partei.gesamtanteil}</span>} />}
+            </div>
           )}
 
-          <label className="scp-label gross" htmlFor="scp-anm" style={{ marginTop: 30 }}>
-            Anmerkungen und Vorbehalte
-          </label>
+          <label className="scp-label gross" htmlFor="scp-anm">Anmerkungen und Vorbehalte</label>
           <p className="scp-satz" style={{ marginTop: -6 }}>
-            Was Sie hier festhalten, wird der Gesellschaft zusammen mit Ihrer Erklärung vorgelegt
-            und ist Bestandteil der Akte.
+            Was Sie hier festhalten, wird den übrigen Parteien zusammen mit Ihrer Unterschrift
+            vorgelegt und ist Bestandteil der Akte.
           </p>
           {fertig ? (
             <div className="scp-anm-fest">{anmerkungen.trim() || "— keine Anmerkungen —"}</div>
           ) : (
             <textarea id="scp-anm" className="scp-textfeld" rows={6} value={anmerkungen}
                       onChange={(e) => setAnmerkungen(e.target.value)}
-                      placeholder="Optional. Zum Beispiel Bedingungen, Rückfragen oder abweichende Vorstellungen." />
+                      placeholder="Optional. Zum Beispiel Bedingungen, Rückfragen oder abweichende Vorstellungen zu einzelnen Paragraphen." />
           )}
 
           {!fertig && (
             <div className="scp-zeichnen">
               <p className="scp-zeichnen-hinweis">
-                Sie geben nachfolgend eine <b>einfache elektronische Signatur</b> ab. Ob diese für den
-                vorliegenden Zeichnungsschein formgenügend ist, richtet sich nach den Unterlagen der
-                Gesellschaft. Erfasst werden Ihr Name, der Zeitpunkt und Ihre IP-Adresse.
+                Sie geben nachfolgend eine <b>einfache elektronische Signatur</b> ab. Sie
+                dokumentiert Ihr Einverständnis mit dem Vertragstext und ersetzt die notarielle
+                Beurkundung nach § 12 nicht. Erfasst werden Ihr Name, der Zeitpunkt und Ihre
+                IP-Adresse.
               </p>
 
               <label className="scp-label" htmlFor="scp-sig">Unterschrift — vollständiger Name</label>
@@ -390,54 +437,70 @@ export default function ScpDatenraum(): JSX.Element {
 
               <label className="scp-haken">
                 <input type="checkbox" checked={gelesen} onChange={(e) => setGelesen(e.target.checked)} />
-                <span>Ich habe die Unterlagen der Gesellschaft vollständig gelesen und verstanden.</span>
+                <span>
+                  Ich habe den Anteilskaufvertrag nebst Anlagen vollständig gelesen und verstanden
+                  und bestätige die Richtigkeit der zu meiner Partei gemachten Angaben nach § 2.
+                </span>
               </label>
               <label className="scp-haken">
-                <input type="checkbox" checked={risiko} onChange={(e) => setRisiko(e.target.checked)} />
+                <input type="checkbox" checked={form} onChange={(e) => setForm(e.target.checked)} />
                 <span>
-                  Ich habe die Risikohinweise zur Kenntnis genommen und bin mir bewusst, dass eine
-                  Beteiligung mit dem Risiko eines vollständigen Verlusts des eingesetzten Kapitals
-                  verbunden sein kann.
+                  Mir ist bekannt, dass die Übertragung der Geschäftsanteile nach § 15 Abs. 3 und 4
+                  GmbHG der notariellen Beurkundung bedarf, und ich verpflichte mich zur
+                  notariellen Wiederholung nach § 12 Abs. 2.
                 </span>
               </label>
 
               {fehler && <p className="scp-fehler" role="alert">{fehler}</p>}
 
               <button type="button" className="scp-knopf gross"
-                      disabled={busy || !gelesen || !risiko || unterschrift.trim().length < 4}
+                      disabled={busy || !gelesen || !form || unterschrift.trim().length < 4}
                       onClick={() => void unterzeichnen()}>
-                {busy ? "Wird erfasst …" : "Zeichnungserklärung abgeben"}
+                {busy ? "Wird erfasst …" : "Vertrag unterzeichnen"}
               </button>
               {gespeichert && <p className="scp-gesichert">Zwischenstand gesichert um {gespeichert} Uhr.</p>}
             </div>
           )}
+        </section>
 
-          {/* Die Unterschriftenfelder — für die Ausfertigung. */}
-          <div className="scp-unterschriften">
-            <div className="scp-uf">
-              <div className={`scp-strich${fertig ? " gezeichnet" : ""}`}>
-                {fertig && <span className="scp-hand">{unterschrift}</span>}
-              </div>
-              <p className="scp-uf-wer">{gast.name}</p>
-              <p className="scp-uf-rolle">
-                {fertig
-                  ? `Zeichnende Person · ${new Date(zeichnung!.unterzeichnetAm!).toLocaleDateString("de-CH", { day: "2-digit", month: "long", year: "numeric" })}`
-                  : "Zeichnende Person"}
-              </p>
-            </div>
-            <div className="scp-uf">
-              <div className="scp-strich" />
-              <p className="scp-uf-wer">Für die Gesellschaft</p>
-              <p className="scp-uf-rolle">Schwarzott Capital Partners AG · Gegenzeichnung</p>
-            </div>
+        {/* ── Der Stand aller Parteien ─────────────────────────────────── */}
+        <section className="scp-block">
+          <p className="scp-nr">05</p>
+          <Wortlauf text="Unterschriftenstand" als="h2" klasse="scp-h2" />
+          <p className="scp-satz">
+            Der Vertrag ist vollständig unterzeichnet, wenn alle vier Parteien gezeichnet haben.
+            Danach folgt die notarielle Beurkundung nach § 12.
+          </p>
+          <div className="scp-unterschriften vier">
+            {REIHE.map((r) => {
+              const z = stand.find((x) => x.rolle === r.rolle);
+              const ich = partei?.rolle === r.rolle;
+              return (
+                <div className={`scp-uf${ich ? " ich" : ""}`} key={r.rolle}>
+                  <div className={`scp-strich${z ? " gezeichnet" : ""}`}>
+                    {z && <span className="scp-hand">{z.unterschrift}</span>}
+                  </div>
+                  <p className="scp-uf-wer">{r.name}</p>
+                  <p className="scp-uf-rolle">
+                    {r.bezeichnung} · {r.quote}
+                    {z
+                      ? <><br />gezeichnet am {new Date(z.unterzeichnetAm).toLocaleDateString("de-DE", { day: "2-digit", month: "long", year: "numeric" })}</>
+                      : <><br />ausstehend</>}
+                  </p>
+                </div>
+              );
+            })}
           </div>
+          <p className="scp-zaehler">
+            {stand.length} von 4 Unterschriften liegen vor.
+          </p>
         </section>
 
         <footer className="scp-fuss">
           <div className="scp-linie" />
           <p>
-            Schwarzott Capital Partners AG · Schifflände 26, 8001 Zürich · CHE-102.119.428 ·
-            Handelsregister des Kantons Zürich
+            Anteilskaufvertrag SWP Verwaltungs GmbH · HRB 23250 HL (Amtsgericht Lübeck) ·
+            Kaufpreis EUR 14.000.000,00
           </p>
           <p className="scp-fuss-leise">
             Vertraulich. Dieser Datenraum und sein Inhalt sind ausschliesslich für die geladene

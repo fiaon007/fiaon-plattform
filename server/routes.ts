@@ -592,6 +592,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonLastschrift = await import('./routes/fiaon-lastschrift');
   app.use('/api/fiaon', fiaonLastschrift.default);
 
+  // 🏛 Datenraum der Schwarzott Capital Partners AG (26.08.2026).
+  // Bewusst eigene Tabellen und eigene Sitzung — getrennt von FIAONS eigenem
+  // Investorenbereich unter /datenraum.
+  const scpDatenraum = await import('./routes/fiaon-datenraum-scp');
+  app.use('/api/fiaon', scpDatenraum.default);
+  scpDatenraum.ensureScpTabellen().catch((e) => console.error('[SCP] Tabellen:', e));
+
   // 📜 Vereinbarungen — gesperrte Seite mit Code, Eingabe und Unterschrift (26.08.2026).
   const fiaonVereinbarung = await import('./routes/fiaon-vereinbarung');
   app.use('/api/fiaon', fiaonVereinbarung.default);

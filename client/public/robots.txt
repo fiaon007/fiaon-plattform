@@ -9,4 +9,5 @@ Disallow: /zahlung/
 Disallow: /termin/
 Disallow: /api/
 Disallow: /vereinbarung
+Disallow: /scp-datenraum
 Sitemap: https://www.fiaon.com/sitemap.xml

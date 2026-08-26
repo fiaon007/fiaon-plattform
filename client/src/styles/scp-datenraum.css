@@ -1,0 +1,525 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   DATENRAUM — Schwarzott Capital Partners AG (26.08.2026)
+
+   Weiss und Gold, wie von SCP vorgegeben.
+
+   Gold ist die schwierigste Farbe im Markenbau: Flächig eingesetzt wirkt sie
+   sofort billig — man kennt es von Urkundenvordrucken. Hier trägt sie
+   ausschliesslich LINIEN, KAPITÄLCHEN und ZIFFERN. Fläche bleibt Papier.
+   Ein einziges Element ist gefüllt: die Zierlinie am Eingang, und die ist
+   ein Verlauf, kein Block.
+
+   Zwei Goldtöne, nicht einer: ein tiefes, fast bronzenes für Text (#8A6D22 —
+   auf Weiss lesbar, was helles Gold nicht ist) und ein helles für Linien und
+   Schmuck (#C9A961). Ein einziger Ton müsste beides leisten und wäre für
+   eines von beidem falsch.
+
+   Die Schrift bewegt sich beim Erscheinen — WORT für Wort, nicht Buchstabe
+   für Buchstabe. Deutsche Komposita („Zeichnungserklärung") zerfallen bei
+   buchstabenweiser Animation optisch in Bruchstücke. Und sie bewegt sich
+   genau einmal: Eine Überschrift, die bei jedem Scrollen neu tanzt, ist kein
+   Stilmittel, sondern eine Störung.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.scp, .scp-eingang, .scp-warte {
+  --papier: #fdfcfa;
+  --papier-tief: #f6f3ed;
+  --tinte: #1a1814;
+  --tinte-leise: #6b6357;
+  --tinte-ganzleise: #a49a8b;
+  --gold: #8a6d22;          /* Text — auf Weiss lesbar */
+  --gold-hell: #c9a961;     /* Linien, Schmuck, Ziffern */
+  --gold-blass: #e8dcc0;    /* Trennlinien */
+  --rot: #9b2c2c;
+  --gruen: #2f6b4f;
+  --serif: "Cormorant Garamond", "Fraunces", Georgia, "Times New Roman", serif;
+  --sans: "Inter", system-ui, -apple-system, sans-serif;
+
+  font-family: var(--sans);
+  color: var(--tinte);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Die Wortanimation ─────────────────────────────────────────────────── */
+.scp-lauf span {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(14px);
+  animation: scpWort .8s cubic-bezier(.22, .68, 0, 1) forwards;
+}
+@keyframes scpWort {
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scp-lauf span { animation: none; opacity: 1; transform: none; }
+}
+
+/* ── Marke ─────────────────────────────────────────────────────────────── */
+.scp-marke {
+  font: 400 15px/1.35 var(--sans);
+  letter-spacing: .32em;
+  color: var(--tinte);
+  margin: 0;
+  text-transform: uppercase;
+}
+.scp-marke span {
+  display: block;
+  font-size: 9.5px;
+  letter-spacing: .28em;
+  color: var(--gold);
+  margin-top: 5px;
+  font-weight: 500;
+}
+.scp-marke.klein { font-size: 12.5px; letter-spacing: .28em; }
+.scp-marke.klein span { font-size: 8.5px; margin-top: 3px; }
+.scp-marke-klein {
+  font: 400 12px/1 var(--sans);
+  letter-spacing: .3em;
+  color: var(--gold);
+}
+
+.scp-linie {
+  height: 1px;
+  background: linear-gradient(90deg, var(--gold-hell), var(--gold-blass) 55%, transparent);
+  margin: 22px 0;
+}
+
+/* ── Ladezustand ───────────────────────────────────────────────────────── */
+.scp-warte {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--papier);
+}
+
+/* ══ DER EINGANG ═══════════════════════════════════════════════════════════ */
+.scp-eingang {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 34px 22px;
+  background: var(--papier);
+  position: relative;
+  overflow: hidden;
+}
+/* Der einzige gefüllte Goldbereich der ganzen Seite — und er ist ein Hauch. */
+.scp-eingang-schmuck {
+  position: absolute;
+  inset: -30% -10% auto -10%;
+  height: 70%;
+  background:
+    radial-gradient(60% 70% at 70% 30%, rgba(201, 169, 97, .16), transparent 68%),
+    radial-gradient(50% 60% at 20% 10%, rgba(232, 220, 192, .3), transparent 70%);
+  pointer-events: none;
+}
+.scp-eingang-karte {
+  position: relative;
+  width: 100%;
+  max-width: 520px;
+  background: #fff;
+  border: 1px solid var(--gold-blass);
+  padding: 44px 46px 34px;
+  box-shadow: 0 40px 90px rgba(26, 24, 20, .07), 0 2px 5px rgba(26, 24, 20, .04);
+}
+.scp-h1 {
+  font: 300 clamp(34px, 6vw, 50px)/1.08 var(--serif);
+  color: var(--tinte);
+  margin: 0 0 18px;
+  letter-spacing: -.008em;
+}
+.scp-h1.gross { font-size: clamp(36px, 5.6vw, 58px); margin-bottom: 22px; }
+.scp-eingang-satz {
+  font-size: 14px;
+  line-height: 1.72;
+  color: var(--tinte-leise);
+  margin: 0 0 30px;
+}
+
+/* ── Formular ──────────────────────────────────────────────────────────── */
+.scp-form { display: block; }
+.scp-label {
+  display: block;
+  font-size: 9.5px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--gold);
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+.scp-label em { font-style: normal; color: var(--tinte-ganzleise); font-weight: 400; letter-spacing: .08em; }
+.scp-label.gross { font-size: 10.5px; margin-top: 34px; }
+.scp-feld {
+  width: 100%;
+  height: 48px;
+  border: 0;
+  border-bottom: 1px solid var(--gold-blass);
+  background: transparent;
+  padding: 0 2px;
+  font: 400 16px/1 var(--sans);
+  color: var(--tinte);
+  margin-bottom: 24px;
+  transition: border-color .22s ease;
+}
+.scp-feld::placeholder { color: var(--tinte-ganzleise); }
+.scp-feld:focus {
+  outline: none;
+  border-bottom-color: var(--gold-hell);
+  border-bottom-width: 2px;
+  margin-bottom: 23px;
+}
+.scp-feld-code { letter-spacing: .34em; font-variant-numeric: tabular-nums; }
+.scp-feld-betrag {
+  font: 300 30px/1 var(--serif);
+  height: 56px;
+  font-variant-numeric: tabular-nums;
+  color: var(--tinte);
+}
+.scp-paar { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+.scp-textfeld {
+  width: 100%;
+  border: 1px solid var(--gold-blass);
+  background: #fff;
+  padding: 15px 17px;
+  font: 400 15px/1.72 var(--sans);
+  color: var(--tinte);
+  resize: vertical;
+  transition: border-color .22s ease;
+}
+.scp-textfeld::placeholder { color: var(--tinte-ganzleise); }
+.scp-textfeld:focus { outline: none; border-color: var(--gold-hell); }
+
+.scp-knopf {
+  width: 100%;
+  height: 50px;
+  border: 1px solid var(--gold);
+  background: var(--tinte);
+  color: #fff;
+  cursor: pointer;
+  font: 500 12.5px/1 var(--sans);
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  margin-top: 8px;
+  transition: background .22s ease, color .22s ease, transform .18s ease;
+}
+.scp-knopf:hover:not(:disabled) { background: var(--gold); border-color: var(--gold); transform: translateY(-1px); }
+.scp-knopf:disabled { opacity: .35; cursor: not-allowed; }
+.scp-knopf:focus-visible { outline: 2px solid var(--gold-hell); outline-offset: 3px; }
+.scp-knopf.gross { height: 56px; font-size: 13px; margin-top: 26px; }
+.scp-knopf.schmal { width: auto; padding: 0 26px; height: 44px; margin-top: 14px; }
+
+.scp-fehler {
+  font-size: 13px;
+  color: var(--rot);
+  border-left: 2px solid var(--rot);
+  padding-left: 13px;
+  margin: 0 0 18px;
+}
+.scp-eingang-fuss {
+  font-size: 10.5px;
+  line-height: 1.75;
+  color: var(--tinte-ganzleise);
+  margin: 30px 0 0;
+  padding-top: 20px;
+  border-top: 1px solid var(--gold-blass);
+}
+
+/* ══ DER DATENRAUM ═════════════════════════════════════════════════════════ */
+.scp { background: var(--papier); min-height: 100vh; }
+
+.scp-kopf {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: rgba(253, 252, 250, .92);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--gold-blass);
+}
+.scp-kopf-innen {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 18px 26px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+.scp-kopf-gast {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  font-size: 12.5px;
+  color: var(--tinte-leise);
+}
+.scp-abmelden {
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font: 500 9.5px/1 var(--sans);
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--gold);
+  padding: 6px 2px;
+  border-bottom: 1px solid transparent;
+  transition: border-color .2s ease;
+}
+.scp-abmelden:hover { border-bottom-color: var(--gold-hell); }
+
+.scp-bogen { max-width: 880px; margin: 0 auto; padding: 0 26px 90px; }
+
+.scp-auftakt { padding: 74px 0 10px; }
+.scp-eyebrow {
+  font-size: 9.5px;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: var(--gold);
+  font-weight: 600;
+  margin: 0 0 20px;
+}
+.scp-lead {
+  font-size: 16px;
+  line-height: 1.78;
+  color: var(--tinte-leise);
+  max-width: 62ch;
+  margin: 0;
+}
+
+/* Blöcke */
+.scp-block {
+  margin-top: 70px;
+  padding-top: 34px;
+  border-top: 1px solid var(--gold-blass);
+  position: relative;
+}
+.scp-nr {
+  font: 300 13px/1 var(--serif);
+  color: var(--gold-hell);
+  letter-spacing: .1em;
+  margin: 0 0 14px;
+  font-variant-numeric: tabular-nums;
+}
+.scp-h2 {
+  font: 300 clamp(25px, 3.6vw, 34px)/1.18 var(--serif);
+  color: var(--tinte);
+  margin: 0 0 16px;
+  letter-spacing: -.006em;
+}
+.scp-satz {
+  font-size: 14.5px;
+  line-height: 1.75;
+  color: var(--tinte-leise);
+  max-width: 64ch;
+  margin: 0 0 24px;
+}
+.scp-zweck {
+  font-size: 14px;
+  line-height: 1.82;
+  color: var(--tinte-leise);
+  max-width: 66ch;
+  margin: 8px 0 0;
+  padding-left: 18px;
+  border-left: 1px solid var(--gold-blass);
+}
+
+/* Firmenspiegel */
+.scp-spiegel { border-top: 1px solid var(--gold-blass); }
+.scp-spiegel.eng { margin-bottom: 12px; }
+.scp-zeile {
+  display: flex;
+  gap: 24px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(232, 220, 192, .55);
+  font-size: 14px;
+  align-items: baseline;
+}
+.scp-zeile-was {
+  flex: 0 0 210px;
+  font-size: 11px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--tinte-ganzleise);
+  font-weight: 500;
+}
+.scp-zeile-wert { color: var(--tinte); }
+.scp-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  letter-spacing: .02em;
+}
+
+/* Unterlagen */
+.scp-akten { border-top: 1px solid var(--gold-blass); }
+.scp-akte {
+  display: flex;
+  align-items: baseline;
+  gap: 20px;
+  padding: 18px 0;
+  border-bottom: 1px solid rgba(232, 220, 192, .55);
+}
+.scp-akte-nr {
+  flex: 0 0 26px;
+  font: 300 19px/1 var(--serif);
+  color: var(--gold-hell);
+}
+.scp-akte-text { flex: 1 1 auto; min-width: 0; }
+.scp-akte-titel { font-size: 15.5px; color: var(--tinte); margin: 0 0 4px; font-weight: 500; }
+.scp-akte-was { font-size: 13px; line-height: 1.6; color: var(--tinte-leise); margin: 0; }
+.scp-akte-stand {
+  flex: 0 0 auto;
+  font-size: 9.5px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--gold);
+  border: 1px solid var(--gold-blass);
+  padding: 5px 11px;
+  white-space: nowrap;
+}
+.scp-hinweis {
+  margin: 22px 0 0;
+  padding: 15px 18px;
+  background: var(--papier-tief);
+  border-left: 2px solid var(--gold-hell);
+  font-size: 13.5px;
+  line-height: 1.68;
+  color: var(--tinte-leise);
+}
+
+/* Erklärung */
+.scp-betrag-fest {
+  font: 300 32px/1.2 var(--serif);
+  color: var(--tinte);
+  font-variant-numeric: tabular-nums;
+  margin: 0 0 8px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--gold-blass);
+}
+.scp-anm-fest {
+  border-left: 1px solid var(--gold-blass);
+  padding: 4px 0 4px 18px;
+  font-size: 14.5px;
+  line-height: 1.78;
+  color: var(--tinte-leise);
+  white-space: pre-wrap;
+}
+
+.scp-zeichnen {
+  margin-top: 42px;
+  padding: 30px 32px 28px;
+  background: #fff;
+  border: 1px solid var(--gold-blass);
+}
+.scp-zeichnen-hinweis {
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--tinte-leise);
+  margin: 0 0 26px;
+  padding-bottom: 22px;
+  border-bottom: 1px solid var(--gold-blass);
+}
+.scp-sig {
+  width: 100%;
+  max-width: 420px;
+  height: 58px;
+  border: 0;
+  border-bottom: 1px solid var(--gold-hell);
+  background: transparent;
+  padding: 0 2px;
+  font: 400 26px/1 var(--serif);
+  color: var(--tinte);
+  margin-bottom: 26px;
+}
+.scp-sig::placeholder { font: 400 15px/1 var(--sans); color: var(--tinte-ganzleise); }
+.scp-sig:focus { outline: none; border-bottom-width: 2px; }
+
+.scp-haken {
+  display: flex;
+  gap: 13px;
+  align-items: flex-start;
+  margin: 0 0 15px;
+  font-size: 13.5px;
+  line-height: 1.66;
+  color: var(--tinte-leise);
+  cursor: pointer;
+}
+.scp-haken input {
+  flex: 0 0 auto;
+  margin-top: 3px;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--gold);
+}
+.scp-gesichert { font-size: 11.5px; color: var(--tinte-ganzleise); margin: 14px 0 0; }
+
+/* Bestätigung */
+.scp-fertig {
+  margin-top: 42px;
+  padding: 26px 30px;
+  background: #fff;
+  border: 1px solid var(--gold-hell);
+  border-left-width: 3px;
+}
+.scp-fertig-kopf {
+  font-size: 10px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--gruen);
+  font-weight: 600;
+  margin: 0 0 12px;
+}
+.scp-fertig p { font-size: 14.5px; line-height: 1.72; color: var(--tinte); margin: 0; }
+
+/* Unterschriften */
+.scp-unterschriften {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
+  margin-top: 58px;
+  padding-top: 34px;
+  border-top: 1px solid var(--gold-blass);
+}
+.scp-strich {
+  border-bottom: 1px solid var(--tinte);
+  height: 52px;
+  display: flex;
+  align-items: flex-end;
+  padding-bottom: 6px;
+  margin-bottom: 10px;
+}
+.scp-strich.gezeichnet { border-bottom-color: var(--gold); }
+.scp-hand {
+  font: 400 25px/1 var(--serif);
+  color: var(--tinte);
+  transform: rotate(-1.4deg);
+  transform-origin: left bottom;
+}
+.scp-uf-wer { font-size: 13px; color: var(--tinte); font-weight: 500; margin: 0; }
+.scp-uf-rolle { font-size: 11.5px; color: var(--tinte-ganzleise); margin: 3px 0 0; line-height: 1.5; }
+
+.scp-fuss { margin-top: 76px; }
+.scp-fuss p { font-size: 11px; line-height: 1.75; color: var(--tinte-ganzleise); margin: 0 0 6px; }
+.scp-fuss-leise { color: var(--tinte-ganzleise); opacity: .8; }
+
+@media (max-width: 700px) {
+  .scp-eingang-karte { padding: 32px 24px 26px; }
+  .scp-paar { grid-template-columns: 1fr; gap: 0; }
+  .scp-bogen { padding: 0 20px 60px; }
+  .scp-auftakt { padding-top: 46px; }
+  .scp-zeile { flex-direction: column; gap: 4px; }
+  .scp-zeile-was { flex: none; }
+  .scp-akte { flex-wrap: wrap; gap: 12px; }
+  .scp-akte-stand { order: 3; }
+  .scp-unterschriften { grid-template-columns: 1fr; gap: 34px; }
+  .scp-zeichnen { padding: 22px 20px; }
+}
+
+@media print {
+  .scp { background: #fff; }
+  .scp-kopf, .scp-zeichnen, .scp-abmelden { display: none; }
+  .scp-bogen { max-width: none; padding: 0; }
+  .scp-block { break-inside: avoid; }
+  .scp-lauf span { animation: none; opacity: 1; transform: none; }
+}

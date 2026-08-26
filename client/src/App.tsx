@@ -74,6 +74,8 @@ const AbmeldenPage = lazy(() => import("@/pages/abmelden"));
 const AlsKundePage = lazy(() => import("@/pages/als-kunde"));
 // Gesperrte Vertragsseite (26.08.2026) — Code, Eingabe im Text, Unterschrift.
 const VereinbarungPage = lazy(() => import("@/pages/vereinbarung"));
+// Datenraum der Schwarzott Capital Partners AG — eigenes CI, eigene Sitzung.
+const ScpDatenraum = lazy(() => import("@/pages/scp-datenraum"));
 // ══════════════════════════════════════════════════════════════════════════
 // `pages/agent/heute.tsx` UND `pages/agent/meine-kunden.tsx` SIND WEG (19.08.2026)
 //
@@ -502,6 +504,7 @@ function Router() {
       {/* Die Schleuse in die Kundensicht (Verwaltung/Leitung, Nur-Ansicht). */}
       <Route path="/als-kunde" component={AlsKundePage} />
       <Route path="/vereinbarung" component={VereinbarungPage} />
+      <Route path="/scp-datenraum" component={ScpDatenraum} />
       {/* Abmeldung von der Lead-Strecke — kein Login, ein Klick. */}
       <Route path="/abmelden/:schluessel" component={AbmeldenPage} />
       <Route path="/termin/absagen/:stornoToken" component={TerminAbsagenPage} />

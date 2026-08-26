@@ -208,6 +208,8 @@ export const SEITEN: Record<string, SeitenKopf> = {
   "/mein-bereich": { titel: "Mein Bereich — FIAON", beschreibung: "Ihr persönlicher Bereich bei FIAON.", robots: "noindex,follow" },
   // Vertraulich: Ein Vertrag gehoert nie in einen Suchindex.
   "/vereinbarung": { titel: "Vertrauliches Dokument — FIAON", beschreibung: "Diese Seite ist geschützt.", robots: "noindex,nofollow" },
+  // Fremder Datenraum: gehoert weder in unseren Index noch in unsere Sitemap.
+  "/scp-datenraum": { titel: "Datenraum", beschreibung: "Vertraulicher Zugang.", robots: "noindex,nofollow" },
 };
 
 /** Die Seiten, die in die Sitemap gehören — alles, was nicht auf noindex steht. */

@@ -143,9 +143,6 @@ export async function ensureScpTabellen(): Promise<void> {
       )`;
     await tx.unsafe(`ALTER TABLE scp_gaeste ADD COLUMN IF NOT EXISTS rolle TEXT`);
     await tx`CREATE UNIQUE INDEX IF NOT EXISTS scp_gaeste_email ON scp_gaeste (lower(email))`;
-    // Je Partei genau EINE Unterschrift — unabhaengig davon, wer sich anmeldet.
-    await tx.unsafe(`CREATE UNIQUE INDEX IF NOT EXISTS scp_zeichnung_je_rolle
-             ON scp_zeichnungen (rolle, dokument) WHERE rolle IS NOT NULL`);
     await tx`
       CREATE TABLE IF NOT EXISTS scp_zeichnungen (
         id               BIGSERIAL PRIMARY KEY,
@@ -163,6 +160,11 @@ export async function ensureScpTabellen(): Promise<void> {
         updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )`;
     await tx.unsafe(`ALTER TABLE scp_zeichnungen ADD COLUMN IF NOT EXISTS rolle TEXT`);
+    // Je Partei genau EINE Unterschrift — unabhaengig davon, wer sich anmeldet.
+    // MUSS nach der Spalte stehen: Ein Index auf ein Feld, das es noch nicht
+    // gibt, laesst die ganze Einrichtung scheitern.
+    await tx.unsafe(`CREATE UNIQUE INDEX IF NOT EXISTS scp_zeichnung_je_rolle
+             ON scp_zeichnungen (rolle, dokument) WHERE rolle IS NOT NULL`);
     await tx`CREATE UNIQUE INDEX IF NOT EXISTS scp_zeichnung_je_gast
              ON scp_zeichnungen (gast_id, dokument)`;
     await tx`

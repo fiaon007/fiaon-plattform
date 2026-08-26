@@ -136,6 +136,38 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
       || termine.find((t) => t.quelle === "onboarding_call" && t.status === "gebucht")
       || termine.find((t) => t.status === "gebucht" && new Date(t.beginn) > new Date()) || null;
 
+    // ══════════════════════════════════════════════════════════════════════
+    // HAT DAS GESPRÄCH STATTGEFUNDEN? (26.08.2026, Florentines Punkt 1)
+    //
+    // „Sobald der Kunde sich danach erneut auf der Plattform anmeldet, wird
+    // ihm jedoch wieder angezeigt, dass er zunächst einen Termin beim
+    // Onboarding buchen muss."
+    //
+    // BEFUND: Die Sperre hing allein an `start` — also an einem TERMIN. Die
+    // Liste oben holt aber nur die letzten fünf, und ein Gespräch, das
+    // stattgefunden hat, kann als „verpasst" oder „abgesagt" verbucht sein
+    // (66 bzw. 18 Fälle): Der Kunde ging nicht ans erste Klingeln, man hat
+    // ihn zurückgerufen, das Gespräch lief — der Termin blieb „verpasst".
+    // GEMESSEN: 382 zahlende Kunden bekamen die Aufforderung erneut.
+    //
+    // NACHHER entscheidet nicht der Termin, sondern die TATSACHE: Gab es je
+    // ein Onboarding-Gespräch? Eine eigene Abfrage ohne Fenstergrenze, und
+    // sie zählt auch ein dokumentiertes Gespräch im Verlauf. Ein Mensch, mit
+    // dem gesprochen wurde, wird nicht ein zweites Mal zur Buchung geschickt.
+    // ══════════════════════════════════════════════════════════════════════
+    const [ob] = a.person_id ? ((await sqlPool`
+      SELECT
+        EXISTS (SELECT 1 FROM fiaon_termine t
+                 WHERE t.person_id = ${a.person_id}
+                   AND t.quelle = 'onboarding_call' AND t.status = 'erledigt') AS termin_erledigt,
+        EXISTS (SELECT 1 FROM fiaon_contact_log cl
+                 WHERE cl.person_id = ${a.person_id}
+                   AND cl.type IN ('onboarding', 'startgespraech')) AS gespraech_im_verlauf,
+        EXISTS (SELECT 1 FROM fiaon_onboarding_schritte os
+                 WHERE os.person_id = ${a.person_id}) AS schritte_da
+    `) as any[]) : [null];
+    const onboardingGelaufen = !!(ob?.termin_erledigt || ob?.gespraech_im_verlauf || ob?.schritte_da);
+
     // Die Bonitätsauskunft ist eine EIGENE Bestellung (type='schufa') mit eigenem
     // Verwendungszweck — der Kunde soll sie VOR dem Startgespräch bezahlen können.
     const [schufa] = a.person_id ? ((await sqlPool`
@@ -251,6 +283,8 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
         raten: raten.map((r) => ({ nr: r.rate_nr, betragCents: r.betrag_cents, faelligAm: tag(r.faellig_am), faelligIso: r.faellig_am ? new Date(r.faellig_am).toISOString().slice(0, 10) : null, status: r.status, bezahltAm: tag(r.bezahlt_am), referenz: r.zahlungsreferenz })),
       },
       termin: start ? { beginn: start.beginn, status: start.status, agent: start.agent || null } : null,
+      // Der Kundenbereich sperrt anhand dieser Tatsache, nicht anhand des Termins.
+      onboardingGelaufen,
       fahrplan: etappen,
       naechsterSchritt: jetzt ? { key: jetzt.key, titel: jetzt.titel, text: jetzt.text, href: jetzt.href || null } : null,
       ansprechpartner: a.betreuer_name ? { name: a.betreuer_name, rolle: a.betreuer_rolle || null } : null,

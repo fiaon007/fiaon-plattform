@@ -32,6 +32,8 @@ interface Bereich {
   unterlagen: { kontoauszug: boolean; ausweis: boolean; auskunft: boolean; erneutKontoauszug: boolean; erneutAusweis: boolean; kycStatus: string; kontoStatus: string };
   abo: { verlaengerung?: { gefragt: boolean; entschieden: boolean; verlaengert: boolean; beendet: boolean; bezahlteRaten: number }; naechste: { nr: number; betragCents: number; faelligAm: string | null; status: string; referenz: string } | null; offen: number; bezahlt: number; raten: { nr: number; betragCents: number; faelligAm: string | null; faelligIso: string | null; status: string; bezahltAm: string | null }[] };
   termin: { beginn: string; status: string; agent: string | null } | null;
+  /** Hat das Startgespraech je stattgefunden? Entscheidet die Sperre. */
+  onboardingGelaufen?: boolean;
   fahrplan: Etappe[];
   naechsterSchritt: { key: string; titel: string; text: string; href: string | null } | null;
   ansprechpartner: { name: string; rolle: string | null } | null;
@@ -175,6 +177,12 @@ export default function MeinBereichPage() {
     else alert(r.json?.error || "Die Lastschrift konnte nicht gestartet werden.");
   };
   const lastschriftRueckmeldung = new URLSearchParams(window.location.search).get("lastschrift");
+  // Läuft gerade eine Als-Kunde-Ansicht? Dann ist der Betrachter Betreiber,
+  // nicht Kunde — die Einrichtungs-Sperren gelten für ihn nicht.
+  const istAnsicht = (() => {
+    try { return !!sessionStorage.getItem("fiaon_kundenansicht"); } catch { return false; }
+  })();
+
   const abmelden = async () => { if (DEMO) { window.location.href = "/demo"; return; } await api("/kunde/logout", { method: "POST" }).catch(() => null); sessionStorage.removeItem("fiaon_user"); window.location.href = "/login"; };
 
   if (fehler) return <div className="mb"><div className="mb-laden"><div className="mb-hinweis" style={{ maxWidth: 420 }}><b>Das hat nicht geklappt.</b><br />{fehler}</div></div></div>;
@@ -217,7 +225,26 @@ export default function MeinBereichPage() {
       {vorhang && <Begruessung name={name} paket={d.paket.name} rahmen={d.paket.rahmen} zeile={begruessungsZeile}
         onZu={() => { sessionStorage.setItem("mb_begruesst", "1"); setVorhang(false); }} />}
 
-      {d.stufe.bezahlt && !d.termin && !d.stufe.vollAktiv && !vorhang && (
+      {/* ══════════════════════════════════════════════════════════════════
+          DIE SPERRE FÄLLT, WENN DAS GESPRÄCH GELAUFEN IST
+          (26.08.2026, Florentines Punkt 1)
+
+          Zwei Ergänzungen zur Bedingung:
+
+          1. `!d.onboardingGelaufen` — wer sein Startgespräch hatte, wird
+             nicht erneut zur Buchung geschickt. Der Server entscheidet das
+             an der TATSACHE (erledigter Termin, Gespräch im Verlauf,
+             Onboarding-Schritte), nicht am Terminstatus: Ein Gespräch, das
+             stattfand, kann als „verpasst" verbucht sein, weil der Kunde
+             beim ersten Klingeln nicht dranging.
+
+          2. `!istAnsicht` — wer den Bereich als Betreiber ANSIEHT, ist nicht
+             der Kunde. Florentine: „Wenn ich als Onboarding-Mitarbeiterin
+             auf das Kundenportal zugreifen möchte, muss ich ebenfalls
+             zunächst einen Termin buchen." Eine Sperre, die den Betrachter
+             zum Buchen auffordert, ist sinnlos — er kann ohnehin nichts tun.
+          ══════════════════════════════════════════════════════════════════ */}
+      {d.stufe.bezahlt && !d.termin && !d.onboardingGelaufen && !istAnsicht && !d.stufe.vollAktiv && !vorhang && (
         <div className="mb-vorhang mb-gate" role="dialog" aria-label="Startgespräch buchen">
           <div className="mb-vorhang-innen">
             <div className="z1" style={{ animationDelay: ".1s" }}>Ein Schritt noch</div>

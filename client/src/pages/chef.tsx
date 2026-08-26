@@ -17,6 +17,10 @@ import { useLocation } from "wouter";
 import { Lock } from "lucide-react";
 import ChefAnmeldung, { type ChefStatus } from "@/components/admin/ChefAnmeldung";
 import { ChefShell, ChefRaumSeite, CHEF_RAEUME, raumErlaubt, STUFEN_NAME, type ChefStufe } from "@/components/admin/ChefShell";
+// 26.08.2026: Das Lagezimmer ist keine Kachelliste mehr, sondern der Raum, in
+// dem die Zahlen des Unternehmens stehen. Die uebrigen sieben Raeume bleiben
+// Kachellisten auf die bestehenden /admin-Seiten — dort ist eine Liste richtig.
+import ChefLagezimmer from "@/components/admin/ChefLagezimmer";
 
 const STUFEN: ChefStufe[] = ["inhaber", "geschaeftsfuehrung", "leitung"];
 
@@ -42,7 +46,9 @@ export default function ChefPage() {
   return (
     <ChefShell stufe={stufe} name={status.name} raumKey={raum.key} onAbmelden={abmelden}>
       {raumErlaubt(raum, stufe) ? (
-        <ChefRaumSeite raum={raum} />
+        raum.key === "lage"
+          ? <ChefLagezimmer name={status.name} />
+          : <ChefRaumSeite raum={raum} />
       ) : (
         <div className="cb-hinweis" role="status">
           <b><Lock size={16} strokeWidth={1.75} /> {raum.label} ist für dich geschlossen.</b>

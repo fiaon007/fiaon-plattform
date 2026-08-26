@@ -592,6 +592,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonLastschrift = await import('./routes/fiaon-lastschrift');
   app.use('/api/fiaon', fiaonLastschrift.default);
 
+  // 📊 Chefbüro-Lagezimmer: alle Zahlen des Unternehmens an einem Ort.
+  const chefLage = await import('./routes/fiaon-chef-lage');
+  app.use('/api/fiaon', chefLage.default);
+
   // 🏛 Datenraum der Schwarzott Capital Partners AG (26.08.2026).
   // Bewusst eigene Tabellen und eigene Sitzung — getrennt von FIAONS eigenem
   // Investorenbereich unter /datenraum.

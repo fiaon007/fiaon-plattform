@@ -139,6 +139,9 @@ export function ChefShell({ stufe, name, raumKey, onAbmelden, children }: {
 }) {
   const [menueOffen, setMenueOffen] = useState(false);
   useEffect(() => { setMenueOffen(false); }, [raumKey]);
+  // Wer Bewegung abgestellt hat, bekommt ein Standbild statt des Films.
+  const ruhig = typeof window !== "undefined"
+    && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
   const vorname = String(name || "").split(" ")[0];
   const stunde = new Date().getHours();
   const gruss = stunde < 11 ? "Guten Morgen" : stunde < 18 ? "Guten Tag" : "Guten Abend";
@@ -171,9 +174,23 @@ export function ChefShell({ stufe, name, raumKey, onAbmelden, children }: {
 
   return (
     <div className="cb">
+      {/* ══════════════════════════════════════════════════════════════════
+          DIE BÜHNE (26.08.2026)
+          Eigener Film statt des Schreibtisch-Platzhalters: ein dunkler Raum
+          mit einem weichen blauen Schein, kaum merklicher Bewegung. 152 KB —
+          leicht genug für jeden Seitenaufruf.
+
+          `poster` zeigt sofort ein Standbild, während der Film lädt; wer
+          Bewegung abgestellt hat (prefers-reduced-motion), sieht NUR das
+          Standbild. Ein Hintergrund darf niemandem schaden.
+          ══════════════════════════════════════════════════════════════════ */}
       <div className="cb-buehne" aria-hidden="true">
-        {/* Platzhalter-Bühne — eigene Chefbüro-Szenen (Higgsfield) kommen später. */}
-        <img src="/office/schreibtisch.jpg" alt="" decoding="async" />
+        {ruhig ? (
+          <img src="/film/chef-buehne.jpg" alt="" decoding="async" />
+        ) : (
+          <video src="/film/chef-buehne.mp4" poster="/film/chef-buehne.jpg"
+                 autoPlay muted loop playsInline preload="metadata" />
+        )}
         <div className="cb-schleier" />
       </div>
 

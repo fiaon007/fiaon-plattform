@@ -1,0 +1,200 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// DAS LAGEZIMMER — alle Zahlen des Unternehmens an einem Ort (26.08.2026)
+//
+// Justin: „Stelle sicher, dass man als ADMIN wirklich ALLES machen kann, über
+//          die gesamte Plattform verfügen — wirklich an JEDES DETAIL muss
+//          gedacht werden."
+//
+// ── DIE REGEL DIESER DATEI ────────────────────────────────────────────────
+// Jede Zahl hier ist GEZÄHLT, nicht geschätzt, und jede sagt, worauf sie sich
+// bezieht. Ein Dashboard, dessen Zahlen niemand nachrechnen kann, wird beim
+// ersten Zweifel nicht mehr geglaubt — und dann ist es wertlos.
+//
+// Deshalb liefert jede Kennzahl neben dem Wert auch:
+//   · `was`   — was genau gezählt wurde, in einem Satz
+//   · `wohin` — der Ort in der Plattform, an dem man es bearbeitet
+// Der Bildschirm zeigt beides. Wer eine Zahl anzweifelt, klickt sie an und
+// steht vor den Datensätzen, aus denen sie besteht.
+//
+// ── ZEITRECHNUNG ──────────────────────────────────────────────────────────
+// Alle Tagesgrenzen in Europe/Berlin. „Heute" heißt der Berliner Tag, nicht
+// der UTC-Tag — sonst wechselt das Dashboard um zwei Uhr nachts den Tag.
+// ═══════════════════════════════════════════════════════════════════════════
+import { Router, type Request, type Response } from "express";
+import { sqlPool } from "../lib/db-pool";
+
+const router = Router();
+
+/** Berliner Tagesgrenze als SQL-Ausdruck. */
+const HEUTE = "(NOW() AT TIME ZONE 'Europe/Berlin')::date";
+
+/** Nur echte Menschen: keine Testeinträge, keine Zusammenführungen. */
+const ECHT = "p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL";
+
+async function eineZahl(sql: string): Promise<number> {
+  try {
+    const [r] = (await sqlPool.unsafe(sql)) as any[];
+    const wert = r ? Object.values(r)[0] : 0;
+    return Number(wert ?? 0);
+  } catch (e) {
+    console.error("[CHEF-LAGE]", String(e).slice(0, 160));
+    return 0;
+  }
+}
+
+router.get("/chef/lage", async (_req: Request, res: Response) => {
+  try {
+    // ── GELD ────────────────────────────────────────────────────────────────
+    // Grundlage ist IMMER der Zahlungseingang (bezahlt_am), nie die Fälligkeit:
+    // Was fällig war, ist keine Einnahme.
+    const [
+      eingangHeute, eingangMonat, eingangVormonat,
+      ratenOffen, ratenUeberfaellig, ueberfaelligSumme,
+      provOffen, provOffenSumme, abrechnungenOffen,
+    ] = await Promise.all([
+      eineZahl(`SELECT COALESCE(SUM(betrag_cents),0) FROM fiaon_abo_raten
+                 WHERE bezahlt_am IS NOT NULL AND (bezahlt_am AT TIME ZONE 'Europe/Berlin')::date = ${HEUTE}`),
+      eineZahl(`SELECT COALESCE(SUM(betrag_cents),0) FROM fiaon_abo_raten
+                 WHERE bezahlt_am IS NOT NULL
+                   AND date_trunc('month', bezahlt_am AT TIME ZONE 'Europe/Berlin')
+                     = date_trunc('month', ${HEUTE})`),
+      eineZahl(`SELECT COALESCE(SUM(betrag_cents),0) FROM fiaon_abo_raten
+                 WHERE bezahlt_am IS NOT NULL
+                   AND date_trunc('month', bezahlt_am AT TIME ZONE 'Europe/Berlin')
+                     = date_trunc('month', ${HEUTE} - INTERVAL '1 month')`),
+      eineZahl(`SELECT COUNT(*) FROM fiaon_abo_raten
+                 WHERE status IN ('offen','ueberfaellig') AND storniert_am IS NULL AND bezahlt_am IS NULL`),
+      eineZahl(`SELECT COUNT(*) FROM fiaon_abo_raten
+                 WHERE status IN ('offen','ueberfaellig') AND storniert_am IS NULL AND bezahlt_am IS NULL
+                   AND faellig_am < ${HEUTE}`),
+      eineZahl(`SELECT COALESCE(SUM(betrag_cents),0) FROM fiaon_abo_raten
+                 WHERE status IN ('offen','ueberfaellig') AND storniert_am IS NULL AND bezahlt_am IS NULL
+                   AND faellig_am < ${HEUTE}`),
+      eineZahl(`SELECT COUNT(*) FROM fiaon_commissions WHERE status = 'bestaetigt' AND payout_id IS NULL`),
+      eineZahl(`SELECT COALESCE(SUM(amount_cents),0) FROM fiaon_commissions WHERE status = 'bestaetigt' AND payout_id IS NULL`),
+      eineZahl(`SELECT COUNT(*) FROM fiaon_commission_statements WHERE gesendet_am IS NULL`),
+    ]);
+
+    // ── KUNDEN ──────────────────────────────────────────────────────────────
+    const [
+      menschenGesamt, zahlende, imPool, neuHeute, mandate, gesperrt,
+    ] = await Promise.all([
+      eineZahl(`SELECT COUNT(*) FROM fiaon_persons p WHERE ${ECHT}`),
+      eineZahl(`SELECT COUNT(DISTINCT p.id) FROM fiaon_persons p
+                  JOIN fiaon_applications a ON a.person_id = p.id
+                 WHERE ${ECHT} AND a.merged_into IS NULL AND a.payment_status = 'paid'`),
+      eineZahl(`SELECT COUNT(*) FROM fiaon_persons p
+                 WHERE ${ECHT} AND p.assigned_agent_id IS NULL AND p.mandat_seit IS NULL
+                   AND NOT p.is_blocked AND p.priority_tier IN (1,2,3)`),
+      eineZahl(`SELECT COUNT(*) FROM fiaon_persons p
+                 WHERE ${ECHT} AND (p.created_at AT TIME ZONE 'Europe/Berlin')::date = ${HEUTE}`),
+      eineZahl(`SELECT COUNT(*) FROM fiaon_persons p WHERE ${ECHT} AND p.mandat_seit IS NOT NULL`),
+      eineZahl(`SELECT COUNT(*) FROM fiaon_persons p WHERE ${ECHT} AND p.is_blocked`),
+    ]);
+
+    // ── TEAM ────────────────────────────────────────────────────────────────
+    const [teamAktiv, kontakteHeute, termineHeute, termineOhneErgebnis] = await Promise.all([
+      eineZahl(`SELECT COUNT(*) FROM fiaon_agents WHERE active AND NOT COALESCE(is_test_account, FALSE)`),
+      eineZahl(`SELECT COUNT(*) FROM fiaon_contact_log
+                 WHERE (created_at AT TIME ZONE 'Europe/Berlin')::date = ${HEUTE} AND type = 'result'`),
+      eineZahl(`SELECT COUNT(*) FROM fiaon_termine
+                 WHERE (beginn AT TIME ZONE 'Europe/Berlin')::date = ${HEUTE}
+                   AND status = 'gebucht' AND abgesagt_am IS NULL`),
+      eineZahl(`SELECT COUNT(*) FROM fiaon_termine t
+                 WHERE t.status = 'erledigt' AND t.quelle <> 'onboarding_call'
+                   AND NOT EXISTS (SELECT 1 FROM fiaon_contact_log c
+                                    WHERE c.person_id = t.person_id AND c.type = 'result'
+                                      AND c.created_at >= t.beginn)`),
+    ]);
+
+    // ── WAS KLEMMT ──────────────────────────────────────────────────────────
+    // Bewusst nur Dinge, zu denen man ETWAS TUN kann. Eine Warnung ohne
+    // Handlung ist Lärm.
+    const [zusageGebrochen, ohneTermin, dublettenVerdacht, nummerOhneLand] = await Promise.all([
+      eineZahl(`SELECT COUNT(*) FROM fiaon_persons p
+                 WHERE ${ECHT} AND p.promised_payment_date < ${HEUTE} AND NOT p.is_blocked`),
+      eineZahl(`SELECT COUNT(DISTINCT p.id) FROM fiaon_persons p
+                  JOIN fiaon_applications a ON a.person_id = p.id
+                 WHERE ${ECHT} AND a.merged_into IS NULL AND a.payment_status = 'paid'
+                   AND NOT EXISTS (SELECT 1 FROM fiaon_termine t
+                                    WHERE t.person_id = p.id
+                                      AND ((t.quelle = 'onboarding_call' AND t.status IN ('erledigt','gebucht'))
+                                        OR (t.status = 'gebucht' AND t.beginn > NOW())))`),
+      eineZahl(`SELECT COUNT(*) FROM (
+                  SELECT lower(primary_email) FROM fiaon_persons p
+                   WHERE ${ECHT} AND primary_email IS NOT NULL AND primary_email <> ''
+                   GROUP BY 1 HAVING COUNT(*) > 1) x`),
+      eineZahl(`SELECT COUNT(*) FROM fiaon_persons p
+                 WHERE ${ECHT} AND p.primary_phone LIKE '0%' AND p.primary_phone NOT LIKE '00%'
+                   AND COALESCE(p.country,'') = ''`),
+    ]);
+
+    // ── DER VERLAUF: sechs Monate Zahlungseingang ──────────────────────────
+    const verlauf = (await sqlPool.unsafe(`
+      SELECT to_char(date_trunc('month', bezahlt_am AT TIME ZONE 'Europe/Berlin'), 'YYYY-MM') AS monat,
+             SUM(betrag_cents)::bigint AS cents,
+             COUNT(*)::int AS zahlungen
+        FROM fiaon_abo_raten
+       WHERE bezahlt_am IS NOT NULL
+         AND bezahlt_am >= date_trunc('month', NOW()) - INTERVAL '5 months'
+       GROUP BY 1 ORDER BY 1`)) as any[];
+
+    // ── DAS TEAM HEUTE ─────────────────────────────────────────────────────
+    const team = (await sqlPool.unsafe(`
+      SELECT ag.id, ag.name, ag.rolle,
+             COALESCE(ag.commission_rate_bp, 0) AS satz_bp,
+             (SELECT COUNT(*) FROM fiaon_persons p
+               WHERE p.assigned_agent_id = ag.id AND p.mandat_seit IS NOT NULL
+                 AND p.merged_into_person_id IS NULL)::int AS mandate,
+             (SELECT COUNT(*) FROM fiaon_contact_log c
+               WHERE c.agent_id = ag.id AND c.type = 'result'
+                 AND (c.created_at AT TIME ZONE 'Europe/Berlin')::date = ${HEUTE})::int AS heute,
+             (SELECT COALESCE(SUM(k.amount_cents),0) FROM fiaon_commissions k
+               WHERE k.agent_id = ag.id
+                 AND date_trunc('month', k.created_at) = date_trunc('month', NOW()))::bigint AS provision_monat
+        FROM fiaon_agents ag
+       WHERE ag.active AND NOT COALESCE(ag.is_test_account, FALSE)
+       ORDER BY 7 DESC, 6 DESC`)) as any[];
+
+    // ── DIE LETZTEN ZAHLUNGEN ──────────────────────────────────────────────
+    const letzte = (await sqlPool.unsafe(`
+      SELECT r.bezahlt_am, r.betrag_cents, r.zahlungsreferenz, r.rate_nr,
+             COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''), a.email, '—') AS kunde,
+             p.id AS person_id, a.pack_name, ag.name AS betreuer
+        FROM fiaon_abo_raten r
+        JOIN fiaon_applications a ON a.ref = r.ref
+        LEFT JOIN fiaon_persons p ON p.id = a.person_id
+        LEFT JOIN fiaon_agents ag ON ag.id = p.assigned_agent_id
+       WHERE r.bezahlt_am IS NOT NULL
+       ORDER BY r.bezahlt_am DESC LIMIT 12`)) as any[];
+
+    res.json({
+      ok: true,
+      stand: new Date().toISOString(),
+      geld: {
+        eingangHeute, eingangMonat, eingangVormonat,
+        ratenOffen, ratenUeberfaellig, ueberfaelligSumme,
+        provOffen, provOffenSumme, abrechnungenOffen,
+      },
+      kunden: { menschenGesamt, zahlende, imPool, neuHeute, mandate, gesperrt },
+      team: { teamAktiv, kontakteHeute, termineHeute, termineOhneErgebnis },
+      klemmt: { zusageGebrochen, ohneTermin, dublettenVerdacht, nummerOhneLand },
+      verlauf: verlauf.map((v) => ({ monat: v.monat, cents: Number(v.cents), zahlungen: Number(v.zahlungen) })),
+      mitarbeiter: team.map((t) => ({
+        id: Number(t.id), name: t.name, rolle: t.rolle,
+        satzBp: Number(t.satz_bp), mandate: Number(t.mandate),
+        heute: Number(t.heute), provisionMonat: Number(t.provision_monat),
+      })),
+      letzteZahlungen: letzte.map((z) => ({
+        am: z.bezahlt_am, cents: Number(z.betrag_cents), referenz: z.zahlungsreferenz,
+        rateNr: Number(z.rate_nr ?? 0), kunde: z.kunde, personId: z.person_id ? Number(z.person_id) : null,
+        paket: z.pack_name, betreuer: z.betreuer,
+      })),
+    });
+  } catch (err) {
+    console.error("[CHEF-LAGE]", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+export default router;

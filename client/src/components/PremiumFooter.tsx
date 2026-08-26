@@ -53,6 +53,31 @@ export default function PremiumFooter() {
                 </a>
               </li>
               <li>
+                <a href="/werkzeuge" className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">
+                  Kostenlose Werkzeuge
+                </a>
+              </li>
+              <li>
+                <a href="/schufa-eintrag-loeschen" className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">
+                  SCHUFA-Eintrag löschen
+                </a>
+              </li>
+              <li>
+                <a href="/bonitaet-verbessern" className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">
+                  Bonität verbessern
+                </a>
+              </li>
+              <li>
+                <a href="/kredit-ohne-schufa" className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">
+                  Kredit ohne SCHUFA — die Wahrheit
+                </a>
+              </li>
+              <li>
+                <a href="/auskunfteien" className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">
+                  Auskunfteien im Vergleich
+                </a>
+              </li>
+              <li>
                 <a href="/privatkunden" className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">
                   Privatkunden Setup
                 </a>

@@ -174,6 +174,15 @@ const SiteSicherheit = lazy(() => import("@/pages/site/sicherheit"));
 const WzLoeschfrist = lazy(() => import("@/pages/site/werkzeuge/loeschfrist"));
 const WzInkassokosten = lazy(() => import("@/pages/site/werkzeuge/inkassokosten"));
 const WzVerjaehrung = lazy(() => import("@/pages/site/werkzeuge/verjaehrung"));
+// Acht neue Seiten (26.08.2026): Werkzeugbank, drei Rechner, vier SEO-Pfeiler.
+const WerkzeugeHub = lazy(() => import("@/pages/site/werkzeuge-hub"));
+const WzKreditrechner = lazy(() => import("@/pages/site/werkzeuge/kreditrechner"));
+const WzUmschuldung = lazy(() => import("@/pages/site/werkzeuge/umschuldung"));
+const WzSchuldenCheck = lazy(() => import("@/pages/site/werkzeuge/schulden-check"));
+const KreditOhneSchufa = lazy(() => import("@/pages/site/kredit-ohne-schufa"));
+const SchufaEintragLoeschen = lazy(() => import("@/pages/site/schufa-eintrag-loeschen"));
+const BonitaetVerbessern = lazy(() => import("@/pages/site/bonitaet-verbessern"));
+const AuskunfteienSeite = lazy(() => import("@/pages/site/auskunfteien"));
 const WzKartenCheck = lazy(() => import("@/pages/site/werkzeuge/karten-check"));
 const WzSpielraum = lazy(() => import("@/pages/site/werkzeuge/spielraum"));
 const SitePrivatkunden = lazy(() => import("@/pages/site/privatkunden"));
@@ -246,6 +255,14 @@ function Router() {
       <Route path="/werkzeuge/loeschfrist" component={WzLoeschfrist} />
       <Route path="/werkzeuge/inkassokosten" component={WzInkassokosten} />
       <Route path="/werkzeuge/verjaehrung" component={WzVerjaehrung} />
+      <Route path="/werkzeuge" component={WerkzeugeHub} />
+      <Route path="/werkzeuge/kreditrechner" component={WzKreditrechner} />
+      <Route path="/werkzeuge/umschuldung" component={WzUmschuldung} />
+      <Route path="/werkzeuge/schulden-check" component={WzSchuldenCheck} />
+      <Route path="/kredit-ohne-schufa" component={KreditOhneSchufa} />
+      <Route path="/schufa-eintrag-loeschen" component={SchufaEintragLoeschen} />
+      <Route path="/bonitaet-verbessern" component={BonitaetVerbessern} />
+      <Route path="/auskunfteien" component={AuskunfteienSeite} />
       <Route path="/werkzeuge/karten-check" component={WzKartenCheck} />
       <Route path="/werkzeuge/spielraum" component={WzSpielraum} />
       <Route path="/werkzeuge/eintrag-pruefen" component={SiteEintragPruefen} />

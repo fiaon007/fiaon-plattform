@@ -87,7 +87,7 @@ export function FlugHero({ knoepfe }: { knoepfe: ReactNode }) {
 
   return (
     <section className="flug flug-film" style={{ height: Math.max(560, hoehe) }}>
-      <img className="flug-poster" src={handy ? "/kino/flug-start-m.jpg" : "/kino/flug-start.jpg"} alt="" aria-hidden="true" style={{ opacity: bereit ? 0 : 1 }} decoding="async" fetchPriority="high" />
+      <img className="flug-poster" src={handy ? "/kino/flug-start-m.jpg" : "/kino/flug-start.jpg"} alt="" aria-hidden="true" style={{ opacity: bereit ? 0 : 1 }} decoding="async" {...({ fetchpriority: "high" } as any)} />
       <video ref={videoRef} className="flug-video" src={handy ? "/kino/flug-m.mp4" : "/kino/flug.mp4"} muted loop playsInline autoPlay preload="auto"
              onPlaying={() => setBereit(true)} onCanPlay={() => setBereit(true)} style={{ opacity: bereit ? 1 : 0 }} aria-hidden="true" />
       <div className="flug-schleier" />

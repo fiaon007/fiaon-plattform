@@ -23,7 +23,7 @@ import {
   Receipt, Banknote, Copy, Wallet, TrendingUp, CalendarClock, Target, Map,
   PiggyBank, ScrollText, UserPlus, BookOpen, Sparkles, Activity, History, Scale,
   MailCheck, MessageSquare,
-  Wrench, Table2, Receipt as ReceiptIcon,
+  Wrench, Table2, Receipt as ReceiptIcon, LibraryBig,
 } from "lucide-react";
 import "@/styles/chefbuero.css";
 
@@ -70,6 +70,15 @@ export const CHEF_RAEUME: ChefRaum[] = [
   {
     key: "zahlungen", label: "Zahlungszentrale", Icon: ReceiptIcon, mindest: "geschaeftsfuehrung",
     satz: "Jeder Zahlungseingang mit allen Angaben — gegengeprüft gegen das Lagezimmer.",
+    punkte: [],
+  },
+  // ── DAS REGISTER ────────────────────────────────────────────────────────
+  // Die Antwort auf „kann man hier eigentlich alles?". Jede Fähigkeit der
+  // Plattform mit Namen, Klartext und Direktverweis — auch die, die bisher
+  // nur als Adresse mit Fragezeichen existierten.
+  {
+    key: "register", label: "Register", Icon: LibraryBig, mindest: "leitung",
+    satz: "Jede Funktion der Plattform, durchsuchbar — auch die ohne eigene Kachel.",
     punkte: [],
   },
   {

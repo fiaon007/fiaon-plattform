@@ -78,7 +78,7 @@ export default function Anmeldung({ onLogin }: { onLogin: (a: { name: string; em
 
   return (
     <div className="aa">
-      <div className="aa-bild" aria-hidden="true"><img src="/kino/cockpit.jpg" alt="" decoding="async" fetchPriority="high" /><div className="aa-schleier" /></div>
+      <div className="aa-bild" aria-hidden="true"><img src="/kino/cockpit.jpg" alt="" decoding="async" {...({ fetchpriority: "high" } as any)} /><div className="aa-schleier" /></div>
 
       <header className="aa-kopf">
         <a href="/" className="aa-wort">FIAON</a>

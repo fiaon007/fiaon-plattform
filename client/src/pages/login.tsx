@@ -52,7 +52,7 @@ export default function LoginPage() {
   return (
     <Dunkel seite="login" titel="Anmelden" beschreibung="Melden Sie sich in Ihrem FIAON-Bereich an: Fahrplan, Auskunft, Schreiben und Fristen, Abo – alles an einem Ort.">
       <section className="dk-hero lg-hero">
-        <div className="dk-hero-bild" aria-hidden="true"><img src="/kino/hero.jpg" alt="" decoding="async" fetchPriority="high" /><div className="schleier" /></div>
+        <div className="dk-hero-bild" aria-hidden="true"><img src="/kino/hero.jpg" alt="" decoding="async" {...({ fetchpriority: "high" } as any)} /><div className="schleier" /></div>
         <div className="dk-rahmen lg-raster">
           <Auf>
             <form className="lg-karte" onSubmit={absenden} noValidate>

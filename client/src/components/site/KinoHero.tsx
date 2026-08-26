@@ -44,7 +44,7 @@ export function KinoHero({ pille, titel, lead, punkte, knoepfe, hinweis, video, 
       <div className="kino-hintergrund" style={{ transform: `scale(${1 + p * 0.12}) translateY(${p * 60}px)` }} aria-hidden="true">
         {gross && video && !ruhe
           ? <video className="kino-medium" src={video} poster={bild} autoPlay muted loop playsInline preload="metadata" />
-          : <img className="kino-medium" src={bild} alt="" decoding="async" fetchPriority="high" />}
+          : <img className="kino-medium" src={bild} alt="" decoding="async" {...({ fetchpriority: "high" } as any)} />}
         <div className="kino-schleier" />
       </div>
 

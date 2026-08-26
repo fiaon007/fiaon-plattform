@@ -32,7 +32,7 @@ export default function Kontakt() {
   return (
     <Dunkel seite="kontakt" titel="Kontakt & Support" beschreibung={`FIAON Support: Telefon ${SUPPORT.telefon}, E-Mail ${SUPPORT.email}. KI-Assistent für alle Fragen zur Plattform, Dringendes direkt an die Geschäftsführung.`}>
       <section className="dk-hero kt-hero">
-        <div className="dk-hero-bild" aria-hidden="true"><img src="/kino/hero.jpg" alt="" decoding="async" fetchPriority="high" /><div className="schleier" /></div>
+        <div className="dk-hero-bild" aria-hidden="true"><img src="/kino/hero.jpg" alt="" decoding="async" {...({ fetchpriority: "high" } as any)} /><div className="schleier" /></div>
         <div className="dk-rahmen dk-zweispaltig">
           <Auf>
             <span className="dk-pille">Kontakt &amp; Support</span>

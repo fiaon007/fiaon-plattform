@@ -62,7 +62,7 @@ function Pfeil() {
 /** Hero wie auf /plattform-konzept: mittig, Pille, große Überschrift, Lead, Knöpfe — optional mit 3D-Szene daneben oder darunter. */
 export function Hero({ pille, titel, lead, knoepfe, szene, bild }: { pille: string; titel: ReactNode; lead: ReactNode; knoepfe?: ReactNode; szene?: ReactNode; bild?: string }) {
   // Ein Bild hinter dem Hero (Higgsfield, 2k) — gedimmt, mit Schleier ins Nachtblau, damit der Text vorne bleibt.
-  const hinter = bild ? <div className="dk-hero-bild" aria-hidden="true"><img src={bild} alt="" decoding="async" fetchPriority="high" /><div className="schleier" /></div> : null;
+  const hinter = bild ? <div className="dk-hero-bild" aria-hidden="true"><img src={bild} alt="" decoding="async" {...({ fetchpriority: "high" } as any)} /><div className="schleier" /></div> : null;
   if (szene) {
     return (
       <section className="dk-hero">

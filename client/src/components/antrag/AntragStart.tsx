@@ -22,7 +22,7 @@ export function AntragStart({ packs, onWahl }: { packs: readonly StartPaket[]; o
     <div className="antrag-start">
       {/* 1 · Eintritt */}
       <section className="dk-hero as-hero">
-        <div className="dk-hero-bild" aria-hidden="true"><img src="/kino/hero.jpg" alt="" decoding="async" fetchPriority="high" /><div className="schleier" /></div>
+        <div className="dk-hero-bild" aria-hidden="true"><img src="/kino/hero.jpg" alt="" decoding="async" {...({ fetchpriority: "high" } as any)} /><div className="schleier" /></div>
         <div className="dk-rahmen dk-zweispaltig">
           <Auf>
             <span className="dk-pille">Ihr Antrag beginnt hier</span>

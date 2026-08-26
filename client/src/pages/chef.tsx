@@ -27,12 +27,19 @@ import ChefLagezimmer from "@/components/admin/ChefLagezimmer";
 import ChefWerkzeuge from "@/components/admin/ChefWerkzeuge";
 import ChefKundenliste from "@/components/admin/ChefKundenliste";
 import ChefZahlungen from "@/components/admin/ChefZahlungen";
+import ChefRegister from "@/components/admin/ChefRegister";
 
-/** Welche Raeume eine eigene Seite haben statt einer Kachelliste. */
-const EIGENE_SEITE: Record<string, () => JSX.Element> = {
+/**
+ * Welche Raeume eine eigene Seite haben statt einer Kachelliste.
+ * Die Stufe wird durchgereicht: Das Register blendet aus, was diese Stufe
+ * ohnehin nicht oeffnen duerfte — ein Verzeichnis voller gesperrter Tueren
+ * waere kein Verzeichnis, sondern eine Liste von Enttaeuschungen.
+ */
+const EIGENE_SEITE: Record<string, (stufe: ChefStufe) => JSX.Element> = {
   werkzeuge: () => <ChefWerkzeuge />,
   kundenliste: () => <ChefKundenliste />,
   zahlungen: () => <ChefZahlungen />,
+  register: (stufe) => <ChefRegister stufe={stufe} />,
 };
 
 const STUFEN: ChefStufe[] = ["inhaber", "geschaeftsfuehrung", "leitung"];
@@ -62,7 +69,7 @@ export default function ChefPage() {
         raum.key === "lage"
           ? <ChefLagezimmer name={status.name} />
           : EIGENE_SEITE[raum.key]
-            ? EIGENE_SEITE[raum.key]()
+            ? EIGENE_SEITE[raum.key](stufe)
             : <ChefRaumSeite raum={raum} />
       ) : (
         <div className="cb-hinweis" role="status">

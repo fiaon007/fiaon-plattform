@@ -49,6 +49,7 @@ import "@/styles/office-leitung.css";
 import { Rundgang } from "@/components/agent/Rundgang";
 import { RUNDGAENGE } from "./rundgaenge";
 import "@/styles/office-rundgang.css";
+import { createPortal } from "react-dom";
 
 type Raum = "lage" | "kunden" | "team" | "geld" | "ordnung";
 
@@ -187,8 +188,28 @@ function LeitungInnen() {
       {raum === "geld" && <Geld onAkte={oeffnen} zeige={zeige} />}
       {raum === "ordnung" && <Ordnung wache={ueber?.bestandswache ?? []} zeige={zeige} onAkte={oeffnen} />}
 
-      {offen && (
-        <AkteVonAussen personId={offen} onZu={() => oeffnen(null)} onGeaendert={() => void laden()} />
+      {/* ══════════════════════════════════════════════════════════════════
+          DIE AKTE GEHT AN DEN SEITENKÖRPER, NICHT IN DIESEN KASTEN
+          (26.08.2026, Florentines Punkt 1)
+
+          „Wenn man im Bereich Management eine Kundenakte öffnet und diese
+          wieder schließen möchte, ist der X-Button oben rechts verdeckt.
+          Der Button liegt hinter dem Profilbild bzw. dem Ausloggen-Button."
+
+          URSACHE: `.of-grund` trägt `z-index: 1` und bildet damit einen
+          eigenen Stapelkontext. Alles darin bleibt UNTER der Kopfleiste
+          (`.of-kopf`, z-index 30) — auch die Akte mit ihrem z-index 61.
+          Der Wert 61 gilt nur INNERHALB von `.of-grund`; nach außen zählt
+          allein die 1.
+
+          Pipeline und Bestand reichen die Akte deshalb längst per
+          `createPortal` an den Seitenkörper durch. Beim Neubau dieses Raums
+          am 25.08. hatte ich das übersehen — dieselbe Falle, die in
+          AGENTS.md steht.
+          ══════════════════════════════════════════════════════════════════ */}
+      {offen && createPortal(
+        <AkteVonAussen personId={offen} onZu={() => oeffnen(null)} onGeaendert={() => void laden()} />,
+        document.body,
       )}
 
       <Rundgang raum="vertrieb" titel={RUNDGAENGE.vertrieb?.titel ?? "Leitung"}

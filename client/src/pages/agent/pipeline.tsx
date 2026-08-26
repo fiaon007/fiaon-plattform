@@ -1491,7 +1491,19 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
   const [testOffen, setTestOffen] = useState(false);
   const [testNotiz, setTestNotiz] = useState("");
   const [belegOffen, setBelegOffen] = useState(false);
-  const [belegDatum, setBelegDatum] = useState("");
+  // ══════════════════════════════════════════════════════════════════════════
+  // DAS DATUM STEHT SCHON DRIN (26.08.2026, Florentines Punkt 12)
+  //
+  // „Der entsprechende Button ‚Hinterlegen' ließ sich jedoch nicht anklicken."
+  //
+  // URSACHE: Der Knopf verlangt Datei UND Datum. Das Datumsfeld stand
+  // unbeschriftet neben der Dateiauswahl und war leer — wer die Datei wählte,
+  // sah einen toten Knopf und keinen Grund dafür.
+  // NACHHER: heute vorbelegt (der weitaus häufigste Fall), beide Felder
+  // beschriftet, und der Knopf sagt selbst, was ihm fehlt.
+  // ══════════════════════════════════════════════════════════════════════════
+  const [belegDatum, setBelegDatum] = useState(() =>
+    new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" }));
   const [belegNotiz, setBelegNotiz] = useState("");
   const [belegDatei, setBelegDatei] = useState<File | null>(null);
   const [auswahl, setAuswahl] = useState<Set<string>>(new Set());
@@ -2232,12 +2244,20 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
                 <div style={{ display: "grid", gap: 8 }}>
                   <p className="pi-sek-satz leise">Foto oder PDF der Überweisung. Es erscheint bei der Zahlungsprüfung neben dem Bankeingang. Gebucht wird dadurch nichts.</p>
                   <div className="pi-reihe">
-                    <input type="file" accept="image/*,application/pdf" className="pi-eingabe" style={{ paddingTop: 8 }} onChange={(e) => setBelegDatei(e.target.files?.[0] ?? null)} />
-                    <input type="date" className="pi-eingabe" style={{ flex: "0 0 160px" }} value={belegDatum} onChange={(e) => setBelegDatum(e.target.value)} max={new Date().toISOString().slice(0, 10)} title="Überweisungsdatum laut Beleg" />
+                    <label style={{ display: "grid", gap: 4, flex: "1 1 220px" }}>
+                      <span className="pi-sek-satz leise" style={{ fontSize: 11 }}>Beleg (Foto oder PDF)</span>
+                      <input type="file" accept="image/*,application/pdf" className="pi-eingabe" style={{ paddingTop: 8 }} onChange={(e) => setBelegDatei(e.target.files?.[0] ?? null)} />
+                    </label>
+                    <label style={{ display: "grid", gap: 4, flex: "0 0 170px" }}>
+                      <span className="pi-sek-satz leise" style={{ fontSize: 11 }}>Überweisungsdatum</span>
+                      <input type="date" className="pi-eingabe" value={belegDatum} onChange={(e) => setBelegDatum(e.target.value)} max={new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" })} title="Überweisungsdatum laut Beleg" />
+                    </label>
                   </div>
                   <div className="pi-reihe">
                     <input className="pi-eingabe" value={belegNotiz} onChange={(e) => setBelegNotiz(e.target.value)} placeholder="Notiz (freiwillig)" />
-                    <button type="button" className="pi-knopf klein" disabled={!belegDatei || !belegDatum || !!laeuft} onClick={() => void belegHochladen()}>{laeuft === "beleg" ? "Lädt …" : "Hinterlegen"}</button>
+                    <button type="button" className="pi-knopf klein" disabled={!belegDatei || !belegDatum || !!laeuft} onClick={() => void belegHochladen()}>
+                      {laeuft === "beleg" ? "Lädt …" : !belegDatei ? "Erst eine Datei wählen" : !belegDatum ? "Erst das Datum angeben" : "Hinterlegen"}
+                    </button>
                     <button type="button" className="pi-link" onClick={() => { setBelegOffen(false); setBelegDatei(null); }}>Abbrechen</button>
                   </div>
                 </div>

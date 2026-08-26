@@ -55,7 +55,30 @@ export function artAusKurz(v: string): DokumentArt | null {
  * mehr nicht — so steht es in der Erklärung, die sie unterschrieben haben.
  */
 export function darfInhalt(rolle: string): boolean {
-  return rolle === "admin";
+  // ══════════════════════════════════════════════════════════════════════════
+  // „NUR DER VORGESETZTE" — UND DER IST DIE VERTRIEBSLEITUNG (26.08.2026)
+  //
+  // Florentine (Punkt 8): „Bei den Dokumenten in der Kundenakte wird
+  // teilweise angezeigt, dass diese nur vom Vorgesetzten geöffnet werden
+  // können. Für die tägliche Bearbeitung wäre es wichtig, dass auch der
+  // zuständige Mitarbeiter die hochgeladenen Dokumente einsehen kann."
+  //
+  // BEFUND: Hier stand `rolle === "admin"`. Diese Rolle trägt in der
+  // Datenbank NIEMAND — Justin, Florentine und Daniel sind
+  // `vertriebsleiter`. Praktisch konnte damit kein einziger Mensch ein
+  // Dokument öffnen, obwohl die Regel ausdrücklich „nur der Vorgesetzte"
+  // lautet. Die Leitung war ausgesperrt.
+  //
+  // NACHHER: Leitung und Verwaltung. Das ist genau das, was der Satz meint.
+  //
+  // NICHT geändert: der gewöhnliche Mitarbeiter. Für ihn bleibt ein Ausweis
+  // eine Zeile „liegt vor". So steht es in der Verpflichtungserklärung, die
+  // jeder unterschrieben hat — das lässt sich nicht nebenbei in einer
+  // Fehlerbehebung umdrehen. Ob es geändert werden SOLL, ist eine
+  // Entscheidung für Justin; sie gehört ins Register und in eine neue
+  // Fassung der Erklärung, nicht in diese Zeile.
+  // ══════════════════════════════════════════════════════════════════════════
+  return rolle === "admin" || rolle === "vertriebsleiter";
 }
 
 // ───────────────────────────────────────────────────────────────────────────

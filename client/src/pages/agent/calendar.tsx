@@ -851,7 +851,36 @@ function Detail({ a, busy, ausser, onZu, onErledigt, onVerpasst, onVerschieben, 
   onVerschieben: (wert: string) => Promise<boolean>; onUebergeben: (agentId: number, grund: string) => Promise<boolean>; onAbsagen: () => void;
 }) {
   const [modus, setModus] = useState<null | "verschieben" | "uebergeben" | "absagen">(null);
-  const [wert, setWert] = useState("");
+  // ══════════════════════════════════════════════════════════════════════════
+  // DAS FELD IST VORGEFÜLLT (26.08.2026, Florentines Punkt 7)
+  //
+  // „Wenn ich einen Termin am Laptop im Kalender verschieben möchte, wird die
+  // eingetragene Uhrzeit teilweise nicht übernommen. Am Handy funktioniert
+  // die Änderung, am Laptop hingegen nicht."
+  //
+  // URSACHE: Das Feld startete LEER. Auf dem Handy öffnet `datetime-local`
+  // einen Auswahldialog, der Datum UND Uhrzeit erzwingt. Am Laptop besteht
+  // das Feld aus einzelnen Abschnitten (TT.MM.JJJJ --:--); wer nur das Datum
+  // tippt und die Uhrzeit stehen lässt, hat entweder einen leeren Wert
+  // (Knopf bleibt aus) oder 00:00 — und der Termin landet um Mitternacht.
+  //
+  // NACHHER steht die BISHERIGE Zeit im Feld. Verschieben heißt fast immer
+  // „dieselbe Uhrzeit, anderer Tag" oder umgekehrt — man ändert einen Teil,
+  // der andere stimmt schon. Ein leeres Feld verlangt beides neu und
+  // verzeiht keinen Fehler.
+  // ══════════════════════════════════════════════════════════════════════════
+  const [wert, setWert] = useState(() => {
+    try {
+      const d = new Date(a.scheduled_at ?? "");
+      if (isNaN(d.getTime())) return "";
+      // Berliner Wandzeit im Format, das `datetime-local` erwartet.
+      const t = new Intl.DateTimeFormat("sv-SE", {
+        timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit", hour12: false,
+      }).format(d);
+      return t.replace(" ", "T").slice(0, 16);
+    } catch { return ""; }
+  });
   const [kollegen, setKollegen] = useState<{ id: number; name: string; rolle: string; zustaendig?: boolean }[]>([]);
   const [soll, setSoll] = useState<string | null>(null);
   const [agentId, setAgentId] = useState("");
@@ -916,6 +945,13 @@ function Detail({ a, busy, ausser, onZu, onErledigt, onVerpasst, onVerschieben, 
           <div className="ca-form">
             <p>Neuer Zeitpunkt (deutsche Zeit). Die Erinnerung wird erneut fällig.</p>
             <input type="datetime-local" className="ca-feld" value={wert} onChange={(e) => setWert(e.target.value)} aria-label="Neuer Zeitpunkt" />
+            {/* Mitternacht ist fast nie gemeint — meist wurde die Uhrzeit
+                vergessen. Lieber nachfragen als still um 00:00 buchen. */}
+            {/^\d{4}-\d{2}-\d{2}T00:00$/.test(wert) && (
+              <p className="ca-lade" style={{ marginTop: 8, color: "#fbbf24" }}>
+                Uhrzeit steht auf 00:00 — ist das so gewollt?
+              </p>
+            )}
             <div className="ca-form-knoepfe">
               <button type="button" className="ca-knopf" disabled={!wert || busy} onClick={() => void onVerschieben(wert)}>Speichern</button>
               <button type="button" className="ca-knopf still" onClick={() => setModus(null)}>Abbrechen</button>

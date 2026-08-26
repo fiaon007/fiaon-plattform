@@ -288,10 +288,25 @@ const SLOTS = 6;
  * ÄLTESTE zuerst — diese Menschen warten auf uns, nicht umgekehrt.
  */
 const POOL_RUECKFALL_TAGE = 3;
+/** Angefangen und liegen gelassen — nach drei Wochen gehört der Mensch wieder allen. */
+const POOL_LIEGEN_TAGE = 21;
 async function poolNachschub(me: number, istTestkonto: boolean): Promise<void> {
   if (istTestkonto || me === 531) return;
 
-  // Unberührtes, das seit drei Tagen bei jemandem liegt, zurück in den Pool.
+  // ── ZWEI RÜCKFÄLLE, NICHT EINER (26.08.2026, Florentines Punkt 9) ────────
+  // „In der Pipeline sollten grundsätzlich keine festen Betreuer bei den
+  // Kunden hinterlegt sein."
+  //
+  // Der Kundenpool erfüllt das für NEUE Menschen: Sie gehören niemandem, bis
+  // ein Mandat steht. Was Florentine sieht, sind Altzuteilungen — Menschen,
+  // mit denen schon jemand gesprochen hat.
+  //
+  // Die zieht man nicht pauschal ab: Wer angerufen wurde, soll nicht am
+  // nächsten Tag von einem Zweiten angerufen werden. Aber ewig blockieren
+  // darf eine einzige Berührung auch nicht. Deshalb zwei Fristen:
+  //   · 3 Tage  — gezogen und NICHTS getan (kein Kontakt, kein Termin)
+  //   · 21 Tage — angefangen und dann liegen gelassen
+  // Beides nur ohne Mandat. Wer ein Mandat hat, behält den Kunden.
   await sqlPool.unsafe(`
     UPDATE fiaon_persons p SET assigned_agent_id = NULL
      WHERE p.mandat_seit IS NULL AND p.assigned_agent_id IS NOT NULL
@@ -301,6 +316,22 @@ async function poolNachschub(me: number, istTestkonto: boolean): Promise<void> {
        AND NOT EXISTS (SELECT 1 FROM fiaon_contact_log c1 JOIN fiaon_applications ax ON ax.ref = c1.ref WHERE ax.person_id = p.id)
        AND NOT EXISTS (SELECT 1 FROM fiaon_contact_log c2 WHERE c2.person_id = p.id)
        AND NOT EXISTS (SELECT 1 FROM fiaon_termine tx WHERE tx.person_id = p.id)`);
+
+  await sqlPool.unsafe(`
+    UPDATE fiaon_persons p SET assigned_agent_id = NULL
+     WHERE p.mandat_seit IS NULL AND p.assigned_agent_id IS NOT NULL
+       AND p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL
+       AND NOT p.is_blocked AND p.priority_tier IN (1,2,3)
+       AND p.promised_payment_date IS NULL
+       AND NOT EXISTS (SELECT 1 FROM fiaon_termine t2
+                        WHERE t2.person_id = p.id AND t2.status = 'gebucht'
+                          AND t2.abgesagt_am IS NULL AND t2.beginn > NOW())
+       AND COALESCE(
+             (SELECT MAX(c3.created_at) FROM fiaon_contact_log c3 WHERE c3.person_id = p.id),
+             (SELECT MAX(c4.created_at) FROM fiaon_contact_log c4
+                JOIN fiaon_applications a4 ON a4.ref = c4.ref WHERE a4.person_id = p.id),
+             p.assigned_at
+           ) < NOW() - INTERVAL '${POOL_LIEGEN_TAGE} days'`);
 
   for (const g of GRUPPEN) {
     const [zeile] = (await sqlPool.unsafe(`
@@ -374,6 +405,29 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
       `NOT ${ruhtSql("p")}`,
       `NOT ${wartetSql("p")}`,
       `(p.follow_up_date IS NULL OR p.follow_up_date <= ${HEUTE})`,
+      // ══════════════════════════════════════════════════════════════════════
+      // WER FÜR MORGEN ZAHLEN WILL, IST HEUTE NICHT DRAN
+      // (26.08.2026, Florentines Punkt 6)
+      //
+      // „Wenn ein Kunde in der Pipeline bereits bearbeitet und beispielsweise
+      // als ‚zahlt an' markiert wurde, erscheint dieser teilweise anschließend
+      // wieder in der Pipeline zur Bearbeitung."
+      //
+      // GEMESSEN: 16 Menschen mit einer Zusage in der ZUKUNFT standen wieder
+      // in der Arbeitsliste — bei 14 davon war GAR KEINE Wiedervorlage
+      // gesetzt. Die Ergebnis-Buchung setzt sie korrekt; offenbar entstand die
+      // Zusage anderswo (Verwaltung, Kundenmeldung) und die Wiedervorlage
+      // blieb leer.
+      //
+      // Der Filter greift deshalb HIER, auf der Leseseite: Eine Zusage für
+      // morgen schließt den Menschen heute aus — unabhängig davon, ob
+      // irgendein Schreibweg an die Wiedervorlage gedacht hat. Eine Regel an
+      // einer Stelle kann nicht vergessen werden; fünf Schreibwege schon.
+      //
+      // Läuft das Datum ab, kommt der Mensch von selbst zurück — dann als
+      // „Zusage gebrochen", was die richtige Ansprache ist.
+      // ══════════════════════════════════════════════════════════════════════
+      `(p.promised_payment_date IS NULL OR p.promised_payment_date < ${HEUTE})`,
       `NOT EXISTS (
          SELECT 1 FROM fiaon_termine tz
          WHERE tz.person_id = p.id AND tz.status = 'gebucht'
@@ -460,12 +514,57 @@ router.post("/agent/vertrieb/mandat/:personId", requireAgent, async (req: AgentR
     const personId = Number(req.params.personId);
     if (!Number.isFinite(personId) || personId <= 0) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
     if (!(await eigene(personId, req.agent!.id))) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+    // ══════════════════════════════════════════════════════════════════════
+    // DAS MANDAT SETZT AUCH DEN BETREUER (26.08.2026, Florentines Punkt 5)
+    //
+    // „Kunden, die aus der Pipeline als Mandat angenommen werden, landen
+    // teilweise nicht korrekt im Bestand des zuständigen Mitarbeiters.
+    // Dadurch besteht die Gefahr, dass der Kunde anschließend bei einem
+    // anderen Betreuer im Bestand landet."
+    //
+    // BEFUND: Hier stand nur `mandat_seit`. Wer das Mandat GEWANN, wurde
+    // nirgends festgeschrieben — der Kunde blieb bei dem, der ihn zufällig
+    // aus dem Pool gezogen hatte. Das ist genau der gemeldete Fall.
+    //
+    // NACHHER setzt das Mandat beides: den Zeitpunkt UND die Zuständigkeit
+    // auf den Menschen, der es geholt hat. Das ist die Regel aus
+    // Justins Punkt 9: „Kunde wird dem Vertriebler zugeordnet, der das
+    // Mandat gewonnen hat → Kunde landet bei diesem Mitarbeiter im Bestand."
+    //
+    // Ein bereits bestehendes Mandat wird NICHT umgeschrieben (COALESCE):
+    // Wer ein Mandat hat, behält es — sonst könnte ein zweiter Anruf einen
+    // fremden Kunden übernehmen.
+    // ══════════════════════════════════════════════════════════════════════
+    const [vorher] = (await sqlPool`
+      SELECT mandat_seit, assigned_agent_id FROM fiaon_persons WHERE id = ${personId}`) as any[];
+    const schonMandat = !!vorher?.mandat_seit;
+
     const [r] = (await sqlPool`
       UPDATE fiaon_persons
-      SET mandat_seit = COALESCE(mandat_seit, NOW()), updated_at = NOW()
+      SET mandat_seit = COALESCE(mandat_seit, NOW()),
+          assigned_agent_id = CASE WHEN mandat_seit IS NULL THEN ${req.agent!.id} ELSE assigned_agent_id END,
+          assigned_at = CASE WHEN mandat_seit IS NULL THEN NOW() ELSE assigned_at END,
+          updated_at = NOW()
       WHERE id = ${personId}
-      RETURNING mandat_seit
+      RETURNING mandat_seit, assigned_agent_id
     `) as any[];
+
+    // Der Wechsel gehört in den Verlauf: Ein Kunde, der plötzlich bei einem
+    // anderen Menschen liegt, muss erklärbar sein.
+    if (!schonMandat && Number(vorher?.assigned_agent_id ?? 0) !== req.agent!.id) {
+      // `fiaon_contact_log.ref` ist NOT NULL — ohne Akte scheitert der
+      // Eintrag still. `sorgeFuerAkte` legt sie an, falls sie fehlt.
+      try {
+        const { sorgeFuerAkte } = await import("../lib/fiaon-akte-anker");
+        const ref = await sorgeFuerAkte(personId, req.agent!.id);
+        if (ref) {
+          await sqlPool`
+            INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
+            VALUES (${ref}, ${personId}, ${req.agent!.id}, ${req.agent!.name}, 'system',
+                    ${`Mandat gewonnen — Betreuung übernommen von ${req.agent!.name}.`}, NOW())`;
+        }
+      } catch (e) { console.error("[MANDAT] Verlaufseintrag:", e); }
+    }
     const zahlen = await mandatsZahlen(req.agent!.id);
     res.json({ ok: true, mandatSeit: r?.mandat_seit ?? null, anzahl: zahlen.anzahl, max: MANDATE_MAX });
   } catch (err) {

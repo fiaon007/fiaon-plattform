@@ -189,7 +189,9 @@ router.get("/chef/zahlungen", requireChef("geschaeftsfuehrung"), async (req: Req
       : `date_trunc('month', r.bezahlt_am AT TIME ZONE 'Europe/Berlin') = date_trunc('month', ${HEUTE})`;
 
     const werte: any[] = [];
-    const teile = ["r.bezahlt_am IS NOT NULL", zeitraum];
+    // Testkonten zählen nicht als Umsatz — dieselbe Regel wie im Lagezimmer,
+    // sonst lügt die Gegenprobe in die eine oder andere Richtung.
+    const teile = ["r.bezahlt_am IS NOT NULL", "(p.id IS NULL OR p.ist_test_am IS NULL)", zeitraum];
     if (q) {
       werte.push(`%${q}%`);
       const n = werte.length;
@@ -255,11 +257,14 @@ router.get("/chef/zahlungen", requireChef("geschaeftsfuehrung"), async (req: Req
 
     // Monatsverlauf zum Vergleich — dieselbe Grundlage wie das Lagezimmer.
     const verlauf = (await sqlPool.unsafe(`
-      SELECT to_char(date_trunc('month', bezahlt_am AT TIME ZONE 'Europe/Berlin'), 'YYYY-MM') AS monat,
-             SUM(betrag_cents)::bigint AS cents, COUNT(*)::int AS anzahl
-        FROM fiaon_abo_raten
-       WHERE bezahlt_am IS NOT NULL
-         AND bezahlt_am >= (${HEUTE} - INTERVAL '11 months')
+      SELECT to_char(date_trunc('month', r.bezahlt_am AT TIME ZONE 'Europe/Berlin'), 'YYYY-MM') AS monat,
+             SUM(r.betrag_cents)::bigint AS cents, COUNT(*)::int AS anzahl
+        FROM fiaon_abo_raten r
+        LEFT JOIN fiaon_applications av ON av.ref = r.ref
+        LEFT JOIN fiaon_persons pv ON pv.id = av.person_id
+       WHERE r.bezahlt_am IS NOT NULL
+         AND (pv.id IS NULL OR pv.ist_test_am IS NULL)
+         AND r.bezahlt_am >= (${HEUTE} - INTERVAL '11 months')
        GROUP BY 1 ORDER BY 1`)) as any[];
 
     res.json({

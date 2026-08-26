@@ -30,7 +30,17 @@ const router = Router();
 const HEUTE = "(NOW() AT TIME ZONE 'Europe/Berlin')::date";
 
 /** Nur echte Menschen: keine Testeinträge, keine Zusammenführungen. */
+// GEFUNDEN 26.08. abends beim Ansehen der fertigen Zahlungszentrale: In den
+// Geldzahlen steckten 495,92 EUR aus Test- und Prüfstand-Konten („Das is Ein
+// Testaccount", „Aktive Demo-Kundin", …). Eine Umsatzzahl, in der Testgeld
+// mitläuft, ist bei der ersten Due Diligence erledigt. Deshalb prüft ab jetzt
+// JEDE Raten-Abfrage, ob die Akte einem Testkonto gehört.
 const ECHT = "p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL";
+
+/** Raten zählen nur, wenn die Akte KEINEM Testkonto gehört (Alias r). */
+const RATE_ECHT = `NOT EXISTS (SELECT 1 FROM fiaon_applications ax
+    JOIN fiaon_persons px ON px.id = ax.person_id
+   WHERE ax.ref = r.ref AND px.ist_test_am IS NOT NULL)`;
 
 async function eineZahl(sql: string): Promise<number> {
   try {
@@ -56,23 +66,29 @@ router.get("/chef/lage", requireChef("leitung"), async (_req: Request, res: Resp
       ratenOffen, ratenUeberfaellig, ueberfaelligSumme,
       provOffen, provOffenSumme, abrechnungenOffen,
     ] = await Promise.all([
-      eineZahl(`SELECT COALESCE(SUM(betrag_cents),0) FROM fiaon_abo_raten
-                 WHERE bezahlt_am IS NOT NULL AND (bezahlt_am AT TIME ZONE 'Europe/Berlin')::date = ${HEUTE}`),
-      eineZahl(`SELECT COALESCE(SUM(betrag_cents),0) FROM fiaon_abo_raten
-                 WHERE bezahlt_am IS NOT NULL
-                   AND date_trunc('month', bezahlt_am AT TIME ZONE 'Europe/Berlin')
-                     = date_trunc('month', ${HEUTE})`),
-      eineZahl(`SELECT COALESCE(SUM(betrag_cents),0) FROM fiaon_abo_raten
-                 WHERE bezahlt_am IS NOT NULL
-                   AND date_trunc('month', bezahlt_am AT TIME ZONE 'Europe/Berlin')
-                     = date_trunc('month', ${HEUTE} - INTERVAL '1 month')`),
-      eineZahl(`SELECT COUNT(*) FROM fiaon_abo_raten
-                 WHERE status IN ('offen','ueberfaellig') AND storniert_am IS NULL AND bezahlt_am IS NULL`),
-      eineZahl(`SELECT COUNT(*) FROM fiaon_abo_raten
-                 WHERE status IN ('offen','ueberfaellig') AND storniert_am IS NULL AND bezahlt_am IS NULL
+      eineZahl(`SELECT COALESCE(SUM(betrag_cents),0) FROM fiaon_abo_raten r
+                 WHERE r.bezahlt_am IS NOT NULL AND (r.bezahlt_am AT TIME ZONE 'Europe/Berlin')::date = ${HEUTE}
+                   AND ${RATE_ECHT}`),
+      eineZahl(`SELECT COALESCE(SUM(betrag_cents),0) FROM fiaon_abo_raten r
+                 WHERE r.bezahlt_am IS NOT NULL
+                   AND date_trunc('month', r.bezahlt_am AT TIME ZONE 'Europe/Berlin')
+                     = date_trunc('month', ${HEUTE})
+                   AND ${RATE_ECHT}`),
+      eineZahl(`SELECT COALESCE(SUM(betrag_cents),0) FROM fiaon_abo_raten r
+                 WHERE r.bezahlt_am IS NOT NULL
+                   AND date_trunc('month', r.bezahlt_am AT TIME ZONE 'Europe/Berlin')
+                     = date_trunc('month', ${HEUTE} - INTERVAL '1 month')
+                   AND ${RATE_ECHT}`),
+      eineZahl(`SELECT COUNT(*) FROM fiaon_abo_raten r
+                 WHERE r.status IN ('offen','ueberfaellig') AND r.storniert_am IS NULL AND r.bezahlt_am IS NULL
+                   AND ${RATE_ECHT}`),
+      eineZahl(`SELECT COUNT(*) FROM fiaon_abo_raten r
+                 WHERE r.status IN ('offen','ueberfaellig') AND r.storniert_am IS NULL AND r.bezahlt_am IS NULL
+                   AND ${RATE_ECHT}
                    AND faellig_am < ${HEUTE}`),
-      eineZahl(`SELECT COALESCE(SUM(betrag_cents),0) FROM fiaon_abo_raten
-                 WHERE status IN ('offen','ueberfaellig') AND storniert_am IS NULL AND bezahlt_am IS NULL
+      eineZahl(`SELECT COALESCE(SUM(betrag_cents),0) FROM fiaon_abo_raten r
+                 WHERE r.status IN ('offen','ueberfaellig') AND r.storniert_am IS NULL AND r.bezahlt_am IS NULL
+                   AND ${RATE_ECHT}
                    AND faellig_am < ${HEUTE}`),
       eineZahl(`SELECT COUNT(*) FROM fiaon_commissions WHERE status = 'bestaetigt' AND payout_id IS NULL`),
       eineZahl(`SELECT COALESCE(SUM(amount_cents),0) FROM fiaon_commissions WHERE status = 'bestaetigt' AND payout_id IS NULL`),
@@ -138,9 +154,10 @@ router.get("/chef/lage", requireChef("leitung"), async (_req: Request, res: Resp
       SELECT to_char(date_trunc('month', bezahlt_am AT TIME ZONE 'Europe/Berlin'), 'YYYY-MM') AS monat,
              SUM(betrag_cents)::bigint AS cents,
              COUNT(*)::int AS zahlungen
-        FROM fiaon_abo_raten
-       WHERE bezahlt_am IS NOT NULL
-         AND bezahlt_am >= date_trunc('month', NOW()) - INTERVAL '5 months'
+        FROM fiaon_abo_raten r
+       WHERE r.bezahlt_am IS NOT NULL
+         AND r.bezahlt_am >= date_trunc('month', NOW()) - INTERVAL '5 months'
+         AND ${RATE_ECHT}
        GROUP BY 1 ORDER BY 1`)) as any[];
 
     // ── DAS TEAM HEUTE ─────────────────────────────────────────────────────
@@ -170,6 +187,7 @@ router.get("/chef/lage", requireChef("leitung"), async (_req: Request, res: Resp
         LEFT JOIN fiaon_persons p ON p.id = a.person_id
         LEFT JOIN fiaon_agents ag ON ag.id = p.assigned_agent_id
        WHERE r.bezahlt_am IS NOT NULL
+         AND (p.id IS NULL OR p.ist_test_am IS NULL)
        ORDER BY r.bezahlt_am DESC LIMIT 12`)) as any[];
 
     res.json({

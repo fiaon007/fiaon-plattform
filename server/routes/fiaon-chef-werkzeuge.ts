@@ -177,6 +177,7 @@ router.get("/chef/werkzeug/wahrheit", requireChef("geschaeftsfuehrung"), async (
         FROM fiaon_applications a
         JOIN fiaon_persons p ON p.id = a.person_id
        WHERE a.payment_status = 'paid' AND a.merged_into IS NULL
+         AND p.ist_test_am IS NULL AND p.merged_into_person_id IS NULL
        GROUP BY p.id, p.first_name, p.last_name, p.primary_email
       HAVING COUNT(*) FILTER (WHERE a.password IS NOT NULL AND a.password <> '') = 0
        ORDER BY MAX(a.paid_at) DESC NULLS LAST LIMIT 100`);
@@ -277,9 +278,12 @@ router.get("/chef/werkzeug/maschinen", requireChef("leitung"), async (_req, res)
       SELECT
         (SELECT COUNT(*) FROM fiaon_mail_log
           WHERE (created_at AT TIME ZONE 'Europe/Berlin')::date = ${HEUTE})::int AS mails,
-        (SELECT COUNT(*) FROM fiaon_abo_raten
-          WHERE bezahlt_am IS NOT NULL
-            AND (bezahlt_am AT TIME ZONE 'Europe/Berlin')::date = ${HEUTE})::int AS zahlungen`);
+        (SELECT COUNT(*) FROM fiaon_abo_raten r2
+          WHERE r2.bezahlt_am IS NOT NULL
+            AND (r2.bezahlt_am AT TIME ZONE 'Europe/Berlin')::date = ${HEUTE}
+            AND NOT EXISTS (SELECT 1 FROM fiaon_applications ax
+                  JOIN fiaon_persons px ON px.id = ax.person_id
+                 WHERE ax.ref = r2.ref AND px.ist_test_am IS NOT NULL))::int AS zahlungen`);
 
     res.json({
       ok: true, cronsAn: CRONS_AN,
@@ -339,6 +343,7 @@ router.get("/chef/werkzeug/freigaben", requireChef("geschaeftsfuehrung"), async 
           LEFT JOIN fiaon_applications a ON a.ref = r.ref
           LEFT JOIN fiaon_persons p ON p.id = a.person_id
          WHERE r.status = 'offen' AND r.bezahlt_am IS NULL AND r.storniert_am IS NULL
+           AND (p.id IS NULL OR p.ist_test_am IS NULL)
            AND r.mahnstufe >= 3 AND r.faellig_am < ${HEUTE}
          ORDER BY r.faellig_am ASC LIMIT 100`),
       eineZahl(`

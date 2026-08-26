@@ -187,8 +187,8 @@ function WahrheitsCheck() {
   return (
     <div className="cw-wahrheit">
       <p className="cw-erklaerung">
-        Sechs Stellen, an denen dieselbe Sache zweimal gezählt wird und deshalb
-        auseinanderlaufen kann. Jede nennt, was der Befund bedeutet.
+        Sieben Stellen, an denen die Zahlen auseinanderlaufen können. Jede nennt,
+        was der Befund bedeutet — und wo man ihn behebt.
       </p>
       <div className="cw-pruefliste">
         {d.pruefungen.map((p: any) => (

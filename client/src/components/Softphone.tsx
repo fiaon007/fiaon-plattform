@@ -437,6 +437,25 @@ export function Softphone() {
   const [datenFehler, setDatenFehler] = useState<string | null>(null);
   /** Das Cockpit mit den sieben Schritten — offen WÄHREND des Gesprächs. */
   const [cockpitOffen, setCockpitOffen] = useState(false);
+  // ══════════════════════════════════════════════════════════════════════════
+  // DAS COCKPIT WIRD BEIM ÖFFNEN EINGEFROREN
+  // (26.08.2026, Florentines Punkt 11)
+  //
+  // „Nach dem Anklicken wird der Leitfaden für ungefähr eine Sekunde
+  // angezeigt und verschwindet anschließend automatisch wieder."
+  //
+  // URSACHE: Das Cockpit hing an `cockpitDaten?.termin` — einem Feld aus
+  // Daten, die WÄHREND des Gesprächs neu geladen werden (die Wirkung hängt
+  // an `zustand`, und der wechselt von „waehlt" über „klingelt" zu
+  // „gespraech"). Liefert eine dieser Antworten den Termin nicht mehr — etwa
+  // weil er inzwischen als laufend gilt —, wird die Bedingung falsch und die
+  // Komponente verschwindet mitsamt allem, was der Mensch schon abgehakt hat.
+  //
+  // NACHHER: Beim Öffnen wird der Stand kopiert; gerendert wird aus der
+  // Kopie. Ein Leitfaden, der mitten im Gespräch verschwindet, ist schlimmer
+  // als einer, der eine Minute alte Daten zeigt.
+  // ══════════════════════════════════════════════════════════════════════════
+  const [cockpitFest, setCockpitFest] = useState<any | null>(null);
   // Der Stand des Mikrofonrechts. Wird VOR dem ersten Wählversuch geklärt.
   const [mikrofon, setMikrofon] = useState<"offen" | "erlaubt" | "verweigert">("offen");
   // ══════════════════════════════════════════════════════════════════════════
@@ -1787,26 +1806,26 @@ export function Softphone() {
 
   return (
     <>
-      {cockpitOffen && cockpitDaten?.termin && kunde && (
+      {cockpitOffen && (cockpitFest ?? cockpitDaten)?.termin && kunde && (
         <OnboardingCockpit
           termin={{
-            id: Number(cockpitDaten.termin.id),
+            id: Number((cockpitFest ?? cockpitDaten)!.termin.id),
             personId: kunde.personId,
-            name: cockpitDaten.name || kunde.name,
+            name: (cockpitFest ?? cockpitDaten)!.name || kunde.name,
             telefon: nummer || null,
-            email: cockpitDaten.email ?? null,
-            beginn: String(cockpitDaten.termin.beginn),
-            datumText: new Date(cockpitDaten.termin.beginn)
+            email: (cockpitFest ?? cockpitDaten)!.email ?? null,
+            beginn: String((cockpitFest ?? cockpitDaten)!.termin.beginn),
+            datumText: new Date((cockpitFest ?? cockpitDaten)!.termin.beginn)
               .toLocaleDateString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "long" }),
-            uhrzeit: new Date(cockpitDaten.termin.beginn)
+            uhrzeit: new Date((cockpitFest ?? cockpitDaten)!.termin.beginn)
               .toLocaleTimeString("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit" }),
-            dauerMin: Number(cockpitDaten.termin.dauerMin ?? 15),
-            status: String(cockpitDaten.termin.status),
-            paket: cockpitDaten.paket ?? null,
+            dauerMin: Number((cockpitFest ?? cockpitDaten)!.termin.dauerMin ?? 15),
+            status: String((cockpitFest ?? cockpitDaten)!.termin.status),
+            paket: (cockpitFest ?? cockpitDaten)!.paket ?? null,
             zahlungsstand: cockpitDaten.zahlungsstand ?? null,
           }}
-          onZu={() => setCockpitOffen(false)}
-          onFertig={(m) => { setCockpitOffen(false); setMeldung(m); void laden(); }}
+          onZu={() => { setCockpitOffen(false); setCockpitFest(null); }}
+          onFertig={(m) => { setCockpitOffen(false); setCockpitFest(null); setMeldung(m); void laden(); }}
         />
       )}
 
@@ -2797,7 +2816,7 @@ export function Softphone() {
                         kam nicht hin und führte es aus dem Gedächtnis.
                         ══════════════════════════════════════════════════════ */}
                     {daten.termin && (
-                      <button type="button" onClick={() => setCockpitOffen(true)}
+                      <button type="button" onClick={() => { setCockpitFest(cockpitDaten); setCockpitOffen(true); }}
                               data-fiaon="cockpit-oeffnen"
                               className="fi-tel-cockpit">
                         Gespräch führen — die 7 Schritte

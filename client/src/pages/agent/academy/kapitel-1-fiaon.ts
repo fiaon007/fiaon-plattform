@@ -60,6 +60,16 @@ export const KAPITEL_1: KapitelInhalt = {
           ["ein Inkassobüro", "Wir treiben für niemanden Forderungen ein. Unser Back-Office kümmert sich um unsere eigenen Raten – mit Respekt.", "„Wir sprechen mit Menschen, die Geld schulden – nicht mit Schuldnern.“"],
         ),
         merk("Die vier verbotenen Wörter: beraten · Beratung · Garantie · garantiert. Dazu nie: „sicher“, „auf jeden Fall“, „Score verbessern“, „Kredit ohne SCHUFA“."),
+        // ── KLARSTELLUNG (26.08.2026, Florentines Punkt 10) ────────────────
+        // „In der Academy steht, dass bestimmte Begriffe wie ‚Kredit' bzw.
+        // ‚Kreditkarte' nicht verwendet werden dürfen. Im Gesprächsleitfaden
+        // steht dagegen ausdrücklich der Begriff ‚Kreditkarte'."
+        //
+        // Der Widerspruch war keiner, sondern eine Lesefalle: Verboten ist
+        // „Kredit OHNE SCHUFA" — beim Überfliegen liest man „Kredit" und
+        // hält das Wort für gesperrt. Wenn eine Regel missverstanden werden
+        // KANN, ist sie schlecht geschrieben, nicht schlecht gelesen.
+        merk("„Kreditkarte“ und „Kredit“ darfst du sagen — sie stehen so im Leitfaden und auf unserer Website. Gesperrt ist nur die Wendung „Kredit ohne SCHUFA“. Der Unterschied ist nicht das Wort, sondern das Versprechen: Über Karte und Kredit entscheidet die Bank. Wir bereiten vor, wir sagen nichts zu."),
         p("Das ist keine Schwäche im Verkauf. Ehrlichkeit ist unser stärkstes Argument in einem Markt, in dem Kunden schon einmal belogen wurden. Wer „keine Garantie, aber jeden Schritt sichtbar“ sagt, wird geglaubt."),
       ],
     },

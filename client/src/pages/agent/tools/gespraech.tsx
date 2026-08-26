@@ -221,6 +221,15 @@ function GespraechInnen() {
           <span className="to-pille">Tools · Gesprächs-Begleiter</span>
           <h1>Dein Leitfaden <span className="to-verlauf">während des Anrufs.</span></h1>
           <p>Gesprächsart wählen, Kunden suchen, Timer starten. Schritte abhaken, Einwände aufklappen, Notiz tippen – und am Ende mit einem Klick ins Kontaktprotokoll.</p>
+          {/* 26.08.2026, Florentines Punkt 10: Dieselbe Klarstellung wie in
+              der Academy — und zwar DORT, wo das Wort im Satz steht. Wer
+              mitten im Gespräch stutzt, blättert nicht in die Academy. */}
+          <p className="to-wortregel">
+            <b>Zu den Wörtern:</b> „Kreditkarte“ und „Kredit“ darfst du sagen — sie stehen so im
+            Leitfaden und auf unserer Website. Gesperrt sind <b>beraten · Beratung · Garantie ·
+            garantiert</b> sowie die Wendung <b>„Kredit ohne SCHUFA“</b>. Der Unterschied ist nicht
+            das Wort, sondern das Versprechen: Über Karte und Kredit entscheidet die Bank.
+          </p>
         </div>
         <Link href="/agent/tools" className="to-zurueck"><ArrowLeft size={15} strokeWidth={1.75} /> Alle Tools</Link>
       </section>

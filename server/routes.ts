@@ -542,6 +542,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.send(await fiaonRatgeber.sitemapXml(statisch));
     } catch (e) { console.error('[SITEMAP]', e); res.status(500).end(); }
   });
+  // ══════════════════════════════════════════════════════════════════════════
+  // EIN EIGENER KOPF FÜR JEDE ÖFFENTLICHE SEITE (25.08.2026)
+  //
+  // GEMESSEN an der laufenden Seite: /, /preise, /privatkunden, /bonitaet und
+  // /werkzeuge/verjaehrung lieferten ALLE denselben Titel und dieselbe
+  // Beschreibung — 47 Seiten mit einem Schild. Nur /ratgeber hatte einen
+  // eigenen, weil es dafür schon einen Vorrenderer gab.
+  //
+  // React setzt den Titel erst NACH dem Laden von JavaScript. Google rendert
+  // zwar, aber verzögert; Bing, LinkedIn und die WhatsApp-Vorschau gar nicht.
+  // Der Kopf muss im ausgelieferten HTML stehen — genau das passiert hier.
+  //
+  // Steht ein Pfad nicht in der Tabelle, geht der Aufruf unverändert weiter:
+  // Diese Schicht kann nie eine Seite verstecken, nur ihren Kopf verbessern.
+  // ══════════════════════════════════════════════════════════════════════════
+  app.get('*', async (req, res, next) => {
+    if (req.method !== 'GET' || req.path.startsWith('/api') || req.path.includes('.')) return next();
+    try {
+      const { seitenHtml } = await import('./lib/fiaon-seiten-seo');
+      const html = seitenHtml(req.path);
+      if (!html) return next();
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Cache-Control', 'public, max-age=300');
+      res.send(html);
+    } catch (e) { console.error('[SEITEN-SEO]', e); next(); }
+  });
+
   // Ratgeber vorgerendert für Suchmaschinen (Kopf + Inhalt im HTML) — VOR der SPA-Auslieferung.
   app.get(['/ratgeber', '/ratgeber/:slug'], async (req, res, next) => {
     try {

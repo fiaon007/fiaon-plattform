@@ -15,7 +15,10 @@ import { markdownZuHtml, textAusMarkdown } from "@shared/fiaon-markdown";
 import { AUTORIN, KATEGORIEN } from "@shared/fiaon-ratgeber";
 
 const esc = (s: string) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-const BASIS = "https://www.fiaon.com";
+// 25.08.2026: Hier stand "https://www.fiaon.com". GEMESSEN: www antwortet mit
+// 301 auf die Adresse ohne www — jede Sitemap-Zeile und jedes Canonical
+// schickte Google also erst durch eine Umleitung. Eine Adresse, eine Wahrheit.
+import { BASIS } from "./fiaon-seiten-seo";
 
 function indexHtml(): string | null {
   const kandidaten = [path.resolve(import.meta.dirname, "public", "index.html"), path.resolve(process.cwd(), "dist", "public", "index.html"), path.resolve(process.cwd(), "client", "index.html")];

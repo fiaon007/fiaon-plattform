@@ -300,8 +300,8 @@ export async function sitemapXml(statisch: string): Promise<string> {
   try {
     await ensureRatgeberTabelle();
     const rows = (await sqlPool`SELECT slug, updated_at FROM fiaon_ratgeber WHERE status = 'veroeffentlicht' ORDER BY published_at DESC`) as any[];
-    const extra = [`  <url><loc>https://www.fiaon.com/ratgeber</loc><changefreq>daily</changefreq><priority>0.8</priority></url>`,
-      ...rows.map((r) => `  <url><loc>https://www.fiaon.com/ratgeber/${r.slug}</loc><lastmod>${new Date(r.updated_at).toISOString().slice(0, 10)}</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>`)].join("\n");
+    const extra = [`  <url><loc>https://fiaon.com/ratgeber</loc><changefreq>daily</changefreq><priority>0.8</priority></url>`,
+      ...rows.map((r) => `  <url><loc>https://fiaon.com/ratgeber/${r.slug}</loc><lastmod>${new Date(r.updated_at).toISOString().slice(0, 10)}</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>`)].join("\n");
     return statisch.replace("</urlset>", `${extra}\n</urlset>`);
   } catch { return statisch; }
 }

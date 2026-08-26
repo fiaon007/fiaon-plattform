@@ -206,6 +206,8 @@ export const SEITEN: Record<string, SeitenKopf> = {
   "/demo/produkt": { titel: "Produkt-Demo — FIAON", beschreibung: "Die Produktansicht von FIAON.", robots: "noindex,follow" },
   "/start": { titel: "Start — FIAON", beschreibung: "Ihr Einstieg bei FIAON.", robots: "noindex,follow" },
   "/mein-bereich": { titel: "Mein Bereich — FIAON", beschreibung: "Ihr persönlicher Bereich bei FIAON.", robots: "noindex,follow" },
+  // Vertraulich: Ein Vertrag gehoert nie in einen Suchindex.
+  "/vereinbarung": { titel: "Vertrauliches Dokument — FIAON", beschreibung: "Diese Seite ist geschützt.", robots: "noindex,nofollow" },
 };
 
 /** Die Seiten, die in die Sitemap gehören — alles, was nicht auf noindex steht. */

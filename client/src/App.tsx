@@ -72,6 +72,8 @@ const ZustimmungPage = lazy(() => import("@/pages/zustimmung"));
 const TerminAbsagenPage = lazy(() => import("@/pages/termin").then((m) => ({ default: m.TerminAbsagenPage })));
 const AbmeldenPage = lazy(() => import("@/pages/abmelden"));
 const AlsKundePage = lazy(() => import("@/pages/als-kunde"));
+// Gesperrte Vertragsseite (26.08.2026) — Code, Eingabe im Text, Unterschrift.
+const VereinbarungPage = lazy(() => import("@/pages/vereinbarung"));
 // ══════════════════════════════════════════════════════════════════════════
 // `pages/agent/heute.tsx` UND `pages/agent/meine-kunden.tsx` SIND WEG (19.08.2026)
 //
@@ -499,6 +501,7 @@ function Router() {
           ist der Ausweis (Muster der signierten Rechnungs-Links). */}
       {/* Die Schleuse in die Kundensicht (Verwaltung/Leitung, Nur-Ansicht). */}
       <Route path="/als-kunde" component={AlsKundePage} />
+      <Route path="/vereinbarung" component={VereinbarungPage} />
       {/* Abmeldung von der Lead-Strecke — kein Login, ein Klick. */}
       <Route path="/abmelden/:schluessel" component={AbmeldenPage} />
       <Route path="/termin/absagen/:stornoToken" component={TerminAbsagenPage} />

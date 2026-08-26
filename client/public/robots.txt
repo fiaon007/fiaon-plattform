@@ -8,4 +8,5 @@ Disallow: /mein-bereich
 Disallow: /zahlung/
 Disallow: /termin/
 Disallow: /api/
+Disallow: /vereinbarung
 Sitemap: https://www.fiaon.com/sitemap.xml

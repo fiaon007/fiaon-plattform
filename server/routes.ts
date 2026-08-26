@@ -592,6 +592,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonLastschrift = await import('./routes/fiaon-lastschrift');
   app.use('/api/fiaon', fiaonLastschrift.default);
 
+  // 📜 Vereinbarungen — gesperrte Seite mit Code, Eingabe und Unterschrift (26.08.2026).
+  const fiaonVereinbarung = await import('./routes/fiaon-vereinbarung');
+  app.use('/api/fiaon', fiaonVereinbarung.default);
+  fiaonVereinbarung.ensureVereinbarungTabellen().catch((e) => console.error('[VEREINBARUNG] Tabellen:', e));
+
   // 🎫 Anliegen (Tickets) — Hilfe im Kundenbereich als internes System.
   const fiaonTickets = await import('./routes/fiaon-tickets');
   app.use('/api/fiaon', fiaonTickets.default);

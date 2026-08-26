@@ -1,0 +1,577 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   DIE VEREINBARUNGS-SEITE (26.08.2026)
+
+   Zwei Welten in einer Datei, und das mit Absicht:
+
+   · DIE SPERRE trägt das Office-CI — dunkles Navy-Glas. Sie ist eine Tür des
+     Unternehmens, kein Dokument. Wer sie sieht, soll sofort erkennen: Das
+     hier gehört zu FIAON.
+
+   · DAS DOKUMENT ist Papier. Ein Vertrag wird gelesen, gedruckt, abgeheftet.
+     Dunkle Schrift auf hellem Grund ist dafür die einzig richtige Wahl —
+     alles andere wäre Design gegen den Zweck. Die Marke trägt hier das
+     Navy-Band oben, und sonst nichts. Genau EINE Stelle, wie besprochen.
+
+   Beide Welten teilen dieselben Farben, dieselben Schriftgewichte (300/400/500)
+   und dieselbe Sprache der Abstände.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.vb, .vb-tor {
+  --navy: #0b1426;
+  --papier: #fdfdfb;
+  --tinte: #1f2937;
+  --leise: #6b7280;
+  --ganzleise: #9ca3af;
+  --blau: #1e3a8a;
+  --blau-hell: #2563eb;
+  --marke-blau: #93c5fd;
+  --linie: #dfe2e8;
+  --luecke-grund: #fef3c7;
+  --luecke-rand: #f59e0b;
+  --luecke-text: #92400e;
+  --gut: #059669;
+  --rot: #b91c1c;
+  --serif: "Fraunces", Georgia, "Times New Roman", serif;
+  --sans: "Inter", system-ui, -apple-system, sans-serif;
+}
+
+/* ══ DIE SPERRE — Office-CI ═══════════════════════════════════════════════ */
+.vb-tor {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: #0b1426;
+  background-image:
+    radial-gradient(1100px 560px at 72% -12%, rgba(37, 99, 235, .18), transparent 62%),
+    radial-gradient(820px 460px at 8% 112%, rgba(59, 130, 246, .11), transparent 62%);
+  font: 400 15px/1.65 var(--sans);
+  color: #e5e7eb;
+}
+.vb-tor-karte {
+  width: 100%;
+  max-width: 430px;
+  background: rgba(21, 31, 54, .72);
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 20px;
+  padding: 38px 34px 30px;
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 40px 100px rgba(2, 6, 23, .6), inset 0 1px 0 rgba(255, 255, 255, .08);
+  animation: vbAuf .5s cubic-bezier(.32, .72, 0, 1) both;
+}
+@keyframes vbAuf { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .vb-tor-karte { animation: none; } }
+
+.vb-marke {
+  font: 500 17px/1 var(--sans);
+  letter-spacing: .28em;
+  color: #fff;
+  margin: 0 0 24px;
+}
+.vb-tor-art {
+  font-size: 10.5px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--marke-blau);
+  font-weight: 500;
+  margin: 0 0 9px;
+}
+.vb-tor-karte h1 {
+  font: 300 24px/1.25 var(--serif);
+  color: #fff;
+  margin: 0 0 14px;
+  letter-spacing: -.01em;
+  text-wrap: balance;
+}
+.vb-tor-satz {
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: #9ca3af;
+  margin: 0 0 26px;
+}
+.vb-tor-label {
+  display: block;
+  font-size: 10.5px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--marke-blau);
+  font-weight: 500;
+  margin: 0 0 8px;
+}
+.vb-tor-feld {
+  width: 100%;
+  height: 50px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, .14);
+  background: rgba(11, 20, 38, .55);
+  color: #fff;
+  font: 400 20px/1 var(--sans);
+  letter-spacing: .34em;
+  text-align: center;
+  padding: 0 12px;
+  font-variant-numeric: tabular-nums;
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+.vb-tor-feld::placeholder { color: #475569; letter-spacing: .3em; }
+.vb-tor-feld:focus {
+  outline: none;
+  border-color: rgba(59, 130, 246, .55);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .18);
+}
+.vb-tor-fehler {
+  font-size: 13px;
+  color: #fecaca;
+  margin: 12px 0 0;
+}
+.vb-tor-fuss {
+  font-size: 11px;
+  color: #475569;
+  margin: 26px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, .08);
+  line-height: 1.6;
+}
+
+.vb-knopf {
+  width: 100%;
+  margin-top: 18px;
+  height: 46px;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  font: 500 14px/1 var(--sans);
+  color: #fff;
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  box-shadow: 0 12px 30px rgba(37, 99, 235, .35);
+  transition: transform .15s ease, box-shadow .15s ease, opacity .15s ease;
+}
+.vb-knopf:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 16px 38px rgba(37, 99, 235, .45); }
+.vb-knopf:disabled { opacity: .45; cursor: not-allowed; }
+.vb-knopf:focus-visible { outline: 2px solid var(--marke-blau); outline-offset: 3px; }
+
+/* ══ DAS DOKUMENT — Papier ════════════════════════════════════════════════ */
+.vb {
+  background: #e8eaef;
+  min-height: 100vh;
+  font: 400 15px/1.7 var(--sans);
+  color: var(--tinte);
+  -webkit-font-smoothing: antialiased;
+  padding: 0 0 70px;
+}
+.vb-blatt {
+  max-width: 840px;
+  margin: 34px auto 0;
+  background: var(--papier);
+  border-radius: 3px;
+  overflow: hidden;
+  box-shadow: 0 30px 80px rgba(11, 20, 38, .16), 0 2px 6px rgba(11, 20, 38, .08);
+}
+
+.vb-band {
+  background: var(--navy);
+  color: #fff;
+  padding: 34px 58px 30px;
+}
+.vb-band .vb-marke { margin-bottom: 22px; }
+.vb-art {
+  font-size: 10.5px;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--marke-blau);
+  font-weight: 500;
+  margin: 0 0 9px;
+}
+.vb-band h1 {
+  font: 300 clamp(25px, 4.2vw, 34px)/1.16 var(--serif);
+  margin: 0 0 14px;
+  letter-spacing: -.012em;
+  color: #fff;
+  text-wrap: balance;
+}
+.vb-kennung {
+  font-size: 11.5px;
+  color: #9ca3af;
+  font-variant-numeric: tabular-nums;
+  border-top: 1px solid rgba(255, 255, 255, .14);
+  padding-top: 13px;
+  margin: 0;
+}
+.vb-kennung b { color: #e5e7eb; font-weight: 500; }
+
+.vb-inhalt { padding: 42px 58px 54px; }
+
+/* Anleitung / Bestätigung */
+.vb-hinweis, .vb-fertig {
+  border-radius: 8px;
+  padding: 18px 22px;
+  margin: 0 0 40px;
+}
+.vb-hinweis { border: 1px solid #bfdbfe; background: #eff6ff; }
+.vb-hinweis-kopf, .vb-fertig-kopf {
+  font: 600 11px/1 var(--sans);
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  margin: 0 0 10px;
+}
+.vb-hinweis-kopf { color: var(--blau); }
+.vb-hinweis p { margin: 0; font-size: 13.5px; line-height: 1.65; color: #1e40af; }
+.vb-beispiel {
+  background: var(--luecke-grund);
+  border-bottom: 2px solid var(--luecke-rand);
+  padding: 1px 5px;
+  border-radius: 2px;
+  color: var(--luecke-text);
+  font-weight: 500;
+}
+.vb-fertig { border: 1px solid #a7f3d0; background: #ecfdf5; }
+.vb-fertig-kopf { color: var(--gut); }
+.vb-fertig p { margin: 0 0 8px; font-size: 13.5px; line-height: 1.65; color: #065f46; }
+.vb-fertig p:last-child { margin-bottom: 0; }
+.vb-fertig code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  background: rgba(5, 150, 105, .1);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+.vb-fertig-leise { color: #047857 !important; font-size: 12.5px !important; }
+
+/* Parteien */
+.vb-zwischen {
+  font-size: 11px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--ganzleise);
+  font-weight: 500;
+  margin: 0 0 18px;
+}
+.vb-partei { margin: 0 0 26px; }
+.vb-rolle {
+  font-size: 10.5px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--blau);
+  font-weight: 600;
+  margin: 0 0 7px;
+}
+.vb-name {
+  font: 400 20px/1.3 var(--serif);
+  color: var(--navy);
+  margin: 0 0 10px;
+}
+.vb-verbinder {
+  text-align: center;
+  font: 400 15px/1 var(--serif);
+  font-style: italic;
+  color: var(--leise);
+  margin: 0 0 26px;
+}
+table.vb-daten { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+table.vb-daten td { padding: 6px 0; vertical-align: baseline; border: 0; }
+table.vb-daten td:first-child {
+  width: 232px;
+  color: var(--leise);
+  padding-right: 18px;
+  font-size: 12.5px;
+}
+table.vb-daten td:first-child em { font-style: normal; color: var(--ganzleise); }
+table.vb-daten td:last-child { color: var(--tinte); }
+
+/* ── Die Lücke im Satz ──────────────────────────────────────────────────── */
+.vb-luecke { display: inline-block; }
+.vb-luecke input {
+  font: 400 13.5px/1 var(--sans);
+  color: var(--tinte);
+  padding: 5px 9px;
+  border-radius: 4px;
+  border: 1px solid var(--luecke-rand);
+  background: var(--luecke-grund);
+  max-width: 100%;
+  transition: background .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+.vb-luecke input::placeholder { color: #b45309; opacity: .7; }
+.vb-luecke input:focus {
+  outline: none;
+  border-color: var(--blau-hell);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .14);
+}
+.vb-luecke.voll input {
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+.vb-luecke.voll input::placeholder { color: transparent; }
+.vb-fest {
+  border-bottom: 1px solid var(--linie);
+  padding: 0 3px 1px;
+  color: var(--tinte);
+}
+.vb-fest-leer { color: var(--rot); font-style: italic; }
+
+/* Präambel und Paragraphen */
+.vb-praeambel {
+  font-size: 14.5px;
+  line-height: 1.75;
+  color: #374151;
+  border-left: 2px solid var(--blau);
+  padding: 2px 0 2px 20px;
+  margin: 0 0 40px;
+}
+.vb-praeambel p { margin: 0 0 11px; }
+.vb-praeambel p:last-child { margin-bottom: 0; }
+
+.vb-par { margin: 0 0 34px; }
+.vb-par > h2 {
+  font: 500 15.5px/1.35 var(--sans);
+  color: var(--navy);
+  margin: 0 0 13px;
+  padding-bottom: 9px;
+  border-bottom: 1px solid var(--linie);
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+.vb-nr {
+  font: 400 13px/1 var(--serif);
+  color: var(--blau-hell);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.vb-satz { font-size: 13.5px; line-height: 1.7; color: var(--leise); margin: 0 0 14px; }
+
+ol.vb-abs { margin: 0; padding: 0; list-style: none; counter-reset: vbabs; }
+ol.vb-abs > li {
+  counter-increment: vbabs;
+  position: relative;
+  padding-left: 34px;
+  margin: 0 0 12px;
+  font-size: 14px;
+  line-height: 1.72;
+}
+ol.vb-abs > li::before {
+  content: "(" counter(vbabs) ")";
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: var(--blau);
+  font-size: 12.5px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+ol.vb-abs > li:last-child { margin-bottom: 0; }
+
+.vb-betrag {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  padding: 14px 18px;
+  margin: 13px 0 0;
+}
+.vb-zahl {
+  display: block;
+  font: 300 26px/1.15 var(--serif);
+  color: var(--navy);
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 4px;
+}
+.vb-was { font-size: 12.5px; color: var(--leise); }
+
+/* Die Wahl in § 3 */
+.vb-wahl {
+  border: 1px solid var(--luecke-rand);
+  background: #fffbeb;
+  border-radius: 6px;
+  padding: 15px 18px;
+  margin: 13px 0 0;
+}
+.vb-wahl-kopf {
+  font-size: 10.5px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--luecke-text);
+  font-weight: 600;
+  margin: 0 0 11px;
+}
+.vb-wahl-zeile {
+  display: flex;
+  gap: 11px;
+  align-items: flex-start;
+  margin: 0 0 10px;
+  font-size: 13.5px;
+  line-height: 1.62;
+  padding: 9px 11px;
+  border-radius: 5px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background .16s ease, border-color .16s ease;
+}
+.vb-wahl-zeile:last-child { margin-bottom: 0; }
+.vb-wahl-zeile:hover { background: rgba(255, 255, 255, .7); }
+.vb-wahl-zeile.an { background: #fff; border-color: var(--luecke-rand); }
+.vb-wahl-zeile input { margin-top: 4px; accent-color: var(--blau-hell); flex: 0 0 auto; }
+
+.vb-tab-huelle { overflow-x: auto; margin: 12px 0 0; }
+table.vb-kennzahl { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 460px; }
+table.vb-kennzahl th {
+  text-align: left;
+  font-size: 10px;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+  color: var(--ganzleise);
+  font-weight: 600;
+  padding: 0 12px 8px 0;
+  border-bottom: 1px solid var(--linie);
+}
+table.vb-kennzahl th:last-child, table.vb-kennzahl td:last-child { text-align: right; padding-right: 0; }
+table.vb-kennzahl td {
+  padding: 9px 12px 9px 0;
+  border-bottom: 1px solid #f0f1f4;
+  font-variant-numeric: tabular-nums;
+}
+table.vb-kennzahl tr:last-child td { border-bottom: 0; }
+
+/* Anmerkungen */
+.vb-anmerkung {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid var(--linie);
+  background: #fff;
+  padding: 14px 16px;
+  font: 400 14px/1.7 var(--sans);
+  color: var(--tinte);
+  resize: vertical;
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+.vb-anmerkung::placeholder { color: var(--ganzleise); }
+.vb-anmerkung:focus {
+  outline: none;
+  border-color: var(--blau-hell);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .12);
+}
+.vb-anmerkung-fest {
+  border-left: 2px solid var(--linie);
+  padding: 4px 0 4px 18px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: #374151;
+  white-space: pre-wrap;
+}
+
+/* Unterschrift */
+.vb-schluss { margin-top: 48px; padding-top: 30px; border-top: 2px solid var(--navy); }
+.vb-schluss-satz { font-size: 13.5px; color: var(--leise); margin: 0 0 28px; }
+
+.vb-signieren {
+  background: #f8fafc;
+  border: 1px solid var(--linie);
+  border-radius: 10px;
+  padding: 22px 24px;
+  margin: 0 0 38px;
+}
+.vb-sig-label {
+  display: block;
+  font-size: 10.5px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--blau);
+  font-weight: 600;
+  margin: 0 0 9px;
+}
+.vb-sig-feld {
+  width: 100%;
+  max-width: 400px;
+  height: 52px;
+  border-radius: 8px;
+  border: 1px solid var(--linie);
+  background: #fff;
+  padding: 0 16px;
+  font: 400 21px/1 var(--serif);
+  color: var(--navy);
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+.vb-sig-feld::placeholder { font-size: 15px; font-family: var(--sans); color: var(--ganzleise); }
+.vb-sig-feld:focus {
+  outline: none;
+  border-color: var(--blau-hell);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .12);
+}
+.vb-bestaetigen {
+  display: flex;
+  gap: 11px;
+  align-items: flex-start;
+  margin: 18px 0 0;
+  font-size: 13px;
+  line-height: 1.62;
+  color: #374151;
+  cursor: pointer;
+}
+.vb-bestaetigen input { margin-top: 3px; accent-color: var(--blau-hell); flex: 0 0 auto; width: 16px; height: 16px; }
+.vb-fehler {
+  font-size: 13px;
+  color: var(--rot);
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  padding: 10px 13px;
+  margin: 14px 0 0;
+}
+.vb-knopf.gross {
+  width: auto;
+  min-width: 280px;
+  height: 50px;
+  padding: 0 30px;
+  margin-top: 18px;
+  font-size: 14.5px;
+}
+.vb-sig-fuss { font-size: 11.5px; color: var(--ganzleise); margin: 14px 0 0; line-height: 1.6; }
+
+.vb-unter { display: grid; grid-template-columns: 1fr 1fr; gap: 44px; }
+.vb-strich {
+  border-bottom: 1px solid var(--navy);
+  margin-bottom: 8px;
+  height: 46px;
+  display: flex;
+  align-items: flex-end;
+  padding-bottom: 5px;
+}
+.vb-strich.signiert { border-color: var(--gut); }
+.vb-hand {
+  font: 400 23px/1 var(--serif);
+  color: var(--navy);
+  transform: rotate(-1.6deg);
+  transform-origin: left bottom;
+}
+.vb-wer { font-size: 12.5px; color: var(--tinte); font-weight: 500; margin: 0; }
+.vb-rolle2 { font-size: 11.5px; color: var(--leise); margin: 2px 0 0; }
+
+.vb-fuss {
+  margin-top: 42px;
+  padding-top: 16px;
+  border-top: 1px solid var(--linie);
+  font-size: 11px;
+  color: var(--ganzleise);
+  line-height: 1.6;
+}
+
+@media (max-width: 700px) {
+  .vb { padding-bottom: 40px; }
+  .vb-blatt { margin: 0; border-radius: 0; }
+  .vb-band { padding: 26px 20px 22px; }
+  .vb-inhalt { padding: 28px 20px 38px; }
+  table.vb-daten td { display: block; width: auto !important; padding: 0; }
+  table.vb-daten td:first-child { padding-top: 11px; }
+  table.vb-daten td:last-child { padding-bottom: 4px; }
+  .vb-unter { grid-template-columns: 1fr; gap: 30px; }
+  .vb-knopf.gross { width: 100%; min-width: 0; }
+  .vb-luecke input { width: 100% !important; }
+}
+
+@media print {
+  .vb { background: #fff; padding: 0; }
+  .vb-blatt { box-shadow: none; margin: 0; max-width: none; }
+  .vb-signieren, .vb-hinweis { display: none; }
+  .vb-par, .vb-schluss, .vb-partei { break-inside: avoid; }
+  .vb-luecke input { border: 0; background: transparent; padding: 0; }
+}

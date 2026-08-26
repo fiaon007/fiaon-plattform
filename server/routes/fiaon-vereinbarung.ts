@@ -32,8 +32,23 @@ import { sqlPool } from "../lib/db-pool";
 
 const router = Router();
 
-/** Der Sperrcode. Bewusst KEIN Geheimnis im Sinne eines Passworts. */
-const CODE = "26082026";
+// ═══════════════════════════════════════════════════════════════════════════
+// ZWEI STUFEN, ZWEI CODES (26.08.2026)
+//
+// Justin: „Florentine muss es zuerst lesen, Feedback geben ODER direkt
+// abschliessen (durch eine Unterschrift von ihr als kuenftige
+// Geschaeftsfuehrerin). Erst dann soll Nikita unterzeichnen koennen."
+//
+// Das ist keine Bequemlichkeit, sondern die Reihenfolge, in der ein Vertrag
+// entsteht: Erst pruefen und gegenzeichnen, was das Unternehmen bindet — dann
+// dem Gegenueber vorlegen. Waeren beide gleichzeitig dran, koennte Nikita
+// einen Text unterschreiben, den die Geschaeftsfuehrung noch aendern will.
+//
+// Der Code ist eine SPERRE, kein Identitaetsnachweis — deshalb zwei
+// verschiedene: Wer Nikitas Code hat, kommt nicht an Florentines Stufe.
+// ═══════════════════════════════════════════════════════════════════════════
+const CODE = "26082026";          // Nikita — der Vertragspartner
+const CODE_LEITUNG = "26082026F"; // Florentine — Pruefung und Gegenzeichnung
 
 /** Die eine Vereinbarung, die es derzeit gibt. */
 const SCHLUESSEL = "ZV-2026-013";
@@ -57,6 +72,14 @@ export async function ensureVereinbarungTabellen(): Promise<void> {
         created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )`;
+    // Die Leitungsstufe. Additiv ergaenzt — die Tabelle gibt es seit heute
+    // frueh und kann bereits Eintraege tragen.
+    for (const sp of [
+      "leitung_name TEXT", "leitung_am TIMESTAMPTZ", "leitung_ip TEXT",
+      "leitung_urteil TEXT", "leitung_feedback TEXT",
+    ]) {
+      await tx.unsafe(`ALTER TABLE fiaon_vereinbarungen ADD COLUMN IF NOT EXISTS ${sp}`);
+    }
     await tx`
       CREATE TABLE IF NOT EXISTS fiaon_vereinbarung_zugriffe (
         id          BIGSERIAL PRIMARY KEY,
@@ -102,21 +125,26 @@ router.post("/vereinbarung/entsperren", async (req: Request, res: Response) => {
       return res.status(429).json({ ok: false, error: "Zu viele Versuche. Bitte in zehn Minuten erneut probieren." });
     }
     const code = String(req.body?.code ?? "").replace(/\s+/g, "");
-    if (code !== CODE) {
+    const rolle = code === CODE_LEITUNG ? "leitung" : code === CODE ? "partner" : null;
+    if (!rolle) {
       await protokoll("code_falsch", req);
       return res.status(403).json({ ok: false, error: "Der Code stimmt nicht." });
     }
-    await protokoll("geoeffnet", req);
+    await protokoll(`geoeffnet_${rolle}`, req);
     const [v] = (await sqlPool`SELECT * FROM fiaon_vereinbarungen WHERE schluessel = ${SCHLUESSEL}`) as any[];
     res.json({
       ok: true,
+      rolle,
       vereinbarung: {
         titel: v?.titel ?? "",
         angaben: v?.angaben ?? {},
         anmerkungen: v?.anmerkungen ?? "",
-        variante: v?.variante ?? null,
         unterzeichnetAm: v?.unterzeichnet_am ?? null,
         unterschriftName: v?.unterschrift_name ?? null,
+        leitungAm: v?.leitung_am ?? null,
+        leitungName: v?.leitung_name ?? null,
+        leitungUrteil: v?.leitung_urteil ?? null,
+        leitungFeedback: v?.leitung_feedback ?? null,
       },
     });
   } catch (err) {
@@ -151,6 +179,60 @@ router.post("/vereinbarung/speichern", async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * Die Leitungsstufe: Florentine liest, gibt Rueckmeldung ODER zeichnet gegen.
+ *
+ * Zwei Wege, ein Endpunkt — weil beides dieselbe Entscheidung ist: Der Text
+ * geht so raus, oder er geht so nicht raus. Ein „Feedback" ohne Wirkung waere
+ * ein Kommentarfeld; hier hält es Nikitas Unterschrift auf, bis Justin
+ * nachgebessert hat.
+ */
+router.post("/vereinbarung/leitung", async (req: Request, res: Response) => {
+  try {
+    await ensureVereinbarungTabellen();
+    if (String(req.body?.code ?? "").replace(/\s+/g, "") !== CODE_LEITUNG) {
+      return res.status(403).json({ ok: false, error: "Der Code stimmt nicht." });
+    }
+    const urteil = String(req.body?.urteil ?? "");
+    if (urteil !== "freigabe" && urteil !== "rueckmeldung") {
+      return res.status(400).json({ ok: false, error: "Bitte freigeben oder eine Rückmeldung geben." });
+    }
+    const [v] = (await sqlPool`SELECT unterzeichnet_am, leitung_am FROM fiaon_vereinbarungen WHERE schluessel = ${SCHLUESSEL}`) as any[];
+    if (v?.unterzeichnet_am) {
+      return res.status(409).json({ ok: false, error: "Die Vereinbarung ist bereits unterzeichnet." });
+    }
+    if (urteil === "freigabe") {
+      const name = String(req.body?.name ?? "").trim();
+      if (name.length < 4 || !name.includes(" ")) {
+        return res.status(400).json({ ok: false, error: "Bitte den vollständigen Namen als Unterschrift eintragen." });
+      }
+      await sqlPool`
+        UPDATE fiaon_vereinbarungen
+           SET leitung_name = ${name}, leitung_am = NOW(), leitung_ip = ${ipVon(req)},
+               leitung_urteil = 'freigabe',
+               leitung_feedback = ${String(req.body?.feedback ?? "").slice(0, 8000) || null},
+               updated_at = NOW()
+         WHERE schluessel = ${SCHLUESSEL}`;
+      await protokoll("leitung_freigabe", req);
+      return res.json({ ok: true, urteil: "freigabe" });
+    }
+    const feedback = String(req.body?.feedback ?? "").trim();
+    if (feedback.length < 10) {
+      return res.status(400).json({ ok: false, error: "Bitte schreiben, was geändert werden soll." });
+    }
+    await sqlPool`
+      UPDATE fiaon_vereinbarungen
+         SET leitung_urteil = 'rueckmeldung', leitung_feedback = ${feedback.slice(0, 8000)},
+             leitung_name = NULL, leitung_am = NULL, updated_at = NOW()
+       WHERE schluessel = ${SCHLUESSEL}`;
+    await protokoll("leitung_rueckmeldung", req);
+    res.json({ ok: true, urteil: "rueckmeldung" });
+  } catch (err) {
+    console.error("[VEREINBARUNG] leitung:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 /** Unterzeichnen — einmalig, mit Protokoll. */
 router.post("/vereinbarung/unterzeichnen", async (req: Request, res: Response) => {
   try {
@@ -179,8 +261,15 @@ router.post("/vereinbarung/unterzeichnen", async (req: Request, res: Response) =
     if (fehlend.length) {
       return res.status(400).json({ ok: false, error: `Es fehlen noch: ${fehlend.join(", ")}.`, fehlend });
     }
-    if (!req.body?.variante) {
-      return res.status(400).json({ ok: false, error: "Bitte in § 3 Absatz 3 eine Variante wählen." });
+    // Die Reihenfolge ist Teil des Vertrags, nicht der Oberflaeche: Ohne
+    // Gegenzeichnung der Geschaeftsfuehrung liegt kein Angebot vor, das
+    // angenommen werden koennte.
+    const [stand] = (await sqlPool`SELECT leitung_urteil, leitung_am FROM fiaon_vereinbarungen WHERE schluessel = ${SCHLUESSEL}`) as any[];
+    if (String(stand?.leitung_urteil ?? "") !== "freigabe" || !stand?.leitung_am) {
+      return res.status(409).json({
+        ok: false, code: "leitung_fehlt",
+        error: "Die Geschäftsführung hat die Vereinbarung noch nicht gegengezeichnet.",
+      });
     }
     if (req.body?.gelesen !== true) {
       return res.status(400).json({ ok: false, error: "Bitte bestätigen, dass die Vereinbarung gelesen wurde." });
@@ -196,14 +285,13 @@ router.post("/vereinbarung/unterzeichnen", async (req: Request, res: Response) =
     // der Datenbank, passt sie nicht mehr — und das faellt auf.
     const anmerkungen = String(req.body?.anmerkungen ?? "").slice(0, 8000);
     const pruefsumme = createHash("sha256")
-      .update(JSON.stringify({ s: SCHLUESSEL, angaben, anmerkungen, variante: String(req.body.variante) }))
+      .update(JSON.stringify({ s: SCHLUESSEL, angaben, anmerkungen }))
       .digest("hex");
 
     await sqlPool`
       UPDATE fiaon_vereinbarungen
          SET angaben = ${JSON.stringify(angaben)}::jsonb,
              anmerkungen = ${anmerkungen},
-             variante = ${String(req.body.variante)},
              unterschrift_name = ${name},
              unterzeichnet_am = NOW(),
              unterzeichner_ip = ${ipVon(req)},

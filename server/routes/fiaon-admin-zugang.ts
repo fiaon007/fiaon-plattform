@@ -20,6 +20,7 @@
 
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { createHmac, timingSafeEqual } from "crypto";
+import { readChef } from "./fiaon-chef-zugang";
 
 const COOKIE = "fiaon_admin";
 /** 30 Tage: lange genug, dass man den Code im Alltag nie wieder tippt. */
@@ -166,9 +167,55 @@ router.post("/schliessen", (_req: Request, res: Response) => {
  * Das Gate selbst. Wird in server/routes.ts auf /api/fiaon gemountet, req.path
  * ist dort relativ zum Mount (also "/admin/hub/stats").
  */
+// ═══════════════════════════════════════════════════════════════════════════
+// ZWEITER WEG DURCH DIESE TÜR: DIE PERSÖNLICHE CHEF-ANMELDUNG (26.08.2026)
+//
+// GEFUNDEN beim Nachprüfen: Das Chefbüro setzt beim Anmelden nur sein eigenes
+// Cookie (fiaon_chef). Jeder Raum dort verlinkt aber auf /admin-Seiten, und
+// die hingen ausschliesslich am geteilten Zugangscode. Wer sich also im
+// Chefbüro anmeldete, ohne den Code zusätzlich zu kennen, sah acht Räume, in
+// denen jede einzelne Seite „Verwaltungsbereich gesperrt" meldete. Das
+// Chefbüro war für Florentine und Daniel eine Fassade.
+//
+// Der geteilte Code bleibt bestehen (Justins gewohnter Weg). Daneben zählt ab
+// jetzt die persönliche Anmeldung — sie ist der STÄRKERE Nachweis: sie hängt
+// an einem Konto, an einem bcrypt-Passwort und an session_epoch, statt an
+// einem Wort, das drei Leute kennen.
+//
+// ── DIE STUFE GILT AUCH HIER ──────────────────────────────────────────────
+// Im Chefbüro sind „Geld" und „System" erst ab Geschäftsführung sichtbar.
+// Wäre der Gate blind für die Stufe, käme die Leitung über die blosse
+// Adresszeile trotzdem an jede Geldzahl — die Raumsperre wäre Zierrat. Die
+// Liste unten spiegelt deshalb genau die beiden Räume wider.
+// ═══════════════════════════════════════════════════════════════════════════
+const NUR_GESCHAEFTSFUEHRUNG = [
+  "/admin/zahlungen", "/admin/verbuchung", "/admin/kontoabgleich",
+  "/admin/auszahlungen", "/admin/abrechnungen", "/admin/verbuchungen",
+  "/admin/buchhaltung", "/admin/rechnungen", "/admin/finanzen",
+  "/admin/investoren", "/admin/payouts", "/admin/payments",
+  "/admin/commissions", "/admin/commission-backfill", "/admin/ledger",
+  "/admin/finance", "/admin/truth-check", "/admin/kontoauszug",
+  "/admin/einstellungen", "/admin/settings", "/admin/diagnose", "/admin/audit",
+];
+
 export function adminCodeGate(req: Request, res: Response, next: NextFunction) {
   if (!req.path.startsWith("/admin")) return next();
   if (hasAdminCode(req)) return next();
+
+  const chef = readChef(req);
+  if (chef) {
+    const heikel = NUR_GESCHAEFTSFUEHRUNG.some((p) => req.path.startsWith(p));
+    if (!heikel || chef.stufe === "inhaber" || chef.stufe === "geschaeftsfuehrung") {
+      return next();
+    }
+    return res.status(403).json({
+      ok: false,
+      code: "STUFE_ZU_NIEDRIG",
+      error: "Dieser Bereich ist der Geschäftsführung vorbehalten.",
+      stufe: chef.stufe,
+    });
+  }
+
   return res.status(401).json({
     ok: false,
     code: "ADMIN_CODE_REQUIRED",

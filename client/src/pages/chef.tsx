@@ -21,6 +21,19 @@ import { ChefShell, ChefRaumSeite, CHEF_RAEUME, raumErlaubt, STUFEN_NAME, type C
 // dem die Zahlen des Unternehmens stehen. Die uebrigen sieben Raeume bleiben
 // Kachellisten auf die bestehenden /admin-Seiten — dort ist eine Liste richtig.
 import ChefLagezimmer from "@/components/admin/ChefLagezimmer";
+// 26.08.2026: Drei weitere Raeume sind eigene Seiten statt Kachellisten —
+// Werkstatt, Kundenauflistung und Zahlungszentrale. Sie zeigen Daten, nicht
+// Verweise, und dafuer ist eine Kachelliste die falsche Form.
+import ChefWerkzeuge from "@/components/admin/ChefWerkzeuge";
+import ChefKundenliste from "@/components/admin/ChefKundenliste";
+import ChefZahlungen from "@/components/admin/ChefZahlungen";
+
+/** Welche Raeume eine eigene Seite haben statt einer Kachelliste. */
+const EIGENE_SEITE: Record<string, () => JSX.Element> = {
+  werkzeuge: () => <ChefWerkzeuge />,
+  kundenliste: () => <ChefKundenliste />,
+  zahlungen: () => <ChefZahlungen />,
+};
 
 const STUFEN: ChefStufe[] = ["inhaber", "geschaeftsfuehrung", "leitung"];
 
@@ -48,7 +61,9 @@ export default function ChefPage() {
       {raumErlaubt(raum, stufe) ? (
         raum.key === "lage"
           ? <ChefLagezimmer name={status.name} />
-          : <ChefRaumSeite raum={raum} />
+          : EIGENE_SEITE[raum.key]
+            ? EIGENE_SEITE[raum.key]()
+            : <ChefRaumSeite raum={raum} />
       ) : (
         <div className="cb-hinweis" role="status">
           <b><Lock size={16} strokeWidth={1.75} /> {raum.label} ist für dich geschlossen.</b>

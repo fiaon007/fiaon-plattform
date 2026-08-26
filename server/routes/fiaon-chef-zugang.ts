@@ -73,7 +73,7 @@ function equalStr(a: string, b: string): boolean {
 }
 
 /** Liest und prüft das neue Cookie. null = keine gültige Chef-Sitzung. */
-function readChef(req: Request): { agentId: number; stufe: ChefStufe } | null {
+export function readChef(req: Request): { agentId: number; stufe: ChefStufe } | null {
   const token = (req as any).cookies?.[COOKIE];
   if (typeof token !== "string") return null;
   const [idStr, stufe, expStr, sig] = token.split(".");

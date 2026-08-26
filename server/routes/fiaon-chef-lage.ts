@@ -22,6 +22,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
+import { requireChef } from "./fiaon-chef-zugang";
 
 const router = Router();
 
@@ -42,7 +43,10 @@ async function eineZahl(sql: string): Promise<number> {
   }
 }
 
-router.get("/chef/lage", async (_req: Request, res: Response) => {
+// GEFUNDEN beim Nachprüfen 26.08.2026: Diese Route stand ohne Wache im Netz.
+// Umsatz, Kundenzahl und Teamgrößen waren mit einem einzigen curl-Aufruf
+// abrufbar. Ab hier gilt dieselbe Schwelle wie für den Raum selbst: Leitung.
+router.get("/chef/lage", requireChef("leitung"), async (_req: Request, res: Response) => {
   try {
     // ── GELD ────────────────────────────────────────────────────────────────
     // Grundlage ist IMMER der Zahlungseingang (bezahlt_am), nie die Fälligkeit:

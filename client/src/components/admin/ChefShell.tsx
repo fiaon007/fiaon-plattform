@@ -23,6 +23,7 @@ import {
   Receipt, Banknote, Copy, Wallet, TrendingUp, CalendarClock, Target, Map,
   PiggyBank, ScrollText, UserPlus, BookOpen, Sparkles, Activity, History, Scale,
   MailCheck, MessageSquare,
+  Wrench, Table2, Receipt as ReceiptIcon,
 } from "lucide-react";
 import "@/styles/chefbuero.css";
 
@@ -52,6 +53,24 @@ export const CHEF_RAEUME: ChefRaum[] = [
       { href: "/admin/todo", label: "Meine Liste", desc: "Was nur du tun kannst — Make, Brevo, Konten, Entscheidungen", Icon: ListChecks },
       { href: "/admin/aufgaben", label: "Notizen & Aufgaben", desc: "An Personen festgehalten oder ans Team vergeben — mit Frist und Sichtbarkeit", Icon: ListChecks },
     ],
+  },
+  // ── DIE WERKSTATT (26.08.2026) ──────────────────────────────────────────
+  // Kein Verzeichnis auf /admin-Seiten, sondern ein eigener Raum: Diese fünf
+  // Werkzeuge waren als Endpunkte gebaut und hatten keine einzige Tür.
+  {
+    key: "werkzeuge", label: "Werkstatt", Icon: Wrench, mindest: "leitung",
+    satz: "Frag die Zahlen, Wahrheits-Check, Maschinenraum, Sprung, Freigaben, Posteingang.",
+    punkte: [],
+  },
+  {
+    key: "kundenliste", label: "Alle Kunden", Icon: Table2, mindest: "leitung",
+    satz: "Der gesamte Bestand — eine Person, eine Zeile, mit Filtern und Suche.",
+    punkte: [],
+  },
+  {
+    key: "zahlungen", label: "Zahlungszentrale", Icon: ReceiptIcon, mindest: "geschaeftsfuehrung",
+    satz: "Jeder Zahlungseingang mit allen Angaben — gegengeprüft gegen das Lagezimmer.",
+    punkte: [],
   },
   {
     key: "geld", label: "Geld", Icon: Landmark, mindest: "geschaeftsfuehrung",

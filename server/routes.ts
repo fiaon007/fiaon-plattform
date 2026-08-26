@@ -596,6 +596,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const chefLage = await import('./routes/fiaon-chef-lage');
   app.use('/api/fiaon', chefLage.default);
 
+  // 🛠 Chefbüro-Werkzeuge: Wahrheits-Check, Maschinenraum, Freigabestapel,
+  // Posteingang. Alle vier binden Fähigkeiten an, die bereits gebaut waren.
+  const chefWerkzeuge = await import('./routes/fiaon-chef-werkzeuge');
+  app.use('/api/fiaon', chefWerkzeuge.default);
+
+  // 👥 Chefbüro-Übersichten: Kundenauflistung und Zahlungszentrale.
+  const chefUebersichten = await import('./routes/fiaon-chef-uebersichten');
+  app.use('/api/fiaon', chefUebersichten.default);
+
   // 🏛 Datenraum der Schwarzott Capital Partners AG (26.08.2026).
   // Bewusst eigene Tabellen und eigene Sitzung — getrennt von FIAONS eigenem
   // Investorenbereich unter /datenraum.

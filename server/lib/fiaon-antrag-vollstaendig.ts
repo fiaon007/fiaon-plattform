@@ -52,6 +52,29 @@
 export interface Pflichtfeld {
   /** Die Spalte in `fiaon_applications`. */
   spalte: string;
+  /**
+   * Dieselbe Angabe an der PERSON, wo es sie dort gibt.
+   *
+   * ── WARUM DAS NÖTIG IST (27.08.2026) ────────────────────────────────────
+   * Justin schickte die Akte von Godwin Uche: Die Lückenliste verlangte
+   * Geburtsdatum, Telefonnummer, Straße, PLZ und Ort — und der Reiter „Daten"
+   * daneben zeigte alle fünf. Beides stimmte: Die Angaben stehen an der
+   * PERSON, die Prüfung las nur die BESTELLUNG.
+   *
+   * Seit Migration 059 ist die Person die gültige Wahrheit und die Spalten an
+   * der Bestellung sind Abschriften (AGENTS.md). Genau diese Lehre steht seit
+   * dem 19.08. in fiaon-massgebliche-bestellung.ts — für den Empfänger einer
+   * Mail wurde sie gezogen, für die Lückenliste nicht.
+   *
+   * GEMESSEN über alle 1.893 Kunden mit offener Bestellung: 222-mal fehlt die
+   * E-Mail an der Bestellung und steht an der Person, 88-mal die Telefonnummer,
+   * je 82-mal Geburtsdatum, Straße, PLZ und Ort. So oft hat die Plattform
+   * einem Mitarbeiter gesagt, er solle etwas erfragen, das längst dasteht.
+   *
+   * Fehlt der Eintrag hier, gibt es die Angabe an der Person nicht (etwa
+   * Beschäftigung oder IBAN) — dann bleibt die Bestellung allein maßgeblich.
+   */
+  person?: string;
   /** Was ein Mensch am Telefon fragen würde. Steht so in der Karte. */
   name: string;
   /** `text` = Zeichenkette, die nicht leer sein darf; `ja` = Boolean-Zusage. */
@@ -90,15 +113,15 @@ export interface Pflichtfeld {
  */
 export const PFLICHTFELDER: readonly Pflichtfeld[] = [
   // Schritt 1 — persönliche Daten
-  { spalte: "first_name", name: "Vorname", art: "text" },
-  { spalte: "last_name", name: "Nachname", art: "text" },
-  { spalte: "birthdate", name: "Geburtsdatum", art: "text" },
-  { spalte: "phone", name: "Telefonnummer", art: "text" },
-  { spalte: "street", name: "Straße", art: "text" },
-  { spalte: "zip", name: "PLZ", art: "text" },
-  { spalte: "city", name: "Ort", art: "text" },
-  { spalte: "country", name: "Land", art: "text" },
-  { spalte: "nationality", name: "Staatsangehörigkeit", art: "text" },
+  { spalte: "first_name", person: "first_name", name: "Vorname", art: "text" },
+  { spalte: "last_name", person: "last_name", name: "Nachname", art: "text" },
+  { spalte: "birthdate", person: "birthdate", name: "Geburtsdatum", art: "text" },
+  { spalte: "phone", person: "primary_phone", name: "Telefonnummer", art: "text" },
+  { spalte: "street", person: "street", name: "Straße", art: "text" },
+  { spalte: "zip", person: "zip", name: "PLZ", art: "text" },
+  { spalte: "city", person: "city", name: "Ort", art: "text" },
+  { spalte: "country", person: "country", name: "Land", art: "text" },
+  { spalte: "nationality", person: "nationality", name: "Staatsangehörigkeit", art: "text" },
   // Schritt 2 — Beschäftigung
   { spalte: "employment", name: "Beschäftigung", art: "text" },
   { spalte: "employed_since", name: "beschäftigt seit", art: "text" },
@@ -106,7 +129,7 @@ export const PFLICHTFELDER: readonly Pflichtfeld[] = [
   // Schritt 3 — Verwendung
   { spalte: "purpose", name: "Verwendungszweck der Karte", art: "text" },
   // Schritt 6 — Abschluss
-  { spalte: "email", name: "E-Mail-Adresse", art: "text" },
+  { spalte: "email", person: "primary_email", name: "E-Mail-Adresse", art: "text" },
   { spalte: "salary_receipt_day", name: "Tag des Gehaltseingangs", art: "text" },
   {
     spalte: "iban", name: "IBAN", art: "text",
@@ -224,11 +247,17 @@ export function fehlendeZustimmungenAusdruckSql(a = "a"): string {
     END)`;
 }
 
-export function fehlendeFelderAusdruckSql(a = "a"): string {
+export function fehlendeFelderAusdruckSql(a = "a", pers?: string): string {
   const teil = (f: Pflichtfeld): string => {
+    // Eine Angabe gilt als vorhanden, wenn sie an der Bestellung ODER an der
+    // Person steht. Zustimmungen (`ja`) bleiben an der Bestellung: Sie gehören
+    // zu DIESEM Vertrag, nicht zum Menschen.
+    const anDerPerson = pers && f.person && f.art === "text"
+      ? ` OR NULLIF(TRIM(${pers}.${f.person}::text), '') IS NOT NULL`
+      : "";
     const da = f.art === "ja"
       ? `${a}.${f.spalte} IS TRUE`
-      : `NULLIF(TRIM(${a}.${f.spalte}::text), '') IS NOT NULL`;
+      : `(NULLIF(TRIM(${a}.${f.spalte}::text), '') IS NOT NULL${anDerPerson})`;
     // Ein Feld, das gar nicht nötig ist, gilt als vorhanden.
     const noetig = f.nurWennSql ? `(${f.nurWennSql(a)})` : "TRUE";
     // Der Name wird als Literal eingesetzt; er kommt aus dieser Datei und

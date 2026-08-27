@@ -140,7 +140,15 @@ export interface KartenStand {
   /** Welche Bank — damit die Frage „von welcher Bank kriege ich die Karte?"
    *  in der Akte beantwortet ist und nicht geraten werden muss. */
   bank: { name: string; kurz: string; vorteile: readonly string[]; kartePreisMonat: string; aktion: string };
-  zahlen: { ratenBezahlt: number; minRaten: number };
+  // 27.08.2026: `paketBezahlt` und `auskunftBezahlt` kommen mit, weil die
+  // Oberfläche sonst raten muss, WARUM noch keine Rate gelaufen ist — und
+  // dabei genau das Falsche geraten hat.
+  zahlen: {
+    ratenBezahlt: number; minRaten: number;
+    paketBezahlt: boolean; auskunftBezahlt: boolean;
+    /** Die nächste offene Rate — damit die Oberfläche ein Datum nennen kann. */
+    naechsteRateAm: string | null;
+  };
 }
 
 /** Die Tabelle liegt lazy an — die Datenbank ist Produktion, nur additiv. */
@@ -210,6 +218,13 @@ const STAND_SQL = `
       JOIN fiaon_applications a2 ON a2.ref = r.ref
       WHERE a2.person_id = p.id AND r.status = 'bezahlt'
     ), 0)::int AS raten_bezahlt,
+    -- Wann die nächste offene Rate fällig ist. Ohne dieses Datum kann die
+    -- Oberfläche nur sagen „es fehlt etwas", nicht „am 30.08. ist die nächste".
+    (
+      SELECT MIN(r.faellig_am) FROM fiaon_abo_raten r
+      JOIN fiaon_applications a2 ON a2.ref = r.ref
+      WHERE a2.person_id = p.id AND r.status = 'offen' AND r.storniert_am IS NULL
+    ) AS naechste_rate_am,
     EXISTS (
       SELECT 1 FROM fiaon_applications a
       WHERE a.person_id = p.id AND a.merged_into IS NULL
@@ -328,7 +343,13 @@ export async function kartenStand(personId: number, lauf: Lauf = sqlPool): Promi
       kartePreisMonat: PARTNERBANK.kartePreisMonat,
       aktion: PARTNERBANK.aktion,
     },
-    zahlen: { ratenBezahlt: Number(r.raten_bezahlt || 0), minRaten: KARTE_MIN_RATEN },
+    zahlen: {
+      ratenBezahlt: Number(r.raten_bezahlt || 0),
+      minRaten: KARTE_MIN_RATEN,
+      paketBezahlt: !!r.paket_bezahlt,
+      auskunftBezahlt: !!r.schufa_bezahlt,
+      naechsteRateAm: r.naechste_rate_am ? String(r.naechste_rate_am).slice(0, 10) : null,
+    },
   };
 }
 

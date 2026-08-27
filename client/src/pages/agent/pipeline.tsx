@@ -2904,12 +2904,40 @@ function KontoKarte({ personId, name, melden, onProdukt }: {
         ))}
       </div>
 
-      {/* Ohne Bestellung gibt es keine Raten — dann ist der Weg dorthin der
-          eigentliche nächste Schritt, nicht die Karte. */}
+      {/* ══════════════════════════════════════════════════════════════════
+          WARUM NOCH KEINE RATE GELAUFEN IST — DIE WAHRE ANTWORT
+
+          Justin am 27.08.2026 zu einer Kundin: „Die Dame hat bereits
+          bezahlt." Er hatte recht. Hier stand pauschal „Ohne bezahltes Paket
+          beginnt die Zählung nicht" — bei einer Kundin, deren Paket
+          nachweislich bezahlt ist (79,99 EUR, Provision darauf gebucht).
+
+          Der Satz war für den Fall gedacht, dass es gar keine Bestellung
+          gibt. Gezeigt wurde er aber immer, wenn keine RATE bezahlt ist —
+          und das sind zwei ganz verschiedene Dinge. Ein Mitarbeiter, der das
+          liest, sagt dem Kunden am Telefon etwas Falsches.
+
+          Jetzt nennt jeder Fall seinen eigenen Grund.
+          ══════════════════════════════════════════════════════════════════ */}
       {stand.zahlen.ratenBezahlt === 0 && (
         <div className="pi-sackgasse" style={{ marginTop: 12 }}>
-          <span><b>Noch keine Rate gelaufen</b>Ohne bezahltes Paket beginnt die Zählung nicht.</span>
-          <button type="button" className="pi-knopf klein" onClick={onProdukt}>Produkt ansehen</button>
+          {!stand.zahlen.paketBezahlt ? (
+            <span>
+              <b>Noch keine Bestellung bezahlt</b>
+              Ohne bezahltes Paket beginnt die Zählung der Raten nicht.
+            </span>
+          ) : (
+            <span>
+              <b>Paket bezahlt, aber noch keine Rate</b>
+              Die Erstzahlung ist da. Für die Karte zählen die laufenden Raten —
+              {stand.zahlen.naechsteRateAm
+                ? ` die nächste ist am ${new Date(stand.zahlen.naechsteRateAm).toLocaleDateString("de-DE")} fällig.`
+                : " eine Ratenkette ist noch nicht angelegt."}
+            </span>
+          )}
+          <button type="button" className="pi-knopf klein" onClick={onProdukt}>
+            {stand.zahlen.paketBezahlt ? "Raten ansehen" : "Produkt ansehen"}
+          </button>
         </div>
       )}
     </Sek>

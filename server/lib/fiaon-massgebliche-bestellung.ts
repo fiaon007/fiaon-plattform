@@ -522,7 +522,12 @@ export function zustimmungFehltSql(p = "p"): string {
 // beide gegeneinander.
 // ═══════════════════════════════════════════════════════════════════════════
 export function fehlendeFelderSql(p = "p"): string {
-  return `(SELECT ${fehlendeFelderAusdruckSql("af")}
+  // Die PERSON wird mitgelesen (27.08.2026): Ihre Angaben sind seit Migration
+  // 059 die gültige Wahrheit, die Spalten an der Bestellung sind Abschriften.
+  // Wer nur die Abschrift liest, verlangt vom Mitarbeiter, Daten zu erfragen,
+  // die zwei Reiter weiter längst dastehen — genau das hat Justin am
+  // 27.08. an der Akte von Godwin Uche gezeigt.
+  return `(SELECT ${fehlendeFelderAusdruckSql("af", p)}
       FROM fiaon_applications af
      WHERE af.person_id = ${p}.id AND af.merged_into IS NULL
        AND af.archived_at IS NULL AND af.gdpr_deleted_at IS NULL

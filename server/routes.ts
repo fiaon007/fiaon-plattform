@@ -531,6 +531,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 📰 Ratgeber (23.08.2026): öffentliche Artikel, Redaktion unter /admin, täglicher Generator, Sitemap.
   const fiaonRatgeber = await import('./routes/fiaon-ratgeber');
   app.use('/api/fiaon', fiaonRatgeber.default);
+  // ═══════════════════════════════════════════════════════════════════════
+  // GESUNDHEITSPFAD — damit ein Deploy keine Anrufe mehr wegwirft
+  //
+  // Lucas am 27.08.2026: „Der Anruf ist schon wieder fehlgeschlagen."
+  // Nachgerechnet: Seine zwei Anrufe scheiterten um 08:08:27 und 08:09:18 UTC.
+  // Mein fehlgeschlagener Build endete um 08:08:07, der nächste Deploy begann
+  // um 08:11. Ich hatte in 45 Minuten sechsmal deployt — mitten in die
+  // Telefonzeit. Twilio ruft während eines Gesprächsaufbaus zweimal bei uns an
+  // (TwiML und Status); wer in dieses Fenster neu startet, bekommt von Twilio
+  // ein „failed" und der Mitarbeiter einen toten Hörer.
+  //
+  // Render kann OHNE Ausfall umschalten — aber nur mit einem Gesundheitspfad.
+  // Der war leer. Ab jetzt wartet Render, bis die neue Instanz hier antwortet,
+  // bevor sie Verkehr bekommt.
+  //
+  // BEWUSST OHNE DATENBANK: Ein Gesundheitspfad, der die Datenbank fragt,
+  // meldet bei jedem langsamen Verbindungsaufbau „krank" und verhindert genau
+  // das Umschalten, das er ermöglichen soll. Er beantwortet eine Frage:
+  // „Steht dieser Prozess und nimmt er Anfragen an?"
+  // ═══════════════════════════════════════════════════════════════════════
+  app.get('/healthz', (_req, res) => {
+    res.status(200).type('text/plain').send('ok');
+  });
+
   app.get('/sitemap.xml', async (_req, res) => {
     try {
       const fs = await import('fs'); const path = await import('path');

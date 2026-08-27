@@ -633,6 +633,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Speicher — Clarity erlaubt nur zehn Abrufe je Tag.
   const chefClarity = await import('./routes/fiaon-chef-clarity');
   app.use('/api/fiaon', chefClarity.default);
+
+  // 💎 Verdienst & Wert (27.08.2026): die eine Wahrheit über Umsatz, MRR/ARR
+  // (jedes Paket = 12-Monats-Abo) und den Unternehmenswert. Ersetzt inhaltlich
+  // die Stripe-Rechnung des alten Admin-Dashboards.
+  const chefZahlen = await import('./routes/fiaon-chef-zahlen');
+  app.use('/api/fiaon', chefZahlen.default);
   // Stündlich prüfen, höchstens alle 20 Stunden wirklich holen. Clarity setzt
   // sein Tageslimit um Mitternacht UTC zurück; wer auf eine feste Uhrzeit
   // wartet, verpasst das Fenster, sobald der Server einmal schläft.

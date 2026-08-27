@@ -1,0 +1,172 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// VERDIENST & WERT — die eine Wahrheit über das Geld (27.08.2026)
+//
+// Justin: „Das Admin Dashboard stimmt nicht, die Zahlen passen auf keinen
+// Fall. Schau dir an was wir verdient haben, was wir monatlich verdienen
+// (JEDES PAKET IST EIN 12-MONATS-ABO, also Umsatz = ×12) — und baue eine
+// Unternehmensbewertung ein."
+//
+// ── WARUM DIE ALTEN ZAHLEN FALSCH WAREN ────────────────────────────────────
+// Das alte Dashboard rechnete den Umsatz aus STRIPE-Kartenzahlungen
+// (GET /admin/stripe/revenue zieht jede Charge einzeln aus der Stripe-API).
+// FIAON kassiert aber seit Wochen per Banküberweisung — Stripe ist ein
+// Altbestand von ein paar frühen Zahlungen. Das Dashboard zählte also fast
+// nichts vom echten Geschäft und brauchte dafür auch noch 14 Sekunden.
+//
+// ── DIE REGELN DIESER ZAHLEN ───────────────────────────────────────────────
+// · VERDIENT ist nur, was bankbestätigt im System gebucht ist: bezahlte
+//   Raten (Rate 1 = Startzahlung; die Ketten sind seit dem 27.08. konsistent)
+//   plus bezahlte Bonitätsauskünfte. Kein amount_due, kein „angekündigt".
+// · Testkonten (FIAON-TEST-% und fiaon_persons.ist_test_am) zählen NIE mit —
+//   der Fehler vom 26.08. (495,92 € zu viel) passiert nicht noch einmal.
+// · MRR = Summe der Monatsraten aller AKTIVEN Abos (bezahlt, nicht gestoppt,
+//   nicht storniert, nicht erstattet, keine Auskunfts-Bestellung).
+// · Der VERTRAGSBESTAND rechnet ×12: Jedes aktive Abo steht für zwölf
+//   Monatsraten. Vereinnahmt = seine bezahlten Raten; der Rest ist
+//   vertraglich ausstehend. Beides wird GETRENNT gezeigt — eingegangenes
+//   Geld und Vertragswert in einen Topf zu werfen wäre die nächste falsche
+//   Zahl.
+// · Die BEWERTUNG ist ein interner Richtwert über ARR-Vielfache — mit
+//   offener Methodik, keine Anlageberatung.
+// ═══════════════════════════════════════════════════════════════════════════
+import { Router, type Request, type Response } from "express";
+import { sqlPool } from "../lib/db-pool";
+import { requireChef } from "./fiaon-chef-zugang";
+
+const router = Router();
+
+/** Echte Kunden: keine Prüfstand-Referenzen, keine als Test markierten Personen. */
+const ECHT = `a.ref NOT LIKE 'FIAON-TEST%' AND COALESCE(p.ist_test_am IS NOT NULL, FALSE) = FALSE`;
+
+router.get("/chef/zahlen", requireChef("geschaeftsfuehrung"), async (_req: Request, res: Response) => {
+  try {
+    const [verdient] = (await sqlPool.unsafe(`
+      SELECT
+        COALESCE((SELECT SUM(r.betrag_cents) FROM fiaon_abo_raten r
+          JOIN fiaon_applications a ON a.ref = r.ref
+          LEFT JOIN fiaon_persons p ON p.id = a.person_id
+          WHERE r.status='bezahlt' AND a.merged_into IS NULL AND ${ECHT}), 0)::bigint AS raten_cents,
+        COALESCE((SELECT COUNT(*) FROM fiaon_abo_raten r
+          JOIN fiaon_applications a ON a.ref = r.ref
+          LEFT JOIN fiaon_persons p ON p.id = a.person_id
+          WHERE r.status='bezahlt' AND a.merged_into IS NULL AND ${ECHT}), 0)::int AS raten_anzahl,
+        COALESCE((SELECT SUM(ROUND(a.amount_due * 100)) FROM fiaon_applications a
+          LEFT JOIN fiaon_persons p ON p.id = a.person_id
+          WHERE a.payment_status='paid' AND a.merged_into IS NULL
+            AND a.ref LIKE 'FIAON-SCHUFA-%' AND ${ECHT}), 0)::bigint AS auskunft_cents,
+        COALESCE((SELECT COUNT(*) FROM fiaon_applications a
+          LEFT JOIN fiaon_persons p ON p.id = a.person_id
+          WHERE a.payment_status='paid' AND a.merged_into IS NULL
+            AND a.ref LIKE 'FIAON-SCHUFA-%' AND ${ECHT}), 0)::int AS auskunft_anzahl
+    `)) as any[];
+
+    // Aktive Abos + MRR — und der Vertragsbestand ×12 je Abo.
+    const [abo] = (await sqlPool.unsafe(`
+      WITH aktive AS (
+        SELECT a.ref, ROUND(a.amount_due * 100)::bigint AS monat_cents, a.pack_name
+          FROM fiaon_applications a
+          LEFT JOIN fiaon_persons p ON p.id = a.person_id
+         WHERE a.payment_status='paid' AND a.merged_into IS NULL AND a.gdpr_deleted_at IS NULL
+           AND a.ref NOT LIKE 'FIAON-SCHUFA-%'
+           AND a.abo_gestoppt_am IS NULL AND a.cancelled_at IS NULL AND a.refunded_at IS NULL
+           AND a.amount_due IS NOT NULL AND ${ECHT})
+      SELECT COUNT(*)::int AS aktive,
+             COALESCE(SUM(monat_cents), 0)::bigint AS mrr_cents,
+             COALESCE(SUM(monat_cents) * 12, 0)::bigint AS vertrag12_cents,
+             COALESCE((SELECT SUM(r.betrag_cents) FROM fiaon_abo_raten r
+                WHERE r.status='bezahlt' AND r.ref IN (SELECT ref FROM aktive)), 0)::bigint AS vereinnahmt_cents
+        FROM aktive
+    `)) as any[];
+
+    const jePaket = (await sqlPool.unsafe(`
+      SELECT COALESCE(SPLIT_PART(a.pack_name, E'\\n', 1), 'Ohne Paketname') AS paket,
+             COUNT(*)::int AS anzahl,
+             COALESCE(SUM(ROUND(a.amount_due * 100)), 0)::bigint AS mrr_cents
+        FROM fiaon_applications a
+        LEFT JOIN fiaon_persons p ON p.id = a.person_id
+       WHERE a.payment_status='paid' AND a.merged_into IS NULL AND a.gdpr_deleted_at IS NULL
+         AND a.ref NOT LIKE 'FIAON-SCHUFA-%'
+         AND a.abo_gestoppt_am IS NULL AND a.cancelled_at IS NULL AND a.refunded_at IS NULL
+         AND a.amount_due IS NOT NULL AND ${ECHT}
+       GROUP BY 1 ORDER BY 3 DESC
+    `)) as any[];
+
+    // Monatsreihe: was WIRKLICH je Monat eingegangen ist (Raten + Auskünfte).
+    const monate = (await sqlPool.unsafe(`
+      SELECT monat, SUM(raten_cents)::bigint AS raten_cents, SUM(auskunft_cents)::bigint AS auskunft_cents
+        FROM (
+          SELECT TO_CHAR(DATE_TRUNC('month', r.bezahlt_am), 'YYYY-MM') AS monat,
+                 r.betrag_cents AS raten_cents, 0 AS auskunft_cents
+            FROM fiaon_abo_raten r
+            JOIN fiaon_applications a ON a.ref = r.ref
+            LEFT JOIN fiaon_persons p ON p.id = a.person_id
+           WHERE r.status='bezahlt' AND r.bezahlt_am IS NOT NULL
+             AND a.merged_into IS NULL AND ${ECHT}
+          UNION ALL
+          SELECT TO_CHAR(DATE_TRUNC('month', COALESCE(a.paid_at, a.completed_at)), 'YYYY-MM'),
+                 0, ROUND(a.amount_due * 100)::int
+            FROM fiaon_applications a
+            LEFT JOIN fiaon_persons p ON p.id = a.person_id
+           WHERE a.payment_status='paid' AND a.merged_into IS NULL
+             AND a.ref LIKE 'FIAON-SCHUFA-%' AND COALESCE(a.paid_at, a.completed_at) IS NOT NULL
+             AND ${ECHT}
+        ) x
+       WHERE monat IS NOT NULL
+       GROUP BY monat ORDER BY monat
+    `)) as any[];
+
+    // Real eingegangen in den letzten 30 Tagen — die ehrliche Gegenzahl zum MRR.
+    const [dreissig] = (await sqlPool.unsafe(`
+      SELECT COALESCE(SUM(r.betrag_cents), 0)::bigint AS cents
+        FROM fiaon_abo_raten r
+        JOIN fiaon_applications a ON a.ref = r.ref
+        LEFT JOIN fiaon_persons p ON p.id = a.person_id
+       WHERE r.status='bezahlt' AND r.bezahlt_am > NOW() - INTERVAL '30 days'
+         AND a.merged_into IS NULL AND ${ECHT}
+    `)) as any[];
+
+    const mrrCents = Number(abo.mrr_cents);
+    const arrCents = mrrCents * 12;
+    // Drei Vielfache auf den ARR — bewusst eine SPANNE, kein Versprechen.
+    const szenarien = [
+      { name: "Vorsichtig", faktor: 2.5, satz: "Junges Geschäft, Ausfallquote noch unbewiesen — so rechnet ein skeptischer Käufer." },
+      { name: "Marktüblich", faktor: 4, satz: "Übliche Spanne für wiederkehrende Umsätze mit funktionierendem Vertrieb." },
+      { name: "Wachstum", faktor: 6, satz: "Bei belegtem Wachstum und niedriger Kündigungsquote — so rechnet ein überzeugter Käufer." },
+    ].map((s) => ({ ...s, wertCents: Math.round(arrCents * s.faktor) }));
+
+    res.json({
+      ok: true,
+      stand: new Date().toISOString(),
+      verdient: {
+        ratenCents: Number(verdient.raten_cents),
+        ratenAnzahl: Number(verdient.raten_anzahl),
+        auskunftCents: Number(verdient.auskunft_cents),
+        auskunftAnzahl: Number(verdient.auskunft_anzahl),
+        gesamtCents: Number(verdient.raten_cents) + Number(verdient.auskunft_cents),
+      },
+      abo: {
+        aktive: Number(abo.aktive),
+        mrrCents,
+        arrCents,
+        vertrag12Cents: Number(abo.vertrag12_cents),
+        vereinnahmtCents: Number(abo.vereinnahmt_cents),
+        ausstehendCents: Math.max(0, Number(abo.vertrag12_cents) - Number(abo.vereinnahmt_cents)),
+        letzte30TageCents: Number(dreissig.cents),
+      },
+      jePaket: jePaket.map((r: any) => ({
+        paket: String(r.paket), anzahl: Number(r.anzahl), mrrCents: Number(r.mrr_cents),
+      })),
+      monate: monate.map((m: any) => ({
+        monat: String(m.monat),
+        ratenCents: Number(m.raten_cents),
+        auskunftCents: Number(m.auskunft_cents),
+      })),
+      bewertung: { arrCents, szenarien },
+    });
+  } catch (err) {
+    console.error("[CHEF-ZAHLEN]", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+export default router;

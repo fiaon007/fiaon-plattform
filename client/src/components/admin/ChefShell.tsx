@@ -18,6 +18,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "wouter";
 import {
+  Gem,
   LayoutDashboard, Landmark, Users, Handshake, Send, GraduationCap, FileText,
   Settings, Lock, Menu, X, LogOut, Search, ChevronRight, ListChecks, CreditCard,
   Receipt, Banknote, Copy, Wallet, TrendingUp, CalendarClock, Target, Map,
@@ -98,6 +99,15 @@ export const CHEF_RAEUME: ChefRaum[] = [
   {
     key: "geld", label: "Geld", Icon: Landmark, mindest: "geschaeftsfuehrung",
     satz: "Zahlungen, Verbuchung, Auszahlungen, Abrechnungen — alles Geld in einem Raum.",
+    punkte: [],
+  },
+  {
+    // 27.08.2026, Justins Auftrag: „Schau dir an was wir verdient haben, was
+    // wir monatlich verdienen (jedes Paket = 12-Monats-Abo, Umsatz ×12) und
+    // baue eine Unternehmensbewertung ein." Die eine Wahrheit über das Geld —
+    // ersetzt inhaltlich die Stripe-Rechnung des alten Admin-Dashboards.
+    key: "wert", label: "Verdienst & Wert", Icon: Gem, mindest: "geschaeftsfuehrung",
+    satz: "Verdient, monatlich (MRR), Vertragsbestand ×12 und der Unternehmenswert.",
     punkte: [],
   },
   {

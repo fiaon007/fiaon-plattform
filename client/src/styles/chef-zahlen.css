@@ -1,0 +1,123 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   VERDIENST & WERT (27.08.2026) — Gestaltung nach Justins Maßgabe:
+   dunkle Chefbüro-Bühne, EINE Navy-Glas-Bühne (der Wert-Hero), viel Luft.
+   Alle Farben stehen hier ausdrücklich, weil der Raum immer auf der dunklen
+   Chef-Bühne liegt — er hat keinen hellen Zwilling.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.cz { display: grid; gap: 34px; max-width: 1060px; margin: 0 auto; padding: 6px 0 60px; }
+.cz-laedt, .cz-fehler { padding: 60px 0; text-align: center; color: rgba(226, 232, 240, .65); font-size: 14px; }
+.cz-fehler { color: #fda4af; }
+
+/* ── Der Wert-Hero: die eine Navy-Glas-Bühne ─────────────────────────────── */
+.cz-hero {
+  position: relative; overflow: hidden; text-align: center;
+  padding: 46px 28px 40px; border-radius: 26px;
+  background: linear-gradient(160deg, rgba(15, 32, 68, .78), rgba(9, 18, 40, .86));
+  border: 1px solid rgba(96, 165, 250, .22);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 30px 80px rgba(2, 6, 23, .55), inset 0 1px 0 rgba(148, 197, 253, .18);
+}
+.cz-hero-schein {
+  position: absolute; inset: -40% -20% auto; height: 130%; pointer-events: none;
+  background: radial-gradient(60% 55% at 50% 0%, rgba(59, 130, 246, .28), transparent 70%);
+}
+.cz-augenbraue {
+  margin: 0 0 10px; font-size: 11.5px; font-weight: 700; letter-spacing: .14em;
+  text-transform: uppercase; color: rgba(147, 197, 253, .85);
+}
+.cz-wert {
+  position: relative; margin: 0; font-size: clamp(44px, 7.5vw, 76px); line-height: 1.04;
+  font-weight: 800; letter-spacing: -0.02em; color: #f8fafc;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 44px rgba(59, 130, 246, .35);
+}
+.cz-spanne { margin: 12px 0 0; font-size: 13.5px; color: rgba(203, 213, 225, .75); }
+.cz-hero-zeile {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 14px 46px;
+  margin-top: 30px; padding-top: 24px; border-top: 1px solid rgba(148, 197, 253, .14);
+}
+.cz-hero-zeile > div { display: grid; gap: 3px; min-width: 150px; }
+.cz-hero-zeile b { font-size: 22px; color: #e2e8f0; font-variant-numeric: tabular-nums; }
+.cz-hero-zeile span { font-size: 12px; color: rgba(148, 163, 184, .85); }
+
+/* ── Blöcke: dunkle, ruhige Tafeln — bewusst KEIN zweites Glas ───────────── */
+.cz-block {
+  padding: 26px 26px 22px; border-radius: 22px;
+  background: rgba(10, 16, 32, .58); border: 1px solid rgba(148, 163, 184, .12);
+}
+.cz-block > header { margin-bottom: 18px; }
+.cz-block > header h2 { margin: 0; font-size: 19px; color: #f1f5f9; letter-spacing: -.01em; }
+.cz-block > header p { margin: 5px 0 0; font-size: 13px; color: rgba(148, 163, 184, .9); max-width: 68ch; }
+
+.cz-karten { display: grid; gap: 14px; }
+.cz-karten.drei { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+.cz-karte {
+  display: grid; gap: 4px; padding: 18px 18px 16px; border-radius: 16px;
+  background: rgba(15, 23, 42, .55); border: 1px solid rgba(148, 163, 184, .12);
+}
+.cz-karte small {
+  font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  color: rgba(148, 163, 184, .85);
+}
+.cz-karte b { font-size: 26px; color: #f8fafc; font-variant-numeric: tabular-nums; }
+.cz-karte span { font-size: 12.5px; color: rgba(148, 163, 184, .9); }
+.cz-karte.szenario b { color: #bfdbfe; }
+.cz-karte.szenario.mitte {
+  border-color: rgba(96, 165, 250, .45);
+  background: linear-gradient(160deg, rgba(30, 58, 138, .32), rgba(15, 23, 42, .55));
+}
+.cz-karte.szenario.mitte b { color: #f8fafc; }
+
+/* ── Monatsbalken ────────────────────────────────────────────────────────── */
+.cz-monate {
+  display: flex; align-items: flex-end; gap: 18px; margin-top: 22px;
+  height: 190px; padding: 0 4px;
+}
+.cz-monat { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 7px; min-width: 0; height: 100%; }
+.cz-monat i {
+  display: flex; flex-direction: column; justify-content: flex-start;
+  width: min(58px, 80%); border-radius: 9px 9px 4px 4px; overflow: hidden;
+  background: linear-gradient(180deg, #3b82f6, #1d4ed8);
+  box-shadow: 0 6px 22px rgba(37, 99, 235, .3);
+}
+.cz-monat i em { display: block; background: rgba(191, 219, 254, .85); }
+.cz-monat.laufend i { background: linear-gradient(180deg, rgba(59, 130, 246, .55), rgba(29, 78, 216, .55)); outline: 1px dashed rgba(147, 197, 253, .5); outline-offset: 2px; }
+.cz-monat b { font-size: 12.5px; color: #e2e8f0; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cz-monat span { font-size: 11px; color: rgba(148, 163, 184, .85); white-space: nowrap; }
+
+/* ── Vertragsbestand / Abo-Motor ─────────────────────────────────────────── */
+.cz-vertrag { display: grid; gap: 16px; }
+.cz-vertrag-zahlen { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+.cz-vertrag-zahlen > div {
+  display: grid; gap: 3px; padding: 16px; border-radius: 14px;
+  background: rgba(15, 23, 42, .55); border: 1px solid rgba(148, 163, 184, .12);
+}
+.cz-vertrag-zahlen small { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: rgba(148, 163, 184, .85); }
+.cz-vertrag-zahlen b { font-size: 24px; color: #f8fafc; font-variant-numeric: tabular-nums; }
+.cz-vertrag-zahlen span { font-size: 12.5px; color: rgba(148, 163, 184, .9); }
+.cz-leiste { display: flex; gap: 6px; }
+.cz-leiste i {
+  flex: 1; height: 14px; border-radius: 5px;
+  background: rgba(51, 65, 85, .6); border: 1px solid rgba(148, 163, 184, .15);
+}
+.cz-leiste i.voll { background: linear-gradient(90deg, #2563eb, #3b82f6); border-color: rgba(96, 165, 250, .5); }
+.cz-leiste i.teil { background: linear-gradient(90deg, #2563eb 50%, rgba(51, 65, 85, .6) 50%); }
+
+.cz-pakete { display: grid; gap: 9px; margin-top: 20px; }
+.cz-paket { display: grid; grid-template-columns: minmax(140px, 220px) 1fr auto; gap: 12px; align-items: center; }
+.cz-paket .name { font-size: 13px; color: #e2e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cz-paket i { display: block; height: 10px; border-radius: 5px; background: rgba(51, 65, 85, .5); overflow: hidden; }
+.cz-paket i em { display: block; height: 100%; border-radius: 5px; background: linear-gradient(90deg, #1d4ed8, #60a5fa); }
+.cz-paket .zahl { font-size: 12px; color: rgba(148, 163, 184, .9); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.cz-fuss { margin: 14px 2px 0; font-size: 12.5px; line-height: 1.55; color: rgba(148, 163, 184, .85); max-width: 90ch; }
+.cz-fuss b { color: #e2e8f0; }
+.cz-stand { margin: 0; text-align: center; font-size: 12px; color: rgba(100, 116, 139, .9); max-width: 90ch; justify-self: center; }
+
+@media (max-width: 640px) {
+  .cz-monate { gap: 8px; height: 150px; }
+  .cz-monat b { font-size: 10.5px; }
+  .cz-paket { grid-template-columns: 1fr; gap: 4px; }
+  .cz-paket i { order: 3; }
+}

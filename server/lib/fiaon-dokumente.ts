@@ -173,9 +173,31 @@ export async function dokumentStand(
   `) as any[];
   if (!a) return null;
 
-  // Bonitätsprodukte brauchen die Auskunft, alle anderen Ausweis und Auszug.
+  // ══════════════════════════════════════════════════════════════════════
+  // DIE BONITÄTSAUSKUNFT WIRD BEI JEDEM PAKET GEBRAUCHT (27.08.2026)
+  //
+  // Ein Mitarbeiter rief Justin an und fragte: „Warum braucht man für dieses
+  // Paket keine Bonitätsauskunft?" Justin: „BRAUCHEN WIR FÜR JEDES PAKET!"
+  //
+  // Hier stand: Bonitätsprodukte brauchen die Auskunft, alle anderen nur
+  // Ausweis und Kontoauszug. Die Kachel meldete deshalb bei jedem normalen
+  // Paket „für dieses Paket nicht nötig" — zwei Zeilen unter dem Satz
+  // „Vollständig heißt: Paket bezahlt, SCHUFA (74 €) bezahlt, Kontoauszug und
+  // Ausweis da". Dieselbe Anzeige widersprach sich also selbst, und die
+  // Kartenbedingungen in fiaon-konto-karte.ts verlangen schufa_bezahlt
+  // ebenfalls.
+  //
+  // Das ist nicht nur verwirrend, es kostet Geld: Ein Mitarbeiter, der liest
+  // „nicht nötig", verkauft die Auskunft (74 €) nicht.
+  //
+  // Ab jetzt: Die Auskunft steht IMMER auf der Liste. Ausweis und Kontoauszug
+  // bleiben, wo sie waren — bei einer reinen Auskunftsbestellung beschafft
+  // FIAON die Auskunft, dort ist sie ohnehin der einzige Gegenstand.
+  // ══════════════════════════════════════════════════════════════════════
   const istBonitaet = String(a.type || "") === "schufa";
-  const benoetigt: DokumentArt[] = istBonitaet ? ["schufa"] : ["ausweis", "kontoauszug"];
+  const benoetigt: DokumentArt[] = istBonitaet
+    ? ["schufa"]
+    : ["ausweis", "kontoauszug", "schufa"];
 
   const groessen: Record<DokumentArt, number | null> = {
     ausweis: a.gr_ausweis, kontoauszug: a.gr_auszug, schufa: a.gr_schufa,

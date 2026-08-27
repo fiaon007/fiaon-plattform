@@ -192,6 +192,43 @@ router.get("/chef/werkzeug/wahrheit", requireChef("geschaeftsfuehrung"), async (
       zeilen: nichtFrei.slice(0, 20),
     });
 
+    // ── 8. Bezahlt, aber keine Rate bezahlt ───────────────────────────────
+    // GEFUNDEN am 27.08.2026 an der Akte von Ilijana Weber (Justin: „Die Dame
+    // hat bereits bezahlt"): Die Bestellung trägt payment_status = paid, die
+    // Ratenkette existiert — und keine einzige Rate ist als bezahlt vermerkt.
+    // Der Kopf der Akte sagt „Bezahlt", die Kartenbedingung darunter sagt
+    // „0 von 2 Raten gelaufen". Zwei Wahrheiten über dieselbe Zahlung.
+    //
+    // Die Spalte `beleg` unterscheidet die beiden Lager: Wo eine Provision
+    // gebucht ist, kam nachweislich Geld an — dort fehlt nur der Vermerk an
+    // der Rate. Wo keine ist, steht die Zahlung selbst infrage.
+    const ohneRate = await zeilen(`
+      SELECT a.ref,
+             TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')) AS kunde,
+             a.pack_name, a.amount_due, a.created_at::date AS bestellt,
+             (SELECT COUNT(*)::int FROM fiaon_commissions c WHERE c.ref = a.ref) AS provisionen,
+             CASE WHEN EXISTS (SELECT 1 FROM fiaon_commissions c WHERE c.ref = a.ref)
+                  THEN 'Provision gebucht - Geld kam an'
+                  ELSE 'kein Beleg fuer eine Zahlung' END AS beleg
+        FROM fiaon_applications a
+        JOIN fiaon_persons p ON p.id = a.person_id
+       WHERE a.payment_status = 'paid' AND a.merged_into IS NULL AND a.archived_at IS NULL
+         AND p.ist_test_am IS NULL AND a.type <> 'schufa'
+         AND COALESCE(a.pack_key,'') NOT IN ('schufa','')
+         AND EXISTS (SELECT 1 FROM fiaon_abo_raten r WHERE r.ref = a.ref)
+         AND NOT EXISTS (SELECT 1 FROM fiaon_abo_raten r WHERE r.ref = a.ref AND r.bezahlt_am IS NOT NULL)
+       ORDER BY a.created_at DESC`);
+    pruefungen.push({
+      key: "ohneRate",
+      titel: "Bestellung bezahlt, aber keine Rate bezahlt",
+      frage: "Wo sagt der Kopf der Akte „bezahlt“ und die Ratenkette „nichts gelaufen“?",
+      folge: "Der Mitarbeiter liest zwei Wahrheiten über dieselbe Zahlung — und sagt dem Kunden am Telefon eine davon.",
+      anzahl: ohneRate.length,
+      gut: ohneRate.length === 0,
+      knopf: null,
+      zeilen: ohneRate.slice(0, 30),
+    });
+
     // ── 7. Bezahlt, aber keine Provision gebucht ──────────────────────────
     // GEFUNDEN beim Bau dieser Seite: 156 bezahlte Raten über 10.330,44 EUR
     // tragen keine einzige Provisionsbuchung, obwohl ein Mitarbeiter an der

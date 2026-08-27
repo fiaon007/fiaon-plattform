@@ -609,6 +609,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Speicher — Clarity erlaubt nur zehn Abrufe je Tag.
   const chefClarity = await import('./routes/fiaon-chef-clarity');
   app.use('/api/fiaon', chefClarity.default);
+  // Stündlich prüfen, höchstens alle 20 Stunden wirklich holen. Clarity setzt
+  // sein Tageslimit um Mitternacht UTC zurück; wer auf eine feste Uhrzeit
+  // wartet, verpasst das Fenster, sobald der Server einmal schläft.
+  import('./lib/fiaon-crons').then(({ tageslauf }) => {
+    tageslauf('clarity-besucher', () => {
+      chefClarity.clarityTageslauf().catch((e) => console.error('[CLARITY] Tageslauf:', e));
+    }, 60 * 60 * 1000, { beimStartNach: 90_000 });
+  });
 
   // 🏛 Datenraum der Schwarzott Capital Partners AG (26.08.2026).
   // Bewusst eigene Tabellen und eigene Sitzung — getrennt von FIAONS eigenem

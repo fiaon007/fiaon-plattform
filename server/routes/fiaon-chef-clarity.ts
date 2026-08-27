@@ -237,14 +237,92 @@ function auswerten(abruf: any) {
   };
   rein("RageClickCount", "wut"); rein("DeadClickCount", "tot");
   rein("ScriptErrorCount", "fehler"); rein("QuickbackClick", "zurueck");
+  // „Gesucht und nicht gefunden" — eigene Karte, weil es kein Ärgernis im
+  // engeren Sinn ist, sondern ein Hinweis auf eine unklare Seite.
+  const scrollSucheJeSeite = new Map<string, number>();
+  for (const z of metrik(seitenRoh, "ExcessiveScroll")) {
+    const a = String(z?.Url ?? "").trim();
+    if (a) scrollSucheJeSeite.set(a, (scrollSucheJeSeite.get(a) ?? 0) + zahl(z.subTotal));
+  }
 
-  const seiten = seitenZeilen.slice(0, 40).map((s) => ({
-    ...s,
-    scrolltiefe: tiefeJeSeite.get(s.adresse) ?? null,
-    zeit: zeitJeSeite.get(s.adresse) ?? null,
-    aerger: wutJeSeite.get(s.adresse) ?? null,
-    pfad: (() => { try { return new URL(s.adresse).pathname || "/"; } catch { return s.adresse; } })(),
-  }));
+  // ── DER PFAD IST DIE EINHEIT, NICHT DIE ADRESSE ────────────────────────
+  // Clarity liefert vollständige Adressen. `/antrag`, `/antrag?utm_source=fb`
+  // und `/antrag#schritt2` sind für Clarity drei Zeilen und für einen Menschen
+  // eine Seite. Wer sie getrennt lässt, sieht dreimal zwölf Wut-Klicks statt
+  // einmal sechsunddreißig — und hält das Problem für klein.
+  //
+  // Fremde Adressen (Electron, localhost, andere Wirte) fliegen raus: Sie
+  // stehen im Clarity-Konto, gehören aber nicht zu dieser Seite.
+  const eigenerPfad = (adresse: string): string | null => {
+    try {
+      const u = new URL(adresse);
+      if (!/(^|\.)fiaon\.com$/i.test(u.hostname)) return null;
+      const p = (u.pathname || "/").replace(/\/+$/, "") || "/";
+      return p;
+    } catch { return null; }
+  };
+
+  type Sammel = {
+    pfad: string; sitzungen: number; menschen: number; bots: number;
+    tiefeSumme: number; tiefeGewicht: number; zeitAktiv: number; zeitGesamt: number;
+    wut: number; tot: number; fehler: number; zurueck: number; scrollSuche: number;
+    adressen: number;
+  };
+  const nachPfad = new Map<string, Sammel>();
+  const hole = (pfad: string): Sammel => {
+    const e = nachPfad.get(pfad) ?? {
+      pfad, sitzungen: 0, menschen: 0, bots: 0, tiefeSumme: 0, tiefeGewicht: 0,
+      zeitAktiv: 0, zeitGesamt: 0, wut: 0, tot: 0, fehler: 0, zurueck: 0,
+      scrollSuche: 0, adressen: 0,
+    };
+    nachPfad.set(pfad, e);
+    return e;
+  };
+
+  for (const z of seitenZeilen) {
+    const pfad = eigenerPfad(z.adresse);
+    if (!pfad) continue;
+    const e = hole(pfad);
+    e.sitzungen += z.sitzungen;
+    e.menschen += z.menschen;
+    e.bots += z.bots;
+    e.adressen += 1;
+    // Scrolltiefe MIT DEN SITZUNGEN GEWICHTEN: Der Mittelwert zweier Mittelwerte
+    // ist keiner. Eine Adresse mit 900 Sitzungen wiegt schwerer als eine mit 3.
+    const t = tiefeJeSeite.get(z.adresse);
+    if (t != null && z.sitzungen > 0) { e.tiefeSumme += t * z.sitzungen; e.tiefeGewicht += z.sitzungen; }
+    const zt = zeitJeSeite.get(z.adresse);
+    if (zt) { e.zeitAktiv += zt.aktiv; e.zeitGesamt += zt.gesamt; }
+    const a = wutJeSeite.get(z.adresse);
+    if (a) { e.wut += a.wut; e.tot += a.tot; e.fehler += a.fehler; e.zurueck += a.zurueck; }
+    const sc = scrollSucheJeSeite.get(z.adresse);
+    if (sc) e.scrollSuche += sc;
+  }
+
+  const seiten = Array.from(nachPfad.values())
+    .map((e) => {
+      const jeTausend = (n: number) => (e.sitzungen > 0 ? (n / e.sitzungen) * 1000 : 0);
+      return {
+        pfad: e.pfad,
+        adresse: `https://fiaon.com${e.pfad}`,
+        adressen: e.adressen,
+        sitzungen: e.sitzungen,
+        menschen: e.menschen,
+        bots: e.bots,
+        scrolltiefe: e.tiefeGewicht > 0 ? e.tiefeSumme / e.tiefeGewicht : null,
+        zeit: e.zeitGesamt > 0 || e.zeitAktiv > 0 ? { aktiv: e.zeitAktiv, gesamt: e.zeitGesamt } : null,
+        aerger: { wut: e.wut, tot: e.tot, fehler: e.fehler, zurueck: e.zurueck, scrollSuche: e.scrollSuche },
+        // ── DIE GEWICHTUNG, DIE AUS ZAHLEN EINE REIHENFOLGE MACHT ────────
+        // Nicht die absolute Zahl entscheidet, sondern die Dichte: 36
+        // Wut-Klicks bei 3.000 Sitzungen sind ein anderer Befund als 36 bei
+        // 50. Gewichte: ein Wut-Klick zählt dreifach (jemand klickt mehrfach
+        // wütend auf dieselbe Stelle), ein Skriptfehler doppelt (dort ist
+        // objektiv etwas kaputt), toter Klick und Sofort-zurück einfach.
+        dichte: jeTausend(e.wut * 3 + e.fehler * 2 + e.tot + e.zurueck),
+        gewicht: e.wut * 3 + e.fehler * 2 + e.tot + e.zurueck,
+      };
+    })
+    .sort((a, b) => b.sitzungen - a.sitzungen);
 
   return {
     stand: abruf?.geholt_am ?? null,
@@ -348,6 +426,77 @@ router.post("/chef/clarity/neu", requireChef("leitung"), async (req: Request, re
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// AUS EINER ZAHL WIRD EINE AUFGABE (27.08.2026)
+//
+// Justin: „36 Wut-Klicks ist eine Zahl, 36 Wut-Klicks auf /antrag ist eine
+//          Aufgabe."
+//
+// Genau das tut dieser Endpunkt: Er nimmt einen Seitenbefund und legt ihn als
+// Eintrag ins TODO-Brett — mit Pfad, Zahlen, Datum und einem Link, der direkt
+// auf die betroffene Seite führt. Was dort landet, hat einen Zustand, einen
+// Verantwortlichen und ein Fälligkeitsdatum. Eine Kachel im Dashboard hat das
+// alles nicht.
+//
+// DOPPELTE AUFGABEN VERMEIDEN: Solange zu derselben Seite noch eine offene
+// Aufgabe steht, wird keine zweite angelegt — sonst füllt sich das Brett bei
+// jedem Blick aufs Dashboard mit demselben Satz.
+// ═══════════════════════════════════════════════════════════════════════════
+router.post("/chef/clarity/aufgabe", requireChef("leitung"), async (req: Request, res: Response) => {
+  try {
+    const pfad = String(req.body?.pfad || "").trim();
+    if (!pfad.startsWith("/")) return res.status(400).json({ ok: false, error: "Kein gültiger Seitenpfad." });
+    const a = req.body?.aerger ?? {};
+    const sitzungen = Number(req.body?.sitzungen) || 0;
+
+    const teile = [
+      Number(a.wut) > 0 ? `${a.wut} Wut-Klicks` : null,
+      Number(a.tot) > 0 ? `${a.tot} tote Klicks` : null,
+      Number(a.fehler) > 0 ? `${a.fehler} Skriptfehler` : null,
+      Number(a.zurueck) > 0 ? `${a.zurueck} Mal sofort zurück` : null,
+      Number(a.scrollSuche) > 0 ? `${a.scrollSuche} Mal gesucht und nicht gefunden` : null,
+    ].filter(Boolean);
+    if (!teile.length) return res.status(400).json({ ok: false, error: "Zu dieser Seite gibt es nichts zu tun." });
+
+    const titel = `${pfad}: ${teile[0]}`;
+
+    // Steht schon eine offene Aufgabe zu dieser Seite?
+    const [schon] = (await sqlPool`
+      SELECT id, titel FROM fiaon_betreiber_todos
+       WHERE status <> 'erledigt' AND titel LIKE ${pfad + ":%"}
+       ORDER BY id DESC LIMIT 1`) as any[];
+    if (schon) {
+      return res.json({ ok: true, schonDa: true, id: Number(schon.id), titel: schon.titel });
+    }
+
+    const text = [
+      `Microsoft Clarity hat auf ${pfad} in den letzten drei Tagen gemessen: ${teile.join(", ")}.`,
+      sitzungen > 0 ? `Grundlage sind ${sitzungen.toLocaleString("de-DE")} Sitzungen auf dieser Seite.` : null,
+      "",
+      "Was diese Zahlen bedeuten:",
+      Number(a.wut) > 0 ? "· Wut-Klicks: Jemand klickt mehrfach schnell auf dieselbe Stelle. Dort wird eine Reaktion erwartet, die ausbleibt." : null,
+      Number(a.tot) > 0 ? "· Tote Klicks: Geklickt, nichts passiert. Meist sieht etwas aus wie ein Knopf und ist keiner." : null,
+      Number(a.fehler) > 0 ? "· Skriptfehler: Etwas im Browser ist gescheitert. Der Besucher erlebt das als „geht nicht“." : null,
+      Number(a.zurueck) > 0 ? "· Sofort zurück: Seite geöffnet und binnen Sekunden zurück — die Erwartung wurde nicht erfüllt." : null,
+      Number(a.scrollSuche) > 0 ? "· Übermäßiges Scrollen: Gesucht und nicht gefunden." : null,
+      "",
+      `Nächster Schritt: In Clarity die Aufzeichnungen zu ${pfad} ansehen — dort sieht man die Stelle, an der geklickt wurde.`,
+    ].filter((z) => z !== null).join("\n");
+
+    const [r] = (await sqlPool`
+      INSERT INTO fiaon_betreiber_todos (titel, text, bereich, prioritaet, link, quelle, letzte_aktivitaet)
+      VALUES (${titel}, ${text}, 'technik',
+              ${Number(a.wut) > 0 || Number(a.fehler) > 0 ? 1 : 2},
+              ${pfad}, 'clarity', NOW())
+      RETURNING id`) as any[];
+    console.log(`[CLARITY] Aufgabe angelegt: ${titel} (#${r.id})`);
+    res.json({ ok: true, schonDa: false, id: Number(r.id), titel });
+  } catch (err) {
+    console.error("[CLARITY] aufgabe:", err);
+    res.status(500).json({ ok: false, error: "Die Aufgabe ließ sich nicht anlegen." });
+  }
+});
+
 /** GET /chef/clarity/verlauf — was wir selbst aufbewahrt haben. */
 router.get("/chef/clarity/verlauf", requireChef("leitung"), async (_req: Request, res: Response) => {
   try {
@@ -363,5 +512,42 @@ router.get("/chef/clarity/verlauf", requireChef("leitung"), async (_req: Request
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DER TAGESLAUF (27.08.2026)
+//
+// GELERNT AM ERSTEN TAG: Der Abruf hing daran, dass jemand die Seite öffnet.
+// Ich selbst habe beim Erkunden der Schnittstelle das Tagesbudget aufgebraucht,
+// und danach blieb der Raum leer — weil niemand mehr abrufen KONNTE.
+//
+// Ein fester Lauf löst beides: Er holt die Daten, sobald das Fenster offen ist,
+// er verbraucht genau drei der zehn Anfragen, und weil jeder Abruf stehen
+// bleibt, entsteht nebenbei der Verlauf, den Clarity selbst nicht herausgibt.
+//
+// `alleXStunden: 20` heißt: einmal am Tag, und der Lauf holt sich selbst ein,
+// wenn der Server zur üblichen Zeit geschlafen hat.
+//
+// Clarity setzt sein Tageslimit um Mitternacht UTC zurück. Der Lauf prüft
+// deshalb jede Stunde und greift zu, sobald das Budget wieder etwas hergibt —
+// er wartet nicht auf eine Uhrzeit, die er verpassen könnte.
+// ═══════════════════════════════════════════════════════════════════════════
+export async function clarityTageslauf(): Promise<void> {
+  if (!token()) return;                       // nicht eingerichtet: still bleiben
+  await ensureTabelle();
+  const letzter = await letzterAbruf();
+  const alterStunden = letzter
+    ? (Date.now() - new Date(letzter.geholt_am).getTime()) / 3_600_000
+    : Infinity;
+  // Höchstens einmal in 20 Stunden — mehr braucht es nicht, und mehr wäre
+  // Verschwendung an einem Budget von zehn.
+  if (alterStunden < 20) return;
+  try {
+    await abrufen(3, false);
+  } catch (e: any) {
+    // Ein erschöpftes Budget ist kein Fehler, sondern eine Auskunft. Der Lauf
+    // versucht es in einer Stunde wieder — irgendwann ist das Fenster offen.
+    console.log("[CLARITY] Tageslauf: " + String(e?.message).slice(0, 140));
+  }
+}
 
 export default router;

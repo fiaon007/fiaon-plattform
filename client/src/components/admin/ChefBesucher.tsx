@@ -25,7 +25,7 @@
 import { useEffect, useState } from "react";
 import {
   Users, MousePointerClick, Timer, ArrowDownWideNarrow, RefreshCw, Loader2,
-  AlertTriangle, Globe, Smartphone, Compass, ExternalLink,
+  AlertTriangle, Globe, Smartphone, Compass, ExternalLink, ClipboardPlus, ClipboardCheck,
 } from "lucide-react";
 import { API, Karte, Hochzaehler, zahl, Geruest, Fehlermeldung, seit } from "./chef-teile";
 
@@ -68,6 +68,9 @@ export default function ChefBesucher() {
   const [fehler, setFehler] = useState<string | null>(null);
   const [holt, setHolt] = useState(false);
   const [meldung, setMeldung] = useState<string | null>(null);
+  // Welche Seite gerade zur Aufgabe wird, und was daraus geworden ist.
+  const [aufgabeLaeuft, setAufgabeLaeuft] = useState<string | null>(null);
+  const [aufgaben, setAufgaben] = useState<Record<string, { id: number; schonDa: boolean }>>({});
 
   const laden = () => {
     setLaedt(true); setFehler(null);
@@ -95,6 +98,27 @@ export default function ChefBesucher() {
     } catch {
       setMeldung("Keine Verbindung zum Server.");
     } finally { setHolt(false); }
+  };
+
+  // ── Aus einer Zahl eine Aufgabe machen ──────────────────────────────────
+  // Justin: „36 Wut-Klicks ist eine Zahl, 36 Wut-Klicks auf /antrag ist eine
+  // Aufgabe." Der Knopf legt sie im TODO-Brett an — mit Pfad, Zahlen, Datum
+  // und einer Erklärung, was die Zahlen bedeuten.
+  const zurAufgabe = async (s: any) => {
+    if (aufgabeLaeuft) return;
+    setAufgabeLaeuft(s.pfad);
+    try {
+      const r = await fetch(`${API}/chef/clarity/aufgabe`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pfad: s.pfad, aerger: s.aerger, sitzungen: s.sitzungen }),
+      });
+      const j = await r.json().catch(() => null);
+      if (r.ok && j?.ok) setAufgaben((a) => ({ ...a, [s.pfad]: { id: j.id, schonDa: !!j.schonDa } }));
+      else setMeldung(j?.error || "Die Aufgabe ließ sich nicht anlegen.");
+    } catch {
+      setMeldung("Keine Verbindung zum Server.");
+    } finally { setAufgabeLaeuft(null); }
   };
 
   if (laedt) return <div className="cl"><Geruest zeilen={8} /></div>;
@@ -134,11 +158,13 @@ export default function ChefBesucher() {
   const maxLand = Math.max(1, ...(d.laender ?? []).map((z: any) => z.sitzungen));
   const maxHerkunft = Math.max(1, ...(d.herkunft ?? []).map((z: any) => z.sitzungen));
 
-  // Die Seiten mit dem meisten Ärger zuerst — das ist die Arbeitsliste.
+  // ── DIE ARBEITSLISTE ────────────────────────────────────────────────────
+  // Sortiert nach DICHTE, nicht nach absoluter Zahl: 36 Wut-Klicks bei 3.000
+  // Sitzungen sind ein anderer Befund als 36 bei 50. Die Reihenfolge sagt,
+  // wo man zuerst hinsehen sollte — nicht, wo die größte Zahl steht.
   const seitenNachAerger = [...(d.seiten ?? [])]
-    .map((s: any) => ({ ...s, aergerSumme: (s.aerger?.wut ?? 0) * 3 + (s.aerger?.tot ?? 0) + (s.aerger?.fehler ?? 0) * 2 + (s.aerger?.zurueck ?? 0) }))
-    .filter((s: any) => s.aergerSumme > 0)
-    .sort((a: any, b: any) => b.aergerSumme - a.aergerSumme)
+    .filter((s: any) => (s.gewicht ?? 0) > 0)
+    .sort((a: any, b: any) => (b.dichte ?? 0) - (a.dichte ?? 0))
     .slice(0, 12);
 
   return (
@@ -221,21 +247,44 @@ export default function ChefBesucher() {
             doppelt — beides sind Menschen, die etwas wollten und nicht bekamen.
           </p>
           <div className="cbes-seiten">
-            {seitenNachAerger.map((s: any) => (
-              <a key={s.adresse} className="cbes-seite" href={s.adresse} target="_blank" rel="noopener noreferrer">
-                <span className="cbes-pfad">
-                  <b>{s.pfad}</b>
-                  <em>{zahl(s.sitzungen)} Sitzungen{s.scrolltiefe != null && <> · {prozent(s.scrolltiefe)} Scrolltiefe</>}</em>
-                </span>
-                <span className="cbes-marken">
-                  {s.aerger?.wut > 0 && <i data-ton="rot" title="Wut-Klicks">{s.aerger.wut} Wut</i>}
-                  {s.aerger?.tot > 0 && <i data-ton="gelb" title="Tote Klicks">{s.aerger.tot} tot</i>}
-                  {s.aerger?.fehler > 0 && <i data-ton="rot" title="Skriptfehler">{s.aerger.fehler} Fehler</i>}
-                  {s.aerger?.zurueck > 0 && <i data-ton="gelb" title="Sofort zurück">{s.aerger.zurueck} zurück</i>}
-                </span>
-                <ExternalLink size={14} strokeWidth={1.6} aria-hidden="true" />
-              </a>
-            ))}
+            {seitenNachAerger.map((s: any) => {
+              const gemacht = aufgaben[s.pfad];
+              return (
+                <div key={s.pfad} className="cbes-seite">
+                  <span className="cbes-pfad">
+                    <b>{s.pfad}</b>
+                    <em>
+                      {zahl(s.sitzungen)} Sitzungen
+                      {s.scrolltiefe != null && <> · {prozent(s.scrolltiefe)} Scrolltiefe</>}
+                      {s.dichte > 0 && <> · <b title="Gewichtete Vorfälle je 1.000 Sitzungen">{Math.round(s.dichte)} je 1.000</b></>}
+                    </em>
+                  </span>
+                  <span className="cbes-marken">
+                    {s.aerger?.wut > 0 && <i data-ton="rot" title="Mehrfach schnell auf dieselbe Stelle geklickt">{s.aerger.wut} Wut</i>}
+                    {s.aerger?.fehler > 0 && <i data-ton="rot" title="Skriptfehler im Browser">{s.aerger.fehler} Fehler</i>}
+                    {s.aerger?.tot > 0 && <i data-ton="gelb" title="Geklickt, nichts passiert">{s.aerger.tot} tot</i>}
+                    {s.aerger?.zurueck > 0 && <i data-ton="gelb" title="Binnen Sekunden wieder zurück">{s.aerger.zurueck} zurück</i>}
+                    {s.aerger?.scrollSuche > 0 && <i data-ton="gelb" title="Gesucht und nicht gefunden">{s.aerger.scrollSuche} gesucht</i>}
+                  </span>
+                  <span className="cbes-wege">
+                    {gemacht ? (
+                      <a className="cw-knopf klein" href="/chef/s/todo" title={gemacht.schonDa ? "Zu dieser Seite steht schon eine offene Aufgabe" : "Aufgabe angelegt"}>
+                        <ClipboardCheck size={13} strokeWidth={1.8} />
+                        {gemacht.schonDa ? "steht schon" : "angelegt"}
+                      </a>
+                    ) : (
+                      <button type="button" className="cw-knopf klein" onClick={() => zurAufgabe(s)} disabled={!!aufgabeLaeuft}>
+                        {aufgabeLaeuft === s.pfad ? <Loader2 size={13} className="cw-dreht" /> : <ClipboardPlus size={13} strokeWidth={1.8} />}
+                        Aufgabe daraus machen
+                      </button>
+                    )}
+                    <a className="cw-knopf klein" href={s.adresse} target="_blank" rel="noopener noreferrer" title="Die Seite ansehen">
+                      <ExternalLink size={13} strokeWidth={1.7} /> ansehen
+                    </a>
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </section>
       )}

@@ -47,11 +47,23 @@ const upload = multer({
   limits: {
     fileSize: 25 * 1024 * 1024, // 25MB max per file
   },
+  // 27.08.2026: Nahm bis heute AUSSCHLIESSLICH PDF an — der Kundenbereich
+  // verspricht daneben „PDF, JPG oder PNG, ein Handyfoto genügt". Jedes Foto
+  // scheiterte, und zwar mit einer englischen Meldung in einer deutschen
+  // Oberfläche. Bilder werden jetzt angenommen und vor dem Speichern in ein
+  // PDF gelegt (server/lib/fiaon-bild-zu-pdf.ts), damit alles Nachgelagerte
+  // weiterhin ein PDF vorfindet.
   fileFilter: (req, file, cb) => {
-    if (file.mimetype === 'application/pdf') {
+    const art = String(file.mimetype || "").toLowerCase();
+    if (art === "application/pdf" || art === "image/jpeg" || art === "image/jpg" || art === "image/png") {
       cb(null, true);
+    } else if (art === "image/heic" || art === "image/heif") {
+      // iPhone-Standardformat. Es lässt sich hier nicht einbetten, deshalb ein
+      // Rat statt einer Fehlermeldung: Der Weg über „Teilen → Als PDF sichern"
+      // dauert zehn Sekunden und ist besser als ein Kunde, der aufgibt.
+      cb(new Error("Dieses Foto liegt im iPhone-Format HEIC vor. Bitte öffnen Sie es in der Fotos-App, tippen auf Teilen und wählen „Drucken\u201c \u2013 dort erzeugt „Als PDF sichern\u201c eine Datei, die wir lesen können. Oder stellen Sie in den iPhone-Einstellungen unter Kamera → Formate auf „Maximale Kompatibilität\u201c um."));
     } else {
-      cb(new Error('Only PDF files are allowed'));
+      cb(new Error("Wir können PDF-Dateien sowie Fotos im Format JPG oder PNG lesen. Bitte laden Sie Ihre Unterlage in einem dieser Formate hoch."));
     }
   },
 });
@@ -3082,7 +3094,7 @@ router.post("/upload-kyc", (req, res, next) => {
   ])(req, res, (err) => {
     if (err) {
       if (err.code === 'LIMIT_FILE_SIZE') {
-        return res.status(400).json({ error: "Datei zu groß. Bitte laden Sie eine PDF unter 25 MB hoch." });
+        return res.status(400).json({ error: "Diese Datei ist größer als 25 MB. Bitte fotografieren Sie die Seite noch einmal mit geringerer Auflösung oder laden Sie eine kleinere PDF-Datei hoch." });
       }
       return res.status(400).json({ error: err.message || "Upload-Fehler" });
     }
@@ -3090,11 +3102,34 @@ router.post("/upload-kyc", (req, res, next) => {
   });
 }, async (req, res) => {
   try {
-    const { ref } = req.body;
+    // ══════════════════════════════════════════════════════════════════════
+    // WESSEN AKTE? (27.08.2026)
+    //
+    // Die Referenz kam bisher ausschliesslich aus dem Formular. Wer eine
+    // fremde Referenz kennt — sie steht in Zahlungsreferenzen und in jeder
+    // Rechnung —, konnte Unterlagen in eine fremde Akte laden.
+    //
+    // Ganz zusperren geht nicht: Im Antragsweg lädt der Kunde hoch, BEVOR er
+    // ein Passwort hat; eine Anmeldepflicht hier würde den Weg abschneiden,
+    // über den das Geschäft entsteht. Deshalb die Regel: Ist eine
+    // Kundensitzung vorhanden, gilt IHRE Referenz — was im Formular steht,
+    // wird dann ignoriert. Ohne Sitzung bleibt der Antragsweg offen, aber
+    // jeder solche Upload wird vermerkt.
+    // ══════════════════════════════════════════════════════════════════════
+    const { kundeAusCookie } = await import("../lib/fiaon-kunde-session");
+    const ausSitzung = kundeAusCookie(req as any);
+    const ausFormular = String(req.body?.ref ?? "").trim();
+    const ref = ausSitzung || ausFormular;
     const files = req.files as { [fieldname: string]: Express.Multer.File[] };
-    
+
     if (!ref) {
       return res.status(400).json({ error: "Referenznummer fehlt" });
+    }
+    if (ausSitzung && ausFormular && ausSitzung !== ausFormular) {
+      console.warn(`[FIAON-KYC] Referenz im Formular (${ausFormular}) weicht von der Sitzung (${ausSitzung}) ab — es gilt die Sitzung.`);
+    }
+    if (!ausSitzung) {
+      console.log(`[FIAON-KYC] Upload ohne Kundensitzung für ${ref} (Antragsweg) von ${String(req.headers["x-forwarded-for"] || req.ip || "?").split(",")[0]}`);
     }
     
     // Get application
@@ -3112,20 +3147,36 @@ router.post("/upload-kyc", (req, res, next) => {
     // Prepare update values
     const updates: string[] = [];
     const values: any = {};
-    
+
+    // Ein Foto wird zum PDF, bevor es in eine Spalte namens `_pdf` geht.
+    // Schlägt die Wandlung fehl, bricht der ganze Upload ab: Ein halb
+    // gespeicherter Vorgang wäre schlimmer als eine ehrliche Fehlermeldung.
+    const { istBild, bildAlsPdf } = await import("../lib/fiaon-bild-zu-pdf");
+    const alsPdf = async (f: Express.Multer.File): Promise<Buffer> => {
+      if (!istBild(f.mimetype)) return f.buffer;
+      try {
+        const pdf = await bildAlsPdf(f.buffer, f.originalname || "Foto");
+        console.log(`[FIAON-KYC] Foto gewandelt: ${f.originalname} (${Math.round(f.size / 1024)} KB) → PDF ${Math.round(pdf.length / 1024)} KB`);
+        return pdf;
+      } catch (e) {
+        console.error("[FIAON-KYC] Wandlung fehlgeschlagen:", String(e).slice(0, 160));
+        throw new Error("Dieses Bild konnten wir nicht verarbeiten. Bitte versuchen Sie es mit einem anderen Foto oder laden Sie eine PDF-Datei hoch.");
+      }
+    };
+
     if (files.bankStatement && files.bankStatement[0]) {
       updates.push('bank_statement_pdf = $bankStatementPdf');
-      values.bankStatementPdf = files.bankStatement[0].buffer;
+      values.bankStatementPdf = await alsPdf(files.bankStatement[0]);
     }
     
     if (files.idCard && files.idCard[0]) {
       updates.push('id_card_pdf = $idCardPdf');
-      values.idCardPdf = files.idCard[0].buffer;
+      values.idCardPdf = await alsPdf(files.idCard[0]);
     }
 
     if (files.schufaDoc && files.schufaDoc[0]) {
       updates.push('schufa_pdf = $schufaPdf');
-      values.schufaPdf = files.schufaDoc[0].buffer;
+      values.schufaPdf = await alsPdf(files.schufaDoc[0]);
     }
     
     if (updates.length === 0) {

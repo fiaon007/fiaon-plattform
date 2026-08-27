@@ -192,3 +192,38 @@ export function nummerAusZeile(row: any): WaehlbareNummer {
     row?.country,
   );
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WIE EIN ANRUF AUSGING — in Worten, die ein Mensch sagt (27.08.2026)
+//
+// Die Datenbank kennt Zustände wie `niemand_erreicht`. Auf einem Bildschirm
+// hat ein Unterstrich nichts verloren. Diese eine Stelle übersetzt — damit
+// nicht drei Seiten drei verschiedene Wörter für dasselbe finden.
+// ═══════════════════════════════════════════════════════════════════════════
+export const ANRUF_STATUS_TEXT: Record<string, string> = {
+  gewaehlt: "wird gewählt",
+  laeuft: "läuft gerade",
+  beendet: "Gespräch geführt",
+  niemand_erreicht: "niemand abgehoben",
+  besetzt: "besetzt",
+  abgebrochen: "vor dem Abnehmen beendet",
+  verpasst: "verpasst",
+  fehlgeschlagen: "kam nicht zustande",
+  // Bestand: So hiess bis zum 27.08.2026 alles, was weder Gespräch noch
+  // Fehler war. Die alten Zeilen behalten das Wort, damit nichts umgeschrieben
+  // werden muss, was niemand mehr nachprüfen kann.
+  abgelehnt: "nicht erreicht (Altbestand)",
+};
+
+/** Wer hat abgenommen — aus der Erkennung von Twilio. */
+export const ANRUF_ANGENOMMEN_TEXT: Record<string, string> = {
+  mensch: "ein Mensch",
+  mailbox: "Mailbox oder Ansage",
+  fax: "ein Faxgerät",
+  unklar: "nicht erkennbar",
+};
+
+export function anrufStatusText(status: string | null | undefined): string {
+  const k = String(status || "").trim();
+  return ANRUF_STATUS_TEXT[k] || k || "unbekannt";
+}

@@ -301,6 +301,129 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// STAMMDATEN ÄNDERN (27.08.2026)
+//
+// Florentine: „Kunden-Adressänderung und Uploads werden nicht gespeichert."
+//
+// ── WAS WIRKLICH PASSIERTE ────────────────────────────────────────────────
+// Der Kundenbereich rief `PATCH /profile/:ref` in fiaon-antrag.ts. Diese
+// Route stammt aus dem Antragsweg und liest ganz andere Feldnamen:
+// movedRecently, previousStreet, passportNumber, expensesFood und so fort.
+// Der Bereich sendet email, phone, street, zip, city — KEINES davon wird
+// dort gelesen.
+//
+// Die Folge war doppelt schlecht:
+//   1. Die neue Anschrift wurde verworfen, und der Kunde las „Gespeichert."
+//   2. Schlimmer: Weil die Route jedes ihrer Felder bedingungslos schreibt,
+//      setzte derselbe Aufruf Ausweisnummer, Voranschrift und sämtliche
+//      Ausgabenfelder auf NULL und `moved_recently` auf falsch. Ein Kunde,
+//      der seine Anschrift berichtigen wollte, löschte damit seine eigenen
+//      KYC-Angaben.
+//
+// ── DIE REGEL DIESER ROUTE ────────────────────────────────────────────────
+// Geschrieben wird NUR, was auch gesendet wurde. Fehlt ein Feld in der
+// Anfrage, bleibt die Spalte unangetastet — nicht null. Genau dieser
+// Unterschied hat oben den Schaden angerichtet.
+//
+// Geändert wird ausschliesslich die eigene Akte (requireKunde liefert die
+// Referenz aus dem signierten Cookie, nicht aus der Adresszeile), und jede
+// Änderung hinterlässt einen Vermerk: Wer seine Anschrift ändert, ändert
+// etwas, das für Rechnungen und Schreiben zählt.
+// ═══════════════════════════════════════════════════════════════════════════
+router.patch("/kunde/:ref/stammdaten", requireKunde, async (req: KundeRequest, res: Response) => {
+  try {
+    const ref = req.kundeRef!;
+    const b = req.body ?? {};
+
+    /** Leerer String heisst „gelöscht", fehlendes Feld heisst „unverändert". */
+    const feld = (wert: unknown): string | null | undefined => {
+      if (wert === undefined) return undefined;
+      const t = String(wert ?? "").trim();
+      return t === "" ? null : t;
+    };
+
+    const email = feld(b.email);
+    const phone = feld(b.phone ?? b.telefon);
+    const street = feld(b.street ?? b.strasse);
+    const zip = feld(b.zip ?? b.plz);
+    const city = feld(b.city ?? b.ort);
+
+    if (email !== undefined && email !== null && !/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(email)) {
+      return res.status(400).json({ ok: false, error: "Diese E-Mail-Adresse sieht nicht richtig aus." });
+    }
+    if (zip !== undefined && zip !== null && !/^[0-9]{4,5}$/.test(zip)) {
+      return res.status(400).json({ ok: false, error: "Die Postleitzahl besteht aus vier oder fünf Ziffern." });
+    }
+
+    const [alt] = (await sqlPool`
+      SELECT email, phone, street, zip, city, person_id
+        FROM fiaon_applications WHERE ref = ${ref} AND merged_into IS NULL LIMIT 1`) as any[];
+    if (!alt) return res.status(404).json({ ok: false, error: "Konto nicht gefunden." });
+
+    // Nur gesendete Felder — COALESCE auf den bisherigen Wert wäre falsch,
+    // weil man dann nichts mehr leeren könnte.
+    await sqlPool`
+      UPDATE fiaon_applications SET
+        email  = ${email  === undefined ? alt.email  : email},
+        phone  = ${phone  === undefined ? alt.phone  : phone},
+        street = ${street === undefined ? alt.street : street},
+        zip    = ${zip    === undefined ? alt.zip    : zip},
+        city   = ${city   === undefined ? alt.city   : city},
+        updated_at = NOW()
+      WHERE ref = ${ref}`;
+
+    // Die Person führt dieselben Angaben — läuft sie auseinander, sucht das
+    // Team später zwei Anschriften desselben Menschen. Die bisherigen Werte
+    // werden GELESEN und zurückgeschrieben, statt einen SQL-Ausschnitt in die
+    // Wertposition zu setzen: Das wäre eine Konstruktion, die beim nächsten
+    // Bibliotheks-Update still das Falsche tut.
+    if (alt.person_id) {
+      try {
+        const [pAlt] = (await sqlPool`
+          SELECT primary_email, primary_phone, street, zip, city
+            FROM fiaon_persons WHERE id = ${alt.person_id} LIMIT 1`) as any[];
+        if (pAlt) {
+          await sqlPool`
+            UPDATE fiaon_persons SET
+              primary_email = ${email  === undefined ? pAlt.primary_email : email},
+              primary_phone = ${phone  === undefined ? pAlt.primary_phone : phone},
+              street        = ${street === undefined ? pAlt.street : street},
+              zip           = ${zip    === undefined ? pAlt.zip : zip},
+              city          = ${city   === undefined ? pAlt.city : city},
+              updated_at = NOW()
+            WHERE id = ${alt.person_id}`;
+        }
+      } catch (e) {
+        // Die Akte ist gespeichert; der Abgleich darf das nicht zurücknehmen.
+        console.error("[MEIN-BEREICH] Personen-Abgleich:", String(e).slice(0, 160));
+      }
+    }
+
+    // Was sich geändert hat, in Worten — für den Vermerk und die Antwort.
+    const paare: [string, any, any][] = [
+      ["E-Mail", alt.email, email], ["Telefon", alt.phone, phone],
+      ["Straße", alt.street, street], ["PLZ", alt.zip, zip], ["Ort", alt.city, city],
+    ];
+    const geaendert = paare
+      .filter(([, a, n]) => n !== undefined && String(a ?? "") !== String(n ?? ""))
+      .map(([label, a, n]) => `${label}: ${a || "leer"} → ${n || "leer"}`);
+
+    if (geaendert.length) {
+      await sqlPool`
+        INSERT INTO fiaon_vermerke (art, ref, text, sicht, autor_art, autor_name, created_at)
+        VALUES ('system', ${ref}, ${"Der Kunde hat seine Stammdaten geändert — " + geaendert.join("; ")},
+                'intern', 'kunde', 'Kundenbereich', NOW())`.catch(() => {});
+      console.log(`[MEIN-BEREICH] Stammdaten ${ref}: ${geaendert.join("; ")}`);
+    }
+
+    res.json({ ok: true, geaendert });
+  } catch (err) {
+    console.error("[MEIN-BEREICH] stammdaten:", err);
+    res.status(500).json({ ok: false, error: "Ihre Angaben konnten nicht gespeichert werden. Bitte versuchen Sie es erneut." });
+  }
+});
+
 /** POST /kunde/:ref/passwort — eigenes Passwort ändern (altes muss stimmen). */
 router.post("/kunde/:ref/passwort", requireKunde, async (req: KundeRequest, res: Response) => {
   try {

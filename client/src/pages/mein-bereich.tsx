@@ -552,9 +552,19 @@ function Stammdaten({ d }: { d: Bereich }) {
   const [laeuft, setLaeuft] = useState(false);
   const speichern = async () => {
     setLaeuft(true); setMeldung(null);
-    const r = await api(`/profile/${encodeURIComponent(d.kunde.ref)}`, { method: "PATCH", body: JSON.stringify(f) });
+    // 27.08.2026: Ging bis heute an PATCH /profile/:ref — eine Route aus dem
+    // Antragsweg, die diese Feldnamen gar nicht liest. Die Anschrift wurde
+    // verworfen, der Kunde las trotzdem „Gespeichert.".
+    const r = await api(`/kunde/${encodeURIComponent(d.kunde.ref)}/stammdaten`, { method: "PATCH", body: JSON.stringify(f) });
     setLaeuft(false);
-    if (r.ok) { setMeldung({ ton: "gut", text: "Gespeichert." }); setEdit(false); }
+    if (r.ok) {
+      const anzahl = Array.isArray(r.json?.geaendert) ? r.json.geaendert.length : 0;
+      setMeldung({ ton: "gut", text: anzahl ? "Gespeichert." : "Es gab nichts zu ändern." });
+      setEdit(false);
+      // Die Anzeige liest aus dem geladenen Bereich — ohne Neuladen stünde
+      // dort weiter die alte Anschrift, und der Kunde speichert zweimal.
+      if (anzahl) setTimeout(() => window.location.reload(), 900);
+    }
     else setMeldung({ ton: "fehler", text: r.json?.error || "Das konnte nicht gespeichert werden." });
   };
   return (
@@ -770,7 +780,7 @@ function Upload({ refKunde, fehlt }: { refKunde: string; fehlt: { kontoauszug: b
   return (
     <div className="mb-karte" style={{ marginTop: 16 }}>
       <h4 style={{ fontSize: 15 }}>Jetzt einreichen</h4>
-      <p style={{ margin: "4px 0 0", fontSize: 12.8, color: "var(--text-leise)" }}>PDF, JPG oder PNG, bis 20 MB je Datei. Ein Handyfoto genügt, wenn alles lesbar ist — alle vier Ecken im Bild.</p>
+      <p style={{ margin: "4px 0 0", fontSize: 12.8, color: "var(--text-leise)" }}>PDF, JPG oder PNG, bis 25 MB je Datei. Ein Handyfoto genügt, wenn alles lesbar ist — alle vier Ecken im Bild. iPhone-Fotos im Format HEIC können wir nicht lesen; die Fotos-App erzeugt über „Teilen → Drucken → Als PDF sichern“ in zehn Sekunden eine passende Datei.</p>
       <div className="mb-upload">
         {sichtbar.map((f) => (
           <label key={f.key}><span>{f.label}</span><span className="gewaehlt">{dateien[f.key]?.name || "Datei wählen"}</span>

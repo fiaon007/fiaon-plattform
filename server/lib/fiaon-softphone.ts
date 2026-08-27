@@ -532,6 +532,8 @@ export function twimlAusgehend(opts: {
   an: string; von: string; ansage: string; aufnahmeCallback: string; statusCallback: string;
   /** Wohin Twilio greift, wenn der ANGERUFENE abnimmt. Dort steht die Ansage. */
   ansageUrl: string;
+  /** Wohin Twilio meldet, ob ein Mensch oder eine Mailbox abgenommen hat. */
+  amdCallback?: string;
 }): string {
   const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
@@ -616,6 +618,30 @@ export function twimlAusgehend(opts: {
   // spricht — der denkbar schlechteste Einstieg in ein Gespräch über seine
   // Schulden. Aufgelegt wurde dabei häufiger als danach.
   // ══════════════════════════════════════════════════════════════════════════
+  // ══════════════════════════════════════════════════════════════════════════
+  // MENSCH ODER MAILBOX? (27.08.2026)
+  //
+  // Florentine: „Man hört nicht, ob eine Mailbox drangeht oder ein Mensch."
+  //
+  // Sie hat recht, und es kostet echte Zeit: Der Mitarbeiter beginnt seinen
+  // Satz, merkt nach fünf Sekunden, dass er auf ein Band spricht, legt auf —
+  // und die Zeile steht danach als „beendet" mit vierzig Sekunden Dauer in
+  // der Auswertung, als wäre ein Gespräch zustande gekommen.
+  //
+  // `machineDetection="Enable"` lässt Twilio im Hintergrund erkennen, WER
+  // abgenommen hat, und meldet das Ergebnis an `amdStatusCallback`. Die
+  // Verbindung wird dabei NICHT verzögert — die Erkennung läuft parallel zum
+  // schon bestehenden Gespräch. (Der Wert `DetectMessageEnd` würde warten;
+  // das wäre für ein Verkaufsgespräch der falsche Tausch.)
+  //
+  // Kosten: Twilio berechnet die Erkennung je Anruf. Bei rund 500 Anrufen in
+  // der Woche sind das wenige Euro im Monat — gegen Gesprächszeit gerechnet,
+  // die auf Mailboxen verloren geht, ein guter Handel.
+  // ══════════════════════════════════════════════════════════════════════════
+  const amd = opts.amdCallback
+    ? `\n        machineDetection="Enable"\n        amdStatusCallback="${esc(opts.amdCallback)}"\n        amdStatusCallbackMethod="POST"`
+    : "";
+
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Dial callerId="${esc(von)}" timeout="30" timeLimit="${MAX_MINUTEN * 60}"
@@ -624,7 +650,7 @@ export function twimlAusgehend(opts: {
         recordingStatusCallbackEvent="completed"
         answerOnBridge="true"
         action="${esc(opts.statusCallback)}">
-    <Number>${esc(an)}</Number>
+    <Number${amd}>${esc(an)}</Number>
   </Dial>
 </Response>`;
 }

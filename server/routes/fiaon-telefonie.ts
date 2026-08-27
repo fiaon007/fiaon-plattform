@@ -775,11 +775,78 @@ router.post("/telefon/twiml", async (req: Request, res: Response) => {
       statusCallback: mitKennung("/api/fiaon/telefon/status"),
       // Die Ansage wird dem ANGERUFENEN vorgelesen, sobald er abnimmt.
       ansageUrl: absoluteUrl("/api/fiaon/telefon/ansage"),
+      // Mensch oder Mailbox — Twilio meldet es hierher (27.08.2026).
+      //
+      // NOTSCHALTER: Diese Erkennung ist das einzige Stück am Wählweg, das ich
+      // nicht mit einem echten Anruf prüfen konnte — dafür müsste ein Telefon
+      // klingeln. Das erzeugte TwiML ist geprüft (elf Proben), aber wenn
+      // morgen früh etwas klemmt, genügt TELEFON_MAILBOX_ERKENNUNG=aus in der
+      // Umgebung und ein Neustart: Dann fällt das Attribut weg und der Weg ist
+      // exakt der von gestern. Kein Deploy nötig, keine Codeänderung.
+      amdCallback: String(process.env.TELEFON_MAILBOX_ERKENNUNG || "").toLowerCase() === "aus"
+        ? undefined
+        : mitKennung("/api/fiaon/telefon/amd"),
     }));
   } catch (err) {
     console.error("[TELEFON] twiml:", err);
     res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response><Say language="de-DE">Es ist ein Fehler aufgetreten.</Say><Hangup/></Response>`);
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// POST /telefon/amd — Mensch oder Mailbox? (27.08.2026)
+//
+// Twilio meldet hierher, WER abgenommen hat. `AnsweredBy` kennt:
+//   human           — ein Mensch
+//   machine_start   — eine Ansage beginnt (Mailbox, Firmenansage)
+//   fax             — ein Faxgerät
+//   unknown         — nicht sicher zu erkennen
+//
+// Warum das zählt: Ein Anruf, der auf einer Mailbox landet, steht sonst als
+// „beendet" mit vierzig Sekunden Dauer in der Auswertung — wie ein geführtes
+// Gespräch. Wer danach den Vorrat verteilt oder die Leistung eines Teams
+// beurteilt, rechnet mit Zahlen, die es nicht gibt.
+//
+// Kommt von aussen: Es wird nichts geglaubt, was nicht zu einer bekannten
+// Zeile passt.
+// ═══════════════════════════════════════════════════════════════════════════
+router.post("/telefon/amd", async (req: Request, res: Response) => {
+  // Twilio erwartet umgehend 200 — was danach schiefgeht, ist unser Problem,
+  // nicht seines.
+  res.status(200).send("");
+  try {
+    const b = req.body as any;
+    const sid = String(b?.CallSid || "");
+    const wer = String(b?.AnsweredBy || "").toLowerCase();
+    const anrufId = Number(String(req.query?.anruf || "").replace(/\D/g, "")) || null;
+    if (!wer) return;
+
+    const deutsch =
+      wer === "human" ? "mensch"
+      : wer.startsWith("machine") ? "mailbox"
+      : wer === "fax" ? "fax"
+      : "unklar";
+
+    const [ziel] = (await sqlPool`
+      SELECT id FROM (
+        SELECT id, 1 AS weg FROM fiaon_calls WHERE id = ${anrufId}
+        UNION ALL
+        SELECT id, 2 FROM fiaon_calls WHERE twilio_sid = ${sid}
+        ORDER BY weg LIMIT 1
+      ) t`) as any[];
+    if (!ziel) {
+      console.warn(`[TELEFON-AMD] Keine Zeile für SID ${sid} (Kennung ${anrufId ?? "—"})`);
+      return;
+    }
+
+    await sqlPool`
+      UPDATE fiaon_calls
+         SET angenommen_von = ${deutsch}, updated_at = NOW()
+       WHERE id = ${ziel.id}`;
+    console.log(`[TELEFON-AMD] Anruf ${ziel.id}: ${deutsch} (${wer})`);
+  } catch (err) {
+    console.error("[TELEFON-AMD]", err);
   }
 });
 
@@ -816,11 +883,24 @@ router.post("/telefon/status", async (req: Request, res: Response) => {
         ) t ORDER BY weg LIMIT 1
       `) as any[];
       if (ziel) {
+        // ── EHRLICHE STATUS (27.08.2026) ────────────────────────────────
+        // Bis heute wurden Twilios `no-answer` und `busy` beide zu
+        // „abgelehnt". Der Mitarbeiter las das als „der Kunde hat mich
+        // weggedrückt" — bei 138 Anrufen in sieben Tagen. Tatsächlich sind
+        // es drei verschiedene Dinge, und jedes verlangt etwas anderes:
+        //   niemand_erreicht → es klingelte, später erneut versuchen
+        //   besetzt          → in Minuten noch einmal
+        //   abgebrochen      → der Anruf wurde vor dem Abnehmen beendet
         await sqlPool`
           UPDATE fiaon_calls
           SET twilio_sid = COALESCE(twilio_sid, ${sid}),
               ende = NOW(), dauer_sek = ${dauer || null},
-              status = ${status === "completed" ? "beendet" : status === "no-answer" || status === "busy" ? "abgelehnt" : "fehlgeschlagen"},
+              status = ${
+                status === "completed" ? "beendet"
+                : status === "no-answer" ? "niemand_erreicht"
+                : status === "busy" ? "besetzt"
+                : status === "canceled" ? "abgebrochen"
+                : "fehlgeschlagen"},
               zuordnung_unklar_grund = CASE WHEN ${Number(ziel.weg) === 3} AND zuordnung_unklar_grund IS NULL
                 THEN 'status-ohne-kennung (Fallback jüngste Zeile des Agenten)' ELSE zuordnung_unklar_grund END,
               updated_at = NOW()

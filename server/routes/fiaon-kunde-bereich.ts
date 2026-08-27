@@ -163,10 +163,27 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
         EXISTS (SELECT 1 FROM fiaon_contact_log cl
                  WHERE cl.person_id = ${a.person_id}
                    AND cl.type IN ('onboarding', 'startgespraech')) AS gespraech_im_verlauf,
-        EXISTS (SELECT 1 FROM fiaon_onboarding_schritte os
-                 WHERE os.person_id = ${a.person_id}) AS schritte_da
+        -- ── HIER STAND EINE DRITTE PRÜFUNG, UND SIE HAT ALLES LAHMGELEGT ──
+        -- Am 26.08.2026 habe ich hier `fiaon_onboarding_schritte os WHERE
+        -- os.person_id = …` eingebaut. Diese Tabelle hat aber gar keine
+        -- Spalte `person_id` — sie führt die Einschulungsschritte der
+        -- MITARBEITER (id, agent_id, schluessel, erledigt_am). Es gibt keine
+        -- entsprechende Tabelle für Kunden.
+        --
+        -- Die Folge war nicht ein fehlendes Häkchen, sondern ein Fehler der
+        -- ganzen Abfrage: Jeder angemeldete Kunde mit person_id bekam
+        -- „Der Bereich konnte gerade nicht geladen werden." Zwölf Stunden
+        -- lang, und gemeldet wurde es als „man kann sich nicht einloggen" —
+        -- weil es sich für den Kunden genau so anfühlt.
+        --
+        -- LEHRE: Ein Spaltenname, den ich nicht nachgeschlagen habe, ist eine
+        -- Vermutung. In einer EXISTS-Unterabfrage fällt sie nicht auf,
+        -- sondern reißt die ganze Antwort mit.
+        TRUE AS platzhalter
     `) as any[]) : [null];
-    const onboardingGelaufen = !!(ob?.termin_erledigt || ob?.gespraech_im_verlauf || ob?.schritte_da);
+    // Zwei Belege genügen und sind beide belastbar: ein als erledigt
+    // vermerkter Onboarding-Termin oder ein dokumentiertes Gespräch.
+    const onboardingGelaufen = !!(ob?.termin_erledigt || ob?.gespraech_im_verlauf);
 
     // Die Bonitätsauskunft ist eine EIGENE Bestellung (type='schufa') mit eigenem
     // Verwendungszweck — der Kunde soll sie VOR dem Startgespräch bezahlen können.

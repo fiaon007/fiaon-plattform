@@ -58,6 +58,8 @@ type Phase = "verify" | "newpass" | "done";
 
 export default function PasswortVergessenPage() {
   const [phase, setPhase] = useState<Phase>("verify");
+  // Was der Server über den Zugang sagt — null heißt: die Tür ist offen.
+  const [zugang, setZugang] = useState<{ hinweis: string; erklaerung: string; weiter: { text: string; href: string } | null } | null>(null);
 
   /* Verify fields */
   const [firstName, setFirstName] = useState("");
@@ -145,6 +147,14 @@ export default function PasswortVergessenPage() {
       if (!data.ok) {
         setPassError(data.error || "Fehler beim Zurücksetzen");
       } else {
+        // 27.08.2026: Der Server sagt jetzt mit, ob die Tür überhaupt offen
+        // ist. Vorher stand hier „Du kannst dich jetzt anmelden" — und jeder
+        // Fünfte lief Sekunden später gegen „Zahlung noch nicht eingegangen".
+        setZugang(data.zugangOffen === false ? {
+          hinweis: data.hinweis || "Dein Zugang ist noch nicht offen.",
+          erklaerung: data.erklaerung || "",
+          weiter: data.weiter || null,
+        } : null);
         setPhase("done");
       }
     } catch {
@@ -482,24 +492,61 @@ export default function PasswortVergessenPage() {
             <h2 className="text-2xl sm:text-3xl font-bold tracking-tight fiaon-gradient-text-animated mb-4">
               Passwort gespeichert!
             </h2>
-            <p className="text-[15px] text-gray-500 mb-2 max-w-sm mx-auto leading-relaxed">
-              Dein neues Passwort wurde gesetzt. Du kannst dich jetzt damit anmelden.
-            </p>
-            <p className="text-[13px] text-gray-400 mb-10">Das Fenster wird in wenigen Sekunden weitergeleitet.</p>
 
-            <div className="max-w-xs mx-auto space-y-3">
-              <a
-                href="/login"
-                className="w-full inline-flex items-center justify-center gap-2 py-3.5 px-6 fiaon-btn-gradient rounded-full text-[15px] font-semibold text-white transition-all duration-300 hover:scale-[1.01] hover:shadow-[0_8px_24px_rgba(37,99,235,0.35)]"
-                style={{ minHeight: 48 }}
-              >
-                Jetzt einloggen
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
-              </a>
-            </div>
+            {zugang ? (
+              <>
+                {/* Die ehrliche Auskunft: Das Passwort steht, die Tür noch nicht
+                    offen. Besser hier in Ruhe erklärt als gleich als Abweisung. */}
+                <p className="text-[15px] text-gray-600 mb-3 max-w-md mx-auto leading-relaxed">
+                  {zugang.hinweis}
+                </p>
+                {zugang.erklaerung && (
+                  <p className="text-[13.5px] text-gray-500 mb-8 max-w-md mx-auto leading-relaxed">
+                    {zugang.erklaerung}
+                  </p>
+                )}
+                <div className="max-w-xs mx-auto space-y-3">
+                  {zugang.weiter && (
+                    <a
+                      href={zugang.weiter.href}
+                      className="w-full inline-flex items-center justify-center gap-2 py-3.5 px-6 fiaon-btn-gradient rounded-full text-[15px] font-semibold text-white transition-all duration-300 hover:scale-[1.01]"
+                      style={{ minHeight: 48 }}
+                    >
+                      {zugang.weiter.text}
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
+                    </a>
+                  )}
+                  <a
+                    href="/kontakt"
+                    className="w-full inline-flex items-center justify-center gap-2 py-3.5 px-6 rounded-full text-[15px] font-medium text-gray-600 border border-gray-200 hover:border-gray-300 hover:text-gray-800 transition-all duration-300"
+                    style={{ minHeight: 48 }}
+                  >
+                    Beleg schicken oder Frage stellen
+                  </a>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-[15px] text-gray-500 mb-2 max-w-sm mx-auto leading-relaxed">
+                  Dein neues Passwort wurde gesetzt. Du kannst dich jetzt damit anmelden.
+                </p>
+                <p className="text-[13px] text-gray-400 mb-10">Das Fenster wird in wenigen Sekunden weitergeleitet.</p>
 
-            {/* Auto-redirect */}
-            <AutoRedirect />
+                <div className="max-w-xs mx-auto space-y-3">
+                  <a
+                    href="/login"
+                    className="w-full inline-flex items-center justify-center gap-2 py-3.5 px-6 fiaon-btn-gradient rounded-full text-[15px] font-semibold text-white transition-all duration-300 hover:scale-[1.01] hover:shadow-[0_8px_24px_rgba(37,99,235,0.35)]"
+                    style={{ minHeight: 48 }}
+                  >
+                    Jetzt einloggen
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
+                  </a>
+                </div>
+
+                {/* Weiterleiten NUR, wenn die Anmeldung auch gelingen kann. */}
+                <AutoRedirect />
+              </>
+            )}
           </div>
         )}
       </div>

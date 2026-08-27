@@ -4554,7 +4554,44 @@ router.post("/reset-password-direct", async (req, res) => {
 
     verifyTokens.delete(token);
     console.log("[FIAON-RESET-DIRECT] Passwort gesetzt für", ref);
-    return res.json({ ok: true });
+
+    // ══════════════════════════════════════════════════════════════════════
+    // SAG IHM JETZT, OB DIE TÜR OFFEN IST (27.08.2026)
+    //
+    // Daniel: „Man kann sich aktuell nicht einloggen."
+    //
+    // GEMESSEN im Anmeldeprotokoll über 30 Tage: 81 Menschen haben ein
+    // Passwort gesetzt, 16 davon wurden binnen zwei Stunden danach
+    // abgewiesen — jeder Fünfte. Der Ablauf sagte „Identität bestätigt,
+    // setz dein Passwort", und Sekunden später „Deine Zahlung ist noch
+    // nicht eingegangen". Aus Kundensicht ist das ein kaputtes Portal,
+    // und genau so wird es gemeldet.
+    //
+    // Das Passwort wird trotzdem gesetzt — es ist sein Konto, und er wird
+    // es brauchen. Aber er erfährt SOFORT, woran er ist, statt gegen eine
+    // Tür zu laufen. Am Zugangstor selbst ändert sich nichts.
+    // ══════════════════════════════════════════════════════════════════════
+    const [konto] = (await sqlPool`
+      SELECT status, payment_status, payment_reference
+        FROM fiaon_applications WHERE ref = ${ref} LIMIT 1`) as any[];
+    const offen = !!konto
+      && (LOGIN_ACCESS_STATUSES.has(String(konto.status)) || konto.payment_status === "paid");
+
+    if (offen) return res.json({ ok: true, zugangOffen: true });
+
+    const referenz = konto?.payment_reference || null;
+    return res.json({
+      ok: true,
+      zugangOffen: false,
+      // Bewusst dieselben Worte wie am Zugangstor — zwei Formulierungen für
+      // dieselbe Lage sind der Anfang jeder Verwirrung.
+      hinweis: "Dein Passwort ist gesetzt. Dein Zugang öffnet sich, sobald deine Zahlung bei uns eingegangen ist.",
+      erklaerung: referenz
+        ? `Überweisungen brauchen ein bis zwei Bankarbeitstage. Wenn du schon überwiesen hast, schick uns den Beleg mit der Referenz ${referenz} — dann schalten wir dich sofort frei.`
+        : "Überweisungen brauchen ein bis zwei Bankarbeitstage. Wenn du schon überwiesen hast, schick uns den Beleg — dann schalten wir dich sofort frei.",
+      referenz,
+      weiter: referenz ? { text: "Zahlungsinformationen ansehen", href: `/zahlung/${referenz}` } : null,
+    });
   } catch (err) {
     const incident = randomBytes(4).toString("hex").toUpperCase();
     console.error(`[FIAON-RESET-DIRECT] RESET-05-${incident}`, err);

@@ -1274,15 +1274,61 @@ export async function rateBezahltBuchen(opts: {
   if (!rate) return { ok: false, error: "Rate nicht gefunden" };
   if (rate.status === "bezahlt") return { ok: true, schonBezahlt: true };
 
+  // ── EINE RATENKETTE LAEUFT VORWAERTS (27.08.2026) ───────────────────────
+  // Justin fand eine Akte, in der Rate 1 am 19.08. bezahlt war und die Raten 2
+  // bis 4 am 18.08. — einen Tag FRUEHER. Entstanden ist das, weil ein
+  // Bereinigungslauf jeder Rate das Buchungsdatum des Bankeingangs gab, den er
+  // gerade in der Hand hielt. Ein Zahldatum, das hinter das der Vorgaengerrate
+  // zurueckfaellt, ist nie richtig — es ist entweder ein Vertipper oder eine
+  // falsche Zuordnung.
+  //
+  // Die beiden Wege reagieren mit Absicht verschieden:
+  //   · Von Hand gebucht        → ABLEHNEN. Der Mensch sieht den Hinweis und
+  //     traegt das richtige Datum ein.
+  //   · Lastschrift bestaetigt  → ANNEHMEN und das Datum vorziehen. Eine
+  //     bestaetigte Abbuchung darf niemals verlorengehen, nur weil ein
+  //     aelterer Eintrag ein krummes Datum traegt.
+  const [vorherige] = await sqlPool`
+    SELECT MAX(bezahlt_am) AS letzte
+      FROM fiaon_abo_raten
+     WHERE ref = ${rate.ref} AND rate_nr < ${rate.rate_nr}
+       AND status = 'bezahlt' AND bezahlt_am IS NOT NULL
+  `;
+  let zahlungsdatum = opts.zahlungsdatum;
+  let datumVorgezogen: string | null = null;
+  if (vorherige?.letzte) {
+    const vorherTag = new Date(vorherige.letzte).toISOString().slice(0, 10);
+    if (zahlungsdatum < vorherTag) {
+      if (opts.quelle === "gocardless") {
+        datumVorgezogen = zahlungsdatum;
+        zahlungsdatum = vorherTag;
+      } else {
+        return {
+          ok: false,
+          error: `Das Zahldatum ${zahlungsdatum} liegt vor der vorherigen Rate (bezahlt am ${vorherTag}). `
+               + `Bitte pruefen: entweder stimmt das Datum nicht, oder der Eingang gehoert zu einer anderen Rate.`,
+        };
+      }
+    }
+  }
+
+
+  // Wurde das Datum vorgezogen, steht das in der Akte — sonst waere spaeter
+  // nicht mehr erkennbar, warum die Rate ein anderes Datum traegt als die Bank.
+  const vermerk = datumVorgezogen
+    ? [opts.notiz, `Zahldatum von ${datumVorgezogen} auf ${zahlungsdatum} vorgezogen: eine spaetere Rate kann nicht vor einer frueheren bezahlt sein.`]
+        .filter(Boolean).join(" · ")
+    : (opts.notiz ?? null);
+
   const geaendert = await sqlPool`
     UPDATE fiaon_abo_raten
-    SET status = 'bezahlt', bezahlt_am = ${`${opts.zahlungsdatum}T12:00:00Z`},
+    SET status = 'bezahlt', bezahlt_am = ${`${zahlungsdatum}T12:00:00Z`},
         quelle = ${opts.quelle === "admin" ? rate.quelle : opts.quelle},
         lastschrift_status = ${opts.quelle === "gocardless" ? "eingezogen" : rate.lastschrift_status ?? null},
         lastschrift_am = ${opts.quelle === "gocardless" ? new Date() : rate.lastschrift_am ?? null},
         gc_payment_id = COALESCE(${opts.gcPaymentId ?? null}, gc_payment_id),
-        notiz = CASE WHEN ${opts.notiz ?? null}::text IS NULL THEN notiz
-                     ELSE CONCAT_WS(' · ', NULLIF(notiz, ''), ${opts.notiz ?? null}::text) END,
+        notiz = CASE WHEN ${vermerk}::text IS NULL THEN notiz
+                     ELSE CONCAT_WS(' · ', NULLIF(notiz, ''), ${vermerk}::text) END,
         updated_at = NOW()
     WHERE id = ${opts.rateId} AND status <> 'bezahlt'
   `;
@@ -1291,7 +1337,7 @@ export async function rateBezahltBuchen(opts: {
   // Die nächste Rate rechnet ab dem Zahlungsdatum — nicht ab der bisherigen
   // Fälligkeit. Zahlt jemand zehn Tage zu spät, ist der nächste Termin
   // 30 Tage nach seiner Zahlung.
-  await naechsteRateAnlegen(rate.ref, rate as any, opts.zahlungsdatum);
+  await naechsteRateAnlegen(rate.ref, rate as any, zahlungsdatum);
 
   // ── DIE FRAGE NACH RATE 12 (E-024) ────────────────────────────────────
   if (Number(rate.rate_nr) > 0 && Number(rate.rate_nr) % ABO_LAUFZEIT_RATEN === 0) {
@@ -1331,10 +1377,10 @@ export async function rateBezahltBuchen(opts: {
   await sqlPool`
     INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
     VALUES (${rate.ref}, NULL, 'System', 'system',
-            ${`Abo-Rate ${rate.rate_nr} (${rate.zahlungsreferenz}) ${quelleText} — Zahlungseingang ${opts.zahlungsdatum}${opts.notiz ? ` (${opts.notiz})` : ""}`})
+            ${`Abo-Rate ${rate.rate_nr} (${rate.zahlungsreferenz}) ${quelleText} — Zahlungseingang ${zahlungsdatum}${opts.notiz ? ` (${opts.notiz})` : ""}`})
   `.catch(() => {});
   const { tag: anker } = await aboAnker(rate.ref);
-  return { ok: true, naechsteFaelligkeit: anker ? naechsteFaelligkeit(anker, opts.zahlungsdatum) : null };
+  return { ok: true, naechsteFaelligkeit: anker ? naechsteFaelligkeit(anker, zahlungsdatum) : null };
 }
 
 router.post("/admin/abo/raten/:id/bezahlt", async (req: Request, res: Response) => {

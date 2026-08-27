@@ -25,6 +25,7 @@ import { sqlPool } from "../lib/db-pool";
 import { berlinDatumText, berlinUhrzeit, terminTokenErzeugen } from "../lib/fiaon-termine";
 import { versendenUndProtokollieren } from "../lib/fiaon-mail-log";
 import { terminLink } from "../lib/fiaon-termine";
+import { hasAdminCode } from "./fiaon-admin-zugang";
 
 const router = Router();
 
@@ -194,10 +195,17 @@ router.get("/kunde/:ref/startgespraech", async (req: Request, res: Response) => 
       ablauf: abgeleitet?.ablauf ?? null,
       auskunftBezahlt: abgeleitet?.auskunftBezahlt ?? false,
       ausnahme: abgeleitet?.ausnahme ?? null,
-      // Bei Pflicht bleibt die Tafel stehen, auch wenn schon „Später" geklickt
-      // wurde: Ein „Später" von gestern hebt eine Pflicht von heute nicht auf.
-      faellig: offen && (pflicht || !lage.spaeterAm),
-      banner: offen && !pflicht && !!lage.spaeterAm,
+      // ── DIE WAND IST WEG (27.08.2026, Florentine ueber Justin) ────────
+      // „Wenn der Kunde sich anmeldet, muss er immer einen Termin buchen,
+      // selbst wenn ich gerade mit dem Kunden telefoniere." Die harte Tafel
+      // ohne Ausweg stand einem Kunden im Weg, dessen Gespraech GERADE lief.
+      // Seither gilt: Die Tafel erscheint, bis sie einmal weggeklickt wurde —
+      // danach eine dezente Zeile. Die eigentliche Grenze bleibt bestehen:
+      // Fahrplan und Inhalte oeffnen erst nach erledigtem Startgespraech.
+      // Und in der Nur-Ansicht (Mitarbeiter schaut als Kunde) erscheint die
+      // Tafel NIE — wer nur schaut, kann und soll nichts buchen muessen.
+      faellig: offen && !lage.spaeterAm && !hasAdminCode(req),
+      banner: offen && (!!lage.spaeterAm || hasAdminCode(req)),
       pflicht,
       vorname: lage.vorname,
       nachname: lage.nachname,
@@ -220,17 +228,13 @@ router.post("/kunde/:ref/startgespraech/spaeter", async (req: Request, res: Resp
   try {
     const lage = await lageZu(String(req.params.ref));
     if (!lage) return res.status(404).json({ ok: false, error: "Nicht gefunden" });
-    // ── BEI PFLICHT GIBT ES KEIN „SPÄTER" ────────────────────────────────
-    // Die Wand steht im SERVER, nicht in der Oberfläche. Ein Knopf, den man
-    // in der Konsole nachbauen kann, ist keine Pflicht, sondern eine Bitte.
-    if (lage.pflicht && !lage.termin && !lage.erledigt) {
-      return res.status(403).json({
-        ok: false,
-        pflicht: true,
-        error: "Das Startgespräch ist Voraussetzung für die Freischaltung. "
-          + "Bitte wähle einen Termin — es dauert 15 Minuten.",
-      });
-    }
+    // ── „SPÄTER" IST IMMER ERLAUBT (27.08.2026) ─────────────────────────
+    // Hier stand eine 403-Wand: Bei Pflicht kein Wegklicken. Sie zwang auch
+    // den Kunden zur Buchung, mit dem ein Mitarbeiter GERADE telefonierte —
+    // und die Nur-Ansicht der Mitarbeiter gleich mit. Die Pflicht lebt nicht
+    // in dieser Wand, sondern in der Stufe: Fahrplan und Inhalte oeffnen
+    // erst nach erledigtem Startgespraech. Wer wegklickt, verliert also
+    // nichts von der Regel — er kann nur sein Konto ansehen.
     // COALESCE: Der ERSTE Klick zählt. Sonst schöbe jeder weitere Besuch die
     // 48-Stunden-Uhr nach hinten, und die Erinnerung käme nie.
     await sqlPool`

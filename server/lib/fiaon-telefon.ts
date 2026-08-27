@@ -149,9 +149,32 @@ export function waehlbareNummer(
     // 2. Getrennte Vorwahl vorhanden
     const vw = ziffern(q.vorwahl);
     if (vw) {
-      const national = d.replace(/^0+/, "");
-      const e164 = `+${vw}${national}`;
-      return { anzeige: lesbar(e164), waehlbar: e164, hinweis: null };
+      let national = d.replace(/^0+/, "");
+      let vorwahl = vw;
+      let hinweis: string | null = null;
+      // ── WENN VORWAHL UND LAND SICH WIDERSPRECHEN (27.08.2026) ──────────
+      // Julia Rogel, Person 7966: wohnt in Oesterreich (country=AT), Nummer
+      // 0664 1005600 — das Netz von A1. Im Antrag stand aber phone_country_
+      // code = +49, die Vorgabe des Formulars. Gewaehlt wurde +49664…, eine
+      // Nummer, die es nicht gibt. GEMESSEN: 63 oesterreichische und 6
+      // Schweizer Kunden mit diesem Muster, 68 vergebliche Anrufe an 25 von
+      // ihnen in 14 Tagen — das Team hielt erreichbare Kunden fuer tot.
+      //
+      // Die Regel ist bewusst eng: Sie greift NUR, wenn die gespeicherte
+      // Vorwahl dem Wohnland widerspricht UND die nationale Nummer eindeutig
+      // wie ein Mobilfunknetz des Wohnlands beginnt (AT: 06[4-9], CH:
+      // 07[5-9], DE: 01[5-7]). Ein Deutscher in Wien mit deutscher Handy-
+      // nummer (+49 15x/16x/17x) bleibt unangetastet.
+      const MOBIL_MUSTER: Record<string, RegExp> = {
+        "43": /^6[4-9]/, "41": /^7[5-9]/, "49": /^1[5-7]/,
+      };
+      if (landVorwahl && vw !== landVorwahl && MOBIL_MUSTER[landVorwahl]?.test(national)) {
+        vorwahl = landVorwahl;
+        hinweis = `Die gespeicherte Vorwahl +${vw} widerspricht dem Wohnland (${landCode}) — `
+          + `gewaehlt wird +${landVorwahl}, weil die Nummer wie ein Mobilfunknetz dieses Landes beginnt.`;
+      }
+      const e164 = `+${vorwahl}${national}`;
+      return { anzeige: lesbar(e164), waehlbar: e164, hinweis };
     }
 
     // 3. Alte Auslandsschreibweise 00…

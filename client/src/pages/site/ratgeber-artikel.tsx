@@ -12,6 +12,8 @@ import { Dunkel, Licht, Knopf, Zwischenruf } from "@/components/site/DunkleBuehn
 import { KATEGORIEN, AUTORIN, type Artikel } from "@shared/fiaon-ratgeber";
 import { markdownZuHtml, inhaltsverzeichnis, textAusMarkdown } from "@shared/fiaon-markdown";
 import "@/styles/ratgeber.css";
+// 27.08.2026: Nach 80 Sekunden Lesezeit ein Angebot — siehe LeseAufruf.tsx.
+import LeseAufruf from "@/components/site/LeseAufruf";
 
 interface Weiterer { slug: string; titel: string; teaser: string; kategorie: string; land: string; lesezeit: number; veroeffentlichtAm: string | null }
 const LANDKURZ: Record<string, string> = { DE: "Deutschland", AT: "Österreich", CH: "Schweiz", DACH: "DACH" };
@@ -86,6 +88,7 @@ export default function RatgeberArtikel() {
   if (fehler) {
     return (
       <Dunkel seite="ratgeber" titel="Ratgeber" beschreibung="FIAON Ratgeber">
+      <LeseAufruf />
         <section className="dk-hero"><div className="dk-rahmen"><span className="dk-pille">Ratgeber</span><h1 className="dk-h1">Diesen Text gibt es nicht.</h1><p className="dk-lead">{fehler}</p><div className="dk-knoepfe"><Knopf href="/ratgeber">Alle Ratgeber</Knopf></div></div></section>
       </Dunkel>
     );

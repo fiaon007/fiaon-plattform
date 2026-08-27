@@ -207,7 +207,7 @@ export default function ChefKundenliste() {
           {zeilen.map((z) => {
             const zs = zeichen(z);
             return (
-              <a key={z.id} className={`ck-zeile${zs.length ? " auffaellig" : ""}`} href={`/admin/kunde/${z.id}`}>
+              <a key={z.id} className={`ck-zeile${zs.length ? " auffaellig" : ""}`} href={`/chef/s/akte?id=${z.id}`}>
                 <span className="ck-marke" aria-hidden="true" data-ton={zs[0]?.ton ?? ""} />
 
                 <span className="ck-wer">

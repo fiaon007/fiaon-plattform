@@ -201,13 +201,13 @@ export default function ChefLagezimmer({ name }: { name: string | null }) {
   if (!l) return <div className="cl-laedt"><span /><span /><span /></div>;
 
   const klemmer = [
-    { n: l.klemmt.zusageGebrochen, was: "gebrochene Zahlungszusagen", wo: "/admin/kunden?filter=ueberfaellig", Icon: FileWarning },
-    { n: l.geld.ratenUeberfaellig, was: "überfällige Raten", wo: "/admin/zahlungen", Icon: Wallet, extra: eur(l.geld.ueberfaelligSumme) },
-    { n: l.klemmt.ohneTermin, was: "bezahlt, ohne Startgespräch", wo: "/admin/termine", Icon: CalendarClock },
-    { n: l.team.termineOhneErgebnis, was: "Termine ohne Ergebnis", wo: "/admin/termine", Icon: PhoneOff },
-    { n: l.geld.abrechnungenOffen, was: "Abrechnungen nie versendet", wo: "/admin/abrechnungen", Icon: FileWarning },
-    { n: l.klemmt.dublettenVerdacht, was: "Verdacht auf Dubletten", wo: "/admin/dubletten", Icon: Copy },
-    { n: l.klemmt.nummerOhneLand, was: "Nummern ohne Land", wo: "/admin/kunden?filter=nummer_ohne_land", Icon: PhoneOff },
+    { n: l.klemmt.zusageGebrochen, was: "gebrochene Zahlungszusagen", wo: "/chef/kundenliste?filter=ueberfaellig", Icon: FileWarning },
+    { n: l.geld.ratenUeberfaellig, was: "überfällige Raten", wo: "/chef/s/zahlungen-verwalten", Icon: Wallet, extra: eur(l.geld.ueberfaelligSumme) },
+    { n: l.klemmt.ohneTermin, was: "bezahlt, ohne Startgespräch", wo: "/chef/s/termine", Icon: CalendarClock },
+    { n: l.team.termineOhneErgebnis, was: "Termine ohne Ergebnis", wo: "/chef/s/termine", Icon: PhoneOff },
+    { n: l.geld.abrechnungenOffen, was: "Abrechnungen nie versendet", wo: "/chef/s/abrechnungen", Icon: FileWarning },
+    { n: l.klemmt.dublettenVerdacht, was: "Verdacht auf Dubletten", wo: "/chef/s/dubletten", Icon: Copy },
+    { n: l.klemmt.nummerOhneLand, was: "Nummern ohne Land", wo: "/chef/s/kunden?nummerOhneLand=1", Icon: PhoneOff },
   ].filter((k) => k.n > 0).sort((a, b) => b.n - a.n);
 
   return (
@@ -235,25 +235,25 @@ export default function ChefLagezimmer({ name }: { name: string | null }) {
 
       {/* ── Vier Kennzahlen ────────────────────────────────────────────── */}
       <section className="cl-vier">
-        <Karte href="/admin/kunden" klasse="cl-kennzahl">
+        <Karte href="/chef/kundenliste?filter=zahlende" klasse="cl-kennzahl">
           <i><Users size={17} strokeWidth={1.75} /></i>
           <b><Hochzaehler ziel={l.kunden.zahlende} formatieren={zahl} /></b>
           <small>zahlende Kunden</small>
           <em>{zahl(l.kunden.menschenGesamt)} Menschen insgesamt</em>
         </Karte>
-        <Karte href="/admin/team" klasse="cl-kennzahl">
+        <Karte href="/chef/team" klasse="cl-kennzahl">
           <i><Sparkles size={17} strokeWidth={1.75} /></i>
           <b><Hochzaehler ziel={l.kunden.mandate} formatieren={zahl} /></b>
           <small>Mandate</small>
           <em>{zahl(l.kunden.imPool)} warten im Kundenpool</em>
         </Karte>
-        <Karte href="/admin/auszahlungen" klasse="cl-kennzahl">
+        <Karte href="/chef/s/auszahlungen" klasse="cl-kennzahl">
           <i><Landmark size={17} strokeWidth={1.75} /></i>
           <b><Hochzaehler ziel={l.geld.provOffenSumme} formatieren={eur} /></b>
           <small>Provision, noch nicht ausgezahlt</small>
           <em>{zahl(l.geld.provOffen)} Positionen</em>
         </Karte>
-        <Karte href="/admin/team" klasse="cl-kennzahl">
+        <Karte href="/chef/team" klasse="cl-kennzahl">
           <i><CalendarClock size={17} strokeWidth={1.75} /></i>
           <b><Hochzaehler ziel={l.team.kontakteHeute} formatieren={zahl} /></b>
           <small>dokumentierte Gespräche heute</small>
@@ -299,7 +299,7 @@ export default function ChefLagezimmer({ name }: { name: string | null }) {
           </div>
           <div className="cl-team">
             {l.mitarbeiter.map((m) => (
-              <a key={m.id} href={`/admin/team?agent=${m.id}`} className="cl-teamzeile">
+              <a key={m.id} href={`/chef/s/team?agent=${m.id}`} className="cl-teamzeile">
                 <span className="cl-avatar" aria-hidden="true">{m.name.split(" ").map((t) => t[0]).slice(0, 2).join("")}</span>
                 <span className="cl-teamname">
                   <b>{m.name}</b>
@@ -321,7 +321,7 @@ export default function ChefLagezimmer({ name }: { name: string | null }) {
       <section className="cl-block">
         <div className="cl-block-kopf">
           <h2>Zuletzt eingegangen</h2>
-          <small>Die zwölf jüngsten Zahlungen · <a href="/admin/verbuchungen">alle ansehen</a></small>
+          <small>Die zwölf jüngsten Zahlungen · <a href="/chef/zahlungen">alle ansehen</a></small>
         </div>
         <div className="cl-tab-huelle">
           <table className="cl-tab">
@@ -332,7 +332,7 @@ export default function ChefLagezimmer({ name }: { name: string | null }) {
               {l.letzteZahlungen.map((z, i) => (
                 <tr key={i}>
                   <td className="cl-zeit">{new Date(z.am).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" })}</td>
-                  <td>{z.personId ? <a href={`/admin/kunde/${z.personId}`}>{z.kunde}</a> : z.kunde}</td>
+                  <td>{z.personId ? <a href={`/chef/s/akte?id=${z.personId}`}>{z.kunde}</a> : z.kunde}</td>
                   <td className="cl-leise">{z.paket ?? "—"}</td>
                   <td className="cl-leise">{z.rateNr > 0 ? `${z.rateNr}.` : "—"}</td>
                   <td className="cl-leise">{z.betreuer ?? "—"}</td>

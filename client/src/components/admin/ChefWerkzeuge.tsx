@@ -401,7 +401,7 @@ function SprungUndSicht() {
                 <em>{t.mitarbeiter || "im Pool"}</em>
               </span>
               <span className="cw-treffer-knoepfe">
-                <a className="cw-knopf klein" href={`/admin/kunde/${t.id}`}>Akte</a>
+                <a className="cw-knopf klein" href={`/chef/s/akte?id=${t.id}`}>Akte</a>
                 <button type="button" className="cw-knopf klein" onClick={() => alsKunde(t.ref)}>
                   als Kunde sehen
                 </button>

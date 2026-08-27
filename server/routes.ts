@@ -605,6 +605,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const chefUebersichten = await import('./routes/fiaon-chef-uebersichten');
   app.use('/api/fiaon', chefUebersichten.default);
 
+  // 📈 Microsoft Clarity im Chefbüro (27.08.2026). Liest IMMER aus dem eigenen
+  // Speicher — Clarity erlaubt nur zehn Abrufe je Tag.
+  const chefClarity = await import('./routes/fiaon-chef-clarity');
+  app.use('/api/fiaon', chefClarity.default);
+
   // 🏛 Datenraum der Schwarzott Capital Partners AG (26.08.2026).
   // Bewusst eigene Tabellen und eigene Sitzung — getrennt von FIAONS eigenem
   // Investorenbereich unter /datenraum.

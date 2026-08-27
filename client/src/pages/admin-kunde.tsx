@@ -186,8 +186,16 @@ function Field({ label, value, onSave, type = "text", sensitive, placeholder }: 
 }
 
 export default function AdminKundeAktePage() {
+  // Zwei Wege führen hierher (27.08.2026): die alte Adresse /admin/kunde/:id
+  // und das Chefbüro unter /chef/s/akte?id=… . Beide sind gültig; der zweite
+  // trägt die Kennung in der Suchzeichenkette, weil dort der Slug den Platz
+  // im Pfad belegt.
   const [, params] = useRoute("/admin/kunde/:id");
-  const id = params?.id ? decodeURIComponent(params.id) : "";
+  const ausAdresse = params?.id ? decodeURIComponent(params.id) : "";
+  const ausSuche = typeof window !== "undefined"
+    ? (new URLSearchParams(window.location.search).get("id") || "")
+    : "";
+  const id = ausAdresse || ausSuche;
 
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);

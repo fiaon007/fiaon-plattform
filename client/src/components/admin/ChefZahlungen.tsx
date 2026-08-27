@@ -282,9 +282,9 @@ export default function ChefZahlungen() {
                     </div>
                     {z.notiz && <div className="breit"><dt>Notiz</dt><dd>{z.notiz}</dd></div>}
                     <div className="breit cz-wege">
-                      {z.person_id && <a className="cw-knopf klein" href={`/admin/kunde/${z.person_id}`}>Akte öffnen <ExternalLink size={13} strokeWidth={1.7} /></a>}
-                      <a className="cw-knopf klein" href="/admin/zahlungen">Zahlungsverwaltung</a>
-                      <a className="cw-knopf klein" href="/admin/rechnungen">Rechnungen</a>
+                      {z.person_id && <a className="cw-knopf klein" href={`/chef/s/akte?id=${z.person_id}`}>Akte öffnen <ExternalLink size={13} strokeWidth={1.7} /></a>}
+                      <a className="cw-knopf klein" href="/chef/s/zahlungen-verwalten">Zahlungsverwaltung</a>
+                      <a className="cw-knopf klein" href="/chef/s/rechnungen">Rechnungen</a>
                     </div>
                   </dl>
                 )}

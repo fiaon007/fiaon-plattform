@@ -23,9 +23,11 @@ import {
   Receipt, Banknote, Copy, Wallet, TrendingUp, CalendarClock, Target, Map,
   PiggyBank, ScrollText, UserPlus, BookOpen, Sparkles, Activity, History, Scale,
   MailCheck, MessageSquare,
-  Wrench, Table2, Receipt as ReceiptIcon, LibraryBig,
+  Wrench, Table2, Receipt as ReceiptIcon, LibraryBig, Eye,
 } from "lucide-react";
+import { seitenFuerRaum, chefPfad } from "./chef-seiten";
 import "@/styles/chefbuero.css";
+import "@/styles/chefbuero-seiten.css";
 
 export type ChefStufe = "inhaber" | "geschaeftsfuehrung" | "leitung";
 const RANG: Record<ChefStufe, number> = { inhaber: 3, geschaeftsfuehrung: 2, leitung: 1 };
@@ -35,6 +37,15 @@ export const STUFEN_NAME: Record<ChefStufe, string> = {
   leitung: "Leitung",
 };
 
+// ── DIE KACHELN LIEGEN NICHT MEHR HIER (27.08.2026) ────────────────────────
+// Bis heute trug jeder Raum seine eigene Kachelliste mit `/admin/...`-Zielen.
+// Damit gab es ZWEI Wahrheiten darüber, welche Seite es gibt: diese Liste und
+// die Routen in App.tsx. Jetzt kommt beides aus `chef-seiten.tsx` — eine
+// Kachel ohne Seite kann so nicht mehr entstehen, und keine Kachel führt aus
+// dem Chefbüro heraus.
+//
+// `punkte` bleibt als leeres Feld erhalten, damit ältere Aufrufer nicht
+// brechen; gefüllt wird es nicht mehr.
 export interface ChefPunkt { href: string; label: string; desc: string; Icon: any }
 export interface ChefRaum {
   key: string; label: string; Icon: any; satz: string;
@@ -48,11 +59,7 @@ export const CHEF_RAEUME: ChefRaum[] = [
   {
     key: "lage", label: "Lagezimmer", Icon: LayoutDashboard, mindest: "leitung",
     satz: "Der Tag auf einen Blick — Aufgaben, Warnungen, deine Liste.",
-    punkte: [
-      { href: "/admin/dashboard", label: "Dashboard", desc: "Was ist zu tun? Aufgaben, Warnungen, Suche, Tageszahlen", Icon: LayoutDashboard },
-      { href: "/admin/todo", label: "Meine Liste", desc: "Was nur du tun kannst — Make, Brevo, Konten, Entscheidungen", Icon: ListChecks },
-      { href: "/admin/aufgaben", label: "Notizen & Aufgaben", desc: "An Personen festgehalten oder ans Team vergeben — mit Frist und Sichtbarkeit", Icon: ListChecks },
-    ],
+    punkte: [],
   },
   // ── DIE WERKSTATT (26.08.2026) ──────────────────────────────────────────
   // Kein Verzeichnis auf /admin-Seiten, sondern ein eigener Raum: Diese fünf
@@ -76,6 +83,13 @@ export const CHEF_RAEUME: ChefRaum[] = [
   // Die Antwort auf „kann man hier eigentlich alles?". Jede Fähigkeit der
   // Plattform mit Namen, Klartext und Direktverweis — auch die, die bisher
   // nur als Adresse mit Fragezeichen existierten.
+  // ── BESUCHER (27.08.2026) ───────────────────────────────────────────────
+  // Microsoft Clarity: Wer war da, und — wichtiger — wo hat es geklemmt.
+  {
+    key: "besucher", label: "Besucher", Icon: Eye, mindest: "leitung",
+    satz: "Wut-Klicks, tote Klicks, Scrolltiefe — wo Besucher nicht weiterkommen.",
+    punkte: [],
+  },
   {
     key: "register", label: "Register", Icon: LibraryBig, mindest: "leitung",
     satz: "Jede Funktion der Plattform, durchsuchbar — auch die ohne eigene Kachel.",
@@ -84,75 +98,37 @@ export const CHEF_RAEUME: ChefRaum[] = [
   {
     key: "geld", label: "Geld", Icon: Landmark, mindest: "geschaeftsfuehrung",
     satz: "Zahlungen, Verbuchung, Auszahlungen, Abrechnungen — alles Geld in einem Raum.",
-    punkte: [
-      { href: "/admin/zahlungen", label: "Zahlungszentrale", desc: "Offene Zahlungen prüfen, freischalten, Timeline", Icon: CreditCard },
-      { href: "/admin/verbuchung", label: "Zahlungen verbuchen", desc: "Vier Fälle, vier Reiter — mit Vorschau vor dem Klick", Icon: Receipt },
-      { href: "/admin/kontoabgleich", label: "Kontoabgleich", desc: "Bank-Eingänge exakt mit Kunden abgleichen und verbuchen", Icon: Landmark },
-      { href: "/admin/auszahlungen", label: "Auszahlungen", desc: "Provisions-Anforderungen der Mitarbeiter freigeben", Icon: Banknote },
-      { href: "/admin/abrechnungen", label: "Abrechnungen", desc: "Provisionsabrechnungen einsehen, als PDF ansehen, versenden", Icon: FileText },
-      { href: "/admin/verbuchungen", label: "Verbuchungen", desc: "Bestätigte Zahlungen: Umsatz, Provisionen, Netto", Icon: Wallet },
-      { href: "/admin/buchhaltung", label: "Buchhaltung", desc: "Buchungsjournal und Ausbuchung (Ledger)", Icon: Landmark },
-      { href: "/admin/rechnungen", label: "Rechnungen", desc: "Alle erzeugten Rechnungen durchsuchen und laden", Icon: FileText },
-      { href: "/admin/finanzen", label: "Finanzen & Sales", desc: "Funnel, Umsatz, Marge, CAC, Kampagnen-Attribution", Icon: TrendingUp },
-      { href: "/admin/investoren", label: "Investoren", desc: "Anfragen, Investments, Dokumente", Icon: PiggyBank },
-    ],
+    punkte: [],
   },
   {
     key: "kunden", label: "Kunden", Icon: Users, mindest: "leitung",
     satz: "Jede Person genau einmal — Kunden, Termine, Leads, Dubletten, Fahrplan.",
-    punkte: [
-      { href: "/admin/kunden", label: "Kunden-Zentrale", desc: "Leads, Kunden, Anträge, KYC, Kündigungen — Filter teilbar, Massenaktionen inbegriffen", Icon: Users },
-      { href: "/admin/termine", label: "Termin-Zentrale", desc: "Alle Termine aller Mitarbeiter — und die bezahlten Kunden ohne Termin", Icon: CalendarClock },
-      { href: "/admin/lead-automatik", label: "Lead-Automatik", desc: "Nachfass-Maschine: Sendefenster, Bulk-Versand, Verteilung, Import", Icon: Target },
-      { href: "/admin/dubletten", label: "Dubletten", desc: "Mehrfach angelegte Personen erkennen und zusammenführen (umkehrbar)", Icon: Copy },
-      { href: "/admin/fahrplan", label: "Fahrplan / Kundenprodukt", desc: "Upload-Review, KI-Analyse freigeben, Ziel-Freischaltung, Audit", Icon: Map },
-    ],
+    punkte: [],
   },
   {
     key: "team", label: "Team", Icon: Handshake, mindest: "leitung",
     satz: "Alles zu einem Menschen an einem Ort — Kennzahlen, Verträge, Skripte, Feedback.",
-    punkte: [
-      { href: "/admin/team", label: "Team-Zentrale", desc: "Kennzahlen, Provisionen, Nachbuchung, Protokolle und Nachrichten", Icon: Users },
-      { href: "/admin/vertraege", label: "Onboarding & Verträge", desc: "Zustimmungs-/Vertragsstatus, Vorlagen, Vertragsvariablen, Nachweise", Icon: ScrollText },
-      { href: "/admin/team?einladen=1", label: "Teammitglied anlegen", desc: "Neuen Mitarbeiter per E-Mail einladen", Icon: UserPlus },
-      { href: "/admin/team#skripte", label: "Skripte & Leitfäden", desc: "Gesprächsvorlagen verwalten", Icon: BookOpen },
-      { href: "/admin/agent-portal", label: "Team-Updates & Feedback", desc: "Portal-Updates posten, Feedback prüfen und belohnen", Icon: Sparkles },
-    ],
+    punkte: [],
   },
   {
     key: "kommunikation", label: "Kommunikation", Icon: Send, mindest: "leitung",
     satz: "Mail-Zentrale, E-Mail-Events, Funktionen-Registry und der Team-Space.",
-    punkte: [
-      { href: "/admin/mail-zentrale", label: "Mail-Zentrale", desc: "Freitext an Kunden und Gruppen — Bausteine, Vorschau, KI-Hilfe", Icon: Send },
-      { href: "/admin/events", label: "E-Mail-Events", desc: "Make-Events testen, Diagnose, Verlauf — der Make-Status gehört hierher", Icon: MailCheck },
-      { href: "/admin/funktionen", label: "Funktionen & Schulung", desc: "Alle Funktionen mit Klartext + Direktlink, Selbsttest, Schulungsmodus", Icon: GraduationCap },
-      { href: "/admin/space", label: "Space", desc: "Der Feed des Teams — mitlesen, reagieren, anpinnen, moderieren", Icon: MessageSquare },
-    ],
+    punkte: [],
   },
   {
     key: "academy", label: "Academy", Icon: GraduationCap, mindest: "leitung",
     satz: "Einschulung, Prüfungen, Zertifikate — die Ausbildung des Teams.",
-    punkte: [
-      { href: "/admin/schulung", label: "FIAON Academy", desc: "Einschulung als Kapitel-Reise je Abteilung — mit Präsentationsmodus", Icon: GraduationCap },
-    ],
+    punkte: [],
   },
   {
     key: "redaktion", label: "Redaktion", Icon: FileText, mindest: "leitung",
     satz: "Ratgeber-Redaktion — Entwürfe, Vorschau, Prüfstand, Veröffentlichung.",
-    punkte: [
-      { href: "/admin/ratgeber", label: "Ratgeber-Redaktion", desc: "Entwürfe lesen, Vorschau, Prüfstand, veröffentlichen — täglich drei aus dem Themenplan", Icon: FileText },
-    ],
+    punkte: [],
   },
   {
     key: "system", label: "System", Icon: Settings, mindest: "geschaeftsfuehrung",
     satz: "Einstellungen, Diagnose, Audit, Changelog, Rechtstexte.",
-    punkte: [
-      { href: "/admin/einstellungen", label: "Einstellungen", desc: "Provisionssatz, Auszahlung, Reminder-Engine, Diagnose", Icon: Settings },
-      { href: "/admin/diagnose", label: "System-Diagnose", desc: "Was klemmt gerade? Ereignis-Konsole, Rohdaten, KI-Auswertung", Icon: Activity },
-      { href: "/admin/audit", label: "Audit-Log", desc: "Alle Mitarbeiter-Aktionen durchsuchbar — künftig auch das Admin-Log", Icon: ScrollText },
-      { href: "/admin/changelog", label: "Was ist neu?", desc: "Alle Änderungen am System in Klartext", Icon: History },
-      { href: "/admin/recht", label: "Rechtstexte-Status", desc: "LEGAL-Review-Stand (read-only)", Icon: Scale },
-    ],
+    punkte: [],
   },
 ];
 
@@ -265,7 +241,23 @@ export function ChefShell({ stufe, name, raumKey, onAbmelden, children }: {
 }
 
 /** Glas-Kachelliste eines Raums — verlinkt auf die BESTEHENDEN /admin-Seiten. */
-export function ChefRaumSeite({ raum }: { raum: ChefRaum }) {
+// ═══════════════════════════════════════════════════════════════════════════
+// EIN RAUM (27.08.2026 neu gefasst)
+//
+// Justin: „JEDE Seite soll dort laufen, nicht aufs alte Admin Dashboard
+//          verlinken!"
+//
+// Die Kacheln führten bisher nach `/admin/...` — wer im Chefbüro klickte,
+// landete in der alten hellen Oberfläche. Jetzt führen sie nach
+// `/chef/s/<slug>`, und dieselbe Seite läuft im Chefbüro, in dessen Sprache.
+//
+// Die Liste kommt aus `chef-seiten.tsx`, damit Kachel und Seite dieselbe
+// Quelle haben. Eine Kachel, deren Ziel es nicht gibt, kann so nicht
+// entstehen.
+// ═══════════════════════════════════════════════════════════════════════════
+export function ChefRaumSeite({ raum, stufe }: { raum: ChefRaum; stufe: ChefStufe }) {
+  const seiten = seitenFuerRaum(raum.key)
+    .filter((s) => !s.mindest || RANG[stufe] >= RANG[s.mindest]);
   return (
     <div>
       <div className="cb-raum-kopf">
@@ -274,17 +266,56 @@ export function ChefRaumSeite({ raum }: { raum: ChefRaum }) {
         <p>{raum.satz}</p>
       </div>
       <div className="cb-kacheln">
-        {raum.punkte.map((p) => (
-          <a key={p.href} href={p.href} className="cb-kachel">
-            <i><p.Icon size={19} strokeWidth={1.75} /></i>
+        {seiten.map((s, i) => (
+          <Link key={s.slug} href={chefPfad(s)} className="cb-kachel"
+                style={{ animationDelay: `${i * 45}ms` }}>
+            <i><raum.Icon size={19} strokeWidth={1.75} /></i>
             <span style={{ minWidth: 0, flex: 1 }}>
-              <b>{p.label}</b>
-              <small>{p.desc}</small>
+              <b>{s.label}</b>
+              <small>{s.satz}</small>
             </span>
             <ChevronRight className="pfeil" size={16} strokeWidth={1.75} />
-          </a>
+          </Link>
         ))}
       </div>
+      {seiten.length === 0 && (
+        <p className="cb-fehler">Für diesen Raum ist noch keine Seite hinterlegt.</p>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EINE SEITE IM CHEFBÜRO
+//
+// Der Rahmen um eine übernommene Admin-Seite: Kopfzeile mit Raum und Namen,
+// ein Weg zurück, und die Klasse `cbs`, an der die dunkle Schicht hängt
+// (chefbuero-seiten.css). Ohne diese Klasse wäre die Seite weiß auf schwarz —
+// mit ihr sieht sie aus, als wäre sie für das Chefbüro gebaut worden.
+// ═══════════════════════════════════════════════════════════════════════════
+export function ChefSeitenRahmen({ seite, raum, children }: {
+  seite: { label: string; satz: string; raum: string };
+  raum: ChefRaum | undefined;
+  children: ReactNode;
+}) {
+  // ── WARUM HIER KEINE GROSSE ÜBERSCHRIFT STEHT ───────────────────────────
+  // Der erste Entwurf setzte Name und Satz der Seite als Titel darüber. Im
+  // Browser stand daraufhin „Kunden-Zentrale" zweimal untereinander: einmal
+  // von mir, einmal von der Seite selbst. Fast jede übernommene Seite bringt
+  // ihre eigene Überschrift mit — also bleibt hier nur der Weg zurück und
+  // eine leise Zeile, die sagt, wo man ist.
+  return (
+    <div className="cbs-huelle">
+      <div className="cbs-kopf schlank">
+        {raum && (
+          <Link href={`/chef/${raum.key}`} className="cbs-zurueck">
+            <ChevronRight size={15} strokeWidth={2} style={{ transform: "rotate(180deg)" }} />
+            {raum.label}
+          </Link>
+        )}
+        <span className="cbs-ort">Chefbüro · {raum?.label ?? "Seite"} · {seite.label}</span>
+      </div>
+      <div className="cbs">{children}</div>
     </div>
   );
 }

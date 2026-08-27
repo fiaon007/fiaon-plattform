@@ -162,9 +162,13 @@ export default function MailZentraleSeite() {
   // (AdminShell) liegt schon außen herum, weil die Route über `admin(…)`
   // eingehängt ist. Der INHALT ist in beiden Fällen derselbe — eine zweite
   // Fassung wäre eine zweite Sendestrecke zum Pflegen.
-  const alsAdmin = typeof window !== "undefined"
-    && window.location.pathname.startsWith("/admin/");
-  if (alsAdmin) return <Inhalt />;
+  // 27.08.2026: Das Chefbüro ist die dritte Hülle — dort lief die Seite in
+  // die Agent-Anmeldung, weil die Weiche nur „/admin/" kannte. Justin sah
+  // deshalb im Chefbüro eine Aufforderung, sich als Mitarbeiter anzumelden.
+  const inFremderHuelle = typeof window !== "undefined"
+    && (window.location.pathname.startsWith("/admin/")
+     || window.location.pathname.startsWith("/chef/"));
+  if (inFremderHuelle) return <Inhalt />;
   return <AgentShell><Inhalt /></AgentShell>;
 }
 

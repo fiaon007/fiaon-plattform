@@ -435,6 +435,9 @@ function Router() {
       <Route path="/agent/praesentation" component={AgentPraesentationPage} />
       <Route path="/chef" component={ChefPage} />
       <Route path="/chef/:raum" component={ChefPage} />
+      {/* 27.08.2026: Jede übernommene Admin-Seite läuft unter /chef/s/<slug>
+          im Chefbüro — Justin: „JEDE Seite soll dort laufen." */}
+      <Route path="/chef/s/:seite" component={ChefPage} />
       <Route path="/agent/kunden-alt" component={AgentKundenNeuPage} />
       <Route path="/agent/tools" component={AgentToolsPage} />
       <Route path="/agent/tools/paketfinder" component={AgentPaketfinderPage} />

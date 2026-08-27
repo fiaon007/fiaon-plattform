@@ -16,7 +16,8 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { Lock } from "lucide-react";
 import ChefAnmeldung, { type ChefStatus } from "@/components/admin/ChefAnmeldung";
-import { ChefShell, ChefRaumSeite, CHEF_RAEUME, raumErlaubt, STUFEN_NAME, type ChefStufe } from "@/components/admin/ChefShell";
+import { ChefShell, ChefRaumSeite, ChefSeitenRahmen, CHEF_RAEUME, raumErlaubt, STUFEN_NAME, type ChefStufe } from "@/components/admin/ChefShell";
+import { SEITE_NACH_SLUG } from "@/components/admin/chef-seiten";
 // 26.08.2026: Das Lagezimmer ist keine Kachelliste mehr, sondern der Raum, in
 // dem die Zahlen des Unternehmens stehen. Die uebrigen sieben Raeume bleiben
 // Kachellisten auf die bestehenden /admin-Seiten — dort ist eine Liste richtig.
@@ -28,6 +29,8 @@ import ChefWerkzeuge from "@/components/admin/ChefWerkzeuge";
 import ChefKundenliste from "@/components/admin/ChefKundenliste";
 import ChefZahlungen from "@/components/admin/ChefZahlungen";
 import ChefRegister from "@/components/admin/ChefRegister";
+import ChefBesucher from "@/components/admin/ChefBesucher";
+import { Suspense } from "react";
 
 /**
  * Welche Raeume eine eigene Seite haben statt einer Kachelliste.
@@ -40,6 +43,7 @@ const EIGENE_SEITE: Record<string, (stufe: ChefStufe) => JSX.Element> = {
   kundenliste: () => <ChefKundenliste />,
   zahlungen: () => <ChefZahlungen />,
   register: (stufe) => <ChefRegister stufe={stufe} />,
+  besucher: () => <ChefBesucher />,
 };
 
 const STUFEN: ChefStufe[] = ["inhaber", "geschaeftsfuehrung", "leitung"];
@@ -48,8 +52,13 @@ export default function ChefPage() {
   const [location, navigate] = useLocation();
   const [status, setStatus] = useState<ChefStatus | null>(null);
 
-  // Raum aus der URL: /chef → Lagezimmer, /chef/<raum> → dieser Raum.
-  const teil = location.split("?")[0].split("/")[2] || "";
+  // Raum aus der URL: /chef → Lagezimmer, /chef/<raum> → dieser Raum,
+  // /chef/s/<slug> → eine übernommene Seite innerhalb ihres Raums.
+  const stuecke = location.split("?")[0].split("/").filter(Boolean);
+  const istSeite = stuecke[1] === "s";
+  const slug = istSeite ? (stuecke[2] || "") : "";
+  const seite = istSeite ? SEITE_NACH_SLUG.get(slug) : undefined;
+  const teil = istSeite ? (seite?.raum ?? "") : (stuecke[1] || "");
   const raum = CHEF_RAEUME.find((r) => r.key === teil) ?? CHEF_RAEUME[0];
 
   if (!status) {
@@ -65,12 +74,36 @@ export default function ChefPage() {
 
   return (
     <ChefShell stufe={stufe} name={status.name} raumKey={raum.key} onAbmelden={abmelden}>
-      {raumErlaubt(raum, stufe) ? (
+      {istSeite && !seite ? (
+        <div className="cb-hinweis" role="status">
+          <b>Diese Seite gibt es hier nicht.</b>
+          <p>
+            Der Verweis „{slug}" führt ins Leere. Über das Register findest du
+            jede Funktion des Hauses — durchsuchbar, auch nach Nebenworten.
+          </p>
+          <p style={{ marginTop: 12 }}><a className="cw-knopf" href="/chef/register">Zum Register</a></p>
+        </div>
+      ) : istSeite && seite ? (
+        // Reicht die Stufe für DIESE Seite? Der Raum allein genügt nicht —
+        // „Provision nachbuchen" liegt im Team-Raum, ist aber Geld.
+        (seite.mindest && !raumErlaubt({ ...raum, mindest: seite.mindest }, stufe)) ? (
+          <div className="cb-hinweis" role="status">
+            <b><Lock size={16} strokeWidth={1.75} /> {seite.label} ist für dich geschlossen.</b>
+            <p>Diese Seite gibt es erst ab Stufe {STUFEN_NAME[seite.mindest]} — deine Stufe ist {STUFEN_NAME[stufe]}.</p>
+          </div>
+        ) : (
+          <ChefSeitenRahmen seite={seite} raum={CHEF_RAEUME.find((r) => r.key === seite.raum)}>
+            <Suspense fallback={<div className="cl-geruest"><span /><span /><span /><span /><span /><span /></div>}>
+              <seite.Seite />
+            </Suspense>
+          </ChefSeitenRahmen>
+        )
+      ) : raumErlaubt(raum, stufe) ? (
         raum.key === "lage"
           ? <ChefLagezimmer name={status.name} />
           : EIGENE_SEITE[raum.key]
             ? EIGENE_SEITE[raum.key](stufe)
-            : <ChefRaumSeite raum={raum} />
+            : <ChefRaumSeite raum={raum} stufe={stufe} />
       ) : (
         <div className="cb-hinweis" role="status">
           <b><Lock size={16} strokeWidth={1.75} /> {raum.label} ist für dich geschlossen.</b>

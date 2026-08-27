@@ -1,0 +1,419 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   DIE DUNKLE SCHICHT — vierzig Admin-Seiten in der Sprache des Chefbüros
+   (27.08.2026)
+
+   Justin: „Wir sagten doch, der Chef-Bereich soll cinematisch, WOW sein —
+            dieser sieht echt kacke aus. JEDE Seite soll dort laufen."
+
+   ── WAS HIER PASSIERT ────────────────────────────────────────────────────
+   Die Admin-Seiten tragen Tailwind-Klassen mit fest eingebauten hellen
+   Farben: bg-white, text-slate-900, border-slate-200. Sie sind für eine
+   weiße Oberfläche gebaut. Diese Datei übersetzt sie — aber NUR innerhalb
+   von `.cbs`, also nur im Chefbüro. Die Seiten unter /admin bleiben exakt,
+   wie sie sind.
+
+   ── WARUM DAS UND NICHT VIERZIG NEUBAUTEN ────────────────────────────────
+   Jede der vierzig Seiten einzeln nachzubauen wäre wochenlange Arbeit mit
+   vierzig Gelegenheiten, etwas kaputtzumachen, das heute trägt. Diese Datei
+   ist eine Übersetzung, kein Umbau: Die Seiten bleiben eine Quelle, und was
+   dort morgen gebaut wird, sieht hier von selbst richtig aus.
+
+   ── DIE REGELN DER ÜBERSETZUNG ───────────────────────────────────────────
+   · `!important` ist hier kein Notnagel, sondern die Bauweise: Tailwind
+     setzt Farben auf Elementebene, und eine Übersetzung muss darüber liegen.
+     Sie wirkt ausschliesslich unter `.cbs`.
+   · Übersetzt werden nur FARBEN, Rahmen und Flächen — niemals Abstände,
+     Größen oder Anordnung. Wer am Layout dreht, bricht Seiten, die er nicht
+     gesehen hat.
+   · Farben kommen aus derselben Palette wie das übrige Chefbüro: Navy-Glas
+     rgba(15,23,42,.55), Rahmen rgba(255,255,255,.1), Blau #3b82f6.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Der Rahmen um eine übernommene Seite ─────────────────────────────── */
+.cbs-huelle { animation: cbsAuf .4s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes cbsAuf { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: none } }
+@media (prefers-reduced-motion: reduce) { .cbs-huelle { animation: none } }
+
+.cbs-kopf { padding: 22px 0 26px; }
+/* Schlanke Fassung: nur Weg zurück und Ortsangabe — die Seite bringt ihre
+   eigene Überschrift mit, und zwei Titel untereinander sind einer zu viel. */
+.cbs-kopf.schlank { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 20px 0 18px; }
+.cbs-kopf.schlank .cbs-zurueck { margin-bottom: 0; }
+.cbs-ort {
+  font: 400 11px/1 'Inter', sans-serif; letter-spacing: .14em; text-transform: uppercase;
+  color: #475569;
+}
+/* Die erste Überschrift der übernommenen Seite bekommt die Größe des Hauses —
+   sie ist ab jetzt der Titel der Seite. */
+.cbs > * > h1:first-child, .cbs > h1:first-child,
+.cbs > * > * > h1:first-child {
+  font: 300 clamp(26px, 3.6vw, 38px)/1.12 'Inter', sans-serif !important;
+  letter-spacing: -.026em !important; color: #fff !important;
+}
+.cbs-zurueck {
+  display: inline-flex; align-items: center; gap: 6px; margin-bottom: 16px;
+  padding: 7px 14px 7px 10px; border-radius: 999px; text-decoration: none;
+  background: rgba(255, 255, 255, .05); border: 1px solid rgba(255, 255, 255, .1);
+  color: #94a3b8; font: 400 12.5px/1 'Inter', sans-serif;
+  transition: background .2s, color .2s, border-color .2s;
+}
+.cbs-zurueck:hover { background: rgba(255, 255, 255, .1); color: #fff; border-color: rgba(147, 197, 253, .3); }
+.cbs-kopf h1 {
+  margin: 0; font: 300 clamp(26px, 3.6vw, 38px)/1.12 'Inter', sans-serif;
+  letter-spacing: -.026em; color: #fff; text-wrap: balance;
+}
+.cbs-kopf p { margin: 10px 0 0; max-width: 660px; font: 300 14px/1.65 'Inter', sans-serif; color: #94a3b8; }
+
+/* ═══ DIE ÜBERSETZUNG ════════════════════════════════════════════════════ */
+.cbs { color: #cbd5e1; }
+
+/* ── Flächen: aus Weiß wird Navy-Glas ─────────────────────────────────── */
+.cbs .bg-white,
+.cbs .bg-slate-50, .cbs .bg-gray-50,
+.cbs .bg-slate-100, .cbs .bg-gray-100 {
+  background-color: rgba(15, 23, 42, .55) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  backdrop-filter: blur(16px) saturate(140%);
+}
+/* Karten mit Rundung bekommen zusätzlich Tiefe — daran erkennt man im
+   Chefbüro, was eine Karte ist und was nur Fläche. */
+.cbs .bg-white.rounded-2xl, .cbs .bg-white.rounded-xl, .cbs .bg-white.rounded-lg {
+  box-shadow: 0 24px 56px -24px rgba(2, 6, 23, .7), inset 0 1px 0 rgba(255, 255, 255, .05);
+}
+.cbs .bg-slate-200, .cbs .bg-gray-200 { background-color: rgba(255, 255, 255, .08) !important; }
+.cbs .bg-slate-900, .cbs .bg-gray-900, .cbs .bg-black { background-color: rgba(2, 6, 23, .8) !important; }
+
+/* ── Schrift: die Slate-Leiter wird umgedreht ─────────────────────────── */
+.cbs .text-slate-900, .cbs .text-gray-900, .cbs .text-black { color: #f1f5f9 !important; }
+.cbs .text-slate-800, .cbs .text-gray-800 { color: #e2e8f0 !important; }
+.cbs .text-slate-700, .cbs .text-gray-700 { color: #cbd5e1 !important; }
+.cbs .text-slate-600, .cbs .text-gray-600 { color: #b6c2d3 !important; }
+.cbs .text-slate-500, .cbs .text-gray-500 { color: #94a3b8 !important; }
+.cbs .text-slate-400, .cbs .text-gray-400 { color: #7c8ba1 !important; }
+.cbs .text-slate-300, .cbs .text-gray-300 { color: #64748b !important; }
+.cbs .text-white { color: #fff !important; }
+
+/* ── Rahmen und Trennlinien ───────────────────────────────────────────── */
+.cbs .border-slate-200, .cbs .border-gray-200,
+.cbs .border-slate-100, .cbs .border-gray-100,
+.cbs .border-slate-300, .cbs .border-gray-300,
+.cbs .divide-slate-200 > * + *, .cbs .divide-gray-200 > * + *,
+.cbs .divide-slate-100 > * + *, .cbs .divide-gray-100 > * + * {
+  border-color: rgba(255, 255, 255, .1) !important;
+}
+
+/* ── Eingaben ─────────────────────────────────────────────────────────── */
+.cbs input, .cbs select, .cbs textarea {
+  background-color: rgba(2, 6, 23, .45) !important;
+  border-color: rgba(255, 255, 255, .12) !important;
+  color: #e5e7eb !important;
+  color-scheme: dark;
+}
+.cbs input::placeholder, .cbs textarea::placeholder { color: #475569 !important; }
+.cbs input:focus, .cbs select:focus, .cbs textarea:focus {
+  border-color: rgba(96, 165, 250, .5) !important;
+  background-color: rgba(2, 6, 23, .6) !important;
+}
+.cbs input[type="checkbox"], .cbs input[type="radio"] { accent-color: #3b82f6; }
+/* Ein Schalter, der auf Weiß gebaut wurde, bleibt sonst unsichtbar. */
+.cbs option { background: #0f172a; color: #e5e7eb; }
+
+/* ── Knöpfe: das Blau des Hauses bleibt, Weiß wird Glas ───────────────── */
+.cbs button.bg-white, .cbs a.bg-white {
+  background-color: rgba(255, 255, 255, .07) !important;
+  border-color: rgba(255, 255, 255, .14) !important;
+  color: #e5e7eb !important;
+}
+.cbs button.bg-white:hover, .cbs a.bg-white:hover {
+  background-color: rgba(255, 255, 255, .13) !important;
+}
+.cbs .bg-\[\#2563eb\], .cbs .bg-blue-600, .cbs .bg-blue-500 {
+  background-image: linear-gradient(135deg, #2563eb, #3b82f6);
+  box-shadow: 0 14px 30px -12px rgba(37, 99, 235, .6);
+}
+
+/* ── Farbige Hinweise: heller Grund → getönte Fläche, Text wird hell ──── */
+.cbs .bg-emerald-50, .cbs .bg-green-50 { background-color: rgba(5, 150, 105, .12) !important; }
+.cbs .bg-amber-50, .cbs .bg-yellow-50, .cbs .bg-orange-50 { background-color: rgba(217, 119, 6, .13) !important; }
+.cbs .bg-red-50, .cbs .bg-rose-50 { background-color: rgba(220, 38, 38, .13) !important; }
+.cbs .bg-blue-50, .cbs .bg-sky-50, .cbs .bg-indigo-50 { background-color: rgba(37, 99, 235, .13) !important; }
+.cbs .bg-violet-50, .cbs .bg-purple-50 { background-color: rgba(124, 58, 237, .13) !important; }
+.cbs .bg-slate-50\/50, .cbs .bg-white\/50 { background-color: rgba(15, 23, 42, .35) !important; }
+
+.cbs .text-emerald-700, .cbs .text-emerald-800, .cbs .text-green-700, .cbs .text-green-800 { color: #6ee7b7 !important; }
+.cbs .text-emerald-600, .cbs .text-green-600 { color: #34d399 !important; }
+.cbs .text-amber-700, .cbs .text-amber-800, .cbs .text-orange-700, .cbs .text-yellow-800 { color: #fcd34d !important; }
+.cbs .text-amber-600, .cbs .text-orange-600 { color: #fbbf24 !important; }
+.cbs .text-red-700, .cbs .text-red-800, .cbs .text-rose-700 { color: #fca5a5 !important; }
+.cbs .text-red-600, .cbs .text-rose-600 { color: #f87171 !important; }
+.cbs .text-blue-700, .cbs .text-blue-800, .cbs .text-indigo-700 { color: #93c5fd !important; }
+.cbs .text-blue-600, .cbs .text-sky-600, .cbs .text-indigo-600 { color: #60a5fa !important; }
+.cbs .text-violet-700, .cbs .text-purple-700 { color: #c4b5fd !important; }
+
+.cbs .border-emerald-200, .cbs .border-green-200 { border-color: rgba(52, 211, 153, .24) !important; }
+.cbs .border-amber-200, .cbs .border-yellow-200, .cbs .border-orange-200 { border-color: rgba(251, 191, 36, .24) !important; }
+.cbs .border-red-200, .cbs .border-rose-200 { border-color: rgba(248, 113, 113, .24) !important; }
+.cbs .border-blue-200, .cbs .border-sky-200, .cbs .border-indigo-200 { border-color: rgba(96, 165, 250, .26) !important; }
+
+/* ── Tabellen ─────────────────────────────────────────────────────────── */
+.cbs table { color: #cbd5e1; }
+.cbs thead, .cbs thead tr, .cbs th {
+  background-color: transparent !important;
+  color: #64748b !important;
+  border-color: rgba(255, 255, 255, .1) !important;
+}
+.cbs tbody tr { border-color: rgba(255, 255, 255, .06) !important; }
+.cbs tbody tr:hover { background-color: rgba(255, 255, 255, .03) !important; }
+.cbs td { border-color: rgba(255, 255, 255, .06) !important; }
+
+/* ── Umrandungen von Zeilen, die als Karte gedacht sind ───────────────── */
+.cbs .shadow, .cbs .shadow-sm, .cbs .shadow-md, .cbs .shadow-lg, .cbs .shadow-xl {
+  box-shadow: 0 20px 44px -22px rgba(2, 6, 23, .66) !important;
+}
+.cbs .ring-1, .cbs .ring-slate-200 { --tw-ring-color: rgba(255, 255, 255, .1) !important; }
+
+/* ── Dialoge und schwebende Ebenen ────────────────────────────────────── */
+.cbs [role="dialog"], .cbs .fixed.inset-0 > .bg-white { background-color: rgba(15, 23, 42, .92) !important; }
+
+/* ── Verweise ─────────────────────────────────────────────────────────── */
+.cbs a:not(.cb-kachel):not(.cbs-zurueck) { color: #93c5fd; }
+.cbs a:not(.cb-kachel):not(.cbs-zurueck):hover { color: #bfdbfe; }
+
+/* ── Was NICHT übersetzt wird ─────────────────────────────────────────── */
+/* Bilder, Diagramme und alles, was seine Farben selbst mitbringt, bleibt
+   unangetastet: Ein Diagramm, dem man die Farben umdreht, ist falsch, nicht
+   dunkel. Dasselbe gilt für Elemente, die sich ausdrücklich als hell
+   markieren (Klasse `hell-lassen`). */
+.cbs .hell-lassen, .cbs .hell-lassen * { color: initial !important; background-color: initial !important; }
+.cbs img, .cbs canvas, .cbs svg image { filter: none; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DIE ZWEITE FORMENSPRACHE: admin-3d.css (27.08.2026)
+
+   GEFUNDEN beim Ansehen der übernommenen Zahlungsverwaltung: Die großen
+   Zahlen standen hell auf hell und waren praktisch unsichtbar. Die Schrift
+   war schon übersetzt — die KARTE nicht. Sie kommt nicht aus Tailwind,
+   sondern aus `admin-3d.css` mit eigenen Klassen (.a3-kachel, .a3-tafel) und
+   eigenen Variablen.
+
+   Zwei Wahrheiten über „hell" also, und meine Übersetzung kannte nur eine.
+   Die Variablen werden hier umdefiniert (dann stimmen Schatten und Linien in
+   einem Zug), die Flächen einzeln.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.cbs {
+  --a3-linie: rgba(255, 255, 255, .1);
+  --a3-linie-stark: rgba(147, 197, 253, .3);
+  --a3-licht: inset 0 1px 0 rgba(255, 255, 255, .06);
+  --a3-tief-1: 0 20px 44px -22px rgba(2, 6, 23, .6);
+  --a3-tief-2: 0 26px 56px -24px rgba(2, 6, 23, .72);
+  --a3-tief-3: 0 36px 80px -26px rgba(2, 6, 23, .82);
+}
+.cbs .a3-kachel,
+.cbs .a3-tafel {
+  background: linear-gradient(160deg, rgba(30, 41, 66, .55), rgba(15, 23, 42, .48)) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  backdrop-filter: blur(18px) saturate(150%);
+}
+.cbs .a3-tafel-kopf {
+  background: rgba(2, 6, 23, .35) !important;
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, .08) !important;
+}
+.cbs .a3-hero {
+  background: linear-gradient(160deg, rgba(37, 99, 235, .2), rgba(15, 23, 42, .5)) !important;
+}
+.cbs .a3-reiter { background: rgba(255, 255, 255, .05) !important; border-color: rgba(255, 255, 255, .1) !important; }
+.cbs .a3-knopf { background: rgba(255, 255, 255, .07) !important; border-color: rgba(255, 255, 255, .14) !important; color: #e5e7eb !important; }
+.cbs .a3-knopf:hover { background: rgba(255, 255, 255, .13) !important; }
+.cbs .admin-flaeche { background: transparent !important; }
+/* Die farbigen Streifen am Rand einer Kachel bleiben — sie tragen Bedeutung
+   (Geld, Warnung, Offen) und sind auf Dunkel sogar besser zu sehen. */
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   INLINE-STILE: DIE FILTER-KNÖPFE (27.08.2026)
+
+   GEFUNDEN bei der Durchsicht aller 38 Seiten: 26 hatten helle Flecken, und
+   fast alle waren dieselbe Sache — Filter-Knöpfe, deren Farben nicht als
+   Klasse, sondern als `style`-Attribut am Element stehen
+   (`background: rgb(255,255,255)`). Eine Klassen-Übersetzung kann daran
+   nichts ausrichten, weil es keine Klasse gibt.
+
+   Attributselektoren treffen sie: Der Browser schreibt Inline-Farben
+   normalisiert zurück, deshalb genügt ein Muster auf `rgb(255, 255, 255)`.
+   Die aktiven Knöpfe sind blau und tragen eine andere Inline-Farbe — sie
+   bleiben unangetastet, und damit bleibt auch sichtbar, welcher Filter greift.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.cbs button[style*="background: rgb(255, 255, 255)"],
+.cbs button[style*="background:rgb(255,255,255)"],
+.cbs button[style*="background: #fff"],
+.cbs button[style*="background:#fff"],
+.cbs a[style*="background: rgb(255, 255, 255)"] {
+  background: rgba(255, 255, 255, .06) !important;
+  border-color: rgba(255, 255, 255, .13) !important;
+  color: #cbd5e1 !important;
+}
+
+/* ── Helle Inline-Flächen auf BELIEBIGEN Elementen ────────────────────── */
+/* Der erste Entwurf nannte die Element-Arten einzeln (div, span, td …) und
+   übersah damit tr, section, li und alles Übrige. Bei der Durchsicht blieben
+   deshalb auf fünfzehn Seiten weiße Flecken stehen. Jetzt element-unabhängig,
+   und mit allen Grautönen, die als „fast weiß" vorkommen. */
+.cbs [style*="background: rgb(255, 255, 255)"],
+.cbs [style*="background:rgb(255,255,255)"],
+.cbs [style*="background-color: rgb(255, 255, 255)"],
+.cbs [style*="background: #fff"], .cbs [style*="background:#fff"],
+.cbs [style*="background: rgb(248, 250, 252)"],
+.cbs [style*="background: rgb(246, 248, 251)"],
+.cbs [style*="background: rgb(251, 252, 254)"],
+.cbs [style*="background: rgb(241, 245, 249)"],
+.cbs [style*="background: #f8fafc"], .cbs [style*="background: #f1f5f9"] {
+  background-color: rgba(15, 23, 42, .5) !important;
+  border-color: rgba(255, 255, 255, .1) !important;
+}
+/* Knöpfe darin behalten die Knopf-Fassung von oben. */
+.cbs button[style*="background: rgb(255, 255, 255)"] { background: rgba(255, 255, 255, .06) !important; }
+.cbs button[style*="background: rgb(255, 255, 255)"]:hover,
+.cbs a[style*="background: rgb(255, 255, 255)"]:hover {
+  background: rgba(255, 255, 255, .12) !important;
+  color: #fff !important;
+}
+/* Farbige Zahl im Knopf (Entwurf/Geprüft/Veröffentlicht in der Redaktion):
+   Die Farbe TRÄGT Bedeutung und bleibt — sie wird nur aufgehellt, damit sie
+   auf dunklem Grund die gleiche Wirkung hat wie vorher auf hellem. */
+.cbs button[style*="color: rgb(217, 119, 6)"] { color: #fcd34d !important; }
+.cbs button[style*="color: rgb(37, 99, 235)"] { color: #93c5fd !important; }
+.cbs button[style*="color: rgb(5, 150, 105)"] { color: #6ee7b7 !important; }
+.cbs button[style*="color: rgb(220, 38, 38)"] { color: #fca5a5 !important; }
+
+/* Helle Inline-Flächen, die keine Knöpfe sind (Hinweiskästen, Zellen). */
+.cbs div[style*="background: rgb(255, 255, 255)"],
+.cbs span[style*="background: rgb(255, 255, 255)"],
+.cbs td[style*="background: rgb(255, 255, 255)"] {
+  background: rgba(15, 23, 42, .5) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DIE DRITTE FORMENSPRACHE: DER TEAM-FEED (27.08.2026)
+
+   Die Space-Seite bringt ihre eigenen Stile mit (`fi-sp-*`, im Bauteil
+   selbst). Sie arbeitet mit hellem Glas — rgba(255,255,255,.72) —, was auf
+   der hellen Mitarbeiter-Oberfläche richtig ist und im Chefbüro weiße Karten
+   mit weißer Schrift ergab.
+
+   Damit sind es drei Quellen für „hell": Tailwind, admin-3d.css und diese.
+   Wer eine vierte einführt, muss hier eine Zeile ergänzen — das ist der Preis
+   dafür, dass die Seiten selbst unangetastet bleiben.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.cbs .fi-sp-karte,
+.cbs .fi-sp-kachel,
+.cbs .fi-sp-komposer {
+  background: linear-gradient(160deg, rgba(30, 41, 66, .58), rgba(15, 23, 42, .5)) !important;
+  border-color: rgba(255, 255, 255, .1) !important;
+  color: #cbd5e1;
+}
+.cbs .fi-sp-karte h1, .cbs .fi-sp-karte h2, .cbs .fi-sp-karte h3,
+.cbs .fi-sp-karte b, .cbs .fi-sp-karte strong { color: #f1f5f9; }
+
+/* ── Warme Hinweiskästen (admin-events) ───────────────────────────────── */
+/* `background:"#fffbf5"` steht dort als Inline-Stil; auf Dunkel wurde daraus
+   ein cremefarbener Kasten mit hellgrauer Schrift — unlesbar. */
+.cbs [style*="background: rgb(255, 251, 245)"],
+.cbs [style*="background:#fffbf5"] {
+  background: rgba(217, 119, 6, .12) !important;
+  border-color: rgba(251, 191, 36, .24) !important;
+}
+.cbs [style*="background: rgb(255, 251, 245)"] * { color: #fcd34d !important; }
+
+/* ── Was NICHT übersetzt wird, mit Begründung ─────────────────────────── */
+/* Punkte unter 12 px (Aufzählungszeichen, Statusampeln: bg-slate-300,
+   bg-amber-400) behalten ihre Farbe. Sie TRAGEN Bedeutung, und ein heller
+   Punkt auf dunklem Grund ist gut sichtbar — ihn zu übersetzen hiesse, eine
+   Ampel abzuschalten, weil sie leuchtet. */
+
+
+/* ── Die letzten eigenen Klassen ──────────────────────────────────────── */
+/* Vierte und fünfte Quelle für „hell": die Filterknöpfe der Kunden-Zentrale,
+   die Blasen der Mail-Zentrale, die Karten der Aufgabenliste. */
+.cbs .fi-filter-knopf {
+  background: rgba(255, 255, 255, .06) !important;
+  border-color: rgba(255, 255, 255, .13) !important;
+  color: #cbd5e1 !important;
+}
+.cbs .fi-filter-knopf:hover { background: rgba(255, 255, 255, .12) !important; color: #fff !important; }
+.cbs .fi-blase {
+  background: rgba(15, 23, 42, .6) !important;
+  border-color: rgba(255, 255, 255, .1) !important;
+  color: #cbd5e1 !important;
+}
+.cbs .td-karte, .cbs .td-spalte {
+  background: linear-gradient(160deg, rgba(30, 41, 66, .5), rgba(15, 23, 42, .44)) !important;
+  border-color: rgba(255, 255, 255, .09) !important;
+}
+.cbs .fi-sp-pinleiste { background: rgba(15, 23, 42, .6) !important; }
+
+/* Zahlenmarken hinter Überschriften (auszahlungen, verbuchungen) — kleine
+   Kästchen in slate-100, die auf Dunkel als weiße Punkte auffielen. */
+.cbs .bg-slate-100.rounded-md, .cbs .bg-slate-100.rounded-lg,
+.cbs [class*="rounded"][style*="background: rgb(241, 245, 249)"] {
+  background-color: rgba(255, 255, 255, .08) !important;
+  color: #cbd5e1 !important;
+}
+
+/* ── Halbdurchsichtiges Weiß als Inline-Stil ──────────────────────────── */
+/* `background: rgba(255,255,255,.5)` ist auf hellem Grund ein feiner Schleier
+   und auf dunklem eine Milchglasscheibe, hinter der nichts mehr lesbar ist.
+   Die Halbtransparenz bleibt — nur die Farbe wechselt die Seite. */
+.cbs [style*="rgba(255, 255, 255, 0.5)"],
+.cbs [style*="rgba(255,255,255,.5)"],
+.cbs [style*="rgba(255, 255, 255, 0.6)"],
+.cbs [style*="rgba(255, 255, 255, 0.7)"],
+.cbs [style*="rgba(255, 255, 255, 0.8)"],
+.cbs [style*="rgba(255, 255, 255, 0.9)"] {
+  background: rgba(15, 23, 42, .5) !important;
+}
+/* Marken, die als weißer Kasten auf farbigem Kopf sitzen. */
+.cbs .td-spalte-kopf b { background: rgba(255, 255, 255, .12) !important; color: #f1f5f9 !important; }
+
+/* ── Knöpfe ohne jede Farbangabe ──────────────────────────────────────── */
+/* GEFUNDEN zuletzt: Auf der Zahlungsverwaltung standen Knöpfe mit WEDER
+   Klasse NOCH Inline-Stil weiß da — ihre Farbe kommt aus einer Element-Regel
+   irgendwo im Stapel. Sie lassen sich nur über ihre Abwesenheit greifen:
+   ein Knopf, der weder eine `bg-`-Klasse noch einen eigenen Hintergrund
+   mitbringt, gehört ins Glas. Knöpfe MIT Farbangabe (das Blau des Hauses,
+   die grünen und roten Handlungen) bleiben davon unberührt. */
+.cbs button:not([class*="bg-"]):not([style*="background"]):not(.a3-knopf):not([class*="fi-"]) {
+  background-color: rgba(255, 255, 255, .06) !important;
+  border-color: rgba(255, 255, 255, .13) !important;
+  color: #cbd5e1 !important;
+}
+.cbs button:not([class*="bg-"]):not([style*="background"]):not(.a3-knopf):not([class*="fi-"]):hover {
+  background-color: rgba(255, 255, 255, .12) !important;
+  color: #fff !important;
+}
+
+/* ── Die 100er-Stufe der Signalfarben (Status-Pillen) ─────────────────── */
+/* Bisher waren nur die 50er übersetzt. Die Pillen der Zahlungsverwaltung
+   („Kunde meldet Zahlung") tragen die 100er und blieben deshalb hell. */
+.cbs .bg-amber-100, .cbs .bg-yellow-100, .cbs .bg-orange-100 { background-color: rgba(217, 119, 6, .18) !important; }
+.cbs .bg-emerald-100, .cbs .bg-green-100 { background-color: rgba(5, 150, 105, .18) !important; }
+.cbs .bg-red-100, .cbs .bg-rose-100 { background-color: rgba(220, 38, 38, .18) !important; }
+.cbs .bg-blue-100, .cbs .bg-sky-100, .cbs .bg-indigo-100 { background-color: rgba(37, 99, 235, .18) !important; }
+.cbs .bg-violet-100, .cbs .bg-purple-100 { background-color: rgba(124, 58, 237, .18) !important; }
+.cbs .text-amber-900, .cbs .text-yellow-900, .cbs .text-orange-900 { color: #fcd34d !important; }
+.cbs .text-emerald-900, .cbs .text-green-900 { color: #6ee7b7 !important; }
+.cbs .text-red-900, .cbs .text-rose-900 { color: #fca5a5 !important; }
+.cbs .text-blue-900, .cbs .text-indigo-900 { color: #93c5fd !important; }
+
+/* ── Die letzten benannten Klassen ────────────────────────────────────── */
+.cbs .td-letzt { background: rgba(15, 23, 42, .4) !important; }
+.cbs .fi-zweitknopf {
+  background: rgba(255, 255, 255, .06) !important;
+  border-color: rgba(255, 255, 255, .13) !important;
+  color: #cbd5e1 !important;
+}
+.cbs .fi-zweitknopf:hover { background: rgba(255, 255, 255, .12) !important; color: #fff !important; }
+/* Schienen von Umschaltern (zwei Knöpfe in einer Rinne). */
+.cbs [class*="rounded"][class*="p-0.5"]:has(> button) { background: rgba(255, 255, 255, .06) !important; }
+
+/* AUSDRÜCKLICH NICHT ÜBERSETZT: die Balken der Buchhaltung (rot-300, grün).
+   Das ist ein Diagramm. Ein Diagramm, dem man die Farben nimmt, ist nicht
+   dunkel, sondern kaputt. */

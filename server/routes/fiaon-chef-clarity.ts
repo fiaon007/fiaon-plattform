@@ -541,12 +541,23 @@ export async function clarityTageslauf(): Promise<void> {
   // Höchstens einmal in 20 Stunden — mehr braucht es nicht, und mehr wäre
   // Verschwendung an einem Budget von zehn.
   if (alterStunden < 20) return;
+  // ── EIN LAUF, DER NICHTS GEHOLT HAT, DARF KEINEN ERFOLG MELDEN ──────────
+  // GEFUNDEN beim Gegenprüfen live: Der erste Entwurf fing den Fehler ab und
+  // kehrte still zurück. Die Historie verbuchte das als Erfolg, die Ampel
+  // stand grün — bei leerem Dashboard. Eine grüne Ampel über einem leeren
+  // Raum ist schlimmer als gar keine Ampel.
+  //
+  // Deshalb wird hier GEWORFEN. Ein erschöpftes Tagesbudget ist zwar kein
+  // Defekt, aber es ist auch kein Erfolg: Wenn dreißig Stunden lang nichts
+  // ankommt, IST etwas nicht in Ordnung, und genau das soll die Ampel sagen.
+  // Der Text unterscheidet die beiden Fälle für den, der nachsieht.
   try {
     await abrufen(3, false);
+    console.log("[CLARITY] Tageslauf: Daten geholt und abgelegt.");
   } catch (e: any) {
-    // Ein erschöpftes Budget ist kein Fehler, sondern eine Auskunft. Der Lauf
-    // versucht es in einer Stunde wieder — irgendwann ist das Fenster offen.
-    console.log("[CLARITY] Tageslauf: " + String(e?.message).slice(0, 140));
+    const grund = String(e?.message || e).slice(0, 180);
+    console.log("[CLARITY] Tageslauf ohne Daten: " + grund);
+    throw new Error(grund);
   }
 }
 

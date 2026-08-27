@@ -279,6 +279,20 @@ export const LAUF_FOLGEN: Record<string, { zweck: string; folge: string; fenster
       + "nicht eskaliert, und die Stufen veralten.",
     fenster: 24,
   },
+  // 27.08.2026: Der Clarity-Lauf gehört in DIESEN Katalog, nicht nur in die
+  // Registratur. Die Ampel-Liste liest hier — ein Lauf, der nur registriert
+  // ist, fällt beim Ausfall niemandem auf. Genau daran ist der Folgelauf im
+  // August fünfzehn Tage lang gescheitert.
+  "clarity-besucher": {
+    zweck: "Besucherzahlen und Ärgernis-Metriken von Microsoft Clarity holen und ablegen",
+    folge: "Das Besucher-Dashboard bleibt auf dem alten Stand stehen — und weil Clarity "
+      + "nur die letzten drei Tage herausgibt, entsteht eine Lücke im Verlauf, die sich "
+      + "nicht mehr schließen lässt.",
+    // 30 statt 24: Der Lauf holt bewusst nur alle 20 Stunden, und Clarity setzt
+    // sein Tageslimit um Mitternacht UTC zurück. Bei 24 stünde die Ampel jeden
+    // zweiten Tag kurz auf Gelb, ohne dass etwas fehlt.
+    fenster: 30,
+  },
   "abo-motor": {
     zweck: "Raten anlegen, Rechnungen stellen, überfällig stellen, Inkasso zuteilen",
     folge: "Kunden bekommen keine Abo-Rechnung — es fehlt Geld, das niemand anmahnt.",

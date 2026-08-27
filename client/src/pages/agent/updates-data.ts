@@ -84,6 +84,23 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-27-konto-sperren-freischalten",
+    date: "2026-08-27",
+    category: "Neu",
+    title: "Du entscheidest über den Zugang: Konto sperren / freischalten",
+    summary: "Der Zahlungsstatus sperrt den Kunden-Login nicht mehr — gesperrt wird nur noch von Hand, mit deinem neuen Knopf in der Akte. 145 Kunden mit Passwort waren dadurch ausgesperrt und kommen jetzt rein.",
+    changes: [
+      "In der Akte gibt es jetzt „Konto sperren“ (rot, fragt nach dem Grund — er steht danach im Verlauf) und „Konto freischalten“ (grün). Das wirkt auf alle Bestellungen des Kunden.",
+      "Das alte Zahlungs-Tor am Login ist weg: 86-mal in 30 Tagen wurde „Deine Zahlung ist noch nicht eingegangen“ angezeigt — oft bei Kunden, deren Überweisung nur noch nicht verbucht war. Wer sein Passwort kennt, sieht jetzt sein Konto mit seinem Zahlungsstand.",
+      "Ein gesperrter Kunde sieht beim Anmelden „Dein Konto ist gesperrt“ mit Support-Hinweis — an der Produktion durchgespielt: eingelassen → gesperrt → freigeschaltet → wieder eingelassen.",
+    ],
+    howto: [
+      "Akte öffnen → unten bei den Werkzeugen: „Konto sperren“ bzw. „Konto freischalten“.",
+      "Beim Sperren kurz den Grund eintippen — ohne Grund wird nicht gesperrt.",
+    ],
+    important: true,
+  },
+  {
     id: "2026-08-27-euer-feedback-19-punkte",
     date: "2026-08-27",
     category: "Behoben",

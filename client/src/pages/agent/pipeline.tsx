@@ -1658,7 +1658,13 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
     if (!r.ok) { melden("schlecht", "Nicht gebucht", r.json?.error || "Der Termin konnte nicht gebucht werden."); return false; }
     const text = r.json.termin?.datumText ? `${r.json.termin.datumText}, ${r.json.termin.uhrzeit} Uhr` : label;
     setTerminGebucht(text); setTerminOffen(false);
-    melden("gut", `Termin gebucht: ${text}. Der Slot ist blockiert, die Bestätigung geht an den Kunden.`);
+    // Ein gebuchter Termin in der Zukunft nimmt den Menschen aus der
+    // Arbeitsliste. Wer das nicht weiß, sucht ihn hinterher vergeblich.
+    melden(
+      "gut",
+      `Termin gebucht: ${text}. Der Slot ist blockiert, die Bestätigung geht an den Kunden.`,
+      `${k.name} steht damit nicht mehr in der Arbeitsliste — du findest sie unter „Kunden" über die Suche.`,
+    );
     return true;
   };
   /** Setzt die Mandatsmarke (§16a) und bucht das Ergebnis. `terminLabel` ist
@@ -1735,7 +1741,37 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
       melden("schlecht", "Nicht gespeichert", r.json?.error || "Bitte erneut versuchen.");
       return false;
     }
-    melden(r.json.uebergabe && !r.json.uebergabe.ok ? "info" : "gut", r.json.meldung || "Gespeichert", k.name);
+    // ══════════════════════════════════════════════════════════════════════
+    // SAG IHM, WOHIN DER KUNDE GEHT (27.08.2026)
+    //
+    // Hans-Jürgen: „Ich habe gerade mit einer Kundin Marinkovic telefoniert,
+    // die ich aus der Pipeline habe. Wollte ihr jetzt einen Terminlink senden
+    // und finde sie nicht mehr."
+    //
+    // Sie war nicht weg: Er hatte „zahlt heute" und eine Wiedervorlage
+    // eingetragen und einen Termin gebucht — genau die drei Dinge, die einen
+    // Menschen aus der Arbeitsliste nehmen (so gebaut am 26.08. für
+    // Florentines Punkt 6, und richtig so). Nur sagte ihm das niemand.
+    //
+    // GEMESSEN: 200 Menschen bei acht Mitarbeitern stehen gerade so da —
+    // bearbeitet, noch ohne Mandat, deshalb weder in der Arbeitsliste noch im
+    // Bestand. Auffindbar sind sie alle unter „Kunden", aber wer das nicht
+    // weiß, hält den Kunden für verloren und ruft den Chef an.
+    //
+    // Eine Liste, die jemanden wortlos entfernt, erzeugt genau diesen Anruf.
+    // ══════════════════════════════════════════════════════════════════════
+    const VERLAESST_LISTE = [
+      "erreicht_zahlt_an", "erreicht_termin", "rueckruf_termin",
+      "erreicht_abgelehnt", "erreicht_sonstiges", "wiedervorlage",
+    ];
+    const wohin = VERLAESST_LISTE.includes(art) || r.json.uebergabe?.ok
+      ? `${k.name} verlässt damit deine Arbeitsliste. Du findest sie jederzeit unter „Kunden" — dort einfach den Namen eintippen.`
+      : undefined;
+    melden(
+      r.json.uebergabe && !r.json.uebergabe.ok ? "info" : "gut",
+      r.json.meldung || "Gespeichert",
+      wohin ?? k.name,
+    );
     setNotiz("");
     const VERABREDET = ["nicht_erreicht", "mailbox", "rueckruf_termin", "nummer_falsch", "nummer_blockiert"];
     if (art === "erreicht_abgelehnt" || r.json.uebergabe?.ok) onWeg();

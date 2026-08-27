@@ -43,3 +43,6 @@ vite.config.ts.*
 server/dokumente/
 **/Anteilskaufvertrag*.pdf
 **/SWP_*.pdf
+
+# Einmal-Proben gegen die echte Datenbank — gehoeren nicht ins Repository
+scripts/tmp/

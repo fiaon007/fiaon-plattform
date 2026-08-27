@@ -7,6 +7,7 @@ import PDFDocument from "pdfkit";
 import { ZipArchive } from "archiver";
 import postgres from "postgres";
 import { sqlPool } from "../lib/db-pool";
+import { antragsSpaltenOhneAnhaenge } from "../lib/fiaon-antrag-spalten";
 // Die zwei Reinigungen — eine Definition, ein Ort (siehe AGENTS.md).
 import { paketNameEinzeilig } from "../../shared/fiaon-paketname";
 import { nameSauber } from "../../shared/fiaon-namen";
@@ -1265,11 +1266,14 @@ router.get("/admin/payments/:paymentRef/invoice.pdf", async (req, res) => {
 router.get("/admin/invoices/download-all", async (req, res) => {
   try {
     await ensurePaymentColumns();
-    const apps = await sqlPool`
-      SELECT * FROM fiaon_applications
+    // Der Rechnungslauf brauchte kein einziges Byte der Anhaenge und zog
+    // trotzdem 329 MB mit.
+    const spalten = await antragsSpaltenOhneAnhaenge();
+    const apps = (await sqlPool.unsafe(`
+      SELECT ${spalten} FROM fiaon_applications
       WHERE invoice_number IS NOT NULL
       ORDER BY invoice_number ASC
-    `;
+    `)) as any[];
     if (apps.length === 0) {
       return res.status(404).json({ ok: false, error: "Keine Rechnungen vorhanden" });
     }
@@ -2816,27 +2820,32 @@ router.post("/application", async (req, res) => {
  * geblieben.
  */
 export async function loadLoginFamily(normalizedEmail: string): Promise<any[]> {
-  const rows = await sqlPool`
-    SELECT *, utm::text AS utm_string
+  // Ohne die Anhang-Spalten: dieser Weg laeuft bei JEDEM Login, und
+  // Unterlagen hat nur, wer zahlt — der schwerste Fall zog 38 MB durch
+  // die Anmeldung, im Schnitt 3 MB. Fuer die Anmeldung ist davon nichts
+  // noetig; ob etwas da ist, sagen die has_*-Kennzeichen.
+  const spalten = await antragsSpaltenOhneAnhaenge();
+  const rows = (await sqlPool.unsafe(`
+    SELECT ${spalten}, utm::text AS utm_string
     FROM fiaon_applications
     WHERE gdpr_deleted_at IS NULL
       AND (
-        LOWER(TRIM(COALESCE(email, ''))) = ${normalizedEmail}
-        OR LOWER(TRIM(COALESCE(contact_email, ''))) = ${normalizedEmail}
-        OR LOWER(TRIM(COALESCE(billing_email, ''))) = ${normalizedEmail}
+        LOWER(TRIM(COALESCE(email, ''))) = $1
+        OR LOWER(TRIM(COALESCE(contact_email, ''))) = $1
+        OR LOWER(TRIM(COALESCE(billing_email, ''))) = $1
       )
     ORDER BY created_at DESC NULLS LAST, id DESC
-  `;
+  `, [normalizedEmail])) as any[];
   const known = new Set(rows.map((r: any) => r.ref));
   const winnerRefs = Array.from(
     new Set(rows.map((r: any) => r.merged_into).filter((r: any): r is string => !!r && !known.has(r))),
   );
   if (winnerRefs.length === 0) return rows;
-  const winners = await sqlPool`
-    SELECT *, utm::text AS utm_string
+  const winners = (await sqlPool.unsafe(`
+    SELECT ${spalten}, utm::text AS utm_string
     FROM fiaon_applications
-    WHERE ref = ANY(${winnerRefs}) AND gdpr_deleted_at IS NULL
-  `;
+    WHERE ref = ANY($1) AND gdpr_deleted_at IS NULL
+  `, [winnerRefs])) as any[];
   return [...rows, ...winners];
 }
 
@@ -4171,33 +4180,27 @@ router.post("/run-migration", async (req, res) => {
 // ADMIN ENDPOINTS — Lean list (no bytea PDFs) for Dashboard UI
 // ============================================================
 
-// Admin: list applications, newest first, without heavy bytea columns
-// Robust: uses SELECT * and strips bytea client-side, so it works even if
-// individual migrations (KYC / stripe fields) haven't been run in this env.
+// Admin: Antragsliste, neueste zuerst, ohne die Anhang-Spalten.
+// Die Spaltenliste wird zur Laufzeit aus dem Katalog gelesen (lib/fiaon-
+// antrag-spalten.ts) — dadurch bleibt sie auch dann vollstaendig, wenn eine
+// Wanderung (KYC- oder Stripe-Felder) in dieser Umgebung noch nicht gelaufen
+// ist, und die schweren bytea-Spalten fahren trotzdem nie mit.
 router.get("/admin/applications", async (_req, res) => {
   try {
     await ensurePaymentColumns();
     // merged_into IS NULL: soft-gelöschte Duplikate (Bereinigung) ausblenden — Datenbestand bleibt in der DB rekonstruierbar
-    const rows = await sqlPool`
-      SELECT *
+    // Die drei Anhang-Spalten bleiben, wo sie sind. Diese Liste holte sie
+    // vorher aus Frankfurt mit — 323 MB ueber 2.656 Zeilen — nur um sie
+    // gleich darauf Zeile fuer Zeile wieder wegzuwerfen. Das waren die
+    // 26,5 Sekunden, die jeder Aufruf gekostet hat. Die has_*-Kennzeichen
+    // kommen jetzt aus der Abfrage selbst; die Antwort bleibt dieselbe.
+    const spalten = await antragsSpaltenOhneAnhaenge();
+    const data = (await sqlPool.unsafe(`
+      SELECT ${spalten}
       FROM fiaon_applications
       WHERE merged_into IS NULL
       ORDER BY created_at DESC NULLS LAST, id DESC
-    `;
-
-    const HEAVY_COLS = new Set(["bank_statement_pdf", "id_card_pdf", "schufa_pdf"]);
-    const data = rows.map((row: any) => {
-      const out: any = {};
-      for (const [k, v] of Object.entries(row)) {
-        if (HEAVY_COLS.has(k)) continue;
-        out[k] = v;
-      }
-      // Add boolean presence flags without shipping the bytea
-      out.has_bank_statement_pdf = row.bank_statement_pdf != null;
-      out.has_id_card_pdf = row.id_card_pdf != null;
-      out.has_schufa_pdf = row.schufa_pdf != null;
-      return out;
-    });
+    `)) as any[];
 
     // Detect duplicate groups by email (case-insensitive, trimmed)
     const emailMap = new Map<string, any[]>();

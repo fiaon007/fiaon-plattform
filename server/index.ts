@@ -17,8 +17,6 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
 app.set("trust proxy", 1);
 
-// Raw body parser for Stripe webhook (must be before JSON parser)
-app.use('/api/fiaon/stripe-webhook', express.raw({ type: 'application/json' }));
 
 // `rawBody` für Webhook-Signaturen (GoCardless): Die Signatur gilt über die Bytes,
 // wie sie ankamen — ein neu serialisiertes JSON wäre ein anderer Text.

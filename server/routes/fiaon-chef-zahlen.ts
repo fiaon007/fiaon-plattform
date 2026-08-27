@@ -38,6 +38,70 @@ const router = Router();
 /** Echte Kunden: keine Prüfstand-Referenzen, keine als Test markierten Personen. */
 const ECHT = `a.ref NOT LIKE 'FIAON-TEST%' AND COALESCE(p.ist_test_am IS NOT NULL, FALSE) = FALSE`;
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DER EINE UMSATZ-BAUSTEIN (27.08.2026, Justins Regel: „ALLE ZAHLEN MÜSSEN
+// IMMER PASSEN")
+//
+// Das Lagezimmer rechnete nur Raten (ohne Bonitätsauskünfte) mit eigenem
+// Filter — der Wert-Raum rechnete beides. Juli hieß auf der einen Seite
+// 13.730 €, auf der anderen 15.506 €. Zwei Wahrheiten sind eine zu viel:
+// JEDER Umsatzwert im Chefbüro kommt ab jetzt aus DIESER Funktion.
+// Umsatz = bezahlte Raten + bezahlte Bonitätsauskünfte, Testkonten nie.
+// ═══════════════════════════════════════════════════════════════════════════
+export async function umsatzBausteine(): Promise<{
+  heuteCents: number; wocheCents: number; monatCents: number;
+  vormonatCents: number; jahrCents: number; gesamtCents: number;
+  verlauf: { monat: string; ratenCents: number; auskunftCents: number; zahlungen: number }[];
+}> {
+  const QUELLE = `
+    SELECT r.betrag_cents AS cents, r.bezahlt_am AS am, 'rate' AS art
+      FROM fiaon_abo_raten r
+      JOIN fiaon_applications a ON a.ref = r.ref
+      LEFT JOIN fiaon_persons p ON p.id = a.person_id
+     WHERE r.status = 'bezahlt' AND r.bezahlt_am IS NOT NULL
+       AND a.merged_into IS NULL AND ${ECHT}
+    UNION ALL
+    SELECT ROUND(a.amount_due * 100)::int, COALESCE(a.paid_at, a.completed_at), 'auskunft'
+      FROM fiaon_applications a
+      LEFT JOIN fiaon_persons p ON p.id = a.person_id
+     WHERE a.payment_status = 'paid' AND a.merged_into IS NULL
+       AND a.ref LIKE 'FIAON-SCHUFA-%' AND COALESCE(a.paid_at, a.completed_at) IS NOT NULL
+       AND ${ECHT}`;
+
+  const [summen] = (await sqlPool.unsafe(`
+    WITH q AS (${QUELLE})
+    SELECT
+      COALESCE(SUM(cents) FILTER (WHERE (am AT TIME ZONE 'Europe/Berlin')::date
+        = (NOW() AT TIME ZONE 'Europe/Berlin')::date), 0)::bigint AS heute,
+      COALESCE(SUM(cents) FILTER (WHERE am > NOW() - INTERVAL '7 days'), 0)::bigint AS woche,
+      COALESCE(SUM(cents) FILTER (WHERE date_trunc('month', am AT TIME ZONE 'Europe/Berlin')
+        = date_trunc('month', NOW() AT TIME ZONE 'Europe/Berlin')), 0)::bigint AS monat,
+      COALESCE(SUM(cents) FILTER (WHERE date_trunc('month', am AT TIME ZONE 'Europe/Berlin')
+        = date_trunc('month', NOW() AT TIME ZONE 'Europe/Berlin') - INTERVAL '1 month'), 0)::bigint AS vormonat,
+      COALESCE(SUM(cents) FILTER (WHERE date_trunc('year', am AT TIME ZONE 'Europe/Berlin')
+        = date_trunc('year', NOW() AT TIME ZONE 'Europe/Berlin')), 0)::bigint AS jahr,
+      COALESCE(SUM(cents), 0)::bigint AS gesamt
+    FROM q`)) as any[];
+
+  const verlauf = (await sqlPool.unsafe(`
+    WITH q AS (${QUELLE})
+    SELECT to_char(date_trunc('month', am AT TIME ZONE 'Europe/Berlin'), 'YYYY-MM') AS monat,
+           COALESCE(SUM(cents) FILTER (WHERE art = 'rate'), 0)::bigint AS raten_cents,
+           COALESCE(SUM(cents) FILTER (WHERE art = 'auskunft'), 0)::bigint AS auskunft_cents,
+           COUNT(*)::int AS zahlungen
+      FROM q GROUP BY 1 ORDER BY 1`)) as any[];
+
+  return {
+    heuteCents: Number(summen.heute), wocheCents: Number(summen.woche),
+    monatCents: Number(summen.monat), vormonatCents: Number(summen.vormonat),
+    jahrCents: Number(summen.jahr), gesamtCents: Number(summen.gesamt),
+    verlauf: verlauf.map((v: any) => ({
+      monat: String(v.monat), ratenCents: Number(v.raten_cents),
+      auskunftCents: Number(v.auskunft_cents), zahlungen: Number(v.zahlungen),
+    })),
+  };
+}
+
 router.get("/chef/zahlen", requireChef("geschaeftsfuehrung"), async (_req: Request, res: Response) => {
   try {
     const [verdient] = (await sqlPool.unsafe(`
@@ -91,29 +155,9 @@ router.get("/chef/zahlen", requireChef("geschaeftsfuehrung"), async (_req: Reque
        GROUP BY 1 ORDER BY 3 DESC
     `)) as any[];
 
-    // Monatsreihe: was WIRKLICH je Monat eingegangen ist (Raten + Auskünfte).
-    const monate = (await sqlPool.unsafe(`
-      SELECT monat, SUM(raten_cents)::bigint AS raten_cents, SUM(auskunft_cents)::bigint AS auskunft_cents
-        FROM (
-          SELECT TO_CHAR(DATE_TRUNC('month', r.bezahlt_am), 'YYYY-MM') AS monat,
-                 r.betrag_cents AS raten_cents, 0 AS auskunft_cents
-            FROM fiaon_abo_raten r
-            JOIN fiaon_applications a ON a.ref = r.ref
-            LEFT JOIN fiaon_persons p ON p.id = a.person_id
-           WHERE r.status='bezahlt' AND r.bezahlt_am IS NOT NULL
-             AND a.merged_into IS NULL AND ${ECHT}
-          UNION ALL
-          SELECT TO_CHAR(DATE_TRUNC('month', COALESCE(a.paid_at, a.completed_at)), 'YYYY-MM'),
-                 0, ROUND(a.amount_due * 100)::int
-            FROM fiaon_applications a
-            LEFT JOIN fiaon_persons p ON p.id = a.person_id
-           WHERE a.payment_status='paid' AND a.merged_into IS NULL
-             AND a.ref LIKE 'FIAON-SCHUFA-%' AND COALESCE(a.paid_at, a.completed_at) IS NOT NULL
-             AND ${ECHT}
-        ) x
-       WHERE monat IS NOT NULL
-       GROUP BY monat ORDER BY monat
-    `)) as any[];
+    // Monatsreihe aus dem EINEN Umsatz-Baustein (siehe oben).
+    const bausteine = await umsatzBausteine();
+    const monate = bausteine.verlauf;
 
     // Real eingegangen in den letzten 30 Tagen — die ehrliche Gegenzahl zum MRR.
     const [dreissig] = (await sqlPool.unsafe(`
@@ -156,10 +200,8 @@ router.get("/chef/zahlen", requireChef("geschaeftsfuehrung"), async (_req: Reque
       jePaket: jePaket.map((r: any) => ({
         paket: String(r.paket), anzahl: Number(r.anzahl), mrrCents: Number(r.mrr_cents),
       })),
-      monate: monate.map((m: any) => ({
-        monat: String(m.monat),
-        ratenCents: Number(m.raten_cents),
-        auskunftCents: Number(m.auskunft_cents),
+      monate: monate.map((m) => ({
+        monat: m.monat, ratenCents: m.ratenCents, auskunftCents: m.auskunftCents,
       })),
       bewertung: { arrCents, szenarien },
     });
@@ -170,3 +212,142 @@ router.get("/chef/zahlen", requireChef("geschaeftsfuehrung"), async (_req: Reque
 });
 
 export default router;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE ZAHLUNGSZENTRALE 2.0 (27.08.2026, Justin: „passt gar nichts, komplett
+// neu, geprüft")
+//
+// Die alte Fassung zeigte nur bezahlte RATEN — ohne Bonitätsauskünfte, ohne
+// das Offene, ohne das Bankbuch. Wer die Zahlungslage prüfen wollte, musste
+// vier Seiten addieren. Jetzt: EIN Endpunkt, drei Sichten, und der Kopf
+// rechnet aus demselben umsatzBausteine() wie Lagezimmer und Wert-Raum —
+// Justins Regel: ALLE Zahlen müssen IMMER passen.
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/chef/zahlungszentrale", requireChef("geschaeftsfuehrung"), async (req: Request, res: Response) => {
+  try {
+    const sicht = ["eingegangen", "offen", "bankbuch"].includes(String(req.query.sicht))
+      ? String(req.query.sicht) : "eingegangen";
+    const q = String(req.query.q || "").trim();
+    const seite = Math.max(1, Math.min(500, Number(req.query.seite) || 1));
+    const proSeite = 50;
+
+    const kopf = await umsatzBausteine();
+
+    // Wort-für-Wort-Suche — dieselbe Regel wie in der Kundenliste.
+    const werte: any[] = [];
+    const suchTeile: string[] = [];
+    for (const wort of q.split(/\s+/).filter(Boolean).slice(0, 6)) {
+      werte.push(`%${wort}%`);
+      const n = werte.length;
+      suchTeile.push(`(
+        p.first_name ILIKE $${n} OR p.last_name ILIKE $${n}
+        OR CONCAT_WS(' ', p.first_name, p.last_name) ILIKE $${n}
+        OR a.ref ILIKE $${n} OR a.payment_reference ILIKE $${n}
+      )`);
+    }
+    const suche = suchTeile.length ? ` AND ${suchTeile.join(" AND ")}` : "";
+    const offset = (seite - 1) * proSeite;
+
+    let zeilen: any[] = [];
+    let gesamt = 0;
+    let summeCents = 0;
+
+    if (sicht === "eingegangen") {
+      const BASIS = `
+        FROM (
+          SELECT r.bezahlt_am AS am, r.betrag_cents AS cents,
+                 ('Rate ' || r.rate_nr) AS art, r.ref, a.person_id, a.pack_name,
+                 a.payment_reference
+            FROM fiaon_abo_raten r
+            JOIN fiaon_applications a ON a.ref = r.ref
+            LEFT JOIN fiaon_persons p ON p.id = a.person_id
+           WHERE r.status = 'bezahlt' AND r.bezahlt_am IS NOT NULL
+             AND a.merged_into IS NULL AND ${ECHT} ${suche}
+          UNION ALL
+          SELECT COALESCE(a.paid_at, a.completed_at), ROUND(a.amount_due * 100)::int,
+                 'Bonitätsauskunft', a.ref, a.person_id, a.pack_name, a.payment_reference
+            FROM fiaon_applications a
+            LEFT JOIN fiaon_persons p ON p.id = a.person_id
+           WHERE a.payment_status = 'paid' AND a.merged_into IS NULL
+             AND a.ref LIKE 'FIAON-SCHUFA-%'
+             AND COALESCE(a.paid_at, a.completed_at) IS NOT NULL AND ${ECHT} ${suche}
+        ) e
+        LEFT JOIN fiaon_persons p2 ON p2.id = e.person_id`;
+      const [[s1], rows] = await Promise.all([
+        sqlPool.unsafe(`SELECT COUNT(*)::int AS n, COALESCE(SUM(e.cents),0)::bigint AS summe ${BASIS}`, werte) as Promise<any[]>,
+        sqlPool.unsafe(`
+          SELECT e.*, TRIM(COALESCE(p2.first_name,'')||' '||COALESCE(p2.last_name,'')) AS kunde
+          ${BASIS} ORDER BY e.am DESC LIMIT ${proSeite} OFFSET ${offset}`, werte) as Promise<any[]>,
+      ]);
+      gesamt = Number(s1.n); summeCents = Number(s1.summe);
+      zeilen = rows.map((r: any) => ({
+        am: r.am, cents: Number(r.cents), art: r.art, ref: r.ref,
+        personId: r.person_id, kunde: r.kunde || "—", paket: r.pack_name,
+        zweck: r.payment_reference,
+      }));
+    } else if (sicht === "offen") {
+      const BASIS = `
+        FROM fiaon_abo_raten r
+        JOIN fiaon_applications a ON a.ref = r.ref
+        LEFT JOIN fiaon_persons p ON p.id = a.person_id
+       WHERE r.status = 'offen' AND r.storniert_am IS NULL AND r.bezahlt_am IS NULL
+         AND a.merged_into IS NULL AND a.abo_gestoppt_am IS NULL AND ${ECHT} ${suche}`;
+      const [[s1], rows] = await Promise.all([
+        sqlPool.unsafe(`SELECT COUNT(*)::int AS n,
+          COALESCE(SUM(r.betrag_cents) FILTER (WHERE r.faellig_am < CURRENT_DATE),0)::bigint AS summe ${BASIS}`, werte) as Promise<any[]>,
+        sqlPool.unsafe(`
+          SELECT r.id, r.ref, r.rate_nr, r.betrag_cents, r.faellig_am, r.mahnstufe,
+                 (SELECT MAX(x.rate_nr) FROM fiaon_abo_raten x WHERE x.ref = r.ref) AS raten_gesamt,
+                 a.person_id, a.pack_name, a.payment_reference,
+                 TRIM(COALESCE(p.first_name,'')||' '||COALESCE(p.last_name,'')) AS kunde
+          ${BASIS}
+          ORDER BY (r.faellig_am < CURRENT_DATE) DESC, r.faellig_am ASC
+          LIMIT ${proSeite} OFFSET ${offset}`, werte) as Promise<any[]>,
+      ]);
+      gesamt = Number(s1.n); summeCents = Number(s1.summe);
+      zeilen = rows.map((r: any) => ({
+        am: r.faellig_am, cents: Number(r.betrag_cents),
+        art: `Rate ${r.rate_nr} von ${r.raten_gesamt ?? 12}`,
+        ref: r.ref, personId: r.person_id, kunde: r.kunde || "—", paket: r.pack_name,
+        zweck: r.payment_reference, mahnstufe: Number(r.mahnstufe || 0),
+        ueberfaellig: r.faellig_am ? new Date(r.faellig_am) < new Date(new Date().toDateString()) : false,
+      }));
+    } else {
+      const BASIS = `
+        FROM fiaon_bank_txns t
+        LEFT JOIN fiaon_applications a ON a.ref = t.matched_ref
+        LEFT JOIN fiaon_persons p ON p.id = a.person_id
+       WHERE TRUE ${suche.replace(/a\.ref ILIKE/g, "t.matched_ref ILIKE").replace(/a\.payment_reference ILIKE/g, "t.txn_id ILIKE")}`;
+      const [[s1], rows] = await Promise.all([
+        sqlPool.unsafe(`SELECT COUNT(*)::int AS n,
+          COALESCE(SUM(t.amount_cents) FILTER (WHERE NOT t.applied),0)::bigint AS summe ${BASIS}`, werte) as Promise<any[]>,
+        sqlPool.unsafe(`
+          SELECT t.id, t.txn_id, t.booked_at, t.amount_cents, t.payer_name,
+                 t.matched_ref, t.match_status, t.applied, a.person_id,
+                 TRIM(COALESCE(p.first_name,'')||' '||COALESCE(p.last_name,'')) AS kunde
+          ${BASIS}
+          ORDER BY t.applied ASC, t.booked_at DESC
+          LIMIT ${proSeite} OFFSET ${offset}`, werte) as Promise<any[]>,
+      ]);
+      gesamt = Number(s1.n); summeCents = Number(s1.summe);
+      zeilen = rows.map((r: any) => ({
+        am: r.booked_at, cents: Number(r.amount_cents), art: r.applied ? "verbucht" : "UNVERBUCHT",
+        ref: r.matched_ref, personId: r.person_id, kunde: r.kunde || r.payer_name || "—",
+        paket: r.txn_id, zweck: r.match_status, unverbucht: !r.applied,
+      }));
+    }
+
+    res.json({
+      ok: true, stand: new Date().toISOString(), sicht, gesamt, summeCents,
+      seiten: Math.max(1, Math.ceil(gesamt / proSeite)), seite,
+      kopf: {
+        heuteCents: kopf.heuteCents, wocheCents: kopf.wocheCents,
+        monatCents: kopf.monatCents, jahrCents: kopf.jahrCents,
+      },
+      zeilen,
+    });
+  } catch (err) {
+    console.error("[CHEF-ZAHLUNGSZENTRALE]", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});

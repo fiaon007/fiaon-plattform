@@ -74,7 +74,6 @@ const PAY_METHODS = [
   { value: "direct_debit",  label: "Lastschrift" },
   { value: "credit_card",   label: "Kreditkarte" },
   { value: "paypal",        label: "PayPal" },
-  { value: "stripe",        label: "Stripe" },
   { value: "cash",          label: "Bar" },
 ];
 

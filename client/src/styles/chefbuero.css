@@ -5,7 +5,11 @@
 .cb{--cb-blau:#2563eb;--cb-blau-hell:#93c5fd;position:relative;min-height:100vh;color:#e5e7eb;font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:#0a1628}
 .cb-buehne{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
 .cb-buehne img{width:100%;height:100%;object-fit:cover;opacity:.3;transform:scale(1.03)}
-.cb-schleier{position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,22,40,.74) 0%,rgba(10,22,40,.88) 40%,rgba(10,22,40,.97) 100%),radial-gradient(ellipse at 15% 20%,rgba(37,99,235,.16),transparent 55%)}
+/* 27.08.2026, Justin: „ein Video im Hintergrund das spuerbar ist — das
+   aktuelle bemerkt man gar nicht." Der Schleier laesst die Buehne jetzt
+   durchscheinen (oben deutlich, unten fuer die Lesbarkeit dichter), und der
+   blaue Schein traegt weiter in den Raum. */
+.cb-schleier{position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,22,40,.42) 0%,rgba(10,22,40,.66) 45%,rgba(10,22,40,.9) 100%),radial-gradient(ellipse at 18% 12%,rgba(59,130,246,.3),transparent 58%),radial-gradient(ellipse at 85% 70%,rgba(37,99,235,.14),transparent 60%)}
 /* Kopf */
 .cb-kopf{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:14px;height:62px;padding:0 18px;background:rgba(10,22,40,.55);backdrop-filter:blur(20px) saturate(160%);-webkit-backdrop-filter:blur(20px) saturate(160%);border-bottom:1px solid rgba(255,255,255,.08)}
 .cb-wort{font:600 18px/1 'Inter',sans-serif;letter-spacing:.08em;color:#fff;text-decoration:none}
@@ -390,11 +394,26 @@
   font: 300 13px/1 'Inter', sans-serif; color: #475569; width: 14px; flex: 0 0 14px;
   font-variant-numeric: tabular-nums;
 }
+/* 27.08.2026, Justin: „Weg mit den billigen Icons — optimieren!" Dieselben
+   Zeichen, aber mit Koerper: Innenlicht, Glut hinter dem Symbol, Schatten
+   in den Raum, Leben beim Zeigen. */
 .cw-icon {
-  display: grid; place-items: center; width: 42px; height: 42px; flex: 0 0 42px;
-  border-radius: 14px; color: #93c5fd;
-  background: linear-gradient(140deg, rgba(37,99,235,.26), rgba(37,99,235,.05));
-  border: 1px solid rgba(96,165,250,.28);
+  position: relative; display: grid; place-items: center;
+  width: 46px; height: 46px; flex: 0 0 46px;
+  border-radius: 15px; color: #bfdbfe;
+  background:
+    radial-gradient(120% 120% at 30% 20%, rgba(96,165,250,.32), rgba(37,99,235,.08) 60%),
+    linear-gradient(150deg, rgba(30,58,138,.5), rgba(15,23,42,.6));
+  border: 1px solid rgba(96,165,250,.35);
+  box-shadow: 0 10px 26px rgba(2,6,23,.45), 0 0 22px rgba(37,99,235,.22),
+    inset 0 1px 0 rgba(191,219,254,.28);
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+.cw-icon svg { filter: drop-shadow(0 0 7px rgba(96,165,250,.55)); }
+.cw-kopf:hover .cw-icon, .cw-zeile:hover .cw-icon {
+  transform: translateY(-1px) scale(1.04);
+  box-shadow: 0 14px 34px rgba(2,6,23,.55), 0 0 30px rgba(37,99,235,.35),
+    inset 0 1px 0 rgba(191,219,254,.34);
 }
 .ton-gut .cw-icon { color: #6ee7b7; background: linear-gradient(140deg, rgba(5,150,105,.2), rgba(5,150,105,.04)); border-color: rgba(52,211,153,.24); }
 .ton-achtung .cw-icon { color: #fcd34d; background: linear-gradient(140deg, rgba(217,119,6,.2), rgba(217,119,6,.04)); border-color: rgba(251,191,36,.26); }
@@ -895,3 +914,112 @@
 .cbes-wege { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .cbes-pfad em b { color: #93c5fd; font-weight: 400; }
 @media (max-width: 980px) { .cbes-seite { grid-template-columns: 1fr } .cbes-wege { justify-content: flex-start } }
+
+/* ═══ Lagezimmer-Aufschlag 2.0 (27.08.2026) ═══════════════════════════════
+   Begruessung wie ein Systemstart, Zeitraum-Schalter, Glas-Pillen. */
+.cl-gruss.belebt { display: grid; gap: 6px; margin-bottom: 22px; }
+.cl-gruss-zeile {
+  font-size: clamp(22px, 3.2vw, 30px); font-weight: 650; letter-spacing: -.015em; color: #f8fafc;
+  opacity: 0; transform: translateY(10px);
+  animation: clGrussAuf .7s cubic-bezier(.2,.7,.2,1) .05s forwards;
+}
+.cl-gruss-status {
+  display: inline-flex; align-items: center; gap: 9px;
+  font-size: 13.5px; color: rgba(148, 197, 253, .92); letter-spacing: .02em;
+  opacity: 0; animation: clGrussAuf .6s ease .5s forwards;
+}
+.cl-gruss-status i {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #34d399; box-shadow: 0 0 0 0 rgba(52, 211, 153, .55);
+  animation: clPuls 2.4s ease-out 1s infinite;
+}
+@keyframes clGrussAuf { to { opacity: 1; transform: none; } }
+@keyframes clPuls {
+  0% { box-shadow: 0 0 0 0 rgba(52, 211, 153, .5); }
+  70% { box-shadow: 0 0 0 9px rgba(52, 211, 153, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cl-gruss-zeile, .cl-gruss-status { animation: none; opacity: 1; transform: none; }
+  .cl-gruss-status i { animation: none; }
+}
+
+.cl-zeitraum {
+  display: inline-flex; gap: 4px; padding: 4px; margin-bottom: 14px;
+  border-radius: 999px; background: rgba(15, 23, 42, .55);
+  border: 1px solid rgba(148, 163, 184, .16);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+.cl-zeitraum-knopf {
+  padding: 7px 16px; border: 0; border-radius: 999px; cursor: pointer;
+  font: 600 12.5px/1 'Inter', sans-serif; letter-spacing: .02em;
+  color: rgba(203, 213, 225, .75); background: transparent;
+  transition: color .18s ease, background .18s ease;
+}
+.cl-zeitraum-knopf:hover { color: #e2e8f0; }
+.cl-zeitraum-knopf.an {
+  color: #fff; background: linear-gradient(180deg, #2563eb, #1d4ed8);
+  box-shadow: 0 4px 16px rgba(37, 99, 235, .4);
+}
+
+.cl-pille {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 8px 14px; border-radius: 999px; font-size: 12.5px;
+  background: rgba(15, 23, 42, .5); border: 1px solid rgba(148, 163, 184, .16);
+  color: rgba(203, 213, 225, .85);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+}
+.cl-pille b { color: #f1f5f9; font-variant-numeric: tabular-nums; }
+.cl-pille em { font-style: normal; color: rgba(148, 163, 184, .8); }
+.cl-pille.trend.gut { color: #6ee7b7; border-color: rgba(52, 211, 153, .3); background: rgba(5, 150, 105, .12); }
+.cl-pille.trend.gut b { color: #6ee7b7; }
+.cl-pille.trend.schlecht { color: #fcd34d; border-color: rgba(251, 191, 36, .3); background: rgba(251, 191, 36, .1); }
+.cl-pille.trend.schlecht b { color: #fcd34d; }
+
+/* Kennzahl-Kacheln: mehr Tiefe, feine Oberkante, Hover-Leben. */
+.cl-kennzahl {
+  position: relative; overflow: hidden;
+  background: linear-gradient(165deg, rgba(17, 27, 48, .72), rgba(10, 16, 32, .6)) !important;
+  border: 1px solid rgba(148, 163, 184, .14);
+  box-shadow: 0 18px 44px rgba(2, 6, 23, .4), inset 0 1px 0 rgba(148, 197, 253, .1);
+  transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+}
+.cl-kennzahl:hover {
+  transform: translateY(-3px);
+  border-color: rgba(96, 165, 250, .35);
+  box-shadow: 0 26px 60px rgba(2, 6, 23, .55), inset 0 1px 0 rgba(148, 197, 253, .16);
+}
+.cl-kennzahl i {
+  color: #93c5fd !important;
+  background: rgba(37, 99, 235, .16) !important;
+  border: 1px solid rgba(96, 165, 250, .28);
+  box-shadow: 0 0 22px rgba(37, 99, 235, .22);
+}
+
+/* ═══ Kundenliste 2.0 (27.08.2026, Justin: „tiefer, übersichtlicher") ═════ */
+.ck-kz {
+  background: linear-gradient(165deg, rgba(17,27,48,.72), rgba(10,16,32,.6)) !important;
+  border: 1px solid rgba(148,163,184,.14) !important;
+  box-shadow: 0 16px 40px rgba(2,6,23,.38), inset 0 1px 0 rgba(148,197,253,.09);
+  transition: transform .2s ease, border-color .2s ease;
+}
+.ck-kz:hover { transform: translateY(-2px); border-color: rgba(96,165,250,.35); }
+
+.ck-liste { display: grid; gap: 10px; }
+.ck-zeile {
+  position: relative;
+  background: linear-gradient(165deg, rgba(15,23,42,.62), rgba(9,14,28,.55)) !important;
+  border: 1px solid rgba(148,163,184,.13) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 10px 30px rgba(2,6,23,.3);
+  transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+.ck-zeile:hover {
+  transform: translateY(-2px);
+  border-color: rgba(96,165,250,.4) !important;
+  box-shadow: 0 18px 46px rgba(2,6,23,.5), 0 0 0 1px rgba(96,165,250,.12);
+}
+.ck-zeile .ck-wer b { font-size: 14.5px; letter-spacing: -.01em; }
+.ck-zeile .ck-geld b { font-variant-numeric: tabular-nums; }
+.ck-zeile .ck-pfeil { opacity: .35; transition: opacity .18s ease, transform .18s ease; }
+.ck-zeile:hover .ck-pfeil { opacity: .9; transform: translateX(2px); }

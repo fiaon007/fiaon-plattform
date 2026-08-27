@@ -14,12 +14,11 @@ import { db } from '../db';
 import { serviceOrders, serviceOrderEvents, users } from '@shared/schema';
 import { eq, desc, and, sql } from 'drizzle-orm';
 import { requireStaffOrAdmin } from '../middleware/staff';
-import Stripe from 'stripe';
-
-// Initialize Stripe
-const stripe = process.env.STRIPE_SECRET_KEY 
-  ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' as any })
-  : null;
+// Stripe wurde am 27.08.2026 vollstaendig entfernt (Justins Auftrag). Dieser
+// Alt-Router ist nirgends gemountet; der Stub haelt die Datei kompilierbar,
+// ohne das stripe-Paket zu brauchen. Jeder Checkout-Pfad antwortet unten
+// ohnehin mit "not configured".
+const stripe: any = null;
 
 const router = Router();
 

@@ -488,32 +488,9 @@ function BillingTab({ user, stripe }: any) {
         )}
       </div>
 
-      {/* Stripe Info */}
-      {stripe && (
-        <div className="space-y-2">
-          <div className="p-3 rounded-xl bg-white/5 border border-white/5">
-            <div className="text-xs text-white/40">Stripe Customer ID</div>
-            <div className="text-sm text-white font-mono">{stripe.customerId}</div>
-          </div>
-          
-          {stripe.subscriptions?.length > 0 && (
-            <div className="p-3 rounded-xl bg-white/5 border border-white/5">
-              <div className="text-xs text-white/40 mb-2">Aktive Subscriptions</div>
-              {stripe.subscriptions.map((sub: any) => (
-                <div key={sub.id} className="text-sm text-white">
-                  {sub.plan?.nickname || sub.plan?.id} - {sub.status}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {!stripe && (
-        <div className="text-center py-8 text-white/40 text-sm">
-          Keine Stripe-Daten vorhanden
-        </div>
-      )}
+      {/* Stripe wurde am 27.08.2026 vollständig eingestellt — Zahlungen
+          laufen per Banküberweisung, die Auswertung steht im Chefbüro
+          unter „Verdienst & Wert". */}
     </div>
   );
 }

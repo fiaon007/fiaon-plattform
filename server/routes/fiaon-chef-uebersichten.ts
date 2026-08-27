@@ -60,15 +60,24 @@ router.get("/chef/kunden", requireChef("leitung"), async (req: Request, res: Res
     const werte: any[] = [];
     const teile: string[] = [ECHT];
     if (q) {
-      werte.push(`%${q}%`);
-      const n = werte.length;
-      teile.push(`(
-        p.first_name ILIKE $${n} OR p.last_name ILIKE $${n}
-        OR p.primary_email ILIKE $${n} OR p.primary_phone ILIKE $${n}
-        OR p.company_name ILIKE $${n}
-        OR EXISTS (SELECT 1 FROM fiaon_applications a2 WHERE a2.person_id = p.id
-                    AND (a2.ref ILIKE $${n} OR a2.payment_reference ILIKE $${n}))
-      )`);
+      // ── WORT FUER WORT, JEDES MUSS TREFFEN (27.08.2026, Justins Meldung) ─
+      // „Jakob" fand — „Jakob S" fand NICHTS: Der ganze Text lief als EIN
+      // Muster gegen die Einzelfelder, und kein Feld enthaelt „Jakob S"
+      // woertlich. Jetzt wird jedes Wort einzeln gesucht (UND-verknuepft),
+      // zusaetzlich gegen den ZUSAMMENGESETZTEN Namen — „Jakob Se" trifft
+      // damit Jakob Seger, „Herbert Sa" trifft Herbert Sax.
+      for (const wort of q.split(/\s+/).filter(Boolean).slice(0, 6)) {
+        werte.push(`%${wort}%`);
+        const n = werte.length;
+        teile.push(`(
+          p.first_name ILIKE $${n} OR p.last_name ILIKE $${n}
+          OR CONCAT_WS(' ', p.first_name, p.last_name) ILIKE $${n}
+          OR p.primary_email ILIKE $${n} OR p.primary_phone ILIKE $${n}
+          OR p.company_name ILIKE $${n}
+          OR EXISTS (SELECT 1 FROM fiaon_applications a2 WHERE a2.person_id = p.id
+                      AND (a2.ref ILIKE $${n} OR a2.payment_reference ILIKE $${n}))
+        )`);
+      }
     }
     const bezahltHat = `EXISTS (SELECT 1 FROM fiaon_applications a3
                                  WHERE a3.person_id = p.id AND a3.payment_status = 'paid'

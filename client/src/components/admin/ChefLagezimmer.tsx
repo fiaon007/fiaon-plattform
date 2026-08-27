@@ -53,7 +53,8 @@ const monatsName = (m: string) => {
 interface Lage {
   stand: string;
   geld: {
-    eingangHeute: number; eingangMonat: number; eingangVormonat: number;
+    eingangHeute: number; eingangWoche: number; eingangMonat: number;
+    eingangVormonat: number; eingangJahr: number; eingangGesamt: number;
     ratenOffen: number; ratenUeberfaellig: number; ueberfaelligSumme: number;
     provOffen: number; provOffenSumme: number; abrechnungenOffen: number;
   };
@@ -181,9 +182,21 @@ export default function ChefLagezimmer({ name }: { name: string | null }) {
     return () => { weg = true; };
   }, []);
 
+  // ── DIE ANREDE (27.08.2026, Justin: „Guten Abend Herr Schwarzott, Ihre
+  // Systeme stehen bereit") ─────────────────────────────────────────────────
+  // Das Chefbuero hat genau drei Konten — die Anrede steht deshalb als kleine
+  // Tafel hier, mit dem vollen Namen als ehrlichem Rueckfall fuer jeden, der
+  // spaeter dazukommt (ein geratenes „Herr" waere schlimmer als keins).
+  const ANREDE: Record<string, string> = {
+    Justin: "Herr Schwarzott", Florentine: "Frau Lombardi", Daniel: "Herr Stripling",
+  };
   const vorname = String(name || "").split(" ")[0];
+  const anrede = ANREDE[vorname] || String(name || "").trim() || null;
   const stunde = new Date().getHours();
   const gruss = stunde < 11 ? "Guten Morgen" : stunde < 18 ? "Guten Tag" : "Guten Abend";
+  // Standard-Ansicht ist das JAHR — „12.388 € im Monat" motiviert niemanden,
+  // der weiss, dass das Jahr schon sechsstellig unterwegs ist.
+  const [zeitraum, setZeitraum] = useState<"jahr" | "monat" | "woche">("jahr");
 
   // Der Vergleich zum Vormonat — auf den Tag heruntergerechnet, sonst
   // vergleicht man den halben August mit dem ganzen Juli.
@@ -213,22 +226,42 @@ export default function ChefLagezimmer({ name }: { name: string | null }) {
   return (
     <div className="cl">
 
-      {/* ── Der Aufschlag: eine Zahl, groß ─────────────────────────────── */}
+      {/* ── Der Aufschlag: Begrüßung wie ein Systemstart, dann DIE Zahl ── */}
       <section className="cl-aufschlag">
-        <p className="cl-gruss">{vorname ? `${gruss}, ${vorname}.` : gruss}</p>
-        <p className="cl-label">Zahlungseingang im laufenden Monat</p>
-        <h1 className="cl-riesenzahl">
-          <Hochzaehler ziel={l.geld.eingangMonat} formatieren={eur} />
+        <p className="cl-gruss belebt">
+          <span className="cl-gruss-zeile">{anrede ? `${gruss}, ${anrede}.` : `${gruss}.`}</span>
+          <span className="cl-gruss-status"><i aria-hidden="true" />Ihre Systeme stehen bereit.</span>
+        </p>
+        <div className="cl-zeitraum" role="tablist" aria-label="Zeitraum des Zahlungseingangs">
+          {([["jahr", "Jährlich"], ["monat", "Monatlich"], ["woche", "Wöchentlich"]] as const).map(([k, t]) => (
+            <button key={k} type="button" role="tab" aria-selected={zeitraum === k}
+                    className={`cl-zeitraum-knopf${zeitraum === k ? " an" : ""}`}
+                    onClick={() => setZeitraum(k)}>{t}</button>
+          ))}
+        </div>
+        <p className="cl-label">
+          {zeitraum === "jahr" ? `Zahlungseingang ${new Date().getFullYear()}`
+            : zeitraum === "monat" ? "Zahlungseingang im laufenden Monat"
+            : "Zahlungseingang der letzten 7 Tage"}
+        </p>
+        <h1 className="cl-riesenzahl" key={zeitraum}>
+          <Hochzaehler
+            ziel={zeitraum === "jahr" ? l.geld.eingangJahr : zeitraum === "monat" ? l.geld.eingangMonat : l.geld.eingangWoche}
+            formatieren={eur} />
         </h1>
         <div className="cl-aufschlag-zeile">
+          {zeitraum !== "monat" && (
+            <span className="cl-pille still">Monat: <b>{eur(l.geld.eingangMonat)}</b></span>
+          )}
           {trend && (
-            <span className={`cl-trend${trend.besser ? " gut" : " schlecht"}`}>
-              {trend.besser ? <TrendingUp size={15} strokeWidth={2} /> : <TrendingDown size={15} strokeWidth={2} />}
-              {trend.besser ? "+" : ""}{trend.prozent} % gegenüber dem Vormonat, auf denselben Tag gerechnet
+            <span className={`cl-pille trend${trend.besser ? " gut" : " schlecht"}`}>
+              {trend.besser ? <TrendingUp size={14} strokeWidth={2.2} /> : <TrendingDown size={14} strokeWidth={2.2} />}
+              <b>{trend.besser ? "+" : ""}{trend.prozent} %</b>
+              <em>zum Vormonat, taggenau</em>
             </span>
           )}
           {l.geld.eingangHeute > 0 && (
-            <span className="cl-heute">Heute bereits <b>{eur(l.geld.eingangHeute)}</b></span>
+            <span className="cl-pille heute">Heute bereits <b>{eur(l.geld.eingangHeute)}</b></span>
           )}
         </div>
       </section>

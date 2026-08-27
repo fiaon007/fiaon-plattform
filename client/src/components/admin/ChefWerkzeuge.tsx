@@ -31,7 +31,7 @@ function Werkzeug({ nr, Icon, titel, satz, kennzahl, ton = "ruhig", offen, aufkl
     <section className={`cw-werkzeug${offen ? " auf" : ""} ton-${ton}`}>
       <button type="button" className="cw-kopf" onClick={aufklappen} aria-expanded={offen}>
         <span className="cw-nr">{nr}</span>
-        <i className="cw-icon"><Icon size={20} strokeWidth={1.5} /></i>
+        <i className="cw-icon"><Icon size={21} strokeWidth={1.75} /></i>
         <span className="cw-text">
           <b>{titel}</b>
           <em>{satz}</em>

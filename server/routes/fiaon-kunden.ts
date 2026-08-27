@@ -304,8 +304,34 @@ router.get("/admin/kunden", async (req: Request, res: Response) => {
 // ═══════════════════════════════════════════════════════════════════
 router.get("/admin/kunden/akte", async (req: Request, res: Response) => {
   try {
-    const id = String(req.query.id || "").trim();
-    if (!id) return res.status(400).json({ ok: false, error: "id erforderlich (Antrags-ref oder lead-<id>)" });
+    let id = String(req.query.id || "").trim();
+    if (!id) return res.status(400).json({ ok: false, error: "id erforderlich (Antrags-ref, lead-<id> oder Personen-Nummer)" });
+
+    // ── EINE ZENTRALE AKTE (27.08.2026, Justins Auftrag) ──────────────────
+    // Gemeldet: Klick in der Chef-Kundenliste → „Akte nicht gefunden". Die
+    // Aufrufer uebergaben die PERSONEN-Nummer, die Akte kannte nur die
+    // Antrags-ref. Statt jeden Aufrufer zu jagen, loest die Akte die Person
+    // jetzt SELBST auf: beste Bestellung des Menschen (bezahlt vor neu).
+    // Damit fuehrt jeder Link im Haus — Lagezimmer, Kundenliste, Zahlungen —
+    // in dieselbe Akte, egal welche Kennung er in der Hand hatte.
+    if (/^(person-)?\d+$/i.test(id)) {
+      const personId = Number(id.replace(/^person-/i, ""));
+      const [beste] = (await sqlPool`
+        SELECT a.ref FROM fiaon_applications a
+         WHERE a.person_id = ${personId} AND a.merged_into IS NULL
+         ORDER BY (a.payment_status = 'paid') DESC,
+                  (a.ref NOT LIKE 'FIAON-SCHUFA-%') DESC,
+                  a.created_at DESC
+         LIMIT 1`) as any[];
+      if (beste?.ref) {
+        id = String(beste.ref);
+      } else {
+        return res.status(404).json({
+          ok: false,
+          error: `Zur Person ${personId} liegt keine Bestellung vor — die Akte entsteht mit dem ersten Vorgang.`,
+        });
+      }
+    }
 
     let primaryApp: any = null;
     let primaryLead: any = null;

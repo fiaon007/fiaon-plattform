@@ -121,3 +121,58 @@
   .cz-paket { grid-template-columns: 1fr; gap: 4px; }
   .cz-paket i { order: 3; }
 }
+
+/* ═══ Zahlungszentrale 2.0 (27.08.2026) ═══════════════════════════════════ */
+.czz-leiste { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.czz-suche {
+  display: flex; align-items: center; gap: 8px; flex: 1; min-width: 240px;
+  padding: 9px 14px; border-radius: 999px;
+  background: rgba(2, 6, 23, .45); border: 1px solid rgba(148, 163, 184, .18);
+  color: rgba(148, 163, 184, .8);
+}
+.czz-suche:focus-within { border-color: rgba(96, 165, 250, .5); }
+.czz-suche input {
+  flex: 1; min-width: 0; border: 0; background: transparent; outline: none;
+  color: #e2e8f0; font-size: 13.5px;
+}
+.czz-suche input::placeholder { color: #475569; }
+.czz-suche button { border: 0; background: transparent; color: #64748b; cursor: pointer; display: flex; }
+.czz-suche button:hover { color: #e2e8f0; }
+
+.czz-tab-huelle { overflow-x: auto; margin-top: 12px; border-radius: 14px; border: 1px solid rgba(148, 163, 184, .12); }
+.czz-tab { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 640px; }
+.czz-tab th {
+  text-align: left; padding: 11px 14px; font-size: 10.5px; font-weight: 700;
+  letter-spacing: .09em; text-transform: uppercase; color: rgba(148, 163, 184, .8);
+  background: rgba(15, 23, 42, .6); border-bottom: 1px solid rgba(148, 163, 184, .14);
+  white-space: nowrap;
+}
+.czz-tab th.r, .czz-tab td.r { text-align: right; }
+.czz-tab td {
+  padding: 11px 14px; border-bottom: 1px solid rgba(148, 163, 184, .08);
+  color: #e2e8f0; vertical-align: top;
+}
+.czz-tab tbody tr { transition: background .15s ease; }
+.czz-tab tbody tr:hover { background: rgba(37, 99, 235, .07); }
+.czz-tab tbody tr.warn { background: rgba(251, 191, 36, .045); }
+.czz-tab tbody tr.warn:hover { background: rgba(251, 191, 36, .09); }
+.czz-tab td.leise { color: rgba(148, 163, 184, .9); }
+.czz-tab td a { color: #93c5fd; text-decoration: none; }
+.czz-tab td a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.czz-tab td b { font-variant-numeric: tabular-nums; color: #f8fafc; }
+.czz-marke {
+  display: block; margin-top: 3px; font-style: normal; font-size: 10.5px;
+  font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+}
+.czz-marke.rot { color: #fda4af; }
+.czz-marke.gelb { color: #fcd34d; }
+
+.czz-blaettern { display: flex; align-items: center; justify-content: center; gap: 16px; margin-top: 14px; }
+.czz-blaettern button {
+  display: inline-flex; align-items: center; gap: 5px; padding: 8px 14px;
+  border-radius: 10px; border: 1px solid rgba(148, 163, 184, .18);
+  background: rgba(15, 23, 42, .5); color: #cbd5e1; font-size: 12.5px; cursor: pointer;
+}
+.czz-blaettern button:hover:not(:disabled) { border-color: rgba(96, 165, 250, .4); color: #fff; }
+.czz-blaettern button:disabled { opacity: .35; cursor: default; }
+.czz-blaettern span { font-size: 12.5px; color: rgba(148, 163, 184, .85); }

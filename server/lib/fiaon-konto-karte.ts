@@ -267,7 +267,7 @@ function toreAus(r: any): Tor[] {
     !r.paket_bezahlt ? "das Paket ist nicht bezahlt" : null,
     !r.schufa_bezahlt ? "die Bonitätsauskunft ist nicht bezahlt" : null,
     raten < KARTE_MIN_RATEN
-      ? `es sind erst ${raten} von ${KARTE_MIN_RATEN} Raten gelaufen`
+      ? `für die Karte sind erst ${raten} von ${KARTE_MIN_RATEN} nötigen Monatsraten gelaufen (das Abo selbst läuft 12 Raten)`
       : null,
   ].filter(Boolean).join(", ");
 
@@ -292,7 +292,7 @@ function toreAus(r: any): Tor[] {
     },
     {
       schluessel: "bezahlt",
-      titel: `Paket und Auskunft bezahlt, ${KARTE_MIN_RATEN} Raten gelaufen`,
+      titel: `Paket und Auskunft bezahlt, ${KARTE_MIN_RATEN} von 12 Monatsraten gelaufen`,
       erfuellt: !!geldOk,
       fehlt: geldOk ? null : geldFehlt,
       wieWeiter: geldOk ? null

@@ -23,6 +23,7 @@
 import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { requireChef } from "./fiaon-chef-zugang";
+import { umsatzBausteine } from "./fiaon-chef-zahlen";
 
 const router = Router();
 
@@ -190,18 +191,31 @@ router.get("/chef/lage", requireChef("leitung"), async (_req: Request, res: Resp
          AND (p.id IS NULL OR p.ist_test_am IS NULL)
        ORDER BY r.bezahlt_am DESC LIMIT 12`)) as any[];
 
+    const umsatz = await umsatzBausteine();
+
     res.json({
       ok: true,
       stand: new Date().toISOString(),
       geld: {
-        eingangHeute, eingangMonat, eingangVormonat,
+        // ── AUS DEM EINEN UMSATZ-BAUSTEIN (27.08.2026) ────────────────────
+        // Vorher rechnete diese Seite nur Raten (ohne Bonitaetsauskuenfte)
+        // mit eigenem Filter — Juli hiess hier 13.730 €, im Wert-Raum
+        // 15.506 €. Justins Regel: ALLE Zahlen muessen IMMER passen. Die
+        // Eingaenge (heute/Woche/Monat/Jahr) und der Verlauf kommen jetzt
+        // aus umsatzBausteine() — derselben Quelle wie /chef/zahlen.
+        eingangHeute: umsatz.heuteCents, eingangWoche: umsatz.wocheCents,
+        eingangMonat: umsatz.monatCents, eingangVormonat: umsatz.vormonatCents,
+        eingangJahr: umsatz.jahrCents, eingangGesamt: umsatz.gesamtCents,
         ratenOffen, ratenUeberfaellig, ueberfaelligSumme,
         provOffen, provOffenSumme, abrechnungenOffen,
       },
       kunden: { menschenGesamt, zahlende, imPool, neuHeute, mandate, gesperrt },
       team: { teamAktiv, kontakteHeute, termineHeute, termineOhneErgebnis },
       klemmt: { zusageGebrochen, ohneTermin, dublettenVerdacht, nummerOhneLand },
-      verlauf: verlauf.map((v) => ({ monat: v.monat, cents: Number(v.cents), zahlungen: Number(v.zahlungen) })),
+      verlauf: umsatz.verlauf.map((v) => ({
+        monat: v.monat, cents: v.ratenCents + v.auskunftCents,
+        auskunftCents: v.auskunftCents, zahlungen: v.zahlungen,
+      })),
       mitarbeiter: team.map((t) => ({
         id: Number(t.id), name: t.name, rolle: t.rolle,
         satzBp: Number(t.satz_bp), mandate: Number(t.mandate),

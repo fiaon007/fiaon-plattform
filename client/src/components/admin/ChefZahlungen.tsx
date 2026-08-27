@@ -1,310 +1,178 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// DIE ZAHLUNGSZENTRALE (26.08.2026)
+// DIE ZAHLUNGSZENTRALE 2.0 (27.08.2026)
 //
-// Justin: „Unsere Zahlungszentrale (mit EXAKTEN DATEN! also hier wirklich
-//          DOPPELT prüfen sodass ALLE Details eingetragen und ersichtlich
-//          sind!)"
+// Justin: „Zahlungszentrale passt gar nichts, diese muss komplett neu gemacht
+// werden, geprüft werden."
 //
-// ── WAS „ALLE DETAILS" HEISST ─────────────────────────────────────────────
-// Jede Zeile trägt vierzehn Angaben. Sichtbar sind sechs — die, nach denen
-// man sucht. Die übrigen acht erscheinen, wenn man die Zeile aufklappt:
-// Zahlungsweg, Referenz, Rechnungsdatum, Lastschriftstand, Mahnstufe,
-// Provisionssatz, Abrechnungsstand, Notiz.
-//
-// Alles auf einmal zu zeigen wäre eine Tapete. Nichts zu zeigen wäre eine
-// Behauptung. Sechs plus acht auf Klick ist der Kompromiss, der beides löst.
-//
-// ── DIE DOPPELTE PRÜFUNG ──────────────────────────────────────────────────
-// Die Monatssumme dieser Seite wird gegen die Summe des Lagezimmers geprüft —
-// dieselbe Grundlage, zwei Wege. Stimmen sie nicht überein, steht es hier als
-// Warnung, statt dass man es irgendwann bei einem Bankgespräch merkt.
+// Die Fassung vom 26.08. zeigte NUR bezahlte Raten — ohne Bonitätsauskünfte,
+// ohne das Offene, ohne das Bankbuch; ihre „Gegenprobe" verglich zwei
+// Abfragen, die beide unvollständig waren. Diese hier zeigt die ganze
+// Zahlungslage in DREI Sichten aus EINEM Endpunkt (/chef/zahlungszentrale):
+//   EINGEGANGEN  jede bestätigte Zahlung — Raten UND Bonitätsauskünfte
+//   OFFEN        jede offene Rate, Überfälliges zuerst, mit Mahnstufe
+//   BANKBUCH     jeder Bankeingang — Unverbuchtes zuerst (die Arbeit!)
+// Der Kopf rechnet aus demselben Umsatz-Baustein wie Lagezimmer und
+// Wert-Raum — eine Gegenprobe ist nicht mehr nötig, weil es nur noch EINE
+// Rechnung gibt. Gebucht wird weiterhin unter /chef/s/zahlungen-verwalten —
+// hier ist der Prüfblick, dort der Stift.
 // ═══════════════════════════════════════════════════════════════════════════
-import { useEffect, useMemo, useState } from "react";
-import {
-  Search, ChevronDown, ChevronLeft, ChevronRight, AlertTriangle,
-  CheckCircle2, ExternalLink, X, CalendarRange,
-} from "lucide-react";
-import { API, Karte, Hochzaehler, eur, eurKurz, zahl, datum, datumZeit, Geruest, Fehlermeldung } from "./chef-teile";
+import { useEffect, useState } from "react";
+import { Search, X, ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
+import "@/styles/chef-zahlen.css";
 
-interface Zahlung {
-  id: number; ref: string; rate_nr: number; raten_gesamt: number;
-  betrag_cents: number; bezahlt_am: string; faellig_am: string;
-  zahlungsreferenz: string | null; quelle: string | null; status: string;
-  mahnstufe: number | null; lastschrift_status: string | null;
-  rechnung_am: string | null; notiz: string | null;
-  pack_name: string | null; pack_key: string | null; amount_due: number | null;
-  payment_status: string | null;
-  person_id: number | null; person_ref: string | null; kunde: string;
-  primary_email: string | null; primary_phone: string | null; city: string | null;
-  agent_id: number | null; mitarbeiter: string | null; commission_rate_bp: number | null;
-  provision_cents: number | null; provision_bp: number | null;
-  abgerechnet: boolean | null; provision_genau: boolean | null;
+interface Zeile {
+  am: string | null; cents: number; art: string; ref: string | null;
+  personId: number | null; kunde: string; paket: string | null; zweck: string | null;
+  mahnstufe?: number; ueberfaellig?: boolean; unverbucht?: boolean;
+}
+interface Antwort {
+  ok: boolean; sicht: string; gesamt: number; summeCents: number;
+  seiten: number; seite: number;
+  kopf: { heuteCents: number; wocheCents: number; monatCents: number; jahrCents: number };
+  zeilen: Zeile[];
 }
 
-/** Der Zahlungsweg in Worten, die ein Mensch verwendet. */
-const wegName = (q: string | null): string => {
-  const m: Record<string, string> = {
-    lastschrift: "SEPA-Lastschrift", sepa: "SEPA-Lastschrift",
-    ueberweisung: "Überweisung", bank: "Überweisung",
-    manuell: "von Hand verbucht", kontoabgleich: "über den Kontoabgleich",
-    sumup: "SumUp", stripe: "Stripe", gocardless: "GoCardless",
-  };
-  return q ? (m[q.toLowerCase()] ?? q) : "nicht vermerkt";
-};
+const eur = (cents: number) =>
+  (cents / 100).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+const wann = (iso: string | null) => iso
+  ? new Date(iso).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" })
+  : "—";
+const tag = (iso: string | null) => iso
+  ? new Date(iso).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" })
+  : "—";
 
-function heuteIso(): string {
-  return new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Berlin" }).format(new Date());
-}
-function monatsErster(): string {
-  return heuteIso().slice(0, 8) + "01";
-}
+const SICHTEN = [
+  { key: "eingegangen", label: "Eingegangen", satz: "Jede bestätigte Zahlung — Raten und Bonitätsauskünfte, neueste zuerst." },
+  { key: "offen", label: "Offen & überfällig", satz: "Jede offene Rate. Überfälliges steht oben; die Summe zählt nur das Überfällige." },
+  { key: "bankbuch", label: "Bankbuch", satz: "Jeder Bankeingang aus dem Wise-Auszug. Unverbuchtes steht oben — das ist die Arbeit." },
+] as const;
 
 export default function ChefZahlungen() {
+  const [sicht, setSicht] = useState<string>("eingegangen");
   const [q, setQ] = useState("");
   const [suche, setSuche] = useState("");
-  const [von, setVon] = useState("");
-  const [bis, setBis] = useState("");
   const [seite, setSeite] = useState(1);
-  const [offen, setOffen] = useState<number | null>(null);
-  const [d, setD] = useState<any>(null);
+  const [d, setD] = useState<Antwort | null>(null);
   const [laedt, setLaedt] = useState(true);
   const [fehler, setFehler] = useState<string | null>(null);
-  const [lagesumme, setLagesumme] = useState<number | null>(null);
 
-  useEffect(() => {
-    const t = setTimeout(() => { setSuche(q.trim()); setSeite(1); }, 280);
-    return () => clearTimeout(t);
-  }, [q]);
+  // Erst tippen lassen, dann suchen — sonst eine Abfrage je Tastendruck.
+  useEffect(() => { const t = setTimeout(() => { setSuche(q); setSeite(1); }, 320); return () => clearTimeout(t); }, [q]);
 
   useEffect(() => {
     let weg = false;
-    setLaedt(true); setFehler(null);
-    const teile = [`seite=${seite}`, "proSeite=50"];
-    if (suche) teile.push(`q=${encodeURIComponent(suche)}`);
-    if (von && bis) { teile.push(`von=${von}`, `bis=${bis}`); }
-    fetch(`${API}/chef/zahlungen?${teile.join("&")}`, { credentials: "include" })
-      .then(async (r) => {
-        const j = await r.json().catch(() => null);
-        if (weg) return;
-        if (j?.ok) setD(j); else setFehler(j?.error || "Die Zahlungen ließen sich nicht laden.");
-      })
-      .catch(() => { if (!weg) setFehler("Keine Verbindung zum Server."); })
-      .finally(() => { if (!weg) setLaedt(false); });
-    return () => { weg = true; };
-  }, [seite, suche, von, bis]);
-
-  // ── Die Gegenprobe: dieselbe Zahl, anderer Weg ─────────────────────────
-  // Nur sinnvoll, solange der Standard-Zeitraum (dieser Monat) gilt.
-  useEffect(() => {
-    if (von || bis || suche) { setLagesumme(null); return; }
-    fetch(`${API}/chef/lage`, { credentials: "include" })
+    setLaedt(true);
+    const pfad = `/api/fiaon/chef/zahlungszentrale?sicht=${sicht}&seite=${seite}`
+      + (suche ? `&q=${encodeURIComponent(suche)}` : "");
+    fetch(pfad, { credentials: "include" })
       .then((r) => r.json())
-      .then((j) => { if (j?.ok) setLagesumme(Number(j.geld.eingangMonat)); })
-      .catch(() => {});
-  }, [von, bis, suche]);
+      .then((j) => { if (weg) return; setLaedt(false); if (j.ok) { setD(j); setFehler(null); } else setFehler(j.error || "Nicht geladen."); })
+      .catch(() => { if (!weg) { setLaedt(false); setFehler("Keine Verbindung."); } });
+    return () => { weg = true; };
+  }, [sicht, seite, suche]);
 
-  const zeilen: Zahlung[] = d?.zeilen ?? [];
-  const summe = d?.summe ?? { cents: 0, kunden: 0, zahlungen: 0 };
-  const abweichung = lagesumme != null && Number(summe.cents) !== lagesumme;
-
-  const verlauf = d?.verlauf ?? [];
-  const maxVerlauf = useMemo(
-    () => Math.max(1, ...verlauf.map((v: any) => Number(v.cents))),
-    [verlauf],
-  );
-
-  const zeitraumText = von && bis
-    ? `${datum(von)} bis ${datum(bis)}`
-    : new Date().toLocaleDateString("de-DE", { month: "long", year: "numeric" });
+  const aktiv = SICHTEN.find((s) => s.key === sicht) ?? SICHTEN[0];
 
   return (
-    <div className="cl cz">
-      <header className="cl-kopf">
-        <p className="cl-augenbraue">Zahlungszentrale</p>
-        <h1>Jeder Eingang, vollständig</h1>
-        <p className="cl-untertitel">
-          Grundlage ist immer der Tag des Eingangs, nie die Fälligkeit. Was
-          fällig war, ist keine Einnahme.
-        </p>
-      </header>
-
-      {/* ── Die drei Zahlen des Zeitraums ────────────────────────────────── */}
-      <div className="cz-kopfzahlen">
-        <Karte klasse="cz-gross">
-          <em>Eingegangen · {zeitraumText}</em>
-          <b><Hochzaehler ziel={Number(summe.cents || 0)} formatieren={eur} /></b>
-        </Karte>
-        <Karte klasse="cz-kz">
-          <b><Hochzaehler ziel={Number(summe.zahlungen || 0)} formatieren={zahl} /></b>
-          <em>einzelne Zahlungen</em>
-        </Karte>
-        <Karte klasse="cz-kz">
-          <b><Hochzaehler ziel={Number(summe.kunden || 0)} formatieren={zahl} /></b>
-          <em>verschiedene Kunden</em>
-        </Karte>
-      </div>
-
-      {/* ── Die Gegenprobe ───────────────────────────────────────────────── */}
-      {lagesumme != null && (
-        <p className={`cz-gegenprobe${abweichung ? " abweichung" : ""}`} role="status">
-          {abweichung
-            ? <><AlertTriangle size={15} strokeWidth={1.8} /> <b>Achtung:</b> Das Lagezimmer nennt für diesen Monat {eur(lagesumme)}, diese Seite {eur(Number(summe.cents))}. Eine der beiden Zahlen stimmt nicht.</>
-            : <><CheckCircle2 size={15} strokeWidth={1.8} /> Gegengeprüft: Das Lagezimmer nennt für diesen Monat dieselbe Summe.</>}
-        </p>
-      )}
-
-      {/* ── Der Verlauf ──────────────────────────────────────────────────── */}
-      {verlauf.length > 1 && (
-        <div className="cz-verlauf">
-          {verlauf.map((v: any) => {
-            const [j, m] = String(v.monat).split("-").map(Number);
-            const hoch = Math.max(4, (Number(v.cents) / maxVerlauf) * 100);
-            return (
-              <button key={v.monat} type="button" className="cz-balken"
-                      title={`${eur(Number(v.cents))} aus ${zahl(v.anzahl)} Zahlungen`}
-                      onClick={() => {
-                        const ersterTag = `${v.monat}-01`;
-                        const letzterTag = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Berlin" })
-                          .format(new Date(j, m, 0));
-                        setVon(ersterTag); setBis(letzterTag); setSeite(1);
-                      }}>
-                <span style={{ height: `${hoch}%` }} />
-                <b>{new Date(j, m - 1, 1).toLocaleDateString("de-DE", { month: "short" })}</b>
-                <em>{eurKurz(Number(v.cents))}</em>
-              </button>
-            );
-          })}
+    <div className="cz">
+      {/* ── Der Kopf: vier Summen aus dem einen Umsatz-Baustein ─────────── */}
+      <section className="cz-block">
+        <header><h2>Zahlungslage</h2><p>Dieselben Zahlen wie im Lagezimmer und im Wert-Raum — eine Quelle, eine Wahrheit.</p></header>
+        <div className="cz-karten drei" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
+          <article className="cz-karte"><small>Heute</small><b>{d ? eur(d.kopf.heuteCents) : "…"}</b><span>bankbestätigt eingegangen</span></article>
+          <article className="cz-karte"><small>7 Tage</small><b>{d ? eur(d.kopf.wocheCents) : "…"}</b><span>rollierende Woche</span></article>
+          <article className="cz-karte"><small>Laufender Monat</small><b>{d ? eur(d.kopf.monatCents) : "…"}</b><span>Raten + Auskünfte</span></article>
+          <article className="cz-karte"><small>{new Date().getFullYear()}</small><b>{d ? eur(d.kopf.jahrCents) : "…"}</b><span>Jahr bis heute</span></article>
         </div>
-      )}
+      </section>
 
-      {/* ── Suche und Zeitraum ───────────────────────────────────────────── */}
-      <div className="cz-steuerung">
-        <div className="ck-suche">
-          <Search size={18} strokeWidth={1.6} aria-hidden="true" />
-          <input value={q} onChange={(e) => setQ(e.target.value)}
-                 placeholder="Kunde, Aktenzeichen, Referenz oder Mitarbeiter"
-                 autoComplete="off" spellCheck={false} />
-          {q && <button type="button" className="ck-leeren" onClick={() => setQ("")} aria-label="Suche leeren"><X size={15} strokeWidth={2} /></button>}
+      {/* ── Sicht, Suche, Tabelle ────────────────────────────────────────── */}
+      <section className="cz-block">
+        <div className="czz-leiste">
+          <div className="cl-zeitraum" role="tablist" aria-label="Sicht">
+            {SICHTEN.map((s) => (
+              <button key={s.key} type="button" role="tab" aria-selected={sicht === s.key}
+                      className={`cl-zeitraum-knopf${sicht === s.key ? " an" : ""}`}
+                      onClick={() => { setSicht(s.key); setSeite(1); }}>{s.label}</button>
+            ))}
+          </div>
+          <div className="czz-suche">
+            <Search size={16} strokeWidth={1.7} aria-hidden="true" />
+            <input value={q} onChange={(e) => setQ(e.target.value)}
+                   placeholder="Kunde, Aktenzeichen oder Verwendungszweck …"
+                   autoComplete="off" spellCheck={false} aria-label="In den Zahlungen suchen" />
+            {q && <button type="button" onClick={() => setQ("")} aria-label="Suche leeren"><X size={14} strokeWidth={2} /></button>}
+          </div>
         </div>
-        <div className="cz-zeitraum">
-          <CalendarRange size={16} strokeWidth={1.7} aria-hidden="true" />
-          <input type="date" value={von} max={bis || heuteIso()}
-                 onChange={(e) => { setVon(e.target.value); setSeite(1); }} aria-label="von" />
-          <span>bis</span>
-          <input type="date" value={bis} min={von} max={heuteIso()}
-                 onChange={(e) => { setBis(e.target.value); setSeite(1); }} aria-label="bis" />
-          {(von || bis) && (
-            <button type="button" onClick={() => { setVon(""); setBis(""); setSeite(1); }}>
-              dieser Monat
+        <p className="cz-fuss" style={{ marginTop: 10 }}>{aktiv.satz}</p>
+
+        {fehler && <p className="cz-fehler" role="alert">{fehler}</p>}
+        {!fehler && (
+          <p className="cz-fuss" role="status" style={{ marginTop: 4 }}>
+            {laedt ? "Wird geladen …" : d && (
+              <>
+                <b>{d.gesamt.toLocaleString("de-DE")}</b> {d.gesamt === 1 ? "Eintrag" : "Einträge"}
+                {sicht === "eingegangen" && <> · zusammen <b>{eur(d.summeCents)}</b></>}
+                {sicht === "offen" && <> · davon überfällig <b>{eur(d.summeCents)}</b></>}
+                {sicht === "bankbuch" && d.summeCents > 0 && <> · unverbucht <b>{eur(d.summeCents)}</b></>}
+                {d.seiten > 1 && <> · Seite {d.seite} von {d.seiten}</>}
+              </>
+            )}
+          </p>
+        )}
+
+        <div className="czz-tab-huelle">
+          <table className="czz-tab">
+            <thead>
+              <tr>
+                <th>{sicht === "offen" ? "Fällig" : "Eingang"}</th>
+                <th>Kunde</th>
+                <th>{sicht === "bankbuch" ? "Wise-Kennung" : "Vorgang"}</th>
+                <th>{sicht === "bankbuch" ? "Stand" : "Verwendungszweck"}</th>
+                <th className="r">Betrag</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(d?.zeilen ?? []).map((z, i) => (
+                <tr key={i} className={z.ueberfaellig || z.unverbucht ? "warn" : ""}>
+                  <td className="leise">{sicht === "offen" ? tag(z.am) : wann(z.am)}
+                    {z.ueberfaellig && <em className="czz-marke rot">überfällig{z.mahnstufe ? ` · Mahnstufe ${z.mahnstufe}` : ""}</em>}
+                    {z.unverbucht && <em className="czz-marke gelb">unverbucht</em>}
+                  </td>
+                  <td>{z.personId
+                    ? <a href={`/chef/s/akte?id=${z.personId}`}>{z.kunde}</a>
+                    : z.kunde}</td>
+                  <td className="leise">{sicht === "bankbuch" ? (z.paket ?? "—") : `${z.art}${z.paket ? ` · ${String(z.paket).split("\n")[0]}` : ""}`}</td>
+                  <td className="leise">{z.zweck ?? "—"}</td>
+                  <td className="r"><b>{eur(z.cents)}</b></td>
+                </tr>
+              ))}
+              {!laedt && (d?.zeilen ?? []).length === 0 && (
+                <tr><td colSpan={5} className="leise" style={{ textAlign: "center", padding: "26px 0" }}>
+                  {suche ? "Kein Treffer für diese Suche." : "Hier liegt nichts."}
+                </td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {d && d.seiten > 1 && (
+          <nav className="czz-blaettern" aria-label="Seiten">
+            <button type="button" onClick={() => setSeite((s) => Math.max(1, s - 1))} disabled={seite <= 1}>
+              <ChevronLeft size={15} strokeWidth={1.9} /> Zurück
             </button>
-          )}
-          {!von && !bis && (
-            <button type="button" onClick={() => { setVon(monatsErster()); setBis(heuteIso()); setSeite(1); }}>
-              Zeitraum wählen
+            <span>Seite {seite} von {d.seiten}</span>
+            <button type="button" onClick={() => setSeite((s) => Math.min(d.seiten, s + 1))} disabled={seite >= d.seiten}>
+              Weiter <ChevronRight size={15} strokeWidth={1.9} />
             </button>
-          )}
-        </div>
-      </div>
+          </nav>
+        )}
 
-      {fehler && <Fehlermeldung text={fehler} />}
-      {laedt && <Geruest zeilen={10} />}
-
-      {!laedt && zeilen.length === 0 && !fehler && (
-        <p className="cw-hinweis">In diesem Zeitraum ist keine Zahlung eingegangen.</p>
-      )}
-
-      {/* ── Die Zeilen ───────────────────────────────────────────────────── */}
-      {!laedt && zeilen.length > 0 && (
-        <div className="cz-liste">
-          {zeilen.map((z) => {
-            const auf = offen === z.id;
-            return (
-              <div key={z.id} className={`cz-zeile${auf ? " auf" : ""}`}>
-                <button type="button" className="cz-kopfzeile"
-                        onClick={() => setOffen(auf ? null : z.id)} aria-expanded={auf}>
-                  <span className="cz-datum">
-                    <b>{datum(z.bezahlt_am)}</b>
-                    <em>{new Date(z.bezahlt_am).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}</em>
-                  </span>
-                  <span className="cz-kunde">
-                    <b>{z.kunde || "unbekannt"}</b>
-                    <em>{z.pack_name || "ohne Paket"}</em>
-                  </span>
-                  <span className="cz-rate">
-                    <b>Rate {z.rate_nr}</b>
-                    <em>von {z.raten_gesamt}</em>
-                  </span>
-                  <span className="cz-betrag">
-                    <b>{eur(Number(z.betrag_cents))}</b>
-                    <em>{wegName(z.quelle)}</em>
-                  </span>
-                  <span className="cz-agent">
-                    <b>{z.mitarbeiter || "kein Mitarbeiter"}</b>
-                    <em>
-                      {z.provision_cents != null
-                        ? <>{eur(Number(z.provision_cents))}{z.provision_bp ? ` · ${Number(z.provision_bp) / 100} %` : ""}</>
-                        : <span className="cz-warnung">keine Provision gebucht</span>}
-                    </em>
-                  </span>
-                  <ChevronDown className="cz-pfeil" size={18} strokeWidth={1.6} aria-hidden="true" />
-                </button>
-
-                {auf && (
-                  <dl className="cz-details">
-                    <div><dt>Aktenzeichen</dt><dd>{z.ref}</dd></div>
-                    <div><dt>Zahlungsreferenz</dt><dd>{z.zahlungsreferenz || "keine hinterlegt"}</dd></div>
-                    <div><dt>Fällig war</dt><dd>{datum(z.faellig_am)}</dd></div>
-                    <div><dt>Eingegangen</dt><dd>{datumZeit(z.bezahlt_am)}</dd></div>
-                    <div><dt>Zahlungsweg</dt><dd>{wegName(z.quelle)}</dd></div>
-                    <div><dt>Lastschrift</dt><dd>{z.lastschrift_status || "nicht per Lastschrift"}</dd></div>
-                    <div><dt>Rechnung erstellt</dt><dd>{z.rechnung_am ? datum(z.rechnung_am) : "keine Rechnung erzeugt"}</dd></div>
-                    <div><dt>Mahnstufe</dt><dd>{z.mahnstufe ? String(z.mahnstufe) : "keine"}</dd></div>
-                    <div><dt>Paket</dt><dd>{z.pack_name || "—"}{z.amount_due ? ` · Gesamtpreis ${eur(Number(z.amount_due))}` : ""}</dd></div>
-                    <div><dt>Bestellung gilt als</dt><dd>{z.payment_status === "paid" ? "bezahlt" : (z.payment_status || "offen")}</dd></div>
-                    <div><dt>Kunde</dt><dd>{z.primary_email || "keine E-Mail"}{z.primary_phone ? ` · ${z.primary_phone}` : ""}{z.city ? ` · ${z.city}` : ""}</dd></div>
-                    <div><dt>Zuständig</dt><dd>{z.mitarbeiter || "niemand"}{z.commission_rate_bp ? ` · Satz ${Number(z.commission_rate_bp) / 100} %` : ""}</dd></div>
-                    <div>
-                      <dt>Provision</dt>
-                      <dd>
-                        {z.provision_cents != null
-                          ? <>
-                              {eur(Number(z.provision_cents))}
-                              {z.provision_bp ? ` zu ${Number(z.provision_bp) / 100} %` : ""}
-                              {z.provision_genau === false && <span className="cz-warnung"> · über die Akte zugeordnet, nicht betragsgenau</span>}
-                            </>
-                          : <span className="cz-warnung">für diese Zahlung ist keine Provision gebucht</span>}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>Abgerechnet</dt>
-                      <dd>{z.abgerechnet === true ? "ja, in einer Auszahlung enthalten"
-                        : z.provision_cents != null ? "noch keiner Auszahlung zugeordnet" : "—"}</dd>
-                    </div>
-                    {z.notiz && <div className="breit"><dt>Notiz</dt><dd>{z.notiz}</dd></div>}
-                    <div className="breit cz-wege">
-                      {z.person_id && <a className="cw-knopf klein" href={`/chef/s/akte?id=${z.person_id}`}>Akte öffnen <ExternalLink size={13} strokeWidth={1.7} /></a>}
-                      <a className="cw-knopf klein" href="/chef/s/zahlungen-verwalten">Zahlungsverwaltung</a>
-                      <a className="cw-knopf klein" href="/chef/s/rechnungen">Rechnungen</a>
-                    </div>
-                  </dl>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {d && d.seiten > 1 && (
-        <nav className="ck-blaettern" aria-label="Seiten">
-          <button type="button" onClick={() => setSeite((s) => Math.max(1, s - 1))} disabled={seite <= 1}>
-            <ChevronLeft size={16} strokeWidth={1.8} /> Zurück
-          </button>
-          <span>Seite {zahl(seite)} von {zahl(d.seiten)}</span>
-          <button type="button" onClick={() => setSeite((s) => Math.min(d.seiten, s + 1))} disabled={seite >= d.seiten}>
-            Weiter <ChevronRight size={16} strokeWidth={1.8} />
-          </button>
-        </nav>
-      )}
+        <p className="cz-fuss" style={{ marginTop: 14 }}>
+          Gebucht wird in der <a href="/chef/s/zahlungen-verwalten" style={{ color: "#93c5fd" }}>Zahlungsverwaltung <ExternalLink size={11} style={{ display: "inline" }} /></a> —
+          hier ist der Prüfblick, dort der Stift. Jede Kundenzeile führt in die eine zentrale Akte.
+        </p>
+      </section>
     </div>
   );
 }

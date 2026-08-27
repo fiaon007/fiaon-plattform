@@ -149,7 +149,7 @@ export default function ChefZahlen() {
       <section className="cz-block">
         <header>
           <h2>Der Abo-Motor</h2>
-          <p>Jedes Paket ist ein 12-Monats-Abo: Eine Kundin für {eur(5999)} ist kein {eur(5999)}-Geschäft, sondern ein {eur(71988)}-Vertrag.</p>
+          <p>Jedes Paket ist ein 12-Monats-Abo: Eine Kundin für {eur(5999, 2)} im Monat ist kein {eur(5999, 2)}-Geschäft, sondern ein {eur(71988, 2)}-Vertrag.</p>
         </header>
         <div className="cz-vertrag">
           <div className="cz-vertrag-zahlen">

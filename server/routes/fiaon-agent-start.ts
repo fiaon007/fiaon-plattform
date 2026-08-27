@@ -99,6 +99,11 @@ export const KARTE_SQL = `
   (SELECT a.pack_name FROM fiaon_applications a
     WHERE a.person_id = p.id AND a.merged_into IS NULL
     ORDER BY a.created_at DESC LIMIT 1) AS pack_name,
+  -- Die Hand-Sperre (27.08.2026): seit dem Umbau des Zugangstors die EINZIGE
+  -- Sperre. Die Karte zeigt sie und traegt den Sperren/Freischalten-Knopf.
+  EXISTS (SELECT 1 FROM fiaon_applications a
+    WHERE a.person_id = p.id AND a.merged_into IS NULL
+      AND a.account_status = 'suspended') AS konto_gesperrt,
   -- ══════════════════════════════════════════════════════════════════════════
   -- ALLE BUCHUNGEN, NICHT NUR DIE NEUESTE
   --
@@ -270,6 +275,8 @@ export function karte(p: any) {
     titel: h.titel,
     hinweis: h.hinweis,
     produkt: p.pack_name ? String(p.pack_name).split("\n")[0].trim() : null,
+    // Die Hand-Sperre (27.08.2026) — Grundlage fuer den Knopf in der Akte.
+    kontoGesperrt: p.konto_gesperrt === true,
     // ── ALLE BUCHUNGEN ────────────────────────────────────────────────────
     // Damit der Agent sieht, was gebucht wurde, was bezahlt ist und was offen
     // — auch wenn es zwei Vorgänge sind (Paket + Bonitätsauskunft).

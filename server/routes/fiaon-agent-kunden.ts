@@ -2328,3 +2328,60 @@ router.get("/agent/crm/kunden/:personId/gespraech", requireAgent, async (req: Ag
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// KONTO SPERREN / FREISCHALTEN — die eine Hand-Sperre (27.08.2026)
+//
+// Entscheidung des Inhabers: „Entsperre JEDEN Kunden — der Mitarbeiter soll
+// wählen: SPERREN / FREISCHALTEN." Seither sperrt der Zahlungsstatus den
+// Login nicht mehr; account_status='suspended' ist die EINZIGE Sperre, und
+// sie wird hier gesetzt und gelöst — von einem Menschen, mit Grund, mit
+// Eintrag im Verlauf. Ein gesperrtes Konto ohne Warum wäre in vier Wochen
+// ein Rätsel (dieselbe Doktrin wie bei vollFreischalten).
+//
+// Die Sperre wirkt auf ALLE Bestellungen der Person — sonst loggt sich der
+// Kunde über die Schwester-Bestellung trotzdem ein (Login prüft die Familie).
+// ═══════════════════════════════════════════════════════════════════════════
+router.post("/agent/crm/kunden/:personId/konto-sperre", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const personId = Number(req.params.personId);
+    const sperren = req.body?.sperren === true;
+    const grund = String(req.body?.grund ?? "").trim().slice(0, 300);
+    if (sperren && !grund) {
+      return res.status(400).json({ ok: false, error: "Bitte kurz begründen, warum das Konto gesperrt wird — der Grund steht dann im Verlauf." });
+    }
+    const p = await meinePerson(personId, req.agent!.id);
+    if (!p) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+
+    const refs = (await sqlPool`
+      UPDATE fiaon_applications
+         SET account_status = ${sperren ? "suspended" : "active"}, updated_at = NOW()
+       WHERE person_id = ${personId} AND merged_into IS NULL AND gdpr_deleted_at IS NULL
+         AND account_status IS DISTINCT FROM ${sperren ? "suspended" : "active"}
+       RETURNING ref
+    `) as any[];
+
+    const schreibRef = refs[0]?.ref ?? (await sorgeFuerAkte(personId, req.agent!.id).catch(() => null));
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
+      VALUES (${schreibRef}, ${personId}, ${req.agent!.id}, ${req.agent!.name}, 'system',
+              ${sperren
+                ? `Konto GESPERRT (${refs.length} Bestellung${refs.length === 1 ? "" : "en"}). Grund: ${grund}. Der Kunde kann sich nicht mehr anmelden, bis jemand freischaltet.`
+                : `Konto FREIGESCHALTET (${refs.length} Bestellung${refs.length === 1 ? "" : "en"})${grund ? ` — ${grund}` : ""}. Der Kunde kann sich wieder anmelden.`})
+    `.catch(() => {});
+
+    res.json({
+      ok: true,
+      gesperrt: sperren,
+      geaendert: refs.length,
+      hinweis: sperren
+        ? "Konto gesperrt — der Kunde wird beim Anmelden an den Support verwiesen."
+        : refs.length > 0
+          ? "Konto freigeschaltet — der Kunde kann sich wieder anmelden."
+          : "Das Konto war nicht gesperrt — nichts zu ändern.",
+    });
+  } catch (err) {
+    console.error("[CRM] konto-sperre:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+

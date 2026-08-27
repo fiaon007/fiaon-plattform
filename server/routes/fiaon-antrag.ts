@@ -4585,28 +4585,30 @@ router.post("/reset-password-direct", async (req, res) => {
     //
     // Das Passwort wird trotzdem gesetzt — es ist sein Konto, und er wird
     // es brauchen. Aber er erfährt SOFORT, woran er ist, statt gegen eine
-    // Tür zu laufen. Am Zugangstor selbst ändert sich nichts.
+    // Tür zu laufen. (Nachtrag 27.08. abends: Das Zahlungs-Tor selbst ist
+    // seither weg — abgewiesen wird nur noch die Hand-Sperre, s. u.)
     // ══════════════════════════════════════════════════════════════════════
+    // ── SEIT 27.08.2026 SPERRT NUR NOCH DIE HAND-SPERRE ───────────────────
+    // Vorher wies dieser Weg nach dem Zahlungsstatus ab (16 von 81 Resets
+    // endeten so — „Passwort gesetzt, aber Zahlung offen"). Entscheidung des
+    // Inhabers: Wer sein Passwort setzt, kommt hinein; die einzige Ausnahme
+    // ist account_status='suspended' (vom Mitarbeiter gesetzt, mit Grund).
     const [konto] = (await sqlPool`
-      SELECT status, payment_status, payment_reference
+      SELECT status, payment_status, payment_reference, account_status
         FROM fiaon_applications WHERE ref = ${ref} LIMIT 1`) as any[];
-    const offen = !!konto
-      && (LOGIN_ACCESS_STATUSES.has(String(konto.status)) || konto.payment_status === "paid");
+    const gesperrt = konto?.account_status === "suspended";
 
-    if (offen) return res.json({ ok: true, zugangOffen: true });
+    if (!gesperrt) return res.json({ ok: true, zugangOffen: true });
 
-    const referenz = konto?.payment_reference || null;
     return res.json({
       ok: true,
       zugangOffen: false,
       // Bewusst dieselben Worte wie am Zugangstor — zwei Formulierungen für
       // dieselbe Lage sind der Anfang jeder Verwirrung.
-      hinweis: "Dein Passwort ist gesetzt. Dein Zugang öffnet sich, sobald deine Zahlung bei uns eingegangen ist.",
-      erklaerung: referenz
-        ? `Überweisungen brauchen ein bis zwei Bankarbeitstage. Wenn du schon überwiesen hast, schick uns den Beleg mit der Referenz ${referenz} — dann schalten wir dich sofort frei.`
-        : "Überweisungen brauchen ein bis zwei Bankarbeitstage. Wenn du schon überwiesen hast, schick uns den Beleg — dann schalten wir dich sofort frei.",
-      referenz,
-      weiter: referenz ? { text: "Zahlungsinformationen ansehen", href: `/zahlung/${referenz}` } : null,
+      hinweis: "Dein Passwort ist gesetzt, aber dein Konto ist derzeit gesperrt.",
+      erklaerung: "Bitte kontaktiere den Support — wir klären das mit dir persönlich.",
+      referenz: konto?.payment_reference || null,
+      weiter: null,
     });
   } catch (err) {
     const incident = randomBytes(4).toString("hex").toUpperCase();
@@ -4683,7 +4685,6 @@ router.get("/admin/login-lockouts", async (_req, res) => {
       // Was der ALTE Login gelesen hätte: die schlicht neueste Zeile.
       const newest = family[0];
       const oldWouldFail = storedPasswordOf(newest) === null;
-      const hasAccess = LOGIN_ACCESS_STATUSES.has(account.status) || account.payment_status === "paid";
       const suspended = account.account_status === "suspended";
 
       let reason: string | null = null;
@@ -4691,9 +4692,9 @@ router.get("/admin/login-lockouts", async (_req, res) => {
       if (!familyHasPassword) {
         reason = "kein Passwort hinterlegt — Kunde muss es über „Passwort vergessen\" neu setzen";
       } else if (suspended) {
-        reason = "Konto gesperrt (account_status='suspended') — Entscheidung des Vorgesetzten";
-      } else if (!hasAccess) {
-        reason = `Zugang am Konto nicht frei (status='${account.status ?? "-"}', Zahlung='${account.payment_status ?? "-"}') — bezahlt wurde eine andere Zeile`;
+        reason = "Konto gesperrt (Sperr-Knopf in der Akte) — Entscheidung eines Mitarbeiters";
+      // Seit 27.08.2026 sperrt der Zahlungsstatus den Zugang nicht mehr —
+      // der frühere Zweig „Zugang am Konto nicht frei" entfällt deshalb.
       } else if (oldWouldFail) {
         reason = accountHasPassword
           ? "war ausgesperrt: Login las die neueste Zeile (Bonitäts-Bestellung/Dublette) statt des Kontos — jetzt behoben"

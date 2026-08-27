@@ -24,16 +24,21 @@ import { passwortPasst } from "./lib/fiaon-kunde-session";
  * JEDER Zeile liegen; über Zugang und Status entscheidet die Zeile, die wirklich
  * das Konto ist.
  *
- * DAS ZUGANGS-GATE IST UNVERÄNDERT (LOGIN_ACCESS_STATUSES bzw.
- * payment_status='paid'). Es wird keine Zahlungsprüfung umgangen.
+ * DAS ZUGANGS-GATE (neu am 27.08.2026, Entscheidung des Inhabers):
+ * „Entsperre JEDEN Kunden — der Mitarbeiter soll wählen: SPERREN /
+ * FREISCHALTEN." Wer ein gültiges Passwort hat, sieht sein eigenes Konto;
+ * die EINZIGE Sperre ist account_status='suspended' — gesetzt und gelöst
+ * von einem Menschen, mit Grund im Verlauf. Der Zahlungsstatus sperrt NICHT
+ * mehr (GEMESSEN: 86 Abweisungen „Zahlung offen" in 30 Tagen, oft bei
+ * Kunden, deren Überweisung nur noch nicht verbucht war). Was der Kunde
+ * DRINNEN sieht, regelt weiterhin die Stufe — ein Unbezahlter sieht seinen
+ * Zahlungsstand samt Verwendungszweck, keine Inhalte.
  */
 
-// ── Paket Y: Login-Freischaltung ─────────────────────────────────────────────
-// Der Kunden-Login erlaubt Zugang, sobald der Antrag ABGESCHLOSSEN ist ODER die
-// Bestellung bezahlt wurde. Die frühere EXAKT-Prüfung `status === 'completed'`
-// war fehleranfällig: `mark-paid` setzt status='payment_completed' und der
-// KYC-Upload setzt 'documents_submitted' — beide sperrten den Login aus.
-// account_status='suspended' bleibt eine harte Sperre (Admin-Not-Aus).
+// ── Die früheren Zugangs-Status ──────────────────────────────────────────────
+// Seit dem 27.08.2026 sperrt das TOR nicht mehr nach diesen Status (siehe
+// Kopfkommentar). Die Liste lebt weiter für das Scoring in pickAccountRow
+// (welche Zeile einer Familie ist „das Konto") und für die Diagnose-Listen.
 export const LOGIN_ACCESS_STATUSES = new Set(["completed", "documents_submitted", "payment_completed"]);
 
 /** Fehlerkatalog des Logins — jeder Fall hat einen eigenen, nachverfolgbaren Code. */
@@ -199,27 +204,14 @@ export function decideLogin(family: any[], password: string): LoginVerdict {
   // konkret werden, ohne Sicherheitsrisiko.
   const account = pickAccountRow(rows, matched) ?? matched;
 
-  // Zugangs-Gate (Paket Y) — UNVERÄNDERT, nur auf die richtige Zeile angewandt.
-  const hasAccess = LOGIN_ACCESS_STATUSES.has(account.status) || account.payment_status === "paid";
-  if (!hasAccess) {
-    const reference = account.payment_reference || null;
-    return {
-      granted: false,
-      status: 403,
-      code: LOGIN_CODES.PAYMENT_PENDING,
-      reason: `Zahlung offen (${account.payment_status ?? "-"})`,
-      ref: account.ref,
-      error: "Deine Zahlung ist bei uns noch nicht eingegangen. Sobald sie bestätigt ist, wird dein Zugang automatisch frei.",
-      hint: reference
-        ? `Schon überwiesen? Überweisungen brauchen 1–2 Bankarbeitstage. Schicke uns deinen Zahlungsbeleg mit der Referenz ${reference} — dann schalten wir dich sofort frei.`
-        : "Schon überwiesen? Überweisungen brauchen 1–2 Bankarbeitstage. Schicke uns deinen Zahlungsbeleg — dann schalten wir dich sofort frei.",
-      reference,
-      action: reference ? "Zahlungsinformationen ansehen" : undefined,
-      actionHref: reference ? `/zahlung/${reference}` : undefined,
-    };
-  }
+  // ── HIER STAND DAS ZAHLUNGS-TOR (entfernt am 27.08.2026) ────────────────
+  // Es wies mit „Deine Zahlung ist noch nicht eingegangen" ab (AUTH-03) —
+  // 86-mal in 30 Tagen, darunter Kunden, deren Überweisung nur noch nicht im
+  // Bankbuch verbucht war. Entscheidung des Inhabers: Wer sein Passwort
+  // kennt, sieht sein eigenes Konto — dort steht sein Zahlungsstand samt
+  // Verwendungszweck. Gesperrt wird nur noch von Hand:
 
-  // account_status='suspended' bleibt eine harte Sperre (Admin-Not-Aus).
+  // account_status='suspended' — die EINE Sperre, gesetzt vom Mitarbeiter.
   if (account.account_status === "suspended") {
     return {
       granted: false,

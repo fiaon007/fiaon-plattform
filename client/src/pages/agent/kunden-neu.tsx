@@ -814,6 +814,8 @@ function KundenKarte({
     : false;
   /** Die Gesprächsübersicht (Team-Punkt 19) — geladen erst beim Klick. */
   const [gespraech, setGespraech] = useState<any | null>(null);
+  /** Die Hand-Sperre (27.08.2026) — Startwert aus der Karte, Knopf hält ihn aktuell. */
+  const [kontoGesperrt, setKontoGesperrt] = useState<boolean>((k as any).kontoGesperrt === true);
   /** Rückmeldung für den Terminlink-Knopf — getrennt vom Zahlungsdaten-Knopf. */
   const [linkKopiert, setLinkKopiert] = useState(false);
 
@@ -1485,6 +1487,44 @@ function KundenKarte({
                         className="fi-zweitknopf inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold"
                         title="Bonitätsauskunft (74 €) auf Kundenwunsch bestellen — der Kunde muss danach nur noch überweisen.">
                   {laeuft === "bonitaet" ? "Wird bestellt …" : "Bonitätsauskunft bestellen"}
+                </button>
+                {/* ── KONTO SPERREN / FREISCHALTEN (27.08.2026) ────────────────
+                    Entscheidung des Inhabers: Der Zahlungsstatus sperrt den
+                    Login nicht mehr — DIESER Knopf ist die einzige Sperre.
+                    Sperren verlangt einen Grund (steht dann im Verlauf);
+                    Freischalten öffnet sofort wieder. Wirkt auf alle
+                    Bestellungen des Kunden, sonst käme er über die
+                    Schwester-Bestellung trotzdem hinein. */}
+                <button type="button" disabled={laeuft === "sperre"}
+                        onClick={() => {
+                          const sperren = !kontoGesperrt;
+                          let grund: string | null = "";
+                          if (sperren) {
+                            grund = window.prompt(`${k.name} wirklich sperren?\nBitte kurz den Grund nennen — er steht danach im Verlauf:`);
+                            if (grund === null) return;
+                            if (!grund.trim()) { zeige("fehler", "Nicht gesperrt", "Ohne Grund wird nicht gesperrt."); return; }
+                          }
+                          void (async () => {
+                            setLaeuft("sperre");
+                            const r = await api(`/agent/crm/kunden/${k.personId}/konto-sperre`, {
+                              method: "POST",
+                              body: JSON.stringify({ sperren, grund: grund?.trim() || undefined }),
+                            });
+                            setLaeuft(null);
+                            if (r.ok) {
+                              setKontoGesperrt(r.json?.gesperrt === true);
+                              zeige(r.json?.gesperrt ? "info" : "erfolg",
+                                r.json?.gesperrt ? "Konto gesperrt" : "Konto freigeschaltet",
+                                r.json?.hinweis || k.name);
+                            } else zeige("fehler", "Nicht geändert", r.json?.error || "Bitte erneut versuchen.");
+                          })();
+                        }}
+                        className="fi-zweitknopf inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold"
+                        style={kontoGesperrt ? { borderColor: "#059669", color: "#059669" } : { borderColor: "rgba(225,29,72,.55)", color: "#e11d48" }}
+                        title={kontoGesperrt
+                          ? "Das Konto ist gesperrt — freischalten, damit der Kunde sich wieder anmelden kann."
+                          : "Kunden-Login sperren (mit Grund). Die einzige Sperre — der Zahlungsstatus sperrt nicht mehr."}>
+                  {laeuft === "sperre" ? "Wird geändert …" : kontoGesperrt ? "Konto freischalten" : "Konto sperren"}
                 </button>
               </div>
             )}

@@ -88,7 +88,6 @@ export default function RatgeberArtikel() {
   if (fehler) {
     return (
       <Dunkel seite="ratgeber" titel="Ratgeber" beschreibung="FIAON Ratgeber">
-      <LeseAufruf />
         <section className="dk-hero"><div className="dk-rahmen"><span className="dk-pille">Ratgeber</span><h1 className="dk-h1">Diesen Text gibt es nicht.</h1><p className="dk-lead">{fehler}</p><div className="dk-knoepfe"><Knopf href="/ratgeber">Alle Ratgeber</Knopf></div></div></section>
       </Dunkel>
     );
@@ -97,6 +96,10 @@ export default function RatgeberArtikel() {
 
   return (
     <Dunkel seite="ratgeber" titel={a.metaTitel || a.titel} beschreibung={a.metaBeschreibung || a.teaser}>
+      {/* Nach 80 Sekunden Lesezeit ein Angebot — nur auf einem ECHTEN Artikel,
+          nicht auf der Fehlerseite. Genau dort war er beim ersten Einbau
+          gelandet und deshalb nie zu sehen. */}
+      <LeseAufruf />
       <div className="rg-fortschritt" aria-hidden="true"><i style={{ width: `${fortschritt * 100}%` }} /></div>
       <section className="dk-hero rg-artikel-hero">
         <div className="dk-hero-bild" aria-hidden="true"><img src="/kino/akten.jpg" alt="" decoding="async" /><div className="schleier" /></div>

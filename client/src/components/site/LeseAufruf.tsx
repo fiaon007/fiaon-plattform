@@ -62,6 +62,19 @@ export default function LeseAufruf() {
 
   // ── Die Uhr: sie läuft nur, solange gelesen wird ────────────────────────
   useEffect(() => {
+    // VORSCHAU: `?aufruf=jetzt` an der Adresse zeigt ihn sofort — zum Ansehen,
+    // ohne 80 Sekunden zu warten. Er merkt sich dabei NICHTS: kein Eintrag in
+    // den Speicher, keine Sperre für 30 Tage. Ein normaler Besucher kommt nie
+    // mit diesem Anhängsel auf die Seite; wer ihn absichtlich anhängt, hat
+    // sich den Blick verdient.
+    try {
+      if (new URLSearchParams(window.location.search).get("aufruf") === "jetzt") {
+        vorher.current = document.activeElement as HTMLElement | null;
+        setOffen(true);
+        return;
+      }
+    } catch { /* egal */ }
+
     if (!darfErscheinen()) return;
     let letzterTick = Date.now();
     const uhr = window.setInterval(() => {
@@ -104,7 +117,11 @@ export default function LeseAufruf() {
   }, [offen]);
 
   const schliessen = () => {
-    try { localStorage.setItem(SCHLUESSEL, String(Date.now())); } catch { /* egal */ }
+    const vorschau = (() => {
+      try { return new URLSearchParams(window.location.search).get("aufruf") === "jetzt"; }
+      catch { return false; }
+    })();
+    if (!vorschau) { try { localStorage.setItem(SCHLUESSEL, String(Date.now())); } catch { /* egal */ } }
     setGehtZu(true);
     window.setTimeout(() => { setOffen(false); setGehtZu(false); vorher.current?.focus?.(); }, 260);
   };

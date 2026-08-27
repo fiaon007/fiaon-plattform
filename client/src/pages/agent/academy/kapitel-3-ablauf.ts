@@ -30,7 +30,7 @@ export const KAPITEL_3: KapitelInhalt = {
         { tag: "Jeden Monat", titel: "Die Rate", wer: "System", text: "Am Monatstag der ersten Zahlung entsteht die nächste Rate – ab Rate 2 per SEPA-Lastschrift (GoCardless) oder Überweisung. In der Akte steht, was dafür passiert ist.", system: "Abo-Motor: `rate_faellig` Tag −3, Erinnerungen Tag 0/3/7, Lastschrift-Wiederholung." },
         { tag: "Tag 14 offen", titel: "Dein Anruf", wer: "Du", text: "Die bekannte Stimme ruft an: Grund erfahren, Lage einordnen, Zahlungsvereinbarung treffen. Kein Druck, keine Drohung.", system: "Collections zeigt dir, wer dran ist. Ergebnis klicken: zahlt am, Ratenplan, nicht erreicht." },
         { tag: "Tag 30 offen", titel: "Back-Office", wer: "Diana", text: "Letzte Mahnung, Sperre des Bereichs, Übergabe an externes Inkasso, Titel – würdevoll, nach Regeln.", system: "`rate_mahnung` Tag 14/21, `account_suspended`. Nach Zahlung: `payment_reactivated`." },
-        { tag: "Monatsende", titel: "Deine Provision", wer: "Wallet", text: "25 % jeder bankbestätigten Rate deiner Kunden, plus Boni. Auszahlung monatlich. Kein Deckel.", system: "fiaon_commissions, Art „rate“. Provisionsabrechnung per Mail; Summen = Wallet." },
+        { tag: "Alle zwei Wochen", titel: "Deine Provision", wer: "Wallet", text: "25 % jeder bankbestätigten Rate deiner Kunden, plus Boni. Auszahlung alle zwei Wochen. Kein Deckel.", system: "fiaon_commissions, Art „rate“. Provisionsabrechnung per Mail; Summen = Wallet." },
         { tag: "Monat 12", titel: "Die Verlängerung", wer: "Kunde", text: "FIAON fragt, ob er bleibt. Die Kurve beantwortet das. Bleibt er, läuft deine Provision weiter.", system: "Abo-Zyklus, Erinnerung vor der zwölften Rate." },
       ] },
     },
@@ -110,7 +110,7 @@ export const KAPITEL_3: KapitelInhalt = {
         ),
         ul(
           "Boni: 250 € je Quartal bei ≥ 85 % pünktlichen Raten im eigenen Stamm · 500 € bei 50 aktiven Kunden · 1.000 € bei 100 aktiven Kunden (einmalig je Schwelle).",
-          "Auszahlung monatlich, nur auf bankbestätigte Eingänge. Das Wallet zeigt den Stand in Echtzeit; die Provisionsabrechnung kommt per Mail, Summen = Wallet.",
+          "Auszahlung alle zwei Wochen, nur auf bankbestätigte Eingänge. Das Wallet zeigt den Stand in Echtzeit; die Provisionsabrechnung kommt per Mail, Summen = Wallet.",
           "Zertifizierte Bonitätsmanager (diese Academy bestanden): 30 statt 25 Prozent (Basis + 5 Prozentpunkte).",
           "Kein Deckel: Dein Stamm darf beliebig groß werden. Wächst er über das, was du allein betreuen kannst, bekommst du Unterstützung – keine Abzüge.",
           "Das Back-Office (Forderungen & Zahlungen) hat keinen Provisionsanteil – ein eigenes Vergütungsmodell folgt.",

@@ -293,6 +293,12 @@ export const LAUF_FOLGEN: Record<string, { zweck: string; folge: string; fenster
     // zweiten Tag kurz auf Gelb, ohne dass etwas fehlt.
     fenster: 30,
   },
+  "betreuer-kopie-angleich": {
+    zweck: "Betreuer-Kopie am Antrag stuendlich an die Person angleichen (eine Wahrheit)",
+    folge: "Management und Telefon nennen wieder verschiedene Betreuer — Kunden werden "
+      + "faelschlich als frei oder als vergeben behandelt.",
+    fenster: 3,
+  },
   "abo-motor": {
     zweck: "Raten anlegen, Rechnungen stellen, überfällig stellen, Inkasso zuteilen",
     folge: "Kunden bekommen keine Abo-Rechnung — es fehlt Geld, das niemand anmahnt.",

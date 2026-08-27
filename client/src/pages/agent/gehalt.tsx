@@ -112,7 +112,7 @@ function GehaltInnen() {
         </section>
 
         <section className="gh-regeln">
-          <div><b>Ausgezahlt wird, was angekommen ist.</b><p>Provision entsteht nur auf bankbestätigte Eingänge – die erste Zahlung eines Kunden ist immer eine direkte Überweisung. Den Stand siehst du jederzeit im Wallet. Auszahlung monatlich.</p></div>
+          <div><b>Ausgezahlt wird, was angekommen ist.</b><p>Provision entsteht nur auf bankbestätigte Eingänge – die erste Zahlung eines Kunden ist immer eine direkte Überweisung. Den Stand siehst du jederzeit im Wallet. Auszahlung alle zwei Wochen.</p></div>
           <div><b>Dein Kunde bleibt dein Kunde.</b><p>Vom ersten Gespräch bis zur zwölften Rate – und in der Verlängerung. Wer gut betreut, verdient länger.</p></div>
           <div><b>Kein Deckel.</b><p>Deine Kunden bleiben deine Kunden – egal wie viele. Wächst dein Stamm über das, was du allein betreuen kannst, bekommst du Unterstützung, keine Abzüge.</p></div>
         </section>

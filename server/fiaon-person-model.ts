@@ -777,6 +777,12 @@ async function agentPruefen(personId: number, agentId: number | null): Promise<b
     await sqlPool`
       UPDATE fiaon_persons SET assigned_agent_id = ${agentId}, updated_at = NOW() WHERE id = ${personId}
     `;
+    // Kopie am Antrag nachziehen (Migration 059) — sonst zeigen Listen, die
+    // den Antrag lesen, weiter „niemand betreut" (Team-Punkt 7, 27.08.2026).
+    await sqlPool`
+      UPDATE fiaon_applications SET assigned_agent_id = ${agentId}, updated_at = NOW()
+      WHERE person_id = ${personId} AND merged_into IS NULL AND assigned_agent_id IS NULL
+    `.catch(() => {});
     return Boolean(p.agent_conflict);
   }
   if (Number(p.assigned_agent_id) === agentId) return Boolean(p.agent_conflict);

@@ -114,6 +114,10 @@ const ZUSATZ: Partial<Record<MakeEventType, EventZusatz>> = {
     gruppe: "termin", zielgruppe: "kunde", rollen: ["admin"],
     klartext: "Bestätigung nach einer Buchung, mit Storno-Link.",
   },
+  termin_absage: {
+    gruppe: "termin", zielgruppe: "kunde", rollen: ["admin"],
+    klartext: "Absage durch den Mitarbeiter — der Kunde erfaehrt es sofort, mit Link auf eine neue Zeit.",
+  },
   termin_erinnerung: {
     gruppe: "termin", zielgruppe: "kunde", rollen: ["admin"],
     klartext: "24 Stunden vor dem Gespräch.",

@@ -812,6 +812,8 @@ function KundenKarte({
   const terminHeute = termin
     ? new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(termin) === heuteBerlin
     : false;
+  /** Die Gesprächsübersicht (Team-Punkt 19) — geladen erst beim Klick. */
+  const [gespraech, setGespraech] = useState<any | null>(null);
   /** Rückmeldung für den Terminlink-Knopf — getrennt vom Zahlungsdaten-Knopf. */
   const [linkKopiert, setLinkKopiert] = useState(false);
 
@@ -1391,6 +1393,98 @@ function KundenKarte({
                         style={linkKopiert ? { borderColor: "#059669", color: "#059669" } : undefined}
                         title="Persönlichen Buchungslink kopieren — fertig zum Einfügen in WhatsApp">
                   {linkKopiert ? "Kopiert" : "Terminlink per WhatsApp senden"}
+                </button>
+                {/* ── GESPRÄCHSÜBERSICHT (27.08.2026, Team-Punkt 19) ─────────
+                    Alles fuer das Gespraech auf einen Blick, aus denselben
+                    Quellen wie die Einzelansichten: Stufe, Zahlungen,
+                    Dokumente, Karte, naechster Termin, letzte Eintraege.
+                    Laedt erst beim Klick — die Liste bleibt schnell. */}
+                <button type="button" disabled={laeuft === "gespraech"}
+                        onClick={() => {
+                          if (gespraech) { setGespraech(null); return; }
+                          void (async () => {
+                            setLaeuft("gespraech");
+                            const r = await api(`/agent/crm/kunden/${k.personId}/gespraech`);
+                            setLaeuft(null);
+                            if (r.ok) setGespraech(r.json);
+                            else zeige("fehler", "Übersicht nicht geladen", r.json?.error || "Bitte erneut versuchen.");
+                          })();
+                        }}
+                        className="fi-zweitknopf inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold"
+                        title="Alles für das Gespräch auf einen Blick: Stand, Zahlungen, Dokumente, Termine, letzte Einträge.">
+                  {laeuft === "gespraech" ? "Lädt …" : gespraech ? "Übersicht schließen" : "Gesprächsübersicht"}
+                </button>
+                {gespraech && (
+                  <div className="w-full mt-2 rounded-xl border border-slate-200/60 dark:border-white/10 p-3 text-[12.5px] leading-relaxed space-y-1.5">
+                    {gespraech.stufe && (
+                      <p><b>Stand:</b> {gespraech.stufe.stufe === "voll_aktiv" ? "Voll freigeschaltet — Startgespräch erledigt." : "Wartet auf das Startgespräch."}{gespraech.stufe.naechsterSchritt ? ` Nächster Schritt: ${gespraech.stufe.naechsterSchritt}` : ""}</p>
+                    )}
+                    {gespraech.karte && (
+                      <p><b>Karte:</b> {gespraech.karte.verschickt ? "beantragt — liegt beim Kartenpartner." : gespraech.karte.bereit ? "bereit zur Bestellung." : `noch offen: ${gespraech.karte.esFehlt || "wenige Schritte"}.`}</p>
+                    )}
+                    {Array.isArray(gespraech.zahlungen) && gespraech.zahlungen.length > 0 && (
+                      <p><b>Zahlungen:</b> {gespraech.zahlungen.map((z: any) => z.text || z.satz || z.label).filter(Boolean).slice(0, 3).join(" · ") || "—"}</p>
+                    )}
+                    {gespraech.dokumente && (
+                      <p><b>Unterlagen:</b> {Array.isArray(gespraech.dokumente.fehlend) && gespraech.dokumente.fehlend.length > 0
+                        ? `es fehlt: ${gespraech.dokumente.fehlend.map((f: any) => f.label || f.art).join(", ")}`
+                        : gespraech.dokumente.stand || "vollständig"}</p>
+                    )}
+                    <p><b>Nächster Termin:</b> {gespraech.naechsterTermin
+                      ? `${new Date(gespraech.naechsterTermin.beginn).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })} Uhr`
+                      : "keiner gebucht"}</p>
+                    {Array.isArray(gespraech.verlauf) && gespraech.verlauf.length > 0 && (
+                      <div>
+                        <b>Zuletzt:</b>
+                        {gespraech.verlauf.slice(0, 3).map((v: any, i: number) => (
+                          <p key={i} className="opacity-80">· {new Date(v.am).toLocaleDateString("de-DE")} {v.wer ? `(${v.wer})` : ""}: {v.note}</p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {/* ── STARTGESPRÄCH OHNE TERMIN FESTHALTEN (27.08.2026, P.8/17) ──
+                    373 bezahlte Kunden standen auf „wartet", kein einziger mit
+                    erledigtem Termin: Die Gespräche liefen am Telefon, ohne
+                    gebuchten Slot — das System erfuhr es nie, und der Kunde
+                    landete nach dem Gespräch wieder vor der Buchungs-Tafel.
+                    Dieser Knopf hält das Gespräch fest und schaltet frei; war
+                    das Konto schon offen, sagt der Server das harmlos. */}
+                <button type="button" disabled={laeuft === "sg_gefuehrt"}
+                        onClick={() => {
+                          void (async () => {
+                            setLaeuft("sg_gefuehrt");
+                            const r = await api(`/agent/onboarding/person/${k.personId}/gefuehrt`, { method: "POST" });
+                            setLaeuft(null);
+                            if (r.ok) zeige("erfolg", r.json?.hinweis || "Startgespräch festgehalten", k.name);
+                            else zeige("fehler", "Nicht festgehalten", r.json?.error || "Bitte erneut versuchen.");
+                          })();
+                        }}
+                        className="fi-zweitknopf inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold"
+                        title="Das Startgespräch lief gerade am Telefon — festhalten und das Konto voll freischalten. Der Kunde sieht die Buchungs-Tafel danach nicht mehr.">
+                  {laeuft === "sg_gefuehrt" ? "Wird festgehalten …" : "Startgespräch geführt ✓"}
+                </button>
+                {/* ── BONITÄTSAUSKUNFT AUS DER AKTE (27.08.2026, P.5) ──────────
+                    „Der Kunde will die Auskunft — aber ich kann sie nicht für
+                    ihn beantragen, er muss selbst auf die Plattform." Jetzt legt
+                    der Klick die Bestellung an (74 €, Verwendungszweck kommt vom
+                    System); danach Zahlungsdaten senden oder am Telefon
+                    durchgeben. Eine bestehende Bestellung wird wiederverwendet. */}
+                <button type="button" disabled={laeuft === "bonitaet"}
+                        onClick={() => {
+                          void (async () => {
+                            setLaeuft("bonitaet");
+                            const r = await api(`/agent/crm/kunden/${k.personId}/bonitaet-bestellen`, { method: "POST" });
+                            setLaeuft(null);
+                            if (r.ok) zeige(r.json?.existing ? "info" : "erfolg",
+                              r.json?.existing ? "Bestellung besteht bereits" : "Bonitätsauskunft bestellt",
+                              `${r.json?.hinweis || ""}${r.json?.paymentReference ? ` Verwendungszweck: ${r.json.paymentReference}` : ""}`);
+                            else zeige("fehler", "Nicht bestellt", r.json?.error || "Bitte erneut versuchen.");
+                          })();
+                        }}
+                        className="fi-zweitknopf inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold"
+                        title="Bonitätsauskunft (74 €) auf Kundenwunsch bestellen — der Kunde muss danach nur noch überweisen.">
+                  {laeuft === "bonitaet" ? "Wird bestellt …" : "Bonitätsauskunft bestellen"}
                 </button>
               </div>
             )}

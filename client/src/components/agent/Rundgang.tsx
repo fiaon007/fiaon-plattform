@@ -261,11 +261,33 @@ export function Rundgang({ raum, titel, schritte }: {
     const ueber = rahmen.top - 14 - karteH;
     const passtUnter = unter + karteH <= fensterH - RAND;
     const passtUeber = ueber >= RAND;
-    const roh = passtUnter ? unter : passtUeber ? ueber : unter;
-    karte = {
-      top: Math.max(RAND, Math.min(roh, fensterH - karteH - RAND)),
-      left: Math.min(Math.max(RAND, rahmen.left + rahmen.width / 2 - breite / 2), fensterB - breite - RAND),
-    };
+    // ── DIE KARTE WEICHT ZUR SEITE AUS (27.08.2026, Team-Punkt 1) ─────────
+    // Gemeldet aus der Kunden-Demoansicht: Bei einem hohen Ziel passte die
+    // Karte weder darunter noch darueber — das Klemmen schob sie dann GENAU
+    // AUF den erklaerten Bereich. Man konnte die Erklaerung lesen ODER sehen,
+    // wovon sie spricht. Jetzt gilt: erst unter, dann ueber, dann NEBEN das
+    // Ziel (rechts vor links, vertikal daran ausgerichtet). Nur wenn auch
+    // seitlich kein Platz ist (kleines Handy, riesiges Ziel), bleibt das
+    // Klemmen — die Karte ist dann in sich scrollbar.
+    const passtRechts = rahmen.left + rahmen.width + 14 + breite <= fensterB - RAND;
+    const passtLinks = rahmen.left - 14 - breite >= RAND;
+    if (passtUnter || passtUeber) {
+      const roh = passtUnter ? unter : ueber;
+      karte = {
+        top: Math.max(RAND, Math.min(roh, fensterH - karteH - RAND)),
+        left: Math.min(Math.max(RAND, rahmen.left + rahmen.width / 2 - breite / 2), fensterB - breite - RAND),
+      };
+    } else if (passtRechts || passtLinks) {
+      karte = {
+        top: Math.max(RAND, Math.min(rahmen.top, fensterH - karteH - RAND)),
+        left: passtRechts ? rahmen.left + rahmen.width + 14 : rahmen.left - 14 - breite,
+      };
+    } else {
+      karte = {
+        top: Math.max(RAND, Math.min(unter, fensterH - karteH - RAND)),
+        left: Math.min(Math.max(RAND, rahmen.left + rahmen.width / 2 - breite / 2), fensterB - breite - RAND),
+      };
+    }
   }
 
   /** Eine der vier Scheiben um den Scheinwerfer. */

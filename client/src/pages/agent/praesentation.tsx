@@ -670,7 +670,7 @@ const KAPITEL: Kapitel[] = [
         kicker: "Wallet · /agent/wallet",
         titel: <>Die Wallet ist <V>dein Kontoauszug.</V></>,
         text: <>
-          <p>Vier Reiter: Guthaben (jede Gutschrift einzeln, mit Kunde, Rate und Satz), Auszahlung (monatlich, auf Antrag), Leistung (deine Zahlen im Zeitraum) und das Partnerprogramm mit Meilensteinen.</p>
+          <p>Vier Reiter: Guthaben (jede Gutschrift einzeln, mit Kunde, Rate und Satz), Auszahlung (alle zwei Wochen, auf Antrag), Leistung (deine Zahlen im Zeitraum) und das Partnerprogramm mit Meilensteinen.</p>
           <p>Alles rechnet der Server in Cent — du siehst fertige, nachvollziehbare Beträge.</p>
         </>,
         notizen: ["Jede Zeile ist einem Kunden zuordenbar", "Wunschgehalt-Simulation im Guthaben-Reiter zeigen"],

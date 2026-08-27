@@ -99,6 +99,24 @@ function OnboardingInnen() {
   }, []);
   useEffect(() => { void laden(); }, [laden]);
 
+  // ── AUS DEM KALENDER DIREKT INS GESPRAECH (27.08.2026, Team-P.11) ──────
+  // Der Kalender verlinkt Onboarding-Termine mit ?person=<id> hierher.
+  // Liegt zu dieser Person ein Termin in der Liste, oeffnet sich das Cockpit
+  // von selbst — ohne weiteren Klick im richtigen Gespraech. Einmalig je
+  // Seitenaufruf, damit das Schliessen nicht sofort wieder aufgeht.
+  const [autoGeoeffnet, setAutoGeoeffnet] = useState(false);
+  useEffect(() => {
+    if (autoGeoeffnet || laedt || termine.length === 0) return;
+    try {
+      const pid = Number(new URLSearchParams(window.location.search).get("person"));
+      if (!pid) { setAutoGeoeffnet(true); return; }
+      const t = termine.find((x) => Number(x.personId) === pid && x.status !== "erledigt")
+        ?? termine.find((x) => Number(x.personId) === pid);
+      if (t) setCockpit(t);
+      setAutoGeoeffnet(true);
+    } catch { setAutoGeoeffnet(true); }
+  }, [autoGeoeffnet, laedt, termine]);
+
   // ── 24.08.2026: DIE KACHELN ZÄHLTEN HEUTE, DIE LISTEN ZEIGTEN DREISSIG TAGE
   // ────────────────────────────────────────────────────────────────────────
   // VORHER liest die Kachel „Heute erledigt" den Serverwert `heuteErledigt`

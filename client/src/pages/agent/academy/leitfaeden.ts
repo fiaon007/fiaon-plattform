@@ -12,11 +12,34 @@ const preis = (key: string) => eur(PAKETE.find((x) => x.key === key)?.preisCents
 const schufa = SCHUFA_PREIS_EURO.toFixed(2).replace(".", ",") + " €";
 
 export interface LeitfadenPhase { titel: string; ziel: string; saetze: string[]; hinweis?: string }
-export interface Leitfaden { key: string; stufe: string; titel: string; wann: string; ziel: string; kurz: string[]; phasen: LeitfadenPhase[]; merke: string; /** Schritt in Kapitel 4, in dem geübt wird. */ schrittKey: string }
+export interface Leitfaden { key: string; stufe: string; titel: string; wann: string; ziel: string; kurz: string[]; phasen: LeitfadenPhase[]; merke: string; /** Schritt in Kapitel 4, in dem geübt wird. */ schrittKey: string;
+  /** Zu welchem der VIER Gespraeche gehoert dieser Leitfaden (27.08.2026, Team-Punkt 14)? */
+  gespraech: GespraechArt;
+  /** Die Situation innerhalb des Gespraechs — der Unterpunkt, nicht ein eigener Leitfaden. */
+  situation: string;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VIER GESPRAECHE STATT NEUN LEITFAEDEN (27.08.2026, Team-Punkt 14)
+//
+// „Mitarbeiter wissen nicht mehr eindeutig, welchen Leitfaden sie wann
+// verwenden sollen." Die Antwort des Teams selbst: Es gibt im Grunde nur vier
+// Gespraeche — und Situationen DARIN. Die bewaehrten Texte bleiben Wort fuer
+// Wort erhalten; sie sind jetzt Situationen unter ihrem Gespraech.
+// Die Frage lautet nicht mehr „Stufe A oder B oder K?", sondern:
+// „Welches Gespraech fuehre ich gerade?" — und die ist am Telefon immer klar.
+// ═══════════════════════════════════════════════════════════════════════════
+export type GespraechArt = "vertrieb_antrag" | "vertrieb_lead" | "onboarding" | "collections";
+export const GESPRAECHE: { art: GespraechArt; titel: string; frage: string }[] = [
+  { art: "vertrieb_antrag", titel: "Vertriebsgespräch – Kunde mit Antrag", frage: "Er hat einen Antrag gestellt. Je nach Lage: Zahlung gemeldet, noch offen, oder es geht um Konto & Karte." },
+  { art: "vertrieb_lead", titel: "Vertriebsgespräch – Lead", frage: "Noch kein Antrag — ein Lead aus dem Formular. Speed-to-Lead." },
+  { art: "onboarding", titel: "Onboarding-Gespräch (Startgespräch)", frage: "Bezahlter Kunde, das eine Pflichtgespräch. Danach ist das Konto voll freigeschaltet." },
+  { art: "collections", titel: "Collections-Gespräch", frage: "Eine Rate ist offen oder überfällig. Ziel: Zusage mit Datum — nie Inkasso-Ton beim eigenen Kunden." },
+];
 
 export const LEITFAEDEN: Leitfaden[] = [
   {
-    key: "a", stufe: "A", schrittKey: "stufe-a", titel: "Stufe A – „Ich habe bezahlt“ geklickt, kein Termin", wann: "Der Kunde hat den Antrag abgeschlossen und „Ich habe überwiesen“ geklickt. Es gibt noch keinen Termin. Das Geld ist noch nicht bankbestätigt.",
+    key: "a", stufe: "A", schrittKey: "stufe-a", gespraech: "vertrieb_antrag", situation: "Zahlung gemeldet, kein Termin", titel: "Stufe A – „Ich habe bezahlt“ geklickt, kein Termin", wann: "Der Kunde hat den Antrag abgeschlossen und „Ich habe überwiesen“ geklickt. Es gibt noch keinen Termin. Das Geld ist noch nicht bankbestätigt.",
     ziel: "Willkommen heißen, den Kunden oben halten (die Karte ist sein Ziel), dann den eigentlichen Grund: Termin zur Aktivierung – sofort aus deiner Availability eintragen – und die eingeleitete Zahlung beiläufig bestätigen lassen.",
     kurz: [
       "„Hi, hier ist [Vorname] von FIAON. Ich habe gesehen, Sie, Herr [Name], sind erfolgreich akzeptiert worden – ich heiße Sie herzlich willkommen als Kunde bei FIAON.“",
@@ -35,7 +58,7 @@ export const LEITFAEDEN: Leitfaden[] = [
     merke: "Willkommen → Karte → Termin → Zahlung. Nie umgekehrt.",
   },
   {
-    key: "b", stufe: "B", schrittKey: "stufe-b", titel: "Stufe B – Antrag fertig, nicht bezahlt", wann: "Der Antrag ist abgeschlossen, die Rechnung ist offen. Der Kunde hat weder überwiesen noch einen Termin gebucht.",
+    key: "b", stufe: "B", schrittKey: "stufe-b", gespraech: "vertrieb_antrag", situation: "Antrag fertig, nicht bezahlt", titel: "Stufe B – Antrag fertig, nicht bezahlt", wann: "Der Antrag ist abgeschlossen, die Rechnung ist offen. Der Kunde hat weder überwiesen noch einen Termin gebucht.",
     ziel: "An den Antrag anknüpfen (Kreditkarte, FIAON-Konzept), Termin sofort vereinbaren, auf die Rechnung hinweisen, Zahlungsdaten schicken.",
     kurz: [
       "„Ich grüße Sie, Herr [Name], hier ist [Vorname] von FIAON – bezüglich Ihres Antrags wegen einer Kreditkarte und zum FIAON-Konzept. Haben Sie einen Moment?“",
@@ -54,7 +77,7 @@ export const LEITFAEDEN: Leitfaden[] = [
     merke: "Anknüpfen → Konzept → Termin → Rechnung → Zahlungsdaten. Der Termin kommt vor dem Geld.",
   },
   {
-    key: "c", stufe: "C", schrittKey: "stufe-c", titel: "Stufe C – nur Facebook-Lead", wann: "Ein Lead aus dem Facebook-Formular, kein Antrag. Speed-to-Lead: innerhalb von fünf Minuten, nach der Vorab-Nachricht mit deinem Namen.",
+    key: "c", stufe: "C", schrittKey: "stufe-c", gespraech: "vertrieb_lead", situation: "Frischer Lead (erste 5 Minuten)", titel: "Stufe C – nur Facebook-Lead", wann: "Ein Lead aus dem Facebook-Formular, kein Antrag. Speed-to-Lead: innerhalb von fünf Minuten, nach der Vorab-Nachricht mit deinem Namen.",
     ziel: "Daten aufnehmen, den Vertrag am Telefon abschließen (Einwilligung zur Aufnahme am Anfang, Annahmesatz am Ende, Bestätigung in Textform), Zugänge schicken, Termin vereinbaren, Rechnung vor dem Termin.",
     kurz: [
       "„Hi, hier ist [Vorname] von FIAON, ich rufe an, weil Sie sich bei uns für eine Kreditkarte registriert haben – haben Sie einen Augenblick?“",
@@ -76,7 +99,7 @@ export const LEITFAEDEN: Leitfaden[] = [
     merke: "Einwilligung → Verstehen → Konzept → Daten → Annahmesatz → Zugang, Termin, Rechnung.",
   },
   {
-    key: "r", stufe: "R", schrittKey: "zahlungserinnerung", titel: "Reaktivierung – der Kunde, der lange gewartet hat", wann: "Ein Kunde mit überfälliger Rate, oft mit schwierigem Start und ohne Onboarding. Ausdrücklich kein Inkasso-Ton.",
+    key: "r", stufe: "R", schrittKey: "zahlungserinnerung", gespraech: "collections", situation: "Reaktivierung — lange nichts gezahlt", titel: "Reaktivierung – der Kunde, der lange gewartet hat", wann: "Ein Kunde mit überfälliger Rate, oft mit schwierigem Start und ohne Onboarding. Ausdrücklich kein Inkasso-Ton.",
     ziel: "Vorstellen, ehrlich entschuldigen, zuhören, die Akte aufräumen – dann zwei Wege: Rate zahlen (Altbestand: Reaktivierungsbonus 50 % des Zahlungswerts) oder einen Monat aussetzen (0 €, aber vorgestellt und Onboarding-Termin gebucht).",
     kurz: [
       "„Guten Tag, mein Name ist [Vorname Name] von FIAON – ich rufe an, um mich vorzustellen: Ich bin ab jetzt Ihr persönlicher Bonitätsmanager.“",
@@ -108,7 +131,7 @@ export const LEITFAEDEN: Leitfaden[] = [
   // Die Bank darf genannt werden — ihre Leistungen SIND das Argument.
   // ══════════════════════════════════════════════════════════════════════════
   {
-    key: "k", stufe: "K", schrittKey: "stufe-a",
+    key: "k", stufe: "K", schrittKey: "stufe-a", gespraech: "vertrieb_antrag", situation: "Konto & Karte — der Zielanruf",
     titel: "Konto & Karte – der Anruf, auf den alles hinauslief",
     wann: "Der Kunde erfüllt alle drei Bedingungen: Antrag vollständig, Paket und Auskunft bezahlt mit mindestens zwei gelaufenen Raten, Kontoauszug und Ausweis liegen vor. In der Akte steht „Bereit für Konto & Karte“, auf deinem Dashboard steht er in der Tagesliste.",
     ziel: "Dem Kunden sagen, dass er am Ziel ist — und ihm den Weg in der richtigen Reihenfolge erklären: erst das Girokonto, dann die Kreditkarte. Danach den Link schicken und einen Rückruf verabreden.",
@@ -173,6 +196,46 @@ export const LEITFAEDEN: Leitfaden[] = [
     ],
     merke: "Anerkennen → Reihenfolge erklären → Vorteile → Link → Rückruf. Erst das Konto, dann die Karte — immer.",
   },
+  {
+    key: "ob", stufe: "O", schrittKey: "stufe-a", gespraech: "onboarding", situation: "Das Startgespräch (15 Minuten)",
+    titel: "Onboarding – das Startgespräch", wann: "Der Kunde hat bezahlt. Dieses eine Gespräch ist Pflicht — danach schaltest du sein Konto voll frei. Es läuft über das Cockpit (Onboarding-Raum oder Kalender-Klick auf den Termin).",
+    ziel: "Vertrauen festigen, den Ablauf erklären, Unterlagen anstoßen, die Bonitätsauskunft ansprechen — und am Ende ABSCHLIESSEN, damit das Konto freigeschaltet ist und der Kunde die Buchungs-Tafel nie wieder sieht.",
+    kurz: [
+      "„Herzlich willkommen, Herr [Name] — schön, dass es geklappt hat. Ich führe Sie jetzt einmal durch alles, das dauert 15 Minuten.“",
+      "Ablauf: „Wir holen Ihre Auskunft mit Ihrer Vollmacht, erklären Ihnen jeden Eintrag, und alles, was angreifbar ist, schreiben wir an — per Einschreiben. Jeden Schritt sehen Sie in Ihrem Bereich.“",
+      "Unterlagen: „Damit wir starten können, brauchen wir Ihren Ausweis und einen Kontoauszug — beides laden Sie in Ihrem Bereich hoch, ich zeige Ihnen gleich wo.“",
+      `Bonitätsauskunft: „Die Auskunft (${schufa}) ist die Grundlage für alles Weitere — die bestelle ich Ihnen gern direkt, Sie überweisen dann einfach mit dem Verwendungszweck aus der Mail.“`,
+      "Abschluss: Fragen klären, nächsten Schritt nennen — und im Cockpit auf „Abschließen“ klicken. ERST DER KLICK schaltet das Konto frei.",
+    ],
+    phasen: [
+      { titel: "1 · Willkommen (1 Minute)", ziel: "Der Kunde fühlt sich angekommen — das ist der Moment mit der höchsten Aufmerksamkeit.", saetze: ["„Herzlich willkommen, Herr [Name]. Ich bin [Vorname], Ihr Ansprechpartner — ich führe Sie jetzt einmal durch alles, das dauert etwa 15 Minuten.“"], hinweis: "Kein Verkaufston. Er HAT gekauft — jetzt zählt, dass es sich richtig anfühlt." },
+      { titel: "2 · Der Ablauf (3 Minuten)", ziel: "Er weiß, was in den nächsten Wochen passiert und wo er es sieht.", saetze: ["„Schritt eins: Wir holen Ihre Auskunft — mit Ihrer Vollmacht, Sie müssen nirgendwo anstehen.“", "„Schritt zwei: Wir gehen jeden Eintrag durch. Was angreifbar ist, schreiben wir an — juristisch geprüft, per Einschreiben.“", "„Schritt drei: Konto und Karte. Über die Karte entscheidet die Bank — aber Sie sehen jederzeit in Ihrem Bereich, wie weit Sie sind.“"], hinweis: "Keine Garantie versprechen — nie. „Die Bank entscheidet“ ist der ehrliche Satz, der trägt." },
+      { titel: "3 · Unterlagen (2 Minuten)", ziel: "Er weiß, WAS er hochlädt und WO — am besten noch heute.", saetze: ["„Wir brauchen zwei Dinge: Ihren Ausweis und einen aktuellen Kontoauszug. Beides laden Sie in Ihrem Bereich unter ‚Unterlagen‘ hoch — vom Handy geht auch ein Foto.“", "„Wenn Sie mögen, machen wir es gleich zusammen, dann ist es erledigt.“"], hinweis: "Schickt er die Dateien per WhatsApp oder Mail, lädst DU sie in der Akte hoch — trag dabei seine Referenz ein." },
+      { titel: "4 · Die Bonitätsauskunft (2 Minuten)", ziel: "Er versteht, warum die Auskunft der Grundstein ist — und bestellt sie im Gespräch.", saetze: ["„Die Bonitätsauskunft ist die Grundlage für alles Weitere — ohne sie wissen wir nicht, was in Ihrer Akte steht.“", "„Die bestelle ich Ihnen direkt aus Ihrer Akte — Sie bekommen die Zahlungsdaten per Mail und überweisen einfach mit dem Verwendungszweck.“"], hinweis: "Der Knopf „Bonitätsauskunft bestellen“ sitzt in der Akte. Sie wird bei JEDEM Paket gebraucht." },
+      { titel: "5 · Abschluss und Freischaltung (2 Minuten)", ziel: "Fragen geklärt, nächster Schritt klar — und das Konto ist FREIGESCHALTET.", saetze: ["„Haben Sie noch Fragen? … Dann fasse ich zusammen: Sie laden die Unterlagen hoch, ich bestelle die Auskunft, und sobald sie da ist, melde ich mich.“", "„Ihr Konto ist ab jetzt voll freigeschaltet — Sie sehen alle Bereiche.“"], hinweis: "Im Cockpit auf „Abschließen“ klicken — ERST DAS schaltet frei. Lief das Gespräch ohne Termin (direkt am Telefon), nutze in der Akte „Startgespräch geführt ✓“ — gleiche Wirkung." },
+    ],
+    merke: "Willkommen → Ablauf → Unterlagen → Auskunft → ABSCHLIESSEN. Ein Gespräch ohne Abschluss-Klick ist für das System nie passiert.",
+  },
+  {
+    key: "cf", stufe: "Z", schrittKey: "zahlungserinnerung", gespraech: "collections", situation: "Rate überfällig — der normale Fall",
+    titel: "Collections – Rate überfällig", wann: "Eine Monatsrate ist fällig oder wenige Tage überfällig. Der Kunde ist kein Härtefall — er hat es vergessen, verschoben oder eine Frage.",
+    ziel: "Freundlich erinnern, den Grund hören, eine ZUSAGE MIT DATUM holen und die Zahlungsdaten frisch schicken. Ergebnis dokumentieren — die Zusage steht dann an der Rate.",
+    kurz: [
+      "„Ich grüße Sie, Herr [Name], hier ist [Vorname] von FIAON. Ich rufe wegen Ihrer Monatsrate an — die ist seit [X Tagen] offen. Ist alles in Ordnung bei Ihnen?“",
+      "Grund hören, nicht drängen: Oft ist es vergessen, ein Kontowechsel oder eine Frage zum Stand.",
+      "Zusage mit Datum: „Bis wann kann ich fest mit der Rate rechnen? … [Datum] — dann trage ich das so ein und schicke Ihnen die Zahlungsdaten gleich noch einmal.“",
+      "Bei Unsicherheit: Lastschrift anbieten — „Wenn Sie mögen, richten wir den Einzug ein, dann kann es nicht mehr durchrutschen.“",
+      "Abschluss: Zahlungsdaten senden, Ergebnis mit Zusagedatum klicken. Die Wiedervorlage setzt das System.",
+    ],
+    phasen: [
+      { titel: "1 · Freundlich eröffnen (30 Sekunden)", ziel: "Er merkt: Das ist Betreuung, keine Mahnung.", saetze: ["„Ich grüße Sie, Herr [Name], hier ist [Vorname] von FIAON. Ich rufe wegen Ihrer Monatsrate an — die ist seit [X Tagen] offen. Ist alles in Ordnung bei Ihnen?“"], hinweis: "Der Ton entscheidet. Ein zahlender Kunde mit einer vergessenen Rate ist ein KUNDE, kein Fall." },
+      { titel: "2 · Den Grund hören (1 Minute)", ziel: "Verstehen, warum — daraus folgt der richtige Weg.", saetze: ["„Verstehe. Und damit ich Sie richtig unterstütze: Woran hängt es gerade?“"], hinweis: "Vergessen → Zusage heute/morgen. Geldeng → realistisches Datum, lieber ehrlich als geplatzt. Unzufrieden → zuhören, Stand zeigen, dann erst über Geld reden." },
+      { titel: "3 · Zusage mit Datum (1 Minute)", ziel: "Ein konkretes Datum, das er selbst genannt hat.", saetze: ["„Bis wann kann ich fest mit der Rate rechnen?“", "„[Datum] — dann trage ich das so ein. Sie bekommen die Zahlungsdaten gleich noch einmal per Mail, mit Ihrem Verwendungszweck.“"], hinweis: "SEIN Datum hält besser als deins. Über eine Woche hinaus: nachfragen, ob eine Teilzahlung früher geht." },
+      { titel: "4 · Den Weg leicht machen (30 Sekunden)", ziel: "Kein zweites Vergessen.", saetze: ["„Wenn Sie mögen, richten wir für die kommenden Raten den Bankeinzug ein — dann kann nichts mehr durchrutschen. Für diese eine Rate bleibt es bei der Überweisung.“"], hinweis: "Folgeraten dürfen per Lastschrift laufen. Die ERSTE Zahlung eines Kunden bleibt immer die direkte Überweisung — das gilt hier nicht mehr, es geht um Folgeraten." },
+      { titel: "5 · Abschluss und Dokumentation", ziel: "Zusage im System, Zahlungsdaten raus.", saetze: ["„Dann notiere ich [Datum]. Danke Ihnen — und wenn etwas dazwischenkommt, rufen Sie mich einfach an, wir finden eine Lösung.“"], hinweis: "Ergebnis klicken: „zahlt am [Datum]“ — die Zusage steht dann an der Rate und die Wiedervorlage kommt automatisch. Ohne Klick war der Anruf für das System keiner." },
+    ],
+    merke: "Freundlich → Grund → SEIN Datum → Weg leicht machen → dokumentieren. Der Ton macht den Unterschied zwischen Betreuung und Inkasso.",
+  }
 ];
 
 export const leitfaden = (key: string): Leitfaden | null => LEITFAEDEN.find((l) => l.key === key) ?? null;

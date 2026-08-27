@@ -36,6 +36,7 @@ export type MakeEventType =
   // ── Lead-Pipeline und Terminsystem ────────────────────────────────────────
   | "nicht_erreicht_termin"  // 2× nicht erreicht → Kunde bucht selbst einen Termin
   | "termin_bestaetigung"    // Termin gebucht — mit Storno-Link
+  | "termin_absage"          // Mitarbeiter hat abgesagt — Kunde erhaelt Bescheid + Neu-Buchen-Link
   | "termin_erinnerung"      // 24 h vor dem Termin
   // ── NEU 24.08.2026: der No-Show bekommt eine Antwort ──────────────────────
   // VORHER: Wurde ein Startgespraech als „verpasst" gemeldet, bekam der Kunde

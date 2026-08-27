@@ -3128,7 +3128,20 @@ router.post("/upload-kyc", (req, res, next) => {
     const { kundeAusCookie } = await import("../lib/fiaon-kunde-session");
     const ausSitzung = kundeAusCookie(req as any);
     const ausFormular = String(req.body?.ref ?? "").trim();
-    const ref = ausSitzung || ausFormular;
+    // ── WER MITARBEITER IST, LAEDT FUER DEN KUNDEN AUS DEM FORMULAR HOCH ──
+    // (27.08.2026, Team-Punkt 4: „Dokument hochgeladen, danach nicht in der
+    // Kundenakte.") Die Kundensitzung schlug IMMER das Formular — richtig
+    // fuer den Kundenweg (niemand beschreibt per Formular-ref fremde Akten),
+    // aber toedlich fuer einen Mitarbeiter, der selbst Kunde ist oder eine
+    // Als-Kunde-Sitzung im Browser hatte: Sein eigenes Kunden-Cookie gewann,
+    // und der Kontoauszug von Kunde X landete kommentarlos in Akte Y.
+    // Mit gueltiger MITARBEITER-Sitzung gilt deshalb das Formular.
+    const { hasAgentToken } = await import("./fiaon-agent");
+    const mitarbeiterLaedt = hasAgentToken(req as any) && !!ausFormular;
+    const ref = mitarbeiterLaedt ? ausFormular : (ausSitzung || ausFormular);
+    if (mitarbeiterLaedt && ausSitzung && ausSitzung !== ausFormular) {
+      console.log(`[FIAON-KYC] Mitarbeiter-Upload: Formular-Ref ${ausFormular} gewinnt ueber Kundensitzung ${ausSitzung}.`);
+    }
     const files = req.files as { [fieldname: string]: Express.Multer.File[] };
 
     if (!ref) {

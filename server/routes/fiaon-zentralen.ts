@@ -147,7 +147,17 @@ router.post("/admin/zentrale/kunden/aktion", async (req: Request, res: Response)
             AND (betreuung_seit IS NULL OR ${req.body?.auchBetreute === true})
           RETURNING id
         `) as any[];
-        if (r.length) n++;
+        if (r.length) {
+          n++;
+          // Die Kopie am Antrag zieht mit (Migration 059: die Person ist die
+          // Wahrheit, der Antrag traegt eine Kopie fuer Listen). Ohne diese
+          // Zeile sagte das Management „niemand betreut", waehrend das
+          // Telefon laengst einen Betreuer kannte — Team-Punkt 7 vom 27.08.
+          await sqlPool`
+            UPDATE fiaon_applications SET assigned_agent_id = ${an}, updated_at = NOW()
+            WHERE person_id = ${id} AND merged_into IS NULL
+          `.catch(() => {});
+        }
       }
       return res.json({ ok: true, meldung: `${n} von ${ids.length} zugewiesen.` });
     }
@@ -676,3 +686,34 @@ router.post("/admin/bestellungen/entfernen", async (req: Request, res: Response)
 });
 
 export default router;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE BETREUER-KOPIE LAEUFT NICHT MEHR AUSEINANDER (27.08.2026, Team-Punkt 7)
+//
+// Die Wahrheit ueber die Betreuung steht an der PERSON (Migration 059); der
+// Antrag traegt eine Kopie fuer Listen. GEMESSEN am 27.08.: 219 Kunden mit
+// Betreuer an der Person, aber NULL am Antrag — dazu 51 mit ZWEI verschiedenen
+// Namen. Das Management las die Kopie und sagte „niemand betreut", waehrend
+// das Telefon den Betreuer kannte. Acht verschiedene Schreibwege einzeln
+// abzudichten waere die naechste Luecke — dieser Lauf zieht die Kopie einmal
+// pro Stunde nach, egal woher die Aenderung kam.
+// ═══════════════════════════════════════════════════════════════════════════
+import("../lib/fiaon-crons").then(({ tageslauf }) => {
+  tageslauf("betreuer-kopie-angleich", () => {
+    void (async () => {
+      const geaendert = (await sqlPool`
+        UPDATE fiaon_applications a
+        SET assigned_agent_id = p.assigned_agent_id, updated_at = NOW()
+        FROM fiaon_persons p
+        WHERE p.id = a.person_id AND a.merged_into IS NULL
+          AND p.merged_into_person_id IS NULL
+          AND p.assigned_agent_id IS NOT NULL
+          AND a.assigned_agent_id IS DISTINCT FROM p.assigned_agent_id
+        RETURNING a.ref
+      `) as any[];
+      if (geaendert.length > 0) {
+        console.log(`[BETREUER-KOPIE] ${geaendert.length} Antraege an die Person angeglichen.`);
+      }
+    })().catch((e) => console.error("[BETREUER-KOPIE]", e));
+  }, 60 * 60 * 1000, { beimStartNach: 90_000 });
+}).catch((e) => console.error("[BETREUER-KOPIE] Registrierung:", e));

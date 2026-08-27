@@ -1407,3 +1407,98 @@ router.get("/agent/onboarding/kennzahlen", requireAgent, nurOnboarding, nurMitZu
 });
 
 export default router;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// „ICH HABE DAS GESPRAECH GERADE GEFUEHRT" — OHNE GEBUCHTEN TERMIN
+// (27.08.2026, Team-Punkte 8 und 17: der Endlos-Kreislauf)
+//
+// GEMESSEN: 373 bezahlte Kunden stehen auf „wartet_auf_onboarding", und KEIN
+// EINZIGER hat einen erledigten Onboarding-Termin. Die Gespraeche finden
+// statt — am Telefon, aus der Pipeline heraus, ohne gebuchten Slot. Das
+// System erfaehrt es nie: Die Stufe leitet sich aus dem ERLEDIGTEN TERMIN ab,
+// und den gibt es nicht. Der Kunde landet nach dem Gespraech wieder vor
+// derselben Tafel „Bitte Startgespraech buchen" — der gemeldete Kreislauf.
+//
+// Dieser Weg schliesst die Luecke: Der Mitarbeiter, der das Gespraech
+// gefuehrt hat, haelt das mit EINEM Klick fest. Was dann passiert:
+//   1. Ein gebuchter Termin des Kunden wird erledigt — oder, wenn es nie
+//      einen gab, ein erledigter Termin nachgetragen (der Beweis, aus dem
+//      die Stufen-Ableitung ueberall ihre Wahrheit zieht).
+//   2. `vollFreischalten` oeffnet das Konto (die EINE Funktion, mit Name und
+//      Grund im Protokoll).
+//   3. Ein Verlaufseintrag vom Typ `startgespraech` — damit auch der
+//      Kundenbereich das Gespraech kennt.
+// Danach sieht der Kunde beim naechsten Login keine Tafel mehr, und
+// Mitarbeiter- wie Kundenansicht sagen dasselbe.
+//
+// BEWUSST requireAgent + darfAnKunde statt nurOnboarding: Das Gespraech
+// fuehrt, wer den Kunden gerade am Ohr hat — auch Vertrieb und Leitung.
+// ═══════════════════════════════════════════════════════════════════════════
+router.post("/agent/onboarding/person/:id/gefuehrt", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const personId = Number(req.params.id);
+    if (!Number.isFinite(personId) || personId <= 0) {
+      return res.status(400).json({ ok: false, error: "Kunden-Kennung fehlt." });
+    }
+    const { darfAnKunde, rolleVon } = await import("../lib/fiaon-kundenzugriff");
+    const rolle = await rolleVon(req.agent!.id);
+    if (!(await darfAnKunde(req.agent!.id, rolle, personId))) {
+      return res.status(403).json({ ok: false, error: "Dieser Kunde wird von einem Kollegen betreut." });
+    }
+
+    // 1) Termin erledigen — oder den Beweis nachtragen.
+    const [gebucht] = (await sqlPool`
+      SELECT id FROM fiaon_termine
+      WHERE person_id = ${personId} AND quelle = 'onboarding_call'
+        AND status IN ('gebucht', 'verpasst')
+      ORDER BY beginn DESC LIMIT 1
+    `) as any[];
+    if (gebucht) {
+      await sqlPool`
+        UPDATE fiaon_termine SET status = 'erledigt', erledigt_am = NOW(),
+               notiz = CONCAT_WS(chr(10), NULLIF(notiz, ''),
+                 ${`Als geführt festgehalten von ${req.agent!.name} (ohne Cockpit-Abschluss).`}),
+               updated_at = NOW()
+        WHERE id = ${gebucht.id}
+      `;
+    } else {
+      // Nachtrag: 20 Minuten in der Vergangenheit, damit er mit keinem echten
+      // Slot kollidiert (die Datenbank verbietet Ueberschneidungen je Agent).
+      const beginn = new Date(Date.now() - 20 * 60 * 1000);
+      await sqlPool`
+        INSERT INTO fiaon_termine (person_id, agent_id, beginn, dauer_min, status, quelle, erledigt_am, notiz)
+        VALUES (${personId}, ${req.agent!.id}, ${beginn}, 15, 'erledigt', 'onboarding_call', NOW(),
+                ${`Telefonisch geführt, ohne gebuchten Slot — nachgetragen von ${req.agent!.name}.`})
+      `;
+    }
+
+    // 2) Freischalten — die eine Funktion, mit Protokoll.
+    const { vollFreischalten } = await import("../lib/fiaon-kontostufe");
+    const frei = await vollFreischalten(personId, {
+      name: req.agent!.name,
+      grund: gebucht
+        ? "Startgespräch geführt — vom Mitarbeiter festgehalten"
+        : "Startgespräch telefonisch geführt, ohne gebuchten Slot",
+    });
+
+    // 3) Der Verlaufseintrag, den auch der Kundenbereich liest.
+    const schreibRef = await sorgeFuerAkte(personId, req.agent!.id).catch(() => null);
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
+      VALUES (${schreibRef}, ${personId}, ${req.agent!.id}, ${req.agent!.name}, 'startgespraech',
+              'Startgespräch geführt und festgehalten. Das Konto ist voll freigeschaltet; die Tafel im Portal erscheint nicht mehr.')
+    `.catch(() => {});
+
+    res.json({
+      ok: true,
+      freigeschaltet: frei.freigeschaltet,
+      hinweis: frei.freigeschaltet > 0
+        ? "Festgehalten — das Konto ist jetzt voll freigeschaltet."
+        : "Festgehalten — das Konto war bereits freigeschaltet.",
+    });
+  } catch (err) {
+    console.error("[ONBOARDING] gefuehrt:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+

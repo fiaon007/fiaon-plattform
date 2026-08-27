@@ -114,10 +114,24 @@ async function meinePerson(personId: number, agentId: number) {
              ORDER BY a.created_at DESC LIMIT 1) AS schreib_ref
     FROM fiaon_persons p
     WHERE p.id = ${personId}
-      AND p.assigned_agent_id = ${agentId}
       AND p.merged_into_person_id IS NULL
   `;
-  return p ?? null;
+  if (!p) return null;
+  // ── DIE EINE ZUGRIFFSREGEL, AUCH BEIM DOKUMENTIEREN (27.08.2026, P.6) ──
+  // Hier stand ein harter Besitzfilter (assigned_agent_id = agentId). Folge,
+  // gemeldet am Beispiel Kurt Schuhmeister: Wer die Akte eines Kollegen- oder
+  // Pool-Kunden rechtmaessig offen hatte (Onboarding, Forderungsmanagement,
+  // Leitung, unzugewiesener Pool-Kunde), bekam beim Speichern einer Notiz
+  // „Kunde nicht gefunden" — obwohl er mitten in dessen Akte stand.
+  // Jetzt entscheidet dieselbe Definition wie bei Telefon, Mail und Termin:
+  // `darfAnKunde`. Dokumentieren duerfen alle, die den Kunden bearbeiten
+  // duerfen — eine Notiz uebernimmt keinen Besitz.
+  if (Number(p.assigned_agent_id) !== agentId) {
+    const { darfAnKunde, rolleVon } = await import("../lib/fiaon-kundenzugriff");
+    const rolle = await rolleVon(agentId);
+    if (!(await darfAnKunde(agentId, rolle, personId))) return null;
+  }
+  return p;
 }
 
 /** Die Karten-Antwort: die Listenkarte plus das, was nur die Einzelansicht braucht. */
@@ -2172,3 +2186,145 @@ router.post("/agent/crm/kunden/:personId/antragsdaten", requireAgent, async (req
 });
 
 export default router;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BONITAETSAUSKUNFT AUS DER AKTE BESTELLEN (27.08.2026, Team-Punkt 5)
+//
+// „Ich telefoniere mit dem Kunden und er will die Bonitaetsauskunft — aber
+// ich kann sie nicht fuer ihn beantragen; er muss selbst auf die Plattform."
+// (Beispiel Kurt Schuhmeister.) Jetzt legt der Mitarbeiter die Bestellung
+// direkt aus der Akte an; der Kunde muss nur noch ueberweisen. Der
+// Verwendungszweck entsteht wie ueberall durch den Trigger aus Migration 037.
+// Gibt es schon eine offene oder bezahlte Auskunfts-Bestellung, wird DIE
+// zurueckgegeben — kein Doppel.
+// ═══════════════════════════════════════════════════════════════════════════
+router.post("/agent/crm/kunden/:personId/bonitaet-bestellen", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const personId = Number(req.params.personId);
+    const p = await meinePerson(personId, req.agent!.id);
+    if (!p) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+
+    // Bestehende Auskunfts-Bestellung? Dann die — mit ihrem Zweck.
+    const [da] = (await sqlPool`
+      SELECT ref, payment_reference, payment_status, amount_due
+        FROM fiaon_applications
+       WHERE person_id = ${personId} AND merged_into IS NULL AND ref LIKE 'FIAON-SCHUFA-%'
+         AND COALESCE(payment_status, '') IN ('pending_payment', 'claimed_paid', 'paid')
+       ORDER BY created_at DESC LIMIT 1
+    `) as any[];
+    if (da) {
+      return res.json({
+        ok: true, existing: true, ref: da.ref, paymentReference: da.payment_reference,
+        status: da.payment_status, preisEuro: Number(da.amount_due || 74),
+        hinweis: da.payment_status === "paid"
+          ? "Die Bonitätsauskunft ist bereits bezahlt."
+          : "Es gibt bereits eine offene Auskunfts-Bestellung — Zahlungsdaten einfach erneut senden.",
+      });
+    }
+
+    // Stammdaten: die beste Bestellung der Person als Vorlage, sonst die Person.
+    const [v] = (await sqlPool`
+      SELECT a.first_name, a.last_name, a.email, a.street, a.zip, a.city, a.country,
+             a.birthdate, a.phone, a.phone_country_code
+        FROM fiaon_applications a
+       WHERE a.person_id = ${personId} AND a.merged_into IS NULL
+       ORDER BY (a.payment_status = 'paid') DESC, a.created_at DESC LIMIT 1
+    `) as any[];
+    const { randomBytes } = await import("node:crypto");
+    const code = randomBytes(3).toString("hex").toUpperCase().slice(0, 4);
+    const ref = `FIAON-SCHUFA-${Date.now().toString(36).toUpperCase()}-${code}`;
+    const { SCHUFA_PREIS_EURO } = await import("../../shared/fiaon-pakete");
+    const dueDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+    await sqlPool`
+      INSERT INTO fiaon_applications (ref, type, status, first_name, last_name, email, pack_name,
+                                      street, zip, city, country, birthdate, phone, phone_country_code, person_id,
+                                      payment_status, payment_due_date, amount_due, currency, created_at, updated_at)
+      VALUES (${ref}, 'schufa', 'submitted',
+              ${v?.first_name || p.first_name || null}, ${v?.last_name || p.last_name || null},
+              ${v?.email || p.primary_email || null}, 'Bonitätsauskunft inkl. Handlungsplan',
+              ${v?.street || null}, ${v?.zip || null}, ${v?.city || null}, ${v?.country || null},
+              ${v?.birthdate || null}, ${v?.phone || null}, ${v?.phone_country_code || null}, ${personId},
+              'pending_payment', ${dueDate}, ${SCHUFA_PREIS_EURO.toFixed(2)}, 'EUR', NOW(), NOW())
+    `;
+    const [neu] = (await sqlPool`SELECT payment_reference FROM fiaon_applications WHERE ref = ${ref}`) as any[];
+
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
+      VALUES (${ref}, ${personId}, ${req.agent!.id}, ${req.agent!.name}, 'system',
+              ${`Bonitätsauskunft (${SCHUFA_PREIS_EURO.toFixed(2).replace(".", ",")} €) auf Kundenwunsch aus der Akte bestellt — Verwendungszweck ${neu?.payment_reference || ref}. Der Kunde zahlt per Überweisung; danach regulär in der Zahlungszentrale buchen.`})
+    `.catch(() => {});
+
+    res.json({
+      ok: true, existing: false, ref, paymentReference: neu?.payment_reference || null,
+      preisEuro: SCHUFA_PREIS_EURO,
+      hinweis: "Bestellung angelegt. Jetzt \u201eZahlungsdaten senden\u201c klicken oder IBAN und Verwendungszweck am Telefon durchgeben.",
+    });
+  } catch (err) {
+    console.error("[CRM] bonitaet-bestellen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE GESPRAECHSUEBERSICHT — alles fuer ein Kundengespraech auf einen Blick
+// (27.08.2026, Team-Punkt 19)
+//
+// „Aktuell muss man zwischen mehreren Reitern wechseln, um sich die
+// Informationen zusammenzusuchen." Dieser Endpunkt buendelt die BESTEHENDEN
+// Bausteine (fiaon-kundenlage, kartenStand, stufeAbleiten, Verlauf) zu EINER
+// Antwort — nichts wird doppelt gerechnet, alles kommt aus denselben Quellen
+// wie die Einzelansichten. Eine Wahrheit, ein Aufruf.
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/agent/crm/kunden/:personId/gespraech", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const personId = Number(req.params.personId);
+    const p = await meinePerson(personId, req.agent!.id);
+    if (!p) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+
+    const { zahlungsLage, dokumentLage } = await import("../lib/fiaon-kundenlage");
+    const { kartenStand } = await import("../lib/fiaon-konto-karte");
+    const { kontoBestellungVon } = await import("../lib/fiaon-kundenansicht");
+    const { stufeAbleiten } = await import("../lib/fiaon-kundenstufe");
+
+    const [zahlungen, dokumente, karte, konto] = await Promise.all([
+      zahlungsLage(personId).catch(() => []),
+      dokumentLage(personId).catch(() => null),
+      kartenStand(personId).catch(() => null),
+      kontoBestellungVon(personId).catch(() => null),
+    ]);
+    const stufe = konto ? await stufeAbleiten(konto.ref).catch(() => null) : null;
+
+    const [naechsterTermin] = (await sqlPool`
+      SELECT beginn, quelle, status FROM fiaon_termine
+      WHERE person_id = ${personId} AND status = 'gebucht' AND beginn > NOW()
+      ORDER BY beginn ASC LIMIT 1
+    `) as any[];
+    const verlauf = (await sqlPool`
+      SELECT type, note, agent_name, created_at FROM fiaon_contact_log
+      WHERE person_id = ${personId} AND voided_at IS NULL
+      ORDER BY created_at DESC LIMIT 5
+    `) as any[];
+
+    res.json({
+      ok: true,
+      stufe: stufe ? {
+        stufe: stufe.stufe, gespraechErledigt: !!(stufe as any).gespraechErledigt,
+        naechsterSchritt: (stufe as any).naechsterSchritt ?? null,
+      } : null,
+      zahlungen,
+      dokumente,
+      karte: karte ? { bereit: karte.bereit, esFehlt: karte.esFehlt, verschickt: !!karte.versand } : null,
+      naechsterTermin: naechsterTermin ? {
+        beginn: naechsterTermin.beginn, quelle: naechsterTermin.quelle,
+      } : null,
+      verlauf: verlauf.map((v: any) => ({
+        type: v.type, note: String(v.note || "").slice(0, 220), wer: v.agent_name, am: v.created_at,
+      })),
+    });
+  } catch (err) {
+    console.error("[CRM] gespraech:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+

@@ -118,9 +118,17 @@ export async function darfAnKunde(
     return !!b;
   }
 
+  // ── DER POOL GEHOERT ALLEN (27.08.2026, Team-Punkt 7) ──────────────────
+  // Judith Laditsch: niemandem zugewiesen — und trotzdem sagte das Telefon
+  // „Dieser Kunde wird von jemand anderem betreut." Die Abfrage kannte nur
+  // „mir zugewiesen"; ein Kunde OHNE Betreuer fiel durch und die Meldung log.
+  // Justins Regel vom 25.08.: Niemand besitzt Kunden vor dem Mandat — ein
+  // unzugewiesener Kunde ist Pool und darf angesprochen werden. Gesperrt
+  // bleibt nur, wer WIRKLICH einem Kollegen gehoert.
   const [p] = (await lauf`
     SELECT 1 AS ok FROM fiaon_persons
-    WHERE id = ${personId} AND assigned_agent_id = ${agentId}
+    WHERE id = ${personId}
+      AND (assigned_agent_id = ${agentId} OR assigned_agent_id IS NULL)
       AND merged_into_person_id IS NULL
   `) as any[];
   return !!p;

@@ -22,7 +22,7 @@ import { useAcademyFortschritt, schrittOeffnen, schrittFertig, type Fortschritt,
 import { Bloecke, Zeitleiste, Rundgang, Wortpruefer, UebungGefuehrt } from "./bausteine";
 import { EinwandTrainer, Simulator, Rechner, FallStudie, KapitelTest } from "./uebungen";
 import { Pruefung, Urkunde } from "./pruefung";
-import { LEITFAEDEN, leitfadenKurzText } from "./leitfaeden";
+import { GESPRAECHE, LEITFAEDEN, leitfadenKurzText } from "./leitfaeden";
 import "@/styles/office-academy.css";
 // 24.08.2026: Der Seiten-Rundgang (E-063) heißt hier bewusst anders —
 // „Rundgang" ist in dieser Datei schon der Name einer Academy-Übung.
@@ -274,10 +274,19 @@ function PruefungSeite({ f }: { f: ReturnType<typeof useAcademyFortschritt> }) {
 
 // ── Leitfäden auf Abruf ───────────────────────────────────────────────────
 function LeitfaedenSeite() {
-  const [aktiv, setAktiv] = useState(0);
+  // ── VIER GESPRAECHE, DANN DIE SITUATION (27.08.2026, Team-Punkt 14) ──────
+  // „Mitarbeiter wissen nicht mehr eindeutig, welchen Leitfaden sie wann
+  // verwenden sollen." Vorher standen alle Stufen als flache Reihe. Jetzt ist
+  // die erste Frage die, die am Telefon immer beantwortbar ist: WELCHES
+  // Gespraech fuehre ich? Danach erst die Situation darin. Die Texte selbst
+  // sind unveraendert.
+  const [gespraechArt, setGespraechArt] = useState(GESPRAECHE[0].art);
+  const [aktivKey, setAktivKey] = useState<string | null>(null);
   const [lang, setLang] = useState(false);
   const [kopiert, setKopiert] = useState(false);
-  const l = LEITFAEDEN[aktiv];
+  const imGespraech = LEITFAEDEN.filter((x) => x.gespraech === gespraechArt);
+  const l = imGespraech.find((x) => x.key === aktivKey) ?? imGespraech[0];
+  const gruppe = GESPRAECHE.find((g) => g.art === gespraechArt)!;
   const kopieren = async () => { try { await navigator.clipboard.writeText(leitfadenKurzText(l)); setKopiert(true); setTimeout(() => setKopiert(false), 1800); } catch { /* egal */ } };
   return (
     <div className="ac">
@@ -285,11 +294,22 @@ function LeitfaedenSeite() {
         <Link href="/agent/academy" className="ac-zurueck"><ArrowLeft size={15} />Academy</Link>
         <div className="ac-kap-hero-innen">
           <span className="ac-kap-nr"><FileText size={34} strokeWidth={1.5} /></span>
-          <div><span className="ac-pille">Leitfäden auf Abruf</span><h1>Stufe A, B, C und R – <span className="ac-verlauf">kurz, kopierbar.</span></h1><p>Die Kurzfassung für den Anruf, die Langfassung zum Üben. Regeln: Kunden siezen, keine Garantie, erste Zahlung immer direkt, Termin sofort aus deiner Availability.</p></div>
+          <div><span className="ac-pille">Leitfäden auf Abruf</span><h1>Vier Gespräche – <span className="ac-verlauf">kurz, kopierbar.</span></h1><p>Erst die Frage: Welches Gespräch führe ich gerade? Dann die Situation darin. Regeln bleiben: Kunden siezen, keine Garantie, erste Zahlung immer direkt, Termin sofort aus deiner Availability.</p></div>
         </div>
       </section>
       <div className="ac-lf">
-        <div className="ac-lf-tabs">{LEITFAEDEN.map((x, i) => <button key={x.key} type="button" className={`ac-lf-tab${i === aktiv ? " an" : ""}`} onClick={() => { setAktiv(i); setLang(false); }}><b>{x.stufe}</b><span>{x.titel.replace(/^Stufe [ABC] – /, "")}</span></button>)}</div>
+        <div className="ac-lf-tabs">{GESPRAECHE.map((g) => <button key={g.art} type="button" className={`ac-lf-tab${g.art === gespraechArt ? " an" : ""}`} onClick={() => { setGespraechArt(g.art); setAktivKey(null); setLang(false); }}><b>{g.titel.split(" – ")[0].replace("gespräch", "")}</b><span>{g.titel.includes("–") ? g.titel.split(" – ")[1] : g.titel.replace(/^.*\(|\)$/g, "")}</span></button>)}</div>
+        <p className="ac-lf-frage" style={{ margin: "10px 2px 6px", fontSize: 13, opacity: .75 }}>{gruppe.frage}</p>
+        {imGespraech.length > 1 && (
+          <div className="ac-lf-tabs" style={{ marginBottom: 10 }}>
+            {imGespraech.map((x) => (
+              <button key={x.key} type="button" className={`ac-lf-tab${x.key === l.key ? " an" : ""}`}
+                      onClick={() => { setAktivKey(x.key); setLang(false); }}>
+                <span>{x.situation}</span>
+              </button>
+            ))}
+          </div>
+        )}
         <div className="ac-lf-karte">
           <div className="ac-lf-kopf"><div><small>Wann</small><p>{l.wann}</p></div><div><small>Ziel</small><p>{l.ziel}</p></div></div>
           <ol className="ac-lf-kurz">{l.kurz.map((k, i) => <li key={i}>{k}</li>)}</ol>

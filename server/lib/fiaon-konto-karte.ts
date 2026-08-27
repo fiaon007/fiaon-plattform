@@ -192,16 +192,22 @@ export async function ensureKartenTabelle(lauf: Lauf = sqlPool): Promise<void> {
  */
 const STAND_SQL = `
   SELECT p.id AS person_id,
+    -- ── DIE PERSON ZAEHLT MIT (27.08.2026, Team-Punkt 2) ──────────────────
+    -- Gemeldet: „Angaben im Antrag fehlen — Daten ergaenzen", waehrend unter
+    -- „Daten" alles stand. Diese Pruefung las NUR die Antragskopien; seit
+    -- Migration 059 ist die PERSON die Wahrheit und die Kopie darf leer sein.
+    -- Jedes Feld gilt als da, wenn es am Antrag ODER an der Person steht —
+    -- dieselbe Regel wie in der Lueckenliste (fehlendeFelderSql).
     EXISTS (
       SELECT 1 FROM fiaon_applications a
       WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
-        AND NULLIF(TRIM(a.first_name), '') IS NOT NULL
-        AND NULLIF(TRIM(a.last_name),  '') IS NOT NULL
-        AND NULLIF(TRIM(a.birthdate),  '') IS NOT NULL
-        AND NULLIF(TRIM(a.street),     '') IS NOT NULL
-        AND NULLIF(TRIM(a.zip),        '') IS NOT NULL
-        AND NULLIF(TRIM(a.city),       '') IS NOT NULL
-        AND NULLIF(TRIM(a.email),      '') IS NOT NULL
+        AND COALESCE(NULLIF(TRIM(a.first_name), ''), NULLIF(TRIM(p.first_name), '')) IS NOT NULL
+        AND COALESCE(NULLIF(TRIM(a.last_name),  ''), NULLIF(TRIM(p.last_name),  '')) IS NOT NULL
+        AND COALESCE(NULLIF(TRIM(a.birthdate),  ''), NULLIF(TRIM(p.birthdate::text), '')) IS NOT NULL
+        AND COALESCE(NULLIF(TRIM(a.street),     ''), NULLIF(TRIM(p.street),     '')) IS NOT NULL
+        AND COALESCE(NULLIF(TRIM(a.zip),        ''), NULLIF(TRIM(p.zip),        '')) IS NOT NULL
+        AND COALESCE(NULLIF(TRIM(a.city),       ''), NULLIF(TRIM(p.city),       '')) IS NOT NULL
+        AND COALESCE(NULLIF(TRIM(a.email),      ''), NULLIF(TRIM(p.primary_email), '')) IS NOT NULL
     ) AS antrag_voll,
     EXISTS (
       SELECT 1 FROM fiaon_applications a
@@ -213,11 +219,25 @@ const STAND_SQL = `
       WHERE a.person_id = p.id AND a.merged_into IS NULL
         AND a.payment_status = 'paid' AND a.ref LIKE 'FIAON-SCHUFA-%'
     ) AS schufa_bezahlt,
-    COALESCE((
-      SELECT COUNT(*) FROM fiaon_abo_raten r
-      JOIN fiaon_applications a2 ON a2.ref = r.ref
-      WHERE a2.person_id = p.id AND r.status = 'bezahlt'
-    ), 0)::int AS raten_bezahlt,
+    -- ── DIE STARTZAHLUNG ZAEHLT AUCH OHNE KETTENEINTRAG (27.08.2026) ──
+    -- Team-Punkt 16 (Beispiel Dirk Ladewig): Der Antrag ist bankbestaetigt
+    -- bezahlt, aber die rueckwirkend angelegte Kette trug Rate 1 als offen —
+    -- die Akte sagte „0 von 2 Raten". Ein bezahlter Antrag HAT per Definition
+    -- eine bezahlte Erstzahlung (payment_status='paid' entsteht nur ueber den
+    -- einen Buchungsweg). GREATEST nimmt deshalb mindestens 1, sobald das
+    -- Paket bezahlt ist — die Kette kann der Wahrheit nicht mehr widersprechen.
+    GREATEST(
+      COALESCE((
+        SELECT COUNT(*) FROM fiaon_abo_raten r
+        JOIN fiaon_applications a2 ON a2.ref = r.ref
+        WHERE a2.person_id = p.id AND r.status = 'bezahlt'
+      ), 0),
+      CASE WHEN EXISTS (
+        SELECT 1 FROM fiaon_applications a3
+        WHERE a3.person_id = p.id AND a3.merged_into IS NULL
+          AND a3.payment_status = 'paid' AND a3.ref NOT LIKE 'FIAON-SCHUFA-%'
+      ) THEN 1 ELSE 0 END
+    )::int AS raten_bezahlt,
     -- Wann die nächste offene Rate fällig ist. Ohne dieses Datum kann die
     -- Oberfläche nur sagen „es fehlt etwas", nicht „am 30.08. ist die nächste".
     (

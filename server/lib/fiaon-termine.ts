@@ -1150,7 +1150,17 @@ export async function terminBuchen(
   // Alles andere (auch ein mitgeschicktes `onboarding_call`) wird abgeleitet.
   // ══════════════════════════════════════════════════════════════════════
   const gewuenscht = String(eingabe.quelle);
-  const eigenerRueckruf = gewuenscht === "agent_manuell" || gewuenscht === "onboarding";
+  // ── DIE WAHL DES MITARBEITERS GILT (27.08.2026, Team-Punkt 15) ──────────
+  // Gemeldet und reproduzierbar: Wer im Kalender ausdruecklich „Onboarding"
+  // waehlte, bekam einen VERTRIEBS-Termin. Die Ausnahmen-Liste kannte nur das
+  // alte Wort `onboarding` — die Route schickt aber laengst `onboarding_call`,
+  // also lief die Wahl in die Ableitung und wurde dort umgedeutet.
+  //
+  // Die Regel bleibt fuer oeffentliche Wege richtig (ein URL-Parameter darf
+  // nicht entscheiden, wer anruft). Ein ANGEMELDETER Mitarbeiter ist kein
+  // URL-Parameter: Buchungen mit herkunft 'agent' behalten die gewaehlte Art.
+  const eigenerRueckruf = gewuenscht === "agent_manuell" || gewuenscht === "onboarding"
+    || eingabe.herkunft === "agent";
   const abgeleitet = eigenerRueckruf
     ? null
     : await entscheidFuerPerson(eingabe.personId, gewuenscht, lauf);
@@ -1444,6 +1454,56 @@ export async function terminAbsagen(
       wer === "kunde" ? "kunde" : "agent", lauf,
     ))
     .catch((e) => console.error("[TERMINE] Absagemeldung:", e));
+
+  // ── SAGT DER MITARBEITER AB, ERFAEHRT ES DER KUNDE (27.08.2026, Team-P.9) ──
+  // Vorher bekam nur der ZUSTAENDIGE eine Meldung. Der Kunde sass zur
+  // vereinbarten Zeit am Telefon und wartete auf einen Anruf, der nie kam.
+  // Jetzt: Bei einer Absage durch den Mitarbeiter geht sofort eine Mail an den
+  // Kunden — welcher Termin betroffen war und ein Link, um direkt eine neue
+  // Zeit zu waehlen. Sagt der KUNDE selbst ab, braucht er keine Mail darueber.
+  // WIRFT NIE: Ein Versandfehler macht die Absage nicht ungueltig.
+  if (wer === "agent") {
+    void (async () => {
+      try {
+        const [k] = (await lauf`
+          SELECT COALESCE(NULLIF(p.first_name, ''), p.contact_name) AS vorname, p.last_name AS nachname,
+                 COALESCE(NULLIF(p.primary_email, ''), (
+                   SELECT NULLIF(COALESCE(a.email, a.contact_email, a.billing_email), '')
+                   FROM fiaon_applications a
+                   WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.gdpr_deleted_at IS NULL
+                   ORDER BY a.created_at DESC LIMIT 1
+                 )) AS email,
+                 (SELECT a2.ref FROM fiaon_applications a2
+                   WHERE a2.person_id = p.id AND a2.merged_into IS NULL AND a2.archived_at IS NULL
+                   ORDER BY a2.created_at DESC LIMIT 1) AS ref
+          FROM fiaon_persons p WHERE p.id = ${termin.person_id}
+        `) as any[];
+        if (!k?.email) return;
+        const beginnDatum = new Date(termin.beginn);
+        const { versendenUndProtokollieren } = await import("./fiaon-mail-log");
+        const { absoluteUrl } = await import("../fiaon-base-url");
+        await versendenUndProtokollieren(
+          "termin_absage",
+          {
+            email: String(k.email),
+            vorname: k.vorname || null,
+            nachname: k.nachname || null,
+            termin_datum: berlinDatumText(beginnDatum),
+            termin_uhrzeit: berlinUhrzeit(beginnDatum),
+            termin_art: (await import("@shared/fiaon-termin-art")).terminArtAusQuelle(String(termin.quelle)).text,
+            neu_buchen_link: absoluteUrl(`/termin/${terminTokenErzeugen(Number(termin.person_id))}`),
+          },
+          {
+            personId: Number(termin.person_id),
+            verlaufRef: k.ref || null,
+            verlaufText: `Absage-Mail an den Kunden versandt (Termin ${berlinDatumText(beginnDatum)}, ${berlinUhrzeit(beginnDatum)} Uhr, abgesagt durch den Mitarbeiter).`,
+          },
+        );
+      } catch (e) {
+        console.error("[TERMINE] Kundenmail zur Absage:", e);
+      }
+    })();
+  }
 
   return { ok: true, termin };
 }

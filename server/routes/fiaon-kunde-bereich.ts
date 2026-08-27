@@ -259,6 +259,32 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
     }
     const jetzt = etappen.find((e) => e.stand === "jetzt") || null;
 
+    // ── DERSELBE KARTEN-STAND WIE IN DER MITARBEITERANSICHT (27.08., P.18) ──
+    // Gemeldet: Mitarbeiter sah „Alles fertig — Karte kann bestellt werden",
+    // der Kunde im Portal „In Prüfung". Zwei Anzeigen, zwei Quellen. Jetzt
+    // liest das Portal DIESELBE Funktion (kartenStand) wie die Akte — mit dem
+    // Kundensatz je Tor, nicht dem internen. Geschuetzt: Faellt die Abfrage,
+    // faellt nur die Kachel — nie der Bereich (Lehre vom 26./27.08.).
+    let karte: any = null;
+    if (a.person_id) {
+      try {
+        const { kartenStand } = await import("../lib/fiaon-konto-karte");
+        const ks = await kartenStand(Number(a.person_id));
+        if (ks) {
+          karte = {
+            bereit: ks.bereit,
+            esFehlt: ks.esFehlt,
+            verschickt: !!ks.versand,
+            tore: (ks.tore || []).map((t: any) => ({
+              titel: t.titel, erfuellt: t.erfuellt, warum: t.warumFuerKunden ?? null,
+            })),
+          };
+        }
+      } catch (e) {
+        console.error("[MEIN-BEREICH] kartenStand:", e);
+      }
+    }
+
     res.json({
       ok: true,
       kunde: {
@@ -289,6 +315,7 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
         zahlungsreferenz: schufa?.payment_reference || null, zahlungsstatus: schufa?.payment_status || null,
         preisEuro: schufa?.amount_due != null ? Number(schufa.amount_due) : 74,
       } : null,
+      karte,
       unterlagen: {
         kontoauszug: !!a.hat_kontoauszug, ausweis: !!a.hat_ausweis, auskunft: auskunftDa,
         erneutKontoauszug: !!a.reupload_bank_statement, erneutAusweis: !!a.reupload_id_card,
@@ -472,3 +499,56 @@ router.post("/kunde/logout", (_req, res: Response) => {
 });
 
 export default router;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TERMINE IM KUNDENPORTAL (27.08.2026, Team-Punkt 10)
+//
+// Der Kunde sieht seine Termine — kommende mit Absagelink, vergangene zur
+// Einordnung — und kann selbst eine neue Zeit waehlen. Der Buchungslink ist
+// derselbe persoenliche Terminlink wie ueberall (terminTokenErzeugen): Die
+// GESPRAECHSART entscheidet dort die Ableitung aus seinem Zustand — genau die
+// Team-Anforderung „klar definiert, fuer welche Anliegen welcher Termin".
+// Wer schon voll freigeschaltet ist, bucht damit nie wieder ein Startgespraech
+// — die Ableitung kennt seinen Stand.
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/kunde/:ref/termine", requireKunde, async (req: KundeRequest, res: Response) => {
+  try {
+    const ref = String(req.params.ref);
+    const [a] = (await sqlPool`
+      SELECT person_id FROM fiaon_applications
+      WHERE ref = ${ref} AND merged_into IS NULL LIMIT 1`) as any[];
+    if (!a?.person_id) return res.json({ ok: true, kommende: [], vergangene: [], buchungsLink: null });
+
+    const termine = (await sqlPool`
+      SELECT t.id, t.beginn, t.dauer_min, t.status, t.quelle, t.storno_token,
+             COALESCE(NULLIF(ag.first_name, ''), ag.name) AS agent_vorname
+        FROM fiaon_termine t LEFT JOIN fiaon_agents ag ON ag.id = t.agent_id
+       WHERE t.person_id = ${a.person_id}
+       ORDER BY t.beginn DESC LIMIT 20`) as any[];
+
+    const { terminTokenErzeugen, berlinDatumText, berlinUhrzeit } = await import("../lib/fiaon-termine");
+    const { terminArtAusQuelle } = await import("../../shared/fiaon-termin-art");
+    const jetzt = Date.now();
+    const zeile = (t: any) => ({
+      beginn: t.beginn,
+      datumText: berlinDatumText(new Date(t.beginn)),
+      uhrzeit: berlinUhrzeit(new Date(t.beginn)),
+      art: terminArtAusQuelle(String(t.quelle)).text,
+      status: t.status,
+      mit: t.agent_vorname || null,
+      // Absagen nur fuer kommende gebuchte — ueber die bestehende oeffentliche Seite.
+      absageLink: t.status === "gebucht" && new Date(t.beginn).getTime() > jetzt && t.storno_token
+        ? `/termin/absagen/${t.storno_token}` : null,
+    });
+    res.json({
+      ok: true,
+      kommende: termine.filter((t: any) => new Date(t.beginn).getTime() > jetzt && t.status === "gebucht").map(zeile).reverse(),
+      vergangene: termine.filter((t: any) => new Date(t.beginn).getTime() <= jetzt || t.status !== "gebucht").map(zeile).slice(0, 6),
+      buchungsLink: `/termin/${terminTokenErzeugen(Number(a.person_id))}`,
+    });
+  } catch (err) {
+    console.error("[KUNDE] termine:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+

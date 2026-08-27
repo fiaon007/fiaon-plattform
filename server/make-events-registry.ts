@@ -183,6 +183,18 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       hinweis_absage: "Passt es doch nicht? Über den Link in der Bestätigungs-E-Mail kannst du jederzeit absagen oder eine andere Zeit wählen.",
     },
   },
+  {
+    type: "termin_absage",
+    label: "Termin abgesagt (durch uns)",
+    customerBound: true,
+    description:
+      "Feuert, wenn ein MITARBEITER einen gebuchten Termin absagt (Kundenabsagen loesen keine Mail aus — der Kunde weiss es selbst). Vorgesetzten-TODO: Make-Zweig 'termin_absage' + Brevo-Vorlage anlegen (Variablen: vorname, nachname, termin_datum, termin_uhrzeit, termin_art, neu_buchen_link). Ton ruhig und entschuldigend: welcher Termin betroffen war, dass WIR abgesagt haben, und ein Klick fuehrt direkt zur Wahl einer neuen Zeit ({{params.neu_buchen_link}}).",
+    example: {
+      vorname: "Max", nachname: "Muster", termin_datum: "Donnerstag, 28. August",
+      termin_uhrzeit: "14:20", termin_art: "Startgespräch",
+      neu_buchen_link: "https://fiaon.com/termin/abc123",
+    },
+  },
   // ══════════════════════════════════════════════════════════════════════════
   // NEU AM 24.08.2026 — „Leider nicht erschienen … hier neuen Termin buchen"
   //

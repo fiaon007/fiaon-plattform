@@ -68,7 +68,7 @@ function WalletInnen() {
         <div>
           <span className="wa-pille">Wallet · {satzText} je bankbestätigter Rate</span>
           <h1>Ausgezahlt wird, was <span className="wa-verlauf">angekommen ist.</span></h1>
-          <p>Deine Vergütung entsteht mit jeder Rate, die auf dem FIAON-Konto bestätigt ist: {satzText} je Paket-Rate, 10 € je Auskunftszahlung im Onboarding, 50 % je reaktivierter Rate aus dem Altbestand. Offene Beträge stehen als „potenziell" daneben. Auszahlung monatlich, ohne Obergrenze.</p>
+          <p>Deine Vergütung entsteht mit jeder Rate, die auf dem FIAON-Konto bestätigt ist: {satzText} je Paket-Rate, 10 € je Auskunftszahlung im Onboarding, 50 % je reaktivierter Rate aus dem Altbestand. Offene Beträge stehen als „potenziell" daneben. Auszahlung alle zwei Wochen, ohne Obergrenze.</p>
         </div>
         <div className="wa-stand">
           <small>Guthaben · auszahlbar</small>

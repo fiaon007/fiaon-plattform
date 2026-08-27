@@ -198,7 +198,21 @@ const tKey = (a: Termin) => a.schluessel ?? `${a.art ?? "verlauf"}:${a.id}`;
 // nicht trägt — dann entscheidet dieselbe Regel aus der Buchungsquelle.
 const tSelbstGebucht = (a: Termin) =>
   a.quelle === "termin" && (a.selbstGebucht ?? a.buchungsquelle !== "agent_manuell");
-const akteHref = (a: { person_id?: number | null; personId?: number | null; ref?: string | null }) => a.person_id || a.personId ? `/agent/kunden?person=${a.person_id ?? a.personId}` : `/agent/kunden?ref=${encodeURIComponent(a.ref || "")}`;
+// ── DER TERMIN FUEHRT IN SEINEN ARBEITSBEREICH (27.08.2026, Team-P.11) ─────
+// Vorher landete JEDER Klick in der CRM-Akte — auch ein Onboarding-Termin
+// (dort fehlen Agenda und Abschluss) und ein Zahlungs-Termin (dort fehlt die
+// Forderungssicht). Jetzt entscheidet die Terminart:
+//   onboarding_call → Onboarding-Raum (Gespraech fuehren, dokumentieren,
+//                     abschliessen — erst DER Abschluss schaltet den Kunden
+//                     frei und beendet den gemeldeten Buchungs-Kreislauf)
+//   inkasso_call    → Forderungsmanagement (Collections-Sicht)
+//   alles andere    → CRM-/Vertriebsakte wie bisher
+const akteHref = (a: { person_id?: number | null; personId?: number | null; ref?: string | null; quelle?: string }) => {
+  const pid = a.person_id ?? a.personId;
+  if (a.quelle === "onboarding_call" && pid) return `/agent/onboarding?person=${pid}`;
+  if (a.quelle === "inkasso_call" && pid) return `/agent/collections?person=${pid}`;
+  return pid ? `/agent/kunden?person=${pid}` : `/agent/kunden?ref=${encodeURIComponent(a.ref || "")}`;
+};
 
 interface Block { wochentag: number; von: string; bis: string }
 

@@ -539,6 +539,11 @@ function Geld({ onAkte, zeige }: {
   const [filter, setFilter] = useState("ueberfaellig");
   const [liste, setListe] = useState<any[]>([]);
   const [laedt, setLaedt] = useState(true);
+  // ── SUCHE (27.08.2026, Team-Punkt 3) ────────────────────────────────────
+  // „Im Bereich Geld gibt es keine Suchfunktion — ich muss durch die ganze
+  // Liste scrollen." Gesucht wird ueber Name, Referenz und Betreuer, in der
+  // bereits geladenen Liste — ohne neuen Serverruf, Treffer beim Tippen.
+  const [suche, setSuche] = useState("");
 
   useEffect(() => {
     let an = true;
@@ -551,7 +556,14 @@ function Geld({ onAkte, zeige }: {
     return () => { an = false; };
   }, [filter]);
 
-  const summe = liste.reduce((s, p) => s + (p.betrag ?? 0), 0);
+  const sichtbar = suche.trim()
+    ? liste.filter((p) => {
+        const q = suche.trim().toLowerCase();
+        return [p.name, p.ref, p.agentName, p.produkt]
+          .some((f) => String(f || "").toLowerCase().includes(q));
+      })
+    : liste;
+  const summe = sichtbar.reduce((s, p) => s + (p.betrag ?? 0), 0);
 
   return (
     <>
@@ -560,16 +572,24 @@ function Geld({ onAkte, zeige }: {
           <button key={k} type="button" className={`lt-chip${filter === k ? " an" : ""}`}
                   onClick={() => setFilter(k)}>{t}</button>
         ))}
+        <input type="search" value={suche} onChange={(e) => setSuche(e.target.value)}
+               placeholder="Suchen: Name, Referenz, Betreuer …"
+               aria-label="In der Geld-Liste suchen"
+               style={{ marginLeft: "auto", minWidth: 220, padding: "6px 12px", borderRadius: 10,
+                        border: "1px solid rgba(148,163,184,.35)", background: "transparent",
+                        color: "inherit", fontSize: 13 }} />
       </div>
 
       <div className="lt-block">
         <div className="lt-block-kopf">
-          <b>{laedt ? "Lädt …" : `${liste.length} ${liste.length === 1 ? "Fall" : "Fälle"}`}</b>
+          <b>{laedt ? "Lädt …" : `${sichtbar.length} ${sichtbar.length === 1 ? "Fall" : "Fälle"}${suche.trim() && sichtbar.length !== liste.length ? ` (von ${liste.length})` : ""}`}</b>
           {summe > 0 && <small>zusammen {eur(summe)} offen</small>}
         </div>
-        {!laedt && liste.length === 0 && <p className="lt-leer">Hier ist nichts offen.</p>}
+        {!laedt && sichtbar.length === 0 && (
+          <p className="lt-leer">{suche.trim() ? "Kein Treffer für diese Suche in diesem Filter." : "Hier ist nichts offen."}</p>
+        )}
         <div className="lt-tabelle">
-          {liste.map((p) => (
+          {sichtbar.map((p) => (
             <div key={p.personId} className="lt-zeile">
               <button type="button" className="lt-zeile-wer" onClick={() => onAkte(p.personId)}>
                 <b>{p.name}</b>

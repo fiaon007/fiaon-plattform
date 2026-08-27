@@ -25,6 +25,11 @@ const DEMO_REF = "FIAON-DEMO";
 // ── Datenform des Endpunkts ─────────────────────────────────────────────────
 interface Etappe { key: string; titel: string; text: string; stand: "fertig" | "jetzt" | "kommt"; datum: string | null; stempel: string | null; href?: string | null }
 interface Bereich {
+  /** Karten-Stand aus derselben Quelle wie die Mitarbeiteransicht (P.18). */
+  karte?: {
+    bereit: boolean; esFehlt: string | null; verschickt: boolean;
+    tore: { titel: string; erfuellt: boolean; warum: string | null }[];
+  } | null;
   kunde: { ref: string; vorname: string; nachname: string; email: string; telefon: string; strasse: string; plz: string; ort: string; land: string; geburtsdatum: string | null; kundeSeit: string | null; profilRueckfrage: boolean; profilHinweis: string | null };
   paket: { key: string | null; name: string; abo: boolean; rahmen: number | null; wunschlimit: number | null; monatlichCents: number | null; zahlungsstatus: string; zahlungsreferenz: string | null; faelligAm: string | null };
   stufe: { stufe: string | null; text: string | null; grund: string | null; naechsterSchritt: string | null; vollAktiv: boolean; pflicht: boolean; bezahlt: boolean };
@@ -143,6 +148,21 @@ export default function MeinBereichPage() {
       if (r.ok && r.json?.eingeloggt && r.json.ref) { try { sessionStorage.setItem("fiaon_user", JSON.stringify({ ref: r.json.ref })); } catch { /* egal */ } setRef(String(r.json.ref)); }
       else window.location.href = "/login";
     }).catch(() => { window.location.href = "/login"; });
+  }, [ref]);
+
+  // ── TERMINE (27.08.2026, Team-Punkt 10) ─────────────────────────────────
+  // Eigener, kleiner Abruf: Faellt er aus, fehlt nur der Termin-Abschnitt —
+  // nie der Bereich.
+  const [termine, setTermine] = useState<{
+    kommende: { datumText: string; uhrzeit: string; art: string; mit: string | null; absageLink: string | null }[];
+    vergangene: { datumText: string; uhrzeit: string; art: string; status: string }[];
+    buchungsLink: string | null;
+  } | null>(null);
+  useEffect(() => {
+    if (!ref) return;
+    api(`/kunde/${encodeURIComponent(ref)}/termine`).then((r) => {
+      if (r.ok) setTermine(r.json);
+    }).catch(() => { /* Abschnitt bleibt einfach leer */ });
   }, [ref]);
 
   useEffect(() => {
@@ -420,6 +440,37 @@ export default function MeinBereichPage() {
               </div>
             </section>
 
+            {/* ═══ TERMINE (27.08.2026, Team-Punkt 10) ═══
+                Der Kunde sieht seine Termine und waehlt selbst eine neue Zeit.
+                Welche GESPRAECHSART er bucht, entscheidet sein Zustand (die
+                Ableitung hinter dem persoenlichen Terminlink) — nie noch
+                einmal ein Startgespraech, das laengst erledigt ist. */}
+            {termine && (termine.kommende.length > 0 || termine.buchungsLink) && (
+              <section id="termine">
+                <div className="mb-abschnitt-kopf"><div><h2>Ihre Termine</h2><p>Vereinbarte Gespräche — und ein Klick zu einer neuen Zeit, wenn Sie eine brauchen.</p></div></div>
+                <div className="mb-karte">
+                  {termine.kommende.length === 0 && <p style={{ margin: 0, color: "var(--text-still)" }}>Aktuell ist kein Termin vereinbart.</p>}
+                  {termine.kommende.map((t, i) => (
+                    <div key={i} style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "baseline", padding: "10px 0", borderTop: i > 0 ? "1px solid var(--linie, rgba(148,163,184,.2))" : "none" }}>
+                      <b className="zahl">{t.datumText}, {t.uhrzeit} Uhr</b>
+                      <span>{t.art}{t.mit ? ` · mit ${t.mit}` : ""} · Wir rufen Sie an.</span>
+                      {t.absageLink && <a href={t.absageLink} style={{ marginLeft: "auto", color: "var(--text-leise)", textDecoration: "underline", textUnderlineOffset: 3, fontSize: 13 }}>Termin absagen</a>}
+                    </div>
+                  ))}
+                  {termine.buchungsLink && (
+                    <div style={{ marginTop: 14 }}>
+                      <a className="mb-knopf klein" href={termine.buchungsLink}>Neuen Termin buchen</a>
+                    </div>
+                  )}
+                  {termine.vergangene.length > 0 && (
+                    <p style={{ margin: "14px 0 0", fontSize: 12.5, color: "var(--text-still)" }}>
+                      Zuletzt: {termine.vergangene.slice(0, 3).map((t) => `${t.datumText} (${t.art}${t.status === "erledigt" ? ", geführt" : t.status === "abgesagt" ? ", abgesagt" : ""})`).join(" · ")}
+                    </p>
+                  )}
+                </div>
+              </section>
+            )}
+
             {/* ═══ SCHREIBEN ═══ */}
             <section id="schreiben">
               <div className="mb-abschnitt-kopf"><div><h2>Ihre Schreiben</h2><p>Fertig ausgefüllt, juristisch geprüft, mit einem Klick versendet.</p></div></div>
@@ -496,7 +547,30 @@ export default function MeinBereichPage() {
               <div className="mb-abschnitt-kopf"><div><h2>Ihre Vorteile</h2><p>Was heute geht, was in Reichweite ist, und was das Ziel bleibt.</p></div></div>
               <div className="mb-raster">
                 <article className="mb-kachel"><h4>DKB Girokonto</h4><p>Kostenlos, ohne Bonitätsprüfung. Spart Ihnen rund 60 € im Jahr.</p><div className="mb-kachel-fuss"><span className="mb-lage gut">Heute möglich</span><span className="zahl" style={{ fontSize: 12, color: "var(--text-still)" }}>über Ihre Ansprechpartnerin</span></div></article>
-                <article className="mb-kachel"><h4>Kreditkarte{d.paket.wunschlimit ? ` bis ${eur(d.paket.wunschlimit)}` : ""}</h4><p>Ihr Wunschlimit. Erreichbar, sobald Ihr Wert die Schwelle des Kartenpartners erreicht — wir sagen Ihnen, wann es so weit ist.</p><div className="mb-kachel-fuss"><span className="mb-lage bereit">Das Ziel</span></div></article>
+                {/* ── DIESELBE QUELLE WIE DIE MITARBEITERANSICHT (27.08., P.18) ──
+                    Vorher stand hier ein fester Satz — während die Akte längst
+                    „Karte kann bestellt werden" sagte. Jetzt kommt der Stand aus
+                    derselben Funktion (kartenStand): erledigte Tore, was fehlt,
+                    „bereit", sobald es so weit ist. Ohne Serverdaten bleibt der
+                    alte Satz stehen. */}
+                <article className="mb-kachel"><h4>Kreditkarte{d.paket.wunschlimit ? ` bis ${eur(d.paket.wunschlimit)}` : ""}</h4>
+                  {d.karte ? (<>
+                    <p>{d.karte.verschickt
+                      ? "Ihre Karte ist beantragt und liegt beim Kartenpartner."
+                      : d.karte.bereit
+                        ? "Alle Voraussetzungen sind erfüllt — Ihre Karte kann bestellt werden. Ihr Ansprechpartner meldet sich dazu."
+                        : `Noch offen: ${d.karte.esFehlt || "wenige Schritte"}.`}</p>
+                    <div className="mb-kachel-fuss">
+                      <span className={`mb-lage ${d.karte.verschickt || d.karte.bereit ? "gut" : "bereit"}`}>
+                        {d.karte.verschickt ? "Beantragt" : d.karte.bereit ? "Bereit zur Bestellung"
+                          : `${d.karte.tore.filter((t: { erfuellt: boolean }) => t.erfuellt).length} von ${d.karte.tore.length} Schritten erfüllt`}
+                      </span>
+                    </div>
+                  </>) : (<>
+                    <p>Ihr Wunschlimit. Erreichbar, sobald Ihr Wert die Schwelle des Kartenpartners erreicht — wir sagen Ihnen, wann es so weit ist.</p>
+                    <div className="mb-kachel-fuss"><span className="mb-lage bereit">Das Ziel</span></div>
+                  </>)}
+                </article>
                 <article className="mb-kachel"><h4>Finanzierung</h4><p>Für Auto, Umzug oder Anschaffung. Braucht einen stabilen Wert über mehrere Monate.</p><div className="mb-kachel-fuss"><span className="mb-lage ruht">Später</span></div></article>
                 {/* E-026: Kunden werden Mitarbeiter — die Bewerbung ist vorbelegt. */}
                 <article className="mb-kachel" style={{ background: "linear-gradient(135deg,rgba(37,99,235,.07),rgba(40,141,250,.04))" }}><h4>Werden Sie Teil des FIAON Teams</h4><p>Arbeiten Sie von zuhause — für das, was Ihnen selbst hilft. Start auf Provision, Fixum bei Bewährung. Bewerbung in 60 Sekunden, Ihre Daten sind schon eingetragen.</p><div className="mb-kachel-fuss"><a className="mb-knopf klein" href={`/karriere?ref=${encodeURIComponent(d.kunde.ref)}`}>Jetzt bewerben</a></div></article>

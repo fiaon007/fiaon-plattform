@@ -406,6 +406,105 @@ router.get("/admin/mail/:personId(\\d+)/:event/vorschau", async (req: Request, r
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// FREITEXT IM FIAON-GERÜST (28.08.2026)
+//
+// Justin: „Die Mitarbeiter sollen eine Freitext-Mail perfekt in unserem CI an
+// den Kunden senden können." Betreff + Text vom Mitarbeiter, Kopf/Fuß/
+// Pflichtangaben vom Gerüst. Vorschau und Versand nutzen dieselbe Funktion.
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function freitextZiel(personId: number): Promise<{ email: string; anrede: string; ref: string | null } | null> {
+  const [p] = (await sqlPool`
+    SELECT COALESCE(NULLIF(p.primary_email, ''), (
+             SELECT NULLIF(COALESCE(a.email, a.contact_email, a.billing_email), '')
+             FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL
+             ORDER BY a.created_at DESC LIMIT 1)) AS email,
+           COALESCE(NULLIF(p.first_name, ''), p.contact_name) AS vorname,
+           p.last_name AS nachname,
+           (SELECT a2.ref FROM fiaon_applications a2
+             WHERE a2.person_id = p.id AND a2.merged_into IS NULL AND a2.archived_at IS NULL
+             ORDER BY a2.created_at DESC LIMIT 1) AS ref
+    FROM fiaon_persons p WHERE p.id = ${personId} AND p.merged_into_person_id IS NULL
+  `) as any[];
+  if (!p) return null;
+  const name = [p.vorname, p.nachname].filter(Boolean).join(" ").trim();
+  return {
+    email: String(p.email || ""),
+    anrede: name ? `Guten Tag ${name},` : "Guten Tag,",
+    ref: p.ref || null,
+  };
+}
+
+/** POST /agent/mail/:personId/frei/vorschau — {betreff, text}. */
+router.post("/agent/mail/:personId(\\d+)/frei/vorschau", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const personId = Number(req.params.personId);
+    const rolle = await rolleVon(req.agent!.id);
+    if (!(await darfAnKunde(req.agent!.id, rolle, personId))) {
+      return res.status(403).json({ ok: false, error: "Dieser Kunde wird von jemand anderem betreut." });
+    }
+    const betreff = String(req.body?.betreff || "").trim();
+    const text = String(req.body?.text || "").trim();
+    if (!betreff || !text) return res.json({ ok: false, error: "Betreff und Text dürfen nicht leer sein." });
+    const ziel = await freitextZiel(personId);
+    if (!ziel) return res.json({ ok: false, error: "Kunde nicht gefunden." });
+    if (!ziel.email) return res.json({ ok: false, error: "Keine E-Mail-Adresse hinterlegt." });
+    const { freitextRendern } = await import("../mail/motor");
+    const mail = freitextRendern({ betreff, text, anrede: ziel.anrede });
+    res.json({ ok: true, betreff: mail.betreff, html: mail.html, empfaenger: ziel.email, absender: mail.absender, fehlend: [] });
+  } catch (err) {
+    console.error("[MAIL] frei vorschau:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/** POST /agent/mail/:personId/frei — senden. {betreff, text}. */
+router.post("/agent/mail/:personId(\\d+)/frei", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const personId = Number(req.params.personId);
+    const rolle = await rolleVon(req.agent!.id);
+    if (!(await darfAnKunde(req.agent!.id, rolle, personId))) {
+      return res.status(403).json({ ok: false, error: "Dieser Kunde wird von jemand anderem betreut." });
+    }
+    const betreff = String(req.body?.betreff || "").trim();
+    const text = String(req.body?.text || "").trim();
+    if (!betreff || !text) return res.json({ ok: false, meldung: "Betreff und Text dürfen nicht leer sein." });
+    const ziel = await freitextZiel(personId);
+    if (!ziel?.email) return res.json({ ok: false, meldung: "Keine E-Mail-Adresse hinterlegt." });
+
+    const { freitextSenden } = await import("../mail/motor");
+    const erg = await freitextSenden({ an: ziel.email, betreff, text, anrede: ziel.anrede });
+
+    // Protokoll + Akte — eine Freitext-Mail darf so wenig spurlos sein wie
+    // jede andere. Der volle Text steht im Payload, der Betreff im Verlauf.
+    const { mailProtokoll } = await import("../lib/fiaon-mail-log");
+    await mailProtokoll({
+      event: "frei_text", personId, empfaenger: ziel.email,
+      status: erg.ok ? "versandt" : "fehlgeschlagen",
+      grund: erg.ok ? null : (erg.grund ?? "unbekannt"),
+      payload: { betreff, text, email: ziel.email },
+      ausgeloestVon: req.agent!.name, ausgeloestAgentId: req.agent!.id,
+      brevoMessageId: erg.messageId,
+    });
+    if (ziel.ref) {
+      await sqlPool`
+        INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note, created_at)
+        VALUES (${ziel.ref}, ${req.agent!.id}, ${req.agent!.name}, 'system',
+                ${erg.ok
+                  ? `Freitext-Mail „${betreff}“ an ${ziel.email} verschickt.`
+                  : `Freitext-Mail „${betreff}“ NICHT verschickt: ${erg.grund}`}, NOW())
+      `.catch(() => {});
+    }
+    res.json(erg.ok
+      ? { ok: true, meldung: `„${betreff}“ an ${ziel.email} verschickt.` }
+      : { ok: false, meldung: `Nicht verschickt: ${erg.grund}` });
+  } catch (err) {
+    console.error("[MAIL] frei senden:", err);
+    res.status(500).json({ ok: false, meldung: "Serverfehler" });
+  }
+});
+
 /** POST /agent/mail/:personId/:event — senden. */
 router.post("/agent/mail/:personId/:event", requireAgent, async (req: AgentRequest, res: Response) => {
   try {

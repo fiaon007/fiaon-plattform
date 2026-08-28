@@ -818,7 +818,7 @@ export async function freieSlots(
   // bzw. Verteilliste.
   const betreuerAktiv = person.assigned_agent_id && person.agent_aktiv;
   const agenten = betreuerAktiv
-    ? [{ id: Number(person.assigned_agent_id), vorname: String(person.agent_vorname || person.agent_name || "dein Ansprechpartner") }]
+    ? [{ id: Number(person.assigned_agent_id), vorname: String(person.agent_name || person.agent_vorname || "Ihr Ansprechpartner") }]
     : nurRollen
       ? await agentenMitRolle(nurRollen, lauf)
       : ((await lauf`
@@ -898,7 +898,7 @@ export async function freieSlots(
   return {
     slots: slotsVerknappen(slots, await slotsProTag(lauf)),
     betreuer: betreuerAktiv
-      ? { id: Number(person.assigned_agent_id), vorname: String(person.agent_vorname || person.agent_name || "") }
+      ? { id: Number(person.assigned_agent_id), vorname: String(person.agent_name || person.agent_vorname || "") }
       : null,
     vertretung: entscheid.rueckfall,
     quelle: wirkQuelle,

@@ -605,7 +605,9 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     description: "EMPFEHLUNG (noch kein Auto-Versand): Sollte feuern, wenn ein neues SCHUFA-/Bonitätsdokument angefordert wird. Vorgesetzten-TODO: Make-Zweig 'schufa_requested' + Brevo-Template mit login_url.",
     customerBound: true,
     recommendationOnly: true,
-    example: { ...CUSTOMER_EXAMPLE, login_url: "https://www.fiaon.com/login", hinweis: "Bitte laden Sie Ihre aktuelle SCHUFA-Auskunft hoch." },
+    // 28.08.2026 (Justin): WIR holen die Auskunft ein und laden sie hoch —
+    // der Kunde tut nichts. Der alte Beispiel-Hinweis beschrieb den falschen Weg.
+    example: { ...CUSTOMER_EXAMPLE, login_url: "https://www.fiaon.com/login", hinweis: "Wir holen Ihre Auskunft für Sie ein — Sie müssen nichts tun." },
   },
   {
     type: "account_activated",

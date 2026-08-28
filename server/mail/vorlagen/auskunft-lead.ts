@@ -11,14 +11,21 @@ import type { MailBaustein } from "../geruest";
 
 export const AUSKUNFT_LEAD_VORLAGEN: Record<string, MailBaustein> = {
 
+  // Justins Korrektur 28.08.: WIR holen die Auskunft für den Kunden ein und
+  // laden sie in seinen Bereich — der Kunde muss NICHTS hochladen. Die alte
+  // Fassung ("Bitte laden Sie hoch") beschrieb den falschen Weg.
   schufa_requested: {
-    betreff: "Ihre Bonitätsauskunft ist beauftragt",
-    preheader: "Der wichtigste Schritt läuft — so geht es jetzt weiter.",
-    titel: "Ihre Auskunft ist unterwegs",
+    betreff: "Wir holen jetzt Ihre Bonitätsauskunft ein",
+    preheader: "Sie müssen nichts tun — wir erledigen das für Sie.",
+    titel: "Ihre Auskunft ist beauftragt",
     absaetze: [
-      "Guten Tag {{params.vorname}}, wir haben Ihre Bonitätsauskunft beauftragt — damit beginnt der wichtigste Teil der Arbeit: schwarz auf weiß sehen, was über Sie gespeichert ist.",
-      "{{params.hinweis}}",
-      "Sobald die Auskunft vorliegt, prüfen wir jeden einzelnen Eintrag: Stimmt er? Ist er verjährt? Ist er angreifbar? Das Ergebnis sehen Sie in Ihrem Bereich, und Ihr Ansprechpartner geht es mit Ihnen durch.",
+      "Guten Tag {{params.vorname}}, wir haben Ihre Bonitätsauskunft für Sie beauftragt — damit beginnt der wichtigste Teil der Arbeit: schwarz auf weiß sehen, was über Sie gespeichert ist.",
+      "Das Beste daran: <b>Sie müssen nichts tun.</b> Wir holen die Auskunft für Sie ein. Sobald sie da ist, laden wir sie direkt in Ihren Bereich hoch — und Sie bekommen sie zusätzlich per E-Mail, mit einer genauen Anleitung, was jeder Eintrag bedeutet und was wir als Nächstes damit tun.",
+      "Danach prüfen wir jeden einzelnen Eintrag: Stimmt er? Ist er verjährt? Ist er angreifbar? Das Ergebnis bespricht Ihr Ansprechpartner Schritt für Schritt mit Ihnen.",
+    ],
+    daten: [
+      { label: "Was Sie jetzt tun müssen", wert: "Nichts — wir melden uns" },
+      { label: "Dauer in der Regel", wert: "wenige Werktage" },
     ],
     knopf: { text: "Zu meinem Bereich", url: "{{params.login_url}}" },
     karteZiel: true,

@@ -175,7 +175,7 @@ async function verpasstMailSenden(
                SELECT NULLIF(COALESCE(a.email, a.contact_email, a.billing_email), '')
                FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL
                ORDER BY a.created_at DESC LIMIT 1)) AS email,
-             COALESCE(NULLIF(ag.first_name, ''), ag.name) AS agent_vorname
+             COALESCE(NULLIF(ag.name, ''), TRIM(CONCAT_WS(' ', NULLIF(ag.first_name, ''), NULLIF(ag.last_name, '')))) AS agent_vorname
       FROM fiaon_persons p
       LEFT JOIN fiaon_termine t ON t.id = ${terminId}
       LEFT JOIN fiaon_agents ag ON ag.id = t.agent_id

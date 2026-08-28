@@ -45,10 +45,13 @@ export const KONTO_VORLAGEN: Record<string, MailBaustein> = {
     ],
     daten: [
       { label: "Betrag", wert: "{{params.betrag}} €" },
+      { label: "Empfänger", wert: "{{params.empfaenger}}" },
+      { label: "IBAN", wert: "{{params.iban}}" },
+      { label: "BIC", wert: "{{params.bic}}" },
       { label: "Verwendungszweck", wert: "{{params.payment_reference}}" },
     ],
-    knopf: { text: "Bankdaten & Rechnung ansehen", url: "https://fiaon.com/zahlung/{{params.payment_reference}}" },
-    fussnote: "Dort finden Sie IBAN, Empfänger und Ihre Rechnung als PDF. Eine Überweisung braucht in der Regel einen Bankarbeitstag.",
+    knopf: { text: "Rechnung ansehen (PDF)", url: "https://fiaon.com/zahlung/{{params.payment_reference}}" },
+    fussnote: "Eine Überweisung braucht in der Regel einen Bankarbeitstag. Sobald sie da ist, geht Ihr Bereich automatisch auf.",
     karteZiel: true,
   },
 

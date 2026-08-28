@@ -521,7 +521,7 @@ router.get("/kunde/:ref/termine", requireKunde, async (req: KundeRequest, res: R
 
     const termine = (await sqlPool`
       SELECT t.id, t.beginn, t.dauer_min, t.status, t.quelle, t.storno_token,
-             COALESCE(NULLIF(ag.first_name, ''), ag.name) AS agent_vorname
+             COALESCE(NULLIF(ag.name, ''), TRIM(CONCAT_WS(' ', NULLIF(ag.first_name, ''), NULLIF(ag.last_name, '')))) AS agent_vorname
         FROM fiaon_termine t LEFT JOIN fiaon_agents ag ON ag.id = t.agent_id
        WHERE t.person_id = ${a.person_id}
        ORDER BY t.beginn DESC LIMIT 20`) as any[];

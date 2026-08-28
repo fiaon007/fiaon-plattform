@@ -481,7 +481,7 @@ export const RUNDGANG_MAILS: RundgangSchritt[] = [
     text: "Von hier aus wird nichts verschickt. In der Kundenakte gibt es den Knopf "
       + "\u201eE-Mail senden\u201c: Dort waehlst du die Mail, siehst die Vorschau mit den ECHTEN "
       + "Daten dieses Kunden — Name, Betrag, Verwendungszweck — und schickst erst dann ab. "
-      + "Jeder Versand steht danach im Verlauf und im Protokoll.",
+      + "Jeder Versand steht danach im Verlauf und im Protokoll. Und mit \u201eFreie Nachricht\u201c schreibst du eigenen Text, der automatisch im FIAON-Design ankommt \u2014 Kopf, Fu\u00df und Anrede setzt das System.",
     tipp: "Erst die Vorschau lesen, dann senden. Steht dort ein leeres Feld, stimmt etwas an den Kundendaten.",
   },
 ];

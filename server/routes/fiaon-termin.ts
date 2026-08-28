@@ -111,7 +111,7 @@ router.get("/termin/:token", async (req: Request, res: Response) => {
     // Schon einen Termin? Dann zeigt die Seite ihn statt einer neuen Auswahl.
     const [bestehend] = (await sqlPool`
       SELECT t.id, t.beginn, t.storno_token,
-             COALESCE(NULLIF(ag.first_name, ''), ag.name) AS agent_vorname
+             COALESCE(NULLIF(ag.name, ''), TRIM(CONCAT_WS(' ', NULLIF(ag.first_name, ''), NULLIF(ag.last_name, '')))) AS agent_vorname
       FROM fiaon_termine t LEFT JOIN fiaon_agents ag ON ag.id = t.agent_id
       WHERE t.person_id = ${person.id} AND t.status = 'gebucht' AND t.beginn > NOW()
       ORDER BY t.beginn ASC LIMIT 1

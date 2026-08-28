@@ -77,10 +77,26 @@ export function hatVorlage(event: string): boolean {
   return !!VORLAGEN[event];
 }
 
+/**
+ * Die Hausbank — der Fallback für Zahlungsmails (Justins Auftrag 28.08.:
+ * „Wenn wir den Kunden an die erste Rechnung, Abo, Schufa-Rechnung erinnern,
+ * dann bitte in der E-Mail unsere Bankdaten einfügen.")
+ *
+ * Quelle der Wahrheit bleibt FIAON_BANK_DETAILS (fiaon-antrag.ts/fiaon-invoice.ts);
+ * die Werte hier sind dieselben. Bringt eine Nutzlast eigene Werte mit
+ * (z. B. die Abo-Erinnerung), gewinnen die — der Fallback springt nur ein,
+ * wenn das Feld fehlt.
+ */
+const BANK_FALLBACK: Record<string, string> = {
+  empfaenger: "FIAON LTD",
+  iban: "BE09 9058 9276 3957",
+  bic: "TRWIBEB1XXX",
+};
+
 /** {{params.x}} durch Werte ersetzen; fehlende Schlüssel einsammeln. */
 function fuellen(text: string, payload: Record<string, unknown>, fehlend: Set<string>): string {
   return text.replace(/\{\{params\.([a-z_0-9]+)\}\}/gi, (_, k: string) => {
-    const wert = (payload as any)[k];
+    const wert = (payload as any)[k] ?? BANK_FALLBACK[k];
     if (wert === undefined || wert === null || String(wert).trim() === "") {
       fehlend.add(k);
       return "";
@@ -136,6 +152,71 @@ export function mailRendern(event: string, payload: Record<string, unknown>): Ge
   const text = fuellen(mailText(vorlage), payload, fehlend).replace(/%%RATENLEISTE[^%]*%%/g, "");
   const betreff = fuellen(vorlage.betreff, payload, fehlend);
   return { betreff, html, text, absender: absenderFuer(event), fehlend: Array.from(fehlend).sort() };
+}
+
+/**
+ * Freitext im FIAON-Gerüst (Justins Auftrag 28.08.: „Baue etwas ein, damit
+ * die Mitarbeiter eine Freitext-Mail perfekt in unserem CI senden können.")
+ *
+ * Der Mitarbeiter liefert Betreff und Text; das Gerüst liefert Kopf, Fuß,
+ * Pflichtangaben und Absender. Absätze trennt eine Leerzeile. HTML im Text
+ * wird entschärft — eine Freitext-Mail ist eine Nachricht, kein Baukasten.
+ */
+export function freitextBaustein(ein: { betreff: string; text: string; anrede?: string | null }): MailBaustein {
+  const sicher = (s: string) => s
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const absaetze = ein.text.split(/\n\n+/)
+    .map((a) => sicher(a.trim()).replace(/\n/g, "<br />"))
+    .filter(Boolean);
+  if (ein.anrede) absaetze.unshift(sicher(ein.anrede));
+  return {
+    betreff: sicher(ein.betreff),
+    preheader: absaetze[0] ? absaetze[0].replace(/<br \/>/g, " ").slice(0, 90) : "Eine Nachricht von Ihrem Ansprechpartner.",
+    titel: sicher(ein.betreff),
+    absaetze,
+  };
+}
+
+/** Freitext rendern — für die Vorschau in der Akte. */
+export function freitextRendern(ein: { betreff: string; text: string; anrede?: string | null }): GerenderteMail {
+  const b = freitextBaustein(ein);
+  return {
+    betreff: b.betreff,
+    html: mailHtml(b),
+    text: mailText(b),
+    absender: ABSENDER.welcome,
+    fehlend: [],
+  };
+}
+
+/** Freitext direkt über Brevo senden. */
+export async function freitextSenden(ein: {
+  an: string; betreff: string; text: string; anrede?: string | null;
+}): Promise<{ ok: boolean; messageId: string | null; grund?: string }> {
+  const mail = freitextRendern(ein);
+  const key = process.env.BREVO_API_KEY;
+  if (!key) return { ok: false, messageId: null, grund: "BREVO_API_KEY ist nicht gesetzt." };
+  try {
+    const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: { "api-key": key, "Content-Type": "application/json", accept: "application/json" },
+      body: JSON.stringify({
+        sender: mail.absender, replyTo: mail.absender,
+        to: [{ email: ein.an }],
+        subject: mail.betreff, htmlContent: mail.html, textContent: mail.text,
+        tags: ["frei_text"],
+      }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) {
+      const t = await res.text().catch(() => "");
+      return { ok: false, messageId: null, grund: `Brevo hat abgelehnt (HTTP ${res.status}): ${t.slice(0, 200)}` };
+    }
+    const d = (await res.json().catch(() => ({}))) as { messageId?: string };
+    return { ok: true, messageId: d.messageId ?? null };
+  } catch (err) {
+    return { ok: false, messageId: null, grund: `Brevo nicht erreichbar: ${err instanceof Error ? err.message : String(err)}` };
+  }
 }
 
 /**

@@ -60,7 +60,7 @@ async function payloadFuer(personId: number, lauf: Lauf): Promise<Record<string,
              SELECT NULLIF(COALESCE(a.email, a.contact_email, a.billing_email), '')
              FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL
              ORDER BY a.created_at DESC LIMIT 1)) AS email,
-           COALESCE(NULLIF(ag.first_name, ''), ag.name) AS agent_vorname,
+           COALESCE(NULLIF(ag.name, ''), TRIM(CONCAT_WS(' ', NULLIF(ag.first_name, ''), NULLIF(ag.last_name, '')))) AS agent_vorname,
            (SELECT a2.ref FROM fiaon_applications a2
              WHERE a2.person_id = p.id AND a2.merged_into IS NULL AND a2.archived_at IS NULL
              ORDER BY a2.created_at DESC LIMIT 1) AS ref,
@@ -85,7 +85,8 @@ async function payloadFuer(personId: number, lauf: Lauf): Promise<Record<string,
     payment_reference: p.zahlungsreferenz || null,
     betrag: p.betrag != null ? String(p.betrag) : null,
     paket: p.paket ? String(p.paket).split("\n")[0].trim() : null,
-    agent_vorname: p.agent_vorname || "dein Ansprechpartner",
+    // Kunden werden gesiezt — auch im Notnagel, wenn kein Betreuer zugewiesen ist.
+    agent_vorname: p.agent_vorname || "Ihr Ansprechpartner",
     _ref: p.ref || null,
   };
 }

@@ -823,6 +823,8 @@ function KundenKarte({
   const [mailMenue, setMailMenue] = useState<any | null>(null);
   const [mailGewaehlt, setMailGewaehlt] = useState<string>("");
   const [mailVorschau, setMailVorschau] = useState<any | null>(null);
+  const [freiBetreff, setFreiBetreff] = useState("");
+  const [freiText, setFreiText] = useState("");
   /** Rückmeldung für den Terminlink-Knopf — getrennt vom Zahlungsdaten-Knopf. */
   const [linkKopiert, setLinkKopiert] = useState(false);
 
@@ -1572,12 +1574,41 @@ function KundenKarte({
                               className="text-[12.5px] px-2.5 py-2 rounded-lg min-w-[240px]"
                               style={{ background: "var(--fi-seite)", border: "1px solid var(--fi-linie)", color: "var(--fi-text)" }}>
                         <option value="">Welche Mail soll raus?</option>
+                        <option value="__frei">✍️ Freie Nachricht (eigener Text im FIAON-Design)</option>
                         {(mailMenue.events || []).filter((e: any) => e.erlaubt).map((e: any) => (
                           <option key={e.type} value={e.type}>{e.label}</option>
                         ))}
                       </select>
                       {laeuft === "mail_vorschau" && <span className="text-[12px] opacity-70">Vorschau wird gebaut …</span>}
                     </div>
+                    {mailGewaehlt === "__frei" && (
+                      <div className="space-y-2">
+                        <input value={freiBetreff} onChange={(e) => { setFreiBetreff(e.target.value); setMailVorschau(null); }}
+                               placeholder="Betreff — er wird auch die Überschrift der Mail"
+                               className="w-full text-[13px] px-3 py-2 rounded-lg"
+                               style={{ background: "var(--fi-seite)", border: "1px solid var(--fi-linie)", color: "var(--fi-text)" }} />
+                        <textarea value={freiText} onChange={(e) => { setFreiText(e.target.value); setMailVorschau(null); }}
+                                  placeholder={"Deine Nachricht. Die Anrede (Guten Tag Vorname Nachname,) setzt das System selbst — fang direkt mit dem Inhalt an.\nLeerzeile = neuer Absatz."}
+                                  rows={6}
+                                  className="w-full text-[13px] px-3 py-2 rounded-lg leading-relaxed"
+                                  style={{ background: "var(--fi-seite)", border: "1px solid var(--fi-linie)", color: "var(--fi-text)", resize: "vertical" }} />
+                        <button type="button" disabled={laeuft === "mail_vorschau" || !freiBetreff.trim() || !freiText.trim()}
+                                onClick={() => {
+                                  void (async () => {
+                                    setLaeuft("mail_vorschau");
+                                    const r = await api(`/agent/mail/${k.personId}/frei/vorschau`, {
+                                      method: "POST", body: JSON.stringify({ betreff: freiBetreff, text: freiText }),
+                                    });
+                                    setLaeuft(null);
+                                    if (r.ok) setMailVorschau(r.json);
+                                    else zeige("fehler", "Keine Vorschau", r.json?.error || "Bitte erneut versuchen.");
+                                  })();
+                                }}
+                                className="fi-zweitknopf inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold">
+                          {laeuft === "mail_vorschau" ? "Wird gebaut …" : "Vorschau ansehen"}
+                        </button>
+                      </div>
+                    )}
                     {(mailMenue.events || []).some((e: any) => !e.erlaubt) && mailGewaehlt === "" && (
                       <p className="text-[11.5px] opacity-60">
                         Nicht wählbar (Zustand/Limit): {(mailMenue.events || []).filter((e: any) => !e.erlaubt).map((e: any) => e.label).slice(0, 4).join(", ")}
@@ -1602,11 +1633,16 @@ function KundenKarte({
                                 onClick={() => {
                                   void (async () => {
                                     setLaeuft("mail_senden");
-                                    const r = await api(`/agent/mail/${k.personId}/${mailGewaehlt}`, { method: "POST" });
+                                    const r = mailGewaehlt === "__frei"
+                                      ? await api(`/agent/mail/${k.personId}/frei`, {
+                                          method: "POST", body: JSON.stringify({ betreff: freiBetreff, text: freiText }),
+                                        })
+                                      : await api(`/agent/mail/${k.personId}/${mailGewaehlt}`, { method: "POST" });
                                     setLaeuft(null);
                                     if (r.ok && r.json?.ok) {
                                       zeige("erfolg", "E-Mail verschickt", r.json?.meldung || k.name);
                                       setMailMenue(null); setMailVorschau(null); setMailGewaehlt("");
+                                      setFreiBetreff(""); setFreiText("");
                                     } else zeige("fehler", "Nicht verschickt", r.json?.meldung || r.json?.grund || r.json?.error || "Bitte erneut versuchen.");
                                   })();
                                 }}

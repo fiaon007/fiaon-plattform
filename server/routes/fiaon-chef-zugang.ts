@@ -98,6 +98,11 @@ function ensureChefSchema(): Promise<void> {
       await sqlPool.begin(async (tx: any) => {
         await tx`SET LOCAL lock_timeout = '3s'`;
         await tx`ALTER TABLE fiaon_agents ADD COLUMN IF NOT EXISTS admin_stufe VARCHAR`;
+        // 28.08.2026 (Justin): Im Kopf des Chefbüros steht nicht die technische
+        // Stufe, sondern der TITEL der Person — „Künftige Geschäftsführung",
+        // „Assistent der Geschäftsleitung". Rechte regelt weiter admin_stufe;
+        // admin_titel ist reine Anzeige.
+        await tx`ALTER TABLE fiaon_agents ADD COLUMN IF NOT EXISTS admin_titel VARCHAR`;
       });
       await sqlPool`
         CREATE TABLE IF NOT EXISTS fiaon_admin_log (
@@ -231,7 +236,7 @@ router.post("/chef/anmelden", async (req: Request, res: Response) => {
       return res.status(429).json({ ok: false, code: "TOO_MANY", wartezeitMs: warten, error: `Zu viele Fehlversuche. Bitte ${Math.ceil(warten / 1000)} Sekunden warten.` });
     }
 
-    const rows = (await sqlPool`SELECT id, name, email, active, password_hash, admin_stufe FROM fiaon_agents WHERE LOWER(email) = ${email}`) as any[];
+    const rows = (await sqlPool`SELECT id, name, email, active, password_hash, admin_stufe, admin_titel FROM fiaon_agents WHERE LOWER(email) = ${email}`) as any[];
     const row = rows.length === 1 ? rows[0] : null;
     // Passwort ZUERST — wer das Passwort nicht kennt, erfährt auch nicht,
     // ob hinter der Adresse ein Admin-Konto steckt. Bewusst AUCH inaktive
@@ -272,7 +277,7 @@ router.post("/chef/anmelden", async (req: Request, res: Response) => {
     });
     void protokollSchreiben(Number(row.id), stufe, "ANMELDUNG", "/chef/anmelden", `agent:${row.id}`, `Stufe ${stufe}`);
     console.log(`[CHEF-ZUGANG] Anmeldung: ${row.name} (${row.email}) als ${stufe}`);
-    return res.json({ ok: true, angemeldet: true, stufe, name: String(row.name || "") });
+    return res.json({ ok: true, angemeldet: true, stufe, name: String(row.name || ""), titel: row.admin_titel ? String(row.admin_titel) : null });
   } catch (err) {
     console.error("[CHEF-ZUGANG] anmelden:", err);
     return res.status(500).json({ ok: false, error: "Serverfehler" });
@@ -289,11 +294,13 @@ router.get("/chef/status", async (req: Request, res: Response) => {
   const c = readChef(req);
   if (c) {
     let name: string | null = null;
+    let titel: string | null = null;
     try {
-      const rows = (await sqlPool`SELECT name FROM fiaon_agents WHERE id = ${c.agentId}`) as any[];
+      const rows = (await sqlPool`SELECT name, admin_titel FROM fiaon_agents WHERE id = ${c.agentId}`) as any[];
       name = rows[0]?.name ?? null;
+      titel = rows[0]?.admin_titel ?? null;
     } catch { /* Anzeige-Zucker — Status bleibt gültig auch ohne Namen */ }
-    return res.json({ ok: true, angemeldet: true, stufe: c.stufe, agentId: c.agentId, name, quelle: "chef" });
+    return res.json({ ok: true, angemeldet: true, stufe: c.stufe, agentId: c.agentId, name, titel, quelle: "chef" });
   }
   if (hasAdminCode(req)) {
     return res.json({ ok: true, angemeldet: true, stufe: "inhaber", agentId: null, name: null, quelle: "alt" });

@@ -147,9 +147,11 @@ export function raumErlaubt(raum: ChefRaum, stufe: ChefStufe): boolean {
   return RANG[stufe] >= RANG[raum.mindest];
 }
 
-export function ChefShell({ stufe, name, raumKey, onAbmelden, children }: {
+export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children }: {
   stufe: ChefStufe; name: string | null; raumKey: string;
   onAbmelden: () => void; children: ReactNode;
+  /** Anzeigetitel der Person (admin_titel) — ersetzt im Kopf den Stufennamen. */
+  titel?: string | null;
 }) {
   const [menueOffen, setMenueOffen] = useState(false);
   useEffect(() => { setMenueOffen(false); }, [raumKey]);
@@ -222,8 +224,8 @@ export function ChefShell({ stufe, name, raumKey, onAbmelden, children }: {
             <span>Suchen …</span>
             <kbd>⌘K</kbd>
           </div>
-          <span className="cb-stufe" title={`Angemeldet als ${STUFEN_NAME[stufe]}`}>
-            <span className="punkt" />{STUFEN_NAME[stufe]}
+          <span className="cb-stufe" title={`Angemeldet als ${titel || STUFEN_NAME[stufe]} (Stufe ${STUFEN_NAME[stufe]})`}>
+            <span className="punkt" />{titel || STUFEN_NAME[stufe]}
           </span>
           <button type="button" className="cb-rund" title="Abmelden" onClick={onAbmelden}><LogOut size={15} /></button>
         </div>

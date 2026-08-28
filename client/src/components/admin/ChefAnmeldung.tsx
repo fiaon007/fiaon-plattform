@@ -15,7 +15,7 @@
 import { useEffect, useRef, useState } from "react";
 import "@/styles/chefbuero.css";
 
-export interface ChefStatus { stufe: string; name: string | null; quelle: "chef" | "alt" }
+export interface ChefStatus { stufe: string; name: string | null; titel: string | null; quelle: "chef" | "alt" }
 
 export default function ChefAnmeldung({ onAngemeldet }: { onAngemeldet: (status: ChefStatus) => void }) {
   const [email, setEmail] = useState("");
@@ -34,7 +34,7 @@ export default function ChefAnmeldung({ onAngemeldet }: { onAngemeldet: (status:
       .then((r) => r.json())
       .then((j) => {
         if (weg) return;
-        if (j?.ok && j.angemeldet) onAngemeldet({ stufe: String(j.stufe), name: j.name ?? null, quelle: j.quelle === "alt" ? "alt" : "chef" });
+        if (j?.ok && j.angemeldet) onAngemeldet({ stufe: String(j.stufe), name: j.name ?? null, titel: j.titel ?? null, quelle: j.quelle === "alt" ? "alt" : "chef" });
         else setPruefeStatus(false);
       })
       .catch(() => { if (!weg) setPruefeStatus(false); });
@@ -58,7 +58,7 @@ export default function ChefAnmeldung({ onAngemeldet }: { onAngemeldet: (status:
       });
       const json = await res.json().catch(() => null);
       if (res.ok && json?.ok) {
-        onAngemeldet({ stufe: String(json.stufe), name: json.name ?? null, quelle: "chef" });
+        onAngemeldet({ stufe: String(json.stufe), name: json.name ?? null, titel: json.titel ?? null, quelle: "chef" });
         return;
       }
       if (json?.code === "CODE_NOETIG") {

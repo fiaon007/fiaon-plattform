@@ -75,7 +75,7 @@ export default function ChefPage() {
   };
 
   return (
-    <ChefShell stufe={stufe} name={status.name} raumKey={raum.key} onAbmelden={abmelden}>
+    <ChefShell stufe={stufe} name={status.name} titel={(status as any).titel ?? null} raumKey={raum.key} onAbmelden={abmelden}>
       {istSeite && !seite ? (
         <div className="cb-hinweis" role="status">
           <b>Diese Seite gibt es hier nicht.</b>

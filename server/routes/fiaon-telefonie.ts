@@ -1434,19 +1434,75 @@ router.get("/agent/dokumente/:personId/:art/datei", requireAgent, async (req: Ag
     const art = String(req.params.art);
     if (!istDokumentArt(art)) return res.status(400).json({ ok: false, error: "Unbekannte Dokumentart." });
     const rolle = await rolleVon(req.agent!.id);
-    const [p] = (await sqlPool`
+    // ── DIE DATEI KANN AN JEDER BESTELLUNG DER PERSON HÄNGEN (P10/P14) ────
+    // Vorher: nur die NEUESTE Bestellung. Wer Paket + Bonitätsauskunft hat,
+    // dessen Ausweis hängt oft an der jeweils anderen Zeile — Ergebnis:
+    // „Dokument nicht einsehbar", obwohl es da ist. Jetzt werden alle
+    // Bestellungen der Person probiert, neueste zuerst.
+    const refs = (await sqlPool`
       SELECT ref FROM fiaon_applications
       WHERE person_id = ${Number(req.params.personId)} AND merged_into IS NULL
-      ORDER BY created_at DESC LIMIT 1
+      ORDER BY created_at DESC LIMIT 8
     `) as any[];
-    if (!p) return res.status(404).json({ ok: false, error: "Keine Bestellung gefunden." });
-    const erg = await dokumentInhalt(String(p.ref), art, rolle);
-    if (!erg.ok) return res.status(erg.code).json({ ok: false, error: erg.grund });
+    if (refs.length === 0) return res.status(404).json({ ok: false, error: "Keine Bestellung gefunden." });
+    let erg: Awaited<ReturnType<typeof dokumentInhalt>> | null = null;
+    for (const r of refs) {
+      erg = await dokumentInhalt(String(r.ref), art, rolle);
+      if (erg.ok) break;
+    }
+    if (!erg || !erg.ok) return res.status(erg?.code ?? 404).json({ ok: false, error: erg?.grund ?? "Nicht gefunden." });
     res.setHeader("Content-Type", erg.typ);
     res.setHeader("Cache-Control", "no-store, private");
     res.send(erg.daten);
   } catch (err) {
     console.error("[DOK] agent datei:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/**
+ * POST /agent/dokumente/:personId/:art/loeschen — falsches Dokument entfernen.
+ *
+ * ── WARUM (P12, Team-Feedback 28.08.2026) ─────────────────────────────────
+ * „Wenn ein Kunde ein falsches Dokument hochlädt, muss das alte gelöscht und
+ * durch das richtige ersetzt werden können." Ersetzen ging schon immer (ein
+ * neuer Upload überschreibt) — aber ein falsches Dokument, das NIEMAND
+ * ersetzt, blieb für immer liegen und zählte als „vorhanden".
+ *
+ * Gelöscht wird an ALLEN Bestellungen der Person: Die Vollständigkeits-
+ * Prüfungen sind person-weit — eine Restdatei an der Schwester-Bestellung
+ * würde sonst weiter als „liegt vor" zählen. Grund ist Pflicht und steht im
+ * Verlauf; darfAnKunde entscheidet, wer darf (Leitung: jeder Kunde).
+ */
+router.post("/agent/dokumente/:personId/:art/loeschen", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const personId = Number(req.params.personId);
+    const art = String(req.params.art);
+    if (!istDokumentArt(art)) return res.status(400).json({ ok: false, error: "Unbekannte Dokumentart." });
+    const rolle = await rolleVon(req.agent!.id);
+    if (!(await darfAnKunde(req.agent!.id, rolle, personId))) {
+      return res.status(403).json({ ok: false, error: "Nicht dein Kunde." });
+    }
+    const grund = String(req.body?.grund || "").trim();
+    if (grund.length < 5) return res.status(400).json({ ok: false, error: "Bitte kurz begründen — der Grund steht im Verlauf." });
+
+    const spalte = art === "ausweis" ? "id_card_pdf" : art === "kontoauszug" ? "bank_statement_pdf" : "schufa_pdf";
+    const betroffen = (await sqlPool.unsafe(
+      `UPDATE fiaon_applications SET ${spalte} = NULL, updated_at = NOW()
+       WHERE person_id = $1 AND merged_into IS NULL AND ${spalte} IS NOT NULL
+       RETURNING ref`, [personId],
+    )) as any[];
+    if (betroffen.length === 0) return res.json({ ok: false, error: "Es liegt kein solches Dokument vor." });
+
+    const label = art === "ausweis" ? "Ausweis" : art === "kontoauszug" ? "Kontoauszug" : "Bonitätsauskunft";
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note, created_at)
+      VALUES (${betroffen[0].ref}, ${req.agent!.id}, ${req.agent!.name}, 'system',
+              ${`Dokument gelöscht: ${label}. Grund: ${grund}`}, NOW())
+    `.catch(() => {});
+    res.json({ ok: true, meldung: `${label} gelöscht — der Kunde (oder du) kann jetzt das richtige Dokument hochladen.` });
+  } catch (err) {
+    console.error("[DOK] loeschen:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

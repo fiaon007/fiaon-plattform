@@ -825,6 +825,13 @@ function KundenKarte({
   const [mailVorschau, setMailVorschau] = useState<any | null>(null);
   const [freiBetreff, setFreiBetreff] = useState("");
   const [freiText, setFreiText] = useState("");
+  // ── PAKET ANLEGEN / TAUSCHEN (P6, Team-Feedback 28.08.) ────────────────
+  // Der Dialog existierte nur in der Pipeline-Akte — im Bestand fehlte er.
+  const [paketOffen, setPaketOffen] = useState(false);
+  const [paketListe, setPaketListe] = useState<any[]>([]);
+  const [paketGewaehlt, setPaketGewaehlt] = useState("");
+  // ── LOGIN-HILFE / EINMALPASSWORT (P9, 28.08.) — Server prüft die Rolle. ──
+  const [einmalPw, setEinmalPw] = useState<{ passwort: string; hinweis: string } | null>(null);
   /** Rückmeldung für den Terminlink-Knopf — getrennt vom Zahlungsdaten-Knopf. */
   const [linkKopiert, setLinkKopiert] = useState(false);
 
@@ -1405,6 +1412,17 @@ function KundenKarte({
                         title="Persönlichen Buchungslink kopieren — fertig zum Einfügen in WhatsApp">
                   {linkKopiert ? "Kopiert" : "Terminlink per WhatsApp senden"}
                 </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ══ AKTIONEN AN DER AKTE — IMMER SICHTBAR (P6-Fix, 28.08.2026) ══════
+            Diese Leiste steckte seit dem 27.08. versehentlich im Block
+            „2× nicht erreicht UND ohne E-Mail" — bei normalen Kunden war sie
+            unsichtbar. Genau das meldete das Team als „Bonitätsauskunft kann
+            nicht beantragt werden". Jetzt steht sie bei JEDEM Kunden. */}
+        <div className="mt-3 flex flex-wrap items-center gap-2">
                 {/* ── GESPRÄCHSÜBERSICHT (27.08.2026, Team-Punkt 19) ─────────
                     Alles fuer das Gespraech auf einen Blick, aus denselben
                     Quellen wie die Einzelansichten: Stufe, Zahlungen,
@@ -1555,6 +1573,97 @@ function KundenKarte({
                         title="Eine unserer E-Mails an diesen Kunden senden — mit Vorschau, bevor irgendetwas rausgeht.">
                   {laeuft === "mail" ? "Lädt …" : mailMenue ? "Mail-Menü schließen" : "E-Mail senden"}
                 </button>
+                {/* ── PAKET ANLEGEN / TAUSCHEN (P6, 28.08.2026) ────────────────
+                    Gleiche Server-Wege wie die Pipeline-Akte: offenes Paket →
+                    tauschen (POST /agent/customers/:ref/produkt), sonst neue
+                    Bestellung (POST /agent/crm/kunden/:id/bestellung). */}
+                <button type="button" disabled={laeuft === "paket"}
+                        onClick={() => {
+                          if (paketOffen) { setPaketOffen(false); return; }
+                          setPaketOffen(true); setPaketGewaehlt("");
+                          if (paketListe.length === 0) {
+                            void api("/agent/katalog").then((r) => { if (r.ok) setPaketListe(r.json.pakete ?? []); });
+                          }
+                        }}
+                        className="fi-zweitknopf inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold"
+                        title="Ein Paket für diesen Kunden anlegen — oder das offene Paket gegen ein anderes tauschen.">
+                  {(k.buchungen ?? []).some((b) => b.offen && b.art === "paket") ? "Paket tauschen" : "Paket anlegen"}
+                </button>
+                {/* ── LOGIN-HILFE (P9, 28.08.2026) ─────────────────────────────
+                    Der Server-Weg (fiaon-zugang-retten.ts) existierte längst —
+                    beim Akten-Umbau ging die Oberfläche verloren. Nur die
+                    Vertriebsleitung darf; der Server prüft das (403 sonst). */}
+                <button type="button" disabled={laeuft === "einmalpw"}
+                        onClick={() => {
+                          const ref = k.zahlung?.ref || (k.buchungen ?? [])[0]?.ref;
+                          if (!ref) { zeige("fehler", "Keine Bestellung", "Ohne Bestellung gibt es kein Kundenkonto."); return; }
+                          const grund = window.prompt(`Einmal-Passwort für ${k.name} erzeugen?\nKurz begründen (steht im Protokoll):`);
+                          if (grund === null) return;
+                          void (async () => {
+                            setLaeuft("einmalpw");
+                            const r = await api(`/agent/zugang/${encodeURIComponent(ref)}/einmal-passwort`, {
+                              method: "POST", body: JSON.stringify({ grund }),
+                            });
+                            setLaeuft(null);
+                            if (r.ok && r.json?.passwort) setEinmalPw({ passwort: r.json.passwort, hinweis: r.json.hinweis || "" });
+                            else zeige("fehler", "Kein Einmal-Passwort", r.json?.error || "Bitte erneut versuchen.");
+                          })();
+                        }}
+                        className="fi-zweitknopf inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold"
+                        title="Einmal-Passwort für den Kunden erzeugen (24 h gültig, erzwungener Wechsel) — nur Vertriebsleitung.">
+                  {laeuft === "einmalpw" ? "Wird erzeugt …" : "Einmal-Passwort"}
+                </button>
+                {einmalPw && (
+                  <div className="w-full mt-2 p-3 rounded-xl" style={{ background: "rgba(37,99,235,.08)", border: "1px solid rgba(37,99,235,.35)" }}>
+                    <p className="text-[12px] font-semibold" style={{ color: "var(--fi-text)" }}>
+                      Einmal-Passwort (wird genau EINMAL angezeigt):
+                    </p>
+                    <p className="fi-zahl text-[20px] font-bold tracking-wider select-all" style={{ color: "#1d4ed8" }}>{einmalPw.passwort}</p>
+                    <p className="text-[11.5px] mt-1 opacity-75">{einmalPw.hinweis}</p>
+                    <button type="button" onClick={() => setEinmalPw(null)}
+                            className="fi-zweitknopf mt-2 px-3 py-1.5 text-[12px] font-semibold">Gelesen — ausblenden</button>
+                  </div>
+                )}
+                {paketOffen && (
+                  <div className="w-full mt-2 rounded-xl border border-slate-200/60 dark:border-white/10 p-3 space-y-2">
+                    <p className="text-[12px] opacity-75">
+                      {(k.buchungen ?? []).some((b) => b.offen && b.art === "paket")
+                        ? "Das offene Paket wird gegen die Auswahl getauscht — Betrag und Verwendungszweck passen sich an."
+                        : "Es wird eine neue Bestellung mit frischem Verwendungszweck angelegt."}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <select value={paketGewaehlt} onChange={(e) => setPaketGewaehlt(e.target.value)}
+                              className="text-[12.5px] px-2.5 py-2 rounded-lg min-w-[240px]"
+                              style={{ background: "var(--fi-seite)", border: "1px solid var(--fi-linie)", color: "var(--fi-text)" }}>
+                        <option value="">Paket wählen …</option>
+                        {paketListe.map((pk: any) => {
+                          const euro = Number.isFinite(Number(pk?.preisEuro)) ? Number(pk.preisEuro)
+                            : Number.isFinite(Number(pk?.preisCents)) ? Number(pk.preisCents) / 100 : null;
+                          return <option key={pk.key} value={pk.key}>{pk.label}{euro != null ? ` – ${euro.toLocaleString("de-DE", { minimumFractionDigits: 2 })} €/Monat` : ""}</option>;
+                        })}
+                      </select>
+                      <button type="button" disabled={!paketGewaehlt || laeuft === "paket"}
+                              onClick={() => {
+                                void (async () => {
+                                  setLaeuft("paket");
+                                  const offenes = (k.buchungen ?? []).find((b) => b.offen && b.art === "paket");
+                                  const r = offenes
+                                    ? await api(`/agent/customers/${encodeURIComponent(offenes.ref)}/produkt`, { method: "POST", body: JSON.stringify({ packKey: paketGewaehlt }) })
+                                    : await api(`/agent/crm/kunden/${k.personId}/bestellung`, { method: "POST", body: JSON.stringify({ packKey: paketGewaehlt }) });
+                                  setLaeuft(null);
+                                  if (r.ok) {
+                                    zeige("erfolg", offenes ? "Paket getauscht" : "Paket angelegt",
+                                      r.json?.hinweis || r.json?.zahlungsreferenz ? `Verwendungszweck: ${r.json?.zahlungsreferenz ?? "in der Akte"}` : k.name);
+                                    setPaketOffen(false);
+                                  } else zeige("fehler", "Nicht gespeichert", r.json?.error || "Bitte erneut versuchen.");
+                                })();
+                              }}
+                              className="fi-knopf-primaer inline-flex items-center gap-1.5 px-4 py-2 text-[12.5px] font-semibold">
+                        {laeuft === "paket" ? "Wird gespeichert …" : "Übernehmen"}
+                      </button>
+                    </div>
+                  </div>
+                )}
                 {mailMenue && (
                   <div className="w-full mt-2 rounded-xl border border-slate-200/60 dark:border-white/10 p-3 space-y-2.5">
                     <div className="flex flex-wrap items-center gap-2">
@@ -1654,10 +1763,8 @@ function KundenKarte({
                     )}
                   </div>
                 )}
-              </div>
-            )}
-          </div>
-        )}
+
+        </div>
 
         {/* ── Verwendungszweck: immer sichtbar, auch ohne E-Mail ──────────────
             Dreimal an einem Tag gemeldet: Kunde ohne E-Mail, Agent gibt die

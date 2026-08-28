@@ -112,6 +112,7 @@ import { AgentShell, api, useFragen } from "./shared";
 import { useOffice } from "./OfficeShell";
 import { ToastAnbieter, useToast, eur } from "@/lib/fiaon-ui";
 import { statusAusTierGrund, type Stufe } from "@shared/fiaon-kundenstatus";
+import { BANK_ANLEITUNGEN, AUSZUG_GRUNDSATZ } from "@shared/fiaon-bank-anleitungen";
 import { ERGEBNIS_TEXT, ERGEBNIS_LISTE, NOTIZ_MINDESTLAENGE } from "@shared/fiaon-kontakt-ergebnis-liste";
 import { RATEN_ERGEBNISSE, type RatenErgebnis } from "@shared/fiaon-raten-ergebnisse";
 import { AnrufPlayer } from "@/components/AnrufPlayer";
@@ -598,6 +599,11 @@ function PipelineInnen() {
     if (!person && ref) {
       api(`/agent/crm/person-zu-ref/${encodeURIComponent(ref)}`).then((r) => {
         if (r.ok && r.json?.personId) { setOffen(Number(r.json.personId)); setNurPerson(Number(r.json.personId)); }
+        // P3 (28.08.2026): Schlägt die Auflösung fehl, stand hier stillschweigend
+        // die normale Liste — vorn der Fokus-Kunde, also scheinbar „ein ANDERER
+        // Kunde". Jetzt sagt die Seite ehrlich, dass der Sprung ins Leere ging,
+        // statt so zu tun, als wäre der Falsche gemeint.
+        else window.alert("Die Akte aus dem Kalender-Sprung wurde nicht gefunden. Du siehst jetzt deine normale Arbeitsliste — der Kunde aus dem Termin ist NICHT die geöffnete Karte. Bitte such ihn über die Kundensuche.");
       }).catch(() => {});
     }
     api("/agent/provision-satz").then((r) => { if (r.ok && r.json?.satz) setSatz(Number(r.json.satz)); }).catch(() => {});
@@ -1677,10 +1683,14 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
     // Ohne Termin bekommt der Verlauf den GRUND statt einer erfundenen Zeit.
     // Sonst stünde später ein Mandat ohne Startgespräch da und niemand wüsste,
     // ob es vergessen wurde oder gar nicht nötig war.
-    const notiz = ohneTerminGrund
+    const systemTeil = ohneTerminGrund
       ? `Mandat angenommen – kein Startgespräch nötig: ${ohneTerminGrund}`
       : `Mandat angenommen – Termin ${terminLabel ?? terminGebucht ?? (sit?.terminAm ? terminText(sit.terminAm) : k.termin ? terminText(k.termin.beginn) : k.terminAm ? terminText(k.terminAm) : "gebucht")} steht. Kunde erinnert: Rechnung vor dem Termin begleichen, dann wird im Gespräch direkt aktiviert.`;
-    const ok = await ergebnis("erreicht_sonstiges", { notiz });
+    // P11 (Team-Feedback 28.08.): Die selbst getippte Notiz wurde hier vom
+    // Fixtext ERSETZT — nach dem Speichern stand „eine andere Notiz" da.
+    // Jetzt bleibt beides: der Systemteil UND die eigenen Worte.
+    const eigene = notiz.trim();
+    const ok = await ergebnis("erreicht_sonstiges", { notiz: eigene ? `${systemTeil}\n${eigene}` : systemTeil });
     if (ok) melden("gut", `Mandat angenommen – ${k.name} zählt jetzt zu deinem Bestand.`,
       ohneTerminGrund ? "Ohne Startgespräch verbucht – der Grund steht im Verlauf." : undefined);
     setLaeuft(null);
@@ -2446,9 +2456,48 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
                         />
                       </label>
                       {d.vorhanden && <a className="pi-knopf still klein" href={`/api/fiaon/agent/dokumente/${k.personId}/${d.art}/datei`} target="_blank" rel="noreferrer">Öffnen <ExternalLink size={12} /></a>}
+                      {/* P12 (28.08.2026): Falsches Dokument löschen — mit Grund,
+                          der Grund steht danach im Verlauf. Ersetzen ging schon
+                          immer über „Ersetzen"; Löschen ist für den Fall, dass
+                          erst später das richtige Dokument kommt. */}
+                      {d.vorhanden && (
+                        <button type="button" className="pi-knopf still klein"
+                                disabled={laedtDoku !== null}
+                                onClick={() => {
+                                  const grund = window.prompt(`${d.label} wirklich löschen?\nKurz begründen (steht im Verlauf):`);
+                                  if (grund === null) return;
+                                  void (async () => {
+                                    const r = await api(`/agent/dokumente/${k.personId}/${d.art}/loeschen`, {
+                                      method: "POST", body: JSON.stringify({ grund }),
+                                    });
+                                    if (r.ok && r.json?.ok) { melden("gut", "Dokument gelöscht", r.json.meldung); setDoku(null); }
+                                    else melden("schlecht", "Nicht gelöscht", r.json?.error || "Bitte erneut versuchen.");
+                                  })();
+                                }}>
+                          Löschen
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
+                {/* P13 (28.08.2026): Die Bank-Anleitungen zum VORLESEN am
+                    Telefon — dieselbe Quelle wie im Kundenportal. */}
+                <details>
+                  <summary className="pi-sek-satz" style={{ cursor: "pointer", fontWeight: 600 }}>
+                    Wo findet der Kunde seine Kontoauszüge? (zum Vorlesen, je Bank)
+                  </summary>
+                  <div style={{ display: "grid", gap: 10, marginTop: 8 }}>
+                    {BANK_ANLEITUNGEN.map((b) => (
+                      <div key={b.name}>
+                        <b style={{ fontSize: 12.5 }}>{b.name}</b>
+                        <ol style={{ margin: "3px 0 0", paddingLeft: 18, fontSize: 12, opacity: .85, display: "grid", gap: 2 }}>
+                          {b.schritte.map((sch, i) => <li key={i}>{sch}</li>)}
+                        </ol>
+                      </div>
+                    ))}
+                    <p className="pi-sek-satz leise">{AUSZUG_GRUNDSATZ}</p>
+                  </div>
+                </details>
                 <p className="pi-sek-satz leise">PDF, JPG oder PNG bis 25 MB — auch mehrere auf einmal, sie werden zu einer PDF gebunden. Jeder Upload steht mit deinem Namen im Verlauf – ein Ausweis, der ohne Zutun des Kunden in der Akte auftaucht, muss erklärbar bleiben.</p>
                 <p className="pi-sek-satz leise">Vollständig heißt: Paket bezahlt, SCHUFA (74 €) bezahlt, Kontoauszug und Ausweis da – erst dann liegt der Kunde bei FIAON zur Bearbeitung. Stand: {kartenText}.</p>
               </>

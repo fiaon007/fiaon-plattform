@@ -190,9 +190,15 @@ export const KARTE_SQL = `
     WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
       AND NOT (COALESCE(a.type,'') = 'schufa' OR a.ref LIKE 'FIAON-SCHUFA-%')
     ORDER BY (a.payment_status = 'paid') DESC, a.created_at DESC LIMIT 1) AS karten_status_am,
+  -- Der Betrag der Karte ist der OFFENE Betrag, nicht der der neuesten
+  -- Bestellung (P2, Team-Feedback 28.08.: Lisa Kühne — Paket bezahlt, SCHUFA
+  -- 74 € offen; angezeigt wurden die 59,99 des bezahlten Pakets als „offen").
+  -- Offene Bestellung zuerst; gibt es keine, die neueste (dann sagt der
+  -- Zustand ohnehin „bezahlt" und der Betrag ist nur Anzeige).
   (SELECT a.amount_due FROM fiaon_applications a
-    WHERE a.person_id = p.id AND a.merged_into IS NULL
-    ORDER BY a.created_at DESC LIMIT 1) AS amount_due,
+    WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
+    ORDER BY (a.payment_status IN ('pending_payment','claimed_paid','expired')) DESC,
+             a.created_at DESC LIMIT 1) AS amount_due,
   (SELECT a.status FROM fiaon_applications a
     WHERE a.person_id = p.id AND a.merged_into IS NULL
     ORDER BY a.created_at DESC LIMIT 1) AS letzter_status,

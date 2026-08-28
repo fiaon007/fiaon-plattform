@@ -169,12 +169,27 @@ export async function zahlungsLage(personId: number): Promise<ZahlungsLage[]> {
  * würde die Liste mehr ernst nehmen.
  */
 export async function dokumentLage(personId: number): Promise<DokumentLage> {
+  // ── DOKUMENTE ZÄHLEN PERSON-WEIT (P14, Team-Feedback 28.08.2026) ─────────
+  // Vorher prüfte diese Abfrage EINE Bestellung (LIMIT 1). Wer zwei Vorgänge
+  // hat (Paket + Bonitätsauskunft), dessen Dateien hängen aber oft an der
+  // JEWEILS ANDEREN Zeile — der Ausweis am Paket, die von uns beschaffte
+  // Auskunft an der SCHUFA-Bestellung. Ergebnis: „Dokument fehlt", obwohl
+  // alles da ist. Jetzt gilt: Eine Datei irgendwo an der Person = vorhanden.
+  // type/kyc/profil kommen weiter von der maßgeblichen Bestellung.
   const [a] = await sqlPool`
-    SELECT ref, type, kyc_status, profile_completed_at,
-           (id_card_pdf IS NOT NULL) AS hat_ausweis, LENGTH(id_card_pdf) AS gr_ausweis,
-           (bank_statement_pdf IS NOT NULL) AS hat_auszug, LENGTH(bank_statement_pdf) AS gr_auszug,
-           (schufa_pdf IS NOT NULL) AS hat_schufa, LENGTH(schufa_pdf) AS gr_schufa,
-           updated_at
+    SELECT ref, type, kyc_status, profile_completed_at, updated_at,
+           (SELECT bool_or(x.id_card_pdf IS NOT NULL) FROM fiaon_applications x
+             WHERE x.person_id = ${personId} AND x.merged_into IS NULL) AS hat_ausweis,
+           (SELECT MAX(LENGTH(x.id_card_pdf)) FROM fiaon_applications x
+             WHERE x.person_id = ${personId} AND x.merged_into IS NULL) AS gr_ausweis,
+           (SELECT bool_or(x.bank_statement_pdf IS NOT NULL) FROM fiaon_applications x
+             WHERE x.person_id = ${personId} AND x.merged_into IS NULL) AS hat_auszug,
+           (SELECT MAX(LENGTH(x.bank_statement_pdf)) FROM fiaon_applications x
+             WHERE x.person_id = ${personId} AND x.merged_into IS NULL) AS gr_auszug,
+           (SELECT bool_or(x.schufa_pdf IS NOT NULL) FROM fiaon_applications x
+             WHERE x.person_id = ${personId} AND x.merged_into IS NULL) AS hat_schufa,
+           (SELECT MAX(LENGTH(x.schufa_pdf)) FROM fiaon_applications x
+             WHERE x.person_id = ${personId} AND x.merged_into IS NULL) AS gr_schufa
     FROM fiaon_applications
     WHERE person_id = ${personId} AND merged_into IS NULL
     ORDER BY (payment_status = 'paid') DESC, created_at DESC

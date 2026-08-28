@@ -2369,6 +2369,24 @@ router.post("/agent/crm/kunden/:personId/konto-sperre", requireAgent, async (req
                 : `Konto FREIGESCHALTET (${refs.length} Bestellung${refs.length === 1 ? "" : "en"})${grund ? ` — ${grund}` : ""}. Der Kunde kann sich wieder anmelden.`})
     `.catch(() => {});
 
+    // ── P8 (28.08.2026): Der Kunde ERFÄHRT von der Freischaltung ──────────
+    // „Manche Kunden bekommen gar keine Bestätigung, dass das Konto aktiv
+    // ist." Das Ereignis account_activated existierte, wurde aber nie
+    // automatisch gefeuert. Jetzt: Freischalten sendet die Mail — durch die
+    // eine Tür, mit Protokoll. Die SPERR-Mail bleibt bewusst Handarbeit
+    // (der interne Sperrgrund gehört nicht ungefiltert in ein Kundenpostfach).
+    if (!sperren && refs.length > 0) {
+      void (async () => {
+        const { mailSenden } = await import("../lib/fiaon-mail-senden");
+        const { absoluteUrl } = await import("../fiaon-base-url");
+        await mailSenden({
+          event: "account_activated", personId,
+          akteur: { name: req.agent!.name, agentId: req.agent!.id, rolle: "admin" },
+          zusatz: { login_url: absoluteUrl("/login") },
+        });
+      })().catch((e) => console.error("[CRM] account_activated-Mail:", e));
+    }
+
     res.json({
       ok: true,
       gesperrt: sperren,
@@ -2376,7 +2394,7 @@ router.post("/agent/crm/kunden/:personId/konto-sperre", requireAgent, async (req
       hinweis: sperren
         ? "Konto gesperrt — der Kunde wird beim Anmelden an den Support verwiesen."
         : refs.length > 0
-          ? "Konto freigeschaltet — der Kunde kann sich wieder anmelden."
+          ? "Konto freigeschaltet — der Kunde kann sich wieder anmelden und bekommt eine Bestätigungs-Mail."
           : "Das Konto war nicht gesperrt — nichts zu ändern.",
     });
   } catch (err) {

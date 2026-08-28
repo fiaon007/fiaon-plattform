@@ -117,6 +117,13 @@ const FILTER: { key: string; label: string }[] = [
   // Ein eigener Filter, damit man die wenigen Bereiten nicht in 500 Karten
   // suchen muss.
   { key: "karte", label: "Bereit für Konto & Karte" },
+  // P17 (Team-Feedback 28.08.): Der Bestand nach Bearbeitungsstand — damit
+  // aus der Liste direkt eine Anrufliste wird, ohne jeden Kunden zu öffnen.
+  { key: "bezahlt_onb_offen", label: "Bezahlt · Startgespräch offen" },
+  { key: "bezahlt_onb_da", label: "Bezahlt · Startgespräch erledigt" },
+  { key: "nicht_bezahlt", label: "Nicht bezahlt" },
+  { key: "giro_beantragt", label: "Girokonto beantragt" },
+  { key: "giro_moeglich", label: "Girokonto möglich, nicht beantragt" },
 ];
 // „Gesundheit" ist als Sortierung entfallen (Justin) — sie sortierte nach
 // einer Ampel, die es in dieser Form nicht mehr gibt.
@@ -250,6 +257,12 @@ function BestandInnen() {
         if (faellig == null && !heuteNoch) return false;
       }
       if (filter === "karte" && !kartenBereit.has(Number(m.kunde.personId))) return false;
+      // P17: Bearbeitungsstand-Filter — die Felder kommen vom Server.
+      if (filter === "bezahlt_onb_offen" && !((m as any).bezahlt && !(m as any).onboardingErledigt)) return false;
+      if (filter === "bezahlt_onb_da" && !((m as any).bezahlt && (m as any).onboardingErledigt)) return false;
+      if (filter === "nicht_bezahlt" && (m as any).bezahlt) return false;
+      if (filter === "giro_beantragt" && !(m.kunde as any).karte?.status) return false;
+      if (filter === "giro_moeglich" && !(kartenBereit.has(Number(m.kunde.personId)) && !(m.kunde as any).karte?.status)) return false;
       if (q && !(`${m.kunde.name} ${m.kunde.email ?? ""} ${m.kunde.telefon ?? ""}`.toLowerCase().includes(q))) return false;
       return true;
     });

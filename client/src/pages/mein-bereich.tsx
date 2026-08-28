@@ -13,6 +13,7 @@
 // GoCardless), Schreiben-Generator, KI-Auswertung der Auskunft (E-015).
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useMemo, useRef, useState } from "react";
+import { BANK_ANLEITUNGEN, AUSZUG_GRUNDSATZ, bankAnleitungFuer } from "@shared/fiaon-bank-anleitungen";
 import { LayoutDashboard, ShieldCheck, Link2, Wallet, Map, FileText, FolderOpen, Gift, UserRound, CreditCard, Lock, LifeBuoy, LogOut, ChevronLeft, ChevronRight, X } from "lucide-react";
 import "@/styles/mein-bereich.css";
 import { Einrichtung, einrichtungsPhase } from "@/components/kunde/Einrichtung";
@@ -498,6 +499,11 @@ export default function MeinBereichPage() {
                 ))}
               </div>
               <Upload refKunde={d.kunde.ref} fehlt={{ kontoauszug: !d.unterlagen.kontoauszug || d.unterlagen.erneutKontoauszug, ausweis: !d.unterlagen.ausweis || d.unterlagen.erneutAusweis, auskunft: !d.unterlagen.auskunft && !!d.bonitaet?.darfHochladen }} />
+              {/* ── SO KOMMEN SIE AN IHRE KONTOAUSZÜGE (P13, 28.08.2026) ─────
+                  Der Erklärbär je Bank aus der früheren Kundenansicht — die Texte
+                  leben in shared/fiaon-bank-anleitungen.ts; dieselbe Quelle liest
+                  das Team in der Akte. */}
+              {(!d.unterlagen.kontoauszug || d.unterlagen.erneutKontoauszug) && <BankHilfe />}
             </section>
 
             {/* ═══ KONTOANBINDUNG ═══ */}
@@ -911,6 +917,36 @@ function Hilfe({ refKunde, ansprechpartner }: { refKunde: string; ansprechpartne
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/** P13: „Wo finde ich meine Kontoauszüge?" — Bank wählen, Weg lesen. */
+function BankHilfe() {
+  const [bank, setBank] = useState("");
+  const a = bankAnleitungFuer(bank);
+  return (
+    <div className="mb-hinweis" style={{ marginTop: 16 }}>
+      <b>So kommen Sie an Ihre Kontoauszüge.</b>
+      <div style={{ margin: "10px 0 12px", display: "flex", flexWrap: "wrap", gap: 8 }}>
+        {["", ...BANK_ANLEITUNGEN.map((b) => b.woerter[0])].map((w) => {
+          const label = w === "" ? "Andere Bank" : (BANK_ANLEITUNGEN.find((b) => b.woerter[0] === w)?.name ?? w);
+          const aktiv = bank === w;
+          return (
+            <button key={w || "andere"} type="button" onClick={() => setBank(w)}
+              style={{
+                padding: "7px 14px", borderRadius: 999, fontSize: 12.5, fontWeight: 600, cursor: "pointer",
+                border: `1px solid ${aktiv ? "rgba(37,99,235,.6)" : "rgba(148,163,184,.35)"}`,
+                background: aktiv ? "rgba(37,99,235,.12)" : "transparent", color: "inherit",
+              }}>{label}</button>
+          );
+        })}
+      </div>
+      <p style={{ margin: "0 0 8px", fontWeight: 600 }}>{a.name}:</p>
+      <ol style={{ margin: 0, paddingLeft: 20, display: "grid", gap: 6 }}>
+        {a.schritte.map((sch, i) => <li key={i}>{sch}</li>)}
+      </ol>
+      <p style={{ marginTop: 10, fontSize: 12.5, opacity: .8 }}>{AUSZUG_GRUNDSATZ}</p>
     </div>
   );
 }

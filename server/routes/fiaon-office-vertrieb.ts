@@ -432,6 +432,27 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
          SELECT 1 FROM fiaon_termine tz
          WHERE tz.person_id = p.id AND tz.status = 'gebucht'
            AND tz.abgesagt_am IS NULL AND tz.beginn > NOW())`,
+      // ══════════════════════════════════════════════════════════════════════
+      // WER HEUTE SCHON ERREICHT WURDE, IST HEUTE FERTIG (P15, 28.08.2026)
+      //
+      // „Kunde A abgeschlossen, Kunde B abgeschlossen — danach erscheint
+      // Kunde A wieder. Die Pipeline dreht sich um dieselben Kunden."
+      //
+      // Die Ausschlüsse oben kannten Zusage, Termin und Wiedervorlage — aber
+      // NICHT das schlichte „das Gespräch fand heute statt". Ein Ergebnis wie
+      // „Erreicht/Sonstiges" ohne Folgetermin ließ den Menschen sofort wieder
+      // in die Slots, und die Sortierung (updated_at DESC) stellte ihn sogar
+      // nach VORN. Ab jetzt: Ein „erreicht"-Ergebnis vom heutigen Tag nimmt
+      // ihn für den Rest des Tages aus der Liste — morgen ist er regulär
+      // wieder dran, falls nichts anderes ihn hält.
+      // ══════════════════════════════════════════════════════════════════════
+      `NOT EXISTS (
+         SELECT 1 FROM fiaon_contact_log clh
+         JOIN fiaon_applications ah ON ah.ref = clh.ref
+         WHERE ah.person_id = p.id AND clh.type = 'result'
+           AND clh.outcome LIKE 'erreicht%'
+           AND (clh.created_at AT TIME ZONE 'Europe/Berlin')::date
+             = (NOW() AT TIME ZONE 'Europe/Berlin')::date)`,
     ].join(" AND ");
 
     const ordnung = `
@@ -657,7 +678,15 @@ router.get("/agent/vertrieb/bestand", requireAgent, async (req: AgentRequest, re
           WHERE ar.person_id = p.id AND ar.merged_into IS NULL AND r.storniert_am IS NULL) AS raten_stand,
          -- Vorher las die Unterabfrage gc_mandate_status aus fiaon_applications –
          -- die Spalte lebt an der PERSON (Befund 24.08., 500er im Live-Betrieb).
-         (p.gc_mandate_status = 'active') AS sepa_aktiv
+         (p.gc_mandate_status = 'active') AS sepa_aktiv,
+         -- P17 (28.08.2026): Der Bestand wird nach Bearbeitungsstand filterbar —
+         -- dafür braucht jede Karte zwei Antworten, die bisher fehlten.
+         EXISTS (SELECT 1 FROM fiaon_applications ab WHERE ab.person_id = p.id
+           AND ab.merged_into IS NULL AND ab.archived_at IS NULL
+           AND ab.payment_status = 'paid'
+           AND NOT (COALESCE(ab.type,'') = 'schufa' OR ab.ref LIKE 'FIAON-SCHUFA-%')) AS hat_bezahlt,
+         EXISTS (SELECT 1 FROM fiaon_termine tb WHERE tb.person_id = p.id
+           AND tb.quelle = 'onboarding_call' AND tb.status = 'erledigt') AS onboarding_erledigt
        FROM fiaon_persons p
        WHERE p.assigned_agent_id = $1 AND p.mandat_seit IS NOT NULL
          AND p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL AND NOT p.is_blocked
@@ -680,6 +709,8 @@ router.get("/agent/vertrieb/bestand", requireAgent, async (req: AgentRequest, re
           ruecklastschrift: !!s.ruecklastschrift,
         },
         sepaAktiv: !!r.sepa_aktiv,
+        bezahlt: !!r.hat_bezahlt,
+        onboardingErledigt: !!r.onboarding_erledigt,
         // Monatsrate: der echte Ratenbetrag; solange keine Raten existieren,
         // der offene Kartenbetrag (amount_due) als bester bekannter Wert.
         monatsrateCents: s.rateCents != null ? Number(s.rateCents) : (k as any).betrag ?? null,

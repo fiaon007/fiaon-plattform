@@ -15,7 +15,7 @@
 import { useEffect, useRef, useState } from "react";
 import "@/styles/chefbuero.css";
 
-export interface ChefStatus { stufe: string; name: string | null; titel: string | null; quelle: "chef" | "alt" }
+export interface ChefStatus { stufe: string; name: string | null; titel: string | null; quelle: "chef" | "alt"; gratulation?: { titel: string; mal: number } | null }
 
 export default function ChefAnmeldung({ onAngemeldet }: { onAngemeldet: (status: ChefStatus) => void }) {
   const [email, setEmail] = useState("");
@@ -58,7 +58,7 @@ export default function ChefAnmeldung({ onAngemeldet }: { onAngemeldet: (status:
       });
       const json = await res.json().catch(() => null);
       if (res.ok && json?.ok) {
-        onAngemeldet({ stufe: String(json.stufe), name: json.name ?? null, titel: json.titel ?? null, quelle: "chef" });
+        onAngemeldet({ stufe: String(json.stufe), name: json.name ?? null, titel: json.titel ?? null, quelle: "chef", gratulation: json.gratulation ?? null });
         return;
       }
       if (json?.code === "CODE_NOETIG") {

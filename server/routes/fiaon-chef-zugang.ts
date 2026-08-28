@@ -267,6 +267,27 @@ router.post("/chef/anmelden", async (req: Request, res: Response) => {
       }
     }
 
+    // ── DAS GRATULATIONS-POPUP (Justins Auftrag 28.08.2026) ────────────────
+    // Wer einen Anzeigetitel bekommen hat, sieht ihn bei den ersten sieben
+    // Anmeldungen als Gratulation. Der Zähler liegt in fiaon_settings
+    // (chef_titel_gratulation:<agentId>) — wird der Titel später geändert,
+    // setzt man den Zähler einfach zurück und die Gratulation läuft erneut.
+    let gratulation: { titel: string; mal: number } | null = null;
+    if (row.admin_titel) {
+      try {
+        const gKey = `chef_titel_gratulation:${row.id}`;
+        const [g] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = ${gKey}`) as any[];
+        const bisher = Math.max(0, Number(g?.value || 0));
+        if (bisher < 7) {
+          gratulation = { titel: String(row.admin_titel), mal: bisher + 1 };
+          await sqlPool`
+            INSERT INTO fiaon_settings (key, value, updated_at)
+            VALUES (${gKey}, ${String(bisher + 1)}, NOW())
+            ON CONFLICT (key) DO UPDATE SET value = ${String(bisher + 1)}, updated_at = NOW()`;
+        }
+      } catch { /* Eine Gratulation, die die Anmeldung kippt, wäre keine. */ }
+    }
+
     attempts.delete(key);
     res.cookie(COOKIE, issueToken(Number(row.id), stufe), {
       httpOnly: true,
@@ -277,7 +298,7 @@ router.post("/chef/anmelden", async (req: Request, res: Response) => {
     });
     void protokollSchreiben(Number(row.id), stufe, "ANMELDUNG", "/chef/anmelden", `agent:${row.id}`, `Stufe ${stufe}`);
     console.log(`[CHEF-ZUGANG] Anmeldung: ${row.name} (${row.email}) als ${stufe}`);
-    return res.json({ ok: true, angemeldet: true, stufe, name: String(row.name || ""), titel: row.admin_titel ? String(row.admin_titel) : null });
+    return res.json({ ok: true, angemeldet: true, stufe, name: String(row.name || ""), titel: row.admin_titel ? String(row.admin_titel) : null, gratulation });
   } catch (err) {
     console.error("[CHEF-ZUGANG] anmelden:", err);
     return res.status(500).json({ ok: false, error: "Serverfehler" });

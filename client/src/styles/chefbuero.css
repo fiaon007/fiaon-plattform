@@ -1023,3 +1023,46 @@
 .ck-zeile .ck-geld b { font-variant-numeric: tabular-nums; }
 .ck-zeile .ck-pfeil { opacity: .35; transition: opacity .18s ease, transform .18s ease; }
 .ck-zeile:hover .ck-pfeil { opacity: .9; transform: translateX(2px); }
+
+/* ═══ Gratulations-Popup (28.08.2026) — der neue Titel, gebührend gezeigt ═══ */
+.cb-gratulation-schleier {
+  position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 24px;
+  background: rgba(2, 6, 23, .78); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  animation: cbGratAuf .3s ease-out both;
+}
+.cb-gratulation {
+  position: relative; overflow: hidden; text-align: center;
+  width: min(520px, 100%); padding: 52px 40px 44px; border-radius: 26px;
+  background: linear-gradient(160deg, rgba(15, 32, 68, .92), rgba(9, 18, 40, .96));
+  border: 1px solid rgba(96, 165, 250, .35);
+  box-shadow: 0 40px 120px rgba(2, 6, 23, .8), inset 0 1px 0 rgba(148, 197, 253, .25);
+  animation: cbGratKarte .5s cubic-bezier(.2, .9, .3, 1.2) both;
+}
+.cb-gratulation-schein {
+  position: absolute; inset: -40% -20% auto; height: 140%; pointer-events: none;
+  background: radial-gradient(55% 50% at 50% 0%, rgba(59, 130, 246, .35), transparent 70%);
+}
+.cb-gratulation-stern {
+  display: inline-block; font-size: 30px; color: #93c5fd; margin-bottom: 14px;
+  text-shadow: 0 0 24px rgba(96, 165, 250, .8);
+  animation: cbGratStern 2.4s ease-in-out infinite;
+}
+.cb-gratulation-auftakt {
+  margin: 0 0 8px; font-size: 13px; font-weight: 700; letter-spacing: .14em;
+  text-transform: uppercase; color: rgba(147, 197, 253, .9);
+}
+.cb-gratulation h2 {
+  position: relative; margin: 0 0 16px; font-size: clamp(24px, 5vw, 32px); line-height: 1.25;
+  font-weight: 800; letter-spacing: -.01em; color: #f8fafc;
+  text-shadow: 0 0 34px rgba(59, 130, 246, .4);
+}
+.cb-gratulation-satz {
+  margin: 0 auto 26px; max-width: 40ch; font-size: 14px; line-height: 1.65;
+  color: rgba(203, 213, 225, .9);
+}
+@keyframes cbGratAuf { from { opacity: 0; } to { opacity: 1; } }
+@keyframes cbGratKarte { from { opacity: 0; transform: translateY(26px) scale(.96); } to { opacity: 1; transform: none; } }
+@keyframes cbGratStern { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+@media (prefers-reduced-motion: reduce) {
+  .cb-gratulation-schleier, .cb-gratulation, .cb-gratulation-stern { animation: none; }
+}

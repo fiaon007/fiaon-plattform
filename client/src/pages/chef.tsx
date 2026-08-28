@@ -53,6 +53,9 @@ const STUFEN: ChefStufe[] = ["inhaber", "geschaeftsfuehrung", "leitung"];
 export default function ChefPage() {
   const [location, navigate] = useLocation();
   const [status, setStatus] = useState<ChefStatus | null>(null);
+  // Gratulations-Popup (28.08.2026): Bei den ersten sieben Anmeldungen sehen
+  // Träger eines neuen Titels ihn als Gratulation — der Server zählt mit.
+  const [gratulation, setGratulation] = useState<{ titel: string; mal: number } | null>(null);
 
   // Raum aus der URL: /chef → Lagezimmer, /chef/<raum> → dieser Raum,
   // /chef/s/<slug> → eine übernommene Seite innerhalb ihres Raums.
@@ -64,7 +67,7 @@ export default function ChefPage() {
   const raum = CHEF_RAEUME.find((r) => r.key === teil) ?? CHEF_RAEUME[0];
 
   if (!status) {
-    return <ChefAnmeldung onAngemeldet={setStatus} />;
+    return <ChefAnmeldung onAngemeldet={(st) => { setStatus(st); if (st.gratulation) setGratulation(st.gratulation); }} />;
   }
   const stufe: ChefStufe = STUFEN.includes(status.stufe as ChefStufe) ? (status.stufe as ChefStufe) : "leitung";
 
@@ -113,6 +116,21 @@ export default function ChefPage() {
             Diesen Raum gibt es erst ab Stufe {STUFEN_NAME[raum.mindest]} — deine Stufe
             ist {STUFEN_NAME[stufe]}. Wenn du hier hinein musst, sprich mit Justin.
           </p>
+        </div>
+      )}
+      {gratulation && (
+        <div className="cb-gratulation-schleier" role="dialog" aria-modal="true" onClick={() => setGratulation(null)}>
+          <div className="cb-gratulation" onClick={(e) => e.stopPropagation()}>
+            <div className="cb-gratulation-schein" aria-hidden="true" />
+            <span className="cb-gratulation-stern" aria-hidden="true">✦</span>
+            <p className="cb-gratulation-auftakt">Gratulation{status.name ? `, ${String(status.name).split(" ")[0]}` : ""}!</p>
+            <h2>{gratulation.titel}</h2>
+            <p className="cb-gratulation-satz">
+              Ab sofort steht dieser Titel über deinem Chefbüro — er ist Anerkennung
+              für das, was du hier jeden Tag leistest. Danke dir.
+            </p>
+            <button type="button" className="cw-knopf" onClick={() => setGratulation(null)}>Danke — weiter</button>
+          </div>
         </div>
       )}
     </ChefShell>

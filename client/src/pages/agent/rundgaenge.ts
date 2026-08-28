@@ -464,6 +464,28 @@ export const RUNDGANG_VERTRIEB: RundgangSchritt[] = [
   },
 ];
 
+
+// 28.08.2026, mit der Mail-Galerie zusammen angelegt (Rundgang-Pflicht:
+// jede neue Seite erklaert sich selbst).
+export const RUNDGANG_MAILS: RundgangSchritt[] = [
+  {
+    titel: "Jede Mail des Hauses — bevor der Kunde sie sieht.",
+    text: "Diese Galerie zeigt saemtliche E-Mails, die FIAON an Kunden verschickt — mit "
+      + "Beispieldaten, aber pixelgenau so, wie sie im Postfach ankommen. Wenn du am Telefon "
+      + "sagst \u201eSie bekommen gleich eine E-Mail von uns\u201c, weisst du hier vorher, "
+      + "was drinsteht und wie sie aussieht.",
+    tipp: "Einmal durchklicken lohnt sich: Wer die Mails kennt, beantwortet Rueckfragen dazu in Sekunden.",
+  },
+  {
+    titel: "Senden geht in der Akte — mit Vorschau.",
+    text: "Von hier aus wird nichts verschickt. In der Kundenakte gibt es den Knopf "
+      + "\u201eE-Mail senden\u201c: Dort waehlst du die Mail, siehst die Vorschau mit den ECHTEN "
+      + "Daten dieses Kunden — Name, Betrag, Verwendungszweck — und schickst erst dann ab. "
+      + "Jeder Versand steht danach im Verlauf und im Protokoll.",
+    tipp: "Erst die Vorschau lesen, dann senden. Steht dort ein leeres Feld, stimmt etwas an den Kundendaten.",
+  },
+];
+
 export const RUNDGAENGE: Record<string, { titel: string; schritte: RundgangSchritt[] }> = {
   pipeline:    { titel: "Pipeline",     schritte: RUNDGANG_PIPELINE },
   vertrieb:    { titel: "Leitung",      schritte: RUNDGANG_VERTRIEB },
@@ -479,4 +501,5 @@ export const RUNDGAENGE: Record<string, { titel: string; schritte: RundgangSchri
   academy:      { titel: "Academy",      schritte: RUNDGANG_ACADEMY },
   more:         { titel: "More",         schritte: RUNDGANG_MORE },
   availability: { titel: "Availability", schritte: RUNDGANG_AVAILABILITY },
+  mails:        { titel: "Unsere E-Mails", schritte: RUNDGANG_MAILS },
 };

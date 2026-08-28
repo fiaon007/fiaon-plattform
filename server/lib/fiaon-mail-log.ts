@@ -45,17 +45,20 @@ export async function mailProtokoll(
     payload?: Record<string, unknown> | null;
     ausgeloestVon?: string | null;
     ausgeloestAgentId?: number | null;
+    /** Beim Direktversand: die Annahme-Kennung von Brevo. */
+    brevoMessageId?: string | null;
   },
   lauf: Lauf = sqlPool,
 ): Promise<void> {
   try {
     await lauf`
       INSERT INTO fiaon_mail_log (event, person_id, empfaenger, status, grund, payload,
-                                  ausgeloest_von, ausgeloest_agent_id)
+                                  ausgeloest_von, ausgeloest_agent_id, brevo_message_id)
       VALUES (${eintrag.event}, ${eintrag.personId ?? null}, ${eintrag.empfaenger ?? null},
               ${eintrag.status}, ${eintrag.grund ?? null},
               ${eintrag.payload ? JSON.stringify(eintrag.payload) : null}::jsonb,
-              ${eintrag.ausgeloestVon ?? null}, ${eintrag.ausgeloestAgentId ?? null})
+              ${eintrag.ausgeloestVon ?? null}, ${eintrag.ausgeloestAgentId ?? null},
+              ${eintrag.brevoMessageId ?? null})
     `;
   } catch (err) {
     console.error("[MAIL-LOG] konnte nicht protokollieren:", err instanceof Error ? err.message : err);
@@ -101,6 +104,7 @@ export async function versendenUndProtokollieren(
 
   let status: VersandStatus = "fehlgeschlagen";
   let grund: string | null = null;
+  let brevoMessageId: string | null = null;
   try {
     // Marke setzen: Der Webhook protokolliert seit dem 09.08.2026 selbst
     // (make-webhook.ts). Hier schreiben wir aber gleich einen vollständigeren
@@ -112,6 +116,7 @@ export async function versendenUndProtokollieren(
       const versand = await sendMakeWebhookMitGrund(event, payload);
       status = versand.ok ? "versandt" : "fehlgeschlagen";
       grund = versand.ok ? null : (versand.grund ?? "unbekannt");
+      brevoMessageId = versand.brevoMessageId ?? null;
     } finally {
       protokolliertSelbst.delete(event);
     }
@@ -125,6 +130,7 @@ export async function versendenUndProtokollieren(
     event, personId: opts.personId, empfaenger: String(payload.email),
     status, grund, payload: payload as Record<string, unknown>,
     ausgeloestVon: opts.ausgeloestVon, ausgeloestAgentId: opts.ausgeloestAgentId,
+    brevoMessageId,
   }, lauf);
 
   // In den Kundenverlauf, damit der Agent es dort sieht, wo er ohnehin liest.

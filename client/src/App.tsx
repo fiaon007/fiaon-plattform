@@ -61,6 +61,7 @@ import AgentPasswortPage from "@/pages/agent/passwort";
 import AgentProfilPage from "@/pages/agent/profil";
 import AgentAuszahlungPage from "@/pages/agent/auszahlung";
 import AgentSkriptePage from "@/pages/agent/skripte";
+import AgentMailsPage from "@/pages/agent/mails";
 import AgentKalenderPage from "@/pages/agent/kalender";
 import AgentPartnerProgrammPage from "@/pages/agent/partner-programm";
 // Nachgeladen statt statisch importiert: Die Seite wird nur von den Agenten
@@ -367,6 +368,7 @@ function Router() {
       <Route path="/agent/auszahlung"><Redirect to="/agent/wallet/auszahlung" /></Route>
       <Route path="/agent/auszahlung-alt" component={AgentAuszahlungPage} />
       <Route path="/agent/skripte" component={AgentSkriptePage} />
+      <Route path="/agent/mails" component={AgentMailsPage} />
       <Route path="/agent/kalender" component={AgentCalendarPage} />
       <Route path="/agent/kalender-alt" component={AgentKalenderPage} />
       <Route path="/agent/partner-programm"><Redirect to="/agent/wallet/partner" /></Route>

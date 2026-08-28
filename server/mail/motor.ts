@@ -1,0 +1,182 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// DER MAIL-MOTOR (28.08.2026)
+//
+// Rendert die Quelltext-Vorlagen (vorlagen/*.ts) mit einer Ereignis-Nutzlast
+// und versendet direkt über Brevo — OHNE Make-Umweg und ohne Brevo-Vorlagen.
+//
+// ── DIE EINE TÜR BLEIBT DIE EINE TÜR ──────────────────────────────────────
+// Kein Aufrufer ruft den Motor direkt. Alles läuft weiter durch
+// sendMakeWebhookMitGrund (make-webhook.ts); NUR DORT entscheidet der
+// Schalter `mail_versandweg` (fiaon_settings), was hinter der Tür passiert:
+//   make    → wie bisher: Webhook an Make, Make rendert die Brevo-Vorlage
+//   direkt  → dieser Motor: rendern + Brevo /smtp/email mit fertigem HTML
+// So bleiben alle 72 Aufrufstellen unangetastet, jede Mail steht im
+// Protokoll, und der Schalter geht jederzeit in beide Richtungen.
+//
+// ── WARUM KEINE BREVO-VORLAGEN MEHR ───────────────────────────────────────
+// Der Motor schickt das fertige HTML mit. Damit gibt es genau EINEN Ort, an
+// dem eine Mail entsteht (dieses Verzeichnis), und die Vorschau im Portal
+// zeigt garantiert dasselbe, was der Kunde bekommt — es IST dieselbe Funktion.
+//
+// ── FEHLENDE PLATZHALTER SIND LAUT ────────────────────────────────────────
+// Ein {{params.x}}, das die Nutzlast nicht mitbringt, wird leer ersetzt UND
+// im Ergebnis gemeldet. Beim Prüfversand sieht man es sofort; im Betrieb
+// steht es im Protokoll-Grund. Vorher hätte Make kommentarlos „{{vorname}}"
+// in die Mail gedruckt.
+// ═══════════════════════════════════════════════════════════════════════════
+import {
+  ABSENDER, mailHtml, mailText, ratenLeisteEinsetzen,
+  type AbsenderRolle, type MailBaustein,
+} from "./geruest";
+import { KONTO_VORLAGEN } from "./vorlagen/konto";
+import { ZAHLUNG_VORLAGEN } from "./vorlagen/zahlung";
+import { TERMIN_VORLAGEN } from "./vorlagen/termin";
+import { AUSKUNFT_LEAD_VORLAGEN } from "./vorlagen/auskunft-lead";
+import { TEAM_VORLAGEN } from "./vorlagen/team";
+
+/** Alle Vorlagen, ein Verzeichnis. Schlüssel = Ereignisname. */
+export const VORLAGEN: Record<string, MailBaustein> = {
+  ...KONTO_VORLAGEN,
+  ...ZAHLUNG_VORLAGEN,
+  ...TERMIN_VORLAGEN,
+  ...AUSKUNFT_LEAD_VORLAGEN,
+  ...TEAM_VORLAGEN,
+};
+
+/** Wer als Absender im Postfach steht — je Ereignis. Alles nicht Genannte: welcome. */
+const ROLLE_JE_EVENT: Record<string, AbsenderRolle> = {
+  payment_details: "accounting",
+  payment_reminder: "accounting",
+  abo_payment_reminder: "accounting",
+  claim_received: "accounting",
+  payment_cancelled: "accounting",
+  payment_reactivated: "accounting",
+  abo_verlaengerung_frage: "accounting",
+  sepa_einrichten: "accounting",
+  account_suspended: "legal",
+  gdpr_deleted: "legal",
+  agent_invite: "team",
+  agent_password_reset: "team",
+  agent_payment_reminder: "team",
+  agent_payout_done: "team",
+  agent_payout_rejected: "team",
+  agent_bank_reminder: "team",
+  agent_callback_reminder: "team",
+  agent_feedback_rewarded: "team",
+  agent_feedback_reply: "team",
+  aufgabe_zugewiesen: "team",
+  contract_signed: "team",
+  commission_statement_issued: "team",
+};
+
+export function absenderFuer(event: string): { name: string; email: string } {
+  return ABSENDER[ROLLE_JE_EVENT[event] ?? "welcome"];
+}
+
+export function hatVorlage(event: string): boolean {
+  return !!VORLAGEN[event];
+}
+
+/** {{params.x}} durch Werte ersetzen; fehlende Schlüssel einsammeln. */
+function fuellen(text: string, payload: Record<string, unknown>, fehlend: Set<string>): string {
+  return text.replace(/\{\{params\.([a-z_0-9]+)\}\}/gi, (_, k: string) => {
+    const wert = (payload as any)[k];
+    if (wert === undefined || wert === null || String(wert).trim() === "") {
+      fehlend.add(k);
+      return "";
+    }
+    // Beträge kommen aus der Datenbank als "59.99" — im Brief steht "59,99".
+    // Nur reine Zahlwerte in Betragsfeldern; alles andere bleibt unangetastet.
+    if (/betrag/.test(k) && /^\d+(\.\d{1,2})?$/.test(String(wert).trim())) {
+      return String(wert).trim().replace(".", ",");
+    }
+    return String(wert);
+  });
+}
+
+export interface GerenderteMail {
+  betreff: string;
+  html: string;
+  text: string;
+  absender: { name: string; email: string };
+  /** Platzhalter, die die Nutzlast nicht mitbrachte. */
+  fehlend: string[];
+}
+
+/**
+ * Die Lead-Strecke fährt 11 Textvarianten mit eigenem Betreff in der Nutzlast
+ * mit (shared/fiaon-lead-strecke.ts). Die Varianten sind Absicht — sie halten
+ * die Strecke bei 2 Mails am Tag aus dem Spam-Raster. Bringt die Nutzlast
+ * `text` und `betreff` mit, baut der Motor den Baustein daraus und behält vom
+ * statischen `lead_followup`-Baustein nur Knopf, Ziel-Block und Abmeldung.
+ */
+function leadStreckenBaustein(payload: Record<string, unknown>): MailBaustein | null {
+  const text = String((payload as any).text ?? "").trim();
+  const betreff = String((payload as any).betreff ?? "").trim();
+  if (!text || !betreff) return null;
+  const basis = VORLAGEN.lead_followup;
+  const absaetze = text.split(/\n\n+/)
+    .map((a) => a.trim())
+    // Knopf, Gruß und Abmeldezeile setzt das Gerüst selbst — die Rohtext-
+    // Fassungen davon fliegen raus, sonst stünde alles doppelt in der Mail.
+    .filter((a) => a && !/^Zum Antrag:/i.test(a) && !/^Viele Grüße/i.test(a)
+      && !/^─/.test(a) && !/keine Nachrichten mehr/i.test(a))
+    .map((a) => a.replace(/\n/g, "<br />"));
+  return { ...basis, betreff, preheader: basis.preheader, titel: absaetze.shift() ?? basis.titel, absaetze };
+}
+
+/** Rendert eine Vorlage mit einer Nutzlast — Vorschau und Versand nutzen DIESELBE Funktion. */
+export function mailRendern(event: string, payload: Record<string, unknown>): GerenderteMail | null {
+  let vorlage = VORLAGEN[event];
+  if (!vorlage) return null;
+  if (event === "lead_followup") vorlage = leadStreckenBaustein(payload) ?? vorlage;
+
+  const fehlend = new Set<string>();
+  const html = ratenLeisteEinsetzen(fuellen(mailHtml(vorlage), payload, fehlend));
+  const text = fuellen(mailText(vorlage), payload, fehlend).replace(/%%RATENLEISTE[^%]*%%/g, "");
+  const betreff = fuellen(vorlage.betreff, payload, fehlend);
+  return { betreff, html, text, absender: absenderFuer(event), fehlend: Array.from(fehlend).sort() };
+}
+
+/**
+ * Direktversand über Brevo. Gibt die messageId zurück — damit weiß das
+ * Protokoll erstmals bei JEDER Mail, dass Brevo sie angenommen hat.
+ */
+export async function mailDirektSenden(
+  event: string,
+  payload: Record<string, unknown>,
+): Promise<{ ok: boolean; messageId: string | null; grund?: string }> {
+  const an = String((payload as any).email ?? "").trim();
+  if (!an) return { ok: false, messageId: null, grund: "Keine Empfängeradresse in der Nutzlast." };
+  const mail = mailRendern(event, payload);
+  if (!mail) return { ok: false, messageId: null, grund: `Keine Vorlage für '${event}' im Motor.` };
+
+  const key = process.env.BREVO_API_KEY;
+  if (!key) return { ok: false, messageId: null, grund: "BREVO_API_KEY ist nicht gesetzt." };
+  try {
+    const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: { "api-key": key, "Content-Type": "application/json", accept: "application/json" },
+      body: JSON.stringify({
+        sender: mail.absender,
+        replyTo: mail.absender,
+        to: [{ email: an }],
+        subject: mail.betreff,
+        htmlContent: mail.html,
+        textContent: mail.text,
+        // Für Auswertungen in Brevo: welche Mail welches Ereignis war.
+        tags: [event],
+      }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) {
+      const t = await res.text().catch(() => "");
+      return { ok: false, messageId: null, grund: `Brevo hat abgelehnt (HTTP ${res.status}): ${t.slice(0, 200)}` };
+    }
+    const d = (await res.json().catch(() => ({}))) as { messageId?: string };
+    const fehltHinweis = mail.fehlend.length ? ` (Platzhalter ohne Wert: ${mail.fehlend.join(", ")})` : "";
+    return { ok: true, messageId: d.messageId ?? null, grund: fehltHinweis || undefined };
+  } catch (err) {
+    return { ok: false, messageId: null, grund: `Brevo nicht erreichbar: ${err instanceof Error ? err.message : String(err)}` };
+  }
+}

@@ -634,6 +634,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // die Stripe-Rechnung des alten Admin-Dashboards.
   const chefZahlen = await import('./routes/fiaon-chef-zahlen');
   app.use('/api/fiaon', chefZahlen.default);
+
+  // ✉️ Das Mailwerk (28.08.2026): sehen und steuern, was das Mail-System tut —
+  // Versandweg-Schalter (make|direkt), Takte der Automatik, Prüfversand.
+  const mailwerk = await import('./routes/fiaon-mailwerk');
+  app.use('/api/fiaon', mailwerk.default);
   // Stündlich prüfen, höchstens alle 20 Stunden wirklich holen. Clarity setzt
   // sein Tageslimit um Mitternacht UTC zurück; wer auf eine feste Uhrzeit
   // wartet, verpasst das Fenster, sobald der Server einmal schläft.

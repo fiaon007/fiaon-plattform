@@ -441,6 +441,12 @@ async function claimLeadFollowupBatch(
       SELECT l.id FROM fiaon_leads l
       WHERE l.status IN ('neu', 'kontaktiert', 'nicht_erreichbar')
         AND l.in_sequence = TRUE
+        -- Abgemeldet heißt abgemeldet, Bounce heißt Stopp (28.08.2026): Die
+        -- ewige Strecke prüfte beides, DIESE Engine bisher nicht. Bei zwei
+        -- Mails am Tag wird aus der Lücke sonst eine Beschwerde- und
+        -- Zustellbarkeitsfrage für ALLE Mails des Hauses.
+        AND l.abgemeldet_am IS NULL
+        AND l.bounce_am IS NULL
         AND COALESCE(NULLIF(l.email, ''), NULLIF(l.telefon, '')) IS NOT NULL
         AND (l.last_lead_reminder_at IS NULL OR l.last_lead_reminder_at < NOW() - INTERVAL '8 hours')
         AND COALESCE(l.lead_reminder_count, 0) < ${max}
@@ -465,6 +471,23 @@ function followupPayload(l: any) {
     quelle: l.quelle || null,
     antrag_url: antragUrl(l.id),
   };
+}
+
+/**
+ * Payload MIT Abmeldelink (28.08.2026). Der Link ist bei einer Werbe-Mail an
+ * Menschen ohne Vertrag Pflicht — und bei zwei Mails am Tag doppelt: Wer sich
+ * nicht abmelden kann, drückt stattdessen auf „Spam", und darunter leidet die
+ * Zustellbarkeit ALLER Mails des Hauses.
+ */
+async function followupPayloadMitAbmeldung(l: any): Promise<Record<string, unknown>> {
+  let abmeldeUrl: string | null = null;
+  try {
+    const { abmeldeLink } = await import("../lib/fiaon-lead-strecke");
+    abmeldeUrl = await abmeldeLink(Number(l.id));
+  } catch {
+    // Ohne Link geht die Mail trotzdem raus — der Fuß lässt die Zeile dann weg.
+  }
+  return { ...followupPayload(l), abmelde_url: abmeldeUrl };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -572,8 +595,8 @@ export async function runLeadFollowups(opts: { force?: boolean } = {}): Promise<
     const batch = await claimLeadFollowupBatch(LEAD_BATCH, { maxFollowups, planDays });
     if (batch.length === 0) break;
     for (const l of batch) {
-      await sendMakeWebhook("lead_followup", followupPayload(l));
-      await logLead(l.id, { id: null, name: "System" }, "followup", { note: `Nachfass #${l.lead_reminder_count} gesendet (Make: lead_followup)` });
+      await sendMakeWebhook("lead_followup", (await followupPayloadMitAbmeldung(l)) as any);
+      await logLead(l.id, { id: null, name: "System" }, "followup", { note: `Nachfass #${l.lead_reminder_count} gesendet (lead_followup)` });
       result.sent++;
     }
     if (batch.length < LEAD_BATCH) break;
@@ -2183,8 +2206,8 @@ router.post("/admin/leads/followup-bulk/start", async (req: Request, res: Respon
             : await claimLeadFollowupBatch(LEAD_BULK_BATCH, { maxFollowups: max, planDays: null });
           if (batch.length === 0) break;
           for (const l of batch) {
-            const ok = await sendMakeWebhook("lead_followup", followupPayload(l));
-            await logLead(l.id, { id: null, name: "Admin" }, "followup", { note: `Bulk-Nachfass (${mode === "all" ? "alle offenen" : "versendbare"}) #${l.lead_reminder_count} gesendet (Make: lead_followup)` });
+            const ok = await sendMakeWebhook("lead_followup", (await followupPayloadMitAbmeldung(l)) as any);
+            await logLead(l.id, { id: null, name: "Admin" }, "followup", { note: `Bulk-Nachfass (${mode === "all" ? "alle offenen" : "versendbare"}) #${l.lead_reminder_count} gesendet (lead_followup)` });
             if (ok) job.sent++; else job.errors++;
           }
           if (batch.length < LEAD_BULK_BATCH) break;

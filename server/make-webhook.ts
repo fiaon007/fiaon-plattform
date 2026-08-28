@@ -103,7 +103,45 @@ export interface MakeVersand {
   ok: boolean;
   /** Klartext für die Oberfläche, z. B. „HTTP 400 von Make" oder „Zeitüberschreitung". */
   grund?: string;
+  /** Beim Direktversand: die Annahme-Kennung von Brevo — die erste echte Zustellspur. */
+  brevoMessageId?: string | null;
 }
+
+// ── DER VERSANDWEG-SCHALTER (28.08.2026) ────────────────────────────────────
+// `mail_versandweg` in fiaon_settings entscheidet, was HINTER dieser Tür
+// passiert: „make" (Webhook wie bisher) oder „direkt" (der Mail-Motor rendert
+// die Quelltext-Vorlage und sendet über Brevo). `mail_direkt_ausnahmen` ist
+// eine Kommaliste von Ereignissen, die trotz „direkt" weiter über Make laufen
+// — die Rückzugslinie, falls EINE Vorlage klemmt, ohne alles umzuschalten.
+// 60 Sekunden Cache: Der Schalter liegt an einem Pfad, den 26.000 Mails im
+// Monat nehmen; er darf keine eigene Datenbanklast erzeugen.
+let versandwegCache: { wert: { weg: string; ausnahmen: Set<string> }; bis: number } | null = null;
+
+async function versandwegLesen(): Promise<{ weg: string; ausnahmen: Set<string> }> {
+  if (versandwegCache && Date.now() < versandwegCache.bis) return versandwegCache.wert;
+  let wert = { weg: "make", ausnahmen: new Set<string>() };
+  try {
+    if (process.env.DATABASE_URL) {
+      if (!diagPool) diagPool = postgres(process.env.DATABASE_URL, { ssl: "require", max: 1 });
+      const rows = await diagPool`
+        SELECT key, value FROM fiaon_settings
+        WHERE key IN ('mail_versandweg', 'mail_direkt_ausnahmen')
+      `;
+      const map = Object.fromEntries(rows.map((r: any) => [r.key, String(r.value ?? "")]));
+      wert = {
+        weg: map.mail_versandweg === "direkt" ? "direkt" : "make",
+        ausnahmen: new Set(String(map.mail_direkt_ausnahmen || "").split(",").map((s) => s.trim()).filter(Boolean)),
+      };
+    }
+  } catch {
+    // Ohne Datenbank gilt der sichere Standard: der bewährte Make-Weg.
+  }
+  versandwegCache = { wert, bis: Date.now() + 60_000 };
+  return wert;
+}
+
+/** Für die Steuerzentrale: Schalter-Änderung sofort wirksam machen. */
+export function versandwegCacheLeeren(): void { versandwegCache = null; }
 
 /**
  * Sendet einen Webhook an Make.com (URL aus env MAKE_WEBHOOK_URL).
@@ -136,7 +174,38 @@ export async function sendMakeWebhookMitGrund(eventType: MakeEventType, payload:
   if (aufgeloest.email !== payload.email) {
     payload = { ...payload, email: aufgeloest.email, empfaenger_quelle: aufgeloest.quelle };
   }
-  const erg = await webhookRoh(eventType, payload);
+  // ── DER SCHALTER: MAKE ODER DIREKT ──────────────────────────────────────
+  // „direkt" nur, wenn der Motor das Ereignis kennt UND es nicht auf der
+  // Ausnahmenliste steht. Alles andere nimmt weiter den bewährten Make-Weg —
+  // ein unbekanntes neues Ereignis fällt also nie ins Leere.
+  let erg: MakeVersand;
+  const schalter = await versandwegLesen();
+  if (schalter.weg === "direkt" && !schalter.ausnahmen.has(eventType)) {
+    const motor = await import("./mail/motor");
+    if (motor.hatVorlage(eventType)) {
+      const d = await motor.mailDirektSenden(eventType, payload as Record<string, unknown>);
+      erg = d.ok
+        ? { ok: true, grund: d.grund, brevoMessageId: d.messageId }
+        : { ok: false, grund: `Direktversand: ${d.grund}` };
+      if (d.ok) {
+        console.log(`[MAIL-DIREKT] '${eventType}' über Brevo gesendet (${payload.antrag_id ?? ""}, ${d.messageId ?? "ohne Id"})`);
+        recordLastSent(eventType);
+      } else {
+        console.error(`[MAIL-DIREKT] '${eventType}' fehlgeschlagen: ${d.grund}`);
+        reportDiag({
+          severity: "kritisch",
+          code: "mail_direkt_fehler",
+          message: `Direktversand für '${eventType}' fehlgeschlagen — Empfänger ${payload.email || "?"}: ${d.grund}`,
+          hint: "Prüfe /chef/s/mailwerk (Vorlage vorhanden? Brevo-Schlüssel gültig?). Notbremse: mail_versandweg auf 'make' stellen.",
+          ref: payload.payment_reference || payload.antrag_id,
+        });
+      }
+    } else {
+      erg = await webhookRoh(eventType, payload);
+    }
+  } else {
+    erg = await webhookRoh(eventType, payload);
+  }
   // ── JEDE MAIL STEHT IM PROTOKOLL ────────────────────────────────────────
   // Vor dem 09.08.2026 protokollierten nur sieben von 29 Sendestellen. Der
   // Rest ging unbeobachtet raus, und wenn ein Kunde sagte „ich habe nichts
@@ -311,6 +380,7 @@ function protokollNebenbei(eventType: MakeEventType, payload: MakeWebhookPayload
         status: erg.ok ? "versandt" : "fehlgeschlagen",
         grund: erg.grund ?? null,
         payload: payload as Record<string, unknown>,
+        brevoMessageId: erg.brevoMessageId ?? null,
       });
     } catch {
       // Ein Protokoll, das klemmt, darf den Versand nicht mitreißen.

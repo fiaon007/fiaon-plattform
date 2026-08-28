@@ -13,7 +13,7 @@ import { ensureRolleSpalte } from "./fiaon-vertrieb";
 import {
   eventsFuerRolle, mailEvent, mailEvents, templateZuordnen, verifikationsText, type Rolle,
 } from "../lib/fiaon-mail-events";
-import { mailSenden } from "../lib/fiaon-mail-senden";
+import { mailSenden, mailVorschau } from "../lib/fiaon-mail-senden";
 import { brevoKonfiguriert, eigeneMailSenden, OHNE_SCHLUESSEL, rahmen, vorlagen, vorlagenHtml } from "../lib/fiaon-brevo";
 import { alleZweigePruefen, zustellungAbgleichen, ZUSTELL_TEXT } from "../lib/fiaon-zustellung";
 import { brevoKlartext } from "../lib/fiaon-brevo-fehler";
@@ -313,6 +313,95 @@ router.get("/agent/mail/:personId", requireAgent, async (req: AgentRequest, res:
     res.json({ ok: true, rolle, events: mitZustand, historie, zustellText: ZUSTELL_TEXT });
   } catch (err) {
     console.error("[MAIL] menue:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VORSCHAU VOR DEM SENDEN + GALERIE (28.08.2026)
+//
+// Justins Auftrag: „bevor man sie versendet soll es eine Vorschau geben damit
+// der Mitarbeiter sieht was er verschickt — außerdem eine Seite, wo das Team
+// sämtliche E-Mails so sieht, wie sie der Kunde sieht."
+//
+// Die Vorschau ruft DIESELBE Payload- und Renderkette wie der Versand
+// (sendePayloadBauen + Mail-Motor). Sie kann deshalb nicht lügen.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** GET /agent/mail/:personId/:event/vorschau — die Mail, wie sie rausginge. */
+router.get("/agent/mail/:personId/:event/vorschau", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const personId = Number(req.params.personId);
+    const rolle = await rolleVon(req.agent!.id);
+    if (!(await darfAnKunde(req.agent!.id, rolle, personId))) {
+      return res.status(403).json({ ok: false, error: "Dieser Kunde wird von jemand anderem betreut." });
+    }
+    const v = await mailVorschau({ event: String(req.params.event), personId, rolle: rolle as any });
+    if (!v.ok) return res.json({ ok: false, error: v.grund });
+    res.json(v);
+  } catch (err) {
+    console.error("[MAIL] vorschau:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/** Die Galerie-Liste: alle Kundenmails mit Beispiel-Betreff, nach Gruppe. */
+async function galerieListe(): Promise<any[]> {
+  const events = (await mailEvents()).filter((e) => e.zielgruppe === "kunde" && !e.deprecated);
+  const { mailRendern } = await import("../mail/motor");
+  return events.map((e) => {
+    const mail = mailRendern(e.type, (e.example ?? {}) as Record<string, unknown>);
+    return {
+      type: e.type, label: e.label, gruppe: e.gruppe, klartext: e.klartext,
+      betreff: mail?.betreff ?? null, hatVorlage: !!mail,
+      absender: mail?.absender?.name ?? null,
+    };
+  });
+}
+
+/** Eine Galerie-Mail als fertiges HTML (Beispieldaten) — fuer das iframe. */
+async function galerieHtml(eventType: string): Promise<string | null> {
+  const def = await mailEvent(eventType);
+  if (!def || def.zielgruppe !== "kunde") return null;
+  const { mailRendern } = await import("../mail/motor");
+  const mail = mailRendern(def.type, (def.example ?? {}) as Record<string, unknown>);
+  return mail?.html ?? null;
+}
+
+/** GET /agent/mail/galerie — Liste fuer die Team-Vorschauseite. */
+router.get("/agent/mail/galerie", requireAgent, async (_req: AgentRequest, res: Response) => {
+  try { res.json({ ok: true, mails: await galerieListe() }); }
+  catch (err) { console.error("[MAIL] galerie:", err); res.status(500).json({ ok: false }); }
+});
+
+/** GET /agent/mail/galerie/:event — das fertige HTML einer Mail (iframe-Quelle). */
+router.get("/agent/mail/galerie/:event", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const html = await galerieHtml(String(req.params.event));
+    if (!html) return res.status(404).send("Keine Vorlage.");
+    res.type("html").send(html);
+  } catch (err) { console.error("[MAIL] galerie html:", err); res.status(500).send("Serverfehler"); }
+});
+
+// Admin-Spiegel (das Chefbuero hat keinen Agent-Zugang; /admin liegt hinter dem Code-Gate).
+router.get("/admin/mail/galerie", async (_req: Request, res: Response) => {
+  try { res.json({ ok: true, mails: await galerieListe() }); }
+  catch (err) { console.error("[MAIL] admin galerie:", err); res.status(500).json({ ok: false }); }
+});
+router.get("/admin/mail/galerie/:event", async (req: Request, res: Response) => {
+  try {
+    const html = await galerieHtml(String(req.params.event));
+    if (!html) return res.status(404).send("Keine Vorlage.");
+    res.type("html").send(html);
+  } catch (err) { console.error("[MAIL] admin galerie html:", err); res.status(500).send("Serverfehler"); }
+});
+router.get("/admin/mail/:personId(\\d+)/:event/vorschau", async (req: Request, res: Response) => {
+  try {
+    const v = await mailVorschau({ event: String(req.params.event), personId: Number(req.params.personId), rolle: "admin" });
+    if (!v.ok) return res.json({ ok: false, error: v.grund });
+    res.json(v);
+  } catch (err) {
+    console.error("[MAIL] admin vorschau:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

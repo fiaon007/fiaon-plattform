@@ -91,6 +91,80 @@ async function payloadFuer(personId: number, lauf: Lauf): Promise<Record<string,
 }
 
 /**
+ * Baut die KOMPLETTE Nutzlast eines Ereignisses für eine Person — Basisdaten
+ * plus die Links, die nur der Server bauen kann.
+ *
+ * Eine Funktion für Versand UND Vorschau (28.08.2026): Die Vorschau in der
+ * Akte zeigt nur dann garantiert das, was rausgeht, wenn beide dieselbe
+ * Zusammenstellung nehmen. Zwei Fassungen wären der sichere Weg zu einer
+ * Vorschau, die lügt.
+ */
+export async function sendePayloadBauen(
+  eventType: string,
+  personId: number,
+  lauf: Lauf = sqlPool,
+): Promise<{ basis: Record<string, unknown>; links: Record<string, unknown>; ref: string | null } | null> {
+  const basis = await payloadFuer(personId, lauf);
+  if (!basis) return null;
+
+  // Links, die nur der Server bauen kann.
+  const links: Record<string, unknown> = {};
+  // ── HERKUNFT STATT FOLGENLOSER QUELLE (24.08.2026) ────────────────────────
+  // VORHER stand hier „onboarding_call" — eine QUELLE, die `terminLink` mit
+  // `void quelle;` weggeworfen hat. NACHHER trägt der zweite Parameter die
+  // HERKUNFT und landet als `?von=` im Link; die Gesprächsart bleibt abgeleitet.
+  if (eventType === "nicht_erreicht_termin") links.termin_link = terminLink(personId, "nicht_erreicht_mail");
+  if (eventType === "onboarding_einladung") links.termin_link = terminLink(personId, "onboarding_einladung");
+  // NEU 24.08.2026: Auch die No-Show-Mail trägt einen Buchungslink (Herkunft
+  // statt folgenloser Quelle; Datum/Uhrzeit liefert nur der automatische Weg).
+  if (eventType === "termin_verpasst") links.termin_link = terminLink(personId, "termin_verpasst_mail");
+
+  const ref = (basis as any)._ref as string | null;
+  delete (basis as any)._ref;
+  return { basis: basis as Record<string, unknown>, links, ref };
+}
+
+/**
+ * Die Vorschau: exakt die Mail, die `mailSenden` verschicken würde — gleiche
+ * Nutzlast, gleiche Vorlage, gleiche Renderfunktion (Mail-Motor).
+ *
+ * Justins Auftrag 28.08.2026: „bevor man sie versendet soll es eine Vorschau
+ * geben damit der Mitarbeiter sieht was er verschickt."
+ */
+export async function mailVorschau(ein: {
+  event: string;
+  personId: number;
+  rolle: Rolle;
+  zusatz?: Record<string, unknown>;
+  lauf?: Lauf;
+}): Promise<
+  | { ok: true; betreff: string; html: string; empfaenger: string; absender: { name: string; email: string }; fehlend: string[] }
+  | { ok: false; grund: string }
+> {
+  const lauf = ein.lauf ?? sqlPool;
+  const def = await mailEvent(String(ein.event), lauf);
+  if (!def) return { ok: false, grund: `Unbekanntes Ereignis „${ein.event}“.` };
+  if (def.deprecated) return { ok: false, grund: `„${def.label}“ ist abgelöst.` };
+  if (!def.rollen.includes(ein.rolle)) return { ok: false, grund: `Deine Rolle darf „${def.label}“ nicht senden.` };
+
+  const gebaut = await sendePayloadBauen(def.type, ein.personId, lauf);
+  if (!gebaut) return { ok: false, grund: "Kunde nicht gefunden." };
+  const payload = { ...gebaut.basis, ...gebaut.links, ...(ein.zusatz || {}) };
+
+  const { mailRendern } = await import("../mail/motor");
+  const mail = mailRendern(def.type, payload);
+  if (!mail) return { ok: false, grund: `Für „${def.label}“ gibt es noch keine Quelltext-Vorlage.` };
+  return {
+    ok: true,
+    betreff: mail.betreff,
+    html: mail.html,
+    empfaenger: String(payload.email || ""),
+    absender: mail.absender,
+    fehlend: mail.fehlend,
+  };
+}
+
+/**
  * Sendet eine Mail — der EINZIGE Weg im Haus.
  *
  * Wirft nie. Ein Versand, der einen Vorgang zum Absturz bringt, ist teurer als
@@ -148,29 +222,10 @@ export async function mailSenden(ein: SendeEingabe): Promise<SendeErgebnis> {
     if (!pruefung.erlaubt) return abgelehnt(pruefung.grund || "Nicht erlaubt.");
   }
 
-  const basis = await payloadFuer(ein.personId, lauf);
-  if (!basis) return abgelehnt("Kunde nicht gefunden.");
+  const gebaut = await sendePayloadBauen(def.type, ein.personId, lauf);
+  if (!gebaut) return abgelehnt("Kunde nicht gefunden.");
+  const { basis, links, ref } = gebaut;
   if (!basis.email) return abgelehnt("Keine E-Mail-Adresse hinterlegt.");
-
-  // Links, die nur der Server bauen kann.
-  const links: Record<string, unknown> = {};
-  // ── HERKUNFT STATT FOLGENLOSER QUELLE (24.08.2026) ────────────────────────
-  // VORHER stand hier „onboarding_call" — eine QUELLE, die `terminLink` mit
-  // `void quelle;` weggeworfen hat. NACHHER trägt der zweite Parameter die
-  // HERKUNFT und landet als `?von=` im Link; die Gesprächsart bleibt abgeleitet.
-  if (def.type === "nicht_erreicht_termin") links.termin_link = terminLink(ein.personId, "nicht_erreicht_mail");
-  if (def.type === "onboarding_einladung") links.termin_link = terminLink(ein.personId, "onboarding_einladung");
-  // NEU 24.08.2026: Auch die No-Show-Mail trägt einen Buchungslink. Datum und
-  // Uhrzeit des verpassten Termins kann dieser Weg nicht kennen — er sendet aus
-  // /admin/events ohne Terminbezug; die Vorlage lässt den Satz dann weg. Der
-  // automatische Versand aus dem Onboarding-Bereich liefert beides mit.
-  // Auch hier die Herkunft statt der folgenlosen Quelle (24.08.2026): Die
-  // Einladung nach einem verpassten Termin ist ein eigener Weg und soll im
-  // Bestand als solcher erkennbar sein.
-  if (def.type === "termin_verpasst") links.termin_link = terminLink(ein.personId, "termin_verpasst_mail");
-
-  const ref = basis._ref as string | null;
-  delete basis._ref;
 
   const erg = await versendenUndProtokollieren(
     def.type as MakeEventType,

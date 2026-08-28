@@ -1599,7 +1599,14 @@ function withinHardWindow(): boolean {
 const REMINDER_BATCH = 50;
 
 /** Atomarer Batch-Claim erinnerungswürdiger Bestellungen (stempelt last_reminder_at + reminder_count). */
-async function claimReminderBatch(limit: number, opts: { requireAge24h: boolean; maxReminders: number | null }) {
+async function claimReminderBatch(
+  limit: number,
+  opts: { requireAge24h: boolean; maxReminders: number | null; abstandStunden?: number },
+) {
+  // Wie lange muss die letzte Erinnerung her sein? 20 h = einmal am Tag;
+  // 5 h = zweimal am Tag (Justins Vorgabe 28.08.: offene Rechnungen 2×/Tag).
+  // Der Wert kommt aus runPaymentReminders (Einstellung mahn_takte_pro_tag).
+  const abstand = Math.max(2, Math.round(opts.abstandStunden ?? 20));
   return sqlPool`
     UPDATE fiaon_applications
     SET last_reminder_at = NOW(), reminder_count = COALESCE(reminder_count, 0) + 1, updated_at = NOW()
@@ -1612,16 +1619,26 @@ async function claimReminderBatch(limit: number, opts: { requireAge24h: boolean;
         -- Mail, die der Kunde nicht versteht.
         AND fa.archived_at IS NULL
         AND COALESCE(NULLIF(fa.email, ''), NULLIF(fa.contact_email, ''), NULLIF(fa.billing_email, '')) IS NOT NULL
-        AND (fa.last_reminder_at IS NULL OR fa.last_reminder_at < NOW() - INTERVAL '20 hours')
+        AND (fa.last_reminder_at IS NULL OR fa.last_reminder_at < NOW() - make_interval(hours => ${abstand}))
         AND (${!opts.requireAge24h} OR COALESCE(fa.payment_email_sent_at, fa.created_at) < NOW() - INTERVAL '24 hours')
         AND (${opts.maxReminders == null} OR COALESCE(fa.reminder_count, 0) < ${opts.maxReminders ?? 0})
-        -- Paket AD2 (doppelter Boden): keine Erinnerung an E-Mail-Adressen, die
-        -- IRGENDEINE bezahlte Bestellung haben — selbst wenn AD1 (superseded) nicht
-        -- griff. Admin-Override pro Bestellung: allow_reminders_despite_paid (echter Zweitkauf).
-        AND (fa.allow_reminders_despite_paid = TRUE OR fa.email IS NULL OR TRIM(fa.email) = '' OR NOT EXISTS (
+        -- Paket AD2 (doppelter Boden): keine Erinnerung an Menschen, die schon
+        -- bezahlt haben. GEMESSEN am 28.08.2026: 896 Erinnerungen in 30 Tagen an
+        -- 221 Menschen mit bezahlter Bestellung — der alte Wächter verglich NUR
+        -- fa.email gegen p.email. Wer über contact_email/billing_email lief oder
+        -- über die PERSON verbunden war, rutschte durch. Jetzt zählt beides:
+        -- dieselbe Person (059: fiaon_persons ist die Wahrheit) ODER irgendeine
+        -- der drei Adressen. Admin-Override pro Bestellung bleibt:
+        -- allow_reminders_despite_paid (echter Zweitkauf).
+        AND (fa.allow_reminders_despite_paid = TRUE OR NOT EXISTS (
           SELECT 1 FROM fiaon_applications p
-          WHERE p.payment_status = 'paid' AND p.email IS NOT NULL
-            AND LOWER(TRIM(p.email)) = LOWER(TRIM(fa.email))
+          WHERE p.payment_status = 'paid' AND p.merged_into IS NULL
+            AND (
+              (fa.person_id IS NOT NULL AND p.person_id = fa.person_id)
+              OR (COALESCE(NULLIF(TRIM(fa.email), ''), NULLIF(TRIM(fa.contact_email), ''), NULLIF(TRIM(fa.billing_email), '')) IS NOT NULL
+                  AND LOWER(COALESCE(NULLIF(TRIM(p.email), ''), NULLIF(TRIM(p.contact_email), ''), NULLIF(TRIM(p.billing_email), '')))
+                    = LOWER(COALESCE(NULLIF(TRIM(fa.email), ''), NULLIF(TRIM(fa.contact_email), ''), NULLIF(TRIM(fa.billing_email), ''))))
+            )
         ))
       ORDER BY fa.created_at ASC
       LIMIT ${limit}
@@ -1687,10 +1704,16 @@ async function runPaymentReminders(opts: { force?: boolean } = {}): Promise<{ ex
     return result;
   }
   const maxReminders = Math.max(0, Math.round(Number(settings.max_reminders)) || 6);
+  // Justins Vorgabe (28.08.2026): offene Rechnungen 2× am Tag anmahnen.
+  // mahn_takte_pro_tag steuert das aus dem Mailwerk: 2 → Mindestabstand 5 h
+  // (der stündliche Lauf trifft damit vormittags und nachmittags je einmal),
+  // 1 → wie früher 20 h. Das harte 08–20-Fenster oben bleibt unberührt.
+  const takte = Math.min(3, Math.max(1, Math.round(Number(settings.mahn_takte_pro_tag)) || 2));
+  const abstandStunden = takte >= 2 ? Math.floor(10 / takte) : 20;
 
   // Batch-Schleife: speicherschonend, atomarer Claim verhindert Doppelversand
   for (;;) {
-    const batch = await claimReminderBatch(REMINDER_BATCH, { requireAge24h: true, maxReminders });
+    const batch = await claimReminderBatch(REMINDER_BATCH, { requireAge24h: true, maxReminders, abstandStunden });
     if (batch.length === 0) break;
     for (const r of batch) {
       await sendMakeWebhook("payment_reminder", reminderPayload(r));

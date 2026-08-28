@@ -48,6 +48,7 @@ const Finanzen = lazy(() => import("@/pages/admin-finanzen"));
 const Investoren = lazy(() => import("@/pages/admin-investoren"));
 const Termine = lazy(() => import("@/pages/admin-termine"));
 const LeadAutomatik = lazy(() => import("@/pages/admin-leads"));
+const Mailwerk = lazy(() => import("@/components/admin/ChefMailwerk"));
 const Dubletten = lazy(() => import("@/pages/admin-dubletten"));
 const Fahrplan = lazy(() => import("@/pages/admin-fahrplan"));
 const TeamZentrale = lazy(() => import("@/pages/admin-team-zentrale"));
@@ -130,6 +131,9 @@ export const CHEF_SEITEN: ChefSeite[] = [
   // ── Kommunikation ───────────────────────────────────────────────────────
   { slug: "mail-zentrale", label: "Mail-Zentrale", satz: "Freitext an Kunden und Gruppen, mit Vorschau.", Seite: MailZentrale, raum: "kommunikation" },
   { slug: "events", label: "E-Mail-Events", satz: "Make-Events testen, Diagnose, Verlauf.", Seite: Events, raum: "kommunikation", auch: "make brevo" },
+  // 28.08.2026: die Steuerzentrale über dem neuen Mail-System — Versandweg,
+  // Takte der Automatik, Vorschau und Prüfversand jeder Quelltext-Vorlage.
+  { slug: "mailwerk", label: "Mailwerk", satz: "Alle 41 Mails sehen und steuern: Versandweg, Takte, Prüfversand.", Seite: Mailwerk, raum: "kommunikation", mindest: "geschaeftsfuehrung", auch: "mail email brevo make vorlage template versand automatik" },
   { slug: "funktionen", label: "Funktionen & Schulung", satz: "Alle Funktionen mit Klartext, Selbsttest, Schulungsmodus.", Seite: Funktionen, raum: "kommunikation" },
   { slug: "space", label: "Space", satz: "Der Feed des Teams — mitlesen, anpinnen, moderieren.", Seite: Space, raum: "kommunikation" },
 

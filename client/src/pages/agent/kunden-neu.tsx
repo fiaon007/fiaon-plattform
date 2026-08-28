@@ -816,6 +816,13 @@ function KundenKarte({
   const [gespraech, setGespraech] = useState<any | null>(null);
   /** Die Hand-Sperre (27.08.2026) — Startwert aus der Karte, Knopf hält ihn aktuell. */
   const [kontoGesperrt, setKontoGesperrt] = useState<boolean>((k as any).kontoGesperrt === true);
+  // ── E-MAIL AUS DER AKTE, MIT VORSCHAU (28.08.2026) ─────────────────────
+  // Justins Auftrag: „JEDER Mitarbeiter soll in der Akte IMMER die Mails
+  // versenden können — bevor man sie versendet, soll es eine Vorschau geben."
+  // Die Vorschau kommt vom Server aus EXAKT der Funktion, die auch sendet.
+  const [mailMenue, setMailMenue] = useState<any | null>(null);
+  const [mailGewaehlt, setMailGewaehlt] = useState<string>("");
+  const [mailVorschau, setMailVorschau] = useState<any | null>(null);
   /** Rückmeldung für den Terminlink-Knopf — getrennt vom Zahlungsdaten-Knopf. */
   const [linkKopiert, setLinkKopiert] = useState(false);
 
@@ -1526,6 +1533,91 @@ function KundenKarte({
                           : "Kunden-Login sperren (mit Grund). Die einzige Sperre — der Zahlungsstatus sperrt nicht mehr."}>
                   {laeuft === "sperre" ? "Wird geändert …" : kontoGesperrt ? "Konto freischalten" : "Konto sperren"}
                 </button>
+                {/* ── E-MAIL SENDEN, MIT VORSCHAU (28.08.2026) ─────────────────
+                    Erst sehen, dann senden: Die Vorschau rendert der Server mit
+                    den ECHTEN Daten dieses Kunden — dieselbe Funktion, die auch
+                    verschickt. Welche Mails wählbar sind, entscheidet die Rolle
+                    (fiaon-mail-events) plus der Kundenzustand. */}
+                <button type="button" disabled={laeuft === "mail"}
+                        onClick={() => {
+                          if (mailMenue) { setMailMenue(null); setMailVorschau(null); setMailGewaehlt(""); return; }
+                          void (async () => {
+                            setLaeuft("mail");
+                            const r = await api(`/agent/mail/${k.personId}`);
+                            setLaeuft(null);
+                            if (r.ok) setMailMenue(r.json);
+                            else zeige("fehler", "Mail-Menü nicht geladen", r.json?.error || "Bitte erneut versuchen.");
+                          })();
+                        }}
+                        className="fi-zweitknopf inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold"
+                        title="Eine unserer E-Mails an diesen Kunden senden — mit Vorschau, bevor irgendetwas rausgeht.">
+                  {laeuft === "mail" ? "Lädt …" : mailMenue ? "Mail-Menü schließen" : "E-Mail senden"}
+                </button>
+                {mailMenue && (
+                  <div className="w-full mt-2 rounded-xl border border-slate-200/60 dark:border-white/10 p-3 space-y-2.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <select value={mailGewaehlt}
+                              onChange={(e) => {
+                                const type = e.target.value;
+                                setMailGewaehlt(type); setMailVorschau(null);
+                                if (!type) return;
+                                void (async () => {
+                                  setLaeuft("mail_vorschau");
+                                  const r = await api(`/agent/mail/${k.personId}/${type}/vorschau`);
+                                  setLaeuft(null);
+                                  if (r.ok) setMailVorschau(r.json);
+                                  else zeige("fehler", "Keine Vorschau", r.json?.error || "Bitte erneut versuchen.");
+                                })();
+                              }}
+                              className="text-[12.5px] px-2.5 py-2 rounded-lg min-w-[240px]"
+                              style={{ background: "var(--fi-seite)", border: "1px solid var(--fi-linie)", color: "var(--fi-text)" }}>
+                        <option value="">Welche Mail soll raus?</option>
+                        {(mailMenue.events || []).filter((e: any) => e.erlaubt).map((e: any) => (
+                          <option key={e.type} value={e.type}>{e.label}</option>
+                        ))}
+                      </select>
+                      {laeuft === "mail_vorschau" && <span className="text-[12px] opacity-70">Vorschau wird gebaut …</span>}
+                    </div>
+                    {(mailMenue.events || []).some((e: any) => !e.erlaubt) && mailGewaehlt === "" && (
+                      <p className="text-[11.5px] opacity-60">
+                        Nicht wählbar (Zustand/Limit): {(mailMenue.events || []).filter((e: any) => !e.erlaubt).map((e: any) => e.label).slice(0, 4).join(", ")}
+                        {(mailMenue.events || []).filter((e: any) => !e.erlaubt).length > 4 ? " …" : ""}
+                      </p>
+                    )}
+                    {mailVorschau && (
+                      <div className="space-y-2">
+                        <p className="text-[12px] leading-relaxed">
+                          <b>An:</b> {mailVorschau.empfaenger} · <b>Von:</b> {mailVorschau.absender?.name}<br />
+                          <b>Betreff:</b> „{mailVorschau.betreff}“
+                          {Array.isArray(mailVorschau.fehlend) && mailVorschau.fehlend.length > 0 && (
+                            <span className="block mt-1" style={{ color: "#d97706" }}>
+                              Ohne Wert bleiben: {mailVorschau.fehlend.join(", ")} — bitte kurz prüfen, ob die Mail so Sinn ergibt.
+                            </span>
+                          )}
+                        </p>
+                        <iframe title="Mail-Vorschau" srcDoc={mailVorschau.html}
+                                className="w-full rounded-lg"
+                                style={{ height: 420, border: "1px solid var(--fi-linie)", background: "#f0f4fa" }} />
+                        <button type="button" disabled={laeuft === "mail_senden"}
+                                onClick={() => {
+                                  void (async () => {
+                                    setLaeuft("mail_senden");
+                                    const r = await api(`/agent/mail/${k.personId}/${mailGewaehlt}`, { method: "POST" });
+                                    setLaeuft(null);
+                                    if (r.ok && r.json?.ok) {
+                                      zeige("erfolg", "E-Mail verschickt", r.json?.meldung || k.name);
+                                      setMailMenue(null); setMailVorschau(null); setMailGewaehlt("");
+                                    } else zeige("fehler", "Nicht verschickt", r.json?.meldung || r.json?.grund || r.json?.error || "Bitte erneut versuchen.");
+                                  })();
+                                }}
+                                className="fi-knopf-primaer inline-flex items-center gap-1.5 px-4 py-2 text-[12.5px] font-semibold"
+                                title="Verschickt genau die Mail aus der Vorschau — sie steht danach im Verlauf und im Protokoll.">
+                          {laeuft === "mail_senden" ? "Wird verschickt …" : "Genau diese Mail jetzt senden"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>

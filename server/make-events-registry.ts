@@ -496,6 +496,9 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       followup_number: 1,
       quelle: "facebook_lead_ads",
       antrag_url: "https://www.fiaon.com/antrag?lead=1234",
+      // 28.08.2026: Der echte Lauf liefert den Abmeldelink immer mit — eine
+      // Werbe-Mail ohne Abmeldung waere bei 2 Mails am Tag ein Spam-Magnet.
+      abmelde_url: "https://www.fiaon.com/leads/abmelden/1234/beispielschluessel",
     },
   },
   {

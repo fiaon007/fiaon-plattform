@@ -170,6 +170,7 @@ export function freitextBaustein(ein: { betreff: string; text: string; anrede?: 
     .filter(Boolean);
   if (ein.anrede) absaetze.unshift(sicher(ein.anrede));
   return {
+    persoenlich: true,
     betreff: sicher(ein.betreff),
     preheader: absaetze[0] ? absaetze[0].replace(/<br \/>/g, " ").slice(0, 90) : "Eine Nachricht von Ihrem Ansprechpartner.",
     titel: sicher(ein.betreff),

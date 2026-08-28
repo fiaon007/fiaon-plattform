@@ -72,6 +72,8 @@ export interface MailBaustein {
   abmeldeUrl?: string;
   /** Kleine Marke über dem Titel, z. B. „Erinnerung {{params.reminder_number}}". */
   marke?: string;
+  /** Persönliche Nachricht eines Mitarbeiters — die „automatisch erstellt"-Zeile entfällt. */
+  persoenlich?: boolean;
 }
 
 const NAVY = "#0f2044";
@@ -187,7 +189,7 @@ export function mailHtml(b: MailBaustein): string {
 
       </table>
 
-      <p style="margin:18px 0 0;font:400 11px/1.5 ${SCHRIFT};color:#9aa7bd;">Diese Nachricht wurde automatisch zu Ihrem Vorgang erstellt.</p>
+      ${b.persoenlich ? "" : `<p style="margin:18px 0 0;font:400 11px/1.5 ${SCHRIFT};color:#9aa7bd;">Diese Nachricht wurde automatisch zu Ihrem Vorgang erstellt.</p>`}
     </td></tr>
   </table>
 </body>

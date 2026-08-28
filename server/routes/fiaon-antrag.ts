@@ -2522,7 +2522,7 @@ router.post("/application", async (req, res) => {
       // Business customer fields
       companyName, legalForm, taxId, establishedYear, contactFirstName, contactLastName, contactEmail, contactPhone, businessType, industry, annualRevenue, employees, monthlyExpenses, billingEmail,
       // Common fields
-      wantedLimit, purpose, billing, addon, nfc, approvedLimit, email, iban, billingMethod, salaryReceiptDay, ag1, ag2, ag3 
+      wantedLimit, purpose, billing, addon, nfc, approvedLimit, email, iban, billingMethod, salaryReceiptDay, erreichbarkeit, ag1, ag2, ag3 
     } = req.body;
     
     const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "";
@@ -2641,6 +2641,8 @@ router.post("/application", async (req, res) => {
       // Common fields
       wantedLimit: wantedLimit || null, purpose, billing, addon, nfc,
       approvedLimit: approvedLimit || null, email, iban, billingMethod, salaryReceiptDay,
+      // P18 (28.08.2026): Wann der Kunde telefonisch erreichbar sein will.
+      erreichbarkeit: erreichbarkeit || null,
       consentAgb: ag1 || false, consentSchufa: ag2 || false, consentContract: ag3 || false,
       ip, userAgent: req.headers["user-agent"] || "",
       updatedAt: new Date(),
@@ -2710,6 +2712,7 @@ router.post("/application", async (req, res) => {
           iban = ${values.iban ?? null},
           billing_method = ${values.billingMethod ?? null},
           salary_receipt_day = ${values.salaryReceiptDay ?? null},
+          erreichbarkeit = COALESCE(${values.erreichbarkeit ?? null}, erreichbarkeit),
           consent_agb = ${values.consentAgb ?? null},
           consent_schufa = ${values.consentSchufa ?? null},
           consent_contract = ${values.consentContract ?? null},

@@ -1847,6 +1847,15 @@ function KundenKarte({
 
         {/* Erste Reihe: Anrufen · Zahlungsdaten · Mail */}
         <div className="mt-3.5 flex flex-wrap items-center gap-2">
+          {/* P18 (28.08.2026): Die Wunsch-Erreichbarkeit aus dem Antrag —
+              direkt am Anrufen-Knopf, wo die Entscheidung fällt. */}
+          {(k as any).erreichbarkeit && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11.5px] font-semibold"
+                  title="So hat der Kunde es im Antrag angegeben."
+                  style={{ background: "rgba(37,99,235,.10)", color: "#1d4ed8", border: "1px solid rgba(37,99,235,.25)" }}>
+              Erreichbar: {(k as any).erreichbarkeit}
+            </span>
+          )}
           {k.telefonWaehlbar ? (
             // Ein Klick öffnet das Softphone MIT Kundenkontext — das Gespräch
             // wird dann aufgezeichnet, zusammengefasst und dokumentiert.

@@ -2056,6 +2056,12 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
                     : "Betreuter Kunde ohne offenen Schritt. Eine kurze Notiz nach jedem Kontakt hält die Akte lebendig."}
                 </p>
               </div>
+              {(k as any).erreichbarkeit && (
+                <p className="pi-fussnote" style={{ color: "#93c5fd" }}
+                   title="So hat der Kunde es im Antrag angegeben.">
+                  Wunsch-Erreichbarkeit: {(k as any).erreichbarkeit}
+                </p>
+              )}
               <div className="pi-situation-tun">
                 {(sitArt === "rate_ueberfaellig" || sitArt === "lead_ohne_antrag") && (
                   k.telefonWaehlbar

@@ -432,6 +432,28 @@ router.get("/agent/onboarding/person/:id/verlauf", requireAgent, nurOnboarding, 
   }
 });
 
+/**
+ * POST /agent/onboarding/notiz-analyse — { notiz }
+ *
+ * P1 (Team-Feedback 28.08.2026): Die frei getippte Gesprächsnotiz wird gegen
+ * die Agenda geprüft. Zurück kommen die belegten Schritte (werden im Cockpit
+ * abgehakt), je Schritt der Beleg-Satz (füllt die Pflichtnotiz), die noch
+ * fehlenden Punkte als klare Hinweise — und optional eine sauberere Fassung
+ * der Notiz, die der Mitarbeiter übernehmen kann.
+ *
+ * Reine Textanalyse: keine personId nötig, keine Kundendaten ans Modell.
+ */
+router.post("/agent/onboarding/notiz-analyse", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const { notizAnalysieren } = await import("../lib/fiaon-notiz-analyse");
+    const erg = await notizAnalysieren(String(req.body?.notiz || ""));
+    res.json(erg);
+  } catch (err) {
+    console.error("[ONBOARDING] notiz-analyse:", err);
+    res.status(500).json({ ok: false, herkunft: "keine", grund: "Serverfehler" });
+  }
+});
+
 router.post("/agent/onboarding/person/:id/notiz", requireAgent, nurOnboarding, nurMitZusage, async (req: AgentRequest, res: Response) => {
   try {
     const id = Number(req.params.id);
@@ -524,11 +546,53 @@ router.get("/agent/onboarding/person/:id/lage", requireAgent, nurOnboarding, nur
       const stand = refFuerBonitaet ? await bonitaetFuer(String(refFuerBonitaet)) : null;
       bonitaet = stand?.grund ?? null;
     } catch { /* Bonität ist Beiwerk — die Lage darf nicht daran scheitern. */ }
+    // ── P7 (28.08.2026): Die Kundendaten GEHÖREN ins Cockpit ──────────────
+    // „Sobald ich auf Gespräch führen klicke, sehe ich die Kundendaten nicht
+    // mehr." Stammdaten und Ratenstand kommen jetzt mit — das Cockpit zeigt
+    // sie neben der Agenda, ohne dass jemand die Bühne verlassen muss.
+    const [stamm] = (await sqlPool`
+      SELECT COALESCE(NULLIF(p.first_name,''), p.contact_name) AS vorname, p.last_name AS nachname,
+             COALESCE(p.birthdate, (SELECT a0.birthdate FROM fiaon_applications a0
+               WHERE a0.person_id = p.id AND a0.merged_into IS NULL AND a0.birthdate IS NOT NULL
+               ORDER BY a0.created_at DESC LIMIT 1)) AS birth_date,
+             p.primary_phone,
+             (SELECT NULLIF(TRIM(CONCAT_WS(', ',
+                NULLIF(TRIM(a.street), ''),
+                NULLIF(TRIM(CONCAT_WS(' ', a.zip, a.city)), ''))), '')
+              FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL
+              ORDER BY (a.payment_status='paid') DESC, a.created_at DESC LIMIT 1) AS adresse,
+             (SELECT a2.phone FROM fiaon_applications a2
+              WHERE a2.person_id = p.id AND a2.merged_into IS NULL AND NULLIF(a2.phone,'') IS NOT NULL
+              ORDER BY a2.created_at DESC LIMIT 1) AS app_phone
+      FROM fiaon_persons p WHERE p.id = ${id}
+    `) as any[];
+    const [raten] = (await sqlPool`
+      SELECT COUNT(*) FILTER (WHERE r.status = 'bezahlt')::int AS bezahlt,
+             COUNT(*) FILTER (WHERE r.status <> 'bezahlt' AND r.faellig_am >= CURRENT_DATE)::int AS offen,
+             COUNT(*) FILTER (WHERE r.status <> 'bezahlt' AND r.faellig_am < CURRENT_DATE)::int AS ueberfaellig,
+             MIN(r.faellig_am) FILTER (WHERE r.status <> 'bezahlt') AS naechste_am,
+             MAX(r.betrag_cents) AS rate_cents
+      FROM fiaon_abo_raten r JOIN fiaon_applications ar ON ar.ref = r.ref
+      WHERE ar.person_id = ${id} AND ar.merged_into IS NULL AND r.storniert_am IS NULL
+    `) as any[];
     res.json({
       ok: true, zahlung, dokumente, zugang, karte,
       paket: paketZeile?.paket ?? null,
       zahlungsstand: paketZeile ? zahlungsstatusText(paketZeile.status) : null,
       bonitaet,
+      stammdaten: stamm ? {
+        name: [stamm.vorname, stamm.nachname].filter(Boolean).join(" "),
+        geburtsdatum: stamm.birth_date ?? null,
+        adresse: stamm.adresse ?? null,
+        telefon: stamm.primary_phone || stamm.app_phone || null,
+        email: p.primary_email || p.app_email || null,
+      } : null,
+      raten: raten ? {
+        bezahlt: Number(raten.bezahlt || 0), offen: Number(raten.offen || 0),
+        ueberfaellig: Number(raten.ueberfaellig || 0),
+        naechsteAm: raten.naechste_am ?? null,
+        rateCents: raten.rate_cents != null ? Number(raten.rate_cents) : null,
+      } : null,
     });
   } catch (err) {
     console.error("[ONBOARDING] lage:", err);

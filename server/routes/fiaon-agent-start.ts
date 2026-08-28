@@ -202,6 +202,10 @@ export const KARTE_SQL = `
   (SELECT a.status FROM fiaon_applications a
     WHERE a.person_id = p.id AND a.merged_into IS NULL
     ORDER BY a.created_at DESC LIMIT 1) AS letzter_status,
+  -- P18 (28.08.2026): Wann will der Kunde angerufen werden? Aus dem Antrag.
+  (SELECT a.erreichbarkeit FROM fiaon_applications a
+    WHERE a.person_id = p.id AND a.merged_into IS NULL AND NULLIF(a.erreichbarkeit,'') IS NOT NULL
+    ORDER BY a.created_at DESC LIMIT 1) AS erreichbarkeit,
   (SELECT a.phone FROM fiaon_applications a
     WHERE a.person_id = p.id AND a.merged_into IS NULL AND NULLIF(a.phone,'') IS NOT NULL
     ORDER BY a.created_at DESC LIMIT 1) AS app_phone,
@@ -262,6 +266,8 @@ export function karte(p: any) {
     telefon: tel.anzeige,
     telefonWaehlbar: tel.waehlbar,
     telefonHinweis: tel.hinweis,
+    // P18: die Wunsch-Erreichbarkeit aus dem Antrag — steht neben der Nummer.
+    erreichbarkeit: p.erreichbarkeit ?? null,
     // ── DIE NUMMER OHNE LAND (31.08.2026) ────────────────────────────────
     // Damit die Karte die Inline-Korrektur anbieten kann, statt den Agenten mit
     // „nicht anrufbar" allein zu lassen. `landVorschlag` ist ein VORSCHLAG und

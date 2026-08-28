@@ -199,6 +199,16 @@ export const RUNDGANG_CALENDAR: RundgangSchritt[] = [
 
 export const RUNDGANG_ONBOARDING: RundgangSchritt[] = [
   {
+    // 28.08.2026, mit der Notiz-Prüfung (P1) zusammen angelegt.
+    titel: "Eine Notiz statt sechs Kästchen.",
+    text: "Im Gesprächs-Cockpit gibt es oben EIN Notizfeld: Du tippst während des Telefonats mit, "
+      + "klickst \u201eNotiz prüfen & abhaken\u201c — und die Prüfung erkennt, welche Gesprächspunkte "
+      + "deine Notiz belegt, hakt sie ab und füllt ihre Pflichtnotizen. Nur was fehlt, wird dir "
+      + "als \u201eFEHLT NOCH\u201c angezeigt: Dann klärst du es im Gespräch, ergänzt die Notiz und "
+      + "prüfst erneut. Sind alle Punkte belegt, schließt EIN Klick ab.",
+    tipp: "Schreib ganze Sätze, keine Stichwort-Fetzen — die Prüfung (und der nächste Kollege) versteht dann beides.",
+  },
+  {
     titel: "Fünfzehn Minuten, die über den Kunden entscheiden.",
     text: "Hier führst du die Startgespräche: Der Mensch hat bezahlt, sein Konto wartet auf die "
       + "Freischaltung. In diesem Gespräch erklärst du ihm, was jetzt passiert, prüfst seine "

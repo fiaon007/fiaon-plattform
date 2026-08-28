@@ -591,7 +591,7 @@ export default function AntragPage() {
   const [hoveredCard, setHoveredCard] = useState<number | null>(null);
   const [expandedCard, setExpandedCard] = useState<number | null>(null);
 
-  const [d, setD] = useState({ firstName: "", lastName: "", birthDay: "", birthMonth: "", birthYear: "1990", phoneCountryCode: "+49", phone: "", street: "", zip: "", city: "", country: "", nationality: "", employment: "", employer: "", employedSince: "", income: 0, rent: 0, debts: 0, housing: "", wantedLimit: 0, purpose: "", billing: "Vollzahlung (100%)", addon: "Keine", nfc: "Ja", email: "", salaryReceiptDay: "", iban: "", billingMethod: "iban", ag1: false, ag2: false, ag3: false });
+  const [d, setD] = useState({ firstName: "", lastName: "", birthDay: "", birthMonth: "", birthYear: "1990", phoneCountryCode: "+49", phone: "", erreichbarkeit: "", street: "", zip: "", city: "", country: "", nationality: "", employment: "", employer: "", employedSince: "", income: 0, rent: 0, debts: 0, housing: "", wantedLimit: 0, purpose: "", billing: "Vollzahlung (100%)", addon: "Keine", nfc: "Ja", email: "", salaryReceiptDay: "", iban: "", billingMethod: "iban", ag1: false, ag2: false, ag3: false });
   const [approved, setApproved] = useState(0);
   const [verifyDone, setVerifyDone] = useState(false);
   const [checkProgress, setCheckProgress] = useState(0);
@@ -897,6 +897,7 @@ export default function AntragPage() {
   function skipToPayment() {
     // Prefill required data for payment step
     setD({
+      erreichbarkeit: "",
       firstName: "Max",
       lastName: "Mustermann",
       birthDay: "1",
@@ -1045,6 +1046,29 @@ export default function AntragPage() {
                       {errors.birth && <p className="mt-1 text-xs text-red-500">{errors.birth}</p>}
                     </div>
                     <PremiumPhoneInput countryCode={d.phoneCountryCode} phone={d.phone} onCountryCodeChange={(v: string) => up("phoneCountryCode", v)} onPhoneChange={(v: string) => up("phone", v)} error={errors.phone} />
+                  {/* ── P18 (28.08.2026): Wunsch-Erreichbarkeit ─────────────────
+                      Der Kunde sagt selbst, wann wir ihn am besten erreichen —
+                      der Mitarbeiter sieht es in der Akte und ruft nicht
+                      dreimal ins Leere. Freiwillig, ein Tipper genügt. */}
+                  <div className="mt-4">
+                    <label className="block text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2">
+                      Wann erreichen wir Sie am besten? <span className="normal-case font-normal tracking-normal">(optional)</span>
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {["Vormittags (8–12)", "Mittags (12–15)", "Nachmittags (15–18)", "Abends (18–20)", "Flexibel"].map((z) => (
+                        <button key={z} type="button"
+                                onClick={() => up("erreichbarkeit", d.erreichbarkeit === z ? "" : z)}
+                                aria-pressed={d.erreichbarkeit === z}
+                                className={`px-3.5 py-2 rounded-full text-[13px] font-medium transition-colors border ${
+                                  d.erreichbarkeit === z
+                                    ? "border-blue-600 bg-blue-50 text-blue-700"
+                                    : "border-slate-300 bg-white text-slate-600 hover:border-slate-400"
+                                }`}>
+                          {z}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                     <Field label="Wohnsitzland" req error={errors.country}><Sel value={d.country} onChange={(v: string) => {
                       // Die Vorwahl folgt dem Land (27.08.2026): 69 Kunden aus AT/CH
                       // standen mit +49 im Bestand, weil die Vorbelegung nur beim ersten

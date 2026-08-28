@@ -88,6 +88,15 @@ interface Lage {
   dokumente: { fehlend?: { art: string; label: string }[]; stand: string | null } | null;
   bonitaet: string | null;
   stufe: string | null;
+  /** P7 (28.08.2026): Stammdaten und Ratenstand — die Kundendaten IM Cockpit. */
+  stammdaten?: {
+    name: string; geburtsdatum: string | null; adresse: string | null;
+    telefon: string | null; email: string | null;
+  } | null;
+  raten?: {
+    bezahlt: number; offen: number; ueberfaellig: number;
+    naechsteAm: string | null; rateCents: number | null;
+  } | null;
 }
 
 export function OnboardingCockpit({
@@ -135,6 +144,67 @@ export function OnboardingCockpit({
     return () => window.removeEventListener("beforeunload", warnen);
   }, [stand]);
   const [offen, setOffen] = useState<string | null>(AGENDA[0]?.key ?? null);
+
+  // ══ DIE NOTIZ IST DIE GRUNDLAGE (P1, Team-Feedback 28.08.2026) ══════════
+  // Florentine: „Gespräch führen → Notizen eingeben → KI analysiert →
+  // fehlende Punkte werden angezeigt → alles vollständig → automatisch
+  // bestätigt." Der Mitarbeiter tippt EINE Gesprächsnotiz; die Prüfung hakt
+  // die belegten Agenda-Schritte ab und füllt deren Pflichtnotizen aus den
+  // Sätzen der Notiz. Das manuelle Abhaken bleibt als Weg bestehen — für
+  // Ausfälle der Prüfung und für alle, die lieber klicken.
+  const freiKey = `fiaon-cockpit-frei-${termin.id}`;
+  const [freiNotiz, setFreiNotiz] = useState<string>(() => {
+    try { return window.localStorage.getItem(freiKey) ?? ""; } catch { return ""; }
+  });
+  useEffect(() => {
+    try { window.localStorage.setItem(freiKey, freiNotiz); } catch { /* voll */ }
+  }, [freiNotiz, freiKey]);
+  const [analyse, setAnalyse] = useState<{
+    laeuft: boolean;
+    fehlt: { key: string; titel: string; hinweis: string }[] | null;
+    verbesserung: string | null;
+    meldung: string | null;
+  }>({ laeuft: false, fehlt: null, verbesserung: null, meldung: null });
+
+  const notizPruefen = async () => {
+    if (freiNotiz.trim().length < 15) {
+      setAnalyse((v) => ({ ...v, meldung: "Schreib erst ein paar Sätze — dann kann die Prüfung etwas erkennen." }));
+      return;
+    }
+    setAnalyse({ laeuft: true, fehlt: null, verbesserung: null, meldung: null });
+    try {
+      const r = await fetch("/api/fiaon/agent/onboarding/notiz-analyse", {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notiz: freiNotiz }),
+      });
+      const j = await r.json();
+      if (!j?.ok) {
+        setAnalyse({ laeuft: false, fehlt: null, verbesserung: null, meldung: j?.grund || "Die Prüfung ist gerade nicht erreichbar — bitte von Hand abhaken." });
+        return;
+      }
+      // Belegte Schritte abhaken und ihre Pflichtnotiz aus der Notiz füllen.
+      // Eigene, längere Schritt-Notizen werden NIE überschrieben.
+      setStand((v) => {
+        const erledigt = Array.from(new Set([...v.erledigt, ...j.erledigt]));
+        const notizen = { ...v.notizen };
+        for (const [k, satz] of Object.entries(j.notizenJeSchritt || {})) {
+          if ((notizen[k] ?? "").trim().length < 10) notizen[k] = String(satz);
+        }
+        return { erledigt, notizen };
+      });
+      setAnalyse({
+        laeuft: false,
+        fehlt: j.fehlt || [],
+        verbesserung: j.verbesserung || null,
+        meldung: (j.fehlt || []).length === 0
+          ? "Alle Gesprächspunkte sind belegt — du kannst direkt abschließen."
+          : null,
+      });
+      setFehler(null);
+    } catch {
+      setAnalyse({ laeuft: false, fehlt: null, verbesserung: null, meldung: "Die Prüfung ist gerade nicht erreichbar — bitte von Hand abhaken." });
+    }
+  };
   const [lage, setLage] = useState<Lage | null>(null);
   const [busy, setBusy] = useState<"" | "fertig">("");
   // 24.08.2026: Die Grund-Wahl. Sie ERSETZT die beiden Fußknöpfe, solange sie
@@ -192,10 +262,13 @@ export function OnboardingCockpit({
         ergebnis: "erledigt",
         // Die gesammelten Notizen als EIN Verlaufseintrag, in der Reihenfolge
         // der Agenda — so liest es sich später wie ein Protokoll.
-        notiz: AGENDA
-          .filter((a) => (stand.notizen[a.key] ?? "").trim())
-          .map((a) => `${a.titel}: ${stand.notizen[a.key].trim()}`)
-          .join("\n"),
+        // P1: Die freie Gesprächsnotiz zuerst, dann das Agenda-Protokoll.
+        notiz: [
+          freiNotiz.trim() ? `Gesprächsnotiz: ${freiNotiz.trim()}` : null,
+          ...AGENDA
+            .filter((a) => (stand.notizen[a.key] ?? "").trim())
+            .map((a) => `${a.titel}: ${stand.notizen[a.key].trim()}`),
+        ].filter(Boolean).join("\n"),
         agenda: stand,
         dauerSek: sekunden,
       }),
@@ -203,7 +276,7 @@ export function OnboardingCockpit({
     const j = await r?.json().catch(() => null);
     setBusy("");
     if (j?.ok) {
-      try { window.localStorage.removeItem(speicherKey); } catch { /* egal */ }
+      try { window.localStorage.removeItem(speicherKey); window.localStorage.removeItem(freiKey); } catch { /* egal */ }
       onFertig(j.hinweis || "Startgespräch abgeschlossen — das Konto ist freigeschaltet.");
     } else {
       // Der Grund, nicht „hat nicht geklappt": 403 heißt Zusage fehlt, 404 der
@@ -306,7 +379,7 @@ export function OnboardingCockpit({
               onFertig={(hinweis, warn) => {
                 // Die Notizen dieses Gesprächs braucht niemand mehr — der
                 // Vorgang ist dokumentiert, das Cockpit schließt.
-                try { window.localStorage.removeItem(speicherKey); } catch { /* egal */ }
+                try { window.localStorage.removeItem(speicherKey); window.localStorage.removeItem(freiKey); } catch { /* egal */ }
                 setNoshowOffen(false);
                 onFertig(hinweis, warn);
               }}
@@ -374,6 +447,95 @@ export function OnboardingCockpit({
             <p className="fi-ob-balken-text">
               {stand.erledigt.length} von {AGENDA.length} Schritten · {prozent} %
             </p>
+          </div>
+
+          {/* ══ DIE KUNDENDATEN — NEBEN DER AGENDA, NICHT DAHINTER (P7) ═══
+              „Sobald ich auf Gespräch führen klicke, sehe ich die Kundendaten
+              nicht mehr." Jetzt stehen sie hier: Stammdaten, Paket, Zahlung,
+              Raten, Unterlagen — alles, wonach ein Kunde im Gespräch fragt,
+              ohne die Bühne zu verlassen. */}
+          {lage?.stammdaten && (
+            <div style={{ margin: "12px 0 2px", padding: "12px 16px", borderRadius: 14,
+                          background: "rgba(2,6,23,.45)", border: "1px solid rgba(148,163,184,.18)",
+                          display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: "8px 18px" }}>
+              {[
+                ["Geburtsdatum", lage.stammdaten.geburtsdatum
+                  ? new Date(String(lage.stammdaten.geburtsdatum).slice(0, 10) + "T12:00:00Z").toLocaleDateString("de-DE")
+                  : "—"],
+                ["Adresse", lage.stammdaten.adresse || "—"],
+                ["E-Mail", lage.stammdaten.email || "—"],
+                ["Bonitätsauskunft", lage.bonitaet || "—"],
+                ["Raten", lage.raten
+                  ? `${lage.raten.bezahlt} bezahlt · ${lage.raten.offen} offen${lage.raten.ueberfaellig ? ` · ${lage.raten.ueberfaellig} überfällig` : ""}${lage.raten.rateCents != null ? ` · ${(lage.raten.rateCents / 100).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €/Monat` : ""}`
+                  : "—"],
+                ["Nächste Rate", lage.raten?.naechsteAm
+                  ? new Date(String(lage.raten.naechsteAm).slice(0, 10) + "T12:00:00Z").toLocaleDateString("de-DE")
+                  : "—"],
+                ["Unterlagen", lage.dokumente
+                  ? ((lage.dokumente.fehlend?.length ?? 0) > 0
+                      ? `es fehlt: ${(lage.dokumente.fehlend ?? []).map((f) => f.label).join(", ")}`
+                      : "vollständig")
+                  : "—"],
+              ].map(([t, w]) => (
+                <div key={t as string} style={{ minWidth: 0 }}>
+                  <p style={{ margin: 0, fontSize: 10, fontWeight: 600, letterSpacing: ".1em", textTransform: "uppercase", color: "rgba(148,163,184,.85)" }}>{t}</p>
+                  <p style={{ margin: "1px 0 0", fontSize: 12.5, lineHeight: 1.45, color: "#e2e8f0", overflowWrap: "anywhere" }}>{w}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* ══ GESPRÄCHSNOTIZ MIT PRÜFUNG (P1, 28.08.2026) ═══════════════
+              Eine Notiz statt sechs Kästchen: tippen, prüfen lassen, die
+              belegten Schritte werden abgehakt. Nur was fehlt, wird gemeldet. */}
+          <div className="fi-ob-notizpruefung" style={{ margin: "14px 0 4px", display: "grid", gap: 8 }}>
+            <label style={{ fontSize: 10.5, fontWeight: 500, letterSpacing: ".14em", textTransform: "uppercase", color: "#93c5fd" }}>
+              Gesprächsnotiz — hier tippst du mit, die Prüfung hakt ab
+            </label>
+            <textarea value={freiNotiz} onChange={(e) => setFreiNotiz(e.target.value)}
+                      rows={4}
+                      placeholder={"Schreib mit, was besprochen wird — in ganzen Sätzen.\nBeispiel: Kunde wurde begrüßt, Ziel ist eine eigene Karte. Fahrplan erklärt. Laufende Kosten (12 Monatsraten) bestätigt. Nächste Schritte und Erreichbarkeit erklärt."}
+                      style={{ width: "100%", resize: "vertical", borderRadius: 12, padding: "10px 12px",
+                               fontSize: 13.5, lineHeight: 1.55, outline: "none",
+                               background: "rgba(2,6,23,.45)", border: "1px solid rgba(148,163,184,.25)", color: "#e2e8f0" }} />
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+              <button type="button" onClick={() => void notizPruefen()} disabled={analyse.laeuft}
+                      style={{ padding: "9px 18px", borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: "pointer",
+                               background: "rgba(37,99,235,.25)", border: "1px solid rgba(96,165,250,.45)", color: "#dbeafe" }}>
+                {analyse.laeuft ? "Prüft …" : "Notiz prüfen & abhaken"}
+              </button>
+              {analyse.meldung && (
+                <span style={{ fontSize: 12.5, color: analyse.fehlt && analyse.fehlt.length === 0 ? "#86efac" : "#fbbf24" }}>
+                  {analyse.meldung}
+                </span>
+              )}
+            </div>
+            {analyse.fehlt && analyse.fehlt.length > 0 && (
+              <div role="alert" style={{ display: "grid", gap: 5, padding: "10px 14px", borderRadius: 12,
+                                         background: "rgba(217,119,6,.12)", border: "1px solid rgba(251,191,36,.35)" }}>
+                {analyse.fehlt.map((f) => (
+                  <p key={f.key} style={{ margin: 0, fontSize: 12.5, lineHeight: 1.5, color: "#fcd34d" }}>{f.hinweis}</p>
+                ))}
+                <p style={{ margin: "3px 0 0", fontSize: 11.5, color: "rgba(203,213,225,.75)" }}>
+                  Kläre die Punkte im Gespräch, ergänze die Notiz und prüfe erneut — oder hake unten von Hand ab.
+                </p>
+              </div>
+            )}
+            {analyse.verbesserung && (
+              <div style={{ display: "grid", gap: 6, padding: "10px 14px", borderRadius: 12,
+                            background: "rgba(37,99,235,.10)", border: "1px solid rgba(96,165,250,.3)" }}>
+                <p style={{ margin: 0, fontSize: 11.5, fontWeight: 600, color: "#93c5fd" }}>Vorschlag für eine sauberere Fassung:</p>
+                <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.55, color: "#e2e8f0", whiteSpace: "pre-wrap" }}>{analyse.verbesserung}</p>
+                <div>
+                  <button type="button"
+                          onClick={() => { setFreiNotiz(analyse.verbesserung!); setAnalyse((v) => ({ ...v, verbesserung: null })); }}
+                          style={{ padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer",
+                                   background: "transparent", border: "1px solid rgba(96,165,250,.45)", color: "#93c5fd" }}>
+                    Übernehmen
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* ── DIE AGENDA ───────────────────────────────────────────── */}

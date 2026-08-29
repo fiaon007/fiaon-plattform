@@ -1487,6 +1487,12 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
   const [bearbeitenFokus, setBearbeitenFokus] = useState<string | null>(null);
   const [mailNachtrag, setMailNachtrag] = useState("");
   const [produktOffen, setProduktOffen] = useState(false);
+  // ── 29.08.2026: Die Aktionen aus der Bestand-Akte gehören AUCH hierher ──
+  // Florentine arbeitet in DIESER Akte (Reiter „Sein Antrag"/„Daten"). Gestern
+  // wurden Einmal-Passwort und Bonitätsauskunft nur in kunden-neu.tsx gebaut —
+  // hier fehlten sie, für sie war es also „nicht live". Zwei Akten heißt:
+  // jede neue Aktion gehört in BEIDE.
+  const [einmalPw, setEinmalPw] = useState<{ passwort: string; hinweis: string } | null>(null);
   const [datumWert] = useState(tagPlus(1));
   const [notiz, setNotiz] = useState("");
   const [verlauf, setVerlauf] = useState<any[] | null>(null);
@@ -2104,6 +2110,27 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
                       <button type="button" onClick={perWhatsApp} disabled={!waNummer}>Zahlungsdaten per WhatsApp{waNummer ? "" : " (keine Nummer)"}</button>
                       <button type="button" onClick={() => setTerminOffen(true)}>Termin buchen</button>
                       <button type="button" onClick={() => setProduktOffen(true)}>{buchungen.some((b) => b.offen && b.art === "paket") ? "Produkt tauschen" : "Produkt hinzufügen"}</button>
+                      <button type="button" onClick={() => {
+                        const ref = buchungen[0]?.ref ?? k.zahlung?.referenz ?? null;
+                        if (!ref) { melden("schlecht", "Keine Bestellung", "Ohne Bestellung gibt es kein Kundenkonto."); return; }
+                        const grund = window.prompt(`Einmal-Passwort für ${k.name} erzeugen?\nKurz begründen (steht im Protokoll):`);
+                        if (grund === null) return;
+                        void (async () => {
+                          const r = await api(`/agent/zugang/${encodeURIComponent(String(ref))}/einmal-passwort`, {
+                            method: "POST", body: JSON.stringify({ grund }),
+                          });
+                          if (r.ok && r.json?.passwort) setEinmalPw({ passwort: r.json.passwort, hinweis: r.json.hinweis || "" });
+                          else melden("schlecht", "Kein Einmal-Passwort", r.json?.error || "Nur die Vertriebsleitung darf das.");
+                        })();
+                      }}>Einmal-Passwort erzeugen</button>
+                      <button type="button" onClick={() => {
+                        void (async () => {
+                          const r = await api(`/agent/crm/kunden/${k.personId}/bonitaet-bestellen`, { method: "POST" });
+                          if (r.ok) melden("gut", r.json?.existing ? "Bestellung besteht bereits" : "Bonitätsauskunft bestellt",
+                            `${r.json?.hinweis || ""}${r.json?.paymentReference ? ` Verwendungszweck: ${r.json.paymentReference}` : ""}`);
+                          else melden("schlecht", "Nicht bestellt", r.json?.error || "Bitte erneut versuchen.");
+                        })();
+                      }}>Bonitätsauskunft bestellen</button>
                       <button type="button" onClick={() => setBlatt(true)}>Gesprächsblatt</button>
                       <button type="button" onClick={() => setSendeMenue(true)}>E-Mail senden</button>
                       <button type="button" onClick={() => void nummerKorrektur()} disabled={!k.email}>Nummer korrigieren lassen</button>
@@ -2114,6 +2141,16 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
                 </span>
               </div>
             </div>
+            {/* 29.08.2026: Das Einmal-Passwort steht GROSS und nur einmal da —
+                der Agent liest es dem Kunden am Telefon vor. */}
+            {einmalPw && (
+              <div className="pi-stapel" style={{ background: "rgba(37,99,235,.12)", border: "1px solid rgba(96,165,250,.4)", borderRadius: 12, padding: "10px 14px" }}>
+                <span className="pi-luecke" style={{ color: "#dbeafe", fontWeight: 600 }}>Einmal-Passwort (wird genau EINMAL angezeigt):</span>
+                <b style={{ fontSize: 22, letterSpacing: ".08em", color: "#93c5fd", userSelect: "all" }}>{einmalPw.passwort}</b>
+                <span className="pi-fussnote">{einmalPw.hinweis}</span>
+                <span className="pi-reihe"><button type="button" className="pi-knopf still klein" onClick={() => setEinmalPw(null)}>Gelesen — ausblenden</button></span>
+              </div>
+            )}
             {sperre && sitArt === "rechnung_offen" && (
               <div className="pi-stapel">
                 <span className="pi-luecke" style={{ color: "#fde68a" }}>{sperre.grund}</span>

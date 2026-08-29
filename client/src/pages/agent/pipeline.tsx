@@ -1493,6 +1493,11 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
   // hier fehlten sie, für sie war es also „nicht live". Zwei Akten heißt:
   // jede neue Aktion gehört in BEIDE.
   const [einmalPw, setEinmalPw] = useState<{ passwort: string; hinweis: string } | null>(null);
+  const [kontoGesperrt, setKontoGesperrt] = useState<boolean>((k as any).kontoGesperrt === true);
+  const [freiOffen, setFreiOffen] = useState(false);
+  const [freiBetreff, setFreiBetreff] = useState("");
+  const [freiText, setFreiText] = useState("");
+  const [freiVorschau, setFreiVorschau] = useState<any | null>(null);
   const [datumWert] = useState(tagPlus(1));
   const [notiz, setNotiz] = useState("");
   const [verlauf, setVerlauf] = useState<any[] | null>(null);
@@ -2131,6 +2136,30 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
                           else melden("schlecht", "Nicht bestellt", r.json?.error || "Bitte erneut versuchen.");
                         })();
                       }}>Bonitätsauskunft bestellen</button>
+                      <button type="button" onClick={() => {
+                        void (async () => {
+                          const r = await api(`/agent/onboarding/person/${k.personId}/gefuehrt`, { method: "POST" });
+                          if (r.ok) melden("gut", r.json?.hinweis || "Startgespräch festgehalten", k.name);
+                          else melden("schlecht", "Nicht festgehalten", r.json?.error || "Bitte erneut versuchen.");
+                        })();
+                      }}>Startgespräch geführt ✓</button>
+                      <button type="button" onClick={() => {
+                        const sperren = !kontoGesperrt;
+                        let grund: string | null = "";
+                        if (sperren) {
+                          grund = window.prompt(`${k.name} wirklich sperren?\nBitte kurz den Grund nennen — er steht danach im Verlauf:`);
+                          if (grund === null) return;
+                          if (!grund.trim()) { melden("schlecht", "Nicht gesperrt", "Ohne Grund wird nicht gesperrt."); return; }
+                        }
+                        void (async () => {
+                          const r = await api(`/agent/crm/kunden/${k.personId}/konto-sperre`, {
+                            method: "POST", body: JSON.stringify({ sperren, grund: grund?.trim() || undefined }),
+                          });
+                          if (r.ok) { setKontoGesperrt(r.json?.gesperrt === true); melden("gut", r.json?.gesperrt ? "Konto gesperrt" : "Konto freigeschaltet", r.json?.hinweis || k.name); }
+                          else melden("schlecht", "Nicht geändert", r.json?.error || "Bitte erneut versuchen.");
+                        })();
+                      }}>{kontoGesperrt ? "Konto freischalten" : "Konto sperren"}</button>
+                      <button type="button" onClick={() => { setFreiOffen(true); setFreiVorschau(null); }}>Freie Nachricht schreiben</button>
                       <button type="button" onClick={() => setBlatt(true)}>Gesprächsblatt</button>
                       <button type="button" onClick={() => setSendeMenue(true)}>E-Mail senden</button>
                       <button type="button" onClick={() => void nummerKorrektur()} disabled={!k.email}>Nummer korrigieren lassen</button>
@@ -2143,6 +2172,35 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
             </div>
             {/* 29.08.2026: Das Einmal-Passwort steht GROSS und nur einmal da —
                 der Agent liest es dem Kunden am Telefon vor. */}
+            {/* 29.08.2026: Freie Nachricht im FIAON-Design — dieselbe Server-Kette
+                wie in der Bestand-Akte (Vorschau vor dem Senden). */}
+            {freiOffen && (
+              <div className="pi-stapel" style={{ border: "1px solid rgba(148,163,184,.25)", borderRadius: 12, padding: "10px 14px" }}>
+                <input className="pi-eingabe" value={freiBetreff} onChange={(ev) => { setFreiBetreff(ev.target.value); setFreiVorschau(null); }}
+                       placeholder="Betreff — wird auch die Überschrift" style={{ width: "100%" }} />
+                <textarea className="pi-eingabe" value={freiText} onChange={(ev) => { setFreiText(ev.target.value); setFreiVorschau(null); }}
+                          rows={5} placeholder="Deine Nachricht. Die Anrede setzt das System selbst — Leerzeile = neuer Absatz."
+                          style={{ width: "100%", resize: "vertical" }} />
+                <span className="pi-reihe">
+                  <button type="button" className="pi-knopf still klein" disabled={!freiBetreff.trim() || !freiText.trim()}
+                          onClick={() => { void (async () => {
+                            const r = await api(`/agent/mail/${k.personId}/frei/vorschau`, { method: "POST", body: JSON.stringify({ betreff: freiBetreff, text: freiText }) });
+                            if (r.ok && r.json?.ok) setFreiVorschau(r.json); else melden("schlecht", "Keine Vorschau", r.json?.error || "Bitte erneut versuchen.");
+                          })(); }}>Vorschau</button>
+                  {freiVorschau && (
+                    <button type="button" className="pi-knopf klein" onClick={() => { void (async () => {
+                      const r = await api(`/agent/mail/${k.personId}/frei`, { method: "POST", body: JSON.stringify({ betreff: freiBetreff, text: freiText }) });
+                      if (r.ok && r.json?.ok) { melden("gut", "Verschickt", r.json.meldung); setFreiOffen(false); setFreiBetreff(""); setFreiText(""); setFreiVorschau(null); }
+                      else melden("schlecht", "Nicht verschickt", r.json?.meldung || r.json?.error || "Bitte erneut versuchen.");
+                    })(); }}>Jetzt senden</button>
+                  )}
+                  <button type="button" className="pi-knopf still klein" onClick={() => setFreiOffen(false)}>Abbrechen</button>
+                </span>
+                {freiVorschau && (
+                  <iframe title="Vorschau" srcDoc={freiVorschau.html} style={{ width: "100%", height: 360, border: "1px solid rgba(148,163,184,.25)", borderRadius: 10, background: "#f0f4fa" }} />
+                )}
+              </div>
+            )}
             {einmalPw && (
               <div className="pi-stapel" style={{ background: "rgba(37,99,235,.12)", border: "1px solid rgba(96,165,250,.4)", borderRadius: 12, padding: "10px 14px" }}>
                 <span className="pi-luecke" style={{ color: "#dbeafe", fontWeight: 600 }}>Einmal-Passwort (wird genau EINMAL angezeigt):</span>

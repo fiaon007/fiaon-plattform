@@ -123,6 +123,7 @@ const AgentCollectionsPage = lazy(() => import("@/pages/agent/collections"));
 const AgentInboxPage = lazy(() => import("@/pages/agent/inbox"));
 const AgentMorePage = lazy(() => import("@/pages/agent/more"));
 const AgentSpaceNeuPage = lazy(() => import("@/pages/agent/space-neu")); // Team-Feed neu (Justin 24.08.)
+const AgentAssistentPage = lazy(() => import("@/pages/agent/assistent")); // FIAON Copilot (30.08.)
 const AgentOnboardingRaumPage = lazy(() => import("@/pages/agent/onboarding-raum")); // E-051
 const AgentBestandPage = lazy(() => import("@/pages/agent/bestand")); // E-050 Portfolio-Raum
 const ChefPage = lazy(() => import("@/pages/chef")); // E-053 Chefbüro
@@ -184,6 +185,17 @@ const KreditOhneSchufa = lazy(() => import("@/pages/site/kredit-ohne-schufa"));
 const SchufaEintragLoeschen = lazy(() => import("@/pages/site/schufa-eintrag-loeschen"));
 const BonitaetVerbessern = lazy(() => import("@/pages/site/bonitaet-verbessern"));
 const AuskunfteienSeite = lazy(() => import("@/pages/site/auskunfteien"));
+// Die zehn Themenseiten (SEO/SEA, 30.08.2026) — Pfeiler + Glossar-Hub.
+const SchufaScoreVerstehen = lazy(() => import("@/pages/site/schufa-score-verstehen"));
+const BonitaetsauskunftBeantragen = lazy(() => import("@/pages/site/bonitaetsauskunft-beantragen"));
+const InkassoBriefErhalten = lazy(() => import("@/pages/site/inkasso-brief-erhalten"));
+const EintragVerjaehrung = lazy(() => import("@/pages/site/eintrag-verjaehrung"));
+const GirokontoTrotzNegativerBonitaet = lazy(() => import("@/pages/site/girokonto-trotz-negativer-bonitaet"));
+const RatenzahlungUndBonitaet = lazy(() => import("@/pages/site/ratenzahlung-und-bonitaet"));
+const SelbstauskunftCheckliste = lazy(() => import("@/pages/site/selbstauskunft-checkliste"));
+const SchufaNeutralAnfragen = lazy(() => import("@/pages/site/schufa-neutral-anfragen"));
+const FiaonErfahrungen = lazy(() => import("@/pages/site/fiaon-erfahrungen"));
+const GlossarBonitaet = lazy(() => import("@/pages/site/glossar-bonitaet"));
 const WzKartenCheck = lazy(() => import("@/pages/site/werkzeuge/karten-check"));
 const WzSpielraum = lazy(() => import("@/pages/site/werkzeuge/spielraum"));
 const SitePrivatkunden = lazy(() => import("@/pages/site/privatkunden"));
@@ -264,6 +276,16 @@ function Router() {
       <Route path="/schufa-eintrag-loeschen" component={SchufaEintragLoeschen} />
       <Route path="/bonitaet-verbessern" component={BonitaetVerbessern} />
       <Route path="/auskunfteien" component={AuskunfteienSeite} />
+      <Route path="/schufa-score-verstehen" component={SchufaScoreVerstehen} />
+      <Route path="/bonitaetsauskunft-beantragen" component={BonitaetsauskunftBeantragen} />
+      <Route path="/inkasso-brief-erhalten" component={InkassoBriefErhalten} />
+      <Route path="/eintrag-verjaehrung" component={EintragVerjaehrung} />
+      <Route path="/girokonto-trotz-negativer-bonitaet" component={GirokontoTrotzNegativerBonitaet} />
+      <Route path="/ratenzahlung-und-bonitaet" component={RatenzahlungUndBonitaet} />
+      <Route path="/selbstauskunft-checkliste" component={SelbstauskunftCheckliste} />
+      <Route path="/schufa-neutral-anfragen" component={SchufaNeutralAnfragen} />
+      <Route path="/fiaon-erfahrungen" component={FiaonErfahrungen} />
+      <Route path="/glossar-bonitaet" component={GlossarBonitaet} />
       <Route path="/werkzeuge/karten-check" component={WzKartenCheck} />
       <Route path="/werkzeuge/spielraum" component={WzSpielraum} />
       <Route path="/werkzeuge/eintrag-pruefen" component={SiteEintragPruefen} />
@@ -369,6 +391,7 @@ function Router() {
       <Route path="/agent/auszahlung-alt" component={AgentAuszahlungPage} />
       <Route path="/agent/skripte" component={AgentSkriptePage} />
       <Route path="/agent/mails" component={AgentMailsPage} />
+      <Route path="/agent/assistent">{() => <AgentAssistentPage />}</Route>
       <Route path="/agent/kalender" component={AgentCalendarPage} />
       <Route path="/agent/kalender-alt" component={AgentKalenderPage} />
       <Route path="/agent/partner-programm"><Redirect to="/agent/wallet/partner" /></Route>

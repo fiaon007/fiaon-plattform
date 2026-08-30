@@ -11,6 +11,7 @@ import { useEffect } from "react";
 import { Dunkel, Block, Licht, Knopf, Zwischenruf, Fragen, Karten } from "@/components/site/DunkleBuehne";
 import SeoDaten from "@/components/site/SeoDaten";
 import "@/styles/ratgeber.css";
+import "@/styles/seo-seiten.css";
 
 const SCHRITTE = [
   { name: "Datenkopie anfordern", text: "Kostenlos nach Art. 15 DSGVO bei SCHUFA, KSV und CRIF. Nur die Datenkopie zeigt alle Einträge mit Meldedatum, Erledigungsdatum und meldender Stelle — die Bezahlprodukte zeigen nicht mehr." },
@@ -111,6 +112,16 @@ export default function SchufaEintragLoeschen() {
             (Fassung 2024), Stand August 2026. Keine Rechtsberatung im Einzelfall. FIAON verspricht keine Löschung
             berechtigter, zulässig gemeldeter Einträge.
           </p>
+        </Block>
+
+        {/* Weiterlesen (30.08.2026): die Themenseiten, die hier anschließen. */}
+        <Block schmal titel="Zum Weiterlesen">
+          <div className="sx-vertiefen">
+            <a href="/eintrag-verjaehrung"><b>Eintrag & Verjährung</b><span>Der Fristen-Checker: Wann Ihr Eintrag verschwinden muss — taggenau gerechnet.</span></a>
+            <a href="/selbstauskunft-checkliste"><b>Selbstauskunft-Checkliste</b><span>Zehn Punkte, mit denen Sie Ihre Datenkopie selbst prüfen — zum Abhaken.</span></a>
+            <a href="/schufa-score-verstehen"><b>SCHUFA-Score verstehen</b><span>Was Ihre Zahl bedeutet und welche sechs Hebel sie bewegen.</span></a>
+            <a href="/inkasso-brief-erhalten"><b>Inkasso-Brief erhalten?</b><span>Der ruhige 5-Schritte-Plan, bevor überhaupt ein Eintrag entsteht.</span></a>
+          </div>
         </Block>
       </Licht>
       <Zwischenruf text={<><b>Selbst machen ist möglich. Machen lassen ist schneller.</b> FIAON beschafft alle Auskünfte, prüft jeden Eintrag gegen jede Regel und führt den Schriftwechsel mit Fristenlauf — Sie sehen jeden Schritt in Ihrem Kundenbereich.</>} knopf="Prüfung beauftragen" href="/antrag" />

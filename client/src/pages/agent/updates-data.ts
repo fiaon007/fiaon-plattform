@@ -84,6 +84,29 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-08-30-fiaon-copilot",
+    date: "2026-08-30",
+    category: "Neu",
+    title: "Der FIAON Copilot: dein KI-Assistent, der Aufträge erledigt",
+    summary: "Neuer Raum „Copilot“ in der Leiste: Du sagst in normalem Deutsch, was passieren soll — er sucht Kunden, liest Akten, schreibt Notizen und bereitet Mails, Termine, Bestellungen und Sperren so vor, dass du nur noch bestätigen musst.",
+    changes: [
+      "Neuer Raum /agent/assistent („Copilot“ in der Leiste, Gruppe Arbeit): ein Eingabefeld, dahinter eine 3D-Bühne, die mitarbeitet — sie pulsiert beim Denken und beschleunigt beim Ausführen.",
+      "Der Copilot handelt AUSSCHLIESSLICH über die Wege, die du auch von Hand hättest — mit deiner Anmeldung und deiner Rolle. Er hat keinen einzigen Knopf mehr als du.",
+      "Alles mit Folgen (E-Mail, Termin, Bonitätsauskunft, Paket, Konto-Sperre, Einmal-Passwort) erscheint als Bestätigungskarte — bei Mails mit ECHTER Vorschau. Ausgeführt wird erst nach deinem Klick; nach 15 Minuten verfällt die Vorbereitung.",
+      "Deine Sitzungen bleiben gespeichert (links), du kannst sie umbenennen und archivieren. Eine Akte anheften erspart dir jedes „bei Kunde X“ — alle Folgeaufträge beziehen sich auf diesen Menschen.",
+      "Harte Grenzen im Code: keine Löschungen, keine Zahlungs- oder Ratenbuchungen, höchstens 5 Kunden je Auftrag, Wortverbote in Kundentexten (Beratung, Garantie, Score-Versprechen) blockt der Server.",
+      "Jede ausgeführte Aktion steht als „KI-Assistent im Auftrag von <dir>“ im Verlauf der Kundenakte.",
+    ],
+    howto: [
+      "Leiste → „Copilot“ öffnen (oder /agent/assistent).",
+      "Auftrag in ganzen Sätzen tippen, z. B. „Fasse den Kunden Michael zusammen“ oder „Sende ihm die Zahlungsdaten“. Enter sendet.",
+      "Bei Karten mit „Ausführen“-Knopf: erst die Zusammenfassung (und die Mail-Vorschau) lesen, dann bestätigen — oder abbrechen.",
+      "Oben rechts eine Akte anheften, wenn du länger an einem Kunden arbeitest.",
+    ],
+    link: { href: "/agent/assistent", label: "Copilot öffnen" },
+    important: true,
+  },
+  {
     id: "2026-08-27-konto-sperren-freischalten",
     date: "2026-08-27",
     category: "Neu",

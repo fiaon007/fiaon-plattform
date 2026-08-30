@@ -8,6 +8,7 @@
 import { useState } from "react";
 import { Dunkel, Block, Licht, Knopf, Auf, Glas, Kennzahlen, Zeilen, Fragen, Zwischenruf, Abschluss } from "@/components/site/DunkleBuehne";
 import "@/styles/kreditkarte.css";
+import "@/styles/seo-seiten.css";
 
 const ETAPPEN = [
   { monat: "Monat 0", titel: "Auskunft", text: "FIAON beschafft Ihre Auskunft und erklärt jeden Eintrag. Sie wissen, was Herausgeber sehen – bevor Sie irgendwo anfragen.", rahmen: "–" },
@@ -69,6 +70,14 @@ export default function Kreditkarte() {
             ["Spielraum", "Einkommen minus Fixkosten. Faustregel vieler Herausgeber: Rahmen bis zum Acht- bis Zehnfachen des Spielraums. Rechnen Sie es aus – Spielraum-Rechner."],
           ]} />
           <div className="dk-knoepfe" style={{ marginTop: 26 }}><Knopf href="/werkzeuge/spielraum">Spielraum-Rechner</Knopf><Knopf href="/werkzeuge/eintrag-pruefen" still>Ist mein Eintrag angreifbar?</Knopf></div>
+        </Block>
+
+        {/* Weiterlesen (30.08.2026): die Themenseiten, die hier anschliessen. */}
+        <Block schmal titel="Zum Weiterlesen">
+          <div className="sx-vertiefen">
+            <a href="/girokonto-trotz-negativer-bonitaet"><b>Girokonto trotz negativer Bonität</b><span>Der Unterbau der Karte: erst das Konto, dann der Rahmen — ehrlich erklärt.</span></a>
+            <a href="/schufa-score-verstehen"><b>SCHUFA-Score verstehen</b><span>Die Zahl, an der der Kartenrahmen hängt — Tabelle und Hebel.</span></a>
+          </div>
         </Block>
       </Licht>
 

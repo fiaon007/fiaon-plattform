@@ -1,0 +1,303 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   DER FIAON COPILOT — das Command-Deck (30.08.2026)
+
+   Dunkle Navy-Bühne (#0A1A3C-Welt), Glas-Karten mit Lichtkante, EIN zentrales
+   Eingabefeld. Die 3D-Szene liegt HINTER dem Deck (absolute), alles Bedienbare
+   darüber. Namensraum asx- — nichts hier färbt fremde Seiten.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.asx-buehne {
+  position: relative;
+  min-height: calc(100dvh - 132px);
+  border-radius: 22px;
+  overflow: hidden;
+  background:
+    radial-gradient(1200px 520px at 50% -10%, rgba(37, 99, 235, .22), transparent 60%),
+    radial-gradient(900px 460px at 85% 110%, rgba(96, 165, 250, .10), transparent 55%),
+    linear-gradient(178deg, #0d2049, #0a1a3c 55%, #071129);
+  border: 1px solid rgba(96, 165, 250, .22);
+  box-shadow: 0 30px 80px -40px rgba(4, 10, 26, .9), inset 0 1px 0 rgba(255, 255, 255, .06);
+  color: #eef3fb;
+  display: flex;
+}
+
+.asx-szene { position: absolute; inset: 0; z-index: 0; }
+.asx-szene canvas { width: 100%; height: 100%; display: block; }
+
+/* Ein Schleier, damit Text vor der Szene lesbar bleibt. */
+.asx-schleier {
+  position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background: linear-gradient(180deg, rgba(7, 17, 41, .18), rgba(7, 17, 41, .05) 35%, rgba(7, 17, 41, .55) 88%);
+}
+
+/* ── Die linke Leiste: Sitzungen ─────────────────────────────────────────── */
+.asx-leiste {
+  position: relative; z-index: 2;
+  width: 252px; flex-shrink: 0;
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 16px 12px;
+  border-right: 1px solid rgba(96, 165, 250, .16);
+  background: rgba(7, 17, 41, .45);
+  backdrop-filter: blur(10px);
+}
+.asx-leiste-kopf { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 2px 6px 8px; }
+.asx-leiste-kopf b { font-size: 12.5px; letter-spacing: .08em; text-transform: uppercase; color: rgba(226, 236, 250, .65); font-weight: 700; }
+
+.asx-sitzung {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; text-align: left; border: 0; cursor: pointer;
+  padding: 9px 10px; border-radius: 12px;
+  background: transparent; color: #dbe7fb; font-size: 13px; line-height: 1.35;
+}
+.asx-sitzung:hover { background: rgba(96, 165, 250, .10); }
+.asx-sitzung.an { background: rgba(37, 99, 235, .22); box-shadow: inset 0 0 0 1px rgba(96, 165, 250, .35); }
+.asx-sitzung .titel { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.asx-sitzung .werkzeuge { display: none; gap: 2px; }
+.asx-sitzung:hover .werkzeuge, .asx-sitzung.an .werkzeuge { display: inline-flex; }
+.asx-mini {
+  border: 0; background: transparent; color: rgba(226, 236, 250, .55);
+  cursor: pointer; padding: 3px; border-radius: 7px; line-height: 0;
+}
+.asx-mini:hover { color: #fff; background: rgba(96, 165, 250, .18); }
+
+/* ── Die Mitte ────────────────────────────────────────────────────────────── */
+.asx-mitte { position: relative; z-index: 2; flex: 1; min-width: 0; display: flex; flex-direction: column; }
+
+.asx-kopf {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 14px 20px;
+  border-bottom: 1px solid rgba(96, 165, 250, .14);
+  background: rgba(7, 17, 41, .35);
+  backdrop-filter: blur(8px);
+}
+.asx-kopf h1 { margin: 0; font-size: 15px; font-weight: 800; letter-spacing: -.01em; }
+.asx-kopf .frei { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+
+.asx-chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 6px 12px; border-radius: 999px;
+  background: rgba(37, 99, 235, .18); border: 1px solid rgba(96, 165, 250, .35);
+  color: #dbe7fb; font-size: 12.5px; font-weight: 600;
+}
+.asx-chip button { border: 0; background: transparent; color: inherit; cursor: pointer; padding: 0; line-height: 0; opacity: .7; }
+.asx-chip button:hover { opacity: 1; }
+
+.asx-knopf-still {
+  border: 1px solid rgba(96, 165, 250, .35); background: transparent; color: #dbe7fb;
+  border-radius: 999px; padding: 6px 13px; font-size: 12.5px; font-weight: 650; cursor: pointer;
+}
+.asx-knopf-still:hover { background: rgba(96, 165, 250, .12); }
+
+/* ── Das leere Deck: Bühne frei für den ersten Auftrag ───────────────────── */
+.asx-deck {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 22px; padding: 40px 24px 56px; text-align: center;
+}
+.asx-deck .gruss { font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: rgba(148, 190, 255, .8); font-weight: 700; }
+.asx-deck h2 {
+  margin: 0; font-size: clamp(26px, 4.2vw, 42px); font-weight: 800; letter-spacing: -.015em; line-height: 1.12;
+  text-shadow: 0 8px 40px rgba(37, 99, 235, .35);
+}
+.asx-deck h2 .verlauf {
+  background: linear-gradient(92deg, #9cc3ff, #4a8af5);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.asx-deck .satz { margin: 0; max-width: 56ch; font-size: 14.5px; line-height: 1.6; color: rgba(226, 236, 250, .72); }
+
+.asx-vorschlaege {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px; width: min(760px, 100%); margin-top: 6px;
+}
+.asx-vorschlag {
+  border: 1px solid rgba(96, 165, 250, .22); border-radius: 14px; cursor: pointer;
+  background: rgba(13, 32, 73, .55); color: #dbe7fb;
+  padding: 12px 14px; font-size: 12.8px; line-height: 1.45; text-align: left;
+  transition: transform .16s ease, background .16s ease, border-color .16s ease;
+  backdrop-filter: blur(6px);
+}
+.asx-vorschlag:hover { background: rgba(37, 99, 235, .22); border-color: rgba(96, 165, 250, .5); transform: translateY(-1px); }
+.asx-vorschlag b { display: block; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: rgba(148, 190, 255, .85); margin-bottom: 4px; }
+
+/* ── Der Strom ────────────────────────────────────────────────────────────── */
+.asx-strom {
+  flex: 1; min-height: 0; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 14px;
+  padding: 22px clamp(14px, 4vw, 44px) 10px;
+  scroll-behavior: smooth;
+}
+@media (prefers-reduced-motion: reduce) { .asx-strom { scroll-behavior: auto; } }
+
+.asx-nachricht { display: flex; }
+.asx-nachricht.nutzer { justify-content: flex-end; }
+.asx-blase {
+  max-width: min(72ch, 92%); border-radius: 16px; padding: 12px 16px;
+  font-size: 14px; line-height: 1.62; white-space: pre-wrap; word-break: break-word;
+}
+.asx-nachricht.nutzer .asx-blase {
+  background: linear-gradient(135deg, rgba(37, 99, 235, .85), rgba(29, 78, 216, .85));
+  box-shadow: 0 10px 26px -14px rgba(37, 99, 235, .8);
+  border: 1px solid rgba(148, 190, 255, .35);
+}
+.asx-nachricht.assistent .asx-blase {
+  background: rgba(13, 32, 73, .62); border: 1px solid rgba(96, 165, 250, .2);
+  backdrop-filter: blur(8px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .05);
+}
+
+/* Der Schreib-Punkt, solange gestreamt wird. */
+.asx-tippt { display: inline-block; width: 8px; height: 15px; margin-left: 3px; vertical-align: text-bottom; background: #9cc3ff; animation: asxBlinken 1s steps(2) infinite; border-radius: 2px; }
+@keyframes asxBlinken { 50% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .asx-tippt { animation: none !important; } }
+
+/* ── Aktionskarten ────────────────────────────────────────────────────────── */
+.asx-karte {
+  align-self: stretch; max-width: 680px;
+  border-radius: 16px; padding: 14px 16px;
+  background: rgba(10, 24, 56, .75);
+  border: 1px solid rgba(96, 165, 250, .3);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06), 0 14px 34px -22px rgba(4, 10, 26, .9);
+  backdrop-filter: blur(10px);
+  display: grid; gap: 10px;
+}
+.asx-karte .kopf { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.asx-karte .kopf b { font-size: 13.5px; font-weight: 750; letter-spacing: -.01em; }
+.asx-karte .stand {
+  margin-left: auto; font-size: 11px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase;
+  padding: 4px 10px; border-radius: 999px; white-space: nowrap;
+}
+.asx-karte .stand.geplant { background: rgba(148, 190, 255, .14); color: #b9d4ff; }
+.asx-karte .stand.laeuft { background: rgba(251, 191, 36, .16); color: #fcd34d; }
+.asx-karte .stand.erledigt { background: rgba(52, 211, 153, .16); color: #6ee7b7; }
+.asx-karte .stand.fehlgeschlagen, .asx-karte .stand.abgelaufen { background: rgba(248, 113, 113, .16); color: #fca5a5; }
+.asx-karte .stand.offen { background: rgba(37, 99, 235, .22); color: #b9d4ff; }
+
+.asx-karte .satz { font-size: 13.5px; line-height: 1.55; color: rgba(226, 236, 250, .88); }
+.asx-karte .warnung { font-size: 12.5px; line-height: 1.5; color: #fcd34d; }
+.asx-karte .fehler { font-size: 12.5px; line-height: 1.5; color: #fca5a5; }
+.asx-karte .ergebnis { font-size: 12.5px; line-height: 1.55; color: rgba(196, 216, 246, .8); white-space: pre-wrap; word-break: break-word; }
+
+.asx-karte .knoepfe { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.asx-ausfuehren {
+  border: 0; cursor: pointer; border-radius: 12px; padding: 10px 20px;
+  font-size: 13.5px; font-weight: 750; color: #fff;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  box-shadow: 0 12px 26px -12px rgba(37, 99, 235, .85);
+}
+.asx-ausfuehren:hover { filter: brightness(1.08); }
+.asx-ausfuehren:disabled { opacity: .55; cursor: default; filter: none; }
+.asx-abbrechen {
+  border: 1px solid rgba(148, 190, 255, .3); background: transparent; cursor: pointer;
+  border-radius: 12px; padding: 9px 16px; font-size: 13px; font-weight: 650; color: #dbe7fb;
+}
+.asx-abbrechen:hover { background: rgba(96, 165, 250, .1); }
+.asx-abbrechen:disabled { opacity: .5; cursor: default; }
+
+.asx-vorschau { border: 1px solid rgba(96, 165, 250, .25); border-radius: 12px; overflow: hidden; background: #fff; }
+.asx-vorschau iframe { display: block; width: 100%; height: 320px; border: 0; background: #fff; }
+
+/* ── Der Eingabebereich ──────────────────────────────────────────────────── */
+.asx-eingabe { position: relative; z-index: 2; padding: 14px clamp(14px, 4vw, 44px) 18px; }
+.asx-feld {
+  display: flex; align-items: flex-end; gap: 10px;
+  border-radius: 18px; padding: 6px 6px 6px 18px;
+  background: rgba(10, 24, 56, .82);
+  border: 1px solid rgba(96, 165, 250, .35);
+  box-shadow: 0 18px 44px -26px rgba(4, 10, 26, 1), inset 0 1px 0 rgba(255, 255, 255, .07);
+  backdrop-filter: blur(12px);
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+.asx-feld:focus-within { border-color: rgba(122, 168, 255, .75); box-shadow: 0 18px 44px -22px rgba(37, 99, 235, .55), inset 0 1px 0 rgba(255, 255, 255, .07); }
+.asx-feld textarea {
+  flex: 1; min-width: 0; resize: none; border: 0; outline: none; background: transparent;
+  color: #f2f6fd; font-size: 15px; line-height: 1.5; font-family: inherit;
+  max-height: 132px; padding: 10px 0;
+}
+.asx-feld textarea::placeholder { color: rgba(196, 216, 246, .45); }
+.asx-senden {
+  border: 0; cursor: pointer; flex-shrink: 0;
+  width: 44px; height: 44px; border-radius: 14px;
+  display: grid; place-items: center; color: #fff;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  box-shadow: 0 10px 24px -10px rgba(37, 99, 235, .9);
+  transition: transform .15s ease, filter .15s ease;
+}
+.asx-senden:hover { filter: brightness(1.1); transform: translateY(-1px); }
+.asx-senden:disabled { opacity: .45; cursor: default; transform: none; filter: none; }
+.asx-eingabe .hinweis { margin: 8px 4px 0; font-size: 11.5px; color: rgba(196, 216, 246, .5); }
+
+/* ── Werkzeug-Legende („Was kann der Copilot?") ──────────────────────────── */
+.asx-legende {
+  position: relative; z-index: 2;
+  margin: 0 clamp(14px, 4vw, 44px) 16px; border-radius: 14px;
+  border: 1px solid rgba(96, 165, 250, .2); background: rgba(7, 17, 41, .5);
+  backdrop-filter: blur(8px);
+}
+.asx-legende summary { cursor: pointer; padding: 10px 16px; font-size: 12.5px; font-weight: 700; color: rgba(196, 216, 246, .8); list-style: none; }
+.asx-legende summary::-webkit-details-marker { display: none; }
+.asx-legende ul { margin: 0; padding: 0 16px 12px; list-style: none; display: grid; gap: 6px; }
+.asx-legende li { font-size: 12.5px; line-height: 1.5; color: rgba(226, 236, 250, .75); }
+.asx-legende .stufe { display: inline-block; margin-right: 7px; font-size: 10px; font-weight: 800; letter-spacing: .08em; padding: 2px 7px; border-radius: 999px; vertical-align: 1px; }
+.asx-legende .stufe.frei { background: rgba(52, 211, 153, .15); color: #6ee7b7; }
+.asx-legende .stufe.bestaetigen { background: rgba(251, 191, 36, .15); color: #fcd34d; }
+
+/* ── Anheften-Suche ──────────────────────────────────────────────────────── */
+.asx-suche { position: relative; }
+.asx-suche input {
+  border: 1px solid rgba(96, 165, 250, .35); border-radius: 999px;
+  background: rgba(10, 24, 56, .8); color: #f2f6fd;
+  padding: 7px 14px; font-size: 12.5px; width: 210px; outline: none;
+}
+.asx-suche input:focus { border-color: rgba(122, 168, 255, .7); }
+.asx-treffer {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 30;
+  width: min(330px, 84vw); max-height: 300px; overflow-y: auto;
+  border-radius: 14px; border: 1px solid rgba(96, 165, 250, .3);
+  background: #0c1e45; box-shadow: 0 24px 60px -24px rgba(4, 10, 26, 1);
+  display: grid;
+}
+.asx-treffer button {
+  border: 0; background: transparent; color: #e6eefb; cursor: pointer;
+  text-align: left; padding: 10px 14px; font-size: 12.5px; line-height: 1.45;
+  border-bottom: 1px solid rgba(96, 165, 250, .12);
+}
+.asx-treffer button:last-child { border-bottom: 0; }
+.asx-treffer button:hover { background: rgba(37, 99, 235, .2); }
+.asx-treffer .leer { padding: 12px 14px; font-size: 12.5px; color: rgba(196, 216, 246, .6); }
+
+/* ── Meldungen ────────────────────────────────────────────────────────────── */
+.asx-fehlerband {
+  position: relative; z-index: 2;
+  margin: 12px clamp(14px, 4vw, 44px) 0; border-radius: 12px;
+  border: 1px solid rgba(248, 113, 113, .4); background: rgba(127, 29, 29, .35);
+  color: #fecaca; font-size: 13px; line-height: 1.5; padding: 10px 14px;
+}
+
+/* ── Handy: das Deck wird zur Chatansicht ────────────────────────────────── */
+@media (max-width: 900px) {
+  .asx-vorschlaege { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .asx-buehne { min-height: calc(100dvh - 108px); border-radius: 16px; }
+  .asx-leiste {
+    position: absolute; inset: 0 28% 0 0; z-index: 20;
+    transform: translateX(-102%); transition: transform .22s ease;
+    background: rgba(7, 17, 41, .96); width: auto; min-width: 240px;
+  }
+  .asx-leiste.offen { transform: translateX(0); }
+  @media (prefers-reduced-motion: reduce) { .asx-leiste { transition: none !important; } }
+  .asx-deck { padding: 26px 16px 40px; gap: 16px; }
+  .asx-vorschlaege { grid-template-columns: 1fr; }
+  .asx-kopf { padding: 12px 14px; }
+  .asx-kopf .frei { width: 100%; justify-content: flex-start; }
+  .asx-suche input { width: 100%; }
+  .asx-suche { width: 100%; }
+  .asx-blase { max-width: 94%; font-size: 13.5px; }
+  .asx-vorschau iframe { height: 240px; }
+}
+@media (max-width: 390px) {
+  .asx-deck h2 { font-size: 24px; }
+  .asx-eingabe { padding: 10px 10px 12px; }
+  .asx-strom { padding: 16px 10px 8px; }
+  .asx-legende { margin: 0 10px 12px; }
+  .asx-fehlerband { margin: 10px 10px 0; }
+}

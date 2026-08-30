@@ -62,6 +62,11 @@ const Funktionen = lazy(() => import("@/pages/admin-funktionen"));
 // Chefbüro nicht gibt. Genau das war beim ersten Durchgang der Fall.
 const SpaceRoh = lazy(() => import("@/pages/agent/space"));
 const Space = () => <SpaceRoh alsAdmin />;
+// Der FIAON Copilot (30.08.2026): dieselbe Bühne wie im Office, aber über die
+// Chef-Endpunkte — sonst verlangte die Seite eine Mitarbeiter-Anmeldung, die
+// es im Chefbüro nicht gibt (dieselbe Falle wie bei Space).
+const AssistentRoh = lazy(() => import("@/pages/agent/assistent"));
+const Assistent = () => <AssistentRoh alsAdmin />;
 const Schulung = lazy(() => import("@/pages/admin-schulung"));
 const Ratgeber = lazy(() => import("@/pages/admin-ratgeber"));
 const Einstellungen = lazy(() => import("@/pages/admin-einstellungen"));
@@ -94,6 +99,7 @@ export interface ChefSeite {
 export const CHEF_SEITEN: ChefSeite[] = [
   // ── Lagezimmer ──────────────────────────────────────────────────────────
   { slug: "hub", label: "Tagesübersicht", satz: "Aufgaben, Warnungen, Tageszahlen des alten Dashboards.", Seite: Hub, raum: "lage", auch: "dashboard start" },
+  { slug: "assistent", label: "Copilot", satz: "Der KI-Assistent des Hauses: erledigt Aufträge, alles mit Folgen bestätigst du.", Seite: Assistent, raum: "lage", mindest: "geschaeftsfuehrung", auch: "ki assistent copilot chat" },
   { slug: "todo", label: "Meine Liste", satz: "Was nur du tun kannst — Make, Brevo, Konten, Entscheidungen.", Seite: Todo, raum: "lage" },
   { slug: "aufgaben", label: "Notizen & Aufgaben", satz: "An Personen festgehalten oder ans Team vergeben.", Seite: Aufgaben, raum: "lage" },
 

@@ -2845,6 +2845,17 @@ export async function loadLoginFamily(normalizedEmail: string): Promise<any[]> {
         LOWER(TRIM(COALESCE(email, ''))) = $1
         OR LOWER(TRIM(COALESCE(contact_email, ''))) = $1
         OR LOWER(TRIM(COALESCE(billing_email, ''))) = $1
+        -- ── DIE PERSON GEHÖRT ZUR FAMILIE (29.08.2026, Fall Olga C.) ──────
+        -- In der Bestellung stand „yagoo.ca" (Tippfehler), an der PERSON die
+        -- richtige Adresse. Die Kundin tippte richtig — und wurde in zwei
+        -- Telefonaten abgewiesen, weil diese Suche die Person nie ansah.
+        -- fiaon_persons ist die Wahrheit (059); wer sich mit der Adresse der
+        -- Person anmeldet, findet ab jetzt seine Bestellungen.
+        OR person_id IN (
+          SELECT id FROM fiaon_persons
+          WHERE LOWER(TRIM(COALESCE(primary_email, ''))) = $1
+            AND merged_into_person_id IS NULL
+        )
       )
     ORDER BY created_at DESC NULLS LAST, id DESC
   `, [normalizedEmail])) as any[];

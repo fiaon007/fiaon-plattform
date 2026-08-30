@@ -1306,10 +1306,22 @@ router.get("/telefon/:id/aufnahme", requireAgent, async (req: AgentRequest, res:
     const quelle = String(c.recording_url).endsWith(".mp3")
       ? String(c.recording_url)
       : `${c.recording_url}.mp3`;
+    // ── DAS ZEITLIMIT GILT NUR BIS ZUR ANTWORT (30.08.2026) ──────────────
+    // VORHER galt AbortSignal.timeout(25_000) fuer den ganzen fetch — also
+    // AUCH fuer das Streamen des MP3-Koerpers. Eine 6-MB-Aufnahme uebers
+    // Handynetz braucht laenger; der Abort feuerte MITTEN im Stream,
+    // ausserhalb des try/catch, und stand als „uncaught_exception: The
+    // operation was aborted due to timeout" in der Diagnose (3x am 30.08.,
+    // jeweils neben einem langen Aufnahme-Abruf). NACHHER wird der Wecker
+    // entschaerft, sobald die Antwort da ist — das Streamen selbst darf so
+    // lange dauern, wie das Netz des Hoerers braucht.
+    const abbruch = new AbortController();
+    const wecker = setTimeout(() => abbruch.abort(), 25_000);
     const r = await fetch(quelle, {
       headers: { Authorization: "Basic " + Buffer.from(`${sid}:${tok}`).toString("base64") },
-      signal: AbortSignal.timeout(25_000),
+      signal: abbruch.signal,
     }).catch(() => null);
+    clearTimeout(wecker);
     if (!r || !r.ok || !r.body) {
       return res.status(502).json({
         ok: false,
@@ -1348,7 +1360,15 @@ router.get("/telefon/:id/aufnahme", requireAgent, async (req: AgentRequest, res:
         `attachment; filename="${roh}_${tag}.mp3"`);
     }
     const { Readable } = await import("node:stream");
-    Readable.fromWeb(r.body as any).pipe(res);
+    const strom = Readable.fromWeb(r.body as any);
+    // Stream-Fehler entstehen NACH dem try/catch (asynchron) — ohne diese
+    // Handler wird jeder Netzabbruch des Hoerers zur unbehandelten Ausnahme.
+    strom.on("error", (fehler) => {
+      console.warn(`[TELEFON] Aufnahme-Stream ${id} abgebrochen:`, fehler instanceof Error ? fehler.message : fehler);
+      if (!res.headersSent) res.status(502).end(); else res.end();
+    });
+    res.on("close", () => { strom.destroy(); });
+    strom.pipe(res);
   } catch (err) {
     console.error("[TELEFON] aufnahme:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });

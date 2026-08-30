@@ -194,6 +194,9 @@ export function freitextRendern(ein: { betreff: string; text: string; anrede?: s
 export async function freitextSenden(ein: {
   an: string; betreff: string; text: string; anrede?: string | null;
 }): Promise<{ ok: boolean; messageId: string | null; grund?: string }> {
+  if (!adresseSiehtGueltigAus(String(ein.an || "").trim())) {
+    return { ok: false, messageId: null, grund: `Empfängeradresse ungültig: „${ein.an}“ — bitte in der Akte korrigieren.` };
+  }
   const mail = freitextRendern(ein);
   const key = process.env.BREVO_API_KEY;
   if (!key) return { ok: false, messageId: null, grund: "BREVO_API_KEY ist nicht gesetzt." };
@@ -224,12 +227,28 @@ export async function freitextSenden(ein: {
  * Direktversand über Brevo. Gibt die messageId zurück — damit weiß das
  * Protokoll erstmals bei JEDER Mail, dass Brevo sie angenommen hat.
  */
+/**
+ * Sieht die Adresse nach einer E-Mail-Adresse aus? (29./30.08.2026)
+ *
+ * Brevo lehnte „bgutaj@t-online.de@" und „…@gmail.com5p" mit HTTP 400 ab —
+ * zu Recht, aber als kryptische KRITISCH-Diagnose. GEMESSEN: 11 solcher
+ * Adressen im Bestand (Leerzeichen, doppeltes @, Müll-Suffixe), alle aus
+ * Handeingaben. Der Motor sagt es jetzt VOR dem Versand in Klartext — und
+ * der Protokoll-Grund nennt die Tat: Adresse in der Akte korrigieren.
+ */
+function adresseSiehtGueltigAus(an: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/.test(an);
+}
+
 export async function mailDirektSenden(
   event: string,
   payload: Record<string, unknown>,
 ): Promise<{ ok: boolean; messageId: string | null; grund?: string }> {
   const an = String((payload as any).email ?? "").trim();
   if (!an) return { ok: false, messageId: null, grund: "Keine Empfängeradresse in der Nutzlast." };
+  if (!adresseSiehtGueltigAus(an)) {
+    return { ok: false, messageId: null, grund: `Empfängeradresse ungültig: „${an}“ — bitte in der Akte korrigieren, vorher kommt dort keine Mail an.` };
+  }
   const mail = mailRendern(event, payload);
   if (!mail) return { ok: false, messageId: null, grund: `Keine Vorlage für '${event}' im Motor.` };
 

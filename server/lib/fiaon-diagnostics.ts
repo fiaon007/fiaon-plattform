@@ -296,11 +296,16 @@ export function installDiagnostics(): void {
   /* eslint-enable no-console */
 
   // Unbehandelte Fehler → strukturiertes kritisches System-Ereignis (additiv).
+  // 30.08.2026: Der Hinweis versprach den Stacktrace im Rohdaten-Tab — aber
+  // niemand schrieb ihn dorthin. Drei „aborted due to timeout"-Meldungen ohne
+  // jede Herkunft kosteten eine halbe Forensik-Stunde. Jetzt fährt der Stack
+  // im context mit; die Quelle steht beim nächsten Fall in der ersten Zeile.
   process.on("unhandledRejection", (reason: any) => {
     logDiagnostic({
       severity: "kritisch", category: "system", code: "unhandled_rejection",
       message: `Unbehandelter Promise-Fehler: ${reason instanceof Error ? reason.message : String(reason)}`,
       hint: "Ein asynchroner Vorgang ist gescheitert, ohne abgefangen zu werden. Rohdaten-Tab für Stacktrace prüfen.",
+      context: { stack: (reason instanceof Error ? reason.stack : String(reason))?.slice(0, 3000) ?? null },
     });
   });
   process.on("uncaughtException", (err: Error) => {
@@ -308,6 +313,7 @@ export function installDiagnostics(): void {
       severity: "kritisch", category: "system", code: "uncaught_exception",
       message: `Unbehandelte Ausnahme: ${err?.message || String(err)}`,
       hint: "Schwerer Laufzeitfehler. Rohdaten-Tab und Server-Logs prüfen.",
+      context: { stack: err?.stack?.slice(0, 3000) ?? null },
     });
   });
 }

@@ -12,6 +12,7 @@
 import { Dunkel, Block, Licht, Knopf, Zwischenruf, Fragen, Karten, Schritte } from "@/components/site/DunkleBuehne";
 import SeoDaten from "@/components/site/SeoDaten";
 import "@/styles/ratgeber.css";
+import "@/styles/seo-seiten.css";
 
 const FRAGEN = [
   { f: "Gibt es seriöse Kredite ohne SCHUFA?", a: "Ja, aber nur eine schmale Kategorie: sogenannte Schweizer Kredite ausländischer Banken, die keine SCHUFA-Abfrage stellen und nicht an sie melden. Sie sind auf kleine Summen begrenzt (meist 3.500 bis 7.500 Euro), deutlich teurer als normale Ratenkredite und setzen ein pfändbares Einkommen voraus. Ohne festes Einkommen gibt es auch dort nichts — wer anderes verspricht, verkauft kein Darlehen, sondern eine Falle." },
@@ -78,6 +79,15 @@ export default function KreditOhneSchufa() {
             FIAON vermittelt keine Kredite und erhält keine Provisionen von Kreditgebern. Diese Seite ist eine redaktionelle
             Einordnung nach öffentlich zugänglichen Quellen (Stand August 2026) und keine Rechts- oder Anlageberatung.
           </p>
+        </Block>
+
+        {/* Weiterlesen (30.08.2026): die Themenseiten, die hier anschliessen. */}
+        <Block schmal titel="Zum Weiterlesen">
+          <div className="sx-vertiefen">
+            <a href="/schufa-neutral-anfragen"><b>SCHUFA-neutral anfragen</b><span>Der saubere Weg zum Vergleich: die Konditionsanfrage, die der Score nie sieht.</span></a>
+            <a href="/girokonto-trotz-negativer-bonitaet"><b>Girokonto trotz negativer Bonität</b><span>Der ehrliche Weg zum Konto — mit allem, was wir NICHT versprechen.</span></a>
+            <a href="/ratenzahlung-und-bonitaet"><b>Ratenzahlung & Bonität</b><span>Wie zwölf pünktliche Raten die Historie bauen, die Banken sehen wollen.</span></a>
+          </div>
         </Block>
       </Licht>
       <Zwischenruf text={<><b>Die Absage kam wegen der Auskunft?</b> FIAON beschafft sie, prüft jeden Eintrag und setzt durch, was angreifbar ist — damit der nächste Antrag ohne Umweg gelingt.</>} knopf="Auskunft prüfen lassen" href="/antrag" />

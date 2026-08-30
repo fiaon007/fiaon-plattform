@@ -5,6 +5,69 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 30.08.2026 — Der FIAON Copilot + zehn neue Themenseiten
+
+### Was geändert wurde
+
+**1. Der FIAON Copilot** — ein KI-Assistent für Mitarbeiter (`/agent/assistent`,
+in der Office-Leiste als „Copilot") und fürs Chefbüro (`/chef/s/assistent`,
+Raum Lagezimmer). Er ERLEDIGT Aufträge in normalem Deutsch: Kunden suchen,
+Akten lesen, Notizen schreiben — und bereitet alles mit Folgen (E-Mail mit
+echter Vorschau, Termin, Bonitätsauskunft, Paket, Konto-Sperre,
+Einmal-Passwort, Mailwerk) als Bestätigungskarte vor. **Ausgeführt wird erst,
+wenn ein Mensch klickt**; Vorbereitungen verfallen nach 15 Minuten.
+
+Wie er handelt: ausschließlich über die Werkzeug-Registry
+(`server/lib/fiaon-assistent-werkzeuge.ts`) — jedes Werkzeug ruft einen
+BESTEHENDEN Endpunkt über HTTP mit den Cookies des angemeldeten Menschen auf.
+Damit gelten alle Wände des Hauses (Rollen, Kundenzugriff, Sende-Sperren)
+automatisch auch für den Assistenten. Harte Grenzen im Code: keine Löschungen,
+keine Zahlungs-/Ratenbuchungen, höchstens 5 Kunden je Auftrag,
+Compliance-Wortverbote in Kundentexten. Jede ausgeführte Aktion steht als
+„KI-Assistent im Auftrag von <Name>" im Verlauf (`fiaon_contact_log`).
+
+Modellzugang über ENV: `ASSISTENT_API_KEY`, `ASSISTENT_MODELL`,
+`ASSISTENT_BASIS_URL` (OpenAI-kompatibel; Rückfall auf
+`OPENAI_API_KEY`/`OPENAI_MODEL`). Neue Tabellen (additiv, ensure-Muster):
+`fiaon_assistent_sitzungen`, `fiaon_assistent_nachrichten`,
+`fiaon_assistent_vorbereitungen`. Neue Dateien:
+`server/routes/fiaon-assistent.ts`, `server/lib/fiaon-assistent-werkzeuge.ts`,
+`client/src/pages/agent/assistent.tsx`,
+`client/src/components/agent/AssistentSzene.tsx` (three.js-Szene, reagiert auf
+denkt/führt aus/fertig/Fehler, `prefers-reduced-motion` → statisches Bild).
+Rundgang „Copilot" in `rundgaenge.ts`, Eintrag in `updates-data.ts`.
+
+**2. Zehn neue öffentliche Themenseiten** (SEO/SEA, alle mit SeoDaten,
+FAQ-Markup, Sitemap-Eintrag, Fußzeilen-Link und Karten-Abschluss-CTA):
+`/schufa-score-verstehen` · `/bonitaetsauskunft-beantragen` ·
+`/inkasso-brief-erhalten` · `/eintrag-verjaehrung` (mit Verjährungs-Checker) ·
+`/girokonto-trotz-negativer-bonitaet` · `/ratenzahlung-und-bonitaet` (mit
+animierter 12er-Ratenleiste) · `/selbstauskunft-checkliste` (interaktive
+10-Punkte-Liste, localStorage) · `/schufa-neutral-anfragen` ·
+`/fiaon-erfahrungen` (Zahlen sind gekennzeichnete Platzhalter — echte Werte
+trägt der Betreiber ein) · `/glossar-bonitaet` (36 Begriffe, Suchfeld,
+Sprunganker — der interne Link-Hub). Dazu „Zum Weiterlesen"-Blöcke auf sieben
+bestehenden Seiten (schufa-eintrag-loeschen, bonitaet-verbessern,
+kredit-ohne-schufa, auskunfteien, werkzeuge-hub, kreditkarte, sicherheit,
+preise) — nur Linkblöcke ergänzt, nichts umgebaut. Gemeinsame Bausteine:
+`client/src/components/site/KartenAufruf.tsx` (trägt den Compliance-Fußsatz,
+damit ihn keine Seite vergessen kann) und `client/src/styles/seo-seiten.css`.
+
+### Warum
+
+Justins Auftrag vom 30.08.2026: ein Assistent, der auf Zuruf echte Aufgaben
+ERLEDIGT (nicht nur beantwortet) — und zehn High-End-Seiten für die
+Suchintentionen rund um Score, Auskunft, Inkasso, Fristen, Konto und Raten.
+
+### Wo zu finden
+
+Office-Leiste → „Copilot" bzw. Chefbüro → Lagezimmer → „Copilot". Die
+Themenseiten über die Fußzeile (Spalte Plattform) oder direkt über ihre
+Adressen. ENV-Werte für den Modellzugang setzt der Betreiber
+(`ASSISTENT_API_KEY` — ohne ihn erklärt der Copilot in Klartext, was fehlt).
+
+---
+
 ## 21.08.2026 (Notfall) — PDF-Erzeugung auf Render tot: Chromium fehlte
 
 ---

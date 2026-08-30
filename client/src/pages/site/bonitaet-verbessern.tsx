@@ -10,6 +10,7 @@
 import { Dunkel, Block, Licht, Knopf, Zwischenruf, Fragen, Karten, Schritte } from "@/components/site/DunkleBuehne";
 import SeoDaten from "@/components/site/SeoDaten";
 import "@/styles/ratgeber.css";
+import "@/styles/seo-seiten.css";
 
 const FRAGEN = [
   { f: "Wie schnell kann ich meine Bonität verbessern?", a: "Das hängt vom Hebel ab: Ein gelöschter Negativeintrag oder ein ausgeglichener Dispo wirkt innerhalb weniger Wochen bis Monate, sobald die Auskunftei neu rechnet. Eine Historie aus pünktlichen Zahlungen und langen, stabilen Vertragsbeziehungen wächst über Jahre. Realistisch ist: erste messbare Verbesserung in drei Monaten, deutliche in zwölf." },
@@ -77,6 +78,16 @@ export default function BonitaetVerbessern() {
             Stand August 2026. Scores berechnen ausschließlich die Auskunfteien; niemand kann eine bestimmte
             Verbesserung garantieren — auch FIAON nicht.
           </p>
+        </Block>
+
+        {/* Weiterlesen (30.08.2026): die Themenseiten, die hier anschliessen. */}
+        <Block schmal titel="Zum Weiterlesen">
+          <div className="sx-vertiefen">
+            <a href="/schufa-score-verstehen"><b>SCHUFA-Score verstehen</b><span>Die Tabelle der Score-Bereiche und die sechs Hebel dahinter.</span></a>
+            <a href="/ratenzahlung-und-bonitaet"><b>Ratenzahlung & Bonität</b><span>Warum pünktliche Raten Ihr stärkster Hebel sind — und was bei Rückstand passiert.</span></a>
+            <a href="/schufa-neutral-anfragen"><b>SCHUFA-neutral anfragen</b><span>Kredite vergleichen, ohne den Score zu belasten: Konditions- statt Kreditanfrage.</span></a>
+            <a href="/girokonto-trotz-negativer-bonitaet"><b>Girokonto trotz negativer Bonität</b><span>Was wirklich erreichbar ist — und was niemand versprechen kann.</span></a>
+          </div>
         </Block>
       </Licht>
       <Zwischenruf text={<><b>90 Tage sind schneller vorbei, als man denkt.</b> FIAON übernimmt Beschaffung, Prüfung und Schriftwechsel — Sie sehen jeden Schritt und jede Frist in Ihrem Kundenbereich.</>} knopf="Bonität ordnen lassen" href="/antrag" />

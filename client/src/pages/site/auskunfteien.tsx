@@ -9,6 +9,7 @@
 import { Dunkel, Block, Licht, Knopf, Zwischenruf, Fragen, Karten } from "@/components/site/DunkleBuehne";
 import SeoDaten from "@/components/site/SeoDaten";
 import "@/styles/ratgeber.css";
+import "@/styles/seo-seiten.css";
 
 const FRAGEN = [
   { f: "Welche Auskunftei ist für mich zuständig?", a: "Die des Landes, in dem Sie Verträge schließen: in Deutschland vor allem SCHUFA (daneben Creditreform Boniversum und CRIF), in Österreich KSV1870 und CRIF Österreich, in der Schweiz CRIF und Intrum. Wer umzieht oder grenzüberschreitend arbeitet, hat oft in zwei Ländern Daten — und sollte beide prüfen." },
@@ -76,6 +77,16 @@ export default function Auskunfteien() {
             Redaktionelle Einordnung, Stand August 2026. Fristen und Praxis der Auskunfteien können sich ändern;
             maßgeblich sind die jeweils aktuellen Verhaltensregeln und Gesetze. Keine Rechtsberatung im Einzelfall.
           </p>
+        </Block>
+
+        {/* Weiterlesen (30.08.2026): die Themenseiten, die hier anschliessen. */}
+        <Block schmal titel="Zum Weiterlesen">
+          <div className="sx-vertiefen">
+            <a href="/bonitaetsauskunft-beantragen"><b>Bonitätsauskunft beantragen</b><span>Der kostenlose Weg und der geprüfte FIAON-Weg — ehrlich verglichen.</span></a>
+            <a href="/selbstauskunft-checkliste"><b>Selbstauskunft-Checkliste</b><span>Zehn Punkte, mit denen Sie jede Datenkopie selbst prüfen.</span></a>
+            <a href="/eintrag-verjaehrung"><b>Eintrag & Verjährung</b><span>Alle Speicherfristen je Eintragsart — mit Checker zum Nachrechnen.</span></a>
+            <a href="/glossar-bonitaet"><b>Bonitäts-Glossar A–Z</b><span>Jeder Begriff aus Ihrer Auskunft, in zwei bis vier Sätzen erklärt.</span></a>
+          </div>
         </Block>
       </Licht>
       <Zwischenruf text={<><b>Drei Länder, ein Ansprechpartner.</b> FIAON beschafft und prüft Ihre Daten bei SCHUFA, KSV1870 und CRIF — mit den Regeln des jeweiligen Landes.</>} knopf="Prüfung starten" href="/antrag" />

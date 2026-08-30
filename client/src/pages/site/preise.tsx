@@ -9,6 +9,7 @@ import { useMemo, useState } from "react";
 import { Dunkel, Hero, Block, Licht, Knopf, Auf, Kennzahlen, Fragen, Zwischenruf, Abschluss, Szenenbild } from "@/components/site/DunkleBuehne";
 import { PAKETE, SCHUFA_PREIS_EURO } from "@shared/fiaon-pakete";
 import "@/styles/preise.css";
+import "@/styles/seo-seiten.css";
 
 const geld = (c: number) => (c / 100).toLocaleString("de-DE", { minimumFractionDigits: 2 }) + " €";
 const euro0 = (n: number) => n.toLocaleString("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
@@ -90,6 +91,14 @@ export default function Preise() {
               </div>
             </div>
             <p className="dk-leise">Richtwerte. Einschreiben Einwurf rund 5,50 €; Anwaltskosten für ein einfaches Schreiben nach RVG je nach Gegenstandswert. Ehrlich gesagt: Bei einem einzigen, klaren Eintrag lohnt sich Selbermachen – unser Werkzeug „Ist mein Eintrag angreifbar?“ zeigt, wie.</p>
+          </div>
+        </Block>
+
+        {/* Weiterlesen (30.08.2026): was hinter den Preisen steckt. */}
+        <Block schmal titel="Zum Weiterlesen">
+          <div className="sx-vertiefen">
+            <a href="/fiaon-erfahrungen"><b>So arbeitet FIAON</b><span>Transparenz statt Werbeversprechen: Ablauf, Grenzen, Abgrenzung zu unseriösen Anbietern.</span></a>
+            <a href="/bonitaetsauskunft-beantragen"><b>Bonitätsauskunft beantragen</b><span>Was die 74 Euro leisten — und wann der kostenlose Weg reicht.</span></a>
           </div>
         </Block>
       </Licht>

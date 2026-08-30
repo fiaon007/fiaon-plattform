@@ -14,6 +14,7 @@ import { useEffect } from "react";
 import { Dunkel, Block, Licht, Knopf, Zwischenruf, Fragen, Auf } from "@/components/site/DunkleBuehne";
 import SeoDaten from "@/components/site/SeoDaten";
 import "@/styles/ratgeber.css";
+import "@/styles/seo-seiten.css";
 
 const WERKZEUGE: { pfad: string; name: string; frage: string; satz: string; gruppe: "eintrag" | "geld" | "karte" }[] = [
   { pfad: "/werkzeuge/selbstauskunft", name: "Datenkopie anfordern", frage: "Was steht über mich in den Auskunfteien?", satz: "Erzeugt das fertige Schreiben nach Art. 15 DSGVO — für SCHUFA, KSV und CRIF, kostenlos statt Bezahl-Abo.", gruppe: "eintrag" },
@@ -95,6 +96,16 @@ export default function WerkzeugeHub() {
         ))}
         <Block schmal titel="Häufige Fragen">
           <Fragen items={FRAGEN} />
+        </Block>
+
+        {/* Weiterlesen (30.08.2026): die Themenseiten zu den Werkzeugen. */}
+        <Block schmal titel="Die Ratgeber zu den Werkzeugen">
+          <div className="sx-vertiefen">
+            <a href="/inkasso-brief-erhalten"><b>Inkasso-Brief erhalten?</b><span>Der ruhige 5-Schritte-Plan: prüfen, nachrechnen, richtig reagieren.</span></a>
+            <a href="/eintrag-verjaehrung"><b>Eintrag & Verjährung</b><span>Wann ein Eintrag verschwinden muss — Fristen-Checker und Tabelle.</span></a>
+            <a href="/selbstauskunft-checkliste"><b>Selbstauskunft-Checkliste</b><span>Die Datenkopie liegt vor Ihnen? So lesen Sie sie richtig.</span></a>
+            <a href="/glossar-bonitaet"><b>Bonitäts-Glossar A–Z</b><span>Alle Begriffe erklärt — vom Basisscore bis zur Zahlungshistorie.</span></a>
+          </div>
         </Block>
       </Licht>
       <Zwischenruf text={<><b>Die Werkzeuge zeigen, was möglich ist — FIAON setzt es durch.</b> Beschaffung aller Auskünfte, Prüfung jedes Eintrags, Schreiben mit Fristenlauf: ein Auftrag, ein Ansprechpartner.</>} knopf="So arbeitet FIAON" href="/was-ist-fiaon" />

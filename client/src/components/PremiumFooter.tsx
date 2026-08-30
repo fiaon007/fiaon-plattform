@@ -77,6 +77,23 @@ export default function PremiumFooter() {
                   Auskunfteien im Vergleich
                 </a>
               </li>
+              {/* Die Themenseiten (30.08.2026) — jede neue Seite bekommt hier
+                  ihren Fußzeilen-Platz, damit sie von jeder Seite erreichbar ist. */}
+              {[
+                ["/schufa-score-verstehen", "SCHUFA-Score verstehen"],
+                ["/bonitaetsauskunft-beantragen", "Bonitätsauskunft beantragen"],
+                ["/inkasso-brief-erhalten", "Inkasso-Brief erhalten?"],
+                ["/eintrag-verjaehrung", "Eintrag & Verjährung"],
+                ["/girokonto-trotz-negativer-bonitaet", "Girokonto trotz negativer Bonität"],
+                ["/ratenzahlung-und-bonitaet", "Ratenzahlung & Bonität"],
+                ["/selbstauskunft-checkliste", "Selbstauskunft-Checkliste"],
+                ["/schufa-neutral-anfragen", "SCHUFA-neutral anfragen"],
+                ["/glossar-bonitaet", "Bonitäts-Glossar A–Z"],
+              ].map(([href, label]) => (
+                <li key={href}>
+                  <a href={href} className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">{label}</a>
+                </li>
+              ))}
               <li>
                 <a href="/privatkunden" className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">
                   Privatkunden Setup
@@ -113,6 +130,7 @@ export default function PremiumFooter() {
             <ul className="space-y-4">
               {[
                 ["/was-ist-fiaon", "Über FIAON"],
+                ["/fiaon-erfahrungen", "So arbeitet FIAON"],
                 ["/sicherheit", "Datenschutz & Sicherheit"],
                 ["/preise", "Preise & Pakete"],
                 ["/kreditkarte", "Kreditkarte"],

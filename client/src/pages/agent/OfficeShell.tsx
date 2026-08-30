@@ -17,6 +17,19 @@ import "@/styles/office.css";
 
 export interface Raum { href: string; label: string; Icon: any; match: string[]; szene: string; gruppe: "arbeit" | "team" | "ich" | "mehr"; nurRolle?: string; nichtRolle?: string[]; badge?: string }
 
+/** Das Zeichen des Copilot — selbst gezeichnet (AGENTS.md: keine neuen
+ *  Bibliotheks-Icons), 1,5-px-Strich, currentColor, Bauform wie lucide. */
+function CopilotZeichen({ size = 18, ...rest }: { size?: number } & Record<string, unknown>) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...rest}>
+      <circle cx="12" cy="12" r="2.6" />
+      <path d="M12 2.8v3M12 18.2v3M2.8 12h3M18.2 12h3" />
+      <path d="M18.4 5.6a9 9 0 0 1 0 12.8M5.6 18.4a9 9 0 0 1 0-12.8" />
+    </svg>
+  );
+}
+
 /** Die Räume des Büros. Reihenfolge = Leiste. Szene = Higgsfield-Bühne (client/public/office/).
  *  Namen auf Englisch (Justin 23.08.: „Schreibtisch, Kundenbuch … hört sich nicht nach internationalem Unicorn an") – Inhalte bleiben Deutsch. */
 // ── DIE REIHENFOLGE FOLGT DEM TAG (24.08.2026) ────────────────────────────
@@ -51,6 +64,9 @@ export const RAEUME: Raum[] = [
   { href: "/agent/aufgaben", label: "Tasks", Icon: ListChecks, match: ["/agent/aufgaben"], szene: "schreibtisch", gruppe: "arbeit", badge: "/agent/aufgaben" },
   { href: "/agent/anliegen", label: "Tickets", Icon: Inbox, match: ["/agent/anliegen"], szene: "schreibtisch", gruppe: "arbeit", badge: "/agent/anliegen" },
   { href: "/agent/tools", label: "Tools", Icon: Wrench, match: ["/agent/tools"], szene: "schreibtisch", gruppe: "arbeit" },
+  // Der Copilot (30.08.2026): erledigt Aufträge über Werkzeuge — alles mit
+  // Folgen wartet auf die Bestätigung des Menschen.
+  { href: "/agent/assistent", label: "Copilot", Icon: CopilotZeichen, match: ["/agent/assistent"], szene: "schreibtisch", gruppe: "arbeit" },
   { href: "/agent/flur", label: "Team", Icon: Users, match: ["/agent/flur", "/agent/space"], szene: "flur", gruppe: "team", badge: "/agent/space" },
   { href: "/agent/updates", label: "Feed", Icon: Megaphone, match: ["/agent/updates", "/agent/feedback"], szene: "flur", gruppe: "team", badge: "/agent/updates" },
   { href: "/agent/academy", label: "Academy", Icon: GraduationCap, match: ["/agent/academy", "/agent/schulung", "/agent/skripte"], szene: "akademie", gruppe: "team" },

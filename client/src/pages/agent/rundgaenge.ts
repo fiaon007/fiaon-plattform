@@ -496,6 +496,54 @@ export const RUNDGANG_MAILS: RundgangSchritt[] = [
   },
 ];
 
+export const RUNDGANG_ASSISTENT: RundgangSchritt[] = [
+  {
+    titel: "Das ist dein Copilot — er erledigt, du entscheidest.",
+    text: "Du sagst in normalem Deutsch, was passieren soll: „Fasse den Kunden Michael zusammen“, "
+      + "„Sende ihm die Zahlungsdaten“, „Buche morgen 14 Uhr einen Termin“. Der Copilot sucht den "
+      + "Kunden, liest die Akte und arbeitet mit denselben Wegen, die du auch von Hand nehmen würdest — "
+      + "er hat keinen einzigen Knopf, den du nicht auch hättest.",
+    tipp: "Sprich mit ihm wie mit einem Kollegen, nicht wie mit einer Suchmaschine. Ganze Sätze funktionieren am besten.",
+  },
+  {
+    ziel: "[data-fiaon='assistent-eingabe']",
+    titel: "Ein Feld, alles drin.",
+    text: "Hier tippst du deinen Auftrag. Enter sendet, Shift+Enter macht eine neue Zeile. Solange der "
+      + "Copilot arbeitet, siehst du seine Antwort live entstehen — und jedes Werkzeug, das er benutzt, "
+      + "erscheint als eigene Karte mit Status.",
+  },
+  {
+    titel: "Alles mit Folgen wartet auf DICH.",
+    text: "Mails, Termine, Bestellungen, Kontosperren, Einmal-Passwörter: Solche Aktionen führt der "
+      + "Copilot NIE selbst aus. Er bereitet sie vollständig vor — bei Mails siehst du die echte Vorschau, "
+      + "genau wie sie ankommt — und du klickst auf „Ausführen“ oder „Abbrechen“. Nach 15 Minuten "
+      + "verfällt eine vorbereitete Aktion von selbst.",
+    tipp: "Lies die Karte, bevor du bestätigst — du unterschreibst hier mit deinem Namen: Jede Aktion steht als „KI-Assistent im Auftrag von dir“ im Verlauf der Akte.",
+  },
+  {
+    ziel: "[data-fiaon='assistent-anheften']",
+    titel: "Eine Akte anheften spart dir jedes „bei Kunde X“.",
+    text: "Such hier einen Kunden und heft seine Akte an die Sitzung. Ab dann beziehen sich alle "
+      + "Aufträge auf diesen Menschen: „Was ist offen?“, „Schick ihm die Zahlungsdaten“, „Notiere: "
+      + "ruft Montag zurück“ — ohne dass du den Namen wiederholst.",
+  },
+  {
+    ziel: "[data-fiaon='assistent-sitzungen']",
+    titel: "Deine Sitzungen bleiben da.",
+    text: "Links liegen deine letzten Unterhaltungen — umbenennen und archivieren geht über die kleinen "
+      + "Zeichen. Ein Klick öffnet den Verlauf samt aller Aktionskarten, auch die noch offenen "
+      + "Bestätigungen.",
+  },
+  {
+    ziel: "[data-fiaon='assistent-legende']",
+    titel: "Was er kann — und was er nie kann.",
+    text: "Hier steht ehrlich, welche Werkzeuge der Copilot hat und welche davon deine Bestätigung "
+      + "brauchen. Was er grundsätzlich NICHT kann: löschen, Zahlungen oder Raten buchen, mehr als fünf "
+      + "Kunden in einem Auftrag anfassen. Diese Grenzen stehen im Code, nicht in einer Bitte.",
+    tipp: "In Kundentexten blockt der Copilot verbotene Wörter (Beratung, Garantie, Score-Versprechen) von selbst — die Entscheidung trifft immer die Bank.",
+  },
+];
+
 export const RUNDGAENGE: Record<string, { titel: string; schritte: RundgangSchritt[] }> = {
   pipeline:    { titel: "Pipeline",     schritte: RUNDGANG_PIPELINE },
   vertrieb:    { titel: "Leitung",      schritte: RUNDGANG_VERTRIEB },
@@ -512,4 +560,5 @@ export const RUNDGAENGE: Record<string, { titel: string; schritte: RundgangSchri
   more:         { titel: "More",         schritte: RUNDGANG_MORE },
   availability: { titel: "Availability", schritte: RUNDGANG_AVAILABILITY },
   mails:        { titel: "Unsere E-Mails", schritte: RUNDGANG_MAILS },
+  assistent:    { titel: "Copilot",        schritte: RUNDGANG_ASSISTENT },
 };

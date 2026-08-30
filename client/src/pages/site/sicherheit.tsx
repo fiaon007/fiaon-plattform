@@ -9,6 +9,7 @@ import { useState } from "react";
 import { Dunkel, Hero, Block, Licht, Knopf, Auf, Glas, Kennzahlen, Schritte, Zeilen, Fragen, Zwischenruf, Abschluss, Szenenbild } from "@/components/site/DunkleBuehne";
 import { SUPPORT } from "@shared/fiaon-wissen";
 import "@/styles/ratgeber.css";
+import "@/styles/seo-seiten.css";
 
 const CHECK = [
   { f: "Darf eine Bank meine SCHUFA-Daten ohne mein Wissen abfragen?", a: "Nur mit Rechtsgrundlage – in der Regel Ihrer Einwilligung im Antrag (SCHUFA-Klausel) oder einem berechtigten Interesse bei Vertragsanbahnung. Jede Abfrage steht als Anfrage in Ihrer Datenkopie, mit Datum und Empfänger." },
@@ -72,6 +73,14 @@ export default function Sicherheit() {
             { titel: "Berichtigung (Art. 16)", text: "Falsche Angaben in Ihrem Profil ändern Sie selbst; Angaben in der Akte korrigiert Ihr Ansprechpartner auf Zuruf." },
             { titel: "Löschung (Art. 17)", text: "Nach Vertragsende mit einem Klick unter „Abo & Zahlungen“ oder per E-Mail. Bestätigung innerhalb von 30 Tagen." },
           ]} />
+        </Block>
+
+        {/* Weiterlesen (30.08.2026): Transparenz gehört zur Sicherheit. */}
+        <Block schmal titel="Zum Weiterlesen">
+          <div className="sx-vertiefen">
+            <a href="/fiaon-erfahrungen"><b>So arbeitet FIAON</b><span>Ablauf, Preise, ehrliche Grenzen — und woran Sie unseriöse Anbieter erkennen.</span></a>
+            <a href="/bonitaetsauskunft-beantragen"><b>Bonitätsauskunft beantragen</b><span>Was mit Ihren Daten passiert, Schritt für Schritt — vom Antrag bis zum Prüfbericht.</span></a>
+          </div>
         </Block>
       </Licht>
 

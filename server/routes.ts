@@ -639,6 +639,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Versandweg-Schalter (make|direkt), Takte der Automatik, Prüfversand.
   const mailwerk = await import('./routes/fiaon-mailwerk');
   app.use('/api/fiaon', mailwerk.default);
+
+  // Der FIAON Copilot (30.08.2026): der KI-Assistent für Mitarbeiter und
+  // Chefbüro. Handelt AUSSCHLIESSLICH über die Werkzeug-Registry
+  // (server/lib/fiaon-assistent-werkzeuge.ts) — jede Aktion mit Folgen wartet
+  // auf die Bestätigung eines Menschen.
+  const fiaonAssistent = await import('./routes/fiaon-assistent');
+  app.use('/api/fiaon', fiaonAssistent.default);
   // Stündlich prüfen, höchstens alle 20 Stunden wirklich holen. Clarity setzt
   // sein Tageslimit um Mitternacht UTC zurück; wer auf eine feste Uhrzeit
   // wartet, verpasst das Fenster, sobald der Server einmal schläft.

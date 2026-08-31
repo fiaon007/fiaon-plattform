@@ -1373,6 +1373,18 @@ export async function rateBezahltBuchen(opts: {
     console.error("[FIAON-ABO] Inkasso-Prämie:", e);
   }
 
+  // ── Ratenprovision (31.08.2026, Justin) ───────────────────────────────
+  // Folgeraten lösen dieselbe Umsatzbeteiligung aus wie der Abschluss.
+  // Die Regeln (Rate 1 ausgenommen, Idempotenz, Override eine Ebene) wohnen
+  // bei den übrigen Provisionsregeln in fiaon-agent.ts. Ein Fehler hier darf
+  // die Ratenbuchung nicht umwerfen — die ist die wichtigere Wahrheit.
+  try {
+    const { onRatePaid } = await import("./fiaon-agent");
+    await onRatePaid(opts.rateId);
+  } catch (e) {
+    console.error("[FIAON-ABO] Ratenprovision:", e);
+  }
+
   const quelleText = opts.quelle === "gocardless" ? "per Lastschrift eingezogen" : opts.quelle === "bank" ? "über den Kontoauszug gebucht" : "als bezahlt gebucht";
   await sqlPool`
     INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)

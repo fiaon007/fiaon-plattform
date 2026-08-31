@@ -1031,6 +1031,85 @@ export async function onCustomerPaid(ref: string, opts?: { forceAgentId?: number
 }
 
 /**
+ * Ratenprovision (31.08.2026, Justin): Auch FOLGERATEN lösen die Umsatz-
+ * beteiligung aus — gleicher persönlicher Satz wie beim Abschluss (Vorgabe
+ * 25 %) plus Partnerstatus-Zuschlag, plus Override für den direkten Werber
+ * (exakt EINE Ebene, wie in onCustomerPaid begründet).
+ *
+ * Abgrenzungen:
+ *  · Rate 1 ist die Startzahlung — ihre Provision entsteht in onCustomerPaid.
+ *    Hier zählt erst rate_nr ≥ 2, sonst würde derselbe Euro zweimal vergütet.
+ *  · Anspruch hat der ZUSTÄNDIGE Agent der Akte (assigned_agent_id). Die
+ *    Betreuungs-Frage ist beim Abschluss entschieden worden und wandert mit;
+ *    ein Direktzahler ohne Zuständigen bekommt auch bei Raten keine Provision.
+ *  · Die Inkasso-Prämie (kind='inkasso') ist eine ANDERE Vergütung für das
+ *    Eintreiben und bleibt unberührt — beide können nebeneinander entstehen.
+ *  · Idempotent über die Raten-Zahlungsreferenz (FIAON-XXXXXX-N): pro Rate
+ *    maximal ein positiver own/override-Satz.
+ */
+export async function onRatePaid(rateId: number): Promise<void> {
+  await ensureAgentTables();
+  const [rate] = await sqlPool`
+    SELECT id, ref, rate_nr, zahlungsreferenz, betrag_cents, status
+    FROM fiaon_abo_raten WHERE id = ${rateId}
+  `;
+  if (!rate || rate.status !== "bezahlt") return;
+  if (!(Number(rate.rate_nr) >= 2)) return;
+
+  const existing = await sqlPool`
+    SELECT id FROM fiaon_commissions
+    WHERE payment_reference = ${rate.zahlungsreferenz}
+      AND kind IN ('own', 'override') AND amount_cents > 0 AND status != 'storniert'
+  `;
+  if (existing.length > 0) return;
+
+  const [app] = await sqlPool`
+    SELECT ref, pack_name, assigned_agent_id FROM fiaon_applications WHERE ref = ${rate.ref}
+  `;
+  if (!app?.assigned_agent_id) {
+    console.log(`[FIAON-COMMISSION] Rate ${rate.zahlungsreferenz}: kein zuständiger Agent — keine Ratenprovision`);
+    return;
+  }
+
+  const agents = await sqlPool`
+    SELECT id, name, commission_rate_bp, recruited_by, override_rate_bp
+    FROM fiaon_agents WHERE id = ${app.assigned_agent_id}
+  `;
+  if (agents.length === 0) return;
+  const settings = await getSettings();
+  const status = partnerStatusFor(await ownRevenueCents(agents[0].id), partnerThresholds(settings));
+  const rateBp = agentRateBp(agents[0] as any, settings) + status.bonusBp;
+  const baseCents = Number(rate.betrag_cents) || 0;
+  const amountCents = commissionCents(baseCents, rateBp);
+  if (amountCents <= 0) return;
+
+  await sqlPool`
+    INSERT INTO fiaon_commissions (agent_id, ref, payment_reference, pack_name, base_amount_cents, rate_bp, amount_cents, status, kind, note)
+    VALUES (${agents[0].id}, ${rate.ref}, ${rate.zahlungsreferenz}, ${app.pack_name}, ${baseCents}, ${rateBp}, ${amountCents}, 'bestaetigt', 'own',
+            ${`Ratenprovision: Abo-Rate ${rate.rate_nr} (${rate.zahlungsreferenz})${status.bonusBp > 0 ? ` · inkl. ${status.bonusBp / 100} Prozentpunkte ${status.label}-Zuschlag` : ""}`})
+  `;
+  await logAgentEvent(agents[0].id, "commission_created", { ref: rate.ref, rate: rate.zahlungsreferenz, amount_cents: amountCents, rate_bp: rateBp });
+  console.log(`[FIAON-COMMISSION] Ratenprovision: ${rate.zahlungsreferenz} → Agent ${agents[0].id}, ${(amountCents / 100).toFixed(2)} € (${rateBp / 100} %)`);
+
+  if (agents[0].recruited_by) {
+    const recruiter = await sqlPool`SELECT id, name FROM fiaon_agents WHERE id = ${agents[0].recruited_by}`;
+    if (recruiter.length > 0) {
+      const overrideBp = agents[0].override_rate_bp ?? Number(settings.partner_override_bp) ?? 500;
+      const overrideCents = commissionCents(baseCents, overrideBp);
+      if (overrideCents > 0) {
+        await sqlPool`
+          INSERT INTO fiaon_commissions (agent_id, ref, payment_reference, pack_name, base_amount_cents, rate_bp, amount_cents, status, kind, source_agent_id, note)
+          VALUES (${recruiter[0].id}, ${rate.ref}, ${rate.zahlungsreferenz}, ${app.pack_name}, ${baseCents}, ${overrideBp}, ${overrideCents}, 'bestaetigt', 'override', ${agents[0].id},
+                  ${`Team-Umsatzbeteiligung: Abo-Rate ${rate.rate_nr} von ${agents[0].name}`})
+        `;
+        await logAgentEvent(recruiter[0].id, "override_created", { ref: rate.ref, rate: rate.zahlungsreferenz, amount_cents: overrideCents, rate_bp: overrideBp, source_agent_id: agents[0].id });
+        console.log(`[FIAON-OVERRIDE] ${rate.zahlungsreferenz}: Werber ${recruiter[0].id} erhält ${(overrideCents / 100).toFixed(2)} € (${overrideBp / 100} %)`);
+      }
+    }
+  }
+}
+
+/**
  * Storno/Erstattung (G3.5): Provision stornieren; war sie bereits ausgezahlt,
  * entsteht ein NEGATIVER Verrechnungs-Eintrag (mindert künftiges Guthaben).
  */

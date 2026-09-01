@@ -24,7 +24,7 @@ import {
   Receipt, Banknote, Copy, Wallet, TrendingUp, CalendarClock, Target, Map,
   PiggyBank, ScrollText, UserPlus, BookOpen, Sparkles, Activity, History, Scale,
   MailCheck, MessageSquare,
-  Wrench, Table2, Receipt as ReceiptIcon, LibraryBig, Eye,
+  Wrench, Table2, Receipt as ReceiptIcon, LibraryBig, Eye, RotateCcw,
 } from "lucide-react";
 import { seitenFuerRaum, chefPfad } from "./chef-seiten";
 import "@/styles/chefbuero.css";
@@ -68,6 +68,14 @@ export const CHEF_RAEUME: ChefRaum[] = [
   {
     key: "werkzeuge", label: "Werkstatt", Icon: Wrench, mindest: "leitung",
     satz: "Frag die Zahlen, Wahrheits-Check, Maschinenraum, Sprung, Freigaben, Posteingang.",
+    punkte: [],
+  },
+  // ── DIE RÜCKHOLUNG (02.09.2026, E-074) ──────────────────────────────────
+  // 96.840 € offener Auftragswert in fünf Segmenten. Eigener Raum, weil hier
+  // Geldstrecken GESCHALTET werden — das gehört nicht zwischen Leseseiten.
+  {
+    key: "rueckholung", label: "Rückholung", Icon: RotateCcw, mindest: "geschaeftsfuehrung",
+    satz: "Offene Anträge zurückholen — fünf Segmente, Zustellbarkeit, Schalter, Wirkung.",
     punkte: [],
   },
   {

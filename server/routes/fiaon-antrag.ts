@@ -172,6 +172,11 @@ async function ensurePaymentColumns(): Promise<void> {
     ADD COLUMN IF NOT EXISTS access_backfilled_at TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS superseded_by VARCHAR,
     ADD COLUMN IF NOT EXISTS allow_reminders_despite_paid BOOLEAN NOT NULL DEFAULT FALSE,
+    -- Mahnstopp je Bestellung (02.09.2026): Gesetzt von der Rueckholung, bevor
+    -- rueckhol_s1/s2/s3/s5 rausgehen. Der Satz "Wir haben diese Erinnerungen
+    -- gestoppt" in der S2-Mail ist eine Tatsachenbehauptung — diese Spalte
+    -- macht ihn wahr. NULL = Kette laeuft normal.
+    ADD COLUMN IF NOT EXISTS mahnstopp_am TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS gdpr_deleted_at TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS dismissed_at TIMESTAMPTZ,
@@ -1618,6 +1623,10 @@ async function claimReminderBatch(
         -- einen Testeintrag oder eine doppelt angelegte Bestellung ist eine
         -- Mail, die der Kunde nicht versteht.
         AND fa.archived_at IS NULL
+        AND fa.mahnstopp_am IS NULL
+        -- Mahnstopp (02.09.2026): Die Rueckholung verspricht diesen Menschen
+        -- schriftlich, dass die Erinnerungen enden. Hier wird es eingeloest.
+        AND fa.mahnstopp_am IS NULL
         AND COALESCE(NULLIF(fa.email, ''), NULLIF(fa.contact_email, ''), NULLIF(fa.billing_email, '')) IS NOT NULL
         AND (fa.last_reminder_at IS NULL OR fa.last_reminder_at < NOW() - make_interval(hours => ${abstand}))
         AND (${!opts.requireAge24h} OR COALESCE(fa.payment_email_sent_at, fa.created_at) < NOW() - INTERVAL '24 hours')

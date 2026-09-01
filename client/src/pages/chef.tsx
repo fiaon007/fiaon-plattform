@@ -31,6 +31,7 @@ import ChefZahlungen from "@/components/admin/ChefZahlungen";
 import ChefRegister from "@/components/admin/ChefRegister";
 import ChefBesucher from "@/components/admin/ChefBesucher";
 import ChefZahlen from "@/components/admin/ChefZahlen";
+import ChefRueckholung from "@/components/admin/ChefRueckholung";
 import { Suspense } from "react";
 
 /**
@@ -46,6 +47,7 @@ const EIGENE_SEITE: Record<string, (stufe: ChefStufe) => JSX.Element> = {
   register: (stufe) => <ChefRegister stufe={stufe} />,
   besucher: () => <ChefBesucher />,
   wert: () => <ChefZahlen />,
+  rueckholung: () => <ChefRueckholung />,
 };
 
 const STUFEN: ChefStufe[] = ["inhaber", "geschaeftsfuehrung", "leitung"];

@@ -34,6 +34,7 @@ const EIGENE: (ChefSeite & { eigen: true })[] = [
   { slug: "kundenliste", label: "Alle Kunden", satz: "Der gesamte Bestand — eine Person, eine Zeile.", raum: "kundenliste", auch: "liste bestand personen suchen", Seite: null as any, eigen: true },
   { slug: "besucher", label: "Besucher", satz: "Wut-Klicks, tote Klicks, Scrolltiefe — wo Besucher nicht weiterkommen.", raum: "besucher", auch: "clarity besucher traffic seiten scroll", Seite: null as any, eigen: true },
   { slug: "zahlungen", label: "Zahlungszentrale", satz: "Jeder Eingang mit allen Angaben, gegengeprüft.", raum: "zahlungen", mindest: "geschaeftsfuehrung", auch: "umsatz eingang provision", Seite: null as any, eigen: true },
+  { slug: "rueckholung", label: "Rückholung", satz: "Offene Anträge zurückholen — fünf Segmente, Zustellbarkeit, Schalter, Wirkung.", raum: "rueckholung", mindest: "geschaeftsfuehrung", auch: "rueckhol offene antraege mahnung frequenz bremse segmente", Seite: null as any, eigen: true },
 ];
 
 export default function ChefRegister({ stufe }: { stufe: string }) {

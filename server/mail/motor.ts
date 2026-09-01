@@ -33,6 +33,7 @@ import { ZAHLUNG_VORLAGEN } from "./vorlagen/zahlung";
 import { TERMIN_VORLAGEN } from "./vorlagen/termin";
 import { AUSKUNFT_LEAD_VORLAGEN } from "./vorlagen/auskunft-lead";
 import { TEAM_VORLAGEN } from "./vorlagen/team";
+import { RUECKHOLUNG_VORLAGEN } from "./vorlagen/rueckholung";
 
 /** Alle Vorlagen, ein Verzeichnis. Schlüssel = Ereignisname. */
 export const VORLAGEN: Record<string, MailBaustein> = {
@@ -41,6 +42,7 @@ export const VORLAGEN: Record<string, MailBaustein> = {
   ...TERMIN_VORLAGEN,
   ...AUSKUNFT_LEAD_VORLAGEN,
   ...TEAM_VORLAGEN,
+  ...RUECKHOLUNG_VORLAGEN,
 };
 
 /** Wer als Absender im Postfach steht — je Ereignis. Alles nicht Genannte: welcome. */
@@ -53,6 +55,10 @@ const ROLLE_JE_EVENT: Record<string, AbsenderRolle> = {
   payment_reactivated: "accounting",
   abo_verlaengerung_frage: "accounting",
   sepa_einrichten: "accounting",
+  // Rueckholung: S1/S2 sind Zahlungsklaerungen — sie kommen aus der Buchhaltung.
+  // S3-S5 sind Wiederaufnahmen des Gespraechs und laufen unter dem Standard.
+  rueckhol_s1: "accounting",
+  rueckhol_s2: "accounting",
   account_suspended: "legal",
   gdpr_deleted: "legal",
   agent_invite: "team",

@@ -151,6 +151,32 @@ export async function darfAnEmpfaenger(email: string, event: string): Promise<Fr
 
     const zaehler = { heute: Number(z?.heute || 0), woche: Number(z?.woche || 0), monat: Number(z?.monat || 0) };
 
+    // ── DIE WERBESPERRE: EIN MENSCH HAT „STOPP“ GESAGT ────────────────────
+    // Gesetzt an fiaon_persons.werbung_gesperrt_am — von Hand, vom Postmeister
+    // (Antwort „Stopp“ auf die letzte Rückhol-Mail) oder über den Leitstand.
+    // Die S5-Mail verspricht wörtlich: „Dann nehmen wir Sie aus allen
+    // Verteilern zu diesem Vorgang.“ Diese Abfrage löst das Versprechen ein.
+    // Pflichtmails sind oben schon durchgelassen — die Sperre trifft nur Werbung.
+    const [gesperrt] = (await sqlPool`
+      SELECT 1 AS g FROM fiaon_persons p
+      WHERE p.werbung_gesperrt_am IS NOT NULL
+        AND (
+          LOWER(TRIM(COALESCE(p.primary_email, ''))) = ${adresse}
+          OR EXISTS (
+            SELECT 1 FROM fiaon_applications a
+            WHERE a.person_id = p.id AND a.merged_into IS NULL
+              AND ${adresse} IN (
+                LOWER(TRIM(COALESCE(a.email, ''))),
+                LOWER(TRIM(COALESCE(a.contact_email, ''))),
+                LOWER(TRIM(COALESCE(a.billing_email, ''))))
+          )
+        )
+      LIMIT 1
+    `) as any[];
+    if (gesperrt) {
+      return { ok: false, grund: "Werbesperre: Diese Person hat um keine weitere Post gebeten" };
+    }
+
     // ── HARTE UNZUSTELLBARKEIT: NIE WIEDER ────────────────────────────────
     // Eine Adresse, die hart zurückkam oder als Spam gemeldet wurde, weiter
     // anzuschreiben ist das Teuerste, was man der Domain antun kann — und dem

@@ -490,6 +490,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonAboRoutes = await import('./routes/fiaon-abo');
   app.use('/api/fiaon', fiaonAboRoutes.default);
 
+  // 🏦 Wise-Automatik — der Kontoauszug holt sich selbst: Einleser, Status,
+  //    Webhook-Wecker (/wise/webhook liegt bewusst NICHT unter /admin — Wise
+  //    ruft ohne Anmeldung an; der Inhalt wird nicht als Wahrheit verwendet).
+  const fiaonWiseRoutes = await import('./routes/fiaon-wise');
+  app.use('/api/fiaon', fiaonWiseRoutes.default);
+
   // 💳 FIAON Antrag Routes — Public (no auth)
   const fiaonAntragRoutes = await import('./routes/fiaon-antrag');
   app.use('/api/fiaon', fiaonAntragRoutes.default);

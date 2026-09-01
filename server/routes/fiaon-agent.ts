@@ -890,9 +890,14 @@ export async function onCustomerPaid(ref: string, opts?: { forceAgentId?: number
     console.error("[FIAON-TIER] Aktualisierung nach Zahlung:", e);
   }
 
-  // Idempotenz: pro Kunde maximal EIN positiver, nicht-stornierter Eintrag (own + override zusammen)
+  // Idempotenz: pro Kunde maximal EIN positiver, nicht-stornierter Eintrag (own + override zusammen).
+  // NUR own/override zählen (01.09.2026): Am Fall Silva Dias blockierte eine
+  // Onboarding-Prämie (kind='onboarding') die Abschluss-Provision — andere
+  // Vergütungsarten (onboarding, inkasso) sind KEINE Abschluss-Provision und
+  // dürfen sie nicht verhindern.
   const existing = await sqlPool`
-    SELECT id FROM fiaon_commissions WHERE ref = ${ref} AND amount_cents > 0 AND status != 'storniert'
+    SELECT id FROM fiaon_commissions
+    WHERE ref = ${ref} AND kind IN ('own', 'override') AND amount_cents > 0 AND status != 'storniert'
   `;
   if (existing.length > 0) return;
 

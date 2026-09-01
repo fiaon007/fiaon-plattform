@@ -105,6 +105,7 @@ export const HERKUENFTE = {
   onboarding_einladung: "Einladung zum Startgespräch",
   termin_verpasst_mail: "Einladung nach einem verpassten Termin",
   wiedereinstieg_mail: "Wiedereinstiegs-Mail nach langer Funkstille",
+  rueckholung: "Terminlink aus einer Rückhol-Mail (offener Antrag)",
   agent: "Von einem Mitarbeiter weitergegeben oder eingetragen",
   unbekannt: "Weg nicht mitgeführt",
 } as const;

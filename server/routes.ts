@@ -671,6 +671,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }, 60 * 60 * 1000, { beimStartNach: 90_000 });
   });
 
+  // 🎯 Rückholung offener Anträge (02.09.2026, E-074): fünf Segmente, ein
+  // Ziel — der Termin. Der Lauf ist ohne `rueckhol_pro_tag` ABGESCHALTET.
+  const chefRueckholung = await import('./routes/fiaon-chef-rueckholung');
+  app.use('/api/fiaon', chefRueckholung.default);
+  import('./lib/fiaon-crons').then(({ tageslauf }) => {
+    tageslauf('rueckholung', () => {
+      import('./lib/fiaon-rueckholung')
+        .then(({ rueckholLauf }) => rueckholLauf())
+        .then((erg) => {
+          const v = erg.reduce((s, e) => s + e.verschickt, 0);
+          if (v > 0) console.log(`[RUECKHOLUNG] ${v} Mails: ` + erg.map((e) => `${e.segment}=${e.verschickt}`).join(' '));
+        })
+        .catch((e) => console.error('[RUECKHOLUNG] Lauf:', e));
+    }, 30 * 60 * 1000, { beimStartNach: 180_000 });
+  });
+
   // 💶 Einladung zum Bankeinzug (01.09.2026, E-072). Halbstündlich, damit der
   // Tagesdeckel über den Tag verteilt statt in einem Schwall rausgeht. Der Lauf
   // ist ohne `sepa_werbung_pro_tag` ABGESCHALTET — er verschickt nach dem

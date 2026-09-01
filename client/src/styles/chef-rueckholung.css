@@ -1,0 +1,73 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   CHEFBÜRO · RÜCKHOLUNG (.cr-) — nur was chefbuero.css / chef-zahlen.css /
+   chef-mailwerk.css noch nicht mitbringen. Dunkles Navy-Glas ist gesetzt;
+   diese Datei erfindet KEINE neuen Farben, sie ordnet nur an.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.cr { display: flex; flex-direction: column; gap: 18px; }
+
+/* 1 · Die eine Zahl */
+.cr-kopf { text-align: center; padding: 26px 18px; }
+.cr-riesig { font-size: clamp(34px, 6vw, 56px); font-weight: 800; letter-spacing: -0.02em; color: #fff; font-variant-numeric: tabular-nums; }
+.cr-riesig-satz { margin: 8px auto 0; max-width: 720px; color: rgba(255,255,255,.72); font-size: 14px; line-height: 1.55; }
+.cr-riesig-satz b { color: #fca5a5; }
+
+/* 2 · Segmente */
+.cr-segmente { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+.cr-segment { border: 1px solid rgba(255,255,255,.10); border-radius: 14px; padding: 14px; cursor: pointer; background: rgba(255,255,255,.03); transition: border-color .15s, background .15s; }
+.cr-segment:hover { border-color: rgba(255,255,255,.28); background: rgba(255,255,255,.05); }
+.cr-segment-offen { border-color: rgba(147,197,253,.55); background: rgba(59,130,246,.08); }
+.cr-segment-kopf { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.cr-segment-titel { font-weight: 700; color: #fff; font-size: 13.5px; }
+.cr-segment-zahl { margin-top: 8px; font-size: 22px; font-weight: 800; color: #fff; font-variant-numeric: tabular-nums; }
+.cr-segment-zahl small { display: block; font-size: 12px; font-weight: 600; color: rgba(255,255,255,.6); }
+.cr-segment-satz { margin: 8px 0 0; font-size: 12px; line-height: 1.5; color: rgba(255,255,255,.72); }
+.cr-segment-beleg { margin: 6px 0 0; font-size: 11.5px; line-height: 1.45; color: rgba(147,197,253,.85); }
+.cr-segment-fuss { margin-top: 10px; padding-top: 8px; border-top: 1px dashed rgba(255,255,255,.12); font-size: 11.5px; color: rgba(255,255,255,.55); }
+
+/* Fälle-Tabelle */
+.cr-faelle { margin-top: 14px; }
+.cr-faelle h4 { margin: 0 0 8px; color: #fff; font-size: 14px; }
+.cr-leer { color: rgba(255,255,255,.6); font-size: 13px; }
+.cr-tab-huelle { overflow-x: auto; border: 1px solid rgba(255,255,255,.1); border-radius: 12px; }
+.cr-tab { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.cr-tab th { text-align: left; padding: 8px 10px; color: rgba(255,255,255,.55); font-weight: 600; border-bottom: 1px solid rgba(255,255,255,.12); white-space: nowrap; }
+.cr-tab td { padding: 7px 10px; color: rgba(255,255,255,.85); border-bottom: 1px solid rgba(255,255,255,.06); white-space: nowrap; }
+
+/* 3 · Zustellbarkeit */
+.cr-klemmer { display: flex; gap: 10px; align-items: flex-start; border: 1px solid rgba(248,113,113,.5); background: rgba(239,68,68,.10); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; color: #fecaca; font-size: 13px; line-height: 1.5; }
+.cr-vier { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.cr-kennzahl { border: 1px solid rgba(255,255,255,.1); border-radius: 12px; padding: 12px; }
+.cr-kennzahl b { display: block; font-size: 22px; color: #fff; font-variant-numeric: tabular-nums; }
+.cr-kennzahl span { font-size: 11.5px; line-height: 1.45; color: rgba(255,255,255,.65); }
+.cr-wochen { display: flex; align-items: flex-end; gap: 14px; margin-top: 14px; min-height: 90px; }
+.cr-woche { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; height: 90px; }
+.cr-woche-balken { width: 26px; min-height: 4px; border-radius: 5px 5px 0 0; background: rgba(147,197,253,.7); }
+.cr-woche-balken.cr-rot { background: rgba(248,113,113,.8); }
+.cr-woche span { font-size: 10.5px; color: rgba(255,255,255,.5); }
+.cr-woche b { font-size: 11px; color: #fff; }
+.cr-wochen-satz { align-self: center; margin: 0 0 0 8px; font-size: 11.5px; color: rgba(255,255,255,.55); max-width: 260px; line-height: 1.45; }
+
+/* 4 · Schalter */
+.cr-schalter { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+.cr-schalter-feld { display: flex; flex-direction: column; gap: 4px; border: 1px solid rgba(255,255,255,.1); border-radius: 12px; padding: 12px; }
+.cr-schalter-label { font-size: 12.5px; font-weight: 700; color: #fff; }
+.cr-schalter-feld input { background: rgba(0,0,0,.25); border: 1px solid rgba(255,255,255,.18); border-radius: 8px; color: #fff; padding: 7px 10px; font-size: 14px; width: 110px; }
+.cr-schalter-feld small { font-size: 11px; line-height: 1.45; color: rgba(255,255,255,.55); }
+
+/* 5 · Wirkung */
+.cr-stufen { display: flex; align-items: stretch; gap: 10px; flex-wrap: wrap; }
+.cr-stufe { flex: 1 1 160px; border: 1px solid rgba(255,255,255,.1); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 4px; color: rgba(255,255,255,.8); }
+.cr-stufe b { font-size: 24px; color: #fff; font-variant-numeric: tabular-nums; }
+.cr-stufe span { font-size: 11.5px; line-height: 1.4; color: rgba(255,255,255,.65); }
+.cr-pfeil { align-self: center; font-size: 13px; font-weight: 700; color: rgba(147,197,253,.9); white-space: nowrap; }
+
+/* 6 · Läufe */
+.cr-laeufe { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+.cr-lauf { border: 1px solid rgba(255,255,255,.1); border-left-width: 4px; border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 3px; }
+.cr-lauf b { color: #fff; font-size: 13px; }
+.cr-lauf span { font-size: 12px; color: rgba(255,255,255,.7); }
+.cr-lauf small { font-size: 11px; color: rgba(255,255,255,.5); }
+.cr-lauf-gruen { border-left-color: rgba(74,222,128,.8); }
+.cr-lauf-gelb { border-left-color: rgba(250,204,21,.8); }
+.cr-lauf-rot { border-left-color: rgba(248,113,113,.85); }
+.cr-lauf-grau { border-left-color: rgba(255,255,255,.25); }

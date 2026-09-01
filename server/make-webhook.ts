@@ -51,6 +51,12 @@ export type MakeEventType =
   //   buchen".
   | "termin_verpasst"        // Startgespraech nicht zustande gekommen — neuer Terminlink
   | "sepa_einrichten"        // Bitte, die Lastschrift fuer die Folgeraten einzurichten
+  // Rueckholung offener Antraege (E-073ff, 02.09.2026) — fuenf Lagen, ein Ziel: der Termin.
+  | "rueckhol_s1"            // frische Zahlungsmeldung, Geld noch nicht da
+  | "rueckhol_s2"            // alte Zahlungsmeldung + Entschuldigung fuer die Mahnungen
+  | "rueckhol_s3"            // Preis fehlte — unser technischer Bruch
+  | "rueckhol_s4"            // Antrag+Betrag da, nie gemeldet — Erstkontakt
+  | "rueckhol_s5"            // Altbestand — die letzte Mail
   // NEU 24.08.2026: Der Weg zum Girokonto beim Kooperationspartner (DKB) —
   // Voraussetzung fuer die Kreditkarte. Nur nach bestandener Pruefung aller
   // drei Bedingungen aus fiaon-konto-karte.ts. Wortwahl bindend: NIE
@@ -173,6 +179,26 @@ export async function sendMakeWebhookMitGrund(eventType: MakeEventType, payload:
   }
   if (aufgeloest.email !== payload.email) {
     payload = { ...payload, email: aufgeloest.email, empfaenger_quelle: aufgeloest.quelle };
+  }
+
+  // ── DIE FREQUENZBREMSE (02.09.2026) ────────────────────────────────────
+  // Sie steht hier und nicht in den Läufen, weil es mehr als einen Auslöser
+  // gibt: der Mahn-Takt, der Massenversand (der `maxReminders: null` setzt und
+  // damit jeden Deckel aushebelt) und Handversände. Gemessen am 01.09.2026:
+  // 18.641 Mahnungen an 1.227 Empfänger, Schnitt 15,2, Maximum 56 — und ein
+  // Empfänger mit nur ZWEI Anträgen bekam trotz 20-Stunden-Sperre täglich 3-4
+  // Mails. Wer jeden Pfad einzeln absichert, vergisst beim nächsten Umbau einen.
+  //
+  // Pflichtmails (Zugang, Zahlungsbestätigung, Terminbestätigung) laufen ohne
+  // Prüfung durch — die Liste steht in fiaon-mail-frequenz.ts. Bei einer
+  // Störung lässt die Bremse durch, statt den Mailverkehr anzuhalten.
+  const { darfAnEmpfaenger } = await import("./lib/fiaon-mail-frequenz");
+  const frequenz = await darfAnEmpfaenger(String(payload.email || ""), eventType);
+  if (!frequenz.ok) {
+    const erg: MakeVersand = { ok: false, grund: `Frequenzbremse: ${frequenz.grund}` };
+    protokollNebenbei(eventType, payload, erg);
+    console.warn(`[FREQUENZ] '${eventType}' an ${payload.email} zurueckgehalten: ${frequenz.grund}`);
+    return erg;
   }
   // ── DER SCHALTER: MAKE ODER DIREKT ──────────────────────────────────────
   // „direkt" nur, wenn der Motor das Ereignis kennt UND es nicht auf der

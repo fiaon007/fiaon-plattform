@@ -112,16 +112,28 @@ export const KONTO_VORLAGEN: Record<string, MailBaustein> = {
     fussnote: "Die Nummer stimmt? Dann antworten Sie kurz mit einer Uhrzeit, zu der wir Sie gut erreichen.",
   },
 
+  // ── DER KNOPF FÜHRT IN DIE STRECKE, NICHT INS DASHBOARD (01.09.2026) ──────
+  // Bis hierhin zeigte er auf /kundenbereich. Von 23 verschickten Mails wurden
+  // fünf geklickt und trotzdem kein einziges Mandat erteilt: Wer klickte, kam
+  // auf der Anmeldung heraus und musste den Knopf im Bereich erst suchen.
+  // `sepa_link` ist ein signierter Direktlink (fiaon-lastschrift.ts) — ein
+  // Klick, dann steht der Kunde bei GoCardless. Fehlt der Parameter, fällt die
+  // Vorlage auf den Kundenbereich zurück, statt einen toten Knopf zu zeigen.
   sepa_einrichten: {
     betreff: "Eine Sorge weniger: Ihre Raten per Bankeinzug",
     preheader: "Nie mehr an die Rate denken — einmal einrichten, fertig.",
     titel: "Ihre Raten, automatisch pünktlich",
     absaetze: [
-      "Guten Tag {{params.vorname}}, {{params.agent_vorname}} aus Ihrem Team hat Ihnen die Einrichtung des Bankeinzugs freigeschaltet.",
-      "Was das für Sie heißt: Ihre Monatsrate wird automatisch und immer pünktlich eingezogen. Keine Überweisung, kein Verwendungszweck, keine vergessene Rate — und Ihre Zahlungshistorie bei uns bleibt makellos.",
-      "Die Einrichtung dauert zwei Minuten und lässt sich jederzeit widerrufen.",
+      "Guten Tag {{params.vorname}}, Ihre erste Zahlung ist bei uns eingegangen — vielen Dank. Damit ist Ihre Akte in Arbeit.",
+      "Für die weiteren Monatsraten gibt es einen bequemeren Weg als die Überweisung: den Bankeinzug. Ihre Rate wird dann automatisch und immer pünktlich abgebucht. Kein Verwendungszweck, keine vergessene Rate. Das ist mehr als Bequemlichkeit — eine lückenlose Zahlungshistorie ist genau das, woran später jede Bank Ihre Zuverlässigkeit abliest.",
+      // Steht nur da, wenn wirklich etwas offen ist: Der Motor lässt leere
+      // Platzhalter weg. Verschweigen wäre der teuerste Fehler — wer von der
+      // ersten Abbuchung überrascht wird, widerruft das Mandat sofort.
+      "{{params.offene_rate_hinweis}}",
+      "Ein Klick auf den Knopf, dann geben Sie Ihre Bankverbindung einmal sicher bei unserem Zahlungspartner GoCardless ein. Wir sehen Ihre Kontonummer nie. Das dauert zwei Minuten und lässt sich jederzeit widerrufen.",
     ],
-    knopf: { text: "Bankeinzug einrichten", url: "{{params.kundenbereich_link}}" },
+    knopf: { text: "Bankeinzug einrichten", url: "{{params.sepa_link}}" },
+    fussnote: "Sie zahlen lieber weiterhin per Überweisung? Dann müssen Sie nichts tun — Ihre Raten bleiben wie gewohnt mit Verwendungszweck fällig.",
     karteZiel: true,
   },
 

@@ -21,6 +21,8 @@ import { versendenUndProtokollieren } from "../lib/fiaon-mail-log";
 // Termins, der nicht zustande kam. GRUND: Auftrag des Inhabers vom 24.08.2026.
 import { terminLink, berlinDatumText, berlinUhrzeit } from "../lib/fiaon-termine";
 import { absoluteUrl } from "../fiaon-base-url";
+// NEU 01.09.2026 (E-072): Der signierte Direktlink in die Mandatsstrecke.
+import { sepaLink } from "./fiaon-lastschrift";
 
 const router = Router();
 
@@ -153,10 +155,16 @@ router.post("/agent/versand/:personId/:art", requireAgent, async (req: AgentRequ
                   // Lastschrift eingerichtet wird. Die ERSTE Zahlung bleibt
                   // immer eine Überweisung — die Vorlage darf das nicht
                   // vermischen, sonst kommen Rückfragen und Rückbuchungen.
+                  // GEÄNDERT 01.09.2026 (E-072): Der Knopf führt jetzt über
+                  // `sepa_link` direkt in die Mandatsstrecke. Fehlt die
+                  // Referenz, bleibt der Kundenbereich als Rückfallweg.
                   agent_vorname: p.agent_vorname || "Ihr Ansprechpartner",
                   // 01.09.2026 (Fund der SEPA-Schwester-Sitzung): /kundenbereich
-                  // existiert als Route NICHT — jeder Klick landete auf 404.
-                  // Messung: 23 Mails, 5 Klicks, 0 Mandate. Ziel ist /dashboard#abo.
+                  // existierte als Route NICHT — jeder Klick landete auf 404
+                  // (Messung: 23 Mails, 5 Klicks, 0 Mandate). Jetzt führt der
+                  // signierte Direktlink in die Mandatsstrecke; /dashboard#abo
+                  // ist der Rückfallweg.
+                  sepa_link: p.ref ? sepaLink(String(p.ref)) : absoluteUrl("/dashboard#abo"),
                   kundenbereich_link: absoluteUrl("/dashboard#abo"),
                 }
               : {};

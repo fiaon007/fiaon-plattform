@@ -496,6 +496,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonWiseRoutes = await import('./routes/fiaon-wise');
   app.use('/api/fiaon', fiaonWiseRoutes.default);
 
+  // 📮 Der Postmeister — der E-Mail-Agent des Hauses: liest alle fiaon.com-
+  //    Postfächer (Google-Dienstkonto), ordnet, antwortet nach Justins
+  //    Stufenmodell und protokolliert jede Bewegung.
+  const fiaonPostmeisterRoutes = await import('./routes/fiaon-postmeister');
+  app.use('/api/fiaon', fiaonPostmeisterRoutes.default);
+
   // 💳 FIAON Antrag Routes — Public (no auth)
   const fiaonAntragRoutes = await import('./routes/fiaon-antrag');
   app.use('/api/fiaon', fiaonAntragRoutes.default);

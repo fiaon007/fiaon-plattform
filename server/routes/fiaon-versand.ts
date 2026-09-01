@@ -154,7 +154,10 @@ router.post("/agent/versand/:personId/:art", requireAgent, async (req: AgentRequ
                   // immer eine Überweisung — die Vorlage darf das nicht
                   // vermischen, sonst kommen Rückfragen und Rückbuchungen.
                   agent_vorname: p.agent_vorname || "Ihr Ansprechpartner",
-                  kundenbereich_link: absoluteUrl("/kundenbereich"),
+                  // 01.09.2026 (Fund der SEPA-Schwester-Sitzung): /kundenbereich
+                  // existiert als Route NICHT — jeder Klick landete auf 404.
+                  // Messung: 23 Mails, 5 Klicks, 0 Mandate. Ziel ist /dashboard#abo.
+                  kundenbereich_link: absoluteUrl("/dashboard#abo"),
                 }
               : {};
 

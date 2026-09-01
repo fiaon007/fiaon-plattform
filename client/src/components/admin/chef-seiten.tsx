@@ -49,6 +49,7 @@ const Investoren = lazy(() => import("@/pages/admin-investoren"));
 const Termine = lazy(() => import("@/pages/admin-termine"));
 const LeadAutomatik = lazy(() => import("@/pages/admin-leads"));
 const Mailwerk = lazy(() => import("@/components/admin/ChefMailwerk"));
+const Postmeister = lazy(() => import("@/components/admin/ChefPostmeister"));
 const Dubletten = lazy(() => import("@/pages/admin-dubletten"));
 const Fahrplan = lazy(() => import("@/pages/admin-fahrplan"));
 const TeamZentrale = lazy(() => import("@/pages/admin-team-zentrale"));
@@ -140,6 +141,8 @@ export const CHEF_SEITEN: ChefSeite[] = [
   // 28.08.2026: die Steuerzentrale über dem neuen Mail-System — Versandweg,
   // Takte der Automatik, Vorschau und Prüfversand jeder Quelltext-Vorlage.
   { slug: "mailwerk", label: "Mailwerk", satz: "Alle 41 Mails sehen und steuern: Versandweg, Takte, Prüfversand.", Seite: Mailwerk, raum: "kommunikation", mindest: "geschaeftsfuehrung", auch: "mail email brevo make vorlage template versand automatik" },
+  // Justins Zentrale (01.09.2026): „das soll nur meine Zentrale sein" — Stufe inhaber.
+  { slug: "postmeister", label: "Postmeister", satz: "Der E-Mail-Agent: liest jede Akte, antwortet wie ein Mensch — Not-Aus und Modus je Postfach.", Seite: Postmeister, raum: "kommunikation", mindest: "inhaber", auch: "email agent gmail postfach support ki automatisch" },
   { slug: "funktionen", label: "Funktionen & Schulung", satz: "Alle Funktionen mit Klartext, Selbsttest, Schulungsmodus.", Seite: Funktionen, raum: "kommunikation" },
   { slug: "space", label: "Space", satz: "Der Feed des Teams — mitlesen, anpinnen, moderieren.", Seite: Space, raum: "kommunikation" },
 

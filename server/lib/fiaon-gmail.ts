@@ -207,6 +207,26 @@ export async function entwurfAnlegen(postfach: string, original: GmailNachricht,
   return String(j?.id || "");
 }
 
+/** Eine FRISCHE Mail (kein Reply) — z. B. die Firmen-Info nach dem Erstanruf. */
+export async function mailNeuSenden(postfach: string, an: string, betreff: string, text: string): Promise<string> {
+  const kodiertBetreff = `=?UTF-8?B?${Buffer.from(betreff).toString("base64")}?=`;
+  const zeilen = [
+    `From: ${postfach}`,
+    `To: ${an}`,
+    `Subject: ${kodiertBetreff}`,
+    "MIME-Version: 1.0",
+    'Content-Type: text/plain; charset="UTF-8"',
+    "Content-Transfer-Encoding: base64",
+    "",
+    Buffer.from(text).toString("base64"),
+  ];
+  const j = await api(postfach, "/messages/send", {
+    method: "POST",
+    body: JSON.stringify({ raw: b64url(zeilen.join("\r\n")) }),
+  });
+  return String(j?.id || "");
+}
+
 export async function entwurfLoeschen(postfach: string, draftId: string): Promise<void> {
   await api(postfach, `/drafts/${draftId}`, { method: "DELETE" });
 }

@@ -1,0 +1,140 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   FIRMENKUNDEN-COCKPIT — Office-Dunkelbühne, ruhig und schnell bedienbar.
+   Ein Akzent (Blau-Verlauf), Erfolgs-Grün nur an Ergebnissen, viel Luft.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.fk { display: grid; gap: 16px; color: #e7edf7; }
+
+/* ── Kopf mit Tagesring ── */
+.fk-kopf { display: flex; gap: 24px; align-items: center; justify-content: space-between; flex-wrap: wrap;
+  padding: 22px 24px; border-radius: 18px;
+  background: linear-gradient(180deg, rgba(16,26,51,.9), rgba(11,18,38,.9));
+  border: 1px solid rgba(126,180,255,.14); }
+.fk-pille { font: 500 11px/1 'Inter', sans-serif; letter-spacing: .14em; text-transform: uppercase;
+  color: #9fc4ff; padding: 6px 11px; border-radius: 999px; border: 1px solid rgba(126,180,255,.3); }
+.fk-kopf h1 { margin: 10px 0 6px; font: 600 clamp(22px,3vw,30px)/1.15 'Inter', sans-serif; color: #fff; }
+.fk-verlauf { background: linear-gradient(100deg, #7eb4ff, #288DFA); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.fk-kopf p { margin: 0; font: 400 13.5px/1.5 'Inter', sans-serif; color: rgba(214,227,248,.75); max-width: 560px; }
+.fk-ring { position: relative; width: 128px; text-align: center; }
+.fk-ring svg { width: 120px; height: 120px; transform: rotate(-90deg); }
+.fk-ring-grund { fill: none; stroke: rgba(126,180,255,.14); stroke-width: 9; }
+.fk-ring-wert { fill: none; stroke: url(#fkGrad), #288DFA; stroke: #288DFA; stroke-width: 9; stroke-linecap: round;
+  transition: stroke-dasharray .6s cubic-bezier(.22,.8,.26,1); filter: drop-shadow(0 0 8px rgba(40,141,250,.6)); }
+.fk-ring-text { position: absolute; inset: 0 0 auto 0; height: 120px; display: grid; place-content: center; }
+.fk-ring-text b { font: 650 30px/1 'Inter', sans-serif; color: #fff; font-variant-numeric: tabular-nums; }
+.fk-ring-text span { font: 400 10px/1.25 'Inter', sans-serif; color: rgba(159,196,255,.7); }
+.fk-ring small { font: 400 11px/1.3 'Inter', sans-serif; color: rgba(159,196,255,.6); }
+
+.fk-meldung { margin: 0; padding: 10px 14px; border-radius: 12px; cursor: pointer;
+  background: rgba(40,141,250,.12); border: 1px solid rgba(40,141,250,.3);
+  font: 400 13px/1.4 'Inter', sans-serif; color: #cfe1ff; }
+
+/* ── Leitfaden ── */
+.fk-leitfaden { border-radius: 16px; border: 1px solid rgba(126,180,255,.12);
+  background: linear-gradient(180deg, rgba(16,26,51,.75), rgba(11,18,38,.75)); overflow: hidden; }
+.fk-leitfaden > button { display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  width: 100%; padding: 14px 18px; background: none; border: 0; cursor: pointer; color: inherit; text-align: left; }
+.fk-leitfaden > button b { font: 600 14px/1.2 'Inter', sans-serif; }
+.fk-leitfaden > button span { font: 400 12px/1 'Inter', sans-serif; color: #9fc4ff; }
+.fk-leitfaden-innen { padding: 2px 18px 16px; display: grid; gap: 14px; }
+@media (min-width: 980px) { .fk-leitfaden-innen { grid-template-columns: 1fr 1fr; } }
+.fk-leitfaden-block b { display: block; font: 600 12.5px/1.3 'Inter', sans-serif; color: #9fc4ff;
+  text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
+.fk-leitfaden-block p { margin: 0 0 8px; font: 400 13px/1.55 'Inter', sans-serif; color: rgba(226,235,248,.85); }
+
+/* ── Raster: Liste + Karte ── */
+.fk-raster { display: grid; gap: 16px; grid-template-columns: 1fr; }
+@media (min-width: 1020px) { .fk-raster { grid-template-columns: minmax(300px, 5fr) 7fr; align-items: start; } }
+.fk-tafel { border-radius: 16px; padding: 16px 18px;
+  background: linear-gradient(180deg, rgba(16,26,51,.9), rgba(11,18,38,.9));
+  border: 1px solid rgba(126,180,255,.12); }
+.fk-tafel > header { display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  margin-bottom: 12px; flex-wrap: wrap; }
+.fk-reiter { display: inline-flex; gap: 4px; }
+.fk-reiter button { font: 500 12px/1 'Inter', sans-serif; padding: 8px 12px; border-radius: 999px; cursor: pointer;
+  color: rgba(207,225,255,.75); background: transparent; border: 1px solid rgba(126,180,255,.18); }
+.fk-reiter button.an { color: #04101f; background: linear-gradient(135deg, #7eb4ff, #288DFA); border-color: transparent; font-weight: 600; }
+
+.fk-import { display: grid; gap: 8px; margin-bottom: 12px; padding: 12px; border-radius: 12px;
+  background: rgba(8,14,32,.55); border: 1px dashed rgba(126,180,255,.3); }
+.fk-import p { margin: 0; font: 400 12px/1.5 'Inter', sans-serif; color: rgba(195,214,240,.7); }
+.fk-import code { font-size: 11px; color: #9fc4ff; }
+.fk-import textarea { width: 100%; resize: vertical; padding: 10px 12px; border-radius: 10px;
+  font: 400 12.5px/1.5 ui-monospace, monospace; color: #e9f0fa; background: rgba(4,9,22,.8);
+  border: 1px solid rgba(126,180,255,.2); outline: none; }
+
+.fk-suche { width: 100%; margin-bottom: 10px; padding: 10px 13px; border-radius: 11px;
+  font: 400 13px/1 'Inter', sans-serif; color: inherit; outline: none;
+  background: rgba(8,14,32,.5); border: 1px solid rgba(126,180,255,.18); }
+.fk-suche:focus { border-color: rgba(126,180,255,.5); }
+
+.fk-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; max-height: 560px; overflow-y: auto; }
+.fk-liste > li > button { display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  width: 100%; padding: 11px 13px; border-radius: 11px; cursor: pointer; text-align: left; color: inherit;
+  background: rgba(8,14,32,.45); border: 1px solid transparent; transition: border-color .15s ease, background .15s ease; }
+.fk-liste > li > button:hover { border-color: rgba(126,180,255,.3); }
+.fk-liste > li > button.an { border-color: rgba(126,180,255,.55); background: rgba(40,141,250,.1); }
+.fk-liste-wer { min-width: 0; }
+.fk-liste-wer b { display: block; font: 550 13.5px/1.3 'Inter', sans-serif; color: #eef3fb;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fk-liste-wer small { font: 400 11.5px/1.3 'Inter', sans-serif; color: rgba(159,196,255,.55); }
+
+.fk-marke { font: 600 10px/1 'Inter', sans-serif; letter-spacing: .07em; text-transform: uppercase;
+  padding: 5px 8px; border-radius: 999px; white-space: nowrap; }
+.fk-marke.gut { color: #6ee7b7; background: rgba(16,185,129,.12); }
+.fk-marke.warte { color: #fcd34d; background: rgba(245,158,11,.12); }
+.fk-marke.blau { color: #9fc4ff; background: rgba(40,141,250,.14); }
+.fk-marke.still { color: rgba(207,225,255,.6); background: rgba(126,180,255,.08); }
+.fk-marke.rot { color: #fca5a5; background: rgba(220,38,38,.14); }
+
+/* ── Anruf-Karte ── */
+.fk-karte { display: grid; gap: 14px; }
+.fk-karte > header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.fk-karte h2 { margin: 0; font: 600 20px/1.2 'Inter', sans-serif; color: #fff; }
+.fk-karte header small { font: 400 12.5px/1.4 'Inter', sans-serif; color: rgba(159,196,255,.65); }
+.fk-kontakt { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.fk-tel { font: 650 24px/1 'Inter', sans-serif; color: #fff; text-decoration: none;
+  padding: 12px 18px; border-radius: 14px; background: linear-gradient(135deg, rgba(126,180,255,.2), rgba(40,141,250,.2));
+  border: 1px solid rgba(126,180,255,.4); font-variant-numeric: tabular-nums;
+  transition: transform .15s ease, box-shadow .15s ease; }
+.fk-tel:hover { transform: translateY(-1px); box-shadow: 0 10px 30px rgba(40,141,250,.3); }
+.fk-kontakt-neben { display: grid; gap: 2px; font: 400 12.5px/1.4 'Inter', sans-serif; color: rgba(195,214,240,.75); }
+.fk-kontakt-neben a { color: #9fc4ff; }
+.fk-notizen { margin: 0; padding: 10px 13px; border-radius: 11px; white-space: pre-wrap;
+  font: 400 12.5px/1.55 'Inter', sans-serif; color: rgba(226,235,248,.8);
+  background: rgba(8,14,32,.5); border: 1px solid rgba(126,180,255,.08); }
+.fk-notiz-feld { width: 100%; resize: vertical; padding: 10px 13px; border-radius: 11px;
+  font: 400 13px/1.5 'Inter', sans-serif; color: #e9f0fa; background: rgba(4,9,22,.7);
+  border: 1px solid rgba(126,180,255,.2); outline: none; }
+.fk-notiz-feld:focus { border-color: rgba(126,180,255,.5); }
+
+.fk-ergebnisse { display: grid; gap: 7px; grid-template-columns: 1fr; }
+@media (min-width: 640px) { .fk-ergebnisse { grid-template-columns: 1fr 1fr; } }
+.fk-erg { font: 550 12.5px/1.2 'Inter', sans-serif; padding: 11px 13px; border-radius: 11px; cursor: pointer;
+  text-align: left; border: 1px solid rgba(126,180,255,.18); background: rgba(8,14,32,.5); color: #dbe7f7;
+  transition: transform .12s ease, border-color .12s ease; }
+.fk-erg:not(:disabled):hover { transform: translateY(-1px); border-color: rgba(126,180,255,.45); }
+.fk-erg.gut { border-color: rgba(16,185,129,.35); color: #a7f3d0; }
+.fk-erg.rot { border-color: rgba(220,38,38,.3); color: #fecaca; }
+.fk-erg:disabled { opacity: .55; cursor: default; }
+
+.fk-aktionen { display: flex; gap: 10px; flex-wrap: wrap; }
+.fk-knopf { font: 600 13px/1 'Inter', sans-serif; padding: 11px 16px; border-radius: 12px; cursor: pointer;
+  color: #04101f; background: linear-gradient(135deg, #7eb4ff, #288DFA); border: 0;
+  box-shadow: 0 8px 24px rgba(40,141,250,.3); }
+.fk-knopf.still { color: #cfe1ff; background: rgba(40,141,250,.1); border: 1px solid rgba(126,180,255,.3); box-shadow: none; }
+.fk-knopf.klein { padding: 8px 12px; font-size: 12px; }
+.fk-knopf:disabled { opacity: .5; cursor: default; }
+
+.fk-verlauf b { display: block; font: 600 12.5px/1.2 'Inter', sans-serif; color: #9fc4ff;
+  text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
+.fk-verlauf ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 260px; overflow-y: auto; }
+.fk-verlauf li { display: grid; grid-template-columns: auto 1fr; gap: 10px;
+  font: 400 12.5px/1.5 'Inter', sans-serif; color: rgba(214,227,248,.8); }
+.fk-verlauf li > span:first-child { color: rgba(159,196,255,.55); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+.fk-leise { font: 400 12.5px/1.5 'Inter', sans-serif; color: rgba(159,196,255,.55); }
+
+@media (prefers-reduced-motion: reduce) {
+  .fk-ring-wert, .fk-tel, .fk-erg, .fk-liste > li > button { transition: none; }
+}

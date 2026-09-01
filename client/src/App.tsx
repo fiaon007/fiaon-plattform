@@ -160,6 +160,7 @@ const AdminAufgabenPage = lazy(() => import("@/pages/admin-aufgaben"));
 const AdminTodoPage = lazy(() => import("@/pages/admin-todo"));
 // Die neue Website (22.08.2026): Startseite + fünf Seiten für Investoren, Presse, Datenraum, Partner, Karriere.
 const SiteInvestoren = lazy(() => import("@/pages/site/investoren"));
+const AgentFirmenPage = lazy(() => import("@/pages/agent/firmen"));
 const SitePresse = lazy(() => import("@/pages/site/presse"));
 const SiteDatenraum = lazy(() => import("@/pages/site/datenraum"));
 const SitePartner = lazy(() => import("@/pages/site/partner"));
@@ -455,6 +456,7 @@ function Router() {
           Ansicht bleibt unter /agent/meine-kunden erreichbar, damit nichts
           verloren geht. */}
       <Route path="/agent/kunden" component={AgentPipelinePage} />
+      <Route path="/agent/firmen" component={AgentFirmenPage} />
       <Route path="/agent/pipeline" component={AgentPipelinePage} />
       <Route path="/agent/bestand" component={AgentBestandPage} />
       <Route path="/agent/praesentation" component={AgentPraesentationPage} />

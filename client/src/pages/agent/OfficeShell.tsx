@@ -11,7 +11,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, BookUser, Users, Phone, Megaphone, Wallet, Calculator, GraduationCap, ListChecks, Mail, Calendar, Inbox, Landmark, MoreHorizontal, Clock, Wrench, Handshake, Boxes, LogOut, ChevronLeft, ChevronRight, X, Menu, Compass } from "lucide-react";
+import { LayoutDashboard, BookUser, Users, Phone, Megaphone, Wallet, Calculator, GraduationCap, ListChecks, Mail, Calendar, Inbox, Landmark, MoreHorizontal, Clock, Wrench, Handshake, Boxes, LogOut, ChevronLeft, ChevronRight, X, Menu, Compass, Building2 } from "lucide-react";
 import { Einfuehrung } from "@/components/agent/Einfuehrung";
 import "@/styles/office.css";
 
@@ -53,6 +53,9 @@ export const RAEUME: Raum[] = [
   { href: "/agent/kalender", label: "Calendar", Icon: Calendar, match: ["/agent/kalender"], szene: "schreibtisch", gruppe: "arbeit" },
   { href: "/agent/onboarding", label: "Onboarding", Icon: Handshake, match: ["/agent/onboarding", "/agent/startgespraeche"], szene: "akademie", gruppe: "arbeit" },
   { href: "/agent/bestand", label: "Bestand", Icon: Boxes, match: ["/agent/bestand"], szene: "kundenbuch", gruppe: "arbeit" },
+  // Firmenkunden (02.09.2026): die B2B-Jagdstrecke — Tagesliste, Leitfaden,
+  // Ein-Klick-Ergebnisse. Eigener Topf neben dem Privatgeschäft.
+  { href: "/agent/firmen", label: "Firmen", Icon: Building2, match: ["/agent/firmen"], szene: "kundenbuch", gruppe: "arbeit" },
   { href: "/agent/collections", label: "Collections", Icon: Landmark, match: ["/agent/collections", "/agent/inkasso"], szene: "kasse", gruppe: "arbeit" },
   // Der Schreibtisch-Teil: was hereinkommt und beantwortet werden will.
   // 24.08.2026: VORHER trug „Inbox" den Marken-Schlüssel /agent/mail-zentrale

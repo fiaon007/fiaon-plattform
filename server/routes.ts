@@ -502,6 +502,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonPostmeisterRoutes = await import('./routes/fiaon-postmeister');
   app.use('/api/fiaon', fiaonPostmeisterRoutes.default);
 
+  // 🏢 Firmenkunden — die B2B-Jagdstrecke (Nikitas Tagesliste, 02.09.2026).
+  const fiaonFirmenRoutes = await import('./routes/fiaon-firmen');
+  app.use('/api/fiaon', fiaonFirmenRoutes.default);
+
   // 💳 FIAON Antrag Routes — Public (no auth)
   const fiaonAntragRoutes = await import('./routes/fiaon-antrag');
   app.use('/api/fiaon', fiaonAntragRoutes.default);

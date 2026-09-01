@@ -60,14 +60,24 @@ async function wiseGet(pfad: string, extraHeaders: Record<string, string> = {}):
  * Schlüssel geben wir die 403 unverändert zurück — der Status-Endpunkt macht
  * daraus eine verständliche Meldung.
  */
+let letzteScaDiagnose: string | null = null;
 async function wiseGetMitSca(pfad: string): Promise<globalThis.Response> {
   const erste = await wiseGet(pfad);
   if (erste.status !== 403) return erste;
   const ott = erste.headers.get("x-2fa-approval");
   const key = scaSchluessel();
-  if (!ott || !key) return erste;
+  if (!ott || !key) {
+    letzteScaDiagnose = `1. Antwort 403 ohne ${!ott ? "x-2fa-approval-Header" : "privaten Schlüssel"} — Ergebnis-Header: ${erste.headers.get("x-2fa-approval-result") || "-"}, Körper: ${(await erste.clone().text().catch(() => "")).slice(0, 200)}`;
+    return erste;
+  }
   const signatur = createSign("RSA-SHA256").update(ott).sign(key, "base64");
-  return wiseGet(pfad, { "x-2fa-approval": ott, "X-Signature": signatur });
+  const zweite = await wiseGet(pfad, { "x-2fa-approval": ott, "X-Signature": signatur });
+  if (zweite.status === 403) {
+    letzteScaDiagnose = `2. Antwort nach Signatur weiter 403 — Ergebnis-Header: ${zweite.headers.get("x-2fa-approval-result") || "-"}, Körper: ${(await zweite.clone().text().catch(() => "")).slice(0, 200)}`;
+  } else {
+    letzteScaDiagnose = null;
+  }
+  return zweite;
 }
 
 // ── Profil und Kontostand finden (einmal, dann gemerkt) ─────────────────────
@@ -115,9 +125,10 @@ export async function wiseEinlesen(tage = 5): Promise<{ gesehen: number; neu: nu
     `?currency=EUR&intervalStart=${von.toISOString()}&intervalEnd=${bis.toISOString()}&type=COMPACT`;
   const res = await wiseGetMitSca(pfad);
   if (res.status === 403) {
-    throw new Error(scaSchluessel()
+    throw new Error((scaSchluessel()
       ? "SCA abgelehnt — ist der öffentliche Schlüssel im Wise-Konto hinterlegt (Einstellungen → API-Tokens → Public Keys)?"
-      : "SCA nötig, aber WISE_SCA_PRIVATE_KEY ist nicht gesetzt.");
+      : "SCA nötig, aber WISE_SCA_PRIVATE_KEY ist nicht gesetzt.")
+      + (letzteScaDiagnose ? ` [Diagnose: ${letzteScaDiagnose}]` : ""));
   }
   if (!res.ok) throw new Error(`Auszug: HTTP ${res.status} ${await res.text().then((t) => t.slice(0, 200))}`);
   const auszug = (await res.json()) as any;

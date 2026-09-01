@@ -23,7 +23,9 @@ export function Dunkel({ seite, titel, beschreibung, children }: { seite: Seite;
     // DOM, und zwei Titel für eine Seite sind ein vermeidbarer Widerspruch.
     // Seiten ohne Tabelleneintrag (Ratgeber-Artikel) behalten ihre Props.
     const pfad = typeof window !== "undefined" ? window.location.pathname : "";
-    const tabelle = seoSeite(pfad);
+    // Die Investoren-Seite ist zweisprachig und setzt html lang="en" —
+    // dort gelten die englischen Props, nicht die deutsche SEO-Tabelle.
+    const tabelle = document.documentElement.lang === "en" ? null : seoSeite(pfad);
     const neuerTitel = tabelle ? tabelle.titel : `${titel} · FIAON`;
     const neueBeschreibung = tabelle ? tabelle.beschreibung : beschreibung;
     const vorher = document.title;

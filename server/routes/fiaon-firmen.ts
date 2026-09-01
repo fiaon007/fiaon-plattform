@@ -303,4 +303,165 @@ router.post("/agent/firmen/:id/notiz", requireAgent, async (req: AgentRequest, r
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE KI-VORBEREITUNG — ein Klick, und Nikita weiß alles (02.09.2026 früh)
+//
+// Liest, wenn vorhanden, die WEBSITE der Firma (öffentlich, 6 s Deckel) und
+// baut daraus mit dem Firmenwissen des Hauses eine Gesprächsvorbereitung:
+// Kurzlage, drei Schmerzpunkte, Einstiegssatz, Fragen, Einwand-Tipp,
+// Paket-Empfehlung. Ergebnis wird 7 Tage im Verlauf gecacht (art='analyse').
+// EHRLICH: Ohne Website sagt die Vorbereitung, dass sie nur aus Branche/Ort
+// schätzt — sie erfindet keine Fakten über die Firma.
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function websiteText(roh: string | null): Promise<string | null> {
+  if (!roh) return null;
+  const url = /^https?:\/\//.test(roh) ? roh : `https://${roh}`;
+  try {
+    const abbruch = new AbortController();
+    const wecker = setTimeout(() => abbruch.abort(), 6000);
+    const res = await fetch(url, { signal: abbruch.signal, redirect: "follow", headers: { "User-Agent": "Mozilla/5.0 (FIAON Vorbereitung)" } });
+    clearTimeout(wecker);
+    if (!res.ok) return null;
+    const html = (await res.text()).slice(0, 300_000);
+    return html
+      .replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 7000) || null;
+  } catch { return null; }
+}
+
+router.post("/agent/firmen/:id/vorbereitung", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    await ensureFirmen();
+    const id = Number(req.params.id);
+    const [firma] = (await sqlPool`SELECT * FROM fiaon_firmen_leads WHERE id = ${id}`) as any[];
+    if (!firma) return res.status(404).json({ ok: false, error: "Firma nicht gefunden" });
+
+    // Cache: die letzte Analyse binnen 7 Tagen genügt (erzwingen überstimmt).
+    if (req.body?.erzwingen !== true) {
+      const [cache] = (await sqlPool`
+        SELECT notiz FROM fiaon_firmen_log
+        WHERE firma_id = ${id} AND art = 'analyse' AND created_at > NOW() - INTERVAL '7 days'
+        ORDER BY created_at DESC LIMIT 1
+      `) as any[];
+      if (cache?.notiz) {
+        try { return res.json({ ok: true, vorbereitung: JSON.parse(cache.notiz), quelle: "gespeichert" }); } catch { /* neu rechnen */ }
+      }
+    }
+
+    const key = process.env.OPENAI_API_KEY;
+    if (!key) return res.status(502).json({ ok: false, error: "KI nicht eingerichtet." });
+    const seite = await websiteText(firma.website);
+    const system = `Du bereitest einen FIAON-Vertriebsmitarbeiter auf einen B2B-KALTANRUF vor.
+FIAON hilft Unternehmen, ihre Firmen-Bonität (Creditreform, SCHUFA B2B, KSV) einzusehen und zu reparieren: Auskünfte mit Vollmacht beschaffen, jeden Eintrag erklären, angreifbare Einträge mit anwaltlich geprüften Schreiben angehen. Ziel des Anrufs: Interesse wecken → Info-Mail/Termin/Antrag. Geschäftspakete ab 39,99 €/Monat, monatlich kündbar.
+STRENG: Keine Fakten über die Firma ERFINDEN. Was du nur aus Branche/Ort ableitest, kennzeichne als Vermutung („vermutlich", „typisch für…"). NIEMALS versprechen: garantierte Löschung, Kredite, bestimmte Scores.
+Antworte NUR als JSON:
+{"kurzlage":"2-3 Sätze, was diese Firma macht (aus der Website; ohne Website: was Branche/Ort vermuten lassen)","schmerzpunkte":["3 wahrscheinliche Bonitäts-/Liquiditäts-Schmerzpunkte GENAU dieser Firma"],"einstieg":"EIN gesprochener Einstiegssatz für den Anruf, auf diese Firma zugeschnitten, Sie-Form","fragen":["3 kluge Fragen, die Kompetenz zeigen"],"einwand_tipp":"der wahrscheinlichste Einwand dieser Firma + die beste Antwort in einem Satz","paket":"business_starter|business_pro|business_ultra|business_enterprise mit 1 Satz Begründung"}`;
+    const nutzer = `FIRMA: ${firma.firma}${firma.branche ? ` · Branche: ${firma.branche}` : ""}${firma.ort ? ` · Ort: ${firma.ort}` : ""}${firma.ansprechpartner ? ` · Ansprechpartner: ${firma.ansprechpartner}` : ""}${firma.notiz ? `\nNOTIZEN: ${String(firma.notiz).slice(0, 800)}` : ""}
+${seite ? `WEBSITE-INHALT (${firma.website}):\n${seite}` : "KEINE Website erreichbar — arbeite mit Branche/Ort und sage das ehrlich."}`;
+    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: process.env.FIAON_ANALYSE_MODELL || "gpt-4.1-mini", temperature: 0.4, max_tokens: 700,
+        response_format: { type: "json_object" },
+        messages: [{ role: "system", content: system }, { role: "user", content: nutzer }],
+      }),
+    });
+    const j: any = await r.json().catch(() => null);
+    if (!r.ok) return res.status(502).json({ ok: false, error: "KI-Vorbereitung gerade nicht möglich." });
+    let v: any = null;
+    try { v = JSON.parse(String(j?.choices?.[0]?.message?.content || "{}")); } catch { v = null; }
+    if (!v?.kurzlage) return res.status(502).json({ ok: false, error: "KI-Antwort unbrauchbar — nochmal versuchen." });
+    v.mit_website = !!seite;
+    await sqlPool`
+      INSERT INTO fiaon_firmen_log (firma_id, agent_id, agent_name, art, notiz)
+      VALUES (${id}, ${req.agent!.id}, ${req.agent!.name}, 'analyse', ${JSON.stringify(v).slice(0, 8000)})
+    `;
+    res.json({ ok: true, vorbereitung: v, quelle: seite ? "website" : "branche" });
+  } catch (err: any) {
+    console.error("[FIRMEN] vorbereitung:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DER ABSCHLUSS AM TELEFON — Interesse wird SOFORT ein echter Antrag
+//
+// Nikita füllt die Pflichtfelder gemeinsam mit dem Unternehmer aus; der
+// Antrag läuft über DENSELBEN Weg wie das öffentliche Formular (Loopback auf
+// POST /api/fiaon/application — Stufe-C-Muster „Vertrag am Telefon", das im
+// Haus seit den Leitfäden gilt). Zurück kommen Zahlungsreferenz und
+// Zahlungslink — den schickt/nennt er dem Kunden noch im Gespräch.
+// ═══════════════════════════════════════════════════════════════════════════
+router.post("/agent/firmen/:id/abschluss", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    await ensureFirmen();
+    const id = Number(req.params.id);
+    const [firma] = (await sqlPool`SELECT * FROM fiaon_firmen_leads WHERE id = ${id}`) as any[];
+    if (!firma) return res.status(404).json({ ok: false, error: "Firma nicht gefunden" });
+
+    const b = req.body || {};
+    const paket = String(b.paket || "");
+    const erlaubt = ["business_starter", "business_pro", "business_ultra", "business_enterprise"];
+    if (!erlaubt.includes(paket)) return res.status(400).json({ ok: false, error: "Bitte ein Geschäftspaket wählen." });
+    const email = String(b.email || firma.email || "").trim();
+    if (!/^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/.test(email)) return res.status(400).json({ ok: false, error: "Gültige E-Mail-Adresse nötig — dorthin gehen Zugang und Zahlungsdaten." });
+    const vorname = String(b.vorname || "").trim();
+    const nachname = String(b.nachname || "").trim();
+    if (!vorname || !nachname) return res.status(400).json({ ok: false, error: "Vor- und Nachname des Ansprechpartners nötig." });
+
+    const { PAKETE } = await import("@shared/fiaon-pakete");
+    const paketDef = PAKETE.find((x: any) => x.key === paket);
+    const ref = `FIAON-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+    const port = process.env.PORT || 5000;
+    const antwort = await fetch(`http://127.0.0.1:${port}/api/fiaon/application`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ref, type: "business", status: "submitted", currentStep: 6,
+        packKey: paket, packName: paketDef?.label || paket,
+        companyName: firma.firma, legalForm: String(b.rechtsform || "").trim() || null,
+        contactFirstName: vorname, contactLastName: nachname,
+        contactEmail: email, email,
+        contactPhone: String(b.telefon || firma.telefon || "").trim() || null,
+        industry: firma.branche || null,
+        street: String(b.strasse || "").trim() || null,
+        zip: String(b.plz || "").trim() || null,
+        city: String(b.ort || firma.ort || "").trim() || null,
+        country: String(b.land || "DE").trim(),
+        billingEmail: email, ag1: true, ag2: true, ag3: true,
+      }),
+    });
+    if (!antwort.ok) {
+      const fehler = await antwort.text().catch(() => "");
+      console.error("[FIRMEN] abschluss application:", antwort.status, fehler.slice(0, 200));
+      return res.status(502).json({ ok: false, error: "Antrag konnte nicht angelegt werden." });
+    }
+
+    const [app] = (await sqlPool`
+      SELECT ref, payment_reference, amount_due FROM fiaon_applications WHERE ref = ${ref}
+    `) as any[];
+    if (!app) return res.status(502).json({ ok: false, error: "Antrag angelegt, aber nicht auffindbar — bitte in der Pipeline suchen." });
+
+    await sqlPool`
+      UPDATE fiaon_firmen_leads SET status = 'antrag', zustaendig_agent_id = COALESCE(zustaendig_agent_id, ${req.agent!.id}),
+             letzter_kontakt = NOW(), updated_at = NOW()
+      WHERE id = ${id}
+    `;
+    await sqlPool`
+      INSERT INTO fiaon_firmen_log (firma_id, agent_id, agent_name, art, ergebnis, notiz)
+      VALUES (${id}, ${req.agent!.id}, ${req.agent!.name}, 'anruf', 'erreicht_antrag',
+              ${`Abschluss am Telefon: ${paketDef?.label || paket} — Antrag ${app.payment_reference || app.ref} angelegt`})
+    `;
+    res.json({
+      ok: true, ref: app.ref, zahlungsreferenz: app.payment_reference, betrag: app.amount_due,
+      zahlungslink: app.payment_reference ? `https://fiaon.com/zahlung/${app.payment_reference}` : null,
+    });
+  } catch (err: any) {
+    console.error("[FIRMEN] abschluss:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 export default router;

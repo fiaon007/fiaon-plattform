@@ -20,6 +20,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { AgentShell } from "./shared";
 import { useOffice } from "./OfficeShell";
+import { Rundgang } from "@/components/agent/Rundgang";
+import { RUNDGAENGE } from "./rundgaenge";
+import { PAKETE } from "@shared/fiaon-pakete";
 import "@/styles/office-firmen.css";
 
 async function api(pfad: string, init?: RequestInit) {
@@ -91,6 +94,10 @@ function FirmenInnen() {
   const [importText, setImportText] = useState("");
   const [laeuft, setLaeuft] = useState<string | null>(null);
   const [meldung, setMeldung] = useState<string | null>(null);
+  const [vorbereitung, setVorbereitung] = useState<any | null>(null);
+  const [abschlussAuf, setAbschlussAuf] = useState(false);
+  const [ab, setAb] = useState<Record<string, string>>({});
+  const [abErgebnis, setAbErgebnis] = useState<any | null>(null);
 
   const sag = (t: string) => { setMeldung(t); setTimeout(() => setMeldung(null), 6000); };
 
@@ -102,6 +109,8 @@ function FirmenInnen() {
 
   const oeffnen = async (f: any) => {
     setAktiv(f); setVerlauf(null); setNotiz("");
+    setVorbereitung(null); setAbschlussAuf(false); setAbErgebnis(null);
+    setAb({ email: f.email || "", telefon: f.telefon || "", ort: f.ort || "", paket: "business_starter" });
     const r = await api(`/agent/firmen/${f.id}`);
     if (r.ok) { setAktiv(r.json.firma); setVerlauf(r.json.verlauf || []); }
   };
@@ -130,6 +139,27 @@ function FirmenInnen() {
     setLaeuft(null);
     sag(r.ok ? "Info-Mail ist raus — mit deinem Namen als Ansprechpartner." : (r.json?.error || "Mail fehlgeschlagen."));
     if (r.ok) void oeffnen(aktiv);
+  };
+
+  const vorbereiten = async (erzwingen = false) => {
+    if (!aktiv) return;
+    setLaeuft("vorbereitung");
+    const r = await api(`/agent/firmen/${aktiv.id}/vorbereitung`, { method: "POST", body: JSON.stringify({ erzwingen }) });
+    setLaeuft(null);
+    if (r.ok) setVorbereitung(r.json.vorbereitung);
+    else sag(r.json?.error || "Vorbereitung gerade nicht möglich.");
+  };
+
+  const abschliessen = async () => {
+    if (!aktiv) return;
+    setLaeuft("abschluss");
+    const r = await api(`/agent/firmen/${aktiv.id}/abschluss`, { method: "POST", body: JSON.stringify(ab) });
+    setLaeuft(null);
+    if (r.ok) {
+      setAbErgebnis(r.json);
+      sag("Antrag angelegt — nenn dem Kunden jetzt den Zahlungsweg.");
+      void laden();
+    } else sag(r.json?.error || "Abschluss fehlgeschlagen.");
   };
 
   const linkKopieren = async () => {
@@ -264,12 +294,80 @@ function FirmenInnen() {
                 ))}
               </div>
 
+              {/* ── KI-Vorbereitung: ein Klick, alles wissen ── */}
+              {!vorbereitung && (
+                <button type="button" className="fk-knopf ki" disabled={laeuft === "vorbereitung"}
+                        onClick={() => void vorbereiten()}>
+                  {laeuft === "vorbereitung" ? "Liest die Website und denkt …" : "✦ KI-Vorbereitung — ein Klick, alles wissen"}
+                </button>
+              )}
+              {vorbereitung && (
+                <div className="fk-vorbereitung">
+                  <header>
+                    <b>Deine Vorbereitung</b>
+                    <small>{vorbereitung.mit_website ? "aus der Firmen-Website gelesen" : "geschätzt aus Branche und Ort — Website nicht erreichbar"}</small>
+                    <button type="button" onClick={() => void vorbereiten(true)} disabled={laeuft === "vorbereitung"}>neu</button>
+                  </header>
+                  <p className="fk-vb-lage">{vorbereitung.kurzlage}</p>
+                  <div className="fk-vb-einstieg"><b>Dein Einstieg:</b> {vorbereitung.einstieg}</div>
+                  <div className="fk-vb-spalten">
+                    <div><b>Schmerzpunkte</b><ul>{(vorbereitung.schmerzpunkte || []).map((x: string, i: number) => <li key={i}>{x}</li>)}</ul></div>
+                    <div><b>Kluge Fragen</b><ul>{(vorbereitung.fragen || []).map((x: string, i: number) => <li key={i}>{x}</li>)}</ul></div>
+                  </div>
+                  {vorbereitung.einwand_tipp && <p className="fk-vb-einwand"><b>Wahrscheinlichster Einwand:</b> {vorbereitung.einwand_tipp}</p>}
+                  {vorbereitung.paket && <p className="fk-vb-paket"><b>Paket-Empfehlung:</b> {vorbereitung.paket}</p>}
+                </div>
+              )}
+
               <div className="fk-aktionen">
                 <button type="button" className="fk-knopf" disabled={laeuft === "mail" || !aktiv.email}
                         title={aktiv.email ? "Info-Mail mit deinem Namen (max. 1× je 7 Tage)" : "Keine E-Mail hinterlegt"}
                         onClick={() => void infoMail()}>{laeuft === "mail" ? "Sende …" : "Info-Mail senden"}</button>
+                <button type="button" className="fk-knopf gut" onClick={() => { setAbschlussAuf(!abschlussAuf); setAbErgebnis(null); }}>
+                  {abschlussAuf ? "Abschluss zuklappen" : "Abschluss am Telefon"}
+                </button>
                 <button type="button" className="fk-knopf still" onClick={() => void linkKopieren()}>Antragslink kopieren</button>
               </div>
+
+              {/* ── Der Abschluss am Telefon: Antrag gemeinsam anlegen ── */}
+              {abschlussAuf && !abErgebnis && (
+                <div className="fk-abschluss">
+                  <p className="fk-leise">Ihr füllt das GEMEINSAM am Telefon aus — der Antrag läuft über denselben Weg wie das Formular auf fiaon.com/business. Zugang und Zahlungsdaten gehen an die E-Mail.</p>
+                  <div className="fk-ab-felder">
+                    <label>Paket
+                      <select value={ab.paket || "business_starter"} onChange={(e) => setAb({ ...ab, paket: e.target.value })}>
+                        {PAKETE.filter((x) => x.art === "business").map((x) => (
+                          <option key={x.key} value={x.key}>{x.label} — {(x.preisCents / 100).toFixed(2).replace(".", ",")} €/Monat</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>Vorname Ansprechpartner<input value={ab.vorname || ""} onChange={(e) => setAb({ ...ab, vorname: e.target.value })} /></label>
+                    <label>Nachname<input value={ab.nachname || ""} onChange={(e) => setAb({ ...ab, nachname: e.target.value })} /></label>
+                    <label>E-Mail (Pflicht)<input type="email" value={ab.email || ""} onChange={(e) => setAb({ ...ab, email: e.target.value })} /></label>
+                    <label>Telefon<input value={ab.telefon || ""} onChange={(e) => setAb({ ...ab, telefon: e.target.value })} /></label>
+                    <label>Rechtsform<input value={ab.rechtsform || ""} onChange={(e) => setAb({ ...ab, rechtsform: e.target.value })} placeholder="GmbH, e.K., UG …" /></label>
+                    <label>Straße & Nr.<input value={ab.strasse || ""} onChange={(e) => setAb({ ...ab, strasse: e.target.value })} /></label>
+                    <label>PLZ<input value={ab.plz || ""} onChange={(e) => setAb({ ...ab, plz: e.target.value })} /></label>
+                    <label>Ort<input value={ab.ort || ""} onChange={(e) => setAb({ ...ab, ort: e.target.value })} /></label>
+                  </div>
+                  <button type="button" className="fk-knopf" disabled={laeuft === "abschluss"}
+                          onClick={() => void abschliessen()}>
+                    {laeuft === "abschluss" ? "Lege den Antrag an …" : "Antrag jetzt anlegen"}
+                  </button>
+                </div>
+              )}
+              {abErgebnis && (
+                <div className="fk-abschluss fertig">
+                  <b>Antrag steht! 🎉</b>
+                  <p>Zahlungsreferenz: <code>{abErgebnis.zahlungsreferenz}</code>{abErgebnis.betrag ? ` · erste Rate ${String(abErgebnis.betrag).replace(".", ",")} €` : ""}</p>
+                  <p>Sag dem Kunden: „Sie bekommen gleich eine E-Mail mit allem — oder Sie zahlen direkt hier:"</p>
+                  {abErgebnis.zahlungslink && (
+                    <button type="button" className="fk-knopf" onClick={async () => {
+                      try { await navigator.clipboard.writeText(abErgebnis.zahlungslink); sag("Zahlungslink kopiert."); } catch { sag(abErgebnis.zahlungslink); }
+                    }}>Zahlungslink kopieren</button>
+                  )}
+                </div>
+              )}
 
               <div className="fk-verlauf">
                 <b>Verlauf</b>
@@ -288,6 +386,9 @@ function FirmenInnen() {
           )}
         </section>
       </div>
+
+      {/* Das Tutorial — erklärt den Raum beim ersten Besuch, danach über das ?-Symbol. */}
+      <Rundgang raum="firmen" titel={RUNDGAENGE.firmen.titel} schritte={RUNDGAENGE.firmen.schritte} />
     </div>
   );
 }

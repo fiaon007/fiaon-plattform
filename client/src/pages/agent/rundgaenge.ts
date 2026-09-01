@@ -563,7 +563,67 @@ export const RUNDGANG_ASSISTENT: RundgangSchritt[] = [
   },
 ];
 
+export const RUNDGANG_FIRMEN: RundgangSchritt[] = [
+  {
+    titel: "Hier holst du Unternehmen ins Haus.",
+    text: "Jede Firma braucht Liquidität — und Liquidität hängt an der Firmen-Bonität bei "
+      + "Creditreform, SCHUFA und KSV. Dein Auftrag: 50 Anrufe am Tag, aus Fremden werden "
+      + "Firmenkunden. Alles, was du dafür brauchst, liegt in diesem einen Raum.",
+    tipp: "Blocke dir feste Anrufzeiten. 50 Anrufe sind 3–4 Stunden konzentriertes Telefonieren — der Ring oben zeigt dir live, wo du stehst.",
+  },
+  {
+    ziel: ".fk-ring",
+    titel: "Der Ring ist dein Tag.",
+    text: "Er zählt jeden festgehaltenen Anruf aufs 50er-Ziel. Darunter stehen deine Treffer der "
+      + "Woche — Termine und Abschlüsse. Der Ring füllt sich nur, wenn du nach jedem Gespräch "
+      + "ein Ergebnis klickst. Kein Klick, kein Zähler, kein Nachweis.",
+    tipp: "",
+  },
+  {
+    ziel: ".fk-liste",
+    titel: "Die Liste sagt dir, wer dran ist.",
+    text: "„Jetzt dran\u201c zeigt zuerst fällige Wiedervorlagen (Menschen, denen du einen Anruf "
+      + "versprochen hast), dann Neues. Ein Klick öffnet rechts die Anruf-Karte. Nachschub holst "
+      + "du dir über „Liste einkleben\u201c — eine Excel-Kopie reicht, Doppelte sortiert das System aus.",
+    tipp: "Wiedervorlagen zuerst. Ein gehaltenes Versprechen verkauft besser als zehn Kaltanrufe.",
+  },
+  {
+    ziel: ".fk-karte",
+    titel: "Die Anruf-Karte: ein Blick, alles da.",
+    text: "Große Nummer zum Antippen, Website, Verlauf, Notizfeld. Und der wichtigste Knopf: "
+      + "„KI-Vorbereitung\u201c — ein Klick, und das System liest die Website der Firma und legt dir "
+      + "Gesprächseinstieg, Schmerzpunkte, kluge Fragen und eine Paket-Empfehlung hin. "
+      + "Dreißig Sekunden Vorbereitung, die dich klingen lassen wie einen, der die Firma kennt.",
+    tipp: "Erst Vorbereitung lesen, dann wählen. Der Einstiegssatz ist zum laut Vorlesen gebaut.",
+  },
+  {
+    ziel: ".fk-ergebnisse",
+    titel: "Nach JEDEM Gespräch: ein Klick.",
+    text: "Sieben Ausgänge, mehr gibt es nicht. Das System setzt Status und Wiedervorlage von "
+      + "selbst: Nicht erreicht kommt in zwei Tagen wieder, Mailbox morgen, Interesse morgen. "
+      + "Du musst dir nichts merken — du musst nur ehrlich klicken.",
+    tipp: "",
+  },
+  {
+    titel: "Interesse? Dann gibt es zwei Wege.",
+    text: "Weg 1: „Info-Mail senden\u201c — die Firma bekommt sofort eine persönliche Mail mit deinem "
+      + "Namen und dem Einstiegslink. Weg 2, der starke: „Abschluss am Telefon\u201c — ihr füllt den "
+      + "Antrag GEMEINSAM aus, du wählst das Paket, und am Ende hast du den Zahlungslink, den du "
+      + "ihm noch im Gespräch nennst. Aus einem Anruf wird ein Kunde, ohne dass er je ein Formular sieht.",
+    tipp: "Wer „schick mir was\u201c sagt, bekommt die Mail UND einen festen Rückruf-Termin. Wer zögert, unterschreibt selten von allein.",
+  },
+  {
+    titel: "Was du NIE versprichst.",
+    text: "Keine garantierten Löschungen, keine Kredite, keine Score-Zusagen — und keine "
+      + "Exklusiv-Verträge mit Auskunfteien. Unsere Karte ist die Seriosität: alles einsehbar, "
+      + "jedes Schreiben anwaltlich geprüft, jeder Schritt dokumentiert. Genau das unterscheidet "
+      + "uns von denen, vor denen Unternehmer gewarnt werden.",
+    tipp: "Der Leitfaden über der Liste hat für jeden Einwand eine Antwort — einmal am Tag durchlesen, bis er sitzt.",
+  },
+];
+
 export const RUNDGAENGE: Record<string, { titel: string; schritte: RundgangSchritt[] }> = {
+  firmen:      { titel: "Firmenkunden", schritte: RUNDGANG_FIRMEN },
   pipeline:    { titel: "Pipeline",     schritte: RUNDGANG_PIPELINE },
   vertrieb:    { titel: "Leitung",      schritte: RUNDGANG_VERTRIEB },
   bestand:     { titel: "Mein Bestand", schritte: RUNDGANG_BESTAND },

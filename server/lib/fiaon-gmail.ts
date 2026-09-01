@@ -207,6 +207,10 @@ export async function entwurfAnlegen(postfach: string, original: GmailNachricht,
   return String(j?.id || "");
 }
 
+export async function entwurfLoeschen(postfach: string, draftId: string): Promise<void> {
+  await api(postfach, `/drafts/${draftId}`, { method: "DELETE" });
+}
+
 /** Verbindungsprobe: Labels des Postfachs zählen — beweist Delegation + Scope. */
 export async function postfachProbe(postfach: string): Promise<{ ok: boolean; labels?: number; fehler?: string }> {
   try {

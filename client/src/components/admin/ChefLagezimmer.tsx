@@ -29,6 +29,8 @@
 // `prefers-reduced-motion`. Bewegung ist hier Tiefe, nicht Dekoration.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense } from "react";
+const Seitenverzeichnis = lazy(() => import("./ChefSeitenverzeichnis"));
 import {
   TrendingUp, TrendingDown, Users, Landmark, AlertTriangle, ArrowRight,
   Wallet, CalendarClock, Copy, PhoneOff, FileWarning, Sparkles,
@@ -377,10 +379,65 @@ export default function ChefLagezimmer({ name }: { name: string | null }) {
         </div>
       </section>
 
+      {/* ── Der Postmeister, klein (02.09.2026): die Kurzlage des E-Mail-
+          Agenten mit direktem Sprung in die Zentrale. ── */}
+      <PostmeisterKlein />
+
+      {/* ── Das Seitenverzeichnis (02.09.2026, Justin: „alle Seiten,
+          perfekt sortiert") ── */}
+      <Suspense fallback={null}><Seitenverzeichnis /></Suspense>
+
       <p className="cl-stand">
         Stand {new Date(l.stand).toLocaleString("de-DE", { dateStyle: "long", timeStyle: "short", timeZone: "Europe/Berlin" })} ·
         Alle Zahlen unmittelbar aus der Datenbank gezählt.
       </p>
     </div>
+  );
+}
+
+
+// ── Der Postmeister im Kleinformat ──────────────────────────────────────────
+function PostmeisterKlein() {
+  const [lage, setLage] = useState<any | null>(null);
+  useEffect(() => {
+    let an = true;
+    fetch(`${API}/admin/postmeister/lage`, { credentials: "include" })
+      .then((r) => r.json()).then((j) => { if (an && j?.ok) setLage(j); }).catch(() => {});
+    return () => { an = false; };
+  }, []);
+  const z = lage?.zahlen || {};
+  const anStatus = lage?.an !== false;
+  return (
+    <section className="cl-block pm-klein">
+      <a href="/chef/s/postmeister" className="pm-klein-innen">
+        <span className={`pm-klein-puls${anStatus ? "" : " rot"}`} aria-hidden="true" />
+        <span className="pm-klein-wer">
+          <b>Der Postmeister</b>
+          <small>{anStatus ? "liest, ordnet und beantwortet die Postfächer" : "ANGEHALTEN — Not-Aus aktiv"}</small>
+        </span>
+        <span className="pm-klein-zahl"><b>{z.heute ?? 0}</b><em>Mails · 24 h</em></span>
+        <span className="pm-klein-zahl"><b>{(Number(z.heute_auto) || 0) + (Number(z.von_hand) || 0)}</b><em>beantwortet</em></span>
+        <span className={`pm-klein-zahl${Number(z.entwuerfe) > 0 ? " warte" : ""}`}><b>{z.entwuerfe ?? 0}</b><em>warten auf dich</em></span>
+        <span className="pm-klein-pfeil" aria-hidden="true">→</span>
+      </a>
+      <style>{`
+        .pm-klein-innen { display: flex; align-items: center; gap: 18px; padding: 4px 2px;
+          text-decoration: none; color: inherit; flex-wrap: wrap; }
+        .pm-klein-puls { width: 10px; height: 10px; border-radius: 6px; background: #34d399;
+          box-shadow: 0 0 14px rgba(52,211,153,.9); animation: pmKleinPuls 2.2s ease-in-out infinite; }
+        .pm-klein-puls.rot { background: #f87171; box-shadow: 0 0 14px rgba(248,113,113,.9); }
+        @keyframes pmKleinPuls { 0%,100% { transform: scale(1) } 50% { transform: scale(1.5); opacity: .6 } }
+        .pm-klein-wer { flex: 1; min-width: 220px; }
+        .pm-klein-wer b { display: block; font: 600 15px/1.2 'Inter', sans-serif; }
+        .pm-klein-wer small { font: 400 12px/1.3 'Inter', sans-serif; opacity: .6; }
+        .pm-klein-zahl { text-align: right; }
+        .pm-klein-zahl b { display: block; font: 650 20px/1 'Inter', sans-serif; font-variant-numeric: tabular-nums; }
+        .pm-klein-zahl em { font: 400 10.5px/1.3 'Inter', sans-serif; font-style: normal; opacity: .55; }
+        .pm-klein-zahl.warte b { color: #fcd34d; }
+        .pm-klein-pfeil { font-size: 20px; opacity: .5; transition: transform .2s ease, opacity .2s ease; }
+        .pm-klein-innen:hover .pm-klein-pfeil { transform: translateX(4px); opacity: 1; }
+        @media (prefers-reduced-motion: reduce) { .pm-klein-puls { animation: none } .pm-klein-pfeil { transition: none } }
+      `}</style>
+    </section>
   );
 }

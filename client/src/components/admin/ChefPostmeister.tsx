@@ -1,18 +1,20 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// DIE POSTMEISTER-ZENTRALE — Justins Kommandoraum (01.09.2026)
+// DIE POSTMEISTER-ZENTRALE, FASSUNG 2 — Justins Kommandoraum (02.09.2026)
 //
-// Justins Auftrag wörtlich: „setze es mir wirklich im Cinematischen um …
-// das soll nur meine Zentrale sein!" — Referenz war eine lebende
-// Partikel-Entität auf dunkler Bühne (blauer Schwarm vor Navy).
+// Fassung 1 war Justin zu brav („das ist ja ein Witz — ich sagte cinematisch,
+// erinnere dich an das Video"). Fassung 2 ändert zwei Dinge grundlegend:
 //
-// Die Bühne: Ein Canvas mit ~2.400 Partikeln, die eine atmende, wirbelnde
-// Gestalt formen — die Verkörperung des Agenten. Sie reagiert auf die Lage:
-// ruhiges Atmen im Leerlauf, schnelleres Kreisen, wenn in den letzten
-// 24 Stunden gearbeitet wurde. Darunter Navy-Glas-Tafeln mit den Zahlen,
-// den Eingriffs-Schaltern (Not-Aus, Modus je Postfach) und dem Strom der
-// letzten Handgriffe — jede Antwort aufklappbar im Wortlaut.
+// 1. DIE ENTITÄT: Das Geheimnis der Referenz sind LEUCHTSPUREN — die Bühne
+//    wird nie ganz gelöscht, jedes Bild legt sich mit 12 % Deckung über das
+//    vorige. Aus Punkten werden Fäden, aus Fäden ein atmender Wirbel um eine
+//    S-förmige Wirbelsäule, mit Funken, Kern-Puls und Maus-Parallaxe.
 //
-// prefers-reduced-motion: die Entität steht als stilles Standbild.
+// 2. VOLLE HANDLUNGSFÄHIGKEIT: Die Entwurfs-Werkbank zeigt jeden wartenden
+//    Antwortentwurf im Wortlaut — ÄNDERN, SENDEN, VERWERFEN, und der eine
+//    große Knopf „Alle senden" (mit zweitem Klick als Rückfrage). Dazu
+//    Not-Aus, Modus je Postfach, Takt von Hand, Strom aller Handgriffe.
+//
+// prefers-reduced-motion: Entität als stilles Bild, keine Übergänge.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useRef, useState } from "react";
 import "@/styles/chef-postmeister.css";
@@ -34,143 +36,183 @@ const KATEGORIE_TEXT: Record<string, string> = {
   rechtlich: "Rechtliches", werbung_newsletter: "Werbung", intern: "Intern", sonstiges: "Sonstiges",
 };
 const AKTION_TEXT: Record<string, [string, string]> = {
-  auto_beantwortet: ["beantwortet", "gut"],
+  auto_beantwortet: ["automatisch beantwortet", "gut"],
+  gesendet: ["von dir freigegeben", "gut"],
   entwurf: ["Entwurf wartet", "warte"],
   geordnet: ["geordnet", "still"],
+  verworfen: ["verworfen", "still"],
   fehler: ["Fehler", "rot"],
 };
 
-// ── Die Entität — Partikelschwarm auf Canvas ────────────────────────────────
+// ═══ DIE ENTITÄT ════════════════════════════════════════════════════════════
 function Entitaet({ puls }: { puls: number }) {
   const ref = useRef<HTMLCanvasElement | null>(null);
   const pulsRef = useRef(puls);
   pulsRef.current = puls;
 
   useEffect(() => {
-    const canvas = ref.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    const canvas = ref.current; if (!canvas) return;
+    const ctx = canvas.getContext("2d"); if (!ctx) return;
     const ruhig = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    let breit = 0; let hoch = 0; let dpr = 1;
+    let breit = 0, hoch = 0, dpr = 1, raf = 0;
     const messen = () => {
       dpr = Math.min(2, window.devicePixelRatio || 1);
       breit = canvas.clientWidth; hoch = canvas.clientHeight;
       canvas.width = breit * dpr; canvas.height = hoch * dpr;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.fillStyle = "#05091a"; ctx.fillRect(0, 0, breit, hoch);
     };
     messen();
+    window.addEventListener("resize", messen);
 
-    // Jede Partikel lebt auf einer Bahn um eine geschwungene Wirbelsäule —
-    // zusammen ergibt das die stehende, atmende Gestalt aus der Referenz.
-    const N = 2400;
-    const P = Array.from({ length: N }, (_, i) => ({
-      u: i / N,                                  // Position entlang der Gestalt (0 unten, 1 oben)
-      winkel: Math.random() * Math.PI * 2,
-      tempo: 0.2 + Math.random() * 0.9,
-      radiusJitter: 0.55 + Math.random() * 0.75,
-      groesse: 0.5 + Math.random() * 1.5,
-      hell: 0.25 + Math.random() * 0.75,
-    }));
+    // 3200 Teilchen auf Bahnen um die Wirbelsäule; ein kleiner Teil sind
+    // „Funken" — heller, schneller, mit eigenem Ausreißer-Radius.
+    const N = 3200;
+    const P = Array.from({ length: N }, (_, i) => {
+      const funke = Math.random() > 0.965;
+      return {
+        u: (i / N + Math.random() * 0.002) % 1,
+        winkel: Math.random() * Math.PI * 2,
+        tempo: (funke ? 1.6 : 0.35) + Math.random() * (funke ? 1.4 : 0.85),
+        bahn: 0.55 + Math.random() * (funke ? 1.4 : 0.5),
+        groesse: funke ? 1.6 + Math.random() * 1.4 : 0.5 + Math.random() * 1.1,
+        hell: funke ? 1 : 0.3 + Math.random() * 0.6,
+        funke,
+      };
+    });
 
-    let t = ruhig ? 12.4 : 0;
-    let raf = 0;
-    let mausX = 0.5;
+    let t = ruhig ? 24.7 : 0;
+    let mausX = 0.5, mausY = 0.5;
     const maus = (e: MouseEvent) => {
       const r = canvas.getBoundingClientRect();
       mausX = (e.clientX - r.left) / Math.max(1, r.width);
+      mausY = (e.clientY - r.top) / Math.max(1, r.height);
     };
     window.addEventListener("mousemove", maus);
-    const beiGroesse = () => messen();
-    window.addEventListener("resize", beiGroesse);
 
-    const malen = () => {
-      const kraft = 1 + Math.min(1.6, pulsRef.current * 0.12); // mehr Arbeit → lebendiger
-      t += 0.006 * kraft;
-      ctx.clearRect(0, 0, breit, hoch);
+    const bild = () => {
+      const kraft = 1 + Math.min(1.4, pulsRef.current * 0.08);
+      t += 0.0075 * kraft;
 
-      // Auf breiter Bühne steht die Gestalt RECHTS neben dem Text — wie ein
-      // Hologramm neben dem Pult; auf schmaler Bühne mittig unter dem Text.
-      const cx = breit * (breit > 700 ? 0.68 : 0.5) + (mausX - 0.5) * 18;
-      const atmung = 1 + Math.sin(t * 1.7) * 0.045;
-
-      // Bodenlicht — der Schein unter der Gestalt.
-      const glow = ctx.createRadialGradient(cx, hoch * 0.86, 4, cx, hoch * 0.86, breit * 0.32);
-      glow.addColorStop(0, "rgba(40,141,250,0.28)");
-      glow.addColorStop(1, "rgba(40,141,250,0)");
-      ctx.fillStyle = glow;
+      // DAS GEHEIMNIS: nicht löschen, sondern mit dünner Nacht übermalen —
+      // so entstehen die Leuchtspuren der Referenz.
+      ctx.globalCompositeOperation = "source-over";
+      ctx.fillStyle = "rgba(5,9,26,0.10)";
       ctx.fillRect(0, 0, breit, hoch);
 
+      const cx = breit * (breit > 700 ? 0.68 : 0.5) + (mausX - 0.5) * 26;
+      const cyOff = (mausY - 0.5) * 14;
+      const atmung = 1 + Math.sin(t * 1.5) * 0.05;
+
+      // Kernlicht am Fußpunkt — wie die leuchtende Quelle im Video.
       ctx.globalCompositeOperation = "lighter";
+      const kern = ctx.createRadialGradient(cx, hoch * 0.84 + cyOff, 2, cx, hoch * 0.84 + cyOff, 90 * atmung);
+      kern.addColorStop(0, "rgba(150,200,255,0.20)");
+      kern.addColorStop(0.4, "rgba(40,141,250,0.08)");
+      kern.addColorStop(1, "rgba(40,141,250,0)");
+      ctx.fillStyle = kern; ctx.fillRect(cx - 240, hoch * 0.62, 480, hoch * 0.4);
+
       for (const p of P) {
         const u = p.u;
-        // Wirbelsäule: eine sanfte S-Kurve, oben schmaler Kopf, Mitte breite
-        // Schulter, unten auslaufender Sockel — die Silhouette der Referenz.
-        const y = hoch * (0.92 - u * 0.8);
-        const schwung = Math.sin(u * 5.2 + t * 0.9) * breit * 0.045 * (1 - u * 0.4);
+        // Wirbelsäule: unten Sockel, Mitte Schulter, oben schmaler Kopf —
+        // dazu zwei überlagerte Schwünge, die die Gestalt langsam wiegen.
+        const y = hoch * (0.9 - u * 0.78) + cyOff * (1 - u);
+        const schwung = Math.sin(u * 4.6 + t * 0.8) * breit * 0.05 * (1 - u * 0.35)
+          + Math.sin(u * 9.5 - t * 0.5) * breit * 0.016;
         const silhouette =
-          (0.16 + Math.sin(u * Math.PI) * 0.30 + Math.sin(u * Math.PI * 2.3 + 0.7) * 0.075)
-          * (u > 0.92 ? (1 - (u - 0.92) * 8) : 1);
-        const radius = Math.max(4, breit * silhouette * 0.5 * p.radiusJitter * atmung);
-        const w = p.winkel + t * p.tempo * (0.7 + u);
+          (0.13 + Math.sin(u * Math.PI) * 0.27 + Math.sin(u * Math.PI * 2.2 + 0.6) * 0.07)
+          * (u > 0.9 ? Math.max(0.12, 1 - (u - 0.9) * 7) : 1);
+        const radius = Math.max(3, breit * silhouette * 0.38 * p.bahn * atmung);
+        const w = p.winkel + t * p.tempo * (0.65 + u * 1.1);
         const x = cx + schwung + Math.cos(w) * radius;
-        const tiefe = (Math.sin(w) + 1) / 2; // vorn heller, hinten leiser
-        const yy = y + Math.sin(w) * radius * 0.14;
-        const alpha = (0.06 + tiefe * 0.30) * p.hell;
-        // Farbwelt: tiefes Blau → Eisblau, vereinzelt fast weiße Funken.
-        const kalt = p.hell > 0.88 ? "235,244,255" : tiefe > 0.6 ? "126,180,255" : "52,110,220";
-        ctx.fillStyle = `rgba(${kalt},${alpha.toFixed(3)})`;
-        const g = p.groesse * (0.7 + tiefe * 0.8);
+        const tiefe = (Math.sin(w) + 1) / 2;
+        const yy = y + Math.sin(w) * radius * 0.16;
+        const alpha = (p.funke ? 0.35 + tiefe * 0.6 : 0.05 + tiefe * 0.26) * p.hell;
+        const farbe = p.funke ? "220,238,255" : tiefe > 0.62 ? "126,180,255" : "44,104,214";
+        ctx.fillStyle = `rgba(${farbe},${alpha.toFixed(3)})`;
+        const g = p.groesse * (0.7 + tiefe * 0.9);
         ctx.fillRect(x, yy, g, g);
       }
-      ctx.globalCompositeOperation = "source-over";
 
-      if (!ruhig) raf = requestAnimationFrame(malen);
+      if (!ruhig) raf = requestAnimationFrame(bild);
     };
-    malen();
+    if (ruhig) { for (let i = 0; i < 90; i++) bild(); } else { bild(); }
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener("mousemove", maus);
-      window.removeEventListener("resize", beiGroesse);
+      window.removeEventListener("resize", messen);
     };
   }, []);
 
   return <canvas ref={ref} className="pm-entitaet" aria-hidden="true" />;
 }
 
-// ── Die Zentrale ────────────────────────────────────────────────────────────
+// ═══ DIE ZENTRALE ═══════════════════════════════════════════════════════════
 export default function ChefPostmeister() {
   const [lage, setLage] = useState<any | null>(null);
   const [status, setStatus] = useState<any | null>(null);
-  const [offen, setOffen] = useState<number | null>(null);
+  const [entwuerfe, setEntwuerfe] = useState<any[]>([]);
+  const [offenEntwurf, setOffenEntwurf] = useState<number | null>(null);
+  const [entwurfText, setEntwurfText] = useState("");
+  const [offenStrom, setOffenStrom] = useState<number | null>(null);
   const [laeuft, setLaeuft] = useState<string | null>(null);
+  const [alleFrage, setAlleFrage] = useState(false);
   const [meldung, setMeldung] = useState<string | null>(null);
 
-  const laden = useCallback(async () => {
-    const [l, s] = await Promise.all([api("/admin/postmeister/lage"), api("/admin/postmeister/status")]);
-    if (l.ok) setLage(l.json);
-    if (s.ok) setStatus(s.json);
+  const laden = useCallback((leise = false) => {
+    // Bewusst OHNE Promise.all: Die Verbindungs-Sonden fragen vier Postfächer
+    // bei Google an und brauchen Sekunden — Zahlen und Entwürfe sollen sofort
+    // stehen, sonst zeigt die Bühne beim Betreten Nullen.
+    void api("/admin/postmeister/lage").then((l) => { if (l.ok) setLage(l.json); });
+    void api("/admin/postmeister/entwuerfe").then((e) => { if (e.ok) setEntwuerfe(e.json.entwuerfe || []); });
+    if (!leise) void api("/admin/postmeister/status").then((s) => { if (s.ok) setStatus(s.json); });
   }, []);
   useEffect(() => {
     void laden();
-    const takt = setInterval(() => void laden(), 30_000);
+    const takt = setInterval(() => void laden(true), 25_000);
     return () => clearInterval(takt);
   }, [laden]);
+
+  const sag = (text: string) => { setMeldung(text); setTimeout(() => setMeldung(null), 6000); };
 
   const schalten = async (schluessel: string, wert: string) => {
     setLaeuft(schluessel);
     const r = await api("/admin/postmeister/einstellung", { method: "POST", body: JSON.stringify({ schluessel, wert }) });
     setLaeuft(null);
-    setMeldung(r.ok ? `Gesetzt: ${schluessel} → ${wert}` : (r.json?.error || "Konnte nicht schalten."));
-    void laden();
+    sag(r.ok ? `Geschaltet: ${schluessel.replace("postmeister_", "").replace("modus_", "")} → ${wert}` : (r.json?.error || "Konnte nicht schalten."));
+    void laden(true);
   };
-  const lauf = async (nurOrdnen: boolean) => {
-    setLaeuft("lauf");
+  const takt = async (nurOrdnen: boolean) => {
+    setLaeuft("takt");
     const r = await api("/admin/postmeister/lauf", { method: "POST", body: JSON.stringify({ nurOrdnen }) });
     setLaeuft(null);
-    setMeldung(r.ok ? `Lauf fertig: ${r.json.verarbeitet} Mails — ${Object.entries(r.json.aktionen || {}).map(([k, v]) => `${k} ${v}`).join(", ") || "nichts Neues"}` : (r.json?.error || "Lauf fehlgeschlagen."));
-    void laden();
+    sag(r.ok ? `Takt fertig — ${r.json.verarbeitet} Mails (${Object.entries(r.json.aktionen || {}).map(([k, v]) => `${AKTION_TEXT[k]?.[0] || k}: ${v}`).join(" · ") || "nichts Neues"})` : (r.json?.error || "Takt fehlgeschlagen."));
+    void laden(true);
+  };
+  const entwurfSenden = async (id: number) => {
+    setLaeuft(`senden-${id}`);
+    const r = await api(`/admin/postmeister/entwurf/${id}/senden`, { method: "POST", body: JSON.stringify({ text: entwurfText }) });
+    setLaeuft(null);
+    if (r.ok) { setOffenEntwurf(null); sag("Gesendet — der Kunde hat die Antwort im Postfach."); }
+    else sag(r.json?.error || "Senden fehlgeschlagen.");
+    void laden(true);
+  };
+  const entwurfWeg = async (id: number) => {
+    setLaeuft(`weg-${id}`);
+    const r = await api(`/admin/postmeister/entwurf/${id}/verwerfen`, { method: "POST", body: "{}" });
+    setLaeuft(null);
+    if (r.ok) { setOffenEntwurf(null); sag("Verworfen — auch der Gmail-Entwurf ist weg."); }
+    else sag(r.json?.error || "Verwerfen fehlgeschlagen.");
+    void laden(true);
+  };
+  const alleSenden = async () => {
+    if (!alleFrage) { setAlleFrage(true); setTimeout(() => setAlleFrage(false), 5000); return; }
+    setAlleFrage(false); setLaeuft("alle");
+    const r = await api("/admin/postmeister/entwuerfe/alle-senden", { method: "POST", body: "{}" });
+    setLaeuft(null);
+    sag(r.ok ? `${r.json.gesendet} Antworten gesendet${r.json.fehler ? `, ${r.json.fehler} Fehler` : ""}.` : (r.json?.error || "Fehlgeschlagen."));
+    void laden(true);
   };
 
   const z = lage?.zahlen || {};
@@ -178,29 +220,76 @@ export default function ChefPostmeister() {
 
   return (
     <div className="pm">
-      {/* ── Die Bühne mit der Entität ── */}
+      {/* ═══ DIE BÜHNE ═══ */}
       <section className="pm-buehne">
         <Entitaet puls={Number(z.heute || 0)} />
+        <div className="pm-buehne-schleier" aria-hidden="true" />
         <div className="pm-buehne-text">
-          <span className="pm-pille">{an ? "wacht über vier Postfächer" : "angehalten"}</span>
+          <span className={`pm-pille${an ? "" : " rot"}`}>
+            <i className="pm-puls" />{an ? "wacht über die Postfächer" : "angehalten — Not-Aus aktiv"}
+          </span>
           <h1>Der Postmeister.</h1>
-          <p>
-            Er liest jede Mail, kennt vorher die komplette Akte des Absenders —
-            und antwortet wie ein Mensch. Alles, was er tut, steht hier.
-          </p>
+          <p>Er liest jede Mail, kennt vorher die komplette Akte des Absenders, antwortet wie ein Mensch — und plant Rückrufe und Aufgaben gleich mit. Alles, was er tut, steht hier. Alles, was wartet, entscheidest du.</p>
           <div className="pm-buehne-zahlen">
-            <div><b>{z.heute ?? "–"}</b><span>Mails · 24 h</span></div>
-            <div><b>{z.heute_auto ?? "–"}</b><span>davon beantwortet</span></div>
-            <div><b>{z.entwuerfe ?? "–"}</b><span>Entwürfe warten</span></div>
-            <div><b>{z.mit_akte ?? "–"}</b><span>mit Kundenakte</span></div>
+            <div className="pm-zahl"><b>{z.heute ?? "0"}</b><span>Mails · 24 h</span></div>
+            <div className="pm-zahl"><b>{(Number(z.heute_auto) || 0) + (Number(z.von_hand) || 0)}</b><span>beantwortet</span></div>
+            <div className="pm-zahl warte"><b>{entwuerfe.length}</b><span>warten auf dich</span></div>
+            <div className="pm-zahl"><b>{z.mit_akte ?? "0"}</b><span>mit Kundenakte</span></div>
           </div>
         </div>
       </section>
 
       {meldung && <p className="pm-meldung" onClick={() => setMeldung(null)}>{meldung}</p>}
 
+      {/* ═══ DIE ENTWURFS-WERKBANK — hier entscheidest du ═══ */}
+      <section className="pm-tafel breit werkbank">
+        <header>
+          <b>Wartet auf dein Wort <em>{entwuerfe.length}</em></b>
+          {entwuerfe.length > 0 && (
+            <button type="button" className={`pm-knopf${alleFrage ? " frage" : ""}`} disabled={laeuft === "alle"}
+                    onClick={() => void alleSenden()}>
+              {laeuft === "alle" ? "Sende …" : alleFrage ? `Wirklich alle ${entwuerfe.length} senden?` : `Alle ${entwuerfe.length} mit einem Klick senden`}
+            </button>
+          )}
+        </header>
+        {entwuerfe.length === 0 && <p className="pm-leise" style={{ padding: "4px 2px 8px" }}>Kein Entwurf wartet — der Postmeister hat freie Bahn oder gerade nichts Heikles auf dem Tisch.</p>}
+        <ul className="pm-entwuerfe">
+          {entwuerfe.map((e) => (
+            <li key={e.id} className={offenEntwurf === e.id ? "auf" : ""}>
+              <button type="button" className="pm-entwurf-kopf"
+                      onClick={() => { setOffenEntwurf(offenEntwurf === e.id ? null : e.id); setEntwurfText(String(e.antwort || "")); }}>
+                {e.dringend && <span className="pm-marke rot">dringend</span>}
+                <span className="pm-marke warte">{KATEGORIE_TEXT[e.kategorie] || e.kategorie}</span>
+                <span className="pm-entwurf-wer">
+                  <b>{e.betreff || "(ohne Betreff)"}</b>
+                  <small>{e.von} → {e.postfach}{e.ref ? " · Akte verknüpft" : ""}</small>
+                </span>
+                <time>{new Date(e.created_at).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</time>
+              </button>
+              {offenEntwurf === e.id && (
+                <div className="pm-werk">
+                  <textarea value={entwurfText} onChange={(ev) => setEntwurfText(ev.target.value)}
+                            rows={Math.min(16, Math.max(6, entwurfText.split("\n").length + 1))} spellCheck={false} />
+                  <div className="pm-werk-knoepfe">
+                    <button type="button" className="pm-knopf" disabled={laeuft === `senden-${e.id}`}
+                            onClick={() => void entwurfSenden(e.id)}>
+                      {laeuft === `senden-${e.id}` ? "Sende …" : "So senden"}
+                    </button>
+                    <button type="button" className="pm-knopf still" disabled={laeuft === `weg-${e.id}`}
+                            onClick={() => void entwurfWeg(e.id)}>
+                      {laeuft === `weg-${e.id}` ? "…" : "Verwerfen"}
+                    </button>
+                    <span className="pm-leise">Dein Text gewinnt — was hier steht, geht raus. Grußformel ist schon drin.</span>
+                  </div>
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      </section>
+
       <div className="pm-raster">
-        {/* ── Eingreifen: Not-Aus + Modus je Postfach ── */}
+        {/* ═══ EINGREIFEN ═══ */}
         <section className="pm-tafel">
           <header>
             <b>Eingreifen</b>
@@ -218,8 +307,7 @@ export default function ChefPostmeister() {
                   <span className="pm-schalter-wer"><b>{p.adresse}</b><small>Vorgabe: {p.vorgabe}</small></span>
                   <span className="pm-schalter-wahl">
                     {["auto", "hybrid", "entwurf", "aus"].map((m) => (
-                      <button key={m} type="button"
-                              className={p.modus === m ? "an" : ""}
+                      <button key={m} type="button" className={p.modus === m ? "an" : ""}
                               disabled={laeuft === `postmeister_modus_${kurz}`}
                               onClick={() => void schalten(`postmeister_modus_${kurz}`, m)}>
                         {m === "auto" ? "Automatisch" : m === "hybrid" ? "Hybrid" : m === "entwurf" ? "Nur Entwürfe" : "Aus"}
@@ -231,14 +319,14 @@ export default function ChefPostmeister() {
             })}
           </div>
           <footer className="pm-tafel-fuss">
-            <button type="button" className="pm-knopf" disabled={laeuft === "lauf" || !an}
-                    onClick={() => void lauf(false)}>{laeuft === "lauf" ? "Läuft …" : "Jetzt einen Takt laufen lassen"}</button>
-            <button type="button" className="pm-knopf still" disabled={laeuft === "lauf"}
-                    onClick={() => void lauf(true)}>Nur ordnen (ohne Antworten)</button>
+            <button type="button" className="pm-knopf" disabled={laeuft === "takt" || !an}
+                    onClick={() => void takt(false)}>{laeuft === "takt" ? "Läuft …" : "Jetzt einen Takt laufen lassen"}</button>
+            <button type="button" className="pm-knopf still" disabled={laeuft === "takt"}
+                    onClick={() => void takt(true)}>Nur ordnen (ohne Antworten)</button>
           </footer>
         </section>
 
-        {/* ── Verbindung & Kategorien ── */}
+        {/* ═══ VERBINDUNG & THEMEN ═══ */}
         <section className="pm-tafel">
           <header><b>Verbindung & Themen</b></header>
           <ul className="pm-postfaecher">
@@ -252,24 +340,22 @@ export default function ChefPostmeister() {
           </ul>
           <div className="pm-kategorien">
             {(lage?.kategorien || []).map((k: any) => (
-              <span key={k.kategorie} className="pm-chip">
-                {KATEGORIE_TEXT[k.kategorie] || k.kategorie} <b>{k.n}</b>
-              </span>
+              <span key={k.kategorie} className="pm-chip">{KATEGORIE_TEXT[k.kategorie] || k.kategorie} <b>{k.n}</b></span>
             ))}
             {!(lage?.kategorien || []).length && <span className="pm-leise">Noch keine eingeordnete Mail.</span>}
           </div>
         </section>
       </div>
 
-      {/* ── Der Strom: jede Bewegung, jede Antwort im Wortlaut ── */}
+      {/* ═══ DER STROM ═══ */}
       <section className="pm-tafel breit">
-        <header><b>Die letzten Handgriffe</b><small>{z.gesamt ?? 0} Mails insgesamt verarbeitet</small></header>
+        <header><b>Die letzten Handgriffe</b><small>{z.gesamt ?? 0} Mails insgesamt · {z.auto ?? 0} automatisch beantwortet</small></header>
         <ul className="pm-strom">
           {(lage?.strom || []).map((m: any) => {
             const [text, ton] = AKTION_TEXT[m.aktion] || [m.aktion, "still"];
             return (
-              <li key={m.id} className={offen === m.id ? "auf" : ""}>
-                <button type="button" className="pm-strom-kopf" onClick={() => setOffen(offen === m.id ? null : m.id)}>
+              <li key={m.id} className={offenStrom === m.id ? "auf" : ""}>
+                <button type="button" className="pm-strom-kopf" onClick={() => setOffenStrom(offenStrom === m.id ? null : m.id)}>
                   <span className={`pm-marke ${ton}`}>{text}</span>
                   <span className="pm-strom-wer">
                     <b>{m.betreff || "(ohne Betreff)"}</b>
@@ -277,7 +363,7 @@ export default function ChefPostmeister() {
                   </span>
                   <time>{new Date(m.created_at).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</time>
                 </button>
-                {offen === m.id && (
+                {offenStrom === m.id && (
                   <div className="pm-strom-detail">
                     {m.antwort ? <pre>{m.antwort}</pre> : <p className="pm-leise">{m.begruendung || "Keine Antwort erzeugt — nur geordnet."}</p>}
                   </div>

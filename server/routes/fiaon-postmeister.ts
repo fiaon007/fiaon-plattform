@@ -37,9 +37,10 @@ import { sqlPool } from "../lib/db-pool";
 import { tageslauf } from "../lib/fiaon-crons";
 import {
   gmailBereit, postfachProbe, nachrichtenSuchen, nachrichtLesen,
-  labelSicherstellen, nachrichtLabeln, antwortSenden, entwurfAnlegen,
+  labelSicherstellen, nachrichtLabeln, antwortSenden, entwurfAnlegen, entwurfLoeschen,
   type GmailNachricht,
 } from "../lib/fiaon-gmail";
+import { rueckrufAufnehmen } from "../lib/fiaon-rueckruf";
 import { wissenText } from "@shared/fiaon-wissen";
 import { getSettings, setSetting } from "./fiaon-agent";
 
@@ -88,6 +89,8 @@ function ensureTabelle(): Promise<void> {
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )`;
+      await sqlPool`ALTER TABLE fiaon_postmeister ADD COLUMN IF NOT EXISTS antwort_draft_id TEXT`;
+      await sqlPool`ALTER TABLE fiaon_postmeister ADD COLUMN IF NOT EXISTS gesendet_am TIMESTAMPTZ`;
       await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_postmeister_lauf_idx ON fiaon_postmeister (postfach, created_at DESC)`;
       await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_postmeister_thread_idx ON fiaon_postmeister (thread_id, created_at DESC)`;
     })().catch((e) => { tabelleBereit = null; throw e; });
@@ -198,9 +201,9 @@ async function kundeZurAdresse(adresse: string): Promise<any | null> {
 
 // ── Die KI-Einordnung samt Antwortvorschlag ─────────────────────────────────
 async function einordnen(postfach: string, mail: GmailNachricht, kunde: any | null, altTage: number):
-  Promise<{ kategorie: string; dringend: boolean; sprache: string; antwort: string | null; sicher: boolean; begruendung: string }> {
+  Promise<{ kategorie: string; dringend: boolean; sprache: string; antwort: string | null; sicher: boolean; rueckrufWunsch: boolean; rueckrufAnliegen: string | null; begruendung: string }> {
   const key = process.env.OPENAI_API_KEY;
-  const fallback = { kategorie: "sonstiges", dringend: false, sprache: "de", antwort: null, sicher: false, begruendung: "KI nicht erreichbar" };
+  const fallback = { kategorie: "sonstiges", dringend: false, sprache: "de", antwort: null, sicher: false, rueckrufWunsch: false, rueckrufAnliegen: null, begruendung: "KI nicht erreichbar" };
   if (!key) return fallback;
   const modell = process.env.FIAON_ANALYSE_MODELL || "gpt-4.1-mini";
   const kopfzeile = kunde ? [
@@ -230,7 +233,8 @@ REGELN FÜR DIE ANTWORT (Feld "antwort"):
 - Wenn du die Frage NICHT sicher und vollständig beantworten kannst: "antwort" = null und "sicher" = false.
 
 Antworte NUR als JSON:
-{"kategorie":"…","dringend":true|false,"sprache":"de|en|…","antwort":"…"|null,"sicher":true|false,"begruendung":"ein Satz, warum diese Einordnung"}
+{"kategorie":"…","dringend":true|false,"sprache":"de|en|…","antwort":"…"|null,"sicher":true|false,"rueckruf_wunsch":true|false,"rueckruf_anliegen":"das Anliegen in den Worten des Kunden"|null,"begruendung":"ein Satz, warum diese Einordnung"}
+"rueckruf_wunsch" ist true, wenn der Kunde um einen ANRUF bittet, telefonisch besprochen werden will oder sein Anliegen am Telefon besser aufgehoben ist.
 
 WISSEN ÜBER FIAON:
 ${wissenText().slice(0, 5000)}
@@ -260,6 +264,8 @@ ${akte}`;
       sprache: String(b?.sprache || "de").slice(0, 8),
       antwort: typeof b?.antwort === "string" && b.antwort.trim().length > 20 ? String(b.antwort).slice(0, 4000) : null,
       sicher: b?.sicher === true,
+      rueckrufWunsch: b?.rueckruf_wunsch === true,
+      rueckrufAnliegen: typeof b?.rueckruf_anliegen === "string" ? String(b.rueckruf_anliegen).slice(0, 500) : null,
       begruendung: String(b?.begruendung || "").slice(0, 300),
     };
   } catch (e) {
@@ -343,6 +349,23 @@ async function mailVerarbeiten(postfachDef: typeof POSTFAECHER[number], gmailId:
     // Kategorie-Label immer.
     await nachrichtLabeln(postfach, gmailId, [await labelSicherstellen(postfach, `FIAON/${urteil.kategorie}`)]);
 
+    // ── DER AKTIVE AGENT (Justin, 01.09.): Bittet der Kunde um einen Anruf,
+    // plant der Postmeister den Rückruf gleich beim BETREUER ein — über den
+    // bestehenden Rückruf-Weg (24-h-Frist, idempotent je Mail). ──
+    if (urteil.rueckrufWunsch && kunde?.person_id && !opts.nurOrdnen) {
+      try {
+        const r = await rueckrufAufnehmen({
+          personId: Number(kunde.person_id), ref: kunde.ref ?? null,
+          quelle: "mail_inbound", quelleId: `postmeister-${gmailId}`,
+          anliegen: urteil.rueckrufAnliegen || `E-Mail an ${postfach}: „${mail.betreff.slice(0, 140)}“`,
+          kontakt: mail.vonAdresse,
+        });
+        if (r.neu) console.log(`[POSTMEISTER] Rückruf eingeplant (Person ${kunde.person_id}, zuständig ${r.zustaendig ?? "Leitung"})`);
+      } catch (e) {
+        console.error("[POSTMEISTER] Rückruf:", String(e).slice(0, 160));
+      }
+    }
+
     // Höchstens eine Auto-Antwort je Unterhaltung in 24 h.
     const [schon] = (await sqlPool`
       SELECT id FROM fiaon_postmeister
@@ -371,7 +394,8 @@ async function mailVerarbeiten(postfachDef: typeof POSTFAECHER[number], gmailId:
     }
 
     if (!opts.nurOrdnen && antwortText && !schon) {
-      await entwurfAnlegen(postfach, mail, antwortText);
+      const draftId = await entwurfAnlegen(postfach, mail, antwortText);
+      await sqlPool`UPDATE fiaon_postmeister SET antwort_draft_id = ${draftId || null} WHERE id = ${anspruch[0].id}`.catch(() => {});
       await nachrichtLabeln(postfach, gmailId, [await labelSicherstellen(postfach, "FIAON/Entwurf-wartet")]);
       await hausSpur(mail, kunde, urteil.kategorie, "entwurf", urteil.dringend, postfach);
       return fertig({ ...basis, ...urteil, aktion: "entwurf", antwort: antwortText, person_id: kunde?.person_id, ref: kunde?.ref });
@@ -492,6 +516,107 @@ router.post("/admin/postmeister/aufholen", async (req: Request, res: Response) =
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// HANDELN AUS DER ZENTRALE (Justin, 01.09.: „von dort einfach ALLES machen
+// können — etwas wegschicken, Nachrichten ändern, mit 1 Klick alle beantworten")
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Einen gespeicherten Entwurf wirklich versenden — mit (ggf. geändertem) Text. */
+async function entwurfVersenden(zeile: any, text: string): Promise<void> {
+  const mail = await nachrichtLesen(zeile.postfach, zeile.gmail_id);
+  await antwortSenden(zeile.postfach, mail, text);
+  if (zeile.antwort_draft_id) {
+    await entwurfLoeschen(zeile.postfach, zeile.antwort_draft_id).catch(() => {});
+  }
+  await nachrichtLabeln(zeile.postfach, zeile.gmail_id,
+    [await labelSicherstellen(zeile.postfach, "FIAON/Auto-beantwortet")],
+    [await labelSicherstellen(zeile.postfach, "FIAON/Entwurf-wartet"), "UNREAD"]).catch(() => {});
+  await sqlPool`
+    UPDATE fiaon_postmeister SET aktion = 'gesendet', antwort = ${text},
+           gesendet_am = NOW(), updated_at = NOW()
+    WHERE id = ${zeile.id}
+  `;
+  if (zeile.ref) {
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
+      VALUES (${zeile.ref}, ${zeile.person_id ?? null}, NULL, 'Postmeister', 'system',
+              ${`Antwortentwurf aus der Zentrale freigegeben und gesendet (${zeile.postfach}): „${String(zeile.betreff || "").slice(0, 90)}“`})
+    `.catch(() => {});
+  }
+}
+
+/** Die wartenden Entwürfe — mit vollem Wortlaut zum Ändern. */
+router.get("/admin/postmeister/entwuerfe", async (_req: Request, res: Response) => {
+  try {
+    await ensureTabelle();
+    const zeilen = (await sqlPool`
+      SELECT id, postfach, von, betreff, kategorie, dringend, ref, antwort, empfangen_am, created_at
+      FROM fiaon_postmeister
+      WHERE aktion = 'entwurf' AND gesendet_am IS NULL AND antwort IS NOT NULL
+      ORDER BY dringend DESC, created_at DESC LIMIT 60
+    `) as any[];
+    res.json({ ok: true, entwuerfe: zeilen });
+  } catch (e: any) {
+    res.status(500).json({ ok: false, error: String(e?.message || e).slice(0, 200) });
+  }
+});
+
+/** Einen Entwurf senden — der Text aus der Zentrale gewinnt (ändern erlaubt). */
+router.post("/admin/postmeister/entwurf/:id/senden", async (req: Request, res: Response) => {
+  try {
+    const [zeile] = (await sqlPool`
+      SELECT * FROM fiaon_postmeister
+      WHERE id = ${Number(req.params.id)} AND aktion = 'entwurf' AND gesendet_am IS NULL
+    `) as any[];
+    if (!zeile) return res.status(404).json({ ok: false, error: "Entwurf nicht gefunden oder schon erledigt" });
+    const text = String(req.body?.text || zeile.antwort || "").trim();
+    if (text.length < 20) return res.status(400).json({ ok: false, error: "Der Text ist zu kurz zum Senden." });
+    await entwurfVersenden(zeile, text);
+    res.json({ ok: true });
+  } catch (e: any) {
+    res.status(502).json({ ok: false, error: String(e?.message || e).slice(0, 300) });
+  }
+});
+
+/** Einen Entwurf verwerfen — auch der Gmail-Entwurf verschwindet. */
+router.post("/admin/postmeister/entwurf/:id/verwerfen", async (req: Request, res: Response) => {
+  try {
+    const [zeile] = (await sqlPool`
+      SELECT * FROM fiaon_postmeister
+      WHERE id = ${Number(req.params.id)} AND aktion = 'entwurf' AND gesendet_am IS NULL
+    `) as any[];
+    if (!zeile) return res.status(404).json({ ok: false, error: "Entwurf nicht gefunden" });
+    if (zeile.antwort_draft_id) await entwurfLoeschen(zeile.postfach, zeile.antwort_draft_id).catch(() => {});
+    await nachrichtLabeln(zeile.postfach, zeile.gmail_id, [],
+      [await labelSicherstellen(zeile.postfach, "FIAON/Entwurf-wartet")]).catch(() => {});
+    await sqlPool`UPDATE fiaon_postmeister SET aktion = 'verworfen', updated_at = NOW() WHERE id = ${zeile.id}`;
+    res.json({ ok: true });
+  } catch (e: any) {
+    res.status(502).json({ ok: false, error: String(e?.message || e).slice(0, 300) });
+  }
+});
+
+/** Der 1-Klick: ALLE wartenden Entwürfe senden (mit Deckel je Aufruf). */
+router.post("/admin/postmeister/entwuerfe/alle-senden", async (req: Request, res: Response) => {
+  try {
+    await ensureTabelle();
+    const deckel = Math.min(60, Math.max(1, Number(req.body?.deckel) || 40));
+    const zeilen = (await sqlPool`
+      SELECT * FROM fiaon_postmeister
+      WHERE aktion = 'entwurf' AND gesendet_am IS NULL AND antwort IS NOT NULL
+      ORDER BY created_at ASC LIMIT ${deckel}
+    `) as any[];
+    let gesendet = 0; let fehler = 0;
+    for (const zeile of zeilen) {
+      try { await entwurfVersenden(zeile, String(zeile.antwort)); gesendet += 1; }
+      catch (e) { fehler += 1; console.error("[POSTMEISTER] alle-senden:", String(e).slice(0, 160)); }
+    }
+    res.json({ ok: true, gesendet, fehler, uebrig: Math.max(0, zeilen.length === deckel ? 1 : 0) });
+  } catch (e: any) {
+    res.status(500).json({ ok: false, error: String(e?.message || e).slice(0, 200) });
+  }
+});
+
 /** Eingreifen aus der Zentrale: Not-Aus und Modus je Postfach. */
 const ERLAUBTE_SCHLUESSEL = new Set([
   "postmeister_an",
@@ -517,7 +642,8 @@ router.get("/admin/postmeister/lage", async (_req: Request, res: Response) => {
     const [z] = (await sqlPool`
       SELECT COUNT(*)::int AS gesamt,
              COUNT(*) FILTER (WHERE aktion = 'auto_beantwortet')::int AS auto,
-             COUNT(*) FILTER (WHERE aktion = 'entwurf')::int AS entwuerfe,
+             COUNT(*) FILTER (WHERE aktion = 'entwurf' AND gesendet_am IS NULL)::int AS entwuerfe,
+             COUNT(*) FILTER (WHERE aktion IN ('gesendet'))::int AS von_hand,
              COUNT(*) FILTER (WHERE aktion = 'geordnet')::int AS geordnet,
              COUNT(*) FILTER (WHERE aktion = 'fehler')::int AS fehler,
              COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours')::int AS heute,

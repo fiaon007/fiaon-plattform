@@ -9,17 +9,28 @@ import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
 import NeuralSphere from "@/components/home3d/NeuralSphere";
 import WellenFeld from "@/components/site/WellenFeld";
+import { seoSeite } from "@shared/fiaon-seo-seiten";
 import "@/styles/dunkel.css";
 
 type Seite = "startseite" | "investoren" | "karriere" | "presse" | "partner" | "datenraum" | "team" | "demo" | "ratgeber" | "login" | "privatkunden" | "kontakt" | "business" | "plattform-konzept" | "was-ist-fiaon";
 
 export function Dunkel({ seite, titel, beschreibung, children }: { seite: Seite; titel: string; beschreibung: string; children: ReactNode }) {
   useEffect(() => {
+    // 02.09.2026 (E-079): Steht die Seite in der gemeinsamen SEO-Tabelle,
+    // gilt DEREN Titel und Beschreibung — dieselben, die der Server ins HTML
+    // schreibt. Vorher trug das gerenderte DOM „<Seitentitel> · FIAON" und
+    // das ausgelieferte HTML einen anderen Text; Google liest das gerenderte
+    // DOM, und zwei Titel für eine Seite sind ein vermeidbarer Widerspruch.
+    // Seiten ohne Tabelleneintrag (Ratgeber-Artikel) behalten ihre Props.
+    const pfad = typeof window !== "undefined" ? window.location.pathname : "";
+    const tabelle = seoSeite(pfad);
+    const neuerTitel = tabelle ? tabelle.titel : `${titel} · FIAON`;
+    const neueBeschreibung = tabelle ? tabelle.beschreibung : beschreibung;
     const vorher = document.title;
-    document.title = `${titel} · FIAON`;
+    document.title = neuerTitel;
     const m = document.querySelector<HTMLMetaElement>('meta[name="description"]');
     const alt = m?.getAttribute("content") || "";
-    m?.setAttribute("content", beschreibung);
+    m?.setAttribute("content", neueBeschreibung);
     window.scrollTo(0, 0);
     return () => { document.title = vorher; m?.setAttribute("content", alt); };
   }, [titel, beschreibung]);

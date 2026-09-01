@@ -566,12 +566,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.status(200).type('text/plain').send('ok');
   });
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // SITEMAP AUS EINER QUELLE (02.09.2026, E-079)
+  //
+  // Bis dahin kam die Sitemap aus client/public/sitemap.xml — von Hand
+  // gepflegt, zuletzt am 26.08. Der Report vom 02.09. fand 98 Adressen darin,
+  // 51 davon nur in der Sitemap, und darunter sechs, die im HTML auf noindex
+  // stehen (/antrag, /login, /datenraum …): Google bekam „bitte aufnehmen"
+  // und „bitte nicht aufnehmen" für dieselbe Seite.
+  //
+  // Jetzt entsteht die Sitemap aus shared/fiaon-seo-seiten.ts: genau die
+  // Seiten, die indexierbar sind, mit ihrem Stand als lastmod. Der Ratgeber
+  // hängt seine Artikel aus der Datenbank an.
+  // ══════════════════════════════════════════════════════════════════════════
   app.get('/sitemap.xml', async (_req, res) => {
     try {
-      const fs = await import('fs'); const path = await import('path');
-      const kandidaten = [path.resolve(import.meta.dirname, 'public', 'sitemap.xml'), path.resolve(process.cwd(), 'client', 'public', 'sitemap.xml')];
-      const datei = kandidaten.find((k) => fs.existsSync(k));
-      const statisch = datei ? fs.readFileSync(datei, 'utf8') : '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n</urlset>';
+      const { sitemapEintraege } = await import('./lib/fiaon-seiten-seo');
+      const statisch = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${sitemapEintraege()}\n</urlset>`;
       res.setHeader('Content-Type', 'application/xml; charset=utf-8');
       res.setHeader('Cache-Control', 'public, max-age=600');
       res.send(await fiaonRatgeber.sitemapXml(statisch));
@@ -591,6 +602,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   //
   // Steht ein Pfad nicht in der Tabelle, geht der Aufruf unverändert weiter:
   // Diese Schicht kann nie eine Seite verstecken, nur ihren Kopf verbessern.
+  //
+  // 02.09.2026 (E-079): Die Tabelle wohnt in shared/fiaon-seo-seiten.ts und
+  // liefert neben dem Kopf einen lesbaren Korpus (H1, Text, FAQ, Links) in
+  // #root — der Report vom 02.09. hatte auf 44 Seiten „keinen Text" gefunden.
   // ══════════════════════════════════════════════════════════════════════════
   app.get('*', async (req, res, next) => {
     if (req.method !== 'GET' || req.path.startsWith('/api') || req.path.includes('.')) return next();

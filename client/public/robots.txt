@@ -1,8 +1,12 @@
 # FIAON — fiaon.com
+# 02.09.2026: Sitemap-Adresse ohne www (www leitet mit 301 um — die Sitemap
+# stand bis dahin hinter einer Umleitung). /chef ist das Chefbüro, /demo darf
+# gelesen werden (steht auf noindex, das muss der Crawler sehen können).
 User-agent: *
 Allow: /
 Disallow: /admin
 Disallow: /agent
+Disallow: /chef
 Disallow: /dashboard
 Disallow: /mein-bereich
 Disallow: /zahlung/
@@ -10,4 +14,6 @@ Disallow: /termin/
 Disallow: /api/
 Disallow: /vereinbarung
 Disallow: /scp-datenraum
-Sitemap: https://www.fiaon.com/sitemap.xml
+Disallow: /uploads/
+
+Sitemap: https://fiaon.com/sitemap.xml

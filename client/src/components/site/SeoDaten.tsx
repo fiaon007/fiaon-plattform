@@ -22,6 +22,7 @@
 // Basis-OG-Daten dort bleiben deshalb bestehen — hier wird nur übersteuert.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect } from "react";
+import { seoSeite } from "@shared/fiaon-seo-seiten";
 
 const URSPRUNG = "https://fiaon.com";
 
@@ -44,7 +45,11 @@ export interface SeoAngaben {
 }
 
 /** Ein <script type="application/ld+json"> je Block, beim Verlassen entfernt. */
-export default function SeoDaten(s: SeoAngaben) {
+export default function SeoDaten(angaben: SeoAngaben) {
+  // 02.09.2026 (E-079): Titel und Beschreibung kommen aus der gemeinsamen
+  // Tabelle, wenn die Seite dort steht — dieselben Werte wie im Server-HTML.
+  const tabelle = seoSeite(angaben.pfad);
+  const s: SeoAngaben = tabelle ? { ...angaben, titel: tabelle.titel, beschreibung: tabelle.beschreibung } : angaben;
   useEffect(() => {
     const bloecke: object[] = [];
 

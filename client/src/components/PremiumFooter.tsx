@@ -1,4 +1,100 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE FUSSZEILE — aufgeräumt statt überladen (01.09.2026, Justin)
+//
+// VORHER: über 30 Links flach untereinander; die PLATTFORM-Spalte allein
+// hatte 20 Zeilen. Auf dem Handy ein endloser Scrollweg, am PC eine Wand.
+//
+// NACHHER, drei Ideen:
+//   1. Die Spalten tragen nur noch den KERN (je 5–10 Links).
+//   2. Die 14 Ratgeber-/Themenseiten wohnen in einem eigenen, aufklappbaren
+//      Band „Wissen von A bis Z" — sanfte Höhen-Animation, die Links blenden
+//      gestaffelt ein. Zugeklappt ist es EINE Zeile statt vierzehn.
+//   3. Am Handy wird jede Spalte zum Akkordeon (Pfeil dreht sich, Inhalt
+//      gleitet auf); am PC stehen die Spalten fest offen — der Aufklapp-Kopf
+//      wird dort zur normalen Überschrift.
+//
+// SEO bleibt intakt: ALLE Links stehen immer im HTML (nur per CSS-Höhe
+// zusammengefaltet) — jede Themenseite bleibt von jeder Seite verlinkt.
+// prefers-reduced-motion schaltet alle Bewegungen ab.
+// ═══════════════════════════════════════════════════════════════════════════
+import { useState } from "react";
+
+const WISSEN: [string, string][] = [
+  ["/schufa-eintrag-loeschen", "SCHUFA-Eintrag löschen"],
+  ["/bonitaet-verbessern", "Bonität verbessern"],
+  ["/kredit-ohne-schufa", "Kredit ohne SCHUFA — die Wahrheit"],
+  ["/auskunfteien", "Auskunfteien im Vergleich"],
+  ["/schufa-score-verstehen", "SCHUFA-Score verstehen"],
+  ["/bonitaetsauskunft-beantragen", "Bonitätsauskunft beantragen"],
+  ["/inkasso-brief-erhalten", "Inkasso-Brief erhalten?"],
+  ["/eintrag-verjaehrung", "Eintrag & Verjährung"],
+  ["/girokonto-trotz-negativer-bonitaet", "Girokonto trotz negativer Bonität"],
+  ["/ratenzahlung-und-bonitaet", "Ratenzahlung & Bonität"],
+  ["/selbstauskunft-checkliste", "Selbstauskunft-Checkliste"],
+  ["/schufa-neutral-anfragen", "SCHUFA-neutral anfragen"],
+  ["/bonitaet-service", "Bonitäts-Auszug (Erklärung)"],
+  ["/glossar-bonitaet", "Bonitäts-Glossar A–Z"],
+];
+
+const PLATTFORM: [string, string][] = [
+  ["/", "Startseite"],
+  ["/ratgeber", "Ratgeber"],
+  ["/werkzeuge", "Kostenlose Werkzeuge"],
+  ["/preise", "Preise & Pakete"],
+  ["/kreditkarte", "Kreditkarte trotz Eintrag"],
+  ["/privatkunden", "Privatkunden Setup"],
+  ["/business", "Business Setup"],
+];
+
+const UNTERNEHMEN: [string, string][] = [
+  ["/was-ist-fiaon", "Über FIAON"],
+  ["/fiaon-erfahrungen", "So arbeitet FIAON"],
+  ["/sicherheit", "Datenschutz & Sicherheit"],
+  ["/team", "Team"],
+  ["/karriere", "Karriere"],
+  ["/partner", "Partner"],
+  ["/presse", "Presse"],
+  ["/investoren", "Investoren"],
+  ["/datenraum", "Datenraum (Due Diligence)"],
+  ["/kontakt", "Kontakt & Support"],
+];
+
+const RECHTLICHES: [string, string][] = [
+  ["/impressum", "Impressum"],
+  ["/privacy", "Datenschutzerklärung"],
+  ["/agb", "Allgemeine Geschäftsbedingungen (AGB)"],
+  ["/widerrufsbelehrung", "Widerrufsbelehrung"],
+  ["/cookie-einstellungen", "Cookie-Einstellungen"],
+];
+
+/** Eine Spalte: am PC fest offen, am Handy ein Akkordeon. */
+function Spalte({ titel, links }: { titel: string; links: [string, string][] }) {
+  const [offen, setOffen] = useState(false);
+  return (
+    <div className="pf-spalte">
+      <button type="button" className="pf-spalte-kopf" aria-expanded={offen}
+              onClick={() => setOffen(!offen)}>
+        <h3 className="pf-kopf text-[13px] font-medium uppercase tracking-[.15em]">{titel}</h3>
+        <svg className={`pf-pfeil${offen ? " auf" : ""}`} width="14" height="14" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+      <div className={`pf-falt${offen ? " auf" : ""}`}>
+        <ul className="pf-falt-innen space-y-3.5 pt-1">
+          {links.map(([href, label]) => (
+            <li key={href + label}>
+              <a href={href} className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1 inline-block">{label}</a>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
 export default function PremiumFooter() {
+  const [wissenOffen, setWissenOffen] = useState(false);
   return (
     <footer className="relative overflow-hidden" style={{ background: "#0A0F1C" }}>
       {/* Top Gradient Border */}
@@ -18,8 +114,8 @@ export default function PremiumFooter() {
         </a>
         )}
 
-        {/* 4-Column Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-16 mb-16">
+        {/* Marke + drei schlanke Spalten */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-16 gap-y-2 md:gap-y-10 mb-10">
           {/* Column 1: Brand & Mission */}
           <div>
             <div className="mb-6">
@@ -36,150 +132,34 @@ export default function PremiumFooter() {
             </div>
           </div>
 
-          {/* Column 2: Platform */}
-          <div>
-            <h3 className="pf-kopf text-[13px] font-medium uppercase tracking-[.15em] mb-6">
-              PLATTFORM
-            </h3>
-            <ul className="space-y-4">
-              <li>
-                <a href="/" className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">
-                  Startseite
-                </a>
-              </li>
-              <li>
-                <a href="/ratgeber" className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">
-                  Ratgeber
-                </a>
-              </li>
-              <li>
-                <a href="/werkzeuge" className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">
-                  Kostenlose Werkzeuge
-                </a>
-              </li>
-              <li>
-                <a href="/schufa-eintrag-loeschen" className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">
-                  SCHUFA-Eintrag löschen
-                </a>
-              </li>
-              <li>
-                <a href="/bonitaet-verbessern" className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">
-                  Bonität verbessern
-                </a>
-              </li>
-              <li>
-                <a href="/kredit-ohne-schufa" className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">
-                  Kredit ohne SCHUFA — die Wahrheit
-                </a>
-              </li>
-              <li>
-                <a href="/auskunfteien" className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">
-                  Auskunfteien im Vergleich
-                </a>
-              </li>
-              {/* Die Themenseiten (30.08.2026) — jede neue Seite bekommt hier
-                  ihren Fußzeilen-Platz, damit sie von jeder Seite erreichbar ist. */}
-              {[
-                ["/schufa-score-verstehen", "SCHUFA-Score verstehen"],
-                ["/bonitaetsauskunft-beantragen", "Bonitätsauskunft beantragen"],
-                ["/inkasso-brief-erhalten", "Inkasso-Brief erhalten?"],
-                ["/eintrag-verjaehrung", "Eintrag & Verjährung"],
-                ["/girokonto-trotz-negativer-bonitaet", "Girokonto trotz negativer Bonität"],
-                ["/ratenzahlung-und-bonitaet", "Ratenzahlung & Bonität"],
-                ["/selbstauskunft-checkliste", "Selbstauskunft-Checkliste"],
-                ["/schufa-neutral-anfragen", "SCHUFA-neutral anfragen"],
-                ["/glossar-bonitaet", "Bonitäts-Glossar A–Z"],
-              ].map(([href, label]) => (
-                <li key={href}>
-                  <a href={href} className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">{label}</a>
+          <Spalte titel="Plattform" links={PLATTFORM} />
+          <Spalte titel="Unternehmen" links={UNTERNEHMEN} />
+          <Spalte titel="Rechtliches" links={RECHTLICHES} />
+        </div>
+
+        {/* ── WISSEN VON A BIS Z — ein Band statt vierzehn Zeilen ──────────── */}
+        <div className={`pf-wissen${wissenOffen ? " auf" : ""} mb-12`}>
+          <button type="button" className="pf-wissen-kopf" aria-expanded={wissenOffen}
+                  onClick={() => setWissenOffen(!wissenOffen)}>
+            <span className="pf-wissen-titel">
+              <h3 className="pf-kopf text-[13px] font-medium uppercase tracking-[.15em]">Wissen von A bis Z</h3>
+              <span className="pf-wissen-zahl">{WISSEN.length} Ratgeber-Themen</span>
+            </span>
+            <span className="pf-wissen-hinweis pf-leise text-[12px]">
+              {wissenOffen ? "Einklappen" : "Alle Themen zeigen"}
+            </span>
+            <svg className={`pf-pfeil gross${wissenOffen ? " auf" : ""}`} width="16" height="16" viewBox="0 0 24 24"
+                 fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </button>
+          <div className={`pf-falt${wissenOffen ? " auf" : ""}`}>
+            <ul className="pf-falt-innen pf-wissen-raster">
+              {WISSEN.map(([href, label], i) => (
+                <li key={href} style={{ transitionDelay: wissenOffen ? `${60 + i * 28}ms` : "0ms" }}>
+                  <a href={href} className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1 inline-block">{label}</a>
                 </li>
               ))}
-              <li>
-                <a href="/privatkunden" className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">
-                  Privatkunden Setup
-                </a>
-              </li>
-              <li>
-                <a href="/bonitaet-service" className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">
-                  Bonitäts-Auszug (Erklärung)
-                </a>
-              </li>
-              <li>
-                <a href="/business" className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">
-                  Business Setup
-                </a>
-              </li>
-              <li>
-                <a href="/preise" className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">
-                  Preise & Pakete
-                </a>
-              </li>
-              <li>
-                <a href="/kreditkarte" className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">
-                  Kreditkarte trotz Eintrag
-                </a>
-              </li>
-            </ul>
-          </div>
-
-          {/* Column 3: Company */}
-          <div>
-            <h3 className="pf-kopf text-[13px] font-medium uppercase tracking-[.15em] mb-6">
-              UNTERNEHMEN
-            </h3>
-            <ul className="space-y-4">
-              {[
-                ["/was-ist-fiaon", "Über FIAON"],
-                ["/fiaon-erfahrungen", "So arbeitet FIAON"],
-                ["/sicherheit", "Datenschutz & Sicherheit"],
-                ["/preise", "Preise & Pakete"],
-                ["/kreditkarte", "Kreditkarte"],
-                ["/team", "Team"],
-                ["/karriere", "Karriere — Werden Sie Teil des Teams"],
-                ["/partner", "Partner"],
-                ["/presse", "Presse"],
-                ["/investoren", "Investoren"],
-                ["/datenraum", "Datenraum (Due Diligence)"],
-                ["/kontakt", "Kontakt & Support"],
-              ].map(([href, label]) => (
-                <li key={href}>
-                  <a href={href} className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">{label}</a>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Column 4: Legal */}
-          <div>
-            <h3 className="pf-kopf text-[13px] font-medium uppercase tracking-[.15em] mb-6">
-              RECHTLICHES
-            </h3>
-            <ul className="space-y-4">
-              <li>
-                <a href="/impressum" className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">
-                  Impressum
-                </a>
-              </li>
-              <li>
-                <a href="/privacy" className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">
-                  Datenschutzerklärung
-                </a>
-              </li>
-              <li>
-                <a href="/agb" className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">
-                  Allgemeine Geschäftsbedingungen (AGB)
-                </a>
-              </li>
-              <li>
-                <a href="/widerrufsbelehrung" className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">
-                  Widerrufsbelehrung
-                </a>
-              </li>
-              <li>
-                <a href="/cookie-einstellungen" className="pf-text text-[14px] transition-all duration-200 hover:translate-x-1">
-                  Cookie-Einstellungen
-                </a>
-              </li>
             </ul>
           </div>
         </div>
@@ -245,16 +225,80 @@ export default function PremiumFooter() {
         .pf-leise { opacity: .72; }
         a.pf-text:hover, a.pf-leise:hover { opacity: 1; background-image: linear-gradient(100deg, #ffffff, #dbeafe); }
         @keyframes pfVerlauf { from { background-position: 0% 50%; } to { background-position: 300% 50%; } }
-        @media (prefers-reduced-motion: reduce) { .pf-text, .pf-kopf, .pf-leise { animation: none; } }
         @keyframes pulse {
-          0%, 100% {
-            opacity: 1;
-            transform: scale(1);
-          }
-          50% {
-            opacity: 0.5;
-            transform: scale(1.2);
-          }
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.5; transform: scale(1.2); }
+        }
+
+        /* ── Auf- und Zuklappen: die Höhe gleitet über den Gitter-Trick
+           (0fr → 1fr) — weich, ohne feste Pixelhöhen, ohne Springen. */
+        .pf-falt {
+          display: grid; grid-template-rows: 0fr;
+          transition: grid-template-rows .45s cubic-bezier(.22,.8,.26,1);
+        }
+        .pf-falt.auf { grid-template-rows: 1fr; }
+        .pf-falt-innen { overflow: hidden; min-height: 0; margin: 0; }
+        .pf-pfeil { transition: transform .35s cubic-bezier(.22,.8,.26,1); color: #9fb8e6; opacity: .8; }
+        .pf-pfeil.auf { transform: rotate(180deg); }
+
+        /* Spalten-Köpfe: am Handy Knöpfe mit Trennlinie, volle Breite. */
+        .pf-spalte-kopf {
+          display: flex; align-items: center; justify-content: space-between; gap: 10px;
+          width: 100%; background: none; border: 0; padding: 12px 0; cursor: pointer; text-align: left;
+          border-bottom: 1px solid rgba(255,255,255,.08);
+        }
+        .pf-spalte .pf-falt-innen { padding: 0; list-style: none; transition: padding .45s cubic-bezier(.22,.8,.26,1); }
+        .pf-spalte .pf-falt.auf .pf-falt-innen { padding: 14px 0 6px; }
+
+        /* Am PC (lg) stehen die Spalten fest offen: Kopf wird zur Überschrift,
+           Pfeil verschwindet, nichts ist klickbar. */
+        @media (min-width: 1024px) {
+          .pf-spalte-kopf { pointer-events: none; border-bottom: 0; padding: 0 0 18px; }
+          .pf-spalte-kopf .pf-pfeil { display: none; }
+          .pf-spalte .pf-falt { grid-template-rows: 1fr; }
+          .pf-spalte .pf-falt-innen { padding: 0 0 6px; }
+        }
+
+        /* ── Das Wissens-Band: eine ruhige Glasfläche, die sich öffnet. ── */
+        .pf-wissen {
+          border: 1px solid rgba(255,255,255,.08);
+          border-radius: 16px;
+          background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.015));
+          transition: border-color .4s ease, background .4s ease;
+        }
+        .pf-wissen.auf { border-color: rgba(159,184,230,.28); }
+        .pf-wissen-kopf {
+          display: flex; align-items: center; gap: 14px; width: 100%;
+          background: none; border: 0; cursor: pointer; text-align: left;
+          padding: 16px 20px;
+        }
+        .pf-wissen-titel { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; flex: 1; min-width: 0; }
+        .pf-wissen-zahl {
+          font-size: 11.5px; letter-spacing: .02em; color: #9fb8e6; opacity: .85;
+          border: 1px solid rgba(159,184,230,.3); border-radius: 999px; padding: 2px 10px; white-space: nowrap;
+        }
+        .pf-wissen-hinweis { white-space: nowrap; }
+        .pf-pfeil.gross { flex-shrink: 0; }
+        .pf-wissen .pf-falt-innen { padding: 0 20px; transition: padding .45s cubic-bezier(.22,.8,.26,1); }
+        .pf-wissen.auf .pf-falt-innen { padding: 4px 20px 18px; }
+
+        /* Die Themen als luftiges Raster: 1 Spalte am Handy, bis 3 am PC.
+           Beim Öffnen gleiten die Links gestaffelt herein (transition-delay
+           kommt je Eintrag aus dem Markup). */
+        .pf-wissen-raster {
+          display: grid; grid-template-columns: 1fr; gap: 12px 32px; list-style: none;
+        }
+        @media (min-width: 640px) { .pf-wissen-raster { grid-template-columns: 1fr 1fr; } }
+        @media (min-width: 1024px) { .pf-wissen-raster { grid-template-columns: 1fr 1fr 1fr; } }
+        .pf-wissen-raster li {
+          opacity: 0; transform: translateY(6px);
+          transition: opacity .4s ease, transform .4s cubic-bezier(.22,.8,.26,1);
+        }
+        .pf-wissen.auf .pf-wissen-raster li { opacity: 1; transform: none; }
+
+        @media (prefers-reduced-motion: reduce) {
+          .pf-text, .pf-kopf, .pf-leise { animation: none; }
+          .pf-falt, .pf-pfeil, .pf-wissen, .pf-wissen-raster li { transition: none; }
         }
       `}</style>
     </footer>

@@ -49,43 +49,158 @@ async function gc(pfad: string, init: { method?: string; body?: unknown; idem?: 
 /** Fälligkeitstag = Tag des Antragsabschlusses, auf 1–28 geklemmt (Februar). */
 function faelligkeitstag(d: Date): number { return Math.min(28, Math.max(1, d.getUTCDate())); }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DER DIREKTLINK AUS DER MAIL (01.09.2026, E-072)
+//
+// ── DER BEFUND, AUS DEM DAS HIER ENTSTANDEN IST ───────────────────────────
+// Die Vorlage `sepa_einrichten` ging bis zum 01.09. genau 23-mal raus (zum
+// Vergleich: payment_reminder 15.934-mal in vierzehn Tagen). Von diesen 23
+// wurden FÜNF geklickt — eine sehr gute Quote. Mandate entstanden: null.
+// Der Grund steht in der Vorlage: Ihr Knopf zeigte auf /kundenbereich. Wer
+// klickte, landete auf der Anmeldung, musste sich einloggen, „Abo &
+// Zahlungen“ finden und dort den kleinen Knopf suchen. Fünf Schritte für
+// eine Zwei-Minuten-Sache — auf jedem davon bricht jemand ab.
+//
+// ── DIE ANTWORT ───────────────────────────────────────────────────────────
+// Ein signierter Link führt aus der Mail DIREKT auf die GoCardless-Seite.
+// Kein Login, kein Suchen. Muster und Geheimnis sind dieselben wie beim
+// „Antrag weiter“-Link (fiaon-antrag-erinnerung.ts) — kein zweiter Mechanismus.
+//
+// ── WARUM DAS VERTRETBAR IST ──────────────────────────────────────────────
+// Der Link kann genau EINES: für diese Referenz eine Mandatsstrecke öffnen.
+// Er zeigt keine Kundendaten, öffnet keinen Bereich, ändert nichts. Die IBAN
+// gibt der Kunde bei GoCardless ein, FIAON sieht sie nie, und das Mandat
+// bestätigt am Ende die kontoführende Bank. Wer einen fremden Link abfängt,
+// könnte allenfalls sein EIGENES Konto für fremde Raten belasten.
+// Gültigkeit 21 Tage — lang genug für eine Mahnkette, kurz genug, dass ein
+// alter Mailanhang nicht ewig offensteht.
+// ═══════════════════════════════════════════════════════════════════════════
+function geheim(): string {
+  return process.env.SESSION_SECRET || process.env.PORTAL_SESSION_SECRET || "fiaon-dev-sepa-secret";
+}
+export function sepaSignatur(ref: string, exp: number): string {
+  return createHmac("sha256", geheim()).update(`sepa.${ref}.${exp}`).digest("hex").slice(0, 32);
+}
+/** Der Link aus der Mail direkt in die Mandatsstrecke — 21 Tage gültig. */
+export function sepaLink(ref: string, ttlMs = 21 * 24 * 60 * 60 * 1000): string {
+  const exp = Date.now() + ttlMs;
+  return absoluteUrl(`/api/fiaon/lastschrift/direkt/${encodeURIComponent(`${ref}.${exp}.${sepaSignatur(ref, exp)}`)}`);
+}
+export function sepaPruefen(token: string): string | null {
+  const teile = String(token || "").split(".");
+  if (teile.length < 3) return null;
+  const sig = teile.pop()!; const exp = Number(teile.pop()); const ref = teile.join(".");
+  if (!ref || !exp || exp < Date.now()) return null;
+  return sepaSignatur(ref, exp) === sig ? ref : null;
+}
+
+/**
+ * Die Mandatsstrecke öffnen — für den angemeldeten Kunden UND für den
+ * Direktlink. Eine Quelle, damit die Vorbelegung und die Sperren nicht
+ * auseinanderlaufen. `rueckkehrPfad` bestimmt, wohin GoCardless zurückschickt.
+ */
+async function flowStarten(ref: string, rueckkehrPfad: (brId: string) => string): Promise<
+  { ok: true; url: string } | { ok: true; bereits: true } | { ok: false; code: string; error: string }
+> {
+  const [a] = (await sqlPool`
+    SELECT a.ref, a.person_id, a.first_name, a.last_name, a.email, a.street, a.zip, a.city, a.country, a.pack_key,
+           a.payment_status, p.gc_mandate_ref, p.gc_mandate_status
+    FROM fiaon_applications a LEFT JOIN fiaon_persons p ON p.id = a.person_id
+    WHERE a.ref = ${ref} AND a.merged_into IS NULL LIMIT 1`) as any[];
+  if (!a) return { ok: false, code: "UNBEKANNT", error: "Konto nicht gefunden." };
+  if (a.gc_mandate_ref && a.gc_mandate_status === "active") return { ok: true, bereits: true };
+  // ── ERST ZAHLEN, DANN LASTSCHRIFT (Justin, 22.08.2026) ──────────────────
+  // Wer noch nichts überwiesen hat, richtet keine Lastschrift ein: Sonst
+  // richtet jeder eine ein, die erste Abbuchung schlägt fehl, und die
+  // Rücklastgebühr zahlt FIAON. Die Tür steht hier, nicht nur im Browser.
+  if (String(a.payment_status) !== "paid") {
+    return { ok: false, code: "ERST_ZAHLEN",
+      error: "Die Lastschrift können Sie einrichten, sobald Ihre erste Zahlung eingegangen ist." };
+  }
+
+  const br = await gc("/billing_requests", { method: "POST", idem: `br-${ref}-${Date.now()}`, body: {
+    billing_requests: { mandate_request: { scheme: "sepa_core", currency: "EUR" }, metadata: { ref } } } });
+  const brId = br.billing_requests.id;
+  const flow = await gc("/billing_request_flows", { method: "POST", body: { billing_request_flows: {
+    redirect_uri: absoluteUrl(rueckkehrPfad(brId)),
+    exit_uri: absoluteUrl("/dashboard#abo"),
+    prefilled_customer: {
+      given_name: a.first_name || undefined, family_name: a.last_name || undefined, email: a.email || undefined,
+      address_line1: a.street || undefined, postal_code: a.zip || undefined, city: a.city || undefined,
+      country_code: (String(a.country || "").length === 2 ? String(a.country).toUpperCase() : undefined),
+    },
+    links: { billing_request: brId },
+  } } });
+  return { ok: true, url: flow.billing_request_flows.authorisation_url };
+}
+
+/** Mandat an der Person festschreiben und das GoCardless-Abo anlegen. */
+async function mandatUebernehmen(ref: string, brId: string): Promise<"eingerichtet" | "abgebrochen" | "fehler"> {
+  const br = (await gc(`/billing_requests/${brId}`)).billing_requests;
+  const mandateId = br?.links?.mandate || null;
+  if (!mandateId) return "abgebrochen";
+  const mandat = (await gc(`/mandates/${mandateId}`)).mandates;
+  const customerId = mandat?.links?.customer || br?.links?.customer || null;
+
+  const [a] = (await sqlPool`SELECT person_id FROM fiaon_applications WHERE ref = ${ref} AND merged_into IS NULL LIMIT 1`) as any[];
+  if (a?.person_id) {
+    await sqlPool`UPDATE fiaon_persons SET gc_customer_ref = ${customerId}, gc_mandate_ref = ${mandateId},
+      gc_mandate_status = ${String(mandat?.status || "pending_submission")}, updated_at = NOW() WHERE id = ${a.person_id}`;
+  }
+  await gcAboAnlegen(ref, mandateId);
+  return "eingerichtet";
+}
+
 /** POST /kunde/:ref/lastschrift/start — Billing Request + Flow, liefert die GoCardless-Seite. */
 router.post("/kunde/:ref/lastschrift/start", requireKunde, async (req: KundeRequest, res: Response) => {
   try {
     const ref = req.kundeRef!;
-    const [a] = (await sqlPool`
-      SELECT a.ref, a.person_id, a.first_name, a.last_name, a.email, a.street, a.zip, a.city, a.country, a.pack_key,
-             a.payment_status, p.gc_mandate_ref, p.gc_mandate_status
-      FROM fiaon_applications a LEFT JOIN fiaon_persons p ON p.id = a.person_id
-      WHERE a.ref = ${ref} AND a.merged_into IS NULL LIMIT 1`) as any[];
-    if (!a) return res.status(404).json({ ok: false, error: "Konto nicht gefunden." });
-    if (a.gc_mandate_ref && a.gc_mandate_status === "active") return res.json({ ok: true, bereits: true });
-    // ── ERST ZAHLEN, DANN LASTSCHRIFT (Justin, 22.08.2026) ──────────────────
-    // Wer noch nichts überwiesen hat, richtet keine Lastschrift ein: Sonst
-    // richtet jeder eine ein, die erste Abbuchung schlägt fehl, und die
-    // Rücklastgebühr zahlt FIAON. Die Tür steht hier, nicht nur im Browser.
-    if (String(a.payment_status) !== "paid") {
-      return res.status(409).json({ ok: false, code: "ERST_ZAHLEN",
-        error: "Die Lastschrift können Sie einrichten, sobald Ihre erste Zahlung eingegangen ist." });
+    const erg = await flowStarten(ref, (brId) =>
+      `/api/fiaon/kunde/${encodeURIComponent(ref)}/lastschrift/rueckkehr?br=${brId}`);
+    if (!erg.ok) {
+      return res.status(erg.code === "UNBEKANNT" ? 404 : 409).json({ ok: false, code: erg.code, error: erg.error });
     }
-
-    const br = await gc("/billing_requests", { method: "POST", idem: `br-${ref}-${Date.now()}`, body: {
-      billing_requests: { mandate_request: { scheme: "sepa_core", currency: "EUR" }, metadata: { ref } } } });
-    const brId = br.billing_requests.id;
-    const flow = await gc("/billing_request_flows", { method: "POST", body: { billing_request_flows: {
-      redirect_uri: absoluteUrl(`/api/fiaon/kunde/${encodeURIComponent(ref)}/lastschrift/rueckkehr?br=${brId}`),
-      exit_uri: absoluteUrl("/dashboard#abo"),
-      prefilled_customer: {
-        given_name: a.first_name || undefined, family_name: a.last_name || undefined, email: a.email || undefined,
-        address_line1: a.street || undefined, postal_code: a.zip || undefined, city: a.city || undefined,
-        country_code: (String(a.country || "").length === 2 ? String(a.country).toUpperCase() : undefined),
-      },
-      links: { billing_request: brId },
-    } } });
-    res.json({ ok: true, url: flow.billing_request_flows.authorisation_url });
+    res.json(erg);
   } catch (err: any) {
     console.error("[LASTSCHRIFT] start:", err);
     res.status(500).json({ ok: false, error: err?.message || "Die Lastschrift konnte nicht gestartet werden." });
+  }
+});
+
+/**
+ * GET /lastschrift/direkt/:token — der Weg aus der Mail. Ohne Anmeldung,
+ * ohne Zwischenseite: Prüfen, Strecke öffnen, weiterleiten. Was schiefgeht,
+ * landet im Kundenbereich mit einer Meldung in Klartext — nie in einer
+ * leeren Fehlerseite, denn hier steht ein Kunde vor dem Bildschirm.
+ */
+router.get("/lastschrift/direkt/:token", async (req: Request, res: Response) => {
+  const heim = (q: string) => res.redirect(`/dashboard?lastschrift=${q}`);
+  try {
+    const ref = sepaPruefen(String(req.params.token || ""));
+    if (!ref) return heim("link_abgelaufen");
+    const erg = await flowStarten(ref, (brId) =>
+      `/api/fiaon/lastschrift/direkt/${encodeURIComponent(String(req.params.token))}/zurueck?br=${brId}`);
+    if (!erg.ok) return heim(erg.code === "ERST_ZAHLEN" ? "erst_zahlen" : "fehler");
+    if ("bereits" in erg) return heim("bereits");
+    return res.redirect(erg.url);
+  } catch (err) {
+    console.error("[LASTSCHRIFT] direkt:", err);
+    return heim("fehler");
+  }
+});
+
+/** GET /lastschrift/direkt/:token/zurueck — Rückkehr aus dem Direktlink, ebenfalls ohne Anmeldung. */
+router.get("/lastschrift/direkt/:token/zurueck", async (req: Request, res: Response) => {
+  const heim = (q: string) => res.redirect(`/dashboard?lastschrift=${q}`);
+  try {
+    const ref = sepaPruefen(String(req.params.token || ""));
+    if (!ref) return heim("link_abgelaufen");
+    const brId = String(req.query.br || "");
+    if (!brId) return heim("fehler");
+    return heim(await mandatUebernehmen(ref, brId));
+  } catch (err) {
+    console.error("[LASTSCHRIFT] direkt-zurueck:", err);
+    return heim("fehler");
   }
 });
 
@@ -96,19 +211,7 @@ router.get("/kunde/:ref/lastschrift/rueckkehr", requireKunde, async (req: KundeR
     const ref = req.kundeRef!;
     const brId = String(req.query.br || "");
     if (!brId) return zurueck("fehler");
-    const br = (await gc(`/billing_requests/${brId}`)).billing_requests;
-    const mandateId = br?.links?.mandate || null;
-    if (!mandateId) return zurueck("abgebrochen");
-    const mandat = (await gc(`/mandates/${mandateId}`)).mandates;
-    const customerId = mandat?.links?.customer || br?.links?.customer || null;
-
-    const [a] = (await sqlPool`SELECT person_id, pack_key, created_at, submitted_at FROM fiaon_applications WHERE ref = ${ref} AND merged_into IS NULL LIMIT 1`) as any[];
-    if (a?.person_id) {
-      await sqlPool`UPDATE fiaon_persons SET gc_customer_ref = ${customerId}, gc_mandate_ref = ${mandateId},
-        gc_mandate_status = ${String(mandat?.status || "pending_submission")}, updated_at = NOW() WHERE id = ${a.person_id}`;
-    }
-    await gcAboAnlegen(ref, mandateId);
-    return zurueck("eingerichtet");
+    return zurueck(await mandatUebernehmen(ref, brId));
   } catch (err: any) {
     console.error("[LASTSCHRIFT] rueckkehr:", err);
     return zurueck("fehler");

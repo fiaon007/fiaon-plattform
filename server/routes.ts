@@ -661,6 +661,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }, 60 * 60 * 1000, { beimStartNach: 90_000 });
   });
 
+  // 💶 Einladung zum Bankeinzug (01.09.2026, E-072). Halbstündlich, damit der
+  // Tagesdeckel über den Tag verteilt statt in einem Schwall rausgeht. Der Lauf
+  // ist ohne `sepa_werbung_pro_tag` ABGESCHALTET — er verschickt nach dem
+  // Ausrollen nichts, bis jemand die Zahl bewusst setzt.
+  import('./lib/fiaon-crons').then(({ tageslauf }) => {
+    tageslauf('sepa-werbung', () => {
+      import('./lib/fiaon-sepa-werbung')
+        .then(({ sepaWerbungLauf }) => sepaWerbungLauf())
+        .then((e) => { if (e.verschickt > 0) console.log(`[SEPA-WERBUNG] ${e.verschickt} Einladungen verschickt (Deckel ${e.deckel}).`); })
+        .catch((e) => console.error('[SEPA-WERBUNG] Lauf:', e));
+    }, 30 * 60 * 1000, { beimStartNach: 150_000 });
+  });
+
   // 🏛 Datenraum der Schwarzott Capital Partners AG (26.08.2026).
   // Bewusst eigene Tabellen und eigene Sitzung — getrennt von FIAONS eigenem
   // Investorenbereich unter /datenraum.

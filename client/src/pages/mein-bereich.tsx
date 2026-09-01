@@ -379,10 +379,17 @@ export default function MeinBereichPage() {
                 <div><h3>Ihr Startgespräch ist gebucht</h3><p>{new Date(d.termin.beginn).toLocaleString("de-DE", { weekday: "long", day: "2-digit", month: "long", hour: "2-digit", minute: "2-digit" })} Uhr{d.termin.agent ? ` mit ${d.termin.agent}` : ""}. Wir rufen Sie an — halten Sie bitte Ihren Bereich geöffnet, wir gehen ihn gemeinsam durch.</p></div>
               </div>
             )}
+            {/* NEU 01.09.2026 (E-072): Der Direktlink aus der Mail landet hier —
+                auch wenn er abgelaufen ist oder das Mandat schon steht. Jeder
+                Fall bekommt einen Satz in Klartext; „bereits“ und „abgebrochen“
+                sind KEINE Fehler und werden deshalb nicht rot gezeigt. */}
             {lastschriftRueckmeldung && (
-              <div className={`mb-meldung ${lastschriftRueckmeldung === "eingerichtet" ? "gut" : "fehler"}`} style={{ marginTop: 0 }}>
+              <div className={`mb-meldung ${["eingerichtet", "bereits"].includes(lastschriftRueckmeldung) ? "gut" : ["abgebrochen", "erst_zahlen"].includes(lastschriftRueckmeldung) ? "" : "fehler"}`} style={{ marginTop: 0 }}>
                 {lastschriftRueckmeldung === "eingerichtet" ? "Ihre Lastschrift ist eingerichtet. Die Raten werden ab jetzt automatisch eingezogen — Sie müssen nichts mehr überweisen."
+                  : lastschriftRueckmeldung === "bereits" ? "Ihre Lastschrift ist bereits eingerichtet — es gibt nichts mehr zu tun."
                   : lastschriftRueckmeldung === "abgebrochen" ? "Die Einrichtung wurde abgebrochen. Sie können sie jederzeit unter Abo & Zahlungen erneut starten."
+                  : lastschriftRueckmeldung === "link_abgelaufen" ? "Dieser Link ist abgelaufen. Richten Sie den Bankeinzug bitte unten unter Abo & Zahlungen ein — das dauert genauso lange."
+                  : lastschriftRueckmeldung === "erst_zahlen" ? "Den Bankeinzug können Sie einrichten, sobald Ihre erste Zahlung bei uns eingegangen ist."
                   : "Die Lastschrift konnte nicht eingerichtet werden. Bitte versuchen Sie es erneut oder schreiben Sie uns."}
               </div>
             )}

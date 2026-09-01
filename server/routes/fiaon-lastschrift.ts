@@ -218,9 +218,86 @@ router.get("/kunde/:ref/lastschrift/rueckkehr", requireKunde, async (req: KundeR
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE DOPPELBUCHUNGSFALLE (01.09.2026, E-072) — bitte vor jeder Änderung lesen
+//
+// Die Raten stehen NICHT alle zwölf im Voraus in `fiaon_abo_raten`. Sie werden
+// nachgezogen: `rateBezahltBuchen` legt beim Buchen die Folgerate an. Gemessen
+// am 01.09.2026 hatte der typische Kunde ZWEI Zeilen (eine bezahlt, eine
+// offen), nicht zwölf. Von 409 bezahlten Abos hatte KEIN einziges
+// „12 − bezahlt = offene Zeilen“.
+//
+// Das Abonnement rechnet dagegen im Vertrag: `12 − bezahlte` Einzüge. Beides
+// ist für sich richtig. Zusammen wird es gefährlich, sobald eine überfällige
+// Rate ZUSÄTZLICH einzeln eingezogen wird: Das Abo deckt bereits alle elf
+// verbleibenden Vertragsraten ab, der Einzelabruf käme obendrauf — der Kunde
+// zahlte zwölfmal für elf Raten.
+//
+// DESHALB die Aufteilung hier: Überfälliges wird einzeln und sofort abgerufen,
+// das Abonnement deckt nur noch den REST. Die Summe bleibt exakt der Vertrag.
+// Wer eine der beiden Zahlen ändert, muss die andere mitändern.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Offene, nicht stornierte Raten, deren Fälligkeit in der Vergangenheit liegt. */
+async function ueberfaelligeRaten(ref: string): Promise<{ id: number; betrag_cents: number; rate_nr: number; faellig_am: string }[]> {
+  return (await sqlPool`
+    SELECT id, betrag_cents, rate_nr, faellig_am
+      FROM fiaon_abo_raten
+     WHERE ref = ${ref} AND status = 'offen' AND storniert_am IS NULL
+       AND faellig_am < CURRENT_DATE AND gc_payment_id IS NULL
+     ORDER BY faellig_am ASC`) as any[];
+}
+
+/**
+ * Überfällige Raten einzeln abrufen — gestaffelt, nie alles an einem Tag.
+ *
+ * Warum gestaffelt: 193 Kunden hatten am 01.09. überfällige Raten, einzelne bis
+ * zu drei. Drei Abbuchungen an einem Tag bei Menschen mit knapper Kasse heißt
+ * drei geplatzte Lastschriften, drei Gebühren und einen verlorenen Kunden.
+ * Der erste Abruf startet nach `ERSTER_ABRUF_IN_TAGEN`, jeder weitere eine
+ * Woche später — und die Einladungsmail sagt das vorher an.
+ *
+ * Die Idempotenz-Kennung hängt an der RATEN-ID: Ein zweiter Lauf über dieselbe
+ * Rate erzeugt bei GoCardless keine zweite Zahlung, selbst wenn die Spalte
+ * `gc_payment_id` noch nicht geschrieben war.
+ */
+const ERSTER_ABRUF_IN_TAGEN = 3;
+const ABSTAND_ABRUFE_TAGE = 7;
+
+export async function ueberfaelligesAbrufen(ref: string, mandateId: string): Promise<number> {
+  const raten = await ueberfaelligeRaten(ref);
+  let angelegt = 0;
+  // Klassische Zählschleife statt .entries(): Das Ziel des Übersetzers ist
+  // älter als ES2015, ein Iterator über Indexpaare wird dort nicht übersetzt.
+  for (let i = 0; i < raten.length; i++) {
+    const r = raten[i];
+    const tag = new Date(Date.now() + (ERSTER_ABRUF_IN_TAGEN + i * ABSTAND_ABRUFE_TAGE) * 86400_000)
+      .toISOString().slice(0, 10);
+    try {
+      const p = await gc("/payments", { method: "POST", idem: `rate-${r.id}`, body: { payments: {
+        amount: Number(r.betrag_cents), currency: "EUR", charge_date: tag,
+        description: `FIAON Rate ${r.rate_nr}`,
+        metadata: { ref, rate_id: String(r.id) },
+        links: { mandate: mandateId },
+      } } });
+      await sqlPool`UPDATE fiaon_abo_raten
+        SET gc_payment_id = COALESCE(gc_payment_id, ${String(p?.payments?.id || "")}),
+            lastschrift_status = 'eingereicht', lastschrift_am = NOW(), updated_at = NOW()
+        WHERE id = ${r.id} AND status <> 'bezahlt'`;
+      angelegt++;
+    } catch (e) {
+      // Ein fehlgeschlagener Abruf darf die übrigen nicht aufhalten und schon
+      // gar nicht das Anlegen des Abonnements — das ist der wichtigere Teil.
+      console.error(`[LASTSCHRIFT] Abruf Rate ${r.id} (${ref}):`, e);
+    }
+  }
+  return angelegt;
+}
+
 /**
  * Das GoCardless-Abo anlegen — aus der Rückkehr UND aus der Verlängerung
- * (E-024). 12 Raten abzüglich der schon bezahlten in dieser Laufzeit.
+ * (E-024). 12 Raten abzüglich der schon bezahlten in dieser Laufzeit UND
+ * abzüglich der überfälligen, die einzeln abgerufen werden (siehe oben).
  */
 export async function gcAboAnlegen(ref: string, mandateIdVorgabe?: string | null): Promise<boolean> {
   const [a] = (await sqlPool`SELECT a.pack_key, a.created_at, a.submitted_at, a.abo_verlaengert_raten, p.gc_mandate_ref, p.gc_mandate_status
@@ -229,13 +306,24 @@ export async function gcAboAnlegen(ref: string, mandateIdVorgabe?: string | null
   const mandateId = mandateIdVorgabe || a?.gc_mandate_ref || null;
   if (!a || !mandateId) return false;
   if (!mandateIdVorgabe && a.gc_mandate_status !== "active") return false;
+
+  // ERST die überfälligen Raten abrufen, DANN das Abo um genau diese Zahl
+  // kürzen. Die Reihenfolge ist Absicht: Was hier nicht angelegt wurde, darf
+  // auch nicht abgezogen werden, sonst fehlt am Ende eine Rate.
+  const einzeln = await ueberfaelligesAbrufen(ref, mandateId);
+
   {
-    // Abonnement: 12 Raten, fällig am Tag des Abo-Ankers. Bereits bezahlte
-    // Raten dieser Laufzeit werden abgezogen — sonst zahlt der Kunde 13 Mal.
     const pk = paketVon(a?.pack_key);
     const [gez] = (await sqlPool`SELECT COUNT(*)::int n FROM fiaon_abo_raten WHERE ref = ${ref} AND status = 'bezahlt'`) as any[];
     const laufzeitStart = Number(a.abo_verlaengert_raten || 0); // Raten der vorigen Laufzeiten
-    const verbleibend = Math.max(1, 12 - Math.max(0, Number(gez?.n || 0) - laufzeitStart));
+    const vertraglich = Math.max(0, 12 - Math.max(0, Number(gez?.n || 0) - laufzeitStart));
+    const verbleibend = vertraglich - einzeln;
+    if (verbleibend < 1) {
+      // Alles Offene läuft bereits als Einzelabruf — ein Abo obendrauf wäre
+      // genau die Doppelbuchung, die der Kasten oben beschreibt.
+      console.log(`[LASTSCHRIFT] ${ref}: ${einzeln} Rate(n) einzeln abgerufen, kein Abo nötig.`);
+      return einzeln > 0;
+    }
     if (pk?.abo && pk.preisCents > 0) {
       // ── EIN FÄLLIGKEITSTAG, NICHT ZWEI (22.08.2026, K8) ──────────────
       // Der interne Zyklus rechnet vom Anker (`aboAnker`: Buchungstag der
@@ -253,7 +341,7 @@ export async function gcAboAnlegen(ref: string, mandateIdVorgabe?: string | null
       return true;
     }
   }
-  return false;
+  return einzeln > 0;
 }
 
 /** POST /gocardless/webhook — Mandats- und Zahlungsstatus. Signatur: HMAC-SHA256 mit GOCARDLESS_WEBHOOK_SECRET. */

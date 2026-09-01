@@ -125,11 +125,15 @@ export const KONTO_VORLAGEN: Record<string, MailBaustein> = {
     titel: "Ihre Raten, automatisch pünktlich",
     absaetze: [
       "Guten Tag {{params.vorname}}, Ihre erste Zahlung ist bei uns eingegangen — vielen Dank. Damit ist Ihre Akte in Arbeit.",
-      "Für die weiteren Monatsraten gibt es einen bequemeren Weg als die Überweisung: den Bankeinzug. Ihre Rate wird dann automatisch und immer pünktlich abgebucht. Kein Verwendungszweck, keine vergessene Rate — und Ihre Zahlungshistorie bei uns bleibt makellos.",
+      "Für die weiteren Monatsraten gibt es einen bequemeren Weg als die Überweisung: den Bankeinzug. Ihre Rate wird dann automatisch und immer pünktlich abgebucht. Kein Verwendungszweck, keine vergessene Rate. Das ist mehr als Bequemlichkeit — eine lückenlose Zahlungshistorie ist genau das, woran später jede Bank Ihre Zuverlässigkeit abliest.",
+      // Steht nur da, wenn wirklich etwas offen ist: Der Motor lässt leere
+      // Platzhalter weg. Verschweigen wäre der teuerste Fehler — wer von der
+      // ersten Abbuchung überrascht wird, widerruft das Mandat sofort.
+      "{{params.offene_rate_hinweis}}",
       "Ein Klick auf den Knopf, dann geben Sie Ihre Bankverbindung einmal sicher bei unserem Zahlungspartner GoCardless ein. Wir sehen Ihre Kontonummer nie. Das dauert zwei Minuten und lässt sich jederzeit widerrufen.",
     ],
     knopf: { text: "Bankeinzug einrichten", url: "{{params.sepa_link}}" },
-    fussnote: "Sie zahlen lieber weiterhin per Überweisung? Dann müssen Sie nichts tun — es ändert sich nichts.",
+    fussnote: "Sie zahlen lieber weiterhin per Überweisung? Dann müssen Sie nichts tun — Ihre Raten bleiben wie gewohnt mit Verwendungszweck fällig.",
     karteZiel: true,
   },
 

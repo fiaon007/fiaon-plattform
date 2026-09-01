@@ -196,9 +196,10 @@ router.get("/inkasso/liste", requireAgent, async (req: AgentRequest, res: Respon
       // Filter-Reiter standen dauerhaft auf 0, obwohl im Kopf „2 Raten
       // überfällig" stand. NACHHER zählt derselbe Zähler wie oben, nur auf
       // die eigenen Kunden gefiltert.
+      const q = String(req.query.q || "").trim() || null; // P15: Kundensuche
       const [liste, personen, fenster] = await Promise.all([
-        arbeitsliste({ limit: Number(req.query.limit) || 60, nurBetreuer, frist }),
-        arbeitslistePersonen({ limit: Number(req.query.limit) || 60, nurBetreuer, frist }),
+        arbeitsliste({ limit: Number(req.query.limit) || 60, nurBetreuer, frist, q }),
+        arbeitslistePersonen({ limit: Number(req.query.limit) || 60, nurBetreuer, frist, q }),
         fristZaehlerB({ nurBetreuer }),
       ]);
       return res.json({
@@ -237,9 +238,10 @@ router.get("/inkasso/liste", requireAgent, async (req: AgentRequest, res: Respon
     // Datenform wäre die Gelegenheit, dabei etwas zu verlieren. Neu ist
     // `personen` — dieselben Raten, gruppiert.
     const { arbeitslistePersonen } = await import("../lib/fiaon-inkasso");
+    const q = String(req.query.q || "").trim() || null; // P15: Kundensuche
     const [liste, personen, zahlen, geld, fenster] = await Promise.all([
-      arbeitsliste({ limit: Number(req.query.limit) || 60, nurMeine, frist }),
-      arbeitslistePersonen({ limit: Number(req.query.limit) || 60, nurMeine, frist }),
+      arbeitsliste({ limit: Number(req.query.limit) || 60, nurMeine, frist, q }),
+      arbeitslistePersonen({ limit: Number(req.query.limit) || 60, nurMeine, frist, q }),
       kennzahlen(),
       verdienst(req.agent!.id),
       fristZaehler({ nurMeine }),

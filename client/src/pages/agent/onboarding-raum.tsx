@@ -47,7 +47,7 @@ const anrufen = (nummer: string | null | undefined, personId: number | null | un
 interface SgTermin {
   id: number; personId: number; name: string; vorname: string | null; telefon: string | null; email: string | null;
   beginn: string; datum: string; datumText: string; uhrzeit: string; dauerMin: number; status: string; notiz: string | null;
-  heute: boolean; vorbei: boolean; erledigtAm?: string | null; abgesagtAm?: string | null; quelle?: string | null;
+  heute: boolean; vorbei: boolean; erledigtAm?: string | null; abgesagtAm?: string | null; onboardingAbgeschlossenAm?: string | null; quelle?: string | null;
   terminArtText?: string | null; terminArtTon?: string | null;
 }
 interface Kennzahlen {
@@ -56,7 +56,10 @@ interface Kennzahlen {
 }
 interface Wartender { personId: number; name: string; telefon: string | null; email: string | null; paket: string | null; tage: number | null; terminAm: string | null; eingeladenAm: string | null; verpasst: number }
 const sgErledigt = (t: SgTermin) => t.status === "erledigt" || t.status === "verpasst" || !!t.erledigtAm || !!t.abgesagtAm;
-type Filter = "offen" | "heute" | "erledigt" | "noshow" | "wartende";
+// P10 (01.09.2026): Gespräch geführt, aber Onboarding noch nicht dokumentiert —
+// dieser Kunde ist NICHT fertig; er bleibt im Raum, bis das Cockpit abschließt.
+const sgZuDokumentieren = (t: SgTermin) => t.status === "erledigt" && !t.onboardingAbgeschlossenAm && !t.abgesagtAm;
+type Filter = "offen" | "heute" | "erledigt" | "noshow" | "wartende" | "dokumentieren";
 
 /** Countdown zum nächsten Gespräch — kurz, menschlich, live (30-s-Takt). */
 function countdown(beginn: string, jetzt: Date): { text: string; dran: boolean } {
@@ -130,6 +133,8 @@ function OnboardingInnen() {
   const amHeute = (iso: string | null | undefined) => !!iso
     && new Date(iso).toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" }) === heuteBerlin;
   const offene = useMemo(() => termine.filter((t) => !sgErledigt(t)), [termine]);
+  const zuDokumentieren = useMemo(() => termine.filter(sgZuDokumentieren)
+    .sort((a, b) => +new Date(b.erledigtAm ?? b.beginn) - +new Date(a.erledigtAm ?? a.beginn)), [termine]);
   const erledigte = useMemo(() => termine.filter((t) => sgErledigt(t) && amHeute(t.erledigtAm ?? t.abgesagtAm))
     .sort((a, b) => +new Date(b.erledigtAm ?? b.beginn) - +new Date(a.erledigtAm ?? a.beginn)), [termine, heuteBerlin]); // eslint-disable-line react-hooks/exhaustive-deps
   const heutige = useMemo(() => termine.filter((t) => t.heute), [termine]);
@@ -137,7 +142,7 @@ function OnboardingInnen() {
   // Das Herz der Seite: der nächste offene Termin (überfällige zuerst — die sind JETZT dran).
   const naechster = offene.find((t) => t.status === "gebucht") ?? null;
 
-  const liste = filter === "erledigt" ? erledigte : filter === "heute" ? heutige : filter === "noshow" ? noshows : offene;
+  const liste = filter === "erledigt" ? erledigte : filter === "heute" ? heutige : filter === "noshow" ? noshows : filter === "dokumentieren" ? zuDokumentieren : offene;
   const tage = useMemo(() => {
     const map = new Map<string, SgTermin[]>();
     for (const t of liste) { const l = map.get(t.datum) || []; l.push(t); map.set(t.datum, l); }
@@ -153,6 +158,8 @@ function OnboardingInnen() {
     { k: "erledigt", label: "Heute erledigt", wert: zahlen?.heuteErledigt, hinweis: "Heute geführte Gespräche – jedes hat ein Konto freigeschaltet. Klick zeigt sie." },
     { k: "noshow", label: "Heute nicht erschienen", wert: zahlen?.heuteNoShow, hinweis: "Heute nicht erschienen. Diese Kunden werden automatisch erneut eingeladen. Klick zeigt sie." },
     { k: "wartende", label: "Wartet auf Gespräch", wert: zahlen?.wartend, hinweis: "Bezahlte Kunden, deren Konto bis zum Startgespräch eingeschränkt bleibt. Klick öffnet die Liste zum Einladen." },
+    // P10: Gespräch geführt, Doku fehlt — erst der Cockpit-Abschluss vergütet.
+    { k: "dokumentieren", label: "Zu dokumentieren", wert: zuDokumentieren.length, hinweis: "Gespräch hat stattgefunden, das Onboarding ist aber noch nicht dokumentiert. Cockpit öffnen, Agenda nachtragen — damit kommt auch die Vergütung." },
   ];
 
   return (
@@ -340,13 +347,18 @@ function SgKarte({ t, offen, onOeffnen, onFertig, onCockpit, flash }: { t: SgTer
           <small>
             {t.terminArtText && <span className="ob-marke blau" style={t.terminArtTon ? { color: t.terminArtTon, borderColor: `${t.terminArtTon}66` } : undefined}>{t.terminArtText}</span>}
             <span>{t.telefon || "keine Nummer hinterlegt"}</span>
-            {t.status === "erledigt" && <span className="ob-marke kunde"><Check size={10} style={{ marginRight: 3 }} />erledigt{t.erledigtAm ? ` · ${uhr(new Date(t.erledigtAm))}` : ""}</span>}
+            {t.status === "erledigt" && !sgZuDokumentieren(t) && <span className="ob-marke kunde"><Check size={10} style={{ marginRight: 3 }} />erledigt{t.erledigtAm ? ` · ${uhr(new Date(t.erledigtAm))}` : ""}</span>}
+            {/* P10: geführt, aber noch nicht dokumentiert — auffällig, mit Weg. */}
+            {sgZuDokumentieren(t) && <span className="ob-marke" style={{ background: "rgba(251,191,36,.16)", color: "#fbbf24" }}>zu dokumentieren</span>}
             {t.status === "verpasst" && <span className="ob-marke warn">nicht erschienen</span>}
             {!!t.abgesagtAm && <span className="ob-marke">vom Kunden abgesagt · {zeitTag(t.abgesagtAm)}</span>}
           </small>
         </div>
         <div className="ob-aktion">
           {t.status === "gebucht" && <button type="button" className="ob-knopf klein" onClick={onCockpit}>Gespräch führen</button>}
+          {/* P10: Das Cockpit trägt die Agenda nach und schließt ab — erst
+              damit verschwindet die Karte und die Vergütung wird gebucht. */}
+          {sgZuDokumentieren(t) && <button type="button" className="ob-knopf klein" onClick={onCockpit}>Doku nachtragen &amp; abschließen</button>}
           {t.telefon && <button type="button" className="ob-knopf klein still" onClick={() => anrufen(t.telefon, t.personId, t.name)}><Phone size={14} strokeWidth={1.75} /> Anrufen</button>}
           <button type="button" className="ob-knopf klein still" onClick={onOeffnen}>{offen ? "Zu" : "Mehr"}</button>
         </div>

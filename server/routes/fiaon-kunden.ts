@@ -581,8 +581,28 @@ router.get("/admin/kunden/akte", async (req: Request, res: Response) => {
       suggestedWinner = [...mergeCandidates].sort((a, b) => score(b) - score(a))[0].ref;
     }
 
-    // Agents fürs Zuweisungs-Dropdown
-    const agents = await sqlPool`SELECT id, name, active FROM fiaon_agents WHERE active = TRUE ORDER BY name ASC`;
+    // Agents fürs Zuweisungs-Dropdown — mit Dienst-/Präsenz-/Last-Markierung
+    // (P3, 01.09.2026): Die Auswahl bleibt vollständig, aber sie BENENNT, wer
+    // gerade nicht im Dienst ist oder eine volle Liste hat. imDienst = NULL
+    // heißt „kein Wochenplan hinterlegt" — ein eigener Zustand, nicht abwesend.
+    const agents = await sqlPool`
+      SELECT a.id, a.name, a.active,
+             CASE WHEN NOT EXISTS (SELECT 1 FROM fiaon_arbeitszeiten w0 WHERE w0.agent_id = a.id)
+                  THEN NULL
+                  ELSE EXISTS (
+                    SELECT 1 FROM fiaon_arbeitszeiten w
+                    WHERE w.agent_id = a.id
+                      AND w.wochentag = EXTRACT(ISODOW FROM (NOW() AT TIME ZONE 'Europe/Berlin'))::smallint
+                      AND (NOW() AT TIME ZONE 'Europe/Berlin')::time BETWEEN w.von AND w.bis)
+             END AS "imDienst",
+             (pr.zuletzt IS NOT NULL AND pr.zuletzt > NOW() - INTERVAL '20 minutes'
+              AND pr.status IN ('da', 'telefon')) AS anwesend,
+             (SELECT COUNT(*)::int FROM fiaon_persons mp
+               WHERE mp.assigned_agent_id = a.id AND mp.mandat_seit IS NOT NULL
+                 AND mp.merged_into_person_id IS NULL) AS mandate
+      FROM fiaon_agents a
+      LEFT JOIN fiaon_praesenz pr ON pr.agent_id = a.id
+      WHERE a.active = TRUE ORDER BY a.name ASC`;
 
     // ── „Warum dieser Status?" (08.08.2026) ────────────────────────────────
     // Ein Status ohne Begründung ist eine Behauptung. „Antrag abgeschlossen,

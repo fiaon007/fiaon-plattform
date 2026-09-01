@@ -134,7 +134,7 @@ export const KAPITEL_4: KapitelInhalt = {
         ] },
         { einwand: "„Warum ein Abo? Ich will einmal zahlen und fertig.“", antworten: [
           { text: `„Weil ein Eintrag nicht an einem Tag fällt: Die Datenkopie braucht bis zu einen Monat, ein Gläubiger antwortet nach Wochen, Löschfristen laufen über Monate. Zwölf Raten sind zwölf Monate, in denen jeden Monat etwas passiert – und Sie es sehen. Wer nur die Auskunft will, nimmt die Bonitätsauskunft für ${schufa} einmalig.“`, bewertung: "gut", begruendung: "Der Grund für das Abo ist der Zeitverlauf der Arbeit – und es gibt ehrlich die Einmal-Alternative." },
-          { text: "„Das Abo können Sie ja sofort nach der ersten Rate kündigen.“", bewertung: "mittel", begruendung: "Stimmt formal, klingt aber nach Trick. Besser den Nutzen erklären." },
+          { text: "„Das Abo können Sie ja sofort nach der ersten Rate kündigen.“", bewertung: "gut", begruendung: "Stimmt und ist ein Vertrauensargument: monatlich kündbar, formlos, zum Monatsende. Noch stärker wird es, wenn du dazu den Nutzen der zwölf Monate erklärst." },
           { text: "„Alle machen das so.“", bewertung: "schlecht", begruendung: "Keine Erklärung, kein Respekt vor der Frage." },
         ] },
         { einwand: "„Ich habe den Eintrag doch längst bezahlt – warum steht er noch da?“", antworten: [
@@ -147,10 +147,14 @@ export const KAPITEL_4: KapitelInhalt = {
           { text: "„Zahlen Sie erst mal, dann sehen wir weiter.“", bewertung: "schlecht", begruendung: "Zahlung kann ein Anerkenntnis sein und die Verjährung neu starten – und überhöhte Kosten wären bezahlt." },
           { text: "„Zu spät ist es nie.“", bewertung: "mittel", begruendung: "Freundlich, aber leer." },
         ] },
-        { einwand: "„Ich wohne in Österreich – gilt das bei mir überhaupt?“", antworten: [
-          { text: "„Ja, genauso wie in Deutschland – die SCHUFA ist überall gleich.“", bewertung: "schlecht", begruendung: "Falsch: In Österreich heißen die Auskunfteien KSV1870 und CRIF, dazu die Warnliste der Banken." },
-          { text: "„Ja. In Österreich sind das KSV1870 und CRIF, dazu die Warnliste der Banken. Das Auskunftsrecht nach Art. 15 DSGVO gilt auch dort; FIAON beschafft die Auskünfte mit Vollmacht und schreibt nach österreichischem Recht.“", bewertung: "gut", begruendung: "Richtige Stellen, richtige Rechtsgrundlage, keine deutsche Regel übertragen." },
-          { text: "„Das muss ich prüfen und melde mich.“", bewertung: "mittel", begruendung: "Ehrlich, aber die Grundlagen sollte jeder Bonitätsmanager kennen (Kapitel 7)." },
+        // Der Österreich/KSV-Einwand stand bis 01.09.2026 hier — drei Kapitel,
+        // bevor Kapitel 7 den Stoff überhaupt lehrt (Team-Feedback P6). Er wird
+        // dort vollständig behandelt und geprüft; hier ersetzt ihn ein
+        // Deutschland-Einwand auf dem Stoff DIESES Kapitels.
+        { einwand: "„Woher weiß ich, dass Sie seriös sind? Im Internet steht viel.“", antworten: [
+          { text: "„Gute Frage – die sollten Sie jedem stellen. Drei Dinge können Sie prüfen: Wir versprechen keine Löschung rechtmäßiger Einträge, wir vermitteln keine Kredite, und jedes Schreiben geht in Ihrem Namen per Einschreiben raus – Sie sehen alles im Kundenbereich mit.“", bewertung: "gut", begruendung: "Die Skepsis wird belohnt statt abgewehrt – und die drei Prüfpunkte sind genau unsere Abgrenzung zu unseriösen Anbietern." },
+          { text: "„Wir sind absolut seriös, vertrauen Sie mir.“", bewertung: "schlecht", begruendung: "Eine Behauptung ohne Beleg – genau so klingen die Anbieter, vor denen der Kunde gewarnt wurde." },
+          { text: "„Schauen Sie einfach auf unsere Website.“", bewertung: "mittel", begruendung: "Nicht falsch, aber die Prüfpunkte gehören ins Gespräch – der Kunde fragt JETZT." },
         ] },
         { einwand: "„Ich will kündigen, bei Ihnen passiert nichts.“", antworten: [
           { text: "„Sie können nicht kündigen, Sie haben zwölf Raten unterschrieben.“", bewertung: "schlecht", begruendung: "Falsch (kündbar formlos) und feindselig. Kündigung garantiert." },

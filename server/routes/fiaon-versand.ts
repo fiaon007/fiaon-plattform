@@ -8,7 +8,7 @@
 
 import { Router, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
-import { rolleVon } from "../lib/fiaon-kundenzugriff";
+import { rolleVon, darfAnKunde } from "../lib/fiaon-kundenzugriff";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
 import { ensureRolleSpalte } from "./fiaon-vertrieb";
 import {
@@ -36,21 +36,9 @@ const router = Router();
  * Weg, jedem Menschen im Bestand eine Mail zu schicken, ohne je für ihn
  * zuständig gewesen zu sein.
  */
-async function darfAnKunde(agentId: number, rolle: string, personId: number): Promise<boolean> {
-  if (rolle === "vertriebsleiter") return true;
-  if (rolle === "onboarding") {
-    const [t] = (await sqlPool`
-      SELECT 1 AS ok FROM fiaon_termine
-      WHERE person_id = ${personId} AND agent_id = ${agentId} AND quelle = 'onboarding_call' LIMIT 1
-    `) as any[];
-    return !!t;
-  }
-  const [p] = (await sqlPool`
-    SELECT 1 AS ok FROM fiaon_persons
-    WHERE id = ${personId} AND assigned_agent_id = ${agentId} AND merged_into_person_id IS NULL
-  `) as any[];
-  return !!p;
-}
+// P13 (01.09.2026): Die private darfAnKunde-Kopie ist weg — sie kannte weder
+// 'admin' noch 'inkasso' noch die Pool-Regel und lief zwangsläufig auseinander.
+// Es gilt die EINE Definition aus server/lib/fiaon-kundenzugriff.ts (Import oben).
 
 /** GET /agent/versand/:personId — Historie und Knöpfe. */
 router.get("/agent/versand/:personId", requireAgent, async (req: AgentRequest, res: Response) => {

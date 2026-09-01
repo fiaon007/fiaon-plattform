@@ -111,7 +111,7 @@ export default function Preise() {
       <Licht>
         <Block schmal pille="Häufige Fragen">
           <Fragen items={[
-            { f: "Kann ich jederzeit kündigen?", a: "Das Paket läuft zwölf Raten; danach fragen wir ausdrücklich, ob Sie bleiben – keine stille Verlängerung. Kündigen können Sie jederzeit im Kundenbereich unter Abo & Zahlungen zum Ende der Laufzeit." },
+            { f: "Kann ich jederzeit kündigen?", a: "Ja – jederzeit zum Ende des laufenden Monats, formlos und ohne Grund: im Kundenbereich unter Abo & Zahlungen oder per E-Mail. Das Paket ist auf zwölf Raten angelegt; danach fragen wir ausdrücklich, ob Sie bleiben – keine stille Verlängerung." },
             { f: "Wird die Auskunft angerechnet, wenn ich später ein Paket nehme?", a: "Ja. Wer zuerst nur die Auskunft bucht und innerhalb von 30 Tagen ein Paket wählt, bekommt den Betrag angerechnet." },
             { f: "Gibt es Kosten je Schreiben oder Erfolgsprovisionen?", a: "Nein. Weder je Schreiben noch auf Löschungen, Konten oder Kartenrahmen. Der Paketpreis ist der Preis." },
             { f: "Wie wird bezahlt?", a: "Erste Rate per Überweisung (Zahlungsdaten mit QR-Code im Kundenbereich), danach SEPA-Lastschrift über einen verifizierten Kreditor. Keine Kreditkarte nötig." },

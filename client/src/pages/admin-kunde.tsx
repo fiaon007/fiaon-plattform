@@ -704,7 +704,7 @@ export default function AdminKundeAktePage() {
                   className="w-full px-2.5 py-2 rounded-lg border border-slate-300 text-[13px] bg-white"
                 >
                   <option value="">— kein Agent —</option>
-                  {(data.agents || []).map((a: any) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  {(data.agents || []).map((a: any) => <option key={a.id} value={a.id}>{a.name}{a.imDienst === false ? " · nicht im Dienst" : a.imDienst == null ? " · kein Wochenplan" : ""}{a.anwesend ? " · online" : ""}{Number(a.mandate) >= 500 ? ` · Liste voll (${a.mandate}/500)` : ""}</option>)}
                 </select>
               </div>
             )}
@@ -747,7 +747,7 @@ export default function AdminKundeAktePage() {
                             className="px-2 py-1 rounded-lg border border-slate-200 text-[11.5px] bg-white"
                           >
                             <option value="">— Agent —</option>
-                            {(data.agents || []).map((a: any) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                            {(data.agents || []).map((a: any) => <option key={a.id} value={a.id}>{a.name}{a.imDienst === false ? " · nicht im Dienst" : ""}</option>)}
                           </select>
                           {!l.convertedOrderId && ref && (
                             <button type="button" onClick={() => attachLead(l.id)} disabled={busy === `attach-${l.id}`}

@@ -5,7 +5,7 @@ import { AgentShell, useFragen } from "./shared";
 import { Reveal } from "./motion";
 import { Skelett, eur, useReduzierteBewegung, useToast } from "@/lib/fiaon-ui";
 import { ZeichenSenden, ZeichenTelefon, ZeichenWinkel } from "@/lib/fiaon-zeichen";
-import { statusAusTierGrund, STUFEN, type Stufe } from "@shared/fiaon-kundenstatus";
+import { statusAusTierGrund, statusMitZahlungswahrheit, STUFEN, type Stufe } from "@shared/fiaon-kundenstatus";
 import { MarkeBrief, SendeMenue } from "@/components/SendeMenue";
 import { Gespraechsblatt } from "@/components/Gespraechsblatt";
 import { MarkeFunke, anrufStarten } from "@/components/Softphone";
@@ -1327,7 +1327,7 @@ function KundenKarte({
               {/* Die Stufe zuerst: Sie erklärt, warum diese Karte hier steht. */}
               {k.stufe && <StufenMarke stufe={k.stufe} kurz />}
               <span className="font-semibold" style={{ color: TIER_FARBE[k.tier] }}>
-                {statusAusTierGrund(k.tierGrund).anzeige}
+                {statusMitZahlungswahrheit(k.tierGrund, k.buchungen)}
               </span>
               {/* ── WAS IST GEBUCHT UND WAS DAVON OFFEN ────────────────────
                   Statt „ein Produkt, ein Betrag" jetzt alle nicht stornierten
@@ -2429,6 +2429,21 @@ function KundenKarte({
                         {v.von || v.agentName || v.agent || "System"}: {(ERGEBNIS_TEXT as Record<string, string>)[String(v.ergebnis)] || (v.art === "note" ? "Notiz" : v.art)}
                       </span>
                       {v.notiz && <span style={{ color: "var(--fi-text-still)" }}> — {v.notiz}</span>}
+                      {/* „Irrtümlich erfasst?" (P12, 01.09.2026): Soft-Storno über den
+                          bestehenden Server-Weg — nicht gelöscht, sondern als
+                          irrtümlich markiert und aus den Auswertungen genommen. */}
+                      {v.meins && v.id && (
+                        <button type="button" className="ml-1.5 text-[11px]"
+                                style={{ color: "var(--fi-text-still)", background: "none", border: "none", cursor: "pointer", textDecoration: "underline dotted" }}
+                                onClick={async () => {
+                                  if (!window.confirm("Eintrag als irrtümlich markieren? Er wird nicht gelöscht, sondern durchgestrichen im Protokoll dokumentiert.")) return;
+                                  const r = await api(`/agent/log/${v.id}/void`, { method: "POST", body: "{}" });
+                                  if (r.ok) void verlaufNachladen();
+                                  else window.alert(r.json?.error || "Konnte den Eintrag nicht stornieren.");
+                                }}>
+                          Irrtümlich?
+                        </button>
+                      )}
                     </li>
                   ))}
                 </ul>

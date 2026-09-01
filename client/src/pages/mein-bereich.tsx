@@ -35,7 +35,7 @@ interface Bereich {
   paket: { key: string | null; name: string; abo: boolean; rahmen: number | null; wunschlimit: number | null; monatlichCents: number | null; zahlungsstatus: string; zahlungsreferenz: string | null; faelligAm: string | null };
   stufe: { stufe: string | null; text: string | null; grund: string | null; naechsterSchritt: string | null; vollAktiv: boolean; pflicht: boolean; bezahlt: boolean };
   bonitaet: { stufe: string; fuerKunden: string; naechsterSchritt: string; bezahlt: boolean; hatDokument: boolean; geprueft: boolean; darfKaufen: boolean; darfHochladen: boolean; bestellRef: string | null; zahlungsreferenz: string | null; zahlungsstatus: string | null; preisEuro: number } | null;
-  unterlagen: { kontoauszug: boolean; ausweis: boolean; auskunft: boolean; erneutKontoauszug: boolean; erneutAusweis: boolean; kycStatus: string; kontoStatus: string };
+  unterlagen: { kontoauszug: boolean; ausweis: boolean; auskunft: boolean; erneutKontoauszug: boolean; erneutAusweis: boolean; kycStatus: string; kontoStatus: string; hinweise?: string[] };
   abo: { verlaengerung?: { gefragt: boolean; entschieden: boolean; verlaengert: boolean; beendet: boolean; bezahlteRaten: number }; naechste: { nr: number; betragCents: number; faelligAm: string | null; status: string; referenz: string } | null; offen: number; bezahlt: number; raten: { nr: number; betragCents: number; faelligAm: string | null; faelligIso: string | null; status: string; bezahltAm: string | null }[] };
   termin: { beginn: string; status: string; agent: string | null } | null;
   /** Hat das Startgespraech je stattgefunden? Entscheidet die Sperre. */
@@ -487,6 +487,11 @@ export default function MeinBereichPage() {
 
             {/* ═══ UNTERLAGEN ═══ */}
             <section id="unterlagen">
+              {/* P9 (01.09.2026): Sofort-Befunde der automatischen Prüfung —
+                  der Kunde erfährt gleich hier, wenn eine Datei nicht passt. */}
+              {(d.unterlagen.hinweise ?? []).map((h, i) => (
+                <p key={i} style={{ margin: "0 0 10px", padding: "10px 12px", borderRadius: 10, background: "rgba(251,191,36,.12)", border: "1px solid rgba(251,191,36,.35)", fontSize: 13.5 }}>{h}</p>
+              ))}
               <div className="mb-abschnitt-kopf"><div><h2>Unterlagen</h2><p>Was vorliegt, was fehlt — und wie Sie es einreichen.</p></div></div>
               <div className="mb-raster">
                 {[

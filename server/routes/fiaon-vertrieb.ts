@@ -32,7 +32,7 @@ import { aktivitaetSchreiben } from "../lib/fiaon-aktivitaet";
 import multer from "multer";
 import { sqlPool } from "../lib/db-pool";
 import { parseBerlinInput } from "../lib/fiaon-time";
-import { requireAgent, type AgentRequest } from "./fiaon-agent";
+import { requireAgent, type AgentRequest, normalizeSearchDigits } from "./fiaon-agent";
 import { ensureBetreuungSpalte } from "../lib/tier";
 import { ERGEBNISSE, ergebnisAnwenden, istErgebnis } from "../lib/fiaon-kontakt-ergebnis";
 import { waehlbareNummer } from "../lib/fiaon-telefon";
@@ -281,8 +281,16 @@ router.get("/agent/vertrieb/uebersicht", requireAgent, nurLeitung, nurMitZusage,
              -- sind die Mandate, und genau die zeigt der Mitarbeiter selbst
              -- unter /agent/bestand. GEMESSEN am 24.08.2026: 1678 Personen
              -- mit betreuung_seit gegen 411 echte Mandate.
-             COUNT(p.id) FILTER (WHERE p.mandat_seit IS NOT NULL AND NOT p.is_blocked)::int AS mandate
+             COUNT(p.id) FILTER (WHERE p.mandat_seit IS NOT NULL AND NOT p.is_blocked)::int AS mandate,
+             -- ── 01.09.2026 (Team-Feedback P14): PRÄSENZ IN DIE LEITUNGSSICHT ──
+             -- Das Präsenzsystem existiert seit dem 23.08. (fiaon_praesenz,
+             -- Heartbeat alle 10 Minuten aus der OfficeShell). Hier gilt
+             -- DIESELBE 20-Minuten-Frische wie auf /agent/flur — zwei
+             -- verschiedene Schwellen wären zwei Wahrheiten.
+             MAX(pr.status) AS praesenz_status,
+             MAX(pr.zuletzt) AS praesenz_zuletzt
       FROM fiaon_agents a
+      LEFT JOIN fiaon_praesenz pr ON pr.agent_id = a.id
       -- ── 24.08.2026: DIE KOPFZAHL SCHLOSS PRÜFSTANDS-PERSONEN AUS, DIESE
       -- TABELLE NICHT ──────────────────────────────────────────────────────
       -- Der Kommentar an der Kopfzahl behauptet seit dem 22.08. „dieselbe
@@ -313,6 +321,14 @@ router.get("/agent/vertrieb/uebersicht", requireAgent, nurLeitung, nurMitZusage,
         // /agent/bestand sieht (mandat_seit, §16a).
         mandate: a.mandate,
         gesamt: a.tier1 + a.tier2 + a.tier3,
+        // Präsenz (P14): online = Heartbeat in den letzten 20 Minuten und
+        // Status „da"/„telefon". zuletztOnline ist der letzte Heartbeat —
+        // daraus rechnet der Client „Offline seit …".
+        online: !!a.praesenz_zuletzt
+          && (Date.now() - new Date(a.praesenz_zuletzt).getTime()) < 20 * 60 * 1000
+          && (a.praesenz_status === "da" || a.praesenz_status === "telefon"),
+        praesenz: a.praesenz_status || null,
+        zuletztOnline: a.praesenz_zuletzt || null,
       })),
     });
   } catch (err) {
@@ -382,6 +398,7 @@ router.get("/agent/vertrieb/personen", requireAgent, nurLeitung, nurMitZusage, a
         AND ($1 = '' OR ${NAME_SQL} ILIKE '%' || $1 || '%'
              OR COALESCE(p.primary_email,'') ILIKE '%' || $1 || '%'
              OR COALESCE(p.primary_phone,'') ILIKE '%' || $1 || '%'
+             OR ($2 <> '' AND regexp_replace(COALESCE(p.primary_phone,''), '[^0-9]', '', 'g') LIKE '%' || $2 || '%')
              OR EXISTS (SELECT 1 FROM fiaon_applications a3 WHERE a3.person_id = p.id
                           AND (a3.ref ILIKE '%' || $1 || '%' OR COALESCE(a3.payment_reference,'') ILIKE '%' || $1 || '%'))
              -- Frühere Angaben mitsuchen: Nach einem Zusammenschluss ist die alte
@@ -394,7 +411,7 @@ router.get("/agent/vertrieb/personen", requireAgent, nurLeitung, nurMitZusage, a
                                OR COALESCE(al.feld_wert,'') ILIKE '%' || $1 || '%')))
       ORDER BY p.priority_tier ASC, p.promised_payment_date ASC NULLS LAST, p.id DESC
       LIMIT ${limit}
-    `, [q]);
+    `, [q, normalizeSearchDigits(q) || ""]);
 
     res.json({
       ok: true,

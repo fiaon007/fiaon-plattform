@@ -111,7 +111,7 @@ import { Phone, X, Copy, Send, Mail, FileText, Check, ExternalLink, ChevronLeft,
 import { AgentShell, api, useFragen } from "./shared";
 import { useOffice } from "./OfficeShell";
 import { ToastAnbieter, useToast, eur } from "@/lib/fiaon-ui";
-import { statusAusTierGrund, type Stufe } from "@shared/fiaon-kundenstatus";
+import { statusMitZahlungswahrheit, type Stufe } from "@shared/fiaon-kundenstatus";
 import { BANK_ANLEITUNGEN, AUSZUG_GRUNDSATZ } from "@shared/fiaon-bank-anleitungen";
 import { ERGEBNIS_TEXT, ERGEBNIS_LISTE, NOTIZ_MINDESTLAENGE } from "@shared/fiaon-kontakt-ergebnis-liste";
 import { RATEN_ERGEBNISSE, type RatenErgebnis } from "@shared/fiaon-raten-ergebnisse";
@@ -646,11 +646,21 @@ function PipelineInnen() {
     if (suche.trim()) p.set("q", suche.trim());
     if (nurPerson) p.set("person", String(nurPerson));
     const mitAktiven = ansicht === "alle" && !suche.trim();
+    // P17 (01.09.2026): Die Raten-Felder kamen NUR über die ungefilterte
+    // Standardansicht — wer einen säumigen Kunden per SUCHE fand, bekam die
+    // Akte ohne den „Rate überfällig"-Zweig. Jetzt lädt die Suche die
+    // Inkasso-Liste mit demselben Suchbegriff dazu (der Server begrenzt sie
+    // auf das eigene Sichtfeld).
+    const inkassoLaden = mitAktiven
+      ? api(`/inkasso/liste?limit=60`).catch(() => null)
+      : (ansicht === "alle" && suche.trim()
+          ? api(`/inkasso/liste?limit=60&q=${encodeURIComponent(suche.trim())}`).catch(() => null)
+          : Promise.resolve(null));
     const [r, b, ink] = await Promise.all([
       api(`/agent/kunden/liste?${p.toString()}`),
       mitAktiven ? api(`/agent/kunden/liste?filter=bezahlt&sort=neu&limit=200`) : Promise.resolve(null),
       // E-042: überfällige Raten – nur echte Daten, ohne Zugriff bleibt die Gruppe ehrlich leer.
-      mitAktiven ? api(`/inkasso/liste?limit=60`).catch(() => null) : Promise.resolve(null),
+      inkassoLaden,
     ]);
     // §16a: Mandats-Kennungen für Zählung und Bestand-Gruppen.
     const man = await api(`/agent/vertrieb/mandate`).catch(() => null);
@@ -1561,7 +1571,6 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
   const rueckruf = k.rueckrufAm ? new Date(k.rueckrufAm) : null;
   const rueckrufJetzt = rueckruf ? rueckruf.getTime() <= Date.now() : false;
   const termin = k.terminAm ? new Date(k.terminAm) : null;
-  const status = statusAusTierGrund(k.tierGrund);
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === "Escape" && !bestaetigen && !sendeMenue && !blatt) onZu(); };
@@ -1994,7 +2003,7 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
         <div>
           <h2>{k.name}</h2>
           <div className="status">
-            <i style={{ color: k.tier === 1 ? "#fca5a5" : k.tier === 2 ? "#fcd34d" : k.tier === 0 ? "#6ee7b7" : "#cbd5e1" }}>{status.anzeige}</i>
+            <i style={{ color: k.tier === 1 ? "#fca5a5" : k.tier === 2 ? "#fcd34d" : k.tier === 0 ? "#6ee7b7" : "#cbd5e1" }}>{statusMitZahlungswahrheit(k.tierGrund, (k as any).buchungen)}</i>
             <span>{STUFE[stufeVon(k)].name}</span>
             <span className={`pi-marke${vollstaendig ? " gut" : " still"}`}
                   title={akt ? `Paket ${akt.vollstaendig.paketBezahlt ? "✓" : "–"} · SCHUFA ${akt.vollstaendig.schufaBezahlt ? "✓" : "–"} · Kontoauszug ${akt.vollstaendig.kontoauszug ? "✓" : "–"} · Ausweis ${akt.vollstaendig.ausweis ? "✓" : "–"}` : undefined}>
@@ -2484,6 +2493,20 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
                     <b>{new Date(v.am).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</b>
                     {" · "}<span>{v.von || v.agentName || v.agent || "System"}: {(ERGEBNIS_TEXT as Record<string, string>)[String(v.ergebnis)] || (v.art === "note" ? "Notiz" : v.art)}</span>
                     {v.notiz && <> — {v.notiz}</>}
+                    {/* „Irrtümlich erfasst?" (P12, 01.09.2026): Soft-Storno über den
+                        bestehenden Server-Weg — nicht gelöscht, sondern markiert. */}
+                    {v.meins && v.id && (
+                      <button type="button"
+                              style={{ marginLeft: 6, fontSize: 11, background: "none", border: "none", cursor: "pointer", textDecoration: "underline dotted", color: "inherit", opacity: 0.65 }}
+                              onClick={async () => {
+                                if (!window.confirm("Eintrag als irrtümlich markieren? Er wird nicht gelöscht, sondern durchgestrichen im Protokoll dokumentiert.")) return;
+                                const r = await api(`/agent/log/${v.id}/void`, { method: "POST", body: "{}" });
+                                if (r.ok) void verlaufNachladen();
+                                else window.alert(r.json?.error || "Konnte den Eintrag nicht stornieren.");
+                              }}>
+                        Irrtümlich?
+                      </button>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -2539,7 +2562,10 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
                 {(doku.dokumente || []).map((d: any) => (
                   <div key={d.art} className="pi-doku">
                     <span className={`punkt${d.vorhanden ? " da" : ""}`} aria-hidden="true" />
-                    <div className="wer"><b>{d.label}</b><small>{d.vorhanden ? `${d.typ === "bild" ? "Foto" : d.typ === "pdf" ? "PDF" : "Datei"}${d.groesseKb ? ` · ${d.groesseKb} KB` : ""}${d.seit ? ` · seit ${dtag(d.seit)}` : ""}` : d.benoetigt ? "fehlt noch – der Kunde lädt es in seinem Bereich hoch" : "für dieses Paket nicht nötig"}{d.erneutAngefordert ? " · erneut angefordert" : ""}</small></div>
+                    <div className="wer"><b>{d.label}</b><small>{d.vorhanden ? `${d.typ === "bild" ? "Foto" : d.typ === "pdf" ? "PDF" : "Datei"}${d.groesseKb ? ` · ${d.groesseKb} KB` : ""}${d.seit ? ` · seit ${dtag(d.seit)}` : ""}` : d.benoetigt ? "fehlt noch – der Kunde lädt es in seinem Bereich hoch" : "für dieses Paket nicht nötig"}{d.erneutAngefordert ? " · erneut angefordert" : ""}</small>
+                      {/* P9: Befund der automatischen Prüfung — nur wenn auffällig. */}
+                      {(d as any).pruefung && <small style={{ display: "block", color: "#fbbf24" }}>⚠ {(d as any).pruefung}</small>}
+                    </div>
                     <div className="pi-doku-tun">
                       {/* Justin 24.08.: „PRAXIS: Falls der Kunde es nicht schafft…“
                           Das Feld liegt unsichtbar auf dem Etikett – so bleibt der

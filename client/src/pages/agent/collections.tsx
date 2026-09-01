@@ -55,7 +55,7 @@ interface Fall {
   inkasso_zusage_am: string | null; inkasso_versuche: number; eskaliert_am: string | null; person_id: number; name: string;
   email: string | null; phone: string | null; phone_country_code: string | null; paket: string | null;
   telefonAnzeige: string | null; telefonWaehlbar: string | null; telefonHinweis: string | null;
-  ueberfaellig: boolean; tage_ueberfaellig: number; anruf_pflicht: boolean; zusage_gebrochen: boolean;
+  ueberfaellig: boolean; tage_ueberfaellig: number; anruf_pflicht: boolean; zusage_gebrochen: boolean; zusage_offen?: boolean;
   raten_bezahlt: number; raten_gesamt: number; letzter_bearbeiter: string | null; letztes_ergebnis: string | null;
   // 24.08.2026: Der Stand der Rate steht in /inkasso/liste — die gemeinsame
   // Akte (RatenBlock) zeigt ihn je Rate an, deshalb hier im Typ nachgetragen.
@@ -68,7 +68,7 @@ interface Mensch {
   raten: Fall[]; anzahl: number; summeCents: number; dringendste: Fall; bestellungen: number; zweitAbo: boolean; zyklusText?: string; anker?: string | null;
 }
 type Meldung = { art: "gut" | "schlecht"; text: string } | null;
-type Frist = "ueberfaellig" | "heute" | "woche" | "alle";
+type Frist = "ueberfaellig" | "heute" | "woche" | "alle" | "zusagen";
 
 const eur = (c: unknown) => `${(Number(c ?? 0) / 100).toFixed(2).replace(".", ",")} €`;
 const datum = (v: string | null | undefined) => v ? new Date(v).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit", timeZone: "Europe/Berlin" }) : "—";
@@ -136,16 +136,20 @@ function CollectionsInnen() {
   const [akteKunde, setAkteKunde] = useState<Kunde | null>(null);
   const [akteLaedt, setAkteLaedt] = useState(false);
 
+  // P15 (01.09.2026): Kundensuche — 280 ms entprellt, gleiche Taktung wie in
+  // der Kundenliste. Bei aktiver Suche hebt der Server die Wiedervorlage-
+  // Ausblendung auf, damit auch Kunden mit offener Zusage findbar sind.
+  const [suche, setSuche] = useState("");
   const laden = useCallback(async () => {
     setLaedt(true);
-    const r = await fetch(`/api/fiaon/inkasso/liste?frist=${frist}`, { credentials: "include" }).catch(() => null);
+    const r = await fetch(`/api/fiaon/inkasso/liste?frist=${frist}${suche.trim() ? `&q=${encodeURIComponent(suche.trim())}` : ""}`, { credentials: "include" }).catch(() => null);
     if (r?.status === 404) { setZugang("kein"); setLaedt(false); return; }
     const j = await r?.json().catch(() => null);
     if (j?.zusageOffen) { setZugang("offen"); setLaedt(false); return; }
     if (j?.ok) { setDaten(j); setZugang("frei"); } else if (!r) setMeldung({ art: "schlecht", text: "Keine Verbindung." });
     setLaedt(false);
-  }, [frist]);
-  useEffect(() => { void laden(); }, [laden]);
+  }, [frist, suche]);
+  useEffect(() => { const t = setTimeout(() => void laden(), suche ? 280 : 0); return () => clearTimeout(t); }, [laden, suche]);
 
   // ── Akte öffnen/schließen ───────────────────────────────────────────────
   // Wie in bestand.tsx: Solange die Akte offen ist, steht die Seite darunter
@@ -204,7 +208,9 @@ function CollectionsInnen() {
   };
   const z = beschraenkt ? { ...eigene } as any : (daten?.zahlen ?? {});
   const v = daten?.verdienst ?? {};
-  const FENSTER: [Frist, string, number, string][] = [["ueberfaellig", "Überfällig", daten?.fenster?.ueberfaellig ?? 0, "rot"], ["heute", "Heute fällig", daten?.fenster?.heute ?? 0, "gelb"], ["woche", "Nächste 7 Tage", daten?.fenster?.woche ?? 0, "blau"]];
+  // P16 (01.09.2026): „Zusagen offen" als viertes Fenster — eine Zusage ist
+  // eine Stufe (Zahlung ausstehend), kein Verschwinden aus dem Bereich.
+  const FENSTER: [Frist, string, number, string][] = [["ueberfaellig", "Überfällig", daten?.fenster?.ueberfaellig ?? 0, "rot"], ["heute", "Heute fällig", daten?.fenster?.heute ?? 0, "gelb"], ["woche", "Nächste 7 Tage", daten?.fenster?.woche ?? 0, "blau"], ["zusagen", "Zusagen offen", daten?.fenster?.zusagen ?? 0, "gruen"]];
   // 24.08.2026 (Justin): „Alle drei" ist raus — drei Zeitfenster reichen; der
   // vierte Reiter war nur die Summe der anderen drei und stiftete Verwirrung.
   // Der Wert „alle" bleibt serverseitig gültig (Altlinks brechen nicht).
@@ -292,6 +298,10 @@ function CollectionsInnen() {
       {reiter === "liste" && (
         <>
           <div className="co-fenster">{FENSTER.map(([w, t, n, f]) => <button key={w} type="button" className={frist === w ? `an ${f}` : ""} onClick={() => setFrist(w)}>{t}<em>{n}</em></button>)}</div>
+          {/* P15: die Suche — Name, Telefon (formatfrei), E-Mail oder Referenz. */}
+          <input className="co-suche" value={suche} onChange={(e) => setSuche(e.target.value)}
+                 placeholder="Kunden suchen — Name, Telefon, E-Mail oder Referenz"
+                 style={{ width: "100%", margin: "10px 0", padding: "9px 12px", borderRadius: 10, border: "1px solid rgba(148,163,184,.35)", background: "rgba(15,23,42,.35)", color: "inherit", font: "inherit" }} />
           {/* 24.08.2026 (Justin: „Es darf niemanden geben, der niemandem gehört
               — siehst du den Fehler?"). VORHER stand hier IMMER der Satz
               „… und darunter alles, was noch niemandem gehört". Er war an
@@ -303,7 +313,7 @@ function CollectionsInnen() {
               Aufklapper oben. */}
           {menschen.length > 0 && <p className="co-hinweis">{menschen.length} {menschen.length === 1 ? "Mensch" : "Menschen"} · {liste.length} {liste.length === 1 ? "offene Rate" : "offene Raten"}{laedt ? " · aktualisiere …" : ""}</p>}
           {liste.length === 0 && !laedt && (
-            <p className="co-leer karte">{frist === "ueberfaellig" ? "Keine überfällige Rate. Das ist die beste Nachricht des Tages – schau in „Heute fällig“ oder „Nächste 7 Tage“, was ansteht." : frist === "heute" ? "Heute wird keine Rate fällig." : frist === "woche" ? "In den nächsten sieben Tagen wird keine Rate fällig." : "Nichts offen. Alle fälligen Raten sind bearbeitet oder haben eine Wiedervorlage in der Zukunft."}</p>
+            <p className="co-leer karte">{frist === "ueberfaellig" ? "Keine überfällige Rate. Das ist die beste Nachricht des Tages – schau in „Heute fällig“ oder „Nächste 7 Tage“, was ansteht." : frist === "heute" ? "Heute wird keine Rate fällig." : frist === "woche" ? "In den nächsten sieben Tagen wird keine Rate fällig." : frist === "zusagen" ? "Keine offene Zusage — niemand hat gerade ein Zahlungsdatum genannt, auf das gewartet wird." : "Nichts offen. Alle fälligen Raten sind bearbeitet oder haben eine Wiedervorlage in der Zukunft."}</p>
           )}
           <div className="co-liste">
             {menschen.map((m, i) => {
@@ -314,6 +324,8 @@ function CollectionsInnen() {
               return (
                 <article key={schluessel} className="co-karte" style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}>
                   {(f.anruf_pflicht || f.zusage_gebrochen) && <p className={`co-band ${f.anruf_pflicht ? "rot" : "gelb"}`}>{f.anruf_pflicht ? "Anruf-Pflicht — der automatische Versand ist zu Ende" : `Zusage gebrochen — zugesagt war der ${datum(f.inkasso_zusage_am)}`}</p>}
+                  {/* P16: Zusage offen — der Kunde hat ein Datum genannt, das noch vor uns liegt. */}
+                  {f.zusage_offen && !f.zusage_gebrochen && <p className="co-band gut">{`Zusage — zahlt am ${datum(f.inkasso_zusage_am)}, Zahlung ausstehend`}</p>}
                   {f.lastschrift_status === "fehlgeschlagen" && <p className="co-band rot">Lastschrift geplatzt{f.lastschrift_am ? ` am ${datum(f.lastschrift_am)}` : ""}{f.lastschrift_grund ? ` — ${f.lastschrift_grund}` : ""}</p>}
                   {f.lastschrift_status !== "fehlgeschlagen" && mandatText(f.gc_mandate_status) && <p className={`co-band ${f.gc_mandate_status === "active" ? "gut" : "gelb"}`}>{mandatText(f.gc_mandate_status)}</p>}
                   {/* E-047/§18 Nr. 9: VORHER fehlte der Fall „gar kein Mandat“ (mandatText → null, kein Band). */}

@@ -131,6 +131,10 @@ export const FRIST_FILTER = {
   ueberfaellig: `r.faellig_am < ${HEUTE_BERLIN}`,
   heute: `r.faellig_am = ${HEUTE_BERLIN}`,
   woche: `r.faellig_am > ${HEUTE_BERLIN} AND r.faellig_am <= ${HEUTE_BERLIN} + 7`,
+  // P16 (01.09.2026): Eine Zusage ist eine STUFE, kein Verschwinden. Die
+  // Wiedervorlage nimmt die Rate bewusst aus der Arbeitsreihenfolge — aber
+  // hier bleibt sichtbar, wer zugesagt hat und worauf gewartet wird.
+  zusagen: `r.inkasso_zusage_am IS NOT NULL AND r.inkasso_zusage_am >= ${HEUTE_BERLIN}`,
 } as const;
 
 export type FristFenster = keyof typeof FRIST_FILTER;
@@ -339,9 +343,15 @@ export async function arbeitsliste(
   // (Zuteilung über inkasso_agent_id). NACHHER arbeitet jeder Bonitätsmanager
   // die überfälligen Raten SEINER Kunden: Filter über den Besitz
   // (fiaon_persons.assigned_agent_id), nicht über die Inkasso-Zuteilung.
-  opts: { limit?: number; nurMeine?: number | null; frist?: string | null; nurBetreuer?: number | null } = {},
+  opts: { limit?: number; nurMeine?: number | null; frist?: string | null; nurBetreuer?: number | null; q?: string | null } = {},
   lauf: Lauf = sqlPool,
 ): Promise<any[]> {
+  // P15 (01.09.2026): Kundensuche direkt an der Inkasso-Liste — die einzige
+  // Such-API, die für Diana (voll) UND Bonitätsmanager (beschränkt) korrekt
+  // begrenzt ist. Bei aktiver Suche wird die Wiedervorlage-Ausblendung
+  // aufgehoben: Ein Kunde mit offener Zusage muss FINDBAR sein.
+  const q = String(opts.q || "").trim().slice(0, 80);
+  const telQ = q.replace(/\D/g, "").replace(/^00/, "").replace(/^49/, "").replace(/^0/, "");
   const heute = berlinToday();
   const frist = await anrufPflichtTage(lauf);
   // Die letzte Stufe kommt aus EINER Quelle (MAHNSTUFEN in fiaon-abo.ts).
@@ -373,6 +383,8 @@ export async function arbeitsliste(
            (r.mahnstufe >= ${letzteStufe} AND r.faellig_am < (${heute}::date - ${14 + frist}::int)) AS anruf_pflicht,
            -- Gebrochene Zusage: ein Datum wurde genannt und ist vorbei.
            (r.inkasso_zusage_am IS NOT NULL AND r.inkasso_zusage_am < ${heute}::date) AS zusage_gebrochen,
+           -- Offene Zusage (P16): zugesagt und das Datum liegt noch vor uns.
+           (r.inkasso_zusage_am IS NOT NULL AND r.inkasso_zusage_am >= ${heute}::date) AS zusage_offen,
            (SELECT COUNT(*)::int FROM fiaon_abo_raten x
              WHERE x.ref = r.ref AND x.status = 'bezahlt') AS raten_bezahlt,
            -- 24.08.2026: Das ist die Menge der bisher ANGELEGTEN Ratenzeilen — sie
@@ -394,8 +406,24 @@ export async function arbeitsliste(
       -- sieben Tagen. Ohne Angabe alle drei.
       AND (${lauf.unsafe(fristBedingung(opts.frist))})
       -- Eine Wiedervorlage in der Zukunft nimmt die Rate vom Tisch. Wer eine
-      -- Zusage für den 20. hat, ruft nicht am 15. wieder an.
-      AND (r.inkasso_wiedervorlage IS NULL OR r.inkasso_wiedervorlage <= ${heute}::date)
+      -- Zusage für den 20. hat, ruft nicht am 15. wieder an. AUSNAHMEN (P15/16):
+      -- das Zusagen-Fenster und die aktive Suche — dort geht es um SICHTBARKEIT,
+      -- nicht um die Arbeitsreihenfolge.
+      ${opts.frist === "zusagen" || q !== ""
+        ? lauf``
+        : lauf`AND (r.inkasso_wiedervorlage IS NULL OR r.inkasso_wiedervorlage <= ${heute}::date)`}
+      ${q !== ""
+        ? lauf`AND (COALESCE(NULLIF(TRIM(CONCAT_WS(' ', a.first_name, a.last_name)), ''), a.contact_name, '') ILIKE ${'%' + q + '%'}
+                 OR COALESCE(a.email, '') ILIKE ${'%' + q + '%'}
+                 OR COALESCE(a.contact_email, '') ILIKE ${'%' + q + '%'}
+                 OR COALESCE(a.phone, '') ILIKE ${'%' + q + '%'}
+                 OR COALESCE(a.contact_phone, '') ILIKE ${'%' + q + '%'}
+                 OR COALESCE(r.zahlungsreferenz, '') ILIKE ${'%' + q + '%'}
+                 OR COALESCE(a.payment_reference, '') ILIKE ${'%' + q + '%'}
+                 OR r.ref ILIKE ${'%' + q + '%'}
+                 OR (${telQ}::text <> '' AND LENGTH(${telQ}::text) >= 5
+                     AND regexp_replace(COALESCE(a.phone, '') || ' ' || COALESCE(a.contact_phone, ''), '[^0-9]', '', 'g') LIKE ${'%' + telQ + '%'}))`
+        : lauf``}
       -- ══════════════════════════════════════════════════════════════════
       -- SEINE FÄLLE UND DIE, DIE NIEMANDEM GEHÖREN
       --
@@ -553,7 +581,7 @@ export interface InkassoPerson {
  * zweite Definition von „dringend".
  */
 export async function arbeitslistePersonen(
-  opts: { limit?: number; nurMeine?: number | null; frist?: string | null; nurBetreuer?: number | null } = {},
+  opts: { limit?: number; nurMeine?: number | null; frist?: string | null; nurBetreuer?: number | null; q?: string | null } = {},
   lauf: Lauf = sqlPool,
 ): Promise<InkassoPerson[]> {
   const raten = await arbeitsliste(opts, lauf);
@@ -632,7 +660,7 @@ export async function arbeitslistePersonen(
  */
 export async function fristZaehler(
   opts: { nurMeine?: number | null; nurBetreuer?: number | null } = {}, lauf: Lauf = sqlPool,
-): Promise<{ ueberfaellig: number; heute: number; woche: number; alle: number }> {
+): Promise<{ ueberfaellig: number; heute: number; woche: number; alle: number; zusagen: number }> {
   const heute = berlinToday();
   const [z] = (await lauf`
     SELECT
@@ -662,9 +690,26 @@ export async function fristZaehler(
                    AND pb.merged_into_person_id IS NULL)`
         : lauf``}
   `) as any[];
+  // Offene Zusagen separat: Die Hauptabfrage schließt Wiedervorlagen aus —
+  // und genau dahinter liegen die Zusagen. Gleiche Sicht- und Besitzgrenzen.
+  const [zz] = (await lauf`
+    SELECT COUNT(*)::int AS zusagen
+    FROM fiaon_abo_raten r
+    WHERE ${lauf.unsafe(SICHTFELD)}
+      AND r.inkasso_zusage_am IS NOT NULL AND r.inkasso_zusage_am >= ${heute}::date
+      ${opts.nurMeine
+        ? lauf`AND (r.inkasso_agent_id = ${opts.nurMeine} OR r.inkasso_agent_id IS NULL)`
+        : lauf``}
+      ${opts.nurBetreuer
+        ? lauf`AND EXISTS (SELECT 1 FROM fiaon_applications ab
+                 JOIN fiaon_persons pb ON pb.id = ab.person_id
+                 WHERE ab.ref = r.ref AND pb.assigned_agent_id = ${opts.nurBetreuer}
+                   AND pb.merged_into_person_id IS NULL)`
+        : lauf``}
+  `) as any[];
   return {
     ueberfaellig: Number(z.ueberfaellig), heute: Number(z.heute),
-    woche: Number(z.woche), alle: Number(z.alle),
+    woche: Number(z.woche), alle: Number(z.alle), zusagen: Number(zz?.zusagen || 0),
   };
 }
 

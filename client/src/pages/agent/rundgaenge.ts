@@ -229,9 +229,28 @@ export const RUNDGANG_ONBOARDING: RundgangSchritt[] = [
       + "mit einem Klick die Einladung, und der Kunde wählt seine Zeit selbst. Erscheint jemand "
       + "nicht, meldest du das; er bekommt sofort eine E-Mail mit dem Link auf einen neuen Termin.",
   },
+  {
+    // P10 (01.09.2026): Termin-Haken ≠ Onboarding-Abschluss.
+    titel: "Termin bestätigt heißt noch nicht abgeschlossen.",
+    text: "Seit dem 01.09. gilt: Der Kalender-Haken „stattgefunden“ schaltet das Konto des "
+      + "Kunden frei — aber der Kunde bleibt unter „Zu dokumentieren“, bis du im Cockpit "
+      + "die Pflicht-Agenda mit Notizen abgeschlossen hast. Erst dieser dokumentierte Abschluss "
+      + "bucht auch deine Onboarding-Vergütung. So ist ein Gespräch erst fertig, wenn der "
+      + "nächste Kollege lesen kann, was besprochen wurde.",
+    tipp: "Direkt nach dem Telefonat die Notiz ins Cockpit — zwei Minuten, und Doku plus Vergütung sind erledigt.",
+  },
 ];
 
 export const RUNDGANG_COLLECTIONS: RundgangSchritt[] = [
+  {
+    // P15/P16 (01.09.2026): Suche + sichtbare Zusagen.
+    titel: "Suchen statt scrollen — und Zusagen im Blick.",
+    text: "Oben gibt es jetzt eine Kundensuche (Name, Telefon in jedem Format, E-Mail oder "
+      + "Referenz) — sie findet auch Kunden, die gerade eine Zusage gegeben haben. Und das "
+      + "vierte Fenster „Zusagen offen“ zeigt jeden, der ein Zahlungsdatum genannt hat: "
+      + "Eine Zusage ist eine Stufe (Zahlung ausstehend), kein Verschwinden.",
+    tipp: "Ruft ein Kunde zurück, such ihn hier — auch wenn er nicht in der Tagesliste steht.",
+  },
   {
     titel: "Geld zurückholen — freundlich, nicht als Inkasso.",
     text: "Hier stehen die offenen Raten deiner eigenen Kunden. Diese Menschen haben schon einmal "

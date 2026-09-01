@@ -111,7 +111,7 @@ function KalenderContent() {
   // AGENTS.md, dreimal in diesem Repo gelernt.
   const [uebergabe, setUebergabe] = useState<
     { id: number; name: string; agentId: string; grund: string } | null>(null);
-  const [kollegen, setKollegen] = useState<{ id: number; name: string; rolle: string; zustaendig?: boolean }[]>([]);
+  const [kollegen, setKollegen] = useState<{ id: number; name: string; rolle: string; zustaendig?: boolean; imDienst?: boolean | null; listeVoll?: boolean; mandate?: number; mandateMax?: number }[]>([]);
   const [uebergabeSoll, setUebergabeSoll] = useState<string | null>(null);
 
   // Mit `?termin=`: Der Server sortiert die Zuständigen nach oben und
@@ -452,7 +452,7 @@ function KalenderContent() {
               <option value="">Wer übernimmt?</option>
               {kollegen.map((k) => (
                 <option key={k.id} value={k.id}>
-                  {k.name} — {k.rolle}{k.zustaendig ? " · zuständig" : uebergabeSoll ? " · Vertretung" : ""}
+                  {k.name} — {k.rolle}{k.zustaendig ? " · zuständig" : uebergabeSoll ? " · Vertretung" : ""}{`${k.imDienst === false ? " · nicht im Dienst (zur Terminzeit)" : k.imDienst == null ? " · kein Wochenplan" : ""}${(k as any).listeVoll ? ` · Liste voll (${(k as any).mandate}/${(k as any).mandateMax})` : ""}`}
                 </option>
               ))}
             </select>

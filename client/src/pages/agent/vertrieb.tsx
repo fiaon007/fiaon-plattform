@@ -470,6 +470,18 @@ const ROLLEN_TEXT: Record<string, string> = {
   admin: "Verwaltung",
 };
 
+// „Zuletzt online 10:42 · offline seit 1 Std 23 Min" (P14): aus dem letzten
+// Präsenz-Heartbeat gerechnet — dieselbe Quelle wie der Flur.
+function offlineSeit(zuletzt: string | null): string {
+  if (!zuletzt) return "noch nie online";
+  const min = Math.max(0, Math.round((Date.now() - new Date(zuletzt).getTime()) / 60000));
+  const uhr = new Date(zuletzt).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  if (min < 60) return `zuletzt ${uhr} · offline seit ${min} Min`;
+  const tage = Math.floor(min / 1440);
+  if (tage >= 1) return `zuletzt ${new Date(zuletzt).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })} ${uhr}`;
+  return `zuletzt ${uhr} · offline seit ${Math.floor(min / 60)} Std ${min % 60} Min`;
+}
+
 function Team({ agenten, z, aufRaum }: { agenten: any[]; z: any; aufRaum: (r: Raum) => void }) {
   const sortiert = [...agenten].sort((a, b) => (b.mandate + b.gesamt) - (a.mandate + a.gesamt));
   const gesamtMandate = agenten.reduce((s, a) => s + (a.mandate || 0), 0);
@@ -500,8 +512,17 @@ function Team({ agenten, z, aufRaum }: { agenten: any[]; z: any; aufRaum: (r: Ra
           {sortiert.map((a) => (
             <div key={a.id} className="lt-zeile">
               <span className="lt-zeile-wer">
-                <b>{a.name}</b>
-                <small>{ROLLEN_TEXT[String(a.rolle)] ?? a.rolle}</small>
+                <b>
+                  <span aria-hidden style={{ display: "inline-block", width: 8, height: 8, borderRadius: 4, marginRight: 6, verticalAlign: "middle", background: a.online ? "#34d399" : "#9ca3af" }} />
+                  {a.name}
+                </b>
+                <small>
+                  {ROLLEN_TEXT[String(a.rolle)] ?? a.rolle}
+                  {" · "}
+                  {a.online
+                    ? (a.praesenz === "telefon" ? "online · am Telefon" : "online")
+                    : offlineSeit(a.zuletztOnline)}
+                </small>
               </span>
               <span className="lt-zeile-lage">
                 <em className="ton-gut">{a.mandate} Mandate</em>

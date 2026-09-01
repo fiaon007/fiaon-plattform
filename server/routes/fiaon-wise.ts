@@ -14,13 +14,16 @@
 // bekommt von Wise eine Einmal-Nummer (Header x-2fa-approval), wir signieren
 // sie mit dem privaten Schlüssel und wiederholen die Abfrage. Vollautomatisch.
 //
-// WAS DIE AUTOMATIK TUT — UND WAS BEWUSST NICHT:
+// WAS DIE AUTOMATIK TUT (Fassung 2, gleicher Tag — Justins Auftrag „alles
+// LIVE verbucht"):
 //   · Sie liest alle 30 Minuten die Gutschriften der letzten Tage und trägt
-//     NEUE ins Bankbuch (fiaon_bank_txns) ein, mit Referenz-Erkennung und
-//     Antrags-Zuordnung als VORSCHLAG (match_status).
-//   · Sie bucht NICHTS: kein mark-paid, keine Rate, keine Mail, keine
-//     Provision. Freischalten bleibt eine menschliche Entscheidung — dieselbe
-//     Vier-Augen-Linie wie beim Kontoabgleich (der bewusst AUS ist).
+//     NEUE ins Bankbuch (fiaon_bank_txns) ein.
+//   · Den GLASKLAREN Fall bucht sie sofort selbst — Referenz trifft genau
+//     eine offene Bestellung/Rate, Betrag stimmt auf den Cent — über
+//     DIESELBEN Wege wie der Mensch (alsBezahltBuchen/rateBezahltBuchen):
+//     Freischaltung, Aktivierungsmail, Provision, Ratenkette. Details und
+//     Grenzen in liveVerbuchen() unten.
+//   · Alles Unklare bleibt Vorschlag im Bankbuch, mit dem Grund in der Notiz.
 //   · Der Webhook (/api/fiaon/wise/webhook) ist nur ein WECKER: Wise meldet
 //     „Geld ist da", wir stoßen den Einleser an. Dem Webhook-Inhalt wird
 //     NICHT vertraut — die Wahrheit holt sich der signierte Auszug selbst.
@@ -98,13 +101,13 @@ function refErkennen(text: string): string | null {
   return `FIAON-${m[1].toUpperCase()}${m[2] || ""}`;
 }
 
-let letzterLauf: { wann: string; neu: number; gesehen: number; fehler: string | null } | null = null;
+let letzterLauf: { wann: string; neu: number; gebucht: number; gesehen: number; fehler: string | null } | null = null;
 
 /**
- * Der Einleser: Gutschriften der letzten Tage holen, Neues ins Bankbuch.
- * Rückgabe: wie viele Gutschriften gesehen, wie viele neu eingetragen.
+ * Der Einleser: Gutschriften der letzten Tage holen, Neues ins Bankbuch,
+ * Glasklares live verbuchen. Rückgabe: gesehen / neu / davon gebucht.
  */
-export async function wiseEinlesen(tage = 5): Promise<{ gesehen: number; neu: number }> {
+export async function wiseEinlesen(tage = 5): Promise<{ gesehen: number; neu: number; gebucht: number }> {
   const { profilId: pid, balanceId: bid } = await verbindungFinden();
   const bis = new Date();
   const von = new Date(bis.getTime() - tage * 24 * 60 * 60 * 1000);
@@ -123,12 +126,14 @@ export async function wiseEinlesen(tage = 5): Promise<{ gesehen: number; neu: nu
   );
 
   let neu = 0;
+  let gebucht = 0;
   for (const g of gutschriften) {
     const zweck = String(g.details?.paymentReference || g.details?.description || "");
     const ref = refErkennen(zweck);
+    const cents = Math.round(Number(g.amount?.value || 0) * 100);
     const eingefuegt = await sqlPool`
       INSERT INTO fiaon_bank_txns (txn_id, booked_at, amount_cents, currency, payer_name, reference_raw, extracted_ref, matched_ref, match_status, applied, note)
-      SELECT ${g.referenceNumber}, ${g.date}, ${Math.round(Number(g.amount?.value || 0) * 100)}, 'EUR',
+      SELECT ${g.referenceNumber}, ${g.date}, ${cents}, 'EUR',
              ${String(g.details?.senderName || "")}, ${zweck}, ${ref},
              (SELECT a.ref FROM fiaon_applications a
               WHERE a.payment_reference = ${ref ? ref.replace(/-\d{1,2}$/, "") : null} AND a.merged_into IS NULL
@@ -138,13 +143,107 @@ export async function wiseEinlesen(tage = 5): Promise<{ gesehen: number; neu: nu
       WHERE NOT EXISTS (SELECT 1 FROM fiaon_bank_txns b WHERE b.txn_id = ${g.referenceNumber})
       RETURNING id
     `;
-    if (eingefuegt.length > 0) {
-      neu += 1;
-      console.log(`[WISE] Neuer Eingang ${g.referenceNumber}: ${g.amount?.value} € von ${g.details?.senderName || "?"} (${ref || "ohne Referenz"})`);
-    }
+    if (eingefuegt.length === 0) continue;
+    neu += 1;
+    console.log(`[WISE] Neuer Eingang ${g.referenceNumber}: ${g.amount?.value} € von ${g.details?.senderName || "?"} (${ref || "ohne Referenz"})`);
+    const erg = await liveVerbuchen(g.referenceNumber, ref, cents, String(g.date || "").slice(0, 10));
+    if (erg.gebucht) gebucht += 1;
   }
-  letzterLauf = { wann: new Date().toISOString(), neu, gesehen: gutschriften.length, fehler: null };
-  return { gesehen: gutschriften.length, neu };
+  letzterLauf = { wann: new Date().toISOString(), neu, gebucht, gesehen: gutschriften.length, fehler: null };
+  return { gesehen: gutschriften.length, neu, gebucht };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LIVE-VERBUCHUNG (01.09.2026, Justins Auftrag: „alles LIVE verbucht")
+//
+// Automatisch gebucht wird NUR der glasklare Fall — dieselben Regeln, nach
+// denen bisher der Mensch gebucht hat:
+//   · Erstzahlung: Referenz trifft GENAU EINE offene Bestellung
+//     (pending_payment/claimed_paid) und der Betrag stimmt AUF DEN CENT →
+//     derselbe Weg wie der mark-paid-Knopf (alsBezahltBuchen): Status,
+//     Aktivierungsmail, Provision, Ratenkette.
+//   · Monatsrate: Referenz nennt die Raten-Nummer (FIAON-XXXXXX-2) und trifft
+//     genau diese offene Rate mit exaktem Betrag → rateBezahltBuchen
+//     (Folge-Rate, Ratenprovision).
+// ALLES ANDERE — Betrag weicht ab, Referenz unklar, Bestellung schon bezahlt,
+// Tippfehler wie „Fiacon" — bleibt Vorschlag im Bankbuch für den Menschen.
+// Die Fälle van Beuzekom (Doppelzahlung), Demurtas (Nachzügler) und Harder
+// (Startzahlung ohne Beleg) vom 31.08./01.09. sind GENAU die Sorte, die diese
+// Automatik bewusst NICHT anfasst.
+// ═══════════════════════════════════════════════════════════════════════════
+async function liveVerbuchen(
+  txnId: string, ref: string | null, cents: number, datum: string,
+): Promise<{ gebucht: boolean; grund: string }> {
+  const vermerk = async (note: string, applied = false) => {
+    await sqlPool`
+      UPDATE fiaon_bank_txns SET note = ${note}, applied = ${applied},
+             applied_at = ${applied ? new Date() : null}, updated_at = NOW()
+      WHERE txn_id = ${txnId}
+    `.catch(() => {});
+  };
+  try {
+    if (!ref || !datum) return { gebucht: false, grund: "keine Referenz" };
+
+    // ── Monatsrate: FIAON-XXXXXX-N ────────────────────────────────────────
+    const ratenTreffer = ref.match(/^(FIAON-[A-Z0-9]{6})-(\d{1,2})$/);
+    if (ratenTreffer) {
+      const raten = (await sqlPool`
+        SELECT id, betrag_cents, status FROM fiaon_abo_raten
+        WHERE zahlungsreferenz = ${ref} AND storniert_am IS NULL
+      `) as any[];
+      if (raten.length !== 1) return { gebucht: false, grund: "Rate nicht eindeutig" };
+      if (String(raten[0].status) === "bezahlt") {
+        await vermerk(`Wise-Automatik: Rate ${ref} ist bereits als bezahlt gebucht — Eingang bitte von Hand zuordnen (Doppelzahlung?).`);
+        return { gebucht: false, grund: "Rate schon bezahlt" };
+      }
+      if (Number(raten[0].betrag_cents) !== cents) {
+        await vermerk(`Wise-Automatik: Rate ${ref} gefunden, aber Betrag weicht ab (${(cents / 100).toFixed(2)} € statt ${(Number(raten[0].betrag_cents) / 100).toFixed(2)} €) — bitte von Hand buchen.`);
+        return { gebucht: false, grund: "Betrag weicht ab" };
+      }
+      const { rateBezahltBuchen } = await import("./fiaon-abo");
+      const erg = await rateBezahltBuchen({
+        rateId: Number(raten[0].id), zahlungsdatum: datum, quelle: "bank",
+        notiz: `Bankeingang ${txnId} — automatisch gebucht (Wise-Automatik)`,
+      });
+      if (erg.ok && !erg.schonBezahlt) {
+        await vermerk(`Wise-Automatik: LIVE verbucht — Rate ${ref} bezahlt per ${datum} (inkl. Ratenprovision).`, true);
+        console.log(`[WISE] LIVE verbucht: Rate ${ref} (${(cents / 100).toFixed(2)} €)`);
+        return { gebucht: true, grund: "Rate gebucht" };
+      }
+      await vermerk(`Wise-Automatik: Rate ${ref} NICHT automatisch gebucht (${erg.ok ? "war schon bezahlt" : erg.error || "abgelehnt"}) — bitte prüfen.`);
+      return { gebucht: false, grund: erg.ok ? "schon bezahlt" : String(erg.error || "abgelehnt") };
+    }
+
+    // ── Erstzahlung: exakt EINE offene Bestellung, Betrag auf den Cent ────
+    const apps = (await sqlPool`
+      SELECT ref, payment_reference, payment_status, ROUND(amount_due * 100)::int AS soll_cents
+      FROM fiaon_applications
+      WHERE payment_reference = ${ref} AND merged_into IS NULL
+    `) as any[];
+    if (apps.length !== 1) return { gebucht: false, grund: apps.length === 0 ? "keine Bestellung zur Referenz" : "Referenz mehrdeutig" };
+    const app = apps[0];
+    if (!["pending_payment", "claimed_paid"].includes(String(app.payment_status))) {
+      await vermerk(`Wise-Automatik: Bestellung ${ref} steht auf '${app.payment_status}' — nichts automatisch gebucht, bitte von Hand zuordnen (Rate? Doppelzahlung?).`);
+      return { gebucht: false, grund: `Status ${app.payment_status}` };
+    }
+    if (Number(app.soll_cents) !== cents) {
+      await vermerk(`Wise-Automatik: Bestellung ${ref} gefunden, aber Betrag weicht ab (${(cents / 100).toFixed(2)} € statt ${(Number(app.soll_cents) / 100).toFixed(2)} €) — bitte von Hand buchen.`);
+      return { gebucht: false, grund: "Betrag weicht ab" };
+    }
+    const { alsBezahltBuchen } = await import("./fiaon-antrag");
+    const erg = await alsBezahltBuchen(ref, { zahlungsdatum: datum, quelle: "wise-automatik" });
+    if (erg.ok) {
+      await vermerk(`Wise-Automatik: LIVE verbucht — ${ref} bezahlt per ${datum}, Kunde freigeschaltet (Aktivierungsmail + Provision über den einen Buchungsweg).`, true);
+      console.log(`[WISE] LIVE verbucht: ${ref} (${(cents / 100).toFixed(2)} €) — Kunde freigeschaltet`);
+      return { gebucht: true, grund: "Erstzahlung gebucht" };
+    }
+    await vermerk(`Wise-Automatik: ${ref} NICHT automatisch gebucht (${erg.error}) — bitte prüfen.`);
+    return { gebucht: false, grund: String(erg.error) };
+  } catch (e: any) {
+    console.error("[WISE] liveVerbuchen:", e?.message || e);
+    await vermerk(`Wise-Automatik: Buchungsversuch fehlgeschlagen (${String(e?.message || e).slice(0, 120)}) — bitte von Hand buchen.`);
+    return { gebucht: false, grund: "Fehler" };
+  }
 }
 
 // ── Verwaltungs-Endpunkte (hinter dem Admin-Tor, Pfade beginnen mit /admin) ──
@@ -157,7 +256,7 @@ router.get("/admin/wise/status", async (_req: Request, res: Response) => {
     stand.verbindung = "ok";
     try {
       const probe = await wiseEinlesen(1);
-      stand.auszug = `ok — ${probe.gesehen} Gutschriften in 24 h, ${probe.neu} neu eingetragen`;
+      stand.auszug = `ok — ${probe.gesehen} Gutschriften in 24 h, ${probe.neu} neu eingetragen, ${probe.gebucht} davon live verbucht`;
     } catch (e: any) {
       stand.auszug = `FEHLT: ${e?.message || e}`;
     }

@@ -320,6 +320,18 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
         kontoauszug: !!a.hat_kontoauszug, ausweis: !!a.hat_ausweis, auskunft: auskunftDa,
         erneutKontoauszug: !!a.reupload_bank_statement, erneutAusweis: !!a.reupload_id_card,
         kycStatus: a.kyc_status || "pending", kontoStatus: a.account_status || "pending",
+        // P9 (01.09.2026): Sofort-Befunde der automatischen Prüfung, in
+        // Sie-Form — nur gesetzt, wenn etwas auffällig ist. Der 2,2-s-Reload
+        // nach dem Upload holt sie meist schon mit.
+        hinweise: await (async () => {
+          try {
+            const { urteileLesen } = await import("../lib/fiaon-dokument-pruefung");
+            const u = await urteileLesen([String(ref)]);
+            return Object.values(u)
+              .filter((x: any) => x?.hinweisKunde && (x.erkannt === false || x.vollstaendig === false))
+              .map((x: any) => String(x.hinweisKunde)).slice(0, 3);
+          } catch { return []; }
+        })(),
       },
       abo: {
         // E-024: Laufzeit erreicht? Dann zeigt der Bereich die Frage.

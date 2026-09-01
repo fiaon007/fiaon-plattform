@@ -58,7 +58,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { Router, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
-import { requireAgent, type AgentRequest } from "./fiaon-agent";
+import { requireAgent, type AgentRequest, normalizeSearchDigits } from "./fiaon-agent";
 import { VERSAND_TEXT, type VersandArt } from "../lib/fiaon-versand";
 import { ZUSTELL_TEXT } from "../lib/fiaon-zustellung";
 import { waehlbareNummer } from "../lib/fiaon-telefon";
@@ -109,6 +109,8 @@ router.get("/agent/inbox/uebersicht", requireAgent, async (req: AgentRequest, re
     const filter = ["offen", "aktivitaet", "alle"].includes(String(req.query.filter)) ? String(req.query.filter) : "offen";
     const tage = Math.min(180, Math.max(1, Number(req.query.tage) || TAGE_STANDARD));
     const suche = String(req.query.suche || "").trim().slice(0, 120) || null;
+    // Telefonsuche formatfrei (01.09.2026, P8) — Ziffern beidseitig reduziert.
+    const telSuche = normalizeSearchDigits(suche || "");
     const seite = Math.max(0, Number(req.query.seite) || 0);
     const nurOffen = filter === "offen";
     const nurAktivitaet = filter === "aktivitaet";
@@ -134,6 +136,7 @@ router.get("/agent/inbox/uebersicht", requireAgent, async (req: AgentRequest, re
            OR COALESCE(m.first_name, '') || ' ' || COALESCE(m.last_name, '') ILIKE '%' || ${suche} || '%'
            OR COALESCE(m.primary_email, '') ILIKE '%' || ${suche} || '%'
            OR COALESCE(m.primary_phone, '') ILIKE '%' || ${suche} || '%'
+           OR (${telSuche}::text IS NOT NULL AND regexp_replace(COALESCE(m.primary_phone, ''), '[^0-9]', '', 'g') LIKE '%' || ${telSuche} || '%')
       ),
       anliegen AS (
         SELECT t.person_id,

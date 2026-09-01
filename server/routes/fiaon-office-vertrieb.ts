@@ -716,7 +716,37 @@ router.get("/agent/vertrieb/bestand", requireAgent, async (req: AgentRequest, re
         monatsrateCents: s.rateCents != null ? Number(s.rateCents) : (k as any).betrag ?? null,
       };
     });
-    res.json({ ok: true, mandate, max: MANDATE_MAX });
+    // ── „IN BETREUUNG — NOCH KEIN MANDAT" (01.09.2026, Team-Feedback P7) ──
+    // Der Befund: Ein Mitarbeiter nimmt einen Kunden aus dem Pool, ruft an,
+    // klickt „Nicht erreicht" — die Wiedervorlage nimmt ihn korrekt aus der
+    // Arbeitsliste, aber der Bestand zeigte NUR Mandate. Der Kunde war also
+    // nirgends sichtbar; rief er zurück, fand ihn der Mitarbeiter nicht.
+    // Diese zweite, rein lesende Rubrik zeigt alle zugewiesenen Kunden ohne
+    // Mandat, mit denen schon gearbeitet wurde (Verlaufseintrag oder Termin) —
+    // inklusive der Ruhenden. Die Mandatszählung x/500 bleibt unberührt.
+    const inArbeitRows = (await sqlPool.unsafe(
+      `SELECT ${KARTE_SQL}, p.follow_up_date,
+         (SELECT MAX(c.created_at) FROM fiaon_contact_log c
+           JOIN fiaon_applications ac ON ac.ref = c.ref
+           WHERE ac.person_id = p.id AND c.voided_at IS NULL) AS letzter_eintrag
+       FROM fiaon_persons p
+       WHERE p.assigned_agent_id = $1 AND p.mandat_seit IS NULL
+         AND p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL AND NOT p.is_blocked
+         AND (EXISTS (SELECT 1 FROM fiaon_contact_log c2
+                        JOIN fiaon_applications ac2 ON ac2.ref = c2.ref
+                        WHERE ac2.person_id = p.id AND c2.voided_at IS NULL
+                          AND c2.type IN ('note', 'result'))
+              OR EXISTS (SELECT 1 FROM fiaon_termine t2 WHERE t2.person_id = p.id))
+       ORDER BY letzter_eintrag DESC NULLS LAST, p.id DESC
+       LIMIT 200`, [req.agent!.id],
+    )) as any[];
+    const inArbeit = inArbeitRows.map((r) => ({
+      kunde: karte(r),
+      wiedervorlage: r.follow_up_date ?? null,
+      letzterEintrag: r.letzter_eintrag ?? null,
+    }));
+
+    res.json({ ok: true, mandate, inArbeit, max: MANDATE_MAX });
   } catch (err) {
     console.error("[OFFICE-VERTRIEB] bestand:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });

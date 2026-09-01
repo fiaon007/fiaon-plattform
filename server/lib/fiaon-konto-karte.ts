@@ -292,7 +292,11 @@ function toreAus(r: any): Tor[] {
     },
     {
       schluessel: "bezahlt",
-      titel: `Paket und Auskunft bezahlt, ${KARTE_MIN_RATEN} von 12 Monatsraten gelaufen`,
+      // P11 (01.09.2026): VORHER stand hier die Behauptung „Paket und Auskunft
+      // bezahlt, 2 von 12 Monatsraten gelaufen" — direkt über dem gelben
+      // „das Paket ist nicht bezahlt". Der Titel ist eine ANFORDERUNG; er
+      // muss als Bedingung lesbar sein und den echten Stand zeigen.
+      titel: `Bezahlt: Paket, Auskunft und mindestens ${KARTE_MIN_RATEN} der 12 Monatsraten (aktuell ${raten} ${raten === 1 ? "Rate" : "Raten"} gelaufen)`,
       erfuellt: !!geldOk,
       fehlt: geldOk ? null : geldFehlt,
       wieWeiter: geldOk ? null

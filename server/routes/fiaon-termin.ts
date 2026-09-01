@@ -1044,18 +1044,51 @@ router.post("/agent/termine/:id/uebergeben", requireAgent, async (req: AgentRequ
 // ═══════════════════════════════════════════════════════════════════════════
 router.get("/agent/termine/uebernehmer", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
+    // ── P3 (01.09.2026): MARKIEREN, NICHT VERBIETEN ──────────────────────
+    // Je Kollege drei billige Antworten: Arbeitet er zur TERMINZEIT laut
+    // Wochenplan (imDienst — NULL heißt „kein Wochenplan hinterlegt", das ist
+    // ein EIGENER Zustand, nicht „abwesend")? Ist er gerade da (praesenz,
+    // dieselbe 20-Minuten-Frische wie /agent/flur)? Und wie voll ist seine
+    // Liste (mandate/500)? Die Auswahl bleibt vollständig — der Krankheits-
+    // und Vertretungsfall braucht den „falschen" Weg (Kommentar oben).
+    const terminIdRoh = Number(req.query.termin);
+    let terminBeginn: string | null = null;
+    if (Number.isFinite(terminIdRoh) && terminIdRoh > 0) {
+      const [tb] = (await sqlPool`SELECT beginn FROM fiaon_termine WHERE id = ${terminIdRoh}`) as any[];
+      terminBeginn = tb?.beginn ?? null;
+    }
     const kollegen = (await sqlPool`
-      SELECT id, name, COALESCE(rolle, 'agent') AS rolle
-      FROM fiaon_agents
-      WHERE active AND NOT COALESCE(is_test_account, FALSE)
-        AND COALESCE(rolle, 'agent') <> 'inkasso'
-        AND id <> ${req.agent!.id}
-      ORDER BY COALESCE(rolle, 'agent'), name
+      SELECT a.id, a.name, COALESCE(a.rolle, 'agent') AS rolle,
+             CASE WHEN NOT EXISTS (SELECT 1 FROM fiaon_arbeitszeiten w0 WHERE w0.agent_id = a.id)
+                  THEN NULL
+                  ELSE EXISTS (
+                    SELECT 1 FROM fiaon_arbeitszeiten w
+                    WHERE w.agent_id = a.id
+                      AND w.wochentag = EXTRACT(ISODOW FROM (COALESCE(${terminBeginn}::timestamptz, NOW()) AT TIME ZONE 'Europe/Berlin'))::smallint
+                      AND (COALESCE(${terminBeginn}::timestamptz, NOW()) AT TIME ZONE 'Europe/Berlin')::time BETWEEN w.von AND w.bis)
+             END AS im_dienst,
+             (pr.zuletzt IS NOT NULL AND pr.zuletzt > NOW() - INTERVAL '20 minutes'
+              AND pr.status IN ('da', 'telefon')) AS anwesend,
+             (SELECT COUNT(*)::int FROM fiaon_persons mp
+               WHERE mp.assigned_agent_id = a.id AND mp.mandat_seit IS NOT NULL
+                 AND mp.merged_into_person_id IS NULL) AS mandate
+      FROM fiaon_agents a
+      LEFT JOIN fiaon_praesenz pr ON pr.agent_id = a.id
+      WHERE a.active AND NOT COALESCE(a.is_test_account, FALSE)
+        AND COALESCE(a.rolle, 'agent') <> 'inkasso'
+        AND a.id <> ${req.agent!.id}
+      ORDER BY COALESCE(a.rolle, 'agent'), a.name
     `) as any[];
+    const MANDATE_MAX = (await import("./fiaon-office-vertrieb")).MANDATE_MAX;
+    for (const k of kollegen) {
+      k.imDienst = k.im_dienst; delete k.im_dienst;
+      k.mandateMax = MANDATE_MAX;
+      k.listeVoll = Number(k.mandate) >= MANDATE_MAX;
+    }
 
     // Zu welchem Termin? Ohne Kennung bleibt die Liste roh — dann fehlt der
     // Bezug, und eine geratene Zuständigkeit wäre schlimmer als keine.
-    const terminId = Number(req.query.termin);
+    const terminId = terminIdRoh;
     let soll: string | null = null;
     let grund: string | null = null;
     if (Number.isFinite(terminId) && terminId > 0) {
@@ -1071,9 +1104,12 @@ router.get("/agent/termine/uebernehmer", requireAgent, async (req: AgentRequest,
           for (const k of kollegen) {
             k.zustaendig = ROLLEN_FUER[z.rolle].includes(String(k.rolle));
           }
-          // Zuständige zuerst — die Reihenfolge ist die halbe Empfehlung.
+          // Zuständige zuerst, dann im Dienst, dann die leerste Liste —
+          // die Reihenfolge ist die halbe Empfehlung (P3).
           kollegen.sort((a: any, b: any) =>
             (b.zustaendig ? 1 : 0) - (a.zustaendig ? 1 : 0)
+            || (b.imDienst === true ? 1 : 0) - (a.imDienst === true ? 1 : 0)
+            || Number(a.mandate || 0) - Number(b.mandate || 0)
             || String(a.name).localeCompare(String(b.name)));
         }
       }

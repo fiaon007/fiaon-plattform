@@ -81,6 +81,10 @@ function ensureVerpasstSpalten(): Promise<void> {
         await tx`SET LOCAL lock_timeout = '3s'`;
         await tx`ALTER TABLE fiaon_termine ADD COLUMN IF NOT EXISTS verpasst_mail_am TIMESTAMPTZ`;
         await tx`ALTER TABLE fiaon_termine ADD COLUMN IF NOT EXISTS verpasst_grund TEXT`;
+        // P10 (01.09.2026): „Termin stattgefunden" ≠ „Onboarding abgeschlossen".
+        // Dieser Stempel trennt beides; Wanderfassung: 078_onboarding_abschluss.sql
+        // (dort auch der Backfill für Alt-Termine).
+        await tx`ALTER TABLE fiaon_termine ADD COLUMN IF NOT EXISTS onboarding_abgeschlossen_am TIMESTAMPTZ`;
       });
     })().catch((e) => { verpasstSpalteBereit = null; throw e; });
   }
@@ -319,6 +323,7 @@ router.get("/agent/onboarding/termine", requireAgent, nurOnboarding, nurMitZusag
   try {
     const rows = (await sqlPool`
       SELECT t.id, t.person_id, t.beginn, t.dauer_min, t.status, t.notiz, t.quelle,
+             t.onboarding_abgeschlossen_am,
              -- Wann wurde er abgeschlossen? Ohne dieses Feld konnte die Liste
              -- „erledigt" nicht von „offen" trennen, und alles Heutige stand
              -- gemischt in einer Spalte (Teil 9 des Feedbacks, 19.08.2026).
@@ -359,6 +364,7 @@ router.get("/agent/onboarding/termine", requireAgent, nurOnboarding, nurMitZusag
         notiz: t.notiz,
         erledigtAm: t.erledigt_am ?? null,
         abgesagtAm: t.abgesagt_am ?? null,
+        onboardingAbgeschlossenAm: t.onboarding_abgeschlossen_am ?? null,
         quelle: t.quelle,
         // Die Art wird auch hier mitgeliefert. Diese Liste zeigt fast immer
         // Onboarding-Gespräche — aber „fast immer" ist der Grund, warum die
@@ -667,11 +673,16 @@ export async function startgespraechErgebnis(opts: {
     // Hier stand `status = 'gebucht'`. Ein Tageslauf setzt Termine nach zwölf
     // Stunden auf „verpasst" — danach war der Termin nicht mehr abschließbar,
     // auch wenn der Kunde sich abends doch gemeldet hatte.
+    // P10: Auch ein bereits ERLEDIGTER Termin bleibt ansprechbar, solange das
+    // Onboarding nicht abgeschlossen ist — so trägt das Cockpit die Doku nach
+    // und schließt ab. Ein Rückfall erledigt → verpasst bleibt ausgeschlossen.
     const [termin] = (await sqlPool`
       SELECT id, person_id, beginn FROM fiaon_termine
       WHERE id = ${id} AND quelle = 'onboarding_call'
         AND (${opts.jederZustaendige === true} OR agent_id = ${req.agent!.id})
-        AND status IN ('gebucht', 'verpasst')
+        AND (status IN ('gebucht', 'verpasst')
+             OR (status = 'erledigt' AND ${String(ergebnis) === "erledigt"}
+                 AND onboarding_abgeschlossen_am IS NULL))
     `) as any[];
     if (!termin) return { status: 404, body: { ok: false, error: "Termin nicht gefunden." } };
 
@@ -834,16 +845,46 @@ export async function startgespraechErgebnis(opts: {
       // Genau eine je Kunde: Ein zweites Gespräch mit demselben Menschen
       // erzeugt keine zweite Gutschrift (Teilindex in Migration 057).
       // ══════════════════════════════════════════════════════════════════
-      const { onboardingGutschrift } = await import("../lib/fiaon-onboarding-verguetung");
-      const geld = await onboardingGutschrift({
-        personId: Number(termin.person_id),
-        agentId: req.agent!.id,
-        agentName: req.agent!.name,
-        terminId: id,
-        ref: ref?.ref ?? null,
-      });
-      if (geld.gutgeschrieben) hinweis += ` ${geld.grund}`;
-      else if (geld.cents > 0) hinweis += ` (${geld.grund})`;
+      // ── P10 (01.09.2026): ABSCHLUSS ≠ TERMIN-HAKEN ─────────────────────
+      // Ein Ereignis trug vier Bedeutungen: Gespräch war, Kunde raus aus dem
+      // Bereich, Konto frei, 15 € gebucht. Die Freischaltung bleibt beim
+      // Gespräch (die schuldet man dem Kunden). Der ABSCHLUSS — und mit ihm
+      // die Vergütung — verlangt jetzt die dokumentierte Pflicht-Agenda,
+      // serverseitig mit DERSELBEN Regel, die das Cockpit nutzt.
+      const { darfAbschliessen } = await import("../../shared/fiaon-onboarding-agenda");
+      const [standRow] = (await sqlPool`
+        SELECT agenda_stand, onboarding_abgeschlossen_am FROM fiaon_termine WHERE id = ${id}
+      `) as any[];
+      const roh: any = standRow?.agenda_stand ?? null;
+      // Ältere agenda_stand-Formate tolerant lesen — ein krummes JSON darf den
+      // Cockpit-Weg nicht zum Scheitern bringen.
+      const stand = {
+        erledigt: Array.isArray(roh?.erledigt) ? roh.erledigt.map(String) : [],
+        notizen: roh?.notizen && typeof roh.notizen === "object" ? roh.notizen : {},
+      };
+      const doku = darfAbschliessen(stand as any);
+      if (doku.ok) {
+        if (!standRow?.onboarding_abgeschlossen_am) {
+          await sqlPool`
+            UPDATE fiaon_termine SET onboarding_abgeschlossen_am = NOW(), updated_at = NOW()
+            WHERE id = ${id} AND onboarding_abgeschlossen_am IS NULL
+          `;
+        }
+        const { onboardingGutschrift } = await import("../lib/fiaon-onboarding-verguetung");
+        const geld = await onboardingGutschrift({
+          personId: Number(termin.person_id),
+          agentId: req.agent!.id,
+          agentName: req.agent!.name,
+          terminId: id,
+          ref: ref?.ref ?? null,
+        });
+        if (geld.gutgeschrieben) hinweis += ` ${geld.grund}`;
+        else if (geld.cents > 0) hinweis += ` (${geld.grund})`;
+      } else {
+        hinweis += ` Onboarding noch NICHT abgeschlossen — es fehlt: ${doku.fehlt.join(", ")}. `
+          + "Der Kunde bleibt im Onboarding-Bereich unter „Zu dokumentieren“; "
+          + "die Vergütung kommt mit dem dokumentierten Abschluss im Cockpit.";
+      }
     }
 
     // 24.08.2026: Der Grund wandert an den Termin. Schweigend und nach der
@@ -1556,9 +1597,12 @@ router.post("/agent/onboarding/person/:id/gefuehrt", requireAgent, async (req: A
     res.json({
       ok: true,
       freigeschaltet: frei.freigeschaltet,
-      hinweis: frei.freigeschaltet > 0
+      hinweis: (frei.freigeschaltet > 0
         ? "Festgehalten — das Konto ist jetzt voll freigeschaltet."
-        : "Festgehalten — das Konto war bereits freigeschaltet.",
+        : "Festgehalten — das Konto war bereits freigeschaltet.")
+        // P10: Auch dieser Weg endet im Zwischenzustand „Zu dokumentieren" —
+        // die 15 € kommen erst mit dem dokumentierten Abschluss im Cockpit.
+        + " Das Onboarding steht jetzt unter „Zu dokumentieren“ — mit dem Cockpit-Abschluss kommt die Vergütung.",
     });
   } catch (err) {
     console.error("[ONBOARDING] gefuehrt:", err);

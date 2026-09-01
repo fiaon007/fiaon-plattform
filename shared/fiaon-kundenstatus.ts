@@ -191,6 +191,31 @@ export function statusAusTierGrund(grund: unknown, opts: { fristAbgelaufen?: boo
 }
 
 /**
+ * P2/P11 (01.09.2026, Team-Feedback): `tier_reason` ist ARBEITSREIHENFOLGE,
+ * keine Zahlungsaussage. Hat eine Person ein bezahltes Paket UND eine offene
+ * Schwester-Bestellung (typisch die 74-€-Bonitätsauskunft), gewinnt in tier.ts
+ * bewusst die offene — die Übersicht zeigte dann „nicht bezahlt", obwohl das
+ * Paket längst bezahlt war. Dieser Helfer sagt BEIDES in einem Satz:
+ * „Bezahlt: Paket · offen: Bonitätsauskunft — Kunde meldet Zahlung …".
+ * Rein präsentational; tier.ts bleibt unangetastet (steuert Verteilung/Listen).
+ */
+export function statusMitZahlungswahrheit(
+  grund: unknown,
+  buchungen?: { bezahlt?: boolean; erledigt?: boolean; bezeichnung?: string }[] | null,
+  opts: { fristAbgelaufen?: boolean } = {},
+): string {
+  const basis = statusAusTierGrund(grund, opts);
+  const offen = (buchungen ?? []).filter((b) => !b?.erledigt);
+  const bezahlte = offen.filter((b) => !!b?.bezahlt);
+  if (bezahlte.length === 0 || basis.schluessel === "bezahlt") return basis.anzeige;
+  const unbezahlte = offen.filter((b) => !b?.bezahlt);
+  const kurz = (t: unknown) => String(t || "Bestellung").split("(")[0].trim();
+  const bezahltText = bezahlte.map((b) => kurz(b.bezeichnung)).join(", ");
+  if (unbezahlte.length === 0) return `Bezahlt: ${bezahltText}`;
+  return `Bezahlt: ${bezahltText} · offen: ${unbezahlte.map((b) => kurz(b.bezeichnung)).join(", ")} — ${basis.anzeige}`;
+}
+
+/**
  * Klartext für einen rohen `payment_status` — für Bestellungslisten, in denen
  * einzelne Zeilen stehen (Akte, Dubletten, Verbuchung).
  */

@@ -26,7 +26,7 @@
 import { Router, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { aufbereiten } from "../lib/fiaon-buchungen";
-import { requireAgent, type AgentRequest, getSettings } from "./fiaon-agent";
+import { requireAgent, type AgentRequest, getSettings, normalizeSearchDigits } from "./fiaon-agent";
 import { waehlbareNummer, nichtWaehlbarSql } from "../lib/fiaon-telefon";
 import { hinweisFuer, type TierGrund } from "../lib/tier-hinweise";
 import { ensureBetreuungSpalte } from "../lib/tier";
@@ -824,6 +824,10 @@ router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: R
     const sortRoh = String(req.query.sort || "arbeit") as Sortierung;
     const sort: Sortierung = ORDNUNG[sortRoh] ? sortRoh : "arbeit";
     const q = String(req.query.q || "").trim();
+    // Telefonsuche formatfrei (01.09.2026, Team-Feedback P8): "0176 123…",
+    // "0176-123…" und "+49176123…" müssen denselben Kunden finden. Die Eingabe
+    // wird auf signifikante Ziffern reduziert, die gespeicherte Nummer im SQL.
+    const telSuche = normalizeSearchDigits(q) || "";
     const limit = Math.min(500, Math.max(1, Number(req.query.limit) || 300));
 
     // ══════════════════════════════════════════════════════════════════════
@@ -869,6 +873,18 @@ router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: R
     // ══════════════════════════════════════════════════════════════════════
     const { istOnboarding } = await import("./fiaon-onboarding-bereich");
     const onboarding = await istOnboarding(me);
+    // ── P13 (01.09.2026): DIE LEITUNG DARF SUCHEN ─────────────────────────
+    // darfAnKunde erlaubt der Vertriebsleitung längst jede Akte — aber diese
+    // Liste kannte nur „eigene Kunden". Ergebnis: Die Leitung konnte fremde
+    // Kunden zwar BEARBEITEN, aber nicht FINDEN. Geöffnet wird NUR die aktive
+    // Suche (q) und der ?person=-Sprung; die Arbeitsliste ohne Suchbegriff
+    // bleibt die eigene — die Leitung bekommt keinen 5000er-Vorrat.
+    const { istVertriebsleiter } = await import("./fiaon-vertrieb");
+    const leitung = !onboarding && (await istVertriebsleiter(me));
+    // Nur die AKTIVE SUCHE öffnet die Grundmenge; der ?person=-Sprung öffnet
+    // unten gezielt EINE Person. Ohne Suchbegriff bliebe wo[0]=TRUE sonst ein
+    // Vollzugriff auf die ganze Liste — genau das soll es nicht geben.
+    const leitungSucht = leitung && q !== "";
 
     const ONBOARDING_ZUSTAENDIG = `EXISTS (
       SELECT 1 FROM fiaon_termine t
@@ -879,7 +895,9 @@ router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: R
     )`;
 
     const wo: string[] = [
-      onboarding ? ONBOARDING_ZUSTAENDIG : "p.assigned_agent_id = $1",
+      // `$1 OR TRUE` statt blankem TRUE: postgres.js meldet 42P18, wenn ein
+      // mitgeschickter Parameter im SQL nirgends vorkommt (Kartei-Lehre).
+      onboarding ? ONBOARDING_ZUSTAENDIG : (leitungSucht ? "(p.assigned_agent_id = $1 OR TRUE)" : "p.assigned_agent_id = $1"),
       "p.merged_into_person_id IS NULL",
       // Testeinträge sind keine Kunden (server/lib/fiaon-testerkennung.ts).
       "p.ist_test_am IS NULL",
@@ -1099,10 +1117,11 @@ router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: R
       SELECT ${KARTE_SQL}
       FROM fiaon_persons p
       WHERE (${wo.join(" AND ")}${nurPerson && Number.isFinite(nurPerson)
-        ? `\n             OR (p.assigned_agent_id = $1 AND p.id = ${Math.trunc(nurPerson)})` : ""})
+        ? `\n             OR (${leitung ? "" : "p.assigned_agent_id = $1 AND "}p.id = ${Math.trunc(nurPerson)})` : ""})
         AND ($2 = '' OR ${NAME_SQL} ILIKE '%' || $2 || '%'
              OR COALESCE(p.primary_email, '') ILIKE '%' || $2 || '%'
              OR COALESCE(p.primary_phone, '') ILIKE '%' || $2 || '%'
+             OR ($3 <> '' AND regexp_replace(COALESCE(p.primary_phone, ''), '[^0-9]', '', 'g') LIKE '%' || $3 || '%')
              -- ── UNSCHARFE NAMENSSUCHE (25.08.2026) ────────────────────────
              -- Meldung von Daniel und Florentine: „Beim Versuch, den Termin
              -- neu anzulegen, wird der Kunde nicht gefunden" — für Konstantin
@@ -1135,7 +1154,7 @@ router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: R
         // schon knapp drei Sekunden. Eine Huelle rechnet sie einmal.
         ? `) q ORDER BY ${ORDNUNG_ONBOARDING} LIMIT ${limit}`
         : `ORDER BY ${ORDNUNG[sort]} LIMIT ${limit}`}
-    `, [me, q]),
+    `, [me, q, telSuche]),
       // Zähler für die Filter-Chips — in EINER Abfrage, damit die Chips nicht
       // zehn Anfragen kosten.
       sqlPool`

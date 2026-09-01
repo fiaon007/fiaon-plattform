@@ -895,7 +895,7 @@ function Detail({ a, busy, ausser, onZu, onErledigt, onVerpasst, onVerschieben, 
       return t.replace(" ", "T").slice(0, 16);
     } catch { return ""; }
   });
-  const [kollegen, setKollegen] = useState<{ id: number; name: string; rolle: string; zustaendig?: boolean }[]>([]);
+  const [kollegen, setKollegen] = useState<{ id: number; name: string; rolle: string; zustaendig?: boolean; imDienst?: boolean | null; listeVoll?: boolean; mandate?: number; mandateMax?: number }[]>([]);
   const [soll, setSoll] = useState<string | null>(null);
   const [agentId, setAgentId] = useState("");
   const [grund, setGrund] = useState("");
@@ -977,7 +977,7 @@ function Detail({ a, busy, ausser, onZu, onErledigt, onVerpasst, onVerschieben, 
             <p>Wer übernimmt? Der Grund ist Pflicht – der Kollege liest ihn morgen früh. Der Kunde bekommt eine Info-Mail mit dem neuen Ansprechpartner; die Zeit bleibt.</p>
             <select className="ca-feld" value={agentId} onChange={(e) => setAgentId(e.target.value)} aria-label="Neuer Ansprechpartner">
               <option value="">Wer übernimmt?</option>
-              {kollegen.map((k) => <option key={k.id} value={k.id}>{k.name} — {k.rolle}{k.zustaendig ? " · zuständig" : soll ? " · Vertretung" : ""}</option>)}
+              {kollegen.map((k) => <option key={k.id} value={k.id}>{k.name} — {k.rolle}{k.zustaendig ? " · zuständig" : soll ? " · Vertretung" : ""}{`${k.imDienst === false ? " · nicht im Dienst (zur Terminzeit)" : k.imDienst == null ? " · kein Wochenplan" : ""}${(k as any).listeVoll ? ` · Liste voll (${(k as any).mandate}/${(k as any).mandateMax})` : ""}`}</option>)}
             </select>
             <input type="text" className="ca-feld" value={grund} onChange={(e) => setGrund(e.target.value)} placeholder="Grund — zum Beispiel: krank bis Freitag" aria-label="Grund der Übergabe" />
             <div className="ca-form-knoepfe">

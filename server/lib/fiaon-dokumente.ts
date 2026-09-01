@@ -127,6 +127,8 @@ export interface DokumentStand {
   benoetigt: boolean;
   /** Erneut angefordert (`reupload_*`). */
   erneutAngefordert: boolean;
+  /** P9: Kurzbefund der automatischen Prüfung — nur gesetzt, wenn auffällig. */
+  pruefung?: string | null;
 }
 
 export interface DokumentLageVoll {
@@ -209,6 +211,15 @@ export async function dokumentStand(
     ausweis: !!a.re_ausweis, kontoauszug: !!a.re_auszug, schufa: false,
   };
 
+  // P9 (01.09.2026): Das Urteil der automatischen Prüfung je Dokument —
+  // damit der Mitarbeiter „sieht nicht wie ein Kontoauszug aus" direkt an
+  // der Zeile liest, statt es bei der Handprüfung zu entdecken.
+  let urteile: Record<string, any> = {};
+  try {
+    const { urteileLesen } = await import("./fiaon-dokument-pruefung");
+    urteile = await urteileLesen([String(a.ref)]);
+  } catch { /* Prüfmodul darf die Akte nie aufhalten */ }
+
   return {
     ref: a.ref, personId: a.person_id ?? null,
     kycStatus: a.kyc_status ?? null,
@@ -228,6 +239,12 @@ export async function dokumentStand(
         typ: gr != null ? dateiTyp(koepfe[d.art]) : null,
         benoetigt: benoetigt.includes(d.art),
         erneutAngefordert: erneut[d.art],
+        // P9: hinweisIntern der automatischen Prüfung, nur wenn auffällig.
+        pruefung: (() => {
+          const u = urteile[d.art];
+          if (!u || (u.erkannt !== false && u.vollstaendig !== false)) return null;
+          return u.hinweisIntern || null;
+        })(),
       };
     }),
   };

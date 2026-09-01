@@ -141,6 +141,9 @@ function BestandInnen() {
   useEffect(() => { dunkel(true); titel("Portfolio"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [mandate, setMandate] = useState<Mandat[]>([]);
+  // P7 (01.09.2026): zugewiesene Kunden OHNE Mandat, mit denen schon
+  // gearbeitet wurde — sichtbar, damit ein Rückruf immer zuordenbar ist.
+  const [inArbeit, setInArbeit] = useState<any[]>([]);
   const [laedt, setLaedt] = useState(true);
   const [fehler, setFehler] = useState<string | null>(null);
   const [satz, setSatz] = useState(0.25);
@@ -177,7 +180,7 @@ function BestandInnen() {
   const laden = useCallback(async (leise = false) => {
     if (!leise) setLaedt(true);
     const r = await api("/agent/vertrieb/bestand");
-    if (r.ok) { setMandate(r.json.mandate || []); setFehler(null); }
+    if (r.ok) { setMandate(r.json.mandate || []); setInArbeit(r.json.inArbeit || []); setFehler(null); }
     else setFehler(r.json?.error || "Das Portfolio konnte nicht geladen werden.");
     setLaedt(false);
   }, []);
@@ -473,6 +476,44 @@ function BestandInnen() {
       )}
       {!laedt && anzahl > 0 && (
         <p className="pi-fussnote">Gearbeitet wird in der <Link href="/agent/pipeline">Pipeline</Link> — hier begleitest du deine Mandate: Raten im Blick, Termine gesetzt, Kontakt gehalten.</p>
+      )}
+
+      {/* ── „IN BETREUUNG — NOCH KEIN MANDAT" (P7, 01.09.2026) ─────────────
+          Angenommene Kunden verschwinden nach „Nicht erreicht" bewusst aus der
+          Arbeitsliste (Wiedervorlage) — aber sie dürfen nicht UNSICHTBAR sein.
+          Hier bleibt jeder auffindbar, auch die Ruhenden; die Akte öffnet über
+          denselben Weg wie bei den Mandaten. */}
+      {!laedt && inArbeit.length > 0 && (
+        <>
+          <div style={{ marginTop: 28, marginBottom: 10, display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+            <b style={{ font: "500 15px/1.2 'Inter', sans-serif" }}>In Betreuung — noch kein Mandat ({inArbeit.length})</b>
+            <small style={{ opacity: 0.65 }}>Angenommen und dran — „Nicht erreicht" nimmt sie nur aus der Tagesliste, nicht aus deinem Bestand.</small>
+          </div>
+          <section className="be-raster">
+            {inArbeit.map((e: any) => {
+              const wv = e.wiedervorlage ? new Date(e.wiedervorlage) : null;
+              const le = e.letzterEintrag ? new Date(e.letzterEintrag) : null;
+              return (
+                <article key={e.kunde.personId} className="be-karte" style={{ ["--hitze" as string]: "var(--fi-text-still)" }}>
+                  <button type="button" className="be-karte-kern" onClick={() => oeffnen(e.kunde.personId)} title="Akte öffnen">
+                    <span className="be-karte-kopf"><small>in Betreuung</small></span>
+                    <b>{e.kunde.name}</b>
+                    <span className="be-karte-zeile">
+                      {le ? `letzter Eintrag ${le.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}` : "noch kein Eintrag"}
+                      {wv ? ` · Wiedervorlage ${wv.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}` : ""}
+                    </span>
+                  </button>
+                  <span className="be-karte-tun">
+                    <button type="button" className="pi-knopf klein" disabled={!e.kunde.telefonWaehlbar}
+                            onClick={() => anrufen(e.kunde.telefonWaehlbar, e.kunde.personId, e.kunde.name)}
+                            title={e.kunde.telefonWaehlbar ?? "nicht anrufbar"}><Phone size={13} strokeWidth={1.75} /></button>
+                    <button type="button" className="pi-knopf still klein" onClick={() => oeffnen(e.kunde.personId)} title="Akte"><FileText size={13} strokeWidth={1.75} /></button>
+                  </span>
+                </article>
+              );
+            })}
+          </section>
+        </>
       )}
 
       {/* ── Senden: dieselbe Komponente wie in der Akte, dunkle Fassung ── */}

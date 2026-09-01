@@ -1691,8 +1691,31 @@ router.post(
                 NOW())
       `.catch(() => {});
 
+      // ── P9 (01.09.2026): DERSELBE PRÜFWEG WIE BEIM KUNDEN-UPLOAD ─────
+      // Zwei Upload-Wege mit unterschiedlichem Verhalten wären die nächste
+      // 059-Kopie. Zusätzlich stößt dieser Weg jetzt die Kontoauszug-Analyse
+      // an — sie fehlte hier komplett (der Kunde sah nie „Ihre Finanzen",
+      // wenn der MITARBEITER den Auszug hochgeladen hatte).
+      let pruefSatz = "";
+      try {
+        // Die Arten heißen hier bereits wie im Prüfmodul (fiaon-dokumente.ts).
+        const pruefArt = ["kontoauszug", "ausweis", "schufa"].includes(String(art)) ? String(art) : null;
+        if (pruefArt) {
+          const { pruefungAnstossen } = await import("../lib/fiaon-dokument-pruefung");
+          const u = await pruefungAnstossen(String(antragRef), pruefArt as any, datei.buffer);
+          if (u && (u.erkannt === false || u.vollstaendig === false) && u.hinweisIntern) pruefSatz = ` ⚠ ${u.hinweisIntern}`;
+        }
+        if (art === "kontoauszug") {
+          void import("../lib/fiaon-kontoauszug-analyse")
+            .then(({ kontoauszugAnalysieren }) => kontoauszugAnalysieren(String(antragRef), { erzwingen: true }))
+            .catch((e) => console.error("[DOK] Analyse:", e?.message));
+        }
+      } catch (e) {
+        console.error("[DOK] Prüfung:", String(e).slice(0, 160));
+      }
+
       const stand = await dokumentStand({ personId, rolle }, sqlPool);
-      res.json({ ok: true, stand, meldung: `${label} liegt jetzt in der Akte.` });
+      res.json({ ok: true, stand, meldung: `${label} liegt jetzt in der Akte.${pruefSatz}` });
     } catch (err) {
       console.error("[DOK] agent hochladen:", err);
       res.status(500).json({ ok: false, error: "Serverfehler" });

@@ -3301,16 +3301,38 @@ router.post("/upload-kyc", (req, res, next) => {
     // ══════════════════════════════════════════════════════════════════════
     const was = [files.bankStatement ? "Kontoauszug" : null, files.idCard ? "Ausweis" : null, files.schufaDoc ? "eigene Bonitätsauskunft" : null]
       .filter(Boolean).join(", ");
+
+    // ── AUTOMATISCHE DOKUMENTPRÜFUNG (P9, 01.09.2026) ─────────────────────
+    // Synchron mit hartem Timeout: Der Kunde erfährt SOFORT, wenn die Datei
+    // nicht nach dem verlangten Dokument aussieht oder ein Zeitraum fehlt —
+    // statt Tage später bei der Handprüfung. Die Prüfung meldet nur; sie
+    // weist nie zurück und darf den Upload nie scheitern lassen.
+    const { pruefungAnstossen } = await import("../lib/fiaon-dokument-pruefung");
+    const pruefungen: any[] = [];
+    const kundenSaetze: string[] = [];
+    const internWarnungen: string[] = [];
+    const zuPruefen: Array<[any, "kontoauszug" | "ausweis" | "schufa"]> = [];
+    if (files.bankStatement?.[0]) zuPruefen.push([values.bankStatementPdf, "kontoauszug"]);
+    if (files.idCard?.[0]) zuPruefen.push([values.idCardPdf, "ausweis"]);
+    if (files.schufaDoc?.[0]) zuPruefen.push([values.schufaPdf, "schufa"]);
+    for (const [pdf, art] of zuPruefen) {
+      const u = await pruefungAnstossen(String(ref), art, pdf as Buffer).catch(() => null);
+      if (!u) continue;
+      pruefungen.push(u);
+      if (u.hinweisKunde) kundenSaetze.push(u.hinweisKunde);
+      if (u.erkannt === false || u.vollstaendig === false) internWarnungen.push(u.hinweisIntern || `${art}: auffällig`);
+    }
+
     await sqlPool`
       INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
       VALUES (${ref}, ${currentApp.person_id ?? null}, NULL, 'System', 'system',
-              ${`Kunde hat hochgeladen: ${was}. Prüfung durch die Verwaltung steht aus.`}, NOW())
+              ${`Kunde hat hochgeladen: ${was}. Prüfung durch die Verwaltung steht aus.${internWarnungen.length ? ` AUTOMATISCHE PRÜFUNG: ${internWarnungen.join(" · ")}` : ""}`}, NOW())
     `.catch(() => {});
     await sqlPool`
       INSERT INTO fiaon_vermerke (art, ref, text, sicht, fuer_betreiber, dringend, status, autor_art, autor_name, faellig_am)
       VALUES ('aufgabe', ${ref},
-              ${`Unterlagen eingegangen (${was}) — bitte prüfen und freigeben (Verwaltung → Kunden → Prüfung). Der Kunde wurde informiert, dass die Prüfung bis zu zwei Werktage dauert.`},
-              'betreiber', TRUE, FALSE, 'offen', 'system', 'System',
+              ${`Unterlagen eingegangen (${was}) — bitte prüfen und freigeben (Verwaltung → Kunden → Prüfung). Der Kunde wurde informiert, dass die Prüfung bis zu zwei Werktage dauert.${internWarnungen.length ? ` ⚠ Automatische Prüfung meldet: ${internWarnungen.join(" · ")}` : ""}`},
+              'betreiber', TRUE, ${internWarnungen.length > 0}, 'offen', 'system', 'System',
               ((NOW() AT TIME ZONE 'Europe/Berlin')::date + 2))
     `.catch((e) => console.error("[FIAON-KYC] Aufgabe nicht angelegt:", e?.message));
 
@@ -3326,9 +3348,12 @@ router.post("/upload-kyc", (req, res, next) => {
     const hasSchufa = !!(files.schufaDoc || currentApp.schufa_pdf);
     res.json({ 
       ok: true, 
-      message: files.bankStatement
+      // P9: Steht ein Sofort-Befund an, führt ER die Meldung an — der Kunde
+      // soll die falsche Datei JETZT tauschen, nicht in zwei Werktagen.
+      message: (kundenSaetze.length ? `${kundenSaetze.join(" ")} ` : "") + (files.bankStatement
         ? "Eingegangen. Ihr Kontoauszug wird jetzt ausgewertet — in wenigen Minuten sehen Sie das Ergebnis unter „Ihre Finanzen“. Die Prüfung Ihrer Unterlagen dauert bis zu zwei Werktage."
-        : "Eingegangen. Wir prüfen Ihre Unterlagen innerhalb von zwei Werktagen und melden uns.",
+        : "Eingegangen. Wir prüfen Ihre Unterlagen innerhalb von zwei Werktagen und melden uns."),
+      pruefungen,
       hasBankStatement: !!hasBankStatement,
       hasIdCard: !!hasIdCard,
       hasSchufa,

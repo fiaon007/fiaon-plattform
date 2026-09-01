@@ -25,7 +25,7 @@
 
 import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
-import { requireAgent, logAction, logAgentEvent, getSettings, setSetting, type AgentRequest } from "./fiaon-agent";
+import { requireAgent, logAction, logAgentEvent, getSettings, setSetting, normalizeSearchDigits, type AgentRequest } from "./fiaon-agent";
 import { logLead } from "./fiaon-leads";
 
 const router = Router();
@@ -1230,11 +1230,13 @@ router.get("/agent/kartei/meine", requireAgent, async (req: AgentRequest, res: R
     if (filter && MEINE_FILTER[filter]) appWhere.push(MEINE_FILTER[filter]);
     if (q) {
       const like = p(`%${q}%`);
+      const telPool = normalizeSearchDigits(q) || ""; // P8: Telefonsuche formatfrei
       appWhere.push(`(
         a.ref ILIKE ${like} OR a.payment_reference ILIKE ${like} OR a.email ILIKE ${like}
         OR a.first_name ILIKE ${like} OR a.last_name ILIKE ${like}
         OR (COALESCE(a.first_name,'') || ' ' || COALESCE(a.last_name,'')) ILIKE ${like}
         OR a.company_name ILIKE ${like} OR a.phone ILIKE ${like}
+        OR (${p(telPool)} <> '' AND regexp_replace(COALESCE(a.phone, ''), '[^0-9]', '', 'g') LIKE '%' || ${p(telPool)} || '%')
       )`);
     }
     const appLimit = p(limit);

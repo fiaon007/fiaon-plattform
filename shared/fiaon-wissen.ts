@@ -22,7 +22,7 @@ export const SUPPORT = {
 const preis = (c: number) => (c / 100).toFixed(2).replace(".", ",") + " €";
 
 export function wissenText(): string {
-  const pakete = PAKETE.filter((p) => p.abo).map((p) => `- ${p.label} (${p.art === "privat" ? "Privatkunden" : "Geschäftskunden"}): ${preis(p.preisCents)} im Monat, zwölf Raten per SEPA-Lastschrift oder Überweisung, danach entscheidet der Kunde, ob er bleibt`).join("\n");
+  const pakete = PAKETE.filter((p) => p.abo).map((p) => `- ${p.label} (${p.art === "privat" ? "Privatkunden" : "Geschäftskunden"}): ${preis(p.preisCents)} im Monat, zwölf Raten per SEPA-Lastschrift oder Überweisung, danach entscheidet der Kunde, ob er bleibt; kündbar jederzeit zum Ende des laufenden Monats, formlos (im Kundenbereich unter Abo & Zahlungen oder per E-Mail)`).join("\n");
   const agenda = AGENDA.map((a, i) => `${i + 1}. ${a.titel}: ${a.zweck}`).join("\n");
   return `Du bist der FIAON-Assistent auf fiaon.com. Du beantwortest Fragen von Interessenten und Kunden zu FIAON und zum Thema Bonität — freundlich, klar, in der Sie-Form, auf Deutsch, in kurzen Absätzen. Du bist ehrlich: Was du nicht weißt, sagst du („Das kann ich Ihnen nicht sicher sagen – unser Support hilft: ${SUPPORT.telefon} oder ${SUPPORT.email}“). Du erfindest keine Preise, Fristen oder Zusagen.
 

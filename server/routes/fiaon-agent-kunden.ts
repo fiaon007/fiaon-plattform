@@ -40,7 +40,7 @@ import { parseBerlinInput, pruefeTerminZukunft } from "../lib/fiaon-time";
 import {
   ERGEBNISSE, ERGEBNIS_TEXT, brauchtDatum, ergebnisNachbereiten, istErgebnis, type Ergebnis,
 } from "../lib/fiaon-kontakt-ergebnis";
-import { requireAgent, type AgentRequest } from "./fiaon-agent";
+import { requireAgent, type AgentRequest, normalizeSearchDigits } from "./fiaon-agent";
 import { sorgeFuerAkte } from "../lib/fiaon-akte-anker";
 import { hinweisFuer, type TierGrund } from "../lib/tier-hinweise";
 import { sendMakeWebhook, sendMakeWebhookMitGrund, makePayloadFromRow } from "../make-webhook";
@@ -327,6 +327,7 @@ router.get("/agent/crm/kunden", requireAgent, async (req: AgentRequest, res: Res
     const reason = req.query.reason ? String(req.query.reason) : null;
     const state = req.query.state ? String(req.query.state) : null;
     const q = req.query.q ? String(req.query.q).trim() : "";
+    const telQ = normalizeSearchDigits(q) || ""; // P8: Telefonsuche formatfrei
 
     const rows = await sqlPool`
       SELECT p.id, p.priority_tier, p.tier_reason, p.promised_payment_date,
@@ -402,6 +403,7 @@ router.get("/agent/crm/kunden", requireAgent, async (req: AgentRequest, res: Res
                       p.company_name, p.contact_name, '') ILIKE '%' || ${q}::text || '%'
           OR COALESCE(p.primary_email, '') ILIKE '%' || ${q}::text || '%'
           OR COALESCE(p.primary_phone, '') ILIKE '%' || ${q}::text || '%'
+          OR (${telQ}::text <> '' AND regexp_replace(COALESCE(p.primary_phone, ''), '[^0-9]', '', 'g') LIKE '%' || ${telQ}::text || '%')
           -- Auch über frühere Angaben suchen. Nach einem Zusammenschluss steht
           -- die alte E-Mail des Kunden nur noch in fiaon_person_aliases — ohne
           -- diesen Zweig wäre der Kunde unter der Adresse, die er selbst nennt,
@@ -522,7 +524,7 @@ router.get("/agent/crm/kunden/:personId", requireAgent, async (req: AgentRequest
 
     const verlauf = await sqlPool`
       SELECT c.id, c.created_at, c.type, c.outcome, c.note, c.promised_date,
-             c.agent_name, c.ref
+             c.agent_name, c.ref, c.agent_id
       FROM fiaon_contact_log c
       JOIN fiaon_applications ap ON ap.ref = c.ref
       WHERE ap.person_id = ${personId} AND c.voided_at IS NULL
@@ -683,6 +685,10 @@ router.get("/agent/crm/kunden/:personId", requireAgent, async (req: AgentRequest
         // Der Name des eintragenden Agenten bleibt sichtbar: Es ist der
         // eigene Verlauf, und bei Übernahmen ist die Vorgeschichte nötig.
         von: v.agent_name,
+        // „Irrtümlich erfasst?" (01.09.2026, Team-Feedback P12): Der Knopf
+        // erscheint nur an EIGENEN Notizen/Ergebnissen — der Server erzwingt
+        // das in POST /agent/log/:id/void ohnehin, das Feld spart den 403.
+        meins: Number(v.agent_id) === req.agent!.id && (v.type === "note" || v.type === "result"),
       })),
       produkt: produkt ? { text: produkt.text, mehrfachStufe: produkt.mehrfachStufe } : null,
       bestellungen: (bestellungen as any[]).map((b) => ({

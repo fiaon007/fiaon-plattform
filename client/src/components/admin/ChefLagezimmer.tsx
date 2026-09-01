@@ -406,14 +406,15 @@ function PostmeisterKlein() {
     return () => { an = false; };
   }, []);
   const z = lage?.zahlen || {};
-  const anStatus = lage?.an !== false;
+  const verbunden = !!lage;
+  const anStatus = verbunden && lage?.an !== false;
   return (
     <section className="cl-block pm-klein">
       <a href="/chef/s/postmeister" className="pm-klein-innen">
-        <span className={`pm-klein-puls${anStatus ? "" : " rot"}`} aria-hidden="true" />
+        <span className={`pm-klein-puls${!verbunden ? " grau" : anStatus ? "" : " rot"}`} aria-hidden="true" />
         <span className="pm-klein-wer">
           <b>Der Postmeister</b>
-          <small>{anStatus ? "liest, ordnet und beantwortet die Postfächer" : "ANGEHALTEN — Not-Aus aktiv"}</small>
+          <small>{!verbunden ? "Lage wird geladen …" : anStatus ? "liest, ordnet und beantwortet die Postfächer" : "ANGEHALTEN — Not-Aus aktiv"}</small>
         </span>
         <span className="pm-klein-zahl"><b>{z.heute ?? 0}</b><em>Mails · 24 h</em></span>
         <span className="pm-klein-zahl"><b>{(Number(z.heute_auto) || 0) + (Number(z.von_hand) || 0)}</b><em>beantwortet</em></span>
@@ -426,6 +427,7 @@ function PostmeisterKlein() {
         .pm-klein-puls { width: 10px; height: 10px; border-radius: 6px; background: #34d399;
           box-shadow: 0 0 14px rgba(52,211,153,.9); animation: pmKleinPuls 2.2s ease-in-out infinite; }
         .pm-klein-puls.rot { background: #f87171; box-shadow: 0 0 14px rgba(248,113,113,.9); }
+        .pm-klein-puls.grau { background: #64748b; box-shadow: none; animation: none; }
         @keyframes pmKleinPuls { 0%,100% { transform: scale(1) } 50% { transform: scale(1.5); opacity: .6 } }
         .pm-klein-wer { flex: 1; min-width: 220px; }
         .pm-klein-wer b { display: block; font: 600 15px/1.2 'Inter', sans-serif; }

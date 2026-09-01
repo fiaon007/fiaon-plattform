@@ -108,7 +108,13 @@ async function flowStarten(ref: string, rueckkehrPfad: (brId: string) => string)
     FROM fiaon_applications a LEFT JOIN fiaon_persons p ON p.id = a.person_id
     WHERE a.ref = ${ref} AND a.merged_into IS NULL LIMIT 1`) as any[];
   if (!a) return { ok: false, code: "UNBEKANNT", error: "Konto nicht gefunden." };
-  if (a.gc_mandate_ref && a.gc_mandate_status === "active") return { ok: true, bereits: true };
+  // Abnahme-Fund 02.09.: Ein frisch erteiltes Mandat steht tagelang auf
+  // pending_submission/submitted, bevor der Webhook "active" meldet. In diesem
+  // Fenster darf die Strecke KEIN zweites Abo anlegen — jedes erteilte,
+  // nicht gescheiterte Mandat gilt als "bereits eingerichtet".
+  if (a.gc_mandate_ref && !["failed", "cancelled", "expired", ""].includes(String(a.gc_mandate_status || ""))) {
+    return { ok: true, bereits: true };
+  }
   // ── ERST ZAHLEN, DANN LASTSCHRIFT (Justin, 22.08.2026) ──────────────────
   // Wer noch nichts überwiesen hat, richtet keine Lastschrift ein: Sonst
   // richtet jeder eine ein, die erste Abbuchung schlägt fehl, und die

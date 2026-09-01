@@ -898,6 +898,11 @@ export async function onCustomerPaid(ref: string, opts?: { forceAgentId?: number
   const existing = await sqlPool`
     SELECT id FROM fiaon_commissions
     WHERE ref = ${ref} AND kind IN ('own', 'override') AND amount_cents > 0 AND status != 'storniert'
+      -- Abnahme-Fund 02.09.: Ratenprovisionen tragen dieselbe ref (nur die
+      -- payment_reference hat den -N-Suffix). Eine zuerst gebuchte RATE darf
+      -- die ABSCHLUSS-Provision nicht verhindern — hier zählt nur die
+      -- Basis-Zahlungsreferenz.
+      AND (payment_reference IS NULL OR payment_reference = ${app.payment_reference})
   `;
   if (existing.length > 0) return;
 
@@ -2070,7 +2075,8 @@ export function normalizeSearchDigits(raw: string): string | null {
   if (d.length < 5) return null;
   if (d.startsWith("00")) d = d.slice(2);
   if (d.startsWith("49")) d = d.slice(2);
-  else if (d.startsWith("0")) d = d.slice(1);
+  // "+49 (0) 176 …" trägt nach der Ländervorwahl NOCH eine Null (02.09.):
+  if (d.startsWith("0")) d = d.slice(1);
   return d.length >= 5 ? d : null;
 }
 

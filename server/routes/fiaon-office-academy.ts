@@ -108,7 +108,9 @@ function kapitelUebersicht(stand: StandZeile[]) {
     const fertig = schritte.filter((s) => bestanden(k.key, s.key)).length;
     const testZeile = stand.find((z) => z.kapitel === k.key && z.schritt === "test");
     const testBestanden = !!testZeile?.bestanden;
-    const frei = vorherigesBestanden;
+    // Kapiteltausch-Sicherung (02.09.): Wo schon gearbeitet oder bestanden
+    // wurde, bleibt offen — eine Umsortierung sperrt sonst Bestandenes aus.
+    const frei = vorherigesBestanden || testBestanden || fertig > 0;
     vorherigesBestanden = testBestanden;
     fertigGesamt += fertig + (testBestanden ? 1 : 0);
     return { key: k.key, nr: k.nr, titel: k.titel, frei, fertigSchritte: fertig, gesamtSchritte: schritte.length, uebungenFertig: fertig === schritte.length, testBestanden, testPunkte: testZeile?.punkte ?? null, testGesamt: testZeile?.gesamt ?? null, prozent: Math.round(((fertig + (testBestanden ? 1 : 0)) / (schritte.length + 1)) * 100) };

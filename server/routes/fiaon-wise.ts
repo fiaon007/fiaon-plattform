@@ -143,14 +143,27 @@ export async function wiseEinlesen(tage = 5): Promise<{ gesehen: number; neu: nu
     const ref = refErkennen(zweck);
     const cents = Math.round(Number(g.amount?.value || 0) * 100);
     const eingefuegt = await sqlPool`
-      INSERT INTO fiaon_bank_txns (txn_id, booked_at, amount_cents, currency, payer_name, reference_raw, extracted_ref, matched_ref, match_status, applied, note)
+      INSERT INTO fiaon_bank_txns (txn_id, booked_at, amount_cents, currency, payer_name, reference_raw, extracted_ref, matched_ref, match_status, amount_ok, applied, note)
       SELECT ${g.referenceNumber}, ${g.date}, ${cents}, 'EUR',
              ${String(g.details?.senderName || "")}, ${zweck}, ${ref},
-             (SELECT a.ref FROM fiaon_applications a
-              WHERE a.payment_reference = ${ref ? ref.replace(/-\d{1,2}$/, "") : null} AND a.merged_into IS NULL
-              ORDER BY a.created_at DESC LIMIT 1),
-             ${ref ? "matched" : "neu"}, false,
+             ziel.ref,
+             -- Abnahme-Fund 02.09.: match_status spricht die Sprache der
+             -- Verbuchungs-Übersicht (matched|unmatched) — "matched" NUR bei
+             -- gefundener Bestellung; amount_ok macht "weicht ab" ehrlich.
+             CASE WHEN ziel.ref IS NOT NULL THEN 'matched' ELSE 'unmatched' END,
+             CASE WHEN ziel.ref IS NULL THEN NULL
+                  ELSE (ROUND(ziel.amount_due * 100) = ${cents}) END,
+             false,
              'Wise-Automatik — zur Freischaltung vorgemerkt, noch NICHT gebucht'
+      FROM (SELECT ref, amount_due FROM (
+              SELECT a.ref, a.amount_due, 1 AS o FROM fiaon_applications a
+              WHERE a.payment_reference = ${ref ? ref.replace(/-\d{1,2}$/, "") : null} AND a.merged_into IS NULL
+              ORDER BY a.created_at DESC LIMIT 1
+            ) t
+            UNION ALL SELECT NULL, NULL WHERE NOT EXISTS (
+              SELECT 1 FROM fiaon_applications a2
+              WHERE a2.payment_reference = ${ref ? ref.replace(/-\d{1,2}$/, "") : null} AND a2.merged_into IS NULL)
+           ) ziel
       WHERE NOT EXISTS (SELECT 1 FROM fiaon_bank_txns b WHERE b.txn_id = ${g.referenceNumber})
       RETURNING id
     `;

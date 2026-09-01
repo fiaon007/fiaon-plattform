@@ -965,6 +965,7 @@ async function bookRef(ref: string, manualAmountCents?: number, agentIdOverride?
   // Bereits gebucht? → idempotent, nichts tun.
   const existing = await sqlPool`
     SELECT id FROM fiaon_commissions WHERE ref = ${ref} AND amount_cents > 0 AND status != 'storniert'
+      AND kind IN ('own', 'override') -- 02.09.: Prämien (onboarding/inkasso) sind keine Abschluss-Provision
   `;
   if (existing.length > 0) return { ok: true, alreadyBooked: true };
 

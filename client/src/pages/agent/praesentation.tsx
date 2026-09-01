@@ -197,7 +197,7 @@ const MiniReaktivierung = (
 );
 
 const MiniWerkzeuge = (
-  <Mini kopf="Tools · vier Werkzeuge, ein Klick">
+  <Mini kopf="Tools · fünf Werkzeuge, ein Klick">
     <div className="pr-mk"><b>Paketfinder</b><small>Situation → Paket + deine Provision</small></div>
     <div className="pr-mk"><b>Gesprächs-Begleiter</b><small>Leitfaden mit Timer, live im Anruf</small></div>
     <div className="pr-mk"><b>Rechtsrechner</b><small>Löschfrist · Verjährung · Inkassokosten</small></div>
@@ -593,11 +593,11 @@ const KAPITEL: Kapitel[] = [
     ],
   },
   {
-    key: "tools", name: "Tools & Leitfäden", kurz: "Vier Werkzeuge, Leitfäden A/B/C und Reaktivierung", szene: "schreibtisch",
+    key: "tools", name: "Tools & Leitfäden", kurz: "Fünf Werkzeuge, Leitfäden A/B/C und Reaktivierung", szene: "schreibtisch",
     folien: [
       {
         kicker: "Tools · /agent/tools",
-        titel: <>Vier Werkzeuge, <V>ein Klick.</V></>,
+        titel: <>Fünf Werkzeuge, <V>ein Klick.</V></>,
         text: <>
           <p>Der Paketfinder macht aus Ziel, Einträgen und Budget das passende Paket samt Rate und deiner Provision — Preise kommen immer aus dem Katalog, nie aus dem Kopf. Der Gesprächs-Begleiter läuft live im Anruf mit Timer und Abhak-Schritten.</p>
           <p>Der Rechtsrechner liefert Löschfrist, Verjährung und Inkassokosten mit dem Satz, den du dem Kunden vorlesen kannst. Der Tages-Check zeigt deinen Tag in Zahlen — Ziel: 5 Abschlüsse.</p>

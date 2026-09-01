@@ -49,7 +49,8 @@ function Sternenfeld() {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     };
     messen();
-    window.addEventListener("resize", messen);
+    const beiGroesse = () => { messen(); if (ruhig) malen(); };
+    window.addEventListener("resize", beiGroesse);
     const N = 150;
     const S = Array.from({ length: N }, () => ({
       x: Math.random(), y: Math.random(),
@@ -103,7 +104,7 @@ function Sternenfeld() {
       if (!ruhig) raf = requestAnimationFrame(malen);
     };
     malen();
-    return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", messen); };
+    return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", beiGroesse); };
   }, []);
   return <canvas ref={ref} className="absolute inset-0 w-full h-full" aria-hidden="true" />;
 }
@@ -189,6 +190,14 @@ export default function Investoren() {
     try { localStorage.setItem(SPRACHE_SCHLUESSEL, s); } catch { /* egal */ }
     setSprache(s);
   };
+  // Das Dokument spricht die gewählte Sprache — wichtig für Screenreader und
+  // Übersetzungshinweise des Browsers. Der Hook steht VOR dem frühen return
+  // (Hook-Regel); ohne Wahl bleibt de.
+  useEffect(() => {
+    document.documentElement.lang = sprache === "en" ? "en" : "de";
+    return () => { document.documentElement.lang = "de"; };
+  }, [sprache]);
+
   if (!sprache) return <Sprachtor waehlen={waehlen} />;
 
   const de = sprache === "de";
@@ -318,11 +327,11 @@ export default function Investoren() {
                ? "Der Kunde zahlt für Einsicht und Aktion. Der Partner zahlt für Zugang. Beides hängt an derselben Akte – deshalb wächst der Wert eines Kunden mit jeder Etappe."
                : "The customer pays for insight and action. The partner pays for access. Both hang on the same file — which is why a customer's value grows with every stage."}>
         <Karten items={de ? [
-          { tag: "Abo", titel: `${euro(privat[0].preisCents)} bis ${euro(privat[privat.length - 1].preisCents)} im Monat`, text: "Vier Privatpakete, vier Geschäftspakete. Zwölf Raten, monatlich kündbar, danach die ausdrückliche Frage, ob der Kunde bleibt. Jede Rate wird vom eigenen Team begleitet." },
+          { tag: "Abo", titel: `Privat ${euro(privat[0].preisCents)}–${euro(privat[privat.length - 1].preisCents)} · Business ab ${euro(Math.min(...business.map((b) => b.preisCents)))}`, text: "Vier Privatpakete, vier Geschäftspakete — monatlich, zwölf Raten, monatlich kündbar, danach die ausdrückliche Frage, ob der Kunde bleibt. Jede Rate wird vom eigenen Team begleitet." },
           { tag: "Auskunft", titel: `${euro(SCHUFA_PREIS_EURO * 100)} einmalig`, text: "Die Bonitätsauskunft als Einstieg für Kunden, die zuerst nur wissen wollen, was über sie gespeichert ist. Der erste Schritt in die Akte." },
           { tag: "Partner", titel: "Provision je Abschluss", text: "Konto und Finanzierung über Partnerbanken. Der Partner bekommt einen Kunden mit dokumentierter, reparierter Bonität – und zahlt dafür." },
         ] : [
-          { tag: "Subscription", titel: `${euro(privat[0].preisCents)} to ${euro(privat[privat.length - 1].preisCents)} per month`, text: "Four consumer packages, four business packages. Twelve instalments, cancellable monthly, followed by the explicit question whether the customer stays. Every instalment is accompanied by our own team." },
+          { tag: "Subscription", titel: `Consumer ${euro(privat[0].preisCents)}–${euro(privat[privat.length - 1].preisCents)} · Business from ${euro(Math.min(...business.map((b) => b.preisCents)))}`, text: "Four consumer packages, four business packages — monthly, twelve instalments, cancellable monthly, followed by the explicit question whether the customer stays. Every instalment is accompanied by our own team." },
           { tag: "Report", titel: `${euro(SCHUFA_PREIS_EURO * 100)} one-off`, text: "The credit report as the entry point for customers who first simply want to know what is stored about them. The first step into the file." },
           { tag: "Partners", titel: "Commission per completion", text: "Accounts and financing through partner banks. The partner receives a customer with documented, repaired creditworthiness — and pays for exactly that." },
         ]} />
@@ -424,7 +433,7 @@ export default function Investoren() {
       </Block>
 
       <Block eng schmal>
-        <Zitat wer={de ? "Justin Schwarzott, Gründer FIAON" : "Justin Schwarzott, founder of FIAON"}
+        <Zitat en={!de} wer={de ? "Justin Schwarzott, Gründer FIAON" : "Justin Schwarzott, founder of FIAON"}
                text={de
                  ? "Bonität ist kein Urteil. Sie ist ein Zustand – und Zustände kann man ändern. Wer das für 100 Millionen Menschen tut, baut kein Produkt, sondern eine Infrastruktur."
                  : "Creditworthiness is not a verdict. It is a state — and states can be changed. Doing that for 100 million people is not building a product. It is building infrastructure."} />
@@ -435,7 +444,7 @@ export default function Investoren() {
              lead={de
                ? "Entscheidungsregister, Kennzahlen, Verträge, Technik-Dokumentation. Schreiben Sie uns, wer Sie sind und was Sie suchen – Sie erhalten innerhalb von zwei Werktagen eine Antwort von Justin Schwarzott persönlich."
                : "Decision register, metrics, contracts, technical documentation. Tell us who you are and what you are looking for — you will receive a personal reply from Justin Schwarzott within two working days."} schmal>
-        <Anfrage art="investor"
+        <Anfrage art="investor" en={!de}
                  knopf={de ? "Datenraum anfragen" : "Request data room"}
                  hinweis={de ? "Antwort innerhalb von zwei Werktagen. Kein Newsletter." : "Reply within two working days. No newsletter."}
                  felder={de ? [

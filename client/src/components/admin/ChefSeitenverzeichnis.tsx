@@ -71,7 +71,7 @@ const GRUPPEN: Gruppe[] = [
     hinweis: "Der Bereich zahlender Kunden.",
     eintraege: [
       ["/login", "Kunden-Login"], ["/mein-bereich", "Mein Bereich (aktuell)"],
-      ["/dashboard", "Dashboard (Bestand)"], ["/passwort-vergessen", "Passwort vergessen"],
+      ["/dashboard-alt", "Kunden-Dashboard (Bestand)"], ["/passwort-vergessen", "Passwort vergessen"],
       ["/abo-kuendigen", "Abo kündigen"], ["/nummer-aktualisieren", "Rufnummer aktualisieren"],
       ["/vereinbarung", "Vereinbarung"], ["/agb", "AGB"], ["/privacy", "Datenschutzerklärung"],
       ["/impressum", "Impressum"], ["/widerrufsbelehrung", "Widerrufsbelehrung"],
@@ -93,10 +93,11 @@ const GRUPPEN: Gruppe[] = [
       ["/agent/pipeline", "Pipeline (Kundenakte)"], ["/agent/bestand", "Bestand & Mandate"],
       ["/agent/onboarding", "Onboarding-Raum"], ["/agent/collections", "Collections"],
       ["/agent/kalender", "Kalender"], ["/agent/inbox", "Inbox"], ["/agent/flur", "Der Flur (Präsenz)"],
-      ["/agent/vertrieb", "Vertriebsleitung"], ["/agent/kartei", "Kundenpool"],
+      ["/agent/vertrieb", "Vertriebsleitung"],
       ["/agent/academy", "Academy"], ["/agent/tools", "Tools"], ["/agent/assistent", "Copilot"],
+      ["/agent/firmen", "Firmenkunden (B2B)"], ["/agent/anliegen", "Tickets & Anliegen"],
       ["/agent/aufgaben", "Aufgaben"], ["/agent/mails", "Mail-Galerie"],
-      ["/agent/verdienst", "Verdienst"], ["/agent/wallet", "Wallet"],
+      ["/agent/verdienst", "Verdienst"], ["/agent/wallet", "Wallet"], ["/agent/gehalt", "Gehalt"], ["/agent/schulung", "Leitungs-Schulung"],
       ["/agent/partner-programm", "Partner-Programm"], ["/agent/arbeitszeiten", "Arbeitszeiten"],
       ["/agent/profil", "Profil"], ["/agent/space", "Space (Team-Feed)"],
       ["/agent/skripte", "Skripte"], ["/agent/updates", "Updates"], ["/agent/mehr", "Mehr"],
@@ -107,8 +108,8 @@ const GRUPPEN: Gruppe[] = [
     hinweis: "Die alte Verwaltung — vieles davon lebt inzwischen im Chefbüro weiter.",
     eintraege: [
       ["/admin", "Admin-Start"], ["/admin/kunden", "Kunden"], ["/admin/personen", "Personen"],
-      ["/admin/leads", "Leads"], ["/admin/kartei", "Kundenpool"], ["/admin/zahlungen", "Zahlungen"],
-      ["/admin/verbuchung", "Verbuchung"], ["/admin/kontoabgleich", "Kontoabgleich"],
+      ["/admin/leads", "Leads"], ["/admin/zahlungen", "Zahlungen"],
+      ["/admin/verbuchung", "Verbuchung"], ["/admin/verbuchungen", "Verbuchungen (Liste)"], ["/admin/kontoabgleich", "Kontoabgleich"],
       ["/admin/rechnungen", "Rechnungen"], ["/admin/abrechnungen", "Abrechnungen"],
       ["/admin/auszahlungen", "Auszahlungen"], ["/admin/buchhaltung", "Buchhaltung"],
       ["/admin/finanzen", "Finanzen"], ["/admin/team", "Team-Zentrale"],
@@ -141,15 +142,14 @@ const GRUPPEN: Gruppe[] = [
     eintraege: [
       ["/agent/kunden-alt", "Kundenakte (alt)"], ["/agent/inkasso-alt", "Inkasso (alt)"],
       ["/agent/kalender-alt", "Kalender (alt)"], ["/agent/academy-alt", "Academy (alt)"],
-      ["/agent/start-alt", "Start (alt)"], ["/agent/meine-kunden-alt", "Meine Kunden (alt)"],
-      ["/agent/aufgaben-alt", "Aufgaben (alt)"], ["/agent/mail-zentrale-alt", "Mail-Zentrale (alt)"],
+      ["/agent/start-alt", "Start (alt)"],       ["/agent/aufgaben-alt", "Aufgaben (alt)"], ["/agent/mail-zentrale-alt", "Mail-Zentrale (alt)"],
       ["/agent/verdienst-alt", "Verdienst (alt)"], ["/agent/leistung-alt", "Leistung (alt)"],
       ["/agent/profil-alt", "Profil (alt)"], ["/agent/space-alt", "Space (alt)"],
       ["/agent/updates-alt", "Updates (alt)"], ["/agent/mehr-alt", "Mehr (alt)"],
       ["/agent/anliegen-alt", "Anliegen (alt)"], ["/agent/feedback-alt", "Feedback (alt)"],
       ["/agent/dokumente-alt", "Dokumente (alt)"], ["/agent/startgespraeche-alt", "Startgespräche (alt)"],
       ["/agent/partner-programm-alt", "Partner-Programm (alt)"], ["/agent/auszahlung-alt", "Auszahlung (alt)"],
-      ["/dashboard-alt", "Kunden-Dashboard (alt)"], ["/admin/team-alt", "Team (alt)"],
+       
     ],
   },
 ];
@@ -163,7 +163,7 @@ export default function ChefSeitenverzeichnis() {
     const chef: Gruppe = {
       titel: "Chefbüro",
       hinweis: "Alle Räume unter /chef/s/ — aus der Registry, immer vollständig.",
-      eintraege: CHEF_SEITEN.map((s) => [chefPfad(s), s.label] as Eintrag),
+      eintraege: CHEF_SEITEN.filter((s) => s.slug !== "akte").map((s) => [chefPfad(s), s.label] as Eintrag),
     };
     return [...GRUPPEN.slice(0, 7), chef, ...GRUPPEN.slice(7)];
   }, []);
@@ -205,7 +205,7 @@ export default function ChefSeitenverzeichnis() {
                     {g.eintraege.map(([pfad, label]) => (
                       <li key={pfad + label}>
                         {pfad.includes("…") || pfad.includes("BEISPIEL")
-                          ? <span title="nur über signierten Link erreichbar"><b>{label}</b><small>{pfad}</small></span>
+                          ? <span title="nur mit Schlüssel/Referenz erreichbar — kein Direktklick"><b>{label}</b><small>{pfad}</small></span>
                           : <a href={pfad} target={pfad.startsWith("/chef") ? undefined : "_blank"} rel="noreferrer"><b>{label}</b><small>{pfad}</small></a>}
                       </li>
                     ))}

@@ -166,10 +166,10 @@ export function Zeilen({ items }: { items: [string, ReactNode][] }) {
   return <div>{items.map(([k, v]) => <div key={k} className="dk-zeile"><span>{k}</span><b>{v}</b></div>)}</div>;
 }
 
-export function Zitat({ text, wer }: { text: string; wer: string }) {
+export function Zitat({ text, wer, en }: { text: string; wer: string; en?: boolean }) {
   return (
     <Auf>
-      <p className="dk-zitat">„{text}“</p>
+      <p className="dk-zitat">{en ? <>“{text}”</> : <>„{text}“</>}</p>
       <p className="wer">{wer}</p>
     </Auf>
   );
@@ -229,10 +229,12 @@ export function Abschluss({ titel, text, knoepfe }: { titel: ReactNode; text: Re
 }
 
 /** Anfrage-Formular — ein Endpunkt für Investoren, Presse, Datenraum, Partner, Karriere. */
-export function Anfrage({ art, felder, knopf, hinweis, vorbelegt }: {
+export function Anfrage({ art, felder, knopf, hinweis, vorbelegt, en }: {
   art: "investor" | "presse" | "datenraum" | "partner" | "karriere";
   felder: { name: string; label: string; typ?: string; pflicht?: boolean; optionen?: string[]; breit?: boolean }[];
   knopf: string; hinweis?: string; vorbelegt?: Record<string, string>;
+  /** Englische Oberflächentexte (02.09.2026 — die Investoren-Seite ist zweisprachig). */
+  en?: boolean;
 }) {
   const [werte, setWerte] = useState<Record<string, string>>(vorbelegt || {});
   const [stand, setStand] = useState<"offen" | "sendet" | "fertig" | "fehler">("offen");
@@ -242,8 +244,8 @@ export function Anfrage({ art, felder, knopf, hinweis, vorbelegt }: {
     setStand("sendet");
     const r = await fetch("/api/fiaon/anfrage", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ art, ...werte }) }).catch(() => null);
     const j = await r?.json().catch(() => null);
-    if (r?.ok && j?.ok) { setStand("fertig"); setMeldung(j.meldung || "Danke — wir melden uns."); }
-    else { setStand("fehler"); setMeldung(j?.error || "Das hat nicht geklappt. Bitte schreiben Sie an kontakt@fiaon.com."); }
+    if (r?.ok && j?.ok) { setStand("fertig"); setMeldung(en ? "Thank you — we will get back to you." : (j.meldung || "Danke — wir melden uns.")); }
+    else { setStand("fehler"); setMeldung(en ? "That did not work. Please email kontakt@fiaon.com." : (j?.error || "Das hat nicht geklappt. Bitte schreiben Sie an kontakt@fiaon.com.")); }
   };
   if (stand === "fertig") {
     return (
@@ -261,7 +263,7 @@ export function Anfrage({ art, felder, knopf, hinweis, vorbelegt }: {
             <label className="dk-label" htmlFor={`f-${f.name}`}>{f.label}{f.pflicht ? " *" : ""}</label>
             {f.optionen ? (
               <select id={`f-${f.name}`} className="dk-feld" required={f.pflicht} value={werte[f.name] || ""} onChange={(e) => setWerte({ ...werte, [f.name]: e.target.value })}>
-                <option value="">Bitte wählen</option>{f.optionen.map((o) => <option key={o} value={o}>{o}</option>)}
+                <option value="">{en ? "Please choose …" : "Bitte wählen"}</option>{f.optionen.map((o) => <option key={o} value={o}>{o}</option>)}
               </select>
             ) : f.typ === "textarea" ? (
               <textarea id={`f-${f.name}`} className="dk-feld" rows={4} required={f.pflicht} value={werte[f.name] || ""} onChange={(e) => setWerte({ ...werte, [f.name]: e.target.value })} />
@@ -274,7 +276,7 @@ export function Anfrage({ art, felder, knopf, hinweis, vorbelegt }: {
       </div>
       {meldung && stand === "fehler" && <p style={{ color: "#fca5a5", fontSize: 13.5 }}>{meldung}</p>}
       <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
-        <button type="submit" className="dk-knopf" disabled={stand === "sendet"}>{stand === "sendet" ? "Wird gesendet …" : knopf}</button>
+        <button type="submit" className="dk-knopf" disabled={stand === "sendet"}>{stand === "sendet" ? (en ? "Sending …" : "Wird gesendet …") : knopf}</button>
         {hinweis && <span className="dk-leise">{hinweis}</span>}
       </div>
     </form>

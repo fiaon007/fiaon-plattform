@@ -46,6 +46,25 @@ import { getSettings, setSetting } from "./fiaon-agent";
 
 const router = Router();
 
+// ── DIE INHABER-WAND (Abnahme-Fund 02.09.) ─────────────────────────────────
+// Die Zentrale ist im Chefbüro auf Stufe „inhaber" registriert — der Server
+// muss das erzwingen, sonst öffnet die Adresszeile jede Tür. Durch kommt,
+// wer den Admin-Code trägt (Justins gewohnter Weg) ODER als Chef der Stufe
+// inhaber angemeldet ist.
+router.use("/admin/postmeister", async (req: Request, res: Response, next) => {
+  try {
+    const { hasAdminCode } = await import("./fiaon-admin-zugang");
+    if (hasAdminCode(req)) return next();
+    const { readChef } = await import("./fiaon-chef-zugang");
+    const chef = readChef(req);
+    if (chef?.stufe === "inhaber") return next();
+    return res.status(403).json({ ok: false, error: "Die Postmeister-Zentrale ist dem Inhaber vorbehalten." });
+  } catch (e) {
+    console.error("[POSTMEISTER] Inhaber-Wand:", e);
+    return res.status(500).json({ ok: false, error: "Zugangsprüfung fehlgeschlagen" });
+  }
+});
+
 type Modus = "auto" | "hybrid" | "entwurf";
 /** Justins Freigaben vom 01.09.2026 — wörtlich. Änderungen nur mit ihm. */
 const POSTFAECHER: { adresse: string; modus: Modus; gruss: string }[] = [
@@ -303,13 +322,23 @@ async function mailVerarbeiten(postfachDef: typeof POSTFAECHER[number], gmailId:
   opts: { aufholen?: boolean; nurOrdnen?: boolean } = {}): Promise<string> {
   const postfach = postfachDef.adresse;
   // Anspruch sichern — läuft der Takt doppelt, verarbeitet nur einer.
-  const anspruch = await sqlPool`
+  let anspruch = await sqlPool`
     INSERT INTO fiaon_postmeister (postfach, gmail_id, thread_id, aktion)
     VALUES (${postfach}, ${gmailId}, '', 'in_arbeit')
     ON CONFLICT (gmail_id) DO NOTHING
     RETURNING id
   `;
-  if (anspruch.length === 0) return "schon_verarbeitet";
+  if (anspruch.length === 0) {
+    // Abnahme-Fund 02.09.: Ein „Nur ordnen"-Lauf und KI-Ausfälle dürfen eine
+    // Mail nicht ENDGÜLTIG verbrauchen — beide Zustände sind wieder
+    // beanspruchbar, alles andere bleibt einmalig.
+    anspruch = await sqlPool`
+      UPDATE fiaon_postmeister SET aktion = 'in_arbeit', updated_at = NOW()
+      WHERE gmail_id = ${gmailId} AND aktion IN ('vorgeordnet', 'fehler')
+      RETURNING id
+    `;
+    if (anspruch.length === 0) return "schon_verarbeitet";
+  }
   const fertig = async (felder: Record<string, unknown>) => {
     await sqlPool`
       UPDATE fiaon_postmeister SET
@@ -339,6 +368,11 @@ async function mailVerarbeiten(postfachDef: typeof POSTFAECHER[number], gmailId:
     const kunde = await kundeZurAdresse(mail.vonAdresse);
     const altTage = Math.floor((Date.now() - mail.datum.getTime()) / 86_400_000);
     const urteil = await einordnen(postfach, mail, kunde, altTage);
+    if (urteil.begruendung === "KI nicht erreichbar") {
+      // Abnahme-Fund: Ohne Einordnung darf die Mail nicht still als „geordnet"
+      // versickern — als Fehler ablegen, der nächste Lauf versucht es erneut.
+      return fertig({ ...basis, aktion: "fehler", begruendung: "KI nicht erreichbar — nächster Takt versucht es erneut", person_id: kunde?.person_id, ref: kunde?.ref });
+    }
 
     // Werbung: labeln, als gelesen markieren — bleibt im Eingang, stört nicht mehr.
     if (urteil.kategorie === "werbung_newsletter") {
@@ -401,8 +435,9 @@ async function mailVerarbeiten(postfachDef: typeof POSTFAECHER[number], gmailId:
       return fertig({ ...basis, ...urteil, aktion: "entwurf", antwort: antwortText, person_id: kunde?.person_id, ref: kunde?.ref });
     }
 
-    await hausSpur(mail, kunde, urteil.kategorie, "geordnet", urteil.dringend, postfach);
-    return fertig({ ...basis, ...urteil, aktion: "geordnet", person_id: kunde?.person_id, ref: kunde?.ref, begruendung: schon ? "Unterhaltung in 24 h schon bedient" : urteil.begruendung });
+    const ablage = opts.nurOrdnen ? "vorgeordnet" : "geordnet";
+    if (!opts.nurOrdnen) await hausSpur(mail, kunde, urteil.kategorie, "geordnet", urteil.dringend, postfach);
+    return fertig({ ...basis, ...urteil, aktion: ablage, person_id: kunde?.person_id, ref: kunde?.ref, begruendung: schon ? "Unterhaltung in 24 h schon bedient" : urteil.begruendung });
   } catch (e: any) {
     console.error(`[POSTMEISTER] ${postfach}/${gmailId}:`, String(e?.message || e).slice(0, 300));
     return fertig({ thread_id: "", aktion: "fehler", begruendung: String(e?.message || e).slice(0, 300) });
@@ -521,6 +556,16 @@ router.post("/admin/postmeister/aufholen", async (req: Request, res: Response) =
 // können — etwas wegschicken, Nachrichten ändern, mit 1 Klick alle beantworten")
 // ═══════════════════════════════════════════════════════════════════════════
 
+/** Entwurf atomar beanspruchen — genau EIN Aufrufer gewinnt (Doppelklick-Schutz). */
+async function entwurfBeanspruchen(id: number): Promise<any | null> {
+  const [zeile] = (await sqlPool`
+    UPDATE fiaon_postmeister SET aktion = 'sendet', updated_at = NOW()
+    WHERE id = ${id} AND aktion = 'entwurf' AND gesendet_am IS NULL
+    RETURNING *
+  `) as any[];
+  return zeile || null;
+}
+
 /** Einen gespeicherten Entwurf wirklich versenden — mit (ggf. geändertem) Text. */
 async function entwurfVersenden(zeile: any, text: string): Promise<void> {
   const mail = await nachrichtLesen(zeile.postfach, zeile.gmail_id);
@@ -564,14 +609,19 @@ router.get("/admin/postmeister/entwuerfe", async (_req: Request, res: Response) 
 /** Einen Entwurf senden — der Text aus der Zentrale gewinnt (ändern erlaubt). */
 router.post("/admin/postmeister/entwurf/:id/senden", async (req: Request, res: Response) => {
   try {
-    const [zeile] = (await sqlPool`
-      SELECT * FROM fiaon_postmeister
-      WHERE id = ${Number(req.params.id)} AND aktion = 'entwurf' AND gesendet_am IS NULL
-    `) as any[];
+    const zeile = await entwurfBeanspruchen(Number(req.params.id));
     if (!zeile) return res.status(404).json({ ok: false, error: "Entwurf nicht gefunden oder schon erledigt" });
     const text = String(req.body?.text || zeile.antwort || "").trim();
-    if (text.length < 20) return res.status(400).json({ ok: false, error: "Der Text ist zu kurz zum Senden." });
-    await entwurfVersenden(zeile, text);
+    if (text.length < 20) {
+      await sqlPool`UPDATE fiaon_postmeister SET aktion = 'entwurf' WHERE id = ${zeile.id}`;
+      return res.status(400).json({ ok: false, error: "Der Text ist zu kurz zum Senden." });
+    }
+    try {
+      await entwurfVersenden(zeile, text);
+    } catch (e) {
+      await sqlPool`UPDATE fiaon_postmeister SET aktion = 'entwurf' WHERE id = ${zeile.id} AND aktion = 'sendet'`.catch(() => {});
+      throw e;
+    }
     res.json({ ok: true });
   } catch (e: any) {
     res.status(502).json({ ok: false, error: String(e?.message || e).slice(0, 300) });
@@ -601,17 +651,27 @@ router.post("/admin/postmeister/entwuerfe/alle-senden", async (req: Request, res
   try {
     await ensureTabelle();
     const deckel = Math.min(60, Math.max(1, Number(req.body?.deckel) || 40));
-    const zeilen = (await sqlPool`
-      SELECT * FROM fiaon_postmeister
+    const kandidaten = (await sqlPool`
+      SELECT id FROM fiaon_postmeister
       WHERE aktion = 'entwurf' AND gesendet_am IS NULL AND antwort IS NOT NULL
       ORDER BY created_at ASC LIMIT ${deckel}
     `) as any[];
     let gesendet = 0; let fehler = 0;
-    for (const zeile of zeilen) {
+    for (const k of kandidaten) {
+      const zeile = await entwurfBeanspruchen(Number(k.id));
+      if (!zeile) continue;
       try { await entwurfVersenden(zeile, String(zeile.antwort)); gesendet += 1; }
-      catch (e) { fehler += 1; console.error("[POSTMEISTER] alle-senden:", String(e).slice(0, 160)); }
+      catch (e) {
+        fehler += 1;
+        await sqlPool`UPDATE fiaon_postmeister SET aktion = 'entwurf' WHERE id = ${zeile.id} AND aktion = 'sendet'`.catch(() => {});
+        console.error("[POSTMEISTER] alle-senden:", String(e).slice(0, 160));
+      }
     }
-    res.json({ ok: true, gesendet, fehler, uebrig: Math.max(0, zeilen.length === deckel ? 1 : 0) });
+    const [rest] = (await sqlPool`
+      SELECT COUNT(*)::int AS n FROM fiaon_postmeister
+      WHERE aktion = 'entwurf' AND gesendet_am IS NULL AND antwort IS NOT NULL
+    `) as any[];
+    res.json({ ok: true, gesendet, fehler, uebrig: Number(rest?.n || 0) });
   } catch (e: any) {
     res.status(500).json({ ok: false, error: String(e?.message || e).slice(0, 200) });
   }
@@ -643,7 +703,7 @@ router.get("/admin/postmeister/lage", async (_req: Request, res: Response) => {
       SELECT COUNT(*)::int AS gesamt,
              COUNT(*) FILTER (WHERE aktion = 'auto_beantwortet')::int AS auto,
              COUNT(*) FILTER (WHERE aktion = 'entwurf' AND gesendet_am IS NULL)::int AS entwuerfe,
-             COUNT(*) FILTER (WHERE aktion IN ('gesendet'))::int AS von_hand,
+             COUNT(*) FILTER (WHERE aktion = 'gesendet' AND created_at > NOW() - INTERVAL '24 hours')::int AS von_hand,
              COUNT(*) FILTER (WHERE aktion = 'geordnet')::int AS geordnet,
              COUNT(*) FILTER (WHERE aktion = 'fehler')::int AS fehler,
              COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours')::int AS heute,

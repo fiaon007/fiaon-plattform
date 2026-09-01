@@ -38,10 +38,13 @@ const KATEGORIE_TEXT: Record<string, string> = {
 const AKTION_TEXT: Record<string, [string, string]> = {
   auto_beantwortet: ["automatisch beantwortet", "gut"],
   gesendet: ["von dir freigegeben", "gut"],
+  sendet: ["wird gerade gesendet", "warte"],
   entwurf: ["Entwurf wartet", "warte"],
   geordnet: ["geordnet", "still"],
+  vorgeordnet: ["vorgeordnet (Vorschau)", "still"],
   verworfen: ["verworfen", "still"],
   fehler: ["Fehler", "rot"],
+  schon_verarbeitet: ["übersprungen — schon verarbeitet", "still"],
 };
 
 // ═══ DIE ENTITÄT ════════════════════════════════════════════════════════════
@@ -64,7 +67,8 @@ function Entitaet({ puls }: { puls: number }) {
       ctx.fillStyle = "#05091a"; ctx.fillRect(0, 0, breit, hoch);
     };
     messen();
-    window.addEventListener("resize", messen);
+    const beiGroesse = () => { messen(); if (ruhig) for (let i = 0; i < 90; i++) bild(); };
+    window.addEventListener("resize", beiGroesse);
 
     // 3200 Teilchen auf Bahnen um die Wirbelsäule; ein kleiner Teil sind
     // „Funken" — heller, schneller, mit eigenem Ausreißer-Radius.
@@ -141,7 +145,7 @@ function Entitaet({ puls }: { puls: number }) {
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener("mousemove", maus);
-      window.removeEventListener("resize", messen);
+      window.removeEventListener("resize", beiGroesse);
     };
   }, []);
 
@@ -209,9 +213,9 @@ export default function ChefPostmeister() {
   const alleSenden = async () => {
     if (!alleFrage) { setAlleFrage(true); setTimeout(() => setAlleFrage(false), 5000); return; }
     setAlleFrage(false); setLaeuft("alle");
-    const r = await api("/admin/postmeister/entwuerfe/alle-senden", { method: "POST", body: "{}" });
+    const r = await api("/admin/postmeister/entwuerfe/alle-senden", { method: "POST", body: JSON.stringify({ deckel: Math.min(60, entwuerfe.length) }) });
     setLaeuft(null);
-    sag(r.ok ? `${r.json.gesendet} Antworten gesendet${r.json.fehler ? `, ${r.json.fehler} Fehler` : ""}.` : (r.json?.error || "Fehlgeschlagen."));
+    sag(r.ok ? `${r.json.gesendet} Antworten gesendet${r.json.fehler ? `, ${r.json.fehler} Fehler` : ""}${Number(r.json.uebrig) > 0 ? ` — ${r.json.uebrig} warten noch` : ""}.` : (r.json?.error || "Fehlgeschlagen."));
     void laden(true);
   };
 
@@ -257,7 +261,13 @@ export default function ChefPostmeister() {
           {entwuerfe.map((e) => (
             <li key={e.id} className={offenEntwurf === e.id ? "auf" : ""}>
               <button type="button" className="pm-entwurf-kopf"
-                      onClick={() => { setOffenEntwurf(offenEntwurf === e.id ? null : e.id); setEntwurfText(String(e.antwort || "")); }}>
+                      onClick={() => {
+                        // Abnahme-Fund: redigierter Text darf beim Zuklappen
+                        // nicht verloren gehen — nur beim Öffnen eines ANDEREN
+                        // Entwurfs wird frisch geladen.
+                        if (offenEntwurf === e.id) { setOffenEntwurf(null); return; }
+                        setOffenEntwurf(e.id); setEntwurfText(String(e.antwort || ""));
+                      }}>
                 {e.dringend && <span className="pm-marke rot">dringend</span>}
                 <span className="pm-marke warte">{KATEGORIE_TEXT[e.kategorie] || e.kategorie}</span>
                 <span className="pm-entwurf-wer">
@@ -321,7 +331,7 @@ export default function ChefPostmeister() {
           <footer className="pm-tafel-fuss">
             <button type="button" className="pm-knopf" disabled={laeuft === "takt" || !an}
                     onClick={() => void takt(false)}>{laeuft === "takt" ? "Läuft …" : "Jetzt einen Takt laufen lassen"}</button>
-            <button type="button" className="pm-knopf still" disabled={laeuft === "takt"}
+            <button type="button" className="pm-knopf still" disabled={laeuft === "takt" || !an}
                     onClick={() => void takt(true)}>Nur ordnen (ohne Antworten)</button>
           </footer>
         </section>

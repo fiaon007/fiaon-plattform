@@ -74,7 +74,7 @@ function Spalte({ titel, links }: { titel: string; links: [string, string][] }) 
     <div className="pf-spalte">
       <button type="button" className="pf-spalte-kopf" aria-expanded={offen}
               onClick={() => setOffen(!offen)}>
-        <h3 className="pf-kopf text-[13px] font-medium uppercase tracking-[.15em]">{titel}</h3>
+        <span role="heading" aria-level={3} className="pf-kopf text-[13px] font-medium uppercase tracking-[.15em]">{titel}</span>
         <svg className={`pf-pfeil${offen ? " auf" : ""}`} width="14" height="14" viewBox="0 0 24 24"
              fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
           <path d="M6 9l6 6 6-6" />
@@ -142,7 +142,7 @@ export default function PremiumFooter() {
           <button type="button" className="pf-wissen-kopf" aria-expanded={wissenOffen}
                   onClick={() => setWissenOffen(!wissenOffen)}>
             <span className="pf-wissen-titel">
-              <h3 className="pf-kopf text-[13px] font-medium uppercase tracking-[.15em]">Wissen von A bis Z</h3>
+              <span role="heading" aria-level={3} className="pf-kopf text-[13px] font-medium uppercase tracking-[.15em]">Wissen von A bis Z</span>
               <span className="pf-wissen-zahl">{WISSEN.length} Ratgeber-Themen</span>
             </span>
             <span className="pf-wissen-hinweis pf-leise text-[12px]">
@@ -167,7 +167,7 @@ export default function PremiumFooter() {
         {/* Disclaimer Block */}
         <div className="pt-8 mb-8" style={{ borderTop: "1px solid rgba(255, 255, 255, 0.1)" }}>
           <p className="pf-leise text-[12px] leading-relaxed">
-            FIAON ist eine Software-as-a-Service (SaaS) und E-Learning-Plattform, bereitgestellt von der FIAON LTD (128 City Road, London, EC1V 2NX, United Kingdom · Companies House No. 17318250). FIAON ist kein Kreditinstitut, kein Finanzdienstleister und erbringt ausdrücklich keine Anlage-, Steuer- oder Rechtsberatung im Sinne des Kreditwesengesetzes (KWG). Ebenso betreiben wir keine Kredit- oder Darlehensvermittlung gemäß der Gewerbeordnung (insbesondere § 34c GewO). Wir vermitteln keine Finanzprodukte, setzen keine Affiliate-Tracking-Links ein und erhalten keinerlei Provisionen, Kick-backs oder erfolgsabhängige Vergütungen von Banken oder Kreditkartenherausgebern. Alle durch die Software generierten Daten, Analysen, Score-Simulationen und strategischen Dashboards dienen ausschließlich der finanziellen Bildung. Die Umsetzung der erlernten Strategien sowie die Antragstellung bei Finanzinstituten erfolgen vollumfänglich und in alleiniger Eigenverantwortung des Nutzers. Die finale Entscheidung über die Vergabe einer Kreditkarte oder die Gewährung eines spezifischen Kreditlimits obliegt zu 100 % dem jeweiligen Finanzinstitut. Es wird ausdrücklich keine Garantie, Haftung oder Gewährleistung für eine erfolgreiche Bewilligung übernommen.
+            FIAON ist eine Software-as-a-Service (SaaS) und E-Learning-Plattform, bereitgestellt von der FIAON LTD (128 City Road, London, EC1V 2NX, United Kingdom · Companies House No. 17318250). FIAON ist kein Kreditinstitut, kein Finanzdienstleister und erbringt ausdrücklich keine Anlage-, Steuer- oder Rechtsberatung im Sinne des Kreditwesengesetzes (KWG). Ebenso betreiben wir keine Kredit- oder Darlehensvermittlung gemäß der Gewerbeordnung (insbesondere § 34c GewO). Wir setzen keine Affiliate-Tracking-Links ein. Soweit FIAON im Rahmen von Partnerschaften mit Banken oder anderen Anbietern eine Vergütung erhält, hat dies keinen Einfluss auf die Darstellung oder Empfehlung; die Entscheidung über jedes Finanzprodukt trifft ausschließlich der jeweilige Anbieter. Alle durch die Software generierten Daten, Analysen, Score-Simulationen und strategischen Dashboards dienen ausschließlich der finanziellen Bildung. Die Umsetzung der erlernten Strategien sowie die Antragstellung bei Finanzinstituten erfolgen vollumfänglich und in alleiniger Eigenverantwortung des Nutzers. Die finale Entscheidung über die Vergabe einer Kreditkarte oder die Gewährung eines spezifischen Kreditlimits obliegt zu 100 % dem jeweiligen Finanzinstitut. Es wird ausdrücklich keine Garantie, Haftung oder Gewährleistung für eine erfolgreiche Bewilligung übernommen.
           </p>
         </div>
 

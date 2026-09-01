@@ -224,6 +224,10 @@ router.post("/agent/firmen/:id/mail", requireAgent, async (req: AgentRequest, re
       return res.status(400).json({ ok: false, error: "Keine gültige E-Mail-Adresse an der Firma." });
     }
     if (!gmailBereit()) return res.status(502).json({ ok: false, error: "Mail-Anbindung nicht bereit." });
+    // Frequenzbremse (02.09.): auch B2B zählt ins Empfänger-Budget.
+    const { darfAnEmpfaenger } = await import("../lib/fiaon-mail-frequenz");
+    const frequenz = await darfAnEmpfaenger(String(firma.email).trim(), "firmen_info");
+    if (!frequenz.ok) return res.status(429).json({ ok: false, error: `Frequenzbremse: ${frequenz.grund || "Empfänger-Budget erschöpft"}` });
     const [schon] = (await sqlPool`
       SELECT id FROM fiaon_firmen_log
       WHERE firma_id = ${id} AND art = 'mail' AND created_at > NOW() - INTERVAL '7 days' LIMIT 1

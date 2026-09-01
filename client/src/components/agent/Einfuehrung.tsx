@@ -167,7 +167,7 @@ function schritteFuer(rolle: string): Schritt[] {
   });
 
   s.push({
-    key: "tools", lage: "rand", ziel: "/agent/tools", Icon: Wrench, titel: "Tools – vier Werkzeuge",
+    key: "tools", lage: "rand", ziel: "/agent/tools", Icon: Wrench, titel: "Tools – fünf Werkzeuge",
     absaetze: [
       "Paketfinder: Situation des Kunden eingeben, passendes Paket samt Rate und deiner Provision sehen.",
       "Gesprächs-Begleiter: der Live-Leitfaden während des Anrufs, mit Einwand-Schnellhilfe und Notizfeld.",

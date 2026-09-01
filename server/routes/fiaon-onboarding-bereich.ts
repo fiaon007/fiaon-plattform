@@ -677,7 +677,7 @@ export async function startgespraechErgebnis(opts: {
     // Onboarding nicht abgeschlossen ist — so trägt das Cockpit die Doku nach
     // und schließt ab. Ein Rückfall erledigt → verpasst bleibt ausgeschlossen.
     const [termin] = (await sqlPool`
-      SELECT id, person_id, beginn FROM fiaon_termine
+      SELECT id, person_id, beginn, status AS status_vorher FROM fiaon_termine
       WHERE id = ${id} AND quelle = 'onboarding_call'
         AND (${opts.jederZustaendige === true} OR agent_id = ${req.agent!.id})
         AND (status IN ('gebucht', 'verpasst')
@@ -685,6 +685,10 @@ export async function startgespraechErgebnis(opts: {
                  AND onboarding_abgeschlossen_am IS NULL))
     `) as any[];
     if (!termin) return { status: 404, body: { ok: false, error: "Termin nicht gefunden." } };
+    // P10-Nachdoku (Abnahme-Fund 02.09.): War der Termin schon erledigt, ist
+    // dieser Aufruf nur die NACHDOKUMENTATION — Zeitstempel und Verlauf des
+    // ursprünglichen Gesprächs bleiben unangetastet.
+    const warErledigt = String(termin.status_vorher) === "erledigt";
 
     // ══════════════════════════════════════════════════════════════════════
     // EINE LEERE ANGABE LÖSCHT NICHTS MEHR (19.08.2026)
@@ -710,7 +714,8 @@ export async function startgespraechErgebnis(opts: {
     // Anweisung zum Löschen.
     // ══════════════════════════════════════════════════════════════════════
     await sqlPool`
-      UPDATE fiaon_termine SET status = ${String(ergebnis)}, erledigt_am = NOW(),
+      UPDATE fiaon_termine SET status = ${String(ergebnis)},
+             erledigt_am = COALESCE(erledigt_am, NOW()),
              notiz = COALESCE(${notiz ? String(notiz).slice(0, 4000) : null}, notiz),
              agenda_stand = COALESCE(
                ${agendaStand ? JSON.stringify(agendaStand) : null}::jsonb, agenda_stand),
@@ -900,7 +905,9 @@ export async function startgespraechErgebnis(opts: {
         ? "Kunde nicht erreicht — die hinterlegte Rufnummer stimmt nicht"
         : "Kunde nicht erschienen";
       const text = ergebnis === "erledigt"
-        ? `Startgespräch geführt (${berlinDatumText(termin.beginn)}, ${berlinUhrzeit(termin.beginn)} Uhr).${notiz ? ` ${String(notiz).slice(0, 2000)}` : ""}`
+        ? warErledigt
+          ? `Onboarding nachdokumentiert und abgeschlossen (Gespräch vom ${berlinDatumText(termin.beginn)}).${notiz ? ` ${String(notiz).slice(0, 2000)}` : ""}`
+          : `Startgespräch geführt (${berlinDatumText(termin.beginn)}, ${berlinUhrzeit(termin.beginn)} Uhr).${notiz ? ` ${String(notiz).slice(0, 2000)}` : ""}`
         : `Startgespräch verpasst — ${grundText} (${berlinDatumText(termin.beginn)}, ${berlinUhrzeit(termin.beginn)} Uhr).${notiz ? ` ${String(notiz).slice(0, 2000)}` : ""}`;
       await sqlPool`
         INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note, created_at)

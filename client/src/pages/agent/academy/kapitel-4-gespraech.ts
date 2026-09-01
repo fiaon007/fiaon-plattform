@@ -163,7 +163,7 @@ export const KAPITEL_4: KapitelInhalt = {
         ] },
         { einwand: "„Ich habe gerade meinen Job verloren, ich kann mir nichts leisten.“", antworten: [
           { text: "„Dann sollten Sie erst mal wieder Arbeit finden.“", bewertung: "schlecht", begruendung: "Moralisiert und lässt jemanden allein, der gerade einen der drei häufigsten Überschuldungsauslöser erlebt." },
-          { text: `„Das ist eine der häufigsten Situationen, die wir sehen – Sie sind damit nicht allein. Ohne Druck: Die kostenlose Datenkopie können Sie jederzeit selbst anfordern, unser Werkzeug schreibt den Brief. Wenn Sie später Begleitung wollen, ist Start mit ${preis("start")} im Monat der Einstieg. Was wäre Ihnen jetzt am wichtigsten?“`, bewertung: "gut", begruendung: "Einordnung ohne Mitleid, ein kostenloser Weg, ein passender Rahmen, keine Verkaufsdruck." },
+          { text: `„Das ist eine der häufigsten Situationen, die wir sehen – Sie sind damit nicht allein. Ohne Druck: Die kostenlose Datenkopie können Sie jederzeit selbst anfordern, unser Werkzeug schreibt den Brief. Wenn Sie später Begleitung wollen, ist Start mit ${preis("start")} im Monat der Einstieg. Was wäre Ihnen jetzt am wichtigsten?“`, bewertung: "gut", begruendung: "Einordnung ohne Mitleid, ein kostenloser Weg, ein passender Rahmen, kein Verkaufsdruck." },
           { text: "„Wir haben Ratenzahlung.“", bewertung: "mittel", begruendung: "Geht am Thema vorbei – er hat kein Zahlungs-, sondern ein Lebensproblem." },
         ] },
         { einwand: "„Was ist mein Score jetzt? Sagen Sie mir die Zahl.“", antworten: [

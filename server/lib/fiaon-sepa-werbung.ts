@@ -145,7 +145,10 @@ export async function sepaWerbungLauf(): Promise<SepaWerbungErgebnis> {
        AND a.amount_due IS NOT NULL AND a.amount_due > 0
        AND a.email IS NOT NULL AND a.email <> ''
        AND p.ist_test_am IS NULL
-       AND COALESCE(p.gc_mandate_status, '') <> 'active'
+       -- Abnahme-Fund 02.09.: Auch ERTEILTE, noch nicht aktive Mandate
+       -- (pending_submission/submitted — Normalzustand über Werktage) nicht
+       -- mehr einladen — das wäre Belästigung derer, die schon unterschrieben.
+       AND COALESCE(p.gc_mandate_status, '') IN ('', 'failed', 'cancelled', 'expired')
        AND COALESCE(b.anzahl, 0) < ${maxEinladungen}
        AND (b.letzte IS NULL OR b.letzte < NOW() - (${abstandTage} || ' days')::interval)
      ORDER BY COALESCE(b.anzahl, 0) ASC, a.paid_at DESC NULLS LAST

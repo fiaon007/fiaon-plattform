@@ -107,6 +107,25 @@ export async function postmeisterSchema(): Promise<void> {
       ADD COLUMN IF NOT EXISTS sprache_gesetzt_von INTEGER
   `.catch((e) => console.error("[POSTMEISTER-SCHEMA] persons:", String(e).slice(0, 200)));
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // DIE ABO-SPALTEN — hier NUR abgesichert, angelegt werden sie woanders
+  //
+  // Die Lagebestimmung fragt seit dem 03.09. `gc_subscription_ref` ab, damit
+  // niemand gemahnt wird, bei dem eingezogen wird. Diese Spalten gehören zur
+  // Lastschrift (fiaon-lastschrift.ts / fiaon-abo.ts), und dort werden sie
+  // gefüllt. Aber welche Migration beim Start zuerst läuft, ist nicht
+  // festgelegt — und fehlt die Spalte, bricht die Abfrage bei JEDER Mail.
+  // `ADD COLUMN IF NOT EXISTS` ist folgenlos, wenn sie schon da ist. Ein
+  // doppelter Riegel kostet nichts; ein fehlender kostet einen Abend.
+  // ─────────────────────────────────────────────────────────────────────────
+  await sqlPool`
+    ALTER TABLE fiaon_applications
+      ADD COLUMN IF NOT EXISTS gc_subscription_ref VARCHAR,
+      ADD COLUMN IF NOT EXISTS gc_subscription_status VARCHAR,
+      ADD COLUMN IF NOT EXISTS gc_subscription_start DATE,
+      ADD COLUMN IF NOT EXISTS gc_subscription_abgeglichen_am TIMESTAMPTZ
+  `.catch((e) => console.error("[POSTMEISTER-SCHEMA] abo-spalten:", String(e).slice(0, 200)));
+
   await sqlPool`CREATE INDEX IF NOT EXISTS idx_postmeister_person ON fiaon_postmeister (person_id, created_at DESC)`.catch(() => {});
   await sqlPool`CREATE INDEX IF NOT EXISTS idx_postmeister_message ON fiaon_postmeister (message_id)`.catch(() => {});
   await sqlPool`CREATE INDEX IF NOT EXISTS idx_threads_status ON fiaon_postfach_threads (status, letzte_fremd_am DESC)`.catch(() => {});

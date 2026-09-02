@@ -196,26 +196,39 @@ export async function kundenlageBerechnen(personId: number | null, ref: string |
   // einem Menschen, bei dem das Geld längst abgebucht wurde, eine
   // Zahlungsaufforderung geschrieben — höflich formuliert und trotzdem falsch.
   //
-  // Solange die Datenbank keine Abo-Kenntnis hat (fiaon-44 baut die Spalte),
-  // nutze ich die Zeichen, die es gibt: eine `gc_payment_id` an der Rate oder
-  // ein Lastschriftlauf mit einem Status, der nicht gescheitert ist. Trifft
-  // eines zu, wird die Rate nicht angemahnt — es wird gesagt, dass eingezogen
-  // wird. Ein zu Unrecht nicht gemahnter Kunde kostet Tage; ein zu Unrecht
-  // gemahnter kostet das Vertrauen.
+  // Zwei Zeichen sagen, dass eingezogen wird:
+  //   · eine `gc_payment_id` an der Rate — der Einzug ist bereits ausgelöst
+  //   · ein laufendes Abo auf dem Vertrag, dessen Start zur Fälligkeit passt
+  //
+  // DIE SIEBEN TAGE VORLAUF sind gemessen, nicht geschätzt (fiaon-44, 03.09.):
+  // Fälligkeit und Abo-Einzug fallen selten auf denselben Tag — Brandt,
+  // Schneider und Sheeraz 0 Tage, Sturm und Thoma 1 Tag, Weber 32. Ohne
+  // Vorlauf wäre Eva Sturm am 27.09. gemahnt und am 28.09. abgebucht worden:
+  // dieselbe Rate, ein Tag Versatz. Sieben Tage fangen das ab und lassen
+  // Webers 32 Tage draußen, wo sie hingehören — das ist echte Altlast, die
+  // einzeln abgerufen wird und gemahnt werden darf.
+  //
+  // Die Abwägung: Ein zu Unrecht nicht gemahnter Kunde kostet Tage. Ein zu
+  // Unrecht gemahnter kostet das Vertrauen.
   // ═══════════════════════════════════════════════════════════════════════
   const [r] = (await sqlPool`
-    SELECT COUNT(*) FILTER (
-             WHERE status = 'offen' AND faellig_am <= CURRENT_DATE
-               AND gc_payment_id IS NULL
-               AND (lastschrift_am IS NULL OR COALESCE(lastschrift_status, '') IN ('fehlgeschlagen', 'storniert', 'abgelehnt'))
-           )::int AS ueberfaellig,
-           COUNT(*) FILTER (
-             WHERE status = 'offen'
-               AND (gc_payment_id IS NOT NULL
-                    OR (lastschrift_am IS NOT NULL AND COALESCE(lastschrift_status, '') NOT IN ('fehlgeschlagen', 'storniert', 'abgelehnt')))
-           )::int AS im_einzug,
+    WITH einzug AS (
+      SELECT r.*,
+             (r.gc_payment_id IS NOT NULL
+              OR EXISTS (
+                   SELECT 1 FROM fiaon_applications sub
+                    WHERE sub.ref = r.ref
+                      AND sub.gc_subscription_ref IS NOT NULL
+                      AND sub.gc_subscription_status = 'active'
+                      AND sub.gc_subscription_start IS NOT NULL
+                      AND r.faellig_am >= sub.gc_subscription_start - INTERVAL '7 days'
+                 )) AS wird_eingezogen
+        FROM fiaon_abo_raten r WHERE r.ref = ${ref}
+    )
+    SELECT COUNT(*) FILTER (WHERE status = 'offen' AND faellig_am <= CURRENT_DATE AND NOT wird_eingezogen)::int AS ueberfaellig,
+           COUNT(*) FILTER (WHERE status = 'offen' AND wird_eingezogen)::int AS im_einzug,
            COUNT(*) FILTER (WHERE status = 'offen')::int AS offen
-      FROM fiaon_abo_raten WHERE ref = ${ref}
+      FROM einzug
   `) as any[];
   if (Number(r?.ueberfaellig || 0) > 0) return { lage: "rate_ueberfaellig", grund: `${r.ueberfaellig} Rate(n) überfällig` };
   if (Number(r?.im_einzug || 0) > 0) {

@@ -9,7 +9,7 @@
 // Neu erzeugen:   npx tsx scripts/seo-fragen-erzeugen.ts
 // Nur prüfen:     npx tsx scripts/seo-fragen-erzeugen.ts --pruefen
 //
-// Seiten: / (6), /was-ist-fiaon (6), /privatkunden (7), /business (4), /preise (5), /kreditkarte (5), /oesterreich (5), /schweiz (5), /sicherheit (10), /kontakt (3), /karriere (5), /partner (3), /presse (3), /investoren (4), /datenraum (3), /plattform-konzept (5), /fiaon-erfahrungen (7), /werkzeuge (4), /werkzeuge/kreditrechner (5), /werkzeuge/umschuldung (5), /werkzeuge/schulden-check (5), /werkzeuge/widerspruch (5), /werkzeuge/mahnbescheid (5), /werkzeuge/ratenplan (5), /werkzeuge/inkasso-antwort (5), /werkzeuge/basiskonto (5), /werkzeuge/pfaendungsrechner (5), /werkzeuge/dispo-rechner (5), /werkzeuge/mahngebuehren (5), /werkzeuge/kartenkosten (5), /werkzeuge/schuldenplan (5), /kredit-ohne-schufa (6), /schufa-eintrag-loeschen (5), /bonitaet-verbessern (6), /auskunfteien (5), /schufa-score-verstehen (6), /bonitaetsauskunft-beantragen (7), /inkasso-brief-erhalten (6), /eintrag-verjaehrung (6), /girokonto-trotz-negativer-bonitaet (7), /ratenzahlung-und-bonitaet (6), /selbstauskunft-checkliste (6), /schufa-neutral-anfragen (6)
+// Seiten: / (6), /was-ist-fiaon (6), /privatkunden (7), /business (4), /preise (6), /kreditkarte (5), /oesterreich (5), /schweiz (5), /sicherheit (10), /kontakt (3), /karriere (5), /partner (3), /presse (3), /investoren (4), /datenraum (3), /plattform-konzept (5), /fiaon-erfahrungen (8), /werkzeuge (4), /werkzeuge/kreditrechner (5), /werkzeuge/umschuldung (5), /werkzeuge/schulden-check (5), /werkzeuge/widerspruch (5), /werkzeuge/mahnbescheid (5), /werkzeuge/ratenplan (5), /werkzeuge/inkasso-antwort (5), /werkzeuge/basiskonto (5), /werkzeuge/pfaendungsrechner (5), /werkzeuge/dispo-rechner (5), /werkzeuge/mahngebuehren (5), /werkzeuge/kartenkosten (5), /werkzeuge/schuldenplan (5), /kredit-ohne-schufa (6), /schufa-eintrag-loeschen (5), /bonitaet-verbessern (6), /auskunfteien (5), /schufa-score-verstehen (6), /bonitaetsauskunft-beantragen (7), /inkasso-brief-erhalten (6), /eintrag-verjaehrung (6), /girokonto-trotz-negativer-bonitaet (7), /ratenzahlung-und-bonitaet (6), /selbstauskunft-checkliste (6), /schufa-neutral-anfragen (6)
 // ═══════════════════════════════════════════════════════════════════════════
 export type SeoFrage = { f: string; a: string };
 
@@ -117,23 +117,27 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
   "/preise": [
     {
       "f": "Kann ich jederzeit kündigen?",
-      "a": "Ja – jederzeit zum Ende des laufenden Monats, formlos und ohne Grund: im Kundenbereich unter Abo & Zahlungen oder per E-Mail. Das Paket ist auf zwölf Raten angelegt; danach fragen wir ausdrücklich, ob Sie bleiben – keine stille Verlängerung."
+      "a": "Ja – jederzeit zum Ende des laufenden Monats, formlos und ohne Grund: im Kundenbereich unter Abo & Zahlungen oder per E-Mail. Das Paket ist auf zwölf Raten angelegt, weil Auskunft, Schreiben und Antworten Zeit brauchen – aber niemand ist gebunden. Das gesetzliche Widerrufsrecht von 14 Tagen gilt zusätzlich."
     },
     {
       "f": "Wird die Auskunft angerechnet, wenn ich später ein Paket nehme?",
-      "a": "Ja. Wer zuerst nur die Auskunft bucht und innerhalb von 30 Tagen ein Paket wählt, bekommt den Betrag angerechnet."
+      "a": "Ja. Wer zuerst nur die Auskunft bucht und innerhalb von 30 Tagen ein Paket wählt, bekommt den Betrag auf die erste Rate angerechnet. Sagen Sie es im Startgespräch oder im Kundenbereich – Ihr Ansprechpartner trägt es ein."
     },
     {
       "f": "Gibt es Kosten je Schreiben oder Erfolgsprovisionen?",
-      "a": "Nein. Weder je Schreiben noch auf Löschungen, Konten oder Kartenrahmen. Der Paketpreis ist der Preis."
+      "a": "Nein. Weder je Schreiben noch auf Löschungen, Konten oder Kartenrahmen. Der Paketpreis ist der Preis. Einschreiben-Porto, Nachfassen, Eskalation – alles enthalten."
     },
     {
       "f": "Wie wird bezahlt?",
-      "a": "Erste Rate per Überweisung (Zahlungsdaten mit QR-Code im Kundenbereich), danach SEPA-Lastschrift über einen verifizierten Kreditor. Keine Kreditkarte nötig."
+      "a": "Erste Rate per Überweisung (Zahlungsdaten mit QR-Code im Kundenbereich), danach SEPA-Lastschrift über einen verifizierten Kreditor, jeweils zum Monatsanfang. Keine Kreditkarte nötig, keine Vorkasse für Leistungen, die noch nicht erbracht sind."
     },
     {
       "f": "Kann ich das Paket wechseln?",
-      "a": "Im Antrag, im Startgespräch und danach jederzeit nach oben; nach unten zum nächsten Ratenlauf."
+      "a": "Im Antrag, im Startgespräch und danach jederzeit nach oben; nach unten zum nächsten Ratenlauf. Der Paketfinder auf dieser Seite gibt die erste Orientierung – die endgültige Zuordnung besprechen Sie im Startgespräch."
+    },
+    {
+      "f": "Was, wenn alle meine Einträge berechtigt sind?",
+      "a": "Dann sagen wir es Ihnen nach der Auskunft – und Sie entscheiden, ob Sie weitermachen. Auch bei berechtigten Einträgen gibt es einen Weg: Erledigt-Vermerke, Ratenvereinbarungen mit Meldeverzicht, das Girokonto, die Zahlungshistorie. Nur Löschung gibt es dann nicht, und das versprechen wir auch nicht."
     }
   ],
   "/kreditkarte": [
@@ -365,31 +369,35 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
   "/fiaon-erfahrungen": [
     {
       "f": "Ist FIAON seriös?",
-      "a": "Prüfen Sie uns an den Kriterien, die für jeden Anbieter gelten — sie stehen weiter oben auf dieser Seite: transparente Festpreise statt Erfolgsbeteiligung, keine Löschgarantien, der Hinweis auf Ihre kostenlosen Rechte, ein Impressum mit erreichbaren Menschen und der Satz „die Entscheidung trifft die Bank“. FIAON erfüllt jeden dieser Punkte — und schreibt sie deshalb öffentlich hin."
+      "a": "Prüfen Sie uns an den Kriterien, die für jeden Anbieter gelten – sie stehen im Seriositäts-Check auf dieser Seite: Festpreise statt Erfolgsbeteiligung, keine Löschgarantien, Ihre kostenlosen Rechte werden genannt, ein Impressum mit erreichbaren Menschen, kein Zeitdruck, jeder Schritt im Kundenbereich nachlesbar. FIAON LTD ist im britischen Handelsregister eingetragen (Company No. 17318250); Kunden in Deutschland, Österreich und der Schweiz."
     },
     {
       "f": "Was macht FIAON genau?",
-      "a": "FIAON beschafft Ihre Bonitätsauskünfte bei SCHUFA, KSV und CRIF, erklärt jede Zeile in Klartext, prüft jeden Eintrag auf Zulässigkeit und Verfristung und führt den Schriftwechsel für alles Angreifbare. Dazu kommt der Weg zum Girokonto beim Partnerinstitut — Konto und Karte als Ziel, die Eröffnung entscheidet die Bank."
+      "a": "FIAON beschafft Ihre Bonitätsauskünfte bei SCHUFA, KSV und CRIF, erklärt jede Zeile in Klartext, prüft jeden Eintrag auf Zulässigkeit (§ 31 BDSG) und Verfristung und führt den Schriftwechsel mit Auskunfteien und Gläubigern – anwaltlich geprüfte Vorlagen, Einschreiben, Fristen, Antworten. Danach bereitet FIAON Girokonto und Kreditkarte beim Partnerinstitut vor. Über die Vergabe entscheidet die Bank."
     },
     {
       "f": "Was kostet FIAON?",
-      "a": "Die Bonitätsauskunft mit Prüfung kostet einmalig 74 Euro. Die Pakete für die laufende Begleitung laufen über zwölf Monatsraten; alle Preise stehen offen auf der Preisseite. Es gibt keine Erfolgsbeteiligung und keine versteckten Gebühren — was es kostet, steht fest, bevor Sie unterschreiben."
+      "a": "Die Bonitätsauskunft mit Prüfung kostet einmalig 74 Euro. Die Pakete für die laufende Begleitung laufen über zwölf Monatsraten von 7,99 bis 99,99 Euro; alle Preise stehen offen auf der Preisseite. Keine Erfolgsbeteiligung, keine Gebühr je Schreiben, keine Provision auf Konto oder Karte."
     },
     {
       "f": "Kann FIAON meine SCHUFA-Einträge löschen?",
-      "a": "FIAON kann durchsetzen, was das Gesetz hergibt: die Löschung unzulässig gemeldeter, inhaltlich falscher oder verfristeter Einträge. Berechtigte, zulässig gemeldete Einträge bleiben bis zum Fristablauf — wer Ihnen anderes verspricht, arbeitet unseriös. Diese Ehrlichkeit ist Teil unseres Modells."
+      "a": "FIAON kann durchsetzen, was das Gesetz hergibt: die Löschung unzulässig gemeldeter, inhaltlich falscher oder verfristeter Einträge. Berechtigte, zulässig gemeldete Einträge bleiben bis zum Fristablauf – das sagen wir Ihnen vor der Beauftragung, nicht danach. Wer Ihnen das Gegenteil verspricht, arbeitet unseriös."
     },
     {
       "f": "Wie sehe ich, was FIAON für mich tut?",
-      "a": "In Ihrem Kundenbereich: jeder Auftrag, jede eingegangene Auskunft, jedes Schreiben und jede Frist als nachvollziehbarer Verlauf. Sie müssen nicht anrufen, um den Stand zu erfahren — er steht da, und bei Fragen antwortet ein Mensch, in der Regel binnen eines Werktags."
+      "a": "In Ihrem Kundenbereich: jeder Auftrag, jede eingegangene Auskunft, jedes Schreiben, jede Frist und jede Antwort als nachvollziehbarer Verlauf. Sie müssen nicht anrufen, um den Stand zu erfahren – und Sie geben jedes Schreiben frei, bevor es rausgeht."
     },
     {
       "f": "Arbeitet FIAON auch in Österreich und der Schweiz?",
-      "a": "Ja, FIAON ist für den gesamten DACH-Raum gebaut: SCHUFA in Deutschland, KSV in Österreich, CRIF in der Schweiz — aus einer Hand, mit den jeweiligen Rechtsgrundlagen (DSGVO bzw. revidiertes DSG)."
+      "a": "Ja. SCHUFA in Deutschland, KSV1870 und CRIF in Österreich, CRIF, Intrum und das Betreibungsregister in der Schweiz – mit den jeweiligen Rechtsgrundlagen. Rund ein Drittel unserer zahlenden Kunden kommt aus Österreich."
     },
     {
       "f": "Wie kündige ich, wenn ich nicht zufrieden bin?",
-      "a": "Die Pakete laufen über zwölf Monate und enden, wie vereinbart; die Kündigungswege stehen transparent im Kundenbereich und auf der Abo-Kündigen-Seite — ohne Rückhalte-Schleifen. Ihr gesetzliches Widerrufsrecht bleibt davon unberührt."
+      "a": "Jederzeit zum Ende des laufenden Monats, formlos und ohne Grund – im Kundenbereich unter Abo & Zahlungen oder per E-Mail. Das Widerrufsrecht von 14 Tagen gilt zusätzlich."
+    },
+    {
+      "f": "Wo sind die Bewertungen?",
+      "a": "FIAON baut die öffentlichen Bewertungsprofile (Trustpilot, ProvenExpert, Google) gerade auf – Kunden erhalten nach dem Startgespräch eine Einladung. Bis die Profile stehen, zeigen wir hier lieber nichts als erfundene Sterne. Prüfbar sind heute: Zahlen aus dem Betrieb, Ablauf, Preise, Team und Sicherheit."
     }
   ],
   "/werkzeuge": [

@@ -67,20 +67,28 @@ async function awGet(pfad: string): Promise<any> {
   return res.json();
 }
 
-/** Das Global Account mit unserer IBAN finden (oder die gesetzte ID nehmen). */
+/**
+ * Das Global Account mit unserer IBAN finden (oder die gesetzte ID nehmen).
+ *
+ * Der frühere Rückfall „nimm das Konto mit currency === EUR" ist ersatzlos
+ * gestrichen: Am echten Datensatz gemessen steht auf oberster Ebene des
+ * Global-Account-Objekts GAR KEINE Währung (`currency` ist undefined bei
+ * beiden Konten) — die Zeile hätte nie gegriffen und im Zweifel das falsche,
+ * nämlich das britische Konto gewählt. Der IBAN-Vergleich trifft; darunter
+ * bleibt nur noch ein ehrlicher Fehler.
+ */
 async function globalAccountId(): Promise<string> {
   const fest = String(process.env.AIRWALLEX_GLOBAL_ACCOUNT_ID || "").trim();
   if (fest) return fest;
   const j = await awGet(`/api/v1/global_accounts?page_size=50`);
   const liste: any[] = Array.isArray(j?.items) ? j.items : [];
   const iban = BANK.iban.replace(/\s+/g, "").toUpperCase();
-  const treffer = liste.find((g) => String(g?.iban || g?.account_number || "").replace(/\s+/g, "").toUpperCase() === iban)
-    ?? liste.find((g) => String(g?.currency || "").toUpperCase() === "EUR");
-  if (!treffer?.id) throw new Error(`Kein Global Account mit IBAN ${BANK.ibanDisplay} gefunden (${liste.length} Konten)`);
+  const treffer = liste.find((g) => String(g?.iban || g?.account_number || "").replace(/\s+/g, "").toUpperCase() === iban);
+  if (!treffer?.id) throw new Error(`Kein Global Account mit IBAN ${BANK.ibanDisplay} gefunden (${liste.length} Konten) — AIRWALLEX_GLOBAL_ACCOUNT_ID setzen`);
   return String(treffer.id);
 }
 
-type Eingang = { id: string; datum: string; cents: number; absender: string; zweck: string; status: string; art: string };
+type Eingang = { id: string; datum: string; cents: number; absender: string; zweck: string; status: string; art: string; schwebt: boolean };
 
 /**
  * Ein Airwallex-Datensatz → unser Eingang. Tolerant bei Feldnamen; null, wenn unbrauchbar.
@@ -110,17 +118,26 @@ function lesen(t: any): Eingang | null {
   const waehrung = String(t?.currency ?? t?.transaction_currency ?? "EUR").toUpperCase();
   if (waehrung !== "EUR") return null;
   const datum = String(
-    t?.create_time ?? t?.settled_at ?? t?.created_at ?? t?.transaction_date ?? t?.posted_at ?? "",
+    t?.created_at ?? t?.create_time ?? t?.settled_at ?? t?.transaction_date ?? t?.posted_at ?? "",
   ).slice(0, 10);
   const absender = String(
     t?.payer?.name ?? t?.payer_name ?? t?.counterparty?.name ?? t?.source?.name ?? t?.sender_name ?? t?.debtor_name ?? "",
   ).trim();
+  // Bei /deposits ist `reference` die Bankreferenz des Absenders — also genau
+  // das, was der Kunde in den Verwendungszweck geschrieben hat. Sie steht
+  // deshalb vorn; `description` (das Feld von /transactions) bleibt dahinter.
   const zweck = String(
-    t?.description ?? t?.remittance_information ?? t?.reference ?? t?.payment_reference ?? t?.memo ?? t?.narrative ?? "",
+    t?.reference ?? t?.description ?? t?.remittance_information ?? t?.payment_reference ?? t?.memo ?? t?.narrative ?? "",
   ).trim();
   const status = String(t?.status ?? "").toUpperCase();
   const art = String(t?.type ?? t?.transaction_type ?? "").toUpperCase();
-  return { id, datum, cents, absender, zweck, status, art };
+  // Gebucht wird NUR bei ausdrücklich abgeschlossenem Status. Alles andere —
+  // auch ein unbekannter Wert — gilt als schwebend: Es wird sichtbar gemacht,
+  // aber nie gebucht. Vorher war die Prüfung andersherum und ließ jeden
+  // unbekannten Status durch; ein neuer Statuswert von Airwallex hätte damit
+  // Geld gebucht, das noch gar nicht da ist.
+  const schwebt = !/^(SETTLED|COMPLETED|SUCCEEDED|SUCCESS|CLEARED|POSTED)$/.test(status);
+  return { id, datum, cents, absender, zweck, status, art, schwebt };
 }
 
 /**
@@ -132,7 +149,21 @@ function lesen(t: any): Eingang | null {
  */
 const MAX_RUECKSCHAU_TAGE = 30;
 
-/** Gutschriften der letzten `tage` Tage — nur EUR, nur echte Eingänge, nur abgeschlossene. */
+/**
+ * Gutschriften der letzten `tage` Tage.
+ *
+ * ── WARUM /deposits UND NICHT /global_accounts/{id}/transactions ──────────
+ * Am 02.09.2026 direkt verglichen, gleicher Zeitraum, gleiches Konto:
+ *   /transactions →  1 Datensatz,  Verwendungszweck im Feld `description`
+ *   /deposits     →  4 Datensätze, Verwendungszweck im Feld `reference`
+ * `/deposits` zeigt zusätzlich die noch schwebenden Eingänge (PENDING) und
+ * nennt den Absender vollständig unter `payer.name`. Genau die schwebenden
+ * sind wertvoll: Solange wir sie sehen, mahnen wir niemanden, dessen Geld
+ * schon unterwegs ist. Außerdem stehen auf /deposits per Definition nur
+ * Eingänge — die Richtungsfrage (Gutschrift oder Abbuchung?) stellt sich gar
+ * nicht erst. Die `id` ist bei beiden Endpunkten DIESELBE, ein Wechsel kann
+ * also nichts doppelt anlegen.
+ */
 async function gutschriften(tage: number): Promise<{ eingaenge: Eingang[]; gesehen: number; gedeckelt: boolean }> {
   const konto = await globalAccountId();
   const gedeckelt = tage > MAX_RUECKSCHAU_TAGE;
@@ -140,7 +171,7 @@ async function gutschriften(tage: number): Promise<{ eingaenge: Eingang[]; geseh
   const ab = new Date(Date.now() - wirklich * 24 * 60 * 60 * 1000).toISOString();
   const alle: any[] = [];
   for (let seite = 0; seite < 20; seite++) {
-    const j = await awGet(`/api/v1/global_accounts/${encodeURIComponent(konto)}/transactions?from_created_at=${encodeURIComponent(ab)}&page_num=${seite}&page_size=100`);
+    const j = await awGet(`/api/v1/deposits?from_created_at=${encodeURIComponent(ab)}&page_num=${seite}&page_size=100`);
     const items: any[] = Array.isArray(j?.items) ? j.items : [];
     alle.push(...items);
     if (!j?.has_more || items.length === 0) break;
@@ -151,14 +182,16 @@ async function gutschriften(tage: number): Promise<{ eingaenge: Eingang[]; geseh
   }
   const eingaenge: Eingang[] = [];
   for (const t of alle) {
+    // Die API kennt keinen Kontofilter — also hier, sonst zöge das britische
+    // Konto seine Eingänge in unser Bankbuch.
+    const kontoDesEingangs = String(t?.global_account_id || "").trim();
+    if (kontoDesEingangs && kontoDesEingangs !== konto) continue;
     const e = lesen(t);
     if (!e || e.cents <= 0) continue;
-    // Nur echte Gutschriften. Steht eine Art dabei, muss sie CREDIT sein —
-    // eine als Eingang verbuchte Abbuchung würde jemanden freischalten, der
-    // nichts bezahlt hat. Fehlt das Feld, bleibt es beim Vorzeichen oben.
-    if (e.art && e.art !== "CREDIT") continue;
-    // Abgeschlossene Gutschriften; unbekannte Statuswerte werden zugelassen, aber vermerkt.
-    if (e.status && !/SETTLED|COMPLETED|SUCCE|CLEARED|POSTED/.test(e.status) && /PENDING|FAILED|CANCEL|REVERS|DECLIN/.test(e.status)) continue;
+    // Steht eine Art dabei, muss sie eine Gutschrift sein. Auf /deposits ist
+    // das immer der Fall (BANK_TRANSFER u.ä.); die Prüfung bleibt für den Tag,
+    // an dem jemand den Endpunkt zurückdreht.
+    if (e.art === "DEBIT") continue;
     // Ohne Datum bucht liveVerbuchen grundsätzlich nicht — dann lieber laut sein,
     // als die Zeile stumm im Bankbuch versanden zu lassen.
     if (!e.datum) console.warn(`[AIRWALLEX] Eingang ${e.id} ohne lesbares Datum — bleibt Handarbeit. Felder prüfen.`);
@@ -171,10 +204,19 @@ async function gutschriften(tage: number): Promise<{ eingaenge: Eingang[]; geseh
  * Der Einleser: Neues ins Bankbuch, Glasklares live buchen.
  * Idempotent über txn_id (AWX-…) — mehrfaches Lesen bucht nie doppelt.
  */
-export async function airwallexEinlesen(tage = 3): Promise<{ gesehen: number; neu: number; gebucht: number; gedeckelt: boolean }> {
+/**
+ * Woran eine schwebende Zeile erkennbar ist. Nur dieser Lauf schreibt diesen
+ * Satzanfang; sobald ein Mensch oder `liveVerbuchen` die Zeile anfasst, steht
+ * dort etwas anderes. Damit zieht die Nachreichung unten ausschließlich das
+ * nach, was der Automat selbst als „noch unterwegs" abgelegt hat — und rührt
+ * keine Zeile an, die jemand bewusst von Hand anders zugeordnet hat.
+ */
+const SCHWEBE_VERMERK = "Airwallex: Geld ist UNTERWEGS";
+
+export async function airwallexEinlesen(tage = 3): Promise<{ gesehen: number; neu: number; gebucht: number; schwebend: number; nachgezogen: number; gedeckelt: boolean }> {
   if (!konfiguriert()) throw new Error("AIRWALLEX_CLIENT_ID / AIRWALLEX_API_KEY fehlen");
   const { eingaenge, gesehen, gedeckelt } = await gutschriften(tage);
-  let neu = 0, gebucht = 0;
+  let neu = 0, gebucht = 0, schwebend = 0, nachgezogen = 0;
   for (const e of eingaenge) {
     const txnId = `AWX-${e.id}`;
     const ref = refErkennen(e.zweck);
@@ -186,7 +228,9 @@ export async function airwallexEinlesen(tage = 3): Promise<{ gesehen: number; ne
              CASE WHEN ziel.ref IS NOT NULL THEN 'matched' ELSE 'unmatched' END,
              CASE WHEN ziel.ref IS NULL THEN NULL ELSE (ROUND(ziel.amount_due * 100) = ${e.cents}) END,
              false,
-             ${`Airwallex-Automatik — zur Freischaltung vorgemerkt, noch NICHT gebucht${e.status ? ` (Status ${e.status})` : ""}`}
+             ${e.schwebt
+               ? `${SCHWEBE_VERMERK}, noch nicht gutgeschrieben (Status ${e.status || "unbekannt"}) — nicht buchen, aber auch nicht mahnen.`
+               : `Airwallex-Automatik — zur Freischaltung vorgemerkt, noch NICHT gebucht${e.status ? ` (Status ${e.status})` : ""}`}
       FROM (SELECT ref, amount_due FROM (
               SELECT a.ref, a.amount_due FROM fiaon_applications a
               WHERE a.payment_reference = ${basisRef} AND a.merged_into IS NULL
@@ -199,14 +243,38 @@ export async function airwallexEinlesen(tage = 3): Promise<{ gesehen: number; ne
       WHERE NOT EXISTS (SELECT 1 FROM fiaon_bank_txns b WHERE b.txn_id = ${txnId})
       RETURNING id
     `;
-    if (eingefuegt.length === 0) continue;
+    if (eingefuegt.length === 0) {
+      // Die Zeile kennen wir schon. Ein Fall bleibt trotzdem offen: Sie wurde
+      // angelegt, als das Geld noch unterwegs war, und ist inzwischen
+      // gutgeschrieben. Ohne diese Nachreichung bliebe genau dieses Geld für
+      // immer ungebucht — der Doppelschutz über txn_id würde es jedes Mal
+      // wortlos überspringen.
+      if (!e.schwebt) {
+        const [alt] = (await sqlPool`
+          SELECT applied, note FROM fiaon_bank_txns WHERE txn_id = ${txnId} LIMIT 1
+        `) as any[];
+        if (alt && !alt.applied && String(alt.note || "").startsWith(SCHWEBE_VERMERK)) {
+          const erg = await liveVerbuchen(txnId, ref, e.cents, e.datum);
+          if (erg.gebucht) { gebucht += 1; nachgezogen += 1; }
+          console.log(`[AIRWALLEX] Nachgereicht ${txnId}: war unterwegs, ist jetzt da — ${erg.gebucht ? "gebucht" : erg.grund}`);
+        }
+      }
+      continue;
+    }
     neu += 1;
-    console.log(`[AIRWALLEX] Neuer Eingang ${txnId}: ${(e.cents / 100).toFixed(2)} € von ${e.absender || "?"} (${ref || "ohne Referenz"})`);
+    console.log(`[AIRWALLEX] Neuer Eingang ${txnId}: ${(e.cents / 100).toFixed(2)} € von ${e.absender || "?"} (${ref || "ohne Referenz"})${e.schwebt ? ` — schwebt noch (${e.status})` : ""}`);
+    // Schwebendes Geld wird NIE gebucht: Es ist angekündigt, nicht angekommen.
+    // Es steht trotzdem im Bankbuch, damit niemand gemahnt wird, dessen
+    // Überweisung schon unterwegs ist. Sobald Airwallex den Eingang auf
+    // abgeschlossen dreht, holt ihn der nächste Lauf — dieselbe id, aber der
+    // Doppelschutz greift über txn_id, also braucht es dafür einen eigenen
+    // Weg: die Nachreichung (siehe schwebendeNachziehen).
+    if (e.schwebt) { schwebend += 1; continue; }
     const erg = await liveVerbuchen(txnId, ref, e.cents, e.datum);
     if (erg.gebucht) gebucht += 1;
   }
   letzterLauf = { wann: new Date().toISOString(), gesehen, neu, gebucht, fehler: null };
-  return { gesehen, neu, gebucht, gedeckelt };
+  return { gesehen, neu, gebucht, schwebend, nachgezogen, gedeckelt };
 }
 
 router.get("/admin/airwallex/status", async (_req: Request, res: Response) => {
@@ -224,22 +292,35 @@ router.post("/admin/airwallex/einlesen", async (req: Request, res: Response) => 
   try {
     const tage = Math.min(MAX_RUECKSCHAU_TAGE, Math.max(1, Number(req.body?.tage) || 3));
     const erg = await airwallexEinlesen(tage);
-    res.json({ ok: true, tage, maxTage: MAX_RUECKSCHAU_TAGE, ...erg });
+    res.json({ ok: true, tage, maxTage: MAX_RUECKSCHAU_TAGE, quelle: "/api/v1/deposits", ...erg });
   } catch (e: any) {
     letzterLauf = { wann: new Date().toISOString(), gesehen: 0, neu: 0, gebucht: 0, fehler: String(e?.message || e).slice(0, 300) };
     res.status(500).json({ ok: false, error: String(e?.message || e).slice(0, 300) });
   }
 });
 
-// Alle 30 Minuten von selbst — sobald die Schlüssel gesetzt sind. Ohne Schlüssel schweigt der Takt.
-tageslauf("airwallex-eingaenge", () => {
+// ── DER TAKT MUSS AUF SEINE ARBEIT WARTEN (02.09.2026) ─────────────────────
+// Vorher wurde hier eine Hülle übergeben, die die Arbeit nur ANSTIESS und
+// sofort zurückkam. Folge: `laufMitHistorie` maß 0 ms, schrieb „erfolg" und
+// hat einen Fehler nie gesehen. In der Laufhistorie standen am 02.09. sechs
+// Läufe als „erfolg | 0 ms" — für eine Automatik, die mangels Schlüssel noch
+// nie einen Cent gelesen hatte. Genau die Überwachung, die den Ausfall melden
+// soll, meldete Erfolg. Zweiter Schaden derselben Ursache: Die Sperre gegen
+// gleichzeitige Läufe greift über das Alter der Zeile — dreht die sofort auf
+// „erfolg", schützt sie nichts mehr. Sobald ein Webhook dazukommt, läsen
+// Wecker und Takt gleichzeitig.
+// Jetzt wird die Arbeit erwartet: Dauer stimmt, Fehler schlägt durch, Sperre hält.
+tageslauf("airwallex-eingaenge", async () => {
   if (!konfiguriert()) return;
-  airwallexEinlesen(3)
-    .then((r) => { if (r.neu > 0) console.log(`[AIRWALLEX] Tageslauf: ${r.neu} neue Eingänge, ${r.gebucht} live gebucht`); })
-    .catch((e) => {
-      letzterLauf = { wann: new Date().toISOString(), gesehen: 0, neu: 0, gebucht: 0, fehler: String(e?.message || e).slice(0, 300) };
-      console.error("[AIRWALLEX] Tageslauf:", e?.message || e);
-    });
+  try {
+    const r = await airwallexEinlesen(3);
+    if (r.neu > 0 || r.nachgezogen > 0) {
+      console.log(`[AIRWALLEX] Takt: ${r.neu} neu, ${r.gebucht} gebucht, ${r.schwebend} unterwegs, ${r.nachgezogen} nachgereicht`);
+    }
+  } catch (e: any) {
+    letzterLauf = { wann: new Date().toISOString(), gesehen: 0, neu: 0, gebucht: 0, fehler: String(e?.message || e).slice(0, 300) };
+    throw e; // Muss durchschlagen, sonst schreibt die Historie wieder „erfolg".
+  }
 }, 30 * 60 * 1000, { beimStartNach: 120_000 });
 
 export default router;

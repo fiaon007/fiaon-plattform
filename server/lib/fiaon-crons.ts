@@ -36,7 +36,18 @@ let gemeldet = false;
  */
 export function tageslauf(
   name: string,
-  fn: () => void,
+  /**
+   * Die Arbeit selbst — sie wird ERWARTET (siehe `sicher` weiter unten:
+   * `await fn()`). Wer hier eine Hülle übergibt, die einen Vorgang nur
+   * anstößt und sofort zurückkehrt, bekommt eine Historie voller
+   * „erfolg | 0 ms": Dauer und Fehler gehen verloren, und die Sperre gegen
+   * gleichzeitige Läufe greift nicht mehr, weil die Zeile sofort auf
+   * „erfolg" dreht. Genau das ist dem Airwallex-Lauf am 02.09.2026 passiert
+   * — sechs gemeldete Erfolge für eine Automatik, die noch nie einen Cent
+   * gelesen hatte. Der Rückgabetyp sagt das jetzt: Promise erlaubt und
+   * erwünscht.
+   */
+  fn: () => void | Promise<void>,
   intervallMs: number,
   opts: {
     /**

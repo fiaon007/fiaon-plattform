@@ -24,6 +24,7 @@
 // steht es im Protokoll-Grund. Vorher hätte Make kommentarlos „{{vorname}}"
 // in die Mail gedruckt.
 // ═══════════════════════════════════════════════════════════════════════════
+import { BANK } from "@shared/fiaon-bank";
 import {
   ABSENDER, mailHtml, mailText, ratenLeisteEinsetzen,
   type AbsenderRolle, type MailBaustein,
@@ -95,8 +96,9 @@ export function hatVorlage(event: string): boolean {
  */
 const BANK_FALLBACK: Record<string, string> = {
   empfaenger: "FIAON LTD",
-  iban: "BE09 9058 9276 3957",
-  bic: "TRWIBEB1XXX",
+  // 02.09.2026: Wise gesperrt → Airwallex/Banking Circle. Quelle: shared/fiaon-bank.ts
+  iban: BANK.ibanDisplay,
+  bic: BANK.bic,
 };
 
 /** {{params.x}} durch Werte ersetzen; fehlende Schlüssel einsammeln. */

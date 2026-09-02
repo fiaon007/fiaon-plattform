@@ -11,6 +11,30 @@ import type { MailBaustein } from "../geruest";
 
 export const ZAHLUNG_VORLAGEN: Record<string, MailBaustein> = {
 
+  // NOTFALL 02.09.2026: Das bisherige Konto wurde gesperrt — jeder, der in
+  // den letzten 24 Stunden Bankdaten von uns bekam, erfährt sofort die neue
+  // Verbindung. Ehrlich, ruhig, ohne Drama; mit seinem Verwendungszweck.
+  bankverbindung_neu: {
+    betreff: "Wichtig: Neue Bankverbindung für Ihre Zahlung an FIAON",
+    preheader: "Bitte überweisen Sie ab sofort nur noch auf unser neues Konto.",
+    titel: "Unsere Bankverbindung hat sich geändert",
+    marke: "Wichtige Information",
+    absaetze: [
+      "Guten Tag {{params.vorname}}, wir haben unser Geschäftskonto gewechselt. Falls Sie in den letzten Tagen eine E-Mail mit unseren Bankdaten erhalten haben: Die dort genannte Verbindung ({{params.alte_iban}}) ist ab sofort nicht mehr gültig.",
+      "Bitte verwenden Sie für Ihre Überweisung ausschließlich die untenstehende neue Bankverbindung — der Verwendungszweck bleibt derselbe, daran erkennt unser System Ihre Zahlung automatisch.",
+      "Haben Sie in den letzten Tagen bereits auf das alte Konto überwiesen? Dann antworten Sie bitte kurz auf diese E-Mail — wir kümmern uns persönlich darum, dass Ihre Zahlung richtig ankommt. Es geht nichts verloren.",
+    ],
+    daten: [
+      { label: "Empfänger", wert: "{{params.empfaenger}}" },
+      { label: "IBAN (neu)", wert: "{{params.iban}}" },
+      { label: "BIC", wert: "{{params.bic}}" },
+      { label: "Bank", wert: "{{params.bank}}" },
+      { label: "Verwendungszweck", wert: "{{params.verwendungszweck}}" },
+    ],
+    knopf: { text: "Zu meinem Bereich", url: "https://fiaon.com/login" },
+    fussnote: "Diese Nachricht ist keine Zahlungserinnerung — sie informiert nur über die neue Bankverbindung.",
+  },
+
   // 8.344 Versände/Monat — die häufigste Mail des Hauses (Startzahlung offen).
   payment_reminder: {
     betreff: "Ihre Zahlung steht noch aus — {{params.payment_reference}}",

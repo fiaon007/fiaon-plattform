@@ -57,6 +57,13 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     example: { ...CUSTOMER_EXAMPLE, invoice_url: INVOICE_URL_EXAMPLE },
   },
   {
+    type: "bankverbindung_neu",
+    label: "Neue Bankverbindung (Kontowechsel)",
+    description: "NOTFALL 02.09.2026: Wise-Konto gesperrt. Geht einmalig an jede Adresse, die in den letzten 24 h Bankdaten bekam — Verwendungszweck bleibt. Auslöser: POST /admin/bankwechsel/informieren. Pflichtmail (Frequenzbremse greift nicht).",
+    customerBound: true,
+    example: { ...CUSTOMER_EXAMPLE, alte_iban: "BE09 9058 9276 3957", bank: "Banking Circle S.A." },
+  },
+  {
     type: "followup_48h",
     label: "Follow-up 48h (VERALTET)",
     // ── GEMESSEN AM 19.08.2026 ─────────────────────────────────────────
@@ -100,8 +107,8 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       mahnstufe: 1,
       mahnstufe_text: "Freundliche Erinnerung — heute ist Ihre Monatsrate fällig.",
       empfaenger: "Fiaon Ltd",
-      iban: "BE09 9058 9276 3957",
-      bic: "TRWIBEB1XXX",
+      iban: "DE86 2022 0800 0047 7193 24",  // seit 02.09.2026 (Airwallex / Banking Circle)
+      bic: "SXPYDEHH",
       verwendungszweck: "FIAON-A1B2C3-2",
       portal_url: "https://www.fiaon.com/login",
     },

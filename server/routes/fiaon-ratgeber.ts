@@ -289,8 +289,11 @@ router.post("/admin/ratgeber/generieren", async (req: Request, res: Response) =>
 /** Täglicher Lauf: um 06:00 Berlin drei Entwürfe, falls heute noch keine entstanden sind. */
 export async function ratgeberTageslauf(): Promise<void> {
   const jetzt = new Date();
-  const berlin = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", hour12: false }).format(jetzt);
-  if (Number(berlin) < 6) return;
+  // formatToParts statt format(): format() liefert in de-DE „08 Uhr" → Number = NaN
+  // → die Nachtsperre griff nie (Hausmuster berlinMinuten, Hotfix 02.09.2026).
+  const berlin = Number(new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", hour12: false })
+    .formatToParts(jetzt).find((p) => p.type === "hour")?.value);
+  if (!Number.isFinite(berlin) || berlin < 6) return;
   await ensureRatgeberTabelle();
   const [h] = (await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_ratgeber WHERE quelle = 'ki' AND (created_at AT TIME ZONE 'Europe/Berlin')::date = (NOW() AT TIME ZONE 'Europe/Berlin')::date`) as any[];
   if (Number(h?.n || 0) > 0) return;

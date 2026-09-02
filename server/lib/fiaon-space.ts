@@ -486,9 +486,11 @@ export async function spaceTageslauf(datum = berlinToday()): Promise<{
   // Ereignis-Posts kommen ON TOP. Jeder ist über seinen Schlüssel idempotent,
   // also darf der Aufruf jede Stunde stehen bleiben.
   const jetzt = new Date();
-  const stunde = Number(new Intl.DateTimeFormat("de-DE", {
+  // formatToParts statt format(): format() liefert in de-DE „08 Uhr" → NaN (Hotfix 02.09.2026).
+  const stundeRoh = Number(new Intl.DateTimeFormat("de-DE", {
     timeZone: "Europe/Berlin", hour: "2-digit", hour12: false,
-  }).format(jetzt));
+  }).formatToParts(jetzt).find((p) => p.type === "hour")?.value);
+  const stunde = Number.isFinite(stundeRoh) ? stundeRoh % 24 : 12;
   const wochentag = jetzt.getDay();
 
   if (stunde >= 18) await postRangliste(datum).catch(() => false);

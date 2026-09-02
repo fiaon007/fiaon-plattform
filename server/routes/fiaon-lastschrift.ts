@@ -23,6 +23,7 @@ import { requireKunde, type KundeRequest } from "../lib/fiaon-kunde-session";
 import { paket as paketVon } from "@shared/fiaon-pakete";
 import { absoluteUrl } from "../fiaon-base-url";
 import { aboAnker, rateBezahltBuchen } from "./fiaon-abo";
+import { zahlungsauftragFinden, registriereSofortLink } from "../lib/fiaon-zahlungsauftrag";
 
 const router = Router();
 const BASIS = () => (process.env.GOCARDLESS_ENVIRONMENT === "sandbox" ? "https://api-sandbox.gocardless.com" : "https://api.gocardless.com");
@@ -417,6 +418,195 @@ export async function gcAboAnlegen(ref: string, mandateIdVorgabe?: string | null
   return einzeln > 0;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// SOFORTZAHLUNG PER BANK-APP — GoCardless Instant Bank Pay (02.09.2026, E-088)
+//
+// ── WARUM ─────────────────────────────────────────────────────────────────
+// Justin, wörtlich: „Zahlungsmail so optimieren, dass sie die Überweisung
+// einfach tätigen können — so innovativ wie möglich, damit es nicht lange
+// dauert." Gemessen: 70 % aller Zahlungen fallen in die ersten drei Tage nach
+// Antrag; jede Stunde Reibung kostet Abschlüsse. Das Wise-Konto ist gesperrt,
+// jede fehlgetippte IBAN geht ins Leere. Der Kunde soll nichts abtippen:
+// Knopf → Bank wählen → in der Banking-App bestätigen → Geld ist da → gebucht.
+//
+// ── WIE ───────────────────────────────────────────────────────────────────
+// Ein signierter Link (gleiches Muster wie sepaLink) öffnet eine Billing
+// Request mit `payment_request` (kein Mandat). Betrag, Art und Verwendungs-
+// zweck kommen AUSSCHLIESSLICH aus zahlungsauftragFinden() — eine Quelle für
+// Bestellung UND Rate (FIAON-XXXXXX bzw. FIAON-XXXXXX-N).
+//
+// ── DIE WEICHE `zweck` UND DIE BANKBUCH-ZEILE ─────────────────────────────
+// Ein Payment kennt laut Doku KEINEN Link zurück zur Billing Request, und
+// Metadaten sind auf drei Schlüssel begrenzt. Deshalb schreibt der Webhook
+// beim Ereignis billing_requests.fulfilled eine Zeile in fiaon_bank_txns
+// (txn_id „GC-<payment_id>", applied=false, Zweck in der Notiz) — und bucht
+// erst bei payments.confirmed/paid_out über genau diese Zeile: Erstzahlung
+// über alsBezahltBuchen, Rate über rateBezahltBuchen. Damit sehen
+// Kontoabgleich, Bankbuch und der Rückhol-Bankschutz dieselbe Wahrheit,
+// und `txn_id UNIQUE` + `applied` machen jede Buchung genau einmal.
+// Sofortzahlungen dürfen NIE in die Raten-Zuordnung der Lastschrift laufen —
+// der `zweck` ist die Weiche, und dieser Zweig steht davor.
+// ═══════════════════════════════════════════════════════════════════════════
+export function sofortSignatur(ref: string, exp: number): string {
+  return createHmac("sha256", geheim()).update(`sofort.${ref}.${exp}`).digest("hex").slice(0, 32);
+}
+/**
+ * Der Link aus Mail und Zahlungsseite — 21 Tage gültig. Synchron, weil der
+ * Mail-Motor ihn beim Rendern braucht: Hier wird nur die Form geprüft; ob der
+ * Auftrag noch offen ist, entscheidet der Klick (Weiterleitung mit Klartext).
+ */
+export function sofortLink(ref: string, ttlMs = 21 * 24 * 60 * 60 * 1000): string | null {
+  const r = String(ref || "").trim().toUpperCase();
+  if (!/^FIAON-[A-Z0-9]{4,12}(-\d{1,2})?$/.test(r)) return null;
+  const exp = Date.now() + ttlMs;
+  return absoluteUrl(`/api/fiaon/zahlung/sofort/${encodeURIComponent(`${r}.${exp}.${sofortSignatur(r, exp)}`)}`);
+}
+export function sofortPruefen(token: string): { ref: string; gueltig: boolean } | null {
+  const teile = String(token || "").split(".");
+  if (teile.length < 3) return null;
+  const sig = teile.pop()!; const exp = Number(teile.pop()); const ref = teile.join(".");
+  if (!ref || !exp || sofortSignatur(ref, exp) !== sig) return null;
+  return { ref, gueltig: exp >= Date.now() };
+}
+
+/** Billing Request mit payment_request anlegen — Instant zuerst, sonst Standard-Überweisung. */
+async function sofortAnlegen(z: Awaited<ReturnType<typeof zahlungsauftragFinden>> & object, rateId: number | null, tag: string): Promise<{ brId: string; url: string }> {
+  const cents = Math.round(Number(z.amountDue) * 100);
+  const beschreibung = `FIAON ${String(z.packName || "").split("\n")[0]} ${z.paymentReference}`.slice(0, 100);
+  const metadata: Record<string, string> = { ref: z.paymentReference, zweck: z.art === "rate" ? "rate" : "erstzahlung", rate_id: rateId ? String(rateId) : "" };
+  const [app] = (await sqlPool`
+    SELECT first_name, last_name, email, street, zip, city, country
+      FROM fiaon_applications WHERE payment_reference = ${z.paymentReference} AND merged_into IS NULL LIMIT 1`) as any[];
+  const anlegen = async (scheme: string, idem: string) => (await gc("/billing_requests", { method: "POST", idem, body: {
+    billing_requests: { payment_request: { amount: cents, currency: "EUR", description: beschreibung, scheme, metadata }, metadata } } })).billing_requests;
+  let br: any;
+  try {
+    br = await anlegen("sepa_instant_credit_transfer", `sofort-${z.paymentReference}-${tag}`);
+  } catch (e: any) {
+    // Rückfall auf die normale SEPA-Überweisung, falls Instant für diese Bank
+    // oder dieses Konto nicht angeboten wird — der Kunde merkt keinen Unterschied
+    // außer ein paar Stunden bis zur Gutschrift.
+    if (!/scheme|instant/i.test(String(e?.message || ""))) throw e;
+    br = await anlegen("sepa_credit_transfer", `sofort-${z.paymentReference}-${tag}-sct`);
+  }
+  const flow = (await gc("/billing_request_flows", { method: "POST", body: { billing_request_flows: {
+    redirect_uri: absoluteUrl(`/api/fiaon/zahlung/sofort/zurueck/${encodeURIComponent(z.paymentReference)}?br=${br.id}`),
+    exit_uri: absoluteUrl(`/zahlung/${encodeURIComponent(z.paymentReference)}?sofort=abgebrochen`),
+    prefilled_customer: {
+      given_name: app?.first_name || z.firstName || undefined, family_name: app?.last_name || undefined,
+      email: app?.email || undefined, address_line1: app?.street || undefined, postal_code: app?.zip || undefined,
+      city: app?.city || undefined, country_code: (String(app?.country || "").length === 2 ? String(app.country).toUpperCase() : undefined),
+    },
+    links: { billing_request: br.id },
+  } } })).billing_request_flows;
+  return { brId: br.id, url: flow.authorisation_url };
+}
+
+/** GET /zahlung/sofort/:token — Bank wählen, in der App bestätigen. Ohne Anmeldung. */
+router.get("/zahlung/sofort/:token", async (req: Request, res: Response) => {
+  const t = sofortPruefen(String(req.params.token || ""));
+  const heim = (ref: string, q: string) => res.redirect(`/zahlung/${encodeURIComponent(ref)}?sofort=${q}`);
+  if (!t) return res.redirect("/zahlung?sofort=fehler");
+  if (!t.gueltig) return heim(t.ref, "abgelaufen");
+  try {
+    const z = await zahlungsauftragFinden(t.ref);
+    if (!z) return heim(t.ref, "fehler");
+    if (z.status === "paid") return heim(z.paymentReference, "bereits");
+    if (z.status === "cancelled" || !(Number(z.amountDue) > 0)) return heim(z.paymentReference, "fehler");
+    let rateId: number | null = null;
+    if (z.art === "rate") {
+      const [r] = (await sqlPool`SELECT id FROM fiaon_abo_raten WHERE UPPER(zahlungsreferenz) = ${z.paymentReference} AND status = 'offen' ORDER BY id DESC LIMIT 1`) as any[];
+      if (!r) return heim(z.paymentReference, "bereits");
+      rateId = Number(r.id);
+    }
+    const tag = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    const { url } = await sofortAnlegen(z, rateId, tag);
+    return res.redirect(url);
+  } catch (err) {
+    console.error("[SOFORT] start:", err);
+    return heim(t.ref, "fehler");
+  }
+});
+
+/** GET /zahlung/sofort/zurueck/:ref — zurück von der Bank. Buchung macht der Webhook, hier nur Anzeige. */
+router.get("/zahlung/sofort/zurueck/:ref", async (req: Request, res: Response) => {
+  const ref = String(req.params.ref || "").toUpperCase();
+  const heim = (q: string) => res.redirect(`/zahlung/${encodeURIComponent(ref)}?sofort=${q}`);
+  try {
+    const brId = String(req.query.br || "");
+    if (!brId) return heim("fehler");
+    const br = (await gc(`/billing_requests/${brId}`)).billing_requests;
+    if (br?.status === "fulfilled") return heim("erfolg");
+    if (br?.status === "cancelled") return heim("abgebrochen");
+    return heim("ausstehend");
+  } catch (err) {
+    console.error("[SOFORT] zurueck:", err);
+    return heim("fehler");
+  }
+});
+
+/** Die Bankbuch-Zeile zur Sofortzahlung — genau einmal je GoCardless-Payment. */
+async function sofortZeileAnlegen(paymentId: string, ref: string, cents: number, zweck: string, rateId: string, payerName: string | null): Promise<void> {
+  await sqlPool`
+    INSERT INTO fiaon_bank_txns (txn_id, booked_at, amount_cents, currency, payer_name, reference_raw, extracted_ref, matched_ref, match_status, amount_ok, applied, note)
+    VALUES (${`GC-${paymentId}`}, NULL, ${cents}, 'EUR', ${payerName}, ${ref}, ${ref}, ${ref}, 'matched', TRUE, FALSE,
+            ${`GoCardless Sofortzahlung · zweck=${zweck} · rate_id=${rateId || "-"}`})
+    ON CONFLICT (txn_id) DO NOTHING`;
+}
+
+/**
+ * Eine bestätigte Sofortzahlung buchen. Liefert true, wenn das Payment eine
+ * Sofortzahlung war (egal ob jetzt gebucht oder schon vorher) — dann darf die
+ * Raten-Zuordnung der Lastschrift NICHT mehr greifen.
+ */
+async function sofortZahlungBuchen(p: any, action: string): Promise<boolean> {
+  const md = p?.metadata || {};
+  let zweck: string | null = md.zweck || null; let ref: string | null = md.ref || null; let rateId: string = md.rate_id || "";
+  const [zeile] = (await sqlPool`SELECT note, matched_ref, applied FROM fiaon_bank_txns WHERE txn_id = ${`GC-${p?.id}`} LIMIT 1`) as any[];
+  if (!zweck && zeile?.note) {
+    const m = /zweck=(\w+)/.exec(zeile.note); const r = /rate_id=([\d-]+)/.exec(zeile.note);
+    zweck = m?.[1] || null; ref = zeile.matched_ref || ref; rateId = r?.[1] && r[1] !== "-" ? r[1] : "";
+  }
+  if (!zweck || !ref) return false;
+  if (!["confirmed", "paid_out"].includes(action)) {
+    if (["failed", "cancelled", "customer_approval_denied", "charged_back"].includes(action)) {
+      await sqlPool`UPDATE fiaon_bank_txns SET match_status = 'ignored', note = CONCAT_WS(' · ', note, ${`GoCardless ${action}`}), updated_at = NOW()
+        WHERE txn_id = ${`GC-${p.id}`} AND applied = FALSE`.catch(() => {});
+    }
+    return true;
+  }
+  const tag = String(p?.charge_date || new Date().toISOString().slice(0, 10)).slice(0, 10);
+  const cents = Number(p?.amount || 0);
+  await sofortZeileAnlegen(String(p.id), ref, cents, zweck, rateId, null);
+  // Genau einmal: Wer die Zeile von applied=false auf true dreht, bucht.
+  const [gedreht] = (await sqlPool`UPDATE fiaon_bank_txns SET applied = TRUE, applied_at = NOW(), booked_at = ${tag}::date, updated_at = NOW()
+    WHERE txn_id = ${`GC-${p.id}`} AND applied = FALSE RETURNING txn_id`) as any[];
+  if (!gedreht) return true; // schon gebucht (Webhook-Wiederholung)
+  try {
+    if (zweck === "rate" && rateId) {
+      await rateBezahltBuchen({ rateId: Number(rateId), zahlungsdatum: tag, quelle: "gocardless", notiz: `GoCardless Sofortzahlung ${p.id}`, gcPaymentId: String(p.id) });
+    } else {
+      const { alsBezahltBuchen } = await import("./fiaon-antrag");
+      const erg = await alsBezahltBuchen(ref, { zahlungsdatum: tag, quelle: "gocardless_sofort" });
+      // 404 heißt hier „keine offene Bestellung mehr“ — sie ist schon bezahlt
+      // (alsBezahltBuchen trifft nur pending_payment/claimed_paid). Das ist kein
+      // Fehler, sondern die zweite Bestätigung derselben Zahlung.
+      if (!erg.ok && erg.status !== 404) throw new Error(erg.error);
+      if (!erg.ok) console.log(`[SOFORT] ${ref} war bereits bezahlt — Zahlung ${p.id} nur im Bankbuch vermerkt.`);
+    }
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+      SELECT a.ref, NULL, 'System', 'system', ${`Sofortzahlung per Bank-App eingegangen: ${(cents / 100).toFixed(2).replace(".", ",")} € (GoCardless ${p.id}).`}
+        FROM fiaon_applications a WHERE a.payment_reference = ${ref} AND a.merged_into IS NULL LIMIT 1`.catch(() => {});
+    console.log(`[SOFORT] gebucht ${zweck} ${ref} ${cents} ct (${p.id})`);
+  } catch (e) {
+    await sqlPool`UPDATE fiaon_bank_txns SET applied = FALSE, applied_at = NULL, note = CONCAT_WS(' · ', note, ${"Buchung fehlgeschlagen: " + String((e as any)?.message || e).slice(0, 120)}), updated_at = NOW()
+      WHERE txn_id = ${`GC-${p.id}`}`.catch(() => {});
+    console.error("[SOFORT] Buchung:", e);
+  }
+  return true;
+}
+
 /** POST /gocardless/webhook — Mandats- und Zahlungsstatus. Signatur: HMAC-SHA256 mit GOCARDLESS_WEBHOOK_SECRET. */
 /**
  * POST /admin/lastschrift/abgleich {schreiben:false} — alle lebenden Mandate
@@ -467,6 +657,18 @@ router.post("/gocardless/webhook", async (req: Request, res: Response) => {
       // 02.09.2026: Die Erfüllung eines Billing Requests ist der verlässliche
       // Moment, an dem das Mandat existiert — unabhängig davon, ob der Kunde
       // je zu uns zurückkam (Rückkehr abgebrochen, Cookie weg, Tab zu).
+      // ── SOFORTZAHLUNG: Billing Request MIT payment_request (kein Mandat) ────
+      if (ev.resource_type === "billing_requests" && ev.action === "fulfilled" && ev.links?.billing_request) {
+        const brS = (await gc(`/billing_requests/${ev.links.billing_request}`)).billing_requests;
+        if (brS?.payment_request) {
+          const payId = brS.links?.payment_request_payment || null;
+          const md = brS.payment_request.metadata || brS.metadata || {};
+          if (payId && md.ref) {
+            await sofortZeileAnlegen(String(payId), String(md.ref), Number(brS.payment_request.amount || 0), String(md.zweck || "erstzahlung"), String(md.rate_id || ""), null).catch((e) => console.error("[SOFORT] Zeile:", e));
+          }
+          continue;
+        }
+      }
       if (ev.resource_type === "billing_requests" && ev.action === "fulfilled" && ev.links?.billing_request) {
         try {
           const br = (await gc(`/billing_requests/${ev.links.billing_request}`)).billing_requests;
@@ -503,6 +705,9 @@ router.post("/gocardless/webhook", async (req: Request, res: Response) => {
       }
       if (ev.resource_type === "payments" && ev.links?.payment) {
         const p = (await gc(`/payments/${ev.links.payment}`)).payments;
+        // Sofortzahlungen zuerst — sie tragen zweck/ref in den Metadaten oder eine
+        // Bankbuch-Zeile GC-<id>; sie dürfen nie als Abo-Rate verbucht werden.
+        if (await sofortZahlungBuchen(p, String(ev.action || ""))) continue;
         const ref = p?.metadata?.ref || null;
         // Ohne Referenz am Payment: über das Abo (subscription.metadata.ref)
         let r = ref;
@@ -571,5 +776,9 @@ router.post("/gocardless/webhook", async (req: Request, res: Response) => {
     res.status(500).json({ ok: false });
   }
 });
+
+// Der Mail-Motor und die Zahlungsseite holen sich den Sofort-Link über den
+// Steckplatz in fiaon-zahlungsauftrag.ts — ohne Kreisimport.
+registriereSofortLink(sofortLink);
 
 export default router;

@@ -1,4 +1,4 @@
-// /werkzeuge/basiskonto · /en/tools/basic-account — Wörterbuch (03.09.2026)
+// /werkzeuge/basiskonto · /en/tools/basic-account — Wörterbuch (02.09.2026)
 // Die Erinnerung an die Bank bleibt deutsch (Empfänger: deutsche Bank). Generator teilt an „const en".
 const de = {
   metaTitel: "Basiskonto-Helfer · Frist, Ablehnung, BaFin-Antrag",

@@ -1,4 +1,4 @@
-// /werkzeuge/umschuldung · /en/tools/debt-consolidation — Wörterbuch (03.09.2026). Generator teilt an „const en".
+// /werkzeuge/umschuldung · /en/tools/debt-consolidation — Wörterbuch (02.09.2026). Generator teilt an „const en".
 const de = {
   metaTitel: "Umschuldungsrechner · Kredite zusammenlegen und sparen",
   metaBeschreibung: "Kostenloser Umschuldungsrechner: Bestehende Kredite und Dispo eintragen – sehen, was das Weiterlaufen kostet und was die Zusammenlegung spart. Mit Vorfälligkeitsentschädigung nach § 500 BGB. Ohne Anmeldung.",

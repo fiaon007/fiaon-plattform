@@ -1,4 +1,4 @@
-// /werkzeuge/ratenplan · /en/tools/instalment-plan — Wörterbuch (03.09.2026)
+// /werkzeuge/ratenplan · /en/tools/instalment-plan — Wörterbuch (02.09.2026)
 // Das Angebotsschreiben bleibt deutsch (Empfänger: Gläubiger/Inkasso). Generator teilt an „const en".
 const de = {
   metaTitel: "Ratenplan-Rechner · Angebot, das der Gläubiger annimmt",

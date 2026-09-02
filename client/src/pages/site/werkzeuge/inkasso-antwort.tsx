@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // /werkzeuge/inkasso-antwort · /en/tools/reply-to-debt-collector — der
 // Antwortbrief an das Inkassounternehmen (02.09.2026, E-080; zweisprachig
-// 03.09.2026 — der Brief bleibt deutsch, Texte: client/src/i18n/wz-inkasso-antwort.ts)
+// 02.09.2026 — der Brief bleibt deutsch, Texte: client/src/i18n/wz-inkasso-antwort.ts)
 //
 // Vier Haltungen, vier Briefe:
 //   1. „Ich kenne die Forderung nicht" → Nachweise verlangen (§ 13a RDG:

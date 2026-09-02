@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // /werkzeuge/kartenkosten · /en/tools/card-costs — Kartenkosten-Vergleich:
-// Kaution, Prepaid, Debit (02.09.2026, E-080; zweisprachig 03.09.2026,
+// Kaution, Prepaid, Debit (02.09.2026, E-080; zweisprachig 02.09.2026,
 // Texte: client/src/i18n/wz-kartenkosten.ts)
 //
 // Wer trotz Eintrag eine Karte will, bekommt drei Angebote vorgelegt, die

@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// DER AGENT — einordnen, handeln, antworten (03.09.2026, E-094)
+// DER AGENT — einordnen, handeln, antworten (02.09.2026, E-094)
 //
 // ZWEI AUFRUFE JE MAIL:
 //   A  Einordnen (billig, schnell): Kategorien, Flags, Fragen, Zusammenfassung.
@@ -139,7 +139,7 @@ function alsChatAntwort(roh: any): any {
     .filter((t) => t?.type === "function_call")
     .map((t) => ({ id: t.call_id, type: "function", function: { name: t.name, arguments: t.arguments ?? "{}" } }));
 
-  // ── NUR DER LETZTE BLOCK (03.09.2026) ──────────────────────────────────
+  // ── NUR DER LETZTE BLOCK (02.09.2026) ──────────────────────────────────
   // Die erste Fassung klebte alle Textblöcke aneinander. Gibt das Modell mehr
   // als einen `message`-Block aus — bei Werkzeugrunden der Normalfall —, wird
   // daraus „{…}{…}", und das Parsen scheiterte mit „Unexpected non-whitespace
@@ -178,7 +178,7 @@ function alsChatAntwort(roh: any): any {
 /**
  * Den JSON-Kern einer Modellantwort lesen — und beim Scheitern SAGEN, warum.
  *
- * 03.09.2026: Im ersten Aufhol-Lauf kamen zwei Mails als „Unterminated string
+ * 02.09.2026: Im ersten Aufhol-Lauf kamen zwei Mails als „Unterminated string
  * in JSON at position 5796" zurück. Das war kein Formatfehler des Modells,
  * sondern eine abgeschnittene Antwort: Bei /v1/responses zählt das Nachdenken
  * gegen dasselbe Token-Budget wie der Text. Wer das nicht weiß, sucht den
@@ -221,9 +221,9 @@ async function kiAufruf(ein: {
   const uhr = setTimeout(() => abbruch.abort(), ZEITGRENZE_MS);
   try {
     // ═══════════════════════════════════════════════════════════════════════
-    // WARUM /v1/responses UND NICHT /v1/chat/completions (03.09.2026)
+    // WARUM /v1/responses UND NICHT /v1/chat/completions (02.09.2026)
     //
-    // Der Agent hat vom 02. auf den 03.09. KEINE EINZIGE Antwort erzeugt.
+    // Der Agent hat vom 02. auf den 02.09. KEINE EINZIGE Antwort erzeugt.
     // In der Akte stand bei jedem Versuch derselbe Satz:
     //
     //   „Function tools with reasoning_effort are not supported for gpt-5.5
@@ -241,7 +241,7 @@ async function kiAufruf(ein: {
     const body: any = {
       model: ein.modell,
       input: nachChatUmgekehrt(ein.nachrichten),
-      // ── WARUM DIESE ZAHLEN GROSSZÜGIG SIND (03.09.2026) ────────────────
+      // ── WARUM DIESE ZAHLEN GROSSZÜGIG SIND (02.09.2026) ────────────────
       // Bei /v1/responses zählt das NACHDENKEN gegen dasselbe Budget wie die
       // Antwort. Mit den alten 2.000–3.000 Token blieb nach dem Denken zu
       // wenig übrig: Die Antwort brach mitten im Satz ab und kam als
@@ -391,7 +391,7 @@ function systemPrompt(ein: {
     `Du bist Sachbearbeiterin bei FIAON und schreibst aus dem Postfach ${ein.postfach}. Du bist ein Mensch am Schreibtisch, kein Automat: Du hast die Akte gelesen, bevor du antwortest.`,
     `HEUTE ist ${ein.heute}.`,
     ``,
-    // Am 03.09.2026 beanstandet: „auf englische Mails antwortet er Deutsch".
+    // Am 02.09.2026 beanstandet: „auf englische Mails antwortet er Deutsch".
     // Die Sprachregel stand bis dahin als Nebensatz in einer Aufzählung. Jetzt
     // steht sie oben und allein — sie ist das Erste, was der Leser bemerkt.
     ein.einordnung.sprache && ein.einordnung.sprache.slice(0, 2).toLowerCase() !== "de"
@@ -404,7 +404,7 @@ function systemPrompt(ein: {
     ``,
     `SO SCHREIBST DU:`,
     `· Drei bis acht Sätze, förmliche Anrede.`,
-    // 03.09.2026, nach den ersten echten Entwürfen: Der Agent schrieb inhaltlich
+    // 02.09.2026, nach den ersten echten Entwürfen: Der Agent schrieb inhaltlich
     // richtig, aber in Schachtelsätzen mit fünf Kommata („keinen konkreten
     // Issuer, keine konkrete Visa- oder Mastercard, kein Institut für einen
     // Kreditrahmen, keine Entscheidung über dessen Höhe …"). Das ist
@@ -550,7 +550,7 @@ async function pruefenUndAbschliessen(roh: any, k: {
   kosten: number; kontext: WerkzeugKontext; nachrichten: any[];
 }): Promise<AgentErgebnis> {
   let text = String(roh.antwort || "").trim();
-  // 03.09.2026: Im Entwurf an Herrn Munk endete der Brief mit dem Wort
+  // 02.09.2026: Im Entwurf an Herrn Munk endete der Brief mit dem Wort
   // „erledigt." — das ist der interne Zustand `naechster_schritt.art`, den das
   // Modell aus dem Schema mit in den Text genommen hat. Ein Kunde liest dort
   // ein sinnloses Einzelwort. Ein Statuswort am Ende, allein auf einer Zeile

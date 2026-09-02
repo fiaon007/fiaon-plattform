@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // /werkzeuge/widerspruch · /en/tools/deletion-request — Löschantrag und
-// Widerspruch gegen einen Eintrag (02.09.2026, E-080; zweisprachig 03.09.2026 —
+// Widerspruch gegen einen Eintrag (02.09.2026, E-080; zweisprachig 02.09.2026 —
 // beide Schreiben bleiben deutsch, Texte: client/src/i18n/wz-widerspruch.ts)
 //
 // Der Leser wählt, was mit seinem Eintrag nicht stimmt, trägt die Eckdaten

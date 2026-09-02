@@ -1,4 +1,4 @@
-// /werkzeuge/dispo-rechner · /en/tools/overdraft-calculator — Wörterbuch (03.09.2026). Generator teilt an „const en".
+// /werkzeuge/dispo-rechner · /en/tools/overdraft-calculator — Wörterbuch (02.09.2026). Generator teilt an „const en".
 const de = {
   metaTitel: "Dispo-Rechner · Was der Dauer-Dispo kostet",
   metaBeschreibung: "Dispo-Stand und Zins eingeben – der Rechner zeigt, was das Minus im Jahr kostet, was ein Ratenkredit zur Ablösung spart und wie lange der Abbau in festen Raten dauert. Kostenlos.",

@@ -1,4 +1,4 @@
-// /werkzeuge/mahnbescheid · /en/tools/court-payment-order — Wörterbuch (03.09.2026). Generator teilt an „const en".
+// /werkzeuge/mahnbescheid · /en/tools/court-payment-order — Wörterbuch (02.09.2026). Generator teilt an „const en".
 const de = {
   metaTitel: "Mahnbescheid-Fristenrechner · Zwei Wochen, die alles entscheiden",
   metaBeschreibung: "Mahnbescheid oder Vollstreckungsbescheid erhalten? Zustelldatum eingeben – der Rechner nennt den letzten Tag für Widerspruch oder Einspruch, was anzukreuzen ist und was danach passiert. Kostenlos.",

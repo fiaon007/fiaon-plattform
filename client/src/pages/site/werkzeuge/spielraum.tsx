@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // /werkzeuge/spielraum · /en/tools/monthly-headroom — Spielraum-Rechner
-// (23.08.2026, zweisprachig 03.09.2026)
+// (23.08.2026, zweisprachig 02.09.2026)
 //
 // Einnahmen und Fixkosten → monatlicher Spielraum, Quote, und was Banken
 // bei Karte und Rahmen daraus lesen (Richtwerte). Texte: client/src/i18n/wz-spielraum.ts.

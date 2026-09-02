@@ -1,4 +1,4 @@
-// /werkzeuge/kartenkosten · /en/tools/card-costs — Wörterbuch (03.09.2026). Generator teilt an „const en".
+// /werkzeuge/kartenkosten · /en/tools/card-costs — Wörterbuch (02.09.2026). Generator teilt an „const en".
 const de = {
   metaTitel: "Kartenkosten-Vergleich · Kaution, Prepaid oder Debit?",
   metaBeschreibung: "Kreditkarte mit Kaution, Prepaid-Karte oder Debitkarte: Der Rechner legt Gebühren, Aufladekosten und die festliegende Kaution auf drei Jahre um und sagt, welche Karte was wirklich leistet. Kostenlos.",

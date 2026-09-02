@@ -1,4 +1,4 @@
-// /werkzeuge/selbstauskunft · /en/tools/request-your-data-copy — Wörterbuch (03.09.2026)
+// /werkzeuge/selbstauskunft · /en/tools/request-your-data-copy — Wörterbuch (02.09.2026)
 // Der Brief selbst bleibt deutsch (Empfänger: SCHUFA, KSV1870, CRIF, Intrum); die englische
 // Seite erklärt das und beschriftet das Formular englisch.
 const de = {

@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// DIE FERTIGE NACHRICHT — Anrede, Text, Gruß, HTML im Haus-CI (03.09.2026)
+// DIE FERTIGE NACHRICHT — Anrede, Text, Gruß, HTML im Haus-CI (02.09.2026)
 //
 // JUSTIN: „der Agent muss auch in unseren HTML antworten, schreiben".
 //
@@ -24,9 +24,9 @@ const WEIBLICH = /^(anna|maria|julia|sabine|petra|claudia|andrea|susanne|monika|
 const MAENNLICH = /^(michael|thomas|andreas|peter|klaus|wolfgang|stefan|stephan|jürgen|juergen|christian|frank|uwe|martin|dieter|manfred|matthias|markus|marcus|bernd|joachim|alexander|daniel|sebastian|tobias|jan|jens|kai|lars|marcel|nico|patrick|rene|robert|sven|torsten|thorsten|ralf|rainer|reiner|norbert|helmut|horst|gerhard|günther|guenther|hans|heinz|herbert|karl|kurt|otto|rudolf|siegfried|walter|werner|willi|adem|ahmet|mehmet|mustafa|ali|hasan|ibrahim|dirk|dennis|erik|felix|florian|gregor|henry|jonas|julian|leon|lukas|maximilian|moritz|nikolas|oliver|philipp|simon|tim|tom|vitor|milan|nikola|goran|zoran|ivan|marko|petar|stefan)$/i;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// DIE SPRACHE DES RAHMENS (03.09.2026)
+// DIE SPRACHE DES RAHMENS (02.09.2026)
 //
-// Justin am 03.09.: „auf englische Mails antwortet er Deutsch und super
+// Justin am 02.09.: „auf englische Mails antwortet er Deutsch und super
 // schlecht." Beide Hälften stimmten, und die zweite lag hier: Selbst wenn das
 // Modell sauber auf Englisch schrieb, setzte der Server „Guten Tag Herr
 // Smith," davor, „Rechnung ansehen und bezahlen" auf den Knopf und einen
@@ -211,7 +211,7 @@ function fremdsprachig(sprache: string | null | undefined): boolean {
 /**
  * Aus „Freundliche Grüße\nIhr FIAON Welcome-Team" bleibt der Name des Teams.
  *
- * 03.09.2026: Im ersten bulgarischen Entwurf stand unter „С уважение" noch
+ * 02.09.2026: Im ersten bulgarischen Entwurf stand unter „С уважение" noch
  * „Ihr FIAON Welcome-Team". Der Firmenname soll bleiben — „Ihr" ist deutsch
  * und hat in einer bulgarischen Mail nichts verloren. Der besitzanzeigende
  * Anfang fällt deshalb weg, der Name bleibt stehen.

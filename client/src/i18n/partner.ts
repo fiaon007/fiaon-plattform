@@ -1,4 +1,4 @@
-// /partner · /en/partners — Wörterbuch (03.09.2026). Wortverbot: „Affiliate" (auch englisch) — hier „Vermittler"/„introducers".
+// /partner · /en/partners — Wörterbuch (02.09.2026). Wortverbot: „Affiliate" (auch englisch) — hier „Vermittler"/„introducers".
 // Generator teilt an „const en".
 const de = {
   metaTitel: "Geschäftspartner",

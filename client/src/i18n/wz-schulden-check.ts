@@ -1,4 +1,4 @@
-// /werkzeuge/schulden-check · /en/tools/debt-check — Wörterbuch (03.09.2026)
+// /werkzeuge/schulden-check · /en/tools/debt-check — Wörterbuch (02.09.2026)
 // Bei Rot steht die KOSTENLOSE Schuldnerberatung vor jedem FIAON-Knopf — in beiden Sprachen.
 const de = {
   metaTitel: "Schulden-Check · Bin ich überschuldet?",

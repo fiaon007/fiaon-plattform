@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // /werkzeuge/schuldenplan · /en/tools/debt-free-plan — Schuldenfrei-Plan:
-// Lawine oder Schneeball (02.09.2026, E-080; zweisprachig 03.09.2026,
+// Lawine oder Schneeball (02.09.2026, E-080; zweisprachig 02.09.2026,
 // Texte: client/src/i18n/wz-schuldenplan.ts)
 //
 // Bis zu sechs Schulden (Betrag, Zins, Mindestrate) und ein monatliches

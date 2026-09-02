@@ -1,5 +1,5 @@
 // /presse · /en/press — FIAON in den Medien. Alles, was ein Journalist in fünf Minuten braucht.
-// Zweisprachig 03.09.2026, Texte: client/src/i18n/presse.ts; Preise aus shared/fiaon-pakete.
+// Zweisprachig 02.09.2026, Texte: client/src/i18n/presse.ts; Preise aus shared/fiaon-pakete.
 import { Dunkel, Hero, Block, Karten, Kennzahlen, Zeilen, Glas, Zitat, Fragen, Zwischenruf, Abschluss, Anfrage, Knopf, Auf } from "@/components/site/DunkleBuehne";
 import SeoDaten from "@/components/site/SeoDaten";
 import ArasCore from "@/components/home3d/ArasCore";

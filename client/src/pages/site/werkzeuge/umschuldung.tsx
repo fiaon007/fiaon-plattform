@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // /werkzeuge/umschuldung · /en/tools/debt-consolidation — Umschuldungsrechner
-// (26.08.2026, zweisprachig 03.09.2026)
+// (26.08.2026, zweisprachig 02.09.2026)
 //
 // Bis zu vier bestehende Kredite (plus Dispo) → was kostet das Weiterlaufen,
 // was kostet die Zusammenlegung, wo liegt die Ersparnis. Der Dispo hat ein

@@ -1,4 +1,4 @@
-// /werkzeuge/karten-check · /en/tools/card-check — Wörterbuch (03.09.2026). Generator teilt an „const en".
+// /werkzeuge/karten-check · /en/tools/card-check — Wörterbuch (02.09.2026). Generator teilt an „const en".
 export interface KcErgebnis { stufe: string; titel: string; text: string; schritt: string; link: string; linkText: string }
 const de = {
   metaTitel: "Karten-Check · Welche Kreditkarte ist für mich realistisch?",

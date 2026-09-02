@@ -1,4 +1,4 @@
-// /werkzeuge/widerspruch · /en/tools/deletion-request — Wörterbuch (03.09.2026)
+// /werkzeuge/widerspruch · /en/tools/deletion-request — Wörterbuch (02.09.2026)
 // Beide Schreiben bleiben deutsch (Empfänger: Auskunftei und Gläubiger im deutschsprachigen Raum).
 // Der FAQ-Generator teilt an „const en".
 const de = {

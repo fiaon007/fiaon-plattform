@@ -1,4 +1,4 @@
-// /presse · /en/press — Wörterbuch (03.09.2026). Preise kommen aus shared/fiaon-pakete. Generator teilt an „const en".
+// /presse · /en/press — Wörterbuch (02.09.2026). Preise kommen aus shared/fiaon-pakete. Generator teilt an „const en".
 const de = {
   metaTitel: "Presse",
   metaBeschreibung: "FIAON in den Medien: Kurzprofil, Fakten, Zahlen zum Zitieren, Bildmaterial und Ansprechpartner für Journalistinnen und Journalisten.",

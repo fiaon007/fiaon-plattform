@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// DIE AKTE, WIE DER POSTMEISTER SIE LIEST (03.09.2026, E-094)
+// DIE AKTE, WIE DER POSTMEISTER SIE LIEST (02.09.2026, E-094)
 //
 // DER FUND, aus dem das hier entstand (Analyse 02.09.): Zwei Kundinnen mit
 // vollständiger Akte — bezahltes Paket, erledigtes Startgespräch, Rate fällig,
@@ -185,7 +185,7 @@ export async function kundenlageBerechnen(personId: number | null, ref: string |
   if (a.payment_status !== "paid") return { lage: "unbezahlt", grund: "Bestellung liegt vor, erste Zahlung fehlt" };
 
   // ═══════════════════════════════════════════════════════════════════════
-  // EINE RATE IM EINZUG IST NICHT ÜBERFÄLLIG (03.09.2026)
+  // EINE RATE IM EINZUG IST NICHT ÜBERFÄLLIG (02.09.2026)
   //
   // Gefunden von fiaon-44: Ali Alfatlawi, Rate 2 über 7,99 €, bei GoCardless
   // am 28.08. abgebucht und bestätigt — in unserer Datenbank „offen",
@@ -200,7 +200,7 @@ export async function kundenlageBerechnen(personId: number | null, ref: string |
   //   · eine `gc_payment_id` an der Rate — der Einzug ist bereits ausgelöst
   //   · ein laufendes Abo auf dem Vertrag, dessen Start zur Fälligkeit passt
   //
-  // DIE SIEBEN TAGE VORLAUF sind gemessen, nicht geschätzt (fiaon-44, 03.09.):
+  // DIE SIEBEN TAGE VORLAUF sind gemessen, nicht geschätzt (fiaon-44, 02.09.):
   // Fälligkeit und Abo-Einzug fallen selten auf denselben Tag — Brandt,
   // Schneider und Sheeraz 0 Tage, Sturm und Thoma 1 Tag, Weber 32. Ohne
   // Vorlauf wäre Eva Sturm am 27.09. gemahnt und am 28.09. abgebucht worden:
@@ -304,7 +304,7 @@ export async function akteLesen(personId: number | null, ref: string | null): Pr
     personId: personId ?? null,
     name: person ? [person.first_name, person.last_name].filter(Boolean).join(" ") || person.company_name || null : null,
     anrede: person?.anrede ?? null,
-    // Der Sprachvermerk aus der Akte (03.09.2026). Er wird von Hand gesetzt und
+    // Der Sprachvermerk aus der Akte (02.09.2026). Er wird von Hand gesetzt und
     // dient als Rückfall, wenn die Sprache einer Mail unklar ist — und als
     // Hinweis für den Menschen, der den Entwurf durchsieht.
     sprache: person?.sprache ?? null,

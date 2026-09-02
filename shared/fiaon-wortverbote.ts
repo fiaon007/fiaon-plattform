@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// EINE WAND FÜR ALLE KUNDENTEXTE (03.09.2026, E-094)
+// EINE WAND FÜR ALLE KUNDENTEXTE (02.09.2026, E-094)
 //
 // Bis heute gab es drei Listen an drei Orten: `entschaerfen` in der Mail-KI
 // (11 Muster), `verboteneKundenworte` im Copilot (7 Muster, ohne Wortgrenzen)

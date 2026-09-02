@@ -2633,7 +2633,7 @@ router.post("/admin/team/:id/gespraeche-auswerten", async (req: Request, res: Re
 export default router;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// DIE KUNDEN ZURÜCK ZU IHREN BETREUERN (03.09.2026, E-100)
+// DIE KUNDEN ZURÜCK ZU IHREN BETREUERN (02.09.2026, E-100)
 //
 // JUSTIN, wörtlich: „die 221 kunden zu deren betreuer, logisch - das darf NIE
 // wieder passieren!"
@@ -2661,7 +2661,7 @@ router.post("/admin/team/betreuer-zurueckgeben", async (req: Request, res: Respo
   try {
     const schreiben = req.body?.schreiben === true;
     const zeilen = (await sqlPool`
-      -- ── WAS ALS BETREUUNG ZÄHLT (03.09.2026, in der Vorschau gefunden) ──
+      -- ── WAS ALS BETREUUNG ZÄHLT (02.09.2026, in der Vorschau gefunden) ──
       -- Der erste Entwurf nahm einfach den ältesten dokumentierten Kontakt.
       -- Die Vorschau zeigte, wohin das führt: Hans-Jürgen Gerhold hätte 42
       -- Kunden bekommen, Diana Zeller 12 — beide arbeiten im
@@ -2729,7 +2729,7 @@ router.post("/admin/team/betreuer-zurueckgeben", async (req: Request, res: Respo
           await sqlPool`
             INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
             VALUES (${a.ref}, ${Number(z.person_id)}, NULL, 'System', 'system',
-                    ${`Zurück zum ersten Betreuer: ${z.soll_name}${z.jetzt_name ? ` (stand bei ${z.jetzt_name})` : ""}. Ein Vertretungsanruf hatte die Betreuung übernommen — Ursache am 03.09.2026 behoben.`},
+                    ${`Zurück zum ersten Betreuer: ${z.soll_name}${z.jetzt_name ? ` (stand bei ${z.jetzt_name})` : ""}. Ein Vertretungsanruf hatte die Betreuung übernommen — Ursache am 02.09.2026 behoben.`},
                     NOW())
           `.catch(() => {});
         }

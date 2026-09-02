@@ -1,4 +1,4 @@
-// /werkzeuge/verjaehrung · /en/tools/limitation-check — Wörterbuch (03.09.2026)
+// /werkzeuge/verjaehrung · /en/tools/limitation-check — Wörterbuch (02.09.2026)
 // Die Einrede-Formulierung bleibt in BEIDEN Sprachen deutsch: Empfänger ist ein deutschsprachiger
 // Gläubiger bzw. ein Inkassobüro. Die englische Seite erklärt das dazu. Generator teilt an „const en".
 const de = {

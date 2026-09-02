@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // /werkzeuge/verjaehrung · /en/tools/limitation-check — Verjährungs-Rechner
-// (23.08.2026, zweisprachig 03.09.2026)
+// (23.08.2026, zweisprachig 02.09.2026)
 //
 // Fälligkeit, Titel, letzte Anerkennung → Verjährungsdatum nach §§ 195, 199,
 // 197, 212 BGB, Stand heute, und die Formulierung für die Einrede (bleibt

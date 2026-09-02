@@ -39,7 +39,7 @@ export function tageslauf(
   /**
    * Die Arbeit selbst — sie wird ERWARTET (`await fn()`).
    *
-   * ── WARUM HIER KEIN `catch` STEHEN DARF (03.09.2026) ──────────────────
+   * ── WARUM HIER KEIN `catch` STEHEN DARF (02.09.2026) ──────────────────
    * Bis heute übergab fast jeder Lauf eine Hülle der Form
    *   `() => { arbeit().catch(e => console.error(e)) }`
    * Die kehrt SOFORT zurück. `laufMitHistorie` maß deshalb 0 ms, schrieb

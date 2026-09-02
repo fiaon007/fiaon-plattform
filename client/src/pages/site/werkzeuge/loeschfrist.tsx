@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // /werkzeuge/loeschfrist · /en/tools/deletion-deadline — Löschfrist-Rechner
-// (23.08.2026, zweisprachig 03.09.2026)
+// (23.08.2026, zweisprachig 02.09.2026)
 //
 // Art des Eintrags + Daten → taggenaues Löschdatum nach den Verhaltensregeln
 // der Auskunfteien, inklusive 100-Tage-Regel (seit 2024). Alles im Browser,

@@ -1495,7 +1495,7 @@ router.get("/agent/dokumente/:personId/:art/datei", requireAgent, async (req: Ag
  * Verlauf; darfAnKunde entscheidet, wer darf (Leitung: jeder Kunde).
  */
 // ═══════════════════════════════════════════════════════════════════════════
-// DER SPRACHVERMERK (03.09.2026)
+// DER SPRACHVERMERK (02.09.2026)
 //
 // Daniel am 02.09.: „Was machen wir mit Kunden die kein Deutsch oder Englisch
 // können — hat eine bulgarische Nummer, lebt aber wohl in Deutschland."
@@ -1504,7 +1504,7 @@ router.get("/agent/dokumente/:personId/:art/datei", requireAgent, async (req: Ag
 // dieselbe Sprachbarriere und legte wieder auf — die Erkenntnis war jedes Mal
 // verloren. Jetzt setzt sie der Mensch, der sie gemacht hat, in einem Zug.
 //
-// AUSDRÜCKLICH VON HAND: Nachgemessen am 03.09. hätte die Staatsangehörigkeit
+// AUSDRÜCKLICH VON HAND: Nachgemessen am 02.09. hätte die Staatsangehörigkeit
 // zwei von drei belegten Fällen falsch eingeordnet — es waren österreichische
 // Staatsbürger mit +43-Nummer. Wer welche Sprache spricht, weiß nur, wer mit
 // ihm gesprochen hat. Deshalb wird hier nichts abgeleitet.

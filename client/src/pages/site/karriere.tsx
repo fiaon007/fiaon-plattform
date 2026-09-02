@@ -1,4 +1,4 @@
-// /karriere · /en/careers — Arbeiten bei FIAON (Neufassung 23.08.2026, zweisprachig 03.09.2026)
+// /karriere · /en/careers — Arbeiten bei FIAON (Neufassung 23.08.2026, zweisprachig 02.09.2026)
 // Justin: „Wir stellen nicht nur auf Provision ein, auch fest. Junges Start-up, rasant wachsend, wir brauchen IMMER
 // Unterstützung. Die Bewerbung soll kein Formular sein, sondern ein Prozess; die Seite muss Freude machen, interaktiv sein,
 // Leute anwerben; Abteilungen wählbar." Der Satz „Kunden werden Mitarbeiter" bleibt intern.

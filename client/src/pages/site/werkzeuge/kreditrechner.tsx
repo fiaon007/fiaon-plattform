@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // /werkzeuge/kreditrechner · /en/tools/loan-calculator — Kreditrechner
-// (26.08.2026, zweisprachig 03.09.2026)
+// (26.08.2026, zweisprachig 02.09.2026)
 //
 // Betrag, Laufzeit, Zins → Monatsrate, Gesamtkosten, Zinsanteil, Tilgungsplan.
 // Annuitätenformel, kaufmännisch gerundet. Alles im Browser, nichts wird

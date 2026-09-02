@@ -1,4 +1,4 @@
-// /werkzeuge/eintrag-pruefen · /en/tools/check-my-entry — Wörterbuch (03.09.2026)
+// /werkzeuge/eintrag-pruefen · /en/tools/check-my-entry — Wörterbuch (02.09.2026)
 // Die Einschätzungen sind nach Schlüssel abgelegt; die Seite wählt den Schlüssel, der Text
 // bekommt die Auskunftei als Parameter. Generator teilt an „const en".
 export interface EpFrage { key: string; frage: string; hinweis?: string; optionen: { wert: string; label: string; text?: string }[] }

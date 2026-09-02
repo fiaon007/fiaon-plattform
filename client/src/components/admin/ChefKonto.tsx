@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// DAS GESCHÄFTSKONTO (03.09.2026)
+// DAS GESCHÄFTSKONTO (02.09.2026)
 //
 // JUSTIN: „Airwallex ist ja jetzt verbunden — wo sehen wir nun unser Konto?
 // Wo ist die Seite mit den Zahlungen, Funktionen und sowas?"
@@ -11,7 +11,7 @@
 //
 // DIE WICHTIGSTE ZAHL AUF DIESER SEITE ist nicht die Summe, sondern „wirklich
 // offen": Eingänge, zu denen keine bezahlte Bestellung gehört. Alles andere
-// ist zugeordnetes Geld — am 03.09. sahen 37 Zeilen ohne Haken nach
+// ist zugeordnetes Geld — am 02.09. sahen 37 Zeilen ohne Haken nach
 // liegengebliebenem Geld aus, und 34 davon waren längst verbucht. Wer die
 // Rohzahl zeigt, erzeugt eine Sorge, die es nicht gibt.
 // ═══════════════════════════════════════════════════════════════════════════

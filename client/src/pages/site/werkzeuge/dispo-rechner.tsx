@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // /werkzeuge/dispo-rechner · /en/tools/overdraft-calculator — Was der
 // Dauer-Dispo kostet und was der Ausstieg bringt (02.09.2026, E-080;
-// zweisprachig 03.09.2026, Texte: client/src/i18n/wz-dispo-rechner.ts)
+// zweisprachig 02.09.2026, Texte: client/src/i18n/wz-dispo-rechner.ts)
 //
 // Durchschnittlicher Dispozins in Deutschland: rund 11,3 Prozent (Verivox,
 // November 2025; Stiftung Warentest Juni 2025: 11,22 Prozent). Spanne der

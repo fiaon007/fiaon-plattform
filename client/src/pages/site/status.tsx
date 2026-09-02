@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // /status · /en/status — Verfügbarkeit und Sicherheit, live (02.09.2026,
-// E-083; zweisprachig 03.09.2026, Texte: client/src/i18n/status.ts)
+// E-083; zweisprachig 02.09.2026, Texte: client/src/i18n/status.ts)
 //
 // Was die Seite zeigt: ob die Plattform gerade antwortet (GET /healthz, derselbe
 // Pfad, den Render für das unterbrechungsfreie Umschalten nutzt), wo die

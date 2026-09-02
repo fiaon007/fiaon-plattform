@@ -46,7 +46,7 @@ export default function AGBPage() {
             </div>
           </div>
 
-          {/* Fassung und Geltung — wichtig für Bestandskunden (03.09.2026) */}
+          {/* Fassung und Geltung — wichtig für Bestandskunden (02.09.2026) */}
           <div className="fiaon-glass-panel rounded-2xl p-6">
             <p className="text-sm text-gray-600 leading-relaxed">
               <strong>Fassung vom 3. September 2026.</strong> Diese Bedingungen gelten für Verträge, die ab diesem Tag geschlossen werden.

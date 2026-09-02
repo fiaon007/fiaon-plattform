@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // /werkzeuge/mahngebuehren · /en/tools/reminder-fees — Mahngebühren-Prüfer
-// (02.09.2026, E-080; zweisprachig 03.09.2026, Texte: client/src/i18n/wz-mahngebuehren.ts;
+// (02.09.2026, E-080; zweisprachig 02.09.2026, Texte: client/src/i18n/wz-mahngebuehren.ts;
 // die Zurückweisung bleibt deutsch)
 //
 // Regeln, die der Prüfer anwendet:

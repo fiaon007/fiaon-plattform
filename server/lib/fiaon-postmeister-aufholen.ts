@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// DER AUFHOL-LAUF — alle Postfächer, von Anfang an (03.09.2026, E-094)
+// DER AUFHOL-LAUF — alle Postfächer, von Anfang an (02.09.2026, E-094)
 //
 // JUSTIN: „das gesamte Postfach (ALLE) müssen gescannt werden, die, was nie
 // eine Antwort erhalten haben erhalten eine […] Und das ALLE Nachrichten von
@@ -200,8 +200,8 @@ export async function altentwuerfePruefen(schreiben: boolean, alleVerwerfen = fa
   for (const z of zeilen) {
     // Ohne Belege gab es keine Werkzeuge — jede Zusage ist ungedeckt.
     const treffer = wandPruefen(String(z.antwort ?? ""), []).filter((t) => t.art !== "floskel");
-    // ── WARUM ES EIN `alleVerwerfen` GIBT (03.09.2026) ──────────────────────
-    // Am 03.09. stellte sich heraus: Der neue Agent hatte NIE eine Antwort
+    // ── WARUM ES EIN `alleVerwerfen` GIBT (02.09.2026) ──────────────────────
+    // Am 02.09. stellte sich heraus: Der neue Agent hatte NIE eine Antwort
     // erzeugt (die API lehnte Werkzeuge mit Denkleistung ab). Alle 73 Entwürfe
     // im Postfach stammten also aus der ersten Fassung — ohne Werkzeuge, ohne
     // Belegpflicht, ohne HTML, und 25 davon existierten nicht einmal als

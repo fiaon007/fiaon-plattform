@@ -1,4 +1,4 @@
-// /werkzeuge/loeschfrist · /en/tools/deletion-deadline — Wörterbuch (03.09.2026)
+// /werkzeuge/loeschfrist · /en/tools/deletion-deadline — Wörterbuch (02.09.2026)
 // Ergebnistexte sind Funktionen, weil Datum und Tage hineingerechnet werden. Der FAQ-Generator teilt an „const en".
 export type LfArt = "erledigt" | "offen" | "titel" | "rsb" | "anfrage" | "konto";
 const de = {

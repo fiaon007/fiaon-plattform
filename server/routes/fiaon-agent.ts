@@ -623,7 +623,7 @@ export function hasAgentToken(req: Request): boolean {
 export function blockAgentsFromAdmin(req: Request, res: Response, next: NextFunction) {
   if (req.path.startsWith("/admin") && verifyAgentToken((req as any).cookies?.[AGENT_COOKIE])) {
     // ═══════════════════════════════════════════════════════════════════════
-    // WER BEIDES IST, WIRD NACH DEM STÄRKEREN AUSWEIS BEHANDELT (03.09.2026)
+    // WER BEIDES IST, WIRD NACH DEM STÄRKEREN AUSWEIS BEHANDELT (02.09.2026)
     //
     // Justin sah im Chefbüro ein leeres Postfach mit der Meldung „Kein
     // Zugriff: Agent-Rolle hat keine Admin-Berechtigung" — obwohl oben rechts

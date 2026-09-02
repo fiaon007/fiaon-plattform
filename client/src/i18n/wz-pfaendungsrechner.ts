@@ -1,4 +1,4 @@
-// /werkzeuge/pfaendungsrechner · /en/tools/attachment-calculator — Wörterbuch (03.09.2026). Generator teilt an „const en".
+// /werkzeuge/pfaendungsrechner · /en/tools/attachment-calculator — Wörterbuch (02.09.2026). Generator teilt an „const en".
 const de = {
   metaTitel: "Pfändungsrechner · Freibetrag und P-Konto 2026",
   metaBeschreibung: "Netto und Unterhaltspflichten eingeben – der Rechner nennt den pfändbaren Betrag nach § 850c ZPO und den Schutz auf dem P-Konto. Werte ab 1. Juli 2026: 1.587,40 € Grundbetrag. Kostenlos.",

@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// DIE TABELLEN DES POSTMEISTERS (03.09.2026, E-094)
+// DIE TABELLEN DES POSTMEISTERS (02.09.2026, E-094)
 //
 // Alle Erweiterungen sind additiv und laufen beim Start einmal. Keine Spalte
 // wird gelöscht, keine bestehende geändert — die alte Fassung läuft weiter,
@@ -82,14 +82,14 @@ export async function postmeisterSchema(): Promise<void> {
   // Anrede EINMAL je Person bestimmen und behalten. Am 02.09. wurde dieselbe
   // Person in zwei Antworten „Herr" und „Frau" genannt.
   // ─────────────────────────────────────────────────────────────────────────
-  // DIE SPRACHE DES KUNDEN (03.09.2026)
+  // DIE SPRACHE DES KUNDEN (02.09.2026)
   //
   // Daniel am 02.09.: „Was machen wir mit Kunden die kein Deutsch oder Englisch
   // können — hat eine bulgarische Nummer, lebt aber wohl in Deutschland."
   //
   // `sprache` wird von HAND gesetzt, vom Betreuer nach dem Gespräch — NIE
   // automatisch aus Vorwahl oder Staatsangehörigkeit abgeleitet. Nachgemessen
-  // am 03.09.: Von den drei belegten Fällen hätte die Staatsangehörigkeit zwei
+  // am 02.09.: Von den drei belegten Fällen hätte die Staatsangehörigkeit zwei
   // falsch eingeordnet (österreichische Staatsbürger mit +43-Nummer). Wer
   // welche Sprache spricht, weiß nur, wer mit ihm gesprochen hat.
   //
@@ -110,7 +110,7 @@ export async function postmeisterSchema(): Promise<void> {
   // ─────────────────────────────────────────────────────────────────────────
   // DIE ABO-SPALTEN — hier NUR abgesichert, angelegt werden sie woanders
   //
-  // Die Lagebestimmung fragt seit dem 03.09. `gc_subscription_ref` ab, damit
+  // Die Lagebestimmung fragt seit dem 02.09. `gc_subscription_ref` ab, damit
   // niemand gemahnt wird, bei dem eingezogen wird. Diese Spalten gehören zur
   // Lastschrift (fiaon-lastschrift.ts / fiaon-abo.ts), und dort werden sie
   // gefüllt. Aber welche Migration beim Start zuerst läuft, ist nicht

@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // /werkzeuge/pfaendungsrechner · /en/tools/attachment-calculator —
 // Pfändungsfreigrenze und P-Konto-Schutz (02.09.2026, E-080; zweisprachig
-// 03.09.2026, Texte: client/src/i18n/wz-pfaendungsrechner.ts)
+// 02.09.2026, Texte: client/src/i18n/wz-pfaendungsrechner.ts)
 //
 // Werte der Pfändungsfreigrenzenbekanntmachung 2026 (BGBl. vom 26.03.2026),
 // gültig ab 1. Juli 2026 bis 30. Juni 2027:

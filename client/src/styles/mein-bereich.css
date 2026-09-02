@@ -197,7 +197,7 @@
 .mb-meldung{margin-top:10px;font-size:12.8px;padding:10px 12px;border-radius:10px}
 .mb-meldung.gut{background:color-mix(in srgb,var(--gut) 10%,transparent);color:var(--gut)}
 .mb-meldung.fehler{background:color-mix(in srgb,var(--kritisch) 9%,transparent);color:var(--kritisch)}
-/* 03.09.2026: Die Datei kam an, taugt aber nicht — das ist weder „gut“ noch
+/* 02.09.2026: Die Datei kam an, taugt aber nicht — das ist weder „gut“ noch
    ein Fehler des Kunden. Bernstein, und die Seite lädt dabei nicht neu, damit
    der Satz stehen bleibt und gelesen werden kann. */
 .mb-meldung.warnung{background:color-mix(in srgb,var(--frist) 12%,transparent);color:var(--frist);font-weight:600;line-height:1.5}

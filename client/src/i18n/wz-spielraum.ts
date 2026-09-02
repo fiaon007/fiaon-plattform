@@ -1,4 +1,4 @@
-// /werkzeuge/spielraum · /en/tools/monthly-headroom — Wörterbuch (03.09.2026). Generator teilt an „const en".
+// /werkzeuge/spielraum · /en/tools/monthly-headroom — Wörterbuch (02.09.2026). Generator teilt an „const en".
 const de = {
   metaTitel: "Spielraum-Rechner · Was bleibt im Monat – und was liest eine Bank daraus?",
   metaBeschreibung: "Kostenlos, ohne Anmeldung: Einnahmen und Fixkosten eingeben – der Rechner zeigt Ihren monatlichen Spielraum, die Fixkostenquote und was Kartenpartner daraus ablesen.",

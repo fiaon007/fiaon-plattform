@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // /werkzeuge/karten-check · /en/tools/card-check — Karten-Check
-// (23.08.2026, zweisprachig 03.09.2026)
+// (23.08.2026, zweisprachig 02.09.2026)
 //
 // Fünf Angaben → ehrliche Einschätzung, welcher Kartenweg heute realistisch
 // ist. Keine Zusage, keine Bank-Entscheidung — eine Einordnung. Nichts wird

@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // /werkzeuge/inkassokosten · /en/tools/debt-collection-costs — Inkassokosten-
-// Prüfer (23.08.2026, zweisprachig 03.09.2026)
+// Prüfer (23.08.2026, zweisprachig 02.09.2026)
 //
 // Hauptforderung + geforderte Posten → zulässige Kosten nach § 13e RDG und
 // RVG (Anlage 2, Stand 2021), Differenz und fertige Formulierung für die

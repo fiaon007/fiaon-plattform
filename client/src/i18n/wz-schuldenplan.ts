@@ -1,4 +1,4 @@
-// /werkzeuge/schuldenplan · /en/tools/debt-free-plan — Wörterbuch (03.09.2026). Generator teilt an „const en".
+// /werkzeuge/schuldenplan · /en/tools/debt-free-plan — Wörterbuch (02.09.2026). Generator teilt an „const en".
 const de = {
   metaTitel: "Schuldenfrei-Plan · Lawine oder Schneeball?",
   metaBeschreibung: "Bis zu sechs Schulden und Ihr Budget eingeben – der Rechner simuliert Lawine (teuerste zuerst) und Schneeball (kleinste zuerst): Monate bis schuldenfrei, Zinsen, Reihenfolge. Kostenlos.",

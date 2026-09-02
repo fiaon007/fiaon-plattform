@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// DER LAUF — eine Mail von Anfang bis Ende (03.09.2026, E-094)
+// DER LAUF — eine Mail von Anfang bis Ende (02.09.2026, E-094)
 //
 // Was hier anders ist als in der ersten Fassung:
 //   · Der GANZE Gesprächsverlauf geht ins Modell, nicht die Einzelmail. Wer
@@ -28,7 +28,7 @@ import { AUTOMATEN_DOMAENEN, type Aktion } from "@shared/fiaon-postmeister-typen
 /**
  * Eine Nachricht in einen Ordner legen — und daran NIE eine Mail scheitern lassen.
  *
- * 03.09.2026: Die vier Aufrufstellen sahen so aus:
+ * 02.09.2026: Die vier Aufrufstellen sahen so aus:
  *   await nachrichtLabeln(pf, id, [await labelSicherstellen(pf, "…")]).catch(() => {})
  * Das `.catch()` hängt an `nachrichtLabeln` — aber `labelSicherstellen` wird
  * BEIM AUSWERTEN DES ARGUMENTS aufgerufen, also bevor es die Promise-Kette
@@ -224,7 +224,7 @@ export async function mailBearbeiten(ein: {
     }
 
     // 7. Anrede und HTML im Haus-CI — in der Sprache, in der der Kunde schrieb.
-    //    Bis zum 03.09.2026 konnte hier ein englischer Text mit „Guten Tag
+    //    Bis zum 02.09.2026 konnte hier ein englischer Text mit „Guten Tag
     //    Herr Smith," eingeleitet und mit einem deutschen Knopf beendet
     //    werden. Die Sprache reist jetzt bis in die letzte Zeile mit.
     const [vor, ...restName] = String(akte.name || "").split(" ");

@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // /werkzeuge/basiskonto · /en/tools/basic-account — Basiskonto-Helfer: Frist,
-// Ablehnung, BaFin-Antrag (02.09.2026, E-080; zweisprachig 03.09.2026 — die
+// Ablehnung, BaFin-Antrag (02.09.2026, E-080; zweisprachig 02.09.2026 — die
 // Erinnerung bleibt deutsch, Texte: client/src/i18n/wz-basiskonto.ts)
 //
 // Jede kontoführende Bank in Deutschland muss Verbrauchern auf Antrag ein

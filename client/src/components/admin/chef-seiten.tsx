@@ -106,7 +106,7 @@ export const CHEF_SEITEN: ChefSeite[] = [
   { slug: "aufgaben", label: "Notizen & Aufgaben", satz: "An Personen festgehalten oder ans Team vergeben.", Seite: Aufgaben, raum: "lage" },
 
   // ── Geld ────────────────────────────────────────────────────────────────
-  // 03.09.2026, Justins Frage: „Airwallex ist jetzt verbunden — wo sehen wir
+  // 02.09.2026, Justins Frage: „Airwallex ist jetzt verbunden — wo sehen wir
   // nun unser Konto?" Bis dahin nirgends. Steht bewusst VOR der
   // Zahlungsverwaltung: erst sehen, was hereinkam, dann damit arbeiten.
   { slug: "konto", label: "Geschäftskonto", satz: "Was auf dem Konto eingegangen ist, was davon zugeordnet ist und was nicht.", Seite: Konto, raum: "geld", mindest: "geschaeftsfuehrung", auch: "airwallex bank eingang iban kontostand geld" },

@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // /werkzeuge/ratenplan · /en/tools/instalment-plan — Ratenplan-Rechner mit
-// Angebotsschreiben (02.09.2026, E-080; zweisprachig 03.09.2026 — das Schreiben
+// Angebotsschreiben (02.09.2026, E-080; zweisprachig 02.09.2026 — das Schreiben
 // bleibt deutsch, Texte: client/src/i18n/wz-ratenplan.ts)
 //
 // Ein Gläubiger nimmt Raten an, wenn das Angebot tragfähig ist – nicht,

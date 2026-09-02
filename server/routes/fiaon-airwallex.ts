@@ -292,7 +292,7 @@ router.get("/admin/airwallex/status", async (_req: Request, res: Response) => {
  * GET /admin/airwallex/konto — alles, was ein Mensch über das Geschäftskonto
  * wissen will, auf einer Antwort.
  *
- * JUSTIN am 03.09.2026: „Airwallex ist ja jetzt verbunden — wo sehen wir nun
+ * JUSTIN am 02.09.2026: „Airwallex ist ja jetzt verbunden — wo sehen wir nun
  * unser Konto? Wo ist die Seite mit den Zahlungen, Funktionen und sowas?"
  *
  * Es gab keine. Die Eingänge landeten im Bankbuch und waren dort richtig, aber
@@ -317,7 +317,7 @@ router.get("/admin/airwallex/konto", async (req: Request, res: Response) => {
 
     // Was davon ist wirklich offen? Eine Zeile ohne Haken ist NICHT gleich
     // liegengebliebenes Geld — meist ist der Antrag längst bezahlt und nur die
-    // Kennzeichnung fehlt (gemessen am 03.09.: 34 von 37 genau so).
+    // Kennzeichnung fehlt (gemessen am 02.09.: 34 von 37 genau so).
     const offen = (await sqlPool`
       SELECT t.id, t.txn_id, t.booked_at, t.amount_cents, t.payer_name,
              t.reference_raw, t.extracted_ref, a.payment_status, a.ref AS antrag

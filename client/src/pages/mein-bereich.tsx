@@ -856,7 +856,7 @@ function Upload({ refKunde, fehlt }: { refKunde: string; fehlt: { kontoauszug: b
     { key: "bankStatement", label: "Kontoauszug (PDF oder Foto)", zeigen: fehlt.kontoauszug },
     { key: "idCard", label: "Ausweis oder Reisepass (PDF oder Foto)", zeigen: fehlt.ausweis },
     // Die Auskunft beschafft FIAON — das Feld ist ein Angebot für Kunden, die schon eine haben, keine Aufforderung.
-    // 03.09.2026 (Daniel: „Das Bild von der Schufa laden so viele hoch"): Der
+    // 02.09.2026 (Daniel: „Das Bild von der Schufa laden so viele hoch"): Der
     // Satz „Ein Handyfoto genügt" steht über allen drei Feldern. Für Ausweis
     // und Kontoauszug ist er richtig — für die Auskunft führt er in die Irre,
     // weil dort ein Foto der Score-Anzeige eben NICHT genügt. Deshalb hier ein
@@ -878,7 +878,7 @@ function Upload({ refKunde, fehlt }: { refKunde: string; fehlt: { kontoauszug: b
     const r = await fetch("/api/fiaon/upload-kyc", { method: "POST", body: fd, credentials: "include" });
     const j = await r.json().catch(() => null); setLaeuft(false);
     if (r.ok && j?.ok !== false) {
-      // ── DER HINWEIS MUSS STEHEN BLEIBEN (03.09.2026) ────────────────────
+      // ── DER HINWEIS MUSS STEHEN BLEIBEN (02.09.2026) ────────────────────
       // Die Prüfung erkennt eine unbrauchbare Datei und schickt einen Satz mit
       // — der wurde hier nach 2,2 Sekunden vom Neuladen weggewischt. Der Kunde
       // erfuhr also nie, dass seine Datei nicht zu gebrauchen ist, und zwei

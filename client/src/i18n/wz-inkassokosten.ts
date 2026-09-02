@@ -1,4 +1,4 @@
-// /werkzeuge/inkassokosten · /en/tools/debt-collection-costs — Wörterbuch (03.09.2026)
+// /werkzeuge/inkassokosten · /en/tools/debt-collection-costs — Wörterbuch (02.09.2026)
 // Die Zurückweisung bleibt in beiden Sprachen deutsch (Empfänger: deutsches Inkassobüro).
 const de = {
   metaTitel: "Inkassokosten-Prüfer · Sind die Gebühren zu hoch?",

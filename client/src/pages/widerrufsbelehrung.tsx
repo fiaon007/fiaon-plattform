@@ -102,7 +102,7 @@ export default function WiderrufsbelehrungPage() {
               </div>
             </div>
 
-            {/* Wertersatz bei Dienstleistungen (§ 357 Abs. 8 BGB) — ergänzt 03.09.2026 */}
+            {/* Wertersatz bei Dienstleistungen (§ 357 Abs. 8 BGB) — ergänzt 02.09.2026 */}
             <div className="fiaon-glass-panel rounded-2xl p-8">
               <h2 className="text-xl font-semibold text-gray-900 mb-4">Wertersatz bei vorzeitigem Leistungsbeginn</h2>
               <p className="text-gray-700 leading-relaxed mb-4">

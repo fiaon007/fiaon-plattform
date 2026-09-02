@@ -1,9 +1,9 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// Öffentliche Kennzahlen (03.09.2026, E-091) — eine Quelle für /transparenz und
+// Öffentliche Kennzahlen (02.09.2026, E-091) — eine Quelle für /transparenz und
 // /fiaon-erfahrungen: GET /api/fiaon/oeffentlich/kennzahlen (TFO, 1 h Cache),
 // Definition wie das Chefbüro (ECHT, bezahlt, nicht zusammengeführt).
 // Die Stand-Werte sind der Rückfall, wenn der Endpunkt nicht antwortet —
-// Stand 03.09.2026 laut Endpunkt: 440 Kunden, 440 Raten, DE 277 · AT 157 · CH 4.
+// Stand 02.09.2026 laut Endpunkt: 440 Kunden, 440 Raten, DE 277 · AT 157 · CH 4.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useState } from "react";
 

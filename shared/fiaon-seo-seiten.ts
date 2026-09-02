@@ -194,7 +194,7 @@ export const SEO_WERKZEUGE: { pfad: string; name: string; frage: string; satz: s
   { pfad: "/werkzeuge/kartenkosten", name: "Kartenkosten-Vergleich", frage: "Kaution, Prepaid oder Debit?", satz: "Drei Kartenwege auf drei Jahre gerechnet — inklusive der Kaution, die stillliegt." },
 ];
 
-/** Die zwanzig Werkzeuge auf Englisch (03.09.2026) — gleicher Pfad wie deutsch; die Schwester liefert schwesterPfad(). */
+/** Die zwanzig Werkzeuge auf Englisch (02.09.2026) — gleicher Pfad wie deutsch; die Schwester liefert schwesterPfad(). */
 export const SEO_WERKZEUGE_EN: { pfad: string; name: string; frage: string; satz: string }[] = [
   { pfad: "/werkzeuge/selbstauskunft", name: "Request your data copy", frage: "What do the credit bureaus hold about me?", satz: "Generates the finished letter under Article 15 GDPR — for SCHUFA, KSV and CRIF, free instead of a paid subscription." },
   { pfad: "/werkzeuge/eintrag-pruefen", name: "Can my entry be challenged?", frage: "Can this entry be deleted?", satz: "Five questions, one honest assessment under Section 31 BDSG and case law." },
@@ -341,7 +341,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
       krumen: [{ name: "Business", pfad: "/en/business" }],
     },
   },
-  // 03.09.2026 (E-091, Entscheidung TFO/Justin): Alt-Seite in Du-Form, 973 Zeilen — wird nicht
+  // 02.09.2026 (E-091, Entscheidung TFO/Justin): Alt-Seite in Du-Form, 973 Zeilen — wird nicht
   // übersetzt und nicht mehr eigenständig indexiert; canonical zeigt auf die neue, zweisprachige
   // Seite /bonitaetsauskunft-beantragen. Erreichbar bleibt sie (Verweise, Kampagnen-Links).
   "/bonitaet": {

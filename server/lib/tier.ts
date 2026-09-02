@@ -462,7 +462,7 @@ export async function alleTierAktualisieren(sql: any): Promise<{ geaendert: numb
  *
  * DIE RANGFOLGE gilt jetzt in dieser Reihenfolge:
  *   0. Der EINGETRAGENE Betreuer, sobald er selbst im Verlauf steht. Seit dem
- *      03.09.2026 — eine Vertretung darf ihn nicht verdrängen (siehe unten).
+ *      02.09.2026 — eine Vertretung darf ihn nicht verdrängen (siehe unten).
  *   1. Der dokumentierte Betreuer (jüngstes Ergebnis im Verlauf), sofern er
  *      aus dem Vertrieb kommt. Er ist die geleistete Arbeit und der
  *      Provisionsanspruch in einer Person.
@@ -484,7 +484,7 @@ export async function personAgentSynchronisieren(
   if (!personId) return null;
 
   // ═══════════════════════════════════════════════════════════════════════
-  // EINE VERTRETUNG IST KEINE ÜBERNAHME (03.09.2026)
+  // EINE VERTRETUNG IST KEINE ÜBERNAHME (02.09.2026)
   //
   // Aus dem Gruppenchat vom 02.09., 17:24 Uhr:
   //   Hans-Jürgen: „Kunde hat für 18 Uhr gebucht, komme aber nicht in die
@@ -499,7 +499,7 @@ export async function personAgentSynchronisieren(
   // auch, wenn er nur aushilft. Der Kunde Balde ist so binnen eines Tages von
   // Florentine über Hans-Jürgen bei Daniel gelandet, mit Mandat seit dem 20.07.
   //
-  // GEMESSEN am 03.09.: 1.784 Personen haben dokumentierten Kontakt, bei 221
+  // GEMESSEN am 02.09.: 1.784 Personen haben dokumentierten Kontakt, bei 221
   // ist der erste ein anderer als der letzte — 97 davon mit Mandat. Da an der
   // Betreuung die Provision hängt, ist das nicht nur eine Anzeigefrage.
   //

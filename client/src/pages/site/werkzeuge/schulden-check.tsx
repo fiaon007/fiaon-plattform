@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // /werkzeuge/schulden-check · /en/tools/debt-check — Der Schulden-Check
-// (26.08.2026, zweisprachig 03.09.2026)
+// (26.08.2026, zweisprachig 02.09.2026)
 //
 // Einnahmen, Ausgaben, Raten, Rückstände → eine ehrliche Ampel mit den
 // Kennzahlen, die auch eine Schuldnerberatung ansetzen würde. Bei Rot steht

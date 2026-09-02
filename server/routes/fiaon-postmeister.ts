@@ -815,11 +815,11 @@ tageslauf("postmeister", async () => {
 }, 5 * 60 * 1000, { beimStartNach: 120_000 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// DER RÜCKSTAND SCHMILZT VON SELBST (03.09.2026)
+// DER RÜCKSTAND SCHMILZT VON SELBST (02.09.2026)
 //
 // Der Takt oben sieht nur NEUE Post. Die Unterhaltungen, in denen ein Kunde
 // zuletzt geschrieben hat und nie eine Antwort bekam, erreichte bisher nur ein
-// Aufruf von Hand — am 03.09. waren das 58 Stück, die älteste vom 31.08.
+// Aufruf von Hand — am 02.09. waren das 58 Stück, die älteste vom 31.08.
 // Von Hand heißt: Es bleibt liegen, sobald niemand daran denkt.
 //
 // Deshalb ein eigener, langsamer Takt. Vier Antworten alle zwanzig Minuten

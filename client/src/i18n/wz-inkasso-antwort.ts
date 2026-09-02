@@ -1,4 +1,4 @@
-// /werkzeuge/inkasso-antwort · /en/tools/reply-to-debt-collector — Wörterbuch (03.09.2026)
+// /werkzeuge/inkasso-antwort · /en/tools/reply-to-debt-collector — Wörterbuch (02.09.2026)
 // Der Brief bleibt deutsch (Empfänger: deutsches Inkassounternehmen). Generator teilt an „const en".
 const de = {
   metaTitel: "Inkasso-Antwortbrief · Bestreiten, Nachweise verlangen, Kosten zurückweisen",

@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // /werkzeuge/mahnbescheid · /en/tools/court-payment-order — Fristenrechner für
 // Mahnbescheid und Vollstreckungsbescheid (02.09.2026, E-080; zweisprachig
-// 03.09.2026, Texte: client/src/i18n/wz-mahnbescheid.ts)
+// 02.09.2026, Texte: client/src/i18n/wz-mahnbescheid.ts)
 //
 // Der gelbe Umschlag vom Amtsgericht ist die eine Stelle im ganzen Weg, an
 // der ein Kalender über Jahre entscheidet: Zwei Wochen ab Zustellung für den

@@ -173,7 +173,7 @@ export interface AkteKurz {
   personId: number | null;
   name: string | null;
   anrede: string | null;
-  /** Sprachvermerk aus der Akte (03.09.2026) — von Hand gesetzt, ISO-Kürzel. */
+  /** Sprachvermerk aus der Akte (02.09.2026) — von Hand gesetzt, ISO-Kürzel. */
   sprache: string | null;
   /** Der Freitext daneben: „versteht mündlich, aber nicht schriftlich". */
   spracheNotiz: string | null;

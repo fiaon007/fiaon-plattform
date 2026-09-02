@@ -1,4 +1,4 @@
-// /status · /en/status — Wörterbuch (03.09.2026). Generator teilt an „const en".
+// /status · /en/status — Wörterbuch (02.09.2026). Generator teilt an „const en".
 const de = {
   metaTitel: "Status · Verfügbarkeit und Sicherheit",
   metaBeschreibung: "Läuft FIAON gerade? Live-Prüfung der Plattform, Datenstandort Frankfurt, Verschlüsselung, Regeln für Wartung und die Liste bekannter Störungen – ehrlich und prüfbar.",

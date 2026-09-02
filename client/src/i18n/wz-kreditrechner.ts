@@ -1,4 +1,4 @@
-// /werkzeuge/kreditrechner · /en/tools/loan-calculator — Wörterbuch (03.09.2026). Generator teilt an „const en".
+// /werkzeuge/kreditrechner · /en/tools/loan-calculator — Wörterbuch (02.09.2026). Generator teilt an „const en".
 const de = {
   metaTitel: "Kreditrechner · Monatsrate und Gesamtkosten berechnen",
   metaBeschreibung: "Kostenloser Kreditrechner: Betrag, Laufzeit und Zins eingeben – Monatsrate, Gesamtkosten und Zinsanteil sofort sehen. Mit Zwei-Drittel-Zins nach § 6a PAngV und Tilgungsverlauf. Ohne Anmeldung.",

@@ -456,7 +456,7 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
     ].join(" AND ");
 
     // ═══════════════════════════════════════════════════════════════════
-    // DIE REIHENFOLGE DER ARBEITSLISTE (03.09.2026, Daniels Befund)
+    // DIE REIHENFOLGE DER ARBEITSLISTE (02.09.2026, Daniels Befund)
     //
     // Daniel: „Ich weiß nicht was los ist, aber heute über Pipeline erreiche
     // ich fast niemanden. Und irgendwie hab ich da jeden Tag aufs Neue die
@@ -467,7 +467,7 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
     // nach `updated_at` absteigend. Jede Berührung — auch ein erfolgloser
     // Anruf — setzt dieses Feld neu. Wer gestern vergeblich angerufen wurde,
     // stand heute wieder ganz oben; ein frischer Antrag von gestern Abend
-    // stand dahinter. Gemessen am 03.09. in Daniels Liste: Platz 1 war ein
+    // stand dahinter. Gemessen am 02.09. in Daniels Liste: Platz 1 war ein
     // Kunde mit Antrag vom 21.08. und zwei Versuchen, Platz 3 einer mit
     // SECHS Versuchen — während drei Anträge vom 01.09. mit null Versuchen
     // weiter unten warteten.

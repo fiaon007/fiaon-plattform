@@ -174,7 +174,7 @@ export async function dokumentPruefen(art: DokumentArt, pdf: Buffer): Promise<Do
 export async function urteilSpeichern(ref: string, urteil: DokumentUrteil): Promise<void> {
   await ensureTabelle();
   // ─────────────────────────────────────────────────────────────────────────
-  // 03.09.2026 — WARUM HIER KEIN JSON.stringify MEHR STEHT
+  // 02.09.2026 — WARUM HIER KEIN JSON.stringify MEHR STEHT
   //
   // Florentine fragte am 02.09.: „Wie war das, uns wird angezeigt wenn ein
   // Dokument nicht richtig/vollständig ist?" Die Anzeige ist gebaut — aber sie
@@ -183,7 +183,7 @@ export async function urteilSpeichern(ref: string, urteil: DokumentUrteil): Prom
   // `${JSON.stringify(urteil)}::jsonb` verpackt doppelt: postgres.js kodiert
   // den übergebenen Text noch einmal als JSON, der Cast wirkt dann auf das
   // bereits verpackte Ergebnis. In der Tabelle stand deshalb ein JSON-STRING
-  // statt eines Objekts — nachgemessen am 03.09.: `jsonb_typeof(urteil)` ist
+  // statt eines Objekts — nachgemessen am 02.09.: `jsonb_typeof(urteil)` ist
   // bei allen drei vorhandenen Zeilen 'string'. Jeder Feldzugriff lief damit
   // ins Leere, und die Anzeige blieb stumm, obwohl das Urteil dastand.
   //

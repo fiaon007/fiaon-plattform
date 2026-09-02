@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // /werkzeuge/selbstauskunft · /en/tools/request-your-data-copy — der Generator
 // für die kostenlose Datenkopie (Art. 15 DSGVO; Schweiz: Art. 25 DSG)
-// (23.08.2026, zweisprachig 03.09.2026 — der Brief bleibt deutsch, das
+// (23.08.2026, zweisprachig 02.09.2026 — der Brief bleibt deutsch, das
 // Formular spricht die Sprache der Seite; Texte: client/src/i18n/wz-selbstauskunft.ts)
 //
 // Der Leser füllt vier Felder aus, bekommt den fertigen Brief an die gewählte

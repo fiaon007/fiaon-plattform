@@ -1,4 +1,4 @@
-// /werkzeuge/mahngebuehren · /en/tools/reminder-fees — Wörterbuch (03.09.2026)
+// /werkzeuge/mahngebuehren · /en/tools/reminder-fees — Wörterbuch (02.09.2026)
 // Die Zurückweisung bleibt deutsch (Empfänger: deutscher Gläubiger). Generator teilt an „const en".
 const de = {
   metaTitel: "Mahngebühren-Prüfer · Was darf ein Gläubiger verlangen?",

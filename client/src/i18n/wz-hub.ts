@@ -1,4 +1,4 @@
-// /werkzeuge · /en/tools — Wörterbuch des Hubs (03.09.2026). Die Werkzeugtexte selbst
+// /werkzeuge · /en/tools — Wörterbuch des Hubs (02.09.2026). Die Werkzeugtexte selbst
 // kommen aus shared/fiaon-seo-seiten.ts (SEO_WERKZEUGE / SEO_WERKZEUGE_EN). Generator teilt an „const en".
 const de = {
   metaTitel: "Werkzeuge · Zwanzig kostenlose Rechner und Prüfer",

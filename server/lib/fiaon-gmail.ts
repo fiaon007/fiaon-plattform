@@ -161,7 +161,7 @@ export async function labelSicherstellen(postfach: string, name: string): Promis
     karte.set(name, String(neu.id));
     return String(neu.id);
   } catch (e: any) {
-    // 03.09.2026: „Label name exists or conflicts" (HTTP 409). Der Merkzettel
+    // 02.09.2026: „Label name exists or conflicts" (HTTP 409). Der Merkzettel
     // in `labelCache` ist dann älter als das Postfach — jemand hat das Label
     // inzwischen von Hand angelegt, oder ein zweiter Lauf war schneller.
     // Das ist kein Fehler, sondern ein veralteter Merkzettel: einmal frisch

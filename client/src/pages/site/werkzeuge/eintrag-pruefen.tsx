@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // /werkzeuge/eintrag-pruefen · /en/tools/check-my-entry — „Ist mein Eintrag
-// angreifbar?" (23.08.2026, zweisprachig 03.09.2026)
+// angreifbar?" (23.08.2026, zweisprachig 02.09.2026)
 //
 // Fünf Fragen, eine ehrliche Einschätzung: hoch / mittel / gering / keine
 // Aussicht — mit Begründung nach § 31 BDSG, den Löschfristen und dem BGH-

@@ -1,5 +1,5 @@
 // /partner · /en/partners — Geschäftspartner: Banken, Kartenherausgeber, Auskunfteien, Inkasso, Vermittler.
-// Zweisprachig 03.09.2026, Texte: client/src/i18n/partner.ts. Wortverbot „Affiliate" beachtet.
+// Zweisprachig 02.09.2026, Texte: client/src/i18n/partner.ts. Wortverbot „Affiliate" beachtet.
 import { Dunkel, Hero, Block, Karten, Kennzahlen, Schritte, Glas, Fragen, Zwischenruf, Abschluss, Anfrage, Knopf, Auf } from "@/components/site/DunkleBuehne";
 import SeoDaten from "@/components/site/SeoDaten";
 import KartenSzene from "@/components/home3d/KartenSzene";

@@ -1,4 +1,4 @@
-// /karriere · /en/careers — Wörterbuch (03.09.2026). Die Werte für Art der Zusammenarbeit
+// /karriere · /en/careers — Wörterbuch (02.09.2026). Die Werte für Art der Zusammenarbeit
 // („Festanstellung" …) gehen so an den Server; die englische Seite zeigt nur andere Etiketten.
 // Generator teilt an „const en".
 export interface Bereich { key: string; name: string; kurz: string; tun: string[]; mitbringen: string[]; arten: string[]; ort: string }

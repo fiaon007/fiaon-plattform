@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// DIE ZENTRALE — Endpunkte für das Postfach (03.09.2026, E-094)
+// DIE ZENTRALE — Endpunkte für das Postfach (02.09.2026, E-094)
 //
 // JUSTIN: „die Ansicht VIEL cleaner, weg mit dem 3D-Video […] ich will auch
 // immer sehen was der Kunde geschrieben hat — es muss aussehen wie ein E-Mail

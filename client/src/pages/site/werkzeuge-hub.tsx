@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// /werkzeuge · /en/tools — die Werkzeugbank (26.08.2026, zweisprachig 03.09.2026)
+// /werkzeuge · /en/tools — die Werkzeugbank (26.08.2026, zweisprachig 02.09.2026)
 //
 // Zwanzig Werkzeuge, ein Verteiler — für die Suche der eine Ort, an dem
 // „kostenlose Schufa-Werkzeuge" eine Adresse hat. Die Karten sind zugleich

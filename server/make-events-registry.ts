@@ -117,7 +117,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       betrag: "59.99",
       rate_nr: 2,
       faellig_am: "2026-09-03",
-      faellig_am_text: "03.09.2026",
+      faellig_am_text: "02.09.2026",
       tage_ueberfaellig: 0,
       mahnstufe: 1,
       mahnstufe_text: "Freundliche Erinnerung — heute ist Ihre Monatsrate fällig.",

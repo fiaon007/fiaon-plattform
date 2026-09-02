@@ -1377,7 +1377,7 @@ function stil3d(d: number, hitze: number): React.CSSProperties {
 /** Eine Sektion der Akte: Überschrift, Erklärzeile (Justin: „immer erklärend“), Inhalt.
  *  Auf Modulebene, nicht im Renderer — sonst remountet jede Eingabe (Fokusverlust). */
 // ═══════════════════════════════════════════════════════════════════════════
-// DER SPRACHVERMERK (03.09.2026)
+// DER SPRACHVERMERK (02.09.2026)
 //
 // Daniel am 02.09.: „Was machen wir mit Kunden die kein Deutsch oder Englisch
 // können — hat eine bulgarische Nummer, lebt aber wohl in Deutschland."

@@ -485,6 +485,22 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/was-ist-fiaon", "/privatkunden", "/preise", "/sicherheit", "/demo"],
     krumen: [{ name: "Plattform-Konzept", pfad: "/plattform-konzept" }],
+    en: {
+      pfad: "/en/how-the-platform-works",
+      titel: "How FIAON works: the platform concept day by day | FIAON",
+      beschreibung: "The whole platform explained: three layers, the route day by day, plan finder, customer area, onboarding call, DACH, security – and what FIAON is not.",
+      h1: "Creditworthiness, thought through to the end.",
+      lead: "Insight, action, access: FIAON obtains your credit report, clears up what can be challenged, and opens account and card. Here is the whole platform – layer by layer, day by day.",
+      abschnitte: [
+        { h2: "One platform, three layers.", text: "Each layer builds on the previous one. Most providers stop after the first: insight (report and bank statement explained), action (letters that go out), access (account, card, financing)." },
+        { h2: "What happens, day by day.", text: "Application in two minutes, onboarding call in 15 minutes, documents with your phone, report obtained, financial analysis, letters go out, replies and deletions, current account, credit card – and after twelve instalments you decide whether to stay." },
+        { h2: "Three countries, three systems.", text: "FIAON knows the credit bureaus, deadlines and rights in Germany, Austria and Switzerland – and writes the letters the way they are read there." },
+        { h2: "Built like a bank, spoken like a human.", text: "Only with your signature: FIAON obtains the report exclusively with your digital power of attorney. No letter without you: you see every letter before it is sent. Your data, your ending: after the contract ends we delete completely on request." },
+        { h2: "What FIAON is not.", text: "Not a bank, not a loan broker, not legal advice, not debt counselling. FIAON is the cross-check of your credit report and the route that follows from it – with the bank at the end, which decides." },
+      ],
+      weiter: ["/was-ist-fiaon", "/privatkunden", "/preise", "/sicherheit", "/demo"],
+      krumen: [{ name: "The platform concept", pfad: "/en/how-the-platform-works" }],
+    },
   },
 
   // ═════════════════════════════════════════════════════════════════════════

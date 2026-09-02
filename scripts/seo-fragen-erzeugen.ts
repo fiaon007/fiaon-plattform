@@ -51,7 +51,6 @@ const QUELLEN: Record<string, string> = {
   "client/src/pages/site/presse.tsx": "/presse",
   "client/src/pages/site/investoren.tsx": "/investoren",
   "client/src/pages/site/datenraum.tsx": "/datenraum",
-  "client/src/pages/site/plattform-konzept.tsx": "/plattform-konzept",
   "client/src/i18n/fiaon-erfahrungen.ts": "/fiaon-erfahrungen|/en/how-fiaon-works",
   "client/src/i18n/termin.ts": "/termin|/en/book-a-call",
   "client/src/i18n/vergleich.ts": "/vergleich|/en/compare",
@@ -85,6 +84,7 @@ const QUELLEN: Record<string, string> = {
   "client/src/i18n/selbstauskunft-checkliste.ts": "/selbstauskunft-checkliste|/en/reading-your-credit-report",
   "client/src/i18n/schufa-neutral-anfragen.ts": "/schufa-neutral-anfragen|/en/schufa-neutral-enquiries",
   "client/src/i18n/schufa-eintrag-loeschen.ts": "/schufa-eintrag-loeschen|/en/delete-a-schufa-entry",
+  "client/src/i18n/plattform-konzept.ts": "/plattform-konzept|/en/how-the-platform-works",
 };
 
 type Frage = { f: string; a: string };

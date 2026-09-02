@@ -9,7 +9,7 @@
 // Neu erzeugen:   npx tsx scripts/seo-fragen-erzeugen.ts
 // Nur prüfen:     npx tsx scripts/seo-fragen-erzeugen.ts --pruefen
 //
-// Seiten: / (6), /was-ist-fiaon (6), /en/what-is-fiaon (6), /privatkunden (8), /en/personal (8), /business (5), /en/business (5), /preise (6), /en/pricing (6), /en (4), /kreditkarte (5), /en/credit-card (5), /oesterreich (5), /en/austria (5), /schweiz (5), /en/switzerland (5), /sicherheit (11), /en/security (11), /kontakt (5), /en/contact (5), /karriere (5), /partner (3), /presse (3), /investoren (4), /datenraum (3), /plattform-konzept (5), /fiaon-erfahrungen (8), /en/how-fiaon-works (8), /termin (6), /en/book-a-call (6), /vergleich (5), /en/compare (5), /hilfe (36), /en/help (36), /ueber-uns (5), /en/about (5), /transparenz (4), /en/transparency (4), /status (5), /werkzeuge (4), /werkzeuge/kreditrechner (5), /werkzeuge/umschuldung (5), /werkzeuge/schulden-check (5), /werkzeuge/widerspruch (5), /werkzeuge/mahnbescheid (5), /werkzeuge/ratenplan (5), /werkzeuge/inkasso-antwort (5), /werkzeuge/basiskonto (5), /werkzeuge/pfaendungsrechner (5), /werkzeuge/dispo-rechner (5), /werkzeuge/mahngebuehren (5), /werkzeuge/kartenkosten (5), /werkzeuge/schuldenplan (5), /kredit-ohne-schufa (6), /en/loans-without-schufa (6), /bonitaet-verbessern (6), /en/strengthen-your-credit-file (6), /auskunfteien (5), /en/credit-bureaus (5), /schufa-score-verstehen (6), /en/schufa-score (6), /bonitaetsauskunft-beantragen (7), /en/request-your-credit-report (7), /inkasso-brief-erhalten (6), /en/debt-collection-letter (6), /eintrag-verjaehrung (6), /en/entries-and-limitation (6), /girokonto-trotz-negativer-bonitaet (7), /en/current-account-despite-poor-credit (7), /ratenzahlung-und-bonitaet (6), /en/instalments-and-credit-file (6), /selbstauskunft-checkliste (6), /en/reading-your-credit-report (6), /schufa-neutral-anfragen (6), /en/schufa-neutral-enquiries (6), /schufa-eintrag-loeschen (5), /en/delete-a-schufa-entry (5)
+// Seiten: / (6), /was-ist-fiaon (6), /en/what-is-fiaon (6), /privatkunden (8), /en/personal (8), /business (5), /en/business (5), /preise (6), /en/pricing (6), /en (4), /kreditkarte (5), /en/credit-card (5), /oesterreich (5), /en/austria (5), /schweiz (5), /en/switzerland (5), /sicherheit (11), /en/security (11), /kontakt (5), /en/contact (5), /karriere (5), /partner (3), /presse (3), /investoren (4), /datenraum (3), /fiaon-erfahrungen (8), /en/how-fiaon-works (8), /termin (6), /en/book-a-call (6), /vergleich (5), /en/compare (5), /hilfe (36), /en/help (36), /ueber-uns (5), /en/about (5), /transparenz (4), /en/transparency (4), /status (5), /werkzeuge (4), /werkzeuge/kreditrechner (5), /werkzeuge/umschuldung (5), /werkzeuge/schulden-check (5), /werkzeuge/widerspruch (5), /werkzeuge/mahnbescheid (5), /werkzeuge/ratenplan (5), /werkzeuge/inkasso-antwort (5), /werkzeuge/basiskonto (5), /werkzeuge/pfaendungsrechner (5), /werkzeuge/dispo-rechner (5), /werkzeuge/mahngebuehren (5), /werkzeuge/kartenkosten (5), /werkzeuge/schuldenplan (5), /kredit-ohne-schufa (6), /en/loans-without-schufa (6), /bonitaet-verbessern (6), /en/strengthen-your-credit-file (6), /auskunfteien (5), /en/credit-bureaus (5), /schufa-score-verstehen (6), /en/schufa-score (6), /bonitaetsauskunft-beantragen (7), /en/request-your-credit-report (7), /inkasso-brief-erhalten (6), /en/debt-collection-letter (6), /eintrag-verjaehrung (6), /en/entries-and-limitation (6), /girokonto-trotz-negativer-bonitaet (7), /en/current-account-despite-poor-credit (7), /ratenzahlung-und-bonitaet (6), /en/instalments-and-credit-file (6), /selbstauskunft-checkliste (6), /en/reading-your-credit-report (6), /schufa-neutral-anfragen (6), /en/schufa-neutral-enquiries (6), /schufa-eintrag-loeschen (5), /en/delete-a-schufa-entry (5), /plattform-konzept (5), /en/how-the-platform-works (5)
 // ═══════════════════════════════════════════════════════════════════════════
 export type SeoFrage = { f: string; a: string };
 
@@ -622,28 +622,6 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     {
       "f": "Wer sieht meine Anfrage?",
       "a": "Justin Schwarzott persönlich. Ihre Angaben werden nicht weitergegeben und nicht für Werbung genutzt."
-    }
-  ],
-  "/plattform-konzept": [
-    {
-      "f": "Wie lange dauert es, bis ich meine Auskunft sehe?",
-      "a": "In der Regel innerhalb von 24 Stunden nach Eingang bei FIAON. Die Auskunfteien selbst brauchen je nach Land und Weg zwischen wenigen Tagen und vier Wochen."
-    },
-    {
-      "f": "Was, wenn alle Einträge berechtigt sind?",
-      "a": "Dann sagen wir das. Sie bekommen die Löschdaten, die 100-Tage-Regel, wo sie greift, und den Weg zu Konto und Karte über den Wert statt über die Bereinigung."
-    },
-    {
-      "f": "Kann ich das Paket wechseln oder kündigen?",
-      "a": "Ja – im Antrag, im Startgespräch und im Kundenbereich unter Abo & Zahlungen. Zwölf Raten, dann entscheiden Sie frei."
-    },
-    {
-      "f": "Muss ich mit jemandem sprechen?",
-      "a": "Einmal, 15 Minuten. Das Startgespräch ist Pflicht, weil es den Unterschied macht. Danach läuft alles über den Bereich, Telefon und E-Mail nach Bedarf."
-    },
-    {
-      "f": "Wer sieht meine Daten?",
-      "a": "Ihr Ansprechpartner und die Mitarbeiter, die an Ihrer Akte arbeiten. Niemand sonst. Daten werden nie verkauft oder für Werbung weitergegeben."
     }
   ],
   "/fiaon-erfahrungen": [
@@ -2130,6 +2108,50 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     {
       "f": "Can I do this with KSV (Austria) and CRIF (Switzerland) too?",
       "a": "Yes. The GDPR applies directly in Austria; Switzerland has comparable rights to information and rectification under the revised Data Protection Act (DSG). The deadlines and customs differ in detail — the country pages for Austria and Switzerland explain them."
+    }
+  ],
+  "/plattform-konzept": [
+    {
+      "f": "Wie lange dauert es, bis ich meine Auskunft sehe?",
+      "a": "In der Regel innerhalb von 24 Stunden nach Eingang bei FIAON. Die Auskunfteien selbst brauchen je nach Land und Weg zwischen wenigen Tagen und vier Wochen."
+    },
+    {
+      "f": "Was, wenn alle Einträge berechtigt sind?",
+      "a": "Dann sagen wir das. Sie bekommen die Löschdaten, die 100-Tage-Regel, wo sie greift, und den Weg zu Konto und Karte über den Wert statt über die Bereinigung."
+    },
+    {
+      "f": "Kann ich das Paket wechseln oder kündigen?",
+      "a": "Ja – im Antrag, im Startgespräch und im Kundenbereich unter Abo & Zahlungen. Zwölf Raten, dann entscheiden Sie frei."
+    },
+    {
+      "f": "Muss ich mit jemandem sprechen?",
+      "a": "Einmal, 15 Minuten. Das Startgespräch ist Pflicht, weil es den Unterschied macht. Danach läuft alles über den Bereich, Telefon und E-Mail nach Bedarf."
+    },
+    {
+      "f": "Wer sieht meine Daten?",
+      "a": "Ihr Ansprechpartner und die Mitarbeiter, die an Ihrer Akte arbeiten. Niemand sonst. Daten werden nie verkauft oder für Werbung weitergegeben."
+    }
+  ],
+  "/en/how-the-platform-works": [
+    {
+      "f": "How long until I see my report?",
+      "a": "Usually within 24 hours of receipt at FIAON. The credit bureaus themselves need between a few days and four weeks depending on country and route."
+    },
+    {
+      "f": "What if all entries are justified?",
+      "a": "Then we say so. You get the deletion dates, the 100-day rule where it applies, and the route to account and card via your value rather than via the clear-up."
+    },
+    {
+      "f": "Can I change or cancel the plan?",
+      "a": "Yes – in the application, in the onboarding call and in the customer area under Plan & payments. Twelve instalments, then you decide freely."
+    },
+    {
+      "f": "Do I have to talk to someone?",
+      "a": "Once, 15 minutes. The onboarding call is mandatory because it makes the difference. After that everything runs via the area, phone and e-mail as needed."
+    },
+    {
+      "f": "Who sees my data?",
+      "a": "Your contact and the staff working on your file. Nobody else. Data is never sold or passed on for advertising."
     }
   ],
 };

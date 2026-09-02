@@ -313,6 +313,7 @@ function Router() {
       <Route path="/en/schufa-neutral-enquiries" component={SchufaNeutralAnfragen} />
       <Route path="/en/delete-a-schufa-entry" component={SchufaEintragLoeschen} />
       <Route path="/en/credit-glossary" component={GlossarBonitaet} />
+      <Route path="/en/how-the-platform-works" component={PlattformKonzeptPage} />
       <Route path="/kreditkarte" component={SiteKreditkarte} />
       <Route path="/oesterreich" component={SiteOesterreich} />
       <Route path="/schweiz" component={SiteSchweiz} />

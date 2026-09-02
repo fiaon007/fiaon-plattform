@@ -459,6 +459,13 @@ ${postfachDef.gruss}`;
     // Wortverbote: Verstoß macht aus der Auto-Antwort einen Entwurf.
     const klein = (urteil.antwort || "").toLowerCase();
     if (darfAuto && WORTVERBOTE.some((w) => klein.includes(w))) darfAuto = false;
+    // Kontowechsel 02.09.2026: Wer schreibt, er habe schon aufs alte (gesperrte)
+    // Wise-Konto überwiesen, braucht einen Menschen — kein Automat darf hier
+    // „Ihre Zahlungsdaten lauten…" antworten. Solche Mails werden Entwurf +
+    // dringende Aufgabe.
+    const eingang = `${mail.betreff} ${mail.text || mail.snippet || ""}`.toLowerCase();
+    const kontowechselFall = /\bwise\b|be09|altes konto|alte konto|alten konto|alte iban|gesperrt|bereits überwiesen|schon überwiesen|falsche(s|n)? konto|neue bankverbindung|bankverbindung ge(ä|ae)ndert/.test(eingang);
+    if (kontowechselFall) { darfAuto = false; urteil.dringend = true; }
 
     const antwortText = urteil.antwort ? `${urteil.antwort.trim()}\n\n${postfachDef.gruss}` : null;
 

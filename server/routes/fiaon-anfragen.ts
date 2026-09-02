@@ -8,8 +8,10 @@ import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 
 const router = Router();
-const ARTEN = new Set(["investor", "presse", "datenraum", "partner", "karriere"]);
-const TITEL: Record<string, string> = { investor: "Investoren-Anfrage", presse: "Presseanfrage", datenraum: "Datenraum-Zugang angefragt", partner: "Partner-Anfrage", karriere: "Bewerbung (Werde Teil des Teams)" };
+// 02.09.2026 (E-083): „termin" = Wunsch nach einem Startgespräch von /termin —
+// Zeitfenster und Anliegen kommen im Feld text mit.
+const ARTEN = new Set(["investor", "presse", "datenraum", "partner", "karriere", "termin"]);
+const TITEL: Record<string, string> = { investor: "Investoren-Anfrage", presse: "Presseanfrage", datenraum: "Datenraum-Zugang angefragt", partner: "Partner-Anfrage", termin: "Startgespräch gewünscht", karriere: "Bewerbung (Werde Teil des Teams)" };
 const letzte = new Map<string, number>();
 
 router.post("/anfrage", async (req: Request, res: Response) => {
@@ -63,7 +65,8 @@ router.post("/anfrage", async (req: Request, res: Response) => {
       await sqlPool`INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
         VALUES (${kunde.ref}, ${kunde.person_id ?? null}, NULL, 'System', 'system', ${`${TITEL[art]} über die Website eingegangen.`})`.catch(() => {});
     }
-    const meldung = art === "karriere" ? "Danke — Ihre Bewerbung ist da. Wir rufen Sie innerhalb von zwei Werktagen an."
+    const meldung = art === "termin" ? "Danke — wir rufen Sie im gewünschten Zeitfenster an, spätestens am nächsten Werktag."
+      : art === "karriere" ? "Danke — Ihre Bewerbung ist da. Wir rufen Sie innerhalb von zwei Werktagen an."
       : art === "presse" ? "Danke — wir melden uns innerhalb eines Werktags."
       : "Danke — Ihre Anfrage ist angekommen. Wir melden uns innerhalb von zwei Werktagen.";
     res.json({ ok: true, meldung });

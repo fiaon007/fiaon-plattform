@@ -179,6 +179,13 @@ const WzInkassokosten = lazy(() => import("@/pages/site/werkzeuge/inkassokosten"
 const WzVerjaehrung = lazy(() => import("@/pages/site/werkzeuge/verjaehrung"));
 // 02.09.2026 (E-080): zehn weitere Werkzeuge — Briefe, Fristen, Rechner.
 const WzWiderspruch = lazy(() => import("@/pages/site/werkzeuge/widerspruch"));
+// 02.09.2026 (E-083): sechs neue öffentliche Seiten aus dem Zehn-Seiten-Plan.
+const SiteTermin = lazy(() => import("@/pages/site/termin"));
+const SiteHilfe = lazy(() => import("@/pages/site/hilfe"));
+const SiteVergleich = lazy(() => import("@/pages/site/vergleich"));
+const SiteUeberUns = lazy(() => import("@/pages/site/ueber-uns"));
+const SiteTransparenz = lazy(() => import("@/pages/site/transparenz"));
+const SiteStatus = lazy(() => import("@/pages/site/status"));
 const WzMahnbescheid = lazy(() => import("@/pages/site/werkzeuge/mahnbescheid"));
 const WzRatenplan = lazy(() => import("@/pages/site/werkzeuge/ratenplan"));
 const WzInkassoAntwort = lazy(() => import("@/pages/site/werkzeuge/inkasso-antwort"));
@@ -281,6 +288,12 @@ function Router() {
       <Route path="/werkzeuge/inkassokosten" component={WzInkassokosten} />
       <Route path="/werkzeuge/verjaehrung" component={WzVerjaehrung} />
       <Route path="/werkzeuge/widerspruch" component={WzWiderspruch} />
+      <Route path="/termin" component={SiteTermin} />
+      <Route path="/hilfe" component={SiteHilfe} />
+      <Route path="/vergleich" component={SiteVergleich} />
+      <Route path="/ueber-uns" component={SiteUeberUns} />
+      <Route path="/transparenz" component={SiteTransparenz} />
+      <Route path="/status" component={SiteStatus} />
       <Route path="/werkzeuge/mahnbescheid" component={WzMahnbescheid} />
       <Route path="/werkzeuge/ratenplan" component={WzRatenplan} />
       <Route path="/werkzeuge/inkasso-antwort" component={WzInkassoAntwort} />

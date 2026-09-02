@@ -12,12 +12,14 @@ import SeoDaten from "@/components/site/SeoDaten";
 import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
 import { WZ_INKASSOKOSTEN_WOERTER } from "@/i18n/wz-inkassokosten";
 import "@/styles/ratgeber.css";
+import { betragEingabe } from "@/lib/zahl-eingabe";
 
 // RVG Anlage 2 (Gebührentabelle, seit 1.1.2021): Gegenstandswert bis … → 1,0-Gebühr
 const TABELLE: [number, number][] = [[500, 49], [1000, 88], [1500, 127], [2000, 166], [3000, 222], [4000, 278], [5000, 334], [6000, 390], [7000, 446], [8000, 502], [9000, 558], [10000, 614], [13000, 666], [16000, 718], [19000, 770], [22000, 822], [25000, 874], [30000, 955], [35000, 1036], [40000, 1117], [45000, 1198], [50000, 1279]];
 const gebuehr10 = (wert: number) => { for (const [bis, g] of TABELLE) if (wert <= bis) return g; return 1279 + Math.ceil((wert - 50000) / 15000) * 110; };
 const euroDe = (n: number) => n.toLocaleString("de-DE", { style: "currency", currency: "EUR" });
-const zahl = (s: string) => { const roh = String(s).trim(); const n = parseFloat(/,\d{1,2}$/.test(roh) ? roh.replace(/\./g, "").replace(",", ".") : roh.replace(/,/g, "")); return isFinite(n) && n >= 0 ? n : 0; };
+/** Zahl aus Eingabe — deutsch wie englisch, EINE Quelle (client/src/lib/zahl-eingabe.ts). */
+const zahl = (s: string) => { const n = betragEingabe(s); return Number.isFinite(n) ? n : 0; };
 
 export default function Inkassokosten() {
   const t = useWoerter(WZ_INKASSOKOSTEN_WOERTER);

@@ -19,8 +19,10 @@ import SeoDaten from "@/components/site/SeoDaten";
 import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
 import { WZ_DISPO_WOERTER } from "@/i18n/wz-dispo-rechner";
 import "@/styles/ratgeber.css";
+import { zahlEingabe } from "@/lib/zahl-eingabe";
 
-const zahl = (s: string) => { const r = String(s).trim(); const n = parseFloat(/,\d{1,2}$/.test(r) ? r.replace(/\./g, "").replace(",", ".") : r.replace(/,/g, "")); return isFinite(n) ? n : 0; };
+/** Zahl aus Eingabe — deutsch wie englisch, EINE Quelle (client/src/lib/zahl-eingabe.ts). */
+const zahl = (s: string) => { const n = zahlEingabe(s); return Number.isFinite(n) ? n : 0; };
 
 /** Annuität: Monatsrate für Betrag B, Jahreszins p, n Monate. */
 const annuitaet = (B: number, p: number, n: number) => { const i = p / 100 / 12; return i === 0 ? B / n : (B * i) / (1 - Math.pow(1 + i, -n)); };

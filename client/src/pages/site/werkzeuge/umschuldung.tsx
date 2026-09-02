@@ -13,8 +13,10 @@ import SeoDaten from "@/components/site/SeoDaten";
 import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
 import { WZ_UMSCHULDUNG_WOERTER } from "@/i18n/wz-umschuldung";
 import "@/styles/ratgeber.css";
+import { betragEingabe } from "@/lib/zahl-eingabe";
 
-const num = (s: string) => { const r = String(s).trim(); const n = Number(/,\d{1,2}$/.test(r) ? r.replace(/\./g, "").replace(",", ".") : r.replace(/,/g, "")); return Number.isFinite(n) && n >= 0 ? n : 0; };
+/** Zahl aus Eingabe — deutsch wie englisch, EINE Quelle (client/src/lib/zahl-eingabe.ts). */
+const num = (s: string) => { const n = betragEingabe(s); return Number.isFinite(n) ? n : 0; };
 
 function annuitaet(kredit: number, zinsJahr: number, monate: number) {
   if (kredit <= 0 || monate <= 0) return { rate: 0, gesamt: 0, zinsen: 0 };

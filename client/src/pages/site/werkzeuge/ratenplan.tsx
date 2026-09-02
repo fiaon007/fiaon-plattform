@@ -19,9 +19,11 @@ import SeoDaten from "@/components/site/SeoDaten";
 import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
 import { WZ_RATENPLAN_WOERTER } from "@/i18n/wz-ratenplan";
 import "@/styles/ratgeber.css";
+import { zahlEingabe } from "@/lib/zahl-eingabe";
 
 const eurDe = (n: number) => n.toLocaleString("de-DE", { style: "currency", currency: "EUR" });
-const zahl = (s: string) => { const r = String(s).trim(); const n = parseFloat(/,\d{1,2}$/.test(r) ? r.replace(/\./g, "").replace(",", ".") : r.replace(/,/g, "")); return isFinite(n) ? n : 0; };
+/** Zahl aus Eingabe — deutsch wie englisch, EINE Quelle (client/src/lib/zahl-eingabe.ts). */
+const zahl = (s: string) => { const n = zahlEingabe(s); return Number.isFinite(n) ? n : 0; };
 const heute = () => new Date().toLocaleDateString("de-DE", { day: "2-digit", month: "long", year: "numeric" });
 
 export default function Ratenplan() {

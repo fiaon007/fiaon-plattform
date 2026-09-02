@@ -14,6 +14,7 @@ import SeoDaten from "@/components/site/SeoDaten";
 import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
 import { WZ_KREDITRECHNER_WOERTER } from "@/i18n/wz-kreditrechner";
 import "@/styles/ratgeber.css";
+import { zahlEingabe } from "@/lib/zahl-eingabe";
 
 /** Annuität: Rate = K · q^n · (q−1) / (q^n − 1), q = 1 + Monatszins. */
 function annuitaet(kredit: number, zinsJahr: number, monate: number) {
@@ -24,8 +25,8 @@ function annuitaet(kredit: number, zinsJahr: number, monate: number) {
   const rate = (kredit * qn * (q - 1)) / (qn - 1);
   return { rate, gesamt: rate * monate, zinsen: rate * monate - kredit };
 }
-/** Zahl aus Eingabe — deutsch (1.500,50) wie englisch (1,500.50). */
-const num = (s: string) => { const r = String(s).trim(); const n = Number(/,\d{1,2}$/.test(r) ? r.replace(/\./g, "").replace(",", ".") : r.replace(/,/g, "")); return Number.isFinite(n) ? n : NaN; };
+/** Zahl aus Eingabe — deutsch wie englisch, EINE Quelle (client/src/lib/zahl-eingabe.ts). */
+const num = (s: string) => { const n = zahlEingabe(s); return Number.isFinite(n) ? n : NaN; };
 
 export default function Kreditrechner() {
   const t = useWoerter(WZ_KREDITRECHNER_WOERTER);

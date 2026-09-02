@@ -227,7 +227,7 @@ export async function laufStand(name: string): Promise<{
 export async function laufMitHistorie<T>(
   name: string,
   fn: () => Promise<T>,
-  opts: { alleXStunden?: number; meldung?: (e: T) => string } = {},
+  opts: { alleXStunden?: number; meldung?: (e: T) => string; sperreMinuten?: number } = {},
 ): Promise<{ gelaufen: boolean; grund?: string; ergebnis?: T }> {
   const { sqlPool } = await import("./db-pool");
 
@@ -235,15 +235,45 @@ export async function laufMitHistorie<T>(
     return { gelaufen: false, grund: "noch nicht fällig" };
   }
 
-  // Läuft schon einer? `FOR UPDATE` wäre hier zu schwach — der andere Lauf
-  // hält keine Transaktion offen. Also über das Alter der Zeile.
+  // ── WIE LANGE EINE SPERRE GILT (02.09.2026) ──────────────────────────────
+  // Bis heute galten pauschal zwei Stunden. Das war zu grob, und es hat an
+  // diesem Abend real geschadet: Ein Postmeister-Lauf wurde vom Neustart des
+  // Dienstes mitten in der Arbeit unterbrochen. Seine Zeile blieb auf
+  // 'laeuft' stehen — und sperrte den Agenten anschließend ZWEI STUNDEN,
+  // obwohl sein Takt fünf Minuten beträgt und der Prozess, der ihn hielt,
+  // längst nicht mehr existierte.
+  //
+  // Vor dem Umbau der Läufe konnte das nicht passieren: Die Zeile drehte
+  // sofort auf 'erfolg', also gab es nie ein Waisenkind. Die neue Genauigkeit
+  // hat diese Möglichkeit überhaupt erst geschaffen — sie muss also auch die
+  // Antwort mitbringen.
+  //
+  // Die Frist richtet sich jetzt nach dem Takt: dreimal das Intervall, aber
+  // mindestens 15 Minuten und höchstens zwei Stunden. Ein Fünf-Minuten-Lauf
+  // ist damit nach einer Viertelstunde wieder frei, ein Sechs-Stunden-Lauf
+  // behält seine zwei Stunden Schutz.
+  const takt = REGISTRIERT.find((r) => r.name === name)?.intervallMs ?? 0;
+  const minuten = opts.sperreMinuten
+    ?? Math.min(120, Math.max(15, Math.round((takt * 3) / 60_000)));
   const [offen] = (await sqlPool`
-    SELECT id FROM fiaon_lauf_historie
+    SELECT id, begonnen FROM fiaon_lauf_historie
     WHERE name = ${name} AND ergebnis = 'laeuft'
-      AND begonnen > NOW() - INTERVAL '2 hours'
+      AND begonnen > NOW() - (${minuten} || ' minutes')::interval
     LIMIT 1
   `.catch(() => [])) as any[];
   if (offen) return { gelaufen: false, grund: "läuft bereits" };
+
+  // Was älter ist als die Frist, war ein Abbruch — kein Prozess arbeitet noch
+  // daran. Die Zeile wird als solche gekennzeichnet, statt stumm liegen zu
+  // bleiben: Eine Historie voller ewiger 'laeuft'-Zeilen verschweigt, dass
+  // etwas mittendrin gestorben ist. (Am 02.09. stand die älteste seit 13 Tagen.)
+  await sqlPool`
+    UPDATE fiaon_lauf_historie
+       SET ergebnis = 'abgebrochen', beendet = NOW(),
+           fehler = COALESCE(fehler, 'Der Dienst wurde während des Laufs beendet (Neustart oder Absturz).')
+     WHERE name = ${name} AND ergebnis = 'laeuft'
+       AND begonnen <= NOW() - (${minuten} || ' minutes')::interval
+  `.catch(() => {});
 
   const [zeile] = (await sqlPool`
     INSERT INTO fiaon_lauf_historie (name, ergebnis) VALUES (${name}, 'laeuft')

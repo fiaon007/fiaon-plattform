@@ -699,8 +699,9 @@ export default router;
 // pro Stunde nach, egal woher die Aenderung kam.
 // ═══════════════════════════════════════════════════════════════════════════
 import("../lib/fiaon-crons").then(({ tageslauf }) => {
-  tageslauf("betreuer-kopie-angleich", () => {
-    void (async () => {
+  // 02.09.2026: beim Umbau der Läufe übersehen — Fehler blieben unsichtbar.
+  tageslauf("betreuer-kopie-angleich", async () => {
+    return await (async () => {
       const geaendert = (await sqlPool`
         UPDATE fiaon_applications a
         SET assigned_agent_id = p.assigned_agent_id, updated_at = NOW()
@@ -714,6 +715,6 @@ import("../lib/fiaon-crons").then(({ tageslauf }) => {
       if (geaendert.length > 0) {
         console.log(`[BETREUER-KOPIE] ${geaendert.length} Antraege an die Person angeglichen.`);
       }
-    })().catch((e) => console.error("[BETREUER-KOPIE]", e));
+    })();
   }, 60 * 60 * 1000, { beimStartNach: 90_000 });
 }).catch((e) => console.error("[BETREUER-KOPIE] Registrierung:", e));

@@ -709,27 +709,54 @@ tageslauf("bestandswache", async () => {
   return await m.bestandswache();
 }, 60 * 60 * 1000, { beimStartNach: 90_000, alleXStunden: 20 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// SIEBEN TEILAUFGABEN — JEDE BEKOMMT IHRE CHANCE (02.09.2026)
+//
+// MEIN FEHLER, gefunden bei der Abnahme desselben Tages: Beim Umbau der Läufe
+// setzte ich `return await runFollowUpTageslauf();` in die erste Zeile. Damit
+// war ALLES darunter toter Code — Terminerinnerungen an Kunden, die
+// Wiedereinstiegs-Staffel, Startgespräch-Einladungen, das Aufräumen verpasster
+// Termine, der Zustell-Abgleich und der Space-Tageslauf liefen nicht mehr.
+// Aufgefallen war es nicht, weil der Lauf im selben Zeitraum wegen häufiger
+// Neustarts ohnehin nicht feuerte.
+//
+// Die Form hier ist bewusst umständlicher als ein `await` hintereinander:
+//   · JEDE Teilaufgabe läuft, auch wenn die davor scheitert. Ein kaputter
+//     Zustell-Abgleich darf keine Terminerinnerung verhindern.
+//   · Die Fehler werden GESAMMELT und am Ende geworfen. Nur so landen sie in
+//     der Lauf-Historie, statt im Konsolenfenster zu verschwinden — genau der
+//     Punkt, um den es beim ganzen Umbau ging.
+// ═══════════════════════════════════════════════════════════════════════════
 tageslauf("followup-und-termine", async () => {
-  return await runFollowUpTageslauf();
+  const fehler: string[] = [];
+  const teil = async (name: string, fn: () => Promise<unknown>) => {
+    try { await fn(); } catch (e: any) { fehler.push(`${name}: ${String(e?.message || e).slice(0, 160)}`); }
+  };
+
+  await teil("Followup", () => runFollowUpTageslauf());
   // Die Terminerinnerung hängt NICHT am 6-Uhr-Tageslauf: Ein Termin um 09:20
   // braucht seine Erinnerung am Vortag um 09:20, nicht um 6 Uhr morgens. Der
   // 20-Minuten-Takt trifft das Fenster genau genug.
-  runTerminErinnerungen().catch((err) => console.error("[FIAON-FOLLOWUP] Termin-Erinnerungen:", err));
+  await teil("Termin-Erinnerungen", () => runTerminErinnerungen());
   // Die Wiedereinstiegs-Staffel (Teil 4) — höchstens 50 am Tag, damit weder
   // die Zustellbarkeit noch das Team von Rückläufern überrollt wird.
-  import("../lib/fiaon-wiedereinstieg")
-    .then((m) => m.wiedereinstiegTagesstaffel())
-    .catch((err) => console.error("[FIAON-FOLLOWUP] Wiedereinstieg:", err));
+  await teil("Wiedereinstieg", async () => {
+    const m = await import("../lib/fiaon-wiedereinstieg");
+    return m.wiedereinstiegTagesstaffel();
+  });
   // Startgespräch: die eine Einladung 48 Stunden nach dem Überspringen, und
   // das Aufräumen unerledigter Termine.
-  import("./fiaon-startgespraech")
-    .then(async (m) => { await m.runStartgespraechEinladungen(); await m.runVerpassteTermine(); })
-    .catch((err) => console.error("[FIAON-FOLLOWUP] Startgespräch:", err));
+  await teil("Startgespräch", async () => {
+    const m = await import("./fiaon-startgespraech");
+    await m.runStartgespraechEinladungen();
+    return m.runVerpassteTermine();
+  });
   // Zustell-Abgleich: Was ist aus den Mails der letzten Tage geworden?
   // Ohne Brevo-Schlüssel geht der Lauf sofort wieder schlafen.
-  import("../lib/fiaon-zustellung")
-    .then((m) => m.zustellungAbgleichen())
-    .catch((err) => console.error("[FIAON-FOLLOWUP] Zustellung:", err));
+  await teil("Zustellung", async () => {
+    const m = await import("../lib/fiaon-zustellung");
+    return m.zustellungAbgleichen();
+  });
   // ── Space: JEDEN Lauf, nicht nur vor sieben ──────────────────────────────
   // Bis zum 11.08.2026 stand hier `if (stunde < 7)`. Das passte, solange der
   // Space genau einen Beitrag pro Tag bekam. Die Content-Engine verteilt
@@ -738,10 +765,14 @@ tageslauf("followup-und-termine", async () => {
   //
   // `spaceTageslauf` entscheidet selbst, was zu dieser Stunde fällig ist, und
   // ist über die Auto-Schlüssel idempotent.
-  import("../lib/fiaon-space")
-    .then((m) => m.spaceTageslauf())
-    .catch((err) => console.error("[FIAON-FOLLOWUP] Space:", err));
-}, 20 * 60 * 1000);
+  await teil("Space", async () => {
+    const m = await import("../lib/fiaon-space");
+    return m.spaceTageslauf();
+  });
+
+  if (fehler.length) throw new Error(`${fehler.length} von 6 Teilaufgaben gescheitert — ${fehler.join(" · ")}`);
+  return { teilaufgaben: 6 };
+}, 20 * 60 * 1000, { beimStartNach: 240_000 });
 
 // ───────────────────────────────────────────────────────────────────────────
 // Admin-Auslöser (für Tests und den Betrieb)

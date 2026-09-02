@@ -2293,12 +2293,15 @@ router.post("/admin/telefon/frist", async (req: Request, res: Response) => {
 // Ein Löschlauf, der auf einem Entwicklungsrechner gegen die Produktion
 // läuft, wäre unumkehrbarer Schaden.
 // ═══════════════════════════════════════════════════════════════════════════
-tageslauf("aufnahmen-aufraeumen", () => {
-  void aufnahmenAufraeumen(false).then((e) => {
-    if (e.geloescht > 0 || e.fehler > 0) {
-      console.log(`[TELEFON] Tageslauf: ${e.geloescht} Aufnahmen gelöscht (Frist ${e.frist} Tage), ${e.fehler} Fehler.`);
-    }
-  }).catch((err) => console.error("[TELEFON] Tageslauf Aufnahmen:", err));
+// 02.09.2026: Beim Umbau der Läufe übersehen. Ausgerechnet hier wiegt das
+// schwer — es ist die DSGVO-Löschung. Scheitert sie, bleiben Aufnahmen über
+// ihre Frist hinaus liegen, und die Historie meldete bisher trotzdem Erfolg.
+tageslauf("aufnahmen-aufraeumen", async () => {
+  const e = await aufnahmenAufraeumen(false);
+  if (e.geloescht > 0 || e.fehler > 0) {
+    console.log(`[TELEFON] Tageslauf: ${e.geloescht} Aufnahmen gelöscht (Frist ${e.frist} Tage), ${e.fehler} Fehler.`);
+  }
+  return e;
 }, 24 * 60 * 60 * 1000);
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2318,8 +2321,9 @@ tageslauf("aufnahmen-aufraeumen", () => {
 // Nur bei einem Fund gibt es eine Zeile im Log. Ein täglicher Lauf, der „0 in
 // Ordnung" schreibt, erzeugt Rauschen, in dem echte Meldungen untergehen.
 // ═══════════════════════════════════════════════════════════════════════════
-tageslauf("anruf-zuordnung-pruefen", () => {
-  void (async () => {
+// 02.09.2026: beim Umbau der Läufe übersehen — Fehler blieben unsichtbar.
+tageslauf("anruf-zuordnung-pruefen", async () => {
+  return await (async () => {
     const { NUMMER_PASST_SQL } = await import("../lib/fiaon-anruf-pruefung");
     const [r] = (await sqlPool.unsafe(`
       SELECT COUNT(*)::int AS offen,
@@ -2336,7 +2340,7 @@ tageslauf("anruf-zuordnung-pruefen", () => {
     console.warn(`[TELEFON] ${n} Anruf(e) tragen einen Namen, dessen Nummer nicht `
       + `die gewählte ist (ältester #${r.erster}, jüngster ${r.juengster}). `
       + "Beheben: npx tsx scripts/anruf-zuordnung-bereinigen.ts --schreiben");
-  })().catch((err) => console.error("[TELEFON] Tageslauf Anruf-Zuordnung:", err));
+  })();
 }, 24 * 60 * 60 * 1000, { beimStartNach: 90_000 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2352,8 +2356,9 @@ tageslauf("anruf-zuordnung-pruefen", () => {
 // KEINE automatische Korrektur — ein geratener Anruf in einer Kundenakte ist
 // schlimmer als eine offene Frage.
 // ═══════════════════════════════════════════════════════════════════════════
-tageslauf("anruf-twilio-abgleich", () => {
-  void (async () => {
+// 02.09.2026: beim Umbau der Läufe übersehen — Fehler blieben unsichtbar.
+tageslauf("anruf-twilio-abgleich", async () => {
+  return await (async () => {
     const acc = process.env.TWILIO_ACCOUNT_SID || "", tok = process.env.TWILIO_AUTH_TOKEN || "";
     if (!acc || !tok) return;
     const auth = "Basic " + Buffer.from(`${acc}:${tok}`).toString("base64");
@@ -2401,7 +2406,7 @@ tageslauf("anruf-twilio-abgleich", () => {
                 'telefon', 1, 'telefon-abgleich', NOW())
       `.catch(() => {});
     }
-  })().catch((err) => console.error("[TELEFON] Twilio-Abgleich:", err));
+  })();
 }, 24 * 60 * 60 * 1000, { beimStartNach: 10 * 60_000 });
 
 export default router;

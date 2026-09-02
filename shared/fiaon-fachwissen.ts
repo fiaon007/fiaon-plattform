@@ -75,7 +75,7 @@ export const FACHWISSEN: Fakt[] = [
   {
     key: "inkassokosten", bereich: "recht",
     titel: "Zulässige Inkassokosten (§ 13e RDG)",
-    text: "Inkassokosten sind seit dem 1. Oktober 2021 an die Rechtsanwaltsvergütung gekoppelt: in der Regel eine 0,9-Geschäftsgebühr, bei einer ersten Zahlungsaufforderung und sofortiger Zahlung 0,5; bei Forderungen bis 50 Euro höchstens 30 Euro. Auslagenpauschale höchstens 20 % der Gebühr, maximal 20 Euro. Inkassodienste müssen nach § 13a RDG Forderung, Gläubiger und Kosten aufschlüsseln. Prüfer: /werkzeuge/inkassokosten, Antwortbrief: /werkzeuge/inkasso-antwort.",
+    text: "Inkassokosten sind seit dem 1. Oktober 2021 an die Rechtsanwaltsvergütung gekoppelt: in der Regel eine 0,9-Geschäftsgebühr, bei einer ersten Zahlungsaufforderung und sofortiger Zahlung 0,5; bei Forderungen bis 50 Euro nur eine 0,5-Gebühr (rund 24,50 Euro), es sei denn, die Sache war besonders umfangreich. Auslagenpauschale höchstens 20 % der Gebühr, maximal 20 Euro. Inkassodienste müssen nach § 13a RDG Forderung, Gläubiger und Kosten aufschlüsseln. Prüfer: /werkzeuge/inkassokosten, Antwortbrief: /werkzeuge/inkasso-antwort.",
     stand: "2021-10-01", quelle: "§ 13e RDG, § 13a RDG, RVG Nr. 2300 VV",
     worte: ["inkasso", "inkassokosten", "gebuehr", "13e rdg", "13a rdg", "auslagen", "rvg", "mahngebuehr"],
     seiten: ["/werkzeuge/inkassokosten", "/werkzeuge/inkasso-antwort", "/werkzeuge/mahngebuehren"],

@@ -243,7 +243,7 @@ export function Abschluss({ titel, text, knoepfe }: { titel: ReactNode; text: Re
 
 /** Anfrage-Formular — ein Endpunkt für Investoren, Presse, Datenraum, Partner, Karriere. */
 export function Anfrage({ art, felder, knopf, hinweis, vorbelegt, en }: {
-  art: "investor" | "presse" | "datenraum" | "partner" | "karriere";
+  art: "investor" | "presse" | "datenraum" | "partner" | "karriere" | "termin";
   felder: { name: string; label: string; typ?: string; pflicht?: boolean; optionen?: string[]; breit?: boolean }[];
   knopf: string; hinweis?: string; vorbelegt?: Record<string, string>;
   /** Englische Oberflächentexte (02.09.2026 — die Investoren-Seite ist zweisprachig). */

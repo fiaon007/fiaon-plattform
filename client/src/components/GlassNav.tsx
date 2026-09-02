@@ -150,6 +150,9 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
                 { href: "/privatkunden", label: "Privatkunden", text: "Pakete, Ablauf, Preise" },
                 { href: "/bonitaet", label: "Bonitäts-Auszug", text: "Ihre Auskunft, beantragt durch FIAON" },
                 { href: "/business", label: "Business", text: "Firmenbonität und Geschäftskonto" },
+                { href: "/termin", label: "Startgespräch buchen", text: "15 Minuten, ein Mensch – kostenlos" },
+                { href: "/hilfe", label: "Hilfe-Center", text: "Antworten zu Antrag, Zahlung, Auskunft" },
+                { href: "/vergleich", label: "Vergleich", text: "Anwalt, App, selbst – oder FIAON?" },
               ] },
               { titel: "Unternehmen", eintraege: [
                 { href: "/team", label: "Team", text: "Wer FIAON baut" },
@@ -158,6 +161,9 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
                 { href: "/presse", label: "Presse", text: "Fakten, Zahlen, Ansprechpartner" },
                 { href: "/investoren", label: "Investoren", text: "Das Modell, der Datenraum" },
                 { href: "/datenraum", label: "Datenraum", text: "Due Diligence auf Anfrage" },
+                { href: "/ueber-uns", label: "Über FIAON", text: "Geschichte, Meilensteine, Haltung" },
+                { href: "/transparenz", label: "Transparenzbericht", text: "Zahlen mit Definition und Stand" },
+                { href: "/status", label: "Status", text: "Läuft FIAON gerade? Live geprüft" },
               ] },
             ].map((g) => (
               <div key={g.titel} className="nav-mega-gruppe">
@@ -203,6 +209,9 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
                     { href: "/privatkunden", label: "Privatkunden", text: "Pakete, Ablauf, Preise", key: "privatkunden" },
                     { href: "/bonitaet", label: "Bonitäts-Auszug", text: "Ihre Auskunft, beantragt durch FIAON", key: "bonitaet" },
                     { href: "/business", label: "Business", text: "Firmenbonität und Geschäftskonto", key: "business" },
+                    { href: "/termin", label: "Startgespräch buchen", text: "15 Minuten, ein Mensch – kostenlos", key: "termin" },
+                    { href: "/hilfe", label: "Hilfe-Center", text: "Antworten zu Antrag, Zahlung, Auskunft", key: "hilfe" },
+                    { href: "/vergleich", label: "Vergleich", text: "Anwalt, App, selbst – oder FIAON?", key: "vergleich" },
                   ] },
                   { titel: "Unternehmen", eintraege: [
                     { href: "/team", label: "Team", text: "Wer FIAON baut", key: "team" },
@@ -211,6 +220,9 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
                     { href: "/presse", label: "Presse", text: "Fakten, Zahlen, Ansprechpartner", key: "presse" },
                     { href: "/investoren", label: "Investoren", text: "Das Modell, der Datenraum", key: "investoren" },
                     { href: "/kontakt", label: "Kontakt & Support", text: "Telefon, E-Mail, Assistent, Dringend melden", key: "kontakt" },
+                    { href: "/ueber-uns", label: "Über FIAON", text: "Geschichte, Meilensteine, Haltung", key: "ueber-uns" },
+                    { href: "/transparenz", label: "Transparenzbericht", text: "Zahlen mit Definition und Stand", key: "transparenz" },
+                    { href: "/status", label: "Status", text: "Läuft FIAON gerade? Live geprüft", key: "status" },
                   ] },
                 ].map((g, gi) => (
                   <div key={g.titel} className={gi ? "mt-4" : ""} style={{ animation: `mobItemIn .45s cubic-bezier(.22,1,.36,1) ${0.06 + gi * 0.08}s both` }}>

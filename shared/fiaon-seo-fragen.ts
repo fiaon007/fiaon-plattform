@@ -9,7 +9,7 @@
 // Neu erzeugen:   npx tsx scripts/seo-fragen-erzeugen.ts
 // Nur prüfen:     npx tsx scripts/seo-fragen-erzeugen.ts --pruefen
 //
-// Seiten: / (6), /was-ist-fiaon (6), /privatkunden (7), /business (4), /preise (6), /kreditkarte (5), /oesterreich (5), /schweiz (5), /sicherheit (10), /kontakt (3), /karriere (5), /partner (3), /presse (3), /investoren (4), /datenraum (3), /plattform-konzept (5), /fiaon-erfahrungen (8), /werkzeuge (4), /werkzeuge/kreditrechner (5), /werkzeuge/umschuldung (5), /werkzeuge/schulden-check (5), /werkzeuge/widerspruch (5), /werkzeuge/mahnbescheid (5), /werkzeuge/ratenplan (5), /werkzeuge/inkasso-antwort (5), /werkzeuge/basiskonto (5), /werkzeuge/pfaendungsrechner (5), /werkzeuge/dispo-rechner (5), /werkzeuge/mahngebuehren (5), /werkzeuge/kartenkosten (5), /werkzeuge/schuldenplan (5), /kredit-ohne-schufa (6), /schufa-eintrag-loeschen (5), /bonitaet-verbessern (6), /auskunfteien (5), /schufa-score-verstehen (6), /bonitaetsauskunft-beantragen (7), /inkasso-brief-erhalten (6), /eintrag-verjaehrung (6), /girokonto-trotz-negativer-bonitaet (7), /ratenzahlung-und-bonitaet (6), /selbstauskunft-checkliste (6), /schufa-neutral-anfragen (6)
+// Seiten: / (6), /was-ist-fiaon (6), /privatkunden (7), /business (4), /preise (6), /kreditkarte (5), /oesterreich (5), /schweiz (5), /sicherheit (10), /kontakt (3), /karriere (5), /partner (3), /presse (3), /investoren (4), /datenraum (3), /plattform-konzept (5), /fiaon-erfahrungen (8), /termin (6), /vergleich (5), /ueber-uns (5), /transparenz (4), /status (5), /werkzeuge (4), /werkzeuge/kreditrechner (5), /werkzeuge/umschuldung (5), /werkzeuge/schulden-check (5), /werkzeuge/widerspruch (5), /werkzeuge/mahnbescheid (5), /werkzeuge/ratenplan (5), /werkzeuge/inkasso-antwort (5), /werkzeuge/basiskonto (5), /werkzeuge/pfaendungsrechner (5), /werkzeuge/dispo-rechner (5), /werkzeuge/mahngebuehren (5), /werkzeuge/kartenkosten (5), /werkzeuge/schuldenplan (5), /kredit-ohne-schufa (6), /schufa-eintrag-loeschen (5), /bonitaet-verbessern (6), /auskunfteien (5), /schufa-score-verstehen (6), /bonitaetsauskunft-beantragen (7), /inkasso-brief-erhalten (6), /eintrag-verjaehrung (6), /girokonto-trotz-negativer-bonitaet (7), /ratenzahlung-und-bonitaet (6), /selbstauskunft-checkliste (6), /schufa-neutral-anfragen (6)
 // ═══════════════════════════════════════════════════════════════════════════
 export type SeoFrage = { f: string; a: string };
 
@@ -398,6 +398,116 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     {
       "f": "Wo sind die Bewertungen?",
       "a": "FIAON baut die öffentlichen Bewertungsprofile (Trustpilot, ProvenExpert, Google) gerade auf – Kunden erhalten nach dem Startgespräch eine Einladung. Bis die Profile stehen, zeigen wir hier lieber nichts als erfundene Sterne. Prüfbar sind heute: Zahlen aus dem Betrieb, Ablauf, Preise, Team und Sicherheit."
+    }
+  ],
+  "/termin": [
+    {
+      "f": "Was kostet das Gespräch?",
+      "a": "Nichts. Es ist ein Telefonat von rund 15 Minuten, ohne Verpflichtung. Danach wissen Sie, was Ihre Auskunft hergibt, welches Paket passt – oder dass die kostenlosen Werkzeuge in Ihrem Fall reichen. Das sagen wir Ihnen genauso."
+    },
+    {
+      "f": "Wer ruft mich an?",
+      "a": "Ein Mitarbeiter aus Vertrieb oder Onboarding – ein Mensch mit Namen, der die Plattform selbst täglich nutzt; viele im Team waren selbst Kunden. Kein Callcenter, kein Bot."
+    },
+    {
+      "f": "Was sollte ich bereithalten?",
+      "a": "Nichts Pflichtiges. Hilfreich sind: der Brief oder die Auskunft, um die es geht, die ungefähre Höhe offener Forderungen und ein Blick auf den Kontoauszug der letzten drei Monate. Wer schon eine Datenkopie hat, legt sie neben das Telefon."
+    },
+    {
+      "f": "Wie schnell kommt der Rückruf?",
+      "a": "Im gewünschten Zeitfenster, spätestens am nächsten Werktag. Wer „so schnell wie möglich“ wählt, wird in der Regel innerhalb weniger Stunden angerufen – zu den Telefonzeiten des Teams (werktags 9 bis 19 Uhr)."
+    },
+    {
+      "f": "Ist das schon das Startgespräch?",
+      "a": "Wenn Sie danach ein Paket wählen und die erste Rate eingeht, wird derselbe Termin zum Startgespräch – Sie brauchen keinen zweiten. Wer nur reden wollte, hat geredet. Beides ist in Ordnung."
+    },
+    {
+      "f": "Ich bin schon Kunde – wo buche ich?",
+      "a": "Im Kundenbereich unter Hilfe erreichen Sie Ihre Ansprechpartnerin direkt; dort steht auch der nächste Termin. Diese Seite ist für alle, die FIAON noch nicht kennen."
+    }
+  ],
+  "/vergleich": [
+    {
+      "f": "Wann ist der Anwalt der bessere Weg?",
+      "a": "Wenn die Auskunftei eine eindeutig unzulässige Meldung trotz Löschantrag nicht löscht, wenn Schadensersatz nach Art. 82 DSGVO im Raum steht oder wenn bereits geklagt wird. Dann braucht es jemanden, der vor Gericht auftreten darf. FIAON ist keine Rechtsberatung – und sagt Ihnen, wenn dieser Punkt erreicht ist."
+    },
+    {
+      "f": "Was kostet ein Anwalt für einen SCHUFA-Eintrag?",
+      "a": "Ein anwaltliches Schreiben nach RVG liegt je nach Gegenstandswert typischerweise bei 150 bis 300 Euro; Erstberatungen werden oft pauschal bis 190 Euro angeboten. Bei mehreren Einträgen und Nachfassen summiert sich das schnell. Rechtsschutzversicherungen decken Datenschutzstreitigkeiten teils ab – fragen Sie vorher nach."
+    },
+    {
+      "f": "Reicht eine kostenlose Score-App?",
+      "a": "Zum Anschauen ja: Score, Einträge, Warnungen. Zum Handeln nein: Keine App schreibt den Löschantrag, verfolgt die Frist oder verhandelt Raten. Nutzen Sie die App für die Einsicht – und die kostenlosen FIAON-Werkzeuge oder ein Paket für die Aktion."
+    },
+    {
+      "f": "Kann ich das wirklich alles selbst machen?",
+      "a": "Ja. Die Datenkopie ist kostenlos, die Gesetze sind öffentlich, und die 20 FIAON-Werkzeuge schreiben die Briefe. Was Sie mitbringen müssen: Zeit (rund drei Stunden je Eintrag), Disziplin beim Nachfassen und die Bereitschaft, Fristen selbst im Blick zu behalten."
+    },
+    {
+      "f": "Was unterscheidet FIAON von einem Anwalt?",
+      "a": "FIAON ist Verfolgung und Weg: Auskunft beschaffen, jeden Eintrag einordnen, anwaltlich geprüfte Schreiben versenden, Antworten nachhalten, Ratenangebote, Konto und Karte vorbereiten – zu einem Festpreis über zwölf Raten. Ein Anwalt vertritt Sie rechtlich im Einzelfall und darf klagen. Beides schließt sich nicht aus."
+    }
+  ],
+  "/ueber-uns": [
+    {
+      "f": "Warum sitzt FIAON in London, wenn die Kunden in Deutschland, Österreich und der Schweiz sind?",
+      "a": "Die Gesellschaft wurde als FIAON LTD im britischen Handelsregister gegründet (Company No. 17318250) – schnell, transparent und mit öffentlich einsehbaren Unterlagen. Der Betrieb, das Team und die Server sind in der DACH-Region: Server in Frankfurt, Support mit Schweizer Nummer, Kunden in drei Ländern. Eine Gesellschaft im EWR ist in Vorbereitung."
+    },
+    {
+      "f": "Wer steht hinter FIAON?",
+      "a": "Gründer und Geschäftsführer Justin Schwarzott; Florentine Lombardi (Menschen und Onboarding) und Daniel Stripling (Vertrieb) als Gesellschafter im operativen Betrieb; ein Team aus Vertrieb, Onboarding und Forderungsmanagement – viele davon selbst ehemalige Kunden. Investor und Partner: Schwarzott Capital Partners AG, Zürich. Namen und Gesichter stehen auf der Team-Seite."
+    },
+    {
+      "f": "Ist FIAON eine Bank, ein Inkasso oder eine Kanzlei?",
+      "a": "Nichts davon. FIAON ist eine Bonitätsplattform: Auskunft beschaffen und erklären, Einträge nach DSGVO und § 31 BDSG angreifen, Raten verhandeln, Konto und Karte beim Partnerinstitut vorbereiten. Keine Rechtsberatung im Einzelfall, keine Kreditvermittlung, keine eigenen Konten."
+    },
+    {
+      "f": "Wie verdient FIAON Geld?",
+      "a": "Mit Festpreisen: der Bonitätsauskunft (74 Euro einmalig) und Paketen über zwölf Monatsraten. Keine Erfolgsbeteiligung, keine Gebühr je Schreiben. Über Partnerbanken kann später eine Vergütung je vermitteltem Konto hinzukommen – das steht offen auf der Partner-Seite."
+    },
+    {
+      "f": "Warum führt FIAON ein öffentliches Entscheidungsregister?",
+      "a": "Weil ein Unternehmen, das jederzeit geprüft werden kann, besser geführt wird. Jede Entscheidung mit Datum, Alternativen und Begründung; jeder Tag im Logbuch. Investoren sehen es im Datenraum, Kunden merken es daran, dass Regeln nicht über Nacht wechseln."
+    }
+  ],
+  "/transparenz": [
+    {
+      "f": "Warum veröffentlicht FIAON Kennzahlen?",
+      "a": "Weil Vertrauen prüfbar sein muss. Wer „Erfahrungen“ sucht, findet sonst nur Behauptungen. Hier stehen Zahlen mit Definition, Stand und Herkunft – und ehrlich das, was noch nicht belastbar gemessen ist."
+    },
+    {
+      "f": "Woher kommen die Zahlen?",
+      "a": "Aus der Datenbank der Plattform, mit derselben Definition, die das Chefbüro intern nutzt: zahlende Kunden nur mit bankbestätigter Zahlung und ohne Testkonten, Raten nur mit Zahlungsdatum. Abgerundet, nie geschätzt."
+    },
+    {
+      "f": "Wie oft wird aktualisiert?",
+      "a": "Alle vier Wochen, jeweils mit neuem Stand-Datum. Die vier Nordstern-Kennzahlen folgen, sobald sie über mindestens ein Quartal belastbar sind – Ziel ist ein Quartalsbericht."
+    },
+    {
+      "f": "Was veröffentlicht FIAON nicht?",
+      "a": "Keine Bewertungen, die es noch nicht gibt; keine Umsatzzahlen außerhalb des Datenraums für Investoren; keine Einzelfälle ohne Freigabe der Kunden. Und keine Zahl ohne Definition."
+    }
+  ],
+  "/status": [
+    {
+      "f": "Wo liegen meine Daten?",
+      "a": "Auf Servern in Frankfurt am Main (EU) bei einem Hosting-Anbieter mit europäischer Region; die Datenbank liegt in derselben Region. Der Umzug aus einer US-Region nach Frankfurt wurde am 24.08.2026 abgeschlossen. Sicherungen liegen ebenfalls in der EU."
+    },
+    {
+      "f": "Wie sind die Daten geschützt?",
+      "a": "Verschlüsselte Übertragung (TLS), verschlüsselte Speicherung, Zugriff nur für den Ansprechpartner, der Ihre Akte führt, und die Betreiber. Hochgeladene Unterlagen werden beim Hochladen geprüft. Zahlungen laufen per SEPA über einen verifizierten Kreditor – FIAON speichert keine Kartendaten."
+    },
+    {
+      "f": "Was bedeutet der grüne Punkt oben?",
+      "a": "Ihr Browser hat gerade den Gesundheitspfad der Plattform abgefragt und eine Antwort bekommen. Denselben Pfad nutzt unser Hosting, um eine neue Version erst dann Verkehr zu geben, wenn sie antwortet – Deploys laufen dadurch ohne Unterbrechung."
+    },
+    {
+      "f": "Wann wird gewartet?",
+      "a": "Deploys erfolgen mehrmals wöchentlich ohne Unterbrechung. Wartung mit Ausfall kündigen wir hier und im Kundenbereich mindestens 24 Stunden vorher an und legen sie nicht in die Telefonzeiten des Teams."
+    },
+    {
+      "f": "Wen erreiche ich bei einer Störung?",
+      "a": "Support +41 44 244 93 01 oder support@fiaon.com. Kunden nutzen zusätzlich „Dringend melden“ auf der Kontaktseite – die Meldung landet direkt bei der Geschäftsführung."
     }
   ],
   "/werkzeuge": [

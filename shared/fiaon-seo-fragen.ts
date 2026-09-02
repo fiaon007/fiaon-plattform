@@ -36,8 +36,8 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
       "a": "Zwölf monatliche Raten per SEPA-Lastschrift. Nach der zwölften Rate fragen wir Sie, ob Sie bleiben möchten – keine stille Verlängerung."
     },
     {
-      "f": "Wo liegen meine Daten?",
-      "a": "Verschlüsselt auf Servern in der EU, DSGVO-konform. Sie entscheiden, was Sie hochladen, und können es jederzeit löschen lassen."
+      "f": "Wo werden meine Unterlagen gespeichert?",
+      "a": "Auf Servern innerhalb der EU, verschlüsselt und nach DSGVO. In Ihrer Akte liegen die Auskunft, die Belege, die Sie selbst hochgeladen haben, und der Schriftwechsel, der daraus entstanden ist. Im Kundenbereich sehen Sie, was davon gespeichert ist; was Sie nicht hochladen, entsteht bei uns auch nicht, und Sie können die Löschung Ihrer Daten verlangen."
     }
   ],
   "/was-ist-fiaon": [
@@ -63,7 +63,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Wo liegen meine Daten?",
-      "a": "Verschlüsselt auf Servern in der EU, DSGVO-konform. Sie entscheiden, was Sie hochladen, und können es jederzeit löschen lassen."
+      "a": "In der EU, verschlüsselt gespeichert und nach DSGVO verarbeitet. Alles, was in den drei Schichten entsteht – die Auskunft, die Schreiben, die Antworten der Auskunfteien –, sammelt sich in Ihrer Akte. Welche Unterlagen dort zusätzlich landen, bestimmen Sie; auf Ihre Anforderung hin wird die Akte gelöscht."
     }
   ],
   "/en/what-is-fiaon": [
@@ -114,8 +114,8 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
       "a": "Ja – im Antrag direkt, und im Startgespräch prüfen wir gemeinsam, ob es passt."
     },
     {
-      "f": "Gilt das auch in Österreich und der Schweiz?",
-      "a": "Ja. FIAON arbeitet mit KSV1870 und CRIF (Österreich) sowie CRIF und Intrum (Schweiz). Die Rechte aus DSGVO bzw. DSG sind vergleichbar, die Fristen unterscheiden sich – wir kennen beide."
+      "f": "Kann ich FIAON auch von Österreich oder der Schweiz aus nutzen?",
+      "a": "Ja, der Weg mit seinen vier Etappen bleibt derselbe – es wechselt nur das Haus, bei dem FIAON Ihre Auskunft anfordert: in Österreich KSV1870 und CRIF, in der Schweiz CRIF und Intrum. Ihre Ansprechpartnerin bleibt dieselbe, und auch das Konto steht am selben Platz im Ablauf. Unterschiedlich sind die Fristen hinter den Einträgen: In Österreich greift die DSGVO direkt, die Schweiz arbeitet nach dem revidierten DSG."
     },
     {
       "f": "Was braucht FIAON von mir?",
@@ -148,8 +148,8 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
       "a": "Yes — directly in the application, and in the onboarding call we check together whether it fits."
     },
     {
-      "f": "Does this also apply in Austria and Switzerland?",
-      "a": "Yes. FIAON works with KSV1870 and CRIF (Austria) and with CRIF and Intrum (Switzerland). The rights under the GDPR and the Swiss DSG are comparable, the deadlines differ — we know both."
+      "f": "I live in Austria or Switzerland — does the same path work for me?",
+      "a": "Yes. The four stages on this page run in the same order wherever you live; what changes is the house that holds your file. In Austria FIAON obtains the report from KSV1870 and CRIF, in Switzerland from CRIF and Intrum, and a letter goes to whichever of them carries the entry. The right to see your data, to have it corrected and to have it removed is comparable in all three countries — the GDPR covers Germany and Austria, Switzerland has its own DSG (Datenschutzgesetz) — but the deadlines are not identical, so your case is worked to the rules of the country you live in rather than to German habit. The account and card stage is prepared with the partner institution in the same way, and the bank there decides as it does anywhere."
     },
     {
       "f": "What does FIAON need from me?",
@@ -1444,8 +1444,8 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
       "a": "Bei erledigten Forderungen zählt die Frist ab dem Datum der ERLEDIGUNG (Zahlung), nicht ab Rechnung oder Meldung. Bei Kreditanfragen ab dem Tag der Anfrage, bei der Restschuldbefreiung ab der Erteilung. Genau deshalb fragt der Checker oben nach dem passenden Datum je Eintragsart."
     },
     {
-      "f": "Gilt das auch in Österreich und der Schweiz?",
-      "a": "Die Grundrechte (Auskunft, Berichtigung, Löschung) sind vergleichbar — die DSGVO gilt in Österreich unmittelbar, die Schweiz hat das revidierte DSG. Die konkreten Speicherpraktiken von KSV und CRIF unterscheiden sich im Detail. FIAON prüft alle drei Häuser; die Länderseiten für Österreich und die Schweiz erklären die Unterschiede."
+      "f": "Rechnen KSV1870 und CRIF mit denselben Fristen?",
+      "a": "Im Detail nicht. Die Rechte auf Auskunft, Berichtigung und Löschung sind in allen drei Ländern vergleichbar: In Österreich gilt die DSGVO unmittelbar, in der Schweiz das revidierte DSG. Die Speicherpraxis von KSV1870 und CRIF folgt jedoch eigenen Vorgaben und deckt sich nicht Punkt für Punkt mit den deutschen Verhaltensregeln, auf denen der Checker oben rechnet. Ein österreichischer oder Schweizer Eintrag gehört deshalb gegen die dortigen Fristen gehalten, nicht gegen die deutschen. FIAON prüft alle drei Häuser; die Länderseiten für Österreich und die Schweiz nennen die Unterschiede im Einzelnen."
     }
   ],
   "/en/entries-and-limitation": [
@@ -1470,8 +1470,8 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
       "a": "For settled claims the period runs from the date of SETTLEMENT (payment), not from the invoice or the report. For credit enquiries from the day of the enquiry, for the discharge of residual debt from the day it was granted. That is exactly why the checker above asks for the appropriate date per entry type."
     },
     {
-      "f": "Does this also apply in Austria and Switzerland?",
-      "a": "The basic rights (access, rectification, erasure) are comparable — the GDPR applies directly in Austria, Switzerland has the revised DSG. The specific storage practices of KSV and CRIF differ in detail. FIAON checks all three bureaus; the country pages for Austria and Switzerland explain the differences."
+      "f": "Do the same storage periods apply in Austria and Switzerland?",
+      "a": "Not in every detail. The expiry checker above works with the German code of conduct, while KSV1870 in Austria and CRIF in Switzerland keep to their own storage practice. Comparable across all three countries are the underlying rights — access, rectification and erasure — because the GDPR applies directly in Austria and Switzerland works under the revised DSG. FIAON obtains and checks entries at all three bureaus; where the periods diverge is set out on the country pages for Austria and Switzerland."
     }
   ],
   "/girokonto-trotz-negativer-bonitaet": [
@@ -2416,8 +2416,8 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
       "a": "Fast immer, wenn die Rate tragbar bleibt: Bei gleichem Zins sinken die Gesamtkosten mit jeder eingesparten Monatsrate. Der Rechner zeigt die Gesamtkosten für Ihre Eingabe — verändern Sie die Laufzeit und vergleichen Sie selbst."
     },
     {
-      "f": "Speichert dieser Rechner meine Daten?",
-      "a": "Nein. Alle Berechnungen laufen in Ihrem Browser. Es wird nichts übertragen, nichts gespeichert und keine Anmeldung verlangt."
+      "f": "Speichert dieser Kreditrechner meine Eingaben?",
+      "a": "Nein. Betrag, Laufzeit und Zins bleiben in Ihrem Browser, und auch der Tilgungsplan entsteht dort. An FIAON wird davon nichts übermittelt, abgelegt wird nichts, eine Anmeldung braucht es nicht. Schließen Sie den Reiter, ist die Rechnung fort — notieren Sie sich Rate und Gesamtkosten, wenn Sie später mehrere Angebote nebeneinanderlegen wollen."
     }
   ],
   "/en/tools/loan-calculator": [
@@ -2438,8 +2438,8 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
       "a": "Almost always, if the instalment stays affordable: at the same rate the total cost falls with every monthly instalment saved. The calculator shows the total cost for your input — change the term and compare for yourself."
     },
     {
-      "f": "Does this calculator store my data?",
-      "a": "No. All calculations run in your browser. Nothing is transmitted, nothing is stored and no sign-up is required."
+      "f": "Does the loan calculator store the figures I enter?",
+      "a": "No. Amount, term and interest rate stay inside the browser tab you have open: the annuity formula, the total cost and the repayment schedule are worked out on your own device. Nothing travels to FIAON, no figure survives closing the page, and you need neither an account nor a login to use the loan calculator."
     }
   ],
   "/werkzeuge/umschuldung": [
@@ -2460,8 +2460,8 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
       "a": "Kurzfristig kann die neue Kreditanfrage sichtbar sein; stellen Sie sie als Konditionsanfrage, ist sie score-neutral. Mittelfristig wirkt eine Umschuldung oft positiv: weniger parallele Verträge, ein ausgeglichener Dispo und pünktliche Raten sind genau das, was Auskunfteien als Ordnung lesen."
     },
     {
-      "f": "Speichert dieser Rechner meine Daten?",
-      "a": "Nein. Alle Berechnungen laufen in Ihrem Browser. Es wird nichts übertragen, nichts gespeichert und keine Anmeldung verlangt."
+      "f": "Muss ich wirklich alle Kredite zusammenlegen?",
+      "a": "Nein, Sie tragen nur die Verträge ein, die Sie ablösen wollen. Ein Kredit, der ohnehin in wenigen Monaten ausläuft, bringt im Vergleich kaum etwas und kostet trotzdem Vorfälligkeitsentschädigung. Lassen Sie ihn draußen und rechnen Sie den Rest — häufig trägt schon der Dispo allein den größten Teil der Ersparnis."
     }
   ],
   "/en/tools/debt-consolidation": [
@@ -2482,8 +2482,8 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
       "a": "In the short term the new loan enquiry may be visible; if you make it as a conditions enquiry it is score-neutral. In the medium term consolidation often has a positive effect: fewer parallel contracts, a cleared overdraft and punctual instalments are exactly what credit bureaus read as order."
     },
     {
-      "f": "Does this calculator store my data?",
-      "a": "No. All calculations run in your browser. Nothing is transmitted, nothing is stored and no sign-up is required."
+      "f": "Do the contract details I enter leave my browser?",
+      "a": "No. The remaining balances, interest rates, terms and overdraft figures you type in stay in the form on this page, and your own browser works out the comparison between the two routes. Nothing is sent to FIAON, no server keeps a record of the run, and neither an account nor an e-mail address is needed. Closing the tab clears the entries, so write down or screenshot any figure you want to take into a conversation with your bank."
     }
   ],
   "/werkzeuge/schulden-check": [
@@ -2505,7 +2505,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Speichert dieser Check meine Angaben?",
-      "a": "Nein. Alle Berechnungen laufen in Ihrem Browser. Es wird nichts übertragen, nichts gespeichert und keine Anmeldung verlangt."
+      "a": "Nein. Einkommen, Ausgaben, Raten und Rückstände bleiben auf Ihrem Gerät — die Ampel entsteht im Browser, ohne dass eine dieser Zahlen zu uns gelangt. Ein Konto müssen Sie nicht anlegen, eine E-Mail-Adresse wird nicht abgefragt, ein Verlauf nicht angelegt: Sobald Sie die Seite schließen, sind die Eingaben fort."
     }
   ],
   "/en/tools/debt-check": [
@@ -2527,7 +2527,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Does this check store my details?",
-      "a": "No. All calculations run in your browser. Nothing is transmitted, nothing is stored and no sign-up is required."
+      "a": "No. What this check asks for is sensitive — income, housing and living costs, instalments, arrears and how far the matter has already gone — so those figures stay on your own device. The assessment is worked out inside the open page itself; nothing travels to us, no copy is kept anywhere, and closing or reloading the page clears every field. You need neither an account nor an e-mail address to see the result."
     }
   ],
 };

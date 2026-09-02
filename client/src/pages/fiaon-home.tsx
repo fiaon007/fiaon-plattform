@@ -223,7 +223,7 @@ export default function FiaonHome() {
           { f: "Bekomme ich eine Kreditkarte?", a: "Über die Vergabe entscheidet immer die Bank. FIAON bringt Ihre Bonität in Ordnung und bereitet Sie vor: Ein Girokonto ist für jeden Kunden erreichbar, eine Kreditkarte mit Rahmen bis 25.000 € bei guter Bonität. Ihr Fahrplan zeigt, wie weit Sie noch entfernt sind." },
           { f: "Wie arbeitet die FIAON-Analyse?", a: "Sie liest Auskünfte und Kontoauszüge, erklärt Einträge in Klartext und bereitet Schreiben vor. Sie ersetzt keine Rechts- oder Steuerberatung – jedes Schreiben ist anwaltlich geprüft und geht erst hinaus, wenn Sie es freigeben." },
           { f: "Wie lange läuft ein Paket?", a: "Zwölf monatliche Raten per SEPA-Lastschrift. Nach der zwölften Rate fragen wir Sie, ob Sie bleiben möchten – keine stille Verlängerung." },
-          { f: "Wo liegen meine Daten?", a: "Verschlüsselt auf Servern in der EU, DSGVO-konform. Sie entscheiden, was Sie hochladen, und können es jederzeit löschen lassen." },
+          { f: "Wo werden meine Unterlagen gespeichert?", a: "Auf Servern innerhalb der EU, verschlüsselt und nach DSGVO. In Ihrer Akte liegen die Auskunft, die Belege, die Sie selbst hochgeladen haben, und der Schriftwechsel, der daraus entstanden ist. Im Kundenbereich sehen Sie, was davon gespeichert ist; was Sie nicht hochladen, entsteht bei uns auch nicht, und Sie können die Löschung Ihrer Daten verlangen." },
         ]} />
       </Block>
 

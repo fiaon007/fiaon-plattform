@@ -523,15 +523,38 @@ export async function postmeisterLauf(opts: { q?: string; deckel?: number; nurOr
     if (modus === "aus") continue;
     const pfWirksam = { ...pf, modus };
     try {
-      const { ids } = await nachrichtenSuchen(pf.adresse, opts.q || "in:inbox newer_than:2d", 100);
-      if (!ids.length) continue;
-      // Schon Verarbeitetes aussieben, dann den Deckel anwenden.
+      // ── SEITENWEISE LESEN (E-094): Gmail liefert höchstens 100 je Seite und
+      // sortiert neueste zuerst. Ohne Blättern blieb bei mehr als 100 Treffern
+      // im Fenster der Rest für immer unsichtbar — bei 1.254 Mails in support@
+      // war das der ganze Altbestand.
+      const alleIds: string[] = [];
+      let seite: string | null | undefined = null;
+      for (let s = 0; s < 12; s++) {
+        const r: any = await nachrichtenSuchen(pf.adresse, opts.q || "in:inbox newer_than:2d", 100, seite);
+        alleIds.push(...(r?.ids ?? []));
+        seite = r?.nextPageToken ?? null;
+        if (!seite || alleIds.length >= 1200) break;
+      }
+      if (!alleIds.length) continue;
+
+      // Schon Abgeschlossenes aussieben — 'fehler' und 'vorgeordnet' bleiben
+      // beanspruchbar, sonst verbraucht ein KI-Aussetzer die Mail für immer.
       const bekannte = new Set(((await sqlPool`
-        SELECT gmail_id FROM fiaon_postmeister WHERE gmail_id = ANY(${ids})
+        SELECT gmail_id FROM fiaon_postmeister
+         WHERE gmail_id = ANY(${alleIds}) AND aktion NOT IN ('fehler', 'vorgeordnet')
       `) as any[]).map((r) => String(r.gmail_id)));
-      const neue = ids.filter((id) => !bekannte.has(id)).slice(0, opts.deckel ?? LAUF_DECKEL);
+      const neue = alleIds.filter((id) => !bekannte.has(id)).slice(0, opts.deckel ?? LAUF_DECKEL);
+
+      // ── DER NEUE LAUF (E-094): ganze Gespräche, Werkzeuge, Belegpflicht,
+      // Antwort immer erst als Entwurf. Der alte Weg bleibt als Rückfall, bis
+      // der neue eine Woche ohne Beanstandung gelaufen ist.
+      const { mailBearbeiten } = await import("../lib/fiaon-postmeister-lauf");
+      const [v2] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = 'postmeister_v2' LIMIT 1`) as any[];
+      const neuerWeg = String(v2?.value ?? "1") !== "0";
       for (const id of neue) {
-        const a = await mailVerarbeiten(pfWirksam, id, { nurOrdnen: opts.nurOrdnen });
+        const a = neuerWeg
+          ? (await mailBearbeiten({ postfach: pf.adresse, gmailId: id, gruss: pf.gruss, modus: modus as any, nurOrdnen: opts.nurOrdnen })).aktion
+          : await mailVerarbeiten(pfWirksam, id, { nurOrdnen: opts.nurOrdnen });
         aktionen[a] = (aktionen[a] || 0) + 1;
         verarbeitet += 1;
       }

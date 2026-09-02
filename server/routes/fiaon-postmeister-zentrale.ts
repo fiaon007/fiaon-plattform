@@ -268,4 +268,63 @@ router.get("/admin/postmeister/kopf", async (_req: Request, res: Response) => {
   }
 });
 
+/** POST /admin/postmeister/aufholen {phase, tage, deckel} — der Berg. */
+router.post("/admin/postmeister/aufholen", async (req: Request, res: Response) => {
+  try {
+    const { phaseOrdnen, phaseAntworten, aufholDeckel } = await import("../lib/fiaon-postmeister-aufholen");
+    const phase = String(req.body?.phase || "ordnen");
+    const deckelStandard = await aufholDeckel();
+
+    if (phase === "antworten") {
+      const gruesse: Record<string, string> = {};
+      const pf = (await sqlPool`SELECT DISTINCT postfach FROM fiaon_postmeister`) as any[];
+      for (const p of pf) gruesse[p.postfach] = `Freundliche Grüße\nIhr FIAON-Team\n${p.postfach} · fiaon.com`;
+      const erg = await phaseAntworten({ deckel: Math.min(60, Number(req.body?.deckel) || deckelStandard.antworten), gruesse });
+      return res.json({ ok: true, phase, ...erg });
+    }
+
+    const postfach = String(req.body?.postfach || "").trim();
+    const alle = postfach ? [postfach] : ["support@fiaon.com", "welcome@fiaon.com", "js@fiaon.com"];
+    const staende = [];
+    for (const p of alle) {
+      const stand = await phaseOrdnen({
+        postfach: p, gruss: `Freundliche Grüße\nIhr FIAON-Team\n${p} · fiaon.com`,
+        tageZurueck: Math.min(3650, Number(req.body?.tage) || 365),
+        deckel: Math.min(200, Number(req.body?.deckel) || deckelStandard.ordnen),
+      }).catch((e: any) => ({ phase: "ordnen", postfach: p, gesehen: 0, neu: 0, beantwortet: 0, uebersprungen: { fehler: 1 }, fertig: false, fehlerText: String(e?.message || e).slice(0, 200) }));
+      staende.push(stand);
+    }
+    res.json({ ok: true, phase: "ordnen", staende });
+  } catch (e: any) {
+    console.error("[ZENTRALE] aufholen:", e);
+    res.status(500).json({ ok: false, error: String(e?.message || e).slice(0, 300) });
+  }
+});
+
+/** POST /admin/postmeister/altentwuerfe {schreiben} — die Entwürfe der ersten Fassung prüfen. */
+router.post("/admin/postmeister/altentwuerfe", async (req: Request, res: Response) => {
+  try {
+    const { altentwuerfePruefen } = await import("../lib/fiaon-postmeister-aufholen");
+    res.json({ ok: true, ...(await altentwuerfePruefen(req.body?.schreiben === true)) });
+  } catch (e: any) {
+    res.status(500).json({ ok: false, error: String(e?.message || e).slice(0, 300) });
+  }
+});
+
+/** GET /admin/postmeister/rueckstand — wie viele warten noch? */
+router.get("/admin/postmeister/rueckstand", async (_req: Request, res: Response) => {
+  try {
+    const { offeneUnterhaltungen } = await import("../lib/fiaon-postmeister-aufholen");
+    const offen = await offeneUnterhaltungen(500);
+    const jeLage: Record<string, number> = {};
+    for (const o of offen) {
+      const k = o.gekuendigt_am ? "gekuendigt" : (o.payment_status ?? "ohne Bestellung");
+      jeLage[k] = (jeLage[k] || 0) + 1;
+    }
+    res.json({ ok: true, offen: offen.length, jeLage, aelteste: offen[offen.length - 1]?.empfangen_am ?? null });
+  } catch (e: any) {
+    res.status(500).json({ ok: false, error: String(e?.message || e).slice(0, 300) });
+  }
+});
+
 export default router;

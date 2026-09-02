@@ -98,8 +98,19 @@ async function segmentAn(segment: Segment): Promise<boolean> {
   return (await zahl(`rueckhol_${kurz}_an`, STANDARD_AN[segment] ? 1 : 0)) === 1;
 }
 
+// ── HOTFIX 02.09.2026, 08:50: DIE NACHTRUHE HAT NIE GEGRIFFEN ─────────────
+// `format()` mit nur `hour` liefert in de-DE „08 Uhr“, nicht „08“. Number()
+// davon ist NaN, und NaN ist weder < 8 noch >= 20 — die Nachtruhe war damit
+// wirkungslos: neun Mails gingen um 01:17 raus, im ersten Takt nach dem
+// Scharfschalten. Deshalb `formatToParts` wie in fiaon-antrag-erinnerung.ts
+// (berlinMinuten) — das Hausmuster, das ich hätte kopieren sollen.
 function berlinStunde(): number {
-  return Number(new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", hour12: false }).format(new Date()));
+  const teile = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", hour12: false })
+    .formatToParts(new Date());
+  const h = Number(teile.find((p) => p.type === "hour")?.value);
+  // Im Zweifel (NaN) gilt Nachtruhe — lieber eine Stunde später senden als
+  // wieder um 01:17. -1 ist < 8 und damit „Nacht“.
+  return Number.isFinite(h) ? h % 24 : -1;
 }
 
 // ── DIE GEMEINSAME GRUNDMENGE ───────────────────────────────────────────────
@@ -208,6 +219,16 @@ export async function rueckholKandidaten(segment: Segment, limit: number): Promi
        AND b.email IS NOT NULL
        AND COALESCE(x.n, 0) < ${hoechstens}
        AND (x.letzte IS NULL OR x.letzte < NOW() - INTERVAL '4 days')
+       -- Wen die Frequenzbremse HEUTE schon zurückgehalten hat, versucht der
+       -- Lauf heute nicht noch einmal — sonst hängt er alle 30 Minuten an
+       -- denselben zehn Blockierten fest und kommt nie zu den Nächsten
+       -- (Hotfix 02.09.2026: 240 Versuche, 0 Versände).
+       AND NOT EXISTS (
+         SELECT 1 FROM fiaon_mail_log f
+          WHERE f.event = ${event} AND f.status = 'fehlgeschlagen'
+            AND f.grund LIKE 'Frequenzbremse:%'
+            AND LOWER(TRIM(f.empfaenger)) = LOWER(TRIM(b.email))
+            AND f.created_at > NOW() - INTERVAL '6 hours')
        -- Kein Rückhol-Anschreiben an jemanden, dessen Geld womöglich schon
        -- unverbucht auf dem Konto liegt (61 Eingänge / 7.302 € am 02.09.).
        -- Referenztreffer ODER Namenstreffer (payer_name enthält den Nachnamen).

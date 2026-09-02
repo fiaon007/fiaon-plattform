@@ -80,10 +80,19 @@ async function tagesDeckel(): Promise<number> {
   return einstellung("sepa_werbung_pro_tag", 0, 1000);
 }
 
+// ── HOTFIX 02.09.2026, 08:50: DIE NACHTRUHE HAT NIE GEGRIFFEN ─────────────
+// `format()` mit nur `hour` liefert in de-DE „08 Uhr“, nicht „08“. Number()
+// davon ist NaN, und NaN ist weder < 8 noch >= 20 — die Nachtruhe war damit
+// wirkungslos: neun Mails gingen um 01:17 raus, im ersten Takt nach dem
+// Scharfschalten. Deshalb `formatToParts` wie in fiaon-antrag-erinnerung.ts
+// (berlinMinuten) — das Hausmuster, das ich hätte kopieren sollen.
 function berlinStunde(): number {
-  return Number(new Intl.DateTimeFormat("de-DE", {
-    timeZone: "Europe/Berlin", hour: "2-digit", hour12: false,
-  }).format(new Date()));
+  const teile = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", hour12: false })
+    .formatToParts(new Date());
+  const h = Number(teile.find((p) => p.type === "hour")?.value);
+  // Im Zweifel (NaN) gilt Nachtruhe — lieber eine Stunde später senden als
+  // wieder um 01:17. -1 ist < 8 und damit „Nacht“.
+  return Number.isFinite(h) ? h % 24 : -1;
 }
 
 export interface SepaWerbungErgebnis {
@@ -151,6 +160,14 @@ export async function sepaWerbungLauf(): Promise<SepaWerbungErgebnis> {
        AND COALESCE(p.gc_mandate_status, '') IN ('', 'failed', 'cancelled', 'expired')
        AND COALESCE(b.anzahl, 0) < ${maxEinladungen}
        AND (b.letzte IS NULL OR b.letzte < NOW() - (${abstandTage} || ' days')::interval)
+       -- Heute von der Frequenzbremse Zurückgehaltene nicht erneut versuchen
+       -- (Hotfix 02.09.2026, siehe fiaon-rueckholung.ts).
+       AND NOT EXISTS (
+         SELECT 1 FROM fiaon_mail_log f
+          WHERE f.event = 'sepa_einrichten' AND f.status = 'fehlgeschlagen'
+            AND f.grund LIKE 'Frequenzbremse:%'
+            AND LOWER(TRIM(f.empfaenger)) = LOWER(TRIM(a.email))
+            AND f.created_at > NOW() - INTERVAL '6 hours')
      ORDER BY COALESCE(b.anzahl, 0) ASC, a.paid_at DESC NULLS LAST
      LIMIT ${rest}`) as any[];
 

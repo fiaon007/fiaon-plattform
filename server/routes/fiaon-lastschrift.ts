@@ -24,6 +24,7 @@ import { paket as paketVon } from "@shared/fiaon-pakete";
 import { absoluteUrl } from "../fiaon-base-url";
 import { aboAnker, rateBezahltBuchen } from "./fiaon-abo";
 import { zahlungsauftragFinden, registriereSofortLink } from "../lib/fiaon-zahlungsauftrag";
+import { tageslauf } from "../lib/fiaon-crons";
 
 const router = Router();
 const BASIS = () => (process.env.GOCARDLESS_ENVIRONMENT === "sandbox" ? "https://api-sandbox.gocardless.com" : "https://api.gocardless.com");
@@ -407,11 +408,29 @@ export async function gcAboAnlegen(ref: string, mandateIdVorgabe?: string | null
       // ohnehin eingezogen worden wäre. Dieselbe Quelle für beide.
       const { tag: anker } = await aboAnker(ref);
       const start = new Date(anker ? `${anker}T12:00:00Z` : (a?.submitted_at || a?.created_at || Date.now()));
-      await gc("/subscriptions", { method: "POST", idem: `sub-${ref}-${mandateId}-${Number(a.abo_verlaengert_raten || 0)}`, body: { subscriptions: {
+      const antwort = await gc("/subscriptions", { method: "POST", idem: `sub-${ref}-${mandateId}-${Number(a.abo_verlaengert_raten || 0)}`, body: { subscriptions: {
         amount: pk.preisCents, currency: "EUR", name: `FIAON ${pk.label}`, interval_unit: "monthly",
         day_of_month: faelligkeitstag(start), count: verbleibend, metadata: { ref },
         links: { mandate: mandateId },
       } } });
+      // ── DAS ABO SOFORT FESTHALTEN (02.09.2026) ───────────────────────
+      // Bis heute wurde ein Abo bei GoCardless angelegt und nirgends bei uns
+      // vermerkt. Sieben liefen so, ohne dass die Datenbank davon wusste —
+      // und das Mahnwesen schrieb Kunden an, deren Raten längst eingezogen
+      // wurden. Der Abgleich holt Nachzügler; hier wird der Normalfall
+      // gleich richtig geschrieben, damit dazwischen keine Lücke klafft.
+      const neu = antwort?.subscriptions;
+      if (neu?.id) {
+        await sqlPool`
+          UPDATE fiaon_applications
+             SET gc_subscription_ref = ${String(neu.id)},
+                 gc_subscription_status = ${String(neu.status || "active")},
+                 gc_subscription_start = ${String(neu.start_date || "").slice(0, 10) || null},
+                 gc_subscription_abgeglichen_am = NOW(),
+                 updated_at = NOW()
+           WHERE ref = ${ref} AND merged_into IS NULL
+        `.catch((e) => console.error(`[LASTSCHRIFT] Abo ${neu.id} nicht gespeichert:`, e?.message || e));
+      }
       return true;
     }
   }
@@ -626,6 +645,118 @@ async function sofortZahlungBuchen(p: any, action: string): Promise<boolean> {
   return true;
 }
 
+/**
+ * Die Abos von GoCardless in die Datenbank spiegeln (02.09.2026).
+ *
+ * WARUM DAS SEIN MUSS: Die Datenbank kannte kein einziges Abo. Bei GoCardless
+ * liefen sieben über 567,93 € im Monat; bei uns stand nirgends, dass diese
+ * Kunden per Lastschrift zahlen. Das Mahnwesen konnte es folglich nicht
+ * wissen und mahnte einen Kunden, dessen Rate längst abgebucht war — drei
+ * Erinnerungen, die letzte am 02.09. um 06:26.
+ *
+ * Die Zuordnung ist eindeutig: Jedes Abo trägt `metadata.ref` mit unserer
+ * Vertragsnummer, gesetzt beim Anlegen. Wir raten also nichts.
+ *
+ * `nurZaehlen` ist die Voreinstellung — dieser Lauf schreibt nur, wenn er
+ * ausdrücklich dazu aufgefordert wird.
+ */
+export async function aboAbgleich(nurZaehlen = true): Promise<{
+  gefunden: number; zugeordnet: number; ohneRef: number; geaendert: number; ueberMandat: number; details: any[];
+}> {
+  const abos: any[] = [];
+  let after: string | null = null;
+  for (let seite = 0; seite < 20; seite++) {
+    const j = await gc(`/subscriptions?limit=100${after ? `&after=${encodeURIComponent(after)}` : ""}`);
+    abos.push(...(j?.subscriptions || []));
+    after = j?.meta?.cursors?.after || null;
+    if (!after) break;
+  }
+  let zugeordnet = 0, ohneRef = 0, geaendert = 0, ueberMandat = 0;
+  const details: any[] = [];
+  for (const s of abos) {
+    let ref = String(s?.metadata?.ref || "").trim();
+    // ── DER RÜCKWEG ÜBER DAS MANDAT (02.09.2026) ─────────────────────────
+    // Nicht jedes Abo trägt eine Vertragsnummer. Das älteste vom 28.08. hat
+    // keine — und ausgerechnet dieser Kunde war der Anlass für den ganzen
+    // Umbau: Ihm wurde abgebucht, während er gemahnt wurde. Ein Abgleich, der
+    // sich allein auf `metadata.ref` verlässt, hätte genau ihn übersehen.
+    // Deshalb der zweite Weg: Abo → Mandat → Person → Vertrag. Er greift nur,
+    // wenn die Person GENAU EINEN offenen Vertrag hat; bei mehreren wäre die
+    // Zuordnung geraten, und dann ist Nichtstun besser als Falschzuordnen.
+    if (!ref) {
+      const mandat = String(s?.links?.mandate || "").trim();
+      const betrag = Number(s?.amount || 0);
+      if (mandat && betrag > 0) {
+        // Der Betrag entscheidet. Ein Kunde hat oft mehrere Verträge — der
+        // Auslöser dieses Umbaus etwa eine SCHUFA-Auskunft UND ein Abo. Nur
+        // der Vertrag, dessen offene Raten auf den Cent zum Abo-Betrag
+        // passen, kann gemeint sein. Passt keiner oder passen mehrere,
+        // wird NICHT zugeordnet: eine falsche Zuordnung nähme einer Rate den
+        // Mahnschutz und gäbe ihn einer anderen, die weiter offen ist.
+        const treffer = (await sqlPool`
+          SELECT DISTINCT a.ref FROM fiaon_applications a
+          JOIN fiaon_persons p ON p.id = a.person_id
+          JOIN fiaon_abo_raten r ON r.ref = a.ref
+          WHERE p.gc_mandate_ref = ${mandat}
+            AND a.merged_into IS NULL
+            AND a.abo_gestoppt_am IS NULL
+            AND r.storniert_am IS NULL
+            AND r.betrag_cents = ${betrag}
+        `) as any[];
+        if (treffer.length === 1) {
+          ref = String(treffer[0].ref);
+          ueberMandat += 1;
+        } else {
+          ohneRef += 1;
+          details.push({ abo: s.id, ref: null, grund: `keine Vertragsnummer; über Mandat und Betrag ${(betrag / 100).toFixed(2)} € ${treffer.length} Verträge gefunden` });
+          continue;
+        }
+      }
+    }
+    if (!ref) { ohneRef += 1; details.push({ abo: s.id, ref: null, grund: "kein metadata.ref und kein Mandat" }); continue; }
+    zugeordnet += 1;
+    const status = String(s.status || "");
+    const start = String(s.start_date || "").slice(0, 10) || null;
+    const [ist] = (await sqlPool`
+      SELECT gc_subscription_ref, gc_subscription_status, gc_subscription_start::text AS start
+      FROM fiaon_applications WHERE ref = ${ref} AND merged_into IS NULL LIMIT 1
+    `) as any[];
+    if (!ist) { details.push({ abo: s.id, ref, grund: "Vertrag nicht gefunden" }); continue; }
+    const gleich = String(ist.gc_subscription_ref || "") === String(s.id)
+      && String(ist.gc_subscription_status || "") === status
+      && String(ist.start || "") === String(start || "");
+    if (gleich) { details.push({ abo: s.id, ref, grund: "unverändert" }); continue; }
+    geaendert += 1;
+    details.push({ abo: s.id, ref, status, start, vorher: ist.gc_subscription_ref || null, grund: nurZaehlen ? "WÜRDE geschrieben" : "geschrieben" });
+    if (!nurZaehlen) {
+      await sqlPool`
+        UPDATE fiaon_applications
+           SET gc_subscription_ref = ${s.id},
+               gc_subscription_status = ${status},
+               gc_subscription_start = ${start},
+               gc_subscription_abgeglichen_am = NOW(),
+               updated_at = NOW()
+         WHERE ref = ${ref} AND merged_into IS NULL
+      `;
+    }
+  }
+  return { gefunden: abos.length, zugeordnet, ohneRef, geaendert, ueberMandat, details };
+}
+
+/**
+ * POST /admin/lastschrift/abos {schreiben:false} — die Abos spiegeln.
+ * Ohne `schreiben` wird nur gezeigt, was passieren würde.
+ */
+router.post("/admin/lastschrift/abos", async (req: Request, res: Response) => {
+  try {
+    const schreiben = req.body?.schreiben === true;
+    const erg = await aboAbgleich(!schreiben);
+    res.json({ ok: true, schreiben, ...erg });
+  } catch (e: any) {
+    res.status(500).json({ ok: false, error: String(e?.message || e).slice(0, 300) });
+  }
+});
+
 /** POST /gocardless/webhook — Mandats- und Zahlungsstatus. Signatur: HMAC-SHA256 mit GOCARDLESS_WEBHOOK_SECRET. */
 /**
  * POST /admin/lastschrift/abgleich {schreiben:false} — alle lebenden Mandate
@@ -799,5 +930,23 @@ router.post("/gocardless/webhook", async (req: Request, res: Response) => {
 // Der Mail-Motor und die Zahlungsseite holen sich den Sofort-Link über den
 // Steckplatz in fiaon-zahlungsauftrag.ts — ohne Kreisimport.
 registriereSofortLink(sofortLink);
+
+// ── DER ABO-ABGLEICH, VIERMAL AM TAG (02.09.2026) ──────────────────────────
+// Abos ändern sich auch ohne unser Zutun: GoCardless setzt sie auf „finished",
+// wenn alle Abbuchungen gelaufen sind, und ein Storno im Dashboard erscheint
+// nirgends bei uns. Beides muss ankommen, denn davon hängt der Mahnstopp ab:
+// Ein Abo, das bei uns fälschlich als aktiv gilt, würde eine Rate vom Mahnen
+// ausnehmen, die niemand mehr einzieht — der Außenstand verschwände lautlos.
+// Sechs Stunden reichen; der Normalfall wird ohnehin beim Anlegen geschrieben.
+//
+// Die Arbeit wird ERWARTET (await), nicht nur angestoßen — sonst misst die
+// Historie 0 ms und meldet Erfolg, auch wenn GoCardless gar nicht antwortet.
+tageslauf("gocardless-abos", async () => {
+  if (!process.env.GOCARDLESS_ACCESS_TOKEN) return;
+  const e = await aboAbgleich(false);
+  if (e.geaendert > 0 || e.ohneRef > 0) {
+    console.log(`[LASTSCHRIFT] Abo-Abgleich: ${e.gefunden} bei GoCardless, ${e.geaendert} geändert, ${e.ohneRef} ohne Vertragsnummer`);
+  }
+}, 6 * 60 * 60 * 1000, { beimStartNach: 180_000 });
 
 export default router;

@@ -175,6 +175,32 @@ export async function ensureAboTabellen(): Promise<void> {
     -- vor dem Migrationslauf startet, nicht an jeder Buchung scheitert.
     ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ
   `;
+  // ── DIE DATENBANK MUSS WISSEN, DASS EINGEZOGEN WIRD (02.09.2026) ──────
+  // Sie wusste es nicht. Es gab `gc_mandate_ref` an der Person (wer hat
+  // unterschrieben) und `gc_payment_id` an der Rate (welche Einzelzahlung),
+  // aber NICHTS für ein laufendes Abo. Am 02.09. bestanden bei GoCardless
+  // sieben Abos über 567,93 € im Monat — die Datenbank kannte keines davon.
+  //
+  // Was das anrichtete: Einem Kunden wurde am 28.08. seine Rate über 7,99 €
+  // abgebucht, GoCardless hat es bestätigt. Bei uns stand sie auf „offen"; er
+  // bekam drei Erinnerungen, die letzte am 02.09. um 06:26. Ein Mann, der
+  // bezahlt hatte, wurde gemahnt — weil das Mahnwesen gar nicht wissen
+  // KONNTE, dass bei ihm eingezogen wird. Ab dem 16.09. hätte das alle sieben
+  // getroffen, und mit der Regel „Folgeraten immer per Lastschrift" jeden.
+  //
+  // `gc_subscription_start` ist dabei kein schmückendes Beiwerk: Ein Abo
+  // deckt nur Raten AB seinem Startdatum. Eine ältere überfällige Rate zieht
+  // es NICHT ein (dafür gibt es den Einzelabruf mit `gc_payment_id`) — sie
+  // muss also weiter gemahnt werden dürfen. Ohne dieses Datum wäre der
+  // Mahnstopp zu grob und ließe echte Außenstände stillschweigend liegen.
+  await sqlPool`
+    ALTER TABLE fiaon_applications
+    ADD COLUMN IF NOT EXISTS gc_subscription_ref VARCHAR,
+    ADD COLUMN IF NOT EXISTS gc_subscription_status VARCHAR,
+    ADD COLUMN IF NOT EXISTS gc_subscription_start DATE,
+    ADD COLUMN IF NOT EXISTS gc_subscription_abgeglichen_am TIMESTAMPTZ
+  `;
+  await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_applications_gc_sub_idx ON fiaon_applications (gc_subscription_ref)`;
   // Storno, Rechnungs- und Überfällig-Stempel (Migration 052). Laufzeitnetz.
   await sqlPool`
     ALTER TABLE fiaon_abo_raten
@@ -649,6 +675,47 @@ async function faelligeRaten(limit: number, opts: { abStichtag?: string | null }
       AND r.storniert_am IS NULL
       AND r.faellig_am <= ${heute}::date
       AND r.mahnstufe < ${MAHNSTUFEN.length}
+      -- ══════════════════════════════════════════════════════════════════
+      -- KEINE MAHNUNG AN JEMANDEN, BEI DEM WIR SELBST EINZIEHEN (02.09.2026)
+      --
+      -- Der Fall, der es aufgedeckt hat: Rate über 7,99 €, am 28.08. per
+      -- Lastschrift abgebucht und von GoCardless bestätigt. Bei uns stand
+      -- sie auf „offen" — der Kunde bekam drei Erinnerungen, die letzte am
+      -- 02.09. um 06:26. Er hatte bezahlt und wurde gemahnt.
+      --
+      -- Zwei Wege führen zu einem laufenden Einzug, beide zählen:
+      --   gc_payment_id — die Rate wird EINZELN abgerufen (überfällige
+      --                   Raten beim Mandatsstart)
+      --   das Abo       — deckt alle Raten AB seinem Startdatum ab
+      --
+      -- Das Startdatum ist der Grund, warum hier nicht pauschal „hat Abo"
+      -- steht: Eine Rate, die VOR dem Abo fällig war, zieht das Abo nicht
+      -- ein. Sie muss weiter gemahnt werden dürfen, sonst verschwindet ein
+      -- echter Außenstand lautlos aus dem Blick.
+      --
+      -- Ein fehlgeschlagener Einzug hebt den Schutz wieder auf: Dann ist die
+      -- Rate offen wie jede andere, und Mahnen ist richtig.
+      --
+      -- DIE SIEBEN TAGE VORLAUF sind gemessen, nicht geschätzt. Fälligkeit
+      -- und Abo-Einzug liegen selten exakt auf demselben Tag; am 02.09. sah
+      -- es über alle sieben Abos so aus:
+      --      Brandt, Schneider, Sheeraz   0 Tage (taggleich)
+      --      Sturm, Thoma                 1 Tag  (Einzug einen Tag später)
+      --      Weber                       32 Tage (echte Altlast von August)
+      -- Ohne Vorlauf wäre Eva Sturm am 27.09. gemahnt und am 28.09. abgebucht
+      -- worden — dieselbe Rate, ein Tag Versatz. Sieben Tage fangen die
+      -- Taggenauigkeits-Fälle sicher und lassen Webers 32 Tage draußen, wo
+      -- sie hingehören: Das ist keine Abo-Rate, sondern ein echter
+      -- Außenstand, der einzeln abgerufen wird und gemahnt werden darf.
+      AND r.gc_payment_id IS NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM fiaon_applications sub
+        WHERE sub.ref = r.ref
+          AND sub.gc_subscription_ref IS NOT NULL
+          AND sub.gc_subscription_status = 'active'
+          AND sub.gc_subscription_start IS NOT NULL
+          AND r.faellig_am >= sub.gc_subscription_start - INTERVAL '7 days'
+      )
       -- ══════════════════════════════════════════════════════════════════
       -- HIER STAND EIN FILTER AUF DIE E-MAIL DER BESTELLZEILE.
       --

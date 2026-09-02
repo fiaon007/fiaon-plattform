@@ -33,7 +33,7 @@ const KATEGORIE_TEXT: Record<string, string> = {
   zahlung: "Zahlung", zugang_login: "Zugang & Login", termin: "Termin",
   unterlagen: "Unterlagen", status_frage: "Statusfrage", neuinteresse: "Neuinteresse",
   vertrieb_komplex: "Vertrieb (komplex)", kuendigung: "Kündigung", beschwerde: "Beschwerde",
-  rechtlich: "Rechtliches", werbung_newsletter: "Werbung", intern: "Intern", sonstiges: "Sonstiges",
+  rechtlich: "Rechtliches", abmeldung: "Abmeldung (Stopp)", werbung_newsletter: "Werbung", intern: "Intern", sonstiges: "Sonstiges",
 };
 const AKTION_TEXT: Record<string, [string, string]> = {
   auto_beantwortet: ["automatisch beantwortet", "gut"],

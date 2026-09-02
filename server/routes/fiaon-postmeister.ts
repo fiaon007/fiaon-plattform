@@ -77,7 +77,7 @@ const POSTFAECHER: { adresse: string; modus: Modus; gruss: string }[] = [
 const KATEGORIEN = [
   "zahlung", "zugang_login", "termin", "unterlagen", "status_frage",
   "neuinteresse", "vertrieb_komplex", "kuendigung", "beschwerde", "rechtlich",
-  "werbung_newsletter", "intern", "sonstiges",
+  "abmeldung", "werbung_newsletter", "intern", "sonstiges",
 ] as const;
 /** Diese Kategorien dürfen — je nach Postfach-Modus — automatisch antworten. */
 const AUTO_SICHER = new Set(["zahlung", "zugang_login", "termin", "unterlagen", "status_frage", "neuinteresse"]);
@@ -237,6 +237,7 @@ Ordne die Mail ein und formuliere — wenn möglich — eine versandfertige Antw
 
 KATEGORIEN (genau eine): ${KATEGORIEN.join(", ")}.
 - vertrieb_komplex = individuelle Vertriebs-/Preisverhandlung, Geschäftskunden-Sonderwünsche, Presse/Partner.
+- abmeldung = der Absender will KEINE weiteren E-Mails/Erinnerungen/Angebote von uns („Stopp", „keine Mails mehr", „abmelden", „hören Sie auf") — OHNE ein laufendes Abo zu kündigen (sonst kuendigung).
 - werbung_newsletter = Werbung, Newsletter, Kaltakquise an uns.
 - intern = Absender aus dem eigenen Haus oder Dienstleister-Systemmail.
 
@@ -378,6 +379,47 @@ async function mailVerarbeiten(postfachDef: typeof POSTFAECHER[number], gmailId:
     if (urteil.kategorie === "werbung_newsletter") {
       await nachrichtLabeln(postfach, gmailId, [await labelSicherstellen(postfach, "FIAON/Werbung")], ["UNREAD"]);
       return fertig({ ...basis, ...urteil, aktion: "geordnet", person_id: kunde?.person_id, ref: kunde?.ref });
+    }
+
+    // ── ABMELDUNG (Auftrag fiaon-c7, 02.09.): „Stopp" wird sofort wahr —
+    // Werbesperre an der Person, kurze feste Bestätigung (kein KI-Text, damit
+    // hier nichts Falsches steht), Label, Vermerk. Pflichtmails (Zahlung,
+    // Termin) bleiben davon unberührt — die Frequenzbremse liest die Sperre.
+    if (urteil.kategorie === "abmeldung" && !opts.nurOrdnen) {
+      if (kunde?.person_id) {
+        await sqlPool`ALTER TABLE fiaon_persons ADD COLUMN IF NOT EXISTS werbung_gesperrt_am TIMESTAMPTZ`.catch(() => {});
+        await sqlPool`
+          UPDATE fiaon_persons SET werbung_gesperrt_am = COALESCE(werbung_gesperrt_am, NOW())
+          WHERE id = ${Number(kunde.person_id)}
+        `.catch((e) => console.error("[POSTMEISTER] Werbesperre:", String(e).slice(0, 120)));
+      }
+      const anrede = kunde?.name ? `Guten Tag ${kunde.name},` : "Guten Tag,";
+      const text = `${anrede}
+
+verstanden — wir haben Sie ab sofort aus unseren Erinnerungen und Angeboten herausgenommen. Sie bekommen von uns nur noch Nachrichten, die einen laufenden Vorgang betreffen (zum Beispiel eine Zahlungsbestätigung oder einen vereinbarten Termin).
+
+Sollten Sie es sich später anders überlegen, genügt eine kurze Antwort auf diese E-Mail.
+
+${postfachDef.gruss}`;
+      let aktionAbmeldung = "geordnet";
+      if (postfachDef.modus === "auto" || postfachDef.modus === "hybrid") {
+        await antwortSenden(postfach, mail, text);
+        await nachrichtLabeln(postfach, gmailId, [await labelSicherstellen(postfach, "FIAON/abmeldung"), await labelSicherstellen(postfach, "FIAON/Auto-beantwortet")], ["UNREAD"]);
+        aktionAbmeldung = "auto_beantwortet";
+      } else {
+        const draftId = await entwurfAnlegen(postfach, mail, text);
+        await sqlPool`UPDATE fiaon_postmeister SET antwort_draft_id = ${draftId || null} WHERE id = ${anspruch[0].id}`.catch(() => {});
+        await nachrichtLabeln(postfach, gmailId, [await labelSicherstellen(postfach, "FIAON/abmeldung"), await labelSicherstellen(postfach, "FIAON/Entwurf-wartet")]);
+        aktionAbmeldung = "entwurf";
+      }
+      if (kunde?.ref) {
+        await sqlPool`
+          INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
+          VALUES (${kunde.ref}, ${kunde.person_id ?? null}, NULL, 'Postmeister', 'system',
+                  ${`Kunde bittet um Stopp der E-Mails (${postfach}) — Werbesperre gesetzt, ${aktionAbmeldung === "auto_beantwortet" ? "Bestätigung gesendet" : "Bestätigungsentwurf liegt vor"}.`})
+        `.catch(() => {});
+      }
+      return fertig({ ...basis, ...urteil, aktion: aktionAbmeldung, antwort: text, person_id: kunde?.person_id, ref: kunde?.ref, begruendung: "Abmeldewunsch — Werbesperre gesetzt" });
     }
 
     // Kategorie-Label immer.

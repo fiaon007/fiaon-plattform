@@ -24,6 +24,7 @@ import { verifyNumberToken, markNumberUpdated } from "../fiaon-number-update";
 import { bindePersonAnAntrag } from "../fiaon-person-model";
 import { BANK } from "@shared/fiaon-bank";
 import { zahlungsauftragFinden, sofortUrlFuer } from "../lib/fiaon-zahlungsauftrag";
+import { zahlwegVorrangLesen } from "../mail/motor";
 import {
   LOGIN_ACCESS_STATUSES,
   LOGIN_CODES,
@@ -1055,7 +1056,12 @@ router.get("/payment-order/:paymentRef", async (req, res) => {
     // 02.09.2026: Bestellung ODER Monatsrate (FIAON-XXXXXX-N) — eine Seite, ein QR-Code.
     const z = await zahlungsauftragFinden(req.params.paymentRef);
     if (!z) return res.status(404).json({ ok: false, error: "Bestellung nicht gefunden" });
-    res.json({ ok: true, ...z, sofortUrl: sofortUrlFuer(z.paymentReference), bank: FIAON_BANK_DETAILS });
+    // 02.09.2026: Derselbe Schalter, der in den Mails die Knopfreihenfolge dreht,
+    // muss auch hier gelten — sonst holt die Mail den Kunden über die Überweisung
+    // ab und die Zahlungsseite schickt ihn doch in die Sofortzahlung, deren Geld
+    // bei GoCardless auf dem gesperrten Auszahlungskonto liegen bleibt.
+    const sofortVorrang = await zahlwegVorrangLesen();
+    res.json({ ok: true, ...z, sofortUrl: sofortUrlFuer(z.paymentReference), sofortVorrang, bank: FIAON_BANK_DETAILS });
   } catch (err) {
     console.error("[FIAON-PAYMENT] payment-order/:ref:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });

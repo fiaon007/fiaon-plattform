@@ -139,8 +139,8 @@ export const FACHWISSEN: Fakt[] = [
   {
     key: "mandat-und-provision", bereich: "haus",
     titel: "Mandat, Provision, Arbeitsliste",
-    text: "Ein Mandat entsteht mit dem erledigten Startgespräch, nicht mit dem Verkauf. Die Provision entsteht bei der ZAHLUNG — genau einmal je Kunde und Rate, nie beim Klick auf „Ich habe bezahlt“. Die Arbeitsliste zeigt sechs Kunden; der Bestand eines Mitarbeiters ist auf 500 Mandate begrenzt. Vor dem Mandat besitzt niemand einen Kunden: Die Arbeitsliste zieht aus dem gemeinsamen Pool, ein nicht bearbeiteter Kunde fällt nach drei Tagen zurück.",
-    stand: "2026-08-25", quelle: "Entscheidungsregister E-066 (Mandate), Kundenpool 25.08.2026, Academy Kapitel „Die Provision entsteht bei der Zahlung“",
+    text: "Ein Mandat gehört dem Mitarbeiter, der den Kunden zur ZAHLUNG gebracht hat (eigene Provision) — nicht dem, der das Startgespräch führt: Das Startgespräch bringt eine Onboarding-Provision, aber kein Mandat (E-066, 24.08.2026). Die Provision entsteht bei der Zahlung — 25 % je bezahlter Rate (plus 5 % Academy), genau einmal je Kunde und Rate, nie beim Klick auf „Ich habe bezahlt“. Die Arbeitsliste zeigt sechs Kunden; der Bestand eines Mitarbeiters ist auf 500 Mandate begrenzt. Vor dem Mandat besitzt niemand einen Kunden: Die Arbeitsliste zieht aus dem gemeinsamen Pool, ein nicht bearbeiteter Kunde fällt nach drei Tagen zurück.",
+    stand: "2026-08-25", quelle: "Entscheidungsregister E-066 (Mandate, 24.08.2026: Provisionsempfänger = Mandatsinhaber; Startgespräch ≠ Mandat), Kundenpool 25.08.2026, Academy Kapitel „Die Provision entsteht bei der Zahlung“",
     worte: ["mandat", "provision", "arbeitsliste", "bestand", "pool", "kundenpool", "500", "rueckfall", "verdienst"],
   },
   {

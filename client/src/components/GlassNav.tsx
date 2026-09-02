@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import KarrierePopup from "@/components/site/KarrierePopup";
 import { UI } from "@shared/fiaon-sprache";
-import { schwesterPfad } from "@shared/fiaon-seo-seiten";
+import { schwesterKurz as schwesterPfad } from "@shared/fiaon-seo-kurz";
 import { useSprache, inSprache } from "@/i18n/sprache";
 
 interface GlassNavProps {

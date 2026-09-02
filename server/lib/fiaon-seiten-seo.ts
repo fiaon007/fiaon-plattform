@@ -196,7 +196,12 @@ function weiterlesen(s: SeoSeite): string {
   const ziele = (s.weiter ?? []).map((p) => seoSeite(en ? (schwesterPfad(p, "en") ?? p) : p)).filter((z): z is SeoSeite => !!z);
   if (!ziele.length) return "";
   const titel = en ? "Read on" : "Weiterlesen";
-  return `<nav aria-label="${titel}"><h2>${titel}</h2><ul>${ziele.map((z) => `<li>${link(z.pfad, z.h1.replace(/\s+/g, " "))} – ${esc(z.beschreibung)}</li>`).join("")}</ul></nav>`;
+  // 03.09.2026 (E-092): NUR der Linktext. Vorher stand hinter jedem Link die
+  // vollständige Meta-Description der Zielseite — dieselben Sätze damit auf bis
+  // zu 26 Seiten. Der Seobility-Bericht vom 02.09. zählte daraus 781 Textblöcke,
+  // die auf mehr als einer Seite vorkommen; das war der einzelne größte
+  // Inhaltsfehler der Website. Eine Verweisliste ist Navigation, kein Inhalt.
+  return `<nav aria-label="${titel}"><h2>${titel}</h2><ul>${ziele.map((z) => `<li>${link(z.pfad, z.h1.replace(/\s+/g, " "))}</li>`).join("")}</ul></nav>`;
 }
 
 /** Navigation und Fußzeile, wie sie auf jeder gerenderten Seite stehen — auch für den Ratgeber. */

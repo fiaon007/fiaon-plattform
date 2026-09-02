@@ -11,11 +11,14 @@
 // echter 3D-Karte, Gyroskop-Kern, Glasplatten und ruhiger Schlusskugel.
 // Preise kommen aus dem Paketkatalog. Marke: FIAON — sonst nichts.
 // ═══════════════════════════════════════════════════════════════════════════
-import { useCallback, useState } from "react";
+import { useCallback, useState, lazy, Suspense } from "react";
 import { Dunkel, Block, Karten, Kennzahlen, Schritte, Glas, Fragen, Zwischenruf, Abschluss, Knopf, Auf, Licht } from "@/components/site/DunkleBuehne";
 import { FlugHero } from "@/components/site/FlugHero";
-import ArasCore from "@/components/home3d/ArasCore";
-import SchichtenSzene from "@/components/home3d/SchichtenSzene";
+// 03.09.2026 (E-092): Die beiden Szenen der Startseite werden nachgeladen.
+// Sie stehen weit unter der ersten Bildschirmhöhe, ziehen aber three.js (520 kB)
+// mit — vorher lag die Bibliothek im Vorlade-Kopf JEDER Seite.
+const ArasCore = lazy(() => import("@/components/home3d/ArasCore"));
+const SchichtenSzene = lazy(() => import("@/components/home3d/SchichtenSzene"));
 import { paket as paketVon, SCHUFA_PREIS_EURO } from "@shared/fiaon-pakete";
 
 const preisText = (key: string) => ((paketVon(key)?.preisCents ?? 0) / 100).toFixed(2).replace(".", ",");
@@ -137,7 +140,7 @@ export default function FiaonHome() {
       <Block id="aras" pille="So funktioniert es" titel={<>Drei Schichten. <span className="dk-verlauf">Ein Weg.</span></>}
              lead="Score-Apps zeigen Ihnen eine Zahl. FIAON geht drei Schritte weiter: Wir zeigen, was dahintersteht, wir ändern es mit Ihnen – und wir öffnen danach die Tür. Im Kern arbeitet die FIAON-Analyse, gebaut für Bonität im DACH-Raum.">
         <div className="dk-zweispaltig" style={{ marginTop: 56 }}>
-          <Auf><div className="dk-szene gross"><ArasCore className="absolute inset-0" /></div></Auf>
+          <Auf><div className="dk-szene gross"><Suspense fallback={null}><ArasCore className="absolute inset-0" /></Suspense></div></Auf>
           <div style={{ display: "grid", gap: 18 }}>
             <Auf><Glas tag="Schicht 1" titel="Einsicht – zuerst Klarheit.">FIAON beantragt Ihre Auskunft bei SCHUFA, KSV oder CRIF und liest Ihren Kontoauszug. Sie sehen Ihren Wert als Bogen, jeden Eintrag erklärt, Ihre Einnahmen, Fixkosten und Ihren monatlichen Spielraum.</Glas></Auf>
             <Auf verzoegerung={100}><Glas tag="Schicht 2" titel="Aktion – dann Bewegung.">Löschanträge, Berichtigungen, Widersprüche, Ratenvereinbarungen: vorbereitet, anwaltlich geprüft, mit einem Klick versendet. FIAON erinnert Sie an jede Frist und verfolgt jede Antwort.</Glas></Auf>
@@ -161,7 +164,7 @@ export default function FiaonHome() {
               { tag: "04", titel: "Ein Mensch am Telefon", text: "Jeder Kunde beginnt mit einem Startgespräch. Danach kennen Sie Ihren Ansprechpartner mit Namen – und er kennt Ihre Akte." },
             ].map((k, i) => <Auf key={k.tag} verzoegerung={i * 80}><Glas tag={k.tag} titel={k.titel}>{k.text}</Glas></Auf>)}
           </div>
-          <Auf verzoegerung={150}><div className="dk-szene gross"><SchichtenSzene namen={["Anwaltlich geprüft", "SEPA-Lastschrift", "EU-Server"]} className="absolute inset-0" /></div></Auf>
+          <Auf verzoegerung={150}><div className="dk-szene gross"><Suspense fallback={null}><SchichtenSzene namen={["Anwaltlich geprüft", "SEPA-Lastschrift", "EU-Server"]} className="absolute inset-0" /></Suspense></div></Auf>
         </div>
       </Block>
 

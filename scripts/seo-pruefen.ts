@@ -61,6 +61,8 @@ for (const r of new Set(routen)) if (!SEO_SEITEN[r] && r !== "/ratgeber" && r !=
 // Generierte FAQ aktuell?
 try { execSync("npx tsx scripts/seo-fragen-erzeugen.ts --pruefen", { cwd: WURZEL, stdio: "pipe" }); }
 catch { f("shared/fiaon-seo-fragen.ts ist veraltet — npx tsx scripts/seo-fragen-erzeugen.ts"); }
+try { execSync("npx tsx scripts/seo-kurz-erzeugen.ts --pruefen", { cwd: WURZEL, stdio: "pipe" }); }
+catch { f("shared/fiaon-seo-kurz.ts ist veraltet — npx tsx scripts/seo-kurz-erzeugen.ts"); }
 
 console.log(`Tabelle: ${Object.keys(SEO_SEITEN).length} Seiten, ${seoIndexierbar().length} indexierbar.`);
 

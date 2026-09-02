@@ -85,6 +85,6 @@ const PFEILER_STANDARD = ["/schufa-eintrag-loeschen", "/bonitaet-verbessern", "/
 function pfeilerLinks(kategorie?: string): string {
   const pfade = PFEILER_JE_KATEGORIE[kategorie ?? ""] ?? PFEILER_STANDARD;
   const eintraege = pfade.map((p) => SEO_SEITEN[p]).filter(Boolean)
-    .map((s) => `<li><a href="${esc(s.pfad)}">${esc(s.h1)}</a> – ${esc(s.beschreibung)}</li>`).join("");
+    .map((s) => `<li><a href="${esc(s.pfad)}">${esc(s.h1)}</a></li>`).join("");   // 03.09.2026 (E-092): ohne Beschreibung — sie stand sonst wortgleich unter jedem Ratgeber.
   return `<nav aria-label="Weiterlesen"><h2>Weiterlesen</h2><ul>${eintraege}</ul></nav>`;
 }

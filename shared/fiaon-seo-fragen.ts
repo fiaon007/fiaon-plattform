@@ -9,7 +9,7 @@
 // Neu erzeugen:   npx tsx scripts/seo-fragen-erzeugen.ts
 // Nur prüfen:     npx tsx scripts/seo-fragen-erzeugen.ts --pruefen
 //
-// Seiten: / (6), /was-ist-fiaon (6), /en/what-is-fiaon (6), /privatkunden (8), /en/personal (8), /business (5), /en/business (5), /preise (6), /en/pricing (6), /en (4), /kreditkarte (5), /en/credit-card (5), /oesterreich (5), /schweiz (5), /sicherheit (10), /kontakt (5), /en/contact (5), /karriere (5), /partner (3), /presse (3), /investoren (4), /datenraum (3), /plattform-konzept (5), /fiaon-erfahrungen (8), /termin (6), /en/book-a-call (6), /vergleich (5), /en/compare (5), /ueber-uns (5), /en/about (5), /transparenz (4), /status (5), /werkzeuge (4), /werkzeuge/kreditrechner (5), /werkzeuge/umschuldung (5), /werkzeuge/schulden-check (5), /werkzeuge/widerspruch (5), /werkzeuge/mahnbescheid (5), /werkzeuge/ratenplan (5), /werkzeuge/inkasso-antwort (5), /werkzeuge/basiskonto (5), /werkzeuge/pfaendungsrechner (5), /werkzeuge/dispo-rechner (5), /werkzeuge/mahngebuehren (5), /werkzeuge/kartenkosten (5), /werkzeuge/schuldenplan (5), /kredit-ohne-schufa (6), /schufa-eintrag-loeschen (5), /bonitaet-verbessern (6), /auskunfteien (5), /schufa-score-verstehen (6), /bonitaetsauskunft-beantragen (7), /inkasso-brief-erhalten (6), /eintrag-verjaehrung (6), /girokonto-trotz-negativer-bonitaet (7), /ratenzahlung-und-bonitaet (6), /selbstauskunft-checkliste (6), /schufa-neutral-anfragen (6)
+// Seiten: / (6), /was-ist-fiaon (6), /en/what-is-fiaon (6), /privatkunden (8), /en/personal (8), /business (5), /en/business (5), /preise (6), /en/pricing (6), /en (4), /kreditkarte (5), /en/credit-card (5), /oesterreich (5), /schweiz (5), /sicherheit (11), /en/security (11), /kontakt (5), /en/contact (5), /karriere (5), /partner (3), /presse (3), /investoren (4), /datenraum (3), /plattform-konzept (5), /fiaon-erfahrungen (8), /termin (6), /en/book-a-call (6), /vergleich (5), /en/compare (5), /ueber-uns (5), /en/about (5), /transparenz (4), /en/transparency (4), /status (5), /werkzeuge (4), /werkzeuge/kreditrechner (5), /werkzeuge/umschuldung (5), /werkzeuge/schulden-check (5), /werkzeuge/widerspruch (5), /werkzeuge/mahnbescheid (5), /werkzeuge/ratenplan (5), /werkzeuge/inkasso-antwort (5), /werkzeuge/basiskonto (5), /werkzeuge/pfaendungsrechner (5), /werkzeuge/dispo-rechner (5), /werkzeuge/mahngebuehren (5), /werkzeuge/kartenkosten (5), /werkzeuge/schuldenplan (5), /kredit-ohne-schufa (6), /schufa-eintrag-loeschen (5), /bonitaet-verbessern (6), /auskunfteien (5), /schufa-score-verstehen (6), /bonitaetsauskunft-beantragen (7), /inkasso-brief-erhalten (6), /eintrag-verjaehrung (6), /girokonto-trotz-negativer-bonitaet (7), /ratenzahlung-und-bonitaet (6), /selbstauskunft-checkliste (6), /schufa-neutral-anfragen (6)
 // ═══════════════════════════════════════════════════════════════════════════
 export type SeoFrage = { f: string; a: string };
 
@@ -392,6 +392,10 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
       "a": "Nein. Sie laden einen Kontoauszug als Foto oder PDF hoch. Die Kontoanbindung (Open Banking) kommt als Option – ausdrücklich von Ihnen freigeschaltet, jederzeit widerrufbar."
     },
     {
+      "f": "Wer ist für den Datenschutz verantwortlich?",
+      "a": "FIAON LTD, 128 City Road, London, EC1V 2NX, United Kingdom. Datenschutzanfragen an support@fiaon.com. Zuständige Aufsicht für Kunden in Deutschland: die Landesdatenschutzbehörde Ihres Wohnsitzes."
+    },
+    {
       "f": "Werden meine Daten für KI-Training verwendet?",
       "a": "Nein. Personenbezogene Daten werden nicht zum Training von Modellen genutzt. Anonymisierte Erfahrungen (welche Schreiben wirken) verbessern Vorlagen – ohne Namen, ohne Referenzen."
     },
@@ -402,6 +406,52 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     {
       "f": "Kann ich FIAON nutzen, ohne Unterlagen hochzuladen?",
       "a": "Die Auskunft lässt sich mit Vollmacht beschaffen; für die Finanzauswertung braucht es den Kontoauszug, für Konto und Karte den Ausweis. Was Sie nicht hochladen, bleibt außen vor – und wir sagen, was dann nicht geht."
+    }
+  ],
+  "/en/security": [
+    {
+      "f": "May a bank query my SCHUFA data without my knowledge?",
+      "a": "Only with a legal basis — usually your consent in the application (SCHUFA clause) or a legitimate interest when a contract is being initiated. Every query appears as an enquiry in your data copy, with date and recipient."
+    },
+    {
+      "f": "May my landlord demand a credit report?",
+      "a": "They may ask for it; you do not have to provide it — in practice it is common, though. Provide the credit report for landlords (without details), never the full data copy."
+    },
+    {
+      "f": "May a debt collector report my data to SCHUFA?",
+      "a": "Only under the conditions of Section 31(2) BDSG: a due, undisputed claim, two reminders, a notice of the report. If one of these is missing, the report is unlawful."
+    },
+    {
+      "f": "May FIAON pass my report on to third parties?",
+      "a": "No. FIAON passes data on only if you approve it for a specific purpose — for instance the documents for a card application to the card partner. Never for advertising, never sold."
+    },
+    {
+      "f": "May I demand the deletion of my data at FIAON?",
+      "a": "At any time (Art. 17 GDPR). After the contract ends we delete report and documents; statutory retention obligations for invoices remain (ten years, accounting data only)."
+    },
+    {
+      "f": "May a credit bureau use data from social networks?",
+      "a": "Not under the credit bureaus' code of conduct; the draft scoring law (2024) is meant to prohibit it explicitly, as well as data on origin, health or address as a score criterion."
+    },
+    {
+      "f": "Does FIAON see my online banking?",
+      "a": "No. You upload a bank statement as a photo or PDF. Account connection (open banking) is coming as an option — explicitly enabled by you, revocable at any time."
+    },
+    {
+      "f": "Who is responsible for data protection?",
+      "a": "FIAON LTD, 128 City Road, London, EC1V 2NX, United Kingdom. Data protection requests to support@fiaon.com. Competent supervisory authority for customers in Germany: the state data protection authority of your place of residence."
+    },
+    {
+      "f": "Is my data used for AI training?",
+      "a": "No. Personal data is not used to train models. Anonymised experience (which letters work) improves templates — without names, without references."
+    },
+    {
+      "f": "What happens in the event of a data breach?",
+      "a": "Notification to the supervisory authority within 72 hours and information to those affected if there is a risk (Art. 33, 34 GDPR). There is a plan for that, not improvisation."
+    },
+    {
+      "f": "Can I use FIAON without uploading documents?",
+      "a": "The report can be obtained with authorisation; the financial analysis needs the bank statement, account and card need your ID. What you do not upload stays out — and we tell you what then is not possible."
     }
   ],
   "/kontakt": [
@@ -742,6 +792,24 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     {
       "f": "Was veröffentlicht FIAON nicht?",
       "a": "Keine Bewertungen, die es noch nicht gibt; keine Umsatzzahlen außerhalb des Datenraums für Investoren; keine Einzelfälle ohne Freigabe der Kunden. Und keine Zahl ohne Definition."
+    }
+  ],
+  "/en/transparency": [
+    {
+      "f": "Why does FIAON publish metrics?",
+      "a": "Because trust has to be verifiable. Anyone searching for “experiences” otherwise finds only claims. Here are figures with definition, date and source — and, honestly, what has not yet been reliably measured."
+    },
+    {
+      "f": "Where do the figures come from?",
+      "a": "From the platform's database, with the same definition the management uses internally: paying customers only with bank-confirmed payment and without test accounts, instalments only with a payment date. Rounded down, never estimated."
+    },
+    {
+      "f": "How often is it updated?",
+      "a": "Every four weeks, each time with a new date. The four north-star metrics follow as soon as they are reliable over at least one quarter — the aim is a quarterly report."
+    },
+    {
+      "f": "What does FIAON not publish?",
+      "a": "No reviews that do not exist yet; no revenue figures outside the data room for investors; no individual cases without the customers' approval. And no figure without a definition."
     }
   ],
   "/status": [

@@ -1,0 +1,126 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// /sicherheit · /en/security — das Wörterbuch der Seite (02.09.2026)
+// Beide Sprachen Schlüssel für Schlüssel; die Seite liest über useWoerter().
+// Der FAQ-Generator teilt an „const en".
+// ═══════════════════════════════════════════════════════════════════════════
+const de = {
+  metaTitel: "Datenschutz & Sicherheit · FIAON",
+  metaBeschreibung: "Wie FIAON mit den sensibelsten Daten umgeht, die es über Sie gibt: EU-Hosting, Verschlüsselung, Vollmacht, Freigabe vor jedem Schreiben, Löschung auf Wunsch. Plus Datenschutz-Check: Wer darf was mit Ihren Bonitätsdaten?",
+  pille: "Datenschutz & Sicherheit", h1a: "Das sensibelste Dokument ", h1b: "über Sie.",
+  lead: "Ihre Bonitätsauskunft sagt mehr über Sie als jedes Zeugnis. Deshalb ist Sicherheit bei FIAON keine Seite im Impressum, sondern der Bauplan: nichts ohne Ihre Vollmacht, nichts ohne Ihre Freigabe, nichts länger als nötig.",
+  check: "Datenschutz-Check", prinzipien: "Die Prinzipien",
+  zahlen: [{ wert: "EU", label: "Server in der Europäischen Union, DSGVO" }, { wert: "TLS 1.3", label: "Verschlüsselung bei Übertragung, AES bei Ablage" }, { wert: "0", label: "Datensätze verkauft oder zu Werbezwecken geteilt" }, { wert: "1", label: "Klick zur Löschung Ihrer Akte nach Vertragsende" }],
+  prinzPille: "Fünf Prinzipien", prinzH2a: "So gehen wir ", prinzH2b: "mit Ihren Daten um.",
+  prinz: [
+    { tag: "1 · Vollmacht", titel: "Nichts ohne Ihre Unterschrift", text: "FIAON beschafft Auskünfte nur mit Ihrer digitalen Vollmacht – und nur bei den Stellen, die Sie freigeben. Keine Abfrage auf Verdacht." },
+    { tag: "2 · Freigabe", titel: "Kein Schreiben ohne Sie", text: "Jedes Schreiben sehen Sie vor dem Versand. Sie geben frei, FIAON versendet. Nichts verlässt das Haus, was Sie nicht gelesen haben." },
+    { tag: "3 · Zweckbindung", titel: "Nur wofür es gedacht ist", text: "Ihre Daten dienen Ihrer Akte. Nicht der Werbung, nicht Partnern, nicht Statistiken mit Ihrem Namen. Anonymisierte Erfahrungen fließen in bessere Schreiben – ohne Personenbezug." },
+    { tag: "4 · Zugriff", titel: "Wer darf hineinsehen", text: "Ihr Ansprechpartner und die Mitarbeiter an Ihrer Akte – jeder Zugriff protokolliert. Die Geschäftsführung sieht Akten nur auf Ihren Wunsch oder bei Beschwerden." },
+    { tag: "5 · Löschung", titel: "Ihre Daten, Ihr Ende", text: "Nach Vertragsende löschen wir Auskunft und Unterlagen auf Wunsch vollständig. Sie können jederzeit eine Kopie Ihrer Akte anfordern – als Datei, in 30 Tagen." },
+    { tag: "Zahlungen", titel: "SEPA über einen verifizierten Kreditor", text: "Keine Kartendaten bei FIAON. Lastschriften laufen über einen verifizierten SEPA-Kreditor; jede Rate steht im Zahlungskalender Ihres Bereichs." },
+  ],
+  technikPille: "Technik", technikH2a: "Unter der ", technikH2b: "Haube.",
+  technik: [
+    ["Hosting", "Server in der EU, Betreiber mit DSGVO-Auftragsverarbeitungsvertrag. Keine Datenübermittlung in Drittländer für Kundendaten."],
+    ["Übertragung", "Ausschließlich über HTTPS (TLS 1.3), HSTS erzwungen; Sitzungen mit signierten, ablaufenden Cookies."],
+    ["Ablage", "Datenbank verschlüsselt; Unterlagen (Ausweis, Kontoauszug) getrennt vom Profil gespeichert; tägliche Sicherungen, verschlüsselt."],
+    ["Zugang", "Kundenbereich mit Passwort und Anmelde-Codes; Mitarbeiterzugänge rollenbasiert, jede Aktion protokolliert; Admin-Bereich zusätzlich mit Code gesichert."],
+    ["Künstliche Intelligenz", "Der FIAON-Assistent auf der Kontaktseite sieht keine Kundendaten. Die Analyse von Auskünften läuft auf europäischer Infrastruktur; Entscheidungen trifft ein Mensch."],
+    ["Aufbewahrung", "Akte bis Vertragsende plus 90 Tage (Widerruf, Rückfragen), dann Löschung; Rechnungsdaten zehn Jahre nach Handels- und Steuerrecht."],
+  ] as [string, string][],
+  checkPille: "Werkzeug · Datenschutz-Check", checkH2a: "Wer darf was ", checkH2b: "mit Ihren Daten?",
+  checkLead: "Sechs Fragen, die uns Kunden immer wieder stellen. Klicken Sie auf eine – die Antwort nennt die Rechtsgrundlage.",
+  checks: [
+    { f: "Darf eine Bank meine SCHUFA-Daten ohne mein Wissen abfragen?", a: "Nur mit Rechtsgrundlage – in der Regel Ihrer Einwilligung im Antrag (SCHUFA-Klausel) oder einem berechtigten Interesse bei Vertragsanbahnung. Jede Abfrage steht als Anfrage in Ihrer Datenkopie, mit Datum und Empfänger." },
+    { f: "Darf mein Vermieter eine Bonitätsauskunft verlangen?", a: "Er darf sie erbitten, Sie müssen sie nicht geben – praktisch ist sie aber üblich. Geben Sie die Bonitätsauskunft für Vermieter (ohne Details), nie die vollständige Datenkopie." },
+    { f: "Darf ein Inkassobüro meine Daten an die SCHUFA melden?", a: "Nur unter den Voraussetzungen des § 31 Abs. 2 BDSG: fällige, unbestrittene Forderung, zwei Mahnungen, Hinweis auf die Meldung. Fehlt eines davon, ist die Meldung unzulässig." },
+    { f: "Darf FIAON meine Auskunft an Dritte weitergeben?", a: "Nein. FIAON gibt Daten nur weiter, wenn Sie es für einen konkreten Zweck freigeben – etwa die Unterlagen für einen Kartenantrag an den Kartenpartner. Nie zu Werbezwecken, nie verkauft." },
+    { f: "Darf ich die Löschung meiner Daten bei FIAON verlangen?", a: "Jederzeit (Art. 17 DSGVO). Nach Vertragsende löschen wir Auskunft und Unterlagen; gesetzliche Aufbewahrungspflichten für Rechnungen bleiben (zehn Jahre, nur Buchhaltungsdaten)." },
+    { f: "Darf eine Auskunftei Daten aus sozialen Netzwerken nutzen?", a: "Nach den Verhaltensregeln der Auskunfteien nicht; der Gesetzentwurf zum Scoring (2024) soll das ausdrücklich verbieten, ebenso Daten über Herkunft, Gesundheit oder Anschrift als Score-Merkmal." },
+  ],
+  rechtePille: "Ihre Rechte bei FIAON", rechteH2a: "Drei Wege, ", rechteH2b: "sofort.",
+  rechte: [
+    { titel: "Auskunft (Art. 15)", text: "Kopie Ihrer Akte als Datei: im Kundenbereich unter „Mein Konto“ oder per E-Mail an support@fiaon.com. Antwort innerhalb von 30 Tagen, meist in Tagen." },
+    { titel: "Berichtigung (Art. 16)", text: "Falsche Angaben in Ihrem Profil ändern Sie selbst; Angaben in der Akte korrigiert Ihr Ansprechpartner auf Zuruf." },
+    { titel: "Löschung (Art. 17)", text: "Nach Vertragsende mit einem Klick unter „Abo & Zahlungen“ oder per E-Mail. Bestätigung innerhalb von 30 Tagen." },
+  ],
+  weiterlesen: "Zum Weiterlesen",
+  weiter: [
+    { href: "/fiaon-erfahrungen", t: "So arbeitet FIAON", s: "Ablauf, Preise, ehrliche Grenzen — und woran Sie unseriöse Anbieter erkennen." },
+    { href: "/bonitaetsauskunft-beantragen", t: "Bonitätsauskunft beantragen", s: "Was mit Ihren Daten passiert, Schritt für Schritt — vom Antrag bis zum Prüfbericht." },
+  ],
+  fragenPille: "Häufige Fragen",
+  fragen: [
+    { f: "Sieht FIAON mein Online-Banking?", a: "Nein. Sie laden einen Kontoauszug als Foto oder PDF hoch. Die Kontoanbindung (Open Banking) kommt als Option – ausdrücklich von Ihnen freigeschaltet, jederzeit widerrufbar." },
+    { f: "Wer ist für den Datenschutz verantwortlich?", a: "FIAON LTD, 128 City Road, London, EC1V 2NX, United Kingdom. Datenschutzanfragen an support@fiaon.com. Zuständige Aufsicht für Kunden in Deutschland: die Landesdatenschutzbehörde Ihres Wohnsitzes." },
+    { f: "Werden meine Daten für KI-Training verwendet?", a: "Nein. Personenbezogene Daten werden nicht zum Training von Modellen genutzt. Anonymisierte Erfahrungen (welche Schreiben wirken) verbessern Vorlagen – ohne Namen, ohne Referenzen." },
+    { f: "Was passiert bei einer Datenpanne?", a: "Meldung an die Aufsichtsbehörde innerhalb von 72 Stunden und Information der Betroffenen, wenn ein Risiko besteht (Art. 33, 34 DSGVO). Dafür gibt es einen Plan, keine Improvisation." },
+    { f: "Kann ich FIAON nutzen, ohne Unterlagen hochzuladen?", a: "Die Auskunft lässt sich mit Vollmacht beschaffen; für die Finanzauswertung braucht es den Kontoauszug, für Konto und Karte den Ausweis. Was Sie nicht hochladen, bleibt außen vor – und wir sagen, was dann nicht geht." },
+  ],
+  zwischenrufA: "Fragen zum Datenschutz?", zwischenrufB: " Der Assistent kennt die Regeln; für Ihre Akte antwortet ein Mensch.",
+  kontakt: "Kontakt & Support", datenschutz: "Datenschutzerklärung",
+  abschlussA: "Sicherheit ist ", abschlussB: "kein Feature.", abschlussText: "Sie ist die Bedingung dafür, dass Sie uns das sensibelste Dokument über sich anvertrauen. Wir wissen das.",
+  jetztStarten: "Jetzt starten", diePlattform: "Die Plattform",
+};
+
+const en: typeof de = {
+  metaTitel: "Privacy & security · FIAON",
+  metaBeschreibung: "How FIAON handles the most sensitive data there is about you: EU hosting, encryption, authorisation, approval before every letter, deletion on request. Plus a privacy check: who may do what with your credit data?",
+  pille: "Privacy & security", h1a: "The most sensitive document ", h1b: "about you.",
+  lead: "Your credit report says more about you than any reference. That is why security at FIAON is not a page in the legal notice but the blueprint: nothing without your authorisation, nothing without your approval, nothing longer than necessary.",
+  check: "Privacy check", prinzipien: "The principles",
+  zahlen: [{ wert: "EU", label: "servers in the European Union, GDPR" }, { wert: "TLS 1.3", label: "encryption in transit, AES at rest" }, { wert: "0", label: "records sold or shared for advertising" }, { wert: "1", label: "click to delete your file after the contract ends" }],
+  prinzPille: "Five principles", prinzH2a: "How we handle ", prinzH2b: "your data.",
+  prinz: [
+    { tag: "1 · Authorisation", titel: "Nothing without your signature", text: "FIAON obtains reports only with your digital authorisation — and only from the bureaus you approve. No enquiry on suspicion." },
+    { tag: "2 · Approval", titel: "No letter without you", text: "You see every letter before it is sent. You approve, FIAON sends. Nothing leaves the house that you have not read." },
+    { tag: "3 · Purpose limitation", titel: "Only what it is meant for", text: "Your data serves your file. Not advertising, not partners, not statistics with your name. Anonymised experience flows into better letters — with no personal reference." },
+    { tag: "4 · Access", titel: "Who may look inside", text: "Your contact person and the staff working on your file — every access logged. The management sees files only at your request or in the event of a complaint." },
+    { tag: "5 · Deletion", titel: "Your data, your ending", text: "After the contract ends we delete report and documents completely on request. You can request a copy of your file at any time — as a file, within 30 days." },
+    { tag: "Payments", titel: "SEPA through a verified creditor", text: "No card data at FIAON. Direct debits run through a verified SEPA creditor; every instalment is shown in the payment calendar of your area." },
+  ],
+  technikPille: "Technology", technikH2a: "Under the ", technikH2b: "bonnet.",
+  technik: [
+    ["Hosting", "Servers in the EU, provider with a GDPR data processing agreement. No transfer of customer data to third countries."],
+    ["In transit", "Exclusively over HTTPS (TLS 1.3), HSTS enforced; sessions with signed, expiring cookies."],
+    ["At rest", "Database encrypted; documents (ID, bank statement) stored separately from the profile; daily backups, encrypted."],
+    ["Access", "Customer area with password and login codes; staff access role-based, every action logged; admin area additionally secured with a code."],
+    ["Artificial intelligence", "The FIAON assistant on the contact page sees no customer data. The analysis of reports runs on European infrastructure; decisions are made by a person."],
+    ["Retention", "File until the end of the contract plus 90 days (withdrawal, queries), then deletion; invoice data ten years under commercial and tax law."],
+  ],
+  checkPille: "Tool · privacy check", checkH2a: "Who may do what ", checkH2b: "with your data?",
+  checkLead: "Six questions customers ask us again and again. Click one — the answer names the legal basis.",
+  checks: [
+    { f: "May a bank query my SCHUFA data without my knowledge?", a: "Only with a legal basis — usually your consent in the application (SCHUFA clause) or a legitimate interest when a contract is being initiated. Every query appears as an enquiry in your data copy, with date and recipient." },
+    { f: "May my landlord demand a credit report?", a: "They may ask for it; you do not have to provide it — in practice it is common, though. Provide the credit report for landlords (without details), never the full data copy." },
+    { f: "May a debt collector report my data to SCHUFA?", a: "Only under the conditions of Section 31(2) BDSG: a due, undisputed claim, two reminders, a notice of the report. If one of these is missing, the report is unlawful." },
+    { f: "May FIAON pass my report on to third parties?", a: "No. FIAON passes data on only if you approve it for a specific purpose — for instance the documents for a card application to the card partner. Never for advertising, never sold." },
+    { f: "May I demand the deletion of my data at FIAON?", a: "At any time (Art. 17 GDPR). After the contract ends we delete report and documents; statutory retention obligations for invoices remain (ten years, accounting data only)." },
+    { f: "May a credit bureau use data from social networks?", a: "Not under the credit bureaus' code of conduct; the draft scoring law (2024) is meant to prohibit it explicitly, as well as data on origin, health or address as a score criterion." },
+  ],
+  rechtePille: "Your rights at FIAON", rechteH2a: "Three routes, ", rechteH2b: "immediately.",
+  rechte: [
+    { titel: "Access (Art. 15)", text: "A copy of your file as a document: in the customer area under “My account” or by e-mail to support@fiaon.com. Reply within 30 days, usually within days." },
+    { titel: "Rectification (Art. 16)", text: "You change incorrect details in your profile yourself; details in the file are corrected by your contact person on request." },
+    { titel: "Erasure (Art. 17)", text: "After the contract ends with one click under “Subscription & payments” or by e-mail. Confirmation within 30 days." },
+  ],
+  weiterlesen: "Read on",
+  weiter: [
+    { href: "/fiaon-erfahrungen", t: "How FIAON works", s: "Process, prices, honest limits — and how to recognise dubious providers." },
+    { href: "/bonitaetsauskunft-beantragen", t: "Requesting your credit report", s: "What happens to your data, step by step — from application to review report." },
+  ],
+  fragenPille: "Frequently asked questions",
+  fragen: [
+    { f: "Does FIAON see my online banking?", a: "No. You upload a bank statement as a photo or PDF. Account connection (open banking) is coming as an option — explicitly enabled by you, revocable at any time." },
+    { f: "Who is responsible for data protection?", a: "FIAON LTD, 128 City Road, London, EC1V 2NX, United Kingdom. Data protection requests to support@fiaon.com. Competent supervisory authority for customers in Germany: the state data protection authority of your place of residence." },
+    { f: "Is my data used for AI training?", a: "No. Personal data is not used to train models. Anonymised experience (which letters work) improves templates — without names, without references." },
+    { f: "What happens in the event of a data breach?", a: "Notification to the supervisory authority within 72 hours and information to those affected if there is a risk (Art. 33, 34 GDPR). There is a plan for that, not improvisation." },
+    { f: "Can I use FIAON without uploading documents?", a: "The report can be obtained with authorisation; the financial analysis needs the bank statement, account and card need your ID. What you do not upload stays out — and we tell you what then is not possible." },
+  ],
+  zwischenrufA: "Questions about privacy?", zwischenrufB: " The assistant knows the rules; for your file a person answers.",
+  kontakt: "Contact & support", datenschutz: "Privacy policy",
+  abschlussA: "Security is ", abschlussB: "not a feature.", abschlussText: "It is the condition for you entrusting us with the most sensitive document about yourself. We know that.",
+  jetztStarten: "Get started", diePlattform: "The platform",
+};
+
+export const SICHERHEIT_WOERTER = { de, en };

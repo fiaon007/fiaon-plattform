@@ -2631,3 +2631,106 @@ router.post("/admin/team/:id/gespraeche-auswerten", async (req: Request, res: Re
 });
 
 export default router;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE KUNDEN ZURÜCK ZU IHREN BETREUERN (03.09.2026, E-100)
+//
+// JUSTIN, wörtlich: „die 221 kunden zu deren betreuer, logisch - das darf NIE
+// wieder passieren!"
+//
+// WAS PASSIERT WAR: `betreuerVon` liefert den JÜNGSTEN dokumentierten Kontakt,
+// und `personAgentSynchronisieren` schrieb ihn über den bestehenden Betreuer —
+// bei jeder Zahlung neu. Wer zuletzt anrief, bekam den Kunden, auch wenn er
+// nur vertrat. Die Ursache ist seit dc3a360 behoben; hier wird der Schaden
+// zurückgedreht.
+//
+// DIE REGEL: Zuständig ist, wer die Betreuung BEGONNEN hat — der ERSTE
+// dokumentierte Kontakt. Nicht der letzte, nicht der lauteste.
+//
+// DREI AUSNAHMEN, die stehen bleiben:
+//   · Der erste Betreuer ist nicht mehr aktiv oder ein Testkonto → der Kunde
+//     bliebe sonst bei jemandem, den es nicht mehr gibt.
+//   · Der erste Kontakt kam aus dem Forderungsmanagement → das treibt Raten
+//     ein und betreut nicht (dieselbe Regel wie in fiaon-zuteilung.ts).
+//   · Zusammengeführte Personen.
+//
+// Jede Verschiebung wird im Kontaktverlauf festgehalten. `schreiben: false`
+// zeigt nur, was passieren würde.
+// ═══════════════════════════════════════════════════════════════════════════
+router.post("/admin/team/betreuer-zurueckgeben", async (req: Request, res: Response) => {
+  try {
+    const schreiben = req.body?.schreiben === true;
+    const zeilen = (await sqlPool`
+      WITH kontakt AS (
+        SELECT a.person_id, cl.agent_id, cl.created_at,
+               ROW_NUMBER() OVER (PARTITION BY a.person_id ORDER BY cl.created_at ASC) AS rn
+          FROM fiaon_contact_log cl
+          JOIN fiaon_applications a ON a.ref = cl.ref
+         WHERE cl.type = 'result' AND cl.voided_at IS NULL AND cl.agent_id IS NOT NULL
+      ),
+      erster AS (SELECT person_id, agent_id, created_at FROM kontakt WHERE rn = 1)
+      SELECT p.id AS person_id, p.first_name, p.last_name,
+             p.assigned_agent_id AS jetzt_id, e.agent_id AS soll_id, e.created_at AS seit,
+             ag.name AS soll_name, ag.rolle AS soll_rolle,
+             jetzt.name AS jetzt_name,
+             p.mandat_seit IS NOT NULL AS mit_mandat
+        FROM erster e
+        JOIN fiaon_persons p ON p.id = e.person_id
+        JOIN fiaon_agents ag ON ag.id = e.agent_id
+        LEFT JOIN fiaon_agents jetzt ON jetzt.id = p.assigned_agent_id
+       WHERE p.merged_into_person_id IS NULL
+         AND COALESCE(p.assigned_agent_id, 0) <> e.agent_id
+         AND ag.active AND NOT ag.is_test_account
+         AND COALESCE(ag.rolle, 'agent') IN ('agent', 'vertriebsleiter')
+       ORDER BY p.mandat_seit IS NOT NULL DESC, p.id
+    `) as any[];
+
+    let verschoben = 0;
+    if (schreiben) {
+      for (const z of zeilen) {
+        await sqlPool`
+          UPDATE fiaon_persons
+             SET assigned_agent_id = ${Number(z.soll_id)}, assigned_at = NOW(),
+                 betreuung_seit = COALESCE(betreuung_seit, ${z.seit}), updated_at = NOW()
+           WHERE id = ${Number(z.person_id)}
+        `;
+        const [a] = (await sqlPool`
+          SELECT ref FROM fiaon_applications
+           WHERE person_id = ${Number(z.person_id)} AND merged_into IS NULL
+           ORDER BY created_at DESC LIMIT 1
+        `) as any[];
+        if (a?.ref) {
+          await sqlPool`
+            INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
+            VALUES (${a.ref}, ${Number(z.person_id)}, NULL, 'System', 'system',
+                    ${`Zurück zum ersten Betreuer: ${z.soll_name}${z.jetzt_name ? ` (stand bei ${z.jetzt_name})` : ""}. Ein Vertretungsanruf hatte die Betreuung übernommen — Ursache am 03.09.2026 behoben.`},
+                    NOW())
+          `.catch(() => {});
+        }
+        verschoben += 1;
+      }
+      console.log(`[FIAON-TEAM] ${verschoben} Kunden an ihre ersten Betreuer zurückgegeben.`);
+    }
+
+    const jeAgent: Record<string, number> = {};
+    for (const z of zeilen) jeAgent[String(z.soll_name || "?")] = (jeAgent[String(z.soll_name || "?")] || 0) + 1;
+
+    res.json({
+      ok: true,
+      geschrieben: schreiben,
+      betroffen: zeilen.length,
+      verschoben,
+      mitMandat: zeilen.filter((z: any) => z.mit_mandat).length,
+      jeAgent,
+      beispiele: zeilen.slice(0, 8).map((z: any) => ({
+        person: `${String(z.first_name || "").slice(0, 1)}. ${String(z.last_name || "").slice(0, 8)}`,
+        von: z.jetzt_name ?? "(niemand)",
+        zu: z.soll_name,
+        mandat: !!z.mit_mandat,
+      })),
+    });
+  } catch (err) {
+    console.error("[FIAON-TEAM] betreuer-zurueckgeben:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});

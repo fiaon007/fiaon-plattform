@@ -622,6 +622,31 @@ export function hasAgentToken(req: Request): boolean {
 
 export function blockAgentsFromAdmin(req: Request, res: Response, next: NextFunction) {
   if (req.path.startsWith("/admin") && verifyAgentToken((req as any).cookies?.[AGENT_COOKIE])) {
+    // ═══════════════════════════════════════════════════════════════════════
+    // WER BEIDES IST, WIRD NACH DEM STÄRKEREN AUSWEIS BEHANDELT (03.09.2026)
+    //
+    // Justin sah im Chefbüro ein leeres Postfach mit der Meldung „Kein
+    // Zugriff: Agent-Rolle hat keine Admin-Berechtigung" — obwohl oben rechts
+    // INHABER stand und 27 Entwürfe in der Datenbank lagen.
+    //
+    // Der Grund: Diese Wand sieht nur das Mitarbeiter-Cookie. Wer sich einmal
+    // als Mitarbeiter angemeldet oder die Als-Mitarbeiter-Ansicht benutzt hat,
+    // trägt es weiter im Browser — und sperrte sich damit aus seinen eigenen
+    // Admin-Seiten aus, ohne dass die Meldung den wahren Grund nennt.
+    //
+    // Die Wand bleibt, was sie ist: Ein Mitarbeiter kommt nicht an Admin-Wege.
+    // Aber ein Admin-Code oder ein Chef-Token der Stufe „inhaber" schlägt das
+    // Mitarbeiter-Cookie. Beide sind signiert und werden serverseitig geprüft;
+    // ein Mitarbeiter kann sich keines davon ausstellen.
+    // ═══════════════════════════════════════════════════════════════════════
+    try {
+      const { hasAdminCode } = require("./fiaon-admin-zugang");
+      if (typeof hasAdminCode === "function" && hasAdminCode(req)) return next();
+    } catch { /* Modul nicht erreichbar — dann gilt die Wand */ }
+    try {
+      const { readChef } = require("./fiaon-chef-zugang");
+      if (typeof readChef === "function" && readChef(req)?.stufe === "inhaber") return next();
+    } catch { /* dito */ }
     return res.status(403).json({ ok: false, error: "Kein Zugriff: Agent-Rolle hat keine Admin-Berechtigung" });
   }
   next();

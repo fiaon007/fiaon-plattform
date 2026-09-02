@@ -25,6 +25,28 @@ import { anredeBestimmen, antwortBauen } from "./fiaon-postmeister-antworttext";
 import { postmeisterSchema } from "./fiaon-postmeister-schema";
 import { AUTOMATEN_DOMAENEN, type Aktion } from "@shared/fiaon-postmeister-typen";
 
+/**
+ * Eine Nachricht in einen Ordner legen — und daran NIE eine Mail scheitern lassen.
+ *
+ * 03.09.2026: Die vier Aufrufstellen sahen so aus:
+ *   await nachrichtLabeln(pf, id, [await labelSicherstellen(pf, "…")]).catch(() => {})
+ * Das `.catch()` hängt an `nachrichtLabeln` — aber `labelSicherstellen` wird
+ * BEIM AUSWERTEN DES ARGUMENTS aufgerufen, also bevor es die Promise-Kette
+ * überhaupt gibt. Wirft es (Gmail antwortete mit HTTP 409 „Label name exists or
+ * conflicts"), fängt das `.catch()` nichts, und die ganze Mail landete auf
+ * 'fehler' — obwohl nur ein Ordner nicht angelegt werden konnte.
+ *
+ * Der Ordner ist Ablage. Die Antwort an den Kunden ist die Arbeit.
+ */
+async function ablegen(postfach: string, gmailId: string, ordner: string, weg: string[] = []): Promise<void> {
+  try {
+    const id = await labelSicherstellen(postfach, ordner);
+    await nachrichtLabeln(postfach, gmailId, [id], weg);
+  } catch (e: any) {
+    console.warn(`[POSTMEISTER] Ordner „${ordner}" nicht gesetzt (${String(e?.message || e).slice(0, 120)}) — die Mail wird trotzdem bearbeitet.`);
+  }
+}
+
 /** Gmail-Zitatblöcke abschneiden — sonst „liest" das Modell die eigene Rundmail. */
 export function ohneZitat(text: string): string {
   const t = String(text || "");
@@ -130,7 +152,7 @@ export async function mailBearbeiten(ein: {
     // 1. Fremdpost — eigener Ordner, nie beantworten.
     const fremd = istFremdpost(mail);
     if (fremd.fremd) {
-      await nachrichtLabeln(postfach, gmailId, [await labelSicherstellen(postfach, "FIAON/Kein Kunde")], ["UNREAD"]).catch(() => {});
+      await ablegen(postfach, gmailId, "FIAON/Kein Kunde", ["UNREAD"]);
       return fertig({ ...basis, kategorie: "intern", aktion: "ignoriert", begruendung: fremd.grund }, fremd.grund);
     }
 
@@ -168,7 +190,7 @@ export async function mailBearbeiten(ein: {
 
     // Werbung ordnen, nicht beantworten.
     if (einordnung.kategorien.includes("werbung_newsletter") && einordnung.kategorien.length === 1) {
-      await nachrichtLabeln(postfach, gmailId, [await labelSicherstellen(postfach, "FIAON/Kein Kunde")], ["UNREAD"]).catch(() => {});
+      await ablegen(postfach, gmailId, "FIAON/Kein Kunde", ["UNREAD"]);
       return fertig({ ...gemeinsam, aktion: "ignoriert", begruendung: "Werbung" }, "Werbung");
     }
 
@@ -231,7 +253,7 @@ export async function mailBearbeiten(ein: {
 
     if (darfAuto) {
       await antwortSenden(postfach, mail, fertigeAntwort.text, fertigeAntwort.html);
-      await nachrichtLabeln(postfach, gmailId, [await labelSicherstellen(postfach, "FIAON/Auto-beantwortet")], ["UNREAD"]).catch(() => {});
+      await ablegen(postfach, gmailId, "FIAON/Auto-beantwortet", ["UNREAD"]);
       if (wer.ref) {
         await sqlPool`
           INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
@@ -243,7 +265,7 @@ export async function mailBearbeiten(ein: {
     }
 
     const draftId = await entwurfAnlegen(postfach, mail, fertigeAntwort.text, fertigeAntwort.html).catch(() => null);
-    await nachrichtLabeln(postfach, gmailId, [await labelSicherstellen(postfach, "FIAON/Entwurf wartet")]).catch(() => {});
+    await ablegen(postfach, gmailId, "FIAON/Entwurf wartet");
     return fertig({ ...felder, aktion: "entwurf", antwort_draft_id: draftId, begruendung: erg.grund }, erg.grund);
   } catch (e: any) {
     const grund = String(e?.message || e).slice(0, 300);

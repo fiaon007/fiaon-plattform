@@ -184,12 +184,46 @@ export async function kundenlageBerechnen(personId: number | null, ref: string |
   if (a.payment_status === "claimed_paid") return { lage: "zahlung_gemeldet", grund: `hat am ${relativ(a.claimed_paid_at)} eine Zahlung gemeldet, Geld ist nicht angekommen` };
   if (a.payment_status !== "paid") return { lage: "unbezahlt", grund: "Bestellung liegt vor, erste Zahlung fehlt" };
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // EINE RATE IM EINZUG IST NICHT ÜBERFÄLLIG (03.09.2026)
+  //
+  // Gefunden von fiaon-44: Ali Alfatlawi, Rate 2 über 7,99 €, bei GoCardless
+  // am 28.08. abgebucht und bestätigt — in unserer Datenbank „offen",
+  // Mahnstufe 2, drei Erinnerungen. Der Kunde zahlt und wird gemahnt.
+  //
+  // Für den Postmeister ist das doppelt schlimm: Die Lage `rate_ueberfaellig`
+  // VERLANGT eine Zahlungsseite in der Antwort (Pflichtangabe). Er hätte also
+  // einem Menschen, bei dem das Geld längst abgebucht wurde, eine
+  // Zahlungsaufforderung geschrieben — höflich formuliert und trotzdem falsch.
+  //
+  // Solange die Datenbank keine Abo-Kenntnis hat (fiaon-44 baut die Spalte),
+  // nutze ich die Zeichen, die es gibt: eine `gc_payment_id` an der Rate oder
+  // ein Lastschriftlauf mit einem Status, der nicht gescheitert ist. Trifft
+  // eines zu, wird die Rate nicht angemahnt — es wird gesagt, dass eingezogen
+  // wird. Ein zu Unrecht nicht gemahnter Kunde kostet Tage; ein zu Unrecht
+  // gemahnter kostet das Vertrauen.
+  // ═══════════════════════════════════════════════════════════════════════
   const [r] = (await sqlPool`
-    SELECT COUNT(*) FILTER (WHERE status = 'offen' AND faellig_am <= CURRENT_DATE)::int AS ueberfaellig,
+    SELECT COUNT(*) FILTER (
+             WHERE status = 'offen' AND faellig_am <= CURRENT_DATE
+               AND gc_payment_id IS NULL
+               AND (lastschrift_am IS NULL OR COALESCE(lastschrift_status, '') IN ('fehlgeschlagen', 'storniert', 'abgelehnt'))
+           )::int AS ueberfaellig,
+           COUNT(*) FILTER (
+             WHERE status = 'offen'
+               AND (gc_payment_id IS NOT NULL
+                    OR (lastschrift_am IS NOT NULL AND COALESCE(lastschrift_status, '') NOT IN ('fehlgeschlagen', 'storniert', 'abgelehnt')))
+           )::int AS im_einzug,
            COUNT(*) FILTER (WHERE status = 'offen')::int AS offen
       FROM fiaon_abo_raten WHERE ref = ${ref}
   `) as any[];
   if (Number(r?.ueberfaellig || 0) > 0) return { lage: "rate_ueberfaellig", grund: `${r.ueberfaellig} Rate(n) überfällig` };
+  if (Number(r?.im_einzug || 0) > 0) {
+    return {
+      lage: "aktiv",
+      grund: `bezahlt und aktiv; ${r.im_einzug} Rate(n) werden per Lastschrift eingezogen — NICHT zur Zahlung auffordern`,
+    };
+  }
   if (!a.freigeschaltet_am && a.account_status !== "active") {
     return { lage: "bezahlt_ohne_startgespraech", grund: "bezahlt, Bereich wartet auf das Startgespräch" };
   }

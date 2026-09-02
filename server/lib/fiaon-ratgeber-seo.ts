@@ -40,7 +40,13 @@ export async function ratgeberSeitenHtml(slug: string | null): Promise<string | 
         hasPart: rows.map((r) => ({ "@type": "Article", headline: r.titel, url: `${BASIS}/ratgeber/${r.slug}`, datePublished: r.published_at })) },
       { "@context": "https://schema.org", "@type": "BreadcrumbList", itemListElement: [{ "@type": "ListItem", position: 1, name: "FIAON", item: BASIS }, { "@type": "ListItem", position: 2, name: "Ratgeber", item: `${BASIS}/ratgeber` }] },
     ];
-    return kopfEinsetzen(html.replace("</head>", `    ${VORAB_STIL}\n  </head>`), { titel: "Ratgeber: SCHUFA, Bonität, Inkasso erklärt | FIAON", beschreibung: "SCHUFA-Eintrag löschen, Auskunft kostenlos anfordern, Kreditkarte trotz Eintrag, KSV und CRIF – geprüfte Ratgeber von FIAON, ehrlich und ohne Versprechen.", url: `${BASIS}/ratgeber`, ld })
+    // 03.09.2026 (E-092): Titel und Beschreibung der Hub-Seite kommen aus der
+    // SEO-Tabelle, nicht mehr aus zwei fest verdrahteten Zeichenketten hier.
+    // Vorher standen zwei Fassungen nebeneinander — die hiesige war 1002 px
+    // breit und wurde in der Suche abgeschnitten, die in der Tabelle nicht.
+    // Zwei Quellen für dieselbe Angabe heißt: eine davon wird nie mitgepflegt.
+    const hub = SEO_SEITEN["/ratgeber"];
+    return kopfEinsetzen(html.replace("</head>", `    ${VORAB_STIL}\n  </head>`), { titel: ratgeberTitel(hub.titel), beschreibung: beschreibungKuerzen(hub.beschreibung), url: `${BASIS}/ratgeber`, ld })
       .replace('<div id="root"></div>', `<div id="root"><div class="vorab">${seoRahmen().kopf}${inhalt}${seoRahmen().fuss}</div></div>`);
   }
   const [a] = (await sqlPool`SELECT * FROM fiaon_ratgeber WHERE slug = ${slug} AND status = 'veroeffentlicht' LIMIT 1`) as any[];

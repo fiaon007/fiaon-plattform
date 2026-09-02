@@ -9,7 +9,7 @@
 //                                               Server und prüft das HTML
 //
 // Was geprüft wird (die Regeln aus dem Onpage-Report vom 02.09.):
-//   · Titel 20–60 Zeichen, einmalig auf der ganzen Website
+//   · Titel mindestens 20 Zeichen und höchstens 580 px, einmalig
 //   · Beschreibung 80–155 Zeichen, einmalig
 //   · jede indexierbare Seite hat H1 und Einleitung
 //   · Weiterlesen-Ziele existieren in der Tabelle
@@ -23,6 +23,7 @@ import fs from "fs";
 import path from "path";
 import { execSync } from "child_process";
 import { SEO_SEITEN, seoIndexierbar, seoFragen } from "../shared/fiaon-seo-seiten";
+import { titelPixel, beschreibungPixel, TITEL_MAX_PX, BESCHREIBUNG_MAX_PX } from "../shared/fiaon-pixel";
 
 const WURZEL = path.resolve(import.meta.dirname, "..");
 const fehler: string[] = [];
@@ -34,10 +35,17 @@ const titel = new Map<string, string>();
 const beschr = new Map<string, string>();
 for (const s of Object.values(SEO_SEITEN)) {
   const index = !String(s.robots ?? "").includes("noindex");
-  if (s.titel.length > 60) f(`${s.pfad}: Titel ${s.titel.length} Zeichen (max 60): „${s.titel}"`);
-  if (index && s.titel.length < 20) f(`${s.pfad}: Titel zu kurz (${s.titel.length})`);
-  if (s.beschreibung.length > 155) f(`${s.pfad}: Beschreibung ${s.beschreibung.length} Zeichen (max 155)`);
-  if (index && s.beschreibung.length < 80) f(`${s.pfad}: Beschreibung zu kurz (${s.beschreibung.length})`);
+  // 03.09.2026 (E-092): Die obere Grenze wird in PIXELN gemessen, nicht in
+  // Zeichen. Google schneidet nach Breite ab, nicht nach Zeichenzahl — ein
+  // Titel mit 62 schmalen Zeichen passt (552 px), einer mit 58 breiten nicht.
+  // Die Zeichenregel meldete deshalb Fehler, die keine waren, und übersah
+  // welche, die es sind. Die UNTERE Grenze bleibt in Zeichen: dort geht es
+  // nicht ums Abschneiden, sondern um verschenkten Platz.
+  const tpx = titelPixel(s.titel), bpx = beschreibungPixel(s.beschreibung);
+  if (tpx > TITEL_MAX_PX) f(`${s.pfad}: Titel ${tpx} px (max ${TITEL_MAX_PX}): „${s.titel}"`);
+  if (index && s.titel.length < 20) f(`${s.pfad}: Titel zu kurz (${s.titel.length} Zeichen)`);
+  if (bpx > BESCHREIBUNG_MAX_PX) f(`${s.pfad}: Beschreibung ${bpx} px (max ${BESCHREIBUNG_MAX_PX})`);
+  if (index && s.beschreibung.length < 80) f(`${s.pfad}: Beschreibung zu kurz (${s.beschreibung.length} Zeichen)`);
   if (titel.has(s.titel)) f(`${s.pfad}: Titel doppelt mit ${titel.get(s.titel)}`); else titel.set(s.titel, s.pfad);
   if (index) { if (beschr.has(s.beschreibung)) f(`${s.pfad}: Beschreibung doppelt mit ${beschr.get(s.beschreibung)}`); else beschr.set(s.beschreibung, s.pfad); }
   if (!s.h1 || !s.lead) f(`${s.pfad}: H1 oder Einleitung fehlt`);
@@ -121,9 +129,9 @@ async function online() {
     const text = html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>|<[^>]+>/g, " ").replace(/\s+/g, " ");
     const tEntsch = t.replace(/&amp;/g, "&").replace(/&quot;/g, '"');
     if (s && tEntsch !== s.titel) f(`${pfad}: Titel weicht ab: „${t}"`);
-    if (tEntsch.length > 60) f(`${pfad}: Titel ${tEntsch.length} Zeichen: „${tEntsch}"`);
+    if (titelPixel(tEntsch) > TITEL_MAX_PX) f(`${pfad}: Titel ${titelPixel(tEntsch)} px: „${tEntsch}"`);
     const dEntsch = d.replace(/&amp;/g, "&").replace(/&quot;/g, '"');
-    if (dEntsch.length > 160) f(`${pfad}: Beschreibung ${dEntsch.length} Zeichen`);
+    if (beschreibungPixel(dEntsch) > BESCHREIBUNG_MAX_PX) f(`${pfad}: Beschreibung ${beschreibungPixel(dEntsch)} px`);
     if (!canon) f(`${pfad}: Canonical fehlt`);
     if (h1 !== 1) f(`${pfad}: ${h1} H1 statt 1`);
     if (links.size < 25) f(`${pfad}: nur ${links.size} interne Links`);

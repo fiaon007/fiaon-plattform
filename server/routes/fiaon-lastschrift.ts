@@ -567,6 +567,25 @@ async function sofortZahlungBuchen(p: any, action: string): Promise<boolean> {
     const m = /zweck=(\w+)/.exec(zeile.note); const r = /rate_id=([\d-]+)/.exec(zeile.note);
     zweck = m?.[1] || null; ref = zeile.matched_ref || ref; rateId = r?.[1] && r[1] !== "-" ? r[1] : "";
   }
+  // ── HÄRTUNG (02.09.2026, Hinweis fiaon-17): Ging das fulfilled-Ereignis
+  // verloren UND kopiert GoCardless die Metadaten nicht aufs Payment, kennt
+  // dieser Zweig weder Zweck noch Referenz — das Payment fiele in die alte
+  // Warnung „ohne Referenz“ und bliebe ungebucht. Ein Payment trägt laut Doku
+  // keinen Link zur Billing Request, aber die Billing Request trägt den Link
+  // zum Payment: Wir suchen sie rückwärts in den jüngsten Requests.
+  if ((!zweck || !ref) && p?.id && !p?.links?.subscription) {
+    try {
+      const liste = (await gc("/billing_requests?limit=100")).billing_requests || [];
+      const br = liste.find((b: any) => b?.links?.payment_request_payment === p.id);
+      const md = br?.payment_request?.metadata || br?.metadata || {};
+      if (br && md.ref) {
+        zweck = zweck || md.zweck || "erstzahlung"; ref = ref || md.ref; rateId = rateId || md.rate_id || "";
+        console.log(`[SOFORT] Payment ${p.id} über Billing Request ${br.id} zugeordnet (${zweck} ${ref}).`);
+      }
+    } catch (e) {
+      console.warn("[SOFORT] Rückwärtssuche Billing Request:", (e as any)?.message || e);
+    }
+  }
   if (!zweck || !ref) return false;
   if (!["confirmed", "paid_out"].includes(action)) {
     if (["failed", "cancelled", "customer_approval_denied", "charged_back"].includes(action)) {

@@ -56,7 +56,11 @@ async function betroffene(stunden: number): Promise<any[]> {
     )
     SELECT l.email, l.event AS letztes_ereignis, l.created_at AS letzte_mail,
            a.ref, a.payment_reference, a.first_name, a.last_name, a.contact_name,
-           a.pack_name, a.amount_due, a.payment_status, a.person_id
+           a.pack_name, a.amount_due, a.payment_status, a.person_id,
+           -- Ratenkunden (Bestellung bezahlt): die älteste offene Rate ist der wahre
+           -- Verwendungszweck — sonst zeigt der QR die Bestellreferenz, die Mahnung
+           -- aber die Ratenreferenz (Fund fiaon-44, 02.09.).
+           r.zahlungsreferenz AS raten_referenz, r.betrag_cents AS raten_cents
     FROM letzte l
     LEFT JOIN LATERAL (
       SELECT a2.* FROM fiaon_applications a2
@@ -66,6 +70,11 @@ async function betroffene(stunden: number): Promise<any[]> {
       ORDER BY (a2.ref = l.ref_mail) DESC, (a2.payment_status <> 'paid') DESC, a2.created_at DESC
       LIMIT 1
     ) a ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT x.zahlungsreferenz, x.betrag_cents FROM fiaon_abo_raten x
+      WHERE x.ref = a.ref AND x.status = 'offen' AND a.payment_status = 'paid'
+      ORDER BY x.faellig_am ASC LIMIT 1
+    ) r ON TRUE
     WHERE NOT EXISTS (
       -- Sperre über Adresse UND Person: Die Versand-Tür schickt an die aktuelle
       -- Adresse der Person, die vom alten Log-Eintrag abweichen kann (Lehre
@@ -112,8 +121,8 @@ router.post("/admin/bankwechsel/informieren", async (req: Request, res: Response
           email: z.email,
           empfaenger: BANK.empfaenger, iban: BANK.ibanDisplay, bic: BANK.bic, bank: BANK.bank,
           alte_iban: BANK_ALT_GESPERRT.ibanDisplay,
-          verwendungszweck: z.payment_reference || "Ihre Zahlungsreferenz aus unserer letzten E-Mail",
-          betrag: z.amount_due != null ? String(z.amount_due) : null,
+          verwendungszweck: z.raten_referenz || z.payment_reference || "Ihre Zahlungsreferenz aus unserer letzten E-Mail",
+          betrag: z.raten_cents != null ? (Number(z.raten_cents) / 100).toFixed(2) : (z.amount_due != null ? String(z.amount_due) : null),
           paket: z.pack_name ? String(z.pack_name).split("\n")[0] : null,
         } as any);
         if (erg === false) fehler += 1; else gesendet += 1;

@@ -29,7 +29,8 @@ export function epcQrNutzlast(d: EpcQrDaten): string {
     d.bic,
     d.recipient,
     d.iban.replace(/\s+/g, ""),
-    `EUR${d.amount.toFixed(2)}`,
+    // EPC: Betrag ≥ 0,01 oder die Zeile bleibt leer — „EUR0.00" lehnen manche Banking-Apps ab.
+    d.amount >= 0.01 ? `EUR${d.amount.toFixed(2)}` : "",
     "",
     "",
     d.remittance,

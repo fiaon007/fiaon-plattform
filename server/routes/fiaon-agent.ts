@@ -1528,8 +1528,8 @@ export async function runCallbackReminders(): Promise<number> {
 // Nur im Betrieb — ein Entwicklungsserver darf keine echten Erinnerungen
 // verschicken (siehe server/lib/fiaon-crons.ts, Vorfall vom 08.08.2026).
 import("../lib/fiaon-crons").then(({ tageslauf }) => {
-  tageslauf("agent-rueckruf-erinnerungen", () => {
-    runCallbackReminders().catch((err) => console.error("[FIAON-AGENT] Reminder-Cron:", err));
+  tageslauf("agent-rueckruf-erinnerungen", async () => {
+    return await runCallbackReminders();
   }, 60 * 60 * 1000);
 
   // ── DIE NUMMERN-ANFRAGEN, TÄGLICH (27.08.2026) ──────────────────────────
@@ -1544,10 +1544,9 @@ import("../lib/fiaon-crons").then(({ tageslauf }) => {
   //
   // Einmal am Tag genügt — die Wiedervorlagen werden auf Tagesebene fällig.
   // `beimStartNach` fängt die Fälle vom Vortag gleich beim Neustart ein.
-  tageslauf("warten-nummern-nachtragen", () => {
-    void import("../lib/fiaon-warten")
-      .then(({ nummernAnfragenNachtragen }) => nummernAnfragenNachtragen())
-      .catch((err) => console.error("[FIAON-AGENT] Warten-Nachlauf:", err));
+  tageslauf("warten-nummern-nachtragen", async () => {
+    const { nummernAnfragenNachtragen } = await import("../lib/fiaon-warten");
+    return await nummernAnfragenNachtragen();
   }, 24 * 60 * 60 * 1000, { beimStartNach: 90_000 });
 });
 

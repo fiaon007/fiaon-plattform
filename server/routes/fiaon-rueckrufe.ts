@@ -112,8 +112,8 @@ router.post("/admin/rueckrufe/eskalieren", async (_req: Request, res: Response) 
 // Stündlich, weil eine 24-Stunden-Frist zu jeder Stunde reißen kann. Über
 // `tageslauf` registriert: Auf einem Entwicklungsrechner läuft er nicht und
 // verschickt keine Mails an echte Vorgesetzte (AGENTS.md, Vorfall 08.08.2026).
-tageslauf("rueckruf-eskalation", () => {
-  void rueckrufeEskalieren().catch((e) => console.error("[RUECKRUFE] Tageslauf:", e));
+tageslauf("rueckruf-eskalation", async () => {
+  return await rueckrufeEskalieren();
 }, 60 * 60 * 1000);
 
 export default router;

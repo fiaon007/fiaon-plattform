@@ -626,9 +626,11 @@ export async function runLeadFollowups(opts: { force?: boolean } = {}): Promise<
 //
 // Ab jetzt über die EINE Registratur — dort steht die Bremse einmal.
 // ═══════════════════════════════════════════════════════════════════════════
-tageslauf("lead-nachfass-und-verteilung", () => {
-  maybeRunScheduledFollowups().catch((err) => console.error("[FIAON-LEADS] Followup-Cron:", err));
-  distributeUnassignedLeads().catch((err) => console.error("[FIAON-LEADS] Verteilung-Cron:", err));
+tageslauf("lead-nachfass-und-verteilung", async () => {
+  // Kein `.catch()` mehr: Der Fehler gehört in die Lauf-Historie, nicht nur
+  // ins Konsolenfenster. Siehe fiaon-crons.ts, „Warum hier kein catch steht".
+  await maybeRunScheduledFollowups();
+  await distributeUnassignedLeads();
 }, SCHEDULE_TICK_MIN * 60 * 1000);
 
 // ═══════════════════════════════════════════════════════════════════

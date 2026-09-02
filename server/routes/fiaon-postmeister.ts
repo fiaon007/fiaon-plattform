@@ -809,9 +809,9 @@ router.get("/admin/postmeister/lage", async (_req: Request, res: Response) => {
 
 // Alle 5 Minuten — nur im Betrieb (fiaon-crons entscheidet), und nur wenn der
 // Schlüssel gesetzt ist. Beim Start nach 2 Minuten ein erster Lauf.
-tageslauf("postmeister", () => {
+tageslauf("postmeister", async () => {
   if (!gmailBereit()) return;
-  postmeisterLauf().catch((e) => console.error("[POSTMEISTER] Takt:", e?.message || e));
+  return await postmeisterLauf();
 }, 5 * 60 * 1000, { beimStartNach: 120_000 });
 
 export default router;

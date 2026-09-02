@@ -687,10 +687,9 @@ import { tageslauf } from "../lib/fiaon-crons";
 // DIESER Takt steht, steht die ganze Automatik, und das merkt man an allem
 // anderen. Ein eigener Lauf hätte genau dieselbe Ausfallart wie das, was er
 // bewacht.
-tageslauf("laeufe-ueberwachen", () => {
-  void import("../lib/fiaon-crons")
-    .then((m) => m.laeufeUeberwachen())
-    .catch((err) => console.error("[CRONS] Überwachung:", err));
+tageslauf("laeufe-ueberwachen", async () => {
+  const m = await import("../lib/fiaon-crons");
+  return await m.laeufeUeberwachen();
 }, 20 * 60 * 1000);
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -705,14 +704,13 @@ tageslauf("laeufe-ueberwachen", () => {
 // `alleXStunden: 20` statt einer festen Uhrzeit: Ein Server, der um 6 Uhr
 // schläft, hätte den Tag sonst verpasst (siehe die Begründung an `tageslauf`).
 // ═══════════════════════════════════════════════════════════════════════════
-tageslauf("bestandswache", () => {
-  void import("../lib/fiaon-bestandswache")
-    .then((m) => m.bestandswache())
-    .catch((err) => console.error("[WACHE] Tageslauf:", err));
+tageslauf("bestandswache", async () => {
+  const m = await import("../lib/fiaon-bestandswache");
+  return await m.bestandswache();
 }, 60 * 60 * 1000, { beimStartNach: 90_000, alleXStunden: 20 });
 
-tageslauf("followup-und-termine", () => {
-  runFollowUpTageslauf().catch((err) => console.error("[FIAON-FOLLOWUP] Tageslauf:", err));
+tageslauf("followup-und-termine", async () => {
+  return await runFollowUpTageslauf();
   // Die Terminerinnerung hängt NICHT am 6-Uhr-Tageslauf: Ein Termin um 09:20
   // braucht seine Erinnerung am Vortag um 09:20, nicht um 6 Uhr morgens. Der
   // 20-Minuten-Takt trifft das Fenster genau genug.

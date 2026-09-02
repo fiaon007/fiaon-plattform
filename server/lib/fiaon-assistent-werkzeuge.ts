@@ -36,6 +36,7 @@
 
 import { parseBerlinInput, formatBerlin } from "./fiaon-time";
 import { WERKZEUGE_TAG } from "./fiaon-assistent-werkzeuge-tag";
+import { WERKZEUGE_WISSEN } from "./fiaon-assistent-werkzeuge-wissen";
 
 // ── Der interne Selbst-Aufruf ────────────────────────────────────────────────
 // Der Motor reicht eine Funktion herein, die einen bestehenden Endpunkt über
@@ -83,8 +84,10 @@ export interface Werkzeug {
    * „chef" (fiaon_chef). Im Chefbüro mit dem ALTEN Admin-Cookie gibt es keine
    * Mitarbeiter-Kennung — dann bleiben nur die „chef"-Werkzeuge übrig, und der
    * Motor sagt das, statt mit 401 ins Leere zu laufen.
+   * „offen" (02.09.2026): braucht keine Tür — nur öffentliche Endpunkte oder
+   * gar keine (Wissen nachschlagen). Steht in jeder Toolliste.
    */
-  zugang: "agent" | "chef";
+  zugang: "agent" | "chef" | "offen";
   /** JSON-Schema der Parameter (OpenAI-Format, Feld parameters). */
   jsonSchema: Record<string, unknown>;
   /** Welche Kunden berührt dieser Aufruf? Grundlage der 5-Kunden-Grenze. */
@@ -153,6 +156,8 @@ export const WERKZEUGE: Werkzeug[] = [
   // ── Der Tag (02.09.2026, Scheibe 2): Tagesbrief, Fristen, Anruf vorbereiten ─
   // Drei freie, nur lesende Werkzeuge in eigener Datei — dieselben Regeln.
   ...WERKZEUGE_TAG,
+  // ── Das Wissen (02.09.2026, Scheibe 6): nachschlagen mit Stand und Quelle ─
+  ...WERKZEUGE_WISSEN,
   // ── Lesen und Notieren (Stufe „frei") ─────────────────────────────────────
   {
     name: "kunde_suchen",

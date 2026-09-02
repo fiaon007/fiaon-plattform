@@ -42,6 +42,7 @@ import {
 } from "../lib/fiaon-gmail";
 import { rueckrufAufnehmen } from "../lib/fiaon-rueckruf";
 import { wissenText } from "@shared/fiaon-wissen";
+import { BANK } from "@shared/fiaon-bank";
 import { getSettings, setSetting } from "./fiaon-agent";
 
 const router = Router();
@@ -227,7 +228,7 @@ async function einordnen(postfach: string, mail: GmailNachricht, kunde: any | nu
   const modell = process.env.FIAON_ANALYSE_MODELL || "gpt-4.1-mini";
   const kopfzeile = kunde ? [
     `BEKANNTER KUNDE: ${kunde.name || "?"}${kunde.betreuer ? `, Betreuer ${kunde.betreuer}` : ""}`,
-    kunde.payment_reference ? `Verwendungszweck für Überweisungen: ${kunde.payment_reference} (Empfänger FIAON LTD, IBAN BE09 9058 9276 3957, BIC TRWIBEB1XXX)` : null,
+    kunde.payment_reference ? `Verwendungszweck für Überweisungen: ${kunde.payment_reference} (Empfänger ${BANK.empfaenger}, IBAN ${BANK.ibanDisplay}, BIC ${BANK.bic}, ${BANK.bank})` : null,
     Number(kunde.raten_ueberfaellig) > 0 ? `ACHTUNG: ${kunde.raten_ueberfaellig} Rate(n) überfällig` : null,
   ].filter(Boolean).join("\n") : "KEIN Kundendatensatz zur Absenderadresse gefunden.";
   const dossier = kunde ? await kundenDossier(kunde) : "";

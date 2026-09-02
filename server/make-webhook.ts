@@ -57,6 +57,7 @@ export type MakeEventType =
   | "rueckhol_s3"            // Preis fehlte — unser technischer Bruch
   | "rueckhol_s4"            // Antrag+Betrag da, nie gemeldet — Erstkontakt
   | "rueckhol_s5"            // Altbestand — die letzte Mail
+  | "bankverbindung_neu"     // NOTFALL 02.09.2026: Konto gewechselt — neue IBAN an alle mit Bankdaten der letzten 24 h
   // NEU 24.08.2026: Der Weg zum Girokonto beim Kooperationspartner (DKB) —
   // Voraussetzung fuer die Kreditkarte. Nur nach bestandener Pruefung aller
   // drei Bedingungen aus fiaon-konto-karte.ts. Wortwahl bindend: NIE

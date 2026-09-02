@@ -7,13 +7,14 @@
 
 import { sendEmail, type SendEmailResult } from "./mailer";
 import { fiaonBaseUrl } from "../fiaon-base-url";
+import { BANK } from "@shared/fiaon-bank";
 
 // ── Bankverbindung (Vorkasse) ────────────────────────────────────────────────
 export const FIAON_BANK = {
   recipient: "Fiaon Ltd",
-  iban: "BE09905892763957",
-  ibanDisplay: "BE09 9058 9276 3957",
-  bic: "TRWIBEB1XXX",
+  iban: BANK.iban,               // 02.09.2026: Wise gesperrt → shared/fiaon-bank.ts
+  ibanDisplay: BANK.ibanDisplay,
+  bic: BANK.bic,
 } as const;
 
 const FIAON_BASE_URL = fiaonBaseUrl();

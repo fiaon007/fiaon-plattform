@@ -301,11 +301,17 @@ router.post("/admin/postmeister/aufholen", async (req: Request, res: Response) =
   }
 });
 
-/** POST /admin/postmeister/altentwuerfe {schreiben} — die Entwürfe der ersten Fassung prüfen. */
+/**
+ * POST /admin/postmeister/altentwuerfe {schreiben, alle}
+ * Die Entwürfe der ersten Fassung prüfen. `alle: true` verwirft sie ALLE, nicht
+ * nur die mit Wortverstößen — sie sind samt und sonders ungedeckt (siehe die
+ * Begründung an `altentwuerfePruefen`). Die Unterhaltungen werden dabei wieder
+ * offen, der Aufhol-Lauf schreibt sie neu.
+ */
 router.post("/admin/postmeister/altentwuerfe", async (req: Request, res: Response) => {
   try {
     const { altentwuerfePruefen } = await import("../lib/fiaon-postmeister-aufholen");
-    res.json({ ok: true, ...(await altentwuerfePruefen(req.body?.schreiben === true)) });
+    res.json({ ok: true, ...(await altentwuerfePruefen(req.body?.schreiben === true, req.body?.alle === true)) });
   } catch (e: any) {
     res.status(500).json({ ok: false, error: String(e?.message || e).slice(0, 300) });
   }

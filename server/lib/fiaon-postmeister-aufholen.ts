@@ -185,7 +185,7 @@ export async function aufholDeckel(): Promise<{ ordnen: number; antworten: numbe
  * Die alten Entwürfe aus der ersten Fassung prüfen. Sie wurden ohne Wand und
  * ohne Belegpflicht erzeugt; einer trug am 02.09. noch die gesperrte IBAN.
  */
-export async function altentwuerfePruefen(schreiben: boolean): Promise<{
+export async function altentwuerfePruefen(schreiben: boolean, alleVerwerfen = false): Promise<{
   geprueft: number; verworfen: number; behalten: number; gruende: Record<string, number>;
 }> {
   const { wandPruefen } = await import("@shared/fiaon-wortverbote");
@@ -200,14 +200,30 @@ export async function altentwuerfePruefen(schreiben: boolean): Promise<{
   for (const z of zeilen) {
     // Ohne Belege gab es keine Werkzeuge — jede Zusage ist ungedeckt.
     const treffer = wandPruefen(String(z.antwort ?? ""), []).filter((t) => t.art !== "floskel");
-    if (!treffer.length) continue;
-    const grund = treffer[0].treffer.slice(0, 40);
-    gruende[grund] = (gruende[grund] || 0) + 1;
+    // ── WARUM ES EIN `alleVerwerfen` GIBT (03.09.2026) ──────────────────────
+    // Am 03.09. stellte sich heraus: Der neue Agent hatte NIE eine Antwort
+    // erzeugt (die API lehnte Werkzeuge mit Denkleistung ab). Alle 73 Entwürfe
+    // im Postfach stammten also aus der ersten Fassung — ohne Werkzeuge, ohne
+    // Belegpflicht, ohne HTML, und 25 davon existierten nicht einmal als
+    // Gmail-Entwurf. Sie einzeln auf Wortverstöße zu prüfen greift zu kurz:
+    // Auch ein sprachlich sauberer Entwurf dieser Fassung ist ungedeckt.
+    // Zudem erreicht der Aufhol-Lauf sie nie wieder — `offeneUnterhaltungen`
+    // sucht nur 'vorgeordnet' und 'geordnet'. Sie lägen für immer.
+    const grund = alleVerwerfen && !treffer.length
+      ? "Alt-Entwurf ohne Belege (erste Fassung, ungedeckt)"
+      : treffer.length ? `Alt-Entwurf verworfen (${treffer.map((t) => t.treffer).slice(0, 2).join("; ")})` : "";
+    if (!grund) continue;
+    const schluessel = treffer.length ? treffer[0].treffer.slice(0, 40) : "ohne Belege";
+    gruende[schluessel] = (gruende[schluessel] || 0) + 1;
     verworfen += 1;
     if (schreiben) {
+      // 'geordnet' statt 'entwurf': Damit wird die Unterhaltung wieder zu einer
+      // offenen, und der Aufhol-Lauf schreibt eine neue Antwort — diesmal mit
+      // Werkzeugen, Belegen und im Haus-HTML.
       await sqlPool`
         UPDATE fiaon_postmeister
-           SET aktion = 'geordnet', begruendung = ${`Alt-Entwurf verworfen (${treffer.map((t) => t.treffer).slice(0, 2).join("; ")})`}, updated_at = NOW()
+           SET aktion = 'geordnet', antwort = NULL, antwort_draft_id = NULL,
+               begruendung = ${grund}, updated_at = NOW()
          WHERE id = ${z.id}
       `;
       if (z.antwort_draft_id) {

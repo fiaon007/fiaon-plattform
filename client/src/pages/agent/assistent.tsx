@@ -17,9 +17,20 @@
 // Mitarbeiter-Fassung läuft in der AgentShell, die Chef-Fassung nackt in der
 // ChefShell. Der Rundgang gehört nur zur Mitarbeiter-Fassung — der Chef hat
 // keine Agent-Anmeldung, und der Rundgang-Endpunkt verlangt eine.
+//
+// ── DIE BÜHNE, NEU (02.09.2026) ────────────────────────────────────────────
+// Justin: „viel hochwertiger, cleaner, cinematisch, Matrix, kein weißer Rand."
+// VORHER lag das Deck in der hellen Office-Fläche (.of-flaeche) — ein weißer
+// Tablet-Rahmen um eine dunkle Bühne. NACHHER schaltet die Seite die Fläche
+// über useOffice().dunkel(true) ab (derselbe Weg wie Team, Feed, Bestand) und
+// füllt die Spalte von Kante zu Kante. Die Szene ist kein Ring mehr, sondern
+// der Partikel-Humanoid (AssistentSzene.tsx, Prototyp von Justin freigegeben).
+// Die Sitzungsleiste ist auf dem Rechner einklappbar — die Bühne gehört dem
+// Wesen, nicht der Liste.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useRef, useState } from "react";
 import { AgentShell } from "./shared";
+import { useOffice } from "./OfficeShell";
 import { Rundgang } from "@/components/agent/Rundgang";
 import { RUNDGAENGE } from "./rundgaenge";
 import AssistentSzene, { type SzenenZustand } from "@/components/agent/AssistentSzene";
@@ -43,14 +54,24 @@ interface WerkzeugInfo { name: string; titel: string; stufe: string; beschreibun
 interface Treffer { personId: number; name: string | null; email: string | null; telefon: string | null }
 
 // Die sechs Vorschläge aus dem echten Alltag — Platzhalter tippt der Mensch.
+// Nur, was der Copilot HEUTE kann (14 Werkzeuge); Tagesbrief, Anruf vorbereiten
+// und Schreiben aus der Akte kommen mit den nächsten Scheiben dazu.
 const VORSCHLAEGE: Array<{ tag: string; text: string }> = [
-  { tag: "Akte", text: "Fasse den Kunden … zusammen: Lage, Zahlungen, nächster Schritt." },
-  { tag: "Zahlung", text: "Sende die Zahlungsdaten an … — mit Vorschau." },
-  { tag: "Termin", text: "Buche einen Termin morgen 14 Uhr mit … ." },
-  { tag: "Überfällig", text: "Welche meiner Kunden sind heute überfällig?" },
-  { tag: "Zugang", text: "Erzeuge ein Einmal-Passwort für die Bestellung … — Grund: Kunde kommt nicht ins Konto." },
+  { tag: "Akte", text: "Was ist bei … los? Lage, Zahlungen, nächster Schritt." },
+  { tag: "Überfällig", text: "Welche meiner Kunden sind heute überfällig — und wen rufe ich zuerst an?" },
+  { tag: "Zahlung", text: "Sende die Zahlungsdaten an … — mit Vorschau, ich bestätige." },
+  { tag: "Termin", text: "Buche einen Termin morgen 14 Uhr mit … und trag es in die Akte ein." },
+  { tag: "Notiz", text: "Schreib in die Akte von …: Kunde erreicht, ruft Freitag zurück." },
   { tag: "Antwort", text: "Entwirf eine Antwort auf diese Kundenmail: …" },
 ];
+
+/** Schaltet die helle Office-Fläche für diese Seite ab — muss INNERHALB der
+ *  AgentShell stehen, weil useOffice den Kontext der OfficeShell liest. */
+function DunkleBuehne() {
+  const { dunkel, titel } = useOffice();
+  useEffect(() => { dunkel(true); titel("Copilot"); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  return null;
+}
 
 let schluesselZaehler = 0;
 const neuerSchluessel = () => `n${Date.now()}_${schluesselZaehler += 1}`;
@@ -72,7 +93,8 @@ export default function AgentAssistentPage({ alsAdmin = false }: { alsAdmin?: bo
   const [kontext, setKontext] = useState<{ personId: number; zeile: string } | null>(null);
   const [suchtext, setSuchtext] = useState("");
   const [treffer, setTreffer] = useState<Treffer[] | null>(null);
-  const [leisteOffen, setLeisteOffen] = useState(false);
+  // Rechner: Leiste offen, bis man sie einklappt. Handy: Schublade, zu bis man sie öffnet.
+  const [leisteOffen, setLeisteOffen] = useState<boolean>(() => typeof window !== "undefined" && window.innerWidth > 760);
   const [umbenennen, setUmbenennen] = useState<{ id: number; wert: string } | null>(null);
   const [beschaeftigt, setBeschaeftigt] = useState<string | null>(null);
   const stromRef = useRef<HTMLDivElement | null>(null);
@@ -356,7 +378,7 @@ export default function AgentAssistentPage({ alsAdmin = false }: { alsAdmin?: bo
       <div className="asx-schleier" />
 
       {/* ── Linke Leiste: die letzten Sitzungen ── */}
-      <aside className={`asx-leiste${leisteOffen ? " offen" : ""}`} data-fiaon="assistent-sitzungen">
+      <aside className={`asx-leiste${leisteOffen ? " offen" : " zu"}`} data-fiaon="assistent-sitzungen">
         <div className="asx-leiste-kopf">
           <b>Sitzungen</b>
           <button type="button" className="asx-mini" onClick={neueSitzung} title="Neue Sitzung" aria-label="Neue Sitzung">
@@ -447,8 +469,8 @@ export default function AgentAssistentPage({ alsAdmin = false }: { alsAdmin?: bo
             <span className="gruss">{vorname ? `Bereit, ${vorname}.` : "Bereit."}</span>
             <h2>Was soll ich <span className="verlauf">erledigen?</span></h2>
             <p className="satz">
-              Ich suche Kunden, lese Akten, schreibe Notizen — und bereite alles mit Folgen (Mails, Termine,
-              Bestellungen, Sperren) so vor, dass du nur noch bestätigen musst.
+              Ich lese Akten, finde Überfällige, schreibe Notizen und bereite Mails, Termine, Bestellungen
+              und Sperren so vor, dass du nur noch bestätigen musst.
             </p>
             <div className="asx-vorschlaege">
               {VORSCHLAEGE.map((v) => (
@@ -528,6 +550,7 @@ export default function AgentAssistentPage({ alsAdmin = false }: { alsAdmin?: bo
   if (alsAdmin) return inhalt;
   return (
     <AgentShell>
+      <DunkleBuehne />
       <Rundgang raum="assistent" titel={RUNDGAENGE.assistent.titel} schritte={RUNDGAENGE.assistent.schritte} />
       {inhalt}
     </AgentShell>

@@ -1,45 +1,56 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   DER FIAON COPILOT — das Command-Deck (30.08.2026)
+   DER FIAON COPILOT — das Command-Deck (30.08.2026, Bühne neu 02.09.2026)
 
-   Dunkle Navy-Bühne (#0A1A3C-Welt), Glas-Karten mit Lichtkante, EIN zentrales
-   Eingabefeld. Die 3D-Szene liegt HINTER dem Deck (absolute), alles Bedienbare
-   darüber. Namensraum asx- — nichts hier färbt fremde Seiten.
+   Nachtblau bis Schwarz von Kante zu Kante, Glas-Karten mit Lichtkante, EIN
+   zentrales Eingabefeld. Hinter dem Deck (absolute) der Partikel-Humanoid und
+   der Matrix-Grund (AssistentSzene.tsx), alles Bedienbare darüber.
+   02.09.: Die helle Office-Fläche ist auf dieser Seite aus (useOffice().dunkel)
+   — Justin: „kein weißer Rand". Namensraum asx- — nichts hier färbt fremde
+   Seiten.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .asx-buehne {
   position: relative;
   min-height: calc(100dvh - 132px);
-  border-radius: 22px;
+  border-radius: 24px;
   overflow: hidden;
   background:
-    radial-gradient(1200px 520px at 50% -10%, rgba(37, 99, 235, .22), transparent 60%),
-    radial-gradient(900px 460px at 85% 110%, rgba(96, 165, 250, .10), transparent 55%),
-    linear-gradient(178deg, #0d2049, #0a1a3c 55%, #071129);
-  border: 1px solid rgba(96, 165, 250, .22);
-  box-shadow: 0 30px 80px -40px rgba(4, 10, 26, .9), inset 0 1px 0 rgba(255, 255, 255, .06);
+    radial-gradient(900px 520px at 50% 0%, rgba(37, 99, 235, .16), transparent 60%),
+    linear-gradient(178deg, #071330, #040b1e 55%, #02060f);
+  border: 1px solid rgba(96, 165, 250, .10);
+  box-shadow: 0 40px 90px -50px rgba(0, 0, 0, .9), inset 0 1px 0 rgba(255, 255, 255, .04);
   color: #eef3fb;
   display: flex;
 }
 
 .asx-szene { position: absolute; inset: 0; z-index: 0; }
 .asx-szene canvas { width: 100%; height: 100%; display: block; }
+/* Der Matrix-Grund liegt unter dem Wesen — sehr leise. */
+.asx-matrix { position: absolute; inset: 0; opacity: .07; }
+.asx-szene canvas:not(.asx-matrix) { position: relative; }
 
 /* Ein Schleier, damit Text vor der Szene lesbar bleibt. */
 .asx-schleier {
   position: absolute; inset: 0; z-index: 1; pointer-events: none;
-  background: linear-gradient(180deg, rgba(7, 17, 41, .18), rgba(7, 17, 41, .05) 35%, rgba(7, 17, 41, .55) 88%);
+  background: linear-gradient(180deg, rgba(2, 6, 15, 0) 40%, rgba(2, 6, 15, .55) 62%, rgba(2, 6, 15, .92) 100%);
 }
 
 /* ── Die linke Leiste: Sitzungen ─────────────────────────────────────────── */
 .asx-leiste {
   position: relative; z-index: 2;
-  width: 252px; flex-shrink: 0;
+  width: 236px; flex-shrink: 0;
   display: flex; flex-direction: column; gap: 6px;
   padding: 16px 12px;
-  border-right: 1px solid rgba(96, 165, 250, .16);
-  background: rgba(7, 17, 41, .45);
-  backdrop-filter: blur(10px);
+  border-right: 1px solid rgba(96, 165, 250, .12);
+  background: rgba(4, 10, 28, .55);
+  backdrop-filter: blur(14px);
+  transition: width .22s ease, padding .22s ease, opacity .22s ease;
 }
+/* Rechner: eingeklappt wird die Leiste unsichtbar schmal — die Bühne gehört dem Wesen. */
+@media (min-width: 761px) {
+  .asx-leiste.zu { width: 0; padding-left: 0; padding-right: 0; opacity: 0; overflow: hidden; border-right-width: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .asx-leiste { transition: none !important; } }
 .asx-leiste-kopf { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 2px 6px 8px; }
 .asx-leiste-kopf b { font-size: 12.5px; letter-spacing: .08em; text-transform: uppercase; color: rgba(226, 236, 250, .65); font-weight: 700; }
 
@@ -66,11 +77,10 @@
 .asx-kopf {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   padding: 14px 20px;
-  border-bottom: 1px solid rgba(96, 165, 250, .14);
-  background: rgba(7, 17, 41, .35);
-  backdrop-filter: blur(8px);
+  border-bottom: 0;
+  background: transparent;
 }
-.asx-kopf h1 { margin: 0; font-size: 15px; font-weight: 800; letter-spacing: -.01em; }
+.asx-kopf h1 { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: .28em; text-transform: uppercase; color: #9cc2ff; }
 .asx-kopf .frei { margin-left: auto; display: flex; gap: 8px; align-items: center; }
 
 .asx-chip {
@@ -90,33 +100,33 @@
 
 /* ── Das leere Deck: Bühne frei für den ersten Auftrag ───────────────────── */
 .asx-deck {
-  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 22px; padding: 40px 24px 56px; text-align: center;
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+  gap: 12px; padding: min(40vh, 380px) 24px 22px; text-align: center;
 }
-.asx-deck .gruss { font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: rgba(148, 190, 255, .8); font-weight: 700; }
+.asx-deck .gruss { font-size: 11.5px; letter-spacing: .3em; text-transform: uppercase; color: rgba(127, 176, 255, .9); font-weight: 600; }
 .asx-deck h2 {
-  margin: 0; font-size: clamp(26px, 4.2vw, 42px); font-weight: 800; letter-spacing: -.015em; line-height: 1.12;
+  margin: 0; font-size: clamp(30px, 4.6vw, 54px); font-weight: 500; letter-spacing: -.02em; line-height: 1.1;
   text-shadow: 0 8px 40px rgba(37, 99, 235, .35);
 }
 .asx-deck h2 .verlauf {
   background: linear-gradient(92deg, #9cc3ff, #4a8af5);
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
-.asx-deck .satz { margin: 0; max-width: 56ch; font-size: 14.5px; line-height: 1.6; color: rgba(226, 236, 250, .72); }
+.asx-deck .satz { margin: 0; max-width: 60ch; font-size: 14.5px; line-height: 1.6; font-weight: 300; color: rgba(205, 222, 255, .72); }
 
 .asx-vorschlaege {
   display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px; width: min(760px, 100%); margin-top: 6px;
+  gap: 10px; width: min(820px, 100%); margin-top: 10px;
 }
 .asx-vorschlag {
-  border: 1px solid rgba(96, 165, 250, .22); border-radius: 14px; cursor: pointer;
-  background: rgba(13, 32, 73, .55); color: #dbe7fb;
-  padding: 12px 14px; font-size: 12.8px; line-height: 1.45; text-align: left;
+  border: 1px solid rgba(120, 170, 255, .16); border-radius: 14px; cursor: pointer;
+  background: rgba(10, 22, 52, .55); color: rgba(215, 228, 255, .85);
+  padding: 12px 14px; font-size: 12.5px; line-height: 1.45; text-align: left;
   transition: transform .16s ease, background .16s ease, border-color .16s ease;
-  backdrop-filter: blur(6px);
+  backdrop-filter: blur(14px);
 }
-.asx-vorschlag:hover { background: rgba(37, 99, 235, .22); border-color: rgba(96, 165, 250, .5); transform: translateY(-1px); }
-.asx-vorschlag b { display: block; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: rgba(148, 190, 255, .85); margin-bottom: 4px; }
+.asx-vorschlag:hover { background: rgba(37, 99, 235, .2); border-color: rgba(96, 165, 250, .45); transform: translateY(-1px); }
+.asx-vorschlag b { display: block; font-size: 10px; letter-spacing: .22em; text-transform: uppercase; color: #7fb0ff; margin-bottom: 4px; }
 
 /* ── Der Strom ────────────────────────────────────────────────────────────── */
 .asx-strom {
@@ -196,7 +206,9 @@
 .asx-vorschau iframe { display: block; width: 100%; height: 320px; border: 0; background: #fff; }
 
 /* ── Der Eingabebereich ──────────────────────────────────────────────────── */
-.asx-eingabe { position: relative; z-index: 2; padding: 14px clamp(14px, 4vw, 44px) 18px; }
+.asx-eingabe { position: relative; z-index: 2; padding: 6px clamp(14px, 4vw, 44px) 18px; }
+.asx-eingabe .asx-feld { max-width: 820px; margin: 0 auto; }
+.asx-eingabe .hinweis { text-align: center; }
 .asx-feld {
   display: flex; align-items: flex-end; gap: 10px;
   border-radius: 18px; padding: 6px 6px 6px 18px;
@@ -245,7 +257,7 @@
 .asx-suche input {
   border: 1px solid rgba(96, 165, 250, .35); border-radius: 999px;
   background: rgba(10, 24, 56, .8); color: #f2f6fd;
-  padding: 7px 14px; font-size: 12.5px; width: 210px; outline: none;
+  padding: 7px 14px; font-size: 12.5px; width: 210px; outline: none; box-sizing: border-box;
 }
 .asx-suche input:focus { border-color: rgba(122, 168, 255, .7); }
 .asx-treffer {
@@ -285,8 +297,13 @@
   }
   .asx-leiste.offen { transform: translateX(0); }
   @media (prefers-reduced-motion: reduce) { .asx-leiste { transition: none !important; } }
-  .asx-deck { padding: 26px 16px 40px; gap: 16px; }
-  .asx-vorschlaege { grid-template-columns: 1fr; }
+  /* Handy: das Wesen bekommt das obere Drittel, darunter Frage und DREI Vorschläge —
+     sechs gestapelte Kacheln schöben das Eingabefeld aus dem Bild. */
+  .asx-deck { padding: 30vh 16px 14px; gap: 10px; }
+  .asx-deck .satz { font-size: 13.5px; }
+  .asx-vorschlaege { grid-template-columns: 1fr; gap: 8px; }
+  .asx-vorschlag:nth-child(n+4) { display: none; }
+  .asx-vorschlag { padding: 10px 12px; }
   .asx-kopf { padding: 12px 14px; }
   .asx-kopf .frei { width: 100%; justify-content: flex-start; }
   .asx-suche input { width: 100%; }

@@ -551,7 +551,8 @@ export const RUNDGANG_ASSISTENT: RundgangSchritt[] = [
     titel: "Deine Sitzungen bleiben da.",
     text: "Links liegen deine letzten Unterhaltungen — umbenennen und archivieren geht über die kleinen "
       + "Zeichen. Ein Klick öffnet den Verlauf samt aller Aktionskarten, auch die noch offenen "
-      + "Bestätigungen.",
+      + "Bestätigungen. Über das Zeichen mit den drei Strichen oben links klappst du die Leiste ein "
+      + "und aus — eingeklappt gehört die ganze Bühne dem Copilot.",
   },
   {
     ziel: "[data-fiaon='assistent-legende']",

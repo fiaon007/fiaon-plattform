@@ -1,6 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// /werkzeuge/basiskonto — Basiskonto-Helfer: Frist, Ablehnung, BaFin-Antrag
-// (02.09.2026, E-080)
+// /werkzeuge/basiskonto · /en/tools/basic-account — Basiskonto-Helfer: Frist,
+// Ablehnung, BaFin-Antrag (02.09.2026, E-080; zweisprachig 03.09.2026 — die
+// Erinnerung bleibt deutsch, Texte: client/src/i18n/wz-basiskonto.ts)
 //
 // Jede kontoführende Bank in Deutschland muss Verbrauchern auf Antrag ein
 // Basiskonto eröffnen (§ 31 ZKG) – unabhängig von Einträgen bei Auskunfteien.
@@ -17,9 +18,10 @@
 import { useMemo, useState } from "react";
 import { Dunkel, Block, Licht, Knopf, Zwischenruf, Fragen } from "@/components/site/DunkleBuehne";
 import SeoDaten from "@/components/site/SeoDaten";
+import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
+import { WZ_BASISKONTO_WOERTER } from "@/i18n/wz-basiskonto";
 import "@/styles/ratgeber.css";
 
-const fmt = (d: Date) => d.toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
 const parse = (s: string) => (/^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(s + "T12:00:00") : null);
 const heuteText = () => new Date().toLocaleDateString("de-DE", { day: "2-digit", month: "long", year: "numeric" });
 
@@ -32,15 +34,14 @@ function geschaeftstage(start: Date, n: number): Date {
 }
 
 type Lage = "warte" | "abgelehnt" | "";
-const FRAGEN = [
-  { f: "Wer hat Anspruch auf ein Basiskonto?", a: "Jeder Verbraucher mit rechtmäßigem Aufenthalt in der EU – auch ohne festen Wohnsitz, auch mit negativen Einträgen bei SCHUFA oder anderen Auskunfteien, auch in der Insolvenz (§ 31 ZKG). Die Bonität ist kein Ablehnungsgrund. Das Konto wird auf Guthabenbasis geführt; ein Dispo gehört nicht dazu." },
-  { f: "Welche Bank muss das Konto eröffnen?", a: "Jede Bank, die Zahlungskonten für Verbraucher anbietet – Sparkassen, Volksbanken, Privatbanken, Direktbanken. Sie dürfen sich das Basiskonto nicht gegenseitig zuschieben. Sie können sich die Bank aussuchen; sinnvoll ist eine, bei der Sie später auch Karte und Überweisungen bequem nutzen." },
-  { f: "Was darf die Bank verlangen und was kosten darf es?", a: "Ausweis oder Pass, bei fehlender Meldeadresse eine Erreichbarkeitsanschrift. Das Entgelt muss angemessen sein und sich an marktüblichen Kontoführungsentgelten orientieren (§ 41 ZKG); der BGH hat überhöhte Basiskonto-Gebühren mehrfach gekippt (u. a. XI ZR 119/19 vom 30.06.2020). Vergleichen Sie – die Gebühren unterscheiden sich erheblich." },
-  { f: "Aus welchen Gründen darf die Bank ablehnen?", a: "Nur aus den im Gesetz genannten: Sie führen bereits ein Zahlungskonto in Deutschland, das Sie nutzen können; Sie wurden in den letzten drei Jahren wegen einer vorsätzlichen Straftat gegen die Bank verurteilt; Sie haben ein früheres Konto bei dieser Bank durch schwere Vertragsverletzung verloren; oder es liegen Verstöße gegen das Geldwäschegesetz vor (§§ 35, 36 ZKG). Ein SCHUFA-Eintrag steht nicht in dieser Liste." },
-  { f: "Was macht die BaFin im Verwaltungsverfahren?", a: "Sie prüft, ob die Ablehnung oder die Verzögerung rechtmäßig war, und ordnet gegenüber der Bank die Eröffnung des Kontos an, wenn nicht (§ 48 ZKG). Das Verfahren ist kostenlos, der Antrag geht per Formular oder online an die BaFin in Bonn. Beizulegen sind Ihr Antrag bei der Bank und – falls vorhanden – die schriftliche Ablehnung." },
-];
 
 export default function Basiskonto() {
+  const t = useWoerter(WZ_BASISKONTO_WOERTER);
+  const sprache = useSprache();
+  const en = sprache === "en";
+  const zu = (p: string) => inSprache(p, sprache);
+  const pfad = en ? "/en/tools/basic-account" : "/werkzeuge/basiskonto";
+  const fmt = (d: Date) => d.toLocaleDateString(en ? "en-GB" : "de-DE", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
   const [lage, setLage] = useState<Lage>("");
   const [antrag, setAntrag] = useState("");
   const [bank, setBank] = useState("");
@@ -74,48 +75,50 @@ ${name || "[Vor- und Nachname]"}`, [name, bank, a, frist, heute]);
   const kopieren = async () => { try { await navigator.clipboard.writeText(erinnerung); setKopiert(true); setTimeout(() => setKopiert(false), 2500); } catch { /* egal */ } };
 
   return (
-    <Dunkel seite="ratgeber" titel="Basiskonto-Helfer · Frist, Ablehnung, BaFin-Antrag" beschreibung="Basiskonto beantragt und keine Antwort – oder abgelehnt? Der Helfer rechnet die Zehn-Tage-Frist, nennt die zulässigen Ablehnungsgründe und erzeugt Erinnerung und BaFin-Checkliste. Kostenlos.">
-      <SeoDaten pfad="/werkzeuge/basiskonto" titel="Basiskonto abgelehnt oder keine Antwort? Der Helfer" beschreibung="Basiskonto beantragt? Der Helfer rechnet die Zehn-Geschäftstage-Frist (§ 33 ZKG), nennt die zulässigen Ablehnungsgründe und erzeugt Erinnerung und BaFin-Checkliste (§ 48 ZKG)." fragen={FRAGEN} werkzeug={{ name: "Basiskonto-Helfer" }} krumen={[{ name: "Werkzeuge", pfad: "/werkzeuge" }, { name: "Basiskonto-Helfer", pfad: "/werkzeuge/basiskonto" }]} />
+    <Dunkel seite="ratgeber" titel={t.metaTitel} beschreibung={t.metaBeschreibung}>
+      <SeoDaten pfad={pfad} titel={t.seoTitel} beschreibung={t.seoBeschreibung} fragen={t.fragen} werkzeug={{ name: t.werkzeugName }} krumen={[{ name: t.krumeWerkzeuge, pfad: zu("/werkzeuge") }, { name: t.krume, pfad }]} />
       <section className="dk-hero kurz">
         <div className="dk-hero-bild" aria-hidden="true"><img src="/kino/hero.jpg" alt="" decoding="async" /><div className="schleier" /></div>
         <div className="dk-rahmen">
-          <span className="dk-pille">Werkzeug · kostenlos, ohne Anmeldung</span>
-          <h1 className="dk-h1">Das Konto, das Ihnen <span className="dk-verlauf">zusteht.</span></h1>
-          <p className="dk-lead">Zehn Geschäftstage hat die Bank. Ein SCHUFA-Eintrag ist kein Ablehnungsgrund. Der Helfer rechnet die Frist, prüft die Begründung der Bank und bereitet die Erinnerung und den Antrag bei der BaFin vor.</p>
+          <span className="dk-pille">{t.pille}</span>
+          <h1 className="dk-h1">{t.h1a}<span className="dk-verlauf">{t.h1b}</span></h1>
+          <p className="dk-lead">{t.lead}</p>
         </div>
       </section>
       <Licht>
         <Block schmal>
           <div className="wz-fragen">
             <div className="wz-frage">
-              <p className="wz-nr">Schritt 1</p><h3>Wo stehen Sie?</h3>
+              <p className="wz-nr">{t.schritt1}</p><h3>{t.frage1}</h3>
               <div className="wz-optionen zwei">
-                <button type="button" className={`wz-option${lage === "warte" ? " an" : ""}`} onClick={() => setLage("warte")}><b>Antrag gestellt, keine Antwort</b><small>Die Bank meldet sich nicht oder vertröstet.</small></button>
-                <button type="button" className={`wz-option${lage === "abgelehnt" ? " an" : ""}`} onClick={() => setLage("abgelehnt")}><b>Antrag abgelehnt</b><small>Mündlich, per Brief oder „wegen der SCHUFA“.</small></button>
+                <button type="button" className={`wz-option${lage === "warte" ? " an" : ""}`} onClick={() => setLage("warte")}><b>{t.warte}</b><small>{t.warteHinweis}</small></button>
+                <button type="button" className={`wz-option${lage === "abgelehnt" ? " an" : ""}`} onClick={() => setLage("abgelehnt")}><b>{t.abgelehnt}</b><small>{t.abgelehntHinweis}</small></button>
               </div>
             </div>
             {lage === "warte" && (
               <div className="wz-frage">
-                <p className="wz-nr">Schritt 2</p><h3>Wann haben Sie den Antrag gestellt?</h3>
-                <p className="wz-hinweis">Der Tag, an dem Ihr Antrag vollständig bei der Bank war – mit Ausweis. Lassen Sie sich den Eingang immer quittieren oder stellen Sie den Antrag schriftlich.</p>
+                <p className="wz-nr">{t.schritt2}</p><h3>{t.frage2}</h3>
+                <p className="wz-hinweis">{t.hinweis2}</p>
                 <div className="wz-felder drei">
-                  <label><span>Antrag gestellt am</span><input type="date" value={antrag} onChange={(ev) => setAntrag(ev.target.value)} /></label>
-                  <label><span>Bank</span><input value={bank} onChange={(ev) => setBank(ev.target.value)} placeholder="z. B. Sparkasse Musterstadt" /></label>
-                  <label><span>Ihr Name</span><input value={name} onChange={(ev) => setName(ev.target.value)} /></label>
+                  <label><span>{t.antragAm}</span><input type="date" value={antrag} onChange={(ev) => setAntrag(ev.target.value)} /></label>
+                  <label><span>{t.bank}</span><input value={bank} onChange={(ev) => setBank(ev.target.value)} placeholder={t.bspBank} /></label>
+                  <label><span>{t.ihrName}</span><input value={name} onChange={(ev) => setName(ev.target.value)} /></label>
                 </div>
               </div>
             )}
           </div>
           {lage === "warte" && frist && (
             <div className={`wz-ergebnis${ueberfaellig ? " alarm" : " gut"}`}>
-              <span className="wz-stufe" style={{ background: ueberfaellig ? "#b91c1c" : "#047857" }}>{ueberfaellig ? "Frist abgelaufen" : "Frist läuft"}</span>
-              <h3>Die Bank muss bis {fmt(frist)} antworten.</h3>
-              <p>Zehn Geschäftstage ab vollständigem Antrag (§ 33 Abs. 3 ZKG) – Wochenenden und bundesweite Feiertage nicht mitgerechnet. Bis dahin muss sie Ihnen den Vertrag anbieten oder schriftlich und mit Begründung ablehnen (§ 34 ZKG). {ueberfaellig ? "Die Frist ist verstrichen: Erinnern Sie schriftlich mit kurzer Nachfrist – und kündigen Sie das BaFin-Verfahren an. Das Schreiben steht unten." : "Warten Sie die Frist ab; heben Sie den Nachweis über den Antragstag auf."}</p>
+              <span className="wz-stufe" style={{ background: ueberfaellig ? "#b91c1c" : "#047857" }}>{ueberfaellig ? t.fristAbgelaufen : t.fristLaeuft}</span>
+              <h3>{t.mussBis(fmt(frist))}</h3>
+              <p>{t.fristText}{ueberfaellig ? t.fristVorbei : t.fristWarten}</p>
               {ueberfaellig && (
-                <div className="wz-brief-wrap" style={{ marginTop: 22 }}><div className="wz-brief">{erinnerung}</div>
+                <div className="wz-brief-wrap" style={{ marginTop: 22 }}>
+                  {t.spracheHinweis && <p className="wz-hinweis" style={{ marginBottom: 12 }}>{t.spracheHinweis}</p>}
+                  <div className="wz-brief" lang="de">{erinnerung}</div>
                   <div className="wz-knoepfe">
-                    <button type="button" className="dk-knopf" onClick={kopieren}>{kopiert ? "Kopiert" : "Erinnerung kopieren"}</button>
-                    <Knopf href="https://www.bafin.de/DE/verbraucherinnen-verbraucher/themen-finanzprodukte/konten-zahlungen/konten/basiskonto/basiskonto_node.html" still>BaFin: Verwaltungsverfahren</Knopf>
+                    <button type="button" className="dk-knopf" onClick={kopieren}>{kopiert ? t.kopiert : t.kopieren}</button>
+                    <Knopf href="https://www.bafin.de/DE/verbraucherinnen-verbraucher/themen-finanzprodukte/konten-zahlungen/konten/basiskonto/basiskonto_node.html" still>{t.bafinVerfahren}</Knopf>
                   </div>
                 </div>
               )}
@@ -123,23 +126,23 @@ ${name || "[Vor- und Nachname]"}`, [name, bank, a, frist, heute]);
           )}
           {lage === "abgelehnt" && (
             <div className="wz-ergebnis">
-              <span className="wz-stufe" style={{ background: "#1d4ed8" }}>Prüfen Sie die Begründung</span>
-              <h3>Nur vier Gründe erlauben eine Ablehnung – ein Eintrag bei einer Auskunftei gehört nicht dazu.</h3>
-              <p>Zulässig sind allein (§§ 35, 36 ZKG): Sie nutzen bereits ein Zahlungskonto in Deutschland; eine Verurteilung wegen einer vorsätzlichen Straftat gegen die Bank in den letzten drei Jahren; ein früheres Konto bei dieser Bank wurde wegen schwerer Vertragsverletzung gekündigt; Verstöße gegen Geldwäscheregeln. Alles andere – „SCHUFA“, „Bonität“, „wir eröffnen keine Basiskonten“, „nur für Bestandskunden“ – ist unzulässig.</p>
-              <div className="wz-schritt"><small>1 · Schriftliche Ablehnung verlangen</small><p>Die Bank muss die Ablehnung schriftlich begründen und auf das Verwaltungsverfahren hinweisen (§ 34 ZKG). Eine mündliche Absage am Schalter ist keine Ablehnung – bitten Sie um das Schreiben.</p></div>
-              <div className="wz-schritt"><small>2 · Antrag bei der BaFin (§ 48 ZKG)</small><p>Formular „Antrag auf Durchführung eines Verwaltungsverfahrens“ – online oder per Post an die Bundesanstalt für Finanzdienstleistungsaufsicht, Referat VBS 12, Graurheindorfer Straße 108, 53117 Bonn. Beilegen: Kopie Ihres Antrags bei der Bank, Kopie der Ablehnung (falls vorhanden), Ausweiskopie. Kostenlos. Die BaFin prüft und ordnet die Eröffnung an, wenn die Ablehnung unrechtmäßig war.</p></div>
-              <div className="wz-schritt"><small>3 · Parallel eine zweite Bank</small><p>Sie müssen nicht warten: Stellen Sie den Antrag bei einer weiteren Bank – schriftlich, mit Eingangsquittung. Oft ist das schneller als das Verfahren. Achten Sie auf die Kontoführungsgebühr; sie muss angemessen sein (§ 41 ZKG).</p></div>
+              <span className="wz-stufe" style={{ background: "#1d4ed8" }}>{t.pruefen}</span>
+              <h3>{t.nurVier}</h3>
+              <p>{t.zulaessig}</p>
+              <div className="wz-schritt"><small>{t.s1}</small><p>{t.s1Text}</p></div>
+              <div className="wz-schritt"><small>{t.s2}</small><p>{t.s2Text}</p></div>
+              <div className="wz-schritt"><small>{t.s3}</small><p>{t.s3Text}</p></div>
               <div className="wz-knoepfe">
-                <Knopf href="https://www.bafin.de/DE/verbraucherinnen-verbraucher/themen-finanzprodukte/konten-zahlungen/konten/basiskonto/basiskonto_node.html" still>Zum BaFin-Formular</Knopf>
-                <Knopf href="/girokonto-trotz-negativer-bonitaet" still>Basiskonto oder FIAON-Weg?</Knopf>
+                <Knopf href="https://www.bafin.de/DE/verbraucherinnen-verbraucher/themen-finanzprodukte/konten-zahlungen/konten/basiskonto/basiskonto_node.html" still>{t.bafinFormular}</Knopf>
+                <Knopf href={zu("/girokonto-trotz-negativer-bonitaet")} still>{t.oderFiaon}</Knopf>
               </div>
             </div>
           )}
-          <p className="dk-leise" style={{ marginTop: 18 }}>Grundlage: §§ 31, 33, 34, 35, 36, 41, 48 ZKG (Zahlungskontengesetz); BGH XI ZR 119/19. Geschäftstage ohne Landesfeiertage gerechnet. Das Werkzeug ersetzt keine Rechtsberatung. Nichts wird gespeichert.</p>
+          <p className="dk-leise" style={{ marginTop: 18 }}>{t.fuss}</p>
         </Block>
       </Licht>
-      <Block schmal titel="Häufige Fragen"><Fragen items={FRAGEN} /></Block>
-      <Zwischenruf text={<><b>Das Basiskonto ist der Anfang, nicht das Ziel.</b> FIAON bereitet mit Ihnen das Konto vor, das später Karte und Finanzierung trägt – und bringt die Auskunft in Ordnung, die die Bank sieht.</>} knopf="Den FIAON-Weg ansehen" href="/girokonto-trotz-negativer-bonitaet" still={{ knopf: "Antrag stellen", href: "/antrag" }} />
+      <Block schmal titel={t.fragenTitel}><Fragen items={t.fragen} /></Block>
+      <Zwischenruf text={<><b>{t.zwischenrufFett}</b>{t.zwischenruf}</>} knopf={t.zwischenrufKnopf} href={zu("/girokonto-trotz-negativer-bonitaet")} still={{ knopf: t.antrag, href: "/antrag" }} />
     </Dunkel>
   );
 }

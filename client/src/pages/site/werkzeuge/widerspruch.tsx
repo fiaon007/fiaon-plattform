@@ -1,6 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// /werkzeuge/widerspruch — Löschantrag und Widerspruch gegen einen Eintrag
-// (02.09.2026, E-080)
+// /werkzeuge/widerspruch · /en/tools/deletion-request — Löschantrag und
+// Widerspruch gegen einen Eintrag (02.09.2026, E-080; zweisprachig 03.09.2026 —
+// beide Schreiben bleiben deutsch, Texte: client/src/i18n/wz-widerspruch.ts)
 //
 // Der Leser wählt, was mit seinem Eintrag nicht stimmt, trägt die Eckdaten
 // ein und bekommt zwei fertige Schreiben: eines an die Auskunftei (Löschung
@@ -16,6 +17,8 @@
 import { useMemo, useState } from "react";
 import { Dunkel, Block, Licht, Knopf, Zwischenruf, Fragen } from "@/components/site/DunkleBuehne";
 import SeoDaten from "@/components/site/SeoDaten";
+import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
+import { WZ_WIDERSPRUCH_WOERTER } from "@/i18n/wz-widerspruch";
 import "@/styles/ratgeber.css";
 
 const AUSKUNFTEIEN = [
@@ -28,25 +31,16 @@ const AUSKUNFTEIEN = [
 
 type Grund = "mahnung" | "bestritten" | "frist" | "falsch" | "";
 
-const GRUENDE: { key: Grund; titel: string; kurz: string }[] = [
-  { key: "mahnung", titel: "Ohne zwei Mahnungen gemeldet", kurz: "Ich habe vor der Meldung keine zwei Mahnungen mit mindestens vier Wochen Abstand erhalten – oder keinen Hinweis, dass gemeldet wird." },
-  { key: "bestritten", titel: "Ich hatte der Forderung widersprochen", kurz: "Die Forderung war bestritten, bevor sie gemeldet wurde – bestrittene Forderungen dürfen nicht gemeldet werden." },
-  { key: "frist", titel: "Die Löschfrist ist abgelaufen", kurz: "Die Forderung ist erledigt, die Speicherfrist ist um – der Eintrag steht trotzdem noch." },
-  { key: "falsch", titel: "Der Eintrag ist falsch", kurz: "Falscher Betrag, falsches Datum, falsche Person, doppelt gemeldet oder die Erledigung fehlt." },
-];
-
-const FRAGEN = [
-  { f: "Kann ich mit diesem Schreiben jeden Eintrag löschen lassen?", a: "Nein. Ein inhaltlich richtiger, zulässig gemeldeter Eintrag bleibt bis zum Ablauf der Speicherfrist – auch nach dem besten Brief. Das Schreiben wirkt dort, wo die Meldung die gesetzlichen Voraussetzungen nicht erfüllt hat (§ 31 Abs. 2 BDSG), wo Daten falsch sind (Art. 16 DSGVO) oder wo die Frist abgelaufen ist (Art. 17 DSGVO)." },
-  { f: "Schreibe ich an die Auskunftei oder an den Gläubiger?", a: "An beide. Die Auskunftei ist rechtlich verantwortlich für die Daten, die sie speichert, und muss prüfen. Der Gläubiger hat gemeldet und kann die Meldung zurücknehmen – oft geht das schneller. Deshalb erzeugt das Werkzeug zwei Schreiben." },
-  { f: "Wie lange hat die Auskunftei Zeit zu antworten?", a: "Unverzüglich, spätestens innerhalb eines Monats nach Eingang (Art. 12 Abs. 3 DSGVO). Bei komplizierten Fällen darf sie die Frist um zwei Monate verlängern, muss das aber innerhalb des ersten Monats mitteilen. Deshalb steht im Schreiben eine Frist von vier Wochen." },
-  { f: "Was tue ich, wenn die Auskunftei ablehnt oder nicht antwortet?", a: "Beschwerde bei der zuständigen Datenschutzaufsichtsbehörde (Art. 77 DSGVO) – für die SCHUFA ist das der Hessische Beauftragte für Datenschutz und Informationsfreiheit. Zusätzlich gibt es den Ombudsmann der SCHUFA. Beides ist kostenlos. FIAON übernimmt diese Eskalation für Kunden." },
-  { f: "Soll ich per E-Mail oder per Post schicken?", a: "Per Post als Einschreiben mit Rückschein – oder per Einwurf-Einschreiben. Sie brauchen später den Nachweis, wann das Schreiben zugegangen ist. Eine Kopie des Ausweises verlangen Auskunfteien oft zur Identifikation; schwärzen Sie darauf alles außer Name, Anschrift und Geburtsdatum." },
-];
-
 const heute = () => new Date().toLocaleDateString("de-DE", { day: "2-digit", month: "long", year: "numeric" });
 
 export default function Widerspruch() {
+  const t = useWoerter(WZ_WIDERSPRUCH_WOERTER);
+  const sprache = useSprache();
+  const en = sprache === "en";
+  const zu = (p: string) => inSprache(p, sprache);
+  const pfad = en ? "/en/tools/deletion-request" : "/werkzeuge/widerspruch";
   const [grund, setGrund] = useState<Grund>("");
+  void en;
   const [ask, setAsk] = useState<string>(() => { try { return sessionStorage.getItem("fiaon_land") === "AT" ? "ksv" : "schufa"; } catch { return "schufa"; } });
   const [f, setF] = useState({ name: "", geburt: "", strasse: "", plzOrt: "", glaeubiger: "", glAdresse: "", aktenzeichen: "", betrag: "", datum: "", erledigt: "" });
   const [kopiert, setKopiert] = useState<"" | "a" | "g">("");
@@ -128,84 +122,85 @@ ${f.name || "[Vor- und Nachname]"}`, [f, a, begruendung, ort]);
   };
 
   return (
-    <Dunkel seite="ratgeber" titel="Widerspruch-Generator · Löschantrag gegen einen Eintrag" beschreibung="Löschantrag und Widerspruch gegen einen SCHUFA-, KSV- oder CRIF-Eintrag in zwei Minuten: Grund wählen, Eckdaten eintragen, zwei fertige Schreiben. Kostenlos, nichts wird gespeichert.">
-      <SeoDaten pfad="/werkzeuge/widerspruch" titel="Löschantrag & Widerspruch gegen SCHUFA-Eintrag: Generator" beschreibung="Löschantrag nach Art. 17 DSGVO und Widerspruch nach § 31 BDSG in zwei Minuten: Grund wählen, Eckdaten eintragen, zwei fertige Schreiben. Kostenlos." fragen={FRAGEN} werkzeug={{ name: "Widerspruch-Generator" }} krumen={[{ name: "Werkzeuge", pfad: "/werkzeuge" }, { name: "Widerspruch-Generator", pfad: "/werkzeuge/widerspruch" }]} />
+    <Dunkel seite="ratgeber" titel={t.metaTitel} beschreibung={t.metaBeschreibung}>
+      <SeoDaten pfad={pfad} titel={t.seoTitel} beschreibung={t.seoBeschreibung} fragen={t.fragen} werkzeug={{ name: t.werkzeugName }} krumen={[{ name: t.krumeWerkzeuge, pfad: zu("/werkzeuge") }, { name: t.krume, pfad }]} />
       <section className="dk-hero kurz">
         <div className="dk-hero-bild" aria-hidden="true"><img src="/kino/hero.jpg" alt="" decoding="async" /><div className="schleier" /></div>
         <div className="dk-rahmen">
-          <span className="dk-pille">Werkzeug · kostenlos, ohne Anmeldung</span>
-          <h1 className="dk-h1">Der Löschantrag, <span className="dk-verlauf">fertig formuliert.</span></h1>
-          <p className="dk-lead">Wählen Sie, was mit dem Eintrag nicht stimmt. Das Werkzeug schreibt den Antrag an die Auskunftei und die Aufforderung an den Gläubiger – mit den richtigen Paragrafen, Fristen und der Bitte um Nachweise.</p>
+          <span className="dk-pille">{t.pille}</span>
+          <h1 className="dk-h1">{t.h1a}<span className="dk-verlauf">{t.h1b}</span></h1>
+          <p className="dk-lead">{t.lead}</p>
         </div>
       </section>
       <Licht>
         <Block schmal>
           <div className="wz-fragen">
             <div className="wz-frage">
-              <p className="wz-nr">Schritt 1</p><h3>Was stimmt mit dem Eintrag nicht?</h3>
-              <p className="wz-hinweis">Unsicher? Der <a href="/werkzeuge/eintrag-pruefen">Eintrag-Prüfer</a> stellt fünf Fragen und sagt, welcher Grund passt. Ist der Eintrag richtig und zulässig gemeldet, hilft kein Schreiben – dann zählt die <a href="/werkzeuge/loeschfrist">Löschfrist</a>.</p>
+              <p className="wz-nr">{t.schritt1}</p><h3>{t.frage1}</h3>
+              <p className="wz-hinweis">{t.hinweis1A}<a href={zu("/werkzeuge/eintrag-pruefen")}>{t.hinweis1Link1}</a>{t.hinweis1B}<a href={zu("/werkzeuge/loeschfrist")}>{t.hinweis1Link2}</a>{t.hinweis1C}</p>
               <div className="wz-optionen zwei">
-                {GRUENDE.map((g) => (
+                {t.gruende.map((g) => (
                   <button key={g.key} type="button" className={`wz-option${grund === g.key ? " an" : ""}`} onClick={() => setGrund(g.key)}><b>{g.titel}</b><small>{g.kurz}</small></button>
                 ))}
               </div>
             </div>
             {grund && (
               <div className="wz-frage">
-                <p className="wz-nr">Schritt 2</p><h3>Die Eckdaten</h3>
+                <p className="wz-nr">{t.schritt2}</p><h3>{t.frage2}</h3>
                 <div className="wz-felder drei">
-                  <label><span>Auskunftei</span>
+                  <label><span>{t.auskunftei}</span>
                     <select value={ask} onChange={(ev) => setAsk(ev.target.value)}>{AUSKUNFTEIEN.map((x) => <option key={x.key} value={x.key}>{x.name} ({x.land})</option>)}</select>
                   </label>
-                  <label><span>Gläubiger / Inkasso</span><input value={f.glaeubiger} onChange={set("glaeubiger")} placeholder="z. B. Musterversand GmbH" /></label>
-                  <label><span>Anschrift Gläubiger</span><input value={f.glAdresse} onChange={set("glAdresse")} placeholder="Straße, PLZ Ort" /></label>
-                  <label><span>Aktenzeichen / Kennung</span><input value={f.aktenzeichen} onChange={set("aktenzeichen")} placeholder="aus dem Schreiben" /></label>
-                  <label><span>Betrag (€)</span><input value={f.betrag} onChange={set("betrag")} inputMode="decimal" placeholder="z. B. 348,20" /></label>
-                  {grund === "frist" && <label><span>Erledigt am</span><input value={f.erledigt} onChange={set("erledigt")} placeholder="TT.MM.JJJJ" /></label>}
-                  {grund === "bestritten" && <label><span>Widerspruch am</span><input value={f.datum} onChange={set("datum")} placeholder="TT.MM.JJJJ" /></label>}
-                  {grund === "falsch" && <label><span>Was ist richtig?</span><input value={f.datum} onChange={set("datum")} placeholder="z. B. Betrag 120 €, bezahlt am …" /></label>}
+                  <label><span>{t.glaeubiger}</span><input value={f.glaeubiger} onChange={set("glaeubiger")} placeholder={t.bspGlaeubiger} /></label>
+                  <label><span>{t.glAdresse}</span><input value={f.glAdresse} onChange={set("glAdresse")} placeholder={t.bspGlAdresse} /></label>
+                  <label><span>{t.aktenzeichen}</span><input value={f.aktenzeichen} onChange={set("aktenzeichen")} placeholder={t.bspAktenzeichen} /></label>
+                  <label><span>{t.betrag}</span><input value={f.betrag} onChange={set("betrag")} inputMode="decimal" placeholder={t.bspBetrag} /></label>
+                  {grund === "frist" && <label><span>{t.erledigtAm}</span><input value={f.erledigt} onChange={set("erledigt")} placeholder={t.datumFormat} /></label>}
+                  {grund === "bestritten" && <label><span>{t.widerspruchAm}</span><input value={f.datum} onChange={set("datum")} placeholder={t.datumFormat} /></label>}
+                  {grund === "falsch" && <label><span>{t.wasRichtig}</span><input value={f.datum} onChange={set("datum")} placeholder={t.bspRichtig} /></label>}
                 </div>
               </div>
             )}
             {grund && (
               <div className="wz-frage">
-                <p className="wz-nr">Schritt 3</p><h3>Ihre Angaben</h3>
+                <p className="wz-nr">{t.schritt3}</p><h3>{t.frage3}</h3>
                 <div className="wz-felder drei">
-                  <label><span>Vor- und Nachname</span><input value={f.name} onChange={set("name")} /></label>
-                  <label><span>Geburtsdatum</span><input value={f.geburt} onChange={set("geburt")} placeholder="TT.MM.JJJJ" /></label>
-                  <label><span>Straße, Hausnummer</span><input value={f.strasse} onChange={set("strasse")} /></label>
-                  <label><span>PLZ Ort</span><input value={f.plzOrt} onChange={set("plzOrt")} /></label>
+                  <label><span>{t.name}</span><input value={f.name} onChange={set("name")} /></label>
+                  <label><span>{t.geburt}</span><input value={f.geburt} onChange={set("geburt")} placeholder={t.datumFormat} /></label>
+                  <label><span>{t.strasse}</span><input value={f.strasse} onChange={set("strasse")} /></label>
+                  <label><span>{t.plzOrt}</span><input value={f.plzOrt} onChange={set("plzOrt")} /></label>
                 </div>
-                <p className="wz-hinweis">Nichts davon verlässt Ihren Browser. Das Werkzeug speichert und sendet nichts.</p>
+                <p className="wz-hinweis">{t.hinweis3}</p>
               </div>
             )}
           </div>
           {grund && (
             <>
-              <div className="wz-schritt" style={{ marginTop: 22, borderColor: "rgba(180,83,9,.35)", background: "#fffaf0" }}><small style={{ color: "#b45309" }}>Muster, keine Rechtsberatung</small><p>Dieses Schreiben ist ein Mustertext zum Selbst-Anpassen. Es bewertet nicht Ihren Einzelfall und ersetzt keine Rechtsberatung – prüfen Sie Sachverhalt, Daten und Fristen selbst oder mit einer Beratungsstelle. Der Unterschied zum FIAON-Programm: Dort sind die Schreiben anwaltlich geprüft, werden per Einschreiben versendet, jede Antwort wird verfolgt und Fristen werden gehalten.</p></div>
-              <div className="wz-schritt" style={{ marginTop: 26 }}><small>Schreiben 1 · an die Auskunftei</small><p>Per Einschreiben. Frist: vier Wochen. Ausweiskopie beilegen, geschwärzt bis auf Name, Anschrift, Geburtsdatum.</p></div>
-              <div className="wz-brief-wrap"><div className="wz-brief">{briefAuskunftei}</div>
+              <div className="wz-schritt" style={{ marginTop: 22, borderColor: "rgba(180,83,9,.35)", background: "#fffaf0" }}><small style={{ color: "#b45309" }}>{t.musterTitel}</small><p>{t.muster}</p></div>
+              {t.spracheHinweis && <div className="wz-schritt" style={{ marginTop: 14 }}><p>{t.spracheHinweis}</p></div>}
+              <div className="wz-schritt" style={{ marginTop: 26 }}><small>{t.brief1}</small><p>{t.brief1Text}</p></div>
+              <div className="wz-brief-wrap"><div className="wz-brief" lang="de">{briefAuskunftei}</div>
                 <div className="wz-knoepfe">
-                  <button type="button" className="dk-knopf" onClick={() => kopieren("a")}>{kopiert === "a" ? "Kopiert" : "Schreiben kopieren"}</button>
-                  <button type="button" className="dk-knopf still" onClick={() => drucken(briefAuskunftei)}>Drucken</button>
+                  <button type="button" className="dk-knopf" onClick={() => kopieren("a")}>{kopiert === "a" ? t.kopiert : t.kopieren}</button>
+                  <button type="button" className="dk-knopf still" onClick={() => drucken(briefAuskunftei)}>{t.drucken}</button>
                 </div>
               </div>
-              <div className="wz-schritt" style={{ marginTop: 26 }}><small>Schreiben 2 · an den Gläubiger</small><p>Parallel abschicken. Der Gläubiger kann die Meldung selbst zurücknehmen – das ist oft der schnellere Weg.</p></div>
-              <div className="wz-brief-wrap"><div className="wz-brief">{briefGlaeubiger}</div>
+              <div className="wz-schritt" style={{ marginTop: 26 }}><small>{t.brief2}</small><p>{t.brief2Text}</p></div>
+              <div className="wz-brief-wrap"><div className="wz-brief" lang="de">{briefGlaeubiger}</div>
                 <div className="wz-knoepfe">
-                  <button type="button" className="dk-knopf" onClick={() => kopieren("g")}>{kopiert === "g" ? "Kopiert" : "Schreiben kopieren"}</button>
-                  <button type="button" className="dk-knopf still" onClick={() => drucken(briefGlaeubiger)}>Drucken</button>
-                  <Knopf href="/werkzeuge/loeschfrist" still>Löschfrist prüfen</Knopf>
+                  <button type="button" className="dk-knopf" onClick={() => kopieren("g")}>{kopiert === "g" ? t.kopiert : t.kopieren}</button>
+                  <button type="button" className="dk-knopf still" onClick={() => drucken(briefGlaeubiger)}>{t.drucken}</button>
+                  <Knopf href={zu("/werkzeuge/loeschfrist")} still>{t.loeschfristPruefen}</Knopf>
                 </div>
               </div>
-              <div className="wz-schritt" style={{ marginTop: 26 }}><small>Und danach</small><p>Zugang notieren, vier Wochen warten, Antwort prüfen. Keine Antwort oder eine Ablehnung ohne Begründung: Beschwerde bei der Datenschutzaufsicht (Art. 77 DSGVO) – kostenlos. Danach die Datenkopie erneut anfordern und nachsehen, ob der Eintrag wirklich weg ist.</p></div>
+              <div className="wz-schritt" style={{ marginTop: 26 }}><small>{t.danach}</small><p>{t.danachText}</p></div>
             </>
           )}
-          <p className="dk-leise" style={{ marginTop: 18 }}>Grundlage: § 31 Abs. 2 BDSG, Art. 12, 15, 16, 17, 19, 21, 77 DSGVO, Verhaltensregeln der Wirtschaftsauskunfteien (Stand 2024). Das Werkzeug ersetzt keine Rechtsberatung. Ein richtiger, zulässig gemeldeter Eintrag bleibt bis zum Fristablauf – das sagen wir Ihnen lieber jetzt als nach vier Wochen Warten.</p>
+          <p className="dk-leise" style={{ marginTop: 18 }}>{t.fuss}</p>
         </Block>
       </Licht>
-      <Block schmal titel="Häufige Fragen"><Fragen items={FRAGEN} /></Block>
-      <Zwischenruf text={<><b>Lieber nicht selbst nachhalten?</b> FIAON prüft jeden Eintrag, versendet die Schreiben per Einschreiben, verfolgt die Antwort und eskaliert zur Aufsicht – Sie geben nur frei.</>} knopf="FIAON übernimmt das" href="/antrag" still={{ knopf: "Wie FIAON arbeitet", href: "/fiaon-erfahrungen" }} />
+      <Block schmal titel={t.fragenTitel}><Fragen items={t.fragen} /></Block>
+      <Zwischenruf text={<><b>{t.zwischenrufFett}</b>{t.zwischenruf}</>} knopf={t.zwischenrufKnopf} href="/antrag" still={{ knopf: t.wieFiaon, href: zu("/fiaon-erfahrungen") }} />
     </Dunkel>
   );
 }

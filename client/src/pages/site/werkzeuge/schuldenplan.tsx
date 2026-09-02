@@ -1,6 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// /werkzeuge/schuldenplan — Schuldenfrei-Plan: Lawine oder Schneeball
-// (02.09.2026, E-080)
+// /werkzeuge/schuldenplan · /en/tools/debt-free-plan — Schuldenfrei-Plan:
+// Lawine oder Schneeball (02.09.2026, E-080; zweisprachig 03.09.2026,
+// Texte: client/src/i18n/wz-schuldenplan.ts)
 //
 // Bis zu sechs Schulden (Betrag, Zins, Mindestrate) und ein monatliches
 // Budget. Der Rechner simuliert Monat für Monat zwei Strategien:
@@ -16,10 +17,11 @@
 import { useMemo, useState } from "react";
 import { Dunkel, Block, Licht, Knopf, Zwischenruf, Fragen } from "@/components/site/DunkleBuehne";
 import SeoDaten from "@/components/site/SeoDaten";
+import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
+import { WZ_SCHULDENPLAN_WOERTER } from "@/i18n/wz-schuldenplan";
 import "@/styles/ratgeber.css";
 
-const eur = (n: number) => n.toLocaleString("de-DE", { style: "currency", currency: "EUR" });
-const zahl = (s: string) => { const n = parseFloat(String(s).replace(/\./g, "").replace(",", ".")); return isFinite(n) ? n : 0; };
+const zahl = (s: string) => { const r = String(s).trim(); const n = parseFloat(/,\d{1,2}$/.test(r) ? r.replace(/\./g, "").replace(",", ".") : r.replace(/,/g, "")); return isFinite(n) ? n : 0; };
 
 type Schuld = { name: string; betrag: string; zins: string; rate: string };
 const LEER: Schuld = { name: "", betrag: "", zins: "", rate: "" };
@@ -43,21 +45,19 @@ function simulieren(schulden: { name: string; rest: number; zins: number; rate: 
   return { monate: monat, zinsen, reihenfolge };
 }
 
-const FRAGEN = [
-  { f: "Lawine oder Schneeball – was ist besser?", a: "Rechnerisch die Lawine: Wer das Extra-Geld immer auf die Schuld mit dem höchsten Zins legt, zahlt am wenigsten Zinsen und ist am frühesten fertig. Praktisch gewinnt oft der Schneeball: Wer die kleinste Schuld zuerst tilgt, hat nach wenigen Monaten einen Gläubiger weniger – und hält deshalb durch. Der Rechner zeigt, wie groß der Unterschied bei Ihren Zahlen ist. Ist er klein, nehmen Sie den Schneeball." },
-  { f: "Welche Schulden gehören in den Plan?", a: "Alle mit fester Rate: Ratenkredite, Dispo (mit dem Betrag, den Sie monatlich abbauen wollen), Kreditkartenrahmen, Ratenkäufe, Inkassoforderungen mit Ratenvereinbarung. Nicht hinein gehören Miete, Strom und laufende Verträge – das sind Fixkosten, die im Budget vorher abgezogen sind." },
-  { f: "Was, wenn das Budget die Mindestraten nicht deckt?", a: "Dann ist kein Plan der Welt die Lösung, sondern ein Gespräch: mit den Gläubigern über niedrigere Raten (Ratenplan-Rechner) und mit einer kostenlosen, staatlich anerkannten Schuldnerberatung. Sie kann Raten bündeln, Vergleiche verhandeln und – wenn nötig – den Weg in die Verbraucherinsolvenz begleiten. Der Rechner sagt Ihnen ehrlich, wenn Sie an diesem Punkt sind." },
-  { f: "Sollte ich lieber umschulden?", a: "Wenn ein neuer Kredit alle teuren Schulden zu einem deutlich niedrigeren Zins ablöst und die Rate ins Budget passt: ja – der Umschuldungsrechner rechnet es durch. Voraussetzung ist eine Bank, die den Kredit gibt; mit negativen Einträgen ist das schwer. Dann ist der Plan mit vorhandenen Mitteln der realistische Weg." },
-  { f: "Wie halte ich den Plan durch?", a: "Alle Raten auf einen Tag direkt nach dem Gehalt, per Dauerauftrag. Das Extra-Geld ebenfalls automatisch. Einen Puffer von einer Monatsrate auf dem Konto. Jeden getilgten Gläubiger feiern – und dessen Rate sofort auf die nächste Schuld legen, statt sie im Alltag zu verbrauchen. Genau das ist der Schneeball-Effekt." },
-];
-
 export default function Schuldenplan() {
-  const [schulden, setSchulden] = useState<Schuld[]>([{ ...LEER, name: "Ratenkredit" }, { ...LEER, name: "Dispo" }, { ...LEER, name: "Kreditkarte" }]);
+  const t = useWoerter(WZ_SCHULDENPLAN_WOERTER);
+  const sprache = useSprache();
+  const en = sprache === "en";
+  const zu = (p: string) => inSprache(p, sprache);
+  const pfad = en ? "/en/tools/debt-free-plan" : "/werkzeuge/schuldenplan";
+  const eur = (n: number) => n.toLocaleString(en ? "en-GB" : "de-DE", { style: "currency", currency: "EUR" });
+  const [schulden, setSchulden] = useState<Schuld[]>(() => t.vorgaben.map((name) => ({ ...LEER, name })));
   const [budget, setBudget] = useState("");
   const set = (i: number, f: keyof Schuld) => (ev: React.ChangeEvent<HTMLInputElement>) => setSchulden(schulden.map((s, j) => (j === i ? { ...s, [f]: ev.target.value } : s)));
 
   const e = useMemo(() => {
-    const gueltig = schulden.map((s, i) => ({ name: s.name || `Schuld ${i + 1}`, rest: zahl(s.betrag), zins: zahl(s.zins), rate: zahl(s.rate) })).filter((s) => s.rest > 0 && s.rate > 0);
+    const gueltig = schulden.map((s, i) => ({ name: s.name || t.schuldN(i + 1), rest: zahl(s.betrag), zins: zahl(s.zins), rate: zahl(s.rate) })).filter((s) => s.rest > 0 && s.rate > 0);
     const B = zahl(budget);
     if (!gueltig.length || B <= 0) return null;
     const mindest = gueltig.reduce((a, s) => a + s.rate, 0);
@@ -67,81 +67,81 @@ export default function Schuldenplan() {
     if (zinsProblem.length) return { art: "zins" as const, zinsProblem, mindest, gesamt };
     const lawine = simulieren(gueltig, B, "lawine"); const schneeball = simulieren(gueltig, B, "schneeball");
     return { art: "plan" as const, lawine, schneeball, mindest, gesamt, extra: B - mindest };
-  }, [schulden, budget]);
+  }, [schulden, budget, t]);
 
   return (
-    <Dunkel seite="ratgeber" titel="Schuldenfrei-Plan · Lawine oder Schneeball?" beschreibung="Bis zu sechs Schulden und Ihr Budget eingeben – der Rechner simuliert Lawine (teuerste zuerst) und Schneeball (kleinste zuerst): Monate bis schuldenfrei, Zinsen, Reihenfolge. Kostenlos.">
-      <SeoDaten pfad="/werkzeuge/schuldenplan" titel="Schuldenfrei-Plan: Lawine oder Schneeball? Rechner" beschreibung="Bis zu sechs Schulden und Ihr Budget eingeben – der Rechner simuliert Lawine (teuerste zuerst) und Schneeball (kleinste zuerst): Monate bis schuldenfrei, Zinsen, Reihenfolge." fragen={FRAGEN} werkzeug={{ name: "Schuldenfrei-Plan" }} krumen={[{ name: "Werkzeuge", pfad: "/werkzeuge" }, { name: "Schuldenfrei-Plan", pfad: "/werkzeuge/schuldenplan" }]} />
+    <Dunkel seite="ratgeber" titel={t.metaTitel} beschreibung={t.metaBeschreibung}>
+      <SeoDaten pfad={pfad} titel={t.seoTitel} beschreibung={t.seoBeschreibung} fragen={t.fragen} werkzeug={{ name: t.werkzeugName }} krumen={[{ name: t.krumeWerkzeuge, pfad: zu("/werkzeuge") }, { name: t.krume, pfad }]} />
       <section className="dk-hero kurz">
         <div className="dk-hero-bild" aria-hidden="true"><img src="/kino/hero.jpg" alt="" decoding="async" /><div className="schleier" /></div>
         <div className="dk-rahmen">
-          <span className="dk-pille">Werkzeug · kostenlos, ohne Anmeldung</span>
-          <h1 className="dk-h1">In welcher Reihenfolge <span className="dk-verlauf">werde ich schuldenfrei?</span></h1>
-          <p className="dk-lead">Teuerste Schuld zuerst oder kleinste zuerst? Der Rechner simuliert beide Wege Monat für Monat und nennt das Datum, die Zinsen und die Reihenfolge – ehrlich auch dann, wenn das Budget nicht reicht.</p>
+          <span className="dk-pille">{t.pille}</span>
+          <h1 className="dk-h1">{t.h1a}<span className="dk-verlauf">{t.h1b}</span></h1>
+          <p className="dk-lead">{t.lead}</p>
         </div>
       </section>
       <Licht>
         <Block schmal>
           <div className="wz-fragen">
             <div className="wz-frage">
-              <p className="wz-nr">Schritt 1</p><h3>Ihre Schulden</h3>
-              <p className="wz-hinweis">Restschuld, Zinssatz und die Mindestrate laut Vertrag. Beim Dispo: Betrag und Dispozins, als Rate den Betrag, den Sie mindestens monatlich abbauen. Bis zu sechs Positionen.</p>
+              <p className="wz-nr">{t.schritt1}</p><h3>{t.frage1}</h3>
+              <p className="wz-hinweis">{t.hinweis1}</p>
               {schulden.map((s, i) => (
                 <div key={i} className="wz-felder drei" style={{ marginBottom: 10 }}>
-                  <label><span>Bezeichnung</span><input value={s.name} onChange={set(i, "name")} placeholder={`Schuld ${i + 1}`} /></label>
-                  <label><span>Restschuld (€)</span><input value={s.betrag} onChange={set(i, "betrag")} inputMode="decimal" /></label>
-                  <label><span>Zins (% p. a.)</span><input value={s.zins} onChange={set(i, "zins")} inputMode="decimal" /></label>
-                  <label><span>Mindestrate (€/Monat)</span><input value={s.rate} onChange={set(i, "rate")} inputMode="decimal" /></label>
+                  <label><span>{t.bezeichnung}</span><input value={s.name} onChange={set(i, "name")} placeholder={t.schuldN(i + 1)} /></label>
+                  <label><span>{t.restschuld}</span><input value={s.betrag} onChange={set(i, "betrag")} inputMode="decimal" /></label>
+                  <label><span>{t.zins}</span><input value={s.zins} onChange={set(i, "zins")} inputMode="decimal" /></label>
+                  <label><span>{t.mindestrate}</span><input value={s.rate} onChange={set(i, "rate")} inputMode="decimal" /></label>
                 </div>
               ))}
               <div className="wz-knoepfe">
-                {schulden.length < 6 && <button type="button" className="dk-knopf still" onClick={() => setSchulden([...schulden, { ...LEER }])}>Weitere Schuld</button>}
-                {schulden.length > 1 && <button type="button" className="dk-knopf still" onClick={() => setSchulden(schulden.slice(0, -1))}>Letzte entfernen</button>}
+                {schulden.length < 6 && <button type="button" className="dk-knopf still" onClick={() => setSchulden([...schulden, { ...LEER }])}>{t.weitere}</button>}
+                {schulden.length > 1 && <button type="button" className="dk-knopf still" onClick={() => setSchulden(schulden.slice(0, -1))}>{t.entfernen}</button>}
               </div>
             </div>
             <div className="wz-frage">
-              <p className="wz-nr">Schritt 2</p><h3>Was können Sie monatlich für alle Schulden zusammen aufbringen?</h3>
-              <p className="wz-hinweis">Alles, was nach Fixkosten und Lebenshaltung übrig ist – der <a href="/werkzeuge/spielraum">Spielraum-Rechner</a> hilft. Realistisch, nicht optimistisch: Der Plan hält nur, wenn die Zahl auch im schlechten Monat stimmt.</p>
-              <div className="wz-felder"><label><span>Budget je Monat (€)</span><input value={budget} onChange={(ev) => setBudget(ev.target.value)} inputMode="decimal" placeholder="z. B. 450" /></label></div>
+              <p className="wz-nr">{t.schritt2}</p><h3>{t.frage2}</h3>
+              <p className="wz-hinweis">{t.hinweis2A}<a href={zu("/werkzeuge/spielraum")}>{t.hinweis2Link}</a>{t.hinweis2B}</p>
+              <div className="wz-felder"><label><span>{t.budget}</span><input value={budget} onChange={(ev) => setBudget(ev.target.value)} inputMode="decimal" placeholder={t.bspBudget} /></label></div>
             </div>
           </div>
           {e && e.art === "fehlt" && (
             <div className="wz-ergebnis alarm">
-              <span className="wz-stufe" style={{ background: "#b91c1c" }}>Budget reicht nicht</span>
-              <h3>Die Mindestraten betragen {eur(e.mindest)} – es fehlen {eur(e.fehlt)} im Monat.</h3>
-              <p>Das ist kein Rechenproblem, sondern ein Verhandlungsproblem: Die Raten müssen kleiner werden, bevor ein Plan tragen kann. Sprechen Sie die Gläubiger schriftlich an – der <a href="/werkzeuge/ratenplan">Ratenplan-Rechner</a> formuliert das Angebot – und holen Sie sich die kostenlose, staatlich anerkannte Schuldnerberatung. Sie kann bündeln, stunden und Vergleiche verhandeln. Gesamtschulden: {eur(e.gesamt)}.</p>
-              <div className="wz-knoepfe"><Knopf href="/werkzeuge/ratenplan" still>Ratenangebot schreiben</Knopf><Knopf href="/werkzeuge/schulden-check" still>Schulden-Check</Knopf></div>
+              <span className="wz-stufe" style={{ background: "#b91c1c" }}>{t.fehltStufe}</span>
+              <h3>{t.fehltTitel(eur(e.mindest), eur(e.fehlt))}</h3>
+              <p>{t.fehltA}<a href={zu("/werkzeuge/ratenplan")}>{t.fehltLink}</a>{t.fehltB}{eur(e.gesamt)}{t.fehltC}</p>
+              <div className="wz-knoepfe"><Knopf href={zu("/werkzeuge/ratenplan")} still>{t.ratenangebot}</Knopf><Knopf href={zu("/werkzeuge/schulden-check")} still>{t.schuldenCheck}</Knopf></div>
             </div>
           )}
           {e && e.art === "zins" && (
             <div className="wz-ergebnis alarm">
-              <span className="wz-stufe" style={{ background: "#b45309" }}>Rate deckt die Zinsen nicht</span>
-              <h3>Bei {e.zinsProblem.map((s) => s.name).join(", ")} ist die Mindestrate kleiner als die Monatszinsen.</h3>
-              <p>Diese Schuld wächst, egal wie lange Sie zahlen. Prüfen Sie den Zinssatz (steht im Vertrag) und die Rate – und wenn beides stimmt: Diese Position braucht als Erstes das Extra-Geld oder eine <a href="/werkzeuge/umschuldung">Umschuldung</a>.</p>
+              <span className="wz-stufe" style={{ background: "#b45309" }}>{t.zinsStufe}</span>
+              <h3>{t.zinsTitel(e.zinsProblem.map((s) => s.name).join(", "))}</h3>
+              <p>{t.zinsA}<a href={zu("/werkzeuge/umschuldung")}>{t.zinsLink}</a>{t.zinsB}</p>
             </div>
           )}
           {e && e.art === "plan" && (
             <div className="wz-ergebnis gut">
-              <span className="wz-stufe" style={{ background: "#047857" }}>Ihr Plan</span>
-              <h3>Schuldenfrei in {e.lawine.monate} Monaten (Lawine) oder {e.schneeball.monate} Monaten (Schneeball).</h3>
-              <p>Mindestraten {eur(e.mindest)} plus {eur(e.extra)} Extra-Geld jeden Monat auf eine Schuld konzentriert. Gesamtschulden {eur(e.gesamt)}. Zinsen bis zum Ende: Lawine {eur(e.lawine.zinsen)}, Schneeball {eur(e.schneeball.zinsen)} – Unterschied {eur(Math.abs(e.schneeball.zinsen - e.lawine.zinsen))}. {Math.abs(e.schneeball.zinsen - e.lawine.zinsen) < 60 ? "Der Unterschied ist klein: Nehmen Sie den Schneeball – frühe Erfolge halten den Plan am Leben." : "Der Unterschied ist spürbar: Die Lawine lohnt sich, wenn Sie die Disziplin haben, monatelang auf den ersten sichtbaren Erfolg zu warten."}</p>
+              <span className="wz-stufe" style={{ background: "#047857" }}>{t.planStufe}</span>
+              <h3>{t.planTitel(e.lawine.monate, e.schneeball.monate)}</h3>
+              <p>{t.planText(eur(e.mindest), eur(e.extra), eur(e.gesamt), eur(e.lawine.zinsen), eur(e.schneeball.zinsen), eur(Math.abs(e.schneeball.zinsen - e.lawine.zinsen)))}{Math.abs(e.schneeball.zinsen - e.lawine.zinsen) < 60 ? t.diffKlein : t.diffGross}</p>
               <div className="wz-tabelle-huelle"><table className="wz-tabelle">
                 <tbody>
-                  <tr><td><b>Lawine</b> – teuerste Schuld zuerst</td><td>{e.lawine.monate} Monate · {eur(e.lawine.zinsen)} Zinsen</td></tr>
-                  {e.lawine.reihenfolge.map((r, i) => <tr key={"l" + i}><td style={{ paddingLeft: 18 }}>{i + 1}. {r.name}</td><td>getilgt nach Monat {r.monat}</td></tr>)}
-                  <tr><td><b>Schneeball</b> – kleinste Schuld zuerst</td><td>{e.schneeball.monate} Monate · {eur(e.schneeball.zinsen)} Zinsen</td></tr>
-                  {e.schneeball.reihenfolge.map((r, i) => <tr key={"s" + i}><td style={{ paddingLeft: 18 }}>{i + 1}. {r.name}</td><td>getilgt nach Monat {r.monat}</td></tr>)}
+                  <tr><td><b>{t.lawine}</b>{t.lawineErkl}</td><td>{t.monateZinsen(e.lawine.monate, eur(e.lawine.zinsen))}</td></tr>
+                  {e.lawine.reihenfolge.map((r, i) => <tr key={"l" + i}><td style={{ paddingLeft: 18 }}>{i + 1}. {r.name}</td><td>{t.getilgt(r.monat)}</td></tr>)}
+                  <tr><td><b>{t.schneeball}</b>{t.schneeballErkl}</td><td>{t.monateZinsen(e.schneeball.monate, eur(e.schneeball.zinsen))}</td></tr>
+                  {e.schneeball.reihenfolge.map((r, i) => <tr key={"s" + i}><td style={{ paddingLeft: 18 }}>{i + 1}. {r.name}</td><td>{t.getilgt(r.monat)}</td></tr>)}
                 </tbody>
               </table></div>
-              <div className="wz-schritt"><small>So bleibt der Plan am Leben</small><p>Alle Raten und das Extra-Geld per Dauerauftrag am Tag nach dem Gehalt. Ist eine Schuld getilgt, wandert ihre Rate sofort auf die nächste – nicht in den Alltag. Eine Rate als Puffer auf dem Konto. Jede pünktliche Rate ist ein Positivdatum für Ihre <a href="/ratenzahlung-und-bonitaet">Bonität</a>.</p></div>
-              <div className="wz-knoepfe"><Knopf href="/werkzeuge/umschuldung" still>Umschuldung vergleichen</Knopf><Knopf href="/werkzeuge/dispo-rechner" still>Dispo-Rechner</Knopf></div>
+              <div className="wz-schritt"><small>{t.amLeben}</small><p>{t.amLebenA}<a href={zu("/ratenzahlung-und-bonitaet")}>{t.amLebenLink}</a>{t.amLebenB}</p></div>
+              <div className="wz-knoepfe"><Knopf href={zu("/werkzeuge/umschuldung")} still>{t.umschuldung}</Knopf><Knopf href={zu("/werkzeuge/dispo-rechner")} still>{t.dispo}</Knopf></div>
             </div>
           )}
-          <p className="dk-leise" style={{ marginTop: 18 }}>Rechenweg: monatliche Verzinsung der Restschuld, Mindestraten für alle Positionen, Extra-Geld nach Strategie; freiwerdende Raten fließen in die nächste Schuld. Ohne Sondertilgungsgebühren, ohne Vorfälligkeitsentschädigung (siehe Umschuldungsrechner). Keine Schuldnerberatung – bei Zahlungsunfähigkeit ist die kostenlose, staatlich anerkannte Beratung der richtige Ort. Nichts wird gespeichert.</p>
+          <p className="dk-leise" style={{ marginTop: 18 }}>{t.fuss}</p>
         </Block>
       </Licht>
-      <Block schmal titel="Häufige Fragen"><Fragen items={FRAGEN} /></Block>
-      <Zwischenruf text={<><b>Der Plan steht – die Gläubiger noch nicht?</b> FIAON schreibt die Ratenangebote, verfolgt die Antworten, hält die Fristen und räumt nebenbei die Einträge auf, die schon entstanden sind.</>} knopf="FIAON übernimmt das" href="/antrag" still={{ knopf: "Kostenlose Schuldnerberatung", href: "/werkzeuge/schulden-check" }} />
+      <Block schmal titel={t.fragenTitel}><Fragen items={t.fragen} /></Block>
+      <Zwischenruf text={<><b>{t.zwischenrufFett}</b>{t.zwischenruf}</>} knopf={t.zwischenrufKnopf} href="/antrag" still={{ knopf: t.beratung, href: zu("/werkzeuge/schulden-check") }} />
     </Dunkel>
   );
 }

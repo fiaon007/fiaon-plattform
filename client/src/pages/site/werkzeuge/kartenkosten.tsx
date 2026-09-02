@@ -1,6 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// /werkzeuge/kartenkosten — Kartenkosten-Vergleich: Kaution, Prepaid, Debit
-// (02.09.2026, E-080)
+// /werkzeuge/kartenkosten · /en/tools/card-costs — Kartenkosten-Vergleich:
+// Kaution, Prepaid, Debit (02.09.2026, E-080; zweisprachig 03.09.2026,
+// Texte: client/src/i18n/wz-kartenkosten.ts)
 //
 // Wer trotz Eintrag eine Karte will, bekommt drei Angebote vorgelegt, die
 // sich nicht vergleichen lassen: eine Kreditkarte mit Sicherheitsleistung
@@ -17,23 +18,22 @@
 import { useMemo, useState } from "react";
 import { Dunkel, Block, Licht, Knopf, Zwischenruf, Fragen } from "@/components/site/DunkleBuehne";
 import SeoDaten from "@/components/site/SeoDaten";
+import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
+import { WZ_KARTENKOSTEN_WOERTER } from "@/i18n/wz-kartenkosten";
 import "@/styles/ratgeber.css";
 
-const eur = (n: number) => n.toLocaleString("de-DE", { style: "currency", currency: "EUR" });
-const zahl = (s: string) => { const n = parseFloat(String(s).replace(/\./g, "").replace(",", ".")); return isFinite(n) ? n : 0; };
+const zahl = (s: string) => { const r = String(s).trim(); const n = parseFloat(/,\d{1,2}$/.test(r) ? r.replace(/\./g, "").replace(",", ".") : r.replace(/,/g, "")); return isFinite(n) ? n : 0; };
 const JAHRE = 3;
 
-const FRAGEN = [
-  { f: "Was ist eine Kreditkarte mit Sicherheitsleistung?", a: "Eine echte Kreditkarte, deren Rahmen durch eine Kaution gedeckt ist, die Sie vorher hinterlegen – meist in Höhe des Rahmens. Der Herausgeber trägt kein Risiko, deshalb gibt es sie oft auch mit negativen Einträgen. Die Kaution liegt fest, solange die Karte läuft; manche Herausgeber zahlen keine Zinsen darauf. Der Vorteil: Sie funktioniert wie eine Kreditkarte – Hotel, Mietwagen, Kaution – und meldet bei einigen Anbietern eine Zahlungshistorie." },
-  { f: "Ist Prepaid dasselbe wie Debit?", a: "Nein. Prepaid-Karten laden Sie auf; sie hängen an keinem Girokonto und kosten oft Aufladegebühren. Debitkarten (Visa Debit, Debit Mastercard) buchen sofort vom Girokonto ab – ohne Aufladung, ohne Rahmen. Für Alltag und Online-Kauf sind beide gleichwertig; bei Hotels und Mietwagen werden Prepaid und Debit häufig abgelehnt, weil keine Kaution blockiert werden kann." },
-  { f: "Welche Karte baut Bonität auf?", a: "Nur eine Karte, deren Zahlungsverhalten gemeldet wird – das sind in Deutschland vor allem echte Kreditkarten mit Rahmen und Vertragsmeldung an die SCHUFA. Prepaid- und Debitkarten werden in der Regel nicht gemeldet; sie schaden nicht, bauen aber nichts auf. Was Bonität wirklich baut, ist das geführte Girokonto dahinter: Gehaltseingänge, keine Rückgaben, kein Dauer-Dispo." },
-  { f: "Was sind Opportunitätskosten der Kaution?", a: "Das Geld, das als Kaution liegt, arbeitet nicht: Bei 1.000 Euro Kaution und 2,5 Prozent Tagesgeldzins verlieren Sie rund 25 Euro im Jahr – zusätzlich zur Jahresgebühr. Der Rechner zählt das mit, damit Kaution und Prepaid ehrlich vergleichbar werden. Wer die Kaution später zurückbekommt, hat sie nicht verloren – aber drei Jahre nicht nutzen können." },
-  { f: "Welche Karte bekomme ich über FIAON?", a: "Das entscheidet der Kartenpartner anhand Ihrer Akte – FIAON bereitet vor und stellt den Antrag, wenn Ihre Readiness die Schwelle erreicht. Für jeden Kunden gibt es zunächst ein Girokonto mit Debitkarte; die Kreditkarte mit Rahmen kommt, wenn Auskunft und Kontoführung sie tragen. Kein Versprechen, sondern ein Weg mit Etappen." },
-];
-
 export default function Kartenkosten() {
-  const [k, setK] = useState({ kaution: "500", kautionGebuehr: "49", kautionZins: "2,5", prepaidGebuehr: "29", prepaidAuflade: "1,50", aufladungen: "12", prepaidBargeld: "2,00", bargeld: "6", debitKonto: "4,90" });
-  const set = (f: keyof typeof k) => (ev: React.ChangeEvent<HTMLInputElement>) => setK({ ...k, [f]: ev.target.value });
+  const t = useWoerter(WZ_KARTENKOSTEN_WOERTER);
+  const sprache = useSprache();
+  const en = sprache === "en";
+  const zu = (p: string) => inSprache(p, sprache);
+  const pfad = en ? "/en/tools/card-costs" : "/werkzeuge/kartenkosten";
+  const eur = (n: number) => n.toLocaleString(en ? "en-GB" : "de-DE", { style: "currency", currency: "EUR" });
+  const [k, setK] = useState<Record<string, string>>(() => ({ ...t.vorgaben }));
+  const set = (f: string) => (ev: React.ChangeEvent<HTMLInputElement>) => setK({ ...k, [f]: ev.target.value });
   const [bedarf, setBedarf] = useState<"alltag" | "reise" | "aufbau" | "">("");
 
   const e = useMemo(() => {
@@ -45,81 +45,65 @@ export default function Kartenkosten() {
     return { kautionKosten, prepaidKosten, debitKosten, kaution };
   }, [k]);
 
-  const empfehlung = (() => {
-    switch (bedarf) {
-      case "reise": return "Für Hotel und Mietwagen brauchen Sie eine Karte, die eine Kaution blockieren kann – das leistet zuverlässig nur die Kreditkarte mit Rahmen, auch die mit Sicherheitsleistung. Prepaid und Debit werden dort häufig abgelehnt, egal wie günstig sie sind.";
-      case "aufbau": return "Bonität baut das Girokonto, nicht die Karte: Gehaltseingänge, pünktliche Abbuchungen, kein Dauer-Dispo. Nehmen Sie die günstigste Karte zum Konto (Debit) und stecken Sie das gesparte Geld in den Abbau des Dispos – das liest jede Bank im Kontoauszug. Die Kreditkarte mit Rahmen kommt, wenn die Akte sie trägt.";
-      case "alltag": return "Für Online-Kauf, Tanken und Supermarkt reicht die Debitkarte zum Girokonto – sie ist meist die günstigste und braucht keine Aufladung. Prepaid lohnt nur, wenn Sie bewusst ein festes Budget getrennt vom Konto halten wollen.";
-      default: return "";
-    }
-  })();
+  const empfehlung = bedarf === "reise" ? t.empfReise : bedarf === "aufbau" ? t.empfAufbau : bedarf === "alltag" ? t.empfAlltag : "";
 
   return (
-    <Dunkel seite="ratgeber" titel="Kartenkosten-Vergleich · Kaution, Prepaid oder Debit?" beschreibung="Kreditkarte mit Kaution, Prepaid-Karte oder Debitkarte: Der Rechner legt Gebühren, Aufladekosten und die festliegende Kaution auf drei Jahre um und sagt, welche Karte was wirklich leistet. Kostenlos.">
-      <SeoDaten pfad="/werkzeuge/kartenkosten" titel="Kreditkarte mit Kaution vs. Prepaid vs. Debit: Kostenvergleich" beschreibung="Kreditkarte mit Kaution, Prepaid-Karte oder Debitkarte: Der Rechner legt Gebühren, Aufladekosten und die festliegende Kaution auf drei Jahre um und sagt, welche Karte was leistet." fragen={FRAGEN} werkzeug={{ name: "Kartenkosten-Vergleich" }} krumen={[{ name: "Werkzeuge", pfad: "/werkzeuge" }, { name: "Kartenkosten-Vergleich", pfad: "/werkzeuge/kartenkosten" }]} />
+    <Dunkel seite="ratgeber" titel={t.metaTitel} beschreibung={t.metaBeschreibung}>
+      <SeoDaten pfad={pfad} titel={t.seoTitel} beschreibung={t.seoBeschreibung} fragen={t.fragen} werkzeug={{ name: t.werkzeugName }} krumen={[{ name: t.krumeWerkzeuge, pfad: zu("/werkzeuge") }, { name: t.krume, pfad }]} />
       <section className="dk-hero kurz">
         <div className="dk-hero-bild" aria-hidden="true"><img src="/kino/hero.jpg" alt="" decoding="async" /><div className="schleier" /></div>
         <div className="dk-rahmen">
-          <span className="dk-pille">Werkzeug · kostenlos, ohne Anmeldung</span>
-          <h1 className="dk-h1">Drei Karten, <span className="dk-verlauf">ein ehrlicher Preis.</span></h1>
-          <p className="dk-lead">Kaution, Prepaid oder Debit – die Angebote sehen alle günstig aus, bis man sie auf drei Jahre umlegt. Tragen Sie die Zahlen aus Ihren Angeboten ein; der Rechner zählt auch das Geld mit, das als Kaution stillliegt.</p>
+          <span className="dk-pille">{t.pille}</span>
+          <h1 className="dk-h1">{t.h1a}<span className="dk-verlauf">{t.h1b}</span></h1>
+          <p className="dk-lead">{t.lead}</p>
         </div>
       </section>
       <Licht>
         <Block schmal>
           <div className="wz-fragen">
             <div className="wz-frage">
-              <p className="wz-nr">Schritt 1</p><h3>Wofür brauchen Sie die Karte vor allem?</h3>
+              <p className="wz-nr">{t.schritt1}</p><h3>{t.frage1}</h3>
               <div className="wz-optionen" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
-                <button type="button" className={`wz-option${bedarf === "alltag" ? " an" : ""}`} onClick={() => setBedarf("alltag")}><b>Alltag und Online-Kauf</b></button>
-                <button type="button" className={`wz-option${bedarf === "reise" ? " an" : ""}`} onClick={() => setBedarf("reise")}><b>Hotel, Mietwagen, Reisen</b></button>
-                <button type="button" className={`wz-option${bedarf === "aufbau" ? " an" : ""}`} onClick={() => setBedarf("aufbau")}><b>Bonität aufbauen</b></button>
+                <button type="button" className={`wz-option${bedarf === "alltag" ? " an" : ""}`} onClick={() => setBedarf("alltag")}><b>{t.alltag}</b></button>
+                <button type="button" className={`wz-option${bedarf === "reise" ? " an" : ""}`} onClick={() => setBedarf("reise")}><b>{t.reise}</b></button>
+                <button type="button" className={`wz-option${bedarf === "aufbau" ? " an" : ""}`} onClick={() => setBedarf("aufbau")}><b>{t.aufbau}</b></button>
               </div>
-              {empfehlung && <div className="wz-schritt" style={{ marginTop: 14 }}><small>Einordnung</small><p>{empfehlung}</p></div>}
+              {empfehlung && <div className="wz-schritt" style={{ marginTop: 14 }}><small>{t.einordnung}</small><p>{empfehlung}</p></div>}
             </div>
             <div className="wz-frage">
-              <p className="wz-nr">Schritt 2</p><h3>Die Zahlen aus Ihren Angeboten</h3>
-              <p className="wz-hinweis">Vorbelegt sind marktübliche Größenordnungen (Stand 2026). Ersetzen Sie sie durch die Werte aus dem Preisverzeichnis des jeweiligen Anbieters.</p>
+              <p className="wz-nr">{t.schritt2}</p><h3>{t.frage2}</h3>
+              <p className="wz-hinweis">{t.hinweis2}</p>
               <div className="wz-felder drei">
-                <label><span>Kaution (€)</span><input value={k.kaution} onChange={set("kaution")} inputMode="decimal" /></label>
-                <label><span>Kautionskarte: Jahresgebühr (€)</span><input value={k.kautionGebuehr} onChange={set("kautionGebuehr")} inputMode="decimal" /></label>
-                <label><span>Entgangener Zins auf die Kaution (% p. a.)</span><input value={k.kautionZins} onChange={set("kautionZins")} inputMode="decimal" /></label>
-                <label><span>Prepaid: Jahresgebühr (€)</span><input value={k.prepaidGebuehr} onChange={set("prepaidGebuehr")} inputMode="decimal" /></label>
-                <label><span>Prepaid: Gebühr je Aufladung (€)</span><input value={k.prepaidAuflade} onChange={set("prepaidAuflade")} inputMode="decimal" /></label>
-                <label><span>Aufladungen im Jahr</span><input value={k.aufladungen} onChange={set("aufladungen")} inputMode="numeric" /></label>
-                <label><span>Prepaid: Gebühr je Bargeldabhebung (€)</span><input value={k.prepaidBargeld} onChange={set("prepaidBargeld")} inputMode="decimal" /></label>
-                <label><span>Abhebungen im Jahr</span><input value={k.bargeld} onChange={set("bargeld")} inputMode="numeric" /></label>
-                <label><span>Debit: Kontoführung je Monat (€)</span><input value={k.debitKonto} onChange={set("debitKonto")} inputMode="decimal" /></label>
+                {Object.keys(t.felder).map((f) => (
+                  <label key={f}><span>{t.felder[f]}</span><input value={k[f] ?? ""} onChange={set(f)} inputMode={f === "aufladungen" || f === "bargeld" ? "numeric" : "decimal"} /></label>
+                ))}
               </div>
             </div>
           </div>
           <div className="wz-ergebnis">
-            <span className="wz-stufe" style={{ background: "#1d4ed8" }}>Kosten über {JAHRE} Jahre</span>
-            <h3>{[["Kreditkarte mit Kaution", e.kautionKosten], ["Prepaid-Karte", e.prepaidKosten], ["Debitkarte zum Girokonto", e.debitKosten]].sort((a, b) => (a[1] as number) - (b[1] as number))[0][0]} ist bei Ihren Zahlen am günstigsten.</h3>
+            <span className="wz-stufe" style={{ background: "#1d4ed8" }}>{t.kostenUeber(JAHRE)}</span>
+            <h3>{t.guenstigst(String([[t.kautionskarte, e.kautionKosten], [t.prepaidkarte, e.prepaidKosten], [t.debitkarte, e.debitKosten]].sort((a, b) => (a[1] as number) - (b[1] as number))[0][0]))}</h3>
             <div className="wz-tabelle-huelle"><table className="wz-tabelle">
               <tbody>
-                <tr><td>Kreditkarte mit Kaution ({eur(e.kaution)} liegen fest)</td><td>{eur(e.kautionKosten)}</td></tr>
-                <tr><td>Prepaid-Karte (Jahresgebühr, Aufladen, Bargeld)</td><td>{eur(e.prepaidKosten)}</td></tr>
-                <tr><td>Debitkarte (Kontoführung)</td><td>{eur(e.debitKosten)}</td></tr>
+                <tr><td>{t.zeileKaution(eur(e.kaution))}</td><td>{eur(e.kautionKosten)}</td></tr>
+                <tr><td>{t.zeilePrepaid}</td><td>{eur(e.prepaidKosten)}</td></tr>
+                <tr><td>{t.zeileDebit}</td><td>{eur(e.debitKosten)}</td></tr>
               </tbody>
             </table></div>
-            <p>Kosten sind nur die halbe Wahrheit – die andere Hälfte ist, was die Karte kann:</p>
+            <p>{t.halbeWahrheit}</p>
             <div className="wz-tabelle-huelle"><table className="wz-tabelle">
               <tbody>
-                <tr><td>Hotel- und Mietwagenkaution</td><td>Kaution ✓ · Prepaid meist ✗ · Debit oft ✗</td></tr>
-                <tr><td>Echter Kreditrahmen</td><td>Kaution ✓ (gedeckt) · Prepaid ✗ · Debit ✗</td></tr>
-                <tr><td>Wird an Auskunfteien gemeldet</td><td>Kaution teils · Prepaid ✗ · Debit ✗</td></tr>
-                <tr><td>Geht mit negativem Eintrag</td><td>Kaution meist ✓ · Prepaid ✓ · Debit ✓ (Basiskonto)</td></tr>
+                {t.leistung.map(([a, b]) => <tr key={a}><td>{a}</td><td>{b}</td></tr>)}
               </tbody>
             </table></div>
-            <div className="wz-schritt"><small>Der FIAON-Weg</small><p>Erst das Girokonto mit Debitkarte – es baut die Kontohistorie. Dann die Kreditkarte mit Rahmen, wenn Auskunft und Kontoführung sie tragen. Der <a href="/werkzeuge/karten-check">Karten-Check</a> sagt in fünf Angaben, wo Sie heute stehen.</p></div>
-            <div className="wz-knoepfe"><Knopf href="/werkzeuge/karten-check" still>Karten-Check</Knopf><Knopf href="/kreditkarte" still>Kreditkarte trotz Eintrag</Knopf></div>
+            <div className="wz-schritt"><small>{t.fiaonWeg}</small><p>{t.fiaonWegA}<a href={zu("/werkzeuge/karten-check")}>{t.fiaonWegLink}</a>{t.fiaonWegB}</p></div>
+            <div className="wz-knoepfe"><Knopf href={zu("/werkzeuge/karten-check")} still>{t.kartenCheck}</Knopf><Knopf href={zu("/kreditkarte")} still>{t.kreditkarte}</Knopf></div>
           </div>
-          <p className="dk-leise" style={{ marginTop: 18 }}>Rechenweg: Jahreskosten × {JAHRE}; bei der Kautionskarte zusätzlich der entgangene Zins auf die Kaution. Vorbelegte Werte sind Größenordnungen, keine Angebote. FIAON nennt keine Kartenanbieter und erhält auf dieser Seite keine Provision. Über die Vergabe einer Karte entscheidet der Herausgeber. Nichts wird gespeichert.</p>
+          <p className="dk-leise" style={{ marginTop: 18 }}>{t.fuss(JAHRE)}</p>
         </Block>
       </Licht>
-      <Block schmal titel="Häufige Fragen"><Fragen items={FRAGEN} /></Block>
-      <Zwischenruf text={<><b>Die Karte kommt über die Auskunft.</b> FIAON bereitet Konto und Kartenantrag vor, sobald Ihre Akte sie trägt – ohne Kaution, ohne Vorkasse, mit einem Menschen am Telefon.</>} knopf="Den Weg ansehen" href="/kreditkarte" still={{ knopf: "Antrag stellen", href: "/antrag" }} />
+      <Block schmal titel={t.fragenTitel}><Fragen items={t.fragen} /></Block>
+      <Zwischenruf text={<><b>{t.zwischenrufFett}</b>{t.zwischenruf}</>} knopf={t.zwischenrufKnopf} href={zu("/kreditkarte")} still={{ knopf: t.antrag, href: "/antrag" }} />
     </Dunkel>
   );
 }

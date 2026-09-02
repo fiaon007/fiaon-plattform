@@ -298,6 +298,43 @@ function Router() {
       <Route path="/en/transparency" component={SiteTransparenz} />
       <Route path="/en/help" component={SiteHilfe} />
       <Route path="/en/how-fiaon-works" component={FiaonErfahrungen} />
+      <Route path="/en/strengthen-your-credit-file" component={BonitaetVerbessern} />
+      <Route path="/en/loans-without-schufa" component={KreditOhneSchufa} />
+      <Route path="/en/credit-bureaus" component={AuskunfteienSeite} />
+      <Route path="/en/austria" component={SiteOesterreich} />
+      <Route path="/en/switzerland" component={SiteSchweiz} />
+      <Route path="/en/schufa-score" component={SchufaScoreVerstehen} />
+      <Route path="/en/request-your-credit-report" component={BonitaetsauskunftBeantragen} />
+      <Route path="/en/debt-collection-letter" component={InkassoBriefErhalten} />
+      <Route path="/en/entries-and-limitation" component={EintragVerjaehrung} />
+      <Route path="/en/current-account-despite-poor-credit" component={GirokontoTrotzNegativerBonitaet} />
+      <Route path="/en/instalments-and-credit-file" component={RatenzahlungUndBonitaet} />
+      <Route path="/en/reading-your-credit-report" component={SelbstauskunftCheckliste} />
+      <Route path="/en/schufa-neutral-enquiries" component={SchufaNeutralAnfragen} />
+      <Route path="/en/delete-a-schufa-entry" component={SchufaEintragLoeschen} />
+      <Route path="/en/credit-glossary" component={GlossarBonitaet} />
+      <Route path="/en/how-the-platform-works" component={PlattformKonzeptPage} />
+      <Route path="/en/tools/basic-account" component={WzBasiskonto} />
+      <Route path="/en/tools/card-costs" component={WzKartenkosten} />
+      <Route path="/en/tools/debt-free-plan" component={WzSchuldenplan} />
+      <Route path="/en/tools/overdraft-calculator" component={WzDispoRechner} />
+      <Route path="/en/tools/attachment-calculator" component={WzPfaendungsrechner} />
+      <Route path="/en/tools/deletion-request" component={WzWiderspruch} />
+      <Route path="/en/tools/court-payment-order" component={WzMahnbescheid} />
+      <Route path="/en/tools/reply-to-debt-collector" component={WzInkassoAntwort} />
+      <Route path="/en/tools/reminder-fees" component={WzMahngebuehren} />
+      <Route path="/en/tools/instalment-plan" component={WzRatenplan} />
+      <Route path="/en/tools" component={WerkzeugeHub} />
+      <Route path="/en/tools/deletion-deadline" component={WzLoeschfrist} />
+      <Route path="/en/tools/limitation-check" component={WzVerjaehrung} />
+      <Route path="/en/tools/debt-collection-costs" component={WzInkassokosten} />
+      <Route path="/en/tools/check-my-entry" component={SiteEintragPruefen} />
+      <Route path="/en/tools/request-your-data-copy" component={SiteSelbstauskunft} />
+      <Route path="/en/tools/loan-calculator" component={WzKreditrechner} />
+      <Route path="/en/tools/debt-consolidation" component={WzUmschuldung} />
+      <Route path="/en/tools/debt-check" component={WzSchuldenCheck} />
+      <Route path="/en/tools/monthly-headroom" component={WzSpielraum} />
+      <Route path="/en/tools/card-check" component={WzKartenCheck} />
       <Route path="/kreditkarte" component={SiteKreditkarte} />
       <Route path="/oesterreich" component={SiteOesterreich} />
       <Route path="/schweiz" component={SiteSchweiz} />

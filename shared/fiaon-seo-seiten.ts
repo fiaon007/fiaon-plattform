@@ -35,7 +35,7 @@
 // Hausregeln: Sie-Form, keine „Beratung", keine „Garantie", kein
 // Versprechen zu Karte oder Rahmen — „die Bank entscheidet".
 // ═══════════════════════════════════════════════════════════════════════════
-import { SEO_FRAGEN, SEO_GLOSSAR, type SeoFrage } from "./fiaon-seo-fragen";
+import { SEO_FRAGEN, SEO_GLOSSAR, SEO_GLOSSAR_EN, type SeoFrage } from "./fiaon-seo-fragen";
 
 export const SEO_BASIS = "https://fiaon.com";
 
@@ -192,6 +192,30 @@ export const SEO_WERKZEUGE: { pfad: string; name: string; frage: string; satz: s
   { pfad: "/werkzeuge/pfaendungsrechner", name: "Pfändungsrechner 2026", frage: "Was bleibt mir bei einer Pfändung?", satz: "Freibetrag nach § 850c ZPO und P-Konto-Schutz — Werte ab 1. Juli 2026." },
   { pfad: "/werkzeuge/basiskonto", name: "Basiskonto-Helfer", frage: "Basiskonto abgelehnt oder keine Antwort?", satz: "Zehn-Tage-Frist, zulässige Ablehnungsgründe, Erinnerung an die Bank und der Weg zur BaFin." },
   { pfad: "/werkzeuge/kartenkosten", name: "Kartenkosten-Vergleich", frage: "Kaution, Prepaid oder Debit?", satz: "Drei Kartenwege auf drei Jahre gerechnet — inklusive der Kaution, die stillliegt." },
+];
+
+/** Die zwanzig Werkzeuge auf Englisch (03.09.2026) — gleicher Pfad wie deutsch; die Schwester liefert schwesterPfad(). */
+export const SEO_WERKZEUGE_EN: { pfad: string; name: string; frage: string; satz: string }[] = [
+  { pfad: "/werkzeuge/selbstauskunft", name: "Request your data copy", frage: "What do the credit bureaus hold about me?", satz: "Generates the finished letter under Article 15 GDPR — for SCHUFA, KSV and CRIF, free instead of a paid subscription." },
+  { pfad: "/werkzeuge/eintrag-pruefen", name: "Can my entry be challenged?", frage: "Can this entry be deleted?", satz: "Five questions, one honest assessment under Section 31 BDSG and case law." },
+  { pfad: "/werkzeuge/loeschfrist", name: "Deletion deadline calculator", frage: "When is my entry gone by itself?", satz: "Deletion date to the day — with the 100-day rule and the six-month period after insolvency." },
+  { pfad: "/werkzeuge/verjaehrung", name: "Limitation check", frage: "Do I still have to pay this old claim?", satz: "Checks the regular limitation period and what interrupts it." },
+  { pfad: "/werkzeuge/inkassokosten", name: "Debt collection cost checker", frage: "May the debt collector demand that much?", satz: "Compares the claim with the statutory caps." },
+  { pfad: "/werkzeuge/kreditrechner", name: "Loan calculator", frage: "What does this loan really cost?", satz: "Monthly instalment, total cost, repayment schedule — and the instalment at the two-thirds rate." },
+  { pfad: "/werkzeuge/umschuldung", name: "Debt consolidation calculator", frage: "Keep paying or consolidate?", satz: "Old loans and overdraft calculated against a new offer — with the early repayment fee." },
+  { pfad: "/werkzeuge/schulden-check", name: "Debt check", frage: "How serious is my situation?", satz: "Debt ratio and free income — with an honest traffic light and the next steps." },
+  { pfad: "/werkzeuge/spielraum", name: "Monthly headroom calculator", frage: "How much instalment can I carry?", satz: "A household calculation the way a bank does it." },
+  { pfad: "/werkzeuge/karten-check", name: "Card check", frage: "Which credit card is realistic?", satz: "Debit, prepaid or a real limit — what works today and what opens the next step." },
+  { pfad: "/werkzeuge/widerspruch", name: "Deletion request & objection", frage: "How do I get the entry removed?", satz: "Choose the reason, enter the key facts — two finished letters to the credit bureau and the creditor (Article 17 GDPR, Section 31 BDSG)." },
+  { pfad: "/werkzeuge/mahnbescheid", name: "Court payment order deadline calculator", frage: "By when do I have to object?", satz: "Enter the date of service — the last day for objection, to the day including public holidays." },
+  { pfad: "/werkzeuge/inkasso-antwort", name: "Reply to the debt collector", frage: "What do I reply to the debt collector?", satz: "Dispute, demand evidence under Section 13a RDG, reject costs or plead limitation — as a letter." },
+  { pfad: "/werkzeuge/mahngebuehren", name: "Reminder fee checker", frage: "May the reminder cost that much?", satz: "Recalculates what a creditor may charge for reminders — and drafts the rejection." },
+  { pfad: "/werkzeuge/ratenplan", name: "Instalment plan calculator", frage: "Which instalment will the creditor accept?", satz: "From claim and headroom the instalment that holds — with the offer letter including waiver of interest and reporting." },
+  { pfad: "/werkzeuge/schuldenplan", name: "Debt-free plan", frage: "In which order do I become debt-free?", satz: "Avalanche or snowball, simulated month by month — date, interest, order." },
+  { pfad: "/werkzeuge/dispo-rechner", name: "Overdraft calculator", frage: "What does my permanent overdraft cost?", satz: "Interest per year, an instalment loan to pay it off, reduction in fixed instalments — three routes side by side." },
+  { pfad: "/werkzeuge/pfaendungsrechner", name: "Attachment calculator 2026", frage: "What is left to me in an attachment?", satz: "Exempt amount under Section 850c ZPO and P-Konto protection — values from 1 July 2026." },
+  { pfad: "/werkzeuge/basiskonto", name: "Basic account helper", frage: "Basic account refused or no reply?", satz: "Ten-day deadline, permissible grounds for refusal, reminder to the bank and the route to BaFin." },
+  { pfad: "/werkzeuge/kartenkosten", name: "Card cost comparison", frage: "Deposit, prepaid or debit?", satz: "Three card routes calculated over three years — including the deposit that sits idle." },
 ];
 
 const PFEILER = "2026-09-02";
@@ -402,6 +426,19 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/auskunfteien", "/werkzeuge/selbstauskunft", "/werkzeuge/eintrag-pruefen", "/preise", "/schweiz"],
     krumen: [{ name: "Österreich", pfad: "/oesterreich" }],
+    en: {
+      pfad: "/en/austria",
+      titel: "FIAON in Austria: KSV1870, CRIF and your rights",
+      beschreibung: "KSV1870 and CRIF explained, self-disclosure under Art. 15 GDPR, deletion deadlines, the banks' warning lists — and how FIAON prepares account and card.",
+      h1: "Creditworthiness in Austria, in plain terms.",
+      lead: "KSV1870, CRIF, the banks' warning lists: in Austria, different bodies decide on account, card and mobile contract than in Germany — with their own rules and their own deadlines. FIAON knows them.",
+      abschnitte: [
+        { h2: "Who stores what", text: "KSV1870, the country's largest credit bureau; CRIF, strong in telecommunications and mail order; the banks' joint warning lists. Free self-disclosure under Art. 15 GDPR from all of them within one month." },
+        { h2: "Your rights and the path with FIAON", text: "Access, rectification, erasure and objection under the GDPR, Section 152 GewO for credit bureaus, complaint to the Data Protection Authority in Vienna. FIAON requests the reports with your authorisation, explains every entry, writes under Austrian law and prepares account and card with partner banks. The bank decides." },
+      ],
+      weiter: ["/auskunfteien", "/schweiz"],
+      krumen: [{ name: "FIAON in Austria", pfad: "/en/austria" }],
+    },
   },
   "/schweiz": {
     pfad: "/schweiz", art: "land", stand: PFEILER, prio: 0.8,
@@ -415,6 +452,19 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/auskunfteien", "/werkzeuge/selbstauskunft", "/werkzeuge/verjaehrung", "/preise", "/oesterreich"],
     krumen: [{ name: "Schweiz", pfad: "/schweiz" }],
+    en: {
+      pfad: "/en/switzerland",
+      titel: "FIAON in Switzerland: enforcement register, CRIF, Intrum",
+      beschreibung: "The debt enforcement register extract, CRIF and Intrum explained, access under Art. 25 DSG, blocking unjustified enforcements — and the path to a card.",
+      h1: "Creditworthiness in Switzerland, in plain terms.",
+      lead: "Debt enforcement register, CRIF, Intrum: in Switzerland an extract from the enforcement office often decides on flat, phone and card — and five years is a long time. FIAON knows the routes to clean it up.",
+      abschnitte: [
+        { h2: "Who stores what", text: "The debt enforcement register at your place of residence (every enforcement visible for five years, extract CHF 17), CRIF as the private bureau and Intrum with debt collection and its own credit data. Access under Art. 25 DSG within 30 days." },
+        { h2: "Your rights and the path with FIAON", text: "Block an unjustified enforcement under Art. 8a SchKG, withdrawal declaration from the creditor after payment, rectification and erasure at CRIF and Intrum under Art. 32 DSG, complaint to the FDPIC. FIAON obtains extract and reports, explains every enforcement, drafts requests and letters and prepares account and card. The bank decides." },
+      ],
+      weiter: ["/auskunfteien", "/oesterreich"],
+      krumen: [{ name: "FIAON in Switzerland", pfad: "/en/switzerland" }],
+    },
   },
   "/sicherheit": {
     pfad: "/sicherheit", art: "unternehmen", stand: PFEILER, prio: 0.6,
@@ -459,6 +509,22 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/was-ist-fiaon", "/privatkunden", "/preise", "/sicherheit", "/demo"],
     krumen: [{ name: "Plattform-Konzept", pfad: "/plattform-konzept" }],
+    en: {
+      pfad: "/en/how-the-platform-works",
+      titel: "How FIAON works: the platform concept day by day | FIAON",
+      beschreibung: "The whole platform explained: three layers, the route day by day, plan finder, customer area, onboarding call, DACH, security – and what FIAON is not.",
+      h1: "Creditworthiness, thought through to the end.",
+      lead: "Insight, action, access: FIAON obtains your credit report, clears up what can be challenged, and opens account and card. Here is the whole platform – layer by layer, day by day.",
+      abschnitte: [
+        { h2: "One platform, three layers.", text: "Each layer builds on the previous one. Most providers stop after the first: insight (report and bank statement explained), action (letters that go out), access (account, card, financing)." },
+        { h2: "What happens, day by day.", text: "Application in two minutes, onboarding call in 15 minutes, documents with your phone, report obtained, financial analysis, letters go out, replies and deletions, current account, credit card – and after twelve instalments you decide whether to stay." },
+        { h2: "Three countries, three systems.", text: "FIAON knows the credit bureaus, deadlines and rights in Germany, Austria and Switzerland – and writes the letters the way they are read there." },
+        { h2: "Built like a bank, spoken like a human.", text: "Only with your signature: FIAON obtains the report exclusively with your digital power of attorney. No letter without you: you see every letter before it is sent. Your data, your ending: after the contract ends we delete completely on request." },
+        { h2: "What FIAON is not.", text: "Not a bank, not a loan broker, not legal advice, not debt counselling. FIAON is the cross-check of your credit report and the route that follows from it – with the bank at the end, which decides." },
+      ],
+      weiter: ["/was-ist-fiaon", "/privatkunden", "/preise", "/sicherheit", "/demo"],
+      krumen: [{ name: "The platform concept", pfad: "/en/how-the-platform-works" }],
+    },
   },
 
   // ═════════════════════════════════════════════════════════════════════════
@@ -757,6 +823,20 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/werkzeuge/eintrag-pruefen", "/werkzeuge/loeschfrist", "/werkzeuge/selbstauskunft", "/eintrag-verjaehrung", "/inkasso-brief-erhalten", "/schufa-score-verstehen", "/selbstauskunft-checkliste", "/privatkunden"],
     krumen: [{ name: "SCHUFA-Eintrag löschen", pfad: "/schufa-eintrag-loeschen" }],
+    en: {
+      pfad: "/en/delete-a-schufa-entry",
+      titel: "Deleting a SCHUFA entry: deadlines, rights, route | FIAON",
+      beschreibung: "Deleting a SCHUFA entry: which entries can be challenged (Section 31 BDSG), all deletion periods as a table, the route in four steps with free tools.",
+      h1: "Deleting a SCHUFA entry.",
+      lead: "Which entries can be challenged, which deletion periods apply and what the route looks like in four steps – with free tools for every step. Honestly: justified, lawfully reported entries stay until their period expires.",
+      abschnitte: [
+        { h2: "Which entries can be challenged", text: "Reported without the requirements of Section 31 BDSG (two reminders four weeks apart, timely notice, claim not disputed), past the deletion period, or simply wrong under Article 16 GDPR — three points of attack that most often succeed in practice." },
+        { h2: "The deletion periods at a glance", text: "Settled claim three years after settlement; settled within 100 days of the report 18 months; discharge of residual debt six months; loan enquiry twelve months; contract data on termination; open undisputed claims have no period until settlement." },
+        { h2: "The route in four steps", text: "Request the data copy, hold every entry against the rules, demand deletion or rectification in writing with a deadline, and if refused go to the ombudsman and the supervisory authority — every step prepared by a free tool.", punkte: ["Request the data copy (Article 15 GDPR)", "Check an entry against Section 31 BDSG", "Calculate the deletion deadline to the day"] },
+      ],
+      weiter: ["/eintrag-verjaehrung", "/selbstauskunft-checkliste", "/schufa-score-verstehen", "/inkasso-brief-erhalten"],
+      krumen: [{ name: "Deleting a SCHUFA entry", pfad: "/en/delete-a-schufa-entry" }],
+    },
   },
   "/bonitaet-verbessern": {
     pfad: "/bonitaet-verbessern", art: "pfeiler", stand: PFEILER, prio: 0.9,
@@ -771,6 +851,20 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/schufa-score-verstehen", "/schufa-eintrag-loeschen", "/schufa-neutral-anfragen", "/ratenzahlung-und-bonitaet", "/girokonto-trotz-negativer-bonitaet", "/werkzeuge/schulden-check", "/werkzeuge", "/privatkunden"],
     krumen: [{ name: "Bonität verbessern", pfad: "/bonitaet-verbessern" }],
+    en: {
+      pfad: "/en/strengthen-your-credit-file",
+      titel: "Strengthening your credit file: the levers ranked by effect",
+      beschreibung: "Which measures really work, which take months and which achieve nothing — with a 90-day plan, free tools and the rules behind SCHUFA, KSV and CRIF scores.",
+      h1: "Strengthening your credit file — what really works.",
+      lead: "Most advice about the score is folklore. Here the levers are in order of their effect — with an honest statement of how long each one takes.",
+      abschnitte: [
+        { h2: "The big levers", text: "Remove challengeable entries (Section 31 BDSG, expiry, errors), clear the overdraft and stop returned direct debits, make rate enquiries instead of credit enquiries. Effect within weeks to months." },
+        { h2: "The quiet levers", text: "Everything on time without exception, few old stable contracts, the free data copy once a year. Effect over months — they carry the history." },
+        { h2: "The 90-day plan", text: "Days 1–14 know, days 15–45 tidy up, days 46–90 consolidate — each stage with the free tool that prepares it. Only the credit bureaus calculate scores; nobody can guarantee a particular change." },
+      ],
+      weiter: ["/schufa-score-verstehen", "/kreditkarte"],
+      krumen: [{ name: "Strengthening your credit file", pfad: "/en/strengthen-your-credit-file" }],
+    },
   },
   "/kredit-ohne-schufa": {
     pfad: "/kredit-ohne-schufa", art: "pfeiler", stand: PFEILER, prio: 0.9,
@@ -785,6 +879,20 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/schufa-eintrag-loeschen", "/werkzeuge/kreditrechner", "/werkzeuge/eintrag-pruefen", "/schufa-neutral-anfragen", "/girokonto-trotz-negativer-bonitaet", "/ratenzahlung-und-bonitaet", "/bonitaet-verbessern"],
     krumen: [{ name: "Kredit ohne SCHUFA", pfad: "/kredit-ohne-schufa" }],
+    en: {
+      pfad: "/en/loans-without-schufa",
+      titel: "Loans without SCHUFA: what is really behind them",
+      beschreibung: "What legitimately exists, what it costs, how to spot fraud in 30 seconds — and why the better route is usually to put your credit file in order.",
+      h1: "Loans without SCHUFA — the whole truth.",
+      lead: "They exist. They are small, expensive and strictly checked — and around them stands the biggest fraud industry in the German credit market. Here is what you need to know before you sign anywhere.",
+      abschnitte: [
+        { h2: "What legitimately exists", text: "So-called Swiss loans from foreign banks without a SCHUFA enquiry: fixed sums of €3,500 to €7,500, terms around 40 months, effective rates of 10 to 16 per cent, an attachable income required. Without income there is nothing." },
+        { h2: "Spot fraud in 30 seconds", text: "Advance costs before the payout, home visits with add-on products, guarantee promises such as “100 % approval”. Legitimate lenders never demand money before money flows." },
+        { h2: "The better route", text: "Request the data copy, check every entry, enforce deletion where it can be challenged — then the normal credit market is open again at normal rates. FIAON does not broker loans and receives no commission from lenders." },
+      ],
+      weiter: ["/schufa-neutral-anfragen", "/girokonto-trotz-negativer-bonitaet"],
+      krumen: [{ name: "Loans without SCHUFA", pfad: "/en/loans-without-schufa" }],
+    },
   },
   "/auskunfteien": {
     pfad: "/auskunfteien", art: "pfeiler", stand: PFEILER, prio: 0.8,
@@ -799,6 +907,19 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/oesterreich", "/schweiz", "/bonitaetsauskunft-beantragen", "/werkzeuge/selbstauskunft", "/eintrag-verjaehrung", "/selbstauskunft-checkliste", "/glossar-bonitaet"],
     krumen: [{ name: "Auskunfteien", pfad: "/auskunfteien" }],
+    en: {
+      pfad: "/en/credit-bureaus",
+      titel: "SCHUFA, KSV1870, CRIF: credit bureaus compared | FIAON",
+      beschreibung: "Who stores what in Germany, Austria and Switzerland — rights, deletion deadlines and differences between SCHUFA, KSV1870, CRIF and the Swiss register.",
+      h1: "Three countries, three sets of rules — one overview.",
+      lead: "SCHUFA, KSV1870, CRIF: who stores what, which rights apply and which deadlines run. Anyone who knows the differences gives away no claims.",
+      abschnitte: [
+        { h2: "The three systems", text: "Germany: SCHUFA and the GDPR, settled entries three years or 18 months with the 100-day rule. Austria: KSV1870 with the banks' warning list and CRIF, usually three years after full payment. Switzerland: CRIF, Intrum and above all the debt enforcement register, enforcements visible for five years, blockable under Art. 8a SchKG." },
+        { h2: "The direct comparison", text: "Free access under Art. 15 GDPR in Germany and Austria and Art. 25 DSG in Switzerland; after personal insolvency six months in Germany, deletion after the discharge procedure in Austria, loss certificates up to 20 years in Switzerland; supervision by the state data protection authorities, the Austrian DSB and the Swiss FDPIC." },
+      ],
+      weiter: ["/oesterreich", "/schweiz", "/bonitaetsauskunft-beantragen"],
+      krumen: [{ name: "Credit bureaus compared", pfad: "/en/credit-bureaus" }],
+    },
   },
   "/schufa-score-verstehen": {
     pfad: "/schufa-score-verstehen", art: "pfeiler", stand: PFEILER, prio: 0.9,
@@ -815,6 +936,20 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/bonitaet-verbessern", "/schufa-eintrag-loeschen", "/schufa-neutral-anfragen", "/bonitaetsauskunft-beantragen", "/eintrag-verjaehrung", "/werkzeuge/selbstauskunft", "/glossar-bonitaet"],
     krumen: [{ name: "SCHUFA-Score verstehen", pfad: "/schufa-score-verstehen" }],
+    en: {
+      pfad: "/en/schufa-score",
+      titel: "Understanding the SCHUFA score: new scale 100–999, table",
+      beschreibung: "The new SCHUFA score since March 2026: a scale from 100 to 999, five classes, twelve criteria with points — as a table, with the levers behind it.",
+      h1: "Understanding the SCHUFA score: what your number really means.",
+      lead: "Since March 2026 the score has been a number between 100 and 999 — from twelve published criteria, in five classes. Here is the table, every criterion with its points, the levers behind it and the route to getting rid of wrong entries.",
+      abschnitte: [
+        { h2: "The score table: five classes", text: "776 to 999 excellent (around 62 % of people), 709 to 775 good (around 20 %), 642 to 708 acceptable (around 8 %), 100 to 641 sufficient (around 2 %), no value with an open payment default — insufficient (around 8 %). Source: SCHUFA, retrieved 2 September 2026. Every bank still sets its own thresholds." },
+        { h2: "The twelve criteria", text: "Payment defaults 264 points, account and card enquiries 117, enquiries outside banking 99, age of address 94, oldest credit card 81, oldest bank contract 69, instalment loans taken out 66, longest remaining term 61, mortgage loan 55, identity check 38, most recent credit line 36, credit status 19 — 999 in total." },
+        { h2: "What moves the score", text: "No open payment default, bundled enquiries, old contracts kept, a stable address, loans in moderation, wrong data out. FIAON obtains the reports, checks every entry against Section 31 BDSG and the deletion deadlines and handles the correspondence. Nobody can seriously promise a particular number." },
+      ],
+      weiter: ["/bonitaet-verbessern", "/schufa-eintrag-loeschen", "/eintrag-verjaehrung"],
+      krumen: [{ name: "Understanding the SCHUFA score", pfad: "/en/schufa-score" }],
+    },
   },
   "/bonitaetsauskunft-beantragen": {
     pfad: "/bonitaetsauskunft-beantragen", art: "pfeiler", stand: PFEILER, prio: 0.9,
@@ -829,6 +964,19 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/werkzeuge/selbstauskunft", "/selbstauskunft-checkliste", "/auskunfteien", "/schufa-score-verstehen", "/werkzeuge/eintrag-pruefen", "/preise"],
     krumen: [{ name: "Bonitätsauskunft beantragen", pfad: "/bonitaetsauskunft-beantragen" }],
+    en: {
+      pfad: "/en/request-your-credit-report",
+      titel: "Requesting your credit report: free or reviewed | FIAON",
+      beschreibung: "The free route under Art. 15 GDPR and the reviewed FIAON route for €74 compared: obtaining, plain-language explanation, a check of every entry.",
+      h1: "Requesting your credit report — free or reviewed.",
+      lead: "You are legally entitled to your report free of charge — we say that first. FIAON is the route for everyone who wants to hand over obtaining it, the plain-language explanation and the check of every entry: €74 one-off, no subscription required.",
+      abschnitte: [
+        { h2: "Request it yourself or have it obtained?", text: "Self-disclosure under Art. 15 GDPR costs nothing and delivers raw data from each bureau separately; the FIAON route costs €74 one-off and delivers SCHUFA, KSV and CRIF from one hand, every line explained, every entry checked against Section 31 BDSG and the deletion deadlines, plus an action plan. Our free tools prepare the free route." },
+        { h2: "How it works", text: "Open an account and place the order in two minutes; FIAON obtains the data copies within a few days to four weeks; plain language and review within 24 hours of receipt; an action plan and, if you wish, the implementation. Self-disclosure is neutral and does not change your score.", punkte: ["No success fee, no hidden costs", "Also KSV (Austria) and CRIF (Switzerland)", "No deletion guarantee — justified entries stay"] },
+      ],
+      weiter: ["/schufa-score-verstehen", "/auskunfteien", "/preise"],
+      krumen: [{ name: "Requesting your credit report", pfad: "/en/request-your-credit-report" }],
+    },
   },
   "/inkasso-brief-erhalten": {
     pfad: "/inkasso-brief-erhalten", art: "pfeiler", stand: PFEILER, prio: 0.9,
@@ -844,6 +992,20 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/werkzeuge/inkassokosten", "/werkzeuge/verjaehrung", "/schufa-eintrag-loeschen", "/eintrag-verjaehrung", "/ratenzahlung-und-bonitaet", "/kontakt"],
     krumen: [{ name: "Inkasso-Brief erhalten", pfad: "/inkasso-brief-erhalten" }],
+    en: {
+      pfad: "/en/debt-collection-letter",
+      titel: "Debt collection letter? Check first, then pay | FIAON",
+      beschreibung: "Received a debt collection letter: the calm five-step plan — check the claim, work out the costs, know the deadlines, prevent an entry. Checked for free.",
+      h1: "Received a debt collection letter? Check first, then pay.",
+      lead: "A debt collection letter is not a judgment — it is a claim on letterhead. Some claims are justified, many inflated, some simply invented. Here is the calm plan for the next few days, step by step.",
+      abschnitte: [
+        { h2: "The five-step immediate plan", text: "Stay calm and sign nothing; check sender and claim in the register of legal service providers; work out the costs against the legal caps; if justified, pay or agree instalments in writing; if unjustified, object in writing with a deadline to agency and creditor. A disputed claim may not be reported to SCHUFA (Section 31 BDSG)." },
+        { h2: "These deadlines apply", text: "14 days to object to a court payment order; the 100-day rule shortens SCHUFA storage to 18 months if you settle in time; most everyday claims become time-barred after three years — but you must raise the defence yourself." },
+        { h2: "How FIAON supports you", text: "FIAON is not a debt collector and not legal advice — FIAON is your cross-check: obtain the reports, hold every entry against the rules, take on letters and deadlines. Justified, lawfully reported entries stay." },
+      ],
+      weiter: ["/schufa-eintrag-loeschen", "/eintrag-verjaehrung"],
+      krumen: [{ name: "Received a debt collection letter", pfad: "/en/debt-collection-letter" }],
+    },
   },
   "/eintrag-verjaehrung": {
     pfad: "/eintrag-verjaehrung", art: "pfeiler", stand: PFEILER, prio: 0.8,
@@ -858,6 +1020,20 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/werkzeuge/loeschfrist", "/werkzeuge/verjaehrung", "/schufa-eintrag-loeschen", "/inkasso-brief-erhalten", "/glossar-bonitaet", "/kontakt"],
     krumen: [{ name: "Eintrag & Verjährung", pfad: "/eintrag-verjaehrung" }],
+    en: {
+      pfad: "/en/entries-and-limitation",
+      titel: "SCHUFA entries and limitation: all the deadlines | FIAON",
+      beschreibung: "When a SCHUFA entry has to disappear: expiry checker, all storage periods per entry type and the route when a period has expired. Check the deadline now.",
+      h1: "A SCHUFA entry after years: when it has to disappear.",
+      lead: "Every entry has an expiry date — it just is not written anywhere. Here you work it out, see all storage periods per entry type and the difference from the limitation period of the claim. To the day, under the 2024 rules.",
+      abschnitte: [
+        { h2: "All storage periods per entry type", text: "Settled claim three years from settlement; settled within 100 days of the report 18 months; discharge of residual debt six months; credit enquiry twelve months (visible to others for ten days); rate enquiry score-neutral; contract data deleted on termination; open claims have no period until settlement." },
+        { h2: "Justified or unjustified — the difference decides", text: "Expired entries must be deleted without ifs or buts; entries reported without the requirements of Section 31 BDSG can be challenged regardless of any deadline; justified entries within the period stay — the honest answer. Limitation of the claim and the storage period of the entry are two different things." },
+        { h2: "The FIAON route", text: "Data copies from all three credit bureaus, every deadline recalculated to the day, deletion demands with a deadline under Art. 17 GDPR — up to the ombudsman if need be.", punkte: ["Expiry checker on this page", "Free deletion deadline calculator", "Free limitation checker"] },
+      ],
+      weiter: ["/schufa-eintrag-loeschen", "/werkzeuge"],
+      krumen: [{ name: "Entries and limitation periods", pfad: "/en/entries-and-limitation" }],
+    },
   },
   "/girokonto-trotz-negativer-bonitaet": {
     pfad: "/girokonto-trotz-negativer-bonitaet", art: "pfeiler", stand: PFEILER, prio: 0.9,
@@ -873,6 +1049,20 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/kreditkarte", "/ratenzahlung-und-bonitaet", "/werkzeuge/karten-check", "/werkzeuge/selbstauskunft", "/bonitaet-verbessern", "/fiaon-erfahrungen", "/privatkunden"],
     krumen: [{ name: "Girokonto trotz negativer Bonität", pfad: "/girokonto-trotz-negativer-bonitaet" }],
+    en: {
+      pfad: "/en/current-account-despite-poor-credit",
+      titel: "Current account despite poor credit: honest route | FIAON",
+      beschreibung: "A current account despite a poor credit record: what is really achievable, what an active account builds for your credit file, and what nobody can promise.",
+      h1: "A current account despite a poor credit record — the honest route.",
+      lead: "Yes, an account is achievable even with a difficult credit file — and no, nobody can seriously promise it: the bank always decides on the opening. Here is what really works, what an active account builds for your credit file, and what we expressly do not promise.",
+      abschnitte: [
+        { h2: "Why an active account builds your credit file", text: "Risk models read behaviour: regular receipts, punctual debits and no returned direct debits build the history banks want to see. One cleanly run account ends the chaos that causes many negative entries — and the card is the goal of the next stage, never a promise." },
+        { h2: "The route via FIAON", text: "Open your FIAON account in two minutes, have your credit file from SCHUFA, KSV and CRIF checked and tidied up, then the prepared application goes to the partner institution. The bank decides on the opening under its own rules — we never leave that sentence out." },
+        { h2: "What we do not promise", text: "No guaranteed account opening, no card as a promise, no deletion of justified entries, no score tuning overnight. The basic account under Section 31 ZKG is your legal right independent of us — both routes are compared in the table.", punkte: ["Basic account: legal entitlement, credit basis, sometimes expensive", "FIAON route: full current account as the goal, credit file cleaned up in parallel"] },
+      ],
+      weiter: ["/kreditkarte", "/ratenzahlung-und-bonitaet", "/fiaon-erfahrungen"],
+      krumen: [{ name: "A current account despite a poor credit record", pfad: "/en/current-account-despite-poor-credit" }],
+    },
   },
   "/ratenzahlung-und-bonitaet": {
     pfad: "/ratenzahlung-und-bonitaet", art: "pfeiler", stand: PFEILER, prio: 0.8,
@@ -888,6 +1078,20 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/bonitaet-verbessern", "/schufa-score-verstehen", "/inkasso-brief-erhalten", "/eintrag-verjaehrung", "/werkzeuge/spielraum", "/glossar-bonitaet", "/preise"],
     krumen: [{ name: "Ratenzahlung & Bonität", pfad: "/ratenzahlung-und-bonitaet" }],
+    en: {
+      pfad: "/en/instalments-and-credit-file",
+      titel: "Instalments and your credit file: strongest lever | FIAON",
+      beschreibung: "How instalments affect SCHUFA and your credit file: the twelve-instalment logic, the four escalation stages with arrears and six practical tips.",
+      h1: "Instalments and creditworthiness: paying on time pays off.",
+      lead: "No feature moves your credit file as reliably as your payment behaviour — in both directions. Here is how twelve punctual instalments work, in which stages arrears escalate and how you keep both under control.",
+      abschnitte: [
+        { h2: "Punctual instalments are your strongest lever", text: "Twelve instalments, twelve proofs: every punctual payment is a positive data point, together they form a history that risk models reward. The FIAON plans run over twelve monthly instalments and build exactly this history." },
+        { h2: "What happens with arrears", text: "Escalation is a staircase with four steps: reminder, formal reminder with default costs, threat of a report after the second reminder plus four weeks (Section 31 BDSG), then entry, debt collection and title. It can be stopped on every step — settling within 100 days shortens the storage period to 18 months." },
+        { h2: "Six tips from practice", text: "One debit day for everything, a buffer on the payment account, a reminder before the due date, no stacking of financings, talking before an instalment bounces, documenting what is settled. The FIAON payment calendar reminds customers before every instalment." },
+      ],
+      weiter: ["/inkasso-brief-erhalten", "/eintrag-verjaehrung", "/schufa-score-verstehen", "/preise"],
+      krumen: [{ name: "Instalments and creditworthiness", pfad: "/en/instalments-and-credit-file" }],
+    },
   },
   "/selbstauskunft-checkliste": {
     pfad: "/selbstauskunft-checkliste", art: "pfeiler", stand: PFEILER, prio: 0.8,
@@ -902,6 +1106,20 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/werkzeuge/selbstauskunft", "/bonitaetsauskunft-beantragen", "/auskunfteien", "/schufa-score-verstehen", "/schufa-eintrag-loeschen", "/glossar-bonitaet"],
     krumen: [{ name: "Selbstauskunft-Checkliste", pfad: "/selbstauskunft-checkliste" }],
+    en: {
+      pfad: "/en/reading-your-credit-report",
+      titel: "Reading your credit report: 10-point checklist | FIAON",
+      beschreibung: "Understand your credit report: the interactive 10-point checklist, the 5 most common mistakes and an explained sample extract. Check your report now.",
+      h1: "Reading your credit report: the 10-point checklist.",
+      lead: "The data copy is in front of you, but nobody has explained how to read it? This checklist goes through it point by point — your ticks stay saved until you are done. Afterwards you know what is right, what is missing and what can be challenged.",
+      abschnitte: [
+        { h2: "The checklist", text: "Ten points in this order: personal details, every contract attributable, ended contracts removed, settled markers, deletion periods recalculated, duplicates marked, amounts and dates checked, disputed claims recognised, enquiries of the last twelve months counted, unclear items noted." },
+        { h2: "The five most common mistakes when reading", text: "Looking only at the score, confusing the paid product with the free data copy under Article 15 GDPR, confusing settled with deleted, checking only SCHUFA, objecting by telephone instead of in writing." },
+        { h2: "Or you have it checked", text: "FIAON obtains the data copies from SCHUFA, KSV and CRIF, checks every line against Section 31 BDSG and the deletion periods and prepares the correspondence for everything challengeable — with an action plan in plain language." },
+      ],
+      weiter: ["/bonitaetsauskunft-beantragen", "/schufa-score-verstehen", "/glossar-bonitaet", "/auskunfteien"],
+      krumen: [{ name: "Credit report checklist", pfad: "/en/reading-your-credit-report" }],
+    },
   },
   "/schufa-neutral-anfragen": {
     pfad: "/schufa-neutral-anfragen", art: "pfeiler", stand: PFEILER, prio: 0.8,
@@ -916,6 +1134,20 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/schufa-score-verstehen", "/werkzeuge/kreditrechner", "/bonitaetsauskunft-beantragen", "/ratenzahlung-und-bonitaet", "/kredit-ohne-schufa", "/kontakt"],
     krumen: [{ name: "SCHUFA-neutral anfragen", pfad: "/schufa-neutral-anfragen" }],
+    en: {
+      pfad: "/en/schufa-neutral-enquiries",
+      titel: "SCHUFA-neutral enquiries: how to do it right | FIAON",
+      beschreibung: "Enquire about a loan without affecting your score: the difference between a conditions enquiry and a loan enquiry, and the right sentences for the bank.",
+      h1: "SCHUFA-neutral enquiries: conditions instead of loan.",
+      lead: "Anyone comparing loans can spoil the comparison — with the wrong type of enquiry. The difference between a conditions enquiry and a loan enquiry costs one word in the conversation with the bank and decides whether your score hears about it.",
+      abschnitte: [
+        { h2: "Side by side", text: "A conditions enquiry is stored but visible only to you and does not flow into the score. A loan enquiry is visible to other banks for ten days, stored for twelve months and flows into the calculation — several in a short time read as being short of money." },
+        { h2: "How to enquire correctly", text: "Know your credit file first, say the sentence “Please make a conditions enquiry only — not a loan enquiry”, compare calmly, and let the one real loan enquiry happen only with the contract you actually sign." },
+        { h2: "The effect on the score", text: "Both enquiry types are stored for twelve months; only the loan enquiry is visible to others and counts. Wrongly filed enquiries can be corrected under Article 16 GDPR — your own data copy shows how every enquiry is stored." },
+      ],
+      weiter: ["/schufa-score-verstehen", "/ratenzahlung-und-bonitaet", "/bonitaetsauskunft-beantragen", "/selbstauskunft-checkliste"],
+      krumen: [{ name: "SCHUFA-neutral enquiries", pfad: "/en/schufa-neutral-enquiries" }],
+    },
   },
   "/glossar-bonitaet": {
     pfad: "/glossar-bonitaet", art: "pfeiler", stand: PFEILER, prio: 0.7,
@@ -925,6 +1157,15 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     lead: "Von Anfrage bis Zahlungshistorie: jeder Begriff in zwei bis vier Sätzen Klartext – und der Verweis auf die Themenseite, die in die Tiefe geht.",
     weiter: ["/schufa-score-verstehen", "/schufa-eintrag-loeschen", "/bonitaetsauskunft-beantragen", "/ratgeber", "/auskunfteien", "/eintrag-verjaehrung"],
     krumen: [{ name: "Bonitäts-Glossar", pfad: "/glossar-bonitaet" }],
+    en: {
+      pfad: "/en/credit-glossary",
+      titel: "Credit glossary: every term explained | FIAON",
+      beschreibung: "From enquiry to payment history: the credit glossary explains every term in plain language – score class, data copy, deletion period, court payment order.",
+      h1: "The credit glossary: every term explained.",
+      lead: "Every term in two to four sentences of plain language – and the route to the topic page that goes into depth. German technical terms are kept alongside their English explanation.",
+      weiter: ["/schufa-score-verstehen", "/schufa-eintrag-loeschen", "/bonitaetsauskunft-beantragen", "/ratgeber"],
+      krumen: [{ name: "Credit glossary", pfad: "/en/credit-glossary" }],
+    },
   },
 
   "/ratgeber": {
@@ -953,6 +1194,20 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/schufa-eintrag-loeschen", "/inkasso-brief-erhalten", "/eintrag-verjaehrung", "/selbstauskunft-checkliste", "/glossar-bonitaet", "/ratgeber"],
     krumen: [{ name: "Werkzeuge", pfad: "/werkzeuge" }],
+    en: {
+      pfad: "/en/tools",
+      titel: "Free SCHUFA and credit tools — FIAON",
+      beschreibung: "Twenty free calculators, checkers and letter generators on SCHUFA, credit files, debt collection and loans: deletion request, deadlines, debt plan.",
+      h1: "First know, then act.",
+      lead: "Twenty tools, each answering a question that otherwise costs money or weeks. Everything runs in your browser – nothing is stored, no sign-up, no enquiry at a credit bureau.",
+      abschnitte: [
+        { h2: "Entries and claims", text: "Know what is stored – and what can go: request the data copy, check an entry, write deletion request and objection, calculate deletion deadline and limitation, court payment order deadline, check debt collection costs and reminder fees, reply to the debt collector." },
+        { h2: "Loans and household", text: "Calculate before you sign: loan calculator, debt consolidation calculator, debt check, headroom calculator, instalment plan with offer letter, debt-free plan, overdraft calculator, attachment calculator 2026." },
+        { h2: "Card and account", text: "Assess realistically instead of hoping: card check, card cost comparison and the basic account helper with the route to BaFin." },
+      ],
+      weiter: ["/schufa-eintrag-loeschen", "/inkasso-brief-erhalten", "/eintrag-verjaehrung", "/selbstauskunft-checkliste", "/glossar-bonitaet"],
+      krumen: [{ name: "Tools", pfad: "/en/tools" }],
+    },
   },
   "/werkzeuge/selbstauskunft": {
     pfad: "/werkzeuge/selbstauskunft", art: "werkzeug", stand: PFEILER, prio: 0.8, werkzeug: "Selbstauskunft-Generator",
@@ -965,6 +1220,15 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/bonitaetsauskunft-beantragen", "/selbstauskunft-checkliste", "/auskunfteien", "/werkzeuge/eintrag-pruefen", "/werkzeuge"],
     krumen: [{ name: "Werkzeuge", pfad: "/werkzeuge" }, { name: "Datenkopie anfordern", pfad: "/werkzeuge/selbstauskunft" }],
+    en: {
+      pfad: "/en/tools/request-your-data-copy",
+      titel: "Data copy request generator: your free credit report | FIAON",
+      beschreibung: "Generate the finished letter for your free data copy under Article 15 GDPR in one minute – to SCHUFA, KSV1870, CRIF or Intrum. Copy, print, send. Free.",
+      h1: "Your data copy – the finished letter.",
+      lead: "Four details, and the request for the free data copy is ready – including the points credit bureaus often leave out: score values, recipients, origin. The letter is in German, ready to send.",
+      weiter: ["/bonitaetsauskunft-beantragen", "/selbstauskunft-checkliste", "/werkzeuge/eintrag-pruefen", "/werkzeuge"],
+      krumen: [{ name: "Tools", pfad: "/en/tools" }, { name: "Data copy request generator", pfad: "/en/tools/request-your-data-copy" }],
+    },
   },
   "/werkzeuge/eintrag-pruefen": {
     pfad: "/werkzeuge/eintrag-pruefen", art: "werkzeug", stand: PFEILER, prio: 0.8, werkzeug: "Eintrag-Prüfer",
@@ -977,6 +1241,15 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/schufa-eintrag-loeschen", "/werkzeuge/loeschfrist", "/werkzeuge/selbstauskunft", "/eintrag-verjaehrung", "/werkzeuge"],
     krumen: [{ name: "Werkzeuge", pfad: "/werkzeuge" }, { name: "Eintrag prüfen", pfad: "/werkzeuge/eintrag-pruefen" }],
+    en: {
+      pfad: "/en/tools/check-my-entry",
+      titel: "Can my entry be challenged? Five questions, one answer",
+      beschreibung: "Five questions, one honest assessment: whether your SCHUFA, KSV or CRIF entry can be deleted – under Section 31 BDSG, deletion periods and case law. Free.",
+      h1: "Can my entry be challenged?",
+      lead: "Five questions, one honest assessment. We check the requirements the law sets for a report – and we also say when an entry is justified.",
+      weiter: ["/schufa-eintrag-loeschen", "/werkzeuge/loeschfrist", "/werkzeuge/selbstauskunft", "/werkzeuge"],
+      krumen: [{ name: "Tools", pfad: "/en/tools" }, { name: "Can my entry be challenged?", pfad: "/en/tools/check-my-entry" }],
+    },
   },
   "/werkzeuge/loeschfrist": {
     pfad: "/werkzeuge/loeschfrist", art: "werkzeug", stand: PFEILER, prio: 0.8, werkzeug: "Löschfrist-Rechner",
@@ -986,6 +1259,15 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     lead: "Drei Jahre, 18 Monate oder sechs Monate – je nach Art des Eintrags und Ihrem Verhalten. Der Rechner nennt das taggenaue Datum und sagt, wann Sie den Eintrag früher angreifen können.",
     weiter: ["/eintrag-verjaehrung", "/schufa-eintrag-loeschen", "/werkzeuge/eintrag-pruefen", "/werkzeuge/verjaehrung", "/werkzeuge"],
     krumen: [{ name: "Werkzeuge", pfad: "/werkzeuge" }, { name: "Löschfrist-Rechner", pfad: "/werkzeuge/loeschfrist" }],
+    en: {
+      pfad: "/en/tools/deletion-deadline",
+      titel: "Deletion deadline calculator: when is my SCHUFA entry gone?",
+      beschreibung: "Enter the type of entry and the dates – the calculator names the deletion date to the day, with the 100-day rule and the six-month period after insolvency.",
+      h1: "When is my entry gone?",
+      lead: "Three years, 18 months or six months – depending on the type of entry and your behaviour. The calculator names the date to the day and says when you can challenge the entry earlier.",
+      weiter: ["/eintrag-verjaehrung", "/schufa-eintrag-loeschen", "/werkzeuge/eintrag-pruefen", "/werkzeuge/verjaehrung", "/werkzeuge"],
+      krumen: [{ name: "Tools", pfad: "/en/tools" }, { name: "Deletion deadline calculator", pfad: "/en/tools/deletion-deadline" }],
+    },
   },
   "/werkzeuge/verjaehrung": {
     pfad: "/werkzeuge/verjaehrung", art: "werkzeug", stand: PFEILER, prio: 0.8, werkzeug: "Verjährungs-Rechner",
@@ -995,6 +1277,15 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     lead: "Drei Jahre ab Jahresende – oder 30 Jahre mit Titel. Der Rechner nennt das Datum und formuliert die Einrede, die Inkassobüros nicht gern lesen.",
     weiter: ["/inkasso-brief-erhalten", "/eintrag-verjaehrung", "/werkzeuge/inkassokosten", "/werkzeuge/loeschfrist", "/werkzeuge"],
     krumen: [{ name: "Werkzeuge", pfad: "/werkzeuge" }, { name: "Verjährungs-Rechner", pfad: "/werkzeuge/verjaehrung" }],
+    en: {
+      pfad: "/en/tools/limitation-check",
+      titel: "Limitation check: is the old claim time-barred? | FIAON",
+      beschreibung: "Enter due date, title and last acknowledgement – the check names the limitation date under the BGB and provides the German wording for the plea.",
+      h1: "Is the claim time-barred?",
+      lead: "Three years from the end of the year – or 30 years with a title. The calculator names the date and drafts the plea, in German, that debt collectors do not like to read.",
+      weiter: ["/inkasso-brief-erhalten", "/eintrag-verjaehrung", "/werkzeuge/inkassokosten", "/werkzeuge"],
+      krumen: [{ name: "Tools", pfad: "/en/tools" }, { name: "Limitation check", pfad: "/en/tools/limitation-check" }],
+    },
   },
   "/werkzeuge/inkassokosten": {
     pfad: "/werkzeuge/inkassokosten", art: "werkzeug", stand: PFEILER, prio: 0.8, werkzeug: "Inkassokosten-Prüfer",
@@ -1004,6 +1295,15 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     lead: "Seit Oktober 2021 gelten gesetzliche Obergrenzen. Der Prüfer rechnet nach, was zulässig ist – und formuliert die Zurückweisung überhöhter Posten.",
     weiter: ["/inkasso-brief-erhalten", "/werkzeuge/verjaehrung", "/ratenzahlung-und-bonitaet", "/werkzeuge"],
     krumen: [{ name: "Werkzeuge", pfad: "/werkzeuge" }, { name: "Inkassokosten-Prüfer", pfad: "/werkzeuge/inkassokosten" }],
+    en: {
+      pfad: "/en/tools/debt-collection-costs",
+      titel: "Debt collection cost checker: are the fees too high? | FIAON",
+      beschreibung: "Enter principal claim and costs demanded – the checker recalculates the permissible fees under the RVG and Section 13e RDG and drafts the rejection.",
+      h1: "Are the debt collection costs too high?",
+      lead: "Statutory caps have applied since October 2021. The checker recalculates what is permissible – and drafts the rejection of the excess, in German for the debt collector.",
+      weiter: ["/inkasso-brief-erhalten", "/werkzeuge/verjaehrung", "/werkzeuge/mahngebuehren", "/werkzeuge"],
+      krumen: [{ name: "Tools", pfad: "/en/tools" }, { name: "Debt collection cost checker", pfad: "/en/tools/debt-collection-costs" }],
+    },
   },
   "/werkzeuge/kreditrechner": {
     pfad: "/werkzeuge/kreditrechner", art: "werkzeug", stand: PFEILER, prio: 0.8, werkzeug: "Kreditrechner",
@@ -1013,6 +1313,15 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     lead: "Monatsrate, Gesamtkosten, Zinsanteil – und daneben die Rate zu dem Zins, den zwei Drittel der Antragsteller tatsächlich bekommen.",
     weiter: ["/werkzeuge/umschuldung", "/kredit-ohne-schufa", "/schufa-neutral-anfragen", "/werkzeuge/spielraum", "/werkzeuge"],
     krumen: [{ name: "Werkzeuge", pfad: "/werkzeuge" }, { name: "Kreditrechner", pfad: "/werkzeuge/kreditrechner" }],
+    en: {
+      pfad: "/en/tools/loan-calculator",
+      titel: "Loan calculator: monthly instalment and total cost | FIAON",
+      beschreibung: "Free loan calculator: enter amount, term and rate – see monthly instalment, total cost and interest share, with the two-thirds rate under Section 6a PAngV.",
+      h1: "What does this loan really cost?",
+      lead: "Monthly instalment, total cost, interest share — and next to it the instalment at the rate that two thirds of applicants actually get.",
+      weiter: ["/werkzeuge/umschuldung", "/kredit-ohne-schufa", "/schufa-neutral-anfragen", "/werkzeuge"],
+      krumen: [{ name: "Tools", pfad: "/en/tools" }, { name: "Loan calculator", pfad: "/en/tools/loan-calculator" }],
+    },
   },
   "/werkzeuge/umschuldung": {
     pfad: "/werkzeuge/umschuldung", art: "werkzeug", stand: PFEILER, prio: 0.8, werkzeug: "Umschuldungsrechner",
@@ -1022,6 +1331,15 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     lead: "Tragen Sie ein, was läuft – der Rechner stellt beide Wege nebeneinander, einschließlich Dispo und Vorfälligkeitsentschädigung.",
     weiter: ["/werkzeuge/kreditrechner", "/werkzeuge/schulden-check", "/bonitaet-verbessern", "/werkzeuge/eintrag-pruefen", "/werkzeuge"],
     krumen: [{ name: "Werkzeuge", pfad: "/werkzeuge" }, { name: "Umschuldungsrechner", pfad: "/werkzeuge/umschuldung" }],
+    en: {
+      pfad: "/en/tools/debt-consolidation",
+      titel: "Debt consolidation calculator: combine loans, save | FIAON",
+      beschreibung: "Enter existing loans and overdraft – see what continuing costs and what consolidation saves, with the early repayment fee under Section 500 BGB. Free.",
+      h1: "Old loans: keep paying or consolidate?",
+      lead: "Enter what is running — the calculator puts both routes side by side, including overdraft and early repayment fee.",
+      weiter: ["/werkzeuge/kreditrechner", "/werkzeuge/dispo-rechner", "/ratenzahlung-und-bonitaet", "/werkzeuge"],
+      krumen: [{ name: "Tools", pfad: "/en/tools" }, { name: "Debt consolidation calculator", pfad: "/en/tools/debt-consolidation" }],
+    },
   },
   "/werkzeuge/schulden-check": {
     pfad: "/werkzeuge/schulden-check", art: "werkzeug", stand: PFEILER, prio: 0.8, werkzeug: "Schulden-Check",
@@ -1031,6 +1349,15 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     lead: "Fünf Zahlen, eine ehrliche Antwort – mit denselben Kennzahlen, die auch eine Schuldnerberatung ansetzen würde. Bei ernster Lage steht die kostenlose, staatlich anerkannte Schuldnerberatung vor jedem anderen Schritt.",
     weiter: ["/werkzeuge/umschuldung", "/werkzeuge/spielraum", "/ratenzahlung-und-bonitaet", "/inkasso-brief-erhalten", "/kontakt", "/werkzeuge"],
     krumen: [{ name: "Werkzeuge", pfad: "/werkzeuge" }, { name: "Schulden-Check", pfad: "/werkzeuge/schulden-check" }],
+    en: {
+      pfad: "/en/tools/debt-check",
+      titel: "Debt check: am I over-indebted? | FIAON",
+      beschreibung: "Enter income, expenses and instalments – an honest assessment with debt ratio, free income and next steps. If serious: free debt counselling first.",
+      h1: "How serious is the situation really?",
+      lead: "Five figures, one honest answer — with the same key figures a debt counselling service would use.",
+      weiter: ["/werkzeuge/umschuldung", "/werkzeuge/spielraum", "/inkasso-brief-erhalten", "/werkzeuge"],
+      krumen: [{ name: "Tools", pfad: "/en/tools" }, { name: "Debt check", pfad: "/en/tools/debt-check" }],
+    },
   },
   "/werkzeuge/spielraum": {
     pfad: "/werkzeuge/spielraum", art: "werkzeug", stand: PFEILER, prio: 0.7, werkzeug: "Spielraum-Rechner",
@@ -1040,6 +1367,15 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     lead: "Dieselbe Rechnung, die Banken mit Ihrem Kontoauszug machen – nur vorher, und nur für Sie.",
     weiter: ["/werkzeuge/karten-check", "/werkzeuge/schulden-check", "/ratenzahlung-und-bonitaet", "/kreditkarte", "/werkzeuge"],
     krumen: [{ name: "Werkzeuge", pfad: "/werkzeuge" }, { name: "Spielraum-Rechner", pfad: "/werkzeuge/spielraum" }],
+    en: {
+      pfad: "/en/tools/monthly-headroom",
+      titel: "Monthly headroom calculator: what is left each month | FIAON",
+      beschreibung: "Enter income and fixed costs – the calculator shows your monthly headroom, the fixed-cost ratio and what card partners read from it. Free, no sign-up.",
+      h1: "What is left each month?",
+      lead: "The same calculation banks do with your bank statement – just beforehand, and just for you.",
+      weiter: ["/werkzeuge/karten-check", "/werkzeuge/schulden-check", "/kreditkarte", "/werkzeuge"],
+      krumen: [{ name: "Tools", pfad: "/en/tools" }, { name: "Monthly headroom calculator", pfad: "/en/tools/monthly-headroom" }],
+    },
   },
   "/werkzeuge/karten-check": {
     pfad: "/werkzeuge/karten-check", art: "werkzeug", stand: PFEILER, prio: 0.8, werkzeug: "Karten-Check",
@@ -1049,6 +1385,15 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     lead: "Fünf Angaben, keine Anfrage bei einer Auskunftei, keine Spur im Score – nur eine ehrliche Einordnung und der nächste Schritt.",
     weiter: ["/kreditkarte", "/girokonto-trotz-negativer-bonitaet", "/werkzeuge/spielraum", "/privatkunden", "/werkzeuge"],
     krumen: [{ name: "Werkzeuge", pfad: "/werkzeuge" }, { name: "Karten-Check", pfad: "/werkzeuge/karten-check" }],
+    en: {
+      pfad: "/en/tools/card-check",
+      titel: "Card check: which credit card is realistic for me? | FIAON",
+      beschreibung: "Five details – an honest assessment of which card route is realistic today (debit, prepaid, credit limit) and what opens the next step. Free, no sign-up.",
+      h1: "Which card is realistic?",
+      lead: "Five details, no enquiry at a credit bureau, no trace in your score – just an honest assessment and the next step.",
+      weiter: ["/kreditkarte", "/werkzeuge/spielraum", "/werkzeuge/eintrag-pruefen", "/werkzeuge"],
+      krumen: [{ name: "Tools", pfad: "/en/tools" }, { name: "Card check", pfad: "/en/tools/card-check" }],
+    },
   },
 
 
@@ -1059,7 +1404,17 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     lead: "Wählen Sie, was mit dem Eintrag nicht stimmt. Das Werkzeug schreibt den Antrag an die Auskunftei und die Aufforderung an den Gläubiger – mit den richtigen Paragrafen, Fristen und der Bitte um Nachweise.",
     abschnitte: [{ h2: "Vier Gründe, die tragen", text: "Ohne zwei Mahnungen gemeldet, vor der Meldung bestritten, Löschfrist abgelaufen oder schlicht falsch – für jeden Grund den passenden Antrag mit § 31 Abs. 2 BDSG und Art. 16, 17, 21 DSGVO." }, { h2: "Zwei Schreiben, ein Ziel", text: "Die Auskunftei muss prüfen, der Gläubiger kann zurücknehmen. Beide bekommen ein Schreiben mit vierwöchiger Frist; danach steht der Weg zur Datenschutzaufsicht (Art. 77 DSGVO) offen." }],
     weiter: ["/schufa-eintrag-loeschen", "/werkzeuge/eintrag-pruefen", "/werkzeuge/loeschfrist", "/eintrag-verjaehrung", "/werkzeuge"],
-    krumen: [{ name: "Werkzeuge", pfad: "/werkzeuge" }, { name: "Widerspruch-Generator", pfad: "/werkzeuge/widerspruch" }] },
+    krumen: [{ name: "Werkzeuge", pfad: "/werkzeuge" }, { name: "Widerspruch-Generator", pfad: "/werkzeuge/widerspruch" }],
+    en: {
+      pfad: "/en/tools/deletion-request",
+      titel: "Deletion request and objection against a SCHUFA entry",
+      beschreibung: "Deletion request under Article 17 GDPR and objection under Section 31 BDSG in two minutes: choose the reason, enter the facts, two finished German letters.",
+      h1: "The deletion request, fully drafted.",
+      lead: "Choose what is wrong with the entry. The tool writes the request to the credit bureau and the demand to the creditor – with the right sections of law, deadlines and the request for evidence. Both letters are in German, ready to send.",
+      weiter: ["/schufa-eintrag-loeschen", "/werkzeuge/eintrag-pruefen", "/werkzeuge/loeschfrist", "/werkzeuge"],
+      krumen: [{ name: "Tools", pfad: "/en/tools" }, { name: "Objection generator", pfad: "/en/tools/deletion-request" }],
+    },
+  },
   "/werkzeuge/mahnbescheid": { pfad: "/werkzeuge/mahnbescheid", art: "werkzeug", stand: PFEILER, prio: 0.9, werkzeug: "Mahnbescheid-Fristenrechner",
     titel: "Mahnbescheid-Fristenrechner: Widerspruch bis wann?",
     beschreibung: "Mahnbescheid erhalten? Zustelldatum eingeben – der Rechner nennt den letzten Tag für Widerspruch oder Einspruch (§§ 694, 700 ZPO) und die Folgen.",
@@ -1067,7 +1422,17 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     lead: "Zwei Wochen ab Zustellung – taggenau gerechnet, Wochenenden und Feiertage berücksichtigt. Der Rechner sagt, welcher Tag der letzte ist, was Sie ankreuzen und was passiert, wenn Sie nichts tun.",
     abschnitte: [{ h2: "Das Gericht prüft nichts", text: "Das Mahnverfahren ist automatisiert: Es prüft nur die Form, nicht die Forderung. Deshalb kommen auch verjährte und überhöhte Forderungen als Mahnbescheid – der Widerspruch ist der einzige Hebel und kostet nichts." }, { h2: "Nach dem Widerspruch", text: "Der Gläubiger muss klagen, wenn er die Forderung will – erst dann prüft ein Gericht. Ohne Widerspruch wird die Forderung tituliert: 30 Jahre vollstreckbar und meldefähig, egal ob bestritten." }],
     weiter: ["/inkasso-brief-erhalten", "/werkzeuge/verjaehrung", "/werkzeuge/inkasso-antwort", "/werkzeuge/inkassokosten", "/werkzeuge"],
-    krumen: [{ name: "Werkzeuge", pfad: "/werkzeuge" }, { name: "Mahnbescheid-Fristenrechner", pfad: "/werkzeuge/mahnbescheid" }] },
+    krumen: [{ name: "Werkzeuge", pfad: "/werkzeuge" }, { name: "Mahnbescheid-Fristenrechner", pfad: "/werkzeuge/mahnbescheid" }],
+    en: {
+      pfad: "/en/tools/court-payment-order",
+      titel: "Court payment order deadline: object by when? | FIAON",
+      beschreibung: "Received a Mahnbescheid? Enter the date of service – the calculator names the last day for objection (Sections 694, 700 ZPO) and what to tick. Free.",
+      h1: "Yellow envelope: by when do I have to react?",
+      lead: "Two weeks from service – calculated to the day, weekends and public holidays taken into account. The calculator says which day is the last, what you tick and what happens if you do nothing.",
+      weiter: ["/inkasso-brief-erhalten", "/werkzeuge/verjaehrung", "/werkzeuge/inkasso-antwort", "/werkzeuge"],
+      krumen: [{ name: "Tools", pfad: "/en/tools" }, { name: "Court payment order deadline calculator", pfad: "/en/tools/court-payment-order" }],
+    },
+  },
   "/werkzeuge/ratenplan": { pfad: "/werkzeuge/ratenplan", art: "werkzeug", stand: PFEILER, prio: 0.8, werkzeug: "Ratenplan-Rechner",
     titel: "Ratenzahlung vereinbaren: Rechner und Angebotsschreiben",
     beschreibung: "Forderung und Spielraum eingeben – der Rechner nennt eine Rate, die hält, und schreibt das Angebot an den Gläubiger mit Bitte um Zins- und Meldeverzicht.",
@@ -1075,7 +1440,17 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     lead: "Gläubiger nehmen Angebote an, die tragfähig sind – nicht die höchsten. Der Rechner findet die Rate, die auch im schlechten Monat kommt, und schreibt das Angebot dazu.",
     abschnitte: [{ h2: "Sicher oder zügig", text: "Die Hälfte des Spielraums hält auch in einem schlechten Monat; 70 Prozent nur bei stabilen Einnahmen. Eine kleine Rate, die zwölfmal pünktlich kommt, baut Bonität – eine große, die zweimal platzt, zerstört sie." }, { h2: "Das Angebot mit drei Bitten", text: "Verzicht auf weitere Zinsen und Kosten, keine Meldung an Auskunfteien während der pünktlichen Zahlung, Ruhen der Beitreibung – schriftlich bestätigt, damit der Erledigt-Vermerk später belegt ist." }],
     weiter: ["/ratenzahlung-und-bonitaet", "/werkzeuge/spielraum", "/werkzeuge/inkassokosten", "/werkzeuge/schuldenplan", "/werkzeuge"],
-    krumen: [{ name: "Werkzeuge", pfad: "/werkzeuge" }, { name: "Ratenplan-Rechner", pfad: "/werkzeuge/ratenplan" }] },
+    krumen: [{ name: "Werkzeuge", pfad: "/werkzeuge" }, { name: "Ratenplan-Rechner", pfad: "/werkzeuge/ratenplan" }],
+    en: {
+      pfad: "/en/tools/instalment-plan",
+      titel: "Agreeing instalments: calculator and offer letter | FIAON",
+      beschreibung: "Enter claim and headroom – the calculator names an instalment that holds, the term, and writes the German offer to the creditor with a waiver request.",
+      h1: "The instalment that really holds.",
+      lead: "Creditors accept offers that are sustainable – not the highest ones. The calculator finds the instalment that arrives even in a bad month, and writes the offer to go with it.",
+      weiter: ["/ratenzahlung-und-bonitaet", "/werkzeuge/spielraum", "/werkzeuge/schulden-check", "/werkzeuge"],
+      krumen: [{ name: "Tools", pfad: "/en/tools" }, { name: "Instalment plan calculator", pfad: "/en/tools/instalment-plan" }],
+    },
+  },
   "/werkzeuge/inkasso-antwort": { pfad: "/werkzeuge/inkasso-antwort", art: "werkzeug", stand: PFEILER, prio: 0.9, werkzeug: "Inkasso-Antwortbrief",
     titel: "Inkasso-Antwortbrief: bestreiten, Nachweise verlangen",
     beschreibung: "Inkassobrief erhalten? Lage wählen – der Generator schreibt die Antwort: Nachweise nach § 13a RDG, Kosten zurückweisen, Verjährung, Zahlungsbeleg.",
@@ -1083,7 +1458,17 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     lead: "Ein Inkassobrief ist eine Behauptung mit Briefkopf. Wählen Sie, was auf Sie zutrifft – der Generator schreibt die Antwort mit den Paragrafen, die das Unternehmen kennt: Nachweise, Kostenkürzung, Verjährung oder Zahlungsbeleg.",
     abschnitte: [{ h2: "Vier Haltungen, vier Briefe", text: "Forderung unbekannt (Nachweise nach § 13a RDG), Forderung richtig aber Kosten überhöht (§ 13e RDG, BGH VIII ZR 95/18), Forderung verjährt (Einrede), bereits bezahlt (Nachweis und Erledigt-Vermerk)." }, { h2: "Immer dabei", text: "Der Widerspruch gegen jede Meldung an Auskunfteien – eine bestrittene Forderung darf nicht gemeldet werden (§ 31 Abs. 2 Nr. 4 BDSG) – und die Bitte um ausschließlich schriftliche Kommunikation." }],
     weiter: ["/inkasso-brief-erhalten", "/werkzeuge/inkassokosten", "/werkzeuge/verjaehrung", "/werkzeuge/mahnbescheid", "/werkzeuge"],
-    krumen: [{ name: "Werkzeuge", pfad: "/werkzeuge" }, { name: "Inkasso-Antwortbrief", pfad: "/werkzeuge/inkasso-antwort" }] },
+    krumen: [{ name: "Werkzeuge", pfad: "/werkzeuge" }, { name: "Inkasso-Antwortbrief", pfad: "/werkzeuge/inkasso-antwort" }],
+    en: {
+      pfad: "/en/tools/reply-to-debt-collector",
+      titel: "Reply to the debt collector: dispute, demand evidence",
+      beschreibung: "Received a debt collection letter? Choose your situation – the generator writes the German reply: evidence under Section 13a RDG, costs, limitation.",
+      h1: "The reply the debt collector takes seriously.",
+      lead: "A debt collection letter is an assertion on letterhead. Choose what applies to you – the generator writes the reply with the sections of law the company knows: evidence, cost reduction, limitation or proof of payment.",
+      weiter: ["/inkasso-brief-erhalten", "/werkzeuge/inkassokosten", "/werkzeuge/mahnbescheid", "/werkzeuge"],
+      krumen: [{ name: "Tools", pfad: "/en/tools" }, { name: "Reply to the debt collector", pfad: "/en/tools/reply-to-debt-collector" }],
+    },
+  },
   "/werkzeuge/basiskonto": { pfad: "/werkzeuge/basiskonto", art: "werkzeug", stand: PFEILER, prio: 0.8, werkzeug: "Basiskonto-Helfer",
     titel: "Basiskonto abgelehnt oder keine Antwort? Der Helfer",
     beschreibung: "Basiskonto beantragt? Der Helfer rechnet die Zehn-Tage-Frist (§ 33 ZKG), nennt die zulässigen Ablehnungsgründe und den Weg zur BaFin (§ 48 ZKG).",
@@ -1091,7 +1476,17 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     lead: "Zehn Geschäftstage hat die Bank. Ein SCHUFA-Eintrag ist kein Ablehnungsgrund. Der Helfer rechnet die Frist, prüft die Begründung der Bank und bereitet die Erinnerung und den Antrag bei der BaFin vor.",
     abschnitte: [{ h2: "Nur vier Gründe erlauben eine Ablehnung", text: "Bereits ein nutzbares Konto in Deutschland, Straftat gegen die Bank in den letzten drei Jahren, früheres Konto wegen schwerer Vertragsverletzung gekündigt, Geldwäscheverstöße (§§ 35, 36 ZKG). Bonität steht nicht in dieser Liste." }, { h2: "Der Weg zur BaFin", text: "Formular „Verwaltungsverfahren nach § 48 ZKG“, kostenlos, mit Kopie des Antrags und der Ablehnung. Die BaFin ordnet die Eröffnung an, wenn die Ablehnung unrechtmäßig war – parallel lohnt der Antrag bei einer zweiten Bank." }],
     weiter: ["/girokonto-trotz-negativer-bonitaet", "/kreditkarte", "/werkzeuge/karten-check", "/werkzeuge/kartenkosten", "/werkzeuge"],
-    krumen: [{ name: "Werkzeuge", pfad: "/werkzeuge" }, { name: "Basiskonto-Helfer", pfad: "/werkzeuge/basiskonto" }] },
+    krumen: [{ name: "Werkzeuge", pfad: "/werkzeuge" }, { name: "Basiskonto-Helfer", pfad: "/werkzeuge/basiskonto" }],
+    en: {
+      pfad: "/en/tools/basic-account",
+      titel: "Basic account refused or no reply? The helper | FIAON",
+      beschreibung: "Applied for a basic account? The helper calculates the ten-day deadline (Section 33 ZKG), names permissible refusal grounds and drafts the reminder.",
+      h1: "The account you are entitled to.",
+      lead: "The bank has ten business days. A SCHUFA entry is not a ground for refusal. The helper calculates the deadline, checks the bank's reasons and prepares the reminder and the application to BaFin.",
+      weiter: ["/girokonto-trotz-negativer-bonitaet", "/werkzeuge/karten-check", "/werkzeuge/kartenkosten", "/werkzeuge"],
+      krumen: [{ name: "Tools", pfad: "/en/tools" }, { name: "Basic account helper", pfad: "/en/tools/basic-account" }],
+    },
+  },
   "/werkzeuge/pfaendungsrechner": { pfad: "/werkzeuge/pfaendungsrechner", art: "werkzeug", stand: PFEILER, prio: 0.9, werkzeug: "Pfändungsrechner",
     titel: "Pfändungsrechner 2026: Freibetrag und P-Konto-Schutz",
     beschreibung: "Netto und Unterhaltspflichten eingeben – der Rechner nennt den pfändbaren Betrag nach § 850c ZPO und den P-Konto-Schutz. Werte ab 1. Juli 2026.",
@@ -1099,7 +1494,17 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     lead: "Die Pfändungstabelle, ohne die Tabelle: Netto und Unterhaltspflichten eingeben – der Rechner nennt den pfändbaren Betrag und den Schutz auf dem P-Konto. Werte ab 1. Juli 2026.",
     abschnitte: [{ h2: "Die Zahlen ab 1. Juli 2026", text: "Grundbetrag 1.587,40 Euro, 597,42 Euro für die erste unterhaltsberechtigte Person, 332,83 Euro für jede weitere bis zur fünften; ab 4.866,30 Euro netto ist alles darüber voll pfändbar (Pfändungsfreigrenzenbekanntmachung 2026)." }, { h2: "P-Konto", text: "Der Grundfreibetrag gilt sofort nach der Umwandlung; Erhöhungen für Unterhalt, Kindergeld und bestimmte Sozialleistungen brauchen eine Bescheinigung (§ 903 ZPO) – die kostenlose Schuldnerberatung stellt sie aus." }],
     weiter: ["/werkzeuge/schulden-check", "/werkzeuge/ratenplan", "/werkzeuge/verjaehrung", "/inkasso-brief-erhalten", "/werkzeuge"],
-    krumen: [{ name: "Werkzeuge", pfad: "/werkzeuge" }, { name: "Pfändungsrechner", pfad: "/werkzeuge/pfaendungsrechner" }] },
+    krumen: [{ name: "Werkzeuge", pfad: "/werkzeuge" }, { name: "Pfändungsrechner", pfad: "/werkzeuge/pfaendungsrechner" }],
+    en: {
+      pfad: "/en/tools/attachment-calculator",
+      titel: "Attachment calculator 2026: exempt amount and P-Konto",
+      beschreibung: "Enter net income and maintenance obligations – the attachable amount under Section 850c ZPO and the P-Konto protection. Values from 1 July 2026. Free.",
+      h1: "What is left to you in an attachment.",
+      lead: "The attachment table, without the table: enter net income and maintenance obligations – the calculator names the attachable amount and the protection on the P-Konto. Values from 1 July 2026.",
+      weiter: ["/werkzeuge/schulden-check", "/werkzeuge/ratenplan", "/werkzeuge/verjaehrung", "/werkzeuge"],
+      krumen: [{ name: "Tools", pfad: "/en/tools" }, { name: "Attachment calculator", pfad: "/en/tools/attachment-calculator" }],
+    },
+  },
   "/werkzeuge/dispo-rechner": { pfad: "/werkzeuge/dispo-rechner", art: "werkzeug", stand: PFEILER, prio: 0.8, werkzeug: "Dispo-Rechner",
     titel: "Dispo-Rechner: Was der Dauer-Dispo wirklich kostet",
     beschreibung: "Dispo-Stand und Zins eingeben – der Rechner zeigt, was das Minus im Jahr kostet, was ein Ratenkredit spart und wie lange der Abbau dauert.",
@@ -1107,7 +1512,17 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     lead: "Rund 11 Prozent Zinsen, jeden Tag, ohne Ende – und für jede Bank das Warnsignal Nummer eins im Kontoauszug. Der Rechner zeigt, was Ihr Dispo kostet und welcher Ausstieg wie viel spart.",
     abschnitte: [{ h2: "Drei Wege nebeneinander", text: "Weiter im Minus (Zinsen ohne Ende), Ratenkredit zur Ablösung (Annuität, nur mit Konditionsanfrage), Abbau in festen Raten aus dem Spielraum – und was 50 Euro mehr im Monat ausmachen." }, { h2: "Was Banken daraus lesen", text: "Ein dauerhaft ausgereizter Dispo ist für Kartenpartner das stärkste Negativmerkmal, das keine Auskunftei zeigt. Ein Konto, das in sechs Monaten auf null geht, erzählt die Geschichte, die eine Bank sehen will." }],
     weiter: ["/bonitaet-verbessern", "/werkzeuge/umschuldung", "/werkzeuge/spielraum", "/schufa-neutral-anfragen", "/werkzeuge"],
-    krumen: [{ name: "Werkzeuge", pfad: "/werkzeuge" }, { name: "Dispo-Rechner", pfad: "/werkzeuge/dispo-rechner" }] },
+    krumen: [{ name: "Werkzeuge", pfad: "/werkzeuge" }, { name: "Dispo-Rechner", pfad: "/werkzeuge/dispo-rechner" }],
+    en: {
+      pfad: "/en/tools/overdraft-calculator",
+      titel: "Overdraft calculator: what a permanent overdraft costs",
+      beschreibung: "Enter overdraft balance and rate – see what the minus costs per year, what an instalment loan saves and how long a fixed monthly reduction takes. Free.",
+      h1: "The minus that runs along every month.",
+      lead: "Around 11 per cent interest, every day, without end – and for every bank the number one warning sign on the bank statement. The calculator shows what your overdraft costs and which exit saves how much.",
+      weiter: ["/werkzeuge/umschuldung", "/werkzeuge/spielraum", "/schufa-neutral-anfragen", "/werkzeuge"],
+      krumen: [{ name: "Tools", pfad: "/en/tools" }, { name: "Overdraft calculator", pfad: "/en/tools/overdraft-calculator" }],
+    },
+  },
   "/werkzeuge/mahngebuehren": { pfad: "/werkzeuge/mahngebuehren", art: "werkzeug", stand: PFEILER, prio: 0.8, werkzeug: "Mahngebühren-Prüfer",
     titel: "Mahngebühren-Prüfer: Wie hoch dürfen Mahnkosten sein?",
     beschreibung: "Mahngebühren nachrechnen: Anzahl und Höhe eingeben – der Prüfer sagt, was nach §§ 286, 288 BGB und BGH VIII ZR 95/18 zulässig ist.",
@@ -1115,7 +1530,17 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     lead: "Ein Brief kostet rund einen Euro – nicht 7,50. Der Prüfer rechnet nach, was ein Gläubiger für Mahnungen verlangen darf, und formuliert die Zurückweisung für alles darüber.",
     abschnitte: [{ h2: "Die erste Mahnung ist meist kostenlos", text: "Sie setzt erst in Verzug (§ 286 Abs. 1 BGB) – ihre Kosten sind kein Verzugsschaden. Danach zählt nur der tatsächliche Schaden: Porto, Papier, Druck. Der BGH hat 2,50 Euro Pauschale gegenüber Verbrauchern gekippt (VIII ZR 95/18)." }, { h2: "Die 40-Euro-Pauschale", text: "Gilt ausschließlich zwischen Unternehmern (§ 288 Abs. 5 BGB). In einer Mahnung an Verbraucher ist sie unzulässig – genau wie Bearbeitungs-, Kontoführungs- oder Adressermittlungsgebühren ohne Nachweis." }],
     weiter: ["/inkasso-brief-erhalten", "/werkzeuge/inkassokosten", "/werkzeuge/inkasso-antwort", "/ratenzahlung-und-bonitaet", "/werkzeuge"],
-    krumen: [{ name: "Werkzeuge", pfad: "/werkzeuge" }, { name: "Mahngebühren-Prüfer", pfad: "/werkzeuge/mahngebuehren" }] },
+    krumen: [{ name: "Werkzeuge", pfad: "/werkzeuge" }, { name: "Mahngebühren-Prüfer", pfad: "/werkzeuge/mahngebuehren" }],
+    en: {
+      pfad: "/en/tools/reminder-fees",
+      titel: "Reminder fee checker: how high may reminder costs be?",
+      beschreibung: "Enter the number of reminders and the fee – the checker says what is permissible under Sections 286, 288 BGB and case law and drafts the rejection.",
+      h1: "Reminder fees: what of it is allowed?",
+      lead: "A letter costs around one euro – not 7.50. The checker recalculates what a creditor may charge for reminders and drafts the rejection of everything above that.",
+      weiter: ["/werkzeuge/inkassokosten", "/werkzeuge/inkasso-antwort", "/ratenzahlung-und-bonitaet", "/werkzeuge"],
+      krumen: [{ name: "Tools", pfad: "/en/tools" }, { name: "Reminder fee checker", pfad: "/en/tools/reminder-fees" }],
+    },
+  },
   "/werkzeuge/kartenkosten": { pfad: "/werkzeuge/kartenkosten", art: "werkzeug", stand: PFEILER, prio: 0.8, werkzeug: "Kartenkosten-Vergleich",
     titel: "Kreditkarte mit Kaution, Prepaid oder Debit: Kostenvergleich",
     beschreibung: "Kaution, Prepaid oder Debit: Der Rechner legt Gebühren, Aufladekosten und die festliegende Kaution auf drei Jahre um und zeigt, was jede Karte kann.",
@@ -1123,7 +1548,17 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     lead: "Kaution, Prepaid oder Debit – die Angebote sehen alle günstig aus, bis man sie auf drei Jahre umlegt. Tragen Sie die Zahlen aus Ihren Angeboten ein; der Rechner zählt auch das Geld mit, das als Kaution stillliegt.",
     abschnitte: [{ h2: "Kosten und Können", text: "Jahresgebühr, Aufladegebühr, Bargeldgebühr, Kontoführung und der entgangene Zins auf die Kaution – über drei Jahre. Daneben, was jede Karte kann: Hotelkaution, Kreditrahmen, Meldung an Auskunfteien, Verfügbarkeit trotz Eintrag." }, { h2: "Der FIAON-Weg", text: "Erst das Girokonto mit Debitkarte – es baut die Kontohistorie. Dann die Kreditkarte mit Rahmen, wenn Auskunft und Kontoführung sie tragen. Keine Anbieternamen, keine Provision auf dieser Seite." }],
     weiter: ["/kreditkarte", "/werkzeuge/karten-check", "/girokonto-trotz-negativer-bonitaet", "/werkzeuge/basiskonto", "/werkzeuge"],
-    krumen: [{ name: "Werkzeuge", pfad: "/werkzeuge" }, { name: "Kartenkosten-Vergleich", pfad: "/werkzeuge/kartenkosten" }] },
+    krumen: [{ name: "Werkzeuge", pfad: "/werkzeuge" }, { name: "Kartenkosten-Vergleich", pfad: "/werkzeuge/kartenkosten" }],
+    en: {
+      pfad: "/en/tools/card-costs",
+      titel: "Card cost comparison: deposit, prepaid or debit? | FIAON",
+      beschreibung: "Credit card with a deposit, prepaid or debit card: fees, top-up costs and the idle deposit spread over three years – and which card delivers what. Free.",
+      h1: "Three cards, one honest price.",
+      lead: "Deposit, prepaid or debit – the offers all look cheap until you spread them over three years. Enter the figures from your offers; the calculator also counts the money that sits idle as a deposit.",
+      weiter: ["/kreditkarte", "/werkzeuge/karten-check", "/werkzeuge/basiskonto", "/werkzeuge"],
+      krumen: [{ name: "Tools", pfad: "/en/tools" }, { name: "Card cost comparison", pfad: "/en/tools/card-costs" }],
+    },
+  },
   "/werkzeuge/schuldenplan": { pfad: "/werkzeuge/schuldenplan", art: "werkzeug", stand: PFEILER, prio: 0.9, werkzeug: "Schuldenfrei-Plan",
     titel: "Schuldenfrei-Plan: Lawine oder Schneeball? Rechner",
     beschreibung: "Bis zu sechs Schulden und Ihr Budget eingeben – der Rechner simuliert Lawine und Schneeball: Monate bis schuldenfrei, Zinsen, Reihenfolge.",
@@ -1131,7 +1566,17 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     lead: "Teuerste Schuld zuerst oder kleinste zuerst? Der Rechner simuliert beide Wege Monat für Monat und nennt das Datum, die Zinsen und die Reihenfolge – ehrlich auch dann, wenn das Budget nicht reicht.",
     abschnitte: [{ h2: "Lawine gegen Schneeball", text: "Die Lawine (höchster Zins zuerst) spart am meisten Zinsen; der Schneeball (kleinste Schuld zuerst) liefert früh den ersten getilgten Gläubiger und hält deshalb oft besser durch. Der Rechner zeigt die Differenz in Euro und Monaten." }, { h2: "Die ehrliche Grenze", text: "Deckt das Budget die Mindestraten nicht, sagt der Rechner es – dann gehört der Fall in ein Ratenangebot an die Gläubiger und in die kostenlose, staatlich anerkannte Schuldnerberatung, nicht in eine Tabelle." }],
     weiter: ["/werkzeuge/ratenplan", "/werkzeuge/umschuldung", "/werkzeuge/dispo-rechner", "/ratenzahlung-und-bonitaet", "/werkzeuge/schulden-check", "/werkzeuge"],
-    krumen: [{ name: "Werkzeuge", pfad: "/werkzeuge" }, { name: "Schuldenfrei-Plan", pfad: "/werkzeuge/schuldenplan" }] },
+    krumen: [{ name: "Werkzeuge", pfad: "/werkzeuge" }, { name: "Schuldenfrei-Plan", pfad: "/werkzeuge/schuldenplan" }],
+    en: {
+      pfad: "/en/tools/debt-free-plan",
+      titel: "Debt-free plan: avalanche or snowball? Calculator | FIAON",
+      beschreibung: "Enter up to six debts and your budget – the calculator simulates avalanche (most expensive first) and snowball (smallest first): months, interest, order.",
+      h1: "In which order do I become debt-free?",
+      lead: "Most expensive debt first or smallest first? The calculator simulates both routes month by month and names the date, the interest and the order – honestly, even when the budget is not enough.",
+      weiter: ["/werkzeuge/ratenplan", "/werkzeuge/umschuldung", "/werkzeuge/schulden-check", "/werkzeuge"],
+      krumen: [{ name: "Tools", pfad: "/en/tools" }, { name: "Debt-free plan", pfad: "/en/tools/debt-free-plan" }],
+    },
+  },
 
   // ═════════════════════════════════════════════════════════════════════════
   // RECHTLICHES — indexierbar, nicht beworben
@@ -1245,7 +1690,7 @@ export function seoFragen(pfad: string): SeoFrage[] {
   return SEO_FRAGEN[pfad] ?? [];
 }
 
-export { SEO_GLOSSAR };
+export { SEO_GLOSSAR, SEO_GLOSSAR_EN };
 
 /** Alle Seiten, die in die Sitemap gehören: indexierbar und ohne fremde Canonical. */
 export function seoIndexierbar(): SeoSeite[] {

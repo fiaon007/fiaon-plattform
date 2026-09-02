@@ -1,6 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// /werkzeuge/mahnbescheid — Fristenrechner für Mahnbescheid und
-// Vollstreckungsbescheid (02.09.2026, E-080)
+// /werkzeuge/mahnbescheid · /en/tools/court-payment-order — Fristenrechner für
+// Mahnbescheid und Vollstreckungsbescheid (02.09.2026, E-080; zweisprachig
+// 03.09.2026, Texte: client/src/i18n/wz-mahnbescheid.ts)
 //
 // Der gelbe Umschlag vom Amtsgericht ist die eine Stelle im ganzen Weg, an
 // der ein Kalender über Jahre entscheidet: Zwei Wochen ab Zustellung für den
@@ -18,9 +19,10 @@
 import { useMemo, useState } from "react";
 import { Dunkel, Block, Licht, Knopf, Zwischenruf, Fragen } from "@/components/site/DunkleBuehne";
 import SeoDaten from "@/components/site/SeoDaten";
+import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
+import { WZ_MAHNBESCHEID_WOERTER } from "@/i18n/wz-mahnbescheid";
 import "@/styles/ratgeber.css";
 
-const fmt = (d: Date) => d.toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
 const parse = (s: string) => (/^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(s + "T12:00:00") : null);
 
 /** Bundesweite Feiertage (ohne Landesfeiertage). Ostern nach Gauß. */
@@ -47,15 +49,13 @@ function fristEnde(zustellung: Date, tage: number): { ende: Date; verschoben: bo
   return { ende, verschoben };
 }
 
-const FRAGEN = [
-  { f: "Prüft das Gericht, ob die Forderung berechtigt ist?", a: "Nein. Das Mahnverfahren ist ein automatisiertes Verfahren: Das Mahngericht prüft nur, ob der Antrag formal vollständig ist – nicht, ob die Forderung besteht. Deshalb kommen auch verjährte, überhöhte oder erfundene Forderungen als Mahnbescheid. Der Widerspruch ist Ihr einziger Hebel, und er kostet nichts." },
-  { f: "Muss ich den Widerspruch begründen?", a: "Nein. Ein Kreuz im Feld „Ich widerspreche dem Anspruch insgesamt“, Datum, Unterschrift – das genügt (§ 694 ZPO). Eine Begründung können Sie später im streitigen Verfahren liefern. Wichtig ist nur, dass der Widerspruch innerhalb von zwei Wochen beim Mahngericht EINGEHT." },
-  { f: "Was passiert nach dem Widerspruch?", a: "Der Gläubiger muss entscheiden, ob er klagt. Erst dann prüft ein Gericht die Forderung inhaltlich – mit Ihren Einwänden (Verjährung, überhöhte Inkassokosten, nie bestellt). Viele Inkassounternehmen klagen bei begründetem Widerspruch nicht. Ohne Widerspruch bekommen sie den Titel ohne jede Prüfung." },
-  { f: "Ich habe die zwei Wochen verpasst – ist alles verloren?", a: "Nicht sofort. Der Gläubiger muss den Vollstreckungsbescheid erst beantragen; gegen den haben Sie erneut zwei Wochen ab Zustellung für den Einspruch (§ 700 ZPO). Auch ein verspäteter Widerspruch wird als Einspruch gegen den Vollstreckungsbescheid gewertet. Erst wenn auch diese Frist verstreicht, ist die Forderung tituliert – 30 Jahre vollstreckbar." },
-  { f: "Führt ein Mahnbescheid zu einem SCHUFA-Eintrag?", a: "Der Mahnbescheid selbst nicht. Ein Vollstreckungsbescheid oder ein Urteil ist dagegen eine titulierte Forderung, die unabhängig von § 31 Abs. 2 Nr. 4 BDSG gemeldet werden darf – auch wenn Sie die Forderung bestreiten. Deshalb ist die Widerspruchsfrist die wichtigste Frist im ganzen Weg." },
-];
-
 export default function Mahnbescheid() {
+  const t = useWoerter(WZ_MAHNBESCHEID_WOERTER);
+  const sprache = useSprache();
+  const en = sprache === "en";
+  const zu = (p: string) => inSprache(p, sprache);
+  const pfad = en ? "/en/tools/court-payment-order" : "/werkzeuge/mahnbescheid";
+  const fmt = (d: Date) => d.toLocaleDateString(en ? "en-GB" : "de-DE", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
   const [art, setArt] = useState<"mahn" | "voll" | "">("");
   const [zustellung, setZustellung] = useState("");
   const z = parse(zustellung);
@@ -69,58 +69,58 @@ export default function Mahnbescheid() {
   }, [z, art, heute]);
 
   return (
-    <Dunkel seite="ratgeber" titel="Mahnbescheid-Fristenrechner · Zwei Wochen, die alles entscheiden" beschreibung="Mahnbescheid oder Vollstreckungsbescheid erhalten? Zustelldatum eingeben – der Rechner nennt den letzten Tag für Widerspruch oder Einspruch, was anzukreuzen ist und was danach passiert. Kostenlos.">
-      <SeoDaten pfad="/werkzeuge/mahnbescheid" titel="Mahnbescheid-Fristenrechner: Widerspruch bis wann?" beschreibung="Mahnbescheid erhalten? Zustelldatum eingeben – der Rechner nennt den letzten Tag für Widerspruch oder Einspruch (§§ 694, 700 ZPO), was anzukreuzen ist und was danach passiert." fragen={FRAGEN} werkzeug={{ name: "Mahnbescheid-Fristenrechner" }} krumen={[{ name: "Werkzeuge", pfad: "/werkzeuge" }, { name: "Mahnbescheid-Fristenrechner", pfad: "/werkzeuge/mahnbescheid" }]} />
+    <Dunkel seite="ratgeber" titel={t.metaTitel} beschreibung={t.metaBeschreibung}>
+      <SeoDaten pfad={pfad} titel={t.seoTitel} beschreibung={t.seoBeschreibung} fragen={t.fragen} werkzeug={{ name: t.werkzeugName }} krumen={[{ name: t.krumeWerkzeuge, pfad: zu("/werkzeuge") }, { name: t.krume, pfad }]} />
       <section className="dk-hero kurz">
         <div className="dk-hero-bild" aria-hidden="true"><img src="/kino/hero.jpg" alt="" decoding="async" /><div className="schleier" /></div>
         <div className="dk-rahmen">
-          <span className="dk-pille">Werkzeug · kostenlos, ohne Anmeldung</span>
-          <h1 className="dk-h1">Gelber Umschlag: <span className="dk-verlauf">Bis wann muss ich reagieren?</span></h1>
-          <p className="dk-lead">Zwei Wochen ab Zustellung – taggenau gerechnet, Wochenenden und Feiertage berücksichtigt. Der Rechner sagt, welcher Tag der letzte ist, was Sie ankreuzen und was passiert, wenn Sie nichts tun.</p>
+          <span className="dk-pille">{t.pille}</span>
+          <h1 className="dk-h1">{t.h1a}<span className="dk-verlauf">{t.h1b}</span></h1>
+          <p className="dk-lead">{t.lead}</p>
         </div>
       </section>
       <Licht>
         <Block schmal>
           <div className="wz-fragen">
             <div className="wz-frage">
-              <p className="wz-nr">Schritt 1</p><h3>Was steht oben auf dem Schreiben?</h3>
+              <p className="wz-nr">{t.schritt1}</p><h3>{t.frage1}</h3>
               <div className="wz-optionen zwei">
-                <button type="button" className={`wz-option${art === "mahn" ? " an" : ""}`} onClick={() => setArt("mahn")}><b>Mahnbescheid</b><small>Gelber Umschlag vom Amtsgericht (Mahngericht). Noch kein Titel.</small></button>
-                <button type="button" className={`wz-option${art === "voll" ? " an" : ""}`} onClick={() => setArt("voll")}><b>Vollstreckungsbescheid</b><small>Der zweite Schritt – jetzt zählt die Einspruchsfrist.</small></button>
+                <button type="button" className={`wz-option${art === "mahn" ? " an" : ""}`} onClick={() => setArt("mahn")}><b>{t.mahn}</b><small>{t.mahnHinweis}</small></button>
+                <button type="button" className={`wz-option${art === "voll" ? " an" : ""}`} onClick={() => setArt("voll")}><b>{t.voll}</b><small>{t.vollHinweis}</small></button>
               </div>
             </div>
             {art && (
               <div className="wz-frage">
-                <p className="wz-nr">Schritt 2</p><h3>Wann wurde er zugestellt?</h3>
-                <p className="wz-hinweis">Das Datum steht auf dem gelben Umschlag (Vermerk des Zustellers) – nicht das Datum des Bescheids. Bei Einwurf in den Briefkasten zählt der Tag des Einwurfs.</p>
-                <div className="wz-felder"><label><span>Zustelldatum</span><input type="date" value={zustellung} onChange={(ev) => setZustellung(ev.target.value)} /></label></div>
+                <p className="wz-nr">{t.schritt2}</p><h3>{t.frage2}</h3>
+                <p className="wz-hinweis">{t.hinweis2}</p>
+                <div className="wz-felder"><label><span>{t.zustelldatum}</span><input type="date" value={zustellung} onChange={(ev) => setZustellung(ev.target.value)} /></label></div>
               </div>
             )}
           </div>
           {e && (
             <div className={`wz-ergebnis${e.abgelaufen ? " alarm" : e.rest <= 3 ? " alarm" : " gut"}`}>
-              <span className="wz-stufe" style={{ background: e.abgelaufen ? "#b91c1c" : e.rest <= 3 ? "#b45309" : "#047857" }}>{e.abgelaufen ? "Frist abgelaufen" : e.rest === 0 ? "Heute ist der letzte Tag" : `Noch ${e.rest} Tag${e.rest === 1 ? "" : "e"}`}</span>
-              <h3>{art === "mahn" ? "Widerspruch" : "Einspruch"} spätestens am {fmt(e.frist.ende)}{e.frist.verschoben ? " (verschoben, weil das rechnerische Ende auf Wochenende oder Feiertag fiel)" : ""}.</h3>
-              <p>Die Frist beträgt zwei Wochen ab Zustellung ({art === "mahn" ? "§ 694 ZPO" : "§ 700 Abs. 1 i. V. m. § 339 ZPO"}). Der Zustelltag zählt nicht mit; endet die Frist an einem Samstag, Sonntag oder bundesweiten Feiertag, gilt der nächste Werktag (§ 222 ZPO). Entscheidend ist der EINGANG beim Gericht – nicht der Poststempel. Landesfeiertage sind nicht hinterlegt: Lassen Sie einen Tag Reserve.</p>
+              <span className="wz-stufe" style={{ background: e.abgelaufen ? "#b91c1c" : e.rest <= 3 ? "#b45309" : "#047857" }}>{e.abgelaufen ? t.abgelaufen : e.rest === 0 ? t.heuteLetzter : t.nochTage(e.rest)}</span>
+              <h3>{t.spaetestens(art === "mahn" ? t.widerspruch : t.einspruch, fmt(e.frist.ende), e.frist.verschoben)}</h3>
+              <p>{t.regel(art === "mahn" ? t.paraMahn : t.paraVoll)}</p>
               {!e.abgelaufen ? (
                 <>
-                  <div className="wz-schritt"><small>Was Sie ankreuzen</small><p>{art === "mahn" ? "Auf dem beiliegenden Formular „Widerspruch gegen den Mahnbescheid“: das Feld „Ich widerspreche dem Anspruch insgesamt“. Datum, Unterschrift. Keine Begründung nötig. An das Mahngericht, das auf dem Bescheid steht – am sichersten per Fax mit Sendebericht oder persönlich gegen Eingangsstempel, sonst Einschreiben mit ausreichend Vorlauf." : "Auf dem beiliegenden Formular „Einspruch gegen den Vollstreckungsbescheid“ – oder formlos: „Hiermit lege ich gegen den Vollstreckungsbescheid vom … (Geschäftsnummer …) Einspruch ein.“ Datum, Unterschrift, an das Mahngericht. Der Einspruch hält die Vollstreckung nicht automatisch auf – beantragen Sie zugleich die einstweilige Einstellung der Zwangsvollstreckung (§ 719 ZPO)."}</p></div>
-                  <div className="wz-schritt"><small>Was danach passiert</small><p>Der Gläubiger muss klagen, wenn er die Forderung durchsetzen will – erst dann prüft ein Gericht, ob sie besteht. Bereiten Sie Ihre Einwände vor: Ist die Forderung <a href="/werkzeuge/verjaehrung">verjährt</a>? Sind die <a href="/werkzeuge/inkassokosten">Inkassokosten</a> überhöht? Haben Sie je einen Vertrag geschlossen? Ein Mahnbescheid ist keine Prüfung, sondern ein Antrag – behandeln Sie ihn so.</p></div>
+                  <div className="wz-schritt"><small>{t.ankreuzen}</small><p>{art === "mahn" ? t.ankreuzenMahn : t.ankreuzenVoll}</p></div>
+                  <div className="wz-schritt"><small>{t.danach}</small><p>{t.danachA}<a href={zu("/werkzeuge/verjaehrung")}>{t.danachLink1}</a>{t.danachB}<a href={zu("/werkzeuge/inkassokosten")}>{t.danachLink2}</a>{t.danachC}</p></div>
                 </>
               ) : (
-                <div className="wz-schritt"><small>Was jetzt noch geht</small><p>{art === "mahn" ? "Ein verspäteter Widerspruch gilt als Einspruch gegen den Vollstreckungsbescheid, sobald dieser zugestellt ist – dann laufen erneut zwei Wochen. Bis dahin: nichts anerkennen, nichts zahlen „zur Prüfung“, Unterlagen sammeln." : "Nach Ablauf der Einspruchsfrist ist die Forderung tituliert: 30 Jahre vollstreckbar (§ 197 BGB). Es bleiben die Vollstreckungsabwehrklage bei nachträglichen Einwänden (§ 767 ZPO) und – realistischer – eine Ratenvereinbarung mit dem Gläubiger. Sprechen Sie mit einer Schuldnerberatung oder lassen Sie FIAON die Lage prüfen."}</p></div>
+                <div className="wz-schritt"><small>{t.jetztNoch}</small><p>{art === "mahn" ? t.jetztMahn : t.jetztVoll}</p></div>
               )}
               <div className="wz-knoepfe">
-                <Knopf href="/werkzeuge/verjaehrung" still>Verjährung prüfen</Knopf>
-                <Knopf href="/werkzeuge/inkasso-antwort" still>Antwort an das Inkasso</Knopf>
+                <Knopf href={zu("/werkzeuge/verjaehrung")} still>{t.verjaehrungPruefen}</Knopf>
+                <Knopf href={zu("/werkzeuge/inkasso-antwort")} still>{t.antwortInkasso}</Knopf>
               </div>
             </div>
           )}
-          <p className="dk-leise" style={{ marginTop: 18 }}>Grundlage: §§ 222, 339, 694, 699, 700, 719 ZPO; §§ 187, 188, 197 BGB. Bundesweite Feiertage hinterlegt, Landesfeiertage nicht. Das Werkzeug ersetzt keine Rechtsberatung und keine Fristenkontrolle durch einen Anwalt. Nichts wird gespeichert.</p>
+          <p className="dk-leise" style={{ marginTop: 18 }}>{t.fuss}</p>
         </Block>
       </Licht>
-      <Block schmal titel="Häufige Fragen"><Fragen items={FRAGEN} /></Block>
-      <Zwischenruf text={<><b>Der Bescheid ist da, die Ruhe nicht?</b> FIAON prüft Forderung, Verjährung und Kosten – und bereitet den Widerspruch mit Ihnen vor, bevor die Frist läuft.</>} knopf="Lage prüfen lassen" href="/antrag" still={{ knopf: "Inkasso-Brief erhalten?", href: "/inkasso-brief-erhalten" }} />
+      <Block schmal titel={t.fragenTitel}><Fragen items={t.fragen} /></Block>
+      <Zwischenruf text={<><b>{t.zwischenrufFett}</b>{t.zwischenruf}</>} knopf={t.zwischenrufKnopf} href="/antrag" still={{ knopf: t.inkassoBrief, href: zu("/inkasso-brief-erhalten") }} />
     </Dunkel>
   );
 }

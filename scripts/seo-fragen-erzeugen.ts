@@ -41,8 +41,8 @@ const QUELLEN: Record<string, string> = {
   "client/src/i18n/preise.ts": "/preise|/en/pricing",
   "client/src/pages/site/en-start.tsx": "/en",
   "client/src/i18n/kreditkarte.ts": "/kreditkarte|/en/credit-card",
-  "client/src/pages/site/oesterreich.tsx": "/oesterreich",
-  "client/src/pages/site/schweiz.tsx": "/schweiz",
+  "client/src/i18n/laender.ts#oesterreich": "/oesterreich|/en/austria@oesterreich",
+  "client/src/i18n/laender.ts#schweiz": "/schweiz|/en/switzerland@schweiz",
   "client/src/i18n/sicherheit.ts": "/sicherheit|/en/security",
   "client/src/i18n/kontakt.ts": "/kontakt|/en/contact",
   "client/src/pages/site/team.tsx": "/team",
@@ -51,7 +51,6 @@ const QUELLEN: Record<string, string> = {
   "client/src/pages/site/presse.tsx": "/presse",
   "client/src/pages/site/investoren.tsx": "/investoren",
   "client/src/pages/site/datenraum.tsx": "/datenraum",
-  "client/src/pages/site/plattform-konzept.tsx": "/plattform-konzept",
   "client/src/i18n/fiaon-erfahrungen.ts": "/fiaon-erfahrungen|/en/how-fiaon-works",
   "client/src/i18n/termin.ts": "/termin|/en/book-a-call",
   "client/src/i18n/vergleich.ts": "/vergleich|/en/compare",
@@ -59,32 +58,40 @@ const QUELLEN: Record<string, string> = {
   "client/src/i18n/ueber-uns.ts": "/ueber-uns|/en/about",
   "client/src/i18n/transparenz.ts": "/transparenz|/en/transparency",
   "client/src/pages/site/status.tsx": "/status",
-  "client/src/pages/site/werkzeuge-hub.tsx": "/werkzeuge",
-  "client/src/pages/site/werkzeuge/kreditrechner.tsx": "/werkzeuge/kreditrechner",
-  "client/src/pages/site/werkzeuge/umschuldung.tsx": "/werkzeuge/umschuldung",
-  "client/src/pages/site/werkzeuge/schulden-check.tsx": "/werkzeuge/schulden-check",
-  "client/src/pages/site/werkzeuge/widerspruch.tsx": "/werkzeuge/widerspruch",
-  "client/src/pages/site/werkzeuge/mahnbescheid.tsx": "/werkzeuge/mahnbescheid",
-  "client/src/pages/site/werkzeuge/ratenplan.tsx": "/werkzeuge/ratenplan",
-  "client/src/pages/site/werkzeuge/inkasso-antwort.tsx": "/werkzeuge/inkasso-antwort",
-  "client/src/pages/site/werkzeuge/basiskonto.tsx": "/werkzeuge/basiskonto",
-  "client/src/pages/site/werkzeuge/pfaendungsrechner.tsx": "/werkzeuge/pfaendungsrechner",
-  "client/src/pages/site/werkzeuge/dispo-rechner.tsx": "/werkzeuge/dispo-rechner",
-  "client/src/pages/site/werkzeuge/mahngebuehren.tsx": "/werkzeuge/mahngebuehren",
-  "client/src/pages/site/werkzeuge/kartenkosten.tsx": "/werkzeuge/kartenkosten",
-  "client/src/pages/site/werkzeuge/schuldenplan.tsx": "/werkzeuge/schuldenplan",
-  "client/src/pages/site/kredit-ohne-schufa.tsx": "/kredit-ohne-schufa",
-  "client/src/pages/site/schufa-eintrag-loeschen.tsx": "/schufa-eintrag-loeschen",
-  "client/src/pages/site/bonitaet-verbessern.tsx": "/bonitaet-verbessern",
-  "client/src/pages/site/auskunfteien.tsx": "/auskunfteien",
-  "client/src/pages/site/schufa-score-verstehen.tsx": "/schufa-score-verstehen",
-  "client/src/pages/site/bonitaetsauskunft-beantragen.tsx": "/bonitaetsauskunft-beantragen",
-  "client/src/pages/site/inkasso-brief-erhalten.tsx": "/inkasso-brief-erhalten",
-  "client/src/pages/site/eintrag-verjaehrung.tsx": "/eintrag-verjaehrung",
-  "client/src/pages/site/girokonto-trotz-negativer-bonitaet.tsx": "/girokonto-trotz-negativer-bonitaet",
-  "client/src/pages/site/ratenzahlung-und-bonitaet.tsx": "/ratenzahlung-und-bonitaet",
-  "client/src/pages/site/selbstauskunft-checkliste.tsx": "/selbstauskunft-checkliste",
-  "client/src/pages/site/schufa-neutral-anfragen.tsx": "/schufa-neutral-anfragen",
+  "client/src/i18n/kredit-ohne-schufa.ts": "/kredit-ohne-schufa|/en/loans-without-schufa",
+  "client/src/i18n/bonitaet-verbessern.ts": "/bonitaet-verbessern|/en/strengthen-your-credit-file",
+  "client/src/i18n/auskunfteien.ts": "/auskunfteien|/en/credit-bureaus",
+  "client/src/i18n/schufa-score-verstehen.ts": "/schufa-score-verstehen|/en/schufa-score",
+  "client/src/i18n/bonitaetsauskunft-beantragen.ts": "/bonitaetsauskunft-beantragen|/en/request-your-credit-report",
+  "client/src/i18n/inkasso-brief-erhalten.ts": "/inkasso-brief-erhalten|/en/debt-collection-letter",
+  "client/src/i18n/eintrag-verjaehrung.ts": "/eintrag-verjaehrung|/en/entries-and-limitation",
+  "client/src/i18n/girokonto.ts": "/girokonto-trotz-negativer-bonitaet|/en/current-account-despite-poor-credit",
+  "client/src/i18n/ratenzahlung.ts": "/ratenzahlung-und-bonitaet|/en/instalments-and-credit-file",
+  "client/src/i18n/selbstauskunft-checkliste.ts": "/selbstauskunft-checkliste|/en/reading-your-credit-report",
+  "client/src/i18n/schufa-neutral-anfragen.ts": "/schufa-neutral-anfragen|/en/schufa-neutral-enquiries",
+  "client/src/i18n/schufa-eintrag-loeschen.ts": "/schufa-eintrag-loeschen|/en/delete-a-schufa-entry",
+  "client/src/i18n/plattform-konzept.ts": "/plattform-konzept|/en/how-the-platform-works",
+  "client/src/i18n/wz-basiskonto.ts": "/werkzeuge/basiskonto|/en/tools/basic-account",
+  "client/src/i18n/wz-kartenkosten.ts": "/werkzeuge/kartenkosten|/en/tools/card-costs",
+  "client/src/i18n/wz-schuldenplan.ts": "/werkzeuge/schuldenplan|/en/tools/debt-free-plan",
+  "client/src/i18n/wz-dispo-rechner.ts": "/werkzeuge/dispo-rechner|/en/tools/overdraft-calculator",
+  "client/src/i18n/wz-pfaendungsrechner.ts": "/werkzeuge/pfaendungsrechner|/en/tools/attachment-calculator",
+  "client/src/i18n/wz-widerspruch.ts": "/werkzeuge/widerspruch|/en/tools/deletion-request",
+  "client/src/i18n/wz-mahnbescheid.ts": "/werkzeuge/mahnbescheid|/en/tools/court-payment-order",
+  "client/src/i18n/wz-inkasso-antwort.ts": "/werkzeuge/inkasso-antwort|/en/tools/reply-to-debt-collector",
+  "client/src/i18n/wz-mahngebuehren.ts": "/werkzeuge/mahngebuehren|/en/tools/reminder-fees",
+  "client/src/i18n/wz-ratenplan.ts": "/werkzeuge/ratenplan|/en/tools/instalment-plan",
+  "client/src/i18n/wz-hub.ts": "/werkzeuge|/en/tools",
+  "client/src/i18n/wz-loeschfrist.ts": "/werkzeuge/loeschfrist|/en/tools/deletion-deadline",
+  "client/src/i18n/wz-verjaehrung.ts": "/werkzeuge/verjaehrung|/en/tools/limitation-check",
+  "client/src/i18n/wz-inkassokosten.ts": "/werkzeuge/inkassokosten|/en/tools/debt-collection-costs",
+  "client/src/i18n/wz-eintrag-pruefen.ts": "/werkzeuge/eintrag-pruefen|/en/tools/check-my-entry",
+  "client/src/i18n/wz-selbstauskunft.ts": "/werkzeuge/selbstauskunft|/en/tools/request-your-data-copy",
+  "client/src/i18n/wz-kreditrechner.ts": "/werkzeuge/kreditrechner|/en/tools/loan-calculator",
+  "client/src/i18n/wz-umschuldung.ts": "/werkzeuge/umschuldung|/en/tools/debt-consolidation",
+  "client/src/i18n/wz-schulden-check.ts": "/werkzeuge/schulden-check|/en/tools/debt-check",
+  "client/src/i18n/wz-spielraum.ts": "/werkzeuge/spielraum|/en/tools/monthly-headroom",
+  "client/src/i18n/wz-karten-check.ts": "/werkzeuge/karten-check|/en/tools/card-check",
 };
 
 type Frage = { f: string; a: string };
@@ -114,18 +121,33 @@ function glossarAus(quelltext: string): { wort: string; text: string }[] {
 
 function erzeugen(): string {
   const bloecke: string[] = [];
-  const glossarDatei = path.join(WURZEL, "client/src/pages/site/glossar-bonitaet.tsx");
-  const glossar = fs.existsSync(glossarDatei) ? glossarAus(fs.readFileSync(glossarDatei, "utf8")) : [];
+  // 02.09.2026: Das Glossar lebt im Wörterbuch (de-Hälfte vor „const en", en-Hälfte danach).
+  const glossarDatei = path.join(WURZEL, "client/src/i18n/glossar-bonitaet.ts");
+  const glossarQuelle = fs.existsSync(glossarDatei) ? fs.readFileSync(glossarDatei, "utf8") : "";
+  const glossarSchnitt = glossarQuelle.indexOf("\nconst en");
+  const glossar = glossarAus(glossarSchnitt >= 0 ? glossarQuelle.slice(0, glossarSchnitt) : glossarQuelle);
+  const glossarEn = glossarSchnitt >= 0 ? glossarAus(glossarQuelle.slice(glossarSchnitt)) : [];
   const zaehler: string[] = [];
-  for (const [datei, pfad] of Object.entries(QUELLEN)) {
-    const voll = path.join(WURZEL, datei);
+  for (let [datei, pfad] of Object.entries(QUELLEN)) {
+    // „datei#x" ist ein Schlüssel-Block in einem Wörterbuch mit mehreren
+    // Seiten (z. B. laender.ts: oesterreich und schweiz) — nur dieser Block
+    // zählt; der Pfad trägt „@x" als Marke, die hier wieder entfernt wird.
+    const [dateiRein, block] = datei.split("#");
+    const voll = path.join(WURZEL, dateiRein);
     if (!fs.existsSync(voll)) { console.warn(`[SEO-FRAGEN] fehlt: ${datei}`); continue; }
-    const quelltext = fs.readFileSync(voll, "utf8");
+    const quelltextRoh = fs.readFileSync(voll, "utf8");
+    const nurBlock = (text: string) => {
+      if (!block) return text;
+      const re = new RegExp(`\\n  ${block}: \\{`); const m = re.exec(text); if (!m) return "";
+      const rest = text.slice(m.index + 1); const ende = rest.search(/\n  [a-z]+: \{/); return ende < 0 ? rest : rest.slice(0, ende);
+    };
+    const quelltext = quelltextRoh;
+    pfad = pfad.replace(/@\w+$/, "");
     // Zweisprachiges Wörterbuch: „/de-pfad|/en-pfad" — der Quelltext wird an
     // `const en` geteilt, jede Hälfte gehört zu ihrer Seite.
     const teile = pfad.includes("|")
-      ? (() => { const [pDe, pEn] = pfad.split("|"); const schnitt = quelltext.indexOf("\nconst en"); return schnitt < 0 ? [[pDe, quelltext]] : [[pDe, quelltext.slice(0, schnitt)], [pEn, quelltext.slice(schnitt)]]; })()
-      : [[pfad, quelltext]];
+      ? (() => { const [pDe, pEn] = pfad.split("|"); const schnitt = quelltext.indexOf("\nconst en"); return schnitt < 0 ? [[pDe, nurBlock(quelltext)]] : [[pDe, nurBlock(quelltext.slice(0, schnitt))], [pEn, nurBlock(quelltext.slice(schnitt))]]; })()
+      : [[pfad, nurBlock(quelltext)]];
     for (const [p, text] of teile) {
       const fragen = fragenAus(text, p.startsWith("/en"));
       if (!fragen.length) continue;
@@ -154,6 +176,9 @@ ${bloecke.join("\n")}
 
 /** Die Begriffe von /glossar-bonitaet (${glossar.length}). */
 export const SEO_GLOSSAR: { wort: string; text: string }[] = ${JSON.stringify(glossar, null, 2)};
+
+/** Die Begriffe von /en/credit-glossary (${glossarEn.length}). */
+export const SEO_GLOSSAR_EN: { wort: string; text: string }[] = ${JSON.stringify(glossarEn, null, 2)};
 `;
 }
 

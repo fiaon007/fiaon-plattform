@@ -54,7 +54,7 @@ const QUELLEN: Record<string, string> = {
   "client/src/pages/site/plattform-konzept.tsx": "/plattform-konzept",
   "client/src/pages/site/fiaon-erfahrungen.tsx": "/fiaon-erfahrungen",
   "client/src/i18n/termin.ts": "/termin|/en/book-a-call",
-  "client/src/pages/site/vergleich.tsx": "/vergleich",
+  "client/src/i18n/vergleich.ts": "/vergleich|/en/compare",
   "client/src/i18n/ueber-uns.ts": "/ueber-uns|/en/about",
   "client/src/pages/site/transparenz.tsx": "/transparenz",
   "client/src/pages/site/status.tsx": "/status",

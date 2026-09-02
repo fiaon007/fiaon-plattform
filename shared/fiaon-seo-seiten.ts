@@ -466,7 +466,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     en: {
       pfad: "/en/contact",
       titel: "Contact & support: phone, e-mail, assistant, urgent matters",
-      beschreibung: "FIAON support: phone +41 44 244 93 01, e-mail support@fiaon.com. An assistant that knows the platform, and a direct line to the management for urgent matters.",
+      beschreibung: "FIAON support: phone +41 44 244 93 01, e-mail support@fiaon.com. An assistant that knows the platform, and a direct line to the management.",
       h1: "We are reachable.",
       lead: "A person on the phone, an answer by e-mail, an assistant that knows the platform — and a direct line for everything that cannot wait.",
       abschnitte: [
@@ -629,7 +629,21 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     lead: "Vier Wege führen zu einer sauberen Auskunft, und keiner ist immer der richtige. Hier stehen Kosten, Dauer und Grenzen nebeneinander – inklusive der Fälle, in denen Sie uns nicht brauchen.",
     abschnitte: [{ h2: "Vier Wege nebeneinander.", text: "Selbst mit Werkzeugen (0 Euro plus Porto), Score-App (0 Euro, zeigt nur), Anwalt (150–300 Euro je Schreiben, unersetzlich bei Klage und Schadensersatz), FIAON (74 Euro Auskunft, 7,99–99,99 Euro im Monat über zwölf Raten; Versand, Nachfassen, Raten, Konto und Karte vorbereitet). Kein Weg löscht berechtigte Einträge vor der Frist." }, { h2: "Drei Fragen, ein Weg.", text: "Lage, Zeit, Ziel – zwei der vier Antworten führen weg von FIAON: zum Anwalt bei Streit und Schadensersatz, zu den kostenlosen Werkzeugen bei einem klaren Eintrag." }, { h2: "Die drei Alternativen – fair betrachtet.", text: "Selbermachen ist der günstigste Weg, wenn Sie dranbleiben. Score-Apps sehen, handeln nicht. Der Anwalt ist unersetzlich, wenn es streitig wird – und für den ersten Löschantrag oft teurer als nötig." }],
     weiter: ["/schufa-eintrag-loeschen", "/werkzeuge/widerspruch", "/preise", "/fiaon-erfahrungen", "/termin", "/werkzeuge"],
-    krumen: [{ name: "Vergleich", pfad: "/vergleich" }] },
+    krumen: [{ name: "Vergleich", pfad: "/vergleich" }],
+    en: {
+      pfad: "/en/compare",
+      titel: "FIAON, a lawyer, a score app or yourself? The comparison",
+      beschreibung: "Having a SCHUFA entry deleted: FIAON, a lawyer, a score app or doing it yourself in an honest comparison — cost, duration, follow-up, account afterwards.",
+      h1: "Lawyer, app, yourself — or FIAON?",
+      lead: "Four routes lead to a clean report, and none is always the right one. Here cost, duration and limits stand side by side — including the cases in which you do not need us.",
+      abschnitte: [
+        { h2: "Four routes side by side", text: "Doing it yourself with the free tools costs nothing but time; a score app shows but does not act; a lawyer is irreplaceable in court and for damages; FIAON obtains, explains, sends, follows up and prepares account and card for a fixed price over twelve instalments. No route deletes justified, lawfully reported entries before the deadline." },
+        { h2: "Three questions, one route", text: "Situation, time and goal decide: a clear single entry fits doing it yourself; a refused deletion or a claim for damages fits a lawyer; several entries or an account as the goal fit FIAON. Two of the four answers lead away from FIAON." },
+      ],
+      weiter: ["/preise", "/fiaon-erfahrungen"],
+      krumen: [{ name: "Comparison", pfad: "/en/compare" }],
+    },
+  },
   "/ueber-uns": { pfad: "/ueber-uns", art: "unternehmen", stand: PFEILER, prio: 0.7,
     titel: "Über FIAON: Geschichte, Meilensteine und Haltung",
     beschreibung: "Warum es FIAON gibt, wer dahintersteht, was seit der Gründung passiert ist und woran sich das Haus hält: Sie-Form, keine Garantien, alles im Register.",

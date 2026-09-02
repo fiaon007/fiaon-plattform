@@ -9,7 +9,7 @@
 // Neu erzeugen:   npx tsx scripts/seo-fragen-erzeugen.ts
 // Nur prüfen:     npx tsx scripts/seo-fragen-erzeugen.ts --pruefen
 //
-// Seiten: / (6), /was-ist-fiaon (6), /en/what-is-fiaon (6), /privatkunden (8), /en/personal (8), /business (5), /en/business (5), /preise (6), /en/pricing (6), /en (4), /kreditkarte (5), /en/credit-card (5), /oesterreich (5), /schweiz (5), /sicherheit (10), /kontakt (5), /en/contact (5), /karriere (5), /partner (3), /presse (3), /investoren (4), /datenraum (3), /plattform-konzept (5), /fiaon-erfahrungen (8), /termin (6), /en/book-a-call (6), /vergleich (5), /ueber-uns (5), /en/about (5), /transparenz (4), /status (5), /werkzeuge (4), /werkzeuge/kreditrechner (5), /werkzeuge/umschuldung (5), /werkzeuge/schulden-check (5), /werkzeuge/widerspruch (5), /werkzeuge/mahnbescheid (5), /werkzeuge/ratenplan (5), /werkzeuge/inkasso-antwort (5), /werkzeuge/basiskonto (5), /werkzeuge/pfaendungsrechner (5), /werkzeuge/dispo-rechner (5), /werkzeuge/mahngebuehren (5), /werkzeuge/kartenkosten (5), /werkzeuge/schuldenplan (5), /kredit-ohne-schufa (6), /schufa-eintrag-loeschen (5), /bonitaet-verbessern (6), /auskunfteien (5), /schufa-score-verstehen (6), /bonitaetsauskunft-beantragen (7), /inkasso-brief-erhalten (6), /eintrag-verjaehrung (6), /girokonto-trotz-negativer-bonitaet (7), /ratenzahlung-und-bonitaet (6), /selbstauskunft-checkliste (6), /schufa-neutral-anfragen (6)
+// Seiten: / (6), /was-ist-fiaon (6), /en/what-is-fiaon (6), /privatkunden (8), /en/personal (8), /business (5), /en/business (5), /preise (6), /en/pricing (6), /en (4), /kreditkarte (5), /en/credit-card (5), /oesterreich (5), /schweiz (5), /sicherheit (10), /kontakt (5), /en/contact (5), /karriere (5), /partner (3), /presse (3), /investoren (4), /datenraum (3), /plattform-konzept (5), /fiaon-erfahrungen (8), /termin (6), /en/book-a-call (6), /vergleich (5), /en/compare (5), /ueber-uns (5), /en/about (5), /transparenz (4), /status (5), /werkzeuge (4), /werkzeuge/kreditrechner (5), /werkzeuge/umschuldung (5), /werkzeuge/schulden-check (5), /werkzeuge/widerspruch (5), /werkzeuge/mahnbescheid (5), /werkzeuge/ratenplan (5), /werkzeuge/inkasso-antwort (5), /werkzeuge/basiskonto (5), /werkzeuge/pfaendungsrechner (5), /werkzeuge/dispo-rechner (5), /werkzeuge/mahngebuehren (5), /werkzeuge/kartenkosten (5), /werkzeuge/schuldenplan (5), /kredit-ohne-schufa (6), /schufa-eintrag-loeschen (5), /bonitaet-verbessern (6), /auskunfteien (5), /schufa-score-verstehen (6), /bonitaetsauskunft-beantragen (7), /inkasso-brief-erhalten (6), /eintrag-verjaehrung (6), /girokonto-trotz-negativer-bonitaet (7), /ratenzahlung-und-bonitaet (6), /selbstauskunft-checkliste (6), /schufa-neutral-anfragen (6)
 // ═══════════════════════════════════════════════════════════════════════════
 export type SeoFrage = { f: string; a: string };
 
@@ -658,6 +658,28 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     {
       "f": "Was unterscheidet FIAON von einem Anwalt?",
       "a": "FIAON ist Verfolgung und Weg: Auskunft beschaffen, jeden Eintrag einordnen, anwaltlich geprüfte Schreiben versenden, Antworten nachhalten, Ratenangebote, Konto und Karte vorbereiten – zu einem Festpreis über zwölf Raten. Ein Anwalt vertritt Sie rechtlich im Einzelfall und darf klagen. Beides schließt sich nicht aus."
+    }
+  ],
+  "/en/compare": [
+    {
+      "f": "When is a lawyer the better route?",
+      "a": "When the credit bureau does not delete a clearly unlawful report despite a deletion request, when damages under Art. 82 GDPR are at stake or when a lawsuit is already under way. Then you need someone who may appear in court. FIAON is not legal advice — and tells you when that point is reached."
+    },
+    {
+      "f": "What does a lawyer cost for a SCHUFA entry?",
+      "a": "A lawyer's letter under the German fee schedule (RVG) typically costs €150 to €300 depending on the amount at stake; initial consultations are often offered at a flat rate of up to €190. With several entries and follow-up that adds up quickly. Legal expenses insurance sometimes covers data protection disputes — ask beforehand."
+    },
+    {
+      "f": "Is a free score app enough?",
+      "a": "For looking, yes: score, entries, alerts. For acting, no: no app writes the deletion request, tracks the deadline or negotiates instalments. Use the app for insight — and the free FIAON tools or a plan for action."
+    },
+    {
+      "f": "Can I really do all of this myself?",
+      "a": "Yes. The data copy is free, the law is public, and the 20 FIAON tools write the letters. What you need to bring: time (around three hours per entry), discipline in following up and the willingness to keep an eye on deadlines yourself."
+    },
+    {
+      "f": "What is the difference between FIAON and a lawyer?",
+      "a": "FIAON is follow-up and path: obtain the report, classify every entry, send letters reviewed by lawyers, chase replies, instalment offers, prepare account and card — for a fixed price over twelve instalments. A lawyer represents you legally in the individual case and may sue. The two are not mutually exclusive."
     }
   ],
   "/ueber-uns": [

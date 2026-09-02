@@ -24,6 +24,7 @@ const router = Router();
 const ERLAUBTE_SCHLUESSEL = new Set([
   "rueckhol_pro_tag",        // Tagesdeckel der Rückholung; 0 = aus
   "rueckhol_s1_an", "rueckhol_s2_an", "rueckhol_s3_an", "rueckhol_s4_an", "rueckhol_s5_an",
+  "rueckhol_dauerpflege_abstand_tage", // Abstand der Dauerpflege-Mails (min. 21, serverseitig erzwungen)
   "frequenzbremse_an",       // 1 | 0 — die globale Empfänger-Bremse
   "frequenz_pro_tag", "frequenz_pro_woche", "frequenz_pro_monat",
   "max_reminders",           // Obergrenze Mahnungen je Bestellung (Mahnkette)
@@ -94,7 +95,7 @@ router.get("/chef/rueckholung", requireChef("geschaeftsfuehrung"), async (_req: 
                     AND a.paid_at > post.erste)), 0)::bigint AS umsatz_cents
           FROM post`,
       einstellungen([
-        "rueckhol_pro_tag", "rueckhol_s1_an", "rueckhol_s2_an", "rueckhol_s3_an", "rueckhol_s4_an", "rueckhol_s5_an",
+        "rueckhol_pro_tag", "rueckhol_s1_an", "rueckhol_s2_an", "rueckhol_s3_an", "rueckhol_s4_an", "rueckhol_s5_an", "rueckhol_dauerpflege_abstand_tage",
         "frequenzbremse_an", "frequenz_pro_tag", "frequenz_pro_woche", "frequenz_pro_monat",
         "max_reminders", "mahn_takte_pro_tag",
       ]),

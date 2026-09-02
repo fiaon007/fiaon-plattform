@@ -700,6 +700,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // 🎯 Rückholung offener Anträge (02.09.2026, E-074): fünf Segmente, ein
   // Ziel — der Termin. Der Lauf ist ohne `rueckhol_pro_tag` ABGESCHALTET.
+  // ✉️ Abmeldelink je Person (02.09.2026) — der zweite Ausstieg neben „Stopp".
+  const fiaonAbmelden = await import('./routes/fiaon-abmelden');
+  app.use('/api/fiaon', fiaonAbmelden.default);
   const chefRueckholung = await import('./routes/fiaon-chef-rueckholung');
   app.use('/api/fiaon', chefRueckholung.default);
   import('./lib/fiaon-crons').then(({ tageslauf }) => {

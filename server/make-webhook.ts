@@ -56,7 +56,12 @@ export type MakeEventType =
   | "rueckhol_s2"            // alte Zahlungsmeldung + Entschuldigung fuer die Mahnungen
   | "rueckhol_s3"            // Preis fehlte — unser technischer Bruch
   | "rueckhol_s4"            // Antrag+Betrag da, nie gemeldet — Erstkontakt
-  | "rueckhol_s5"            // Altbestand — die letzte Mail
+  // S5 ist die DAUERPFLEGE (02.09.2026 abends, Justins Grundsatz: nie ausschliessen,
+  // bis Kunde oder Stopp): vier Blickwinkel, die alle 28 Tage rotieren.
+  | "rueckhol_s5"            // Dauerpflege (a): Ihre Akte liegt weiter bereit
+  | "rueckhol_s5b"           // Dauerpflege (b): was sich seit dem Antrag geaendert hat
+  | "rueckhol_s5c"           // Dauerpflege (c): eine Frage, kein Verkauf
+  | "rueckhol_s5d"           // Dauerpflege (d): ein Eintrag weniger
   | "bankverbindung_neu"     // NOTFALL 02.09.2026: Konto gewechselt — neue IBAN an alle mit Bankdaten der letzten 24 h
   // NEU 24.08.2026: Der Weg zum Girokonto beim Kooperationspartner (DKB) —
   // Voraussetzung fuer die Kreditkarte. Nur nach bestandener Pruefung aller

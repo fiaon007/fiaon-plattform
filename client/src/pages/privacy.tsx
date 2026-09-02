@@ -184,6 +184,10 @@ export default function PrivacyPage() {
                     <h3 className="font-semibold mb-2">3. Kontoführendes Institut</h3>
                     <p className="text-sm">Das Geschäftskonto der Anbieterin wird bei einem in der Europäischen Union regulierten Zahlungsinstitut geführt. Ihre Überweisung erfolgt über Ihre eigene Bank; für deren Datenverarbeitung ist Ihre Bank eigenständig verantwortlich.</p>
                   </div>
+                  <div>
+                    <h3 className="font-semibold mb-2">4. Information über eigene ähnliche Dienstleistungen (§ 7 Abs. 3 UWG)</h3>
+                    <p className="text-sm">Wir nutzen die bei Ihrem Antrag angegebene E-Mail-Adresse, um Sie über Ihren Vorgang und über eigene ähnliche Dienstleistungen zu informieren (§ 7 Abs. 3 UWG, Art. 6 Abs. 1 lit. f DSGVO). Dem können Sie jederzeit widersprechen — mit einer Antwort „Stopp“ auf jede E-Mail oder über den Abmeldelink am Ende jeder Nachricht, ohne dass hierfür andere als die Übermittlungskosten nach den Basistarifen entstehen. Nachrichten zu einer laufenden Bestellung (Zugangsdaten, Rechnungen, Terminbestätigungen) sind davon nicht berührt.</p>
+                  </div>
                 </div>
               </div>
             </div>

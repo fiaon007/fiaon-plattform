@@ -35,6 +35,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { parseBerlinInput, formatBerlin } from "./fiaon-time";
+import { WERKZEUGE_TAG } from "./fiaon-assistent-werkzeuge-tag";
 
 // ── Der interne Selbst-Aufruf ────────────────────────────────────────────────
 // Der Motor reicht eine Funktion herein, die einen bestehenden Endpunkt über
@@ -149,6 +150,9 @@ function kundeKompakt(k: any): Record<string, unknown> {
 const ALLE_ROLLEN = ["agent", "onboarding", "inkasso", "vertriebsleiter", "admin", "chef"];
 
 export const WERKZEUGE: Werkzeug[] = [
+  // ── Der Tag (02.09.2026, Scheibe 2): Tagesbrief, Fristen, Anruf vorbereiten ─
+  // Drei freie, nur lesende Werkzeuge in eigener Datei — dieselben Regeln.
+  ...WERKZEUGE_TAG,
   // ── Lesen und Notieren (Stufe „frei") ─────────────────────────────────────
   {
     name: "kunde_suchen",

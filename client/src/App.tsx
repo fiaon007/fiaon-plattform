@@ -289,6 +289,15 @@ function Router() {
       <Route path="/en/personal" component={SitePrivatkunden} />
       <Route path="/en/business" component={BusinessPage} />
       <Route path="/en/credit-card" component={SiteKreditkarte} />
+      <Route path="/en/about" component={SiteUeberUns} />
+      <Route path="/en/team" component={SiteTeam} />
+      <Route path="/en/contact" component={SiteKontakt} />
+      <Route path="/en/book-a-call" component={SiteTermin} />
+      <Route path="/en/compare" component={SiteVergleich} />
+      <Route path="/en/security" component={SiteSicherheit} />
+      <Route path="/en/transparency" component={SiteTransparenz} />
+      <Route path="/en/help" component={SiteHilfe} />
+      <Route path="/en/how-fiaon-works" component={FiaonErfahrungen} />
       <Route path="/kreditkarte" component={SiteKreditkarte} />
       <Route path="/oesterreich" component={SiteOesterreich} />
       <Route path="/schweiz" component={SiteSchweiz} />

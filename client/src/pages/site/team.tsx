@@ -1,54 +1,49 @@
 // /team — Wer FIAON baut: drei Gesellschafter im Betrieb, ein Investor, ein Weg für neue Kollegen.
+// 02.09.2026: zweisprachig — /team (Deutsch) und /en/team (Englisch); Texte in client/src/i18n/team.ts.
 import { Dunkel, Hero, Block, Karten, Schritte, Zwischenruf, Abschluss, Knopf } from "@/components/site/DunkleBuehne";
 import { Team, Mitarbeiter, PERSONEN, INVESTOR } from "@/components/site/Team";
 import SchichtenSzene from "@/components/home3d/SchichtenSzene";
+import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
+import { TEAM_WOERTER } from "@/i18n/team";
 
 export default function TeamSeite() {
+  const t = useWoerter(TEAM_WOERTER);
+  const sprache = useSprache();
+  const zu = (p: string) => inSprache(p, sprache);
   return (
-    <Dunkel seite="team" titel="Team" beschreibung="Das Team hinter FIAON: Justin Schwarzott (Gründer), Florentine Lombardi (Menschen & Onboarding), Daniel Stripling (Vertrieb) – und Schwarzott Capital Partners AG als Investor.">
+    <Dunkel seite="team" titel={t.metaTitel} beschreibung={t.metaBeschreibung}>
       <Hero
-        pille="Team"
-        titel={<>Ein junges Legal- und FinTech <span className="dk-verlauf">auf dem Weg zum Unicorn.</span></>}
-        lead="FIAON ist ein Team aus Vertrieb, Onboarding und Forderungsmanagement – und drei Gesellschaftern, die selbst im Betrieb stehen. Wir bauen das Betriebssystem für Bonität in Deutschland, Österreich und der Schweiz: Einsicht, Aktion, Zugang für 100 Millionen Menschen. Und wir suchen Menschen, die das mit uns bauen."
-        knoepfe={<><Knopf href="#kontakt">Kontakt aufnehmen</Knopf><Knopf href="/karriere" still>Teil des Teams werden</Knopf></>}
-        szene={<SchichtenSzene namen={["Vertrieb", "Onboarding", "Betreuung"]} className="absolute inset-0" />}
+        pille={t.pille}
+        titel={<>{t.h1a}<span className="dk-verlauf">{t.h1b}</span></>}
+        lead={t.lead}
+        knoepfe={<><Knopf href="#kontakt">{t.kontakt}</Knopf><Knopf href={zu("/karriere")} still>{t.teilWerden}</Knopf></>}
+        szene={<SchichtenSzene namen={t.szeneNamen} className="absolute inset-0" />}
         bild="/kino/presse.jpg"
       />
 
-      <Block pille="Das Team" titel={<>Die Menschen, die Sie <span className="dk-verlauf">am Telefon erreichen.</span></>}
-             lead="Vertrieb, Onboarding, Forderungsmanagement – wer bei FIAON anruft, spricht mit einem dieser Menschen. Viele von ihnen waren selbst Kunden." mitte>
+      <Block pille={t.teamPille} titel={<>{t.teamH2a}<span className="dk-verlauf">{t.teamH2b}</span></>} lead={t.teamLead} mitte>
         <div style={{ textAlign: "left" }}><Mitarbeiter /></div>
       </Block>
 
-      <Block pille="Die Gesellschafter" titel={<>Wer was <span className="dk-verlauf">verantwortet.</span></>} mitte>
+      <Block pille={t.gesPille} titel={<>{t.gesH2a}<span className="dk-verlauf">{t.gesH2b}</span></>} mitte>
         <div style={{ textAlign: "left" }}><Team /></div>
       </Block>
 
-      <Block pille="So arbeiten wir" titel={<>Ein Kunde, <span className="dk-verlauf">drei Hände.</span></>}
-             lead="Jeder Kunde durchläuft dieselben drei Stationen – und an jeder steht jemand, der seinen Namen kennt.">
-        <Schritte items={[
-          { titel: "Vertrieb", text: "Daniels Team führt das erste Gespräch: Was steht in der Auskunft, welches Paket passt, was ist der erste Schritt. Kein Verkaufen gegen den Kunden." },
-          { titel: "Onboarding", text: "Florentines Team übernimmt: Startgespräch, Zahlung prüfen, Auskunft beantragen, Fahrplan festlegen. Jeder Kunde kennt danach seinen Ansprechpartner." },
-          { titel: "Betreuung", text: "Schreiben freigeben, Raten begleiten, Fristen halten, Zugang vorbereiten. Justin liest jede Woche die Zahlen dahinter – und jede Rückfrage." },
-        ]} />
+      <Block pille={t.arbeitPille} titel={<>{t.arbeitH2a}<span className="dk-verlauf">{t.arbeitH2b}</span></>} lead={t.arbeitLead}>
+        <Schritte items={t.arbeit} />
       </Block>
 
-      <Block pille="Grundsätze" titel={<>Woran wir uns <span className="dk-verlauf">halten.</span></>}>
-        <Karten items={[
-          { tag: "Sie-Form", titel: "Respekt zuerst", text: "Kunden werden gesiezt, immer. Wer bei FIAON anruft, spricht mit jemandem, der seine Akte kennt – nicht mit einer Warteschleife." },
-          { tag: "Ehrlich", titel: "Keine Fantasiezahlen", text: "Über Konto und Karte entscheidet die Bank. Wir versprechen, was wir halten: Einsicht in 24 Stunden, geprüfte Schreiben, ein Mensch am Telefon." },
-          { tag: "Festgehalten", titel: "Jede Entscheidung ein Eintrag", text: "Register, Logbuch, eine Quelle für jede Zahl. Wer das Unternehmen prüft, findet alles – vom ersten Tag an." },
-          { tag: "Aus Kunden", titel: "Wer geholfen bekam, hilft", text: "Viele im Team waren selbst Kunden. Sie erklären den Weg, weil sie ihn gegangen sind." },
-        ]} zwei />
+      <Block pille={t.grundPille} titel={<>{t.grundH2a}<span className="dk-verlauf">{t.grundH2b}</span></>}>
+        <Karten items={t.grund} zwei />
       </Block>
 
-      <Zwischenruf text="Sie möchten von zuhause für das arbeiten, was Ihnen selbst geholfen hat? Florentine liest jede Bewerbung persönlich." knopf="In 60 Sekunden bewerben" href="/karriere#bewerbung" still={{ knopf: "Für Partner", href: "/partner" }} />
+      <Zwischenruf text={t.zwischenruf} knopf={t.bewerben} href={zu("/karriere") + "#bewerbung"} still={{ knopf: t.fuerPartner, href: zu("/partner") }} />
 
-      <Block id="kontakt" pille="Kontakt" titel={<>Direkt zu <span className="dk-verlauf">uns.</span></>} schmal>
+      <Block id="kontakt" pille={t.kontaktPille} titel={<>{t.kontaktH2a}<span className="dk-verlauf">{t.kontaktH2b}</span></>} schmal>
         <div className="dk-raster" style={{ marginTop: 40 }}>
           {PERSONEN.map((p) => (
             <div key={p.kuerzel} className="dk-glas ruhig">
-              <span className="tag">{p.rolle.split(" · ")[0]}</span>
+              <span className="tag">{(t.personen[p.kuerzel]?.rolle ?? p.rolle).split(" · ")[0]}</span>
               <h3 className="dk-h3">{p.name}</h3>
               <p style={{ marginTop: 10, display: "grid", gap: 4, fontSize: 14.5 }}>
                 <a href={`mailto:${p.email}`} style={{ color: "#93c5fd", textDecoration: "none" }}>{p.email}</a>
@@ -57,18 +52,18 @@ export default function TeamSeite() {
             </div>
           ))}
           <div className="dk-glas ruhig">
-            <span className="tag">Investor</span>
+            <span className="tag">{t.investor}</span>
             <h3 className="dk-h3">{INVESTOR.name}</h3>
             <p className="dk-leise" style={{ marginTop: 10, lineHeight: 1.6 }}>{INVESTOR.adresse.join(" · ")}<br /><a href={`mailto:${INVESTOR.email}`} style={{ color: "#93c5fd", textDecoration: "none" }}>{INVESTOR.email}</a></p>
           </div>
         </div>
-        <p className="dk-leise" style={{ marginTop: 20 }}>FIAON LTD · 128 City Road, London EC1V 2NX · Companies House No. 17318250 · Kundenanliegen: support@fiaon.com</p>
+        <p className="dk-leise" style={{ marginTop: 20 }}>{t.fussZeile}</p>
       </Block>
 
       <Abschluss
-        titel={<>Ein Team, das Sie <span className="dk-verlauf">beim Namen kennt.</span></>}
-        text="Einsicht, Aktion, Zugang – dahinter stehen Menschen, die jeden Schritt selbst gehen. Wenn Sie starten, lernen Sie einen von ihnen im Startgespräch kennen."
-        knoepfe={<><Knopf href="/antrag">Jetzt starten</Knopf><Knopf href="/investoren" still>Für Investoren</Knopf></>}
+        titel={<>{t.abschlussA}<span className="dk-verlauf">{t.abschlussB}</span></>}
+        text={t.abschlussText}
+        knoepfe={<><Knopf href="/antrag">{t.jetztStarten}</Knopf><Knopf href="/investoren" still>{t.fuerInvestoren}</Knopf></>}
       />
     </Dunkel>
   );

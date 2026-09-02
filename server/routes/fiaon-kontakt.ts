@@ -39,7 +39,9 @@ router.post("/kontakt/chat", async (req: Request, res: Response) => {
     const modell = process.env.FIAON_CHAT_MODELL || "gpt-4.1-mini";
     const r = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: modell, temperature: 0.3, max_tokens: 600, messages: [{ role: "system", content: wissenText() }, ...nachrichten] }),
+      // 02.09.2026: Auf den englischen Seiten (/en/…) antwortet der Assistent auf
+      // Englisch — dieselben Fakten, dieselben Wortverbote, nur die Sprache wechselt.
+      body: JSON.stringify({ model: modell, temperature: 0.3, max_tokens: 600, messages: [{ role: "system", content: wissenText() + (req.body?.sprache === "en" ? "\n\nLANGUAGE: The visitor is reading the English website. Answer in British English (formal, courteous). Keep German technical terms (SCHUFA, KSV1870, CRIF, Datenkopie, Basiskonto) and explain them briefly on first use. The word rules apply in English too: never say guaranteed, advice, recommend, improve your score, affiliate." : "") }, ...nachrichten] }),
     });
     const j: any = await r.json().catch(() => null);
     if (!r.ok) { console.error("[KONTAKT-CHAT] OpenAI", r.status, j?.error?.message); return res.json({ ok: true, antwort: `Gerade klemmt es bei mir. Unser Support hilft sofort: ${SUPPORT.telefon} oder ${SUPPORT.email}.` }); }

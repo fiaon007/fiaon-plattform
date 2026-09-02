@@ -43,8 +43,8 @@ const QUELLEN: Record<string, string> = {
   "client/src/i18n/kreditkarte.ts": "/kreditkarte|/en/credit-card",
   "client/src/pages/site/oesterreich.tsx": "/oesterreich",
   "client/src/pages/site/schweiz.tsx": "/schweiz",
-  "client/src/pages/site/sicherheit.tsx": "/sicherheit",
-  "client/src/pages/site/kontakt.tsx": "/kontakt",
+  "client/src/i18n/sicherheit.ts": "/sicherheit|/en/security",
+  "client/src/i18n/kontakt.ts": "/kontakt|/en/contact",
   "client/src/pages/site/team.tsx": "/team",
   "client/src/pages/site/karriere.tsx": "/karriere",
   "client/src/pages/site/partner.tsx": "/partner",
@@ -52,11 +52,12 @@ const QUELLEN: Record<string, string> = {
   "client/src/pages/site/investoren.tsx": "/investoren",
   "client/src/pages/site/datenraum.tsx": "/datenraum",
   "client/src/pages/site/plattform-konzept.tsx": "/plattform-konzept",
-  "client/src/pages/site/fiaon-erfahrungen.tsx": "/fiaon-erfahrungen",
-  "client/src/pages/site/termin.tsx": "/termin",
-  "client/src/pages/site/vergleich.tsx": "/vergleich",
-  "client/src/pages/site/ueber-uns.tsx": "/ueber-uns",
-  "client/src/pages/site/transparenz.tsx": "/transparenz",
+  "client/src/i18n/fiaon-erfahrungen.ts": "/fiaon-erfahrungen|/en/how-fiaon-works",
+  "client/src/i18n/termin.ts": "/termin|/en/book-a-call",
+  "client/src/i18n/vergleich.ts": "/vergleich|/en/compare",
+  "client/src/i18n/hilfe.ts": "/hilfe|/en/help",
+  "client/src/i18n/ueber-uns.ts": "/ueber-uns|/en/about",
+  "client/src/i18n/transparenz.ts": "/transparenz|/en/transparency",
   "client/src/pages/site/status.tsx": "/status",
   "client/src/pages/site/werkzeuge-hub.tsx": "/werkzeuge",
   "client/src/pages/site/werkzeuge/kreditrechner.tsx": "/werkzeuge/kreditrechner",
@@ -88,15 +89,16 @@ const QUELLEN: Record<string, string> = {
 
 type Frage = { f: string; a: string };
 
-function fragenAus(quelltext: string): Frage[] {
+function fragenAus(quelltext: string, englisch = false): Frage[] {
   const re = /\{\s*f:\s*"((?:[^"\\]|\\.)*)",\s*a:\s*"((?:[^"\\]|\\.)*)"/gs;
   const out: Frage[] = [];
   for (const m of quelltext.matchAll(re)) {
     const f = m[1].replace(/\\"/g, '"').replace(/\s+/g, " ").trim();
     const a = m[2].replace(/\\"/g, '"').replace(/\s+/g, " ").trim();
     // Die Investorenseite führt jede Frage auf Deutsch UND Englisch; für die
-    // deutsche Suche zählt nur die deutsche Fassung.
-    if (/^(How|Is|Where|What|Why|Who|Can|Does)\b/.test(f)) continue;
+    // deutsche Suche zählt nur die deutsche Fassung. Für eine ENGLISCHE Seite
+    // (02.09.2026, en-Hälfte eines Wörterbuchs) gilt das Gegenteil.
+    if (!englisch && /^(How|Is|Where|What|Why|Who|Can|Does|Am|Are|Which|Do)\b/.test(f)) continue;
     if (f && a) out.push({ f, a });
   }
   return out;
@@ -125,7 +127,7 @@ function erzeugen(): string {
       ? (() => { const [pDe, pEn] = pfad.split("|"); const schnitt = quelltext.indexOf("\nconst en"); return schnitt < 0 ? [[pDe, quelltext]] : [[pDe, quelltext.slice(0, schnitt)], [pEn, quelltext.slice(schnitt)]]; })()
       : [[pfad, quelltext]];
     for (const [p, text] of teile) {
-      const fragen = fragenAus(text);
+      const fragen = fragenAus(text, p.startsWith("/en"));
       if (!fragen.length) continue;
       zaehler.push(`${p} (${fragen.length})`);
       bloecke.push(`  ${JSON.stringify(p)}: ${JSON.stringify(fragen, null, 2).replace(/\n/g, "\n  ")},`);

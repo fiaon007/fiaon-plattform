@@ -341,8 +341,11 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
       krumen: [{ name: "Business", pfad: "/en/business" }],
     },
   },
+  // 03.09.2026 (E-091, Entscheidung TFO/Justin): Alt-Seite in Du-Form, 973 Zeilen — wird nicht
+  // übersetzt und nicht mehr eigenständig indexiert; canonical zeigt auf die neue, zweisprachige
+  // Seite /bonitaetsauskunft-beantragen. Erreichbar bleibt sie (Verweise, Kampagnen-Links).
   "/bonitaet": {
-    pfad: "/bonitaet", art: "produkt", stand: "2026-08-22", prio: 0.7,
+    pfad: "/bonitaet", art: "produkt", stand: "2026-08-22", prio: 0.7, canonical: "/bonitaetsauskunft-beantragen",
     titel: "SCHUFA-Vollauskunft am selben Werktag — FIAON",
     beschreibung: "Ihre vollständige Auskunft mit Erklärung: welcher Eintrag woher stammt, wie lange er bleibt, welcher angreifbar ist. Durch FIAON beantragt, 74 € einmalig.",
     h1: "Deine Schufa-Vollauskunft. Express am selben Werktag.",
@@ -598,6 +601,20 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/team", "/was-ist-fiaon", "/fiaon-erfahrungen"],
     krumen: [{ name: "Karriere", pfad: "/karriere" }],
+    en: {
+      pfad: "/en/careers",
+      titel: "Careers at FIAON: remote in DACH, employed or freelance",
+      beschreibung: "Working at FIAON: employed or freelance, remote in Germany, Austria and Switzerland. Seven areas, academy before the first customer call.",
+      h1: "Help build what 100 million people have been missing.",
+      lead: "FIAON is a young, fast-growing start-up based in London and Zurich with customers in Germany, Austria and Switzerland. We are always looking for people who want responsibility – employed or freelance, remote or on site.",
+      abschnitte: [
+        { h2: "Where you can join", text: "Sales, onboarding and customer care, receivables management, marketing and content, product and engineering, legal and compliance, finance and operations – mostly remote in DACH, meetings in Zurich." },
+        { h2: "Employed or freelance – both regulated honestly", text: "Employment with fixed salary, equipment and a clear development path; freelance work with remuneration per deal and per collected instalment, visible in the portal. Nobody speaks to customers before passing the academy." },
+        { h2: "Four steps to join us", text: "No CV upload, no cover letter: choose the area, set the framework, tell us who you are, send. Florentine Lombardi replies personally within two working days." },
+      ],
+      weiter: ["/team", "/ueber-uns", "/was-ist-fiaon"],
+      krumen: [{ name: "Careers", pfad: "/en/careers" }],
+    },
   },
   "/partner": {
     pfad: "/partner", art: "unternehmen", stand: PFEILER, prio: 0.6,
@@ -612,6 +629,20 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/investoren", "/was-ist-fiaon", "/sicherheit", "/kontakt"],
     krumen: [{ name: "Partner", pfad: "/partner" }],
+    en: {
+      pfad: "/en/partners",
+      titel: "Become a partner: banks, credit bureaus, introducers — FIAON",
+      beschreibung: "For banks, card issuers, credit bureaus, debt collectors and introducers: FIAON brings customers with a repaired, documented credit file – with consent.",
+      h1: "Customers whose credit file has been repaired are the best customers.",
+      lead: "FIAON brings you not an application but a file: cleaned-up entries, documented headroom from the bank statement, a payment history of twelve instalments – and the customer's consent to show you exactly that.",
+      abschnitte: [
+        { h2: "Four partners. One file.", text: "Banks and card issuers get new customers with a history; credit bureaus get structured requests and complete deletion applications; debt collectors and creditors get instalment agreements that hold; introducers get commission per deal and per collected instalment." },
+        { h2: "What happens before a customer arrives with you", text: "Insight (report and bank statement analysis), action (lawyer-reviewed letters, instalment agreements), access (introduction with consent and all documents)." },
+        { h2: "Four steps to a pilot", text: "Enquiry, conversation with the platform on screen, pilot with a limited number of customers and joint evaluation after 90 days, then integration and scaling." },
+      ],
+      weiter: ["/business", "/investoren", "/karriere"],
+      krumen: [{ name: "Partners", pfad: "/en/partners" }],
+    },
   },
   "/presse": {
     pfad: "/presse", art: "unternehmen", stand: PFEILER, prio: 0.5,
@@ -626,6 +657,20 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/team", "/was-ist-fiaon", "/investoren", "/kontakt"],
     krumen: [{ name: "Presse", pfad: "/presse" }],
+    en: {
+      pfad: "/en/press",
+      titel: "Press: facts, figures, imagery, contact — FIAON",
+      beschreibung: "FIAON in the media: short profile, market figures to quote, topics for interviews and guest articles, imagery and a contact on the same working day.",
+      h1: "FIAON in the media.",
+      lead: "The operating system for creditworthiness: FIAON shows people in Germany, Austria and Switzerland what credit bureaus know about them – repairs it with them and then opens the door to account, card and financing.",
+      abschnitte: [
+        { h2: "Facts at a glance", text: "FIAON LTD, London; founder and director Justin Schwarzott; markets Germany, Austria, Switzerland; product insight, action, access; payment by SEPA direct debit in twelve instalments; press contact presse@fiaon.com." },
+        { h2: "Told in three sentences", text: "People see their credit report for the first time; then they change what is wrong with lawyer-reviewed letters; and they get what was denied to them before – via partner banks that see a documented credit file." },
+        { h2: "What we can talk about", text: "What is in my SCHUFA file, why score apps are not enough, AI that reads bank statements, customers who become staff. Justin Schwarzott is available for interviews and guest articles." },
+      ],
+      weiter: ["/ueber-uns", "/team", "/transparenz"],
+      krumen: [{ name: "Press", pfad: "/en/press" }],
+    },
   },
   "/investoren": {
     pfad: "/investoren", art: "unternehmen", stand: PFEILER, prio: 0.5,
@@ -659,7 +704,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     h1: "So arbeitet FIAON.",
     lead: "Wer „FIAON Erfahrungen“ sucht, will wissen: Kann ich denen trauen? Die ehrlichste Antwort ist, Ihnen alles Prüfbare hinzulegen – Zahlen aus dem Betrieb, den Ablauf, die Preise, die Grenzen. Und einen Check, mit dem Sie jeden Anbieter prüfen können. Auch uns.",
     abschnitte: [
-      { h2: "FIAON in Zahlen", text: "Stand 2. September 2026, bankbestätigt: über 440 zahlende Kunden, 450 bezahlte Monatsraten, drei Länder (Deutschland, Österreich, Schweiz), 20 kostenlose Werkzeuge. Gezählt wird nur, was die Bank bestätigt hat." },
+      { h2: "FIAON in Zahlen", text: "Stand 3. September 2026, bankbestätigt: über 440 zahlende Kunden, 440 bezahlte Monatsraten, drei Länder (Deutschland, Österreich, Schweiz), 20 kostenlose Werkzeuge. Gezählt wird nur, was die Bank bestätigt hat." },
       { h2: "So funktioniert's – in drei Schritten", text: "Antrag mit Festpreis und Startgespräch mit einem Menschen; Einsicht – Auskunft bei SCHUFA, KSV, CRIF beschafft und jede Zeile gegen § 31 BDSG und die Löschfristen geprüft; Aktion und Zugang – anwaltlich geprüfte Schreiben, Fristen, Girokonto und Karte beim Partnerinstitut. Die Entscheidung trifft die Bank." },
       { h2: "Der Seriositäts-Check – für jeden Anbieter", text: "Sechs Fragen: Löschgarantie? Erfolgsbeteiligung pro Eintrag? Kostenlose Rechte genannt? Vollständiges Impressum? Zeitdruck? Jeder Schritt sichtbar? FIAON beantwortet sie offen – Festpreis, keine Garantie, Impressum mit Registernummer, kündbar zum Monatsende." },
       { h2: "Woran Sie unseriöse Anbieter erkennen", text: "Löschgarantien, Erfolgsbeteiligung pro Eintrag, verschwiegene Gratis-Rechte, Vorkasse an anonyme Empfänger, Erfolg über Nacht, Druck statt Klarheit." },
@@ -675,7 +720,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
       h1: "How FIAON works.",
       lead: "Anyone searching for “FIAON reviews” wants to know: can I trust them? The most honest answer is to lay out everything verifiable — figures from operations, the process, the prices, the limits. And a check with which you can test any provider. Including us.",
       abschnitte: [
-        { h2: "Figures, not claims", text: "Over 440 paying customers with bank-confirmed payment, 450 paid monthly instalments, three countries, 20 free tools — as of 2 September 2026. Only what the bank has confirmed is counted." },
+        { h2: "Figures, not claims", text: "Over 440 paying customers with bank-confirmed payment, 440 paid monthly instalments, three countries, 20 free tools — as of 3 September 2026. Only what the bank has confirmed is counted." },
         { h2: "How it works in three steps", text: "An application with a fixed price and a 15-minute onboarding call; the report obtained with authorisation and every line checked against Section 31 BDSG and the deletion deadlines; letters reviewed by lawyers sent by registered post, deadlines tracked, account and card prepared with the partner institution. The bank decides." },
         { h2: "The seriousness check", text: "Six questions that apply to every provider: deletion guarantees, success fees, concealed free rights, a missing legal notice, time pressure, no insight into the steps. FIAON answers all six — and shows where reviews stand: being set up, nothing invented.", punkte: ["Six warning signs of dubious providers", "Two typical journeys, reconstructed from practice", "Honest up to the no: justified entries stay"] },
       ],
@@ -780,7 +825,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     beschreibung: "Was FIAON misst und veröffentlicht: zahlende Kunden, bezahlte Raten, Länder, Werkzeuge, Ratgeber – bankbestätigt, mit Definition und Stand.",
     h1: "Zahlen, die man nachrechnen kann.",
     lead: "Kein Marktteilnehmer zeigt, wie viele Kunden wirklich bezahlt haben und wie viele Raten wirklich eingegangen sind. FIAON tut es – mit Definition, Stand und Herkunft. Und sagt, was noch nicht gemessen ist.",
-    abschnitte: [{ h2: "Die Zahlen, Stand 2. September 2026", text: "443 zahlende Kunden (bankbestätigt, ohne Testkonten), 450 bezahlte Monatsraten, Kunden nach Land DE 267 · AT 150 · CH 4, 20 Werkzeuge, 57 Ratgeber. Nächste Aktualisierung Anfang Oktober 2026." }, { h2: "Jede Zahl mit Definition.", text: "Zahlende Kunden: Bestellung mit bankbestätigter Zahlung, Dubletten und Testkonten ausgeschlossen. Bezahlte Raten: Zahlungsdatum im Bankbuch, stornierte ausgeschlossen." }, { h2: "Die vier Nordstern-Kennzahlen – in Messung.", text: "Zeit bis zur ersten Einsicht, Antwortquote auf Schreiben, Graduation-Rate, Raten-Einzugsquote – veröffentlicht, sobald sie über ein Quartal belastbar sind, nicht vorher." }, { h2: "Was hier nicht steht", text: "Keine Bewertungen, die es noch nicht gibt; keine Umsätze außerhalb des Datenraums; keine Einzelfälle ohne Freigabe; keine Erfolgsquote ohne belastbare Antwortquote." }],
+    abschnitte: [{ h2: "Die Zahlen, Stand 3. September 2026", text: "440 zahlende Kunden (bankbestätigt, ohne Testkonten und Dubletten, auf Zehner gerundet), 440 bezahlte Monatsraten, Kunden nach Land DE 277 · AT 157 · CH 4, 20 Werkzeuge, 57 Ratgeber – live aus derselben Zählung wie das Chefbüro. Nächste Aktualisierung Anfang Oktober 2026." }, { h2: "Jede Zahl mit Definition.", text: "Zahlende Kunden: Bestellung mit bankbestätigter Zahlung, Dubletten und Testkonten ausgeschlossen. Bezahlte Raten: Zahlungsdatum im Bankbuch, stornierte ausgeschlossen." }, { h2: "Die vier Nordstern-Kennzahlen – in Messung.", text: "Zeit bis zur ersten Einsicht, Antwortquote auf Schreiben, Graduation-Rate, Raten-Einzugsquote – veröffentlicht, sobald sie über ein Quartal belastbar sind, nicht vorher." }, { h2: "Was hier nicht steht", text: "Keine Bewertungen, die es noch nicht gibt; keine Umsätze außerhalb des Datenraums; keine Einzelfälle ohne Freigabe; keine Erfolgsquote ohne belastbare Antwortquote." }],
     weiter: ["/fiaon-erfahrungen", "/status", "/investoren", "/ueber-uns", "/preise"],
     krumen: [{ name: "Transparenzbericht", pfad: "/transparenz" }],
     en: {
@@ -790,7 +835,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
       h1: "Figures you can check yourself.",
       lead: "No market participant shows how many customers have really paid and how many instalments have really arrived. FIAON does — with definition, date and source. And says what has not been measured yet.",
       abschnitte: [
-        { h2: "The figures as of 2 September 2026", text: "443 paying customers with bank-confirmed payment, 450 paid monthly instalments, 267 customers in Germany, 150 in Austria and 4 in Switzerland, 20 free tools and 57 guides — measured in the platform's database with the same definitions the management uses internally. Next update at the beginning of October 2026." },
+        { h2: "The figures as of 3 September 2026", text: "440 paying customers with bank-confirmed payment (rounded to tens, without test accounts and duplicates), 440 paid monthly instalments, 277 customers in Germany, 157 in Austria and 4 in Switzerland, 20 free tools and 57 guides — measured in the platform's database with the same definitions the management uses internally. Next update at the beginning of October 2026." },
         { h2: "Four north-star metrics being measured", text: "Time to first insight, reply rate on letters, graduation rate into an account or finance, instalment collection rate. Published as soon as they are reliable over a quarter — not before." },
         { h2: "What is not here", text: "No reviews that do not exist yet, no revenue outside the data room, no individual cases without approval, no success rate of deleted entries until the reply rate is reliable." },
       ],
@@ -805,7 +850,21 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     lead: "Diese Seite fragt die Plattform beim Öffnen selbst – und sagt Ihnen, wo Ihre Daten liegen, wie sie geschützt sind und was zuletzt nicht funktioniert hat. Keine Marketingzahlen, nur Prüfbares.",
     abschnitte: [{ h2: "Datenstandort und Schutz.", text: "Frankfurt am Main (EU) für Anwendung und Datenbank, Umzug abgeschlossen am 24.08.2026; TLS-verschlüsselt; Zugriff nur für Ansprechpartner und Betreiber; SEPA über verifizierten Kreditor, keine Kartendaten bei FIAON; Deploys unterbrechungsfrei über Gesundheitspfad; Löschung auf Wunsch binnen 30 Tagen." }, { h2: "Bekannte Störungen – ehrlich geführt.", text: "27.08.2026, rund 12 Stunden: Kundenbereich nach Anmeldung nicht erreichbar – eine Datenbankabfrage schlug fehl; seither Praxistest gegen die echte Datenbank vor jedem Deploy und ein Gesundheitspfad für unterbrechungsfreies Umschalten." }],
     weiter: ["/sicherheit", "/transparenz", "/kontakt", "/privacy"],
-    krumen: [{ name: "Status", pfad: "/status" }] },
+    krumen: [{ name: "Status", pfad: "/status" }],
+    en: {
+      pfad: "/en/status",
+      titel: "FIAON status: availability, data location, incidents",
+      beschreibung: "Is FIAON up right now? Live check of the platform, data location Frankfurt, encryption, maintenance rules and the list of known incidents – verifiable.",
+      h1: "Is FIAON up right now?",
+      lead: "This page queries the platform itself when it opens – and tells you where your data is, how it is protected and what last failed. No marketing figures, only what can be verified.",
+      abschnitte: [
+        { h2: "Data location and protection", text: "Frankfurt am Main, EU region, for application and database; TLS-encrypted transfer; encrypted storage; access only for the responsible contact and the operators; SEPA via a verified creditor, no card data; deploys without interruption; complete deletion on request after the contract ends." },
+        { h2: "Known incidents – kept honestly", text: "What did not work is listed with cause and consequence. 27 August 2026: customer area unreachable after login for around 12 hours; since then a practical test against the live database before every deploy." },
+      ],
+      weiter: ["/sicherheit", "/transparenz", "/kontakt"],
+      krumen: [{ name: "Status", pfad: "/en/status" }],
+    },
+  },
 
   // ═════════════════════════════════════════════════════════════════════════
   // PFEILERSEITEN — jede beantwortet eine Suchfrage vollständig
@@ -1653,7 +1712,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
   "/banking": { pfad: "/banking", art: "intern", stand: "2026-08-22", prio: 0.1, robots: "noindex,follow", titel: "Girokonto trotz negativem Eintrag — FIAON", beschreibung: "Das Basiskonto steht Ihnen per Gesetz zu – auch mit Eintrag.", h1: "Girokonto", lead: "Das Basiskonto steht Ihnen per Gesetz zu – auch mit Eintrag.", canonical: "/girokonto-trotz-negativer-bonitaet" },
   "/als-kunde": { pfad: "/als-kunde", art: "intern", stand: "2026-08-25", prio: 0.1, robots: "noindex,nofollow", titel: "Kundenansicht — FIAON", beschreibung: "Interne Ansicht des Kundenbereichs für Mitarbeiter.", h1: "Kundenansicht", lead: "Interne Ansicht." },
   "/banking/dashboard": { pfad: "/banking/dashboard", art: "intern", stand: "2026-08-22", prio: 0.1, robots: "noindex,nofollow", titel: "Investoren-Banking — FIAON", beschreibung: "Geschützter Bereich.", h1: "Investoren-Banking", lead: "Geschützter Bereich." },
-  "/bonitaet-service": { pfad: "/bonitaet-service", art: "produkt", stand: "2026-08-22", prio: 0.4, canonical: "/bonitaet", titel: "Bonitäts-Auszug: Erklärung des Service — FIAON", beschreibung: "Was der Bonitäts-Auszug über FIAON leistet: Beschaffung bei SCHUFA, KSV oder CRIF, Erklärung jedes Eintrags und der nächste Schritt für jeden Eintrag.", h1: "KI-gestützte Bonitätsanalyse. Transparent. Sicher. Wirksam.", lead: "Die Erklärung des Bonitäts-Auszugs über FIAON – die aktuelle Fassung steht unter Bonitäts-Auszug.", weiter: ["/bonitaet", "/bonitaetsauskunft-beantragen"] },
+  "/bonitaet-service": { pfad: "/bonitaet-service", art: "produkt", stand: "2026-08-22", prio: 0.4, canonical: "/bonitaetsauskunft-beantragen", titel: "Bonitäts-Auszug: Erklärung des Service — FIAON", beschreibung: "Was der Bonitäts-Auszug über FIAON leistet: Beschaffung bei SCHUFA, KSV oder CRIF, Erklärung jedes Eintrags und der nächste Schritt für jeden Eintrag.", h1: "KI-gestützte Bonitätsanalyse. Transparent. Sicher. Wirksam.", lead: "Die Erklärung des Bonitäts-Auszugs über FIAON – die aktuelle Fassung steht unter Bonitäts-Auszug.", weiter: ["/bonitaet", "/bonitaetsauskunft-beantragen"] },
   "/vereinbarung": { pfad: "/vereinbarung", art: "intern", stand: "2026-08-22", prio: 0.1, robots: "noindex,nofollow", titel: "Vertrauliches Dokument — FIAON", beschreibung: "Diese Seite ist geschützt.", h1: "Vertrauliches Dokument", lead: "Diese Seite ist geschützt." },
   "/scp-datenraum": { pfad: "/scp-datenraum", art: "intern", stand: "2026-08-22", prio: 0.1, robots: "noindex,nofollow", titel: "Datenraum", beschreibung: "Vertraulicher Zugang.", h1: "Datenraum", lead: "Vertraulicher Zugang." },
 };

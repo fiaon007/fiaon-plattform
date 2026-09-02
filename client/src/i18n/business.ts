@@ -108,7 +108,7 @@ const en: typeof de = {
   rahmenZeile: "Card limit needed (rule of thumb: two months' spend)", passendesPaket: "Matching plan", direktVorbereiten: "Prepare directly",
   paketePille: "Plans", paketeH2a: "Four tiers, ", paketeH2b: "one goal.",
   paketeLead: "Every plan includes the credit reports for company and owners, a named contact person and preparation of the company card. The target limit is what FIAON works towards — the bank decides on the limit.",
-  zielrahmenBis: "Target limit up to ", imMonat: "a month · twelve instalments", empfohlenStarten: "Recommended · Get started", paketWaehlen: "Choose a plan",
+  zielrahmenBis: "Target limit up to ", imMonat: "a month · twelve instalments", empfohlenStarten: "Most popular · Get started", paketWaehlen: "Choose a plan",
   pakete: {
     business_starter: { fuer: "Sole traders, freelancers, young start-ups", punkte: ["Credit reports for company and owners", "Every entry explained, deletion deadlines", "Preparation of a company card up to a €5,000 target limit", "Named contact person"] },
     business_pro: { fuer: "GmbH, UG, trade, service providers with running expenses", punkte: ["Everything in Starter", "Letters to creditors and credit bureaus, sent and tracked", "Separation of private and business in the report", "Card preparation up to a €25,000 target limit"] },

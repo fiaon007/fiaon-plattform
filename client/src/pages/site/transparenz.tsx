@@ -18,11 +18,12 @@ import { Dunkel, Hero, Block, Licht, Knopf, Kennzahlen, Zeilen, Karten, Glas, Fr
 import SeoDaten from "@/components/site/SeoDaten";
 import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
 import { TRANSPARENZ_WOERTER } from "@/i18n/transparenz";
+import { useKennzahlen } from "@/lib/kennzahlen-oeffentlich";
 import "@/styles/ratgeber.css";
 import "@/styles/seo-seiten.css";
 
-// Die Zahlen (E-082, scripts/tmp/zahlen-oeffentlich.ts) — in beiden Sprachen dieselben.
-const ZAHLEN = ["443", "450", "267 · 150 · 4", "20 · 57"];
+// Die Zahlen kommen live aus GET /api/fiaon/oeffentlich/kennzahlen (Definition wie das Chefbüro);
+// Rückfall = Stand-Werte in client/src/lib/kennzahlen-oeffentlich.ts. In beiden Sprachen dieselben.
 
 export default function Transparenz() {
   const t = useWoerter(TRANSPARENZ_WOERTER);
@@ -30,6 +31,8 @@ export default function Transparenz() {
   const en = sprache === "en";
   const zu = (p: string) => inSprache(p, sprache);
   const pfad = en ? "/en/transparency" : "/transparenz";
+  const k = useKennzahlen();
+  const ZAHLEN = [String(k.kunden), String(k.raten), `${k.laender.DE} · ${k.laender.AT} · ${k.laender.CH}`, `${k.werkzeuge} · ${k.ratgeber}`];
   return (
     <Dunkel seite="ratgeber" titel={t.metaTitel} beschreibung={t.metaBeschreibung}>
       <SeoDaten pfad={pfad} titel={t.seoTitel} beschreibung={t.seoBeschreibung} fragen={t.fragen} krumen={[{ name: t.krume, pfad }]} />

@@ -651,7 +651,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (e) { console.error('[RATGEBER-SEO]', e); next(); }
   });
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
-    tageslauf('ratgeber-entwuerfe', () => { fiaonRatgeber.ratgeberTageslauf().catch((e) => console.error('[RATGEBER] Tageslauf:', e)); }, 30 * 60 * 1000, { beimStartNach: 120_000 });
+    tageslauf('ratgeber-entwuerfe', async () => await fiaonRatgeber.ratgeberTageslauf(), 30 * 60 * 1000, { beimStartNach: 120_000 });
   });
 
   // 🧭 MEIN BEREICH — der neue Kundenbereich (E-013). Hinter signiertem Cookie.
@@ -701,8 +701,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // sein Tageslimit um Mitternacht UTC zurück; wer auf eine feste Uhrzeit
   // wartet, verpasst das Fenster, sobald der Server einmal schläft.
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
-    tageslauf('clarity-besucher', () => {
-      chefClarity.clarityTageslauf().catch((e) => console.error('[CLARITY] Tageslauf:', e));
+    tageslauf('clarity-besucher', async () => {
+      return await chefClarity.clarityTageslauf();
     }, 60 * 60 * 1000, { beimStartNach: 90_000 });
   });
 
@@ -714,14 +714,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const chefRueckholung = await import('./routes/fiaon-chef-rueckholung');
   app.use('/api/fiaon', chefRueckholung.default);
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
-    tageslauf('rueckholung', () => {
-      import('./lib/fiaon-rueckholung')
-        .then(({ rueckholLauf }) => rueckholLauf())
-        .then((erg) => {
-          const v = erg.reduce((s, e) => s + e.verschickt, 0);
-          if (v > 0) console.log(`[RUECKHOLUNG] ${v} Mails: ` + erg.map((e) => `${e.segment}=${e.verschickt}`).join(' '));
-        })
-        .catch((e) => console.error('[RUECKHOLUNG] Lauf:', e));
+    tageslauf('rueckholung', async () => {
+      const { rueckholLauf } = await import('./lib/fiaon-rueckholung');
+      const erg = await rueckholLauf();
+      const v = erg.reduce((s, e) => s + e.verschickt, 0);
+      if (v > 0) console.log(`[RUECKHOLUNG] ${v} Mails: ` + erg.map((e) => `${e.segment}=${e.verschickt}`).join(' '));
+      return erg;
     }, 30 * 60 * 1000, { beimStartNach: 180_000 });
   });
 
@@ -730,11 +728,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ist ohne `sepa_werbung_pro_tag` ABGESCHALTET — er verschickt nach dem
   // Ausrollen nichts, bis jemand die Zahl bewusst setzt.
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
-    tageslauf('sepa-werbung', () => {
-      import('./lib/fiaon-sepa-werbung')
-        .then(({ sepaWerbungLauf }) => sepaWerbungLauf())
-        .then((e) => { if (e.verschickt > 0) console.log(`[SEPA-WERBUNG] ${e.verschickt} Einladungen verschickt (Deckel ${e.deckel}).`); })
-        .catch((e) => console.error('[SEPA-WERBUNG] Lauf:', e));
+    tageslauf('sepa-werbung', async () => {
+      const { sepaWerbungLauf } = await import('./lib/fiaon-sepa-werbung');
+      const e = await sepaWerbungLauf();
+      if (e.verschickt > 0) console.log(`[SEPA-WERBUNG] ${e.verschickt} Einladungen verschickt (Deckel ${e.deckel}).`);
+      return e;
     }, 30 * 60 * 1000, { beimStartNach: 150_000 });
   });
 

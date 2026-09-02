@@ -1743,15 +1743,14 @@ async function runPaymentReminders(opts: { force?: boolean } = {}): Promise<{ ex
 // verschickt Zahlungserinnerungen an echte Kunden — auf einem
 // Entwicklungsrechner hat sie nichts verloren (server/lib/fiaon-crons.ts).
 import("../lib/fiaon-crons").then(({ tageslauf }) => {
-  tageslauf("zahlungserinnerungen", () => {
-    runPaymentReminders().catch((err) => console.error("[FIAON-PAYMENT] Reminder-Cron:", err));
+  tageslauf("zahlungserinnerungen", async () => {
+    return await runPaymentReminders();
   }, 60 * 60 * 1000);
   // Die Abbruch-Kette (E-023) prüft alle fünf Minuten — die 10-Minuten-Mail
   // und die Tagesfenster (07:30, 15:00, 16:30, 19:00) brauchen diesen Takt.
-  tageslauf("antrag-erinnerungen", () => {
-    void import("../lib/fiaon-antrag-erinnerung")
-      .then(({ antragErinnerungenLauf }) => antragErinnerungenLauf())
-      .catch((err) => console.error("[ANTRAG-ERINNERUNG] Lauf:", err));
+  tageslauf("antrag-erinnerungen", async () => {
+    const { antragErinnerungenLauf } = await import("../lib/fiaon-antrag-erinnerung");
+    return await antragErinnerungenLauf();
   }, 5 * 60 * 1000, { beimStartNach: 60_000 });
 });
 

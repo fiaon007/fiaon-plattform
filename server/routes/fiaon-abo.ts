@@ -1083,7 +1083,8 @@ async function rateErinnern(r: any, opts: { stufeErhoehen?: boolean } = {}): Pro
 // Tag verpasst. Stündlich heißt: Der Lauf holt sich selbst ein.
 tageslauf(
   "abo-motor",
-  () => { void aboTageslauf().catch((e) => console.error("[FIAON-ABO] Tageslauf:", e)); },
+  // Der Ratenmotor. Fehler MUESSEN in der Historie stehen — hier laeuft Geld.
+  async () => await aboTageslauf(),
   60 * 60 * 1000,
   { auchWenn: process.env.ABO_MOTOR_LOKAL === "1", beimStartNach: 90_000 },
 );

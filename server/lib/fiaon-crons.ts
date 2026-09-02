@@ -37,17 +37,23 @@ let gemeldet = false;
 export function tageslauf(
   name: string,
   /**
-   * Die Arbeit selbst — sie wird ERWARTET (siehe `sicher` weiter unten:
-   * `await fn()`). Wer hier eine Hülle übergibt, die einen Vorgang nur
-   * anstößt und sofort zurückkehrt, bekommt eine Historie voller
-   * „erfolg | 0 ms": Dauer und Fehler gehen verloren, und die Sperre gegen
-   * gleichzeitige Läufe greift nicht mehr, weil die Zeile sofort auf
-   * „erfolg" dreht. Genau das ist dem Airwallex-Lauf am 02.09.2026 passiert
-   * — sechs gemeldete Erfolge für eine Automatik, die noch nie einen Cent
-   * gelesen hatte. Der Rückgabetyp sagt das jetzt: Promise erlaubt und
-   * erwünscht.
+   * Die Arbeit selbst — sie wird ERWARTET (`await fn()`).
+   *
+   * ── WARUM HIER KEIN `catch` STEHEN DARF (03.09.2026) ──────────────────
+   * Bis heute übergab fast jeder Lauf eine Hülle der Form
+   *   `() => { arbeit().catch(e => console.error(e)) }`
+   * Die kehrt SOFORT zurück. `laufMitHistorie` maß deshalb 0 ms, schrieb
+   * jedes Mal 'erfolg' und sah nie einen Fehler — in vierzehn Tagen standen
+   * über 12.000 Läufe in der Historie und NULL Fehler, obwohl darunter
+   * Ratenmotor, Zahlungserinnerungen und der Postmeister liefen. Auch die
+   * Sperre gegen gleichzeitige Läufe war wirkungslos, weil die Zeile sofort
+   * auf 'erfolg' drehte.
+   *
+   * Deshalb: das Promise ZURÜCKGEBEN und den Fehler durchlassen. Die
+   * Historie fängt ihn und schreibt 'fehler' mit Text — das ist der Ort, an
+   * dem ihn jemand sieht.
    */
-  fn: () => void | Promise<void>,
+  fn: () => void | Promise<unknown>,
   intervallMs: number,
   opts: {
     /**

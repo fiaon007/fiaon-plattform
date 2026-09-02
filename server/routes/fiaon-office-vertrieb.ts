@@ -455,6 +455,28 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
              = (NOW() AT TIME ZONE 'Europe/Berlin')::date)`,
     ].join(" AND ");
 
+    // ═══════════════════════════════════════════════════════════════════
+    // DIE REIHENFOLGE DER ARBEITSLISTE (03.09.2026, Daniels Befund)
+    //
+    // Daniel: „Ich weiß nicht was los ist, aber heute über Pipeline erreiche
+    // ich fast niemanden. Und irgendwie hab ich da jeden Tag aufs Neue die
+    // selben Leute drin — keine neuen. Ich denke es würde mehr Sinn machen,
+    // die Kunden anzuzeigen, die frisch einen Antrag gestellt haben."
+    //
+    // ER HATTE RECHT, und die Ursache war die Sortierung selbst: Sie ordnete
+    // nach `updated_at` absteigend. Jede Berührung — auch ein erfolgloser
+    // Anruf — setzt dieses Feld neu. Wer gestern vergeblich angerufen wurde,
+    // stand heute wieder ganz oben; ein frischer Antrag von gestern Abend
+    // stand dahinter. Gemessen am 03.09. in Daniels Liste: Platz 1 war ein
+    // Kunde mit Antrag vom 21.08. und zwei Versuchen, Platz 3 einer mit
+    // SECHS Versuchen — während drei Anträge vom 01.09. mit null Versuchen
+    // weiter unten warteten.
+    //
+    // Neue Ordnung: Was heute fällig ist, zuerst. Dann die Frischen, die noch
+    // niemand angerufen hat — Speed-to-Lead ist der einzige Hebel, der bei
+    // Kaltkontakten messbar wirkt. Danach der Rest, jüngster Antrag zuerst,
+    // und wer oft nicht erreichbar war, sinkt ab.
+    // ═══════════════════════════════════════════════════════════════════
     const ordnung = `
       CASE
         WHEN p.promised_payment_date IS NOT NULL AND p.promised_payment_date <= ${HEUTE} THEN 0
@@ -463,9 +485,15 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
           WHERE a3.person_id = p.id AND cl.outcome = 'rueckruf_termin' AND cl.done_at IS NULL
             AND cl.voided_at IS NULL AND cl.scheduled_at IS NOT NULL AND cl.scheduled_at <= NOW()
         ) THEN 1
-        ELSE 2
+        WHEN COALESCE(p.unreachable_count, 0) = 0 THEN 2
+        ELSE 3
       END,
-      COALESCE(p.updated_at, p.created_at) DESC NULLS LAST,
+      COALESCE(p.unreachable_count, 0) ASC,
+      COALESCE(
+        (SELECT MAX(a4.created_at) FROM fiaon_applications a4
+          WHERE a4.person_id = p.id AND a4.merged_into IS NULL),
+        p.created_at
+      ) DESC NULLS LAST,
       p.id DESC`;
 
     // §16: Vollständigkeit als Spalten direkt an der Karte — dieselbe Regel

@@ -74,6 +74,99 @@ export interface AgentErgebnis {
 
 // ── Der Aufruf ────────────────────────────────────────────────────────────
 
+/**
+ * Chat-Nachrichten → Eingabe für /v1/responses.
+ *
+ * Drei Formen müssen übersetzt werden:
+ *   · gewöhnliche Nachricht  → bleibt, wie sie ist
+ *   · Assistent mit Werkzeugaufrufen → je Aufruf ein eigenes `function_call`
+ *   · Werkzeugergebnis (role "tool") → `function_call_output` mit derselben call_id
+ * Die call_id ist das Band zwischen Aufruf und Ergebnis; geht sie verloren,
+ * weiß das Modell nicht mehr, welche Antwort zu welcher Frage gehört.
+ */
+function nachChatUmgekehrt(nachrichten: any[]): any[] {
+  const raus: any[] = [];
+  for (const n of nachrichten) {
+    if (!n) continue;
+    if (n.role === "tool") {
+      raus.push({ type: "function_call_output", call_id: n.tool_call_id, output: String(n.content ?? "") });
+      continue;
+    }
+    if (n.role === "assistant" && Array.isArray(n.tool_calls) && n.tool_calls.length) {
+      if (n.content) raus.push({ role: "assistant", content: String(n.content) });
+      for (const r of n.tool_calls) {
+        raus.push({
+          type: "function_call",
+          call_id: r.id,
+          name: r.function?.name ?? r.name,
+          arguments: r.function?.arguments ?? r.arguments ?? "{}",
+        });
+      }
+      continue;
+    }
+    if (typeof n.content === "string" || Array.isArray(n.content)) {
+      raus.push({ role: n.role, content: n.content });
+    }
+  }
+  return raus;
+}
+
+/** Werkzeuge: verschachtelt (Chat) → flach (Responses). Beides wird akzeptiert. */
+function alsResponsesWerkzeuge(tools: unknown[]): any[] {
+  return (tools as any[]).map((t) => {
+    if (t?.type === "function" && t.function) {
+      return {
+        type: "function",
+        name: t.function.name,
+        description: t.function.description,
+        parameters: t.function.parameters,
+        strict: t.function.strict ?? false,
+      };
+    }
+    return t;
+  });
+}
+
+/**
+ * Antwort von /v1/responses → die Chat-Form, die der übrige Code erwartet.
+ * Damit bleibt alles hinter dieser Funktion unverändert: Werkzeugrunden,
+ * Belegprüfung, Wand. Auch die Zählwerte werden umbenannt, sonst steht in
+ * `fiaon_ki_nutzung` nur Null und der Tagesdeckel greift nie.
+ */
+function alsChatAntwort(roh: any): any {
+  const teile: any[] = Array.isArray(roh?.output) ? roh.output : [];
+  const tool_calls = teile
+    .filter((t) => t?.type === "function_call")
+    .map((t) => ({ id: t.call_id, type: "function", function: { name: t.name, arguments: t.arguments ?? "{}" } }));
+
+  let text = typeof roh?.output_text === "string" ? roh.output_text : "";
+  if (!text) {
+    text = teile
+      .filter((t) => t?.type === "message")
+      .flatMap((t) => (Array.isArray(t.content) ? t.content : []))
+      .filter((c: any) => c?.type === "output_text" && typeof c.text === "string")
+      .map((c: any) => c.text)
+      .join("");
+  }
+
+  const u = roh?.usage ?? {};
+  return {
+    choices: [{
+      message: {
+        role: "assistant",
+        content: text || null,
+        ...(tool_calls.length ? { tool_calls } : {}),
+      },
+    }],
+    usage: {
+      prompt_tokens: u.input_tokens ?? 0,
+      completion_tokens: u.output_tokens ?? 0,
+      total_tokens: u.total_tokens ?? (Number(u.input_tokens || 0) + Number(u.output_tokens || 0)),
+    },
+    _unvollstaendig: roh?.status === "incomplete" ? String(roh?.incomplete_details?.reason ?? "unbekannt") : null,
+  };
+}
+
 async function kiAufruf(ein: {
   dienst: string; modell: string; nachrichten: any[]; schema?: any; tools?: unknown[];
   aufwand?: "low" | "medium" | "high"; maxTokens?: number;
@@ -84,22 +177,41 @@ async function kiAufruf(ein: {
   const abbruch = new AbortController();
   const uhr = setTimeout(() => abbruch.abort(), ZEITGRENZE_MS);
   try {
+    // ═══════════════════════════════════════════════════════════════════════
+    // WARUM /v1/responses UND NICHT /v1/chat/completions (03.09.2026)
+    //
+    // Der Agent hat vom 02. auf den 03.09. KEINE EINZIGE Antwort erzeugt.
+    // In der Akte stand bei jedem Versuch derselbe Satz:
+    //
+    //   „Function tools with reasoning_effort are not supported for gpt-5.5
+    //    in /v1/chat/completions. To use function tools, use /v1/responses
+    //    or set reasoning_effort to 'none'."
+    //
+    // Also: entweder Werkzeuge ODER Denkleistung — auf dem alten Weg nicht
+    // beides. Ein Sachbearbeiter, der weder nachdenken noch handeln kann,
+    // ist kein Sachbearbeiter. Deshalb der neue Weg, der beides erlaubt.
+    //
+    // Nach außen bleibt alles wie vorher: Wir nehmen Nachrichten im
+    // Chat-Format entgegen und geben `choices[0].message` zurück. Die
+    // Übersetzung in beide Richtungen steht hier und NUR hier.
+    // ═══════════════════════════════════════════════════════════════════════
     const body: any = {
       model: ein.modell,
-      messages: ein.nachrichten,
-      max_completion_tokens: ein.maxTokens ?? 2500,
-      reasoning_effort: ein.aufwand ?? "medium",
+      input: nachChatUmgekehrt(ein.nachrichten),
+      max_output_tokens: ein.maxTokens ?? 2500,
+      reasoning: { effort: ein.aufwand ?? "medium" },
     };
-    if (ein.schema) body.response_format = { type: "json_schema", json_schema: { name: "antwort", strict: true, schema: ein.schema } };
-    if (ein.tools?.length) { body.tools = ein.tools; body.tool_choice = "auto"; }
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    if (ein.schema) body.text = { format: { type: "json_schema", name: "antwort", strict: true, schema: ein.schema } };
+    if (ein.tools?.length) { body.tools = alsResponsesWerkzeuge(ein.tools); body.tool_choice = "auto"; }
+    const res = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: { Authorization: `Bearer ${schluessel}`, "Content-Type": "application/json" },
       body: JSON.stringify(body),
       signal: abbruch.signal,
     });
-    const j: any = await res.json();
-    if (!res.ok) throw new Error(`HTTP ${res.status}: ${JSON.stringify(j?.error ?? j).slice(0, 200)}`);
+    const roh: any = await res.json();
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${JSON.stringify(roh?.error ?? roh).slice(0, 200)}`);
+    const j = alsChatAntwort(roh);
     await nutzungMerken({ dienst: ein.dienst, modell: ein.modell, usage: j?.usage, dauerMs: Date.now() - start, ok: true });
     return j;
   } catch (e: any) {
@@ -203,6 +315,23 @@ const SCHEMA_B = {
   required: ["antwort", "naechster_schritt", "belege", "fragen_beantwortet"],
 };
 
+/**
+ * Der Name der Sprache, in ihr selbst geschrieben. Eine Anweisung auf
+ * „antworte auf English" wirkt schwächer als eine auf die Sprache, die
+ * gemeint ist — und der Eigenname ist eindeutiger als ein Kürzel.
+ */
+function sprachName(code: string): string {
+  const k = String(code || "de").slice(0, 2).toLowerCase();
+  const namen: Record<string, string> = {
+    en: "English", fr: "français", es: "español", it: "italiano", nl: "Nederlands",
+    pl: "polski", ro: "română", ru: "русский", tr: "Türkçe", bg: "български",
+    hr: "hrvatski", sr: "српски", cs: "čeština", sk: "slovenčina", hu: "magyar",
+    pt: "português", el: "ελληνικά", ar: "العربية", uk: "українська", sq: "shqip",
+    de: "Deutsch",
+  };
+  return namen[k] ?? code;
+}
+
 function systemPrompt(ein: {
   postfach: string; lage: Kundenlage; lageGrund: string; heute: string; akte: any;
   einordnung: Einordnung; vertrag: string; alterTage: number; werkzeuge: string[];
@@ -212,12 +341,19 @@ function systemPrompt(ein: {
     `Du bist Sachbearbeiterin bei FIAON und schreibst aus dem Postfach ${ein.postfach}. Du bist ein Mensch am Schreibtisch, kein Automat: Du hast die Akte gelesen, bevor du antwortest.`,
     `HEUTE ist ${ein.heute}.`,
     ``,
+    // Am 03.09.2026 beanstandet: „auf englische Mails antwortet er Deutsch".
+    // Die Sprachregel stand bis dahin als Nebensatz in einer Aufzählung. Jetzt
+    // steht sie oben und allein — sie ist das Erste, was der Leser bemerkt.
+    ein.einordnung.sprache && ein.einordnung.sprache.slice(0, 2).toLowerCase() !== "de"
+      ? `SPRACHE — DAS WICHTIGSTE ZUERST: Der Kunde hat auf ${sprachName(ein.einordnung.sprache)} geschrieben (${ein.einordnung.sprache}). Du antwortest VOLLSTÄNDIG auf ${sprachName(ein.einordnung.sprache)}. Jeder Satz, jede Zahlenangabe, jede Erklärung. Kein deutsches Wort, auch nicht in Nebensätzen. Schreib so, wie eine Muttersprachlerin im Kundendienst schreiben würde — höflich, in der förmlichen Anredeform dieser Sprache.`
+      : `SPRACHE: Der Kunde schreibt Deutsch. Du antwortest auf Deutsch, in der Sie-Form.`,
+    ``,
     `LAGE DIESES KUNDEN: ${ein.lage} — ${ein.lageGrund}.`,
     `Erlaubte nächste Schritte in dieser Lage: ${schritte}. Genau EINER davon steht am Ende deiner Antwort.`,
     `VERTRAG: ${ein.vertrag}`,
     ``,
     `SO SCHREIBST DU:`,
-    `· Sprache der Kundenmail (${ein.einordnung.sprache}), Sie-Form, drei bis acht Sätze.`,
+    `· Drei bis acht Sätze, förmliche Anrede.`,
     `· Beginne mit dem, was der Kunde will — nie mit einer Eingangsbestätigung.`,
     `· Nenne konkrete Dinge aus der Akte: Paket, Betrag, Datum, Rate, Termin, Name der Betreuerin.`,
     `· Keine Aufzählungszeichen, keine Emojis, keine Betreffzeile, keine Grußformel.`,

@@ -195,8 +195,8 @@ export async function termintreueBewerten(): Promise<void> {
 
 // Alle 10 Minuten. Kein `alleXStunden`: Der Lauf grenzt seine Arbeit selbst
 // über das Zeitfenster und die vorhandenen Bewertungszeilen ein.
-tageslauf("termintreue-bewerten", () => {
-  void termintreueBewerten().catch((e) => console.error("[TERMINTREUE] Lauf:", e));
+tageslauf("termintreue-bewerten", async () => {
+  return await termintreueBewerten();
 }, 10 * 60_000, { beimStartNach: 90_000 });
 
 /** GET /agent/termintreue — die eigene Bilanz der letzten 30 Tage. */

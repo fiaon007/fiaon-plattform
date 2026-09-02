@@ -316,10 +316,10 @@ router.post("/wise/webhook", (req: Request, res: Response) => {
 });
 
 // Alle 30 Minuten von selbst — zusätzlich zum Wecker, als Netz darunter.
-tageslauf("wise-auszug", () => {
-  wiseEinlesen(5)
-    .then((r) => { if (r.neu > 0) console.log(`[WISE] Tageslauf: ${r.neu} neue Eingänge im Bankbuch`); })
-    .catch((e) => console.error("[WISE] Tageslauf:", e?.message || e));
+tageslauf("wise-auszug", async () => {
+  const r = await wiseEinlesen(5);
+  if (r.neu > 0) console.log(`[WISE] Tageslauf: ${r.neu} neue Eingänge im Bankbuch`);
+  return r;
 }, 30 * 60 * 1000, { beimStartNach: 90_000 });
 
 export default router;

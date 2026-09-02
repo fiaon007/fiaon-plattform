@@ -1,5 +1,5 @@
 // Kalibrierprobe: die zehn Messwerte aus dem Seobility-Bericht vom 02.09.2026.
-import { titelPixel, beschreibungPixel } from "./seo-pixel";
+import { titelPixel, beschreibungPixel } from "../shared/fiaon-pixel";
 const TITEL: [string, number][] = [
   ["So funktioniert FIAON: Plattform-Konzept Tag für Tag", 473],
   ["How FIAON works: the platform concept day by day | FIAON", 541],

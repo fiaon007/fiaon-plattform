@@ -57,3 +57,34 @@ export function wortwiederholung(titel: string): string[] {
   for (const w of woerter) zaehler.set(w, (zaehler.get(w) ?? 0) + 1);
   return [...zaehler.entries()].filter(([, n]) => n > 1).map(([w]) => w);
 }
+
+/**
+ * Kürzt eine Meta-Description auf die Pixelgrenze — an einer Satz-, Komma- oder
+ * Wortgrenze, mit Auslassungszeichen. Vorher wurde nach 155 ZEICHEN gekürzt;
+ * bei Texten voller Großbuchstaben ließ das bis 1247 px durch (Seobility-Bericht
+ * vom 02.09.2026: zehn abgeschnittene Beschreibungen).
+ */
+export function beschreibungKuerzen(text: string, maxPx = BESCHREIBUNG_MAX_PX): string {
+  const t = String(text ?? "").replace(/\s+/g, " ").trim();
+  if (beschreibungPixel(t) <= maxPx) return t;
+  const platz = maxPx - beschreibungPixel("…");
+  let ende = 0, breite = 0;
+  for (let i = 0; i < t.length; i++) {
+    breite += beschreibungPixel(t[i]);
+    if (breite > platz) break;
+    if (t[i] === " ") ende = i;
+  }
+  const kurz = t.slice(0, ende || t.length);
+  const schnitt = Math.max(kurz.lastIndexOf(". "), kurz.lastIndexOf(", "), kurz.lastIndexOf(" – "));
+  return (schnitt > kurz.length * 0.6 ? kurz.slice(0, schnitt) : kurz).replace(/[,–\-\s]+$/, "") + "…";
+}
+
+/**
+ * Hängt „| FIAON" an einen Titel — aber nur, wenn er damit unter der Pixelgrenze
+ * bleibt. Ein bereits vorhandener Markenanhang wird vorher entfernt.
+ */
+export function titelMitMarke(roh: string, maxPx = TITEL_MAX_PX): string {
+  const t = String(roh ?? "").replace(/\s*[|·—-]\s*FIAON( Ratgeber)?\s*$/i, "").trim();
+  const mitMarke = `${t} | FIAON`;
+  return titelPixel(mitMarke) <= maxPx ? mitMarke : t;
+}

@@ -13,7 +13,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { SEO_SEITEN, SEO_WERKZEUGE, SEO_WERKZEUGE_EN, SEO_GLOSSAR, SEO_GLOSSAR_EN, SEO_NAV, SEO_FUSS, seoFragen, schwesterPfad, seoSeite, type SeoSeite } from "../shared/fiaon-seo-seiten";
 import { EN_NAV, EN_FUSS } from "../shared/fiaon-sprache";
-import { titelPixel, beschreibungPixel, TITEL_MAX_PX, BESCHREIBUNG_MAX_PX, wortwiederholung } from "./seo-pixel";
+import { titelPixel, beschreibungPixel, TITEL_MAX_PX, BESCHREIBUNG_MAX_PX, wortwiederholung } from "../shared/fiaon-pixel";
 
 const JSONAUS = process.argv.includes("--json");
 

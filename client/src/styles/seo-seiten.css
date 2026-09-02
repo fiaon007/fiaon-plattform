@@ -265,3 +265,25 @@
   .dk-auf.da .sx-skala-zeiger { animation: none !important; left: 91%; }
   .dk-auf.da .sx-rate .balken::after { animation: none !important; transform: translateY(0); }
 }
+
+/* 03.09.2026 (E-092): Fragen im Hilfe-Center sind Schaltflächen, keine Überschriften.
+   Die Schrift ist dieselbe wie bei .wz-frage h3 in ratgeber.css — die Seite sieht
+   unverändert aus, hat aber 37 Überschriften weniger und ist mit der Tastatur bedienbar. */
+.wz-frage-knopf {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font: 400 19px/1.3 'Inter', sans-serif;
+  color: #0f172a;
+  letter-spacing: -.015em;
+}
+.wz-frage-knopf:focus-visible {
+  outline: 2px solid #1d4ed8;
+  outline-offset: 3px;
+  border-radius: 4px;
+}

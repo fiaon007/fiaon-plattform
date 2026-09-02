@@ -18,16 +18,15 @@ const esc = (s: string) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, 
 // schickte Google also erst durch eine Umleitung. Eine Adresse, eine Wahrheit.
 import { BASIS, beschreibungKuerzen, organisationLd, indexHtml, kopfEinsetzen, seoRahmen, VORAB_STIL } from "./fiaon-seiten-seo";
 import { SEO_SEITEN } from "@shared/fiaon-seo-seiten";
+import { titelMitMarke } from "@shared/fiaon-pixel";
 
 // Titel für die Trefferliste: höchstens 60 Zeichen. Der Report vom 02.09.
 // fand 20 Artikel „zu lang" — jeder trug „· FIAON Ratgeber" (17 Zeichen)
 // hinter einem ohnehin 50–65 Zeichen langen Titel. Jetzt: die Marke nur,
 // wenn sie noch hineinpasst; ein bereits enthaltenes „| FIAON" wird nicht
 // verdoppelt.
-export function ratgeberTitel(roh: string): string {
-  const t = String(roh ?? "").replace(/\s*[|·—-]\s*FIAON( Ratgeber)?\s*$/i, "").trim();
-  return t.length <= 51 ? `${t} | FIAON` : t;
-}
+/** Titel für die Trefferliste: Marke nur, wenn sie in die Pixelbreite passt. */
+export const ratgeberTitel = (roh: string) => titelMitMarke(roh);
 
 export async function ratgeberSeitenHtml(slug: string | null): Promise<string | null> {
   const html = indexHtml(); if (!html) return null;

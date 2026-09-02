@@ -5,8 +5,13 @@
 // das Monogramm auf Glas — so bricht nichts, bis die Bilder da sind.
 // Wird auf /team (ausführlich) und /investoren („Wer das baut", kompakt) gezeigt.
 // ═══════════════════════════════════════════════════════════════════════════
+// 02.09.2026: zweisprachig — Namen, Kontakte und Fotos bleiben hier (eine
+// Quelle); die Texte je Person kommen aus client/src/i18n/team.ts in der
+// Sprache der Adresse (useWoerter).
 import { useState } from "react";
 import { Auf, Glas } from "./DunkleBuehne";
+import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
+import { TEAM_WOERTER } from "@/i18n/team";
 
 export const PERSONEN = [
   {
@@ -74,6 +79,7 @@ function Portrait({ kuerzel, name, gross = false }: { kuerzel: string; name: str
 
 /** kompakt: drei Karten nebeneinander (Investoren-Seite). Sonst: ausführlich mit Text, Kontakt und Investor. */
 export function Team({ kompakt = false }: { kompakt?: boolean }) {
+  const t = useWoerter(TEAM_WOERTER);
   return (
     <>
       <div className="dk-raster" style={{ marginTop: 48 }}>
@@ -81,9 +87,9 @@ export function Team({ kompakt = false }: { kompakt?: boolean }) {
           <Auf key={p.kuerzel} verzoegerung={i * 90}>
             <Glas ruhig style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: kompakt ? "flex-start" : "center", textAlign: kompakt ? "left" : "center" }}>
               <Portrait kuerzel={p.kuerzel} name={p.name} gross={!kompakt} />
-              <span className="tag" style={{ marginTop: 18 }}>{p.rolle}</span>
+              <span className="tag" style={{ marginTop: 18 }}>{t.personen[p.kuerzel]?.rolle ?? p.rolle}</span>
               <h3 className="dk-h3">{p.name}</h3>
-              <p className="dk-text" style={{ marginTop: 10 }}>{kompakt ? p.kurz : p.lang}</p>
+              <p className="dk-text" style={{ marginTop: 10 }}>{kompakt ? (t.personen[p.kuerzel]?.kurz ?? p.kurz) : (t.personen[p.kuerzel]?.lang ?? p.lang)}</p>
               {!kompakt && (
                 <p style={{ marginTop: "auto", paddingTop: 18, fontSize: 14, display: "grid", gap: 4 }}>
                   <a href={`mailto:${p.email}`} style={{ color: "#93c5fd", textDecoration: "none" }}>{p.email}</a>
@@ -98,9 +104,9 @@ export function Team({ kompakt = false }: { kompakt?: boolean }) {
         <Auf verzoegerung={200}>
           <div className="dk-glas ruhig team-investor" style={{ marginTop: 24 }}>
             <div>
-              <span className="tag">Investor und Partner</span>
+              <span className="tag">{t.investorTag}</span>
               <h3 className="dk-h3">{INVESTOR.name}</h3>
-              <p className="dk-text" style={{ marginTop: 8 }}>{INVESTOR.text}</p>
+              <p className="dk-text" style={{ marginTop: 8 }}>{t.investorText}</p>
             </div>
             <div className="dk-leise adresse" style={{ lineHeight: 1.7 }}>
               {INVESTOR.adresse.map((z) => <div key={z}>{z}</div>)}
@@ -111,7 +117,7 @@ export function Team({ kompakt = false }: { kompakt?: boolean }) {
       )}
       {kompakt && (
         <Auf verzoegerung={280}>
-          <p className="dk-leise" style={{ marginTop: 20 }}>Investor und Partner: <span style={{ color: "#e5e7eb" }}>{INVESTOR.name}</span>, Zürich – hat den Aufbau ermöglicht.</p>
+          <p className="dk-leise" style={{ marginTop: 20 }}>{t.investorKompaktA}<span style={{ color: "#e5e7eb" }}>{INVESTOR.name}</span>{t.investorKompaktB}</p>
         </Auf>
       )}
     </>
@@ -125,6 +131,8 @@ const BEREICH_SATZ: Record<string, string> = {
   "Forderungsmanagement": "Begleitet Raten und Fristen, findet Lösungen mit Kunden und Gläubigern, bevor etwas platzt.",
 };
 export function Mitarbeiter() {
+  const t = useWoerter(TEAM_WOERTER);
+  const sprache = useSprache();
   return (
     <div className="team-ma">
       {MITARBEITER.map((m, i) => (
@@ -132,23 +140,23 @@ export function Mitarbeiter() {
           <Glas ruhig className="team-ma-karte">
             <div className="team-ma-bild"><Portrait kuerzel={m.kuerzel} name={m.name} gross /></div>
             <div className="team-ma-text">
-              <span className="tag">{m.rolle}</span>
+              <span className="tag">{t.mitarbeiter[m.kuerzel]?.rolle ?? m.rolle}</span>
               <h3 className="dk-h3">{m.name}</h3>
-              <p className="team-ma-titel">{m.titel}</p>
-              <p className="dk-text">{m.text}</p>
+              <p className="team-ma-titel">{t.mitarbeiter[m.kuerzel]?.titel ?? m.titel}</p>
+              <p className="dk-text">{t.mitarbeiter[m.kuerzel]?.text ?? m.text}</p>
             </div>
           </Glas>
         </Auf>
       ))}
       <Auf verzoegerung={MITARBEITER.length * 70}>
-        <a href="/karriere" className="dk-glas team-ma-karte team-ma-du">
-          <div className="team-ma-bild"><span className="team-ma-platz" aria-hidden="true">Sie?</span></div>
+        <a href={inSprache("/karriere", sprache)} className="dk-glas team-ma-karte team-ma-du">
+          <div className="team-ma-bild"><span className="team-ma-platz" aria-hidden="true">{t.duPlatz}</span></div>
           <div className="team-ma-text">
-            <span className="tag">Offene Plätze</span>
-            <h3 className="dk-h3">Möchten Sie auch hier stehen?</h3>
-            <p className="team-ma-titel">Fest oder frei, remote in Deutschland, Österreich und der Schweiz</p>
-            <p className="dk-text">Ein junges Legal- und FinTech auf dem Weg zum Unicorn sucht Menschen für Vertrieb, Onboarding, Forderungsmanagement, Kundenservice, Produkt, Marketing und Recht. Bewerbung in vier Schritten.</p>
-            <span className="dk-knopf" style={{ marginTop: 18 }}>Bereiche ansehen</span>
+            <span className="tag">{t.duTag}</span>
+            <h3 className="dk-h3">{t.duTitel}</h3>
+            <p className="team-ma-titel">{t.duUntertitel}</p>
+            <p className="dk-text">{t.duText}</p>
+            <span className="dk-knopf" style={{ marginTop: 18 }}>{t.duKnopf}</span>
           </div>
         </a>
       </Auf>

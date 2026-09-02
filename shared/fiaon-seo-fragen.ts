@@ -9,7 +9,7 @@
 // Neu erzeugen:   npx tsx scripts/seo-fragen-erzeugen.ts
 // Nur prüfen:     npx tsx scripts/seo-fragen-erzeugen.ts --pruefen
 //
-// Seiten: / (6), /was-ist-fiaon (6), /en/what-is-fiaon (1), /privatkunden (8), /en/personal (1), /business (5), /en/business (3), /preise (6), /en/pricing (1), /en (1), /kreditkarte (5), /en/credit-card (1), /oesterreich (5), /schweiz (5), /sicherheit (10), /kontakt (3), /karriere (5), /partner (3), /presse (3), /investoren (4), /datenraum (3), /plattform-konzept (5), /fiaon-erfahrungen (8), /termin (6), /vergleich (5), /ueber-uns (5), /transparenz (4), /status (5), /werkzeuge (4), /werkzeuge/kreditrechner (5), /werkzeuge/umschuldung (5), /werkzeuge/schulden-check (5), /werkzeuge/widerspruch (5), /werkzeuge/mahnbescheid (5), /werkzeuge/ratenplan (5), /werkzeuge/inkasso-antwort (5), /werkzeuge/basiskonto (5), /werkzeuge/pfaendungsrechner (5), /werkzeuge/dispo-rechner (5), /werkzeuge/mahngebuehren (5), /werkzeuge/kartenkosten (5), /werkzeuge/schuldenplan (5), /kredit-ohne-schufa (6), /schufa-eintrag-loeschen (5), /bonitaet-verbessern (6), /auskunfteien (5), /schufa-score-verstehen (6), /bonitaetsauskunft-beantragen (7), /inkasso-brief-erhalten (6), /eintrag-verjaehrung (6), /girokonto-trotz-negativer-bonitaet (7), /ratenzahlung-und-bonitaet (6), /selbstauskunft-checkliste (6), /schufa-neutral-anfragen (6)
+// Seiten: / (6), /was-ist-fiaon (6), /en/what-is-fiaon (6), /privatkunden (8), /en/personal (8), /business (5), /en/business (5), /preise (6), /en/pricing (6), /en (4), /kreditkarte (5), /en/credit-card (5), /oesterreich (5), /schweiz (5), /sicherheit (10), /kontakt (3), /karriere (5), /partner (3), /presse (3), /investoren (4), /datenraum (3), /plattform-konzept (5), /fiaon-erfahrungen (8), /termin (6), /vergleich (5), /ueber-uns (5), /en/about (5), /transparenz (4), /status (5), /werkzeuge (4), /werkzeuge/kreditrechner (5), /werkzeuge/umschuldung (5), /werkzeuge/schulden-check (5), /werkzeuge/widerspruch (5), /werkzeuge/mahnbescheid (5), /werkzeuge/ratenplan (5), /werkzeuge/inkasso-antwort (5), /werkzeuge/basiskonto (5), /werkzeuge/pfaendungsrechner (5), /werkzeuge/dispo-rechner (5), /werkzeuge/mahngebuehren (5), /werkzeuge/kartenkosten (5), /werkzeuge/schuldenplan (5), /kredit-ohne-schufa (6), /schufa-eintrag-loeschen (5), /bonitaet-verbessern (6), /auskunfteien (5), /schufa-score-verstehen (6), /bonitaetsauskunft-beantragen (7), /inkasso-brief-erhalten (6), /eintrag-verjaehrung (6), /girokonto-trotz-negativer-bonitaet (7), /ratenzahlung-und-bonitaet (6), /selbstauskunft-checkliste (6), /schufa-neutral-anfragen (6)
 // ═══════════════════════════════════════════════════════════════════════════
 export type SeoFrage = { f: string; a: string };
 
@@ -68,8 +68,28 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
   ],
   "/en/what-is-fiaon": [
     {
+      "f": "Is FIAON a bank?",
+      "a": "No. FIAON is not a credit institution and issues neither accounts nor cards. The respective partner bank always decides on the issue. FIAON prepares you and documents your credit file."
+    },
+    {
+      "f": "What makes FIAON different from a score app?",
+      "a": "A score app shows a number. FIAON obtains the report, explains every entry, prepares the letter and sends it after your approval — and tracks the reply. Displaying is the first layer. FIAON has three."
+    },
+    {
+      "f": "Who reviews the letters?",
+      "a": "Every letter type is approved and versioned by the legal team. No letter goes out that has not been reviewed — and none without your approval."
+    },
+    {
       "f": "Which countries does this apply to?",
       "a": "Germany (SCHUFA), Austria (KSV) and Switzerland (CRIF). The platform recognises your country and makes the request to the right credit bureau."
+    },
+    {
+      "f": "What does FIAON cost?",
+      "a": "Plans from €7.99 a month, twelve instalments by SEPA direct debit, then you decide whether to stay. Just the report? €74 one-off."
+    },
+    {
+      "f": "Where is my data held?",
+      "a": "Encrypted on servers in the EU, GDPR-compliant. You decide what you upload and can have it deleted at any time."
     }
   ],
   "/privatkunden": [
@@ -110,6 +130,34 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     {
       "f": "Am I guaranteed a credit card?",
       "a": "No — the bank decides on card and limit. What FIAON does: put your file in order, calculate your readiness and prepare the application when it is realistic. Every customer gets a current account."
+    },
+    {
+      "f": "How quickly do I see my report?",
+      "a": "Usually within 24 hours of activation. FIAON makes the request to SCHUFA, KSV or CRIF with your authorisation — you fill in no forms."
+    },
+    {
+      "f": "What happens if an entry is justified?",
+      "a": "Then we say so. Justified entries disappear once the claim is settled and the deadline expires — since 2024 already after 18 months if you pay within 100 days of the report. FIAON helps with instalment agreements and the settled marker."
+    },
+    {
+      "f": "What does it cost — and how long am I tied in?",
+      "a": "Plans from €7.99 a month, twelve instalments by direct debit. After the twelfth we ask whether you want to stay. Just the report: €74.00 one-off."
+    },
+    {
+      "f": "Can I change the plan later?",
+      "a": "Yes — directly in the application, and in the onboarding call we check together whether it fits."
+    },
+    {
+      "f": "Does this also apply in Austria and Switzerland?",
+      "a": "Yes. FIAON works with KSV1870 and CRIF (Austria) and with CRIF and Intrum (Switzerland). The rights under the GDPR and the Swiss DSG are comparable, the deadlines differ — we know both."
+    },
+    {
+      "f": "What does FIAON need from me?",
+      "a": "Only a few details for the application. Then your ID and bank statements for the last three months — a phone photo is enough. FIAON obtains the report."
+    },
+    {
+      "f": "How do I reach my contact person?",
+      "a": "In your area, by e-mail, by phone — and for many customers by WhatsApp. Every question lands with the person who knows your file."
     }
   ],
   "/business": [
@@ -136,8 +184,16 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
   ],
   "/en/business": [
     {
+      "f": "Does FIAON guarantee a card limit?",
+      "a": "No. The issuer decides on card and limit. FIAON makes sure the report and documents are such that the decision can be positive — and prepares increases."
+    },
+    {
       "f": "My company is young — does it still work?",
       "a": "Yes. With young companies the owners' credit file counts. FIAON obtains both reports, separates private and business and starts with a limit that grows."
+    },
+    {
+      "f": "What does it cost — and are there hidden fees?",
+      "a": "The plans range from Business Starter to Business Enterprise depending on the tier, twelve instalments. Card fees are set by the issuer; FIAON tells you beforehand. No commission on limits."
     },
     {
       "f": "Which cards are possible?",
@@ -176,14 +232,46 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
   ],
   "/en/pricing": [
     {
+      "f": "Can I cancel at any time?",
+      "a": "Yes — at any time to the end of the current month, informally and without giving a reason: in your customer area under Subscription & payments or by e-mail. The plan is set up for twelve instalments because reports, letters and replies take time — but nobody is tied in. The statutory 14-day right of withdrawal applies in addition."
+    },
+    {
+      "f": "Is the report credited if I choose a plan later?",
+      "a": "Yes. If you buy the report on its own first and choose a plan within 30 days, the amount is credited against the first instalment. Say so in the onboarding call or in your customer area — your contact person records it."
+    },
+    {
       "f": "Are there fees per letter or success commissions?",
       "a": "No. Neither per letter nor on deletions, accounts or card limits. The plan price is the price. Registered-letter postage, follow-up, escalation — all included."
+    },
+    {
+      "f": "How do I pay?",
+      "a": "First instalment by bank transfer (payment details with a QR code in your customer area), then SEPA direct debit through a verified creditor at the start of each month. No credit card needed, no payment in advance for services not yet delivered."
+    },
+    {
+      "f": "Can I change plans?",
+      "a": "In the application, in the onboarding call and upwards at any time afterwards; downwards from the next instalment cycle. The plan finder on this page gives a first orientation — the final choice is discussed in the onboarding call."
+    },
+    {
+      "f": "What if all my entries are justified?",
+      "a": "Then we tell you so after the report — and you decide whether to continue. Even with justified entries there is a way forward: settled markers, instalment agreements with a waiver of reporting, the current account, your payment history. Only deletion is off the table then, and we do not promise it."
     }
   ],
   "/en": [
     {
+      "f": "Is FIAON available in English?",
+      "a": "The website is being translated page by page; the application and the customer area are currently in German. Our team speaks English on the phone and by e-mail."
+    },
+    {
       "f": "Which credit bureaus does FIAON work with?",
       "a": "SCHUFA in Germany, KSV1870 and CRIF in Austria, CRIF and Intrum in Switzerland — always with your written authorisation."
+    },
+    {
+      "f": "Can I cancel?",
+      "a": "Yes, at any time to the end of the current month, informally. The plan runs for twelve instalments; after that we ask you whether you want to stay — no silent renewal."
+    },
+    {
+      "f": "How long does a settled debt stay on file?",
+      "a": "Under the credit bureaus' code of conduct, three years after settlement to the day; if you settle within 100 days of the entry and have no other entries, 18 months. FIAON tracks the exact date for every entry."
     }
   ],
   "/kreditkarte": [
@@ -210,8 +298,24 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
   ],
   "/en/credit-card": [
     {
+      "f": "Can I get a credit card with an open entry?",
+      "a": "With a limit, practically never. A debit or prepaid card, yes — and in parallel the entry should be checked: is it justified? When does the deadline expire? The block is often shorter than you think."
+    },
+    {
+      "f": "How high is the limit at the start?",
+      "a": "With settled entries or a short history usually €500 to €2,000. After six months of statements settled on time, issuers review. The card partner's threshold is €25,000."
+    },
+    {
+      "f": "Does the card application hurt my report?",
+      "a": "A credit enquiry is stored for twelve months and visible to others for ten days. That is why FIAON only applies once the report supports it — and never several at once."
+    },
+    {
       "f": "Which card do I get through FIAON?",
       "a": "A credit card from a card partner, Mastercard or Visa depending on your profile, with a monthly statement. Which one exactly is settled in the onboarding call on the basis of your report."
+    },
+    {
+      "f": "What does the card cost?",
+      "a": "The card fee is set by the issuer and named beforehand. FIAON takes no commission on card or limit — the plan price is the price."
     }
   ],
   "/oesterreich": [
@@ -520,6 +624,28 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     {
       "f": "Warum führt FIAON ein öffentliches Entscheidungsregister?",
       "a": "Weil ein Unternehmen, das jederzeit geprüft werden kann, besser geführt wird. Jede Entscheidung mit Datum, Alternativen und Begründung; jeder Tag im Logbuch. Investoren sehen es im Datenraum, Kunden merken es daran, dass Regeln nicht über Nacht wechseln."
+    }
+  ],
+  "/en/about": [
+    {
+      "f": "Why is FIAON based in London when the customers are in Germany, Austria and Switzerland?",
+      "a": "The company was founded as FIAON LTD at Companies House (Company No. 17318250) — quick, transparent and with publicly available filings. Operations, team and servers are in the DACH region: servers in Frankfurt, support on a Swiss number, customers in three countries. A company in the EEA is being prepared."
+    },
+    {
+      "f": "Who is behind FIAON?",
+      "a": "Founder and managing director Justin Schwarzott; Florentine Lombardi (people and onboarding) and Daniel Stripling (sales) as shareholders in day-to-day operations; a team in sales, onboarding and collections — many of them former customers themselves. Investor and partner: Schwarzott Capital Partners AG, Zurich. Names and faces are on the team page."
+    },
+    {
+      "f": "Is FIAON a bank, a debt collector or a law firm?",
+      "a": "None of those. FIAON is a credit platform: obtain and explain the report, challenge entries under the GDPR and Section 31 BDSG, negotiate instalments, prepare account and card with the partner institution. No legal advice in individual cases, no credit brokerage, no accounts of its own."
+    },
+    {
+      "f": "How does FIAON make money?",
+      "a": "With fixed prices: the credit report (€74 one-off) and plans over twelve monthly instalments. No success fee, no fee per letter. Through partner banks a fee per account introduced may be added later — that is stated openly on the partner page."
+    },
+    {
+      "f": "Why does FIAON keep a public decision register?",
+      "a": "Because a company that can be audited at any time is run better. Every decision with date, alternatives and reasoning; every day in the logbook. Investors see it in the data room; customers notice it in rules that do not change overnight."
     }
   ],
   "/transparenz": [

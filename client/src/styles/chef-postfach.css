@@ -1,0 +1,159 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   DAS POSTFACH (03.09.2026, E-094)
+
+   Justin: „die Ansicht VIEL cleaner, weg mit dem 3D-Video […] es muss aussehen
+   wie ein E-Mail-Postfach, was eben voll automatisch von unseren Mitarbeitern
+   betreut wird."
+
+   Deshalb: keine Bühne, keine Partikel, kein Leuchten. Drei Spalten wie in
+   jedem Postfach — Ordner, Liste, Nachricht. Farbe trägt nur Bedeutung:
+   Blau = anklickbar, Bernstein = braucht dich, Rot = Geld fehlt, Grün = erledigt.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.pf {
+  --pf-linie: rgba(255, 255, 255, .09);
+  --pf-linie-stark: rgba(255, 255, 255, .16);
+  --pf-flaeche: rgba(255, 255, 255, .03);
+  --pf-flaeche-hoch: rgba(255, 255, 255, .06);
+  --pf-text: #e8eef8;
+  --pf-leise: #93a2b8;
+  --pf-blau: #3b82f6;
+  --pf-blau-hell: #93c5fd;
+  --pf-bernstein: #f5a524;
+  --pf-rot: #f87171;
+  --pf-gruen: #4ade80;
+  display: grid;
+  grid-template-columns: 208px 360px 1fr;
+  gap: 0;
+  height: calc(100dvh - 132px);
+  min-height: 560px;
+  border: 1px solid var(--pf-linie);
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgba(10, 18, 32, .5);
+  color: var(--pf-text);
+  font-size: 14px;
+}
+
+/* ── Kopfzeile über allem ─────────────────────────────────────────────── */
+.pf-kopf {
+  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  padding: 12px 16px; margin-bottom: 12px;
+  border: 1px solid var(--pf-linie); border-radius: 12px;
+  background: rgba(15, 23, 42, .55); backdrop-filter: blur(10px);
+}
+.pf-kopf h1 { margin: 0; font: 300 20px/1.2 inherit; letter-spacing: -.01em; }
+.pf-kopf .pf-zahl { display: flex; flex-direction: column; line-height: 1.15; }
+.pf-kopf .pf-zahl b { font: 600 17px/1 inherit; font-variant-numeric: tabular-nums; }
+.pf-kopf .pf-zahl span { font-size: 11.5px; color: var(--pf-leise); }
+.pf-kopf .pf-rechts { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+
+/* ── Spalte 1: Ordner ─────────────────────────────────────────────────── */
+.pf-ordner { border-right: 1px solid var(--pf-linie); padding: 10px 8px; overflow-y: auto; }
+.pf-ordner button {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 8px 10px; margin-bottom: 2px; border: 0; border-radius: 8px;
+  background: transparent; color: var(--pf-text); font: 500 13.5px/1.2 inherit;
+  text-align: left; cursor: pointer;
+}
+.pf-ordner button:hover { background: var(--pf-flaeche); }
+.pf-ordner button[aria-current="true"] { background: var(--pf-flaeche-hoch); color: #fff; }
+.pf-ordner button .n { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--pf-leise); font-size: 12px; }
+.pf-ordner button[aria-current="true"] .n { color: var(--pf-blau-hell); }
+.pf-ordner .pf-trenn { height: 1px; background: var(--pf-linie); margin: 10px 6px; }
+.pf-ordner .pf-titel { font: 600 10.5px/1 inherit; letter-spacing: .1em; text-transform: uppercase; color: var(--pf-leise); padding: 10px 10px 6px; }
+
+/* ── Spalte 2: Liste ──────────────────────────────────────────────────── */
+.pf-liste { border-right: 1px solid var(--pf-linie); display: flex; flex-direction: column; min-width: 0; }
+.pf-suche { padding: 10px; border-bottom: 1px solid var(--pf-linie); }
+.pf-suche input {
+  width: 100%; padding: 8px 11px; border-radius: 8px;
+  border: 1px solid var(--pf-linie-stark); background: rgba(2, 6, 23, .45);
+  color: var(--pf-text); font: 400 13.5px/1.3 inherit;
+}
+.pf-suche input::placeholder { color: var(--pf-leise); }
+.pf-rollen { flex: 1; overflow-y: auto; }
+.pf-zeile {
+  display: block; width: 100%; text-align: left; padding: 11px 13px;
+  border: 0; border-bottom: 1px solid var(--pf-linie); background: transparent;
+  color: var(--pf-text); cursor: pointer; position: relative;
+}
+.pf-zeile:hover { background: var(--pf-flaeche); }
+.pf-zeile[aria-current="true"] { background: var(--pf-flaeche-hoch); }
+.pf-zeile[aria-current="true"]::before {
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--pf-blau);
+}
+.pf-zeile .z1 { display: flex; align-items: baseline; gap: 8px; margin-bottom: 3px; }
+.pf-zeile .name { font: 600 13.5px/1.3 inherit; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pf-zeile .zeit { margin-left: auto; font-size: 11.5px; color: var(--pf-leise); white-space: nowrap; }
+.pf-zeile .betreff { font: 400 13px/1.35 inherit; color: var(--pf-text); margin-bottom: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pf-zeile .vorschau { font-size: 12.5px; color: var(--pf-leise); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.pf-zeile .marken { display: flex; gap: 5px; margin-top: 6px; flex-wrap: wrap; }
+.pf-auswahl { position: absolute; right: 10px; top: 10px; }
+
+.pf-marke {
+  font: 600 10px/1 inherit; letter-spacing: .05em; text-transform: uppercase;
+  padding: 4px 6px; border-radius: 4px; white-space: nowrap;
+}
+.pf-marke.warn { background: rgba(245, 165, 36, .16); color: var(--pf-bernstein); }
+.pf-marke.rot { background: rgba(248, 113, 113, .15); color: var(--pf-rot); }
+.pf-marke.gruen { background: rgba(74, 222, 128, .14); color: var(--pf-gruen); }
+.pf-marke.leise { background: var(--pf-flaeche-hoch); color: var(--pf-leise); }
+
+/* ── Spalte 3: Nachricht und Antwort ──────────────────────────────────── */
+.pf-brief { display: grid; grid-template-rows: auto 1fr; min-width: 0; overflow: hidden; }
+.pf-brief-kopf { padding: 14px 18px 10px; border-bottom: 1px solid var(--pf-linie); }
+.pf-brief-kopf h2 { margin: 0 0 4px; font: 500 16px/1.3 inherit; }
+.pf-brief-kopf .meta { font-size: 12.5px; color: var(--pf-leise); }
+.pf-inhalt { overflow-y: auto; padding: 16px 18px 22px; display: grid; gap: 16px; align-content: start; }
+.pf-block { border: 1px solid var(--pf-linie); border-radius: 10px; background: var(--pf-flaeche); }
+.pf-block > h3 {
+  margin: 0; padding: 9px 13px; font: 600 11px/1 inherit; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--pf-leise); border-bottom: 1px solid var(--pf-linie);
+}
+.pf-block .inhalt { padding: 13px; }
+.pf-kundentext { white-space: pre-wrap; font: 400 13.5px/1.65 inherit; color: var(--pf-text); max-height: 320px; overflow-y: auto; }
+.pf-verlauf { display: grid; gap: 10px; }
+.pf-verlauf .n { padding: 9px 11px; border-radius: 8px; background: rgba(2, 6, 23, .35); }
+.pf-verlauf .n.uns { background: rgba(59, 130, 246, .1); }
+.pf-verlauf .n .kopf { font-size: 11.5px; color: var(--pf-leise); margin-bottom: 4px; }
+.pf-verlauf .n .txt { font-size: 13px; line-height: 1.55; white-space: pre-wrap; max-height: 140px; overflow: hidden; }
+
+.pf-akte { display: grid; gap: 9px; font-size: 13px; }
+.pf-akte .reihe { display: flex; gap: 10px; align-items: baseline; }
+.pf-akte .reihe .k { color: var(--pf-leise); min-width: 108px; }
+.pf-akte .reihe .v { font-variant-numeric: tabular-nums; }
+
+.pf-antwort textarea {
+  width: 100%; min-height: 190px; padding: 13px; border-radius: 8px;
+  border: 1px solid var(--pf-linie-stark); background: rgba(2, 6, 23, .45) !important;
+  color: var(--pf-text) !important; font: 400 13.5px/1.65 inherit; resize: vertical;
+}
+.pf-tasten { display: flex; gap: 8px; flex-wrap: wrap; padding: 11px 13px; border-top: 1px solid var(--pf-linie); }
+.pf-knopf {
+  padding: 9px 15px; border-radius: 8px; border: 1px solid transparent;
+  font: 600 13px/1 inherit; cursor: pointer;
+  background: linear-gradient(180deg, #3b82f6, #2563eb); color: #fff;
+}
+.pf-knopf.leise { background: transparent; border-color: var(--pf-linie-stark); color: var(--pf-text); }
+.pf-knopf:disabled { opacity: .5; cursor: default; }
+.pf-handlung { display: flex; gap: 8px; align-items: baseline; font-size: 12.5px; padding: 5px 0; }
+.pf-handlung .w { color: var(--pf-blau-hell); font-weight: 600; }
+.pf-hinweis { font-size: 12.5px; color: var(--pf-leise); line-height: 1.5; }
+.pf-warnung { border-left: 2px solid var(--pf-bernstein); padding-left: 10px; color: var(--pf-bernstein); font-size: 12.5px; }
+.pf-leer { padding: 40px 20px; text-align: center; color: var(--pf-leise); font-size: 13.5px; }
+
+@media (max-width: 1180px) {
+  .pf { grid-template-columns: 168px 300px 1fr; }
+}
+@media (max-width: 900px) {
+  .pf { grid-template-columns: 1fr; height: auto; min-height: 0; }
+  .pf-ordner { border-right: 0; border-bottom: 1px solid var(--pf-linie); display: flex; gap: 4px; overflow-x: auto; }
+  .pf-ordner button { width: auto; white-space: nowrap; }
+  .pf-ordner .pf-titel, .pf-ordner .pf-trenn { display: none; }
+  .pf-liste { border-right: 0; border-bottom: 1px solid var(--pf-linie); max-height: 380px; }
+  .pf-brief { min-height: 420px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .pf-zeile, .pf-knopf { transition: background-color .14s ease, opacity .14s ease; }
+}

@@ -514,6 +514,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonFirmenRoutes = await import('./routes/fiaon-firmen');
   app.use('/api/fiaon', fiaonFirmenRoutes.default);
 
+  // 📬 Postmeister-Zentrale (E-094): das Postfach, das die Menschen bedienen.
+  const fiaonPostmeisterZentrale = await import('./routes/fiaon-postmeister-zentrale');
+  app.use('/api/fiaon', fiaonPostmeisterZentrale.default);
+
   // 📄 Kündigungen (E-092): ein Ort für Formular, Mail und Telefon.
   const fiaonKuendigungRoutes = await import('./routes/fiaon-kuendigung');
   app.use('/api/fiaon', fiaonKuendigungRoutes.default);

@@ -2661,12 +2661,38 @@ router.post("/admin/team/betreuer-zurueckgeben", async (req: Request, res: Respo
   try {
     const schreiben = req.body?.schreiben === true;
     const zeilen = (await sqlPool`
-      WITH kontakt AS (
+      -- ── WAS ALS BETREUUNG ZÄHLT (03.09.2026, in der Vorschau gefunden) ──
+      -- Der erste Entwurf nahm einfach den ältesten dokumentierten Kontakt.
+      -- Die Vorschau zeigte, wohin das führt: Hans-Jürgen Gerhold hätte 42
+      -- Kunden bekommen, Diana Zeller 12 — beide arbeiten im
+      -- Forderungsmanagement. In der Datenbank stehen sie als 'agent', die
+      -- Rollenabfrage allein fängt sie also nicht.
+      --
+      -- Zwei Bedingungen trennen Betreuung von Mahnung, beide gemessen:
+      --   · Kein 'rate_%'-Ergebnis. Die vier Arten (rate_eskalation,
+      --     rate_nicht_erreicht, rate_ueberwiesen_beleg, rate_zahlt_am) sind
+      --     ausnahmslos Mahnkontakte.
+      --   · Der Kontakt lag VOR der ersten Zahlung (plus ein Tag Luft für
+      --     denselben Werktag). Betreuung beginnt vor dem Geld; was danach
+      --     kommt, ist Nachverfolgung. Bei 32 von Hans-Jürgens Fällen lag der
+      --     erste Kontakt nach der Zahlung des Kunden.
+      -- Wirkung: Hans-Jürgen 42 → 6, Betroffene 333 → 287, davon mit Mandat
+      -- 54 → 15. Wer wirklich verkauft hat, behält seinen Kunden.
+      WITH ersteZahlung AS (
+        SELECT person_id, MIN(completed_at) AS am
+          FROM fiaon_applications
+         WHERE payment_status = 'paid' AND merged_into IS NULL
+         GROUP BY person_id
+      ),
+      kontakt AS (
         SELECT a.person_id, cl.agent_id, cl.created_at,
                ROW_NUMBER() OVER (PARTITION BY a.person_id ORDER BY cl.created_at ASC) AS rn
           FROM fiaon_contact_log cl
           JOIN fiaon_applications a ON a.ref = cl.ref
+          LEFT JOIN ersteZahlung z ON z.person_id = a.person_id
          WHERE cl.type = 'result' AND cl.voided_at IS NULL AND cl.agent_id IS NOT NULL
+           AND COALESCE(cl.outcome, '') NOT LIKE 'rate_%'
+           AND (z.am IS NULL OR cl.created_at <= z.am + INTERVAL '1 day')
       ),
       erster AS (SELECT person_id, agent_id, created_at FROM kontakt WHERE rn = 1)
       SELECT p.id AS person_id, p.first_name, p.last_name,

@@ -288,6 +288,14 @@ export async function mailDirektSenden(
         textContent: mail.text,
         // Für Auswertungen in Brevo: welche Mail welches Ereignis war.
         tags: [event],
+        // One-Click-Abmeldung (RFC 8058): Trägt die Nutzlast einen Abmeldelink,
+        // bekommt der Postfach-Anbieter die Kopfzeilen, um den Abmeldeknopf
+        // oben zu zeigen — sonst klicken Menschen „Spam“, und das trifft die
+        // Domain für alle Mails des Hauses (Prüfung 02.09.2026).
+        ...(String((payload as any)?.abmelde_url || "") ? { headers: {
+          "List-Unsubscribe": `<${String((payload as any).abmelde_url)}>, <mailto:${mail.absender.email}?subject=Stopp>`,
+          "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+        } } : {}),
       }),
       signal: AbortSignal.timeout(15_000),
     });

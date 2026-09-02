@@ -57,9 +57,9 @@ const SEGMENT_TEXT: Record<SegmentKey, { titel: string; satz: string; beleg: str
     beleg: "Die ersten 3 Mails bringen 75 von 116 Zahlern — hier ist die Botschaft noch neu.",
   },
   s5_altbestand: {
-    titel: "Altbestand — letzte Mail", event: "rueckhol_s5",
-    satz: "Hat die volle Kette bekommen. Genau EINE würdige Abschlussmail mit echtem Ausstieg, dann Ruhe.",
-    beleg: "Ab Mahnung 6 ist die Ausbeute null (12.260 Mails → 5 Zahler). Unumkehrbar — Standard AUS.",
+    titel: "Dauerpflege", event: "rueckhol_s5",
+    satz: "Wer seine Segmentstrecke durch hat, bekommt alle 28 Tage eine Wiedereinstiegs-Mail mit wechselndem Blickwinkel — ohne Ende, bis Kunde oder Stopp.",
+    beleg: "Niemand fällt aus dem Marketing (Justin, 02.09.). Zahl = heute versandfertig; Abstand über rueckhol_dauerpflege_abstand_tage (min. 21).",
   },
 };
 
@@ -215,6 +215,7 @@ export default function ChefRueckholung() {
             ["frequenz_pro_monat", "Je Empfänger: pro 30 Tage", "Standard 8. Ab Mail 6 verdoppelt sich die Blockquote — 8 ist die Oberkante."],
             ["max_reminders", "Mahnungen je Bestellung (Kette)", "Steht live auf 60. Die Messung sagt: Ab Mahnung 6 ist die Ausbeute null. Empfehlung: 6."],
             ["mahn_takte_pro_tag", "Mahnläufe pro Tag", "2 = zweimal täglich dieselben Leute. Empfehlung: 1."],
+            ["rueckhol_dauerpflege_abstand_tage", "Dauerpflege: Tage zwischen zwei Mails", "Standard 28, Minimum 21 (sonst kollidiert es mit dem Monatsdeckel der Bremse)."],
           ] as const).map(([key, label, satz]) => (
             <label key={key} className="cr-schalter-feld">
               <span className="cr-schalter-label">{label}</span>

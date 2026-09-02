@@ -1,9 +1,9 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// VORLAGEN: DIE RÜCKHOLUNG (5) — offene Anträge, ein letztes Mal richtig
+// VORLAGEN: DIE RÜCKHOLUNG (4 + 4) — offene Anträge, bis Kunde oder Stopp
 //
 // Schreibregeln: siehe konto.ts. Diese Datei folgt ihnen unverändert.
 //
-// ── WARUM ES DIESE FÜNF GIBT UND NICHT EINE MAHNKETTE ─────────────────────
+// ── WARUM ES DIESE VORLAGEN GIBT UND NICHT EINE MAHNKETTE ─────────────────
 // Auszählung vom 01./02.09.2026 über den gesamten offenen Bestand
 // (2.001 Anträge, 96.840 € Auftragswert). Nichts hier ist geschätzt:
 //
@@ -16,38 +16,69 @@
 // · DER TERMIN IST DAS EINZIGE, WAS WIRKT: 9,88 % gegen 1,66 % ohne Termin,
 //   Faktor 6,0, p = 0,0002. Und es wirkt die BUCHUNG, nicht das Gespräch —
 //   ein verpasster Termin bringt fast so viel wie ein wahrgenommener.
-//   DESHALB: Der Handlungsaufruf jeder dieser fünf Mails ist ein Termin.
-//   Keine dieser Vorlagen sagt „jetzt bezahlen“, keine nennt Bankdaten.
-//   Wer Bankdaten druckt, bietet die Handlung an, die gemessen nichts
-//   bringt, und verdrängt damit die, die um den Faktor 6 wirkt.
+//   DESHALB: Der Handlungsaufruf JEDER Mail hier ist ein Termin. Keine
+//   Vorlage sagt „jetzt bezahlen“, keine nennt Bankdaten. Wer Bankdaten
+//   druckt, bietet die Handlung an, die gemessen nichts bringt, und
+//   verdrängt damit die, die um den Faktor 6 wirkt.
 // · ALTER SORTIERT NICHT. 70 % aller Zahlungen fallen in die ersten drei
 //   Tage nach Antragstellung (Median 3,1 Tage); ab Tag 7 ist ein Antrag
 //   konstant rund 0,2 % je vier Tage wert. Ein 14 Tage alter Fall ist genau
 //   so viel wert wie ein 90 Tage alter — die Segmente unten sortieren nach
 //   LAGE, nicht nach Datum.
 //
-// ── DIE ZUSTELLUNG IST DIE KNAPPE RESSOURCE ───────────────────────────────
-// Der Blockquote steigt wöchentlich: 9,5 → 11,9 → 15,7 %. Gmail blockt
-// 16,9 % und bewertet domainweit — jede überflüssige Mail verteuert alle
-// folgenden. Deshalb ist jedes Segment auf EINEN Versand ausgelegt.
-// Die Frequenzbremse (server/lib/fiaon-mail-frequenz.ts, darfAnEmpfaenger)
-// hängt bereits an sendMakeWebhookMitGrund und greift automatisch;
-// diese Datei baut KEINE zweite Bremse und KEINEN zweiten Versandweg.
+// ── WARUM DAUERPFLEGE STATT „LETZTER MAIL“ (Justin, 02.09.2026, wörtlich) ─
+// „Es soll NIEMALS ein Kunde deaktiviert, ausgeschlossen werden — er
+// bekommt so lange Marketing bis er Kunde wird! AGRESSIV.“
+// Die Messung trägt das: Ein offener Antrag ist ab Tag 7 KONSTANT ~0,2 % je
+// vier Tage wert — er verfällt nicht, er wird nur nicht schlechter. Wer den
+// Kontakt einstellt, verschenkt diese 0,2 % jede Woche neu; wer den Termin
+// anbietet, hat den einzigen belegten Hebel in der Hand. Deshalb gibt es
+// keine Abschiedsmail mehr, sondern vier ROTIERENDE Wiedereinstiegs-Mails
+// (rueckhol_s5, s5b, s5c, s5d), jede aus einem anderen Blickwinkel, jede mit
+// Termin-Aufruf — bis der Mensch Kunde ist oder Stopp sagt.
 //
-// ── ZWEI BEDINGUNGEN, DIE VOR DEM ERSTEN VERSAND ERFÜLLT SEIN MÜSSEN ──────
-// 1. BUCHUNGSLAUF ZUERST. 61 Zahlungseingänge über 7.302 € liegen unverbucht
-//    (applied = false), acht davon mit Namenstreffer bei den Behauptern aus
-//    S2. Ohne vorherigen Buchungslauf schreibt rueckhol_s1/s2 an Menschen,
-//    deren Geld längst da ist — der teuerste denkbare Fehler.
+// WARUM 28 TAGE ABSTAND: Ab Stufe 6 bringt Mahnen null, und der Blockquote
+// steigt mit jeder überflüssigen Mail (9,5 → 11,9 → 15,7 % in drei Wochen;
+// Gmail bewertet DOMAINWEIT). Eine Mail im Monat je Empfänger bleibt unter
+// jeder Spam-Schwelle, bleibt in Erinnerung — und verdient über ein Jahr
+// dieselben 0,2 % je Kontakt, die eine Mahnwelle in drei Tagen verbrennt.
+// Der Abstand ist einstellbar (rueckhol_dauerpflege_abstand_tage), aber nie
+// unter 14 Tagen — darunter beginnt die Kette, die gemessen nichts bringt.
+//
+// WARUM STOPP ABSOLUT IST: „Aggressiv“ endet am Gesetz. Wer Stopp sagt,
+// widerspricht (UWG § 7, DSGVO Art. 21) — die Werbesperre an
+// fiaon_persons.werbung_gesperrt_am nimmt ihn aus der Grundmenge UND die
+// Frequenzbremse blockt ihn an der einen Tür. Deshalb steht der Stopp-Satz
+// in JEDER der vier Varianten, wörtlich und ohne Ausnahme. Gebouncte
+// Adressen bekommen ebenfalls nie wieder Post — dort kommt nichts an, und
+// jeder Versuch beschädigt die Zustellbarkeit aller anderen Mails.
+//
+// ── DIE ZUSTELLUNG IST DIE KNAPPE RESSOURCE ───────────────────────────────
+// S1–S4 sind auf höchstens ZWEI Versände je Person ausgelegt, die Dauer-
+// pflege auf EINEN je Abstand. Die Frequenzbremse (server/lib/
+// fiaon-mail-frequenz.ts, darfAnEmpfaenger) hängt bereits an
+// sendMakeWebhookMitGrund und greift automatisch (2/Tag, 4/Woche, 8/Monat
+// je Empfänger); diese Datei baut KEINE zweite Bremse und KEINEN zweiten
+// Versandweg.
+//
+// ── ZWEI BEDINGUNGEN, DIE VOR JEDEM VERSAND ERFÜLLT SEIN MÜSSEN ───────────
+// 1. BUCHUNGSLAUF ZUERST. 61 Zahlungseingänge über 7.302 € lagen am 02.09.
+//    unverbucht (applied = false), acht davon mit Namenstreffer bei den
+//    Behauptern aus S2. Ohne vorherigen Buchungslauf schreibt rueckhol_s1/s2
+//    an Menschen, deren Geld längst da ist — der teuerste denkbare Fehler.
 // 2. MAHNUNG AUS. 296 der 305 Behaupter wurden NACH ihrer Zahlungsmeldung
-//    weitergemahnt, im Schnitt 29,4-mal, 295 davon in den letzten drei Tagen.
-//    rueckhol_s2 sagt wörtlich, dass diese Erinnerungen gestoppt sind. Der
-//    Satz muss beim Versand wahr sein, sonst ist er die nächste Lüge.
+//    weitergemahnt, im Schnitt 29,4-mal. rueckhol_s2 sagt wörtlich, dass
+//    diese Erinnerungen gestoppt sind. Der Satz muss beim Versand wahr sein,
+//    sonst ist er die nächste Lüge.
 //
 // ── PLATZHALTER ───────────────────────────────────────────────────────────
 // Nur diese sechs, mehr liefert der Lauf nicht: vorname, paket, betrag,
 // payment_reference, termin_link, antrag_id. Ein leerer Platzhalter wird
 // weggelassen — ein erfundener bleibt für immer leer.
+// Die Dauerpflege-Varianten nutzen NUR vorname, paket, antrag_id und
+// termin_link: Sie schreiben an Menschen aus ALLEN Lagen, und die Lage
+// „Preis fehlt“ (S3, 736 Anträge) hat weder Betrag noch verlässliche
+// Referenz — ein „ €“ ohne Zahl wäre die nächste Peinlichkeit.
 // ═══════════════════════════════════════════════════════════════════════════
 import type { MailBaustein } from "../geruest";
 
@@ -171,37 +202,112 @@ export const RUECKHOLUNG_VORLAGEN: Record<string, MailBaustein> = {
     karteZiel: true,
   },
 
-  // ── S5 · ALTBESTAND — DIE LETZTE MAIL ────────────────────────────────────
-  // Diese Menschen haben die volle Kette bekommen: Ab der sechsten Erinnerung
-  // ist die Ausbeute null, bei 16 und mehr Mails standen 5 Zahler gegen
-  // 12.260 Versände. Weiterschreiben verdient hier kein Geld mehr, es
-  // verbrennt nur die Domain-Reputation für alle anderen Mails des Hauses
-  // (Blockquote 9,5 → 11,9 → 15,7 % in drei Wochen).
-  // DESHALB genau ein Versand, und dann Ruhe. Eine Mail, die das offen sagt
-  // und einen echten Ausstieg anbietet, wird überdurchschnittlich beantwortet
-  // — weil sie den Menschen ernst nimmt statt ihn zu bedrängen.
-  // ACHTUNG BETRIEB: Das Wort „Stopp“ ist ein Versprechen. Es braucht einen
-  // Menschen oder eine Regel, die eingehende Stopp-Antworten auch wirklich
-  // austrägt; sonst ist dieser Absatz die nächste gebrochene Zusage.
-  // Kein Betrag im Datenkasten: Eine Abschiedsmail mit Preisschild ist eine
-  // Mahnung im Trauerflor.
+  // ═════════════════════════════════════════════════════════════════════════
+  // S5 · DIE DAUERPFLEGE — vier Blickwinkel, die sich alle 28 Tage abwechseln
+  //
+  // Wer hier landet, ist in keinem anderen Segment mehr versandfertig:
+  // Altbestand nach der vollen Mahnkette, oder S1–S4 ausgeschöpft. Die alte
+  // „letzte Mail“ hätte ihn abgeschrieben — gegen Justins Grundsatz und
+  // gegen die Messung (ab Tag 7 konstant ~0,2 % je vier Tage, egal wie alt).
+  // Die Rotation (Anzahl bisheriger Dauerpflege-Mails modulo 4, siehe
+  // fiaon-rueckholung.ts) sorgt dafür, dass niemand zweimal hintereinander
+  // dieselbe Mail liest — vier Blickwinkel, ein Aufruf: der Termin.
+  //
+  // Was ALLE vier gemeinsam haben, ohne Ausnahme:
+  // · gesiezt, ein Gedanke, ein Knopf auf den Termin-Link
+  // · kein Rabatt, keine erfundene Frist, kein „letzte Nachricht“ mehr
+  // · kein Erfolgsversprechen zur Karte (nur der karteZiel-Block des Gerüsts)
+  // · kein Betrag, keine Referenz (Lage S3 hat beides nicht)
+  // · der Stopp-Satz, wörtlich: „Antworten Sie mit Stopp, dann schreiben wir
+  //   Ihnen nicht mehr.“ Das ist das Versprechen, das die Werbesperre einlöst.
+  // ═════════════════════════════════════════════════════════════════════════
+
+  // ── S5 (a) · „IHRE AKTE LIEGT WEITER BEREIT“ ─────────────────────────────
+  // Der ruhige Einstieg: keine Neuigkeit, kein Anlass — nur die Zusicherung,
+  // dass nichts verloren ist, und die Erinnerung, was wir für ihn täten.
+  // Gemessen wirkt die Buchung, nicht das Argument; die Mail braucht also
+  // keinen Grund, nur den Weg.
   rueckhol_s5: {
-    betreff: "Unsere letzte Nachricht an Sie, {{params.vorname}}",
-    preheader: "Wir hören auf zu schreiben. Eine Frage stellen wir noch, dann ist Ruhe.",
-    titel: "Wir hören auf zu schreiben",
-    marke: "Letzte Nachricht",
+    betreff: "Ihre Akte liegt weiter bereit, {{params.vorname}}",
+    preheader: "Kein Druck, keine Frist — nur der Hinweis, dass wir für Sie anfangen könnten, sobald Sie möchten.",
+    titel: "Ihre Akte liegt weiter bereit",
     absaetze: [
-      "Guten Tag {{params.vorname}}, Sie haben vor einiger Zeit einen Antrag für <b>{{params.paket}}</b> begonnen und seitdem eine ganze Reihe E-Mails von uns bekommen. Wenn Sie darauf nicht geantwortet haben, hatten Sie vermutlich gute Gründe — und die respektieren wir.",
-      "Deshalb ist dies die letzte Nachricht zu diesem Vorgang. Danach schreiben wir Ihnen nicht mehr, es sei denn, Sie melden sich von sich aus.",
-      "Eines möchten wir vorher noch sagen: Ihre Akte liegt weiterhin bereit. Wenn sich Ihre Lage seit damals verändert hat, ist der Weg für Sie kurz — fünfzehn Minuten genügen, um zu sehen, ob sich das für Sie überhaupt lohnt. Den Termin wählen Sie selbst, unten, ohne Verpflichtung.",
-      "Und wenn nicht: Antworten Sie einfach mit dem Wort <b>Stopp</b>. Dann nehmen wir Sie aus allen Verteilern zu diesem Vorgang, und die Sache ist für Sie erledigt. Sie können auch gar nichts tun — dann hören Sie ebenfalls nichts mehr von uns.",
+      "Guten Tag {{params.vorname}}, Ihr Antrag für <b>{{params.paket}}</b> ist bei uns offen geblieben. Wir haben ihn nicht geschlossen — Ihre Akte liegt unverändert bereit, und das bleibt so, bis Sie sich entscheiden.",
+      "Was wir täten, sobald Sie möchten: Ihre Auskunft einholen, jeden Eintrag einzeln prüfen und die anschreiben, die angreifbar sind. Ein fester Ansprechpartner begleitet Sie dabei, und jeden Schritt sehen Sie in Ihrem persönlichen Bereich.",
+      "Nach fünfzehn Minuten wissen Sie drei Dinge: was in Ihrem Fall der nächste Schritt wäre, was er kostet und ob er sich für Sie lohnt — und wenn nicht, sagen wir Ihnen das genauso offen. Den Termin wählen Sie unten selbst; wir rufen Sie dann an.",
+      "Möchten Sie keine Nachrichten mehr von uns: Antworten Sie mit <b>Stopp</b> oder nutzen Sie den Abmeldelink am Ende — dann schreiben wir Ihnen nicht mehr.",
     ],
-    daten: [
-      { label: "Ihr Antrag von damals", wert: "{{params.paket}}" },
-      { label: "Ihr Aktenzeichen", wert: "{{params.antrag_id}}" },
+    knopf: { text: "Termin wählen — 15 Minuten, kostenlos", url: "{{params.termin_link}}" },
+    fussnote: "Es gibt keine Frist und nichts, was Sie versäumen könnten. Wir melden uns nur gelegentlich, damit Sie wissen, dass der Weg offen ist.",
+    abmeldeUrl: "{{params.abmelde_url}}",
+    karteZiel: true,
+  },
+
+  // ── S5 (b) · „WAS SICH SEIT IHREM ANTRAG GEÄNDERT HAT“ ───────────────────
+  // Der Anlass-Einstieg: drei echte Neuerungen seit Sommer 2026 — Lastschrift
+  // für die Raten (E-072), Sofortzahlung per GiroCode in der Banking-App
+  // (02.09.), Online-Terminwahl mit Rückruf. Alle drei sitzen genau an den
+  // Stellen, an denen der Antragsweg gemessen bricht (Ratentreue 12,8 %,
+  // Überweisung ohne Verwendungszweck, Telefon-Warteschleife). Nichts davon
+  // ist ein Versprechen, alles davon ist gebaut.
+  rueckhol_s5b: {
+    betreff: "Was sich seit Ihrem Antrag geändert hat",
+    preheader: "Drei Dinge sind einfacher geworden: Bezahlen per Banking-App, Bankeinzug für die Raten, ein Gespräch von fünfzehn Minuten.",
+    titel: "Drei Dinge sind einfacher geworden",
+    absaetze: [
+      "Guten Tag {{params.vorname}}, seit Ihrem Antrag für <b>{{params.paket}}</b> hat sich bei uns einiges getan. Drei Dinge davon betreffen genau die Stellen, an denen es damals vielleicht gehakt hat.",
+      "<b>Bezahlen per Banking-App:</b> Ein Knopf in der Zahlungsmail, Sie wählen Ihre Bank, bestätigen in der App — Betrag und Verwendungszweck sind schon eingetragen, nichts abzutippen. <b>Bankeinzug für die Raten:</b> Nach der ersten Zahlung können Sie die Monatsraten einmal per Lastschrift einrichten; den Link dazu schicken wir Ihnen. <b>Ein Gespräch von fünfzehn Minuten:</b> Sie wählen online eine Zeit, wir rufen Sie dann an — ohne Warteschleife.",
+      "Nach fünfzehn Minuten wissen Sie drei Dinge: was in Ihrem Fall der nächste Schritt wäre, was er kostet und ob er sich für Sie lohnt — und wenn nicht, sagen wir Ihnen das genauso offen. Den Termin wählen Sie unten selbst; wir rufen Sie dann an.",
+      "Möchten Sie keine Nachrichten mehr von uns: Antworten Sie mit <b>Stopp</b> oder nutzen Sie den Abmeldelink am Ende — dann schreiben wir Ihnen nicht mehr.",
     ],
-    knopf: { text: "Ich möchte ein Gespräch", url: "{{params.termin_link}}" },
-    fussnote: "Kein Haken, keine Frist, kein Nachfassen. Diese Mail ist das Ende der Kette — die Entscheidung liegt jetzt ganz bei Ihnen.",
+    knopf: { text: "Termin wählen — 15 Minuten, kostenlos", url: "{{params.termin_link}}" },
+    fussnote: "Nichts davon setzt eine Zahlung voraus. Erst das Gespräch, dann Ihre Entscheidung.",
+    abmeldeUrl: "{{params.abmelde_url}}",
+    karteZiel: true,
+  },
+
+  // ── S5 (c) · „EINE FRAGE, KEIN VERKAUF“ ──────────────────────────────────
+  // Der Frage-Einstieg: die kürzeste der vier. Sie bittet um eine Zeile
+  // Antwort — was hat damals abgehalten? — und bietet den Termin nur als
+  // Alternative an. Eine Mail, die den Menschen ernst nimmt statt zu
+  // bedrängen, wird überdurchschnittlich beantwortet; und jede Antwort ist
+  // ein Datum, das dem Haus fehlt (der Antragsweg bricht, aber niemand hat
+  // die Abbrecher je gefragt, warum).
+  // KEIN karteZiel-Block: Wer „kein Verkauf“ schreibt und darunter ein
+  // Kartenbild setzt, hat gelogen.
+  rueckhol_s5c: {
+    betreff: "Eine kurze Frage, {{params.vorname}} — kein Verkauf",
+    preheader: "Was hat damals gefehlt? Eine Zeile als Antwort genügt uns.",
+    titel: "Eine Frage, kein Verkauf",
+    absaetze: [
+      "Guten Tag {{params.vorname}}, Ihr Antrag für <b>{{params.paket}}</b> ist bei uns offen geblieben — und wir möchten nur eines verstehen: Was hat damals gefehlt, oder was ist dazwischengekommen?",
+      "War es der Preis, der Zeitpunkt, eine offene Frage, ein Zweifel an uns — oder etwas, das bei uns hakte? Eine Zeile als Antwort auf diese E-Mail genügt. Sie hilft uns, besser zu werden — und wenn es etwas ist, das sich klären lässt, sagen wir Ihnen ehrlich, ob und wie.",
+      "Lieber im Gespräch als schriftlich? Nach fünfzehn Minuten wissen Sie, was in Ihrem Fall der nächste Schritt wäre, was er kostet und ob er sich lohnt — den Termin wählen Sie unten, wir rufen Sie an.",
+      "Möchten Sie keine Nachrichten mehr von uns: Antworten Sie mit <b>Stopp</b> oder nutzen Sie den Abmeldelink am Ende — dann schreiben wir Ihnen nicht mehr.",
+    ],
+    knopf: { text: "Lieber kurz sprechen — 15 Minuten, kostenlos", url: "{{params.termin_link}}" },
+    fussnote: "Es gibt keine falsche Antwort. Auch „kein Interesse mehr“ ist eine, die uns weiterhilft.",
+    abmeldeUrl: "{{params.abmelde_url}}",
+  },
+
+  // ── S5 (d) · „EIN EINTRAG WENIGER“ ───────────────────────────────────────
+  // Der Nutzen-Einstieg: was ein einziger gelöschter Eintrag konkret bewirkt
+  // — ohne Zusage. Die Fußzeile des Gerüsts sagt es ohnehin („verspricht
+  // keine Löschung berechtigter Einträge“); der Text wiederholt es aktiv,
+  // damit kein Leser einen Erfolg herausliest, den niemand zugesagt hat.
+  rueckhol_s5d: {
+    betreff: "Zu Ihrem Antrag: Warum oft ein einziger Eintrag entscheidet",
+    preheader: "Was ein gelöschter Eintrag für Ihren Antrag auf {{params.paket}} konkret bedeuten würde.",
+    titel: "Ein Eintrag weniger",
+    absaetze: [
+      "Guten Tag {{params.vorname}}, zu Ihrem Antrag für <b>{{params.paket}}</b> ein Gedanke, der vielen Menschen fehlt: Bei der Bonität denken die meisten an eine lange Liste, die sich nie ganz aufräumen lässt. In der Praxis ist es oft anders — ein einziger Eintrag entscheidet, und fällt er weg, sieht die Lage anders aus.",
+      "Ein Negativeintrag — etwa eine längst bezahlte Forderung, die trotzdem noch gemeldet wird — ist für die meisten Banken kein Detail, sondern in aller Regel ein Ausschlusskriterium. Fällt er weg, prüft die Bank Ihren Antrag wieder nach Ihren heutigen Verhältnissen. Versprechen können wir das vorher nicht; prüfen können wir es.",
+      "Jeder Monat, den ein angreifbarer Eintrag stehen bleibt, ist ein Monat zu schlechteren Bedingungen. Genau diese Prüfung wäre der erste Schritt bei Ihrem Antrag. " + "Nach fünfzehn Minuten wissen Sie, ob Ihre Einträge dazugehören, was der nächste Schritt kostet und ob er sich lohnt — den Termin wählen Sie unten, wir rufen Sie an.",
+      "Möchten Sie keine Nachrichten mehr von uns: Antworten Sie mit <b>Stopp</b> oder nutzen Sie den Abmeldelink am Ende — dann schreiben wir Ihnen nicht mehr.",
+    ],
+    knopf: { text: "Termin wählen — 15 Minuten, kostenlos", url: "{{params.termin_link}}" },
+    fussnote: "Berechtigte Einträge löscht niemand — auch wir nicht. Angreifbar sind falsche, veraltete oder formal fehlerhafte Einträge; ob Ihre dazugehören, zeigt erst die Prüfung.",
+    abmeldeUrl: "{{params.abmelde_url}}",
     karteZiel: true,
   },
 };

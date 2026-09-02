@@ -16,15 +16,34 @@
 // · DER TERMIN IST DAS EINZIGE, WAS WIRKT: 9,88 % gegen 1,66 % ohne Termin,
 //   Faktor 6,0, p = 0,0002. Und es wirkt die BUCHUNG, nicht das Gespräch —
 //   ein verpasster Termin bringt fast so viel wie ein wahrgenommener.
-//   DESHALB: Der Handlungsaufruf JEDER Mail hier ist ein Termin. Keine
-//   Vorlage sagt „jetzt bezahlen“, keine nennt Bankdaten. Wer Bankdaten
-//   druckt, bietet die Handlung an, die gemessen nichts bringt, und
-//   verdrängt damit die, die um den Faktor 6 wirkt.
+//   DESHALB: Der Handlungsaufruf JEDER Mail hier ist und bleibt der Termin.
+//   Keine Vorlage sagt „jetzt bezahlen“, und in keiner steht die IBAN im
+//   Datenkasten. Wer Bankdaten in den Kasten druckt, stellt die Handlung
+//   groß, die gemessen nichts bringt, und verdrängt damit die, die um den
+//   Faktor 6 wirkt.
 // · ALTER SORTIERT NICHT. 70 % aller Zahlungen fallen in die ersten drei
 //   Tage nach Antragstellung (Median 3,1 Tage); ab Tag 7 ist ein Antrag
 //   konstant rund 0,2 % je vier Tage wert. Ein 14 Tage alter Fall ist genau
 //   so viel wert wie ein 90 Tage alter — die Segmente unten sortieren nach
 //   LAGE, nicht nach Datum.
+//
+// ── DER ZWEITE WEG: ZAHLEN, WENN DER MENSCH ES WILL (02.09.2026) ──────────
+// Justins Auftrag: „so einfach wie möglich für den Kunden … überall wo es um
+// die Zahlung geht.“ Das trifft S1, S2 und S4 — dort ist Geld das Thema, und
+// wer beim Lesen beschließt zu zahlen, stand bisher vor gar nichts: kein
+// Betrag zum Scannen, kein Link, nur die Bitte um einen Anruf.
+// DIE AUFLÖSUNG, OHNE DEN BELEG ZU VERLETZEN: Der Termin bleibt `knopf` —
+// der blaue Knopf, den man sieht. Der Zahlweg kommt als GiroCode-Bild und
+// als leiser `knopf2` auf die Zahlungsseite dazu, nie an seiner Stelle, und
+// nie als Aufforderung: In S1 und S2 hängt der Satz ausdrücklich an der
+// Bedingung, dass der Mensch beim Nachsehen feststellt, dass NICHT gezahlt
+// wurde. Diese Menschen sagen, sie hätten bezahlt — eine zweite Überweisung
+// wäre der teuerste Ausgang dieser Mail, teurer als gar keine Zahlung.
+// Die IBAN steht deshalb weiter in KEINEM Datenkasten dieser Datei: Sie
+// steckt im QR-Code und auf der Zahlungsseite, wo sie niemand abtippen muss.
+// S3 UND DIE DAUERPFLEGE bleiben außen vor: Dort fehlt der Preis (738 offene
+// Anträge mit amount_due = 0), und ein GiroCode über 0,00 € wäre der zweite
+// Fehler nach dem ersten.
 //
 // ── WARUM DAUERPFLEGE STATT „LETZTER MAIL“ (Justin, 02.09.2026, wörtlich) ─
 // „Es soll NIEMALS ein Kunde deaktiviert, ausgeschlossen werden — er
@@ -94,6 +113,10 @@ export const RUECKHOLUNG_VORLAGEN: Record<string, MailBaustein> = {
   // anspricht, verbrennt den wertvollsten Fall, den das Haus hat.
   // Kein karteZiel-Block: Das ist eine Klärung, keine Werbebotschaft —
   // wie bei claim_received in zahlung.ts.
+  // Der Zahlweg steht bewusst UNTER der Bedingung „falls doch nicht heraus“:
+  // Wer hier zum zweiten Mal überweist, hat am Ende zweimal gezahlt, und
+  // zurückholen müssten wir es dann auch noch. Kein `sofort_url` — der Lauf
+  // liefert es nicht; der QR-Code und die Zahlungsseite tun dasselbe leiser.
   rueckhol_s1: {
     betreff: "Kurzer Zwischenstand zu Ihrer Zahlung, {{params.vorname}}",
     preheader: "Auf unserem Konto noch nicht sichtbar — meist hat das einen harmlosen Grund.",
@@ -103,6 +126,7 @@ export const RUECKHOLUNG_VORLAGEN: Record<string, MailBaustein> = {
       "Guten Tag {{params.vorname}}, Sie haben uns mitgeteilt, dass Sie für <b>{{params.paket}}</b> überwiesen haben — danke dafür. Auf unserem Konto ist der Betrag bisher nicht aufgetaucht, deshalb dieser kurze Zwischenstand.",
       "Das ist zunächst nichts Ungewöhnliches. Eine Überweisung braucht ein bis drei Bankarbeitstage, aus Österreich und der Schweiz gelegentlich länger. Und wenn der Verwendungszweck fehlt oder abgewandelt wurde, liegt Ihr Geld zwar bei uns — aber ohne Ihren Namen daran.",
       "Am schnellsten lösen wir das gemeinsam auf: Wählen Sie unten einen Termin, dann rufen wir Sie an und gehen Ihre Überweisung Punkt für Punkt durch — Datum, Betrag, Verwendungszweck. In den meisten Fällen ist die Sache in fünf Minuten geklärt und Ihr Bereich geht auf.",
+      "Und falls sich beim Nachsehen zeigt, dass die Überweisung doch nicht herausgegangen ist: Der QR-Code unten füllt sie in Ihrer Banking-App fertig aus, ganz unten finden Sie den Link „Zahlungsseite ansehen“. Das ist ein Angebot, keine Aufforderung — schauen Sie bitte zuerst auf Ihren Kontoauszug, denn zweimal zahlen soll niemand.",
     ],
     daten: [
       { label: "Ihr Paket", wert: "{{params.paket}}" },
@@ -110,6 +134,7 @@ export const RUECKHOLUNG_VORLAGEN: Record<string, MailBaustein> = {
       { label: "Verwendungszweck", wert: "{{params.payment_reference}}" },
     ],
     knopf: { text: "Termin zur Klärung wählen", url: "{{params.termin_link}}" },
+    knopf2: { text: "Zahlungsseite ansehen: Betrag, Bankdaten, Verwendungszweck", url: "https://fiaon.com/zahlung/{{params.payment_reference}}" },
     fussnote: "Sie haben den Überweisungsbeleg zur Hand? Hängen Sie ihn gern an eine Antwort auf diese E-Mail — dann prüfen wir ihn sofort, auch ohne Gespräch.",
   },
 
@@ -123,6 +148,11 @@ export const RUECKHOLUNG_VORLAGEN: Record<string, MailBaustein> = {
   // Wer erst nach dem Geld fragt und danach um Verzeihung bittet, hat schon
   // verloren. Der Satz „Wir haben diese Erinnerungen gestoppt“ ist eine
   // Tatsachenbehauptung — sie muss beim Versand stimmen (siehe Kopf).
+  // Der Zahlweg im vierten Absatz ist bei dieser Gruppe die heikelste Zeile
+  // der ganzen Datei: 47,2 % dieser Menschen haben historisch am Ende doch
+  // bezahlt, ein Teil davon hat es längst getan. Deshalb steht die Bitte
+  // „zuerst nachsehen“ VOR dem Angebot und nicht als Fußnote dahinter — und
+  // deshalb ist der Zahlweg ein Bild plus ein Textlink, kein zweiter Knopf.
   rueckhol_s2: {
     betreff: "Zu Ihrer Zahlung — und zu unseren Erinnerungen",
     preheader: "Ihre Zahlung ist bei uns nie angekommen. Die Mahnungen danach waren unser Fehler.",
@@ -131,6 +161,7 @@ export const RUECKHOLUNG_VORLAGEN: Record<string, MailBaustein> = {
       "Guten Tag {{params.vorname}}, Sie hatten uns mitgeteilt, dass Sie für <b>{{params.paket}}</b> bezahlt haben. Diese Zahlung konnten wir bis heute keinem Eingang auf unserem Konto zuordnen — und trotzdem sind bei Ihnen weiter Zahlungserinnerungen eingegangen. Das hätte nicht passieren dürfen. Wir haben diese Erinnerungen gestoppt und bitten um Entschuldigung.",
       "Bleibt die eigentliche Frage: Wo ist die Zahlung? Erfahrungsgemäß gibt es dafür drei Erklärungen. Sie wurde ohne Verwendungszweck überwiesen und liegt bei uns ohne Namen. Sie ist von der Bank zurückgelaufen. Oder sie ist im Alltag doch untergegangen. Keine davon ist ein Vorwurf, und alle drei lassen sich in einem Gespräch auflösen.",
       "Deshalb unsere Bitte: Wählen Sie unten einen Termin. Wir gehen Ihren Fall in Ruhe durch — liegt Ihr Geld bei uns, finden wir es; ist es nie angekommen, sagen wir Ihnen offen, wie es weitergeht. Ihre Akte liegt unverändert bereit, verloren ist nichts.",
+      "Sollte sich dabei herausstellen, dass die Zahlung damals nie ausgeführt oder von der Bank zurückgebucht wurde, finden Sie den Weg dorthin schon hier: Der QR-Code unten füllt die Überweisung in Ihrer Banking-App fertig aus, ganz unten steht der Link „Zahlungsseite ansehen“. Bitte sehen Sie aber zuerst nach — liegt Ihr Geld doch bei uns, wäre eine zweite Überweisung genau das Falsche.",
     ],
     daten: [
       { label: "Ihr Paket", wert: "{{params.paket}}" },
@@ -138,7 +169,9 @@ export const RUECKHOLUNG_VORLAGEN: Record<string, MailBaustein> = {
       { label: "Verwendungszweck", wert: "{{params.payment_reference}}" },
       { label: "Ihr Aktenzeichen", wert: "{{params.antrag_id}}" },
     ],
+    bild: { url: "https://fiaon.com/api/fiaon/zahlung/{{params.payment_reference}}/qr.png", alt: "GiroCode — nur für den Fall, dass die Zahlung damals nie ausgeführt wurde", unterschrift: "Nur für den Fall, dass die Zahlung damals nie ausgeführt wurde: scannen — Empfänger, IBAN, Betrag und Verwendungszweck sind schon ausgefüllt." },
     knopf: { text: "Klärungstermin wählen", url: "{{params.termin_link}}" },
+    knopf2: { text: "Zahlungsseite ansehen: Betrag, Bankdaten, Verwendungszweck", url: "https://fiaon.com/zahlung/{{params.payment_reference}}" },
     fussnote: "Sie haben noch einen Beleg oder einen Kontoauszug von damals? Hängen Sie ihn an eine Antwort auf diese E-Mail — dann liegt er uns schon vor dem Gespräch vor.",
     karteZiel: true,
   },
@@ -181,8 +214,14 @@ export const RUECKHOLUNG_VORLAGEN: Record<string, MailBaustein> = {
   // wirklich neu ist — hier sind die 70 % aus den ersten drei Tagen noch
   // nicht verbrannt. DESHALB darf diese Mail unter keinen Umständen wie eine
   // Erinnerung klingen: Es gibt nichts zu erinnern, wir haben uns nie
-  // gemeldet. Der Preis steht offen im Datenkasten, aber ohne Bankdaten —
+  // gemeldet. Der Preis steht offen im Datenkasten, die IBAN bewusst nicht —
   // dies ist ein Erstkontakt, keine Rechnung.
+  // NEU 02.09.2026: Der Verwendungszweck steht jetzt dabei, und wer sofort
+  // anfangen will, kann es. Bisher endete diese Mail für den entschlossenen
+  // Leser im Nichts: Er kannte den Preis, aber keinen einzigen Weg, ihn zu
+  // bezahlen — der Termin war die einzige Tür, auch für den, der sie gar
+  // nicht brauchte. QR-Code und Zahlungsseite sind der zweite Weg; der
+  // Termin bleibt der Knopf, weil er der gemessen wirksame ist.
   rueckhol_s4: {
     betreff: "Ihr Antrag liegt bei uns — so geht es weiter",
     preheader: "Was wir für Sie tun, was es kostet und wie Sie in Ruhe anfangen.",
@@ -191,13 +230,17 @@ export const RUECKHOLUNG_VORLAGEN: Record<string, MailBaustein> = {
       "Guten Tag {{params.vorname}}, Sie haben bei uns einen Antrag für <b>{{params.paket}}</b> gestellt. Er ist vollständig bei uns eingegangen — und wir haben uns dazu bisher nicht bei Ihnen gemeldet. Das holen wir hiermit nach.",
       "Was passiert, sobald es losgeht: Wir holen Ihre Auskunft ein, prüfen jeden einzelnen Eintrag und schreiben die an, die angreifbar sind. Jeden Schritt sehen Sie in Ihrem persönlichen Bereich, und ein fester Ansprechpartner begleitet Sie dabei.",
       "Bevor etwas Verbindliches geschieht, sollten wir aber miteinander gesprochen haben. Wählen Sie unten einen Termin — fünfzehn Minuten, in denen wir Ihre Lage ansehen und Sie uns alles fragen, was offen ist. Was danach kommt, entscheiden Sie.",
+      "Sie möchten lieber gleich beginnen, ohne auf ein Gespräch zu warten? Dann geht das auch: Der QR-Code unten enthält Ihre fertige Überweisung, ganz unten steht der Link „Zahlungsseite ansehen“. Ihr Ansprechpartner meldet sich danach genauso bei Ihnen.",
     ],
     daten: [
       { label: "Ihr Paket", wert: "{{params.paket}}" },
       { label: "Preis laut Antrag", wert: "{{params.betrag}} €" },
+      { label: "Verwendungszweck", wert: "{{params.payment_reference}}" },
       { label: "Ihr Aktenzeichen", wert: "{{params.antrag_id}}" },
     ],
+    bild: { url: "https://fiaon.com/api/fiaon/zahlung/{{params.payment_reference}}/qr.png", alt: "GiroCode — mit der Banking-App scannen", unterschrift: "Falls Sie ohne Umweg anfangen möchten: Mit der Banking-App scannen — Empfänger, IBAN, Betrag und Verwendungszweck sind schon ausgefüllt." },
     knopf: { text: "Gesprächstermin wählen", url: "{{params.termin_link}}" },
+    knopf2: { text: "Zahlungsseite ansehen: Betrag, Bankdaten, Verwendungszweck", url: "https://fiaon.com/zahlung/{{params.payment_reference}}" },
     fussnote: "Das Gespräch ist unverbindlich. Passt es gerade nicht? Antworten Sie kurz mit „später“ — dann melden wir uns in einigen Wochen noch einmal, sonst nicht.",
     karteZiel: true,
   },

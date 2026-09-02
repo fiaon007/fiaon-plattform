@@ -17,6 +17,17 @@ import type { MailBaustein } from "../geruest";
 export const KONTO_VORLAGEN: Record<string, MailBaustein> = {
 
   // 838 Versände/Monat — der erste Eindruck des Hauses.
+  //
+  // ── WARUM HIER KEINE ZAHLUNGSDATEN STEHEN (geprüft 02.09.2026) ────────────
+  // Naheliegend wäre, den Zahlweg gleich in die erste Mail zu legen — ein
+  // Schritt statt zwei. Die Nutzlast trägt ihn aber nicht: Von 985
+  // verschickten welcome-Mails hatten 823 (83,6 %) KEINEN Betrag, weil die
+  // Bestellung im Moment des Antragseingangs noch keinen Preis hat. Ein
+  // GiroCode zieht seinen Betrag aus genau diesem Feld — er stünde bei vier
+  // von fünf Empfängern über 0,00 €, und eine Überweisung über null Euro
+  // bekommt niemand mehr eingesammelt. Der Preis entsteht mit der
+  // Bestellung, und mit ihr feuert payment_details: DORT gehören QR-Code,
+  // Sofortzahlung und Bankdaten hin, und dort stehen sie vollständig.
   welcome: {
     betreff: "Willkommen bei FIAON, {{params.vorname}}",
     preheader: "Ihr Antrag ist da — das sind die drei nächsten Schritte.",
@@ -121,6 +132,22 @@ knopf: { text: "Sofort per Bank-App bezahlen — in einer Minute gebucht", url: 
   // `sepa_link` ist ein signierter Direktlink (fiaon-lastschrift.ts) — ein
   // Klick, dann steht der Kunde bei GoCardless. Fehlt der Parameter, fällt die
   // Vorlage auf den Kundenbereich zurück, statt einen toten Knopf zu zeigen.
+  //
+  // ── WARUM HIER KEIN QR-CODE UND KEINE ZAHLUNGSSEITE DAZUKOMMEN ────────────
+  // (geprüft 02.09.2026, obwohl im Text eine offene Rate vorkommt)
+  // Zwei Gründe, beide aus der Nutzlast:
+  // 1. `payment_reference` trägt hier das AKTENZEICHEN (k.ref aus
+  //    fiaon-sepa-werbung.ts), nicht die Zahlungsreferenz. QR-Bild und
+  //    Zahlungsseite schlagen damit fehl — zahlungsauftragFinden kennt nur
+  //    echte Zahlungsreferenzen und Ratenreferenzen (FIAON-XXXXXX-N).
+  // 2. Der Betrag der offenen Rate kommt als FREITEXT in
+  //    `offene_rate_hinweis`; 308 von 326 Versänden hatten überhaupt kein
+  //    Betragsfeld. Es gibt hier also nichts, woraus sich ein GiroCode
+  //    bauen ließe.
+  // Dazu kommt der Zweck: Diese Mail hat genau eine Aufgabe, das Mandat.
+  // Ein zweiter Zahlweg daneben nähme ihr den Klick, der sie überhaupt
+  // rechtfertigt. Die offene Rate wird über abo_payment_reminder angemahnt —
+  // und die trägt Betrag, Bankdaten, QR-Code und Sofortzahlung vollständig.
   sepa_einrichten: {
     betreff: "Eine Sorge weniger: Ihre Raten per Bankeinzug",
     preheader: "Nie mehr an die Rate denken — einmal einrichten, fertig.",

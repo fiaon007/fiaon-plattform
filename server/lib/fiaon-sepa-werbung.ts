@@ -34,6 +34,32 @@
 //
 // Versand IMMER über `versendenUndProtokollieren` (der eine Weg, Schalter
 // `mail_versandweg` steht auf „direkt“/Brevo). Kein zweiter Versandweg.
+//
+// ── WARUM DIESE MAIL KEINE ZAHLWEGE BEKOMMT (geprüft 02.09.2026) ──────────
+// Justins Auftrag lautet „Zahlungsdaten überall, wo es um die Zahlung geht“.
+// Geprüft, ob `sepa_einrichten` dazugehört — Ergebnis: NEIN, aus drei Gründen,
+// die alle drei gemessen und nicht Geschmack sind:
+//
+// 1. HIER GEHT ES NICHT UM EINE OFFENE ZAHLUNG, SONDERN UM DEN WEG. Die
+//    erste Zahlung ist längst da (Zielgruppe: payment_status = 'paid'); die
+//    Mail bittet darum, die KÜNFTIGEN Raten abbuchen zu lassen. Ein zweiter
+//    Knopf „jetzt überweisen“ neben „Bankeinzug einrichten“ wäre genau der
+//    Fall, vor dem das Gerüst warnt: zwei Knöpfe heißen, keiner wird gedrückt
+//    — und der eine, der zählt, ist der Bankeinzug (Ratentreue 12,8 %).
+// 2. DOPPELZAHLUNG. Wo eine Rate überfällig ist, sagt die Mail das ausdrücklich
+//    an („in etwa drei Tagen holen wir sie nach“). Wer daneben noch von Hand
+//    überweist, zahlt zweimal — der Einzug ist dann längst unterwegs. Eine
+//    Rückbuchung kostet mehr Vertrauen, als der zweite Weg an Bequemlichkeit
+//    bringt (und ein widerrufenes Mandat kostet den ganzen Bestand).
+// 3. DIE REFERENZ WÜRDE INS LEERE ZEIGEN. Ein GiroCode/Zahlungslink baut sich
+//    aus `payment_reference`. Die offene Rate hat aber eine EIGENE Referenz
+//    (FIAON-8FJ4B7-2), nicht die der Bestellung (FIAON-8FJ4B7) und erst recht
+//    nicht das Aktenzeichen (FIAON-MOK0SH5I-UXB6). Ein QR-Code auf die
+//    Bestellung führte auf einen längst bezahlten Auftrag.
+//
+// Wenn eine offene Rate selbst bezahlt werden soll, ist die richtige Mail
+// `abo_payment_reminder` — die trägt die Ratenreferenz und ist bereits
+// vollständig ausgestattet. Diese hier bleibt bei EINER Handlung.
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import { versendenUndProtokollieren } from "./fiaon-mail-log";
@@ -99,6 +125,44 @@ export interface SepaWerbungErgebnis {
   geprueft: number; verschickt: number; uebersprungen: number; deckel: number; grund?: string;
 }
 
+// ── DIE OFFENE RATE WIRD ANGESAGT, NICHT VERSCHWIEGEN ──────────────────────
+// Der Bankeinzug ruft Überfälliges gestaffelt ab (erster Abruf nach drei Tagen,
+// jeder weitere eine Woche später — siehe fiaon-lastschrift.ts). Wer das vorher
+// liest, rechnet damit. Wer davon überrascht wird, widerruft die Lastschrift
+// und ist doppelt verloren.
+//
+// Satz und Summe stehen als eigene Funktionen da, weil dieselbe Mail auf ZWEI
+// Wegen rausgeht: aus diesem Lauf und von Hand über das Versandzentrum
+// (server/routes/fiaon-versand.ts). Bis zum 02.09.2026 kannte nur der Lauf den
+// Satz — die von Hand gesendete Mail hatte an derselben Stelle einen leeren
+// Absatz und verschwieg die offene Rate. Eine Quelle, ein Wortlaut.
+const euroText = (cents: number) => (cents / 100).toFixed(2).replace(".", ",");
+
+/** Der Hinweis auf die überfällige Rate. Leer, wenn nichts offen ist — dann
+ *  lässt der Mail-Motor den Absatz weg. */
+export function offeneRateHinweis(offenCents: number): string {
+  const offen = Number(offenCents) || 0;
+  if (offen <= 0) return "";
+  return `Bei Ihnen ist derzeit eine offene Rate von ${euroText(offen)} € fällig. `
+    + "Sobald der Bankeinzug steht, holen wir sie in etwa drei Tagen nach — bei mehreren "
+    + "offenen Raten im Abstand von je einer Woche, damit nicht alles auf einmal von Ihrem Konto geht.";
+}
+
+/** Summe der überfälligen, offenen Raten einer Bestellung — in Cent. */
+export async function offeneRatenCents(ref: string): Promise<number> {
+  try {
+    const [r] = (await sqlPool`
+      SELECT COALESCE(SUM(betrag_cents), 0)::int AS cents FROM fiaon_abo_raten
+       WHERE ref = ${ref} AND status = 'offen' AND storniert_am IS NULL
+         AND faellig_am < CURRENT_DATE`) as any[];
+    return Number(r?.cents || 0);
+  } catch {
+    // Lieber ohne Hinweis senden als gar nicht: Der Satz ist wichtig, aber
+    // kein Grund, die Einladung an der Datenbank scheitern zu lassen.
+    return 0;
+  }
+}
+
 /**
  * Ein Durchlauf. Wird vom Tageslauf getaktet und ist absichtlich klein:
  * Er verschickt höchstens den Tagesdeckel und läuft lieber häufiger.
@@ -139,7 +203,7 @@ export async function sepaWerbungLauf(): Promise<SepaWerbungErgebnis> {
        WHERE event = 'sepa_einrichten' AND status = 'versandt' AND person_id IS NOT NULL
        GROUP BY person_id
     )
-    SELECT a.ref, a.person_id, a.first_name, a.email,
+    SELECT a.ref, a.person_id, a.first_name, a.email, a.payment_reference,
            COALESCE(b.anzahl, 0) AS anzahl,
            COALESCE((SELECT SUM(r.betrag_cents) FROM fiaon_abo_raten r
                       WHERE r.ref = a.ref AND r.status = 'offen' AND r.storniert_am IS NULL
@@ -171,28 +235,24 @@ export async function sepaWerbungLauf(): Promise<SepaWerbungErgebnis> {
      ORDER BY COALESCE(b.anzahl, 0) ASC, a.paid_at DESC NULLS LAST
      LIMIT ${rest}`) as any[];
 
-  const euro = (c: number) => (c / 100).toFixed(2).replace(".", ",");
-
   let verschickt = 0, uebersprungen = 0;
   for (const k of kandidaten) {
     try {
-      // ── DIE OFFENE RATE WIRD ANGESAGT, NICHT VERSCHWIEGEN ──────────────
-      // Der Bankeinzug ruft überfälliges gestaffelt ab (erster Abruf nach drei
-      // Tagen, jeder weitere eine Woche später — siehe fiaon-lastschrift.ts).
-      // Wer das vorher liest, rechnet damit. Wer davon überrascht wird,
-      // widerruft die Lastschrift und ist doppelt verloren.
-      const offen = Number(k.offen_cents || 0);
-      const hinweis = offen > 0
-        ? `Bei Ihnen ist derzeit eine offene Rate von ${euro(offen)} € fällig. Sobald der Bankeinzug steht, holen wir sie in etwa drei Tagen nach — bei mehreren offenen Raten im Abstand von je einer Woche, damit nicht alles auf einmal von Ihrem Konto geht.`
-        : "";
       const erg = await versendenUndProtokollieren("sepa_einrichten" as any, {
         email: String(k.email),
         vorname: k.first_name || "",
         agent_vorname: "Ihr Team von FIAON",
         sepa_link: sepaLink(String(k.ref)),
         kundenbereich_link: absoluteUrl("/dashboard#abo"),
-        payment_reference: k.ref,
-        offene_rate_hinweis: hinweis,
+        // KORREKTUR 02.09.2026: Hier stand `payment_reference: k.ref` — also
+        // das Aktenzeichen (FIAON-MOK0SH5I-UXB6) unter dem Namen der
+        // Zahlungsreferenz (FIAON-8FJ4B7). Solange keine Vorlage das Feld
+        // benutzte, fiel es nicht auf; eine Vorlage mit GiroCode hätte daraus
+        // einen Code gebaut, der auf keinen Zahlungsauftrag zeigt. Jetzt heißt
+        // jedes Feld, was es ist — wie in makePayloadFromRow (make-webhook.ts).
+        antrag_id: String(k.ref),
+        payment_reference: k.payment_reference || null,
+        offene_rate_hinweis: offeneRateHinweis(Number(k.offen_cents || 0)),
       } as any, {
         personId: Number(k.person_id),
         verlaufRef: String(k.ref),

@@ -92,6 +92,17 @@ router.get("/zahlung/:ref/qr.png", async (req: Request, res: Response) => {
   try {
     const z = await zahlungsauftragFinden(req.params.ref);
     if (!z) return res.status(404).end();
+    // ── KEIN ZAHLCODE FÜR ETWAS, DAS NICHT MEHR OFFEN IST (02.09.2026) ──
+    // Gemessen an den 1.484 bereits verschickten Kontowechsel-Mails: 607
+    // Empfänger (41 %) hatten beim Versand schon bezahlt oder eine Zahlung
+    // gemeldet. Ein scanbarer Code in einer alten Mail ist dort die
+    // Einladung zur zweiten Überweisung — mit Rückerstattung, verlorenem
+    // Vertrauen und Betreuungszeit für einen Fehler, den wir selbst
+    // ausgelöst hätten. Der Sofort-Knopf prüft das längst; das Bild jetzt
+    // auch. Ein fehlendes Bild ist in jeder Mail verkraftbar.
+    if (z.status === "paid" || z.status === "cancelled" || !(Number(z.amountDue) > 0)) {
+      return res.status(404).end();
+    }
     const png = await QRCode.toBuffer(zahlungsauftragQrNutzlast(z), {
       type: "png", errorCorrectionLevel: "M", width: 360, margin: 2,
       color: { dark: "#0f172a", light: "#ffffff" },

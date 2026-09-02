@@ -17,8 +17,19 @@
 //   auf den Altbestand bringt null (1.387 Fälle → 15 Zahlungen).
 // · Das EINZIGE, was messbar wirkt, ist der gebuchte Termin: 9,88 % gegen
 //   1,66 %, Faktor 6, p = 0,0002 — und es wirkt die Buchung, nicht das
-//   Gespräch. Deshalb ruft jede Mail dieses Laufs zum Termin, keine nennt
-//   Bankdaten.
+//   Gespräch. Deshalb ruft jede Mail dieses Laufs zum Termin.
+//
+// ── DIE ZAHLWEGE KOMMEN DAZU, NICHT AN DIE STELLE DES TERMINS (02.09.2026) ─
+// Justins Auftrag: „es sollen natürlich auch die Zahlungsdetails (Höhe,
+// Verwendungszweck und co.) über unsere Mails rausgehen (überall wo es um die
+// Zahlung geht!)“. Für diesen Lauf heißt das: Der Termin bleibt der HAUPT-
+// knopf — er ist der einzige Hebel mit gemessener Wirkung, und „jetzt zahlen“
+// als Aufruf ist gemessen wirkungslos. Wer aber gerade zahlen WILL, soll nicht
+// suchen müssen. Deshalb trägt die Nutzlast ab jetzt zusätzlich den Sofort-
+// Link, Empfänger, IBAN und BIC; die Vorlage entscheidet, ob sie daraus einen
+// zweiten, leiseren Weg baut (knopf2 + Datenkasten + GiroCode).
+// Was ein Knopf ohne Ziel angeht, ist der Motor streng: Fehlt `sofort_url`,
+// lässt er ihn weg (server/mail/motor.ts). Genau deshalb füllen wir ihn hier.
 //
 // ── DIE SEGMENTE (Vorlagen: server/mail/vorlagen/rueckholung.ts) ──────────
 // S1 frische Zahlungsmeldung (<3 Tage): 9,52 % Zahlquote, Faktor 19 — aber
@@ -73,6 +84,13 @@ import { sqlPool } from "./db-pool";
 import { versendenUndProtokollieren } from "./fiaon-mail-log";
 import { terminLink } from "./fiaon-termine";
 import { abmeldeLinkPerson } from "../routes/fiaon-abmelden";
+// Der Sofort-Link kommt aus dem Steckplatz in fiaon-zahlungsauftrag.ts — NUR
+// lesen, nie ändern. Ist die Sofortzahlung nicht eingesteckt, liefert er null
+// und der Motor lässt den Knopf weg (kein toter Knopf).
+import { sofortUrlFuer } from "./fiaon-zahlungsauftrag";
+// Die Bankverbindung hat seit dem 02.09.2026 GENAU EINE Quelle. Ein Literal
+// hier wäre die zehnte Stelle, die beim nächsten Kontowechsel vergessen wird.
+import { BANK } from "@shared/fiaon-bank";
 
 export type Segment = "s1_frisch" | "s2_behauptet" | "s3_preis_fehlt" | "s4_nie_gemahnt" | "s5_altbestand";
 
@@ -511,6 +529,14 @@ export async function rueckholLauf(): Promise<LaufErgebnis[]> {
           await sqlPool`UPDATE fiaon_applications SET mahnstopp_am = NOW(), updated_at = NOW()
             WHERE ref = ${f.ref} AND mahnstopp_am IS NULL`;
         }
+        // ── ZAHLWEGE NUR, WO ES WIRKLICH ETWAS ZU ZAHLEN GIBT ─────────────
+        // Die Lage „Preis fehlt“ (S3, 736 Anträge, und dieselben Menschen
+        // später in der Dauerpflege) hat amount_due = 0 — das ist ja gerade
+        // ihr Befund. Ein GiroCode über 0 € und eine Sofortzahlung über 0 €
+        // wären dort keine Erleichterung, sondern ein Fehler beim Kunden.
+        // Deshalb bleibt `sofort_url` dort leer, und der Motor lässt den
+        // Knopf weg — der Termin bleibt der einzige Weg, wie es sein soll.
+        const zahlbar = Number(f.betrag) > 0 && !!f.zahlungsreferenz;
         const erg = await versendenUndProtokollieren(f.event as any, {
           email: String(f.email),
           vorname: f.vorname || "",
@@ -520,6 +546,19 @@ export async function rueckholLauf(): Promise<LaufErgebnis[]> {
           antrag_id: f.ref,
           termin_link: terminLink(f.personId, "rueckholung"),
           abmelde_url: abmeldeLinkPerson(f.personId),
+          // Der ZWEITE Weg neben dem Termin (Justin, 02.09.2026). `sofortUrlFuer`
+          // gibt null zurück, solange die Sofortzahlung nicht eingesteckt ist
+          // oder die Referenz nicht die Form eines Zahlungsauftrags hat (am
+          // 02.09. betraf das 22 offene Anträge mit Alt-Referenzen wie
+          // „FIAONMTCX7B“) — dann fällt der Knopf still weg.
+          sofort_url: zahlbar ? sofortUrlFuer(f.zahlungsreferenz) : null,
+          // Empfänger/IBAN/BIC für den Datenkasten. Der Mail-Motor hat zwar
+          // einen Rückfall auf dieselben Werte; mitgeschickt stehen sie aber
+          // AUCH im Protokoll — eine Mail von damals lässt sich dann noch
+          // richtig nachdrucken, wenn die Bankverbindung längst gewechselt hat.
+          empfaenger: zahlbar ? BANK.empfaenger : null,
+          iban: zahlbar ? BANK.ibanDisplay : null,
+          bic: zahlbar ? BANK.bic : null,
         } as any, {
           personId: f.personId,
           verlaufRef: f.ref,

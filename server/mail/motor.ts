@@ -95,7 +95,7 @@ export function hatVorlage(event: string): boolean {
  * wenn das Feld fehlt.
  */
 const BANK_FALLBACK: Record<string, string> = {
-  empfaenger: "FIAON LTD",
+  empfaenger: BANK.empfaenger,
   // 02.09.2026: Wise gesperrt → Airwallex/Banking Circle. Quelle: shared/fiaon-bank.ts
   iban: BANK.ibanDisplay,
   bic: BANK.bic,
@@ -162,6 +162,15 @@ export function mailRendern(event: string, payload: Record<string, unknown>): Ge
     const m = k?.url.match(/\{\{params\.([a-z_0-9]+)\}\}/i);
     return !!(m && String((payload as any)[m[1]] ?? "").trim() === "" && BANK_FALLBACK[m[1]] === undefined);
   };
+  // Dasselbe für das Bild: Eine QR-Adresse mit ungefülltem Platzhalter wird
+  // zu …/zahlung//qr.png — ein kaputter Kasten mit der Unterschrift „scannen
+  // Sie hier“. Lieber kein Bild als ein totes (Prüfung 02.09.2026).
+  {
+    const m = vorlage.bild?.url.match(/\{\{params\.([a-z_0-9]+)\}\}/i);
+    if (m && String((payload as any)[m[1]] ?? "").trim() === "" && BANK_FALLBACK[m[1]] === undefined) {
+      vorlage = { ...vorlage, bild: undefined };
+    }
+  }
   if (knopfLeer(vorlage.knopf) || knopfLeer(vorlage.knopf2)) {
     vorlage = { ...vorlage };
     if (knopfLeer(vorlage.knopf)) { vorlage.knopf = knopfLeer(vorlage.knopf2) ? undefined : vorlage.knopf2; vorlage.knopf2 = undefined; }

@@ -23,6 +23,26 @@ import { terminLink, berlinDatumText, berlinUhrzeit } from "../lib/fiaon-termine
 import { absoluteUrl } from "../fiaon-base-url";
 // NEU 01.09.2026 (E-072): Der signierte Direktlink in die Mandatsstrecke.
 import { sepaLink } from "./fiaon-lastschrift";
+// ══════════════════════════════════════════════════════════════════════════
+// NEU 02.09.2026 — DIE HANDMAIL MUSS DIESELBE MAIL SEIN WIE DIE AUTOMATIK
+//
+// Justin, wörtlich: „stelle sicher das in jeder Email die wir senden es eben
+// so einfach wie möglich für den Kunden gemacht wird, es sollen natürlich auch
+// die Zahlungsdetails (Höhe, Verwendungszweck und co.) über unsere Mails
+// rausgehen (überall wo es um die Zahlung geht!)“.
+//
+// VORHER: `payment_details` ging von hier ohne `sofort_url` raus. Der Motor
+//   lässt einen Knopf ohne Ziel weg (server/mail/motor.ts) — die von Hand
+//   gesendete Zahlungsmail hatte also KEINEN „Sofort per Bank-App“-Knopf,
+//   dieselbe Mail aus der Automatik schon. Ein Mitarbeiter, der einem Kunden
+//   am Telefon „ich schicke Ihnen das gleich“ sagt, schickte die schwächere.
+// NACHHER: Dieselben Felder wie in makePayloadFromRow (server/make-webhook.ts)
+//   — Sofort-Link und Bankverbindung aus der einen Quelle.
+// ══════════════════════════════════════════════════════════════════════════
+import { sofortUrlFuer } from "../lib/fiaon-zahlungsauftrag";
+import { BANK } from "@shared/fiaon-bank";
+// Der Satz über die offene Rate — eine Quelle für Lauf und Handversand.
+import { offeneRateHinweis, offeneRatenCents } from "../lib/fiaon-sepa-werbung";
 
 const router = Router();
 
@@ -112,6 +132,51 @@ router.post("/agent/versand/:personId/:art", requireAgent, async (req: AgentRequ
       paket: p.paket ? String(p.paket).split("\n")[0].trim() : null,
     };
     // ══════════════════════════════════════════════════════════════════════
+    // DIE ZAHLUNGSDATEN GEHÖREN ZUR OFFENEN BESTELLUNG (02.09.2026)
+    //
+    // `basis` oben nimmt die JÜNGSTE Bestellung. Bei fünf Personen im Bestand
+    // (Zählung 02.09.) ist die jüngste bezahlt und eine ältere offen — für die
+    // hätte die Zahlungsmail Referenz und Betrag der falschen Bestellung
+    // getragen. Der Kunde überweist dann mit einem Verwendungszweck, zu dem
+    // nichts mehr offen ist, und die Zahlung bleibt liegen.
+    // `versandErlaubt` lässt `payment_details` ohnehin nur durch, wenn eine
+    // offene Bestellung existiert — hier wird sie geholt. Bevorzugt wird die,
+    // die einen Betrag hat: Eine Zahlungsaufforderung ohne Betrag ist keine.
+    // ══════════════════════════════════════════════════════════════════════
+    let offeneBestellung: { ref: string; payment_reference: string | null; amount_due: string | null; pack_name: string | null; payment_status: string } | null = null;
+    if (art === "payment_details") {
+      const [o] = (await sqlPool`
+        SELECT ref, payment_reference, amount_due, pack_name, payment_status
+          FROM fiaon_applications
+         WHERE person_id = ${personId} AND merged_into IS NULL AND archived_at IS NULL
+           AND payment_status IN ('pending_payment', 'claimed_paid', 'expired')
+         ORDER BY (COALESCE(amount_due, 0) > 0) DESC, created_at DESC
+         LIMIT 1
+      `) as any[];
+      offeneBestellung = o
+        ? {
+            ref: String(o.ref),
+            payment_reference: o.payment_reference || null,
+            amount_due: o.amount_due != null ? String(o.amount_due) : null,
+            pack_name: o.pack_name ? String(o.pack_name).split("\n")[0].trim() : null,
+            // Wer uns gerade gemeldet hat, dass er ueberwiesen hat, bekommt
+            // KEINEN Sofort-Knopf — sonst draengt die Handmail zur zweiten
+            // Zahlung (Pruefung 02.09.2026). Der leise Weg (Zahlungsseite)
+            // bleibt: dort sieht er erst den Stand seiner Bestellung.
+            payment_status: String(o.payment_status || ""),
+          }
+        : null;
+    }
+
+    // Die überfällige Rate, die der Bankeinzug als Erstes holen wird — derselbe
+    // Satz wie im Einladungslauf (fiaon-sepa-werbung.ts). Ohne ihn stünde in der
+    // Handmail an dieser Stelle ein leerer Absatz, und der Kunde erführe erst
+    // bei der Abbuchung davon; genau daran scheitern Mandate.
+    const rateHinweis = art === "sepa_einrichten" && p.ref
+      ? offeneRateHinweis(await offeneRatenCents(String(p.ref)))
+      : "";
+
+    // ══════════════════════════════════════════════════════════════════════
     // NEU 24.08.2026 — die Angaben für „termin_verpasst"
     //
     // VORHER: Diese Art gab es nicht.
@@ -166,10 +231,48 @@ router.post("/agent/versand/:personId/:art", requireAgent, async (req: AgentRequ
                   // ist der Rückfallweg.
                   sepa_link: p.ref ? sepaLink(String(p.ref)) : absoluteUrl("/dashboard#abo"),
                   kundenbereich_link: absoluteUrl("/dashboard#abo"),
+                  // NEU 02.09.2026: derselbe Satz wie im Einladungslauf.
+                  // KEINE Zahlwege in dieser Mail — die Begründung steht im
+                  // Kopf von server/lib/fiaon-sepa-werbung.ts (kurz: Doppel-
+                  // zahlung, und die offene Rate hat eine eigene Referenz).
+                  offene_rate_hinweis: rateHinweis,
                 }
               : {};
 
-    const erg = await versendenUndProtokollieren(art as any, { ...basis, ...zusatz }, {
+    // ── DIE ZAHLWEGE STEHEN NEBEN DER KETTE, NICHT IN IHR ─────────────────
+    // Die Kette oben ist schon fünf Ebenen tief; eine sechste hätte sie
+    // unlesbar gemacht. Ein eigener Block sagt außerdem deutlicher, worum es
+    // geht: Das hier sind die WEGE zur Zahlung, nicht Beiwerk einer Vorlage.
+    // Reihenfolge beim Zusammenbauen: basis < zusatz < zahlwege — die
+    // Zahlungsdaten der OFFENEN Bestellung schlagen die der jüngsten.
+    const zahlwege: Record<string, unknown> = art === "payment_details"
+      ? {
+          // Fehlt die offene Bestellung wider Erwarten, bleibt es bei
+          // `basis`, statt hier null zu schreiben und die Mail um ihre
+          // Zahlen zu bringen.
+          ...(offeneBestellung
+            ? {
+                antrag_id: offeneBestellung.ref,
+                payment_reference: offeneBestellung.payment_reference,
+                betrag: offeneBestellung.amount_due,
+                ...(offeneBestellung.pack_name ? { paket: offeneBestellung.pack_name } : {}),
+              }
+            : {}),
+          // Der Knopf, der bisher still wegfiel. `sofortUrlFuer` gibt null
+          // zurück, solange die Sofortzahlung nicht eingesteckt ist oder die
+          // Referenz nicht die Form eines Zahlungsauftrags hat — dann fällt
+          // er weiterhin weg, statt ins Leere zu führen.
+          sofort_url: offeneBestellung?.payment_status === "claimed_paid" ? null : sofortUrlFuer(offeneBestellung?.payment_reference ?? null),
+          // Empfänger/IBAN/BIC aus der einen Quelle. Der Motor hätte einen
+          // Rückfall auf dieselben Werte; mitgeschickt stehen sie AUCH im
+          // Protokoll, und die Mail lässt sich später richtig nachdrucken.
+          empfaenger: BANK.empfaenger,
+          iban: BANK.ibanDisplay,
+          bic: BANK.bic,
+        }
+      : {};
+
+    const erg = await versendenUndProtokollieren(art as any, { ...basis, ...zusatz, ...zahlwege }, {
       personId,
       verlaufRef: p.ref || null,
       verlaufText: `Erneut gesendet von ${req.agent!.name}: ${art}.`,

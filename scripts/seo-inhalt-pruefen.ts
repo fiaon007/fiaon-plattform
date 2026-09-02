@@ -16,6 +16,7 @@ import { EN_NAV, EN_FUSS } from "../shared/fiaon-sprache";
 import { titelPixel, beschreibungPixel, TITEL_MAX_PX, BESCHREIBUNG_MAX_PX, wortwiederholung } from "../shared/fiaon-pixel";
 
 const JSONAUS = process.argv.includes("--json");
+const STRENG = process.argv.includes("--streng");
 
 /** Der Textkörper einer Seite — dieselben Bausteine wie im Vorrendering. */
 function bloecke(s: SeoSeite): string[] {
@@ -119,3 +120,6 @@ for (const art of reihenfolge) {
   console.log("");
 }
 console.log(`Blöcke auf mehreren Seiten insgesamt: ${mehrfach}`);
+
+// Im Strengmodus ist jeder Befund ein Fehler — so hängt der Prüfstand daran.
+if (STRENG && befunde.length) process.exit(1);

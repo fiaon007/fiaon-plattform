@@ -63,6 +63,14 @@ try { execSync("npx tsx scripts/seo-fragen-erzeugen.ts --pruefen", { cwd: WURZEL
 catch { f("shared/fiaon-seo-fragen.ts ist veraltet — npx tsx scripts/seo-fragen-erzeugen.ts"); }
 try { execSync("npx tsx scripts/seo-kurz-erzeugen.ts --pruefen", { cwd: WURZEL, stdio: "pipe" }); }
 catch { f("shared/fiaon-seo-kurz.ts ist veraltet — npx tsx scripts/seo-kurz-erzeugen.ts"); }
+// 03.09.2026 (E-092): Die Überschrift steht an zwei Stellen — in der Tabelle (Server-HTML)
+// und im Wörterbuch (was React zeigt). Weichen sie ab, sieht ein Crawler ohne JavaScript
+// eine andere Überschrift als ein Besucher.
+try { execSync("npx tsx scripts/seo-h1-abgleich.ts", { cwd: WURZEL, stdio: "pipe" }); }
+catch { f("H1 in Tabelle und Wörterbuch weichen ab — npx tsx scripts/seo-h1-abgleich.ts"); }
+// Pixelmaße und Inhaltsdeckung: derselbe Maßstab, den der Onpage-Bericht anlegt.
+try { execSync("npx tsx scripts/seo-inhalt-pruefen.ts --streng", { cwd: WURZEL, stdio: "pipe" }); }
+catch { f("Inhalts-Prüfstand meldet Befunde — npx tsx scripts/seo-inhalt-pruefen.ts"); }
 
 console.log(`Tabelle: ${Object.keys(SEO_SEITEN).length} Seiten, ${seoIndexierbar().length} indexierbar.`);
 

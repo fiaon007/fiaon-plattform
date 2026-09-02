@@ -11,7 +11,7 @@ import { BANK } from "@shared/fiaon-bank";
 
 // ── Bankverbindung (Vorkasse) ────────────────────────────────────────────────
 export const FIAON_BANK = {
-  recipient: "Fiaon Ltd",
+  recipient: BANK.empfaenger,
   iban: BANK.iban,               // 02.09.2026: Wise gesperrt → shared/fiaon-bank.ts
   ibanDisplay: BANK.ibanDisplay,
   bic: BANK.bic,

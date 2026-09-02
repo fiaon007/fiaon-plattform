@@ -25,7 +25,7 @@ export const FIAON_ENTITY = {
 };
 
 export const FIAON_BANK_DETAILS = {
-  recipient: "FIAON LTD",
+  recipient: BANK.empfaenger,
   iban: BANK.ibanDisplay,   // 02.09.2026: Wise gesperrt → shared/fiaon-bank.ts
   bic: BANK.bic,
 };

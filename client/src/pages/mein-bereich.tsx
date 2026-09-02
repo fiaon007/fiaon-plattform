@@ -384,9 +384,10 @@ export default function MeinBereichPage() {
                 Fall bekommt einen Satz in Klartext; „bereits“ und „abgebrochen“
                 sind KEINE Fehler und werden deshalb nicht rot gezeigt. */}
             {lastschriftRueckmeldung && (
-              <div className={`mb-meldung ${["eingerichtet", "bereits"].includes(lastschriftRueckmeldung) ? "gut" : ["abgebrochen", "erst_zahlen"].includes(lastschriftRueckmeldung) ? "" : "fehler"}`} style={{ marginTop: 0 }}>
+              <div className={`mb-meldung ${["eingerichtet", "bereits", "ausstehend"].includes(lastschriftRueckmeldung) ? "gut" : ["abgebrochen", "erst_zahlen"].includes(lastschriftRueckmeldung) ? "" : "fehler"}`} style={{ marginTop: 0 }}>
                 {lastschriftRueckmeldung === "eingerichtet" ? "Ihre Lastschrift ist eingerichtet. Die Raten werden ab jetzt automatisch eingezogen — Sie müssen nichts mehr überweisen."
                   : lastschriftRueckmeldung === "bereits" ? "Ihre Lastschrift ist bereits eingerichtet — es gibt nichts mehr zu tun."
+                  : lastschriftRueckmeldung === "ausstehend" ? "Ihre Bestätigung ist angekommen. GoCardless schließt die Einrichtung in wenigen Minuten ab — Sie müssen nichts weiter tun."
                   : lastschriftRueckmeldung === "abgebrochen" ? "Die Einrichtung wurde abgebrochen. Sie können sie jederzeit unter Abo & Zahlungen erneut starten."
                   : lastschriftRueckmeldung === "link_abgelaufen" ? "Dieser Link ist abgelaufen. Richten Sie den Bankeinzug bitte unten unter Abo & Zahlungen ein — das dauert genauso lange."
                   : lastschriftRueckmeldung === "erst_zahlen" ? "Den Bankeinzug können Sie einrichten, sobald Ihre erste Zahlung bei uns eingegangen ist."

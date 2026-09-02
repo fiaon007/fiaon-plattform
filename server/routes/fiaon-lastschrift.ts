@@ -140,21 +140,88 @@ async function flowStarten(ref: string, rueckkehrPfad: (brId: string) => string)
   return { ok: true, url: flow.billing_request_flows.authorisation_url };
 }
 
-/** Mandat an der Person festschreiben und das GoCardless-Abo anlegen. */
-async function mandatUebernehmen(ref: string, brId: string): Promise<"eingerichtet" | "abgebrochen" | "fehler"> {
-  const br = (await gc(`/billing_requests/${brId}`)).billing_requests;
-  const mandateId = br?.links?.mandate || null;
-  if (!mandateId) return "abgebrochen";
-  const mandat = (await gc(`/mandates/${mandateId}`)).mandates;
-  const customerId = mandat?.links?.customer || br?.links?.customer || null;
+// ── DER FUND VOM 02.09.2026 (11 verwaiste Mandate) ───────────────────────
+// Die Rückkehr las das Mandat aus `billing_request.links.mandate` — dieses
+// Feld gibt es in der GoCardless-Antwort NICHT. Das Mandat hängt an
+// `links.mandate_request_mandate` (bzw. `mandate_request.links.mandate`).
+// Folge seit dem 22.08.: Jede Rückkehr endete als „abgebrochen", kein Mandat
+// wurde gespeichert, kein Abo angelegt; Kunden versuchten es erneut (eine
+// Kundin dreimal am 31.08.) — bei GoCardless lagen 11 Mandate, die Datenbank
+// kannte keines. Dazu kommt: Die Erfüllung ist asynchron. Direkt nach der
+// Rückkehr kann das Mandat noch fehlen — deshalb kurz nachfassen, und wenn
+// GoCardless „ready_to_fulfil" meldet, die Erfüllung selbst anstoßen.
+function mandatAusBillingRequest(br: any): string | null {
+  return br?.links?.mandate_request_mandate ?? br?.mandate_request?.links?.mandate ?? br?.links?.mandate ?? null;
+}
 
-  const [a] = (await sqlPool`SELECT person_id FROM fiaon_applications WHERE ref = ${ref} AND merged_into IS NULL LIMIT 1`) as any[];
-  if (a?.person_id) {
-    await sqlPool`UPDATE fiaon_persons SET gc_customer_ref = ${customerId}, gc_mandate_ref = ${mandateId},
-      gc_mandate_status = ${String(mandat?.status || "pending_submission")}, updated_at = NOW() WHERE id = ${a.person_id}`;
+/** Mandat an der Person festschreiben und das GoCardless-Abo anlegen. */
+async function mandatUebernehmen(ref: string, brId: string): Promise<"eingerichtet" | "abgebrochen" | "ausstehend" | "fehler"> {
+  let br = (await gc(`/billing_requests/${brId}`)).billing_requests;
+  let mandateId = mandatAusBillingRequest(br);
+  for (let versuch = 0; !mandateId && versuch < 5; versuch++) {
+    if (String(br?.status) === "cancelled") return "abgebrochen";
+    if (String(br?.status) === "ready_to_fulfil") {
+      await gc(`/billing_requests/${brId}/actions/fulfil`, { method: "POST", body: { data: {} } }).catch((e) =>
+        console.warn(`[LASTSCHRIFT] ${ref}: fulfil ${brId}:`, String(e?.message || e).slice(0, 160)));
+    }
+    await new Promise((r) => setTimeout(r, 1500));
+    br = (await gc(`/billing_requests/${brId}`)).billing_requests;
+    mandateId = mandatAusBillingRequest(br);
+  }
+  if (!mandateId) {
+    // Nicht abgebrochen, aber noch kein Mandat: Der Webhook (billing_requests
+    // fulfilled) holt es nach — der Kunde sieht „in Arbeit", nicht „abgebrochen".
+    console.warn(`[LASTSCHRIFT] ${ref}: Billing Request ${brId} noch ohne Mandat (Status ${br?.status}) — Webhook holt nach.`);
+    return String(br?.status) === "pending" ? "abgebrochen" : "ausstehend";
+  }
+  return mandatSpeichern(ref, mandateId, br?.links?.customer || null);
+}
+
+/** Mandat + Kunde an der Person festschreiben, Abo anlegen — idempotent. */
+async function mandatSpeichern(ref: string, mandateId: string, customerVorgabe: string | null): Promise<"eingerichtet" | "fehler"> {
+  const mandat = (await gc(`/mandates/${mandateId}`)).mandates;
+  const customerId = mandat?.links?.customer || customerVorgabe || null;
+  const [a] = (await sqlPool`SELECT person_id, gc_mandate_ref FROM fiaon_applications a LEFT JOIN fiaon_persons p ON p.id = a.person_id
+    WHERE a.ref = ${ref} AND a.merged_into IS NULL LIMIT 1`) as any[];
+  if (!a?.person_id) return "fehler";
+  const schonDieses = String(a.gc_mandate_ref || "") === String(mandateId);
+  await sqlPool`UPDATE fiaon_persons SET gc_customer_ref = ${customerId}, gc_mandate_ref = ${mandateId},
+    gc_mandate_status = ${String(mandat?.status || "pending_submission")}, updated_at = NOW() WHERE id = ${a.person_id}`;
+  if (!schonDieses) {
+    await sqlPool`INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
+      VALUES (${ref}, ${a.person_id}, NULL, 'System', 'system', ${`Lastschrift-Mandat erteilt (GoCardless ${mandateId}, Status ${mandat?.status || "pending_submission"}).`})`.catch(() => {});
   }
   await gcAboAnlegen(ref, mandateId);
   return "eingerichtet";
+}
+
+/**
+ * Ein Mandat, das ohne unsere Rückkehr entstand, über die Kunden-E-Mail an die
+ * Person hängen (Webhook mandates.created, Abgleich). Bringt nur etwas, wenn
+ * die Person noch kein lebendes Mandat hat — sonst bleibt das erste führend.
+ */
+async function mandatNachEmailVerknuepfen(mandateId: string): Promise<{ ref: string | null; grund: string }> {
+  const [schon] = (await sqlPool`SELECT id FROM fiaon_persons WHERE gc_mandate_ref = ${mandateId} LIMIT 1`) as any[];
+  if (schon) return { ref: null, grund: "schon verknüpft" };
+  const mandat = (await gc(`/mandates/${mandateId}`)).mandates;
+  if (["cancelled", "failed", "expired"].includes(String(mandat?.status))) return { ref: null, grund: `Mandat ${mandat?.status}` };
+  const customerId = mandat?.links?.customer;
+  if (!customerId) return { ref: null, grund: "kein Kunde am Mandat" };
+  const kunde = (await gc(`/customers/${customerId}`)).customers;
+  const email = String(kunde?.email || "").trim().toLowerCase();
+  if (!email) return { ref: null, grund: "Kunde ohne E-Mail" };
+  const [a] = (await sqlPool`
+    SELECT a.ref, a.person_id, p.gc_mandate_ref, p.gc_mandate_status
+    FROM fiaon_applications a JOIN fiaon_persons p ON p.id = a.person_id
+    WHERE a.merged_into IS NULL AND a.payment_status = 'paid'
+      AND (LOWER(a.email) = ${email} OR LOWER(p.primary_email) = ${email})
+    ORDER BY a.created_at DESC LIMIT 1`) as any[];
+  if (!a) return { ref: null, grund: `keine bezahlte Bestellung zu ${email}` };
+  if (a.gc_mandate_ref && !["failed", "cancelled", "expired", ""].includes(String(a.gc_mandate_status || ""))) {
+    return { ref: a.ref, grund: `Person hat schon Mandat ${a.gc_mandate_ref}` };
+  }
+  const erg = await mandatSpeichern(a.ref, mandateId, customerId);
+  return { ref: a.ref, grund: erg };
 }
 
 /** POST /kunde/:ref/lastschrift/start — Billing Request + Flow, liefert die GoCardless-Seite. */
@@ -351,6 +418,38 @@ export async function gcAboAnlegen(ref: string, mandateIdVorgabe?: string | null
 }
 
 /** POST /gocardless/webhook — Mandats- und Zahlungsstatus. Signatur: HMAC-SHA256 mit GOCARDLESS_WEBHOOK_SECRET. */
+/**
+ * POST /admin/lastschrift/abgleich {schreiben:false} — alle lebenden Mandate
+ * bei GoCardless gegen die Datenbank halten und Verwaiste über die
+ * Kunden-E-Mail an die Person hängen (02.09.2026). Ohne `schreiben` nur zählen.
+ */
+router.post("/admin/lastschrift/abgleich", async (req: Request, res: Response) => {
+  try {
+    const schreiben = req.body?.schreiben === true;
+    const mandate: any[] = [];
+    let after: string | null = null;
+    for (let seite = 0; seite < 20; seite++) {
+      const j = await gc(`/mandates?limit=100${after ? `&after=${encodeURIComponent(after)}` : ""}`);
+      mandate.push(...(j?.mandates || []));
+      after = j?.meta?.cursors?.after || null;
+      if (!after) break;
+    }
+    const lebend = mandate.filter((m) => !["cancelled", "failed", "expired"].includes(String(m.status)));
+    const bekannt = new Set(((await sqlPool`SELECT gc_mandate_ref FROM fiaon_persons WHERE gc_mandate_ref IS NOT NULL`) as any[]).map((r) => String(r.gc_mandate_ref)));
+    const verwaist = lebend.filter((m) => !bekannt.has(String(m.id)));
+    const ergebnisse: any[] = [];
+    if (schreiben) {
+      for (const m of verwaist) {
+        try { ergebnisse.push({ mandat: m.id, status: m.status, ...(await mandatNachEmailVerknuepfen(String(m.id))) }); }
+        catch (e: any) { ergebnisse.push({ mandat: m.id, status: m.status, ref: null, grund: String(e?.message || e).slice(0, 160) }); }
+      }
+    }
+    res.json({ ok: true, schreiben, gesamt: mandate.length, lebend: lebend.length, bekannt: bekannt.size, verwaist: verwaist.map((m) => ({ id: m.id, status: m.status, erstellt: m.created_at })), ergebnisse });
+  } catch (e: any) {
+    res.status(500).json({ ok: false, error: String(e?.message || e).slice(0, 300) });
+  }
+});
+
 router.post("/gocardless/webhook", async (req: Request, res: Response) => {
   try {
     const secret = process.env.GOCARDLESS_WEBHOOK_SECRET;
@@ -365,6 +464,23 @@ router.post("/gocardless/webhook", async (req: Request, res: Response) => {
       console.warn("[LASTSCHRIFT] Webhook ohne GOCARDLESS_WEBHOOK_SECRET — Signatur nicht geprüft.");
     }
     for (const ev of (req.body?.events || []) as any[]) {
+      // 02.09.2026: Die Erfüllung eines Billing Requests ist der verlässliche
+      // Moment, an dem das Mandat existiert — unabhängig davon, ob der Kunde
+      // je zu uns zurückkam (Rückkehr abgebrochen, Cookie weg, Tab zu).
+      if (ev.resource_type === "billing_requests" && ev.action === "fulfilled" && ev.links?.billing_request) {
+        try {
+          const br = (await gc(`/billing_requests/${ev.links.billing_request}`)).billing_requests;
+          const ref = String(br?.metadata?.ref || "");
+          const mandateId = mandatAusBillingRequest(br);
+          if (ref && mandateId) await mandatSpeichern(ref, mandateId, br?.links?.customer || null);
+          else if (mandateId) await mandatNachEmailVerknuepfen(mandateId);
+        } catch (e: any) { console.error("[LASTSCHRIFT] Webhook billing_request:", String(e?.message || e).slice(0, 200)); }
+      }
+      if (ev.resource_type === "mandates" && ev.action === "created" && ev.links?.mandate) {
+        mandatNachEmailVerknuepfen(String(ev.links.mandate))
+          .then((r) => { if (r.ref) console.log(`[LASTSCHRIFT] Mandat ${ev.links.mandate} → ${r.ref}: ${r.grund}`); })
+          .catch((e) => console.error("[LASTSCHRIFT] Webhook mandate created:", String(e?.message || e).slice(0, 200)));
+      }
       if (ev.resource_type === "mandates") {
         const status = ev.action === "active" ? "active" : ev.action === "cancelled" ? "cancelled" : ev.action === "failed" ? "failed" : ev.action === "expired" ? "expired" : null;
         if (status && ev.links?.mandate) {

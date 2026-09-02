@@ -144,7 +144,7 @@ function TrustBadges() {
  * ausstellen). Kommt keins zurück, verschwindet der Block wortlos: Ein
  * Angebot, das ins Leere führt, ist schlimmer als keines.
  */
-function TerminAngebot({ paymentReference }: { paymentReference: string }) {
+function TerminAngebot({ paymentReference, art }: { paymentReference: string; art?: "bestellung" | "rate" }) {
   const [token, setToken] = useState<string | null>(null);
 
   useEffect(() => {
@@ -176,9 +176,11 @@ function TerminAngebot({ paymentReference }: { paymentReference: string }) {
               className="text-left p-4 rounded-2xl border-2 border-[#1d4ed8] bg-blue-50/40 active:scale-[.99] transition-transform"
               style={{ boxShadow: "0 10px 30px -14px rgba(29,78,216,.45)" }}>
         <p className="text-[10px] font-bold uppercase tracking-wider text-[#1d4ed8] mb-1">Weg 1 · empfohlen</p>
-        <p className="text-[14px] font-bold text-slate-900 leading-tight">Jetzt überweisen — Konto sofort aktiv</p>
+        <p className="text-[14px] font-bold text-slate-900 leading-tight">{art === "rate" ? "Rate jetzt überweisen — in einer Minute erledigt" : "Jetzt überweisen — Konto sofort aktiv"}</p>
         <p className="text-[12.5px] text-slate-600 mt-1.5 leading-relaxed">
-          Nach Zahlungseingang wird Ihr Konto freigeschaltet. Tippen Sie hier — die Zahlungsdaten mit Ihrem Verwendungszweck springen Ihnen entgegen.
+          {art === "rate"
+            ? "Sobald die Überweisung eingeht, wird Ihre Rate automatisch verbucht. Tippen Sie hier — die Zahlungsdaten mit Ihrem Verwendungszweck springen Ihnen entgegen."
+            : "Nach Zahlungseingang wird Ihr Konto freigeschaltet. Tippen Sie hier — die Zahlungsdaten mit Ihrem Verwendungszweck springen Ihnen entgegen."}
         </p>
         <span className="inline-flex items-center justify-center w-full mt-3 rounded-xl text-[13px] font-bold text-white"
               style={{ minHeight: 44, background: "linear-gradient(180deg,#2563eb,#1d4ed8)" }}>
@@ -433,7 +435,7 @@ export default function ZahlungPage() {
                 danach viermal vergeblich angerufen. Der Terminweg ist kein
                 Ausweichgleis, sondern der zweite richtige Ausgang. Deshalb
                 steht er gleichrangig oben, nicht als Kleingedrucktes unten. */}
-            <TerminAngebot paymentReference={order.paymentReference} />
+            <TerminAngebot paymentReference={order.paymentReference} art={order.art} />
 
             {order.status === "claimed_paid" && (
               <div className="mb-5 rounded-xl bg-emerald-50 border border-emerald-200 p-4 text-center">
@@ -453,7 +455,7 @@ export default function ZahlungPage() {
 
             {/* 3. Erklär-Box: So bezahlen Sie – ganz einfach */}
             <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-5 sm:p-6 mb-5">
-              <p className="text-[16px] sm:text-[17px] font-bold zahlung-shimmer-heading mb-4 inline-block">Konto aktivieren &amp; Karte versenden – ganz einfach</p>
+              <p className="text-[16px] sm:text-[17px] font-bold zahlung-shimmer-heading mb-4 inline-block">{order.art === "rate" ? "Rate überweisen – ganz einfach" : <>Konto aktivieren &amp; Karte versenden – ganz einfach</>}</p>
 
               <p className="text-[12px] font-bold uppercase tracking-wider text-[#2563eb] mb-2.5">Empfohlen (schnell &amp; fehlerfrei)</p>
               <ol className="space-y-2.5 mb-5">

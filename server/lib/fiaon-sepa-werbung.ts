@@ -80,10 +80,19 @@ async function tagesDeckel(): Promise<number> {
   return einstellung("sepa_werbung_pro_tag", 0, 1000);
 }
 
+// ── HOTFIX 02.09.2026, 08:50: DIE NACHTRUHE HAT NIE GEGRIFFEN ─────────────
+// `format()` mit nur `hour` liefert in de-DE „08 Uhr“, nicht „08“. Number()
+// davon ist NaN, und NaN ist weder < 8 noch >= 20 — die Nachtruhe war damit
+// wirkungslos: neun Mails gingen um 01:17 raus, im ersten Takt nach dem
+// Scharfschalten. Deshalb `formatToParts` wie in fiaon-antrag-erinnerung.ts
+// (berlinMinuten) — das Hausmuster, das ich hätte kopieren sollen.
 function berlinStunde(): number {
-  return Number(new Intl.DateTimeFormat("de-DE", {
-    timeZone: "Europe/Berlin", hour: "2-digit", hour12: false,
-  }).format(new Date()));
+  const teile = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", hour12: false })
+    .formatToParts(new Date());
+  const h = Number(teile.find((p) => p.type === "hour")?.value);
+  // Im Zweifel (NaN) gilt Nachtruhe — lieber eine Stunde später senden als
+  // wieder um 01:17. -1 ist < 8 und damit „Nacht“.
+  return Number.isFinite(h) ? h % 24 : -1;
 }
 
 export interface SepaWerbungErgebnis {

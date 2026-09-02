@@ -1,6 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// /werkzeuge/inkasso-antwort — der Antwortbrief an das Inkassounternehmen
-// (02.09.2026, E-080)
+// /werkzeuge/inkasso-antwort · /en/tools/reply-to-debt-collector — der
+// Antwortbrief an das Inkassounternehmen (02.09.2026, E-080; zweisprachig
+// 03.09.2026 — der Brief bleibt deutsch, Texte: client/src/i18n/wz-inkasso-antwort.ts)
 //
 // Vier Haltungen, vier Briefe:
 //   1. „Ich kenne die Forderung nicht" → Nachweise verlangen (§ 13a RDG:
@@ -16,27 +17,19 @@
 import { useMemo, useState } from "react";
 import { Dunkel, Block, Licht, Knopf, Zwischenruf, Fragen } from "@/components/site/DunkleBuehne";
 import SeoDaten from "@/components/site/SeoDaten";
+import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
+import { WZ_INKASSO_ANTWORT_WOERTER } from "@/i18n/wz-inkasso-antwort";
 import "@/styles/ratgeber.css";
 
 type Haltung = "unbekannt" | "kosten" | "verjaehrt" | "bezahlt" | "";
-const HALTUNGEN: { key: Haltung; titel: string; kurz: string }[] = [
-  { key: "unbekannt", titel: "Ich kenne die Forderung nicht", kurz: "Kein Vertrag, kein Kauf, keine Erinnerung – oder der Brief nennt keinen Grund." },
-  { key: "kosten", titel: "Die Forderung stimmt, die Kosten nicht", kurz: "Die Hauptforderung ist berechtigt, aber Inkassogebühren, Auskunftskosten oder Zinsen sind überhöht." },
-  { key: "verjaehrt", titel: "Die Forderung ist verjährt", kurz: "Die Forderung ist älter als drei Jahre zum Jahresende – ohne Titel, ohne Anerkenntnis." },
-  { key: "bezahlt", titel: "Ich habe bereits bezahlt", kurz: "Die Forderung ist beglichen, das Inkasso mahnt trotzdem." },
-];
-
-const FRAGEN = [
-  { f: "Muss ich auf einen Inkassobrief überhaupt antworten?", a: "Rechtlich nicht – aber Schweigen ist die schlechteste Antwort. Ein bestrittener Anspruch darf nicht an Auskunfteien gemeldet werden (§ 31 Abs. 2 Nr. 4 Buchst. d BDSG); wer nicht widerspricht, bestreitet nicht. Ein kurzes, sachliches Schreiben schützt Sie vor der Meldung und zwingt das Inkasso, seine Unterlagen zu zeigen." },
-  { f: "Was muss ein Inkassounternehmen mir mitteilen?", a: "Seit dem 1. Oktober 2021 mit der ersten Geltendmachung (§ 13a RDG): Name und Anschrift des Auftraggebers, den Forderungsgrund – bei Verträgen mit Vertragsgegenstand und Datum des Vertragsschlusses –, bei Zinsen die Berechnung, bei Inkassokosten Art, Höhe und Entstehungsgrund, und ob es sich um eine abgetretene Forderung handelt. Fehlt das, verlangen Sie es – genau das tut der Brief." },
-  { f: "Darf ich die Forderung bestreiten, obwohl sie vielleicht stimmt?", a: "Sie dürfen jederzeit Nachweise verlangen und die Forderung bis zur Vorlage bestreiten. Das ist kein Betrug, sondern Ihr Recht: Wer Geld von Ihnen will, muss belegen, wofür. Stellt sich die Forderung als berechtigt heraus, zahlen oder vereinbaren Sie Raten – dann mit korrigierten Kosten." },
-  { f: "Was tue ich, wenn nach dem Brief ein Mahnbescheid kommt?", a: "Innerhalb von zwei Wochen Widerspruch beim Mahngericht einlegen – das Formular liegt bei, eine Begründung ist nicht nötig. Der Mahnbescheid-Fristenrechner nennt Ihnen den letzten Tag. Ohne Widerspruch wird die Forderung tituliert, egal ob sie berechtigt ist." },
-  { f: "Kann das Inkasso trotzdem einen SCHUFA-Eintrag veranlassen?", a: "Nicht rechtmäßig, solange Sie bestritten haben. Geschieht es doch, ist der Eintrag angreifbar – nutzen Sie den Widerspruch-Generator für den Löschantrag an die Auskunftei. Heben Sie Ihr Schreiben und den Einlieferungsbeleg auf: Sie sind der Beweis, dass die Forderung bestritten war." },
-];
-
 const heute = () => new Date().toLocaleDateString("de-DE", { day: "2-digit", month: "long", year: "numeric" });
 
 export default function InkassoAntwort() {
+  const t = useWoerter(WZ_INKASSO_ANTWORT_WOERTER);
+  const sprache = useSprache();
+  const en = sprache === "en";
+  const zu = (p: string) => inSprache(p, sprache);
+  const pfad = en ? "/en/tools/reply-to-debt-collector" : "/werkzeuge/inkasso-antwort";
   const [haltung, setHaltung] = useState<Haltung>("");
   const [f, setF] = useState({ name: "", strasse: "", plzOrt: "", inkasso: "", inkAdresse: "", aktenzeichen: "", glaeubiger: "", betrag: "", kosten: "", bezahltAm: "", faellig: "" });
   const [kopiert, setKopiert] = useState(false);
@@ -94,73 +87,74 @@ ${f.name || "[Vor- und Nachname]"}${haltung === "bezahlt" ? "\n\nAnlage: Zahlung
   const drucken = () => { const w = window.open("", "_blank", "width=820,height=1000"); if (!w) return; w.document.write(`<!doctype html><title>Antwort an das Inkasso</title><pre style="font:14px/1.6 -apple-system,Helvetica,Arial,sans-serif;white-space:pre-wrap;padding:40px;max-width:700px">${brief.replace(/</g, "&lt;")}</pre>`); w.document.close(); w.focus(); setTimeout(() => w.print(), 300); };
 
   return (
-    <Dunkel seite="ratgeber" titel="Inkasso-Antwortbrief · Bestreiten, Nachweise verlangen, Kosten zurückweisen" beschreibung="Inkassobrief erhalten? Wählen Sie Ihre Lage – der Generator schreibt die Antwort: Nachweise nach § 13a RDG verlangen, überhöhte Kosten zurückweisen, Verjährung einwenden oder Zahlung belegen. Kostenlos.">
-      <SeoDaten pfad="/werkzeuge/inkasso-antwort" titel="Inkasso-Antwortbrief: Forderung bestreiten, Nachweise verlangen" beschreibung="Inkassobrief erhalten? Lage wählen – der Generator schreibt die Antwort: Nachweise nach § 13a RDG, Kosten zurückweisen, Verjährung einwenden, Zahlung belegen. Kostenlos." fragen={FRAGEN} werkzeug={{ name: "Inkasso-Antwortbrief" }} krumen={[{ name: "Werkzeuge", pfad: "/werkzeuge" }, { name: "Inkasso-Antwortbrief", pfad: "/werkzeuge/inkasso-antwort" }]} />
+    <Dunkel seite="ratgeber" titel={t.metaTitel} beschreibung={t.metaBeschreibung}>
+      <SeoDaten pfad={pfad} titel={t.seoTitel} beschreibung={t.seoBeschreibung} fragen={t.fragen} werkzeug={{ name: t.werkzeugName }} krumen={[{ name: t.krumeWerkzeuge, pfad: zu("/werkzeuge") }, { name: t.krume, pfad }]} />
       <section className="dk-hero kurz">
         <div className="dk-hero-bild" aria-hidden="true"><img src="/kino/hero.jpg" alt="" decoding="async" /><div className="schleier" /></div>
         <div className="dk-rahmen">
-          <span className="dk-pille">Werkzeug · kostenlos, ohne Anmeldung</span>
-          <h1 className="dk-h1">Die Antwort, die das Inkasso <span className="dk-verlauf">ernst nimmt.</span></h1>
-          <p className="dk-lead">Ein Inkassobrief ist eine Behauptung mit Briefkopf. Wählen Sie, was auf Sie zutrifft – der Generator schreibt die Antwort mit den Paragrafen, die das Unternehmen kennt: Nachweise, Kostenkürzung, Verjährung oder Zahlungsbeleg.</p>
+          <span className="dk-pille">{t.pille}</span>
+          <h1 className="dk-h1">{t.h1a}<span className="dk-verlauf">{t.h1b}</span></h1>
+          <p className="dk-lead">{t.lead}</p>
         </div>
       </section>
       <Licht>
         <Block schmal>
           <div className="wz-fragen">
             <div className="wz-frage">
-              <p className="wz-nr">Schritt 1</p><h3>Was trifft auf Sie zu?</h3>
-              <p className="wz-hinweis">Unsicher, ob die Forderung verjährt ist? Der <a href="/werkzeuge/verjaehrung">Verjährungs-Rechner</a> sagt es. Ob die Kosten stimmen, prüft der <a href="/werkzeuge/inkassokosten">Inkassokosten-Prüfer</a>.</p>
+              <p className="wz-nr">{t.schritt1}</p><h3>{t.frage1}</h3>
+              <p className="wz-hinweis">{t.hinweis1A}<a href={zu("/werkzeuge/verjaehrung")}>{t.hinweis1Link1}</a>{t.hinweis1B}<a href={zu("/werkzeuge/inkassokosten")}>{t.hinweis1Link2}</a>{t.hinweis1C}</p>
               <div className="wz-optionen zwei">
-                {HALTUNGEN.map((h) => <button key={h.key} type="button" className={`wz-option${haltung === h.key ? " an" : ""}`} onClick={() => setHaltung(h.key)}><b>{h.titel}</b><small>{h.kurz}</small></button>)}
+                {t.haltungen.map((h) => <button key={h.key} type="button" className={`wz-option${haltung === h.key ? " an" : ""}`} onClick={() => setHaltung(h.key)}><b>{h.titel}</b><small>{h.kurz}</small></button>)}
               </div>
             </div>
             {haltung && (
               <div className="wz-frage">
-                <p className="wz-nr">Schritt 2</p><h3>Die Angaben aus dem Brief</h3>
+                <p className="wz-nr">{t.schritt2}</p><h3>{t.frage2}</h3>
                 <div className="wz-felder drei">
-                  <label><span>Inkassounternehmen</span><input value={f.inkasso} onChange={set("inkasso")} /></label>
-                  <label><span>Anschrift Inkasso</span><input value={f.inkAdresse} onChange={set("inkAdresse")} placeholder="Straße, PLZ Ort" /></label>
-                  <label><span>Aktenzeichen</span><input value={f.aktenzeichen} onChange={set("aktenzeichen")} /></label>
-                  <label><span>Angeblicher Gläubiger</span><input value={f.glaeubiger} onChange={set("glaeubiger")} placeholder="z. B. Musterversand GmbH" /></label>
-                  <label><span>Gesamtbetrag (€)</span><input value={f.betrag} onChange={set("betrag")} inputMode="decimal" /></label>
-                  {haltung === "kosten" && <label><span>Davon Inkassokosten (€)</span><input value={f.kosten} onChange={set("kosten")} inputMode="decimal" /></label>}
-                  {haltung === "verjaehrt" && <label><span>Fällig seit</span><input value={f.faellig} onChange={set("faellig")} placeholder="Monat/Jahr" /></label>}
-                  {haltung === "bezahlt" && <label><span>Bezahlt am</span><input value={f.bezahltAm} onChange={set("bezahltAm")} placeholder="TT.MM.JJJJ" /></label>}
+                  <label><span>{t.inkasso}</span><input value={f.inkasso} onChange={set("inkasso")} /></label>
+                  <label><span>{t.inkAdresse}</span><input value={f.inkAdresse} onChange={set("inkAdresse")} placeholder={t.bspAdresse} /></label>
+                  <label><span>{t.aktenzeichen}</span><input value={f.aktenzeichen} onChange={set("aktenzeichen")} /></label>
+                  <label><span>{t.glaeubiger}</span><input value={f.glaeubiger} onChange={set("glaeubiger")} placeholder={t.bspGlaeubiger} /></label>
+                  <label><span>{t.betrag}</span><input value={f.betrag} onChange={set("betrag")} inputMode="decimal" /></label>
+                  {haltung === "kosten" && <label><span>{t.kosten}</span><input value={f.kosten} onChange={set("kosten")} inputMode="decimal" /></label>}
+                  {haltung === "verjaehrt" && <label><span>{t.faellig}</span><input value={f.faellig} onChange={set("faellig")} placeholder={t.bspFaellig} /></label>}
+                  {haltung === "bezahlt" && <label><span>{t.bezahltAm}</span><input value={f.bezahltAm} onChange={set("bezahltAm")} placeholder={t.datumFormat} /></label>}
                 </div>
               </div>
             )}
             {haltung && (
               <div className="wz-frage">
-                <p className="wz-nr">Schritt 3</p><h3>Ihre Angaben</h3>
+                <p className="wz-nr">{t.schritt3}</p><h3>{t.frage3}</h3>
                 <div className="wz-felder drei">
-                  <label><span>Vor- und Nachname</span><input value={f.name} onChange={set("name")} /></label>
-                  <label><span>Straße, Hausnummer</span><input value={f.strasse} onChange={set("strasse")} /></label>
-                  <label><span>PLZ Ort</span><input value={f.plzOrt} onChange={set("plzOrt")} /></label>
+                  <label><span>{t.name}</span><input value={f.name} onChange={set("name")} /></label>
+                  <label><span>{t.strasse}</span><input value={f.strasse} onChange={set("strasse")} /></label>
+                  <label><span>{t.plzOrt}</span><input value={f.plzOrt} onChange={set("plzOrt")} /></label>
                 </div>
               </div>
             )}
           </div>
           {haltung && (
             <div className="wz-ergebnis">
-              <span className="wz-stufe" style={{ background: "#1d4ed8" }}>Ihr Schreiben</span>
-              <h3>Schriftlich, per Einschreiben, mit Frist – und ohne ein Wort zu viel.</h3>
-              <p>Nicht anrufen: Am Telefon wird nichts bewiesen, aber vieles versehentlich anerkannt. Der Brief enthält alles, was zählt: Ihre Haltung, die Rechtsgrundlage, die Frist – und den Widerspruch gegen jede Meldung an Auskunfteien.</p>
-              <div className="wz-schritt" style={{ marginTop: 22, borderColor: "rgba(180,83,9,.35)", background: "#fffaf0" }}><small style={{ color: "#b45309" }}>Muster, keine Rechtsberatung</small><p>Dieses Schreiben ist ein Mustertext zum Selbst-Anpassen. Es bewertet nicht Ihren Einzelfall und ersetzt keine Rechtsberatung – prüfen Sie Sachverhalt, Daten und Fristen selbst oder mit einer Beratungsstelle. Der Unterschied zum FIAON-Programm: Dort sind die Schreiben anwaltlich geprüft, werden per Einschreiben versendet, jede Antwort wird verfolgt und Fristen werden gehalten.</p></div>
-              <div className="wz-brief-wrap" style={{ marginTop: 22 }}><div className="wz-brief">{brief}</div>
+              <span className="wz-stufe" style={{ background: "#1d4ed8" }}>{t.ihrSchreiben}</span>
+              <h3>{t.ergebnisTitel}</h3>
+              <p>{t.ergebnisText}</p>
+              <div className="wz-schritt" style={{ marginTop: 22, borderColor: "rgba(180,83,9,.35)", background: "#fffaf0" }}><small style={{ color: "#b45309" }}>{t.musterTitel}</small><p>{t.muster}</p></div>
+              {t.spracheHinweis && <div className="wz-schritt" style={{ marginTop: 14 }}><p>{t.spracheHinweis}</p></div>}
+              <div className="wz-brief-wrap" style={{ marginTop: 22 }}><div className="wz-brief" lang="de">{brief}</div>
                 <div className="wz-knoepfe">
-                  <button type="button" className="dk-knopf" onClick={kopieren}>{kopiert ? "Kopiert" : "Schreiben kopieren"}</button>
-                  <button type="button" className="dk-knopf still" onClick={drucken}>Drucken</button>
-                  <Knopf href="/werkzeuge/mahnbescheid" still>Falls ein Mahnbescheid kommt</Knopf>
+                  <button type="button" className="dk-knopf" onClick={kopieren}>{kopiert ? t.kopiert : t.kopieren}</button>
+                  <button type="button" className="dk-knopf still" onClick={drucken}>{t.drucken}</button>
+                  <Knopf href={zu("/werkzeuge/mahnbescheid")} still>{t.fallsMahnbescheid}</Knopf>
                 </div>
               </div>
-              <div className="wz-schritt"><small>Danach</small><p>Einlieferungsbeleg aufheben. Kommt innerhalb von 14 Tagen nichts oder nur eine weitere Mahnung ohne Nachweise: nicht zahlen, nicht anrufen, Ordner anlegen. Kommt ein Mahnbescheid: zwei Wochen Widerspruchsfrist – der <a href="/werkzeuge/mahnbescheid">Fristenrechner</a> nennt den Tag. Kommen die Nachweise und die Forderung stimmt: <a href="/werkzeuge/ratenplan">Ratenplan</a> anbieten.</p></div>
+              <div className="wz-schritt"><small>{t.danach}</small><p>{t.danachA}<a href={zu("/werkzeuge/mahnbescheid")}>{t.danachLink1}</a>{t.danachB}<a href={zu("/werkzeuge/ratenplan")}>{t.danachLink2}</a>{t.danachC}</p></div>
             </div>
           )}
-          <p className="dk-leise" style={{ marginTop: 18 }}>Grundlage: § 13a, § 13e RDG; § 31 Abs. 2 BDSG; §§ 195, 199, 212 BGB; BGH VIII ZR 95/18. Das Werkzeug ersetzt keine Rechtsberatung. Bei gerichtlichen Schreiben (Mahnbescheid, Klage) gelten Fristen – dort zählt jeder Tag. Nichts wird gespeichert.</p>
+          <p className="dk-leise" style={{ marginTop: 18 }}>{t.fuss}</p>
         </Block>
       </Licht>
-      <Block schmal titel="Häufige Fragen"><Fragen items={FRAGEN} /></Block>
-      <Zwischenruf text={<><b>Mehr als ein Brief im Ordner?</b> FIAON ist Ihre Gegenprüfung: Wir prüfen Forderung, Kosten und Verjährung, schreiben in Ihrem Namen und verfolgen jede Antwort – bis der Eintrag weg ist.</>} knopf="FIAON übernimmt das" href="/antrag" still={{ knopf: "Inkasso-Brief erhalten?", href: "/inkasso-brief-erhalten" }} />
+      <Block schmal titel={t.fragenTitel}><Fragen items={t.fragen} /></Block>
+      <Zwischenruf text={<><b>{t.zwischenrufFett}</b>{t.zwischenruf}</>} knopf={t.zwischenrufKnopf} href="/antrag" still={{ knopf: t.inkassoBrief, href: zu("/inkasso-brief-erhalten") }} />
     </Dunkel>
   );
 }

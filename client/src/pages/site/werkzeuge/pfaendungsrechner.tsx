@@ -1,6 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// /werkzeuge/pfaendungsrechner — Pfändungsfreigrenze und P-Konto-Schutz
-// (02.09.2026, E-080)
+// /werkzeuge/pfaendungsrechner · /en/tools/attachment-calculator —
+// Pfändungsfreigrenze und P-Konto-Schutz (02.09.2026, E-080; zweisprachig
+// 03.09.2026, Texte: client/src/i18n/wz-pfaendungsrechner.ts)
 //
 // Werte der Pfändungsfreigrenzenbekanntmachung 2026 (BGBl. vom 26.03.2026),
 // gültig ab 1. Juli 2026 bis 30. Juni 2027:
@@ -21,10 +22,11 @@
 import { useMemo, useState } from "react";
 import { Dunkel, Block, Licht, Knopf, Zwischenruf, Fragen } from "@/components/site/DunkleBuehne";
 import SeoDaten from "@/components/site/SeoDaten";
+import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
+import { WZ_PFAENDUNG_WOERTER } from "@/i18n/wz-pfaendungsrechner";
 import "@/styles/ratgeber.css";
 
-const eur = (n: number) => n.toLocaleString("de-DE", { style: "currency", currency: "EUR" });
-const zahl = (s: string) => { const n = parseFloat(String(s).replace(/\./g, "").replace(",", ".")); return isFinite(n) ? n : 0; };
+const zahl = (s: string) => { const r = String(s).trim(); const n = parseFloat(/,\d{1,2}$/.test(r) ? r.replace(/\./g, "").replace(",", ".") : r.replace(/,/g, "")); return isFinite(n) ? n : 0; };
 
 // QUELLEN (für die Review nachschlagbar):
 //  · 2026: Pfändungsfreigrenzenbekanntmachung 2026, BGBl. 2026 I, veröffentlicht am
@@ -56,15 +58,13 @@ function rechnen(netto: number, unterhalt: number, satz: Satz) {
   return { frei, pfaendbar, unpfaendbar: netto - pfaendbar, quote: 1 - quoteUnpf };
 }
 
-const FRAGEN = [
-  { f: "Was ist der Unterschied zwischen Lohnpfändung und P-Konto?", a: "Bei der Lohnpfändung behält der Arbeitgeber den pfändbaren Teil ein und überweist ihn an den Gläubiger – Grundlage ist die Tabelle zu § 850c ZPO. Das P-Konto schützt das Guthaben auf dem Konto vor der Kontopfändung: Bis zum Freibetrag können Sie verfügen, egal woher das Geld kommt. Beides kann gleichzeitig laufen; das P-Konto schützt dann das, was nach der Lohnpfändung ankommt." },
-  { f: "Wie bekomme ich ein P-Konto?", a: "Jedes Girokonto kann auf Verlangen in ein Pfändungsschutzkonto umgewandelt werden – die Bank muss das innerhalb von vier Geschäftstagen tun (§ 850k ZPO). Es darf nur ein P-Konto je Person geben; die Bank darf dafür kein höheres Entgelt verlangen als für das normale Konto. Der Grundfreibetrag gilt sofort; die Erhöhungen brauchen eine Bescheinigung." },
-  { f: "Wer stellt die Bescheinigung für den erhöhten Freibetrag aus?", a: "Arbeitgeber, Familienkasse, Sozialleistungsträger, Schuldnerberatungsstellen, Rechtsanwälte, Steuerberater oder das Vollstreckungsgericht (§ 903 ZPO). Die kostenlose Schuldnerberatung ist der einfachste Weg. Ohne Bescheinigung gilt nur der Grundbetrag – auch wenn Sie Kinder haben." },
-  { f: "Was passiert mit Geld über dem Freibetrag?", a: "Es ist für den Gläubiger reserviert – die Bank darf es aber erst im Folgemonat auskehren (Moratorium, § 900 ZPO). Nicht verbrauchtes Guthaben unter dem Freibetrag können Sie bis zu drei Monate ansparen (§ 899 Abs. 2 ZPO). Eine Nachzahlung wie Weihnachtsgeld ist deshalb nicht verloren, aber zeitlich zu planen." },
-  { f: "Gilt die Tabelle auch in Österreich und der Schweiz?", a: "Nein. In Österreich gilt das Existenzminimum nach der Exekutionsordnung (§ 291a EO, jährlich angepasst), in der Schweiz das betreibungsrechtliche Existenzminimum, das das Betreibungsamt individuell nach den Richtlinien der Konferenz der Betreibungs- und Konkursbeamten berechnet. Dieses Werkzeug rechnet ausschließlich nach deutschem Recht." },
-];
-
 export default function Pfaendungsrechner() {
+  const t = useWoerter(WZ_PFAENDUNG_WOERTER);
+  const sprache = useSprache();
+  const en = sprache === "en";
+  const zu = (p: string) => inSprache(p, sprache);
+  const pfad = en ? "/en/tools/attachment-calculator" : "/werkzeuge/pfaendungsrechner";
+  const eur = (n: number) => n.toLocaleString(en ? "en-GB" : "de-DE", { style: "currency", currency: "EUR" });
   const [netto, setNetto] = useState("");
   const [unterhalt, setUnterhalt] = useState(0);
   const [satz, setSatz] = useState<keyof typeof SAETZE>("2026");
@@ -73,30 +73,30 @@ export default function Pfaendungsrechner() {
   const e = useMemo(() => (N > 0 ? rechnen(N, unterhalt, S) : null), [N, unterhalt, S]);
 
   return (
-    <Dunkel seite="ratgeber" titel="Pfändungsrechner · Freibetrag und P-Konto 2026" beschreibung="Netto und Unterhaltspflichten eingeben – der Rechner nennt den pfändbaren Betrag nach § 850c ZPO und den Schutz auf dem P-Konto. Werte ab 1. Juli 2026: 1.587,40 € Grundbetrag. Kostenlos.">
-      <SeoDaten pfad="/werkzeuge/pfaendungsrechner" titel="Pfändungsrechner 2026: Freibetrag und P-Konto-Schutz" beschreibung="Netto und Unterhaltspflichten eingeben – der Rechner nennt den pfändbaren Betrag nach § 850c ZPO und den Schutz auf dem P-Konto. Werte ab 1. Juli 2026 (1.587,40 €)." fragen={FRAGEN} werkzeug={{ name: "Pfändungsrechner" }} krumen={[{ name: "Werkzeuge", pfad: "/werkzeuge" }, { name: "Pfändungsrechner", pfad: "/werkzeuge/pfaendungsrechner" }]} />
+    <Dunkel seite="ratgeber" titel={t.metaTitel} beschreibung={t.metaBeschreibung}>
+      <SeoDaten pfad={pfad} titel={t.seoTitel} beschreibung={t.seoBeschreibung} fragen={t.fragen} werkzeug={{ name: t.werkzeugName }} krumen={[{ name: t.krumeWerkzeuge, pfad: zu("/werkzeuge") }, { name: t.krume, pfad }]} />
       <section className="dk-hero kurz">
         <div className="dk-hero-bild" aria-hidden="true"><img src="/kino/hero.jpg" alt="" decoding="async" /><div className="schleier" /></div>
         <div className="dk-rahmen">
-          <span className="dk-pille">Werkzeug · kostenlos, ohne Anmeldung</span>
-          <h1 className="dk-h1">Was Ihnen bei einer Pfändung <span className="dk-verlauf">bleibt.</span></h1>
-          <p className="dk-lead">Die Pfändungstabelle, ohne die Tabelle: Netto und Unterhaltspflichten eingeben – der Rechner nennt den pfändbaren Betrag und den Schutz auf dem P-Konto. Werte ab 1. Juli 2026.</p>
+          <span className="dk-pille">{t.pille}</span>
+          <h1 className="dk-h1">{t.h1a}<span className="dk-verlauf">{t.h1b}</span></h1>
+          <p className="dk-lead">{t.lead}</p>
         </div>
       </section>
       <Licht>
         <Block schmal>
           <div className="wz-fragen">
             <div className="wz-frage">
-              <p className="wz-nr">Schritt 1</p><h3>Ihr monatliches Nettoeinkommen</h3>
-              <p className="wz-hinweis">Nach Steuern und Sozialabgaben, wie es auf dem Konto ankommt. Bei schwankendem Einkommen den Durchschnitt der letzten drei Monate.</p>
+              <p className="wz-nr">{t.schritt1}</p><h3>{t.frage1}</h3>
+              <p className="wz-hinweis">{t.hinweis1}</p>
               <div className="wz-felder">
-                <label><span>Netto im Monat (€)</span><input value={netto} onChange={(ev) => setNetto(ev.target.value)} inputMode="decimal" placeholder="z. B. 2.150" /></label>
-                <label><span>Tabelle</span><select value={satz} onChange={(ev) => setSatz(ev.target.value as keyof typeof SAETZE)}><option value="2026">ab 1. Juli 2026 (aktuell)</option><option value="2025">1. Juli 2025 – 30. Juni 2026</option></select></label>
+                <label><span>{t.netto}</span><input value={netto} onChange={(ev) => setNetto(ev.target.value)} inputMode="decimal" placeholder={t.bspNetto} /></label>
+                <label><span>{t.tabelle}</span><select value={satz} onChange={(ev) => setSatz(ev.target.value as keyof typeof SAETZE)}><option value="2026">{t.satz2026}</option><option value="2025">{t.satz2025}</option></select></label>
               </div>
             </div>
             <div className="wz-frage">
-              <p className="wz-nr">Schritt 2</p><h3>Wie vielen Personen sind Sie gesetzlich zum Unterhalt verpflichtet?</h3>
-              <p className="wz-hinweis">Ehegatte oder eingetragener Partner, Kinder, denen Sie tatsächlich Unterhalt leisten. Höchstens fünf zählen. Partner mit eigenem Einkommen kann das Gericht herausrechnen.</p>
+              <p className="wz-nr">{t.schritt2}</p><h3>{t.frage2}</h3>
+              <p className="wz-hinweis">{t.hinweis2}</p>
               <div className="wz-optionen" style={{ gridTemplateColumns: "repeat(6, 1fr)" }}>
                 {[0, 1, 2, 3, 4, 5].map((n) => <button key={n} type="button" className={`wz-option${unterhalt === n ? " an" : ""}`} onClick={() => setUnterhalt(n)}><b>{n}</b></button>)}
               </div>
@@ -104,30 +104,30 @@ export default function Pfaendungsrechner() {
           </div>
           {e && (
             <div className={`wz-ergebnis${e.pfaendbar === 0 ? " gut" : ""}`}>
-              <span className="wz-stufe" style={{ background: e.pfaendbar === 0 ? "#047857" : "#1d4ed8" }}>{e.pfaendbar === 0 ? "Nichts pfändbar" : "Pfändbarer Betrag"}</span>
-              <h3>{e.pfaendbar === 0 ? `Ihr Einkommen liegt unter dem Freibetrag von ${eur(e.frei)}.` : `${eur(e.pfaendbar)} im Monat sind pfändbar – ${eur(e.unpfaendbar)} bleiben Ihnen.`}</h3>
-              <p>Freibetrag bei {unterhalt} Unterhaltspflicht{unterhalt === 1 ? "" : "en"}: {eur(e.frei)} ({S.ab}). Vom Betrag darüber {e.quote > 0 ? `sind ${Math.round(e.quote * 100)} Prozent pfändbar` : "ist nichts pfändbar"}{N > S.hoechst ? `; ab ${eur(S.hoechst)} netto ist alles darüber voll pfändbar` : ""}. Die amtliche Tabelle rechnet in 10-Euro-Stufen – deshalb kann der Wert um wenige Cent abweichen.</p>
+              <span className="wz-stufe" style={{ background: e.pfaendbar === 0 ? "#047857" : "#1d4ed8" }}>{e.pfaendbar === 0 ? t.nichts : t.pfaendbar}</span>
+              <h3>{e.pfaendbar === 0 ? t.titelNichts(eur(e.frei)) : t.titelPfaendbar(eur(e.pfaendbar), eur(e.unpfaendbar))}</h3>
+              <p>{t.text(unterhalt, eur(e.frei), t.ab[satz])}{e.quote > 0 ? t.quote(Math.round(e.quote * 100)) : t.quoteNull}{N > S.hoechst ? t.hoechst(eur(S.hoechst)) : ""}{t.stufen}</p>
               <div className="wz-tabelle-huelle"><table className="wz-tabelle">
                 <tbody>
-                  <tr><td>Grundbetrag</td><td>{eur(S.grund)}</td></tr>
-                  {unterhalt >= 1 && <tr><td>Erste unterhaltsberechtigte Person</td><td>{eur(S.erste)}</td></tr>}
-                  {unterhalt >= 2 && <tr><td>{unterhalt - 1} weitere Person{unterhalt - 1 === 1 ? "" : "en"} à {eur(S.weitere)}</td><td>{eur((unterhalt - 1) * S.weitere)}</td></tr>}
-                  <tr className="summe"><td>Unpfändbarer Freibetrag</td><td>{eur(e.frei)}</td></tr>
-                  <tr><td>Ihr Netto</td><td>{eur(N)}</td></tr>
-                  <tr className="summe"><td>Pfändbar</td><td>{eur(e.pfaendbar)}</td></tr>
+                  <tr><td>{t.zeileGrund}</td><td>{eur(S.grund)}</td></tr>
+                  {unterhalt >= 1 && <tr><td>{t.zeileErste}</td><td>{eur(S.erste)}</td></tr>}
+                  {unterhalt >= 2 && <tr><td>{t.zeileWeitere(unterhalt - 1, eur(S.weitere))}</td><td>{eur((unterhalt - 1) * S.weitere)}</td></tr>}
+                  <tr className="summe"><td>{t.zeileFrei}</td><td>{eur(e.frei)}</td></tr>
+                  <tr><td>{t.zeileNetto}</td><td>{eur(N)}</td></tr>
+                  <tr className="summe"><td>{t.zeilePfaendbar}</td><td>{eur(e.pfaendbar)}</td></tr>
                 </tbody>
               </table></div>
-              <div className="wz-schritt"><small>Stand und Quelle</small><p>Werte gültig {S.ab === "1. Juli 2026" ? "vom 1. Juli 2026 bis 30. Juni 2027" : "vom 1. Juli 2025 bis 30. Juni 2026"} nach der Pfändungsfreigrenzenbekanntmachung {S.ab === "1. Juli 2026" ? "2026 (BGBl. 2026 I, veröffentlicht am 26. März 2026)" : "2025"} zu § 850c ZPO. Rechenweg nach § 850c Abs. 3 ZPO. Keine Gewähr für Sonderfälle – maßgeblich ist die amtliche Tabelle.</p></div>
-              <div className="wz-schritt"><small>Auf dem P-Konto</small><p>Der Grundfreibetrag von {eur(S.grund)} gilt sofort nach der Umwandlung. {unterhalt > 0 ? `Die Erhöhung um ${eur(e.frei - S.grund)} für Ihre Unterhaltspflichten gilt erst, wenn Sie der Bank eine Bescheinigung vorlegen (§ 903 ZPO) – von der Schuldnerberatung, dem Arbeitgeber oder der Familienkasse. Ohne Bescheinigung schützt das Konto nur den Grundbetrag.` : "Kindergeld und bestimmte Sozialleistungen erhöhen den Schutz zusätzlich – mit Bescheinigung."}</p></div>
-              <div className="wz-schritt"><small>Was Sie jetzt tun können</small><p>Girokonto in ein P-Konto umwandeln lassen (die Bank hat vier Geschäftstage). Bescheinigung besorgen. Prüfen, ob die Forderung hinter der Pfändung überhaupt berechtigt und nicht <a href="/werkzeuge/verjaehrung">verjährt</a> ist – ein Titel kann auch auf einer verjährten Forderung beruhen, wenn niemand widersprochen hat. Bei mehreren Gläubigern: <a href="/werkzeuge/schulden-check">Schulden-Check</a> und Schuldnerberatung.</p></div>
-              <div className="wz-knoepfe"><Knopf href="/werkzeuge/schulden-check" still>Schulden-Check</Knopf><Knopf href="/werkzeuge/ratenplan" still>Ratenplan statt Pfändung</Knopf></div>
+              <div className="wz-schritt"><small>{t.standTitel}</small><p>{satz === "2026" ? t.stand2026 : t.stand2025}</p></div>
+              <div className="wz-schritt"><small>{t.pkonto}</small><p>{t.pkontoA(eur(S.grund))}{unterhalt > 0 ? t.pkontoUnterhalt(eur(e.frei - S.grund)) : t.pkontoOhne}</p></div>
+              <div className="wz-schritt"><small>{t.jetzt}</small><p>{t.jetztA}<a href={zu("/werkzeuge/verjaehrung")}>{t.jetztLink1}</a>{t.jetztB}<a href={zu("/werkzeuge/schulden-check")}>{t.jetztLink2}</a>{t.jetztC}</p></div>
+              <div className="wz-knoepfe"><Knopf href={zu("/werkzeuge/schulden-check")} still>{t.schuldenCheck}</Knopf><Knopf href={zu("/werkzeuge/ratenplan")} still>{t.ratenplan}</Knopf></div>
             </div>
           )}
-          <p className="dk-leise" style={{ marginTop: 18 }}>Grundlage: § 850c ZPO mit der Pfändungsfreigrenzenbekanntmachung 2026 (BGBl. vom 26.03.2026, gültig ab 1. Juli 2026); §§ 850k, 899–903 ZPO. Ohne Sonderfälle (Unterhaltspfändung nach § 850d ZPO, Zusammenrechnung mehrerer Einkommen, Pfändung von Sozialleistungen). Das Werkzeug ersetzt keine Schuldnerberatung – sie ist kostenlos und der richtige Ort, wenn gepfändet wird. Nichts wird gespeichert.</p>
+          <p className="dk-leise" style={{ marginTop: 18 }}>{t.fuss}</p>
         </Block>
       </Licht>
-      <Block schmal titel="Häufige Fragen"><Fragen items={FRAGEN} /></Block>
-      <Zwischenruf text={<><b>Bevor es zur Pfändung kommt:</b> Ein Ratenplan, der zum Spielraum passt, hält die meisten Gläubiger vom Titel ab. FIAON leitet den Spielraum aus dem Kontoauszug ab und schreibt die Angebote.</>} knopf="Lage prüfen lassen" href="/antrag" still={{ knopf: "Kostenlose Schuldnerberatung", href: "/werkzeuge/schulden-check" }} />
+      <Block schmal titel={t.fragenTitel}><Fragen items={t.fragen} /></Block>
+      <Zwischenruf text={<><b>{t.zwischenrufFett}</b>{t.zwischenruf}</>} knopf={t.zwischenrufKnopf} href="/antrag" still={{ knopf: t.beratung, href: zu("/werkzeuge/schulden-check") }} />
     </Dunkel>
   );
 }

@@ -31,7 +31,7 @@
 import fs from "fs";
 import path from "path";
 import {
-  SEO_BASIS, SEO_NAV, SEO_FUSS, SEO_WERKZEUGE, SEO_GLOSSAR, SEO_GLOSSAR_EN,
+  SEO_BASIS, SEO_NAV, SEO_FUSS, SEO_WERKZEUGE, SEO_WERKZEUGE_EN, SEO_GLOSSAR, SEO_GLOSSAR_EN,
   seoSeite, seoFragen, seoIndexierbar, type SeoSeite, schwesterPfad } from "@shared/fiaon-seo-seiten";
 import { EN_NAV, EN_FUSS, type Sprache } from "../../shared/fiaon-sprache";
 
@@ -172,8 +172,8 @@ function strukturierteDaten(s: SeoSeite, url: string): unknown[] {
   if (s.werkzeug) {
     ld.push({ "@context": "https://schema.org", "@type": "WebApplication", name: s.werkzeug, url, applicationCategory: "FinanceApplication", operatingSystem: "Web", inLanguage: "de", isAccessibleForFree: true, offers: { "@type": "Offer", price: "0", priceCurrency: "EUR" }, provider: { "@id": `${BASIS}/#organisation` } });
   }
-  if (s.pfad === "/werkzeuge") {
-    ld.push({ "@context": "https://schema.org", "@type": "ItemList", name: "Kostenlose FIAON-Werkzeuge", itemListElement: SEO_WERKZEUGE.map((w, i) => ({ "@type": "ListItem", position: i + 1, name: w.name, url: `${BASIS}${w.pfad}` })) });
+  if ((s.pfad === "/werkzeuge" || s.pfad === "/en/tools")) {
+    ld.push({ "@context": "https://schema.org", "@type": "ItemList", name: s.sprache === "en" ? "Free FIAON tools" : "Kostenlose FIAON-Werkzeuge", itemListElement: (s.sprache === "en" ? SEO_WERKZEUGE_EN : SEO_WERKZEUGE).map((w, i) => ({ "@type": "ListItem", position: i + 1, name: w.name, url: `${BASIS}${s.sprache === "en" ? (schwesterPfad(w.pfad, "en") ?? w.pfad) : w.pfad}` })) });
   }
   if ((s.pfad === "/glossar-bonitaet" || s.pfad === "/en/credit-glossary")) {
     ld.push({ "@context": "https://schema.org", "@type": "DefinedTermSet", "@id": `${url}#glossar`, name: s.sprache === "en" ? "Credit glossary" : "Bonitäts-Glossar", inLanguage: s.sprache === "en" ? "en" : "de", hasDefinedTerm: (s.sprache === "en" ? SEO_GLOSSAR_EN : SEO_GLOSSAR).map((g) => ({ "@type": "DefinedTerm", name: g.wort, description: g.text, inDefinedTermSet: `${url}#glossar` })) });
@@ -220,7 +220,7 @@ function korpus(s: SeoSeite): string {
   const { kopf: nav, fuss } = seoRahmen(en ? "en" : "de");
   const krumen = s.krumen?.length ? `<nav aria-label="${en ? "Breadcrumbs" : "Brotkrumen"}"><ol><li>${link(en ? "/en" : "/", "FIAON")}</li>${s.krumen.map((k) => `<li>${link(k.pfad, k.name)}</li>`).join("")}</ol></nav>` : "";
   const abschnitte = (s.abschnitte ?? []).map((a) => `<section><h2>${esc(a.h2)}</h2><p>${esc(a.text)}</p>${a.punkte?.length ? `<ul>${a.punkte.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>` : ""}</section>`).join("");
-  const werkzeuge = s.pfad === "/werkzeuge" ? `<section><h2>Die zehn Werkzeuge</h2><ul>${SEO_WERKZEUGE.map((w) => `<li>${link(w.pfad, w.name)} – ${esc(w.frage)} ${esc(w.satz)}</li>`).join("")}</ul></section>` : "";
+  const werkzeuge = (s.pfad === "/werkzeuge" || s.pfad === "/en/tools") ? `<section><h2>${s.sprache === "en" ? "The twenty tools" : "Die zwanzig Werkzeuge"}</h2><ul>${(s.sprache === "en" ? SEO_WERKZEUGE_EN : SEO_WERKZEUGE).map((w) => `<li>${link(s.sprache === "en" ? (schwesterPfad(w.pfad, "en") ?? w.pfad) : w.pfad, w.name)} – ${esc(w.frage)} ${esc(w.satz)}</li>`).join("")}</ul></section>` : "";
   const glossar = (s.pfad === "/glossar-bonitaet" || s.pfad === "/en/credit-glossary") ? `<section><h2>${s.sprache === "en" ? "The terms" : "Die Begriffe"}</h2><dl>${(s.sprache === "en" ? SEO_GLOSSAR_EN : SEO_GLOSSAR).map((g) => `<dt>${esc(g.wort)}</dt><dd>${esc(g.text)}</dd>`).join("")}</dl></section>` : "";
   const faq = fragen.length ? `<section><h2>${en ? "Frequently asked questions" : "Häufige Fragen"}</h2>${fragen.map((f) => `<h3>${esc(f.f)}</h3><p>${esc(f.a)}</p>`).join("")}</section>` : "";
   return `<div class="vorab">${nav}<main>${krumen}<article><h1>${esc(s.h1)}</h1><p>${esc(s.lead)}</p>${abschnitte}${werkzeuge}${glossar}${faq}${weiterlesen(s)}</article></main>${fuss}</div>`;

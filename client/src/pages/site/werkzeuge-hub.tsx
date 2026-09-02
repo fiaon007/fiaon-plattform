@@ -1,100 +1,68 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// /werkzeuge — die Werkzeugbank (26.08.2026)
+// /werkzeuge · /en/tools — die Werkzeugbank (26.08.2026, zweisprachig 03.09.2026)
 //
-// Zehn Werkzeuge existierten, aber keine Seite, die sie versammelt: Wer nicht
-// zufällig aus einem Ratgeber-Artikel kam, fand keines. Diese Seite ist der
-// Verteiler — und für die Suche der eine Ort, an dem „kostenlose Schufa-
-// Werkzeuge" eine Adresse hat.
-//
-// SEO: ItemList über alle Werkzeuge, Brotkrumen, FAQ. Jede Karte nennt in
-// einem Satz, welche Frage das Werkzeug beantwortet — die Karten sind
-// zugleich die Sprungmarken, auf die Anzeigen zeigen können.
+// Zwanzig Werkzeuge, ein Verteiler — für die Suche der eine Ort, an dem
+// „kostenlose Schufa-Werkzeuge" eine Adresse hat. Die Karten sind zugleich
+// die Sprungmarken, auf die Anzeigen zeigen können. Namen, Fragen und Sätze
+// der Werkzeuge kommen aus shared/fiaon-seo-seiten.ts (eine Quelle für
+// Server-Vorrendering und Client), die Gruppen aus dieser Datei, die Rahmen-
+// texte aus client/src/i18n/wz-hub.ts. SEO: ItemList, Brotkrumen, FAQ.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect } from "react";
 import { Dunkel, Block, Licht, Knopf, Zwischenruf, Fragen, Auf } from "@/components/site/DunkleBuehne";
 import SeoDaten from "@/components/site/SeoDaten";
+import { SEO_WERKZEUGE, SEO_WERKZEUGE_EN } from "@shared/fiaon-seo-seiten";
+import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
+import { WZ_HUB_WOERTER } from "@/i18n/wz-hub";
 import "@/styles/ratgeber.css";
 import "@/styles/seo-seiten.css";
 
-const WERKZEUGE: { pfad: string; name: string; frage: string; satz: string; gruppe: "eintrag" | "geld" | "karte" }[] = [
-  { pfad: "/werkzeuge/selbstauskunft", name: "Datenkopie anfordern", frage: "Was steht über mich in den Auskunfteien?", satz: "Erzeugt das fertige Schreiben nach Art. 15 DSGVO — für SCHUFA, KSV und CRIF, kostenlos statt Bezahl-Abo.", gruppe: "eintrag" },
-  { pfad: "/werkzeuge/eintrag-pruefen", name: "Ist mein Eintrag angreifbar?", frage: "Kann dieser Eintrag gelöscht werden?", satz: "Fünf Fragen, eine ehrliche Einschätzung nach § 31 BDSG und der Rechtsprechung.", gruppe: "eintrag" },
-  { pfad: "/werkzeuge/loeschfrist", name: "Löschfrist-Rechner", frage: "Wann ist mein Eintrag von selbst weg?", satz: "Taggenaues Löschdatum — mit 100-Tage-Regel und Sechs-Monats-Frist nach Insolvenz.", gruppe: "eintrag" },
-  { pfad: "/werkzeuge/verjaehrung", name: "Verjährungs-Prüfer", frage: "Muss ich diese alte Forderung noch zahlen?", satz: "Prüft die regelmäßige Verjährung und was sie unterbricht.", gruppe: "eintrag" },
-  { pfad: "/werkzeuge/inkassokosten", name: "Inkassokosten-Prüfer", frage: "Darf das Inkasso so viel verlangen?", satz: "Vergleicht die Forderung mit den gesetzlichen Obergrenzen.", gruppe: "eintrag" },
-  { pfad: "/werkzeuge/kreditrechner", name: "Kreditrechner", frage: "Was kostet dieser Kredit wirklich?", satz: "Monatsrate, Gesamtkosten, Tilgungsplan — und die Rate beim Zwei-Drittel-Zins.", gruppe: "geld" },
-  { pfad: "/werkzeuge/umschuldung", name: "Umschuldungsrechner", frage: "Weiterzahlen oder zusammenlegen?", satz: "Alte Kredite und Dispo gegen ein neues Angebot gerechnet — mit Vorfälligkeitsentschädigung.", gruppe: "geld" },
-  { pfad: "/werkzeuge/schulden-check", name: "Schulden-Check", frage: "Wie ernst ist meine Lage?", satz: "Schuldenquote und freies Einkommen — mit ehrlicher Ampel und den nächsten Schritten.", gruppe: "geld" },
-  { pfad: "/werkzeuge/spielraum", name: "Spielraum-Rechner", frage: "Wie viel Rate trage ich?", satz: "Haushaltsrechnung, wie eine Bank sie ansetzt.", gruppe: "geld" },
-  { pfad: "/werkzeuge/karten-check", name: "Karten-Check", frage: "Welche Kreditkarte ist realistisch?", satz: "Debit, Prepaid oder echter Rahmen — was heute geht und was den nächsten Schritt öffnet.", gruppe: "karte" },
-  // 02.09.2026 (E-080): zehn weitere — Briefe, Fristen, Rechner.
-  { pfad: "/werkzeuge/widerspruch", name: "Löschantrag & Widerspruch", frage: "Wie bekomme ich den Eintrag weg?", satz: "Grund wählen, Eckdaten eintragen — zwei fertige Schreiben an Auskunftei und Gläubiger (Art. 17 DSGVO, § 31 BDSG).", gruppe: "eintrag" },
-  { pfad: "/werkzeuge/mahnbescheid", name: "Mahnbescheid-Fristenrechner", frage: "Bis wann muss ich widersprechen?", satz: "Zustelldatum eingeben — der letzte Tag für Widerspruch oder Einspruch, taggenau mit Feiertagen.", gruppe: "eintrag" },
-  { pfad: "/werkzeuge/inkasso-antwort", name: "Inkasso-Antwortbrief", frage: "Was antworte ich dem Inkasso?", satz: "Bestreiten, Nachweise nach § 13a RDG verlangen, Kosten zurückweisen oder Verjährung einwenden — als Brief.", gruppe: "eintrag" },
-  { pfad: "/werkzeuge/mahngebuehren", name: "Mahngebühren-Prüfer", frage: "Darf die Mahnung so viel kosten?", satz: "Rechnet nach, was ein Gläubiger für Mahnungen verlangen darf — und formuliert die Zurückweisung.", gruppe: "eintrag" },
-  { pfad: "/werkzeuge/ratenplan", name: "Ratenplan-Rechner", frage: "Welche Rate nimmt der Gläubiger an?", satz: "Aus Forderung und Spielraum die Rate, die hält — mit dem Angebotsschreiben inklusive Zins- und Meldeverzicht.", gruppe: "geld" },
-  { pfad: "/werkzeuge/schuldenplan", name: "Schuldenfrei-Plan", frage: "In welcher Reihenfolge werde ich schuldenfrei?", satz: "Lawine oder Schneeball, Monat für Monat simuliert — Datum, Zinsen, Reihenfolge.", gruppe: "geld" },
-  { pfad: "/werkzeuge/dispo-rechner", name: "Dispo-Rechner", frage: "Was kostet mein Dauer-Dispo?", satz: "Zinsen im Jahr, Ratenkredit zur Ablösung, Abbau in festen Raten — drei Wege nebeneinander.", gruppe: "geld" },
-  { pfad: "/werkzeuge/pfaendungsrechner", name: "Pfändungsrechner 2026", frage: "Was bleibt mir bei einer Pfändung?", satz: "Freibetrag nach § 850c ZPO und P-Konto-Schutz — Werte ab 1. Juli 2026.", gruppe: "geld" },
-  { pfad: "/werkzeuge/basiskonto", name: "Basiskonto-Helfer", frage: "Basiskonto abgelehnt oder keine Antwort?", satz: "Zehn-Tage-Frist, zulässige Ablehnungsgründe, Erinnerung an die Bank und der Weg zur BaFin.", gruppe: "karte" },
-  { pfad: "/werkzeuge/kartenkosten", name: "Kartenkosten-Vergleich", frage: "Kaution, Prepaid oder Debit?", satz: "Drei Kartenwege auf drei Jahre gerechnet — inklusive der Kaution, die stillliegt.", gruppe: "karte" },
-];
-
-const GRUPPEN = [
-  { key: "eintrag" as const, titel: "Einträge und Forderungen", satz: "Wissen, was gespeichert ist — und was davon weg kann." },
-  { key: "geld" as const, titel: "Kredit und Haushalt", satz: "Rechnen, bevor Sie unterschreiben." },
-  { key: "karte" as const, titel: "Karte und Konto", satz: "Realistisch einschätzen statt hoffen." },
-];
-
-const FRAGEN = [
-  { f: "Was kosten die FIAON-Werkzeuge?", a: "Nichts. Alle Werkzeuge sind kostenlos, verlangen keine Anmeldung und keine E-Mail-Adresse. Die Berechnungen laufen in Ihrem Browser — es wird nichts übertragen und nichts gespeichert." },
-  { f: "Ersetzen die Werkzeuge eine Beratung?", a: "Nein. Sie geben eine fundierte erste Einschätzung nach den geltenden Regeln — die verbindliche Prüfung Ihres Einzelfalls leisten sie nicht. Bei ernster Überschuldung gehört der erste Weg zur kostenlosen, staatlich anerkannten Schuldnerberatung." },
-  { f: "Woher stammen die Regeln in den Werkzeugen?", a: "Aus den veröffentlichten Quellen: Verhaltensregeln der Wirtschaftsauskunfteien (Fassung 2024), § 31 BDSG, Art. 15 und 17 DSGVO, § 6a PAngV, §§ 195 ff. und 500 ff. BGB, RVG für Inkassokosten sowie der Rechtsprechung von BGH und EuGH. Jedes Werkzeug nennt seine Grundlage unten auf der Seite." },
-  { f: "Warum stellt FIAON das kostenlos bereit?", a: "Weil die erste Frage — was steht über mich drin, und was davon ist angreifbar? — jeder selbst beantworten können sollte. Wer danach möchte, dass jemand die Beschaffung, Prüfung und Durchsetzung übernimmt, kennt uns dann schon." },
-];
+const GRUPPE: Record<string, "eintrag" | "geld" | "karte"> = {
+  "/werkzeuge/selbstauskunft": "eintrag", "/werkzeuge/eintrag-pruefen": "eintrag", "/werkzeuge/loeschfrist": "eintrag", "/werkzeuge/verjaehrung": "eintrag", "/werkzeuge/inkassokosten": "eintrag",
+  "/werkzeuge/widerspruch": "eintrag", "/werkzeuge/mahnbescheid": "eintrag", "/werkzeuge/inkasso-antwort": "eintrag", "/werkzeuge/mahngebuehren": "eintrag",
+  "/werkzeuge/kreditrechner": "geld", "/werkzeuge/umschuldung": "geld", "/werkzeuge/schulden-check": "geld", "/werkzeuge/spielraum": "geld", "/werkzeuge/ratenplan": "geld", "/werkzeuge/schuldenplan": "geld", "/werkzeuge/dispo-rechner": "geld", "/werkzeuge/pfaendungsrechner": "geld",
+  "/werkzeuge/karten-check": "karte", "/werkzeuge/basiskonto": "karte", "/werkzeuge/kartenkosten": "karte",
+};
 
 export default function WerkzeugeHub() {
-  // ItemList je Werkzeug — die Auszeichnung, mit der eine Werkzeugsammlung
-  // in der Suche als Sammlung erscheint.
+  const t = useWoerter(WZ_HUB_WOERTER);
+  const sprache = useSprache();
+  const en = sprache === "en";
+  const zu = (p: string) => inSprache(p, sprache);
+  const pfad = en ? "/en/tools" : "/werkzeuge";
+  const werkzeuge = (en ? SEO_WERKZEUGE_EN : SEO_WERKZEUGE).map((w) => ({ ...w, gruppe: GRUPPE[w.pfad] ?? "eintrag", ziel: zu(w.pfad) }));
+
   useEffect(() => {
     const el = document.createElement("script");
     el.type = "application/ld+json";
     el.textContent = JSON.stringify({
       "@context": "https://schema.org",
       "@type": "ItemList",
-      name: "FIAON Werkzeuge",
-      itemListElement: WERKZEUGE.map((w, i) => ({
-        "@type": "ListItem", position: i + 1, name: w.name, url: "https://fiaon.com" + w.pfad,
-      })),
+      name: t.ldName,
+      itemListElement: werkzeuge.map((w, i) => ({ "@type": "ListItem", position: i + 1, name: w.name, url: "https://fiaon.com" + w.ziel })),
     });
     document.head.appendChild(el);
     return () => el.remove();
-  }, []);
+  }, [t, en]);
 
   return (
-    <Dunkel seite="ratgeber" titel="Werkzeuge · Zwanzig kostenlose Rechner und Prüfer" beschreibung="Zwanzig kostenlose Werkzeuge rund um SCHUFA, Bonität und Kredit: Datenkopie anfordern, Einträge und Löschfristen prüfen, Kredit- und Umschuldungsrechner, Schulden-Check. Ohne Anmeldung, nichts wird gespeichert.">
-      <SeoDaten
-        pfad="/werkzeuge"
-        titel="Werkzeuge · Zwanzig kostenlose Rechner und Prüfer"
-        beschreibung="Zwanzig kostenlose Werkzeuge rund um SCHUFA, Bonität und Kredit — ohne Anmeldung, nichts wird gespeichert."
-        fragen={FRAGEN}
-        krumen={[{ name: "Werkzeuge", pfad: "/werkzeuge" }]}
-      />
+    <Dunkel seite="ratgeber" titel={t.metaTitel} beschreibung={t.metaBeschreibung}>
+      <SeoDaten pfad={pfad} titel={t.metaTitel} beschreibung={t.seoBeschreibung} fragen={t.fragen} krumen={[{ name: t.krume, pfad }]} />
       <section className="dk-hero kurz">
         <div className="dk-hero-bild" aria-hidden="true"><img src="/kino/akten.jpg" alt="" decoding="async" {...({ fetchpriority: "high" } as any)} /><div className="schleier" /></div>
         <div className="dk-rahmen">
-          <span className="dk-pille">Zwanzig Werkzeuge · kostenlos, ohne Anmeldung</span>
-          <h1 className="dk-h1">Erst wissen, <span className="dk-verlauf">dann handeln.</span></h1>
-          <p className="dk-lead">Jedes Werkzeug beantwortet eine Frage, die sonst Geld oder Wochen kostet. Alles läuft in Ihrem Browser — nichts wird gespeichert.</p>
+          <span className="dk-pille">{t.pille}</span>
+          <h1 className="dk-h1">{t.h1a}<span className="dk-verlauf">{t.h1b}</span></h1>
+          <p className="dk-lead">{t.lead}</p>
         </div>
       </section>
       <Licht>
-        {GRUPPEN.map((g) => (
+        {t.gruppen.map((g) => (
           <Block key={g.key} titel={g.titel} lead={g.satz}>
             <div className="wzh-karten">
-              {WERKZEUGE.filter((w) => w.gruppe === g.key).map((w, i) => (
+              {werkzeuge.filter((w) => w.gruppe === g.key).map((w, i) => (
                 <Auf key={w.pfad} verzoegerung={i * 70}>
-                  <a className="wzh-karte" href={w.pfad}>
+                  <a className="wzh-karte" href={w.ziel}>
                     <small>{w.frage}</small>
                     <b>{w.name}</b>
                     <p>{w.satz}</p>
@@ -105,21 +73,16 @@ export default function WerkzeugeHub() {
             </div>
           </Block>
         ))}
-        <Block schmal titel="Häufige Fragen">
-          <Fragen items={FRAGEN} />
+        <Block schmal titel={t.fragenTitel}>
+          <Fragen items={t.fragen} />
         </Block>
-
-        {/* Weiterlesen (30.08.2026): die Themenseiten zu den Werkzeugen. */}
-        <Block schmal titel="Die Ratgeber zu den Werkzeugen">
+        <Block schmal titel={t.weiterTitel}>
           <div className="sx-vertiefen">
-            <a href="/inkasso-brief-erhalten"><b>Inkasso-Brief erhalten?</b><span>Der ruhige 5-Schritte-Plan: prüfen, nachrechnen, richtig reagieren.</span></a>
-            <a href="/eintrag-verjaehrung"><b>Eintrag & Verjährung</b><span>Wann ein Eintrag verschwinden muss — Fristen-Checker und Tabelle.</span></a>
-            <a href="/selbstauskunft-checkliste"><b>Selbstauskunft-Checkliste</b><span>Die Datenkopie liegt vor Ihnen? So lesen Sie sie richtig.</span></a>
-            <a href="/glossar-bonitaet"><b>Bonitäts-Glossar A–Z</b><span>Alle Begriffe erklärt — von der Anfrage bis zur Zahlungshistorie, mit dem neuen Score seit 2026.</span></a>
+            {t.weiter.map((w) => <a href={zu(w.href)} key={w.href}><b>{w.titel}</b><span>{w.text}</span></a>)}
           </div>
         </Block>
       </Licht>
-      <Zwischenruf text={<><b>Die Werkzeuge zeigen, was möglich ist — FIAON setzt es durch.</b> Beschaffung aller Auskünfte, Prüfung jedes Eintrags, Schreiben mit Fristenlauf: ein Auftrag, ein Ansprechpartner.</>} knopf="So arbeitet FIAON" href="/was-ist-fiaon" />
+      <Zwischenruf text={<><b>{t.zwischenrufFett}</b>{t.zwischenruf}</>} knopf={t.zwischenrufKnopf} href={zu("/was-ist-fiaon")} />
     </Dunkel>
   );
 }

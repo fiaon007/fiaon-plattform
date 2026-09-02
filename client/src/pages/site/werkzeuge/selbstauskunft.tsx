@@ -1,6 +1,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// /werkzeuge/selbstauskunft — der Generator für die kostenlose Datenkopie
-// (Art. 15 DSGVO; Schweiz: Art. 25 DSG) (23.08.2026)
+// /werkzeuge/selbstauskunft · /en/tools/request-your-data-copy — der Generator
+// für die kostenlose Datenkopie (Art. 15 DSGVO; Schweiz: Art. 25 DSG)
+// (23.08.2026, zweisprachig 03.09.2026 — der Brief bleibt deutsch, das
+// Formular spricht die Sprache der Seite; Texte: client/src/i18n/wz-selbstauskunft.ts)
 //
 // Der Leser füllt vier Felder aus, bekommt den fertigen Brief an die gewählte
 // Auskunftei – kopieren oder drucken – und den Hinweis zur Ausweiskopie.
@@ -8,6 +10,9 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useMemo, useState } from "react";
 import { Dunkel, Hero, Block, Licht, Knopf, Zwischenruf } from "@/components/site/DunkleBuehne";
+import SeoDaten from "@/components/site/SeoDaten";
+import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
+import { WZ_SELBSTAUSKUNFT_WOERTER } from "@/i18n/wz-selbstauskunft";
 import "@/styles/ratgeber.css";
 
 const AUSKUNFTEIEN = [
@@ -19,6 +24,11 @@ const AUSKUNFTEIEN = [
 ] as const;
 
 export default function Selbstauskunft() {
+  const t = useWoerter(WZ_SELBSTAUSKUNFT_WOERTER);
+  const sprache = useSprache();
+  const en = sprache === "en";
+  const zu = (p: string) => inSprache(p, sprache);
+  const pfad = en ? "/en/tools/request-your-data-copy" : "/werkzeuge/selbstauskunft";
   const [ask, setAsk] = useState<string>(() => { const l = sessionStorage.getItem("fiaon_land"); return l === "AT" ? "ksv" : l === "CH" ? "crif-ch" : "schufa"; });
   const [f, setF] = useState({ name: "", geburt: "", strasse: "", plzOrt: "", frueher: "" });
   const [kopiert, setKopiert] = useState(false);
@@ -68,37 +78,39 @@ ${f.name || "[Name]"}`, [f, a, heute, ch]);
   };
 
   return (
-    <Dunkel seite="ratgeber" titel="Selbstauskunft-Generator · kostenlose Datenkopie" beschreibung="Erzeugen Sie in einer Minute den fertigen Brief für Ihre kostenlose Datenkopie nach Art. 15 DSGVO – an SCHUFA, KSV1870, CRIF oder Intrum. Kopieren, drucken, absenden.">
-      <Hero bild="/kino/akten.jpg" pille="Werkzeug · kostenlos, ohne Anmeldung" titel={<>Ihre Datenkopie – <span className="dk-verlauf">der fertige Brief.</span></>}
-            lead="Vier Angaben, und der Antrag auf die kostenlose Datenkopie steht – mit den Punkten, die Auskunfteien oft weglassen: Score-Werte, Empfänger, Herkunft. Nichts wird gespeichert; der Brief entsteht in Ihrem Browser."
-            knoepfe={<><Knopf href="#generator">Brief erstellen</Knopf><Knopf href="/ratgeber/schufa-auskunft-kostenlos-datenkopie" still>So funktioniert die Datenkopie</Knopf></>} />
+    <Dunkel seite="ratgeber" titel={t.metaTitel} beschreibung={t.metaBeschreibung}>
+      <SeoDaten pfad={pfad} titel={t.metaTitel} beschreibung={t.metaBeschreibung} />
+      <Hero bild="/kino/akten.jpg" pille={t.pille} titel={<>{t.h1a}<span className="dk-verlauf">{t.h1b}</span></>}
+            lead={t.lead}
+            knoepfe={<><Knopf href="#generator">{t.briefErstellen}</Knopf><Knopf href={zu("/bonitaetsauskunft-beantragen")} still>{t.soFunktioniert}</Knopf></>} />
       <Licht>
-        <Block id="generator" pille="Der Generator" titel={<>Ausfüllen, kopieren, <span className="dk-verlauf">absenden.</span></>} mitte>
+        <Block id="generator" pille={t.blockPille} titel={<>{t.blockA}<span className="dk-verlauf">{t.blockB}</span></>} mitte>
           <div className="wz-generator">
             <div className="wz-formular">
-              <label><span>Auskunftei</span>
+              {t.hinweisSprache && <p className="wz-hinweis" style={{ marginTop: 0 }}>{t.hinweisSprache}</p>}
+              <label><span>{t.auskunftei}</span>
                 <select value={ask} onChange={(e) => setAsk(e.target.value)}>
-                  {AUSKUNFTEIEN.map((x) => <option key={x.key} value={x.key}>{x.name} · {x.land === "DE" ? "Deutschland" : x.land === "AT" ? "Österreich" : "Schweiz"}</option>)}
+                  {AUSKUNFTEIEN.map((x) => <option key={x.key} value={x.key}>{x.name} · {t.laender[x.land]}</option>)}
                 </select>
               </label>
-              <label><span>Vor- und Nachname</span><input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="Max Mustermann" autoComplete="name" /></label>
-              <label><span>Geburtsdatum</span><input value={f.geburt} onChange={(e) => setF({ ...f, geburt: e.target.value })} placeholder="14.05.1988" inputMode="numeric" autoComplete="bday" /></label>
-              <label><span>Straße und Hausnummer</span><input value={f.strasse} onChange={(e) => setF({ ...f, strasse: e.target.value })} placeholder="Musterstraße 12" autoComplete="street-address" /></label>
-              <label><span>PLZ und Ort</span><input value={f.plzOrt} onChange={(e) => setF({ ...f, plzOrt: e.target.value })} placeholder="10115 Berlin" /></label>
-              <label><span>Frühere Anschrift (optional, hilft bei der Zuordnung)</span><input value={f.frueher} onChange={(e) => setF({ ...f, frueher: e.target.value })} placeholder="Alte Straße 3, 80331 München" /></label>
-              <p className="wz-hinweis">Legen Sie eine Kopie Ihres Ausweises bei (Vorder- und Rückseite). Nicht benötigte Angaben – Augenfarbe, Größe, Zugangsnummer – dürfen Sie schwärzen; Name, Geburtsdatum, Anschrift und Gültigkeit müssen lesbar bleiben.</p>
+              <label><span>{t.name}</span><input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="Max Mustermann" autoComplete="name" /></label>
+              <label><span>{t.geburt}</span><input value={f.geburt} onChange={(e) => setF({ ...f, geburt: e.target.value })} placeholder="14.05.1988" inputMode="numeric" autoComplete="bday" /></label>
+              <label><span>{t.strasse}</span><input value={f.strasse} onChange={(e) => setF({ ...f, strasse: e.target.value })} placeholder="Musterstraße 12" autoComplete="street-address" /></label>
+              <label><span>{t.plzOrt}</span><input value={f.plzOrt} onChange={(e) => setF({ ...f, plzOrt: e.target.value })} placeholder="10115 Berlin" /></label>
+              <label><span>{t.frueher}</span><input value={f.frueher} onChange={(e) => setF({ ...f, frueher: e.target.value })} placeholder="Alte Straße 3, 80331 München" /></label>
+              <p className="wz-hinweis">{t.hinweisAusweis}</p>
             </div>
             <div className="wz-brief-wrap">
-              <div className="wz-brief">{brief}</div>
+              <div className="wz-brief" lang="de">{brief}</div>
               <div className="dk-knoepfe" style={{ justifyContent: "flex-start", marginTop: 16 }}>
-                <button type="button" className="dk-knopf" onClick={kopieren}>{kopiert ? "Kopiert" : "Brief kopieren"}</button>
-                <button type="button" className="dk-knopf still" onClick={drucken}>Drucken</button>
+                <button type="button" className="dk-knopf" onClick={kopieren}>{kopiert ? t.kopiert : t.kopieren}</button>
+                <button type="button" className="dk-knopf still" onClick={drucken}>{t.drucken}</button>
               </div>
             </div>
           </div>
         </Block>
       </Licht>
-      <Zwischenruf text="Sie möchten die Auskunft nicht selbst beantragen und lesen? FIAON beschafft sie, erklärt jeden Eintrag und bereitet die Schreiben vor." knopf="Konto eröffnen" href="/antrag" still={{ knopf: "Ist mein Eintrag angreifbar?", href: "/werkzeuge/eintrag-pruefen" }} />
+      <Zwischenruf text={t.zwischenruf} knopf={t.kontoEroeffnen} href="/antrag" still={{ knopf: t.eintragPruefen, href: zu("/werkzeuge/eintrag-pruefen") }} />
     </Dunkel>
   );
 }

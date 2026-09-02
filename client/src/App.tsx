@@ -296,6 +296,7 @@ function Router() {
       <Route path="/en/compare" component={SiteVergleich} />
       <Route path="/en/security" component={SiteSicherheit} />
       <Route path="/en/transparency" component={SiteTransparenz} />
+      <Route path="/en/help" component={SiteHilfe} />
       <Route path="/kreditkarte" component={SiteKreditkarte} />
       <Route path="/oesterreich" component={SiteOesterreich} />
       <Route path="/schweiz" component={SiteSchweiz} />

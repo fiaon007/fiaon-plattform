@@ -86,6 +86,14 @@ router.post("/admin/kuendigung/altbestand", async (req: Request, res: Response) 
         `) as any[];
         entfaelltCents += Number(s?.c || 0);
       }
+      if (schreiben && erg.ok) {
+        // Den Formular-Topf mitziehen — sonst zeigt die alte Liste weiter „offen".
+        await sqlPool`
+          UPDATE cancellation_requests SET status = 'confirmed', processed_at = NOW(),
+                 admin_note = COALESCE(admin_note, '') || ' [E-092 nach neuer Regel bearbeitet]'
+           WHERE ref = ${k.ref} AND status = 'pending'
+        `.catch(() => {});
+      }
       if (schreiben && mailSenden && erg.ok) { if (await bestaetigungSenden(k.ref).catch(() => false)) mails += 1; }
       ergebnisse.push({ ref: k.ref, weg: erg.weg, letzteRate: erg.letzteRateNr, storniert: erg.stornierteRaten, grund: erg.grund });
     }

@@ -24,6 +24,11 @@ interface PaymentOrder {
   ratenVon?: number;
   /** Sofortzahlung per Bank-App (GoCardless Instant Bank Pay) — null, solange nicht eingerichtet. */
   sofortUrl?: string | null;
+  /** Darf die Sofortzahlung der Hauptweg sein? Steht auf false, solange das
+   *  GoCardless-Auszahlungskonto nicht auf unser Bankkonto zeigt — dann führt
+   *  die Überweisung, weil sie direkt bei uns ankommt. Derselbe Schalter wie
+   *  in den Mails (fiaon_settings.zahlweg_sofort_vorrang). */
+  sofortVorrang?: boolean;
   paymentReference: string;
   status: string;
   dueDate: string;
@@ -146,7 +151,7 @@ function TrustBadges() {
  * ausstellen). Kommt keins zurück, verschwindet der Block wortlos: Ein
  * Angebot, das ins Leere führt, ist schlimmer als keines.
  */
-function TerminAngebot({ paymentReference, art, sofortUrl }: { paymentReference: string; art?: "bestellung" | "rate"; sofortUrl?: string | null }) {
+function TerminAngebot({ paymentReference, art, sofortUrl, sofortVorrang }: { paymentReference: string; art?: "bestellung" | "rate"; sofortUrl?: string | null; sofortVorrang?: boolean }) {
   const [token, setToken] = useState<string | null>(null);
 
   useEffect(() => {
@@ -172,55 +177,83 @@ function TerminAngebot({ paymentReference, art, sofortUrl }: { paymentReference:
     setTimeout(() => ziel?.classList.remove("zahlung-ziel-blitz"), 1400);
   };
 
+  // ── EINE FARBFAMILIE, EIN HAUPTKNOPF (02.09.2026, Justin) ──────────────
+  // Vorher stand der schnellste Weg in Smaragdgrün auf dem Navy-Glas — eine
+  // Fremdfarbe, die aus dem Blau-System ausbricht. Justin: „das Grün auf
+  // Dunkelblau gefällt mir nicht". Beim Umfärben trugen dann BEIDE Kacheln
+  // einen gefüllten blauen Knopf: gleiche Farbe, gleiche Fläche, keine
+  // Rangfolge — der Kunde muss zwischen zwei Hauptknöpfen wählen. Jetzt gibt
+  // es genau einen gefüllten Knopf. Der zweite Weg trägt einen Umriss, der
+  // Termin nur eine ruhige Kante.
+  //
+  // WELCHER Weg führt, entscheidet nicht der Geschmack, sondern wo das Geld
+  // ankommt: Solange GoCardless auf das gesperrte Konto auszahlt, führt die
+  // Überweisung (direkt auf unser Bankkonto). Steht das Auszahlungskonto
+  // richtig, übernimmt die Sofortzahlung — sie ist für den Kunden schneller.
+  // Denselben Schalter dreht der Mail-Motor; beide lesen zahlweg_sofort_vorrang.
+  const sofortFuehrt = !!sofortVorrang && !!sofortUrl;
+
+  const knopfGefuellt = "inline-flex items-center justify-center w-full mt-3 rounded-xl text-[13px] font-bold text-white";
+  const stilGefuellt = { minHeight: 44, background: "linear-gradient(180deg,#3b82f6,#1d4ed8)", boxShadow: "0 8px 22px -10px rgba(29,78,216,.8)" };
+  const knopfUmriss = "inline-flex items-center justify-center w-full mt-3 rounded-xl text-[13px] font-bold";
+  const stilUmriss = { minHeight: 44, color: "#93c5fd", border: "1px solid rgba(147,197,253,.5)", background: "rgba(59,130,246,.08)" };
+
+  const kachelFuehrend = {
+    border: "1px solid rgba(147,197,253,.55)",
+    background: "linear-gradient(160deg, rgba(37,99,235,.16), rgba(29,78,216,.06))",
+    boxShadow: "0 16px 40px -18px rgba(37,99,235,.65)",
+  };
+  const kachelZweite = {
+    border: "1px solid rgba(147,197,253,.28)",
+    background: "rgba(37,99,235,.04)",
+  };
+
+  const sofortKachel = sofortUrl ? (
+    <a key="sofort" href={sofortUrl}
+       className={`${sofortFuehrt ? "sm:col-span-2 " : ""}block text-left p-4 rounded-2xl active:scale-[.99] transition-transform`}
+       style={sofortFuehrt ? kachelFuehrend : kachelZweite}>
+      <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: sofortFuehrt ? "#2563eb" : "#1d4ed8" }}>
+        {sofortFuehrt ? "Schnellster Weg · in einer Minute gebucht" : "Auch möglich · Bank-App"}
+      </p>
+      <p className={`${sofortFuehrt ? "text-[15px]" : "text-[14px]"} font-bold text-slate-900 leading-tight`}>Sofort per Bank-App bezahlen</p>
+      <p className="text-[12.5px] text-slate-600 mt-1.5 leading-relaxed">
+        Sie wählen Ihre Bank, bestätigen in der Banking-App — Betrag und Verwendungszweck sind schon eingetragen. {art === "rate" ? "Die Rate ist danach sofort verbucht." : "Ihr Konto ist danach sofort aktiv."}
+      </p>
+      <span className={sofortFuehrt ? knopfGefuellt : knopfUmriss} style={sofortFuehrt ? stilGefuellt : stilUmriss}>
+        Bank wählen und bezahlen
+      </span>
+    </a>
+  ) : null;
+
+  const ueberweisungKachel = (
+    <button key="ueberweisung" type="button" onClick={zuDenZahlungsdaten}
+            className={`${sofortFuehrt ? "" : "sm:col-span-2 "}text-left p-4 rounded-2xl active:scale-[.99] transition-transform`}
+            style={sofortFuehrt ? kachelZweite : kachelFuehrend}>
+      <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: sofortFuehrt ? "#1d4ed8" : "#2563eb" }}>
+        {sofortFuehrt ? "Auch möglich · Überweisung" : "Empfohlen · Überweisung"}
+      </p>
+      <p className={`${sofortFuehrt ? "text-[14px]" : "text-[15px]"} font-bold text-slate-900 leading-tight`}>{art === "rate" ? "Rate jetzt überweisen — in einer Minute erledigt" : "Jetzt überweisen — Konto sofort aktiv"}</p>
+      <p className="text-[12.5px] text-slate-600 mt-1.5 leading-relaxed">
+        {art === "rate"
+          ? "Sobald die Überweisung eingeht, wird Ihre Rate automatisch verbucht. Tippen Sie hier — die Zahlungsdaten mit Ihrem Verwendungszweck springen Ihnen entgegen."
+          : "Nach Zahlungseingang wird Ihr Konto freigeschaltet. Tippen Sie hier — die Zahlungsdaten mit Ihrem Verwendungszweck springen Ihnen entgegen."}
+      </p>
+      <span className={sofortFuehrt ? knopfUmriss : knopfGefuellt} style={sofortFuehrt ? stilUmriss : stilGefuellt}>
+        Zu den Zahlungsdaten
+      </span>
+    </button>
+  );
+
   return (
     <div className="mb-6 grid sm:grid-cols-2 gap-3">
-      {sofortUrl && (
-        // ── EINE FARBFAMILIE, DREI HELLIGKEITEN (02.09.2026, Justin) ──────
-        // Vorher stand der schnellste Weg in Smaragdgrün auf dem Navy-Glas —
-        // eine Fremdfarbe, die aus dem Blau-System ausbricht. Justin: „das
-        // Grün auf Dunkelblau gefällt mir nicht". Die Rangfolge entsteht
-        // jetzt aus derselben Familie: Der Sofort-Weg trägt die satteste
-        // Blaustufe und den einzigen gefüllten Knopf, die Überweisung eine
-        // hellere Umrandung, der Termin nur eine ruhige Kante. Wer nichts
-        // liest, sieht trotzdem, was zuerst gemeint ist.
-        <a href={sofortUrl}
-           className="sm:col-span-2 block text-left p-4 rounded-2xl active:scale-[.99] transition-transform"
-           style={{
-             border: "1px solid rgba(147,197,253,.55)",
-             background: "linear-gradient(160deg, rgba(37,99,235,.16), rgba(29,78,216,.06))",
-             boxShadow: "0 16px 40px -18px rgba(37,99,235,.65)",
-           }}>
-          <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: "#2563eb" }}>Schnellster Weg · in einer Minute gebucht</p>
-          <p className="text-[15px] font-bold text-slate-900 leading-tight">Sofort per Bank-App bezahlen</p>
-          <p className="text-[12.5px] text-slate-600 mt-1.5 leading-relaxed">
-            Sie wählen Ihre Bank, bestätigen in der Banking-App — Betrag und Verwendungszweck sind schon eingetragen. {art === "rate" ? "Die Rate ist danach sofort verbucht." : "Ihr Konto ist danach sofort aktiv."}
-          </p>
-          <span className="inline-flex items-center justify-center w-full mt-3 rounded-xl text-[13px] font-bold text-white"
-                style={{ minHeight: 44, background: "linear-gradient(180deg,#3b82f6,#1d4ed8)", boxShadow: "0 8px 22px -10px rgba(29,78,216,.8)" }}>
-            Bank wählen und bezahlen
-          </span>
-        </a>
-      )}
-      <button type="button" onClick={zuDenZahlungsdaten}
-              className="text-left p-4 rounded-2xl active:scale-[.99] transition-transform"
-              style={{ border: "1px solid rgba(147,197,253,.32)", background: "rgba(37,99,235,.05)", boxShadow: "0 8px 24px -16px rgba(29,78,216,.35)" }}>
-        <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: "#1d4ed8" }}>Auch möglich · Überweisung</p>
-        <p className="text-[14px] font-bold text-slate-900 leading-tight">{art === "rate" ? "Rate jetzt überweisen — in einer Minute erledigt" : "Jetzt überweisen — Konto sofort aktiv"}</p>
-        <p className="text-[12.5px] text-slate-600 mt-1.5 leading-relaxed">
-          {art === "rate"
-            ? "Sobald die Überweisung eingeht, wird Ihre Rate automatisch verbucht. Tippen Sie hier — die Zahlungsdaten mit Ihrem Verwendungszweck springen Ihnen entgegen."
-            : "Nach Zahlungseingang wird Ihr Konto freigeschaltet. Tippen Sie hier — die Zahlungsdaten mit Ihrem Verwendungszweck springen Ihnen entgegen."}
-        </p>
-        <span className="inline-flex items-center justify-center w-full mt-3 rounded-xl text-[13px] font-bold text-white"
-              style={{ minHeight: 44, background: "linear-gradient(180deg,#2563eb,#1d4ed8)" }}>
-          Zu den Zahlungsdaten
-        </span>
-      </button>
+      {sofortFuehrt ? [sofortKachel, ueberweisungKachel] : [ueberweisungKachel, sofortKachel]}
+      {/* „Weg 2" hieß der Termin, solange es einen nummerierten Weg 1 gab. Den
+          gibt es seit dem Umbau nicht mehr — die Nummer zeigte auf nichts. */}
       {token && <div className="p-4 rounded-2xl border border-slate-200 bg-white">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Weg 2</p>
+        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Lieber erst sprechen</p>
         <p className="text-[14px] font-bold text-slate-900 leading-tight">Wunschtermin buchen</p>
         <p className="text-[12.5px] text-slate-600 mt-1.5 leading-relaxed">
-          Lieber erst sprechen? Wählen Sie eine Zeit — Ihr persönlicher Ansprechpartner ruft an.
+          Wählen Sie eine Zeit — Ihr persönlicher Ansprechpartner ruft an.
         </p>
         <a href={`/termin/${token}`}
            className="inline-flex items-center justify-center w-full mt-3 rounded-xl text-[13px] font-bold text-slate-900 border border-slate-300 bg-white hover:bg-slate-50"
@@ -261,11 +294,20 @@ export function ZahlungDankePage() {
 
 // Dezent animierter Gradient-Shimmer für Überschriften (edel, langsam).
 // prefers-reduced-motion → Animation aus, statischer Gradient bleibt.
+//
+// ── DER VERLAUF MUSS ZUR BÜHNE PASSEN (02.09.2026) ─────────────────────────
+// Er begann und endete auf #0f172a. Die Zahlungsseite steht aber auf der
+// dunklen Bühne mit dem Grund rgb(10,22,40) — praktisch dieselbe Farbe. Die
+// Enden der Überschrift waren damit unsichtbar: „Letzter Schritt: Konto
+// aktivieren" las sich als „Letzter Schritt: Konto", das letzte Wort löste
+// sich im Hintergrund auf, und weil der Verlauf wandert, wechselte auch noch,
+// welches Wort gerade verschwand. Betraf alle drei Überschriften der Seite.
+// Jetzt läuft er zwischen hellen Tönen — sichtbar bleibt er in jeder Phase.
 const ZAHLUNG_STYLES = `
   .zahlung-ziel-blitz { box-shadow: 0 0 0 4px rgba(37,99,235,.25), 0 18px 40px -18px rgba(37,99,235,.5) !important; transition: box-shadow .3s; }
 
   .zahlung-shimmer-heading{
-    background:linear-gradient(110deg,#0f172a 0%,#1d4ed8 30%,#60a5fa 50%,#1d4ed8 70%,#0f172a 100%);
+    background:linear-gradient(110deg,#e2e8f0 0%,#93c5fd 30%,#ffffff 50%,#93c5fd 70%,#e2e8f0 100%);
     background-size:220% auto;
     -webkit-background-clip:text;background-clip:text;
     -webkit-text-fill-color:transparent;color:transparent;
@@ -476,7 +518,7 @@ export default function ZahlungPage() {
                 danach viermal vergeblich angerufen. Der Terminweg ist kein
                 Ausweichgleis, sondern der zweite richtige Ausgang. Deshalb
                 steht er gleichrangig oben, nicht als Kleingedrucktes unten. */}
-            <TerminAngebot paymentReference={order.paymentReference} art={order.art} sofortUrl={order.sofortUrl} />
+            <TerminAngebot paymentReference={order.paymentReference} art={order.art} sofortUrl={order.sofortUrl} sofortVorrang={order.sofortVorrang} />
 
             {order.status === "claimed_paid" && (
               <div className="mb-5 rounded-xl bg-emerald-50 border border-emerald-200 p-4 text-center">

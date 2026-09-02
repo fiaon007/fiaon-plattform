@@ -104,7 +104,7 @@ export const LEHRPLAN: LehrplanKapitel[] = [
   { key: "schufa", nr: 6, titel: "SCHUFA – Deutschland", untertitel: "Wie die Auskunftei arbeitet, was rechtswidrig ist, wie man es angreift.", dauerMin: 150, schritte: [
     t("wer", "Wer die SCHUFA ist", 180),
     t("daten", "Woher die Daten kommen", 180),
-    t("score", "Das Score-Verfahren: Basisscore, Branchenscores", 210),
+    t("score", "Das Score-Verfahren: der neue SCHUFA-Score 100–999 mit fünf Klassen (seit 17.03.2026); Basis- und Branchenscores nur noch im Übergang", 210),
     t("eugh", "7. Dezember 2023: Zwei Urteile aus Luxemburg", 210),
     t("fristen", "Die Verhaltensregeln: Lösch- und Prüffristen", 210),
     t("rechtswidrig", "Was rechtswidrig ist – und warum", 240),

@@ -115,7 +115,7 @@ export default function WerkzeugeHub() {
             <a href="/inkasso-brief-erhalten"><b>Inkasso-Brief erhalten?</b><span>Der ruhige 5-Schritte-Plan: prüfen, nachrechnen, richtig reagieren.</span></a>
             <a href="/eintrag-verjaehrung"><b>Eintrag & Verjährung</b><span>Wann ein Eintrag verschwinden muss — Fristen-Checker und Tabelle.</span></a>
             <a href="/selbstauskunft-checkliste"><b>Selbstauskunft-Checkliste</b><span>Die Datenkopie liegt vor Ihnen? So lesen Sie sie richtig.</span></a>
-            <a href="/glossar-bonitaet"><b>Bonitäts-Glossar A–Z</b><span>Alle Begriffe erklärt — vom Basisscore bis zur Zahlungshistorie.</span></a>
+            <a href="/glossar-bonitaet"><b>Bonitäts-Glossar A–Z</b><span>Alle Begriffe erklärt — von der Anfrage bis zur Zahlungshistorie, mit dem neuen Score seit 2026.</span></a>
           </div>
         </Block>
       </Licht>

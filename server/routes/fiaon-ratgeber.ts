@@ -26,6 +26,7 @@ import { INSIDER_ARTIKEL } from "../lib/fiaon-ratgeber-insider";
 import { WERKZEUG_ARTIKEL_1 } from "../lib/fiaon-ratgeber-werkzeuge-1";
 import { WERKZEUG_ARTIKEL_2 } from "../lib/fiaon-ratgeber-werkzeuge-2";
 import { WERKZEUG_ARTIKEL_3 } from "../lib/fiaon-ratgeber-werkzeuge-3";
+import { WERKZEUG_ARTIKEL_4 } from "../lib/fiaon-ratgeber-werkzeuge-4";
 
 const router = Router();
 let tabelleDa = false;
@@ -59,7 +60,7 @@ export async function ensureRatgeberTabelle(): Promise<void> {
     )`;
   await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_ratgeber_status_idx ON fiaon_ratgeber (status, published_at DESC)`;
   // Die drei Startartikel — einmalig, von Hand geschrieben, sofort veröffentlicht.
-  for (const a of [...START_ARTIKEL, ...START_ARTIKEL_2, ...INSIDER_ARTIKEL, ...WERKZEUG_ARTIKEL_1, ...WERKZEUG_ARTIKEL_2, ...WERKZEUG_ARTIKEL_3]) {
+  for (const a of [...START_ARTIKEL, ...START_ARTIKEL_2, ...INSIDER_ARTIKEL, ...WERKZEUG_ARTIKEL_1, ...WERKZEUG_ARTIKEL_2, ...WERKZEUG_ARTIKEL_3, ...WERKZEUG_ARTIKEL_4]) {
     const p = pruefstand({ titel: a.titel, teaser: a.teaser, inhalt: a.inhalt, faq: a.faq, metaTitel: a.metaTitel, metaBeschreibung: a.metaBeschreibung, keyword: a.keyword });
     await sqlPool`
       INSERT INTO fiaon_ratgeber (slug, titel, untertitel, teaser, inhalt, kategorie, land, keyword, schlagworte, faq, meta_titel, meta_beschreibung, lesezeit, status, quelle, pruefung, thema_slug, published_at)

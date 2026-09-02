@@ -55,14 +55,14 @@ interface Treffer { personId: number; name: string | null; email: string | null;
 
 // Die sechs Vorschläge aus dem echten Alltag — Platzhalter tippt der Mensch.
 // Nur, was der Copilot HEUTE kann: seit Scheibe 2 (02.09.2026) auch der
-// Tagesbrief, die Fristen und die Anrufvorbereitung.
+// Tagesbrief, die Fristen, die Anrufvorbereitung und das Nachschlagen (Scheibe 6).
 const VORSCHLAEGE: Array<{ tag: string; text: string }> = [
   { tag: "Tagesbrief", text: "Was steht heute an — und womit fange ich an?" },
   { tag: "Anruf", text: "Bereite den Anruf mit … vor: Lage, Leitfaden, erste zwei Sätze." },
   { tag: "Fristen", text: "Was ist überfällig oder läuft in den nächsten drei Tagen ab?" },
   { tag: "Akte", text: "Was ist bei … los? Lage, Zahlungen, nächster Schritt." },
   { tag: "Zahlung", text: "Sende die Zahlungsdaten an … — mit Vorschau, ich bestätige." },
-  { tag: "Termin", text: "Buche einen Termin morgen 14 Uhr mit … und trag es in die Akte ein." },
+  { tag: "Wissen", text: "Wie lange bleibt eine erledigte Forderung in der SCHUFA — und was sagt der neue Score dazu?" },
 ];
 
 /** Schaltet die helle Office-Fläche für diese Seite ab — muss INNERHALB der

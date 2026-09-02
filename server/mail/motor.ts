@@ -101,6 +101,23 @@ const BANK_FALLBACK: Record<string, string> = {
   bic: BANK.bic,
 };
 
+// Der Vorrang wird alle 60 Sekunden nachgelesen — dieselbe Bauweise wie der
+// Versandweg-Schalter, damit eine Umstellung ohne Auslieferung wirkt.
+let sofortVorrang = false;
+let sofortVorrangBis = 0;
+export async function zahlwegVorrangLesen(): Promise<boolean> {
+  if (Date.now() < sofortVorrangBis) return sofortVorrang;
+  try {
+    const { sqlPool } = await import("../lib/db-pool");
+    const [r] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = 'zahlweg_sofort_vorrang' LIMIT 1`) as any[];
+    sofortVorrang = String(r?.value ?? "").trim() === "1";
+  } catch {
+    sofortVorrang = false; // Im Zweifel der sichere Weg: Überweisung zuerst.
+  }
+  sofortVorrangBis = Date.now() + 60_000;
+  return sofortVorrang;
+}
+
 /** {{params.x}} durch Werte ersetzen; fehlende Schlüssel einsammeln. */
 function fuellen(text: string, payload: Record<string, unknown>, fehlend: Set<string>): string {
   return text.replace(/\{\{params\.([a-z_0-9]+)\}\}/gi, (_, k: string) => {
@@ -170,6 +187,27 @@ export function mailRendern(event: string, payload: Record<string, unknown>): Ge
     if (m && String((payload as any)[m[1]] ?? "").trim() === "" && BANK_FALLBACK[m[1]] === undefined) {
       vorlage = { ...vorlage, bild: undefined };
     }
+  }
+  // ══════════════════════════════════════════════════════════════════════
+  // WELCHER ZAHLWEG ZUERST STEHT — eine Einstellung, kein Umschreiben
+  //
+  // BEFUND 02.09.2026: GoCardless zahlt an EIN hinterlegtes Konto aus, und
+  // das ist die gesperrte Wise-IBAN (endet 57), Rhythmus monatlich, Währung
+  // GBP. Eine Sofortzahlung per Bank-App verlässt das Kundenkonto in
+  // Sekunden, liegt danach aber bei GoCardless bis zum 1. des Monats — und
+  // ginge dann ins Leere. Der QR-/Überweisungsweg geht direkt auf das
+  // Banking-Circle-Konto und ist an einem Bankarbeitstag da.
+  //
+  // Deshalb steht bis auf Weiteres die ÜBERWEISUNG vorn: knopf und knopf2
+  // werden getauscht, wenn `zahlweg_sofort_vorrang` nicht auf 1 steht.
+  // Sobald Justin bei GoCardless das Auszahlungskonto auf Banking Circle
+  // umgestellt und den Rhythmus auf täglich gesetzt hat, macht die Zahl 1
+  // die Sofortzahlung wieder zum Hauptweg — ohne eine einzige Vorlage
+  // anzufassen.
+  // ══════════════════════════════════════════════════════════════════════
+  const sofortIst = (k?: { url: string }) => !!k?.url.includes("params.sofort_url");
+  if (!sofortVorrang && sofortIst(vorlage.knopf) && vorlage.knopf2 && !knopfLeer(vorlage.knopf2)) {
+    vorlage = { ...vorlage, knopf: vorlage.knopf2, knopf2: vorlage.knopf };
   }
   if (knopfLeer(vorlage.knopf) || knopfLeer(vorlage.knopf2)) {
     vorlage = { ...vorlage };
@@ -274,6 +312,10 @@ export async function mailDirektSenden(
   event: string,
   payload: Record<string, unknown>,
 ): Promise<{ ok: boolean; messageId: string | null; grund?: string }> {
+  // Den Vorrang der Zahlwege vor dem Rendern nachlesen (60-Sekunden-Puffer).
+  // `mailRendern` ist synchron und nimmt den gepufferten Wert; der Anfangswert
+  // ist der sichere: Überweisung zuerst.
+  await zahlwegVorrangLesen().catch(() => {});
   const an = String((payload as any).email ?? "").trim();
   if (!an) return { ok: false, messageId: null, grund: "Keine Empfängeradresse in der Nutzlast." };
   if (!adresseSiehtGueltigAus(an)) {

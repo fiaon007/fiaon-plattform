@@ -602,6 +602,20 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/was-ist-fiaon", "/preise", "/team", "/sicherheit", "/kontakt", "/privatkunden"],
     krumen: [{ name: "So arbeitet FIAON", pfad: "/fiaon-erfahrungen" }],
+    en: {
+      pfad: "/en/how-fiaon-works",
+      titel: "FIAON reviews: how FIAON works, explained honestly",
+      beschreibung: "Bank-confirmed figures, the process in three steps, what we do not promise — and a seriousness check that applies to every provider, including us.",
+      h1: "How FIAON works.",
+      lead: "Anyone searching for “FIAON reviews” wants to know: can I trust them? The most honest answer is to lay out everything verifiable — figures from operations, the process, the prices, the limits. And a check with which you can test any provider. Including us.",
+      abschnitte: [
+        { h2: "Figures, not claims", text: "Over 440 paying customers with bank-confirmed payment, 450 paid monthly instalments, three countries, 20 free tools — as of 2 September 2026. Only what the bank has confirmed is counted." },
+        { h2: "How it works in three steps", text: "An application with a fixed price and a 15-minute onboarding call; the report obtained with authorisation and every line checked against Section 31 BDSG and the deletion deadlines; letters reviewed by lawyers sent by registered post, deadlines tracked, account and card prepared with the partner institution. The bank decides." },
+        { h2: "The seriousness check", text: "Six questions that apply to every provider: deletion guarantees, success fees, concealed free rights, a missing legal notice, time pressure, no insight into the steps. FIAON answers all six — and shows where reviews stand: being set up, nothing invented.", punkte: ["Six warning signs of dubious providers", "Two typical journeys, reconstructed from practice", "Honest up to the no: justified entries stay"] },
+      ],
+      weiter: ["/preise", "/ueber-uns", "/transparenz"],
+      krumen: [{ name: "FIAON reviews", pfad: "/en/how-fiaon-works" }],
+    },
   },
 
 

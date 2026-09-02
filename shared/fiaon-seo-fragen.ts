@@ -9,7 +9,7 @@
 // Neu erzeugen:   npx tsx scripts/seo-fragen-erzeugen.ts
 // Nur prüfen:     npx tsx scripts/seo-fragen-erzeugen.ts --pruefen
 //
-// Seiten: / (6), /was-ist-fiaon (6), /en/what-is-fiaon (6), /privatkunden (8), /en/personal (8), /business (5), /en/business (5), /preise (6), /en/pricing (6), /en (4), /kreditkarte (5), /en/credit-card (5), /oesterreich (5), /schweiz (5), /sicherheit (11), /en/security (11), /kontakt (5), /en/contact (5), /karriere (5), /partner (3), /presse (3), /investoren (4), /datenraum (3), /plattform-konzept (5), /fiaon-erfahrungen (8), /termin (6), /en/book-a-call (6), /vergleich (5), /en/compare (5), /hilfe (36), /en/help (36), /ueber-uns (5), /en/about (5), /transparenz (4), /en/transparency (4), /status (5), /werkzeuge (4), /werkzeuge/kreditrechner (5), /werkzeuge/umschuldung (5), /werkzeuge/schulden-check (5), /werkzeuge/widerspruch (5), /werkzeuge/mahnbescheid (5), /werkzeuge/ratenplan (5), /werkzeuge/inkasso-antwort (5), /werkzeuge/basiskonto (5), /werkzeuge/pfaendungsrechner (5), /werkzeuge/dispo-rechner (5), /werkzeuge/mahngebuehren (5), /werkzeuge/kartenkosten (5), /werkzeuge/schuldenplan (5), /kredit-ohne-schufa (6), /schufa-eintrag-loeschen (5), /bonitaet-verbessern (6), /auskunfteien (5), /schufa-score-verstehen (6), /bonitaetsauskunft-beantragen (7), /inkasso-brief-erhalten (6), /eintrag-verjaehrung (6), /girokonto-trotz-negativer-bonitaet (7), /ratenzahlung-und-bonitaet (6), /selbstauskunft-checkliste (6), /schufa-neutral-anfragen (6)
+// Seiten: / (6), /was-ist-fiaon (6), /en/what-is-fiaon (6), /privatkunden (8), /en/personal (8), /business (5), /en/business (5), /preise (6), /en/pricing (6), /en (4), /kreditkarte (5), /en/credit-card (5), /oesterreich (5), /schweiz (5), /sicherheit (11), /en/security (11), /kontakt (5), /en/contact (5), /karriere (5), /partner (3), /presse (3), /investoren (4), /datenraum (3), /plattform-konzept (5), /fiaon-erfahrungen (8), /en/how-fiaon-works (8), /termin (6), /en/book-a-call (6), /vergleich (5), /en/compare (5), /hilfe (36), /en/help (36), /ueber-uns (5), /en/about (5), /transparenz (4), /en/transparency (4), /status (5), /werkzeuge (4), /werkzeuge/kreditrechner (5), /werkzeuge/umschuldung (5), /werkzeuge/schulden-check (5), /werkzeuge/widerspruch (5), /werkzeuge/mahnbescheid (5), /werkzeuge/ratenplan (5), /werkzeuge/inkasso-antwort (5), /werkzeuge/basiskonto (5), /werkzeuge/pfaendungsrechner (5), /werkzeuge/dispo-rechner (5), /werkzeuge/mahngebuehren (5), /werkzeuge/kartenkosten (5), /werkzeuge/schuldenplan (5), /kredit-ohne-schufa (6), /schufa-eintrag-loeschen (5), /bonitaet-verbessern (6), /auskunfteien (5), /schufa-score-verstehen (6), /bonitaetsauskunft-beantragen (7), /inkasso-brief-erhalten (6), /eintrag-verjaehrung (6), /girokonto-trotz-negativer-bonitaet (7), /ratenzahlung-und-bonitaet (6), /selbstauskunft-checkliste (6), /schufa-neutral-anfragen (6)
 // ═══════════════════════════════════════════════════════════════════════════
 export type SeoFrage = { f: string; a: string };
 
@@ -634,6 +634,40 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     {
       "f": "Wo sind die Bewertungen?",
       "a": "FIAON baut die öffentlichen Bewertungsprofile (Trustpilot, ProvenExpert, Google) gerade auf – Kunden erhalten nach dem Startgespräch eine Einladung. Bis die Profile stehen, zeigen wir hier lieber nichts als erfundene Sterne. Prüfbar sind heute: Zahlen aus dem Betrieb, Ablauf, Preise, Team und Sicherheit."
+    }
+  ],
+  "/en/how-fiaon-works": [
+    {
+      "f": "Is FIAON legitimate?",
+      "a": "Test us against the criteria that apply to every provider — they are in the seriousness check on this page: fixed prices instead of a success fee, no deletion guarantees, your free rights are named, a legal notice with reachable people, no time pressure, every step readable in the customer area. FIAON LTD is registered at Companies House (Company No. 17318250); customers in Germany, Austria and Switzerland."
+    },
+    {
+      "f": "What exactly does FIAON do?",
+      "a": "FIAON obtains your credit reports from SCHUFA, KSV and CRIF, explains every line in plain language, checks every entry for lawfulness (Section 31 BDSG) and expiry and handles the correspondence with credit bureaus and creditors — templates reviewed by lawyers, registered post, deadlines, replies. Then FIAON prepares a current account and a credit card with the partner institution. The bank decides on the issue."
+    },
+    {
+      "f": "What does FIAON cost?",
+      "a": "The credit report with review costs €74 one-off. The plans for ongoing support run over twelve monthly instalments from €7.99 to €99.99; all prices are open on the pricing page. No success fee, no fee per letter, no commission on account or card."
+    },
+    {
+      "f": "Can FIAON delete my SCHUFA entries?",
+      "a": "FIAON can enforce what the law allows: the deletion of unlawfully reported, factually wrong or expired entries. Justified, lawfully reported entries stay until the deadline expires — we tell you that before you engage us, not afterwards. Anyone who promises you the opposite is not serious."
+    },
+    {
+      "f": "How do I see what FIAON is doing for me?",
+      "a": "In your customer area: every engagement, every report received, every letter, every deadline and every reply as a traceable timeline. You do not have to call to find out the status — and you approve every letter before it goes out."
+    },
+    {
+      "f": "Does FIAON also work in Austria and Switzerland?",
+      "a": "Yes. SCHUFA in Germany, KSV1870 and CRIF in Austria, CRIF, Intrum and the debt enforcement register in Switzerland — with the respective legal bases. Around a third of our paying customers are in Austria."
+    },
+    {
+      "f": "How do I cancel if I am not satisfied?",
+      "a": "At any time to the end of the current month, informally and without giving a reason — in the customer area under Subscription & payments or by e-mail. The 14-day right of withdrawal applies in addition."
+    },
+    {
+      "f": "Where are the reviews?",
+      "a": "FIAON is currently setting up the public review profiles (Trustpilot, ProvenExpert, Google) — customers receive an invitation after the onboarding call. Until the profiles are up, we would rather show nothing here than invented stars. Verifiable today: figures from operations, process, prices, team and security."
     }
   ],
   "/termin": [

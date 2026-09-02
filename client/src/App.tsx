@@ -297,6 +297,7 @@ function Router() {
       <Route path="/en/security" component={SiteSicherheit} />
       <Route path="/en/transparency" component={SiteTransparenz} />
       <Route path="/en/help" component={SiteHilfe} />
+      <Route path="/en/how-fiaon-works" component={FiaonErfahrungen} />
       <Route path="/kreditkarte" component={SiteKreditkarte} />
       <Route path="/oesterreich" component={SiteOesterreich} />
       <Route path="/schweiz" component={SiteSchweiz} />

@@ -402,6 +402,19 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/auskunfteien", "/werkzeuge/selbstauskunft", "/werkzeuge/eintrag-pruefen", "/preise", "/schweiz"],
     krumen: [{ name: "Österreich", pfad: "/oesterreich" }],
+    en: {
+      pfad: "/en/austria",
+      titel: "FIAON in Austria: KSV1870, CRIF and your rights",
+      beschreibung: "KSV1870 and CRIF explained, self-disclosure under Art. 15 GDPR, deletion deadlines, the banks' warning lists — and how FIAON prepares account and card.",
+      h1: "Creditworthiness in Austria, in plain terms.",
+      lead: "KSV1870, CRIF, the banks' warning lists: in Austria, different bodies decide on account, card and mobile contract than in Germany — with their own rules and their own deadlines. FIAON knows them.",
+      abschnitte: [
+        { h2: "Who stores what", text: "KSV1870, the country's largest credit bureau; CRIF, strong in telecommunications and mail order; the banks' joint warning lists. Free self-disclosure under Art. 15 GDPR from all of them within one month." },
+        { h2: "Your rights and the path with FIAON", text: "Access, rectification, erasure and objection under the GDPR, Section 152 GewO for credit bureaus, complaint to the Data Protection Authority in Vienna. FIAON requests the reports with your authorisation, explains every entry, writes under Austrian law and prepares account and card with partner banks. The bank decides." },
+      ],
+      weiter: ["/auskunfteien", "/schweiz"],
+      krumen: [{ name: "FIAON in Austria", pfad: "/en/austria" }],
+    },
   },
   "/schweiz": {
     pfad: "/schweiz", art: "land", stand: PFEILER, prio: 0.8,
@@ -415,6 +428,19 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/auskunfteien", "/werkzeuge/selbstauskunft", "/werkzeuge/verjaehrung", "/preise", "/oesterreich"],
     krumen: [{ name: "Schweiz", pfad: "/schweiz" }],
+    en: {
+      pfad: "/en/switzerland",
+      titel: "FIAON in Switzerland: enforcement register, CRIF, Intrum",
+      beschreibung: "The debt enforcement register extract, CRIF and Intrum explained, access under Art. 25 DSG, blocking unjustified enforcements — and the path to a card.",
+      h1: "Creditworthiness in Switzerland, in plain terms.",
+      lead: "Debt enforcement register, CRIF, Intrum: in Switzerland an extract from the enforcement office often decides on flat, phone and card — and five years is a long time. FIAON knows the routes to clean it up.",
+      abschnitte: [
+        { h2: "Who stores what", text: "The debt enforcement register at your place of residence (every enforcement visible for five years, extract CHF 17), CRIF as the private bureau and Intrum with debt collection and its own credit data. Access under Art. 25 DSG within 30 days." },
+        { h2: "Your rights and the path with FIAON", text: "Block an unjustified enforcement under Art. 8a SchKG, withdrawal declaration from the creditor after payment, rectification and erasure at CRIF and Intrum under Art. 32 DSG, complaint to the FDPIC. FIAON obtains extract and reports, explains every enforcement, drafts requests and letters and prepares account and card. The bank decides." },
+      ],
+      weiter: ["/auskunfteien", "/oesterreich"],
+      krumen: [{ name: "FIAON in Switzerland", pfad: "/en/switzerland" }],
+    },
   },
   "/sicherheit": {
     pfad: "/sicherheit", art: "unternehmen", stand: PFEILER, prio: 0.6,
@@ -771,6 +797,20 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/schufa-score-verstehen", "/schufa-eintrag-loeschen", "/schufa-neutral-anfragen", "/ratenzahlung-und-bonitaet", "/girokonto-trotz-negativer-bonitaet", "/werkzeuge/schulden-check", "/werkzeuge", "/privatkunden"],
     krumen: [{ name: "Bonität verbessern", pfad: "/bonitaet-verbessern" }],
+    en: {
+      pfad: "/en/strengthen-your-credit-file",
+      titel: "Strengthening your credit file: the levers ranked by effect",
+      beschreibung: "Which measures really work, which take months and which achieve nothing — with a 90-day plan, free tools and the rules behind SCHUFA, KSV and CRIF scores.",
+      h1: "Strengthening your credit file — what really works.",
+      lead: "Most advice about the score is folklore. Here the levers are in order of their effect — with an honest statement of how long each one takes.",
+      abschnitte: [
+        { h2: "The big levers", text: "Remove challengeable entries (Section 31 BDSG, expiry, errors), clear the overdraft and stop returned direct debits, make rate enquiries instead of credit enquiries. Effect within weeks to months." },
+        { h2: "The quiet levers", text: "Everything on time without exception, few old stable contracts, the free data copy once a year. Effect over months — they carry the history." },
+        { h2: "The 90-day plan", text: "Days 1–14 know, days 15–45 tidy up, days 46–90 consolidate — each stage with the free tool that prepares it. Only the credit bureaus calculate scores; nobody can guarantee a particular change." },
+      ],
+      weiter: ["/schufa-score-verstehen", "/kreditkarte"],
+      krumen: [{ name: "Strengthening your credit file", pfad: "/en/strengthen-your-credit-file" }],
+    },
   },
   "/kredit-ohne-schufa": {
     pfad: "/kredit-ohne-schufa", art: "pfeiler", stand: PFEILER, prio: 0.9,
@@ -785,6 +825,20 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/schufa-eintrag-loeschen", "/werkzeuge/kreditrechner", "/werkzeuge/eintrag-pruefen", "/schufa-neutral-anfragen", "/girokonto-trotz-negativer-bonitaet", "/ratenzahlung-und-bonitaet", "/bonitaet-verbessern"],
     krumen: [{ name: "Kredit ohne SCHUFA", pfad: "/kredit-ohne-schufa" }],
+    en: {
+      pfad: "/en/loans-without-schufa",
+      titel: "Loans without SCHUFA: what is really behind them",
+      beschreibung: "What legitimately exists, what it costs, how to spot fraud in 30 seconds — and why the better route is usually to put your credit file in order.",
+      h1: "Loans without SCHUFA — the whole truth.",
+      lead: "They exist. They are small, expensive and strictly checked — and around them stands the biggest fraud industry in the German credit market. Here is what you need to know before you sign anywhere.",
+      abschnitte: [
+        { h2: "What legitimately exists", text: "So-called Swiss loans from foreign banks without a SCHUFA enquiry: fixed sums of €3,500 to €7,500, terms around 40 months, effective rates of 10 to 16 per cent, an attachable income required. Without income there is nothing." },
+        { h2: "Spot fraud in 30 seconds", text: "Advance costs before the payout, home visits with add-on products, guarantee promises such as “100 % approval”. Legitimate lenders never demand money before money flows." },
+        { h2: "The better route", text: "Request the data copy, check every entry, enforce deletion where it can be challenged — then the normal credit market is open again at normal rates. FIAON does not broker loans and receives no commission from lenders." },
+      ],
+      weiter: ["/schufa-neutral-anfragen", "/girokonto-trotz-negativer-bonitaet"],
+      krumen: [{ name: "Loans without SCHUFA", pfad: "/en/loans-without-schufa" }],
+    },
   },
   "/auskunfteien": {
     pfad: "/auskunfteien", art: "pfeiler", stand: PFEILER, prio: 0.8,
@@ -799,6 +853,19 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/oesterreich", "/schweiz", "/bonitaetsauskunft-beantragen", "/werkzeuge/selbstauskunft", "/eintrag-verjaehrung", "/selbstauskunft-checkliste", "/glossar-bonitaet"],
     krumen: [{ name: "Auskunfteien", pfad: "/auskunfteien" }],
+    en: {
+      pfad: "/en/credit-bureaus",
+      titel: "SCHUFA, KSV1870, CRIF: credit bureaus compared | FIAON",
+      beschreibung: "Who stores what in Germany, Austria and Switzerland — rights, deletion deadlines and differences between SCHUFA, KSV1870, CRIF and the Swiss register.",
+      h1: "Three countries, three sets of rules — one overview.",
+      lead: "SCHUFA, KSV1870, CRIF: who stores what, which rights apply and which deadlines run. Anyone who knows the differences gives away no claims.",
+      abschnitte: [
+        { h2: "The three systems", text: "Germany: SCHUFA and the GDPR, settled entries three years or 18 months with the 100-day rule. Austria: KSV1870 with the banks' warning list and CRIF, usually three years after full payment. Switzerland: CRIF, Intrum and above all the debt enforcement register, enforcements visible for five years, blockable under Art. 8a SchKG." },
+        { h2: "The direct comparison", text: "Free access under Art. 15 GDPR in Germany and Austria and Art. 25 DSG in Switzerland; after personal insolvency six months in Germany, deletion after the discharge procedure in Austria, loss certificates up to 20 years in Switzerland; supervision by the state data protection authorities, the Austrian DSB and the Swiss FDPIC." },
+      ],
+      weiter: ["/oesterreich", "/schweiz", "/bonitaetsauskunft-beantragen"],
+      krumen: [{ name: "Credit bureaus compared", pfad: "/en/credit-bureaus" }],
+    },
   },
   "/schufa-score-verstehen": {
     pfad: "/schufa-score-verstehen", art: "pfeiler", stand: PFEILER, prio: 0.9,

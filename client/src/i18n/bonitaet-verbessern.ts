@@ -1,0 +1,98 @@
+// /bonitaet-verbessern · /en/strengthen-your-credit-file — Wörterbuch (02.09.2026)
+// Beide Sprachen Schlüssel für Schlüssel. Englisch NIE „improve your score" (Wortverbot) —
+// „strengthen your credit file". Der FAQ-Generator teilt an „const en".
+const de = {
+  metaTitel: "Bonität verbessern · Die Hebel nach Wirkung geordnet",
+  metaBeschreibung: "Bonität verbessern: Welche Maßnahmen wirklich wirken, welche Monate brauchen und welche gar nichts bringen – mit 90-Tage-Plan, kostenlosen Werkzeugen und den Regeln hinter SCHUFA-, KSV- und CRIF-Scores.",
+  seoTitel: "Bonität verbessern · Die Hebel nach Wirkung geordnet",
+  seoBeschreibung: "Welche Maßnahmen wirklich wirken, welche Monate brauchen und welche gar nichts bringen – mit 90-Tage-Plan und kostenlosen Werkzeugen.",
+  artikel: "Bonität verbessern: Die Hebel nach Wirkung geordnet", krume: "Bonität verbessern",
+  pille: "Nach Wirkung geordnet · nicht nach Beliebtheit", h1a: "Bonität verbessern — ", h1b: "was wirklich wirkt.",
+  lead: "Die meisten Ratschläge zum Score sind Folklore. Hier stehen die Hebel in der Reihenfolge ihrer Wirkung — mit ehrlicher Angabe, wie lange jeder braucht.",
+  grossTitel: "Die großen Hebel", grossLead: "Wirkung in Wochen bis Monaten — hier beginnt jede ernsthafte Verbesserung.",
+  gross: [
+    { tag: "Hebel 1", titel: "Angreifbare Einträge entfernen", text: "Negativeinträge sind das schwerste Einzelmerkmal. Ein erheblicher Teil ist angreifbar: ohne die Voraussetzungen des § 31 BDSG gemeldet, verfristet oder falsch. Datenkopie ziehen, jeden Eintrag prüfen, Löschung verlangen — kein anderer Hebel bewegt den Score so stark." },
+    { tag: "Hebel 2", titel: "Dispo ausgleichen, Rücklastschriften stoppen", text: "Für die Bank ist der Kontoauszug die Wahrheit: Ein Dauer-Dispo und geplatzte Lastschriften kosten mehr Kreditwürdigkeit als mancher alte Eintrag. Wenn der Dispo nicht aus eigener Kraft verschwindet: Der Umschuldungsrechner zeigt, ob ein Ratenkredit ihn günstiger ablöst." },
+    { tag: "Hebel 3", titel: "Anfragen richtig stellen", text: "Jede Kreditanfrage in kurzer Folge drückt. Vergleichen Sie ausschließlich mit Konditionsanfragen — sie sind score-neutral und liefern dieselben Zahlen. Ein einziges Wort im Antrag entscheidet." },
+  ],
+  stillTitel: "Die stillen Hebel", stillLead: "Wirkung über Monate — unspektakulär, aber sie tragen die Historie.",
+  still: [
+    { tag: "Ausdauer", titel: "Alles pünktlich, ohne Ausnahme", text: "Raten, Handyrechnung, Versandhändler: Jede pünktliche Zahlung baut Historie, jeder gemeldete Ausfall reißt sie ein. Daueraufträge und Lastschriften mit Puffer am Monatsanfang sind der einfachste Schutz." },
+    { tag: "Ruhe", titel: "Wenige, alte, stabile Verträge", text: "Die älteste Bankverbindung behalten, ungenutzte Zweitkarten und -konten schließen, nicht jährlich das Konto wechseln. Scores lesen Beständigkeit als Sicherheit." },
+    { tag: "Kontrolle", titel: "Einmal im Jahr die Datenkopie", text: "Kostenlos nach Art. 15 DSGVO. Fehler fallen nur auf, wenn jemand hinsieht — und je früher, desto leichter die Berichtigung. Der Generator erzeugt das Schreiben in zwei Minuten." },
+  ],
+  zwischen1A: "Wo stehen Sie gerade?", zwischen1B: " Der Schulden-Check rechnet Quote und Spielraum in einer Minute — ehrlich, kostenlos, ohne Anmeldung.", zumCheck: "Zum Schulden-Check",
+  planTitel: "Der 90-Tage-Plan", planLead: "Drei Etappen, jede mit dem Werkzeug, das sie vorbereitet.",
+  plan: [
+    { titel: "Tage 1–14: Wissen", text: "Datenkopien bei SCHUFA, KSV und CRIF anfordern (Werkzeug: Datenkopie-Generator). Kontoauszüge der letzten drei Monate durchsehen: Dispo, Rücklastschriften, vergessene Abos." },
+    { titel: "Tage 15–45: Aufräumen", text: "Jeden Eintrag prüfen (Werkzeug: Eintrag-Prüfer, Löschfrist-Rechner). Löschung und Berichtigung schriftlich verlangen, Fristen notieren. Dispo-Ablösung durchrechnen (Werkzeug: Umschuldungsrechner)." },
+    { titel: "Tage 46–90: Festigen", text: "Zahlungen auf Dauerauftrag umstellen, Zweitkonten schließen, Antworten der Auskunfteien nachhalten. Wer bis hier durchhält, geht mit einer messbar anderen Auskunft in die nächste Kreditprüfung." },
+  ],
+  alleWerkzeuge: "Alle Werkzeuge ansehen", planMachen: "Den Plan machen lassen",
+  fragenTitel: "Häufige Fragen zur Bonität",
+  fragen: [
+    { f: "Wie schnell kann ich meine Bonität verbessern?", a: "Das hängt vom Hebel ab: Ein gelöschter Negativeintrag oder ein ausgeglichener Dispo wirkt innerhalb weniger Wochen bis Monate, sobald die Auskunftei neu rechnet. Eine Historie aus pünktlichen Zahlungen und langen, stabilen Vertragsbeziehungen wächst über Jahre. Realistisch ist: erste messbare Verbesserung in drei Monaten, deutliche in zwölf." },
+    { f: "Was schadet dem Score am meisten?", a: "In dieser Reihenfolge: harte Negativmerkmale (Vollstreckung, Insolvenz), gemeldete Zahlungsausfälle, viele Kreditanfragen in kurzer Zeit, viele parallele Kredite und Konten, häufige Kontowechsel. Wohnort und Einkommen fließen bei SCHUFA übrigens nicht ein — das Einkommen kennt sie gar nicht." },
+    { f: "Hilft es, alte Konten und Karten zu kündigen?", a: "Meist nein — eher das Gegenteil: Lange bestehende, unauffällig geführte Verträge sind ein Positivmerkmal. Kündigen Sie ungenutzte ZWEITE Kreditkarten und Zweitkonten, aber behalten Sie die älteste Bankbeziehung. Viele kurzlebige Verträge lesen die Scores als Unruhe." },
+    { f: "Bringen „Score-Verbesserer“-Apps etwas?", a: "Den messbaren Kern können Sie selbst: Datenkopie ziehen, Fehler berichtigen lassen, Fristen prüfen. Apps, die dafür ein Abo verlangen oder „Geheimtricks“ versprechen, verkaufen verpacktes Standardwissen. Vorsicht bei allem, was eine Garantie verspricht — den Score berechnet die Auskunftei, niemand sonst." },
+    { f: "Wie oft wird der Score neu berechnet?", a: "Der neue SCHUFA-Score (seit März 2026, 100 bis 999 Punkte) wird bei jeder Anfrage tagesaktuell aus den gespeicherten Daten berechnet. Eine Löschung oder Berichtigung wirkt deshalb, sobald die Auskunftei die Daten geändert hat – eine erledigte Zahlungsstörung zählt nach den veröffentlichten Kriterien allerdings bis zu drei Jahre abgeschwächt nach." },
+    { f: "Was hat mein Girokonto mit meiner Bonität zu tun?", a: "Bei der Auskunftei: nur die Existenz des Vertrags. Bei der Bank selbst: sehr viel — die Kontoführung ist Teil jeder Kreditprüfung. Ein dauerhaft genutzter Dispo, Rücklastschriften und geplatzte Daueraufträge stehen dort sichtbar. Kontoauszüge der letzten drei Monate entscheiden häufiger über Kredite als der Score." },
+  ],
+  fussSatz: "Redaktionelle Einordnung nach den veröffentlichten Score-Grundsätzen der Auskunfteien und der Kreditpraxis, Stand August 2026. Scores berechnen ausschließlich die Auskunfteien; niemand kann eine bestimmte Verbesserung garantieren — auch FIAON nicht.",
+  weiterlesen: "Zum Weiterlesen",
+  weiter: [
+    { href: "/schufa-score-verstehen", t: "SCHUFA-Score verstehen", s: "Die Tabelle der Score-Bereiche und die sechs Hebel dahinter." },
+    { href: "/ratenzahlung-und-bonitaet", t: "Ratenzahlung & Bonität", s: "Warum pünktliche Raten Ihr stärkster Hebel sind — und was bei Rückstand passiert." },
+    { href: "/schufa-neutral-anfragen", t: "SCHUFA-neutral anfragen", s: "Kredite vergleichen, ohne den Score zu belasten: Konditions- statt Kreditanfrage." },
+    { href: "/girokonto-trotz-negativer-bonitaet", t: "Girokonto trotz negativer Bonität", s: "Was wirklich erreichbar ist — und was niemand versprechen kann." },
+  ],
+  zwischen2A: "90 Tage sind schneller vorbei, als man denkt.", zwischen2B: " FIAON übernimmt Beschaffung, Prüfung und Schriftwechsel — Sie sehen jeden Schritt und jede Frist in Ihrem Kundenbereich.", ordnenLassen: "Bonität ordnen lassen",
+};
+const en: typeof de = {
+  metaTitel: "Strengthening your credit file · the levers ranked by effect",
+  metaBeschreibung: "Strengthening your credit file: which measures really work, which take months and which achieve nothing at all — with a 90-day plan, free tools and the rules behind SCHUFA, KSV and CRIF scores.",
+  seoTitel: "Strengthening your credit file · the levers ranked by effect",
+  seoBeschreibung: "Which measures really work, which take months and which achieve nothing at all — with a 90-day plan and free tools.",
+  artikel: "Strengthening your credit file: the levers ranked by effect", krume: "Strengthening your credit file",
+  pille: "Ranked by effect · not by popularity", h1a: "Strengthening your credit file — ", h1b: "what really works.",
+  lead: "Most advice about the score is folklore. Here the levers are in order of their effect — with an honest statement of how long each one takes.",
+  grossTitel: "The big levers", grossLead: "Effect within weeks to months — this is where every serious change begins.",
+  gross: [
+    { tag: "Lever 1", titel: "Remove challengeable entries", text: "Negative entries are the heaviest single factor. A considerable share can be challenged: reported without the requirements of Section 31 BDSG, expired or wrong. Get the data copy, check every entry, demand deletion — no other lever moves the score as much." },
+    { tag: "Lever 2", titel: "Clear the overdraft, stop returned direct debits", text: "For the bank, the bank statement is the truth: a permanent overdraft and bounced direct debits cost more creditworthiness than many an old entry. If the overdraft will not disappear on its own: the refinancing calculator shows whether an instalment loan clears it more cheaply." },
+    { tag: "Lever 3", titel: "Make enquiries the right way", text: "Every credit enquiry in quick succession weighs down. Compare exclusively with rate enquiries — they are score-neutral and deliver the same figures. A single word in the application decides." },
+  ],
+  stillTitel: "The quiet levers", stillLead: "Effect over months — unspectacular, but they carry the history.",
+  still: [
+    { tag: "Persistence", titel: "Everything on time, without exception", text: "Instalments, phone bill, mail order: every punctual payment builds history, every reported default tears it down. Standing orders and direct debits with a buffer at the start of the month are the simplest protection." },
+    { tag: "Calm", titel: "Few, old, stable contracts", text: "Keep the oldest banking relationship, close unused second cards and accounts, do not switch accounts every year. Scores read constancy as security." },
+    { tag: "Control", titel: "The data copy once a year", text: "Free under Art. 15 GDPR. Errors are only noticed if someone looks — and the earlier, the easier the correction. The generator produces the letter in two minutes." },
+  ],
+  zwischen1A: "Where do you stand right now?", zwischen1B: " The debt check works out ratio and headroom in a minute — honest, free, no registration.", zumCheck: "To the debt check",
+  planTitel: "The 90-day plan", planLead: "Three stages, each with the tool that prepares it.",
+  plan: [
+    { titel: "Days 1–14: Know", text: "Request data copies from SCHUFA, KSV and CRIF (tool: data copy generator). Go through bank statements for the last three months: overdraft, returned direct debits, forgotten subscriptions." },
+    { titel: "Days 15–45: Tidy up", text: "Check every entry (tools: entry checker, deletion deadline calculator). Demand deletion and correction in writing, note deadlines. Work out clearing the overdraft (tool: refinancing calculator)." },
+    { titel: "Days 46–90: Consolidate", text: "Switch payments to standing orders, close second accounts, follow up on the credit bureaus' replies. Anyone who sticks with it to here goes into the next credit check with a measurably different report." },
+  ],
+  alleWerkzeuge: "See all tools", planMachen: "Have the plan done for you",
+  fragenTitel: "Frequently asked questions about creditworthiness",
+  fragen: [
+    { f: "How quickly can I strengthen my credit file?", a: "That depends on the lever: a deleted negative entry or a cleared overdraft takes effect within a few weeks to months, as soon as the credit bureau recalculates. A history of punctual payments and long, stable contracts grows over years. Realistic: a first measurable change in three months, a clear one in twelve." },
+    { f: "What damages the score most?", a: "In this order: hard negative features (enforcement, insolvency), reported payment defaults, many credit enquiries in a short time, many parallel loans and accounts, frequent account changes. Incidentally, place of residence and income do not go into SCHUFA — it does not even know your income." },
+    { f: "Does it help to cancel old accounts and cards?", a: "Usually no — rather the opposite: long-standing, unremarkably run contracts are a positive feature. Cancel unused SECOND credit cards and second accounts, but keep the oldest banking relationship. Scores read many short-lived contracts as unrest." },
+    { f: "Do “score booster” apps achieve anything?", a: "The measurable core you can do yourself: get the data copy, have errors corrected, check deadlines. Apps that demand a subscription for that or promise “secret tricks” sell packaged standard knowledge. Beware of anything that promises a guarantee — the credit bureau calculates the score, nobody else." },
+    { f: "How often is the score recalculated?", a: "The new SCHUFA score (since March 2026, 100 to 999 points) is calculated from the stored data on the day of every enquiry. A deletion or correction therefore takes effect as soon as the credit bureau has changed the data — a settled payment default does, however, count with reduced weight for up to three years under the published criteria." },
+    { f: "What does my current account have to do with my credit file?", a: "At the credit bureau: only the existence of the contract. At the bank itself: a great deal — account management is part of every credit check. A permanently used overdraft, returned direct debits and failed standing orders are visible there. Bank statements for the last three months decide loans more often than the score." },
+  ],
+  fussSatz: "Editorial classification according to the credit bureaus' published scoring principles and lending practice, as of August 2026. Only the credit bureaus calculate scores; nobody can guarantee a particular change — FIAON included.",
+  weiterlesen: "Read on",
+  weiter: [
+    { href: "/schufa-score-verstehen", t: "Understanding the SCHUFA score", s: "The table of score ranges and the six levers behind it." },
+    { href: "/ratenzahlung-und-bonitaet", t: "Instalments and creditworthiness", s: "Why punctual instalments are your strongest lever — and what happens with arrears." },
+    { href: "/schufa-neutral-anfragen", t: "SCHUFA-neutral enquiries", s: "Comparing loans without burdening the score: rate enquiry instead of credit enquiry." },
+    { href: "/girokonto-trotz-negativer-bonitaet", t: "A current account despite a poor record", s: "What is really achievable — and what nobody can promise." },
+  ],
+  zwischen2A: "90 days pass faster than you think.", zwischen2B: " FIAON takes on obtaining, checking and correspondence — you see every step and every deadline in your customer area.", ordnenLassen: "Have your credit file put in order",
+};
+export const BONITAET_VERBESSERN_WOERTER = { de, en };

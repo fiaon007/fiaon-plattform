@@ -41,8 +41,8 @@ const QUELLEN: Record<string, string> = {
   "client/src/i18n/preise.ts": "/preise|/en/pricing",
   "client/src/pages/site/en-start.tsx": "/en",
   "client/src/i18n/kreditkarte.ts": "/kreditkarte|/en/credit-card",
-  "client/src/pages/site/oesterreich.tsx": "/oesterreich",
-  "client/src/pages/site/schweiz.tsx": "/schweiz",
+  "client/src/i18n/laender.ts#oesterreich": "/oesterreich|/en/austria@oesterreich",
+  "client/src/i18n/laender.ts#schweiz": "/schweiz|/en/switzerland@schweiz",
   "client/src/i18n/sicherheit.ts": "/sicherheit|/en/security",
   "client/src/i18n/kontakt.ts": "/kontakt|/en/contact",
   "client/src/pages/site/team.tsx": "/team",
@@ -73,10 +73,10 @@ const QUELLEN: Record<string, string> = {
   "client/src/pages/site/werkzeuge/mahngebuehren.tsx": "/werkzeuge/mahngebuehren",
   "client/src/pages/site/werkzeuge/kartenkosten.tsx": "/werkzeuge/kartenkosten",
   "client/src/pages/site/werkzeuge/schuldenplan.tsx": "/werkzeuge/schuldenplan",
-  "client/src/pages/site/kredit-ohne-schufa.tsx": "/kredit-ohne-schufa",
+  "client/src/i18n/kredit-ohne-schufa.ts": "/kredit-ohne-schufa|/en/loans-without-schufa",
   "client/src/pages/site/schufa-eintrag-loeschen.tsx": "/schufa-eintrag-loeschen",
-  "client/src/pages/site/bonitaet-verbessern.tsx": "/bonitaet-verbessern",
-  "client/src/pages/site/auskunfteien.tsx": "/auskunfteien",
+  "client/src/i18n/bonitaet-verbessern.ts": "/bonitaet-verbessern|/en/strengthen-your-credit-file",
+  "client/src/i18n/auskunfteien.ts": "/auskunfteien|/en/credit-bureaus",
   "client/src/pages/site/schufa-score-verstehen.tsx": "/schufa-score-verstehen",
   "client/src/pages/site/bonitaetsauskunft-beantragen.tsx": "/bonitaetsauskunft-beantragen",
   "client/src/pages/site/inkasso-brief-erhalten.tsx": "/inkasso-brief-erhalten",
@@ -117,15 +117,26 @@ function erzeugen(): string {
   const glossarDatei = path.join(WURZEL, "client/src/pages/site/glossar-bonitaet.tsx");
   const glossar = fs.existsSync(glossarDatei) ? glossarAus(fs.readFileSync(glossarDatei, "utf8")) : [];
   const zaehler: string[] = [];
-  for (const [datei, pfad] of Object.entries(QUELLEN)) {
-    const voll = path.join(WURZEL, datei);
+  for (let [datei, pfad] of Object.entries(QUELLEN)) {
+    // „datei#x" ist ein Schlüssel-Block in einem Wörterbuch mit mehreren
+    // Seiten (z. B. laender.ts: oesterreich und schweiz) — nur dieser Block
+    // zählt; der Pfad trägt „@x" als Marke, die hier wieder entfernt wird.
+    const [dateiRein, block] = datei.split("#");
+    const voll = path.join(WURZEL, dateiRein);
     if (!fs.existsSync(voll)) { console.warn(`[SEO-FRAGEN] fehlt: ${datei}`); continue; }
-    const quelltext = fs.readFileSync(voll, "utf8");
+    const quelltextRoh = fs.readFileSync(voll, "utf8");
+    const nurBlock = (text: string) => {
+      if (!block) return text;
+      const re = new RegExp(`\\n  ${block}: \\{`); const m = re.exec(text); if (!m) return "";
+      const rest = text.slice(m.index + 1); const ende = rest.search(/\n  [a-z]+: \{/); return ende < 0 ? rest : rest.slice(0, ende);
+    };
+    const quelltext = quelltextRoh;
+    pfad = pfad.replace(/@\w+$/, "");
     // Zweisprachiges Wörterbuch: „/de-pfad|/en-pfad" — der Quelltext wird an
     // `const en` geteilt, jede Hälfte gehört zu ihrer Seite.
     const teile = pfad.includes("|")
-      ? (() => { const [pDe, pEn] = pfad.split("|"); const schnitt = quelltext.indexOf("\nconst en"); return schnitt < 0 ? [[pDe, quelltext]] : [[pDe, quelltext.slice(0, schnitt)], [pEn, quelltext.slice(schnitt)]]; })()
-      : [[pfad, quelltext]];
+      ? (() => { const [pDe, pEn] = pfad.split("|"); const schnitt = quelltext.indexOf("\nconst en"); return schnitt < 0 ? [[pDe, nurBlock(quelltext)]] : [[pDe, nurBlock(quelltext.slice(0, schnitt))], [pEn, nurBlock(quelltext.slice(schnitt))]]; })()
+      : [[pfad, nurBlock(quelltext)]];
     for (const [p, text] of teile) {
       const fragen = fragenAus(text, p.startsWith("/en"));
       if (!fragen.length) continue;

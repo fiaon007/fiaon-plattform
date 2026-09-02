@@ -298,6 +298,11 @@ function Router() {
       <Route path="/en/transparency" component={SiteTransparenz} />
       <Route path="/en/help" component={SiteHilfe} />
       <Route path="/en/how-fiaon-works" component={FiaonErfahrungen} />
+      <Route path="/en/strengthen-your-credit-file" component={BonitaetVerbessern} />
+      <Route path="/en/loans-without-schufa" component={KreditOhneSchufa} />
+      <Route path="/en/credit-bureaus" component={AuskunfteienSeite} />
+      <Route path="/en/austria" component={SiteOesterreich} />
+      <Route path="/en/switzerland" component={SiteSchweiz} />
       <Route path="/kreditkarte" component={SiteKreditkarte} />
       <Route path="/oesterreich" component={SiteOesterreich} />
       <Route path="/schweiz" component={SiteSchweiz} />

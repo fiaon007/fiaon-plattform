@@ -9,7 +9,7 @@
 // Neu erzeugen:   npx tsx scripts/seo-fragen-erzeugen.ts
 // Nur prüfen:     npx tsx scripts/seo-fragen-erzeugen.ts --pruefen
 //
-// Seiten: / (6), /was-ist-fiaon (6), /en/what-is-fiaon (6), /privatkunden (8), /en/personal (8), /business (5), /en/business (5), /preise (6), /en/pricing (6), /en (4), /kreditkarte (5), /en/credit-card (5), /oesterreich (5), /schweiz (5), /sicherheit (11), /en/security (11), /kontakt (5), /en/contact (5), /karriere (5), /partner (3), /presse (3), /investoren (4), /datenraum (3), /plattform-konzept (5), /fiaon-erfahrungen (8), /en/how-fiaon-works (8), /termin (6), /en/book-a-call (6), /vergleich (5), /en/compare (5), /hilfe (36), /en/help (36), /ueber-uns (5), /en/about (5), /transparenz (4), /en/transparency (4), /status (5), /werkzeuge (4), /werkzeuge/kreditrechner (5), /werkzeuge/umschuldung (5), /werkzeuge/schulden-check (5), /werkzeuge/widerspruch (5), /werkzeuge/mahnbescheid (5), /werkzeuge/ratenplan (5), /werkzeuge/inkasso-antwort (5), /werkzeuge/basiskonto (5), /werkzeuge/pfaendungsrechner (5), /werkzeuge/dispo-rechner (5), /werkzeuge/mahngebuehren (5), /werkzeuge/kartenkosten (5), /werkzeuge/schuldenplan (5), /kredit-ohne-schufa (6), /schufa-eintrag-loeschen (5), /bonitaet-verbessern (6), /auskunfteien (5), /schufa-score-verstehen (6), /bonitaetsauskunft-beantragen (7), /inkasso-brief-erhalten (6), /eintrag-verjaehrung (6), /girokonto-trotz-negativer-bonitaet (7), /ratenzahlung-und-bonitaet (6), /selbstauskunft-checkliste (6), /schufa-neutral-anfragen (6)
+// Seiten: / (6), /was-ist-fiaon (6), /en/what-is-fiaon (6), /privatkunden (8), /en/personal (8), /business (5), /en/business (5), /preise (6), /en/pricing (6), /en (4), /kreditkarte (5), /en/credit-card (5), /oesterreich (5), /en/austria (5), /schweiz (5), /en/switzerland (5), /sicherheit (11), /en/security (11), /kontakt (5), /en/contact (5), /karriere (5), /partner (3), /presse (3), /investoren (4), /datenraum (3), /plattform-konzept (5), /fiaon-erfahrungen (8), /en/how-fiaon-works (8), /termin (6), /en/book-a-call (6), /vergleich (5), /en/compare (5), /hilfe (36), /en/help (36), /ueber-uns (5), /en/about (5), /transparenz (4), /en/transparency (4), /status (5), /werkzeuge (4), /werkzeuge/kreditrechner (5), /werkzeuge/umschuldung (5), /werkzeuge/schulden-check (5), /werkzeuge/widerspruch (5), /werkzeuge/mahnbescheid (5), /werkzeuge/ratenplan (5), /werkzeuge/inkasso-antwort (5), /werkzeuge/basiskonto (5), /werkzeuge/pfaendungsrechner (5), /werkzeuge/dispo-rechner (5), /werkzeuge/mahngebuehren (5), /werkzeuge/kartenkosten (5), /werkzeuge/schuldenplan (5), /kredit-ohne-schufa (6), /en/loans-without-schufa (6), /schufa-eintrag-loeschen (5), /bonitaet-verbessern (6), /en/strengthen-your-credit-file (6), /auskunfteien (5), /en/credit-bureaus (5), /schufa-score-verstehen (6), /bonitaetsauskunft-beantragen (7), /inkasso-brief-erhalten (6), /eintrag-verjaehrung (6), /girokonto-trotz-negativer-bonitaet (7), /ratenzahlung-und-bonitaet (6), /selbstauskunft-checkliste (6), /schufa-neutral-anfragen (6)
 // ═══════════════════════════════════════════════════════════════════════════
 export type SeoFrage = { f: string; a: string };
 
@@ -340,6 +340,28 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
       "a": "Ja. Schreiben, Fristen und Paragraphen sind für Österreich angepasst: DSGVO, DSG, GewO, Verbraucherzahlungskontogesetz. Der Ansprechpartner kennt beide Länder."
     }
   ],
+  "/en/austria": [
+    {
+      "f": "Is there a SCHUFA in Austria?",
+      "a": "No. The role is taken by KSV1870 and CRIF, alongside the banks' warning lists. Anyone who moves from Germany to Austria starts at KSV and CRIF without a history — the SCHUFA data is not transferred."
+    },
+    {
+      "f": "How long does an entry stay at KSV?",
+      "a": "Settled claims usually three years after settlement; insolvency data according to the insolvency register (Ediktsdatei). Data stored longer is to be erased under Art. 17 GDPR."
+    },
+    {
+      "f": "Why was my mobile contract rejected although KSV has nothing?",
+      "a": "Mobile providers frequently enquire at CRIF. Request the self-disclosure there — FIAON does that for you."
+    },
+    {
+      "f": "Can I open an account despite an entry?",
+      "a": "Yes. There is a legal right to a basic account under the Consumer Payment Accounts Act (Verbraucherzahlungskontogesetz). FIAON prepares the opening with a partner bank."
+    },
+    {
+      "f": "Does FIAON work under Austrian law?",
+      "a": "Yes. Letters, deadlines and sections are adapted for Austria: GDPR, DSG, GewO, Consumer Payment Accounts Act. Your contact person knows both countries."
+    }
+  ],
   "/schweiz": [
     {
       "f": "Eine Betreibung war unberechtigt – warum steht sie trotzdem im Auszug?",
@@ -360,6 +382,28 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     {
       "f": "Wie lange dauert die Nichtbekanntgabe nach Art. 8a?",
       "a": "Das Gesuch ist frühestens drei Monate nach Zustellung des Zahlungsbefehls möglich; das Amt fragt den Gläubiger an, der 20 Tage Zeit hat, ein Verfahren nachzuweisen. Danach wird die Betreibung Dritten nicht mehr angezeigt."
+    }
+  ],
+  "/en/switzerland": [
+    {
+      "f": "An enforcement was unjustified — why is it still in the extract?",
+      "a": "Because the register records every enforcement regardless of whether it is justified. It stays visible for five years — unless you have it blocked under Art. 8a SchKG or the creditor withdraws it."
+    },
+    {
+      "f": "I have paid — is the enforcement gone now?",
+      "a": "No, it carries the marker “paid” and remains visible. Only the creditor's withdrawal declaration removes it. FIAON drafts the request — often as a condition of payment."
+    },
+    {
+      "f": "Does the German SCHUFA apply in Switzerland?",
+      "a": "No. Swiss banks and retailers query the debt enforcement register, CRIF and Intrum. Anyone who moves in from Germany starts without a history — and should check the first extract early."
+    },
+    {
+      "f": "Can I get an account with enforcements?",
+      "a": "Banks may refuse; PostFinance runs accounts for people resident in Switzerland largely regardless of enforcements. FIAON prepares the opening."
+    },
+    {
+      "f": "How long does non-disclosure under Art. 8a take?",
+      "a": "The request is possible at the earliest three months after service of the payment order; the office asks the creditor, who has 20 days to prove proceedings. After that the enforcement is no longer shown to third parties."
     }
   ],
   "/sicherheit": [
@@ -1490,6 +1534,32 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
       "a": "Nein — FIAON vermittelt keine Kredite und verkauft keine Finanzprodukte. FIAON beschafft Ihre Auskünfte bei SCHUFA, KSV und CRIF, prüft jeden Eintrag auf Angreifbarkeit und setzt Löschung oder Berichtigung durch, wo die Rechtslage es hergibt. Das Ziel ist, dass Sie keinen Umgehungskredit brauchen."
     }
   ],
+  "/en/loans-without-schufa": [
+    {
+      "f": "Are there legitimate loans without SCHUFA?",
+      "a": "Yes, but only a narrow category: so-called Swiss loans from foreign banks that make no SCHUFA enquiry and do not report to it. They are limited to small sums (usually €3,500 to €7,500), considerably more expensive than normal instalment loans and require an attachable income. Without a steady income there is nothing there either — anyone who promises otherwise is not selling a loan but a trap."
+    },
+    {
+      "f": "How do I recognise dubious providers?",
+      "a": "By three patterns: advance costs (fees, expenses or “insurance” that fall due before the payout), home visits or agent contracts with add-on products, and guarantee promises such as “100 % approval despite negative SCHUFA”. Legitimate lenders never demand money before money flows."
+    },
+    {
+      "f": "What does a loan without SCHUFA cost?",
+      "a": "Considerably more: the effective annual rates are usually between 10 and 16 per cent — for a regular instalment loan with a decent credit file it is 5 to 9. On €5,000 over 40 months that quickly makes a difference of €1,000 and more."
+    },
+    {
+      "f": "Does my bank see that I have taken out a loan without SCHUFA?",
+      "a": "Not at the credit bureau — that is exactly the purpose. But the instalment appears on your bank statement, and in every later credit check it counts in the household calculation. Concealed instalments that turn up there cost more trust than an explained entry."
+    },
+    {
+      "f": "What is the better route?",
+      "a": "In most cases: put the credit file in order instead of circumventing it. Many negative entries can be challenged — wrongly reported, expired or entered without the legal requirements. Once the file is clean, the normal credit market is open again, at normal rates."
+    },
+    {
+      "f": "Does FIAON help with credit brokerage?",
+      "a": "No — FIAON does not broker loans and does not sell financial products. FIAON obtains your reports from SCHUFA, KSV and CRIF, checks every entry for whether it can be challenged and enforces deletion or correction where the law allows. The goal is that you do not need a workaround loan."
+    }
+  ],
   "/schufa-eintrag-loeschen": [
     {
       "f": "Kann man einen berechtigten SCHUFA-Eintrag löschen lassen?",
@@ -1538,6 +1608,32 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
       "a": "Bei der Auskunftei: nur die Existenz des Vertrags. Bei der Bank selbst: sehr viel — die Kontoführung ist Teil jeder Kreditprüfung. Ein dauerhaft genutzter Dispo, Rücklastschriften und geplatzte Daueraufträge stehen dort sichtbar. Kontoauszüge der letzten drei Monate entscheiden häufiger über Kredite als der Score."
     }
   ],
+  "/en/strengthen-your-credit-file": [
+    {
+      "f": "How quickly can I strengthen my credit file?",
+      "a": "That depends on the lever: a deleted negative entry or a cleared overdraft takes effect within a few weeks to months, as soon as the credit bureau recalculates. A history of punctual payments and long, stable contracts grows over years. Realistic: a first measurable change in three months, a clear one in twelve."
+    },
+    {
+      "f": "What damages the score most?",
+      "a": "In this order: hard negative features (enforcement, insolvency), reported payment defaults, many credit enquiries in a short time, many parallel loans and accounts, frequent account changes. Incidentally, place of residence and income do not go into SCHUFA — it does not even know your income."
+    },
+    {
+      "f": "Does it help to cancel old accounts and cards?",
+      "a": "Usually no — rather the opposite: long-standing, unremarkably run contracts are a positive feature. Cancel unused SECOND credit cards and second accounts, but keep the oldest banking relationship. Scores read many short-lived contracts as unrest."
+    },
+    {
+      "f": "Do “score booster” apps achieve anything?",
+      "a": "The measurable core you can do yourself: get the data copy, have errors corrected, check deadlines. Apps that demand a subscription for that or promise “secret tricks” sell packaged standard knowledge. Beware of anything that promises a guarantee — the credit bureau calculates the score, nobody else."
+    },
+    {
+      "f": "How often is the score recalculated?",
+      "a": "The new SCHUFA score (since March 2026, 100 to 999 points) is calculated from the stored data on the day of every enquiry. A deletion or correction therefore takes effect as soon as the credit bureau has changed the data — a settled payment default does, however, count with reduced weight for up to three years under the published criteria."
+    },
+    {
+      "f": "What does my current account have to do with my credit file?",
+      "a": "At the credit bureau: only the existence of the contract. At the bank itself: a great deal — account management is part of every credit check. A permanently used overdraft, returned direct debits and failed standing orders are visible there. Bank statements for the last three months decide loans more often than the score."
+    }
+  ],
   "/auskunfteien": [
     {
       "f": "Welche Auskunftei ist für mich zuständig?",
@@ -1558,6 +1654,28 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     {
       "f": "Hilft FIAON in allen drei Ländern?",
       "a": "Ja — das ist der Kern des Angebots: Beschaffung, Prüfung und Durchsetzung bei SCHUFA, KSV1870 und CRIF aus einer Hand, mit den jeweiligen Landesregeln. Die Länderseiten für Österreich und die Schweiz erklären die Besonderheiten."
+    }
+  ],
+  "/en/credit-bureaus": [
+    {
+      "f": "Which credit bureau is responsible for me?",
+      "a": "The one of the country in which you enter into contracts: in Germany mainly SCHUFA (alongside Creditreform Boniversum and CRIF), in Austria KSV1870 and CRIF Austria, in Switzerland CRIF and Intrum. Anyone who moves or works across borders often has data in two countries — and should check both."
+    },
+    {
+      "f": "Do I get free access everywhere?",
+      "a": "Yes. In Germany and Austria under Art. 15 GDPR, in Switzerland under Art. 25 of the revised Data Protection Act. The bureaus also sell paid products — for checking your own data the free data copy is always enough."
+    },
+    {
+      "f": "Is data exchanged between the countries?",
+      "a": "Not automatically: a Swiss bank does not see SCHUFA entries, a KSV entry stays in Austria. But international groups such as CRIF are active in several countries, and with cross-border contracts (car leasing, say) providers sometimes enquire in the neighbouring country. One should not rely on the separation."
+    },
+    {
+      "f": "Do the deletion deadlines apply equally everywhere?",
+      "a": "No — that is the most important difference: Germany deletes settled claims after three years (18 months with the 100-day rule), Austria knows for the “KSV entry” after full payment a deletion after three years from the warning list, Switzerland stores enforcements for five years in the debt enforcement register. Anyone who transfers deadlines from one country to another is calculating wrongly."
+    },
+    {
+      "f": "Does FIAON help in all three countries?",
+      "a": "Yes — that is the core of the offer: obtaining, checking and enforcement at SCHUFA, KSV1870 and CRIF from one hand, with the respective national rules. The country pages for Austria and Switzerland explain the particularities."
     }
   ],
   "/schufa-score-verstehen": [

@@ -357,6 +357,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Land des Besuchers (öffentlich, nur lesend) — für die Vorbelegung im Antrag.
   const fiaonAnfragenRoutes = await import('./routes/fiaon-anfragen');
   app.use('/api/fiaon', fiaonAnfragenRoutes.default);
+
+  // 📊 Öffentliche Kennzahlen (02.09.2026): /transparenz, /fiaon-erfahrungen — ohne Anmeldung, 1 h Cache.
+  const fiaonOeffentlichRoutes = await import('./routes/fiaon-oeffentlich');
+  app.use('/api/fiaon', fiaonOeffentlichRoutes.default);
   const fiaonGeoRoutes = await import('./routes/fiaon-geo');
   app.use('/api/fiaon', fiaonGeoRoutes.default);
   const fiaonTerminZentraleRoutes = await import('./routes/fiaon-termin-zentrale');

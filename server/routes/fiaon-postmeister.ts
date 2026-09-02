@@ -814,4 +814,34 @@ tageslauf("postmeister", async () => {
   return await postmeisterLauf();
 }, 5 * 60 * 1000, { beimStartNach: 120_000 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DER RÜCKSTAND SCHMILZT VON SELBST (03.09.2026)
+//
+// Der Takt oben sieht nur NEUE Post. Die Unterhaltungen, in denen ein Kunde
+// zuletzt geschrieben hat und nie eine Antwort bekam, erreichte bisher nur ein
+// Aufruf von Hand — am 03.09. waren das 58 Stück, die älteste vom 31.08.
+// Von Hand heißt: Es bleibt liegen, sobald niemand daran denkt.
+//
+// Deshalb ein eigener, langsamer Takt. Vier Antworten alle zwanzig Minuten
+// sind bewusst wenig: Der Rückstand ist Tage alt, es eilt nicht mehr um
+// Minuten — und jede Antwort wird ohnehin ein Entwurf, den ein Mensch liest.
+// Die Nachtruhe (8 bis 20 Uhr) steckt in `phaseAntworten`, der Tagesdeckel
+// im Agenten. Zwei Bremsen, die schon da sind; hier kommt keine dritte dazu.
+//
+// Abschalten: `postmeister_aufhol_antworten` in fiaon_settings auf 0.
+// ═══════════════════════════════════════════════════════════════════════════
+tageslauf("postmeister-rueckstand", async () => {
+  if (!gmailBereit()) return;
+  const { phaseAntworten, aufholDeckel } = await import("../lib/fiaon-postmeister-aufholen");
+  const deckel = await aufholDeckel();
+  if (deckel.antworten <= 0) return { bearbeitet: 0, entwuerfe: 0, uebersprungen: { abgeschaltet: 1 } };
+  const gruesse: Record<string, string> = {};
+  for (const pf of POSTFAECHER) gruesse[pf.adresse] = pf.gruss;
+  const erg = await phaseAntworten({ deckel: Math.min(4, deckel.antworten), gruesse });
+  if (erg.bearbeitet > 0) {
+    console.log(`[POSTMEISTER-RUECKSTAND] ${erg.bearbeitet} Unterhaltungen, ${erg.entwuerfe} Entwürfe`);
+  }
+  return erg;
+}, 20 * 60 * 1000, { beimStartNach: 300_000 });
+
 export default router;

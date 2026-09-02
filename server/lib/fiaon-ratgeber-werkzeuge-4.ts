@@ -21,7 +21,7 @@ export const WERKZEUG_ARTIKEL_4: StartArtikel[] = [
     kategorie: "score", land: "DE", keyword: "neuer schufa score",
     schlagworte: ["SCHUFA-Score 2026", "neuer Score", "Score-Klassen", "12 Kriterien", "Zahlungsstörung", "Basisscore"],
     metaTitel: "Neuer SCHUFA-Score 2026: Skala, Klassen, 12 Kriterien",
-    metaBeschreibung: "Seit 17. März 2026: SCHUFA-Score von 100 bis 999, fünf Klassen, zwölf veröffentlichte Kriterien mit Punkten. Was sich ändert, was bleibt – und welche Einträge am meisten kosten.",
+    metaBeschreibung: "Seit 17. März 2026: SCHUFA-Score von 100 bis 999, fünf Klassen, zwölf Kriterien mit Punkten. Was sich ändert, was bleibt, welche Einträge am meisten kosten.",
     faq: [
       { frage: "Seit wann gilt der neue SCHUFA-Score?", antwort: "Seit dem 17. März 2026. Er ersetzt den Basisscore (0 bis 100 Prozent) und die sechs Branchenscores. Für Unternehmen gilt nach Angaben der SCHUFA eine Übergangsfrist bis Ende 2028 – bis dahin können Vertragspartner noch alte Scorewerte abfragen." },
       { frage: "Welche Klassen gibt es?", antwort: "Hervorragend (776–999 Punkte, rund 62 Prozent der Menschen), gut (709–775, rund 20 Prozent), akzeptabel (642–708, rund 8 Prozent), ausreichend (100–641, rund 2 Prozent) und ungenügend – kein Punktwert, weil eine offene Zahlungsstörung vorliegt (rund 8 Prozent). Quelle: SCHUFA." },

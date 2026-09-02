@@ -34,7 +34,7 @@ const ZIEL = path.join(WURZEL, "shared", "fiaon-seo-fragen.ts");
 const QUELLEN: Record<string, string> = {
   "client/src/pages/fiaon-home.tsx": "/",
   "client/src/i18n/was-ist-fiaon.ts": "/was-ist-fiaon|/en/what-is-fiaon",
-  "client/src/pages/site/privatkunden.tsx": "/privatkunden",
+  "client/src/i18n/privatkunden.ts": "/privatkunden|/en/personal",
   "client/src/pages/site/business.tsx": "/business",
   // 02.09.2026: Die Fragen von /preise stehen im zweisprachigen Wörterbuch —
   // erste Hälfte (const de) → /preise, zweite Hälfte (const en) → /en/pricing.

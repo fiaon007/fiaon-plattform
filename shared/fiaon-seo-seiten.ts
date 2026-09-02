@@ -274,6 +274,20 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/preise", "/kreditkarte", "/girokonto-trotz-negativer-bonitaet", "/schufa-eintrag-loeschen", "/werkzeuge/eintrag-pruefen", "/fiaon-erfahrungen"],
     krumen: [{ name: "Privatkunden", pfad: "/privatkunden" }],
+    en: {
+      pfad: "/en/personal",
+      titel: "Personal: credit file, current account, credit card | FIAON",
+      beschreibung: "Clean up entries, open an account, a credit card up to €25,000 — FIAON obtains your report, explains every entry, sends the letters and opens the door.",
+      h1: "The credit card waiting at the end of your credit file.",
+      lead: "An entry is not a verdict. FIAON obtains your report, explains every entry, has challengeable ones deleted — and then opens the door: a current account straight away, a credit card as soon as your file supports it.",
+      abschnitte: [
+        { h2: "Four stages, one goal", text: "Nobody gets a card because they apply for it; they get it because their file supports it.", punkte: ["Insight: your report within 24 hours, every entry explained", "Action: deletion requests, objections and instalment agreements — reviewed, approved by you, sent by registered post", "Account: a current account for every customer, regardless of the file", "Card: FIAON calculates your readiness and prepares the application with the card partner"] },
+        { h2: "Four plans, one credit report", text: "FIAON Start, Pro, Ultra and High End in twelve monthly instalments, cancellable monthly; just the credit report as a one-off. Every plan starts with your report; the difference is how much FIAON takes on afterwards. The bank always decides on account, card and limit." },
+        { h2: "Honest comparison", text: "A score app shows a number, a lawyer charges by the hour, FIAON obtains the report within 24 hours, sends the letters by registered post, prepares the account and the path to a card — with a person who knows your file." },
+      ],
+      weiter: ["/preise", "/was-ist-fiaon"],
+      krumen: [{ name: "Personal", pfad: "/en/personal" }],
+    },
   },
   "/business": {
     pfad: "/business", art: "produkt", stand: PFEILER, prio: 0.8,

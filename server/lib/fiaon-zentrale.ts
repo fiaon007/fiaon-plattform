@@ -17,6 +17,7 @@ import { eigeneMailSenden } from "./fiaon-brevo";
 import { mailProtokoll } from "./fiaon-mail-log";
 import { terminLink } from "./fiaon-termine";
 import { absoluteUrl } from "../fiaon-base-url";
+import { BANK as BANK_QUELLE } from "@shared/fiaon-bank";
 
 type Lauf = typeof sqlPool;
 
@@ -52,18 +53,15 @@ export const BAUSTEINE: { marke: string; titel: string; erklaerung: string }[] =
  *
  * ── KORREKTUR 11.08.2026 ───────────────────────────────────────────────────
  * Hier stand „Schwarzott Global" mit einem österreichischen Konto. Der
- * Vorgesetzter hat klargestellt: Das Konto der FIAON LTD bei Wise ist und war
- * immer das richtige. Der alte Eintrag war einfach falsch — und stand in
- * jeder Zahlungsanweisung, die ein Kunde bekam.
- *
- * Diese Angaben sind die einzige Stelle im Haus. Wer sie ändert, ändert
- * jede Mail, jede Rechnung und jeden Kontoabgleich gleichzeitig — deshalb
- * gehört sie hierher und nirgends sonst.
+ * 02.09.2026: Das Wise-Konto wurde gesperrt. Seitdem gilt das Airwallex-
+ * Konto (Banking Circle) — und die EINE Quelle dafür ist shared/fiaon-bank.ts.
+ * Diese Konstante hier ist nur noch ein Spiegel dieser Quelle, damit die
+ * bestehenden Aufrufer weiterlaufen.
  */
 const BANK = {
-  empfaenger: "FIAON LTD",
-  iban: "BE09 9058 9276 3957",
-  bic: "TRWIBEB1XXX",
+  empfaenger: BANK_QUELLE.empfaenger,
+  iban: BANK_QUELLE.ibanDisplay,   // 02.09.2026: Wise gesperrt → shared/fiaon-bank.ts ist jetzt die Quelle
+  bic: BANK_QUELLE.bic,
 };
 
 /**

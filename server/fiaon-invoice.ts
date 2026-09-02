@@ -10,6 +10,7 @@
 
 import { createHmac } from "crypto";
 import { absoluteUrl } from "./fiaon-base-url";
+import { BANK } from "@shared/fiaon-bank";
 import type PDFKit from "pdfkit";
 
 export const FIAON_ENTITY = {
@@ -25,8 +26,8 @@ export const FIAON_ENTITY = {
 
 export const FIAON_BANK_DETAILS = {
   recipient: "FIAON LTD",
-  iban: "BE09 9058 9276 3957",
-  bic: "TRWIBEB1XXX",
+  iban: BANK.ibanDisplay,   // 02.09.2026: Wise gesperrt → shared/fiaon-bank.ts
+  bic: BANK.bic,
 };
 
 const CI = {

@@ -11,8 +11,10 @@ import SeoDaten from "@/components/site/SeoDaten";
 import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
 import { WZ_SPIELRAUM_WOERTER } from "@/i18n/wz-spielraum";
 import "@/styles/ratgeber.css";
+import { betragEingabe } from "@/lib/zahl-eingabe";
 
-const z = (s: string) => { const r = String(s).trim(); const n = parseFloat(/,\d{1,2}$/.test(r) ? r.replace(/\./g, "").replace(",", ".") : r.replace(/,/g, "")); return isFinite(n) && n >= 0 ? n : 0; };
+/** Zahl aus Eingabe — deutsch wie englisch, EINE Quelle (client/src/lib/zahl-eingabe.ts). */
+const z = (s: string) => { const n = betragEingabe(s); return Number.isFinite(n) ? n : 0; };
 
 export default function Spielraum() {
   const t = useWoerter(WZ_SPIELRAUM_WOERTER);

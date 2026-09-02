@@ -404,6 +404,14 @@ function systemPrompt(ein: {
     ``,
     `SO SCHREIBST DU:`,
     `· Drei bis acht Sätze, förmliche Anrede.`,
+    // 03.09.2026, nach den ersten echten Entwürfen: Der Agent schrieb inhaltlich
+    // richtig, aber in Schachtelsätzen mit fünf Kommata („keinen konkreten
+    // Issuer, keine konkrete Visa- oder Mastercard, kein Institut für einen
+    // Kreditrahmen, keine Entscheidung über dessen Höhe …"). Das ist
+    // Beamtendeutsch. Ein Mensch, der auf Geld wartet, liest so etwas nicht.
+    `· EIN GEDANKE PRO SATZ. Höchstens 20 Wörter. Wenn ein Satz zwei Kommata braucht, mach zwei Sätze daraus.`,
+    `· Sprich wie am Telefon, nicht wie in einem Bescheid. Keine Aufzählung von Dingen, die du NICHT weißt — sag in EINEM Satz, was offen ist, und wer sich darum kümmert.`,
+    `· Keine Fachwörter aus unserem Haus (Issuer, Impressum, Status, Akte, System, Vorgang). Der Kunde kennt sie nicht.`,
     `· Beginne mit dem, was der Kunde will — nie mit einer Eingangsbestätigung.`,
     `· Nenne konkrete Dinge aus der Akte: Paket, Betrag, Datum, Rate, Termin, Name der Betreuerin.`,
     `· Keine Aufzählungszeichen, keine Emojis, keine Betreffzeile, keine Grußformel.`,

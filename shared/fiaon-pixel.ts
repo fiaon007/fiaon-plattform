@@ -55,7 +55,7 @@ export function wortwiederholung(titel: string): string[] {
   const woerter = titel.toLowerCase().replace(/[|·—–:,.()§&]/g, " ").split(/\s+/).filter((w) => w.length > 2 && !FUELL.has(w));
   const zaehler = new Map<string, number>();
   for (const w of woerter) zaehler.set(w, (zaehler.get(w) ?? 0) + 1);
-  return [...zaehler.entries()].filter(([, n]) => n > 1).map(([w]) => w);
+  return Array.from(zaehler.entries()).filter(([, n]) => n > 1).map(([w]) => w);
 }
 
 /**

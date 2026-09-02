@@ -305,7 +305,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     en: {
       pfad: "/en/business",
       titel: "FIAON Business: company card, payment terms, clean file",
-      beschreibung: "Company credit card, up to 58 days of payment terms, a clean company credit file: FIAON obtains the reports, cleans up entries and prepares the card application.",
+      beschreibung: "Company credit card, up to 58 days of payment terms, a clean company credit file: FIAON obtains the reports, cleans up entries, prepares the application.",
       h1: "Liquidity that stays.",
       lead: "Every invoice you pay by card instead of bank transfer stays in the company for up to 58 days. FIAON makes sure your credit file supports the card — and the limit grows.",
       abschnitte: [
@@ -375,6 +375,20 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/girokonto-trotz-negativer-bonitaet", "/werkzeuge/karten-check", "/schufa-score-verstehen", "/schufa-eintrag-loeschen", "/preise", "/privatkunden"],
     krumen: [{ name: "Kreditkarte trotz Eintrag", pfad: "/kreditkarte" }],
+    en: {
+      pfad: "/en/credit-card",
+      titel: "A credit card despite a SCHUFA entry: the route via report",
+      beschreibung: "Which card is realistic today, how the limit grows over twelve months and what issuers really see. FIAON prepares — the bank decides on card and limit.",
+      h1: "The card comes through your report.",
+      lead: "Not through tricks, not through providers that promise “guaranteed” — but by making sure that what issuers read about you is correct. FIAON takes care of that. The bank decides on card and limit.",
+      abschnitte: [
+        { h2: "Three routes to a card", text: "A debit or prepaid card works today for open entries; a credit card with a small limit of €500 to €2,000 for settled entries and short histories; a full limit up to €25,000 with a good file and the headroom to match." },
+        { h2: "How the limit grows over twelve months", text: "Month 0: report obtained and explained. Months 1–2: clean-up and current account. Months 2–4: first card, often with a small limit. Month 6: first review after statements settled on time. Month 12: the limit that income and headroom allow. A typical course, not a promise." },
+        { h2: "What issuers see", text: "Negative entries, credit enquiries, account behaviour, address and identity, headroom. FIAON checks every entry for its legal requirements (Section 31 BDSG), makes no enquiry without your approval and prepares corrections under Art. 16 GDPR.", punkte: ["Free card check: five inputs, no enquiry, no trace", "Headroom calculator: income minus fixed costs", "No guarantee, no score trick, no flood of enquiries"] },
+      ],
+      weiter: ["/privatkunden", "/preise"],
+      krumen: [{ name: "Credit card", pfad: "/en/credit-card" }],
+    },
   },
   "/oesterreich": {
     pfad: "/oesterreich", art: "land", stand: PFEILER, prio: 0.8,

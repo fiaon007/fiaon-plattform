@@ -40,7 +40,7 @@ const QUELLEN: Record<string, string> = {
   // erste Hälfte (const de) → /preise, zweite Hälfte (const en) → /en/pricing.
   "client/src/i18n/preise.ts": "/preise|/en/pricing",
   "client/src/pages/site/en-start.tsx": "/en",
-  "client/src/pages/site/kreditkarte.tsx": "/kreditkarte",
+  "client/src/i18n/kreditkarte.ts": "/kreditkarte|/en/credit-card",
   "client/src/pages/site/oesterreich.tsx": "/oesterreich",
   "client/src/pages/site/schweiz.tsx": "/schweiz",
   "client/src/pages/site/sicherheit.tsx": "/sicherheit",

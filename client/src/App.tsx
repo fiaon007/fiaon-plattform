@@ -288,6 +288,7 @@ function Router() {
       <Route path="/en/what-is-fiaon" component={WasIstFiaonPage} />
       <Route path="/en/personal" component={SitePrivatkunden} />
       <Route path="/en/business" component={BusinessPage} />
+      <Route path="/en/credit-card" component={SiteKreditkarte} />
       <Route path="/kreditkarte" component={SiteKreditkarte} />
       <Route path="/oesterreich" component={SiteOesterreich} />
       <Route path="/schweiz" component={SiteSchweiz} />

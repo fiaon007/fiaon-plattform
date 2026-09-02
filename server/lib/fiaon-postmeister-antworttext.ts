@@ -192,7 +192,17 @@ export function antwortBauen(ein: {
     betreff: ein.betreff,
     preheader: absaetze[0]?.slice(0, 110) ?? "",
     titel: "",
-    absaetze: [ein.anrede, ...absaetze],
+    // ── DER GRUSS GEHÖRT IN BEIDE FASSUNGEN (02.09.2026) ──────────────────
+    // Bei der Abnahme gemessen: In ALLEN 27 erzeugten Entwürfen fehlte im
+    // HTML jede Grußformel und jeder Absendername — die Mail brach nach dem
+    // letzten Satz ab. Der Gruß stand nur in der Textfassung (Zeile unten),
+    // und die sieht kaum ein Empfänger: Mailprogramme zeigen den HTML-Teil.
+    //
+    // Bitter daran: Die elf Abschiedsformeln und die eigens gebaute
+    // `unterschrift()` waren fertig — und wurden nie erreicht. Der alte Weg
+    // vor dem Umbau verschickte reinen Text, MIT Gruß. Der Umbau auf HTML hat
+    // den Mangel also erst erzeugt.
+    absaetze: [ein.anrede, ...absaetze, gruss].filter((z) => String(z || "").trim()),
     knopf: ein.schritt?.url ? { text: knopfText(ein.schritt, w), url: ein.schritt.url } : undefined,
     persoenlich: true,
   };

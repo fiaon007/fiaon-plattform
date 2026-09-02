@@ -40,10 +40,28 @@ function berlinStunde(): number {
   return Number.isFinite(h) ? h % 24 : -1; // im Zweifel Nachtruhe
 }
 
+/**
+ * Eine Zahl aus den Einstellungen — mit der Vorgabe, wenn nichts dasteht.
+ *
+ * 02.09.2026, bei der Abnahme gefunden: Fehlte der Schlüssel, kam nicht die
+ * Vorgabe heraus, sondern NULL. Denn `String(undefined ?? "")` ist der leere
+ * Text, `Number("")` ist 0, und `Number.isFinite(0)` ist wahr — die Vorgabe
+ * wurde nie erreicht.
+ *
+ * Die Folge war still und vollständig: Der Rückstands-Takt bekam Deckel 0 und
+ * arbeitete nie, obwohl in der Historie „erfolg" stand. Dasselbe galt für den
+ * Aufruf von Hand und für das Ordnen. Eine Bremse, die niemand angezogen hat,
+ * stand fest — und man sah es nicht, weil nichts scheiterte.
+ *
+ * Jetzt gilt: leerer Text = nicht gesetzt = Vorgabe. Eine ausdrücklich
+ * geschriebene 0 bleibt eine 0, damit das Abschalten weiter möglich ist.
+ */
 async function einstellung(schluessel: string, vorgabe: number): Promise<number> {
   try {
     const [r] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = ${schluessel} LIMIT 1`) as any[];
-    const n = Number(String(r?.value ?? "").trim());
+    const roh = String(r?.value ?? "").trim();
+    if (roh === "") return vorgabe;
+    const n = Number(roh);
     return Number.isFinite(n) ? n : vorgabe;
   } catch { return vorgabe; }
 }

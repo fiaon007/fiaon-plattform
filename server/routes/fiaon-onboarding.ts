@@ -398,7 +398,10 @@ function isAllowed(path: string): boolean {
 }
 
 export function customerDataGate(req: Request, res: Response, next: NextFunction) {
-  const p = req.path;
+  // Kleingeschrieben, aus demselben Grund wie in fiaon-admin-zugang.ts:
+  // Express routet ohne Rücksicht auf Groß- und Kleinschreibung, ein
+  // case-sensitiver Vergleich hier wäre also eine Attrappe. (Abnahme 02.09.2026)
+  const p = String(req.path || "").toLowerCase();
   // Nur das Agent-Portal betrifft das Gate; Admin-/öffentliche Routen unberührt.
   if (p !== "/agent" && !p.startsWith("/agent/")) return next();
   if (p === "/agent" || isAllowed(p)) return next();

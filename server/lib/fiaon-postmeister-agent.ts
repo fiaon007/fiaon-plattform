@@ -167,6 +167,33 @@ function alsChatAntwort(roh: any): any {
   };
 }
 
+/**
+ * Den JSON-Kern einer Modellantwort lesen — und beim Scheitern SAGEN, warum.
+ *
+ * 03.09.2026: Im ersten Aufhol-Lauf kamen zwei Mails als „Unterminated string
+ * in JSON at position 5796" zurück. Das war kein Formatfehler des Modells,
+ * sondern eine abgeschnittene Antwort: Bei /v1/responses zählt das Nachdenken
+ * gegen dasselbe Token-Budget wie der Text. Wer das nicht weiß, sucht den
+ * Fehler im Schema statt in der Obergrenze — deshalb steht der Grund jetzt
+ * in der Meldung.
+ */
+function antwortLesen(j: any, wofuer: string): any {
+  const inhalt = j?.choices?.[0]?.message?.content;
+  if (j?._unvollstaendig) {
+    throw new Error(
+      j._unvollstaendig === "max_output_tokens"
+        ? `${wofuer}: Die Antwort wurde abgeschnitten (Token-Grenze erreicht). Grenze erhöhen oder Akte kürzen.`
+        : `${wofuer}: Antwort unvollständig (${j._unvollstaendig}).`,
+    );
+  }
+  if (!inhalt || !String(inhalt).trim()) throw new Error(`${wofuer}: Das Modell hat nichts geschrieben.`);
+  try {
+    return JSON.parse(String(inhalt));
+  } catch (e: any) {
+    throw new Error(`${wofuer}: Antwort war kein gültiges JSON (${String(e?.message || e).slice(0, 80)}).`);
+  }
+}
+
 async function kiAufruf(ein: {
   dienst: string; modell: string; nachrichten: any[]; schema?: any; tools?: unknown[];
   aufwand?: "low" | "medium" | "high"; maxTokens?: number;
@@ -198,7 +225,14 @@ async function kiAufruf(ein: {
     const body: any = {
       model: ein.modell,
       input: nachChatUmgekehrt(ein.nachrichten),
-      max_output_tokens: ein.maxTokens ?? 2500,
+      // ── WARUM DIESE ZAHLEN GROSSZÜGIG SIND (03.09.2026) ────────────────
+      // Bei /v1/responses zählt das NACHDENKEN gegen dasselbe Budget wie die
+      // Antwort. Mit den alten 2.000–3.000 Token blieb nach dem Denken zu
+      // wenig übrig: Die Antwort brach mitten im Satz ab und kam als
+      // „Unterminated string in JSON at position 5796" zurück — zweimal im
+      // ersten Aufhol-Lauf. Lieber Luft lassen; bezahlt wird, was gebraucht
+      // wird, und der Tagesdeckel bremst weiterhin.
+      max_output_tokens: ein.maxTokens ?? 8000,
       reasoning: { effort: ein.aufwand ?? "medium" },
     };
     if (ein.schema) body.text = { format: { type: "json_schema", name: "antwort", strict: true, schema: ein.schema } };
@@ -256,13 +290,13 @@ export async function einordnen(mail: { betreff: string; text: string; von: stri
     "dringend: true nur, wenn heute jemand handeln muss.",
   ].join("\n");
   const j = await kiAufruf({
-    dienst: "postmeister-einordnen", modell: MODELL_KLEIN(), aufwand: "low", maxTokens: 900, schema: SCHEMA_A,
+    dienst: "postmeister-einordnen", modell: MODELL_KLEIN(), aufwand: "low", maxTokens: 3000, schema: SCHEMA_A,
     nachrichten: [
       { role: "system", content: system },
       { role: "user", content: `VON: ${mail.von}\nBETREFF: ${mail.betreff}\nALTER: ${mail.alterTage} Tage\n\n${String(mail.text || "").slice(0, 6000)}` },
     ],
   });
-  const roh = JSON.parse(j.choices?.[0]?.message?.content ?? "{}");
+  const roh = antwortLesen(j, "Einordnung");
   const flags: Flags = { ...LEERE_FLAGS, ...(roh.flags ?? {}) };
 
   // Der Riegel gewinnt immer.
@@ -444,7 +478,7 @@ export async function antwortErzeugen(ein: {
   // Werkzeug-Runden
   for (let runde = 0; runde < MAX_RUNDEN; runde++) {
     const j = await kiAufruf({
-      dienst: "postmeister-antwort", modell: MODELL(), aufwand: "medium", maxTokens: 3000,
+      dienst: "postmeister-antwort", modell: MODELL(), aufwand: "medium", maxTokens: 9000,
       nachrichten, tools, schema: runde >= MAX_RUNDEN - 1 ? SCHEMA_B : undefined,
     }).catch((e) => ({ fehler: String(e?.message || e) } as any));
     if ((j as any).fehler) return { ...leer, grund: `Modell nicht erreichbar: ${(j as any).fehler}`, handlungen };
@@ -456,11 +490,11 @@ export async function antwortErzeugen(ein: {
       nachrichten.push(nachricht);
       // Kein Werkzeug mehr — jetzt die Antwort im Schema anfordern.
       const fertig = await kiAufruf({
-        dienst: "postmeister-antwort", modell: MODELL(), aufwand: "medium", maxTokens: 2000, schema: SCHEMA_B,
+        dienst: "postmeister-antwort", modell: MODELL(), aufwand: "medium", maxTokens: 9000, schema: SCHEMA_B,
         nachrichten: [...nachrichten, { role: "user", content: "Schreibe jetzt die Antwort an den Kunden im vorgegebenen Format." }],
       }).catch((e) => ({ fehler: String(e?.message || e) } as any));
       if ((fertig as any).fehler) return { ...leer, grund: `Antwort nicht erzeugt: ${(fertig as any).fehler}`, handlungen };
-      return await pruefenUndAbschliessen(JSON.parse(fertig.choices?.[0]?.message?.content ?? "{}"), {
+      return await pruefenUndAbschliessen(antwortLesen(fertig, "Antwort"), {
         lage, akte, einordnung: ein.einordnung, handlungen, werkzeugDaten, kosten, kontext, nachrichten,
       });
     }
@@ -539,11 +573,11 @@ async function pruefenUndAbschliessen(roh: any, k: {
       ...fehlend.map((f) => `· Fehlt: ${f}`),
     ].join("\n");
     const neu = await kiAufruf({
-      dienst: "postmeister-antwort", modell: MODELL(), aufwand: "low", maxTokens: 1800, schema: SCHEMA_B,
+      dienst: "postmeister-antwort", modell: MODELL(), aufwand: "low", maxTokens: 6000, schema: SCHEMA_B,
       nachrichten: [...k.nachrichten, { role: "user", content: `Deine Antwort hat diese Mängel:\n${liste}\n\nSchreib sie neu — dieselbe Sache, ohne die Mängel. Nichts erfinden.` }],
     }).catch(() => null);
     if (neu) {
-      const zweit = JSON.parse(neu.choices?.[0]?.message?.content ?? "{}");
+      const zweit = antwortLesen(neu, "Umformulierung");
       const zweitText = String(zweit.antwort || "").trim();
       if (zweitText) {
         const p2 = pruefen(zweitText);

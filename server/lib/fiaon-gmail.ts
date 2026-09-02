@@ -174,6 +174,16 @@ export async function labelSicherstellen(postfach: string, name: string): Promis
     labelCache.set(postfach, frisch);
     const gefunden = frisch.get(name);
     if (gefunden) return gefunden;
+    // Gmail vergleicht Labelnamen ohne Rücksicht auf Groß- und Kleinschreibung:
+    // „FIAON/Kein Kunde" und „fiaon/kein kunde" sind für Gmail dasselbe Label,
+    // für unsere Map aber zwei. Deshalb hier noch einmal unscharf suchen —
+    // sonst bliebe der 409 stehen, obwohl das Label längst da ist.
+    // (`forEach` statt einer Schleife über die Map: Das Übersetzerziel des
+    //  Hauses ist älter als ES2015 — Map-Iteration bricht den Bau, siehe AGENTS.md.)
+    const flach = name.toLowerCase();
+    let treffer: string | null = null;
+    frisch.forEach((id, n) => { if (!treffer && n.toLowerCase() === flach) treffer = id; });
+    if (treffer) { karte.set(name, treffer); return treffer; }
     throw e;
   }
 }

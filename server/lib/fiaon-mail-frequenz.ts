@@ -107,6 +107,17 @@ async function zahl(schluessel: string, standard: number): Promise<number> {
   }
 }
 
+/** Ab wann der Zähler zählt: der Tag, an dem die Bremse scharf ging. Verstellbar. */
+async function stichtagLesen(): Promise<string> {
+  try {
+    const [r] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = 'frequenz_stichtag' LIMIT 1`) as any[];
+    const v = String(r?.value ?? "").trim();
+    return /^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T00:00:00+02:00` : "2026-09-02T00:00:00+02:00";
+  } catch {
+    return "2026-09-02T00:00:00+02:00";
+  }
+}
+
 /**
  * Die Standardwerte sind aus der Messung abgeleitet, nicht geraten:
  * Der Ertrag der Mahnstrecke fällt vollständig in die ersten drei Mails, und
@@ -136,18 +147,41 @@ export async function darfAnEmpfaenger(email: string, event: string): Promise<Fr
     const an = await zahl("frequenzbremse_an", 1);
     if (an !== 1) return { ok: true, grund: null };
 
+    // ── WAS GEZÄHLT WIRD — UND WAS NICHT (Hotfix 02.09.2026, 08:20) ─────────
+    // Am ersten Morgen mit scharfer Rückholung ging KEINE einzige Mail raus:
+    // 240 Versuche, 240-mal „Tagesdeckel erreicht“. Zwei Fehler im ersten
+    // Entwurf: (1) Pflichtmails wurden zwar nicht gebremst, aber MITGEZÄHLT —
+    // wer morgens die Bankwechsel-Info bekam, hatte sein Werbebudget verbraucht.
+    // (2) Der 30-Tage-Zähler sah die alte Mahnflut (Schnitt 15 je Kopf) und
+    // sperrte damit die Menschen, denen die Bremse eigentlich helfen soll, für
+    // Wochen gegen die WERTVOLLEN Mails (SEPA-Einladung, Klärgespräch).
+    // Deshalb: Gezählt werden nur werbende Mails, und nur ab dem Stichtag, an
+    // dem die Bremse selbst scharf war. Was davor rausging, ist Vergangenheit —
+    // die Bremse schützt vor dem, was sie zulässt, nicht vor dem, was war.
+    // Die Zustellsignale (Rückläufer, Spam, Blockaden) bleiben bewusst über
+    // 30 Tage sichtbar — das sind Fakten über die Adresse, keine Budgetfrage.
+    const stichtag = await stichtagLesen();
+    const pflicht = Array.from(PFLICHTMAILS);
     const [z] = (await sqlPool`
       SELECT
-        COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours')::int AS heute,
-        COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '7 days')::int   AS woche,
-        COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '30 days')::int  AS monat,
+        COUNT(*) FILTER (WHERE werbend AND created_at > NOW() - INTERVAL '24 hours')::int AS heute,
+        COUNT(*) FILTER (WHERE werbend AND created_at > NOW() - INTERVAL '7 days')::int   AS woche,
+        COUNT(*) FILTER (WHERE werbend AND created_at > NOW() - INTERVAL '30 days')::int  AS monat,
         COUNT(*) FILTER (WHERE zustellung IN ('gebounct', 'spam'))::int       AS hart,
         COUNT(*) FILTER (WHERE zustellung = 'blockiert'
                            AND created_at > NOW() - INTERVAL '14 days')::int  AS blockiert
-      FROM fiaon_mail_log
-      WHERE LOWER(TRIM(empfaenger)) = ${adresse}
-        AND status = 'versandt' AND art = 'echt'
-        AND created_at > NOW() - INTERVAL '30 days'
+      FROM (
+        SELECT created_at, zustellung,
+               (created_at >= ${stichtag}::timestamptz
+                AND NOT (event = ANY(${pflicht}))
+                AND event NOT LIKE 'agent_%' AND event NOT LIKE 'aufgabe_%'
+                AND event NOT LIKE 'team_%' AND event NOT LIKE 'chef_%'
+                AND event NOT LIKE 'contract_%') AS werbend
+          FROM fiaon_mail_log
+         WHERE LOWER(TRIM(empfaenger)) = ${adresse}
+           AND status = 'versandt' AND art = 'echt'
+           AND created_at > NOW() - INTERVAL '30 days'
+      ) x
     `) as any[];
 
     const zaehler = { heute: Number(z?.heute || 0), woche: Number(z?.woche || 0), monat: Number(z?.monat || 0) };

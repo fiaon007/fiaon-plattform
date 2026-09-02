@@ -208,6 +208,16 @@ export async function rueckholKandidaten(segment: Segment, limit: number): Promi
        AND b.email IS NOT NULL
        AND COALESCE(x.n, 0) < ${hoechstens}
        AND (x.letzte IS NULL OR x.letzte < NOW() - INTERVAL '4 days')
+       -- Wen die Frequenzbremse HEUTE schon zurückgehalten hat, versucht der
+       -- Lauf heute nicht noch einmal — sonst hängt er alle 30 Minuten an
+       -- denselben zehn Blockierten fest und kommt nie zu den Nächsten
+       -- (Hotfix 02.09.2026: 240 Versuche, 0 Versände).
+       AND NOT EXISTS (
+         SELECT 1 FROM fiaon_mail_log f
+          WHERE f.event = ${event} AND f.status = 'fehlgeschlagen'
+            AND f.grund LIKE 'Frequenzbremse:%'
+            AND LOWER(TRIM(f.empfaenger)) = LOWER(TRIM(b.email))
+            AND f.created_at > NOW() - INTERVAL '6 hours')
        -- Kein Rückhol-Anschreiben an jemanden, dessen Geld womöglich schon
        -- unverbucht auf dem Konto liegt (61 Eingänge / 7.302 € am 02.09.).
        -- Referenztreffer ODER Namenstreffer (payer_name enthält den Nachnamen).

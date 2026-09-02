@@ -151,6 +151,14 @@ export async function sepaWerbungLauf(): Promise<SepaWerbungErgebnis> {
        AND COALESCE(p.gc_mandate_status, '') IN ('', 'failed', 'cancelled', 'expired')
        AND COALESCE(b.anzahl, 0) < ${maxEinladungen}
        AND (b.letzte IS NULL OR b.letzte < NOW() - (${abstandTage} || ' days')::interval)
+       -- Heute von der Frequenzbremse Zurückgehaltene nicht erneut versuchen
+       -- (Hotfix 02.09.2026, siehe fiaon-rueckholung.ts).
+       AND NOT EXISTS (
+         SELECT 1 FROM fiaon_mail_log f
+          WHERE f.event = 'sepa_einrichten' AND f.status = 'fehlgeschlagen'
+            AND f.grund LIKE 'Frequenzbremse:%'
+            AND LOWER(TRIM(f.empfaenger)) = LOWER(TRIM(a.email))
+            AND f.created_at > NOW() - INTERVAL '6 hours')
      ORDER BY COALESCE(b.anzahl, 0) ASC, a.paid_at DESC NULLS LAST
      LIMIT ${rest}`) as any[];
 

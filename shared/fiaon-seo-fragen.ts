@@ -9,7 +9,7 @@
 // Neu erzeugen:   npx tsx scripts/seo-fragen-erzeugen.ts
 // Nur prüfen:     npx tsx scripts/seo-fragen-erzeugen.ts --pruefen
 //
-// Seiten: / (6), /was-ist-fiaon (6), /en/what-is-fiaon (1), /privatkunden (8), /en/personal (1), /business (4), /preise (6), /en/pricing (1), /en (1), /kreditkarte (5), /oesterreich (5), /schweiz (5), /sicherheit (10), /kontakt (3), /karriere (5), /partner (3), /presse (3), /investoren (4), /datenraum (3), /plattform-konzept (5), /fiaon-erfahrungen (8), /termin (6), /vergleich (5), /ueber-uns (5), /transparenz (4), /status (5), /werkzeuge (4), /werkzeuge/kreditrechner (5), /werkzeuge/umschuldung (5), /werkzeuge/schulden-check (5), /werkzeuge/widerspruch (5), /werkzeuge/mahnbescheid (5), /werkzeuge/ratenplan (5), /werkzeuge/inkasso-antwort (5), /werkzeuge/basiskonto (5), /werkzeuge/pfaendungsrechner (5), /werkzeuge/dispo-rechner (5), /werkzeuge/mahngebuehren (5), /werkzeuge/kartenkosten (5), /werkzeuge/schuldenplan (5), /kredit-ohne-schufa (6), /schufa-eintrag-loeschen (5), /bonitaet-verbessern (6), /auskunfteien (5), /schufa-score-verstehen (6), /bonitaetsauskunft-beantragen (7), /inkasso-brief-erhalten (6), /eintrag-verjaehrung (6), /girokonto-trotz-negativer-bonitaet (7), /ratenzahlung-und-bonitaet (6), /selbstauskunft-checkliste (6), /schufa-neutral-anfragen (6)
+// Seiten: / (6), /was-ist-fiaon (6), /en/what-is-fiaon (1), /privatkunden (8), /en/personal (1), /business (5), /en/business (3), /preise (6), /en/pricing (1), /en (1), /kreditkarte (5), /oesterreich (5), /schweiz (5), /sicherheit (10), /kontakt (3), /karriere (5), /partner (3), /presse (3), /investoren (4), /datenraum (3), /plattform-konzept (5), /fiaon-erfahrungen (8), /termin (6), /vergleich (5), /ueber-uns (5), /transparenz (4), /status (5), /werkzeuge (4), /werkzeuge/kreditrechner (5), /werkzeuge/umschuldung (5), /werkzeuge/schulden-check (5), /werkzeuge/widerspruch (5), /werkzeuge/mahnbescheid (5), /werkzeuge/ratenplan (5), /werkzeuge/inkasso-antwort (5), /werkzeuge/basiskonto (5), /werkzeuge/pfaendungsrechner (5), /werkzeuge/dispo-rechner (5), /werkzeuge/mahngebuehren (5), /werkzeuge/kartenkosten (5), /werkzeuge/schuldenplan (5), /kredit-ohne-schufa (6), /schufa-eintrag-loeschen (5), /bonitaet-verbessern (6), /auskunfteien (5), /schufa-score-verstehen (6), /bonitaetsauskunft-beantragen (7), /inkasso-brief-erhalten (6), /eintrag-verjaehrung (6), /girokonto-trotz-negativer-bonitaet (7), /ratenzahlung-und-bonitaet (6), /selbstauskunft-checkliste (6), /schufa-neutral-anfragen (6)
 // ═══════════════════════════════════════════════════════════════════════════
 export type SeoFrage = { f: string; a: string };
 
@@ -122,12 +122,30 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
       "a": "Ja. Bei jungen Unternehmen zählt die Bonität der Inhaber. FIAON beschafft beide Auskünfte, trennt privat und geschäftlich und beginnt mit einem Rahmen, der wächst."
     },
     {
+      "f": "Was kostet es – und gibt es versteckte Gebühren?",
+      "a": "Die Pakete kosten zwischen Business Starter und Business Enterprise je nach Stufe, zwölf Raten. Kartengebühren legt der Herausgeber fest; FIAON nennt sie vorher. Keine Provision auf Rahmen."
+    },
+    {
       "f": "Welche Karten sind möglich?",
       "a": "Firmenkreditkarten mit Monatsabrechnung (Charge) internationaler Herausgeber, je nach Land und Profil. Welche konkret, klärt das Startgespräch – abhängig von Rechtsform, Umsatz und Auskunft."
     },
     {
       "f": "Auch in Österreich und der Schweiz?",
       "a": "Ja. FIAON kennt KSV1870, CRIF und das Betreibungsregister und arbeitet mit Kartenpartnern in allen drei Ländern."
+    }
+  ],
+  "/en/business": [
+    {
+      "f": "My company is young — does it still work?",
+      "a": "Yes. With young companies the owners' credit file counts. FIAON obtains both reports, separates private and business and starts with a limit that grows."
+    },
+    {
+      "f": "Which cards are possible?",
+      "a": "Company charge cards with monthly statements from international issuers, depending on country and profile. Which one exactly is settled in the onboarding call — depending on legal form, turnover and report."
+    },
+    {
+      "f": "Also in Austria and Switzerland?",
+      "a": "Yes. FIAON knows KSV1870, CRIF and the Swiss debt enforcement register (Betreibungsregister) and works with card partners in all three countries."
     }
   ],
   "/preise": [

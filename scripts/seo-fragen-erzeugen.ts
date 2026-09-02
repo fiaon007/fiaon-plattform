@@ -35,7 +35,7 @@ const QUELLEN: Record<string, string> = {
   "client/src/pages/fiaon-home.tsx": "/",
   "client/src/i18n/was-ist-fiaon.ts": "/was-ist-fiaon|/en/what-is-fiaon",
   "client/src/i18n/privatkunden.ts": "/privatkunden|/en/personal",
-  "client/src/pages/site/business.tsx": "/business",
+  "client/src/i18n/business.ts": "/business|/en/business",
   // 02.09.2026: Die Fragen von /preise stehen im zweisprachigen Wörterbuch —
   // erste Hälfte (const de) → /preise, zweite Hälfte (const en) → /en/pricing.
   "client/src/i18n/preise.ts": "/preise|/en/pricing",

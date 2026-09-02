@@ -302,6 +302,20 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/preise", "/privatkunden", "/kontakt", "/auskunfteien", "/sicherheit"],
     krumen: [{ name: "Business", pfad: "/business" }],
+    en: {
+      pfad: "/en/business",
+      titel: "FIAON Business: company card, payment terms, clean file",
+      beschreibung: "Company credit card, up to 58 days of payment terms, a clean company credit file: FIAON obtains the reports, cleans up entries and prepares the card application.",
+      h1: "Liquidity that stays.",
+      lead: "Every invoice you pay by card instead of bank transfer stays in the company for up to 58 days. FIAON makes sure your credit file supports the card — and the limit grows.",
+      abschnitte: [
+        { h2: "Liquidity is time", text: "A company rarely dies of missing revenue — it dies of payments that go out before the money comes in. A company card with a monthly statement reverses the order: up to 58 days of payment terms, business separated from private, a limit that follows behaviour." },
+        { h2: "Four tiers, one goal", text: "Business Starter, Pro, Ultra and Enterprise — each with credit reports for company and owners, a named contact person and preparation of the company card up to target limits from €5,000 to €250,000. The bank decides on the limit.", punkte: ["Payment-terms calculator: how much stays in the company", "Limit calculator: which limit and which plan fit", "From enquiry to card in six steps"] },
+        { h2: "Honest limits", text: "FIAON does not guarantee a card or a limit. With young companies the owners' credit file counts; FIAON obtains both reports, separates private and business and starts with a limit that grows. Works in Germany, Austria and Switzerland." },
+      ],
+      weiter: ["/preise", "/privatkunden"],
+      krumen: [{ name: "Business", pfad: "/en/business" }],
+    },
   },
   "/bonitaet": {
     pfad: "/bonitaet", art: "produkt", stand: "2026-08-22", prio: 0.7,

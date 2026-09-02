@@ -995,6 +995,20 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/kreditkarte", "/ratenzahlung-und-bonitaet", "/werkzeuge/karten-check", "/werkzeuge/selbstauskunft", "/bonitaet-verbessern", "/fiaon-erfahrungen", "/privatkunden"],
     krumen: [{ name: "Girokonto trotz negativer Bonität", pfad: "/girokonto-trotz-negativer-bonitaet" }],
+    en: {
+      pfad: "/en/current-account-despite-poor-credit",
+      titel: "Current account despite poor credit: honest route | FIAON",
+      beschreibung: "A current account despite a poor credit record: what is really achievable, what an active account builds for your credit file, and what nobody can promise.",
+      h1: "A current account despite a poor credit record — the honest route.",
+      lead: "Yes, an account is achievable even with a difficult credit file — and no, nobody can seriously promise it: the bank always decides on the opening. Here is what really works, what an active account builds for your credit file, and what we expressly do not promise.",
+      abschnitte: [
+        { h2: "Why an active account builds your credit file", text: "Risk models read behaviour: regular receipts, punctual debits and no returned direct debits build the history banks want to see. One cleanly run account ends the chaos that causes many negative entries — and the card is the goal of the next stage, never a promise." },
+        { h2: "The route via FIAON", text: "Open your FIAON account in two minutes, have your credit file from SCHUFA, KSV and CRIF checked and tidied up, then the prepared application goes to the partner institution. The bank decides on the opening under its own rules — we never leave that sentence out." },
+        { h2: "What we do not promise", text: "No guaranteed account opening, no card as a promise, no deletion of justified entries, no score tuning overnight. The basic account under Section 31 ZKG is your legal right independent of us — both routes are compared in the table.", punkte: ["Basic account: legal entitlement, credit basis, sometimes expensive", "FIAON route: full current account as the goal, credit file cleaned up in parallel"] },
+      ],
+      weiter: ["/kreditkarte", "/ratenzahlung-und-bonitaet", "/fiaon-erfahrungen"],
+      krumen: [{ name: "A current account despite a poor credit record", pfad: "/en/current-account-despite-poor-credit" }],
+    },
   },
   "/ratenzahlung-und-bonitaet": {
     pfad: "/ratenzahlung-und-bonitaet", art: "pfeiler", stand: PFEILER, prio: 0.8,
@@ -1010,6 +1024,20 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/bonitaet-verbessern", "/schufa-score-verstehen", "/inkasso-brief-erhalten", "/eintrag-verjaehrung", "/werkzeuge/spielraum", "/glossar-bonitaet", "/preise"],
     krumen: [{ name: "Ratenzahlung & Bonität", pfad: "/ratenzahlung-und-bonitaet" }],
+    en: {
+      pfad: "/en/instalments-and-credit-file",
+      titel: "Instalments and your credit file: strongest lever | FIAON",
+      beschreibung: "How instalments affect SCHUFA and your credit file: the twelve-instalment logic, the four escalation stages with arrears and six practical tips.",
+      h1: "Instalments and creditworthiness: paying on time pays off.",
+      lead: "No feature moves your credit file as reliably as your payment behaviour — in both directions. Here is how twelve punctual instalments work, in which stages arrears escalate and how you keep both under control.",
+      abschnitte: [
+        { h2: "Punctual instalments are your strongest lever", text: "Twelve instalments, twelve proofs: every punctual payment is a positive data point, together they form a history that risk models reward. The FIAON plans run over twelve monthly instalments and build exactly this history." },
+        { h2: "What happens with arrears", text: "Escalation is a staircase with four steps: reminder, formal reminder with default costs, threat of a report after the second reminder plus four weeks (Section 31 BDSG), then entry, debt collection and title. It can be stopped on every step — settling within 100 days shortens the storage period to 18 months." },
+        { h2: "Six tips from practice", text: "One debit day for everything, a buffer on the payment account, a reminder before the due date, no stacking of financings, talking before an instalment bounces, documenting what is settled. The FIAON payment calendar reminds customers before every instalment." },
+      ],
+      weiter: ["/inkasso-brief-erhalten", "/eintrag-verjaehrung", "/schufa-score-verstehen", "/preise"],
+      krumen: [{ name: "Instalments and creditworthiness", pfad: "/en/instalments-and-credit-file" }],
+    },
   },
   "/selbstauskunft-checkliste": {
     pfad: "/selbstauskunft-checkliste", art: "pfeiler", stand: PFEILER, prio: 0.8,
@@ -1024,6 +1052,20 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/werkzeuge/selbstauskunft", "/bonitaetsauskunft-beantragen", "/auskunfteien", "/schufa-score-verstehen", "/schufa-eintrag-loeschen", "/glossar-bonitaet"],
     krumen: [{ name: "Selbstauskunft-Checkliste", pfad: "/selbstauskunft-checkliste" }],
+    en: {
+      pfad: "/en/reading-your-credit-report",
+      titel: "Reading your credit report: 10-point checklist | FIAON",
+      beschreibung: "Understand your credit report: the interactive 10-point checklist, the 5 most common mistakes and an explained sample extract. Check your report now.",
+      h1: "Reading your credit report: the 10-point checklist.",
+      lead: "The data copy is in front of you, but nobody has explained how to read it? This checklist goes through it point by point — your ticks stay saved until you are done. Afterwards you know what is right, what is missing and what can be challenged.",
+      abschnitte: [
+        { h2: "The checklist", text: "Ten points in this order: personal details, every contract attributable, ended contracts removed, settled markers, deletion periods recalculated, duplicates marked, amounts and dates checked, disputed claims recognised, enquiries of the last twelve months counted, unclear items noted." },
+        { h2: "The five most common mistakes when reading", text: "Looking only at the score, confusing the paid product with the free data copy under Article 15 GDPR, confusing settled with deleted, checking only SCHUFA, objecting by telephone instead of in writing." },
+        { h2: "Or you have it checked", text: "FIAON obtains the data copies from SCHUFA, KSV and CRIF, checks every line against Section 31 BDSG and the deletion periods and prepares the correspondence for everything challengeable — with an action plan in plain language." },
+      ],
+      weiter: ["/bonitaetsauskunft-beantragen", "/schufa-score-verstehen", "/glossar-bonitaet", "/auskunfteien"],
+      krumen: [{ name: "Credit report checklist", pfad: "/en/reading-your-credit-report" }],
+    },
   },
   "/schufa-neutral-anfragen": {
     pfad: "/schufa-neutral-anfragen", art: "pfeiler", stand: PFEILER, prio: 0.8,
@@ -1038,6 +1080,20 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/schufa-score-verstehen", "/werkzeuge/kreditrechner", "/bonitaetsauskunft-beantragen", "/ratenzahlung-und-bonitaet", "/kredit-ohne-schufa", "/kontakt"],
     krumen: [{ name: "SCHUFA-neutral anfragen", pfad: "/schufa-neutral-anfragen" }],
+    en: {
+      pfad: "/en/schufa-neutral-enquiries",
+      titel: "SCHUFA-neutral enquiries: how to do it right | FIAON",
+      beschreibung: "Enquire about a loan without affecting your score: the difference between a conditions enquiry and a loan enquiry, and the right sentences for the bank.",
+      h1: "SCHUFA-neutral enquiries: conditions instead of loan.",
+      lead: "Anyone comparing loans can spoil the comparison — with the wrong type of enquiry. The difference between a conditions enquiry and a loan enquiry costs one word in the conversation with the bank and decides whether your score hears about it.",
+      abschnitte: [
+        { h2: "Side by side", text: "A conditions enquiry is stored but visible only to you and does not flow into the score. A loan enquiry is visible to other banks for ten days, stored for twelve months and flows into the calculation — several in a short time read as being short of money." },
+        { h2: "How to enquire correctly", text: "Know your credit file first, say the sentence “Please make a conditions enquiry only — not a loan enquiry”, compare calmly, and let the one real loan enquiry happen only with the contract you actually sign." },
+        { h2: "The effect on the score", text: "Both enquiry types are stored for twelve months; only the loan enquiry is visible to others and counts. Wrongly filed enquiries can be corrected under Article 16 GDPR — your own data copy shows how every enquiry is stored." },
+      ],
+      weiter: ["/schufa-score-verstehen", "/ratenzahlung-und-bonitaet", "/bonitaetsauskunft-beantragen", "/selbstauskunft-checkliste"],
+      krumen: [{ name: "SCHUFA-neutral enquiries", pfad: "/en/schufa-neutral-enquiries" }],
+    },
   },
   "/glossar-bonitaet": {
     pfad: "/glossar-bonitaet", art: "pfeiler", stand: PFEILER, prio: 0.7,

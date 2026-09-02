@@ -81,10 +81,10 @@ const QUELLEN: Record<string, string> = {
   "client/src/i18n/bonitaetsauskunft-beantragen.ts": "/bonitaetsauskunft-beantragen|/en/request-your-credit-report",
   "client/src/i18n/inkasso-brief-erhalten.ts": "/inkasso-brief-erhalten|/en/debt-collection-letter",
   "client/src/i18n/eintrag-verjaehrung.ts": "/eintrag-verjaehrung|/en/entries-and-limitation",
-  "client/src/pages/site/girokonto-trotz-negativer-bonitaet.tsx": "/girokonto-trotz-negativer-bonitaet",
-  "client/src/pages/site/ratenzahlung-und-bonitaet.tsx": "/ratenzahlung-und-bonitaet",
-  "client/src/pages/site/selbstauskunft-checkliste.tsx": "/selbstauskunft-checkliste",
-  "client/src/pages/site/schufa-neutral-anfragen.tsx": "/schufa-neutral-anfragen",
+  "client/src/i18n/girokonto.ts": "/girokonto-trotz-negativer-bonitaet|/en/current-account-despite-poor-credit",
+  "client/src/i18n/ratenzahlung.ts": "/ratenzahlung-und-bonitaet|/en/instalments-and-credit-file",
+  "client/src/i18n/selbstauskunft-checkliste.ts": "/selbstauskunft-checkliste|/en/reading-your-credit-report",
+  "client/src/i18n/schufa-neutral-anfragen.ts": "/schufa-neutral-anfragen|/en/schufa-neutral-enquiries",
 };
 
 type Frage = { f: string; a: string };

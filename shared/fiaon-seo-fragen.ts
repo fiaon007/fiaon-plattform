@@ -9,7 +9,7 @@
 // Neu erzeugen:   npx tsx scripts/seo-fragen-erzeugen.ts
 // Nur prüfen:     npx tsx scripts/seo-fragen-erzeugen.ts --pruefen
 //
-// Seiten: / (6), /was-ist-fiaon (6), /en/what-is-fiaon (6), /privatkunden (8), /en/personal (8), /business (5), /en/business (5), /preise (6), /en/pricing (6), /en (4), /kreditkarte (5), /en/credit-card (5), /oesterreich (5), /en/austria (5), /schweiz (5), /en/switzerland (5), /sicherheit (11), /en/security (11), /kontakt (5), /en/contact (5), /karriere (5), /partner (3), /presse (3), /investoren (4), /datenraum (3), /plattform-konzept (5), /fiaon-erfahrungen (8), /en/how-fiaon-works (8), /termin (6), /en/book-a-call (6), /vergleich (5), /en/compare (5), /hilfe (36), /en/help (36), /ueber-uns (5), /en/about (5), /transparenz (4), /en/transparency (4), /status (5), /werkzeuge (4), /werkzeuge/kreditrechner (5), /werkzeuge/umschuldung (5), /werkzeuge/schulden-check (5), /werkzeuge/widerspruch (5), /werkzeuge/mahnbescheid (5), /werkzeuge/ratenplan (5), /werkzeuge/inkasso-antwort (5), /werkzeuge/basiskonto (5), /werkzeuge/pfaendungsrechner (5), /werkzeuge/dispo-rechner (5), /werkzeuge/mahngebuehren (5), /werkzeuge/kartenkosten (5), /werkzeuge/schuldenplan (5), /kredit-ohne-schufa (6), /en/loans-without-schufa (6), /schufa-eintrag-loeschen (5), /bonitaet-verbessern (6), /en/strengthen-your-credit-file (6), /auskunfteien (5), /en/credit-bureaus (5), /schufa-score-verstehen (6), /en/schufa-score (6), /bonitaetsauskunft-beantragen (7), /en/request-your-credit-report (7), /inkasso-brief-erhalten (6), /en/debt-collection-letter (6), /eintrag-verjaehrung (6), /en/entries-and-limitation (6), /girokonto-trotz-negativer-bonitaet (7), /ratenzahlung-und-bonitaet (6), /selbstauskunft-checkliste (6), /schufa-neutral-anfragen (6)
+// Seiten: / (6), /was-ist-fiaon (6), /en/what-is-fiaon (6), /privatkunden (8), /en/personal (8), /business (5), /en/business (5), /preise (6), /en/pricing (6), /en (4), /kreditkarte (5), /en/credit-card (5), /oesterreich (5), /en/austria (5), /schweiz (5), /en/switzerland (5), /sicherheit (11), /en/security (11), /kontakt (5), /en/contact (5), /karriere (5), /partner (3), /presse (3), /investoren (4), /datenraum (3), /plattform-konzept (5), /fiaon-erfahrungen (8), /en/how-fiaon-works (8), /termin (6), /en/book-a-call (6), /vergleich (5), /en/compare (5), /hilfe (36), /en/help (36), /ueber-uns (5), /en/about (5), /transparenz (4), /en/transparency (4), /status (5), /werkzeuge (4), /werkzeuge/kreditrechner (5), /werkzeuge/umschuldung (5), /werkzeuge/schulden-check (5), /werkzeuge/widerspruch (5), /werkzeuge/mahnbescheid (5), /werkzeuge/ratenplan (5), /werkzeuge/inkasso-antwort (5), /werkzeuge/basiskonto (5), /werkzeuge/pfaendungsrechner (5), /werkzeuge/dispo-rechner (5), /werkzeuge/mahngebuehren (5), /werkzeuge/kartenkosten (5), /werkzeuge/schuldenplan (5), /kredit-ohne-schufa (6), /en/loans-without-schufa (6), /schufa-eintrag-loeschen (5), /bonitaet-verbessern (6), /en/strengthen-your-credit-file (6), /auskunfteien (5), /en/credit-bureaus (5), /schufa-score-verstehen (6), /en/schufa-score (6), /bonitaetsauskunft-beantragen (7), /en/request-your-credit-report (7), /inkasso-brief-erhalten (6), /en/debt-collection-letter (6), /eintrag-verjaehrung (6), /en/entries-and-limitation (6), /girokonto-trotz-negativer-bonitaet (7), /en/current-account-despite-poor-credit (7), /ratenzahlung-und-bonitaet (6), /en/instalments-and-credit-file (6), /selbstauskunft-checkliste (6), /en/reading-your-credit-report (6), /schufa-neutral-anfragen (6), /en/schufa-neutral-enquiries (6)
 // ═══════════════════════════════════════════════════════════════════════════
 export type SeoFrage = { f: string; a: string };
 
@@ -1924,6 +1924,36 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
       "a": "Dann sagen wir Ihnen das ehrlich — mit dem, was sich aus der Datenlage ableiten lässt: welche Einträge stören, welche angreifbar sind, was die 100-Tage-Regel bringen kann. Häufig ist die Ablehnung der Anfang der eigentlichen Arbeit: Datenlage bereinigen, dann erneut antragen. Ein Rechtsanspruch auf das Basiskonto bleibt Ihnen daneben immer."
     }
   ],
+  "/en/current-account-despite-poor-credit": [
+    {
+      "f": "Can I really get a current account despite a negative SCHUFA record?",
+      "a": "An account on a credit basis is achievable for most people — and in Germany there is even a legal right to a basic account (Section 31 ZKG). FIAON prepares the route and tidies up the credit file; the bank itself always decides on the opening. That is exactly why we promise no opening — but a cleanly prepared application."
+    },
+    {
+      "f": "What does an active account do for my credit file?",
+      "a": "A well-run account with regular receipts and punctual debits generates over time exactly the data that risk models read positively: stability, history, reliability. It is no magic trick and does not work overnight — it is the foundation on which everything else builds."
+    },
+    {
+      "f": "What is the difference between a basic account and the account via FIAON?",
+      "a": "The basic account is your legal right at every bank that runs accounts — credit basis, full basic functions, but often comparatively expensive and with no route to a card or a limit. The FIAON route aims at a full current account with the partner including a card as the GOAL — combined with the tidying-up of your credit file. Both routes are in the table on this page."
+    },
+    {
+      "f": "Does FIAON run accounts itself?",
+      "a": "No. FIAON is not a bank. Account and card come from the partner institution; FIAON obtains and checks your reports, prepares the application and accompanies the route. The bank decides on opening, card and limit under its own rules."
+    },
+    {
+      "f": "How long does the route to an account take?",
+      "a": "The FIAON application takes about two minutes. After that the pace depends on two things: how quickly the credit bureaus deliver (days to about four weeks) and how the bank decides. Nobody seriously promises you a fixed date here — but you see every step in your customer area."
+    },
+    {
+      "f": "Does the account application at FIAON cost extra?",
+      "a": "The route to an account is part of the FIAON plans; the prices are transparent on the pricing page. There is no success commission on an account opening — so our guidance stays free of wrong incentives."
+    },
+    {
+      "f": "What happens if the bank refuses?",
+      "a": "Then we tell you honestly — with what can be derived from the credit file: which entries get in the way, which can be challenged, what the 100-day rule can achieve. Often the refusal is the start of the real work: tidy up the credit file, then apply again. A legal right to the basic account always remains alongside."
+    }
+  ],
   "/ratenzahlung-und-bonitaet": [
     {
       "f": "Verbessern pünktliche Raten wirklich meine Bonität?",
@@ -1948,6 +1978,32 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     {
       "f": "Ich habe schon einen Rückstand — was ist jetzt klug?",
       "a": "Sofort handeln, schriftlich: Kontakt zum Gläubiger, realistische Raten anbieten, Bestätigung einholen. Wird eine gemeldete Forderung innerhalb von 100 Tagen vollständig ausgeglichen, verkürzt sich die Speicherfrist auf 18 Monate. Und prüfen Sie parallel, ob eine bereits erfolgte Meldung überhaupt zulässig war — die Regeln stehen in unserem Inkasso-Ratgeber."
+    }
+  ],
+  "/en/instalments-and-credit-file": [
+    {
+      "f": "Do punctual instalments really strengthen my credit file?",
+      "a": "Yes — payment behaviour is the core feature of every risk model. An instalment contract that runs as agreed over months continuously generates positive data: history, reliability, stability. Nobody can seriously promise a specific score number from that — but the direction is clear, and it is entirely in your hands."
+    },
+    {
+      "f": "Does buying on instalments harm the score in principle?",
+      "a": "A single, serviced instalment contract is no blemish. What tips the picture: many parallel financings, maxed-out limits and zero-per-cent purchases by the dozen — they read as thin cover. Rule of thumb: as few parallel contracts as possible, and each of them punctual."
+    },
+    {
+      "f": "What happens after ONE missed instalment?",
+      "a": "A single late instalment does not yet trigger a SCHUFA entry — it starts the escalation: reminder, formal reminder, default costs. It becomes dangerous from the second reminder with a threat of reporting (Section 31 BDSG requires exactly this chain before a report). Anyone who reacts in this phase and pays or reaches an agreement almost always prevents the entry."
+    },
+    {
+      "f": "A returned direct debit — how bad is that?",
+      "a": "A returned direct debit costs fees and is a warning signal to the contractual partner, but is not reported automatically. Frequent returns lead to contracts being terminated — and THOSE then end up in the report. The best protection is banal: standing order or direct debit on the right account and a look at the calendar before the debit day."
+    },
+    {
+      "f": "Is there any point in paying instalments EARLY?",
+      "a": "For your credit file what counts above all is AS AGREED — punctual is the standard the models reward. Early repayment saves interest and closes the contract positively; it is not a turbo for the score. More important is that no instalment ever breaks."
+    },
+    {
+      "f": "I am already in arrears — what is clever now?",
+      "a": "Act immediately, in writing: contact the creditor, offer realistic instalments, obtain confirmation. If a reported claim is settled in full within 100 days, the storage period shortens to 18 months. And in parallel check whether a report already made was lawful at all — the rules are in our debt collection guide."
     }
   ],
   "/selbstauskunft-checkliste": [
@@ -1976,6 +2032,32 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
       "a": "Ja — das ist die Bonitätsauskunft mit Prüfung: FIAON beschafft die Datenkopien aller drei Häuser, erklärt jede Zeile in Klartext und hält jeden Eintrag gegen § 31 BDSG und die Löschfristen. Sie bekommen die Liste, die Sie hier von Hand erstellen würden — fertig und mit Handlungsplan."
     }
   ],
+  "/en/reading-your-credit-report": [
+    {
+      "f": "How do I get my credit report for free?",
+      "a": "Via the data copy under Article 15 GDPR — informally or via the credit bureaus' forms, free by law and as often as you like. Our free tool prepares the request for SCHUFA, KSV and CRIF. The bureaus have one month; it usually arrives sooner."
+    },
+    {
+      "f": "What is the difference between a self-disclosure and a data copy?",
+      "a": "Colloquially both mean the same thing: the report about your own data. Legally precise is the data copy under Article 15 GDPR — complete and free. The bureaus' paid products (credit certificate) are shortened versions for showing, not for checking."
+    },
+    {
+      "f": "In which order is it best to read the report?",
+      "a": "Exactly in the order of the checklist above: first master data, then contracts, then claims including markers and deadlines, then enquiries — and the score last. Anyone who reads the other way round looks for the cause at the wrong end."
+    },
+    {
+      "f": "What do I do with an entry I cannot attribute?",
+      "a": "Do not ignore it: ask the credit bureau in writing who reported it and on what basis (some of this is already in the data copy). If you still do not know the matter, object and demand evidence. Unknown entries can point to a mix-up or misuse."
+    },
+    {
+      "f": "How often should I check my report?",
+      "a": "Once a year as routine — and additionally before every big step: flat hunting, financing, self-employment. Your own enquiry is neutral, it does not change your score and is not shown to others."
+    },
+    {
+      "f": "Does FIAON take over this check completely?",
+      "a": "Yes — that is the credit report with check: FIAON obtains the data copies from all three bureaus, explains every line in plain language and holds every entry against Section 31 BDSG and the deletion periods. You get the list you would draw up by hand here — finished and with an action plan."
+    }
+  ],
   "/schufa-neutral-anfragen": [
     {
       "f": "Was genau bedeutet „SCHUFA-neutral“?",
@@ -2000,6 +2082,32 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     {
       "f": "Gilt der Unterschied auch bei Girokonten und Handyverträgen?",
       "a": "Dort läuft es anders: Konto- und Vertragsanfragen sind eigene Anfragearten mit eigener Behandlung. Der Konditions-Trick ist ein Kredit-Thema. Bei Konten zählt eher, wie viele Sie führen — dazu mehr auf der Score-Seite."
+    }
+  ],
+  "/en/schufa-neutral-enquiries": [
+    {
+      "f": "What exactly does “SCHUFA-neutral” mean?",
+      "a": "Neutral means: the enquiry is stored as a conditions enquiry — visible only to you, with no effect whatsoever on your score. Banks that enquire later do not see it. The loan enquiry, by contrast, is visible to other institutions for ten days and flows into the calculation."
+    },
+    {
+      "f": "Do I get worse offers with a conditions enquiry?",
+      "a": "No. The bank checks the same data and tells you the conditions it would offer with a real application. The difference lies solely in the report to SCHUFA — not in the quality of the offer. Only when you really want the contract does the conditions enquiry become a loan enquiry."
+    },
+    {
+      "f": "How do I recognise which type of enquiry the bank makes?",
+      "a": "Ask literally: “Are you making a conditions enquiry or a loan enquiry?” Reputable institutions and comparison portals answer clearly and often advertise with “SCHUFA-neutral” themselves. If in doubt it is in the documents — the feature is called “enquiry about loan conditions”."
+    },
+    {
+      "f": "What do I do if a conditions enquiry was wrongly stored as a loan enquiry?",
+      "a": "That happens and can be corrected: request the reclassification from the bank and the rectification from SCHUFA (Article 16 GDPR), with your correspondence as evidence. In your own data copy you see how every enquiry is stored."
+    },
+    {
+      "f": "How much do several loan enquiries push the score down?",
+      "a": "SCHUFA does not name an exact figure — the formula is a trade secret. The mechanism is documented: several loan enquiries in a short time read as failed financing attempts. So: compare exclusively via conditions enquiries, the real loan enquiry only for the contract you actually sign."
+    },
+    {
+      "f": "Does the difference also apply to current accounts and mobile contracts?",
+      "a": "There it works differently: account and contract enquiries are separate types of enquiry with their own treatment. The conditions trick is a loan topic. With accounts what counts more is how many you hold — more on that on the score page."
     }
   ],
 };

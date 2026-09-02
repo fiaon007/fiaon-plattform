@@ -307,6 +307,10 @@ function Router() {
       <Route path="/en/request-your-credit-report" component={BonitaetsauskunftBeantragen} />
       <Route path="/en/debt-collection-letter" component={InkassoBriefErhalten} />
       <Route path="/en/entries-and-limitation" component={EintragVerjaehrung} />
+      <Route path="/en/current-account-despite-poor-credit" component={GirokontoTrotzNegativerBonitaet} />
+      <Route path="/en/instalments-and-credit-file" component={RatenzahlungUndBonitaet} />
+      <Route path="/en/reading-your-credit-report" component={SelbstauskunftCheckliste} />
+      <Route path="/en/schufa-neutral-enquiries" component={SchufaNeutralAnfragen} />
       <Route path="/kreditkarte" component={SiteKreditkarte} />
       <Route path="/oesterreich" component={SiteOesterreich} />
       <Route path="/schweiz" component={SiteSchweiz} />

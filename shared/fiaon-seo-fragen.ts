@@ -9,7 +9,7 @@
 // Neu erzeugen:   npx tsx scripts/seo-fragen-erzeugen.ts
 // Nur prüfen:     npx tsx scripts/seo-fragen-erzeugen.ts --pruefen
 //
-// Seiten: / (6), /was-ist-fiaon (6), /en/what-is-fiaon (6), /privatkunden (8), /en/personal (8), /business (5), /en/business (5), /preise (6), /en/pricing (6), /en (4), /kreditkarte (5), /en/credit-card (5), /oesterreich (5), /en/austria (5), /schweiz (5), /en/switzerland (5), /sicherheit (11), /en/security (11), /kontakt (5), /en/contact (5), /karriere (5), /partner (3), /presse (3), /investoren (4), /datenraum (3), /plattform-konzept (5), /fiaon-erfahrungen (8), /en/how-fiaon-works (8), /termin (6), /en/book-a-call (6), /vergleich (5), /en/compare (5), /hilfe (36), /en/help (36), /ueber-uns (5), /en/about (5), /transparenz (4), /en/transparency (4), /status (5), /werkzeuge (4), /werkzeuge/kreditrechner (5), /werkzeuge/umschuldung (5), /werkzeuge/schulden-check (5), /werkzeuge/widerspruch (5), /werkzeuge/mahnbescheid (5), /werkzeuge/ratenplan (5), /werkzeuge/inkasso-antwort (5), /werkzeuge/basiskonto (5), /werkzeuge/pfaendungsrechner (5), /werkzeuge/dispo-rechner (5), /werkzeuge/mahngebuehren (5), /werkzeuge/kartenkosten (5), /werkzeuge/schuldenplan (5), /kredit-ohne-schufa (6), /en/loans-without-schufa (6), /schufa-eintrag-loeschen (5), /bonitaet-verbessern (6), /en/strengthen-your-credit-file (6), /auskunfteien (5), /en/credit-bureaus (5), /schufa-score-verstehen (6), /en/schufa-score (6), /bonitaetsauskunft-beantragen (7), /en/request-your-credit-report (7), /inkasso-brief-erhalten (6), /en/debt-collection-letter (6), /eintrag-verjaehrung (6), /en/entries-and-limitation (6), /girokonto-trotz-negativer-bonitaet (7), /en/current-account-despite-poor-credit (7), /ratenzahlung-und-bonitaet (6), /en/instalments-and-credit-file (6), /selbstauskunft-checkliste (6), /en/reading-your-credit-report (6), /schufa-neutral-anfragen (6), /en/schufa-neutral-enquiries (6)
+// Seiten: / (6), /was-ist-fiaon (6), /en/what-is-fiaon (6), /privatkunden (8), /en/personal (8), /business (5), /en/business (5), /preise (6), /en/pricing (6), /en (4), /kreditkarte (5), /en/credit-card (5), /oesterreich (5), /en/austria (5), /schweiz (5), /en/switzerland (5), /sicherheit (11), /en/security (11), /kontakt (5), /en/contact (5), /karriere (5), /partner (3), /presse (3), /investoren (4), /datenraum (3), /plattform-konzept (5), /fiaon-erfahrungen (8), /en/how-fiaon-works (8), /termin (6), /en/book-a-call (6), /vergleich (5), /en/compare (5), /hilfe (36), /en/help (36), /ueber-uns (5), /en/about (5), /transparenz (4), /en/transparency (4), /status (5), /werkzeuge (4), /werkzeuge/kreditrechner (5), /werkzeuge/umschuldung (5), /werkzeuge/schulden-check (5), /werkzeuge/widerspruch (5), /werkzeuge/mahnbescheid (5), /werkzeuge/ratenplan (5), /werkzeuge/inkasso-antwort (5), /werkzeuge/basiskonto (5), /werkzeuge/pfaendungsrechner (5), /werkzeuge/dispo-rechner (5), /werkzeuge/mahngebuehren (5), /werkzeuge/kartenkosten (5), /werkzeuge/schuldenplan (5), /kredit-ohne-schufa (6), /en/loans-without-schufa (6), /bonitaet-verbessern (6), /en/strengthen-your-credit-file (6), /auskunfteien (5), /en/credit-bureaus (5), /schufa-score-verstehen (6), /en/schufa-score (6), /bonitaetsauskunft-beantragen (7), /en/request-your-credit-report (7), /inkasso-brief-erhalten (6), /en/debt-collection-letter (6), /eintrag-verjaehrung (6), /en/entries-and-limitation (6), /girokonto-trotz-negativer-bonitaet (7), /en/current-account-despite-poor-credit (7), /ratenzahlung-und-bonitaet (6), /en/instalments-and-credit-file (6), /selbstauskunft-checkliste (6), /en/reading-your-credit-report (6), /schufa-neutral-anfragen (6), /en/schufa-neutral-enquiries (6), /schufa-eintrag-loeschen (5), /en/delete-a-schufa-entry (5)
 // ═══════════════════════════════════════════════════════════════════════════
 export type SeoFrage = { f: string; a: string };
 
@@ -1560,28 +1560,6 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
       "a": "No — FIAON does not broker loans and does not sell financial products. FIAON obtains your reports from SCHUFA, KSV and CRIF, checks every entry for whether it can be challenged and enforces deletion or correction where the law allows. The goal is that you do not need a workaround loan."
     }
   ],
-  "/schufa-eintrag-loeschen": [
-    {
-      "f": "Kann man einen berechtigten SCHUFA-Eintrag löschen lassen?",
-      "a": "Einen inhaltlich richtigen, zulässig gemeldeten Eintrag vor Fristablauf: nein — Anbieter, die genau das pauschal versprechen, arbeiten unseriös. Aber ein erheblicher Teil der Einträge ist eben NICHT zulässig gemeldet: ohne die zwei vorgeschriebenen Mahnungen, trotz bestrittener Forderung oder nach Ablauf der Löschfrist. Diese Einträge sind angreifbar, und ihre Löschung ist ein Rechtsanspruch."
-    },
-    {
-      "f": "Wie lange bleibt ein erledigter Eintrag gespeichert?",
-      "a": "Grundsätzlich drei Jahre ab Erledigung, taggenau. Seit 2024 gilt die 100-Tage-Regel: Wer innerhalb von 100 Tagen nach der Meldung bezahlt und sonst keine Negativmerkmale hat, ist nach 18 Monaten raus. Die Restschuldbefreiung nach Insolvenz wird schon nach sechs Monaten gelöscht."
-    },
-    {
-      "f": "Was kostet es, einen Eintrag löschen zu lassen?",
-      "a": "Selbst machen kostet nichts außer Zeit: Datenkopie, Prüfung, Schreiben, Fristen — alle Vorlagen und Regeln sind öffentlich, unsere Werkzeuge bereiten jeden Schritt kostenlos vor. Wer die Beschaffung, Prüfung und Durchsetzung abgeben will, beauftragt einen Dienst wie FIAON mit transparenten Paketpreisen — seriöse Anbieter rechnen nie erfolgsabhängig pro „gelöschtem Eintrag“ ab und versprechen keine Garantien."
-    },
-    {
-      "f": "Bringt die Löschung eines Eintrags wirklich etwas?",
-      "a": "Ja, oft erheblich: Negativeinträge sind das schwerste Einzelmerkmal im Score. Fällt der Eintrag, verbessern sich Score-Klasse und Konditionen — vom Handyvertrag über die Wohnung bis zum Kreditzins. Die Wirkung tritt nicht über Nacht ein; die Auskunfteien rechnen ihre Scores in Abständen neu."
-    },
-    {
-      "f": "Kann ich das auch bei KSV (Österreich) und CRIF (Schweiz) machen?",
-      "a": "Ja. Die DSGVO gilt in Österreich unmittelbar, die Schweiz hat mit dem revidierten DSG vergleichbare Auskunfts- und Berichtigungsrechte. Die Fristen und Gepflogenheiten unterscheiden sich im Detail — die Länderseiten für Österreich und die Schweiz erklären sie."
-    }
-  ],
   "/bonitaet-verbessern": [
     {
       "f": "Wie schnell kann ich meine Bonität verbessern?",
@@ -2110,6 +2088,50 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
       "a": "There it works differently: account and contract enquiries are separate types of enquiry with their own treatment. The conditions trick is a loan topic. With accounts what counts more is how many you hold — more on that on the score page."
     }
   ],
+  "/schufa-eintrag-loeschen": [
+    {
+      "f": "Kann man einen berechtigten SCHUFA-Eintrag löschen lassen?",
+      "a": "Einen inhaltlich richtigen, zulässig gemeldeten Eintrag vor Fristablauf: nein — Anbieter, die genau das pauschal versprechen, arbeiten unseriös. Aber ein erheblicher Teil der Einträge ist eben NICHT zulässig gemeldet: ohne die zwei vorgeschriebenen Mahnungen, trotz bestrittener Forderung oder nach Ablauf der Löschfrist. Diese Einträge sind angreifbar, und ihre Löschung ist ein Rechtsanspruch."
+    },
+    {
+      "f": "Wie lange bleibt ein erledigter Eintrag gespeichert?",
+      "a": "Grundsätzlich drei Jahre ab Erledigung, taggenau. Seit 2024 gilt die 100-Tage-Regel: Wer innerhalb von 100 Tagen nach der Meldung bezahlt und sonst keine Negativmerkmale hat, ist nach 18 Monaten raus. Die Restschuldbefreiung nach Insolvenz wird schon nach sechs Monaten gelöscht."
+    },
+    {
+      "f": "Was kostet es, einen Eintrag löschen zu lassen?",
+      "a": "Selbst machen kostet nichts außer Zeit: Datenkopie, Prüfung, Schreiben, Fristen — alle Vorlagen und Regeln sind öffentlich, unsere Werkzeuge bereiten jeden Schritt kostenlos vor. Wer die Beschaffung, Prüfung und Durchsetzung abgeben will, beauftragt einen Dienst wie FIAON mit transparenten Paketpreisen — seriöse Anbieter rechnen nie erfolgsabhängig pro „gelöschtem Eintrag“ ab und versprechen keine Garantien."
+    },
+    {
+      "f": "Bringt die Löschung eines Eintrags wirklich etwas?",
+      "a": "Ja, oft erheblich: Negativeinträge sind das schwerste Einzelmerkmal im Score. Fällt der Eintrag, verbessern sich Score-Klasse und Konditionen — vom Handyvertrag über die Wohnung bis zum Kreditzins. Die Wirkung tritt nicht über Nacht ein; die Auskunfteien rechnen ihre Scores in Abständen neu."
+    },
+    {
+      "f": "Kann ich das auch bei KSV (Österreich) und CRIF (Schweiz) machen?",
+      "a": "Ja. Die DSGVO gilt in Österreich unmittelbar, die Schweiz hat mit dem revidierten DSG vergleichbare Auskunfts- und Berichtigungsrechte. Die Fristen und Gepflogenheiten unterscheiden sich im Detail — die Länderseiten für Österreich und die Schweiz erklären sie."
+    }
+  ],
+  "/en/delete-a-schufa-entry": [
+    {
+      "f": "Can a justified SCHUFA entry be deleted?",
+      "a": "A factually correct, lawfully reported entry before its period expires: no — providers who promise exactly that across the board are not reputable. But a considerable share of entries is NOT lawfully reported: without the two required reminders, despite a disputed claim or after the deletion period has expired. These entries can be challenged, and their deletion is a legal right."
+    },
+    {
+      "f": "How long does a settled entry stay stored?",
+      "a": "In principle three years from settlement, to the day. Since 2024 the 100-day rule applies: anyone who pays within 100 days of the report and has no other negative features is out after 18 months. The discharge of residual debt after insolvency is deleted after only six months."
+    },
+    {
+      "f": "What does it cost to have an entry deleted?",
+      "a": "Doing it yourself costs nothing but time: data copy, check, letters, deadlines — all templates and rules are public, our tools prepare every step for free. Anyone who wants to hand over obtaining, checking and enforcing instructs a service like FIAON with transparent plan prices — reputable providers never charge per “deleted entry” on a success basis and promise no guarantees."
+    },
+    {
+      "f": "Does deleting an entry really achieve anything?",
+      "a": "Yes, often considerably: negative entries are the heaviest single feature in the score. If the entry falls away, score class and conditions improve — from the mobile contract to the flat to the loan interest rate. The effect does not occur overnight; the credit bureaus recalculate their scores at intervals."
+    },
+    {
+      "f": "Can I do this with KSV (Austria) and CRIF (Switzerland) too?",
+      "a": "Yes. The GDPR applies directly in Austria; Switzerland has comparable rights to information and rectification under the revised Data Protection Act (DSG). The deadlines and customs differ in detail — the country pages for Austria and Switzerland explain them."
+    }
+  ],
 };
 
 /** Die Begriffe von /glossar-bonitaet (39). */
@@ -2269,5 +2291,165 @@ export const SEO_GLOSSAR: { wort: string; text: string }[] = [
   {
     "wort": "Zahlungshistorie",
     "text": "Die Chronik Ihres Zahlungsverhaltens — das Gedächtnis der Bonität. Sie lässt sich nicht kaufen und nicht faken, nur aufbauen: mit pünktlichen Raten, geführten Konten und der Zeit, die beides braucht."
+  }
+];
+
+/** Die Begriffe von /en/credit-glossary (39). */
+export const SEO_GLOSSAR_EN: { wort: string; text: string }[] = [
+  {
+    "wort": "Enquiry (loan / conditions)",
+    "text": "Every credit check by a bank leaves an enquiry in your report. The type is decisive: the loan enquiry is visible to other banks for ten days and flows into the score, the conditions enquiry stays neutral. When comparing, always demand the neutral type."
+  },
+  {
+    "wort": "Credit bureau (Auskunftei)",
+    "text": "A company that collects credit-relevant data and passes it on to contractual partners: in Germany above all SCHUFA, in Austria the KSV, in Switzerland the CRIF. Credit bureaus decide nothing — they deliver the data on which others decide."
+  },
+  {
+    "wort": "Basic account (Basiskonto)",
+    "text": "The account for everyone under Section 31 ZKG: every bank in Germany that runs accounts must open it on request, on a credit basis and with basic functions — regardless of creditworthiness. It is the legal safety net when no other account comes about."
+  },
+  {
+    "wort": "Base score (until March 2026)",
+    "text": "The former percentage value (0 to 100) that SCHUFA calculated quarterly. Replaced since 17 March 2026 by the new SCHUFA score of 100 to 999 points. Old reports and some contractual partners still show the percentage value for a transitional period."
+  },
+  {
+    "wort": "Disputed claim",
+    "text": "A claim you have objected to with reasons. It may not be reported to credit bureaus (Section 31 BDSG) — the timely, written objection is therefore your strongest tool against impending entries."
+  },
+  {
+    "wort": "Creditworthiness (Bonität)",
+    "text": "The assessment of whether someone can and will meet their payment obligations. It is fed by data (entries, history) and behaviour (punctual payments) — and it can be changed: data can be cleaned up, behaviour documented."
+  },
+  {
+    "wort": "Credit report (Bonitätsauskunft)",
+    "text": "The look into your own data. Free as a data copy under Article 15 GDPR; as a checked FIAON report with retrieval from three bureaus, plain-language explanation and a check of every entry for a one-off €74."
+  },
+  {
+    "wort": "Industry score (until March 2026)",
+    "text": "Until March 2026 SCHUFA calculated six industry values alongside the base score – banks, savings banks, cooperative banks, telecommunications, retail, mail order. The new SCHUFA score replaces them with a single value that consumers and contractual partners see alike."
+  },
+  {
+    "wort": "CRIF",
+    "text": "The leading credit bureau in Switzerland. Information and rectification there are governed by the revised Data Protection Act (DSG) — the rights are comparable to the GDPR, the procedures differ in detail."
+  },
+  {
+    "wort": "Data copy (Article 15 GDPR)",
+    "text": "Your legal right to a complete, free copy of all data a credit bureau stores about you — including reporting date and reporting body. The basis of every serious check; the paid products show less."
+  },
+  {
+    "wort": "Own enquiry (Eigenauskunft)",
+    "text": "The colloquial umbrella term for looking at your own credit bureau data. It is neutral: it does not change the score and is visible to nobody but you — possible as often as you like."
+  },
+  {
+    "wort": "Settlement marker (Erledigungsvermerk)",
+    "text": "The marker that a reported claim has been paid — with a date. Only this date starts the deletion period (three years). If the marker is missing despite payment, that is a case for rectification with evidence."
+  },
+  {
+    "wort": "Geoscoring",
+    "text": "Assessment based on where you live. It may only play a role when hardly any other data is available — and never be the sole criterion. Anyone who suspects a refusal “because of the address” should check their own data: usually it is something else."
+  },
+  {
+    "wort": "Current account (contract data)",
+    "text": "Accounts and cards appear in the report as contract data — not as a value judgement, but as a record of what exists. On termination they must be removed; an “active” account from 2022 in today's report is a case for rectification."
+  },
+  {
+    "wort": "Hundred-day rule",
+    "text": "Since 2024: if a reported claim is paid in full within 100 days and there are no other negative features, the storage period shortens from three years to 18 months. Settling quickly is therefore real money for your credit file."
+  },
+  {
+    "wort": "Debt collection (Inkasso)",
+    "text": "Commercial collection of claims on behalf of a creditor. A debt collection letter is an assertion on letterhead — some justified, many inflated, a few invented. Check first (register, claim, costs), then pay or object."
+  },
+  {
+    "wort": "Conditions enquiry (Konditionsanfrage)",
+    "text": "The SCHUFA-neutral type of enquiry: the bank checks the same data and names real conditions, but the enquiry stays invisible to others and score-free. The right tool for comparing loans — demand it expressly."
+  },
+  {
+    "wort": "Loan enquiry (Kreditanfrage)",
+    "text": "The real application type: stored for twelve months, visible to other banks for ten days, flows into the score. Belongs with the contract you actually sign — not with the comparison beforehand."
+  },
+  {
+    "wort": "KSV (Kreditschutzverband)",
+    "text": "Austria's major credit bureau (KSV1870). The GDPR applies directly in Austria — data copy, rectification and deletion work under the same articles as in Germany."
+  },
+  {
+    "wort": "Deletion period (Löschfrist)",
+    "text": "The span after which an entry must disappear from the report: three years from settlement, 18 months under the 100-day rule, six months after discharge of residual debt, twelve months for enquiries. Calculated to the day — and exceeded surprisingly often."
+  },
+  {
+    "wort": "Deletion (Article 17 GDPR)",
+    "text": "Your right to the removal of unlawful, wrong or expired data. Not an act of grace by the credit bureau but a right — assert it in writing, with reasons and a deadline, to the credit bureau and the reporting body."
+  },
+  {
+    "wort": "Court payment order (Mahnbescheid)",
+    "text": "The court dunning procedure (yellow envelope): the court does NOT examine the claim on its merits. Against a court payment order you have 14 days to object — the form is enclosed. Letting it pass leads to an enforcement order."
+  },
+  {
+    "wort": "Report (Section 31 BDSG)",
+    "text": "An open claim may only be reported to credit bureaus under conditions: two reminders at least four weeks apart, timely notice of the report, claim not disputed. If one is missing, the entry can be challenged."
+  },
+  {
+    "wort": "Negative feature (Negativmerkmal)",
+    "text": "An entry about behaviour not in line with the contract: reported open claims, titles, insolvency. Negative features are the heaviest single weight in the score — and the first point to check in every report: are they lawful, correct and within the period?"
+  },
+  {
+    "wort": "Ombudsman",
+    "text": "SCHUFA's free conciliation body for disputes between consumers and the credit bureau. The route there is open when objection and deletion demand lead nowhere — in parallel the data protection supervisory authority remains."
+  },
+  {
+    "wort": "Positive feature (Positivmerkmal)",
+    "text": "Data about behaviour in line with the contract: the long-held account, the serviced loan, the clean series of payments. Positive features do not arise overnight — but reliably, from time and punctuality."
+  },
+  {
+    "wort": "Instalment payment (Ratenzahlung)",
+    "text": "The supreme discipline of creditworthiness: every punctual instalment is a positive data point, every bounced one starts the escalation staircase towards an entry. One debit day, one buffer, one reminder — usually that is all it takes."
+  },
+  {
+    "wort": "Discharge of residual debt (Restschuldbefreiung)",
+    "text": "The end point of personal insolvency: the remaining debts are extinguished. The entry about it has been deleted after only six months since 2023 — if it stays longer, that is a clear case for deletion."
+  },
+  {
+    "wort": "Returned direct debit (Rücklastschrift)",
+    "text": "A bounced debit. It is not reported automatically, but costs fees and trust with the contractual partner — and repeated returns lead to terminations, which do end up in the report."
+  },
+  {
+    "wort": "SCHUFA",
+    "text": "Germany's largest credit bureau: data on around 68 million people, fed by banks, retailers and telecommunications providers. SCHUFA decides no applications — it delivers data and scores to its contractual partners."
+  },
+  {
+    "wort": "Score class",
+    "text": "Since March 2026 SCHUFA assigns every score to one of five classes: excellent (776–999), good (709–775), acceptable (642–708), sufficient (100–641), insufficient (open payment default, no point value). The class is the language in which contractual partners read the score."
+  },
+  {
+    "wort": "Score",
+    "text": "The statistical estimate of your probability of paying, as a number – at SCHUFA since March 2026 between 100 and 999 points from twelve published criteria. The features are known: payment history, negative features, enquiries, account landscape, age of history."
+  },
+  {
+    "wort": "Self-disclosure (Selbstauskunft)",
+    "text": "See data copy and own enquiry: your own free look at the stored data. How to read it — master data, markers, deadlines, duplicate reports — is in the checklist."
+  },
+  {
+    "wort": "Storage period (Speicherfrist)",
+    "text": "The time an entry may stand — not to be confused with the limitation of the claim. A paid claim stays visible for up to three years despite payment; a time-barred one may still be recorded. Two clocks, two rules."
+  },
+  {
+    "wort": "Titled claim",
+    "text": "A claim with a court title (judgment, enforcement order): enforceable for 30 years and reportable regardless of any dispute. The reason never to let the objection to a court payment order lapse."
+  },
+  {
+    "wort": "Limitation (Verjährung)",
+    "text": "The end of a claim's enforceability — for everyday claims usually three years to the end of the year. You do not have to pay what is time-barred, but you must INVOKE the limitation; nothing happens by itself."
+  },
+  {
+    "wort": "Enforcement order (Vollstreckungsbescheid)",
+    "text": "The second stage after the court payment order: the assertion becomes an enforceable title — attachable, valid for 30 years. Here too a 14-day period for the objection applies; after that it becomes laborious."
+  },
+  {
+    "wort": "Written objection (Widerspruch)",
+    "text": "Your formal no — against a claim (to creditor and debt collector), against a court payment order (to the court, 14 days) or against an entry (to the credit bureau). Always in writing, always verifiable, always with reasons."
+  },
+  {
+    "wort": "Payment history",
+    "text": "The chronicle of your payment behaviour — the memory of creditworthiness. It cannot be bought and cannot be faked, only built: with punctual instalments, well-run accounts and the time both need."
   }
 ];

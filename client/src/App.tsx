@@ -311,6 +311,8 @@ function Router() {
       <Route path="/en/instalments-and-credit-file" component={RatenzahlungUndBonitaet} />
       <Route path="/en/reading-your-credit-report" component={SelbstauskunftCheckliste} />
       <Route path="/en/schufa-neutral-enquiries" component={SchufaNeutralAnfragen} />
+      <Route path="/en/delete-a-schufa-entry" component={SchufaEintragLoeschen} />
+      <Route path="/en/credit-glossary" component={GlossarBonitaet} />
       <Route path="/kreditkarte" component={SiteKreditkarte} />
       <Route path="/oesterreich" component={SiteOesterreich} />
       <Route path="/schweiz" component={SiteSchweiz} />

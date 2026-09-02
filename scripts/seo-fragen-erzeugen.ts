@@ -74,7 +74,6 @@ const QUELLEN: Record<string, string> = {
   "client/src/pages/site/werkzeuge/kartenkosten.tsx": "/werkzeuge/kartenkosten",
   "client/src/pages/site/werkzeuge/schuldenplan.tsx": "/werkzeuge/schuldenplan",
   "client/src/i18n/kredit-ohne-schufa.ts": "/kredit-ohne-schufa|/en/loans-without-schufa",
-  "client/src/pages/site/schufa-eintrag-loeschen.tsx": "/schufa-eintrag-loeschen",
   "client/src/i18n/bonitaet-verbessern.ts": "/bonitaet-verbessern|/en/strengthen-your-credit-file",
   "client/src/i18n/auskunfteien.ts": "/auskunfteien|/en/credit-bureaus",
   "client/src/i18n/schufa-score-verstehen.ts": "/schufa-score-verstehen|/en/schufa-score",
@@ -85,6 +84,7 @@ const QUELLEN: Record<string, string> = {
   "client/src/i18n/ratenzahlung.ts": "/ratenzahlung-und-bonitaet|/en/instalments-and-credit-file",
   "client/src/i18n/selbstauskunft-checkliste.ts": "/selbstauskunft-checkliste|/en/reading-your-credit-report",
   "client/src/i18n/schufa-neutral-anfragen.ts": "/schufa-neutral-anfragen|/en/schufa-neutral-enquiries",
+  "client/src/i18n/schufa-eintrag-loeschen.ts": "/schufa-eintrag-loeschen|/en/delete-a-schufa-entry",
 };
 
 type Frage = { f: string; a: string };
@@ -114,8 +114,12 @@ function glossarAus(quelltext: string): { wort: string; text: string }[] {
 
 function erzeugen(): string {
   const bloecke: string[] = [];
-  const glossarDatei = path.join(WURZEL, "client/src/pages/site/glossar-bonitaet.tsx");
-  const glossar = fs.existsSync(glossarDatei) ? glossarAus(fs.readFileSync(glossarDatei, "utf8")) : [];
+  // 02.09.2026: Das Glossar lebt im Wörterbuch (de-Hälfte vor „const en", en-Hälfte danach).
+  const glossarDatei = path.join(WURZEL, "client/src/i18n/glossar-bonitaet.ts");
+  const glossarQuelle = fs.existsSync(glossarDatei) ? fs.readFileSync(glossarDatei, "utf8") : "";
+  const glossarSchnitt = glossarQuelle.indexOf("\nconst en");
+  const glossar = glossarAus(glossarSchnitt >= 0 ? glossarQuelle.slice(0, glossarSchnitt) : glossarQuelle);
+  const glossarEn = glossarSchnitt >= 0 ? glossarAus(glossarQuelle.slice(glossarSchnitt)) : [];
   const zaehler: string[] = [];
   for (let [datei, pfad] of Object.entries(QUELLEN)) {
     // „datei#x" ist ein Schlüssel-Block in einem Wörterbuch mit mehreren
@@ -165,6 +169,9 @@ ${bloecke.join("\n")}
 
 /** Die Begriffe von /glossar-bonitaet (${glossar.length}). */
 export const SEO_GLOSSAR: { wort: string; text: string }[] = ${JSON.stringify(glossar, null, 2)};
+
+/** Die Begriffe von /en/credit-glossary (${glossarEn.length}). */
+export const SEO_GLOSSAR_EN: { wort: string; text: string }[] = ${JSON.stringify(glossarEn, null, 2)};
 `;
 }
 

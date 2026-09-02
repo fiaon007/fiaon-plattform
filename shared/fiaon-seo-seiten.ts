@@ -35,7 +35,7 @@
 // Hausregeln: Sie-Form, keine „Beratung", keine „Garantie", kein
 // Versprechen zu Karte oder Rahmen — „die Bank entscheidet".
 // ═══════════════════════════════════════════════════════════════════════════
-import { SEO_FRAGEN, SEO_GLOSSAR, type SeoFrage } from "./fiaon-seo-fragen";
+import { SEO_FRAGEN, SEO_GLOSSAR, SEO_GLOSSAR_EN, type SeoFrage } from "./fiaon-seo-fragen";
 
 export const SEO_BASIS = "https://fiaon.com";
 
@@ -783,6 +783,20 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/werkzeuge/eintrag-pruefen", "/werkzeuge/loeschfrist", "/werkzeuge/selbstauskunft", "/eintrag-verjaehrung", "/inkasso-brief-erhalten", "/schufa-score-verstehen", "/selbstauskunft-checkliste", "/privatkunden"],
     krumen: [{ name: "SCHUFA-Eintrag löschen", pfad: "/schufa-eintrag-loeschen" }],
+    en: {
+      pfad: "/en/delete-a-schufa-entry",
+      titel: "Deleting a SCHUFA entry: deadlines, rights, route | FIAON",
+      beschreibung: "Deleting a SCHUFA entry: which entries can be challenged (Section 31 BDSG), all deletion periods as a table, the route in four steps with free tools.",
+      h1: "Deleting a SCHUFA entry.",
+      lead: "Which entries can be challenged, which deletion periods apply and what the route looks like in four steps – with free tools for every step. Honestly: justified, lawfully reported entries stay until their period expires.",
+      abschnitte: [
+        { h2: "Which entries can be challenged", text: "Reported without the requirements of Section 31 BDSG (two reminders four weeks apart, timely notice, claim not disputed), past the deletion period, or simply wrong under Article 16 GDPR — three points of attack that most often succeed in practice." },
+        { h2: "The deletion periods at a glance", text: "Settled claim three years after settlement; settled within 100 days of the report 18 months; discharge of residual debt six months; loan enquiry twelve months; contract data on termination; open undisputed claims have no period until settlement." },
+        { h2: "The route in four steps", text: "Request the data copy, hold every entry against the rules, demand deletion or rectification in writing with a deadline, and if refused go to the ombudsman and the supervisory authority — every step prepared by a free tool.", punkte: ["Request the data copy (Article 15 GDPR)", "Check an entry against Section 31 BDSG", "Calculate the deletion deadline to the day"] },
+      ],
+      weiter: ["/eintrag-verjaehrung", "/selbstauskunft-checkliste", "/schufa-score-verstehen", "/inkasso-brief-erhalten"],
+      krumen: [{ name: "Deleting a SCHUFA entry", pfad: "/en/delete-a-schufa-entry" }],
+    },
   },
   "/bonitaet-verbessern": {
     pfad: "/bonitaet-verbessern", art: "pfeiler", stand: PFEILER, prio: 0.9,
@@ -1103,6 +1117,15 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     lead: "Von Anfrage bis Zahlungshistorie: jeder Begriff in zwei bis vier Sätzen Klartext – und der Verweis auf die Themenseite, die in die Tiefe geht.",
     weiter: ["/schufa-score-verstehen", "/schufa-eintrag-loeschen", "/bonitaetsauskunft-beantragen", "/ratgeber", "/auskunfteien", "/eintrag-verjaehrung"],
     krumen: [{ name: "Bonitäts-Glossar", pfad: "/glossar-bonitaet" }],
+    en: {
+      pfad: "/en/credit-glossary",
+      titel: "Credit glossary: every term explained | FIAON",
+      beschreibung: "From enquiry to payment history: the credit glossary explains every term in plain language – score class, data copy, deletion period, court payment order.",
+      h1: "The credit glossary: every term explained.",
+      lead: "Every term in two to four sentences of plain language – and the route to the topic page that goes into depth. German technical terms are kept alongside their English explanation.",
+      weiter: ["/schufa-score-verstehen", "/schufa-eintrag-loeschen", "/bonitaetsauskunft-beantragen", "/ratgeber"],
+      krumen: [{ name: "Credit glossary", pfad: "/en/credit-glossary" }],
+    },
   },
 
   "/ratgeber": {
@@ -1423,7 +1446,7 @@ export function seoFragen(pfad: string): SeoFrage[] {
   return SEO_FRAGEN[pfad] ?? [];
 }
 
-export { SEO_GLOSSAR };
+export { SEO_GLOSSAR, SEO_GLOSSAR_EN };
 
 /** Alle Seiten, die in die Sitemap gehören: indexierbar und ohne fremde Canonical. */
 export function seoIndexierbar(): SeoSeite[] {

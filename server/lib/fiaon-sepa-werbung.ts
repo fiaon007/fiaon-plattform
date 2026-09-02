@@ -214,7 +214,9 @@ export async function sepaWerbungLauf(): Promise<SepaWerbungErgebnis> {
      WHERE a.payment_status = 'paid'
        AND a.merged_into IS NULL AND a.gdpr_deleted_at IS NULL
        AND a.ref NOT LIKE 'FIAON-SCHUFA-%' AND a.ref NOT LIKE 'FIAON-TEST%'
-       AND a.abo_gestoppt_am IS NULL AND a.cancelled_at IS NULL AND a.refunded_at IS NULL
+       AND a.abo_gestoppt_am IS NULL AND a.cancelled_at IS NULL
+       -- Gekündigte ruhen bis zum Vertragsende (E-092, 02.09.2026)
+       AND (a.gekuendigt_am IS NULL OR a.kuendigung_zurueckgenommen_am IS NOT NULL) AND a.refunded_at IS NULL
        AND a.amount_due IS NOT NULL AND a.amount_due > 0
        AND a.email IS NOT NULL AND a.email <> ''
        AND p.ist_test_am IS NULL

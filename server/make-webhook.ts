@@ -64,6 +64,8 @@ export type MakeEventType =
   | "rueckhol_s5c"           // Dauerpflege (c): eine Frage, kein Verkauf
   | "rueckhol_s5d"           // Dauerpflege (d): ein Eintrag weniger
   | "bankverbindung_neu"     // NOTFALL 02.09.2026: Konto gewechselt — neue IBAN an alle mit Bankdaten der letzten 24 h
+  | "kuendigung_bestaetigt"  // E-092: Kündigung eingegangen — letzte Rate bleibt fällig
+  | "vertrag_beendet"        // E-092: letzte Rate bezahlt — der Vertrag ist aus
   // NEU 24.08.2026: Der Weg zum Girokonto beim Kooperationspartner (DKB) —
   // Voraussetzung fuer die Kreditkarte. Nur nach bestandener Pruefung aller
   // drei Bedingungen aus fiaon-konto-karte.ts. Wortwahl bindend: NIE

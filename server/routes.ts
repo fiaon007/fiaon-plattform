@@ -514,6 +514,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonFirmenRoutes = await import('./routes/fiaon-firmen');
   app.use('/api/fiaon', fiaonFirmenRoutes.default);
 
+  // 📄 Kündigungen (E-092): ein Ort für Formular, Mail und Telefon.
+  const fiaonKuendigungRoutes = await import('./routes/fiaon-kuendigung');
+  app.use('/api/fiaon', fiaonKuendigungRoutes.default);
+
   // 🏦 Bankwechsel (NOTFALL 02.09.2026): Kunden mit alten Bankdaten informieren.
   const fiaonBankwechselRoutes = await import('./routes/fiaon-bankwechsel');
   app.use('/api/fiaon', fiaonBankwechselRoutes.default);

@@ -427,10 +427,16 @@ export async function naechsteRateAnlegen(
   abDatum?: string,
 ) {
   const [app] = await sqlPool`
-    SELECT payment_reference, ref, abo_gestoppt_am, amount_due, pack_key, abo_verlaengert_raten
+    SELECT payment_reference, ref, abo_gestoppt_am, amount_due, pack_key, abo_verlaengert_raten,
+           gekuendigt_am, kuendigung_zurueckgenommen_am, letzte_rate_nr
     FROM fiaon_applications WHERE ref = ${ref}
   `;
   if (!app || app.abo_gestoppt_am) return;
+  // ── GEKÜNDIGT: NACH DER LETZTEN RATE KOMMT KEINE MEHR (02.09.2026, E-092) ──
+  // Vorher legte der Tageslauf bei 21 Kündigern noch Rate 3 und 4 an, obwohl
+  // sie längst gekündigt hatten. Die letzte Rate bleibt fällig — mehr nicht.
+  if (app.gekuendigt_am && !app.kuendigung_zurueckgenommen_am && app.letzte_rate_nr != null
+      && Number(letzteRate.rate_nr) >= Number(app.letzte_rate_nr)) return;
   // ── NACH RATE 12 WIRD GEFRAGT (E-024, 22.08.2026) ─────────────────────
   // Justin: „Nach der 12. Rate wird der Kunde gefragt, ob er bleiben will."
   // Die Kette endet hier; eine 13. Rate entsteht erst, wenn der Kunde im
@@ -765,6 +771,10 @@ async function ratenFuerHeuteErzeugen(heute: string, lauf: Lauf = sqlPool): Prom
     WHERE a.payment_status = 'paid' AND a.merged_into IS NULL
       AND a.archived_at IS NULL AND a.gdpr_deleted_at IS NULL
       AND a.abo_gestoppt_am IS NULL AND NOT COALESCE(a.alt_bestand, FALSE)
+      -- Gekündigt: nur bis zur letzten Rate (E-092, 02.09.2026)
+      AND (a.gekuendigt_am IS NULL OR a.kuendigung_zurueckgenommen_am IS NOT NULL
+           OR a.letzte_rate_nr IS NULL
+           OR COALESCE((SELECT MAX(r2.rate_nr) FROM fiaon_abo_raten r2 WHERE r2.ref = a.ref), 0) < a.letzte_rate_nr)
       AND a.type IS DISTINCT FROM 'schufa' AND a.ref NOT LIKE 'FIAON-SCHUFA-%'
       AND a.pack_key IS DISTINCT FROM 'schufa'
       -- Nichts anlegen, solange noch eine offene Rate im Raum steht: Es soll
@@ -1342,8 +1352,30 @@ export async function rateBezahltBuchen(opts: {
   // 30 Tage nach seiner Zahlung.
   await naechsteRateAnlegen(rate.ref, rate as any, zahlungsdatum);
 
+  // ── GEKÜNDIGT: WAR DAS DIE LETZTE RATE? (E-092, 02.09.2026) ───────────
+  // Justins Regel: „mit bezahlen dieser ist der Vertrag dann offiziell aus."
+  // Hier — und nur hier — steht fest, dass das Geld da ist.
+  let vertragBeendet = false;
+  try {
+    const { vertragEndePruefen } = await import("../lib/fiaon-kuendigung");
+    const erg = await vertragEndePruefen(rate.ref, Number(rate.rate_nr));
+    vertragBeendet = erg.beendet;
+    if (erg.beendet) {
+      const [k] = (await sqlPool`
+        SELECT a.ref, a.person_id, a.email, a.first_name, a.last_name, a.payment_reference, a.pack_name
+        FROM fiaon_applications a WHERE a.ref = ${rate.ref}`) as any[];
+      if (k) {
+        await sendMakeWebhookMitGrund("vertrag_beendet", {
+          ...makePayloadFromRow(k), paket: k.pack_name || null,
+          rate_nr: String(rate.rate_nr), portal_url: absoluteUrl("/login"),
+        } as any).catch(() => {});
+      }
+    }
+  } catch (e) { console.error("[FIAON-ABO] Vertragsende:", e); }
+
   // ── DIE FRAGE NACH RATE 12 (E-024) ────────────────────────────────────
-  if (Number(rate.rate_nr) > 0 && Number(rate.rate_nr) % ABO_LAUFZEIT_RATEN === 0) {
+  // Nach einer Kündigung wird nicht mehr nach Verlängerung gefragt.
+  if (!vertragBeendet && Number(rate.rate_nr) > 0 && Number(rate.rate_nr) % ABO_LAUFZEIT_RATEN === 0) {
     try {
       const [k] = (await sqlPool`
         SELECT a.ref, a.person_id, a.email, a.first_name, a.last_name, a.payment_reference, a.amount_due, a.pack_name, a.abo_verlaengerung_gefragt_am

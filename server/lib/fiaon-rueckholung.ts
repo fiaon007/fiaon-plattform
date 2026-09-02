@@ -215,7 +215,9 @@ function grundmenge() {
       JOIN fiaon_persons p ON p.id = a.person_id
      WHERE a.payment_status NOT IN ('paid', 'superseded')
        AND a.merged_into IS NULL AND a.archived_at IS NULL
-       AND a.gdpr_deleted_at IS NULL AND a.cancelled_at IS NULL AND a.refunded_at IS NULL
+       AND a.gdpr_deleted_at IS NULL AND a.cancelled_at IS NULL
+       -- Gekündigte ruhen bis zum Vertragsende (E-092, 02.09.2026)
+       AND (a.gekuendigt_am IS NULL OR a.kuendigung_zurueckgenommen_am IS NOT NULL) AND a.refunded_at IS NULL
        AND COALESCE(a.ist_entwurf, FALSE) = FALSE
        AND a.ref NOT LIKE 'FIAON-TEST%' AND a.ref NOT LIKE 'FIAON-SCHUFA-%'
        AND p.ist_test_am IS NULL

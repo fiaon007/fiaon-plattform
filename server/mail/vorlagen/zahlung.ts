@@ -193,6 +193,44 @@ knopf: { text: "Sofort per Bank-App bezahlen — in einer Minute gebucht", url: 
   // entschieden — es gibt weder einen Betrag noch eine Referenz für ein
   // zweites Jahr. Zahlungsdaten würden die Verlängerung als beschlossen
   // ausgeben; die Vorlage sagt in der Fußnote das Gegenteil.
+  // ── KÜNDIGUNG (E-092, 02.09.2026) ──────────────────────────────────────
+  // Justins Regel: Wer kündigt, zahlt die laufende Rate noch; damit endet der
+  // Vertrag. Der Ton ist sachlich und ohne Vorwurf — und die Tür bleibt offen,
+  // ohne zu drängeln (ein Gesprächsangebot, kein zweiter Verkaufsversuch).
+  kuendigung_bestaetigt: {
+    betreff: "Ihre Kündigung ist eingegangen",
+    preheader: "Was jetzt noch offen ist — und was nicht mehr kommt.",
+    titel: "Wir haben Ihre Kündigung erhalten",
+    marke: "Vertragspost",
+    absaetze: [
+      "Guten Tag {{params.vorname}}, wir bestätigen Ihre Kündigung. Ab sofort legen wir keine weiteren Monatsraten an, und Sie bekommen von uns keine Angebote mehr.",
+      "Offen ist noch Ihre laufende Rate {{params.rate_nr}} über <b>{{params.betrag}} €</b>. Sobald sie bei uns eingeht, ist der Vertrag beendet — Sie erhalten darüber eine kurze Bestätigung.",
+      "Wenn etwas schiefgelaufen ist oder Sie es sich anders überlegen: Antworten Sie einfach auf diese E-Mail. Ihre Kündigung lässt sich zurücknehmen, solange der Vertrag noch läuft.",
+    ],
+    daten: [
+      { label: "Letzte Rate", wert: "{{params.rate_nr}}" },
+      { label: "Betrag", wert: "{{params.betrag}} €" },
+      { label: "Fällig am", wert: "{{params.faellig_am_text}}" },
+      { label: "Verwendungszweck", wert: "{{params.verwendungszweck}}" },
+    ],
+    knopf: { text: "Rate bezahlen — QR-Code & Bankdaten", url: "https://fiaon.com/zahlung/{{params.verwendungszweck}}" },
+    fussnote: "Ihre Unterlagen und Schreiben bleiben nach Vertragsende 90 Tage in Ihrem Bereich einsehbar.",
+  },
+
+  vertrag_beendet: {
+    betreff: "Ihr Vertrag ist beendet — danke für die Zeit",
+    preheader: "Die letzte Rate ist da. Damit ist alles erledigt.",
+    titel: "Damit ist alles erledigt",
+    marke: "Vertragspost",
+    absaetze: [
+      "Guten Tag {{params.vorname}}, Ihre letzte Rate ist bei uns eingegangen. Ihr Vertrag ist damit beendet, es steht nichts mehr offen.",
+      "Ihre Unterlagen, Auswertungen und die Schreiben, die wir für Sie verschickt haben, bleiben 90 Tage in Ihrem Bereich einsehbar. Laden Sie herunter, was Sie behalten möchten.",
+      "Falls Sie später wieder an Ihrer Bonität arbeiten wollen, sind Sie jederzeit willkommen — Ihre Akte müssen Sie dann nicht neu aufbauen.",
+    ],
+    knopf: { text: "Zu meinen Unterlagen", url: "{{params.portal_url}}" },
+    fussnote: "Diese Nachricht ist keine Werbung, sondern der Abschluss Ihres Vertrags.",
+  },
+
   abo_verlaengerung_frage: {
     betreff: "Wie soll es weitergehen, {{params.vorname}}?",
     preheader: "Ihr Jahr ist fast um — eine kurze Entscheidung von Ihnen.",

@@ -58,6 +58,20 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     example: { ...CUSTOMER_EXAMPLE, invoice_url: INVOICE_URL_EXAMPLE },
   },
   {
+    type: "kuendigung_bestaetigt",
+    label: "Kündigung bestätigt (letzte Rate offen)",
+    description: "E-092: Bestätigt die Kündigung und nennt die letzte, noch offene Rate mit Zahlungsseite. Pflichtmail (Vertragspost), einmalig je Bestellung.",
+    customerBound: true,
+    example: { ...CUSTOMER_EXAMPLE, rate_nr: "3", faellig_am_text: "15.09.2026" },
+  },
+  {
+    type: "vertrag_beendet",
+    label: "Vertrag beendet (letzte Rate bezahlt)",
+    description: "E-092: Die letzte Rate ist eingegangen, der Vertrag ist aus. Unterlagen bleiben 90 Tage einsehbar. Pflichtmail, ausgelöst im Buchungsweg.",
+    customerBound: true,
+    example: { ...CUSTOMER_EXAMPLE, rate_nr: "3" },
+  },
+  {
     type: "bankverbindung_neu",
     label: "Neue Bankverbindung (Kontowechsel)",
     description: "NOTFALL 02.09.2026: Wise-Konto gesperrt. Geht einmalig an jede Adresse, die in den letzten 24 h Bankdaten bekam — Verwendungszweck bleibt. Auslöser: POST /admin/bankwechsel/informieren. Pflichtmail (Frequenzbremse greift nicht).",

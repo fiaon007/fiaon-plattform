@@ -59,6 +59,8 @@ export const PFLICHTMAILS = new Set<string>([
   "welcome",                 // Antwort auf den abgeschickten Antrag.
   "payment_details",         // Die Zahlungsdaten zum eben abgeschlossenen Antrag.
   "bankverbindung_neu",      // 02.09.2026: Kontowechsel — wer die alte IBAN hat, MUSS die neue bekommen.
+  "kuendigung_bestaetigt",   // Vertragspost: Eingang der Kündigung und was noch offen ist.
+  "vertrag_beendet",         // Vertragspost: der Vertrag ist beendet.
   "termin_bestaetigung",
   "termin_erinnerung",
   "termin_absage",

@@ -1,106 +1,83 @@
-// /partner — Geschäftspartner: Banken, Kartenherausgeber, Auskunfteien, Inkasso, Vermittler.
+// /partner · /en/partners — Geschäftspartner: Banken, Kartenherausgeber, Auskunfteien, Inkasso, Vermittler.
+// Zweisprachig 03.09.2026, Texte: client/src/i18n/partner.ts. Wortverbot „Affiliate" beachtet.
 import { Dunkel, Hero, Block, Karten, Kennzahlen, Schritte, Glas, Fragen, Zwischenruf, Abschluss, Anfrage, Knopf, Auf } from "@/components/site/DunkleBuehne";
+import SeoDaten from "@/components/site/SeoDaten";
 import KartenSzene from "@/components/home3d/KartenSzene";
+import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
+import { PARTNER_WOERTER } from "@/i18n/partner";
 
 export default function Partner() {
+  const t = useWoerter(PARTNER_WOERTER);
+  const sprache = useSprache();
+  const en = sprache === "en";
+  const zu = (p: string) => inSprache(p, sprache);
+  const pfad = en ? "/en/partners" : "/partner";
   return (
-    <Dunkel seite="partner" titel="Geschäftspartner" beschreibung="Banken, Kartenherausgeber, Auskunfteien, Inkasso und Vermittler: FIAON bringt Kunden mit reparierter, dokumentierter Bonität – und die Einwilligung gleich mit.">
+    <Dunkel seite="partner" titel={t.metaTitel} beschreibung={t.metaBeschreibung}>
+      <SeoDaten pfad={pfad} titel={t.metaTitel} beschreibung={t.metaBeschreibung} fragen={t.fragen} krumen={[{ name: t.krume, pfad }]} />
       <Hero
         bild="/kino/partner.jpg"
-        pille="Geschäftspartner"
-        titel={<>Kunden, deren Bonität repariert ist, sind die <span className="dk-verlauf">besten Kunden.</span></>}
-        lead="FIAON bringt Ihnen keinen Antrag, sondern eine Akte: bereinigte Einträge, dokumentierter Spielraum aus dem Kontoauszug, eine Zahlungshistorie aus zwölf Raten – und die Einwilligung des Kunden, Ihnen genau das zu zeigen."
-        knoepfe={<><Knopf href="#anfrage">Partner werden</Knopf><Knopf href="#fuer-wen" still>Für wen das passt</Knopf></>}
+        pille={t.pille}
+        titel={<>{t.h1a}<span className="dk-verlauf">{t.h1b}</span></>}
+        lead={t.lead}
+        knoepfe={<><Knopf href="#anfrage">{t.partnerWerden}</Knopf><Knopf href="#fuer-wen" still>{t.fuerWen}</Knopf></>}
         szene={<KartenSzene anzahl={2} className="absolute inset-0" />}
       />
 
       <Block eng>
-        <Kennzahlen items={[
-          { wert: "3", label: "Datenquellen je Kunde: Auskunft, Kontoauszug, Zahlungshistorie der Raten" },
-          { wert: "12", label: "Raten per SEPA-Lastschrift, bevor ein Kunde die Tür zur Karte erreicht – jede dokumentiert" },
-          { wert: "100 %", label: "der Kunden beginnen mit einem Startgespräch – kein anonymer Antrag" },
-          { wert: "DACH", label: "Deutschland, Österreich, Schweiz – mit SCHUFA, KSV und CRIF" },
-        ]} />
+        <Kennzahlen items={t.kennzahlen} />
       </Block>
 
-      <Block id="fuer-wen" pille="Für wen" titel={<>Vier Partner. <span className="dk-verlauf">Eine Akte.</span></>}>
-        <Karten items={[
-          { tag: "Banken und Kartenherausgeber", titel: "Neukunden mit Geschichte statt Antrag.", text: "Sie sehen bereinigte Einträge, den monatlichen Spielraum und zwölf pünktliche Raten – mit Einwilligung. Girokonto für jeden Kunden, Kreditkarte bei guter Bonität, Finanzierung später." },
-          { tag: "Auskunfteien", titel: "Weniger Streit, saubere Daten.", text: "FIAON stellt Anfragen strukturiert und in einem Format, das Sie verarbeiten können. Löschanträge kommen geprüft und vollständig – für Deutschland, Österreich und die Schweiz." },
-          { tag: "Inkasso und Gläubiger", titel: "Ratenvereinbarungen, die halten.", text: "Vorschläge, die zum Spielraum des Kunden passen – aus seinem Kontoauszug abgeleitet. Antwort-Tracking auf beiden Seiten, Erinnerungen an jede Frist." },
-          { tag: "Vermittler und Affiliates", titel: "Provision je Abschluss.", text: "Sie bringen Kunden, FIAON begleitet sie bis zur Karte. Vergütung je Abschluss und je eingezogener Rate – transparent in Ihrem Bereich, festgelegt von der Vertriebsleitung." },
-        ]} zwei />
+      <Block id="fuer-wen" pille={t.wenPille} titel={<>{t.wenA}<span className="dk-verlauf">{t.wenB}</span></>}>
+        <Karten items={t.wen} zwei />
       </Block>
 
-      <Block pille="Der Kundenweg" titel={<>Was passiert, bevor ein Kunde <span className="dk-verlauf">bei Ihnen ankommt.</span></>}
-             lead="Drei Etappen, jede dokumentiert. Am Ende steht ein Kunde, der weiß, was über ihn gespeichert ist – und es geändert hat.">
-        <Schritte items={[
-          { titel: "Einsicht", text: "FIAON beantragt die Auskunft und analysiert den Kontoauszug. Der Kunde sieht Einträge, Einnahmen, Fixkosten und Spielraum – erklärt." },
-          { titel: "Aktion", text: "Erledigte und falsche Einträge werden per anwaltlich geprüftem Schreiben angegriffen, offene Forderungen in Raten umgewandelt. Jede Antwort wird erfasst." },
-          { titel: "Zugang", text: "Mit bereinigter Akte und dokumentierter Zahlungshistorie wird der Kunde Ihnen vorgestellt – mit seiner Einwilligung und allen Unterlagen." },
-        ]} />
+      <Block pille={t.wegPille} titel={<>{t.wegA}<span className="dk-verlauf">{t.wegB}</span></>} lead={t.wegLead}>
+        <Schritte items={t.weg} />
       </Block>
 
-      <Zwischenruf text="Sie sind Bank oder Kartenherausgeber und möchten die Akte sehen, wie der Kunde sie sieht?" knopf="Gespräch anfragen" href="#anfrage" still={{ knopf: "Kundenweg ansehen", href: "/" }} />
+      <Zwischenruf text={t.zwischenruf} knopf={t.gespraech} href="#anfrage" still={{ knopf: t.kundenweg, href: zu("/") }} />
 
-      <Block pille="Was Sie erhalten" titel={<>Mehr als einen <span className="dk-verlauf">Lead.</span></>}>
-        <Karten items={[
-          { tag: "Bonität", titel: "Dokumentiert statt behauptet", text: "Die Auskunft nach der Bereinigung – mit den Antworten der Auskunfteien als Beleg." },
-          { tag: "Spielraum", titel: "Aus dem Kontoauszug", text: "Einnahmen, Fixkosten, Abos, Spielraum: aus den letzten Monaten gelesen, nicht aus einem Formular abgetippt." },
-          { tag: "Zahlungshistorie", titel: "Zwölf Raten als Beweis", text: "Jede SEPA-Rate, jeder Einzug, jede Reaktion. Ein Kunde, der zwölf Monate pünktlich zahlt, hat es bewiesen." },
-          { tag: "Einwilligung", titel: "DSGVO-sauber", text: "Der Kunde entscheidet, wem FIAON seine Akte zeigt. Die Einwilligung wird protokolliert und kann widerrufen werden." },
-        ]} zwei />
+      <Block pille={t.erhaltenPille} titel={<>{t.erhaltenA}<span className="dk-verlauf">{t.erhaltenB}</span></>}>
+        <Karten items={t.erhalten} zwei />
       </Block>
 
-      <Block pille="Zusammenarbeit" titel={<>In vier Schritten zum <span className="dk-verlauf">Pilot.</span></>}>
-        <Schritte items={[
-          { titel: "Anfrage", text: "Sie nennen uns Ihr Haus, Ihre Rolle und Ihr Ziel. Antwort innerhalb von zwei Werktagen." },
-          { titel: "Gespräch", text: "Wir zeigen die Akte, den Kundenweg und die Einwilligung – mit der Plattform auf dem Bildschirm." },
-          { titel: "Pilot", text: "Eine begrenzte Zahl Kunden, klar definierte Kriterien, gemeinsame Auswertung nach 90 Tagen." },
-          { titel: "Anbindung", text: "Schnittstelle oder strukturierte Übergabe, Vergütungsregel, Reporting. Dann skalieren wir gemeinsam." },
-        ]} />
+      <Block pille={t.zusammenPille} titel={<>{t.zusammenA}<span className="dk-verlauf">{t.zusammenB}</span></>}>
+        <Schritte items={t.zusammen} />
       </Block>
 
-      <Block pille="Für Vermittler" titel={<>Provision, die <span className="dk-verlauf">nachvollziehbar</span> ist.</>} schmal>
+      <Block pille={t.vermittlerPille} titel={<>{t.vermittlerA}<span className="dk-verlauf">{t.vermittlerB}</span>{t.vermittlerC}</>} schmal>
         <Auf>
           <Glas ruhig>
             <ul className="dk-liste" style={{ marginTop: 0 }}>
-              <li>Vergütung je Abschluss und je eingezogener Rate – sichtbar in Ihrem Bereich, Monat für Monat.</li>
-              <li>Die Vertriebsleitung legt die Provisionsregel fest und kann sie je Kunde begründet anpassen – jede Änderung wird protokolliert.</li>
-              <li>Keine Provision auf eigene Abos, keine Provision auf stornierte Pakete. Ehrlich, weil es sonst nicht hält.</li>
-              <li>Wer Kunden nicht nur bringen, sondern begleiten möchte: Die Academy steht Ihnen offen – danach auch das Agentenportal.</li>
+              {t.vermittler.map((x) => <li key={x}>{x}</li>)}
             </ul>
-            <div className="dk-knoepfe" style={{ marginTop: 24 }}><Knopf href="/karriere" still>Als Einzelperson mitarbeiten</Knopf></div>
+            <div className="dk-knoepfe" style={{ marginTop: 24 }}><Knopf href={zu("/karriere")} still>{t.einzelperson}</Knopf></div>
           </Glas>
         </Auf>
       </Block>
 
-      <Block id="anfrage" pille="Kontakt" titel={<>Partner <span className="dk-verlauf">werden.</span></>}
-             lead="Schreiben Sie uns, wer Sie sind und was Sie suchen. Ein Mensch antwortet innerhalb von zwei Werktagen." schmal>
-        <Anfrage art="partner" knopf="Anfrage senden" hinweis="Oder direkt: partner@fiaon.com"
+      <Block id="anfrage" pille={t.anfragePille} titel={<>{t.anfrageA}<span className="dk-verlauf">{t.anfrageB}</span></>} lead={t.anfrageLead} schmal>
+        <Anfrage art="partner" knopf={t.anfrageKnopf} hinweis={t.anfrageHinweis}
                  felder={[
-                   { name: "name", label: "Ihr Name", pflicht: true },
-                   { name: "firma", label: "Unternehmen", pflicht: true },
-                   { name: "email", label: "E-Mail", typ: "email", pflicht: true },
-                   { name: "telefon", label: "Telefon", typ: "tel" },
-                   { name: "rolle", label: "Sie sind", pflicht: true, optionen: ["Bank / Kartenherausgeber", "Auskunftei", "Inkasso / Gläubiger", "Vermittler / Affiliate", "Sonstiges"] },
-                   { name: "land", label: "Land", optionen: ["Deutschland", "Österreich", "Schweiz", "Mehrere"] },
-                   { name: "text", label: "Ihr Ziel", typ: "textarea", breit: true },
+                   { name: "name", label: t.felder.name, pflicht: true },
+                   { name: "firma", label: t.felder.firma, pflicht: true },
+                   { name: "email", label: t.felder.email, typ: "email", pflicht: true },
+                   { name: "telefon", label: t.felder.telefon, typ: "tel" },
+                   { name: "rolle", label: t.felder.rolle, pflicht: true, optionen: t.rollen },
+                   { name: "land", label: t.felder.land, optionen: t.laender },
+                   { name: "text", label: t.felder.text, typ: "textarea", breit: true },
                  ]} />
       </Block>
 
-      <Block eng schmal pille="Häufige Fragen">
-        <Fragen items={[
-          { f: "Bekomme ich Daten ohne Einwilligung des Kunden?", a: "Nein. Der Kunde entscheidet, wem FIAON seine Akte zeigt. Die Einwilligung wird protokolliert und kann jederzeit widerrufen werden." },
-          { f: "Entscheidet FIAON über Konto oder Karte?", a: "Nein. FIAON bereitet vor und dokumentiert. Über Konto, Karte und Rahmen entscheiden Sie – nach Ihren Kriterien." },
-          { f: "Wie wird die Vergütung geregelt?", a: "Je Abschluss, auf Wunsch je eingezogener Rate. Die Regel steht im Vertrag, jede Abrechnung ist in der Plattform nachvollziehbar." },
-        ]} />
+      <Block eng schmal pille={t.fragenPille}>
+        <Fragen items={t.fragen} />
       </Block>
 
       <Abschluss
-        titel={<>Ein Kunde, dessen Bonität repariert ist, sucht ein Konto. Die Frage ist nur, <span className="dk-verlauf">bei wem.</span></>}
-        text="Einsicht und Aktion leistet FIAON. Den Zugang öffnen Partner. Wer früh dabei ist, bekommt die Kunden, die zwölf Monate lang bewiesen haben, dass sie es wert sind."
-        knoepfe={<><Knopf href="#anfrage">Partner werden</Knopf><Knopf href="/investoren" still>Für Investoren</Knopf></>}
+        titel={<>{t.abschlussA}<span className="dk-verlauf">{t.abschlussB}</span></>}
+        text={t.abschlussText}
+        knoepfe={<><Knopf href="#anfrage">{t.partnerWerden}</Knopf><Knopf href="/investoren" still>{t.investoren}</Knopf></>}
       />
     </Dunkel>
   );

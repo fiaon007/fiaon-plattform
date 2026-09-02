@@ -1,0 +1,68 @@
+// /status · /en/status — Wörterbuch (03.09.2026). Generator teilt an „const en".
+const de = {
+  metaTitel: "Status · Verfügbarkeit und Sicherheit",
+  metaBeschreibung: "Läuft FIAON gerade? Live-Prüfung der Plattform, Datenstandort Frankfurt, Verschlüsselung, Regeln für Wartung und die Liste bekannter Störungen – ehrlich und prüfbar.",
+  seoTitel: "FIAON Status: Verfügbarkeit, Datenstandort, Störungen", seoBeschreibung: "Läuft FIAON gerade? Live-Prüfung der Plattform, Datenstandort Frankfurt, Verschlüsselung, Regeln für Wartung und die Liste bekannter Störungen – prüfbar.",
+  krume: "Status", pille: "Status · live geprüft", h1a: "Läuft FIAON ", h1b: "gerade?",
+  lead: "Diese Seite fragt die Plattform beim Öffnen selbst – und sagt Ihnen, wo Ihre Daten liegen, wie sie geschützt sind und was zuletzt nicht funktioniert hat. Keine Marketingzahlen, nur Prüfbares.",
+  datenstandort: "Datenstandort und Schutz", sicherheitDetail: "Sicherheit im Detail",
+  prueft: "Prüfung läuft …", ok: "Alle Systeme antworten.", gestoert: "Die Plattform antwortet gerade nicht.",
+  antwortIn: (ms: number, zeit: string) => `Antwort des Gesundheitspfads in ${ms} ms · geprüft ${zeit}`, geprueftGestoert: (zeit: string) => `Geprüft ${zeit}. Bitte in einigen Minuten erneut laden – oder Support +41 44 244 93 01.`, fragtAb: "Ihr Browser fragt /healthz ab.",
+  schutzA: "Datenstandort und ", schutzB: "Schutz.", schutzLead: "Was sich nachprüfen lässt, steht hier – mit Datum.",
+  zeilen: [
+    ["Datenstandort", "Frankfurt am Main, EU-Region – Anwendung und Datenbank; Umzug aus den USA abgeschlossen am 24.08.2026"],
+    ["Übertragung", "TLS-verschlüsselt (HTTPS erzwungen, www leitet um)"],
+    ["Speicherung", "verschlüsselt; Unterlagen als Datei in der Datenbank, nicht im offenen Dateisystem"],
+    ["Zugriff", "nur der zuständige Ansprechpartner und die Betreiber; jede Aktion protokolliert"],
+    ["Zahlungen", "SEPA-Lastschrift über einen verifizierten Kreditor; keine Kartendaten bei FIAON"],
+    ["Deploys", "unterbrechungsfrei über Gesundheitspfad; nicht in Telefonzeiten; Praxistest gegen die echte Datenbank vor jedem Deploy"],
+    ["Löschung", "auf Wunsch nach Vertragsende vollständig (Art. 17 DSGVO), Bestätigung binnen 30 Tagen"],
+  ] as [string, string][],
+  stoerungenA: "Bekannte Störungen – ", stoerungenB: "ehrlich geführt.", stoerungenLead: "Was nicht funktioniert hat, steht hier, mit Ursache und Konsequenz. Leer heißt: keine bekannt.", keine: "Keine bekannten Störungen.",
+  stoerungen: [
+    { datum: "27.08.2026", titel: "Kundenbereich nach Anmeldung nicht erreichbar", text: "Eine Datenbankabfrage im Kundenbereich schlug fehl; die Anmeldung wirkte kaputt. Ursache behoben, seither Praxistest gegen die echte Datenbank vor jedem Deploy und ein Gesundheitspfad für unterbrechungsfreies Umschalten.", dauer: "rund 12 Stunden" },
+  ],
+  kennzahlen: [{ wert: "EU", label: "Frankfurt am Main" }, { wert: "24 h", label: "Vorlauf bei Wartung mit Ausfall" }, { wert: "0", label: "gespeicherte Kartendaten" }, { wert: "30 Tage", label: "bis zur Löschbestätigung" }],
+  fragenTitel: "Häufige Fragen zum Status",
+  fragen: [
+    { f: "Wo liegen meine Daten?", a: "Auf Servern in Frankfurt am Main (EU) bei einem Hosting-Anbieter mit europäischer Region; die Datenbank liegt in derselben Region. Der Umzug aus einer US-Region nach Frankfurt wurde am 24.08.2026 abgeschlossen. Sicherungen liegen ebenfalls in der EU." },
+    { f: "Wie sind die Daten geschützt?", a: "Verschlüsselte Übertragung (TLS), verschlüsselte Speicherung, Zugriff nur für den Ansprechpartner, der Ihre Akte führt, und die Betreiber. Hochgeladene Unterlagen werden beim Hochladen geprüft. Zahlungen laufen per SEPA über einen verifizierten Kreditor – FIAON speichert keine Kartendaten." },
+    { f: "Was bedeutet der grüne Punkt oben?", a: "Ihr Browser hat gerade den Gesundheitspfad der Plattform abgefragt und eine Antwort bekommen. Denselben Pfad nutzt unser Hosting, um eine neue Version erst dann Verkehr zu geben, wenn sie antwortet – Deploys laufen dadurch ohne Unterbrechung." },
+    { f: "Wann wird gewartet?", a: "Deploys erfolgen mehrmals wöchentlich ohne Unterbrechung. Wartung mit Ausfall kündigen wir hier und im Kundenbereich mindestens 24 Stunden vorher an und legen sie nicht in die Telefonzeiten des Teams." },
+    { f: "Wen erreiche ich bei einer Störung?", a: "Support +41 44 244 93 01 oder support@fiaon.com. Kunden nutzen zusätzlich „Dringend melden“ auf der Kontaktseite – die Meldung landet direkt bei der Geschäftsführung." },
+  ],
+};
+const en: typeof de = {
+  metaTitel: "Status · availability and security",
+  metaBeschreibung: "Is FIAON up right now? Live check of the platform, data location Frankfurt, encryption, maintenance rules and the list of known incidents – honest and verifiable.",
+  seoTitel: "FIAON status: availability, data location, incidents", seoBeschreibung: "Is FIAON up right now? Live check of the platform, data location Frankfurt, encryption, maintenance rules and the list of known incidents – verifiable.",
+  krume: "Status", pille: "Status · checked live", h1a: "Is FIAON up ", h1b: "right now?",
+  lead: "This page queries the platform itself when it opens – and tells you where your data is, how it is protected and what last failed. No marketing figures, only what can be verified.",
+  datenstandort: "Data location and protection", sicherheitDetail: "Security in detail",
+  prueft: "Checking …", ok: "All systems are responding.", gestoert: "The platform is not responding right now.",
+  antwortIn: (ms, zeit) => `Health endpoint responded in ${ms} ms · checked ${zeit}`, geprueftGestoert: (zeit) => `Checked ${zeit}. Please reload in a few minutes – or call support on +41 44 244 93 01.`, fragtAb: "Your browser is querying /healthz.",
+  schutzA: "Data location and ", schutzB: "protection.", schutzLead: "What can be verified is listed here – with dates.",
+  zeilen: [
+    ["Data location", "Frankfurt am Main, EU region – application and database; move from the US completed on 24 August 2026"],
+    ["Transfer", "TLS-encrypted (HTTPS enforced, www redirects)"],
+    ["Storage", "encrypted; documents as files in the database, not in the open file system"],
+    ["Access", "only the responsible contact and the operators; every action logged"],
+    ["Payments", "SEPA direct debit via a verified creditor; no card data at FIAON"],
+    ["Deploys", "without interruption via the health endpoint; not during phone hours; practical test against the live database before every deploy"],
+    ["Deletion", "complete on request after the contract ends (Article 17 GDPR), confirmation within 30 days"],
+  ],
+  stoerungenA: "Known incidents – ", stoerungenB: "kept honestly.", stoerungenLead: "What did not work is listed here, with cause and consequence. Empty means: none known.", keine: "No known incidents.",
+  stoerungen: [
+    { datum: "27 August 2026", titel: "Customer area unreachable after login", text: "A database query in the customer area failed; the login appeared broken. Cause fixed; since then a practical test against the live database before every deploy and a health endpoint for uninterrupted switching.", dauer: "around 12 hours" },
+  ],
+  kennzahlen: [{ wert: "EU", label: "Frankfurt am Main" }, { wert: "24 h", label: "notice for maintenance with downtime" }, { wert: "0", label: "card details stored" }, { wert: "30 days", label: "until deletion confirmation" }],
+  fragenTitel: "Frequently asked questions about status",
+  fragen: [
+    { f: "Where is my data?", a: "On servers in Frankfurt am Main (EU) with a hosting provider in a European region; the database is in the same region. The move from a US region to Frankfurt was completed on 24 August 2026. Backups are also in the EU." },
+    { f: "How is the data protected?", a: "Encrypted transfer (TLS), encrypted storage, access only for the contact who manages your file and the operators. Uploaded documents are checked on upload. Payments run via SEPA through a verified creditor – FIAON stores no card details." },
+    { f: "What does the green dot at the top mean?", a: "Your browser has just queried the platform's health endpoint and received a reply. Our hosting uses the same endpoint to route traffic to a new version only once it responds – so deploys run without interruption." },
+    { f: "When is maintenance done?", a: "Deploys happen several times a week without interruption. Maintenance with downtime is announced here and in the customer area at least 24 hours in advance and is not scheduled during the team's phone hours." },
+    { f: "Who do I reach in an incident?", a: "Support on +41 44 244 93 01 or support@fiaon.com. Customers can also use “Report urgently” on the contact page – the report goes straight to the management." },
+  ],
+};
+export const STATUS_WOERTER = { de, en };

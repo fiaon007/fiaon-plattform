@@ -40,7 +40,9 @@ export default function Inkassokosten() {
     const satz = lage === "erstes" ? 0.5 : 0.9;
     let geb = Math.round(gebuehr10(h) * satz * 100) / 100;
     let deckel = "";
-    if (h <= 50 && geb > 30) { geb = 30; deckel = t.deckel; }
+    // § 13e Abs. 1 RDG: Bei Hauptforderungen bis 50 Euro ist höchstens eine 0,5-Geschäftsgebühr
+    // erstattungsfähig (24,50 Euro nach Tabelle), außer die Sache ist besonders umfangreich.
+    if (h <= 50) { const max = Math.round(gebuehr10(h) * 0.5 * 100) / 100; if (geb > max) { geb = max; deckel = t.deckel; } }
     const ausl = Math.min(20, Math.round(geb * 0.2 * 100) / 100);
     const gef = zahl(kosten) + zahl(auslagen) + zahl(sonst);
     const zul = geb + ausl;

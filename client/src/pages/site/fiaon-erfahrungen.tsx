@@ -39,11 +39,11 @@ import SeoDaten from "@/components/site/SeoDaten";
 import KartenAufruf from "@/components/site/KartenAufruf";
 import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
 import { ERFAHRUNGEN_WOERTER } from "@/i18n/fiaon-erfahrungen";
+import { useKennzahlen } from "@/lib/kennzahlen-oeffentlich";
 import "@/styles/ratgeber.css";
 import "@/styles/seo-seiten.css";
 
-// ── Bankbestätigte Zahlen, Stand 02.09.2026 (siehe Kopfkommentar). ────────────
-const ZAHLEN = ["440+", "450", "3", "20"]; // 443 zahlende Kunden (abgerundet), bezahlte Raten, Länder, Werkzeuge
+// ── Zahlen live aus GET /api/fiaon/oeffentlich/kennzahlen, Rückfall Stand-Werte (siehe lib). ──
 
 export default function FiaonErfahrungen() {
   const t = useWoerter(ERFAHRUNGEN_WOERTER);
@@ -51,6 +51,8 @@ export default function FiaonErfahrungen() {
   const en = sprache === "en";
   const zu = (p: string) => inSprache(p, sprache);
   const pfad = en ? "/en/how-fiaon-works" : "/fiaon-erfahrungen";
+  const k = useKennzahlen();
+  const ZAHLEN = [`${k.kunden}+`, String(k.raten), "3", String(k.werkzeuge)];
   const CHECK = t.checks;
   const [antworten, setAntworten] = useState<Record<string, "ja" | "nein">>({});
   const ergebnis = useMemo(() => {

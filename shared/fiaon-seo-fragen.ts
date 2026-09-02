@@ -9,7 +9,7 @@
 // Neu erzeugen:   npx tsx scripts/seo-fragen-erzeugen.ts
 // Nur prüfen:     npx tsx scripts/seo-fragen-erzeugen.ts --pruefen
 //
-// Seiten: / (6), /was-ist-fiaon (6), /en/what-is-fiaon (6), /privatkunden (8), /en/personal (8), /business (5), /en/business (5), /preise (6), /en/pricing (6), /en (4), /kreditkarte (5), /en/credit-card (5), /oesterreich (5), /en/austria (5), /schweiz (5), /en/switzerland (5), /sicherheit (11), /en/security (11), /kontakt (5), /en/contact (5), /karriere (5), /partner (3), /presse (3), /investoren (4), /datenraum (3), /fiaon-erfahrungen (8), /en/how-fiaon-works (8), /termin (6), /en/book-a-call (6), /vergleich (5), /en/compare (5), /hilfe (36), /en/help (36), /ueber-uns (5), /en/about (5), /transparenz (4), /en/transparency (4), /status (5), /kredit-ohne-schufa (6), /en/loans-without-schufa (6), /bonitaet-verbessern (6), /en/strengthen-your-credit-file (6), /auskunfteien (5), /en/credit-bureaus (5), /schufa-score-verstehen (6), /en/schufa-score (6), /bonitaetsauskunft-beantragen (7), /en/request-your-credit-report (7), /inkasso-brief-erhalten (6), /en/debt-collection-letter (6), /eintrag-verjaehrung (6), /en/entries-and-limitation (6), /girokonto-trotz-negativer-bonitaet (7), /en/current-account-despite-poor-credit (7), /ratenzahlung-und-bonitaet (6), /en/instalments-and-credit-file (6), /selbstauskunft-checkliste (6), /en/reading-your-credit-report (6), /schufa-neutral-anfragen (6), /en/schufa-neutral-enquiries (6), /schufa-eintrag-loeschen (5), /en/delete-a-schufa-entry (5), /plattform-konzept (5), /en/how-the-platform-works (5), /werkzeuge/basiskonto (5), /en/tools/basic-account (5), /werkzeuge/kartenkosten (5), /en/tools/card-costs (5), /werkzeuge/schuldenplan (5), /en/tools/debt-free-plan (5), /werkzeuge/dispo-rechner (5), /en/tools/overdraft-calculator (5), /werkzeuge/pfaendungsrechner (5), /en/tools/attachment-calculator (5), /werkzeuge/widerspruch (5), /en/tools/deletion-request (5), /werkzeuge/mahnbescheid (5), /en/tools/court-payment-order (5), /werkzeuge/inkasso-antwort (5), /en/tools/reply-to-debt-collector (5), /werkzeuge/mahngebuehren (5), /en/tools/reminder-fees (5), /werkzeuge/ratenplan (5), /en/tools/instalment-plan (5), /werkzeuge (4), /en/tools (4), /werkzeuge/kreditrechner (5), /en/tools/loan-calculator (5), /werkzeuge/umschuldung (5), /en/tools/debt-consolidation (5), /werkzeuge/schulden-check (5), /en/tools/debt-check (5)
+// Seiten: / (6), /was-ist-fiaon (6), /en/what-is-fiaon (6), /privatkunden (8), /en/personal (8), /business (5), /en/business (5), /preise (6), /en/pricing (6), /en (4), /kreditkarte (5), /en/credit-card (5), /oesterreich (5), /en/austria (5), /schweiz (5), /en/switzerland (5), /sicherheit (11), /en/security (11), /kontakt (5), /en/contact (5), /investoren (4), /datenraum (3), /fiaon-erfahrungen (8), /en/how-fiaon-works (8), /termin (6), /en/book-a-call (6), /vergleich (5), /en/compare (5), /hilfe (36), /en/help (36), /ueber-uns (5), /en/about (5), /transparenz (4), /en/transparency (4), /kredit-ohne-schufa (6), /en/loans-without-schufa (6), /bonitaet-verbessern (6), /en/strengthen-your-credit-file (6), /auskunfteien (5), /en/credit-bureaus (5), /schufa-score-verstehen (6), /en/schufa-score (6), /bonitaetsauskunft-beantragen (7), /en/request-your-credit-report (7), /inkasso-brief-erhalten (6), /en/debt-collection-letter (6), /eintrag-verjaehrung (6), /en/entries-and-limitation (6), /girokonto-trotz-negativer-bonitaet (7), /en/current-account-despite-poor-credit (7), /ratenzahlung-und-bonitaet (6), /en/instalments-and-credit-file (6), /selbstauskunft-checkliste (6), /en/reading-your-credit-report (6), /schufa-neutral-anfragen (6), /en/schufa-neutral-enquiries (6), /schufa-eintrag-loeschen (5), /en/delete-a-schufa-entry (5), /plattform-konzept (5), /en/how-the-platform-works (5), /werkzeuge/basiskonto (5), /en/tools/basic-account (5), /werkzeuge/kartenkosten (5), /en/tools/card-costs (5), /werkzeuge/schuldenplan (5), /en/tools/debt-free-plan (5), /werkzeuge/dispo-rechner (5), /en/tools/overdraft-calculator (5), /werkzeuge/pfaendungsrechner (5), /en/tools/attachment-calculator (5), /werkzeuge/widerspruch (5), /en/tools/deletion-request (5), /werkzeuge/mahnbescheid (5), /en/tools/court-payment-order (5), /werkzeuge/inkasso-antwort (5), /en/tools/reply-to-debt-collector (5), /werkzeuge/mahngebuehren (5), /en/tools/reminder-fees (5), /werkzeuge/ratenplan (5), /en/tools/instalment-plan (5), /werkzeuge (4), /en/tools (4), /status (5), /en/status (5), /karriere (5), /en/careers (5), /partner (3), /en/partners (3), /presse (3), /en/press (3), /werkzeuge/kreditrechner (5), /en/tools/loan-calculator (5), /werkzeuge/umschuldung (5), /en/tools/debt-consolidation (5), /werkzeuge/schulden-check (5), /en/tools/debt-check (5)
 // ═══════════════════════════════════════════════════════════════════════════
 export type SeoFrage = { f: string; a: string };
 
@@ -540,56 +540,6 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     {
       "f": "Where do I send post, invoices or legal letters?",
       "a": "FIAON LTD, 128 City Road, London, EC1V 2NX, United Kingdom. Legally relevant post please additionally as a photo by e-mail — that saves days."
-    }
-  ],
-  "/karriere": [
-    {
-      "f": "Stellt FIAON fest an oder nur auf Provision?",
-      "a": "Beides. Festanstellungen in allen Bereichen, freie Mitarbeit vor allem im Vertrieb, Onboarding und Forderungsmanagement, Werkstudenten in Marketing, Technik, Onboarding und Operations."
-    },
-    {
-      "f": "Wo arbeite ich?",
-      "a": "Überwiegend remote in Deutschland, Österreich oder der Schweiz. Treffen finden in Zürich statt; Recht und Operations teils vor Ort."
-    },
-    {
-      "f": "Brauche ich Erfahrung?",
-      "a": "Je nach Bereich. Im Vertrieb und Onboarding bringt die Academy Ihnen alles bei; in Technik, Recht und Operations erwarten wir Erfahrung. Sagen Sie uns ehrlich, wo Sie stehen."
-    },
-    {
-      "f": "Wie läuft das Gespräch?",
-      "a": "Ein Videogespräch mit Florentine oder Daniel, 30 Minuten, ohne Fangfragen. Danach ein Probetag oder eine Probeaufgabe – und eine Entscheidung innerhalb einer Woche."
-    },
-    {
-      "f": "Wann kann ich anfangen?",
-      "a": "Sobald es passt. Wir wachsen schnell und brauchen immer Unterstützung – ein Start ist jederzeit möglich."
-    }
-  ],
-  "/partner": [
-    {
-      "f": "Bekomme ich Daten ohne Einwilligung des Kunden?",
-      "a": "Nein. Der Kunde entscheidet, wem FIAON seine Akte zeigt. Die Einwilligung wird protokolliert und kann jederzeit widerrufen werden."
-    },
-    {
-      "f": "Entscheidet FIAON über Konto oder Karte?",
-      "a": "Nein. FIAON bereitet vor und dokumentiert. Über Konto, Karte und Rahmen entscheiden Sie – nach Ihren Kriterien."
-    },
-    {
-      "f": "Wie wird die Vergütung geregelt?",
-      "a": "Je Abschluss, auf Wunsch je eingezogener Rate. Die Regel steht im Vertrag, jede Abrechnung ist in der Plattform nachvollziehbar."
-    }
-  ],
-  "/presse": [
-    {
-      "f": "Darf ich Kunden von FIAON befragen?",
-      "a": "Ja, auf Wunsch vermitteln wir Kundinnen und Kunden, die ihre Geschichte erzählen möchten – mit deren Einwilligung und auf Wunsch anonymisiert."
-    },
-    {
-      "f": "Gibt es Zahlen zu Kunden und Umsatz?",
-      "a": "Für die Berichterstattung stellen wir geprüfte Kennzahlen auf Anfrage bereit. Quellen zu den Marktzahlen nennen wir auf Nachfrage."
-    },
-    {
-      "f": "Ist FIAON eine Bank oder ein Kreditvermittler?",
-      "a": "Weder noch. FIAON ist eine Plattform, die Bonität sichtbar macht und repariert. Über Konto, Karte und Rahmen entscheidet immer die jeweilige Partnerbank."
     }
   ],
   "/investoren": [
@@ -1158,28 +1108,6 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     {
       "f": "What does FIAON not publish?",
       "a": "No reviews that do not exist yet; no revenue figures outside the data room for investors; no individual cases without the customers' approval. And no figure without a definition."
-    }
-  ],
-  "/status": [
-    {
-      "f": "Wo liegen meine Daten?",
-      "a": "Auf Servern in Frankfurt am Main (EU) bei einem Hosting-Anbieter mit europäischer Region; die Datenbank liegt in derselben Region. Der Umzug aus einer US-Region nach Frankfurt wurde am 24.08.2026 abgeschlossen. Sicherungen liegen ebenfalls in der EU."
-    },
-    {
-      "f": "Wie sind die Daten geschützt?",
-      "a": "Verschlüsselte Übertragung (TLS), verschlüsselte Speicherung, Zugriff nur für den Ansprechpartner, der Ihre Akte führt, und die Betreiber. Hochgeladene Unterlagen werden beim Hochladen geprüft. Zahlungen laufen per SEPA über einen verifizierten Kreditor – FIAON speichert keine Kartendaten."
-    },
-    {
-      "f": "Was bedeutet der grüne Punkt oben?",
-      "a": "Ihr Browser hat gerade den Gesundheitspfad der Plattform abgefragt und eine Antwort bekommen. Denselben Pfad nutzt unser Hosting, um eine neue Version erst dann Verkehr zu geben, wenn sie antwortet – Deploys laufen dadurch ohne Unterbrechung."
-    },
-    {
-      "f": "Wann wird gewartet?",
-      "a": "Deploys erfolgen mehrmals wöchentlich ohne Unterbrechung. Wartung mit Ausfall kündigen wir hier und im Kundenbereich mindestens 24 Stunden vorher an und legen sie nicht in die Telefonzeiten des Teams."
-    },
-    {
-      "f": "Wen erreiche ich bei einer Störung?",
-      "a": "Support +41 44 244 93 01 oder support@fiaon.com. Kunden nutzen zusätzlich „Dringend melden“ auf der Kontaktseite – die Meldung landet direkt bei der Geschäftsführung."
     }
   ],
   "/kredit-ohne-schufa": [
@@ -2324,6 +2252,150 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     {
       "f": "Why does FIAON provide this for free?",
       "a": "Because the first question — what is stored about me, and what of it can be challenged? — is one everyone should be able to answer themselves. Anyone who then wants someone to take over obtaining, checking and enforcing already knows us."
+    }
+  ],
+  "/status": [
+    {
+      "f": "Wo liegen meine Daten?",
+      "a": "Auf Servern in Frankfurt am Main (EU) bei einem Hosting-Anbieter mit europäischer Region; die Datenbank liegt in derselben Region. Der Umzug aus einer US-Region nach Frankfurt wurde am 24.08.2026 abgeschlossen. Sicherungen liegen ebenfalls in der EU."
+    },
+    {
+      "f": "Wie sind die Daten geschützt?",
+      "a": "Verschlüsselte Übertragung (TLS), verschlüsselte Speicherung, Zugriff nur für den Ansprechpartner, der Ihre Akte führt, und die Betreiber. Hochgeladene Unterlagen werden beim Hochladen geprüft. Zahlungen laufen per SEPA über einen verifizierten Kreditor – FIAON speichert keine Kartendaten."
+    },
+    {
+      "f": "Was bedeutet der grüne Punkt oben?",
+      "a": "Ihr Browser hat gerade den Gesundheitspfad der Plattform abgefragt und eine Antwort bekommen. Denselben Pfad nutzt unser Hosting, um eine neue Version erst dann Verkehr zu geben, wenn sie antwortet – Deploys laufen dadurch ohne Unterbrechung."
+    },
+    {
+      "f": "Wann wird gewartet?",
+      "a": "Deploys erfolgen mehrmals wöchentlich ohne Unterbrechung. Wartung mit Ausfall kündigen wir hier und im Kundenbereich mindestens 24 Stunden vorher an und legen sie nicht in die Telefonzeiten des Teams."
+    },
+    {
+      "f": "Wen erreiche ich bei einer Störung?",
+      "a": "Support +41 44 244 93 01 oder support@fiaon.com. Kunden nutzen zusätzlich „Dringend melden“ auf der Kontaktseite – die Meldung landet direkt bei der Geschäftsführung."
+    }
+  ],
+  "/en/status": [
+    {
+      "f": "Where is my data?",
+      "a": "On servers in Frankfurt am Main (EU) with a hosting provider in a European region; the database is in the same region. The move from a US region to Frankfurt was completed on 24 August 2026. Backups are also in the EU."
+    },
+    {
+      "f": "How is the data protected?",
+      "a": "Encrypted transfer (TLS), encrypted storage, access only for the contact who manages your file and the operators. Uploaded documents are checked on upload. Payments run via SEPA through a verified creditor – FIAON stores no card details."
+    },
+    {
+      "f": "What does the green dot at the top mean?",
+      "a": "Your browser has just queried the platform's health endpoint and received a reply. Our hosting uses the same endpoint to route traffic to a new version only once it responds – so deploys run without interruption."
+    },
+    {
+      "f": "When is maintenance done?",
+      "a": "Deploys happen several times a week without interruption. Maintenance with downtime is announced here and in the customer area at least 24 hours in advance and is not scheduled during the team's phone hours."
+    },
+    {
+      "f": "Who do I reach in an incident?",
+      "a": "Support on +41 44 244 93 01 or support@fiaon.com. Customers can also use “Report urgently” on the contact page – the report goes straight to the management."
+    }
+  ],
+  "/karriere": [
+    {
+      "f": "Stellt FIAON fest an oder nur auf Provision?",
+      "a": "Beides. Festanstellungen in allen Bereichen, freie Mitarbeit vor allem im Vertrieb, Onboarding und Forderungsmanagement, Werkstudenten in Marketing, Technik, Onboarding und Operations."
+    },
+    {
+      "f": "Wo arbeite ich?",
+      "a": "Überwiegend remote in Deutschland, Österreich oder der Schweiz. Treffen finden in Zürich statt; Recht und Operations teils vor Ort."
+    },
+    {
+      "f": "Brauche ich Erfahrung?",
+      "a": "Je nach Bereich. Im Vertrieb und Onboarding bringt die Academy Ihnen alles bei; in Technik, Recht und Operations erwarten wir Erfahrung. Sagen Sie uns ehrlich, wo Sie stehen."
+    },
+    {
+      "f": "Wie läuft das Gespräch?",
+      "a": "Ein Videogespräch mit Florentine oder Daniel, 30 Minuten, ohne Fangfragen. Danach ein Probetag oder eine Probeaufgabe – und eine Entscheidung innerhalb einer Woche."
+    },
+    {
+      "f": "Wann kann ich anfangen?",
+      "a": "Sobald es passt. Wir wachsen schnell und brauchen immer Unterstützung – ein Start ist jederzeit möglich."
+    }
+  ],
+  "/en/careers": [
+    {
+      "f": "Does FIAON employ people or only pay commission?",
+      "a": "Both. Employment in all areas, freelance work above all in sales, onboarding and receivables management, working students in marketing, engineering, onboarding and operations."
+    },
+    {
+      "f": "Where do I work?",
+      "a": "Mostly remote in Germany, Austria or Switzerland. Meetings take place in Zurich; legal and operations partly on site."
+    },
+    {
+      "f": "Do I need experience?",
+      "a": "Depending on the area. In sales and onboarding the academy teaches you everything; in engineering, legal and operations we expect experience. Tell us honestly where you stand."
+    },
+    {
+      "f": "How does the interview go?",
+      "a": "A video call with Florentine or Daniel, 30 minutes, no trick questions. Then a trial day or a trial task – and a decision within a week."
+    },
+    {
+      "f": "When can I start?",
+      "a": "As soon as it fits. We are growing fast and always need support – a start is possible at any time."
+    }
+  ],
+  "/partner": [
+    {
+      "f": "Bekomme ich Daten ohne Einwilligung des Kunden?",
+      "a": "Nein. Der Kunde entscheidet, wem FIAON seine Akte zeigt. Die Einwilligung wird protokolliert und kann jederzeit widerrufen werden."
+    },
+    {
+      "f": "Entscheidet FIAON über Konto oder Karte?",
+      "a": "Nein. FIAON bereitet vor und dokumentiert. Über Konto, Karte und Rahmen entscheiden Sie – nach Ihren Kriterien."
+    },
+    {
+      "f": "Wie wird die Vergütung geregelt?",
+      "a": "Je Abschluss, auf Wunsch je eingezogener Rate. Die Regel steht im Vertrag, jede Abrechnung ist in der Plattform nachvollziehbar."
+    }
+  ],
+  "/en/partners": [
+    {
+      "f": "Do I receive data without the customer's consent?",
+      "a": "No. The customer decides to whom FIAON shows their file. The consent is logged and can be revoked at any time."
+    },
+    {
+      "f": "Does FIAON decide on account or card?",
+      "a": "No. FIAON prepares and documents. You decide on account, card and limit – by your criteria."
+    },
+    {
+      "f": "How is remuneration regulated?",
+      "a": "Per deal, on request per collected instalment. The rule is in the contract, every statement is traceable in the platform."
+    }
+  ],
+  "/presse": [
+    {
+      "f": "Darf ich Kunden von FIAON befragen?",
+      "a": "Ja, auf Wunsch vermitteln wir Kundinnen und Kunden, die ihre Geschichte erzählen möchten – mit deren Einwilligung und auf Wunsch anonymisiert."
+    },
+    {
+      "f": "Gibt es Zahlen zu Kunden und Umsatz?",
+      "a": "Für die Berichterstattung stellen wir geprüfte Kennzahlen auf Anfrage bereit. Quellen zu den Marktzahlen nennen wir auf Nachfrage."
+    },
+    {
+      "f": "Ist FIAON eine Bank oder ein Kreditvermittler?",
+      "a": "Weder noch. FIAON ist eine Plattform, die Bonität sichtbar macht und repariert. Über Konto, Karte und Rahmen entscheidet immer die jeweilige Partnerbank."
+    }
+  ],
+  "/en/press": [
+    {
+      "f": "May I interview FIAON customers?",
+      "a": "Yes, on request we put you in touch with customers who want to tell their story – with their consent and anonymised on request."
+    },
+    {
+      "f": "Are there figures on customers and revenue?",
+      "a": "For reporting we provide audited key figures on request. We name the sources for the market figures on request."
+    },
+    {
+      "f": "Is FIAON a bank or a loan broker?",
+      "a": "Neither. FIAON is a platform that makes creditworthiness visible and repairs it. The respective partner bank always decides on account, card and limit."
     }
   ],
   "/werkzeuge/kreditrechner": [

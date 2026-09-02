@@ -325,6 +325,10 @@ function Router() {
       <Route path="/en/tools/reminder-fees" component={WzMahngebuehren} />
       <Route path="/en/tools/instalment-plan" component={WzRatenplan} />
       <Route path="/en/tools" component={WerkzeugeHub} />
+      <Route path="/en/status" component={SiteStatus} />
+      <Route path="/en/careers" component={SiteKarriere} />
+      <Route path="/en/partners" component={SitePartner} />
+      <Route path="/en/press" component={SitePresse} />
       <Route path="/en/tools/deletion-deadline" component={WzLoeschfrist} />
       <Route path="/en/tools/limitation-check" component={WzVerjaehrung} />
       <Route path="/en/tools/debt-collection-costs" component={WzInkassokosten} />

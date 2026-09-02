@@ -211,7 +211,7 @@ function Inkassokosten({ onErgebnis }: { onErgebnis: (e: RechnerErgebnis) => voi
   const [haupt, setHaupt] = useState(""); const [kosten, setKosten] = useState(""); const [auslagen, setAuslagen] = useState(""); const [sonst, setSonst] = useState(""); const [lage, setLage] = useState<"erstes" | "weiter" | "">("");
   const e = useMemo(() => {
     const h = zahl(haupt); if (!h || !lage) return null; const satz = lage === "erstes" ? 0.5 : 0.9;
-    let geb = Math.round(gebuehr10(h) * satz * 100) / 100; let deckel = ""; if (h <= 50 && geb > 30) { geb = 30; deckel = "Bei Hauptforderungen bis 50 Euro ist die Gebühr auf 30 Euro begrenzt."; }
+    let geb = Math.round(gebuehr10(h) * satz * 100) / 100; let deckel = ""; if (h <= 50) { const max = Math.round(gebuehr10(h) * 0.5 * 100) / 100; if (geb > max) { geb = max; deckel = "Bei Hauptforderungen bis 50 Euro ist nach § 13e Abs. 1 RDG höchstens eine 0,5-Geschäftsgebühr erstattungsfähig (24,50 Euro)."; } }
     const ausl = Math.min(20, Math.round(geb * 0.2 * 100) / 100); const gef = zahl(kosten) + zahl(auslagen) + zahl(sonst); const zul = Math.round((geb + ausl) * 100) / 100; const diff = Math.round((gef - zul) * 100) / 100;
     return { h, satz, geb, ausl, zul, gef, diff, deckel };
   }, [haupt, kosten, auslagen, sonst, lage]);

@@ -2,7 +2,7 @@
 const de = {
   metaTitel: "Spielraum-Rechner · Was bleibt im Monat – und was liest eine Bank daraus?",
   metaBeschreibung: "Kostenlos, ohne Anmeldung: Einnahmen und Fixkosten eingeben – der Rechner zeigt Ihren monatlichen Spielraum, die Fixkostenquote und was Kartenpartner daraus ablesen.",
-  pille: "Werkzeug · kostenlos, ohne Anmeldung", h1a: "Was bleibt ", h1b: "im Monat?",
+  pille: "Werkzeug · kostenlos, ohne Anmeldung", h1a: "Was am Ende des Monats ", h1b: "wirklich bleibt",
   lead: "Dieselbe Rechnung, die Banken mit Ihrem Kontoauszug machen – nur vorher, und nur für Sie.",
   schritt1: "Schritt 1", frage1: "Was kommt im Monat rein?", netto: "Nettoeinkommen", bspNetto: "z. B. 2.300", weitere: "Weitere regelmäßige Einnahmen", bspWeitere: "Kindergeld, Nebenjob, Unterhalt",
   schritt2: "Schritt 2", frage2: "Was geht fest raus?",
@@ -22,7 +22,7 @@ const de = {
 const en: typeof de = {
   metaTitel: "Monthly headroom calculator · what is left each month – and what a bank reads from it?",
   metaBeschreibung: "Free, no sign-up: enter income and fixed costs – the calculator shows your monthly headroom, the fixed-cost ratio and what card partners read from it.",
-  pille: "Tool · free, no sign-up", h1a: "What is left ", h1b: "each month?",
+  pille: "Tool · free, no sign-up", h1a: "What is left over at the end of ", h1b: "each month?",
   lead: "The same calculation banks do with your bank statement – just beforehand, and just for you.",
   schritt1: "Step 1", frage1: "What comes in each month?", netto: "Net income", bspNetto: "e.g. 2,300", weitere: "Other regular income", bspWeitere: "child benefit, side job, maintenance",
   schritt2: "Step 2", frage2: "What goes out for certain?",

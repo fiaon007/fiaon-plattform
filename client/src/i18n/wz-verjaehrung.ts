@@ -4,7 +4,7 @@
 const de = {
   metaTitel: "Verjährungs-Rechner · Ist die Forderung verjährt?",
   metaBeschreibung: "Kostenlos: Fälligkeit, Titel und letzte Anerkennung eingeben – der Rechner nennt das Verjährungsdatum nach BGB und liefert die Formulierung für die Einrede der Verjährung.",
-  pille: "Werkzeug · kostenlos, ohne Anmeldung", h1a: "Ist die Forderung ", h1b: "verjährt?",
+  pille: "Werkzeug · kostenlos, ohne Anmeldung", h1a: "Ist die Forderung verjährt? ", h1b: "Das Datum entscheidet",
   lead: "Drei Jahre ab Jahresende – oder 30 Jahre mit Titel. Der Rechner nennt das Datum und formuliert die Einrede, die Inkassobüros nicht gern lesen.",
   schritt1: "Schritt 1", frage1: "Wann wurde die Forderung fällig?",
   hinweis1: "Meist das Datum der Rechnung oder der ersten Mahnung. Wenn Sie es nicht genau wissen: irgendein Tag des richtigen Jahres genügt – es zählt das Jahresende.",
@@ -31,7 +31,7 @@ const de = {
 const en: typeof de = {
   metaTitel: "Limitation check · Is the claim time-barred?",
   metaBeschreibung: "Free: enter due date, title and last acknowledgement – the calculator names the limitation date under the German Civil Code (BGB) and provides the wording for the plea of limitation.",
-  pille: "Tool · free, no sign-up", h1a: "Is the claim ", h1b: "time-barred?",
+  pille: "Tool · free, no sign-up", h1a: "Old debts do not vanish. ", h1b: "They become time-barred.",
   lead: "Three years from the end of the year – or 30 years with a title. The calculator names the date and drafts the plea that debt collectors do not like to read.",
   schritt1: "Step 1", frage1: "When did the claim fall due?",
   hinweis1: "Usually the date of the invoice or the first reminder. If you do not know exactly: any day of the right year is enough – the end of the year counts.",

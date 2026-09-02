@@ -6,7 +6,7 @@ const de = {
   seoTitel: "Inkasso-Brief erhalten? Erst prüfen, dann zahlen | FIAON",
   seoBeschreibung: "Inkasso-Brief erhalten: der ruhige 5-Schritte-Plan — Forderung prüfen, Kosten nachrechnen, Fristen kennen, Eintrag verhindern. Jetzt prüfen lassen.",
   krume: "Inkasso-Brief erhalten", howtoName: "Inkasso-Brief erhalten: der 5-Schritte-Sofortplan",
-  pille: "Ruhig bleiben · richtig reagieren", h1a: "Inkasso-Brief erhalten? ", h1b: "Erst prüfen, dann zahlen.",
+  pille: "Ruhig bleiben · richtig reagieren", h1a: "Inkasso-Brief erhalten? Erst prüfen, ", h1b: "dann entscheiden.",
   lead: "Ein Inkassoschreiben ist kein Urteil — es ist eine Behauptung mit Briefkopf. Manche Forderungen sind berechtigt, viele überhöht, einige frei erfunden. Hier steht der ruhige Plan für die nächsten Tage, Schritt für Schritt.",
   antragStarten: "Jetzt Antrag starten", kostenlosPruefen: "Kostenlos prüfen lassen",
   planTitel: "Der 5-Schritte-Sofortplan", planLead: "In dieser Reihenfolge — und nichts davon am Telefon, alles schriftlich.", schritt: "Schritt",

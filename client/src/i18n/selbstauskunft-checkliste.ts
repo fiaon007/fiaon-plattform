@@ -6,7 +6,7 @@ const de = {
   seoTitel: "Selbstauskunft lesen: 10-Punkte-Checkliste | FIAON",
   seoBeschreibung: "Selbstauskunft verstehen: die interaktive 10-Punkte-Checkliste, die 5 häufigsten Fehler und ein erklärter Muster-Ausschnitt. Jetzt Auskunft prüfen.",
   krume: "Selbstauskunft-Checkliste", howto: "Selbstauskunft lesen: die 10-Punkte-Checkliste",
-  pille: "Lesen · Prüfen · Abhaken", h1a: "Selbstauskunft lesen: ", h1b: "die 10-Punkte-Checkliste.",
+  pille: "Lesen · Prüfen · Abhaken", h1a: "Selbstauskunft lesen: ", h1b: "zehn Punkte, die zählen.",
   lead: "Die Datenkopie liegt vor Ihnen, aber niemand hat erklärt, wie man sie liest? Diese Checkliste geht Punkt für Punkt durch — Ihre Haken bleiben gespeichert, bis Sie fertig sind. Danach wissen Sie, was stimmt, was fehlt und was angreifbar ist.",
   antragStarten: "Jetzt Antrag starten", kostenlosPruefen: "Kostenlos prüfen lassen",
   listeTitel: "Die Checkliste", listeLead: "Zehn Punkte, in dieser Reihenfolge. Ein Klick setzt den Haken — der Stand bleibt in Ihrem Browser gespeichert.",

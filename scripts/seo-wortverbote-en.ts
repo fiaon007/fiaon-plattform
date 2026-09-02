@@ -24,7 +24,7 @@ const VERBOTEN: { muster: RegExp; erlaubtDavor: RegExp | null; name: string }[] 
 // Für „guarantee" und „advice" zählt der SATZ: Warnungen vor Garantien, Verneinungen,
 // Zitate unseriöser Werbung und Eigennamen (consumer advice centre) sind erlaubt —
 // verboten ist nur das eigene Versprechen. Für recommend/affiliate/improve your score gibt es keine Ausnahme.
-const SATZ_ERLAUBT = /\b(no|not|never|nobody|no one|cannot|can't|beware|warning|promis\w*|fake|folklore|centre|substitute|legal advice|financial advice|investment advice|dubious|serious|legitimate|reputable|instead)\b|[“”"]/i;
+const SATZ_ERLAUBT = /\b(no|not|never|nobody|no one|cannot|can't|beware|warning|promis\w*|fake|folklore|centre|substitute|legal advice|financial advice|investment advice|dubious|dishonest\w*|serious|legitimate|reputable|instead)\b|[“”"]/i;
 function pruefeText(text: string, quelle: string, treffer: string[]) {
   for (const v of VERBOTEN) {
     for (const m of text.matchAll(v.muster)) {

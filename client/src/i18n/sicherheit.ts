@@ -6,7 +6,7 @@
 const de = {
   metaTitel: "Datenschutz & Sicherheit · FIAON",
   metaBeschreibung: "Wie FIAON mit den sensibelsten Daten umgeht, die es über Sie gibt: EU-Hosting, Verschlüsselung, Vollmacht, Freigabe vor jedem Schreiben, Löschung auf Wunsch. Plus Datenschutz-Check: Wer darf was mit Ihren Bonitätsdaten?",
-  pille: "Datenschutz & Sicherheit", h1a: "Das sensibelste Dokument ", h1b: "über Sie.",
+  pille: "Datenschutz & Sicherheit", h1a: "Das sensibelste ", h1b: "Dokument über Sie.",
   lead: "Ihre Bonitätsauskunft sagt mehr über Sie als jedes Zeugnis. Deshalb ist Sicherheit bei FIAON keine Seite im Impressum, sondern der Bauplan: nichts ohne Ihre Vollmacht, nichts ohne Ihre Freigabe, nichts länger als nötig.",
   check: "Datenschutz-Check", prinzipien: "Die Prinzipien",
   zahlen: [{ wert: "EU", label: "Server in der Europäischen Union, DSGVO" }, { wert: "TLS 1.3", label: "Verschlüsselung bei Übertragung, AES bei Ablage" }, { wert: "0", label: "Datensätze verkauft oder zu Werbezwecken geteilt" }, { wert: "1", label: "Klick zur Löschung Ihrer Akte nach Vertragsende" }],
@@ -66,7 +66,7 @@ const de = {
 const en: typeof de = {
   metaTitel: "Privacy & security · FIAON",
   metaBeschreibung: "How FIAON handles the most sensitive data there is about you: EU hosting, encryption, authorisation, approval before every letter, deletion on request. Plus a privacy check: who may do what with your credit data?",
-  pille: "Privacy & security", h1a: "The most sensitive document ", h1b: "about you.",
+  pille: "Privacy & security", h1a: "The most sensitive ", h1b: "document about you.",
   lead: "Your credit report says more about you than any reference. That is why security at FIAON is not a page in the legal notice but the blueprint: nothing without your authorisation, nothing without your approval, nothing longer than necessary.",
   check: "Privacy check", prinzipien: "The principles",
   zahlen: [{ wert: "EU", label: "servers in the European Union, GDPR" }, { wert: "TLS 1.3", label: "encryption in transit, AES at rest" }, { wert: "0", label: "records sold or shared for advertising" }, { wert: "1", label: "click to delete your file after the contract ends" }],

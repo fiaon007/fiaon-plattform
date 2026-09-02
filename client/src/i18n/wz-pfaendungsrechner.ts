@@ -4,7 +4,7 @@ const de = {
   metaBeschreibung: "Netto und Unterhaltspflichten eingeben – der Rechner nennt den pfändbaren Betrag nach § 850c ZPO und den Schutz auf dem P-Konto. Werte ab 1. Juli 2026: 1.587,40 € Grundbetrag. Kostenlos.",
   seoTitel: "Pfändungsrechner 2026: Freibetrag und P-Konto-Schutz", seoBeschreibung: "Netto und Unterhaltspflichten eingeben – der Rechner nennt den pfändbaren Betrag nach § 850c ZPO und den Schutz auf dem P-Konto. Werte ab 1. Juli 2026 (1.587,40 €).",
   werkzeugName: "Pfändungsrechner", krumeWerkzeuge: "Werkzeuge", krume: "Pfändungsrechner",
-  pille: "Werkzeug · kostenlos, ohne Anmeldung", h1a: "Was Ihnen bei einer Pfändung ", h1b: "bleibt.",
+  pille: "Werkzeug · kostenlos, ohne Anmeldung", h1a: "Was Ihnen bei einer ", h1b: "Pfändung bleibt.",
   lead: "Die Pfändungstabelle, ohne die Tabelle: Netto und Unterhaltspflichten eingeben – der Rechner nennt den pfändbaren Betrag und den Schutz auf dem P-Konto. Werte ab 1. Juli 2026.",
   schritt1: "Schritt 1", frage1: "Ihr monatliches Nettoeinkommen", hinweis1: "Nach Steuern und Sozialabgaben, wie es auf dem Konto ankommt. Bei schwankendem Einkommen den Durchschnitt der letzten drei Monate.",
   netto: "Netto im Monat (€)", bspNetto: "z. B. 2.150", tabelle: "Tabelle", satz2026: "ab 1. Juli 2026 (aktuell)", satz2025: "1. Juli 2025 – 30. Juni 2026",

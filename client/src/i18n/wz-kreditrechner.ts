@@ -4,7 +4,7 @@ const de = {
   metaBeschreibung: "Kostenloser Kreditrechner: Betrag, Laufzeit und Zins eingeben – Monatsrate, Gesamtkosten und Zinsanteil sofort sehen. Mit Zwei-Drittel-Zins nach § 6a PAngV und Tilgungsverlauf. Ohne Anmeldung.",
   seoBeschreibung: "Kostenloser Kreditrechner: Monatsrate, Gesamtkosten und Zinsanteil sofort sehen – mit Zwei-Drittel-Zins nach § 6a PAngV.",
   werkzeugName: "FIAON Kreditrechner", krumeWerkzeuge: "Werkzeuge", krume: "Kreditrechner",
-  pille: "Werkzeug · kostenlos, ohne Anmeldung", h1a: "Was kostet dieser Kredit ", h1b: "wirklich?",
+  pille: "Werkzeug · kostenlos, ohne Anmeldung", h1a: "Was kostet dieser ", h1b: "Kredit wirklich?",
   lead: "Monatsrate, Gesamtkosten, Zinsanteil — und daneben die Rate zu dem Zins, den zwei Drittel der Antragsteller tatsächlich bekommen.",
   angaben: "Ihre Angaben", frage: "Kreditbetrag, Laufzeit und beworbener Zins",
   hinweis: "Den effektiven Jahreszins finden Sie in jedem Angebot — er enthält alle Kosten und ist die einzige vergleichbare Zahl.",

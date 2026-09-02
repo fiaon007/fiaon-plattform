@@ -2,7 +2,7 @@
 const de = {
   metaTitel: "Presse",
   metaBeschreibung: "FIAON in den Medien: Kurzprofil, Fakten, Zahlen zum Zitieren, Bildmaterial und Ansprechpartner für Journalistinnen und Journalisten.",
-  krume: "Presse", pille: "Presse", h1a: "FIAON in den ", h1b: "Medien.",
+  krume: "Presse", pille: "Presse", h1a: "FIAON in den Medien: ", h1b: "Material für Ihre Recherche.",
   lead: "Das Betriebssystem für Bonität: FIAON zeigt Menschen in Deutschland, Österreich und der Schweiz, was Auskunfteien über sie wissen – repariert es mit ihnen und öffnet danach die Tür zu Konto, Karte und Finanzierung. Hier finden Sie alles für Ihre Recherche.",
   anfrageStellen: "Presseanfrage stellen", faktenBlick: "Fakten auf einen Blick",
   kurzprofilTag: "Kurzprofil · 50 Wörter",
@@ -56,7 +56,7 @@ const de = {
 const en: typeof de = {
   metaTitel: "Press",
   metaBeschreibung: "FIAON in the media: short profile, facts, figures to quote, imagery and a contact for journalists.",
-  krume: "Press", pille: "Press", h1a: "FIAON in the ", h1b: "media.",
+  krume: "Press", pille: "Press", h1a: "FIAON in the media: ", h1b: "facts you can quote.",
   lead: "The operating system for creditworthiness: FIAON shows people in Germany, Austria and Switzerland what credit bureaus know about them – repairs it with them and then opens the door to account, card and financing. Here you find everything for your research.",
   anfrageStellen: "Make a press enquiry", faktenBlick: "Facts at a glance",
   kurzprofilTag: "Short profile · 50 words",

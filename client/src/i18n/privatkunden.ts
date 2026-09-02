@@ -90,7 +90,7 @@ const en: typeof de = {
   metaTitel: "Personal · credit file, account, credit card",
   metaBeschreibung: "Clean up entries, open a current account, a credit card up to €25,000 — FIAON obtains your report, explains every entry, sends the letters and opens the door. Plans from €7.99 a month.",
   pille: "For personal customers · Germany, Austria, Switzerland",
-  h1a: "The credit card waiting at the end ", h1b: "of your credit file.",
+  h1a: "The credit card waiting at the end of ", h1b: "your credit file.",
   lead: "An entry is not a verdict. FIAON obtains your report, explains every entry, has challengeable ones deleted — and then opens the door: a current account straight away, a credit card as soon as your file supports it.",
   paketWaehlen: "Choose a plan", eintragPruefen: "Can my entry be challenged?",
   zahlen: [

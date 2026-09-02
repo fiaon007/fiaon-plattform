@@ -83,7 +83,7 @@ const en: typeof de = {
   seoTitel: "Help centre: answers on application, payment, report",
   seoBeschreibung: "Application, payment, report, letters, account and card, cancellation, privacy, joining the team: the FIAON help centre answers the most common questions — with search.",
   krume: "Help",
-  pille: "Help centre", h1a: "Answers, ", h1b: "before you have to ask.",
+  pille: "Help centre", h1a: "Answers, before you ", h1b: "have to ask.",
   lead: "Eight topics, the same answers as on the phone and in the assistant. Search — or open the topic that is on your mind.",
   suchen: "Search", einMensch: "A person, please",
   wonach: "What are you looking for?", suchePlatz: "e.g. cancel, instalment, authorisation, court order",

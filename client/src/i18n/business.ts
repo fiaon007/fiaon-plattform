@@ -7,7 +7,7 @@
 const de = {
   metaTitel: "FIAON Business · Liquidität, die bleibt",
   metaBeschreibung: "Firmenkreditkarte, Zahlungsziel und saubere Unternehmensbonität: FIAON beschafft die Auskunft, bereinigt Einträge und bereitet Kartenanträge bis 250.000 € Zielrahmen vor. Für Einzelunternehmer bis Holding.",
-  pille: "FIAON Business", h1a: "Liquidität, ", h1b: "die bleibt.",
+  pille: "FIAON Business", h1a: "Liquidität, die im ", h1b: "Unternehmen bleibt.",
   lead: "Jede Rechnung, die Sie per Karte statt per Überweisung bezahlen, bleibt bis zu 58 Tage im Unternehmen. FIAON sorgt dafür, dass Ihre Bonität die Karte trägt – und der Rahmen wächst.",
   firmenkarte: "Firmenkarte vorbereiten", wasBringt: "Was bringt mir das?",
   zahlen: [
@@ -82,7 +82,7 @@ const de = {
 const en: typeof de = {
   metaTitel: "FIAON Business · liquidity that stays",
   metaBeschreibung: "Company credit card, payment terms and a clean company credit file: FIAON obtains the reports, cleans up entries and prepares card applications up to a €250,000 target limit. From sole traders to holdings.",
-  pille: "FIAON Business", h1a: "Liquidity ", h1b: "that stays.",
+  pille: "FIAON Business", h1a: "Liquidity that stays ", h1b: "in the company.",
   lead: "Every invoice you pay by card instead of bank transfer stays in the company for up to 58 days. FIAON makes sure your credit file supports the card — and the limit grows.",
   firmenkarte: "Prepare a company card", wasBringt: "What is in it for me?",
   zahlen: [

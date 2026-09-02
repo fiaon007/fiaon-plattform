@@ -4,7 +4,7 @@ export type LfArt = "erledigt" | "offen" | "titel" | "rsb" | "anfrage" | "konto"
 const de = {
   metaTitel: "Löschfrist-Rechner · Wann ist mein Eintrag weg?",
   metaBeschreibung: "Kostenlos: Art des Eintrags und Daten eingeben – der Rechner nennt das taggenaue Löschdatum nach den Verhaltensregeln der Auskunfteien, inklusive 100-Tage-Regel und Sechs-Monats-Frist nach Insolvenz.",
-  pille: "Werkzeug · kostenlos, ohne Anmeldung", h1a: "Wann ist mein Eintrag ", h1b: "weg?",
+  pille: "Werkzeug · kostenlos, ohne Anmeldung", h1a: "Wann ist mein Eintrag weg? ", h1b: "Auf den Tag genau.",
   lead: "Drei Jahre, 18 Monate oder sechs Monate – je nach Art des Eintrags und Ihrem Verhalten. Der Rechner nennt das taggenaue Datum.",
   arten: [
     { wert: "erledigt", label: "Erledigte Forderung (bezahlt)", hinweis: "Der Eintrag trägt einen Erledigungsvermerk." },
@@ -47,7 +47,7 @@ const de = {
 const en: typeof de = {
   metaTitel: "Deletion deadline calculator · When is my entry gone?",
   metaBeschreibung: "Free: enter the type of entry and the dates – the calculator names the deletion date to the day under the credit bureaus' code of conduct, including the 100-day rule and the six-month period after insolvency.",
-  pille: "Tool · free, no sign-up", h1a: "When is my entry ", h1b: "gone?",
+  pille: "Tool · free, no sign-up", h1a: "When is my entry gone, and when can I ", h1b: "challenge it earlier?",
   lead: "Three years, 18 months or six months – depending on the type of entry and your behaviour. The calculator names the date to the day.",
   arten: [
     { wert: "erledigt", label: "Settled claim (paid)", hinweis: "The entry carries a settlement marker." },

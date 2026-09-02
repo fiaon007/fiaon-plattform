@@ -6,7 +6,7 @@ export interface EpErgebnis { titel: string; text: string; schritt: (ask: string
 const de = {
   metaTitel: "Ist mein Eintrag angreifbar? · Werkzeug",
   metaBeschreibung: "Fünf Fragen, eine ehrliche Einschätzung: Ob Ihr SCHUFA-, KSV- oder CRIF-Eintrag gelöscht werden kann – nach § 31 BDSG, Löschfristen und BGH-Rechtsprechung. Kostenlos, ohne Anmeldung.",
-  pille: "Werkzeug · kostenlos, ohne Anmeldung", h1a: "Ist mein Eintrag ", h1b: "angreifbar?",
+  pille: "Werkzeug · kostenlos, ohne Anmeldung", h1a: "Ist mein ", h1b: "Eintrag angreifbar?",
   lead: "Fünf Fragen, eine ehrliche Einschätzung. Wir prüfen die Voraussetzungen, die das Gesetz für eine Meldung verlangt – und sagen auch, wenn ein Eintrag berechtigt ist.",
   starten: "Prüfung starten", zumRatgeber: "Zum Ratgeber",
   blockPille: "Die Prüfung", blockA: "Fünf Fragen. ", blockB: "Eine Antwort.",
@@ -59,7 +59,7 @@ const de = {
 const en: typeof de = {
   metaTitel: "Can my entry be challenged? · Tool",
   metaBeschreibung: "Five questions, one honest assessment: whether your SCHUFA, KSV or CRIF entry can be deleted – under Section 31 BDSG, the deletion periods and Federal Court of Justice case law. Free, no sign-up.",
-  pille: "Tool · free, no sign-up", h1a: "Can my entry ", h1b: "be challenged?",
+  pille: "Tool · free, no sign-up", h1a: "Can my entry be challenged, ", h1b: "or is it justified?",
   lead: "Five questions, one honest assessment. We check the requirements the law sets for a report – and we also say when an entry is justified.",
   starten: "Start the check", zumRatgeber: "To the guides",
   blockPille: "The check", blockA: "Five questions. ", blockB: "One answer.",

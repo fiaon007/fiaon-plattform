@@ -6,7 +6,7 @@ const de = {
   seoTitel: "Kredit ohne SCHUFA · Was wirklich dahintersteckt",
   seoBeschreibung: "Was es seriös gibt, was es kostet, woran Sie Betrug erkennen – und der bessere Weg. Ehrlich erklärt, ohne Lockangebot.",
   artikel: "Kredit ohne SCHUFA: Was wirklich dahintersteckt", krume: "Kredit ohne SCHUFA",
-  pille: "Ehrlich erklärt · kein Lockangebot", h1a: "Kredit ohne SCHUFA — ", h1b: "die ganze Wahrheit.",
+  pille: "Ehrlich erklärt · kein Lockangebot", h1a: "Kredit ohne SCHUFA – die ", h1b: "ganze Wahrheit.",
   lead: "Es gibt ihn. Er ist klein, teuer und streng geprüft — und um ihn herum steht die größte Betrugsindustrie des deutschen Kreditmarkts. Hier steht, was Sie wissen müssen, bevor Sie irgendwo unterschreiben.",
   gibtTitel: "Was es seriös tatsächlich gibt", gibtLead: "Eine schmale Kategorie mit klaren Grenzen — alles darüber hinaus ist ein Warnsignal.",
   gibt: [
@@ -52,7 +52,7 @@ const en: typeof de = {
   seoTitel: "Loans without SCHUFA · what is really behind them",
   seoBeschreibung: "What legitimately exists, what it costs, how to spot fraud — and the better route. Explained honestly, without a bait offer.",
   artikel: "Loans without SCHUFA: what is really behind them", krume: "Loans without SCHUFA",
-  pille: "Explained honestly · no bait offer", h1a: "Loans without SCHUFA — ", h1b: "the whole truth.",
+  pille: "Explained honestly · no bait offer", h1a: "Loans without SCHUFA: ", h1b: "the whole truth.",
   lead: "They exist. They are small, expensive and strictly checked — and around them stands the biggest fraud industry in the German credit market. Here is what you need to know before you sign anywhere.",
   gibtTitel: "What legitimately exists", gibtLead: "A narrow category with clear limits — anything beyond it is a warning signal.",
   gibt: [

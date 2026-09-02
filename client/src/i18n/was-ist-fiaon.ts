@@ -107,7 +107,7 @@ const de = {
 const en: typeof de = {
   metaTitel: "What is FIAON",
   metaBeschreibung: "FIAON is the operating system for creditworthiness: we show you what the credit bureaus hold on you, repair it with you — and open the door to an account, a card and finance. The vision, explained properly.",
-  pille: "What is FIAON", h1a: "The operating system ", h1b: "for creditworthiness.",
+  pille: "What is FIAON", h1a: "The operating system for ", h1b: "your creditworthiness.",
   lead: "FIAON shows you what the credit bureaus hold on you, repairs it with you — and then opens the door to real financial products. One sentence, three layers, one path.",
   jetztStarten: "Get started", dreiSchichten: "The three layers",
   ideePille: "The idea", ideeH2a: "Creditworthiness is not a verdict. ", ideeH2b: "It is a state.",

@@ -39,7 +39,7 @@ const en: typeof de = {
   metaBeschreibung: "Enter up to six debts and your budget – the calculator simulates avalanche (most expensive first) and snowball (smallest first): months until debt-free, interest, order. Free.",
   seoTitel: "Debt-free plan: avalanche or snowball? Calculator", seoBeschreibung: "Enter up to six debts and your budget – the calculator simulates avalanche (most expensive first) and snowball (smallest first): months until debt-free, interest, order.",
   werkzeugName: "Debt-free plan", krumeWerkzeuge: "Tools", krume: "Debt-free plan",
-  pille: "Tool · free, no sign-up", h1a: "In which order ", h1b: "do I become debt-free?",
+  pille: "Tool · free, no sign-up", h1a: "In which order do I ", h1b: "become debt-free?",
   lead: "Most expensive debt first or smallest first? The calculator simulates both routes month by month and names the date, the interest and the order – honestly, even when the budget is not enough.",
   vorgaben: ["Instalment loan", "Overdraft", "Credit card"], schuldN: (i) => `Debt ${i}`,
   schritt1: "Step 1", frage1: "Your debts", hinweis1: "Remaining debt, interest rate and the minimum instalment under the contract. For the overdraft: amount and overdraft rate, and as the instalment the amount you reduce it by each month at least. Up to six items.",

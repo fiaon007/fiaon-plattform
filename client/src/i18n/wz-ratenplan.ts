@@ -5,7 +5,7 @@ const de = {
   metaBeschreibung: "Forderung und monatlicher Spielraum eingeben – der Rechner nennt eine Rate, die hält, die Laufzeit und erzeugt das Angebotsschreiben mit Bitte um Zins- und Meldeverzicht. Kostenlos.",
   seoTitel: "Ratenzahlung vereinbaren: Rechner und Angebotsschreiben", seoBeschreibung: "Forderung und Spielraum eingeben – der Rechner nennt eine Rate, die hält, die Laufzeit und schreibt das Angebot an Gläubiger oder Inkasso mit Bitte um Zins- und Meldeverzicht.",
   werkzeugName: "Ratenplan-Rechner", krumeWerkzeuge: "Werkzeuge", krume: "Ratenplan-Rechner",
-  pille: "Werkzeug · kostenlos, ohne Anmeldung", h1a: "Die Rate, die ", h1b: "wirklich hält.",
+  pille: "Werkzeug · kostenlos, ohne Anmeldung", h1a: "Die Rate, ", h1b: "die wirklich hält.",
   lead: "Gläubiger nehmen Angebote an, die tragfähig sind – nicht die höchsten. Der Rechner findet die Rate, die auch im schlechten Monat kommt, und schreibt das Angebot dazu.",
   schritt1: "Schritt 1", frage1: "Die Forderung und Ihr Spielraum",
   hinweis1A: "Spielraum = was nach Miete, Strom, Versicherungen, Lebensmitteln, Fahrtkosten und laufenden Raten übrig bleibt. Unsicher? Der ", hinweis1Link: "Spielraum-Rechner", hinweis1B: " rechnet es aus.",

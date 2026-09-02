@@ -763,7 +763,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Wie oft wird der Score neu berechnet?",
-      "a": "SCHUFA-Scores werden in Abständen neu gerechnet (der Basisscore quartalsweise, branchenspezifische Scores bei Abfrage). Eine Löschung oder Berichtigung wirkt deshalb nicht am selben Tag — aber verlässlich beim nächsten Rechenlauf. Wer im Oktober aufräumt, geht mit besseren Zahlen ins neue Jahr."
+      "a": "Der neue SCHUFA-Score (seit März 2026, 100 bis 999 Punkte) wird bei jeder Anfrage tagesaktuell aus den gespeicherten Daten berechnet. Eine Löschung oder Berichtigung wirkt deshalb, sobald die Auskunftei die Daten geändert hat – eine erledigte Zahlungsstörung zählt nach den veröffentlichten Kriterien allerdings bis zu drei Jahre abgeschwächt nach."
     },
     {
       "f": "Was hat mein Girokonto mit meiner Bonität zu tun?",
@@ -795,27 +795,27 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
   "/schufa-score-verstehen": [
     {
       "f": "Was ist ein guter SCHUFA-Score?",
-      "a": "Als Faustregel gilt: Ab etwa 97,5 % stufen die meisten Banken das Ausfallrisiko als sehr gering ein, zwischen 95 und 97,5 % als gering. Unter 90 % wird es spürbar — Ratenkäufe, Verträge und Kredite werden teurer oder scheitern. Wichtig: Jede Bank legt die Grenzen selbst fest; dieselbe Zahl kann bei zwei Instituten zwei verschiedene Antworten auslösen."
+      "a": "Seit März 2026 läuft die Skala von 100 bis 999 Punkten. Ab 776 Punkten gilt die Bonität als „hervorragend“, von 709 bis 775 als „gut“, von 642 bis 708 als „akzeptabel“, darunter als „ausreichend“. Wer eine offene Zahlungsstörung hat, bekommt keinen Punktwert, sondern die Klasse „ungenügend“. Nach Angaben der SCHUFA liegen rund 62 Prozent der Menschen in der besten Klasse."
     },
     {
       "f": "Wo sehe ich meinen SCHUFA-Score kostenlos?",
-      "a": "Über die Datenkopie nach Art. 15 DSGVO — sie ist gesetzlich kostenlos und enthält Ihre gespeicherten Daten samt Score-Informationen. FIAON bestellt sie im Rahmen der Bonitätsauskunft für Sie mit und erklärt jeden Eintrag. Die Bezahlprodukte der Auskunfteien zeigen nicht mehr Daten als die Datenkopie."
+      "a": "Seit dem 17. März 2026 digital und kostenlos: im SCHUFA-Account (app.schufa.de) oder über die bonify-App – mit allen zwölf Kriterien und den Punkten je Kriterium. Daneben bleibt die Datenkopie nach Art. 15 DSGVO per Post kostenlos; nur sie zeigt, welche Stelle was gemeldet hat. FIAON bestellt die Datenkopie im Rahmen der Bonitätsauskunft für Sie mit."
     },
     {
-      "f": "Wie oft wird der SCHUFA-Score aktualisiert?",
-      "a": "Der Basisscore wird alle drei Monate neu berechnet. Branchenscores, die Banken abfragen, entstehen tagesaktuell im Moment der Anfrage. Eine Löschung oder Berichtigung wirkt deshalb nicht immer sofort sichtbar — beim nächsten Berechnungslauf aber schon."
+      "f": "Was ist aus dem Basisscore und den Branchenscores geworden?",
+      "a": "Der Basisscore (0 bis 100 Prozent) ist mit dem 17. März 2026 abgelöst. Die sechs Branchenscores – für Banken, Sparkassen, Genossenschaftsbanken, Telekommunikation, Handel und Versandhandel – werden durch den einen neuen Score ersetzt; für Unternehmen gilt eine Übergangsfrist bis Ende 2028. Die Verbraucherzentrale stellte im Juni 2026 fest, dass erst etwa ein Viertel der Vertragspartner den neuen Score nutzte – Ihre Bank kann übergangsweise noch mit einem alten Wert arbeiten."
+    },
+    {
+      "f": "Wie oft wird der SCHUFA-Score neu berechnet?",
+      "a": "Der neue Score wird bei jeder Anfrage aus den aktuell gespeicherten Daten berechnet – nicht mehr vierteljährlich wie der alte Basisscore. Eine Löschung oder Berichtigung wirkt deshalb beim nächsten Abruf, sobald die Auskunftei die Daten geändert hat."
     },
     {
       "f": "Warum bekomme ich bei zwei Banken unterschiedliche Entscheidungen bei gleichem Score?",
-      "a": "Weil der SCHUFA-Score nur EIN Baustein ist. Banken rechnen eigene Scorings mit eigenen Grenzen und gewichten Einkommen, Kontoführung und Produktart dazu. Deshalb formulieren wir bei FIAON immer gleich: Die Entscheidung trifft die Bank — der Score öffnet oder verschließt nur die Tür zum Gespräch."
-    },
-    {
-      "f": "Schaden Kontowechsel oder viele Girokonten dem Score?",
-      "a": "Viele parallel geführte Konten und Karten können sich auswirken, weil sie als Merkmal in die Berechnung einfließen. Ein normaler Kontowechsel ist unkritisch. Kritischer sind viele KREDITanfragen in kurzer Zeit — dafür gibt es die Konditionsanfrage, die scorefrei bleibt."
+      "a": "Weil der SCHUFA-Score nur EIN Baustein ist. Banken rechnen eigene Scorings mit eigenen Grenzen und gewichten Einkommen, Kontoführung und Produktart dazu. Dieselben 720 Punkte können bei der einen Bank für eine Karte reichen und bei der anderen nicht – deshalb ist der Kontoauszug oft entscheidender als die Zahl."
     },
     {
       "f": "Wie schnell verbessert sich die Zahl nach einer Löschung?",
-      "a": "Der Eintrag verschwindet mit der Löschung aus der Auskunft; die Score-Neuberechnung folgt im nächsten Lauf, beim Basisscore also binnen bis zu drei Monaten. Ein Versprechen, dass eine bestimmte Zahl erreicht wird, gibt es nicht — die Berechnungsformel ist Geschäftsgeheimnis der SCHUFA."
+      "a": "Der Eintrag verschwindet mit der Löschung aus der Auskunft; beim nächsten Abruf rechnet der Score ohne ihn. Eine erledigte Zahlungsstörung wirkt nach den veröffentlichten Kriterien allerdings bis zu drei Jahre nach Erledigung abgeschwächt nach – anders als eine gelöschte, die nie hätte gemeldet werden dürfen. Ein Versprechen, dass eine bestimmte Zahl erreicht wird, kann niemand seriös geben."
     }
   ],
   "/bonitaetsauskunft-beantragen": [
@@ -1010,7 +1010,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
   ],
 };
 
-/** Die Begriffe von /glossar-bonitaet (38). */
+/** Die Begriffe von /glossar-bonitaet (39). */
 export const SEO_GLOSSAR: { wort: string; text: string }[] = [
   {
     "wort": "Anfrage (Kredit / Konditionen)",
@@ -1025,8 +1025,8 @@ export const SEO_GLOSSAR: { wort: string; text: string }[] = [
     "text": "Das Jedermann-Konto nach § 31 ZKG: Jede kontoführende Bank in Deutschland muss es auf Antrag eröffnen, auf Guthabenbasis und mit Grundfunktionen — unabhängig von der Bonität. Es ist das gesetzliche Sicherheitsnetz, wenn sonst kein Konto zustande kommt."
   },
   {
-    "wort": "Basisscore",
-    "text": "Der Prozentwert (0 bis 100), den die SCHUFA vierteljährlich über Sie berechnet — die Schätzung, wie wahrscheinlich Sie Verpflichtungen erfüllen. 100 erreicht niemand; entscheidend ist der Bereich, in dem Ihr Wert liegt."
+    "wort": "Basisscore (bis März 2026)",
+    "text": "Der frühere Prozentwert (0 bis 100), den die SCHUFA vierteljährlich berechnete. Seit dem 17. März 2026 abgelöst durch den neuen SCHUFA-Score von 100 bis 999 Punkten. Alte Auskünfte und manche Vertragspartner zeigen übergangsweise noch den Prozentwert."
   },
   {
     "wort": "Bestrittene Forderung",
@@ -1041,8 +1041,8 @@ export const SEO_GLOSSAR: { wort: string; text: string }[] = [
     "text": "Der Blick in die eigene Datenlage. Als Datenkopie nach Art. 15 DSGVO kostenlos; als geprüfte FIAON-Auskunft mit Beschaffung bei drei Häusern, Klartext-Erklärung und Prüfung jedes Eintrags für einmalig 74 Euro."
   },
   {
-    "wort": "Branchenscore",
-    "text": "Neben dem Basisscore berechnet die SCHUFA je Branche eigene Werte — Banken, Telekommunikation, Handel sehen unterschiedliche Scores. Sie entstehen tagesaktuell im Moment der Anfrage, deshalb kann eine Löschung schneller wirken als der vierteljährliche Basisscore vermuten lässt."
+    "wort": "Branchenscore (bis März 2026)",
+    "text": "Bis März 2026 berechnete die SCHUFA neben dem Basisscore sechs Branchenwerte – Banken, Sparkassen, Genossenschaftsbanken, Telekommunikation, Handel, Versandhandel. Der neue SCHUFA-Score ersetzt sie durch einen einzigen Wert, den Verbraucher und Vertragspartner gleichermaßen sehen."
   },
   {
     "wort": "CRIF",
@@ -1133,8 +1133,12 @@ export const SEO_GLOSSAR: { wort: string; text: string }[] = [
     "text": "Die größte deutsche Wirtschaftsauskunftei: Daten zu rund 68 Millionen Menschen, gespeist von Banken, Händlern und Telekommunikationsanbietern. Die SCHUFA entscheidet keine Anträge — sie liefert Daten und Scores an ihre Vertragspartner."
   },
   {
+    "wort": "Score-Klasse",
+    "text": "Seit März 2026 ordnet die SCHUFA jeden Score einer von fünf Klassen zu: hervorragend (776–999), gut (709–775), akzeptabel (642–708), ausreichend (100–641), ungenügend (offene Zahlungsstörung, kein Punktwert). Die Klasse ist die Sprache, in der Vertragspartner den Score lesen."
+  },
+  {
     "wort": "Score",
-    "text": "Die statistische Schätzung Ihrer Zahlungswahrscheinlichkeit, als Zahl. Die Formel ist Geschäftsgeheimnis, die Merkmale dahinter sind bekannt: Zahlungshistorie, Negativmerkmale, Anfragen, Kontenlandschaft, Historie-Alter."
+    "text": "Die statistische Schätzung Ihrer Zahlungswahrscheinlichkeit, als Zahl – bei der SCHUFA seit März 2026 zwischen 100 und 999 Punkten aus zwölf veröffentlichten Kriterien. Die Merkmale sind bekannt: Zahlungshistorie, Negativmerkmale, Anfragen, Kontenlandschaft, Historie-Alter."
   },
   {
     "wort": "Selbstauskunft",

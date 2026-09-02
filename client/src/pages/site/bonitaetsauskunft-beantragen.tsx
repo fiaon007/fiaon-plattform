@@ -145,7 +145,7 @@ export default function BonitaetsauskunftBeantragen() {
                 <div className="zeile"><span>Girokonto, geführt seit 2019</span><b className="gruen">Positivmerkmal</b></div>
                 <div className="zeile"><span>Ratenkredit, vertragsgemäß bedient</span><b className="gruen">Positivmerkmal</b></div>
                 <div className="zeile"><span>Forderung Mobilfunk, 214 €, erledigt 2022</span><b className="gelb">Frist prüfen — Löschung möglich</b></div>
-                <div className="zeile"><span>Basisscore</span><b>im Bericht erklärt</b></div>
+                <div className="zeile"><span>SCHUFA-Score (100–999)</span><b>im Bericht erklärt</b></div>
               </div>
             </div>
           </Auf>

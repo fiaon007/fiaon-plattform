@@ -621,7 +621,11 @@ export function hasAgentToken(req: Request): boolean {
 }
 
 export function blockAgentsFromAdmin(req: Request, res: Response, next: NextFunction) {
-  if (req.path.startsWith("/admin") && verifyAgentToken((req as any).cookies?.[AGENT_COOKIE])) {
+  // Kleingeschrieben vergleichen: Express routet ohne Rücksicht auf Groß- und
+  // Kleinschreibung, dieser Vergleich tat es nicht. /ADMIN/… ging an beiden
+  // Wänden vorbei (Abnahme 02.09.2026, gemessen: 5.801 Kundendatensätze ohne
+  // Cookie abrufbar). Siehe die ausführliche Begründung in fiaon-admin-zugang.ts.
+  if (String(req.path || "").toLowerCase().startsWith("/admin") && verifyAgentToken((req as any).cookies?.[AGENT_COOKIE])) {
     // ═══════════════════════════════════════════════════════════════════════
     // WER BEIDES IST, WIRD NACH DEM STÄRKEREN AUSWEIS BEHANDELT (02.09.2026)
     //

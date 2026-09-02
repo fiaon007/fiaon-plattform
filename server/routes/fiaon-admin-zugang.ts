@@ -199,12 +199,30 @@ const NUR_GESCHAEFTSFUEHRUNG = [
 ];
 
 export function adminCodeGate(req: Request, res: Response, next: NextFunction) {
-  if (!req.path.startsWith("/admin")) return next();
+  // ═══════════════════════════════════════════════════════════════════════
+  // KLEINGESCHRIEBEN VERGLEICHEN — SONST IST DIE WAND EINE ATTRAPPE
+  //
+  // Gefunden bei der Abnahme am 02.09.2026, gegen die Produktion gemessen:
+  //   GET /api/fiaon/admin/kunden   → 401  (Wand greift)
+  //   GET /api/fiaon/ADMIN/kunden   → 200  (5.801 Datensätze, ohne Cookie)
+  //
+  // Express routet standardmäßig OHNE Rücksicht auf Groß- und Kleinschreibung
+  // („case sensitive routing" ist per Vorgabe aus). Die Route griff also auch
+  // bei /ADMIN — dieser Vergleich hier aber nicht. Ergebnis: Name, E-Mail und
+  // Telefonnummer von 5.801 Menschen waren öffentlich abrufbar, solange man
+  // einen Großbuchstaben tippte.
+  //
+  // Der Pfad wird deshalb kleingeschrieben verglichen, hier und in
+  // blockAgentsFromAdmin. Zwei Zeichen, die den Unterschied zwischen einer
+  // Wand und einer Attrappe ausmachen.
+  // ═══════════════════════════════════════════════════════════════════════
+  const pfad = String(req.path || "").toLowerCase();
+  if (!pfad.startsWith("/admin")) return next();
   if (hasAdminCode(req)) return next();
 
   const chef = readChef(req);
   if (chef) {
-    const heikel = NUR_GESCHAEFTSFUEHRUNG.some((p) => req.path.startsWith(p));
+    const heikel = NUR_GESCHAEFTSFUEHRUNG.some((p) => pfad.startsWith(p));
     if (!heikel || chef.stufe === "inhaber" || chef.stufe === "geschaeftsfuehrung") {
       return next();
     }

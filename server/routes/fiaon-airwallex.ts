@@ -80,9 +80,28 @@ async function globalAccountId(): Promise<string> {
   return String(treffer.id);
 }
 
-type Eingang = { id: string; datum: string; cents: number; absender: string; zweck: string; status: string };
+type Eingang = { id: string; datum: string; cents: number; absender: string; zweck: string; status: string; art: string };
 
-/** Ein Airwallex-Datensatz → unser Eingang. Tolerant bei Feldnamen; null, wenn unbrauchbar. */
+/**
+ * Ein Airwallex-Datensatz → unser Eingang. Tolerant bei Feldnamen; null, wenn unbrauchbar.
+ *
+ * ── AM ECHTEN DATENSATZ NACHGEZOGEN (02.09.2026) ──────────────────────────
+ * Die Feldnamen waren nach der Dokumentation geraten, weil die API wegen der
+ * fehlenden IP-Freigabe nicht erreichbar war. Der erste echte Datensatz hat
+ * zwei davon widerlegt:
+ *   { amount, create_time, currency, description, id, payer_country,
+ *     payer_name, status, type }
+ * 1. Das Datum heißt `create_time` — keiner der geratenen Namen traf. Folge:
+ *    `datum` blieb leer, und `liveVerbuchen` steigt bei leerem Datum in der
+ *    ersten Zeile aus. Der Einleser hätte brav ins Bankbuch geschrieben und
+ *    NIE eine einzige Zahlung automatisch gebucht — die Automatik wäre
+ *    stillschweigend wirkungslos gewesen.
+ * 2. Es gibt ein Feld `type` mit CREDIT/DEBIT. Ohne Auswertung hinge die
+ *    Unterscheidung Eingang/Ausgang allein am Vorzeichen von `amount` — und
+ *    ob Airwallex Abbuchungen negativ liefert, ist ungeprüft. Eine als
+ *    Eingang gebuchte Abbuchung würde einen Kunden freischalten, der nichts
+ *    bezahlt hat. Deshalb: nur ausdrückliche CREDIT-Zeilen.
+ */
 function lesen(t: any): Eingang | null {
   const id = String(t?.id ?? t?.transaction_id ?? t?.request_id ?? "").trim();
   const betragRoh = t?.amount ?? t?.settled_amount ?? t?.net_amount ?? t?.transaction_amount;
@@ -90,21 +109,35 @@ function lesen(t: any): Eingang | null {
   if (!id || !Number.isFinite(cents)) return null;
   const waehrung = String(t?.currency ?? t?.transaction_currency ?? "EUR").toUpperCase();
   if (waehrung !== "EUR") return null;
-  const datum = String(t?.settled_at ?? t?.created_at ?? t?.transaction_date ?? t?.posted_at ?? "").slice(0, 10);
+  const datum = String(
+    t?.create_time ?? t?.settled_at ?? t?.created_at ?? t?.transaction_date ?? t?.posted_at ?? "",
+  ).slice(0, 10);
   const absender = String(
     t?.payer?.name ?? t?.payer_name ?? t?.counterparty?.name ?? t?.source?.name ?? t?.sender_name ?? t?.debtor_name ?? "",
   ).trim();
   const zweck = String(
-    t?.remittance_information ?? t?.reference ?? t?.payment_reference ?? t?.description ?? t?.memo ?? t?.narrative ?? "",
+    t?.description ?? t?.remittance_information ?? t?.reference ?? t?.payment_reference ?? t?.memo ?? t?.narrative ?? "",
   ).trim();
   const status = String(t?.status ?? "").toUpperCase();
-  return { id, datum, cents, absender, zweck, status };
+  const art = String(t?.type ?? t?.transaction_type ?? "").toUpperCase();
+  return { id, datum, cents, absender, zweck, status, art };
 }
 
-/** Gutschriften der letzten `tage` Tage — nur EUR, nur positive Beträge, nur abgeschlossene. */
-async function gutschriften(tage: number): Promise<{ eingaenge: Eingang[]; gesehen: number }> {
+/**
+ * Der Abruf reicht höchstens so weit zurück. Gemessen am 02.09.2026: Anfragen
+ * bis 30 Tage liefern die Bewegung, ab 60 Tagen kommt eine LEERE Liste — kein
+ * Fehler, keine Warnung, einfach nichts. Wer weiter zurückfragt, bekommt also
+ * „keine Eingänge" statt „Zeitraum zu groß" und hält das Konto für leer.
+ * Darum wird hier hart gedeckelt statt der Grenze zu vertrauen.
+ */
+const MAX_RUECKSCHAU_TAGE = 30;
+
+/** Gutschriften der letzten `tage` Tage — nur EUR, nur echte Eingänge, nur abgeschlossene. */
+async function gutschriften(tage: number): Promise<{ eingaenge: Eingang[]; gesehen: number; gedeckelt: boolean }> {
   const konto = await globalAccountId();
-  const ab = new Date(Date.now() - tage * 24 * 60 * 60 * 1000).toISOString();
+  const gedeckelt = tage > MAX_RUECKSCHAU_TAGE;
+  const wirklich = Math.min(tage, MAX_RUECKSCHAU_TAGE);
+  const ab = new Date(Date.now() - wirklich * 24 * 60 * 60 * 1000).toISOString();
   const alle: any[] = [];
   for (let seite = 0; seite < 20; seite++) {
     const j = await awGet(`/api/v1/global_accounts/${encodeURIComponent(konto)}/transactions?from_created_at=${encodeURIComponent(ab)}&page_num=${seite}&page_size=100`);
@@ -120,20 +153,27 @@ async function gutschriften(tage: number): Promise<{ eingaenge: Eingang[]; geseh
   for (const t of alle) {
     const e = lesen(t);
     if (!e || e.cents <= 0) continue;
+    // Nur echte Gutschriften. Steht eine Art dabei, muss sie CREDIT sein —
+    // eine als Eingang verbuchte Abbuchung würde jemanden freischalten, der
+    // nichts bezahlt hat. Fehlt das Feld, bleibt es beim Vorzeichen oben.
+    if (e.art && e.art !== "CREDIT") continue;
     // Abgeschlossene Gutschriften; unbekannte Statuswerte werden zugelassen, aber vermerkt.
     if (e.status && !/SETTLED|COMPLETED|SUCCE|CLEARED|POSTED/.test(e.status) && /PENDING|FAILED|CANCEL|REVERS|DECLIN/.test(e.status)) continue;
+    // Ohne Datum bucht liveVerbuchen grundsätzlich nicht — dann lieber laut sein,
+    // als die Zeile stumm im Bankbuch versanden zu lassen.
+    if (!e.datum) console.warn(`[AIRWALLEX] Eingang ${e.id} ohne lesbares Datum — bleibt Handarbeit. Felder prüfen.`);
     eingaenge.push(e);
   }
-  return { eingaenge, gesehen: alle.length };
+  return { eingaenge, gesehen: alle.length, gedeckelt };
 }
 
 /**
  * Der Einleser: Neues ins Bankbuch, Glasklares live buchen.
  * Idempotent über txn_id (AWX-…) — mehrfaches Lesen bucht nie doppelt.
  */
-export async function airwallexEinlesen(tage = 3): Promise<{ gesehen: number; neu: number; gebucht: number }> {
+export async function airwallexEinlesen(tage = 3): Promise<{ gesehen: number; neu: number; gebucht: number; gedeckelt: boolean }> {
   if (!konfiguriert()) throw new Error("AIRWALLEX_CLIENT_ID / AIRWALLEX_API_KEY fehlen");
-  const { eingaenge, gesehen } = await gutschriften(tage);
+  const { eingaenge, gesehen, gedeckelt } = await gutschriften(tage);
   let neu = 0, gebucht = 0;
   for (const e of eingaenge) {
     const txnId = `AWX-${e.id}`;
@@ -166,7 +206,7 @@ export async function airwallexEinlesen(tage = 3): Promise<{ gesehen: number; ne
     if (erg.gebucht) gebucht += 1;
   }
   letzterLauf = { wann: new Date().toISOString(), gesehen, neu, gebucht, fehler: null };
-  return { gesehen, neu, gebucht };
+  return { gesehen, neu, gebucht, gedeckelt };
 }
 
 router.get("/admin/airwallex/status", async (_req: Request, res: Response) => {
@@ -182,9 +222,9 @@ router.get("/admin/airwallex/status", async (_req: Request, res: Response) => {
 
 router.post("/admin/airwallex/einlesen", async (req: Request, res: Response) => {
   try {
-    const tage = Math.min(30, Math.max(1, Number(req.body?.tage) || 3));
+    const tage = Math.min(MAX_RUECKSCHAU_TAGE, Math.max(1, Number(req.body?.tage) || 3));
     const erg = await airwallexEinlesen(tage);
-    res.json({ ok: true, tage, ...erg });
+    res.json({ ok: true, tage, maxTage: MAX_RUECKSCHAU_TAGE, ...erg });
   } catch (e: any) {
     letzterLauf = { wann: new Date().toISOString(), gesehen: 0, neu: 0, gebucht: 0, fehler: String(e?.message || e).slice(0, 300) };
     res.status(500).json({ ok: false, error: String(e?.message || e).slice(0, 300) });

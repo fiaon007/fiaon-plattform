@@ -81,11 +81,30 @@ export async function postmeisterSchema(): Promise<void> {
 
   // Anrede EINMAL je Person bestimmen und behalten. Am 02.09. wurde dieselbe
   // Person in zwei Antworten „Herr" und „Frau" genannt.
+  // ─────────────────────────────────────────────────────────────────────────
+  // DIE SPRACHE DES KUNDEN (03.09.2026)
+  //
+  // Daniel am 02.09.: „Was machen wir mit Kunden die kein Deutsch oder Englisch
+  // können — hat eine bulgarische Nummer, lebt aber wohl in Deutschland."
+  //
+  // `sprache` wird von HAND gesetzt, vom Betreuer nach dem Gespräch — NIE
+  // automatisch aus Vorwahl oder Staatsangehörigkeit abgeleitet. Nachgemessen
+  // am 03.09.: Von den drei belegten Fällen hätte die Staatsangehörigkeit zwei
+  // falsch eingeordnet (österreichische Staatsbürger mit +43-Nummer). Wer
+  // welche Sprache spricht, weiß nur, wer mit ihm gesprochen hat.
+  //
+  // `sprache_notiz` ist der Freitext daneben: „versteht mündlich, aber nicht
+  // schriftlich", „Tochter übersetzt, bitte abends anrufen".
+  // ─────────────────────────────────────────────────────────────────────────
   await sqlPool`
     ALTER TABLE fiaon_persons
       ADD COLUMN IF NOT EXISTS anrede TEXT,
       ADD COLUMN IF NOT EXISTS anrede_quelle TEXT,
-      ADD COLUMN IF NOT EXISTS gesperrt_seit TIMESTAMPTZ
+      ADD COLUMN IF NOT EXISTS gesperrt_seit TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS sprache TEXT,
+      ADD COLUMN IF NOT EXISTS sprache_notiz TEXT,
+      ADD COLUMN IF NOT EXISTS sprache_gesetzt_am TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS sprache_gesetzt_von INTEGER
   `.catch((e) => console.error("[POSTMEISTER-SCHEMA] persons:", String(e).slice(0, 200)));
 
   await sqlPool`CREATE INDEX IF NOT EXISTS idx_postmeister_person ON fiaon_postmeister (person_id, created_at DESC)`.catch(() => {});

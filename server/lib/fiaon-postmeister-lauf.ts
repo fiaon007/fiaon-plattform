@@ -206,10 +206,17 @@ export async function mailBearbeiten(ein: {
     //    Herr Smith," eingeleitet und mit einem deutschen Knopf beendet
     //    werden. Die Sprache reist jetzt bis in die letzte Zeile mit.
     const [vor, ...restName] = String(akte.name || "").split(" ");
-    const anrede = await anredeBestimmen(wer.personId, vor || null, restName.join(" ") || null, einordnung.sprache);
+    // Was der Kunde GERADE schreibt, schlägt den Vermerk in der Akte — er
+    // schreibt ja in dieser Sprache. Der Vermerk greift nur, wenn die Mail
+    // nichts hergab (kurze Mail, nur ein Wort) und ein Mensch die Sprache
+    // nach einem Telefonat eingetragen hat.
+    const sprache = einordnung.sprache && einordnung.sprache.slice(0, 2) !== "de"
+      ? einordnung.sprache
+      : (akte.sprache || einordnung.sprache);
+    const anrede = await anredeBestimmen(wer.personId, vor || null, restName.join(" ") || null, sprache);
     const fertigeAntwort = antwortBauen({
       anrede: anrede.zeile, kern: erg.antwort, gruss: ein.gruss,
-      schritt: erg.naechsterSchritt, betreff: mail.betreff, sprache: einordnung.sprache,
+      schritt: erg.naechsterSchritt, betreff: mail.betreff, sprache,
     });
 
     // 8. Senden oder Entwurf. Im Zweifel Entwurf.

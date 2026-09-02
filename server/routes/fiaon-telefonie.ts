@@ -1494,6 +1494,104 @@ router.get("/agent/dokumente/:personId/:art/datei", requireAgent, async (req: Ag
  * würde sonst weiter als „liegt vor" zählen. Grund ist Pflicht und steht im
  * Verlauf; darfAnKunde entscheidet, wer darf (Leitung: jeder Kunde).
  */
+// ═══════════════════════════════════════════════════════════════════════════
+// DER SPRACHVERMERK (03.09.2026)
+//
+// Daniel am 02.09.: „Was machen wir mit Kunden die kein Deutsch oder Englisch
+// können — hat eine bulgarische Nummer, lebt aber wohl in Deutschland."
+//
+// Bis heute stand das nirgends. Der nächste Betreuer rief an, stieß auf
+// dieselbe Sprachbarriere und legte wieder auf — die Erkenntnis war jedes Mal
+// verloren. Jetzt setzt sie der Mensch, der sie gemacht hat, in einem Zug.
+//
+// AUSDRÜCKLICH VON HAND: Nachgemessen am 03.09. hätte die Staatsangehörigkeit
+// zwei von drei belegten Fällen falsch eingeordnet — es waren österreichische
+// Staatsbürger mit +43-Nummer. Wer welche Sprache spricht, weiß nur, wer mit
+// ihm gesprochen hat. Deshalb wird hier nichts abgeleitet.
+//
+// Der Vermerk wirkt an drei Stellen: er steht in der Akte, bevor jemand
+// wählt; er steht im Verlauf; und der Postmeister nimmt ihn als Rückfall,
+// wenn die Sprache einer Mail unklar ist.
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/agent/person/:personId/sprache", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const personId = Number(req.params.personId);
+    if (!Number.isFinite(personId)) return res.status(400).json({ ok: false, error: "Person fehlt." });
+    const [p] = (await sqlPool`
+      SELECT p.sprache, p.sprache_notiz, p.sprache_gesetzt_am, a.first_name AS von
+        FROM fiaon_persons p LEFT JOIN fiaon_agents a ON a.id = p.sprache_gesetzt_von
+       WHERE p.id = ${personId} LIMIT 1
+    `) as any[];
+    res.json({
+      ok: true,
+      sprache: p?.sprache ?? null,
+      notiz: p?.sprache_notiz ?? null,
+      gesetztAm: p?.sprache_gesetzt_am ?? null,
+      gesetztVon: p?.von ?? null,
+    });
+  } catch (err) {
+    console.error("[FIAON-TELEFONIE] sprache lesen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+router.post("/agent/person/:personId/sprache", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const personId = Number(req.params.personId);
+    if (!Number.isFinite(personId)) return res.status(400).json({ ok: false, error: "Person fehlt." });
+    const rolle = await rolleVon(req.agent!.id);
+    if (!(await darfAnKunde(req.agent!.id, rolle, personId))) {
+      return res.status(403).json({ ok: false, error: "Nicht dein Kunde." });
+    }
+
+    const roh = String(req.body?.sprache ?? "").trim().toLowerCase().slice(0, 5);
+    const notiz = String(req.body?.notiz ?? "").trim().slice(0, 400);
+    // Leer heißt: Vermerk zurücknehmen. Sonst ein Zwei-Buchstaben-Code.
+    const sprache = roh === "" ? null : (/^[a-z]{2}$/.test(roh) ? roh : null);
+    if (roh !== "" && !sprache) {
+      return res.status(400).json({ ok: false, error: "Bitte einen Sprachcode aus zwei Buchstaben (de, en, bg, tr …)." });
+    }
+
+    const [p] = (await sqlPool`
+      UPDATE fiaon_persons
+      SET sprache = ${sprache}, sprache_notiz = ${notiz || null},
+          sprache_gesetzt_am = ${sprache || notiz ? new Date() : null},
+          sprache_gesetzt_von = ${sprache || notiz ? req.agent!.id : null},
+          updated_at = NOW()
+      WHERE id = ${personId}
+      RETURNING first_name, last_name
+    `) as any[];
+    if (!p) return res.status(404).json({ ok: false, error: "Person nicht gefunden." });
+
+    const [a] = (await sqlPool`
+      SELECT ref FROM fiaon_applications
+      WHERE person_id = ${personId} AND merged_into IS NULL
+      ORDER BY created_at DESC LIMIT 1
+    `) as any[];
+    if (a?.ref) {
+      const text = sprache || notiz
+        ? `Sprachvermerk gesetzt: ${sprache ? sprache.toUpperCase() : "ohne Code"}${notiz ? ` — ${notiz}` : ""}`
+        : "Sprachvermerk entfernt.";
+      await sqlPool`
+        INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
+        VALUES (${a.ref}, ${personId}, ${req.agent!.id}, ${req.agent!.name}, 'system', ${text}, NOW())
+      `.catch(() => {});
+    }
+
+    res.json({
+      ok: true,
+      sprache,
+      notiz: notiz || null,
+      meldung: sprache || notiz
+        ? "Vermerkt. Der Nächste sieht es, bevor er wählt."
+        : "Vermerk entfernt.",
+    });
+  } catch (err) {
+    console.error("[FIAON-TELEFONIE] sprache:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 router.post("/agent/dokumente/:personId/:art/loeschen", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
     const personId = Number(req.params.personId);

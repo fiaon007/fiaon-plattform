@@ -1376,6 +1376,108 @@ function stil3d(d: number, hitze: number): React.CSSProperties {
 // ═══════════════════════════════════════════════════════════════════════════
 /** Eine Sektion der Akte: Überschrift, Erklärzeile (Justin: „immer erklärend“), Inhalt.
  *  Auf Modulebene, nicht im Renderer — sonst remountet jede Eingabe (Fokusverlust). */
+// ═══════════════════════════════════════════════════════════════════════════
+// DER SPRACHVERMERK (03.09.2026)
+//
+// Daniel am 02.09.: „Was machen wir mit Kunden die kein Deutsch oder Englisch
+// können — hat eine bulgarische Nummer, lebt aber wohl in Deutschland."
+//
+// Bisher stand das nirgends. Der Nächste rief an, stieß auf dieselbe Barriere
+// und legte wieder auf. Jetzt trägt es der ein, der es erfahren hat.
+//
+// Bewusst NICHT aus Vorwahl oder Staatsangehörigkeit abgeleitet: Nachgemessen
+// hätte die Staatsangehörigkeit zwei von drei belegten Fällen falsch
+// eingeordnet (Österreicher mit +43-Nummer). Nur wer gesprochen hat, weiß es.
+// ═══════════════════════════════════════════════════════════════════════════
+const SPRACHEN: { code: string; name: string }[] = [
+  { code: "", name: "— kein Vermerk —" },
+  { code: "de", name: "Deutsch" }, { code: "en", name: "Englisch" },
+  { code: "tr", name: "Türkisch" }, { code: "bg", name: "Bulgarisch" },
+  { code: "ro", name: "Rumänisch" }, { code: "pl", name: "Polnisch" },
+  { code: "hr", name: "Kroatisch" }, { code: "sr", name: "Serbisch" },
+  { code: "ru", name: "Russisch" }, { code: "uk", name: "Ukrainisch" },
+  { code: "it", name: "Italienisch" }, { code: "es", name: "Spanisch" },
+  { code: "fr", name: "Französisch" }, { code: "hu", name: "Ungarisch" },
+  { code: "ar", name: "Arabisch" }, { code: "sq", name: "Albanisch" },
+];
+
+function Sprachvermerk({ personId }: { personId: number | null }) {
+  const [sprache, setSprache] = useState("");
+  const [notiz, setNotiz] = useState("");
+  const [stand, setStand] = useState<{ am: string | null; von: string | null } | null>(null);
+  const [laeuft, setLaeuft] = useState(false);
+  const [meldung, setMeldung] = useState<string | null>(null);
+  const [offen, setOffen] = useState(false);
+
+  useEffect(() => {
+    if (!personId) return;
+    api(`/agent/person/${personId}/sprache`).then((r) => {
+      if (!r.ok) return;
+      setSprache(String(r.json.sprache || ""));
+      setNotiz(String(r.json.notiz || ""));
+      setStand({ am: r.json.gesetztAm ?? null, von: r.json.gesetztVon ?? null });
+    });
+  }, [personId]);
+
+  if (!personId) return null;
+  const gesetzt = !!sprache || !!notiz;
+  const name = SPRACHEN.find((s) => s.code === sprache)?.name;
+
+  const sichern = async () => {
+    setLaeuft(true); setMeldung(null);
+    const r = await api(`/agent/person/${personId}/sprache`, { method: "POST", body: JSON.stringify({ sprache, notiz }) });
+    setLaeuft(false);
+    setMeldung(r.ok ? (r.json.meldung || "Vermerkt.") : (r.json?.error || "Das hat nicht geklappt."));
+    if (r.ok) setOffen(false);
+  };
+
+  return (
+    <Sek
+      titel="Sprache"
+      erklaer="Wenn am Telefon die Sprache das Problem war, trag es hier ein. Der Nächste sieht es, bevor er wählt — und der Mail-Agent antwortet in dieser Sprache."
+      kopfRechts={<button type="button" className="pi-knopf klein still" onClick={() => setOffen((o) => !o)}>{offen ? "Zu" : gesetzt ? "Ändern" : "Eintragen"}</button>}
+    >
+      {gesetzt && !offen && (
+        <p className="pi-sek-satz">
+          <b style={{ color: "#fde68a" }}>{name || sprache.toUpperCase() || "Vermerk"}</b>
+          {notiz ? ` — ${notiz}` : ""}
+          {stand?.von ? <span className="leise"> (eingetragen von {stand.von})</span> : null}
+        </p>
+      )}
+      {!gesetzt && !offen && (
+        <p className="pi-sek-satz leise">Kein Vermerk. Solange hier nichts steht, gehen wir von Deutsch aus.</p>
+      )}
+      {offen && (
+        <div style={{ display: "grid", gap: 10, marginTop: 6 }}>
+          <label style={{ display: "grid", gap: 4, fontSize: 13 }}>
+            <span className="leise">Welche Sprache spricht dieser Mensch?</span>
+            <select value={sprache} onChange={(e) => setSprache(e.target.value)} className="pi-eingabe">
+              {SPRACHEN.map((s) => <option key={s.code} value={s.code}>{s.name}</option>)}
+            </select>
+          </label>
+          <label style={{ display: "grid", gap: 4, fontSize: 13 }}>
+            <span className="leise">Was sollte der Nächste wissen? (freiwillig)</span>
+            <input
+              className="pi-eingabe" value={notiz} maxLength={400}
+              placeholder="z. B. versteht mündlich, aber nicht schriftlich — Tochter übersetzt, bitte abends anrufen"
+              onChange={(e) => setNotiz(e.target.value)}
+            />
+          </label>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <button type="button" className="pi-knopf klein" disabled={laeuft} onClick={() => void sichern()}>
+              {laeuft ? "Einen Moment …" : "Vermerken"}
+            </button>
+            <span className="leise" style={{ fontSize: 12 }}>
+              Bitte keinen Dolmetscher anbieten — das dürfen wir nicht zusagen.
+            </span>
+          </div>
+        </div>
+      )}
+      {meldung && <p className="pi-sek-satz" style={{ marginTop: 8 }}>{meldung}</p>}
+    </Sek>
+  );
+}
+
 function Sek({ titel, erklaer, children, kopfRechts }: { titel: string; erklaer: string; children: ReactNode; kopfRechts?: ReactNode }) {
   return (
     <section className="pi-sek">
@@ -2531,6 +2633,9 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
               </div>
             ))}
           </Sek>
+          {/* Der Sprachvermerk steht direkt hinter den Anrufen — dort wird er
+              gefüllt, gleich nachdem jemand die Barriere erlebt hat. */}
+          <Sprachvermerk personId={k.personId} />
           <Sek titel="Kein echter Kunde?" erklaer="Melden statt löschen – die Vertriebsleitung prüft, der Kunde bleibt bis zur Entscheidung in deiner Liste.">
             {!testOffen ? (
               <button type="button" className="pi-link" style={{ justifySelf: "start" }} onClick={() => setTestOffen(true)}>Als Testeintrag melden</button>
@@ -3424,6 +3529,8 @@ function AntragsBlatt({ antrag, name, personId, melden, onFrisch }: {
         <div className="pi-ab-liste">
           <Z was="Name laut Antrag" wert={[P.vorname, P.nachname].filter(Boolean).join(" ") || null} />
           <Z was="Geburtsdatum" wert={P.geburtsdatum} />
+          {/* Staatsangehörigkeit ist KEIN Hinweis auf die Sprache — siehe den
+              Sprachvermerk weiter unten, der von Hand gesetzt wird. */}
           <Z was="Staatsangehörigkeit" wert={P.staatsangehoerigkeit} />
           <Z was="Anschrift" wert={[P.strasse, [P.plz, P.ort].filter(Boolean).join(" ")].filter(Boolean).join(", ") || null} />
           <Z was="Land" wert={P.land} />

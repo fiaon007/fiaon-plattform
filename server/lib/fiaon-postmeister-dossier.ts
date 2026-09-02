@@ -203,6 +203,7 @@ export async function akteLesen(personId: number | null, ref: string | null): Pr
 
   const [person] = personId ? (await sqlPool`
     SELECT p.id, p.first_name, p.last_name, p.company_name, p.primary_email, p.primary_phone, p.anrede,
+           p.sprache, p.sprache_notiz,
            p.werbung_gesperrt_am, p.is_blocked, p.account_status, p.gc_mandate_status,
            a.first_name AS betreuer_vorname, a.name AS betreuer_name
       FROM fiaon_persons p LEFT JOIN fiaon_agents a ON a.id = p.assigned_agent_id
@@ -256,6 +257,11 @@ export async function akteLesen(personId: number | null, ref: string | null): Pr
     personId: personId ?? null,
     name: person ? [person.first_name, person.last_name].filter(Boolean).join(" ") || person.company_name || null : null,
     anrede: person?.anrede ?? null,
+    // Der Sprachvermerk aus der Akte (03.09.2026). Er wird von Hand gesetzt und
+    // dient als Rückfall, wenn die Sprache einer Mail unklar ist — und als
+    // Hinweis für den Menschen, der den Entwurf durchsieht.
+    sprache: person?.sprache ?? null,
+    spracheNotiz: person?.sprache_notiz ?? null,
     email: person?.primary_email ?? null,
     telefon: person?.primary_phone ?? null,
     betreuer: person?.betreuer_vorname || person?.betreuer_name || null,

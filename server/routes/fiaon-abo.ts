@@ -60,6 +60,8 @@ import { absoluteUrl } from "../fiaon-base-url";
 import { tageslauf } from "../lib/fiaon-crons";
 import { sofortUrlFuer } from "../lib/fiaon-zahlungsauftrag";
 
+import { wirdEingezogenSql, wirdEingezogen, EINZUG_HINWEIS } from "../lib/fiaon-einzug-schutz";
+
 const router = Router();
 
 /** Ein Datenbankgriff — der gemeinsame Pool oder eine Transaktion des Prüfstands. */
@@ -900,6 +902,12 @@ async function vorabErinnern(heute: string, tage: number): Promise<number> {
     WHERE r.status = 'offen' AND r.storniert_am IS NULL
       AND r.faellig_am = ${zielTag}::date
       AND r.vorab_am IS NULL
+      -- 02.09.2026, bei der Abnahme gefunden: Diese Vorabinfo läuft STÜNDLICH
+      -- und ohne Klick — und sie kannte den Abo-Schutz nicht. Ab dem 13.09.
+      -- hätte sie sechs Lastschriftkunden zur Zahlung aufgefordert, drei Tage
+      -- bevor bei ihnen abgebucht wird. Dieselbe Bedingung wie im Mahnlauf,
+      -- jetzt aus der einen Quelle (fiaon-einzug-schutz.ts).
+      AND NOT ${sqlPool.unsafe(wirdEingezogenSql("r"))}
     ORDER BY r.id
     LIMIT ${ABO_BATCH}
   `) as any[];

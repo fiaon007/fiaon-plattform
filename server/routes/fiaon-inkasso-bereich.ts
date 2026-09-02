@@ -23,6 +23,8 @@ import {
 } from "../lib/fiaon-inkasso";
 import { berlinToday } from "../lib/fiaon-time";
 
+import { wirdEingezogen, EINZUG_HINWEIS } from "../lib/fiaon-einzug-schutz";
+
 const router = Router();
 
 /**
@@ -736,6 +738,17 @@ router.post("/inkasso/rate/:id/erinnerung", requireAgent, async (req: AgentReque
         AND a.archived_at IS NULL AND a.gdpr_deleted_at IS NULL
     `) as any[];
     if (!r) return res.status(404).json({ ok: false, error: "Diese Rate gibt es nicht mehr." });
+
+    // ── LÄUFT HIER SCHON EIN EINZUG? (02.09.2026) ──────────────────────────
+    // Bei der Abnahme gefunden: Dieser Knopf kannte den Abo-Schutz nicht.
+    // Der automatische Mahnlauf schützt Lastschriftkunden seit heute — ein
+    // Betreuer im Gespräch hätte sie trotzdem zur Zahlung aufgefordert, mit
+    // Bankdaten und Verwendungszweck. Der Kunde hätte überwiesen, und drei
+    // Tage später wäre derselbe Betrag abgebucht worden.
+    if (await wirdEingezogen(id)) {
+      return res.status(409).json({ ok: false, error: EINZUG_HINWEIS });
+    }
+
     if (!r.email) {
       return res.status(400).json({
         ok: false,

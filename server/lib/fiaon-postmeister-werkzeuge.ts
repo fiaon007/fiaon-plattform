@@ -254,6 +254,31 @@ export const zahlungslinkBauen: Werkzeug = {
     const z = await zahlungsauftragFinden(ref);
     if (!z) return { ok: false, ergebnis: "", fehler: "Zu dieser Referenz gibt es keinen offenen Auftrag." };
     if (z.status === "paid") return { ok: false, ergebnis: "", fehler: "Diese Rechnung ist bereits bezahlt — sag das dem Kunden, statt zu einer Zahlung aufzufordern." };
+
+    // ── LÄUFT FÜR DIESE RATE SCHON EIN EINZUG? (02.09.2026) ────────────────
+    // Bei der Abnahme gefunden: Dieses Werkzeug ist auch in der Lage „aktiv"
+    // freigegeben — also genau für Lastschriftkunden. Der einzige Schutz war
+    // bis hierher ein Satz im Prompt („NICHT zur Zahlung auffordern"). Ein
+    // Satz im Prompt ist eine Bitte, keine Wand: Fragt der Kunde „wie kann
+    // ich zahlen?", holt das Modell die Seite trotzdem — und der Kunde
+    // überweist einen Betrag, der drei Tage später abgebucht wird.
+    // Der Server entscheidet das jetzt, nicht der Prompt.
+    if (/-\d{1,2}$/.test(ref)) {
+      const { sqlPool } = await import("./db-pool");
+      const { wirdEingezogenSql } = await import("./fiaon-einzug-schutz");
+      const [t] = (await sqlPool.unsafe(
+        `SELECT ${wirdEingezogenSql("r")} AS ja FROM fiaon_abo_raten r
+          WHERE r.zahlungsreferenz = $1 AND r.status = 'offen' LIMIT 1`,
+        [ref],
+      ).catch(() => [])) as any[];
+      if (t?.ja === true) {
+        return {
+          ok: false, ergebnis: "",
+          fehler: "Für diese Rate läuft bereits ein Bankeinzug. Sag dem Kunden, dass der Betrag automatisch abgebucht wird — fordere ihn NICHT zur Überweisung auf.",
+        };
+      }
+    }
+
     const url = absoluteUrl(`/zahlung/${z.paymentReference}`);
     return {
       ok: true,

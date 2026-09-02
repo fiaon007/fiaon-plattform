@@ -26,12 +26,24 @@ import "@/styles/ratgeber.css";
 const eur = (n: number) => n.toLocaleString("de-DE", { style: "currency", currency: "EUR" });
 const zahl = (s: string) => { const n = parseFloat(String(s).replace(/\./g, "").replace(",", ".")); return isFinite(n) ? n : 0; };
 
+// QUELLEN (für die Review nachschlagbar):
+//  · 2026: Pfändungsfreigrenzenbekanntmachung 2026, BGBl. 2026 I, veröffentlicht am
+//    26.03.2026 (Angabe TK/Lohnsteuer-kompakt/IHK Hannover; BGBl-Nummer beim
+//    Review gegen www.recht.bund.de prüfen): Grundbetrag 1.587,40 €, erste
+//    unterhaltsberechtigte Person +597,42 €, zweite bis fünfte je +332,83 €,
+//    Höchstbetrag 4.866,30 € (darüber voll pfändbar). Sekundärquellen:
+//    tk.de (Pfändungsfreigrenzen 2026/2027), ihk.de/hannover, lohnsteuer-kompakt.de,
+//    infodienst-schuldnerberatung.de — alle abgerufen 02.09.2026.
+//  · 2025: Pfändungsfreigrenzenbekanntmachung 2025 (gültig 01.07.2025–30.06.2026):
+//    1.555,00 / 585,23 / 326,04 / Höchstbetrag 4.766,90 € (finanztip.de, juraforum.de).
+//  · Quoten: § 850c Abs. 3 ZPO (3/10 + 2/10 + je 1/10 des Mehrbetrags unpfändbar).
 const SAETZE = {
   "2026": { ab: "1. Juli 2026", grund: 1587.40, erste: 597.42, weitere: 332.83, hoechst: 4866.30 },
   "2025": { ab: "1. Juli 2025", grund: 1555.00, erste: 585.23, weitere: 326.04, hoechst: 4766.90 },
 } as const;
 
-function rechnen(netto: number, unterhalt: number, satz: typeof SAETZE["2026"]) {
+type Satz = { ab: string; grund: number; erste: number; weitere: number; hoechst: number };
+function rechnen(netto: number, unterhalt: number, satz: Satz) {
   const u = Math.min(5, Math.max(0, unterhalt));
   const frei = satz.grund + (u >= 1 ? satz.erste : 0) + Math.max(0, u - 1) * satz.weitere;
   const stufe = Math.floor(netto / 10) * 10;
@@ -105,6 +117,7 @@ export default function Pfaendungsrechner() {
                   <tr className="summe"><td>Pfändbar</td><td>{eur(e.pfaendbar)}</td></tr>
                 </tbody>
               </table></div>
+              <div className="wz-schritt"><small>Stand und Quelle</small><p>Werte gültig {S.ab === "1. Juli 2026" ? "vom 1. Juli 2026 bis 30. Juni 2027" : "vom 1. Juli 2025 bis 30. Juni 2026"} nach der Pfändungsfreigrenzenbekanntmachung {S.ab === "1. Juli 2026" ? "2026 (BGBl. 2026 I, veröffentlicht am 26. März 2026)" : "2025"} zu § 850c ZPO. Rechenweg nach § 850c Abs. 3 ZPO. Keine Gewähr für Sonderfälle – maßgeblich ist die amtliche Tabelle.</p></div>
               <div className="wz-schritt"><small>Auf dem P-Konto</small><p>Der Grundfreibetrag von {eur(S.grund)} gilt sofort nach der Umwandlung. {unterhalt > 0 ? `Die Erhöhung um ${eur(e.frei - S.grund)} für Ihre Unterhaltspflichten gilt erst, wenn Sie der Bank eine Bescheinigung vorlegen (§ 903 ZPO) – von der Schuldnerberatung, dem Arbeitgeber oder der Familienkasse. Ohne Bescheinigung schützt das Konto nur den Grundbetrag.` : "Kindergeld und bestimmte Sozialleistungen erhöhen den Schutz zusätzlich – mit Bescheinigung."}</p></div>
               <div className="wz-schritt"><small>Was Sie jetzt tun können</small><p>Girokonto in ein P-Konto umwandeln lassen (die Bank hat vier Geschäftstage). Bescheinigung besorgen. Prüfen, ob die Forderung hinter der Pfändung überhaupt berechtigt und nicht <a href="/werkzeuge/verjaehrung">verjährt</a> ist – ein Titel kann auch auf einer verjährten Forderung beruhen, wenn niemand widersprochen hat. Bei mehreren Gläubigern: <a href="/werkzeuge/schulden-check">Schulden-Check</a> und Schuldnerberatung.</p></div>
               <div className="wz-knoepfe"><Knopf href="/werkzeuge/schulden-check" still>Schulden-Check</Knopf><Knopf href="/werkzeuge/ratenplan" still>Ratenplan statt Pfändung</Knopf></div>

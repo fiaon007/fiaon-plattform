@@ -136,7 +136,11 @@ export function pruefstand(a: Pick<Artikel, "titel" | "teaser" | "inhalt" | "faq
   const alles = `${a.titel}\n${a.teaser}\n${a.inhalt}\n${a.faq.map((f) => f.frage + " " + f.antwort).join("\n")}`;
   const worte = a.inhalt.split(/\s+/).filter(Boolean).length;
 
-  const schlecht = worthygiene(alles);
+  // 02.09.2026: „Schuldnerberatung" ist der gesetzliche Name der kostenlosen,
+  // staatlich anerkannten Stellen, an die der Ratgeber bei ernster Lage
+  // verweisen MUSS (Regel aus /werkzeuge/schulden-check). Die Silbe „beratung"
+  // darin ist kein Versprechen von FIAON — sie wird vor der Prüfung entfernt.
+  const schlecht = worthygiene(alles.replace(/schuldnerberatung/gi, ""));
   if (schlecht.length) punkte.push({ art: "fehler", text: `Verbotene Wörter: ${schlecht.join(", ")}` });
   else punkte.push({ art: "ok", text: "Worthygiene: keine verbotenen Wörter" });
 

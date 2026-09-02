@@ -145,6 +145,7 @@ ${f.name || "[Vor- und Nachname]"}${haltung === "bezahlt" ? "\n\nAnlage: Zahlung
               <span className="wz-stufe" style={{ background: "#1d4ed8" }}>Ihr Schreiben</span>
               <h3>Schriftlich, per Einschreiben, mit Frist – und ohne ein Wort zu viel.</h3>
               <p>Nicht anrufen: Am Telefon wird nichts bewiesen, aber vieles versehentlich anerkannt. Der Brief enthält alles, was zählt: Ihre Haltung, die Rechtsgrundlage, die Frist – und den Widerspruch gegen jede Meldung an Auskunfteien.</p>
+              <div className="wz-schritt" style={{ marginTop: 22, borderColor: "rgba(180,83,9,.35)", background: "#fffaf0" }}><small style={{ color: "#b45309" }}>Muster, keine Rechtsberatung</small><p>Dieses Schreiben ist ein Mustertext zum Selbst-Anpassen. Es bewertet nicht Ihren Einzelfall und ersetzt keine Rechtsberatung – prüfen Sie Sachverhalt, Daten und Fristen selbst oder mit einer Beratungsstelle. Der Unterschied zum FIAON-Programm: Dort sind die Schreiben anwaltlich geprüft, werden per Einschreiben versendet, jede Antwort wird verfolgt und Fristen werden gehalten.</p></div>
               <div className="wz-brief-wrap" style={{ marginTop: 22 }}><div className="wz-brief">{brief}</div>
                 <div className="wz-knoepfe">
                   <button type="button" className="dk-knopf" onClick={kopieren}>{kopiert ? "Kopiert" : "Schreiben kopieren"}</button>

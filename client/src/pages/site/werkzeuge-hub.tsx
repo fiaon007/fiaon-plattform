@@ -27,6 +27,17 @@ const WERKZEUGE: { pfad: string; name: string; frage: string; satz: string; grup
   { pfad: "/werkzeuge/schulden-check", name: "Schulden-Check", frage: "Wie ernst ist meine Lage?", satz: "Schuldenquote und freies Einkommen — mit ehrlicher Ampel und den nächsten Schritten.", gruppe: "geld" },
   { pfad: "/werkzeuge/spielraum", name: "Spielraum-Rechner", frage: "Wie viel Rate trage ich?", satz: "Haushaltsrechnung, wie eine Bank sie ansetzt.", gruppe: "geld" },
   { pfad: "/werkzeuge/karten-check", name: "Karten-Check", frage: "Welche Kreditkarte ist realistisch?", satz: "Debit, Prepaid oder echter Rahmen — was heute geht und was den nächsten Schritt öffnet.", gruppe: "karte" },
+  // 02.09.2026 (E-080): zehn weitere — Briefe, Fristen, Rechner.
+  { pfad: "/werkzeuge/widerspruch", name: "Löschantrag & Widerspruch", frage: "Wie bekomme ich den Eintrag weg?", satz: "Grund wählen, Eckdaten eintragen — zwei fertige Schreiben an Auskunftei und Gläubiger (Art. 17 DSGVO, § 31 BDSG).", gruppe: "eintrag" },
+  { pfad: "/werkzeuge/mahnbescheid", name: "Mahnbescheid-Fristenrechner", frage: "Bis wann muss ich widersprechen?", satz: "Zustelldatum eingeben — der letzte Tag für Widerspruch oder Einspruch, taggenau mit Feiertagen.", gruppe: "eintrag" },
+  { pfad: "/werkzeuge/inkasso-antwort", name: "Inkasso-Antwortbrief", frage: "Was antworte ich dem Inkasso?", satz: "Bestreiten, Nachweise nach § 13a RDG verlangen, Kosten zurückweisen oder Verjährung einwenden — als Brief.", gruppe: "eintrag" },
+  { pfad: "/werkzeuge/mahngebuehren", name: "Mahngebühren-Prüfer", frage: "Darf die Mahnung so viel kosten?", satz: "Rechnet nach, was ein Gläubiger für Mahnungen verlangen darf — und formuliert die Zurückweisung.", gruppe: "eintrag" },
+  { pfad: "/werkzeuge/ratenplan", name: "Ratenplan-Rechner", frage: "Welche Rate nimmt der Gläubiger an?", satz: "Aus Forderung und Spielraum die Rate, die hält — mit dem Angebotsschreiben inklusive Zins- und Meldeverzicht.", gruppe: "geld" },
+  { pfad: "/werkzeuge/schuldenplan", name: "Schuldenfrei-Plan", frage: "In welcher Reihenfolge werde ich schuldenfrei?", satz: "Lawine oder Schneeball, Monat für Monat simuliert — Datum, Zinsen, Reihenfolge.", gruppe: "geld" },
+  { pfad: "/werkzeuge/dispo-rechner", name: "Dispo-Rechner", frage: "Was kostet mein Dauer-Dispo?", satz: "Zinsen im Jahr, Ratenkredit zur Ablösung, Abbau in festen Raten — drei Wege nebeneinander.", gruppe: "geld" },
+  { pfad: "/werkzeuge/pfaendungsrechner", name: "Pfändungsrechner 2026", frage: "Was bleibt mir bei einer Pfändung?", satz: "Freibetrag nach § 850c ZPO und P-Konto-Schutz — Werte ab 1. Juli 2026.", gruppe: "geld" },
+  { pfad: "/werkzeuge/basiskonto", name: "Basiskonto-Helfer", frage: "Basiskonto abgelehnt oder keine Antwort?", satz: "Zehn-Tage-Frist, zulässige Ablehnungsgründe, Erinnerung an die Bank und der Weg zur BaFin.", gruppe: "karte" },
+  { pfad: "/werkzeuge/kartenkosten", name: "Kartenkosten-Vergleich", frage: "Kaution, Prepaid oder Debit?", satz: "Drei Kartenwege auf drei Jahre gerechnet — inklusive der Kaution, die stillliegt.", gruppe: "karte" },
 ];
 
 const GRUPPEN = [
@@ -61,18 +72,18 @@ export default function WerkzeugeHub() {
   }, []);
 
   return (
-    <Dunkel seite="ratgeber" titel="Werkzeuge · Zehn kostenlose Rechner und Prüfer" beschreibung="Zehn kostenlose Werkzeuge rund um SCHUFA, Bonität und Kredit: Datenkopie anfordern, Einträge und Löschfristen prüfen, Kredit- und Umschuldungsrechner, Schulden-Check. Ohne Anmeldung, nichts wird gespeichert.">
+    <Dunkel seite="ratgeber" titel="Werkzeuge · Zwanzig kostenlose Rechner und Prüfer" beschreibung="Zwanzig kostenlose Werkzeuge rund um SCHUFA, Bonität und Kredit: Datenkopie anfordern, Einträge und Löschfristen prüfen, Kredit- und Umschuldungsrechner, Schulden-Check. Ohne Anmeldung, nichts wird gespeichert.">
       <SeoDaten
         pfad="/werkzeuge"
-        titel="Werkzeuge · Zehn kostenlose Rechner und Prüfer"
-        beschreibung="Zehn kostenlose Werkzeuge rund um SCHUFA, Bonität und Kredit — ohne Anmeldung, nichts wird gespeichert."
+        titel="Werkzeuge · Zwanzig kostenlose Rechner und Prüfer"
+        beschreibung="Zwanzig kostenlose Werkzeuge rund um SCHUFA, Bonität und Kredit — ohne Anmeldung, nichts wird gespeichert."
         fragen={FRAGEN}
         krumen={[{ name: "Werkzeuge", pfad: "/werkzeuge" }]}
       />
       <section className="dk-hero kurz">
         <div className="dk-hero-bild" aria-hidden="true"><img src="/kino/akten.jpg" alt="" decoding="async" {...({ fetchpriority: "high" } as any)} /><div className="schleier" /></div>
         <div className="dk-rahmen">
-          <span className="dk-pille">Zehn Werkzeuge · kostenlos, ohne Anmeldung</span>
+          <span className="dk-pille">Zwanzig Werkzeuge · kostenlos, ohne Anmeldung</span>
           <h1 className="dk-h1">Erst wissen, <span className="dk-verlauf">dann handeln.</span></h1>
           <p className="dk-lead">Jedes Werkzeug beantwortet eine Frage, die sonst Geld oder Wochen kostet. Alles läuft in Ihrem Browser — nichts wird gespeichert.</p>
         </div>

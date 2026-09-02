@@ -25,6 +25,17 @@ import "@/styles/ratgeber.css";
 
 const eur = (n: number) => n.toLocaleString("de-DE", { style: "currency", currency: "EUR" });
 const zahl = (s: string) => { const n = parseFloat(String(s).replace(/\./g, "").replace(",", ".")); return isFinite(n) ? n : 0; };
+// QUELLEN (für die Review nachschlagbar):
+//  · BGH, Urteil vom 26.06.2019, Az. VIII ZR 95/18 (Mahnpauschale 2,50 € gegenüber
+//    Verbrauchern unwirksam; nachgewiesene Kosten 0,76 €). Sekundär: finanztip.de/
+//    mahngebuehren, paywise.de/wissen/mahngebuehren, schuldnerberatung.de/mahngebuehren
+//    — abgerufen 02.09.2026.
+//  · § 286 Abs. 1–3 BGB (Verzug), § 288 Abs. 1 BGB (5 Punkte über Basiszins),
+//    § 288 Abs. 5 BGB (40-€-Pauschale nur, wenn Schuldner kein Verbraucher),
+//    § 309 Nr. 5 BGB (Pauschalierung von Schadensersatz in AGB).
+//  · Porto Standardbrief 0,95 € seit 01.01.2025 (Deutsche Post, Preisverzeichnis).
+// RICHTWERT = tatsächlicher Schaden je Mahnung ab Verzug (Porto + Material);
+// VERTRETBAR = vertraglich vereinbarte Pauschale, die Gerichte noch mittragen.
 const RICHTWERT = 1.0, VERTRETBAR = 1.5;
 
 const FRAGEN = [
@@ -106,6 +117,7 @@ export default function Mahngebuehren() {
                   </div>
                 </>
               )}
+              <div className="wz-schritt"><small>Stand und Quelle</small><p>§ 286 Abs. 1–3 BGB (Verzug), § 288 Abs. 1 und 5 BGB (Verzugszinsen, 40-Euro-Pauschale nur gegenüber Unternehmern), § 309 Nr. 5 BGB (Pauschalen in AGB); BGH, Urteil vom 26. Juni 2019, VIII ZR 95/18 (2,50 Euro unzulässig, tatsächliche Kosten 0,76 Euro). Richtwert ein Euro je Mahnung: Porto Standardbrief 0,95 Euro (Deutsche Post, seit 1. Januar 2025) zuzüglich Material. Stand: 2. September 2026.</p></div>
               <div className="wz-schritt"><small>Wichtig</small><p>Die Hauptforderung{H > 0 ? ` von ${eur(H)}` : ""} bleibt davon unberührt: Ist sie berechtigt, zahlen Sie sie – möglichst innerhalb von 100 Tagen nach einer etwaigen Meldung. Zurückgewiesen werden nur die überhöhten Nebenkosten. Kommt später ein Inkassobüro dazu, prüft der <a href="/werkzeuge/inkassokosten">Inkassokosten-Prüfer</a> dessen Gebühren.</p></div>
             </div>
           )}

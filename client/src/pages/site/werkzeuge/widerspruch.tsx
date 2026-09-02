@@ -182,6 +182,7 @@ ${f.name || "[Vor- und Nachname]"}`, [f, a, begruendung, ort]);
           </div>
           {grund && (
             <>
+              <div className="wz-schritt" style={{ marginTop: 22, borderColor: "rgba(180,83,9,.35)", background: "#fffaf0" }}><small style={{ color: "#b45309" }}>Muster, keine Rechtsberatung</small><p>Dieses Schreiben ist ein Mustertext zum Selbst-Anpassen. Es bewertet nicht Ihren Einzelfall und ersetzt keine Rechtsberatung – prüfen Sie Sachverhalt, Daten und Fristen selbst oder mit einer Beratungsstelle. Der Unterschied zum FIAON-Programm: Dort sind die Schreiben anwaltlich geprüft, werden per Einschreiben versendet, jede Antwort wird verfolgt und Fristen werden gehalten.</p></div>
               <div className="wz-schritt" style={{ marginTop: 26 }}><small>Schreiben 1 · an die Auskunftei</small><p>Per Einschreiben. Frist: vier Wochen. Ausweiskopie beilegen, geschwärzt bis auf Name, Anschrift, Geburtsdatum.</p></div>
               <div className="wz-brief-wrap"><div className="wz-brief">{briefAuskunftei}</div>
                 <div className="wz-knoepfe">

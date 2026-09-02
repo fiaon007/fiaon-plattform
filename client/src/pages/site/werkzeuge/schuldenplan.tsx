@@ -62,11 +62,11 @@ export default function Schuldenplan() {
     if (!gueltig.length || B <= 0) return null;
     const mindest = gueltig.reduce((a, s) => a + s.rate, 0);
     const gesamt = gueltig.reduce((a, s) => a + s.rest, 0);
-    if (B < mindest) return { fehlt: mindest - B, mindest, gesamt } as const;
+    if (B < mindest) return { art: "fehlt" as const, fehlt: mindest - B, mindest, gesamt };
     const zinsProblem = gueltig.filter((s) => s.rate <= s.rest * s.zins / 100 / 12);
-    if (zinsProblem.length) return { zinsProblem, mindest, gesamt } as const;
+    if (zinsProblem.length) return { art: "zins" as const, zinsProblem, mindest, gesamt };
     const lawine = simulieren(gueltig, B, "lawine"); const schneeball = simulieren(gueltig, B, "schneeball");
-    return { lawine, schneeball, mindest, gesamt, extra: B - mindest } as const;
+    return { art: "plan" as const, lawine, schneeball, mindest, gesamt, extra: B - mindest };
   }, [schulden, budget]);
 
   return (
@@ -105,7 +105,7 @@ export default function Schuldenplan() {
               <div className="wz-felder"><label><span>Budget je Monat (€)</span><input value={budget} onChange={(ev) => setBudget(ev.target.value)} inputMode="decimal" placeholder="z. B. 450" /></label></div>
             </div>
           </div>
-          {e && "fehlt" in e && (
+          {e && e.art === "fehlt" && (
             <div className="wz-ergebnis alarm">
               <span className="wz-stufe" style={{ background: "#b91c1c" }}>Budget reicht nicht</span>
               <h3>Die Mindestraten betragen {eur(e.mindest)} – es fehlen {eur(e.fehlt)} im Monat.</h3>
@@ -113,14 +113,14 @@ export default function Schuldenplan() {
               <div className="wz-knoepfe"><Knopf href="/werkzeuge/ratenplan" still>Ratenangebot schreiben</Knopf><Knopf href="/werkzeuge/schulden-check" still>Schulden-Check</Knopf></div>
             </div>
           )}
-          {e && "zinsProblem" in e && (
+          {e && e.art === "zins" && (
             <div className="wz-ergebnis alarm">
               <span className="wz-stufe" style={{ background: "#b45309" }}>Rate deckt die Zinsen nicht</span>
               <h3>Bei {e.zinsProblem.map((s) => s.name).join(", ")} ist die Mindestrate kleiner als die Monatszinsen.</h3>
               <p>Diese Schuld wächst, egal wie lange Sie zahlen. Prüfen Sie den Zinssatz (steht im Vertrag) und die Rate – und wenn beides stimmt: Diese Position braucht als Erstes das Extra-Geld oder eine <a href="/werkzeuge/umschuldung">Umschuldung</a>.</p>
             </div>
           )}
-          {e && "lawine" in e && (
+          {e && e.art === "plan" && (
             <div className="wz-ergebnis gut">
               <span className="wz-stufe" style={{ background: "#047857" }}>Ihr Plan</span>
               <h3>Schuldenfrei in {e.lawine.monate} Monaten (Lawine) oder {e.schneeball.monate} Monaten (Schneeball).</h3>

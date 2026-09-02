@@ -9,7 +9,7 @@
 // Neu erzeugen:   npx tsx scripts/seo-fragen-erzeugen.ts
 // Nur prüfen:     npx tsx scripts/seo-fragen-erzeugen.ts --pruefen
 //
-// Seiten: / (6), /was-ist-fiaon (6), /privatkunden (7), /business (4), /preise (5), /kreditkarte (5), /oesterreich (5), /schweiz (5), /sicherheit (10), /kontakt (3), /karriere (5), /partner (3), /presse (3), /investoren (4), /datenraum (3), /plattform-konzept (5), /fiaon-erfahrungen (7), /werkzeuge (4), /werkzeuge/kreditrechner (5), /werkzeuge/umschuldung (5), /werkzeuge/schulden-check (5), /kredit-ohne-schufa (6), /schufa-eintrag-loeschen (5), /bonitaet-verbessern (6), /auskunfteien (5), /schufa-score-verstehen (6), /bonitaetsauskunft-beantragen (7), /inkasso-brief-erhalten (6), /eintrag-verjaehrung (6), /girokonto-trotz-negativer-bonitaet (7), /ratenzahlung-und-bonitaet (6), /selbstauskunft-checkliste (6), /schufa-neutral-anfragen (6)
+// Seiten: / (6), /was-ist-fiaon (6), /privatkunden (7), /business (4), /preise (5), /kreditkarte (5), /oesterreich (5), /schweiz (5), /sicherheit (10), /kontakt (3), /karriere (5), /partner (3), /presse (3), /investoren (4), /datenraum (3), /plattform-konzept (5), /fiaon-erfahrungen (7), /werkzeuge (4), /werkzeuge/kreditrechner (5), /werkzeuge/umschuldung (5), /werkzeuge/schulden-check (5), /werkzeuge/widerspruch (5), /werkzeuge/mahnbescheid (5), /werkzeuge/ratenplan (5), /werkzeuge/inkasso-antwort (5), /werkzeuge/basiskonto (5), /werkzeuge/pfaendungsrechner (5), /werkzeuge/dispo-rechner (5), /werkzeuge/mahngebuehren (5), /werkzeuge/kartenkosten (5), /werkzeuge/schuldenplan (5), /kredit-ohne-schufa (6), /schufa-eintrag-loeschen (5), /bonitaet-verbessern (6), /auskunfteien (5), /schufa-score-verstehen (6), /bonitaetsauskunft-beantragen (7), /inkasso-brief-erhalten (6), /eintrag-verjaehrung (6), /girokonto-trotz-negativer-bonitaet (7), /ratenzahlung-und-bonitaet (6), /selbstauskunft-checkliste (6), /schufa-neutral-anfragen (6)
 // ═══════════════════════════════════════════════════════════════════════════
 export type SeoFrage = { f: string; a: string };
 
@@ -474,6 +474,226 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     {
       "f": "Speichert dieser Check meine Angaben?",
       "a": "Nein. Alle Berechnungen laufen in Ihrem Browser. Es wird nichts übertragen, nichts gespeichert und keine Anmeldung verlangt."
+    }
+  ],
+  "/werkzeuge/widerspruch": [
+    {
+      "f": "Kann ich mit diesem Schreiben jeden Eintrag löschen lassen?",
+      "a": "Nein. Ein inhaltlich richtiger, zulässig gemeldeter Eintrag bleibt bis zum Ablauf der Speicherfrist – auch nach dem besten Brief. Das Schreiben wirkt dort, wo die Meldung die gesetzlichen Voraussetzungen nicht erfüllt hat (§ 31 Abs. 2 BDSG), wo Daten falsch sind (Art. 16 DSGVO) oder wo die Frist abgelaufen ist (Art. 17 DSGVO)."
+    },
+    {
+      "f": "Schreibe ich an die Auskunftei oder an den Gläubiger?",
+      "a": "An beide. Die Auskunftei ist rechtlich verantwortlich für die Daten, die sie speichert, und muss prüfen. Der Gläubiger hat gemeldet und kann die Meldung zurücknehmen – oft geht das schneller. Deshalb erzeugt das Werkzeug zwei Schreiben."
+    },
+    {
+      "f": "Wie lange hat die Auskunftei Zeit zu antworten?",
+      "a": "Unverzüglich, spätestens innerhalb eines Monats nach Eingang (Art. 12 Abs. 3 DSGVO). Bei komplizierten Fällen darf sie die Frist um zwei Monate verlängern, muss das aber innerhalb des ersten Monats mitteilen. Deshalb steht im Schreiben eine Frist von vier Wochen."
+    },
+    {
+      "f": "Was tue ich, wenn die Auskunftei ablehnt oder nicht antwortet?",
+      "a": "Beschwerde bei der zuständigen Datenschutzaufsichtsbehörde (Art. 77 DSGVO) – für die SCHUFA ist das der Hessische Beauftragte für Datenschutz und Informationsfreiheit. Zusätzlich gibt es den Ombudsmann der SCHUFA. Beides ist kostenlos. FIAON übernimmt diese Eskalation für Kunden."
+    },
+    {
+      "f": "Soll ich per E-Mail oder per Post schicken?",
+      "a": "Per Post als Einschreiben mit Rückschein – oder per Einwurf-Einschreiben. Sie brauchen später den Nachweis, wann das Schreiben zugegangen ist. Eine Kopie des Ausweises verlangen Auskunfteien oft zur Identifikation; schwärzen Sie darauf alles außer Name, Anschrift und Geburtsdatum."
+    }
+  ],
+  "/werkzeuge/mahnbescheid": [
+    {
+      "f": "Prüft das Gericht, ob die Forderung berechtigt ist?",
+      "a": "Nein. Das Mahnverfahren ist ein automatisiertes Verfahren: Das Mahngericht prüft nur, ob der Antrag formal vollständig ist – nicht, ob die Forderung besteht. Deshalb kommen auch verjährte, überhöhte oder erfundene Forderungen als Mahnbescheid. Der Widerspruch ist Ihr einziger Hebel, und er kostet nichts."
+    },
+    {
+      "f": "Muss ich den Widerspruch begründen?",
+      "a": "Nein. Ein Kreuz im Feld „Ich widerspreche dem Anspruch insgesamt“, Datum, Unterschrift – das genügt (§ 694 ZPO). Eine Begründung können Sie später im streitigen Verfahren liefern. Wichtig ist nur, dass der Widerspruch innerhalb von zwei Wochen beim Mahngericht EINGEHT."
+    },
+    {
+      "f": "Was passiert nach dem Widerspruch?",
+      "a": "Der Gläubiger muss entscheiden, ob er klagt. Erst dann prüft ein Gericht die Forderung inhaltlich – mit Ihren Einwänden (Verjährung, überhöhte Inkassokosten, nie bestellt). Viele Inkassounternehmen klagen bei begründetem Widerspruch nicht. Ohne Widerspruch bekommen sie den Titel ohne jede Prüfung."
+    },
+    {
+      "f": "Ich habe die zwei Wochen verpasst – ist alles verloren?",
+      "a": "Nicht sofort. Der Gläubiger muss den Vollstreckungsbescheid erst beantragen; gegen den haben Sie erneut zwei Wochen ab Zustellung für den Einspruch (§ 700 ZPO). Auch ein verspäteter Widerspruch wird als Einspruch gegen den Vollstreckungsbescheid gewertet. Erst wenn auch diese Frist verstreicht, ist die Forderung tituliert – 30 Jahre vollstreckbar."
+    },
+    {
+      "f": "Führt ein Mahnbescheid zu einem SCHUFA-Eintrag?",
+      "a": "Der Mahnbescheid selbst nicht. Ein Vollstreckungsbescheid oder ein Urteil ist dagegen eine titulierte Forderung, die unabhängig von § 31 Abs. 2 Nr. 4 BDSG gemeldet werden darf – auch wenn Sie die Forderung bestreiten. Deshalb ist die Widerspruchsfrist die wichtigste Frist im ganzen Weg."
+    }
+  ],
+  "/werkzeuge/ratenplan": [
+    {
+      "f": "Muss ein Gläubiger Ratenzahlung annehmen?",
+      "a": "Nein. Eine Forderung ist auf einmal fällig; Ratenzahlung ist ein Entgegenkommen. In der Praxis nehmen Gläubiger und Inkassounternehmen realistische Angebote fast immer an – sie bekommen sonst gar nichts oder müssen teuer vollstrecken. Entscheidend ist, dass die Rate tragfähig ist und pünktlich kommt."
+    },
+    {
+      "f": "Wie hoch sollte die Rate sein?",
+      "a": "So hoch, dass sie auch in einem schlechten Monat sicher kommt – nicht so hoch, wie es sich im besten Monat anfühlt. Faustregel aus der Schuldnerberatung: höchstens die Hälfte des Betrags, der nach allen Fixkosten übrig bleibt. Eine geplatzte Rate kostet mehr Vertrauen als eine kleine Rate über einen längeren Zeitraum."
+    },
+    {
+      "f": "Was ist mit Zinsen und Inkassokosten?",
+      "a": "Fragen Sie im Angebot ausdrücklich nach dem Verzicht auf weitere Verzugszinsen und Kosten ab Beginn der Ratenzahlung. Viele Gläubiger stimmen zu, weil die Sicherheit der Zahlung mehr wert ist. Die bisher aufgelaufenen Inkassokosten sollten Sie vorher mit dem Inkassokosten-Prüfer nachrechnen – überhöhte Posten gehören nicht in den Ratenplan."
+    },
+    {
+      "f": "Verhindert ein Ratenplan den SCHUFA-Eintrag?",
+      "a": "Nicht automatisch, aber oft: Solange eine Ratenvereinbarung besteht und eingehalten wird, gilt die Forderung in der Regel nicht mehr als fällig im Sinne von § 31 Abs. 2 BDSG – eine Meldung wäre angreifbar. Deshalb steht im Schreiben die Bitte um Bestätigung, dass während der Ratenzahlung keine Meldung erfolgt. Lassen Sie sich das schriftlich geben."
+    },
+    {
+      "f": "Ist eine Ratenvereinbarung ein Schuldanerkenntnis?",
+      "a": "Sie kann so gewertet werden – und lässt die Verjährung neu beginnen (§ 212 BGB). Prüfen Sie deshalb VOR dem Angebot, ob die Forderung vielleicht schon verjährt oder überhaupt berechtigt ist. Ein Ratenplan ist der richtige Schritt bei einer berechtigten, nicht verjährten Forderung – nicht bei einer zweifelhaften."
+    }
+  ],
+  "/werkzeuge/inkasso-antwort": [
+    {
+      "f": "Muss ich auf einen Inkassobrief überhaupt antworten?",
+      "a": "Rechtlich nicht – aber Schweigen ist die schlechteste Antwort. Ein bestrittener Anspruch darf nicht an Auskunfteien gemeldet werden (§ 31 Abs. 2 Nr. 4 Buchst. d BDSG); wer nicht widerspricht, bestreitet nicht. Ein kurzes, sachliches Schreiben schützt Sie vor der Meldung und zwingt das Inkasso, seine Unterlagen zu zeigen."
+    },
+    {
+      "f": "Was muss ein Inkassounternehmen mir mitteilen?",
+      "a": "Seit dem 1. Oktober 2021 mit der ersten Geltendmachung (§ 13a RDG): Name und Anschrift des Auftraggebers, den Forderungsgrund – bei Verträgen mit Vertragsgegenstand und Datum des Vertragsschlusses –, bei Zinsen die Berechnung, bei Inkassokosten Art, Höhe und Entstehungsgrund, und ob es sich um eine abgetretene Forderung handelt. Fehlt das, verlangen Sie es – genau das tut der Brief."
+    },
+    {
+      "f": "Darf ich die Forderung bestreiten, obwohl sie vielleicht stimmt?",
+      "a": "Sie dürfen jederzeit Nachweise verlangen und die Forderung bis zur Vorlage bestreiten. Das ist kein Betrug, sondern Ihr Recht: Wer Geld von Ihnen will, muss belegen, wofür. Stellt sich die Forderung als berechtigt heraus, zahlen oder vereinbaren Sie Raten – dann mit korrigierten Kosten."
+    },
+    {
+      "f": "Was tue ich, wenn nach dem Brief ein Mahnbescheid kommt?",
+      "a": "Innerhalb von zwei Wochen Widerspruch beim Mahngericht einlegen – das Formular liegt bei, eine Begründung ist nicht nötig. Der Mahnbescheid-Fristenrechner nennt Ihnen den letzten Tag. Ohne Widerspruch wird die Forderung tituliert, egal ob sie berechtigt ist."
+    },
+    {
+      "f": "Kann das Inkasso trotzdem einen SCHUFA-Eintrag veranlassen?",
+      "a": "Nicht rechtmäßig, solange Sie bestritten haben. Geschieht es doch, ist der Eintrag angreifbar – nutzen Sie den Widerspruch-Generator für den Löschantrag an die Auskunftei. Heben Sie Ihr Schreiben und den Einlieferungsbeleg auf: Sie sind der Beweis, dass die Forderung bestritten war."
+    }
+  ],
+  "/werkzeuge/basiskonto": [
+    {
+      "f": "Wer hat Anspruch auf ein Basiskonto?",
+      "a": "Jeder Verbraucher mit rechtmäßigem Aufenthalt in der EU – auch ohne festen Wohnsitz, auch mit negativen Einträgen bei SCHUFA oder anderen Auskunfteien, auch in der Insolvenz (§ 31 ZKG). Die Bonität ist kein Ablehnungsgrund. Das Konto wird auf Guthabenbasis geführt; ein Dispo gehört nicht dazu."
+    },
+    {
+      "f": "Welche Bank muss das Konto eröffnen?",
+      "a": "Jede Bank, die Zahlungskonten für Verbraucher anbietet – Sparkassen, Volksbanken, Privatbanken, Direktbanken. Sie dürfen sich das Basiskonto nicht gegenseitig zuschieben. Sie können sich die Bank aussuchen; sinnvoll ist eine, bei der Sie später auch Karte und Überweisungen bequem nutzen."
+    },
+    {
+      "f": "Was darf die Bank verlangen und was kosten darf es?",
+      "a": "Ausweis oder Pass, bei fehlender Meldeadresse eine Erreichbarkeitsanschrift. Das Entgelt muss angemessen sein und sich an marktüblichen Kontoführungsentgelten orientieren (§ 41 ZKG); der BGH hat überhöhte Basiskonto-Gebühren mehrfach gekippt (u. a. XI ZR 119/19 vom 30.06.2020). Vergleichen Sie – die Gebühren unterscheiden sich erheblich."
+    },
+    {
+      "f": "Aus welchen Gründen darf die Bank ablehnen?",
+      "a": "Nur aus den im Gesetz genannten: Sie führen bereits ein Zahlungskonto in Deutschland, das Sie nutzen können; Sie wurden in den letzten drei Jahren wegen einer vorsätzlichen Straftat gegen die Bank verurteilt; Sie haben ein früheres Konto bei dieser Bank durch schwere Vertragsverletzung verloren; oder es liegen Verstöße gegen das Geldwäschegesetz vor (§§ 35, 36 ZKG). Ein SCHUFA-Eintrag steht nicht in dieser Liste."
+    },
+    {
+      "f": "Was macht die BaFin im Verwaltungsverfahren?",
+      "a": "Sie prüft, ob die Ablehnung oder die Verzögerung rechtmäßig war, und ordnet gegenüber der Bank die Eröffnung des Kontos an, wenn nicht (§ 48 ZKG). Das Verfahren ist kostenlos, der Antrag geht per Formular oder online an die BaFin in Bonn. Beizulegen sind Ihr Antrag bei der Bank und – falls vorhanden – die schriftliche Ablehnung."
+    }
+  ],
+  "/werkzeuge/pfaendungsrechner": [
+    {
+      "f": "Was ist der Unterschied zwischen Lohnpfändung und P-Konto?",
+      "a": "Bei der Lohnpfändung behält der Arbeitgeber den pfändbaren Teil ein und überweist ihn an den Gläubiger – Grundlage ist die Tabelle zu § 850c ZPO. Das P-Konto schützt das Guthaben auf dem Konto vor der Kontopfändung: Bis zum Freibetrag können Sie verfügen, egal woher das Geld kommt. Beides kann gleichzeitig laufen; das P-Konto schützt dann das, was nach der Lohnpfändung ankommt."
+    },
+    {
+      "f": "Wie bekomme ich ein P-Konto?",
+      "a": "Jedes Girokonto kann auf Verlangen in ein Pfändungsschutzkonto umgewandelt werden – die Bank muss das innerhalb von vier Geschäftstagen tun (§ 850k ZPO). Es darf nur ein P-Konto je Person geben; die Bank darf dafür kein höheres Entgelt verlangen als für das normale Konto. Der Grundfreibetrag gilt sofort; die Erhöhungen brauchen eine Bescheinigung."
+    },
+    {
+      "f": "Wer stellt die Bescheinigung für den erhöhten Freibetrag aus?",
+      "a": "Arbeitgeber, Familienkasse, Sozialleistungsträger, Schuldnerberatungsstellen, Rechtsanwälte, Steuerberater oder das Vollstreckungsgericht (§ 903 ZPO). Die kostenlose Schuldnerberatung ist der einfachste Weg. Ohne Bescheinigung gilt nur der Grundbetrag – auch wenn Sie Kinder haben."
+    },
+    {
+      "f": "Was passiert mit Geld über dem Freibetrag?",
+      "a": "Es ist für den Gläubiger reserviert – die Bank darf es aber erst im Folgemonat auskehren (Moratorium, § 900 ZPO). Nicht verbrauchtes Guthaben unter dem Freibetrag können Sie bis zu drei Monate ansparen (§ 899 Abs. 2 ZPO). Eine Nachzahlung wie Weihnachtsgeld ist deshalb nicht verloren, aber zeitlich zu planen."
+    },
+    {
+      "f": "Gilt die Tabelle auch in Österreich und der Schweiz?",
+      "a": "Nein. In Österreich gilt das Existenzminimum nach der Exekutionsordnung (§ 291a EO, jährlich angepasst), in der Schweiz das betreibungsrechtliche Existenzminimum, das das Betreibungsamt individuell nach den Richtlinien der Konferenz der Betreibungs- und Konkursbeamten berechnet. Dieses Werkzeug rechnet ausschließlich nach deutschem Recht."
+    }
+  ],
+  "/werkzeuge/dispo-rechner": [
+    {
+      "f": "Schadet ein Dispo meiner SCHUFA?",
+      "a": "Der eingeräumte Dispo wird der SCHUFA in der Regel nicht gemeldet – erst eine Kündigung mit offener Forderung oder eine geduldete Überziehung, die die Bank als Vertragsverletzung wertet. Aber: Banken und Kartenpartner lesen den Kontoauszug. Ein dauerhaft ausgereizter Dispo ist dort das deutlichste Warnsignal, unabhängig vom Score."
+    },
+    {
+      "f": "Ist ein Ratenkredit zur Ablösung des Dispos sinnvoll?",
+      "a": "Rechnerisch fast immer, wenn der Kreditzins deutlich unter dem Dispozins liegt (typisch 5 bis 9 Prozent gegenüber 11 und mehr) und Sie die Rate sicher tragen. Voraussetzung: Der Dispo wird danach nicht wieder aufgebaut. Fragen Sie mit einer Konditionsanfrage an, nicht mit einer Kreditanfrage – sie ist SCHUFA-neutral."
+    },
+    {
+      "f": "Was, wenn die Bank den Dispo kündigt?",
+      "a": "Sie darf das mit angemessener Frist – und die offene Summe wird auf einmal fällig. Reagieren Sie sofort schriftlich mit einem Ratenangebot; eine geplatzte Rückzahlung nach Kündigung ist der Weg zum Negativeintrag. Der Ratenplan-Rechner formuliert das Angebot."
+    },
+    {
+      "f": "Wie komme ich aus dem Dispo, wenn kein Kredit möglich ist?",
+      "a": "Mit einem festen Abbau-Betrag pro Monat, direkt nach dem Gehaltseingang, und einem Dispo-Limit, das Sie selbst bei der Bank senken lassen – Schritt für Schritt, damit der alte Stand nicht wieder erreicht wird. Der Rechner zeigt, wie viele Monate das dauert und was es an Zinsen spart, wenn Sie den Betrag nur um 50 Euro erhöhen."
+    },
+    {
+      "f": "Was ist eine geduldete Überziehung?",
+      "a": "Alles, was über das eingeräumte Dispo-Limit hinausgeht. Dafür verlangen viele Banken einen noch höheren Zins – oft 14 bis 18 Prozent – und dürfen die Überziehung jederzeit zurückfordern. Die geduldete Überziehung ist die teuerste Form von Kredit, die es im Alltag gibt."
+    }
+  ],
+  "/werkzeuge/mahngebuehren": [
+    {
+      "f": "Darf ein Gläubiger für die erste Mahnung Gebühren verlangen?",
+      "a": "In der Regel nicht. Die erste Mahnung nach Fälligkeit ist das, was Sie überhaupt erst in Verzug setzt (§ 286 Abs. 1 BGB) – ihre Kosten entstehen vor dem Verzug und sind kein Verzugsschaden. Anders nur, wenn Sie schon vorher in Verzug waren: bei einem festen Zahlungsdatum im Vertrag oder 30 Tage nach einer Rechnung, die auf diese Folge hinweist (§ 286 Abs. 2 und 3 BGB)."
+    },
+    {
+      "f": "Wie hoch dürfen Mahngebühren sein?",
+      "a": "So hoch wie der tatsächliche Schaden: Porto, Papier, Druck – typischerweise um einen Euro. Personal, Software, Verwaltung darf nicht umgelegt werden. Der BGH hat eine Pauschale von 2,50 Euro gegenüber Verbrauchern für unwirksam erklärt, weil die echten Kosten bei 0,76 Euro lagen (26.06.2019, VIII ZR 95/18). Pauschalen von 5, 7,50 oder 10 Euro sind gegenüber Verbrauchern nicht haltbar."
+    },
+    {
+      "f": "Und die 40-Euro-Pauschale?",
+      "a": "Sie gilt ausschließlich, wenn der Schuldner kein Verbraucher ist (§ 288 Abs. 5 BGB) – also zwischen Unternehmen. Taucht sie in einer Mahnung an Sie als Privatperson auf, ist sie unzulässig. Das Gleiche gilt für „Bearbeitungsgebühren“, „Kontoführungsgebühren“ oder „Adressermittlung“ ohne Nachweis."
+    },
+    {
+      "f": "Wie hoch dürfen Verzugszinsen sein?",
+      "a": "Fünf Prozentpunkte über dem Basiszinssatz der Bundesbank (§ 288 Abs. 1 BGB); der Basiszinssatz wird zum 1. Januar und 1. Juli festgesetzt. Ein höherer Zins ist nur zulässig, wenn er vertraglich vereinbart oder als konkreter Schaden nachgewiesen ist – etwa, weil der Gläubiger selbst einen teureren Kredit in Anspruch nehmen musste."
+    },
+    {
+      "f": "Was tue ich mit überhöhten Gebühren?",
+      "a": "Die Hauptforderung zahlen (wenn sie berechtigt ist), die überhöhten Nebenkosten schriftlich zurückweisen – mit dem Text aus dem Prüfer. Viele Gläubiger streichen die Posten dann stillschweigend. Bleiben sie hart, muss der Gläubiger die Kosten einklagen und nachweisen; das tut bei einem Euro Streitwert niemand."
+    }
+  ],
+  "/werkzeuge/kartenkosten": [
+    {
+      "f": "Was ist eine Kreditkarte mit Sicherheitsleistung?",
+      "a": "Eine echte Kreditkarte, deren Rahmen durch eine Kaution gedeckt ist, die Sie vorher hinterlegen – meist in Höhe des Rahmens. Der Herausgeber trägt kein Risiko, deshalb gibt es sie oft auch mit negativen Einträgen. Die Kaution liegt fest, solange die Karte läuft; manche Herausgeber zahlen keine Zinsen darauf. Der Vorteil: Sie funktioniert wie eine Kreditkarte – Hotel, Mietwagen, Kaution – und meldet bei einigen Anbietern eine Zahlungshistorie."
+    },
+    {
+      "f": "Ist Prepaid dasselbe wie Debit?",
+      "a": "Nein. Prepaid-Karten laden Sie auf; sie hängen an keinem Girokonto und kosten oft Aufladegebühren. Debitkarten (Visa Debit, Debit Mastercard) buchen sofort vom Girokonto ab – ohne Aufladung, ohne Rahmen. Für Alltag und Online-Kauf sind beide gleichwertig; bei Hotels und Mietwagen werden Prepaid und Debit häufig abgelehnt, weil keine Kaution blockiert werden kann."
+    },
+    {
+      "f": "Welche Karte baut Bonität auf?",
+      "a": "Nur eine Karte, deren Zahlungsverhalten gemeldet wird – das sind in Deutschland vor allem echte Kreditkarten mit Rahmen und Vertragsmeldung an die SCHUFA. Prepaid- und Debitkarten werden in der Regel nicht gemeldet; sie schaden nicht, bauen aber nichts auf. Was Bonität wirklich baut, ist das geführte Girokonto dahinter: Gehaltseingänge, keine Rückgaben, kein Dauer-Dispo."
+    },
+    {
+      "f": "Was sind Opportunitätskosten der Kaution?",
+      "a": "Das Geld, das als Kaution liegt, arbeitet nicht: Bei 1.000 Euro Kaution und 2,5 Prozent Tagesgeldzins verlieren Sie rund 25 Euro im Jahr – zusätzlich zur Jahresgebühr. Der Rechner zählt das mit, damit Kaution und Prepaid ehrlich vergleichbar werden. Wer die Kaution später zurückbekommt, hat sie nicht verloren – aber drei Jahre nicht nutzen können."
+    },
+    {
+      "f": "Welche Karte bekomme ich über FIAON?",
+      "a": "Das entscheidet der Kartenpartner anhand Ihrer Akte – FIAON bereitet vor und stellt den Antrag, wenn Ihre Readiness die Schwelle erreicht. Für jeden Kunden gibt es zunächst ein Girokonto mit Debitkarte; die Kreditkarte mit Rahmen kommt, wenn Auskunft und Kontoführung sie tragen. Kein Versprechen, sondern ein Weg mit Etappen."
+    }
+  ],
+  "/werkzeuge/schuldenplan": [
+    {
+      "f": "Lawine oder Schneeball – was ist besser?",
+      "a": "Rechnerisch die Lawine: Wer das Extra-Geld immer auf die Schuld mit dem höchsten Zins legt, zahlt am wenigsten Zinsen und ist am frühesten fertig. Praktisch gewinnt oft der Schneeball: Wer die kleinste Schuld zuerst tilgt, hat nach wenigen Monaten einen Gläubiger weniger – und hält deshalb durch. Der Rechner zeigt, wie groß der Unterschied bei Ihren Zahlen ist. Ist er klein, nehmen Sie den Schneeball."
+    },
+    {
+      "f": "Welche Schulden gehören in den Plan?",
+      "a": "Alle mit fester Rate: Ratenkredite, Dispo (mit dem Betrag, den Sie monatlich abbauen wollen), Kreditkartenrahmen, Ratenkäufe, Inkassoforderungen mit Ratenvereinbarung. Nicht hinein gehören Miete, Strom und laufende Verträge – das sind Fixkosten, die im Budget vorher abgezogen sind."
+    },
+    {
+      "f": "Was, wenn das Budget die Mindestraten nicht deckt?",
+      "a": "Dann ist kein Plan der Welt die Lösung, sondern ein Gespräch: mit den Gläubigern über niedrigere Raten (Ratenplan-Rechner) und mit einer kostenlosen, staatlich anerkannten Schuldnerberatung. Sie kann Raten bündeln, Vergleiche verhandeln und – wenn nötig – den Weg in die Verbraucherinsolvenz begleiten. Der Rechner sagt Ihnen ehrlich, wenn Sie an diesem Punkt sind."
+    },
+    {
+      "f": "Sollte ich lieber umschulden?",
+      "a": "Wenn ein neuer Kredit alle teuren Schulden zu einem deutlich niedrigeren Zins ablöst und die Rate ins Budget passt: ja – der Umschuldungsrechner rechnet es durch. Voraussetzung ist eine Bank, die den Kredit gibt; mit negativen Einträgen ist das schwer. Dann ist der Plan mit vorhandenen Mitteln der realistische Weg."
+    },
+    {
+      "f": "Wie halte ich den Plan durch?",
+      "a": "Alle Raten auf einen Tag direkt nach dem Gehalt, per Dauerauftrag. Das Extra-Geld ebenfalls automatisch. Einen Puffer von einer Monatsrate auf dem Konto. Jeden getilgten Gläubiger feiern – und dessen Rate sofort auf die nächste Schuld legen, statt sie im Alltag zu verbrauchen. Genau das ist der Schneeball-Effekt."
     }
   ],
   "/kredit-ohne-schufa": [

@@ -851,12 +851,22 @@ function Verlaengerung({ refKunde, raten }: { refKunde: string; raten: number })
 function Upload({ refKunde, fehlt }: { refKunde: string; fehlt: { kontoauszug: boolean; ausweis: boolean; auskunft: boolean } }) {
   const [dateien, setDateien] = useState<{ bankStatement?: File; idCard?: File; schufaDoc?: File }>({});
   const [laeuft, setLaeuft] = useState(false);
-  const [meldung, setMeldung] = useState<{ ton: "gut" | "fehler"; text: string } | null>(null);
-  const felder: { key: "bankStatement" | "idCard" | "schufaDoc"; label: string; zeigen: boolean }[] = [
+  const [meldung, setMeldung] = useState<{ ton: "gut" | "fehler" | "warnung"; text: string } | null>(null);
+  const felder: { key: "bankStatement" | "idCard" | "schufaDoc"; label: string; zeigen: boolean; hinweis?: string }[] = [
     { key: "bankStatement", label: "Kontoauszug (PDF oder Foto)", zeigen: fehlt.kontoauszug },
     { key: "idCard", label: "Ausweis oder Reisepass (PDF oder Foto)", zeigen: fehlt.ausweis },
     // Die Auskunft beschafft FIAON — das Feld ist ein Angebot für Kunden, die schon eine haben, keine Aufforderung.
-    { key: "schufaDoc", label: "Eigene Bonitätsauskunft — nur falls Sie schon eine haben (optional)", zeigen: fehlt.auskunft },
+    // 03.09.2026 (Daniel: „Das Bild von der Schufa laden so viele hoch"): Der
+    // Satz „Ein Handyfoto genügt" steht über allen drei Feldern. Für Ausweis
+    // und Kontoauszug ist er richtig — für die Auskunft führt er in die Irre,
+    // weil dort ein Foto der Score-Anzeige eben NICHT genügt. Deshalb hier ein
+    // eigener Hinweis am Feld.
+    {
+      key: "schufaDoc",
+      label: "Eigene Bonitätsauskunft — nur falls Sie schon eine haben (optional)",
+      zeigen: fehlt.auskunft,
+      hinweis: "Gemeint ist die vollständige Datenkopie nach Art. 15 DSGVO (kostenlos, meist mehrere Seiten) — bitte alle Seiten. Ein Foto oder Screenshot der reinen Score-Anzeige aus einer App können wir nicht verwenden.",
+    },
   ];
   const sichtbar = felder.filter((f) => f.zeigen);
   if (sichtbar.length === 0) return null;
@@ -867,7 +877,21 @@ function Upload({ refKunde, fehlt }: { refKunde: string; fehlt: { kontoauszug: b
     setLaeuft(true); setMeldung(null);
     const r = await fetch("/api/fiaon/upload-kyc", { method: "POST", body: fd, credentials: "include" });
     const j = await r.json().catch(() => null); setLaeuft(false);
-    if (r.ok && j?.ok !== false) { setMeldung({ ton: "gut", text: j?.message || "Eingegangen. Wir prüfen Ihre Unterlagen innerhalb von zwei Werktagen und melden uns." }); setTimeout(() => window.location.reload(), 2200); }
+    if (r.ok && j?.ok !== false) {
+      // ── DER HINWEIS MUSS STEHEN BLEIBEN (03.09.2026) ────────────────────
+      // Die Prüfung erkennt eine unbrauchbare Datei und schickt einen Satz mit
+      // — der wurde hier nach 2,2 Sekunden vom Neuladen weggewischt. Der Kunde
+      // erfuhr also nie, dass seine Datei nicht zu gebrauchen ist, und zwei
+      // Werktage später fragte jemand von Hand nach. Steht ein Befund an,
+      // bleibt die Seite jetzt stehen, bis der Kunde gelesen hat.
+      const auffaellig = Array.isArray(j?.pruefungen)
+        && j.pruefungen.some((p: any) => p?.erkannt === false || p?.vollstaendig === false || p?.hinweisKunde);
+      setMeldung({
+        ton: auffaellig ? "warnung" : "gut",
+        text: j?.message || "Eingegangen. Wir prüfen Ihre Unterlagen innerhalb von zwei Werktagen und melden uns.",
+      });
+      if (!auffaellig) setTimeout(() => window.location.reload(), 2200);
+    }
     else setMeldung({ ton: "fehler", text: j?.error || "Der Upload hat nicht geklappt. Bitte versuchen Sie es erneut." });
   };
   return (
@@ -876,7 +900,10 @@ function Upload({ refKunde, fehlt }: { refKunde: string; fehlt: { kontoauszug: b
       <p style={{ margin: "4px 0 0", fontSize: 12.8, color: "var(--text-leise)" }}>PDF, JPG oder PNG, bis 25 MB je Datei. Ein Handyfoto genügt, wenn alles lesbar ist — alle vier Ecken im Bild. iPhone-Fotos im Format HEIC können wir nicht lesen; die Fotos-App erzeugt über „Teilen → Drucken → Als PDF sichern“ in zehn Sekunden eine passende Datei.</p>
       <div className="mb-upload">
         {sichtbar.map((f) => (
-          <label key={f.key}><span>{f.label}</span><span className="gewaehlt">{dateien[f.key]?.name || "Datei wählen"}</span>
+          <label key={f.key}>
+            <span>{f.label}</span>
+            {f.hinweis && <span style={{ display: "block", fontSize: 12, lineHeight: 1.45, color: "var(--text-leise)", fontWeight: 400, marginTop: 2 }}>{f.hinweis}</span>}
+            <span className="gewaehlt">{dateien[f.key]?.name || "Datei wählen"}</span>
             <input type="file" accept=".pdf,image/*" onChange={(e) => setDateien({ ...dateien, [f.key]: e.target.files?.[0] })} /></label>
         ))}
       </div>

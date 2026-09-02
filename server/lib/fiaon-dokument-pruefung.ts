@@ -173,11 +173,37 @@ export async function dokumentPruefen(art: DokumentArt, pdf: Buffer): Promise<Do
 
 export async function urteilSpeichern(ref: string, urteil: DokumentUrteil): Promise<void> {
   await ensureTabelle();
+  // ─────────────────────────────────────────────────────────────────────────
+  // 03.09.2026 — WARUM HIER KEIN JSON.stringify MEHR STEHT
+  //
+  // Florentine fragte am 02.09.: „Wie war das, uns wird angezeigt wenn ein
+  // Dokument nicht richtig/vollständig ist?" Die Anzeige ist gebaut — aber sie
+  // hat nie etwas gezeigt, und zwar wegen dieser einen Zeile.
+  //
+  // `${JSON.stringify(urteil)}::jsonb` verpackt doppelt: postgres.js kodiert
+  // den übergebenen Text noch einmal als JSON, der Cast wirkt dann auf das
+  // bereits verpackte Ergebnis. In der Tabelle stand deshalb ein JSON-STRING
+  // statt eines Objekts — nachgemessen am 03.09.: `jsonb_typeof(urteil)` ist
+  // bei allen drei vorhandenen Zeilen 'string'. Jeder Feldzugriff lief damit
+  // ins Leere, und die Anzeige blieb stumm, obwohl das Urteil dastand.
+  //
+  // Das Objekt direkt übergeben ist der richtige Weg — `sqlPool.json` sagt dem
+  // Treiber ausdrücklich, dass hier ein JSON-Wert steht.
+  // ─────────────────────────────────────────────────────────────────────────
   await sqlPool`
     INSERT INTO fiaon_dokument_pruefungen (ref, art, urteil)
-    VALUES (${ref}, ${urteil.art}, ${JSON.stringify(urteil)}::jsonb)
+    VALUES (${ref}, ${urteil.art}, ${sqlPool.json(urteil as any)})
     ON CONFLICT (ref, art) DO UPDATE SET urteil = EXCLUDED.urteil, updated_at = NOW()
   `;
+}
+
+/** Eine Zeile, die noch in der alten, doppelt verpackten Form liegt, lesbar machen. */
+function urteilEntpacken(wert: any): DokumentUrteil | null {
+  if (!wert) return null;
+  if (typeof wert === "string") {
+    try { return JSON.parse(wert) as DokumentUrteil; } catch { return null; }
+  }
+  return wert as DokumentUrteil;
 }
 
 export async function urteileLesen(refs: string[]): Promise<Record<string, DokumentUrteil>> {
@@ -187,7 +213,12 @@ export async function urteileLesen(refs: string[]): Promise<Record<string, Dokum
     SELECT ref, art, urteil FROM fiaon_dokument_pruefungen WHERE ref = ANY(${refs})
   `) as any[];
   const aus: Record<string, DokumentUrteil> = {};
-  for (const r of rows) aus[String(r.art)] = r.urteil;
+  for (const r of rows) {
+    // Die Zeilen vom 01./02.09. liegen noch doppelt verpackt vor. Sie beim
+    // Lesen zu entpacken ist billiger, als sie neu prüfen zu lassen.
+    const u = urteilEntpacken(r.urteil);
+    if (u) aus[String(r.art)] = u;
+  }
   return aus;
 }
 

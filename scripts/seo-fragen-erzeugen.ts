@@ -33,11 +33,14 @@ const ZIEL = path.join(WURZEL, "shared", "fiaon-seo-fragen.ts");
 /** Seitendatei → Pfad der Seite. Nur was hier steht, wird gelesen. */
 const QUELLEN: Record<string, string> = {
   "client/src/pages/fiaon-home.tsx": "/",
-  "client/src/pages/site/was-ist-fiaon.tsx": "/was-ist-fiaon",
-  "client/src/pages/site/privatkunden.tsx": "/privatkunden",
-  "client/src/pages/site/business.tsx": "/business",
-  "client/src/pages/site/preise.tsx": "/preise",
-  "client/src/pages/site/kreditkarte.tsx": "/kreditkarte",
+  "client/src/i18n/was-ist-fiaon.ts": "/was-ist-fiaon|/en/what-is-fiaon",
+  "client/src/i18n/privatkunden.ts": "/privatkunden|/en/personal",
+  "client/src/i18n/business.ts": "/business|/en/business",
+  // 02.09.2026: Die Fragen von /preise stehen im zweisprachigen Wörterbuch —
+  // erste Hälfte (const de) → /preise, zweite Hälfte (const en) → /en/pricing.
+  "client/src/i18n/preise.ts": "/preise|/en/pricing",
+  "client/src/pages/site/en-start.tsx": "/en",
+  "client/src/i18n/kreditkarte.ts": "/kreditkarte|/en/credit-card",
   "client/src/pages/site/oesterreich.tsx": "/oesterreich",
   "client/src/pages/site/schweiz.tsx": "/schweiz",
   "client/src/pages/site/sicherheit.tsx": "/sicherheit",
@@ -115,10 +118,18 @@ function erzeugen(): string {
   for (const [datei, pfad] of Object.entries(QUELLEN)) {
     const voll = path.join(WURZEL, datei);
     if (!fs.existsSync(voll)) { console.warn(`[SEO-FRAGEN] fehlt: ${datei}`); continue; }
-    const fragen = fragenAus(fs.readFileSync(voll, "utf8"));
-    if (!fragen.length) continue;
-    zaehler.push(`${pfad} (${fragen.length})`);
-    bloecke.push(`  ${JSON.stringify(pfad)}: ${JSON.stringify(fragen, null, 2).replace(/\n/g, "\n  ")},`);
+    const quelltext = fs.readFileSync(voll, "utf8");
+    // Zweisprachiges Wörterbuch: „/de-pfad|/en-pfad" — der Quelltext wird an
+    // `const en` geteilt, jede Hälfte gehört zu ihrer Seite.
+    const teile = pfad.includes("|")
+      ? (() => { const [pDe, pEn] = pfad.split("|"); const schnitt = quelltext.indexOf("\nconst en"); return schnitt < 0 ? [[pDe, quelltext]] : [[pDe, quelltext.slice(0, schnitt)], [pEn, quelltext.slice(schnitt)]]; })()
+      : [[pfad, quelltext]];
+    for (const [p, text] of teile) {
+      const fragen = fragenAus(text);
+      if (!fragen.length) continue;
+      zaehler.push(`${p} (${fragen.length})`);
+      bloecke.push(`  ${JSON.stringify(p)}: ${JSON.stringify(fragen, null, 2).replace(/\n/g, "\n  ")},`);
+    }
   }
   return `// ═══════════════════════════════════════════════════════════════════════════
 // GENERIERT — NICHT VON HAND BEARBEITEN.

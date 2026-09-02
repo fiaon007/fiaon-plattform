@@ -23,9 +23,12 @@ export function Dunkel({ seite, titel, beschreibung, children }: { seite: Seite;
     // DOM, und zwei Titel für eine Seite sind ein vermeidbarer Widerspruch.
     // Seiten ohne Tabelleneintrag (Ratgeber-Artikel) behalten ihre Props.
     const pfad = typeof window !== "undefined" ? window.location.pathname : "";
-    // Die Investoren-Seite ist zweisprachig und setzt html lang="en" —
-    // dort gelten die englischen Props, nicht die deutsche SEO-Tabelle.
-    const tabelle = document.documentElement.lang === "en" ? null : seoSeite(pfad);
+    const eintrag = seoSeite(pfad);
+    // Die Investoren-Seite ist zweisprachig über einen eigenen Schalter und
+    // setzt html lang="en" selbst — dort gelten ihre englischen Props, nicht
+    // die deutsche Tabelle. Seiten unter /en (02.09.2026) stehen mit
+    // sprache "en" IN der Tabelle und nehmen deren Kopf.
+    const tabelle = eintrag && (eintrag.sprache === "en" || document.documentElement.lang !== "en") ? eintrag : null;
     const neuerTitel = tabelle ? tabelle.titel : `${titel} · FIAON`;
     const neueBeschreibung = tabelle ? tabelle.beschreibung : beschreibung;
     const vorher = document.title;
@@ -33,8 +36,11 @@ export function Dunkel({ seite, titel, beschreibung, children }: { seite: Seite;
     const m = document.querySelector<HTMLMetaElement>('meta[name="description"]');
     const alt = m?.getAttribute("content") || "";
     m?.setAttribute("content", neueBeschreibung);
+    // html lang folgt der Seite: Screenreader, Silbentrennung und Google lesen es.
+    const langVorher = document.documentElement.lang;
+    if (tabelle?.sprache === "en") document.documentElement.lang = "en";
     window.scrollTo(0, 0);
-    return () => { document.title = vorher; m?.setAttribute("content", alt); };
+    return () => { document.title = vorher; m?.setAttribute("content", alt); if (tabelle?.sprache === "en") document.documentElement.lang = langVorher || "de"; };
   }, [titel, beschreibung]);
   return (
     <div className="dk">

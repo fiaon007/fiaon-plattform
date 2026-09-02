@@ -78,6 +78,26 @@ export interface SeoSeite {
   bild?: string;
   /** Die Seite hat einen eigenen Vorrenderer (Ratgeber) — Tabelle liefert nur Titel/Beschreibung für den Client. */
   eigenerVorrenderer?: boolean;
+  // ── Zweisprachigkeit (02.09.2026, shared/fiaon-sprache.ts) ──────────────
+  /** Sprache des Eintrags — fehlt = Deutsch. Englische Einträge entstehen unten aus `en`. */
+  sprache?: "de" | "en";
+  /** Die Schwesterseite in der anderen Sprache (Pfad) — Grundlage für hreflang und den Umschalter. */
+  schwester?: string;
+  /** Die englische Fassung dieser Seite: eigener Pfad unter /en, eigener Kopf und Korpus. Britisches Englisch. */
+  en?: SeoEnglisch;
+}
+
+export interface SeoEnglisch {
+  /** Adresse unter /en — z. B. /en/pricing. */
+  pfad: string;
+  titel: string;
+  beschreibung: string;
+  h1: string;
+  lead: string;
+  abschnitte?: SeoAbschnitt[];
+  /** Weiterlesen-Ziele (deutsche Pfade — der Renderer nimmt die englische Schwester, wo es sie gibt). */
+  weiter?: string[];
+  krumen?: { name: string; pfad: string }[];
 }
 
 // ── Die Navigation und die Fußzeile, wie sie auf der gerenderten Seite stehen.
@@ -195,6 +215,19 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
       { h2: "Kostenlos, sofort, ohne Anmeldung.", text: "Zehn Werkzeuge, die Ihnen heute schon etwas bringen – keine Anfrage bei einer Auskunftei, keine Spur im Score, nichts wird gespeichert: Datenkopie anfordern, Eintrag prüfen, Löschfrist und Verjährung berechnen, Inkassokosten nachrechnen, Kredit- und Umschuldungsrechner, Schulden-Check, Spielraum und Karten-Check." },
     ],
     weiter: ["/was-ist-fiaon", "/privatkunden", "/preise", "/schufa-eintrag-loeschen", "/bonitaet-verbessern", "/werkzeuge", "/ratgeber", "/kreditkarte"],
+    en: {
+      pfad: "/en",
+      titel: "FIAON in English: your credit file, explained and acted on",
+      beschreibung: "FIAON obtains your SCHUFA, KSV or CRIF report, explains every entry, sends reviewed letters and prepares account and card. Germany, Austria, Switzerland.",
+      h1: "Your credit file, explained — and acted on.",
+      lead: "FIAON is a platform for people in Germany, Austria and Switzerland whose credit file stands between them and a bank account, a card or a flat. We obtain the report, explain it in plain language, send the letters and prepare the account. The bank decides — we make sure your file is ready.",
+      abschnitte: [
+        { h2: "Three layers: insight, action, access", text: "Insight: your credit report from SCHUFA (Germany's main credit bureau), KSV1870 (Austria) or CRIF and Intrum (Switzerland), obtained with your authorisation and explained entry by entry. Action: reviewed letters for entries that can be challenged — deletion requests under Art. 17 GDPR, objections, corrections. You approve, FIAON sends and follows up. Access: a current account, then a card once your file meets the partner's threshold." },
+        { h2: "What it costs", text: "Monthly plans in twelve instalments, cancellable at any time to the end of the current month. Just the credit report on its own is available as a one-off purchase. No commission on limits, no fee per letter.", punkte: ["First instalment by bank transfer, then SEPA direct debit", "A named contact person in every plan", "The German application takes about two minutes"] },
+        { h2: "Honest limits", text: "FIAON does not give legal advice in individual cases, does not guarantee deletions and does not decide on cards or limits — the bank does. Correct entries stay. What we can do is make sure that nothing incorrect, outdated or unlawfully reported remains in your file." },
+      ],
+      weiter: ["/preise"],
+    },
   },
   "/was-ist-fiaon": {
     pfad: "/was-ist-fiaon", art: "unternehmen", stand: PFEILER, prio: 0.8,
@@ -212,6 +245,20 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/privatkunden", "/plattform-konzept", "/fiaon-erfahrungen", "/team", "/preise", "/sicherheit"],
     krumen: [{ name: "Was ist FIAON", pfad: "/was-ist-fiaon" }],
+    en: {
+      pfad: "/en/what-is-fiaon",
+      titel: "What is FIAON? The operating system for creditworthiness",
+      beschreibung: "FIAON shows you what SCHUFA, KSV or CRIF hold on you, repairs it with you and opens the door to an account, a card and finance. Three layers, one path.",
+      h1: "The operating system for creditworthiness.",
+      lead: "FIAON shows you what the credit bureaus hold on you, repairs it with you — and then opens the door to real financial products. One sentence, three layers, one path.",
+      abschnitte: [
+        { h2: "Creditworthiness is not a verdict — it is a state", text: "Today a report you have never seen decides on your account, your card, your flat and your loan. FIAON turns that around: first you see what is stored, then you change it, then the door opens.", punkte: ["Layer 1 · Insight: your report from SCHUFA, KSV or CRIF, explained in plain language", "Layer 2 · Action: deletion requests, corrections, objections and instalment agreements — prepared, reviewed, sent", "Layer 3 · Access: a current account, a credit card, later finance — the bank decides"] },
+        { h2: "Why FIAON exists", text: "100 million people in Germany, Austria and Switzerland have an entry with a credit bureau; six million in Germany alone are considered over-indebted. Score apps show a number, debt counselling is analogue, banks decide by the file. FIAON occupies the layer in between." },
+        { h2: "The path from e-mail address to card", text: "Create an account in two minutes, an onboarding call with a person, your report explained within 24 hours, letters approved and tracked stage by stage, then account and card prepared for partner banks. The bank always decides on the issue." },
+      ],
+      weiter: ["/preise", "/"],
+      krumen: [{ name: "What is FIAON", pfad: "/en/what-is-fiaon" }],
+    },
   },
   "/privatkunden": {
     pfad: "/privatkunden", art: "produkt", stand: PFEILER, prio: 0.9,
@@ -227,6 +274,20 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/preise", "/kreditkarte", "/girokonto-trotz-negativer-bonitaet", "/schufa-eintrag-loeschen", "/werkzeuge/eintrag-pruefen", "/fiaon-erfahrungen"],
     krumen: [{ name: "Privatkunden", pfad: "/privatkunden" }],
+    en: {
+      pfad: "/en/personal",
+      titel: "Personal: credit file, current account, credit card | FIAON",
+      beschreibung: "Clean up entries, open an account, a credit card up to €25,000 — FIAON obtains your report, explains every entry, sends the letters and opens the door.",
+      h1: "The credit card waiting at the end of your credit file.",
+      lead: "An entry is not a verdict. FIAON obtains your report, explains every entry, has challengeable ones deleted — and then opens the door: a current account straight away, a credit card as soon as your file supports it.",
+      abschnitte: [
+        { h2: "Four stages, one goal", text: "Nobody gets a card because they apply for it; they get it because their file supports it.", punkte: ["Insight: your report within 24 hours, every entry explained", "Action: deletion requests, objections and instalment agreements — reviewed, approved by you, sent by registered post", "Account: a current account for every customer, regardless of the file", "Card: FIAON calculates your readiness and prepares the application with the card partner"] },
+        { h2: "Four plans, one credit report", text: "FIAON Start, Pro, Ultra and High End in twelve monthly instalments, cancellable monthly; just the credit report as a one-off. Every plan starts with your report; the difference is how much FIAON takes on afterwards. The bank always decides on account, card and limit." },
+        { h2: "Honest comparison", text: "A score app shows a number, a lawyer charges by the hour, FIAON obtains the report within 24 hours, sends the letters by registered post, prepares the account and the path to a card — with a person who knows your file." },
+      ],
+      weiter: ["/preise", "/was-ist-fiaon"],
+      krumen: [{ name: "Personal", pfad: "/en/personal" }],
+    },
   },
   "/business": {
     pfad: "/business", art: "produkt", stand: PFEILER, prio: 0.8,
@@ -241,6 +302,20 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/preise", "/privatkunden", "/kontakt", "/auskunfteien", "/sicherheit"],
     krumen: [{ name: "Business", pfad: "/business" }],
+    en: {
+      pfad: "/en/business",
+      titel: "FIAON Business: company card, payment terms, clean file",
+      beschreibung: "Company credit card, up to 58 days of payment terms, a clean company credit file: FIAON obtains the reports, cleans up entries, prepares the application.",
+      h1: "Liquidity that stays.",
+      lead: "Every invoice you pay by card instead of bank transfer stays in the company for up to 58 days. FIAON makes sure your credit file supports the card — and the limit grows.",
+      abschnitte: [
+        { h2: "Liquidity is time", text: "A company rarely dies of missing revenue — it dies of payments that go out before the money comes in. A company card with a monthly statement reverses the order: up to 58 days of payment terms, business separated from private, a limit that follows behaviour." },
+        { h2: "Four tiers, one goal", text: "Business Starter, Pro, Ultra and Enterprise — each with credit reports for company and owners, a named contact person and preparation of the company card up to target limits from €5,000 to €250,000. The bank decides on the limit.", punkte: ["Payment-terms calculator: how much stays in the company", "Limit calculator: which limit and which plan fit", "From enquiry to card in six steps"] },
+        { h2: "Honest limits", text: "FIAON does not guarantee a card or a limit. With young companies the owners' credit file counts; FIAON obtains both reports, separates private and business and starts with a limit that grows. Works in Germany, Austria and Switzerland." },
+      ],
+      weiter: ["/preise", "/privatkunden"],
+      krumen: [{ name: "Business", pfad: "/en/business" }],
+    },
   },
   "/bonitaet": {
     pfad: "/bonitaet", art: "produkt", stand: "2026-08-22", prio: 0.7,
@@ -271,6 +346,20 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/privatkunden", "/business", "/bonitaetsauskunft-beantragen", "/fiaon-erfahrungen", "/werkzeuge"],
     krumen: [{ name: "Preise & Pakete", pfad: "/preise" }],
+    en: {
+      pfad: "/en/pricing",
+      titel: "Pricing and plans: twelve instalments, no surprises | FIAON",
+      beschreibung: "What FIAON costs: monthly plans in twelve instalments, cancellable monthly, or the credit report on its own. Every service compared with doing it yourself.",
+      h1: "One price, no surprises.",
+      lead: "Twelve monthly instalments, then we ask whether you want to stay. No commission on limits, no fee per letter, no small print. Everything is here — including what it costs to do it yourself.",
+      abschnitte: [
+        { h2: "Four personal plans, one credit report", text: "Every plan starts with your credit report, explained in plain language. The difference is how much FIAON takes on afterwards: letters to send yourself or sent by FIAON, deadlines tracked, a current account and card prepared, priority on queries." },
+        { h2: "What doing it yourself costs", text: "Everything FIAON does you can do yourself — the data copy under Art. 15 GDPR is free and the law is public. The question is what your time is worth and how often you will have to chase. Our calculator on this page compares registered letters, hours and a lawyer's fee with a twelve-month plan." },
+        { h2: "How you pay", text: "First instalment by bank transfer (payment details with a QR code in your customer area), then SEPA direct debit through a verified creditor. No credit card needed. Prices include VAT. The bank decides on account, card and limit." },
+      ],
+      weiter: ["/"],
+      krumen: [{ name: "Pricing", pfad: "/en/pricing" }],
+    },
   },
   "/kreditkarte": {
     pfad: "/kreditkarte", art: "produkt", stand: PFEILER, prio: 0.9,
@@ -286,6 +375,20 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/girokonto-trotz-negativer-bonitaet", "/werkzeuge/karten-check", "/schufa-score-verstehen", "/schufa-eintrag-loeschen", "/preise", "/privatkunden"],
     krumen: [{ name: "Kreditkarte trotz Eintrag", pfad: "/kreditkarte" }],
+    en: {
+      pfad: "/en/credit-card",
+      titel: "A credit card despite a SCHUFA entry: the route via report",
+      beschreibung: "Which card is realistic today, how the limit grows over twelve months and what issuers really see. FIAON prepares — the bank decides on card and limit.",
+      h1: "The card comes through your report.",
+      lead: "Not through tricks, not through providers that promise “guaranteed” — but by making sure that what issuers read about you is correct. FIAON takes care of that. The bank decides on card and limit.",
+      abschnitte: [
+        { h2: "Three routes to a card", text: "A debit or prepaid card works today for open entries; a credit card with a small limit of €500 to €2,000 for settled entries and short histories; a full limit up to €25,000 with a good file and the headroom to match." },
+        { h2: "How the limit grows over twelve months", text: "Month 0: report obtained and explained. Months 1–2: clean-up and current account. Months 2–4: first card, often with a small limit. Month 6: first review after statements settled on time. Month 12: the limit that income and headroom allow. A typical course, not a promise." },
+        { h2: "What issuers see", text: "Negative entries, credit enquiries, account behaviour, address and identity, headroom. FIAON checks every entry for its legal requirements (Section 31 BDSG), makes no enquiry without your approval and prepares corrections under Art. 16 GDPR.", punkte: ["Free card check: five inputs, no enquiry, no trace", "Headroom calculator: income minus fixed costs", "No guarantee, no score trick, no flood of enquiries"] },
+      ],
+      weiter: ["/privatkunden", "/preise"],
+      krumen: [{ name: "Credit card", pfad: "/en/credit-card" }],
+    },
   },
   "/oesterreich": {
     pfad: "/oesterreich", art: "land", stand: PFEILER, prio: 0.8,
@@ -983,6 +1086,33 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
   "/vereinbarung": { pfad: "/vereinbarung", art: "intern", stand: "2026-08-22", prio: 0.1, robots: "noindex,nofollow", titel: "Vertrauliches Dokument — FIAON", beschreibung: "Diese Seite ist geschützt.", h1: "Vertrauliches Dokument", lead: "Diese Seite ist geschützt." },
   "/scp-datenraum": { pfad: "/scp-datenraum", art: "intern", stand: "2026-08-22", prio: 0.1, robots: "noindex,nofollow", titel: "Datenraum", beschreibung: "Vertraulicher Zugang.", h1: "Datenraum", lead: "Vertraulicher Zugang." },
 };
+
+// ── Die englischen Einträge entstehen aus `en` — eine Tabelle, zwei Sprachen ──
+// Jede Seite mit `en` bekommt einen zweiten Eintrag unter ihrem englischen
+// Pfad (sprache "en", schwester = deutscher Pfad) und trägt selbst die
+// Schwester. Sitemap, Vorrenderer, Titel im Client und der Umschalter lesen
+// dieselbe Tabelle; hreflang entsteht aus `schwester`.
+for (const s of Object.values(SEO_SEITEN)) {
+  if (!s.en || s.sprache === "en") continue;
+  const { en } = s;
+  SEO_SEITEN[en.pfad] = {
+    pfad: en.pfad, art: s.art, stand: s.stand, prio: Math.max(0.1, Math.round((s.prio - 0.1) * 10) / 10),
+    titel: en.titel, beschreibung: en.beschreibung, h1: en.h1, lead: en.lead,
+    abschnitte: en.abschnitte, weiter: en.weiter, krumen: en.krumen,
+    werkzeug: s.werkzeug, bild: s.bild, robots: s.robots,
+    sprache: "en", schwester: s.pfad,
+  };
+  s.sprache = "de";
+  s.schwester = en.pfad;
+}
+
+/** Die Schwesterseite in der Zielsprache — oder null, wenn es sie (noch) nicht gibt. */
+export function schwesterPfad(pfad: string, ziel: "de" | "en"): string | null {
+  const s = seoSeite(pfad);
+  if (!s) return null;
+  if ((s.sprache ?? "de") === ziel) return s.pfad;
+  return s.schwester ?? null;
+}
 
 /** Die FAQ einer Seite — aus der generierten Datei, nie von Hand. */
 export function seoFragen(pfad: string): SeoFrage[] {

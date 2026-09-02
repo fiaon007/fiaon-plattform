@@ -7,7 +7,7 @@ const de = {
   seoBeschreibung: "Bonitätsauskunft beantragen: der kostenlose Weg nach Art. 15 DSGVO und der geprüfte FIAON-Weg für 74 € im Vergleich. In 2 Minuten starten.",
   krume: "Bonitätsauskunft beantragen",
   ldName: "FIAON Bonitätsauskunft mit Prüfung", ldArt: "Beschaffung und Prüfung von Bonitätsauskünften (SCHUFA, KSV, CRIF)",
-  pille: "Zwei Wege, volle Klarheit", h1a: "Kostenlos selbst anfordern oder ", h1b: "geprüft beschaffen lassen.",
+  pille: "Zwei Wege, volle Klarheit", h1a: "Die Bonitätsauskunft kostenlos selbst anfordern oder ", h1b: "geprüft beschaffen lassen.",
   lead: "Ihre Auskunft steht Ihnen gesetzlich kostenlos zu — das sagen wir zuerst. FIAON ist der Weg für alle, die Beschaffung, Klartext-Erklärung und die Prüfung jedes Eintrags abgeben wollen: einmalig 74 Euro, ohne Abo-Zwang.",
   antragStarten: "Jetzt Antrag starten", kostenlosPruefen: "Kostenlos prüfen lassen",
   vergleichTitel: "Selbst beantragen oder beschaffen lassen?", vergleichLead: "Beides führt zur Auskunft. Der Unterschied ist, wer die Arbeit macht — und wer die Einträge versteht.",

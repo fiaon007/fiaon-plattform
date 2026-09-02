@@ -208,10 +208,18 @@ function fremdsprachig(sprache: string | null | undefined): boolean {
   return k !== "de" && !!RAHMEN[k];
 }
 
-/** Aus „Freundliche Grüße\nIhr FIAON-Team" bleibt „Ihr FIAON-Team". */
+/**
+ * Aus „Freundliche Grüße\nIhr FIAON Welcome-Team" bleibt der Name des Teams.
+ *
+ * 03.09.2026: Im ersten bulgarischen Entwurf stand unter „С уважение" noch
+ * „Ihr FIAON Welcome-Team". Der Firmenname soll bleiben — „Ihr" ist deutsch
+ * und hat in einer bulgarischen Mail nichts verloren. Der besitzanzeigende
+ * Anfang fällt deshalb weg, der Name bleibt stehen.
+ */
 function unterschrift(gruss: string): string {
   const zeilen = String(gruss || "").split("\n").map((z) => z.trim()).filter(Boolean);
-  return zeilen.length > 1 ? zeilen.slice(1).join("\n") : "";
+  if (zeilen.length < 2) return "";
+  return zeilen.slice(1).join("\n").replace(/^(Ihr|Ihre|Euer|Eure)\s+/i, "");
 }
 
 function knopfText(s: NaechsterSchritt, w: Rahmenworte): string {

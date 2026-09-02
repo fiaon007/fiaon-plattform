@@ -550,6 +550,15 @@ async function pruefenUndAbschliessen(roh: any, k: {
   kosten: number; kontext: WerkzeugKontext; nachrichten: any[];
 }): Promise<AgentErgebnis> {
   let text = String(roh.antwort || "").trim();
+  // 03.09.2026: Im Entwurf an Herrn Munk endete der Brief mit dem Wort
+  // „erledigt." — das ist der interne Zustand `naechster_schritt.art`, den das
+  // Modell aus dem Schema mit in den Text genommen hat. Ein Kunde liest dort
+  // ein sinnloses Einzelwort. Ein Statuswort am Ende, allein auf einer Zeile
+  // oder als letzter „Satz", wird abgeschnitten.
+  text = text.replace(
+    /(?:^|\n)\s*(erledigt|zahlung|termin|bereich|unterlagen|antrag|angebot|startgespraech|startgespräch|rueckruf|rückruf|keiner|nichts)\s*\.?\s*$/i,
+    "",
+  ).trim();
   const schritt: NaechsterSchritt | null = roh.naechster_schritt
     ? { art: String(roh.naechster_schritt.art) as any, url: roh.naechster_schritt.url ?? null, text: String(roh.naechster_schritt.text || "") }
     : null;

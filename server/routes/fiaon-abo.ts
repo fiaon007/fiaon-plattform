@@ -58,6 +58,7 @@ import { FIAON_BANK_DETAILS } from "./fiaon-antrag";
 import { getSettings, setSetting } from "./fiaon-agent";
 import { absoluteUrl } from "../fiaon-base-url";
 import { tageslauf } from "../lib/fiaon-crons";
+import { sofortUrlFuer } from "../lib/fiaon-zahlungsauftrag";
 
 const router = Router();
 
@@ -590,6 +591,8 @@ export function aboErinnerungPayload(r: any) {
     bic: FIAON_BANK_DETAILS.bic,
     verwendungszweck: r.zahlungsreferenz,
     portal_url: absoluteUrl("/login"),
+    // 02.09.2026: Sofortzahlung per Bank-App (leer, solange die Strecke nicht eingesteckt ist → Knopf fällt weg)
+    sofort_url: sofortUrlFuer(r.zahlungsreferenz),
   };
 }
 

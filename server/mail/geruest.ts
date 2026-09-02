@@ -55,6 +55,8 @@ export interface MailBaustein {
   absaetze: string[];
   /** Der eine Knopf. Fehlt er, ist es eine reine Mitteilung. */
   knopf?: { text: string; url: string };
+  /** Zweiter, leiserer Knopf unter dem ersten (02.09.2026: „QR-Code & Bankdaten" neben „Sofort per Bank-App"). */
+  knopf2?: { text: string; url: string };
   /** Optionales Bild über dem Knopf — bei Zahlungsmails der GiroCode (02.09.2026). */
   bild?: { url: string; alt: string; breite?: number; unterschrift?: string };
   /** Optionaler Kasten mit Eckdaten (Beträge, Referenzen, Termine). */
@@ -122,6 +124,9 @@ export function mailHtml(b: MailBaustein): string {
               </td></tr>
             </table>` : "";
 
+  const knopf2 = b.knopf2
+    ? `<p style="margin:4px 0 10px;font:400 14px/1.5 ${SCHRIFT};"><a href="${b.knopf2.url}" style="color:${BLAU};text-decoration:underline;font-weight:600;">${b.knopf2.text} &rarr;</a></p>` : "";
+
   const fussnote = b.fussnote
     ? `<p style="margin:14px 0 0;font:400 13px/1.6 ${SCHRIFT};color:${LEISE};">${b.fussnote}</p>` : "";
 
@@ -179,6 +184,7 @@ export function mailHtml(b: MailBaustein): string {
             ${daten}
             ${bild}
             ${knopf}
+            ${knopf2}
             ${fussnote}
         </td></tr>
         ${ziel}
@@ -239,6 +245,7 @@ export function mailText(b: MailBaustein): string {
     ...b.absaetze.map(ohneTags),
     ...(b.daten?.length ? ["", ...b.daten.map((d) => `${d.label}: ${ohneTags(d.wert)}`)] : []),
     ...(b.knopf ? ["", `${b.knopf.text}: ${b.knopf.url}`] : []),
+    ...(b.knopf2 ? [`${b.knopf2.text}: ${b.knopf2.url}`] : []),
     ...(b.fussnote ? ["", ohneTags(b.fussnote)] : []),
     ...(b.karteZiel ? ["", KARTE_SATZ] : []),
     "",

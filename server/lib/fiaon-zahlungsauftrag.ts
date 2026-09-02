@@ -78,6 +78,19 @@ export async function zahlungsauftragFinden(refRoh: string): Promise<Zahlungsauf
   };
 }
 
+// ── SOFORTZAHLUNG PER BANK-APP (02.09.2026, Justin: „so innovativ wie möglich") ──
+// Den signierten Link baut fiaon-lastschrift.ts (GoCardless Instant Bank Pay).
+// Damit Mails, Zahlungsseite und Resolver ihn nutzen können, ohne dass sich
+// zwei Module gegenseitig importieren, steckt sich das Lastschrift-Modul beim
+// Laden hier ein. Solange nichts eingesteckt ist, gibt es keinen Link — und
+// der Mail-Motor lässt den Knopf weg, statt ins Leere zu verlinken.
+let sofortLinkQuelle: ((ref: string) => string | null) | null = null;
+export function registriereSofortLink(fn: (ref: string) => string | null): void { sofortLinkQuelle = fn; }
+export function sofortUrlFuer(ref: string | null | undefined): string | null {
+  if (!ref || !sofortLinkQuelle) return null;
+  try { return sofortLinkQuelle(String(ref)) || null; } catch { return null; }
+}
+
 /** Die GiroCode-Nutzlast zu einem Auftrag — Bankdaten IMMER aus der einen Quelle. */
 export function zahlungsauftragQrNutzlast(z: Zahlungsauftrag): string {
   return epcQrNutzlast({

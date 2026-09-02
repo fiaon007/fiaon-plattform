@@ -6,6 +6,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import postgres from "postgres";
+import { sofortUrlFuer } from "./lib/fiaon-zahlungsauftrag";
 
 // WICHTIG: Jeder neue Event-Typ MUSS zusätzlich in die Registry
 // (server/make-events-registry.ts) eingetragen werden — sie ist die
@@ -375,6 +376,8 @@ export function makePayloadFromRow(row: any): MakeWebhookPayload {
     nachname: row.last_name || (contactParts.length > 1 ? contactParts.slice(1).join(" ") : null),
     antrag_id: row.ref,
     payment_reference: row.payment_reference || null,
+    // 02.09.2026: Sofortzahlung per Bank-App — leer, solange die Strecke nicht eingesteckt ist (Knopf fällt dann weg).
+    sofort_url: sofortUrlFuer(row.payment_reference),
     betrag: row.amount_due != null ? String(row.amount_due) : null,
     paket: row.pack_name ? String(row.pack_name).replace(/\n/g, " ") : null,
   };

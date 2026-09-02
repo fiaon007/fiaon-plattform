@@ -155,6 +155,19 @@ export function mailRendern(event: string, payload: Record<string, unknown>): Ge
   if (!vorlage) return null;
   if (event === "lead_followup") vorlage = leadStreckenBaustein(payload) ?? vorlage;
 
+  // Ein Knopf, dessen Adresse die Nutzlast nicht füllt (z. B. {{params.sofort_url}},
+  // solange die Sofortzahlung nicht eingerichtet ist), wird weggelassen — ein
+  // Knopf ohne Ziel ist schlimmer als kein Knopf. Der Ersatz: knopf2 rückt auf.
+  const knopfLeer = (k?: { url: string }) => {
+    const m = k?.url.match(/\{\{params\.([a-z_0-9]+)\}\}/i);
+    return !!(m && String((payload as any)[m[1]] ?? "").trim() === "" && BANK_FALLBACK[m[1]] === undefined);
+  };
+  if (knopfLeer(vorlage.knopf) || knopfLeer(vorlage.knopf2)) {
+    vorlage = { ...vorlage };
+    if (knopfLeer(vorlage.knopf)) { vorlage.knopf = knopfLeer(vorlage.knopf2) ? undefined : vorlage.knopf2; vorlage.knopf2 = undefined; }
+    else if (knopfLeer(vorlage.knopf2)) vorlage.knopf2 = undefined;
+  }
+
   const fehlend = new Set<string>();
   const html = ratenLeisteEinsetzen(fuellen(mailHtml(vorlage), payload, fehlend));
   const text = fuellen(mailText(vorlage), payload, fehlend).replace(/%%RATENLEISTE[^%]*%%/g, "");

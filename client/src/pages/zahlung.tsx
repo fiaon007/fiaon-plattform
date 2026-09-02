@@ -22,6 +22,8 @@ interface PaymentOrder {
   art?: "bestellung" | "rate";
   rateNr?: number;
   ratenVon?: number;
+  /** Sofortzahlung per Bank-App (GoCardless Instant Bank Pay) — null, solange nicht eingerichtet. */
+  sofortUrl?: string | null;
   paymentReference: string;
   status: string;
   dueDate: string;
@@ -144,7 +146,7 @@ function TrustBadges() {
  * ausstellen). Kommt keins zurück, verschwindet der Block wortlos: Ein
  * Angebot, das ins Leere führt, ist schlimmer als keines.
  */
-function TerminAngebot({ paymentReference, art }: { paymentReference: string; art?: "bestellung" | "rate" }) {
+function TerminAngebot({ paymentReference, art, sofortUrl }: { paymentReference: string; art?: "bestellung" | "rate"; sofortUrl?: string | null }) {
   const [token, setToken] = useState<string | null>(null);
 
   useEffect(() => {
@@ -172,6 +174,21 @@ function TerminAngebot({ paymentReference, art }: { paymentReference: string; ar
 
   return (
     <div className="mb-6 grid sm:grid-cols-2 gap-3">
+      {sofortUrl && (
+        <a href={sofortUrl}
+           className="sm:col-span-2 block text-left p-4 rounded-2xl border-2 border-emerald-500 bg-emerald-50/60 active:scale-[.99] transition-transform"
+           style={{ boxShadow: "0 12px 34px -16px rgba(5,150,105,.55)" }}>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 mb-1">Schnellster Weg · in einer Minute gebucht</p>
+          <p className="text-[15px] font-bold text-slate-900 leading-tight">Sofort per Bank-App bezahlen</p>
+          <p className="text-[12.5px] text-slate-600 mt-1.5 leading-relaxed">
+            Sie wählen Ihre Bank, bestätigen in der Banking-App — Betrag und Verwendungszweck sind schon eingetragen. {art === "rate" ? "Die Rate ist danach sofort verbucht." : "Ihr Konto ist danach sofort aktiv."}
+          </p>
+          <span className="inline-flex items-center justify-center w-full mt-3 rounded-xl text-[13px] font-bold text-white"
+                style={{ minHeight: 44, background: "linear-gradient(180deg,#10b981,#059669)" }}>
+            Bank wählen und bezahlen
+          </span>
+        </a>
+      )}
       <button type="button" onClick={zuDenZahlungsdaten}
               className="text-left p-4 rounded-2xl border-2 border-[#1d4ed8] bg-blue-50/40 active:scale-[.99] transition-transform"
               style={{ boxShadow: "0 10px 30px -14px rgba(29,78,216,.45)" }}>
@@ -282,6 +299,7 @@ export default function ZahlungPage() {
 
   // Tracking-Button
   const [claiming, setClaiming] = useState(false);
+  const sofortMeldung = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("sofort") : null;
 
   useEffect(() => {
     if (!paymentRef) return;
@@ -407,6 +425,15 @@ export default function ZahlungPage() {
 
         {!loading && order && order.status !== "paid" && (
           <div style={{ animation: "zahlungFadeUp .4s ease" }}>
+            {/* 0. Rückmeldung nach der Sofortzahlung (02.09.2026): ?sofort=erfolg|ausstehend|abgebrochen|fehler */}
+            {sofortMeldung && (
+              <div className={`mb-5 rounded-2xl px-4 py-3 text-[13.5px] leading-relaxed border ${sofortMeldung === "erfolg" || sofortMeldung === "ausstehend" ? "bg-emerald-50 border-emerald-200 text-emerald-900" : "bg-amber-50 border-amber-200 text-amber-900"}`}>
+                {sofortMeldung === "erfolg" ? "Danke — Ihre Zahlung ist bestätigt. Die Buchung folgt in wenigen Augenblicken automatisch."
+                  : sofortMeldung === "ausstehend" ? "Ihre Zahlung ist unterwegs. Sobald die Bank sie bestätigt, wird sie automatisch verbucht — Sie müssen nichts weiter tun."
+                  : sofortMeldung === "abgebrochen" ? "Die Sofortzahlung wurde abgebrochen. Sie können es erneut versuchen oder unten per Überweisung zahlen."
+                  : "Die Sofortzahlung hat nicht geklappt. Unten stehen die Bankdaten und der QR-Code für die Überweisung."}
+              </div>
+            )}
             {/* 1. Headline mit dezentem Gradient-Shimmer */}
             <div className="text-center mb-6">
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight zahlung-shimmer-heading mb-3 leading-tight pb-1">
@@ -435,7 +462,7 @@ export default function ZahlungPage() {
                 danach viermal vergeblich angerufen. Der Terminweg ist kein
                 Ausweichgleis, sondern der zweite richtige Ausgang. Deshalb
                 steht er gleichrangig oben, nicht als Kleingedrucktes unten. */}
-            <TerminAngebot paymentReference={order.paymentReference} art={order.art} />
+            <TerminAngebot paymentReference={order.paymentReference} art={order.art} sofortUrl={order.sofortUrl} />
 
             {order.status === "claimed_paid" && (
               <div className="mb-5 rounded-xl bg-emerald-50 border border-emerald-200 p-4 text-center">

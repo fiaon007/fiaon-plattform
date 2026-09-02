@@ -23,7 +23,7 @@ import { verifyNumberToken, markNumberUpdated } from "../fiaon-number-update";
 // Zuordnung (gemessen: scripts/person-nachlauf.ts).
 import { bindePersonAnAntrag } from "../fiaon-person-model";
 import { BANK } from "@shared/fiaon-bank";
-import { zahlungsauftragFinden } from "../lib/fiaon-zahlungsauftrag";
+import { zahlungsauftragFinden, sofortUrlFuer } from "../lib/fiaon-zahlungsauftrag";
 import {
   LOGIN_ACCESS_STATUSES,
   LOGIN_CODES,
@@ -1055,7 +1055,7 @@ router.get("/payment-order/:paymentRef", async (req, res) => {
     // 02.09.2026: Bestellung ODER Monatsrate (FIAON-XXXXXX-N) — eine Seite, ein QR-Code.
     const z = await zahlungsauftragFinden(req.params.paymentRef);
     if (!z) return res.status(404).json({ ok: false, error: "Bestellung nicht gefunden" });
-    res.json({ ok: true, ...z, bank: FIAON_BANK_DETAILS });
+    res.json({ ok: true, ...z, sofortUrl: sofortUrlFuer(z.paymentReference), bank: FIAON_BANK_DETAILS });
   } catch (err) {
     console.error("[FIAON-PAYMENT] payment-order/:ref:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });

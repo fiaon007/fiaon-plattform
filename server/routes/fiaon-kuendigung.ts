@@ -51,6 +51,58 @@ async function bestaetigungSenden(ref: string): Promise<boolean> {
   return true;
 }
 
+// WICHTIG: Diese Route steht VOR `/admin/kuendigung/:ref` — sonst fängt der
+// Platzhalter das Wort „altbestand" ab und sucht eine Bestellung mit diesem
+// Namen (Fund im Praxistest, 02.09.2026).
+/**
+ * POST /admin/kuendigung/altbestand {schreiben:false, mail:false}
+ * Die offenen Anträge nach der neuen Regel abarbeiten. Vorschau zeigt BEIDE
+ * Summen: was fällig bleibt und was entfällt — Justin entscheidet mit Zahlen.
+ */
+router.post("/admin/kuendigung/altbestand", async (req: Request, res: Response) => {
+  try {
+    await kuendigungSpalten();
+    const schreiben = req.body?.schreiben === true;
+    const mailSenden = req.body?.mail === true;
+    const deckel = Math.min(300, Math.max(1, Number(req.body?.deckel) || 300));
+    const kandidaten = (await sqlPool`
+      SELECT DISTINCT ON (c.ref) c.ref, c.created_at, c.reason
+        FROM cancellation_requests c
+        JOIN fiaon_applications a ON a.ref = c.ref AND a.merged_into IS NULL
+       WHERE c.status = 'pending' AND a.gekuendigt_am IS NULL
+       ORDER BY c.ref, c.created_at ASC
+    `) as any[];
+    const ergebnisse: any[] = [];
+    let bleibtCents = 0, entfaelltCents = 0, mails = 0;
+    for (const k of kandidaten.slice(0, deckel)) {
+      const erg = await kuendigungSetzen(k.ref, {
+        quelle: "altbestand", grund: k.reason ?? null, am: k.created_at, probe: !schreiben,
+      }).catch((e) => ({ ok: false, ref: k.ref, weg: "unbekannt", grund: String(e).slice(0, 120) } as any));
+      if (erg.letzteRateBetragCents) bleibtCents += Number(erg.letzteRateBetragCents);
+      if (erg.stornierteRaten) {
+        const [s] = (await sqlPool`
+          SELECT COALESCE(SUM(betrag_cents), 0)::int AS c FROM fiaon_abo_raten
+           WHERE ref = ${k.ref} AND rate_nr > ${erg.letzteRateNr ?? 0} AND status IN ('offen', 'storniert')
+        `) as any[];
+        entfaelltCents += Number(s?.c || 0);
+      }
+      if (schreiben && mailSenden && erg.ok) { if (await bestaetigungSenden(k.ref).catch(() => false)) mails += 1; }
+      ergebnisse.push({ ref: k.ref, weg: erg.weg, letzteRate: erg.letzteRateNr, storniert: erg.stornierteRaten, grund: erg.grund });
+    }
+    const jeWeg: Record<string, number> = {};
+    for (const e of ergebnisse) jeWeg[e.weg] = (jeWeg[e.weg] || 0) + 1;
+    res.json({
+      ok: true, schreiben, mailSenden, kandidaten: kandidaten.length, bearbeitet: ergebnisse.length, jeWeg,
+      forderungBleibtEuro: Math.round(bleibtCents) / 100,
+      forderungEntfaelltEuro: Math.round(entfaelltCents) / 100,
+      mails, beispiele: ergebnisse.slice(0, 10),
+    });
+  } catch (e: any) {
+    console.error("[KÜNDIGUNG] altbestand:", e);
+    res.status(500).json({ ok: false, error: String(e?.message || e).slice(0, 300) });
+  }
+});
+
 /** POST /admin/kuendigung/:ref — Kündigung setzen (idempotent). */
 router.post("/admin/kuendigung/:ref", async (req: Request, res: Response) => {
   try {
@@ -131,55 +183,6 @@ router.get("/admin/kuendigungen", async (req: Request, res: Response) => {
     });
   } catch (e: any) {
     console.error("[KÜNDIGUNG] liste:", e);
-    res.status(500).json({ ok: false, error: String(e?.message || e).slice(0, 300) });
-  }
-});
-
-/**
- * POST /admin/kuendigung/altbestand {schreiben:false, mail:false}
- * Die offenen Anträge nach der neuen Regel abarbeiten. Vorschau zeigt BEIDE
- * Summen: was fällig bleibt und was entfällt — Justin entscheidet mit Zahlen.
- */
-router.post("/admin/kuendigung/altbestand", async (req: Request, res: Response) => {
-  try {
-    await kuendigungSpalten();
-    const schreiben = req.body?.schreiben === true;
-    const mailSenden = req.body?.mail === true;
-    const deckel = Math.min(300, Math.max(1, Number(req.body?.deckel) || 300));
-    const kandidaten = (await sqlPool`
-      SELECT DISTINCT ON (c.ref) c.ref, c.created_at, c.reason
-        FROM cancellation_requests c
-        JOIN fiaon_applications a ON a.ref = c.ref AND a.merged_into IS NULL
-       WHERE c.status = 'pending' AND a.gekuendigt_am IS NULL
-       ORDER BY c.ref, c.created_at ASC
-    `) as any[];
-    const ergebnisse: any[] = [];
-    let bleibtCents = 0, entfaelltCents = 0, mails = 0;
-    for (const k of kandidaten.slice(0, deckel)) {
-      const erg = await kuendigungSetzen(k.ref, {
-        quelle: "altbestand", grund: k.reason ?? null, am: k.created_at, probe: !schreiben,
-      }).catch((e) => ({ ok: false, ref: k.ref, weg: "unbekannt", grund: String(e).slice(0, 120) } as any));
-      if (erg.letzteRateBetragCents) bleibtCents += Number(erg.letzteRateBetragCents);
-      if (erg.stornierteRaten) {
-        const [s] = (await sqlPool`
-          SELECT COALESCE(SUM(betrag_cents), 0)::int AS c FROM fiaon_abo_raten
-           WHERE ref = ${k.ref} AND rate_nr > ${erg.letzteRateNr ?? 0} AND status IN ('offen', 'storniert')
-        `) as any[];
-        entfaelltCents += Number(s?.c || 0);
-      }
-      if (schreiben && mailSenden && erg.ok) { if (await bestaetigungSenden(k.ref).catch(() => false)) mails += 1; }
-      ergebnisse.push({ ref: k.ref, weg: erg.weg, letzteRate: erg.letzteRateNr, storniert: erg.stornierteRaten, grund: erg.grund });
-    }
-    const jeWeg: Record<string, number> = {};
-    for (const e of ergebnisse) jeWeg[e.weg] = (jeWeg[e.weg] || 0) + 1;
-    res.json({
-      ok: true, schreiben, mailSenden, kandidaten: kandidaten.length, bearbeitet: ergebnisse.length, jeWeg,
-      forderungBleibtEuro: Math.round(bleibtCents) / 100,
-      forderungEntfaelltEuro: Math.round(entfaelltCents) / 100,
-      mails, beispiele: ergebnisse.slice(0, 10),
-    });
-  } catch (e: any) {
-    console.error("[KÜNDIGUNG] altbestand:", e);
     res.status(500).json({ ok: false, error: String(e?.message || e).slice(0, 300) });
   }
 });

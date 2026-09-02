@@ -42,6 +42,7 @@ import {
 } from "../lib/fiaon-gmail";
 import { rueckrufAufnehmen } from "../lib/fiaon-rueckruf";
 import { wissenText } from "@shared/fiaon-wissen";
+import { BANK } from "@shared/fiaon-bank";
 import { getSettings, setSetting } from "./fiaon-agent";
 
 const router = Router();
@@ -227,7 +228,7 @@ async function einordnen(postfach: string, mail: GmailNachricht, kunde: any | nu
   const modell = process.env.FIAON_ANALYSE_MODELL || "gpt-4.1-mini";
   const kopfzeile = kunde ? [
     `BEKANNTER KUNDE: ${kunde.name || "?"}${kunde.betreuer ? `, Betreuer ${kunde.betreuer}` : ""}`,
-    kunde.payment_reference ? `Verwendungszweck für Überweisungen: ${kunde.payment_reference} (Empfänger FIAON LTD, IBAN BE09 9058 9276 3957, BIC TRWIBEB1XXX)` : null,
+    kunde.payment_reference ? `Verwendungszweck für Überweisungen: ${kunde.payment_reference} (Empfänger ${BANK.empfaenger}, IBAN ${BANK.ibanDisplay}, BIC ${BANK.bic}, ${BANK.bank})` : null,
     Number(kunde.raten_ueberfaellig) > 0 ? `ACHTUNG: ${kunde.raten_ueberfaellig} Rate(n) überfällig` : null,
   ].filter(Boolean).join("\n") : "KEIN Kundendatensatz zur Absenderadresse gefunden.";
   const dossier = kunde ? await kundenDossier(kunde) : "";
@@ -458,6 +459,13 @@ ${postfachDef.gruss}`;
     // Wortverbote: Verstoß macht aus der Auto-Antwort einen Entwurf.
     const klein = (urteil.antwort || "").toLowerCase();
     if (darfAuto && WORTVERBOTE.some((w) => klein.includes(w))) darfAuto = false;
+    // Kontowechsel 02.09.2026: Wer schreibt, er habe schon aufs alte (gesperrte)
+    // Wise-Konto überwiesen, braucht einen Menschen — kein Automat darf hier
+    // „Ihre Zahlungsdaten lauten…" antworten. Solche Mails werden Entwurf +
+    // dringende Aufgabe.
+    const eingang = `${mail.betreff} ${mail.text || mail.snippet || ""}`.toLowerCase();
+    const kontowechselFall = /\bwise\b|be09|altes konto|alte konto|alten konto|alte iban|gesperrt|bereits überwiesen|schon überwiesen|falsche(s|n)? konto|neue bankverbindung|bankverbindung ge(ä|ae)ndert/.test(eingang);
+    if (kontowechselFall) { darfAuto = false; urteil.dringend = true; }
 
     const antwortText = urteil.antwort ? `${urteil.antwort.trim()}\n\n${postfachDef.gruss}` : null;
 

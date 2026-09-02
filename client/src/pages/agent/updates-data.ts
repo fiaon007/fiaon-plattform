@@ -2225,7 +2225,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
       "Der Hintergrund mit dem Planeten ist jetzt überall deutlich zu sehen — auch im Space.",
       "Rechts stehen jetzt EURE Zahlen: Verdienst im Monat, Kontakte heute, offene Stufe-A-Kunden. Vorher standen dort zwei Karten ohne eine einzige Zahl.",
       "Auf dem Handy stehen die Zahlen als Kachelreihe über dem Feed.",
-      "ZAHLUNGSDATEN: In Kunden-Mails steht jetzt das richtige Konto — FIAON LTD, BE09 9058 9276 3957. Wenn ein Kunde nach der Bankverbindung fragt, ist die aus dem System immer die richtige.",
+      "ZAHLUNGSDATEN: In Kunden-Mails steht jetzt das richtige Konto — FIAON LTD — seit 02.09.2026 NEU: DE86 2022 0800 0047 7193 24, BIC SXPYDEHH (Banking Circle); das alte Wise-Konto BE09… ist gesperrt. Wenn ein Kunde nach der Bankverbindung fragt, ist die aus dem System immer die richtige.",
       "Das Wort „Betreiber“ heißt im ganzen System jetzt „Vorgesetzter“.",
     ],
     howto: [

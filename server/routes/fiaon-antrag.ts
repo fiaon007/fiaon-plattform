@@ -22,6 +22,7 @@ import { verifyNumberToken, markNumberUpdated } from "../fiaon-number-update";
 // kein neuer Mensch. Ohne diese Bindung entstehen wieder ~90 Zeilen pro Tag ohne
 // Zuordnung (gemessen: scripts/person-nachlauf.ts).
 import { bindePersonAnAntrag } from "../fiaon-person-model";
+import { BANK } from "@shared/fiaon-bank";
 import {
   LOGIN_ACCESS_STATUSES,
   LOGIN_CODES,
@@ -77,9 +78,9 @@ const upload = multer({
 
 export const FIAON_BANK_DETAILS = {
   recipient: "Fiaon Ltd",
-  iban: "BE09905892763957",
-  ibanDisplay: "BE09 9058 9276 3957",
-  bic: "TRWIBEB1XXX",
+  iban: BANK.iban,               // 02.09.2026: Wise gesperrt → shared/fiaon-bank.ts
+  ibanDisplay: BANK.ibanDisplay,
+  bic: BANK.bic,
 };
 
 // Serverseitige Preisliste — Beträge werden NIE vom Client übernommen.

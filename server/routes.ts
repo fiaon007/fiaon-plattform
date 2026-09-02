@@ -497,6 +497,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 🏦 Wise-Automatik — der Kontoauszug holt sich selbst: Einleser, Status,
   //    Webhook-Wecker (/wise/webhook liegt bewusst NICHT unter /admin — Wise
   //    ruft ohne Anmeldung an; der Inhalt wird nicht als Wahrheit verwendet).
+  // 🏦 Airwallex (02.09.2026, Ersatz für Wise): Eingänge lesen, Glasklares live buchen.
+  const fiaonAirwallexRoutes = await import('./routes/fiaon-airwallex');
+  app.use('/api/fiaon', fiaonAirwallexRoutes.default);
+
   const fiaonWiseRoutes = await import('./routes/fiaon-wise');
   app.use('/api/fiaon', fiaonWiseRoutes.default);
 

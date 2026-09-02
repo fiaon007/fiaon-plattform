@@ -14,6 +14,8 @@
 import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { SEO_WERKZEUGE } from "@shared/fiaon-seo-seiten";
+import QRCode from "qrcode";
+import { zahlungsauftragFinden, zahlungsauftragQrNutzlast } from "../lib/fiaon-zahlungsauftrag";
 
 const router = Router();
 const ECHT = "p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL";
@@ -77,6 +79,29 @@ router.get("/oeffentlich/kennzahlen", async (_req: Request, res: Response) => {
     // Lieber die letzte bekannte Zahl als gar keine — die Seite hat eigene Stand-Werte als Rückfall.
     if (cache) return res.json({ ok: true, ...cache.wert, veraltet: true });
     res.status(503).json({ ok: false, error: "Kennzahlen gerade nicht verfügbar" });
+  }
+});
+
+/**
+ * GET /api/fiaon/zahlung/:ref/qr.png — der GiroCode als Bild (02.09.2026).
+ * Steht in jeder Zahlungsmail: Am Rechner gelesen, mit dem Handy gescannt,
+ * Überweisung fertig ausgefüllt. Ohne Anmeldung, weil die Referenz der
+ * Schlüssel ist; enthält nur, was auch auf der Zahlungsseite steht.
+ */
+router.get("/zahlung/:ref/qr.png", async (req: Request, res: Response) => {
+  try {
+    const z = await zahlungsauftragFinden(req.params.ref);
+    if (!z) return res.status(404).end();
+    const png = await QRCode.toBuffer(zahlungsauftragQrNutzlast(z), {
+      type: "png", errorCorrectionLevel: "M", width: 360, margin: 2,
+      color: { dark: "#0f172a", light: "#ffffff" },
+    });
+    res.set("Content-Type", "image/png");
+    res.set("Cache-Control", "public, max-age=3600");
+    res.send(png);
+  } catch (e: any) {
+    console.error("[OEFFENTLICH] QR:", String(e?.message || e).slice(0, 200));
+    res.status(500).end();
   }
 });
 

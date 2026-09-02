@@ -55,6 +55,8 @@ export interface MailBaustein {
   absaetze: string[];
   /** Der eine Knopf. Fehlt er, ist es eine reine Mitteilung. */
   knopf?: { text: string; url: string };
+  /** Optionales Bild über dem Knopf — bei Zahlungsmails der GiroCode (02.09.2026). */
+  bild?: { url: string; alt: string; breite?: number; unterschrift?: string };
   /** Optionaler Kasten mit Eckdaten (Beträge, Referenzen, Termine). */
   daten?: { label: string; wert: string }[];
   /** Kleiner Zusatz unter dem Knopf — Hinweis, Frist, Rückversicherung. */
@@ -103,6 +105,14 @@ export function mailHtml(b: MailBaustein): string {
                 <td style="padding:13px 18px;font:400 13px/1.4 ${SCHRIFT};color:${LEISE};${i ? `border-top:1px solid ${LINIE};` : ""}">${d.label}</td>
                 <td style="padding:13px 18px;font:600 15px/1.4 ${SCHRIFT};color:${TEXT};text-align:right;${i ? `border-top:1px solid ${LINIE};` : ""}">${d.wert}</td>
               </tr>`).join("\n              ")}
+            </table>` : "";
+
+  const bild = b.bild
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin:4px 0 18px;">
+              <tr><td align="center" style="padding:14px 10px 6px;background:#ffffff;border:1px solid ${LINIE};border-radius:12px;">
+                <img src="${b.bild.url}" width="${b.bild.breite ?? 180}" height="${b.bild.breite ?? 180}" alt="${b.bild.alt}" style="display:block;width:${b.bild.breite ?? 180}px;height:${b.bild.breite ?? 180}px;margin:0 auto;" />
+                ${b.bild.unterschrift ? `<p style="margin:10px 0 6px;font:400 12px/1.5 ${SCHRIFT};color:${LEISE};">${b.bild.unterschrift}</p>` : ""}
+              </td></tr>
             </table>` : "";
 
   const knopf = b.knopf
@@ -167,6 +177,7 @@ export function mailHtml(b: MailBaustein): string {
             ${absaetze}
             ${leiste}
             ${daten}
+            ${bild}
             ${knopf}
             ${fussnote}
         </td></tr>

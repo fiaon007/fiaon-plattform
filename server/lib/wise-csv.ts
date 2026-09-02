@@ -66,28 +66,34 @@ function normKopf(s: string): string {
 const SPALTEN: Record<string, string[]> = {
   txnId: [
     "transferwiseid", "wiseid", "transactionid", "transaktionsid", "transaktionsnummer",
-    "referencenumber", "referenznummer", "belegnummer", "id",
+    "referencenumber", "referenznummer", "belegnummer",
+    // Airwallex (seit 02.09.2026 unser Konto): eigene Kennungen
+    "financialtransactionid", "requestid", "paymentid", "id",
   ],
   datum: [
     "date", "datetime", "datum", "buchungsdatum", "bookingdate", "valuedate", "wertstellung",
     "finishedon", "abgeschlossenam", "createdon", "erstelltam", "completedat",
+    "createdat", "settledat", "transactiondate", "settlementdate", "postedat", "posteddate",
   ],
   betrag: [
     "amount", "betrag", "amounteur", "betrageur", "netamount", "nettobetrag", "targetamount",
+    "settledamount", "transactionamount", "creditamount", "grossamount",
   ],
   waehrung: ["currency", "waehrung", "wahrung", "targetcurrency"],
   zweck: [
     "paymentreference", "zahlungsreferenz", "verwendungszweck", "reference", "referenz",
-    "verwendung",
+    "verwendung", "remittanceinformation", "remittance", "paymentdetails", "memo",
   ],
   beschreibung: ["description", "beschreibung", "details", "buchungstext", "note", "notiz"],
   absender: [
     "payername", "sendername", "absendername", "zahlername", "einzahler", "absender",
     "sourcename", "counterpartyname", "gegenpartei", "auftraggeber",
+    "payer", "senderfullname", "fromname", "originatorname", "debtorname",
   ],
   absenderKonto: [
     "payeraccountnumber", "payeraccount", "senderaccount", "senderaccountnumber",
-    "absenderkonto", "absenderiban", "sourceaccount", "counterpartyaccount", "iban",
+    "absenderkonto", "absenderiban", "sourceaccount", "counterpartyaccount",
+    "payeriban", "debtoriban", "fromaccount", "iban",
   ],
   richtung: ["direction", "richtung", "transactiontype", "transaktionstyp", "typ", "type"],
   art: [

@@ -23,6 +23,7 @@ import { verifyNumberToken, markNumberUpdated } from "../fiaon-number-update";
 // Zuordnung (gemessen: scripts/person-nachlauf.ts).
 import { bindePersonAnAntrag } from "../fiaon-person-model";
 import { BANK } from "@shared/fiaon-bank";
+import { zahlungsauftragFinden } from "../lib/fiaon-zahlungsauftrag";
 import {
   LOGIN_ACCESS_STATUSES,
   LOGIN_CODES,
@@ -1051,23 +1052,10 @@ router.post("/payment-order", async (req, res) => {
 router.get("/payment-order/:paymentRef", async (req, res) => {
   try {
     await ensurePaymentColumns();
-    const rows = await sqlPool`
-      SELECT payment_reference, payment_status, payment_due_date, amount_due, currency, first_name, pack_name
-      FROM fiaon_applications WHERE payment_reference = ${req.params.paymentRef} LIMIT 1
-    `;
-    if (rows.length === 0) return res.status(404).json({ ok: false, error: "Bestellung nicht gefunden" });
-    const r = rows[0];
-    res.json({
-      ok: true,
-      paymentReference: r.payment_reference,
-      status: r.payment_status,
-      dueDate: r.payment_due_date,
-      amountDue: String(r.amount_due),
-      currency: r.currency || "EUR",
-      firstName: r.first_name || "",
-      packName: r.pack_name || "",
-      bank: FIAON_BANK_DETAILS,
-    });
+    // 02.09.2026: Bestellung ODER Monatsrate (FIAON-XXXXXX-N) — eine Seite, ein QR-Code.
+    const z = await zahlungsauftragFinden(req.params.paymentRef);
+    if (!z) return res.status(404).json({ ok: false, error: "Bestellung nicht gefunden" });
+    res.json({ ok: true, ...z, bank: FIAON_BANK_DETAILS });
   } catch (err) {
     console.error("[FIAON-PAYMENT] payment-order/:ref:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });

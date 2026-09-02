@@ -18,6 +18,10 @@ import { BANK } from "@shared/fiaon-bank";
 // ============================================================================
 
 interface PaymentOrder {
+  /** 02.09.2026: Bestellung ODER Monatsrate — dieselbe Seite, derselbe QR-Code. */
+  art?: "bestellung" | "rate";
+  rateNr?: number;
+  ratenVon?: number;
   paymentReference: string;
   status: string;
   dueDate: string;
@@ -404,11 +408,13 @@ export default function ZahlungPage() {
             {/* 1. Headline mit dezentem Gradient-Shimmer */}
             <div className="text-center mb-6">
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight zahlung-shimmer-heading mb-3 leading-tight pb-1">
-                Letzter Schritt: Konto aktivieren
+                {order.art === "rate" ? `Ihre Monatsrate ${order.rateNr ?? ""} von ${order.ratenVon ?? 12}` : "Letzter Schritt: Konto aktivieren"}
               </h1>
               {/* 2. Statuszeile */}
               <p className="text-[13px] sm:text-[14px] text-slate-500">
-                Ihr Platz ist bis zum <b className="text-slate-900">{dueDateStr}</b> reserviert.
+                {order.art === "rate"
+                  ? <>Fällig am <b className="text-slate-900">{dueDateStr}</b> — Ihr Verwendungszweck: <b className="text-slate-900">{order.paymentReference}</b></>
+                  : <>Ihr Platz ist bis zum <b className="text-slate-900">{dueDateStr}</b> reserviert.</>}
               </p>
               {order.firstName && (
                 <p className="text-[12px] text-slate-400 mt-1.5">
@@ -562,6 +568,11 @@ export default function ZahlungPage() {
               </p>
             </div>
 
+            {order.art === "rate" ? (
+              <p className="text-center text-[13px] text-slate-500 mt-2 px-2">
+                Sobald Ihre Überweisung mit diesem Verwendungszweck eingeht, wird die Rate automatisch verbucht — Sie müssen nichts weiter tun.
+              </p>
+            ) : (<>
             {/* 8. Tracking-Button: Ich habe die Überweisung getätigt (präsent, animierter Rahmen) */}
             <div className="zahlung-claim-wrap">
               <button
@@ -584,6 +595,7 @@ export default function ZahlungPage() {
             <p className="text-center text-[12px] text-slate-400 mt-2.5">
               Bitte erst tippen, wenn Sie die Überweisung in Ihrer Banking-App abgeschickt haben.
             </p>
+            </>)}
           </div>
         )}
       </div>

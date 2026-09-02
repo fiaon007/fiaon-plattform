@@ -102,7 +102,7 @@ async function verbindungFinden(): Promise<{ profilId: number; balanceId: number
 }
 
 // ── Referenz-Erkennung: gleiche Logik wie der Mensch beim CSV-Lesen ─────────
-function refErkennen(text: string): string | null {
+export function refErkennen(text: string): string | null {
   const t = String(text || "");
   // „FIAON-XXXXXX", „Fiaon XXXXXX", auch mit Raten-Anhang „-2"; Tippfehler wie
   // „Fiacon" fängt die Automatik bewusst NICHT — die bleiben Handarbeit.
@@ -195,7 +195,7 @@ export async function wiseEinlesen(tage = 5): Promise<{ gesehen: number; neu: nu
 // (Startzahlung ohne Beleg) vom 31.08./01.09. sind GENAU die Sorte, die diese
 // Automatik bewusst NICHT anfasst.
 // ═══════════════════════════════════════════════════════════════════════════
-async function liveVerbuchen(
+export async function liveVerbuchen(
   txnId: string, ref: string | null, cents: number, datum: string,
 ): Promise<{ gebucht: boolean; grund: string }> {
   const vermerk = async (note: string, applied = false) => {

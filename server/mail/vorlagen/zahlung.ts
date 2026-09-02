@@ -198,23 +198,23 @@ knopf: { text: "Sofort per Bank-App bezahlen — in einer Minute gebucht", url: 
   // Vertrag. Der Ton ist sachlich und ohne Vorwurf — und die Tür bleibt offen,
   // ohne zu drängeln (ein Gesprächsangebot, kein zweiter Verkaufsversuch).
   kuendigung_bestaetigt: {
-    betreff: "Ihre Kündigung ist eingegangen",
-    preheader: "Was jetzt noch offen ist — und was nicht mehr kommt.",
+    betreff: "Ihre Kündigung — und was jetzt noch offen ist",
+    preheader: "Wir entlassen Sie vorzeitig aus dem Vertrag, sobald die offene Rechnung beglichen ist.",
     titel: "Wir haben Ihre Kündigung erhalten",
     marke: "Vertragspost",
     absaetze: [
-      "Guten Tag {{params.vorname}}, wir bestätigen Ihre Kündigung. Ab sofort legen wir keine weiteren Monatsraten an, und Sie bekommen von uns keine Angebote mehr.",
-      "Offen ist noch Ihre laufende Rate {{params.rate_nr}} über <b>{{params.betrag}} €</b>. Sobald sie bei uns eingeht, ist der Vertrag beendet — Sie erhalten darüber eine kurze Bestätigung.",
-      "Wenn etwas schiefgelaufen ist oder Sie es sich anders überlegen: Antworten Sie einfach auf diese E-Mail. Ihre Kündigung lässt sich zurücknehmen, solange der Vertrag noch läuft.",
+      "Guten Tag {{params.vorname}}, Ihr Vertrag ist auf zwölf Monatsraten angelegt. Wir entlassen Sie vorzeitig daraus — das machen wir gern, auch wenn wir es nicht müssten.",
+      "Zwei Dinge gehören zusammen: Ab sofort stellen wir keine weiteren Raten und legen keine neuen Rechnungen an. Offen bleibt die bereits gestellte Rechnung — <b>Rate {{params.rate_nr}} über {{params.betrag}} €</b>, fällig am {{params.faellig_am_text}}. Sobald diese Zahlung bei uns verbucht ist, ist der Vertrag beendet und wir bestätigen Ihnen das schriftlich.",
+      "Am schnellsten geht es über die Zahlungsseite unten: dort finden Sie den QR-Code für Ihre Banking-App, alle Bankdaten und Ihren Verwendungszweck. Ist etwas schiefgelaufen oder passt der Betrag nicht zu Ihrer Erinnerung, antworten Sie einfach auf diese E-Mail — wir sehen uns Ihre Akte an, bevor irgendetwas weiterläuft.",
     ],
     daten: [
-      { label: "Letzte Rate", wert: "{{params.rate_nr}}" },
+      { label: "Offene Rechnung", wert: "Rate {{params.rate_nr}}" },
       { label: "Betrag", wert: "{{params.betrag}} €" },
       { label: "Fällig am", wert: "{{params.faellig_am_text}}" },
       { label: "Verwendungszweck", wert: "{{params.verwendungszweck}}" },
     ],
-    knopf: { text: "Rate bezahlen — QR-Code & Bankdaten", url: "https://fiaon.com/zahlung/{{params.verwendungszweck}}" },
-    fussnote: "Ihre Unterlagen und Schreiben bleiben nach Vertragsende 90 Tage in Ihrem Bereich einsehbar.",
+    knopf: { text: "Rechnung bezahlen — QR-Code & Bankdaten", url: "https://fiaon.com/zahlung/{{params.verwendungszweck}}" },
+    fussnote: "Nach Vertragsende bleiben Ihre Unterlagen und Schreiben 90 Tage in Ihrem Bereich einsehbar.",
   },
 
   vertrag_beendet: {
@@ -223,7 +223,7 @@ knopf: { text: "Sofort per Bank-App bezahlen — in einer Minute gebucht", url: 
     titel: "Damit ist alles erledigt",
     marke: "Vertragspost",
     absaetze: [
-      "Guten Tag {{params.vorname}}, Ihre letzte Rate ist bei uns eingegangen. Ihr Vertrag ist damit beendet, es steht nichts mehr offen.",
+      "Guten Tag {{params.vorname}}, Ihre letzte Rechnung ist bei uns eingegangen. Damit ist Ihr Vertrag beendet — vorzeitig, wie zugesagt. Es steht nichts mehr offen.",
       "Ihre Unterlagen, Auswertungen und die Schreiben, die wir für Sie verschickt haben, bleiben 90 Tage in Ihrem Bereich einsehbar. Laden Sie herunter, was Sie behalten möchten.",
       "Falls Sie später wieder an Ihrer Bonität arbeiten wollen, sind Sie jederzeit willkommen — Ihre Akte müssen Sie dann nicht neu aufbauen.",
     ],

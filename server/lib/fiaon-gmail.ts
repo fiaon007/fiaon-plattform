@@ -92,6 +92,10 @@ export interface GmailNachricht {
   messageIdHeader: string | null; datum: Date;
   text: string; snippet: string;
   autoHinweis: boolean; // Auto-Submitted / Precedence bulk / mailer-daemon
+  /** Reply-To, falls gesetzt — Kunden über Weiterleitungsadressen erreichen wir sonst nie. */
+  antwortAn: string | null;
+  /** Vollständige References-Kette, damit Outlook die Antwort im Gespräch behält. */
+  references: string | null;
 }
 
 function kopfWert(headers: any[], name: string): string {
@@ -128,6 +132,8 @@ export async function nachrichtLesen(postfach: string, id: string): Promise<Gmai
     id: String(j.id), threadId: String(j.threadId), labelIds: j.labelIds || [],
     von, vonAdresse: adresse, an: kopfWert(h, "To"),
     betreff: kopfWert(h, "Subject"), messageIdHeader: kopfWert(h, "Message-ID") || null,
+    antwortAn: kopfWert(h, "Reply-To") || null,
+    references: kopfWert(h, "References") || null,
     datum: new Date(Number(j.internalDate || Date.now())),
     text: textAusTeilen(j.payload).slice(0, 20_000),
     snippet: String(j.snippet || ""), autoHinweis: auto,
@@ -165,41 +171,63 @@ export async function nachrichtLabeln(postfach: string, id: string,
 
 // ── Antworten und Entwürfe — immer im Thread, immer vom Postfach ────────────
 
-function mimeAntwort(opts: { von: string; an: string; betreff: string; text: string; inReplyTo?: string | null }): string {
+function mimeAntwort(opts: { von: string; an: string; betreff: string; text: string; html?: string | null; inReplyTo?: string | null; references?: string | null }): string {
   const betreff = opts.betreff.replace(/^((re|aw|fwd?):\s*)+/i, "");
   const kodiertBetreff = `=?UTF-8?B?${Buffer.from(`Re: ${betreff}`).toString("base64")}?=`;
-  const zeilen = [
+  // ── ANTWORTEN IM HAUS-CI (02.09.2026, Justins Auftrag) ──────────────────
+  // Eine Kundenantwort sah bisher aus wie eine Notiz: reiner Text, kein Kopf,
+  // keine Knöpfe, kein Absender-Bild. Jetzt geht dieselbe Nachricht als
+  // multipart/alternative raus — Textfassung für Zweifelsfälle, HTML für
+  // alle üblichen Postfächer. Ohne `html` bleibt alles wie vorher.
+  const references = [opts.references, opts.inReplyTo].filter(Boolean).join(" ").trim() || null;
+  const kopf = [
     `From: ${opts.von}`,
     `To: ${opts.an}`,
     `Subject: ${kodiertBetreff}`,
     opts.inReplyTo ? `In-Reply-To: ${opts.inReplyTo}` : null,
-    opts.inReplyTo ? `References: ${opts.inReplyTo}` : null,
+    references ? `References: ${references}` : null,
     "MIME-Version: 1.0",
+  ].filter((z) => z !== null) as string[];
+
+  if (!opts.html) {
+    return b64url([...kopf,
+      'Content-Type: text/plain; charset="UTF-8"',
+      "Content-Transfer-Encoding: base64", "",
+      Buffer.from(opts.text).toString("base64"),
+    ].join("\r\n"));
+  }
+  const grenze = `fiaon-${Buffer.from(String(opts.an) + betreff).toString("hex").slice(0, 24)}`;
+  return b64url([...kopf,
+    `Content-Type: multipart/alternative; boundary="${grenze}"`, "",
+    `--${grenze}`,
     'Content-Type: text/plain; charset="UTF-8"',
-    "Content-Transfer-Encoding: base64",
-    "",
-    Buffer.from(opts.text).toString("base64"),
-  ].filter((z) => z !== null);
-  return b64url(zeilen.join("\r\n"));
+    "Content-Transfer-Encoding: base64", "",
+    Buffer.from(opts.text).toString("base64"), "",
+    `--${grenze}`,
+    'Content-Type: text/html; charset="UTF-8"',
+    "Content-Transfer-Encoding: base64", "",
+    Buffer.from(opts.html).toString("base64"), "",
+    `--${grenze}--`, "",
+  ].join("\r\n"));
 }
 
-export async function antwortSenden(postfach: string, original: GmailNachricht, text: string): Promise<string> {
+export async function antwortSenden(postfach: string, original: GmailNachricht, text: string, html?: string | null): Promise<string> {
   const j = await api(postfach, "/messages/send", {
     method: "POST",
     body: JSON.stringify({
-      raw: mimeAntwort({ von: postfach, an: original.von, betreff: original.betreff, text, inReplyTo: original.messageIdHeader }),
+      raw: mimeAntwort({ von: postfach, an: original.antwortAn || original.von, betreff: original.betreff, text, html, inReplyTo: original.messageIdHeader, references: original.references }),
       threadId: original.threadId,
     }),
   });
   return String(j?.id || "");
 }
 
-export async function entwurfAnlegen(postfach: string, original: GmailNachricht, text: string): Promise<string> {
+export async function entwurfAnlegen(postfach: string, original: GmailNachricht, text: string, html?: string | null): Promise<string> {
   const j = await api(postfach, "/drafts", {
     method: "POST",
     body: JSON.stringify({
       message: {
-        raw: mimeAntwort({ von: postfach, an: original.von, betreff: original.betreff, text, inReplyTo: original.messageIdHeader }),
+        raw: mimeAntwort({ von: postfach, an: original.antwortAn || original.von, betreff: original.betreff, text, html, inReplyTo: original.messageIdHeader, references: original.references }),
         threadId: original.threadId,
       },
     }),

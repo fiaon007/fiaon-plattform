@@ -6,7 +6,6 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import postgres from "postgres";
-import { sofortUrlFuer } from "./lib/fiaon-zahlungsauftrag";
 
 // WICHTIG: Jeder neue Event-Typ MUSS zusätzlich in die Registry
 // (server/make-events-registry.ts) eingetragen werden — sie ist die
@@ -383,8 +382,19 @@ export function makePayloadFromRow(row: any): MakeWebhookPayload {
     nachname: row.last_name || (contactParts.length > 1 ? contactParts.slice(1).join(" ") : null),
     antrag_id: row.ref,
     payment_reference: row.payment_reference || null,
-    // 02.09.2026: Sofortzahlung per Bank-App — leer, solange die Strecke nicht eingesteckt ist (Knopf fällt dann weg).
-    sofort_url: sofortUrlFuer(row.payment_reference),
+    // ── KEINE SOFORTZAHLUNG FÜR DIE ERSTZAHLUNG (02.09.2026) ───────────
+    // Diese Nutzlast beschreibt immer eine Bestellung, also die Erstzahlung.
+    // Justins Regel dazu, wörtlich: „Die erste Rate und Boni also die 74 €
+    // kommen per Überweisung, ab Tag des Eingangs immer über GoCardless
+    // 1 Monat danach monatlich abbuchen (Das ABO nicht die 74 €!)"
+    // Die Sofortzahlung läuft technisch über GoCardless — das Geld wird dort
+    // gesammelt und erst nach Auszahlungsrhythmus weitergereicht. Genau das
+    // soll die Erstzahlung nicht: Sie ist der schnellste verfügbare Euro und
+    // gehört ohne Umweg auf unser Konto. Ist der Wert leer, lässt der
+    // Mail-Motor den Knopf weg. Dieselbe Frage entscheidet auf der
+    // Zahlungsseite sofortErlaubt() — dort zusätzlich mit dem Schalter
+    // sofort_erstzahlung_erlaubt, falls die Regel je zurückgenommen wird.
+    sofort_url: null,
     betrag: row.amount_due != null ? String(row.amount_due) : null,
     paket: row.pack_name ? String(row.pack_name).replace(/\n/g, " ") : null,
   };

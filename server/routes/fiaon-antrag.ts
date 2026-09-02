@@ -23,7 +23,7 @@ import { verifyNumberToken, markNumberUpdated } from "../fiaon-number-update";
 // Zuordnung (gemessen: scripts/person-nachlauf.ts).
 import { bindePersonAnAntrag } from "../fiaon-person-model";
 import { BANK } from "@shared/fiaon-bank";
-import { zahlungsauftragFinden, sofortUrlFuer } from "../lib/fiaon-zahlungsauftrag";
+import { zahlungsauftragFinden, sofortUrlFuer, sofortErlaubt } from "../lib/fiaon-zahlungsauftrag";
 import { zahlwegVorrangLesen } from "../mail/motor";
 import {
   LOGIN_ACCESS_STATUSES,
@@ -1070,7 +1070,16 @@ router.get("/payment-order/:paymentRef", async (req, res) => {
     // ab und die Zahlungsseite schickt ihn doch in die Sofortzahlung, deren Geld
     // bei GoCardless auf dem gesperrten Auszahlungskonto liegen bleibt.
     const sofortVorrang = await zahlwegVorrangLesen();
-    res.json({ ok: true, ...z, sofortUrl: sofortUrlFuer(z.paymentReference), sofortVorrang, bank: FIAON_BANK_DETAILS });
+    // Und nicht jeder Auftrag darf die Sofortzahlung überhaupt sehen:
+    // Erstzahlungen gehören auf die Überweisung, und eine Rate, die ohnehin
+    // per Lastschrift eingezogen wird, darf niemand zusätzlich bezahlen.
+    const sofort = await sofortErlaubt(z);
+    res.json({
+      ok: true, ...z,
+      sofortUrl: sofort.erlaubt ? sofortUrlFuer(z.paymentReference) : null,
+      sofortGrund: sofort.erlaubt ? null : sofort.grund,
+      sofortVorrang, bank: FIAON_BANK_DETAILS,
+    });
   } catch (err) {
     console.error("[FIAON-PAYMENT] payment-order/:ref:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });

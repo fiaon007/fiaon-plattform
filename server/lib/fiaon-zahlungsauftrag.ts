@@ -91,6 +91,63 @@ export function sofortUrlFuer(ref: string | null | undefined): string | null {
   try { return sofortLinkQuelle(String(ref)) || null; } catch { return null; }
 }
 
+/**
+ * Darf für diesen Auftrag überhaupt eine Sofortzahlung angeboten werden?
+ *
+ * ── ZWEI GRÜNDE, WARUM NICHT (02.09.2026) ─────────────────────────────────
+ *
+ * 1. DIE ERSTZAHLUNG GEHÖRT AUF DIE ÜBERWEISUNG. Justins Regel, wörtlich:
+ *    „Die erste Rate und Boni also die 74 € kommen per Überweisung, ab Tag
+ *    des Eingangs immer über GoCardless 1 Monat danach monatlich abbuchen
+ *    (Das ABO nicht die 74 €!)". Die Sofortzahlung läuft technisch über
+ *    GoCardless — das Geld geht also nicht direkt auf unser Konto, sondern
+ *    wird gesammelt und nach Auszahlungsrhythmus weitergereicht. Genau das
+ *    soll die Erstzahlung nicht: Sie ist der schnellste verfügbare Euro.
+ *
+ * 2. EINE RATE, DIE EINGEZOGEN WIRD, DARF NIEMAND ZUSÄTZLICH BEZAHLEN.
+ *    Gemessen am 02.09.: Für die Rate FIAON-4K3M67-2 stand ein offener
+ *    Sofortzahl-Link bereit, WÄHREND dieselbe Rate per Abo eingezogen wird.
+ *    Hätte die Kundin den Link benutzt, wären 99,99 € zweimal geflossen —
+ *    einmal von ihr, einmal per Lastschrift. Zurückholen müssten wir es dann.
+ *
+ * Der Schalter `sofort_erstzahlung_erlaubt` hebt Punkt 1 auf, falls Justin
+ * es später anders will. Punkt 2 ist nicht schaltbar: Doppelt abbuchen ist
+ * kein Betriebsmodus.
+ */
+export async function sofortErlaubt(z: Zahlungsauftrag): Promise<{ erlaubt: boolean; grund: string }> {
+  if (z.art !== "rate") {
+    try {
+      const { sqlPool } = await import("./db-pool");
+      const [s] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = 'sofort_erstzahlung_erlaubt' LIMIT 1`) as any[];
+      if (String(s?.value ?? "").trim() === "1") return { erlaubt: true, grund: "Erstzahlung per Schalter freigegeben" };
+    } catch { /* Im Zweifel die strengere Regel. */ }
+    return { erlaubt: false, grund: "Erstzahlung läuft per Überweisung direkt auf unser Konto" };
+  }
+  // Rate: Wird sie ohnehin eingezogen, darf sie nicht zusätzlich zahlbar sein.
+  try {
+    const { sqlPool } = await import("./db-pool");
+    const [r] = (await sqlPool`
+      SELECT r.gc_payment_id,
+             a.gc_subscription_ref, a.gc_subscription_status, a.gc_subscription_start,
+             r.faellig_am
+        FROM fiaon_abo_raten r
+        JOIN fiaon_applications a ON a.ref = r.ref
+       WHERE UPPER(r.zahlungsreferenz) = ${String(z.paymentReference).toUpperCase()}
+         AND r.storniert_am IS NULL
+       LIMIT 1
+    `) as any[];
+    if (!r) return { erlaubt: true, grund: "Rate nicht gefunden — Sofortzahlung bleibt möglich" };
+    if (r.gc_payment_id) return { erlaubt: false, grund: "Diese Rate wird bereits per Lastschrift eingezogen" };
+    if (r.gc_subscription_ref && String(r.gc_subscription_status) === "active" && r.gc_subscription_start) {
+      const start = new Date(r.gc_subscription_start);
+      const faellig = new Date(r.faellig_am);
+      start.setDate(start.getDate() - 7); // derselbe Vorlauf wie im Mahnstopp
+      if (faellig >= start) return { erlaubt: false, grund: "Diese Rate wird per Lastschrift eingezogen" };
+    }
+  } catch { /* Datenbank stumm: lieber anbieten als Zahlung verhindern. */ }
+  return { erlaubt: true, grund: "kein laufender Einzug" };
+}
+
 /** Die GiroCode-Nutzlast zu einem Auftrag — Bankdaten IMMER aus der einen Quelle. */
 export function zahlungsauftragQrNutzlast(z: Zahlungsauftrag): string {
   return epcQrNutzlast({

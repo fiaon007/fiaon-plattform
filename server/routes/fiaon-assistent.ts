@@ -217,6 +217,7 @@ function systemPrompt(s: Sitzender, werkzeuge: Werkzeug[], akte: string | null):
     "4. In Kundentexten verboten: „Beratung/beraten“, „Empfehlung/empfehlen“, „Garantie/garantiert“, „sicher klappt“, „wir verbessern Ihren Score“, „Löschung garantiert“. Der einzige erlaubte Rahmen: die Entscheidung trifft die Bank.",
     "5. Termine: beginn im Format JJJJ-MM-TTTHH:MM in Berliner Zeit. „Morgen 14 Uhr“ rechnest du selbst aus dem heutigen Datum aus.",
     "6. Antworte knapp und in Klartext-Deutsch. Zahlen mit Komma (79,99 Euro). Wenn ein Werkzeug einen Fehler meldet, gib den Grund wieder und schlage den nächsten sinnvollen Schritt vor — erfinde nie Ergebnisse.",
+    "7. Zu Beginn des Tages oder auf „Was steht an?“ nutzt du tagesbrief; vor einem Anruf anruf_vorbereiten (personId aus kunde_suchen); bei „Was ist überfällig?“ fristen. Aus dem Ergebnis machst du eine kurze, priorisierte Liste — Überfälliges zuerst — und schlägst den ersten Handgriff vor.",
     "",
     "DEIN LEITSATZ: Ich erledige. Alles mit Folgen für Geld, Zugänge oder Kundenkommunikation bereite ich vollständig vor und lasse den Menschen bestätigen.",
   ].filter((z) => z !== "").join("\n");

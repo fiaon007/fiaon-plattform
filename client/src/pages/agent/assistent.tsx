@@ -54,15 +54,15 @@ interface WerkzeugInfo { name: string; titel: string; stufe: string; beschreibun
 interface Treffer { personId: number; name: string | null; email: string | null; telefon: string | null }
 
 // Die sechs Vorschläge aus dem echten Alltag — Platzhalter tippt der Mensch.
-// Nur, was der Copilot HEUTE kann (14 Werkzeuge); Tagesbrief, Anruf vorbereiten
-// und Schreiben aus der Akte kommen mit den nächsten Scheiben dazu.
+// Nur, was der Copilot HEUTE kann: seit Scheibe 2 (02.09.2026) auch der
+// Tagesbrief, die Fristen und die Anrufvorbereitung.
 const VORSCHLAEGE: Array<{ tag: string; text: string }> = [
+  { tag: "Tagesbrief", text: "Was steht heute an — und womit fange ich an?" },
+  { tag: "Anruf", text: "Bereite den Anruf mit … vor: Lage, Leitfaden, erste zwei Sätze." },
+  { tag: "Fristen", text: "Was ist überfällig oder läuft in den nächsten drei Tagen ab?" },
   { tag: "Akte", text: "Was ist bei … los? Lage, Zahlungen, nächster Schritt." },
-  { tag: "Überfällig", text: "Welche meiner Kunden sind heute überfällig — und wen rufe ich zuerst an?" },
   { tag: "Zahlung", text: "Sende die Zahlungsdaten an … — mit Vorschau, ich bestätige." },
   { tag: "Termin", text: "Buche einen Termin morgen 14 Uhr mit … und trag es in die Akte ein." },
-  { tag: "Notiz", text: "Schreib in die Akte von …: Kunde erreicht, ruft Freitag zurück." },
-  { tag: "Antwort", text: "Entwirf eine Antwort auf diese Kundenmail: …" },
 ];
 
 /** Schaltet die helle Office-Fläche für diese Seite ab — muss INNERHALB der
@@ -469,8 +469,8 @@ export default function AgentAssistentPage({ alsAdmin = false }: { alsAdmin?: bo
             <span className="gruss">{vorname ? `Bereit, ${vorname}.` : "Bereit."}</span>
             <h2>Was soll ich <span className="verlauf">erledigen?</span></h2>
             <p className="satz">
-              Ich lese Akten, finde Überfällige, schreibe Notizen und bereite Mails, Termine, Bestellungen
-              und Sperren so vor, dass du nur noch bestätigen musst.
+              Ich schreibe dir den Tagesbrief, wache über Fristen, bereite Anrufe mit dem passenden Leitfaden
+              vor, lese Akten, schreibe Notizen — und alles mit Folgen wartet auf deinen Klick.
             </p>
             <div className="asx-vorschlaege">
               {VORSCHLAEGE.map((v) => (

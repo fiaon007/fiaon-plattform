@@ -522,7 +522,7 @@ export const RUNDGANG_ASSISTENT: RundgangSchritt[] = [
       + "„Sende ihm die Zahlungsdaten“, „Buche morgen 14 Uhr einen Termin“. Der Copilot sucht den "
       + "Kunden, liest die Akte und arbeitet mit denselben Wegen, die du auch von Hand nehmen würdest — "
       + "er hat keinen einzigen Knopf, den du nicht auch hättest.",
-    tipp: "Sprich mit ihm wie mit einem Kollegen, nicht wie mit einer Suchmaschine. Ganze Sätze funktionieren am besten.",
+    tipp: "Sprich mit ihm wie mit einem Kollegen, nicht wie mit einer Suchmaschine. Ganze Sätze funktionieren am besten. Morgens reicht „Was steht heute an?“ — er schreibt dir den Tagesbrief; vor einem Anruf „Bereite den Anruf mit … vor“.",
   },
   {
     ziel: "[data-fiaon='assistent-eingabe']",

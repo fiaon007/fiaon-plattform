@@ -938,6 +938,20 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/werkzeuge/inkassokosten", "/werkzeuge/verjaehrung", "/schufa-eintrag-loeschen", "/eintrag-verjaehrung", "/ratenzahlung-und-bonitaet", "/kontakt"],
     krumen: [{ name: "Inkasso-Brief erhalten", pfad: "/inkasso-brief-erhalten" }],
+    en: {
+      pfad: "/en/debt-collection-letter",
+      titel: "Debt collection letter? Check first, then pay | FIAON",
+      beschreibung: "Received a debt collection letter: the calm five-step plan — check the claim, work out the costs, know the deadlines, prevent an entry. Checked for free.",
+      h1: "Received a debt collection letter? Check first, then pay.",
+      lead: "A debt collection letter is not a judgment — it is a claim on letterhead. Some claims are justified, many inflated, some simply invented. Here is the calm plan for the next few days, step by step.",
+      abschnitte: [
+        { h2: "The five-step immediate plan", text: "Stay calm and sign nothing; check sender and claim in the register of legal service providers; work out the costs against the legal caps; if justified, pay or agree instalments in writing; if unjustified, object in writing with a deadline to agency and creditor. A disputed claim may not be reported to SCHUFA (Section 31 BDSG)." },
+        { h2: "These deadlines apply", text: "14 days to object to a court payment order; the 100-day rule shortens SCHUFA storage to 18 months if you settle in time; most everyday claims become time-barred after three years — but you must raise the defence yourself." },
+        { h2: "How FIAON supports you", text: "FIAON is not a debt collector and not legal advice — FIAON is your cross-check: obtain the reports, hold every entry against the rules, take on letters and deadlines. Justified, lawfully reported entries stay." },
+      ],
+      weiter: ["/schufa-eintrag-loeschen", "/eintrag-verjaehrung"],
+      krumen: [{ name: "Received a debt collection letter", pfad: "/en/debt-collection-letter" }],
+    },
   },
   "/eintrag-verjaehrung": {
     pfad: "/eintrag-verjaehrung", art: "pfeiler", stand: PFEILER, prio: 0.8,
@@ -952,6 +966,20 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/werkzeuge/loeschfrist", "/werkzeuge/verjaehrung", "/schufa-eintrag-loeschen", "/inkasso-brief-erhalten", "/glossar-bonitaet", "/kontakt"],
     krumen: [{ name: "Eintrag & Verjährung", pfad: "/eintrag-verjaehrung" }],
+    en: {
+      pfad: "/en/entries-and-limitation",
+      titel: "SCHUFA entries and limitation: all the deadlines | FIAON",
+      beschreibung: "When a SCHUFA entry has to disappear: expiry checker, all storage periods per entry type and the route when a period has expired. Check the deadline now.",
+      h1: "A SCHUFA entry after years: when it has to disappear.",
+      lead: "Every entry has an expiry date — it just is not written anywhere. Here you work it out, see all storage periods per entry type and the difference from the limitation period of the claim. To the day, under the 2024 rules.",
+      abschnitte: [
+        { h2: "All storage periods per entry type", text: "Settled claim three years from settlement; settled within 100 days of the report 18 months; discharge of residual debt six months; credit enquiry twelve months (visible to others for ten days); rate enquiry score-neutral; contract data deleted on termination; open claims have no period until settlement." },
+        { h2: "Justified or unjustified — the difference decides", text: "Expired entries must be deleted without ifs or buts; entries reported without the requirements of Section 31 BDSG can be challenged regardless of any deadline; justified entries within the period stay — the honest answer. Limitation of the claim and the storage period of the entry are two different things." },
+        { h2: "The FIAON route", text: "Data copies from all three credit bureaus, every deadline recalculated to the day, deletion demands with a deadline under Art. 17 GDPR — up to the ombudsman if need be.", punkte: ["Expiry checker on this page", "Free deletion deadline calculator", "Free limitation checker"] },
+      ],
+      weiter: ["/schufa-eintrag-loeschen", "/werkzeuge"],
+      krumen: [{ name: "Entries and limitation periods", pfad: "/en/entries-and-limitation" }],
+    },
   },
   "/girokonto-trotz-negativer-bonitaet": {
     pfad: "/girokonto-trotz-negativer-bonitaet", art: "pfeiler", stand: PFEILER, prio: 0.9,

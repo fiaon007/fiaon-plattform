@@ -9,7 +9,7 @@
 // Neu erzeugen:   npx tsx scripts/seo-fragen-erzeugen.ts
 // Nur prüfen:     npx tsx scripts/seo-fragen-erzeugen.ts --pruefen
 //
-// Seiten: / (6), /was-ist-fiaon (6), /en/what-is-fiaon (6), /privatkunden (8), /en/personal (8), /business (5), /en/business (5), /preise (6), /en/pricing (6), /en (4), /kreditkarte (5), /en/credit-card (5), /oesterreich (5), /en/austria (5), /schweiz (5), /en/switzerland (5), /sicherheit (11), /en/security (11), /kontakt (5), /en/contact (5), /karriere (5), /partner (3), /presse (3), /investoren (4), /datenraum (3), /plattform-konzept (5), /fiaon-erfahrungen (8), /en/how-fiaon-works (8), /termin (6), /en/book-a-call (6), /vergleich (5), /en/compare (5), /hilfe (36), /en/help (36), /ueber-uns (5), /en/about (5), /transparenz (4), /en/transparency (4), /status (5), /werkzeuge (4), /werkzeuge/kreditrechner (5), /werkzeuge/umschuldung (5), /werkzeuge/schulden-check (5), /werkzeuge/widerspruch (5), /werkzeuge/mahnbescheid (5), /werkzeuge/ratenplan (5), /werkzeuge/inkasso-antwort (5), /werkzeuge/basiskonto (5), /werkzeuge/pfaendungsrechner (5), /werkzeuge/dispo-rechner (5), /werkzeuge/mahngebuehren (5), /werkzeuge/kartenkosten (5), /werkzeuge/schuldenplan (5), /kredit-ohne-schufa (6), /en/loans-without-schufa (6), /schufa-eintrag-loeschen (5), /bonitaet-verbessern (6), /en/strengthen-your-credit-file (6), /auskunfteien (5), /en/credit-bureaus (5), /schufa-score-verstehen (6), /en/schufa-score (6), /bonitaetsauskunft-beantragen (7), /en/request-your-credit-report (7), /inkasso-brief-erhalten (6), /eintrag-verjaehrung (6), /girokonto-trotz-negativer-bonitaet (7), /ratenzahlung-und-bonitaet (6), /selbstauskunft-checkliste (6), /schufa-neutral-anfragen (6)
+// Seiten: / (6), /was-ist-fiaon (6), /en/what-is-fiaon (6), /privatkunden (8), /en/personal (8), /business (5), /en/business (5), /preise (6), /en/pricing (6), /en (4), /kreditkarte (5), /en/credit-card (5), /oesterreich (5), /en/austria (5), /schweiz (5), /en/switzerland (5), /sicherheit (11), /en/security (11), /kontakt (5), /en/contact (5), /karriere (5), /partner (3), /presse (3), /investoren (4), /datenraum (3), /plattform-konzept (5), /fiaon-erfahrungen (8), /en/how-fiaon-works (8), /termin (6), /en/book-a-call (6), /vergleich (5), /en/compare (5), /hilfe (36), /en/help (36), /ueber-uns (5), /en/about (5), /transparenz (4), /en/transparency (4), /status (5), /werkzeuge (4), /werkzeuge/kreditrechner (5), /werkzeuge/umschuldung (5), /werkzeuge/schulden-check (5), /werkzeuge/widerspruch (5), /werkzeuge/mahnbescheid (5), /werkzeuge/ratenplan (5), /werkzeuge/inkasso-antwort (5), /werkzeuge/basiskonto (5), /werkzeuge/pfaendungsrechner (5), /werkzeuge/dispo-rechner (5), /werkzeuge/mahngebuehren (5), /werkzeuge/kartenkosten (5), /werkzeuge/schuldenplan (5), /kredit-ohne-schufa (6), /en/loans-without-schufa (6), /schufa-eintrag-loeschen (5), /bonitaet-verbessern (6), /en/strengthen-your-credit-file (6), /auskunfteien (5), /en/credit-bureaus (5), /schufa-score-verstehen (6), /en/schufa-score (6), /bonitaetsauskunft-beantragen (7), /en/request-your-credit-report (7), /inkasso-brief-erhalten (6), /en/debt-collection-letter (6), /eintrag-verjaehrung (6), /en/entries-and-limitation (6), /girokonto-trotz-negativer-bonitaet (7), /ratenzahlung-und-bonitaet (6), /selbstauskunft-checkliste (6), /schufa-neutral-anfragen (6)
 // ═══════════════════════════════════════════════════════════════════════════
 export type SeoFrage = { f: string; a: string };
 
@@ -1816,6 +1816,32 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
       "a": "Prüfen, ob er zulässig gemeldet wurde (zwei Mahnungen, Hinweis, nicht bestritten) und ob die Löschfrist läuft oder abgelaufen ist. Erledigte Forderungen werden nach drei Jahren gelöscht, bei Ausgleich binnen 100 Tagen nach 18 Monaten. FIAON prüft das für Sie — die Regeln stehen im Ratgeber zum Eintrag löschen."
     }
   ],
+  "/en/debt-collection-letter": [
+    {
+      "f": "Do I have to react to a debt collection letter at all?",
+      "a": "Ignoring is the worst option — but reacting does not mean paying. Reacting means: check, and depending on the result pay or object in writing. Anyone who does nothing at all risks a court payment order, further costs and in the end a negative entry."
+    },
+    {
+      "f": "May a collection agency simply make a SCHUFA entry?",
+      "a": "No. Section 31 BDSG requires among other things two reminders at least four weeks apart, timely notice of the impending report — and the claim must not be disputed. Anyone who objects in time and with reasons blocks the report until the matter is clarified."
+    },
+    {
+      "f": "What happens if I really cannot pay the claim?",
+      "a": "Get in touch in writing and propose realistic instalments — collection agencies almost always accept, because a paying instalment is worth more than a title. Important: only promise amounts you can definitely keep. A failed agreement worsens your position."
+    },
+    {
+      "f": "Are the high collection fees lawful?",
+      "a": "Often not in full. The remuneration is capped; for small, undisputed claims the limit is low. Demand a breakdown and pay the principal claim plus the permissible costs first — inflated items you may dispute."
+    },
+    {
+      "f": "How do I recognise fake debt collection?",
+      "a": "Pressure with unrealistic deadlines (24 to 48 hours), payment only to foreign accounts or by voucher card, no entry in the register of legal service providers, no traceable claim. When in doubt: do not pay, do not call, demand evidence in writing."
+    },
+    {
+      "f": "I already have an entry — what now?",
+      "a": "Check whether it was lawfully reported (two reminders, notice, not disputed) and whether the deletion deadline is running or has expired. Settled claims are deleted after three years, after 18 months if settled within 100 days. FIAON checks that for you — the rules are in the guide on removing an entry."
+    }
+  ],
   "/eintrag-verjaehrung": [
     {
       "f": "Verschwindet ein SCHUFA-Eintrag automatisch nach der Frist?",
@@ -1840,6 +1866,32 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     {
       "f": "Gilt das auch in Österreich und der Schweiz?",
       "a": "Die Grundrechte (Auskunft, Berichtigung, Löschung) sind vergleichbar — die DSGVO gilt in Österreich unmittelbar, die Schweiz hat das revidierte DSG. Die konkreten Speicherpraktiken von KSV und CRIF unterscheiden sich im Detail. FIAON prüft alle drei Häuser; die Länderseiten für Österreich und die Schweiz erklären die Unterschiede."
+    }
+  ],
+  "/en/entries-and-limitation": [
+    {
+      "f": "Does a SCHUFA entry disappear automatically after the deadline?",
+      "a": "It should — the credit bureaus delete to the day under their code of conduct. In practice expired entries nevertheless keep remaining: after system changes, with settlements never recorded, with duplicate reports. That is why comparing your own data copy against the deadlines is worthwhile — an exceeded deadline is the clearest ground for deletion of all."
+    },
+    {
+      "f": "Is limitation the same as the deletion period?",
+      "a": "No, and this confusion costs hard cash: LIMITATION concerns the claim itself (usually three years to the end of the year) — after that you no longer have to pay if you rely on it. The STORAGE PERIOD concerns the entry at the credit bureau and runs independently. A time-barred claim can still be on file — and a paid claim remains visible for up to three years despite payment."
+    },
+    {
+      "f": "When exactly does the 18-month rule apply?",
+      "a": "When the reported claim is paid in full within 100 days of the report and no other negative features exist. Then the storage period shortens from three years to 18 months. The rule has applied since 2024 and is calculated to the day."
+    },
+    {
+      "f": "Can I achieve an early deletion?",
+      "a": "For lawfully reported, factually correct entries before the deadline expires, generally not — providers who promise that across the board are not serious. Entries can be challenged if they were reported without the requirements of Section 31 BDSG, are factually wrong or their period has already expired. That is more common than many think."
+    },
+    {
+      "f": "Does the period run from the invoice, the reminder or the payment?",
+      "a": "For settled claims the period runs from the date of SETTLEMENT (payment), not from the invoice or the report. For credit enquiries from the day of the enquiry, for the discharge of residual debt from the day it was granted. That is exactly why the checker above asks for the appropriate date per entry type."
+    },
+    {
+      "f": "Does this also apply in Austria and Switzerland?",
+      "a": "The basic rights (access, rectification, erasure) are comparable — the GDPR applies directly in Austria, Switzerland has the revised DSG. The specific storage practices of KSV and CRIF differ in detail. FIAON checks all three bureaus; the country pages for Austria and Switzerland explain the differences."
     }
   ],
   "/girokonto-trotz-negativer-bonitaet": [

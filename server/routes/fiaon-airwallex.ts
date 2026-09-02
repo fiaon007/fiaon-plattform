@@ -288,6 +288,100 @@ router.get("/admin/airwallex/status", async (_req: Request, res: Response) => {
   });
 });
 
+/**
+ * GET /admin/airwallex/konto — alles, was ein Mensch über das Geschäftskonto
+ * wissen will, auf einer Antwort.
+ *
+ * JUSTIN am 03.09.2026: „Airwallex ist ja jetzt verbunden — wo sehen wir nun
+ * unser Konto? Wo ist die Seite mit den Zahlungen, Funktionen und sowas?"
+ *
+ * Es gab keine. Die Eingänge landeten im Bankbuch und waren dort richtig, aber
+ * niemand konnte sehen, ob überhaupt abgerufen wird, wann zuletzt, und was
+ * seitdem hereinkam. Ein Konto, dessen Stand man nicht sieht, ist kein Konto,
+ * dem man vertraut.
+ */
+router.get("/admin/airwallex/konto", async (req: Request, res: Response) => {
+  try {
+    const tage = Math.min(60, Math.max(1, Number(req.query?.tage) || 14));
+    const { sqlPool } = await import("../lib/db-pool");
+
+    const zeilen = (await sqlPool`
+      SELECT id, txn_id, booked_at, amount_cents, currency, payer_name,
+             reference_raw, extracted_ref, matched_ref, applied, applied_at,
+             match_status, note, amount_ok
+        FROM fiaon_bank_txns
+       WHERE booked_at > NOW() - (${tage} || ' days')::interval
+       ORDER BY booked_at DESC NULLS LAST, id DESC
+       LIMIT 300
+    `) as any[];
+
+    // Was davon ist wirklich offen? Eine Zeile ohne Haken ist NICHT gleich
+    // liegengebliebenes Geld — meist ist der Antrag längst bezahlt und nur die
+    // Kennzeichnung fehlt (gemessen am 03.09.: 34 von 37 genau so).
+    const offen = (await sqlPool`
+      SELECT t.id, t.txn_id, t.booked_at, t.amount_cents, t.payer_name,
+             t.reference_raw, t.extracted_ref, a.payment_status, a.ref AS antrag
+        FROM fiaon_bank_txns t
+        LEFT JOIN fiaon_applications a
+               ON a.payment_reference = t.extracted_ref AND a.merged_into IS NULL
+       WHERE NOT t.applied
+         AND t.booked_at > NOW() - INTERVAL '60 days'
+         AND (a.ref IS NULL OR a.payment_status NOT IN ('paid', 'superseded'))
+       ORDER BY t.booked_at DESC NULLS LAST
+       LIMIT 50
+    `) as any[];
+
+    const summe = (r: any[]) => r.reduce((s, z) => s + Number(z.amount_cents || 0), 0);
+    const schwebend = zeilen.filter((z) => String(z.note || "").includes("UNTERWEGS"));
+
+    res.json({
+      ok: true,
+      konfiguriert: konfiguriert(),
+      konto: BANK.ibanDisplay,
+      empfaenger: BANK.empfaenger,
+      bic: BANK.bic,
+      letzterLauf,
+      tage,
+      eingaenge: {
+        anzahl: zeilen.length,
+        summeCents: summe(zeilen),
+        gebucht: zeilen.filter((z) => z.applied).length,
+        gebuchtCents: summe(zeilen.filter((z) => z.applied)),
+        schwebend: schwebend.length,
+        schwebendCents: summe(schwebend),
+      },
+      // Nur das, was wirklich noch niemandem zugeordnet ist.
+      wirklichOffen: {
+        anzahl: offen.length,
+        summeCents: summe(offen),
+        zeilen: offen.slice(0, 25).map((z) => ({
+          id: z.id, txnId: z.txn_id, am: z.booked_at,
+          betrag: (Number(z.amount_cents || 0) / 100).toFixed(2),
+          zahler: z.payer_name ?? null,
+          zweck: String(z.reference_raw ?? "").slice(0, 120),
+          erkannteReferenz: z.extracted_ref ?? null,
+          antragStatus: z.payment_status ?? null,
+        })),
+      },
+      liste: zeilen.slice(0, 60).map((z) => ({
+        id: z.id, txnId: z.txn_id, am: z.booked_at,
+        betrag: (Number(z.amount_cents || 0) / 100).toFixed(2),
+        waehrung: z.currency ?? "EUR",
+        zahler: z.payer_name ?? null,
+        zweck: String(z.reference_raw ?? "").slice(0, 140),
+        referenz: z.matched_ref ?? z.extracted_ref ?? null,
+        gebucht: !!z.applied,
+        schwebend: String(z.note || "").includes("UNTERWEGS"),
+        betragPasst: z.amount_ok,
+        vermerk: z.note ?? null,
+      })),
+    });
+  } catch (e: any) {
+    console.error("[AIRWALLEX] konto:", e);
+    res.status(500).json({ ok: false, error: String(e?.message || e).slice(0, 300) });
+  }
+});
+
 router.post("/admin/airwallex/einlesen", async (req: Request, res: Response) => {
   try {
     const tage = Math.min(MAX_RUECKSCHAU_TAGE, Math.max(1, Number(req.body?.tage) || 3));

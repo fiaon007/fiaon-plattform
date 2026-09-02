@@ -37,6 +37,7 @@ import type { ChefStufe } from "./ChefShell";
 const Kunden = lazy(() => import("@/pages/admin-kunden"));
 const KundeAkte = lazy(() => import("@/pages/admin-kunde"));
 const Zahlungen = lazy(() => import("@/pages/admin-zahlungen"));
+const Konto = lazy(() => import("@/components/admin/ChefKonto"));
 const Auszahlungen = lazy(() => import("@/pages/admin-auszahlungen"));
 const Abrechnungen = lazy(() => import("@/pages/admin-abrechnungen"));
 const Rechnungen = lazy(() => import("@/pages/admin-rechnungen"));
@@ -105,6 +106,10 @@ export const CHEF_SEITEN: ChefSeite[] = [
   { slug: "aufgaben", label: "Notizen & Aufgaben", satz: "An Personen festgehalten oder ans Team vergeben.", Seite: Aufgaben, raum: "lage" },
 
   // ── Geld ────────────────────────────────────────────────────────────────
+  // 03.09.2026, Justins Frage: „Airwallex ist jetzt verbunden — wo sehen wir
+  // nun unser Konto?" Bis dahin nirgends. Steht bewusst VOR der
+  // Zahlungsverwaltung: erst sehen, was hereinkam, dann damit arbeiten.
+  { slug: "konto", label: "Geschäftskonto", satz: "Was auf dem Konto eingegangen ist, was davon zugeordnet ist und was nicht.", Seite: Konto, raum: "geld", mindest: "geschaeftsfuehrung", auch: "airwallex bank eingang iban kontostand geld" },
   { slug: "zahlungen-verwalten", label: "Zahlungsverwaltung", satz: "Offene Zahlungen prüfen, freischalten, Verlauf ansehen.", Seite: Zahlungen, raum: "geld", mindest: "geschaeftsfuehrung" },
   { slug: "verbuchung", label: "Zahlungen verbuchen", satz: "Vier Fälle, vier Reiter, jeweils mit Vorschau.", Seite: Verbuchung, raum: "geld", mindest: "geschaeftsfuehrung" },
   { slug: "kontoabgleich", label: "Kontoabgleich", satz: "Bank-Eingänge exakt mit Kunden abgleichen.", Seite: Kontoabgleich, raum: "geld", mindest: "geschaeftsfuehrung", auch: "bank kontoauszug wise" },

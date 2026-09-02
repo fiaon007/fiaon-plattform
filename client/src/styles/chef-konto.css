@@ -1,0 +1,111 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   DAS GESCHÄFTSKONTO (03.09.2026)
+
+   Ruhig und tabellarisch. Geld wird gelesen, nicht bestaunt: Zahlen mit
+   festen Ziffernbreiten, damit Beträge untereinander stehen, und Farbe nur
+   dort, wo sie eine Bedeutung trägt — Bernstein für Geld, das noch unterwegs
+   ist, Rot für Eingänge ohne Zuordnung, Grün für erledigt.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.kt {
+  --kt-linie: rgba(255, 255, 255, .09);
+  --kt-flaeche: rgba(255, 255, 255, .03);
+  --kt-text: #e8eef8;
+  --kt-leise: #93a2b8;
+  --kt-blau: #3b82f6;
+  --kt-bernstein: #f5a524;
+  --kt-rot: #f87171;
+  --kt-gruen: #4ade80;
+  color: var(--kt-text);
+  font-size: 14px;
+  display: grid;
+  gap: 18px;
+}
+
+.kt-kopf { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.kt-kopf h1 { margin: 0; font: 300 24px/1.2 inherit; letter-spacing: -.01em; }
+.kt-kopf p { margin: 4px 0 0; font-size: 13px; font-variant-numeric: tabular-nums; }
+.kt-kopf .kt-knopf { margin-left: auto; }
+.kt-leise { color: var(--kt-leise); }
+
+.kt-knopf {
+  padding: 9px 16px; border-radius: 9px; border: 1px solid transparent;
+  font: 600 13px/1 inherit; cursor: pointer;
+  background: linear-gradient(180deg, #3b82f6, #2563eb); color: #fff;
+}
+.kt-knopf:disabled { opacity: .55; cursor: default; }
+
+.kt-stand {
+  padding: 10px 14px; border-radius: 10px; font-size: 13px;
+  border: 1px solid var(--kt-linie); background: var(--kt-flaeche);
+}
+.kt-stand.alt { border-color: rgba(245, 165, 36, .35); }
+.kt-fehler { color: var(--kt-rot); }
+.kt-warn {
+  margin: 0; padding: 11px 14px; border-radius: 10px; font-size: 13px;
+  border-left: 2px solid var(--kt-bernstein); background: rgba(245, 165, 36, .09);
+  color: var(--kt-bernstein);
+}
+
+.kt-zahlen { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.kt-kachel {
+  padding: 14px 16px; border-radius: 12px;
+  border: 1px solid var(--kt-linie); background: var(--kt-flaeche);
+  display: grid; gap: 3px;
+}
+.kt-kachel b { font: 600 21px/1.1 inherit; font-variant-numeric: tabular-nums; }
+.kt-kachel span { font-size: 12px; color: var(--kt-leise); line-height: 1.35; }
+.kt-kachel.warn { border-color: rgba(245, 165, 36, .3); }
+.kt-kachel.warn b { color: var(--kt-bernstein); }
+.kt-kachel.rot { border-color: rgba(248, 113, 113, .3); }
+.kt-kachel.rot b { color: var(--kt-rot); }
+.kt-kachel.gut b { color: var(--kt-gruen); font-size: 19px; }
+
+.kt-meldung {
+  margin: 0; padding: 10px 14px; border-radius: 10px; font-size: 13px;
+  background: rgba(59, 130, 246, .1); color: #93c5fd;
+}
+
+.kt-block { display: grid; gap: 10px; }
+.kt-block h2 { margin: 0; font: 600 15px/1.3 inherit; }
+.kt-block p { margin: 0; font-size: 13px; line-height: 1.5; }
+
+.kt-filter { display: flex; gap: 6px; flex-wrap: wrap; }
+.kt-filter-knopf {
+  padding: 6px 12px; border-radius: 7px; font: 500 12.5px/1 inherit; cursor: pointer;
+  border: 1px solid var(--kt-linie); background: transparent; color: var(--kt-leise);
+}
+.kt-filter-knopf.an { background: rgba(59, 130, 246, .14); color: #93c5fd; border-color: rgba(59, 130, 246, .3); }
+
+/* Breite Tabellen scrollen in sich, nie die Seite. */
+.kt-tab {
+  width: 100%; border-collapse: collapse; font-size: 13px;
+  display: block; overflow-x: auto;
+}
+.kt-tab thead th {
+  text-align: left; padding: 8px 10px; font: 600 11px/1 inherit;
+  letter-spacing: .07em; text-transform: uppercase; color: var(--kt-leise);
+  border-bottom: 1px solid var(--kt-linie); white-space: nowrap;
+}
+.kt-tab td { padding: 9px 10px; border-bottom: 1px solid var(--kt-linie); vertical-align: top; }
+.kt-tab tr.schwebend td { background: rgba(245, 165, 36, .05); }
+.kt-zahl { font-variant-numeric: tabular-nums; white-space: nowrap; font-weight: 600; }
+.kt-zweck { color: var(--kt-leise); max-width: 380px; }
+
+.kt-marke {
+  display: inline-block; font: 600 10px/1 inherit; letter-spacing: .04em;
+  text-transform: uppercase; padding: 4px 6px; border-radius: 4px;
+  margin-right: 5px; white-space: nowrap;
+}
+.kt-marke.gut { background: rgba(74, 222, 128, .13); color: var(--kt-gruen); }
+.kt-marke.warn { background: rgba(245, 165, 36, .15); color: var(--kt-bernstein); }
+.kt-marke.rot { background: rgba(248, 113, 113, .14); color: var(--kt-rot); }
+.kt-marke.leise { background: rgba(255, 255, 255, .05); color: var(--kt-leise); text-transform: none; letter-spacing: 0; }
+
+.kt-fuss { margin: 0; font-size: 12.5px; color: var(--kt-leise); line-height: 1.55; }
+.kt-leer { padding: 40px 20px; text-align: center; color: #93a2b8; font-size: 14px; }
+
+@media (max-width: 720px) {
+  .kt-zweck { max-width: 200px; }
+  .kt-kopf .kt-knopf { margin-left: 0; }
+}

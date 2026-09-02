@@ -139,15 +139,23 @@ function alsChatAntwort(roh: any): any {
     .filter((t) => t?.type === "function_call")
     .map((t) => ({ id: t.call_id, type: "function", function: { name: t.name, arguments: t.arguments ?? "{}" } }));
 
-  let text = typeof roh?.output_text === "string" ? roh.output_text : "";
-  if (!text) {
-    text = teile
-      .filter((t) => t?.type === "message")
-      .flatMap((t) => (Array.isArray(t.content) ? t.content : []))
+  // ── NUR DER LETZTE BLOCK (03.09.2026) ──────────────────────────────────
+  // Die erste Fassung klebte alle Textblöcke aneinander. Gibt das Modell mehr
+  // als einen `message`-Block aus — bei Werkzeugrunden der Normalfall —, wird
+  // daraus „{…}{…}", und das Parsen scheiterte mit „Unexpected non-whitespace
+  // character after JSON at position 1997". Der LETZTE Block ist die Antwort;
+  // die früheren sind Zwischenschritte auf dem Weg dorthin. Dasselbe gilt für
+  // `output_text`, das OpenAI aus allen Blöcken zusammensetzt — deshalb steht
+  // es hier nur noch als Rückfall.
+  const bloecke: string[] = teile
+    .filter((t) => t?.type === "message")
+    .map((t) => (Array.isArray(t.content) ? t.content : [])
       .filter((c: any) => c?.type === "output_text" && typeof c.text === "string")
       .map((c: any) => c.text)
-      .join("");
-  }
+      .join(""))
+    .filter((s: string) => s.trim().length > 0);
+  let text = bloecke.length ? bloecke[bloecke.length - 1] : "";
+  if (!text && typeof roh?.output_text === "string") text = roh.output_text;
 
   const u = roh?.usage ?? {};
   return {
@@ -187,9 +195,17 @@ function antwortLesen(j: any, wofuer: string): any {
     );
   }
   if (!inhalt || !String(inhalt).trim()) throw new Error(`${wofuer}: Das Modell hat nichts geschrieben.`);
+  const roh = String(inhalt).trim();
   try {
-    return JSON.parse(String(inhalt));
+    return JSON.parse(roh);
   } catch (e: any) {
+    // Sicherheitsnetz: Kommen doch einmal zwei Objekte hintereinander an
+    // („{…}{…}"), ist das letzte die endgültige Antwort. Lieber sie nehmen als
+    // eine Kundenmail liegen lassen.
+    const letzte = roh.lastIndexOf("{");
+    if (letzte > 0) {
+      try { return JSON.parse(roh.slice(letzte)); } catch { /* dann eben nicht */ }
+    }
     throw new Error(`${wofuer}: Antwort war kein gültiges JSON (${String(e?.message || e).slice(0, 80)}).`);
   }
 }

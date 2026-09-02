@@ -201,12 +201,15 @@ export async function mailBearbeiten(ein: {
       }, erg.grund);
     }
 
-    // 7. Anrede und HTML im Haus-CI.
+    // 7. Anrede und HTML im Haus-CI — in der Sprache, in der der Kunde schrieb.
+    //    Bis zum 03.09.2026 konnte hier ein englischer Text mit „Guten Tag
+    //    Herr Smith," eingeleitet und mit einem deutschen Knopf beendet
+    //    werden. Die Sprache reist jetzt bis in die letzte Zeile mit.
     const [vor, ...restName] = String(akte.name || "").split(" ");
-    const anrede = await anredeBestimmen(wer.personId, vor || null, restName.join(" ") || null);
+    const anrede = await anredeBestimmen(wer.personId, vor || null, restName.join(" ") || null, einordnung.sprache);
     const fertigeAntwort = antwortBauen({
       anrede: anrede.zeile, kern: erg.antwort, gruss: ein.gruss,
-      schritt: erg.naechsterSchritt, betreff: mail.betreff,
+      schritt: erg.naechsterSchritt, betreff: mail.betreff, sprache: einordnung.sprache,
     });
 
     // 8. Senden oder Entwurf. Im Zweifel Entwurf.

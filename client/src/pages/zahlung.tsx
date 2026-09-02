@@ -427,9 +427,11 @@ export default function ZahlungPage() {
           <div style={{ animation: "zahlungFadeUp .4s ease" }}>
             {/* 0. Rückmeldung nach der Sofortzahlung (02.09.2026): ?sofort=erfolg|ausstehend|abgebrochen|fehler */}
             {sofortMeldung && (
-              <div className={`mb-5 rounded-2xl px-4 py-3 text-[13.5px] leading-relaxed border ${sofortMeldung === "erfolg" || sofortMeldung === "ausstehend" ? "bg-emerald-50 border-emerald-200 text-emerald-900" : "bg-amber-50 border-amber-200 text-amber-900"}`}>
+              <div className={`mb-5 rounded-2xl px-4 py-3 text-[13.5px] leading-relaxed border ${["erfolg", "ausstehend", "bereits"].includes(sofortMeldung) ? "bg-emerald-50 border-emerald-200 text-emerald-900" : "bg-amber-50 border-amber-200 text-amber-900"}`}>
                 {sofortMeldung === "erfolg" ? "Danke — Ihre Zahlung ist bestätigt. Die Buchung folgt in wenigen Augenblicken automatisch."
                   : sofortMeldung === "ausstehend" ? "Ihre Zahlung ist unterwegs. Sobald die Bank sie bestätigt, wird sie automatisch verbucht — Sie müssen nichts weiter tun."
+                  : sofortMeldung === "bereits" ? "Diese Zahlung ist bereits bei uns eingegangen — es gibt nichts mehr zu tun."
+                  : sofortMeldung === "abgelaufen" ? "Dieser Zahlungslink ist abgelaufen. Unten finden Sie den aktuellen Weg — QR-Code und Bankdaten gelten weiterhin."
                   : sofortMeldung === "abgebrochen" ? "Die Sofortzahlung wurde abgebrochen. Sie können es erneut versuchen oder unten per Überweisung zahlen."
                   : "Die Sofortzahlung hat nicht geklappt. Unten stehen die Bankdaten und der QR-Code für die Überweisung."}
               </div>

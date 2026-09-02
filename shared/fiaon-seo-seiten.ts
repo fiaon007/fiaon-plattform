@@ -78,6 +78,26 @@ export interface SeoSeite {
   bild?: string;
   /** Die Seite hat einen eigenen Vorrenderer (Ratgeber) — Tabelle liefert nur Titel/Beschreibung für den Client. */
   eigenerVorrenderer?: boolean;
+  // ── Zweisprachigkeit (02.09.2026, shared/fiaon-sprache.ts) ──────────────
+  /** Sprache des Eintrags — fehlt = Deutsch. Englische Einträge entstehen unten aus `en`. */
+  sprache?: "de" | "en";
+  /** Die Schwesterseite in der anderen Sprache (Pfad) — Grundlage für hreflang und den Umschalter. */
+  schwester?: string;
+  /** Die englische Fassung dieser Seite: eigener Pfad unter /en, eigener Kopf und Korpus. Britisches Englisch. */
+  en?: SeoEnglisch;
+}
+
+export interface SeoEnglisch {
+  /** Adresse unter /en — z. B. /en/pricing. */
+  pfad: string;
+  titel: string;
+  beschreibung: string;
+  h1: string;
+  lead: string;
+  abschnitte?: SeoAbschnitt[];
+  /** Weiterlesen-Ziele (deutsche Pfade — der Renderer nimmt die englische Schwester, wo es sie gibt). */
+  weiter?: string[];
+  krumen?: { name: string; pfad: string }[];
 }
 
 // ── Die Navigation und die Fußzeile, wie sie auf der gerenderten Seite stehen.
@@ -195,6 +215,19 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
       { h2: "Kostenlos, sofort, ohne Anmeldung.", text: "Zehn Werkzeuge, die Ihnen heute schon etwas bringen – keine Anfrage bei einer Auskunftei, keine Spur im Score, nichts wird gespeichert: Datenkopie anfordern, Eintrag prüfen, Löschfrist und Verjährung berechnen, Inkassokosten nachrechnen, Kredit- und Umschuldungsrechner, Schulden-Check, Spielraum und Karten-Check." },
     ],
     weiter: ["/was-ist-fiaon", "/privatkunden", "/preise", "/schufa-eintrag-loeschen", "/bonitaet-verbessern", "/werkzeuge", "/ratgeber", "/kreditkarte"],
+    en: {
+      pfad: "/en",
+      titel: "FIAON in English: your credit file, explained and acted on",
+      beschreibung: "FIAON obtains your SCHUFA, KSV or CRIF report, explains every entry, sends reviewed letters and prepares account and card. Germany, Austria, Switzerland.",
+      h1: "Your credit file, explained — and acted on.",
+      lead: "FIAON is a platform for people in Germany, Austria and Switzerland whose credit file stands between them and a bank account, a card or a flat. We obtain the report, explain it in plain language, send the letters and prepare the account. The bank decides — we make sure your file is ready.",
+      abschnitte: [
+        { h2: "Three layers: insight, action, access", text: "Insight: your credit report from SCHUFA (Germany's main credit bureau), KSV1870 (Austria) or CRIF and Intrum (Switzerland), obtained with your authorisation and explained entry by entry. Action: reviewed letters for entries that can be challenged — deletion requests under Art. 17 GDPR, objections, corrections. You approve, FIAON sends and follows up. Access: a current account, then a card once your file meets the partner's threshold." },
+        { h2: "What it costs", text: "Monthly plans in twelve instalments, cancellable at any time to the end of the current month. Just the credit report on its own is available as a one-off purchase. No commission on limits, no fee per letter.", punkte: ["First instalment by bank transfer, then SEPA direct debit", "A named contact person in every plan", "The German application takes about two minutes"] },
+        { h2: "Honest limits", text: "FIAON does not give legal advice in individual cases, does not guarantee deletions and does not decide on cards or limits — the bank does. Correct entries stay. What we can do is make sure that nothing incorrect, outdated or unlawfully reported remains in your file." },
+      ],
+      weiter: ["/preise"],
+    },
   },
   "/was-ist-fiaon": {
     pfad: "/was-ist-fiaon", art: "unternehmen", stand: PFEILER, prio: 0.8,
@@ -271,6 +304,20 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/privatkunden", "/business", "/bonitaetsauskunft-beantragen", "/fiaon-erfahrungen", "/werkzeuge"],
     krumen: [{ name: "Preise & Pakete", pfad: "/preise" }],
+    en: {
+      pfad: "/en/pricing",
+      titel: "Pricing and plans: twelve instalments, no surprises | FIAON",
+      beschreibung: "What FIAON costs: monthly plans in twelve instalments, cancellable monthly, or the credit report on its own. Every service compared with doing it yourself.",
+      h1: "One price, no surprises.",
+      lead: "Twelve monthly instalments, then we ask whether you want to stay. No commission on limits, no fee per letter, no small print. Everything is here — including what it costs to do it yourself.",
+      abschnitte: [
+        { h2: "Four personal plans, one credit report", text: "Every plan starts with your credit report, explained in plain language. The difference is how much FIAON takes on afterwards: letters to send yourself or sent by FIAON, deadlines tracked, a current account and card prepared, priority on queries." },
+        { h2: "What doing it yourself costs", text: "Everything FIAON does you can do yourself — the data copy under Art. 15 GDPR is free and the law is public. The question is what your time is worth and how often you will have to chase. Our calculator on this page compares registered letters, hours and a lawyer's fee with a twelve-month plan." },
+        { h2: "How you pay", text: "First instalment by bank transfer (payment details with a QR code in your customer area), then SEPA direct debit through a verified creditor. No credit card needed. Prices include VAT. The bank decides on account, card and limit." },
+      ],
+      weiter: ["/"],
+      krumen: [{ name: "Pricing", pfad: "/en/pricing" }],
+    },
   },
   "/kreditkarte": {
     pfad: "/kreditkarte", art: "produkt", stand: PFEILER, prio: 0.9,
@@ -983,6 +1030,33 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
   "/vereinbarung": { pfad: "/vereinbarung", art: "intern", stand: "2026-08-22", prio: 0.1, robots: "noindex,nofollow", titel: "Vertrauliches Dokument — FIAON", beschreibung: "Diese Seite ist geschützt.", h1: "Vertrauliches Dokument", lead: "Diese Seite ist geschützt." },
   "/scp-datenraum": { pfad: "/scp-datenraum", art: "intern", stand: "2026-08-22", prio: 0.1, robots: "noindex,nofollow", titel: "Datenraum", beschreibung: "Vertraulicher Zugang.", h1: "Datenraum", lead: "Vertraulicher Zugang." },
 };
+
+// ── Die englischen Einträge entstehen aus `en` — eine Tabelle, zwei Sprachen ──
+// Jede Seite mit `en` bekommt einen zweiten Eintrag unter ihrem englischen
+// Pfad (sprache "en", schwester = deutscher Pfad) und trägt selbst die
+// Schwester. Sitemap, Vorrenderer, Titel im Client und der Umschalter lesen
+// dieselbe Tabelle; hreflang entsteht aus `schwester`.
+for (const s of Object.values(SEO_SEITEN)) {
+  if (!s.en || s.sprache === "en") continue;
+  const { en } = s;
+  SEO_SEITEN[en.pfad] = {
+    pfad: en.pfad, art: s.art, stand: s.stand, prio: Math.max(0.1, Math.round((s.prio - 0.1) * 10) / 10),
+    titel: en.titel, beschreibung: en.beschreibung, h1: en.h1, lead: en.lead,
+    abschnitte: en.abschnitte, weiter: en.weiter, krumen: en.krumen,
+    werkzeug: s.werkzeug, bild: s.bild, robots: s.robots,
+    sprache: "en", schwester: s.pfad,
+  };
+  s.sprache = "de";
+  s.schwester = en.pfad;
+}
+
+/** Die Schwesterseite in der Zielsprache — oder null, wenn es sie (noch) nicht gibt. */
+export function schwesterPfad(pfad: string, ziel: "de" | "en"): string | null {
+  const s = seoSeite(pfad);
+  if (!s) return null;
+  if ((s.sprache ?? "de") === ziel) return s.pfad;
+  return s.schwester ?? null;
+}
 
 /** Die FAQ einer Seite — aus der generierten Datei, nie von Hand. */
 export function seoFragen(pfad: string): SeoFrage[] {

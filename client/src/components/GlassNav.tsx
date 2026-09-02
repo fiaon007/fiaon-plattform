@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import KarrierePopup from "@/components/site/KarrierePopup";
+import { UI } from "@shared/fiaon-sprache";
+import { schwesterPfad } from "@shared/fiaon-seo-seiten";
+import { useSprache, inSprache } from "@/i18n/sprache";
 
 interface GlassNavProps {
   activePage?: "startseite" | "privatkunden" | "business" | "was-ist-fiaon" | "plattform-konzept" | "login" | "investoren" | "karriere" | "presse" | "partner" | "datenraum" | "team" | "demo" | "ratgeber" | "kontakt";
@@ -42,12 +45,35 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
     return () => window.removeEventListener("scroll", fn);
   }, []);
 
-  const pages = [
+  // ── Zwei Sprachen, eine Leiste (02.09.2026) ──────────────────────────────
+  // Die Sprache kommt aus der Adresse (/en/…). Jeder Link zeigt auf die
+  // englische Schwester, wo es sie gibt — sonst auf die deutsche Seite. Der
+  // Umschalter führt auf die Schwester DERSELBEN Seite (nicht zur Startseite);
+  // hat die Seite noch keine englische Fassung, auf /en.
+  const sprache = useSprache();
+  const en = sprache === "en";
+  const ui = UI[sprache];
+  const zu = (href: string) => inSprache(href, sprache);
+  const aktuellerPfad = typeof window !== "undefined" ? window.location.pathname : "/";
+  const andereSprache = en ? (schwesterPfad(aktuellerPfad, "de") ?? "/") : (schwesterPfad(aktuellerPfad, "en") ?? "/en");
+  const pages = en ? [
+    { label: "Home", href: "/en", key: "startseite" },
+    { label: "What is FIAON", href: zu("/was-ist-fiaon"), key: "was-ist-fiaon", hasGradient: true },
+    { label: "Personal", href: zu("/privatkunden"), key: "privatkunden" },
+    { label: "Business", href: zu("/business"), key: "business" },
+  ] : [
     { label: "Startseite", href: "/", key: "startseite" },
     { label: "Was ist FIAON", href: "/was-ist-fiaon", key: "was-ist-fiaon", hasGradient: true },
     { label: "Privatkunden", href: "/privatkunden", key: "privatkunden" },
     { label: "Business", href: "/business", key: "business" },
   ];
+  /** Der Umschalter: ein Glas-Chip „DE | EN" — rechts neben dem Login, am Handy die erste Zeile. */
+  const SprachChip = ({ breit = false }: { breit?: boolean }) => (
+    <a href={andereSprache} hrefLang={en ? "de" : "en"} lang={en ? "de" : "en"} title={ui.zurAnderenSprache} aria-label={ui.zurAnderenSprache}
+       className={`nav-sprache${breit ? " breit" : ""}`} data-fiaon="sprachwechsel">
+      <span className={en ? "" : "an"}>DE</span><i aria-hidden="true">|</i><span className={en ? "an" : ""}>EN</span>
+    </a>
+  );
 
   const handleAntragClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -72,7 +98,7 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
                 Fenstern nicht über Marke oder Knöpfe laufen. Unter 1024px: Hamburger. */}
             <div className="relative z-10 h-[72px] px-5 flex items-center justify-between gap-4">
               {/* Logo */}
-              <a href="/" className="flex items-center shrink-0">
+              <a href={en ? "/en" : "/"} className="flex items-center shrink-0">
                 <span className="text-xl font-bold tracking-tight fiaon-gradient-text-animated">FIAON</span>
               </a>
 
@@ -81,7 +107,7 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
                 {pages.map((p) => (
                   <a key={p.key} href={p.href}
                      className={`relative text-[13px] font-medium pb-0.5 transition-colors duration-300 ${activePage === p.key ? "text-gray-900" : "text-gray-500 hover:text-gray-900"}`}>
-                    {p.hasGradient ? <>Was ist <span className="fiaon-gradient-text-animated">FIAON</span></> : p.label}
+                    {p.hasGradient ? <>{en ? "What is " : "Was ist "}<span className="fiaon-gradient-text-animated">FIAON</span></> : p.label}
                     {activePage === p.key && <span className="absolute -bottom-0.5 left-0 right-0 h-[1.5px] rounded-full bg-[#2563eb]" style={{ boxShadow: "0 0 6px rgba(37,99,235,.4)" }} />}
                   </a>
                 ))}
@@ -93,7 +119,7 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
                   onClick={handleAntragClick}
                   className="fiaon-btn-outline-animated px-5 py-2 text-[13px] font-medium relative overflow-hidden group"
                 >
-                  <span className="relative z-10 group-hover:text-white transition-colors duration-300">Konto eröffnen</span>
+                  <span className="relative z-10 group-hover:text-white transition-colors duration-300">{ui.kontoEroeffnen}</span>
                   <div className="absolute inset-0 bg-gradient-to-r from-[#2563eb] to-[#3b82f6] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out" />
@@ -103,15 +129,16 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
                   href={eingeloggt ? "/dashboard" : "/login"}
                   className="px-4 py-2 text-[13px] font-medium text-gray-600 hover:text-gray-900 transition-colors"
                 >
-                  {eingeloggt ? "Mein Bereich" : "Login"}
+                  {eingeloggt ? ui.meinBereich : ui.login}
                 </a>
+                <SprachChip />
               </div>
 
               {/* Mobile hamburger */}
               <button
                 className="lg:hidden p-1"
                 onClick={() => setMob(!mob)}
-                aria-label={mob ? "Menü schließen" : "Menü öffnen"}
+                aria-label={mob ? ui.menueZu : ui.menueAuf}
               >
                 <svg
                   width="20"
@@ -143,7 +170,23 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
         {/* Desktop: Mega-Menü — alle Seiten, öffnet beim Überfahren der Leiste */}
         <div className={`hidden lg:block nav-mega ${mega ? "auf" : ""}`} onMouseEnter={oeffneMega} onMouseLeave={schliesseMega} aria-hidden={!mega}>
           <div className="nav-mega-innen">
-            {[
+            {(en ? [
+              { titel: "For customers", eintraege: [
+                { href: "/en", label: "Home", text: "Insight · Action · Access" },
+                { href: zu("/was-ist-fiaon"), label: "What is FIAON", text: "The vision, explained properly" },
+                { href: zu("/privatkunden"), label: "Personal", text: "Plans, process, pricing" },
+                { href: zu("/bonitaet"), label: "Credit report", text: "Your report, obtained by FIAON" },
+                { href: zu("/business"), label: "Business", text: "Company credit standing and business account" },
+              ] },
+              { titel: "Company", eintraege: [
+                { href: zu("/team"), label: "Team", text: "Who builds FIAON" },
+                { href: zu("/karriere"), label: "Careers", text: "Work for FIAON from home" },
+                { href: zu("/partner"), label: "Partners", text: "Banks, credit bureaus, intermediaries" },
+                { href: zu("/presse"), label: "Press", text: "Facts, figures, contacts" },
+                { href: "/investoren", label: "Investors", text: "The model, the data room" },
+                { href: zu("/datenraum"), label: "Data room", text: "Due diligence on request" },
+              ] },
+            ] : [
               { titel: "Für Kunden", eintraege: [
                 { href: "/", label: "Startseite", text: "Einsicht · Aktion · Zugang" },
                 { href: "/was-ist-fiaon", label: "Was ist FIAON", text: "Die Vision, genau erklärt" },
@@ -165,7 +208,7 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
                 { href: "/transparenz", label: "Transparenzbericht", text: "Zahlen mit Definition und Stand" },
                 { href: "/status", label: "Status", text: "Läuft FIAON gerade? Live geprüft" },
               ] },
-            ].map((g) => (
+            ]).map((g) => (
               <div key={g.titel} className="nav-mega-gruppe">
                 <p className="nav-mega-titel">{g.titel}</p>
                 {g.eintraege.map((e) => (
@@ -177,11 +220,11 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
               </div>
             ))}
             <div className="nav-mega-gruppe nav-mega-konto">
-              <p className="nav-mega-titel">Ihr Konto</p>
-              <p className="nav-mega-satz">Konto in zwei Minuten. Ihre Auskunft innerhalb von 24 Stunden. Ein Mensch, der Sie begleitet.</p>
-              <button type="button" onClick={handleAntragClick} className="nav-mega-knopf">Konto eröffnen</button>
-              <a href={eingeloggt ? "/dashboard" : "/login"} className="nav-mega-knopf still">{eingeloggt ? "Mein Bereich" : "Login"}</a>
-              <p className="nav-mega-fuss">SEPA-Lastschrift · EU-Hosting · Anwaltlich geprüft</p>
+              <p className="nav-mega-titel">{ui.ihrKonto}</p>
+              <p className="nav-mega-satz">{ui.kontoSatz}</p>
+              <button type="button" onClick={handleAntragClick} className="nav-mega-knopf">{ui.kontoEroeffnen}</button>
+              <a href={eingeloggt ? "/dashboard" : "/login"} className="nav-mega-knopf still">{eingeloggt ? ui.meinBereich : ui.login}</a>
+              <p className="nav-mega-fuss">{ui.vertrauen}</p>
             </div>
           </div>
         </div>
@@ -192,7 +235,7 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
         {mob && (
           <div className="lg:hidden fixed inset-0 z-40" style={{ animation: "mobMenuIn .22s ease both" }}>
             {/* Leichter Schleier — tippen daneben schließt */}
-            <button type="button" aria-label="Menü schließen" onClick={() => setMob(false)} className="absolute inset-0 w-full h-full"
+            <button type="button" aria-label={ui.menueZu} onClick={() => setMob(false)} className="absolute inset-0 w-full h-full"
                     style={{ background: "rgba(10,22,40,.28)", backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)" }} />
             {/* Die schwebende Karte unter der Kopfzeile: helles Glas, dunkle Schrift */}
             <div className="absolute left-3 right-3 top-[82px] rounded-[26px] overflow-hidden flex flex-col"
@@ -200,7 +243,30 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
                           boxShadow: "0 30px 80px rgba(15,23,42,.28), inset 0 1px 0 #fff", backdropFilter: "blur(28px) saturate(160%)", WebkitBackdropFilter: "blur(28px) saturate(160%)",
                           animation: "mobItemIn .45s cubic-bezier(.22,1,.36,1) both" }}>
               <div className="overflow-y-auto px-4 pt-4 pb-3">
-                {[
+                {/* Die Sprache steht ganz oben — nie verdeckt, nie abgeschnitten (Justin, 02.09.2026). */}
+                <div className="flex items-center justify-between px-2 pb-3 mb-1" style={{ borderBottom: "1px solid rgba(15,23,42,.06)" }}>
+                  <span className="text-[10.5px] uppercase tracking-[.2em]" style={{ color: "#2563eb" }}>{ui.sprache}</span>
+                  <SprachChip breit />
+                </div>
+                {(en ? [
+                  { titel: "For customers", eintraege: [
+                    { href: "/en", label: "Home", text: "Insight · Action · Access", key: "startseite" },
+                    { href: zu("/was-ist-fiaon"), label: "What is FIAON", text: "The platform in three layers", key: "was-ist-fiaon" },
+                    { href: zu("/ratgeber"), label: "Guides", text: "Entries, reports, cards — explained honestly", key: "ratgeber" },
+                    { href: zu("/werkzeuge/eintrag-pruefen"), label: "Check an entry", text: "Five questions — can your entry be challenged?", key: "werkzeuge" },
+                    { href: zu("/privatkunden"), label: "Personal", text: "Plans, process, pricing", key: "privatkunden" },
+                    { href: zu("/bonitaet"), label: "Credit report", text: "Your report, obtained by FIAON", key: "bonitaet" },
+                    { href: zu("/business"), label: "Business", text: "Company credit standing and business account", key: "business" },
+                  ] },
+                  { titel: "Company", eintraege: [
+                    { href: zu("/team"), label: "Team", text: "Who builds FIAON", key: "team" },
+                    { href: zu("/karriere"), label: "Careers", text: "Employed or freelance, remote across DACH", key: "karriere" },
+                    { href: zu("/partner"), label: "Partners", text: "Banks, credit bureaus, intermediaries", key: "partner" },
+                    { href: zu("/presse"), label: "Press", text: "Facts, figures, contacts", key: "presse" },
+                    { href: "/investoren", label: "Investors", text: "The model, the data room", key: "investoren" },
+                    { href: zu("/kontakt"), label: "Contact & support", text: "Phone, e-mail, assistant, urgent matters", key: "kontakt" },
+                  ] },
+                ] : [
                   { titel: "Für Kunden", eintraege: [
                     { href: "/", label: "Startseite", text: "Einsicht · Aktion · Zugang", key: "startseite" },
                     { href: "/was-ist-fiaon", label: "Was ist FIAON", text: "Die Plattform in drei Schichten", key: "was-ist-fiaon" },
@@ -224,7 +290,7 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
                     { href: "/transparenz", label: "Transparenzbericht", text: "Zahlen mit Definition und Stand", key: "transparenz" },
                     { href: "/status", label: "Status", text: "Läuft FIAON gerade? Live geprüft", key: "status" },
                   ] },
-                ].map((g, gi) => (
+                ]).map((g, gi) => (
                   <div key={g.titel} className={gi ? "mt-4" : ""} style={{ animation: `mobItemIn .45s cubic-bezier(.22,1,.36,1) ${0.06 + gi * 0.08}s both` }}>
                     <p className="text-[10.5px] uppercase tracking-[.2em] mb-1.5 px-2" style={{ color: "#2563eb" }}>{g.titel}</p>
                     <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,.55)", border: "1px solid rgba(15,23,42,.06)" }}>
@@ -247,13 +313,13 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
                 <button onClick={handleAntragClick}
                         className="flex-1 flex items-center justify-center gap-2 py-3 rounded-full text-[14.5px] text-white active:scale-[.98] transition-transform"
                         style={{ fontWeight: 400, background: "linear-gradient(135deg,#2563eb,#3b82f6)", boxShadow: "0 10px 24px rgba(37,99,235,.3), inset 0 1px 0 rgba(255,255,255,.25)" }}>
-                  Konto eröffnen
+                  {ui.kontoEroeffnen}
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
                 </button>
                 <a href={eingeloggt ? "/dashboard" : "/login"}
                    className="flex-1 flex items-center justify-center py-3 rounded-full text-[14.5px] active:scale-[.98] transition-transform"
                    style={{ fontWeight: 400, color: "#1d4ed8", background: "#fff", border: "1px solid rgba(37,99,235,.35)" }}>
-                  {eingeloggt ? "Mein Bereich" : "Login"}
+                  {eingeloggt ? ui.meinBereich : ui.login}
                 </a>
               </div>
             </div>

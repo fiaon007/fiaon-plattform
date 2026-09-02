@@ -32,8 +32,8 @@ import fs from "fs";
 import path from "path";
 import {
   SEO_BASIS, SEO_NAV, SEO_FUSS, SEO_WERKZEUGE, SEO_GLOSSAR,
-  seoSeite, seoFragen, seoIndexierbar, type SeoSeite,
-} from "@shared/fiaon-seo-seiten";
+  seoSeite, seoFragen, seoIndexierbar, type SeoSeite, schwesterPfad } from "@shared/fiaon-seo-seiten";
+import { EN_NAV, EN_FUSS, type Sprache } from "../../shared/fiaon-sprache";
 
 export const BASIS = SEO_BASIS;
 
@@ -70,8 +70,14 @@ export function beschreibungKuerzen(text: string, max = 155): string {
 export function kopfEinsetzen(html: string, kopf: {
   titel: string; beschreibung: string; url: string; ld?: unknown[];
   og?: Record<string, string>; robots?: string; bild?: string;
+  /** Sprache der Seite (02.09.2026) — setzt html lang, meta language, og:locale. Fehlt = Deutsch. */
+  sprache?: Sprache;
+  /** hreflang-Paar: deutsche und englische Adresse derselben Seite (absolut). x-default zeigt auf Deutsch. */
+  alternativen?: { de: string; en: string };
 }): string {
+  const sprache: Sprache = kopf.sprache ?? "de";
   let out = html.replace(/<title>[^<]*<\/title>/, `<title>${esc(kopf.titel)}</title>`);
+  out = out.replace(/<html lang="[a-z-]+">/, `<html lang="${sprache}">`);
   const setz = (name: string, attr: "name" | "property", wert: string) => {
     const re = new RegExp(`<meta ${attr}="${name}" content="[^"]*"\\s*/?>`);
     const neu = `<meta ${attr}="${name}" content="${esc(wert)}" />`;
@@ -94,13 +100,23 @@ export function kopfEinsetzen(html: string, kopf: {
   // nebeneinander sind nach Googles Regel „die strengste gewinnt"
   // ungefährlich — andere Crawler halten sich daran aber nicht.
   setz("robots", "name", kopf.robots || "index,follow,max-image-preview:large,max-snippet:-1");
+  setz("language", "name", sprache);
+  setz("og:locale", "property", sprache === "en" ? "en_GB" : "de_DE");
   // 02.09.2026: Ein etwaiges Organization-Markup aus client/index.html wird
   // entfernt und durch das vollständige aus dem Korpus ersetzt. Vorher
   // standen ZWEI Organization-Blöcke auf jeder Seite — mit zwei
   // verschiedenen URLs (www und ohne).
   out = out.replace(/<script type="application\/ld\+json">\s*\{\s*"@context": "https:\/\/schema\.org",\s*"@type": "Organization"[\s\S]*?<\/script>/, "");
+  // hreflang (02.09.2026): beide Sprachen verweisen aufeinander, x-default auf
+  // Deutsch. Ohne dieses Paar wäre /en/pricing für Google eine Dublette von /preise.
+  const hreflang = kopf.alternativen ? [
+    `<link rel="alternate" hreflang="de" href="${esc(kopf.alternativen.de)}" />`,
+    `<link rel="alternate" hreflang="en" href="${esc(kopf.alternativen.en)}" />`,
+    `<link rel="alternate" hreflang="x-default" href="${esc(kopf.alternativen.de)}" />`,
+  ] : [];
   const extra = [
     `<link rel="canonical" href="${esc(kopf.url)}" />`,
+    ...hreflang,
     ...(kopf.ld ?? []).map((l) => `<script type="application/ld+json">${JSON.stringify(l).replace(/</g, "\\u003c")}</script>`),
   ].join("\n    ");
   return out.replace("</head>", `    ${extra}\n  </head>`);
@@ -175,26 +191,38 @@ function strukturierteDaten(s: SeoSeite, url: string): unknown[] {
 function link(pfad: string, text: string): string { return `<a href="${esc(pfad)}">${esc(text)}</a>`; }
 
 function weiterlesen(s: SeoSeite): string {
-  const ziele = (s.weiter ?? []).map((p) => seoSeite(p)).filter((z): z is SeoSeite => !!z);
+  const en = s.sprache === "en";
+  // Englische Seiten verweisen auf die englische Schwester des Ziels, wo es sie gibt.
+  const ziele = (s.weiter ?? []).map((p) => seoSeite(en ? (schwesterPfad(p, "en") ?? p) : p)).filter((z): z is SeoSeite => !!z);
   if (!ziele.length) return "";
-  return `<nav aria-label="Weiterlesen"><h2>Weiterlesen</h2><ul>${ziele.map((z) => `<li>${link(z.pfad, z.h1.replace(/\s+/g, " "))} – ${esc(z.beschreibung)}</li>`).join("")}</ul></nav>`;
+  const titel = en ? "Read on" : "Weiterlesen";
+  return `<nav aria-label="${titel}"><h2>${titel}</h2><ul>${ziele.map((z) => `<li>${link(z.pfad, z.h1.replace(/\s+/g, " "))} – ${esc(z.beschreibung)}</li>`).join("")}</ul></nav>`;
 }
 
 /** Navigation und Fußzeile, wie sie auf jeder gerenderten Seite stehen — auch für den Ratgeber. */
-export function seoRahmen(): { kopf: string; fuss: string } {
-  const kopf = `<header><nav aria-label="Hauptnavigation"><a href="/" aria-label="FIAON Startseite"><strong>FIAON</strong></a><ul>${SEO_NAV.map(([p, t]) => `<li>${link(p, t)}</li>`).join("")}</ul></nav></header>`;
-  const fuss = `<footer>${SEO_FUSS.map((g) => `<nav aria-label="${esc(g.titel)}"><h2>${esc(g.titel)}</h2><ul>${g.links.map(([p, t]) => `<li>${link(p, t)}</li>`).join("")}</ul></nav>`).join("")}<p>FIAON LTD, 128 City Road, London, EC1V 2NX, United Kingdom · Kunden in Deutschland, Österreich und der Schweiz · Support +41 44 244 93 01 · support@fiaon.com</p></footer>`;
-    return { kopf, fuss };
+export function seoRahmen(sprache: Sprache = "de"): { kopf: string; fuss: string } {
+  const en = sprache === "en";
+  // Englische Seiten verlinken die englische Schwester, wo es sie gibt — sonst die deutsche Seite.
+  const ziel = (p: string) => (en ? (schwesterPfad(p, "en") ?? p) : p);
+  const nav = en ? EN_NAV : SEO_NAV;
+  const fussGruppen = en ? EN_FUSS : SEO_FUSS;
+  const kopf = `<header><nav aria-label="${en ? "Main navigation" : "Hauptnavigation"}"><a href="${en ? "/en" : "/"}" aria-label="${en ? "FIAON home" : "FIAON Startseite"}"><strong>FIAON</strong></a><ul>${nav.map(([p, t]) => `<li>${link(ziel(p), t)}</li>`).join("")}</ul></nav></header>`;
+  const zeile = en
+    ? "FIAON LTD, 128 City Road, London, EC1V 2NX, United Kingdom · Customers in Germany, Austria and Switzerland · Support +41 44 244 93 01 · support@fiaon.com · The German version of all legal texts is binding."
+    : "FIAON LTD, 128 City Road, London, EC1V 2NX, United Kingdom · Kunden in Deutschland, Österreich und der Schweiz · Support +41 44 244 93 01 · support@fiaon.com";
+  const fuss = `<footer>${fussGruppen.map((g) => `<nav aria-label="${esc(g.titel)}"><h2>${esc(g.titel)}</h2><ul>${g.links.map(([p, t]) => `<li>${link(ziel(p), t)}</li>`).join("")}</ul></nav>`).join("")}<p>${esc(zeile)}</p></footer>`;
+  return { kopf, fuss };
 }
 
 function korpus(s: SeoSeite): string {
   const fragen = seoFragen(s.pfad);
-  const { kopf: nav, fuss } = seoRahmen();
-  const krumen = s.krumen?.length ? `<nav aria-label="Brotkrumen"><ol><li>${link("/", "FIAON")}</li>${s.krumen.map((k) => `<li>${link(k.pfad, k.name)}</li>`).join("")}</ol></nav>` : "";
+  const en = s.sprache === "en";
+  const { kopf: nav, fuss } = seoRahmen(en ? "en" : "de");
+  const krumen = s.krumen?.length ? `<nav aria-label="${en ? "Breadcrumbs" : "Brotkrumen"}"><ol><li>${link(en ? "/en" : "/", "FIAON")}</li>${s.krumen.map((k) => `<li>${link(k.pfad, k.name)}</li>`).join("")}</ol></nav>` : "";
   const abschnitte = (s.abschnitte ?? []).map((a) => `<section><h2>${esc(a.h2)}</h2><p>${esc(a.text)}</p>${a.punkte?.length ? `<ul>${a.punkte.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>` : ""}</section>`).join("");
   const werkzeuge = s.pfad === "/werkzeuge" ? `<section><h2>Die zehn Werkzeuge</h2><ul>${SEO_WERKZEUGE.map((w) => `<li>${link(w.pfad, w.name)} – ${esc(w.frage)} ${esc(w.satz)}</li>`).join("")}</ul></section>` : "";
   const glossar = s.pfad === "/glossar-bonitaet" ? `<section><h2>Die Begriffe</h2><dl>${SEO_GLOSSAR.map((g) => `<dt>${esc(g.wort)}</dt><dd>${esc(g.text)}</dd>`).join("")}</dl></section>` : "";
-  const faq = fragen.length ? `<section><h2>Häufige Fragen</h2>${fragen.map((f) => `<h3>${esc(f.f)}</h3><p>${esc(f.a)}</p>`).join("")}</section>` : "";
+  const faq = fragen.length ? `<section><h2>${en ? "Frequently asked questions" : "Häufige Fragen"}</h2>${fragen.map((f) => `<h3>${esc(f.f)}</h3><p>${esc(f.a)}</p>`).join("")}</section>` : "";
   return `<div class="vorab">${nav}<main>${krumen}<article><h1>${esc(s.h1)}</h1><p>${esc(s.lead)}</p>${abschnitte}${werkzeuge}${glossar}${faq}${weiterlesen(s)}</article></main>${fuss}</div>`;
 }
 
@@ -213,7 +241,12 @@ export function seitenHtml(pfad: string): string | null {
   const url = `${BASIS}${s.canonical ?? (s.pfad === "/" ? "/" : s.pfad)}`;
   const beschreibung = beschreibungKuerzen(s.beschreibung);
   const ld = s.robots?.includes("noindex") ? [organisationLd()] : strukturierteDaten(s, url);
-  let out = kopfEinsetzen(html, { titel: s.titel, beschreibung, url, ld, robots: s.robots, bild: s.bild, og: { type: s.art === "pfeiler" ? "article" : "website" } });
+  const sprache: Sprache = s.sprache === "en" ? "en" : "de";
+  const absolut = (p: string) => `${BASIS}${p === "/" ? "/" : p}`;
+  const alternativen = s.schwester
+    ? { de: absolut(sprache === "de" ? s.pfad : s.schwester), en: absolut(sprache === "en" ? s.pfad : s.schwester) }
+    : undefined;
+  let out = kopfEinsetzen(html, { titel: s.titel, beschreibung, url, ld, robots: s.robots, bild: s.bild, og: { type: s.art === "pfeiler" ? "article" : "website" }, sprache, alternativen });
   // Der Korpus nur für indexierbare Seiten — ein Login-Formular braucht
   // keinen Vorab-Text, und interne Wege sollen nichts preisgeben.
   if (!s.robots?.includes("noindex")) {

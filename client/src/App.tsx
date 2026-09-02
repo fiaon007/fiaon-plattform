@@ -170,6 +170,8 @@ const SiteDemo = lazy(() => import("@/pages/site/demo"));
 const SiteRatgeber = lazy(() => import("@/pages/site/ratgeber"));
 const SiteKontakt = lazy(() => import("@/pages/site/kontakt"));
 const SitePreise = lazy(() => import("@/pages/site/preise"));
+// Englische Seiten (02.09.2026): eigene Adressen unter /en, dieselben Bausteine.
+const SiteEnStart = lazy(() => import("@/pages/site/en-start"));
 const SiteKreditkarte = lazy(() => import("@/pages/site/kreditkarte"));
 const SiteOesterreich = lazy(() => import("@/pages/site/oesterreich"));
 const SiteSchweiz = lazy(() => import("@/pages/site/schweiz"));
@@ -280,6 +282,9 @@ function Router() {
       <Route path="/ratgeber" component={SiteRatgeber} />
       <Route path="/kontakt" component={SiteKontakt} />
       <Route path="/preise" component={SitePreise} />
+      {/* Englisch (02.09.2026): /en und /en/pricing — die Seite liest ihre Sprache aus der Adresse. */}
+      <Route path="/en" component={SiteEnStart} />
+      <Route path="/en/pricing" component={SitePreise} />
       <Route path="/kreditkarte" component={SiteKreditkarte} />
       <Route path="/oesterreich" component={SiteOesterreich} />
       <Route path="/schweiz" component={SiteSchweiz} />

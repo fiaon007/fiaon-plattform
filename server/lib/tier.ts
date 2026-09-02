@@ -461,12 +461,15 @@ export async function alleTierAktualisieren(sql: any): Promise<{ geaendert: numb
  * telefoniert hat, hat den Kunden — die Zuweisung ist nur die Ansicht darauf.
  *
  * DIE RANGFOLGE gilt jetzt in dieser Reihenfolge:
- *   1. Der dokumentierte Betreuer (jüngstes Ergebnis im Verlauf). Er ist die
- *      geleistete Arbeit und der Provisionsanspruch in einer Person.
+ *   0. Der EINGETRAGENE Betreuer, sobald er selbst im Verlauf steht. Seit dem
+ *      03.09.2026 — eine Vertretung darf ihn nicht verdrängen (siehe unten).
+ *   1. Der dokumentierte Betreuer (jüngstes Ergebnis im Verlauf), sofern er
+ *      aus dem Vertrieb kommt. Er ist die geleistete Arbeit und der
+ *      Provisionsanspruch in einer Person.
  *   2. Nur wenn NIEMAND dokumentiert hat: der Agent der jüngsten lebenden
  *      Bestellung. Dann ist die Zuweisung die einzige Spur, die existiert.
  *
- * Ohne beides wird NICHTS geändert: Eine bestehende Zuweisung darf nicht wegen
+ * Ohne all das wird NICHTS geändert: Eine bestehende Zuweisung darf nicht wegen
  * einer herrenlosen Bestellung verloren gehen.
  */
 export async function personAgentSynchronisieren(
@@ -480,21 +483,83 @@ export async function personAgentSynchronisieren(
   }
   if (!personId) return null;
 
-  // 1. Der Betreuer schlägt alles.
+  // ═══════════════════════════════════════════════════════════════════════
+  // EINE VERTRETUNG IST KEINE ÜBERNAHME (03.09.2026)
+  //
+  // Aus dem Gruppenchat vom 02.09., 17:24 Uhr:
+  //   Hans-Jürgen: „Kunde hat für 18 Uhr gebucht, komme aber nicht in die
+  //                 Akte bzw. steht Kunde nicht in deinem Bestand"
+  //   Florentine:  „Der ist eigentlich bei mir. Wie kommt er zu dir?"
+  //   Hans-Jürgen: „Keine Ahnung, vor 1 Stunde stand noch gar nichts."
+  //   Hans-Jürgen: „Ich kann ihn anrufen, sag ich halt, ich rufe in Vertretung an."
+  //
+  // Genau dieser Vertretungsanruf hat den Kunden übernommen. Denn `betreuerVon`
+  // liefert den JÜNGSTEN dokumentierten Kontakt, und die Zeile darunter schrieb
+  // ihn über den bestehenden Betreuer. Wer zuletzt anruft, bekommt den Kunden —
+  // auch, wenn er nur aushilft. Der Kunde Balde ist so binnen eines Tages von
+  // Florentine über Hans-Jürgen bei Daniel gelandet, mit Mandat seit dem 20.07.
+  //
+  // GEMESSEN am 03.09.: 1.784 Personen haben dokumentierten Kontakt, bei 221
+  // ist der erste ein anderer als der letzte — 97 davon mit Mandat. Da an der
+  // Betreuung die Provision hängt, ist das nicht nur eine Anzeigefrage.
+  //
+  // ZWEI SCHUTZWÄNDE, beide nur hier:
+  //   A) BESTANDSSCHUTZ — hat die Person bereits einen Betreuer, und hat DIESER
+  //      selbst dokumentierten Kontakt, bleibt er. Ein späterer Anruf eines
+  //      anderen ändert nichts mehr. Eine bewusste Übergabe läuft weiter über
+  //      die Übergabe-Route im Team-Bereich, die `assigned_agent_id` direkt
+  //      setzt — und der neue Betreuer hält sie beim ersten eigenen Kontakt.
+  //   B) NUR VERTRIEB — das Forderungsmanagement (Hans-Jürgen, Diana) ruft
+  //      offene Raten hinterher und steht dadurch im Verlauf. Betreuer wird es
+  //      dadurch nicht. Dieselbe Rollen-Bedingung steht seit dem 30.08. in
+  //      fiaon-zuteilung.ts; hier fehlte sie — das war die zweite Hälfte des
+  //      Fehlers.
+  // ═══════════════════════════════════════════════════════════════════════
   const betreuer = await betreuerVon(sql, personId);
   if (betreuer) {
-    const rows = await sql`
-      UPDATE fiaon_persons
-      SET assigned_agent_id = ${betreuer.agentId},
-          betreuung_seit = COALESCE(betreuung_seit, ${betreuer.am}),
-          updated_at = NOW()
-      WHERE id = ${personId} AND COALESCE(assigned_agent_id, 0) <> ${betreuer.agentId}
-      RETURNING id
-    `;
-    if (rows.length > 0) {
-      console.log(`[FIAON-TIER] Person ${personId} bleibt bei ihrem Betreuer → Agent ${betreuer.agentId}`);
+    const [jetzt] = (await sql`
+      SELECT assigned_agent_id FROM fiaon_persons WHERE id = ${personId} LIMIT 1
+    `) as any[];
+    const bisher = Number(jetzt?.assigned_agent_id || 0);
+
+    // A) Der eingetragene Betreuer hält, sobald er selbst im Verlauf steht.
+    if (bisher && bisher !== betreuer.agentId) {
+      const [eigener] = (await sql`
+        SELECT 1 FROM fiaon_contact_log cl
+        JOIN fiaon_applications a ON a.ref = cl.ref
+        WHERE a.person_id = ${personId} AND cl.type = 'result'
+          AND cl.voided_at IS NULL AND cl.agent_id = ${bisher}
+        LIMIT 1
+      `) as any[];
+      if (eigener) {
+        console.log(`[FIAON-TIER] Person ${personId} bleibt bei Agent ${bisher} — Kontakt von Agent ${betreuer.agentId} war eine Vertretung.`);
+        return { personId, agentId: bisher };
+      }
     }
-    return { personId, agentId: betreuer.agentId };
+
+    // B) Wer eine Rate eintreibt, wird dadurch nicht Betreuer.
+    const [rolleOk] = (await sql`
+      SELECT 1 FROM fiaon_agents
+      WHERE id = ${betreuer.agentId} AND active AND NOT is_test_account
+        AND COALESCE(rolle, 'agent') IN ('agent', 'vertriebsleiter')
+      LIMIT 1
+    `) as any[];
+    if (!rolleOk) {
+      if (bisher) return { personId, agentId: bisher };
+    } else {
+      const rows = await sql`
+        UPDATE fiaon_persons
+        SET assigned_agent_id = ${betreuer.agentId},
+            betreuung_seit = COALESCE(betreuung_seit, ${betreuer.am}),
+            updated_at = NOW()
+        WHERE id = ${personId} AND COALESCE(assigned_agent_id, 0) <> ${betreuer.agentId}
+        RETURNING id
+      `;
+      if (rows.length > 0) {
+        console.log(`[FIAON-TIER] Person ${personId} bleibt bei ihrem Betreuer → Agent ${betreuer.agentId}`);
+      }
+      return { personId, agentId: betreuer.agentId };
+    }
   }
 
   // 2. Niemand hat dokumentiert — dann entscheidet die Bestellung.

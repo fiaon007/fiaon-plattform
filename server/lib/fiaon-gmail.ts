@@ -153,12 +153,29 @@ export async function labelSicherstellen(postfach: string, name: string): Promis
   }
   const da = karte.get(name);
   if (da) return da;
-  const neu = await api(postfach, "/labels", {
-    method: "POST",
-    body: JSON.stringify({ name, labelListVisibility: "labelShow", messageListVisibility: "show" }),
-  });
-  karte.set(name, String(neu.id));
-  return String(neu.id);
+  try {
+    const neu = await api(postfach, "/labels", {
+      method: "POST",
+      body: JSON.stringify({ name, labelListVisibility: "labelShow", messageListVisibility: "show" }),
+    });
+    karte.set(name, String(neu.id));
+    return String(neu.id);
+  } catch (e: any) {
+    // 03.09.2026: „Label name exists or conflicts" (HTTP 409). Der Merkzettel
+    // in `labelCache` ist dann älter als das Postfach — jemand hat das Label
+    // inzwischen von Hand angelegt, oder ein zweiter Lauf war schneller.
+    // Das ist kein Fehler, sondern ein veralteter Merkzettel: einmal frisch
+    // einlesen und das vorhandene Label nehmen. Vorher scheiterte daran die
+    // ganze Mail, obwohl nur ein Ordner schon existierte.
+    if (!String(e?.message || "").includes("409")) throw e;
+    const j = await api(postfach, "/labels");
+    const frisch = new Map<string, string>();
+    for (const l of (j?.labels || []) as any[]) frisch.set(String(l.name), String(l.id));
+    labelCache.set(postfach, frisch);
+    const gefunden = frisch.get(name);
+    if (gefunden) return gefunden;
+    throw e;
+  }
 }
 
 export async function nachrichtLabeln(postfach: string, id: string,

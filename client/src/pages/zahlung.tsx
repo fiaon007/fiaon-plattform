@@ -175,24 +175,36 @@ function TerminAngebot({ paymentReference, art, sofortUrl }: { paymentReference:
   return (
     <div className="mb-6 grid sm:grid-cols-2 gap-3">
       {sofortUrl && (
+        // ── EINE FARBFAMILIE, DREI HELLIGKEITEN (02.09.2026, Justin) ──────
+        // Vorher stand der schnellste Weg in Smaragdgrün auf dem Navy-Glas —
+        // eine Fremdfarbe, die aus dem Blau-System ausbricht. Justin: „das
+        // Grün auf Dunkelblau gefällt mir nicht". Die Rangfolge entsteht
+        // jetzt aus derselben Familie: Der Sofort-Weg trägt die satteste
+        // Blaustufe und den einzigen gefüllten Knopf, die Überweisung eine
+        // hellere Umrandung, der Termin nur eine ruhige Kante. Wer nichts
+        // liest, sieht trotzdem, was zuerst gemeint ist.
         <a href={sofortUrl}
-           className="sm:col-span-2 block text-left p-4 rounded-2xl border-2 border-emerald-500 bg-emerald-50/60 active:scale-[.99] transition-transform"
-           style={{ boxShadow: "0 12px 34px -16px rgba(5,150,105,.55)" }}>
-          <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 mb-1">Schnellster Weg · in einer Minute gebucht</p>
+           className="sm:col-span-2 block text-left p-4 rounded-2xl active:scale-[.99] transition-transform"
+           style={{
+             border: "1px solid rgba(147,197,253,.55)",
+             background: "linear-gradient(160deg, rgba(37,99,235,.16), rgba(29,78,216,.06))",
+             boxShadow: "0 16px 40px -18px rgba(37,99,235,.65)",
+           }}>
+          <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: "#2563eb" }}>Schnellster Weg · in einer Minute gebucht</p>
           <p className="text-[15px] font-bold text-slate-900 leading-tight">Sofort per Bank-App bezahlen</p>
           <p className="text-[12.5px] text-slate-600 mt-1.5 leading-relaxed">
             Sie wählen Ihre Bank, bestätigen in der Banking-App — Betrag und Verwendungszweck sind schon eingetragen. {art === "rate" ? "Die Rate ist danach sofort verbucht." : "Ihr Konto ist danach sofort aktiv."}
           </p>
           <span className="inline-flex items-center justify-center w-full mt-3 rounded-xl text-[13px] font-bold text-white"
-                style={{ minHeight: 44, background: "linear-gradient(180deg,#10b981,#059669)" }}>
+                style={{ minHeight: 44, background: "linear-gradient(180deg,#3b82f6,#1d4ed8)", boxShadow: "0 8px 22px -10px rgba(29,78,216,.8)" }}>
             Bank wählen und bezahlen
           </span>
         </a>
       )}
       <button type="button" onClick={zuDenZahlungsdaten}
-              className="text-left p-4 rounded-2xl border-2 border-[#1d4ed8] bg-blue-50/40 active:scale-[.99] transition-transform"
-              style={{ boxShadow: "0 10px 30px -14px rgba(29,78,216,.45)" }}>
-        <p className="text-[10px] font-bold uppercase tracking-wider text-[#1d4ed8] mb-1">Weg 1 · empfohlen</p>
+              className="text-left p-4 rounded-2xl active:scale-[.99] transition-transform"
+              style={{ border: "1px solid rgba(147,197,253,.32)", background: "rgba(37,99,235,.05)", boxShadow: "0 8px 24px -16px rgba(29,78,216,.35)" }}>
+        <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: "#1d4ed8" }}>Auch möglich · Überweisung</p>
         <p className="text-[14px] font-bold text-slate-900 leading-tight">{art === "rate" ? "Rate jetzt überweisen — in einer Minute erledigt" : "Jetzt überweisen — Konto sofort aktiv"}</p>
         <p className="text-[12.5px] text-slate-600 mt-1.5 leading-relaxed">
           {art === "rate"

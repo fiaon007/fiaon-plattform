@@ -882,6 +882,20 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/bonitaet-verbessern", "/schufa-eintrag-loeschen", "/schufa-neutral-anfragen", "/bonitaetsauskunft-beantragen", "/eintrag-verjaehrung", "/werkzeuge/selbstauskunft", "/glossar-bonitaet"],
     krumen: [{ name: "SCHUFA-Score verstehen", pfad: "/schufa-score-verstehen" }],
+    en: {
+      pfad: "/en/schufa-score",
+      titel: "Understanding the SCHUFA score: new scale 100–999, table",
+      beschreibung: "The new SCHUFA score since March 2026: a scale from 100 to 999, five classes, twelve criteria with points — as a table, with the levers behind it.",
+      h1: "Understanding the SCHUFA score: what your number really means.",
+      lead: "Since March 2026 the score has been a number between 100 and 999 — from twelve published criteria, in five classes. Here is the table, every criterion with its points, the levers behind it and the route to getting rid of wrong entries.",
+      abschnitte: [
+        { h2: "The score table: five classes", text: "776 to 999 excellent (around 62 % of people), 709 to 775 good (around 20 %), 642 to 708 acceptable (around 8 %), 100 to 641 sufficient (around 2 %), no value with an open payment default — insufficient (around 8 %). Source: SCHUFA, retrieved 2 September 2026. Every bank still sets its own thresholds." },
+        { h2: "The twelve criteria", text: "Payment defaults 264 points, account and card enquiries 117, enquiries outside banking 99, age of address 94, oldest credit card 81, oldest bank contract 69, instalment loans taken out 66, longest remaining term 61, mortgage loan 55, identity check 38, most recent credit line 36, credit status 19 — 999 in total." },
+        { h2: "What moves the score", text: "No open payment default, bundled enquiries, old contracts kept, a stable address, loans in moderation, wrong data out. FIAON obtains the reports, checks every entry against Section 31 BDSG and the deletion deadlines and handles the correspondence. Nobody can seriously promise a particular number." },
+      ],
+      weiter: ["/bonitaet-verbessern", "/schufa-eintrag-loeschen", "/eintrag-verjaehrung"],
+      krumen: [{ name: "Understanding the SCHUFA score", pfad: "/en/schufa-score" }],
+    },
   },
   "/bonitaetsauskunft-beantragen": {
     pfad: "/bonitaetsauskunft-beantragen", art: "pfeiler", stand: PFEILER, prio: 0.9,
@@ -896,6 +910,19 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/werkzeuge/selbstauskunft", "/selbstauskunft-checkliste", "/auskunfteien", "/schufa-score-verstehen", "/werkzeuge/eintrag-pruefen", "/preise"],
     krumen: [{ name: "Bonitätsauskunft beantragen", pfad: "/bonitaetsauskunft-beantragen" }],
+    en: {
+      pfad: "/en/request-your-credit-report",
+      titel: "Requesting your credit report: free or reviewed | FIAON",
+      beschreibung: "The free route under Art. 15 GDPR and the reviewed FIAON route for €74 compared: obtaining, plain-language explanation, a check of every entry.",
+      h1: "Requesting your credit report — free or reviewed.",
+      lead: "You are legally entitled to your report free of charge — we say that first. FIAON is the route for everyone who wants to hand over obtaining it, the plain-language explanation and the check of every entry: €74 one-off, no subscription required.",
+      abschnitte: [
+        { h2: "Request it yourself or have it obtained?", text: "Self-disclosure under Art. 15 GDPR costs nothing and delivers raw data from each bureau separately; the FIAON route costs €74 one-off and delivers SCHUFA, KSV and CRIF from one hand, every line explained, every entry checked against Section 31 BDSG and the deletion deadlines, plus an action plan. Our free tools prepare the free route." },
+        { h2: "How it works", text: "Open an account and place the order in two minutes; FIAON obtains the data copies within a few days to four weeks; plain language and review within 24 hours of receipt; an action plan and, if you wish, the implementation. Self-disclosure is neutral and does not change your score.", punkte: ["No success fee, no hidden costs", "Also KSV (Austria) and CRIF (Switzerland)", "No deletion guarantee — justified entries stay"] },
+      ],
+      weiter: ["/schufa-score-verstehen", "/auskunfteien", "/preise"],
+      krumen: [{ name: "Requesting your credit report", pfad: "/en/request-your-credit-report" }],
+    },
   },
   "/inkasso-brief-erhalten": {
     pfad: "/inkasso-brief-erhalten", art: "pfeiler", stand: PFEILER, prio: 0.9,

@@ -303,6 +303,8 @@ function Router() {
       <Route path="/en/credit-bureaus" component={AuskunfteienSeite} />
       <Route path="/en/austria" component={SiteOesterreich} />
       <Route path="/en/switzerland" component={SiteSchweiz} />
+      <Route path="/en/schufa-score" component={SchufaScoreVerstehen} />
+      <Route path="/en/request-your-credit-report" component={BonitaetsauskunftBeantragen} />
       <Route path="/kreditkarte" component={SiteKreditkarte} />
       <Route path="/oesterreich" component={SiteOesterreich} />
       <Route path="/schweiz" component={SiteSchweiz} />

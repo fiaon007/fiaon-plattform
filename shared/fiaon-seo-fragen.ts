@@ -9,7 +9,7 @@
 // Neu erzeugen:   npx tsx scripts/seo-fragen-erzeugen.ts
 // Nur prüfen:     npx tsx scripts/seo-fragen-erzeugen.ts --pruefen
 //
-// Seiten: / (6), /was-ist-fiaon (6), /en/what-is-fiaon (6), /privatkunden (8), /en/personal (8), /business (5), /en/business (5), /preise (6), /en/pricing (6), /en (4), /kreditkarte (5), /en/credit-card (5), /oesterreich (5), /en/austria (5), /schweiz (5), /en/switzerland (5), /sicherheit (11), /en/security (11), /kontakt (5), /en/contact (5), /karriere (5), /partner (3), /presse (3), /investoren (4), /datenraum (3), /plattform-konzept (5), /fiaon-erfahrungen (8), /en/how-fiaon-works (8), /termin (6), /en/book-a-call (6), /vergleich (5), /en/compare (5), /hilfe (36), /en/help (36), /ueber-uns (5), /en/about (5), /transparenz (4), /en/transparency (4), /status (5), /werkzeuge (4), /werkzeuge/kreditrechner (5), /werkzeuge/umschuldung (5), /werkzeuge/schulden-check (5), /werkzeuge/widerspruch (5), /werkzeuge/mahnbescheid (5), /werkzeuge/ratenplan (5), /werkzeuge/inkasso-antwort (5), /werkzeuge/basiskonto (5), /werkzeuge/pfaendungsrechner (5), /werkzeuge/dispo-rechner (5), /werkzeuge/mahngebuehren (5), /werkzeuge/kartenkosten (5), /werkzeuge/schuldenplan (5), /kredit-ohne-schufa (6), /en/loans-without-schufa (6), /schufa-eintrag-loeschen (5), /bonitaet-verbessern (6), /en/strengthen-your-credit-file (6), /auskunfteien (5), /en/credit-bureaus (5), /schufa-score-verstehen (6), /bonitaetsauskunft-beantragen (7), /inkasso-brief-erhalten (6), /eintrag-verjaehrung (6), /girokonto-trotz-negativer-bonitaet (7), /ratenzahlung-und-bonitaet (6), /selbstauskunft-checkliste (6), /schufa-neutral-anfragen (6)
+// Seiten: / (6), /was-ist-fiaon (6), /en/what-is-fiaon (6), /privatkunden (8), /en/personal (8), /business (5), /en/business (5), /preise (6), /en/pricing (6), /en (4), /kreditkarte (5), /en/credit-card (5), /oesterreich (5), /en/austria (5), /schweiz (5), /en/switzerland (5), /sicherheit (11), /en/security (11), /kontakt (5), /en/contact (5), /karriere (5), /partner (3), /presse (3), /investoren (4), /datenraum (3), /plattform-konzept (5), /fiaon-erfahrungen (8), /en/how-fiaon-works (8), /termin (6), /en/book-a-call (6), /vergleich (5), /en/compare (5), /hilfe (36), /en/help (36), /ueber-uns (5), /en/about (5), /transparenz (4), /en/transparency (4), /status (5), /werkzeuge (4), /werkzeuge/kreditrechner (5), /werkzeuge/umschuldung (5), /werkzeuge/schulden-check (5), /werkzeuge/widerspruch (5), /werkzeuge/mahnbescheid (5), /werkzeuge/ratenplan (5), /werkzeuge/inkasso-antwort (5), /werkzeuge/basiskonto (5), /werkzeuge/pfaendungsrechner (5), /werkzeuge/dispo-rechner (5), /werkzeuge/mahngebuehren (5), /werkzeuge/kartenkosten (5), /werkzeuge/schuldenplan (5), /kredit-ohne-schufa (6), /en/loans-without-schufa (6), /schufa-eintrag-loeschen (5), /bonitaet-verbessern (6), /en/strengthen-your-credit-file (6), /auskunfteien (5), /en/credit-bureaus (5), /schufa-score-verstehen (6), /en/schufa-score (6), /bonitaetsauskunft-beantragen (7), /en/request-your-credit-report (7), /inkasso-brief-erhalten (6), /eintrag-verjaehrung (6), /girokonto-trotz-negativer-bonitaet (7), /ratenzahlung-und-bonitaet (6), /selbstauskunft-checkliste (6), /schufa-neutral-anfragen (6)
 // ═══════════════════════════════════════════════════════════════════════════
 export type SeoFrage = { f: string; a: string };
 
@@ -1704,6 +1704,32 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
       "a": "Der Eintrag verschwindet mit der Löschung aus der Auskunft; beim nächsten Abruf rechnet der Score ohne ihn. Eine erledigte Zahlungsstörung wirkt nach den veröffentlichten Kriterien allerdings bis zu drei Jahre nach Erledigung abgeschwächt nach – anders als eine gelöschte, die nie hätte gemeldet werden dürfen. Ein Versprechen, dass eine bestimmte Zahl erreicht wird, kann niemand seriös geben."
     }
   ],
+  "/en/schufa-score": [
+    {
+      "f": "What is a good SCHUFA score?",
+      "a": "Since March 2026 the scale runs from 100 to 999 points. From 776 points the credit standing counts as “excellent”, from 709 to 775 as “good”, from 642 to 708 as “acceptable”, below that as “sufficient”. Anyone with an open payment default gets no points value but the class “insufficient”. According to SCHUFA, around 62 per cent of people are in the best class."
+    },
+    {
+      "f": "Where can I see my SCHUFA score free of charge?",
+      "a": "Since 17 March 2026 digitally and free: in the SCHUFA account (app.schufa.de) or via the bonify app — with all twelve criteria and the points per criterion. Alongside, the data copy under Art. 15 GDPR by post remains free; only it shows which body reported what. FIAON orders the data copy for you as part of the credit report."
+    },
+    {
+      "f": "What has become of the base score and the industry scores?",
+      "a": "The base score (0 to 100 per cent) was replaced on 17 March 2026. The six industry scores — for banks, savings banks, cooperative banks, telecommunications, retail and mail order — are replaced by the one new score; for companies a transition period applies until the end of 2028. The consumer advice centre found in June 2026 that only about a quarter of contractual partners were using the new score — your bank may temporarily still work with an old value."
+    },
+    {
+      "f": "How often is the SCHUFA score recalculated?",
+      "a": "The new score is calculated from the currently stored data at every enquiry — no longer quarterly like the old base score. A deletion or correction therefore takes effect at the next retrieval, as soon as the credit bureau has changed the data."
+    },
+    {
+      "f": "Why do I get different decisions from two banks with the same score?",
+      "a": "Because the SCHUFA score is only ONE building block. Banks run their own scoring with their own thresholds and weigh in income, account management and product type. The same 720 points can be enough for a card at one bank and not at another — that is why the bank statement is often more decisive than the number."
+    },
+    {
+      "f": "How quickly does the number change after a deletion?",
+      "a": "The entry disappears from the report with the deletion; at the next retrieval the score calculates without it. A settled payment default does, however, count with reduced weight for up to three years after settlement under the published criteria — unlike a deleted one that should never have been reported. Nobody can seriously promise that a particular number will be reached."
+    }
+  ],
   "/bonitaetsauskunft-beantragen": [
     {
       "f": "Ist eine Bonitätsauskunft wirklich kostenlos möglich?",
@@ -1732,6 +1758,36 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     {
       "f": "Kann FIAON garantieren, dass Einträge gelöscht werden?",
       "a": "Nein — und niemand kann das seriös. Berechtigte, zulässig gemeldete Einträge bleiben bis zum Fristablauf. Was FIAON leistet: jeden Eintrag gegen die gesetzlichen Voraussetzungen halten und angreifen, was angreifbar ist. Anbieter mit Löschgarantie erkennen Sie als unseriös."
+    }
+  ],
+  "/en/request-your-credit-report": [
+    {
+      "f": "Is a credit report really possible free of charge?",
+      "a": "Yes. The data copy under Art. 15 GDPR is free by law — at SCHUFA, KSV and CRIF. It contains all stored data including reporting date and reporting body. What the bureaus charge for is only the packaging (a credit certificate to pass on) — and what FIAON charges for is the work around it: obtaining, explaining, checking."
+    },
+    {
+      "f": "What does the credit report via FIAON cost?",
+      "a": "€74, one-off. Included: obtaining your reports, preparation in plain language, the check of every entry for lawfulness and expiry, and an action plan. No success fee, no subscription required — serious work does not charge per “deleted entry”."
+    },
+    {
+      "f": "How long until I have my report?",
+      "a": "The application takes about two minutes. Depending on the bureau and the route, the credit bureaus deliver the data copy within a few days to about four weeks (legal maximum: one month). As soon as it is there, you see preparation and review in your customer area — usually within 24 hours."
+    },
+    {
+      "f": "What is the difference between a data copy and a credit certificate?",
+      "a": "The data copy is for YOU: complete, with every entry and every detail — and free. The credit bureaus' credit certificate is for THIRD PARTIES (landlords, say): abridged, meant for showing, and paid. Anyone who wants to understand or change their situation needs the data copy."
+    },
+    {
+      "f": "Does SCHUFA see that I am requesting a report?",
+      "a": "Self-disclosure is neutral: it is not stored as an enquiry that other banks see, and it does not change your score. You can request it as often as you like."
+    },
+    {
+      "f": "Does FIAON also check KSV (Austria) and CRIF (Switzerland)?",
+      "a": "Yes. FIAON works across the whole DACH region and obtains the reports of all three bureaus from one hand. The rights are comparable: in Austria the GDPR applies directly, Switzerland has its own rights of access and rectification under the revised DSG."
+    },
+    {
+      "f": "Can FIAON guarantee that entries are deleted?",
+      "a": "No — and nobody can, seriously. Justified, lawfully reported entries stay until the deadline expires. What FIAON does: hold every entry against the legal requirements and challenge what can be challenged. You can recognise providers with deletion guarantees as not serious."
     }
   ],
   "/inkasso-brief-erhalten": [

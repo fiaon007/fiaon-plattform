@@ -33,7 +33,7 @@ const ZIEL = path.join(WURZEL, "shared", "fiaon-seo-fragen.ts");
 /** Seitendatei → Pfad der Seite. Nur was hier steht, wird gelesen. */
 const QUELLEN: Record<string, string> = {
   "client/src/pages/fiaon-home.tsx": "/",
-  "client/src/pages/site/was-ist-fiaon.tsx": "/was-ist-fiaon",
+  "client/src/i18n/was-ist-fiaon.ts": "/was-ist-fiaon|/en/what-is-fiaon",
   "client/src/pages/site/privatkunden.tsx": "/privatkunden",
   "client/src/pages/site/business.tsx": "/business",
   // 02.09.2026: Die Fragen von /preise stehen im zweisprachigen Wörterbuch —

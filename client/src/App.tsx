@@ -285,6 +285,7 @@ function Router() {
       {/* Englisch (02.09.2026): /en und /en/pricing — die Seite liest ihre Sprache aus der Adresse. */}
       <Route path="/en" component={SiteEnStart} />
       <Route path="/en/pricing" component={SitePreise} />
+      <Route path="/en/what-is-fiaon" component={WasIstFiaonPage} />
       <Route path="/kreditkarte" component={SiteKreditkarte} />
       <Route path="/oesterreich" component={SiteOesterreich} />
       <Route path="/schweiz" component={SiteSchweiz} />

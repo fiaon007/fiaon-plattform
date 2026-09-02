@@ -245,6 +245,20 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/privatkunden", "/plattform-konzept", "/fiaon-erfahrungen", "/team", "/preise", "/sicherheit"],
     krumen: [{ name: "Was ist FIAON", pfad: "/was-ist-fiaon" }],
+    en: {
+      pfad: "/en/what-is-fiaon",
+      titel: "What is FIAON? The operating system for creditworthiness",
+      beschreibung: "FIAON shows you what SCHUFA, KSV or CRIF hold on you, repairs it with you and opens the door to an account, a card and finance. Three layers, one path.",
+      h1: "The operating system for creditworthiness.",
+      lead: "FIAON shows you what the credit bureaus hold on you, repairs it with you — and then opens the door to real financial products. One sentence, three layers, one path.",
+      abschnitte: [
+        { h2: "Creditworthiness is not a verdict — it is a state", text: "Today a report you have never seen decides on your account, your card, your flat and your loan. FIAON turns that around: first you see what is stored, then you change it, then the door opens.", punkte: ["Layer 1 · Insight: your report from SCHUFA, KSV or CRIF, explained in plain language", "Layer 2 · Action: deletion requests, corrections, objections and instalment agreements — prepared, reviewed, sent", "Layer 3 · Access: a current account, a credit card, later finance — the bank decides"] },
+        { h2: "Why FIAON exists", text: "100 million people in Germany, Austria and Switzerland have an entry with a credit bureau; six million in Germany alone are considered over-indebted. Score apps show a number, debt counselling is analogue, banks decide by the file. FIAON occupies the layer in between." },
+        { h2: "The path from e-mail address to card", text: "Create an account in two minutes, an onboarding call with a person, your report explained within 24 hours, letters approved and tracked stage by stage, then account and card prepared for partner banks. The bank always decides on the issue." },
+      ],
+      weiter: ["/preise", "/"],
+      krumen: [{ name: "What is FIAON", pfad: "/en/what-is-fiaon" }],
+    },
   },
   "/privatkunden": {
     pfad: "/privatkunden", art: "produkt", stand: PFEILER, prio: 0.9,

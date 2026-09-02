@@ -9,7 +9,7 @@
 // Neu erzeugen:   npx tsx scripts/seo-fragen-erzeugen.ts
 // Nur prüfen:     npx tsx scripts/seo-fragen-erzeugen.ts --pruefen
 //
-// Seiten: / (6), /was-ist-fiaon (6), /en/what-is-fiaon (6), /privatkunden (8), /en/personal (8), /business (5), /en/business (5), /preise (6), /en/pricing (6), /en (4), /kreditkarte (5), /en/credit-card (5), /oesterreich (5), /schweiz (5), /sicherheit (10), /kontakt (3), /karriere (5), /partner (3), /presse (3), /investoren (4), /datenraum (3), /plattform-konzept (5), /fiaon-erfahrungen (8), /termin (6), /vergleich (5), /ueber-uns (5), /en/about (5), /transparenz (4), /status (5), /werkzeuge (4), /werkzeuge/kreditrechner (5), /werkzeuge/umschuldung (5), /werkzeuge/schulden-check (5), /werkzeuge/widerspruch (5), /werkzeuge/mahnbescheid (5), /werkzeuge/ratenplan (5), /werkzeuge/inkasso-antwort (5), /werkzeuge/basiskonto (5), /werkzeuge/pfaendungsrechner (5), /werkzeuge/dispo-rechner (5), /werkzeuge/mahngebuehren (5), /werkzeuge/kartenkosten (5), /werkzeuge/schuldenplan (5), /kredit-ohne-schufa (6), /schufa-eintrag-loeschen (5), /bonitaet-verbessern (6), /auskunfteien (5), /schufa-score-verstehen (6), /bonitaetsauskunft-beantragen (7), /inkasso-brief-erhalten (6), /eintrag-verjaehrung (6), /girokonto-trotz-negativer-bonitaet (7), /ratenzahlung-und-bonitaet (6), /selbstauskunft-checkliste (6), /schufa-neutral-anfragen (6)
+// Seiten: / (6), /was-ist-fiaon (6), /en/what-is-fiaon (6), /privatkunden (8), /en/personal (8), /business (5), /en/business (5), /preise (6), /en/pricing (6), /en (4), /kreditkarte (5), /en/credit-card (5), /oesterreich (5), /schweiz (5), /sicherheit (10), /kontakt (5), /en/contact (5), /karriere (5), /partner (3), /presse (3), /investoren (4), /datenraum (3), /plattform-konzept (5), /fiaon-erfahrungen (8), /termin (6), /en/book-a-call (6), /vergleich (5), /ueber-uns (5), /en/about (5), /transparenz (4), /status (5), /werkzeuge (4), /werkzeuge/kreditrechner (5), /werkzeuge/umschuldung (5), /werkzeuge/schulden-check (5), /werkzeuge/widerspruch (5), /werkzeuge/mahnbescheid (5), /werkzeuge/ratenplan (5), /werkzeuge/inkasso-antwort (5), /werkzeuge/basiskonto (5), /werkzeuge/pfaendungsrechner (5), /werkzeuge/dispo-rechner (5), /werkzeuge/mahngebuehren (5), /werkzeuge/kartenkosten (5), /werkzeuge/schuldenplan (5), /kredit-ohne-schufa (6), /schufa-eintrag-loeschen (5), /bonitaet-verbessern (6), /auskunfteien (5), /schufa-score-verstehen (6), /bonitaetsauskunft-beantragen (7), /inkasso-brief-erhalten (6), /eintrag-verjaehrung (6), /girokonto-trotz-negativer-bonitaet (7), /ratenzahlung-und-bonitaet (6), /selbstauskunft-checkliste (6), /schufa-neutral-anfragen (6)
 // ═══════════════════════════════════════════════════════════════════════════
 export type SeoFrage = { f: string; a: string };
 
@@ -406,6 +406,10 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
   ],
   "/kontakt": [
     {
+      "f": "Wann erreiche ich FIAON telefonisch?",
+      "a": "Werktags unter +41 44 244 93 01. Außerhalb der Zeiten nutzen Sie „Dringend melden“ – die Meldung liegt am nächsten Werktag als Erstes oben."
+    },
+    {
       "f": "Ich bin Kunde – wo stelle ich Fragen zu meiner Akte?",
       "a": "Am besten im Kundenbereich unter „Hilfe“: Dort sieht Ihre Ansprechpartnerin die Akte gleich mit. Dringendes über diese Seite mit „An meine Ansprechpartnerin“."
     },
@@ -416,6 +420,32 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     {
       "f": "Wie schnell reagiert die Geschäftsführung auf „Dringend“?",
       "a": "Die Meldung erscheint sofort mit Priorität „heute“ in der Aufgabenliste der Geschäftsführung. Eine Rückmeldung erhalten Sie in der Regel am selben Werktag per Telefon oder E-Mail."
+    },
+    {
+      "f": "Wohin mit Post, Rechnungen oder rechtlichen Schreiben?",
+      "a": "FIAON LTD, 128 City Road, London, EC1V 2NX, United Kingdom. Rechtlich relevante Post bitte zusätzlich als Foto per E-Mail – das spart Tage."
+    }
+  ],
+  "/en/contact": [
+    {
+      "f": "When can I reach FIAON by phone?",
+      "a": "On weekdays on +41 44 244 93 01. Outside those hours use “Report urgently” — the report is at the top of the list first thing on the next working day."
+    },
+    {
+      "f": "I am a customer — where do I ask questions about my file?",
+      "a": "Best in the customer area under “Help”: there your contact person sees the file alongside. Urgent matters via this page with “To my contact person”."
+    },
+    {
+      "f": "Can the assistant check my payment or my appointment?",
+      "a": "No — it has no access to customer data. You see payment, appointment and documents in the customer area; if something does not add up, support helps."
+    },
+    {
+      "f": "How quickly does the management react to “Urgent”?",
+      "a": "The report appears immediately with priority “today” in the management's task list. You usually get a reply on the same working day by phone or e-mail."
+    },
+    {
+      "f": "Where do I send post, invoices or legal letters?",
+      "a": "FIAON LTD, 128 City Road, London, EC1V 2NX, United Kingdom. Legally relevant post please additionally as a photo by e-mail — that saves days."
     }
   ],
   "/karriere": [
@@ -580,6 +610,32 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     {
       "f": "Ich bin schon Kunde – wo buche ich?",
       "a": "Im Kundenbereich unter Hilfe erreichen Sie Ihre Ansprechpartnerin direkt; dort steht auch der nächste Termin. Diese Seite ist für alle, die FIAON noch nicht kennen."
+    }
+  ],
+  "/en/book-a-call": [
+    {
+      "f": "What does the call cost?",
+      "a": "Nothing. It is a phone call of around 15 minutes, with no obligation. Afterwards you know what your report shows, which plan fits — or that the free tools are enough in your case. We tell you that just the same."
+    },
+    {
+      "f": "Who calls me?",
+      "a": "Someone from sales or onboarding — a person with a name who uses the platform every day; many in the team were customers themselves. No call centre, no bot."
+    },
+    {
+      "f": "What should I have to hand?",
+      "a": "Nothing is required. Helpful: the letter or the report in question, the rough amount of open claims and a look at your bank statements for the last three months. If you already have a data copy, keep it next to the phone."
+    },
+    {
+      "f": "How quickly does the call come?",
+      "a": "In the preferred time slot, on the next working day at the latest. If you choose “as soon as possible”, you are usually called within a few hours — during the team's phone hours (weekdays 9 to 19 h)."
+    },
+    {
+      "f": "Is this already the onboarding call?",
+      "a": "If you choose a plan afterwards and the first instalment arrives, the same appointment becomes the onboarding call — you do not need a second one. If you just wanted to talk, you have talked. Both are fine."
+    },
+    {
+      "f": "I am already a customer — where do I book?",
+      "a": "In the customer area under Help you reach your contact person directly; your next appointment is shown there too. This page is for everyone who does not know FIAON yet."
     }
   ],
   "/vergleich": [

@@ -291,6 +291,8 @@ function Router() {
       <Route path="/en/credit-card" component={SiteKreditkarte} />
       <Route path="/en/about" component={SiteUeberUns} />
       <Route path="/en/team" component={SiteTeam} />
+      <Route path="/en/contact" component={SiteKontakt} />
+      <Route path="/en/book-a-call" component={SiteTermin} />
       <Route path="/kreditkarte" component={SiteKreditkarte} />
       <Route path="/oesterreich" component={SiteOesterreich} />
       <Route path="/schweiz" component={SiteSchweiz} />

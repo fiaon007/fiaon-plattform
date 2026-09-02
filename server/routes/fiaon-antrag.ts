@@ -161,6 +161,12 @@ async function ensurePaymentColumns(): Promise<void> {
     ADD COLUMN IF NOT EXISTS claimed_paid_at TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS welcome_sent_at TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS payment_email_sent_at TIMESTAMPTZ,
+    -- Welche Vertragsfassung gilt (03.09.2026): Neuverträge laufen zwölf Monate
+    -- mit Ratenzahlung, Altverträge monatlich. Ohne dieses Feld schreibt der
+    -- E-Mail-Agent einem Bestandskunden die falsche Regel. Der Standardwert wird
+    -- ERST NACH dem Anlegen gesetzt (Zeile darunter) — sonst bekämen auch die
+    -- 3.100 Altbestellungen die neue Fassung.
+    ADD COLUMN IF NOT EXISTS agb_stand DATE,
     ADD COLUMN IF NOT EXISTS followup_sent_at TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS merged_into VARCHAR,
     ADD COLUMN IF NOT EXISTS promised_pay_date TIMESTAMPTZ,
@@ -197,6 +203,9 @@ async function ensurePaymentColumns(): Promise<void> {
     ADD COLUMN IF NOT EXISTS archived_by TEXT,
     ADD COLUMN IF NOT EXISTS archived_by_agent_id INTEGER;
   `;
+  // Ab jetzt trägt jede NEUE Bestellung die Fassung vom 03.09.2026 (Jahresvertrag
+  // mit Ratenzahlung). Bestehende Zeilen bleiben leer = alte Fassung, monatlich.
+  await sqlPool`ALTER TABLE fiaon_applications ALTER COLUMN agb_stand SET DEFAULT '2026-09-03'`.catch(() => {});
   await sqlPool`CREATE UNIQUE INDEX IF NOT EXISTS fiaon_app_invoice_no_idx ON fiaon_applications(invoice_number)`;
   await sqlPool`CREATE UNIQUE INDEX IF NOT EXISTS fiaon_app_payment_ref_idx ON fiaon_applications(payment_reference)`;
   paymentColumnsEnsured = true;

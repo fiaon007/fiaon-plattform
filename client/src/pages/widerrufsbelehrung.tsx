@@ -102,6 +102,22 @@ export default function WiderrufsbelehrungPage() {
               </div>
             </div>
 
+            {/* Wertersatz bei Dienstleistungen (§ 357 Abs. 8 BGB) — ergänzt 03.09.2026 */}
+            <div className="fiaon-glass-panel rounded-2xl p-8">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Wertersatz bei vorzeitigem Leistungsbeginn</h2>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                Haben Sie verlangt, dass wir mit unseren Dienstleistungen bereits während der Widerrufsfrist beginnen,
+                und widerrufen Sie den Vertrag danach, so haben Sie uns einen angemessenen Betrag zu zahlen. Er entspricht
+                dem Anteil der bis zum Zeitpunkt Ihres Widerrufs bereits erbrachten Leistungen im Verhältnis zum
+                Gesamtumfang der vertraglich vereinbarten Leistungen.
+              </p>
+              <p className="text-gray-700 leading-relaxed">
+                Maßgeblich für die Berechnung ist die vereinbarte Gesamtvergütung nach § 5 Absatz 2 der Allgemeinen
+                Geschäftsbedingungen. Bereits von Ihnen geleistete Zahlungen werden angerechnet; ein darüber hinausgehender
+                Betrag wird Ihnen unverzüglich erstattet.
+              </p>
+            </div>
+
             {/* Vorzeitiges Erlöschen */}
             <div className="fiaon-glass-panel rounded-2xl p-8 relative overflow-hidden border-2 border-amber-200/50">
               <div className="absolute inset-0 opacity-10 pointer-events-none" style={{

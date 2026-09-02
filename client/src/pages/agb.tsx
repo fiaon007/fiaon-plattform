@@ -46,6 +46,15 @@ export default function AGBPage() {
             </div>
           </div>
 
+          {/* Fassung und Geltung — wichtig für Bestandskunden (03.09.2026) */}
+          <div className="fiaon-glass-panel rounded-2xl p-6">
+            <p className="text-sm text-gray-600 leading-relaxed">
+              <strong>Fassung vom 3. September 2026.</strong> Diese Bedingungen gelten für Verträge, die ab diesem Tag geschlossen werden.
+              Für früher geschlossene Verträge gelten die jeweils bei Vertragsschluss vereinbarten Bedingungen fort (siehe § 6 Absatz 8).
+              Welche Fassung für Ihren Vertrag gilt, steht in Ihrer Bestellbestätigung und in Ihrem Kundenbereich.
+            </p>
+          </div>
+
           {/* § 1 */}
           <div className="fiaon-glass-panel rounded-2xl p-8 relative overflow-hidden">
             <div className="absolute inset-0 opacity-15 pointer-events-none" style={{
@@ -156,18 +165,27 @@ export default function AGBPage() {
               animation: "limitGlow 6s ease-in-out infinite"
             }} />
             <div className="relative z-10">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">§ 5 Preise und Zahlungsbedingungen</h2>
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">§ 5 Preise, Ratenzahlung und Zahlungsverzug</h2>
               <p className="text-gray-700 leading-relaxed mb-4">
-                Es gelten die im Zeitpunkt der Bestellung auf der Website ausgewiesenen monatlichen Abonnement-Gebühren. Alle Preise verstehen sich in Euro. Für Verbraucher verstehen sich die Preise inklusive der gesetzlichen Umsatzsteuer.
+                <strong>(1)</strong> Es gelten die im Zeitpunkt der Bestellung auf der Website ausgewiesenen Preise des gewählten Leistungspakets. Alle Preise verstehen sich in Euro. Gegenüber Verbrauchern verstehen sich die Preise als Endpreise einschließlich einer etwaig anfallenden Umsatzsteuer.
               </p>
               <p className="text-gray-700 leading-relaxed mb-4">
-                Die Gebühren für das gewählte Abonnement sind jeweils monatlich im Voraus zur Zahlung fällig.
+                <strong>(2) Gesamtvergütung und Ratenzahlung.</strong> Die Vergütung für die Erstlaufzeit nach § 6 Absatz 1 ist eine Gesamtvergütung. Sie wird dem Nutzer aus Gründen der Zahlungserleichterung in zwölf gleich hohen Monatsraten zur Zahlung gestellt; die Ratenzahlung ist zinsfrei. Die Höhe der Monatsrate und die Gesamtvergütung werden vor Vertragsschluss in der Bestellübersicht ausgewiesen und in der Bestellbestätigung wiederholt. Die Ratenzahlung begründet kein monatliches Vertragsverhältnis.
               </p>
               <p className="text-gray-700 leading-relaxed mb-4">
-                Die Zahlung erfolgt per Vorkasse durch SEPA-Banküberweisung auf das in der Bestellbestätigung genannte Geschäftskonto der Anbieterin. Der Zugang wird nach Zahlungseingang freigeschaltet.
+                <strong>(3) Fälligkeit.</strong> Die erste Rate ist mit Vertragsschluss fällig; der Zugang zur Plattform wird nach ihrem Eingang freigeschaltet. Die weiteren Raten sind jeweils monatlich im Voraus fällig, und zwar jeweils am Kalendertag des Vertragsschlusses. Fällt dieser Tag in einem Monat nicht an, tritt der letzte Tag des Monats an seine Stelle.
+              </p>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                <strong>(4) Zahlungsweg.</strong> Die Zahlung erfolgt per SEPA-Überweisung auf das in der Rechnung genannte Geschäftskonto der Anbieterin oder, nach Erteilung eines SEPA-Lastschriftmandats, im Lastschriftverfahren. Bei Lastschrift wird die Frist für die Vorabankündigung (Pre-Notification) auf einen (1) Tag vor Belastung verkürzt.
+              </p>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                <strong>(5) Verzug.</strong> Gerät der Nutzer mit einer Rate in Verzug, ist die Anbieterin berechtigt, Verzugszinsen in gesetzlicher Höhe (§ 288 BGB) zu verlangen. Die Anbieterin ist ferner berechtigt, den Zugang zur Plattform bis zur vollständigen Begleichung der offenen Forderung zu sperren; die Zahlungspflicht bleibt hiervon unberührt. Eine Mahnpauschale wird gegenüber Verbrauchern nicht erhoben.
+              </p>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                <strong>(6) Abgabe an ein Inkassounternehmen.</strong> Bleibt eine fällige Forderung nach zwei erfolglosen Mahnungen in Textform und nach Ablauf einer jeweils gesetzten angemessenen Zahlungsfrist unbeglichen, ist die Anbieterin berechtigt, die Forderung zur Einziehung an ein Inkassounternehmen oder einen Rechtsanwalt zu übergeben. Die dadurch entstehenden Kosten der zweckentsprechenden Rechtsverfolgung trägt der Nutzer nach Maßgabe der gesetzlichen Bestimmungen; die Höhe erstattungsfähiger Inkassokosten richtet sich nach § 13e RDG. Eine Übermittlung von Daten an Auskunfteien erfolgt ausschließlich unter den Voraussetzungen des § 31 Absatz 2 Bundesdatenschutzgesetz und nur, soweit die Forderung nicht bestritten ist; der Nutzer wird hierauf zuvor gesondert hingewiesen.
               </p>
               <p className="text-gray-700 leading-relaxed">
-                Befindet sich der Nutzer im Zahlungsverzug, ist die Anbieterin berechtigt, den Zugang zum Dashboard bis zur vollständigen Begleichung der offenen Forderung zu sperren. Die Verpflichtung zur Zahlung der monatlichen Gebühr bleibt hiervon unberührt.
+                <strong>(7) Aufrechnung und Zurückbehaltung.</strong> Der Nutzer kann nur mit unbestrittenen oder rechtskräftig festgestellten Forderungen aufrechnen. Ein Zurückbehaltungsrecht steht ihm nur zu, soweit es auf demselben Vertragsverhältnis beruht.
               </p>
             </div>
           </div>
@@ -182,16 +200,28 @@ export default function AGBPage() {
             <div className="relative z-10">
               <h2 className="text-xl font-semibold text-gray-900 mb-4">§ 6 Laufzeit, Kündigung und Upgrades</h2>
               <p className="text-gray-700 leading-relaxed mb-4">
-                Der Vertrag wird auf unbestimmte Zeit geschlossen. Die Mindestlaufzeit beträgt einen (1) Monat.
+                <strong>(1) Erstlaufzeit.</strong> Der Vertrag über ein Leistungspaket wird mit einer festen Erstlaufzeit von zwölf (12) Monaten geschlossen. Die Laufzeit beginnt mit dem Vertragsschluss. Die Vergütung für die Erstlaufzeit wird nach § 5 Absatz 2 in zwölf Monatsraten gestellt.
               </p>
               <p className="text-gray-700 leading-relaxed mb-4">
-                Das Abonnement kann von beiden Seiten jederzeit ohne Angabe von Gründen mit einer Frist von 24 Stunden zum Ende des jeweiligen Abrechnungsmonats gekündigt werden. Die Kündigung kann durch den Nutzer unkompliziert per Klick im Account-Dashboard oder durch eine E-Mail an support@fiaon.com erfolgen.
+                <strong>(2) Kündigung zum Ende der Erstlaufzeit.</strong> Der Vertrag kann von beiden Seiten mit einer Frist von einem (1) Monat zum Ende der Erstlaufzeit gekündigt werden. Wird nicht gekündigt, verlängert sich der Vertrag auf unbestimmte Zeit und kann danach von beiden Seiten jederzeit mit einer Frist von einem (1) Monat gekündigt werden.
               </p>
               <p className="text-gray-700 leading-relaxed mb-4">
-                <strong>Upgrades:</strong> Der Nutzer kann jederzeit in ein höheres Leistungspaket wechseln (Upgrade). Das Upgrade wird sofort wirksam. Die bereits entrichtete Gebühr für den laufenden Abrechnungsmonat wird anteilig auf den neuen Paketpreis angerechnet.
+                <strong>(3) Form und Weg der Kündigung.</strong> Die Kündigung bedarf der Textform. Sie kann jederzeit über die Kündigungsschaltfläche auf der Website (fiaon.com/abo-kuendigen), im Kundenbereich oder formlos per E-Mail an support@fiaon.com erklärt werden. Die Anbieterin bestätigt den Zugang der Kündigung sowie den Zeitpunkt der Vertragsbeendigung unverzüglich in Textform.
+              </p>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                <strong>(4) Vorzeitige Beendigung aus Kulanz.</strong> Wünscht der Nutzer die Beendigung des Vertrages vor Ablauf der Erstlaufzeit, kann die Anbieterin einer vorzeitigen Aufhebung zustimmen. Die Zustimmung setzt voraus, dass sämtliche zum Zeitpunkt des Kündigungswunsches bereits fälligen oder in Rechnung gestellten Raten vollständig ausgeglichen sind. Mit dem Eingang der letzten in Rechnung gestellten Rate endet der Vertrag; weitere Raten werden nicht mehr gestellt. Ein Anspruch auf vorzeitige Aufhebung besteht nicht; die Anbieterin entscheidet nach billigem Ermessen. Ein Verzicht auf bereits entstandene Forderungen ist mit der Aufhebung nicht verbunden.
+              </p>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                <strong>(5) Außerordentliche Kündigung.</strong> Das Recht beider Parteien zur außerordentlichen Kündigung aus wichtigem Grund bleibt unberührt. Ein wichtiger Grund liegt für die Anbieterin insbesondere vor, wenn der Nutzer die Plattform missbräuchlich nutzt, das Verbot der Weitergabe von Zugangsdaten verletzt oder mit mindestens zwei aufeinanderfolgenden Raten in Verzug gerät und trotz Fristsetzung nicht zahlt. Für den Nutzer liegt ein wichtiger Grund insbesondere vor, wenn die Anbieterin die geschuldete Leistung trotz angemessener Fristsetzung dauerhaft nicht erbringt.
+              </p>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                <strong>(6) Widerrufsrecht.</strong> Das gesetzliche Widerrufsrecht für Verbraucher nach § 355 BGB bleibt von den Regelungen dieses Paragrafen unberührt. Einzelheiten regelt die Widerrufsbelehrung.
+              </p>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                <strong>(7) Upgrades.</strong> Der Nutzer kann jederzeit in ein höheres Leistungspaket wechseln. Das Upgrade wird mit der nächsten fälligen Rate wirksam; ab diesem Zeitpunkt gilt der Preis des höheren Pakets für die verbleibenden Raten der Erstlaufzeit. Bereits gezahlte Beträge des laufenden Monats werden angerechnet. Die Erstlaufzeit verlängert sich durch ein Upgrade nicht.
               </p>
               <p className="text-gray-700 leading-relaxed">
-                Das Recht zur außerordentlichen Kündigung aus wichtigem Grund bleibt unberührt. Ein wichtiger Grund liegt für die Anbieterin insbesondere vor, wenn der Nutzer die Plattform missbräuchlich nutzt, das Account-Sharing-Verbot verletzt oder mit fälligen Zahlungen in Verzug gerät.
+                <strong>(8) Bestandsverträge.</strong> Für Verträge, die vor dem 3. September 2026 geschlossen wurden, gelten die zum Zeitpunkt des jeweiligen Vertragsschlusses vereinbarten Bedingungen fort, insbesondere hinsichtlich Laufzeit und Kündigungsfrist. Absatz 1 bis 3 dieser Fassung finden auf solche Verträge keine Anwendung.
               </p>
             </div>
           </div>

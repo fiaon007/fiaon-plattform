@@ -67,8 +67,14 @@ async function betroffene(stunden: number): Promise<any[]> {
       LIMIT 1
     ) a ON TRUE
     WHERE NOT EXISTS (
+      -- Sperre über Adresse UND Person: Die Versand-Tür schickt an die aktuelle
+      -- Adresse der Person, die vom alten Log-Eintrag abweichen kann (Lehre
+      -- 02.09.: drei Personen bekamen die Mail je fünfmal, weil nur die
+      -- Adresse verglichen wurde).
       SELECT 1 FROM fiaon_mail_log x
-      WHERE x.event = 'bankverbindung_neu' AND LOWER(x.empfaenger) = l.email
+      WHERE x.event = 'bankverbindung_neu'
+        AND (LOWER(x.empfaenger) = l.email
+             OR (x.person_id IS NOT NULL AND x.person_id = COALESCE(l.person_id, a.person_id)))
         AND x.created_at > NOW() - INTERVAL '7 days'
     )
     ORDER BY l.created_at DESC

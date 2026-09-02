@@ -8,6 +8,7 @@ import BuchenDialog from "@/components/admin/BuchenDialog";
 import VermerkTafel from "@/components/admin/VermerkTafel";
 import { KUNDENSTATUS, zahlungsstatusText } from "@shared/fiaon-kundenstatus";
 import { LABEL_VERTRIEB, zustaendigText } from "@shared/fiaon-zustaendigkeit-text";
+import { BANK } from "@shared/fiaon-bank";
 
 // ============================================================================
 // /admin/zahlungen — Zahlungszentrale (Vorkasse per Banküberweisung)
@@ -1243,7 +1244,7 @@ export default function AdminZahlungenPage() {
           {/* Fuß: Kontodaten dort, wo man die Zahlung prüft — nicht irgendwo
               weiter unten auf der Seite. */}
           <div className="px-4 py-2.5 text-[11px] text-slate-400" style={{ background: "#fbfcfe" }}>
-            Bankkonto FIAON LTD · DE86 2022 0800 0047 7193 24 · SXPYDEHH (Banking Circle, seit 02.09.2026 — Wise-Konto gesperrt) — Zuordnung ausschließlich über den Verwendungszweck
+            Bankkonto {BANK.empfaenger} · {BANK.ibanDisplay} · {BANK.bic} ({BANK.bank}, seit {BANK.gueltigSeit.split("-").reverse().join(".")} — Wise-Konto gesperrt) — Zuordnung ausschließlich über den Verwendungszweck
             {filtered.length > 0 && ` · ${filtered.length} Zeile${filtered.length === 1 ? "" : "n"} angezeigt`}
           </div>
         </section>

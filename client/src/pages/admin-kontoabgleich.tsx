@@ -239,7 +239,7 @@ export default function AdminKontoabgleichPage() {
             title="Kontoabgleich"
             subtitle="Hier gleichst du die echten Bank-Eingänge mit den Kunden ab und verbuchst sie — identisch zum „bezahlt“-Button."
             steps={[
-              "Lade rechts den Kontoauszug (CSV, z. B. Wise) hoch. Nur Kunden-EINGÄNGE werden importiert — Ausgänge und Karten-Umsätze ignoriert das System automatisch.",
+              "Lade rechts den Kontoauszug (CSV, z. B. Airwallex / Banking Circle — seit 02.09.2026; Wise ist gesperrt) hoch. Nur Kunden-EINGÄNGE werden importiert — Ausgänge und Karten-Umsätze ignoriert das System automatisch.",
               "Das System ordnet Eingänge per Zahlungsreferenz (FIAON-…) automatisch zu. „Offene neu abgleichen“ prüft alte, unzugeordnete Eingänge erneut — ordnet nur zu, verbucht nichts.",
               "Offene Eingänge ohne Referenz ordnest du per „Zuordnen“ zu — mit Vorschlägen nach Einzahlername + Betrag (Konfidenz wird angezeigt, du bestätigst immer selbst).",
               "„Verbuchen“ wirkt exakt wie der „bezahlt“-Button: Freischaltung, Dubletten-Stopp, Bestätigungs-Mail (genau 1×), Provisionsprüfung. Betrags-Abweichungen werden markiert, nie stillschweigend übernommen.",

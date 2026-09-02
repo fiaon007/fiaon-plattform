@@ -7,6 +7,7 @@ import "@/styles/dunkel.css";
 import "@/styles/antrag-dunkel.css";
 import PremiumFooter from "@/components/PremiumFooter";
 import { buildEpcQrPayload } from "@/lib/epc-qr";
+import { BANK } from "@shared/fiaon-bank";
 
 // ============================================================================
 // /zahlung/[payment_reference] — Zahlungsseite (SEPA-Vorkasse), v2
@@ -546,7 +547,7 @@ export default function ZahlungPage() {
             {/* 6. IBAN-Herkunft-Hinweis */}
             <div className="rounded-xl bg-blue-50/70 border border-blue-100 p-4 sm:p-5 mb-4">
               <p className="text-[13px] text-slate-600 leading-relaxed">
-                Ihre Überweisung geht an unser europäisches Geschäftskonto (die IBAN beginnt mit BE für Belgien). Das
+                Ihre Überweisung geht an unser Geschäftskonto bei {BANK.bank} (die IBAN beginnt mit {BANK.iban.slice(0, 2)}). Das
                 ist eine ganz normale SEPA-Überweisung – kostenlos und in der Regel innerhalb eines Bankarbeitstages,
                 genau wie eine Inlandsüberweisung.
               </p>

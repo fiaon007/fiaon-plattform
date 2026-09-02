@@ -11,6 +11,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import type { MakeEventType } from "./make-webhook";
+import { BANK, BANK_ALT_GESPERRT } from "@shared/fiaon-bank";
 
 export interface MakeEventDef {
   type: MakeEventType;
@@ -61,7 +62,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     label: "Neue Bankverbindung (Kontowechsel)",
     description: "NOTFALL 02.09.2026: Wise-Konto gesperrt. Geht einmalig an jede Adresse, die in den letzten 24 h Bankdaten bekam — Verwendungszweck bleibt. Auslöser: POST /admin/bankwechsel/informieren. Pflichtmail (Frequenzbremse greift nicht).",
     customerBound: true,
-    example: { ...CUSTOMER_EXAMPLE, alte_iban: "BE09 9058 9276 3957", bank: "Banking Circle S.A." },
+    example: { ...CUSTOMER_EXAMPLE, alte_iban: BANK_ALT_GESPERRT.ibanDisplay, bank: BANK.bank },
   },
   {
     type: "followup_48h",
@@ -106,9 +107,9 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       tage_ueberfaellig: 0,
       mahnstufe: 1,
       mahnstufe_text: "Freundliche Erinnerung — heute ist Ihre Monatsrate fällig.",
-      empfaenger: "Fiaon Ltd",
-      iban: "DE86 2022 0800 0047 7193 24",  // seit 02.09.2026 (Airwallex / Banking Circle)
-      bic: "SXPYDEHH",
+      empfaenger: BANK.empfaenger,
+      iban: BANK.ibanDisplay,
+      bic: BANK.bic,
       verwendungszweck: "FIAON-A1B2C3-2",
       portal_url: "https://www.fiaon.com/login",
     },

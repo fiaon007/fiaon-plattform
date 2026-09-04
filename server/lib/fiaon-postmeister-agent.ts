@@ -686,6 +686,15 @@ async function pruefenUndAbschliessen(roh: any, k: {
     const vorgabe: Record<string, string> = { bereich: "/mein-bereich", unterlagen: "/mein-bereich", antrag: "/antrag", angebot: "/antrag" };
     if (vorgabe[String(schritt.art)]) schritt.url = absoluteUrl(vorgabe[String(schritt.art)]);
   }
+  // In einer Zahlungslage ist die Zahlungsseite der Knopf — Hausregel, kein
+  // Ermessen des Modells. 63 von 157 Entwürfen hingen am 04.09. nur daran,
+  // dass das Modell „erledigt" oder „rueckruf" als Schritt wählte, obwohl die
+  // Seite vorab geholt war. Der Text darf vom Rückruf handeln; der Knopf zahlt.
+  const zahlungsSeite = k.werkzeugDaten.zahlungslink_bauen?.zahlungsseite;
+  const zahlungsSchritt: NaechsterSchritt | null = ["unbezahlt", "zahlung_gemeldet", "rate_ueberfaellig", "gekuendigt"].includes(k.lage) && zahlungsSeite
+    ? { art: "zahlung" as any, url: String(zahlungsSeite), text: "Rechnung ansehen und bezahlen" }
+    : null;
+  const schrittFinal: NaechsterSchritt | null = zahlungsSchritt && (!schritt || !schritt.url || schritt.art !== "zahlung") ? zahlungsSchritt : schritt;
   const belege: Beleg[] = Array.isArray(roh.belege) ? roh.belege : [];
   const gelaufen = k.handlungen.filter((h) => h.ok).map((h) => h.werkzeug);
 
@@ -709,18 +718,18 @@ async function pruefenUndAbschliessen(roh: any, k: {
       // Antworten (2427 Jusic: alles richtig, Knopf da, trotzdem Entwurf).
       // Es zählt: Zahlungsseite geholt UND als nächster Schritt gesetzt.
       if (!seite) fehlend.push("Zahlungsseite nicht geholt (zahlungslink_bauen fehlt)");
-      else if (!t.includes(String(seite)) && String(schritt?.url || "") !== String(seite)) fehlend.push("Zahlungsseite weder im Text noch als Knopf");
+      else if (!t.includes(String(seite)) && String(schrittFinal?.url || "") !== String(seite)) fehlend.push("Zahlungsseite weder im Text noch als Knopf");
     }
     // Termin in den nächsten sieben Tagen muss vorkommen
     const naher = (k.akte.termine ?? []).find((tm: any) => /heute|morgen|in \d+ Tagen/.test(tm.beginn) && tm.status === "gebucht");
     if (naher && !/termin|gespräch|uhr/i.test(t)) fehlend.push("gebuchter Termin nicht erwähnt");
     // Genau ein nächster Schritt, und seine Adresse muss im Text stehen
-    if (!schritt) fehlend.push("kein nächster Schritt");
+    if (!schrittFinal) fehlend.push("kein nächster Schritt");
     else {
-      if (!ERLAUBTE_SCHRITTE[k.lage].includes(schritt.art)) fehlend.push(`Schritt „${schritt.art}" ist in dieser Lage nicht erlaubt`);
+      if (!ERLAUBTE_SCHRITTE[k.lage].includes(schrittFinal.art)) fehlend.push(`Schritt „${schrittFinal.art}" ist in dieser Lage nicht erlaubt`);
       // Die Adresse des Schritts hängt der Server als Knopf an — sie muss nicht
       // im Text stehen. Nur eine leere Adresse bei einem Schritt, der eine braucht, ist ein Mangel.
-      if (!schritt.url && ["zahlung", "termin", "startgespraech"].includes(String(schritt.art))) fehlend.push(`Schritt „${schritt.art}" ohne Adresse — Werkzeug nicht gerufen`);
+      if (!schrittFinal.url && ["zahlung", "termin", "startgespraech"].includes(String(schrittFinal.art))) fehlend.push(`Schritt „${schrittFinal.art}" ohne Adresse — Werkzeug nicht gerufen`);
     }
     // Sie-Form — Justin 04.09.2026: „wir schreiben immer in SIE-Form". Ein Prompt
     // ist eine Bitte; das hier ist die Wand. Kleingeschriebenes du/dich/dir/dein
@@ -769,6 +778,11 @@ async function pruefenUndAbschliessen(roh: any, k: {
   // keinen zweiten Menschen zum Absegnen. Alle anderen Warnlampen bleiben.
   const flags = { ...k.einordnung.flags } as Record<string, boolean>;
   if (flags.rueckruf_wunsch && (gelaufen.includes("aufgabe_an_betreuer") || gelaufen.includes("notiz_an_betreuer"))) flags.rueckruf_wunsch = false;
+  // Kündigung GEBUCHT (kuendigung_vormerken ok) und sonst keine Lampe: Der Weg ist
+  // Justins Regel (letzte Rate bleibt, dann Ende) — Mara berichtet nur den
+  // Buchungsstand, belegt. Beschwerde, Bestreiten, Anwalt, Widerruf halten weiter.
+  if (flags.kuendigung && gelaufen.includes("kuendigung_vormerken")
+    && !flags.beschwerde && !flags.bestreitet && !flags.rechtlich && !flags.droht_anwalt && !flags.widerruf && !flags.stopp && !flags.zahlungsunfaehig) flags.kuendigung = false;
   const automatisch = sauber && urteil.automatisch && AUTO_LAGEN.includes(k.lage)
     && !Object.values(flags).some(Boolean) && !k.einordnung.dringend;
 
@@ -776,7 +790,7 @@ async function pruefenUndAbschliessen(roh: any, k: {
     ok: !!text,
     antwort: text || null,
     antwortHtml: null, // setzt der Aufrufer über das Haus-Gerüst
-    belege, naechsterSchritt: schritt, handlungen: k.handlungen,
+    belege, naechsterSchritt: schrittFinal, handlungen: k.handlungen,
     pruefung: { treffer, fehlend, umformuliert },
     automatischErlaubt: automatisch,
     grund: sauber ? (automatisch ? "sauber, Automat erlaubt" : "sauber, aber Entwurf (Lage oder Flag)") : `Entwurf: ${[...treffer.map((t) => t.treffer), ...fehlend].slice(0, 3).join("; ")}`,

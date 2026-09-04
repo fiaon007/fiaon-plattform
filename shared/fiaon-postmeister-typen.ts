@@ -86,6 +86,10 @@ export const AUTO_LAGEN: Kundenlage[] = [
   // Belegpflicht, Einzugsschutz, Kontowechsel-Riegel und die Flags — jede
   // Beschwerde, jedes Bestreiten, jede Kündigung bleibt Entwurf.
   "rate_ueberfaellig",
+  // 04.09.2026 (E-119b): gekündigt — Mara berichtet den gebuchten Stand (letzte
+  // Rate, Vertragsende mit Zahlung). Die Kündigungs-Lampe hält nur noch, wenn die
+  // Buchung fehlt oder eine zweite Lampe brennt.
+  "gekuendigt",
 ];
 
 /** Was der Kunde will — mehrere gleichzeitig sind erlaubt. */

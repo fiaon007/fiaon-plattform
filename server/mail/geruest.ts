@@ -102,7 +102,7 @@ export function mailHtml(b: MailBaustein): string {
   // teilweise invertiert und dann hellen Text auf hellem Grund zeigt; ein
   // <font color> respektiert er verlässlicher. Beides zusammen: doppelt hält.
   const absaetze = b.absaetze.map((a) =>
-    `<p style="margin:0 0 16px;font:400 16px/1.65 ${SCHRIFT};color:${TEXT};"><font color="${TEXT}">${String(a).replace(/\n/g, "<br />")}</font></p>`).join("\n            ");
+    `<p class="fiaon-text" style="margin:0 0 16px;font:400 16px/1.65 ${SCHRIFT};color:${TEXT} !important;"><font color="${TEXT}" style="color:${TEXT} !important;">${String(a).replace(/\n/g, "<br />")}</font></p>`).join("\n            ");
 
   const marke = b.marke
     ? `<div style="display:inline-block;margin:0 0 14px;padding:6px 14px;border-radius:999px;background:${HIMMEL};font:600 12px/1 ${SCHRIFT};letter-spacing:.06em;text-transform:uppercase;color:${BLAU};">${b.marke}</div>` : "";
@@ -166,15 +166,28 @@ export function mailHtml(b: MailBaustein): string {
 <meta name="x-apple-disable-message-reformatting" />
 <meta name="color-scheme" content="light only" />
 <meta name="supported-color-schemes" content="light only" />
-<style>:root{color-scheme:light only;supported-color-schemes:light only}</style>
+<style>
+  :root{color-scheme:light only;supported-color-schemes:light only}
+  /* Gmail, Apple Mail und Outlook im Dunkelmodus: Text bleibt dunkel, Grund bleibt hell. */
+  @media (prefers-color-scheme: dark) {
+    .fiaon-karte, .fiaon-karte td { background-color:#ffffff !important; }
+    .fiaon-text, .fiaon-text font { color:#1f2937 !important; }
+  }
+  [data-ogsc] .fiaon-text, [data-ogsc] .fiaon-text font { color:#1f2937 !important; }
+  [data-ogsb] .fiaon-karte { background-color:#ffffff !important; }
+</style>
 <title>${b.titel}</title>
 </head>
 <body style="margin:0;padding:0;background:#f0f4fa;">
   <div style="display:none;max-height:0;overflow:hidden;opacity:0;font-size:1px;line-height:1px;color:#f0f4fa;">${b.preheader}&#8203;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;&#847;</div>
-  <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#f0f4fa;background-image:linear-gradient(180deg,#e8effa,#f0f4fa 340px);">
+  <!-- 04.09.2026: KEIN background-image mehr. Gmails Dunkelmodus behandelt
+       einen Verlauf als Bild und invertiert ihn nicht — den Text darüber aber
+       schon. Ergebnis: heller Text auf hellem Grund. Eine reine Farbe
+       invertiert Gmail zusammen mit dem Text, beides bleibt lesbar. -->
+  <table role="presentation" cellpadding="0" cellspacing="0" width="100%" bgcolor="#f0f4fa" style="background-color:#f0f4fa;">
     <tr><td align="center" style="padding:30px 12px 44px;">
 
-      <table role="presentation" cellpadding="0" cellspacing="0" width="600" style="width:600px;max-width:100%;background:#ffffff;border-radius:18px;overflow:hidden;box-shadow:0 6px 28px rgba(15,32,68,.10);">
+      <table role="presentation" class="fiaon-karte" cellpadding="0" cellspacing="0" width="600" bgcolor="#ffffff" style="width:600px;max-width:100%;background-color:#ffffff;border-radius:18px;overflow:hidden;box-shadow:0 6px 28px rgba(15,32,68,.10);">
 
         <tr><td style="background:${NAVY};background-image:linear-gradient(135deg,#12264f,${NAVY_TIEF});padding:26px 34px;">
           <table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr>

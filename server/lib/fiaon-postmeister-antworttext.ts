@@ -197,6 +197,10 @@ function kernBereinigen(kern: string, name: string, knopfUrl: string | null | un
       .split("\n").map((z) => (/[.!?:]$/.test(z.trim()) || z.trim() === "" ? z : z.replace(/\s+$/, "") + ".")).join("\n")
       .replace(/[ \t]+([.,;:])/g, "$1");
   }
+  // Telefonnummern raus — die des Kunden kennt er, die eines Kollegen geht ihn
+  // nichts an (04.09.2026: „Daniel ruft Sie unter +4915251685868 an" — das war
+  // die Nummer des Kunden selbst).
+  t = t.replace(/\s*(?:unter|Tel\.?|Telefon:?)?\s*(?:\+|00)?\d[\d\s\/\-()]{7,}\d/g, "").replace(/[ \t]+([.,;:])/g, "$1");
   return t.trim();
 }
 

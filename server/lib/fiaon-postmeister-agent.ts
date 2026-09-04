@@ -30,6 +30,7 @@ import {
 import { werkzeugeAlsTools, werkzeugVonName, werkzeugeFuerLage, type WerkzeugKontext } from "./fiaon-postmeister-werkzeuge";
 import { akteLesen, vertragsfassung } from "./fiaon-postmeister-dossier";
 import { nutzungMerken, kostenHeute } from "./fiaon-postmeister-schema";
+import { wissenText } from "@shared/fiaon-wissen";
 
 const MODELL = () => process.env.POSTMEISTER_MODELL || "gpt-5.5";
 const MODELL_KLEIN = () => process.env.POSTMEISTER_MODELL_KLEIN || "gpt-5.5";
@@ -447,6 +448,23 @@ function systemPrompt(ein: {
     `FRAGEN DES KUNDEN: ${ein.einordnung.fragen.length ? ein.einordnung.fragen.map((f) => `– ${f}`).join("\n") : "keine erkannt"}`,
     `Jede davon beantwortest du oder benennst sie ehrlich als offen (dann muss ein Rückruf oder Termin belegt sein).`,
     ``,
+    // ═══════════════════════════════════════════════════════════════════
+    // DAS HAUS (04.09.2026) — Beim Neubau des Agenten ging das Hauswissen
+    // verloren; der alte Postmeister hatte es. Folge, gemessen an einem echten
+    // Entwurf: Ein Kunde fragte nach dem Hauptsitz, und Mara schrieb „Die
+    // genaue Anschrift möchte ich Ihnen nicht ungesichert nennen" — weil die
+    // Belegpflicht griff und die Anschrift nirgends im Kontext stand. Sie
+    // steht im Impressum. Wer sie verweigert, klingt, als hätte er etwas zu
+    // verbergen.
+    // ═══════════════════════════════════════════════════════════════════
+    `DAS HAUS — das darfst du nennen, ohne Beleg aus der Akte (es ist öffentlich):`,
+    wissenText().slice(0, 6000),
+    ``,
+    `BEI WUT UND WIEDERHOLUNG: Ein Kunde, der sich wiederholt, wurde beim ersten Mal nicht verstanden — oder hat es nicht geglaubt. Erkläre es ANDERS, nie vorwurfsvoll. Du spiegelst seinen Ton nicht: Auf „wie oft muss ich es noch sagen" antwortest du NICHT mit „Sie müssen es nicht noch einmal erwähnen". Du erkennst an, was er fühlt („Ich verstehe, dass Sie verärgert sind"), ohne es zu bewerten, und erklärst dann ruhig.`,
+    `WENN DER KUNDE VON „KREDIT" SPRICHT, hat er das Produkt missverstanden — das ist der Kern seines Widerstands, nicht ein Nebensatz. FIAON vergibt keine Kredite und vermittelt keine. Erkläre in zwei Sätzen, was er tatsächlich gebucht hat und wofür die Rate ist. Erst dann sprich über die Zahlung.`,
+    `WENN DER KUNDE EINEN VERPASSTEN TERMIN NENNT, sieh in den Terminen der Akte nach. Stimmt es, entschuldige dich konkret (Datum, wer). Stimmt es nicht, sag ruhig, was du in der Akte siehst.`,
+    `KEINE TELEFONNUMMERN IM TEXT — weder die des Kunden noch die eines Kollegen. „Daniel ruft Sie an" reicht. Die Nummer kennt der Kunde, und die des Kollegen geht ihn nichts an.`,
+    ``,
     `DIE AKTE:`,
     JSON.stringify(ein.akte, null, 1).slice(0, 9000),
   ].filter(Boolean).join("\n");
@@ -596,7 +614,8 @@ async function pruefenUndAbschliessen(roh: any, k: {
     const fehlend: string[] = [];
     // Belegpflicht
     const belegte = belege.map((b) => `${b.satz} ${b.feld}`).join(" ").toLowerCase();
-    const werte = JSON.stringify(k.werkzeugDaten).toLowerCase() + JSON.stringify(k.akte).toLowerCase();
+    // Hauswissen (Impressum, Preise, Ablauf) ist belegfähig — es ist öffentlich.
+    const werte = JSON.stringify(k.werkzeugDaten).toLowerCase() + JSON.stringify(k.akte).toLowerCase() + wissenText().toLowerCase();
     for (const z of belegPflichtig(t)) {
       const nackt = z.replace(/[€\s]/g, "").replace(",", ".").toLowerCase();
       if (!werte.includes(nackt) && !belegte.includes(z.toLowerCase())) fehlend.push(`ohne Beleg: ${z}`);

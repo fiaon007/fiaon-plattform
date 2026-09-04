@@ -458,7 +458,7 @@ function systemPrompt(ein: {
     ``,
     `WAS DU NICHT SAGST: nichts garantieren, nicht beraten, nichts empfehlen, keine Fristen zusagen, keine Bankdaten aus dem Gedächtnis, keine internen Statuswörter, nichts versprechen, was du nicht im selben Zug getan hast.`,
     ``,
-    `HANDELN: Du hast Werkzeuge (${ein.werkzeuge.join(", ")}). Benutze sie, bevor du schreibst. Du ersetzt einen Mitarbeiter: Was du erledigen kannst, erledigst du selbst. Wenn ein Mensch etwas TUN muss (Rückruf, Bescheinigung, Datenänderung, Unterlagen prüfen, frühere Kündigung nachsehen), gib ihm eine Aufgabe (aufgabe_an_betreuer) mit Titel und Frist — und sag dem Kunden, wer sich bis wann meldet. Wenn ein Mensch nur etwas wissen soll, reicht eine Notiz (notiz_an_betreuer). Wenn es um Geld geht, hol dir die Zahlungsseite (zahlungslink_bauen) und verlinke sie — die Rechnung als PDF hängt der Server dann automatisch an; verlangt der Kunde ausdrücklich eine Rechnung oder einen Beleg, nimm rechnung_anhaengen. Bei einer Kündigung: erst das Rettungsgespräch, bei klarer Erklärung kuendigung_vormerken — der Vertrag endet erst mit der Zahlung der offenen Rate.`,
+    `HANDELN: Du hast Werkzeuge (${ein.werkzeuge.join(", ")}). Benutze sie, bevor du schreibst. Du ersetzt einen Mitarbeiter: Was du erledigen kannst, erledigst du selbst. Wenn ein Mensch etwas TUN muss (Rückruf, Bescheinigung, Datenänderung, Unterlagen prüfen, frühere Kündigung nachsehen), gib ihm eine Aufgabe (aufgabe_an_betreuer) mit Titel und Frist — und sag dem Kunden, wer sich bis wann meldet. Nennt der Kunde einen Kollegen mit Namen („Frau Rifka soll mich zurückrufen"), gib die Aufgabe diesem Kollegen (Parameter kollege) und nenne ihn dem Kunden so, wie das Werkzeug ihn nennt. Wenn ein Mensch nur etwas wissen soll, reicht eine Notiz (notiz_an_betreuer). Bei einem Rückrufwunsch ist der nächste Schritt „rueckruf", kein Termin. Wenn es um Geld geht, hol dir die Zahlungsseite (zahlungslink_bauen) und verlinke sie — die Rechnung als PDF hängt der Server dann automatisch an; verlangt der Kunde ausdrücklich eine Rechnung oder einen Beleg, nimm rechnung_anhaengen. Bei einer Kündigung: erst das Rettungsgespräch, bei klarer Erklärung kuendigung_vormerken — der Vertrag endet erst mit der Zahlung der offenen Rate.`,
     ``,
     `BELEGE: Jede Zahl, jedes Datum, jeder Betrag, jeder Name in deiner Antwort muss aus einem Werkzeugergebnis oder der Akte stammen, und du führst ihn in "belege" auf. Was du nicht belegen kannst, schreibst du nicht.`,
     ``,
@@ -756,8 +756,13 @@ async function pruefenUndAbschliessen(roh: any, k: {
 
   const urteil = wandUrteil(treffer);
   const sauber = urteil.sendbar && fehlend.length === 0;
+  // 04.09.2026 (E-119): Ein Rückrufwunsch hält die Antwort nicht mehr fest, wenn
+  // die Aufgabe dazu schon steht — „Herr Stripling meldet sich heute" braucht
+  // keinen zweiten Menschen zum Absegnen. Alle anderen Warnlampen bleiben.
+  const flags = { ...k.einordnung.flags } as Record<string, boolean>;
+  if (flags.rueckruf_wunsch && (gelaufen.includes("aufgabe_an_betreuer") || gelaufen.includes("notiz_an_betreuer"))) flags.rueckruf_wunsch = false;
   const automatisch = sauber && urteil.automatisch && AUTO_LAGEN.includes(k.lage)
-    && !Object.values(k.einordnung.flags).some(Boolean) && !k.einordnung.dringend;
+    && !Object.values(flags).some(Boolean) && !k.einordnung.dringend;
 
   return {
     ok: !!text,

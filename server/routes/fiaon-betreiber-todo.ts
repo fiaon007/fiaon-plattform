@@ -182,6 +182,40 @@ export interface AuftragEin {
   link?: string | null;
   /** Wer die Aufgabe stellt — steht in der Zeitleiste. */
   autorName?: string;
+  /** Ausdrücklich dieser Mitarbeiter (z. B. weil der Kunde ihn nennt) — statt der Ableitung. */
+  agentId?: number | null;
+}
+
+/** Ein bestimmter aktiver Mitarbeiter als Empfänger. */
+export async function empfaengerNachId(agentId: number): Promise<Empfaenger | null> {
+  const [a] = (await sqlPool`
+    SELECT id, name, email, first_name, last_name, anrede FROM fiaon_agents
+     WHERE id = ${agentId} AND COALESCE(active, TRUE) = TRUE AND COALESCE(is_test_account, FALSE) = FALSE LIMIT 1
+  `.catch(() => [])) as any[];
+  return a?.id ? { id: Number(a.id), name: String(a.name), email: a.email ?? null, vorname: a.first_name ?? null, nachname: a.last_name ?? null, anrede: a.anrede ?? null, kundenName: kundenName(a) } : null;
+}
+
+/**
+ * Den Mitarbeiter finden, den ein Kunde nennt („Frau Rifka", „Herr Stripling",
+ * „Daniel") — Vor- oder Nachname, ohne Anrede, unscharf. Nur aktive, echte Konten.
+ * Mehrdeutig (zwei Treffer) = kein Treffer: lieber die Ableitung als der Falsche.
+ */
+export async function mitarbeiterNachName(roh: string): Promise<Empfaenger | null> {
+  const name = String(roh || "").replace(/\b(herrn?|frau|mr\.?|ms\.?|mrs\.?)\b/gi, "").replace(/[^A-Za-zÀ-ÿĀ-žА-яЁё\s-]/g, " ").trim().toLowerCase();
+  if (name.length < 3) return null;
+  const teile = name.split(/\s+/).filter((t) => t.length >= 3);
+  if (!teile.length) return null;
+  const alle = (await sqlPool`
+    SELECT id, name, email, first_name, last_name, anrede FROM fiaon_agents
+     WHERE COALESCE(active, TRUE) = TRUE AND COALESCE(is_test_account, FALSE) = FALSE
+  `.catch(() => [])) as any[];
+  const treffer = alle.filter((a) => {
+    const vor = String(a.first_name || "").toLowerCase(), nach = String(a.last_name || "").toLowerCase(), voll = String(a.name || "").toLowerCase();
+    return teile.every((t) => vor.startsWith(t) || nach.startsWith(t) || voll.includes(t));
+  });
+  if (treffer.length !== 1) return null;
+  const a = treffer[0];
+  return { id: Number(a.id), name: String(a.name), email: a.email ?? null, vorname: a.first_name ?? null, nachname: a.last_name ?? null, anrede: a.anrede ?? null, kundenName: kundenName(a) };
 }
 export interface AuftragErgebnis {
   id: number | null;
@@ -267,7 +301,7 @@ export async function auftragFuerKunden(ein: AuftragEin): Promise<AuftragErgebni
   const bereich = ein.bereich && (TODO_BEREICHE as readonly string[]).includes(ein.bereich) ? ein.bereich : "postmeister";
   const link = ein.link ?? (ein.ref ? `/admin/kunde/${ein.ref}` : null);
   const quelle = ein.quelle ?? "postmeister";
-  const wer = await auftragEmpfaenger(ein.personId);
+  const wer = (ein.agentId ? await empfaengerNachId(ein.agentId) : null) ?? await auftragEmpfaenger(ein.personId);
 
   let id: number | null = null;
   if (ein.schluessel) {

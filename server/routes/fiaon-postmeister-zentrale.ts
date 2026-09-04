@@ -441,15 +441,34 @@ router.post("/admin/postmeister/neu-bearbeiten", async (req: Request, res: Respo
     const ids: number[] = Array.isArray(req.body?.ids) ? req.body.ids.map(Number).filter(Number.isFinite) : [];
     const postfach = typeof req.body?.postfach === "string" ? req.body.postfach : null;
     const kandidaten = (await sqlPool`
-      SELECT id, postfach, gmail_id, von, antwort_draft_id FROM fiaon_postmeister
+      SELECT id, postfach, gmail_id, von, antwort_draft_id, thread_id, empfangen_am FROM fiaon_postmeister
        WHERE aktion IN ('entwurf', 'fehler') AND gmail_id IS NOT NULL AND gmail_id <> ''
          AND (${ids.length ? sqlPool`id = ANY(${ids})` : sqlPool`TRUE`})
          AND (${postfach ? sqlPool`postfach = ${postfach}` : sqlPool`TRUE`})
        ORDER BY empfangen_am ASC NULLS LAST, id ASC LIMIT ${deckel}
     `) as any[];
     if (!kandidaten.length) return res.json({ ok: true, gestartet: 0 });
-    void neuLaufStarten(kandidaten, parallel).catch((e) => { neuLauf.laeuft = false; console.error("[POSTMEISTER] Neubearbeitung:", e); });
-    res.json({ ok: true, gestartet: kandidaten.length, parallel });
+    // Dieselbe Nachricht dreimal im selben Thread (Frau Weber, 25./26.08.) bekommt
+    // EINE Antwort — die neueste Mail wird beantwortet, die älteren geordnet.
+    const nachThread = new Map<string, any[]>();
+    for (const k of kandidaten) { const t = String(k.thread_id || k.id); if (!nachThread.has(t)) nachThread.set(t, []); nachThread.get(t)!.push(k); }
+    const bearbeiten: any[] = []; let geordnet = 0;
+    const { entwurfLoeschen } = await import("../lib/fiaon-gmail");
+    for (const gruppe of Array.from(nachThread.values())) {
+      gruppe.sort((a, b) => new Date(a.empfangen_am || 0).getTime() - new Date(b.empfangen_am || 0).getTime());
+      const neueste = gruppe[gruppe.length - 1];
+      for (const alt of gruppe.slice(0, -1)) {
+        await sqlPool`
+          UPDATE fiaon_postmeister SET aktion = 'geordnet', begruendung = ${`Doppelte Nachricht im selben Thread — beantwortet über #${neueste.id}`}, antwort_draft_id = NULL, updated_at = NOW()
+           WHERE id = ${alt.id} AND aktion IN ('entwurf', 'fehler')
+        `.catch(() => {});
+        if (alt.antwort_draft_id) await entwurfLoeschen(alt.postfach, alt.antwort_draft_id).catch(() => {});
+        geordnet++;
+      }
+      bearbeiten.push(neueste);
+    }
+    void neuLaufStarten(bearbeiten, parallel).catch((e) => { neuLauf.laeuft = false; console.error("[POSTMEISTER] Neubearbeitung:", e); });
+    res.json({ ok: true, gestartet: bearbeiten.length, doppelteGeordnet: geordnet, parallel });
   } catch (e: any) {
     res.status(500).json({ ok: false, error: String(e?.message || e).slice(0, 200) });
   }

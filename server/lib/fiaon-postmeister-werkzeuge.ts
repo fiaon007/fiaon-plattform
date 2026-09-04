@@ -192,8 +192,9 @@ export const aufgabeAnBetreuer: Werkzeug = {
       text: { type: "string", description: "Der Auftrag in zwei bis vier Sätzen: Lage, was der Kunde will, was zu tun ist, was du ihm zugesagt hast." },
       faellig_in_tagen: { type: "integer", description: "0 = heute, 1 = morgen, 2 = übermorgen. Höchstens 7." },
       dringend: { type: "boolean", description: "true, wenn heute jemand handeln muss (Anwaltsdrohung, Beschwerde, Kunde wartet auf Rückruf)." },
+      kollege: { type: "string", description: "Nennt der Kunde einen Mitarbeiter mit Namen (etwa Frau Rifka oder Herr Stripling), dann dieser Name — die Aufgabe geht an ihn. Sonst leer." },
     },
-    required: ["titel", "text", "faellig_in_tagen", "dringend"],
+    required: ["titel", "text", "faellig_in_tagen", "dringend", "kollege"],
   },
   async ausfuehren(p, k) {
     const titel = String(p.titel || "").trim().slice(0, 160);
@@ -201,11 +202,15 @@ export const aufgabeAnBetreuer: Werkzeug = {
     if (titel.length < 5 || text.length < 10) return { ok: false, ergebnis: "", fehler: "Titel oder Auftrag zu kurz." };
     const tage = Math.max(0, Math.min(7, Math.round(Number(p.faellig_in_tagen)) || 0));
     const faelligAm = new Date(Date.now() + tage * 864e5).toISOString().slice(0, 10);
-    const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+    const { auftragFuerKunden, mitarbeiterNachName } = await import("../routes/fiaon-betreiber-todo");
+    // Nennt der Kunde jemanden („Frau Rifka"), bekommt der die Aufgabe — nicht die Ableitung.
+    const gewuenscht = p.kollege ? await mitarbeiterNachName(String(p.kollege)).catch(() => null) : null;
     const erg = await auftragFuerKunden({
       personId: k.personId, ref: k.ref, titel, text, faelligAm, dringend: !!p.dringend,
-      schluessel: k.postmeisterId ? `postmeister:${k.postmeisterId}:aufgabe` : null,
-      quelle: "postmeister", autorName: "Mara",
+      // Eine Aufgabe je Kunde und Tag — drei gleiche Mails (Frau Weber, 25.08.)
+      // ergaben drei Aufgaben. Der Text wird an die bestehende angehängt.
+      schluessel: `postmeister:${k.personId ?? k.ref ?? k.postmeisterId ?? "x"}:aufgabe:${new Date().toISOString().slice(0, 10)}`,
+      quelle: "postmeister", autorName: "Mara", agentId: gewuenscht?.id ?? null,
     });
     const wer = erg.agentName ?? "die Leitung";
     const werKunde = erg.kundenName ?? erg.agentName ?? "unsere Leitung";

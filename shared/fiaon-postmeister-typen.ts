@@ -62,14 +62,16 @@ export type SchrittArt =
  * Automatenantworten haben unbezahlte Kunden in einen Kundenbereich
  * geschickt, den sie gar nicht öffnen können (Analyse 02.09.).
  */
+// 04.09.2026 (E-119): „rueckruf" in allen Lagen erlaubt — ein Rückruf ist überall
+// ein ehrlicher nächster Schritt; vorher wich das Modell auf „termin" ohne Adresse aus.
 export const ERLAUBTE_SCHRITTE: Record<Kundenlage, SchrittArt[]> = {
-  interessent: ["antrag", "termin"],
-  unbezahlt: ["zahlung", "termin", "erledigt"],
+  interessent: ["antrag", "termin", "rueckruf"],
+  unbezahlt: ["zahlung", "termin", "rueckruf", "erledigt"],
   zahlung_gemeldet: ["zahlung", "rueckruf", "wartet_auf_uns", "erledigt"],
-  bezahlt_ohne_startgespraech: ["startgespraech", "termin", "bereich"],
-  aktiv: ["bereich", "unterlagen", "termin", "angebot", "erledigt"],
+  bezahlt_ohne_startgespraech: ["startgespraech", "termin", "bereich", "rueckruf"],
+  aktiv: ["bereich", "unterlagen", "termin", "angebot", "rueckruf", "erledigt"],
   rate_ueberfaellig: ["zahlung", "termin", "rueckruf"],
-  gekuendigt: ["zahlung", "termin", "erledigt"],
+  gekuendigt: ["zahlung", "termin", "rueckruf", "erledigt"],
   bestreitet: ["rueckruf", "wartet_auf_uns"],
   gesperrt: ["erledigt"],
   fremd: ["erledigt", "wartet_auf_uns"],

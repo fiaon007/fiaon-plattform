@@ -23,6 +23,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { wandPruefen, wandUrteil, type Wandtreffer } from "@shared/fiaon-wortverbote";
+import { absoluteUrl } from "../fiaon-base-url";
 import {
   ERLAUBTE_SCHRITTE, AUTO_LAGEN, LEERE_FLAGS,
   type Flags, type Kategorie, type Kundenlage, type Beleg, type NaechsterSchritt,
@@ -678,6 +679,13 @@ async function pruefenUndAbschliessen(roh: any, k: {
   const schritt: NaechsterSchritt | null = roh.naechster_schritt
     ? { art: String(roh.naechster_schritt.art) as any, url: roh.naechster_schritt.url ?? null, text: String(roh.naechster_schritt.text || "") }
     : null;
+  // 04.09.2026 (E-119b): Schritte mit bekannter Adresse bekommen sie vom Server —
+  // „Zu meinem Bereich" braucht kein Werkzeug. Vorher fiel ein Schritt ohne Adresse
+  // still durch (kein Knopf in der Mail) oder galt seit heute als Mangel.
+  if (schritt && !schritt.url) {
+    const vorgabe: Record<string, string> = { bereich: "/mein-bereich", unterlagen: "/mein-bereich", antrag: "/antrag", angebot: "/antrag" };
+    if (vorgabe[String(schritt.art)]) schritt.url = absoluteUrl(vorgabe[String(schritt.art)]);
+  }
   const belege: Beleg[] = Array.isArray(roh.belege) ? roh.belege : [];
   const gelaufen = k.handlungen.filter((h) => h.ok).map((h) => h.werkzeug);
 
@@ -712,7 +720,7 @@ async function pruefenUndAbschliessen(roh: any, k: {
       if (!ERLAUBTE_SCHRITTE[k.lage].includes(schritt.art)) fehlend.push(`Schritt „${schritt.art}" ist in dieser Lage nicht erlaubt`);
       // Die Adresse des Schritts hängt der Server als Knopf an — sie muss nicht
       // im Text stehen. Nur eine leere Adresse bei einem Schritt, der eine braucht, ist ein Mangel.
-      if (!schritt.url && ["zahlung", "termin", "antrag", "bereich", "startgespraech", "unterlagen", "angebot"].includes(String(schritt.art))) fehlend.push(`Schritt „${schritt.art}" ohne Adresse`);
+      if (!schritt.url && ["zahlung", "termin", "startgespraech"].includes(String(schritt.art))) fehlend.push(`Schritt „${schritt.art}" ohne Adresse — Werkzeug nicht gerufen`);
     }
     // Sie-Form — Justin 04.09.2026: „wir schreiben immer in SIE-Form". Ein Prompt
     // ist eine Bitte; das hier ist die Wand. Kleingeschriebenes du/dich/dir/dein

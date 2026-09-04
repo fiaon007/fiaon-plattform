@@ -98,12 +98,19 @@
   min-height: 100vh;
   min-height: 100dvh;
   display: flex;
-  align-items: center;
+  /* 04.09.2026: Hier stand `align-items: center` mit `overflow: hidden`.
+     Zusammen ergab das einen Eingang ohne Scrollstrecke: Bei 812 Punkten
+     Fensterhoehe — iPhone 12, 13, 14 — lag der Knopf „Datenraum betreten"
+     bei etwa 870 und war damit unerreichbar. Kein Fehler, kein Hinweis;
+     die Seite sah nur aus, als fehle der Knopf. Dass es im August klappte,
+     lag an grossen Safari-Fenstern am Rechner.
+     `flex-start` mit `margin: auto` auf der Karte haelt sie weiterhin
+     mittig, solange Platz ist, und laesst sie scrollen, wenn keiner da ist. */
+  align-items: flex-start;
   justify-content: center;
   padding: 34px 22px;
   background: var(--papier);
   position: relative;
-  overflow: hidden;
 }
 /* Der einzige gefüllte Goldbereich der ganzen Seite — und er ist ein Hauch. */
 .scp-eingang-schmuck {
@@ -116,6 +123,9 @@
   pointer-events: none;
 }
 .scp-eingang-karte {
+  /* Haelt die Karte mittig, solange Platz ist — und laesst sie oben stehen
+     und scrollen, wenn der Bildschirm zu niedrig ist (siehe .scp-eingang). */
+  margin: auto;
   position: relative;
   width: 100%;
   max-width: 520px;

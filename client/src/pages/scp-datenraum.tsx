@@ -128,9 +128,22 @@ export default function ScpDatenraum(): JSX.Element {
     document.head.appendChild(l);
   }, []);
 
+  // ── DER UNTERSCHRIFTENSTAND GEHOERT ALLEN (04.09.2026) ─────────────────
+  // Hier stand die Rueckkehr VOR setStand: Wer nicht angemeldet war, bekam den
+  // Stand zwar vom Server geliefert, die Seite warf ihn aber weg und zeigte
+  // „0 von 4 Unterschriften" — auch wenn zwei Parteien gezeichnet hatten.
+  // Genau das war Justins Beschwerde. Der Stand wird jetzt IMMER uebernommen,
+  // die Rueckkehr betrifft nur noch die persoenlichen Daten.
+  const standHolen = async () => {
+    const r = await ruf("/scp/stand", undefined, "GET");
+    if (r.ok) setStand(r.json.stand || []);
+    return r;
+  };
+
   useEffect(() => {
     void ruf("/scp/stand", undefined, "GET").then((r) => {
       setLaedt(false);
+      if (r.ok) setStand(r.json.stand || []);
       if (!r.ok || !r.json?.angemeldet) return;
       setGast(r.json.gast);
       setPartei(r.json.partei ?? null);
@@ -153,12 +166,26 @@ export default function ScpDatenraum(): JSX.Element {
     setGast(r.json.gast);
     setPartei(r.json.partei ?? null);
     if (!unterschrift) setUnterschrift(r.json.gast.name);
+    // Nach dem Anmelden den Stand frisch holen: Zwischen Seitenaufbau und
+    // Anmeldung kann eine andere Partei gezeichnet haben — und ohne dieses
+    // Nachladen zaehlte die Seite die eigene Unterschrift auf eine leere
+    // Liste und meldete „1 von 4", obwohl vielleicht drei vorlagen.
+    void standHolen();
   };
 
   // Stilles Sichern, solange nicht unterzeichnet ist.
   const timer = useRef<number | null>(null);
   useEffect(() => {
     if (!gast || fertig) return;
+    // NUR speichern, wenn wirklich etwas getippt wurde. Vorher feuerte dieser
+    // Lauf 1,2 Sekunden nach jedem Anmelden auch bei leerem Feld — und legte
+    // damit eine unfertige Zeile in scp_zeichnungen an, samt Rolle. Zwei
+    // Folgen: Ein vorhandener Text wurde von einem leeren ueberschrieben,
+    // und der Eindeutigkeits-Index auf (rolle, dokument) sperrte danach
+    // JEDEN zweiten Menschen derselben Partei mit „Serverfehler" aus. Bei
+    // FIAON Ltd. ist gar nicht festgelegt, wer zeichnet — dort war das
+    // besonders wahrscheinlich.
+    if (!anmerkungen.trim()) return;
     if (timer.current) window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => {
       void ruf("/scp/anmerkungen", { dokument: DOKUMENT, anmerkungen })
@@ -175,8 +202,11 @@ export default function ScpDatenraum(): JSX.Element {
     setBusy(false);
     if (!r.ok) { setFehler(r.json?.error || "Die Unterzeichnung war nicht möglich."); return; }
     setMeine({ anmerkungen, unterschrift, unterzeichnetAm: r.json.unterzeichnetAm });
-    setStand((alt) => [...alt.filter((x) => x.rolle !== partei?.rolle),
-      { rolle: partei?.rolle ?? "", unterschrift, unterzeichnetAm: r.json.unterzeichnetAm }]);
+    // Den echten Stand holen statt ihn lokal fortzuschreiben: Die eigene
+    // Unterschrift an eine womoeglich unvollstaendige Liste anzuhaengen
+    // ergibt eine falsche Zahl — „1 von 4", waehrend in Wahrheit drei
+    // Parteien gezeichnet haben. Der Server weiss es, also fragen wir ihn.
+    void standHolen();
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -411,8 +441,10 @@ export default function ScpDatenraum(): JSX.Element {
 
           <label className="scp-label gross" htmlFor="scp-anm">Anmerkungen und Vorbehalte</label>
           <p className="scp-satz" style={{ marginTop: -6 }}>
-            Was Sie hier festhalten, wird den übrigen Parteien zusammen mit Ihrer Unterschrift
-            vorgelegt und ist Bestandteil der Akte.
+            Was Sie hier festhalten, wird mit Ihrer Unterschrift festgeschrieben und ist
+            Bestandteil der Akte. Es geht an die Schwarzott Capital Partners AG; den übrigen
+            Parteien wird es nicht selbsttätig angezeigt. Bitte richten Sie einen Vorbehalt,
+            der allen bekannt sein muss, zusätzlich unmittelbar an Ihre Vertragspartner.
           </p>
           {fertig ? (
             <div className="scp-anm-fest">{anmerkungen.trim() || "— keine Anmerkungen —"}</div>

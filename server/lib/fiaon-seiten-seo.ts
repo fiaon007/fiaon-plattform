@@ -95,6 +95,18 @@ export function kopfEinsetzen(html: string, kopf: {
     setz("og:image", "property", kopf.bild);
     setz("og:image:secure_url", "property", kopf.bild);
     setz("twitter:image", "name", kopf.bild);
+  } else if (kopf.bild === "") {
+    // 04.09.2026: Ein leeres `bild` heisst ausdruecklich „kein Vorschaubild".
+    // Ohne das erbt jede Seite das Werbebild aus index.html — auch der
+    // Datenraum fuer den Anteilskaufvertrag. Wer dort den Link per Mail oder
+    // Nachricht teilt, schickt eine Kachel mit „Das Betriebssystem fuer
+    // Bonitaet" mit; neben einem Vertrag ueber 14 Mio EUR ist das keine
+    // Kleinigkeit, sondern eine falsche Auskunft ueber den Absender.
+    for (const [n, a] of [["og:image", "property"], ["og:image:secure_url", "property"],
+                          ["og:image:type", "property"], ["og:image:width", "property"],
+                          ["og:image:height", "property"], ["twitter:image", "name"]] as const) {
+      out = out.replace(new RegExp(`\\s*<meta ${a}="${n}" content="[^"]*"\\s*/?>`), "");
+    }
   }
   // 25.08.2026: `robots` wird ERSETZT, nicht angehängt. Zwei Angaben
   // nebeneinander sind nach Googles Regel „die strengste gewinnt"

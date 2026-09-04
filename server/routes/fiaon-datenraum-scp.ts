@@ -172,8 +172,20 @@ export async function ensureScpTabellen(): Promise<void> {
     // Je Partei genau EINE Unterschrift — unabhaengig davon, wer sich anmeldet.
     // MUSS nach der Spalte stehen: Ein Index auf ein Feld, das es noch nicht
     // gibt, laesst die ganze Einrichtung scheitern.
+    // 04.09.2026: Der Index galt fuer JEDE Zeile mit Rolle — auch fuer die
+    // unfertigen, die beim blossen Betreten durch das stille Zwischenspeichern
+    // entstanden. Folge: Meldete sich ein ZWEITER Mensch derselben Partei mit
+    // anderer E-Mail an, scheiterte er beim Speichern und beim Unterschreiben
+    // an einem nackten „Serverfehler" — ohne Grund und ohne Ausweg. Bei
+    // FIAON Ltd. ist gar nicht festgelegt, wer zeichnet; dort war genau das
+    // wahrscheinlich. Die Regel gilt jetzt nur noch fuer echte Unterschriften:
+    // Je Partei genau eine — unfertige Entwuerfe stehen sich nicht gegenseitig
+    // im Weg. Der alte Index wird ausdruecklich entfernt, sonst bliebe er
+    // neben dem neuen bestehen und wirkte weiter.
+    await tx.unsafe(`DROP INDEX IF EXISTS scp_zeichnung_je_rolle`);
     await tx.unsafe(`CREATE UNIQUE INDEX IF NOT EXISTS scp_zeichnung_je_rolle
-             ON scp_zeichnungen (rolle, dokument) WHERE rolle IS NOT NULL`);
+             ON scp_zeichnungen (rolle, dokument)
+             WHERE rolle IS NOT NULL AND unterzeichnet_am IS NOT NULL`);
     await tx`CREATE UNIQUE INDEX IF NOT EXISTS scp_zeichnung_je_gast
              ON scp_zeichnungen (gast_id, dokument)`;
     await tx`

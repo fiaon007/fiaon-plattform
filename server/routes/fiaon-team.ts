@@ -254,6 +254,8 @@ router.post("/admin/agents/:id/update", async (req, res) => {
     // 04.09.2026 (E-117): Anrede „Herr"/„Frau" — Mara nennt den Mitarbeiter dem
     // Kunden gegenüber damit „Herr Stripling"; ohne Anrede „Daniel Stripling".
     const anredeWert = anrede === undefined ? undefined : (["Herr", "Frau"].includes(String(anrede)) ? String(anrede) : null);
+    // 04.09.2026: Felder, die im Body FEHLEN, bleiben unverändert. Vorher setzte
+    // ein Aufruf mit nur {anrede} Telefon, Provisionssatz und Monatsziel auf NULL.
     const rateBp = commissionRateBp === null || commissionRateBp === "" || commissionRateBp === undefined ? null : Math.round(Number(commissionRateBp));
     if (rateBp != null && (isNaN(rateBp) || rateBp < 0 || rateBp > 10000)) return res.status(400).json({ ok: false, error: "Provisionssatz ungültig" });
     const goal = monthlyGoalCents === null || monthlyGoalCents === "" || monthlyGoalCents === undefined ? null : Math.round(Number(monthlyGoalCents));
@@ -267,9 +269,9 @@ router.post("/admin/agents/:id/update", async (req, res) => {
         first_name = COALESCE(${firstName ? String(firstName).trim() : null}, first_name),
         last_name = COALESCE(${lastName ? String(lastName).trim() : null}, last_name),
         name = COALESCE(${firstName && lastName ? `${String(firstName).trim()} ${String(lastName).trim()}` : null}, name),
-        phone = ${phone ? String(phone).trim() : null},
-        commission_rate_bp = ${rateBp},
-        monthly_goal_cents = ${goal},
+        phone = ${phone === undefined ? sqlPool`phone` : (phone ? String(phone).trim() : null)},
+        commission_rate_bp = ${commissionRateBp === undefined ? sqlPool`commission_rate_bp` : rateBp},
+        monthly_goal_cents = ${monthlyGoalCents === undefined ? sqlPool`monthly_goal_cents` : goal},
         active = COALESCE(${typeof active === "boolean" ? active : null}, active),
         recruited_by = ${recruiter === undefined ? sqlPool`recruited_by` : recruiter},
         override_rate_bp = ${ovBp === undefined ? sqlPool`override_rate_bp` : ovBp},

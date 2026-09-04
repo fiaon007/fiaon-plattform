@@ -27,7 +27,7 @@ import {
   ERLAUBTE_SCHRITTE, AUTO_LAGEN, LEERE_FLAGS,
   type Flags, type Kategorie, type Kundenlage, type Beleg, type NaechsterSchritt,
 } from "@shared/fiaon-postmeister-typen";
-import { werkzeugeAlsTools, werkzeugVonName, werkzeugeFuerLage, type WerkzeugKontext } from "./fiaon-postmeister-werkzeuge";
+import { werkzeugeAlsTools, werkzeugVonName, werkzeugeFuerLage, type WerkzeugKontext, type WerkzeugErgebnis } from "./fiaon-postmeister-werkzeuge";
 import { akteLesen, vertragsfassung } from "./fiaon-postmeister-dossier";
 import { nutzungMerken, kostenHeute } from "./fiaon-postmeister-schema";
 import { wissenText } from "@shared/fiaon-wissen";
@@ -414,6 +414,7 @@ function sprachName(code: string): string {
 }
 
 function systemPrompt(ein: {
+  kundenweg?: string | null;
   postfach: string; lage: Kundenlage; lageGrund: string; heute: string; akte: any;
   einordnung: Einordnung; vertrag: string; alterTage: number; werkzeuge: string[];
   name: string;
@@ -497,9 +498,22 @@ function systemPrompt(ein: {
     `WENN DER KUNDE EINEN VERPASSTEN TERMIN NENNT, sieh in den Terminen der Akte nach. Stimmt es, entschuldige dich konkret (Datum, wer). Stimmt es nicht, sag ruhig, was du in der Akte siehst.`,
     `KEINE TELEFONNUMMERN IM TEXT — weder die des Kunden noch die eines Kollegen. „Daniel ruft Sie an" reicht. Die Nummer kennt der Kunde, und die des Kollegen geht ihn nichts an.`,
     ``,
-    `DIE AKTE:`,
-    JSON.stringify(ein.akte, null, 1).slice(0, 9000),
+    `DIE AKTE (Stand, Bestellungen, Raten, Termine):`,
+    // 04.09.2026 (E-118): Bis hierher 9.000 Zeichen hart abgeschnitten, mitten
+    // im JSON — und die wichtigen Schlüssel (Sperren, Kündigung) standen hinten.
+    // Jetzt: die Kernfelder zuerst, Verlauf und Mails kommen als Zeitleiste.
+    JSON.stringify(akteKompakt(ein.akte), null, 1).slice(0, 12_000),
+    ``,
+    `DER GANZE WEG DES KUNDEN (alles, was das Haus über ihn weiß — Mails, Anrufe, Termine, Zahlungen, Notizen, Portal; älteste zuerst). Lies ihn, bevor du antwortest. Was der Kunde behauptet („ihr habt mir die Kündigung bestätigt", „ich habe überwiesen", „nie eine Mail bekommen"), prüfst du HIER — und antwortest mit dem, was da steht, mit Datum. Steht es nicht da, sag das ruhig und gib dem Betreuer die Aufgabe, es zu klären:`,
+    ein.kundenweg || "(kein Verlauf bekannt — unbekannter Absender)",
   ].filter(Boolean).join("\n");
+}
+
+/** Die Akte ohne Verlauf und Mails (die stehen im Kundenweg), Wichtiges zuerst. */
+function akteKompakt(a: any): any {
+  if (!a || typeof a !== "object") return a;
+  const { verlauf: _v, mails: _m, offeneAufgaben: _o, ...rest } = a;
+  return { kundenlage: a.kundenlage, lageGrund: a.lageGrund, sperren: a.sperren, kuendigung: a.kuendigung, ...rest };
 }
 
 /**
@@ -551,13 +565,41 @@ export async function antwortErzeugen(ein: {
   const werkzeuge = werkzeugeFuerLage(lage);
   const tools = werkzeugeAlsTools(lage);
 
+  // 04.09.2026 (E-118): Der ganze Weg des Kunden — aus zwanzig Quellen, als Zeitleiste.
+  const { kundenwegLesen } = await import("./fiaon-kundenweg");
+  const weg = (ein.personId || ein.ref) ? await kundenwegLesen(ein.personId, ein.ref).catch((e) => { console.warn("[POSTMEISTER] Kundenweg:", String(e).slice(0, 120)); return null; }) : null;
+
+  const handlungen: AgentErgebnis["handlungen"] = [];
+  const werkzeugDaten: Record<string, any> = {};
+
+  // 04.09.2026: In Zahlungslagen die Zahlungsseite VORAB holen. Bis hierher
+  // vergaß das Modell den Aufruf in jedem siebten Fall („Zahlungsseite nicht
+  // geholt") — und die Umformulierung kann keine Werkzeuge mehr rufen.
+  const zahlLagen = ["unbezahlt", "zahlung_gemeldet", "rate_ueberfaellig", "gekuendigt"];
+  let vorab = "";
+  if (zahlLagen.includes(lage)) {
+    const offeneRate = (akte.raten ?? []).filter((r: any) => r.status === "offen" && r.referenz).sort((a: any, b: any) => Number(a.nr) - Number(b.nr))[0];
+    const bestellung = (akte.bestellungen ?? []).find((b: any) => b.ref === ein.ref) ?? (akte.bestellungen ?? [])[0];
+    const referenz = offeneRate?.referenz ?? (bestellung && bestellung.status !== "paid" ? bestellung.referenz : null);
+    const w = werkzeuge.find((x) => x.name === "zahlungslink_bauen");
+    if (referenz && w) {
+      const erg: WerkzeugErgebnis = await w.ausfuehren({ referenz }, kontext).catch((e): WerkzeugErgebnis => ({ ok: false, ergebnis: "", fehler: String(e?.message || e) }));
+      handlungen.push({ werkzeug: "zahlungslink_bauen", ergebnis: erg.ok ? erg.ergebnis : (erg.fehler || "fehlgeschlagen"), ok: erg.ok });
+      if (erg.ok && erg.daten) werkzeugDaten.zahlungslink_bauen = erg.daten;
+      vorab = erg.ok
+        ? `VORAB GEHOLT (zahlungslink_bauen ist gelaufen, nicht noch einmal rufen): ${erg.ergebnis} ${JSON.stringify(erg.daten)}`
+        : `HINWEIS: Zahlungsseite für ${referenz} konnte nicht geholt werden (${erg.fehler || "unbekannt"}) — keine Zahlungsaufforderung schreiben, sondern dem Betreuer eine Aufgabe geben.`;
+    }
+  }
+
   const nachrichten: any[] = [
-    { role: "system", content: systemPrompt({
+    { role: "system", content: [systemPrompt({
       postfach: ein.postfach, lage, lageGrund: akte.lageGrund, heute: akte.heute, akte,
       einordnung: ein.einordnung, vertrag: vertrag.text, alterTage: ein.mail.alterTage,
       werkzeuge: werkzeuge.map((w) => w.name),
       name: await agentName(),
-    }) },
+      kundenweg: weg?.text ?? null,
+    }), vorab].filter(Boolean).join("\n\n") },
   ];
   if (ein.verlauf.length) {
     nachrichten.push({
@@ -571,8 +613,6 @@ export async function antwortErzeugen(ein: {
   }
   nachrichten.push({ role: "user", content: `NEUE NACHRICHT\nVon: ${ein.mail.von}\nBetreff: ${ein.mail.betreff}\n\n${String(ein.mail.text).slice(0, 6000)}` });
 
-  const handlungen: AgentErgebnis["handlungen"] = [];
-  const werkzeugDaten: Record<string, any> = {};
   let kosten = 0;
 
   // Werkzeug-Runden
@@ -594,7 +634,7 @@ export async function antwortErzeugen(ein: {
         nachrichten: [...nachrichten, { role: "user", content: "Schreibe jetzt die Antwort an den Kunden im vorgegebenen Format." }],
       }).catch((e) => ({ fehler: String(e?.message || e) } as any));
       if ((fertig as any).fehler) return { ...leer, grund: `Antwort nicht erzeugt: ${(fertig as any).fehler}`, handlungen };
-      return await pruefenUndAbschliessen(antwortLesen(fertig, "Antwort"), {
+      return await pruefenUndAbschliessen(antwortLesen(fertig, "Antwort"), { kundenweg: weg?.text ?? null,
         lage, akte, einordnung: ein.einordnung, handlungen, werkzeugDaten, kosten, kontext, nachrichten,
       });
     }
@@ -621,7 +661,7 @@ export async function antwortErzeugen(ein: {
 
 /** Die Serverprüfung — hier entscheidet sich, ob eine Antwort rausgehen darf. */
 async function pruefenUndAbschliessen(roh: any, k: {
-  lage: Kundenlage; akte: any; einordnung: Einordnung;
+  lage: Kundenlage; akte: any; einordnung: Einordnung; kundenweg?: string | null;
   handlungen: AgentErgebnis["handlungen"]; werkzeugDaten: Record<string, any>;
   kosten: number; kontext: WerkzeugKontext; nachrichten: any[];
 }): Promise<AgentErgebnis> {
@@ -647,7 +687,7 @@ async function pruefenUndAbschliessen(roh: any, k: {
     // Belegpflicht
     const belegte = belege.map((b) => `${b.satz} ${b.feld}`).join(" ").toLowerCase();
     // Hauswissen (Impressum, Preise, Ablauf) ist belegfähig — es ist öffentlich.
-    const werte = JSON.stringify(k.werkzeugDaten).toLowerCase() + JSON.stringify(k.akte).toLowerCase() + wissenText().toLowerCase();
+    const werte = JSON.stringify(k.werkzeugDaten).toLowerCase() + JSON.stringify(k.akte).toLowerCase() + wissenText().toLowerCase() + String(k.kundenweg || "").toLowerCase();
     for (const z of belegPflichtig(t)) {
       const nackt = z.replace(/[€\s]/g, "").replace(",", ".").toLowerCase();
       if (!werte.includes(nackt) && !belegte.includes(z.toLowerCase())) fehlend.push(`ohne Beleg: ${z}`);

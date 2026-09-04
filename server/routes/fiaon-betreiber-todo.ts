@@ -83,6 +83,9 @@ export async function ensureTodoTabelle(): Promise<void> {
   await sqlPool`CREATE INDEX IF NOT EXISTS idx_todo_beitraege_todo ON fiaon_betreiber_todo_beitraege(todo_id)`;
   await ensureAustauschSpalten();
   geprueft = true;
+  // 04.09.2026 (E-117): Die Anrede der Mitarbeiter braucht der Postmeister bei
+  // jedem Auftrag — die Spalte muss da sein, bevor irgendeine Team-Route lief.
+  await sqlPool`ALTER TABLE fiaon_agents ADD COLUMN IF NOT EXISTS anrede VARCHAR`.catch(() => {});
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -216,6 +219,7 @@ export function kundenName(a: { anrede?: string | null; first_name?: string | nu
 }
 
 export async function auftragEmpfaenger(personId: number | null): Promise<Empfaenger> {
+  await ensureTodoTabelle().catch(() => {});
   if (personId) {
     try {
       const { zustaendigeRolle } = await import("../lib/fiaon-zustaendigkeit");

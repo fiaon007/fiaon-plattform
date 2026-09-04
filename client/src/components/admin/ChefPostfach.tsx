@@ -217,10 +217,10 @@ export default function ChefPostfach() {
       {/* ── Zahlenband ─────────────────────────────────────────────────── */}
       <div className="pf-band">
         <h1>Postfach</h1>
-        <div className="pf-kz"><b>{kopf?.wartenAufDich ?? zaehler.offen ?? 0}</b><span>warten auf dich</span></div>
-        <div className="pf-kz warn"><b>{kopf?.dringend ?? zaehler.dringend ?? 0}</b><span>dringend</span></div>
-        <div className="pf-kz"><b>{kopf?.heuteBeantwortet ?? 0}</b><span>heute beantwortet</span></div>
-        <div className="pf-kz"><b>{typeof kopf?.kostenHeute === "number" ? kopf.kostenHeute.toFixed(2).replace(".", ",") + " €" : "—"}</b><span>Modellkosten heute</span></div>
+        <div className="pf-kz"><b>{kopf?.zahlen?.offen ?? zaehler.offen ?? 0}</b><span>warten auf dich</span></div>
+        <div className="pf-kz warn"><b>{kopf?.zahlen?.dringend ?? zaehler.dringend ?? 0}</b><span>dringend</span></div>
+        <div className="pf-kz"><b>{kopf?.zahlen?.heute_gesendet ?? 0}</b><span>heute beantwortet</span></div>
+        <div className="pf-kz"><b>{typeof kopf?.kostenHeuteEuro === "number" ? kopf.kostenHeuteEuro.toFixed(2).replace(".", ",") + " €" : "—"}</b><span>Modellkosten heute</span></div>
         <div className="pf-band-rechts">
           {markiert.length > 0 && (
             <button type="button" className="pf-knopf" disabled={laeuft === "mehrere"} onClick={() => void markierteSenden()}>

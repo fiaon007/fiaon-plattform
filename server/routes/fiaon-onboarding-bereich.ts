@@ -20,7 +20,7 @@
 //       DÜRFEN wissen, dass es ihn gibt, ihnen fehlt nur ein Schritt.
 // ═══════════════════════════════════════════════════════════════════════════
 
-import { Router, type Response } from "express";
+import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
 import { ensureRolleSpalte } from "./fiaon-vertrieb";
@@ -366,7 +366,7 @@ router.get("/agent/onboarding/termine", requireAgent, nurOnboarding, nurMitZusag
         abgesagtAm: t.abgesagt_am ?? null,
         onboardingAbgeschlossenAm: t.onboarding_abgeschlossen_am ?? null,
         // 04.09.2026 (E-120): Das Cockpit startet mit dem gespeicherten Stand — nicht leer.
-        agendaStand: t.agenda_stand ?? null,
+        agendaStand: agendaEntpacken(t.agenda_stand),
         quelle: t.quelle,
         // Die Art wird auch hier mitgeliefert. Diese Liste zeigt fast immer
         // Onboarding-Gespräche — aber „fast immer" ist der Grund, warum die
@@ -724,8 +724,10 @@ export async function startgespraechErgebnis(opts: {
       UPDATE fiaon_termine SET status = ${String(ergebnis)},
              erledigt_am = COALESCE(erledigt_am, NOW()),
              notiz = COALESCE(${notiz ? String(notiz).slice(0, 4000) : null}, notiz),
-             agenda_stand = COALESCE(
-               ${agendaStand ? JSON.stringify(agendaStand) : null}::jsonb, agenda_stand),
+             -- 04.09.2026 (E-121): sqlPool.json statt JSON.stringify()::jsonb — der
+             -- String landete als JSON-STRING in der Spalte, die Prüfung las „leer",
+             -- und jeder Abschluss scheiterte still (17 Termine, 5 hängend).
+             agenda_stand = COALESCE(${agendaStand ? sqlPool.json(agendaStand as any) : null}, agenda_stand),
              dauer_sek = COALESCE(${dauerSek}, dauer_sek),
              updated_at = NOW()
       WHERE id = ${id}
@@ -867,7 +869,7 @@ export async function startgespraechErgebnis(opts: {
       const [standRow] = (await sqlPool`
         SELECT agenda_stand, onboarding_abgeschlossen_am FROM fiaon_termine WHERE id = ${id}
       `) as any[];
-      const roh: any = standRow?.agenda_stand ?? null;
+      const roh: any = agendaEntpacken(standRow?.agenda_stand);
       // Ältere agenda_stand-Formate tolerant lesen — ein krummes JSON darf den
       // Cockpit-Weg nicht zum Scheitern bringen.
       const stand = {
@@ -925,6 +927,53 @@ export async function startgespraechErgebnis(opts: {
     }
     return { status: 200, body: { ok: true, hinweis, versandOk } };
 }
+
+/** Alte Zeilen tragen die Agenda als JSON-String (doppelt verpackt) — beides lesen. */
+function agendaEntpacken(v: any): any {
+  if (v == null) return null;
+  if (typeof v === "string") { try { return JSON.parse(v); } catch { return null; } }
+  return v;
+}
+
+/**
+ * 04.09.2026 (E-121): Hängende Onboarding-Termine nachziehen — Gespräch geführt,
+ * Agenda vollständig, aber `onboarding_abgeschlossen_am` blieb leer, weil die
+ * Agenda als String gespeichert war. Idempotent; schreibt je Termin einen
+ * Verlaufseintrag. Nur Admin.
+ */
+router.post("/admin/onboarding/doku-nachziehen", async (_req: Request, res: Response) => {
+  try {
+    const { darfAbschliessen } = await import("../../shared/fiaon-onboarding-agenda");
+    const zeilen = (await sqlPool`
+      SELECT t.id, t.person_id, t.beginn, t.agenda_stand, t.agent_id, a.name AS agent_name
+        FROM fiaon_termine t LEFT JOIN fiaon_agents a ON a.id = t.agent_id
+       WHERE t.status = 'erledigt' AND t.onboarding_abgeschlossen_am IS NULL AND t.abgesagt_am IS NULL
+         AND t.quelle IN ('onboarding', 'onboarding_call') AND t.agenda_stand IS NOT NULL
+       ORDER BY t.beginn DESC LIMIT 200
+    `) as any[];
+    const erg: { id: number; ok: boolean; fehlt?: string[] }[] = [];
+    for (const t of zeilen) {
+      const roh = agendaEntpacken(t.agenda_stand);
+      const stand = { erledigt: Array.isArray(roh?.erledigt) ? roh.erledigt.map(String) : [], notizen: roh?.notizen && typeof roh.notizen === "object" ? roh.notizen : {} };
+      const doku = darfAbschliessen(stand as any);
+      if (!doku.ok) { erg.push({ id: Number(t.id), ok: false, fehlt: doku.fehlt }); continue; }
+      await sqlPool`
+        UPDATE fiaon_termine SET onboarding_abgeschlossen_am = NOW(), agenda_stand = ${sqlPool.json(stand as any)}, updated_at = NOW()
+         WHERE id = ${Number(t.id)} AND onboarding_abgeschlossen_am IS NULL
+      `;
+      const [ref] = (await sqlPool`SELECT ref FROM fiaon_applications WHERE person_id = ${Number(t.person_id)} AND merged_into IS NULL ORDER BY created_at DESC LIMIT 1`) as any[];
+      if (ref?.ref) await sqlPool`
+        INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
+        VALUES (${ref.ref}, ${Number(t.person_id)}, NULL, 'System', 'system',
+                ${`Onboarding abgeschlossen (nachgezogen): Die Agenda von ${t.agent_name || "dem Mitarbeiter"} war vollständig, nur der Abschluss fehlte durch einen Speicherfehler.`}, NOW())
+      `.catch(() => {});
+      erg.push({ id: Number(t.id), ok: true });
+    }
+    res.json({ ok: true, geprueft: zeilen.length, abgeschlossen: erg.filter((e) => e.ok).length, offen: erg.filter((e) => !e.ok) });
+  } catch (e: any) {
+    res.status(500).json({ ok: false, error: String(e?.message || e).slice(0, 200) });
+  }
+});
 
 router.post("/agent/onboarding/termine/:id/ergebnis", requireAgent, nurOnboarding, nurMitZusage, async (req: AgentRequest, res: Response) => {
   try {

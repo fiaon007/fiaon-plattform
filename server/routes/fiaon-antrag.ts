@@ -4559,13 +4559,31 @@ router.post("/verify-identity", async (req, res) => {
 
     // Dieselbe Kontoauflösung wie im Login: die ganze Familie der E-Mail.
     const family = await loadLoginFamily(trimEmail);
-    const wantFirst = String(firstName).trim().toLowerCase();
-    const wantLast = String(lastName).trim().toLowerCase();
-
+    // ── 04.09.2026 (E-121): DIE PERSON ZÄHLT MIT ────────────────────────
+    // Antonio Mičuda: Name, E-Mail und Geburtsdatum stimmten — aber die
+    // Bestellzeile trug KEIN Geburtsdatum (nur die Person), und „Mičuda" vs.
+    // „Micuda" hätte ebenfalls gereicht, um ihn abzuweisen. Er stand drei
+    // Stunden vor der Tür, sein Betreuer auch. Jetzt: Namen ohne Akzente,
+    // Groß/Klein und Doppelleerzeichen vergleichen; Geburtsdatum und Name
+    // dürfen aus der Bestellung ODER aus der Person kommen.
+    const glatt = (v: any) => String(v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/ß/g, "ss").replace(/[^a-z0-9]+/g, " ").trim();
+    const wantFirst = glatt(firstName);
+    const wantLast = glatt(lastName);
+    const personen = (await sqlPool`
+      SELECT id, first_name, last_name, birthdate FROM fiaon_persons
+       WHERE merged_into_person_id IS NULL
+         AND (LOWER(TRIM(COALESCE(primary_email, ''))) = ${trimEmail}
+              OR id = ANY(${family.map((r: any) => Number(r.person_id)).filter((n: number) => Number.isFinite(n) && n > 0)}))
+    `.catch(() => [])) as any[];
+    const personPasst = (pid: any) => {
+      const p = personen.find((x) => Number(x.id) === Number(pid));
+      return !!p && glatt(p.first_name) === wantFirst && glatt(p.last_name) === wantLast && birthdateKey(p.birthdate) === birthdate;
+    };
     const candidates = family.filter((r: any) => {
-      const first = String(r.first_name ?? "").trim().toLowerCase();
-      const last = String(r.last_name ?? "").trim().toLowerCase();
-      return first === wantFirst && last === wantLast && birthdateKey(r.birthdate) === birthdate;
+      const namePasst = glatt(r.first_name) === wantFirst && glatt(r.last_name) === wantLast;
+      const geburtPasst = birthdateKey(r.birthdate) === birthdate;
+      const geburtVonPerson = !r.birthdate && personen.some((x) => Number(x.id) === Number(r.person_id) && birthdateKey(x.birthdate) === birthdate);
+      return (namePasst && (geburtPasst || geburtVonPerson)) || personPasst(r.person_id);
     });
 
     if (candidates.length === 0) {

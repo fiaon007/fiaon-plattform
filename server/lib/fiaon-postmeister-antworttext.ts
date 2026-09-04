@@ -166,6 +166,40 @@ export interface FertigeAntwort { text: string; html: string }
  * Setzt die Nachricht zusammen. `kern` ist der Text des Modells — ohne Anrede
  * und ohne Gruß.
  */
+/**
+ * Sicherheitsnetz hinter dem Prompt (04.09.2026, an Mara's erstem Entwurf
+ * gemessen): Das Modell unterschrieb selbst („…schreiben Sie mir gern.\nMara")
+ * UND der Server hängte den Gruß mit Namen an — zweimal Mara. Und die
+ * Zahlungsadresse stand im Text UND als Knopf. Ein Prompt ist eine Bitte;
+ * das hier ist die Wand.
+ */
+function kernBereinigen(kern: string, name: string, knopfUrl: string | null | undefined): string {
+  let t = String(kern || "").trim();
+  // Abschließende Signatur des Modells entfernen: letzte Zeile ist nur der Name
+  // oder eine Grußformel mit Namen.
+  const zeilen = t.split("\n");
+  while (zeilen.length > 1) {
+    const letzte = zeilen[zeilen.length - 1].trim();
+    const istName = letzte === name || letzte === `${name}.` || /^(ihre?|dein[e]?)\s+\S+$/i.test(letzte) && letzte.includes(name);
+    const istGruss = /^(freundliche|beste|viele|herzliche|liebe)\s+grü(ß|ss)e,?$/i.test(letzte)
+      || /^(mit\s+)?freundlichen\s+grü(ß|ss)en,?$/i.test(letzte)
+      || /^(kind|best|warm)\s+regards,?$/i.test(letzte);
+    if (istName || istGruss || letzte === "") { zeilen.pop(); continue; }
+    break;
+  }
+  t = zeilen.join("\n").trim();
+  // Die Adresse des Knopfs aus dem Text nehmen — er trägt sie schon.
+  if (knopfUrl) {
+    const u = knopfUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    t = t
+      .replace(new RegExp(`\\s*:?\\s*${u}\\S*`, "gi"), "")
+      // Endet die Zeile nach dem Herausnehmen ohne Satzzeichen, bekommt sie einen Punkt.
+      .split("\n").map((z) => (/[.!?:]$/.test(z.trim()) || z.trim() === "" ? z : z.replace(/\s+$/, "") + ".")).join("\n")
+      .replace(/[ \t]+([.,;:])/g, "$1");
+  }
+  return t.trim();
+}
+
 export function antwortBauen(ein: {
   anrede: string;
   kern: string;
@@ -174,17 +208,25 @@ export function antwortBauen(ein: {
   betreff: string;
   /** Sprache der Kundenmail. Steuert Knopftext und Abschiedsformel. */
   sprache?: string | null;
+  /** Name des Agenten — damit eine doppelte Signatur des Modells erkannt wird. */
+  agentName?: string | null;
 }): FertigeAntwort {
   const w = rahmenFuer(ein.sprache);
+  const kern = kernBereinigen(ein.kern, ein.agentName ?? "", ein.schritt?.url);
   // 04.09.2026: Bis hierher wurde jeder einfache Zeilenumbruch zu einem
   // Leerzeichen — der Text kam als ein einziger Block beim Kunden an, und der
   // Gruß stand geplättet auf einer Zeile. Jetzt bleiben Umbrüche erhalten
   // (das Gerüst macht daraus <br>), und der Text wird escapt, damit ein „<"
   // aus einer Kundenmail die Antwort nicht zerreißt.
   const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  const absaetze = String(ein.kern || "")
+  // Der KERN wird zu Fließtext-Absätzen: Doppelumbruch trennt Absätze,
+  // Einzelumbruch innerhalb eines Absatzes wird zum Leerzeichen — sonst steht
+  // jeder Satz auf eigener Zeile wie eine Liste (gemessen am 04.09. an Mara's
+  // erstem Entwurf). Der GRUSS unten läuft NICHT durch diese Plättung; seine
+  // Zeilen bleiben Zeilen. Deshalb zwei Wege statt einem.
+  const absaetze = String(kern || "")
     .split(/\n{2,}/)
-    .map((a) => esc(a.trim()))
+    .map((a) => esc(a.trim().replace(/\s*\n\s*/g, " ")))
     .filter(Boolean);
 
   // Der Gruß des Postfachs ist deutsch. Schreibt der Kunde in einer anderen

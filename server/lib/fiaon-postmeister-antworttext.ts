@@ -173,8 +173,30 @@ export interface FertigeAntwort { text: string; html: string }
  * Zahlungsadresse stand im Text UND als Knopf. Ein Prompt ist eine Bitte;
  * das hier ist die Wand.
  */
+// Anrede-Erkennung für den Anfang des Modelltexts (alle Sprachen des RAHMENS).
+const ANREDE_TITEL = "(?:Herrn?|Frau|Mr|Mrs|Ms|Dr|Prof|Monsieur|Madame|Señora?|Signora?|Pan|Pani|Domnule|Doamnă|Bay|Bayan|Господин|Госпожа)\\.?";
+const ANREDE_WORT = "(?:guten\\s+(?:tag|morgen|abend)|hallo|hi|hey|sehr\\s+geehrte[rs]?|liebe[rs]?|dear|hello|good\\s+(?:morning|afternoon|evening)|bonjour|bonsoir|ch[eè]re?|hola|estimad[oa]|buongiorno|buonasera|gentile|goedemiddag|goedemorgen|goededag|beste|geachte|dzień\\s+dobry|szanown[aiy]|bună\\s+ziua|stimat[ăe]|merhaba|sayın|здравствуйте|добрый\\s+день|уважаем(?:ый|ая)|здравейте|уважаем[иа])";
+/** Eine ganze Zeile, die nur aus Anrede (+ Titel + bis zu vier Namensteilen) besteht. */
+const ANREDE_ZEILE = new RegExp(`^${ANREDE_WORT}\\b(?:\\s+${ANREDE_TITEL})?(?:\\s+[^\\s,:;!.]{1,30}){0,4}\\s*[,:;!]?$`, "i");
+/** Anrede + Komma vor dem ersten Satz auf derselben Zeile — nur die kräftigen Formen, „beste"/„hi" wären zu unsicher. */
+const ANREDE_VORNE = new RegExp(`^(?:guten\\s+(?:tag|morgen|abend)|sehr\\s+geehrte[rs]?|dear|hello|bonjour|hola|buongiorno|geachte|dzień\\s+dobry|bună\\s+ziua|merhaba|здравствуйте|здравейте)\\b(?:\\s+${ANREDE_TITEL})?(?:\\s+[^\\s,:;!.]{1,30}){0,3}\\s*[,:;!]\\s+(\\S.*)$`, "i");
+
 function kernBereinigen(kern: string, name: string, knopfUrl: string | null | undefined): string {
   let t = String(kern || "").trim();
+  // 04.09.2026: Das Modell setzte trotz Verbot eine eigene Anrede an den Anfang
+  // („Guten Tag Herr Krunic,") — der Server setzt die Anrede selbst, der Kunde
+  // bekam sie doppelt, und die zweite bekam vom URL-Punkt-Regler noch ein „,."
+  // angehängt. Eine Anrede-Zeile am Anfang fliegt raus; eine Anrede vor dem
+  // ersten Satz auf derselben Zeile ebenso.
+  {
+    const z = t.split("\n");
+    while (z.length > 1 && (ANREDE_ZEILE.test(z[0].trim()) || z[0].trim() === "")) z.shift();
+    z[0] = z[0].replace(ANREDE_VORNE, (_m, rest: string) => rest.charAt(0).toUpperCase() + rest.slice(1));
+    t = z.join("\n").trim();
+    // Nach „Guten Tag Herr X," schreibt man deutsch klein weiter — ohne die
+    // Anrede muss der erste Satz wieder groß beginnen.
+    t = t.charAt(0).toUpperCase() + t.slice(1);
+  }
   // Abschließende Signatur des Modells entfernen: letzte Zeile ist nur der Name
   // oder eine Grußformel mit Namen.
   const zeilen = t.split("\n");
@@ -191,11 +213,24 @@ function kernBereinigen(kern: string, name: string, knopfUrl: string | null | un
   // Die Adresse des Knopfs aus dem Text nehmen — er trägt sie schon.
   if (knopfUrl) {
     const u = knopfUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const traegtUrl = new RegExp(u, "i");
+    const urlWeg = new RegExp(`\\s*:?\\s*${u}\\S*`, "gi");
     t = t
-      .replace(new RegExp(`\\s*:?\\s*${u}\\S*`, "gi"), "")
-      // Endet die Zeile nach dem Herausnehmen ohne Satzzeichen, bekommt sie einen Punkt.
-      .split("\n").map((z) => (/[.!?:]$/.test(z.trim()) || z.trim() === "" ? z : z.replace(/\s+$/, "") + ".")).join("\n")
-      .replace(/[ \t]+([.,;:])/g, "$1");
+      .split("\n")
+      .map((z) => {
+        // Nur Zeilen anfassen, in denen die Adresse wirklich stand — vorher
+        // bekam JEDE Zeile ohne Schlusszeichen einen Punkt, auch „Guten Tag Herr X,".
+        if (!traegtUrl.test(z)) return z;
+        const o = z.replace(urlWeg, "").replace(/\s+$/, "");
+        // „Zur Zahlungsseite:" oder „Die Zahlungsseite" ohne Adresse dahinter ist
+        // kein Satz mehr — weg damit. Der Knopf darunter sagt es ohnehin.
+        const rest = o.trim().replace(/[:\s]+$/, "");
+        if (rest === "" || rest.split(/\s+/).length <= 3) return "";
+        return /[.!?:]$/.test(o) ? o : o + ".";
+      })
+      .join("\n")
+      .replace(/[ \t]+([.,;:])/g, "$1")
+      .replace(/\n{3,}/g, "\n\n");
   }
   // Telefonnummern raus — die des Kunden kennt er, die eines Kollegen geht ihn
   // nichts an (04.09.2026: „Daniel ruft Sie unter +4915251685868 an" — das war

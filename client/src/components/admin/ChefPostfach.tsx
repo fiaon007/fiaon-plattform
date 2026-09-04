@@ -184,6 +184,30 @@ export default function ChefPostfach() {
     finally { setLaeuft(null); }
   }, [laden]);
 
+  // 04.09.2026 (E-119): Alle Entwürfe mit dem heutigen Stand neu schreiben lassen.
+  const [neuLauf, setNeuLauf] = useState<any>(null);
+  const neuLaufLaden = useCallback(async () => {
+    try { const j = await hole("/admin/postmeister/neu-bearbeiten"); setNeuLauf(j); } catch { /* still */ }
+  }, []);
+  useEffect(() => { void neuLaufLaden(); }, [neuLaufLaden]);
+  useEffect(() => {
+    if (!neuLauf?.lauf?.laeuft) return;
+    const t = setInterval(() => { void neuLaufLaden(); void laden(true); }, 10_000);
+    return () => clearInterval(t);
+  }, [neuLauf?.lauf?.laeuft, neuLaufLaden, laden]);
+  const neuSchreiben = useCallback(async () => {
+    const n = Number(neuLauf?.wartend?.entwuerfe || 0) + Number(neuLauf?.wartend?.fehler || 0);
+    if (!window.confirm(`${n} wartende Entwürfe und Fehler neu schreiben lassen? Alte Gmail-Entwürfe werden gelöscht, Mara schreibt jeden Fall mit dem heutigen Stand neu und sendet, was die Freigaben erlauben. Dauer etwa ${Math.ceil(n * 0.4)} Minuten.`)) return;
+    try {
+      const j = await hole("/admin/postmeister/neu-bearbeiten", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ parallel: 2 }) });
+      setMeldung({ art: "gut", text: `Neubearbeitung gestartet: ${j?.gestartet ?? 0} Vorgänge.` });
+      await neuLaufLaden();
+    } catch (e: any) { setMeldung({ art: "warn", text: String(e?.message || e) }); }
+  }, [neuLauf, neuLaufLaden]);
+  const neuStoppen = useCallback(async () => {
+    try { await hole("/admin/postmeister/neu-bearbeiten/stopp", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }); await neuLaufLaden(); } catch { /* still */ }
+  }, [neuLaufLaden]);
+
   // 04.09.2026 (E-117): Die Agentin hat Vor- und Nachnamen — beides hier änderbar.
   const agentinUmbenennen = useCallback(async () => {
     const vor = window.prompt("Vorname der Agentin", kopf?.agent?.vorname || "Mara"); if (vor == null) return;
@@ -284,6 +308,17 @@ export default function ChefPostfach() {
             </button>
           )}
           <button type="button" className="pf-knopf still" onClick={() => void laden()}>Aktualisieren</button>
+          {neuLauf?.lauf?.laeuft ? (
+            <span className="pf-neulauf">
+              Mara schreibt neu: <b>{neuLauf.lauf.fertig}/{neuLauf.lauf.gesamt}</b> · {neuLauf.lauf.gesendet} gesendet · {neuLauf.lauf.entwurf} Entwurf · {neuLauf.lauf.fehler} Fehler
+              {neuLauf.lauf.aktuell?.length ? <small> · gerade {neuLauf.lauf.aktuell.join(", ")}</small> : null}
+              <button type="button" className="pf-knopf still" onClick={() => void neuStoppen()}>Stopp</button>
+            </span>
+          ) : (
+            <button type="button" className="pf-knopf still" title="Alle wartenden Entwürfe mit dem heutigen Stand neu schreiben lassen" onClick={() => void neuSchreiben()}>
+              Alle Entwürfe neu schreiben{neuLauf?.lauf?.beendet ? ` (zuletzt ${neuLauf.lauf.gesendet} gesendet, ${neuLauf.lauf.entwurf} Entwurf)` : ""}
+            </button>
+          )}
           <button type="button" className="pf-knopf still pf-agentin" title="Vor- und Nachname der Agentin ändern" onClick={() => void agentinUmbenennen()}>
             {kopf?.agent?.voll || "Mara"} ✎
           </button>

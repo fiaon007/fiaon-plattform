@@ -360,6 +360,106 @@ router.post("/admin/postmeister/eintrag/:id/verwerfen", async (req: Request, res
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// E-119 (04.09.2026) — ALLE ENTWÜRFE NEU SCHREIBEN
+//
+// Justin: „ALLE Entwürfe, die bislang von Mara geschrieben wurden, müssen
+// bearbeitet werden — so, dass der Text passt, Aufgaben von Mara erfüllt
+// werden UND alles passt. Bitte das nachholen und live stellen!"
+//
+// Der Lauf nimmt jeden wartenden Entwurf (und jeden Fehler), löscht den alten
+// Gmail-Entwurf, setzt die Zeile auf „vorgeordnet" zurück und schickt sie
+// noch einmal durch mailBearbeiten — mit dem heutigen Stand: Kundenweg,
+// Rettungsgespräch, Namen, Anhänge, Aufgaben, Vorab-Zahlungsseite. Im Modus
+// „auto" geht raus, was die Freigaben erlaubt; der Rest wartet als frischer
+// Entwurf. Werkzeuge sind idempotent (Aufgabe je Vorgang, Kündigung „bereits",
+// Sperren einmalig) — ein zweiter Durchlauf richtet keinen Schaden an.
+// Läuft im Server-Hintergrund, zwei Mails gleichzeitig; Fortschritt im Postfach.
+// ═══════════════════════════════════════════════════════════════════════════
+interface NeuLauf {
+  laeuft: boolean; gestartet: string | null; beendet: string | null; abbruch: boolean;
+  gesamt: number; fertig: number; gesendet: number; entwurf: number; fehler: number; uebersprungen: number;
+  aktuell: string[]; protokoll: { id: number; von: string; aktion: string; grund: string }[];
+}
+const neuLauf: NeuLauf = { laeuft: false, gestartet: null, beendet: null, abbruch: false, gesamt: 0, fertig: 0, gesendet: 0, entwurf: 0, fehler: 0, uebersprungen: 0, aktuell: [], protokoll: [] };
+
+async function neuLaufStarten(kandidaten: { id: number; postfach: string; gmail_id: string; von: string; antwort_draft_id: string | null }[], parallel: number): Promise<void> {
+  Object.assign(neuLauf, { laeuft: true, gestartet: new Date().toISOString(), beendet: null, abbruch: false, gesamt: kandidaten.length, fertig: 0, gesendet: 0, entwurf: 0, fehler: 0, uebersprungen: 0, aktuell: [], protokoll: [] });
+  const { mailBearbeiten } = await import("../lib/fiaon-postmeister-lauf");
+  const { postfachGruss, postfachModus } = await import("./fiaon-postmeister");
+  const { entwurfLoeschen } = await import("../lib/fiaon-gmail");
+  const schlange = [...kandidaten];
+  const arbeiter = async () => {
+    while (schlange.length && !neuLauf.abbruch) {
+      const k = schlange.shift()!;
+      const kennung = `#${k.id} ${String(k.von || "").replace(/<[^>]*>/g, "").trim().slice(0, 30)}`;
+      neuLauf.aktuell.push(kennung);
+      try {
+        const modus = await postfachModus(k.postfach);
+        if (modus === "aus") { neuLauf.uebersprungen++; neuLauf.protokoll.push({ id: k.id, von: kennung, aktion: "uebersprungen", grund: "Postfach aus" }); continue; }
+        // Zurücksetzen — nur, wenn nicht gerade ein Mensch sendet ('sendet').
+        const [r] = (await sqlPool`
+          UPDATE fiaon_postmeister
+             SET aktion = 'vorgeordnet', versuche = 0, antwort = NULL, antwort_html = NULL, antwort_draft_id = NULL,
+                 anhaenge = NULL, begruendung = 'Neu bearbeitet (E-119)', updated_at = NOW()
+           WHERE id = ${k.id} AND aktion IN ('entwurf', 'fehler') RETURNING id
+        `) as any[];
+        if (!r) { neuLauf.uebersprungen++; neuLauf.protokoll.push({ id: k.id, von: kennung, aktion: "uebersprungen", grund: "nicht mehr im Entwurf" }); continue; }
+        if (k.antwort_draft_id) await entwurfLoeschen(k.postfach, k.antwort_draft_id).catch(() => {});
+        const erg = await mailBearbeiten({ postfach: k.postfach, gmailId: k.gmail_id, gruss: postfachGruss(k.postfach), modus, nurOrdnen: false });
+        if (erg.aktion === "auto_beantwortet") neuLauf.gesendet++;
+        else if (erg.aktion === "entwurf") neuLauf.entwurf++;
+        else if (erg.aktion === "fehler") neuLauf.fehler++;
+        else neuLauf.uebersprungen++;
+        neuLauf.protokoll.push({ id: k.id, von: kennung, aktion: erg.aktion, grund: String(erg.grund || "").slice(0, 160) });
+      } catch (e: any) {
+        neuLauf.fehler++;
+        neuLauf.protokoll.push({ id: k.id, von: kennung, aktion: "fehler", grund: String(e?.message || e).slice(0, 160) });
+      } finally {
+        neuLauf.fertig++;
+        neuLauf.aktuell = neuLauf.aktuell.filter((a) => a !== kennung);
+        if (neuLauf.protokoll.length > 400) neuLauf.protokoll.splice(0, neuLauf.protokoll.length - 400);
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(4, parallel)) }, () => arbeiter()));
+  neuLauf.laeuft = false;
+  neuLauf.beendet = new Date().toISOString();
+  console.log(`[POSTMEISTER] Neubearbeitung fertig: ${neuLauf.fertig}/${neuLauf.gesamt} — ${neuLauf.gesendet} gesendet, ${neuLauf.entwurf} Entwurf, ${neuLauf.fehler} Fehler, ${neuLauf.uebersprungen} übersprungen`);
+}
+
+router.get("/admin/postmeister/neu-bearbeiten", async (_req: Request, res: Response) => {
+  const [z] = (await sqlPool`SELECT COUNT(*) FILTER (WHERE aktion = 'entwurf')::int AS entwuerfe, COUNT(*) FILTER (WHERE aktion = 'fehler')::int AS fehler FROM fiaon_postmeister`.catch(() => [{ entwuerfe: 0, fehler: 0 }])) as any[];
+  res.json({ ok: true, lauf: { ...neuLauf, protokoll: neuLauf.protokoll.slice(-40) }, wartend: z });
+});
+
+router.post("/admin/postmeister/neu-bearbeiten", async (req: Request, res: Response) => {
+  try {
+    if (neuLauf.laeuft) return res.status(409).json({ ok: false, error: "Läuft bereits", lauf: neuLauf });
+    const deckel = Math.max(1, Math.min(500, Number(req.body?.deckel) || 500));
+    const parallel = Math.max(1, Math.min(4, Number(req.body?.parallel) || 2));
+    const ids: number[] = Array.isArray(req.body?.ids) ? req.body.ids.map(Number).filter(Number.isFinite) : [];
+    const postfach = typeof req.body?.postfach === "string" ? req.body.postfach : null;
+    const kandidaten = (await sqlPool`
+      SELECT id, postfach, gmail_id, von, antwort_draft_id FROM fiaon_postmeister
+       WHERE aktion IN ('entwurf', 'fehler') AND gmail_id IS NOT NULL AND gmail_id <> ''
+         AND (${ids.length ? sqlPool`id = ANY(${ids})` : sqlPool`TRUE`})
+         AND (${postfach ? sqlPool`postfach = ${postfach}` : sqlPool`TRUE`})
+       ORDER BY empfangen_am ASC NULLS LAST, id ASC LIMIT ${deckel}
+    `) as any[];
+    if (!kandidaten.length) return res.json({ ok: true, gestartet: 0 });
+    void neuLaufStarten(kandidaten, parallel).catch((e) => { neuLauf.laeuft = false; console.error("[POSTMEISTER] Neubearbeitung:", e); });
+    res.json({ ok: true, gestartet: kandidaten.length, parallel });
+  } catch (e: any) {
+    res.status(500).json({ ok: false, error: String(e?.message || e).slice(0, 200) });
+  }
+});
+
+router.post("/admin/postmeister/neu-bearbeiten/stopp", async (_req: Request, res: Response) => {
+  neuLauf.abbruch = true;
+  res.json({ ok: true, lauf: neuLauf });
+});
+
 /** Mehrere auf einmal — nur ausdrücklich ausgewählte, nie „alles". */
 router.post("/admin/postmeister/senden-mehrere", async (req: Request, res: Response) => {
   try {

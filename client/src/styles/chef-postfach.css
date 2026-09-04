@@ -200,3 +200,6 @@ table.pf-akte tr:last-child td { border-bottom: 0; }
 .pf-schalter-stand b { color: #f5c877; font-weight: 600; }
 .pf-agentin { opacity: .8; }
 .pf-agentin:hover { opacity: 1; }
+.pf-neulauf { display: inline-flex; gap: 8px; align-items: center; font-size: 11px; color: var(--p-leiser); }
+.pf-neulauf b { color: inherit; }
+.pf-neulauf small { color: var(--p-leiser); }

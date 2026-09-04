@@ -515,6 +515,11 @@ async function wirksamerModus(pf: typeof POSTFAECHER[number]): Promise<Modus | "
 
 /** Die Adressen der bedienten Postfächer — für die Erreichbarkeits-Probe im Kopf. */
 export function postfachAdressen(): string[] { return POSTFAECHER.map((p) => p.adresse); }
+/** Der wirksame Modus eines Postfachs (Not-Aus, Einstellung, Vorgabe) — für den Neubearbeitungs-Lauf. */
+export async function postfachModus(adresse: string): Promise<Modus | "aus"> {
+  const pf = POSTFAECHER.find((p) => p.adresse === adresse);
+  return pf ? wirksamerModus(pf) : "aus";
+}
 /** Der Gruß eines Postfachs (roh, ohne Agentennamen) — für das Neubauen beim Freigeben. */
 export function postfachGruss(adresse: string): string {
   return POSTFAECHER.find((p) => p.adresse === adresse)?.gruss ?? "Freundliche Grüße\nIhr FIAON-Team\nfiaon.com";

@@ -5,6 +5,66 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 04.09.2026 — Rollen-Wand: eine Rolle, die es nicht gibt, trifft niemanden
+
+### Was geändert wurde
+
+**1. Der Befund.** Der Postmeister (Mara) legt dem zuständigen Menschen
+Aufgaben an — Betreuer des Kunden, sonst die Vertriebsleitung. Der Rückfall
+suchte nach den Rollen `vertriebsleitung` und `leitung`. Beide gibt es nicht;
+die Rolle heißt `vertriebsleiter`. Die Abfrage traf null Zeilen, kompilierte
+einwandfrei, und jede Aufgabe für einen Kunden ohne Betreuer landete als
+„Leitung" auf dem Betreiber-Brett, wo kein Mitarbeiter sie sieht
+(`/agent/aufgaben` liest nur `zustaendig_art = 'agent'`). Gemessen an der
+echten Datenbank: zwei Aufgaben lagen so seit dem 02.09.; die Rollen in
+`fiaon_agents` sind genau `agent | onboarding | inkasso | vertriebsleiter`
+(aktiv und echt: 7 Bonitätsmanager, 2 Vertriebsleiter, 0 Inkasso,
+0 Onboarding). Die Rollenliste im Postmeister ist korrigiert
+(`vertriebsleiter`, `admin`, ohne Testkonten).
+
+**2. Die Wand: `scripts/pruef-rollen.ts`.** Kompilieren beweist bei einem
+Textwert nichts — deshalb liest die Wand den Quelltext. Vier Prüfungen:
+SQL-Literale (`rolle = '…'`, `IN (…)`, `COALESCE(rolle, '…')`, `DEFAULT '…'`),
+TS-Vergleiche (`rolle === "…"`, `??`, `||`), Rollenlisten (`rollen: […]`,
+`ROLLEN_FUER`) und — mit `DATABASE_URL` — der Abgleich, dass die Datenbank
+keine Rolle kennt, die der Code nicht kennt. `--rot-probe` baut den Schaden
+nach und prüft zugleich, dass Gesprächs-Rollen („kunde", „nutzer") und
+Protokoll-Rollen (`rolle: "leitung"`) NICHT rot werden. Heute: 323 Dateien,
+0 Funde.
+
+**3. Prüfung 5 in `scripts/pruef-vor-merge.ts`.** Die Merge-Wand ruft die
+Rollen-Wand auf (`--nur=rollen`, `--rot-probe=rollen`). Neuer Abschnitt in
+`AGENTS.md`: „Eine Rolle, die es nicht gibt, trifft niemanden".
+
+**4. Eine Ableitung statt zwei.** Nach der Korrektur der Rollennamen blieb
+ein zweiter Fehler: Notiz und Eskalation des Postmeisters hatten ihre eigene
+Zuständigkeits-Abfrage, der neue Auftrag (`aufgabe_an_betreuer`) eine andere.
+Praxistest an der echten Datenbank für denselben Kunden ohne Betreuer: Notiz
+an Daniel (erster nach id), Auftrag an Florentine (wenigste offene Aufträge).
+Jetzt nutzen alle drei `auftragEmpfaenger` (fiaon-betreiber-todo.ts): der
+eingetragene Betreuer, sofern aktiv und kein Testkonto; ohne Betreuer die
+Rolle zur Lage über `zustaendigeRolle` (Rückstand → Forderungsmanagement,
+sonst Vertriebsleitung, je mit der kleinsten Last); sonst der Betreiber.
+Fünf Fälle geprüft: mit Betreuer → Nikita; ohne Betreuer, unbekannter
+Absender, Rückstand ohne Betreuer, inaktiver Betreuer → Florentine bzw.
+Daniel — nie mehr „Leitung" ohne Menschen.
+
+### Warum
+
+Ein Tippfehler in einem Textwert ist die einzige Fehlerklasse, die weder
+Compiler noch Datenbank melden: Die Abfrage ist gültig, sie findet nur nichts.
+Genau so gingen die Aufgaben verloren — still. Eine Regel („die Rolle heißt
+vertriebsleiter") merkt man sich nicht; eine Wand vergisst nichts.
+
+### Wo zu finden
+
+`scripts/pruef-rollen.ts`, `scripts/pruef-vor-merge.ts` (Prüfung 5),
+`AGENTS.md` (letzter Abschnitt), `server/lib/fiaon-postmeister-werkzeuge.ts`
+(`zustaendig()`), `server/routes/fiaon-betreiber-todo.ts` (`auftragEmpfaenger`,
+jetzt exportiert).
+
+---
+
 ## 30.08.2026 — Der FIAON Copilot + zehn neue Themenseiten
 
 ### Was geändert wurde

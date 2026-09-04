@@ -188,15 +188,24 @@ export interface AuftragErgebnis {
   faelligAm: string;
 }
 
-/** Der Mensch für diese Aufgabe: Betreuer, sonst Rolle passend zur Lage, sonst Betreiber. */
-async function auftragEmpfaenger(personId: number | null): Promise<{ id: number | null; name: string | null; email: string | null; vorname: string | null }> {
+/**
+ * Der Mensch für diese Aufgabe: Betreuer, sonst Rolle passend zur Lage, sonst Betreiber.
+ *
+ * Exportiert (E-116, 04.09.2026): Die Werkzeuge des Postmeisters (`zustaendig()`
+ * in fiaon-postmeister-werkzeuge.ts) nutzen DIESELBE Ableitung. Vorher gab es
+ * dort eine zweite — und der Praxistest an der echten Datenbank zeigte für
+ * denselben Kunden ohne Betreuer zwei Antworten: Notiz an Daniel (erster nach
+ * id), Auftrag an Florentine (wenigste offene Aufträge).
+ */
+export async function auftragEmpfaenger(personId: number | null): Promise<{ id: number | null; name: string | null; email: string | null; vorname: string | null }> {
   if (personId) {
     try {
       const { zustaendigeRolle } = await import("../lib/fiaon-zustaendigkeit");
       const z = await zustaendigeRolle(personId);
       if (z?.agentId) {
         const [a] = (await sqlPool`
-          SELECT id, name, email, first_name FROM fiaon_agents WHERE id = ${z.agentId} AND COALESCE(active, TRUE) = TRUE LIMIT 1
+          SELECT id, name, email, first_name FROM fiaon_agents
+           WHERE id = ${z.agentId} AND COALESCE(active, TRUE) = TRUE AND COALESCE(is_test_account, FALSE) = FALSE LIMIT 1
         `) as any[];
         if (a?.id) return { id: Number(a.id), name: String(a.name), email: a.email ?? null, vorname: a.first_name ?? null };
       }

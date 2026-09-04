@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// DIE WAND VOR JEDEM MERGE NACH main — VIER PRÜFUNGEN, JEDE EINZELN ROT-PROBEFÄHIG
+// DIE WAND VOR JEDEM MERGE NACH main — FÜNF PRÜFUNGEN, JEDE EINZELN ROT-PROBEFÄHIG
 //
 // ── DER ANLASS ────────────────────────────────────────────────────────────
 // Am 20.08.2026 brach der Deploy mit `sh: 1: eslint: not found`, exit 127 —
@@ -12,13 +12,14 @@
 //   3  BACKTICKS  keine Backticks in SQL- und CSS-Kommentaren
 //   4  PROTOKOLL  jede agentensichtbare Änderung hat Einträge in CHANGELOG.md
 //                 UND client/src/pages/agent/updates-data.ts
+//   5  ROLLEN     jede Mitarbeiter-Rolle im Quelltext existiert (pruef-rollen.ts)
 //
 // ── WARUM JEDE EINZELN EINE ROT-PROBE HAT ─────────────────────────────────
 // Eine Wand, von der man nicht weiß, ob sie greift, ist eine Behauptung. Die
 // Rot-Probe baut den Schaden absichtlich ein und prüft, dass die Wand rot wird:
 //
 //   npx tsx scripts/pruef-vor-merge.ts
-//   npx tsx scripts/pruef-vor-merge.ts --rot-probe          (alle vier)
+//   npx tsx scripts/pruef-vor-merge.ts --rot-probe          (alle fünf)
 //   npx tsx scripts/pruef-vor-merge.ts --rot-probe=migration (nur eine)
 //
 // Prüfung 1 delegiert an `scripts/pruef-deploy.ts` — sie hat ihre eigene
@@ -273,6 +274,40 @@ function pruefeProtokoll(): void {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// 5 — MITARBEITER-ROLLEN IM QUELLTEXT
+//
+// ── DER SCHADEN (04.09.2026) ─────────────────────────────────────────────
+// `rolle IN ('vertriebsleitung', 'leitung', 'admin')` — zwei Rollen, die es
+// nicht gibt. Die Abfrage traf null Zeilen, kompilierte einwandfrei, und
+// Postmeister-Aufgaben für Kunden ohne Betreuer landeten unsichtbar beim
+// Betreiber. Kompilieren beweist bei einem Textwert nichts.
+//
+// Die Prüfung selbst steht in `scripts/pruef-rollen.ts` — mit eigener
+// Rot-Probe und der Begründung, was sie absichtlich NICHT liest. Hier nur
+// der Aufruf; eine zweite Fassung wäre die zweite Wahrheit.
+// ═══════════════════════════════════════════════════════════════════════════
+function pruefeRollen(): void {
+  titel("5 — JEDE MITARBEITER-ROLLE IM QUELLTEXT EXISTIERT (scripts/pruef-rollen.ts)");
+  const lauf = (args: string) => execSync(`npx tsx scripts/pruef-rollen.ts ${args}`.trim(),
+    { stdio: "pipe", encoding: "utf-8" });
+  const letzte = (aus: string) => aus.split("\n").filter((z) => /FAIL|PASS/.test(z)).slice(-4).join(" | ");
+  if (rot("rollen")) {
+    // Die Rot-Probe von pruef-rollen.ts baut die zwei Zeilen vom 04.09.2026
+    // nach und prüft dazu, dass Gesprächs-Rollen („kunde") NICHT rot werden.
+    try { lauf("--rot-probe"); pruef("ROT-PROBE: 'vertriebsleitung' und 'leitung' werden gefunden, „kunde“ nicht", true); }
+    catch (e: any) {
+      pruef("ROT-PROBE: 'vertriebsleitung' und 'leitung' werden gefunden, „kunde“ nicht", false,
+        letzte(String(e?.stdout ?? e?.message ?? "")));
+    }
+  }
+  try { lauf(""); pruef("Jede Rolle in server/ steht in der Liste — und die Datenbank kennt keine andere", true); }
+  catch (e: any) {
+    pruef("Jede Rolle in server/ steht in der Liste — und die Datenbank kennt keine andere", false,
+      letzte(String(e?.stdout ?? e?.message ?? "")) || "pruef-rollen.ts ist rot geworden");
+  }
+}
+
 async function main(): Promise<void> {
   console.log("\n══ Wand vor dem Merge nach main ══");
   if (NUR) console.log(`  (nur „${NUR}")`);
@@ -280,6 +315,7 @@ async function main(): Promise<void> {
   if (!NUR || NUR === "migration") await pruefeMigrationen();
   if (!NUR || NUR === "backticks") pruefeBackticks();
   if (!NUR || NUR === "protokoll") pruefeProtokoll();
+  if (!NUR || NUR === "rollen") pruefeRollen();
 
   console.log(`\n══ ${ok} ok, ${nichtOk} rot ══`);
   if (nichtOk > 0) {

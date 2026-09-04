@@ -80,24 +80,39 @@ async function protokoll(k: WerkzeugKontext, werkzeug: string, text: string, sic
   }
 }
 
-/** Der zuständige Mensch — Betreuer der Person, sonst Vertriebsleitung. */
+/**
+ * DER ZUSTÄNDIGE MENSCH — dieselbe Ableitung wie für Aufträge.
+ *
+ * ── DER SCHADEN (04.09.2026, E-116) ─────────────────────────────────────
+ * Hier stand eine eigene Abfrage: Betreuer der Person, sonst
+ * `rolle IN ('vertriebsleitung', 'leitung', 'admin')`. Die ersten beiden
+ * Rollen gibt es nicht — die Abfrage traf null Zeilen, und jede Notiz für
+ * einen Kunden ohne Betreuer landete unsichtbar beim Betreiber
+ * (zustaendig_art 'betreiber'; /agent/aufgaben liest nur 'agent'). Nach der
+ * Korrektur der Namen blieb der zweite Fehler: ZWEI Ableitungen für dieselbe
+ * Frage. Praxistest an der echten Datenbank: Kunde 12982 ohne Betreuer —
+ * notiz_an_betreuer ging an Daniel (erster nach id), aufgabe_an_betreuer an
+ * Florentine (wenigste offene Aufträge). Zwei Antworten auf eine Frage sind
+ * die Fehlerklasse aus fiaon-zustaendigkeit.ts.
+ *
+ * ── JETZT ───────────────────────────────────────────────────────────────
+ * `auftragEmpfaenger` (fiaon-betreiber-todo.ts, E-115) entscheidet für
+ * Notiz, Eskalation UND Auftrag: der eingetragene Betreuer, sofern aktiv und
+ * kein Testkonto — Besitz gewinnt, auch im Rückstand, denn Justins Auftrag im
+ * Kopf dieser Datei („bitte anrufen, bevor ich es eskalieren lasse") meint
+ * genau ihn (E-045). Ohne Betreuer die Rolle zur Lage über `zustaendigeRolle`
+ * (Rückstand → Forderungsmanagement, sonst Vertriebsleitung, je mit der
+ * kleinsten Last), sonst der Betreiber. Nie ein beliebiger Bonitätsmanager:
+ * niemand besitzt einen Kunden vor dem Mandat, und eine Aufgabe ist keine
+ * Zuteilung. Rollen-Literale prüft `scripts/pruef-rollen.ts`.
+ */
 async function zustaendig(personId: number | null): Promise<{ id: number | null; name: string }> {
-  if (personId) {
-    const [r] = (await sqlPool`
-      SELECT a.id, COALESCE(a.first_name, a.name, a.email) AS name
-        FROM fiaon_persons p JOIN fiaon_agents a ON a.id = p.assigned_agent_id
-       WHERE p.id = ${personId} AND a.active IS NOT FALSE LIMIT 1
-    `) as any[];
-    if (r?.id) return { id: Number(r.id), name: String(r.name) };
-  }
-  // 04.09.2026: Die Rollen heißen „vertriebsleiter" und „admin" — die alten
-  // Namen gab es nirgends, der Rückfall lief still auf „Leitung" ohne Mensch.
-  const [l] = (await sqlPool`
-    SELECT id, COALESCE(first_name, name, email) AS name FROM fiaon_agents
-     WHERE active IS NOT FALSE AND rolle IN ('vertriebsleiter', 'admin') AND COALESCE(is_test_account, FALSE) = FALSE
-     ORDER BY (rolle = 'vertriebsleiter') DESC, id ASC LIMIT 1
-  `) as any[];
-  return l?.id ? { id: Number(l.id), name: String(l.name) } : { id: null, name: "Leitung" };
+  const { auftragEmpfaenger } = await import("../routes/fiaon-betreiber-todo");
+  const wer = await auftragEmpfaenger(personId);
+  // Vorname wie bisher („Postmeister an Nikita: …"), sonst der volle Name.
+  return wer.id
+    ? { id: wer.id, name: String(wer.vorname || "").trim() || String(wer.name || "").trim() || "Leitung" }
+    : { id: null, name: "Leitung" };
 }
 
 // ── Die Werkzeuge ─────────────────────────────────────────────────────────

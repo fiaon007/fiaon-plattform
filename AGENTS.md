@@ -1516,3 +1516,29 @@ Zwei Fallen dabei:
 * **Die Karte darf nie abschneiden.** Sie wird zur Laufzeit ausgemessen und ins
   Fenster geklemmt (`Rundgang.tsx`); wer dort etwas ändert, prüft es an einem
   langen Schritt mit Praxis-Kasten auf einem flachen Fenster nach.
+
+## Eine Rolle, die es nicht gibt, trifft niemanden
+
+Am 04.09.2026 suchte der Rückfall in `fiaon-postmeister-werkzeuge.ts` nach
+`rolle IN ('vertriebsleitung', 'leitung', 'admin')`. Die ersten beiden Werte
+gibt es nicht — die Rolle heißt `vertriebsleiter`. Die Abfrage traf null
+Zeilen, kompilierte einwandfrei, und jede Aufgabe für einen Kunden ohne
+Betreuer landete als „Leitung" auf dem Betreiber-Brett, wo kein Mitarbeiter
+sie sieht. Kein Fehler, keine Logzeile — nur eine Aufgabe, die niemand bekam.
+
+Die Rollen in `fiaon_agents.rolle` sind genau diese:
+`agent | onboarding | inkasso | vertriebsleiter | admin` (dazu `chef` als
+Sitzungsrolle des Chefbüros). Es gibt keine „Leitung", keine
+„Vertriebsleitung", keinen „Manager". Wer eine Rolle braucht, liest sie in
+`fiaon-zustaendigkeit.ts` (`ROLLEN_FUER`) nach — und schreibt sie nicht aus
+dem Gedächtnis.
+
+**`npx tsx scripts/pruef-rollen.ts` hält jedes Rollen-Literal in `server/`
+gegen diese Liste** — in SQL, in TS-Vergleichen und in Rollenlisten — und mit
+`DATABASE_URL` auch die Datenbank gegen den Code. `--rot-probe` baut den
+Schaden nach. Die Wand läuft als Prüfung 5 in `pruef-vor-merge.ts`.
+
+Zwei Dinge liest sie absichtlich NICHT: `rolle: "…"`-Eigenschaften (dort
+leben Gesprächs- und Protokoll-Rollen wie „kunde", „leitung", „veraeusserer")
+und Kommentare. Ein erster Entwurf hätte damit fünf Fehlalarme gemeldet — und
+eine Wand mit Fehlalarmen wird beim dritten Mal abgeschaltet.

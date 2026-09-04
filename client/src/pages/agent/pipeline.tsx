@@ -1478,6 +1478,76 @@ function Sprachvermerk({ personId }: { personId: number | null }) {
   );
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// BETREUER WECHSELN — nur für die Leitung (04.09.2026)
+//
+// Florentine: „Im Management sollte ich Kunden selbstständig Mitarbeitern
+// zuweisen bzw. verschieben können." Die Route gab es seit dem Vormittag;
+// der Knopf fehlte — eine Route ohne Knopf ist für Florentine nicht erledigt.
+// Der Block zeigt sich nur, wenn der Server sagt: darfVerschieben.
+// ═══════════════════════════════════════════════════════════════════════════
+function Betreuer({ personId, aktuell }: { personId: number | null; aktuell: string | null }) {
+  const [darf, setDarf] = useState(false);
+  const [kollegen, setKollegen] = useState<{ id: number; name: string; rolle: string }[]>([]);
+  const [ziel, setZiel] = useState("");
+  const [grund, setGrund] = useState("");
+  const [offen, setOffen] = useState(false);
+  const [laeuft, setLaeuft] = useState(false);
+  const [meldung, setMeldung] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!personId) return;
+    api("/agent/kunden/kollegen").then((r) => {
+      if (!r.ok) return;
+      setDarf(!!r.json.darfVerschieben);
+      setKollegen(r.json.kollegen ?? []);
+    });
+  }, [personId]);
+
+  if (!personId || !darf) return null;
+
+  const verschieben = async () => {
+    setLaeuft(true); setMeldung(null);
+    const r = await api(`/agent/kunden/${personId}/betreuer`, {
+      method: "POST", body: JSON.stringify({ agentId: Number(ziel), grund }),
+    });
+    setLaeuft(false);
+    setMeldung(r.ok ? (r.json.meldung || "Verschoben.") : (r.json?.error || "Das hat nicht geklappt."));
+    if (r.ok) { setOffen(false); setGrund(""); setZiel(""); }
+  };
+
+  return (
+    <Sek
+      titel="Betreuer"
+      erklaer={`Zuständig ist ${aktuell || "niemand"}. Als Leitung kannst du den Kunden einem Kollegen geben — mit einem Satz, warum.`}
+      kopfRechts={<button type="button" className="pi-knopf klein still" onClick={() => setOffen((o) => !o)}>{offen ? "Zu" : "Verschieben"}</button>}
+    >
+      {offen && (
+        <div style={{ display: "grid", gap: 10, marginTop: 6 }}>
+          <label style={{ display: "grid", gap: 4, fontSize: 13 }}>
+            <span className="leise">Zu wem?</span>
+            <select value={ziel} onChange={(e) => setZiel(e.target.value)} className="pi-eingabe">
+              <option value="">— Kollegen wählen —</option>
+              {kollegen.map((k) => <option key={k.id} value={k.id}>{k.name} · {k.rolle}</option>)}
+            </select>
+          </label>
+          <label style={{ display: "grid", gap: 4, fontSize: 13 }}>
+            <span className="leise">Warum? (steht im Verlauf)</span>
+            <input className="pi-eingabe" value={grund} maxLength={300} placeholder="z. B. Geschäftskunde — gehört zu Nikita" onChange={(e) => setGrund(e.target.value)} />
+          </label>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <button type="button" className="pi-knopf klein" disabled={laeuft || !ziel || grund.trim().length < 5} onClick={() => void verschieben()}>
+              {laeuft ? "Einen Moment …" : "Kunden verschieben"}
+            </button>
+            {(!ziel || grund.trim().length < 5) && <span className="leise" style={{ fontSize: 12 }}>{!ziel ? "Bitte einen Kollegen wählen." : "Bitte den Grund in einem Satz."}</span>}
+          </div>
+        </div>
+      )}
+      {meldung && <p className="pi-sek-satz" style={{ marginTop: 8 }}>{meldung}</p>}
+    </Sek>
+  );
+}
+
 function Sek({ titel, erklaer, children, kopfRechts }: { titel: string; erklaer: string; children: ReactNode; kopfRechts?: ReactNode }) {
   return (
     <section className="pi-sek">
@@ -2636,6 +2706,7 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
           {/* Der Sprachvermerk steht direkt hinter den Anrufen — dort wird er
               gefüllt, gleich nachdem jemand die Barriere erlebt hat. */}
           <Sprachvermerk personId={k.personId} />
+          <Betreuer personId={k.personId} aktuell={(k as any).betreuer ?? (k as any).agentName ?? null} />
           <Sek titel="Kein echter Kunde?" erklaer="Melden statt löschen – die Vertriebsleitung prüft, der Kunde bleibt bis zur Entscheidung in deiner Liste.">
             {!testOffen ? (
               <button type="button" className="pi-link" style={{ justifySelf: "start" }} onClick={() => setTestOffen(true)}>Als Testeintrag melden</button>

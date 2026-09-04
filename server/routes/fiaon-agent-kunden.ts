@@ -2214,6 +2214,25 @@ router.post("/agent/crm/kunden/:personId/antragsdaten", requireAgent, async (req
 // die Termin-Übergabe zieht. Der Bestandsschutz in tier.ts hält die
 // Verschiebung: Der neue Betreuer wird beim ersten eigenen Kontakt fest.
 // ═══════════════════════════════════════════════════════════════════════════
+/** GET /agent/kunden/kollegen — wer kann einen Kunden bekommen, und darf ich verschieben? */
+router.get("/agent/kunden/kollegen", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const { rolleVon } = await import("../lib/fiaon-kundenzugriff");
+    const rolle = await rolleVon(req.agent!.id);
+    const kollegen = (await sqlPool`
+      SELECT id, name, COALESCE(rolle, 'agent') AS rolle
+        FROM fiaon_agents
+       WHERE active AND NOT COALESCE(is_test_account, FALSE)
+         AND COALESCE(rolle, 'agent') IN ('agent', 'vertriebsleiter', 'onboarding', 'admin')
+       ORDER BY name
+    `) as any[];
+    res.json({ ok: true, darfVerschieben: ["vertriebsleiter", "admin"].includes(rolle), kollegen });
+  } catch (err) {
+    console.error("[FIAON-KUNDEN] kollegen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 router.post("/agent/kunden/:personId/betreuer", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
     const personId = Number(req.params.personId);

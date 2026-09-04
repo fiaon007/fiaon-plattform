@@ -2356,6 +2356,63 @@ router.post("/admin/team/abrechnung/:id/neu-erzeugen", async (req: Request, res:
 });
 
 /**
+ * GET/POST /admin/team/pool-rueckgabe — C-Kunden ohne Kontakt zurück in den Pool.
+ *
+ * 04.09.2026 (E-122), Justin: „Go, C-Kunden ohne Kontakt seit 30 Tagen zurück in
+ * den Pool." Hintergrund: Um 12:20 und 15:38 wurden über die Kundenzentrale
+ * („gleichmäßig auf die kleinsten Bestände verteilen") rund 2.900 unberührte
+ * Leads in vier private Vorräte geschrieben (Angelique 794, Rifka 781,
+ * Viktoria 793, Nikita 542). Der Pool war damit leer, die Arbeitsliste konnte
+ * nichts nachschieben. Die 3-Tage-Regel hätte sie erst am 07.09. zurückgeholt.
+ *
+ * Regel: Stufe C (Lead), kein Mandat, kein Kontakt (Verlauf über Person oder
+ * Bestellung) seit `tage` Tagen — nie berührt zählt als „kein Kontakt" —, kein
+ * künftiger Termin, keine künftige Zusage oder Wiedervorlage, echt, nicht
+ * gesperrt. GET = Vorschau je Mitarbeiter, POST {schreiben:true} = ausführen.
+ */
+async function poolRueckgabe(tage: number, schreiben: boolean) {
+  const kandidaten = (await sqlPool`
+    SELECT p.id, p.assigned_agent_id, a.name AS agent
+      FROM fiaon_persons p JOIN fiaon_agents a ON a.id = p.assigned_agent_id
+     WHERE p.priority_tier = 3 AND p.mandat_seit IS NULL AND p.assigned_agent_id IS NOT NULL
+       AND p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL AND NOT COALESCE(p.is_blocked, FALSE)
+       AND (p.promised_payment_date IS NULL OR p.promised_payment_date < CURRENT_DATE)
+       AND (p.follow_up_date IS NULL OR p.follow_up_date < CURRENT_DATE)
+       AND NOT EXISTS (SELECT 1 FROM fiaon_termine t WHERE t.person_id = p.id AND t.abgesagt_am IS NULL AND t.beginn > NOW())
+       AND COALESCE(
+             (SELECT MAX(c1.created_at) FROM fiaon_contact_log c1 WHERE c1.person_id = p.id AND c1.voided_at IS NULL),
+             (SELECT MAX(c2.created_at) FROM fiaon_contact_log c2 JOIN fiaon_applications a2 ON a2.ref = c2.ref WHERE a2.person_id = p.id AND c2.voided_at IS NULL),
+             '1970-01-01'::timestamptz
+           ) < NOW() - (${tage} || ' days')::interval
+  `) as any[];
+  const jeAgent: Record<string, number> = {};
+  for (const k of kandidaten) jeAgent[k.agent] = (jeAgent[k.agent] || 0) + 1;
+  if (!schreiben || kandidaten.length === 0) return { gesamt: kandidaten.length, jeAgent, zurueck: 0 };
+  const ids = kandidaten.map((k) => Number(k.id));
+  const r = (await sqlPool`
+    UPDATE fiaon_persons SET assigned_agent_id = NULL, updated_at = NOW()
+     WHERE id = ANY(${ids}) AND mandat_seit IS NULL RETURNING id
+  `) as any[];
+  await sqlPool`
+    UPDATE fiaon_applications SET assigned_agent_id = NULL, updated_at = NOW()
+     WHERE person_id = ANY(${ids}) AND merged_into IS NULL
+  `.catch(() => {});
+  await sqlPool`
+    INSERT INTO fiaon_lauf_historie (name, begonnen, beendet, dauer_ms, ergebnis, meldung)
+    VALUES ('pool-rueckgabe', NOW(), NOW(), 0, 'erfolg', ${`${r.length} C-Kunden ohne Kontakt seit ${tage} Tagen zurück in den Pool: ${Object.entries(jeAgent).map(([n, z]) => `${n} ${z}`).join(", ")}`})
+  `.catch(() => {});
+  return { gesamt: kandidaten.length, jeAgent, zurueck: r.length };
+}
+router.get("/admin/team/pool-rueckgabe", async (req: Request, res: Response) => {
+  try { res.json({ ok: true, ...(await poolRueckgabe(Math.max(1, Math.min(365, Number(req.query.tage) || 30)), false)) }); }
+  catch (e: any) { res.status(500).json({ ok: false, error: String(e?.message || e).slice(0, 200) }); }
+});
+router.post("/admin/team/pool-rueckgabe", async (req: Request, res: Response) => {
+  try { res.json({ ok: true, ...(await poolRueckgabe(Math.max(1, Math.min(365, Number(req.body?.tage) || 30)), req.body?.schreiben === true)) }); }
+  catch (e: any) { res.status(500).json({ ok: false, error: String(e?.message || e).slice(0, 200) }); }
+});
+
+/**
  * GET/POST /admin/team/sonderrollen-bereinigen — Vertriebskunden zurückgeben.
  *
  * GET zeigt, was passieren würde. POST mit `schreiben: true` tut es.

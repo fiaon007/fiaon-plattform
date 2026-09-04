@@ -23,6 +23,9 @@ import VerguetungTafel from "@/components/admin/VerguetungTafel";
 
 interface Mitglied {
   first_name?: string | null;
+  last_name?: string | null;
+  /** „Herr"/„Frau" — so nennt Mara den Mitarbeiter dem Kunden gegenüber (E-117). */
+  anrede?: string | null;
   pruefkonto?: boolean;
   id: number; name: string; vorname: string; email: string; avatar: string | null;
   rolle: string; active: boolean; distribution_active: boolean; is_test_account: boolean;
@@ -1743,6 +1746,19 @@ function MitgliedDetail({
     if (j?.ok) onAenderung();
   };
 
+  // 04.09.2026 (E-117): Anrede für Kundenmails — „Herr Stripling ruft Sie an".
+  const anredeSpeichern = async (wert: "Herr" | "Frau" | null) => {
+    setBusy("anrede");
+    const r = await fetch(`/api/fiaon/admin/agents/${id}/update`, {
+      method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ anrede: wert }),
+    }).catch(() => null);
+    const j = await r?.json().catch(() => null);
+    setBusy(null);
+    setHinweis(j?.ok ? (wert ? `Anrede „${wert}" gespeichert — Mara schreibt jetzt „${wert} ${m.last_name || m.name.split(" ").slice(-1)[0]}".` : "Anrede entfernt — Mara nennt den vollen Namen.") : (j?.error || "Fehler."));
+    if (j?.ok) onAenderung();
+  };
+
   return (
     <FiaonEbene
       offen onZu={onZu}
@@ -1874,6 +1890,24 @@ function MitgliedDetail({
 
           {reiter === "verwaltung" && (
             <>
+              <p className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+                Anrede gegenüber Kunden
+              </p>
+              <div className="flex flex-wrap items-center gap-2 mb-1">
+                {(["Herr", "Frau"] as const).map((w) => (
+                  <button key={w} type="button" onClick={() => void anredeSpeichern(w)} disabled={busy === "anrede"}
+                          className={`px-4 py-2.5 rounded-xl text-[13px] font-bold border ${m.anrede === w ? "text-white bg-[#1d4ed8] border-[#1d4ed8]" : "text-slate-700 bg-white border-slate-200"} disabled:opacity-40`}>
+                    {w} {m.last_name || ""}
+                  </button>
+                ))}
+                <button type="button" onClick={() => void anredeSpeichern(null)} disabled={busy === "anrede" || !m.anrede}
+                        className="px-3 py-2.5 rounded-xl text-[13px] text-slate-500 border border-slate-200 bg-white disabled:opacity-40">
+                  keine
+                </button>
+              </div>
+              <p className="mb-5 text-[11.5px] text-slate-400 leading-snug">
+                So nennt Mara diesen Menschen in Kundenmails: mit Anrede „{m.anrede || "Herr/Frau"} {m.last_name || "Nachname"}“, ohne Anrede mit vollem Namen. Nie nur der Vorname.
+              </p>
               {/* ── PORTAL ANSEHEN ─────────────────────────────────────────
                   Der Vorgesetzte: „ich kann mir ja nicht ein Account machen um
                   jede Abteilung, jedes Dashboard zu sehen." Jetzt: ein Klick,

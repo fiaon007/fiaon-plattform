@@ -106,13 +106,14 @@ async function protokoll(k: WerkzeugKontext, werkzeug: string, text: string, sic
  * niemand besitzt einen Kunden vor dem Mandat, und eine Aufgabe ist keine
  * Zuteilung. Rollen-Literale prüft `scripts/pruef-rollen.ts`.
  */
-async function zustaendig(personId: number | null): Promise<{ id: number | null; name: string }> {
+async function zustaendig(personId: number | null): Promise<{ id: number | null; name: string; kundenName: string }> {
   const { auftragEmpfaenger } = await import("../routes/fiaon-betreiber-todo");
   const wer = await auftragEmpfaenger(personId);
-  // Vorname wie bisher („Postmeister an Nikita: …"), sonst der volle Name.
+  // `name` = intern (Vorname, „Postmeister an Nikita: …"); `kundenName` = was
+  // der Kunde liest („Herr Stripling" oder „Daniel Stripling"), nie nur der Vorname.
   return wer.id
-    ? { id: wer.id, name: String(wer.vorname || "").trim() || String(wer.name || "").trim() || "Leitung" }
-    : { id: null, name: "Leitung" };
+    ? { id: wer.id, name: String(wer.vorname || "").trim() || String(wer.name || "").trim() || "Leitung", kundenName: wer.kundenName || String(wer.name || "").trim() || "unsere Leitung" }
+    : { id: null, name: "Leitung", kundenName: "unsere Leitung" };
 }
 
 // ── Die Werkzeuge ─────────────────────────────────────────────────────────
@@ -170,7 +171,7 @@ export const notizAnBetreuer: Werkzeug = {
         } as any);
       } catch { /* Rückruf ist ein Zusatz, kein Muss */ }
     }
-    return { ok: true, ergebnis: `${wer.name} ist informiert${p.anrufen ? " und ruft an" : ""}.`, daten: { betreuer: wer.name, dringend: !!p.dringend } };
+    return { ok: true, ergebnis: `${wer.kundenName} ist informiert${p.anrufen ? " und ruft Sie an" : ""}.`, daten: { betreuer: wer.kundenName, betreuer_intern: wer.name, dringend: !!p.dringend } };
   },
 };
 
@@ -207,9 +208,10 @@ export const aufgabeAnBetreuer: Werkzeug = {
       quelle: "postmeister", autorName: "Mara",
     });
     const wer = erg.agentName ?? "die Leitung";
+    const werKunde = erg.kundenName ?? erg.agentName ?? "unsere Leitung";
     await protokoll(k, "aufgabe_an_betreuer", `Aufgabe für ${wer}: „${titel}" (fällig ${faelligAm}). ${text.slice(0, 300)}`);
     const wann = tage === 0 ? "heute" : tage === 1 ? "morgen" : `in ${tage} Tagen`;
-    return { ok: true, ergebnis: `${wer} hat die Aufgabe „${titel}" bekommen, fällig ${wann}.`, daten: { betreuer: erg.agentName, aufgabe: titel, faellig: faelligAm, aufgabe_id: erg.id } };
+    return { ok: true, ergebnis: `${werKunde} hat die Aufgabe „${titel}" bekommen und meldet sich ${wann}.`, daten: { betreuer: werKunde, betreuer_intern: erg.agentName, aufgabe: titel, faellig: faelligAm, aufgabe_id: erg.id } };
   },
 };
 
@@ -462,7 +464,7 @@ export const eskalationVorbereiten: Werkzeug = {
       VALUES ('Zahlung verweigert — Anruf vor Eskalation', ${text}, 'postmeister', 1, 'postmeister', 'offen',
               ${wer.id ? "agent" : "betreiber"}, ${wer.id}, ${wer.name}, ${k.ref ? `/chef/s/akte?ref=${k.ref}` : null})
     `.catch(() => {});
-    return { ok: true, ergebnis: `${wer.name} ruft an, bevor etwas eskaliert.`, daten: { offen_euro: summe, betreuer: wer.name } };
+    return { ok: true, ergebnis: `${wer.kundenName} ruft Sie an, bevor etwas eskaliert.`, daten: { offen_euro: summe, betreuer: wer.kundenName } };
   },
 };
 

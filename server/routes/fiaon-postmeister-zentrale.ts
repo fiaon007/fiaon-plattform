@@ -267,12 +267,19 @@ async function entwurfSenden(id: number, textNeu?: string | null, wahl: SendeWah
     const gebaut = plan.length ? await anhaengeBauen(plan) : { dateien: [], fehler: [] as string[] };
     if (gebaut.fehler.length) erledigt.push(`Nicht angehängt: ${gebaut.fehler.join("; ")}`);
     const mail = await nachrichtLesen(r.postfach, r.gmail_id);
-    await antwortSenden(r.postfach, mail, text, r.antwort_html ?? null, gebaut.dateien);
+    // Text und HTML aus dem FINALEN Text bauen — nie das alte HTML mit neuem Text.
+    const { antwortAusText, grussMitAgent } = await import("../lib/fiaon-postmeister-antworttext");
+    const { agentName } = await import("../lib/fiaon-postmeister-agent");
+    const { postfachGruss } = await import("./fiaon-postmeister");
+    const name = await agentName();
+    const grussVorgabe = grussMitAgent(postfachGruss(String(r.postfach)), name);
+    const fertig = antwortAusText(text, { schritt: jsonOderLeer(r.naechster_schritt, null), betreff: String(r.betreff || ""), sprache: r.sprache ?? null, agentName: name, gruss: grussVorgabe });
+    await antwortSenden(r.postfach, mail, fertig.text, fertig.html, gebaut.dateien);
     if (gebaut.dateien.length) erledigt.push(`Angehängt: ${gebaut.dateien.map((d) => d.dateiname).join(", ")}`);
     if (r.antwort_draft_id) await entwurfLoeschen(r.postfach, r.antwort_draft_id).catch(() => {});
     await nachrichtLabeln(r.postfach, r.gmail_id, [await labelSicherstellen(r.postfach, "FIAON/Beantwortet")], ["UNREAD"]).catch(() => {});
     await sqlPool`
-      UPDATE fiaon_postmeister SET aktion = 'gesendet', antwort = ${text}, gesendet_am = NOW(), updated_at = NOW(),
+      UPDATE fiaon_postmeister SET aktion = 'gesendet', antwort = ${fertig.text}, antwort_html = ${fertig.html}, gesendet_am = NOW(), updated_at = NOW(),
              anhaenge = ${plan.length ? sqlPool.json(plan as any) : null} WHERE id = ${id}
     `;
     if (r.ref) {
@@ -412,6 +419,7 @@ router.get("/admin/postmeister/kopf", async (_req: Request, res: Response) => {
       rueckstand: threads ?? { offen: 0, gesamt: 0 },
       kostenHeuteEuro: Number((await kostenHeute("postmeister-antwort")).toFixed(2)),
       postfaecher: await postfaecherProbe().catch(() => []),
+      agent: await (await import("../lib/fiaon-postmeister-agent")).agentNamen().catch(() => ({ vorname: "Mara", nachname: "", voll: "Mara" })),
     });
   } catch (e: any) {
     res.status(500).json({ ok: false, error: String(e?.message || e).slice(0, 200) });

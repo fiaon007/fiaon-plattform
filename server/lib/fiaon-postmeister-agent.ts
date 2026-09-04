@@ -42,13 +42,27 @@ const MAX_RUNDEN = 6;
  * Agenten einen Namen"). Steht in fiaon_settings unter `postmeister_name`,
  * damit Justin ihn ohne Code ändert. Vorgabe: Mara.
  */
-export async function agentName(): Promise<string> {
+/**
+ * Vor- und Nachname der Agentin (04.09.2026, Justin: „Mara braucht einen
+ * Nachnamen"). Beides in fiaon_settings: postmeister_name (Vorgabe „Mara"),
+ * postmeister_nachname (Vorgabe „Lindner"). Unterschrift und Prompt tragen den
+ * vollen Namen; das Netz gegen doppelte Signaturen kennt beide Formen.
+ */
+export async function agentNamen(): Promise<{ vorname: string; nachname: string; voll: string }> {
+  let vorname = "Mara", nachname = "Lindner";
   try {
     const { sqlPool } = await import("./db-pool");
-    const [r] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = 'postmeister_name' LIMIT 1`) as any[];
-    const n = String(r?.value ?? "").trim();
-    return n || "Mara";
-  } catch { return "Mara"; }
+    const rows = (await sqlPool`SELECT key, value FROM fiaon_settings WHERE key IN ('postmeister_name', 'postmeister_nachname')`) as any[];
+    for (const r of rows) {
+      const v = String(r.value ?? "").trim();
+      if (r.key === "postmeister_name" && v) vorname = v;
+      if (r.key === "postmeister_nachname") nachname = v; // leer = bewusst ohne Nachnamen
+    }
+  } catch { /* Vorgaben */ }
+  return { vorname, nachname, voll: [vorname, nachname].filter(Boolean).join(" ") };
+}
+export async function agentName(): Promise<string> {
+  return (await agentNamen()).voll;
 }
 const ZEITGRENZE_MS = 90_000;
 
@@ -406,7 +420,7 @@ function systemPrompt(ein: {
 }): string {
   const schritte = ERLAUBTE_SCHRITTE[ein.lage].join(", ");
   return [
-    `Du heißt ${ein.name} und arbeitest im Kundendienst von FIAON. Du schreibst aus dem Postfach ${ein.postfach}. Du bist ein Mensch am Schreibtisch, kein Automat: Du hast die Akte gelesen und den ganzen bisherigen Schriftwechsel, bevor du antwortest.`,
+    `Du heißt ${ein.name} und arbeitest im Kundendienst von FIAON. Kolleginnen und Kollegen nennst du dem Kunden gegenüber so, wie die Werkzeuge sie dir nennen (Herr/Frau Nachname oder voller Name) — nie nur mit Vornamen. Du schreibst aus dem Postfach ${ein.postfach}. Du bist ein Mensch am Schreibtisch, kein Automat: Du hast die Akte gelesen und den ganzen bisherigen Schriftwechsel, bevor du antwortest.`,
     `Wenn der Kunde dich mit Namen anspricht oder auf eine frühere Mail von dir Bezug nimmt, gehst du darauf ein — du erinnerst dich an alles, was in diesem Verlauf steht.`,
     `DU UNTERSCHREIBST NICHT. Kein Name, kein Gruß am Ende — beides hängt der Server an. Dein Text endet mit dem letzten Satz an den Kunden.`,
     `KEINE ADRESSE (URL) IM TEXT. Wenn der Kunde eine Seite braucht, nennst du sie beim Namen („die Zahlungsseite", „Ihren Bereich") — der Knopf darunter trägt die Adresse. Eine URL im Fließtext ist ein Fremdkörper.`,
@@ -641,8 +655,13 @@ async function pruefenUndAbschliessen(roh: any, k: {
     // Pflichtangaben je Lage
     if (["unbezahlt", "zahlung_gemeldet", "rate_ueberfaellig", "gekuendigt"].includes(k.lage)) {
       const seite = k.werkzeugDaten.zahlungslink_bauen?.zahlungsseite;
+      // 04.09.2026: Der Knopf unter dem Text trägt die Adresse (antwortBauen),
+      // kernBereinigen nimmt sie aus dem Text sogar heraus. Die Prüfung verlangte
+      // sie trotzdem im Modelltext — Hauptgrund für „Entwurf" bei sauberen
+      // Antworten (2427 Jusic: alles richtig, Knopf da, trotzdem Entwurf).
+      // Es zählt: Zahlungsseite geholt UND als nächster Schritt gesetzt.
       if (!seite) fehlend.push("Zahlungsseite nicht geholt (zahlungslink_bauen fehlt)");
-      else if (!t.includes(String(seite))) fehlend.push("Zahlungsseite nicht in der Antwort verlinkt");
+      else if (!t.includes(String(seite)) && String(schritt?.url || "") !== String(seite)) fehlend.push("Zahlungsseite weder im Text noch als Knopf");
     }
     // Termin in den nächsten sieben Tagen muss vorkommen
     const naher = (k.akte.termine ?? []).find((tm: any) => /heute|morgen|in \d+ Tagen/.test(tm.beginn) && tm.status === "gebucht");
@@ -651,8 +670,19 @@ async function pruefenUndAbschliessen(roh: any, k: {
     if (!schritt) fehlend.push("kein nächster Schritt");
     else {
       if (!ERLAUBTE_SCHRITTE[k.lage].includes(schritt.art)) fehlend.push(`Schritt „${schritt.art}" ist in dieser Lage nicht erlaubt`);
-      if (schritt.url && !t.includes(schritt.url)) fehlend.push("Adresse des nächsten Schritts fehlt im Text");
+      // Die Adresse des Schritts hängt der Server als Knopf an — sie muss nicht
+      // im Text stehen. Nur eine leere Adresse bei einem Schritt, der eine braucht, ist ein Mangel.
+      if (!schritt.url && ["zahlung", "termin", "antrag", "bereich", "startgespraech", "unterlagen", "angebot"].includes(String(schritt.art))) fehlend.push(`Schritt „${schritt.art}" ohne Adresse`);
     }
+    // Sie-Form — Justin 04.09.2026: „wir schreiben immer in SIE-Form". Ein Prompt
+    // ist eine Bitte; das hier ist die Wand. Kleingeschriebenes du/dich/dir/dein
+    // kommt in einem Sie-Text nicht vor (Zitate des Kunden stehen nicht im Kern).
+    const sprache = String(k.einordnung.sprache || "de").slice(0, 2);
+    const duForm = sprache === "de" ? /(^|[\s„"(])(du|dich|dir|dein|deine|deinen|deinem|deiner|deines|euch|euer|eure)(?=[\s.,;:!?)"“]|$)/
+      : sprache === "nl" ? /(^|[\s("])(je|jij|jou|jouw|jullie)(?=[\s.,;:!?)"]|$)/
+      : sprache === "fr" ? /(^|[\s("])(tu|toi|ton|ta|tes)(?=[\s.,;:!?)"]|$)/
+      : null;
+    if (duForm && duForm.test(t)) fehlend.push("Du-Form statt Sie-Form");
     // Offene Fragen ohne belegten Rückruf
     const offen = (roh.fragen_beantwortet ?? []).filter((f: any) => f && f.beantwortet === false);
     if (offen.length && !gelaufen.includes("notiz_an_betreuer") && !gelaufen.includes("aufgabe_an_betreuer")) fehlend.push("offene Frage ohne Rückruf, Aufgabe oder Notiz");

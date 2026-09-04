@@ -39,7 +39,7 @@ router.get("/admin/agents", async (_req, res) => {
     await ensureAgentTables();
     const settings = await getSettings();
     const agents = await sqlPool`
-      SELECT a.id, a.name, a.first_name, a.last_name, a.email, a.phone, a.active, a.avatar,
+      SELECT a.id, a.name, a.first_name, a.last_name, a.anrede, a.email, a.phone, a.active, a.avatar,
              a.commission_rate_bp, a.monthly_goal_cents,
              a.bank_iban_masked, a.bank_updated_at, a.bank_change_ack,
              a.invite_expires_at, a.password_hash IS NOT NULL AS has_password,
@@ -250,7 +250,10 @@ router.post("/admin/agents/:id/update", async (req, res) => {
   try {
     await ensureAgentTables();
     const id = Number(req.params.id);
-    const { firstName, lastName, phone, commissionRateBp, monthlyGoalCents, active, recruitedBy, overrideRateBp, distributionActive } = req.body || {};
+    const { firstName, lastName, phone, commissionRateBp, monthlyGoalCents, active, recruitedBy, overrideRateBp, distributionActive, anrede } = req.body || {};
+    // 04.09.2026 (E-117): Anrede „Herr"/„Frau" — Mara nennt den Mitarbeiter dem
+    // Kunden gegenüber damit „Herr Stripling"; ohne Anrede „Daniel Stripling".
+    const anredeWert = anrede === undefined ? undefined : (["Herr", "Frau"].includes(String(anrede)) ? String(anrede) : null);
     const rateBp = commissionRateBp === null || commissionRateBp === "" || commissionRateBp === undefined ? null : Math.round(Number(commissionRateBp));
     if (rateBp != null && (isNaN(rateBp) || rateBp < 0 || rateBp > 10000)) return res.status(400).json({ ok: false, error: "Provisionssatz ungültig" });
     const goal = monthlyGoalCents === null || monthlyGoalCents === "" || monthlyGoalCents === undefined ? null : Math.round(Number(monthlyGoalCents));
@@ -270,9 +273,10 @@ router.post("/admin/agents/:id/update", async (req, res) => {
         active = COALESCE(${typeof active === "boolean" ? active : null}, active),
         recruited_by = ${recruiter === undefined ? sqlPool`recruited_by` : recruiter},
         override_rate_bp = ${ovBp === undefined ? sqlPool`override_rate_bp` : ovBp},
-        distribution_active = COALESCE(${typeof distributionActive === "boolean" ? distributionActive : null}, distribution_active)
+        distribution_active = COALESCE(${typeof distributionActive === "boolean" ? distributionActive : null}, distribution_active),
+        anrede = ${anredeWert === undefined ? sqlPool`anrede` : anredeWert}
       WHERE id = ${id}
-      RETURNING id, name, email, active, commission_rate_bp, monthly_goal_cents, recruited_by, override_rate_bp, distribution_active
+      RETURNING id, name, email, active, commission_rate_bp, monthly_goal_cents, recruited_by, override_rate_bp, distribution_active, anrede
     `;
     if (rows.length === 0) return res.status(404).json({ ok: false, error: "Agent nicht gefunden" });
     res.json({ ok: true, agent: rows[0] });

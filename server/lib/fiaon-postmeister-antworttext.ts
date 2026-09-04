@@ -202,7 +202,9 @@ function kernBereinigen(kern: string, name: string, knopfUrl: string | null | un
   const zeilen = t.split("\n");
   while (zeilen.length > 1) {
     const letzte = zeilen[zeilen.length - 1].trim();
-    const istName = letzte === name || letzte === `${name}.` || /^(ihre?|dein[e]?)\s+\S+$/i.test(letzte) && letzte.includes(name);
+    const vorname = String(name || "").split(" ")[0];
+    const istName = letzte === name || letzte === `${name}.` || (!!vorname && (letzte === vorname || letzte === `${vorname}.`))
+      || /^(ihre?|dein[e]?)\s+\S+$/i.test(letzte) && (letzte.includes(name) || (!!vorname && letzte.includes(vorname)));
     const istGruss = /^(freundliche|beste|viele|herzliche|liebe)\s+grü(ß|ss)e,?$/i.test(letzte)
       || /^(mit\s+)?freundlichen\s+grü(ß|ss)en,?$/i.test(letzte)
       || /^(kind|best|warm)\s+regards,?$/i.test(letzte);
@@ -298,6 +300,58 @@ export function antwortBauen(ein: {
   const text = [ein.anrede, "", ...absaetze, "", ein.schritt?.url ? `${knopfText(ein.schritt, w)}: ${ein.schritt.url}` : "", "", gruss]
     .filter((z, i, a) => !(z === "" && a[i - 1] === "")).join("\n");
   return { text, html };
+}
+
+/**
+ * Aus dem fertigen Text (Anrede · Kern · Knopfzeile · Gruß) wieder Bausteine
+ * machen und die Mail neu bauen — 04.09.2026 (E-117).
+ *
+ * VORHER: Die Zentrale schickte beim Freigeben den BEARBEITETEN Text, aber das
+ * ALTE HTML aus der Datenbank. Mailprogramme zeigen HTML — die Korrektur des
+ * Menschen kam beim Kunden nie an. Und Entwürfe von vor dem Anrede-Fix trugen
+ * die doppelte Anrede weiter (2351 Krüger, von Hand gesendet um 10:29).
+ * NACHHER: Text zerlegen, durch kernBereinigen (nimmt eine zweite Anrede,
+ * Signatur, Telefonnummern) und antwortBauen — Text und HTML stimmen überein.
+ */
+export function antwortAusText(text: string, ein: {
+  schritt?: NaechsterSchritt | null; betreff: string; sprache?: string | null; agentName?: string | null; gruss: string;
+}): FertigeAntwort {
+  const zeilen = String(text || "").replace(/\r/g, "").split("\n");
+  // Anrede = erste nicht-leere Zeile, wenn sie wie eine Anrede aussieht.
+  let i = 0; while (i < zeilen.length && !zeilen[i].trim()) i++;
+  const erste = zeilen[i]?.trim() ?? "";
+  const anrede = ANREDE_ZEILE.test(erste) ? erste : "";
+  let rest = anrede ? zeilen.slice(i + 1) : zeilen.slice(i);
+  // Gruß = ab der letzten Abschiedsformel (alle Sprachen) bis zum Ende.
+  const abschiede = Object.values(RAHMEN).map((r) => r.abschied.toLowerCase());
+  let grussAb = -1;
+  for (let j = rest.length - 1; j >= 0; j--) {
+    const z = rest[j].trim().toLowerCase().replace(/,$/, "");
+    if (abschiede.includes(z) || /^(mit\s+)?freundlichen\s+grü(ß|ss)en$/.test(z)) { grussAb = j; break; }
+  }
+  const grussZeilen = grussAb >= 0 ? rest.slice(grussAb) : [];
+  if (grussAb >= 0) rest = rest.slice(0, grussAb);
+  // Knopfzeile („Rechnung ansehen und bezahlen: https://…") raus — der Knopf kommt neu.
+  const url = ein.schritt?.url ? String(ein.schritt.url) : null;
+  rest = rest.filter((z) => !(url && z.includes(url) && z.trim().length <= url.length + 60));
+  const kern = rest.join("\n").trim();
+  // Der Gruß des Hauses gewinnt immer — er trägt den aktuellen Namen der
+  // Agentin. Ein alter Entwurf („Mara" ohne Nachnamen) darf ihn nicht überleben.
+  return antwortBauen({ anrede: anrede || "Guten Tag,", kern, gruss: ein.gruss, schritt: ein.schritt ?? null, betreff: ein.betreff, sprache: ein.sprache, agentName: ein.agentName ?? null });
+}
+
+/**
+ * Der Gruß des Postfachs mit dem Namen der Agentin: „Freundliche Grüße / Mara
+ * Lindner / FIAON Welcome-Team". Nur wenn die zweite Zeile ein Team-Gruß ist
+ * („Ihr FIAON …") — ein persönlicher Gruß (js@: „Justin Schwarzott") bleibt,
+ * wie er ist. Bis 04.09.2026 stand sonst „Mara" über „Justin Schwarzott".
+ */
+export function grussMitAgent(gruss: string, agentName: string): string {
+  const zeilen = String(gruss || "").split("\n");
+  if (zeilen.length >= 2 && /^(Ihr|Ihre)\s+/.test(zeilen[1].trim()) && agentName.trim()) {
+    return [zeilen[0], agentName.trim(), zeilen[1].replace(/^(Ihr|Ihre)\s+/, ""), ...zeilen.slice(2)].join("\n");
+  }
+  return String(gruss || "");
 }
 
 function fremdsprachig(sprache: string | null | undefined): boolean {

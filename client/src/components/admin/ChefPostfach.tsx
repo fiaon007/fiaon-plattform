@@ -184,6 +184,19 @@ export default function ChefPostfach() {
     finally { setLaeuft(null); }
   }, [laden]);
 
+  // 04.09.2026 (E-117): Die Agentin hat Vor- und Nachnamen — beides hier änderbar.
+  const agentinUmbenennen = useCallback(async () => {
+    const vor = window.prompt("Vorname der Agentin", kopf?.agent?.vorname || "Mara"); if (vor == null) return;
+    const nach = window.prompt("Nachname der Agentin (leer = ohne Nachnamen)", kopf?.agent?.nachname || ""); if (nach == null) return;
+    try {
+      for (const [schluessel, wert] of [["postmeister_name", vor.trim()], ["postmeister_nachname", nach.trim()]] as const) {
+        await hole("/admin/postmeister/einstellung", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ schluessel, wert }) });
+      }
+      setMeldung({ art: "gut", text: `Die Agentin heißt jetzt ${[vor.trim(), nach.trim()].filter(Boolean).join(" ")}. Gilt für alle neuen Antworten.` });
+      await laden();
+    } catch (e: any) { setMeldung({ art: "warn", text: String(e?.message || e) }); }
+  }, [kopf, laden]);
+
   const kuendigungZurueck = useCallback(async (id: number) => {
     if (!window.confirm("Kündigung zurücknehmen? Stornierte Raten leben wieder auf.")) return;
     setLaeuft(`zurueck-${id}`);
@@ -271,6 +284,9 @@ export default function ChefPostfach() {
             </button>
           )}
           <button type="button" className="pf-knopf still" onClick={() => void laden()}>Aktualisieren</button>
+          <button type="button" className="pf-knopf still pf-agentin" title="Vor- und Nachname der Agentin ändern" onClick={() => void agentinUmbenennen()}>
+            {kopf?.agent?.voll || "Mara"} ✎
+          </button>
         </div>
       </div>
 

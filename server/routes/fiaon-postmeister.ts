@@ -515,6 +515,10 @@ async function wirksamerModus(pf: typeof POSTFAECHER[number]): Promise<Modus | "
 
 /** Die Adressen der bedienten Postfächer — für die Erreichbarkeits-Probe im Kopf. */
 export function postfachAdressen(): string[] { return POSTFAECHER.map((p) => p.adresse); }
+/** Der Gruß eines Postfachs (roh, ohne Agentennamen) — für das Neubauen beim Freigeben. */
+export function postfachGruss(adresse: string): string {
+  return POSTFAECHER.find((p) => p.adresse === adresse)?.gruss ?? "Freundliche Grüße\nIhr FIAON-Team\nfiaon.com";
+}
 
 export async function postmeisterLauf(opts: { q?: string; deckel?: number; nurOrdnen?: boolean; postfach?: string } = {}):
   Promise<{ verarbeitet: number; aktionen: Record<string, number> }> {
@@ -763,6 +767,13 @@ router.post("/admin/postmeister/einstellung", async (req: Request, res: Response
   try {
     const schluessel = String(req.body?.schluessel || "");
     const wert = String(req.body?.wert || "");
+    // 04.09.2026: Vor- und Nachname der Agentin sind freier Text (kurz, ohne Umbruch).
+    if (schluessel === "postmeister_name" || schluessel === "postmeister_nachname") {
+      const name = wert.replace(/[\r\n<>]/g, "").trim().slice(0, 40);
+      if (schluessel === "postmeister_name" && name.length < 2) return res.status(400).json({ ok: false, error: "Der Vorname braucht mindestens zwei Zeichen" });
+      await setSetting(schluessel, name);
+      return res.json({ ok: true, schluessel, wert: name });
+    }
     if (!ERLAUBTE_SCHLUESSEL.has(schluessel)) return res.status(400).json({ ok: false, error: "Unbekannter Schalter" });
     if (!["an", "aus", "auto", "hybrid", "entwurf"].includes(wert)) return res.status(400).json({ ok: false, error: "Unbekannter Wert" });
     await setSetting(schluessel, wert);

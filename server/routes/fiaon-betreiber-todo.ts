@@ -184,6 +184,8 @@ export interface AuftragErgebnis {
   id: number | null;
   agentId: number | null;
   agentName: string | null;
+  /** So heißt der Mitarbeiter dem Kunden gegenüber („Herr Stripling"). */
+  kundenName: string | null;
   anBetreiber: boolean;
   faelligAm: string;
 }
@@ -197,22 +199,38 @@ export interface AuftragErgebnis {
  * denselben Kunden ohne Betreuer zwei Antworten: Notiz an Daniel (erster nach
  * id), Auftrag an Florentine (wenigste offene Aufträge).
  */
-export async function auftragEmpfaenger(personId: number | null): Promise<{ id: number | null; name: string | null; email: string | null; vorname: string | null }> {
+export interface Empfaenger { id: number | null; name: string | null; email: string | null; vorname: string | null; nachname: string | null; anrede: string | null; kundenName: string | null }
+
+/**
+ * So heißt der Mitarbeiter dem KUNDEN gegenüber (04.09.2026, Justin: „eher den
+ * Nachnamen des Mitarbeiters"): „Herr Stripling", wenn die Anrede gepflegt ist,
+ * sonst der volle Name „Daniel Stripling" — nie nur der Vorname.
+ */
+export function kundenName(a: { anrede?: string | null; first_name?: string | null; last_name?: string | null; name?: string | null }): string | null {
+  const nach = String(a.last_name || "").trim();
+  const vor = String(a.first_name || "").trim();
+  const anrede = String(a.anrede || "").trim();
+  if (anrede && nach) return `${anrede} ${nach}`;
+  if (vor && nach) return `${vor} ${nach}`;
+  return String(a.name || "").trim() || null;
+}
+
+export async function auftragEmpfaenger(personId: number | null): Promise<Empfaenger> {
   if (personId) {
     try {
       const { zustaendigeRolle } = await import("../lib/fiaon-zustaendigkeit");
       const z = await zustaendigeRolle(personId);
       if (z?.agentId) {
         const [a] = (await sqlPool`
-          SELECT id, name, email, first_name FROM fiaon_agents
+          SELECT id, name, email, first_name, last_name, anrede FROM fiaon_agents
            WHERE id = ${z.agentId} AND COALESCE(active, TRUE) = TRUE AND COALESCE(is_test_account, FALSE) = FALSE LIMIT 1
         `) as any[];
-        if (a?.id) return { id: Number(a.id), name: String(a.name), email: a.email ?? null, vorname: a.first_name ?? null };
+        if (a?.id) return { id: Number(a.id), name: String(a.name), email: a.email ?? null, vorname: a.first_name ?? null, nachname: a.last_name ?? null, anrede: a.anrede ?? null, kundenName: kundenName(a) };
       }
       // Niemand eingetragen: die Rolle, die zur Lage passt, mit der kleinsten Last.
       const rollen = z?.rolle === "inkasso" ? ["inkasso", "vertriebsleiter"] : ["vertriebsleiter"];
       const [f] = (await sqlPool`
-        SELECT ag.id, ag.name, ag.email, ag.first_name,
+        SELECT ag.id, ag.name, ag.email, ag.first_name, ag.last_name, ag.anrede,
                (SELECT COUNT(*)::int FROM fiaon_betreiber_todos t
                  WHERE t.zustaendig_agent_id = ag.id AND t.status <> 'erledigt') AS offene
           FROM fiaon_agents ag
@@ -220,17 +238,17 @@ export async function auftragEmpfaenger(personId: number | null): Promise<{ id: 
            AND COALESCE(ag.is_test_account, FALSE) = FALSE
          ORDER BY (ag.rolle = ${rollen[0]}) DESC, offene ASC, ag.id ASC LIMIT 1
       `) as any[];
-      if (f?.id) return { id: Number(f.id), name: String(f.name), email: f.email ?? null, vorname: f.first_name ?? null };
+      if (f?.id) return { id: Number(f.id), name: String(f.name), email: f.email ?? null, vorname: f.first_name ?? null, nachname: f.last_name ?? null, anrede: f.anrede ?? null, kundenName: kundenName(f) };
     } catch (e) {
       console.error("[TODO] Empfänger:", String(e).slice(0, 160));
     }
   }
   const [l] = (await sqlPool`
-    SELECT id, name, email, first_name FROM fiaon_agents
+    SELECT id, name, email, first_name, last_name, anrede FROM fiaon_agents
      WHERE COALESCE(active, TRUE) = TRUE AND rolle = 'vertriebsleiter' AND COALESCE(is_test_account, FALSE) = FALSE
      ORDER BY id ASC LIMIT 1
   `.catch(() => [])) as any[];
-  return l?.id ? { id: Number(l.id), name: String(l.name), email: l.email ?? null, vorname: l.first_name ?? null } : { id: null, name: null, email: null, vorname: null };
+  return l?.id ? { id: Number(l.id), name: String(l.name), email: l.email ?? null, vorname: l.first_name ?? null, nachname: l.last_name ?? null, anrede: l.anrede ?? null, kundenName: kundenName(l) } : { id: null, name: null, email: null, vorname: null, nachname: null, anrede: null, kundenName: null };
 }
 
 export async function auftragFuerKunden(ein: AuftragEin): Promise<AuftragErgebnis> {
@@ -265,7 +283,7 @@ export async function auftragFuerKunden(ein: AuftragEin): Promise<AuftragErgebni
     // Schon beim richtigen Menschen? Dann nicht noch einmal übergeben.
     if (id && !r.neu && r.zustaendig_agent_id && Number(r.zustaendig_agent_id) === wer.id) {
       await beitrag(id, { autorArt: "system", autorName: ein.autorName ?? "Mara", art: "kommentar", text: text.slice(0, 2000) }).catch(() => {});
-      return { id, agentId: wer.id, agentName: wer.name, anBetreiber: !wer.id, faelligAm };
+      return { id, agentId: wer.id, agentName: wer.name, kundenName: wer.kundenName, anBetreiber: !wer.id, faelligAm };
     }
   } else {
     const [r] = (await sqlPool`
@@ -275,7 +293,7 @@ export async function auftragFuerKunden(ein: AuftragEin): Promise<AuftragErgebni
     `) as any[];
     id = r?.id ? Number(r.id) : null;
   }
-  if (!id) return { id: null, agentId: null, agentName: null, anBetreiber: true, faelligAm };
+  if (!id) return { id: null, agentId: null, agentName: null, kundenName: null, anBetreiber: true, faelligAm };
 
   if (wer.id) {
     await delegieren(id, wer.id, "");
@@ -304,7 +322,7 @@ export async function auftragFuerKunden(ein: AuftragEin): Promise<AuftragErgebni
       `.catch(() => {});
     }
   }
-  return { id, agentId: wer.id, agentName: wer.name, anBetreiber: !wer.id, faelligAm };
+  return { id, agentId: wer.id, agentName: wer.name, kundenName: wer.kundenName, anBetreiber: !wer.id, faelligAm };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

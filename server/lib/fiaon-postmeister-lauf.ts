@@ -248,9 +248,8 @@ export async function mailBearbeiten(ein: {
     const name = await agentName();
     // „Freundliche Grüße / Mara / FIAON Welcome-Team" — das „Ihr" fällt weg,
     // sobald ein Mensch davor steht; „Mara / Ihr Team" liest sich schief.
-    const grussMitName = ein.gruss
-      .replace(/^(Freundliche Grüße)\n/, `$1\n${name}\n`)
-      .replace(/\n(Ihr|Ihre)\s+(FIAON)/, "\n$2");
+    const { grussMitAgent } = await import("./fiaon-postmeister-antworttext");
+    const grussMitName = grussMitAgent(ein.gruss, name);
     const fertigeAntwort = antwortBauen({
       anrede: anrede.zeile, kern: erg.antwort, gruss: grussMitName, agentName: name,
       schritt: erg.naechsterSchritt, betreff: mail.betreff, sprache,

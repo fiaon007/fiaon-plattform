@@ -84,6 +84,26 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-09-04-mara-auftraege",
+    date: "2026-09-04",
+    category: "Neu",
+    title: "Mara gibt dir Aufträge — mit Frist und Mail",
+    summary: "Mara, unsere Mail-Assistentin, beantwortet Kundenmails selbst. Wenn ein Mensch etwas tun muss (Rückruf, Unterlagen prüfen, frühere Kündigung nachsehen), legt sie dir jetzt einen echten Auftrag an — mit Titel, Frist und einer Mail an dich. Kunden bekommen die Rechnung als PDF gleich mit.",
+    changes: [
+      "Neue Aufträge von Mara stehen unter Aufgaben → Aufträge, Bereich „Mara · Postfach“, mit Frist und dem Grund in ihren Worten. Bei jedem neuen Auftrag bekommst du die Mail „Neuer Auftrag für dich“.",
+      "Mara antwortet Kunden in Zahlungsfragen jetzt selbst und hängt die Rechnung als PDF an — auch für Monatsraten. Beschwerden, Kündigungen, Bestreiten, Anwaltsdrohungen und Rückrufwünsche gehen nie automatisch raus; die prüft ein Mensch im Chefbüro.",
+      "Schickt ein Kunde Dateien mit (Belege, Ausweis), bestätigt Mara den Eingang und legt dir den Auftrag an, die Datei zu prüfen — die Datei liegt im Postfach des Chefbüros.",
+      "Kündigt ein Kunde, gilt weiter: die gestellte Rate bleibt offen, mit ihrer Zahlung endet der Vertrag. Alles, was Mara tut, steht im Verlauf der Kundenakte.",
+    ],
+    howto: [
+      "Aufgaben → Reiter „Aufträge“ öffnen. Aufträge von Mara erkennst du am Bereich „Mara · Postfach“.",
+      "Auftrag annehmen, erledigen, Ergebnis eintragen (mindestens ein Satz) — genau wie bei Aufträgen von Justin.",
+      "Ist etwas unklar, stell im Auftrag eine Rückfrage — sie landet im Chefbüro.",
+    ],
+    link: { href: "/agent/aufgaben", label: "Aufträge öffnen" },
+    important: true,
+  },
+  {
     id: "2026-08-30-fiaon-copilot",
     date: "2026-08-30",
     category: "Neu",

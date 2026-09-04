@@ -29,6 +29,7 @@
 import { Router, type Request, type Response } from "express";
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { sqlPool } from "../lib/db-pool";
+import { requireChef } from "./fiaon-chef-zugang";
 
 const router = Router();
 
@@ -58,8 +59,16 @@ export interface Partei {
   gesamtanteil: string | null;
 }
 
+// ── NEUE CODES AM 04.09.2026 (Justin: „Setze alle Unterschriften zurück und
+// für jeden die neuen Zugangsdaten") ──────────────────────────────────────
+// Die ersten Codes hießen SWP-E1-2026 … SWP-V-2026. Wer einen davon kannte,
+// konnte die anderen drei erraten — das Muster war die ganze Information.
+// Bei vier Codes und einem Vertrag über 14 Mio EUR ist das zu wenig, auch mit
+// der Versuchsbremse davor. Die neuen tragen einen Zufallsteil aus einem
+// Alphabet ohne verwechselbare Zeichen (kein I, L, O, 0, 1), weil sie am
+// Telefon durchgegeben und abgetippt werden.
 export const PARTEIEN: Record<string, Partei> = {
-  "SWP-E1-2026": {
+  "SCP-E1-DNK8K7": {
     rolle: "erwerber1", bezeichnung: "Erwerber zu 1",
     name: "Schwarzott Capital Partners AG",
     sitz: "Löwenstrasse 20, 8001 Zürich, Schweiz",
@@ -67,7 +76,7 @@ export const PARTEIEN: Record<string, Partei> = {
     vertretung: "Justin Schwarzott, Verwaltungsrat, mit Einzelunterschrift",
     quote: "41,50 %", gesamtanteil: "EUR 5.810.000,00",
   },
-  "SWP-E2-2026": {
+  "SCP-E2-5K4HD3": {
     rolle: "erwerber2", bezeichnung: "Erwerber zu 2",
     name: "FIAON Ltd.",
     sitz: "128 City Road, London EC1V 2NX, United Kingdom",
@@ -75,14 +84,14 @@ export const PARTEIEN: Record<string, Partei> = {
     vertretung: null,
     quote: "15,00 %", gesamtanteil: "EUR 2.100.000,00",
   },
-  "SWP-E3-2026": {
+  "SCP-E3-NMXWR3": {
     rolle: "erwerber3", bezeichnung: "Erwerber zu 3",
     name: "Dr. Gerhold",
     sitz: "Woodland Hills, USA",
     register: null, vertretung: null,
     quote: "43,50 %", gesamtanteil: "EUR 6.090.000,00",
   },
-  "SWP-V-2026": {
+  "SCP-V-7PCGHZ": {
     rolle: "veraeusserer", bezeichnung: "Veräußerer",
     name: "Christian Schwab",
     sitz: "Olbersweg 41, 22767 Hamburg, Deutschland",
@@ -267,19 +276,34 @@ router.post("/scp/anmelden", async (req: Request, res: Response) => {
 router.get("/scp/stand", async (req: Request, res: Response) => {
   try {
     await ensureScpTabellen();
+    // ── DER UNTERSCHRIFTENSTAND GILT AUCH OHNE ANMELDUNG (04.09.2026) ────
+    // Justin: „Man sieht nicht wenn jemand unterschrieben hat." Der Grund lag
+    // hier: Ohne gültige Sitzung kam die Antwort { angemeldet: false } ZURÜCK
+    // OHNE das Feld `stand`. Die Oberfläche macht daraus ein leeres Feld und
+    // zeigt „0 von 4 Unterschriften liegen vor" — bei zwei geleisteten.
+    // Die Sitzung gilt sieben Tage; die Unterschriften stammen vom 26.08.,
+    // also sah JEDER, der später vorbeikam, den Vertrag als ungezeichnet.
+    // Das ist schlimmer als eine fehlende Anzeige: Es ist eine falsche.
+    //
+    // Der Stand verrät nichts, was die Seite nicht ohnehin zeigt — Parteien,
+    // Quoten und Beträge stehen dort für jeden lesbar. Ob eine Partei bereits
+    // gezeichnet hat, ist demgegenüber die harmlosere Angabe.
+    const standAlle = (await sqlPool`
+      SELECT rolle, unterschrift, unterzeichnet_am FROM scp_zeichnungen
+       WHERE rolle IS NOT NULL AND unterzeichnet_am IS NOT NULL`) as any[];
+    const standListe = standAlle.map((z: any) => ({
+      rolle: z.rolle, unterschrift: z.unterschrift, unterzeichnetAm: z.unterzeichnet_am,
+    }));
     const gastId = tokenPruefen((req as any).cookies?.[COOKIE]);
-    if (!gastId) return res.json({ ok: true, angemeldet: false });
+    if (!gastId) return res.json({ ok: true, angemeldet: false, stand: standListe });
     const [gast] = (await sqlPool`SELECT id, name, firma, email, telefon, rolle FROM scp_gaeste WHERE id = ${gastId}`) as any[];
-    if (!gast) return res.json({ ok: true, angemeldet: false });
+    if (!gast) return res.json({ ok: true, angemeldet: false, stand: standListe });
     const [meine] = (await sqlPool`
       SELECT dokument, anmerkungen, unterschrift, unterzeichnet_am
         FROM scp_zeichnungen WHERE gast_id = ${gastId} LIMIT 1`) as any[];
     // Der Stand ALLER Parteien: Ein Vertrag mit vier Unterschriften ist erst
     // dann vollstaendig, wenn alle vier da sind — jede Partei soll sehen,
     // worauf noch gewartet wird.
-    const alle = (await sqlPool`
-      SELECT rolle, unterschrift, unterzeichnet_am FROM scp_zeichnungen
-       WHERE rolle IS NOT NULL AND unterzeichnet_am IS NOT NULL`) as any[];
     const partei = gast.rolle ? Object.values(PARTEIEN).find((p) => p.rolle === gast.rolle) ?? null : null;
     res.json({
       ok: true, angemeldet: true,
@@ -289,10 +313,75 @@ router.get("/scp/stand", async (req: Request, res: Response) => {
         anmerkungen: meine.anmerkungen, unterschrift: meine.unterschrift,
         unterzeichnetAm: meine.unterzeichnet_am,
       } : null,
-      stand: alle.map((z) => ({ rolle: z.rolle, unterschrift: z.unterschrift, unterzeichnetAm: z.unterzeichnet_am })),
+      stand: standListe,
     });
   } catch (err) {
     console.error("[SCP] stand:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE AUFSICHT — was der Betreiber sehen muss (04.09.2026)
+//
+// Bis heute gab es KEINE Stelle, an der jemand den Stand des Vertrags
+// nachsehen konnte. Nur dieses Modul kannte die Tabellen; es existierte weder
+// eine Chef-Seite noch eine Admin-Ansicht. Justin wusste deshalb nicht, dass
+// zwei der vier Parteien längst gezeichnet hatten.
+//
+// Diese Route ist die Aufsicht: Sie zeigt alle vier Parteien mit ihrem Stand,
+// jede Anmeldung, jede Vertragsöffnung und jede Unterschrift mit Zeitpunkt,
+// IP und Prüfsumme. Sie liegt hinter requireChef("inhaber") — sie enthält
+// personenbezogene Daten Dritter (Namen, E-Mail, Telefon, IP) und geht
+// niemanden außer dem Betreiber etwas an.
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/chef/scp/aufsicht", requireChef("inhaber"), async (_req: Request, res: Response) => {
+  try {
+    await ensureScpTabellen();
+    const gaeste = (await sqlPool`
+      SELECT id, name, firma, email, telefon, rolle, erste_ip, created_at, zuletzt_am
+        FROM scp_gaeste ORDER BY id`) as any[];
+    const zeichnungen = (await sqlPool`
+      SELECT z.id, z.gast_id, z.rolle, z.dokument, z.unterschrift, z.unterzeichnet_am,
+             z.ip, z.ua, z.pruefsumme, z.anmerkungen, g.name AS gast_name, g.email AS gast_email
+        FROM scp_zeichnungen z LEFT JOIN scp_gaeste g ON g.id = z.gast_id
+       ORDER BY z.unterzeichnet_am NULLS LAST, z.id`) as any[];
+    const protokoll = (await sqlPool`
+      SELECT p.id, p.gast_id, p.art, p.detail, p.created_at, g.name AS gast_name
+        FROM scp_protokoll p LEFT JOIN scp_gaeste g ON g.id = p.gast_id
+       ORDER BY p.id DESC LIMIT 200`) as any[];
+
+    // Jede Partei mit ihrem Stand — auch die, die noch nie da war. Eine Liste,
+    // die nur Anwesende zeigt, beantwortet die wichtigste Frage nicht: wer fehlt.
+    const parteien = Object.entries(PARTEIEN).map(([code, p]) => {
+      const z = zeichnungen.find((x: any) => x.rolle === p.rolle && x.unterzeichnet_am);
+      const g = gaeste.find((x: any) => x.rolle === p.rolle);
+      return {
+        code, rolle: p.rolle, bezeichnung: p.bezeichnung, name: p.name,
+        quote: p.quote, gesamtanteil: p.gesamtanteil,
+        gezeichnet: !!z,
+        unterschrift: z?.unterschrift ?? null,
+        unterzeichnetAm: z?.unterzeichnet_am ?? null,
+        ip: z?.ip ?? null,
+        pruefsumme: z?.pruefsumme ?? null,
+        gastName: g?.name ?? null,
+        gastEmail: g?.email ?? null,
+        gastTelefon: g?.telefon ?? null,
+        zuletztDa: g?.zuletzt_am ?? null,
+      };
+    });
+    const gezeichnet = parteien.filter((p) => p.gezeichnet).length;
+    res.json({
+      ok: true,
+      zusammenfassung: {
+        gezeichnet, gesamt: parteien.length,
+        vollstaendig: gezeichnet === parteien.length,
+        fehlen: parteien.filter((p) => !p.gezeichnet).map((p) => p.name),
+      },
+      parteien, gaeste, zeichnungen, protokoll,
+    });
+  } catch (err) {
+    console.error("[SCP] aufsicht:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

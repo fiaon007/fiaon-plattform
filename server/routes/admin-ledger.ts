@@ -74,7 +74,7 @@ async function seedLedger() {
 
   const debitGens: Array<() => { description: string; category: string; amountCents: number }> = [
     () => ({ description: `Gehaltsauszahlung – ${Math.floor(rand() * 8) + 12} Mitarbeiter`, category: "Personalkosten", amountCents: between(14_000_000, 24_000_000) }),
-    () => ({ description: `Büromiete Löwenstrasse 20, 8001 Zürich`, category: "Miete & Infrastruktur", amountCents: 4_500_000 }),
+    () => ({ description: `Büromiete Schifflände 26, 8001 Zürich`, category: "Miete & Infrastruktur", amountCents: 4_500_000 }),
     () => ({ description: `Rechtsberatung – ${pick(legalFirms)}`, category: "Rechtsberatung", amountCents: between(500_000, 8_500_000) }),
     () => ({ description: `Bankgebühren & Transaktionskosten – ${pick(bankNames)}`, category: "Bankgebühren", amountCents: between(50_000, 550_000) }),
     () => ({ description: `Reisekosten Investorenmeetings ${pick(destinations)}`, category: "Reise & Repräsentation", amountCents: between(180_000, 2_200_000) }),

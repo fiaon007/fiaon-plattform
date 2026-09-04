@@ -857,7 +857,7 @@ function InvestmentDetailDrawer({
                   <InfoBox
                     label="Emittentin"
                     name="Schwarzott Capital Partners AG"
-                    details={"Löwenstrasse 20, 8001 Zürich, Schweiz\nCHE-102.119.428\nVerwaltungsratspräsident: Justin Schwarzott"}
+                    details={"Schifflände 26, 8001 Zürich, Schweiz\nCHE-102.119.428\nVerwaltungsratspräsident: Justin Schwarzott"}
                   />
                   <InfoBox
                     label="Investor"
@@ -979,7 +979,7 @@ function InvestmentDetailDrawer({
                   <InfoBox
                     label="Gesellschaft"
                     name="Schwarzott Capital Partners AG"
-                    details={"Löwenstrasse 20, 8001 Zürich, Schweiz\nCHE-102.119.428\nVerwaltungsratspräsident: Justin Schwarzott"}
+                    details={"Schifflände 26, 8001 Zürich, Schweiz\nCHE-102.119.428\nVerwaltungsratspräsident: Justin Schwarzott"}
                   />
                   <InfoBox
                     label="Investor"
@@ -1143,7 +1143,7 @@ function InvestmentDetailDrawer({
 
           <div className="px-7 py-6 text-center">
             <p className="text-[10px] text-slate-400 leading-relaxed">
-              Schwarzott Capital Partners AG · Löwenstrasse 20, 8001 Zürich · CHE-102.119.428
+              Schwarzott Capital Partners AG · Schifflände 26, 8001 Zürich · CHE-102.119.428
             </p>
           </div>
         </div>

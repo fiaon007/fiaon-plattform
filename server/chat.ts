@@ -42,7 +42,7 @@ const PLATFORM_KNOWLEDGE = {
     founded: "1992 (Neu ausgerichtet 2024)",
     ceo: "Justin Schwarzott",
     ceoEmail: "justin@schwarzott.com",
-    headquarters: "Löwenstrasse 20, 8001 Zürich, Schweiz",
+    headquarters: "Schifflände 26, 8001 Zürich, Schweiz",
     usOffice: "Schwarzott Global LLC, 3119 Coral Way, Suite 200, Miami, FL 33145, USA",
     industries: ["Strategische Investitionen", "Unternehmensberatung", "Immobilieninvestitionen (CH/US)", "Fix-and-Flip (USA)"],
     vision: "Global führend in strategischen Investitionen und Immobilien mit Fokus auf Wachstum und optimale Renditen"

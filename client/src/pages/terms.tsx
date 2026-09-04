@@ -101,7 +101,7 @@ export default function Terms() {
                   <p className="text-muted-foreground">Firma: Schwarzott Capital Partners AG</p>
                   <p className="text-muted-foreground">E-Mail: legal@aras-plattform.ai</p>
                   <p className="text-muted-foreground">Telefon: +41 43 344 6087</p>
-                  <p className="text-muted-foreground">Adresse: Löwenstrasse 20, 8001 Zürich, Schweiz</p>
+                  <p className="text-muted-foreground">Adresse: Schifflände 26, 8001 Zürich, Schweiz</p>
                   <p className="text-muted-foreground">Handelsregister: CHE-123.456.789</p>
                 </div>
               </motion.div>

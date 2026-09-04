@@ -150,7 +150,7 @@ export default function AdminLedgerManager() {
             <div>
               <p className="text-[10px] font-bold tracking-[.25em] uppercase mb-1" style={{ color: "#B8923A" }}>Schwarzott Group · Zürich</p>
               <h2 className="text-[22px] font-bold text-white leading-tight tracking-tight">Kontoauszug</h2>
-              <p className="text-[12px] mt-1" style={{ color: "#7a8ba8" }}>Hauptkonto CHF · Löwenstrasse 20, 8001 Zürich</p>
+              <p className="text-[12px] mt-1" style={{ color: "#7a8ba8" }}>Hauptkonto CHF · Schifflände 26, 8001 Zürich</p>
             </div>
             <div className="text-right hidden sm:block">
               <p className="text-[10px] font-bold tracking-[.15em] uppercase mb-1" style={{ color: "#B8923A" }}>Zeitraum</p>

@@ -71,7 +71,7 @@ export const PARTEIEN: Record<string, Partei> = {
   "SCP-E1-DNK8K7": {
     rolle: "erwerber1", bezeichnung: "Erwerber zu 1",
     name: "Schwarzott Capital Partners AG",
-    sitz: "Löwenstrasse 20, 8001 Zürich, Schweiz",
+    sitz: "Schifflände 26, 8001 Zürich, Schweiz",
     register: "UID CHE-102.119.428 · Handelsregisteramt des Kantons Zürich",
     vertretung: "Justin Schwarzott, Verwaltungsrat, mit Einzelunterschrift",
     quote: "41,50 %", gesamtanteil: "EUR 5.810.000,00",

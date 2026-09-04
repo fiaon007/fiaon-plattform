@@ -376,6 +376,16 @@ function AlleKunden({ onAkte, agenten, zeige }: {
 
   const jetzige = KUNDEN_FILTER.find((f) => f.key === filter);
 
+  // 04.09.2026 (E-120): Betreuer direkt aus der Liste ändern — mit Grund, der im Verlauf steht.
+  const betreuerAendern = async (p: any, agentId: number, agentName: string) => {
+    const grund = window.prompt(`${p.name} zu ${agentName} verschieben — warum? (steht im Verlauf des Kunden)`, "");
+    if (grund == null) return;
+    if (grund.trim().length < 5) { window.alert("Bitte den Grund in einem Satz."); return; }
+    const r = await api(`/agent/kunden/${p.personId}/betreuer`, { method: "POST", body: JSON.stringify({ agentId, grund: grund.trim() }) });
+    if (!r.ok) { window.alert(r.json?.error || "Nicht verschoben — der Server hat abgelehnt."); return; }
+    void holen();
+  };
+
   return (
     <>
       <div className="lt-suchzeile">
@@ -433,7 +443,13 @@ function AlleKunden({ onAkte, agenten, zeige }: {
                 {p.zusagedatum && <em className="ton-warn">zahlt {dtag(p.zusagedatum)}</em>}
               </span>
               <span className="lt-zeile-agent">
-                {p.agentName || <em className="ton-rot">ohne Betreuer</em>}
+                {/* 04.09.2026 (E-120): Florentine: „Im Management sollte ich Kunden
+                    selbstständig Mitarbeitern zuweisen können." Hier, in der Zeile. */}
+                <select className="lt-wahl klein" value="" aria-label={`Betreuer von ${p.name} ändern`}
+                        onChange={(e) => { const id = Number(e.target.value); if (id) void betreuerAendern(p, id, agenten.find((a) => a.id === id)?.name || ""); }}>
+                  <option value="">{p.agentName || "ohne Betreuer"} — ändern …</option>
+                  {agenten.filter((a) => a.name !== p.agentName).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
                 <small>{tageSeit(p.letzterKontakt)}</small>
               </span>
               <span className="lt-zeile-tun">

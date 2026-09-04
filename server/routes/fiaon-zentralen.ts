@@ -141,7 +141,7 @@ router.post("/admin/zentrale/kunden/aktion", async (req: Request, res: Response)
         const an = ziel ?? (await agentMitKleinsterLast());
         if (!an) break;
         const r = (await sqlPool`
-          UPDATE fiaon_persons SET assigned_agent_id = ${an}, assigned_at = NOW(), updated_at = NOW()
+          UPDATE fiaon_persons SET assigned_agent_id = ${an}, assigned_at = NOW(), betreuung_seit = COALESCE(betreuung_seit, NOW()), updated_at = NOW()
           WHERE id = ${id} AND merged_into_person_id IS NULL
             -- BESITZSCHUTZ: dokumentiert Betreute nur mit ausdrücklichem Willen.
             AND (betreuung_seit IS NULL OR ${req.body?.auchBetreute === true})

@@ -178,6 +178,8 @@ export interface Kunde {
   terminLink: string;
   gesperrt: boolean;
   betreutSeit: string | null;
+  betreuer?: string | null;
+  betreuerId?: number | null;
   letzterKontakt: string | null;
   letztesErgebnis: string | null;
   stammdaten: { strasse: string | null; plz: string | null; ort: string | null; land: string | null; geburtsdatum: string | null } | null;
@@ -1486,7 +1488,60 @@ function Sprachvermerk({ personId }: { personId: number | null }) {
 // der Knopf fehlte — eine Route ohne Knopf ist für Florentine nicht erledigt.
 // Der Block zeigt sich nur, wenn der Server sagt: darfVerschieben.
 // ═══════════════════════════════════════════════════════════════════════════
-function Betreuer({ personId, aktuell }: { personId: number | null; aktuell: string | null }) {
+/** Die Leitung entscheidet (04.09.2026, E-120): ein Modul, das weiß, ob der Angemeldete verschieben darf — einmal geladen. */
+let leitungLadung: Promise<{ darf: boolean; kollegen: { id: number; name: string; rolle: string }[] }> | null = null;
+function leitungsRechte() {
+  if (!leitungLadung) {
+    leitungLadung = api("/agent/kunden/kollegen").then((r) => ({ darf: !!r.ok && !!r.json?.darfVerschieben, kollegen: (r.ok && r.json?.kollegen) || [] }))
+      .catch(() => ({ darf: false, kollegen: [] }));
+  }
+  return leitungLadung;
+}
+
+/**
+ * Kopfzeile der Leitung — in jedem Reiter: wer betreut, Betreuer ändern, Portal ansehen.
+ * Für Mitarbeiter ohne Leitungsrecht bleibt sie unsichtbar.
+ */
+function LeitungsZeile({ k, melden, onFrisch }: { k: Kunde; melden: (art: "gut" | "schlecht" | "info", titel: string, text?: string) => void; onFrisch: () => void }) {
+  const [rechte, setRechte] = useState<{ darf: boolean; kollegen: { id: number; name: string; rolle: string }[] } | null>(null);
+  const [wahl, setWahl] = useState("");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { let an = true; void leitungsRechte().then((r) => { if (an) setRechte(r); }); return () => { an = false; }; }, []);
+  if (!rechte?.darf) return null;
+  const verschieben = async () => {
+    const ziel = rechte.kollegen.find((x) => String(x.id) === wahl);
+    if (!ziel) return;
+    const grund = window.prompt(`${k.name} zu ${ziel.name} verschieben — warum? (steht im Verlauf)`, "");
+    if (grund == null) return;
+    if (grund.trim().length < 5) { melden("schlecht", "Grund zu kurz", "Ein Satz reicht — er steht im Verlauf des Kunden."); return; }
+    setBusy(true);
+    const r = await api(`/agent/kunden/${k.personId}/betreuer`, { method: "POST", body: JSON.stringify({ agentId: ziel.id, grund: grund.trim() }) });
+    setBusy(false);
+    if (!r.ok) { melden("schlecht", "Nicht verschoben", r.json?.error || "Der Server hat abgelehnt."); return; }
+    melden("gut", "Betreuer geändert", `${k.name} ist jetzt bei ${ziel.name}.`);
+    setWahl(""); onFrisch();
+  };
+  const portal = async () => {
+    setBusy(true);
+    const r = await api(`/agent/vertrieb/person/${k.personId}/ansicht`, { method: "POST", body: JSON.stringify({}) });
+    setBusy(false);
+    if (!r.ok) { melden("schlecht", "Ansicht nicht möglich", r.json?.error || "Vielleicht hat dieser Mensch noch keine Paket-Bestellung."); return; }
+    window.open("/als-kunde", "_blank", "noopener,noreferrer");
+  };
+  return (
+    <div className="pi-leitung">
+      <span className="pi-leitung-wer">Betreuer: <b>{k.betreuer || "niemand"}</b></span>
+      <select className="pi-leitung-wahl" value={wahl} onChange={(e) => setWahl(e.target.value)} aria-label="Neuer Betreuer" disabled={busy}>
+        <option value="">Betreuer ändern …</option>
+        {rechte.kollegen.filter((x) => x.id !== k.betreuerId).map((x) => <option key={x.id} value={x.id}>{x.name} — {x.rolle}</option>)}
+      </select>
+      {wahl && <button type="button" className="pi-knopf klein" disabled={busy} onClick={() => void verschieben()}>{busy ? "…" : "Verschieben"}</button>}
+      <button type="button" className="pi-knopf klein still" disabled={busy} onClick={() => void portal()} title="Nur-Lese-Ansicht, 30 Minuten, steht im Verlauf">Portal ansehen</button>
+    </div>
+  );
+}
+
+function Betreuer({ personId, aktuell, onFertig }: { personId: number | null; aktuell: string | null; onFertig?: () => void }) {
   const [darf, setDarf] = useState(false);
   const [kollegen, setKollegen] = useState<{ id: number; name: string; rolle: string }[]>([]);
   const [ziel, setZiel] = useState("");
@@ -1513,7 +1568,7 @@ function Betreuer({ personId, aktuell }: { personId: number | null; aktuell: str
     });
     setLaeuft(false);
     setMeldung(r.ok ? (r.json.meldung || "Verschoben.") : (r.json?.error || "Das hat nicht geklappt."));
-    if (r.ok) { setOffen(false); setGrund(""); setZiel(""); }
+    if (r.ok) { setOffen(false); setGrund(""); setZiel(""); onFertig?.(); }
   };
 
   return (
@@ -2193,6 +2248,10 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
           <button type="button" className="pi-lade-zu" onClick={onZu} aria-label="Akte schließen"><X size={18} strokeWidth={1.75} /></button>
         </div>
       </div>
+      {/* 04.09.2026 (E-120): Für die Leitung sichtbar in JEDEM Reiter — Florentine
+          fand den Verschiebe-Block nicht (er lag unten im Reiter „Gespräche") und
+          den Portal-Knopf nur im Reiter „Sein Antrag". */}
+      <LeitungsZeile k={k} melden={melden} onFrisch={() => void frisch()} />
 
       {/* Reiter — direkt unter dem Kopf, im selben sticky Block */}
       <div className="pi-lade-tabs" role="tablist">
@@ -2706,7 +2765,7 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
           {/* Der Sprachvermerk steht direkt hinter den Anrufen — dort wird er
               gefüllt, gleich nachdem jemand die Barriere erlebt hat. */}
           <Sprachvermerk personId={k.personId} />
-          <Betreuer personId={k.personId} aktuell={(k as any).betreuer ?? (k as any).agentName ?? null} />
+          <Betreuer personId={k.personId} aktuell={k.betreuer ?? null} onFertig={() => void frisch()} />
           <Sek titel="Kein echter Kunde?" erklaer="Melden statt löschen – die Vertriebsleitung prüft, der Kunde bleibt bis zur Entscheidung in deiner Liste.">
             {!testOffen ? (
               <button type="button" className="pi-link" style={{ justifySelf: "start" }} onClick={() => setTestOffen(true)}>Als Testeintrag melden</button>
@@ -2842,6 +2901,7 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
                 ["E-Mail", k.email, "email"], ["Telefon", k.telefon, "phone"],
                 ["Verwendungszweck", k.zahlung?.referenz, null],
                 ["Wiedervorlage", k.wiedervorlage ? dtag(k.wiedervorlage) : null, null],
+                ["Betreuer", k.betreuer ?? null, null],
                 ["Betreut seit", k.betreutSeit ? dtag(k.betreutSeit) : null, null],
                 ["Mandat seit", k.mandatSeit ? dtag(k.mandatSeit) : null, null],
               ] as [string, string | null | undefined, string | null][]).map(([l, w, feldKey]) => (

@@ -49,6 +49,7 @@ interface SgTermin {
   beginn: string; datum: string; datumText: string; uhrzeit: string; dauerMin: number; status: string; notiz: string | null;
   heute: boolean; vorbei: boolean; erledigtAm?: string | null; abgesagtAm?: string | null; onboardingAbgeschlossenAm?: string | null; quelle?: string | null;
   terminArtText?: string | null; terminArtTon?: string | null;
+  agendaStand?: { erledigt?: string[]; notizen?: Record<string, string> } | null;
 }
 interface Kennzahlen {
   heuteGeplant?: number; heuteErledigt?: number; heuteNoShow?: number; wartend?: number; wartendOhneTermin?: number;
@@ -406,7 +407,7 @@ function SgKarte({ t, offen, onOeffnen, onFertig, onCockpit, flash }: { t: SgTer
             {verlauf && verlauf.length === 0 && <p className="ob-lade" style={{ marginTop: 8 }}>Noch kein Eintrag.</p>}
             {verlauf && verlauf.length > 0 && <ul className="ob-verlauf-liste">{verlauf.map((v: any, i: number) => <li key={i}><b>{zeitTag(v.am)}</b> · <span>{v.agent_name || "System"}</span>{v.notiz && <> — {v.notiz}</>}</li>)}</ul>}
           </div>
-          {t.notiz && <p className="ob-notiz">Gesprächsnotiz: {t.notiz}</p>}
+          {t.notiz && <p className="ob-notiz">Gesprächsnotiz: {String(t.notiz).replace(/^Gesprächsnotiz:\s*/i, "")}</p>}
           <Link href={`/agent/kunden?person=${t.personId}`} className="ob-link"><ExternalLink size={14} /> Zur Akte</Link>
         </div>
       )}

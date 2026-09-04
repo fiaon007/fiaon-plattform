@@ -634,7 +634,7 @@ function TerminKarte({
 
               {termin.notiz && (
                 <p className="mt-4 text-[12.5px] leading-relaxed" style={{ color: "var(--fi-text-leise)" }}>
-                  Gesprächsnotiz: {termin.notiz}
+                  Gesprächsnotiz: {String(termin.notiz).replace(/^Gesprächsnotiz:\s*/i, "")}
                 </p>
               )}
             </div>

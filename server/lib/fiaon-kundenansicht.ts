@@ -142,6 +142,21 @@ export function nurLesenWand(req: Request, res: Response, next: NextFunction): v
   if (req.path.endsWith("/ansicht/beenden")) return next();
   if (req.path.endsWith("/kundenansicht/beenden")) return next();
 
+  // ── 04.09.2026 (E-120): DIE WAND SPERRT NUR DIE SEITE, DIE ANGESEHEN WIRD ──
+  // VORHER galt sie für JEDEN Pfad unter /api/fiaon. Florentine öffnete
+  // „Portal ansehen als Kunde" — und danach war 30 Minuten lang in ihrem
+  // Mitarbeiterportal jede Aktion tot: Betreuer verschieben, Notiz, sogar die
+  // nächste Portal-Ansicht (ein POST). Das war ihr „geht bei Kunden anderer
+  // Mitarbeiter nicht". NACHHER: Das Kunden-Cookie sperrt nur das Kundenportal
+  // (/kunde/…, Uploads), das Mitarbeiter-Cookie nur das Mitarbeiterportal
+  // (nicht /admin, nicht /zugang). Das Mitarbeiterportal bleibt bedienbar.
+  const pfad = String(req.path || "");
+  const kundenSeite = pfad.startsWith("/kunde") || pfad.startsWith("/upload") || pfad.startsWith("/portal") || pfad.startsWith("/mein-bereich");
+  const mitarbeiterSeite = !pfad.startsWith("/admin") && !pfad.startsWith("/zugang") && !pfad.startsWith("/chef");
+  if (kunde && !mitarbeiter && !kundenSeite) return next();
+  if (mitarbeiter && !kunde && !mitarbeiterSeite) return next();
+  if (mitarbeiter && kunde && !kundenSeite && !mitarbeiterSeite) return next();
+
   const wer = kunde ? "Kundenansicht" : "Mitarbeiter-Ansicht";
   res.status(403).json({
     ok: false,

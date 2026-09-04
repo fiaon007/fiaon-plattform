@@ -443,11 +443,19 @@ function CalendarInnen() {
     if (r.ok) { flash(r.json?.hinweis ? `${r.json.meldung} ${r.json.hinweis}` : (r.json?.meldung || "Termin verschoben.")); setDetail(null); laden(); return true; }
     flash(r.json?.error || "Das hat nicht geklappt.", true); return false;
   };
-  const uebergeben = async (a: Termin, agentId: number, grund: string) => {
+  const uebergeben = async (a: Termin, agentId: number, grund: string, trotzdem = false): Promise<boolean> => {
     setBusy(tKey(a));
-    const r = await api(`/agent/termine/${a.id}/uebergeben`, { method: "POST", body: JSON.stringify({ agentId, grund }) });
+    const r = await api(`/agent/termine/${a.id}/uebergeben`, { method: "POST", body: JSON.stringify({ agentId, grund, trotzdem }) });
     setBusy(null);
     if (r.ok) { flash(r.json?.hinweis || "Termin übergeben."); setDetail(null); laden(); return true; }
+    // 04.09.2026 (E-120): Der Kollege hat zur Terminzeit keine Zeit hinterlegt.
+    // Die Leitung darf übersteuern (Krankheit, Vertretung) — mit Rückfrage.
+    if (r.status === 409 && r.json?.code === "NICHT_VERFUEGBAR" && !trotzdem && r.json?.hinweis?.includes("Leitung")) {
+      if (window.confirm(`${r.json.error}\n\nTrotzdem übergeben? Der Grund steht dann im Verlauf des Kunden.`)) {
+        return uebergeben(a, agentId, `${grund} (außerhalb seiner Zeiten, Leitung hat übersteuert)`, true);
+      }
+      return false;
+    }
     flash(r.json?.error || "Die Übergabe hat nicht geklappt.", true); return false;
   };
   const absagen = async (a: Termin) => {
@@ -977,7 +985,7 @@ function Detail({ a, busy, ausser, onZu, onErledigt, onVerpasst, onVerschieben, 
             <p>Wer übernimmt? Der Grund ist Pflicht – der Kollege liest ihn morgen früh. Der Kunde bekommt eine Info-Mail mit dem neuen Ansprechpartner; die Zeit bleibt.</p>
             <select className="ca-feld" value={agentId} onChange={(e) => setAgentId(e.target.value)} aria-label="Neuer Ansprechpartner">
               <option value="">Wer übernimmt?</option>
-              {kollegen.map((k) => <option key={k.id} value={k.id}>{k.name} — {k.rolle}{k.zustaendig ? " · zuständig" : soll ? " · Vertretung" : ""}{`${k.imDienst === false ? " · nicht im Dienst (zur Terminzeit)" : k.imDienst == null ? " · kein Wochenplan" : ""}${(k as any).listeVoll ? ` · Liste voll (${(k as any).mandate}/${(k as any).mandateMax})` : ""}`}</option>)}
+              {kollegen.map((k) => <option key={k.id} value={k.id}>{k.name} — {k.rolle}{k.zustaendig ? " · zuständig" : soll ? " · Vertretung" : ""}{`${k.imDienst === false ? " · hat zur Terminzeit keine Zeit hinterlegt" : k.imDienst == null ? " · keine Zeiten hinterlegt (nicht buchbar)" : " · hat Zeit"}${(k as any).listeVoll ? ` · Liste voll (${(k as any).mandate}/${(k as any).mandateMax})` : ""}`}</option>)}
             </select>
             <input type="text" className="ca-feld" value={grund} onChange={(e) => setGrund(e.target.value)} placeholder="Grund — zum Beispiel: krank bis Freitag" aria-label="Grund der Übergabe" />
             <div className="ca-form-knoepfe">

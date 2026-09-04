@@ -775,7 +775,7 @@ async function agentPruefen(personId: number, agentId: number | null): Promise<b
 
   if (p.assigned_agent_id == null) {
     await sqlPool`
-      UPDATE fiaon_persons SET assigned_agent_id = ${agentId}, updated_at = NOW() WHERE id = ${personId}
+      UPDATE fiaon_persons SET assigned_agent_id = ${agentId}, betreuung_seit = COALESCE(betreuung_seit, NOW()), updated_at = NOW() WHERE id = ${personId}
     `;
     // Kopie am Antrag nachziehen (Migration 059) — sonst zeigen Listen, die
     // den Antrag lesen, weiter „niemand betreut" (Team-Punkt 7, 27.08.2026).
@@ -1026,7 +1026,7 @@ async function personenZusammenfuehren(zielId: number, verliererId: number, quel
     `;
   } else if (ziel.assigned_agent_id == null && verlierer.assigned_agent_id != null) {
     await sqlPool`
-      UPDATE fiaon_persons SET assigned_agent_id = ${verlierer.assigned_agent_id}, updated_at = NOW()
+      UPDATE fiaon_persons SET assigned_agent_id = ${verlierer.assigned_agent_id}, betreuung_seit = COALESCE(betreuung_seit, NOW()), updated_at = NOW()
       WHERE id = ${zielId}
     `;
   }

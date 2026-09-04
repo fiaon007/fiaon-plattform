@@ -87,6 +87,8 @@ export const KARTE_SQL = `
   p.id, ${NAME_SQL} AS name, p.primary_email, p.primary_phone, p.country,
   p.priority_tier, p.tier_reason, p.promised_payment_date, p.follow_up_date,
   p.unreachable_count, p.invoice_sent_count, p.is_blocked, p.betreuung_seit,
+  p.assigned_agent_id,
+  (SELECT COALESCE(NULLIF(ag.first_name, ''), ag.name) FROM fiaon_agents ag WHERE ag.id = p.assigned_agent_id) AS betreuer_name,
   (SELECT a.ref FROM fiaon_applications a
     WHERE a.person_id = p.id AND a.merged_into IS NULL
     ORDER BY a.created_at DESC LIMIT 1) AS ref,
@@ -325,6 +327,10 @@ export function karte(p: any) {
     // automatische Mail aussehen.
     terminLink: terminLink(Number(p.id), "agent"),
     betreutSeit: p.betreuung_seit,
+    // 04.09.2026 (E-120): Der Betreuer stand nirgends in der Karte — der
+    // Verschiebe-Block sagte deshalb immer „Zuständig ist niemand".
+    betreuer: p.betreuer_name ?? null,
+    betreuerId: p.assigned_agent_id != null ? Number(p.assigned_agent_id) : null,
     letzterKontakt: p.letzter_kontakt,
     letztesErgebnis: p.letztes_ergebnis,
     stammdaten: {

@@ -583,7 +583,7 @@ export async function personAgentSynchronisieren(
   if (!ziel?.agent_id) return null;
 
   const rows = await sql`
-    UPDATE fiaon_persons SET assigned_agent_id = ${ziel.agent_id}, updated_at = NOW()
+    UPDATE fiaon_persons SET assigned_agent_id = ${ziel.agent_id}, betreuung_seit = COALESCE(betreuung_seit, NOW()), updated_at = NOW()
     WHERE id = ${personId} AND COALESCE(assigned_agent_id, 0) <> ${ziel.agent_id}
     RETURNING id
   `;

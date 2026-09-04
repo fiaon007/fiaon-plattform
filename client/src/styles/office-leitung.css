@@ -181,3 +181,6 @@
   .lt-zeile-tun{justify-content:flex-start}
   .lt-punkt b{font-size:28px}
 }
+
+/* 04.09.2026 (E-120): Betreuer-Wahl in der Zeile */
+.lt-wahl.klein { font-size: 12px; padding: 4px 6px; max-width: 200px; }

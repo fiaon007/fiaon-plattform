@@ -346,7 +346,7 @@ async function poolNachschub(me: number, istTestkonto: boolean): Promise<void> {
     const fehlt = JE_GRUPPE - Number(zeile?.n ?? 0);
     if (fehlt <= 0) continue;
     await sqlPool.unsafe(`
-      UPDATE fiaon_persons SET assigned_agent_id = $1, assigned_at = NOW()
+      UPDATE fiaon_persons SET assigned_agent_id = $1, assigned_at = NOW(), betreuung_seit = COALESCE(betreuung_seit, NOW())
        WHERE id IN (
          SELECT p.id FROM fiaon_persons p
           WHERE p.assigned_agent_id IS NULL AND p.mandat_seit IS NULL

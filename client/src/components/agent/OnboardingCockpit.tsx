@@ -129,6 +129,11 @@ export function OnboardingCockpit({
       const g = roh ? JSON.parse(roh) : null;
       if (g && Array.isArray(g.erledigt) && g.notizen && typeof g.notizen === "object") return g as AgendaStand;
     } catch { /* kaputter Eintrag — frisch anfangen */ }
+    // 04.09.2026 (E-120): Kein Entwurf im Browser — dann der gespeicherte Stand
+    // vom Server. Vorher begann „Doku nachtragen" immer mit leerer Agenda, und
+    // der Abschluss scheiterte still an den fehlenden Pflichtschritten.
+    const gs: any = (termin as any).agendaStand;
+    if (gs && Array.isArray(gs.erledigt) && gs.notizen && typeof gs.notizen === "object") return { erledigt: gs.erledigt.map(String), notizen: gs.notizen } as AgendaStand;
     return { erledigt: [], notizen: {} };
   });
   useEffect(() => {
@@ -264,7 +269,8 @@ export function OnboardingCockpit({
         // der Agenda — so liest es sich später wie ein Protokoll.
         // P1: Die freie Gesprächsnotiz zuerst, dann das Agenda-Protokoll.
         notiz: [
-          freiNotiz.trim() ? `Gesprächsnotiz: ${freiNotiz.trim()}` : null,
+          // 04.09.2026: ohne „Gesprächsnotiz:"-Präfix — die Anzeige setzt das Label selbst (stand doppelt da).
+          freiNotiz.trim() ? freiNotiz.trim().replace(/^Gesprächsnotiz:\s*/i, "") : null,
           ...AGENDA
             .filter((a) => (stand.notizen[a.key] ?? "").trim())
             .map((a) => `${a.titel}: ${stand.notizen[a.key].trim()}`),

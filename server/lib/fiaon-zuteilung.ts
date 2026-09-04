@@ -46,6 +46,9 @@ export async function agentMitKleinsterLast(lauf: Lauf = sqlPool): Promise<numbe
     LEFT JOIN fiaon_persons p
       ON p.assigned_agent_id = a.id AND p.merged_into_person_id IS NULL
     WHERE a.active AND a.distribution_active AND NOT a.is_test_account
+      -- 04.09.2026 (E-120): Nur, wer Zeiten hinterlegt hat — sonst landet der
+      -- Kunde bei jemandem, bei dem er nie einen Termin bekommt (Florentine).
+      AND EXISTS (SELECT 1 FROM fiaon_agent_verfuegbarkeit v WHERE v.agent_id = a.id AND COALESCE(v.aktiv, TRUE))
       -- ══════════════════════════════════════════════════════════════════
       -- NUR VERTRIEB BEKOMMT VERTRIEBSKUNDEN
       --
@@ -187,7 +190,7 @@ export async function sofortZuteilen(
         if (ag) {
           const rows = (await lauf`
             UPDATE fiaon_persons
-            SET assigned_agent_id = ${Number(ag.id)}, assigned_at = NOW(), updated_at = NOW()
+            SET assigned_agent_id = ${Number(ag.id)}, assigned_at = NOW(), betreuung_seit = COALESCE(betreuung_seit, NOW()), updated_at = NOW()
             WHERE id = ${personId} AND assigned_agent_id IS NULL
             RETURNING id
           `) as any[];
@@ -214,7 +217,7 @@ export async function sofortZuteilen(
     // überschriebe den ersten.
     const rows = (await lauf`
       UPDATE fiaon_persons
-      SET assigned_agent_id = ${agentId}, assigned_at = NOW(), updated_at = NOW()
+      SET assigned_agent_id = ${agentId}, assigned_at = NOW(), betreuung_seit = COALESCE(betreuung_seit, NOW()), updated_at = NOW()
       WHERE id = ${personId} AND assigned_agent_id IS NULL
       RETURNING id
     `) as any[];
@@ -356,6 +359,9 @@ export async function sonderrollenBereinigen(
         LEFT JOIN fiaon_persons p
           ON p.assigned_agent_id = a.id AND p.merged_into_person_id IS NULL
         WHERE a.active AND a.distribution_active AND NOT a.is_test_account
+      -- 04.09.2026 (E-120): Nur, wer Zeiten hinterlegt hat — sonst landet der
+      -- Kunde bei jemandem, bei dem er nie einen Termin bekommt (Florentine).
+      AND EXISTS (SELECT 1 FROM fiaon_agent_verfuegbarkeit v WHERE v.agent_id = a.id AND COALESCE(v.aktiv, TRUE))
           AND COALESCE(a.rolle, 'agent') IN ('agent', 'vertriebsleiter')
         GROUP BY a.id, a.name
       `) as any[];
@@ -389,7 +395,7 @@ export async function sonderrollenBereinigen(
     if (!z.anAgentId) continue;
     await lauf`
       UPDATE fiaon_persons
-      SET assigned_agent_id = ${z.anAgentId}, assigned_at = NOW(), updated_at = NOW()
+      SET assigned_agent_id = ${z.anAgentId}, assigned_at = NOW(), betreuung_seit = COALESCE(betreuung_seit, NOW()), updated_at = NOW()
       WHERE id = ${z.personId} AND assigned_agent_id = ${z.vonAgentId}
     `;
     await lauf`

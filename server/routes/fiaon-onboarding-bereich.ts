@@ -323,7 +323,7 @@ router.get("/agent/onboarding/termine", requireAgent, nurOnboarding, nurMitZusag
   try {
     const rows = (await sqlPool`
       SELECT t.id, t.person_id, t.beginn, t.dauer_min, t.status, t.notiz, t.quelle,
-             t.onboarding_abgeschlossen_am,
+             t.onboarding_abgeschlossen_am, t.agenda_stand,
              -- Wann wurde er abgeschlossen? Ohne dieses Feld konnte die Liste
              -- „erledigt" nicht von „offen" trennen, und alles Heutige stand
              -- gemischt in einer Spalte (Teil 9 des Feedbacks, 19.08.2026).
@@ -365,6 +365,8 @@ router.get("/agent/onboarding/termine", requireAgent, nurOnboarding, nurMitZusag
         erledigtAm: t.erledigt_am ?? null,
         abgesagtAm: t.abgesagt_am ?? null,
         onboardingAbgeschlossenAm: t.onboarding_abgeschlossen_am ?? null,
+        // 04.09.2026 (E-120): Das Cockpit startet mit dem gespeicherten Stand — nicht leer.
+        agendaStand: t.agenda_stand ?? null,
         quelle: t.quelle,
         // Die Art wird auch hier mitgeliefert. Diese Liste zeigt fast immer
         // Onboarding-Gespräche — aber „fast immer" ist der Grund, warum die
@@ -689,6 +691,11 @@ export async function startgespraechErgebnis(opts: {
     // dieser Aufruf nur die NACHDOKUMENTATION — Zeitstempel und Verlauf des
     // ursprünglichen Gesprächs bleiben unangetastet.
     const warErledigt = String(termin.status_vorher) === "erledigt";
+    // 04.09.2026 (E-120): Ob die Pflicht-Agenda erfüllt war — der Verlaufstext
+    // darf „abgeschlossen" nur sagen, wenn es stimmt (Nikita, 17:12 und 17:16:
+    // zweimal „abgeschlossen" im Verlauf, der Termin blieb „zu dokumentieren").
+    let dokuOk: boolean | null = null;
+    let dokuFehlt: string[] = [];
 
     // ══════════════════════════════════════════════════════════════════════
     // EINE LEERE ANGABE LÖSCHT NICHTS MEHR (19.08.2026)
@@ -868,6 +875,7 @@ export async function startgespraechErgebnis(opts: {
         notizen: roh?.notizen && typeof roh.notizen === "object" ? roh.notizen : {},
       };
       const doku = darfAbschliessen(stand as any);
+      dokuOk = doku.ok; dokuFehlt = doku.fehlt;
       if (doku.ok) {
         if (!standRow?.onboarding_abgeschlossen_am) {
           await sqlPool`
@@ -904,10 +912,11 @@ export async function startgespraechErgebnis(opts: {
       const grundText = opts.grund === "nummer_falsch"
         ? "Kunde nicht erreicht — die hinterlegte Rufnummer stimmt nicht"
         : "Kunde nicht erschienen";
+      const dokuSatz = dokuOk === true ? " Onboarding abgeschlossen." : dokuOk === false ? ` Onboarding noch NICHT abgeschlossen — es fehlt: ${dokuFehlt.join(", ")}.` : "";
       const text = ergebnis === "erledigt"
         ? warErledigt
-          ? `Onboarding nachdokumentiert und abgeschlossen (Gespräch vom ${berlinDatumText(termin.beginn)}).${notiz ? ` ${String(notiz).slice(0, 2000)}` : ""}`
-          : `Startgespräch geführt (${berlinDatumText(termin.beginn)}, ${berlinUhrzeit(termin.beginn)} Uhr).${notiz ? ` ${String(notiz).slice(0, 2000)}` : ""}`
+          ? `Onboarding nachdokumentiert (Gespräch vom ${berlinDatumText(termin.beginn)}).${dokuSatz}${notiz ? ` ${String(notiz).slice(0, 2000)}` : ""}`
+          : `Startgespräch geführt (${berlinDatumText(termin.beginn)}, ${berlinUhrzeit(termin.beginn)} Uhr).${dokuSatz}${notiz ? ` ${String(notiz).slice(0, 2000)}` : ""}`
         : `Startgespräch verpasst — ${grundText} (${berlinDatumText(termin.beginn)}, ${berlinUhrzeit(termin.beginn)} Uhr).${notiz ? ` ${String(notiz).slice(0, 2000)}` : ""}`;
       await sqlPool`
         INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note, created_at)

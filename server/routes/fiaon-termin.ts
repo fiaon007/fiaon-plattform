@@ -927,11 +927,43 @@ router.post("/agent/termine/:id/uebergeben", requireAgent, async (req: AgentRequ
     }
 
     const [ziel] = (await sqlPool`
-      SELECT id, COALESCE(NULLIF(first_name, ''), name) AS vorname, name, rolle, active
+      SELECT id, COALESCE(NULLIF(first_name, ''), name) AS vorname, name, rolle, active, email
       FROM fiaon_agents
       WHERE id = ${zielId} AND active AND NOT COALESCE(is_test_account, FALSE)
     `) as any[];
     if (!ziel) return res.status(404).json({ ok: false, error: "Diesen Kollegen gibt es nicht (mehr)." });
+
+    // ── 04.09.2026 (E-120): HAT DER KOLLEGE ZUR TERMINZEIT ZEIT? ──────────
+    // Florentine: „Wenn ein Mitarbeiter nicht verfügbar ist, sollte das System
+    // die Buchung blockieren." Eine Übergabe ist eine Buchung beim Kollegen.
+    // Geprüft wird dieselbe Tabelle, gegen die der Kunde bucht
+    // (fiaon_agent_verfuegbarkeit) — nicht der Wochenplan der Anwesenheit.
+    // Keine Zeiten hinterlegt = nicht verfügbar. Die Leitung darf mit
+    // `trotzdem: true` übersteuern (Krankheit, Vertretung) — dann steht es im Grund.
+    const [vf] = (await sqlPool`
+      SELECT EXISTS (SELECT 1 FROM fiaon_agent_verfuegbarkeit v WHERE v.agent_id = ${zielId} AND COALESCE(v.aktiv, TRUE)) AS hat_zeiten,
+             EXISTS (
+               SELECT 1 FROM fiaon_agent_verfuegbarkeit v
+                WHERE v.agent_id = ${zielId} AND COALESCE(v.aktiv, TRUE)
+                  AND v.wochentag = EXTRACT(ISODOW FROM (${termin.beginn}::timestamptz AT TIME ZONE 'Europe/Berlin'))::smallint
+                  AND (${termin.beginn}::timestamptz AT TIME ZONE 'Europe/Berlin')::time >= v.von
+                  AND (${termin.beginn}::timestamptz AT TIME ZONE 'Europe/Berlin')::time < v.bis
+             ) AS frei,
+             EXISTS (SELECT 1 FROM fiaon_termine x WHERE x.agent_id = ${zielId} AND x.beginn = ${termin.beginn} AND x.abgesagt_am IS NULL AND x.id <> ${id}) AS belegt
+    `) as any[];
+    const trotzdem = req.body?.trotzdem === true && ["vertriebsleiter", "admin"].includes(rolle);
+    if (vf?.belegt) {
+      return res.status(409).json({ ok: false, code: "BELEGT", error: `${ziel.vorname} hat um ${berlinUhrzeit(termin.beginn)} Uhr schon einen Termin.` });
+    }
+    if (!vf?.frei && !trotzdem) {
+      return res.status(409).json({
+        ok: false, code: "NICHT_VERFUEGBAR",
+        error: vf?.hat_zeiten
+          ? `${ziel.vorname} hat am ${berlinDatumText(termin.beginn)} um ${berlinUhrzeit(termin.beginn)} Uhr keine Zeit hinterlegt.`
+          : `${ziel.vorname} hat noch gar keine Zeiten hinterlegt — dort kann nichts gebucht werden.`,
+        hinweis: ["vertriebsleiter", "admin"].includes(rolle) ? "Als Leitung kannst du trotzdem übergeben — der Grund steht dann im Verlauf." : "Wähle einen Kollegen, der zur Terminzeit Zeit hat.",
+      });
+    }
     // Dieselbe Grenze wie beim Buchen: Das Forderungsmanagement nimmt keine
     // Termine an (Begründung in server/lib/fiaon-termine.ts).
     if (String(ziel.rolle) === "inkasso") {
@@ -976,17 +1008,23 @@ router.post("/agent/termine/:id/uebergeben", requireAgent, async (req: AgentRequ
       const [war] = (await sqlPool`
         SELECT assigned_agent_id FROM fiaon_persons WHERE id = ${Number(termin.person_id)}
       `) as any[];
-      if (Number(war?.assigned_agent_id || 0) === Number(termin.agent_id)) {
+      // 04.09.2026 abends (E-120): Auch ein Kunde OHNE Betreuer geht mit. Diana
+      // übergab um 15:44 an Nikita, der Kunde hatte niemanden — und blieb
+      // niemandem zugeordnet; „Betreut seit" stand auf „nicht hinterlegt", bis
+      // Nikita 36 Minuten später selbst einen Termin anlegte.
+      const warBei = Number(war?.assigned_agent_id || 0);
+      if (warBei === Number(termin.agent_id) || warBei === 0) {
         await sqlPool`
           UPDATE fiaon_persons
-             SET assigned_agent_id = ${zielId}, assigned_at = NOW(), updated_at = NOW()
+             SET assigned_agent_id = ${zielId}, assigned_at = NOW(),
+                 betreuung_seit = COALESCE(betreuung_seit, NOW()), updated_at = NOW()
            WHERE id = ${Number(termin.person_id)}
         `;
         await sqlPool`
           UPDATE fiaon_applications
              SET assigned_agent_id = ${zielId}, updated_at = NOW()
            WHERE person_id = ${Number(termin.person_id)} AND merged_into IS NULL
-             AND assigned_agent_id = ${Number(termin.agent_id)}
+             AND (assigned_agent_id = ${Number(termin.agent_id)} OR assigned_agent_id IS NULL)
         `;
         const [a] = (await sqlPool`
           SELECT ref FROM fiaon_applications WHERE person_id = ${Number(termin.person_id)} AND merged_into IS NULL
@@ -1000,6 +1038,17 @@ router.post("/agent/termine/:id/uebergeben", requireAgent, async (req: AgentRequ
           `.catch(() => {});
         }
       }
+    }
+
+    if (vertretung && termin.person_id) {
+      const [a] = (await sqlPool`
+        SELECT ref FROM fiaon_applications WHERE person_id = ${Number(termin.person_id)} AND merged_into IS NULL ORDER BY created_at DESC LIMIT 1
+      `) as any[];
+      if (a?.ref) await sqlPool`
+        INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
+        VALUES (${a.ref}, ${Number(termin.person_id)}, ${req.agent!.id}, ${req.agent!.name}, 'system',
+                ${`Termin als Vertretung an ${ziel.name} übergeben (Kunde bleibt beim Betreuer). Grund: ${grund.slice(0, 200)}${trotzdem && !vf?.frei ? " — außerhalb seiner hinterlegten Zeiten (Leitung hat übersteuert)." : ""}`}, NOW())
+      `.catch(() => {});
     }
 
     // ── DER ÜBERNEHMER ERFÄHRT ES — ALS AUFGABE (22.08.2026, C12-e) ───────
@@ -1061,6 +1110,28 @@ router.post("/agent/termine/:id/uebergeben", requireAgent, async (req: AgentRequ
           + "bitte den Kunden selbst informieren. Die Übergabe steht trotzdem.";
     }
 
+    // ── 04.09.2026 (E-120): DER ÜBERNEHMER BEKOMMT POST ────────────────────
+    // Nikita sah den um 15:44 übergebenen 16:10-Termin erst um 16:07 („ja jetzt
+    // erst gesehen"). Die Aufgabe im Portal reicht nicht, wenn niemand hinschaut —
+    // dieselbe Mail wie bei jeder zugewiesenen Aufgabe, mit Uhrzeit im Betreff.
+    if (ziel.email) {
+      try {
+        const { sendMakeWebhook } = await import("../make-webhook");
+        const { absoluteUrl } = await import("../fiaon-base-url");
+        const minuten = Math.round((new Date(termin.beginn).getTime() - Date.now()) / 60_000);
+        const bald = minuten >= 0 && minuten <= 180 ? `IN ${minuten} MINUTEN: ` : "";
+        await sendMakeWebhook("aufgabe_zugewiesen", {
+          email: String(ziel.email), vorname: String(ziel.vorname),
+          aufgabe: `${bald}Termin übernommen von ${req.agent!.name}: ${berlinDatumText(termin.beginn)} um ${berlinUhrzeit(termin.beginn)} Uhr mit ${[p?.vorname, p?.nachname].filter(Boolean).join(" ") || "dem Kunden"} (${terminArtAusQuelle(termin.quelle).text}). Grund: ${grund.slice(0, 200)}`,
+          kunde: [p?.vorname, p?.nachname].filter(Boolean).join(" ") || null,
+          faellig_am: new Date(termin.beginn).toISOString().slice(0, 10),
+          faellig_am_text: berlinDatumText(termin.beginn),
+          dringend: minuten >= 0 && minuten <= 180,
+          portal_url: absoluteUrl("/agent/kalender"),
+        });
+      } catch (e) { console.warn("[TERMIN] Mail an Übernehmer:", String(e).slice(0, 120)); }
+    }
+
     res.json({
       ok: true,
       vertretung,
@@ -1104,13 +1175,17 @@ router.get("/agent/termine/uebernehmer", requireAgent, async (req: AgentRequest,
     }
     const kollegen = (await sqlPool`
       SELECT a.id, a.name, COALESCE(a.rolle, 'agent') AS rolle,
-             CASE WHEN NOT EXISTS (SELECT 1 FROM fiaon_arbeitszeiten w0 WHERE w0.agent_id = a.id)
+             -- 04.09.2026 (E-120): gegen DIESELBE Tabelle wie die Buchung
+             -- (fiaon_agent_verfuegbarkeit), nicht gegen den Anwesenheits-Wochenplan.
+             -- Vorher stand „kein Wochenplan" neben Kollegen, die längst buchbar waren.
+             CASE WHEN NOT EXISTS (SELECT 1 FROM fiaon_agent_verfuegbarkeit w0 WHERE w0.agent_id = a.id AND COALESCE(w0.aktiv, TRUE))
                   THEN NULL
                   ELSE EXISTS (
-                    SELECT 1 FROM fiaon_arbeitszeiten w
-                    WHERE w.agent_id = a.id
+                    SELECT 1 FROM fiaon_agent_verfuegbarkeit w
+                    WHERE w.agent_id = a.id AND COALESCE(w.aktiv, TRUE)
                       AND w.wochentag = EXTRACT(ISODOW FROM (COALESCE(${terminBeginn}::timestamptz, NOW()) AT TIME ZONE 'Europe/Berlin'))::smallint
-                      AND (COALESCE(${terminBeginn}::timestamptz, NOW()) AT TIME ZONE 'Europe/Berlin')::time BETWEEN w.von AND w.bis)
+                      AND (COALESCE(${terminBeginn}::timestamptz, NOW()) AT TIME ZONE 'Europe/Berlin')::time >= w.von
+                      AND (COALESCE(${terminBeginn}::timestamptz, NOW()) AT TIME ZONE 'Europe/Berlin')::time < w.bis)
              END AS im_dienst,
              (pr.zuletzt IS NOT NULL AND pr.zuletzt > NOW() - INTERVAL '20 minutes'
               AND pr.status IN ('da', 'telefon')) AS anwesend,

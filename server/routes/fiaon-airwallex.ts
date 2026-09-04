@@ -39,6 +39,26 @@ function konfiguriert(): boolean { return !!(process.env.AIRWALLEX_CLIENT_ID && 
 
 let token: { wert: string; bis: number } | null = null;
 let letzterLauf: { wann: string; gesehen: number; neu: number; gebucht: number; fehler: string | null } | null = null;
+
+// 04.09.2026: Der letzte Lauf lebte nur im Arbeitsspeicher. Nach jedem Deploy
+// zeigte die Kontoseite „Zuletzt abgerufen: nie" und eine rote Warnung — bei
+// 26 Deploys an einem Tag also fast immer. Jetzt steht er in fiaon_settings.
+async function letzterLaufMerken(l: typeof letzterLauf): Promise<void> {
+  try {
+    const { sqlPool } = await import("../lib/db-pool");
+    await sqlPool`
+      INSERT INTO fiaon_settings (key, value) VALUES ('airwallex_letzter_lauf', ${JSON.stringify(l)})
+      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+    `;
+  } catch { /* nur Anzeige */ }
+}
+void (async () => {
+  try {
+    const { sqlPool } = await import("../lib/db-pool");
+    const [r] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = 'airwallex_letzter_lauf' LIMIT 1`) as any[];
+    if (r?.value && !letzterLauf) letzterLauf = JSON.parse(String(r.value));
+  } catch { /* dann eben null bis zum ersten Lauf */ }
+})();
 let beispielGeloggt = false;
 
 async function anmelden(): Promise<string> {
@@ -274,6 +294,7 @@ export async function airwallexEinlesen(tage = 3): Promise<{ gesehen: number; ne
     if (erg.gebucht) gebucht += 1;
   }
   letzterLauf = { wann: new Date().toISOString(), gesehen, neu, gebucht, fehler: null };
+  void letzterLaufMerken(letzterLauf);
   return { gesehen, neu, gebucht, schwebend, nachgezogen, gedeckelt };
 }
 

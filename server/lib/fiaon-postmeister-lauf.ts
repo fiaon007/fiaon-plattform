@@ -91,13 +91,13 @@ async function verlaufLesen(postfach: string, threadId: string, aktuelleId: stri
     SELECT von, empfangen_am, text, antwort, gesendet_am, aktion
       FROM fiaon_postmeister
      WHERE thread_id = ${threadId} AND gmail_id <> ${aktuelleId}
-     ORDER BY empfangen_am ASC LIMIT 8
+     ORDER BY empfangen_am ASC LIMIT 40
   `) as any[];
   const verlauf: { von: string; am: string; text: string }[] = [];
   for (const z of zeilen) {
-    if (z.text) verlauf.push({ von: "Kunde", am: new Date(z.empfangen_am).toLocaleDateString("de-DE"), text: String(z.text).slice(0, 900) });
+    if (z.text) verlauf.push({ von: "Kunde", am: new Date(z.empfangen_am).toLocaleDateString("de-DE"), text: String(z.text).slice(0, 3000) });
     if (z.antwort && (z.gesendet_am || z.aktion === "auto_beantwortet")) {
-      verlauf.push({ von: "FIAON", am: new Date(z.gesendet_am ?? z.empfangen_am).toLocaleDateString("de-DE"), text: String(z.antwort).slice(0, 900) });
+      verlauf.push({ von: "FIAON", am: new Date(z.gesendet_am ?? z.empfangen_am).toLocaleDateString("de-DE"), text: String(z.antwort).slice(0, 3000) });
     }
   }
   return verlauf;
@@ -236,8 +236,11 @@ export async function mailBearbeiten(ein: {
       ? einordnung.sprache
       : (akte.sprache || einordnung.sprache);
     const anrede = await anredeBestimmen(wer.personId, vor || null, restName.join(" ") || null, sprache);
+    // Der Gruß trägt den Namen des Agenten (04.09.2026): „Freundliche Grüße\nMara\nFIAON Welcome-Team".
+    const { agentName } = await import("./fiaon-postmeister-agent");
+    const grussMitName = ein.gruss.replace(/^(Freundliche Grüße)\n/, `$1\n${await agentName()}\n`);
     const fertigeAntwort = antwortBauen({
-      anrede: anrede.zeile, kern: erg.antwort, gruss: ein.gruss,
+      anrede: anrede.zeile, kern: erg.antwort, gruss: grussMitName,
       schritt: erg.naechsterSchritt, betreff: mail.betreff, sprache,
     });
 

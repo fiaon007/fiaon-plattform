@@ -167,6 +167,12 @@ export async function darfAnsehen(
     SELECT id, COALESCE(rolle, 'agent') AS rolle, active FROM fiaon_agents WHERE id = ${ansehenderId}
   `) as any[];
   if (!ag || !ag.active) return { erlaubt: false, grund: "Kein aktives Mitarbeiterkonto." };
+  // 04.09.2026, Florentine: „Ich kann als Geschäftsführung das Kundenportal
+  // nicht öffnen, wenn der Kunde einem anderen Mitarbeiter zugeordnet ist.
+  // Ich muss meinen Mitarbeitern bei Problemen helfen können, ohne dass der
+  // Kunde erst mir zugewiesen wird." Bis hierher sah die Leitung nur eigene
+  // und selbst geworbene Kunden. Jetzt: die Leitung sieht alle.
+  if (String(ag.rolle) === "vertriebsleiter") return { erlaubt: true, grund: "Die Leitung sieht alle Kunden." };
   if (String(ag.rolle) !== "vertriebsleiter") {
     return {
       erlaubt: false,

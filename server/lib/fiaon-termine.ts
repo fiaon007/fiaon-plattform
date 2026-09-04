@@ -536,9 +536,22 @@ export async function verfuegbarkeitVon(agentId: number, lauf: Lauf = sqlPool): 
     FROM fiaon_agent_verfuegbarkeit WHERE agent_id = ${agentId}
     ORDER BY wochentag, von
   `) as any[];
-  if (rows.length === 0) {
-    return VORGABE_TAGE.map((wochentag) => ({ wochentag, von: VORGABE_VON, bis: VORGABE_BIS, aktiv: true }));
-  }
+  // ═══════════════════════════════════════════════════════════════════════
+  // KEINE ZEITEN = KEINE TERMINE (04.09.2026)
+  //
+  // Bis heute galt: Wer nie Zeiten eingetragen hat, ist Mo–Fr 9–18 buchbar.
+  // Gemessen am 04.09.: Angelique hatte null Fenster und sechs Termine — davon
+  // einer um 9 Uhr, den niemand wahrnahm, weil sie ihn nie gesehen hat.
+  // Diana bekam am 02.09. Termine, bevor sie am 03.09. ihre ersten Fenster
+  // setzte. Beide Male schrieb der Chat: „Termine reingelegt, obwohl ich
+  // keinerlei Zeit-Fenster angeboten habe."
+  //
+  // Florentine (Vertriebsleitung): „Wenn bei einem Mitarbeiter keine Zeiten
+  // hinterlegt sind, sollten auch keine Termine gebucht werden können."
+  // Das ist die Regel. Die Vorgabe war eine Bequemlichkeit für den ersten
+  // Tag — und hat Kunden Termine beschert, die ins Leere liefen.
+  // ═══════════════════════════════════════════════════════════════════════
+  if (rows.length === 0) return [];
   return rows.map((r) => ({ wochentag: Number(r.wochentag), von: r.von, bis: r.bis, aktiv: !!r.aktiv }));
 }
 

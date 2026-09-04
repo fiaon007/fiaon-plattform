@@ -3105,10 +3105,19 @@ function KontoKarte({ personId, name, melden, onProdukt }: {
     return () => { an = false; };
   }, [personId]);
 
-  const senden = async () => {
+  const senden = async (erneut = false) => {
     setSendet(true);
-    const r = await api(`/agent/karte/${personId}/senden`, { method: "POST", body: JSON.stringify({}) });
+    const r = await api(`/agent/karte/${personId}/senden`, { method: "POST", body: JSON.stringify(erneut ? { erneut: true } : {}) });
     setSendet(false);
+    // 04.09.2026, Daniel: „Hab auf ‚Karte bestellen' geklickt und er sagt, dass
+    // keine E-Mail angekommen ist." Die erste Mail war fünf Wochen alt. Wenn
+    // der Server sagt „bereits geschickt", wird nachgefragt und dann erneut
+    // gesendet — statt den Kunden ohne Mail sitzen zu lassen.
+    if (!r.ok && r.json?.code === "BEREITS_GESCHICKT" && !erneut) {
+      const nochmal = window.confirm(`${r.json.error}\n\nJetzt noch einmal schicken?`);
+      if (nochmal) return senden(true);
+      return;
+    }
     if (!r.ok) { melden("schlecht", "Nicht geschickt", r.json?.error || "Bitte erneut versuchen."); return; }
     setStand(r.json.stand ?? stand);
     melden("gut", r.json.meldung || "Unterwegs", r.json.hinweis);

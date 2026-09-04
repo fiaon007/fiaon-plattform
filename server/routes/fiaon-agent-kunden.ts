@@ -2027,12 +2027,20 @@ router.post("/agent/karte/:personId/senden", requireAgent, async (req: AgentRequ
         error: "Noch nicht so weit: " + (stand.esFehlt || "es fehlen Voraussetzungen") + ".",
       });
     }
-    if (stand.versand) {
+    // 04.09.2026, Daniel im Chat: „Hab bei ihm auf ‚Karte bestellen' geklickt
+    // und er sagt, dass keine E-Mail angekommen ist." Die Mail war am 29.07.
+    // rausgegangen — fünf Wochen vorher. Der zweite Klick wurde abgelehnt, der
+    // Kunde blieb ohne Mail. Mit `erneut: true` geht sie noch einmal raus,
+    // und der Verlauf hält fest, wer das warum ausgelöst hat.
+    if (stand.versand && req.body?.erneut !== true) {
       return res.status(400).json({
         ok: false,
+        code: "BEREITS_GESCHICKT",
         error: "Der Weg wurde diesem Kunden bereits am "
           + new Date(stand.versand.am).toLocaleDateString("de-DE") + " geschickt"
-          + (stand.versand.vonName ? " (von " + stand.versand.vonName + ")" : "") + ".",
+          + (stand.versand.vonName ? " (von " + stand.versand.vonName + ")" : "")
+          + ". Sagt der Kunde, es kam nichts an, kannst du sie erneut schicken.",
+        erneutMoeglich: true,
       });
     }
 
@@ -2187,6 +2195,87 @@ router.post("/agent/crm/kunden/:personId/antragsdaten", requireAgent, async (req
     res.json({ ok: true, meldung: `${geaendert.length === 1 ? "Angabe" : "Angaben"} gespeichert.`, geaendert });
   } catch (err) {
     console.error("[AGENT-KUNDEN] antragsdaten:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE LEITUNG VERSCHIEBT KUNDEN (04.09.2026)
+//
+// Florentine: „Im Management-Bereich sollte ich Kunden selbstständig
+// Mitarbeitern zuweisen bzw. verschieben können — Business-Kunden zu mir,
+// Daniel oder Nikita, oder schwierige Kunden, die ich selbst übernehmen
+// möchte." Bis heute gab es das nur unter /admin/team/reassign, hinter dem
+// Admin-Code — und das setzte nur die Bestellung um, nicht die Person.
+//
+// Diese Route setzt Person UND Bestellungen und schreibt den Grund in den
+// Verlauf. Sie ist für Vertriebsleitung und Admin — dieselbe Grenze, die auch
+// die Termin-Übergabe zieht. Der Bestandsschutz in tier.ts hält die
+// Verschiebung: Der neue Betreuer wird beim ersten eigenen Kontakt fest.
+// ═══════════════════════════════════════════════════════════════════════════
+router.post("/agent/kunden/:personId/betreuer", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const personId = Number(req.params.personId);
+    const zielId = Number(req.body?.agentId);
+    const grund = String(req.body?.grund ?? "").trim();
+    if (!Number.isFinite(personId) || personId <= 0) return res.status(400).json({ ok: false, error: "Kunde fehlt." });
+    if (!zielId) return res.status(400).json({ ok: false, error: "Bitte einen Kollegen auswählen." });
+    if (grund.length < 5) return res.status(400).json({ ok: false, error: "Bitte in einem Satz sagen, warum — der Kollege liest ihn." });
+
+    const { rolleVon } = await import("../lib/fiaon-kundenzugriff");
+    const rolle = await rolleVon(req.agent!.id);
+    if (!["vertriebsleiter", "admin"].includes(rolle)) {
+      return res.status(403).json({ ok: false, error: "Kunden verschieben kann nur die Leitung." });
+    }
+
+    const [ziel] = (await sqlPool`
+      SELECT id, name, COALESCE(rolle, 'agent') AS rolle FROM fiaon_agents
+      WHERE id = ${zielId} AND active AND NOT COALESCE(is_test_account, FALSE)
+    `) as any[];
+    if (!ziel) return res.status(404).json({ ok: false, error: "Diesen Kollegen gibt es nicht (mehr)." });
+    if (String(ziel.rolle) === "inkasso") {
+      return res.status(400).json({ ok: false, error: "Das Forderungsmanagement betreut nicht — es treibt Raten ein." });
+    }
+
+    const [war] = (await sqlPool`
+      SELECT p.assigned_agent_id, a.name AS von_name, p.first_name, p.last_name
+        FROM fiaon_persons p LEFT JOIN fiaon_agents a ON a.id = p.assigned_agent_id
+       WHERE p.id = ${personId} AND p.merged_into_person_id IS NULL
+    `) as any[];
+    if (!war) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden." });
+    if (Number(war.assigned_agent_id || 0) === zielId) {
+      return res.status(400).json({ ok: false, error: "Der Kunde ist schon bei diesem Kollegen." });
+    }
+
+    await sqlPool`
+      UPDATE fiaon_persons
+         SET assigned_agent_id = ${zielId}, assigned_at = NOW(),
+             betreuung_seit = COALESCE(betreuung_seit, NOW()), updated_at = NOW()
+       WHERE id = ${personId}
+    `;
+    await sqlPool`
+      UPDATE fiaon_applications
+         SET assigned_agent_id = ${zielId}, locked_by_agent_id = NULL, locked_until = NULL, updated_at = NOW()
+       WHERE person_id = ${personId} AND merged_into IS NULL
+    `;
+    const [a] = (await sqlPool`
+      SELECT ref FROM fiaon_applications WHERE person_id = ${personId} AND merged_into IS NULL
+      ORDER BY created_at DESC LIMIT 1
+    `) as any[];
+    if (a?.ref) {
+      await sqlPool`
+        INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
+        VALUES (${a.ref}, ${personId}, ${req.agent!.id}, ${req.agent!.name}, 'system',
+                ${`Von der Leitung an ${ziel.name} übergeben${war.von_name ? ` (vorher ${war.von_name})` : ""}. Grund: ${grund.slice(0, 300)}`}, NOW())
+      `.catch(() => {});
+    }
+    res.json({
+      ok: true,
+      meldung: `${[war.first_name, war.last_name].filter(Boolean).join(" ") || "Der Kunde"} ist jetzt bei ${ziel.name}.`,
+    });
+  } catch (err) {
+    console.error("[FIAON-KUNDEN] betreuer:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

@@ -95,8 +95,14 @@ const BANNER_BILD = `${BASIS_URL}/mail/fiaon-karte-banner.jpg`;
 
 /** Baut das vollständige HTML einer Vorlage (Platzhalter bleiben drin). */
 export function mailHtml(b: MailBaustein): string {
+  // 04.09.2026: Ein Zeilenumbruch im Absatz wird zum <br>. Bis dahin wurde
+  // „Freundliche Grüße\nIhr FIAON Welcome-Team\nwelcome@fiaon.com" zu EINER
+  // Zeile geplättet — gemessen an einem echten Entwurf. Das <font>-Attribut
+  // ist die Gegenmaßnahme für Gmails Dunkelmodus, der inline-CSS-Farben
+  // teilweise invertiert und dann hellen Text auf hellem Grund zeigt; ein
+  // <font color> respektiert er verlässlicher. Beides zusammen: doppelt hält.
   const absaetze = b.absaetze.map((a) =>
-    `<p style="margin:0 0 16px;font:400 16px/1.65 ${SCHRIFT};color:${TEXT};">${a}</p>`).join("\n            ");
+    `<p style="margin:0 0 16px;font:400 16px/1.65 ${SCHRIFT};color:${TEXT};"><font color="${TEXT}">${String(a).replace(/\n/g, "<br />")}</font></p>`).join("\n            ");
 
   const marke = b.marke
     ? `<div style="display:inline-block;margin:0 0 14px;padding:6px 14px;border-radius:999px;background:${HIMMEL};font:600 12px/1 ${SCHRIFT};letter-spacing:.06em;text-transform:uppercase;color:${BLAU};">${b.marke}</div>` : "";
@@ -159,6 +165,8 @@ export function mailHtml(b: MailBaustein): string {
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <meta name="x-apple-disable-message-reformatting" />
 <meta name="color-scheme" content="light only" />
+<meta name="supported-color-schemes" content="light only" />
+<style>:root{color-scheme:light only;supported-color-schemes:light only}</style>
 <title>${b.titel}</title>
 </head>
 <body style="margin:0;padding:0;background:#f0f4fa;">

@@ -957,6 +957,51 @@ router.post("/agent/termine/:id/uebergeben", requireAgent, async (req: AgentRequ
       WHERE id = ${id}
     `;
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // DER KUNDE GEHT MIT — ABER NUR BEI EINER ECHTEN ÜBERGABE (04.09.2026)
+    //
+    // Florentine: „Der komplette Kunde inklusive der gesamten Kundenakte
+    // sollte mitübergeben werden. Aktuell bleibt der Kunde weiterhin der
+    // ursprünglichen Person zugeordnet."
+    //
+    // Zwei Fälle, die auseinandergehalten werden müssen:
+    //   · VERTRETUNG (ein Onboarding-Call landet beim Vertrieb, oder umgekehrt):
+    //     Nur der Termin wandert. Die Akte ist trotzdem sichtbar — das regelt
+    //     darfAnKunde seit heute über den Termin. Der Kunde bleibt, wo er ist,
+    //     sonst wäre das genau der Fehler, der gestern 287 Kunden verschoben hat.
+    //   · ÜBERGABE unter Gleichen: Der Kunde geht mit, samt Akte, samt
+    //     Vermerk. Wer den Termin übernimmt, übernimmt den Menschen.
+    // ═══════════════════════════════════════════════════════════════════════
+    if (!vertretung && termin.person_id) {
+      const [war] = (await sqlPool`
+        SELECT assigned_agent_id FROM fiaon_persons WHERE id = ${Number(termin.person_id)}
+      `) as any[];
+      if (Number(war?.assigned_agent_id || 0) === Number(termin.agent_id)) {
+        await sqlPool`
+          UPDATE fiaon_persons
+             SET assigned_agent_id = ${zielId}, assigned_at = NOW(), updated_at = NOW()
+           WHERE id = ${Number(termin.person_id)}
+        `;
+        await sqlPool`
+          UPDATE fiaon_applications
+             SET assigned_agent_id = ${zielId}, updated_at = NOW()
+           WHERE person_id = ${Number(termin.person_id)} AND merged_into IS NULL
+             AND assigned_agent_id = ${Number(termin.agent_id)}
+        `;
+        const [a] = (await sqlPool`
+          SELECT ref FROM fiaon_applications WHERE person_id = ${Number(termin.person_id)} AND merged_into IS NULL
+          ORDER BY created_at DESC LIMIT 1
+        `) as any[];
+        if (a?.ref) {
+          await sqlPool`
+            INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
+            VALUES (${a.ref}, ${Number(termin.person_id)}, ${req.agent!.id}, ${req.agent!.name}, 'system',
+                    ${`Kunde mit Termin übergeben an ${ziel.name}. Grund: ${grund.slice(0, 200)}`}, NOW())
+          `.catch(() => {});
+        }
+      }
+    }
+
     // ── DER ÜBERNEHMER ERFÄHRT ES — ALS AUFGABE (22.08.2026, C12-e) ───────
     // Vorher bekam nur der Kunde Post. Der Kollege sah den Termin frühestens,
     // wenn er von sich aus in den Kalender schaute — und der Grund („krank

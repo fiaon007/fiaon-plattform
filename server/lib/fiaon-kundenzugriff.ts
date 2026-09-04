@@ -125,6 +125,31 @@ export async function darfAnKunde(
   // Justins Regel vom 25.08.: Niemand besitzt Kunden vor dem Mandat — ein
   // unzugewiesener Kunde ist Pool und darf angesprochen werden. Gesperrt
   // bleibt nur, wer WIRKLICH einem Kollegen gehoert.
+  // ═══════════════════════════════════════════════════════════════════════
+  // EIN TERMIN ÖFFNET DIE AKTE (04.09.2026)
+  //
+  // Florentine: „Wenn ein Kundentermin an einen anderen Mitarbeiter übergeben
+  // wird, sollte die gesamte Kundenakte mit übergeben werden. Aktuell ist die
+  // Akte beim übernommenen Termin leer." Daniel im Chat: „Kann seine Akte
+  // nicht einsehen." Hans-Jürgen: „Warum sehe ich die Akte nicht?"
+  //
+  // Bis hierher galt der Termin nur für die Rolle Onboarding als Schlüssel.
+  // Ein Vertriebskollege, der einen Termin übernahm, saß vor einer leeren
+  // Akte — und rief einen Menschen an, von dem er nichts wusste.
+  //
+  // Jetzt gilt für JEDE Rolle: Wer einen offenen Termin mit diesem Kunden
+  // hat, sieht die Akte. Der Kunde bleibt dabei, wem er gehört — das
+  // regelt die Übergabe, nicht der Zugriff.
+  // ═══════════════════════════════════════════════════════════════════════
+  const [t] = (await lauf`
+    SELECT 1 AS ok FROM fiaon_termine
+    WHERE person_id = ${personId} AND agent_id = ${agentId}
+      AND abgesagt_am IS NULL
+      AND beginn > NOW() - INTERVAL '7 days'
+    LIMIT 1
+  `) as any[];
+  if (t) return true;
+
   const [p] = (await lauf`
     SELECT 1 AS ok FROM fiaon_persons
     WHERE id = ${personId}

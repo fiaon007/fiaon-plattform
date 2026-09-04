@@ -176,9 +176,15 @@ export function antwortBauen(ein: {
   sprache?: string | null;
 }): FertigeAntwort {
   const w = rahmenFuer(ein.sprache);
+  // 04.09.2026: Bis hierher wurde jeder einfache Zeilenumbruch zu einem
+  // Leerzeichen — der Text kam als ein einziger Block beim Kunden an, und der
+  // Gruß stand geplättet auf einer Zeile. Jetzt bleiben Umbrüche erhalten
+  // (das Gerüst macht daraus <br>), und der Text wird escapt, damit ein „<"
+  // aus einer Kundenmail die Antwort nicht zerreißt.
+  const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const absaetze = String(ein.kern || "")
     .split(/\n{2,}/)
-    .map((a) => a.trim().replace(/\n/g, " "))
+    .map((a) => esc(a.trim()))
     .filter(Boolean);
 
   // Der Gruß des Postfachs ist deutsch. Schreibt der Kunde in einer anderen
@@ -202,7 +208,7 @@ export function antwortBauen(ein: {
     // `unterschrift()` waren fertig — und wurden nie erreicht. Der alte Weg
     // vor dem Umbau verschickte reinen Text, MIT Gruß. Der Umbau auf HTML hat
     // den Mangel also erst erzeugt.
-    absaetze: [ein.anrede, ...absaetze, gruss].filter((z) => String(z || "").trim()),
+    absaetze: [esc(ein.anrede), ...absaetze, esc(gruss)].filter((z) => String(z || "").trim()),
     knopf: ein.schritt?.url ? { text: knopfText(ein.schritt, w), url: ein.schritt.url } : undefined,
     persoenlich: true,
   };

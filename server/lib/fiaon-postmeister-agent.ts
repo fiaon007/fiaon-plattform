@@ -35,6 +35,20 @@ const MODELL = () => process.env.POSTMEISTER_MODELL || "gpt-5.5";
 const MODELL_KLEIN = () => process.env.POSTMEISTER_MODELL_KLEIN || "gpt-5.5";
 const SCHLUESSEL = () => process.env.OPENAI_API_KEY || process.env.ASSISTENT_API_KEY || "";
 const MAX_RUNDEN = 6;
+
+/**
+ * Der Name, mit dem der Agent unterschreibt (04.09.2026, Justin: „Gebe den
+ * Agenten einen Namen"). Steht in fiaon_settings unter `postmeister_name`,
+ * damit Justin ihn ohne Code ändert. Vorgabe: Mara.
+ */
+export async function agentName(): Promise<string> {
+  try {
+    const { sqlPool } = await import("./db-pool");
+    const [r] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = 'postmeister_name' LIMIT 1`) as any[];
+    const n = String(r?.value ?? "").trim();
+    return n || "Mara";
+  } catch { return "Mara"; }
+}
 const ZEITGRENZE_MS = 90_000;
 
 /** Der Textriegel. Was hier trifft, gilt — egal was das Modell meint. */
@@ -385,10 +399,12 @@ function sprachName(code: string): string {
 function systemPrompt(ein: {
   postfach: string; lage: Kundenlage; lageGrund: string; heute: string; akte: any;
   einordnung: Einordnung; vertrag: string; alterTage: number; werkzeuge: string[];
+  name: string;
 }): string {
   const schritte = ERLAUBTE_SCHRITTE[ein.lage].join(", ");
   return [
-    `Du bist Sachbearbeiterin bei FIAON und schreibst aus dem Postfach ${ein.postfach}. Du bist ein Mensch am Schreibtisch, kein Automat: Du hast die Akte gelesen, bevor du antwortest.`,
+    `Du heißt ${ein.name} und arbeitest im Kundendienst von FIAON. Du schreibst aus dem Postfach ${ein.postfach}. Du bist ein Mensch am Schreibtisch, kein Automat: Du hast die Akte gelesen und den ganzen bisherigen Schriftwechsel, bevor du antwortest.`,
+    `Du unterschreibst mit deinem Vornamen. Wenn der Kunde dich mit Namen anspricht oder auf eine frühere Mail von dir Bezug nimmt, gehst du darauf ein — du erinnerst dich an alles, was in diesem Verlauf steht.`,
     `HEUTE ist ${ein.heute}.`,
     ``,
     // Am 02.09.2026 beanstandet: „auf englische Mails antwortet er Deutsch".
@@ -410,6 +426,9 @@ function systemPrompt(ein: {
     // Kreditrahmen, keine Entscheidung über dessen Höhe …"). Das ist
     // Beamtendeutsch. Ein Mensch, der auf Geld wartet, liest so etwas nicht.
     `· EIN GEDANKE PRO SATZ. Höchstens 20 Wörter. Wenn ein Satz zwei Kommata braucht, mach zwei Sätze daraus.`,
+    `· ABSÄTZE: Trenne Gedanken durch eine Leerzeile. Ein Absatz hat zwei bis vier Sätze. Ein einziger Textblock ist nicht menschlich — niemand schreibt so.`,
+    `· NIMM BEZUG: Wenn der Kunde zum zweiten Mal schreibt, zeig, dass du das erste Mal gelesen hast („Sie hatten am Montag gefragt, ob …"). Wiederhole nicht, was du schon gesagt hast — der Kunde hat es gelesen.`,
+    `· SEI WARM, NICHT FÖRMLICH: „gern", „natürlich", „das verstehe ich" sind erlaubt. „Wir bitten um Verständnis" und „Sehr geehrte" sind es nicht.`,
     `· Sprich wie am Telefon, nicht wie in einem Bescheid. Keine Aufzählung von Dingen, die du NICHT weißt — sag in EINEM Satz, was offen ist, und wer sich darum kümmert.`,
     `· Keine Fachwörter aus unserem Haus (Issuer, Impressum, Status, Akte, System, Vorgang). Der Kunde kennt sie nicht.`,
     `· Beginne mit dem, was der Kunde will — nie mit einer Eingangsbestätigung.`,
@@ -485,12 +504,17 @@ export async function antwortErzeugen(ein: {
       postfach: ein.postfach, lage, lageGrund: akte.lageGrund, heute: akte.heute, akte,
       einordnung: ein.einordnung, vertrag: vertrag.text, alterTage: ein.mail.alterTage,
       werkzeuge: werkzeuge.map((w) => w.name),
+      name: await agentName(),
     }) },
   ];
   if (ein.verlauf.length) {
     nachrichten.push({
       role: "user",
-      content: `BISHERIGER SCHRIFTWECHSEL (älteste zuerst):\n${ein.verlauf.slice(-6).map((v) => `[${v.am}] ${v.von}: ${v.text.slice(0, 900)}`).join("\n\n")}`,
+      // 04.09.2026, Justin: „Der Email Agent muss auch immer den gesamten
+      // Verlauf kennen." Bis hierher sah er sechs Nachrichten à 900 Zeichen —
+      // eine lange Beschwerde war nach dem ersten Drittel abgeschnitten, und
+      // beim siebten Wortwechsel fehlte der erste. Jetzt der ganze Verlauf.
+      content: `BISHERIGER SCHRIFTWECHSEL (älteste zuerst, ${ein.verlauf.length} Nachrichten):\n${ein.verlauf.map((v) => `[${v.am}] ${v.von}: ${v.text.slice(0, 3000)}`).join("\n\n")}`,
     });
   }
   nachrichten.push({ role: "user", content: `NEUE NACHRICHT\nVon: ${ein.mail.von}\nBetreff: ${ein.mail.betreff}\n\n${String(ein.mail.text).slice(0, 6000)}` });

@@ -163,6 +163,19 @@ export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children }:
 }) {
   const [menueOffen, setMenueOffen] = useState(false);
   useEffect(() => { setMenueOffen(false); }, [raumKey]);
+  // ── DAS MENÜ IST EINGEKLAPPT, WENN MAN DIE SEITE ÖFFNET (04.09.2026) ─────
+  // Justin: „das Menü soll sich einklappen wenn man die Seite öffnet — mehr
+  // Platz, cleaner." Schmal heißt: 60 Pixel, nur die Icons, Name als Tooltip.
+  // Wer es aufklappt, behält das für seine Sitzung (localStorage); die Vorgabe
+  // beim ersten Öffnen ist eingeklappt.
+  const [schmal, setSchmal] = useState<boolean>(() => {
+    try { const v = window.localStorage.getItem("chef-menue-schmal"); return v === null ? true : v === "1"; }
+    catch { return true; }
+  });
+  const schmalSetzen = (v: boolean) => {
+    setSchmal(v);
+    try { window.localStorage.setItem("chef-menue-schmal", v ? "1" : "0"); } catch { /* egal */ }
+  };
   // Wer Bewegung abgestellt hat, bekommt ein Standbild statt des Films.
   const ruhig = typeof window !== "undefined"
     && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -197,7 +210,7 @@ export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children }:
   );
 
   return (
-    <div className="cb">
+    <div className={`cb${schmal ? " cb-schmal" : ""}`}>
       {/* ══════════════════════════════════════════════════════════════════
           DIE BÜHNE (26.08.2026)
           Eigener Film statt des Schreibtisch-Platzhalters: ein dunkler Raum
@@ -240,7 +253,14 @@ export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children }:
       </header>
 
       <div className="cb-grund">
-        <aside className="cb-leiste" aria-label="Räume"><Liste /></aside>
+        <aside className="cb-leiste" aria-label="Räume">
+          <Liste />
+          <button type="button" className="cb-klapp" onClick={() => schmalSetzen(!schmal)}
+                  title={schmal ? "Menü ausklappen" : "Menü einklappen"} aria-expanded={!schmal}>
+            <i><ChevronRight size={16} strokeWidth={2} style={{ transform: schmal ? "none" : "rotate(180deg)" }} /></i>
+            <span>{schmal ? "Ausklappen" : "Einklappen"}</span>
+          </button>
+        </aside>
         <main className="cb-inhalt">{children}</main>
       </div>
 

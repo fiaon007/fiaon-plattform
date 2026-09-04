@@ -28,7 +28,7 @@
 .cb-rund:hover{background:rgba(255,255,255,.12);color:#fff}
 .cb-burger{display:none;width:40px;height:40px;border-radius:11px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#e5e7eb;place-items:center;cursor:pointer}
 /* Grund: Leiste + Inhalt */
-.cb-grund{position:relative;z-index:1;display:grid;grid-template-columns:236px 1fr;gap:22px;max-width:1440px;margin:0 auto;padding:22px 22px 60px}
+.cb-grund{position:relative;z-index:1;display:grid;grid-template-columns:236px 1fr;gap:22px;max-width:none;margin:0;padding:18px 20px 48px}
 .cb-leiste{position:sticky;top:84px;align-self:start;display:flex;flex-direction:column;gap:4px;padding:10px;border-radius:22px;background:rgba(15,23,42,.5);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(18px) saturate(160%);-webkit-backdrop-filter:blur(18px) saturate(160%);box-shadow:0 20px 50px rgba(2,6,23,.4),inset 0 1px 0 rgba(255,255,255,.08);max-height:calc(100vh - 100px);overflow:auto;scrollbar-width:none}
 .cb-leiste::-webkit-scrollbar{display:none}
 .cb-leiste-titel{font:600 9.5px/1 'Inter',sans-serif;letter-spacing:.16em;text-transform:uppercase;color:#64748b;padding:12px 12px 6px}
@@ -1066,3 +1066,23 @@
 @media (prefers-reduced-motion: reduce) {
   .cb-gratulation-schleier, .cb-gratulation, .cb-gratulation-stern { animation: none; }
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   DAS SCHMALE MENÜ (04.09.2026) — Justin: „das Menü soll sich einklappen,
+   wenn man die Seite öffnet, kleiner, nur die Icons, dass die Seiten mehr
+   Platz haben." 60 Pixel statt 236, Icons zentriert, Name als Tooltip.
+   Der Inhalt bekommt die ganze Breite.
+   ═══════════════════════════════════════════════════════════════════════ */
+.cb-klapp{display:flex;align-items:center;gap:11px;margin-top:6px;padding:9px 12px;border-radius:12px;border:0;border-top:1px solid rgba(255,255,255,.08);background:transparent;color:#64748b;font:400 12.5px/1.2 'Inter',sans-serif;cursor:pointer;width:100%;text-align:left}
+.cb-klapp:hover{background:rgba(255,255,255,.06);color:#e5e7eb}
+.cb-klapp i{display:grid;place-items:center;width:22px;height:22px;flex:0 0 22px}
+.cb-klapp span{white-space:nowrap}
+.cb.cb-schmal .cb-grund{grid-template-columns:60px 1fr;gap:16px}
+.cb.cb-schmal .cb-leiste{padding:8px 6px;border-radius:16px}
+.cb.cb-schmal .cb-leiste-titel{display:none}
+.cb.cb-schmal .cb-punkt{justify-content:center;padding:10px 0;gap:0}
+.cb.cb-schmal .cb-punkt span,.cb.cb-schmal .cb-punkt .schloss{display:none}
+.cb.cb-schmal .cb-klapp{justify-content:center;padding:9px 0;gap:0}
+.cb.cb-schmal .cb-klapp span{display:none}
+@media(max-width:960px){.cb-klapp{display:none}}

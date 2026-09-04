@@ -1,16 +1,25 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// DAS POSTFACH (02.09.2026, E-094)
+// DAS POSTFACH (04.09.2026, Neubau nach Justins Entwurf-Freigabe)
 //
-// Justins Vorgabe: „VIEL cleaner, weg mit dem 3D-Video […] ich will auch immer
-// sehen was der Kunde geschrieben hat — es muss aussehen wie ein E-Mail-
-// Postfach, was eben voll automatisch von unseren Mitarbeitern betreut wird.
-// […] Immer als Entwurf speichern, dass ich kurz drüber schauen kann und dann
-// markieren kann, oder alle direkt versende."
+// JUSTIN am 04.09.: „Das sieht schrecklich aus als Postfach, man kann es kaum
+// bedienen, ist total unübersichtlich, ich kann nicht ganz nach unten
+// scrollen. Mach das bitte funktionsfähig, Schrift bisschen kleiner, verwende
+// die ganze volle Seite."
 //
-// Drei Spalten: Ordner, Liste, Nachricht. Rechts steht IMMER zuerst, was der
-// Kunde geschrieben hat — darunter der Verlauf, die Akte, die ausgeführten
-// Handlungen und zuletzt die Antwort zum Prüfen. Kein Partikelfeld, keine
-// Bühne, keine Animation außer einem sanften Übergang.
+// WAS ANDERS IST:
+//   · Zwei Spalten statt drei — die Ordner sind Reiter über der Liste.
+//   · Genau ZWEI Scrollbereiche (Liste, Brief). Der Brief scrollt als ein
+//     Stück, nicht in vier Kästchen. Die alte Fassung hatte eine feste Höhe
+//     mit drei inneren Scrollern; bei kleinerem Fenster erwischte man keinen
+//     davon — deshalb „kann nicht nach unten scrollen".
+//   · Schrift durchgehend kleiner (Liste 12px, Meta 10.5px, Marken 8.5px).
+//   · Der getippte Entwurf überlebt das Blättern — er wird je Vorgang gemerkt.
+//   · Was Mara GETAN hat (Notiz, Link, Mahnstopp) steht als „Bereits
+//     erledigt" über dem Entwurf. Das ist die Antwort auf Justins Frage
+//     „macht der Agent dann schon einen Weg?": ja — und hier steht welchen.
+//
+// Die Logik (laden, öffnen, senden, verwerfen, mehrere) ist unverändert
+// übernommen; nur die Darstellung ist neu.
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -33,6 +42,19 @@ const LAGE_TEXT: Record<string, string> = {
   gesperrt: "gesperrt", fremd: "kein Kunde", unklar: "unklar",
 };
 
+const FLAG_TEXT: Record<string, { text: string; ton: "warn" | "rot" | "grau" }> = {
+  kuendigung: { text: "Kündigung", ton: "rot" },
+  bestreitet: { text: "Bestreitet", ton: "rot" },
+  widerruf: { text: "Widerruf", ton: "rot" },
+  beschwerde: { text: "Beschwerde", ton: "warn" },
+  rechtlich: { text: "Rechtlich", ton: "rot" },
+  droht_anwalt: { text: "Anwalt", ton: "rot" },
+  stopp: { text: "Stopp", ton: "grau" },
+  zahlung_behauptet: { text: "Sagt: bezahlt", ton: "warn" },
+  rueckruf_wunsch: { text: "Rückruf", ton: "grau" },
+  zahlungsunfaehig: { text: "Kann nicht zahlen", ton: "warn" },
+};
+
 async function hole(pfad: string, init?: RequestInit) {
   const res = await fetch(`/api/fiaon${pfad}`, { credentials: "include", ...init });
   const j = await res.json().catch(() => null);
@@ -43,11 +65,20 @@ async function hole(pfad: string, init?: RequestInit) {
 function zeit(iso: string | null): string {
   if (!iso) return "";
   const d = new Date(iso);
-  const heute = new Date();
-  const gleich = d.toDateString() === heute.toDateString();
+  const gleich = d.toDateString() === new Date().toDateString();
   return gleich
     ? d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })
     : d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
+}
+
+function datumZeit(iso: string | null): string {
+  if (!iso) return "";
+  return new Date(iso).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+function euro(v: unknown): string {
+  const n = Number(String(v ?? "").replace(",", "."));
+  return Number.isFinite(n) ? n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €" : String(v ?? "");
 }
 
 export default function ChefPostfach() {
@@ -59,12 +90,17 @@ export default function ChefPostfach() {
   const [kopf, setKopf] = useState<any>(null);
   const [offenId, setOffenId] = useState<number | null>(null);
   const [detail, setDetail] = useState<any>(null);
-  const [entwurf, setEntwurf] = useState("");
+  const [entwuerfe, setEntwuerfe] = useState<Record<number, string>>({});
   const [markiert, setMarkiert] = useState<number[]>([]);
   const [laeuft, setLaeuft] = useState<string | null>(null);
   const [meldung, setMeldung] = useState<{ art: "gut" | "warn"; text: string } | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
   const textFeld = useRef<HTMLTextAreaElement>(null);
+  const briefRef = useRef<HTMLDivElement>(null);
+
+  // Der Entwurf je Vorgang — überlebt das Blättern.
+  const entwurf = offenId != null ? (entwuerfe[offenId] ?? String(detail?.eintrag?.antwort ?? "")) : "";
+  const entwurfSetzen = (t: string) => { if (offenId != null) setEntwuerfe((e) => ({ ...e, [offenId]: t })); };
 
   const laden = useCallback(async (leise = false) => {
     try {
@@ -87,13 +123,14 @@ export default function ChefPostfach() {
     const t = setInterval(() => void laden(true), 30_000);
     return () => clearInterval(t);
   }, [laden]);
+  useEffect(() => { if (meldung) { const t = setTimeout(() => setMeldung(null), 6000); return () => clearTimeout(t); } }, [meldung]);
 
   const oeffnen = useCallback(async (id: number) => {
-    setOffenId(id); setDetail(null);
+    setOffenId(id); setDetail(null); setMeldung(null);
     try {
       const d = await hole(`/admin/postmeister/eintrag/${id}`);
       setDetail(d);
-      setEntwurf(String(d.eintrag?.antwort ?? ""));
+      if (briefRef.current) briefRef.current.scrollTop = 0;
     } catch (e: any) { setFehler(String(e?.message || e)); }
   }, []);
 
@@ -106,8 +143,11 @@ export default function ChefPostfach() {
         body: JSON.stringify({ text: text ?? null }),
       });
       const j = await r.json().catch(() => ({}));
-      if (j?.ok) { setMeldung({ art: "gut", text: "Antwort ist raus." }); setOffenId(null); setDetail(null); await laden(); }
-      else setMeldung({ art: "warn", text: j?.grund || "Konnte nicht gesendet werden." });
+      if (j?.ok) {
+        setMeldung({ art: "gut", text: "Antwort ist raus." });
+        setEntwuerfe((e) => { const n = { ...e }; delete n[id]; return n; });
+        setOffenId(null); setDetail(null); await laden();
+      } else setMeldung({ art: "warn", text: j?.grund || j?.error || "Konnte nicht gesendet werden." });
     } catch (e: any) { setMeldung({ art: "warn", text: String(e?.message || e) }); }
     finally { setLaeuft(null); }
   }, [laden]);
@@ -120,6 +160,7 @@ export default function ChefPostfach() {
         body: JSON.stringify({ grund: "in der Zentrale verworfen" }),
       });
       setMeldung({ art: "gut", text: "Entwurf verworfen." });
+      setEntwuerfe((e) => { const n = { ...e }; delete n[id]; return n; });
       setOffenId(null); setDetail(null); await laden();
     } catch (e: any) { setMeldung({ art: "warn", text: String(e?.message || e) }); }
     finally { setLaeuft(null); }
@@ -145,144 +186,148 @@ export default function ChefPostfach() {
   // Tastatur: j/k blättern, ⌘↵ senden, Esc schließen.
   useEffect(() => {
     const auf = (e: KeyboardEvent) => {
-      const imFeld = (e.target as HTMLElement)?.tagName === "TEXTAREA" || (e.target as HTMLElement)?.tagName === "INPUT";
-      if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && offenId) { e.preventDefault(); void senden(offenId, entwurf); return; }
+      const el = e.target as HTMLElement | null;
+      const imFeld = el?.tagName === "TEXTAREA" || el?.tagName === "INPUT" || el?.tagName === "SELECT";
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && offenId != null) { e.preventDefault(); void senden(offenId, entwurf); return; }
       if (imFeld) return;
       if (e.key === "Escape") { setOffenId(null); setDetail(null); return; }
-      if (e.key === "j" || e.key === "k") {
-        const i = liste.findIndex((z) => z.id === offenId);
-        const n = e.key === "j" ? Math.min(liste.length - 1, i + 1) : Math.max(0, i - 1);
-        if (liste[n]) void oeffnen(liste[n].id);
-      }
+      if (e.key !== "j" && e.key !== "k") return;
+      const i = liste.findIndex((z) => z.id === offenId);
+      const n = e.key === "j" ? Math.min(liste.length - 1, i + 1) : Math.max(0, i - 1);
+      if (liste[n] && liste[n].id !== offenId) { e.preventDefault(); void oeffnen(liste[n].id); }
     };
     window.addEventListener("keydown", auf);
     return () => window.removeEventListener("keydown", auf);
   }, [liste, offenId, entwurf, senden, oeffnen]);
 
-  useEffect(() => { if (meldung) { const t = setTimeout(() => setMeldung(null), 6000); return () => clearTimeout(t); } }, [meldung]);
+  const postfaecher: string[] = useMemo(() => {
+    const ausKopf: string[] = (kopf?.jePostfach ?? []).map((p: any) => String(p.postfach));
+    if (ausKopf.length) return ausKopf;
+    return Array.from(new Set(liste.map((z) => String(z.postfach)))).sort();
+  }, [kopf, liste]);
 
-  const postfaecher = useMemo(() => (kopf?.jePostfach ?? []).map((p: any) => p.postfach), [kopf]);
+  const E = detail?.eintrag;
+  const A = detail?.akte;
+  const flags = (E?.flags ?? {}) as Record<string, boolean>;
+  const istEntwurf = !!E && (E.aktion === "entwurf" || E.aktion === "fehler");
+  const kannSenden = istEntwurf && entwurf.trim().length > 0;
 
   return (
-    <div>
-      <div className="pf-kopf">
+    <div className="pf">
+      {/* ── Zahlenband ─────────────────────────────────────────────────── */}
+      <div className="pf-band">
         <h1>Postfach</h1>
-        <div className="pf-zahl"><b>{kopf?.zahlen?.entwuerfe ?? zaehler.offen ?? 0}</b><span>warten auf dich</span></div>
-        <div className="pf-zahl"><b>{kopf?.zahlen?.dringend ?? 0}</b><span>davon dringend</span></div>
-        <div className="pf-zahl"><b>{kopf?.zahlen?.heute_gesendet ?? 0}</b><span>heute beantwortet</span></div>
-        <div className="pf-zahl"><b>{kopf?.kostenHeuteEuro?.toFixed?.(2) ?? "0.00"} €</b><span>Modellkosten heute</span></div>
-        <div className="pf-rechts">
+        <div className="pf-kz"><b>{kopf?.wartenAufDich ?? zaehler.offen ?? 0}</b><span>warten auf dich</span></div>
+        <div className="pf-kz warn"><b>{kopf?.dringend ?? zaehler.dringend ?? 0}</b><span>dringend</span></div>
+        <div className="pf-kz"><b>{kopf?.heuteBeantwortet ?? 0}</b><span>heute beantwortet</span></div>
+        <div className="pf-kz"><b>{typeof kopf?.kostenHeute === "number" ? kopf.kostenHeute.toFixed(2).replace(".", ",") + " €" : "—"}</b><span>Modellkosten heute</span></div>
+        <div className="pf-band-rechts">
           {markiert.length > 0 && (
-            <button className="pf-knopf" onClick={markierteSenden} disabled={laeuft === "mehrere"}>
+            <button type="button" className="pf-knopf" disabled={laeuft === "mehrere"} onClick={() => void markierteSenden()}>
               {laeuft === "mehrere" ? "Sendet …" : `${markiert.length} markierte senden`}
             </button>
           )}
-          <button className="pf-knopf leise" onClick={() => void laden()}>Aktualisieren</button>
+          <button type="button" className="pf-knopf still" onClick={() => void laden()}>Aktualisieren</button>
         </div>
       </div>
 
-      {fehler && <div className="pf-warnung" style={{ marginBottom: 10 }}>Verbindung gestört: {fehler}</div>}
-      {meldung && (
-        <div className="pf-warnung" style={{ marginBottom: 10, borderColor: meldung.art === "gut" ? "#4ade80" : undefined, color: meldung.art === "gut" ? "#4ade80" : undefined }}>
-          {meldung.text}
-        </div>
+      {(fehler || meldung) && (
+        <div className={`pf-meldung ${fehler ? "warn" : meldung?.art}`}>{fehler || meldung?.text}</div>
       )}
 
-      <div className="pf">
-        {/* Ordner */}
-        <nav className="pf-ordner" aria-label="Ordner">
-          <div className="pf-titel">Ordner</div>
-          {ORDNER.map((o) => (
-            <button key={o.key} aria-current={ordner === o.key} onClick={() => { setOrdner(o.key); setOffenId(null); setDetail(null); }}>
-              {o.name}
-              {o.zaehler ? <span className="n">{zaehler[o.zaehler] ?? 0}</span> : null}
-            </button>
-          ))}
-          <div className="pf-trenn" />
-          <div className="pf-titel">Postfach</div>
-          <button aria-current={postfach === ""} onClick={() => setPostfach("")}>Alle</button>
-          {postfaecher.map((p: string) => (
-            <button key={p} aria-current={postfach === p} onClick={() => setPostfach(p)}>
-              {p.split("@")[0]}
-              <span className="n">{kopf?.jePostfach?.find((x: any) => x.postfach === p)?.offen ?? 0}</span>
-            </button>
-          ))}
-        </nav>
-
-        {/* Liste */}
+      {/* ── Zwei Spalten. Zwei Scrollbereiche. Mehr nicht. ─────────────── */}
+      <div className="pf-koerper">
         <div className="pf-liste">
-          <div className="pf-suche">
-            <input value={suche} onChange={(e) => setSuche(e.target.value)} placeholder="Suchen: Name, Betreff, Referenz" aria-label="Suchen" />
-          </div>
-          <div className="pf-rollen">
-            {liste.length === 0 && <div className="pf-leer">Nichts in diesem Ordner.</div>}
-            {liste.map((z) => (
-              <button key={z.id} className="pf-zeile" aria-current={offenId === z.id} onClick={() => void oeffnen(z.id)}>
-                {ordner === "offen" && (
-                  <input
-                    className="pf-auswahl" type="checkbox" checked={markiert.includes(z.id)}
-                    onClick={(e) => e.stopPropagation()}
-                    onChange={(e) => setMarkiert((m) => (e.target.checked ? [...m, z.id] : m.filter((x) => x !== z.id)))}
-                    aria-label="Für Sammelversand markieren"
-                  />
-                )}
-                <div className="z1">
-                  <span className="name">{z.kundeName || z.vonName}</span>
-                  <span className="zeit">{zeit(z.empfangenAm)}</span>
-                </div>
-                <div className="betreff">{z.betreff || "(kein Betreff)"}</div>
-                <div className="vorschau">{z.zusammenfassung || (z.text ? String(z.text).slice(0, 160) : "")}</div>
-                <div className="marken">
-                  {z.dringend && <span className="pf-marke warn">dringend</span>}
-                  {z.kundenlage && <span className="pf-marke leise">{LAGE_TEXT[z.kundenlage] ?? z.kundenlage}</span>}
-                  {Object.entries(z.flags || {}).filter(([, v]) => v).slice(0, 2).map(([k]) => (
-                    <span key={k} className="pf-marke rot">{k.replace(/_/g, " ")}</span>
-                  ))}
-                  {z.aktion === "gesendet" || z.aktion === "auto_beantwortet" ? <span className="pf-marke gruen">beantwortet</span> : null}
-                  {z.nachrichtenImThread > 1 && <span className="pf-marke leise">{z.nachrichtenImThread} Nachrichten</span>}
-                </div>
+          <div className="pf-reiter" role="tablist">
+            {ORDNER.map((o) => (
+              <button key={o.key} type="button" role="tab" aria-selected={ordner === o.key}
+                      className={ordner === o.key ? "an" : ""} onClick={() => { setOrdner(o.key); setOffenId(null); setDetail(null); }}>
+                {o.name}{o.zaehler && zaehler[o.zaehler] != null && <span className="n">{zaehler[o.zaehler]}</span>}
               </button>
             ))}
           </div>
+          <div className="pf-filter">
+            <input type="search" placeholder="Name, Betreff, Referenz …" value={suche} onChange={(e) => setSuche(e.target.value)} />
+            {postfaecher.length > 1 && (
+              <select value={postfach} onChange={(e) => setPostfach(e.target.value)} title="Postfach">
+                <option value="">alle Postfächer</option>
+                {postfaecher.map((p) => <option key={p} value={p}>{p.replace("@fiaon.com", "")}</option>)}
+              </select>
+            )}
+          </div>
+          <div className="pf-rollen">
+            {liste.length === 0 && <div className="pf-leer">Nichts in diesem Ordner.</div>}
+            {liste.map((z) => {
+              const an = z.id === offenId;
+              const marken: { t: string; ton: string }[] = [];
+              if (z.dringend) marken.push({ t: "Dringend", ton: "warn" });
+              for (const [k, v] of Object.entries(z.flags ?? {})) if (v && FLAG_TEXT[k]) marken.push({ t: FLAG_TEXT[k].text, ton: FLAG_TEXT[k].ton });
+              if (z.kundenlage && LAGE_TEXT[z.kundenlage] && !["aktiv", "unklar"].includes(z.kundenlage)) marken.push({ t: LAGE_TEXT[z.kundenlage], ton: "grau" });
+              if ((z.nachrichtenImThread ?? 1) > 1) marken.push({ t: `${z.nachrichtenImThread} Nachrichten`, ton: "grau" });
+              if (z.aktion === "fehler") marken.push({ t: "Fehler", ton: "rot" });
+              return (
+                <div key={z.id} className={`pf-zeile${an ? " an" : ""}`}>
+                  {z.aktion === "entwurf" && (
+                    <input type="checkbox" className="pf-haken" checked={markiert.includes(z.id)} aria-label="Markieren"
+                           onChange={(e) => setMarkiert((m) => e.target.checked ? [...m, z.id] : m.filter((x) => x !== z.id))} />
+                  )}
+                  <button type="button" className="pf-zeile-knopf" onClick={() => void oeffnen(z.id)} aria-current={an}>
+                    <div className="z1"><span className="nm">{z.kundeName || z.vonName || z.von}</span><span className="zt">{zeit(z.empfangenAm)}</span></div>
+                    <div className="bt">{z.betreff || "(ohne Betreff)"}</div>
+                    <div className="vs">{z.zusammenfassung || String(z.text ?? "").slice(0, 140)}</div>
+                    {marken.length > 0 && <div className="mk">{marken.map((m, i) => <span key={i} className={`m ${m.ton}`}>{m.t}</span>)}</div>}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
-        {/* Nachricht */}
-        <div className="pf-brief">
-          {!offenId && <div className="pf-leer">Wähle links eine Nachricht. Mit j und k blätterst du, mit ⌘ + Enter sendest du.</div>}
-          {offenId && !detail && <div className="pf-leer">Lädt …</div>}
-          {detail && (
+        <div className="pf-brief" ref={briefRef}>
+          {offenId == null && (
+            <div className="pf-leer gross">Wähle links eine Nachricht. Mit <kbd>j</kbd> und <kbd>k</kbd> blätterst du, mit <kbd>⌘↵</kbd> sendest du.</div>
+          )}
+          {offenId != null && !detail && <div className="pf-leer gross">Lädt …</div>}
+          {E && (
             <>
-              <div className="pf-brief-kopf">
-                <h2>{detail.eintrag.betreff || "(kein Betreff)"}</h2>
+              <div className="pf-bkopf">
+                <h2>{E.betreff || "(ohne Betreff)"}</h2>
                 <div className="meta">
-                  {detail.eintrag.von} · an {detail.eintrag.postfach} · {new Date(detail.eintrag.empfangenAm).toLocaleString("de-DE")}
-                  {detail.akte?.kundenlage ? ` · ${LAGE_TEXT[detail.akte.kundenlage] ?? detail.akte.kundenlage}` : ""}
-                  {detail.akte?.betreuer ? ` · Betreuerin: ${detail.akte.betreuer}` : ""}
+                  <b>{A?.name || E.von}</b>
+                  <span>·</span><span>{E.von}</span>
+                  <span>·</span><span>{datumZeit(E.empfangenAm)}</span>
+                  {E.kundenlage && <><span>·</span><span>{LAGE_TEXT[E.kundenlage] ?? E.kundenlage}</span></>}
+                  {A?.betreuer && <><span>·</span><span>Betreuung: <b>{A.betreuer}</b></span></>}
+                  {E.ref && <><span>·</span><a href={`/admin/kunde/${E.ref}`} target="_blank" rel="noreferrer">Akte öffnen</a></>}
                 </div>
               </div>
 
-              <div className="pf-inhalt">
-                {/* Was der Kunde geschrieben hat — steht immer zuerst. */}
-                <section className="pf-block">
+              <div className="pf-leib">
+                {(flags.droht_anwalt || flags.bestreitet || flags.beschwerde || flags.rechtlich) && (
+                  <div className="pf-warnband">
+                    <b>{flags.droht_anwalt ? "Droht mit dem Anwalt." : flags.bestreitet ? "Bestreitet die Forderung." : flags.rechtlich ? "Rechtliches Thema." : "Beschwerde."}</b>
+                    {" "}Diese Antwort geht nie automatisch raus — sie wartet auf dich.
+                  </div>
+                )}
+                {E.aktion === "fehler" && E.begruendung && (
+                  <div className="pf-warnband rot"><b>Mara konnte nicht antworten.</b> {E.begruendung}</div>
+                )}
+
+                <section className="pf-abs">
                   <h3>Was der Kunde geschrieben hat</h3>
-                  <div className="inhalt"><div className="pf-kundentext">{detail.eintrag.text || "(kein Text)"}</div></div>
+                  <div className="pf-zitat">{E.text || "(kein Text)"}</div>
                 </section>
 
-                {detail.verlauf?.length > 1 && (
-                  <section className="pf-block">
-                    <h3>Verlauf ({detail.verlauf.length} Nachrichten)</h3>
-                    <div className="inhalt pf-verlauf">
-                      {detail.verlauf.map((v: any) => (
-                        <div key={v.id}>
-                          <div className="n">
-                            <div className="kopf">{v.von} · {new Date(v.am).toLocaleString("de-DE")}</div>
-                            <div className="txt">{v.text || "(kein Text)"}</div>
-                          </div>
-                          {v.antwort && (
-                            <div className="n uns" style={{ marginTop: 6 }}>
-                              <div className="kopf">FIAON {v.antwortGesendet ? `· gesendet ${new Date(v.antwortGesendet).toLocaleString("de-DE")}` : "· Entwurf"}</div>
-                              <div className="txt">{v.antwort}</div>
-                            </div>
+                {Array.isArray(detail.verlauf) && detail.verlauf.filter((v: any) => v.id !== E.id).length > 0 && (
+                  <section className="pf-abs">
+                    <h3>Bisheriger Schriftwechsel · {detail.verlauf.length} Nachrichten</h3>
+                    <div className="pf-verlauf">
+                      {detail.verlauf.filter((v: any) => v.id !== E.id).map((v: any) => (
+                        <div key={v.id} className="pf-v">
+                          <div className="k"><b>Kunde</b> · {datumZeit(v.am)}{v.betreff ? ` · ${v.betreff}` : ""}</div>
+                          <div className="t">{v.text}</div>
+                          {v.antwort && (v.antwortGesendet || v.aktion === "auto_beantwortet") && (
+                            <div className="t uns"><b>Wir</b> · {datumZeit(v.antwortGesendet)}<br />{v.antwort}</div>
                           )}
                         </div>
                       ))}
@@ -290,87 +335,69 @@ export default function ChefPostfach() {
                   </section>
                 )}
 
-                <section className="pf-block">
-                  <h3>Akte</h3>
-                  <div className="inhalt pf-akte">
-                    <div className="reihe"><span className="k">Kunde</span><span className="v">{detail.akte?.name ?? "nicht zugeordnet"}</span></div>
-                    <div className="reihe"><span className="k">Lage</span><span className="v">{LAGE_TEXT[detail.akte?.kundenlage] ?? "—"} — {detail.akte?.lageGrund}</span></div>
-                    {(detail.akte?.bestellungen ?? []).slice(0, 2).map((b: any) => (
-                      <div className="reihe" key={b.ref}><span className="k">Bestellung</span><span className="v">{b.paket} · {b.status} · {b.betrag ? `${b.betrag} €` : ""} · {b.referenz}</span></div>
-                    ))}
-                    {(detail.akte?.raten ?? []).filter((r: any) => r.status === "offen").slice(0, 3).map((r: any) => (
-                      <div className="reihe" key={r.nr}><span className="k">Rate {r.nr}</span><span className="v">{r.betrag} € · fällig {r.faellig ?? "—"}{r.mahnstufe ? ` · Mahnstufe ${r.mahnstufe}` : ""}</span></div>
-                    ))}
-                    {(detail.akte?.termine ?? []).slice(0, 2).map((t: any, i: number) => (
-                      <div className="reihe" key={i}><span className="k">Termin</span><span className="v">{t.beginn} · {t.status}{t.betreuer ? ` · ${t.betreuer}` : ""}</span></div>
-                    ))}
-                    {detail.akte?.kuendigung && (
-                      <div className="reihe"><span className="k">Kündigung</span><span className="v">{detail.akte.kuendigung.am} · letzte Rate {detail.akte.kuendigung.letzteRate ?? "—"}</span></div>
-                    )}
-                    {detail.eintrag.ref && (
-                      <div className="reihe"><span className="k">Akte öffnen</span>
-                        <a className="v" href={`/chef/s/akte?ref=${detail.eintrag.ref}`} style={{ color: "#93c5fd" }}>{detail.eintrag.ref}</a>
-                      </div>
-                    )}
-                  </div>
-                </section>
+                {A && (
+                  <section className="pf-abs">
+                    <h3>Die Akte</h3>
+                    <table className="pf-akte"><tbody>
+                      <tr><th>Lage</th><td>{LAGE_TEXT[A.kundenlage] ?? A.kundenlage}{A.lageGrund ? ` — ${A.lageGrund}` : ""}</td><td /></tr>
+                      {(A.bestellungen ?? []).slice(0, 3).map((b: any) => (
+                        <tr key={b.ref}><th>Bestellung</th><td>{b.paket || "—"} · {b.status}{b.referenz ? ` · ${b.referenz}` : ""}</td><td className="b">{b.betrag ? euro(b.betrag) : ""}</td></tr>
+                      ))}
+                      {(A.raten ?? []).filter((r: any) => r.status !== "bezahlt").slice(0, 4).map((r: any) => (
+                        <tr key={r.nr}><th>Rate {r.nr}</th><td>{r.status}{r.faellig ? ` · fällig ${r.faellig}` : ""}{r.mahnstufe ? ` · Mahnstufe ${r.mahnstufe}` : ""}</td><td className={`b${r.status === "offen" ? " offen" : ""}`}>{euro(r.betrag)}</td></tr>
+                      ))}
+                      {(A.termine ?? []).slice(0, 2).map((t: any, i: number) => (
+                        <tr key={i}><th>Termin</th><td>{t.beginn} · {t.status}{t.betreuer ? ` · ${t.betreuer}` : ""}</td><td /></tr>
+                      ))}
+                      {A.kuendigung?.am && <tr><th>Gekündigt</th><td>{A.kuendigung.am}{A.kuendigung.letzteRate ? ` · letzte Rate ${A.kuendigung.letzteRate}` : ""}</td><td /></tr>}
+                      {A.sperren?.werbung && <tr><th>Werbesperre</th><td>seit {A.sperren.werbung}</td><td /></tr>}
+                    </tbody></table>
+                  </section>
+                )}
 
-                {detail.eintrag.handlungen?.length > 0 && (
-                  <section className="pf-block">
-                    <h3>Was der Agent getan hat</h3>
-                    <div className="inhalt">
-                      {detail.eintrag.handlungen.map((h: any, i: number) => (
-                        <div className="pf-handlung" key={i}>
-                          <span className="w">{h.ok ? "✓" : "✕"} {h.werkzeug.replace(/_/g, " ")}</span>
-                          <span>{h.ergebnis}</span>
+                {Array.isArray(E.handlungen) && E.handlungen.length > 0 && (
+                  <section className="pf-abs">
+                    <h3>Bereits erledigt — das hat Mara getan</h3>
+                    <div className="pf-getan">
+                      {E.handlungen.map((h: any, i: number) => (
+                        <div key={i} className={`t${h.ok ? "" : " nicht"}`}>
+                          <span className="h">{h.ok ? "✓" : "✗"}</span>
+                          <div><span className="w">{String(h.werkzeug || "").replace(/_/g, " ")}</span> — {h.ergebnis}</div>
                         </div>
                       ))}
                     </div>
                   </section>
                 )}
 
-                {/* Antwort zum Prüfen */}
-                {(detail.eintrag.aktion === "entwurf" || detail.eintrag.aktion === "fehler" || detail.eintrag.antwort) && (
-                  <section className="pf-block pf-antwort">
-                    <h3>Antwort {detail.eintrag.gesendetAm ? "(gesendet)" : "(Entwurf — du entscheidest)"}</h3>
-                    <div className="inhalt">
-                      {detail.eintrag.pruefung?.treffer?.length > 0 && (
-                        <div className="pf-warnung" style={{ marginBottom: 10 }}>
-                          {detail.eintrag.pruefung.treffer.map((t: any, i: number) => (
-                            <div key={i}>{t.art}: „{t.treffer}" — {t.hinweis}</div>
-                          ))}
-                        </div>
-                      )}
-                      {detail.eintrag.pruefung?.fehlend?.length > 0 && (
-                        <div className="pf-warnung" style={{ marginBottom: 10 }}>{detail.eintrag.pruefung.fehlend.join(" · ")}</div>
-                      )}
-                      {detail.eintrag.gesendetAm ? (
-                        <div className="pf-kundentext">{detail.eintrag.antwort}</div>
-                      ) : (
-                        <textarea ref={textFeld} value={entwurf} onChange={(e) => setEntwurf(e.target.value)} aria-label="Antwort bearbeiten" />
-                      )}
-                      {detail.eintrag.belege?.length > 0 && (
-                        <div className="pf-hinweis" style={{ marginTop: 8 }}>
-                          Belegt durch: {detail.eintrag.belege.map((b: any) => `${b.werkzeug}.${b.feld}`).join(", ")}
-                        </div>
-                      )}
-                    </div>
-                    {!detail.eintrag.gesendetAm && (
+                {(istEntwurf || E.antwort) && (
+                  <section className="pf-abs">
+                    <h3>{istEntwurf ? "Antwort — Entwurf, du entscheidest" : "Gesendete Antwort"}</h3>
+                    {Array.isArray(E.pruefung?.fehlend) && E.pruefung.fehlend.length > 0 && (
+                      <div className="pf-warnband">{E.pruefung.fehlend.join(" · ")}</div>
+                    )}
+                    {istEntwurf ? (
+                      <textarea ref={textFeld} className="pf-entwurf" value={entwurf} onChange={(e) => entwurfSetzen(e.target.value)}
+                                rows={Math.max(6, Math.min(26, entwurf.split("\n").length + 2))} spellCheck />
+                    ) : (
+                      <div className="pf-zitat uns">{E.antwort}</div>
+                    )}
+                    {E.naechsterSchritt?.url && (
+                      <div className="pf-schritt">Knopf in der Mail: <b>{E.naechsterSchritt.text || E.naechsterSchritt.art}</b> · <a href={E.naechsterSchritt.url} target="_blank" rel="noreferrer">öffnen</a></div>
+                    )}
+                    {Array.isArray(E.belege) && E.belege.length > 0 && (
+                      <div className="pf-belege">Belegt durch: {E.belege.map((b: any) => b.feld || b.quelle || "").filter(Boolean).slice(0, 8).join(", ")}</div>
+                    )}
+                    {istEntwurf && (
                       <div className="pf-tasten">
-                        <button className="pf-knopf" disabled={laeuft === `senden-${detail.eintrag.id}`} onClick={() => void senden(detail.eintrag.id, entwurf)}>
-                          {laeuft === `senden-${detail.eintrag.id}` ? "Sendet …" : "So senden (⌘↵)"}
+                        <button type="button" className="pf-knopf" disabled={!kannSenden || laeuft === `senden-${E.id}`} onClick={() => void senden(E.id, entwurf)}>
+                          {laeuft === `senden-${E.id}` ? "Sendet …" : "So senden"}
                         </button>
-                        <button className="pf-knopf leise" disabled={!!laeuft} onClick={() => void verwerfen(detail.eintrag.id)}>Verwerfen</button>
-                        {detail.eintrag.ref && (
-                          <a className="pf-knopf leise" href={`/chef/s/akte?ref=${detail.eintrag.ref}`} style={{ textDecoration: "none" }}>Akte öffnen</a>
-                        )}
+                        <button type="button" className="pf-knopf still" onClick={() => textFeld.current?.focus()}>Ändern</button>
+                        <button type="button" className="pf-knopf still" disabled={laeuft === `verwerfen-${E.id}`} onClick={() => void verwerfen(E.id)}>Verwerfen</button>
+                        <span className="pf-hint">j / k blättern · ⌘↵ senden · Esc schließen</span>
                       </div>
                     )}
                   </section>
-                )}
-
-                {detail.eintrag.begruendung && (
-                  <div className="pf-hinweis">Einordnung: {detail.eintrag.begruendung}</div>
                 )}
               </div>
             </>

@@ -5,6 +5,59 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 04.09.2026 — Mara ersetzt einen Mitarbeiter: Rechnung als PDF, Aufgaben mit Frist, Storno erst nach Zahlung (E-115)
+
+### Was geändert wurde
+
+**1. Rechnung als PDF, auch für Monatsraten.** Die Rechnung gab es bisher nur
+als Download im Admin und nur für die Bestellung. Jetzt liefert
+`server/lib/fiaon-rechnung-pdf.ts` sie im Speicher — für die Bestellung und
+für jede Monatsrate (eigene Nummer aus demselben lückenlosen Kreis, an der
+Rate gespeichert). Der Gmail-Versand kann Anhänge. Trägt eine Antwort von
+Mara eine Zahlungsseite, hängt die Rechnung automatisch an; wer eine
+Rechnung ausdrücklich verlangt, bekommt sie über das Werkzeug
+`rechnung_anhaengen`. Im Postfach ist es ein Schalter vor „So senden".
+
+**2. Aufgabe für den Betreuer.** Neue Funktion `auftragFuerKunden()` in
+`server/routes/fiaon-betreiber-todo.ts`: Betreuer aus der einen
+Zuständigkeitsableitung, sonst die passende Rolle mit der kleinsten Last,
+sonst der Betreiber. Übergabe mit Zeitleiste und Mail „Neuer Auftrag für
+dich". Mara nutzt sie über das Werkzeug `aufgabe_an_betreuer` (Titel,
+Auftrag, Frist, dringend); im Postfach ist es ein Schalter mit Titel, Text
+und Frist. Neuer Bereich „Mara · Postfach" im TODO-Brett.
+
+**3. Storno erst nach Zahlungseingang.** „Ich habe schriftlich gekündigt"
+gilt jetzt als Kündigungserklärung. Die Regel bleibt: Die gestellte Rate
+bleibt offen, mit ihrer Zahlung endet der Vertrag. Kulanz (sofort beenden,
+offene Raten entfallen) gibt es nur für den Menschen über den Schalter im
+Postfach, nie für Mara. Endet ein Vertrag mit laufendem GoCardless-Abo,
+bekommt Justin eine Aufgabe Prio 1 — GoCardless-Aktionen führt nur er aus.
+Knopf „Kunde bleibt — Kündigung zurücknehmen".
+
+**4. Anhänge des Kunden.** Dateien an Kundenmails werden gelesen, im
+Postfach verlinkt, und Mara weiß, dass sie da sind (Eingang bestätigen,
+Prüfaufgabe anlegen).
+
+**5. Auto-Betrieb.** Ratenrückstand gehört jetzt zu den Lagen, in denen Mara
+selbst senden darf; Flags (Beschwerde, Kündigung, Bestreiten, Anwalt,
+Rückrufwunsch, Zahlung behauptet), Belegpflicht, Kontowechsel-Riegel und
+Einzugsschutz bleiben — all das bleibt Entwurf. Modus welcome@/support@
+auf „auto". info@fiaon.com aus der Postfachliste (bei Google kein Nutzer,
+wird Alias).
+
+### Warum
+
+Justin, 04.09.2026: „das bauen! denke aktiv mit und verbessere es — der
+Email-Agent soll vollständig einen Mitarbeiter ersetzen und alles regeln!"
+
+### Wo zu finden
+
+`/chef/s/postmeister` (Schalter, Anhänge, Rücknahme), `/admin/todo` (Bereich
+„Mara · Postfach"), `/agent/aufgaben` → Aufträge (Mail „Neuer Auftrag für
+dich"), Register E-115.
+
+---
+
 ## 04.09.2026 — Rollen-Wand: eine Rolle, die es nicht gibt, trifft niemanden
 
 ### Was geändert wurde

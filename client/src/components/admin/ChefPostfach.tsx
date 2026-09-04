@@ -231,6 +231,12 @@ export default function ChefPostfach() {
         </div>
       </div>
 
+      {(kopf?.postfaecher ?? []).filter((p: any) => p && p.ok === false).map((p: any) => (
+        <div key={p.adresse} className="pf-meldung warn pf-kopfwarn">
+          <b>{p.adresse}</b> ist nicht erreichbar. {p.hinweis}{p.fehler ? <span className="pf-kopfwarn-roh"> ({p.fehler})</span> : null}
+        </div>
+      ))}
+
       {(fehler || meldung) && (
         <div className={`pf-meldung ${fehler ? "warn" : meldung?.art}`}>{fehler || meldung?.text}</div>
       )}

@@ -16,6 +16,27 @@ import { sqlPool } from "../lib/db-pool";
 import { akteLesen } from "../lib/fiaon-postmeister-dossier";
 import { postmeisterSchema, kostenHeute } from "../lib/fiaon-postmeister-schema";
 import { wandPruefen } from "@shared/fiaon-wortverbote";
+import { postfachProbe } from "../lib/fiaon-gmail";
+import { postfachAdressen } from "./fiaon-postmeister";
+
+// Erreichbarkeit der Postfächer — alle zehn Minuten frisch, sonst aus dem Merkzettel.
+// 04.09.2026: info@fiaon.com war bei Google kein Nutzer (invalid_grant) und
+// scheiterte seit dem Start bei jedem Lauf, ohne dass es jemand im Postfach sah.
+let probeMerk: { bis: number; werte: { adresse: string; ok: boolean; fehler: string | null; hinweis: string | null }[] } | null = null;
+async function postfaecherProbe() {
+  if (probeMerk && probeMerk.bis > Date.now()) return probeMerk.werte;
+  const werte = await Promise.all(postfachAdressen().map(async (adresse) => {
+    const p = await postfachProbe(adresse);
+    const f = p.ok ? null : String(p.fehler || "");
+    const hinweis = !f ? null
+      : /invalid_grant|Invalid email or User ID/i.test(f) ? "Google kennt dieses Postfach nicht als Nutzer. Entweder als Alias auf welcome@fiaon.com legen und hier austragen, oder als eigenen Nutzer anlegen."
+      : /unauthorized_client/i.test(f) ? "Das Dienstkonto darf dieses Postfach nicht öffnen (Domain-weite Delegation prüfen)."
+      : "Postfach antwortet nicht — Mara sieht dort keine Mails.";
+    return { adresse, ok: p.ok, fehler: f ? f.slice(0, 160) : null, hinweis };
+  }));
+  probeMerk = { bis: Date.now() + 10 * 60_000, werte };
+  return werte;
+}
 
 const router = Router();
 
@@ -262,6 +283,7 @@ router.get("/admin/postmeister/kopf", async (_req: Request, res: Response) => {
       ok: true, zahlen: z ?? {}, jePostfach,
       rueckstand: threads ?? { offen: 0, gesamt: 0 },
       kostenHeuteEuro: Number((await kostenHeute("postmeister-antwort")).toFixed(2)),
+      postfaecher: await postfaecherProbe().catch(() => []),
     });
   } catch (e: any) {
     res.status(500).json({ ok: false, error: String(e?.message || e).slice(0, 200) });

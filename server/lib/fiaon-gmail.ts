@@ -144,6 +144,18 @@ export async function nachrichtLesen(postfach: string, id: string): Promise<Gmai
 
 const labelCache = new Map<string, Map<string, string>>(); // postfach → name→id
 
+/** Labelnamen so vergleichen, wie Gmail sie für „gleich" hält: ohne Groß/Klein, Bindestrich = Unterstrich = Leerzeichen. */
+function labelSchluessel(name: string): string {
+  return name.toLowerCase().replace(/[-_\s]+/g, " ").trim();
+}
+function labelUnscharf(karte: Map<string, string>, name: string): string | null {
+  const ziel = labelSchluessel(name);
+  let treffer: string | null = null;
+  // (`forEach` statt Map-Iteration — Übersetzerziel älter als ES2015, siehe AGENTS.md.)
+  karte.forEach((id, n) => { if (!treffer && labelSchluessel(n) === ziel) treffer = id; });
+  return treffer;
+}
+
 export async function labelSicherstellen(postfach: string, name: string): Promise<string> {
   let karte = labelCache.get(postfach);
   if (!karte) {
@@ -151,7 +163,7 @@ export async function labelSicherstellen(postfach: string, name: string): Promis
     karte = new Map((j?.labels || []).map((l: any) => [String(l.name), String(l.id)] as [string, string]));
     labelCache.set(postfach, karte);
   }
-  const da = karte.get(name);
+  const da = karte.get(name) ?? labelUnscharf(karte, name);
   if (da) return da;
   try {
     const neu = await api(postfach, "/labels", {
@@ -180,9 +192,12 @@ export async function labelSicherstellen(postfach: string, name: string): Promis
     // sonst bliebe der 409 stehen, obwohl das Label längst da ist.
     // (`forEach` statt einer Schleife über die Map: Das Übersetzerziel des
     //  Hauses ist älter als ES2015 — Map-Iteration bricht den Bau, siehe AGENTS.md.)
-    const flach = name.toLowerCase();
-    let treffer: string | null = null;
-    frisch.forEach((id, n) => { if (!treffer && n.toLowerCase() === flach) treffer = id; });
+    // 04.09.2026: Im Postfach heißt das Label „FIAON/Entwurf-wartet" (Bindestrich),
+    // der Code wollte „FIAON/Entwurf wartet" (Leerzeichen) — für Gmail ein
+    // Konflikt, für die Map zwei Namen. Seit dem 02.09. schlug deshalb jeder
+    // Lauf mit 409 fehl und die Mail blieb ohne Ordner. Der Vergleich ist jetzt
+    // unscharf: Groß/Klein, Bindestrich, Unterstrich und Leerzeichen zählen nicht.
+    const treffer = labelUnscharf(frisch, name);
     if (treffer) { karte.set(name, treffer); return treffer; }
     throw e;
   }

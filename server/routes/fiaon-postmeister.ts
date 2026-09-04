@@ -512,6 +512,9 @@ async function wirksamerModus(pf: typeof POSTFAECHER[number]): Promise<Modus | "
   return pf.modus;
 }
 
+/** Die Adressen der bedienten Postfächer — für die Erreichbarkeits-Probe im Kopf. */
+export function postfachAdressen(): string[] { return POSTFAECHER.map((p) => p.adresse); }
+
 export async function postmeisterLauf(opts: { q?: string; deckel?: number; nurOrdnen?: boolean; postfach?: string } = {}):
   Promise<{ verarbeitet: number; aktionen: Record<string, number> }> {
   await ensureTabelle();

@@ -39,8 +39,10 @@ export default function Anmeldung({ onLogin }: { onLogin: (a: { name: string; em
   const [vergessen, setVergessen] = useState(false);
   const [umbau, setUmbau] = useState(false);
   const [umbauName, setUmbauName] = useState("");
+  // 04.09.2026 (E-123): Zugang vorübergehend gesperrt — richtiges Passwort, Tür zu, Grund sichtbar.
+  const [gesperrt, setGesperrt] = useState<{ vorname: string; grund: string | null } | null>(null);
   const [uhr, setUhr] = useState(() => new Date());
-  useEffect(() => { if (!umbau) return; const i = setInterval(() => setUhr(new Date()), 1000); return () => clearInterval(i); }, [umbau]);
+  useEffect(() => { if (!umbau && !gesperrt) return; const i = setInterval(() => setUhr(new Date()), 1000); return () => clearInterval(i); }, [umbau, gesperrt]);
   const formular = useRef<HTMLDivElement>(null);
 
   useEffect(() => { document.title = "Mitarbeiter-Anmeldung · FIAON"; }, []);
@@ -51,6 +53,7 @@ export default function Anmeldung({ onLogin }: { onLogin: (a: { name: string; em
     setLaeuft(false);
     if (r.ok) { onLogin(r.json.agent); window.location.reload(); }
     else if (r.json?.umbau) { setUmbauName(String(r.json?.vorname || "")); setUmbau(true); }
+    else if (r.json?.gesperrt) { setGesperrt({ vorname: String(r.json?.vorname || ""), grund: r.json?.grund ? String(r.json.grund) : null }); }
     else setFehler(r.json?.error || "Anmeldung fehlgeschlagen – bitte E-Mail und Passwort prüfen.");
   };
   const zuruecksetzen = async (e: React.FormEvent) => {
@@ -61,6 +64,20 @@ export default function Anmeldung({ onLogin }: { onLogin: (a: { name: string; em
   };
   const zumFormular = () => formular.current?.scrollIntoView({ behavior: "smooth", block: "center" });
 
+  if (gesperrt) return (
+    <div className="aa aa-umbau">
+      <div className="aa-bild" aria-hidden="true"><img src="/office/flur.jpg" alt="" decoding="async" /><div className="aa-schleier" /></div>
+      <header className="aa-kopf"><a href="/" className="aa-wort">FIAON</a><span className="aa-marke">Mitarbeiterbereich</span></header>
+      <section className="aa-umbau-buehne">
+        <div className="aa-kugel" aria-hidden="true"><NeuralSphere variant="calm" className="absolute inset-0" /></div>
+        <span className="aa-pille">Zugang gesperrt · {uhr.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} Uhr</span>
+        <h1>{gesperrt.vorname ? <>Dein Zugang ist gerade gesperrt, <span className="aa-verlauf">{gesperrt.vorname}.</span></> : <>Dein Zugang ist <span className="aa-verlauf">gerade gesperrt.</span></>}</h1>
+        <p>{gesperrt.grund ? `Grund: ${gesperrt.grund}.` : "Bis auf Weiteres — die Leitung meldet sich bei dir."} Deine Kunden, Termine und dein Verlauf bleiben erhalten; niemand nimmt dir etwas weg. Melde dich bei Florentine oder Daniel, wenn du Fragen hast.</p>
+        <div className="aa-umbau-punkte">{["Nichts geht verloren", "Kein Nachschub in der Zwischenzeit", "Die Leitung gibt den Zugang wieder frei"].map((p) => <span key={p}>{p}</span>)}</div>
+        <button type="button" className="aa-leise" onClick={() => setGesperrt(null)}>Zurück zur Anmeldung</button>
+      </section>
+    </div>
+  );
   if (umbau) return (
     <div className="aa aa-umbau">
       <div className="aa-bild" aria-hidden="true"><img src="/office/flur.jpg" alt="" decoding="async" /><div className="aa-schleier" /></div>

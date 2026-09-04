@@ -26,6 +26,9 @@ interface Mitglied {
   last_name?: string | null;
   /** „Herr"/„Frau" — so nennt Mara den Mitarbeiter dem Kunden gegenüber (E-117). */
   anrede?: string | null;
+  /** Zugang vorübergehend gesperrt (E-123) — Kunden und Mandate bleiben, nur die Tür ist zu. */
+  zugang_gesperrt_am?: string | null;
+  zugang_gesperrt_grund?: string | null;
   pruefkonto?: boolean;
   id: number; name: string; vorname: string; email: string; avatar: string | null;
   rolle: string; active: boolean; distribution_active: boolean; is_test_account: boolean;
@@ -1490,6 +1493,7 @@ export default function AdminTeamZentrale() {
                     <p className="text-[14.5px] font-bold text-slate-900 truncate">
                       {m.name}
                       {m.is_test_account && <span className="ml-2 text-[10px] font-bold uppercase text-slate-400">Testkonto</span>}
+                      {m.zugang_gesperrt_am && <span className="ml-2 px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase" style={{ background: "rgba(185,28,28,.08)", color: "#b91c1c" }}>Zugang gesperrt</span>}
                     </p>
                     {/* ══════════════════════════════════════════════════════
                         DIE VERWALTUNG STEHT IM DREI-PUNKTE-MENÜ (19.08.2026)
@@ -2674,6 +2678,40 @@ function VerwaltungTafel({
 
       {/* ── Zugang ───────────────────────────────────────────────────────── */}
       <p className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 mb-2">Zugang</p>
+      {/* 04.09.2026 (E-123): Sperren ist kein Deaktivieren. Justin: „sperre den
+          Zugang bis auf weiteres — diese brauchen unbedingt Schulungen." Der
+          Mensch bleibt mit Kunden, Mandaten und Verlauf im Haus; nur die Tür ist
+          zu, laufende Sitzungen enden sofort, der Login nennt den Grund. */}
+      <div className="rounded-2xl p-3.5 mb-3"
+           style={m.zugang_gesperrt_am
+             ? { background: "rgba(185,28,28,.06)", boxShadow: "inset 0 0 0 1px rgba(185,28,28,.25)" }
+             : { background: "#f8fafc", boxShadow: "inset 0 0 0 1px #e2e8f0" }}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[13px] font-bold" style={{ color: m.zugang_gesperrt_am ? "#b91c1c" : "#0f172a" }}>
+              {m.zugang_gesperrt_am ? "Zugang gesperrt" : "Zugang frei"}
+            </p>
+            <p className="text-[11.5px] text-slate-500 leading-snug mt-0.5">
+              {m.zugang_gesperrt_am
+                ? `seit ${new Date(m.zugang_gesperrt_am).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}${m.zugang_gesperrt_grund ? ` · ${m.zugang_gesperrt_grund}` : ""}. Kunden, Mandate und Verlauf bleiben; kein Nachschub, keine neuen Aufgaben.`
+                : "Kann sich anmelden, bekommt Nachschub und Aufgaben."}
+            </p>
+          </div>
+          <button type="button" disabled={busy != null}
+                  onClick={() => {
+                    if (m.zugang_gesperrt_am) {
+                      if (window.confirm(`Zugang von ${m.name} wieder freigeben?`)) void ruf(`/admin/agents/${m.id}/zugang`, { gesperrt: false }, "zugang");
+                    } else {
+                      const grund = window.prompt(`Zugang von ${m.name} sperren — warum? Der Satz steht beim Login.`, "Schulung — bis auf Weiteres");
+                      if (grund != null) void ruf(`/admin/agents/${m.id}/zugang`, { gesperrt: true, grund }, "zugang");
+                    }
+                  }}
+                  className="px-4 py-2.5 rounded-xl text-[13px] font-bold text-white disabled:opacity-40"
+                  style={{ background: m.zugang_gesperrt_am ? "#047857" : "#b91c1c" }}>
+            {busy === "zugang" ? "…" : m.zugang_gesperrt_am ? "Zugang freigeben" : "Zugang sperren"}
+          </button>
+        </div>
+      </div>
       <div className="flex flex-wrap gap-1.5 mb-1.5">
         <button type="button" disabled={busy != null}
                 onClick={() => void ruf(`/admin/agents/${m.id}/force-reset`, {}, "reset")}

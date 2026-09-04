@@ -40,6 +40,7 @@ router.get("/admin/agents", async (_req, res) => {
     const settings = await getSettings();
     const agents = await sqlPool`
       SELECT a.id, a.name, a.first_name, a.last_name, a.anrede, a.email, a.phone, a.active, a.avatar,
+             a.zugang_gesperrt_am, a.zugang_gesperrt_grund, a.zugang_gesperrt_von,
              a.commission_rate_bp, a.monthly_goal_cents,
              a.bank_iban_masked, a.bank_updated_at, a.bank_change_ack,
              a.invite_expires_at, a.password_hash IS NOT NULL AS has_password,
@@ -348,6 +349,44 @@ router.post("/admin/agents/:id/rolle", async (req, res) => {
     });
   } catch (err) {
     console.error("[FIAON-TEAM] rolle:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/**
+ * POST /admin/agents/:id/zugang — Zugang sperren oder freigeben (04.09.2026, E-123).
+ * Body { gesperrt: boolean, grund?: string }. Sperren erhöht session_epoch:
+ * jede laufende Sitzung endet sofort, der nächste Login zeigt den Grund.
+ * Kunden, Mandate und Verlauf bleiben unangetastet — das ist keine Kündigung.
+ */
+router.post("/admin/agents/:id/zugang", async (req, res) => {
+  try {
+    await ensureAgentTables();
+    const id = Number(req.params.id);
+    const gesperrt = req.body?.gesperrt === true;
+    const grund = String(req.body?.grund || "").trim().slice(0, 300) || null;
+    const rows = gesperrt
+      ? await sqlPool`
+          UPDATE fiaon_agents
+             SET zugang_gesperrt_am = COALESCE(zugang_gesperrt_am, NOW()), zugang_gesperrt_grund = ${grund},
+                 zugang_gesperrt_von = 'Vorgesetzter', session_epoch = session_epoch + 1
+           WHERE id = ${id}
+           RETURNING id, name, email, first_name, zugang_gesperrt_am, zugang_gesperrt_grund`
+      : await sqlPool`
+          UPDATE fiaon_agents
+             SET zugang_gesperrt_am = NULL, zugang_gesperrt_grund = NULL, zugang_gesperrt_von = NULL
+           WHERE id = ${id}
+           RETURNING id, name, email, first_name, zugang_gesperrt_am, zugang_gesperrt_grund`;
+    if (rows.length === 0) return res.status(404).json({ ok: false, error: "Mitarbeiter nicht gefunden" });
+    await sqlPool`
+      INSERT INTO fiaon_agent_events (agent_id, type, meta)
+      VALUES (${id}, ${gesperrt ? "zugang_gesperrt" : "zugang_frei"}, ${JSON.stringify({ grund, von: "Vorgesetzter" })})
+    `.catch(() => {});
+    res.json({ ok: true, agent: rows[0], meldung: gesperrt
+      ? `Zugang von ${rows[0].name} gesperrt — laufende Sitzungen sind beendet.`
+      : `Zugang von ${rows[0].name} wieder frei.` });
+  } catch (err) {
+    console.error("[FIAON-TEAM] zugang:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

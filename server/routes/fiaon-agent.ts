@@ -160,7 +160,12 @@ export async function ensureAgentTables(): Promise<void> {
       ADD COLUMN IF NOT EXISTS rolle TEXT NOT NULL DEFAULT 'agent',
       -- 04.09.2026 (E-117): Anrede „Herr"/„Frau" — damit Mara dem Kunden
       -- „Herr Stripling ruft Sie an" schreibt statt „Daniel ruft an".
-      ADD COLUMN IF NOT EXISTS anrede VARCHAR
+      ADD COLUMN IF NOT EXISTS anrede VARCHAR,
+      -- 04.09.2026 (E-123): Zugang vorübergehend gesperrt (Schulung) — kein
+      -- „deaktiviert": Kunden, Mandate, Verlauf bleiben, nur die Tür ist zu.
+      ADD COLUMN IF NOT EXISTS zugang_gesperrt_am TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS zugang_gesperrt_grund TEXT,
+      ADD COLUMN IF NOT EXISTS zugang_gesperrt_von TEXT
   `);
   await sqlPool`
     CREATE TABLE IF NOT EXISTS fiaon_contact_log (
@@ -577,7 +582,7 @@ export async function requireAgent(req: AgentRequest, res: Response, next: NextF
     // weil die Anmeldung das Bild nie mitlud. Jede Seite hätte es einzeln
     // nachladen müssen; keine tat es. Hier geladen, stimmt es überall.
     const rows = await sqlPool`
-      SELECT id, name, email, first_name, active, session_epoch, avatar, rolle,
+      SELECT id, name, email, first_name, active, session_epoch, avatar, rolle, zugang_gesperrt_am,
              is_test_account, pruefkonto
       FROM fiaon_agents WHERE id = ${tok.id}
     `;
@@ -588,6 +593,11 @@ export async function requireAgent(req: AgentRequest, res: Response, next: NextF
     // Eine Ansichts-Sitzung (epoch -1) ist davon ausgenommen — sie hat mit
     // der Anmeldung des Menschen nichts zu tun und darf nicht davon abhängen,
     // ob er zwischendurch sein Passwort geändert hat.
+    // 04.09.2026 (E-123): Gesperrt = keine Sitzung, auch keine alte. Die Sperre
+    // erhöht zusätzlich session_epoch, damit laufende Sitzungen sofort enden.
+    if (rows[0].zugang_gesperrt_am && tok.epoch !== -1) {
+      return res.status(403).json({ ok: false, code: "ZUGANG_GESPERRT", error: "Dein Zugang ist vorübergehend gesperrt. Bitte melde dich bei der Leitung." });
+    }
     if (tok.epoch !== -1 && Number(rows[0].session_epoch) !== tok.epoch) {
       return res.status(401).json({ ok: false, error: "Sitzung abgelaufen — bitte neu anmelden" });
     }
@@ -1604,6 +1614,19 @@ router.post("/agent/login", async (req, res) => {
     }
     if (rows.length === 0 || !rows[0].active || !rows[0].password_hash || !(await bcrypt.compare(password, rows[0].password_hash))) {
       return res.status(401).json({ ok: false, error: "Anmeldedaten ungültig oder Zugang deaktiviert" });
+    }
+    // ── 04.09.2026 (E-123): ZUGANG GESPERRT — richtig angemeldet, aber die Tür ist zu.
+    // Justin: „sperre jeden Zugang bis auf weiteres, diese brauchen Schulungen."
+    // Kein „ungültig": Der Mensch hat das richtige Passwort und soll wissen, warum.
+    if (rows[0].zugang_gesperrt_am) {
+      const vorname = String(rows[0].first_name || String(rows[0].name || "").split(" ")[0] || "");
+      logAgentEvent(rows[0].id, "login_gesperrt").catch(() => {});
+      return res.status(423).json({
+        ok: false, gesperrt: true, vorname,
+        grund: rows[0].zugang_gesperrt_grund || null,
+        seit: rows[0].zugang_gesperrt_am,
+        error: "Dein Zugang ist vorübergehend gesperrt.",
+      });
     }
     await sqlPool`UPDATE fiaon_agents SET last_login_at = NOW() WHERE id = ${rows[0].id}`;
     logAgentEvent(rows[0].id, "login").catch(() => {});

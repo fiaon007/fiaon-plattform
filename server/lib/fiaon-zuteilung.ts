@@ -45,7 +45,7 @@ export async function agentMitKleinsterLast(lauf: Lauf = sqlPool): Promise<numbe
     FROM fiaon_agents a
     LEFT JOIN fiaon_persons p
       ON p.assigned_agent_id = a.id AND p.merged_into_person_id IS NULL
-    WHERE a.active AND a.distribution_active AND NOT a.is_test_account
+    WHERE a.active AND a.distribution_active AND NOT a.is_test_account AND a.zugang_gesperrt_am IS NULL
       -- 04.09.2026 (E-120): Nur, wer Zeiten hinterlegt hat — sonst landet der
       -- Kunde bei jemandem, bei dem er nie einen Termin bekommt (Florentine).
       AND EXISTS (SELECT 1 FROM fiaon_agent_verfuegbarkeit v WHERE v.agent_id = a.id AND COALESCE(v.aktiv, TRUE))
@@ -358,7 +358,7 @@ export async function sonderrollenBereinigen(
         FROM fiaon_agents a
         LEFT JOIN fiaon_persons p
           ON p.assigned_agent_id = a.id AND p.merged_into_person_id IS NULL
-        WHERE a.active AND a.distribution_active AND NOT a.is_test_account
+        WHERE a.active AND a.distribution_active AND NOT a.is_test_account AND a.zugang_gesperrt_am IS NULL
       -- 04.09.2026 (E-120): Nur, wer Zeiten hinterlegt hat — sonst landet der
       -- Kunde bei jemandem, bei dem er nie einen Termin bekommt (Florentine).
       AND EXISTS (SELECT 1 FROM fiaon_agent_verfuegbarkeit v WHERE v.agent_id = a.id AND COALESCE(v.aktiv, TRUE))

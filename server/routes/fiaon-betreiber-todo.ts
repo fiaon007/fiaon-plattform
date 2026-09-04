@@ -261,7 +261,7 @@ export async function auftragEmpfaenger(personId: number | null): Promise<Empfae
       if (z?.agentId) {
         const [a] = (await sqlPool`
           SELECT id, name, email, first_name, last_name, anrede FROM fiaon_agents
-           WHERE id = ${z.agentId} AND COALESCE(active, TRUE) = TRUE AND COALESCE(is_test_account, FALSE) = FALSE LIMIT 1
+           WHERE id = ${z.agentId} AND COALESCE(active, TRUE) = TRUE AND COALESCE(is_test_account, FALSE) = FALSE AND zugang_gesperrt_am IS NULL LIMIT 1
         `) as any[];
         if (a?.id) return { id: Number(a.id), name: String(a.name), email: a.email ?? null, vorname: a.first_name ?? null, nachname: a.last_name ?? null, anrede: a.anrede ?? null, kundenName: kundenName(a) };
       }
@@ -274,6 +274,7 @@ export async function auftragEmpfaenger(personId: number | null): Promise<Empfae
           FROM fiaon_agents ag
          WHERE COALESCE(ag.active, TRUE) = TRUE AND ag.rolle = ANY(${rollen})
            AND COALESCE(ag.is_test_account, FALSE) = FALSE
+           AND ag.zugang_gesperrt_am IS NULL
          ORDER BY (ag.rolle = ${rollen[0]}) DESC, offene ASC, ag.id ASC LIMIT 1
       `) as any[];
       if (f?.id) return { id: Number(f.id), name: String(f.name), email: f.email ?? null, vorname: f.first_name ?? null, nachname: f.last_name ?? null, anrede: f.anrede ?? null, kundenName: kundenName(f) };
@@ -283,7 +284,7 @@ export async function auftragEmpfaenger(personId: number | null): Promise<Empfae
   }
   const [l] = (await sqlPool`
     SELECT id, name, email, first_name, last_name, anrede FROM fiaon_agents
-     WHERE COALESCE(active, TRUE) = TRUE AND rolle = 'vertriebsleiter' AND COALESCE(is_test_account, FALSE) = FALSE
+     WHERE COALESCE(active, TRUE) = TRUE AND rolle = 'vertriebsleiter' AND COALESCE(is_test_account, FALSE) = FALSE AND zugang_gesperrt_am IS NULL
      ORDER BY id ASC LIMIT 1
   `.catch(() => [])) as any[];
   return l?.id ? { id: Number(l.id), name: String(l.name), email: l.email ?? null, vorname: l.first_name ?? null, nachname: l.last_name ?? null, anrede: l.anrede ?? null, kundenName: kundenName(l) } : { id: null, name: null, email: null, vorname: null, nachname: null, anrede: null, kundenName: null };

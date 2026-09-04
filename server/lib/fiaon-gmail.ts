@@ -96,6 +96,30 @@ export interface GmailNachricht {
   antwortAn: string | null;
   /** Vollständige References-Kette, damit Outlook die Antwort im Gespräch behält. */
   references: string | null;
+  /** Dateien an der Mail (04.09.2026): Belege, Ausweise, Verträge — ein Mensch sähe sie, Mara auch. */
+  anhaenge: GmailAnhang[];
+}
+
+export interface GmailAnhang { name: string; typ: string; groesse: number; attachmentId: string }
+
+function anhaengeAusTeilen(payload: any, aus: GmailAnhang[] = []): GmailAnhang[] {
+  if (!payload) return aus;
+  if (payload.filename && payload.body?.attachmentId) {
+    const typ = String(payload.mimeType || "application/octet-stream");
+    const groesse = Number(payload.body.size || 0);
+    // Signatur-Bildchen und Tracking-Pixel sind keine Anhänge.
+    if (!(/^image\//.test(typ) && groesse < 8_000)) {
+      aus.push({ name: String(payload.filename), typ, groesse, attachmentId: String(payload.body.attachmentId) });
+    }
+  }
+  for (const teil of payload.parts || []) anhaengeAusTeilen(teil, aus);
+  return aus;
+}
+
+/** Eine Datei aus einer Kundenmail holen — roh, als Buffer. */
+export async function anhangLesen(postfach: string, messageId: string, attachmentId: string): Promise<Buffer> {
+  const j = await api(postfach, `/messages/${messageId}/attachments/${attachmentId}`);
+  return Buffer.from(String(j?.data || ""), "base64url");
 }
 
 function kopfWert(headers: any[], name: string): string {
@@ -137,6 +161,7 @@ export async function nachrichtLesen(postfach: string, id: string): Promise<Gmai
     datum: new Date(Number(j.internalDate || Date.now())),
     text: textAusTeilen(j.payload).slice(0, 20_000),
     snippet: String(j.snippet || ""), autoHinweis: auto,
+    anhaenge: anhaengeAusTeilen(j.payload),
   };
 }
 
@@ -213,7 +238,10 @@ export async function nachrichtLabeln(postfach: string, id: string,
 
 // ── Antworten und Entwürfe — immer im Thread, immer vom Postfach ────────────
 
-function mimeAntwort(opts: { von: string; an: string; betreff: string; text: string; html?: string | null; inReplyTo?: string | null; references?: string | null }): string {
+/** Ein Anhang für eine Antwort — z. B. die Rechnung als PDF. */
+export interface MailAnhang { dateiname: string; inhalt: Buffer; typ?: string }
+
+export function mimeAntwort(opts: { von: string; an: string; betreff: string; text: string; html?: string | null; inReplyTo?: string | null; references?: string | null; anhaenge?: MailAnhang[] | null }): string {
   const betreff = opts.betreff.replace(/^((re|aw|fwd?):\s*)+/i, "");
   const kodiertBetreff = `=?UTF-8?B?${Buffer.from(`Re: ${betreff}`).toString("base64")}?=`;
   // ── ANTWORTEN IM HAUS-CI (02.09.2026, Justins Auftrag) ──────────────────
@@ -231,45 +259,74 @@ function mimeAntwort(opts: { von: string; an: string; betreff: string; text: str
     "MIME-Version: 1.0",
   ].filter((z) => z !== null) as string[];
 
-  if (!opts.html) {
-    return b64url([...kopf,
+  const anhaenge = (opts.anhaenge || []).filter((a) => a && a.inhalt && a.inhalt.length > 0);
+  const grenze = `fiaon-${Buffer.from(String(opts.an) + betreff).toString("hex").slice(0, 24)}`;
+
+  // Der Nachrichtenkörper: entweder nur Text, oder Text+HTML als multipart/alternative.
+  // Ohne Anhang ist er die ganze Mail (wie bisher); mit Anhang wird er der erste
+  // Teil eines multipart/mixed (04.09.2026: „Rechnung als PDF mitschicken").
+  const koerperKopf: string[] = !opts.html
+    ? ['Content-Type: text/plain; charset="UTF-8"', "Content-Transfer-Encoding: base64"]
+    : [`Content-Type: multipart/alternative; boundary="${grenze}"`];
+  const koerperRumpf: string[] = !opts.html
+    ? [Buffer.from(opts.text).toString("base64")]
+    : [
+      `--${grenze}`,
       'Content-Type: text/plain; charset="UTF-8"',
       "Content-Transfer-Encoding: base64", "",
-      Buffer.from(opts.text).toString("base64"),
-    ].join("\r\n"));
+      Buffer.from(opts.text).toString("base64"), "",
+      `--${grenze}`,
+      'Content-Type: text/html; charset="UTF-8"',
+      "Content-Transfer-Encoding: base64", "",
+      Buffer.from(opts.html).toString("base64"), "",
+      `--${grenze}--`,
+    ];
+
+  if (anhaenge.length === 0) {
+    return b64url([...kopf, ...koerperKopf, "", ...koerperRumpf, ""].join("\r\n"));
   }
-  const grenze = `fiaon-${Buffer.from(String(opts.an) + betreff).toString("hex").slice(0, 24)}`;
-  return b64url([...kopf,
-    `Content-Type: multipart/alternative; boundary="${grenze}"`, "",
-    `--${grenze}`,
-    'Content-Type: text/plain; charset="UTF-8"',
-    "Content-Transfer-Encoding: base64", "",
-    Buffer.from(opts.text).toString("base64"), "",
-    `--${grenze}`,
-    'Content-Type: text/html; charset="UTF-8"',
-    "Content-Transfer-Encoding: base64", "",
-    Buffer.from(opts.html).toString("base64"), "",
-    `--${grenze}--`, "",
-  ].join("\r\n"));
+
+  const mantel = `fiaon-mixed-${grenze.slice(6, 22)}`;
+  const zeilen: string[] = [
+    ...kopf,
+    `Content-Type: multipart/mixed; boundary="${mantel}"`, "",
+    `--${mantel}`,
+    ...koerperKopf, "",
+    ...koerperRumpf, "",
+  ];
+  for (const a of anhaenge) {
+    const name = String(a.dateiname || "anhang.pdf").replace(/["\r\n]/g, "");
+    const kodiertName = `=?UTF-8?B?${Buffer.from(name).toString("base64")}?=`;
+    zeilen.push(
+      `--${mantel}`,
+      `Content-Type: ${a.typ || "application/pdf"}; name="${kodiertName}"`,
+      "Content-Transfer-Encoding: base64",
+      `Content-Disposition: attachment; filename="${kodiertName}"`, "",
+      // 76 Zeichen je Zeile — so wollen es die Mailregeln, und Gmail ist da streng.
+      a.inhalt.toString("base64").replace(/(.{76})/g, "$1\r\n"), "",
+    );
+  }
+  zeilen.push(`--${mantel}--`, "");
+  return b64url(zeilen.join("\r\n"));
 }
 
-export async function antwortSenden(postfach: string, original: GmailNachricht, text: string, html?: string | null): Promise<string> {
+export async function antwortSenden(postfach: string, original: GmailNachricht, text: string, html?: string | null, anhaenge?: MailAnhang[] | null): Promise<string> {
   const j = await api(postfach, "/messages/send", {
     method: "POST",
     body: JSON.stringify({
-      raw: mimeAntwort({ von: postfach, an: original.antwortAn || original.von, betreff: original.betreff, text, html, inReplyTo: original.messageIdHeader, references: original.references }),
+      raw: mimeAntwort({ von: postfach, an: original.antwortAn || original.von, betreff: original.betreff, text, html, inReplyTo: original.messageIdHeader, references: original.references, anhaenge }),
       threadId: original.threadId,
     }),
   });
   return String(j?.id || "");
 }
 
-export async function entwurfAnlegen(postfach: string, original: GmailNachricht, text: string, html?: string | null): Promise<string> {
+export async function entwurfAnlegen(postfach: string, original: GmailNachricht, text: string, html?: string | null, anhaenge?: MailAnhang[] | null): Promise<string> {
   const j = await api(postfach, "/drafts", {
     method: "POST",
     body: JSON.stringify({
       message: {
-        raw: mimeAntwort({ von: postfach, an: original.antwortAn || original.von, betreff: original.betreff, text, html, inReplyTo: original.messageIdHeader, references: original.references }),
+        raw: mimeAntwort({ von: postfach, an: original.antwortAn || original.von, betreff: original.betreff, text, html, inReplyTo: original.messageIdHeader, references: original.references, anhaenge }),
         threadId: original.threadId,
       },
     }),

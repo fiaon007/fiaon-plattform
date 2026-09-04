@@ -37,6 +37,8 @@ const BEREICH: Record<string, { label: string; farbe: string }> = {
   // NACHHER hat die Meldung aus dem Posteingang („Problem an die IT melden")
   // einen eigenen Bereich. Grund: Justins Auftrag vom 24.08.2026.
   technik: { label: "Technik", farbe: "#0891b2" },
+  // 04.09.2026 (E-115): Aufgaben, die Mara aus dem Postfach stellt.
+  postmeister: { label: "Mara · Postfach", farbe: "#4f46e5" },
   sonstiges: { label: "Sonstiges", farbe: "#64748b" },
 };
 const PRIO: Record<number, string> = { 1: "heute", 2: "diese Woche", 3: "wenn Zeit ist" };

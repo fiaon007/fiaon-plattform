@@ -90,10 +90,12 @@ async function zustaendig(personId: number | null): Promise<{ id: number | null;
     `) as any[];
     if (r?.id) return { id: Number(r.id), name: String(r.name) };
   }
+  // 04.09.2026: Die Rollen heißen „vertriebsleiter" und „admin" — die alten
+  // Namen gab es nirgends, der Rückfall lief still auf „Leitung" ohne Mensch.
   const [l] = (await sqlPool`
     SELECT id, COALESCE(first_name, name, email) AS name FROM fiaon_agents
-     WHERE active IS NOT FALSE AND rolle IN ('vertriebsleitung', 'leitung', 'admin')
-     ORDER BY (rolle = 'vertriebsleitung') DESC, id ASC LIMIT 1
+     WHERE active IS NOT FALSE AND rolle IN ('vertriebsleiter', 'admin') AND COALESCE(is_test_account, FALSE) = FALSE
+     ORDER BY (rolle = 'vertriebsleiter') DESC, id ASC LIMIT 1
   `) as any[];
   return l?.id ? { id: Number(l.id), name: String(l.name) } : { id: null, name: "Leitung" };
 }
@@ -158,13 +160,86 @@ export const notizAnBetreuer: Werkzeug = {
 };
 
 /**
+ * AUFGABE AN DEN BETREUER — 04.09.2026 (E-115). Eine Notiz ist ein Hinweis;
+ * das hier ist ein Auftrag mit Titel, Frist und Mail an den Menschen. Justin:
+ * „Mitarbeiter ein TODO bekommt … also dass Handlungen PASSIEREN."
+ */
+export const aufgabeAnBetreuer: Werkzeug = {
+  name: "aufgabe_an_betreuer",
+  beschreibung: "Legt dem zuständigen Betreuer eine echte Aufgabe mit Titel, Auftrag und Frist an. Er sieht sie in seinem Portal unter Aufträge und bekommt eine Mail. Nutze das, wenn ein Mensch etwas TUN muss, das du nicht kannst: Kunde will einen Anruf, braucht eine Bescheinigung, will Daten ändern, hat Unterlagen geschickt, verlangt eine Antwort von einem Menschen, oder eine frühere Kündigung muss geprüft werden. Für einen bloßen Hinweis nimm notiz_an_betreuer.",
+  stufe: "frei",
+  lagen: "alle",
+  parameter: {
+    type: "object", additionalProperties: false,
+    properties: {
+      titel: { type: "string", description: "Kurz wie eine Betreffzeile: was zu tun ist, mit Namen des Kunden. Beispiel: „Herrn Köhler zurückrufen — frühere Kündigung prüfen\"." },
+      text: { type: "string", description: "Der Auftrag in zwei bis vier Sätzen: Lage, was der Kunde will, was zu tun ist, was du ihm zugesagt hast." },
+      faellig_in_tagen: { type: "integer", description: "0 = heute, 1 = morgen, 2 = übermorgen. Höchstens 7." },
+      dringend: { type: "boolean", description: "true, wenn heute jemand handeln muss (Anwaltsdrohung, Beschwerde, Kunde wartet auf Rückruf)." },
+    },
+    required: ["titel", "text", "faellig_in_tagen", "dringend"],
+  },
+  async ausfuehren(p, k) {
+    const titel = String(p.titel || "").trim().slice(0, 160);
+    const text = String(p.text || "").trim().slice(0, 2000);
+    if (titel.length < 5 || text.length < 10) return { ok: false, ergebnis: "", fehler: "Titel oder Auftrag zu kurz." };
+    const tage = Math.max(0, Math.min(7, Math.round(Number(p.faellig_in_tagen)) || 0));
+    const faelligAm = new Date(Date.now() + tage * 864e5).toISOString().slice(0, 10);
+    const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+    const erg = await auftragFuerKunden({
+      personId: k.personId, ref: k.ref, titel, text, faelligAm, dringend: !!p.dringend,
+      schluessel: k.postmeisterId ? `postmeister:${k.postmeisterId}:aufgabe` : null,
+      quelle: "postmeister", autorName: "Mara",
+    });
+    const wer = erg.agentName ?? "die Leitung";
+    await protokoll(k, "aufgabe_an_betreuer", `Aufgabe für ${wer}: „${titel}" (fällig ${faelligAm}). ${text.slice(0, 300)}`);
+    const wann = tage === 0 ? "heute" : tage === 1 ? "morgen" : `in ${tage} Tagen`;
+    return { ok: true, ergebnis: `${wer} hat die Aufgabe „${titel}" bekommen, fällig ${wann}.`, daten: { betreuer: erg.agentName, aufgabe: titel, faellig: faelligAm, aufgabe_id: erg.id } };
+  },
+};
+
+/**
+ * RECHNUNG ANHÄNGEN — 04.09.2026 (E-115). Bei einer offenen Zahlung hängt der
+ * Lauf die Rechnung ohnehin an, sobald die Zahlungsseite verlinkt ist. Dieses
+ * Werkzeug ist für den ausdrücklichen Wunsch: „Schicken Sie mir die Rechnung."
+ */
+export const rechnungAnhaengen: Werkzeug = {
+  name: "rechnung_anhaengen",
+  beschreibung: "Hängt die Rechnung zu einer Zahlungsreferenz als PDF an deine Antwort. Nutze es, wenn der Kunde eine Rechnung, einen Beleg oder eine Zahlungsaufforderung als Dokument verlangt — auch zu einer bereits bezahlten Rate. Bei einer offenen Zahlung wird die Rechnung automatisch angehängt, sobald du die Zahlungsseite verlinkst.",
+  stufe: "frei",
+  lagen: "alle",
+  parameter: {
+    type: "object", additionalProperties: false,
+    properties: { referenz: { type: "string", description: "Bestellung FIAON-XXXXXX oder Monatsrate FIAON-XXXXXX-N, genau wie in der Akte." } },
+    required: ["referenz"],
+  },
+  async ausfuehren(p, k) {
+    const ref = String(p.referenz || "").trim().toUpperCase();
+    if (!/^FIAON-[A-Z0-9]{6}(-\d{1,2})?$/.test(ref)) return { ok: false, ergebnis: "", fehler: "Das ist keine Zahlungsreferenz." };
+    const { zahlungsauftragFinden } = await import("./fiaon-zahlungsauftrag");
+    const z = await zahlungsauftragFinden(ref);
+    if (!z) return { ok: false, ergebnis: "", fehler: "Zu dieser Referenz gibt es keine Rechnung." };
+    if (k.postmeisterId) {
+      const [r] = (await sqlPool`SELECT anhaenge FROM fiaon_postmeister WHERE id = ${k.postmeisterId}`) as any[];
+      const da: any[] = Array.isArray(r?.anhaenge) ? r.anhaenge : [];
+      if (!da.some((a) => a && a.art === "rechnung" && String(a.referenz).toUpperCase() === ref)) {
+        da.push({ art: "rechnung", referenz: ref, quelle: "werkzeug" });
+        await sqlPool`UPDATE fiaon_postmeister SET anhaenge = ${sqlPool.json(da)}, updated_at = NOW() WHERE id = ${k.postmeisterId}`.catch(() => {});
+      }
+    }
+    await protokoll(k, "rechnung_anhaengen", `Rechnung ${ref} (${z.amountDue} €) wird als PDF angehängt.`, false);
+    return { ok: true, ergebnis: `Die Rechnung zu ${ref} über ${z.amountDue} € wird als PDF angehängt.`, daten: { rechnung: ref, betrag: z.amountDue, rechnung_status: z.status } };
+  },
+};
+
+/**
  * KÜNDIGUNG VORMERKEN — nach Justins Regel: kulant entlassen, aber erst nach
  * Zahlung der gestellten Rechnung. Das Werkzeug setzt den Zustand; die
  * Bestätigungsmail kommt aus dem Kündigungsmodul, nicht aus der KI-Feder.
  */
 export const kuendigungVormerken: Werkzeug = {
   name: "kuendigung_vormerken",
-  beschreibung: "Nimmt eine Kündigung entgegen. Nur bei einer eindeutigen Willenserklärung des Kunden ('ich kündige', 'hiermit kündige ich'), niemals bei Fragen oder Überlegungen. Der Vertrag läuft zwölf Monate; wir entlassen kulant vorzeitig, aber die bereits gestellte Rate bleibt zu zahlen. Nach dem Aufruf nennst du in der Antwort die offene Rate mit Betrag und Zahlungsseite.",
+  beschreibung: "Nimmt eine Kündigung entgegen. Nur bei einer eindeutigen Willenserklärung des Kunden ('ich kündige', 'hiermit kündige ich'), niemals bei Fragen oder Überlegungen. Der Vertrag läuft zwölf Monate; wir entlassen kulant vorzeitig, aber die bereits gestellte Rate bleibt zu zahlen — der Vertrag endet erst mit ihrer Zahlung (Storno erst nach Zahlungseingang). Auch wenn der Kunde schreibt, er habe schon früher gekündigt: aufrufen — das System merkt es jetzt vor. Nach dem Aufruf nennst du in der Antwort die offene Rate mit Betrag und Zahlungsseite.",
   stufe: "frei",
   lagen: ["unbezahlt", "zahlung_gemeldet", "bezahlt_ohne_startgespraech", "aktiv", "rate_ueberfaellig", "gekuendigt", "bestreitet"],
   parameter: {
@@ -378,7 +453,7 @@ export const eskalationVorbereiten: Werkzeug = {
 
 /** Alle Werkzeuge, in der Reihenfolge, in der das Modell sie sehen soll. */
 export const POSTMEISTER_WERKZEUGE: Werkzeug[] = [
-  zahlungslinkBauen, terminlinkBauen, notizAnBetreuer, vermerkSchreiben,
+  zahlungslinkBauen, rechnungAnhaengen, terminlinkBauen, notizAnBetreuer, aufgabeAnBetreuer, vermerkSchreiben,
   kuendigungVormerken, werbesperreSetzen, mahnstoppSetzen, eskalationVorbereiten, kontoFreischalten,
 ];
 

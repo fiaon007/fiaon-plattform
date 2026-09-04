@@ -56,11 +56,12 @@ export const WORTREGELN: Wortregel[] = [
   // ── Zusagen, die ein Werkzeug decken muss ───────────────────────────────
   { muster: /\b(aus\s+(dem|unserem)\s+verteiler\s+(genommen|entfernt|nehmen)|keine\s+(weiteren\s+)?(werbe|angebots)?mails?\s+mehr)\b/i, art: "zusage", hinweis: "Nur sagen, wenn die Werbesperre wirklich gesetzt wurde.", gedecktDurch: ["werbesperre_setzen"] },
   { muster: /\b(erinnerungen|mahnungen)\b.{0,30}\b(gestoppt|eingestellt|angehalten|beendet)\b/i, art: "zusage", hinweis: "Nur sagen, wenn der Mahnstopp gesetzt wurde.", gedecktDurch: ["mahnstopp_setzen"] },
-  { muster: /\b(weitergeleitet|weiterleiten\s+werde|an\s+die\s+(zuständige\s+)?(abteilung|kollegin|kollegen))\b/i, art: "zusage", hinweis: "Nur sagen, wenn wirklich jemand informiert wurde.", gedecktDurch: ["notiz_an_betreuer", "eskalation_vorbereiten"] },
-  { muster: /\b(ruf(t|e|en)?\s+sie(\s+\w+){0,3}\s+an\b|meldet?\s+sich\s+(telefonisch|bei\s+ihnen)|rückruf)/i, art: "zusage", hinweis: "Nur sagen, wenn ein Rückruf eingeplant wurde.", gedecktDurch: ["notiz_an_betreuer"] },
+  { muster: /\b(weitergeleitet|weiterleiten\s+werde|an\s+die\s+(zuständige\s+)?(abteilung|kollegin|kollegen))\b/i, art: "zusage", hinweis: "Nur sagen, wenn wirklich jemand informiert wurde.", gedecktDurch: ["notiz_an_betreuer", "aufgabe_an_betreuer", "eskalation_vorbereiten"] },
+  { muster: /\b(ruf(t|e|en)?\s+sie(\s+\w+){0,3}\s+an\b|meldet?\s+sich\s+(telefonisch|bei\s+ihnen)|rückruf)/i, art: "zusage", hinweis: "Nur sagen, wenn ein Rückruf eingeplant wurde.", gedecktDurch: ["notiz_an_betreuer", "aufgabe_an_betreuer"] },
   { muster: /\b(kündigung|vertrag)\b.{0,30}\b(vorgemerkt|vermerkt|aufgenommen|bestätigt|storniert)\b/i, art: "zusage", hinweis: "Nur sagen, wenn die Kündigung im System steht.", gedecktDurch: ["kuendigung_vormerken"] },
   { muster: /\b(zugang|bereich|konto)\b.{0,25}\b(freigeschaltet|freigegeben|aktiviert)\b/i, art: "zusage", hinweis: "Nur sagen, wenn die Freischaltung ausgeführt wurde.", gedecktDurch: ["konto_freischalten"] },
-  { muster: /\b(notiert|vermerkt)\b.{0,20}\b(in\s+ihrer\s+akte|im\s+system)\b/i, art: "zusage", hinweis: "Nur sagen, wenn ein Vermerk geschrieben wurde.", gedecktDurch: ["vermerk_schreiben", "notiz_an_betreuer"] },
+  { muster: /\b(notiert|vermerkt)\b.{0,20}\b(in\s+ihrer\s+akte|im\s+system)\b/i, art: "zusage", hinweis: "Nur sagen, wenn ein Vermerk geschrieben wurde.", gedecktDurch: ["vermerk_schreiben", "notiz_an_betreuer", "aufgabe_an_betreuer"] },
+  { muster: /\b(rechnung)\b.{0,30}\b(angehängt|anbei|im\s+anhang|beigefügt|mitgeschickt)\b/i, art: "zusage", hinweis: "Nur sagen, wenn die Rechnung wirklich angehängt wird.", gedecktDurch: ["rechnung_anhaengen", "zahlungslink_bauen"] },
 ];
 
 export interface Wandtreffer { art: Verstossart; treffer: string; hinweis: string; gedecktDurch?: string[] }

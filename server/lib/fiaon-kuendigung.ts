@@ -36,7 +36,7 @@ export type KuendigungQuelle = "mail" | "formular" | "telefon" | "admin" | "altb
 export interface KuendigungErgebnis {
   ok: boolean;
   ref: string;
-  weg: "storno_unbezahlt" | "letzte_rate" | "sofort_beendet" | "bereits" | "prueffall" | "unbekannt";
+  weg: "storno_unbezahlt" | "letzte_rate" | "sofort_beendet" | "kulanz_sofort" | "bereits" | "prueffall" | "unbekannt";
   letzteRateNr: number | null;
   letzteRateBetragCents: number | null;
   letzteRateFaellig: string | null;
@@ -86,8 +86,11 @@ export function istWillenserklaerung(text: string): boolean {
   // „möglich" allein wäre zu breit: „zum nächstmöglichen Zeitpunkt" ist eine
   // Kündigung, „ist das möglich?" nicht.
   const unsicher = /(würde|wuerde|überlege|ueberlege|\bfalls\b|wenn ich|wie kann ich|wie kündige|wie kuendige|(ist|wäre|waere) (das |es )?möglich|(ist|wäre|waere) (das |es )?moeglich|erwäge|erwaege|vielleicht|eventuell|gedanken|informier|auskunft|welche frist|kündigungsfrist ist|kuendigungsfrist ist|frist ist)/;
-  const erklaerung = /(ich kündige|ich kuendige|hiermit kündige|hiermit kuendige|kündige ich|kuendige ich|kündigung des vertrags|kuendigung des vertrags|hiermit die kündigung|hiermit die kuendigung|vertrag beenden|vertrag kündigen|vertrag kuendigen|abo kündigen|abo kuendigen|widerrufe hiermit|trete zurück|trete zurueck|außerordentlich(e|en)? kündigung|ausserordentlich(e|en)? kuendigung)/;
+  const erklaerung = /(ich kündige|ich kuendige|hiermit kündige|hiermit kuendige|kündige ich|kuendige ich|kündigung des vertrags|kuendigung des vertrags|hiermit die kündigung|hiermit die kuendigung|vertrag beenden|vertrag kündigen|vertrag kuendigen|abo kündigen|abo kuendigen|widerrufe hiermit|trete zurück|trete zurueck|außerordentlich(e|en)? kündigung|ausserordentlich(e|en)? kuendigung|habe (bereits |schon |schriftlich |per e-?mail |per mail |vor \w+ )*(gekündigt|gekuendigt)|(gekündigt|gekuendigt) habe|meine (kündigung|kuendigung) vom|bleibe bei meiner (kündigung|kuendigung))/;
   if (!erklaerung.test(t)) return false;
+  // 04.09.2026: „ich habe schriftlich gekündigt!!!" ist eine Erklärung — der
+  // Kunde beruft sich auf eine frühere. Bis hierher galt sie als unklar, und
+  // Mara antwortete, die Kündigung sei „noch nicht eindeutig hinterlegt".
   // Steht ein Unsicherheitswort im selben Satz wie die Erklärung, gilt sie nicht.
   for (const satz of t.split(/[.!?;\n]/)) {
     if (erklaerung.test(satz) && !unsicher.test(satz)) return true;
@@ -115,6 +118,13 @@ export async function kuendigungSetzen(ref: string, opts: {
   am?: string | null;
   /** true = nur rechnen, nichts schreiben. */
   probe?: boolean;
+  /**
+   * 04.09.2026 (E-115): Kulanz — Vertrag endet SOFORT, auch offene Raten
+   * entfallen. Das ist eine Geldentscheidung; nur ein Mensch im Postfach darf
+   * sie treffen (Schalter „Storno erst nach Zahlungseingang" ausgeschaltet).
+   * Mara bekommt diesen Weg nicht angeboten.
+   */
+  sofort?: boolean;
 }): Promise<KuendigungErgebnis> {
   await kuendigungSpalten();
   const leer = (weg: KuendigungErgebnis["weg"], grund: string): KuendigungErgebnis =>
@@ -192,6 +202,37 @@ export async function kuendigungSetzen(ref: string, opts: {
     });
     return { ok: true, ref, weg: "sofort_beendet", letzteRateNr: hoechste || null, letzteRateBetragCents: null,
       letzteRateFaellig: null, stornierteRaten: 0, vertragEndeAm: wann.toISOString(), grund: "Vertrag beendet" };
+  }
+
+  // ── Kulanz (nur Mensch): sofort beenden, offene Raten entfallen ────────
+  if (opts.sofort) {
+    const hoechsteBezahlt = raten.filter((r) => r.status === "bezahlt").reduce((m, r) => Math.max(m, Number(r.rate_nr)), 0);
+    if (opts.probe) return { ok: true, ref, weg: "kulanz_sofort", letzteRateNr: hoechsteBezahlt || null, letzteRateBetragCents: null,
+      letzteRateFaellig: null, stornierteRaten: offen.length, vertragEndeAm: wann.toISOString(), grund: `Kulanz — ${offen.length} offene Rate(n) entfallen, Vertrag endet sofort` };
+    await sqlPool.begin(async (tx) => {
+      await tx`
+        UPDATE fiaon_applications
+           SET gekuendigt_am = ${wann}, kuendigung_quelle = ${opts.quelle}, kuendigung_grund = ${opts.grund ?? null},
+               kuendigung_postmeister_id = ${opts.postmeisterId ?? null}, letzte_rate_nr = ${hoechsteBezahlt || null},
+               vertrag_ende_am = ${wann}, abo_gestoppt_am = COALESCE(abo_gestoppt_am, ${wann}),
+               abo_stopp_grund = COALESCE(abo_stopp_grund, 'Kündigung (Kulanz, sofort)'), kuendigung_rueckhol_bis = ${rueckholBis},
+               mahnstopp_am = COALESCE(mahnstopp_am, ${wann}), updated_at = NOW()
+         WHERE ref = ${ref}
+      `;
+      await tx`
+        UPDATE fiaon_abo_raten
+           SET status = 'storniert', storniert_am = NOW(), storno_grund = 'kuendigung_kulanz', updated_at = NOW()
+         WHERE ref = ${ref} AND status = 'offen'
+      `;
+      await tx`
+        INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
+        VALUES (${ref}, ${a.person_id ?? null}, NULL, 'System', 'system',
+                ${`Kündigung (${opts.quelle}), KULANZ — Vertrag endet sofort, ${offen.length} offene Rate(n) entfallen. Ein Mensch hat das im Postfach entschieden.${opts.grund ? ` Grund: ${String(opts.grund).slice(0, 200)}` : ""}`})
+      `.catch(() => {});
+    });
+    await lastschriftBeendenMerken(ref, a.person_id ?? null).catch(() => {});
+    return { ok: true, ref, weg: "kulanz_sofort", letzteRateNr: hoechsteBezahlt || null, letzteRateBetragCents: null,
+      letzteRateFaellig: null, stornierteRaten: offen.length, vertragEndeAm: wann.toISOString(), grund: "Vertrag beendet (Kulanz)" };
   }
 
   // Welche offene Rate ist „die letzte"? Standard: die höchste (der Kunde zahlt
@@ -283,7 +324,30 @@ export async function vertragEndePruefen(ref: string, rateNr: number): Promise<{
     VALUES (${ref}, ${a.person_id ?? null}, NULL, 'System', 'system',
             ${`Letzte Rate ${rateNr} bezahlt — der Vertrag ist damit beendet. Provisionen bleiben bestehen.`})
   `.catch(() => {});
+  await lastschriftBeendenMerken(ref, a.person_id ?? null).catch(() => {});
   return { beendet: true, person_id: a.person_id };
+}
+
+/**
+ * 04.09.2026 (E-115): Läuft bei GoCardless ein Abo, zieht es nach dem
+ * Vertragsende weiter ein — bisher hat das niemand beendet (kein einziger
+ * cancel-Aufruf im Haus). Geldbewegungen bei GoCardless führt nach Justins
+ * Regel NUR er aus; deshalb keine API-Aktion hier, sondern eine Aufgabe mit
+ * Prio 1 auf seinem Brett — mit Abo-Kennung und dem Weg zur Akte.
+ */
+async function lastschriftBeendenMerken(ref: string, personId: number | null): Promise<void> {
+  const [g] = (await sqlPool`
+    SELECT gc_subscription_ref, gc_subscription_status, gc_mandate_ref, first_name, last_name
+      FROM fiaon_applications WHERE ref = ${ref} LIMIT 1
+  `.catch(() => [])) as any[];
+  if (!g?.gc_subscription_ref || /cancel|finished|beendet/i.test(String(g.gc_subscription_status || ""))) return;
+  const { todoAnlegen } = await import("../routes/fiaon-betreiber-todo");
+  const name = [g.first_name, g.last_name].filter(Boolean).join(" ") || ref;
+  await todoAnlegen(`gc-abo-beenden:${ref}`, {
+    titel: `GoCardless-Abo beenden: ${name}`,
+    text: `Der Vertrag ${ref} ist beendet, bei GoCardless läuft das Abo ${g.gc_subscription_ref} (Mandat ${g.gc_mandate_ref || "—"}) aber weiter und würde weiter einziehen. Bitte im GoCardless-Dashboard das Abo beenden (Subscriptions → ${g.gc_subscription_ref} → Cancel). Das Mandat kann bleiben.${personId ? ` Person ${personId}.` : ""}`,
+    bereich: "konten", prioritaet: 1, quelle: "system", link: `/admin/kunde/${ref}`,
+  });
 }
 
 /** Läuft die Bestellung noch? (für Mahn-, Rückhol- und Werbeläufe) */

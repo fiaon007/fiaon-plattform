@@ -133,11 +133,23 @@ router.get("/admin/postmeister/eintrag/:id", async (req: Request, res: Response)
         FROM fiaon_postmeister WHERE thread_id = ${r.thread_id} ORDER BY empfangen_am ASC LIMIT 20
     `) as any[];
     const akte = await akteLesen(r.person_id ?? null, r.ref ?? null);
+    // 04.09.2026 (E-115): Der Vertragsstand für die Schalter im Postfach —
+    // ist schon gekündigt? welche Rate bleibt? ist der Vertrag beendet?
+    const [v] = r.ref ? ((await sqlPool`
+      SELECT gekuendigt_am, letzte_rate_nr, vertrag_ende_am, kuendigung_zurueckgenommen_am, payment_status,
+             gc_subscription_ref
+        FROM fiaon_applications WHERE ref = ${r.ref} LIMIT 1
+    `.catch(() => [])) as any[]) : [null];
 
     res.json({
       ok: true,
       eintrag: {
         id: r.id, postfach: r.postfach, von: r.von, betreff: r.betreff, empfangenAm: r.empfangen_am,
+        anhaenge: jsonOderLeer(r.anhaenge, []), anhaengeEingang: jsonOderLeer(r.anhaenge_eingang, []),
+        vertrag: v ? {
+          gekuendigtAm: v.gekuendigt_am, letzteRateNr: v.letzte_rate_nr, vertragEndeAm: v.vertrag_ende_am,
+          zurueckgenommenAm: v.kuendigung_zurueckgenommen_am, zahlungsstatus: v.payment_status, lastschrift: !!v.gc_subscription_ref,
+        } : null,
         text: r.text, zusammenfassung: r.zusammenfassung, kategorien: r.kategorien ?? [],
         flags: jsonOderLeer(r.flags, {}), kundenlage: r.kundenlage, dringend: !!r.dringend,
         aktion: r.aktion, antwort: r.antwort, antwortHtml: r.antwort_html,
@@ -157,8 +169,29 @@ router.get("/admin/postmeister/eintrag/:id", async (req: Request, res: Response)
   }
 });
 
+/**
+ * Was der Mensch beim Senden zusätzlich entscheidet (04.09.2026, E-115 — die
+ * drei Schalter aus dem Entwurf): Rechnung als PDF, Aufgabe für den Betreuer,
+ * Kündigung vormerken (Storno erst nach Zahlungseingang oder Kulanz sofort).
+ */
+export interface SendeWahl {
+  /** false = ausdrücklich ohne Rechnung; sonst Plan + Automatik. */
+  anhaenge?: boolean | null;
+  aufgabe?: { titel: string; text: string; faelligInTagen?: number; dringend?: boolean } | null;
+  kuendigung?: { vormerken: boolean; nachZahlung: boolean; grund?: string | null } | null;
+}
+
+async function handlungMerken(id: number, werkzeug: string, ergebnis: string, ok = true): Promise<void> {
+  await sqlPool`
+    UPDATE fiaon_postmeister
+       SET handlungen = COALESCE(handlungen, '[]'::jsonb) || ${sqlPool.json([{ werkzeug, ergebnis: ergebnis.slice(0, 300), ok, am: new Date().toISOString(), von: "mensch" }] as any)},
+           updated_at = NOW()
+     WHERE id = ${id}
+  `.catch(() => {});
+}
+
 /** Ein Entwurf wird gesendet — mit frischer Prüfung kurz davor. */
-async function entwurfSenden(id: number, textNeu?: string | null): Promise<{ ok: boolean; grund: string }> {
+async function entwurfSenden(id: number, textNeu?: string | null, wahl: SendeWahl = {}): Promise<{ ok: boolean; grund: string; erledigt?: string[] }> {
   const [r] = (await sqlPool`
     UPDATE fiaon_postmeister SET aktion = 'sendet', updated_at = NOW()
      WHERE id = ${id} AND aktion IN ('entwurf', 'fehler') RETURNING *
@@ -171,9 +204,53 @@ async function entwurfSenden(id: number, textNeu?: string | null): Promise<{ ok:
     return { ok: false, grund: "Text ist zu kurz" };
   }
 
+  const erledigt: string[] = [];
+  const gelaufen = (jsonOderLeer(r.handlungen, []) as any[]).filter((h) => h.ok).map((h) => h.werkzeug);
+
+  // Schalter 1: Kündigung — ein Mensch entscheidet, deshalb ohne Willenserklärungs-Wand.
+  if (wahl.kuendigung?.vormerken) {
+    if (!r.ref) {
+      await sqlPool`UPDATE fiaon_postmeister SET aktion = 'entwurf' WHERE id = ${id}`;
+      return { ok: false, grund: "Ohne Bestellung kann keine Kündigung vorgemerkt werden." };
+    }
+    const { kuendigungSetzen } = await import("../lib/fiaon-kuendigung");
+    const erg = await kuendigungSetzen(r.ref, {
+      quelle: "mail", grund: String(wahl.kuendigung.grund || "").slice(0, 300) || null,
+      postmeisterId: id, sofort: wahl.kuendigung.nachZahlung === false,
+    });
+    if (!erg.ok) {
+      await sqlPool`UPDATE fiaon_postmeister SET aktion = 'entwurf', begruendung = ${`Kündigung nicht vorgemerkt: ${erg.grund}`} WHERE id = ${id}`;
+      return { ok: false, grund: `Kündigung: ${erg.grund}` };
+    }
+    const satz = erg.weg === "letzte_rate"
+      ? `Kündigung vorgemerkt — Rate ${erg.letzteRateNr} bleibt offen, mit ihrer Zahlung endet der Vertrag.`
+      : erg.weg === "kulanz_sofort" ? `Kündigung mit Kulanz — Vertrag sofort beendet, ${erg.stornierteRaten} offene Rate(n) entfallen.`
+      : erg.weg === "storno_unbezahlt" ? "Bestellung storniert (war unbezahlt)."
+      : erg.weg === "bereits" ? "Kündigung stand bereits."
+      : "Vertrag beendet.";
+    await handlungMerken(id, "kuendigung_vormerken", satz);
+    gelaufen.push("kuendigung_vormerken");
+    erledigt.push(satz);
+  }
+
+  // Schalter 2: Aufgabe für den Betreuer.
+  if (wahl.aufgabe && String(wahl.aufgabe.titel || "").trim().length >= 3) {
+    const { auftragFuerKunden } = await import("./fiaon-betreiber-todo");
+    const tage = Math.max(0, Math.min(7, Math.round(Number(wahl.aufgabe.faelligInTagen ?? 2)) || 0));
+    const a = await auftragFuerKunden({
+      personId: r.person_id ?? null, ref: r.ref ?? null,
+      titel: String(wahl.aufgabe.titel).trim(), text: String(wahl.aufgabe.text || "").trim(),
+      faelligAm: new Date(Date.now() + tage * 864e5).toISOString().slice(0, 10), dringend: !!wahl.aufgabe.dringend,
+      schluessel: `postmeister:${id}:aufgabe-mensch`, quelle: "postmeister", autorName: "Postfach",
+    });
+    const satz = `Aufgabe für ${a.agentName ?? "die Leitung"}: „${String(wahl.aufgabe.titel).trim().slice(0, 80)}" (fällig ${a.faelligAm}).`;
+    await handlungMerken(id, "aufgabe_an_betreuer", satz);
+    gelaufen.push("aufgabe_an_betreuer");
+    erledigt.push(satz);
+  }
+
   // Frische Prüfung: Wand und Bankdaten. Ein Entwurf von gestern kann heute
   // falsch sein — am 02.09. lag einer mit der gesperrten IBAN in der Werkbank.
-  const gelaufen = (jsonOderLeer(r.handlungen, []) as any[]).filter((h) => h.ok).map((h) => h.werkzeug);
   const treffer = wandPruefen(text, gelaufen).filter((t) => t.art !== "floskel");
   if (treffer.length) {
     await sqlPool`
@@ -184,20 +261,27 @@ async function entwurfSenden(id: number, textNeu?: string | null): Promise<{ ok:
 
   try {
     const { nachrichtLesen, antwortSenden, nachrichtLabeln, labelSicherstellen, entwurfLoeschen } = await import("../lib/fiaon-gmail");
+    // Schalter 3: Rechnung als PDF — Plan der Zeile plus Automatik (Zahlungsseite), außer der Mensch sagt nein.
+    const { anhaengePlanen, anhaengeBauen } = await import("../lib/fiaon-postmeister-anhaenge");
+    const plan = wahl.anhaenge === false ? [] : anhaengePlanen(r.anhaenge, jsonOderLeer(r.naechster_schritt, null));
+    const gebaut = plan.length ? await anhaengeBauen(plan) : { dateien: [], fehler: [] as string[] };
+    if (gebaut.fehler.length) erledigt.push(`Nicht angehängt: ${gebaut.fehler.join("; ")}`);
     const mail = await nachrichtLesen(r.postfach, r.gmail_id);
-    await antwortSenden(r.postfach, mail, text, r.antwort_html ?? null);
+    await antwortSenden(r.postfach, mail, text, r.antwort_html ?? null, gebaut.dateien);
+    if (gebaut.dateien.length) erledigt.push(`Angehängt: ${gebaut.dateien.map((d) => d.dateiname).join(", ")}`);
     if (r.antwort_draft_id) await entwurfLoeschen(r.postfach, r.antwort_draft_id).catch(() => {});
     await nachrichtLabeln(r.postfach, r.gmail_id, [await labelSicherstellen(r.postfach, "FIAON/Beantwortet")], ["UNREAD"]).catch(() => {});
     await sqlPool`
-      UPDATE fiaon_postmeister SET aktion = 'gesendet', antwort = ${text}, gesendet_am = NOW(), updated_at = NOW() WHERE id = ${id}
+      UPDATE fiaon_postmeister SET aktion = 'gesendet', antwort = ${text}, gesendet_am = NOW(), updated_at = NOW(),
+             anhaenge = ${plan.length ? sqlPool.json(plan as any) : null} WHERE id = ${id}
     `;
     if (r.ref) {
       await sqlPool`
         INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
-        VALUES (${r.ref}, ${r.person_id}, NULL, 'Postmeister', 'system', ${`Antwort freigegeben und gesendet: ${text.slice(0, 400)}`})
+        VALUES (${r.ref}, ${r.person_id}, NULL, 'Postmeister', 'system', ${`Antwort freigegeben und gesendet${gebaut.dateien.length ? ` (mit ${gebaut.dateien.map((d) => d.dateiname).join(", ")})` : ""}: ${text.slice(0, 400)}`})
       `.catch(() => {});
     }
-    return { ok: true, grund: "gesendet" };
+    return { ok: true, grund: "gesendet", erledigt };
   } catch (e: any) {
     await sqlPool`UPDATE fiaon_postmeister SET aktion = 'entwurf', begruendung = ${String(e?.message || e).slice(0, 300)} WHERE id = ${id}`;
     return { ok: false, grund: String(e?.message || e).slice(0, 200) };
@@ -205,8 +289,52 @@ async function entwurfSenden(id: number, textNeu?: string | null): Promise<{ ok:
 }
 
 router.post("/admin/postmeister/eintrag/:id/senden", async (req: Request, res: Response) => {
-  const erg = await entwurfSenden(Number(req.params.id), req.body?.text ?? null);
+  const b = req.body || {};
+  const wahl: SendeWahl = {
+    anhaenge: typeof b.anhaenge === "boolean" ? b.anhaenge : null,
+    aufgabe: b.aufgabe && typeof b.aufgabe === "object" && b.aufgabe.titel
+      ? { titel: String(b.aufgabe.titel).slice(0, 160), text: String(b.aufgabe.text || "").slice(0, 4000), faelligInTagen: Number(b.aufgabe.faelligInTagen ?? 2), dringend: b.aufgabe.dringend === true }
+      : null,
+    kuendigung: b.kuendigung && typeof b.kuendigung === "object" && b.kuendigung.vormerken === true
+      ? { vormerken: true, nachZahlung: b.kuendigung.nachZahlung !== false, grund: b.kuendigung.grund ? String(b.kuendigung.grund).slice(0, 300) : null }
+      : null,
+  };
+  const erg = await entwurfSenden(Number(req.params.id), b.text ?? null, wahl);
   res.status(erg.ok ? 200 : 409).json(erg);
+});
+
+/** Eine Datei aus der Kundenmail — was der Kunde mitgeschickt hat, sieht der Mensch hier. */
+router.get("/admin/postmeister/eintrag/:id/anhang/:idx", async (req: Request, res: Response) => {
+  try {
+    const [r] = (await sqlPool`SELECT postfach, gmail_id, anhaenge_eingang FROM fiaon_postmeister WHERE id = ${Number(req.params.id)} LIMIT 1`) as any[];
+    const liste = jsonOderLeer(r?.anhaenge_eingang, []) as any[];
+    const a = liste[Number(req.params.idx)];
+    if (!r || !a?.attachmentId) return res.status(404).json({ ok: false, error: "Anhang nicht gefunden" });
+    const { anhangLesen } = await import("../lib/fiaon-gmail");
+    const inhalt = await anhangLesen(r.postfach, r.gmail_id, a.attachmentId);
+    const name = String(a.name || "anhang").replace(/["\r\n]/g, "");
+    res.setHeader("Content-Type", String(a.typ || "application/octet-stream"));
+    res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(name)}"`);
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.send(inhalt);
+  } catch (e: any) {
+    res.status(500).json({ ok: false, error: String(e?.message || e).slice(0, 200) });
+  }
+});
+
+/** Der Kunde bleibt doch (Rettungsgespräch hat gewirkt): Kündigung zurücknehmen. */
+router.post("/admin/postmeister/eintrag/:id/kuendigung-zuruecknehmen", async (req: Request, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const [r] = (await sqlPool`SELECT ref FROM fiaon_postmeister WHERE id = ${id} LIMIT 1`) as any[];
+    if (!r?.ref) return res.status(404).json({ ok: false, error: "Keine Bestellung an diesem Vorgang" });
+    const { kuendigungZuruecknehmen } = await import("../lib/fiaon-kuendigung");
+    const erg = await kuendigungZuruecknehmen(r.ref, "aus dem Postfach zurückgenommen");
+    await handlungMerken(id, "kuendigung_zurueckgenommen", `Kündigung zurückgenommen — ${erg.ratenZurueck} Rate(n) leben wieder auf.`, erg.ok);
+    res.json({ ok: erg.ok, ratenZurueck: erg.ratenZurueck });
+  } catch (e: any) {
+    res.status(500).json({ ok: false, error: String(e?.message || e).slice(0, 200) });
+  }
 });
 
 router.post("/admin/postmeister/eintrag/:id/verwerfen", async (req: Request, res: Response) => {

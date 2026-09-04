@@ -28,7 +28,10 @@ const router = Router();
 // Higgsfield-Guthaben). NACHHER gibt es „technik": alles, was aus dem Haus
 // gemeldet wird und repariert werden muss. Grund: Justins Auftrag vom
 // 24.08.2026, ein unzustellbarer Brief soll an die IT gehen können.
-export const TODO_BEREICHE = ["make", "brevo", "konten", "entscheidung", "pruefen", "partner", "technik", "sonstiges"] as const;
+// 04.09.2026 (E-115): „postmeister" — Aufgaben, die Mara aus dem Postfach
+// anlegt. Die Werkzeuge schrieben den Bereich schon seit dem 02.09., er war
+// hier nur nicht eingetragen: keine Farbe, kein Label, PATCH lehnte ihn ab.
+export const TODO_BEREICHE = ["make", "brevo", "konten", "entscheidung", "pruefen", "partner", "technik", "postmeister", "sonstiges"] as const;
 export const TODO_STATUS = ["offen", "in_arbeit", "wartet", "erledigt"] as const;
 type Status = (typeof TODO_STATUS)[number];
 const BETREIBER_NAME = "Justin";
@@ -143,6 +146,156 @@ export async function todoAnlegen(schluessel: string, t: { titel: string; text?:
     VALUES (${schluessel}, ${t.titel}, ${t.text ?? null}, ${t.bereich ?? "sonstiges"}, ${t.prioritaet ?? 2}, ${t.faelligAm ?? null}, ${t.link ?? null}, ${t.quelle ?? "system"})
     ON CONFLICT (schluessel) DO UPDATE SET titel = EXCLUDED.titel, text = EXCLUDED.text, link = EXCLUDED.link, updated_at = NOW()
   `;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E-115 (04.09.2026) — AUFGABE FÜR DEN BETREUER EINES KUNDEN, VOM SERVER
+//
+// VORHER: Wer aus einem Modul heraus einem Mitarbeiter eine Aufgabe geben
+// wollte, schrieb selbst ein INSERT (Postmeister, Rückruf, Nicht-erreicht) —
+// jedes mit eigener Zuständigkeits-Regel, eins davon mit Rollen, die es gar
+// nicht gibt („vertriebsleitung", „leitung"). Und keiner schickte die Mail,
+// die /admin/vermerke schickt: der Mitarbeiter sah die Aufgabe erst beim
+// nächsten Portalbesuch.
+//
+// NACHHER: Eine Funktion. Betreuer über die eine Zuständigkeitsableitung
+// (fiaon-zustaendigkeit.ts), sonst — je nach Lage — der Forderungsmanager
+// oder die Vertriebsleitung mit den wenigsten offenen Aufträgen, sonst der
+// Betreiber. Übergabe über `delegieren()` (Zeitleiste, ungelesen-Zustand),
+// Mail „Neuer Auftrag für dich" über denselben Weg wie die Vermerke.
+// ═══════════════════════════════════════════════════════════════════════════
+export interface AuftragEin {
+  personId: number | null;
+  ref: string | null;
+  titel: string;
+  text: string;
+  /** YYYY-MM-DD — sonst +2 Tage (dringend: heute). */
+  faelligAm?: string | null;
+  dringend?: boolean;
+  /** Idempotenz-Schlüssel — ohne ihn wird immer neu angelegt. */
+  schluessel?: string | null;
+  quelle?: string;
+  bereich?: string;
+  link?: string | null;
+  /** Wer die Aufgabe stellt — steht in der Zeitleiste. */
+  autorName?: string;
+}
+export interface AuftragErgebnis {
+  id: number | null;
+  agentId: number | null;
+  agentName: string | null;
+  anBetreiber: boolean;
+  faelligAm: string;
+}
+
+/** Der Mensch für diese Aufgabe: Betreuer, sonst Rolle passend zur Lage, sonst Betreiber. */
+async function auftragEmpfaenger(personId: number | null): Promise<{ id: number | null; name: string | null; email: string | null; vorname: string | null }> {
+  if (personId) {
+    try {
+      const { zustaendigeRolle } = await import("../lib/fiaon-zustaendigkeit");
+      const z = await zustaendigeRolle(personId);
+      if (z?.agentId) {
+        const [a] = (await sqlPool`
+          SELECT id, name, email, first_name FROM fiaon_agents WHERE id = ${z.agentId} AND COALESCE(active, TRUE) = TRUE LIMIT 1
+        `) as any[];
+        if (a?.id) return { id: Number(a.id), name: String(a.name), email: a.email ?? null, vorname: a.first_name ?? null };
+      }
+      // Niemand eingetragen: die Rolle, die zur Lage passt, mit der kleinsten Last.
+      const rollen = z?.rolle === "inkasso" ? ["inkasso", "vertriebsleiter"] : ["vertriebsleiter"];
+      const [f] = (await sqlPool`
+        SELECT ag.id, ag.name, ag.email, ag.first_name,
+               (SELECT COUNT(*)::int FROM fiaon_betreiber_todos t
+                 WHERE t.zustaendig_agent_id = ag.id AND t.status <> 'erledigt') AS offene
+          FROM fiaon_agents ag
+         WHERE COALESCE(ag.active, TRUE) = TRUE AND ag.rolle = ANY(${rollen})
+           AND COALESCE(ag.is_test_account, FALSE) = FALSE
+         ORDER BY (ag.rolle = ${rollen[0]}) DESC, offene ASC, ag.id ASC LIMIT 1
+      `) as any[];
+      if (f?.id) return { id: Number(f.id), name: String(f.name), email: f.email ?? null, vorname: f.first_name ?? null };
+    } catch (e) {
+      console.error("[TODO] Empfänger:", String(e).slice(0, 160));
+    }
+  }
+  const [l] = (await sqlPool`
+    SELECT id, name, email, first_name FROM fiaon_agents
+     WHERE COALESCE(active, TRUE) = TRUE AND rolle = 'vertriebsleiter' AND COALESCE(is_test_account, FALSE) = FALSE
+     ORDER BY id ASC LIMIT 1
+  `.catch(() => [])) as any[];
+  return l?.id ? { id: Number(l.id), name: String(l.name), email: l.email ?? null, vorname: l.first_name ?? null } : { id: null, name: null, email: null, vorname: null };
+}
+
+export async function auftragFuerKunden(ein: AuftragEin): Promise<AuftragErgebnis> {
+  await ensureTodoTabelle();
+  const titel = String(ein.titel || "").trim().slice(0, 160) || "Aufgabe aus dem Postfach";
+  const text = String(ein.text || "").trim().slice(0, 4000);
+  const heute = new Date();
+  const faelligAm = ein.faelligAm && /^\d{4}-\d{2}-\d{2}$/.test(ein.faelligAm)
+    ? ein.faelligAm
+    : new Date(heute.getTime() + (ein.dringend ? 0 : 2) * 864e5).toISOString().slice(0, 10);
+  const prioritaet = ein.dringend ? 1 : 2;
+  const bereich = ein.bereich && (TODO_BEREICHE as readonly string[]).includes(ein.bereich) ? ein.bereich : "postmeister";
+  const link = ein.link ?? (ein.ref ? `/admin/kunde/${ein.ref}` : null);
+  const quelle = ein.quelle ?? "postmeister";
+  const wer = await auftragEmpfaenger(ein.personId);
+
+  let id: number | null = null;
+  if (ein.schluessel) {
+    const [r] = (await sqlPool`
+      INSERT INTO fiaon_betreiber_todos (schluessel, titel, text, bereich, prioritaet, faellig_am, link, quelle, status)
+      VALUES (${ein.schluessel}, ${titel}, ${text}, ${bereich}, ${prioritaet}, ${faelligAm}, ${link}, ${quelle}, 'offen')
+      ON CONFLICT (schluessel) DO UPDATE
+        SET text = CASE WHEN fiaon_betreiber_todos.text = EXCLUDED.text THEN fiaon_betreiber_todos.text
+                        ELSE COALESCE(fiaon_betreiber_todos.text, '') || E'\n\n' || EXCLUDED.text END,
+            prioritaet = LEAST(fiaon_betreiber_todos.prioritaet, EXCLUDED.prioritaet),
+            faellig_am = LEAST(COALESCE(fiaon_betreiber_todos.faellig_am, EXCLUDED.faellig_am), EXCLUDED.faellig_am),
+            status = CASE WHEN fiaon_betreiber_todos.status = 'erledigt' THEN 'offen' ELSE fiaon_betreiber_todos.status END,
+            updated_at = NOW()
+      RETURNING id, (xmax = 0) AS neu, zustaendig_agent_id
+    `) as any[];
+    id = r?.id ? Number(r.id) : null;
+    // Schon beim richtigen Menschen? Dann nicht noch einmal übergeben.
+    if (id && !r.neu && r.zustaendig_agent_id && Number(r.zustaendig_agent_id) === wer.id) {
+      await beitrag(id, { autorArt: "system", autorName: ein.autorName ?? "Mara", art: "kommentar", text: text.slice(0, 2000) }).catch(() => {});
+      return { id, agentId: wer.id, agentName: wer.name, anBetreiber: !wer.id, faelligAm };
+    }
+  } else {
+    const [r] = (await sqlPool`
+      INSERT INTO fiaon_betreiber_todos (titel, text, bereich, prioritaet, faellig_am, link, quelle, status)
+      VALUES (${titel}, ${text}, ${bereich}, ${prioritaet}, ${faelligAm}, ${link}, ${quelle}, 'offen')
+      RETURNING id
+    `) as any[];
+    id = r?.id ? Number(r.id) : null;
+  }
+  if (!id) return { id: null, agentId: null, agentName: null, anBetreiber: true, faelligAm };
+
+  if (wer.id) {
+    await delegieren(id, wer.id, "");
+    await beitrag(id, { autorArt: "system", autorName: ein.autorName ?? "Mara", art: "kommentar", text: `Angelegt von ${ein.autorName ?? "Mara"} aus dem Postfach.` }).catch(() => {});
+    // Die Mail an den Mitarbeiter — derselbe Weg wie bei /admin/vermerke.
+    if (wer.email) {
+      let kunde: string | null = null;
+      if (ein.ref) {
+        const [k] = (await sqlPool`SELECT TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')) AS n FROM fiaon_applications WHERE ref = ${ein.ref} LIMIT 1`.catch(() => [])) as any[];
+        kunde = k?.n || null;
+      }
+      try {
+        const { sendMakeWebhook } = await import("../make-webhook");
+        const { absoluteUrl } = await import("../fiaon-base-url");
+        await sendMakeWebhook("aufgabe_zugewiesen", {
+          email: wer.email, vorname: wer.vorname || wer.name,
+          aufgabe: `${titel}${text ? ` — ${text.slice(0, 600)}` : ""}`, kunde,
+          faellig_am: faelligAm,
+          faellig_am_text: new Date(`${faelligAm}T12:00:00Z`).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" }),
+          dringend: !!ein.dringend, portal_url: absoluteUrl("/agent/aufgaben"),
+        });
+      } catch { /* die Aufgabe steht — die Mail ist ein Zusatz */ }
+      await sqlPool`
+        INSERT INTO fiaon_agent_events (agent_id, type, meta)
+        VALUES (${wer.id}, 'aufgabe_zugewiesen', ${JSON.stringify({ todo_id: id, ref: ein.ref || null, faellig_am: faelligAm, quelle })})
+      `.catch(() => {});
+    }
+  }
+  return { id, agentId: wer.id, agentName: wer.name, anBetreiber: !wer.id, faelligAm };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

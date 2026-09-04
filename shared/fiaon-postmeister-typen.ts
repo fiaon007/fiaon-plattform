@@ -79,6 +79,11 @@ export const ERLAUBTE_SCHRITTE: Record<Kundenlage, SchrittArt[]> = {
 /** Lagen, in denen ein Automat überhaupt selbst senden darf (Rest: Entwurf). */
 export const AUTO_LAGEN: Kundenlage[] = [
   "interessent", "unbezahlt", "zahlung_gemeldet", "bezahlt_ohne_startgespraech", "aktiv",
+  // 04.09.2026 (E-115, Justin: „der Agent soll vollständig einen Mitarbeiter
+  // ersetzen"): Ratenrückstand ist der häufigste Fall im Postfach. Gedeckt durch
+  // Belegpflicht, Einzugsschutz, Kontowechsel-Riegel und die Flags — jede
+  // Beschwerde, jedes Bestreiten, jede Kündigung bleibt Entwurf.
+  "rate_ueberfaellig",
 ];
 
 /** Was der Kunde will — mehrere gleichzeitig sind erlaubt. */

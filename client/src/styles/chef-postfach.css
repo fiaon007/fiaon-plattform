@@ -178,3 +178,23 @@ table.pf-akte tr:last-child td { border-bottom: 0; }
 .pf-kopfwarn { margin: 0 0 8px; font-size: 11.5px; }
 .pf-kopfwarn b { font-weight: 600; }
 .pf-kopfwarn-roh { color: var(--p-leiser); font-size: 10.5px; }
+
+/* 04.09.2026 (E-115): Anhänge des Kunden + die drei Schalter vor dem Senden. */
+.pf-anhaenge { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; margin-top: 8px; font-size: 11px; }
+.pf-anhaenge > span { color: var(--p-leiser); }
+.pf-anhaenge a { color: var(--p-blau-hell); text-decoration: none; border: 1px solid rgba(255,255,255,.12); border-radius: 6px; padding: 3px 8px; }
+.pf-anhaenge a small { color: var(--p-leiser); margin-left: 4px; }
+.pf-schalter { display: flex; flex-direction: column; gap: 6px; margin: 6px 0 4px; padding: 8px 10px; border-radius: 8px; background: rgba(255,255,255,.035); border: 1px solid rgba(255,255,255,.07); font-size: 11.5px; }
+.pf-schalter label { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; color: var(--p-leiser); }
+.pf-schalter label.an { color: inherit; }
+.pf-schalter label input[type="checkbox"] { margin-top: 2px; accent-color: var(--p-blau); }
+.pf-schalter label b { font-weight: 600; }
+.pf-schalter label small { color: var(--p-leiser); font-size: 10.5px; }
+.pf-schalter label.klein { font-size: 11px; margin-left: 22px; }
+.pf-schalter-innen { display: flex; flex-direction: column; gap: 5px; margin-left: 22px; }
+.pf-schalter-innen input, .pf-schalter-innen textarea, .pf-schalter-zeile select { font: inherit; font-size: 11.5px; color: inherit; background: rgba(0,0,0,.25); border: 1px solid rgba(255,255,255,.12); border-radius: 6px; padding: 5px 8px; }
+.pf-schalter-innen textarea { resize: vertical; }
+.pf-schalter-zeile { display: flex; gap: 8px; align-items: center; color: var(--p-leiser); font-size: 11px; }
+.pf-schalter-zeile label.klein { margin-left: 4px; }
+.pf-schalter-stand { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: space-between; padding: 6px 8px; border-left: 2px solid var(--p-bernstein); background: rgba(240,169,43,.07); border-radius: 0 6px 6px 0; }
+.pf-schalter-stand b { color: #f5c877; font-weight: 600; }

@@ -216,13 +216,18 @@ export function renderInvoicePdf(doc: PDFKit.PDFDocument, a: any): void {
     .text("Betrag", amountX, y + 7, { width: amountW, align: "right", lineBreak: false });
   y += 22;
 
-  const description = `${packName} — monatlicher Zugang zur FIAON SaaS- und E-Learning-Plattform (Software-Lizenz, KI-Profilanalyse, Lernmodule, Dashboard)`;
+  // 04.09.2026 (E-115): Eine Monatsrate bekommt dieselbe Rechnung, nur mit
+  // eigener Beschreibung und eigenem Zeitraum — die Zeile darf sie mitbringen.
+  const description = a.beschreibung
+    ? String(a.beschreibung)
+    : `${packName} — monatlicher Zugang zur FIAON SaaS- und E-Learning-Plattform (Software-Lizenz, KI-Profilanalyse, Lernmodule, Dashboard)`;
+  const zeitraum = a.zeitraum ? String(a.zeitraum) : "1 Monat ab Freischaltung des Zugangs";
   const rowTop = y + 10;
   doc.font("Helvetica").fontSize(9.5).fillColor(CI.dark)
     .text(description, descX, rowTop, { width: descW });
   const descBottom = doc.y;
   doc.font("Helvetica").fontSize(8.5).fillColor(CI.slate)
-    .text("1 Monat ab Freischaltung des Zugangs", periodX, rowTop, { width: periodW });
+    .text(zeitraum, periodX, rowTop, { width: periodW });
   const periodBottom = doc.y;
   doc.font("Helvetica-Bold").fontSize(10).fillColor(CI.dark)
     .text(eur(amount), amountX, rowTop, { width: amountW, align: "right", lineBreak: false });

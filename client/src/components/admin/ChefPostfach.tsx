@@ -102,6 +102,29 @@ export default function ChefPostfach() {
   const entwurf = offenId != null ? (entwuerfe[offenId] ?? String(detail?.eintrag?.antwort ?? "")) : "";
   const entwurfSetzen = (t: string) => { if (offenId != null) setEntwuerfe((e) => ({ ...e, [offenId]: t })); };
 
+  // 04.09.2026 (E-115): Die drei Schalter aus dem Entwurf — je Vorgang gemerkt.
+  type Wahl = { anhaenge: boolean; aufgabe: boolean; aufgabeTitel: string; aufgabeText: string; aufgabeTage: number; aufgabeDringend: boolean; kuendigung: boolean; nachZahlung: boolean };
+  const [wahlen, setWahlen] = useState<Record<number, Wahl>>({});
+  const wahlRef = useRef<Record<number, Wahl>>({});
+  wahlRef.current = wahlen;
+  const wahlVorgabe = (E: any, A: any): Wahl => {
+    const flags = E?.flags || {};
+    const handlungen: any[] = Array.isArray(E?.handlungen) ? E.handlungen : [];
+    const schonGekuendigt = !!E?.vertrag?.gekuendigtAm || handlungen.some((h) => h.werkzeug === "kuendigung_vormerken" && h.ok);
+    const name = A?.name || String(E?.von || "").replace(/<[^>]*>/g, "").replace(/"/g, "").trim();
+    return {
+      anhaenge: E?.naechsterSchritt?.art === "zahlung" || (Array.isArray(E?.anhaenge) && E.anhaenge.length > 0),
+      aufgabe: false,
+      aufgabeTitel: `${name}: ${String(E?.zusammenfassung || E?.betreff || "").slice(0, 70)}`.slice(0, 120),
+      aufgabeText: String(E?.zusammenfassung || "").slice(0, 600),
+      aufgabeTage: 2, aufgabeDringend: !!E?.dringend,
+      kuendigung: !!flags.kuendigung && !schonGekuendigt && !!E?.ref,
+      nachZahlung: true,
+    };
+  };
+  const wahlVon = (id: number, E: any, A: any): Wahl => wahlen[id] ?? wahlVorgabe(E, A);
+  const wahlSetzen = (id: number, E: any, A: any, teil: Partial<Wahl>) => setWahlen((w) => ({ ...w, [id]: { ...(w[id] ?? wahlVorgabe(E, A)), ...teil } }));
+
   const laden = useCallback(async (leise = false) => {
     try {
       const p = new URLSearchParams({ ordner, ...(postfach ? { postfach } : {}), ...(suche ? { suche } : {}) });
@@ -140,17 +163,37 @@ export default function ChefPostfach() {
       const r = await fetch(`/api/fiaon/admin/postmeister/eintrag/${id}/senden`, {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: text ?? null }),
+        body: JSON.stringify({
+          text: text ?? null,
+          anhaenge: wahlRef.current[id]?.anhaenge ?? null,
+          aufgabe: wahlRef.current[id]?.aufgabe && wahlRef.current[id]?.aufgabeTitel
+            ? { titel: wahlRef.current[id].aufgabeTitel, text: wahlRef.current[id].aufgabeText, faelligInTagen: wahlRef.current[id].aufgabeTage, dringend: wahlRef.current[id].aufgabeDringend }
+            : null,
+          kuendigung: wahlRef.current[id]?.kuendigung ? { vormerken: true, nachZahlung: wahlRef.current[id].nachZahlung } : null,
+        }),
       });
       const j = await r.json().catch(() => ({}));
       if (j?.ok) {
-        setMeldung({ art: "gut", text: "Antwort ist raus." });
+        const zusatz = Array.isArray(j.erledigt) && j.erledigt.length ? ` ${j.erledigt.join(" ")}` : "";
+        setMeldung({ art: "gut", text: `Antwort ist raus.${zusatz}` });
+        setWahlen((w) => { const n = { ...w }; delete n[id]; return n; });
         setEntwuerfe((e) => { const n = { ...e }; delete n[id]; return n; });
         setOffenId(null); setDetail(null); await laden();
       } else setMeldung({ art: "warn", text: j?.grund || j?.error || "Konnte nicht gesendet werden." });
     } catch (e: any) { setMeldung({ art: "warn", text: String(e?.message || e) }); }
     finally { setLaeuft(null); }
   }, [laden]);
+
+  const kuendigungZurueck = useCallback(async (id: number) => {
+    if (!window.confirm("Kündigung zurücknehmen? Stornierte Raten leben wieder auf.")) return;
+    setLaeuft(`zurueck-${id}`);
+    try {
+      const j = await hole(`/admin/postmeister/eintrag/${id}/kuendigung-zuruecknehmen`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      setMeldung({ art: "gut", text: `Kündigung zurückgenommen — ${j?.ratenZurueck ?? 0} Rate(n) wieder offen.` });
+      const d = await hole(`/admin/postmeister/eintrag/${id}`); setDetail(d);
+    } catch (e: any) { setMeldung({ art: "warn", text: String(e?.message || e) }); }
+    finally { setLaeuft(null); }
+  }, []);
 
   const verwerfen = useCallback(async (id: number) => {
     setLaeuft(`verwerfen-${id}`);
@@ -322,6 +365,16 @@ export default function ChefPostfach() {
                 <section className="pf-abs">
                   <h3>Was der Kunde geschrieben hat</h3>
                   <div className="pf-zitat">{E.text || "(kein Text)"}</div>
+                  {Array.isArray(E.anhaengeEingang) && E.anhaengeEingang.length > 0 && (
+                    <div className="pf-anhaenge">
+                      <span>Mitgeschickt:</span>
+                      {E.anhaengeEingang.map((a: any, i: number) => (
+                        <a key={i} href={`/api/fiaon/admin/postmeister/eintrag/${E.id}/anhang/${i}`} target="_blank" rel="noreferrer" title={a.typ}>
+                          {a.name} <small>{Math.max(1, Math.round((a.groesse || 0) / 1024))} KB</small>
+                        </a>
+                      ))}
+                    </div>
+                  )}
                 </section>
 
                 {Array.isArray(detail.verlauf) && detail.verlauf.filter((v: any) => v.id !== E.id).length > 0 && (
@@ -393,6 +446,68 @@ export default function ChefPostfach() {
                     {Array.isArray(E.belege) && E.belege.length > 0 && (
                       <div className="pf-belege">Belegt durch: {E.belege.map((b: any) => b.feld || b.quelle || "").filter(Boolean).slice(0, 8).join(", ")}</div>
                     )}
+                    {istEntwurf && (() => {
+                      const W = wahlVon(E.id, E, A);
+                      const handl: any[] = Array.isArray(E.handlungen) ? E.handlungen : [];
+                      const maraAufgabe = handl.some((h) => (h.werkzeug === "aufgabe_an_betreuer" || h.werkzeug === "notiz_an_betreuer") && h.ok);
+                      const gekuendigt = !!E.vertrag?.gekuendigtAm && !E.vertrag?.zurueckgenommenAm;
+                      const rechnungRef = E.naechsterSchritt?.art === "zahlung" && E.naechsterSchritt?.url ? String(E.naechsterSchritt.url).split("/zahlung/")[1] : (E.anhaenge?.[0]?.referenz ?? null);
+                      const zeigeKuendigung = !!E.flags?.kuendigung || gekuendigt || W.kuendigung;
+                      return (
+                        <div className="pf-schalter">
+                          {(rechnungRef || W.anhaenge) && (
+                            <label className={W.anhaenge ? "an" : ""}>
+                              <input type="checkbox" checked={W.anhaenge} onChange={(e) => wahlSetzen(E.id, E, A, { anhaenge: e.target.checked })} />
+                              <span><b>Rechnung als PDF anhängen</b>{rechnungRef ? <small> · {rechnungRef}</small> : null}</span>
+                            </label>
+                          )}
+                          <label className={W.aufgabe ? "an" : ""}>
+                            <input type="checkbox" checked={W.aufgabe} onChange={(e) => wahlSetzen(E.id, E, A, { aufgabe: e.target.checked })} />
+                            <span><b>Aufgabe für {A?.betreuer || "den Betreuer"}</b>{maraAufgabe ? <small> · Mara hat schon eine angelegt</small> : <small> · mit Frist und Mail</small>}</span>
+                          </label>
+                          {W.aufgabe && (
+                            <div className="pf-schalter-innen">
+                              <input value={W.aufgabeTitel} onChange={(e) => wahlSetzen(E.id, E, A, { aufgabeTitel: e.target.value })} placeholder="Was ist zu tun?" />
+                              <textarea value={W.aufgabeText} onChange={(e) => wahlSetzen(E.id, E, A, { aufgabeText: e.target.value })} rows={3} placeholder="Der Auftrag in zwei, drei Sätzen" />
+                              <div className="pf-schalter-zeile">
+                                <span>fällig</span>
+                                <select value={W.aufgabeTage} onChange={(e) => wahlSetzen(E.id, E, A, { aufgabeTage: Number(e.target.value) })}>
+                                  <option value={0}>heute</option><option value={1}>morgen</option><option value={2}>in 2 Tagen</option><option value={5}>in 5 Tagen</option>
+                                </select>
+                                <label className="klein"><input type="checkbox" checked={W.aufgabeDringend} onChange={(e) => wahlSetzen(E.id, E, A, { aufgabeDringend: e.target.checked })} /> dringend</label>
+                              </div>
+                            </div>
+                          )}
+                          {zeigeKuendigung && (gekuendigt ? (
+                            <div className="pf-schalter-stand">
+                              <span>
+                                <b>Kündigung vorgemerkt.</b>{" "}
+                                {E.vertrag?.vertragEndeAm ? "Der Vertrag ist beendet." : E.vertrag?.letzteRateNr ? `Rate ${E.vertrag.letzteRateNr} bleibt offen — mit ihrer Zahlung endet der Vertrag (Storno erst nach Zahlungseingang).` : "Wird mit der letzten Zahlung wirksam."}
+                                {E.vertrag?.lastschrift ? " Lastschrift läuft — Justin bekommt die Aufgabe, das Abo zu beenden." : ""}
+                              </span>
+                              {!E.vertrag?.vertragEndeAm && (
+                                <button type="button" className="pf-knopf still" disabled={laeuft === `zurueck-${E.id}`} onClick={() => void kuendigungZurueck(E.id)}>
+                                  {laeuft === `zurueck-${E.id}` ? "…" : "Kunde bleibt — Kündigung zurücknehmen"}
+                                </button>
+                              )}
+                            </div>
+                          ) : (
+                            <>
+                              <label className={W.kuendigung ? "an" : ""}>
+                                <input type="checkbox" checked={W.kuendigung} disabled={!E.ref} onChange={(e) => wahlSetzen(E.id, E, A, { kuendigung: e.target.checked })} />
+                                <span><b>Kündigung vormerken</b><small> · {E.ref ? "der Kunde hat gekündigt, Mara hat es nicht gebucht" : "ohne Bestellung nicht möglich"}</small></span>
+                              </label>
+                              {W.kuendigung && (
+                                <label className={`klein einzug ${W.nachZahlung ? "an" : ""}`}>
+                                  <input type="checkbox" checked={W.nachZahlung} onChange={(e) => wahlSetzen(E.id, E, A, { nachZahlung: e.target.checked })} />
+                                  <span>Storno erst nach Zahlungseingang der offenen Rate <small>· aus = Kulanz, Vertrag endet sofort, offene Raten entfallen</small></span>
+                                </label>
+                              )}
+                            </>
+                          ))}
+                        </div>
+                      );
+                    })()}
                     {istEntwurf && (
                       <div className="pf-tasten">
                         <button type="button" className="pf-knopf" disabled={!kannSenden || laeuft === `senden-${E.id}`} onClick={() => void senden(E.id, entwurf)}>

@@ -71,7 +71,8 @@ type Modus = "auto" | "hybrid" | "entwurf";
 const POSTFAECHER: { adresse: string; modus: Modus; gruss: string }[] = [
   { adresse: "support@fiaon.com", modus: "auto", gruss: "Freundliche Grüße\nIhr FIAON-Support\nsupport@fiaon.com · fiaon.com" },
   { adresse: "welcome@fiaon.com", modus: "auto", gruss: "Freundliche Grüße\nIhr FIAON Welcome-Team\nwelcome@fiaon.com · fiaon.com" },
-  { adresse: "info@fiaon.com", modus: "hybrid", gruss: "Freundliche Grüße\nIhr FIAON-Team\ninfo@fiaon.com · fiaon.com" },
+  // 04.09.2026: info@fiaon.com ist bei Google kein Nutzer (invalid_grant bei jedem
+  // Lauf). Justin legt es als Alias auf welcome@ — dann landet alles ohnehin hier.
   { adresse: "js@fiaon.com", modus: "entwurf", gruss: "Freundliche Grüße\nJustin Schwarzott\nFIAON — Das Betriebssystem für Bonität" },
 ];
 

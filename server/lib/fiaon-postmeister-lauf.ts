@@ -147,7 +147,14 @@ export async function mailBearbeiten(ein: {
     const basis = {
       thread_id: mail.threadId, von: mail.von, betreff: mail.betreff, empfangen_am: mail.datum,
       text: neuerText.slice(0, 12_000), message_id: mail.messageIdHeader,
+      anhaenge_eingang: mail.anhaenge.length ? JSON.stringify(mail.anhaenge) : null,
     };
+    // 04.09.2026 (E-115): Dateien an der Mail. Mara kann sie nicht öffnen, aber
+    // sie muss wissen, dass sie da sind — ein Mensch sähe den Beleg auch.
+    const anhangHinweis = mail.anhaenge.length
+      ? `\n\n[Der Kunde hat ${mail.anhaenge.length} Datei(en) mitgeschickt: ${mail.anhaenge.map((a) => `${a.name} (${a.typ}, ${Math.max(1, Math.round(a.groesse / 1024))} KB)`).join("; ")}. Du kannst sie nicht öffnen; im Postfach sieht ein Mensch sie. Zählt der Inhalt (Zahlungsbeleg, Ausweis, Unterlagen, Schreiben), bestätige dem Kunden den Eingang und leg dem Betreuer eine Aufgabe an, die Datei zu prüfen.]`
+      : "";
+    const textFuerMara = neuerText + anhangHinweis;
 
     // 1. Fremdpost — eigener Ordner, nie beantworten.
     const fremd = istFremdpost(mail);
@@ -172,7 +179,7 @@ export async function mailBearbeiten(ein: {
     const alterTage = Math.floor((Date.now() - mail.datum.getTime()) / 86_400_000);
 
     // 4. Einordnen.
-    const einordnung = await einordnen({ betreff: mail.betreff, text: neuerText, von: mail.von, alterTage })
+    const einordnung = await einordnen({ betreff: mail.betreff, text: textFuerMara, von: mail.von, alterTage })
       .catch((e) => { throw new Error(`Einordnung: ${String(e?.message || e).slice(0, 160)}`); });
 
     const gemeinsam = {
@@ -212,7 +219,7 @@ export async function mailBearbeiten(ein: {
     // 6. Verlauf und Antwort.
     const verlauf = await verlaufLesen(postfach, mail.threadId, gmailId);
     const erg = await antwortErzeugen({
-      postfach, mail: { betreff: mail.betreff, text: neuerText, von: mail.von, alterTage },
+      postfach, mail: { betreff: mail.betreff, text: textFuerMara, von: mail.von, alterTage },
       verlauf, einordnung, personId: wer.personId, ref: wer.ref, postmeisterId: id,
     });
 
@@ -249,6 +256,16 @@ export async function mailBearbeiten(ein: {
       schritt: erg.naechsterSchritt, betreff: mail.betreff, sprache,
     });
 
+    // 7b. Anhänge (04.09.2026, E-115): Trägt die Antwort eine Zahlungsseite,
+    //     geht die Rechnung als PDF mit — wie bei einem Menschen, der die
+    //     Rechnung gleich mitschickt. Dazu, was das Werkzeug rechnung_anhaengen
+    //     schon an die Zeile geschrieben hat.
+    const { anhaengePlanen, anhaengeBauen } = await import("./fiaon-postmeister-anhaenge");
+    const [zeileJetzt] = (await sqlPool`SELECT anhaenge FROM fiaon_postmeister WHERE id = ${id}`.catch(() => [])) as any[];
+    const anhangPlan = anhaengePlanen(zeileJetzt?.anhaenge, erg.naechsterSchritt);
+    const gebaut = anhangPlan.length ? await anhaengeBauen(anhangPlan) : { dateien: [], fehler: [] as string[] };
+    if (gebaut.fehler.length) console.warn(`[POSTMEISTER] Anhänge ${id}:`, gebaut.fehler.join("; "));
+
     // 8. Senden oder Entwurf. Im Zweifel Entwurf.
     const darfAuto = ein.modus === "auto" && erg.automatischErlaubt && !ein.nurOrdnen;
     const felder = {
@@ -257,22 +274,23 @@ export async function mailBearbeiten(ein: {
       belege: JSON.stringify(erg.belege), handlungen: JSON.stringify(erg.handlungen),
       pruefung: JSON.stringify(erg.pruefung), naechster_schritt: erg.naechsterSchritt ? JSON.stringify(erg.naechsterSchritt) : null,
       ki_kosten_cents: erg.kostenCents, entwurf_geprueft_am: new Date(),
+      anhaenge: anhangPlan.length ? JSON.stringify(anhangPlan) : null,
     };
 
     if (darfAuto) {
-      await antwortSenden(postfach, mail, fertigeAntwort.text, fertigeAntwort.html);
+      await antwortSenden(postfach, mail, fertigeAntwort.text, fertigeAntwort.html, gebaut.dateien);
       await ablegen(postfach, gmailId, "FIAON/Auto-beantwortet", ["UNREAD"]);
       if (wer.ref) {
         await sqlPool`
           INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
           VALUES (${wer.ref}, ${wer.personId}, NULL, 'Postmeister', 'system',
-                  ${`Antwort gesendet: ${fertigeAntwort.text.slice(0, 400)}`})
+                  ${`Antwort gesendet${gebaut.dateien.length ? ` (mit ${gebaut.dateien.map((d) => d.dateiname).join(", ")})` : ""}: ${fertigeAntwort.text.slice(0, 400)}`})
         `.catch(() => {});
       }
       return fertig({ ...felder, aktion: "auto_beantwortet", gesendet_am: new Date(), begruendung: erg.grund }, erg.grund);
     }
 
-    const draftId = await entwurfAnlegen(postfach, mail, fertigeAntwort.text, fertigeAntwort.html).catch(() => null);
+    const draftId = await entwurfAnlegen(postfach, mail, fertigeAntwort.text, fertigeAntwort.html, gebaut.dateien).catch(() => null);
     await ablegen(postfach, gmailId, "FIAON/Entwurf wartet");
     return fertig({ ...felder, aktion: "entwurf", antwort_draft_id: draftId, begruendung: erg.grund }, erg.grund);
   } catch (e: any) {

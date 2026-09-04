@@ -85,6 +85,8 @@ export interface AgentErgebnis {
   automatischErlaubt: boolean;
   grund: string;
   kostenCents: number;
+  /** Was die Werkzeuge geliefert haben — der Lauf braucht daraus die Zahlungsreferenz (Rechnung anhängen). */
+  werkzeugDaten?: Record<string, any>;
 }
 
 // ── Der Aufruf ────────────────────────────────────────────────────────────
@@ -441,7 +443,7 @@ function systemPrompt(ein: {
     ``,
     `WAS DU NICHT SAGST: nichts garantieren, nicht beraten, nichts empfehlen, keine Fristen zusagen, keine Bankdaten aus dem Gedächtnis, keine internen Statuswörter, nichts versprechen, was du nicht im selben Zug getan hast.`,
     ``,
-    `HANDELN: Du hast Werkzeuge (${ein.werkzeuge.join(", ")}). Benutze sie, bevor du schreibst. Wenn ein Mensch etwas wissen muss, schreib ihm eine Notiz (notiz_an_betreuer) — so, wie du es einer Kollegin sagen würdest. Wenn es um Geld geht, hol dir die Zahlungsseite (zahlungslink_bauen) und verlinke sie.`,
+    `HANDELN: Du hast Werkzeuge (${ein.werkzeuge.join(", ")}). Benutze sie, bevor du schreibst. Du ersetzt einen Mitarbeiter: Was du erledigen kannst, erledigst du selbst. Wenn ein Mensch etwas TUN muss (Rückruf, Bescheinigung, Datenänderung, Unterlagen prüfen, frühere Kündigung nachsehen), gib ihm eine Aufgabe (aufgabe_an_betreuer) mit Titel und Frist — und sag dem Kunden, wer sich bis wann meldet. Wenn ein Mensch nur etwas wissen soll, reicht eine Notiz (notiz_an_betreuer). Wenn es um Geld geht, hol dir die Zahlungsseite (zahlungslink_bauen) und verlinke sie — die Rechnung als PDF hängt der Server dann automatisch an; verlangt der Kunde ausdrücklich eine Rechnung oder einen Beleg, nimm rechnung_anhaengen. Bei einer Kündigung: erst das Rettungsgespräch, bei klarer Erklärung kuendigung_vormerken — der Vertrag endet erst mit der Zahlung der offenen Rate.`,
     ``,
     `BELEGE: Jede Zahl, jedes Datum, jeder Betrag, jeder Name in deiner Antwort muss aus einem Werkzeugergebnis oder der Akte stammen, und du führst ihn in "belege" auf. Was du nicht belegen kannst, schreibst du nicht.`,
     ``,
@@ -653,7 +655,7 @@ async function pruefenUndAbschliessen(roh: any, k: {
     }
     // Offene Fragen ohne belegten Rückruf
     const offen = (roh.fragen_beantwortet ?? []).filter((f: any) => f && f.beantwortet === false);
-    if (offen.length && !gelaufen.includes("notiz_an_betreuer")) fehlend.push("offene Frage ohne Rückruf oder Notiz");
+    if (offen.length && !gelaufen.includes("notiz_an_betreuer") && !gelaufen.includes("aufgabe_an_betreuer")) fehlend.push("offene Frage ohne Rückruf, Aufgabe oder Notiz");
     return { treffer, fehlend };
   };
 
@@ -696,5 +698,6 @@ async function pruefenUndAbschliessen(roh: any, k: {
     automatischErlaubt: automatisch,
     grund: sauber ? (automatisch ? "sauber, Automat erlaubt" : "sauber, aber Entwurf (Lage oder Flag)") : `Entwurf: ${[...treffer.map((t) => t.treffer), ...fehlend].slice(0, 3).join("; ")}`,
     kostenCents: k.kosten,
+    werkzeugDaten: k.werkzeugDaten,
   };
 }

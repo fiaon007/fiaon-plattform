@@ -282,6 +282,24 @@ export default function AdminKundeAktePage() {
     else flash(`Einladung nicht möglich: ${r.json?.error || r.status}`);
   };
 
+  // ── DIE VERTRIEBSSPERRE (05.09.2026, Fall Cataldo Sapia) ──────────────
+  // Der Betreiber sah „Voll aktiv", die Mitarbeiterin „gesperrt". Beides war
+  // wahr: Stufe und Sperre sind zwei Dinge. Die Sperre (is_blocked) nimmt den
+  // Kunden aus jeder Liste und jedem Anruf — und stand bisher in keiner Akte.
+  const sperreSchalten = async (gesperrt: boolean) => {
+    const pid = head?.vertriebSperre?.personId;
+    if (!pid) return;
+    const grund = prompt(gesperrt
+      ? "Vertriebssperre SETZEN — Grund (steht im Kontaktverlauf):"
+      : "Vertriebssperre AUFHEBEN — Grund (steht im Kontaktverlauf):", "");
+    if (grund === null) return;
+    setBusy("sperre");
+    const r = await api(`/admin/kunden/${pid}/vertriebssperre`, { gesperrt, grund });
+    setBusy(null);
+    if (r.ok) { flash(r.json?.meldung || (gesperrt ? "✓ Gesperrt." : "✓ Sperre aufgehoben.")); load(); }
+    else flash(`Nicht möglich: ${r.json?.error || r.status}`);
+  };
+
   // ── DIE ONBOARDING-PFLICHT AUSSETZEN ───────────────────────────────────
   // Für Härtefälle. Der Grund wird ABGEFRAGT, nicht optional: Ohne ihn weiß in
   // drei Monaten niemand mehr, warum dieser Kunde kein Gespräch führen musste
@@ -475,6 +493,7 @@ export default function AdminKundeAktePage() {
                     ...(head.commissionBasis === "direktzahler" ? [{ text: "Direktzahler — keine Provision" }] : []),
                     ...(head.gdprDeleted ? [{ text: "DSGVO gelöscht" }] : []),
                     ...(head.dismissedAt ? [{ text: "Aussortiert" }] : []),
+                    ...(head.vertriebSperre?.gesperrt ? [{ text: "Vertriebssperre — kein Kontakt" }] : []),
                     ...(stufenlage.spalteWeichtAb ? [{ text: "Stufe wird nachgezogen" }] : []),
                   ]}
                   aktion={stufenlage.stufe === "wartet_auf_onboarding" ? {
@@ -499,6 +518,34 @@ export default function AdminKundeAktePage() {
                 {head.gdprDeleted && <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-[11px] font-bold text-slate-500">DSGVO gelöscht</span>}
                 {head.dismissedAt && <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-[11px] font-bold text-slate-500">Aussortiert</span>}
               </div>
+              )}
+              {/* ── VERTRIEBSSPERRE, SICHTBAR UND BEDIENBAR (05.09.2026) ────
+                  Rot, weil sie den Kunden für das Team unsichtbar macht: keine
+                  Anrufliste, kein Termin, in der Mitarbeiterliste „gesperrt".
+                  Darunter der letzte Eintrag des Sperr-Protokolls — wer oder
+                  was sie gesetzt hat. */}
+              {head.vertriebSperre?.gesperrt && (
+                <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                  <span className="px-2.5 py-1 rounded-lg border border-red-200 bg-red-50 text-[11px] font-bold text-red-700">
+                    Vertriebssperre — Mitarbeiter sehen „gesperrt", kein Kontakt
+                  </span>
+                  <button type="button" onClick={() => sperreSchalten(false)} disabled={busy === "sperre"}
+                    className="px-3 py-1 rounded-lg bg-red-600 hover:bg-red-700 text-white text-[11px] font-bold disabled:opacity-50">
+                    {busy === "sperre" ? "…" : "Sperre aufheben"}
+                  </button>
+                  {head.vertriebSperre.verlauf?.[0] && (
+                    <span className="text-[11px] text-slate-500">
+                      zuletzt {fmtDT(head.vertriebSperre.verlauf[0].am)}
+                      {head.vertriebSperre.verlauf[0].anwendung ? ` · ${head.vertriebSperre.verlauf[0].anwendung}` : ""}
+                    </span>
+                  )}
+                </div>
+              )}
+              {head.vertriebSperre && !head.vertriebSperre.gesperrt && head.vertriebSperre.verlauf?.[0] && (
+                <p className="text-[11px] text-slate-500 mb-1">
+                  Sperre zuletzt {head.vertriebSperre.verlauf[0].neu ? "gesetzt" : "aufgehoben"} {fmtDT(head.vertriebSperre.verlauf[0].am)}
+                  {head.vertriebSperre.verlauf[0].anwendung ? ` · ${head.vertriebSperre.verlauf[0].anwendung}` : ""}
+                </p>
               )}
               <p className="text-[12.5px] text-slate-500">
                 {head.email || "keine E-Mail"} · {head.phone || "kein Telefon"} · seit {fmtD(head.seit)}

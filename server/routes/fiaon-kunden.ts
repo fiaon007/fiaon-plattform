@@ -628,6 +628,31 @@ router.get("/admin/kunden/akte", async (req: Request, res: Response) => {
         ? await produktstand(Number(primaryApp.person_id)).catch(() => null)
         : null;
 
+    // ── VERTRIEBSSPERRE SICHTBAR MACHEN (05.09.2026, Fall Cataldo Sapia) ────
+    // Der Betreiber sah „Voll aktiv", die Mitarbeiterin „gesperrt" — beides
+    // stimmte: „Voll aktiv" ist die Vertragsstufe, „gesperrt" die Vertriebs-
+    // sperre `fiaon_persons.is_blocked` (kein Kontakt, keine Listen). Die Akte
+    // nannte die Sperre nirgends. Jetzt steht sie im Kopf, mit dem Verlauf
+    // aus dem Sperr-Protokoll (Trigger, fiaon-kunde-aktiv.ts) und einem Knopf.
+    const sperrPersonId = primaryApp?.person_id ? Number(primaryApp.person_id) : null;
+    let vertriebSperre: { personId: number; gesperrt: boolean; verlauf: any[] } | null = null;
+    if (sperrPersonId) {
+      const [sp] = (await sqlPool`SELECT is_blocked FROM fiaon_persons WHERE id = ${sperrPersonId}`.catch(() => [] as any[])) as any[];
+      const verlauf = (await sqlPool`
+        SELECT alt, neu, geaendert_am, anwendung, anweisung
+        FROM fiaon_sperr_protokoll WHERE person_id = ${sperrPersonId}
+        ORDER BY geaendert_am DESC LIMIT 5
+      `.catch(() => [] as any[])) as any[];
+      vertriebSperre = {
+        personId: sperrPersonId,
+        gesperrt: Boolean(sp?.is_blocked),
+        verlauf: verlauf.map((v) => ({
+          alt: v.alt, neu: v.neu, am: v.geaendert_am, anwendung: v.anwendung || null,
+          anweisung: v.anweisung ? String(v.anweisung).replace(/\s+/g, " ").slice(0, 240) : null,
+        })),
+      };
+    }
+
     // Kopf-Daten
     const head = {
       id: primaryApp ? primaryApp.ref : `lead-${primaryLead.id}`,
@@ -688,6 +713,8 @@ router.get("/admin/kunden/akte", async (req: Request, res: Response) => {
       namensHinweise: nameSuspects.length,
       gdprDeleted: Boolean(primaryApp?.gdpr_deleted_at),
       dismissedAt: primaryApp?.dismissed_at || primaryLead?.dismissed_at || null,
+      /** Vertriebssperre (is_blocked) — getrennt von Stufe und Kontostatus. */
+      vertriebSperre,
     };
 
     // ══════════════════════════════════════════════════════════════════════
@@ -1076,6 +1103,51 @@ router.post("/admin/kunden/:ref/note", async (req: Request, res: Response) => {
     res.json({ ok: true, entry: rows[0] });
   } catch (err) {
     console.error("[FIAON-KUNDEN] note:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// POST /admin/kunden/:personId/vertriebssperre — Sperre setzen oder aufheben
+// (05.09.2026, Fall Cataldo Sapia)
+//
+// Bis heute konnte nur die Vertriebsleitung im Cockpit sperren und entsperren;
+// die Verwaltung sah die Sperre nicht einmal. Body: { gesperrt: boolean,
+// grund?: string }. Der Grund landet als Vermerk im Kontaktverlauf jeder
+// Bestellung der Person, damit der Betreuer weiß, warum der Kunde wieder in
+// seiner Liste steht. Das Sperr-Protokoll (Trigger) schreibt ohnehin mit.
+// ═══════════════════════════════════════════════════════════════════════════
+router.post("/admin/kunden/:personId/vertriebssperre", async (req: Request, res: Response) => {
+  try {
+    const personId = Number(req.params.personId);
+    if (!Number.isFinite(personId) || personId <= 0) return res.status(400).json({ ok: false, error: "Person fehlt" });
+    const gesperrt = req.body?.gesperrt === true;
+    const grund = String(req.body?.grund || "").trim().slice(0, 500);
+    const [vorher] = (await sqlPool`
+      SELECT id, is_blocked FROM fiaon_persons WHERE id = ${personId} AND merged_into_person_id IS NULL
+    `) as any[];
+    if (!vorher) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
+    if (Boolean(vorher.is_blocked) === gesperrt) {
+      return res.json({ ok: true, unveraendert: true, meldung: gesperrt ? "Der Kunde war schon gesperrt." : "Der Kunde war nicht gesperrt." });
+    }
+    await sqlPool`
+      UPDATE fiaon_persons
+      SET is_blocked = ${gesperrt}, follow_up_date = ${gesperrt ? null : sqlPool`follow_up_date`}, updated_at = NOW()
+      WHERE id = ${personId}
+    `;
+    const refs = (await sqlPool`SELECT ref FROM fiaon_applications WHERE person_id = ${personId} AND merged_into IS NULL`) as any[];
+    const note = (gesperrt ? "Vertriebssperre GESETZT durch die Verwaltung" : "Vertriebssperre AUFGEHOBEN durch die Verwaltung")
+      + (grund ? ` — ${grund}` : "");
+    for (const r of refs) await auditApp(String(r.ref), note);
+    console.log(`[FIAON-KUNDEN] vertriebssperre person=${personId} ${vorher.is_blocked} → ${gesperrt}${grund ? ` (${grund})` : ""}`);
+    res.json({
+      ok: true,
+      meldung: gesperrt
+        ? "Gesperrt — der Kunde erscheint in keiner Anrufliste mehr."
+        : "Sperre aufgehoben — der Kunde steht wieder in den Listen seines Betreuers.",
+    });
+  } catch (err) {
+    console.error("[FIAON-KUNDEN] vertriebssperre:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

@@ -300,6 +300,28 @@ export async function akteLesen(personId: number | null, ref: string | null): Pr
 
   const aktuelle = bestellungen.find((b) => b.ref === ref) ?? bestellungen[0] ?? null;
 
+  let karte: any = null;
+  if (personId) {
+    try {
+      const { kartenStand } = await import("./fiaon-konto-karte");
+      const { kartenLage } = await import("./fiaon-kartenstatus");
+      const [st, lage] = await Promise.all([kartenStand(personId), kartenLage(personId)]);
+      if (st) {
+        karte = {
+          reihenfolge: "erst Girokonto der Partnerbank, dann Karte als Zubuchung; Einladung erst, wenn alle drei Bedingungen erfüllt sind; die Bank entscheidet",
+          bereit: st.bereit,
+          esFehlt: st.esFehlt,
+          bedingungen: st.tore.map((t) => ({ titel: t.titel, erfuellt: t.erfuellt, fehlt: t.fehlt, fuerKunden: String(t.warumFuerKunden || "").replace(/Wir empfehlen das Konto erst/i, "Der Konto-Schritt kommt erst") })),
+          zahlen: st.zahlen,
+          einladung: st.versand ? { am: relativ(st.versand.am), status: st.versand.status } : null,
+          bankStand: lage.status ? { status: lage.status, text: lage.text, am: lage.am ? relativ(lage.am) : null } : null,
+        };
+      }
+    } catch (e) {
+      console.warn("[POSTMEISTER] Kartenstand nicht lesbar:", String((e as any)?.message || e).slice(0, 120));
+    }
+  }
+
   return {
     heute,
     personId: personId ?? null,
@@ -339,6 +361,11 @@ export async function akteLesen(personId: number | null, ref: string | null): Pr
       ...eigene.map((m) => ({ am: relativ(m.created_at), richtung: "ein" as const, betreff: String(m.betreff ?? ""), kurz: `${m.kurz ?? ""} — von uns ${m.beantwortet ? "beantwortet" : "nur eingeordnet"}` })),
       ...mailsRaus.map((m) => ({ am: relativ(m.created_at), richtung: "aus" as const, betreff: String(m.event), kurz: String(m.status) })),
     ].slice(0, 16),
+    // ── KARTE: Reihenfolge, drei Bedingungen, Stand (05.09.2026, E-135) ────
+    // Justin: „2 Raten bezahlen, 1 Auskunft kaufen — erst DANN schicken wir
+    // den Kartenantrag raus. Der Agent muss ALLES an Wissen haben." Der
+    // Stand kommt aus derselben Abfrage wie im Team-Portal (fiaon-konto-karte).
+    karte,
     // ── VERTRAG: Datum, Wohnort, Land (05.09.2026, E-135) ─────────────────
     // Die Härte-Stufe nennt das Vertragsdatum und das für den Wohnort
     // zuständige Gericht — beides aus der Akte, nichts geraten.

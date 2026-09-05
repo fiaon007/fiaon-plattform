@@ -200,6 +200,8 @@ export interface AkteKurz {
   mails: { am: string; richtung: "ein" | "aus"; betreff: string; kurz: string | null }[];
   /** Vertragsschluss (Bestelldatum), Wohnort und Land — für Härte-Stufe und Widerruf (E-135). */
   vertrag?: { geschlossenAm: string | null; ort: string | null; land: string | null; agbStand: string | null } | null;
+  /** Karte: Reihenfolge, drei Bedingungen mit Stand, Einladung, Bankentscheidung (E-135). */
+  karte?: any;
   kuendigung: { am: string | null; letzteRate: number | null; vertragEnde: string | null } | null;
   sperren: { werbung: string | null; anrufe: boolean; konto: string | null };
   offeneAufgaben: number;

@@ -22,9 +22,31 @@ export const SUPPORT = {
 const preis = (c: number) => (c / 100).toFixed(2).replace(".", ",") + " €";
 
 export function wissenText(): string {
-  const pakete = PAKETE.filter((p) => p.abo).map((p) => `- ${p.label} (${p.art === "privat" ? "Privatkunden" : "Geschäftskunden"}): ${preis(p.preisCents)} im Monat, zwölf Raten per SEPA-Lastschrift oder Überweisung, danach entscheidet der Kunde, ob er bleibt; kündbar jederzeit zum Ende des laufenden Monats, formlos (im Kundenbereich unter Abo & Zahlungen oder per E-Mail)`).join("\n");
+  const pakete = PAKETE.filter((p) => p.abo).map((p) => `- ${p.label} (${p.art === "privat" ? "Privatkunden" : "Geschäftskunden"}): ${preis(p.preisCents)} im Monat, zwölf Monatsraten per SEPA-Lastschrift oder Überweisung; Vertrag über zwölf Raten (siehe VERTRAG UND KÜNDIGUNG)`).join("\n");
   const agenda = AGENDA.map((a, i) => `${i + 1}. ${a.titel}: ${a.zweck}`).join("\n");
-  return `Du bist der FIAON-Assistent auf fiaon.com. Du beantwortest Fragen von Interessenten und Kunden zu FIAON und zum Thema Bonität — freundlich, klar, in der Sie-Form, auf Deutsch, in kurzen Absätzen. Du bist ehrlich: Was du nicht weißt, sagst du („Das kann ich Ihnen nicht sicher sagen – unser Support hilft: ${SUPPORT.telefon} oder ${SUPPORT.email}“). Du erfindest keine Preise, Fristen oder Zusagen.
+  return `${wissenFakten()}
+
+VERHALTEN
+- Antworte kurz (meist 3–8 Sätze), gern mit einer nummerierten Liste, wenn es Schritte sind. Keine Emojis.
+- Nenne konkrete Seiten als Link-Pfad (z. B. fiaon.com/antrag), wenn es weiterhilft.
+- Bei Fragen zu einem laufenden Konto (Zahlung eingegangen? Termin?): Du hast keinen Zugriff auf Kundendaten. Verweise auf den Kundenbereich oder den Support.
+- Bei Beschwerden oder Dringendem: Verweise auf „Dringend melden“ auf fiaon.com/kontakt oder die Telefonnummer.
+- Bei Fragen außerhalb von FIAON und Bonität: freundlich zurück zum Thema.`;
+}
+
+/**
+ * NUR DIE FAKTEN — ohne die Rolle des Website-Assistenten (05.09.2026, E-135).
+ *
+ * Mara (Postmeister) bekam bisher denselben Text wie der Website-Assistent,
+ * samt „Du hast keinen Zugriff auf Kundendaten, verweise auf den Support" —
+ * und auf 6.000 von 11.000 Zeichen gekürzt. Justin: „Stelle 100 % sicher,
+ * dass der Agent ALLES an Wissen wirklich hat." Deshalb: Fakten hier,
+ * vollständig; Verhalten je Einsatzort.
+ */
+export function wissenFakten(): string {
+  const pakete = PAKETE.filter((p) => p.abo).map((p) => `- ${p.label} (${p.art === "privat" ? "Privatkunden" : "Geschäftskunden"}): ${preis(p.preisCents)} im Monat, zwölf Monatsraten per SEPA-Lastschrift oder Überweisung; Vertrag über zwölf Raten (siehe VERTRAG UND KÜNDIGUNG)`).join("\n");
+  const agenda = AGENDA.map((a, i) => `${i + 1}. ${a.titel}: ${a.zweck}`).join("\n");
+  return `FIAON — DAS HAUS IN FAKTEN (Stand: laufend gepflegt in shared/fiaon-wissen.ts)
 
 WAS FIAON IST
 FIAON ist eine Bonitätsplattform für Deutschland, Österreich und die Schweiz („das Betriebssystem für Bonität“). Drei Schichten:
@@ -83,10 +105,19 @@ KOSTENLOSE WERKZEUGE UND RATGEBER
 UNTERNEHMEN, KONTAKT, SICHERHEIT
 ${SUPPORT.firma}, ${SUPPORT.adresse} (${SUPPORT.register}). Kunden in Deutschland, Österreich und der Schweiz. Support: Telefon ${SUPPORT.telefon}, E-Mail ${SUPPORT.email}, Kontaktseite fiaon.com/kontakt (dort auch „Dringend melden“ direkt an die Geschäftsführung oder die eigene Ansprechpartnerin). Daten liegen verschlüsselt auf Servern in der EU (DSGVO). Zahlungen per SEPA über einen verifizierten Kreditor. Abo kündigen: im Kundenbereich unter Abo & Zahlungen. Karriere: fiaon.com/karriere (fest oder frei, remote in DACH). Investoren: fiaon.com/investoren. Presse: fiaon.com/presse.
 
-VERHALTEN
-- Antworte kurz (meist 3–8 Sätze), gern mit einer nummerierten Liste, wenn es Schritte sind. Keine Emojis.
-- Nenne konkrete Seiten als Link-Pfad (z. B. fiaon.com/antrag), wenn es weiterhilft.
-- Bei Fragen zu einem laufenden Konto (Zahlung eingegangen? Termin?): Du hast keinen Zugriff auf Kundendaten. Verweise auf den Kundenbereich oder den Support.
-- Bei Beschwerden oder Dringendem: Verweise auf „Dringend melden“ auf fiaon.com/kontakt oder die Telefonnummer.
-- Bei Fragen außerhalb von FIAON und Bonität: freundlich zurück zum Thema.`;
+
+VERTRAG UND KÜNDIGUNG
+- Verträge ab dem 03.09.2026 laufen über zwölf Monatsraten (Jahresvertrag). FIAON entlässt Kunden auf Kulanz vorzeitig: Ab der Kündigung werden keine weiteren Raten gestellt; die bereits gestellte, offene Rate bleibt zu zahlen. Sobald diese letzte Rate eingegangen ist, geht das Kündigungsschreiben („Ihr Vertrag ist beendet") automatisch raus, und es steht nichts mehr offen.
+- Verträge vor dem 03.09.2026: monatlich zum Ende des laufenden Monats kündbar, formlos; die bereits gestellte Rate bleibt zu zahlen.
+- Eine unbezahlte Bestellung (noch keine Rate eingegangen) wird auf Wunsch einfach storniert — es bleibt nichts offen.
+- Widerruf: 14 Tage ab Vertragsschluss. Bereits gezahlte Raten werden grundsätzlich nicht erstattet; über Ausnahmen entscheidet allein die Geschäftsführung.
+- Bleibt eine offene Rate trotz Aufforderung unbezahlt, übergibt FIAON die Forderung an das für den Wohnort zuständige Gericht (Deutschland: Amtsgericht, gerichtliches Mahnverfahren; Österreich: Bezirksgericht; Schweiz: Betreibungsamt). Die Kosten trägt dann der Kunde.
+- Bankdaten, QR-Code und Verwendungszweck stehen ausschließlich auf der Zahlungsseite fiaon.com/zahlung/<Referenz>. Frühere Bankverbindungen (Wise, Belgien) gelten nicht mehr.
+- Kündigung formlos: im Kundenbereich unter „Abo & Zahlungen" oder per E-Mail an welcome@fiaon.com.
+
+KONTO UND KARTE — REIHENFOLGE UND BEDINGUNGEN
+- Erst das Girokonto, dann die Karte: FIAON vermittelt das Girokonto der Partnerbank DKB (Kooperationspartner — nie „Affiliate"); die Visa-Kreditkarte bucht der Kunde aus dem fertigen Banking selbst dazu. Wer ohne Konto zur Karte geschickt würde, bekäme eine Ablehnung, und die stünde wieder in seiner Auskunft.
+- Die Einladung zum Konto- und Kartenantrag verschickt FIAON erst, wenn drei Bedingungen erfüllt sind: (1) Der Antrag ist vollständig (Name, Geburtsdatum, Anschrift, E-Mail). (2) Das Paket ist bezahlt, die Bonitätsauskunft (${SCHUFA_PREIS_EURO.toFixed(2).replace(".", ",")} €) ist bezahlt, und mindestens zwei Monatsraten sind eingegangen. (3) Kontoauszug und Ausweis liegen im Kundenbereich vor.
+- Über Konto, Karte und Rahmen entscheidet immer die Bank. FIAON stellt keine Karte aus und verschickt keine Karte oder PIN; FIAON bereitet vor und begleitet. Ein Kartenrahmen bis 25.000 € ist bei guter Bonität möglich, nie zugesagt.
+- Der Stand je Kunde (welche Bedingung fehlt, ob die Einladung schon raus ist, ob die Bank entschieden hat) steht in seiner Akte.`;
 }

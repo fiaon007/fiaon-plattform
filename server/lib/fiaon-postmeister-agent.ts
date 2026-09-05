@@ -31,7 +31,7 @@ import {
 import { werkzeugeAlsTools, werkzeugVonName, werkzeugeFuerLage, type WerkzeugKontext, type WerkzeugErgebnis } from "./fiaon-postmeister-werkzeuge";
 import { akteLesen, vertragsfassung } from "./fiaon-postmeister-dossier";
 import { nutzungMerken, kostenHeute } from "./fiaon-postmeister-schema";
-import { wissenText } from "@shared/fiaon-wissen";
+import { wissenFakten } from "@shared/fiaon-wissen";
 
 const MODELL = () => process.env.POSTMEISTER_MODELL || "gpt-5.5";
 const MODELL_KLEIN = () => process.env.POSTMEISTER_MODELL_KLEIN || "gpt-5.5";
@@ -493,9 +493,10 @@ function systemPrompt(ein: {
     // verbergen.
     // ═══════════════════════════════════════════════════════════════════
     `DAS HAUS — das darfst du nennen, ohne Beleg aus der Akte (es ist öffentlich):`,
-    wissenText().slice(0, 6000),
+    wissenFakten(),
     ``,
     `BEI WUT UND WIEDERHOLUNG: Ein Kunde, der sich wiederholt, wurde beim ersten Mal nicht verstanden — oder hat es nicht geglaubt. Erkläre es ANDERS, nie vorwurfsvoll. Du spiegelst seinen Ton nicht: Auf „wie oft muss ich es noch sagen" antwortest du NICHT mit „Sie müssen es nicht noch einmal erwähnen". Du erkennst an, was er fühlt („Ich verstehe, dass Sie verärgert sind"), ohne es zu bewerten, und erklärst dann ruhig.`,
+    `KARTE UND KONTO: Fragt der Kunde nach seiner Kreditkarte („wo bleibt meine Karte", „bekomme ich die Karte"), antwortest du mit der Reihenfolge und SEINEM Stand aus der Akte (Feld karte): erst das Girokonto der Partnerbank, dann die Karte als Zubuchung; die Einladung zum Antrag geht erst raus, wenn alle drei Bedingungen erfüllt sind (Antrag vollständig; Paket, Bonitätsauskunft und mindestens zwei Raten bezahlt; Kontoauszug und Ausweis liegen vor). Nenne, was bei ihm erfüllt ist und was genau noch fehlt (Zahlen aus karte.zahlen), und den nächsten Schritt. Steht in karte.einladung nichts, ist die Einladung NICHT raus — dann sag das, statt „die Bank prüft". Über die Karte entscheidet die Bank; FIAON verschickt keine Karte und keine PIN.`,
     `WENN DER KUNDE VON „KREDIT" SPRICHT, hat er das Produkt missverstanden — das ist der Kern seines Widerstands, nicht ein Nebensatz. FIAON vergibt keine Kredite und vermittelt keine. Erkläre in zwei Sätzen, was er tatsächlich gebucht hat und wofür die Rate ist. Erst dann sprich über die Zahlung.`,
     // ═══════════════════════════════════════════════════════════════════
     // DAS RETTUNGSGESPRÄCH (04.09.2026, Justin): „Warum führt die KI keine
@@ -563,7 +564,7 @@ export function gerichtFuer(land?: string | null, ort?: string | null): string {
 function akteKompakt(a: any): any {
   if (!a || typeof a !== "object") return a;
   const { verlauf: _v, mails: _m, offeneAufgaben: _o, ...rest } = a;
-  return { kundenlage: a.kundenlage, lageGrund: a.lageGrund, sperren: a.sperren, kuendigung: a.kuendigung, ...rest };
+  return { kundenlage: a.kundenlage, lageGrund: a.lageGrund, sperren: a.sperren, kuendigung: a.kuendigung, vertrag: a.vertrag, karte: a.karte, ...rest };
 }
 
 /**
@@ -755,7 +756,7 @@ async function pruefenUndAbschliessen(roh: any, k: {
     // Belegpflicht
     const belegte = belege.map((b) => `${b.satz} ${b.feld}`).join(" ").toLowerCase();
     // Hauswissen (Impressum, Preise, Ablauf) ist belegfähig — es ist öffentlich.
-    const werte = JSON.stringify(k.werkzeugDaten).toLowerCase() + JSON.stringify(k.akte).toLowerCase() + wissenText().toLowerCase() + String(k.kundenweg || "").toLowerCase();
+    const werte = JSON.stringify(k.werkzeugDaten).toLowerCase() + JSON.stringify(k.akte).toLowerCase() + wissenFakten().toLowerCase() + String(k.kundenweg || "").toLowerCase();
     for (const z of belegPflichtig(t)) {
       const nackt = z.replace(/[€\s]/g, "").replace(",", ".").toLowerCase();
       if (!werte.includes(nackt) && !belegte.includes(z.toLowerCase())) fehlend.push(`ohne Beleg: ${z}`);

@@ -79,9 +79,20 @@ async function einstellung(schluessel: string, vorgabe: string): Promise<string>
  * Prüfung steht bewusst hier und nicht im Prompt: Ein Modell darf sie nicht
  * umgehen können.
  */
-export function istWillenserklaerung(text: string): boolean {
+export function istWillenserklaerung(text: string, opts: { unbezahlt?: boolean } = {}): boolean {
   const t = String(text || "").toLowerCase().replace(/\s+/g, " ");
   if (!t) return false;
+  // ── STORNO-WORTLAUTE (05.09.2026, E-135) ──────────────────────────────
+  // „Bitte stornieren Sie alles" scheiterte dreimal an dieser Prüfung, und
+  // Mara gab den Fall an Frau Zeller. Wer seine Bestellung nicht bezahlt hat
+  // und aussteigen will, sagt das selten juristisch — und ein Storno kostet
+  // nichts. Bei unbezahlter Bestellung gilt deshalb die weite Liste; bei
+  // laufendem Vertrag nur die klaren Sätze („ich will nicht mehr" eingeschlossen).
+  const storno = /(sto?r?nier(en|e|t)? (sie )?(bitte )?(alles|das|den vertrag|die bestellung|mein(e|en)? (antrag|vertrag|bestellung|buchung))|bitte (alles |den vertrag |die bestellung )?stornieren|ich (will|m(ö|oe)ch(t)?e) (das |es |den vertrag |die bestellung )?nicht( mehr)?( weitermachen| fortführen| fortfuehren)?\b|ich (will|m(ö|oe)ch(t)?e) (den vertrag |die bestellung |das )?(nicht|nicht mehr)\b|kein interesse( mehr)?|anders überlegt|anders ueberlegt|(löschen|loeschen) sie (bitte )?(mein(en|e)? |diesen |dieses |das )?(konto|account|antrag|daten|zugang)|nicht weitermachen|abbrechen)/;
+  if (storno.test(t) && !/(würde|wuerde|überlege|ueberlege|vielleicht|eventuell|wie kann ich|falls)/.test(t)) {
+    if (opts.unbezahlt) return true;
+    if (/(ich (will|m(ö|oe)ch(t)?e) (den vertrag |das |es )?nicht( mehr)?\b|nicht weitermachen|sto?r?nier(en|e|t)? (sie )?(bitte )?(den vertrag|mein(en)? vertrag|alles))/.test(t)) return true;
+  }
   // Konjunktiv oder Frage in der Nähe des Kündigungsworts → keine Erklärung.
   // „möglich" allein wäre zu breit: „zum nächstmöglichen Zeitpunkt" ist eine
   // Kündigung, „ist das möglich?" nicht.

@@ -288,7 +288,7 @@ export const kuendigungVormerken: Werkzeug = {
     if (!k.ref) return { ok: false, ergebnis: "", fehler: "Ohne Bestellung kann keine Kündigung vorgemerkt werden." };
     const { istWillenserklaerung, kuendigungSetzen } = await import("./fiaon-kuendigung");
     const zitat = String(p.zitat || "");
-    if (!istWillenserklaerung(zitat)) {
+    if (!istWillenserklaerung(zitat, { unbezahlt: k.kundenlage === "unbezahlt" || k.kundenlage === "interessent" })) {
       return { ok: false, ergebnis: "", fehler: "Das ist keine eindeutige Kündigung — frag nach oder informiere nur." };
     }
     const erg = await kuendigungSetzen(k.ref, { quelle: "mail", grund: String(p.grund || "").slice(0, 300) || null, postmeisterId: k.postmeisterId ?? null });

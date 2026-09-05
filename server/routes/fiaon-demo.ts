@@ -45,7 +45,7 @@ function demoBereich() {
   const naechste = raten.find((r) => r.status !== "bezahlt")!;
 
   const etappen = [
-    { key: "start", titel: "Startgespräch", text: "Geführt mit Viktoria Reichert. Ihr Konto ist seitdem vollständig freigeschaltet.", stand: "fertig", datum: tag(start), stempel: "erledigt" },
+    { key: "start", titel: "Startgespräch", text: "Geführt mit Lena Winter. Ihr Konto ist seitdem vollständig freigeschaltet.", stand: "fertig", datum: tag(start), stempel: "erledigt" },
     { key: "unterlagen", titel: "Unterlagen vollständig", text: "Kontoauszug und Ausweis liegen vor und sind geprüft.", stand: "fertig", datum: tag(vorTagen(118)), stempel: "geprüft", href: "#unterlagen" },
     { key: "auskunft", titel: "Bonitätsauskunft", text: "Ihre Auskunft ist eingegangen.", stand: "fertig", datum: tag(vorTagen(112)), stempel: "liegt vor", href: "#bonitaet" },
     { key: "analyse", titel: "Analyse durch FIAON", text: "Jeder Eintrag geprüft und in Menschensprache erklärt.", stand: "fertig", datum: tag(vorTagen(110)), stempel: "fertig" },
@@ -80,10 +80,10 @@ function demoBereich() {
       naechste: { nr: naechste.nr, betragCents: naechste.betragCents, faelligAm: naechste.faelligAm, status: naechste.status, referenz: naechste.referenz },
       offen: 8, bezahlt: 4, raten,
     },
-    termin: { beginn: start.toISOString(), status: "erledigt", agent: "Viktoria Reichert" },
+    termin: { beginn: start.toISOString(), status: "erledigt", agent: "Lena Winter" },
     fahrplan: etappen,
     naechsterSchritt: { key: jetzt.key, titel: jetzt.titel, text: jetzt.text, href: jetzt.href || null },
-    ansprechpartner: { name: "Viktoria Reichert", rolle: "Onboarding" },
+    ansprechpartner: { name: "Lena Winter", rolle: "Onboarding" },
     lastschrift: { mandat: "MD-DEMO-0001", status: "active", aktiv: true },
     kontoVerbunden: false,
     finanzen: {
@@ -121,6 +121,23 @@ function demoBereich() {
 const nurAnsicht = (res: Response) => res.status(200).json({ ok: false, demo: true, error: "Im Demo-Konto ist alles nur zur Ansicht. Im echten Konto läuft dieser Schritt sofort durch." });
 
 router.get(`/kunde/${DEMO_REF}/bereich`, (_req: Request, res: Response) => { res.json(demoBereich()); });
+// 05.09.2026 (Berater-Sitzung, /app/demo): Der Kundenbereich fragt auch die
+// Termine ab — ohne diese Route antwortete der echte Weg mit 401. Dieselbe
+// Form wie GET /kunde/:ref/termine, aus den festen Demo-Daten gebaut.
+router.get(`/kunde/${DEMO_REF}/termine`, async (_req: Request, res: Response) => {
+  const b = demoBereich();
+  const { berlinDatumText, berlinUhrzeit } = await import("../lib/fiaon-termine");
+  const beginn = new Date(b.termin.beginn);
+  res.json({
+    ok: true, demo: true,
+    kommende: [],
+    vergangene: [{
+      beginn: b.termin.beginn, datumText: berlinDatumText(beginn), uhrzeit: berlinUhrzeit(beginn),
+      art: "Startgespräch", status: b.termin.status, mit: b.termin.agent, absageLink: null,
+    }],
+    buchungsLink: null,
+  });
+});
 router.get(`/kunde/${DEMO_REF}/tickets`, (_req: Request, res: Response) => {
   res.json({ ok: true, demo: true, tickets: [
     { id: 2, betreff: "Frage zur Frist des dritten Eintrags", text: "Bis wann muss die Gegenseite antworten?", status: "beantwortet",

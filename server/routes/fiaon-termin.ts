@@ -1071,7 +1071,11 @@ export async function terminUebergeben(ein: {
           + `Der Kunde wurde über den neuen Ansprechpartner informiert.`,
       },
     ).catch((e) => ({ ok: false, grund: e instanceof Error ? e.message : String(e) }));
-    mailHinweis = (versand as any).ok
+    // versendenUndProtokollieren liefert { status, grund } — kein `ok`. Der
+    // alte Vergleich meldete „ging NICHT raus" bei jeder Übergabe, während
+    // Brevo längst gesendet hatte (05.09.2026, fünf Übergaben, alle versandt).
+    const gesendet = (versand as any).status === "versandt";
+    mailHinweis = gesendet
       ? `${p.email} wurde über den neuen Ansprechpartner informiert.`
       : `Die Info-Mail ging NICHT raus (${(versand as any).grund ?? "unbekannt"}) — `
         + "bitte den Kunden selbst informieren. Die Übergabe steht trotzdem.";

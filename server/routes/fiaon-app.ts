@@ -452,16 +452,22 @@ router.get("/kunde/:ref/app/zahlung", requireKunde, async (req: KundeRequest, re
     if (!z) return res.json({ ok: true, offen: null, lastschrift: { aktiv: lastschriftAktiv, wartet: lastschriftWartet } });
 
     // Sofortzahlung nur, wenn GoCardless konfiguriert ist und der Auftrag für den Link taugt.
+    // ── SOFORTZAHLUNG NUR ÜBER DEN HAUS-SCHALTER (Prüfung 05.09.2026) ─────
+    // sofortErlaubt() kennt die zwei Regeln vom 02.09.: Die Erstzahlung geht
+    // per Überweisung direkt auf unser Konto (Schalter sofort_erstzahlung_erlaubt),
+    // und eine Rate, die per Lastschrift eingezogen wird, darf niemand zusätzlich
+    // zahlen (Doppelbuchung). sofortUrlFuer() liefert nur einen Link, wenn das
+    // Lastschrift-Modul eingesteckt ist — dieselbe Quelle wie Zahlungsseite und
+    // Mails. Der direkte Griff zu sofortLink() umging beides.
     let sofortUrl: string | null = null;
-    if (process.env.GOCARDLESS_ACCESS_TOKEN) {
-      try {
-        const za = await zahlungsauftragFinden(z.referenz);
-        if (za && za.status !== "paid" && za.status !== "cancelled" && Number(za.amountDue) > 0) {
-          const { sofortLink } = await import("./fiaon-lastschrift");
-          sofortUrl = sofortLink(z.referenz);
-        }
-      } catch (e: any) { console.error("[APP] sofortLink:", e?.message || e); }
-    }
+    try {
+      const za = await zahlungsauftragFinden(z.referenz);
+      if (za && za.status !== "paid" && za.status !== "cancelled" && Number(za.amountDue) > 0) {
+        const { sofortErlaubt, sofortUrlFuer } = await import("../lib/fiaon-zahlungsauftrag");
+        const erlaubt = await sofortErlaubt(za);
+        if (erlaubt.erlaubt) sofortUrl = sofortUrlFuer(z.referenz);
+      }
+    } catch (e: any) { console.error("[APP] sofortUrl:", e?.message || e); }
     const [v] = (await sqlPool`SELECT created_at FROM fiaon_contact_log WHERE ref = ${ref} AND type = ${VERMERK_ART} AND note LIKE ${"%" + z.referenz + "%"} ORDER BY created_at DESC LIMIT 1`.catch(() => [])) as any[];
     const heute = berlinHeute();
     const heuteIso = `${heute.j}-${String(heute.m).padStart(2, "0")}-${String(heute.t).padStart(2, "0")}`;

@@ -22,6 +22,7 @@ import { Weg } from "./Weg";
 import { Brief } from "./Brief";
 import { Vorgaenge } from "./Vorgaenge";
 import { Geld } from "./Geld";
+import { Hilfe, Termine } from "./Hilfe";
 import "@/styles/app.css";
 
 const DEMO_REF = "FIAON-DEMO";
@@ -58,6 +59,7 @@ export default function AppBereich() {
   const [postGrund, setPostGrund] = useState<string | null>(null);
   // Brief-Weg freigeschaltet? Kommt mit /app/post vom Server (fiaon_settings.app_brief_an); Demo immer an.
   const [briefAn, setBriefAn] = useState<boolean>(demo);
+  const [termine, setTermine] = useState<{ kommende: any[]; vergangene: any[]; buchungsLink: string | null } | null>(null);
   const [check, setCheck] = useState<{ beantwortet: number; gesamt: number } | null>(demo ? { beantwortet: anzahlBeantwortet(DEMO_ANTWORTEN), gesamt: FRAGEN.length } : null);
   const [fehler, setFehler] = useState<string | null>(null);
   const [hinweis, setHinweis] = useState<string | null>(null);
@@ -73,7 +75,11 @@ export default function AppBereich() {
     let aktiv = true;
     (async () => {
       try {
-        if (demo) { const r = await api(`/kunde/${DEMO_REF}/bereich`); if (aktiv) setB(r.json); return; }
+        if (demo) {
+          const r = await api(`/kunde/${DEMO_REF}/bereich`); if (aktiv) setB(r.json);
+          api(`/kunde/${DEMO_REF}/termine`).then((t) => aktiv && setTermine(t.json?.ok ? { kommende: t.json.kommende ?? [], vergangene: t.json.vergangene ?? [], buchungsLink: t.json.buchungsLink ?? null } : { kommende: [], vergangene: [], buchungsLink: null })).catch(() => aktiv && setTermine({ kommende: [], vergangene: [], buchungsLink: null }));
+          return;
+        }
         const me = await api("/kunde/me");
         if (!me.json?.eingeloggt || !me.json.ref) { navigiere(`/app/login?weiter=${encodeURIComponent(ort)}`); return; }
         const ref = encodeURIComponent(me.json.ref);
@@ -83,6 +89,7 @@ export default function AppBereich() {
         if (aktiv) setB(r.json);
         // Einzelabrufe je Karte isoliert: fällt einer aus, fällt nur seine Karte.
         api(`/kunde/${ref}/app/post`).then((x) => { if (!aktiv) return; if (typeof x.json?.briefAn === "boolean") setBriefAn(x.json.briefAn); if (x.json?.ok === false && x.json?.grund) { setPostGrund(x.json.text); setPost([]); } else setPost(Array.isArray(x.json?.vorgaenge) ? x.json.vorgaenge : []); }).catch(() => aktiv && setPost([]));
+        api(`/kunde/${ref}/termine`).then((t) => { if (!aktiv) return; setTermine(t.json?.ok ? { kommende: t.json.kommende ?? [], vergangene: t.json.vergangene ?? [], buchungsLink: t.json.buchungsLink ?? null } : { kommende: [], vergangene: [], buchungsLink: null }); }).catch(() => aktiv && setTermine({ kommende: [], vergangene: [], buchungsLink: null }));
         api(`/kunde/${ref}/app/ansprueche`).then((x) => { if (!aktiv) return; if (x.json?.ok) setCheck({ beantwortet: x.json.beantwortet ?? 0, gesamt: x.json.fragenGesamt ?? FRAGEN.length }); else setCheck({ beantwortet: 0, gesamt: FRAGEN.length }); }).catch(() => aktiv && setCheck({ beantwortet: 0, gesamt: FRAGEN.length }));
       } catch {
         if (aktiv) setFehler("Ihr Bereich lässt sich gerade nicht laden. Bitte versuchen Sie es in einem Moment noch einmal.");
@@ -125,7 +132,9 @@ export default function AppBereich() {
         {b && bildschirm === "vorgaenge" && <Vorgaenge kundeRef={ref} basis={basis} demo={demo} post={post} grund={postGrund} reiter={rest[0] === "ansprueche" ? "ansprueche" : "vorgaenge"} ansprechpartner={apName} />}
         {b && bildschirm === "ansprueche" && <Ansprueche kundeRef={ref} demo={demo} startCheck={rest[0] === "check"} ansprechpartner={apName} onFertig={() => { api(`/kunde/${encodeURIComponent(ref)}/app/ansprueche`).then((x) => { if (x.json?.ok) setCheck({ beantwortet: x.json.beantwortet ?? 0, gesamt: x.json.fragenGesamt ?? FRAGEN.length }); }).catch(() => {}); navigiere(`${basis}/vorgaenge/ansprueche`); }} />}
         {b && bildschirm === "unterlagen" && <Unterlagen kundeRef={ref} demo={demo} u={b.unterlagen} />}
-        {b && bildschirm === "mehr" && <Mehr kundeRef={ref} demo={demo} basis={basis} kunde={b.kunde} paket={b.paket} ansprechpartner={b.ansprechpartner} />}
+        {b && bildschirm === "mehr" && rest[0] === "hilfe" && <Hilfe kundeRef={ref} demo={demo} ansprechpartner={b.ansprechpartner} vorgang={new URLSearchParams(window.location.search).get("vorgang")} buchungsLink={termine?.buchungsLink ?? null} />}
+        {b && bildschirm === "mehr" && rest[0] === "termine" && <Termine kundeRef={ref} demo={demo} daten={termine} />}
+        {b && bildschirm === "mehr" && !rest[0] && <Mehr kundeRef={ref} demo={demo} basis={basis} kunde={b.kunde} paket={b.paket} ansprechpartner={b.ansprechpartner} naechsterTermin={termine?.kommende?.[0] ? `${termine.kommende[0].datumText}, ${termine.kommende[0].uhrzeit} Uhr` : null} />}
         {hinweis && <div className="ap-meldung" role="status">{hinweis}</div>}
       </main>
       {zeigeAktion && primaer && (

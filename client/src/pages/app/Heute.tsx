@@ -82,7 +82,7 @@ export function Heute({ b, rw, basis, post, demo, briefAn = true }: { b: Bereich
           {ap ? (
             <>
               <span className="ap-avatar" style={{ flex: "none" }}>{ap.name.split(" ").map((t) => t[0]).join("").slice(0, 2).toUpperCase()}</span>
-              <div style={{ flex: 1, minWidth: 0 }}><span style={{ display: "block" }}>Bei FIAON kümmert sich <b style={{ fontWeight: 500 }}>{ap.name}</b> um Sie.</span><Link href={`${basis}/mehr`} className="ap-link" style={{ fontSize: 14 }}>Nachricht schreiben</Link></div>
+              <div style={{ flex: 1, minWidth: 0 }}><span style={{ display: "block" }}>Bei FIAON kümmert sich <b style={{ fontWeight: 500 }}>{ap.name}</b> um Sie.</span><Link href={`${basis}/mehr/hilfe`} className="ap-link" style={{ fontSize: 14 }}>Nachricht schreiben</Link></div>
             </>
           ) : (
             <div style={{ flex: 1 }}><span>Ihr FIAON-Team kümmert sich um Sie.</span></div>

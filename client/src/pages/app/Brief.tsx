@@ -2,7 +2,7 @@
 // 1 Aufnahme · 2 Prüfen (verkleinert auf 2.000 px) · 3 Absenden (Notiz, Dringend)
 // → Bestätigung mit Aktenzeichen. Ein Mensch liest binnen zwei Werktagen; kein
 // Automat antwortet. Sprachregel: „wir ordnen ihn zu und sagen, was wir daraus
-// machen" — nie „was er bedeutet".
+// machen" — nie „was er bedeutet“.
 import { useRef, useState } from "react";
 import { Link } from "wouter";
 

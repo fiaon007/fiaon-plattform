@@ -2,7 +2,7 @@
 // DER WEG ZUM RAHMEN — die eine Rechnung (Bauvorlage /app, Abschnitt 4, 05.09.2026)
 //
 // Elf benannte Schritte, alle Gewicht 1, in fester Reihenfolge. Aus ihnen
-// entstehen der Balken („x von y Schritten erledigt"), die Jetzt-Karte, die
+// entstehen der Balken („x von y Schritten erledigt“), die Jetzt-Karte, die
 // Ruhe-Zeile und der Primärknopf. KEINE Prozentzahl, KEINE Zeitprognose — die
 // Zusage der Bank ist kein Schritt und kein Balkenende.
 //
@@ -25,7 +25,7 @@ export type Wer = "kunde" | "fiaon" | null;
 export interface Schritt {
   key: string;
   titel: string;
-  /** Kurzform für „Jetzt: …" und „Wir arbeiten an: …" (Sache, nicht Ergebnis). */
+  /** Kurzform für „Jetzt: …“ und „Wir arbeiten an: …“ (Sache, nicht Ergebnis). */
   kurz: string;
   stand: SchrittStand;
   /** Datum der Erledigung (dd.mm.yyyy) — oder null, wenn die Quelle keins kennt. */
@@ -72,7 +72,7 @@ export interface BereichEingang {
 export interface RahmenwegOptionen {
   /** Heutiges Datum YYYY-MM-DD (Berlin). Ohne Angabe: lokales Datum des Aufrufers. */
   heuteIso?: string;
-  /** Justins Festlegung 7.1 — bis dahin „ohne". */
+  /** Justins Festlegung 7.1 — bis dahin „ohne“. */
   anzeige?: ZielAnzeige;
   /** Anspruchs-Check-Stand, falls geladen. */
   check?: { beantwortet: number; gesamt: number } | null;
@@ -84,7 +84,7 @@ const heuteLokalIso = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
-/** „dd.mm.yyyy" → „yyyy-mm-dd" (für Vergleiche); alles andere unverändert. */
+/** „dd.mm.yyyy“ → „yyyy-mm-dd“ (für Vergleiche); alles andere unverändert. */
 const isoAus = (de: string | null): string | null => {
   if (!de) return null;
   const m = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(de);
@@ -107,7 +107,7 @@ export function rahmenwegAus(b: BereichEingang, o: RahmenwegOptionen = {}): Rahm
       const gezahlt = isoAus(r.bezahltAm);
       if (!gezahlt || !r.faelligIso || gezahlt <= r.faelligIso) puenktlich++;
     } else if (r.status === "offen" && r.faelligIso && r.faelligIso < heute && !ueberfaellig) {
-      // Nur OFFENE Raten werden überfällig — „storniert" (Bestand: 4 Zeilen) ist weder bezahlt noch geschuldet.
+      // Nur OFFENE Raten werden überfällig — „storniert“ (Bestand: 4 Zeilen) ist weder bezahlt noch geschuldet.
       ueberfaellig = { nr: r.nr, seit: r.faelligAm, betragCents: r.betragCents };
     }
   }
@@ -118,7 +118,7 @@ export function rahmenwegAus(b: BereichEingang, o: RahmenwegOptionen = {}): Rahm
     s.push({ key, titel, kurz: KURZ[key] ?? (key.startsWith("rate_") ? `Rate ${key.slice(5)}` : titel), stand: erledigt ? "erledigt" : "kommt", am: erledigt ? am : null, text: textOffen, wer: erledigt ? null : wer, aktion: erledigt ? null : aktion, href: erledigt ? null : href, ...extra });
   };
 
-  // 1 · Angaben — Tor „Antrag vollständig" (erstes Tor). Ohne Kartenstand gilt der Antrag als vollständig.
+  // 1 · Angaben — Tor „Antrag vollständig“ (erstes Tor). Ohne Kartenstand gilt der Antrag als vollständig.
   const datenOk = tore.length ? !!tore[0]?.erfuellt : true;
   ok("daten", "Ihre Angaben sind vollständig", datenOk, null, "Name, Anschrift und Geburtsdatum müssen zu Ihrem Ausweis passen.", "kunde", "Angaben prüfen", "/mehr");
   // 2 · Erste Zahlung
@@ -161,9 +161,9 @@ export function rahmenwegAus(b: BereichEingang, o: RahmenwegOptionen = {}): Rahm
   // 10 · Girokonto
   ok("konto_eroeffnet", "Girokonto eröffnet", false, null, "Sobald die drei Punkte der Bank erfüllt sind, eröffnen Sie das Konto – wir begleiten.", "fiaon", null, null);
   // 11 · Karte beantragt
-  // „verschickt" heißt: der Kunde hat den Weg zu Konto und Karte bekommen (E-067,
+  // „verschickt“ heißt: der Kunde hat den Weg zu Konto und Karte bekommen (E-067,
   // Konto-und-Karte-Mail) — nicht, dass eine Karte beantragt wäre. Praxistest
-  // 05.09.: Sapia stand mit „Karte beantragt ✓" da, ohne je ein Konto eröffnet
+  // 05.09.: Sapia stand mit „Karte beantragt ✓“ da, ohne je ein Konto eröffnet
   // zu haben. Der Schritt heißt deshalb, was er ist.
   ok("karte_beantragt", "Weg zu Konto und Karte erhalten", !!b.karte?.verschickt, null, "Sobald Ihre Akte vollständig ist, schicken wir Ihnen den Weg zu Konto und Karte bei unserer Partnerbank. Über Karte und Rahmen entscheidet die Bank.", "fiaon", null, null);
 
@@ -190,11 +190,11 @@ export function rahmenwegAus(b: BereichEingang, o: RahmenwegOptionen = {}): Rahm
 }
 
 /**
- * Der Satz über dem Balken. Justins Festlegung 7.1 (05.09.2026): Variante „ohne" BLEIBT —
- * „Ihr Weg zur Karte", der Wunsch aus dem Antrag als kleine Zeile darunter. Die anderen
+ * Der Satz über dem Balken. Justins Festlegung 7.1 (05.09.2026): Variante „ohne“ BLEIBT —
+ * „Ihr Weg zur Karte“, der Wunsch aus dem Antrag als kleine Zeile darunter. Die anderen
  * Varianten bleiben schaltbar, falls das Haus später anders entscheidet.
  * Festlegung 7.2 (05.09.2026): Eine nach Fälligkeit gezahlte Rate füllt ihr Segment
- * (schraffiert), zählt aber nicht als „pünktlich" — so gerechnet in rahmenwegAus().
+ * (schraffiert), zählt aber nicht als „pünktlich“ — so gerechnet in rahmenwegAus().
  */
 export function zielTitel(z: Rahmenweg["ziel"], eur: (cents: number) => string): { titel: string; zeilen: string[] } {
   const w = z.wunschCents, p = z.paketRahmenCents;

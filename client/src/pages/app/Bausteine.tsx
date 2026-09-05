@@ -6,7 +6,7 @@
 // Ansicht ohne Datenbank dieselbe Liste zeigt wie ein echter Kunde.
 //
 // Sprachregel Ansprüche (Detailplan Station 3, bindend): „Das können Sie
-// beantragen. Über den Betrag entscheidet die Stelle." Nie „steht Ihnen zu".
+// beantragen. Über den Betrag entscheidet die Stelle." Nie „steht Ihnen zu“.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
@@ -14,7 +14,7 @@ import { FRAGEN, befunde, beantwortet as anzahlBeantwortet, summeMonatlichCents,
 import type { Vorgang } from "./typen";
 
 export const eur = (cents: number) => new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(cents / 100);
-/** ISO-Zeit → „Sa., 09.05., 10:30" in Berliner Zeit (Zeit-Falle: nie Number(format())). */
+/** ISO-Zeit → „Sa., 09.05., 10:30“ in Berliner Zeit (Zeit-Falle: nie Number(format())). */
 export const zeit = (iso: string | null | undefined): string | null => {
   if (!iso) return null;
   const d = new Date(iso); if (Number.isNaN(d.getTime())) return iso;
@@ -283,8 +283,8 @@ export function Unterlagen({ kundeRef, demo, u }: { kundeRef: string; demo: bool
 // ═══════════════════════════════════════════════════════════════════════════
 // MEHR — Daten, Paket, Passwort, Abmelden, Rechtliches
 // ═══════════════════════════════════════════════════════════════════════════
-export function Mehr({ kundeRef, demo, kunde, paket, ansprechpartner, basis }: {
-  kundeRef: string; demo: boolean; basis: string;
+export function Mehr({ kundeRef, demo, kunde, paket, ansprechpartner, basis, naechsterTermin }: {
+  kundeRef: string; demo: boolean; basis: string; naechsterTermin?: string | null;
   kunde: { vorname: string; nachname: string; email: string; telefon: string; strasse: string; plz: string; ort: string; land: string; kundeSeit: string | null };
   paket: { name: string; abo: boolean; monatlichCents: number | null; zahlungsstatus: string };
   ansprechpartner: { name: string; rolle: string | null } | null;
@@ -304,6 +304,14 @@ export function Mehr({ kundeRef, demo, kunde, paket, ansprechpartner, basis }: {
   return (
     <>
       <h1 className="ap-gruss ap-auf">Mehr<small>Ihre Daten, Ihr Paket, Ihr Zugang.</small></h1>
+      <section className="ap-abschnitt ap-auf v1">
+        <div className="ap-karte ap-linkliste">
+          <Link href={`${basis}/mehr/hilfe`}>Hilfe und Nachricht{ansprechpartner ? ` an ${ansprechpartner.name}` : ""}</Link>
+          <Link href={`${basis}/mehr/termine`}>Termine{naechsterTermin ? ` · nächster ${naechsterTermin}` : ""}</Link>
+          <Link href={`${basis}/unterlagen`}>Unterlagen</Link>
+          <Link href={`${basis}/vorgaenge`}>Vorgänge und Ansprüche</Link>
+        </div>
+      </section>
       <section className="ap-abschnitt ap-auf v1">
         <h2 className="ap-abschnitt-titel">Ihre Daten</h2>
         <div className="ap-karte">
@@ -339,10 +347,10 @@ export function Mehr({ kundeRef, demo, kunde, paket, ansprechpartner, basis }: {
       <section className="ap-abschnitt ap-auf v4">
         <h2 className="ap-abschnitt-titel">Rechtliches und Hilfe</h2>
         <div className="ap-karte ap-linkliste">
-          <a href="/kontakt">Hilfe und Kontakt</a>
           <a href="/agb">Allgemeine Geschäftsbedingungen</a>
           <a href="/widerrufsbelehrung">Widerrufsbelehrung</a>
           <a href="/datenschutz">Datenschutz</a>
+          <a href="/impressum">Impressum</a>
           <a href="/mein-bereich">Bisherige Ansicht öffnen</a>
         </div>
       </section>

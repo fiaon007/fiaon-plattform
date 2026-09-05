@@ -1,7 +1,7 @@
 // /app/geld — Gesetz 1: Jeder Monat hat einen Betrag, den der Kunde nachrechnen
 // kann (Bauvorlage 3.9). Nächste Rate, Überweisung mit GiroCode, Raten als
 // Zahlungsnachweis, Bankeinzug, Paket. Bankdaten AUSSCHLIESSLICH aus
-// shared/fiaon-bank.ts. „Ich habe überwiesen" ist kein Status — der Haken kommt
+// shared/fiaon-bank.ts. „Ich habe überwiesen“ ist kein Status — der Haken kommt
 // mit dem Geldeingang.
 import { useState } from "react";
 import { Link } from "wouter";

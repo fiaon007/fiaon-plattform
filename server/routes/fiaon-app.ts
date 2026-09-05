@@ -3,13 +3,13 @@
 //
 // Der Bereich /app liest seinen Stand weiter aus GET /kunde/:ref/bereich
 // (fiaon-kunde-bereich.ts). HIER steht nur, was es dort nicht gibt und was der
-// Detailplan „Weg zum Rahmen" neu verlangt:
+// Detailplan „Weg zum Rahmen“ neu verlangt:
 //
 //   · Anspruchs-Check   — zehn Fragen, Befunde mit Betrag, Quelle, Stand
 //                         (Regeln: shared/fiaon-ansprueche.ts, EINE Quelle)
 //   · Brief-Knopf       — der Kunde fotografiert einen Brief, ein Mensch liest
 //                         ihn binnen zwei Werktagen (Auftrag an den Betreuer,
-//                         E-115), der Kunde sieht den Stand unter „Post"
+//                         E-115), der Kunde sieht den Stand unter „Post“
 //   · Post              — was hereinkam (Briefe) und was hinausging (Anträge),
 //                         jeder Vorgang mit Stand und Frist
 //
@@ -137,7 +137,7 @@ async function anspruecheStand(personId: number): Promise<Record<string, { stand
   return m;
 }
 
-/** Befunde in fiaon_ansprueche schreiben: neue „offen", laufende behalten, weggefallene „nicht_zutreffend". */
+/** Befunde in fiaon_ansprueche schreiben: neue „offen“, laufende behalten, weggefallene „nicht_zutreffend“. */
 async function befundeSpeichern(personId: number, liste: Befund[]): Promise<void> {
   const aktuelle: string[] = [];
   for (let i = 0; i < liste.length; i++) {
@@ -246,9 +246,9 @@ const briefUpload = multer({
 
 /**
  * POST /kunde/:ref/app/brief  (multipart: brief=Datei, notiz=Text optional)
- * Foto → PDF → fiaon_dokumente → Vorgang „brief" (eingegangen, Frist 2 Werktage)
+ * Foto → PDF → fiaon_dokumente → Vorgang „brief“ (eingegangen, Frist 2 Werktage)
  * → Auftrag an den Betreuer (E-115). Der Kunde bekommt Vorgang und Frist zurück
- * und sieht beides unter „Post". Nichts wird automatisch beantwortet.
+ * und sieht beides unter „Post“. Nichts wird automatisch beantwortet.
  */
 router.post("/kunde/:ref/app/brief", requireKunde, (req, res, next) => {
   briefUpload.array("brief", 10)(req, res, (err: any) => {
@@ -316,7 +316,7 @@ router.post("/kunde/:ref/app/brief", requireKunde, (req, res, next) => {
         personId: p.personId, ref: req.kundeRef!,
         titel: `${p.name}: ${dringend ? "EILIG – " : ""}Brief lesen und zuordnen (${aktenzeichen})`,
         link: `/admin/kunde/${encodeURIComponent(req.kundeRef!)}`,
-        text: `Der Kunde hat einen Brief fotografiert und in seinem Bereich hochgeladen (${aktenzeichen}, Vorgang #${vorgangId}, ${seiten.length} ${seiten.length === 1 ? "Seite" : "Seiten"}, Dokumente #${dokIds.join(", #")}).${notiz ? ` Notiz des Kunden: „${notiz}“` : ""}${dringend ? " Der Kunde hat angegeben: Der Brief nennt eine Frist oder kommt von Gericht, Gerichtsvollzieher oder Inkasso." : ""} Bitte lesen, zuordnen und dem Kunden unter „Vorgänge" in einem Satz sagen, was wir daraus machen. Frist: ${dringend ? "heute" : `zwei Werktage (${frist})`}.`,
+        text: `Der Kunde hat einen Brief fotografiert und in seinem Bereich hochgeladen (${aktenzeichen}, Vorgang #${vorgangId}, ${seiten.length} ${seiten.length === 1 ? "Seite" : "Seiten"}, Dokumente #${dokIds.join(", #")}).${notiz ? ` Notiz des Kunden: „${notiz}“` : ""}${dringend ? " Der Kunde hat angegeben: Der Brief nennt eine Frist oder kommt von Gericht, Gerichtsvollzieher oder Inkasso." : ""} Bitte lesen, zuordnen und dem Kunden unter „Vorgänge“ in einem Satz sagen, was wir daraus machen. Frist: ${dringend ? "heute" : `zwei Werktage (${frist})`}.`,
         faelligAm: frist, dringend, schluessel: `app-brief:${vorgangId}`, quelle: "kundenbereich", bereich: "pruefen", autorName: "Kundenbereich",
       });
       anWen = erg.kundenName ?? erg.agentName ?? null;

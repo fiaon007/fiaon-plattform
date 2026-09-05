@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // ANSPRUCHS-CHECK — die zehn Fragen, die Regeln, die Befunde (05.09.2026)
 //
-// Detailplan „Weg zum Rahmen", Station 3: Am Ende des Startgesprächs steht im
+// Detailplan „Weg zum Rahmen“, Station 3: Am Ende des Startgesprächs steht im
 // Kundenbereich eine Liste mit Beträgen — was der Kunde beantragen kann, in
 // welcher Höhe, und was der nächste Schritt ist. Jede Zeile mit Quelle und
 // Stand-Datum.
@@ -14,11 +14,11 @@
 //
 // PFLEGE (Justins Festlegung 05.09.2026, Detailplan 7.4): Justin Schwarzott prüft die
 // Sätze jährlich zum 1. Juli gegen die Quellen und setzt `geprueftAm` neu. Ein Satz mit
-// `geprueftAm` älter als 13 Monate gilt als ungeprüft (→ „Der Satz wird gerade neu geprüft."
+// `geprueftAm` älter als 13 Monate gilt als ungeprüft (→ „Der Satz wird gerade neu geprüft.“
 // statt Betrag; Bauvorlage 3.7).
 //
 // SPRACHREGEL, bindend (Detailplan Station 3): „Das können Sie beantragen.
-// Über den Betrag entscheidet die Stelle." Nie „Ihnen stehen zu", nie ein
+// Über den Betrag entscheidet die Stelle." Nie „Ihnen stehen zu“, nie ein
 // Punktbetrag ohne Spanne, kein Wort aus shared/fiaon-wortverbote.ts.
 // FIAON stellt KEINE P-Konto-Bescheinigung aus — baubar ist der Antrag an die
 // Bank plus der Weg zur ausstellenden Stelle.
@@ -82,7 +82,7 @@ export interface Regel {
   schluessel: string;
   titel: string;
   kategorie: Kategorie;
-  /** Betrag als Spanne in Cent; null = „Betrag ergibt sich aus Vergleich/Bescheid". */
+  /** Betrag als Spanne in Cent; null = „Betrag ergibt sich aus Vergleich/Bescheid“. */
   betragMinCents: number | null;
   betragMaxCents: number | null;
   rhythmus: Rhythmus;
@@ -106,7 +106,7 @@ export interface Regel {
 // verkündet 26.03.2026 — https://www.recht.bund.de/bgbl/1/2026/80/VO.html
 // Grundbetrag 1.587,40 € · erste unterhaltsberechtigte Person +597,42 € ·
 // zweite bis fünfte Person je +332,83 €. Geprüft 05.09.2026 gegen den PRIMÄRTEXT
-// (BGBl.-PDF, 27 Seiten: „1 587,40", „597,42", „332,83", „ab 1. Juli 2026") sowie
+// (BGBl.-PDF, 27 Seiten: „1 587,40“, „597,42“, „332,83“, „ab 1. Juli 2026“) sowie
 // bmjv.de und zwei Fachquellen. Nächste Anpassung: 01.07.2027 (Pflege: Justin Schwarzott).
 export const PFAENDUNG_2026 = {
   grundbetragCents: 158_740,

@@ -106,7 +106,8 @@ export function rahmenwegAus(b: BereichEingang, o: RahmenwegOptionen = {}): Rahm
       bezahlt++;
       const gezahlt = isoAus(r.bezahltAm);
       if (!gezahlt || !r.faelligIso || gezahlt <= r.faelligIso) puenktlich++;
-    } else if (r.faelligIso && r.faelligIso < heute && !ueberfaellig) {
+    } else if (r.status === "offen" && r.faelligIso && r.faelligIso < heute && !ueberfaellig) {
+      // Nur OFFENE Raten werden überfällig — „storniert" (Bestand: 4 Zeilen) ist weder bezahlt noch geschuldet.
       ueberfaellig = { nr: r.nr, seit: r.faelligAm, betragCents: r.betragCents };
     }
   }
@@ -151,7 +152,7 @@ export function rahmenwegAus(b: BereichEingang, o: RahmenwegOptionen = {}): Rahm
   for (let n = 2; n <= KARTE_MIN_RATEN; n++) {
     const r = raten.find((x) => x.nr === n) ?? null;
     const gez = r?.status === "bezahlt";
-    const faellig = !!r?.faelligIso && r.faelligIso <= heute;
+    const faellig = r?.status === "offen" && !!r.faelligIso && r.faelligIso <= heute;
     const verspaetet = gez && !!r?.faelligIso && !!isoAus(r.bezahltAm) && (isoAus(r.bezahltAm) as string) > r.faelligIso;
     ok(`rate_${n}`, `Rate ${n} gezahlt`, gez, r?.bezahltAm ?? null,
       r ? (faellig ? `Rate ${n} ist fällig – jede pünktliche Rate ist zugleich Ihr Zahlungsnachweis.` : `Fällig am ${r.faelligAm ?? "–"}. Jede pünktliche Rate ist zugleich Ihr Zahlungsnachweis.`) : "Ihr Zahlungsnachweis für die Bank.",

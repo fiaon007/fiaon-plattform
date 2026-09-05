@@ -33,7 +33,7 @@ export function Geld({ b, rw, kundeRef, basis, demo }: { b: Bereich; rw: Rahmenw
     setLsLaeuft(true); setLsMeldung(null);
     const r = await api(`/kunde/${encodeURIComponent(kundeRef)}/lastschrift/start`, { method: "POST" });
     setLsLaeuft(false);
-    const url = r.json?.url || r.json?.redirectUrl || r.json?.link;
+    const url = r.json?.url; // flowStarten liefert { ok, url } (authorisation_url) — TFO, 05.09.
     if (r.ok && url) { window.location.href = url; return; }
     setLsMeldung(r.json?.error || "Der Bankeinzug lässt sich gerade nicht einrichten. Bitte versuchen Sie es in einem Moment noch einmal.");
   };

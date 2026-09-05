@@ -46,6 +46,25 @@ const jsonOderLeer = (w: unknown, ersatz: any) => {
   try { return JSON.parse(String(w)); } catch { return ersatz; }
 };
 
+// ── HANDLUNGEN LESEN, AUCH WENN SIE ALS TEXT IM JSONB LIEGEN (05.09.2026) ──
+// Der Lauf schrieb `handlungen: JSON.stringify(...)` in eine jsonb-Spalte —
+// die Spalte enthielt dann einen JSON-TEXT statt einer Liste. handlungMerken
+// hängte seine Einträge mit `||` daran: heraus kam eine Liste, deren erstes
+// Element ein Text mit Maras Werkzeugen war. `filter(h => h.ok)` sah Maras
+// Werkzeuge nie, die Wand hielt „Kündigung ist vorgemerkt" für ungedeckt, und
+// Justin konnte sechs Entwürfe nicht senden. Dieser Leser faltet beides auf.
+function handlungenLesen(roh: unknown): any[] {
+  let v: any = roh;
+  if (typeof v === "string") { try { v = JSON.parse(v); } catch { return []; } }
+  if (!Array.isArray(v)) return [];
+  const out: any[] = [];
+  for (const e of v) {
+    if (typeof e === "string") { try { const p = JSON.parse(e); if (Array.isArray(p)) out.push(...p); } catch { /* kein JSON */ } }
+    else if (e && typeof e === "object") out.push(e);
+  }
+  return out;
+}
+
 /** GET /admin/postmeister/postfach — die Liste, wie ein Postfach sie zeigt. */
 router.get("/admin/postmeister/postfach", async (req: Request, res: Response) => {
   try {
@@ -106,7 +125,7 @@ router.get("/admin/postmeister/postfach", async (req: Request, res: Response) =>
         kundeName: [r.first_name, r.last_name].filter(Boolean).join(" ") || null,
         betreuer: r.betreuer ?? null,
         antwort: r.antwort, antwortHtml: r.antwort_html,
-        belege: jsonOderLeer(r.belege, []), handlungen: jsonOderLeer(r.handlungen, []),
+        belege: jsonOderLeer(r.belege, []), handlungen: handlungenLesen(r.handlungen),
         naechsterSchritt: jsonOderLeer(r.naechster_schritt, null),
         pruefung: jsonOderLeer(r.pruefung, null),
         gesendetAm: r.gesendet_am, begruendung: r.begruendung,
@@ -153,7 +172,7 @@ router.get("/admin/postmeister/eintrag/:id", async (req: Request, res: Response)
         text: r.text, zusammenfassung: r.zusammenfassung, kategorien: r.kategorien ?? [],
         flags: jsonOderLeer(r.flags, {}), kundenlage: r.kundenlage, dringend: !!r.dringend,
         aktion: r.aktion, antwort: r.antwort, antwortHtml: r.antwort_html,
-        belege: jsonOderLeer(r.belege, []), handlungen: jsonOderLeer(r.handlungen, []),
+        belege: jsonOderLeer(r.belege, []), handlungen: handlungenLesen(r.handlungen),
         pruefung: jsonOderLeer(r.pruefung, null), naechsterSchritt: jsonOderLeer(r.naechster_schritt, null),
         begruendung: r.begruendung, gesendetAm: r.gesendet_am, ref: r.ref, personId: r.person_id,
       },
@@ -184,7 +203,10 @@ export interface SendeWahl {
 async function handlungMerken(id: number, werkzeug: string, ergebnis: string, ok = true): Promise<void> {
   await sqlPool`
     UPDATE fiaon_postmeister
-       SET handlungen = COALESCE(handlungen, '[]'::jsonb) || ${sqlPool.json([{ werkzeug, ergebnis: ergebnis.slice(0, 300), ok, am: new Date().toISOString(), von: "mensch" }] as any)},
+       SET handlungen = (CASE WHEN jsonb_typeof(handlungen) = 'array' THEN handlungen
+                              WHEN jsonb_typeof(handlungen) = 'string' AND jsonb_typeof((handlungen #>> '{}')::jsonb) = 'array' THEN (handlungen #>> '{}')::jsonb
+                              ELSE '[]'::jsonb END)
+                        || ${sqlPool.json([{ werkzeug, ergebnis: ergebnis.slice(0, 300), ok, am: new Date().toISOString(), von: "mensch" }] as any)},
            updated_at = NOW()
      WHERE id = ${id}
   `.catch(() => {});
@@ -205,7 +227,34 @@ async function entwurfSenden(id: number, textNeu?: string | null, wahl: SendeWah
   }
 
   const erledigt: string[] = [];
-  const gelaufen = (jsonOderLeer(r.handlungen, []) as any[]).filter((h) => h.ok).map((h) => h.werkzeug);
+  const gelaufen = handlungenLesen(r.handlungen).filter((h) => h.ok).map((h) => String(h.werkzeug));
+
+  // ── TATSACHEN AUS DER AKTE DECKEN ZUSAGEN (05.09.2026) ─────────────────
+  // Die Wand verlangt für „Ihre Kündigung ist vorgemerkt" ein Werkzeug aus
+  // DIESEM Versand. Beim Freigeben eines Entwurfs lief aber kein Werkzeug —
+  // Mara hatte die Kündigung schon beim Schreiben vorgemerkt, oder sie stand
+  // seit Tagen in der Akte. Eine Tatsache ist keine ungedeckte Zusage: Was die
+  // Datenbank bestätigt, gilt als gedeckt. Steht es NICHT (mehr) in der Akte,
+  // etwa nach „Kündigung zurücknehmen", bleibt die Wand zu Recht stehen.
+  if (r.ref) {
+    const [a] = (await sqlPool`
+      SELECT gekuendigt_am, kuendigung_zurueckgenommen_am, payment_status, mahnstopp_am
+      FROM fiaon_applications WHERE ref = ${r.ref} LIMIT 1
+    `.catch(() => [] as any[])) as any[];
+    if (a) {
+      const gekuendigt = a.gekuendigt_am && !a.kuendigung_zurueckgenommen_am;
+      const storniert = ["cancelled", "canceled", "storniert"].includes(String(a.payment_status || ""));
+      if (gekuendigt || storniert) gelaufen.push("kuendigung_vormerken");
+      if (a.mahnstopp_am) gelaufen.push("mahnstopp_setzen");
+    }
+  }
+  if (r.person_id) {
+    const [p] = (await sqlPool`
+      SELECT werbung_gesperrt_am, account_status FROM fiaon_persons WHERE id = ${r.person_id} LIMIT 1
+    `.catch(() => [] as any[])) as any[];
+    if (p?.werbung_gesperrt_am) gelaufen.push("werbesperre_setzen");
+    if (p?.account_status === "active") gelaufen.push("konto_freischalten");
+  }
 
   // Schalter 1: Kündigung — ein Mensch entscheidet, deshalb ohne Willenserklärungs-Wand.
   if (wahl.kuendigung?.vormerken) {
@@ -249,6 +298,13 @@ async function entwurfSenden(id: number, textNeu?: string | null, wahl: SendeWah
     erledigt.push(satz);
   }
 
+  // Schalter 3 (Plan): Rechnung als PDF — Plan der Zeile plus Automatik
+  // (Zahlungsseite), außer der Mensch sagt nein. Der Plan steht VOR der Wand:
+  // „Die Rechnung hängt an" ist gedeckt, wenn sie gleich wirklich anhängt.
+  const { anhaengePlanen, anhaengeBauen } = await import("../lib/fiaon-postmeister-anhaenge");
+  const plan = wahl.anhaenge === false ? [] : anhaengePlanen(r.anhaenge, jsonOderLeer(r.naechster_schritt, null));
+  if (plan.length) gelaufen.push("rechnung_anhaengen");
+
   // Frische Prüfung: Wand und Bankdaten. Ein Entwurf von gestern kann heute
   // falsch sein — am 02.09. lag einer mit der gesperrten IBAN in der Werkbank.
   const treffer = wandPruefen(text, gelaufen).filter((t) => t.art !== "floskel");
@@ -261,9 +317,6 @@ async function entwurfSenden(id: number, textNeu?: string | null, wahl: SendeWah
 
   try {
     const { nachrichtLesen, antwortSenden, nachrichtLabeln, labelSicherstellen, entwurfLoeschen } = await import("../lib/fiaon-gmail");
-    // Schalter 3: Rechnung als PDF — Plan der Zeile plus Automatik (Zahlungsseite), außer der Mensch sagt nein.
-    const { anhaengePlanen, anhaengeBauen } = await import("../lib/fiaon-postmeister-anhaenge");
-    const plan = wahl.anhaenge === false ? [] : anhaengePlanen(r.anhaenge, jsonOderLeer(r.naechster_schritt, null));
     const gebaut = plan.length ? await anhaengeBauen(plan) : { dateien: [], fehler: [] as string[] };
     if (gebaut.fehler.length) erledigt.push(`Nicht angehängt: ${gebaut.fehler.join("; ")}`);
     const mail = await nachrichtLesen(r.postfach, r.gmail_id);

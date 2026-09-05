@@ -39,7 +39,7 @@ const router = Router();
 
 /** Vorgaben — jede über fiaon_settings übersteuerbar (gruender_termin_*). */
 const VORGABE = {
-  agentId: 928,           // Justin Schwarzott (justin@fiaon.com)
+  agentId: 928,           // Justin Schwarzott (js@fiaon.com)
   proTag: 3,              // wählbare UND buchbare Zeiten je Tag
   vorlaufStunden: 4,      // frühestens in vier Stunden — kein Anruf aus dem Nichts
   titel: "Gründer & Geschäftsführer",

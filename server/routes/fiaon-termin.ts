@@ -1149,6 +1149,27 @@ router.post("/admin/termine/:id/uebergeben", async (req: Request, res: Response)
   }
 });
 
+/**
+ * Buchungsmeldung an den Zuständigen erneut schicken (05.09.2026).
+ * Anlass: Justins Konto trug eine Adresse, die es nicht gibt — zwei
+ * Meldungen zu Gründer-Terminen gingen ins Leere. Nach der Korrektur der
+ * Adresse holt dieser Aufruf sie nach; die Meldung liest die Adresse frisch.
+ */
+router.post("/admin/termine/:id/melden", async (req: Request, res: Response) => {
+  try {
+    const [t] = (await sqlPool`
+      SELECT id, beginn, quelle, status FROM fiaon_termine WHERE id = ${Number(req.params.id)}
+    `) as any[];
+    if (!t) return res.status(404).json({ ok: false, error: "Termin nicht gefunden." });
+    const { buchungMelden } = await import("../lib/fiaon-termin-meldung");
+    const erg = await buchungMelden(Number(t.id), t.beginn, String(t.quelle));
+    res.json({ ok: erg.gemeldet, ...erg });
+  } catch (err) {
+    console.error("[TERMIN] admin melden:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 // ═══════════════════════════════════════════════════════════════════════════
 // GET /agent/termine/uebernehmer — wer kommt für eine Übergabe infrage?
 //

@@ -182,7 +182,7 @@ const ANREDE_WORT = "(?:guten\\s+(?:tag|morgen|abend)|hallo|hi|hey|sehr\\s+geehr
 /** Eine ganze Zeile, die nur aus Anrede (+ Titel + bis zu vier Namensteilen) besteht. */
 const ANREDE_ZEILE = new RegExp(`^${ANREDE_WORT}\\b(?:\\s+${ANREDE_TITEL})?(?:\\s+[^\\s,:;!.]{1,30}){0,4}\\s*[,:;!]?$`, "i");
 /** Anrede + Komma vor dem ersten Satz auf derselben Zeile — nur die kräftigen Formen, „beste"/„hi" wären zu unsicher. */
-const ANREDE_VORNE = new RegExp(`^(?:guten\\s+(?:tag|morgen|abend)|sehr\\s+geehrte[rs]?|dear|hello|bonjour|hola|buongiorno|geachte|dzień\\s+dobry|bună\\s+ziua|merhaba|здравствуйте|здравейте)\\b(?:\\s+${ANREDE_TITEL})?(?:\\s+[^\\s,:;!.]{1,30}){0,3}\\s*[,:;!]\\s+(\\S.*)$`, "i");
+const ANREDE_VORNE = new RegExp(`^(?:guten\\s+(?:tag|morgen|abend)|sehr\\s+geehrte[rs]?|hallo|servus|moin|grüß\\s+gott|liebe[rs]?|dear|hello|bonjour|hola|buongiorno|geachte|dzień\\s+dobry|bună\\s+ziua|merhaba|здравствуйте|здравейте)\\b(?:\\s+${ANREDE_TITEL})?(?:\\s+[^\\s,:;!.]{1,30}){0,3}\\s*[,:;!]\\s+(\\S.*)$`, "i");
 
 function kernBereinigen(kern: string, name: string, knopfUrl: string | null | undefined): string {
   let t = String(kern || "").trim();

@@ -743,10 +743,18 @@ async function pruefenUndAbschliessen(roh: any, k: {
   // dass das Modell „erledigt" oder „rueckruf" als Schritt wählte, obwohl die
   // Seite vorab geholt war. Der Text darf vom Rückruf handeln; der Knopf zahlt.
   const zahlungsSeite = k.werkzeugDaten.zahlungslink_bauen?.zahlungsseite;
-  const zahlungsSchritt: NaechsterSchritt | null = ["unbezahlt", "zahlung_gemeldet", "rate_ueberfaellig", "gekuendigt"].includes(k.lage) && zahlungsSeite
+  // ── NACH EINEM STORNO KEIN ZAHLUNGSKNOPF (05.09.2026, E-135) ──────────
+  // Gesehen: „Ihre Bestellung ist storniert, es bleibt nichts offen" — und
+  // darunter „Rechnung ansehen und bezahlen". Ist die Bestellung storniert
+  // oder der Vertrag beendet, gibt es nichts zu zahlen; der Schritt ist
+  // „erledigt", und die Zahlungsseite wird nicht verlangt.
+  const storniert = ["storno_unbezahlt", "sofort_beendet", "kulanz_sofort"].includes(String(k.werkzeugDaten.kuendigung_vormerken?.weg || ""));
+  const zahlungsSchritt: NaechsterSchritt | null = !storniert && ["unbezahlt", "zahlung_gemeldet", "rate_ueberfaellig", "gekuendigt"].includes(k.lage) && zahlungsSeite
     ? { art: "zahlung" as any, url: String(zahlungsSeite), text: "Rechnung ansehen und bezahlen" }
     : null;
-  const schrittFinal: NaechsterSchritt | null = zahlungsSchritt && (!schritt || !schritt.url || schritt.art !== "zahlung") ? zahlungsSchritt : schritt;
+  const schrittFinal: NaechsterSchritt | null = storniert
+    ? (schritt && schritt.art !== "zahlung" ? schritt : { art: "erledigt" as any })
+    : zahlungsSchritt && (!schritt || !schritt.url || schritt.art !== "zahlung") ? zahlungsSchritt : schritt;
   const belege: Beleg[] = Array.isArray(roh.belege) ? roh.belege : [];
   const gelaufen = k.handlungen.filter((h) => h.ok).map((h) => h.werkzeug);
 
@@ -762,7 +770,7 @@ async function pruefenUndAbschliessen(roh: any, k: {
       if (!werte.includes(nackt) && !belegte.includes(z.toLowerCase())) fehlend.push(`ohne Beleg: ${z}`);
     }
     // Pflichtangaben je Lage
-    if (["unbezahlt", "zahlung_gemeldet", "rate_ueberfaellig", "gekuendigt"].includes(k.lage)) {
+    if (!storniert && ["unbezahlt", "zahlung_gemeldet", "rate_ueberfaellig", "gekuendigt"].includes(k.lage)) {
       const seite = k.werkzeugDaten.zahlungslink_bauen?.zahlungsseite;
       // 04.09.2026: Der Knopf unter dem Text trägt die Adresse (antwortBauen),
       // kernBereinigen nimmt sie aus dem Text sogar heraus. Die Prüfung verlangte

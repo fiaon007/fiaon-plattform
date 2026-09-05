@@ -89,7 +89,14 @@ export function istWillenserklaerung(text: string, opts: { unbezahlt?: boolean }
   // nichts. Bei unbezahlter Bestellung gilt deshalb die weite Liste; bei
   // laufendem Vertrag nur die klaren Sätze („ich will nicht mehr" eingeschlossen).
   const storno = /(sto?r?nier(en|e|t)? (sie )?(bitte )?(alles|das|den vertrag|die bestellung|mein(e|en)? (antrag|vertrag|bestellung|buchung))|bitte (alles |den vertrag |die bestellung )?stornieren|ich (will|m(ö|oe)ch(t)?e) (das |es |den vertrag |die bestellung )?nicht( mehr)?( weitermachen| fortführen| fortfuehren)?\b|ich (will|m(ö|oe)ch(t)?e) (den vertrag |die bestellung |das )?(nicht|nicht mehr)\b|kein interesse( mehr)?|anders überlegt|anders ueberlegt|(löschen|loeschen) sie (bitte )?(mein(en|e)? |diesen |dieses |das )?(konto|account|antrag|daten|zugang)|nicht weitermachen|abbrechen)/;
-  if (storno.test(t) && !/(würde|wuerde|überlege|ueberlege|vielleicht|eventuell|wie kann ich|falls)/.test(t)) {
+  const zweifel = /(würde|wuerde|überlege|ueberlege|vielleicht|eventuell|wie kann ich|falls|\?\s*$)/;
+  // Unbezahlte Bestellung: Jede klare Absage genügt — auch mit Tippfehlern
+  // („dsd ich dad Angebot nlcht möchte", „wird nicht mehr benötigt",
+  // „hiermit wiederufe ich"). Ein Storno kostet nichts; Nachfragen kostet
+  // den Kunden Geduld und uns eine Mail.
+  if (opts.unbezahlt && !zweifel.test(t)
+    && /(nicht|nlcht|kein|nein|storn|abbrech|zurück|zurueck|beenden|löschen|loeschen|wie?derr?uf|nicht mehr benötigt|nicht mehr benoetigt|verzichte)/.test(t)) return true;
+  if (storno.test(t) && !zweifel.test(t)) {
     if (opts.unbezahlt) return true;
     if (/(ich (will|m(ö|oe)ch(t)?e) (den vertrag |das |es )?nicht( mehr)?\b|nicht weitermachen|sto?r?nier(en|e|t)? (sie )?(bitte )?(den vertrag|mein(en)? vertrag|alles))/.test(t)) return true;
   }
@@ -97,7 +104,7 @@ export function istWillenserklaerung(text: string, opts: { unbezahlt?: boolean }
   // „möglich" allein wäre zu breit: „zum nächstmöglichen Zeitpunkt" ist eine
   // Kündigung, „ist das möglich?" nicht.
   const unsicher = /(würde|wuerde|überlege|ueberlege|\bfalls\b|wenn ich|wie kann ich|wie kündige|wie kuendige|(ist|wäre|waere) (das |es )?möglich|(ist|wäre|waere) (das |es )?moeglich|erwäge|erwaege|vielleicht|eventuell|gedanken|informier|auskunft|welche frist|kündigungsfrist ist|kuendigungsfrist ist|frist ist)/;
-  const erklaerung = /(ich kündige|ich kuendige|hiermit kündige|hiermit kuendige|kündige ich|kuendige ich|kündigung des vertrags|kuendigung des vertrags|hiermit die kündigung|hiermit die kuendigung|vertrag beenden|vertrag kündigen|vertrag kuendigen|abo kündigen|abo kuendigen|widerrufe hiermit|trete zurück|trete zurueck|außerordentlich(e|en)? kündigung|ausserordentlich(e|en)? kuendigung|habe (bereits |schon |schriftlich |per e-?mail |per mail |vor \w+ )*(gekündigt|gekuendigt)|(gekündigt|gekuendigt) habe|meine (kündigung|kuendigung) vom|bleibe bei meiner (kündigung|kuendigung))/;
+  const erklaerung = /(ich kündige|ich kuendige|hiermit kündige|hiermit kuendige|kündige ich|kuendige ich|kündigung des vertrags|kuendigung des vertrags|hiermit die kündigung|hiermit die kuendigung|vertrag beenden|vertrag kündigen|vertrag kuendigen|abo kündigen|abo kuendigen|widerrufe hiermit|hiermit wie?derr?ufe|wie?derr?ufe ich|trete zurück|trete zurueck|außerordentlich(e|en)? kündigung|ausserordentlich(e|en)? kuendigung|habe (bereits |schon |schriftlich |per e-?mail |per mail |vor \w+ )*(gekündigt|gekuendigt)|(gekündigt|gekuendigt) habe|meine (kündigung|kuendigung) vom|bleibe bei meiner (kündigung|kuendigung))/;
   if (!erklaerung.test(t)) return false;
   // 04.09.2026: „ich habe schriftlich gekündigt!!!" ist eine Erklärung — der
   // Kunde beruft sich auf eine frühere. Bis hierher galt sie als unklar, und

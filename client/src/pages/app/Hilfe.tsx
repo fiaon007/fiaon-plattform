@@ -1,7 +1,8 @@
 // /app/mehr/hilfe — Hilfe (Bauvorlage 3.15): Ansprechperson, Nachricht schreiben
 // (bestehende Tickets-Endpunkte), Anruf-Termin wählen, bisherige Anliegen,
 // Telefon/E-Mail, häufige Fragen. Keine Rückruf-Zusage („meldet sich“), kein
-// Live-Chat — „Sie sehen die Antwort hier und bekommen sie zusätzlich per E-Mail".
+// Live-Chat — „Sie sehen die Antwort hier in Ihrem Bereich" (eine Antwort-Mail gibt es
+// nicht: /agent/tickets/:id/antwort schreibt nur Ticket und Kontaktverlauf, Prüfung 05.09.).
 //
 // /app/mehr/termine — Termine (Bauvorlage 3.14): kommende mit Absage-Link,
 // vergangene, Anruf-Termin wählen. Daten: GET /kunde/:ref/termine (vorhanden).
@@ -46,7 +47,7 @@ export function Hilfe({ kundeRef, demo, ansprechpartner, vorgang, buchungsLink }
     const r = await api(`/kunde/${encodeURIComponent(kundeRef)}/tickets`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ betreff: b, text: text.trim() }) });
     setLaeuft(false);
     if (r.ok && r.json?.ok !== false) {
-      setMeldung({ ton: "gut", text: `Ihre Nachricht ist bei ${ansprechpartner?.name ?? "Ihrem FIAON-Team"}. Sie sehen die Antwort hier und bekommen sie zusätzlich per E-Mail.${dringend ? " Wir haben das als dringend vermerkt." : ""}` });
+      setMeldung({ ton: "gut", text: `Ihre Nachricht ist bei ${ansprechpartner?.name ?? "Ihrem FIAON-Team"}. Sie sehen die Antwort hier in Ihrem Bereich.${dringend ? " Wir haben das als dringend vermerkt." : ""}` });
       setBetreff(""); setText(""); setDringend(false); laden();
     } else setMeldung({ ton: "fehler", text: r.json?.error || "Die Nachricht konnte nicht gesendet werden. Ihr Text bleibt stehen – bitte noch einmal senden." });
   };

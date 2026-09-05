@@ -275,7 +275,9 @@ export const kuendigungVormerken: Werkzeug = {
   name: "kuendigung_vormerken",
   beschreibung: "Nimmt eine Kündigung entgegen. Nur bei einer eindeutigen Willenserklärung des Kunden ('ich kündige', 'hiermit kündige ich'), niemals bei Fragen oder Überlegungen. Der Vertrag läuft zwölf Monate; wir entlassen kulant vorzeitig, aber die bereits gestellte Rate bleibt zu zahlen — der Vertrag endet erst mit ihrer Zahlung (Storno erst nach Zahlungseingang). Auch wenn der Kunde schreibt, er habe schon früher gekündigt: aufrufen — das System merkt es jetzt vor. Nach dem Aufruf nennst du in der Antwort die offene Rate mit Betrag und Zahlungsseite.",
   stufe: "frei",
-  lagen: ["unbezahlt", "zahlung_gemeldet", "bezahlt_ohne_startgespraech", "aktiv", "rate_ueberfaellig", "gekuendigt", "bestreitet"],
+  // „gesperrt" (05.09.2026): Ein gesperrter Kunde mit unbezahlter Bestellung
+  // will meist nur raus — das Storno muss Mara selbst können.
+  lagen: ["unbezahlt", "zahlung_gemeldet", "bezahlt_ohne_startgespraech", "aktiv", "rate_ueberfaellig", "gekuendigt", "bestreitet", "gesperrt"],
   parameter: {
     type: "object", additionalProperties: false,
     properties: {
@@ -288,7 +290,7 @@ export const kuendigungVormerken: Werkzeug = {
     if (!k.ref) return { ok: false, ergebnis: "", fehler: "Ohne Bestellung kann keine Kündigung vorgemerkt werden." };
     const { istWillenserklaerung, kuendigungSetzen } = await import("./fiaon-kuendigung");
     const zitat = String(p.zitat || "");
-    if (!istWillenserklaerung(zitat, { unbezahlt: k.kundenlage === "unbezahlt" || k.kundenlage === "interessent" })) {
+    if (!istWillenserklaerung(zitat, { unbezahlt: k.kundenlage === "unbezahlt" || k.kundenlage === "interessent" || k.kundenlage === "gesperrt" })) {
       return { ok: false, ergebnis: "", fehler: "Das ist keine eindeutige Kündigung — frag nach oder informiere nur." };
     }
     const erg = await kuendigungSetzen(k.ref, { quelle: "mail", grund: String(p.grund || "").slice(0, 300) || null, postmeisterId: k.postmeisterId ?? null });

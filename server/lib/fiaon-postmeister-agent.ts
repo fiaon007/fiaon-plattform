@@ -523,7 +523,7 @@ function systemPrompt(ein: {
     // schickt das Haus automatisch, sobald die letzte Rate verbucht ist.
     // ═══════════════════════════════════════════════════
     `WENN DER KUNDE TROTZDEM KÜNDIGT, respektierst du das und erledigst es selbst: kuendigung_vormerken (Werkzeug). Kein zweiter Rettungsversuch — einmal werben ist Beratung, zweimal ist Bedrängen. Danach, je nach Ergebnis des Werkzeugs:`,
-    `  · Storniert (nichts bezahlt): „Ihre Bestellung ist storniert, es bleibt nichts offen." Fertig, Schritt erledigt.`,
+    `  · Storniert (nichts bezahlt): „Ihre Bestellung ist storniert, es bleibt nichts offen." Fertig, Schritt erledigt. Bei einer UNBEZAHLTEN Bestellung zählt JEDE klare Absage als Storno-Wunsch („brauche ich nicht mehr", „kein Interesse", „bitte löschen", „nein danke", „möchte das Angebot nicht") — Werkzeug rufen und bestätigen, NICHT den Kunden bitten, es noch einmal anders zu formulieren.`,
     `  · Alle Raten bezahlt: „Ihr Vertrag ist beendet." Fertig.`,
     `  · OFFENE RATE: „Ihre Kündigung ist vorgemerkt. Offen ist noch Rate N über X € (fällig am D). Die Rechnung hängt an; Bankdaten, QR-Code und Verwendungszweck stehen auf der Zahlungsseite unten. Sobald die Zahlung eingegangen ist, erhalten Sie von uns das Kündigungsschreiben, und der Vertrag ist beendet." Dazu zahlungslink_bauen UND rechnung_anhaengen; Schritt zahlung.`,
     `HÄRTE-STUFE — wenn der Kunde die offene Rate ausdrücklich verweigert („nein, mache ich nicht", „zahle nichts mehr", „wozu") und KEINEN sachlichen Einwand nennt (keine belegte Zahlung, kein Widerruf in der Frist, kein falscher Betrag), dann kein Verständnis mehr, kein Mahnstopp, keine Aufgabe an den Betreuer. Du schreibst ruhig und bestimmt, in dieser Reihenfolge: (1) „Wir haben einen Vertrag, den Sie am ${ein.vertragGeschlossenAm ?? "[Datum aus der Akte]"} geschlossen haben." (2) „Ohne die offene Rate N über X € können wir den Vertrag nicht beenden — das ist die einzige Bedingung." (3) „Bleibt die Zahlung aus, übergeben wir die Forderung an ${ein.gerichtText} zur Eintreibung. Die Kosten dafür tragen dann Sie." (4) „Ersparen Sie uns beiden diesen Aufwand und begleichen Sie die Rate — der Weg steht unten." Dazu eskalation_vorbereiten, damit die Leitung die Verweigerung sieht. Beim zweiten Nein dasselbe in drei Sätzen, keine Diskussion. Diese Härte gilt NUR bei einem laufenden Vertrag (mindestens eine Rate bezahlt) — eine unbezahlte Bestellung wird einfach storniert.`,
@@ -759,7 +759,9 @@ async function pruefenUndAbschliessen(roh: any, k: {
   const gelaufen = k.handlungen.filter((h) => h.ok).map((h) => h.werkzeug);
 
   const pruefen = (t: string) => {
-    const treffer = wandPruefen(t, gelaufen);
+    // „Ihre Kündigung ist seit dem 04.09. vorgemerkt" ist eine Tatsache aus der
+    // Akte, keine Zusage — die Wand darf sie nicht als ungedeckt werten (05.09.2026).
+    const treffer = wandPruefen(t, gelaufen).filter((tr) => !(k.akte?.kuendigung && tr.gedecktDurch?.includes("kuendigung_vormerken")));
     const fehlend: string[] = [];
     // Belegpflicht
     const belegte = belege.map((b) => `${b.satz} ${b.feld}`).join(" ").toLowerCase();

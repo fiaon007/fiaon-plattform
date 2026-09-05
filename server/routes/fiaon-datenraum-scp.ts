@@ -101,10 +101,37 @@ export const PARTEIEN: Record<string, Partei> = {
   },
 };
 
+/**
+ * Den Code so lesen, wie Menschen ihn wirklich eingeben (05.09.2026).
+ *
+ * DER ANLASS: Christian Schwab kam nicht herein — drei Versuche am 05.09.
+ * zwischen 08:41 und 08:43, alle als „code_falsch" protokolliert. Sein Code
+ * war und ist gültig; gescheitert ist die Schreibweise.
+ *
+ * Gemessen an der Live-Seite scheiterten unter anderem:
+ *   SCP–V–7PCGHZ   Gedankenstrich statt Bindestrich — Mail-Programme und
+ *                  Handy-Tastaturen wandeln „-" unbemerkt um
+ *   SCP V 7PCGHZ   mit Leerzeichen abgetippt
+ *   SCPV7PCGHZ     ohne Trennzeichen
+ *
+ * Keine dieser Eingaben ist ein Fehler des Absenders: Der Code ist derselbe,
+ * nur anders geschrieben. Ein Zugang, der daran scheitert, schützt nichts —
+ * er sperrt bloß den Richtigen aus. Deshalb wird jetzt auf Buchstaben und
+ * Ziffern reduziert verglichen. Die Sicherheit steckt im Zufallsteil, nicht
+ * in der Zeichensetzung.
+ */
+const nurZeichen = (s: string) => String(s ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+
 export function parteiVonCode(code: string): { code: string; partei: Partei } | null {
-  const c = String(code ?? "").trim().toUpperCase();
-  const p = PARTEIEN[c];
-  return p ? { code: c, partei: p } : null;
+  const roh = String(code ?? "").trim().toUpperCase();
+  const p = PARTEIEN[roh];
+  if (p) return { code: roh, partei: p };
+  const kern = nurZeichen(roh);
+  if (!kern) return null;
+  for (const [schluessel, partei] of Object.entries(PARTEIEN)) {
+    if (nurZeichen(schluessel) === kern) return { code: schluessel, partei };
+  }
+  return null;
 }
 
 function geheimnis(): string {
@@ -238,8 +265,17 @@ router.post("/scp/anmelden", async (req: Request, res: Response) => {
     }
     const treffer = parteiVonCode(String(req.body?.code ?? ""));
     if (!treffer) {
-      await protokoll(null, "code_falsch", null, req);
-      return res.status(403).json({ ok: false, error: "Der Zugangscode stimmt nicht." });
+      // Den Versuch mitschreiben — sonst steht im Protokoll nur „code_falsch"
+      // und niemand kann nachvollziehen, WAS eingegeben wurde. Genau daran
+      // hing am 05.09. eine halbe Stunde Suche. Nur die ersten 20 Zeichen,
+      // und nur der Code: mehr braucht es nicht, mehr gehört nicht ins Log.
+      await protokoll(null, "code_falsch", `eingegeben: ${String(req.body?.code ?? "").slice(0, 20)}`, req);
+      return res.status(403).json({
+        ok: false,
+        error: "Dieser Zugangscode stimmt nicht. Bitte prüfen Sie, ob der Code vollständig "
+             + "aus der E-Mail übernommen wurde — am besten kopieren statt abtippen. "
+             + "Kommen Sie damit nicht weiter, wenden Sie sich an office@schwarzott-global.com.",
+      });
     }
     const { partei } = treffer;
 

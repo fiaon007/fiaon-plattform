@@ -531,6 +531,28 @@ router.post("/agent/mail/:personId/:event", requireAgent, async (req: AgentReque
 // MAIL-ZENTRALE
 // ═══════════════════════════════════════════════════════════════════════════
 
+/**
+ * POST /admin/mail/:personId/:event — eine Quelltext-Vorlage aus der Verwaltung
+ * senden (05.09.2026). Anlass: Vier Konto-und-Karte-Mails gingen ohne
+ * Partnerlink raus; nachversorgen konnte bis hierher nur der Mitarbeiter aus
+ * seiner Akte. Dieselbe Prüfung wie beim Mitarbeiter-Weg (Rolle „admin" in
+ * der Registry), Akteur „Verwaltung".
+ */
+router.post("/admin/mail/:personId/:event", async (req: Request, res: Response) => {
+  try {
+    const personId = Number(req.params.personId);
+    if (!Number.isFinite(personId) || personId <= 0) return res.status(400).json({ ok: false, error: "Kunde fehlt." });
+    const erg = await mailSenden({
+      event: String(req.params.event), personId,
+      akteur: { name: "Verwaltung", agentId: null, rolle: "admin" as any },
+    });
+    res.status(erg.ok ? 200 : 400).json({ ...erg, historie: await versandHistorie(personId) });
+  } catch (err) {
+    console.error("[MAIL] admin vorlage senden:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 /** GET /mail/zentrale/suche?q= — Empfänger-Autocomplete ab dem 1. Zeichen. */
 router.get("/mail/zentrale/suche", requireAgent, async (req: AgentRequest, res: Response) => {
   try {

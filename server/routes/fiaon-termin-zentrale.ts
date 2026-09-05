@@ -286,7 +286,11 @@ router.get("/admin/termine", async (req: Request, res: Response) => {
              COUNT(t.id) FILTER (WHERE t.beginn >= NOW() AND t.status = 'gebucht')::int AS kommend
       FROM fiaon_agents ag
       JOIN fiaon_termine t ON t.agent_id = ag.id
+      -- 05.09.2026: Justins Konto (928) ist Testkonto (hält ihn aus Zuteilung
+      -- und Statistik), aber seine Gründer-Termine (/justin) gehören in die
+      -- Auswahl — sonst ist er im Mitarbeiter-Filter nicht wählbar.
       WHERE COALESCE(ag.is_test_account, FALSE) = FALSE
+         OR EXISTS (SELECT 1 FROM fiaon_termine g WHERE g.agent_id = ag.id AND g.quelle = 'gruender')
       GROUP BY ag.id, ag.name, ag.rolle
       ORDER BY COUNT(t.id) DESC
     `) as any[];

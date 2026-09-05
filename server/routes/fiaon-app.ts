@@ -395,4 +395,22 @@ router.get("/kunde/:ref/app/dokument/:id", requireKunde, async (req: KundeReques
   }
 });
 
+// ── Verwaltung: Brief-Weg an/aus (05.09.2026) ───────────────────────────
+// POST /admin/app/einstellung { brief: "an" | "aus" } — Justin schaltet den
+// Brief-Weg frei, sobald die Formulierung anwaltlich gedeckt ist; derselbe
+// Schalter ist der Not-Aus, falls das Team die Zwei-Werktage-Frist nicht hält.
+router.post("/admin/app/einstellung", async (req, res: Response) => {
+  try {
+    const brief = String(req.body?.brief ?? "").trim().toLowerCase();
+    if (brief !== "an" && brief !== "aus") return res.status(400).json({ ok: false, error: "brief muss 'an' oder 'aus' sein." });
+    const { setSetting } = await import("./fiaon-agent");
+    await setSetting("app_brief_an", brief);
+    console.log(`[APP] Brief-Weg ${brief === "an" ? "FREIGESCHALTET" : "AUS"} (Verwaltung)`);
+    res.json({ ok: true, briefAn: brief === "an" });
+  } catch (e: any) {
+    console.error("[APP] einstellung:", e?.message || e);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 export default router;

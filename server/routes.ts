@@ -645,8 +645,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (req.method !== 'GET' || req.path.startsWith('/api') || req.path.includes('.')) return next();
     try {
       const { seitenHtml } = await import('./lib/fiaon-seiten-seo');
-      const html = seitenHtml(req.path);
+      let html = seitenHtml(req.path);
       if (!html) return next();
+      // Entwicklungsbetrieb: durch Vite schicken, sonst fehlt der React-Refresh-
+      // Vorspann und die Seite bleibt weiß (Befund 05.09.2026, /app/demo).
+      if (process.env.NODE_ENV !== 'production') {
+        try {
+          const { viteInstanz } = await import('./vite');
+          if (viteInstanz) html = await viteInstanz.transformIndexHtml(req.originalUrl, html);
+        } catch (e) { console.error('[SEITEN-SEO] vite:', String(e).slice(0, 120)); }
+      }
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.setHeader('Cache-Control', 'public, max-age=300');
       res.send(html);

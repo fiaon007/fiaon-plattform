@@ -19,6 +19,15 @@ export function log(message: string, source = "express") {
   console.log(`${formattedTime} [${source}] ${message}`);
 }
 
+/**
+ * Die laufende Vite-Instanz im Entwicklungsbetrieb — damit auch die
+ * serverseitig gerenderten SEO-Seiten (fiaon-seiten-seo.ts) durch
+ * transformIndexHtml laufen. Ohne das fehlte dort der React-Refresh-Vorspann:
+ * „@vitejs/plugin-react can't detect preamble", weiße Seite (05.09.2026,
+ * Befund der Berater-Sitzung auf /app/demo). Im Betrieb bleibt sie null.
+ */
+export let viteInstanz: Awaited<ReturnType<typeof createViteServer>> | null = null;
+
 export async function setupVite(app: Express, server: Server) {
   const serverOptions = {
     middlewareMode: true,
@@ -40,6 +49,7 @@ export async function setupVite(app: Express, server: Server) {
     appType: "custom",
   });
 
+  viteInstanz = vite;
   app.use(vite.middlewares);
   app.use("*", async (req, res, next) => {
     const url = req.originalUrl;

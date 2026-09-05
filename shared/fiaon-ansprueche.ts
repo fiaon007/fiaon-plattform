@@ -12,6 +12,11 @@
 // Daten mit Rechtsgrundlage, Quelle und Prüfdatum — Pfändungsfreigrenzen
 // ändern sich jeden 1. Juli; wer sie fortschreibt, ändert NUR `REGELN`.
 //
+// PFLEGE (Justins Festlegung 05.09.2026, Detailplan 7.4): Justin Schwarzott prüft die
+// Sätze jährlich zum 1. Juli gegen die Quellen und setzt `geprueftAm` neu. Ein Satz mit
+// `geprueftAm` älter als 13 Monate gilt als ungeprüft (→ „Der Satz wird gerade neu geprüft."
+// statt Betrag; Bauvorlage 3.7).
+//
 // SPRACHREGEL, bindend (Detailplan Station 3): „Das können Sie beantragen.
 // Über den Betrag entscheidet die Stelle." Nie „Ihnen stehen zu", nie ein
 // Punktbetrag ohne Spanne, kein Wort aus shared/fiaon-wortverbote.ts.

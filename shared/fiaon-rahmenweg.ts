@@ -188,7 +188,13 @@ export function rahmenwegAus(b: BereichEingang, o: RahmenwegOptionen = {}): Rahm
   };
 }
 
-/** Der Satz über dem Balken – abhängig von Justins Festlegung 7.1 (bis dahin „ohne"). */
+/**
+ * Der Satz über dem Balken. Justins Festlegung 7.1 (05.09.2026): Variante „ohne" BLEIBT —
+ * „Ihr Weg zur Karte", der Wunsch aus dem Antrag als kleine Zeile darunter. Die anderen
+ * Varianten bleiben schaltbar, falls das Haus später anders entscheidet.
+ * Festlegung 7.2 (05.09.2026): Eine nach Fälligkeit gezahlte Rate füllt ihr Segment
+ * (schraffiert), zählt aber nicht als „pünktlich" — so gerechnet in rahmenwegAus().
+ */
 export function zielTitel(z: Rahmenweg["ziel"], eur: (cents: number) => string): { titel: string; zeilen: string[] } {
   const w = z.wunschCents, p = z.paketRahmenCents;
   switch (z.anzeige) {

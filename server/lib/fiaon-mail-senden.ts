@@ -150,7 +150,8 @@ export async function mailVorschau(ein: {
 
   const gebaut = await sendePayloadBauen(def.type, ein.personId, lauf);
   if (!gebaut) return { ok: false, grund: "Kunde nicht gefunden." };
-  const payload = { ...gebaut.basis, ...gebaut.links, ...(ein.zusatz || {}) };
+  const zusatz = await partnerLinkErgaenzen(def.type, ein.personId, (ein as any).agentId ?? null, ein.zusatz, lauf);
+  const payload = { ...gebaut.basis, ...gebaut.links, ...zusatz };
 
   const { mailRendern } = await import("../mail/motor");
   const mail = mailRendern(def.type, payload);
@@ -171,6 +172,30 @@ export async function mailVorschau(ein: {
  * Wirft nie. Ein Versand, der einen Vorgang zum Absturz bringt, ist teurer als
  * eine Mail, die nicht rausgeht.
  */
+// ── DER PARTNERLINK GEHÖRT ZUR NUTZLAST, NICHT ZUM AUFRUFER (05.09.2026) ──
+// Justin: „Die Mail kommt so beim Kunden an, ohne Button, ohne Link." Vier
+// Konto-und-Karte-Mails (01.09. und 05.09.) gingen über „Vorlage aus der Akte
+// senden" raus — dieser Weg kannte den Link nicht, nur der Knopf im
+// Onboarding-Raum brachte ihn als Zusatz mit. Der Motor lässt einen Knopf ohne
+// Ziel weg, also stand der Kunde ohne Weg zur Bank da. Jetzt baut der Versand
+// den Link selbst, mit Kunden- und Mitarbeiterkennung — für jeden Weg.
+async function partnerLinkErgaenzen(
+  eventType: string, personId: number | null, agentId: number | null | undefined, zusatz: Record<string, unknown> | undefined, lauf: Lauf,
+): Promise<Record<string, unknown>> {
+  const z = { ...(zusatz || {}) };
+  if (eventType !== "konto_karte_einladung" || !personId || String(z.partner_link || "").trim()) return z;
+  try {
+    const { partnerLink } = await import("./fiaon-konto-karte");
+    let wer = agentId ?? null;
+    if (!wer) {
+      const [p] = (await lauf`SELECT assigned_agent_id FROM fiaon_persons WHERE id = ${personId} LIMIT 1`.catch(() => [] as any[])) as any[];
+      wer = p?.assigned_agent_id ? Number(p.assigned_agent_id) : null;
+    }
+    z.partner_link = partnerLink(personId, wer);
+  } catch (e) { console.error("[MAIL] partner_link:", String(e).slice(0, 120)); }
+  return z;
+}
+
 export async function mailSenden(ein: SendeEingabe): Promise<SendeErgebnis> {
   const lauf = ein.lauf ?? sqlPool;
   const abgelehnt = (grund: string): SendeErgebnis =>
@@ -228,9 +253,10 @@ export async function mailSenden(ein: SendeEingabe): Promise<SendeErgebnis> {
   const { basis, links, ref } = gebaut;
   if (!basis.email) return abgelehnt("Keine E-Mail-Adresse hinterlegt.");
 
+  const zusatz = await partnerLinkErgaenzen(def.type, ein.personId, ein.akteur.agentId, ein.zusatz, lauf);
   const erg = await versendenUndProtokollieren(
     def.type as MakeEventType,
-    { ...basis, ...links, ...(ein.zusatz || {}) } as any,
+    { ...basis, ...links, ...zusatz } as any,
     {
       personId: ein.personId,
       verlaufRef: ref,

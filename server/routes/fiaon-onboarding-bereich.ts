@@ -1651,8 +1651,12 @@ router.post("/agent/onboarding/person/:id/gefuehrt", requireAgent, async (req: A
     if (gebucht) {
       await sqlPool`
         UPDATE fiaon_termine SET status = 'erledigt', erledigt_am = NOW(),
+               -- ::text mit Absicht: CONCAT_WS nimmt „beliebig", und Postgres
+               -- kann den Typ des Parameters dann nicht bestimmen (42P18).
+               -- Florentine bekam so am 05.09. zweimal „Serverfehler", als
+               -- sie das Startgespräch mit Herrn Sapia festhalten wollte.
                notiz = CONCAT_WS(chr(10), NULLIF(notiz, ''),
-                 ${`Als geführt festgehalten von ${req.agent!.name} (ohne Cockpit-Abschluss).`}),
+                 ${`Als geführt festgehalten von ${req.agent!.name} (ohne Cockpit-Abschluss).`}::text),
                updated_at = NOW()
         WHERE id = ${gebucht.id}
       `;

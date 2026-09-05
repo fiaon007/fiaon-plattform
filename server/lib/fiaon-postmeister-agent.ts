@@ -753,7 +753,7 @@ async function pruefenUndAbschliessen(roh: any, k: {
     ? { art: "zahlung" as any, url: String(zahlungsSeite), text: "Rechnung ansehen und bezahlen" }
     : null;
   const schrittFinal: NaechsterSchritt | null = storniert
-    ? (schritt && schritt.art !== "zahlung" ? schritt : { art: "erledigt" as any })
+    ? (schritt && schritt.art !== "zahlung" ? schritt : ({ art: "erledigt" } as NaechsterSchritt))
     : zahlungsSchritt && (!schritt || !schritt.url || schritt.art !== "zahlung") ? zahlungsSchritt : schritt;
   const belege: Beleg[] = Array.isArray(roh.belege) ? roh.belege : [];
   const gelaufen = k.handlungen.filter((h) => h.ok).map((h) => h.werkzeug);

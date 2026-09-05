@@ -94,8 +94,8 @@ export function istWillenserklaerung(text: string, opts: { unbezahlt?: boolean }
   // („dsd ich dad Angebot nlcht möchte", „wird nicht mehr benötigt",
   // „hiermit wiederufe ich"). Ein Storno kostet nichts; Nachfragen kostet
   // den Kunden Geduld und uns eine Mail.
-  if (opts.unbezahlt && !zweifel.test(t)
-    && /(nicht|nlcht|kein|nein|storn|abbrech|zurück|zurueck|beenden|löschen|loeschen|wie?derr?uf|nicht mehr benötigt|nicht mehr benoetigt|verzichte)/.test(t)) return true;
+  const absage = /(^\s*nein[, ]*danke|(nicht|nlcht|kein(e|en|s)?|nein)[^.!?\n]{0,40}(möcht|moecht|will|brauch|benötig|benoetig|interess|angebot|vertrag|bestellung|antrag|auftrag|weiter|nehmen|abschließen|abschliessen|paket|finanzierung|konto bei ihnen)|(möcht|moecht|will|brauch|benötig|benoetig)[^.!?\n]{0,30}(nicht|nlcht|kein)|storn|abbrech|zurücktret|zuruecktret|beenden|lösch|loesch|wie?derr?uf|verzicht)/;
+  if (opts.unbezahlt && !zweifel.test(t) && absage.test(t)) return true;
   if (storno.test(t) && !zweifel.test(t)) {
     if (opts.unbezahlt) return true;
     if (/(ich (will|m(ö|oe)ch(t)?e) (den vertrag |das |es )?nicht( mehr)?\b|nicht weitermachen|sto?r?nier(en|e|t)? (sie )?(bitte )?(den vertrag|mein(en)? vertrag|alles))/.test(t)) return true;

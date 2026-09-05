@@ -51,8 +51,9 @@ const STAND_WORT: Record<string, string> = { offen: "Noch nicht beantragt", bean
 
 export function Ansprueche({ kundeRef, demo, startCheck = false, onFertig, ansprechpartner }: { kundeRef: string; demo: boolean; startCheck?: boolean; onFertig?: () => void; ansprechpartner?: string | null }) {
   const [antragLaeuft, setAntragLaeuft] = useState<string | null>(null);
+  const [antraegeAn, setAntraegeAn] = useState<boolean>(demo);
   const [antragMeldung, setAntragMeldung] = useState<string | null>(null);
-  // „Antrag vorbereiten": legt den Vorgang an (Schreiben in Ich-Form des Kunden) und führt zur Unterschrift —
+  // „Antrag vorbereiten“: legt den Vorgang an (Schreiben in Ich-Form des Kunden) und führt zur Unterschrift —
   // vorher ggf. zur Vollmacht (Kette 1 von 2). Der Versand bleibt beim Menschen.
   const antragVorbereiten = async (regelSchluessel: string) => {
     if (demo) { setAntragMeldung("In der Demo-Ansicht wird kein Antrag angelegt. Bei echten Kunden führt dieser Knopf zur Unterschrift mit dem Finger."); return; }
@@ -74,6 +75,7 @@ export function Ansprueche({ kundeRef, demo, startCheck = false, onFertig, anspr
       if (r.json?.ok === false && r.json?.grund) { setGrund(r.json.text || "Dieser Bereich steht Ihnen in Kürze zur Verfügung."); setA({}); return; }
       if (!r.ok || !r.json) { setFehler("Ihre Ansprüche konnten gerade nicht geladen werden."); setA({}); return; }
       setA(r.json.antworten || {});
+      setAntraegeAn(!!r.json.antraegeAn);
       const st: Staende = {}; for (const b of r.json.befunde || []) st[b.schluessel] = { stand: b.stand, fristAm: b.fristAm };
       setStaende(st);
     });
@@ -145,15 +147,16 @@ export function Ansprueche({ kundeRef, demo, startCheck = false, onFertig, anspr
                   <dt>Wir tun</dt><dd>{b.regel.wasWirTun}</dd>
                   <dt>Grundlage</dt><dd>{b.regel.rechtsgrundlage} · <a className="ap-link" href={b.regel.quelleUrl} target="_blank" rel="noopener noreferrer">Quelle</a> · geprüft {b.regel.geprueftAm.split("-").reverse().join(".")}</dd>
                 </dl>
-                {st === "offen" && b.regel.kategorie !== "vertrag" && (
+                {st === "offen" && antraegeAn && b.regel.kategorie !== "vertrag" && (
                   <button type="button" className="ap-knopf" style={{ marginTop: 14 }} disabled={antragLaeuft !== null} onClick={() => antragVorbereiten(b.regel.schluessel)}>{antragLaeuft === b.regel.schluessel ? "Wird vorbereitet …" : "Antrag vorbereiten"}</button>
                 )}
-                {st === "offen" && b.regel.kategorie === "vertrag" && (
+                {st === "offen" && antraegeAn && b.regel.kategorie === "vertrag" && (
                   <button type="button" className="ap-knopf still" style={{ marginTop: 14 }} disabled={antragLaeuft !== null} onClick={() => antragVorbereiten(b.regel.schluessel)}>{antragLaeuft === b.regel.schluessel ? "Wird vorbereitet …" : "Kündigung vorbereiten"}</button>
                 )}
               </article>
             );
           })}
+          {!antraegeAn && liste.some((b) => (staende[b.regel.schluessel]?.stand ?? "offen") === "offen") && <p className="ap-fuss">Anträge direkt aus Ihrem Bereich schalten wir gerade frei. Bis dahin bereitet Ihre Ansprechperson sie mit Ihnen im Gespräch vor.</p>}
           <p className="ap-fuss">{ansprechpartner ? `Nehmen Sie die Liste mit ins Gespräch mit ${ansprechpartner} – dort gehen Sie sie gemeinsam durch.` : "Nehmen Sie die Liste mit ins Gespräch mit Ihrem FIAON-Team."} {n < FRAGEN.length ? "Vervollständigen Sie den Check, damit nichts fehlt." : ""}</p>
         </section>
       )}

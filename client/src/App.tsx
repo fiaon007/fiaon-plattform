@@ -35,6 +35,10 @@ const MeinBereichPage = lazy(() => import("@/pages/mein-bereich"));
 // zu /login und /mein-bereich, bis er fertig ist; ersetzt bis dahin nichts.
 const AppLogin = lazy(() => import("@/pages/app/Login"));
 const AppBereich = lazy(() => import("@/pages/app/Bereich"));
+// Unterschrift mit dem Finger — öffentliche Seite ohne Login, signierter Token (Scheibe 5, 05.09.2026).
+const AppUnterschrift = lazy(() => import("@/pages/app/Unterschrift"));
+// Mitarbeiterseite zu einem Vorgang aus dem Kundenbereich: versenden, Ergebnis, zwei Sätze für den Kunden.
+const AgentAppVorgangPage = lazy(() => import("@/pages/agent/app-vorgang"));
 import ImpressumPage from "@/pages/impressum";
 import AGBPage from "@/pages/agb";
 import WiderrufsbelehrungPage from "@/pages/widerrufsbelehrung";
@@ -401,6 +405,7 @@ function Router() {
       <Route path="/business-antrag" component={BusinessAntragPage} />
       <Route path="/login" component={LoginPage} />
       <Route path="/app/login" component={AppLogin} />
+      <Route path="/app/unterschrift/:token" component={AppUnterschrift} />
       {/* wouter 3: `*?` = alles unterhalb von /app, auch /app selbst. Die Reiter
           (/app/weg, /app/demo/weg …) liest die Seite selbst aus der Adresse. */}
       <Route path="/app/*?" component={AppBereich} />
@@ -597,6 +602,7 @@ function Router() {
       <Route path="/agent/wallet/:reiter?" component={AgentWalletPage} />
       <Route path="/agent/verdienst-alt" component={AgentVerdienstPage} />
       <Route path="/agent/gehalt" component={AgentGehaltPage} />
+      <Route path="/agent/app-vorgaenge/:id" component={AgentAppVorgangPage} />
       <Route path="/agent/flur" component={AgentFlurPage} />
       <Route path="/agent/arbeitszeiten" component={AgentArbeitszeitenPage} />
       <Route path="/agent/updates" component={AgentFeedPage} />

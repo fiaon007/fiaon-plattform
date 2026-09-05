@@ -1,9 +1,9 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // /agent/app-vorgaenge/:id — ein Vorgang aus dem neuen Kundenbereich, gesehen
 // vom Mitarbeiter (05.09.2026, Scheibe 5). Drei Handgriffe, sonst nichts:
-//   1. Antrag versendet → Versand bestätigen (Empfänger, „Wir fragen nach am")
+//   1. Antrag versendet → Versand bestätigen (Empfänger, „Wir fragen nach am“)
 //   2. Ergebnis eintragen (bewilligt/abgelehnt, Betrag, ein Satz für den Kunden)
-//   3. Zwei Sätze für den Kunden (Brief: „Das haben wir daraus gemacht")
+//   3. Zwei Sätze für den Kunden (Brief: „Das haben wir daraus gemacht“)
 // Der Kunde sieht jede Eintragung sofort unter Vorgänge — in Sie-Form, deshalb
 // stehen die Kundensätze hier in Sie-Form; der Mitarbeiter wird geduzt wie im Rest
 // des Office. Erreichbar aus dem Auftrag beim Betreuer und aus der Akte.
@@ -96,7 +96,7 @@ function Innen() {
         <div className="av-karte">
           <small>1 · Versand bestätigen</small>
           <h2>Du versendest das unterschriebene Schreiben und quittierst hier.</h2>
-          <p className="av-hinweis">Das PDF liegt unten unter Dokumente. Der Kunde sieht danach: „Versandt am … an …, wir fragen nach am …". Die Nachfrage ist unser eigener Termin, keine gesetzliche Frist.</p>
+          <p className="av-hinweis">Das PDF liegt unten unter Dokumente. Der Kunde sieht danach: „Versandt am … an …, wir fragen nach am …“. Die Nachfrage ist unser eigener Termin, keine gesetzliche Frist.</p>
           <div className="av-form">
             <label>Empfänger<input className="av-feld" value={empfaenger} onChange={(e) => setEmpfaenger(e.target.value)} placeholder="z. B. Sparkasse Musterstadt, Kontoservice" /></label>
             <label>Wir fragen nach am<input className="av-feld" type="date" value={nachfrageAm} onChange={(e) => setNachfrageAm(e.target.value)} min={heutePlus(1)} /></label>
@@ -130,7 +130,7 @@ function Innen() {
         <div className="av-karte">
           <small>{istBrief ? "Brief · Das haben wir daraus gemacht" : "3 · Zwei Sätze für den Kunden"}</small>
           <h2>{istBrief ? "Sag dem Kunden in zwei Sätzen, was wir aus seinem Brief machen." : "Zwischenstand für den Kunden – erscheint wörtlich in seinem Bereich."}</h2>
-          <p className="av-hinweis">Sie-Form. Sag, was wir tun und bis wann du dich meldest – nicht, was der Brief „bedeutet", und keine Zusage über das Ergebnis.</p>
+          <p className="av-hinweis">Sie-Form. Sag, was wir tun und bis wann du dich meldest – nicht, was der Brief „bedeutet“, und keine Zusage über das Ergebnis.</p>
           <div className="av-form">
             <textarea className="av-feld" value={notiz} onChange={(e) => setNotiz(e.target.value)} placeholder="z. B. Es ist eine Zahlungsaufforderung eines Inkassobüros. Wir prüfen die Forderung gegen Ihre Auskunft und melden uns bis Donnerstag hier." />
             <div className="av-knoepfe">

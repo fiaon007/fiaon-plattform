@@ -29,7 +29,7 @@ import { sqlPool } from "../lib/db-pool";
 import { requireKunde, type KundeRequest } from "../lib/fiaon-kunde-session";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
 import { bildAlsPdf, istBild, istHeic } from "../lib/fiaon-bild-zu-pdf";
-import { personFuerRef, keinePerson, sauberName, berlinHeute, tag, werktageSpaeter, ensureAppTabellen } from "./fiaon-app";
+import { personFuerRef, keinePerson, sauberName, berlinHeute, tag, werktageSpaeter, ensureAppTabellen, antraegeFreigeschaltet } from "./fiaon-app";
 import { auftragFuerKunden, todoMeldung } from "./fiaon-betreiber-todo";
 import { schreibenErzeugen, unterschriftHtml, unterschriftEinsetzen, schreibenAlsPdf, hashVon, fusszeileFuer, markenzeileFuer, datumPlusMonate, type SchreibenArt, type SchreibenDaten } from "../lib/fiaon-schreiben";
 import { REGELN, type Antworten } from "@shared/fiaon-ansprueche";
@@ -352,6 +352,7 @@ const fehler = (res: Response, code: number, satz: string) => res.status(code).j
 router.post("/kunde/:ref/app/vorgaenge", requireKunde, async (req: KundeRequest, res: Response) => {
   try {
     await ensureAntraegeTabellen();
+    if (!(await antraegeFreigeschaltet())) return res.status(403).json({ ok: false, grund: "antraege_aus", error: "Die Unterschrift in der App und die Anträge aus Ihrem Bereich schalten wir gerade frei. Bis dahin bereitet Ihre Ansprechperson Anträge mit Ihnen im Gespräch vor." });
     const p = await personFuerRef(req.kundeRef!);
     if (!p) return keinePerson(res);
     const regelSchluessel = String(req.body?.regelSchluessel ?? "").trim();
@@ -633,10 +634,12 @@ router.get("/kunde/:ref/app/vollmacht", requireKunde, async (req: KundeRequest, 
     await ensureAntraegeTabellen();
     const p = await personFuerRef(req.kundeRef!);
     if (!p) return keinePerson(res);
+    const frei = await antraegeFreigeschaltet();
     const aktiv = await vollmachtAktiv(p.personId);
-    if (aktiv) return res.json(vollmachtAntwort(aktiv, true, null));
+    if (aktiv) return res.json({ ...vollmachtAntwort(aktiv, true, null), antraegeAn: frei });
     const letzte = await vollmachtLetzte(p.personId);
-    res.json(vollmachtAntwort(letzte, false, unterschriftPfad(unterschriftTokenErzeugen("vollmacht", p.personId))));
+    // Ohne Freischaltung (fiaon_settings.app_antraege_an) kein Unterschriftlink — der Bereich zeigt dann den Hinweis.
+    res.json({ ...vollmachtAntwort(letzte, false, frei ? unterschriftPfad(unterschriftTokenErzeugen("vollmacht", p.personId)) : null), antraegeAn: frei });
   } catch (e: any) {
     console.error("[APP] vollmacht:", e?.message || e);
     fehler(res, 500, "Ihre Vollmacht konnte gerade nicht geladen werden.");
@@ -743,6 +746,7 @@ async function naechsterOffenerAntrag(personId: number): Promise<{ id: number; a
 router.get("/app/unterschrift/:token", async (req: Request, res: Response) => {
   try {
     await ensureAntraegeTabellen();
+    if (!(await antraegeFreigeschaltet())) return res.status(403).json({ ok: false, zustand: "ungueltig", grund: "antraege_aus", error: "Die Unterschrift in der App und die Anträge aus Ihrem Bereich schalten wir gerade frei. Bis dahin bereitet Ihre Ansprechperson Anträge mit Ihnen im Gespräch vor." });
     const tk = unterschriftTokenPruefen(req.params.token);
     if (!tk) return res.status(400).json({ ok: false, zustand: "ungueltig" as Zustand, error: "Dieser Link ist ungültig." });
     // Ablauf ZUERST und ohne Dokument: Ein Token aus Mail, Browserverlauf oder
@@ -833,6 +837,7 @@ function signaturPruefen(roh: unknown): string | null {
 router.post("/app/unterschrift/:token", async (req: Request, res: Response) => {
   try {
     await ensureAntraegeTabellen();
+    if (!(await antraegeFreigeschaltet())) return res.status(403).json({ ok: false, zustand: "ungueltig", grund: "antraege_aus", error: "Die Unterschrift in der App und die Anträge aus Ihrem Bereich schalten wir gerade frei. Bis dahin bereitet Ihre Ansprechperson Anträge mit Ihnen im Gespräch vor." });
     const tk = unterschriftTokenPruefen(req.params.token);
     if (!tk) return res.status(400).json({ ok: false, zustand: "ungueltig" as Zustand, error: "Dieser Link ist ungültig." });
     if (tk.abgelaufen) return res.status(410).json({ ok: false, zustand: "abgelaufen" as Zustand, error: LINK_ABGELAUFEN });
@@ -1114,6 +1119,57 @@ router.post("/agent/app/vorgaenge/:id/notiz", requireAgent, async (req: AgentReq
   } catch (e: any) {
     console.error("[APP] notiz:", e?.message || e);
     fehler(res, 500, "Die Notiz konnte gerade nicht gespeichert werden. Bitte gleich noch einmal versuchen.");
+  }
+});
+
+// ── Mitarbeiter: lesen (Seite /agent/app-vorgaenge/:id) ────────────────────────
+/** GET /agent/app/vorgaenge/:id — der ganze Vorgang aus Mitarbeitersicht: Kunde, Stand, Dokumente, Verlauf, Schreiben. */
+router.get("/agent/app/vorgaenge/:id", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    await ensureAntraegeTabellen();
+    const v = await vorgangFuerAgent(req, res); if (!v) return;
+    const id = Number(v.id); const personId = Number(v.person_id);
+    const k = await kundeLaden(personId);
+    const [a] = (await sqlPool`SELECT a.ref, a.phone, a.email FROM fiaon_applications a WHERE a.person_id = ${personId} AND a.merged_into IS NULL ORDER BY a.created_at DESC LIMIT 1`.catch(() => [])) as any[];
+    const ereignisse = (await sqlPool`SELECT e.art, e.text, e.text_fuer_kunden, e.am, e.agent_id, ag.name AS agent_name FROM fiaon_vorgang_ereignisse e LEFT JOIN fiaon_agents ag ON ag.id = e.agent_id WHERE e.vorgang_id = ${id} ORDER BY e.am ASC, e.id ASC`) as any[];
+    const dokumente = (await sqlPool`SELECT id, art, dateiname, bytes, hochgeladen_am FROM fiaon_dokumente WHERE vorgang_id = ${id} AND geloescht_am IS NULL AND art <> 'schreiben_html' ORDER BY hochgeladen_am ASC`) as any[];
+    const regel = v.regel_schluessel ? REGELN.find((r) => r.schluessel === v.regel_schluessel) : null;
+    const schreibenHtml = String(v.art) === "brief" ? null : await schreibenHtmlLaden(id);
+    const name = k ? [k.vorname, k.nachname].filter(Boolean).join(" ").trim() : "";
+    res.json({
+      ok: true,
+      vorgang: {
+        id, art: v.art, artTitel: ART_TITEL[v.art] ?? v.art, titel: v.titel, stand: v.stand, standText: v.stand_text ?? null, aktenzeichen: v.aktenzeichen ?? null,
+        empfaengerName: v.empfaenger_name ?? null, empfaengerAdresse: v.empfaenger_adresse ?? null,
+        versandtAm: tag(v.versandt_am), fristAm: tag(v.frist_am), erinnertAm: tag(v.erinnert_am), eskaliertAm: tag(v.eskaliert_am), createdAt: tag(v.created_at),
+        notizKunde: v.notiz_kunde ?? null, betragCents: v.betrag_cents == null ? null : Number(v.betrag_cents), monatlich: v.monatlich == null ? null : !!v.monatlich,
+        kunde: { ref: a?.ref ?? "", name: name || (a?.ref ?? ""), personId, telefon: a?.phone ?? null, email: a?.email ?? null },
+        regel: regel ? { titel: regel.titel, stelle: regel.stelle, rechtsgrundlage: regel.rechtsgrundlage } : null,
+        dokumente: dokumente.map((d) => ({ id: Number(d.id), art: d.art, dateiname: d.dateiname, am: tag(d.hochgeladen_am), bytes: Number(d.bytes ?? 0) })),
+        zeitleiste: ereignisse.map((e) => ({ art: e.art, am: zeitText(e.am), text: e.text || EREIGNIS_SATZ[e.art] || e.art, textFuerKunden: e.text_fuer_kunden ?? null, agentName: e.agent_name ?? null })),
+        schreibenHtml,
+      },
+    });
+  } catch (e: any) {
+    console.error("[APP] agent vorgang:", e?.message || e);
+    fehler(res, 500, STOERUNG);
+  }
+});
+
+/** GET /agent/app/dokument/:id — ein Dokument aus dem Kundenbereich für den Mitarbeiter (PDF/HTML). */
+router.get("/agent/app/dokument/:id", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    await ensureAppTabellen();
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(404).end();
+    const [d] = (await sqlPool`SELECT dateiname, mime, inhalt FROM fiaon_dokumente WHERE id = ${id} AND geloescht_am IS NULL LIMIT 1`) as any[];
+    if (!d) return res.status(404).end();
+    res.setHeader("Content-Type", d.mime || "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${sauberName(d.dateiname, "dokument.pdf")}"`);
+    res.send(Buffer.from(d.inhalt));
+  } catch (e: any) {
+    console.error("[APP] agent dokument:", e?.message || e);
+    res.status(500).end();
   }
 });
 

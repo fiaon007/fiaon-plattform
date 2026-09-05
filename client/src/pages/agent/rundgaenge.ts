@@ -623,7 +623,47 @@ export const RUNDGANG_FIRMEN: RundgangSchritt[] = [
   },
 ];
 
+// 05.09.2026 (Kundenbereich /app, Scheibe 5): ein Vorgang des Kunden — Antrag oder Brief — aus Mitarbeitersicht.
+export const RUNDGANG_APP_VORGANG: RundgangSchritt[] = [
+  {
+    titel: "Das hier hat der Kunde selbst ausgelöst.",
+    text: "Ein Antrag, den der Kunde in seinem Bereich vorbereitet und mit dem Finger unterschrieben hat — oder ein "
+      + "Brief, den er fotografiert hat. Du bist der Mensch dazwischen: Du versendest, du quittierst, du trägst das "
+      + "Ergebnis ein. Nichts davon passiert automatisch, und der Kunde sieht jeden deiner Schritte sofort in seinem Bereich.",
+    tipp: "Öffne die Akte über den Kundennamen oben, wenn du den Zusammenhang brauchst — hier bleibt nur der eine Vorgang.",
+  },
+  {
+    ziel: ".av-stand",
+    titel: "Der Stand sagt dir, was als Nächstes dran ist.",
+    text: "„Unterschrieben — bitte versenden“ heißt: Das PDF liegt unten unter Dokumente, du schickst es an die Stelle und "
+      + "bestätigst den Versand. „Versandt“ heißt: Warten auf Antwort. „Überfällig“ heißt: Der Fristenwächter hat dir eine "
+      + "Aufgabe gegeben — frag bei der Stelle nach und trag es hier ein.",
+    tipp: "Das Datum „Wir fragen nach am“ ist unser eigener Termin, keine gesetzliche Frist. Setz es realistisch.",
+  },
+  {
+    ziel: ".av-form",
+    titel: "Jeder Satz hier landet wörtlich beim Kunden.",
+    text: "Was du in „Ein Satz für den Kunden“ oder „Zwei Sätze“ schreibst, steht Sekunden später in seinem Bereich unter "
+      + "Vorgänge — in Sie-Form. Sag, was wir tun und was als Nächstes passiert. Sag nicht, was ein Brief „bedeutet“, und "
+      + "versprich kein Ergebnis: Über Anspruch, Betrag, Karte und Rahmen entscheidet die Stelle oder die Bank.",
+    tipp: "Kurz und konkret: „Ihre Bank hat den höheren Freibetrag ab 1. Oktober bestätigt. Der Bescheid liegt in Ihrer Akte.“",
+  },
+  {
+    ziel: ".av-liste",
+    titel: "Dokumente: das Unterschriebene und das, was zurückkam.",
+    text: "Hier liegen das unterschriebene Schreiben als PDF, die Vollmacht und — wenn der Kunde geantwortet hat — der "
+      + "fotografierte Bescheid. Öffnen, prüfen, Ergebnis eintragen. Du musst nichts herunterladen oder ablegen; die Akte hat es.",
+  },
+  {
+    ziel: ".av-zeit",
+    titel: "Der Verlauf ist dieselbe Zeitleiste, die der Kunde sieht.",
+    text: "Jeder Punkt hier steht auch beim Kunden — mit Datum. Deshalb gibt es keine zwei Wahrheiten zwischen Telefon und "
+      + "Bildschirm: Was du hier siehst, sieht er auch.",
+  },
+];
+
 export const RUNDGAENGE: Record<string, { titel: string; schritte: RundgangSchritt[] }> = {
+  appVorgang: { titel: "Vorgang", schritte: RUNDGANG_APP_VORGANG },
   firmen:      { titel: "Firmenkunden", schritte: RUNDGANG_FIRMEN },
   pipeline:    { titel: "Pipeline",     schritte: RUNDGANG_PIPELINE },
   vertrieb:    { titel: "Leitung",      schritte: RUNDGANG_VERTRIEB },

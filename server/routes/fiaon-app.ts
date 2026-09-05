@@ -186,7 +186,7 @@ router.get("/kunde/:ref/app/ansprueche", requireKunde, async (req: KundeRequest,
     const p = await personFuerRef(req.kundeRef!);
     if (!p) return keinePerson(res);
     const [a, st] = await Promise.all([antwortenLaden(p.personId), anspruecheStand(p.personId)]);
-    res.json(checkAntwort(a, st));
+    res.json({ ...checkAntwort(a, st), antraegeAn: await antraegeFreigeschaltet() });
   } catch (e: any) {
     console.error("[APP] ansprueche laden:", e?.message || e);
     res.status(500).json({ ok: false, error: "Der Anspruchs-Check konnte gerade nicht geladen werden." });
@@ -216,12 +216,20 @@ router.post("/kunde/:ref/app/ansprueche", requireKunde, async (req: KundeRequest
     }
     const a = await antwortenLaden(p.personId);
     await befundeSpeichern(p.personId, befunde(a));
-    res.json(checkAntwort(a, await anspruecheStand(p.personId)));
+    res.json({ ...checkAntwort(a, await anspruecheStand(p.personId)), antraegeAn: await antraegeFreigeschaltet() });
   } catch (e: any) {
     console.error("[APP] ansprueche speichern:", e?.message || e);
     res.status(500).json({ ok: false, error: "Ihre Antwort konnte gerade nicht gespeichert werden. Bitte versuchen Sie es gleich noch einmal." });
   }
 });
+
+/** fiaon_settings.app_antraege_an = 'an' — sonst bleiben Vollmacht, Unterschrift und Anträge in der Demo (TFO-Vorgabe 05.09.). */
+export async function antraegeFreigeschaltet(): Promise<boolean> {
+  try {
+    const [r] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = 'app_antraege_an' LIMIT 1`) as any[];
+    return String(r?.value || "").trim().toLowerCase() === "an";
+  } catch { return false; }
+}
 
 /** fiaon_settings.app_brief_an = 'an' — sonst bleibt der Brief-Weg in der Demo. */
 async function briefFreigeschaltet(): Promise<boolean> {
@@ -364,6 +372,7 @@ router.get("/kunde/:ref/app/post", requireKunde, async (req: KundeRequest, res: 
     res.json({
       ok: true,
       briefAn: await briefFreigeschaltet(),
+      antraegeAn: await antraegeFreigeschaltet(),
       vorgaenge: zeilen.map((z) => ({
         id: Number(z.id), art: z.art, artText: ART_TEXT[z.art] ?? z.art, titel: z.titel, stand: z.stand,
         standText: z.stand_text || STAND_TEXT[z.stand] || z.stand, fristAm: tag(z.frist_am), versandtAm: tag(z.versandt_am),
@@ -403,12 +412,15 @@ router.get("/kunde/:ref/app/dokument/:id", requireKunde, async (req: KundeReques
 // Schalter ist der Not-Aus, falls das Team die Zwei-Werktage-Frist nicht hält.
 router.post("/admin/app/einstellung", async (req, res: Response) => {
   try {
-    const brief = String(req.body?.brief ?? "").trim().toLowerCase();
-    if (brief !== "an" && brief !== "aus") return res.status(400).json({ ok: false, error: "brief muss 'an' oder 'aus' sein." });
+    // { brief: "an"|"aus" } und/oder { antraege: "an"|"aus" } — mindestens eines.
+    const brief = req.body?.brief == null ? null : String(req.body.brief).trim().toLowerCase();
+    const antraege = req.body?.antraege == null ? null : String(req.body.antraege).trim().toLowerCase();
+    if (brief == null && antraege == null) return res.status(400).json({ ok: false, error: "brief oder antraege muss 'an' oder 'aus' sein." });
+    if ((brief != null && brief !== "an" && brief !== "aus") || (antraege != null && antraege !== "an" && antraege !== "aus")) return res.status(400).json({ ok: false, error: "Erlaubt sind nur 'an' oder 'aus'." });
     const { setSetting } = await import("./fiaon-agent");
-    await setSetting("app_brief_an", brief);
-    console.log(`[APP] Brief-Weg ${brief === "an" ? "FREIGESCHALTET" : "AUS"} (Verwaltung)`);
-    res.json({ ok: true, briefAn: brief === "an" });
+    if (brief != null) { await setSetting("app_brief_an", brief); console.log(`[APP] Brief-Weg ${brief === "an" ? "FREIGESCHALTET" : "AUS"} (Verwaltung)`); }
+    if (antraege != null) { await setSetting("app_antraege_an", antraege); console.log(`[APP] Anträge/Unterschrift ${antraege === "an" ? "FREIGESCHALTET" : "AUS"} (Verwaltung)`); }
+    res.json({ ok: true, briefAn: await briefFreigeschaltet(), antraegeAn: await antraegeFreigeschaltet() });
   } catch (e: any) {
     console.error("[APP] einstellung:", e?.message || e);
     res.status(500).json({ ok: false, error: "Serverfehler" });
@@ -420,7 +432,7 @@ router.post("/admin/app/einstellung", async (req, res: Response) => {
 // fehlt, sonst die nächste offene Rate. Drei Wege: Bank-App (Sofortzahlung über
 // den signierten Link aus fiaon-lastschrift.ts, wenn GoCardless konfiguriert ist),
 // Überweisung (Daten aus shared/fiaon-bank.ts + GiroCode) und Bankeinzug.
-// „Ich habe überwiesen" ist NUR ein Vermerk im Kontaktverlauf — nie claimed_paid,
+// „Ich habe überwiesen“ ist NUR ein Vermerk im Kontaktverlauf — nie claimed_paid,
 // nie eine Freischaltung (Hausgrundsatz 02.09.: 276 Behaupter ohne Geld).
 const VERMERK_ART = "kunde_zahlung_gemeldet";
 

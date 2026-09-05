@@ -688,6 +688,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Produktionsbetrieb; ein lokaler Dev-Server gegen die Produktions-DB legt beim
   // Hochfahren nichts an (erst beim ersten echten Aufruf, den es dort nicht gibt).
   if (process.env.NODE_ENV === 'production') fiaonApp.ensureAppTabellen().catch((e: any) => console.error('[APP] Tabellen:', e?.message || e));
+  // 📱 /APP Scheibe 5: Vollmacht, Fingerunterschrift, Anträge (Botenstellung), Dringend-Nachricht;
+  // öffentliche Unterschriftsseite über signierten Token. Freigabe Justin/Dr. Hepp 05.09.2026;
+  // Schalter fiaon_settings.app_antraege_an (Standard aus) — TFO schaltet frei.
+  const fiaonAppAntraege = await import('./routes/fiaon-app-antraege');
+  app.use('/api/fiaon', fiaonAppAntraege.default);
+  if (process.env.NODE_ENV === 'production') fiaonAppAntraege.ensureAntraegeTabellen().catch((e: any) => console.error('[APP] Antragstabellen:', e?.message || e));
+  // Fristenwächter: 7 Tage vor „Wir fragen nach am" eine Aufgabe, am Tag selbst Nachfrage-Auftrag,
+  // 7 Tage später Meldung an die Leitung. Erfindet keine Fristen — nur die vom Mitarbeiter beim
+  // Versand gesetzte. Läuft wie alle Tagesläufe nur bei CRONS=an/Produktion (fiaon-crons.ts).
+  import('./lib/fiaon-crons').then(({ tageslauf }) => {
+    tageslauf('fristenwaechter', async () => await (await import('./lib/fiaon-fristenwaechter')).fristenwaechterLauf(), 6 * 60 * 60 * 1000, { beimStartNach: 300_000 });
+  });
 
   // 💶 SEPA-Lastschrift über GoCardless (Scheibe 11): Mandat, 12-Raten-Abo, Webhook.
   const fiaonLastschrift = await import('./routes/fiaon-lastschrift');

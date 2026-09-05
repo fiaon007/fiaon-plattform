@@ -1,7 +1,7 @@
 // /app/mehr/hilfe — Hilfe (Bauvorlage 3.15): Ansprechperson, Nachricht schreiben
 // (bestehende Tickets-Endpunkte), Anruf-Termin wählen, bisherige Anliegen,
 // Telefon/E-Mail, häufige Fragen. Keine Rückruf-Zusage („meldet sich“), kein
-// Live-Chat — „Sie sehen die Antwort hier in Ihrem Bereich" (eine Antwort-Mail gibt es
+// Live-Chat — „Sie sehen die Antwort hier in Ihrem Bereich“ (eine Antwort-Mail gibt es
 // nicht: /agent/tickets/:id/antwort schreibt nur Ticket und Kontaktverlauf, Prüfung 05.09.).
 //
 // /app/mehr/termine — Termine (Bauvorlage 3.14): kommende mit Absage-Link,

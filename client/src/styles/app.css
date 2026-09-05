@@ -52,10 +52,8 @@ html.ap-scroll, html.ap-scroll body, html.ap-scroll #root {
 
 /* ── Kopf: helles Glas, schwebt ─────────────────────────────────────────── */
 .ap-kopf {
-  position: sticky; top: 0; z-index: 20;
-  background: var(--fi-glas);
-  -webkit-backdrop-filter: var(--fi-glas-filter); backdrop-filter: var(--fi-glas-filter);
-  border-bottom: 1px solid var(--fi-glas-linie);
+  position: static;
+  background: transparent;
   padding-top: env(safe-area-inset-top, 0px);
 }
 .ap-kopf-innen {
@@ -71,10 +69,10 @@ html.ap-scroll, html.ap-scroll body, html.ap-scroll #root {
   font-family: Outfit, Inter, sans-serif; font-weight: 800; font-size: 15px; letter-spacing: -0.02em;
   box-shadow: 0 4px 12px rgba(40, 141, 250, 0.28);
 }
-.ap-marke-wort { font-family: Outfit, Inter, sans-serif; font-weight: 700; font-size: 17px; letter-spacing: -0.01em; color: var(--ap-navy); }
+.ap-marke-wort { font-family: Inter, sans-serif; font-weight: 500; font-size: 17px; letter-spacing: 0.02em; color: var(--ap-navy); }
 .ap-kopf-rechts { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--fi-text-leise); }
 .ap-avatar {
-  width: 36px; height: 36px; border-radius: 50%;
+  width: 44px; height: 44px; border-radius: 50%;
   background: #fff; border: 1px solid var(--fi-linie);
   display: grid; place-items: center;
   font-family: Outfit, Inter, sans-serif; font-weight: 700; font-size: 14px; color: var(--ap-navy);
@@ -91,29 +89,29 @@ html.ap-scroll, html.ap-scroll body, html.ap-scroll #root {
   margin: 0; padding: 0 2px;
   font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fi-text-still);
 }
-.ap-gruss { margin: 4px 2px 0; font-family: Outfit, Inter, sans-serif; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; color: var(--ap-navy); }
-.ap-gruss small { display: block; font-family: Inter, sans-serif; font-size: 14px; font-weight: 400; color: var(--fi-text-leise); margin-top: 2px; letter-spacing: 0; }
+.ap-gruss { margin: 4px 2px 0; font-family: Inter, system-ui, sans-serif; font-size: 26px; font-weight: 400; letter-spacing: -0.015em; line-height: 1.2; color: var(--fi-text); }
+.ap-gruss small { display: block; font-family: Inter, sans-serif; font-size: 17px; line-height: 1.45; font-weight: 400; color: var(--fi-text-leise); margin-top: 6px; letter-spacing: 0; }
 
 /* Karten: massiv weiß, Schatten mit Blauanteil */
 .ap-karte {
-  background: var(--fi-karte); border: 1px solid var(--fi-linie); border-radius: 18px;
+  background: var(--fi-karte); border: 1px solid var(--fi-linie); border-radius: var(--fi-radius-karte, 14px);
   box-shadow: var(--fi-schatten-ruhe); padding: 16px;
 }
 .ap-karte + .ap-karte { margin-top: 0; }
 .ap-karte-kopf { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-.ap-karte h3 { margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
-.ap-karte p { margin: 6px 0 0; color: var(--fi-text-leise); font-size: 15px; }
+.ap-karte h3 { margin: 0; font-size: 17px; font-weight: 500; letter-spacing: -0.01em; line-height: 1.35; }
+.ap-karte p { margin: 6px 0 0; color: var(--fi-text-leise); font-size: 16px; line-height: 1.5; }
 .ap-stempel { font-size: 12px; color: var(--fi-text-still); text-align: right; flex: none; max-width: 45%; }
 
 /* ── DAS EINE Navy-Glas: die Zielkarte ──────────────────────────────────── */
 .ap-ziel {
   position: relative; overflow: hidden;
-  border-radius: 22px; padding: 20px 18px 18px;
+  border-radius: var(--fi-radius-ebene, 20px); padding: 20px 18px 18px;
   color: #fff;
   background:
-    radial-gradient(120% 90% at 100% 0%, rgba(40, 141, 250, 0.45), transparent 60%),
-    linear-gradient(160deg, var(--ap-navy) 0%, var(--ap-navy-hell) 100%);
-  box-shadow: 0 18px 44px rgba(26, 39, 68, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+    radial-gradient(90% 70% at 100% 0%, rgba(40, 141, 250, 0.38), transparent 62%),
+    linear-gradient(160deg, #0B1220 0%, #1A2744 100%);
+  box-shadow: var(--fi-schatten-schwebend), inset 0 1px 0 rgba(255, 255, 255, 0.14);
   border: 1px solid rgba(255, 255, 255, 0.10);
 }
 .ap-ziel::after {
@@ -122,25 +120,40 @@ html.ap-scroll, html.ap-scroll body, html.ap-scroll #root {
   background: linear-gradient(115deg, transparent 40%, rgba(255, 255, 255, 0.07) 50%, transparent 60%);
   pointer-events: none;
 }
+/* Helle Variante für „Ihr Weg": dieselbe Komponente, weiß — das Navy-Glas gibt es
+   nur auf Start (Justins Regel: Navy an EINER Stelle). */
+.ap-ziel.hell { color: var(--fi-text); background: var(--fi-karte); border: 1px solid var(--fi-linie); box-shadow: var(--fi-schatten-ruhe); }
+.ap-ziel.hell::after { display: none; }
+.ap-ziel.hell .ap-ziel-ueber, .ap-ziel.hell .ap-ziel-unter, .ap-ziel.hell .ap-ziel-stand span, .ap-ziel.hell .ap-ziel-hinweis { color: var(--fi-text-leise); }
+.ap-ziel.hell .ap-ziel-unter b { color: var(--fi-text); }
+.ap-ziel.hell .ap-ziel-zahl small { color: var(--fi-text-leise); }
+.ap-ziel.hell .ap-stufe { background: var(--fi-linie); }
+.ap-ziel.hell .ap-stufe.fertig { background: var(--fi-primaer); }
+.ap-ziel.hell .ap-stufe.jetzt { border-color: var(--fi-primaer); background: transparent; }
+.ap-ziel.hell .ap-ziel-hinweis { border-top-color: var(--fi-linie); }
 .ap-ziel-ueber { font-size: 12px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255, 255, 255, 0.72); }
 .ap-ziel-zahl {
-  margin-top: 6px; font-family: Outfit, Inter, sans-serif; font-weight: 700; letter-spacing: -0.03em;
-  font-size: 44px; line-height: 1; font-variant-numeric: tabular-nums;
+  margin-top: 6px; font-family: Outfit, Inter, sans-serif; font-weight: 300; letter-spacing: -0.02em;
+  font-size: 40px; line-height: 1.05; font-variant-numeric: tabular-nums;
 }
-.ap-ziel-zahl small { font-size: 22px; font-weight: 600; margin-left: 4px; color: rgba(255, 255, 255, 0.85); }
+.ap-ziel-zahl small { font-size: 22px; font-weight: 300; margin-left: 4px; color: rgba(255, 255, 255, 0.85); }
+.ap-ziel-titel { font-family: Inter, sans-serif; font-weight: 400; font-size: 26px; letter-spacing: -0.015em; margin-top: 4px; line-height: 1.2; }
 .ap-ziel-unter { margin-top: 6px; font-size: 14px; color: rgba(255, 255, 255, 0.78); }
 .ap-ziel-unter b { color: #fff; font-weight: 600; }
 
-.ap-stufen { display: flex; gap: 5px; margin-top: 18px; }
-.ap-stufe { flex: 1; height: 6px; border-radius: 4px; background: rgba(255, 255, 255, 0.16); position: relative; overflow: hidden; }
-.ap-stufe.fertig { background: #fff; }
-.ap-stufe.jetzt::before {
-  content: ""; position: absolute; inset: 0; width: 50%; border-radius: 4px; background: var(--ap-blau);
-  animation: ap-atmen 2.4s ease-in-out infinite;
-}
-@keyframes ap-atmen { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+.ap-stufen { display: flex; gap: 3px; margin-top: 18px; }
+.ap-stufe { flex: 1; height: 12px; border-radius: 4px; background: rgba(255, 255, 255, 0.14); position: relative; overflow: hidden; box-sizing: border-box; }
+.ap-stufe.fertig { background: var(--ap-blau); }
+.ap-stufe.fertig.verspaetet { background: repeating-linear-gradient(135deg, var(--ap-blau) 0 4px, rgba(255,255,255,0.35) 4px 6px); }
+.ap-stufe.jetzt { background: transparent; border: 2px solid var(--ap-blau); }
+/* Füllen beim ersten Erscheinen je Sitzung — einmal, von links, 40 ms Versatz (Bereich.tsx setzt .ap-fuellt) */
+.ap-fuellt .ap-stufe.fertig { animation: ap-fuellen var(--fi-element, 280ms) var(--fi-kurve, ease) both; animation-delay: calc(var(--i, 0) * 40ms); transform-origin: left center; }
+@keyframes ap-fuellen { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.ap-stufen.hell .ap-stufe { background: var(--fi-linie); }
+.ap-stufen.hell .ap-stufe.fertig { background: var(--fi-primaer); }
+.ap-stufen.hell .ap-stufe.jetzt { background: transparent; border-color: var(--fi-primaer); }
 .ap-ziel-stand { margin-top: 10px; display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 14px; }
-.ap-ziel-stand b { font-family: Outfit, Inter, sans-serif; font-size: 16px; font-weight: 600; }
+.ap-ziel-stand b { font-family: Inter, sans-serif; font-size: 16px; font-weight: 500; }
 .ap-ziel-stand span { color: rgba(255, 255, 255, 0.72); }
 .ap-ziel-hinweis { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, 0.12); font-size: 13px; color: rgba(255, 255, 255, 0.72); }
 
@@ -172,8 +185,8 @@ html.ap-scroll, html.ap-scroll body, html.ap-scroll #root {
 .ap-etappe .ap-stempel { margin-top: 3px; max-width: 104px; white-space: normal; }
 
 /* ── Kennzahl (Rate, Betrag) ────────────────────────────────────────────── */
-.ap-zahl { font-family: Outfit, Inter, sans-serif; font-weight: 700; font-size: 28px; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
-.ap-zahl small { font-size: 15px; font-weight: 500; color: var(--fi-text-leise); margin-left: 6px; letter-spacing: 0; }
+.ap-zahl { font-family: Outfit, Inter, sans-serif; font-weight: 300; font-size: 40px; letter-spacing: -0.02em; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.ap-zahl small { font-family: Inter, sans-serif; font-size: 15px; font-weight: 400; color: var(--fi-text-leise); margin-left: 8px; letter-spacing: 0; }
 .ap-zeile { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 14px; color: var(--fi-text-leise); }
 .ap-zeile + .ap-zeile { margin-top: 6px; }
 .ap-zeile b { color: var(--fi-text); font-weight: 600; text-align: right; }
@@ -187,8 +200,8 @@ html.ap-scroll, html.ap-scroll body, html.ap-scroll #root {
 /* ── Schaltflächen ──────────────────────────────────────────────────────── */
 .ap-knopf {
   display: flex; align-items: center; justify-content: center; gap: 8px;
-  width: 100%; min-height: 52px; padding: 0 18px; border-radius: 14px; border: 0; cursor: pointer;
-  font-weight: 600; font-size: 16px; letter-spacing: -0.005em; text-decoration: none;
+  width: 100%; min-height: 52px; padding: 0 18px; border-radius: var(--fi-radius-knopf, 10px); border: 0; cursor: pointer;
+  font-weight: 400; font-size: 17px; letter-spacing: 0; text-decoration: none;
   background: var(--fi-verlauf-primaer); color: #fff;
   box-shadow: 0 8px 20px rgba(29, 78, 216, 0.24), var(--fi-glanzkante);
   transition: transform 0.12s ease, box-shadow 0.12s ease;
@@ -211,14 +224,77 @@ html.ap-scroll, html.ap-scroll body, html.ap-scroll #root {
 }
 .ap-bar-innen { max-width: var(--ap-spalte); margin: 0 auto; height: var(--ap-bar); display: grid; grid-template-columns: repeat(5, 1fr); }
 .ap-reiter {
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
-  text-decoration: none; color: var(--fi-text-still); font-size: 11.5px; font-weight: 600; letter-spacing: 0.01em;
-  -webkit-tap-highlight-color: transparent;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 56px;
+  text-decoration: none; color: var(--fi-text-still); font-size: 12px; font-weight: 500; letter-spacing: 0.01em;
+  -webkit-tap-highlight-color: transparent; position: relative;
 }
+/* Der Brief-Reiter ist die eine Handlung in der Leiste: erhaben, Kamera-Symbol, hebt sich beim Antippen 2 px. */
+.ap-reiter.brief svg { width: 28px; height: 28px; }
+.ap-reiter.brief .ap-reiter-kreis {
+  width: 52px; height: 52px; border-radius: 50%; margin-top: -22px; display: grid; place-items: center; color: #fff;
+  background: var(--fi-verlauf-primaer); box-shadow: 0 8px 20px rgba(29, 78, 216, 0.28), var(--fi-glanzkante);
+  transition: transform var(--fi-mikro, 120ms) var(--fi-kurve, ease);
+}
+.ap-reiter.brief:active .ap-reiter-kreis { transform: translateY(2px); }
+.ap-reiter.brief span { color: var(--fi-text); }
 .ap-reiter svg { width: 24px; height: 24px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .ap-reiter.aktiv { color: var(--fi-primaer); }
 .ap-reiter.aktiv svg { stroke-width: 2.2; }
 .ap-reiter .ap-badge { position: absolute; }
+
+/* ── Aktionsleiste: der eine Primärknopf, schwebt über der Bottom-Bar ────── */
+.ap-aktion {
+  position: fixed; left: 0; right: 0; bottom: calc(var(--ap-bar) + env(safe-area-inset-bottom, 0px)); z-index: 29;
+  background: var(--fi-glas); -webkit-backdrop-filter: var(--fi-glas-filter); backdrop-filter: var(--fi-glas-filter);
+  border-top: 1px solid var(--fi-glas-linie); padding: 10px var(--ap-rand);
+}
+.ap-aktion-innen { max-width: var(--ap-spalte); margin: 0 auto; }
+.ap-aktion .ap-knopf { min-height: 56px; }
+.ap-root.mit-aktion { padding-bottom: calc(var(--ap-bar) + 76px + env(safe-area-inset-bottom, 0px) + 16px); }
+
+/* ── Ruhe-Zeile ─────────────────────────────────────────────────────────── */
+.ap-ruhe { margin: 0 2px; font-size: 17px; line-height: 1.5; color: var(--fi-text-leise); }
+.ap-ruhe b { color: var(--fi-text); font-weight: 500; }
+
+/* ── Definitionslisten, Befunde, Meldungen, Fragefluss ──────────────────── */
+.ap-liste { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 12px; margin: 10px 0 0; font-size: 14px; }
+.ap-liste dt { color: var(--fi-text-still); }
+.ap-liste dd { margin: 0; color: var(--fi-text); overflow-wrap: anywhere; }
+.ap-befund-betrag { margin-top: 8px; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 22px; font-variant-numeric: tabular-nums; }
+.ap-befund-betrag small { font-family: Inter, sans-serif; font-size: 14px; color: var(--fi-text-leise); margin-left: 8px; }
+.ap-befund-offen { font-family: Inter, sans-serif; font-size: 15px; color: var(--fi-text-leise); }
+.ap-meldung { margin-top: 12px; padding: 12px 14px; border-radius: 10px; background: #fff; border: 1px solid var(--fi-linie); border-left: 3px solid var(--fi-text-still); font-size: 15px; line-height: 1.45; }
+.ap-meldung.gut { border-left-color: var(--fi-erfolg); }
+.ap-meldung.fehler { border-left-color: var(--fi-fehler); }
+.ap-fuss { margin: 8px 2px 0; font-size: 13px; line-height: 1.5; color: var(--fi-text-still); }
+.ap-frage { display: grid; gap: 10px; }
+.ap-frage-text { margin: 18px 0 0; font-family: Inter, sans-serif; font-size: 24px; font-weight: 500; line-height: 1.25; letter-spacing: -0.01em; }
+.ap-frage-warum { margin: 0; font-size: 16px; color: var(--fi-text-leise); line-height: 1.5; }
+.ap-frage-antwort { margin-top: 12px; display: grid; gap: 10px; }
+.ap-frage .ap-knopf { min-height: 56px; }
+.ap-wahl { display: grid; gap: 10px; }
+.ap-datei { display: block; margin-top: 10px; }
+.ap-datei .ap-knopf { display: inline-flex; width: auto; max-width: 100%; }
+.ap-datei .ap-knopf span, .ap-datei .ap-knopf { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ap-linkliste { display: grid; padding: 0; overflow: hidden; }
+.ap-linkliste a { display: flex; align-items: center; justify-content: space-between; min-height: 56px; padding: 0 16px; text-decoration: none; border-top: 1px solid var(--fi-linie); font-size: 16px; }
+.ap-linkliste a:first-child { border-top: 0; }
+.ap-linkliste a::after { content: "›"; color: var(--fi-text-still); font-size: 20px; }
+.ap-segment { display: grid; grid-template-columns: 1fr 1fr; background: #fff; border: 1px solid var(--fi-linie); border-radius: 10px; padding: 3px; }
+.ap-segment button { min-height: 44px; border: 0; border-radius: 8px; background: transparent; font-size: 15px; color: var(--fi-text-leise); cursor: pointer; }
+.ap-segment button.aktiv { background: var(--fi-flaeche-akzent); color: var(--fi-primaer); font-weight: 500; box-shadow: inset 0 0 0 1px rgba(29, 78, 216, 0.18); }
+.ap-vorgang { border-left: 3px solid var(--fi-linie); }
+.ap-vorgang.wartet { border-left-color: var(--fi-primaer); }
+.ap-vorgang.ueberfaellig { border-left-color: var(--fi-warnung); }
+.ap-kamera { display: grid; place-items: center; gap: 8px; min-height: 220px; border: 2px dashed var(--fi-linie-hover); border-radius: var(--fi-radius-karte, 14px); background: #fff; color: var(--fi-text-leise); cursor: pointer; text-align: center; padding: 20px; }
+.ap-kamera svg { width: 44px; height: 44px; stroke: var(--fi-primaer); fill: none; stroke-width: 1.6; }
+.ap-vorschau { width: 100%; max-height: 60vh; object-fit: contain; border-radius: var(--fi-radius-karte, 14px); border: 1px solid var(--fi-linie); background: #fff; }
+.ap-check { display: flex; gap: 12px; align-items: flex-start; font-size: 15px; line-height: 1.45; }
+.ap-check input { width: 22px; height: 22px; margin: 2px 0 0; accent-color: var(--fi-primaer); flex: none; }
+.ap-haken { width: 64px; height: 64px; margin: 8px auto 0; display: block; }
+.ap-haken circle { fill: none; stroke: var(--fi-erfolg); stroke-width: 2; }
+.ap-haken path { fill: none; stroke: var(--fi-erfolg); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 40; stroke-dashoffset: 40; animation: ap-haken var(--fi-ebene, 400ms) var(--fi-kurve, ease) forwards; }
+@keyframes ap-haken { to { stroke-dashoffset: 0; } }
 
 /* ── Login ──────────────────────────────────────────────────────────────── */
 .ap-login {
@@ -230,14 +306,14 @@ html.ap-scroll, html.ap-scroll body, html.ap-scroll #root {
 }
 .ap-login-kopf { max-width: 420px; margin: 0 auto; width: 100%; padding: 22px 0 8px; display: flex; justify-content: space-between; align-items: center; }
 .ap-login-mitte { max-width: 420px; margin: 0 auto; width: 100%; display: grid; align-content: center; gap: 18px; padding: 12px 0 24px; }
-.ap-login h1 { margin: 0; font-family: Outfit, Inter, sans-serif; font-size: 30px; font-weight: 700; letter-spacing: -0.03em; color: var(--ap-navy); line-height: 1.1; }
+.ap-login h1 { margin: 0; font-family: Inter, sans-serif; font-size: 28px; font-weight: 400; letter-spacing: -0.015em; color: var(--fi-text); line-height: 1.15; }
 .ap-login h1 span { color: var(--fi-primaer); }
-.ap-login-lead { margin: 8px 0 0; color: var(--fi-text-leise); font-size: 15px; }
+.ap-login-lead { margin: 8px 0 0; color: var(--fi-text-leise); font-size: 17px; line-height: 1.5; }
 .ap-login form { display: grid; gap: 14px; }
 .ap-feld { display: grid; gap: 6px; }
 .ap-feld > span { display: flex; justify-content: space-between; font-size: 13.5px; font-weight: 600; color: var(--fi-text-leise); }
 .ap-feld input {
-  width: 100%; min-height: 52px; padding: 0 14px; border-radius: 14px;
+  width: 100%; min-height: 56px; padding: 0 14px; border-radius: var(--fi-radius-knopf, 10px); font-size: 17px;
   border: 1px solid var(--fi-linie); background: #fff; color: var(--fi-text); font-size: 16px;
   box-shadow: var(--fi-schatten-ruhe); outline: none; transition: border-color 0.12s, box-shadow 0.12s;
 }
@@ -267,7 +343,7 @@ html.ap-scroll, html.ap-scroll body, html.ap-scroll #root {
 .ap-auf { animation: ap-auf 0.42s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
 .ap-auf.v1 { animation-delay: 0.05s; } .ap-auf.v2 { animation-delay: 0.10s; } .ap-auf.v3 { animation-delay: 0.15s; } .ap-auf.v4 { animation-delay: 0.20s; }
 @keyframes ap-auf { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .ap-auf, .ap-stufe.jetzt::before, .ap-skelett { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .ap-auf, .ap-fuellt .ap-stufe.fertig, .ap-skelett { animation: none; } }
 
 @media (min-width: 720px) {
   .ap-root { --ap-rand: 24px; }

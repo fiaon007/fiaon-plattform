@@ -672,6 +672,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonKundeBereich = await import('./routes/fiaon-kunde-bereich');
   app.use('/api/fiaon', fiaonKundeBereich.default);
 
+  // 📱 /APP — Serverseite des neuen Kundenbereichs (E-150, Scheibe 2): Anspruchs-
+  // Check, Brief-Knopf, Post. Liest den Stand weiter aus fiaon-kunde-bereich.
+  const fiaonApp = await import('./routes/fiaon-app');
+  app.use('/api/fiaon', fiaonApp.default);
+  // Tabellen (db/migrations/080) EINMAL beim Start anlegen — idempotent. Nur im
+  // Produktionsbetrieb; ein lokaler Dev-Server gegen die Produktions-DB legt beim
+  // Hochfahren nichts an (erst beim ersten echten Aufruf, den es dort nicht gibt).
+  if (process.env.NODE_ENV === 'production') fiaonApp.ensureAppTabellen().catch((e: any) => console.error('[APP] Tabellen:', e?.message || e));
+
   // 💶 SEPA-Lastschrift über GoCardless (Scheibe 11): Mandat, 12-Raten-Abo, Webhook.
   const fiaonLastschrift = await import('./routes/fiaon-lastschrift');
   app.use('/api/fiaon', fiaonLastschrift.default);

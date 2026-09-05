@@ -21,6 +21,9 @@ export default function AppLogin() {
   const [laeuft, setLaeuft] = useState(false);
   const [schonDrin, setSchonDrin] = useState<{ ref: string; vorname: string | null } | null>(null);
 
+  // ?weiter=/app/… — nach dem Login zurück dorthin, wo der Kunde hinwollte (Mail-Links).
+  const weiter = (() => { try { const w = new URLSearchParams(window.location.search).get("weiter") || ""; return w.startsWith("/app") && !w.startsWith("/app/login") ? w : "/app"; } catch { return "/app"; } })();
+
   useEffect(() => {
     document.title = "Anmelden · FIAON";
     fetch("/api/fiaon/kunde/me", { credentials: "include" })
@@ -38,7 +41,7 @@ export default function AppLogin() {
         setProblem({ code: data?.code, error: data?.error || "Anmeldung derzeit nicht möglich.", hint: data?.hint, action: data?.action, actionHref: data?.actionHref, retryable: data?.retryable });
         setLaeuft(false); return;
       }
-      window.location.href = "/app";
+      window.location.href = weiter;
     } catch {
       setProblem({ error: "Wir konnten den Server gerade nicht erreichen.", hint: "Ihre Anmeldedaten sind in Ordnung. Bitte versuchen Sie es in einem Moment noch einmal.", retryable: true });
       setLaeuft(false);
@@ -57,14 +60,14 @@ export default function AppLogin() {
 
       <main className="ap-login-mitte">
         <div className="ap-auf">
-          <h1>Ihr Weg zur Karte<br /><span>beginnt hier.</span></h1>
-          <p className="ap-login-lead">Ihr Ziel, Ihr Stand, Ihr nächster Schritt – auf einen Blick.</p>
+          <h1>Guten Tag.</h1>
+          <p className="ap-login-lead">Melden Sie sich mit der E-Mail-Adresse aus Ihrem Antrag an.</p>
         </div>
 
         {schonDrin && (
-          <a href="/app" className="ap-karte ap-drin ap-auf v1">
-            <span>Sie sind noch angemeldet{schonDrin.vorname ? `, ${schonDrin.vorname}` : ""}.</span>
-            <b>Weiter →</b>
+          <a href={weiter} className="ap-karte ap-drin ap-auf v1">
+            <span>Sie sind angemeldet{schonDrin.vorname ? ` als ${schonDrin.vorname}` : ""}.</span>
+            <b>Weiter zu meinem Bereich →</b>
           </a>
         )}
 
@@ -83,7 +86,7 @@ export default function AppLogin() {
           </label>
           <label className="ap-bleiben">
             <input type="checkbox" checked={bleiben} onChange={(e) => setBleiben(e.target.checked)} />
-            <span><b>Angemeldet bleiben</b>30 Tage auf diesem Gerät. Auf fremden Geräten bitte abwählen.</span>
+            <span><b>Angemeldet bleiben</b>30 Tage auf diesem Gerät, nicht auf fremden Geräten.</span>
           </label>
 
           {problem && (
@@ -94,12 +97,14 @@ export default function AppLogin() {
             </div>
           )}
 
-          <button type="submit" className="ap-knopf" disabled={laeuft}>{laeuft ? "Wird geprüft …" : "Anmelden"}</button>
+          <button type="submit" className="ap-knopf" style={{ minHeight: 56, position: "sticky", bottom: 8 }} disabled={laeuft}>{laeuft ? "Einen Moment …" : "Anmelden"}</button>
+          <p className="ap-fuss" style={{ textAlign: "center", marginTop: 4 }}>Passwort vergessen? <a className="ap-link" href="/passwort-vergessen">Passwort neu setzen</a></p>
         </form>
       </main>
 
       <footer className="ap-login-fuss">
-        Verschlüsselt · Server in der EU · <a href="/datenschutz">Datenschutz</a>
+        Noch kein Zugang? Ihr Zugang entsteht mit Ihrem <a href="/antrag">Antrag</a>. · <a href="/app/demo">Sehen, wie der Bereich aussieht</a><br />
+        <a href="/impressum">Impressum</a> · <a href="/datenschutz">Datenschutz</a> · <a href="mailto:support@fiaon.com">support@fiaon.com</a>
       </footer>
     </div>
   );

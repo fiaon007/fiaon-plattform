@@ -33,6 +33,11 @@
  * Frage „was ist beim letzten Anruf tatsächlich übergeben worden" — deshalb
  * schreibt die TwiML-Route es auf.
  */
+// 05.09.2026: Die Diagnose verglich gegen www.fiaon.com (PUBLIC_BASE_URL gibt es
+// nicht); die Plattform läuft unter APP_BASE_URL = https://fiaon.com, www leitet
+// um. Eine Quelle für beide — sonst meldet die Diagnose Fehler, wo keiner ist.
+import { fiaonBaseUrl } from "../fiaon-base-url";
+
 export async function letztenTwimlAufrufMerken(daten: {
   an: string; roh: Record<string, unknown>;
 }): Promise<void> {
@@ -100,7 +105,7 @@ async function voice(pfad: string): Promise<{ status: number; body: any }> {
 
 /** Die Adresse, auf die die TwiML-App zeigen MUSS. */
 export function twimlSollUrl(): string {
-  const basis = process.env.PUBLIC_BASE_URL || "https://www.fiaon.com";
+  const basis = fiaonBaseUrl();
   return `${basis.replace(/\/+$/, "")}/api/fiaon/telefon/twiml`;
 }
 
@@ -392,8 +397,8 @@ export async function telefonDiagnose(): Promise<{
       an: "+4930111111111",
       von: env("TWILIO_CALLER_ID"),
       ansage: await ansageText(),
-      aufnahmeCallback: `${(process.env.PUBLIC_BASE_URL || "https://www.fiaon.com").replace(/\/+$/, "")}/api/fiaon/telefon/aufnahme`,
-      statusCallback: `${(process.env.PUBLIC_BASE_URL || "https://www.fiaon.com").replace(/\/+$/, "")}/api/fiaon/telefon/status`,
+      aufnahmeCallback: `${fiaonBaseUrl()}/api/fiaon/telefon/aufnahme`,
+      statusCallback: `${fiaonBaseUrl()}/api/fiaon/telefon/status`,
       // ── DIESES FELD FEHLTE (aufgefallen am 31.08.2026) ──────────────────
       // `twimlAusgehend` verlangt es seit der Umstellung, bei der die Ansage
       // dem KUNDEN vorgelesen wird und nicht mehr dem Agenten. Der Typcheck
@@ -404,7 +409,7 @@ export async function telefonDiagnose(): Promise<{
       // ohne Ansage-Adresse), aber sie zeigte damit ein anderes Ergebnis als
       // der echte Anruf — und eine Diagnose, die etwas anderes prüft als das,
       // was läuft, ist schlimmer als keine.
-      ansageUrl: `${(process.env.PUBLIC_BASE_URL || "https://www.fiaon.com").replace(/\/+$/, "")}/api/fiaon/telefon/ansage`,
+      ansageUrl: `${fiaonBaseUrl()}/api/fiaon/telefon/ansage`,
     });
     const hatDial = /<Dial\s/.test(probe);
     const hatNummer = /<Number>\+\d/.test(probe);
@@ -423,7 +428,7 @@ export async function telefonDiagnose(): Promise<{
             + "einen Ruf ohne gültige Absendernummer ab."
           : hatDial && hatNummer
             ? `Wohlgeformt: <Dial callerId="${env("TWILIO_CALLER_ID")}"> mit <Number>. `
-              + `Aufnahme und Status zeigen auf ${process.env.PUBLIC_BASE_URL || "https://www.fiaon.com"}.`
+              + `Aufnahme und Status zeigen auf ${fiaonBaseUrl()}.`
             : "Die Antwort enthält kein wählbares <Dial> mit <Number>.",
       rat: hatDial && hatNummer && !leereId ? undefined
         : "TWILIO_CALLER_ID muss eine Nummer in internationaler Schreibweise sein "

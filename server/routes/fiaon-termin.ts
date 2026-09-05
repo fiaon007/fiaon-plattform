@@ -893,253 +893,254 @@ router.post("/agent/termine/:id/verschieben", requireAgent, async (req: AgentReq
   }
 });
 
-router.post("/agent/termine/:id/uebergeben", requireAgent, async (req: AgentRequest, res: Response) => {
-  try {
-    const id = Number(req.params.id);
-    const zielId = Number(req.body?.agentId);
-    const grund = String(req.body?.grund ?? "").trim();
-    if (!zielId) return res.status(400).json({ ok: false, error: "Bitte einen Kollegen auswählen." });
-    if (grund.length < 5) {
-      return res.status(400).json({
-        ok: false,
-        error: "Bitte in einem Satz sagen, warum du übergibst — der Kollege liest ihn morgen früh.",
-      });
-    }
-
-    const [termin] = (await sqlPool`
-      SELECT id, person_id, agent_id, beginn, quelle, status, storno_token
-      FROM fiaon_termine WHERE id = ${id} AND abgesagt_am IS NULL
-    `) as any[];
-    if (!termin) return res.status(404).json({ ok: false, error: "Termin nicht gefunden." });
-    if (Number(termin.agent_id) === zielId) {
-      return res.status(400).json({ ok: false, error: "Der Termin liegt schon bei diesem Kollegen." });
-    }
-
-    const { rolleVon } = await import("../lib/fiaon-kundenzugriff");
-    const rolle = await rolleVon(req.agent!.id);
-    const darf = Number(termin.agent_id) === req.agent!.id
-      || ["vertriebsleiter", "admin"].includes(rolle);
-    if (!darf) {
-      return res.status(403).json({
-        ok: false,
-        error: "Diesen Termin kann nur sein Zuständiger oder die Leitung übergeben.",
-      });
-    }
-
-    const [ziel] = (await sqlPool`
-      SELECT id, COALESCE(NULLIF(first_name, ''), name) AS vorname, name, rolle, active, email
-      FROM fiaon_agents
-      WHERE id = ${zielId} AND active AND NOT COALESCE(is_test_account, FALSE)
-    `) as any[];
-    if (!ziel) return res.status(404).json({ ok: false, error: "Diesen Kollegen gibt es nicht (mehr)." });
-
-    // ── 04.09.2026 (E-120): HAT DER KOLLEGE ZUR TERMINZEIT ZEIT? ──────────
-    // Florentine: „Wenn ein Mitarbeiter nicht verfügbar ist, sollte das System
-    // die Buchung blockieren." Eine Übergabe ist eine Buchung beim Kollegen.
-    // Geprüft wird dieselbe Tabelle, gegen die der Kunde bucht
-    // (fiaon_agent_verfuegbarkeit) — nicht der Wochenplan der Anwesenheit.
-    // Keine Zeiten hinterlegt = nicht verfügbar. Die Leitung darf mit
-    // `trotzdem: true` übersteuern (Krankheit, Vertretung) — dann steht es im Grund.
-    const [vf] = (await sqlPool`
-      SELECT EXISTS (SELECT 1 FROM fiaon_agent_verfuegbarkeit v WHERE v.agent_id = ${zielId} AND COALESCE(v.aktiv, TRUE)) AS hat_zeiten,
-             EXISTS (
-               SELECT 1 FROM fiaon_agent_verfuegbarkeit v
-                WHERE v.agent_id = ${zielId} AND COALESCE(v.aktiv, TRUE)
-                  AND v.wochentag = EXTRACT(ISODOW FROM (${termin.beginn}::timestamptz AT TIME ZONE 'Europe/Berlin'))::smallint
-                  AND (${termin.beginn}::timestamptz AT TIME ZONE 'Europe/Berlin')::time >= v.von
-                  AND (${termin.beginn}::timestamptz AT TIME ZONE 'Europe/Berlin')::time < v.bis
-             ) AS frei,
-             EXISTS (SELECT 1 FROM fiaon_termine x WHERE x.agent_id = ${zielId} AND x.beginn = ${termin.beginn} AND x.abgesagt_am IS NULL AND x.id <> ${id}) AS belegt
-    `) as any[];
-    const trotzdem = req.body?.trotzdem === true && ["vertriebsleiter", "admin"].includes(rolle);
-    if (vf?.belegt) {
-      return res.status(409).json({ ok: false, code: "BELEGT", error: `${ziel.vorname} hat um ${berlinUhrzeit(termin.beginn)} Uhr schon einen Termin.` });
-    }
-    if (!vf?.frei && !trotzdem) {
-      return res.status(409).json({
+// ═══════════════════════════════════════════════════════════════════════════
+// TERMIN ÜBERGEBEN — EINE FUNKTION, ZWEI TÜREN (05.09.2026, E-126)
+//
+// Bis heute lebte die Übergabe nur in der Mitarbeiter-Route. Als vier
+// Mitarbeiter gesperrt wurden, hingen fünf Kundentermine an Menschen, die
+// sich nicht mehr anmelden können — und die Leitung hatte keinen Weg, sie
+// aus der Zentrale heraus zu verteilen. Jetzt steckt die Logik in
+// `terminUebergeben`; die Mitarbeiter-Route und die Admin-Route
+// (/admin/termine/:id/uebergeben) rufen sie mit unterschiedlichem „von".
+// ═══════════════════════════════════════════════════════════════════════════
+export async function terminUebergeben(ein: {
+  terminId: number;
+  zielId: number;
+  grund: string;
+  trotzdem: boolean;
+  /** Wer übergibt — Mitarbeiter (id) oder Leitung aus der Zentrale (id null). */
+  von: { id: number | null; name: string; rolle: string };
+}): Promise<{ status: number; body: any }> {
+  const id = ein.terminId;
+  const zielId = ein.zielId;
+  const grund = String(ein.grund ?? "").trim();
+  const leitung = ["vertriebsleiter", "admin"].includes(ein.von.rolle);
+  if (!zielId) return { status: 400, body: { ok: false, error: "Bitte einen Kollegen auswählen." } };
+  if (grund.length < 5) {
+    return { status: 400, body: { ok: false, error: "Bitte in einem Satz sagen, warum du übergibst — der Kollege liest ihn morgen früh." } };
+  }
+  const [termin] = (await sqlPool`
+    SELECT id, person_id, agent_id, beginn, quelle, status, storno_token
+    FROM fiaon_termine WHERE id = ${id} AND abgesagt_am IS NULL
+  `) as any[];
+  if (!termin) return { status: 404, body: { ok: false, error: "Termin nicht gefunden." } };
+  if (Number(termin.agent_id) === zielId) {
+    return { status: 400, body: { ok: false, error: "Der Termin liegt schon bei diesem Kollegen." } };
+  }
+  const darf = (ein.von.id != null && Number(termin.agent_id) === ein.von.id) || leitung;
+  if (!darf) {
+    return { status: 403, body: { ok: false, error: "Diesen Termin kann nur sein Zuständiger oder die Leitung übergeben." } };
+  }
+  const [ziel] = (await sqlPool`
+    SELECT id, COALESCE(NULLIF(first_name, ''), name) AS vorname, name, rolle, active, email
+    FROM fiaon_agents
+    WHERE id = ${zielId} AND active AND NOT COALESCE(is_test_account, FALSE) AND zugang_gesperrt_am IS NULL
+  `) as any[];
+  if (!ziel) return { status: 404, body: { ok: false, error: "Diesen Kollegen gibt es nicht (mehr) — oder sein Zugang ist gesperrt." } };
+  // Verfügbarkeit des Übernehmers: dieselbe Tabelle wie die Buchung
+  // (fiaon_agent_verfuegbarkeit, ISO-Wochentag, Berlin-Zeit).
+  const [vf] = (await sqlPool`
+    SELECT EXISTS (SELECT 1 FROM fiaon_agent_verfuegbarkeit v WHERE v.agent_id = ${zielId} AND COALESCE(v.aktiv, TRUE)) AS hat_zeiten,
+           EXISTS (
+             SELECT 1 FROM fiaon_agent_verfuegbarkeit v
+              WHERE v.agent_id = ${zielId} AND COALESCE(v.aktiv, TRUE)
+                AND v.wochentag = EXTRACT(ISODOW FROM (${termin.beginn}::timestamptz AT TIME ZONE 'Europe/Berlin'))::smallint
+                AND (${termin.beginn}::timestamptz AT TIME ZONE 'Europe/Berlin')::time >= v.von
+                AND (${termin.beginn}::timestamptz AT TIME ZONE 'Europe/Berlin')::time < v.bis
+           ) AS frei,
+           EXISTS (SELECT 1 FROM fiaon_termine x WHERE x.agent_id = ${zielId} AND x.beginn = ${termin.beginn} AND x.abgesagt_am IS NULL AND x.id <> ${id}) AS belegt
+  `) as any[];
+  const trotzdem = ein.trotzdem === true && leitung;
+  if (vf?.belegt) {
+    return { status: 409, body: { ok: false, code: "BELEGT", error: `${ziel.vorname} hat um ${berlinUhrzeit(termin.beginn)} Uhr schon einen Termin.` } };
+  }
+  if (!vf?.frei && !trotzdem) {
+    return {
+      status: 409,
+      body: {
         ok: false, code: "NICHT_VERFUEGBAR",
         error: vf?.hat_zeiten
           ? `${ziel.vorname} hat am ${berlinDatumText(termin.beginn)} um ${berlinUhrzeit(termin.beginn)} Uhr keine Zeit hinterlegt.`
           : `${ziel.vorname} hat noch gar keine Zeiten hinterlegt — dort kann nichts gebucht werden.`,
-        hinweis: ["vertriebsleiter", "admin"].includes(rolle) ? "Als Leitung kannst du trotzdem übergeben — der Grund steht dann im Verlauf." : "Wähle einen Kollegen, der zur Terminzeit Zeit hat.",
-      });
-    }
-    // Dieselbe Grenze wie beim Buchen: Das Forderungsmanagement nimmt keine
-    // Termine an (Begründung in server/lib/fiaon-termine.ts).
-    if (String(ziel.rolle) === "inkasso") {
-      return res.status(400).json({
-        ok: false,
-        error: "Das Forderungsmanagement nimmt keine Termine an. Dort gibt es die Wiedervorlage an der Rate.",
-      });
-    }
-
-    // Wechselt ein Startgespräch aus dem Onboarding heraus, ist es ab jetzt
-    // eine Vertretung — und wieder zurück, wenn es ins Onboarding geht.
-    const sollRolle = String(termin.quelle) === "onboarding_call" ? "onboarding" : null;
-    const vertretung = sollRolle ? String(ziel.rolle || "agent") !== sollRolle : false;
-
-    await sqlPool`
-      UPDATE fiaon_termine
-      SET agent_id = ${zielId},
-          vertretung = ${vertretung},
-          uebergeben_am = NOW(),
-          uebergeben_von = ${Number(termin.agent_id)},
-          uebergeben_grund = ${grund.slice(0, 500)},
-          updated_at = NOW()
-      WHERE id = ${id}
-    `;
-
-    // ═══════════════════════════════════════════════════════════════════════
-    // DER KUNDE GEHT MIT — ABER NUR BEI EINER ECHTEN ÜBERGABE (04.09.2026)
-    //
-    // Florentine: „Der komplette Kunde inklusive der gesamten Kundenakte
-    // sollte mitübergeben werden. Aktuell bleibt der Kunde weiterhin der
-    // ursprünglichen Person zugeordnet."
-    //
-    // Zwei Fälle, die auseinandergehalten werden müssen:
-    //   · VERTRETUNG (ein Onboarding-Call landet beim Vertrieb, oder umgekehrt):
-    //     Nur der Termin wandert. Die Akte ist trotzdem sichtbar — das regelt
-    //     darfAnKunde seit heute über den Termin. Der Kunde bleibt, wo er ist,
-    //     sonst wäre das genau der Fehler, der gestern 287 Kunden verschoben hat.
-    //   · ÜBERGABE unter Gleichen: Der Kunde geht mit, samt Akte, samt
-    //     Vermerk. Wer den Termin übernimmt, übernimmt den Menschen.
-    // ═══════════════════════════════════════════════════════════════════════
-    if (!vertretung && termin.person_id) {
-      const [war] = (await sqlPool`
-        SELECT assigned_agent_id FROM fiaon_persons WHERE id = ${Number(termin.person_id)}
+        hinweis: leitung ? "Als Leitung kannst du trotzdem übergeben — der Grund steht dann im Verlauf." : "Wähle einen Kollegen, der zur Terminzeit Zeit hat.",
+      },
+    };
+  }
+  if (String(ziel.rolle) === "inkasso") {
+    return { status: 400, body: { ok: false, error: "Das Forderungsmanagement nimmt keine Termine an. Dort gibt es die Wiedervorlage an der Rate." } };
+  }
+  // Vertretung: ein Startgespräch bei jemandem, der kein Onboarding macht,
+  // bleibt beim Betreuer — nur der Termin wandert.
+  const sollRolle = String(termin.quelle) === "onboarding_call" ? "onboarding" : null;
+  const vertretung = sollRolle ? String(ziel.rolle || "agent") !== sollRolle : false;
+  const vonName = ein.von.name;
+  await sqlPool`
+    UPDATE fiaon_termine
+    SET agent_id = ${zielId},
+        vertretung = ${vertretung},
+        uebergeben_am = NOW(),
+        uebergeben_von = ${Number(termin.agent_id)},
+        uebergeben_grund = ${grund.slice(0, 500)},
+        updated_at = NOW()
+    WHERE id = ${id}
+  `;
+  // Der Kunde geht mit, wenn er beim Abgebenden liegt oder niemanden hat
+  // (E-120) — nicht bei Vertretung.
+  if (!vertretung && termin.person_id) {
+    const [war] = (await sqlPool`
+      SELECT assigned_agent_id FROM fiaon_persons WHERE id = ${Number(termin.person_id)}
+    `) as any[];
+    const warBei = Number(war?.assigned_agent_id || 0);
+    if (warBei === Number(termin.agent_id) || warBei === 0) {
+      await sqlPool`
+        UPDATE fiaon_persons
+           SET assigned_agent_id = ${zielId}, assigned_at = NOW(),
+               betreuung_seit = COALESCE(betreuung_seit, NOW()), updated_at = NOW()
+         WHERE id = ${Number(termin.person_id)}
+      `;
+      await sqlPool`
+        UPDATE fiaon_applications
+           SET assigned_agent_id = ${zielId}, updated_at = NOW()
+         WHERE person_id = ${Number(termin.person_id)} AND merged_into IS NULL
+           AND (assigned_agent_id = ${Number(termin.agent_id)} OR assigned_agent_id IS NULL)
+      `;
+      const [a] = (await sqlPool`
+        SELECT ref FROM fiaon_applications WHERE person_id = ${Number(termin.person_id)} AND merged_into IS NULL
+        ORDER BY created_at DESC LIMIT 1
       `) as any[];
-      // 04.09.2026 abends (E-120): Auch ein Kunde OHNE Betreuer geht mit. Diana
-      // übergab um 15:44 an Nikita, der Kunde hatte niemanden — und blieb
-      // niemandem zugeordnet; „Betreut seit" stand auf „nicht hinterlegt", bis
-      // Nikita 36 Minuten später selbst einen Termin anlegte.
-      const warBei = Number(war?.assigned_agent_id || 0);
-      if (warBei === Number(termin.agent_id) || warBei === 0) {
+      if (a?.ref) {
         await sqlPool`
-          UPDATE fiaon_persons
-             SET assigned_agent_id = ${zielId}, assigned_at = NOW(),
-                 betreuung_seit = COALESCE(betreuung_seit, NOW()), updated_at = NOW()
-           WHERE id = ${Number(termin.person_id)}
-        `;
-        await sqlPool`
-          UPDATE fiaon_applications
-             SET assigned_agent_id = ${zielId}, updated_at = NOW()
-           WHERE person_id = ${Number(termin.person_id)} AND merged_into IS NULL
-             AND (assigned_agent_id = ${Number(termin.agent_id)} OR assigned_agent_id IS NULL)
-        `;
-        const [a] = (await sqlPool`
-          SELECT ref FROM fiaon_applications WHERE person_id = ${Number(termin.person_id)} AND merged_into IS NULL
-          ORDER BY created_at DESC LIMIT 1
-        `) as any[];
-        if (a?.ref) {
-          await sqlPool`
-            INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
-            VALUES (${a.ref}, ${Number(termin.person_id)}, ${req.agent!.id}, ${req.agent!.name}, 'system',
-                    ${`Kunde mit Termin übergeben an ${ziel.name}. Grund: ${grund.slice(0, 200)}`}, NOW())
-          `.catch(() => {});
-        }
+          INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
+          VALUES (${a.ref}, ${Number(termin.person_id)}, ${ein.von.id}, ${vonName}, 'system',
+                  ${`Kunde mit Termin übergeben an ${ziel.name}. Grund: ${grund.slice(0, 200)}`}, NOW())
+        `.catch(() => {});
       }
     }
-
-    if (vertretung && termin.person_id) {
-      const [a] = (await sqlPool`
-        SELECT ref FROM fiaon_applications WHERE person_id = ${Number(termin.person_id)} AND merged_into IS NULL ORDER BY created_at DESC LIMIT 1
-      `) as any[];
-      if (a?.ref) await sqlPool`
-        INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
-        VALUES (${a.ref}, ${Number(termin.person_id)}, ${req.agent!.id}, ${req.agent!.name}, 'system',
-                ${`Termin als Vertretung an ${ziel.name} übergeben (Kunde bleibt beim Betreuer). Grund: ${grund.slice(0, 200)}${trotzdem && !vf?.frei ? " — außerhalb seiner hinterlegten Zeiten (Leitung hat übersteuert)." : ""}`}, NOW())
-      `.catch(() => {});
-    }
-
-    // ── DER ÜBERNEHMER ERFÄHRT ES — ALS AUFGABE (22.08.2026, C12-e) ───────
-    // Vorher bekam nur der Kunde Post. Der Kollege sah den Termin frühestens,
-    // wenn er von sich aus in den Kalender schaute — und der Grund („krank
-    // bis Freitag") stand in `uebergeben_grund`, wurde aber nirgends gezeigt.
-    await sqlPool`
-      INSERT INTO fiaon_vermerke (art, ref, text, sicht, sicht_agenten, zustaendig_agent_id,
-                                  fuer_betreiber, dringend, status, autor_art, autor_agent_id, autor_name, faellig_am)
-      SELECT 'aufgabe',
-             (SELECT a.ref FROM fiaon_applications a WHERE a.person_id = ${Number(termin.person_id)} AND a.merged_into IS NULL
-                ORDER BY a.created_at DESC LIMIT 1),
-             ${`Termin übernommen von ${req.agent!.name}: ${berlinDatumText(termin.beginn)} um ${berlinUhrzeit(termin.beginn)} Uhr (${terminArtAusQuelle(termin.quelle).text}). Grund: ${grund.slice(0, 300)}${vertretung ? " — Vertretung außerhalb der zuständigen Rolle." : ""}`},
-             'agenten', ARRAY[${zielId}]::int[], ${zielId},
-             FALSE, TRUE, 'offen', 'agent', ${req.agent!.id}, ${req.agent!.name},
-             (${termin.beginn}::timestamptz AT TIME ZONE 'Europe/Berlin')::date
-    `.catch((e) => console.error("[TERMIN] Aufgabe an den Übernehmer nicht geschrieben:", e));
-
-    // ── DIE INFO-MAIL AN DEN KUNDEN ───────────────────────────────────────
-    // Sie geht über `termin_bestaetigung` mit dem neuen Vornamen. Scheitert
-    // sie, ist die Übergabe trotzdem gültig — sie steht in der Datenbank, und
-    // der Mitarbeiter erfährt es im Klartext, statt es zu glauben.
-    const [p] = (await sqlPool`
-      SELECT COALESCE(NULLIF(TRIM(a.email), ''), NULLIF(TRIM(p.primary_email), '')) AS email,
-             p.first_name AS vorname, p.last_name AS nachname, a.ref
-      FROM fiaon_persons p
-      LEFT JOIN fiaon_applications a ON a.person_id = p.id
-        AND a.merged_into IS NULL AND a.archived_at IS NULL
-      WHERE p.id = ${Number(termin.person_id)}
-      ORDER BY a.created_at DESC LIMIT 1
+  }
+  if (vertretung && termin.person_id) {
+    const [a] = (await sqlPool`
+      SELECT ref FROM fiaon_applications WHERE person_id = ${Number(termin.person_id)} AND merged_into IS NULL ORDER BY created_at DESC LIMIT 1
     `) as any[];
-
-    let mailHinweis = "Der Kunde hat keine E-Mail-Adresse — bitte ihn selbst informieren.";
-    if (p?.email) {
-      const versand = await versendenUndProtokollieren(
-        "termin_bestaetigung",
-        {
-          email: String(p.email),
-          vorname: p.vorname || null,
-          nachname: p.nachname || null,
-          agent_vorname: String(ziel.vorname),
-          termin_datum: berlinDatumText(termin.beginn),
-          termin_uhrzeit: berlinUhrzeit(termin.beginn),
-          termin_art: terminArtAusQuelle(termin.quelle).text,
-          storno_link: stornoLink(String(termin.storno_token)),
-          hinweis_anruf: anrufHinweisSie(String(ziel.vorname)),
-          hinweis_absage: ABSAGE_HINWEIS_SIE,
-        },
-        {
-          personId: Number(termin.person_id),
-          verlaufRef: p.ref || null,
-          verlaufText: `Termin an ${ziel.name} übergeben (${grund.slice(0, 200)}). `
-            + `Der Kunde wurde über den neuen Ansprechpartner informiert.`,
-        },
-      ).catch((e) => ({ ok: false, grund: e instanceof Error ? e.message : String(e) }));
-      mailHinweis = (versand as any).ok
-        ? `${p.email} wurde über den neuen Ansprechpartner informiert.`
-        : `Die Info-Mail ging NICHT raus (${(versand as any).grund ?? "unbekannt"}) — `
-          + "bitte den Kunden selbst informieren. Die Übergabe steht trotzdem.";
-    }
-
-    // ── 04.09.2026 (E-120): DER ÜBERNEHMER BEKOMMT POST ────────────────────
-    // Nikita sah den um 15:44 übergebenen 16:10-Termin erst um 16:07 („ja jetzt
-    // erst gesehen"). Die Aufgabe im Portal reicht nicht, wenn niemand hinschaut —
-    // dieselbe Mail wie bei jeder zugewiesenen Aufgabe, mit Uhrzeit im Betreff.
-    if (ziel.email) {
-      try {
-        const { sendMakeWebhook } = await import("../make-webhook");
-        const { absoluteUrl } = await import("../fiaon-base-url");
-        const minuten = Math.round((new Date(termin.beginn).getTime() - Date.now()) / 60_000);
-        const bald = minuten >= 0 && minuten <= 180 ? `IN ${minuten} MINUTEN: ` : "";
-        await sendMakeWebhook("aufgabe_zugewiesen", {
-          email: String(ziel.email), vorname: String(ziel.vorname),
-          aufgabe: `${bald}Termin übernommen von ${req.agent!.name}: ${berlinDatumText(termin.beginn)} um ${berlinUhrzeit(termin.beginn)} Uhr mit ${[p?.vorname, p?.nachname].filter(Boolean).join(" ") || "dem Kunden"} (${terminArtAusQuelle(termin.quelle).text}). Grund: ${grund.slice(0, 200)}`,
-          kunde: [p?.vorname, p?.nachname].filter(Boolean).join(" ") || null,
-          faellig_am: new Date(termin.beginn).toISOString().slice(0, 10),
-          faellig_am_text: berlinDatumText(termin.beginn),
-          dringend: minuten >= 0 && minuten <= 180,
-          portal_url: absoluteUrl("/agent/kalender"),
-        });
-      } catch (e) { console.warn("[TERMIN] Mail an Übernehmer:", String(e).slice(0, 120)); }
-    }
-
-    res.json({
+    if (a?.ref) await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
+      VALUES (${a.ref}, ${Number(termin.person_id)}, ${ein.von.id}, ${vonName}, 'system',
+              ${`Termin als Vertretung an ${ziel.name} übergeben (Kunde bleibt beim Betreuer). Grund: ${grund.slice(0, 200)}${trotzdem && !vf?.frei ? " — außerhalb seiner hinterlegten Zeiten (Leitung hat übersteuert)." : ""}`}, NOW())
+    `.catch(() => {});
+  }
+  // Aufgabe an den Übernehmer — fällig am Termintag.
+  await sqlPool`
+    INSERT INTO fiaon_vermerke (art, ref, text, sicht, sicht_agenten, zustaendig_agent_id,
+                                fuer_betreiber, dringend, status, autor_art, autor_agent_id, autor_name, faellig_am)
+    SELECT 'aufgabe',
+           (SELECT a.ref FROM fiaon_applications a WHERE a.person_id = ${Number(termin.person_id)} AND a.merged_into IS NULL
+              ORDER BY a.created_at DESC LIMIT 1),
+           ${`Termin übernommen von ${vonName}: ${berlinDatumText(termin.beginn)} um ${berlinUhrzeit(termin.beginn)} Uhr (${terminArtAusQuelle(termin.quelle).text}). Grund: ${grund.slice(0, 300)}${vertretung ? " — Vertretung außerhalb der zuständigen Rolle." : ""}${trotzdem && !vf?.frei ? " — ACHTUNG: außerhalb deiner hinterlegten Zeiten, bitte bestätigen oder mit dem Kunden verschieben." : ""}`},
+           'agenten', ARRAY[${zielId}]::int[], ${zielId},
+           FALSE, TRUE, 'offen', 'agent', ${ein.von.id}, ${vonName},
+           (${termin.beginn}::timestamptz AT TIME ZONE 'Europe/Berlin')::date
+  `.catch((e) => console.error("[TERMIN] Aufgabe an den Übernehmer nicht geschrieben:", e));
+  const [p] = (await sqlPool`
+    SELECT COALESCE(NULLIF(TRIM(a.email), ''), NULLIF(TRIM(p.primary_email), '')) AS email,
+           p.first_name AS vorname, p.last_name AS nachname, a.ref
+    FROM fiaon_persons p
+    LEFT JOIN fiaon_applications a ON a.person_id = p.id
+      AND a.merged_into IS NULL AND a.archived_at IS NULL
+    WHERE p.id = ${Number(termin.person_id)}
+    ORDER BY a.created_at DESC LIMIT 1
+  `) as any[];
+  let mailHinweis = "Der Kunde hat keine E-Mail-Adresse — bitte ihn selbst informieren.";
+  if (p?.email) {
+    const versand = await versendenUndProtokollieren(
+      "termin_bestaetigung",
+      {
+        email: String(p.email),
+        vorname: p.vorname || null,
+        nachname: p.nachname || null,
+        agent_vorname: String(ziel.vorname),
+        termin_datum: berlinDatumText(termin.beginn),
+        termin_uhrzeit: berlinUhrzeit(termin.beginn),
+        termin_art: terminArtAusQuelle(termin.quelle).text,
+        storno_link: stornoLink(String(termin.storno_token)),
+        hinweis_anruf: anrufHinweisSie(String(ziel.vorname)),
+        hinweis_absage: ABSAGE_HINWEIS_SIE,
+      },
+      {
+        personId: Number(termin.person_id),
+        verlaufRef: p.ref || null,
+        verlaufText: `Termin an ${ziel.name} übergeben (${grund.slice(0, 200)}). `
+          + `Der Kunde wurde über den neuen Ansprechpartner informiert.`,
+      },
+    ).catch((e) => ({ ok: false, grund: e instanceof Error ? e.message : String(e) }));
+    mailHinweis = (versand as any).ok
+      ? `${p.email} wurde über den neuen Ansprechpartner informiert.`
+      : `Die Info-Mail ging NICHT raus (${(versand as any).grund ?? "unbekannt"}) — `
+        + "bitte den Kunden selbst informieren. Die Übergabe steht trotzdem.";
+  }
+  if (ziel.email) {
+    try {
+      const { sendMakeWebhook } = await import("../make-webhook");
+      const { absoluteUrl } = await import("../fiaon-base-url");
+      const minuten = Math.round((new Date(termin.beginn).getTime() - Date.now()) / 60_000);
+      const bald = minuten >= 0 && minuten <= 180 ? `IN ${minuten} MINUTEN: ` : "";
+      await sendMakeWebhook("aufgabe_zugewiesen", {
+        email: String(ziel.email), vorname: String(ziel.vorname),
+        aufgabe: `${bald}Termin übernommen von ${vonName}: ${berlinDatumText(termin.beginn)} um ${berlinUhrzeit(termin.beginn)} Uhr mit ${[p?.vorname, p?.nachname].filter(Boolean).join(" ") || "dem Kunden"} (${terminArtAusQuelle(termin.quelle).text}). Grund: ${grund.slice(0, 200)}${trotzdem && !vf?.frei ? " — außerhalb deiner hinterlegten Zeiten!" : ""}`,
+        kunde: [p?.vorname, p?.nachname].filter(Boolean).join(" ") || null,
+        faellig_am: new Date(termin.beginn).toISOString().slice(0, 10),
+        faellig_am_text: berlinDatumText(termin.beginn),
+        dringend: minuten >= 0 && minuten <= 180,
+        portal_url: absoluteUrl("/agent/kalender"),
+      });
+    } catch (e) { console.warn("[TERMIN] Mail an Übernehmer:", String(e).slice(0, 120)); }
+  }
+  return {
+    status: 200,
+    body: {
       ok: true,
       vertretung,
+      uebersteuert: trotzdem && !vf?.frei,
       hinweis: `Termin an ${ziel.name} übergeben. ${mailHinweis}`
-        + (vertretung ? " Er ist als Vertretung markiert." : ""),
+        + (vertretung ? " Er ist als Vertretung markiert." : "")
+        + (trotzdem && !vf?.frei ? ` ${ziel.vorname} hat zu dieser Zeit keine Sprechzeit hinterlegt — er wurde ausdrücklich darauf hingewiesen.` : ""),
+    },
+  };
+}
+
+router.post("/agent/termine/:id/uebergeben", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const { rolleVon } = await import("../lib/fiaon-kundenzugriff");
+    const rolle = await rolleVon(req.agent!.id);
+    const r = await terminUebergeben({
+      terminId: Number(req.params.id),
+      zielId: Number(req.body?.agentId),
+      grund: String(req.body?.grund ?? ""),
+      trotzdem: req.body?.trotzdem === true,
+      von: { id: req.agent!.id, name: req.agent!.name, rolle },
     });
+    res.status(r.status).json(r.body);
   } catch (err) {
     console.error("[TERMIN] uebergeben:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/**
+ * Die Leitung verteilt aus der Termin-Zentrale (05.09.2026, E-126) — z. B.
+ * Termine gesperrter Mitarbeiter. Gleiche Regeln, gleiche Mails; als
+ * Übergebender steht die Leitung im Verlauf.
+ */
+router.post("/admin/termine/:id/uebergeben", async (req: Request, res: Response) => {
+  try {
+    const r = await terminUebergeben({
+      terminId: Number(req.params.id),
+      zielId: Number(req.body?.agentId),
+      grund: String(req.body?.grund ?? ""),
+      trotzdem: req.body?.trotzdem === true,
+      von: { id: null, name: String(req.body?.von || "Justin Schwarzott (Leitung)").slice(0, 80), rolle: "admin" },
+    });
+    res.status(r.status).json(r.body);
+  } catch (err) {
+    console.error("[TERMIN] admin uebergeben:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

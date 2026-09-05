@@ -55,6 +55,45 @@ function AdminTerminePage() {
   const [laedt, setLaedt] = useState(true);
   const [einladung, setEinladung] = useState<any>(null);
   const [busy, setBusy] = useState(false);
+  // ── ÜBERGEBEN AUS DER ZENTRALE (05.09.2026, E-126) ────────────────────────
+  // Vier Mitarbeiter gesperrt, fünf Kundentermine ohne Anrufer. Die Leitung
+  // braucht den Knopf hier, nicht im Kalender eines Gesperrten.
+  const [kollegen, setKollegen] = useState<{ id: number; name: string; rolle: string }[]>([]);
+  useEffect(() => {
+    void fetch("/api/fiaon/admin/agents", { credentials: "include" })
+      .then((r) => r.json()).catch(() => null)
+      .then((j) => {
+        const liste = (j?.data ?? j?.agents ?? []) as any[];
+        if (!Array.isArray(liste)) return;
+        setKollegen(liste
+          .filter((a) => a.active && !a.is_test_account && !a.zugang_gesperrt_am && a.rolle !== "inkasso")
+          .map((a) => ({ id: Number(a.id), name: String(a.name), rolle: String(a.rolle || "agent") }))
+          .sort((a, b) => a.name.localeCompare(b.name, "de")));
+      });
+  }, []);
+  const uebergeben = async (t: any, zielId: number) => {
+    const ziel = kollegen.find((k) => k.id === zielId);
+    if (!ziel) return;
+    const grund = window.prompt(`Termin ${tagZeit.format(new Date(t.beginn))} (${t.kundeName}) an ${ziel.name} übergeben.\nGrund in einem Satz (steht im Verlauf und in der Mail an ${ziel.name}):`, "");
+    if (grund == null) return;
+    if (grund.trim().length < 5) { window.alert("Bitte einen Grund in einem Satz angeben."); return; }
+    const senden = async (trotzdem: boolean) => {
+      const r = await fetch(`/api/fiaon/admin/termine/${t.id}/uebergeben`, {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agentId: zielId, grund: grund.trim(), trotzdem }),
+      });
+      return { status: r.status, json: await r.json().catch(() => null) };
+    };
+    setBusy(true);
+    let a = await senden(false);
+    if (a.status === 409 && a.json?.code === "NICHT_VERFUEGBAR") {
+      const ok = window.confirm(`${a.json.error}\n\nTrotzdem übergeben? ${ziel.name} bekommt den Hinweis, dass die Zeit außerhalb seiner Sprechzeit liegt.`);
+      if (ok) a = await senden(true);
+    }
+    setBusy(false);
+    window.alert(a.json?.hinweis || a.json?.error || (a.json?.ok ? "Übergeben." : "Das hat nicht geklappt."));
+    if (a.json?.ok) void laden();
+  };
 
   useEffect(() => {
     const p = new URLSearchParams();
@@ -464,6 +503,18 @@ function AdminTerminePage() {
                             storniert am {datum.format(new Date(t.abgesagtAm))}
                             {t.abgesagtVon ? ` durch ${t.abgesagtVon}` : " durch Kunde"}
                           </span>
+                        )}
+                        {t.status === "gebucht" && new Date(t.beginn).getTime() > Date.now() && kollegen.length > 0 && (
+                          <select value="" disabled={busy}
+                                  onChange={(e) => { const z = Number(e.target.value); if (z) void uebergeben(t, z); }}
+                                  className="block mt-1.5 px-2 py-1 rounded-md border text-[11.5px] bg-white text-slate-600"
+                                  style={{ borderColor: "#e4e9f2", maxWidth: 170 }}
+                                  title="Termin samt Kunde an einen Kollegen übergeben">
+                            <option value="">Übergeben an …</option>
+                            {kollegen.filter((k) => k.id !== t.agentId).map((k) => (
+                              <option key={k.id} value={k.id}>{k.name}</option>
+                            ))}
+                          </select>
                         )}
                       </td>
                     </tr>

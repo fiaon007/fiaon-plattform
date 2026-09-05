@@ -1277,7 +1277,17 @@ export function Softphone() {
     }
 
     try {
-      geraet.current?.destroy?.();
+      // ── ALTES GERÄT WIRKLICH STILLLEGEN (05.09.2026) ─────────────────
+      // Daniel, 10:03: Zwei Minuten nach einem sauberen Gespräch meldete
+      // das Gerät „TransportError 31009" und danach sechsmal „Zugangsausweis
+      // abgelehnt (20101)" — ohne dass jemand gewählt hatte. Das war das
+      // Gerät des VORIGEN Anrufs, das nach dem Sperren des iPhones seine
+      // Leitung verlor und sich mit dem Ausweis neu anmelden wollte. Seine
+      // Fehler landeten in derselben Oberfläche und sahen aus wie ein
+      // kaputtes Telefon. Deshalb: Zuhörer abhängen, dann zerstören — und
+      // jeder Fehler prüft, ob er vom AKTUELLEN Gerät kommt.
+      try { geraet.current?.removeAllListeners?.(); } catch { /* egal */ }
+      try { geraet.current?.destroy?.(); } catch { /* schon weg */ }
       const d = new Device(j.token, {
         // Opus zuerst: bessere Sprachqualität bei gleicher Bandbreite.
         codecPreferences: ["opus", "pcmu"] as any,
@@ -1289,6 +1299,37 @@ export function Softphone() {
         allowIncomingWhileBusy: false,
       });
       geraet.current = d;
+      // Ausweis erneuern und Anmeldung wiederholen — die Selbstheilung für
+      // 20101/31204 (Ausweis nicht angenommen) und 20104 (abgelaufen).
+      let heilungen = 0;
+      const ausweisErneuern = async (grund: string): Promise<boolean> => {
+        if (geraet.current !== d) return false;
+        heilungen += 1;
+        if (heilungen > 3) return false;
+        try {
+          const rn = await fetch("/api/fiaon/telefon/ausweis", {
+            method: "POST", credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ nurVerlaengern: true }),
+          });
+          const jn = await rn.json().catch(() => null);
+          if (rn.status === 401) {
+            setMeldung("Deine Anmeldung ist abgelaufen — bitte melde dich neu an, dann geht das Telefon wieder.");
+            return false;
+          }
+          if (!jn?.ok || !jn.token) return false;
+          if (geraet.current !== d) return false;
+          d.updateToken(jn.token);
+          await d.register();
+          setErreichbar(true);
+          setMeldung((m) => (m && /Zugangsausweis|Verbindung wird erneuert|Verbindung zu Twilio unterbrochen/.test(m) ? null : m));
+          void fehlerMelden("ausweis-erneuert", { name: "AusweisErneuert", message: `nach ${grund}` });
+          return true;
+        } catch (e) {
+          void fehlerMelden("ausweis-erneuern", e);
+          return false;
+        }
+      };
 
       // ══════════════════════════════════════════════════════════════════════
       // DEM SDK SAGEN, WELCHES MIKROFON ES NEHMEN SOLL (31.08.2026)
@@ -1351,12 +1392,47 @@ export function Softphone() {
         // Auflegen oder durch das disconnect-Ereignis des Anrufs selbst —
         // das ist die einzige Stelle, die wirklich weiß, dass es vorbei ist.
         // ══════════════════════════════════════════════════════════════════
+        // ── NUR DAS AKTUELLE GERÄT DARF SPRECHEN (05.09.2026) ─────────────
+        if (geraet.current !== d) return;
+        const code = Number(e?.code ?? e?.originalError?.code ?? 0);
+        const ausweisFehler = [20101, 20104, 31204, 31205].includes(code);
+        const leitungsFehler = [31009, 31005, 53000, 53001, 53405].includes(code);
         const mittenImGespraech = zustandRef.current === "gespraech" || zustandRef.current === "klingelt";
+        const beimWaehlen = zustandRef.current === "waehlt";
+        if (ausweisFehler && !mittenImGespraech) {
+          // Ein abgelehnter Ausweis zwischen zwei Gesprächen ist kein Grund
+          // für eine rote Wand: frischen Ausweis holen, neu anmelden, fertig.
+          // Erst wenn das dreimal scheitert, sieht der Mensch die Meldung.
+          setMeldung("Verbindung wird erneuert …");
+          void ausweisErneuern(`Fehler ${code}`).then((ok) => {
+            if (ok || geraet.current !== d) return;
+            setMeldung(telefonFehlerText(e));
+            if (beimWaehlen) setZustand("ergebnis");
+          });
+          return;
+        }
+        if (leitungsFehler && !mittenImGespraech) {
+          // Die Signalleitung ist weg (iPhone gesperrt, Netzwechsel). Das SDK
+          // verbindet selbst neu; die Meldung bleibt leise und verschwindet
+          // mit der nächsten Anmeldung.
+          setErreichbar(false);
+          setMeldung((m) => m ?? "Verbindung zu Twilio unterbrochen — wird neu aufgebaut.");
+          return;
+        }
         setMeldung(mittenImGespraech
           ? "Verbindungswarnung: " + telefonFehlerText(e) + " — das Gespräch läuft weiter, solange du es hörst."
           : telefonFehlerText(e));
-        if (!mittenImGespraech) setZustand("ergebnis");
+        // Ohne laufendes Gespräch ändert ein Gerätefehler die Ansicht nur
+        // beim Wählen — dort wartet der Mensch sonst auf einen Ruf, der nie
+        // kommt. In Ruhe (bereit/ergebnis) bleibt alles, wie es war.
+        if (beimWaehlen) setZustand("ergebnis");
       });
+      d.on("registered", () => {
+        if (geraet.current !== d) return;
+        setErreichbar(true);
+        setMeldung((m) => (m && /Verbindung zu Twilio unterbrochen|Verbindung wird erneuert/.test(m) ? null : m));
+      });
+      d.on("unregistered", () => { if (geraet.current === d) setErreichbar(false); });
 
       // ── DER AUSWEIS LÄUFT AB, DAS GESPRÄCH NICHT ──────────────────────
       // Der Ausweis gilt eine Stunde. Ohne Erneuerung meldet Twilio kurz vor
@@ -1373,9 +1449,26 @@ export function Softphone() {
             body: JSON.stringify({ nurVerlaengern: true }),
           });
           const jn = await rn.json().catch(() => null);
-          if (jn?.ok && jn.token) d.updateToken(jn.token);
-        } catch { /* bewusst still — siehe oben */ }
+          if (jn?.ok && jn.token) { d.updateToken(jn.token); return; }
+          // 03.09.2026, 14:03–17:28: Nach dem Sicherheits-Update waren alle
+          // Sitzungen neu — die Verlängerung bekam 401, die Ausweise liefen
+          // aus, und jeder offene Softphone-Tab meldete stundenlang 20101.
+          // Jetzt: einmal nachfassen, dann klar sagen, was zu tun ist.
+          if (rn.status === 401) {
+            setMeldung("Deine Anmeldung ist abgelaufen — bitte melde dich neu an, dann geht das Telefon wieder.");
+            return;
+          }
+          setTimeout(() => { void ausweisErneuern("Verlängerung fehlgeschlagen"); }, 20_000);
+        } catch { setTimeout(() => { void ausweisErneuern("Verlängerung ohne Antwort"); }, 20_000); }
       });
+      // iPhone: Nach dem Entsperren ist die Leitung oft tot, das Gerät sagt
+      // „unregistered" — dann mit frischem Ausweis wieder anmelden.
+      const sichtbarkeit = () => {
+        if (document.visibilityState !== "visible" || geraet.current !== d) return;
+        if (d.state === "unregistered" && zustandRef.current !== "gespraech") void ausweisErneuern("Rückkehr in den Vordergrund");
+      };
+      document.addEventListener("visibilitychange", sichtbarkeit);
+      d.on("destroyed", () => document.removeEventListener("visibilitychange", sichtbarkeit));
 
       // ══════════════════════════════════════════════════════════════════
       // register() — JETZT RICHTIG
@@ -1585,6 +1678,7 @@ export function Softphone() {
     // Erst wirklich auflegen, dann die Oberfläche umschalten. Umgekehrt sähe
     // es beendet aus, während das Gespräch weiterläuft — und weiter kostet.
     try { verbindung.current?.disconnect?.(); } catch { /* schon getrennt */ }
+    try { geraet.current?.removeAllListeners?.(); } catch { /* egal */ }
     try { geraet.current?.destroy?.(); } catch { /* schon weg */ }
     verbindung.current = null;
     geraet.current = null;

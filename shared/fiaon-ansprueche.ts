@@ -105,9 +105,9 @@ export interface Regel {
 // (Pfändungsfreigrenzenbekanntmachung 2026 vom 19.03.2026), BGBl. I 2026 Nr. 80,
 // verkündet 26.03.2026 — https://www.recht.bund.de/bgbl/1/2026/80/VO.html
 // Grundbetrag 1.587,40 € · erste unterhaltsberechtigte Person +597,42 € ·
-// zweite bis fünfte Person je +332,83 €. Geprüft 05.09.2026 gegen bmjv.de
-// (Grundbetrag) und zwei unabhängige Fachquellen (Erhöhungsbeträge); Primärtext
-// ist das BGBl.-PDF. Nächste Anpassung: 01.07.2027 (Pflege: Justin Schwarzott).
+// zweite bis fünfte Person je +332,83 €. Geprüft 05.09.2026 gegen den PRIMÄRTEXT
+// (BGBl.-PDF, 27 Seiten: „1 587,40", „597,42", „332,83", „ab 1. Juli 2026") sowie
+// bmjv.de und zwei Fachquellen. Nächste Anpassung: 01.07.2027 (Pflege: Justin Schwarzott).
 export const PFAENDUNG_2026 = {
   grundbetragCents: 158_740,
   erstePersonCents: 59_742,

@@ -112,7 +112,7 @@ export function rahmenwegAus(b: BereichEingang, o: RahmenwegOptionen = {}): Rahm
   }
 
   const s: Schritt[] = [];
-  const KURZ: Record<string, string> = { daten: "Ihre Angaben", erstzahlung: "Ihre erste Zahlung", startgespraech: "Ihr Startgespräch", anspruchs_check: "Ihr Anspruchs-Check", unterlagen: "Ihre Unterlagen", auskunft: "Ihre Bonitätsauskunft", analyse: "die Prüfung Ihrer Auskunft", erster_vorgang: "Ihr erstes Schreiben", konto_eroeffnet: "Ihr Girokonto", karte_beantragt: "Ihr Kartenantrag" };
+  const KURZ: Record<string, string> = { daten: "Ihre Angaben", erstzahlung: "Ihre erste Zahlung", startgespraech: "Ihr Startgespräch", anspruchs_check: "Ihr Anspruchs-Check", unterlagen: "Ihre Unterlagen", auskunft: "Ihre Bonitätsauskunft", analyse: "die Prüfung Ihrer Auskunft", erster_vorgang: "Ihr erstes Schreiben", konto_eroeffnet: "Ihr Girokonto", karte_beantragt: "Ihr Weg zu Konto und Karte" };
   const ok = (key: string, titel: string, erledigt: boolean, am: string | null, textOffen: string, wer: Wer, aktion: string | null, href: string | null, extra?: Partial<Schritt>) => {
     s.push({ key, titel, kurz: KURZ[key] ?? (key.startsWith("rate_") ? `Rate ${key.slice(5)}` : titel), stand: erledigt ? "erledigt" : "kommt", am: erledigt ? am : null, text: textOffen, wer: erledigt ? null : wer, aktion: erledigt ? null : aktion, href: erledigt ? null : href, ...extra });
   };
@@ -160,7 +160,11 @@ export function rahmenwegAus(b: BereichEingang, o: RahmenwegOptionen = {}): Rahm
   // 10 · Girokonto
   ok("konto_eroeffnet", "Girokonto eröffnet", false, null, "Sobald die drei Punkte der Bank erfüllt sind, eröffnen Sie das Konto – wir begleiten.", "fiaon", null, null);
   // 11 · Karte beantragt
-  ok("karte_beantragt", "Karte beantragt", !!b.karte?.verschickt, null, "Der Antrag geht mit vollständiger Akte zum Kartenpartner. Über Karte und Rahmen entscheidet die Bank.", "fiaon", null, null);
+  // „verschickt" heißt: der Kunde hat den Weg zu Konto und Karte bekommen (E-067,
+  // Konto-und-Karte-Mail) — nicht, dass eine Karte beantragt wäre. Praxistest
+  // 05.09.: Sapia stand mit „Karte beantragt ✓" da, ohne je ein Konto eröffnet
+  // zu haben. Der Schritt heißt deshalb, was er ist.
+  ok("karte_beantragt", "Weg zu Konto und Karte erhalten", !!b.karte?.verschickt, null, "Sobald Ihre Akte vollständig ist, schicken wir Ihnen den Weg zu Konto und Karte bei unserer Partnerbank. Über Karte und Rahmen entscheidet die Bank.", "fiaon", null, null);
 
   // ── Jetzt = erster nicht erledigter Schritt ────────────────────────────
   let jetzt: Schritt | null = null;

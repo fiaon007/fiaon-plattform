@@ -20,7 +20,7 @@ function Kopieren({ wert }: { wert: string }) {
   );
 }
 
-export function Geld({ b, rw, ref, basis, demo }: { b: Bereich; rw: Rahmenweg; kundeRef: string; basis: string; demo: boolean }) {
+export function Geld({ b, rw, kundeRef, basis, demo }: { b: Bereich; rw: Rahmenweg; kundeRef: string; basis: string; demo: boolean }) {
   const [lsMeldung, setLsMeldung] = useState<string | null>(null);
   const [lsLaeuft, setLsLaeuft] = useState(false);
   const n = b.abo?.naechste ?? null;

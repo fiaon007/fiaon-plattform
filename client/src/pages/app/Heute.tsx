@@ -7,7 +7,7 @@ import type { Bereich, Vorgang } from "./typen";
 import { Zielkarte } from "./Weg";
 import { eur, zeit } from "./Bausteine";
 
-export function Heute({ b, rw, basis, post, demo }: { b: Bereich; rw: Rahmenweg; basis: string; post: Vorgang[] | null; demo: boolean }) {
+export function Heute({ b, rw, basis, post, demo, briefAn = true }: { b: Bereich; rw: Rahmenweg; basis: string; post: Vorgang[] | null; demo: boolean; briefAn?: boolean }) {
   const std = new Date().getHours();
   const gruss = std < 11 ? "Guten Morgen" : std < 18 ? "Guten Tag" : "Guten Abend";
   const startFertig = !!b.onboardingGelaufen || rw.schritte.some((s) => s.key === "startgespraech" && s.stand === "erledigt");
@@ -69,7 +69,7 @@ export function Heute({ b, rw, basis, post, demo }: { b: Bereich; rw: Rahmenweg;
         )}
       </section>
 
-      {briefeGesendet === 0 && (
+      {briefeGesendet === 0 && briefAn && (
         <Link href={`${basis}/brief`} className="ap-karte ap-auf v3" style={{ display: "block", textDecoration: "none" }}>
           <h3>Ein Brief macht Ihnen Sorgen?</h3>
           <p>Fotografieren Sie ihn ab – wir ordnen ihn Ihrer Akte zu und sagen Ihnen, was wir daraus machen. Sie müssen nichts erklären.</p>

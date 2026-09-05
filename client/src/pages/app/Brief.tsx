@@ -19,7 +19,7 @@ async function verkleinern(datei: File): Promise<Seite> {
   return { blob, url: URL.createObjectURL(blob), name: datei.name.replace(/\.[^.]+$/, "") + ".jpg", istPdf: false };
 }
 
-export function Brief({ kundeRef, basis, demo, ansprechpartner }: { kundeRef: string; basis: string; demo: boolean; ansprechpartner: string | null }) {
+export function Brief({ kundeRef, basis, demo, ansprechpartner, briefAn = true }: { kundeRef: string; basis: string; demo: boolean; ansprechpartner: string | null; briefAn?: boolean }) {
   const eingabe = useRef<HTMLInputElement>(null);
   const [seiten, setSeiten] = useState<Seite[]>([]);
   const [schritt, setSchritt] = useState<1 | 2 | 3 | 4>(1);
@@ -56,6 +56,21 @@ export function Brief({ kundeRef, basis, demo, ansprechpartner }: { kundeRef: st
   };
 
   const letzte = seiten[seiten.length - 1];
+
+  // Bis Justin den Brief-Weg freigibt (Bauvorlage 7.3): ehrlicher Hinweis statt
+  // Kamera. In der Demo bleibt der Weg sichtbar, dort wird nichts gesendet.
+  if (!demo && !briefAn) {
+    return (
+      <>
+        <h1 className="ap-gruss ap-auf">Ihr Brief<small>Dieser Weg wird gerade freigeschaltet.</small></h1>
+        <div className="ap-karte ap-leer ap-auf v1">
+          <b>Noch einen Moment.</b>
+          Bald fotografieren Sie hier einen Brief, und {ansprechpartner ?? "Ihr Ansprechpartner"} ordnet ihn Ihrer Akte zu. Bis dahin erreichen Sie {ansprechpartner ?? "Ihren Ansprechpartner"} wie gewohnt per E-Mail oder Telefon.
+        </div>
+        <Link href={`${basis}/mehr`} className="ap-link ap-auf v2" style={{ display: "inline-block", fontSize: 15 }}>Zu Ihrem Ansprechpartner →</Link>
+      </>
+    );
+  }
 
   return (
     <>

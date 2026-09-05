@@ -102,7 +102,7 @@ export function Weg({ b, rw, basis, onAktion }: { b: Bereich; rw: Rahmenweg; bas
                 </li>
               ))}
             </ol>
-            {alleTore && <p style={{ margin: "8px 0 12px" }}>Alle drei Punkte sind erfüllt. {b.ansprechpartner?.name ?? "Ihre Ansprechperson"} bereitet den Antrag bei der Bank vor.</p>}
+            {alleTore && <p style={{ margin: "8px 0 12px" }}>Alle drei Punkte sind erfüllt. {b.ansprechpartner?.name ?? "Ihre Ansprechperson"} schickt Ihnen den Weg zu Konto und Karte.</p>}
           </div>
         </section>
       )}

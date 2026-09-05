@@ -221,10 +221,21 @@ router.post("/kunde/:ref/app/ansprueche", requireKunde, async (req: KundeRequest
   }
 });
 
+/** fiaon_settings.app_brief_an = 'an' — sonst bleibt der Brief-Weg in der Demo. */
+async function briefFreigeschaltet(): Promise<boolean> {
+  try {
+    const [r] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = 'app_brief_an' LIMIT 1`) as any[];
+    return String(r?.value || "").trim().toLowerCase() === "an";
+  } catch { return false; }
+}
+
 // ── Brief-Knopf ─────────────────────────────────────────────────────────────
 const briefUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 25 * 1024 * 1024 },
+  // 12 MB je Seite, höchstens 10 Seiten (Handyfotos liegen bei 2–8 MB; der Client
+  // verkleinert vorher auf 2.000 px). 25 MB × 10 im Arbeitsspeicher wären 250 MB
+  // je Anfrage — zu viel für den Render-Dienst.
+  limits: { fileSize: 12 * 1024 * 1024, files: 10, fields: 5 },
   fileFilter: (_req, file, cb) => {
     const art = String(file.mimetype || "").toLowerCase();
     if (art === "application/pdf" || istBild(art)) cb(null, true);
@@ -242,7 +253,7 @@ const briefUpload = multer({
 router.post("/kunde/:ref/app/brief", requireKunde, (req, res, next) => {
   briefUpload.array("brief", 10)(req, res, (err: any) => {
     if (err) {
-      if (err.code === "LIMIT_FILE_SIZE") return res.status(400).json({ ok: false, error: "Das Foto ist größer als 25 MB. Bitte fotografieren Sie den Brief mit geringerer Auflösung noch einmal." });
+      if (err.code === "LIMIT_FILE_SIZE") return res.status(400).json({ ok: false, error: "Das Foto ist größer als 12 MB. Bitte fotografieren Sie den Brief mit geringerer Auflösung noch einmal." });
       return res.status(400).json({ ok: false, error: err.message || "Die Datei konnte nicht angenommen werden." });
     }
     next();
@@ -254,6 +265,18 @@ router.post("/kunde/:ref/app/brief", requireKunde, (req, res, next) => {
     if (!p) return keinePerson(res);
     const seiten = ((req as any).files as Express.Multer.File[] | undefined) ?? [];
     if (!seiten.length || !seiten[0]?.buffer?.length) return res.status(400).json({ ok: false, error: "Es ist kein Foto angekommen. Bitte versuchen Sie es noch einmal." });
+    // Schalter: Der Brief-Weg verspricht „binnen zwei Werktagen sagen wir, was wir
+    // daraus machen" — das braucht Justins Freigabe (Bauvorlage 7.3). Bis dahin
+    // steht der Weg nur in der Demo. fiaon_settings.app_brief_an = 'an' schaltet frei.
+    if (!(await briefFreigeschaltet())) {
+      return res.json({ ok: false, grund: "brief_aus", error: "Der Brief-Weg wird gerade freigeschaltet. Bis dahin erreichen Sie Ihren Ansprechpartner wie gewohnt per E-Mail oder Telefon." });
+    }
+    // Deckel: fünf Briefe je Tag und Person — jeder Brief ist ein Auftrag mit Frist
+    // an einen Menschen; ein hängender Finger darf das Team nicht fluten.
+    const [heuteZahl] = (await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_vorgaenge WHERE person_id = ${p.personId} AND art = 'brief' AND created_at > NOW() - INTERVAL '24 hours'`) as any[];
+    if (Number(heuteZahl?.n || 0) >= 5) {
+      return res.status(429).json({ ok: false, error: "Sie haben heute schon fünf Briefe geschickt. Weitere nehmen wir morgen entgegen – oder Sie rufen Ihren Ansprechpartner an." });
+    }
     const notiz = String(req.body?.notiz ?? "").trim().slice(0, 500);
     // Dringend-Kästchen (Bauvorlage 3.4): Frist, Gericht, Gerichtsvollzieher, Inkasso → Aufgabe heute fällig.
     const dringend = ["1", "true", "ja", "on"].indexOf(String(req.body?.dringend ?? "").toLowerCase()) !== -1;
@@ -291,10 +314,10 @@ router.post("/kunde/:ref/app/brief", requireKunde, (req, res, next) => {
       const { auftragFuerKunden } = await import("./fiaon-betreiber-todo");
       const erg = await auftragFuerKunden({
         personId: p.personId, ref: req.kundeRef!,
-        titel: `${dringend ? "EILIG: " : ""}Brief lesen und zuordnen – ${p.name} (${aktenzeichen})`,
+        titel: `${p.name}: ${dringend ? "EILIG – " : ""}Brief lesen und zuordnen (${aktenzeichen})`,
         link: `/admin/kunde/${encodeURIComponent(req.kundeRef!)}`,
         text: `Der Kunde hat einen Brief fotografiert und in seinem Bereich hochgeladen (${aktenzeichen}, Vorgang #${vorgangId}, ${seiten.length} ${seiten.length === 1 ? "Seite" : "Seiten"}, Dokumente #${dokIds.join(", #")}).${notiz ? ` Notiz des Kunden: „${notiz}“` : ""}${dringend ? " Der Kunde hat angegeben: Der Brief nennt eine Frist oder kommt von Gericht, Gerichtsvollzieher oder Inkasso." : ""} Bitte lesen, zuordnen und dem Kunden unter „Vorgänge" in einem Satz sagen, was wir daraus machen. Frist: ${dringend ? "heute" : `zwei Werktage (${frist})`}.`,
-        faelligAm: frist, dringend, schluessel: `app-brief:${vorgangId}`, quelle: "kundenbereich", bereich: "kunden", autorName: "Kundenbereich",
+        faelligAm: frist, dringend, schluessel: `app-brief:${vorgangId}`, quelle: "kundenbereich", bereich: "pruefen", autorName: "Kundenbereich",
       });
       anWen = erg.kundenName ?? erg.agentName ?? null;
       if (erg.agentId) await sqlPool`UPDATE fiaon_vorgaenge SET zustaendig_agent_id = ${erg.agentId}, updated_at = NOW() WHERE id = ${vorgangId}`;
@@ -338,6 +361,7 @@ router.get("/kunde/:ref/app/post", requireKunde, async (req: KundeRequest, res: 
        ORDER BY v.created_at DESC LIMIT 100`) as any[];
     res.json({
       ok: true,
+      briefAn: await briefFreigeschaltet(),
       vorgaenge: zeilen.map((z) => ({
         id: Number(z.id), art: z.art, artText: ART_TEXT[z.art] ?? z.art, titel: z.titel, stand: z.stand,
         standText: z.stand_text || STAND_TEXT[z.stand] || z.stand, fristAm: tag(z.frist_am), versandtAm: tag(z.versandt_am),

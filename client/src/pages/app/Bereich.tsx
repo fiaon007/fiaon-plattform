@@ -56,6 +56,8 @@ export default function AppBereich() {
   const [b, setB] = useState<Bereich | null>(null);
   const [post, setPost] = useState<Vorgang[] | null>(demo ? DEMO_POST : null);
   const [postGrund, setPostGrund] = useState<string | null>(null);
+  // Brief-Weg freigeschaltet? Kommt mit /app/post vom Server (fiaon_settings.app_brief_an); Demo immer an.
+  const [briefAn, setBriefAn] = useState<boolean>(demo);
   const [check, setCheck] = useState<{ beantwortet: number; gesamt: number } | null>(demo ? { beantwortet: anzahlBeantwortet(DEMO_ANTWORTEN), gesamt: FRAGEN.length } : null);
   const [fehler, setFehler] = useState<string | null>(null);
   const [hinweis, setHinweis] = useState<string | null>(null);
@@ -80,7 +82,7 @@ export default function AppBereich() {
         if (!r.ok || !r.json) throw new Error(String(r.status));
         if (aktiv) setB(r.json);
         // Einzelabrufe je Karte isoliert: fällt einer aus, fällt nur seine Karte.
-        api(`/kunde/${ref}/app/post`).then((x) => { if (!aktiv) return; if (x.json?.ok === false && x.json?.grund) { setPostGrund(x.json.text); setPost([]); } else setPost(Array.isArray(x.json?.vorgaenge) ? x.json.vorgaenge : []); }).catch(() => aktiv && setPost([]));
+        api(`/kunde/${ref}/app/post`).then((x) => { if (!aktiv) return; if (typeof x.json?.briefAn === "boolean") setBriefAn(x.json.briefAn); if (x.json?.ok === false && x.json?.grund) { setPostGrund(x.json.text); setPost([]); } else setPost(Array.isArray(x.json?.vorgaenge) ? x.json.vorgaenge : []); }).catch(() => aktiv && setPost([]));
         api(`/kunde/${ref}/app/ansprueche`).then((x) => { if (!aktiv) return; if (x.json?.ok) setCheck({ beantwortet: x.json.beantwortet ?? 0, gesamt: x.json.fragenGesamt ?? FRAGEN.length }); else setCheck({ beantwortet: 0, gesamt: FRAGEN.length }); }).catch(() => aktiv && setCheck({ beantwortet: 0, gesamt: FRAGEN.length }));
       } catch {
         if (aktiv) setFehler("Ihr Bereich lässt sich gerade nicht laden. Bitte versuchen Sie es in einem Moment noch einmal.");
@@ -116,9 +118,9 @@ export default function AppBereich() {
       <main className="ap-inhalt">
         {fehler && <div className="ap-karte ap-leer"><b>{fehler}</b><button type="button" className="ap-knopf still" style={{ marginTop: 12 }} onClick={() => window.location.reload()}>Noch einmal</button></div>}
         {!b && !fehler && <Skelett />}
-        {b && rw && bildschirm === "heute" && <Heute b={b} rw={rw} basis={basis} post={post} demo={demo} />}
+        {b && rw && bildschirm === "heute" && <Heute b={b} rw={rw} basis={basis} post={post} demo={demo} briefAn={briefAn} />}
         {b && rw && bildschirm === "weg" && <Weg b={b} rw={rw} basis={basis} onAktion={aktion} />}
-        {b && bildschirm === "brief" && <Brief kundeRef={ref} basis={basis} demo={demo} ansprechpartner={apName} />}
+        {b && bildschirm === "brief" && <Brief kundeRef={ref} basis={basis} demo={demo} ansprechpartner={apName} briefAn={briefAn} />}
         {b && rw && bildschirm === "geld" && <Geld b={b} rw={rw} kundeRef={ref} basis={basis} demo={demo} />}
         {b && bildschirm === "vorgaenge" && <Vorgaenge kundeRef={ref} basis={basis} demo={demo} post={post} grund={postGrund} reiter={rest[0] === "ansprueche" ? "ansprueche" : "vorgaenge"} ansprechpartner={apName} />}
         {b && bildschirm === "ansprueche" && <Ansprueche kundeRef={ref} demo={demo} startCheck={rest[0] === "check"} ansprechpartner={apName} onFertig={() => { api(`/kunde/${encodeURIComponent(ref)}/app/ansprueche`).then((x) => { if (x.json?.ok) setCheck({ beantwortet: x.json.beantwortet ?? 0, gesamt: x.json.fragenGesamt ?? FRAGEN.length }); }).catch(() => {}); navigiere(`${basis}/vorgaenge/ansprueche`); }} />}

@@ -154,7 +154,7 @@ export const REGELN: readonly Regel[] = [
     giltAb: PFAENDUNG_2026.giltAb,
     giltBis: null,
     stelle: "Ihre Bank – sie muss die Umwandlung binnen vier Geschäftstagen vornehmen",
-    wasWirTun: "Wir bereiten das Umwandlungsschreiben an Ihre Bank vor; Sie unterschreiben mit dem Finger.",
+    wasWirTun: "Wir bereiten das Umwandlungsschreiben an Ihre Bank vor; Sie unterschreiben es.",
     aktiv: true,
   },
   {

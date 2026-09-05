@@ -28,7 +28,7 @@ export async function api(pfad: string, init?: RequestInit) {
 }
 
 /** Startgespräch buchen: Token holen, Terminseite öffnen (derselbe Weg wie der alte Bereich). */
-export async function startgespraechBuchen(ref: string): Promise<string | null> {
+export async function startgespraechBuchen(kundeRef: string): Promise<string | null> {
   const r = await api(`/kunde/${encodeURIComponent(kundeRef)}/startgespraech`);
   const token = r.json?.token;
   if (token) { window.location.href = `/termin/${encodeURIComponent(token)}?art=start`; return null; }
@@ -136,7 +136,7 @@ export function Ansprueche({ kundeRef, demo, startCheck = false, onFertig, anspr
               </article>
             );
           })}
-          <p className="ap-fuss">{ansprechpartner ? `Diese Liste sieht auch ${ansprechpartner}. Im Startgespräch gehen Sie sie gemeinsam durch.` : "Diese Liste sieht auch Ihr FIAON-Team."} {n < FRAGEN.length ? "Vervollständigen Sie den Check, damit nichts fehlt." : ""}</p>
+          <p className="ap-fuss">{ansprechpartner ? `Nehmen Sie die Liste mit ins Gespräch mit ${ansprechpartner} – dort gehen Sie sie gemeinsam durch.` : "Nehmen Sie die Liste mit ins Gespräch mit Ihrem FIAON-Team."} {n < FRAGEN.length ? "Vervollständigen Sie den Check, damit nichts fehlt." : ""}</p>
         </section>
       )}
 

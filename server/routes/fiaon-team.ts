@@ -251,7 +251,24 @@ router.post("/admin/agents/:id/update", async (req, res) => {
   try {
     await ensureAgentTables();
     const id = Number(req.params.id);
-    const { firstName, lastName, phone, commissionRateBp, monthlyGoalCents, active, recruitedBy, overrideRateBp, distributionActive, anrede } = req.body || {};
+    const { firstName, lastName, phone, commissionRateBp, monthlyGoalCents, active, recruitedBy, overrideRateBp, distributionActive, anrede, email } = req.body || {};
+    // ── E-MAIL ÄNDERN (05.09.2026) ────────────────────────────────────────
+    // Justins Konto trug justin@fiaon.com — die Adresse gibt es nicht. Bis
+    // heute ließ sich die Anmelde-/Meldeadresse nirgends ändern. Die Adresse
+    // ist zugleich der Login, deshalb: klein geschrieben, eindeutig.
+    let neueMail: string | null = null;
+    if (email !== undefined && email !== null && String(email).trim() !== "") {
+      neueMail = String(email).trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(neueMail)) {
+        return res.status(400).json({ ok: false, error: "Das ist keine gültige E-Mail-Adresse." });
+      }
+      const [belegt] = (await sqlPool`
+        SELECT id, name FROM fiaon_agents WHERE LOWER(email) = ${neueMail} AND id <> ${Number(req.params.id)} LIMIT 1
+      `) as any[];
+      if (belegt) {
+        return res.status(409).json({ ok: false, error: `Diese Adresse gehört schon zu ${belegt.name}.` });
+      }
+    }
     // 04.09.2026 (E-117): Anrede „Herr"/„Frau" — Mara nennt den Mitarbeiter dem
     // Kunden gegenüber damit „Herr Stripling"; ohne Anrede „Daniel Stripling".
     const anredeWert = anrede === undefined ? undefined : (["Herr", "Frau"].includes(String(anrede)) ? String(anrede) : null);
@@ -269,6 +286,7 @@ router.post("/admin/agents/:id/update", async (req, res) => {
       UPDATE fiaon_agents SET
         first_name = COALESCE(${firstName ? String(firstName).trim() : null}, first_name),
         last_name = COALESCE(${lastName ? String(lastName).trim() : null}, last_name),
+        email = COALESCE(${neueMail}, email),
         name = COALESCE(${firstName && lastName ? `${String(firstName).trim()} ${String(lastName).trim()}` : null}, name),
         phone = ${phone === undefined ? sqlPool`phone` : (phone ? String(phone).trim() : null)},
         commission_rate_bp = ${commissionRateBp === undefined ? sqlPool`commission_rate_bp` : rateBp},

@@ -1700,6 +1700,7 @@ function MitgliedDetail({
   const [logArt, setLogArt] = useState("");
   const [logSuche, setLogSuche] = useState("");
   const [satz, setSatz] = useState(m ? String((m.commission_rate_bp ?? 0) / 100) : "");
+  const [mail, setMail] = useState(m ? String(m.email ?? "") : "");
   const [busy, setBusy] = useState<string | null>(null);
   const [hinweis, setHinweis] = useState<string | null>(null);
   const [kandidaten, setKandidaten] = useState<any[] | null>(null);
@@ -1747,6 +1748,23 @@ function MitgliedDetail({
     const j = await r?.json().catch(() => null);
     setBusy(null);
     setHinweis(j?.ok ? "Provisionssatz gespeichert." : (j?.error || "Fehler."));
+    if (j?.ok) onAenderung();
+  };
+
+  // 05.09.2026: Die Adresse ist Login UND Empfänger jeder Meldung (Termine,
+  // Aufgaben). Justins Konto trug eine Adresse, die es nicht gibt — und es
+  // gab keinen Ort, sie zu ändern.
+  const mailSpeichern = async () => {
+    const neu = mail.trim().toLowerCase();
+    if (!neu || neu === String(m.email ?? "").toLowerCase()) return;
+    setBusy("mail");
+    const r = await fetch(`/api/fiaon/admin/agents/${id}/update`, {
+      method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: neu }),
+    }).catch(() => null);
+    const j = await r?.json().catch(() => null);
+    setBusy(null);
+    setHinweis(j?.ok ? `Adresse gespeichert — Anmeldung und Meldungen laufen jetzt über ${neu}.` : (j?.error || "Fehler."));
     if (j?.ok) onAenderung();
   };
 
@@ -1894,6 +1912,22 @@ function MitgliedDetail({
 
           {reiter === "verwaltung" && (
             <>
+              <p className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+                E-Mail-Adresse (Anmeldung und Meldungen)
+              </p>
+              <div className="flex flex-wrap items-center gap-2 mb-1">
+                <input type="email" value={mail} onChange={(e) => setMail(e.target.value)} autoComplete="off"
+                       className="px-3 py-2.5 rounded-xl text-[13px] border border-slate-200 bg-white text-slate-800 min-w-[260px]"
+                       placeholder="name@fiaon.com" />
+                <button type="button" onClick={() => void mailSpeichern()}
+                        disabled={busy === "mail" || !mail.trim() || mail.trim().toLowerCase() === String(m.email ?? "").toLowerCase()}
+                        className="px-4 py-2.5 rounded-xl text-[13px] font-bold text-white bg-[#1d4ed8] border border-[#1d4ed8] disabled:opacity-40">
+                  Adresse speichern
+                </button>
+              </div>
+              <p className="mb-5 text-[11.5px] text-slate-400 leading-snug">
+                Mit dieser Adresse meldet sich {m.first_name || "die Person"} an; dorthin gehen Terminmeldungen, Aufgaben und der Passwort-Link.
+              </p>
               <p className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 mb-2">
                 Anrede gegenüber Kunden
               </p>

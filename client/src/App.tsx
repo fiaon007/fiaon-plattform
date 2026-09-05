@@ -31,6 +31,10 @@ import LoginPage from "@/pages/login";
 const DashboardPage = lazy(() => import("@/pages/dashboard"));
 // Mein Bereich — der neue Kundenbereich (E-013). Bis zur Abnahme unter eigener Route.
 const MeinBereichPage = lazy(() => import("@/pages/mein-bereich"));
+// /app — der NEUE Kundenbereich mit eigenem Login (05.09.2026). Läuft parallel
+// zu /login und /mein-bereich, bis er fertig ist; ersetzt bis dahin nichts.
+const AppLogin = lazy(() => import("@/pages/app/Login"));
+const AppBereich = lazy(() => import("@/pages/app/Bereich"));
 import ImpressumPage from "@/pages/impressum";
 import AGBPage from "@/pages/agb";
 import WiderrufsbelehrungPage from "@/pages/widerrufsbelehrung";
@@ -396,6 +400,10 @@ function Router() {
       <Route path="/antrag" component={AntragPage} />
       <Route path="/business-antrag" component={BusinessAntragPage} />
       <Route path="/login" component={LoginPage} />
+      <Route path="/app/login" component={AppLogin} />
+      {/* wouter 3: `*?` = alles unterhalb von /app, auch /app selbst. Die Reiter
+          (/app/weg, /app/demo/weg …) liest die Seite selbst aus der Adresse. */}
+      <Route path="/app/*?" component={AppBereich} />
       {/* Seit 22.08.2026 (E-013): /dashboard IST der neue Bereich. Das alte Dashboard
           bleibt unter /dashboard-alt erreichbar, bis die letzten Funktionen (KYC-
           Prüfansicht, Bank-Anleitungen) in den neuen Bereich gewandert sind. */}

@@ -9,6 +9,7 @@ Disallow: /agent
 Disallow: /chef
 Disallow: /dashboard
 Disallow: /mein-bereich
+Disallow: /app
 Disallow: /zahlung/
 Disallow: /termin/
 Disallow: /api/

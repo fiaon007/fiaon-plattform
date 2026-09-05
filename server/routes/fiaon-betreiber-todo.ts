@@ -182,6 +182,9 @@ export interface AuftragEin {
   link?: string | null;
   /** Wer die Aufgabe stellt — steht in der Zeitleiste. */
   autorName?: string;
+  /** true = bleibt beim Betreiber (Justin), wird NICHT an einen Mitarbeiter
+   *  übergeben — für alles, was nur die Zahlungsstelle prüfen kann (05.09.2026). */
+  anBetreiber?: boolean;
   /** Ausdrücklich dieser Mitarbeiter (z. B. weil der Kunde ihn nennt) — statt der Ableitung. */
   agentId?: number | null;
 }
@@ -302,7 +305,12 @@ export async function auftragFuerKunden(ein: AuftragEin): Promise<AuftragErgebni
   const bereich = ein.bereich && (TODO_BEREICHE as readonly string[]).includes(ein.bereich) ? ein.bereich : "postmeister";
   const link = ein.link ?? (ein.ref ? `/admin/kunde/${ein.ref}` : null);
   const quelle = ein.quelle ?? "postmeister";
-  const wer = (ein.agentId ? await empfaengerNachId(ein.agentId) : null) ?? await auftragEmpfaenger(ein.personId);
+  // Zahlungen prüft nur die Zahlungsstelle (Justin, Bankbuch). Florentine
+  // (05.09.): „Kunde schreibt, er habe am 20.08. bezahlt, und die KI sagt, ich
+  // solle das kontrollieren" — sie kann es nicht, sie sieht kein Konto.
+  const wer: Empfaenger = ein.anBetreiber
+    ? { id: null, name: null, email: null, vorname: null, nachname: null, anrede: null, kundenName: null } as Empfaenger
+    : (ein.agentId ? await empfaengerNachId(ein.agentId) : null) ?? await auftragEmpfaenger(ein.personId);
 
   let id: number | null = null;
   if (ein.schluessel) {
@@ -523,9 +531,18 @@ function spalte(r: any): "offen" | "team" | "rueckfrage" | "erledigt" {
   return "offen";
 }
 
+/** Die Kundenreferenz aus dem Link — /admin/kunde/<ref>, ?ref=<ref> oder irgendwo FIAON-… (05.09.2026). */
+export function refAusLink(link: unknown): string | null {
+  const l = String(link || "");
+  const m = l.match(/[?&]ref=(FIAON-[A-Z0-9-]+)/i) || l.match(/\/kunde\/(FIAON-[A-Z0-9-]+)/i) || l.match(/(FIAON-[A-Z0-9]{6,}(?:-[A-Z0-9]+)*)/i);
+  return m ? m[1].toUpperCase() : null;
+}
+
 function zeile(r: any) {
   return {
     id: Number(r.id), schluessel: r.schluessel ?? null, titel: r.titel, text: r.text ?? null, bereich: r.bereich,
+    /** Kunde hinter der Aufgabe — Daniel (05.09.): „würde gerne anrufen, aber wer ist das?" */
+    ref: refAusLink(r.link), kunde: r.kunde_name ?? null, kundeTelefon: r.kunde_telefon ?? null, personId: r.kunde_person_id ? Number(r.kunde_person_id) : null,
     prioritaet: Number(r.prioritaet || 2), faelligAm: r.faellig_am ? String(r.faellig_am).slice(0, 10) : null,
     link: r.link ?? null, quelle: r.quelle, erledigtAm: r.erledigt_am ?? null, createdAt: r.created_at,
     status: (r.status || "offen") as Status, spalte: spalte(r),
@@ -760,6 +777,43 @@ async function meinAuftrag(req: AgentRequest, res: Response): Promise<any | null
 // Liste." NACHHER trennt der Server selbst — offen und erledigt kommen als
 // zwei Listen plus die ehrliche Lage, damit die Oberfläche nichts nachrechnet
 // und keine Marke zeigen kann, die die Zahlen nicht hergeben.
+/**
+ * Name, Telefon und Person zu jeder Aufgabe, deren Link eine Referenz trägt
+ * (05.09.2026, Florentine: „manche Aufgaben sind ohne Namen, wir können sie
+ * nicht einordnen"). Die Tabelle kennt keinen Kunden — nur den Link.
+ */
+async function kundenAnhaengen(rows: any[]): Promise<void> {
+  const refs = Array.from(new Set(rows.map((r) => refAusLink(r.link)).filter(Boolean))) as string[];
+  if (!refs.length) return;
+  const zeilen = (await sqlPool`
+    SELECT a.ref, a.person_id,
+           COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''), NULLIF(TRIM(CONCAT_WS(' ', a.first_name, a.last_name)), ''), p.company_name) AS name,
+           COALESCE(NULLIF(p.primary_phone, ''), a.contact_phone) AS telefon
+    FROM fiaon_applications a LEFT JOIN fiaon_persons p ON p.id = a.person_id
+    WHERE a.ref = ANY(${refs})
+  `.catch(() => [] as any[])) as any[];
+  const nachRef = new Map<string, any>(zeilen.map((z) => [String(z.ref).toUpperCase(), z]));
+  for (const r of rows) {
+    const k = nachRef.get(String(refAusLink(r.link) || "").toUpperCase());
+    if (k) { r.kunde_name = k.name ?? null; r.kunde_telefon = k.telefon ?? null; r.kunde_person_id = k.person_id ?? null; }
+  }
+}
+
+/** Justin schließt eine Aufgabe aus der Verwaltung (05.09.2026) — z. B. Doppel oder erledigt am Telefon. */
+router.post("/admin/todo/:id/erledigt", async (req: Request, res: Response) => {
+  try {
+    await ensureTodoTabelle();
+    const id = Number(req.params.id);
+    const ergebnis = String(req.body?.ergebnis || "").trim().slice(0, 2000);
+    const [t] = (await sqlPool`SELECT id, status FROM fiaon_betreiber_todos WHERE id = ${id}`) as any[];
+    if (!t) return res.status(404).json({ ok: false, error: "Nicht gefunden." });
+    await sqlPool`UPDATE fiaon_betreiber_todos SET status = 'erledigt', erledigt_am = NOW(), erledigt_von = ${BETREIBER_NAME},
+      ergebnis = COALESCE(NULLIF(${ergebnis}, ''), ergebnis), frage_offen = FALSE, frage_an_agent = FALSE, updated_at = NOW() WHERE id = ${id}`;
+    await beitrag(id, { autorArt: "betreiber", autorName: BETREIBER_NAME, art: "status", text: ergebnis ? `Erledigt: ${ergebnis}` : "Erledigt." });
+    res.json({ ok: true, todo: await todoLaden(id) });
+  } catch (err) { console.error("[TODO] admin erledigt:", err); res.status(500).json({ ok: false, error: "Serverfehler" }); }
+});
+
 router.get("/agent/auftraege", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
     await ensureTodoTabelle();
@@ -772,6 +826,7 @@ router.get("/agent/auftraege", requireAgent, async (req: AgentRequest, res: Resp
     const beitraege = ids.length ? (await sqlPool`SELECT * FROM fiaon_betreiber_todo_beitraege WHERE todo_id = ANY(${ids}) ORDER BY created_at ASC`) as any[] : [];
     const nachTodo = new Map<number, any[]>();
     for (const b of beitraege) { const l = nachTodo.get(Number(b.todo_id)) || []; l.push(beitragZeile(b)); nachTodo.set(Number(b.todo_id), l); }
+    await kundenAnhaengen(rows);
     const alle = rows.map((r) => ({ ...zeile(r), zeitleiste: nachTodo.get(Number(r.id)) || [] }));
     res.json({
       ok: true,

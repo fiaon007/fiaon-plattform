@@ -63,6 +63,23 @@ export interface Werkzeug {
 // ── Hilfen ────────────────────────────────────────────────────────────────
 
 /** Jede Handlung landet in der Akte UND an der Postmeister-Zeile. */
+/** Der Name des Kunden, wie er im Titel einer Aufgabe stehen soll (05.09.2026). */
+async function kundenNameFuer(personId: number | null, ref: string | null): Promise<string | null> {
+  try {
+    if (personId) {
+      const [p] = (await sqlPool`SELECT first_name, last_name, company_name FROM fiaon_persons WHERE id = ${personId} LIMIT 1`) as any[];
+      const n = [p?.first_name, p?.last_name].filter(Boolean).join(" ").trim() || String(p?.company_name || "").trim();
+      if (n) return n;
+    }
+    if (ref) {
+      const [a] = (await sqlPool`SELECT first_name, last_name FROM fiaon_applications WHERE ref = ${ref} LIMIT 1`) as any[];
+      const n = [a?.first_name, a?.last_name].filter(Boolean).join(" ").trim();
+      if (n) return n;
+    }
+  } catch { /* ohne Namen weiter */ }
+  return null;
+}
+
 async function protokoll(k: WerkzeugKontext, werkzeug: string, text: string, sichtbar = true): Promise<void> {
   if (k.ref && sichtbar) {
     await sqlPool`
@@ -241,16 +258,36 @@ export const aufgabeAnBetreuer: Werkzeug = {
         mailKopf = `E-Mail vom ${wann} von ${String(m.von || "").slice(0, 80)} · Betreff: „${String(m.betreff || "").slice(0, 100)}" [Mail #${k.postmeisterId}]\n„${vorschau}${vorschau.length >= 220 ? " …" : ""}"\n\n`;
       }
     }
+    // ── DER KUNDE STEHT IM TITEL (05.09.2026, Florentine/Daniel) ──────────
+    // „Manche Aufgaben sind ohne Namen — wer ist das?" Das Modell soll den Namen
+    // nennen; tut es das nicht, setzt der Server ihn davor.
+    const kundenName = await kundenNameFuer(k.personId, k.ref);
+    const titelMitName = kundenName && !titel.toLowerCase().includes((kundenName.toLowerCase().split(" ").pop() || "§"))
+      ? `${kundenName}: ${titel}`.slice(0, 160) : titel;
+    // ── ZAHLUNGEN PRÜFT NUR DIE ZAHLUNGSSTELLE (05.09.2026) ───────────────
+    // Florentine: „Kunde schreibt, er habe am 20.08. bezahlt, und die KI sagt,
+    // ich solle das kontrollieren." Kein Mitarbeiter sieht das Konto. Solche
+    // Aufgaben bleiben bei Justin (Bankbuch); die Bestellung wird als „Zahlung
+    // gemeldet" markiert, damit der Kontoabgleich sie kennt.
+    let zahlungGemeldet = "";
+    if (zahlungGewollt && k.ref) {
+      const [o] = (await sqlPool`SELECT payment_status FROM fiaon_applications WHERE ref = ${k.ref} AND merged_into IS NULL LIMIT 1`.catch(() => [])) as any[];
+      if (o?.payment_status === "pending_payment") {
+        await sqlPool`UPDATE fiaon_applications SET payment_status = 'claimed_paid', claimed_paid_at = COALESCE(claimed_paid_at, NOW()), updated_at = NOW() WHERE ref = ${k.ref}`.catch(() => {});
+        zahlungGemeldet = " Die Bestellung steht jetzt auf „Zahlung gemeldet\".";
+      }
+    }
     const erg = await auftragFuerKunden({
-      personId: k.personId, ref: k.ref, titel, text: mailKopf + text, faelligAm, dringend: !!p.dringend,
+      personId: k.personId, ref: k.ref, titel: titelMitName, text: mailKopf + text, faelligAm, dringend: !!p.dringend,
       // Eine Aufgabe je Kunde und Tag — drei gleiche Mails (Frau Weber, 25.08.)
       // ergaben drei Aufgaben. Der Text wird an die bestehende angehängt.
       schluessel: `postmeister:${k.personId ?? k.ref ?? k.postmeisterId ?? "x"}:aufgabe:${new Date().toISOString().slice(0, 10)}`,
-      quelle: "postmeister", autorName: "Mara", agentId: gewuenscht?.id ?? null,
+      quelle: "postmeister", autorName: "Mara", agentId: zahlungGewollt ? null : (gewuenscht?.id ?? null),
+      anBetreiber: zahlungGewollt,
     });
     const wer = erg.agentName ?? "die Leitung";
     const werKunde = erg.kundenName ?? erg.agentName ?? "unsere Leitung";
-    await protokoll(k, "aufgabe_an_betreuer", `Aufgabe für ${wer}: „${titel}" (fällig ${faelligAm}). ${text.slice(0, 300)}`);
+    await protokoll(k, "aufgabe_an_betreuer", `Aufgabe für ${wer}: „${titelMitName}" (fällig ${faelligAm}).${zahlungGemeldet} ${text.slice(0, 300)}`);
     const wann = tage === 0 ? "heute" : tage === 1 ? "morgen" : `in ${tage} Tagen`;
     // ── RÜCKRUF ALS TERMIN IM KALENDER (Florentine Punkt 3) ───────────────
     // „Erkannte Rückrufwünsche automatisch als Termin in den Kalender des
@@ -520,11 +557,19 @@ export const eskalationVorbereiten: Werkzeug = {
     const summe = z ? (Number(z.cents) / 100).toFixed(2) : "0.00";
     const text = `Kunde verweigert die Zahlung: „${String(p.zitat || "").slice(0, 200)}". Offen: ${z?.n ?? 0} Rate(n) über ${summe} €, höchste Mahnstufe ${z?.stufe ?? 0}. Bitte anrufen, bevor die Forderung ins Forderungsmanagement geht.`;
     await protokoll(k, "eskalation_vorbereiten", text);
-    await sqlPool`
-      INSERT INTO fiaon_betreiber_todos (titel, text, bereich, prioritaet, quelle, status, zustaendig_art, zustaendig_agent_id, zustaendig_name, link)
-      VALUES ('Zahlung verweigert — Anruf vor Eskalation', ${text}, 'postmeister', 1, 'postmeister', 'offen',
-              ${wer.id ? "agent" : "betreiber"}, ${wer.id}, ${wer.name}, ${k.ref ? `/chef/s/akte?ref=${k.ref}` : null})
-    `.catch(() => {});
+    // 05.09.2026: Daniel: „hier würde ich gerne anrufen … aber wer ist das?"
+    // Der Titel trägt jetzt den Namen, der Link führt in die Mitarbeiter-Akte
+    // (vorher /chef/s/akte — für Mitarbeiter unerreichbar), und derselbe Kunde
+    // bekommt nicht bei jeder Mail eine weitere Aufgabe (Schlüssel je Referenz).
+    const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+    const kundenName = await kundenNameFuer(k.personId, k.ref);
+    await auftragFuerKunden({
+      personId: k.personId, ref: k.ref,
+      titel: `${kundenName ? `${kundenName}: ` : ""}Zahlung verweigert — Anruf vor Eskalation`.slice(0, 160),
+      text, faelligAm: new Date().toISOString().slice(0, 10), dringend: true,
+      schluessel: `postmeister:eskalation:${k.ref ?? k.personId ?? k.postmeisterId ?? "x"}`,
+      quelle: "postmeister", autorName: "Mara", agentId: wer.id ?? null,
+    }).catch(() => {});
     return { ok: true, ergebnis: `${wer.kundenName} ruft Sie an, bevor etwas eskaliert.`, daten: { offen_euro: summe, betreuer: wer.kundenName } };
   },
 };

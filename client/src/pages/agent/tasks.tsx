@@ -31,6 +31,8 @@ interface Auftrag {
   status: "offen" | "in_arbeit" | "wartet" | "erledigt"; frageOffen: boolean; ergebnis: string | null; erledigtAm: string | null; delegiertAm: string | null; zeitleiste: Beitrag[];
   // E-029 (24.08.2026): der Austausch geht in beide Richtungen.
   frageAnAgent: boolean; neuFuerAgent: number; ergebnisPflicht: boolean; erledigtVon: string | null;
+  /** Der Kunde hinter der Aufgabe (05.09.2026) — Daniel: „wer ist das?" */
+  ref?: string | null; kunde?: string | null; kundeTelefon?: string | null; personId?: number | null;
 }
 interface Lage { offen: number; wartet: number; neu: number; frageAnMich: number }
 
@@ -296,8 +298,21 @@ function AuftragKarte({ a, onChange, onWeg }: { a: Auftrag; onChange: (t: Auftra
           <small>{a.status === "erledigt" ? `gemeldet ${zeit(a.erledigtAm)}` : a.faelligAm ? `bis ${tag(a.faelligAm)}` : `Priorität ${a.prioritaet} · ${PRIO[a.prioritaet] || ""}`}</small>
         </div>
         <h3>{a.titel}</h3>
+        {/* 05.09.2026 — Florentine: „manche Aufgaben sind ohne Namen", Daniel:
+            „würde gerne anrufen … aber wer ist das?" Der Kunde steht jetzt
+            unter dem Titel, mit Nummer und Referenz, und der Knopf führt in
+            die eigene Akte — nicht mehr in die Verwaltung. */}
+        {(a.kunde || a.ref) && (
+          <p className="ta-auftrag-text" style={{ marginTop: 4 }}>
+            Kunde: <b>{a.kunde || a.ref}</b>{a.kundeTelefon ? ` · ${a.kundeTelefon}` : ""}{a.kunde && a.ref ? ` · ${a.ref}` : ""}
+          </p>
+        )}
         {a.text && <p className="ta-auftrag-text">{a.text}</p>}
-        {a.link && <a href={a.link} target={a.link.startsWith("http") ? "_blank" : undefined} rel="noreferrer" className="ta-link"><ExternalLink size={13} strokeWidth={1.75} /> Öffnen</a>}
+        {a.personId ? (
+          <a href={`/agent/pipeline?person=${a.personId}`} className="ta-link"><ExternalLink size={13} strokeWidth={1.75} /> Kunde öffnen</a>
+        ) : a.link && (a.link.startsWith("http") || a.link.startsWith("/agent")) ? (
+          <a href={a.link} target={a.link.startsWith("http") ? "_blank" : undefined} rel="noreferrer" className="ta-link"><ExternalLink size={13} strokeWidth={1.75} /> Öffnen</a>
+        ) : null}
 
         {frageVonJustin && <div className="ta-kasten warn"><b>Justin fragt dich:</b> „{frageVonJustin.text}“</div>}
         {!frageVonJustin && letzteAntwort && a.status !== "erledigt" && (

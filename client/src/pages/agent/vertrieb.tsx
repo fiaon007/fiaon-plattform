@@ -378,6 +378,15 @@ function AlleKunden({ onAkte, agenten, zeige }: {
   const jetzige = KUNDEN_FILTER.find((f) => f.key === filter);
 
   // 04.09.2026 (E-120): Betreuer direkt aus der Liste ändern — mit Grund, der im Verlauf steht.
+  // 05.09.2026 — Daniel: „Können wir gesperrte Kunden selber wieder entsperren?
+  // Hab die Funktion noch nicht gefunden." Jetzt hier, neben dem roten „gesperrt".
+  const sperreAufheben = async (p: any) => {
+    if (!window.confirm(`${p.name} entsperren? Der Kunde erscheint danach wieder in den Anruflisten und in der Verteilung.`)) return;
+    const r = await api(`/agent/vertrieb/person/${p.personId}/sperre`, { method: "POST", body: JSON.stringify({ sperren: false }) });
+    if (!r.ok) { window.alert(r.json?.error || "Nicht entsperrt — der Server hat abgelehnt."); return; }
+    void holen();
+  };
+
   const betreuerAendern = async (p: any, agentId: number, agentName: string) => {
     const grund = window.prompt(`${p.name} zu ${agentName} verschieben — warum? (steht im Verlauf des Kunden)`, "");
     if (grund == null) return;
@@ -437,6 +446,12 @@ function AlleKunden({ onAkte, agenten, zeige }: {
               </button>
               <span className="lt-zeile-lage">
                 {p.gesperrt && <em className="ton-rot">gesperrt</em>}
+                {p.gesperrt && (
+                  <button type="button" className="lt-knopf klein" onClick={() => void sperreAufheben(p)}
+                    title="Vertriebssperre aufheben — der Kunde ist danach wieder in Listen und Verteilung">
+                    Sperre aufheben
+                  </button>
+                )}
                 {!p.gesperrt && p.tier === 1 && <em className="ton-warn">Zahlung gemeldet</em>}
                 {!p.gesperrt && p.tier === 2 && <em>Rechnung offen</em>}
                 {!p.gesperrt && p.tier === 3 && <em>Neukunde</em>}

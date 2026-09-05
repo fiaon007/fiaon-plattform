@@ -634,7 +634,17 @@ router.post("/agent/vertrieb/person/:id/ergebnis", requireAgent, nurLeitung, nur
 // ───────────────────────────────────────────────────────────────────────────
 // POST /agent/vertrieb/person/:id/sperre — sperren / entsperren
 // ───────────────────────────────────────────────────────────────────────────
-router.post("/agent/vertrieb/person/:id/sperre", requireAgent, nurLeitung, nurMitZusage, async (req: AgentRequest, res: Response) => {
+// 05.09.2026 (Daniel: „Können wir gesperrte Kunden selber wieder entsperren?
+// Hab die Funktion noch nicht gefunden"): Bisher nur Leitung — jetzt auch der
+// eingetragene Betreuer des Kunden. Wer ihn mit „abgelehnt" gesperrt hat, darf
+// das auch zurücknehmen. Der Knopf steht im Management neben „gesperrt".
+async function leitungOderBetreuer(req: AgentRequest, res: Response, next: any) {
+  if (await istVertriebsleiter(req.agent!.id)) return next();
+  const [p] = (await sqlPool`SELECT assigned_agent_id FROM fiaon_persons WHERE id = ${Number(req.params.id)} LIMIT 1`.catch(() => [])) as any[];
+  if (p && Number(p.assigned_agent_id) === req.agent!.id) return next();
+  return res.status(404).json({ ok: false, error: "Nicht gefunden" });
+}
+router.post("/agent/vertrieb/person/:id/sperre", requireAgent, leitungOderBetreuer, nurMitZusage, async (req: AgentRequest, res: Response) => {
   try {
     const id = Number(req.params.id);
     const sperren = req.body?.sperren !== false;

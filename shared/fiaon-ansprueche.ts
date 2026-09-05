@@ -102,16 +102,19 @@ export interface Regel {
 
 // ── Pfändungsfreigrenzen ab 01.07.2026 ───────────────────────────────────────
 // Bekanntmachung zu den Pfändungsfreigrenzen 2026 nach § 850c ZPO
-// (Pfändungsfreigrenzenbekanntmachung 2026), BGBl. verkündet 26.03.2026.
+// (Pfändungsfreigrenzenbekanntmachung 2026 vom 19.03.2026), BGBl. I 2026 Nr. 80,
+// verkündet 26.03.2026 — https://www.recht.bund.de/bgbl/1/2026/80/VO.html
 // Grundbetrag 1.587,40 € · erste unterhaltsberechtigte Person +597,42 € ·
-// zweite bis fünfte Person je +332,83 €. Nächste Anpassung: 01.07.2027.
+// zweite bis fünfte Person je +332,83 €. Geprüft 05.09.2026 gegen bmjv.de
+// (Grundbetrag) und zwei unabhängige Fachquellen (Erhöhungsbeträge); Primärtext
+// ist das BGBl.-PDF. Nächste Anpassung: 01.07.2027 (Pflege: Justin Schwarzott).
 export const PFAENDUNG_2026 = {
   grundbetragCents: 158_740,
   erstePersonCents: 59_742,
   weiterePersonCents: 33_283,
   maxPersonen: 5,
   giltAb: "2026-07-01",
-  quelleUrl: "https://www.bmjv.de/DE/themen/wirtschaft_finanzen/zwangsvollstreckung/pfaendungsfreigrenzen/pfaendungsfreigrenzen_node.html",
+  quelleUrl: "https://www.recht.bund.de/bgbl/1/2026/80/VO.html",
   geprueftAm: "2026-09-05",
 } as const;
 
@@ -137,7 +140,7 @@ export const REGELN: readonly Regel[] = [
     betragMinCents: PFAENDUNG_2026.erstePersonCents,
     betragMaxCents: pKontoErhoehungCents(PFAENDUNG_2026.maxPersonen),
     rhythmus: "monatlich",
-    rechtsgrundlage: "§ 902 Satz 1 Nr. 1 ZPO i. V. m. § 850c ZPO; Pfändungsfreigrenzenbekanntmachung 2026",
+    rechtsgrundlage: "§ 902 Satz 1 Nr. 1 ZPO i. V. m. § 850c ZPO; Pfändungsfreigrenzenbekanntmachung 2026 (BGBl. I 2026 Nr. 80)",
     quelleUrl: PFAENDUNG_2026.quelleUrl,
     geprueftAm: PFAENDUNG_2026.geprueftAm,
     giltAb: PFAENDUNG_2026.giltAb,

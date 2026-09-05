@@ -122,7 +122,7 @@ export function rahmenwegAus(b: BereichEingang, o: RahmenwegOptionen = {}): Rahm
   const datenOk = tore.length ? !!tore[0]?.erfuellt : true;
   ok("daten", "Ihre Angaben sind vollständig", datenOk, null, "Name, Anschrift und Geburtsdatum müssen zu Ihrem Ausweis passen.", "kunde", "Angaben prüfen", "/mehr");
   // 2 · Erste Zahlung
-  ok("erstzahlung", "Erste Zahlung eingegangen", !!b.stufe.bezahlt, null, "Mit dem Eingang Ihrer ersten Zahlung beginnt die Arbeit an Ihrer Akte.", "kunde", "Jetzt zahlen", "/geld");
+  ok("erstzahlung", "Erste Zahlung eingegangen", !!b.stufe.bezahlt, null, "Mit dem Eingang Ihrer ersten Zahlung beginnt die Arbeit an Ihrer Akte.", "kunde", "Jetzt zahlen", "/geld/zahlen");
   // 3 · Startgespräch
   const startFertig = !!b.onboardingGelaufen || !!b.fahrplan?.some((e) => e.key === "start" && e.stand === "fertig");
   const terminIso = b.termin?.beginn ? String(b.termin.beginn).slice(0, 10) : null;
@@ -156,7 +156,7 @@ export function rahmenwegAus(b: BereichEingang, o: RahmenwegOptionen = {}): Rahm
     const verspaetet = gez && !!r?.faelligIso && !!isoAus(r.bezahltAm) && (isoAus(r.bezahltAm) as string) > r.faelligIso;
     ok(`rate_${n}`, `Rate ${n} gezahlt`, gez, r?.bezahltAm ?? null,
       r ? (faellig ? `Rate ${n} ist fällig – jede pünktliche Rate ist zugleich Ihr Zahlungsnachweis.` : `Fällig am ${r.faelligAm ?? "–"}. Jede pünktliche Rate ist zugleich Ihr Zahlungsnachweis.`) : "Ihr Zahlungsnachweis für die Bank.",
-      faellig ? "kunde" : "fiaon", faellig ? "Rate zahlen" : null, faellig ? "/geld" : null, { verspaetet });
+      faellig ? "kunde" : "fiaon", faellig ? "Rate zahlen" : null, faellig ? "/geld/zahlen" : null, { verspaetet });
   }
   // 10 · Girokonto
   ok("konto_eroeffnet", "Girokonto eröffnet", false, null, "Sobald die drei Punkte der Bank erfüllt sind, eröffnen Sie das Konto – wir begleiten.", "fiaon", null, null);

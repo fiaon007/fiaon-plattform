@@ -29,6 +29,8 @@ import { sqlPool } from "../lib/db-pool";
 import { requireKunde, type KundeRequest } from "../lib/fiaon-kunde-session";
 import { bildAlsPdf, istBild, istHeic } from "../lib/fiaon-bild-zu-pdf";
 import { FRAGEN, REGELN, befunde, beantwortet, summeMonatlichCents, type Antworten, type Befund } from "@shared/fiaon-ansprueche";
+import { BANK } from "@shared/fiaon-bank";
+import { zahlungsauftragFinden } from "../lib/fiaon-zahlungsauftrag";
 
 const router = Router();
 
@@ -412,5 +414,90 @@ router.post("/admin/app/einstellung", async (req, res: Response) => {
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });
+
+// ── Rate zahlen (Bauvorlage 3.10) ───────────────────────────────────────────
+// Der Kunde sieht EINEN offenen Zahlungsauftrag: die erste Zahlung, solange sie
+// fehlt, sonst die nächste offene Rate. Drei Wege: Bank-App (Sofortzahlung über
+// den signierten Link aus fiaon-lastschrift.ts, wenn GoCardless konfiguriert ist),
+// Überweisung (Daten aus shared/fiaon-bank.ts + GiroCode) und Bankeinzug.
+// „Ich habe überwiesen" ist NUR ein Vermerk im Kontaktverlauf — nie claimed_paid,
+// nie eine Freischaltung (Hausgrundsatz 02.09.: 276 Behaupter ohne Geld).
+const VERMERK_ART = "kunde_zahlung_gemeldet";
+
+async function offenerAuftrag(ref: string): Promise<{ art: "erstzahlung" | "rate"; referenz: string; betragCents: number; faelligAm: string | null; faelligIso: string | null; rateNr: number | null; ratenVon: number | null; status: string } | null> {
+  const [a] = (await sqlPool`SELECT payment_reference, payment_status, amount_due, payment_due_date FROM fiaon_applications WHERE ref = ${ref} LIMIT 1`) as any[];
+  if (!a) return null;
+  const bezahlt = a.payment_status === "paid";
+  if (!bezahlt) {
+    return { art: "erstzahlung", referenz: String(a.payment_reference || ref), betragCents: Math.round(Number(a.amount_due || 0) * 100), faelligAm: tag(a.payment_due_date), faelligIso: a.payment_due_date ? new Date(a.payment_due_date).toISOString().slice(0, 10) : null, rateNr: null, ratenVon: null, status: String(a.payment_status || "pending_payment") };
+  }
+  const [r] = (await sqlPool`
+    SELECT r.zahlungsreferenz, r.betrag_cents, r.faellig_am, r.rate_nr,
+           (SELECT COUNT(*) FROM fiaon_abo_raten x WHERE x.ref = r.ref) AS gesamt
+      FROM fiaon_abo_raten r
+     WHERE r.ref = ${ref} AND r.status = 'offen'
+     ORDER BY r.rate_nr ASC LIMIT 1`.catch(() => [])) as any[];
+  if (!r) return null;
+  return { art: "rate", referenz: String(r.zahlungsreferenz), betragCents: Number(r.betrag_cents), faelligAm: tag(r.faellig_am), faelligIso: r.faellig_am ? new Date(r.faellig_am).toISOString().slice(0, 10) : null, rateNr: Number(r.rate_nr), ratenVon: Number(r.gesamt) || 12, status: "offen" };
+}
+
+/** GET /kunde/:ref/app/zahlung — der eine offene Zahlungsauftrag mit allen drei Wegen. */
+router.get("/kunde/:ref/app/zahlung", requireKunde, async (req: KundeRequest, res: Response) => {
+  try {
+    const ref = req.kundeRef!;
+    const z = await offenerAuftrag(ref);
+    const [ls] = (await sqlPool`SELECT p.gc_mandate_ref, p.gc_mandate_status FROM fiaon_applications a LEFT JOIN fiaon_persons p ON p.id = a.person_id WHERE a.ref = ${ref} LIMIT 1`) as any[];
+    const lastschriftAktiv = !!ls?.gc_mandate_ref && ["active", "submitted", "created"].indexOf(String(ls.gc_mandate_status || "")) !== -1;
+    const lastschriftWartet = !!ls?.gc_mandate_ref && ["pending_submission", "pending_customer_approval"].indexOf(String(ls.gc_mandate_status || "")) !== -1;
+    if (!z) return res.json({ ok: true, offen: null, lastschrift: { aktiv: lastschriftAktiv, wartet: lastschriftWartet } });
+
+    // Sofortzahlung nur, wenn GoCardless konfiguriert ist und der Auftrag für den Link taugt.
+    let sofortUrl: string | null = null;
+    if (process.env.GOCARDLESS_ACCESS_TOKEN) {
+      try {
+        const za = await zahlungsauftragFinden(z.referenz);
+        if (za && za.status !== "paid" && za.status !== "cancelled" && Number(za.amountDue) > 0) {
+          const { sofortLink } = await import("./fiaon-lastschrift");
+          sofortUrl = sofortLink(z.referenz);
+        }
+      } catch (e: any) { console.error("[APP] sofortLink:", e?.message || e); }
+    }
+    const [v] = (await sqlPool`SELECT created_at FROM fiaon_contact_log WHERE ref = ${ref} AND type = ${VERMERK_ART} AND note LIKE ${"%" + z.referenz + "%"} ORDER BY created_at DESC LIMIT 1`.catch(() => [])) as any[];
+    const heute = berlinHeute();
+    const heuteIso = `${heute.j}-${String(heute.m).padStart(2, "0")}-${String(heute.t).padStart(2, "0")}`;
+    res.json({
+      ok: true,
+      offen: { ...z, ueberfaellig: !!z.faelligIso && z.faelligIso < heuteIso, sofortUrl,
+        qrPfad: `/api/fiaon/zahlung/${encodeURIComponent(z.referenz)}/qr.png`,
+        bank: { empfaenger: BANK.empfaenger, iban: BANK.iban, ibanDisplay: BANK.ibanDisplay, bic: BANK.bic },
+        vermerkAm: v?.created_at ? tag(v.created_at) : null },
+      lastschrift: { aktiv: lastschriftAktiv, wartet: lastschriftWartet },
+    });
+  } catch (e: any) {
+    console.error("[APP] zahlung:", e?.message || e);
+    res.status(500).json({ ok: false, error: "Ihre Zahlungsdaten konnten gerade nicht geladen werden." });
+  }
+});
+
+/** POST /kunde/:ref/app/zahlung/vermerk { referenz } — nur ein Vermerk im Verlauf, kein Status. */
+router.post("/kunde/:ref/app/zahlung/vermerk", requireKunde, async (req: KundeRequest, res: Response) => {
+  try {
+    const ref = req.kundeRef!;
+    const z = await offenerAuftrag(ref);
+    const referenz = String(req.body?.referenz || "").trim().toUpperCase();
+    if (!z || referenz !== z.referenz.toUpperCase()) return res.status(409).json({ ok: false, error: "Zu dieser Referenz ist gerade nichts offen." });
+    const [schon] = (await sqlPool`SELECT created_at FROM fiaon_contact_log WHERE ref = ${ref} AND type = ${VERMERK_ART} AND note LIKE ${"%" + z.referenz + "%"} AND created_at > NOW() - INTERVAL '24 hours' ORDER BY created_at DESC LIMIT 1`.catch(() => [])) as any[];
+    if (!schon) {
+      const [a] = (await sqlPool`SELECT a.person_id, p.assigned_agent_id FROM fiaon_applications a LEFT JOIN fiaon_persons p ON p.id = a.person_id WHERE a.ref = ${ref} LIMIT 1`) as any[];
+      await sqlPool`INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
+        VALUES (${ref}, ${a?.person_id ?? null}, ${a?.assigned_agent_id ?? null}, 'Kunde', ${VERMERK_ART}, ${`Kunde meldet im Bereich: Überweisung ${z.referenz} (${eurText(z.betragCents)}) ist unterwegs. Kein Status geändert — der Haken kommt mit dem Geldeingang.`}, NOW())`;
+    }
+    res.json({ ok: true, text: "Danke. Sobald das Geld eingeht, sehen Sie hier den Haken." });
+  } catch (e: any) {
+    console.error("[APP] zahlung/vermerk:", e?.message || e);
+    res.status(500).json({ ok: false, error: "Der Vermerk konnte gerade nicht gespeichert werden." });
+  }
+});
+const eurText = (cents: number) => new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(cents / 100);
 
 export default router;

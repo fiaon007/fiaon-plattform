@@ -58,27 +58,8 @@ export function Geld({ b, rw, kundeRef, basis, demo }: { b: Bereich; rw: Rahmenw
         </div>
       )}
 
-      {!b.lastschrift.aktiv && (
-        <section className="ap-abschnitt ap-auf v2">
-          <h2 className="ap-abschnitt-titel">Überweisen</h2>
-          <div className="ap-karte">
-            <dl className="ap-liste" style={{ marginTop: 0 }}>
-              <dt>Empfänger</dt><dd style={{ display: "flex", justifyContent: "space-between" }}><span>{BANK.empfaenger}</span><Kopieren wert={BANK.empfaenger} /></dd>
-              <dt>IBAN</dt><dd style={{ display: "flex", justifyContent: "space-between" }}><span className="ap-mono">{BANK.ibanDisplay}</span><Kopieren wert={BANK.iban} /></dd>
-              <dt>BIC</dt><dd><span className="ap-mono">{BANK.bic}</span></dd>
-              <dt>Zweck</dt><dd style={{ display: "flex", justifyContent: "space-between" }}><span className="ap-mono">{zweck}</span><Kopieren wert={zweck} /></dd>
-              {n && <><dt>Betrag</dt><dd className="ap-mono">{eur(n.betragCents)}</dd></>}
-            </dl>
-            {!demo && (
-              <details style={{ marginTop: 12 }}>
-                <summary className="ap-link" style={{ cursor: "pointer", fontSize: 15 }}>GiroCode für die Bank-App anzeigen</summary>
-                <img src={`/api/fiaon/zahlung/${encodeURIComponent(kundeRef)}/qr.png`} alt="GiroCode zum Scannen in Ihrer Bank-App" style={{ display: "block", width: 200, height: 200, margin: "12px auto 0", borderRadius: 10, border: "1px solid var(--fi-linie)", background: "#fff" }} />
-                <p className="ap-fuss" style={{ textAlign: "center" }}>In der Bank-App „Überweisen“ → „QR-Code scannen“ – Betrag und Zweck sind eingetragen.</p>
-              </details>
-            )}
-            <p className="ap-fuss" style={{ marginTop: 12 }}>Sobald das Geld eingeht, sehen Sie hier den Haken. Nach Eingang zählt die Rate als Zahlungsnachweis und als Schritt auf Ihrem Weg.</p>
-          </div>
-        </section>
+      {(n || !b.stufe.bezahlt) && !b.lastschrift.aktiv && (
+        <Link href={`${basis}/geld/zahlen`} className="ap-knopf ap-auf v2">{!b.stufe.bezahlt ? "Jetzt zahlen" : "Rate zahlen"}</Link>
       )}
 
       {b.paket.abo && rw.raten.gesamt > 0 && (

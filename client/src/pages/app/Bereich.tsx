@@ -23,6 +23,7 @@ import { Brief } from "./Brief";
 import { Vorgaenge } from "./Vorgaenge";
 import { Geld } from "./Geld";
 import { Hilfe, Termine } from "./Hilfe";
+import { Zahlen } from "./Zahlen";
 import "@/styles/app.css";
 
 const DEMO_REF = "FIAON-DEMO";
@@ -128,7 +129,8 @@ export default function AppBereich() {
         {b && rw && bildschirm === "heute" && <Heute b={b} rw={rw} basis={basis} post={post} demo={demo} briefAn={briefAn} />}
         {b && rw && bildschirm === "weg" && <Weg b={b} rw={rw} basis={basis} onAktion={aktion} />}
         {b && bildschirm === "brief" && <Brief kundeRef={ref} basis={basis} demo={demo} ansprechpartner={apName} briefAn={briefAn} />}
-        {b && rw && bildschirm === "geld" && <Geld b={b} rw={rw} kundeRef={ref} basis={basis} demo={demo} />}
+        {b && rw && bildschirm === "geld" && rest[0] === "zahlen" && <Zahlen b={b} kundeRef={ref} basis={basis} demo={demo} />}
+        {b && rw && bildschirm === "geld" && rest[0] !== "zahlen" && <Geld b={b} rw={rw} kundeRef={ref} basis={basis} demo={demo} />}
         {b && bildschirm === "vorgaenge" && <Vorgaenge kundeRef={ref} basis={basis} demo={demo} post={post} grund={postGrund} reiter={rest[0] === "ansprueche" ? "ansprueche" : "vorgaenge"} ansprechpartner={apName} />}
         {b && bildschirm === "ansprueche" && <Ansprueche kundeRef={ref} demo={demo} startCheck={rest[0] === "check"} ansprechpartner={apName} onFertig={() => { api(`/kunde/${encodeURIComponent(ref)}/app/ansprueche`).then((x) => { if (x.json?.ok) setCheck({ beantwortet: x.json.beantwortet ?? 0, gesamt: x.json.fragenGesamt ?? FRAGEN.length }); }).catch(() => {}); navigiere(`${basis}/vorgaenge/ansprueche`); }} />}
         {b && bildschirm === "unterlagen" && <Unterlagen kundeRef={ref} demo={demo} u={b.unterlagen} />}

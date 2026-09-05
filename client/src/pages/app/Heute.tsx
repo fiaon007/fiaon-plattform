@@ -19,8 +19,8 @@ export function Heute({ b, rw, basis, post, demo, briefAn = true }: { b: Bereich
 
   // Band: genau ein Zustand, in dieser Reihenfolge.
   let band: { text: string; aktion: string | null; href: string | null } | null = null;
-  if (!b.stufe.bezahlt) band = { text: `Ihre erste Zahlung ist noch offen${b.paket.monatlichCents ? `: ${eur(b.paket.monatlichCents)}` : ""}${b.paket.zahlungsreferenz ? ` · Verwendungszweck ${b.paket.zahlungsreferenz}` : ""}`, aktion: "Jetzt zahlen", href: `${basis}/geld` };
-  else if (rw.raten.ueberfaellig) band = { text: `Rate ${rw.raten.ueberfaellig.nr} ist${rw.raten.ueberfaellig.seit ? ` seit ${rw.raten.ueberfaellig.seit}` : ""} offen.`, aktion: "Rate zahlen", href: `${basis}/geld` };
+  if (!b.stufe.bezahlt) band = { text: `Ihre erste Zahlung ist noch offen${b.paket.monatlichCents ? `: ${eur(b.paket.monatlichCents)}` : ""}${b.paket.zahlungsreferenz ? ` · Verwendungszweck ${b.paket.zahlungsreferenz}` : ""}`, aktion: "Jetzt zahlen", href: `${basis}/geld/zahlen` };
+  else if (rw.raten.ueberfaellig) band = { text: `Rate ${rw.raten.ueberfaellig.nr} ist${rw.raten.ueberfaellig.seit ? ` seit ${rw.raten.ueberfaellig.seit}` : ""} offen.`, aktion: "Rate zahlen", href: `${basis}/geld/zahlen` };
   else if (!startFertig && terminGebucht) band = { text: `Ihr Startgespräch: ${zeit(b.termin!.beginn)} Uhr am Telefon${b.termin!.agent ? ` mit ${b.termin!.agent}` : ""}. Halten Sie Ihr Handy bereit.`, aktion: null, href: null };
   else if (!startFertig) band = { text: "Ihr Startgespräch: Wählen Sie eine Zeit. Das Gespräch führen wir am Telefon.", aktion: "Zeit wählen", href: `${basis}/weg` };
 

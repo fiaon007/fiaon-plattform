@@ -951,7 +951,7 @@ router.post("/admin/onboarding/doku-nachziehen", async (_req: Request, res: Resp
          AND t.quelle IN ('onboarding', 'onboarding_call') AND t.agenda_stand IS NOT NULL
        ORDER BY t.beginn DESC LIMIT 200
     `) as any[];
-    const erg: { id: number; ok: boolean; fehlt?: string[] }[] = [];
+    const erg: { id: number; ok: boolean; fehlt?: string[]; verguetung?: string }[] = [];
     for (const t of zeilen) {
       const roh = agendaEntpacken(t.agenda_stand);
       const stand = { erledigt: Array.isArray(roh?.erledigt) ? roh.erledigt.map(String) : [], notizen: roh?.notizen && typeof roh.notizen === "object" ? roh.notizen : {} };
@@ -967,9 +967,34 @@ router.post("/admin/onboarding/doku-nachziehen", async (_req: Request, res: Resp
         VALUES (${ref.ref}, ${Number(t.person_id)}, NULL, 'System', 'system',
                 ${`Onboarding abgeschlossen (nachgezogen): Die Agenda von ${t.agent_name || "dem Mitarbeiter"} war vollständig, nur der Abschluss fehlte durch einen Speicherfehler.`}, NOW())
       `.catch(() => {});
-      erg.push({ id: Number(t.id), ok: true });
+      // 05.09.2026: Mit dem Abschluss gehört die Vergütung dazu — Nikita: „Die
+      // Kunden wurden verbucht, nur die Provision nicht." Idempotent je Kunde.
+      let geld: { gutgeschrieben: boolean; cents: number; grund: string } | null = null;
+      if (t.agent_id) {
+        const { onboardingGutschrift } = await import("../lib/fiaon-onboarding-verguetung");
+        geld = await onboardingGutschrift({ personId: Number(t.person_id), agentId: Number(t.agent_id), agentName: String(t.agent_name || ""), terminId: Number(t.id), ref: ref?.ref ?? null }).catch(() => null);
+      }
+      erg.push({ id: Number(t.id), ok: true, ...(geld ? { verguetung: geld.gutgeschrieben ? `${(geld.cents / 100).toFixed(2)} €` : geld.grund } : {}) });
     }
-    res.json({ ok: true, geprueft: zeilen.length, abgeschlossen: erg.filter((e) => e.ok).length, offen: erg.filter((e) => !e.ok) });
+    // Termine, die schon abgeschlossen sind (auch gestern nachgezogen), aber ohne Gutschrift blieben.
+    const ohneGeld = (await sqlPool`
+      SELECT t.id, t.person_id, t.agent_id, a.name AS agent_name
+        FROM fiaon_termine t LEFT JOIN fiaon_agents a ON a.id = t.agent_id
+       WHERE t.onboarding_abgeschlossen_am IS NOT NULL AND t.quelle IN ('onboarding', 'onboarding_call') AND t.agent_id IS NOT NULL
+         AND t.onboarding_abgeschlossen_am > NOW() - INTERVAL '14 days'
+         AND NOT EXISTS (SELECT 1 FROM fiaon_commissions c WHERE c.onboarding_person_id = t.person_id AND c.kind = 'onboarding')
+       ORDER BY t.onboarding_abgeschlossen_am DESC LIMIT 100
+    `) as any[];
+    const nachverguetet: any[] = [];
+    if (ohneGeld.length) {
+      const { onboardingGutschrift } = await import("../lib/fiaon-onboarding-verguetung");
+      for (const t of ohneGeld) {
+        const [ref] = (await sqlPool`SELECT ref FROM fiaon_applications WHERE person_id = ${Number(t.person_id)} AND merged_into IS NULL ORDER BY created_at DESC LIMIT 1`) as any[];
+        const geld = await onboardingGutschrift({ personId: Number(t.person_id), agentId: Number(t.agent_id), agentName: String(t.agent_name || ""), terminId: Number(t.id), ref: ref?.ref ?? null }).catch((e) => ({ gutgeschrieben: false, cents: 0, grund: String(e?.message || e) }));
+        nachverguetet.push({ id: Number(t.id), agent: t.agent_name, ...geld });
+      }
+    }
+    res.json({ ok: true, geprueft: zeilen.length, abgeschlossen: erg.filter((e) => e.ok).length, offen: erg.filter((e) => !e.ok), nachverguetet });
   } catch (e: any) {
     res.status(500).json({ ok: false, error: String(e?.message || e).slice(0, 200) });
   }

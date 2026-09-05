@@ -39,7 +39,7 @@
 // Zuständigkeiten ist. Ohne eigene Marke wäre ein Zahlungsgespräch im
 // Kalender als „Vertrieb" erschienen — und der Mitarbeiter hätte sich auf ein
 // Verkaufsgespräch eingestellt.
-export type TerminArt = "onboarding" | "vertrieb" | "rueckruf" | "forderung";
+export type TerminArt = "onboarding" | "vertrieb" | "rueckruf" | "forderung" | "gruender";
 
 export interface TerminArtMarke {
   art: TerminArt;
@@ -80,6 +80,12 @@ const MARKEN: Record<TerminArt, Omit<TerminArtMarke, "grund">> = {
     // Marke soll den Mitarbeiter einstimmen, nicht den Kunden anklagen.
     ton: "#b45309",
   },
+  gruender: {
+    art: "gruender",
+    text: "Gründer",
+    erklaerung: "Gespräch mit Justin Schwarzott, selbst gebucht über /justin — Partner, Investoren, Presse oder Kunden, die den Gründer sprechen wollen.",
+    ton: "#0B1220",
+  },
 };
 
 /**
@@ -114,6 +120,8 @@ export function terminArtAusQuelle(quelle: unknown): TerminArtMarke {
     case "nichterreicht_mail":
     case "portal":
       return { ...MARKEN.vertrieb, grund: `Quelle „${q}“` };
+    case "gruender":
+      return { ...MARKEN.gruender, grund: `Quelle „${q}“` };
     default:
       return {
         ...MARKEN.vertrieb,

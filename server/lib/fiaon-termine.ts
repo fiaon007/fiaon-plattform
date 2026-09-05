@@ -66,6 +66,9 @@ export const QUELLEN = {
   // 20 Minuten wie das Vertriebsgespräch: Es geht um eine Zahlung, eine
   // Vereinbarung und oft um eine Lebenslage — 15 Minuten wären knapp.
   inkasso_call: { minuten: 20, text: "Gespräch über deine offene Rate" },
+  // 05.09.2026 (E-124): Justins eigene Buchungsseite (/justin). Keine Rolle,
+  // keine Ableitung aus dem Kundenzustand — wer hier bucht, will den Gründer.
+  gruender: { minuten: 30, text: "Gespräch mit Justin Schwarzott, Gründer von FIAON" },
 } as const;
 
 export type TerminQuelle = keyof typeof QUELLEN;
@@ -107,6 +110,7 @@ export const HERKUENFTE = {
   wiedereinstieg_mail: "Wiedereinstiegs-Mail nach langer Funkstille",
   rueckholung: "Terminlink aus einer Rückhol-Mail (offener Antrag)",
   agent: "Von einem Mitarbeiter weitergegeben oder eingetragen",
+  gruender_seite: "Buchungsseite des Gründers (/justin)",
   unbekannt: "Weg nicht mitgeführt",
 } as const;
 
@@ -754,6 +758,10 @@ export function slotsVerknappen(slots: Slot[], hoechstens = SLOTS_PRO_TAG_VORGAB
   for (const tag of Array.from(jeTag.keys()).sort()) {
     const alle = jeTag.get(tag)!.slice().sort((a, b) => a.beginn.localeCompare(b.beginn));
     if (alle.length <= hoechstens) { raus.push(...alle); continue; }
+    // Ein einziger Platz: (n-1)/(k-1) wäre eine Division durch null — die
+    // Schleife unten holte dann `alle[NaN]` und lieferte [undefined]
+    // (gefunden 05.09.2026 beim Tages-Deckel der Gründer-Seite).
+    if (hoechstens === 1) { raus.push(alle[0]); continue; }
 
     // Gleichmäßig greifen: Bei 27 Zeiten und fünf Plätzen sind das die
     // Positionen 0, 6, 13, 19, 26 — erste, letzte und drei dazwischen.
@@ -1174,7 +1182,7 @@ export async function terminBuchen(
   // nicht entscheiden, wer anruft). Ein ANGEMELDETER Mitarbeiter ist kein
   // URL-Parameter: Buchungen mit herkunft 'agent' behalten die gewaehlte Art.
   const eigenerRueckruf = gewuenscht === "agent_manuell" || gewuenscht === "onboarding"
-    || eingabe.herkunft === "agent";
+    || gewuenscht === "gruender" || eingabe.herkunft === "agent";
   const abgeleitet = eigenerRueckruf
     ? null
     : await entscheidFuerPerson(eingabe.personId, gewuenscht, lauf);

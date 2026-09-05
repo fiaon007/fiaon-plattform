@@ -33,7 +33,7 @@ import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { getSettings } from "./fiaon-agent";
 import { versandErlaubtOderProtokoll } from "../lib/fiaon-versandkanal";
-import { anrufHinweis, ABSAGE_HINWEIS } from "../../shared/fiaon-termin-text";
+import { anrufHinweisSie, ABSAGE_HINWEIS_SIE } from "../../shared/fiaon-termin-text";
 
 const router = Router();
 
@@ -601,8 +601,8 @@ export async function runTerminErinnerungen(): Promise<number> {
         // {{params.hinweis_anruf}} in der Brevo-Vorlage. In der Erinnerung ist
         // er noch wichtiger: Sie kommt 24 Stunden vor dem Termin, also genau
         // dann, wenn der Mensch überlegt, was er vorbereiten muss.
-        hinweis_anruf: anrufHinweis(String(p.agent_vorname || "")),
-        hinweis_absage: ABSAGE_HINWEIS,
+        hinweis_anruf: anrufHinweisSie(String(p.agent_vorname || "")),
+        hinweis_absage: ABSAGE_HINWEIS_SIE,
       },
       {
         personId: Number(t.person_id),

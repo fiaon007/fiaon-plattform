@@ -731,6 +731,17 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
 
 
   // ── Zehn-Seiten-Plan, 02.09.2026 (E-083): die ersten sechs ───────────────
+  // 05.09.2026 (E-124): Justins Buchungsseite — ein Link zum Weitergeben, nicht
+  // zum Finden. noindex, damit Google keine Termine beim Gründer anpreist.
+  "/justin": {
+    pfad: "/justin", art: "unternehmen", stand: "2026-09-05", prio: 0.1, robots: "noindex,follow",
+    titel: "Termin mit Justin Schwarzott, Gründer von FIAON",
+    beschreibung: "Wählen Sie eine Zeit – Justin Schwarzott ruft Sie an. 30 Minuten, telefonisch, höchstens drei Gespräche am Tag. Für Partner, Investoren, Presse und Kunden.",
+    h1: "Sprechen Sie direkt mit dem Gründer.",
+    lead: "Wählen Sie einen Tag und eine Uhrzeit – Justin Schwarzott ruft Sie zur vereinbarten Zeit an. 30 Minuten, telefonisch, kostenlos und unverbindlich.",
+    weiter: ["/kontakt", "/team", "/investoren"],
+    krumen: [{ name: "Termin mit dem Gründer", pfad: "/justin" }],
+  },
   "/termin": { pfad: "/termin", art: "unternehmen", stand: PFEILER, prio: 0.9,
     titel: "Startgespräch buchen: 15 Minuten mit einem Menschen",
     beschreibung: "Lieber erst reden? Zeitfenster wählen – ein Mitarbeiter ruft Sie an, erklärt, was Ihre Auskunft hergibt und welches Paket passt. Kostenlos.",

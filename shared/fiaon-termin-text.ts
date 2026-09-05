@@ -56,6 +56,21 @@ export function anrufHinweisKurz(vorname?: string | null): string {
  * Mitarbeiter wartet, der Kunde schämt sich, und die Wiedereinladung kostet
  * eine weitere Runde.
  */
+/**
+ * Dieselben Sätze in der Sie-Form — für alles, was als E-MAIL rausgeht
+ * (05.09.2026). Die Mailvorlagen sprechen den Kunden mit „Sie" an; der
+ * Du-Satz aus der Terminseite stand bisher mitten in einem Sie-Absatz
+ * („halten Sie Ihr Telefon bereit. Daniel ruft dich an — halte dein Telefon
+ * bereit."). Justin: „Wir schreiben immer in Sie-Form."
+ */
+export function anrufHinweisSie(name?: string | null): string {
+  const wer = String(name || "").trim() || "Ihr Ansprechpartner";
+  return `${wer} ruft Sie zur vereinbarten Zeit an — halten Sie bitte Ihr Telefon bereit.`;
+}
+export const ABSAGE_HINWEIS_SIE =
+  "Passt es doch nicht? Über den Link in dieser E-Mail können Sie jederzeit "
+  + "absagen oder eine andere Zeit wählen.";
+
 export const ABSAGE_HINWEIS =
   "Passt es doch nicht? Über den Link in der Bestätigungs-E-Mail kannst du "
   + "jederzeit absagen oder eine andere Zeit wählen.";

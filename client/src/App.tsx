@@ -71,6 +71,8 @@ const TerminPage = lazy(() => import("@/pages/termin"));
 // Vertrag bestaetigen (server/lib/fiaon-zustimmung.ts).
 const ZustimmungPage = lazy(() => import("@/pages/zustimmung"));
 const TerminAbsagenPage = lazy(() => import("@/pages/termin").then((m) => ({ default: m.TerminAbsagenPage })));
+// Justins eigene Buchungsseite — ohne Token, höchstens drei Zeiten je Tag (E-124).
+const GruenderTerminPage = lazy(() => import("@/pages/gruender-termin"));
 const AbmeldenPage = lazy(() => import("@/pages/abmelden"));
 const AlsKundePage = lazy(() => import("@/pages/als-kunde"));
 // Gesperrte Vertragsseite (26.08.2026) — Code, Eingabe im Text, Unterschrift.
@@ -648,6 +650,9 @@ function Router() {
       {/* Abmeldung von der Lead-Strecke — kein Login, ein Klick. */}
       <Route path="/abmelden/:schluessel" component={AbmeldenPage} />
       <Route path="/termin/absagen/:stornoToken" component={TerminAbsagenPage} />
+      {/* Vor /termin/:token — sonst hielte der Platzhalter „justin" für ein Token. */}
+      <Route path="/justin" component={GruenderTerminPage} />
+      <Route path="/termin/justin" component={GruenderTerminPage} />
       <Route path="/termin/:token" component={TerminPage} />
       <Route path="/zustimmung/:token" component={ZustimmungPage} />
       <Route path="/zahlung/:paymentRef/danke" component={ZahlungDankePage} />

@@ -382,6 +382,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonTerminRoutes = await import('./routes/fiaon-termin');
   app.use('/api/fiaon', fiaonTerminRoutes.default);
 
+  // 🗓️ FIAON Gründer-Termin — Justins eigene Buchungsseite (/justin), ohne
+  //    Login und Token, höchstens drei Zeiten je Tag (E-124, 05.09.2026).
+  const fiaonGruenderTerminRoutes = await import('./routes/fiaon-gruender-termin');
+  app.use('/api/fiaon', fiaonGruenderTerminRoutes.default);
+
   // ✍️ FIAON Zustimmung — der Kunde erteilt AGB-, SCHUFA- und
   //    Vertragszustimmung SELBST. Ein Mitarbeiter darf das nie; die Begruendung
   //    steht in server/lib/fiaon-zustimmung.ts. Signiertes Token, kein Login.

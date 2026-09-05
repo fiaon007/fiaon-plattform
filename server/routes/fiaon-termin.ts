@@ -24,7 +24,7 @@ import {
 } from "../lib/fiaon-termine";
 import { terminArtAusQuelle } from "../../shared/fiaon-termin-art";
 import { versendenUndProtokollieren } from "../lib/fiaon-mail-log";
-import { anrufHinweis, ABSAGE_HINWEIS } from "../../shared/fiaon-termin-text";
+import { anrufHinweisSie, ABSAGE_HINWEIS_SIE } from "../../shared/fiaon-termin-text";
 
 const router = Router();
 
@@ -75,8 +75,8 @@ async function bestaetigungSenden(buchung: Awaited<ReturnType<typeof terminBuche
       // zweimal im Haus — einmal im Portal, einmal bei Brevo — und die beiden
       // würden auseinanderlaufen. Die eine Fassung steht in
       // shared/fiaon-termin-text.ts.
-      hinweis_anruf: anrufHinweis(buchung.agentVorname),
-      hinweis_absage: ABSAGE_HINWEIS,
+      hinweis_anruf: anrufHinweisSie(buchung.agentVorname),
+      hinweis_absage: ABSAGE_HINWEIS_SIE,
     },
     {
       personId: buchung.personId,
@@ -1094,8 +1094,8 @@ router.post("/agent/termine/:id/uebergeben", requireAgent, async (req: AgentRequ
           termin_uhrzeit: berlinUhrzeit(termin.beginn),
           termin_art: terminArtAusQuelle(termin.quelle).text,
           storno_link: stornoLink(String(termin.storno_token)),
-          hinweis_anruf: anrufHinweis(String(ziel.vorname)),
-          hinweis_absage: ABSAGE_HINWEIS,
+          hinweis_anruf: anrufHinweisSie(String(ziel.vorname)),
+          hinweis_absage: ABSAGE_HINWEIS_SIE,
         },
         {
           personId: Number(termin.person_id),

@@ -1,0 +1,228 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   /justin — die Buchungsseite des Gründers (05.09.2026, E-124)
+
+   Hell, ruhig, Sie-Form. Inter 300/400/500 — keine fetten Überschriften
+   (Justins Regel für den Web-Auftritt: „seriös = dünn, ruhig, viel Luft").
+   Die Navy-Glas-Welt steht genau EINMAL auf der Seite: auf der Karte mit der
+   gewählten Zeit. Alles andere ist matt und weiß.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.gt-seite {
+  --gt-grund: #f5f8fe;
+  --gt-karte: #ffffff;
+  --gt-tinte: #0f1b33;
+  --gt-grau: #5a6a88;
+  --gt-linie: #dce4f2;
+  --gt-licht: #288dfa;
+  --gt-tiefe: #1d4ed8;
+  --gt-navy-a: #0b1220;
+  --gt-navy-b: #1a2744;
+  --gt-gut: #0e9f6e;
+  --gt-warn: #b45309;
+  color-scheme: light only;
+  min-height: 100vh;
+  background: var(--gt-grund);
+  color: var(--gt-tinte);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+}
+
+.gt-rahmen {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 128px 20px 96px;
+  display: grid;
+  grid-template-columns: 360px minmax(0, 1fr);
+  gap: 40px;
+  align-items: start;
+}
+@media (max-width: 880px) {
+  .gt-rahmen { grid-template-columns: 1fr; gap: 28px; padding-top: 108px; }
+}
+
+/* ── Die Person ─────────────────────────────────────────────────────────── */
+.gt-person {
+  background: var(--gt-karte);
+  border: 1px solid var(--gt-linie);
+  border-radius: 24px;
+  padding: 32px 28px 28px;
+  box-shadow: 0 1px 2px rgba(15, 27, 51, .04), 0 12px 32px -18px rgba(29, 78, 216, .18);
+}
+.gt-bild {
+  width: 96px; height: 96px; border-radius: 50%;
+  padding: 3px;
+  background: linear-gradient(135deg, var(--gt-licht), var(--gt-tiefe));
+  box-shadow: 0 10px 24px -12px rgba(29, 78, 216, .45);
+  margin-bottom: 20px;
+}
+.gt-bild img, .gt-bild span {
+  display: block; width: 100%; height: 100%; border-radius: 50%; object-fit: cover;
+  background: #fff;
+}
+.gt-bild span {
+  display: grid; place-items: center; font-size: 28px; font-weight: 300; letter-spacing: .04em;
+  color: var(--gt-tiefe);
+}
+.gt-eyebrow {
+  font-size: 11.5px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--gt-tiefe); margin: 0 0 10px;
+}
+.gt-name {
+  font-size: 28px; line-height: 1.15; font-weight: 400; letter-spacing: -.01em;
+  margin: 0 0 6px; text-wrap: balance;
+}
+.gt-titel { font-size: 14px; color: var(--gt-grau); margin: 0 0 20px; }
+.gt-zitat {
+  font-size: 15px; line-height: 1.6; font-weight: 300; color: var(--gt-tinte);
+  margin: 0 0 22px; padding-left: 14px; border-left: 2px solid var(--gt-licht);
+}
+.gt-fakten { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.gt-fakten li {
+  display: flex; align-items: flex-start; gap: 10px;
+  font-size: 13.5px; line-height: 1.45; color: var(--gt-grau);
+}
+.gt-fakten svg { flex: none; margin-top: 2px; color: var(--gt-tiefe); }
+.gt-fakten b { font-weight: 500; color: var(--gt-tinte); }
+
+/* ── Die Buchung ────────────────────────────────────────────────────────── */
+.gt-buchung { display: grid; gap: 28px; }
+.gt-schritt { display: grid; gap: 14px; }
+.gt-schritt-kopf { display: flex; align-items: baseline; gap: 12px; }
+.gt-nr {
+  flex: none; width: 24px; height: 24px; border-radius: 50%;
+  border: 1px solid var(--gt-linie); background: #fff;
+  display: grid; place-items: center; font-size: 12px; color: var(--gt-grau);
+  transform: translateY(4px);
+}
+.gt-schritt-kopf h2 { font-size: 19px; font-weight: 400; margin: 0; letter-spacing: -.005em; }
+.gt-schritt-kopf p { font-size: 13.5px; color: var(--gt-grau); margin: 0; }
+
+/* Tage: eine Reihe, die bei Bedarf horizontal rollt */
+.gt-tage {
+  display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 8px;
+  scrollbar-width: thin; -webkit-overflow-scrolling: touch;
+}
+.gt-tag {
+  flex: none; width: 74px; min-height: 78px;
+  display: grid; grid-template-rows: auto auto auto; align-content: center; gap: 3px;
+  border: 1px solid var(--gt-linie); border-radius: 16px; background: #fff;
+  color: var(--gt-tinte); cursor: pointer; text-align: center;
+  transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease;
+}
+.gt-tag:hover:not(:disabled) { border-color: var(--gt-licht); transform: translateY(-1px); }
+.gt-tag:focus-visible { outline: 2px solid var(--gt-licht); outline-offset: 2px; }
+.gt-tag .wt { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--gt-grau); }
+.gt-tag .nr { font-size: 22px; font-weight: 300; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.gt-tag .st { font-size: 11px; color: var(--gt-grau); }
+.gt-tag[aria-pressed="true"] {
+  border-color: var(--gt-tiefe); box-shadow: inset 0 0 0 1px var(--gt-tiefe), 0 8px 20px -14px rgba(29, 78, 216, .6);
+}
+.gt-tag[aria-pressed="true"] .st { color: var(--gt-tiefe); }
+.gt-tag:disabled { cursor: default; color: #a3aec4; background: #f9fbff; }
+.gt-tag:disabled .nr { color: #b6c0d4; }
+
+/* Uhrzeiten: höchstens drei, groß und ruhig */
+.gt-zeiten { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 480px) { .gt-zeiten { grid-template-columns: 1fr; } }
+.gt-zeit {
+  min-height: 56px; border-radius: 16px; border: 1px solid var(--gt-linie); background: #fff;
+  font-size: 17px; font-weight: 400; font-variant-numeric: tabular-nums; color: var(--gt-tinte);
+  cursor: pointer; transition: border-color .15s ease, transform .15s ease, background .15s ease;
+}
+.gt-zeit small { display: block; font-size: 11.5px; color: var(--gt-grau); margin-top: 2px; }
+.gt-zeit:hover { border-color: var(--gt-licht); transform: translateY(-1px); }
+.gt-zeit:focus-visible { outline: 2px solid var(--gt-licht); outline-offset: 2px; }
+.gt-zeit[aria-pressed="true"] { border-color: var(--gt-tiefe); background: rgba(29, 78, 216, .05); box-shadow: inset 0 0 0 1px var(--gt-tiefe); }
+.gt-leer {
+  border: 1px dashed var(--gt-linie); border-radius: 16px; padding: 18px 20px;
+  font-size: 14px; color: var(--gt-grau); line-height: 1.5;
+}
+.gt-leer b { font-weight: 500; color: var(--gt-tinte); }
+
+/* Die EINE Navy-Glas-Karte: die gewählte Zeit */
+.gt-wahl {
+  position: relative; overflow: hidden;
+  border-radius: 20px; padding: 20px 22px;
+  background: linear-gradient(135deg, var(--gt-navy-a), var(--gt-navy-b));
+  color: #fff;
+  box-shadow: 0 24px 48px -28px rgba(11, 18, 32, .7), inset 0 1px 0 rgba(255, 255, 255, .12);
+}
+.gt-wahl::before {
+  content: ""; position: absolute; inset: -40% -20% auto auto; width: 60%; height: 140%;
+  background: radial-gradient(closest-side, rgba(40, 141, 250, .35), transparent 70%);
+  pointer-events: none;
+}
+.gt-wahl .k { position: relative; font-size: 11.5px; letter-spacing: .14em; text-transform: uppercase; color: rgba(255, 255, 255, .62); margin: 0 0 6px; }
+.gt-wahl .z { position: relative; font-size: 22px; font-weight: 300; margin: 0; line-height: 1.25; }
+.gt-wahl .z b { font-weight: 500; }
+.gt-wahl .u { position: relative; font-size: 13px; color: rgba(255, 255, 255, .72); margin: 8px 0 0; }
+.gt-wahl button {
+  position: absolute; top: 16px; right: 16px; z-index: 1;
+  border: 1px solid rgba(255, 255, 255, .22); background: rgba(255, 255, 255, .08); color: #fff;
+  border-radius: 999px; font-size: 12px; padding: 6px 12px; cursor: pointer;
+}
+.gt-wahl button:hover { background: rgba(255, 255, 255, .16); }
+
+/* Formular */
+.gt-formular { display: grid; gap: 14px; }
+.gt-reihe { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 560px) { .gt-reihe { grid-template-columns: 1fr; } }
+.gt-feld { display: grid; gap: 6px; }
+.gt-feld > span { font-size: 12.5px; color: var(--gt-grau); letter-spacing: .02em; }
+.gt-feld input, .gt-feld select, .gt-feld textarea {
+  width: 100%; min-height: 46px; border: 1px solid var(--gt-linie); border-radius: 12px;
+  background: #fff; padding: 10px 14px; font: inherit; font-size: 15px; color: var(--gt-tinte);
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.gt-feld textarea { min-height: 96px; resize: vertical; }
+.gt-feld input:focus, .gt-feld select:focus, .gt-feld textarea:focus {
+  outline: none; border-color: var(--gt-licht); box-shadow: 0 0 0 3px rgba(40, 141, 250, .18);
+}
+.gt-anrede { display: inline-flex; gap: 0; border: 1px solid var(--gt-linie); border-radius: 12px; overflow: hidden; width: max-content; }
+.gt-anrede button {
+  min-height: 46px; padding: 0 18px; border: 0; background: #fff; font: inherit; font-size: 14px; color: var(--gt-grau); cursor: pointer;
+}
+.gt-anrede button + button { border-left: 1px solid var(--gt-linie); }
+.gt-anrede button[aria-pressed="true"] { background: rgba(29, 78, 216, .06); color: var(--gt-tiefe); }
+.gt-honig { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.gt-knopf {
+  min-height: 50px; border: 0; border-radius: 14px; padding: 0 22px;
+  background: linear-gradient(135deg, var(--gt-licht), var(--gt-tiefe));
+  color: #fff; font: inherit; font-size: 15px; font-weight: 500; letter-spacing: .01em; cursor: pointer;
+  box-shadow: 0 12px 24px -14px rgba(29, 78, 216, .7);
+  transition: transform .15s ease, box-shadow .15s ease, opacity .15s ease;
+}
+.gt-knopf:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 16px 28px -14px rgba(29, 78, 216, .8); }
+.gt-knopf:disabled { opacity: .6; cursor: default; }
+.gt-knopf:focus-visible { outline: 2px solid var(--gt-tiefe); outline-offset: 3px; }
+.gt-klein { font-size: 12.5px; line-height: 1.5; color: var(--gt-grau); margin: 0; }
+
+/* Meldungen */
+.gt-fehler {
+  border-radius: 14px; padding: 12px 16px; font-size: 13.5px; line-height: 1.5;
+  background: rgba(180, 83, 9, .07); border: 1px solid rgba(180, 83, 9, .28); color: #92400e;
+}
+.gt-laden { padding: 48px 0; text-align: center; color: var(--gt-grau); font-size: 14px; }
+
+/* Nach der Buchung */
+.gt-fertig {
+  background: var(--gt-karte); border: 1px solid var(--gt-linie); border-radius: 24px;
+  padding: 40px 32px; text-align: center;
+  box-shadow: 0 1px 2px rgba(15, 27, 51, .04), 0 12px 32px -18px rgba(29, 78, 216, .18);
+}
+.gt-haken {
+  width: 64px; height: 64px; margin: 0 auto 20px; border-radius: 50%;
+  background: rgba(14, 159, 110, .08); border: 1px solid rgba(14, 159, 110, .3);
+  display: grid; place-items: center; color: var(--gt-gut);
+}
+.gt-fertig h2 { font-size: 26px; font-weight: 400; margin: 0 0 10px; letter-spacing: -.01em; }
+.gt-fertig .wann { font-size: 17px; margin: 0 0 18px; }
+.gt-fertig .wann b { font-weight: 500; }
+.gt-fertig p { font-size: 14px; line-height: 1.6; color: var(--gt-grau); margin: 0 auto; max-width: 440px; }
+.gt-fertig p + p { margin-top: 10px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .gt-tag, .gt-zeit, .gt-knopf { transition: none; }
+  .gt-tag:hover, .gt-zeit:hover, .gt-knopf:hover { transform: none; }
+}

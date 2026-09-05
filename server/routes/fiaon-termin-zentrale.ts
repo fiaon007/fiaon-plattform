@@ -44,6 +44,7 @@ export const QUELLE_TEXT: Record<string, string> = {
   onboarding_call: "Startgespräch (Onboarding)",
   inkasso_call: "Zahlungsgespräch",
   agent_manuell: "Vom Agenten eingetragen",
+  gruender: "Gespräch mit dem Gründer",
 };
 
 /**

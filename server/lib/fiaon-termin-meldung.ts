@@ -34,6 +34,7 @@ const QUELLE_TEXT: Record<string, string> = {
   onboarding: "Onboarding-Termin",
   nichterreicht_mail: "Rückruf-Termin (zweimal nicht erreicht)",
   agent_manuell: "von dir selbst angelegt",
+  gruender: "Gespräch mit dem Gründer — selbst gebucht über fiaon.com/justin",
 };
 
 interface Beteiligte {
@@ -42,6 +43,8 @@ interface Beteiligte {
   agentVorname: string;
   kunde: string;
   kundeTelefon: string | null;
+  /** Was der Kunde beim Buchen als Anliegen hinterlassen hat (05.09.2026). */
+  notiz: string | null;
   ref: string | null;
   personId: number;
 }
@@ -54,6 +57,7 @@ async function beteiligteZu(terminId: number, lauf: Lauf): Promise<Beteiligte | 
            COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''),
                     p.company_name, p.contact_name, p.primary_email, 'Ohne Namen') AS kunde,
            p.primary_phone AS kunde_telefon,
+           t.notiz,
            (SELECT a.ref FROM fiaon_applications a
              WHERE a.person_id = t.person_id AND a.merged_into IS NULL AND a.archived_at IS NULL
              ORDER BY a.created_at DESC LIMIT 1) AS ref
@@ -69,6 +73,7 @@ async function beteiligteZu(terminId: number, lauf: Lauf): Promise<Beteiligte | 
     agentVorname: String(r.agent_vorname ?? "du"),
     kunde: String(r.kunde),
     kundeTelefon: r.kunde_telefon ?? null,
+    notiz: r.notiz ? String(r.notiz) : null,
     ref: r.ref ?? null,
     personId: Number(r.person_id),
   };
@@ -101,6 +106,7 @@ async function melden(opts: {
       + `Art: ${quelle}\n`
       + (b.kundeTelefon ? `Telefon: ${b.kundeTelefon}\n` : "")
       + (b.ref ? `Bestellung: ${b.ref}\n` : "")
+      + (b.notiz ? `\nAnliegen:\n${b.notiz}\n` : "")
       + `\nZur Akte: ${akte}\n\n`
       + `Der Termin steht in deinem Kalender und meldet sich 30 Minuten vorher.`
     : `Hallo ${b.agentVorname},\n\n`

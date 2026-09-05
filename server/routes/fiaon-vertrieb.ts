@@ -348,7 +348,13 @@ router.get("/agent/vertrieb/personen", requireAgent, nurLeitung, nurMitZusage, a
     const limit = Math.min(400, Math.max(1, Number(req.query.limit) || 200));
 
     const wo: string[] = ["p.merged_into_person_id IS NULL"];
-    if (filter === "tier1") wo.push("p.priority_tier = 1 AND NOT p.is_blocked");
+    // ── ARCHIV (05.09.2026, Florentine Punkt 2) ─────────────────────────
+    // Beendete, stornierte und gesperrte Kunden stehen nur im Filter „Archiv".
+    const { kundeInaktivSql, kundeAktivSql } = await import("../lib/fiaon-kunde-aktiv");
+    if (filter === "archiv") wo.push(kundeInaktivSql("p"));
+    else wo.push(kundeAktivSql("p"));
+    if (filter === "archiv") { /* Archiv: keine Stufenbedingung */ }
+    else if (filter === "tier1") wo.push("p.priority_tier = 1 AND NOT p.is_blocked");
     else if (filter === "tier2") wo.push("p.priority_tier = 2 AND NOT p.is_blocked");
     else if (filter === "tier3") wo.push("p.priority_tier = 3 AND NOT p.is_blocked");
     else if (filter === "bezahlt") wo.push("p.priority_tier = 0");

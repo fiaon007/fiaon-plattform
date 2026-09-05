@@ -387,6 +387,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonGruenderTerminRoutes = await import('./routes/fiaon-gruender-termin');
   app.use('/api/fiaon', fiaonGruenderTerminRoutes.default);
 
+  // 📨 Mails aus dem Postfach für Mitarbeiter: Aufgabe [Mail #id] → ganze Mail
+  //    und Anhänge (Beleg), gleiche Zugriffsregel wie die Akte (05.09.2026).
+  const fiaonAgentPostmeisterRoutes = await import('./routes/fiaon-agent-postmeister');
+  app.use('/api/fiaon', fiaonAgentPostmeisterRoutes.default);
+
   // ✍️ FIAON Zustimmung — der Kunde erteilt AGB-, SCHUFA- und
   //    Vertragszustimmung SELBST. Ein Mitarbeiter darf das nie; die Begruendung
   //    steht in server/lib/fiaon-zustimmung.ts. Signiertes Token, kein Login.

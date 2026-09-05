@@ -1462,7 +1462,7 @@ router.get("/agent/dokumente/:personId/:art/datei", requireAgent, async (req: Ag
     const refs = (await sqlPool`
       SELECT ref FROM fiaon_applications
       WHERE person_id = ${Number(req.params.personId)} AND merged_into IS NULL
-      ORDER BY created_at DESC LIMIT 8
+      ORDER BY (payment_status = 'paid') DESC, created_at DESC LIMIT 8
     `) as any[];
     if (refs.length === 0) return res.status(404).json({ ok: false, error: "Keine Bestellung gefunden." });
     let erg: Awaited<ReturnType<typeof dokumentInhalt>> | null = null;

@@ -152,7 +152,7 @@ export async function mailBearbeiten(ein: {
     // 04.09.2026 (E-115): Dateien an der Mail. Mara kann sie nicht öffnen, aber
     // sie muss wissen, dass sie da sind — ein Mensch sähe den Beleg auch.
     const anhangHinweis = mail.anhaenge.length
-      ? `\n\n[Der Kunde hat ${mail.anhaenge.length} Datei(en) mitgeschickt: ${mail.anhaenge.map((a) => `${a.name} (${a.typ}, ${Math.max(1, Math.round(a.groesse / 1024))} KB)`).join("; ")}. Du kannst sie nicht öffnen; im Postfach sieht ein Mensch sie. Zählt der Inhalt (Zahlungsbeleg, Ausweis, Unterlagen, Schreiben), bestätige dem Kunden den Eingang und leg dem Betreuer eine Aufgabe an, die Datei zu prüfen.]`
+      ? `\n\n[Der Kunde hat ${mail.anhaenge.length} Datei(en) mitgeschickt: ${mail.anhaenge.map((a) => `${a.name} (${a.typ}, ${Math.max(1, Math.round(a.groesse / 1024))} KB)`).join("; ")}. Du kannst sie nicht öffnen; im Postfach sieht ein Mensch sie. Zählt der Inhalt, bestätige dem Kunden den Eingang und leg eine Aufgabe an, die Datei zu prüfen: einen Zahlungsbeleg an die Zahlungsstelle (kollege: "Zahlung"), Ausweis, Unterlagen oder Schreiben an den Betreuer.]`
       : "";
     const textFuerMara = neuerText + anhangHinweis;
 

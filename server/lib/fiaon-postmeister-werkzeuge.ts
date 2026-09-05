@@ -192,9 +192,10 @@ export const aufgabeAnBetreuer: Werkzeug = {
       text: { type: "string", description: "Der Auftrag in zwei bis vier Sätzen: Lage, was der Kunde will, was zu tun ist, was du ihm zugesagt hast." },
       faellig_in_tagen: { type: "integer", description: "0 = heute, 1 = morgen, 2 = übermorgen. Höchstens 7." },
       dringend: { type: "boolean", description: "true, wenn heute jemand handeln muss (Anwaltsdrohung, Beschwerde, Kunde wartet auf Rückruf)." },
-      kollege: { type: "string", description: "Nennt der Kunde einen Mitarbeiter mit Namen (etwa Frau Rifka oder Herr Stripling), dann dieser Name — die Aufgabe geht an ihn. \"Leitung\" für Entscheidungen über Geld zurück (Widerruf, Kulanz). Sonst leer." },
+      kollege: { type: "string", description: "Nennt der Kunde einen Mitarbeiter mit Namen (etwa Frau Rifka oder Herr Stripling), dann dieser Name — die Aufgabe geht an ihn. \"Leitung\" für Entscheidungen über Geld zurück (Widerruf, Kulanz). \"Zahlung\" für Zahlungsbelege und Buchungsfragen (geht an die Zahlungsstelle, nicht an den Betreuer). Sonst leer." },
+      rueckruf_am: { type: "string", description: "Nennt der Kunde eine Zeit für den Rückruf („heute 17 Uhr“, „morgen Vormittag“), dann hier als YYYY-MM-DD HH:MM (Berlin). Der Rückruf steht dann als Termin im Kalender des Mitarbeiters. Sonst leer." },
     },
-    required: ["titel", "text", "faellig_in_tagen", "dringend", "kollege"],
+    required: ["titel", "text", "faellig_in_tagen", "dringend", "kollege", "rueckruf_am"],
   },
   async ausfuehren(p, k) {
     const titel = String(p.titel || "").trim().slice(0, 160);
@@ -206,19 +207,42 @@ export const aufgabeAnBetreuer: Werkzeug = {
     // Nennt der Kunde jemanden („Frau Rifka"), bekommt der die Aufgabe — nicht die Ableitung.
     // „Leitung" (05.09.2026): Geld-zurück-Entscheidungen gehen an einen
     // Vertriebsleiter mit offenem Zugang, nie an den Betreuer.
-    const leitungGewollt = /\b(leitung|chef|gesch[äa]ftsf[üu]hr\w*|management)\b/i.test(String(p.kollege || ""));
-    const gewuenscht = leitungGewollt
-      ? await (async () => {
-          const [l] = (await sqlPool`
-            SELECT id FROM fiaon_agents
-             WHERE COALESCE(active, TRUE) = TRUE AND rolle = 'vertriebsleiter' AND COALESCE(is_test_account, FALSE) = FALSE AND zugang_gesperrt_am IS NULL
-             ORDER BY id ASC LIMIT 1
-          `.catch(() => [])) as any[];
-          return l?.id ? { id: Number(l.id) } : null;
-        })()
-      : p.kollege ? await mitarbeiterNachName(String(p.kollege)).catch(() => null) : null;
+    const kollege = String(p.kollege || "");
+    const leitungGewollt = /\b(leitung|chef|gesch[äa]ftsf[üu]hr\w*|management)\b/i.test(kollege);
+    // „Zahlung" (05.09.2026, Florentine Punkt 5): Ein Zahlungsbeleg geht an
+    // die Stelle, die das Bankbuch sieht (Forderungsmanagement), sonst an die
+    // Leitung — nie an einen Betreuer, der die Zahlung gar nicht prüfen kann.
+    const zahlungGewollt = /\b(zahlung|beleg|buchhaltung|inkasso|forderung|bankbuch)\b/i.test(kollege);
+    const nachRolle = async (rollen: string[]) => {
+      const [l] = (await sqlPool`
+        SELECT id FROM fiaon_agents
+         WHERE COALESCE(active, TRUE) = TRUE AND rolle = ANY(${rollen}) AND COALESCE(is_test_account, FALSE) = FALSE AND zugang_gesperrt_am IS NULL
+         ORDER BY array_position(${rollen}::text[], rolle), id ASC LIMIT 1
+      `.catch(() => [])) as any[];
+      return l?.id ? { id: Number(l.id) } : null;
+    };
+    const gewuenscht = zahlungGewollt
+      ? await nachRolle(["inkasso", "vertriebsleiter"])
+      : leitungGewollt
+        ? await nachRolle(["vertriebsleiter"])
+        : p.kollege ? await mitarbeiterNachName(kollege).catch(() => null) : null;
+    // ── DIE MAIL STEHT IN DER AUFGABE (Florentine Punkt 8) ────────────────
+    // „Bei den Tasks sehen wir nicht, wann eine E-Mail geschrieben wurde und
+    // von wem." Kopfzeile mit Datum, Absender, Betreff und Vorschau; die
+    // Marke [Mail #id] öffnet die ganze Mail im Portal.
+    let mailKopf = "";
+    if (k.postmeisterId) {
+      const [m] = (await sqlPool`
+        SELECT von, betreff, empfangen_am, text FROM fiaon_postmeister WHERE id = ${k.postmeisterId} LIMIT 1
+      `.catch(() => [])) as any[];
+      if (m) {
+        const wann = m.empfangen_am ? new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(m.empfangen_am)) : "";
+        const vorschau = String(m.text || "").replace(/\s+/g, " ").trim().slice(0, 220);
+        mailKopf = `E-Mail vom ${wann} von ${String(m.von || "").slice(0, 80)} · Betreff: „${String(m.betreff || "").slice(0, 100)}" [Mail #${k.postmeisterId}]\n„${vorschau}${vorschau.length >= 220 ? " …" : ""}"\n\n`;
+      }
+    }
     const erg = await auftragFuerKunden({
-      personId: k.personId, ref: k.ref, titel, text, faelligAm, dringend: !!p.dringend,
+      personId: k.personId, ref: k.ref, titel, text: mailKopf + text, faelligAm, dringend: !!p.dringend,
       // Eine Aufgabe je Kunde und Tag — drei gleiche Mails (Frau Weber, 25.08.)
       // ergaben drei Aufgaben. Der Text wird an die bestehende angehängt.
       schluessel: `postmeister:${k.personId ?? k.ref ?? k.postmeisterId ?? "x"}:aufgabe:${new Date().toISOString().slice(0, 10)}`,
@@ -228,7 +252,25 @@ export const aufgabeAnBetreuer: Werkzeug = {
     const werKunde = erg.kundenName ?? erg.agentName ?? "unsere Leitung";
     await protokoll(k, "aufgabe_an_betreuer", `Aufgabe für ${wer}: „${titel}" (fällig ${faelligAm}). ${text.slice(0, 300)}`);
     const wann = tage === 0 ? "heute" : tage === 1 ? "morgen" : `in ${tage} Tagen`;
-    return { ok: true, ergebnis: `${werKunde} hat die Aufgabe „${titel}" bekommen und meldet sich ${wann}.`, daten: { betreuer: werKunde, betreuer_intern: erg.agentName, aufgabe: titel, faellig: faelligAm, aufgabe_id: erg.id } };
+    // ── RÜCKRUF ALS TERMIN IM KALENDER (Florentine Punkt 3) ───────────────
+    // „Erkannte Rückrufwünsche automatisch als Termin in den Kalender des
+    // zuständigen Mitarbeiters eintragen, verknüpft mit Kunde und Mail."
+    let terminSatz = "";
+    const rueckrufAm = String(p.rueckruf_am || "").trim();
+    if (rueckrufAm && k.personId && erg.agentId) {
+      try {
+        const { terminBuchen } = await import("./fiaon-termine");
+        const b = await terminBuchen({ personId: k.personId, agentId: Number(erg.agentId), beginn: rueckrufAm, quelle: "agent_manuell", herkunft: "agent" });
+        await sqlPool`UPDATE fiaon_termine SET notiz = ${`Rückrufwunsch aus E-Mail [Mail #${k.postmeisterId ?? "?"}]: ${text.slice(0, 300)}`}, updated_at = NOW() WHERE id = ${b.id}`.catch(() => {});
+        const { buchungMelden } = await import("./fiaon-termin-meldung");
+        await buchungMelden(b.id, b.beginn, "agent_manuell").catch(() => {});
+        terminSatz = ` Der Rückruf steht als Termin am ${b.datumText} um ${b.uhrzeit} Uhr im Kalender.`;
+        await protokoll(k, "aufgabe_an_betreuer", `Rückruf-Termin ${b.datumText} ${b.uhrzeit} Uhr für ${wer} eingetragen.`);
+      } catch (e: any) {
+        terminSatz = ` (Rückruf-Termin ${rueckrufAm} konnte nicht eingetragen werden: ${String(e?.message || e).slice(0, 100)} — die Aufgabe steht trotzdem.)`;
+      }
+    }
+    return { ok: true, ergebnis: `${werKunde} hat die Aufgabe „${titel}" bekommen und meldet sich ${wann}.${terminSatz}`, daten: { betreuer: werKunde, betreuer_intern: erg.agentName, aufgabe: titel, faellig: faelligAm, aufgabe_id: erg.id, rueckruf_termin: terminSatz ? rueckrufAm : null } };
   },
 };
 

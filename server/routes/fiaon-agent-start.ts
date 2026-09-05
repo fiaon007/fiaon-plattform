@@ -911,7 +911,14 @@ router.get("/agent/kunden/liste", requireAgent, async (req: AgentRequest, res: R
     // Bezahlte Kunden sind KEIN Arbeitsvorrat. Sie sind über den eigenen Filter
     // erreichbar, stehen aber nie in der Standardliste — sonst arbeitet man sich
     // durch Menschen, die schon gezahlt haben.
-    if (filter === "bezahlt") wo.push("p.priority_tier = 0");
+    // ── ARCHIV (05.09.2026, Florentine Punkt 2) ─────────────────────────
+    // Beendete, stornierte und gesperrte Kunden verlassen die Arbeitslisten;
+    // die Akte bleibt und ist über den Filter „Archiv" erreichbar.
+    const { kundeInaktivSql, kundeAktivSql } = await import("../lib/fiaon-kunde-aktiv");
+    if (filter === "archiv") wo.push(kundeInaktivSql("p"));
+    else wo.push(kundeAktivSql("p"));
+    if (filter === "archiv") { /* Archiv zeigt genau die Inaktiven */ }
+    else if (filter === "bezahlt") wo.push("p.priority_tier = 0");
     else if (filter === "gesperrt") wo.push("p.is_blocked");
     // ── ONBOARDING KENNT KEINE STUFEN ──────────────────────────────────────
     // Der Zweig unten schraenkt auf `priority_tier BETWEEN 1 AND 3` ein — also

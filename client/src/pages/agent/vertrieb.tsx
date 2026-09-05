@@ -348,6 +348,7 @@ const KUNDEN_FILTER: { key: string; label: string; satz: string }[] = [
   { key: "bezahlt", label: "Bezahlt", satz: "Geld ist da." },
   { key: "ueberfaellig", label: "Zusage gebrochen", satz: "Datum verstrichen." },
   { key: "gesperrt", label: "Gesperrt", satz: "Kein Kontakt möglich." },
+  { key: "archiv", label: "Archiv", satz: "Vertrag beendet, storniert oder Konto gesperrt — die Akte bleibt." },
 ];
 
 function AlleKunden({ onAkte, agenten, zeige }: {

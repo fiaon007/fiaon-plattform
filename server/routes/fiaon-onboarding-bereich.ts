@@ -1700,3 +1700,70 @@ router.post("/agent/onboarding/person/:id/gefuehrt", requireAgent, async (req: A
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// EINLADUNG NACHHOLEN (05.09.2026, Florentine Punkt 7)
+//
+// „Bei manchen Kunden wird nach der Zahlung keine Einladung zum Startgespräch
+// verschickt. Sobald die Voraussetzungen erfüllt sind, muss der Kunde
+// zuverlässig die Einladung erhalten — und wenn der Versand fehlschlägt,
+// soll automatisch ein Hinweis bzw. Task entstehen."
+//
+// Alle sechs Stunden: bezahlte Paketkunden, deren Zahlung mindestens 24 h
+// zurückliegt, die keinen Termin haben und nie eine Einladung bekamen. Die
+// Einladung geht über denselben Weg wie der Knopf im Onboarding-Raum; geht
+// sie nicht raus, bekommt der Betreuer eine dringende Aufgabe mit dem Grund.
+// ═══════════════════════════════════════════════════════════════════════════
+import("../lib/fiaon-crons").then(({ tageslauf }) => {
+  tageslauf("einladung-nachholen", async () => {
+    const zeilen = (await sqlPool`
+      SELECT a.ref, a.person_id,
+             COALESCE(NULLIF(TRIM(a.email), ''), NULLIF(TRIM(p.primary_email), '')) AS email,
+             COALESCE(NULLIF(p.first_name, ''), a.first_name) AS vorname,
+             COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''), a.contact_name, 'Kunde') AS name
+      FROM fiaon_applications a
+      JOIN fiaon_persons p ON p.id = a.person_id
+      WHERE a.merged_into IS NULL AND a.archived_at IS NULL AND a.payment_status = 'paid'
+        AND COALESCE(a.type, '') <> 'schufa' AND a.ref NOT LIKE 'FIAON-SCHUFA-%'
+        AND p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL
+        AND a.gekuendigt_am IS NULL AND (a.vertrag_ende_am IS NULL OR a.vertrag_ende_am > NOW())
+        AND COALESCE(a.paid_at, a.updated_at) BETWEEN NOW() - INTERVAL '30 days' AND NOW() - INTERVAL '24 hours'
+        AND p.startgespraech_mail_am IS NULL
+        AND NOT EXISTS (SELECT 1 FROM fiaon_termine t WHERE t.person_id = a.person_id AND t.status IN ('gebucht', 'erledigt'))
+        AND NOT EXISTS (SELECT 1 FROM fiaon_mail_log m WHERE m.person_id = a.person_id AND m.event = 'onboarding_einladung' AND m.status = 'versandt')
+      ORDER BY a.paid_at DESC NULLS LAST
+      LIMIT 30
+    `) as any[];
+    if (!zeilen.length) return;
+    const { versandErlaubt } = await import("../lib/fiaon-versand");
+    const { auftragFuerKunden } = await import("./fiaon-betreiber-todo");
+    let raus = 0, aufgaben = 0;
+    for (const z of zeilen) {
+      const personId = Number(z.person_id);
+      const pruefung = await versandErlaubt(personId, "onboarding_einladung").catch((e) => ({ erlaubt: false, grund: String(e?.message || e) }));
+      let grund = pruefung.erlaubt ? "" : String((pruefung as any).grund || "nicht erlaubt");
+      if (pruefung.erlaubt && z.email) {
+        const erg = await versendenUndProtokollieren(
+          "onboarding_einladung",
+          { email: String(z.email), vorname: z.vorname || null, termin_link: terminLink(personId, "onboarding_einladung") },
+          { personId, verlaufRef: z.ref, verlaufText: "Einladung zum Startgespräch nachgeholt (Tageslauf): nach der Zahlung war keine rausgegangen." },
+        ).catch((e) => ({ status: "fehlgeschlagen", grund: String(e?.message || e) }));
+        if (erg.status === "versandt") {
+          await sqlPool`UPDATE fiaon_persons SET startgespraech_mail_am = NOW(), updated_at = NOW() WHERE id = ${personId}`.catch(() => {});
+          raus += 1;
+          continue;
+        }
+        grund = String((erg as any).grund || "Versand fehlgeschlagen");
+      } else if (!z.email) {
+        grund = "keine E-Mail-Adresse";
+      }
+      await auftragFuerKunden({
+        personId, ref: z.ref,
+        titel: `Einladung zum Startgespräch ging nicht raus — ${z.name}`,
+        text: `Der Kunde hat bezahlt, hat keinen Termin und keine Einladung bekommen. Automatischer Versand gescheitert: ${grund}. Bitte den Kunden anrufen oder die Einladung aus der Akte schicken.`,
+        dringend: true, schluessel: `einladung-nachholen:${z.ref}`, quelle: "system", autorName: "System",
+      }).catch(() => {});
+      aufgaben += 1;
+    }
+    console.log(`[EINLADUNG-NACHHOLEN] ${zeilen.length} geprüft, ${raus} Einladungen nachgeholt, ${aufgaben} Aufgaben angelegt.`);
+  }, 6 * 3600_000, { beimStartNach: 4 * 60_000 });
+}).catch((e) => console.error("[EINLADUNG-NACHHOLEN] Tageslauf nicht angemeldet:", e));

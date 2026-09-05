@@ -359,7 +359,7 @@ async function agentenMitRolle(
   return ((await lauf`
     SELECT id, COALESCE(NULLIF(first_name, ''), name) AS vorname
     FROM fiaon_agents
-    WHERE active AND NOT COALESCE(is_test_account, FALSE)
+    WHERE active AND NOT COALESCE(is_test_account, FALSE) AND zugang_gesperrt_am IS NULL
       AND COALESCE(rolle, 'agent') = ANY(${rollen})
     ORDER BY id
   `) as any[]).map((a) => ({ id: Number(a.id), vorname: String(a.vorname) }));
@@ -820,7 +820,11 @@ export async function freieSlots(
   const nurRolle = nurRollen ? nurRollen[0] : null;
   const [person] = (await lauf`
     SELECT p.id, p.assigned_agent_id,
-           a.first_name AS agent_vorname, a.name AS agent_name, a.active AS agent_aktiv
+           a.first_name AS agent_vorname, a.name AS agent_name,
+           -- 05.09.2026 (Florentine, Punkt 6): Ein gesperrter Betreuer zählt
+           -- nicht als aktiv — sonst bucht der Terminlink weiter bei ihm, und
+           -- niemand ruft an (heute drei Startgespräche bei Angelique/Lucas).
+           (a.active AND a.zugang_gesperrt_am IS NULL) AS agent_aktiv
     FROM fiaon_persons p
     LEFT JOIN fiaon_agents a ON a.id = p.assigned_agent_id
     WHERE p.id = ${personId} AND p.merged_into_person_id IS NULL
@@ -846,7 +850,7 @@ export async function freieSlots(
       : ((await lauf`
           SELECT id, COALESCE(NULLIF(first_name, ''), name) AS vorname
           FROM fiaon_agents
-          WHERE active AND distribution_active AND NOT is_test_account
+          WHERE active AND distribution_active AND NOT is_test_account AND zugang_gesperrt_am IS NULL
             -- Kein Inkasso-Konto: Dass eines in dieser Liste stand, war
             -- dieselbe Lücke wie in der Lead-Zuteilung — die Rolle wurde
             -- nicht geprüft. E-045: VORHER ('agent','vertriebsleiter') —
@@ -1398,9 +1402,40 @@ export async function terminBuchen(
  */
 export async function buchungAnwenden(buchung: Buchung, lauf: Lauf = sqlPool): Promise<void> {
   const [person] = (await lauf`
-    SELECT id, assigned_agent_id, betreuung_seit FROM fiaon_persons WHERE id = ${buchung.personId}
+    SELECT p.id, p.assigned_agent_id, p.betreuung_seit,
+           (ag.id IS NOT NULL AND (NOT COALESCE(ag.active, TRUE) OR ag.zugang_gesperrt_am IS NOT NULL)) AS betreuer_weg,
+           ag.name AS betreuer_name
+    FROM fiaon_persons p LEFT JOIN fiaon_agents ag ON ag.id = p.assigned_agent_id
+    WHERE p.id = ${buchung.personId}
   `) as any[];
   if (!person) return;
+  // ── BETREUER GESPERRT ODER WEG → DER KUNDE WANDERT MIT (05.09.2026) ────
+  // Florentine: „Es kommen Termine von Angeliques Kunden rein — ohne sie
+  // wüsste ich das gar nicht." Bucht der Terminlink bei einem anderen
+  // Mitarbeiter, weil der Betreuer gesperrt ist, gehört der Kunde ab jetzt
+  // dem, der ihn wirklich anruft (Regel E-120: Übergabe nimmt den Kunden mit).
+  if (person.betreuer_weg && Number(person.assigned_agent_id) !== Number(buchung.agentId)) {
+    await lauf`
+      UPDATE fiaon_persons SET assigned_agent_id = ${buchung.agentId}, assigned_at = NOW(),
+             betreuung_seit = NOW(), updated_at = NOW()
+       WHERE id = ${buchung.personId}
+    `;
+    await lauf`
+      UPDATE fiaon_applications SET assigned_agent_id = ${buchung.agentId}, updated_at = NOW()
+       WHERE person_id = ${buchung.personId} AND merged_into IS NULL
+         AND (assigned_agent_id = ${Number(person.assigned_agent_id)} OR assigned_agent_id IS NULL)
+    `;
+    const [a] = (await lauf`
+      SELECT ref FROM fiaon_applications WHERE person_id = ${buchung.personId} AND merged_into IS NULL
+      ORDER BY created_at DESC LIMIT 1
+    `) as any[];
+    if (a?.ref) await lauf`
+      INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
+      VALUES (${a.ref}, ${buchung.personId}, NULL, 'System', 'system',
+              ${`Kunde zu ${buchung.agentVorname} gewechselt: Der bisherige Betreuer (${person.betreuer_name ?? "—"}) ist gesperrt oder inaktiv, der Termin am ${buchung.datumText} um ${buchung.uhrzeit} Uhr wurde bei ${buchung.agentVorname} gebucht.`})
+    `.catch(() => {});
+    console.log(`[TERMIN] Person ${buchung.personId}: Betreuer ${person.assigned_agent_id} gesperrt/inaktiv → wechselt zu ${buchung.agentId}.`);
+  }
 
   // Ein gebuchter Termin ist das Gegenteil von „nicht erreichbar": Der Kunde
   // hat sich gemeldet. Zähler auf null, Ruhe-Pool verlassen.

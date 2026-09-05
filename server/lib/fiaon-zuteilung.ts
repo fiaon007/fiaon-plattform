@@ -109,6 +109,10 @@ export async function sofortZuteilen(
     }
     if (p.is_blocked) return { zugeteilt: false, agentId: null, grund: "gesperrt" };
     if (p.ist_test_am) return { zugeteilt: false, agentId: null, grund: "Testeintrag" };
+    // Archiv (05.09.2026): beendete, stornierte, gesperrte Kunden werden nicht verteilt.
+    const { kundeInaktivSql } = await import("./fiaon-kunde-aktiv");
+    const [ina] = (await lauf.unsafe(`SELECT 1 AS x FROM fiaon_persons p WHERE p.id = $1 AND ${kundeInaktivSql("p")}`, [personId])) as any[];
+    if (ina) return { zugeteilt: false, agentId: null, grund: "inaktiv (Archiv)" };
     // ── STUFE 0 GEHÖRT DAZU (30.08.2026) ────────────────────────────────
     // Hier stand `![1, 2]`. Die Begründung war: Ein Bestandskunde ist aus dem
     // Vertrieb heraus, also braucht er keine Zuteilung.

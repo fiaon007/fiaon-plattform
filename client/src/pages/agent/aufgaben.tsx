@@ -49,6 +49,50 @@ async function api(pfad: string, init?: RequestInit) {
   return { ok: res.ok && json?.ok, json };
 }
 
+/** Die Marke [Mail #123] in einer Aufgabe aus dem Postfach (05.09.2026, Florentine Punkt 8). */
+function mailIdAus(text: string): number | null {
+  const m = /\[Mail #(\d+)\]/.exec(String(text || ""));
+  return m ? Number(m[1]) : null;
+}
+
+/** Die ganze E-Mail zur Aufgabe: Betreff, Absender, Zeit, Text, Maras Antwort, Anhänge. */
+function MailAnsicht({ id }: { id: number }) {
+  const [mail, setMail] = useState<any>(null);
+  const [fehler, setFehler] = useState<string | null>(null);
+  useEffect(() => {
+    void api(`/agent/postmeister/${id}`).then((r) => {
+      if (r.ok) setMail(r.json.mail); else setFehler(r.json?.error || "Die E-Mail konnte nicht geladen werden.");
+    });
+  }, [id]);
+  if (fehler) return <p className="mt-2 text-[12px]" style={{ color: "#b45309" }}>{fehler}</p>;
+  if (!mail) return <p className="mt-2 text-[12px] text-slate-400">E-Mail wird geladen …</p>;
+  return (
+    <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3 text-[12.5px] text-slate-700">
+      <p className="text-[11px] uppercase tracking-[.08em] font-semibold text-slate-400 mb-1">E-Mail des Kunden</p>
+      <p><b>{mail.betreff || "(kein Betreff)"}</b></p>
+      <p className="text-slate-500">von {mail.von} · {zeit(mail.empfangenAm)} · an {mail.postfach}</p>
+      <pre className="mt-2 whitespace-pre-wrap font-sans text-[12.5px] leading-relaxed text-slate-800">{mail.text}</pre>
+      {Array.isArray(mail.anhaenge) && mail.anhaenge.length > 0 && (
+        <p className="mt-2">
+          Anhänge:{" "}
+          {mail.anhaenge.map((a: any) => (
+            <a key={a.idx} href={`/api/fiaon/agent/postmeister/${id}/anhang/${a.idx}`} target="_blank" rel="noreferrer"
+               className="font-semibold mr-2" style={{ color: ACCENT }}>{a.name}</a>
+          ))}
+        </p>
+      )}
+      {mail.antwort && (
+        <>
+          <p className="text-[11px] uppercase tracking-[.08em] font-semibold text-slate-400 mt-3 mb-1">
+            Antwort von Mara {mail.gesendetAm ? `(gesendet ${zeit(mail.gesendetAm)})` : "(Entwurf, noch nicht gesendet)"}
+          </p>
+          <pre className="whitespace-pre-wrap font-sans text-[12.5px] leading-relaxed text-slate-700">{mail.antwort}</pre>
+        </>
+      )}
+    </div>
+  );
+}
+
 function tag(iso: string | null): string {
   if (!iso) return "";
   return new Date(`${iso}T12:00:00Z`).toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit" });
@@ -111,6 +155,7 @@ export default function AgentAufgabenSeite() {
 }
 
 function Inhalt() {
+  const [mailOffen, setMailOffen] = useState<Record<number, boolean>>({});
   const [liste, setListe] = useState<Vermerk[]>([]);
   const [laedt, setLaedt] = useState(true);
   const [busy, setBusy] = useState<number | null>(null);
@@ -292,11 +337,21 @@ function Inhalt() {
                   {/* Der Weg zum Kunden: die Akte des Agenten, nicht die Verwaltung. */}
                   {v.ref && (
                     <a href={`/agent/kunden?ref=${encodeURIComponent(v.ref)}`}
-                      className="inline-flex items-center gap-1 mt-2 text-[12px] font-semibold"
+                      className="inline-flex items-center gap-1 mt-2 mr-3 text-[12px] font-semibold"
                       style={{ color: ACCENT }}>
                       Kunde öffnen →
                     </a>
                   )}
+                  {/* Aufgabe aus dem Postfach: die ganze E-Mail, ohne Umweg über die Verwaltung. */}
+                  {mailIdAus(v.text) && (
+                    <button type="button"
+                      onClick={() => setMailOffen((m) => ({ ...m, [v.id]: !m[v.id] }))}
+                      className="inline-flex items-center gap-1 mt-2 text-[12px] font-semibold"
+                      style={{ color: ACCENT }}>
+                      {mailOffen[v.id] ? "E-Mail schließen" : "E-Mail ansehen"}
+                    </button>
+                  )}
+                  {mailOffen[v.id] && mailIdAus(v.text) && <MailAnsicht id={mailIdAus(v.text)!} />}
                 </div>
               </div>
             </Reveal>

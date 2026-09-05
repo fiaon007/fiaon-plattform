@@ -82,6 +82,8 @@ export interface BonitaetStand {
 interface Zeilen {
   schufa_pdf_da?: boolean | null;
   schufa_status?: string | null;
+  /** Jüngstes KI-Urteil zum Dokument (fiaon_dokument_pruefungen, art schufa) — 05.09.2026. */
+  ki_urteil?: any;
   kauf_status?: string | null;
   kauf_ref?: string | null;
 }
@@ -129,6 +131,24 @@ export function bonitaetAbleiten(z: Zeilen): BonitaetStand {
       fuerKunden: "Ihre Bonitätsauskunft liegt vor und ist geprüft.",
       naechsterSchritt: "Nichts zu tun.",
       darfKaufen: false, darfHochladen: false,
+    };
+  }
+  // ── DAS KI-URTEIL ZÄHLT (05.09.2026, Florentine Punkt 1/9) ─────────────
+  // Portal und Fahrplan sagten „eingegangen, wir sehen sie durch", während die
+  // Prüfung längst „nicht erkannt" gemeldet hatte (Pettauer, 04.09.). Ein
+  // Dokument, das die Prüfung nicht als Bonitätsauskunft erkennt oder als
+  // unvollständig meldet, gilt überall als beanstandet — mit dem Hinweis
+  // der Prüfung, damit der Kunde es selbst korrigieren kann.
+  const ki = z.ki_urteil && typeof z.ki_urteil === "object" ? z.ki_urteil : null;
+  const kiBeanstandet = !!ki && ki.pruefbar !== false && (ki.erkannt === false || ki.vollstaendig === false);
+  if (hatDokument && status !== "approved" && kiBeanstandet) {
+    const fehlt = Array.isArray(ki.fehlt) && ki.fehlt.length ? ` Es fehlt: ${ki.fehlt.join(", ")}.` : "";
+    return {
+      ...roh, stufe: "beanstandet",
+      grund: `Die Prüfung erkennt das Dokument nicht als vollständige Bonitätsauskunft.${fehlt}`,
+      fuerKunden: String(ki.hinweisKunde || "Das hochgeladene Dokument ist keine vollständige Bonitätsauskunft — bitte laden Sie die richtige Datei erneut hoch."),
+      naechsterSchritt: "Der Kunde muss die richtige, vollständige Auskunft hochladen. Der Prüfhinweis steht in der Akte.",
+      darfKaufen: false, darfHochladen: true,
     };
   }
   if (hatDokument && status === "changes_requested") {
@@ -213,6 +233,8 @@ export async function bonitaetFuer(ref: string): Promise<BonitaetStand | null> {
   const [a] = (await sqlPool`
     SELECT a.schufa_pdf IS NOT NULL AS schufa_pdf_da,
            a.schufa_status,
+           (SELECT k.urteil FROM fiaon_dokument_pruefungen k
+             WHERE k.ref = a.ref AND k.art = 'schufa' ORDER BY k.created_at DESC LIMIT 1) AS ki_urteil,
            -- ── DIE ZUORDNUNG: PERSON ZUERST, E-MAIL ALS RÜCKFALL ─────────
            -- Die alte Route verband nur über die E-Mail. Seit dem
            -- Kontakt-Umzug hängen 104 von 113 Bestellungen an einer Person;
@@ -259,6 +281,8 @@ export async function bonitaetFuerViele(
     SELECT a.ref,
            a.schufa_pdf IS NOT NULL AS schufa_pdf_da,
            a.schufa_status,
+           (SELECT k.urteil FROM fiaon_dokument_pruefungen k
+             WHERE k.ref = a.ref AND k.art = 'schufa' ORDER BY k.created_at DESC LIMIT 1) AS ki_urteil,
            sb.payment_status AS kauf_status,
            sb.ref AS kauf_ref
     FROM fiaon_applications a

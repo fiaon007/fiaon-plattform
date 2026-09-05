@@ -222,6 +222,7 @@ const ANSICHTEN: { key: string; label: string }[] = [
   { key: "wartend", label: "Wartend (Kunde)" },
   { key: "bezahlt", label: "Bezahlt (Bestand)" },
   { key: "gesperrt", label: "Gesperrt" },
+  { key: "archiv", label: "Archiv" },
   { key: "nummer_ohne_land", label: "Nummer nicht wählbar" },
 ];
 const SORT: { key: string; label: string }[] = [

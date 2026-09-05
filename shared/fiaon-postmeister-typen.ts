@@ -96,7 +96,7 @@ export const AUTO_LAGEN: Kundenlage[] = [
 export const KATEGORIEN = [
   "zahlung", "zugang_login", "termin", "unterlagen", "status_frage", "neuinteresse",
   "vertrieb_komplex", "kuendigung", "beschwerde", "rechtlich", "abmeldung",
-  "werbung_newsletter", "intern", "sonstiges",
+  "werbung_newsletter", "spam", "intern", "sonstiges",
 ] as const;
 export type Kategorie = typeof KATEGORIEN[number];
 
@@ -198,6 +198,8 @@ export interface AkteKurz {
   termine: { beginn: string; status: string; betreuer: string | null; art: string | null }[];
   verlauf: { am: string; art: string; wer: string | null; text: string }[];
   mails: { am: string; richtung: "ein" | "aus"; betreff: string; kurz: string | null }[];
+  /** Vertragsschluss (Bestelldatum), Wohnort und Land — für Härte-Stufe und Widerruf (E-135). */
+  vertrag?: { geschlossenAm: string | null; ort: string | null; land: string | null; agbStand: string | null } | null;
   kuendigung: { am: string | null; letzteRate: number | null; vertragEnde: string | null } | null;
   sperren: { werbung: string | null; anrufe: boolean; konto: string | null };
   offeneAufgaben: number;

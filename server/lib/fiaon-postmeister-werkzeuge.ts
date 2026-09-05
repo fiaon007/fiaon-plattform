@@ -192,7 +192,7 @@ export const aufgabeAnBetreuer: Werkzeug = {
       text: { type: "string", description: "Der Auftrag in zwei bis vier Sätzen: Lage, was der Kunde will, was zu tun ist, was du ihm zugesagt hast." },
       faellig_in_tagen: { type: "integer", description: "0 = heute, 1 = morgen, 2 = übermorgen. Höchstens 7." },
       dringend: { type: "boolean", description: "true, wenn heute jemand handeln muss (Anwaltsdrohung, Beschwerde, Kunde wartet auf Rückruf)." },
-      kollege: { type: "string", description: "Nennt der Kunde einen Mitarbeiter mit Namen (etwa Frau Rifka oder Herr Stripling), dann dieser Name — die Aufgabe geht an ihn. Sonst leer." },
+      kollege: { type: "string", description: "Nennt der Kunde einen Mitarbeiter mit Namen (etwa Frau Rifka oder Herr Stripling), dann dieser Name — die Aufgabe geht an ihn. \"Leitung\" für Entscheidungen über Geld zurück (Widerruf, Kulanz). Sonst leer." },
     },
     required: ["titel", "text", "faellig_in_tagen", "dringend", "kollege"],
   },
@@ -204,7 +204,19 @@ export const aufgabeAnBetreuer: Werkzeug = {
     const faelligAm = new Date(Date.now() + tage * 864e5).toISOString().slice(0, 10);
     const { auftragFuerKunden, mitarbeiterNachName } = await import("../routes/fiaon-betreiber-todo");
     // Nennt der Kunde jemanden („Frau Rifka"), bekommt der die Aufgabe — nicht die Ableitung.
-    const gewuenscht = p.kollege ? await mitarbeiterNachName(String(p.kollege)).catch(() => null) : null;
+    // „Leitung" (05.09.2026): Geld-zurück-Entscheidungen gehen an einen
+    // Vertriebsleiter mit offenem Zugang, nie an den Betreuer.
+    const leitungGewollt = /\b(leitung|chef|gesch[äa]ftsf[üu]hr\w*|management)\b/i.test(String(p.kollege || ""));
+    const gewuenscht = leitungGewollt
+      ? await (async () => {
+          const [l] = (await sqlPool`
+            SELECT id FROM fiaon_agents
+             WHERE COALESCE(active, TRUE) = TRUE AND rolle = 'vertriebsleiter' AND COALESCE(is_test_account, FALSE) = FALSE AND zugang_gesperrt_am IS NULL
+             ORDER BY id ASC LIMIT 1
+          `.catch(() => [])) as any[];
+          return l?.id ? { id: Number(l.id) } : null;
+        })()
+      : p.kollege ? await mitarbeiterNachName(String(p.kollege)).catch(() => null) : null;
     const erg = await auftragFuerKunden({
       personId: k.personId, ref: k.ref, titel, text, faelligAm, dringend: !!p.dringend,
       // Eine Aufgabe je Kunde und Tag — drei gleiche Mails (Frau Weber, 25.08.)
@@ -317,7 +329,7 @@ export const werbesperreSetzen: Werkzeug = {
 /** MAHNSTOPP — Erinnerungen zu einer Bestellung anhalten. */
 export const mahnstoppSetzen: Werkzeug = {
   name: "mahnstopp_setzen",
-  beschreibung: "Hält die automatischen Zahlungserinnerungen zu dieser Bestellung an. Nutze das, wenn der Kunde einen Klärungsbedarf hat (bestreitet die Forderung, hat nachweislich gezahlt, braucht eine Ratenpause) — nicht als Gefälligkeit. Die Forderung bleibt bestehen.",
+  beschreibung: "Hält die automatischen Zahlungserinnerungen zu dieser Bestellung an. NUR wenn der Kunde eine Zahlung belegt, einen konkreten Einwand nennt (falscher Betrag, doppelt abgebucht) oder ausdrücklich um eine Ratenpause bittet. NICHT, weil er nicht zahlen will, wütend ist oder erst eine Antwort möchte — die Forderung bleibt, und die Antwort gibst du selbst.",
   stufe: "frei",
   lagen: ["zahlung_gemeldet", "rate_ueberfaellig", "gekuendigt", "bestreitet", "unbezahlt"],
   parameter: {

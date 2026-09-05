@@ -196,9 +196,18 @@ export async function mailBearbeiten(ein: {
     };
 
     // Werbung ordnen, nicht beantworten.
-    if (einordnung.kategorien.includes("werbung_newsletter") && einordnung.kategorien.length === 1) {
-      await ablegen(postfach, gmailId, "FIAON/Kein Kunde", ["UNREAD"]);
+    // ── WERBUNG UND SPAM IN EIGENE ORDNER (05.09.2026, E-135) ─────────────
+    // Justin: „Der Agent muss verstehen, was Werbung ist (die kann in einen
+    // Ordner), was Spam ist und was Kunden sind." Beides verlässt den
+    // Posteingang; „Kein Kunde" bleibt für Automaten und Dienstleister
+    // (Airwallex, GoCardless), die ein Mensch sehen will.
+    if (einordnung.kategorien.length === 1 && einordnung.kategorien[0] === "werbung_newsletter") {
+      await ablegen(postfach, gmailId, "FIAON/Werbung", ["UNREAD", "INBOX"]);
       return fertig({ ...gemeinsam, aktion: "ignoriert", begruendung: "Werbung" }, "Werbung");
+    }
+    if (einordnung.kategorien.length === 1 && einordnung.kategorien[0] === "spam") {
+      await ablegen(postfach, gmailId, "FIAON/Spam", ["UNREAD", "INBOX"]);
+      return fertig({ ...gemeinsam, aktion: "ignoriert", begruendung: "Spam" }, "Spam");
     }
 
     // 5. Akte-Vermerk — JEDE Kundenmail wird nachgetragen.

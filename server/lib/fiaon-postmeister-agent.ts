@@ -331,7 +331,8 @@ const SCHEMA_A = {
 export async function einordnen(mail: { betreff: string; text: string; von: string; alterTage: number }): Promise<Einordnung> {
   const system = [
     "Du ordnest eingehende Kundenmails eines deutschen Dienstleisters ein. Du antwortest NICHT, du beschreibst nur.",
-    "Kategorien (mehrere möglich): zahlung, zugang_login, termin, unterlagen, status_frage, neuinteresse, vertrieb_komplex, kuendigung, beschwerde, rechtlich, abmeldung, werbung_newsletter, intern, sonstiges.",
+    "Kategorien (mehrere möglich): zahlung, zugang_login, termin, unterlagen, status_frage, neuinteresse, vertrieb_komplex, kuendigung, beschwerde, rechtlich, abmeldung, werbung_newsletter, spam, intern, sonstiges.",
+    "werbung_newsletter = Newsletter, Angebote, Rundschreiben von Firmen an uns. spam = unerbetene Kaltakquise an uns (SEO, Webdesign, Leads, Krypto, Kreditangebote, Massenmails), Phishing, wirre Texte ohne Bezug zu uns. Beides ist KEIN Kunde und bekommt genau eine Kategorie. Ein Mensch, der über sein Anliegen bei FIAON schreibt — auch wütend, auch knapp, auch in schlechtem Deutsch — ist NIE werbung_newsletter oder spam.",
     "fragen: jede Frage des Kunden als eigener kurzer Satz, in seinen Worten. Keine Frage erfinden.",
     "zusammenfassung: ein bis zwei Sätze, was der Kunde will und in welcher Stimmung er ist.",
     "sprache: der ISO-Code der Sprache, in der die Mail geschrieben ist (de, en, …).",
@@ -418,6 +419,10 @@ function systemPrompt(ein: {
   kundenweg?: string | null;
   postfach: string; lage: Kundenlage; lageGrund: string; heute: string; akte: any;
   einordnung: Einordnung; vertrag: string; alterTage: number; werkzeuge: string[];
+  /** Absolutes Datum des Vertragsschlusses (Bestellung) — für Härte-Stufe und Widerruf. */
+  vertragGeschlossenAm?: string | null;
+  /** „das für Wien zuständige Bezirksgericht" — je Land des Kunden. */
+  gerichtText: string;
   name: string;
 }): string {
   const schritte = ERLAUBTE_SCHRITTE[ein.lage].join(", ");
@@ -459,7 +464,19 @@ function systemPrompt(ein: {
     ``,
     `WAS DU NICHT SAGST: nichts garantieren, nicht beraten, nichts empfehlen, keine Fristen zusagen, keine Bankdaten aus dem Gedächtnis, keine internen Statuswörter, nichts versprechen, was du nicht im selben Zug getan hast.`,
     ``,
-    `HANDELN: Du hast Werkzeuge (${ein.werkzeuge.join(", ")}). Benutze sie, bevor du schreibst. Du ersetzt einen Mitarbeiter: Was du erledigen kannst, erledigst du selbst. Wenn ein Mensch etwas TUN muss (Rückruf, Bescheinigung, Datenänderung, Unterlagen prüfen, frühere Kündigung nachsehen), gib ihm eine Aufgabe (aufgabe_an_betreuer) mit Titel und Frist — und sag dem Kunden, wer sich bis wann meldet. Nennt der Kunde einen Kollegen mit Namen („Frau Rifka soll mich zurückrufen"), gib die Aufgabe diesem Kollegen (Parameter kollege) und nenne ihn dem Kunden so, wie das Werkzeug ihn nennt. Wenn ein Mensch nur etwas wissen soll, reicht eine Notiz (notiz_an_betreuer). Bei einem Rückrufwunsch ist der nächste Schritt „rueckruf", kein Termin. Wenn es um Geld geht, hol dir die Zahlungsseite (zahlungslink_bauen) und verlinke sie — die Rechnung als PDF hängt der Server dann automatisch an; verlangt der Kunde ausdrücklich eine Rechnung oder einen Beleg, nimm rechnung_anhaengen. Bei einer Kündigung: erst das Rettungsgespräch, bei klarer Erklärung kuendigung_vormerken — der Vertrag endet erst mit der Zahlung der offenen Rate.`,
+    // ═══════════════════════════════════════════════════
+    // MARA ERLEDIGT SELBST (05.09.2026, Justin, E-135): „Der Agent verweist
+    // IMMER auf den Mitarbeiter, der Agent soll ja Arbeit abnehmen statt
+    // machen. Alles, was Mara machen kann, macht sie!" Gemessen an sieben
+    // Tagen: 276 Antworten, 128 mit Aufgabe an den Betreuer, 115 mit „meldet
+    // sich" — darunter Stornos unbezahlter Bestellungen, Kündigungen,
+    // Kartenfragen und Zahlungsfragen, die Mara vollständig selbst kann.
+    // ═══════════════════════════════════════════════════
+    `HANDELN: Du hast Werkzeuge (${ein.werkzeuge.join(", ")}). Benutze sie, bevor du schreibst. Du ersetzt einen Mitarbeiter — du bist die Sachbearbeiterin, nicht die Telefonzentrale. Was du erledigen kannst, erledigst du in dieser Antwort selbst und abschließend.`,
+    `DAS ERLEDIGST DU IMMER SELBST, ohne jemanden einzuschalten: Zahlungsfragen (Zahlungsseite holen; Betrag, Rate, Fälligkeit, Verwendungszweck nennen; Rechnung anhängen, wenn verlangt). Kündigung, Storno, Widerruf, „ich will nicht mehr" (Werkzeug kuendigung_vormerken — es storniert eine unbezahlte Bestellung oder merkt die Kündigung mit der letzten Rate vor; du erklärst dem Kunden das Ergebnis). Fragen zu Karte, Konto, Leistung, Ablauf, Kosten, Fristen (Haus-Wissen und Akte: FIAON gibt keine Karte aus, die Bank entscheidet; welche Etappe der Kunde gerade hat, steht in der Akte). Zugang und Passwort (konto_freischalten; die Passwort-vergessen-Seite nennen). Terminwunsch (terminlink_bauen — der Kunde wählt selbst eine Zeit, der Betreuer sieht die Buchung sofort). Doppelte oder unpassende Mails erklären und die Werbesperre setzen, wenn der Kunde es will. Stand der Unterlagen nennen.`,
+    `NUR DANN gibst du eine Aufgabe (aufgabe_an_betreuer): (1) Der Kunde wünscht ausdrücklich einen Rückruf oder ein Gespräch mit seinem Betreuer — dann Aufgabe mit Uhrzeitwunsch, und dem Kunden klar sagen, wer sich meldet (Nachname). (2) Der Kunde hat eine Datei geschickt, die ein Mensch prüfen muss. (3) Eine Datenänderung, für die du kein Werkzeug hast. (4) Eine Entscheidung über Geld zurück (Widerruf nach Zahlung, Kulanz) — die geht an die Leitung (kollege: "Leitung"), nie an den Betreuer. Nennt der Kunde einen Kollegen mit Namen, geht die Aufgabe an diesen (Parameter kollege).`,
+    `NIE: „Herr X meldet sich" als Ersatz für eine Antwort. Wenn du eine Aufgabe gibst, beantwortest du trotzdem JETZT alles, was du beantworten kannst. Nie eine Kündigung, ein Storno, eine Zahlungsfrage oder eine Kartenfrage „zur Prüfung" weitergeben — das prüfst du selbst in der Akte. Wenn ein Mensch nur etwas wissen soll, reicht eine Notiz (notiz_an_betreuer), und der Kunde erfährt davon nichts.`,
+    `MAHNSTOPP (mahnstopp_setzen) NUR, wenn der Kunde eine Zahlung belegt oder einen konkreten Einwand nennt (falscher Betrag, doppelt abgebucht) oder ausdrücklich um eine Ratenpause bittet. NICHT, weil er nicht zahlen will, wütend ist oder „erst eine Antwort" möchte — die Antwort gibst du jetzt, die Forderung bleibt.`,
     ``,
     `BELEGE: Jede Zahl, jedes Datum, jeder Betrag, jeder Name in deiner Antwort muss aus einem Werkzeugergebnis oder der Akte stammen, und du führst ihn in "belege" auf. Was du nicht belegen kannst, schreibst du nicht.`,
     ``,
@@ -493,7 +510,23 @@ function systemPrompt(ein: {
     `  3. Die Alternative ehrlich benennen: Angebote mit „Kredit ohne SCHUFA" sind oft unseriös — man zahlt dort Gebühren, und die Bonität bleibt, wie sie ist. (NICHT „Betrug" oder „Fake" schreiben — das ist eine Behauptung über Dritte, die uns Ärger macht.)`,
     `  4. Bitten, es durchzuziehen. Ein echter Satz, kein Verkaufsspruch: „Ziehen Sie es bitte einmal durch — was meinen Sie?"`,
     `  5. ERST DANN die Rate und der Weg zur Zahlung, in einem Satz, ohne Druck.`,
-    `Wenn der Kunde trotzdem kündigt, respektierst du das: Kündigung vormerken (Werkzeug), letzte Rate benennen, kein zweiter Versuch. Einmal werben ist Beratung, zweimal ist Bedrängen.`,
+    // ═══════════════════════════════════════════════════
+    // KÜNDIGUNG MIT OFFENER RECHNUNG — JUSTINS ABLAUF (05.09.2026, E-135):
+    // „Okay, bitte die letzte Rechnung anführen, hier die Zahlungsdetails und
+    // Rechnung im Anhang und Link am Ende — wenn die Rate eingegangen ist,
+    // schicke ich das Kündigungsschreiben. Wenn er »nein, mache ich nicht«
+    // schreibt, muss Mara hart werden: Wir haben einen Vertrag, den Sie
+    // gezeichnet haben; ohne die Rate können wir nicht kündigen; sonst geht
+    // es an das Bezirksgericht, wo der Kunde lebt — ersparen Sie uns beiden
+    // den Stress und zahlen Sie." Das Kündigungsschreiben (vertrag_beendet)
+    // schickt das Haus automatisch, sobald die letzte Rate verbucht ist.
+    // ═══════════════════════════════════════════════════
+    `WENN DER KUNDE TROTZDEM KÜNDIGT, respektierst du das und erledigst es selbst: kuendigung_vormerken (Werkzeug). Kein zweiter Rettungsversuch — einmal werben ist Beratung, zweimal ist Bedrängen. Danach, je nach Ergebnis des Werkzeugs:`,
+    `  · Storniert (nichts bezahlt): „Ihre Bestellung ist storniert, es bleibt nichts offen." Fertig, Schritt erledigt.`,
+    `  · Alle Raten bezahlt: „Ihr Vertrag ist beendet." Fertig.`,
+    `  · OFFENE RATE: „Ihre Kündigung ist vorgemerkt. Offen ist noch Rate N über X € (fällig am D). Die Rechnung hängt an; Bankdaten, QR-Code und Verwendungszweck stehen auf der Zahlungsseite unten. Sobald die Zahlung eingegangen ist, erhalten Sie von uns das Kündigungsschreiben, und der Vertrag ist beendet." Dazu zahlungslink_bauen UND rechnung_anhaengen; Schritt zahlung.`,
+    `HÄRTE-STUFE — wenn der Kunde die offene Rate ausdrücklich verweigert („nein, mache ich nicht", „zahle nichts mehr", „wozu") und KEINEN sachlichen Einwand nennt (keine belegte Zahlung, kein Widerruf in der Frist, kein falscher Betrag), dann kein Verständnis mehr, kein Mahnstopp, keine Aufgabe an den Betreuer. Du schreibst ruhig und bestimmt, in dieser Reihenfolge: (1) „Wir haben einen Vertrag, den Sie am ${ein.vertragGeschlossenAm ?? "[Datum aus der Akte]"} geschlossen haben." (2) „Ohne die offene Rate N über X € können wir den Vertrag nicht beenden — das ist die einzige Bedingung." (3) „Bleibt die Zahlung aus, übergeben wir die Forderung an ${ein.gerichtText} zur Eintreibung. Die Kosten dafür tragen dann Sie." (4) „Ersparen Sie uns beiden diesen Aufwand und begleichen Sie die Rate — der Weg steht unten." Dazu eskalation_vorbereiten, damit die Leitung die Verweigerung sieht. Beim zweiten Nein dasselbe in drei Sätzen, keine Diskussion. Diese Härte gilt NUR bei einem laufenden Vertrag (mindestens eine Rate bezahlt) — eine unbezahlte Bestellung wird einfach storniert.`,
+    `WIDERRUF: Liegt der Vertragsschluss (${ein.vertragGeschlossenAm ?? "Datum in der Akte"}) höchstens 14 Tage zurück, gilt der Widerruf: kuendigung_vormerken (unbezahlt → storniert) und, wenn schon gezahlt wurde, Aufgabe an die Leitung (kollege: "Leitung") für die Entscheidung über die Rückzahlung — dem Kunden sagst du, dass die Leitung das entscheidet; du versprichst keine Rückzahlung. Nach 14 Tagen ist ein „Widerruf" eine Kündigung und wird so behandelt.`,
     `Wortverbote gelten weiter: nichts garantieren, keinen Kredit versprechen oder vermitteln, das Wort „Affiliate" nie.`,
     ``,
     `WENN DER KUNDE EINEN VERPASSTEN TERMIN NENNT, sieh in den Terminen der Akte nach. Stimmt es, entschuldige dich konkret (Datum, wer). Stimmt es nicht, sag ruhig, was du in der Akte siehst.`,
@@ -508,6 +541,22 @@ function systemPrompt(ein: {
     `DER GANZE WEG DES KUNDEN (alles, was das Haus über ihn weiß — Mails, Anrufe, Termine, Zahlungen, Notizen, Portal; älteste zuerst). Lies ihn, bevor du antwortest. Was der Kunde behauptet („ihr habt mir die Kündigung bestätigt", „ich habe überwiesen", „nie eine Mail bekommen"), prüfst du HIER — und antwortest mit dem, was da steht, mit Datum. Steht es nicht da, sag das ruhig und gib dem Betreuer die Aufgabe, es zu klären:`,
     ein.kundenweg || "(kein Verlauf bekannt — unbekannter Absender)",
   ].filter(Boolean).join("\n");
+}
+
+/**
+ * Die Stelle, die eine offene Forderung eintreibt — je Land des Kunden
+ * (05.09.2026, E-135). Deutschland: Mahnbescheid über das Amtsgericht;
+ * Österreich: Bezirksgericht; Schweiz: Betreibungsamt. Ohne Land bleibt es
+ * beim allgemeinen „zuständigen Gericht" — nichts erfinden.
+ */
+export function gerichtFuer(land?: string | null, ort?: string | null): string {
+  const l = String(land || "").trim().toUpperCase();
+  const o = String(ort || "").trim();
+  const wo = o ? `das für ${o} zuständige` : "das zuständige";
+  if (["AT", "ÖSTERREICH", "OESTERREICH", "AUSTRIA"].includes(l)) return `${wo} Bezirksgericht`;
+  if (["CH", "SCHWEIZ", "SWITZERLAND"].includes(l)) return `${wo} Betreibungsamt`;
+  if (["DE", "DEUTSCHLAND", "GERMANY"].includes(l)) return `${wo} Amtsgericht (gerichtliches Mahnverfahren)`;
+  return `${wo} Gericht`;
 }
 
 /** Die Akte ohne Verlauf und Mails (die stehen im Kundenweg), Wichtiges zuerst. */
@@ -597,6 +646,8 @@ export async function antwortErzeugen(ein: {
     { role: "system", content: [systemPrompt({
       postfach: ein.postfach, lage, lageGrund: akte.lageGrund, heute: akte.heute, akte,
       einordnung: ein.einordnung, vertrag: vertrag.text, alterTage: ein.mail.alterTage,
+      vertragGeschlossenAm: akte?.vertrag?.geschlossenAm ?? null,
+      gerichtText: gerichtFuer(akte?.vertrag?.land, akte?.vertrag?.ort),
       werkzeuge: werkzeuge.map((w) => w.name),
       name: await agentName(),
       kundenweg: weg?.text ?? null,

@@ -137,8 +137,11 @@ export async function anredeBestimmen(
   sprache?: string | null,
 ): Promise<{ zeile: string; gespeichert: boolean }> {
   const w = rahmenFuer(sprache);
-  const vor = String(vorname || "").trim();
-  const nach = String(nachname || "").trim();
+  // Namen mit Ziffern („Edam2021") sind Tippfehler oder Nutzernamen — nie in
+  // eine Anrede (05.09.2026, gesehen bei „Guten Tag Edam2021 Tokmak").
+  const sauber = (x: string) => (/\d/.test(x) ? "" : x);
+  const vor = sauber(String(vorname || "").trim());
+  const nach = sauber(String(nachname || "").trim());
   const neutral = w.grussNeutral([vor, nach].filter(Boolean).join(" "));
   if (!personId) return { zeile: neutral, gespeichert: false };
 
@@ -183,6 +186,10 @@ const ANREDE_VORNE = new RegExp(`^(?:guten\\s+(?:tag|morgen|abend)|sehr\\s+geehr
 
 function kernBereinigen(kern: string, name: string, knopfUrl: string | null | undefined): string {
   let t = String(kern || "").trim();
+  // „Frau Redel, ich verstehe …" direkt nach der Anrede-Zeile = doppelte
+  // Anrede (05.09.2026). Der Name am Satzanfang fällt, der Satz beginnt groß.
+  t = t.replace(/^(?:herrn?|frau|mr\.?|mrs\.?|ms\.?|monsieur|madame|se[ñn]or[a]?|signor[ae]?)\s+[^\s,]{1,30}(?:\s+[^\s,]{1,30})?\s*,\s*/i, (_m) => "");
+  t = t.replace(/^[a-zäöüß]/, (c) => c.toUpperCase());
   // 04.09.2026: Das Modell setzte trotz Verbot eine eigene Anrede an den Anfang
   // („Guten Tag Herr Krunic,") — der Server setzt die Anrede selbst, der Kunde
   // bekam sie doppelt, und die zweite bekam vom URL-Punkt-Regler noch ein „,."

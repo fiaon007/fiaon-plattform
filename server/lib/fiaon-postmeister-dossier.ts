@@ -250,7 +250,7 @@ export async function akteLesen(personId: number | null, ref: string | null): Pr
 
   const [person] = personId ? (await sqlPool`
     SELECT p.id, p.first_name, p.last_name, p.company_name, p.primary_email, p.primary_phone, p.anrede,
-           p.sprache, p.sprache_notiz,
+           p.sprache, p.sprache_notiz, p.city, p.country,
            p.werbung_gesperrt_am, p.is_blocked, p.account_status, p.gc_mandate_status,
            a.first_name AS betreuer_vorname, a.name AS betreuer_name
       FROM fiaon_persons p LEFT JOIN fiaon_agents a ON a.id = p.assigned_agent_id
@@ -258,7 +258,8 @@ export async function akteLesen(personId: number | null, ref: string | null): Pr
   `) as any[] : [null];
 
   const bestellungen = personId ? (await sqlPool`
-    SELECT ref, pack_name, payment_status, amount_due, payment_reference, created_at, gekuendigt_am, letzte_rate_nr, vertrag_ende_am, agb_stand
+    SELECT ref, pack_name, payment_status, amount_due, payment_reference, created_at, gekuendigt_am, letzte_rate_nr, vertrag_ende_am, agb_stand,
+           city, country
       FROM fiaon_applications WHERE person_id = ${personId} AND merged_into IS NULL
      ORDER BY created_at DESC LIMIT 6
   `) as any[] : [];
@@ -338,6 +339,17 @@ export async function akteLesen(personId: number | null, ref: string | null): Pr
       ...eigene.map((m) => ({ am: relativ(m.created_at), richtung: "ein" as const, betreff: String(m.betreff ?? ""), kurz: `${m.kurz ?? ""} — von uns ${m.beantwortet ? "beantwortet" : "nur eingeordnet"}` })),
       ...mailsRaus.map((m) => ({ am: relativ(m.created_at), richtung: "aus" as const, betreff: String(m.event), kurz: String(m.status) })),
     ].slice(0, 16),
+    // ── VERTRAG: Datum, Wohnort, Land (05.09.2026, E-135) ─────────────────
+    // Die Härte-Stufe nennt das Vertragsdatum und das für den Wohnort
+    // zuständige Gericht — beides aus der Akte, nichts geraten.
+    vertrag: aktuelle ? {
+      geschlossenAm: aktuelle.created_at
+        ? new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(aktuelle.created_at))
+        : null,
+      ort: aktuelle.city || person?.city || null,
+      land: aktuelle.country || person?.country || null,
+      agbStand: aktuelle.agb_stand ?? null,
+    } : null,
     kuendigung: aktuelle?.gekuendigt_am ? {
       am: relativ(aktuelle.gekuendigt_am), letzteRate: aktuelle.letzte_rate_nr ?? null,
       vertragEnde: aktuelle.vertrag_ende_am ? relativ(aktuelle.vertrag_ende_am) : null,

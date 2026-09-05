@@ -79,7 +79,7 @@ const POSTFAECHER: { adresse: string; modus: Modus; gruss: string }[] = [
 const KATEGORIEN = [
   "zahlung", "zugang_login", "termin", "unterlagen", "status_frage",
   "neuinteresse", "vertrieb_komplex", "kuendigung", "beschwerde", "rechtlich",
-  "abmeldung", "werbung_newsletter", "intern", "sonstiges",
+  "abmeldung", "werbung_newsletter", "spam", "intern", "sonstiges",
 ] as const;
 /** Diese Kategorien dürfen — je nach Postfach-Modus — automatisch antworten. */
 const AUTO_SICHER = new Set(["zahlung", "zugang_login", "termin", "unterlagen", "status_frage", "neuinteresse"]);
@@ -240,7 +240,8 @@ Ordne die Mail ein und formuliere — wenn möglich — eine versandfertige Antw
 KATEGORIEN (genau eine): ${KATEGORIEN.join(", ")}.
 - vertrieb_komplex = individuelle Vertriebs-/Preisverhandlung, Geschäftskunden-Sonderwünsche, Presse/Partner.
 - abmeldung = der Absender will KEINE weiteren E-Mails/Erinnerungen/Angebote von uns („Stopp", „keine Mails mehr", „abmelden", „hören Sie auf") — OHNE ein laufendes Abo zu kündigen (sonst kuendigung).
-- werbung_newsletter = Werbung, Newsletter, Kaltakquise an uns.
+- werbung_newsletter = Werbung, Newsletter, Rundschreiben von Firmen an uns.
+- spam = unerbetene Kaltakquise (SEO, Webdesign, Leads, Krypto), Phishing, wirre Texte ohne Bezug zu uns. Ein Kunde ist nie spam.
 - intern = Absender aus dem eigenen Haus oder Dienstleister-Systemmail.
 
 REGELN FÜR DIE ANTWORT (Feld "antwort"):

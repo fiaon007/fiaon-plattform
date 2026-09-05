@@ -76,14 +76,14 @@ export function ensureAppTabellen(): Promise<void> {
 }
 
 // ── Helfer ──────────────────────────────────────────────────────────────────
-const tag = (d: any): string | null => {
+export const tag = (d: any): string | null => {
   if (!d) return null;
   const x = new Date(d); if (Number.isNaN(x.getTime())) return null;
   return x.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Europe/Berlin" });
 };
 
 /** Heutiges Datum in Berlin — über formatToParts, nie über Number(format()). */
-function berlinHeute(): { j: number; m: number; t: number } {
+export function berlinHeute(): { j: number; m: number; t: number } {
   const teile = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
   const wert = (art: string) => Number(teile.find((p) => p.type === art)?.value ?? "0");
   return { j: wert("year"), m: wert("month"), t: wert("day") };
@@ -102,7 +102,7 @@ export function werktageSpaeter(n: number): string {
  * Der Mensch hinter der Referenz — oder null (427 Anträge ohne person_id, Detailplan 3.4).
  * `name` nach dem Muster kundenNameFuer() aus fiaon-postmeister-werkzeuge.ts: Person, sonst Antrag.
  */
-async function personFuerRef(ref: string): Promise<{ personId: number; vorname: string | null; name: string } | null> {
+export async function personFuerRef(ref: string): Promise<{ personId: number; vorname: string | null; name: string } | null> {
   const [a] = (await sqlPool`SELECT a.person_id, a.first_name, a.last_name, p.first_name AS p_vor, p.last_name AS p_nach, p.company_name
                                 FROM fiaon_applications a LEFT JOIN fiaon_persons p ON p.id = a.person_id
                                WHERE a.ref = ${ref} LIMIT 1`) as any[];
@@ -112,12 +112,12 @@ async function personFuerRef(ref: string): Promise<{ personId: number; vorname: 
 }
 
 /** Dateinamen nie ungeprüft in Header oder Text — nur Buchstaben, Ziffern, Punkt, Strich. */
-const sauberName = (roh: string, rueckfall: string): string => {
+export const sauberName = (roh: string, rueckfall: string): string => {
   const n = String(roh || "").replace(/[^A-Za-z0-9._-]/g, "_").replace(/_+/g, "_").slice(0, 80);
   return n && n !== "." && n !== ".." ? n : rueckfall;
 };
 
-function keinePerson(res: Response) {
+export function keinePerson(res: Response) {
   // 200, nicht 4xx: Das ist ein Zustand, den die Seite zeichnet, kein Fehler.
   res.json({ ok: false, grund: "keine_person", text: "Ihre Akte wird gerade mit Ihrer Person verknüpft. Dieser Bereich steht Ihnen in Kürze zur Verfügung." });
 }

@@ -42,12 +42,12 @@ export function Hilfe({ kundeRef, demo, ansprechpartner, vorgang, buchungsLink }
     if (betreff.trim().length < 3 || text.trim().length < 10) return;
     if (demo) { setMeldung({ ton: "gut", text: "In der Demo-Ansicht wird nichts gesendet." }); return; }
     setLaeuft(true); setMeldung(null);
-    // Dringend: das Kästchen wandert als Kennzeichen in den Betreff, bis fiaon_tickets ein eigenes Feld hat (Bauvorlage 8.3).
-    const b = `${dringend ? "[DRINGEND – Post mit kurzer Frist] " : ""}${betreff.trim()}`.slice(0, 160);
-    const r = await api(`/kunde/${encodeURIComponent(kundeRef)}/tickets`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ betreff: b, text: text.trim() }) });
+    // Dringend (Gericht, Gerichtsvollzieher, Inkasso mit Frist): Ticket UND Auftrag mit Frist heute beim Betreuer —
+    // mittlere Antwortzeit auf Tickets lag am 05.09. bei 40,7 Stunden (TFO); eine Gerichtsfrist wartet nicht.
+    const r = await api(`/kunde/${encodeURIComponent(kundeRef)}/app/nachricht`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ betreff: betreff.trim(), text: text.trim(), dringend }) });
     setLaeuft(false);
     if (r.ok && r.json?.ok !== false) {
-      setMeldung({ ton: "gut", text: `Ihre Nachricht ist bei ${ansprechpartner?.name ?? "Ihrem FIAON-Team"}. Sie sehen die Antwort hier in Ihrem Bereich.${dringend ? " Wir haben das als dringend vermerkt." : ""}` });
+      setMeldung({ ton: "gut", text: `Ihre Nachricht ist bei ${ansprechpartner?.name ?? "Ihrem FIAON-Team"}. Sie sehen die Antwort hier in Ihrem Bereich.${r.json?.dringend ? " Wir haben das als dringend vermerkt – Ihre Ansprechperson hat dafür eine Aufgabe mit Frist heute." : ""}` });
       setBetreff(""); setText(""); setDringend(false); laden();
     } else setMeldung({ ton: "fehler", text: r.json?.error || "Die Nachricht konnte nicht gesendet werden. Ihr Text bleibt stehen – bitte noch einmal senden." });
   };

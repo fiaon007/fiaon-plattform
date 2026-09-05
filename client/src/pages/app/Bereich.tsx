@@ -24,6 +24,8 @@ import { Vorgaenge } from "./Vorgaenge";
 import { Geld } from "./Geld";
 import { Hilfe, Termine } from "./Hilfe";
 import { Zahlen } from "./Zahlen";
+import { Vorgang as VorgangSeite } from "./Vorgang";
+import { Vollmachten } from "./Vollmacht";
 import "@/styles/app.css";
 
 const DEMO_REF = "FIAON-DEMO";
@@ -131,11 +133,13 @@ export default function AppBereich() {
         {b && bildschirm === "brief" && <Brief kundeRef={ref} basis={basis} demo={demo} ansprechpartner={apName} briefAn={briefAn} />}
         {b && rw && bildschirm === "geld" && rest[0] === "zahlen" && <Zahlen b={b} kundeRef={ref} basis={basis} demo={demo} />}
         {b && rw && bildschirm === "geld" && rest[0] !== "zahlen" && <Geld b={b} rw={rw} kundeRef={ref} basis={basis} demo={demo} />}
-        {b && bildschirm === "vorgaenge" && <Vorgaenge kundeRef={ref} basis={basis} demo={demo} post={post} grund={postGrund} reiter={rest[0] === "ansprueche" ? "ansprueche" : "vorgaenge"} ansprechpartner={apName} />}
+        {b && bildschirm === "vorgaenge" && rest[0] && rest[0] !== "ansprueche" && <VorgangSeite kundeRef={ref} basis={basis} demo={demo} id={rest[0]} />}
+        {b && bildschirm === "vorgaenge" && (!rest[0] || rest[0] === "ansprueche") && <Vorgaenge kundeRef={ref} basis={basis} demo={demo} post={post} grund={postGrund} reiter={rest[0] === "ansprueche" ? "ansprueche" : "vorgaenge"} ansprechpartner={apName} />}
         {b && bildschirm === "ansprueche" && <Ansprueche kundeRef={ref} demo={demo} startCheck={rest[0] === "check"} ansprechpartner={apName} onFertig={() => { api(`/kunde/${encodeURIComponent(ref)}/app/ansprueche`).then((x) => { if (x.json?.ok) setCheck({ beantwortet: x.json.beantwortet ?? 0, gesamt: x.json.fragenGesamt ?? FRAGEN.length }); }).catch(() => {}); navigiere(`${basis}/vorgaenge/ansprueche`); }} />}
         {b && bildschirm === "unterlagen" && <Unterlagen kundeRef={ref} demo={demo} u={b.unterlagen} />}
         {b && bildschirm === "mehr" && rest[0] === "hilfe" && <Hilfe kundeRef={ref} demo={demo} ansprechpartner={b.ansprechpartner} vorgang={new URLSearchParams(window.location.search).get("vorgang")} buchungsLink={termine?.buchungsLink ?? null} />}
         {b && bildschirm === "mehr" && rest[0] === "termine" && <Termine kundeRef={ref} demo={demo} daten={termine} />}
+        {b && bildschirm === "mehr" && rest[0] === "vollmachten" && <Vollmachten kundeRef={ref} basis={basis} demo={demo} />}
         {b && bildschirm === "mehr" && !rest[0] && <Mehr kundeRef={ref} demo={demo} basis={basis} kunde={b.kunde} paket={b.paket} ansprechpartner={b.ansprechpartner} naechsterTermin={termine?.kommende?.[0] ? `${termine.kommende[0].datumText}, ${termine.kommende[0].uhrzeit} Uhr` : null} />}
         {hinweis && <div className="ap-meldung" role="status">{hinweis}</div>}
       </main>

@@ -38,7 +38,7 @@ export function Vorgaenge({ kundeRef, basis, demo, post, grund, reiter, ansprech
               <section key={g.titel} className="ap-abschnitt ap-auf v2">
                 <h2 className="ap-abschnitt-titel">{g.titel}</h2>
                 {zeilen.map((v) => (
-                  <article key={v.id} className={`ap-karte ap-vorgang ${v.stand === "nachfrage" ? "ueberfaellig" : g.kante}`}>
+                  <Link key={v.id} href={`${basis}/vorgaenge/${v.id}`} className={`ap-karte ap-vorgang ${v.stand === "nachfrage" ? "ueberfaellig" : g.kante}`} style={{ display: "block", textDecoration: "none" }}>
                     <div className="ap-karte-kopf"><h3>{v.artText}</h3>{v.aktenzeichen && <span className="ap-stempel ap-mono" style={{ fontSize: 12 }}>{v.aktenzeichen}</span>}</div>
                     <p style={{ marginTop: 4 }}>
                       {v.stand === "versandt" && <>Bei {v.empfaenger ?? "der Stelle"}{v.versandtAm ? ` seit ${v.versandtAm}` : ""}.{v.fristAm ? ` Antwort bis ${v.fristAm}.` : ""}</>}
@@ -47,8 +47,8 @@ export function Vorgaenge({ kundeRef, basis, demo, post, grund, reiter, ansprech
                       {(v.stand === "entwurf" || v.stand === "versandbereit" || v.stand === "unterschrift_offen") && <>{v.standText}</>}
                       {(v.stand === "bewilligt" || v.stand === "abgelehnt" || v.stand === "zurueckgezogen" || v.stand === "erledigt") && <>{v.standText}{v.aktualisiertAm ? ` · ${v.aktualisiertAm}` : ""}</>}
                     </p>
-                    {v.zustaendig && <div className="ap-zeile" style={{ marginTop: 8 }}><span>Kümmert sich</span><b style={{ fontWeight: 500 }}>{v.zustaendig}</b></div>}
-                  </article>
+                    <div className="ap-zeile" style={{ marginTop: 8 }}><span>{v.zustaendig ? `Kümmert sich: ${v.zustaendig}` : ""}</span><b className="ap-link" style={{ fontWeight: 500 }}>Öffnen →</b></div>
+                  </Link>
                 ))}
               </section>
             );

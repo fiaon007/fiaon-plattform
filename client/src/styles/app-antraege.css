@@ -1,0 +1,108 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   /app — Scheibe 5 (05.09.2026): Unterschrift, Vorgang, Vollmachten.
+
+   Ergänzt app.css (Präfix .ap- bleibt), fasst app.css NICHT an. Hier stehen nur
+   die Klassen, die es dort noch nicht gibt: Unterschriftfläche (Canvas),
+   Dokument-Blatt in 17 px, vertikale Zeitleiste, Textknopf, Kopierknopf,
+   Seitenreihe für „Antwort fotografieren“, Solo-Seite ohne Bottom-Bar.
+
+   Regeln wie in app.css: eine Akzentfarbe, Statusfarben nur als Punkt oder
+   Kante, Knöpfe mindestens 48 px, 375 px ist die Norm.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Solo-Seite (Unterschrift ohne Schale, ohne Bottom-Bar) ─────────────── */
+.ap-root.ap-solo { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 40px); }
+.ap-solo .ap-kopf-innen { justify-content: flex-start; }
+.ap-solo-fuss { max-width: var(--ap-spalte); margin: 28px auto 0; padding: 0 var(--ap-rand); font-size: 13px; color: var(--fi-text-still); text-align: center; }
+
+/* ── Dokument-Blatt: das Schreiben als HTML in 17 px ───────────────────── */
+.ap-dokument {
+  background: #fff; border: 1px solid var(--fi-linie); border-radius: var(--fi-radius-karte, 14px);
+  box-shadow: var(--fi-schatten-ruhe); padding: 20px 18px;
+  font-size: 17px; line-height: 1.55; color: var(--fi-text); overflow-wrap: anywhere;
+}
+.ap-dokument h1, .ap-dokument h2, .ap-dokument h3 { font-family: Inter, system-ui, sans-serif; font-weight: 500; letter-spacing: -0.01em; line-height: 1.3; margin: 18px 0 8px; }
+.ap-dokument h1 { font-size: 22px; margin-top: 0; }
+.ap-dokument h2 { font-size: 19px; }
+.ap-dokument h3 { font-size: 17px; }
+.ap-dokument p { margin: 0 0 12px; }
+.ap-dokument ul, .ap-dokument ol { margin: 0 0 12px; padding-left: 22px; }
+.ap-dokument li { margin: 4px 0; }
+.ap-dokument table { width: 100%; border-collapse: collapse; font-size: 15px; }
+.ap-dokument td, .ap-dokument th { padding: 6px 8px; border-bottom: 1px solid var(--fi-linie); text-align: left; vertical-align: top; }
+.ap-dokument img { max-width: 100%; height: auto; }
+.ap-dokument hr { border: 0; border-top: 1px solid var(--fi-linie); margin: 16px 0; }
+.ap-dokument small, .ap-dokument .fuss { font-size: 13px; color: var(--fi-text-still); }
+.ap-dokument.eingeklappt { max-height: 260px; overflow: hidden; position: relative; }
+.ap-dokument.eingeklappt::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 90px; background: linear-gradient(180deg, rgba(255, 255, 255, 0), #fff 80%); pointer-events: none; }
+
+/* ── Unterschriftfläche: Canvas 100 % breit, 160 px hoch ────────────────── */
+.ap-unterschrift { display: grid; gap: 8px; }
+.ap-unterschrift-flaeche {
+  position: relative; width: 100%; height: 160px;
+  background: #fff; border: 1px solid var(--fi-linie); border-radius: var(--fi-radius-karte, 14px);
+  box-shadow: var(--fi-schatten-ruhe); overflow: hidden;
+}
+.ap-unterschrift-flaeche.aktiv { border-color: var(--fi-primaer); box-shadow: 0 0 0 4px rgba(29, 78, 216, 0.10); }
+.ap-unterschrift-flaeche canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: crosshair; -webkit-user-select: none; user-select: none; }
+.ap-unterschrift-linie { position: absolute; left: 20px; right: 20px; bottom: 38px; border-top: 1px dashed var(--fi-linie-hover); pointer-events: none; }
+.ap-unterschrift-hinweis { position: absolute; left: 0; right: 0; bottom: 12px; text-align: center; font-size: 14px; color: var(--fi-text-still); pointer-events: none; }
+.ap-unterschrift-zeile { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 14px; color: var(--fi-text-leise); min-height: 32px; }
+
+/* ── Textknopf: sieht aus wie ein Link, ist ein <button> (48 px Trefferfläche) ── */
+.ap-textknopf {
+  display: inline-flex; align-items: center; min-height: 48px; padding: 0 2px; border: 0; background: none; cursor: pointer;
+  font: inherit; font-size: 15px; font-weight: 600; color: var(--fi-primaer); text-decoration: none; text-align: left;
+}
+.ap-textknopf.still { color: var(--fi-text-leise); font-weight: 500; }
+.ap-textknopf:disabled { opacity: 0.5; cursor: default; }
+
+/* ── Aktenzeichen mit Kopieren ──────────────────────────────────────────── */
+.ap-az { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ap-az .ap-kopie { min-height: 36px; padding: 0 10px; border: 1px solid var(--fi-linie); border-radius: 8px; background: #fff; font: inherit; font-size: 13px; color: var(--fi-text-leise); cursor: pointer; }
+.ap-az .ap-kopie.fertig { color: var(--fi-erfolg); border-color: var(--fi-erfolg); }
+
+/* ── Standkarte: großer Standsatz, Kante links nach Lage ────────────────── */
+.ap-stand { border-left: 3px solid var(--fi-linie); }
+.ap-stand.wartet { border-left-color: var(--fi-primaer); }
+.ap-stand.unterwegs { border-left-color: var(--fi-text-still); }
+.ap-stand.ueberfaellig { border-left-color: var(--fi-warnung); }
+.ap-stand.gut { border-left-color: var(--fi-erfolg); }
+.ap-stand-satz { margin: 0; font-family: Inter, system-ui, sans-serif; font-size: 20px; font-weight: 500; line-height: 1.3; letter-spacing: -0.01em; color: var(--fi-text); }
+.ap-stand-frist { margin: 8px 0 0; font-size: 14px; color: var(--fi-text-leise); }
+
+/* ── Zeitleiste: vertikal, Punkte gefüllt/leer, Linie dazwischen ───────── */
+.ap-zeitleiste { list-style: none; margin: 0; padding: 4px 0 0; }
+.ap-zeit { position: relative; display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 12px; padding: 0 0 18px; }
+.ap-zeit:last-child { padding-bottom: 4px; }
+.ap-zeit::before { content: ""; position: absolute; left: 13px; top: 24px; bottom: -2px; width: 2px; background: var(--fi-linie); }
+.ap-zeit:last-child::before { display: none; }
+.ap-zeit-punkt {
+  width: 24px; height: 24px; border-radius: 50%; margin-top: 1px; position: relative; z-index: 1;
+  border: 2px solid var(--fi-linie-hover); background: #fff; display: grid; place-items: center; color: #fff; font-size: 13px; font-weight: 700;
+}
+.ap-zeit.fertig .ap-zeit-punkt { background: var(--fi-erfolg); border-color: var(--fi-erfolg); }
+.ap-zeit.fertig::before { background: var(--fi-erfolg); opacity: 0.45; }
+.ap-zeit.jetzt .ap-zeit-punkt { border-color: var(--fi-primaer); box-shadow: 0 0 0 4px rgba(29, 78, 216, 0.10); }
+.ap-zeit.jetzt .ap-zeit-punkt::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--fi-primaer); }
+.ap-zeit b { display: block; font-size: 15px; font-weight: 600; line-height: 1.35; }
+.ap-zeit.kommt b { color: var(--fi-text-leise); font-weight: 500; }
+.ap-zeit small { display: block; font-size: 13px; color: var(--fi-text-leise); margin-top: 2px; line-height: 1.45; }
+.ap-zeit .ap-zeit-datum { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px; letter-spacing: 0.02em; color: var(--fi-text-still); }
+
+/* ── Seitenreihe: mehrere Fotos vor dem Absenden ───────────────────────── */
+.ap-seiten { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; margin-top: 12px; }
+.ap-seite { position: relative; aspect-ratio: 3 / 4; border: 1px solid var(--fi-linie); border-radius: 10px; overflow: hidden; background: #fff; display: grid; place-items: center; font-size: 12px; color: var(--fi-text-leise); text-align: center; padding: 4px; }
+.ap-seite img { width: 100%; height: 100%; object-fit: cover; }
+.ap-seite .ap-seite-nr { position: absolute; left: 6px; top: 6px; min-width: 22px; height: 22px; border-radius: 11px; background: rgba(15, 23, 42, 0.78); color: #fff; font-size: 12px; display: grid; place-items: center; padding: 0 6px; }
+
+/* ── Umfang-Kästchen (Vollmacht) ────────────────────────────────────────── */
+.ap-umfang { display: grid; gap: 4px; }
+.ap-umfang .ap-check { min-height: 48px; align-items: center; padding: 6px 0; border-top: 1px solid var(--fi-linie); }
+.ap-umfang .ap-check:first-child { border-top: 0; }
+
+/* ── Rückfrage: zwei Knöpfe, still + primär ─────────────────────────────── */
+.ap-rueckfrage { margin-top: 12px; padding: 14px; border: 1px solid var(--fi-linie); border-radius: 12px; background: var(--fi-flaeche-akzent, rgba(29, 78, 216, 0.03)); }
+.ap-rueckfrage p { margin: 0 0 10px; font-size: 15px; color: var(--fi-text); }
+
+@media (prefers-reduced-motion: reduce) { .ap-unterschrift-flaeche { transition: none; } }

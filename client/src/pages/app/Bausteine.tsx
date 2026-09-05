@@ -50,6 +50,18 @@ interface Staende { [regel: string]: { stand: string; fristAm: string | null } }
 const STAND_WORT: Record<string, string> = { offen: "Noch nicht beantragt", beantragt: "Beantragt", bewilligt: "Bewilligt", abgelehnt: "Abgelehnt", verworfen: "Zurückgestellt", nicht_zutreffend: "Trifft nicht mehr zu" };
 
 export function Ansprueche({ kundeRef, demo, startCheck = false, onFertig, ansprechpartner }: { kundeRef: string; demo: boolean; startCheck?: boolean; onFertig?: () => void; ansprechpartner?: string | null }) {
+  const [antragLaeuft, setAntragLaeuft] = useState<string | null>(null);
+  const [antragMeldung, setAntragMeldung] = useState<string | null>(null);
+  // „Antrag vorbereiten": legt den Vorgang an (Schreiben in Ich-Form des Kunden) und führt zur Unterschrift —
+  // vorher ggf. zur Vollmacht (Kette 1 von 2). Der Versand bleibt beim Menschen.
+  const antragVorbereiten = async (regelSchluessel: string) => {
+    if (demo) { setAntragMeldung("In der Demo-Ansicht wird kein Antrag angelegt. Bei echten Kunden führt dieser Knopf zur Unterschrift mit dem Finger."); return; }
+    setAntragLaeuft(regelSchluessel); setAntragMeldung(null);
+    const r = await api(`/kunde/${encodeURIComponent(kundeRef)}/app/vorgaenge`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ regelSchluessel }) });
+    setAntragLaeuft(null);
+    if (r.ok && r.json?.ok && r.json.unterschriftUrl) { window.location.href = r.json.unterschriftUrl; return; }
+    setAntragMeldung(r.json?.error || "Der Antrag konnte gerade nicht vorbereitet werden. Bitte versuchen Sie es in einem Moment noch einmal.");
+  };
   const [a, setA] = useState<Antworten | null>(demo ? DEMO_ANTWORTEN : null);
   const [staende, setStaende] = useState<Staende>({});
   const [grund, setGrund] = useState<string | null>(null);
@@ -133,6 +145,12 @@ export function Ansprueche({ kundeRef, demo, startCheck = false, onFertig, anspr
                   <dt>Wir tun</dt><dd>{b.regel.wasWirTun}</dd>
                   <dt>Grundlage</dt><dd>{b.regel.rechtsgrundlage} · <a className="ap-link" href={b.regel.quelleUrl} target="_blank" rel="noopener noreferrer">Quelle</a> · geprüft {b.regel.geprueftAm.split("-").reverse().join(".")}</dd>
                 </dl>
+                {st === "offen" && b.regel.kategorie !== "vertrag" && (
+                  <button type="button" className="ap-knopf" style={{ marginTop: 14 }} disabled={antragLaeuft !== null} onClick={() => antragVorbereiten(b.regel.schluessel)}>{antragLaeuft === b.regel.schluessel ? "Wird vorbereitet …" : "Antrag vorbereiten"}</button>
+                )}
+                {st === "offen" && b.regel.kategorie === "vertrag" && (
+                  <button type="button" className="ap-knopf still" style={{ marginTop: 14 }} disabled={antragLaeuft !== null} onClick={() => antragVorbereiten(b.regel.schluessel)}>{antragLaeuft === b.regel.schluessel ? "Wird vorbereitet …" : "Kündigung vorbereiten"}</button>
+                )}
               </article>
             );
           })}
@@ -140,6 +158,7 @@ export function Ansprueche({ kundeRef, demo, startCheck = false, onFertig, anspr
         </section>
       )}
 
+      {antragMeldung && <div className="ap-meldung" role="status">{antragMeldung}</div>}
       {n >= FRAGEN.length && <button type="button" className="ap-knopf still ap-auf v4" onClick={() => setFragen(true)}>Antworten ändern</button>}
       {fehler && <div className="ap-problem" role="alert"><b>{fehler}</b></div>}
     </>
@@ -310,6 +329,7 @@ export function Mehr({ kundeRef, demo, kunde, paket, ansprechpartner, basis, nae
           <Link href={`${basis}/mehr/termine`}>Termine{naechsterTermin ? ` · nächster ${naechsterTermin}` : ""}</Link>
           <Link href={`${basis}/unterlagen`}>Unterlagen</Link>
           <Link href={`${basis}/vorgaenge`}>Vorgänge und Ansprüche</Link>
+          <Link href={`${basis}/mehr/vollmachten`}>Vollmacht</Link>
         </div>
       </section>
       <section className="ap-abschnitt ap-auf v1">

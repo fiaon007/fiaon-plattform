@@ -1,0 +1,40 @@
+/* ═══ Vorgang (Mitarbeiter) — 05.09.2026, Kundenbereich /app Scheibe 5 ═══
+   Ein Antrag oder Brief des Kunden aus dem neuen Bereich: versenden und quittieren,
+   Ergebnis eintragen, zwei Sätze für den Kunden. Dunkle Bühne, Glas. Präfix .av- */
+.av{display:grid;gap:18px;max-width:980px;margin:0 auto;color:#e5e7eb}
+.av-pille{display:inline-block;font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.16em;text-transform:uppercase;color:#93c5fd;padding:8px 12px;border:1px solid rgba(147,197,253,.35);border-radius:999px;margin-bottom:14px}
+.av-kopf h1{margin:0;font:300 clamp(28px,4vw,44px)/1.1 'Inter',sans-serif;letter-spacing:-.03em;color:#fff}
+.av-kopf p{margin:12px 0 0;font:300 15px/1.65 'Inter',sans-serif;color:#cbd5e1;max-width:64ch}
+.av-kopf a{color:#93c5fd}
+.av-mono{font-family:'JetBrains Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.av-karte{padding:18px 20px;border-radius:20px;background:rgba(15,23,42,.6);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);display:grid;gap:10px}
+.av-karte h2{margin:0;font:400 16px/1.3 'Inter',sans-serif;color:#fff}
+.av-karte small{font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#93c5fd}
+.av-stand{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.av-stand b{font:300 28px/1.1 'Inter',sans-serif;letter-spacing:-.02em;color:#fff}
+.av-stand span{font-size:13px;color:#9ca3af}
+.av-zeile{display:flex;justify-content:space-between;gap:12px;font-size:13px;color:#9ca3af;border-top:1px solid rgba(255,255,255,.08);padding-top:8px}
+.av-zeile b{color:#fff;font-weight:500;text-align:right}
+.av-form{display:grid;gap:10px}
+.av-form label{display:grid;gap:6px;font-size:12.5px;color:#cbd5e1}
+.av-feld{width:100%;min-height:44px;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#fff;font:400 14px/1.5 'Inter',sans-serif}
+textarea.av-feld{min-height:96px;resize:vertical}
+.av-knoepfe{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+.av-knopf{min-height:42px;padding:0 16px;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#e5e7eb;font:500 13.5px/1 'Inter',sans-serif;cursor:pointer}
+.av-knopf.haupt{background:linear-gradient(135deg,#2563eb,#3b82f6);border-color:transparent;color:#fff;box-shadow:0 8px 18px rgba(37,99,235,.3)}
+.av-knopf:disabled{opacity:.5;cursor:default}
+.av-meldung{margin:0;padding:10px 14px;border-radius:12px;background:rgba(16,185,129,.14);border:1px solid rgba(52,211,153,.35);color:#a7f3d0;font-size:13px}
+.av-fehler{margin:0;padding:10px 14px;border-radius:12px;background:rgba(220,38,38,.14);border:1px solid rgba(248,113,113,.35);color:#fecaca;font-size:13px}
+.av-liste{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.av-liste li{display:flex;justify-content:space-between;gap:12px;font-size:13px;color:#cbd5e1;padding:8px 0;border-top:1px solid rgba(255,255,255,.08)}
+.av-liste li:first-child{border-top:0;padding-top:0}
+.av-liste a{color:#93c5fd;text-decoration:none}
+.av-zeit{list-style:none;margin:0;padding:0;display:grid;gap:0}
+.av-zeit li{display:grid;grid-template-columns:18px 1fr;gap:12px;padding:8px 0;font-size:13px;color:#cbd5e1}
+.av-zeit li::before{content:"";width:10px;height:10px;border-radius:50%;margin-top:4px;background:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.25)}
+.av-zeit li b{color:#fff;font-weight:500}
+.av-zeit li small{display:block;color:#9ca3af;letter-spacing:0;text-transform:none;font-size:12px}
+.av-schreiben{background:#fff;color:#0f172a;border-radius:14px;padding:22px 24px;font:400 14px/1.6 'Inter',sans-serif;max-height:60vh;overflow:auto}
+.av-schreiben h1,.av-schreiben h2,.av-schreiben h3{color:#0f172a}
+.av-lade{margin:0;font-size:13px;color:#64748b}
+.av-hinweis{font-size:12.5px;color:#9ca3af;margin:0}

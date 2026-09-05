@@ -924,7 +924,36 @@ export async function terminUebergeben(ein: {
     FROM fiaon_termine WHERE id = ${id} AND abgesagt_am IS NULL
   `) as any[];
   if (!termin) return { status: 404, body: { ok: false, error: "Termin nicht gefunden." } };
+  // ── DER ABGEBENDE IST GESPERRT ODER WEG (05.09.2026, E-136) ────────────
+  // Dann ist jede Übergabe eine echte Übergabe: Der Kunde geht mit, auch beim
+  // Startgespräch an jemanden ohne Onboarding-Rolle — ein gesperrter Betreuer
+  // kann ihn nicht mehr betreuen. Liegt der Termin schon beim Ziel, wird nur
+  // noch der Kunde nachgezogen (Selberherr, 05.09.).
+  const [abgebend] = (await sqlPool`
+    SELECT id, (NOT COALESCE(active, TRUE) OR zugang_gesperrt_am IS NOT NULL) AS weg FROM fiaon_agents WHERE id = ${Number(termin.agent_id)}
+  `) as any[];
+  const abgebenderWeg = !!abgebend?.weg;
   if (Number(termin.agent_id) === zielId) {
+    if (abgebenderWeg && termin.person_id) {
+      // nichts zu übergeben — aber der Kunde hängt noch am Gesperrten
+    }
+    const [pz] = termin.person_id ? (await sqlPool`
+      SELECT p.assigned_agent_id, (ag.zugang_gesperrt_am IS NOT NULL OR NOT COALESCE(ag.active, TRUE)) AS betreuer_weg
+      FROM fiaon_persons p LEFT JOIN fiaon_agents ag ON ag.id = p.assigned_agent_id WHERE p.id = ${Number(termin.person_id)}
+    `) as any[] : [null];
+    if (pz?.betreuer_weg && Number(pz.assigned_agent_id) !== zielId) {
+      await sqlPool`
+        UPDATE fiaon_persons SET assigned_agent_id = ${zielId}, assigned_at = NOW(), betreuung_seit = COALESCE(betreuung_seit, NOW()), updated_at = NOW()
+         WHERE id = ${Number(termin.person_id)}
+      `;
+      await sqlPool`
+        UPDATE fiaon_applications SET assigned_agent_id = ${zielId}, updated_at = NOW()
+         WHERE person_id = ${Number(termin.person_id)} AND merged_into IS NULL
+           AND (assigned_agent_id = ${Number(pz.assigned_agent_id)} OR assigned_agent_id IS NULL)
+      `;
+      await sqlPool`UPDATE fiaon_termine SET vertretung = FALSE, updated_at = NOW() WHERE id = ${id}`;
+      return { status: 200, body: { ok: true, vertretung: false, hinweis: "Der Termin lag schon bei diesem Kollegen; der Kunde wurde ihm jetzt zugeordnet, weil sein bisheriger Betreuer gesperrt ist." } };
+    }
     return { status: 400, body: { ok: false, error: "Der Termin liegt schon bei diesem Kollegen." } };
   }
   const darf = (ein.von.id != null && Number(termin.agent_id) === ein.von.id) || leitung;
@@ -972,7 +1001,7 @@ export async function terminUebergeben(ein: {
   // Vertretung: ein Startgespräch bei jemandem, der kein Onboarding macht,
   // bleibt beim Betreuer — nur der Termin wandert.
   const sollRolle = String(termin.quelle) === "onboarding_call" ? "onboarding" : null;
-  const vertretung = sollRolle ? String(ziel.rolle || "agent") !== sollRolle : false;
+  const vertretung = abgebenderWeg ? false : (sollRolle ? String(ziel.rolle || "agent") !== sollRolle : false);
   const vonName = ein.von.name;
   await sqlPool`
     UPDATE fiaon_termine
@@ -991,7 +1020,7 @@ export async function terminUebergeben(ein: {
       SELECT assigned_agent_id FROM fiaon_persons WHERE id = ${Number(termin.person_id)}
     `) as any[];
     const warBei = Number(war?.assigned_agent_id || 0);
-    if (warBei === Number(termin.agent_id) || warBei === 0) {
+    if (warBei === Number(termin.agent_id) || warBei === 0 || abgebenderWeg) {
       await sqlPool`
         UPDATE fiaon_persons
            SET assigned_agent_id = ${zielId}, assigned_at = NOW(),

@@ -63,7 +63,7 @@ export function setzLinkPruefen(
     return {
       gueltig: false,
       grund: `Dieser Link ist abgelaufen — er gilt ${LINK_MINUTEN} Minuten. `
-        + "Bitte melde dich noch einmal bei uns, dann schicken wir dir sofort einen neuen.",
+        + "Bitte melden Sie sich noch einmal bei uns, dann schicken wir Ihnen sofort einen neuen.",
     };
   }
   const erwartet = createHmac("sha256", geheimnis())

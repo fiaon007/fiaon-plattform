@@ -1,9 +1,9 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// /agent/kundenbereich-neu — „Was ist neu: Mein FIAON" (06.09.2026)
+// /agent/kundenbereich-neu — „Was ist neu: Mein FIAON“ (06.09.2026)
 //
 // Justin: „baue mir eine anschauliche Präsentation mit all den Änderungen für
 // den Kunden aber auch technisch, dass wir genau verstehen wie wo was wann —
-// eine eigene Seite für die Mitarbeiter."
+// eine eigene Seite für die Mitarbeiter.“
 //
 // Eine Seite, drei Ebenen: was der Kunde sieht, was das Team tut, wie es
 // technisch gebaut ist. Alles hier ist Stand 06.09.2026 und beschreibt nur,
@@ -26,10 +26,10 @@ const NAVY = "#0B1B3A";
 type Ebene = "kunde" | "team" | "technik" | "zeit";
 
 const KUNDE: { reiter: string; was: string; warum: string }[] = [
-  { reiter: "Heute", was: "Begrüßung, die Ruhe-Zeile („Sie müssen heute nichts tun" oder „Eine Sache wartet auf Sie"), die dunkle Zielkarte mit „x von 11 Schritten", die Zahl des Monats, was gerade bei FIAON in Arbeit ist, die Ansprechperson.", warum: "Der Kunde weiß in drei Sekunden, ob er etwas tun muss. Vorher rief er dafür an." },
+  { reiter: "Heute", was: "Begrüßung, die Ruhe-Zeile („Sie müssen heute nichts tun“ oder „Eine Sache wartet auf Sie“), die dunkle Zielkarte mit „x von 11 Schritten“, die Zahl des Monats, was gerade bei FIAON in Arbeit ist, die Ansprechperson.", warum: "Der Kunde weiß in drei Sekunden, ob er etwas tun muss. Vorher rief er dafür an." },
   { reiter: "Weg", was: "Elf Schritte bis zur Karte, jeder mit Stand und Datum: Angaben, erste Zahlung, Startgespräch, Anspruchs-Check, Unterlagen, Auskunft, Analyse, erstes Schreiben, Rate 2, Girokonto, Karte. Dazu alle Raten als Zahlungsnachweis.", warum: "Kein Versprechen, nur Stand. Über Karte und Rahmen entscheidet die Bank — das steht auf jeder Karte." },
   { reiter: "Brief", was: "Brief fotografieren, prüfen, absenden. Der Kunde bekommt ein Aktenzeichen und sieht unter Vorgänge, bis wann wir uns melden.", warum: "Post macht Angst. Ein Foto und ein Aktenzeichen nehmen sie. Bei dir entsteht ein Auftrag mit Frist." },
-  { reiter: "Geld", was: "Nächste Rate, „Rate zahlen" mit Überweisung, GiroCode und Bankeinzug, alle Raten mit Haken, der Monatsbericht zum Nachrechnen.", warum: "Jeder Monat hat einen Betrag, den der Kunde nachrechnen kann. Die Bankdaten kommen aus einer Quelle (shared/fiaon-bank.ts)." },
+  { reiter: "Geld", was: "Nächste Rate, „Rate zahlen“ mit Überweisung, GiroCode und Bankeinzug, alle Raten mit Haken, der Monatsbericht zum Nachrechnen.", warum: "Jeder Monat hat einen Betrag, den der Kunde nachrechnen kann. Die Bankdaten kommen aus einer Quelle (shared/fiaon-bank.ts)." },
   { reiter: "Mehr", was: "Hilfe (Nachricht an dich, Anruf-Termin, Telefon, häufige Fragen), Termine, Unterlagen, Vorgänge und Ansprüche, Meine Daten, Abo, Mitteilungen, Vollmachten, Abmelden.", warum: "Alles, was selten gebraucht wird, an einem Ort — und der Kunde erreicht dich, ohne zu suchen." },
   { reiter: "Anspruchs-Check", was: "Zehn Fragen, danach eine Liste: P-Konto-Erhöhung, Umwandlung in ein P-Konto, Rundfunkbefreiung, Wohngeld, Kfz- und Handytarif — mit Betrag, Rechtsgrundlage, Quelle und Prüfdatum.", warum: "Das ist das Produkt: Geld, das dem Kunden zusteht, sichtbar gemacht. Aus jedem Punkt wird ein fertiges Schreiben." },
   { reiter: "Anträge", was: "Der Kunde erteilt einmal eine Vollmacht zur Übermittlung, unterschreibt Schreiben mit dem Finger, du versendest und trägst das Ergebnis ein. Alles mit Datum unter Vorgänge.", warum: "FIAON ist Bote, nicht Anwalt. Jede Erklärung gibt der Kunde selbst ab — in seiner Ich-Form." },
@@ -37,18 +37,18 @@ const KUNDE: { reiter: string; was: string; warum: string }[] = [
 
 const TEAM: { titel: string; text: string; wo: string }[] = [
   { titel: "Aufträge aus dem Kundenbereich", text: "Brief hochgeladen, Antrag unterschrieben, dringendes Anliegen, Bescheid fotografiert — jedes davon ist ein Auftrag mit Kundennamen, Frist und Link. Ein Auftrag je Sache, kein Doppel.", wo: "Tasks → Aufträge" },
-  { titel: "Vorgang bearbeiten", text: "Versand bestätigen (Empfänger und „Wir fragen nach am"), Ergebnis eintragen (bewilligt oder abgelehnt, Betrag laut Bescheid), zwei Sätze für den Kunden, Dokumente, Verlauf. Was du einträgst, sieht der Kunde sofort.", wo: "Link im Auftrag → /agent/app-vorgaenge/…" },
-  { titel: "Anliegen", text: "Nachrichten aus dem Bereich sind Tickets wie bisher. Steht „DRINGEND" vorn, kam der Brief von Gericht, Gerichtsvollzieher oder Inkasso — dann liegt zusätzlich ein Auftrag mit Frist heute bei dir.", wo: "Tickets" },
+  { titel: "Vorgang bearbeiten", text: "Versand bestätigen (Empfänger und „Wir fragen nach am“), Ergebnis eintragen (bewilligt oder abgelehnt, Betrag laut Bescheid), zwei Sätze für den Kunden, Dokumente, Verlauf. Was du einträgst, sieht der Kunde sofort.", wo: "Link im Auftrag → /agent/app-vorgaenge/…" },
+  { titel: "Anliegen", text: "Nachrichten aus dem Bereich sind Tickets wie bisher. Steht „DRINGEND“ vorn, kam der Brief von Gericht, Gerichtsvollzieher oder Inkasso — dann liegt zusätzlich ein Auftrag mit Frist heute bei dir.", wo: "Tickets" },
   { titel: "Fristenwächter", text: "Sieben Tage vor dem Nachfragedatum ein Auftrag, am Tag selbst die Nachfrage, sieben Tage später eine Meldung an die Leitung. Er kennt nur Fristen, die du beim Versand gesetzt hast.", wo: "läuft von selbst, alle sechs Stunden" },
-  { titel: "Sperre aufheben", text: "Zahlende Kunden werden seit 06.09. nicht mehr gesperrt — ein „Nein" ist ein Vermerk. Steht doch jemand auf „gesperrt", hebst du es im Management neben dem roten Wort auf.", wo: "Management → Zeile des Kunden" },
-  { titel: "Sätze für den Kunden", text: "Alles, was du dem Kunden schreibst, läuft durch die Wortwand: keine Garantie, kein „steht Ihnen zu", keine Rechtsberatung, kein Ergebnisversprechen. Die Seite sagt dir, was zu ändern ist.", wo: "in jedem Textfeld für Kunden" },
+  { titel: "Sperre aufheben", text: "Zahlende Kunden werden seit 06.09. nicht mehr gesperrt — ein „Nein“ ist ein Vermerk. Steht doch jemand auf „gesperrt“, hebst du es im Management neben dem roten Wort auf.", wo: "Management → Zeile des Kunden" },
+  { titel: "Sätze für den Kunden", text: "Alles, was du dem Kunden schreibst, läuft durch die Wortwand: keine Garantie, kein „steht Ihnen zu“, keine Rechtsberatung, kein Ergebnisversprechen. Die Seite sagt dir, was zu ändern ist.", wo: "in jedem Textfeld für Kunden" },
 ];
 
 const TECHNIK: { bereich: string; details: string[] }[] = [
   { bereich: "Oberfläche", details: ["React + wouter unter /app (client/src/pages/app/*), Handy zuerst (375 px), Reiter als Links, ein Navy-Glas (Zielkarte).", "Öffentlich ohne Login: /app/login, /app/demo (Vorführkonto FIAON-DEMO, keine Datenbank), /app/unterschrift/:token.", "App-Installation: /app.webmanifest + Service Worker /app-sw.js (cached nur /assets und Schriften, nie die Schale, nie /api)."] },
   { bereich: "Server", details: ["Express-Router unter /api/fiaon: fiaon-app.ts (Anspruchs-Check, Brief, Post, Dokumente, Zahlung), fiaon-app-antraege.ts (Vorgänge, Vollmacht, Unterschrift, Nachricht, Mitarbeiter-Routen), fiaon-app-bericht.ts, fiaon-app-push.ts, fiaon-app-login.ts.", "Alles hinter requireKunde (Cookie = Referenz) und an die Person gebunden (person_id); Mitarbeiter-Routen hinter requireAgent + darfAnKunde.", "Rechnung des Weges: shared/fiaon-rahmenweg.ts — eine Funktion, heute im Browser, später auch in der Akte."] },
   { bereich: "Datenbank (Postgres, Produktion)", details: ["fiaon_anspruch_antworten, fiaon_ansprueche, fiaon_vorgaenge, fiaon_dokumente (PDF als BYTEA), fiaon_vollmachten, fiaon_vorgang_ereignisse, fiaon_monatsberichte, fiaon_app_ereignisse, fiaon_push_abos, fiaon_push_log, fiaon_login_links.", "Angelegt beim Start bzw. beim ersten Aufruf, nur CREATE IF NOT EXISTS; Abschriften in db/migrations/080–082.", "Vertriebssperre: Trigger fiaon_sperr_protokoll hält jede Änderung von is_blocked mit dem auslösenden SQL fest."] },
-  { bereich: "Schalter (fiaon_settings)", details: ["app_brief_an (Brief-Weg), app_antraege_an (Vollmacht, Unterschrift, Anträge), app_bericht_mail (Monatsbericht per Mail) — alle über POST /admin/app/einstellung, ohne Deploy.", "Sofortzahlung nur über sofortErlaubt()/sofortUrlFuer() (fiaon-zahlungsauftrag.ts): keine Sofortzahlung für Erstzahler, keine für Raten im Bankeinzug.", "Mitteilungen nur mit VAPID-Schlüsseln aus der Umgebung; ohne Schlüssel „nicht verfügbar"."] },
+  { bereich: "Schalter (fiaon_settings)", details: ["app_brief_an (Brief-Weg), app_antraege_an (Vollmacht, Unterschrift, Anträge), app_bericht_mail (Monatsbericht per Mail) — alle über POST /admin/app/einstellung, ohne Deploy.", "Sofortzahlung nur über sofortErlaubt()/sofortUrlFuer() (fiaon-zahlungsauftrag.ts): keine Sofortzahlung für Erstzahler, keine für Raten im Bankeinzug.", "Mitteilungen nur mit VAPID-Schlüsseln aus der Umgebung; ohne Schlüssel „nicht verfügbar“."] },
   { bereich: "Läufe (nur Produktion)", details: ["fristenwaechter (6 h), monatsbericht (täglich, wirkt am 1.–3.), app-ereignisse-aufraeumen (24 h, löscht nach 90 Tagen), push-rate-erinnerung (24 h, nur ohne Bankeinzug, Nachtruhe 21–8 Uhr, eine Mitteilung je Tag).", "Keine Kundenmails aus Läufen — Mails nur über mailSenden() mit Vorlage im Mailwerk (app_login_link, app_monatsbericht)."] },
   { bereich: "Sicherheit", details: ["Unterschrift-Links: HMAC über SESSION_SECRET, 30 Tage, einmalig (Zustand + Ereignis), 410 nach Ablauf. Anmelde-Links: 32 Zufallsbytes, nur der Hash in der Datenbank, 60 Minuten, einmalig, Bremse je IP und Adresse, immer dieselbe Antwort.", "Uploads: nur JPG/PNG/PDF, 12 MB je Seite, zehn Seiten, fünf Briefe je Tag; Bilder werden zu PDF. Download nur für die eigene Person.", "Texte: Wortwand serverseitig (shared/fiaon-wortverbote.ts), Prüfstände scripts/pruef-schreiben.ts und scripts/pruef-mail.ts."] },
 ];
@@ -121,7 +121,7 @@ function Innen() {
             <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Drei Sätze, die immer gelten</h2>
             <ol style={{ margin: "8px 0 0", paddingLeft: 20, fontSize: 14.5, lineHeight: 1.6 }}>
               <li>Der Kunde sieht sofort, was du einträgst — schreib es so, wie du es ihm am Telefon sagen würdest.</li>
-              <li>Sag, was wir tun und bis wann du dich meldest. Nie, was ein Brief „bedeutet", nie, was ein Amt entscheiden wird.</li>
+              <li>Sag, was wir tun und bis wann du dich meldest. Nie, was ein Brief „bedeutet“, nie, was ein Amt entscheiden wird.</li>
               <li>Fristen entstehen nur durch dich beim Versand. Der Fristenwächter erfindet keine.</li>
             </ol>
           </article>

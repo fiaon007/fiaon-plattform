@@ -41,6 +41,7 @@
 //     Vorgang protokolliert, der Lauf geht weiter.
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
+import { pushBeiEreignis } from "./fiaon-push";
 import { auftragFuerKunden, todoMeldung } from "../routes/fiaon-betreiber-todo";
 import { berlinHeute, tag, ensureAppTabellen } from "../routes/fiaon-app";
 import { schreibenErzeugen, type SchreibenDaten } from "./fiaon-schreiben";
@@ -335,6 +336,7 @@ async function schrittNachfragen(): Promise<number> {
          RETURNING id`) as any[];
       if (!geaendert.length) continue;
       await ereignis(id, m.personId, "nachfrage", `Fristenwächter: Frist ${frist} verstrichen, Nachfass-Auftrag an den Betreuer.`, kundenSatz);
+      void pushBeiEreignis(m.personId, "frist_ueberfaellig", { vorgangId: id, titel: String(v.titel || ""), fristAm: frist }).catch(() => {});
       // Die Sieben-Tage-Erinnerung ist damit gegenstandslos.
       await auftragSchliessen(`frist7:${id}`, "Frist verstrichen – Nachfass-Auftrag angelegt.");
       if (!(await auftragVorhanden(schluessel))) {

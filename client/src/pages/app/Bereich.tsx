@@ -26,6 +26,11 @@ import { Hilfe, Termine } from "./Hilfe";
 import { Zahlen } from "./Zahlen";
 import { Vorgang as VorgangSeite } from "./Vorgang";
 import { Vollmachten } from "./Vollmacht";
+import { Bericht, Berichte } from "./Bericht";
+import { KontoVerbinden } from "./Konto";
+import { MeineDaten } from "./MeineDaten";
+import { Abo } from "./Abo";
+import { Mitteilungen } from "./Mitteilungen";
 import "@/styles/app.css";
 
 const DEMO_REF = "FIAON-DEMO";
@@ -67,6 +72,9 @@ export default function AppBereich() {
   const [fehler, setFehler] = useState<string | null>(null);
   const [hinweis, setHinweis] = useState<string | null>(null);
 
+  // Vor allen Effekten: die Referenz des Kunden (Ereignisprotokoll und Abrufe hängen daran).
+  const ref = b?.kunde.ref ?? "";
+
   // Die Seite scrollt im Fenster (app.css). Beim Verlassen zurückdrehen.
   useEffect(() => {
     document.documentElement.classList.add("ap-scroll");
@@ -103,8 +111,30 @@ export default function AppBereich() {
 
   useEffect(() => { window.scrollTo({ top: 0 }); setHinweis(null); }, [bildschirm]);
 
+  // App-Installation (Bauvorlage 8.4): eigenes Manifest für /app und ein Service Worker, der nur die
+  // Hülle cached — nie Antworten mit Personendaten. Beides nur außerhalb der Demo und nur, wenn der Browser es kann.
+  useEffect(() => {
+    try {
+      const link = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
+      const vorher = link?.getAttribute("href") ?? null;
+      if (link) link.setAttribute("href", "/app.webmanifest");
+      // Kennung des aktuellen Bündels (Dateiname mit Hash) → neuer Worker und neuer Cache je Auslieferung.
+      const bundle = Array.from(document.querySelectorAll<HTMLScriptElement>('script[type="module"][src*="/assets/"]')).map((e) => e.src.split("/").pop() || "").filter(Boolean)[0] || "dev";
+      if (!demo && "serviceWorker" in navigator) navigator.serviceWorker.register(`/app-sw.js?v=${encodeURIComponent(bundle.replace(/[^A-Za-z0-9._-]/g, ""))}`, { scope: "/app/" }).catch(() => {});
+      return () => { if (link && vorher) link.setAttribute("href", vorher); };
+    } catch { return undefined; }
+  }, [demo]);
+
+  // Ereignisprotokoll (Bauvorlage 8.3, die Messlücke): nur Bildschirm und Zeit, keine Inhalte, nie in der Demo.
+  useEffect(() => {
+    if (demo || !ref) return;
+    const erlaubt = ["heute", "weg", "brief", "geld", "mehr", "vorgaenge", "ansprueche", "unterlagen"];
+    if (erlaubt.indexOf(bildschirm) === -1) return;
+    const schirm = bildschirm === "geld" && rest[0] === "zahlen" ? "zahlen" : bildschirm === "geld" && rest[0] === "bericht" ? "bericht" : bildschirm === "mehr" && rest[0] ? rest[0] : bildschirm === "unterlagen" && rest[0] === "konto" ? "konto" : bildschirm;
+    api(`/kunde/${encodeURIComponent(ref)}/app/ereignis`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ bildschirm: schirm, ereignis: "geoeffnet" }) }).catch(() => {});
+  }, [bildschirm, rest[0], ref, demo]);
+
   const rw = useMemo(() => (b ? rahmenwegAus(b, { heuteIso: heuteIso(), check, vorgaengeVersandt: (post ?? []).filter((v) => v.stand === "versandt" || v.stand === "nachfrage" || v.stand === "bewilligt").length }) : null), [b, check, post]);
-  const ref = b?.kunde.ref ?? "";
   const apName = b?.ansprechpartner?.name ?? null;
 
   // Segmente füllen sich einmal je Sitzung von links.
@@ -132,14 +162,20 @@ export default function AppBereich() {
         {b && rw && bildschirm === "weg" && <Weg b={b} rw={rw} basis={basis} onAktion={aktion} />}
         {b && bildschirm === "brief" && <Brief kundeRef={ref} basis={basis} demo={demo} ansprechpartner={apName} briefAn={briefAn} />}
         {b && rw && bildschirm === "geld" && rest[0] === "zahlen" && <Zahlen b={b} kundeRef={ref} basis={basis} demo={demo} />}
-        {b && rw && bildschirm === "geld" && rest[0] !== "zahlen" && <Geld b={b} rw={rw} kundeRef={ref} basis={basis} demo={demo} />}
+        {b && bildschirm === "geld" && rest[0] === "bericht" && rest[1] && <Bericht kundeRef={ref} basis={basis} demo={demo} monat={rest[1]} />}
+        {b && bildschirm === "geld" && rest[0] === "bericht" && !rest[1] && <Berichte kundeRef={ref} basis={basis} demo={demo} />}
+        {b && rw && bildschirm === "geld" && rest[0] !== "zahlen" && rest[0] !== "bericht" && <Geld b={b} rw={rw} kundeRef={ref} basis={basis} demo={demo} />}
         {b && bildschirm === "vorgaenge" && rest[0] && rest[0] !== "ansprueche" && <VorgangSeite kundeRef={ref} basis={basis} demo={demo} id={rest[0]} />}
         {b && bildschirm === "vorgaenge" && (!rest[0] || rest[0] === "ansprueche") && <Vorgaenge kundeRef={ref} basis={basis} demo={demo} post={post} grund={postGrund} reiter={rest[0] === "ansprueche" ? "ansprueche" : "vorgaenge"} ansprechpartner={apName} />}
         {b && bildschirm === "ansprueche" && <Ansprueche kundeRef={ref} demo={demo} startCheck={rest[0] === "check"} ansprechpartner={apName} onFertig={() => { api(`/kunde/${encodeURIComponent(ref)}/app/ansprueche`).then((x) => { if (x.json?.ok) setCheck({ beantwortet: x.json.beantwortet ?? 0, gesamt: x.json.fragenGesamt ?? FRAGEN.length }); }).catch(() => {}); navigiere(`${basis}/vorgaenge/ansprueche`); }} />}
-        {b && bildschirm === "unterlagen" && <Unterlagen kundeRef={ref} demo={demo} u={b.unterlagen} />}
+        {b && bildschirm === "unterlagen" && rest[0] === "konto" && <KontoVerbinden kundeRef={ref} basis={basis} demo={demo} verbunden={!!b.kontoVerbunden} />}
+        {b && bildschirm === "unterlagen" && rest[0] !== "konto" && <Unterlagen kundeRef={ref} demo={demo} u={b.unterlagen} basis={basis} />}
         {b && bildschirm === "mehr" && rest[0] === "hilfe" && <Hilfe kundeRef={ref} demo={demo} ansprechpartner={b.ansprechpartner} vorgang={new URLSearchParams(window.location.search).get("vorgang")} buchungsLink={termine?.buchungsLink ?? null} />}
         {b && bildschirm === "mehr" && rest[0] === "termine" && <Termine kundeRef={ref} demo={demo} daten={termine} />}
         {b && bildschirm === "mehr" && rest[0] === "vollmachten" && <Vollmachten kundeRef={ref} basis={basis} demo={demo} />}
+        {b && bildschirm === "mehr" && rest[0] === "mitteilungen" && <Mitteilungen kundeRef={ref} demo={demo} />}
+        {b && bildschirm === "mehr" && rest[0] === "daten" && <MeineDaten kundeRef={ref} demo={demo} kunde={b.kunde} />}
+        {b && bildschirm === "mehr" && rest[0] === "abo" && <Abo kundeRef={ref} basis={basis} demo={demo} b={b} />}
         {b && bildschirm === "mehr" && !rest[0] && <Mehr kundeRef={ref} demo={demo} basis={basis} kunde={b.kunde} paket={b.paket} ansprechpartner={b.ansprechpartner} naechsterTermin={termine?.kommende?.[0] ? `${termine.kommende[0].datumText}, ${termine.kommende[0].uhrzeit} Uhr` : null} />}
         {hinweis && <div className="ap-meldung" role="status">{hinweis}</div>}
       </main>

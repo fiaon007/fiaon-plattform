@@ -86,7 +86,10 @@ export type MakeEventType =
   | "profile_query"           // Profil-Rückfrage an den Kunden
   | "gdpr_deleted"            // Löschbestätigung (DSGVO)
   | "contract_signed"         // Agent hat den Handelsvertretervertrag digital signiert (Prompt 2 D)
-  | "commission_statement_issued"; // Provisions-Abrechnung/Gutschrift erzeugt (Prompt 2 E)
+  | "commission_statement_issued" // Provisions-Abrechnung/Gutschrift erzeugt (Prompt 2 E)
+  // ── /app Scheibe 6 (06.09.2026) ───────────────────────────────────────────
+  | "app_login_link"          // Anmelde-Link ohne Passwort (Modul C, fiaon-app-login.ts)
+  | "app_monatsbericht";      // Monatsbericht des Kundenbereichs (fiaon-monatsbericht.ts), hinter fiaon_settings.app_bericht_mail
 
 export interface MakeWebhookPayload {
   email: string;

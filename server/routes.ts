@@ -700,6 +700,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('fristenwaechter', async () => await (await import('./lib/fiaon-fristenwaechter')).fristenwaechterLauf(), 6 * 60 * 60 * 1000, { beimStartNach: 300_000 });
   });
+  // 📱 /APP Scheibe 6 (06.09.2026): Monatsbericht (Beleg, am 1.–3. für den Vormonat erzeugt), Web-Push
+  // (nur mit VAPID-Schlüsseln aus der Umgebung; Nachtruhe, eine Mitteilung je Tag), Anmelde-Link per Mail
+  // (Mailwerk-Ereignis app_login_link), Ereignisprotokoll. Alles hinter requireKunde außer dem Anmelde-Link.
+  const fiaonAppBericht = await import('./routes/fiaon-app-bericht');
+  app.use('/api/fiaon', fiaonAppBericht.default);
+  const fiaonAppPush = await import('./routes/fiaon-app-push');
+  app.use('/api/fiaon', fiaonAppPush.default);
+  const fiaonAppLogin = await import('./routes/fiaon-app-login');
+  app.use('/api/fiaon', fiaonAppLogin.default);
+  import('./lib/fiaon-crons').then(({ tageslauf }) => {
+    // Täglich prüfen, am 1.–3. eines Monats wirksam: Berichte für den Vormonat, je Lauf höchstens 500 Personen.
+    tageslauf('monatsbericht', async () => await (await import('./lib/fiaon-monatsbericht')).monatsberichtLauf(), 6 * 60 * 60 * 1000, { beimStartNach: 420_000 });
+    // Ereignisprotokoll: nach 90 Tagen weg (nur Bildschirm/Zeit, TFO-Vorgabe 06.09.).
+    tageslauf('app-ereignisse-aufraeumen', async () => await (await import('./routes/fiaon-app-bericht')).ereignisseAufraeumen(), 24 * 60 * 60 * 1000, { beimStartNach: 600_000 });
+    // Push „Rate in drei Tagen fällig" — nur ohne Bankeinzug, nur mit VAPID-Schlüsseln, eine Mitteilung je Tag und Person.
+    tageslauf('push-rate-erinnerung', async () => await (await import('./lib/fiaon-push')).pushRatenLauf(), 24 * 60 * 60 * 1000, { beimStartNach: 660_000 });
+  });
 
   // 💶 SEPA-Lastschrift über GoCardless (Scheibe 11): Mandat, 12-Raten-Abo, Webhook.
   const fiaonLastschrift = await import('./routes/fiaon-lastschrift');

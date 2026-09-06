@@ -35,6 +35,7 @@ import { TERMIN_VORLAGEN } from "./vorlagen/termin";
 import { AUSKUNFT_LEAD_VORLAGEN } from "./vorlagen/auskunft-lead";
 import { TEAM_VORLAGEN } from "./vorlagen/team";
 import { RUECKHOLUNG_VORLAGEN } from "./vorlagen/rueckholung";
+import { APP_VORLAGEN } from "./vorlagen/app";
 
 /** Alle Vorlagen, ein Verzeichnis. Schlüssel = Ereignisname. */
 export const VORLAGEN: Record<string, MailBaustein> = {
@@ -44,6 +45,7 @@ export const VORLAGEN: Record<string, MailBaustein> = {
   ...AUSKUNFT_LEAD_VORLAGEN,
   ...TEAM_VORLAGEN,
   ...RUECKHOLUNG_VORLAGEN,
+  ...APP_VORLAGEN,
 };
 
 /** Wer als Absender im Postfach steht — je Ereignis. Alles nicht Genannte: welcome. */

@@ -278,7 +278,8 @@ export function Vorgang({ kundeRef, basis, demo, id }: { kundeRef: string; basis
   const notizen = v.zeitleiste.filter((z) => z.art === "notiz" && z.text);
   const wartetAufAntwort = v.stand === "versandt" || v.stand === "nachfrage";
   const vorVersand = VOR_VERSAND.indexOf(v.stand) !== -1;
-  const fristzeile = v.stand === "versandt" && v.fristAm ? `Antwort erwartet bis ${v.fristAm}.`
+  // Die Fristzeile nur, wenn der Standsatz sie nicht schon trägt (sonst stand „Antwort erwartet bis …“ zweimal untereinander).
+  const fristzeile = v.stand === "versandt" && v.fristAm ? (standSatz.indexOf("Antwort erwartet bis") !== -1 ? null : `Antwort erwartet bis ${v.fristAm}.`)
     : v.stand === "nachfrage" ? `Frist${v.fristAm ? ` ${v.fristAm}` : ""} verstrichen${v.nachgefragtAm ? ` – nachgefragt am ${v.nachgefragtAm}` : v.erinnertAm ? ` – Nachfrage beauftragt am ${v.erinnertAm}` : ""}.`
     : v.stand === "eingegangen" && v.fristAm ? `Bis zum ${v.fristAm} steht hier, was wir daraus gemacht haben.`
     : v.stand === "versandbereit" ? "Der Versand wird hier bestätigt – mit Datum." : null;

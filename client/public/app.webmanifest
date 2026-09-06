@@ -1,0 +1,20 @@
+{
+  "name": "FIAON",
+  "short_name": "FIAON",
+  "description": "Mein FIAON – Ihr Weg, Ihre Post, Ihr Geld.",
+  "id": "/app/",
+  "start_url": "/app/",
+  "scope": "/app/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "lang": "de",
+  "dir": "ltr",
+  "background_color": "#fafbfc",
+  "theme_color": "#fafbfc",
+  "icons": [
+    { "src": "/favicon-32.png", "type": "image/png", "sizes": "32x32" },
+    { "src": "/apple-touch-icon.png", "type": "image/png", "sizes": "180x180" },
+    { "src": "/icon-maskable-512.png", "type": "image/png", "sizes": "512x512", "purpose": "any" },
+    { "src": "/icon-maskable-512.png", "type": "image/png", "sizes": "512x512", "purpose": "maskable" }
+  ]
+}

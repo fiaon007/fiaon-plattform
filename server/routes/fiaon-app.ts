@@ -119,7 +119,7 @@ export const sauberName = (roh: string, rueckfall: string): string => {
 
 export function keinePerson(res: Response) {
   // 200, nicht 4xx: Das ist ein Zustand, den die Seite zeichnet, kein Fehler.
-  res.json({ ok: false, grund: "keine_person", text: "Ihre Akte wird gerade mit Ihrer Person verknüpft. Dieser Bereich steht Ihnen in Kürze zur Verfügung." });
+  res.json({ ok: false, grund: "keine_person", text: "Ihre Akte wird gerade mit Ihrer Person verknüpft. Bis dahin erreichen wir Sie per E-Mail, und Ihre Ansprechperson hat alles in Ihrer Akte." });
 }
 
 // ── Anspruchs-Check ─────────────────────────────────────────────────────────

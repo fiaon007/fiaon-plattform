@@ -74,6 +74,7 @@ export const PFLICHTMAILS = new Set<string>([
   "account_suspended",
   "documents_change_request",
   "commission_statement_issued",
+  "app_login_link",          // 06.09.2026: Zugang — der Kunde hat den Anmelde-Link selbst angefordert; gebremst wäre die Tür zu.
   // Betriebsmeldungen an die Hausleitung, nie an Kunden — dürfen nie stocken.
   "kritisch", "warnung", "info",
 ]);

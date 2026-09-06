@@ -35,6 +35,17 @@ export interface VersandErgebnis {
  * Schreibt eine Zeile ins Versandprotokoll. Wirft NIE — ein Protokoll, das den
  * protokollierten Vorgang zum Scheitern bringt, ist schlimmer als keines.
  */
+/**
+ * Geheimnisse gehören nicht ins Protokoll (06.09.2026): Der Anmelde-Link trägt ein
+ * einmaliges Token — im Klartext in fiaon_mail_log wäre die Hash-Speicherung in
+ * fiaon_login_links wertlos. Schlüssel mit Token-Charakter werden vor dem Schreiben verborgen.
+ */
+export function payloadSchwaerzen(p: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const k of Object.keys(p)) out[k] = /(^login_link_url$)|(_token$)|(^token$)|(unterschrift_url)/i.test(k) ? "[verborgen]" : p[k];
+  return out;
+}
+
 export async function mailProtokoll(
   eintrag: {
     event: string;
@@ -56,7 +67,7 @@ export async function mailProtokoll(
                                   ausgeloest_von, ausgeloest_agent_id, brevo_message_id)
       VALUES (${eintrag.event}, ${eintrag.personId ?? null}, ${eintrag.empfaenger ?? null},
               ${eintrag.status}, ${eintrag.grund ?? null},
-              ${eintrag.payload ? JSON.stringify(eintrag.payload) : null}::jsonb,
+              ${eintrag.payload ? JSON.stringify(payloadSchwaerzen(eintrag.payload)) : null}::jsonb,
               ${eintrag.ausgeloestVon ?? null}, ${eintrag.ausgeloestAgentId ?? null},
               ${eintrag.brevoMessageId ?? null})
     `;

@@ -96,6 +96,14 @@ export function Geld({ b, rw, kundeRef, basis, demo }: { b: Bereich; rw: Rahmenw
         </section>
       )}
 
+      <section className="ap-abschnitt ap-auf v4">
+        <h2 className="ap-abschnitt-titel">Ihre Berichte</h2>
+        <div className="ap-karte">
+          <p style={{ margin: 0 }}>Jeden Monatsersten ein Beleg: was für Sie geholt wurde, was beantragt ist, welche Raten gezahlt sind – Zeile für Zeile nachrechenbar.</p>
+          <Link href={`${basis}/geld/bericht`} className="ap-link" style={{ display: "inline-block", marginTop: 10 }}>Alle Berichte →</Link>
+        </div>
+      </section>
+
       <div className="ap-karte ap-auf v4">
         <div className="ap-zeile"><span>Ihr Paket</span><b style={{ fontWeight: 500 }}>{b.paket.name}{b.paket.abo && b.paket.monatlichCents ? ` · ${eur(b.paket.monatlichCents)} im Monat` : ""}</b></div>
         <p style={{ fontSize: 14, marginTop: 6 }}>{b.paket.abo ? "Kündbar zum Monatsende, formlos per E-Mail." : "Einmaliger Auftrag."} <Link href={`${basis}/mehr`} className="ap-link">Mehr</Link></p>

@@ -63,6 +63,15 @@ export interface EventZusatz {
  * der Vorgesetzte auslöst — die sichere Vorgabe.
  */
 const ZUSATZ: Partial<Record<MakeEventType, EventZusatz>> = {
+  // 06.09.2026 — Kundenbereich /app (Scheibe 6): Kundenmails, keine Team-Mails.
+  app_login_link: {
+    gruppe: "konto", zielgruppe: "kunde", rollen: ["admin", "vertriebsleiter", "agent", "onboarding"],
+    klartext: "Anmelde-Link ohne Passwort — geht automatisch, wenn der Kunde ihn unter /app/login anfordert (60 Minuten, einmalig). Von Hand nur, wenn der Kunde am Telefon nicht hineinkommt.",
+  },
+  app_monatsbericht: {
+    gruppe: "konto", zielgruppe: "kunde", rollen: ["admin", "vertriebsleiter"],
+    klartext: "Der Monatsbericht aus dem Kundenbereich — am Monatsanfang für den Vormonat, nur wenn fiaon_settings.app_bericht_mail auf 'an' steht.",
+  },
   welcome: {
     gruppe: "konto", zielgruppe: "kunde", rollen: ["admin", "vertriebsleiter", "agent", "onboarding"],
     klartext: "Begrüßung mit dem Weg ins Konto. Geht automatisch nach der Zahlungsbuchung — von Hand, wenn der Kunde sie nicht findet.",

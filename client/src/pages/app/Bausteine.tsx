@@ -248,7 +248,7 @@ function Mehrfach({ frage, wert, onWeiter }: { frage: Frage; wert: string[]; onW
 // ═══════════════════════════════════════════════════════════════════════════
 // UNTERLAGEN — derselbe Endpunkt wie bisher (/upload-kyc), neue Oberfläche
 // ═══════════════════════════════════════════════════════════════════════════
-export function Unterlagen({ kundeRef, demo, u }: { kundeRef: string; demo: boolean; u: { kontoauszug: boolean; ausweis: boolean; auskunft: boolean; kycStatus?: string } }) {
+export function Unterlagen({ kundeRef, demo, u, basis = "/app" }: { kundeRef: string; demo: boolean; u: { kontoauszug: boolean; ausweis: boolean; auskunft: boolean; kycStatus?: string }; basis?: string }) {
   const [dateien, setDateien] = useState<{ bankStatement?: File; idCard?: File; schufaDoc?: File }>({});
   const [laeuft, setLaeuft] = useState(false);
   const [meldung, setMeldung] = useState<{ ton: "gut" | "fehler"; text: string } | null>(null);
@@ -275,6 +275,13 @@ export function Unterlagen({ kundeRef, demo, u }: { kundeRef: string; demo: bool
   return (
     <>
       <h1 className="ap-gruss ap-auf">Unterlagen<small>{offen.filter((f) => !f.optional).length === 0 ? "Alles da. Wir prüfen und melden uns." : "Was noch fehlt – ein Handyfoto genügt, wenn alles lesbar ist."}</small></h1>
+      {!u.kontoauszug && (
+        <Link href={`${basis}/unterlagen/konto`} className="ap-karte ap-auf v1" style={{ display: "block", textDecoration: "none" }}>
+          <h3>Konto verbinden statt fotografieren</h3>
+          <p>Sie melden sich einmal bei Ihrer Bank an – wir erhalten Ihre Umsätze vollständig und lesbar. Nur Lesezugriff, jederzeit widerrufbar.</p>
+          <span className="ap-link" style={{ display: "inline-block", marginTop: 8 }}>Mehr dazu →</span>
+        </Link>
+      )}
       <div className="ap-karte ap-auf v1">
         <ol className="ap-etappen">
           {felder.map((f) => (
@@ -333,6 +340,9 @@ export function Mehr({ kundeRef, demo, kunde, paket, ansprechpartner, basis, nae
           <Link href={`${basis}/unterlagen`}>Unterlagen</Link>
           <Link href={`${basis}/vorgaenge`}>Vorgänge und Ansprüche</Link>
           <Link href={`${basis}/mehr/vollmachten`}>Vollmacht</Link>
+          <Link href={`${basis}/mehr/daten`}>Meine Daten</Link>
+          <Link href={`${basis}/mehr/abo`}>Geld und Abo</Link>
+          <Link href={`${basis}/mehr/mitteilungen`}>Mitteilungen</Link>
         </div>
       </section>
       <section className="ap-abschnitt ap-auf v1">

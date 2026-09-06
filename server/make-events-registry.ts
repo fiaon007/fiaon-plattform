@@ -691,6 +691,38 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       doc_hash: "a1b2…",
     },
   },
+  // ── /app Scheibe 6, Modul C (06.09.2026): Anmelde-Link ohne Passwort ──────
+  // Feuert, wenn der Kunde unter /app/login seine Adresse eingibt und zu ihr ein
+  // Konto gehört (Auswahlregel wie der Passwort-Login). Der Link ist ein
+  // Geheimnis: 60 Minuten, einmal nutzbar. Quelltext-Vorlage: mail/vorlagen/app.ts.
+  {
+    type: "app_login_link",
+    label: "Anmelde-Link Mein FIAON (Kunde)",
+    description: "Feuert auf Anforderung des Kunden unter /app/login (E-Mail ohne Passwort) — nur, wenn zu der Adresse ein Konto gehört; Link gilt 60 Minuten und genau einmal.",
+    customerBound: true,
+    example: {
+      ...CUSTOMER_EXAMPLE,
+      // Die API-Route selbst (antwortet mit 302) — eine Client-Route gibt es nicht.
+      login_link_url: "https://www.fiaon.com/api/fiaon/app/login/link/Zm9vYmFyYmF6cXV4MTIzNDU2Nzg5MGFiY2RlZmdoaWo",
+      login_url: "https://www.fiaon.com/app/login",
+      gueltig_minuten: "60",
+    },
+  },
+  // ── /app Scheibe 6, Modul A (06.09.2026): Monatsbericht ───────────────────
+  // Der Typ steht noch nicht in MakeEventType (server/make-webhook.ts) — die
+  {
+    type: "app_monatsbericht",
+    label: "Monatsbericht Mein FIAON (Kunde)",
+    description: "Scheibe 6, Modul A: Am 1. bis 3. eines Monats erzeugt monatsberichtLauf (server/lib/fiaon-monatsbericht.ts) für jede Person mit bezahlter Bestellung den Bericht des Vormonats — ein Beleg, der nie neu gerechnet wird. Die Mail geht NUR bei fiaon_settings.app_bericht_mail = 'an' (Standard aus; Justin/TFO schalten); ohne Schalter steht der Bericht nur in der App unter Geld → Bericht.",
+    customerBound: true,
+    example: {
+      ...CUSTOMER_EXAMPLE,
+      monat_text: "August 2026",
+      grosse_zahl_text: "Im August für Sie geholt: 597,42 € im Monat.",
+      betrag_text: "597,42 €",
+      bericht_url: "https://www.fiaon.com/app/geld/bericht/2026-08",
+    },
+  },
 ];
 
 export function getEventDef(type: string): MakeEventDef | undefined {

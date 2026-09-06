@@ -1,11 +1,16 @@
 // /app — Heute (Bauvorlage 3.2): Gruß, Ruhe-Zeile, Band, Rahmen-Karte (das eine
 // Navy-Glas), Jetzt-Karte, In Arbeit bei FIAON, Brief-Karte, Ansprechperson.
 // Der Primärknopf sitzt NICHT hier, sondern in der Aktionsleiste (Bereich.tsx).
+import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import type { Rahmenweg } from "@shared/fiaon-rahmenweg";
 import type { Bereich, Vorgang } from "./typen";
 import { Zielkarte } from "./Weg";
-import { eur, zeit } from "./Bausteine";
+import { api, eur, zeit } from "./Bausteine";
+
+interface BerichtKurz { monat: string; monatText: string; grosseZahlCents: number; grosseZahlText: string; gelesen: boolean }
+const DEMO_BERICHT: BerichtKurz = { monat: "2026-08", monatText: "August 2026", grosseZahlCents: 59742, grosseZahlText: "Im August für Sie geholt: 597,42 € im Monat.", gelesen: false };
+const folgemonatText = () => { const d = new Date(); d.setMonth(d.getMonth() + 1, 1); return new Intl.DateTimeFormat("de-DE", { month: "long", timeZone: "Europe/Berlin" }).format(d); };
 
 export function Heute({ b, rw, basis, post, demo, briefAn = true }: { b: Bereich; rw: Rahmenweg; basis: string; post: Vorgang[] | null; demo: boolean; briefAn?: boolean }) {
   const std = new Date().getHours();
@@ -16,6 +21,12 @@ export function Heute({ b, rw, basis, post, demo, briefAn = true }: { b: Bereich
   const laufend = (post ?? []).filter((v) => v.offen).slice(0, 3);
   const briefeGesendet = (post ?? []).filter((v) => v.art === "brief").length;
   const ap = b.ansprechpartner;
+  // Zahl des Monats: nur ein GESPEICHERTER Bericht (Beleg, nicht Anzeige). Isolierter Abruf — fällt er aus, fällt nur diese Karte.
+  const [bericht, setBericht] = useState<BerichtKurz | null | undefined>(demo ? DEMO_BERICHT : undefined);
+  useEffect(() => {
+    if (demo) return;
+    api(`/kunde/${encodeURIComponent(b.kunde.ref)}/app/bericht-letzter`).then((r) => setBericht(r.ok && r.json?.ok && r.json.bericht ? r.json.bericht : null)).catch(() => setBericht(null));
+  }, [b.kunde.ref, demo]);
 
   // Band: genau ein Zustand, in dieser Reihenfolge.
   let band: { text: string; aktion: string | null; href: string | null } | null = null;
@@ -68,6 +79,31 @@ export function Heute({ b, rw, basis, post, demo, briefAn = true }: { b: Bereich
           </div>
         )}
       </section>
+
+      <section className="ap-abschnitt ap-auf v3">
+
+        {bericht ? (
+
+          <Link href={`${basis}/geld/bericht/${bericht.monat}`} className="ap-karte" style={{ display: "block", textDecoration: "none" }}>
+
+            <h2 className="ap-abschnitt-titel" style={{ padding: 0 }}>{bericht.monatText}</h2>
+
+            <div className="ap-zahl" style={{ marginTop: 6 }}>{eur(bericht.grosseZahlCents)}</div>
+
+            <p style={{ marginTop: 4 }}>{bericht.grosseZahlText}</p>
+
+            <span className="ap-link" style={{ display: "inline-block", marginTop: 8 }}>Nachrechnen →</span>
+
+          </Link>
+
+        ) : bericht === null ? (
+
+          <p className="ap-fuss">Ihr erster Monatsbericht erscheint am 1. {folgemonatText()}.</p>
+
+        ) : null}
+
+      </section>
+
 
       {briefeGesendet === 0 && briefAn && (
         <Link href={`${basis}/brief`} className="ap-karte ap-auf v3" style={{ display: "block", textDecoration: "none" }}>

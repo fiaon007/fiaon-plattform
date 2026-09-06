@@ -20,6 +20,21 @@ export default function AppLogin() {
   const [problem, setProblem] = useState<Problem | null>(null);
   const [laeuft, setLaeuft] = useState(false);
   const [schonDrin, setSchonDrin] = useState<{ ref: string; vorname: string | null } | null>(null);
+  const [linkMeldung, setLinkMeldung] = useState<string | null>(() => { try { return new URLSearchParams(window.location.search).get("link") === "abgelaufen" ? "Dieser Link ist abgelaufen oder wurde schon benutzt. Fordern Sie einfach einen neuen an." : null; } catch { return null; } });
+  const [linkLaeuft, setLinkLaeuft] = useState(false);
+
+  // Anmelde-Link (Bauvorlage 5.4): ersetzt den Reset-Weg, der jeden Fünften abwies. Antwort ist immer dieselbe.
+  const anmeldeLink = async () => {
+    const e = email.trim();
+    if (!e || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) { setLinkMeldung("Bitte tragen Sie zuerst Ihre E-Mail-Adresse ein."); return; }
+    setLinkLaeuft(true); setLinkMeldung(null);
+    try {
+      const r = await fetch("/api/fiaon/app/login-link", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: e, weiter }) });
+      const j = await r.json().catch(() => null);
+      setLinkMeldung(j?.text || "Wenn zu dieser Adresse ein Zugang gehört, ist der Anmelde-Link unterwegs. Er gilt 60 Minuten. Bitte prüfen Sie auch den Spam-Ordner.");
+    } catch { setLinkMeldung("Keine Verbindung. Ihre Eingaben bleiben stehen – versuchen Sie es gleich noch einmal."); }
+    setLinkLaeuft(false);
+  };
 
   // ?weiter=/app/… — nach dem Login zurück dorthin, wo der Kunde hinwollte (Mail-Links).
   const weiter = (() => { try { const w = new URLSearchParams(window.location.search).get("weiter") || ""; return w.startsWith("/app") && !w.startsWith("/app/login") ? w : "/app"; } catch { return "/app"; } })();
@@ -98,7 +113,8 @@ export default function AppLogin() {
           )}
 
           <button type="submit" className="ap-knopf" style={{ minHeight: 56, position: "sticky", bottom: 8 }} disabled={laeuft}>{laeuft ? "Einen Moment …" : "Anmelden"}</button>
-          <p className="ap-fuss" style={{ textAlign: "center", marginTop: 4 }}>Passwort vergessen? <a className="ap-link" href="/passwort-vergessen">Passwort neu setzen</a></p>
+          <p className="ap-fuss" style={{ textAlign: "center", marginTop: 4 }}>Passwort vergessen? <button type="button" className="ap-link" style={{ background: "none", border: 0, padding: 0, font: "inherit" }} disabled={linkLaeuft} onClick={anmeldeLink}>{linkLaeuft ? "Einen Moment …" : "Wir schicken Ihnen einen Anmelde-Link."}</button><br /><a className="ap-link" href="/passwort-vergessen" style={{ fontWeight: 400, color: "var(--fi-text-still)" }}>Passwort neu setzen</a></p>
+          {linkMeldung && <div className="ap-meldung" role="status">{linkMeldung}</div>}
         </form>
       </main>
 

@@ -33,6 +33,7 @@ import { personFuerRef, keinePerson, sauberName, berlinHeute, tag, werktageSpaet
 import { auftragFuerKunden, todoMeldung } from "./fiaon-betreiber-todo";
 import { schreibenErzeugen, unterschriftHtml, unterschriftEinsetzen, schreibenAlsPdf, hashVon, fusszeileFuer, markenzeileFuer, datumPlusMonate, type SchreibenArt, type SchreibenDaten } from "../lib/fiaon-schreiben";
 import { REGELN, type Antworten } from "@shared/fiaon-ansprueche";
+import { pushBeiEreignis } from "../lib/fiaon-push";
 import { wandPruefen, wandUrteil } from "@shared/fiaon-wortverbote";
 
 const router = Router();
@@ -688,6 +689,16 @@ router.post("/kunde/:ref/app/vollmacht/widerruf", requireKunde, async (req: Kund
  * Auftrag an den Betreuer, heute fällig (Post mit Frist, Gericht, Inkasso).
  */
 const NACHRICHTEN_JE_STUNDE = 6;
+/** Frühere dringende Nachrichten desselben Tages bleiben im wieder geöffneten Auftrag lesbar. */
+async function mitFrueherenNachrichten(schluessel: string, neuerText: string): Promise<string> {
+  try {
+    const [alt] = (await sqlPool`SELECT text FROM fiaon_betreiber_todos WHERE schluessel = ${schluessel} AND erledigt_am IS NULL LIMIT 1`) as any[];
+    const vorher = String(alt?.text || "").trim();
+    if (!vorher || vorher === neuerText) return neuerText;
+    return `${neuerText}\n\n— frühere Nachricht heute —\n${vorher}`.slice(0, 4000);
+  } catch { return neuerText; }
+}
+
 router.post("/kunde/:ref/app/nachricht", requireKunde, async (req: KundeRequest, res: Response) => {
   try {
     const ref = req.kundeRef!;
@@ -710,10 +721,12 @@ router.post("/kunde/:ref/app/nachricht", requireKunde, async (req: KundeRequest,
       try {
         const p = await personFuerRef(ref);
         // Schlüssel je Person, nicht je Ticket: weitere dringende Nachrichten hängen sich an denselben Auftrag (auftragFuerKunden öffnet ihn wieder).
+        const schluessel = p?.personId ? `dringend:${p.personId}` : `dringend-ref:${ref}`;
         const erg = await auftragFuerKunden({
-          personId: p?.personId ?? null, ref, dringend: true, faelligAm: heuteIso(), schluessel: p?.personId ? `dringend:${p.personId}` : `dringend-ref:${ref}`,
+          personId: p?.personId ?? null, ref, dringend: true, faelligAm: heuteIso(), schluessel,
           titel: `${p?.name ?? ref}: DRINGEND – Post mit Frist: ${betreff}`.slice(0, 160),
-          text: `Der Kunde hat sein Anliegen als dringend markiert (Frist, Gericht, Gerichtsvollzieher oder Inkasso). Anliegen #${id}.\n\nBetreff: ${betreff}\n\n${text}\n\nBitte heute lesen und dem Kunden antworten – im Anliegen oder per Telefon.`,
+          // Eine zweite dringende Nachricht am selben Tag öffnet denselben Auftrag — die frühere bleibt darunter stehen (TFO, 05.09.).
+          text: await mitFrueherenNachrichten(schluessel, `Der Kunde hat sein Anliegen als dringend markiert (Frist, Gericht, Gerichtsvollzieher oder Inkasso). Anliegen #${id}.\n\nBetreff: ${betreff}\n\n${text}\n\nBitte heute lesen und dem Kunden antworten – im Anliegen oder per Telefon.`),
           quelle: "kundenbereich", bereich: "pruefen", link: `/admin/kunde/${encodeURIComponent(ref)}`, autorName: "Kundenbereich",
         });
         anWen = erg.kundenName ?? erg.agentName ?? null;
@@ -1016,6 +1029,7 @@ router.post("/agent/app/vorgaenge/:id/versandt", requireAgent, async (req: Agent
                    WHERE vorgang_id = ${id} AND person_id = ${personId} AND art = 'antrag_pdf' AND geloescht_am IS NULL`;
     await ereignis(id, personId, "versandt", `Versand quittiert von ${req.agent!.name}${empfaenger ? ` an ${empfaenger}` : ""}; Frist ${fristAm}.`, `Versandt${empfaenger ? ` an ${empfaenger}` : ""}. Antwort erwartet bis ${tag(fristAm)}.`, req.agent!.id);
     await sqlPool`UPDATE fiaon_betreiber_todos SET status = 'erledigt', updated_at = NOW() WHERE schluessel = ${`app-antrag-versand:${id}`} AND status <> 'erledigt'`.catch(() => {});
+    void pushBeiEreignis(personId, "vorgang_versandt", { vorgangId: id, titel: ART_TITEL[String(v.art)] ?? String(v.titel), empfaenger, fristAm: tag(fristAm) }).catch(() => {});
     res.json({ ok: true, stand: "versandt", versandtAm: heuteText(), fristAm: tag(fristAm), empfaenger });
   } catch (e: any) {
     console.error("[APP] versandt:", e?.message || e);
@@ -1061,6 +1075,7 @@ router.post("/agent/app/vorgaenge/:id/ergebnis", requireAgent, async (req: Agent
         });
       } catch (e: any) { console.error("[APP] Auftrag Ablehnung:", e?.message || e); }
     }
+    if (stand === "bewilligt") void pushBeiEreignis(personId, "vorgang_bewilligt", { vorgangId: id, titel: ART_TITEL[String(v.art)] ?? String(v.titel), betragCents, monatlich }).catch(() => {});
     res.json({ ok: true, stand, betragCents, monatlich });
   } catch (e: any) {
     console.error("[APP] ergebnis:", e?.message || e);

@@ -590,9 +590,13 @@ router.post("/agent/termine/:id/nicht-zustande", requireAgent, async (req: Agent
     // „Kunde will nicht mehr" sperrt — derselbe Weg wie „Kein Interesse" im
     // Vertrieb: Er verschwindet aus jeder Liste, die Daten bleiben.
     if (grund === "kein_interesse") {
-      await sqlPool`
-        UPDATE fiaon_persons SET is_blocked = TRUE, follow_up_date = NULL, updated_at = NOW()
-        WHERE id = ${termin.person_id}`;
+      // 06.09.2026: Zahlende Kunden werden nicht gesperrt (fiaon-kunde-aktiv.ts).
+      const { istZahlenderKunde } = await import("../lib/fiaon-kunde-aktiv");
+      if (!(await istZahlenderKunde(Number(termin.person_id)))) {
+        await sqlPool`
+          UPDATE fiaon_persons SET is_blocked = TRUE, follow_up_date = NULL, updated_at = NOW()
+          WHERE id = ${termin.person_id}`;
+      }
     }
 
     // Der Versand läuft über den EINEN Weg des Hauses (mailSenden): Er kennt

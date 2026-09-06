@@ -39,6 +39,28 @@ export function kundeAktivSql(p = "p"): string {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// ZAHLENDE KUNDEN WERDEN NICHT GESPERRT (06.09.2026, Justin: „alle offenen Punkte umsetzen")
+//
+// Am 05.09. standen 24 zahlende Kunden auf Vertriebssperre — gesetzt durch
+// „Erreicht – abgelehnt", „Kein Interesse" oder Aussortieren, oft im
+// Forderungsgespräch. Ein Zahler mit lebender Bestellung gehört in die
+// Listen seines Betreuers; ein „nein" von ihm ist ein Vermerk, keine Sperre.
+// Die drei Sperr-Stellen fragen hier nach, bevor sie is_blocked setzen.
+// ═══════════════════════════════════════════════════════════════════════════
+export async function istZahlenderKunde(personId: number | null | undefined): Promise<boolean> {
+  if (!personId) return false;
+  try {
+    const { sqlPool } = await import("./db-pool");
+    const [r] = (await sqlPool`
+      SELECT 1 AS da FROM fiaon_applications a
+       WHERE a.person_id = ${personId} AND a.merged_into IS NULL AND a.archived_at IS NULL
+         AND a.payment_status = 'paid' AND (a.vertrag_ende_am IS NULL OR a.vertrag_ende_am > NOW())
+       LIMIT 1`) as any[];
+    return !!r;
+  } catch { return false; }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // SPERR-PROTOKOLL (05.09.2026, Fall Cataldo Sapia)
 //
 // Ein bezahlter, voll aktiver Kunde stand um 16:36:25 plötzlich auf

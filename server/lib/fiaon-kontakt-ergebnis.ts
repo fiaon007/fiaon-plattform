@@ -245,7 +245,13 @@ export async function ergebnisAnwenden(
     const patch: Record<string, any> = { updated_at: new Date() };
     if (zusage !== undefined) patch.promised_payment_date = zusage;
     if (wiedervorlage !== undefined) patch.follow_up_date = wiedervorlage;
-    if (gesperrt) patch.is_blocked = true;
+    // 06.09.2026: Ein zahlender Kunde wird durch „abgelehnt" nicht gesperrt — der
+    // Vermerk bleibt im Verlauf, der Kunde bleibt in den Listen (fiaon-kunde-aktiv.ts).
+    if (gesperrt) {
+      const { istZahlenderKunde } = await import("./fiaon-kunde-aktiv");
+      if (await istZahlenderKunde(personId)) meldung = "Abgelehnt festgehalten — als zahlender Kunde bleibt er in Ihren Listen.";
+      else patch.is_blocked = true;
+    }
     await lauf`UPDATE fiaon_persons SET ${lauf(patch)} WHERE id = ${personId}`;
     // Der Zähler verweist auf sich selbst und geht deshalb nicht als Wert mit.
     if (zaehlerHoch) {

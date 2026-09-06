@@ -11,7 +11,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, BookUser, Users, Phone, Megaphone, Wallet, Calculator, GraduationCap, ListChecks, Mail, Calendar, Inbox, Landmark, MoreHorizontal, Clock, Wrench, Handshake, Boxes, LogOut, ChevronLeft, ChevronRight, X, Menu, Compass, Building2 } from "lucide-react";
+import { LayoutDashboard, BookUser, Users, Phone, Megaphone, Wallet, Calculator, GraduationCap, ListChecks, Mail, Calendar, Inbox, Landmark, MoreHorizontal, Clock, Wrench, Handshake, Boxes, LogOut, Sparkles, ChevronLeft, ChevronRight, X, Menu, Compass, Building2 } from "lucide-react";
 import { Einfuehrung } from "@/components/agent/Einfuehrung";
 import "@/styles/office.css";
 
@@ -73,6 +73,8 @@ export const RAEUME: Raum[] = [
   { href: "/agent/flur", label: "Team", Icon: Users, match: ["/agent/flur", "/agent/space"], szene: "flur", gruppe: "team", badge: "/agent/space" },
   { href: "/agent/updates", label: "Feed", Icon: Megaphone, match: ["/agent/updates", "/agent/feedback"], szene: "flur", gruppe: "team", badge: "/agent/updates" },
   { href: "/agent/academy", label: "Academy", Icon: GraduationCap, match: ["/agent/academy", "/agent/schulung", "/agent/skripte"], szene: "akademie", gruppe: "team" },
+  // 06.09.2026: der neue Kundenbereich „Mein FIAON", erklärt für Kunden und Team (Justins Auftrag).
+  { href: "/agent/kundenbereich-neu", label: "What's new", Icon: Sparkles, match: ["/agent/kundenbereich-neu"], szene: "akademie", gruppe: "team" },
   { href: "/agent/gehalt", label: "Earnings", Icon: Calculator, match: ["/agent/gehalt"], szene: "kasse", gruppe: "ich" },
   { href: "/agent/wallet", label: "Wallet", Icon: Wallet, match: ["/agent/wallet", "/agent/verdienst", "/agent/auszahlung", "/agent/partner-programm", "/agent/leistung"], szene: "kasse", gruppe: "ich" },
   { href: "/agent/arbeitszeiten", label: "Availability", Icon: Clock, match: ["/agent/arbeitszeiten"], szene: "schreibtisch", gruppe: "ich" },

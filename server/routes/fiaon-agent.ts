@@ -2480,7 +2480,11 @@ router.post("/agent/customers/:ref/dismiss", requireAgent, requireEigenerKunde, 
     // unterschiedlich, denn „abgelehnt" und „keine Nummer" sind nicht dasselbe.
     const [app] = await sqlPool`SELECT person_id FROM fiaon_applications WHERE ref = ${ref}`;
     if (app?.person_id) {
-      if (reason === "abgelehnt" || reason === "kein_interesse") {
+      const { istZahlenderKunde } = await import("../lib/fiaon-kunde-aktiv");
+      if ((reason === "abgelehnt" || reason === "kein_interesse") && await istZahlenderKunde(Number(app.person_id))) {
+        // 06.09.2026: Zahlende Kunden werden nicht gesperrt — aussortiert ist die
+        // Bestellung, die Person bleibt in den Listen ihres Betreuers.
+      } else if (reason === "abgelehnt" || reason === "kein_interesse") {
         // Ein „nein" ist ein Ergebnis. Der Kunde erscheint in keiner Anrufliste
         // mehr — dieselbe Wirkung wie „Erreicht – abgelehnt".
         await sqlPool`

@@ -415,10 +415,13 @@ router.post("/admin/app/einstellung", async (req, res: Response) => {
     // { brief: "an"|"aus" } und/oder { antraege: "an"|"aus" } — mindestens eines.
     const brief = req.body?.brief == null ? null : String(req.body.brief).trim().toLowerCase();
     const antraege = req.body?.antraege == null ? null : String(req.body.antraege).trim().toLowerCase();
-    if (brief == null && antraege == null) return res.status(400).json({ ok: false, error: "brief oder antraege muss 'an' oder 'aus' sein." });
+    const bericht = req.body?.bericht == null ? null : String(req.body.bericht).trim().toLowerCase();
+    if (bericht != null && bericht !== "an" && bericht !== "aus") return res.status(400).json({ ok: false, error: "bericht muss 'an' oder 'aus' sein." });
+    if (brief == null && antraege == null && bericht == null) return res.status(400).json({ ok: false, error: "brief, antraege oder bericht muss 'an' oder 'aus' sein." });
     if ((brief != null && brief !== "an" && brief !== "aus") || (antraege != null && antraege !== "an" && antraege !== "aus")) return res.status(400).json({ ok: false, error: "Erlaubt sind nur 'an' oder 'aus'." });
     const { setSetting } = await import("./fiaon-agent");
     if (brief != null) { await setSetting("app_brief_an", brief); console.log(`[APP] Brief-Weg ${brief === "an" ? "FREIGESCHALTET" : "AUS"} (Verwaltung)`); }
+    if (bericht != null) { await setSetting("app_bericht_mail", bericht); console.log(`[APP] Bericht-Mail ${bericht === "an" ? "AN" : "AUS"} (Verwaltung)`); }
     if (antraege != null) { await setSetting("app_antraege_an", antraege); console.log(`[APP] Anträge/Unterschrift ${antraege === "an" ? "FREIGESCHALTET" : "AUS"} (Verwaltung)`); }
     res.json({ ok: true, briefAn: await briefFreigeschaltet(), antraegeAn: await antraegeFreigeschaltet() });
   } catch (e: any) {

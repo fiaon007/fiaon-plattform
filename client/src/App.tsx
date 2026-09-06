@@ -146,6 +146,7 @@ const AgentRechtPage = lazy(() => import("@/pages/agent/tools/recht"));
 const AgentTagescheckPage = lazy(() => import("@/pages/agent/tools/tagescheck"));
 import AgentMehrPage from "@/pages/agent/mehr";
 const AgentAcademyPage = lazy(() => import("@/pages/agent/academy"));
+const AgentKundenbereichNeuPage = lazy(() => import("@/pages/agent/kundenbereich-neu"));
 const AgentAcademyNeuPage = lazy(() => import("@/pages/agent/academy/index")); // Ausbildung (E-040)
 const AgentSchulungPage = lazy(() => import("@/pages/agent/schulung"));
 const AdminAgentPortalPage = lazy(() => import("@/pages/admin-agent-portal"));
@@ -623,6 +624,8 @@ function Router() {
           das der Server liefert — kein eigener Rollen-Vergleich in der Anzeige. */}
       <Route path="/agent/schulung" component={AgentSchulungPage} />
       <Route path="/agent/academy" component={AgentAcademyNeuPage} />
+      {/* 06.09.2026: „Was ist neu" — der neue Kundenbereich, für Kunden und Team erklärt (Justins Auftrag). */}
+      <Route path="/agent/kundenbereich-neu" component={AgentKundenbereichNeuPage} />
       <Route path="/agent/academy/:kapitel" component={AgentAcademyNeuPage} />
       <Route path="/agent/academy/:kapitel/:schritt" component={AgentAcademyNeuPage} />
       <Route path="/agent/academy-alt" component={AgentAcademyPage} />

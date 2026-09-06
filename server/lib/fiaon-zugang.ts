@@ -22,6 +22,7 @@
 
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { sqlPool } from "./db-pool";
+import { passwortHashen } from "./fiaon-kunde-session";
 import { absoluteUrl } from "../fiaon-base-url";
 
 type Lauf = typeof sqlPool;
@@ -129,8 +130,9 @@ export async function einmalPasswortSetzen(
 
   await lauf`
     UPDATE fiaon_applications
-    SET password = ${passwort},
-        utm = COALESCE(utm, '{}'::jsonb) || ${JSON.stringify({ password: passwort })}::jsonb,
+    -- 06.09.2026: gehasht statt Klartext, und keine Kopie mehr in utm (die Anmeldung liest die Spalte).
+    SET password = ${passwortHashen(passwort)},
+        utm = COALESCE(utm, '{}'::jsonb) - 'password',
         einmal_passwort_bis = ${bis},
         passwort_wechsel_noetig = TRUE,
         updated_at = NOW()
@@ -157,8 +159,8 @@ export async function passwortSetzen(
 
   await lauf`
     UPDATE fiaon_applications
-    SET password = ${neu},
-        utm = COALESCE(utm, '{}'::jsonb) || ${JSON.stringify({ password: neu })}::jsonb,
+    SET password = ${passwortHashen(neu)},
+        utm = COALESCE(utm, '{}'::jsonb) - 'password',
         einmal_passwort_bis = NULL,
         passwort_wechsel_noetig = FALSE,
         updated_at = NOW()

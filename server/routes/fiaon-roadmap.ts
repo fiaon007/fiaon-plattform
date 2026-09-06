@@ -15,6 +15,9 @@
  * ============================================================================
  */
 import { Router, type Request, type Response } from "express";
+// 06.09.2026 (Lücken-Audit B8): Fahrplan, Einwilligung, Kontoauszüge (Upload, Analyse, Löschen) und
+// Schritte hinter requireKunde — vorher las und schrieb jeder, der die Referenz kannte.
+import { requireKunde } from "../lib/fiaon-kunde-session";
 import { sqlPool } from "../lib/db-pool";
 import multer from "multer";
 import { requireAdmin } from "../middleware/admin";
@@ -202,7 +205,7 @@ async function buildState(ref: string) {
    KUNDEN-ENDPOINTS (per ref)
    ════════════════════════════════════════════════════════════════════════ */
 
-router.get("/roadmap/:ref", async (req: Request, res: Response) => {
+router.get("/roadmap/:ref", requireKunde, async (req: Request, res: Response) => {
   try {
     const state = await buildState(String(req.params.ref));
     if (!state) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
@@ -213,7 +216,7 @@ router.get("/roadmap/:ref", async (req: Request, res: Response) => {
   }
 });
 
-router.post("/roadmap/:ref/consent", async (req: Request, res: Response) => {
+router.post("/roadmap/:ref/consent", requireKunde, async (req: Request, res: Response) => {
   try {
     await ensureTables();
     const ref = String(req.params.ref);
@@ -229,7 +232,7 @@ router.post("/roadmap/:ref/consent", async (req: Request, res: Response) => {
   }
 });
 
-router.post("/roadmap/:ref/upload", (req, res, next) => {
+router.post("/roadmap/:ref/upload", requireKunde, (req, res, next) => {
   upload.array("statements", 12)(req, res, (err: any) => {
     if (err) return res.status(400).json({ ok: false, error: err.code === "LIMIT_FILE_SIZE" ? "Datei zu groß (max. 25 MB pro Datei)." : err.message });
     next();
@@ -264,7 +267,7 @@ router.post("/roadmap/:ref/upload", (req, res, next) => {
 });
 
 // Kunde stößt die Analyse an (nur aggregierte Kennzahlen verlassen das System)
-router.post("/roadmap/:ref/analyze", async (req: Request, res: Response) => {
+router.post("/roadmap/:ref/analyze", requireKunde, async (req: Request, res: Response) => {
   try {
     await ensureTables();
     const ref = String(req.params.ref);
@@ -292,7 +295,7 @@ router.post("/roadmap/:ref/analyze", async (req: Request, res: Response) => {
   }
 });
 
-router.post("/roadmap/:ref/step/:id/toggle", async (req: Request, res: Response) => {
+router.post("/roadmap/:ref/step/:id/toggle", requireKunde, async (req: Request, res: Response) => {
   try {
     await ensureTables();
     const ref = String(req.params.ref);
@@ -310,7 +313,7 @@ router.post("/roadmap/:ref/step/:id/toggle", async (req: Request, res: Response)
 });
 
 // GDPR: Kunde löscht seine hochgeladenen Kontoauszüge
-router.post("/roadmap/:ref/delete-statements", async (req: Request, res: Response) => {
+router.post("/roadmap/:ref/delete-statements", requireKunde, async (req: Request, res: Response) => {
   try {
     await ensureTables();
     const ref = String(req.params.ref);
@@ -324,7 +327,7 @@ router.post("/roadmap/:ref/delete-statements", async (req: Request, res: Respons
 });
 
 // KI-Login-Begrüßung (nur aggregierte Signale)
-router.get("/roadmap/:ref/greeting", async (req: Request, res: Response) => {
+router.get("/roadmap/:ref/greeting", requireKunde, async (req: Request, res: Response) => {
   try {
     await ensureTables();
     const ref = String(req.params.ref);

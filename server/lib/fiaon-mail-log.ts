@@ -42,7 +42,13 @@ export interface VersandErgebnis {
  */
 export function payloadSchwaerzen(p: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
-  for (const k of Object.keys(p)) out[k] = /(^login_link_url$)|(_token$)|(^token$)|(unterschrift_url)/i.test(k) ? "[verborgen]" : p[k];
+  for (const k of Object.keys(p)) {
+    const v = p[k];
+    const geheimerSchluessel = /(^login_link_url$)|(_token$)|(^token$)|(unterschrift_url)|(^passwort_link$)/i.test(k);
+    // 06.09.2026: Der Setz-Link aus „Zugang retten“ reist als login_url mit Signatur — ebenfalls ein Einmal-Schlüssel.
+    const geheimerWert = typeof v === "string" && /[?&]sig=/.test(v);
+    out[k] = geheimerSchluessel || geheimerWert ? "[verborgen]" : v;
+  }
   return out;
 }
 

@@ -11,6 +11,7 @@ import multer from "multer";
 import { randomBytes } from "crypto";
 import { client } from "../db";
 import { logger } from "../logger";
+import { adminZugriff } from "../lib/fiaon-admin-wache";
 import { ensureInvestorTables, hashInvestorPassword } from "./investor-auth";
 
 const router = Router();
@@ -18,19 +19,9 @@ const router = Router();
 // ----------------------------------------------------------------------------
 // Admin access (same model as admin-accounting): static token OR logged-in admin
 // ----------------------------------------------------------------------------
-const ADMIN_SECRET = process.env.ADMIN_TOKEN || "fiaon-admin-2024";
-
-function adminAccess(req: Request, res: Response, next: NextFunction) {
-  const token = req.headers["x-admin-token"] as string | undefined;
-  if (token && token === ADMIN_SECRET) return next();
-  const passportUserId = (req as any).user?.id;
-  const sessionUserId = (req.session as any)?.userId;
-  if (passportUserId || sessionUserId) return next();
-  if ((req as any).isAuthenticated && (req as any).isAuthenticated()) return next();
-  return res.status(401).json({ error: "Unauthorized", message: "Admin access required" });
-}
-
-router.use(adminAccess);
+// 06.09.2026: kein festes Kennwort mehr im Quelltext — Admin-Code, Chef-Token „inhaber“ oder ADMIN_TOKEN
+// aus der Umgebung. Siehe lib/fiaon-admin-wache.ts.
+router.use(adminZugriff);
 
 const upload = multer({
   storage: multer.memoryStorage(),

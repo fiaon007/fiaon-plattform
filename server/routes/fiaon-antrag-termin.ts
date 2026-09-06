@@ -5,16 +5,18 @@
 // GET /antrag/:ref/termin-link → { ok, url: "/termin/<token>" }
 // Der Token gehört zur Person des Antrags; welche Gesprächsart gebucht wird,
 // entscheidet die Terminseite aus dem Zustand (unbezahlt → Verkaufsgespräch),
-// nicht ein Parameter. 30 Tage gültig. Kein Login nötig — die Referenz ist
-// das Geheimnis, das der Antragsteller ohnehin hat.
+// nicht ein Parameter. 30 Tage gültig. Tür (06.09.2026): Kundensitzung ODER
+// Antrags-Cookie — die Referenz allein reicht nicht mehr, sie steht auf jeder
+// Rechnung und in jedem Verwendungszweck.
 // ═══════════════════════════════════════════════════════════════════════════
 import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { terminTokenErzeugen } from "../lib/fiaon-termine";
+import { requireKundeOderAntrag } from "../lib/fiaon-antrag-sitzung";
 
 const router = Router();
 
-router.get("/antrag/:ref/termin-link", async (req: Request, res: Response) => {
+router.get("/antrag/:ref/termin-link", requireKundeOderAntrag, async (req: Request, res: Response) => {
   try {
     const ref = String(req.params.ref || "").trim().toUpperCase();
     if (!/^FIAON-[A-Z0-9-]{4,}$/.test(ref)) return res.status(400).json({ ok: false, error: "Ungültige Referenz." });

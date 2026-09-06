@@ -26,6 +26,11 @@ import { berlinDatumText, berlinUhrzeit, terminTokenErzeugen } from "../lib/fiao
 import { versendenUndProtokollieren } from "../lib/fiaon-mail-log";
 import { terminLink } from "../lib/fiaon-termine";
 import { hasAdminCode } from "./fiaon-admin-zugang";
+// 06.09.2026 (Lücken-Audit B8): Beide Kundenrouten hinter requireKunde. Vorher lieferte die
+// Referenz allein Name, E-Mail, Zahlungsstand UND ein gültiges Termin-Token an jeden Aufrufer.
+// Alle Aufrufer (alter Bereich, Einrichtung, /app) sind angemeldete Kundenkontexte; die
+// Als-Kunde-Ansicht der Mitarbeiter deckt requireKunde selbst ab (nur lesend).
+import { requireKunde } from "../lib/fiaon-kunde-session";
 
 const router = Router();
 
@@ -122,7 +127,7 @@ async function lageZu(ref: string): Promise<Lage | null> {
  *   banner      dasselbe, aber schon einmal weggeklickt → dezente Zeile
  *   nichts      unbezahlt, gebucht oder erledigt
  */
-router.get("/kunde/:ref/startgespraech", async (req: Request, res: Response) => {
+router.get("/kunde/:ref/startgespraech", requireKunde, async (req: Request, res: Response) => {
   try {
     const lage = await lageZu(String(req.params.ref));
     if (!lage) return res.json({ ok: true, faellig: false, banner: false, termin: null });
@@ -224,7 +229,7 @@ router.get("/kunde/:ref/startgespraech", async (req: Request, res: Response) => 
 });
 
 /** POST /kunde/:ref/startgespraech/spaeter — die Tafel wegklicken. */
-router.post("/kunde/:ref/startgespraech/spaeter", async (req: Request, res: Response) => {
+router.post("/kunde/:ref/startgespraech/spaeter", requireKunde, async (req: Request, res: Response) => {
   try {
     const lage = await lageZu(String(req.params.ref));
     if (!lage) return res.status(404).json({ ok: false, error: "Nicht gefunden" });

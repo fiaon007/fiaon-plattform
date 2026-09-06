@@ -551,7 +551,8 @@ router.post("/kunde/:ref/app/vorgaenge/:id/bescheid", requireKunde, (req, res, n
         titel: `${p.name}: Bescheid prüfen (${az})`,
         text: `Der Kunde hat die Antwort der Stelle zu „${String(v.titel)}“ fotografiert (${az}, Vorgang #${id}, ${seiten.length} ${seiten.length === 1 ? "Seite" : "Seiten"}, Dokumente #${dokIds.join(", #")}). Bitte lesen und das Ergebnis im Vorgang eintragen (bewilligt oder abgelehnt, mit Betrag und einem Satz für den Kunden). Frist: zwei Werktage (${frist}).`,
         faelligAm: frist, schluessel: `app-bescheid:${id}`, quelle: "kundenbereich", bereich: "pruefen",
-        link: `/admin/kunde/${encodeURIComponent(req.kundeRef!)}`, autorName: "Kundenbereich",
+        // 06.09.2026: Link auf die Vorgangsseite des Teams (/admin ist für Mitarbeiter zu).
+        link: `/agent/app-vorgaenge/${id}`, autorName: "Kundenbereich",
       });
       anWen = erg.kundenName ?? erg.agentName ?? null;
       auftragDa = true;
@@ -562,7 +563,7 @@ router.post("/kunde/:ref/app/vorgaenge/:id/bescheid", requireKunde, (req, res, n
       await todoMeldung(`app-bescheid-ohne-auftrag:${id}`, {
         titel: `${p.name}: Bescheid liegt ohne Auftrag in der Akte (${az})`,
         text: `Der Kunde hat einen Bescheid fotografiert (Vorgang #${id}, Dokumente #${dokIds.join(", #")}), aber der Auftrag an den Betreuer konnte nicht angelegt werden. Bitte lesen und das Ergebnis im Vorgang eintragen.`,
-        bereich: "pruefen", link: `/admin/kunde/${encodeURIComponent(req.kundeRef!)}`,
+        bereich: "pruefen", link: `/agent/app-vorgaenge/${id}`,
       }, { name: "Kundenbereich", agentId: null }).catch(() => {});
     }
     // Der Satz verspricht nur, was ein Auftrag trägt: ohne Auftrag keine Person, kein „prüft“.
@@ -603,7 +604,7 @@ router.post("/kunde/:ref/app/vorgaenge/:id/zurueckziehen", requireKunde, async (
           personId: p.personId, ref: req.kundeRef!, agentId: v.zustaendig_agent_id ? Number(v.zustaendig_agent_id) : null, dringend: true, faelligAm: heuteIso(),
           titel: `${p.name}: NICHT versenden – Antrag zurückgezogen (${az})`,
           text: `Der Kunde hat den unterschriebenen Antrag „${String(v.titel)}“ (${az}, Vorgang #${id}) im Kundenbereich zurückgezogen, BEVOR er versandt wurde. Der Auftrag „Antrag versenden und quittieren“ ist geschlossen. Bitte nichts mehr versenden; falls der Brief schon im Umschlag ist, herausnehmen. Die Dokumente bleiben in der Akte.`,
-          schluessel: `app-antrag-stopp:${id}`, quelle: "kundenbereich", bereich: "pruefen", link: `/admin/kunde/${encodeURIComponent(req.kundeRef!)}`, autorName: "Kundenbereich",
+          schluessel: `app-antrag-stopp:${id}`, quelle: "kundenbereich", bereich: "pruefen", link: `/agent/app-vorgaenge/${id}`, autorName: "Kundenbereich",
         });
       } catch (e: any) { console.error("[APP] Stopp-Auftrag:", e?.message || e); }
     }
@@ -667,7 +668,7 @@ router.post("/kunde/:ref/app/vollmacht/widerruf", requireKunde, async (req: Kund
             personId: p.personId, ref: req.kundeRef!, agentId: o.zustaendig_agent_id ? Number(o.zustaendig_agent_id) : null, dringend: true, faelligAm: heuteIso(),
             titel: `${p.name}: STOPP – Vollmacht widerrufen, NICHT versenden (${String(o.aktenzeichen || `Vorgang #${oid}`)})`,
             text: `Der Kunde hat seine Vollmacht widerrufen. Der unterschriebene Antrag „${String(o.titel)}“ (Vorgang #${oid}) darf NICHT versendet werden, bis eine neue Vollmacht vorliegt. Das Quittieren wird vom System abgelehnt.`,
-            schluessel: `app-antrag-versand:${oid}`, quelle: "kundenbereich", bereich: "pruefen", link: `/admin/kunde/${encodeURIComponent(req.kundeRef!)}`, autorName: "Kundenbereich",
+            schluessel: `app-antrag-versand:${oid}`, quelle: "kundenbereich", bereich: "pruefen", link: `/agent/app-vorgaenge/${oid}`, autorName: "Kundenbereich",
           });
         } catch (e: any) { console.error("[APP] Widerruf Stopp-Auftrag:", e?.message || e); }
       }
@@ -966,7 +967,7 @@ router.post("/app/unterschrift/:token", async (req: Request, res: Response) => {
         titel: `${k.name}: Antrag versenden und quittieren (${az})`,
         text: `Der Kunde hat „${String(v.titel)}“ unterschrieben (${az}, Vorgang #${vorgangId}). Empfänger: ${String(v.empfaenger_name || "siehe Schreiben")}${v.empfaenger_adresse ? `, ${String(v.empfaenger_adresse).replace(/\n/g, ", ")}` : ""}.${v.empfaenger_adresse ? "" : " ACHTUNG: Empfänger-Anschrift fehlt in der Akte – vor dem Versand beim Kunden erfragen (Bank, Versicherer oder Anbieter mit Anschrift; bei Kündigungen auch Vertrags- bzw. Versicherungsschein-Nummer und Kennzeichen)."} Das unterschriebene PDF liegt in der Akte (Dokument #${dokId}). Bitte versenden (Post oder E-Mail an die Stelle) und danach im Vorgang den Versand bestätigen – erst dann sieht der Kunde „Versandt“ und die Frist läuft. Frist: zwei Werktage (${frist}).`,
         faelligAm: frist, schluessel: `app-antrag-versand:${vorgangId}`, quelle: "kundenbereich", bereich: "pruefen",
-        link: k.ref ? `/admin/kunde/${encodeURIComponent(k.ref)}` : null, autorName: "Kundenbereich",
+        link: `/agent/app-vorgaenge/${vorgangId}`, autorName: "Kundenbereich",
       });
       if (erg.agentId && !v.zustaendig_agent_id) await sqlPool`UPDATE fiaon_vorgaenge SET zustaendig_agent_id = ${erg.agentId} WHERE id = ${vorgangId}`;
     } catch (e: any) { console.error("[APP] Auftrag Versand:", e?.message || e); }
@@ -1071,7 +1072,7 @@ router.post("/agent/app/vorgaenge/:id/ergebnis", requireAgent, async (req: Agent
           titel: `${k?.name ?? `Person ${personId}`}: Ablehnung besprechen (${az})`,
           text: `Der Antrag „${String(v.titel)}“ (${az}, Vorgang #${id}) wurde abgelehnt. Satz für den Kunden: „${textFuerKunden}“. Bitte mit dem Kunden klären, was daraus folgt (Widerspruch beim Kunden selbst, andere Stelle, Punkt schließen) und das Ergebnis als Notiz im Vorgang festhalten.`,
           faelligAm: werktageSpaeter(2), schluessel: `app-ablehnung:${id}`, quelle: "kundenbereich", bereich: "pruefen",
-          link: k?.ref ? `/admin/kunde/${encodeURIComponent(k.ref)}` : null, autorName: "Kundenbereich",
+          link: `/agent/app-vorgaenge/${id}`, autorName: "Kundenbereich",
         });
       } catch (e: any) { console.error("[APP] Auftrag Ablehnung:", e?.message || e); }
     }

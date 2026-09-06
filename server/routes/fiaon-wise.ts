@@ -316,10 +316,13 @@ router.post("/wise/webhook", (req: Request, res: Response) => {
 });
 
 // Alle 30 Minuten von selbst — zusätzlich zum Wecker, als Netz darunter.
-tageslauf("wise-auszug", async () => {
+// 06.09.2026: WISE_AUS=1 (Render) hält den Lauf still — das Wise-Konto ist seit 02.09. gesperrt,
+// und ein Dauerrot in der Laufüberwachung verdeckt echte Ausfälle (Airwallex-Abgleich).
+if (process.env.WISE_AUS !== "1") tageslauf("wise-auszug", async () => {
   const r = await wiseEinlesen(5);
   if (r.neu > 0) console.log(`[WISE] Tageslauf: ${r.neu} neue Eingänge im Bankbuch`);
   return r;
 }, 30 * 60 * 1000, { beimStartNach: 90_000 });
+else console.log("[WISE] Tageslauf still (WISE_AUS=1).");
 
 export default router;

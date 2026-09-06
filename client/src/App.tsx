@@ -25,6 +25,7 @@ const AdminKundenPage = lazy(() => import("@/pages/admin-kunden"));
 const AdminKundeAktePage = lazy(() => import("@/pages/admin-kunde"));
 const AdminAntraegePage = lazy(() => import("@/pages/admin-antraege"));
 const AdminFunktionenPage = lazy(() => import("@/pages/admin-funktionen"));
+const ZugangSetzenPage = lazy(() => import("@/pages/zugang-setzen"));
 const WasIstFiaonPage = lazy(() => import("@/pages/site/was-ist-fiaon"));
 const PlattformKonzeptPage = lazy(() => import("@/pages/site/plattform-konzept"));
 import LoginPage from "@/pages/login";
@@ -687,6 +688,9 @@ function Router() {
       <Route path="/widerrufsbelehrung" component={WiderrufsbelehrungPage} />
       <Route path="/cookie-einstellungen" component={CookieEinstellungenPage} />
       <Route path="/passwort-vergessen" component={PasswortVergessenPage} />
+      {/* 06.09.2026: Der Setz-Link aus „Zugang retten“ (Mitarbeiter) führte bis heute auf die 404-Seite —
+          der Server kannte /zugang/:ref/pruefen und /setzen, der Browser keine Seite dazu. */}
+      <Route path="/zugang/:ref" component={ZugangSetzenPage} />
       <Route path="/abo-kuendigen" component={AboKuendigenPage} />
       <Route path="/bonitaet" component={BonitaetPage} />
       <Route path="/bonitaet-antrag" component={BonitaetAntragPage} />

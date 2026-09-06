@@ -7,6 +7,10 @@ import PDFDocument from "pdfkit";
 import { ZipArchive } from "archiver";
 import postgres from "postgres";
 import { sqlPool } from "../lib/db-pool";
+// 06.09.2026 (Lücken-Audit): Kundenrouten hinter requireKunde, Passwörter nur noch gehasht,
+// Antrags-Cookie statt „Referenz reicht“ — siehe lib/fiaon-antrag-sitzung.ts.
+import { requireKunde, istGehasht, passwortHashen } from "../lib/fiaon-kunde-session";
+import { antragCookieSetzen, antragPasst, angabenPassen, requireKundeOderAntrag } from "../lib/fiaon-antrag-sitzung";
 import { antragsSpaltenOhneAnhaenge } from "../lib/fiaon-antrag-spalten";
 // Die zwei Reinigungen — eine Definition, ein Ort (siehe AGENTS.md).
 import { paketNameEinzeilig } from "../../shared/fiaon-paketname";
@@ -1785,6 +1789,8 @@ router.get("/antrag/weiter/:token", async (req, res) => {
       return res.json({ ok: true, fertig: true, zahlung: a.payment_reference ? `/zahlung/${a.payment_reference}` : "/login" });
     }
     const g = a.birthdate ? String(a.birthdate).slice(0, 10).split("-") : null;
+    // 06.09.2026: Der Weiter-Link ist der Nachweis — er ging per Mail an den Antragsteller. Cookie setzen.
+    antragCookieSetzen(res, String(a.ref));
     res.json({
       ok: true, ref: a.ref, type: a.type, status: a.status, currentStep: Number(a.current_step || 1), packKey: a.pack_key || null,
       daten: {
@@ -2654,8 +2660,8 @@ router.post("/application", async (req, res) => {
       firstName: nameSauber(firstName), lastName: nameSauber(lastName),
       birthdate, phone, phoneCountryCode, street, zip, city, country, nationality,
       employment, employer, employedSince, income: income || null, rent: rent || null, debts: debts || null, housing,
-      // Password for login
-      password,
+      // Password for login — 06.09.2026: nur noch gehasht (scrypt), nie mehr Klartext in der Spalte
+      password: password ? passwortHashen(String(password)) : password,
       // Business customer fields
       companyName: nameSauber(companyName), legalForm, taxId, establishedYear,
       contactName: nameSauber(contactName), contactEmail, contactPhone, businessType, industry, annualRevenue: annualRevenue || null, employees: employees || null, monthlyExpenses: monthlyExpenses || null, billingEmail,
@@ -2709,7 +2715,7 @@ router.post("/application", async (req, res) => {
           -- auf [step]) - OHNE Passwort. Jeder dieser Zwischenspeicher setzte das
           -- Passwort des Kunden auf NULL: Der Kunde kannte sein Passwort, der
           -- Datensatz nicht mehr. Jetzt gilt: nur SETZEN, niemals loeschen.
-          password = COALESCE(NULLIF(${password ?? ''}, ''), password),
+          password = COALESCE(NULLIF(${password ? passwortHashen(String(password)) : ''}, ''), password),
           company_name = ${values.companyName ?? null},
           legal_form = ${values.legalForm ?? null},
           tax_id = ${values.taxId ?? null},
@@ -2739,33 +2745,26 @@ router.post("/application", async (req, res) => {
           consent_contract = ${values.consentContract ?? null},
           ip = ${values.ip ?? null},
           user_agent = ${values.userAgent ?? null},
-          updated_at = ${values.updatedAt ?? null},
-          -- Dieselbe Ursache im Rueckfall-Speicher: utm wurde komplett durch
-          -- ein Objekt mit nur dem Passwort ersetzt. Ohne Passwort im Body
-          -- schrieb das ein leeres Objekt und loeschte die zweite Kopie.
-          -- (Beweis im Bestand: Vorgesetzten-Datensatz FIAON-MNPTDV19-QYAJ hat utm leer.)
-          -- Jetzt wird der Schluessel nur ERGAENZT, wenn ein Passwort mitkommt.
-          utm = CASE
-                  WHEN ${password ?? ''} = '' THEN utm
-                  ELSE COALESCE(utm, '{}'::jsonb) || ${JSON.stringify({ password: password ?? "" })}::jsonb
-                END
+          updated_at = ${values.updatedAt ?? null}
+          -- 06.09.2026: Keine Passwort-Kopie mehr in utm. Die Anmeldung liest die Spalte
+          -- (gehasht); die alte „Rückfall-Kopie“ war ein zweiter Klartext-Speicher.
         WHERE ref = ${ref}
       `;
       console.log("[FIAON-APP] Direct SQL update completed");
+      // 06.09.2026: Antrags-Cookie gleitend verlängern — oder erstmals setzen, wenn der Antrag vor dem
+      // Cookie begonnen wurde und die Angaben im Formular zu den gespeicherten passen (das weiß nur,
+      // wer sie selbst eingetippt hat). Siehe lib/fiaon-antrag-sitzung.ts.
+      const alt: any = existing[0];
+      if (antragPasst(req, ref) || (!istGehasht(alt?.password) && angabenPassen(alt, req.body))) antragCookieSetzen(res, ref);
     } else {
       console.log("[FIAON-APP] Inserting new application");
       await db.insert(fiaonApplications).values(values);
       console.log("[FIAON-APP] Insert completed");
-      
-      // Rückfall-Kopie des Passworts (Altbestand-Kompatibilität) — nur ergänzend.
+      // 06.09.2026: Der Browser, der den Antrag anlegt, bekommt das Antrags-Cookie (lib/fiaon-antrag-sitzung.ts).
+      antragCookieSetzen(res, ref);
       if (password) {
-        await sqlPool`
-          UPDATE fiaon_applications
-          SET utm = COALESCE(utm, '{}'::jsonb) || ${JSON.stringify({ password })}::jsonb,
-              status = ${status}, email = ${email}
-          WHERE ref = ${ref}
-        `;
-        console.log("[FIAON-APP] Passwort gespeichert (Spalte + utm-Rückfall)");
+        await sqlPool`UPDATE fiaon_applications SET status = ${status}, email = ${email} WHERE ref = ${ref}`;
+        console.log("[FIAON-APP] Passwort gespeichert (gehasht, nur in der Spalte)");
       }
     }
 
@@ -3411,7 +3410,7 @@ router.get("/admin/kontoauszug/:ref", async (req, res) => {
 });
 
 // Check KYC document status
-router.get("/kyc-status/:ref", async (req, res) => {
+router.get("/kyc-status/:ref", requireKunde, async (req, res) => {
   try {
     const { ref } = req.params;
 
@@ -3484,7 +3483,7 @@ router.get("/kyc-status/:ref", async (req, res) => {
 //
 // Zustände: 'offen' (nicht gekauft) → 'zahlung_offen' → 'bezahlt' (Auskunft wird
 // beschafft) → 'geliefert' (liegt im Kundendatensatz).
-router.get("/bonitaet-status/:ref", async (req, res) => {
+router.get("/bonitaet-status/:ref", requireKunde, async (req, res) => {
   try {
     const { ref } = req.params;
 
@@ -3578,7 +3577,7 @@ router.get("/bonitaet-status/:ref", async (req, res) => {
 });
 
 // ── GET /profile/:ref — Vollständiges Kundenprofil ──────────────────────────
-router.get("/profile/:ref", async (req, res) => {
+router.get("/profile/:ref", requireKunde, async (req, res) => {
   try {
     const { ref } = req.params;
     // Auto-migrate profile fields
@@ -3642,7 +3641,7 @@ router.get("/profile/:ref", async (req, res) => {
 });
 
 // ── PATCH /profile/:ref — Profil-Ergänzungen speichern ──────────────────────
-router.patch("/profile/:ref", async (req, res) => {
+router.patch("/profile/:ref", requireKunde, async (req, res) => {
   try {
     const { ref } = req.params;
     const { movedRecently, previousStreet, previousZip, previousCity, previousCountry,
@@ -3896,7 +3895,7 @@ router.post("/admin/create-test-user", async (req, res) => {
 });
 
 // Generate and download contract PDF
-router.get("/contract/:ref", async (req, res) => {
+router.get("/contract/:ref", requireKundeOderAntrag, async (req, res) => {
   try {
     const { ref } = req.params;
     
@@ -4645,14 +4644,14 @@ router.post("/reset-password-direct", async (req, res) => {
     // (es löschte die Rückfall-Kopie und alle übrigen utm-Schlüssel).
     const updated = await sqlPool`
       UPDATE fiaon_applications
-      SET password = ${newPassword},
-          utm = COALESCE(utm, '{}'::jsonb) || ${JSON.stringify({ password: newPassword })}::jsonb,
+      SET password = ${passwortHashen(String(newPassword))},
+          utm = COALESCE(utm, '{}'::jsonb) - 'password',
           updated_at = NOW()
       WHERE ref = ${ref}
       RETURNING ref
     `;
     if (updated.length === 0) {
-      return res.status(410).json({ ok: false, error: "Konto nicht mehr auffindbar. Bitte kontaktiere den Support." });
+      return res.status(410).json({ ok: false, error: "Konto nicht mehr auffindbar. Bitte wenden Sie sich an den Support." });
     }
 
     verifyTokens.delete(token);

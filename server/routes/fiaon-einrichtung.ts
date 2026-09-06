@@ -15,6 +15,7 @@
 import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { kundenSitzungSetzen, requireKunde, istGehasht, passwortHashen, type KundeRequest } from "../lib/fiaon-kunde-session";
+import { antragPasst } from "../lib/fiaon-antrag-sitzung";
 
 const router = Router();
 
@@ -22,6 +23,12 @@ router.post("/antrag/:ref/einloggen", async (req: Request, res: Response) => {
   try {
     const ref = String(req.params.ref || "").trim().toUpperCase();
     if (!/^FIAON-[A-Z0-9-]{4,}$/.test(ref)) return res.status(400).json({ ok: false, error: "Ungültige Referenz." });
+    // ── DER BROWSER MUSS DEN ANTRAG SELBST ANGELEGT HABEN (06.09.2026, Lücken-Audit B7) ──
+    // Bis heute reichte die Referenz: Wer sie kannte (sie steht in jedem Verwendungszweck und
+    // auf jeder Rechnung), bekam 48 Stunden lang eine volle 30-Tage-Kundensitzung. Jetzt
+    // braucht es das Antrags-Cookie, das POST /application beim Anlegen (oder gegen die eigenen
+    // Angaben) und GET /antrag/weiter/:token setzen — siehe lib/fiaon-antrag-sitzung.ts.
+    if (!antragPasst(req, ref)) return res.status(403).json({ ok: false, error: "Bitte melden Sie sich mit Ihrer E-Mail-Adresse an.", login: true });
     const [a] = (await sqlPool`SELECT ref, password, created_at, email FROM fiaon_applications WHERE ref = ${ref} AND merged_into IS NULL AND gdpr_deleted_at IS NULL LIMIT 1`) as any[];
     if (!a) return res.status(404).json({ ok: false, error: "Antrag nicht gefunden." });
     const alter = Date.now() - new Date(a.created_at).getTime();

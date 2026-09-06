@@ -181,7 +181,7 @@ export function decideLogin(family: any[], password: string): LoginVerdict {
         reason: "kein Passwort hinterlegt",
         ref: account?.ref ?? null,
         error: "Für dieses Konto ist noch kein Passwort gesetzt.",
-        hint: "Das liegt an uns, nicht an dir. Setze jetzt ein Passwort — du brauchst dafür nur deinen Namen, deine E-Mail-Adresse und dein Geburtsdatum.",
+        hint: "Das liegt an uns, nicht an Ihnen. Setzen Sie jetzt ein Passwort — Sie brauchen dafür nur Ihren Namen, Ihre E-Mail-Adresse und Ihr Geburtsdatum.",
         action: "Passwort jetzt setzen",
         actionHref: "/passwort-vergessen",
       };
@@ -194,7 +194,7 @@ export function decideLogin(family: any[], password: string): LoginVerdict {
       reason: rows.length === 0 ? "kein Datensatz zur E-Mail" : "Passwort stimmt nicht",
       ref: null,
       error: LOGIN_NEUTRAL_MESSAGE,
-      hint: "Bitte prüfe die Schreibweise. Wenn du dein Passwort nicht mehr weißt, kannst du es neu setzen.",
+      hint: "Bitte prüfen Sie die Schreibweise. Wenn Sie Ihr Passwort nicht mehr wissen, können Sie es neu setzen.",
       action: "Passwort vergessen?",
       actionHref: "/passwort-vergessen",
     };
@@ -219,8 +219,8 @@ export function decideLogin(family: any[], password: string): LoginVerdict {
       code: LOGIN_CODES.SUSPENDED,
       reason: "Konto gesperrt",
       ref: account.ref,
-      error: "Dein Konto ist gesperrt.",
-      hint: "Bitte kontaktiere den Support — wir klären das mit dir persönlich.",
+      error: "Ihr Konto ist gesperrt.",
+      hint: "Bitte wenden Sie sich an den Support — wir klären das persönlich mit Ihnen.",
     };
   }
 

@@ -12,6 +12,7 @@ Disallow: /mein-bereich
 Disallow: /app
 Disallow: /zahlung/
 Disallow: /termin/
+Disallow: /zugang/
 Disallow: /api/
 Disallow: /vereinbarung
 Disallow: /scp-datenraum

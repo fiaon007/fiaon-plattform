@@ -308,11 +308,23 @@ function AuftragKarte({ a, onChange, onWeg }: { a: Auftrag; onChange: (t: Auftra
           </p>
         )}
         {a.text && <p className="ta-auftrag-text">{a.text}</p>}
-        {a.personId ? (
-          <a href={`/agent/pipeline?person=${a.personId}`} className="ta-link"><ExternalLink size={13} strokeWidth={1.75} /> Kunde öffnen</a>
-        ) : a.link && (a.link.startsWith("http") || a.link.startsWith("/agent")) ? (
-          <a href={a.link} target={a.link.startsWith("http") ? "_blank" : undefined} rel="noreferrer" className="ta-link"><ExternalLink size={13} strokeWidth={1.75} /> Öffnen</a>
-        ) : null}
+        {/* 06.09.2026: Aufträge aus dem Kundenbereich tragen den Link auf die Vorgangsseite
+            (/agent/app-vorgaenge/…) — der steht jetzt NEBEN „Kunde öffnen", nicht mehr dahinter
+            versteckt. Vorher blendete der Kunde-Knopf jeden weiteren Link aus. */}
+        {(() => {
+          const linkOk = !!a.link && (a.link.startsWith("http") || a.link.startsWith("/agent"));
+          const vorgang = !!a.link && a.link.startsWith("/agent/app-vorgaenge/");
+          return (
+            <>
+              {a.personId ? (
+                <a href={`/agent/pipeline?person=${a.personId}`} className="ta-link"><ExternalLink size={13} strokeWidth={1.75} /> Kunde öffnen</a>
+              ) : null}
+              {linkOk && (!a.personId || vorgang) ? (
+                <a href={a.link!} target={a.link!.startsWith("http") ? "_blank" : undefined} rel="noreferrer" className="ta-link" style={a.personId ? { marginLeft: 10 } : undefined}><ExternalLink size={13} strokeWidth={1.75} /> {vorgang ? "Vorgang öffnen" : "Öffnen"}</a>
+              ) : null}
+            </>
+          );
+        })()}
 
         {frageVonJustin && <div className="ta-kasten warn"><b>Justin fragt dich:</b> „{frageVonJustin.text}“</div>}
         {!frageVonJustin && letzteAntwort && a.status !== "erledigt" && (

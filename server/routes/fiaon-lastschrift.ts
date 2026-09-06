@@ -801,7 +801,9 @@ router.post("/gocardless/webhook", async (req: Request, res: Response) => {
         return res.status(498).json({ ok: false, error: "Signatur passt nicht." });
       }
     } else {
-      console.warn("[LASTSCHRIFT] Webhook ohne GOCARDLESS_WEBHOOK_SECRET — Signatur nicht geprüft.");
+      // 06.09.2026: fail-closed. Ohne Geheimnis wird KEINE Zahlungsmeldung angenommen — vorher lief sie ungeprüft durch.
+      console.error("[LASTSCHRIFT] Webhook ohne GOCARDLESS_WEBHOOK_SECRET — abgelehnt, bis das Geheimnis in der Umgebung liegt.");
+      return res.status(503).json({ ok: false, error: "Webhook nicht konfiguriert." });
     }
     for (const ev of (req.body?.events || []) as any[]) {
       // 02.09.2026: Die Erfüllung eines Billing Requests ist der verlässliche

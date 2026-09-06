@@ -1,30 +1,15 @@
 import { Router, Request, Response, NextFunction } from "express";
 import postgres from "postgres";
 import { logger } from "../logger";
+import { adminZugriff } from "../lib/fiaon-admin-wache";
 
 const router = Router();
 
 // Admin access check — accepts Passport-authenticated admins OR valid X-Admin-Token header.
 // This matches the security model of the rest of the admin section (URL-based access).
-const ADMIN_SECRET = process.env.ADMIN_TOKEN || "fiaon-admin-2024";
-
-function adminAccess(req: Request, res: Response, next: NextFunction) {
-  // Path 1: valid static admin token in header
-  const token = req.headers["x-admin-token"] as string | undefined;
-  if (token && token === ADMIN_SECRET) return next();
-
-  // Path 2: Passport session (user logged in via /login and has admin role)
-  const passportUserId = (req as any).user?.id;
-  const sessionUserId = (req.session as any)?.userId;
-  if (passportUserId || sessionUserId) return next();
-
-  // Path 3: isAuthenticated (Passport compatibility)
-  if ((req as any).isAuthenticated && (req as any).isAuthenticated()) return next();
-
-  return res.status(401).json({ error: "Unauthorized", message: "Admin access required" });
-}
-
-router.use(adminAccess);
+// 06.09.2026: kein festes Kennwort mehr im Quelltext — Admin-Code, Chef-Token „inhaber“ oder ADMIN_TOKEN
+// aus der Umgebung. Siehe lib/fiaon-admin-wache.ts.
+router.use(adminZugriff);
 
 // Lazy SQL client (reuses env var like other routes)
 function getSql() {

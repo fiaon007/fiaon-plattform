@@ -176,7 +176,8 @@ async function auftragSchliessen(schluessel: string, ergebnis: string): Promise<
                  WHERE schluessel = ${schluessel} AND status <> 'erledigt'`.catch(() => {});
 }
 
-const akteLink = (ref: string | null) => (ref ? `/admin/kunde/${encodeURIComponent(ref)}` : null);
+// 06.09.2026: Aufträge zeigen auf die Vorgangsseite des Teams — /admin ist für Mitarbeiter zu.
+const vorgangLink = (id: number | string) => `/agent/app-vorgaenge/${id}`;
 const azVon = (v: any) => String(v.aktenzeichen || `Vorgang #${v.id}`);
 
 /** Aus dem HTML des Schreibens ein Klartext für die Aufgabe — der Mitarbeiter liest ihn im Portal. */
@@ -296,7 +297,7 @@ async function schrittErinnern(): Promise<number> {
         titel: `${m.name}: Frist läuft in ${restTage} ${restTage === 1 ? "Tag" : "Tagen"} (${az}, Antwort bis ${frist})`,
         text: `Der Antrag „${String(v.titel || v.art)}“ (${az}, Vorgang #${id}) ging am ${tag(v.versandt_am) ?? "—"} an ${String(v.empfaenger_name || "die zuständige Stelle")}. Die Antwortfrist endet am ${frist}. Bitte prüfen, ob eine Antwort eingegangen ist (Postfach, Kundenakte) — wenn ja, unter dem Vorgang das Ergebnis eintragen. Wenn bis zur Frist nichts kommt, legt der Fristenwächter am Tag danach den Nachfass-Auftrag an.`,
         faelligAm: fristIso, dringend: false, schluessel, quelle: "kundenbereich", bereich: "pruefen",
-        link: akteLink(m.ref), autorName: "Fristenwächter",
+        link: vorgangLink(id), autorName: "Fristenwächter",
       });
       await ereignis(id, m.personId, "erinnert", `Fristenwächter: Mitarbeiter erinnert, Antwortfrist endet am ${frist}.`, `Die Antwortfrist endet am ${frist}. Sie müssen nichts tun.`);
       n++;
@@ -347,7 +348,7 @@ async function schrittNachfragen(): Promise<number> {
           titel: `${m.name}: Nachfassen (${az})`,
           text: `Der Antrag „${String(v.titel || v.art)}“ (${az}, Vorgang #${id}) ging am ${tag(v.versandt_am) ?? "—"} an ${String(v.empfaenger_name || "die zuständige Stelle")}; die Antwortfrist ${frist} ist verstrichen. Bitte den Entwurf der Nachfrage prüfen (Wir-Form – FIAON fragt als Übermittler nach, das deckt die Vollmacht), an die Stelle senden und danach im Vorgang „Nachgefragt“ quittieren – erst dann liest der Kunde „Wir haben nachgefragt“. Der Kunde sieht bis dahin: „${kundenSatz}“\n\n— Entwurf der Nachfrage —\n${entwurf}`,
           faelligAm: heute, dringend: false, schluessel, quelle: "kundenbereich", bereich: "pruefen",
-          link: akteLink(m.ref), autorName: "Fristenwächter",
+          link: vorgangLink(id), autorName: "Fristenwächter",
         });
       }
       n++;
@@ -386,7 +387,7 @@ async function schrittEskalieren(): Promise<number> {
       await todoMeldung(`eskalation:${id}`, {
         titel: `${m.name}: Keine Antwort nach Nachfrage (${az})`,
         text: `Der Antrag „${String(v.titel || v.art)}“ (${az}, Vorgang #${id}) ging am ${tag(v.versandt_am) ?? "—"} an ${String(v.empfaenger_name || "die zuständige Stelle")}. Frist ${tag(v.frist_am) ?? "—"} verstrichen, Nachfass-Auftrag am ${tag(v.erinnert_am) ?? "—"}${zust?.name ? ` an ${String(zust.name)}` : ""} — seither keine Antwort und kein Ergebnis im Vorgang. Bitte klären: Ist nachgefasst worden? Braucht der Kunde einen Anruf bei der Stelle? Ergebnis unter dem Vorgang eintragen.`,
-        bereich: "pruefen", link: akteLink(m.ref),
+        bereich: "pruefen", link: vorgangLink(id),
       }, { name: "Fristenwächter", agentId: null });
       n++;
     } catch (e: any) {

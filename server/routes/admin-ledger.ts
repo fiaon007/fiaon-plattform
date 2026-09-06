@@ -1,13 +1,10 @@
 import { Router } from "express";
 import { client } from "../db";
+import { adminZugriff } from "../lib/fiaon-admin-wache";
 
 const router = Router();
-const ADMIN_TOKEN = "fiaon-admin-2024";
-
-function requireAdminToken(req: any, res: any, next: any) {
-  if (req.headers["x-admin-token"] !== ADMIN_TOKEN) return res.status(401).json({ error: "Unauthorized" });
-  next();
-}
+// 06.09.2026: kein festes Kennwort mehr im Quelltext — siehe lib/fiaon-admin-wache.ts.
+const requireAdminToken = adminZugriff;
 
 // ─── Table setup ────────────────────────────────────────────────────────────
 export async function ensureLedgerTables() {

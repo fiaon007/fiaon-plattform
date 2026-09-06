@@ -325,7 +325,8 @@ router.post("/kunde/:ref/app/brief", requireKunde, (req, res, next) => {
       const erg = await auftragFuerKunden({
         personId: p.personId, ref: req.kundeRef!,
         titel: `${p.name}: ${dringend ? "EILIG – " : ""}Brief lesen und zuordnen (${aktenzeichen})`,
-        link: `/admin/kunde/${encodeURIComponent(req.kundeRef!)}`,
+        // 06.09.2026: Link auf die Vorgangsseite des Teams (/admin ist für Mitarbeiter zu).
+        link: `/agent/app-vorgaenge/${vorgangId}`,
         text: `Der Kunde hat einen Brief fotografiert und in seinem Bereich hochgeladen (${aktenzeichen}, Vorgang #${vorgangId}, ${seiten.length} ${seiten.length === 1 ? "Seite" : "Seiten"}, Dokumente #${dokIds.join(", #")}).${notiz ? ` Notiz des Kunden: „${notiz}“` : ""}${dringend ? " Der Kunde hat angegeben: Der Brief nennt eine Frist oder kommt von Gericht, Gerichtsvollzieher oder Inkasso." : ""} Bitte lesen, zuordnen und dem Kunden unter „Vorgänge“ in einem Satz sagen, was wir daraus machen. Frist: ${dringend ? "heute" : `zwei Werktage (${frist})`}.`,
         faelligAm: frist, dringend, schluessel: `app-brief:${vorgangId}`, quelle: "kundenbereich", bereich: "pruefen", autorName: "Kundenbereich",
       });

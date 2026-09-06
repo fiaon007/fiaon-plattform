@@ -1669,6 +1669,16 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     weiter: ["/sicherheit", "/impressum", "/agb"],
     krumen: [{ name: "Datenschutzerklärung", pfad: "/privacy" }],
   },
+  // 06.09.2026: der deutsche Pfad, den Mails und Kundenbereich verlinken — kanonisch bleibt /privacy.
+  "/datenschutz": {
+    pfad: "/datenschutz", art: "recht", stand: "2026-09-06", prio: 0.1, robots: "noindex,follow", canonical: "/privacy",
+    titel: "Datenschutzerklärung — FIAON",
+    beschreibung: "Welche Daten FIAON verarbeitet, auf welcher Rechtsgrundlage, wie lange wir sie speichern und welche Rechte Sie nach der DSGVO haben – bis zur Löschung.",
+    h1: "Datenschutzerklärung",
+    lead: "Welche Daten wir verarbeiten, auf welcher Rechtsgrundlage, wie lange wir sie speichern und welche Rechte Sie nach der DSGVO haben.",
+    weiter: ["/sicherheit", "/impressum", "/agb"],
+    krumen: [{ name: "Datenschutzerklärung", pfad: "/privacy" }],
+  },
   "/agb": {
     pfad: "/agb", art: "recht", stand: "2026-08-22", prio: 0.3,
     titel: "Allgemeine Geschäftsbedingungen (AGB) — FIAON",

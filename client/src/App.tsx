@@ -679,6 +679,9 @@ function Router() {
       <Route path="/plattform-konzept" component={PlattformKonzeptPage} />
       <Route path="/terms" component={Terms} />
       <Route path="/privacy" component={Privacy} />
+      {/* 06.09.2026: /datenschutz stand in jeder Kundenmail (geruest.ts), im Kundenbereich und auf
+          /sicherheit — und lief auf „Diese Seite existiert nicht". Alias auf dieselbe Seite. */}
+      <Route path="/datenschutz" component={Privacy} />
       <Route path="/impressum" component={ImpressumPage} />
       <Route path="/agb" component={AGBPage} />
       <Route path="/widerrufsbelehrung" component={WiderrufsbelehrungPage} />

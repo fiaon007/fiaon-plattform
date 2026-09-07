@@ -951,6 +951,18 @@ router.post("/admin/kunden/:ref/konditionen", async (req: Request, res: Response
     const changes: Array<{ field: string; from: string; to: string }> = [];
 
     // Limit (approved_limit) — reine Anzeige-/Portal-Größe, kein Geldfluss
+    // 07.09.2026 (Justin, Fall Mičuda): Das Wunschlimit hatte kein Verwaltungsfeld —
+    // der Kunde sah „Wunschlimit –", obwohl seine Auskunfts-Bestellung 25.000 nannte.
+    if (body.wantedLimit !== undefined) {
+      const v = Number(body.wantedLimit);
+      if (!Number.isFinite(v) || v < 0 || v > 500000) return res.status(400).json({ ok: false, error: "Wunschlimit ungültig (0 – 500.000 €)" });
+      const from = cur.wanted_limit != null ? String(cur.wanted_limit) : "—";
+      if (from !== String(v)) {
+        await sqlPool`UPDATE fiaon_applications SET wanted_limit = ${v}, updated_at = NOW() WHERE ref = ${ref}`;
+        await auditApp(ref, `Wunschlimit (wanted_limit) geändert durch Admin: ${from} € → ${v} €`);
+        changes.push({ field: "Wunschlimit", from: `${from} €`, to: `${v} €` });
+      }
+    }
     if (body.approvedLimit !== undefined) {
       const v = Number(body.approvedLimit);
       if (!Number.isFinite(v) || v < 0 || v > 500000) return res.status(400).json({ ok: false, error: "Limit ungültig (0 – 500.000 €)" });

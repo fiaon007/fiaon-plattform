@@ -5,7 +5,7 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
-## 07.09.2026 (nachmittags) — Zwei Prüfstände standen dauerhaft rot; beide sind es jetzt zu Recht nicht mehr (E-156)
+## 07.09.2026 (nachmittags) — Zwei Prüfstände standen dauerhaft rot; beide sind es jetzt zu Recht nicht mehr (E-157)
 
 ### Was geändert wurde
 **1. Die Bau-Wand meldete einen Deploy-Bruch, der keiner war.** `scripts/pruef-deploy.ts` liest die
@@ -29,7 +29,7 @@ System; für den Bau war es bereits der dritte Fehlalarm derselben Familie (nach
 ### Wo zu finden
 Nichts am Bildschirm. `npx tsx scripts/pruef-deploy.ts` → 9 ok, 0 rot; `--rot-probe` weiterhin
 bestanden (die Wand bricht bei einem echten Fehler immer noch); `npx tsx scripts/pruef-rollen.ts`
-→ 2 PASS, 0 FAIL. Register E-156.
+→ 2 PASS, 0 FAIL. Register E-157.
 
 ---
 

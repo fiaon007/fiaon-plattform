@@ -84,6 +84,26 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-09-07-heisse-leads-zuerst",
+    date: "2026-09-07",
+    category: "Verbessert",
+    title: "Pipeline: Die heißesten Menschen zuerst — Zusage, Termin, Rückruf, dann der frischeste Antrag",
+    summary: "Justin: „Gebt den Mitarbeitern die frischesten, heißesten Leads zuerst.“ Die feste Quote 2+2+2 je Stufe ist weg. „Neu für dich“ zeigt die sechs heißesten Menschen über alle Stufen, und neue Anträge gehen an die, die gerade Dienst haben und am besten abschließen.",
+    changes: [
+      "Reihenfolge in „Neu für dich“ und „Wieder dran“: 1. Zusage fällig oder Termin heute, 2. Rückruf fällig, 3. der jüngste Antrag oder die jüngste Zahlungsmeldung — am selben Tag zuerst, wer noch keinen Anruf hatte. Leads ohne Antrag kommen erst, wenn nichts Heißes mehr da ist.",
+      "Über dem Namen steht jetzt, warum der Mensch oben steht: „Antrag vor 12 Min · noch ohne Anruf“, „Zahlung gemeldet vor 2 Std“, „Zusage fällig“.",
+      "Der Pool gibt in derselben Reihenfolge nach — vorher bekamen Stufe A und B die ältesten zuerst.",
+      "Neue Anträge gehen an die, die gerade Dienst haben (deine Zeiten im Profil), verteilt nach Abschlussquote der letzten 60 Tage — nicht mehr an den mit den wenigsten Kunden.",
+      "Kunden ohne Mandat bei gesperrten Konten gehen sofort an den Nächsten — niemand wartet drei Wochen.",
+    ],
+    howto: [
+      "Pipeline öffnen, oben anfangen. Die kleine Zeile über dem Namen sagt dir, wie heiß er ist.",
+      "Zeiten pflegen: Wer keine Dienstzeit hinterlegt hat, bekommt keine neuen Anträge.",
+    ],
+    link: { href: "/agent/pipeline", label: "Pipeline öffnen" },
+    important: true,
+  },
+  {
     id: "2026-09-07-schulung-freigabe",
     date: "2026-09-07",
     category: "Neu",

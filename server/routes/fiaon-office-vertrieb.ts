@@ -43,6 +43,7 @@ import { wartetSql } from "../lib/fiaon-warten";
 import { ensureKartenSpalten } from "../lib/fiaon-kartenstatus";
 import { ensureBetreuungSpalte } from "../lib/tier";
 import { rohSlots, dauerFuer } from "../lib/fiaon-termine";
+import { gesperrteFreigeben } from "../lib/fiaon-zuteilung";
 
 const router = Router();
 
@@ -263,29 +264,102 @@ async function mandatsZahlen(agentId: number): Promise<{ anzahl: number; ids: nu
   return { anzahl: rows.length, ids: rows.map((r) => Number(r.id)) };
 }
 
-/** Die drei Gruppen der Arbeitsliste — Übersetzung des vorhandenen priority_tier. */
-const GRUPPEN: { key: string; tier: number }[] = [
-  { key: "bezahlt_gemeldet", tier: 1 },
-  { key: "rechnung_offen", tier: 2 },
-  { key: "lead", tier: 3 },
-];
-const JE_GRUPPE = 2;
+// ═══════════════════════════════════════════════════════════════════════════
+// HITZE STATT STUFEN-QUOTE (07.09.2026, E-162 — Justin: „gebe den Mitarbeitern
+// die frischesten, heißesten Leads zuerst")
+//
+// ── VORHER ──────────────────────────────────────────────────────────────
+// Sechs Plätze, fest 2 je Stufe (Zahlung gemeldet / Rechnung offen / Lead).
+// Gemessen am 07.09. über 14 Tage: 320 von 386 Anrufen an „Zahlung gemeldet"
+// gingen an Meldungen, die älter als 14 Tage waren — davon zahlen noch 4,5 %.
+// Zwei der sechs Plätze hielten Leads ohne Antrag, die praktisch nie angerufen
+// wurden (3 Einträge in 14 Tagen). Und der Pool gab Stufe 1 und 2 ÄLTESTE
+// zuerst heraus.
+//
+// ── DIE ZAHLEN, DIE DIE REIHENFOLGE BESTIMMEN (90 Tage, 2.439 Anträge) ──
+//   erster Kontakt < 1 h  27,6 %  ·  1–4 h  34,0 %  ·  4–24 h  27,3 %
+//   1–3 Tage  24,6 %  ·  > 3 Tage  12,4 %  ·  nie kontaktiert  0 %
+//   Zahlungsmeldung: 36 % zahlen binnen 1 Tag, nach 7 Tagen noch 9 %, nach
+//   14 Tagen 4,5 %. Abgebrochene Anträge: 0 von 421 zahlten — egal wie
+//   schnell angerufen wurde.
+//
+// ── NACHHER ─────────────────────────────────────────────────────────────
+// EINE Liste über alle Stufen, sortiert nach Hitze:
+//   1. Zusage fällig oder Termin heute
+//   2. Rückruf fällig
+//   3. das jüngste Ereignis zuerst (Antrag gestellt oder Zahlung gemeldet);
+//      am selben Tag zuerst, wer noch keinen Anruf hatte
+//   Stufe 3 (abgebrochen, ohne Antrag) kommt erst, wenn nichts Heißes da ist.
+// Der Pool gibt in derselben Reihenfolge heraus. Die Zähler je Stufe bleiben.
+// ═══════════════════════════════════════════════════════════════════════════
 const SLOTS = 6;
+/** Zusage fällig: der Kunde hat ein Zahlungsdatum genannt, das erreicht ist. */
+const ZUSAGE_SQL = `(p.promised_payment_date IS NOT NULL AND p.promised_payment_date <= ${HEUTE})`;
+/** Rückruf fällig: ein zugesagter Rückruf, dessen Zeitpunkt erreicht ist. */
+const RUECKRUF_SQL = `EXISTS (
+  SELECT 1 FROM fiaon_contact_log cl JOIN fiaon_applications a3 ON a3.ref = cl.ref
+  WHERE a3.person_id = p.id AND cl.outcome = 'rueckruf_termin' AND cl.done_at IS NULL
+    AND cl.voided_at IS NULL AND cl.scheduled_at IS NOT NULL AND cl.scheduled_at <= NOW())`;
+/** Termin heute beim angemeldeten Mitarbeiter ($1). */
+const TERMIN_HEUTE_SQL = `EXISTS (
+  SELECT 1 FROM fiaon_termine tz WHERE tz.person_id = p.id AND tz.agent_id = $1 AND tz.status = 'gebucht'
+    AND tz.abgesagt_am IS NULL AND (tz.beginn AT TIME ZONE 'Europe/Berlin')::date = ${HEUTE})`;
+/** Das jüngste Ereignis: Antrag gestellt oder Zahlung gemeldet (sonst Anlage der Person). */
+const EREIGNIS_SQL = `GREATEST(
+  COALESCE((SELECT MAX(a4.created_at) FROM fiaon_applications a4 WHERE a4.person_id = p.id AND a4.merged_into IS NULL), p.created_at),
+  COALESCE((SELECT MAX(a5.claimed_paid_at) FROM fiaon_applications a5 WHERE a5.person_id = p.id AND a5.merged_into IS NULL
+              AND a5.payment_status = 'claimed_paid'), p.created_at),
+  p.created_at)`;
+/** Noch kein Gesprächsergebnis zu diesem Menschen — niemand hat ihn je angerufen. */
+const NIE_SQL = `NOT EXISTS (
+  SELECT 1 FROM fiaon_contact_log cn WHERE cn.type = 'result' AND cn.voided_at IS NULL
+    AND (cn.person_id = p.id OR cn.ref IN (SELECT an.ref FROM fiaon_applications an WHERE an.person_id = p.id)))`;
+/** Felder für die Karte: warum steht dieser Mensch hier? */
+const HITZE_SQL = `${ZUSAGE_SQL} AS zusage_faellig, ${RUECKRUF_SQL} AS rueckruf_faellig, ${TERMIN_HEUTE_SQL} AS termin_heute,
+  ${EREIGNIS_SQL} AS ereignis_am, ${NIE_SQL} AS nie_gesprochen`;
+/** Die Reihenfolge — für „Neu für dich", „Wieder dran" dieselbe (braucht $1 = Mitarbeiter). */
+const HITZE_ORDNUNG = `
+  CASE WHEN ${ZUSAGE_SQL} OR ${TERMIN_HEUTE_SQL} THEN 0 WHEN ${RUECKRUF_SQL} THEN 1 ELSE 2 END,
+  CASE WHEN p.priority_tier = 3 THEN 1 ELSE 0 END,
+  (${EREIGNIS_SQL} AT TIME ZONE 'Europe/Berlin')::date DESC,
+  CASE WHEN ${NIE_SQL} THEN 0 ELSE 1 END,
+  COALESCE(p.unreachable_count, 0) ASC,
+  ${EREIGNIS_SQL} DESC,
+  p.id DESC`;
+/** Pool-Reihenfolge (ohne Termin-Bezug): Stufe 3 zuletzt, jüngstes Ereignis zuerst. */
+const POOL_ORDNUNG = `
+  CASE WHEN p.priority_tier = 3 THEN 1 ELSE 0 END,
+  ${EREIGNIS_SQL} DESC,
+  p.id DESC`;
+/** Hitze-Felder → Karte („Antrag vor 12 Min · noch ohne Anruf"). */
+function hitzeVon(r: any) {
+  const tier = Number(r.priority_tier);
+  const art = r.zusage_faellig === true ? "zusage" : r.termin_heute === true ? "termin" : r.rueckruf_faellig === true ? "rueckruf"
+    : tier === 1 ? "zahlung_gemeldet" : tier === 2 ? "antrag" : r.tier_reason === "antrag_abgebrochen" ? "abbruch" : "lead";
+  const am = r.ereignis_am ? new Date(r.ereignis_am).getTime() : NaN;
+  return {
+    art,
+    seitMin: Number.isFinite(am) ? Math.max(0, Math.round((Date.now() - am) / 60_000)) : null,
+    nieGesprochen: r.nie_gesprochen === true,
+  };
+}
+/** Die Gruppe der Karte — Übersetzung des vorhandenen priority_tier. */
+const gruppeVon = (tier: number) => (tier === 1 ? "bezahlt_gemeldet" : tier === 2 ? "rechnung_offen" : "lead");
 
 /**
- * Zieht Nachschub aus dem Kundenpool, bis der Mitarbeiter je Stufe wieder
- * zwei arbeitbare Menschen hat. Läuft vor jedem Aufbau der Arbeitsliste.
+ * Zieht Nachschub aus dem Kundenpool, wenn der Mitarbeiter in „Neu für dich"
+ * weniger als SLOTS arbeitbare Menschen hat. Läuft vor jedem Aufbau der Liste.
  *
- * Drei Schutzregeln:
+ * Schutzregeln:
  *  1. Testkonten ziehen NIE — sonst griffe das Prüfkonto nach echten Kunden.
- *  2. Diana (531) zieht nicht, solange ihr Arbeitssystem ungeklärt ist.
+ *  2. Schulung oder aus der Verteilung genommen: kein Nachschub (E-161).
  *  3. Liegengelassenes fällt zurück: Wer zieht und drei Tage lang nichts tut
  *     (kein Verlaufseintrag, kein Termin, kein Mandat), gibt den Menschen
  *     wortlos an den Pool zurück. So sperrt kein Urlaub den Nachschub.
+ *  4. Gesperrte Konten halten keine Kunden ohne Mandat (E-162, gesperrteFreigeben).
  *
- * Reihenfolge im Pool: Leads (Stufe 3) NEUESTE zuerst — die Abschlussquote
- * fällt mit jeder Stunde seit der Anfrage (Speed-to-Lead). Stufe 1 und 2
- * ÄLTESTE zuerst — diese Menschen warten auf uns, nicht umgekehrt.
+ * Reihenfolge im Pool (E-162): jüngstes Ereignis zuerst, über alle Stufen,
+ * Stufe 3 zuletzt. Vorher bekamen Stufe 1 und 2 die ÄLTESTEN zuerst.
  */
 const POOL_RUECKFALL_TAGE = 3;
 /** Angefangen und liegen gelassen — nach drei Wochen gehört der Mensch wieder allen. */
@@ -297,6 +371,8 @@ async function poolNachschub(me: number, istTestkonto: boolean): Promise<void> {
   // stand hier eine feste Mitarbeiter-Nummer (531, Diana).
   const [a] = (await sqlPool`SELECT COALESCE(schulung_offen, FALSE) AS schulung, COALESCE(distribution_active, TRUE) AS verteilung FROM fiaon_agents WHERE id = ${me}`.catch(() => [])) as any[];
   if (a && (a.schulung || !a.verteilung)) return;
+  // E-162: Was bei gesperrten Konten ohne Mandat liegt, geht sofort an den Nächsten.
+  await gesperrteFreigeben(sqlPool, 40);
 
   // ── ZWEI RÜCKFÄLLE, NICHT EINER (26.08.2026, Florentines Punkt 9) ────────
   // „In der Pipeline sollten grundsätzlich keine festen Betreuer bei den
@@ -338,30 +414,30 @@ async function poolNachschub(me: number, istTestkonto: boolean): Promise<void> {
              p.assigned_at
            ) < NOW() - INTERVAL '${POOL_LIEGEN_TAGE} days'`);
 
-  for (const g of GRUPPEN) {
-    const [zeile] = (await sqlPool.unsafe(`
-      SELECT COUNT(*)::int AS n FROM fiaon_persons p
-       WHERE p.assigned_agent_id = $1 AND p.merged_into_person_id IS NULL
-         AND p.ist_test_am IS NULL AND NOT p.is_blocked
-         AND NOT ${ruhtSql("p")} AND NOT ${wartetSql("p")}
-         AND (p.follow_up_date IS NULL OR p.follow_up_date <= ${HEUTE})
-         AND NOT EXISTS (SELECT 1 FROM fiaon_termine tz WHERE tz.person_id = p.id
-               AND tz.status = 'gebucht' AND tz.abgesagt_am IS NULL AND tz.beginn > NOW())
-         AND p.priority_tier = ${g.tier}`, [me])) as any[];
-    const fehlt = JE_GRUPPE - Number(zeile?.n ?? 0);
-    if (fehlt <= 0) continue;
-    await sqlPool.unsafe(`
-      UPDATE fiaon_persons SET assigned_agent_id = $1, assigned_at = NOW(), betreuung_seit = COALESCE(betreuung_seit, NOW())
-       WHERE id IN (
-         SELECT p.id FROM fiaon_persons p
-          WHERE p.assigned_agent_id IS NULL AND p.mandat_seit IS NULL
-            AND p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL
-            AND NOT p.is_blocked AND NOT ${ruhtSql("p")} AND NOT ${wartetSql("p")}
-            AND p.priority_tier = ${g.tier}
-          ORDER BY p.created_at ${g.tier === 3 ? "DESC" : "ASC"}
-          LIMIT ${fehlt}
-          FOR UPDATE SKIP LOCKED)`, [me]);
-  }
+  // ── Nachschub nach Hitze (E-162): erst wenn „Neu für dich" nicht voll ist ──
+  const [zeile] = (await sqlPool.unsafe(`
+    SELECT COUNT(*)::int AS n FROM fiaon_persons p
+     WHERE p.assigned_agent_id = $1 AND p.merged_into_person_id IS NULL
+       AND p.ist_test_am IS NULL AND NOT p.is_blocked
+       AND NOT ${ruhtSql("p")} AND NOT ${wartetSql("p")}
+       AND (p.follow_up_date IS NULL OR p.follow_up_date <= ${HEUTE})
+       AND COALESCE(p.unreachable_count, 0) = 0
+       AND NOT EXISTS (SELECT 1 FROM fiaon_termine tz WHERE tz.person_id = p.id
+             AND tz.status = 'gebucht' AND tz.abgesagt_am IS NULL AND tz.beginn > NOW())
+       AND p.priority_tier BETWEEN 1 AND 3`, [me])) as any[];
+  const fehlt = SLOTS - Number(zeile?.n ?? 0);
+  if (fehlt <= 0) return;
+  await sqlPool.unsafe(`
+    UPDATE fiaon_persons SET assigned_agent_id = $1, assigned_at = NOW(), betreuung_seit = COALESCE(betreuung_seit, NOW())
+     WHERE id IN (
+       SELECT p.id FROM fiaon_persons p
+        WHERE p.assigned_agent_id IS NULL AND p.mandat_seit IS NULL
+          AND p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL
+          AND NOT p.is_blocked AND NOT ${ruhtSql("p")} AND NOT ${wartetSql("p")}
+          AND p.priority_tier BETWEEN 1 AND 3
+        ORDER BY ${POOL_ORDNUNG}
+        LIMIT ${fehlt}
+        FOR UPDATE SKIP LOCKED)`, [me]);
 }
 
 router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentRequest, res: Response) => {
@@ -517,24 +593,9 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
     // Kaltkontakten messbar wirkt. Danach der Rest, jüngster Antrag zuerst,
     // und wer oft nicht erreichbar war, sinkt ab.
     // ═══════════════════════════════════════════════════════════════════
-    const ordnung = `
-      CASE
-        WHEN p.promised_payment_date IS NOT NULL AND p.promised_payment_date <= ${HEUTE} THEN 0
-        WHEN EXISTS (
-          SELECT 1 FROM fiaon_contact_log cl JOIN fiaon_applications a3 ON a3.ref = cl.ref
-          WHERE a3.person_id = p.id AND cl.outcome = 'rueckruf_termin' AND cl.done_at IS NULL
-            AND cl.voided_at IS NULL AND cl.scheduled_at IS NOT NULL AND cl.scheduled_at <= NOW()
-        ) THEN 1
-        WHEN COALESCE(p.unreachable_count, 0) = 0 THEN 2
-        ELSE 3
-      END,
-      COALESCE(p.unreachable_count, 0) ASC,
-      COALESCE(
-        (SELECT MAX(a4.created_at) FROM fiaon_applications a4
-          WHERE a4.person_id = p.id AND a4.merged_into IS NULL),
-        p.created_at
-      ) DESC NULLS LAST,
-      p.id DESC`;
+    // 07.09.2026 (E-162): Die Ordnung heißt jetzt Hitze und steht oben in
+    // HITZE_ORDNUNG — Zusage/Termin, Rückruf, jüngstes Ereignis; Stufe 3 zuletzt.
+    const ordnung = HITZE_ORDNUNG;
 
     // §16: Vollständigkeit als Spalten direkt an der Karte — dieselbe Regel
     // wie kundeVollstaendig(), damit die 6 Slots keinen zweiten Weg brauchen.
@@ -550,12 +611,13 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
          AND a.id_card_pdf IS NOT NULL)) AS voll_kunde`;
 
     const mandate = await mandatsZahlen(me);
-    const [g1, g2, g3, zaehlerR, gWieder] = await Promise.all([
-      ...GRUPPEN.map((g) => sqlPool.unsafe(
-        `SELECT ${KARTE_SQL}, p.mandat_seit, ${VOLL_SQL} FROM fiaon_persons p
-         WHERE ${basis} AND p.priority_tier = ${g.tier}
+    const [gSlots, zaehlerR, gWieder] = await Promise.all([
+      // E-162: keine Töpfe mehr — die sechs Plätze sind die sechs heißesten Menschen.
+      sqlPool.unsafe(
+        `SELECT ${KARTE_SQL}, p.mandat_seit, ${VOLL_SQL}, ${HITZE_SQL} FROM fiaon_persons p
+         WHERE ${basis} AND p.priority_tier BETWEEN 1 AND 3
          ORDER BY ${ordnung} LIMIT ${SLOTS}`, [me],
-      )),
+      ),
       sqlPool.unsafe(
         `SELECT
            COUNT(*) FILTER (WHERE p.priority_tier = 1)::int AS bezahlt_gemeldet,
@@ -564,29 +626,20 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
          FROM fiaon_persons p WHERE ${basis}`, [me],
       ),
       sqlPool.unsafe(
-        `SELECT ${KARTE_SQL}, p.mandat_seit, ${VOLL_SQL}, COALESCE(p.unreachable_count, 0) AS versuche, ${WIEDER_GRUND_SQL}
+        `SELECT ${KARTE_SQL}, p.mandat_seit, ${VOLL_SQL}, COALESCE(p.unreachable_count, 0) AS versuche, ${WIEDER_GRUND_SQL}, ${HITZE_SQL}
          FROM fiaon_persons p
          WHERE ${basisWieder} AND p.priority_tier BETWEEN 1 AND 3
          ORDER BY ${ordnung} LIMIT ${SLOTS}`, [me],
       ),
     ]);
     const wieder = (gWieder as any[]).map((r) => ({
-      gruppe: Number(r.priority_tier) === 1 ? "bezahlt_gemeldet" : Number(r.priority_tier) === 2 ? "rechnung_offen" : "lead",
-      kunde: { ...karte(r), mandatSeit: r.mandat_seit ?? null, vollstaendig: !!r.voll_kunde, wiederGrund: String(r.wieder_grund), versuche: Number(r.versuche || 0) },
+      gruppe: gruppeVon(Number(r.priority_tier)),
+      kunde: { ...karte(r), mandatSeit: r.mandat_seit ?? null, vollstaendig: !!r.voll_kunde, wiederGrund: String(r.wieder_grund), versuche: Number(r.versuche || 0), hitze: hitzeVon(r) },
     }));
-
-    const toepfe: { key: string; rows: any[] }[] = [
-      { key: "bezahlt_gemeldet", rows: g1 as any[] },
-      { key: "rechnung_offen", rows: g2 as any[] },
-      { key: "lead", rows: g3 as any[] },
-    ];
-    const slot = (key: string, r: any) => ({
-      gruppe: key,
-      kunde: { ...karte(r), mandatSeit: r.mandat_seit ?? null, vollstaendig: !!r.voll_kunde },
-    });
-    const slots: { gruppe: string; kunde: any }[] = [];
-    for (const t of toepfe) for (const r of t.rows.splice(0, JE_GRUPPE)) slots.push(slot(t.key, r));
-    for (const t of toepfe) while (slots.length < SLOTS && t.rows.length > 0) slots.push(slot(t.key, t.rows.shift()));
+    const slots: { gruppe: string; kunde: any }[] = (gSlots as any[]).map((r) => ({
+      gruppe: gruppeVon(Number(r.priority_tier)),
+      kunde: { ...karte(r), mandatSeit: r.mandat_seit ?? null, vollstaendig: !!r.voll_kunde, hitze: hitzeVon(r) },
+    }));
 
     const z = (zaehlerR as any[])[0] || {};
     res.json({

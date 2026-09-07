@@ -38,45 +38,158 @@ type Lauf = typeof sqlPool;
  * Wer 30 Stufe-A-Fälle hat, ist beschäftigt, auch wenn gerade ein Stufe-B-Fall
  * zu vergeben wäre.
  */
-export async function agentMitKleinsterLast(lauf: Lauf = sqlPool): Promise<number | null> {
-  const [a] = (await lauf`
-    SELECT a.id,
-           COUNT(p.id) FILTER (WHERE p.priority_tier BETWEEN 1 AND 3 AND NOT p.is_blocked)::int AS last
+// ═══════════════════════════════════════════════════════════════════════════
+// WER BEKOMMT DEN NÄCHSTEN FRISCHEN ANTRAG? (07.09.2026, E-162)
+//
+// ── DER BEFUND ──────────────────────────────────────────────────────────
+// Bis heute galt: „der Mitarbeiter mit den wenigsten Kunden". Seit der Hand-
+// verteilung vom 04.09. halten Daniel, Florentine und Nikita je 800–1.200
+// Leads — also ging JEDER neue Antrag an den, der gerade am wenigsten hatte:
+// am 04.09. sechzehn an Viktoria (Schulung), danach an Hans-Jürgen und Rifka.
+// Gemessen (Anträge 10.08.–02.09., bezahlt binnen 7 Tagen): Nikita 10,3 %,
+// Daniel 8,8 %, Florentine 8,7 % — Hans-Jürgen 3,7 %, Rifka 4,2 %. Der
+// frischeste Antrag ist der wertvollste (28 % Zahlquote beim Anruf binnen
+// 24 h, 12 % nach drei Tagen) und landete beim schwächsten Abschluss.
+//
+// ── DIE REGEL ───────────────────────────────────────────────────────────
+// 1. Nur wer jetzt arbeiten kann: aktiv, in Verteilung, nicht gesperrt, nicht
+//    in Schulung, Zeiten hinterlegt, Rolle Vertrieb (11.08.2026: Inkasso-
+//    Konten hatten null Kunden und bekamen deshalb jeden Lead).
+// 2. Wer gerade Dienst hat (Zeiten decken den Moment), geht vor — der Antrag
+//    soll in Minuten angerufen werden, nicht morgen früh. Hat niemand Dienst,
+//    zählen alle.
+// 3. Verteilt wird im Verhältnis der Abschlussquote der letzten 60 Tage
+//    (bezahlt binnen 7 Tagen nach Antrag). Gezählt wird die FRISCHE Last:
+//    offene Anträge der letzten 7 Tage — nicht der Lead-Berg. Es gewinnt,
+//    wer die kleinste Zahl (frisch + 1) / Quote hat. Unter 25 Anträgen im
+//    Fenster gilt der Team-Schnitt; die Quote hat einen Boden von 3 %, damit
+//    niemand auf null fällt.
+// Die Tabelle ist unter GET /admin/team/verteilung einsehbar.
+// ═══════════════════════════════════════════════════════════════════════════
+export interface VerteilungsZeile {
+  agentId: number; name: string; imDienst: boolean; frisch: number;
+  quote: number; quoteQuelle: "gemessen" | "team"; antraege: number; bezahlt: number;
+  personen: number; rang: number;
+}
+const QUOTE_MIN_ANTRAEGE = 25;
+const QUOTE_BODEN = 0.03;
+const DIENST_SQL = `EXISTS (
+  SELECT 1 FROM fiaon_agent_verfuegbarkeit v
+   WHERE v.agent_id = a.id AND COALESCE(v.aktiv, TRUE)
+     AND v.wochentag = EXTRACT(ISODOW FROM (NOW() AT TIME ZONE 'Europe/Berlin'))::int
+     AND (NOW() AT TIME ZONE 'Europe/Berlin')::time BETWEEN v.von AND v.bis)`;
+
+export async function verteilungsTabelle(lauf: Lauf = sqlPool): Promise<VerteilungsZeile[]> {
+  const rows = (await lauf.unsafe(`
+    SELECT a.id, COALESCE(NULLIF(a.first_name, ''), a.name) AS name,
+           ${DIENST_SQL} AS im_dienst,
+           (SELECT COUNT(*)::int FROM fiaon_persons p
+             WHERE p.assigned_agent_id = a.id AND p.merged_into_person_id IS NULL AND NOT p.is_blocked
+               AND p.priority_tier BETWEEN 1 AND 2
+               AND EXISTS (SELECT 1 FROM fiaon_applications x WHERE x.person_id = p.id AND x.merged_into IS NULL
+                             AND x.created_at > NOW() - INTERVAL '7 days')) AS frisch,
+           (SELECT COUNT(*)::int FROM fiaon_persons p
+             WHERE p.assigned_agent_id = a.id AND p.merged_into_person_id IS NULL AND NOT p.is_blocked
+               AND p.priority_tier BETWEEN 1 AND 3) AS personen,
+           q.antraege, q.bezahlt
     FROM fiaon_agents a
-    LEFT JOIN fiaon_persons p
-      ON p.assigned_agent_id = a.id AND p.merged_into_person_id IS NULL
+    LEFT JOIN LATERAL (
+      SELECT COUNT(*)::int AS antraege,
+             COUNT(*) FILTER (WHERE x.paid_at IS NOT NULL AND x.paid_at < x.created_at + INTERVAL '7 days')::int AS bezahlt
+      FROM fiaon_applications x JOIN fiaon_persons px ON px.id = x.person_id
+      WHERE COALESCE(x.assigned_agent_id, px.assigned_agent_id) = a.id
+        AND x.merged_into IS NULL AND px.ist_test_am IS NULL
+        AND x.created_at BETWEEN NOW() - INTERVAL '67 days' AND NOW() - INTERVAL '7 days') q ON TRUE
     WHERE a.active AND a.distribution_active AND NOT a.is_test_account AND a.zugang_gesperrt_am IS NULL
-      -- 04.09.2026 (E-120): Nur, wer Zeiten hinterlegt hat — sonst landet der
-      -- Kunde bei jemandem, bei dem er nie einen Termin bekommt (Florentine).
+      AND COALESCE(a.schulung_offen, FALSE) = FALSE
       AND EXISTS (SELECT 1 FROM fiaon_agent_verfuegbarkeit v WHERE v.agent_id = a.id AND COALESCE(v.aktiv, TRUE))
-      -- ══════════════════════════════════════════════════════════════════
-      -- NUR VERTRIEB BEKOMMT VERTRIEBSKUNDEN
-      --
-      -- ── DER BEFUND (11.08.2026) ───────────────────────────────────────
-      -- Der Vorgesetzte: „Die Abteilung Forderungsmanagement hat Kunden
-      -- drinnen, die die Agenten abgelehnt haben oder auf nicht erreicht.
-      -- Das ist falsch!"
-      --
-      -- Gemessen: Beide Inkasso-Mitarbeiter hatten je 11 Vertriebskunden —
-      -- 22 insgesamt, mit Stufen wie „zahlungsfrist_abgelaufen" und
-      -- „antrag_abgeschlossen". Sie kamen von Nikita Boychenko (9), Daniel
-      -- Stripling (8) und Lucas Böhnert (3).
-      --
-      -- Die Ursache stand HIER: Diese Abfrage prüfte „distribution_active“
-      -- und „active“, aber NICHT die Rolle. Ein neu angelegtes
-      -- Inkasso-Konto ist aktiv und hat null Kunden — also war es immer
-      -- „der Agent mit der kleinsten Last" und bekam jeden neuen Lead.
-      --
-      -- Ohne diese Zeile wären es morgen wieder mehr. Die Bereinigung der
-      -- 22 bestehenden Fälle ist der zweite Schritt; dieser hier ist der
-      -- erste, sonst schöpft man aus einem laufenden Hahn.
-      -- ══════════════════════════════════════════════════════════════════
       AND COALESCE(a.rolle, 'agent') IN ('agent', 'vertriebsleiter')
-    GROUP BY a.id
-    ORDER BY last ASC, a.id ASC
-    LIMIT 1
-  `) as any[];
-  return a ? Number(a.id) : null;
+    ORDER BY a.id`)) as any[];
+  const gemessen = rows.filter((r) => Number(r.antraege || 0) >= QUOTE_MIN_ANTRAEGE);
+  const teamN = gemessen.reduce((s, r) => s + Number(r.antraege || 0), 0);
+  const teamB = gemessen.reduce((s, r) => s + Number(r.bezahlt || 0), 0);
+  const teamQuote = teamN > 0 ? teamB / teamN : 0.08;
+  const zeilen: VerteilungsZeile[] = rows.map((r) => {
+    const n = Number(r.antraege || 0);
+    const gem = n >= QUOTE_MIN_ANTRAEGE;
+    const quote = Math.max(QUOTE_BODEN, gem ? Number(r.bezahlt || 0) / n : teamQuote);
+    return {
+      agentId: Number(r.id), name: String(r.name), imDienst: r.im_dienst === true, frisch: Number(r.frisch || 0),
+      quote, quoteQuelle: gem ? "gemessen" : "team", antraege: n, bezahlt: Number(r.bezahlt || 0),
+      personen: Number(r.personen || 0), rang: 0,
+    };
+  });
+  const jemandImDienst = zeilen.some((z) => z.imDienst);
+  const kandidaten = jemandImDienst ? zeilen.filter((z) => z.imDienst) : zeilen;
+  const last = (z: VerteilungsZeile) => (z.frisch + 1) / z.quote;
+  [...kandidaten]
+    .sort((x, y) => (last(x) - last(y)) || (x.personen - y.personen) || (x.agentId - y.agentId))
+    .forEach((z, i) => { z.rang = i + 1; });
+  return zeilen.sort((x, y) => ((x.rang || 99) - (y.rang || 99)) || (x.agentId - y.agentId));
+}
+
+/** Der Nächste nach der Verteilungsregel — null, wenn niemand verteilen darf. */
+export async function agentMitKleinsterLast(lauf: Lauf = sqlPool): Promise<number | null> {
+  const erster = (await verteilungsTabelle(lauf)).find((z) => z.rang === 1);
+  return erster ? erster.agentId : null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GESPERRTE KONTEN HALTEN KEINE KUNDEN OHNE MANDAT (07.09.2026, E-162)
+//
+// Gemessen am 07.09.: Rifka, Viktoria und Angelique sind seit dem 04.09.
+// gesperrt (Schulung) — und hielten 99 unbezahlte Anträge aus den letzten
+// 14 Tagen. Der Rückfall in den Pool griff nicht: Er wartet drei Tage ohne
+// jeden Kontakt oder 21 Tage nach dem letzten — alle drei hatten angerufen.
+// Also lag der heißeste Bestand drei Wochen bei Menschen, die sich nicht
+// anmelden können.
+//
+// Regel: Ohne Mandat bleibt bei einem gesperrten Konto nichts liegen. Stufe 1
+// und 2 gehen sofort an den Nächsten nach der Verteilungsregel, Stufe 3 in
+// den Pool. Mandate bleiben — die verteilt eine Kündigung um (E-158).
+// Läuft vor jedem Aufbau der Arbeitsliste, höchstens `hoechstens` je Lauf.
+// ═══════════════════════════════════════════════════════════════════════════
+export async function gesperrteFreigeben(
+  lauf: Lauf = sqlPool, hoechstens = 40,
+): Promise<{ geprueft: number; verteilt: number; pool: number }> {
+  const out = { geprueft: 0, verteilt: 0, pool: 0 };
+  try {
+    const rows = (await lauf.unsafe(`
+      SELECT p.id, p.priority_tier, p.assigned_agent_id, COALESCE(NULLIF(a.first_name, ''), a.name) AS von
+        FROM fiaon_persons p JOIN fiaon_agents a ON a.id = p.assigned_agent_id
+       WHERE a.zugang_gesperrt_am IS NOT NULL AND p.mandat_seit IS NULL
+         AND p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL AND NOT p.is_blocked
+         AND p.priority_tier BETWEEN 1 AND 3
+       ORDER BY p.priority_tier ASC, p.id DESC
+       LIMIT $1`, [hoechstens])) as any[];
+    for (const r of rows) {
+      out.geprueft++;
+      const frei = (await lauf`
+        UPDATE fiaon_persons SET assigned_agent_id = NULL, assigned_at = NULL, updated_at = NOW()
+         WHERE id = ${Number(r.id)} AND assigned_agent_id = ${Number(r.assigned_agent_id)} AND mandat_seit IS NULL
+         RETURNING id`) as any[];
+      if (frei.length === 0) continue;
+      let an = "den Pool";
+      if ([1, 2].includes(Number(r.priority_tier))) {
+        const e = await sofortZuteilen(Number(r.id), lauf);
+        if (e.zugeteilt) { out.verteilt++; an = `Mitarbeiter ${e.agentId}`; } else out.pool++;
+      } else out.pool++;
+      const [ref] = (await lauf`
+        SELECT ref FROM fiaon_applications WHERE person_id = ${Number(r.id)} AND merged_into IS NULL AND archived_at IS NULL
+        ORDER BY created_at DESC LIMIT 1`) as any[];
+      if (ref) {
+        await lauf`
+          INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note, created_at)
+          VALUES (${ref.ref}, NULL, 'System', 'system',
+                  ${`Bestand von ${r.von} freigegeben (Zugang gesperrt, kein Mandat) → ${an}. Ein frischer Antrag wartet nicht drei Wochen.`},
+                  NOW())`.catch(() => {});
+      }
+    }
+    if (out.geprueft > 0) console.log(`[ZUTEILUNG] gesperrte Bestände: ${out.geprueft} geprüft, ${out.verteilt} verteilt, ${out.pool} in den Pool.`);
+  } catch (err) {
+    console.error("[ZUTEILUNG] gesperrteFreigeben:", err instanceof Error ? err.message : err);
+  }
+  return out;
 }
 
 export interface ZuteilungsErgebnis {
@@ -189,6 +302,9 @@ export async function sofortZuteilen(
         const [ag] = (await lauf`
           SELECT id, name FROM fiaon_agents
           WHERE id = ${dokumentiert.agentId} AND active AND NOT is_test_account
+            -- E-162: Ein gesperrtes oder in Schulung befindliches Konto kann nicht arbeiten —
+            -- der Besitzschutz gilt nur für Menschen, die anrufen können.
+            AND zugang_gesperrt_am IS NULL AND COALESCE(schulung_offen, FALSE) = FALSE
             AND COALESCE(rolle, 'agent') IN ('agent', 'vertriebsleiter')
         `) as any[];
         if (ag) {

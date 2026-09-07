@@ -5,6 +5,31 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 07.09.2026 (spät) — Die heißesten Leads zuerst: Hitze statt Stufen-Quote, Verteilung nach Abschluss, gesperrte Bestände frei (E-162)
+
+**Was geändert wurde:**
+**1. Arbeitsliste** (server/routes/fiaon-office-vertrieb.ts): Die feste Quote 2+2+2 je Stufe ist weg. „Neu für dich“ und
+„Wieder dran“ zeigen die sechs heißesten Menschen über alle Stufen: 1. Zusage fällig oder Termin heute, 2. Rückruf fällig,
+3. jüngstes Ereignis (Antrag gestellt oder Zahlung gemeldet, `claimed_paid_at`), am selben Tag zuerst wer noch kein
+Gesprächsergebnis hat; Stufe 3 zuletzt. Die Karte bekommt `hitze { art, seitMin, nieGesprochen }` — die Pipeline zeigt
+„Antrag vor 12 Min · noch ohne Anruf“ über dem Namen und in der Fokus-Pille. Pool-Nachschub: nur wenn „Neu für dich“
+nicht voll ist, dann in derselben Reihenfolge (vorher: Stufe 1/2 ÄLTESTE zuerst).
+**2. Sofortzuteilung** (server/lib/fiaon-zuteilung.ts): `agentMitKleinsterLast` zählt nicht mehr alle Kunden, sondern
+die frische Last (offene Anträge der letzten 7 Tage) und teilt sie durch die Abschlussquote der letzten 60 Tage (bezahlt
+binnen 7 Tagen; unter 25 Anträgen Team-Schnitt; Boden 3 %). Wer gerade Dienst hat (Zeiten), geht vor. Schulung und
+Sperre schließen aus — auch beim Besitzschutz (dokumentierter Betreuer). Tabelle: `GET /admin/team/verteilung`.
+**3. Gesperrte Bestände** (`gesperrteFreigeben`): Kunden ohne Mandat bei gesperrten Konten gehen sofort an den Nächsten
+(Stufe 1/2) oder in den Pool (Stufe 3), mit Verlaufseintrag. Läuft vor jedem Aufbau einer Arbeitsliste (40 je Lauf) und
+von Hand über `POST /admin/team/gesperrte-freigeben`.
+**Warum:** Justin (07.09.): „Wir brauchen DRINGEND mehr Umsatz — gebe den Mitarbeitern die frischesten, heißesten Leads
+zuerst.“ Gemessen: Zahlquote 28 % beim Anruf binnen 24 h, 12 % nach drei Tagen; 320 von 386 Anrufen an „Zahlung
+gemeldet“ gingen an Meldungen älter als 14 Tage (4,5 % zahlen noch); seit der Handverteilung vom 04.09. ging jeder neue
+Antrag an das Konto mit den wenigsten Kunden — Viktoria (Schulung), Hans-Jürgen, Rifka (3,7–4,2 % Abschluss statt
+9–10 %); 99 frische Anträge lagen bei drei gesperrten Konten.
+**Wo:** Pipeline; Rundgang Pipeline; Team-Update 2026-09-07-heisse-leads-zuerst; Register E-162.
+
+---
+
 ## 07.09.2026 (nachts) — Schulung mit Freigabe (Besprechung 06.09., E-161)
 
 **Was geändert wurde:** fiaon_agents bekommt `trainer`, `schulung_offen`, `schulung_freigabe_am/von`. requireAgent

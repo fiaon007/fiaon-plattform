@@ -712,6 +712,43 @@ router.post("/admin/agents/bank-changes/ack", async (_req, res) => {
 
 // ═══════════════ TEAM: Statistik (K) ═══════════════
 
+// ═══════════════════════════════════════════════════════════════════════════
+// E-162 (07.09.2026): WER BEKOMMT DEN NÄCHSTEN FRISCHEN ANTRAG?
+// Die Tabelle hinter der Sofortzuteilung — Dienst, frische Last, Abschluss-
+// quote, Rang. Nur lesen; die Regel steht in server/lib/fiaon-zuteilung.ts.
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/admin/team/verteilung", async (_req, res) => {
+  try {
+    await ensureAgentTables();
+    const { verteilungsTabelle } = await import("../lib/fiaon-zuteilung");
+    const zeilen = await verteilungsTabelle();
+    res.json({
+      ok: true,
+      regel: "Nur wer arbeiten kann (aktiv, in Verteilung, nicht gesperrt, nicht in Schulung, Zeiten hinterlegt, Rolle Vertrieb). "
+        + "Wer gerade Dienst hat, geht vor. Dann gewinnt die kleinste Zahl (frische Anträge der letzten 7 Tage + 1) geteilt durch die "
+        + "Abschlussquote der letzten 60 Tage (bezahlt binnen 7 Tagen; unter 25 Anträgen Team-Schnitt; Boden 3 %). Rang 1 bekommt den nächsten Antrag.",
+      zeilen,
+    });
+  } catch (err) {
+    console.error("[TEAM] verteilung:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// E-162: Von Hand anstoßen, was sonst beim nächsten Aufbau einer Arbeitsliste läuft —
+// Kunden ohne Mandat bei gesperrten Konten gehen sofort an den Nächsten (Stufe 1/2) oder in den Pool (Stufe 3).
+router.post("/admin/team/gesperrte-freigeben", async (_req, res) => {
+  try {
+    await ensureAgentTables();
+    const { gesperrteFreigeben } = await import("../lib/fiaon-zuteilung");
+    const ergebnis = await gesperrteFreigeben(sqlPool, 200);
+    res.json({ ok: true, ...ergebnis });
+  } catch (err) {
+    console.error("[TEAM] gesperrte-freigeben:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 router.get("/admin/team/stats", async (_req, res) => {
   const nurTest = String(_req.query?.test ?? "") === "1";
   const kontenGrenze = nurTest ? nurTestkontenSql() : echteMitarbeiterSql();

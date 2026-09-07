@@ -29,7 +29,9 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
     titel: "Hier verdienst du dein Geld.",
     text: "Die Pipeline ist dein Arbeitsraum für alles, was noch KEIN Mandat ist: Menschen, die "
       + "sich gemeldet haben, die einen Antrag offen haben oder die eine Zahlung angekündigt haben. "
-      + "Du arbeitest sie von oben nach unten ab — die Reihenfolge macht das System, nicht du.",
+      + "Du arbeitest sie von oben nach unten ab — die Reihenfolge macht das System, nicht du. "
+      + "Seit dem 07.09. heißt die Reihenfolge Hitze: Zusage und Termin zuerst, dann fällige Rückrufe, "
+      + "dann der frischeste Antrag — Minuten schlagen Tage. Leads ohne Antrag kommen erst, wenn nichts Heißes mehr da ist.",
     tipp: "Wer morgens die Pipeline leerarbeitet und erst danach in andere Räume geht, hat den besten Monat.",
   },
   {
@@ -37,7 +39,8 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
     titel: "Die Karte oben ist dein nächster Anruf.",
     text: "Sie zeigt dir, wer dran ist, in welcher Lage der Mensch steckt und was dich das Gespräch "
       + "wert ist: den Vertragswert über zwölf Raten und deine Provision daraus. Der Satz darunter "
-      + "sagt dir in einem Zug, warum genau dieser Mensch jetzt oben steht.",
+      + "sagt dir in einem Zug, warum genau dieser Mensch jetzt oben steht. Die kleine Zeile über dem Namen "
+      + "sagt, wie heiß er ist — „Antrag vor 12 Min · noch ohne Anruf“ ist das Beste, was dir passieren kann.",
     tipp: "Lies den Satz einmal laut, bevor du wählst. Dann weißt du im ersten Moment des Gesprächs, worum es geht.",
   },
   {

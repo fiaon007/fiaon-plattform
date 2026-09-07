@@ -198,6 +198,8 @@ export interface Kunde {
   // ── E-044/§16a: vom Vertriebs-Router geliefert ──
   mandatSeit?: string | null;
   vollstaendig?: boolean;
+  /** E-162: warum dieser Mensch jetzt oben steht — Art, Alter des Ereignisses, noch ohne Anruf. */
+  hitze?: { art: string; seitMin: number | null; nieGesprochen: boolean } | null;
 }
 
 type Zaehler = Record<string, number>;
@@ -283,6 +285,27 @@ function terminText(beginn: string): string {
   if (tag === inBerlin(new Date(Date.now() + 86_400_000))) return `Morgen ${uhr}`;
   if (tag === inBerlin(new Date(Date.now() - 86_400_000))) return `Gestern ${uhr}`;
   return d.toLocaleDateString("de-DE", { timeZone: "Europe/Berlin", weekday: "short", day: "2-digit", month: "2-digit" }) + ` ${uhr}`;
+}
+/** E-162: Der Hitze-Satz über dem Namen — „Antrag vor 12 Min · noch ohne Anruf". */
+function hitzeText(k: Kunde): string | null {
+  const h = k.hitze;
+  if (!h) return null;
+  const her = (m: number | null) => {
+    if (m == null) return "";
+    if (m < 60) return ` vor ${Math.max(1, m)} Min`;
+    if (m < 24 * 60) return ` vor ${Math.round(m / 60)} Std`;
+    const t = Math.round(m / 1440);
+    return t <= 1 ? " gestern" : ` vor ${t} Tagen`;
+  };
+  const kern = h.art === "zusage" ? "Zusage fällig"
+    : h.art === "termin" ? "Termin heute"
+    : h.art === "rueckruf" ? "Rückruf fällig"
+    : h.art === "zahlung_gemeldet" ? `Zahlung gemeldet${her(h.seitMin)}`
+    : h.art === "antrag" ? `Antrag${her(h.seitMin)}`
+    : h.art === "abbruch" ? `Antrag abgebrochen${her(h.seitMin)}`
+    : "Lead ohne Antrag";
+  const fest = h.art === "zusage" || h.art === "termin" || h.art === "rueckruf";
+  return h.nieGesprochen && !fest ? `${kern} · noch ohne Anruf` : kern;
 }
 function rueckrufFaellig(k: Kunde): boolean {
   if (k.rueckrufAm && new Date(k.rueckrufAm).getTime() <= Date.now()) return true;
@@ -1018,7 +1041,7 @@ function ArbeitsFokus({ k, gruppe, satz, geht, onAkte, onEntfernen }: {
     <div className="pi-fokus-buehne" ref={buehne} onMouseMove={neigen} onMouseLeave={geradeStellen}>
     <div className={`pi-fokus-karte kompakt${geht ? " geht" : " tief"}`} style={{ ["--hitze" as string]: faellig ? "#f87171" : st.farbe }}>
       <div className="pi-fokus-kopf">
-        <span className="pi-pille">{faellig ? "Rückruf fällig" : "Jetzt anrufen"}</span>
+        <span className="pi-pille">{faellig ? "Rückruf fällig" : (hitzeText(k) ?? "Jetzt anrufen")}</span>
         <button type="button" className="pi-link" style={{ color: "#64748b" }} onClick={onEntfernen} title="Karteileiche? Sperren statt löschen – mit Rückfrage.">Entfernen</button>
       </div>
       <h1>{k.name}</h1>
@@ -1057,7 +1080,7 @@ function KleineKarte({ k, gruppe, geht, onFokus, onAkte, onEntfernen }: {
           : (k as any).wiederGrund === "termin" ? "Termin heute"
           : (k as any).wiederGrund === "rueckruf" ? "Rückruf vereinbart"
           : (k as any).wiederGrund === "nicht_erreicht" ? `Nicht erreicht · ${(k as any).versuche || 1}× versucht`
-          : info.name}</small></span>
+          : (hitzeText(k) ?? info.name)}</small></span>
         <b>{k.name}</b>
         <span className="pi-ak-fuss">{(k.buchungen ?? []).find((b) => !b.erledigt && b.art === "paket")?.bezeichnung || k.produkt || "kein Paket"} · {wartezeit(k.letzterKontakt)}</span>
       </button>

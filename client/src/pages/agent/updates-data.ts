@@ -101,7 +101,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
       "Kunde in der Akte öffnen → Reiter „Überblick“ → Karte „Mein FIAON“. Sie lädt von selbst.",
       "Girokonto: Knopf „Girokonto eröffnet“ → Datum wählen (Standard heute) → Eintragen. Steht es schon, sagt dir die Karte, wer es gemeldet hat.",
       "Ansprüche: im Startgespräch den Schritt „Ansprüche prüfen“ aufklappen, Frage vorlesen, Antwort antippen. Was schon im Antrag steht, nur bestätigen lassen. Am Ende die Liste vorlesen: „Das können Sie beantragen. Über den Betrag entscheidet die Stelle.“",
-      "Portal ansehen: Akte → „Portal ansehen“ → neuer Tab. Beenden über die blaue Leiste oben.",
+      "Portal ansehen: Akte → Reiter „Antrag“ → „Portal ansehen als …“ → neuer Tab. Beenden über die blaue Leiste oben. (Die Kopfzeile ganz oben hat denselben Knopf, die sieht aber nur die Leitung.)",
     ],
     link: { href: "/agent/kundenbereich-neu", label: "Was neu ist — die Übersicht" },
     important: true,

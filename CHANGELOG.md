@@ -41,6 +41,9 @@ Zugriff aufs Kundenportal.
 ### Wo zu finden
 Akte → Überblick → „Mein FIAON“; Startgespräch-Cockpit → „Ansprüche prüfen“; Kundenbereich →
 Mehr → Passwort; Register E-154, E-155; Agenten-Eintrag 2026-09-07-kundenbereich-akte.
+**Portal ansehen** liegt für JEDEN Mitarbeiter in der Akte unter Reiter „Antrag“ → „Portal ansehen
+als …“. Die Kopfzeile über den Reitern trägt denselben Knopf, erscheint aber nur mit Leitungsrecht
+(`darfVerschieben`) — Rundgang und Klickweg zeigten zunächst dorthin und sind nachgeschärft.
 
 ---
 

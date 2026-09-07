@@ -114,7 +114,11 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
       + "Sagt er dir am Telefon „bei mir steht 5 von 11“, kannst du es bestätigen, ohne den Raum zu wechseln. "
       + "Der Knopf „Girokonto eröffnet“ trägt die Kontoeröffnung mit Datum ein; er sieht den Schritt sofort. "
       + "Die 10 € Kontoprovision entstehen davon nicht — die kommen nur mit der Bestätigung des Partners.",
-    tipp: "„Portal ansehen“ daneben öffnet sein Portal zum Mitlesen — nur bei deinen eigenen Kunden, nur lesend, 30 Minuten.",
+    // 07.09.2026 nachgeschärft: „daneben“ zeigte auf die Kopfzeile der Leitung —
+    // die sieht ein Betreuer gar nicht (LeitungsZeile rendert nur mit
+    // darfVerschieben). Der Knopf, den JEDER Mitarbeiter hat, steht im Reiter
+    // „Antrag“ und heißt „Portal ansehen als <Vorname>“.
+    tipp: "Im Reiter „Antrag“ steht „Portal ansehen als …“ — damit liest du in seinem Portal mit. Nur bei deinen eigenen Kunden, nur lesend, 30 Minuten.",
   },
 ];
 

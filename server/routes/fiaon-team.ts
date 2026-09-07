@@ -1482,7 +1482,7 @@ router.post("/admin/team/umverteilen", async (req, res) => {
          WHERE person_id = ${personId} AND merged_into IS NULL`;
       const t = (await sqlPool`
         UPDATE fiaon_termine
-           SET agent_id = ${zielId}, uebergeben_am = NOW(), uebergeben_von = ${quelle.name},
+           SET agent_id = ${zielId}, uebergeben_am = NOW(), uebergeben_von = ${von},
                uebergeben_grund = ${grund}, updated_at = NOW()
          WHERE person_id = ${personId} AND agent_id = ${von} AND beginn > NOW()
            AND COALESCE(status, '') NOT IN ('storniert', 'abgesagt', 'erledigt')

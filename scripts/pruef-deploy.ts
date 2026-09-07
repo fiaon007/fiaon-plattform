@@ -74,6 +74,29 @@ async function main(): Promise<void> {
   // und Fehlalarme sind der Anfang vom Ende einer Wand. Hinter `npx` steht das
   // eigentliche Werkzeug, also wird eins weitergelesen.
   const LAUFZEIT = new Set(["npm", "npx", "node", "cd", "rm", "cp", "mkdir", "bash", "sh"]);
+
+  // ── EIN PFAD IN node_modules IST KEIN PAKETNAME (07.09.2026) ──────────
+  // Der dritte Fehlalarm derselben Familie — nach `npx` und nach `NAME=wert`.
+  // `pdf:browser` ruft Playwright seit dem PDF-Notfall über die Datei auf:
+  //   node node_modules/playwright/cli.js install chromium
+  // Diese Ableitung nahm das erste Nicht-Laufzeit-Wort und meldete
+  // „`node_modules/playwright/cli.js` steht in keiner der beiden Listen" —
+  // obwohl `playwright` in dependencies steht (1.57.0) und der Bau in der
+  // sauberen Kopie einwandfrei durchlief. Die Wand stand also rot vor einem
+  // Deploy, der funktioniert, und genau das schaltet Wände ab.
+  //
+  // Wichtig: Der Pfad wird NICHT übersprungen, sondern auf das Paket
+  // zurückgeführt. Verschwindet `playwright` eines Tages aus dependencies,
+  // schlägt die Wand weiterhin an — nur eben mit dem richtigen Namen.
+  // `node_modules/.bin/tsc` ergibt `tsc` — dasselbe Wort, das `npx tsc` liefern
+  // würde. Ein Programmname ist nicht immer der Paketname (`tsc` gehört zu
+  // `typescript`); dann meldet die Wand den Programmnamen. Das ist ein Name,
+  // mit dem ein Mensch etwas anfangen kann — `.bin` wäre keiner.
+  function paketAus(wort: string): string {
+    const m = wort.match(/(?:^|\/)node_modules\/(?:\.bin\/([^/]+)|(@[^/]+\/[^/]+|[^/@.][^/]*))(?:\/|$)/);
+    return m ? (m[1] ?? m[2]) : wort;
+  }
+
   function werkzeugAus(befehl: string): string | null {
     const teile = befehl.trim().split(/\s+/)
       .filter((x) => !x.startsWith("-"))
@@ -90,7 +113,7 @@ async function main(): Promise<void> {
       // Werkzeug.
       .filter((x) => !/^[A-Z_][A-Z0-9_]*=/.test(x));
     for (const t of teile) {
-      if (!LAUFZEIT.has(t)) return t;
+      if (!LAUFZEIT.has(t)) return paketAus(t);
       // `npx playwright …` → playwright. `npm run x` wird oben aufgelöst.
       if (t === "npm") return null;
     }

@@ -5,6 +5,34 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 07.09.2026 (nachmittags) — Zwei Prüfstände standen dauerhaft rot; beide sind es jetzt zu Recht nicht mehr (E-156)
+
+### Was geändert wurde
+**1. Die Bau-Wand meldete einen Deploy-Bruch, der keiner war.** `scripts/pruef-deploy.ts` liest die
+Werkzeuge aus dem Build-Befehl, statt eine Liste zu pflegen. Seit dem PDF-Notfall ruft
+`npm run pdf:browser` Playwright über die Datei auf (`node node_modules/playwright/cli.js`). Die
+Ableitung nahm diesen PFAD für einen Paketnamen und meldete „steht in keiner der beiden Listen" —
+obwohl `playwright` in dependencies steht (1.57.0) und der Bau in der sauberen Kopie durchlief.
+Ein Pfad wird jetzt auf sein Paket zurückgeführt (`node_modules/<paket>/…` → `<paket>`, auch für
+`@scope/paket` und `node_modules/.bin/<programm>`).
+**2. Ein Etikett, das keine Rolle ist.** `server/lib/fiaon-kundenweg.ts` setzte als Rückfall für eine
+unbekannte Zuständigkeit `rolle: "vertrieb"`. Die Datenbank kennt diese Rolle nicht, deshalb stand
+`scripts/pruef-rollen.ts` dauerhaft rot. Der Wert wird an genau einer Stelle gelesen — für das Wort,
+mit dem der Mitarbeiter die zuständige Person dem Kunden nennt. Jetzt `"agent"`: derselbe Zweig
+(„Betreuung"), dieselbe Anzeige, nur eine Rolle, die es gibt.
+
+### Warum
+Eine Wand, die bei funktionierendem Zustand rot leuchtet, wird abgeschaltet oder überlesen — dann
+fängt sie den echten Fehler nicht mehr. Beide Befunde waren Fehlalarme der Prüfung, kein Mangel am
+System; für den Bau war es bereits der dritte Fehlalarm derselben Familie (nach `npx` und `NAME=wert`).
+
+### Wo zu finden
+Nichts am Bildschirm. `npx tsx scripts/pruef-deploy.ts` → 9 ok, 0 rot; `--rot-probe` weiterhin
+bestanden (die Wand bricht bei einem echten Fehler immer noch); `npx tsx scripts/pruef-rollen.ts`
+→ 2 PASS, 0 FAIL. Register E-156.
+
+---
+
 ## 07.09.2026 — Kundenbereich in der Akte, Ansprüche im Startgespräch, Girokonto-Schritt echt (E-154) · Chefbüro für die Geschäftsführung, Portal ansehen für Betreuer (E-155)
 
 ### Was geändert wurde

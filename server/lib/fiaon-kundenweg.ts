@@ -278,7 +278,23 @@ export async function kundenwegLesen(personId: number | null, ref: string | null
       const { auftragEmpfaenger } = await import("../routes/fiaon-betreiber-todo");
       const z = await zustaendigeRolle(personId);
       const e = await auftragEmpfaenger(personId);
-      zustaendig = { rolle: z?.rolle ?? "vertrieb", name: e.name, kundenName: e.kundenName };
+      // ── DER RÜCKFALL IST EIN ETIKETT, KEIN ROUTING (07.09.2026) ────────
+      // Hier stand "vertrieb". Das ist keine Mitarbeiter-Rolle: Die Datenbank
+      // kennt agent | onboarding | inkasso | vertriebsleiter | admin | chef,
+      // und scripts/pruef-rollen.ts meldete die Stelle deshalb dauerhaft rot.
+      //
+      // Gelesen wird `zustaendig.rolle` an GENAU EINER Stelle, weiter unten in
+      // dieser Datei: für das Wort, mit dem der Mitarbeiter die zuständige
+      // Person dem Kunden nennt — "inkasso" wird zu Forderungsmanagement,
+      // "onboarding" zu Onboarding, alles andere zu Betreuung. Nichts hier
+      // steuert eine Zuteilung. "agent" landet in genau demselben Zweig wie
+      // vorher "vertrieb": Betreuung. Am Bildschirm ändert sich kein Zeichen,
+      // die Wand ist grün, und das Etikett ist jetzt eine Rolle, die es gibt.
+      //
+      // NICHT "vertriebsleiter" nehmen: Der Rückfall greift, wenn die
+      // Zuständigkeit UNBEKANNT ist. Wer dann eine Leitung ausweist, sagt dem
+      // Kunden etwas Falsches über die Person, die ihn betreut.
+      zustaendig = { rolle: z?.rolle ?? "agent", name: e.name, kundenName: e.kundenName };
     } catch { /* ohne Zuständigkeit weiter */ }
   }
 

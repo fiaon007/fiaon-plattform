@@ -58,6 +58,11 @@ gemeldet“ gingen an Meldungen älter als 14 Tage (4,5 % zahlen noch); seit der
 Antrag an das Konto mit den wenigsten Kunden — Viktoria (Schulung), Hans-Jürgen, Rifka (3,7–4,2 % Abschluss statt
 9–10 %); 99 frische Anträge lagen bei drei gesperrten Konten.
 **Wo:** Pipeline; Rundgang Pipeline; Team-Update 2026-09-07-heisse-leads-zuerst; Register E-162.
+**Nachtrag (7ad6604 + Folgecommit):** Massen-Freigabe und Neuverteilung ohne Dienst-Vorrang (`dienstZuerst=false`) —
+der erste Lauf legte 73 Kunden beim einzigen Diensthabenden ab. Massenläufe führen einen Laufzähler (`zusatz`), damit
+sich die Last innerhalb des Laufs verteilt; das Zuteilungsdatum zu zählen war falsch (Lucas' 1.169 Kunden vom 07.09.
+sahen bei Daniel/Florentine wie frische Arbeit aus, 63 von 73 gingen erneut an Nikita). Neu: `POST /admin/team/
+neu-verteilen { personIds, grund }` (fiaon-zuteilung.ts `neuVerteilen`).
 
 ---
 

@@ -83,17 +83,22 @@ const DIENST_SQL = `EXISTS (
  * @param dienstZuerst true = der Antrag soll JETZT angerufen werden (Sofortzuteilung): wer Dienst hat, geht vor.
  *                     false = Massen-Freigabe oder Neuverteilung: nur Last und Quote zählen — sonst landet
  *                     abends alles beim Einzigen, der noch Dienst hat (07.09.: 73 Kunden auf einmal bei Nikita).
+ * @param zusatz      Laufzähler eines Massenlaufs: was in DIESEM Lauf schon vergeben wurde, zählt als Last dazu.
+ *                     Ohne ihn bewegt ein Lauf mit alten Anträgen die frische Last nicht und alles geht an Rang 1.
+ *                     (Zuteilungsdatum zu zählen war der falsche Weg: Lucas' 1.169 Kunden vom 07.09. sahen bei
+ *                     Daniel und Florentine wie frische Arbeit aus — 63 von 73 gingen wieder an Nikita.)
  */
-export async function verteilungsTabelle(lauf: Lauf = sqlPool, dienstZuerst = true): Promise<VerteilungsZeile[]> {
+export async function verteilungsTabelle(
+  lauf: Lauf = sqlPool, dienstZuerst = true, zusatz: Record<number, number> = {},
+): Promise<VerteilungsZeile[]> {
   const rows = (await lauf.unsafe(`
     SELECT a.id, COALESCE(NULLIF(a.first_name, ''), a.name) AS name,
            ${DIENST_SQL} AS im_dienst,
            (SELECT COUNT(*)::int FROM fiaon_persons p
              WHERE p.assigned_agent_id = a.id AND p.merged_into_person_id IS NULL AND NOT p.is_blocked
                AND p.priority_tier BETWEEN 1 AND 2
-               AND (p.assigned_at > NOW() - INTERVAL '7 days'
-                    OR EXISTS (SELECT 1 FROM fiaon_applications x WHERE x.person_id = p.id AND x.merged_into IS NULL
-                                 AND x.created_at > NOW() - INTERVAL '7 days'))) AS frisch,
+               AND EXISTS (SELECT 1 FROM fiaon_applications x WHERE x.person_id = p.id AND x.merged_into IS NULL
+                             AND x.created_at > NOW() - INTERVAL '7 days')) AS frisch,
            (SELECT COUNT(*)::int FROM fiaon_persons p
              WHERE p.assigned_agent_id = a.id AND p.merged_into_person_id IS NULL AND NOT p.is_blocked
                AND p.priority_tier BETWEEN 1 AND 3) AS personen,
@@ -127,7 +132,7 @@ export async function verteilungsTabelle(lauf: Lauf = sqlPool, dienstZuerst = tr
   });
   const jemandImDienst = dienstZuerst && zeilen.some((z) => z.imDienst);
   const kandidaten = jemandImDienst ? zeilen.filter((z) => z.imDienst) : zeilen;
-  const last = (z: VerteilungsZeile) => (z.frisch + 1) / z.quote;
+  const last = (z: VerteilungsZeile) => (z.frisch + (zusatz[z.agentId] || 0) + 1) / z.quote;
   [...kandidaten]
     .sort((x, y) => (last(x) - last(y)) || (x.personen - y.personen) || (x.agentId - y.agentId))
     .forEach((z, i) => { z.rang = i + 1; });
@@ -135,8 +140,10 @@ export async function verteilungsTabelle(lauf: Lauf = sqlPool, dienstZuerst = tr
 }
 
 /** Der Nächste nach der Verteilungsregel — null, wenn niemand verteilen darf. */
-export async function agentMitKleinsterLast(lauf: Lauf = sqlPool, dienstZuerst = true): Promise<number | null> {
-  const erster = (await verteilungsTabelle(lauf, dienstZuerst)).find((z) => z.rang === 1);
+export async function agentMitKleinsterLast(
+  lauf: Lauf = sqlPool, dienstZuerst = true, zusatz: Record<number, number> = {},
+): Promise<number | null> {
+  const erster = (await verteilungsTabelle(lauf, dienstZuerst, zusatz)).find((z) => z.rang === 1);
   return erster ? erster.agentId : null;
 }
 
@@ -159,6 +166,7 @@ export async function gesperrteFreigeben(
   lauf: Lauf = sqlPool, hoechstens = 40,
 ): Promise<{ geprueft: number; verteilt: number; pool: number }> {
   const out = { geprueft: 0, verteilt: 0, pool: 0 };
+  const zusatz: Record<number, number> = {};
   try {
     const rows = (await lauf.unsafe(`
       SELECT p.id, p.priority_tier, p.assigned_agent_id, COALESCE(NULLIF(a.first_name, ''), a.name) AS von
@@ -177,7 +185,7 @@ export async function gesperrteFreigeben(
       if (frei.length === 0) continue;
       let an = "den Pool";
       if ([1, 2].includes(Number(r.priority_tier))) {
-        const e = await sofortZuteilen(Number(r.id), lauf, false);
+        const e = await sofortZuteilen(Number(r.id), lauf, false, zusatz);
         if (e.zugeteilt) { out.verteilt++; an = `Mitarbeiter ${e.agentId}`; } else out.pool++;
       } else out.pool++;
       const [ref] = (await lauf`
@@ -215,7 +223,7 @@ export interface ZuteilungsErgebnis {
  *             sie ausgelöst hat, und überlebt dessen Rücknahme.
  */
 export async function sofortZuteilen(
-  personId: number, lauf: Lauf = sqlPool, dienstZuerst = true,
+  personId: number, lauf: Lauf = sqlPool, dienstZuerst = true, zusatz: Record<number, number> = {},
 ): Promise<ZuteilungsErgebnis> {
   try {
     const [p] = (await lauf`
@@ -335,7 +343,7 @@ export async function sofortZuteilen(
       console.log(`[ZUTEILUNG] Person ${personId}: betreuung_seit gesetzt, aber kein echter Betreuer — wird verteilt.`);
     }
 
-    const agentId = await agentMitKleinsterLast(lauf, dienstZuerst);
+    const agentId = await agentMitKleinsterLast(lauf, dienstZuerst, zusatz);
     if (!agentId) return { zugeteilt: false, agentId: null, grund: "kein verteilender Mitarbeiter aktiv" };
 
     // `AND assigned_agent_id IS NULL` im UPDATE: Zwei gleichzeitige Ereignisse
@@ -367,6 +375,7 @@ export async function sofortZuteilen(
                 NOW())
       `.catch(() => {});
     }
+    zusatz[agentId] = (zusatz[agentId] || 0) + 1;
     console.log(`[ZUTEILUNG] Person ${personId} (Tier ${p.priority_tier}) → Agent ${agentId}`);
     return { zugeteilt: true, agentId, grund: "sofort zugeteilt" };
   } catch (err) {
@@ -409,6 +418,7 @@ export async function neuVerteilen(
   personIds: number[], grund: string, lauf: Lauf = sqlPool,
 ): Promise<{ geprueft: number; verteilt: number; pool: number; je: Record<string, number> }> {
   const out = { geprueft: 0, verteilt: 0, pool: 0, je: {} as Record<string, number> };
+  const zusatz: Record<number, number> = {};
   for (const id of personIds.slice(0, 500)) {
     out.geprueft++;
     const [p] = (await lauf`
@@ -421,7 +431,7 @@ export async function neuVerteilen(
                 WHERE id = ${Number(p.id)} AND mandat_seit IS NULL`;
     let an = "den Pool";
     if ([1, 2].includes(Number(p.priority_tier))) {
-      const e = await sofortZuteilen(Number(p.id), lauf, false);
+      const e = await sofortZuteilen(Number(p.id), lauf, false, zusatz);
       if (e.zugeteilt) { out.verteilt++; an = `Mitarbeiter ${e.agentId}`; out.je[String(e.agentId)] = (out.je[String(e.agentId)] || 0) + 1; }
       else out.pool++;
     } else out.pool++;

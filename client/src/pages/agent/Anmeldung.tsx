@@ -40,7 +40,7 @@ export default function Anmeldung({ onLogin }: { onLogin: (a: { name: string; em
   const [umbau, setUmbau] = useState(false);
   const [umbauName, setUmbauName] = useState("");
   // 04.09.2026 (E-123): Zugang vorübergehend gesperrt — richtiges Passwort, Tür zu, Grund sichtbar.
-  const [gesperrt, setGesperrt] = useState<{ vorname: string; grund: string | null } | null>(null);
+  const [gesperrt, setGesperrt] = useState<{ vorname: string; grund: string | null; gekuendigt?: boolean } | null>(null);
   const [uhr, setUhr] = useState(() => new Date());
   useEffect(() => { if (!umbau && !gesperrt) return; const i = setInterval(() => setUhr(new Date()), 1000); return () => clearInterval(i); }, [umbau, gesperrt]);
   const formular = useRef<HTMLDivElement>(null);
@@ -53,7 +53,7 @@ export default function Anmeldung({ onLogin }: { onLogin: (a: { name: string; em
     setLaeuft(false);
     if (r.ok) { onLogin(r.json.agent); window.location.reload(); }
     else if (r.json?.umbau) { setUmbauName(String(r.json?.vorname || "")); setUmbau(true); }
-    else if (r.json?.gesperrt) { setGesperrt({ vorname: String(r.json?.vorname || ""), grund: r.json?.grund ? String(r.json.grund) : null }); }
+    else if (r.json?.gesperrt) { setGesperrt({ vorname: String(r.json?.vorname || ""), grund: r.json?.grund ? String(r.json.grund) : null, gekuendigt: r.json?.gekuendigt === true }); }
     else setFehler(r.json?.error || "Anmeldung fehlgeschlagen – bitte E-Mail und Passwort prüfen.");
   };
   const zuruecksetzen = async (e: React.FormEvent) => {
@@ -64,6 +64,22 @@ export default function Anmeldung({ onLogin }: { onLogin: (a: { name: string; em
   };
   const zumFormular = () => formular.current?.scrollIntoView({ behavior: "smooth", block: "center" });
 
+  // 07.09.2026 (Justin): Kündigung — der Abschluss steht genau hier, wo sich der
+  // Mitarbeiter anmelden wollte: Unterlagen, Abrechnung, Auszahlung folgen in den
+  // kommenden Tagen an dieser Stelle. Kein „vorübergehend", kein „zurück zur Anmeldung".
+  if (gesperrt?.gekuendigt) return (
+    <div className="aa aa-umbau">
+      <div className="aa-bild" aria-hidden="true"><img src="/office/flur.jpg" alt="" decoding="async" /><div className="aa-schleier" /></div>
+      <header className="aa-kopf"><a href="/" className="aa-wort">FIAON</a><span className="aa-marke">Mitarbeiterbereich</span></header>
+      <section className="aa-umbau-buehne">
+        <div className="aa-kugel" aria-hidden="true"><NeuralSphere variant="calm" className="absolute inset-0" /></div>
+        <span className="aa-pille">Zugang beendet · {uhr.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} Uhr</span>
+        <h1>{gesperrt.vorname ? <>Deine Zeit bei FIAON ist beendet, <span className="aa-verlauf">{gesperrt.vorname}.</span></> : <>Deine Zeit bei FIAON ist <span className="aa-verlauf">beendet.</span></>}</h1>
+        <p>Deine Kündigungsunterlagen, deine Abrechnung und die Auszahlung werden in den kommenden Tagen genau hier angezeigt — damit alles sauber abgeschlossen wird. Du musst dafür nichts tun. Deine Kunden und Termine sind an die Leitung übergeben. Fragen: Florentine oder Daniel.</p>
+        <div className="aa-umbau-punkte">{["Kündigungsunterlagen erscheinen hier", "Abrechnung und Auszahlung erscheinen hier", "Kunden und Termine sind übergeben"].map((p) => <span key={p}>{p}</span>)}</div>
+      </section>
+    </div>
+  );
   if (gesperrt) return (
     <div className="aa aa-umbau">
       <div className="aa-bild" aria-hidden="true"><img src="/office/flur.jpg" alt="" decoding="async" /><div className="aa-schleier" /></div>

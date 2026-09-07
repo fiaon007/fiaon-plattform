@@ -1428,6 +1428,102 @@ router.post("/admin/team/reassign", async (req, res) => {
 });
 
 // Audit-Trail: alle Agent-Aktionen (bestehender Endpoint, jetzt hier)
+/**
+ * POST /admin/team/umverteilen — ALLE Kunden eines Mitarbeiters auf mehrere Kollegen
+ * verteilen (07.09.2026, Justin: „Alle Kunden von Lucas auf Florentine und Daniel
+ * aufteilen (wirklich ALLE!) — Termine und co ebenfalls“).
+ *
+ * Body { vonAgentId, aufAgentIds: number[], grund }.
+ * Dieselben Schreibschritte wie die Betreuer-Übergabe in der Akte
+ * (fiaon-agent-kunden.ts, /agent/kunden/:personId/betreuer): fiaon_persons und
+ * fiaon_applications wechseln den Betreuer, jeder Kunde bekommt einen Verlaufs-
+ * eintrag. Dazu, weil Justin es ausdrücklich verlangt: künftige Termine, offene
+ * Rückrufe und offene Aufträge des Mitarbeiters wandern mit — Termine zum neuen
+ * Betreuer des jeweiligen Kunden, Aufträge ohne Kundenbezug abwechselnd.
+ * Reihum verteilt (Person-ID aufsteigend), damit beide Kollegen gleich viel bekommen.
+ *
+ * NICHT angefasst: Provisionen (fiaon_commissions, commission_agent_id) — was der
+ * Mitarbeiter verdient hat, bleibt sein Verdienst; die Zuteilung künftiger
+ * Ratenprovision ist eine Geldentscheidung des Vorgesetzten, keine Umverteilung.
+ * Verlauf, Anrufe und Vermerke bleiben, was sie sind: Geschichte.
+ */
+router.post("/admin/team/umverteilen", async (req, res) => {
+  try {
+    await ensureAgentTables();
+    const von = Number(req.body?.vonAgentId || 0);
+    const auf: number[] = Array.isArray(req.body?.aufAgentIds) ? req.body.aufAgentIds.map(Number).filter((n: number) => Number.isFinite(n) && n > 0) : [];
+    const grund = String(req.body?.grund || "").trim().slice(0, 300);
+    if (!von || auf.length === 0) return res.status(400).json({ ok: false, error: "vonAgentId und aufAgentIds sind Pflicht." });
+    if (auf.includes(von)) return res.status(400).json({ ok: false, error: "Der abgebende Mitarbeiter kann nicht Ziel sein." });
+    if (grund.length < 10) return res.status(400).json({ ok: false, error: "Bitte begründen (mindestens 10 Zeichen) — steht dauerhaft an jedem Kunden." });
+    const [quelle] = (await sqlPool`SELECT id, name FROM fiaon_agents WHERE id = ${von}`) as any[];
+    if (!quelle) return res.status(404).json({ ok: false, error: "Abgebender Mitarbeiter nicht gefunden." });
+    const ziele = (await sqlPool`SELECT id, name, COALESCE(rolle,'agent') AS rolle FROM fiaon_agents WHERE id = ANY(${auf}) AND active AND NOT COALESCE(is_test_account, FALSE) AND zugang_gesperrt_am IS NULL`) as any[];
+    if (ziele.length !== auf.length) return res.status(404).json({ ok: false, error: "Mindestens ein Ziel ist nicht aktiv oder gesperrt." });
+    if (ziele.some((z: any) => String(z.rolle) === "inkasso")) return res.status(400).json({ ok: false, error: "Forderungsmanagement bekommt keine Kunden zugeteilt." });
+
+    const personen = (await sqlPool`
+      SELECT id FROM fiaon_persons WHERE assigned_agent_id = ${von} AND merged_into_person_id IS NULL ORDER BY id`) as any[];
+    const zielName = new Map<number, string>(ziele.map((z: any) => [Number(z.id), String(z.name)]));
+    const jeZiel = new Map<number, number>(auf.map((id) => [id, 0]));
+    let termine = 0, rueckrufe = 0;
+    for (let i = 0; i < personen.length; i++) {
+      const personId = Number(personen[i].id);
+      const zielId = auf[i % auf.length];
+      const name = zielName.get(zielId)!;
+      await sqlPool`
+        UPDATE fiaon_persons
+           SET assigned_agent_id = ${zielId}, assigned_at = NOW(),
+               betreuung_seit = COALESCE(betreuung_seit, NOW()), updated_at = NOW()
+         WHERE id = ${personId}`;
+      await sqlPool`
+        UPDATE fiaon_applications
+           SET assigned_agent_id = ${zielId}, locked_by_agent_id = NULL, locked_until = NULL, updated_at = NOW()
+         WHERE person_id = ${personId} AND merged_into IS NULL`;
+      const t = (await sqlPool`
+        UPDATE fiaon_termine
+           SET agent_id = ${zielId}, uebergeben_am = NOW(), uebergeben_von = ${quelle.name},
+               uebergeben_grund = ${grund}, updated_at = NOW()
+         WHERE person_id = ${personId} AND agent_id = ${von} AND beginn > NOW()
+           AND COALESCE(status, '') NOT IN ('storniert', 'abgesagt', 'erledigt')
+         RETURNING id`) as any[];
+      termine += t.length;
+      const r = (await sqlPool`
+        UPDATE fiaon_rueckrufe SET zustaendig_agent_id = ${zielId}, updated_at = NOW()
+         WHERE person_id = ${personId} AND zustaendig_agent_id = ${von} AND erledigt_am IS NULL
+         RETURNING id`.catch(() => [])) as any[];
+      rueckrufe += r.length;
+      const [a] = (await sqlPool`
+        SELECT ref FROM fiaon_applications WHERE person_id = ${personId} AND merged_into IS NULL ORDER BY created_at DESC LIMIT 1`) as any[];
+      if (a?.ref) {
+        await sqlPool`
+          INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
+          VALUES (${a.ref}, ${personId}, ${zielId}, ${name}, 'system',
+                  ${`Durch die Verwaltung von ${quelle.name} an ${name} übergeben. Grund: ${grund}`}, NOW())`.catch(() => {});
+      }
+      jeZiel.set(zielId, (jeZiel.get(zielId) || 0) + 1);
+    }
+    // Offene Aufträge ohne Kundenbezug: abwechselnd.
+    const todos = (await sqlPool`
+      SELECT id FROM fiaon_betreiber_todos WHERE zustaendig_agent_id = ${von} AND status <> 'erledigt' ORDER BY id`) as any[];
+    for (let i = 0; i < todos.length; i++) {
+      const zielId = auf[i % auf.length];
+      await sqlPool`
+        UPDATE fiaon_betreiber_todos
+           SET zustaendig_agent_id = ${zielId}, zustaendig_name = ${zielName.get(zielId)!}, updated_at = NOW()
+         WHERE id = ${Number(todos[i].id)}`;
+    }
+    await sqlPool`
+      INSERT INTO fiaon_agent_events (agent_id, type, meta)
+      VALUES (${von}, 'umverteilt', ${JSON.stringify({ auf, grund, kunden: personen.length, termine, rueckrufe, auftraege: todos.length })})`.catch(() => {});
+    console.log(`[FIAON-TEAM] umverteilt: ${quelle.name} → ${auf.join("/")}: ${personen.length} Kunden, ${termine} Termine, ${rueckrufe} Rückrufe, ${todos.length} Aufträge`);
+    res.json({ ok: true, kunden: personen.length, jeZiel: Object.fromEntries(jeZiel), termine, rueckrufe, auftraege: todos.length });
+  } catch (err) {
+    console.error("[FIAON-TEAM] umverteilen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 router.get("/admin/agent-log", async (req, res) => {
   try {
     await ensureAgentTables();

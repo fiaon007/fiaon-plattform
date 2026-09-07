@@ -1629,11 +1629,16 @@ router.post("/agent/login", async (req, res) => {
     if (rows[0].zugang_gesperrt_am) {
       const vorname = String(rows[0].first_name || String(rows[0].name || "").split(" ")[0] || "");
       logAgentEvent(rows[0].id, "login_gesperrt").catch(() => {});
+      // 07.09.2026 (Justin): Ein gekündigter Mitarbeiter sieht keinen „vorübergehend
+      // gesperrt"-Schirm, sondern den sauberen Abschluss — Unterlagen, Abrechnung und
+      // Auszahlung erscheinen in den kommenden Tagen genau dort. Erkannt am Grund,
+      // der mit „Kündigung" beginnt (gesetzt über POST /admin/agents/:id/zugang).
+      const gekuendigt = /^k(ü|ue)ndigung/i.test(String(rows[0].zugang_gesperrt_grund || ""));
       return res.status(423).json({
-        ok: false, gesperrt: true, vorname,
+        ok: false, gesperrt: true, gekuendigt, vorname,
         grund: rows[0].zugang_gesperrt_grund || null,
         seit: rows[0].zugang_gesperrt_am,
-        error: "Dein Zugang ist vorübergehend gesperrt.",
+        error: gekuendigt ? "Dein Zugang ist beendet." : "Dein Zugang ist vorübergehend gesperrt.",
       });
     }
     await sqlPool`UPDATE fiaon_agents SET last_login_at = NOW() WHERE id = ${rows[0].id}`;

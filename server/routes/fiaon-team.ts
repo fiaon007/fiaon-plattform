@@ -1588,7 +1588,7 @@ router.post("/admin/team/provision-umbuchen", async (req, res) => {
         await sqlPool`
           UPDATE fiaon_commissions
              SET status = 'storniert', updated_at = NOW(),
-                 note = CONCAT_WS(' · ', note, ${`storniert ${new Date().toLocaleDateString("de-DE")}: Anspruch durch die Verwaltung auf ${zielAgent.name} gesetzt`})
+                 note = CONCAT_WS(' · ', note, ${`storniert ${new Date().toLocaleDateString("de-DE")}: Anspruch durch die Verwaltung auf ${zielAgent.name} gesetzt`}::text)
            WHERE id = ${Number(c.id)}`;
         storniert++;
         const revenue = await ownRevenueCents(ziel);

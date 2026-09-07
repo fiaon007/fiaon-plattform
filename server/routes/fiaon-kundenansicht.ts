@@ -119,6 +119,7 @@ router.post("/agent/vertrieb/person/:id/ansicht", requireAgent,
       await kundenansichtProtokoll({
         ref: konto.ref, personId, art: "leitung",
         ansehenderId: req.agent!.id, name: req.agent!.name,
+        rolleText: recht.rolle === "vertriebsleiter" ? "Vertriebsleitung" : "Betreuer",
       }, "gestartet");
 
       res.json({

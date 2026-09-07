@@ -169,13 +169,16 @@ export function nurLesenWand(req: Request, res: Response, next: NextFunction): v
 /**
  * Darf dieser Mensch das Portal dieses Kunden ansehen?
  *
- * Admin: alle. Vertriebsleitung: nur eigene und zugewiesene. Ein Agent: nie —
- * er sieht seine Kunden ohnehin in seiner Liste, und die Kundensicht ist ein
- * Aufsichtswerkzeug, kein Arbeitswerkzeug.
+ * Admin: alle. Vertriebsleitung: alle (seit 04.09.). Mitarbeiter: die eigenen
+ * Kunden — seit 07.09.2026. Bis dahin galt „ein Agent: nie, die Kundensicht ist
+ * ein Aufsichtswerkzeug"; Nikita drückte am 07.09. zehnmal „Portal ansehen" bei
+ * seinem eigenen Kunden und bekam zehnmal 403. Justin: „die Mitarbeiter haben
+ * keinen Zugriff auf das Kundenportal." Die Ansicht bleibt Nur-Lesen, 30 Minuten,
+ * und steht im Verlauf des Kunden.
  */
 export async function darfAnsehen(
   art: Ansehender, ansehenderId: number, personId: number, lauf = sqlPool,
-): Promise<{ erlaubt: boolean; grund: string }> {
+): Promise<{ erlaubt: boolean; grund: string; rolle?: string }> {
   if (art === "admin") return { erlaubt: true, grund: "Verwaltung sieht alle Konten." };
 
   const [ag] = (await lauf`
@@ -187,18 +190,12 @@ export async function darfAnsehen(
   // Ich muss meinen Mitarbeitern bei Problemen helfen können, ohne dass der
   // Kunde erst mir zugewiesen wird." Bis hierher sah die Leitung nur eigene
   // und selbst geworbene Kunden. Jetzt: die Leitung sieht alle.
-  if (String(ag.rolle) === "vertriebsleiter") return { erlaubt: true, grund: "Die Leitung sieht alle Kunden." };
-  if (String(ag.rolle) !== "vertriebsleiter") {
-    return {
-      erlaubt: false,
-      grund: "Die Kundensicht ist ein Werkzeug der Leitung. Deine Kunden siehst du in deiner Liste.",
-    };
-  }
+  const rolle = String(ag.rolle);
+  if (rolle === "vertriebsleiter") return { erlaubt: true, grund: "Die Leitung sieht alle Kunden.", rolle };
 
-  // ── EIGENE ODER ZUGEWIESENE ─────────────────────────────────────────────
-  // „Eigene" heißt: Der Mensch ist diesem Leiter zugeordnet, oder einem
-  // Mitarbeiter, den er geworben hat. Sonst könnte eine Leitung in fremde
-  // Vertriebsgebiete sehen.
+  // ── EIGENE ODER ZUGEWIESENE (Mitarbeiter) ───────────────────────────────
+  // „Eigene" heißt: Der Mensch ist diesem Mitarbeiter zugeordnet, oder einem
+  // Mitarbeiter, den er geworben hat. Fremde Kunden bleiben zu.
   const [treffer] = (await lauf`
     SELECT 1 AS ok FROM fiaon_persons p
     WHERE p.id = ${personId}
@@ -206,10 +203,11 @@ export async function darfAnsehen(
         OR p.assigned_agent_id IN (
           SELECT id FROM fiaon_agents WHERE recruited_by = ${ansehenderId}))
   `) as any[];
-  if (treffer?.ok) return { erlaubt: true, grund: "Eigener oder zugewiesener Kunde." };
+  if (treffer?.ok) return { erlaubt: true, grund: "Eigener oder zugewiesener Kunde.", rolle };
   return {
     erlaubt: false,
-    grund: "Dieser Kunde ist nicht dir zugeordnet. Die Verwaltung kann jedes Konto ansehen.",
+    grund: "Dieser Kunde ist nicht dir zugeordnet. Die Leitung und die Verwaltung können jedes Konto ansehen.",
+    rolle,
   };
 }
 
@@ -225,12 +223,12 @@ export async function darfAnsehen(
  * ansieht: Dort steht, was ein Mensch getan hat.
  */
 export async function kundenansichtProtokoll(
-  opts: { ref: string; personId: number; art: Ansehender; ansehenderId: number; name: string },
+  opts: { ref: string; personId: number; art: Ansehender; ansehenderId: number; name: string; rolleText?: string },
   was: "gestartet" | "beendet",
   lauf = sqlPool,
 ): Promise<void> {
   const text = was === "gestartet"
-    ? `Portal-Ansicht GESTARTET durch ${opts.name} (${opts.art === "admin" ? "Verwaltung" : "Vertriebsleitung"}) `
+    ? `Portal-Ansicht GESTARTET durch ${opts.name} (${opts.art === "admin" ? "Verwaltung" : (opts.rolleText || "Vertriebsleitung")}) `
       + `— Nur-Ansicht, ${KUNDENANSICHT_MINUTEN} Minuten. Es können keine Aktionen im Namen des Kunden entstehen.`
     : `Portal-Ansicht beendet durch ${opts.name}.`;
 

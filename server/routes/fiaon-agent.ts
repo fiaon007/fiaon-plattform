@@ -13,6 +13,8 @@
 // - Alle Admin-Endpoints in server/routes/fiaon-team.ts (Agent-403 via blockAgentsFromAdmin).
 // ═══════════════════════════════════════════════════════════════════
 
+import { hasAdminCode } from "./fiaon-admin-zugang";
+import { readChef } from "./fiaon-chef-zugang";
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { nameSauber } from "../../shared/fiaon-namen";
@@ -656,14 +658,20 @@ export function blockAgentsFromAdmin(req: Request, res: Response, next: NextFunc
     // Mitarbeiter-Cookie. Beide sind signiert und werden serverseitig geprüft;
     // ein Mitarbeiter kann sich keines davon ausstellen.
     // ═══════════════════════════════════════════════════════════════════════
-    try {
-      const { hasAdminCode } = require("./fiaon-admin-zugang");
-      if (typeof hasAdminCode === "function" && hasAdminCode(req)) return next();
-    } catch { /* Modul nicht erreichbar — dann gilt die Wand */ }
-    try {
-      const { readChef } = require("./fiaon-chef-zugang");
-      if (typeof readChef === "function" && readChef(req)?.stufe === "inhaber") return next();
-    } catch { /* dito */ }
+    // 07.09.2026: statische Importe statt require() — unter tsx (ESM) war
+    // require im Modul nicht definiert, der catch schluckte es, und die Wand
+    // stand auch für Inhaber und Chefs. Beide Module importieren fiaon-agent
+    // nicht zurück, es gibt keinen Kreis.
+    if (hasAdminCode(req)) return next();
+    // ── JEDES GÜLTIGE CHEF-TOKEN ZÄHLT (07.09.2026) ──────────────────────
+    // Bis hierher ließ die Wand nur die Stufe „inhaber" durch. Daniel und
+    // Florentine (Stufe „geschaeftsfuehrung", Chefbüro seit E-053) tragen als
+    // Vertriebsleiter zugleich das Mitarbeiter-Cookie — und bekamen auf jeder
+    // Admin-Route des Chefbüros 403 (Render-Log 05.09., /admin/agents,
+    // /admin/termine; Justin 07.09.: „keinen Zugriff auf die Kundendatenbank").
+    // Welche Stufe welchen Pfad öffnet, entscheidet adminCodeGate dahinter
+    // (NUR_GESCHAEFTSFUEHRUNG) — diese Wand trennt nur Mitarbeiter von Chefs.
+    if (readChef(req)) return next();
     return res.status(403).json({ ok: false, error: "Kein Zugriff: Agent-Rolle hat keine Admin-Berechtigung" });
   }
   next();

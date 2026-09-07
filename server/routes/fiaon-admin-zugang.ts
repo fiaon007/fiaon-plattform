@@ -108,12 +108,18 @@ const router = Router();
 
 /** Anzeige-Zustand für die Oberfläche: gesperrt oder offen. */
 router.get("/status", (req: Request, res: Response) => {
+  // 07.09.2026: Ein gültiges Chef-Token öffnet die Tür wie der Zahlencode, und
+  // ein Chef mit Mitarbeiter-Cookie (Daniel, Florentine) ist kein „Mitarbeiter
+  // vor der Admin-Tür" — vorher landete die Leitung auf „Kein Zugriff", obwohl
+  // die Wand dahinter sie längst durchließ (Lücken-Audit, Chefbüro-Tür).
+  const chef = readChef(req);
   res.json({
     ok: true,
-    entsperrt: hasAdminCode(req),
+    entsperrt: hasAdminCode(req) || !!chef,
+    stufe: chef?.stufe ?? (hasAdminCode(req) ? "inhaber" : null),
     // Kennzeichen kommt aus server/routes.ts (agentMarkieren) — diese Datei
     // bleibt bewusst frei von Datenbank- und Agent-Abhängigkeiten.
-    agent: !!(req as any).agentAngemeldet,
+    agent: !!(req as any).agentAngemeldet && !chef,
     wartezeitMs: lockedFor(req),
     laenge: CODE_LENGTH,
   });

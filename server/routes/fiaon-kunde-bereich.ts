@@ -265,10 +265,29 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
     // liest das Portal DIESELBE Funktion (kartenStand) wie die Akte — mit dem
     // Kundensatz je Tor, nicht dem internen. Geschuetzt: Faellt die Abfrage,
     // faellt nur die Kachel — nie der Bereich (Lehre vom 26./27.08.).
+    // ── SCHRITT 10 DES WEGES: IST DAS GIROKONTO ERÖFFNET? (06.09.2026) ─────
+    // Der Weg zum Rahmen (shared/fiaon-rahmenweg.ts) hatte Schritt 10 fest auf
+    // „offen“ stehen — der Balken konnte nie voll werden. Eine eigene Quelle
+    // dafür gibt es nicht und soll es nicht geben: `fiaon_konto_karte` führt
+    // den Stand ohnehin, und `kontoEroeffnung()` in server/lib/fiaon-konto-karte.ts
+    // ist die eine Stelle, die ihn auslegt. Die Mitarbeiter-Akte
+    // (GET /agent/app/kunde/:personId/uebersicht) ruft dieselbe Funktion —
+    // sonst zeigten Kunde und Betreuer verschiedene Konten.
+    //
+    // EHRLICH BLEIBEN: `gesendet` heißt, dass der Kunde den Weg bekommen hat —
+    // nicht, dass er ein Konto hat. Nur „gemeldet“ (vom Mitarbeiter im Gespräch
+    // eingetragen) und „bestaetigt“ (vom Kooperationspartner bestätigt) zählen.
+    // Solange niemand meldet, bleibt der Schritt offen, genau wie bisher.
     let karte: any = null;
+    let kontoEroeffnung: { eroeffnet: boolean; am: string | null } | null = null;
     if (a.person_id) {
       try {
-        const { kartenStand } = await import("../lib/fiaon-konto-karte");
+        const { kartenStand, kontoEroeffnung: kontoLesen } = await import("../lib/fiaon-konto-karte");
+        // Der Kontostand ZUERST: `kontoEroeffnung` fängt selbst ab und wirft nie.
+        // Stolperte `kartenStand` davor, verlöre der Weg seinen zehnten Schritt,
+        // obwohl die Auskunft dafür längst dagewesen wäre.
+        const k = await kontoLesen(Number(a.person_id));
+        kontoEroeffnung = { eroeffnet: k.eroeffnet, am: k.am };
         const ks = await kartenStand(Number(a.person_id));
         if (ks) {
           karte = {
@@ -316,6 +335,8 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
         preisEuro: schufa?.amount_due != null ? Number(schufa.amount_due) : 74,
       } : null,
       karte,
+      // Schritt 10 des Weges — null, solange keine Kontoeröffnung gemeldet ist.
+      konto: kontoEroeffnung,
       unterlagen: {
         kontoauszug: !!a.hat_kontoauszug, ausweis: !!a.hat_ausweis, auskunft: auskunftDa,
         erneutKontoauszug: !!a.reupload_bank_statement, erneutAusweis: !!a.reupload_id_card,

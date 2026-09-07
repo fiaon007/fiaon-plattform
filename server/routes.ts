@@ -709,6 +709,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/fiaon', fiaonAppPush.default);
   const fiaonAppLogin = await import('./routes/fiaon-app-login');
   app.use('/api/fiaon', fiaonAppLogin.default);
+  // 📱 /APP Scheibe 7 (E-154): der Anspruchs-Check im Startgespräch und die
+  // Kundenbereichs-Übersicht in der Akte — beide hinter requireAgent und der
+  // Zuständigkeitsprüfung. Der Kundenweg und der Mitarbeiterweg schreiben
+  // dieselben Befunde über dieselbe Funktion (befundeSpeichern in fiaon-app.ts).
+  const fiaonAppAnsprueche = await import('./routes/fiaon-app-ansprueche-agent');
+  app.use('/api/fiaon', fiaonAppAnsprueche.default);
+  const fiaonAppUebersicht = await import('./routes/fiaon-app-uebersicht');
+  app.use('/api/fiaon', fiaonAppUebersicht.default);
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     // Täglich prüfen, am 1.–3. eines Monats wirksam: Berichte für den Vormonat, je Lauf höchstens 500 Personen.
     tageslauf('monatsbericht', async () => await (await import('./lib/fiaon-monatsbericht')).monatsberichtLauf(), 6 * 60 * 60 * 1000, { beimStartNach: 420_000 });

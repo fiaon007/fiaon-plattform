@@ -65,6 +65,21 @@ export interface BereichEingang {
   bonitaet?: { hatDokument: boolean; geprueft: boolean; darfKaufen: boolean; bezahlt: boolean } | null;
   abo?: { raten: { nr: number; betragCents: number; status: string; faelligAm: string | null; faelligIso: string | null; bezahltAm: string | null }[] } | null;
   karte?: { verschickt?: boolean; tore?: { titel: string; erfuellt: boolean }[] } | null;
+  /**
+   * Das Girokonto beim Kooperationspartner (Schritt 10).
+   *
+   * Quelle ist `fiaon_konto_karte`, ausgelegt von `kontoEroeffnung()` in
+   * server/lib/fiaon-konto-karte.ts: Erst wenn der Stand dort von „gesendet“ auf
+   * „gemeldet“ (der Mitarbeiter trägt es aus dem Gespräch ein) oder „bestaetigt“
+   * (der Kooperationspartner bestätigt) wechselt, ist das Konto wirklich
+   * eröffnet. `am` ist das Datum dd.mm.yyyy, wenn die Quelle eins kennt — sonst
+   * null.
+   *
+   * FEHLT DAS FELD, BLEIBT ALLES WIE BISHER: Schritt 10 steht dann auf offen.
+   * Das ist Absicht — der Kundenbereich, der Monatsbericht und jede Prüfung,
+   * die dieses Feld noch nicht liefert, rechnen unverändert weiter.
+   */
+  konto?: { eroeffnet: boolean; am?: string | null } | null;
   paket: { wunschlimit: number | null; rahmen: number | null };
   fahrplan?: { key: string; datum: string | null; stand: string }[];
 }
@@ -159,7 +174,19 @@ export function rahmenwegAus(b: BereichEingang, o: RahmenwegOptionen = {}): Rahm
       faellig ? "kunde" : "fiaon", faellig ? "Rate zahlen" : null, faellig ? "/geld/zahlen" : null, { verspaetet });
   }
   // 10 · Girokonto
-  ok("konto_eroeffnet", "Girokonto eröffnet", false, null, "Sobald die drei Punkte der Bank erfüllt sind, eröffnen Sie das Konto – wir begleiten.", "fiaon", null, null);
+  // 06.09.2026 (Lücken-Audit): Hier stand fest `false` — der Balken konnte nie
+  // 11 von 11 erreichen, auch bei einem Kunden, der sein Konto längst eröffnet
+  // hatte. Ein Weg, dessen letztes Drittel unerreichbar ist, entwertet jeden
+  // Schritt davor. Der Stand kommt jetzt aus `konto` (siehe BereichEingang);
+  // ohne dieses Feld bleibt der Schritt offen wie bisher.
+  // Der Satz beschreibt jetzt FIAONs Zug, nicht den des Kunden. Solange der
+  // Schritt offen ist, steht daneben „Liegt bei FIAON“ (wer = "fiaon") und auf
+  // dem Heute-Schirm zusätzlich „Sie müssen dafür nichts tun“. Der alte Satz
+  // begann mit „eröffnen Sie das Konto“ und widersprach beidem — sichtbar wurde
+  // das erst, seit der Schritt „jetzt“ werden kann (vorher stand er fest auf
+  // false). Eine eigene Seite gibt es dafür nicht: /app/unterlagen/konto ist die
+  // Kontoanbindung (Open Banking), nicht die Kontoeröffnung bei der Partnerbank.
+  ok("konto_eroeffnet", "Girokonto eröffnet", !!b.konto?.eroeffnet, b.konto?.am ?? null, "Wir bereiten Ihre Kontoeröffnung bei unserer Partnerbank vor und gehen die drei Punkte mit Ihnen durch.", "fiaon", null, null);
   // 11 · Karte beantragt
   // „verschickt“ heißt: der Kunde hat den Weg zu Konto und Karte bekommen (E-067,
   // Konto-und-Karte-Mail) — nicht, dass eine Karte beantragt wäre. Praxistest

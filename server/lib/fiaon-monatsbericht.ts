@@ -241,6 +241,11 @@ async function wegRechnen(personId: number, heuteIso: string, lauf: Lauf): Promi
            a.reupload_bank_statement, a.reupload_id_card
       FROM fiaon_applications a
      WHERE a.person_id = ${personId} AND a.merged_into IS NULL AND a.archived_at IS NULL AND a.gdpr_deleted_at IS NULL
+       -- Die 74-€-Auskunft ist eine Einzelbestellung, kein Vertrag: Als „maßgebliche
+       -- Bestellung" gelesen, rechnete der Bericht mit einem Paket ohne Raten und
+       -- zeigte einen anderen Weg als der Kundenbereich (fiaon-konto-karte.ts macht
+       -- es richtig).
+       AND a.ref NOT LIKE 'FIAON-SCHUFA-%' AND COALESCE(a.type, '') <> 'schufa'
      ORDER BY (a.payment_status = 'paid') DESC, a.created_at DESC LIMIT 1`) as any[];
   const ref: string | null = a?.ref ? String(a.ref) : null;
 

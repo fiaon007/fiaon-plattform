@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// DIE AGENDA DES STARTGESPRÄCHS — sechs Schritte, kuratiert
+// DIE AGENDA DES STARTGESPRÄCHS — die Schritte, kuratiert
 //
 // ── WARUM DIE TEXTE IM REPO STEHEN ─────────────────────────────────────────
-// Ein Startgespräch, das jeder anders führt, ist sechsmal ein anderes Produkt.
+// Ein Startgespräch, das jeder anders führt, ist jedes Mal ein anderes Produkt.
 // Der Kunde erzählt seinem Bekannten davon, der Bekannte ruft an und bekommt
 // etwas anderes zu hören. Deshalb stehen die Stichpunkte hier und nicht im
 // Kopf des Mitarbeiters — und deshalb sind sie in `shared/`: Das Cockpit zeigt
@@ -48,7 +48,7 @@ export const AGENDA: AgendaSchritt[] = [
     zweck: "Der Kunde soll wissen, wer anruft, wie lange es dauert und was danach passiert.",
     punkte: [
       "Name, FIAON, und: „Ich habe fünfzehn Minuten für Sie eingeplant.“",
-      "„Danach ist Ihr Konto vollständig freigeschaltet — Sie sehen dann auch Ihren Fahrplan.“",
+      "„Danach ist Ihr Konto vollständig nutzbar — Sie sehen dann auch Ihren Fahrplan.“",
       "Fragen: Was erwarten Sie von uns? Was ist Ihr Ziel?",
     ],
     notizPflicht: true,
@@ -146,6 +146,62 @@ export const AGENDA: AgendaSchritt[] = [
     ],
     notizPflicht: true,
     notizFrage: "Was wurde konkret verabredet?",
+  },
+  // ═════════════════════════════════════════════════════════════════════
+  // ANSPRÜCHE PRÜFEN — DER SCHRITT MIT DEM ERGEBNIS (06.09.2026, Scheibe 7)
+  //
+  // ── WARUM ER DAZUKOMMT ──────────────────────────────────────────────
+  // Lücken-Audit 06.09.2026: 393 von 521 zahlenden Kunden hängen an
+  // Schritt 3, dem Startgespräch. Das Gespräch endete bis dahin ohne
+  // etwas, das man in die Hand nehmen kann — den Anspruchs-Check gab es
+  // nur im Kundenbereich, nicht im Cockpit. Der Kunde legte auf und hatte
+  // ein nettes Gespräch gehabt. Danach nichts.
+  //
+  // ── WAS DIESER SCHRITT ANDERS MACHT ─────────────────────────────────
+  // Danach steht in der Akte UND in seinem Bereich DIESELBE Liste mit
+  // denselben Beträgen — gerechnet aus denselben zehn Antworten, mit
+  // derselben Funktion (shared/fiaon-ansprueche.ts). Nicht zwei Listen,
+  // die auseinanderlaufen: eine.
+  //
+  // ── KEINE PFLICHTNOTIZ, ABER EINE PFLICHT ───────────────────────────
+  // Das Ergebnis dieses Schritts sind Daten, keine Prosa: Der Schritt gilt
+  // als erledigt, wenn ALLE Fragen beantwortet sind (die Zahl steht in
+  // shared/fiaon-ansprueche.ts, nicht hier) — das hakt
+  // das Cockpit selbst ab. Eine Notiz obendrauf ist freiwillig; erzwungen
+  // wird, was zählt.
+  //
+  // ── DIE SPRACHREGEL IST BINDEND ─────────────────────────────────────
+  // „Das können Sie beantragen. Über den Betrag entscheidet die Stelle.“
+  // Nie „Ihnen stehen zu“, nie ein Betrag ohne die Stelle dahinter. Wer
+  // hier eine Zusage macht, macht sie über fremdes Geld.
+  //
+  // ── WARUM ER AM ENDE STEHT UND NICHT IN DER MITTE ───────────────────
+  // Der Check braucht die zehn ehrlichsten Antworten des Gesprächs —
+  // Pfändung, Einkommen, Leistungsbezug. Die gibt niemand in Minute zwei.
+  // Nach der Abo-Klarheit und der Verabredung ist das Vertrauen da; hier
+  // kostet die Frage nach der Pfändung nichts mehr.
+  // ═════════════════════════════════════════════════════════════════════
+  {
+    key: "ansprueche",
+    titel: "Ansprüche prüfen",
+    // ── WARUM DIESER ZWECK-SATZ NEUTRAL IST ─────────────────────────────
+    // `zweck` bleibt nicht intern: client/src/pages/site/plattform-konzept.tsx
+    // rendert Titel und Zweck jedes Agenda-Schritts ÖFFENTLICH (/plattform-konzept
+    // und /en/how-the-platform-works), und shared/fiaon-wissen.ts gibt dieselbe
+    // Zeile dem Kunden-Assistenten. Ein Satz in Mitarbeitersicht („in seiner
+    // Akte“) stünde dort als achter Punkt zwischen sieben neutralen — und eine
+    // zugesagte „Liste mit Beträgen“ wäre eine Zusage über fremdes Geld: Die
+    // Liste kann leer sein, das Cockpit hat dafür einen eigenen Leerzustand.
+    // Die Anweisungen an den Mitarbeiter stehen in `punkte`; die liest keine
+    // öffentliche Seite.
+    zweck: "Fragen zu Konto, Einkommen und Verträgen — danach steht in der Akte und im Kundenbereich dieselbe Liste dessen, was sich beantragen lässt. Über den Betrag entscheidet die zuständige Stelle.",
+    punkte: [
+      "Die Fragen stehen unten im Schritt, eine nach der anderen. Jede Antwort ist sofort gespeichert — auch wenn das Gespräch abbricht.",
+      "Was schon im Antrag steht, liest du vor und fragst: „Stimmt das noch?“ Erst wenn er widerspricht, änderst du es. Nichts doppelt erheben.",
+      "Am Ende die Liste vorlesen — Punkt, Betrag, Stelle. Wortlaut: „Das können Sie beantragen. Über den Betrag entscheidet die Stelle.“",
+    ],
+    notizPflicht: false,
+    notizFrage: "Was ist herausgekommen, und was hat der Kunde dazu gesagt?",
   },
 ];
 

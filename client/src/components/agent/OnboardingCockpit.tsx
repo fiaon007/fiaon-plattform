@@ -29,6 +29,10 @@ import { FiaonEbene } from "@/components/FiaonEbene";
 import {
   AGENDA, darfAbschliessen, fortschritt, type AgendaStand,
 } from "@shared/fiaon-onboarding-agenda";
+// 06.09.2026 (Scheibe 7, Modul A): Die zehn Fragen und die Regeln kommen aus
+// derselben Datei wie im Kundenbereich — eine Quelle, zwei Tische.
+import { FRAGEN, REGELN, type Frage } from "@shared/fiaon-ansprueche";
+import "@/styles/office-ansprueche.css";
 
 /** Haken — 20×20, 1,5 px, currentColor (AGENTS.md: keine Icon-Bibliotheken). */
 function Haken({ size = 14 }: { size?: number }) {
@@ -253,6 +257,19 @@ export function OnboardingCockpit({
   const notieren = useCallback((key: string, text: string) => {
     setStand((v) => ({ ...v, notizen: { ...v.notizen, [key]: text } }));
     setFehler(null);
+  }, []);
+
+  // ── DER ANSPRUCHS-CHECK HAKT SICH SELBST AB (06.09.2026, Scheibe 7) ──────
+  // Dieser Schritt hat kein „erledigt“ nach Gefühl: Er ist fertig, wenn zehn von
+  // zehn Fragen beantwortet sind. Deshalb setzt ihn der Check selbst — und zwar
+  // nur in die eine Richtung. Wer den Haken von Hand wieder wegnimmt (weil er
+  // noch einmal ran will), bekommt ihn nicht in derselben Sekunde zurück; das
+  // Wegnehmen ändert die Antworten nicht, und nur die zählen hier.
+  const anspruecheGemeldet = useRef(false);
+  const anspruecheStandMelden = useCallback((beantwortet: number, gesamt: number) => {
+    if (beantwortet < gesamt || anspruecheGemeldet.current) return;
+    anspruecheGemeldet.current = true;
+    setStand((v) => (v.erledigt.includes("ansprueche") ? v : { ...v, erledigt: [...v.erledigt, "ansprueche"] }));
   }, []);
 
   const abschliessen = async () => {
@@ -578,9 +595,20 @@ export function OnboardingCockpit({
                   {auf && (
                     <div className="fi-ob-schritt-koerper">
                       <p className="fi-ob-zweck">{a.zweck}</p>
-                      <ul className="fi-ob-punkte">
-                        {a.punkte.map((punkt) => <li key={punkt}>{punkt}</li>)}
-                      </ul>
+                      {/* ── 06.09.2026 (Scheibe 7, Modul A) ─────────────────
+                          Beim Anspruchs-Check stehen statt der Stichpunkte die
+                          zehn Fragen: Dieser Schritt IST das Werkzeug, nicht
+                          seine Beschreibung. Die Stichpunkte aus der Agenda
+                          stehen weiter in der Academy — dort werden sie
+                          gelernt, hier wird gearbeitet. */}
+                      {a.key === "ansprueche" ? (
+                        <AnspruchsCheck personId={termin.personId} terminId={termin.id}
+                                        onStand={anspruecheStandMelden} />
+                      ) : (
+                        <ul className="fi-ob-punkte">
+                          {a.punkte.map((punkt) => <li key={punkt}>{punkt}</li>)}
+                        </ul>
+                      )}
                       {/* ══════════════════════════════════════════════════
                           DIE KERNBOTSCHAFT — FÜR DAS KUNDENGESPRÄCH
 
@@ -654,6 +682,471 @@ export function OnboardingCockpit({
         </>
       }
     />
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DER ANSPRUCHS-CHECK IM GESPRÄCH — Schritt 8 (06.09.2026, Scheibe 7, Modul A)
+//
+// ── WARUM ER HIER STEHT UND NICHT NUR IM KUNDENBEREICH ─────────────────────
+// Lücken-Audit 06.09.2026: 393 von 521 zahlenden Kunden hängen am Startgespräch.
+// Das Gespräch endete ohne etwas, das man in die Hand nehmen kann — den Check
+// gab es nur im Kundenbereich, wo ihn kaum jemand von allein führt. Jetzt führt
+// ihn der Mitarbeiter AM TELEFON, und danach steht in der Akte und in seinem
+// Bereich dieselbe Liste mit denselben Beträgen.
+//
+// ── EINE FRAGE ZUR ZEIT ────────────────────────────────────────────────────
+// Zehn Fragen auf einem Bildschirm sind ein Formular, und ein Formular füllt man
+// NACH dem Gespräch aus dem Gedächtnis. Eine Frage zur Zeit ist ein Gespräch:
+// vorlesen, antworten, weiter. Die Antwortflächen sind groß, weil der Mensch
+// dabei den Hörer am Ohr hat und nicht auf den Bildschirm sieht.
+//
+// ── JEDE ANTWORT GEHT SOFORT AN DEN SERVER ─────────────────────────────────
+// Anders als die Gesprächsnotizen (die liegen bewusst im Browser, sie sind ein
+// Entwurf) sind diese zehn Antworten Akte. Ein Gespräch, das in Minute zwölf
+// abreißt, hat danach elf gespeicherte Antworten — nicht null.
+//
+// ── „STIMMT DAS NOCH?“ STATT DOPPELT FRAGEN ────────────────────────────────
+// Was der Kunde schon gesagt hat — im Antrag oder selbst im Bereich — wird
+// vorgelesen und bestätigt, nicht neu erhoben. Erst der Klick auf „Stimmt“
+// macht daraus eine Antwort aus dem Startgespräch.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Eine Zeile der Ergebnisliste — die Form, die der Server liefert (checkAntwort). */
+interface BefundZeile {
+  schluessel: string; titel: string; kategorie: string;
+  betragCents: number | null; rhythmus: string; begruendung: string; naechsterSchritt: string;
+  stelle: string; wasWirTun: string; rechtsgrundlage: string; quelleUrl: string; geprueftAm: string;
+  stand: string; fristAm: string | null; vorgangId: number | null;
+}
+
+interface CheckDaten {
+  antworten: Record<string, unknown>;
+  beantwortet: number;
+  gesamt: number;
+  befunde: BefundZeile[];
+  summeMonatlichCents: number;
+  /** Woher die gespeicherte Antwort kam: 'kunde' · 'startgespraech' · 'antrag'. */
+  quelle: Record<string, string>;
+  /** Vorschläge aus dem Antrag, die noch NICHT als Antwort gespeichert sind. */
+  vorbelegung: Record<string, { wert: unknown; herkunft: string; feld: string }>;
+  /** Sätze für den Mitarbeiter zu Feldern, die der Antrag nur halb hergibt. */
+  hinweise: Record<string, string>;
+}
+
+const eurAc = (cents: number) =>
+  new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(cents / 100);
+/** „2026-09-05“ → „05.09.2026“ — reine Zeichenarbeit, keine Zeitzone im Spiel. */
+const datumAc = (iso: string) => String(iso || "").split("-").reverse().join(".");
+const RHYTHMUS_WORT: Record<string, string> = { monatlich: "im Monat", jaehrlich: "im Jahr", einmalig: "einmalig" };
+const STAND_WORT_AC: Record<string, string> = {
+  offen: "Noch nicht beantragt", beantragt: "Beantragt", bewilligt: "Bewilligt",
+  abgelehnt: "Abgelehnt", verworfen: "Zurückgestellt", nicht_zutreffend: "Trifft nicht mehr zu",
+};
+const istDa = (w: unknown) => w !== undefined && w !== null;
+
+/** Eine Antwort so schreiben, wie der Mitarbeiter sie vorliest. */
+function antwortText(frage: Frage, wert: unknown): string {
+  if (!istDa(wert)) return "—";
+  if (frage.art === "ja_nein") return wert === true ? "Ja" : "Nein";
+  if (frage.art === "betrag") return eurAc(Number(wert));
+  if (frage.art === "zahl") return String(Number(wert));
+  if (frage.art === "wahl") return (frage.optionen ?? []).find((o) => o.wert === String(wert))?.text ?? String(wert);
+  const liste = Array.isArray(wert) ? (wert as string[]) : [];
+  const texte = liste.map((w) => (frage.optionen ?? []).find((o) => o.wert === w)?.text ?? w);
+  return texte.length ? texte.join(", ") : "—";
+}
+
+/** Die Serverantwort in die Form bringen, mit der diese Ebene rechnet. */
+function alsDaten(j: any): CheckDaten {
+  return {
+    antworten: (j?.antworten ?? {}) as Record<string, unknown>,
+    beantwortet: Number(j?.beantwortet ?? 0),
+    gesamt: Number(j?.gesamt ?? j?.fragenGesamt ?? FRAGEN.length),
+    befunde: Array.isArray(j?.befunde) ? (j.befunde as BefundZeile[]) : [],
+    summeMonatlichCents: Number(j?.summeMonatlichCents ?? 0),
+    quelle: (j?.quelle ?? {}) as Record<string, string>,
+    vorbelegung: (j?.vorbelegung ?? {}) as Record<string, { wert: unknown; herkunft: string; feld: string }>,
+    hinweise: (j?.hinweise ?? {}) as Record<string, string>,
+  };
+}
+
+function AnspruchsCheck({ personId, terminId, onStand }: {
+  personId: number;
+  terminId: number;
+  /** Meldet nach jedem Laden und jedem Speichern, wie viele Fragen stehen. */
+  onStand: (beantwortet: number, gesamt: number) => void;
+}) {
+  const [daten, setDaten] = useState<CheckDaten | null>(null);
+  const [fehler, setFehler] = useState<string | null>(null);
+  const [i, setI] = useState(0);
+  const [ergebnis, setErgebnis] = useState(false);
+  // Schlüssel, bei denen der Mitarbeiter „Ändern“ gewählt hat — dort verschwindet
+  // die Bestätigungszeile für dieses Gespräch.
+  const [aendern, setAendern] = useState<string[]>([]);
+  const [eingabe, setEingabe] = useState("");
+  const [mehrfach, setMehrfach] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [verwerfen, setVerwerfen] = useState<{ schluessel: string; grund: string } | null>(null);
+
+  useEffect(() => {
+    let weg = false;
+    void fetch(`/api/fiaon/agent/app/ansprueche/${personId}`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((j) => {
+        if (weg) return;
+        if (!j?.ok) { setFehler(j?.error || "Der Anspruchs-Check lässt sich gerade nicht laden."); return; }
+        const d = alsDaten(j);
+        setDaten(d);
+        const erste = FRAGEN.findIndex((q) => !istDa(d.antworten[q.schluessel]));
+        setI(erste === -1 ? 0 : erste);
+        setErgebnis(erste === -1);
+      })
+      .catch(() => { if (!weg) setFehler("Der Anspruchs-Check lässt sich gerade nicht laden."); });
+    return () => { weg = true; };
+  }, [personId]);
+
+  useEffect(() => { if (daten) onStand(daten.beantwortet, daten.gesamt); }, [daten, onStand]);
+
+  const f: Frage | undefined = FRAGEN[i];
+
+  // Das Eingabefeld folgt der Frage: gespeicherte Antwort, sonst der Vorschlag
+  // aus dem Antrag, sonst leer. Beträge liegen in Cent und werden in Euro
+  // gezeigt — mit Komma, weil hier deutsch getippt wird.
+  useEffect(() => {
+    if (!daten || !f) { setEingabe(""); setMehrfach([]); return; }
+    const gespeichert = daten.antworten[f.schluessel];
+    const w = istDa(gespeichert) ? gespeichert : daten.vorbelegung[f.schluessel]?.wert;
+    if (f.art === "mehrfach") {
+      setMehrfach(Array.isArray(w) ? (w as string[]) : []);
+      setEingabe("");
+      return;
+    }
+    if (!istDa(w) || (f.art !== "zahl" && f.art !== "betrag")) { setEingabe(""); return; }
+    setEingabe(f.art === "betrag" ? String(Number(w) / 100).replace(".", ",") : String(Math.floor(Number(w))));
+  }, [i, daten, f]);
+
+  const weiter = useCallback(() => {
+    if (i + 1 < FRAGEN.length) setI(i + 1); else setErgebnis(true);
+  }, [i]);
+
+  const speichern = async (schluessel: string, wert: unknown, danach: "weiter" | "bleiben") => {
+    setBusy(true); setFehler(null);
+    const r = await fetch(`/api/fiaon/agent/app/ansprueche/${personId}`, {
+      method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ frageSchluessel: schluessel, wert, terminId }),
+    }).catch(() => null);
+    const j = await r?.json().catch(() => null);
+    setBusy(false);
+    if (!j?.ok) {
+      // Der Grund, nicht „hat nicht geklappt“: Der Mitarbeiter muss wissen, ob
+      // er die Antwort noch einmal geben muss — sie ist sonst NICHT in der Akte.
+      setFehler(j?.error || (r ? `Die Antwort ging nicht durch (HTTP ${r.status}) — sie ist nicht gespeichert.` : "Keine Verbindung — die Antwort ist nicht gespeichert."));
+      return;
+    }
+    setDaten(alsDaten(j));
+    if (danach === "weiter") weiter();
+  };
+
+  const zahlUebernehmen = () => {
+    if (!f) return;
+    const roh = eingabe.replace(/\./g, "").replace(",", ".").trim();
+    const z = Number(roh);
+    if (!roh || !Number.isFinite(z) || z < 0) { setFehler("Bitte eine Zahl eintragen."); return; }
+    void speichern(f.schluessel, f.art === "betrag" ? Math.round(z * 100) : Math.floor(z), "weiter");
+  };
+
+  const punktVerwerfen = async () => {
+    if (!verwerfen) return;
+    setBusy(true); setFehler(null);
+    const r = await fetch(`/api/fiaon/agent/app/ansprueche/${personId}/verworfen`, {
+      method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ regelSchluessel: verwerfen.schluessel, grund: verwerfen.grund }),
+    }).catch(() => null);
+    const j = await r?.json().catch(() => null);
+    setBusy(false);
+    if (!j?.ok) { setFehler(j?.error || "Der Punkt konnte nicht zurückgestellt werden."); return; }
+    setDaten(alsDaten(j));
+    setVerwerfen(null);
+  };
+
+  if (!daten) {
+    return fehler
+      ? <p className="fi-ac-fehler" role="alert">{fehler}</p>
+      : <div className="fi-ac-laden" aria-hidden="true" />;
+  }
+
+  // ── DIE BESTÄTIGUNGSZEILE ────────────────────────────────────────────────
+  // Sie erscheint, solange der Wert von woanders kommt: aus dem Antrag oder vom
+  // Kunden selbst im Bereich. Nach „Stimmt“ steht die Antwort auf
+  // 'startgespraech' — und die Zeile bleibt weg.
+  const gespeichert = f ? daten.antworten[f.schluessel] : undefined;
+  const vorschlag = f ? daten.vorbelegung[f.schluessel] : undefined;
+  const quelle = f ? daten.quelle[f.schluessel] : undefined;
+  const zuBestaetigen = !!f && aendern.indexOf(f.schluessel) === -1 && (
+    (istDa(gespeichert) && (quelle === "kunde" || quelle === "antrag"))
+      ? { wert: gespeichert, woher: quelle === "kunde" ? "Vom Kunden" : "Aus dem Antrag" }
+      : (!istDa(gespeichert) && vorschlag ? { wert: vorschlag.wert, woher: "Aus dem Antrag" } : null)
+  );
+
+  if (!ergebnis && f) {
+    // Der Hinweis (etwa: im Antrag steht nur die Kaltmiete) hilft, solange die
+    // Frage im Gespräch noch nicht beantwortet ist. Danach ist er Lärm.
+    const hinweis = quelle === "startgespraech" ? undefined : daten.hinweise[f.schluessel];
+    return (
+      <div className="fi-ac">
+        <div className="fi-ac-kopf">
+          <span>Frage {i + 1} von {FRAGEN.length}</span>
+          <span className="rechts">
+            <button type="button" className="fi-ac-text-knopf" onClick={() => setErgebnis(true)}>
+              Ergebnis ansehen
+            </button>
+          </span>
+        </div>
+        <div className="fi-ac-stufen" role="progressbar" aria-valuenow={daten.beantwortet}
+             aria-valuemin={0} aria-valuemax={FRAGEN.length} aria-label="Beantwortete Fragen">
+          {FRAGEN.map((q, k) => (
+            <span key={q.schluessel} className="fi-ac-stufe"
+                  data-an={istDa(daten.antworten[q.schluessel]) ? "fertig" : k === i ? "jetzt" : undefined} />
+          ))}
+        </div>
+
+        <p className="fi-ac-frage">{f.text}</p>
+        <p className="fi-ac-warum">{f.warum}</p>
+        {hinweis && <p className="fi-ac-hinweis">{hinweis}</p>}
+
+        {zuBestaetigen ? (
+          <div className="fi-ac-bestaetigen">
+            <span className="fi-ac-quelle">{zuBestaetigen.woher}</span>
+            <p><b>{antwortText(f, zuBestaetigen.wert)}</b> — stimmt das noch?</p>
+            <div className="fi-ac-reihe">
+              <button type="button" className="fi-ac-knopf" disabled={busy}
+                      onClick={() => void speichern(f.schluessel, zuBestaetigen.wert, "weiter")}>
+                {busy ? "Wird gespeichert …" : "Stimmt"}
+              </button>
+              <button type="button" className="fi-ac-knopf still" disabled={busy}
+                      onClick={() => setAendern([...aendern, f.schluessel])}>
+                Ändern
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {f.art === "ja_nein" && (
+              <div className="fi-ac-reihe">
+                <button type="button" className="fi-ac-knopf still" disabled={busy}
+                        data-gewaehlt={gespeichert === true ? "ja" : undefined}
+                        onClick={() => void speichern(f.schluessel, true, "weiter")}>Ja</button>
+                <button type="button" className="fi-ac-knopf still" disabled={busy}
+                        data-gewaehlt={gespeichert === false ? "ja" : undefined}
+                        onClick={() => void speichern(f.schluessel, false, "weiter")}>Nein</button>
+                {/* „Weiß ich nicht“ speichert bewusst NICHTS: Eine erfundene
+                    Antwort wäre eine Zahl in einem Antrag an eine Behörde. Die
+                    Frage bleibt offen und der Balken zeigt es. */}
+                <button type="button" className="fi-ac-knopf still" disabled={busy}
+                        onClick={weiter}>Weiß ich nicht</button>
+              </div>
+            )}
+
+            {(f.art === "zahl" || f.art === "betrag") && (
+              <>
+                <label className="fi-ac-feld">
+                  <span>{f.art === "betrag" ? "Betrag in Euro" : "Anzahl Personen"}</span>
+                  <input inputMode={f.art === "betrag" ? "decimal" : "numeric"}
+                         value={eingabe} onChange={(e) => setEingabe(e.target.value)}
+                         placeholder={f.art === "betrag" ? "z. B. 1.850" : "z. B. 2"} />
+                </label>
+                <div className="fi-ac-reihe">
+                  <button type="button" className="fi-ac-knopf" disabled={busy || !eingabe.trim()}
+                          onClick={zahlUebernehmen}>{busy ? "Wird gespeichert …" : "Übernehmen"}</button>
+                  {f.art === "zahl" && (
+                    <button type="button" className="fi-ac-knopf still" disabled={busy}
+                            onClick={() => void speichern(f.schluessel, 0, "weiter")}>Keine</button>
+                  )}
+                  <button type="button" className="fi-ac-knopf still" disabled={busy}
+                          onClick={weiter}>Weiß ich nicht</button>
+                </div>
+              </>
+            )}
+
+            {f.art === "wahl" && (
+              <div className="fi-ac-wahl">
+                {(f.optionen ?? []).map((o) => (
+                  <button key={o.wert} type="button" className="fi-ac-knopf still" disabled={busy}
+                          data-gewaehlt={gespeichert === o.wert ? "ja" : undefined}
+                          onClick={() => void speichern(f.schluessel, o.wert, "weiter")}>{o.text}</button>
+                ))}
+                <button type="button" className="fi-ac-knopf still" disabled={busy}
+                        onClick={weiter}>Weiß ich nicht</button>
+              </div>
+            )}
+
+            {f.art === "mehrfach" && (
+              <>
+                <div className="fi-ac-wahl">
+                  {(f.optionen ?? []).map((o) => (
+                    <button key={o.wert} type="button" className="fi-ac-knopf still" disabled={busy}
+                            data-gewaehlt={mehrfach.indexOf(o.wert) !== -1 ? "ja" : undefined}
+                            onClick={() => {
+                              // „Keins davon“ schließt alles andere aus — und
+                              // umgekehrt. Sonst stünde „Kfz und keins davon“.
+                              if (o.wert === "keins") { setMehrfach(["keins"]); return; }
+                              const ohne = mehrfach.filter((x) => x !== "keins" && x !== o.wert);
+                              setMehrfach(mehrfach.indexOf(o.wert) === -1 ? [...ohne, o.wert] : ohne);
+                            }}>{o.text}</button>
+                  ))}
+                </div>
+                <div className="fi-ac-reihe">
+                  <button type="button" className="fi-ac-knopf" disabled={busy || mehrfach.length === 0}
+                          onClick={() => void speichern(f.schluessel, mehrfach, "weiter")}>
+                    {busy ? "Wird gespeichert …" : "Übernehmen"}
+                  </button>
+                  <button type="button" className="fi-ac-knopf still" disabled={busy}
+                          onClick={weiter}>Weiß ich nicht</button>
+                </div>
+              </>
+            )}
+          </>
+        )}
+
+        {fehler && <p className="fi-ac-fehler" role="alert">{fehler}</p>}
+
+        <div className="fi-ac-fuss">
+          <button type="button" className="fi-ac-text-knopf" disabled={i === 0} onClick={() => setI(Math.max(0, i - 1))}>
+            ← Zurück
+          </button>
+          <span className="rechts">
+            <button type="button" className="fi-ac-text-knopf" onClick={weiter}>Überspringen →</button>
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  // ── DAS ERGEBNIS ─────────────────────────────────────────────────────────
+  const liste = daten.befunde;
+  const summe = daten.summeMonatlichCents;
+  const ohneBetrag = liste.filter((b) => b.betragCents === null).length;
+  const offen = FRAGEN.length - daten.beantwortet;
+
+  return (
+    <div className="fi-ac">
+      <p className="fi-ac-wortlaut">
+        <b>So sagst du es dem Kunden</b>
+        „Das können Sie beantragen. Über den Betrag entscheidet die Stelle.“
+      </p>
+
+      {offen > 0 && (
+        <p className="fi-ac-hinweis">
+          {daten.beantwortet} von {FRAGEN.length} Fragen beantwortet. Die Liste wird
+          {offen === 1 ? " mit der letzten Antwort" : ` mit den ${offen} offenen Antworten`} genauer —
+          und der Schritt gilt erst bei zehn von zehn als erledigt.
+        </p>
+      )}
+
+      {liste.length > 0 && (
+        <div className="fi-ac-summe">
+          <span className="zahl">
+            {summe > 0 ? eurAc(summe) : `${liste.length} ${liste.length === 1 ? "Punkt" : "Punkte"}`}
+            <small>{summe > 0 ? "im Monat, heute schon bezifferbar" : "auf seiner Liste"}</small>
+          </span>
+          <p>
+            {ohneBetrag > 0
+              ? `${ohneBetrag} ${ohneBetrag === 1 ? "Punkt bekommt seinen Betrag" : "Punkte bekommen ihren Betrag"} erst aus Vergleich oder Bescheid. `
+              : ""}
+            Dieselbe Liste steht ab sofort in seinem Bereich unter „Ansprüche“.
+          </p>
+        </div>
+      )}
+
+      {liste.length === 0 && (
+        <p className="fi-ac-ruhe">
+          {daten.beantwortet >= FRAGEN.length
+            ? "Nach seinen Angaben steht heute kein Punkt auf der Liste. Das ist ein Ergebnis, kein Fehler — sag es ihm so, und sag ihm, dass sich das mit jeder Änderung ändern kann."
+            : "Noch kein Punkt — die Liste entsteht mit den Antworten."}
+        </p>
+      )}
+
+      <div className="fi-ac-liste">
+        {liste.map((b) => {
+          const regel = REGELN.find((r) => r.schluessel === b.schluessel);
+          const spanne = b.betragCents === null && regel && regel.betragMinCents !== null
+            && regel.betragMaxCents !== null && regel.betragMinCents !== regel.betragMaxCents
+            ? `${eurAc(regel.betragMinCents)} – ${eurAc(regel.betragMaxCents)}`
+            : null;
+          const wirdVerworfen = verwerfen?.schluessel === b.schluessel;
+          return (
+            <article key={b.schluessel} className="fi-ac-befund">
+              <div className="fi-ac-befund-kopf">
+                <h4>{b.titel}</h4>
+                <span className="fi-ac-stempel"
+                      data-ton={b.stand === "bewilligt" ? "gut" : b.stand === "abgelehnt" ? "warn" : undefined}>
+                  {STAND_WORT_AC[b.stand] ?? b.stand}
+                </span>
+              </div>
+              <p className="fi-ac-betrag" data-offen={b.betragCents === null && !spanne ? "ja" : undefined}>
+                {b.betragCents !== null
+                  ? <>{eurAc(b.betragCents)}<small>{RHYTHMUS_WORT[b.rhythmus] ?? ""}</small></>
+                  : spanne
+                    ? <>{spanne}<small>{RHYTHMUS_WORT[b.rhythmus] ?? ""}</small></>
+                    : <>Der Betrag ergibt sich erst aus {b.kategorie === "vertrag" ? "seinem Vergleich" : "dem Bescheid"}.</>}
+              </p>
+              <p className="fi-ac-begruendung">{b.begruendung}</p>
+              <dl className="fi-ac-fakten">
+                <dt>Stelle</dt><dd>{b.stelle}</dd>
+                <dt>Wir tun</dt><dd>{b.wasWirTun}</dd>
+                <dt>Grundlage</dt>
+                <dd>
+                  {b.rechtsgrundlage} ·{" "}
+                  <a href={b.quelleUrl} target="_blank" rel="noopener noreferrer">Quelle</a> ·
+                  {" "}Stand {datumAc(b.geprueftAm)}
+                </dd>
+                {b.fristAm && <><dt>Frist</dt><dd>{b.fristAm}</dd></>}
+              </dl>
+              {b.stand === "offen" && !wirdVerworfen && (
+                <div>
+                  <button type="button" className="fi-ac-knopf still klein" disabled={busy}
+                          onClick={() => setVerwerfen({ schluessel: b.schluessel, grund: "" })}>
+                    Passt nicht — zurückstellen
+                  </button>
+                </div>
+              )}
+              {wirdVerworfen && (
+                <>
+                  <label className="fi-ac-feld">
+                    <span>Warum passt der Punkt nicht?</span>
+                    <input value={verwerfen!.grund} autoFocus
+                           onChange={(e) => setVerwerfen({ schluessel: b.schluessel, grund: e.target.value })}
+                           placeholder="z. B. Auto ist seit Juli verkauft" />
+                  </label>
+                  <div className="fi-ac-reihe">
+                    <button type="button" className="fi-ac-knopf" disabled={busy || verwerfen!.grund.trim().length < 5}
+                            onClick={() => void punktVerwerfen()}>
+                      {busy ? "Wird gespeichert …" : "Zurückstellen"}
+                    </button>
+                    <button type="button" className="fi-ac-knopf still" disabled={busy}
+                            onClick={() => setVerwerfen(null)}>Abbrechen</button>
+                  </div>
+                </>
+              )}
+            </article>
+          );
+        })}
+      </div>
+
+      {fehler && <p className="fi-ac-fehler" role="alert">{fehler}</p>}
+
+      <div className="fi-ac-reihe">
+        <button type="button" className="fi-ac-knopf still" onClick={() => {
+          const erste = FRAGEN.findIndex((q) => !istDa(daten.antworten[q.schluessel]));
+          setI(erste === -1 ? 0 : erste);
+          setAendern([]);
+          setErgebnis(false);
+        }}>
+          {offen > 0 ? "Weiter beantworten" : "Antworten ändern"}
+        </button>
+      </div>
+    </div>
   );
 }
 

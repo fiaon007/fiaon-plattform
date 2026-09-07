@@ -310,7 +310,7 @@ export function Unterlagen({ kundeRef, demo, u, basis = "/app" }: { kundeRef: st
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// MEHR — Daten, Paket, Passwort, Abmelden, Rechtliches
+// MEHR — Daten, Paket, Abmelden, Rechtliches (Passwort: Passwort.tsx)
 // ═══════════════════════════════════════════════════════════════════════════
 export function Mehr({ kundeRef, demo, kunde, paket, ansprechpartner, basis, naechsterTermin }: {
   kundeRef: string; demo: boolean; basis: string; naechsterTermin?: string | null;
@@ -318,16 +318,8 @@ export function Mehr({ kundeRef, demo, kunde, paket, ansprechpartner, basis, nae
   paket: { name: string; abo: boolean; monatlichCents: number | null; zahlungsstatus: string };
   ansprechpartner: { name: string; rolle: string | null } | null;
 }) {
-  const [alt, setAlt] = useState(""); const [neu, setNeu] = useState(""); const [pwMeldung, setPwMeldung] = useState<{ ton: "gut" | "fehler"; text: string } | null>(null); const [pwLaeuft, setPwLaeuft] = useState(false);
-  const passwort = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (demo) { setPwMeldung({ ton: "gut", text: "In der Demo-Ansicht wird nichts geändert." }); return; }
-    setPwLaeuft(true); setPwMeldung(null);
-    const r = await api(`/kunde/${encodeURIComponent(kundeRef)}/passwort`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ alt, neu }) });
-    setPwLaeuft(false);
-    if (r.ok && r.json?.ok !== false) { setPwMeldung({ ton: "gut", text: "Ihr neues Passwort gilt ab jetzt." }); setAlt(""); setNeu(""); }
-    else setPwMeldung({ ton: "fehler", text: r.json?.error || "Das Passwort konnte nicht geändert werden." });
-  };
+  // Der Passwort-Abschnitt stand bis 06.09.2026 hier. Er wohnt jetzt in Passwort.tsx
+  // (/mehr/passwort) — dieselbe Stelle für „festlegen“ und „ändern“, nicht zwei.
   const abmelden = async () => { if (!demo) await api("/kunde/logout", { method: "POST" }); window.location.href = demo ? "/app/demo" : "/app/login"; };
 
   return (
@@ -343,6 +335,7 @@ export function Mehr({ kundeRef, demo, kunde, paket, ansprechpartner, basis, nae
           <Link href={`${basis}/mehr/daten`}>Meine Daten</Link>
           <Link href={`${basis}/mehr/abo`}>Geld und Abo</Link>
           <Link href={`${basis}/mehr/mitteilungen`}>Mitteilungen</Link>
+          <Link href={`${basis}/mehr/passwort`}>Passwort</Link>
         </div>
       </section>
       <section className="ap-abschnitt ap-auf v1">
@@ -369,15 +362,6 @@ export function Mehr({ kundeRef, demo, kunde, paket, ansprechpartner, basis, nae
         </div>
       </section>
       <section className="ap-abschnitt ap-auf v3">
-        <h2 className="ap-abschnitt-titel">Passwort</h2>
-        <form className="ap-karte" onSubmit={passwort} style={{ display: "grid", gap: 12 }}>
-          <label className="ap-feld"><span>Bisheriges Passwort</span><input type="password" autoComplete="current-password" value={alt} onChange={(e) => setAlt(e.target.value)} required /></label>
-          <label className="ap-feld"><span>Neues Passwort (mindestens 8 Zeichen)</span><input type="password" autoComplete="new-password" minLength={8} value={neu} onChange={(e) => setNeu(e.target.value)} required /></label>
-          <button type="submit" className="ap-knopf still" disabled={pwLaeuft}>{pwLaeuft ? "Wird geändert …" : "Passwort ändern"}</button>
-          {pwMeldung && <div className={`ap-meldung ${pwMeldung.ton}`} role="status">{pwMeldung.text}</div>}
-        </form>
-      </section>
-      <section className="ap-abschnitt ap-auf v4">
         <h2 className="ap-abschnitt-titel">Rechtliches und Hilfe</h2>
         <div className="ap-karte ap-linkliste">
           <a href="/agb">Allgemeine Geschäftsbedingungen</a>

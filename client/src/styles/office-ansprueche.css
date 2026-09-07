@@ -1,0 +1,174 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   DER ANSPRUCHS-CHECK IM COCKPIT — Stil (06.09.2026, Scheibe 7, Modul A)
+
+   ── WO DAS HIER STEHT ─────────────────────────────────────────────────────
+   Diese Klassen leben INNERHALB der Gesprächsbühne (FiaonEbene, ton="dunkel",
+   client/src/components/agent/OnboardingCockpit.tsx). Die Formensprache ist
+   deshalb 1:1 die des Cockpits und von office-pipeline.css / office-onboarding.css:
+   dunkles Glas rgba(15,23,42,.6), Haarlinien rgba(255,255,255,.12), 'Inter' in
+   300/400/500 — NIE 700/800 (genau das war E-054: „viel zu wuchtig“).
+   office.css wird nicht angefasst; ein Modul, eine Datei.
+
+   ── WARUM DIE ANTWORTFLÄCHEN SO GROSS SIND ────────────────────────────────
+   Der Mitarbeiter tippt hier MIT DEM KUNDEN AM OHR. Er sieht nicht hin. Eine
+   Schaltfläche, die er suchen muss, kostet den Gesprächsfaden — deshalb
+   min-height 48 px, ganze Zeilenbreite und ein sichtbarer Zustand „gewählt“.
+   Aus demselben Grund 16 px im Eingabefeld: darunter zoomt iOS beim Antippen
+   hinein, und dann steht das halbe Cockpit außerhalb des Bildes.
+
+   ── KEIN backdrop-filter ──────────────────────────────────────────────────
+   Die Ebene bringt ihren Blur schon mit. Jede weitere Blur-Fläche wird beim
+   Rollen neu gerechnet; auf dem Telefon ruckelt genau das (E-054).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.fi-ac { display: grid; gap: 14px; font-family: 'Inter', sans-serif; }
+
+/* ── DER FORTSCHRITT: „Frage 3 von 10“ ─────────────────────────────────────
+   Eine Auskunft, kein Antrieb. Wer weiß, dass noch sieben Fragen kommen, kann
+   es dem Kunden sagen — und der bleibt dran. */
+.fi-ac-kopf { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  font: 500 10.5px/1 'Inter', sans-serif; letter-spacing: .14em;
+  text-transform: uppercase; color: #93c5fd; }
+.fi-ac-kopf .rechts { margin-left: auto; }
+.fi-ac-stufen { display: flex; gap: 4px; }
+.fi-ac-stufe { flex: 1 1 0; height: 3px; border-radius: 999px;
+  background: rgba(255,255,255,.12); transition: background 220ms; }
+.fi-ac-stufe[data-an="fertig"] { background: linear-gradient(90deg, #059669, #34d399); }
+.fi-ac-stufe[data-an="jetzt"] { background: linear-gradient(90deg, #2563eb, #3b82f6); }
+
+/* ── DIE FRAGE ─────────────────────────────────────────────────────────────
+   Sie wird VORGELESEN, nicht überflogen: 17 px, leicht, mit Luft. Der
+   Warum-Satz darunter ist für den Mitarbeiter, wenn der Kunde zurückfragt. */
+.fi-ac-frage { margin: 0; font: 300 17px/1.4 'Inter', sans-serif;
+  letter-spacing: -.01em; color: #fff; overflow-wrap: anywhere; }
+.fi-ac-warum { margin: 0; font: 300 12.5px/1.6 'Inter', sans-serif; color: #9ca3af; }
+
+/* ── „STIMMT DAS NOCH?“ ────────────────────────────────────────────────────
+   Der Wert aus dem Antrag oder vom Kunden selbst. Blau, nicht grün: Er ist ein
+   Vorschlag, keine Antwort — bestätigt ist er erst nach dem Klick. */
+.fi-ac-bestaetigen { display: grid; gap: 10px; padding: 12px 14px; border-radius: 14px;
+  background: rgba(37,99,235,.10); border: 1px solid rgba(96,165,250,.3); }
+.fi-ac-bestaetigen p { margin: 0; font: 300 13px/1.55 'Inter', sans-serif; color: #e5e7eb; }
+.fi-ac-bestaetigen b { font-weight: 500; color: #fff; }
+.fi-ac-quelle { font: 500 10px/1 'Inter', sans-serif; letter-spacing: .12em;
+  text-transform: uppercase; color: #93c5fd; }
+
+/* ── DIE ANTWORTFLÄCHEN ────────────────────────────────────────────────────
+   Ja / Nein / Weiß ich nicht liegen nebeneinander, solange Platz ist, und
+   untereinander, sobald nicht. Kein Umbruch mitten in einer Reihe von drei. */
+.fi-ac-reihe { display: flex; gap: 9px; flex-wrap: wrap; }
+.fi-ac-reihe > * { flex: 1 1 130px; }
+.fi-ac-wahl { display: grid; gap: 9px; }
+
+.fi-ac-knopf { display: inline-flex; align-items: center; justify-content: center;
+  min-height: 48px; padding: 0 18px; border-radius: 14px; cursor: pointer;
+  border: 1px solid transparent; background: linear-gradient(135deg, #2563eb, #3b82f6);
+  color: #fff; font: 500 14px/1.35 'Inter', sans-serif; text-align: center;
+  touch-action: manipulation; transition: filter 200ms, border-color 200ms, background 200ms; }
+.fi-ac-knopf:hover { filter: brightness(1.06); }
+.fi-ac-knopf.still { background: rgba(255,255,255,.05);
+  border-color: rgba(255,255,255,.14); color: #e5e7eb; }
+.fi-ac-knopf.still:hover { filter: none; border-color: rgba(96,165,250,.5); }
+.fi-ac-knopf.klein { min-height: 38px; padding: 0 14px; font-size: 12.5px; border-radius: 11px; }
+.fi-ac-knopf[data-gewaehlt="ja"] { background: linear-gradient(135deg, #059669, #34d399);
+  border-color: transparent; color: #04241b; }
+.fi-ac-knopf:disabled { opacity: .4; cursor: default; }
+
+/* Die Textzeile für „Zurück“ und „Später“ — ein Weg, kein Knopf. */
+.fi-ac-text-knopf { background: none; border: 0; padding: 0; cursor: pointer;
+  font: 400 12.5px/1 'Inter', sans-serif; color: #93c5fd; }
+.fi-ac-text-knopf:hover { text-decoration: underline; text-underline-offset: 3px; }
+.fi-ac-text-knopf:disabled { opacity: .4; cursor: default; text-decoration: none; }
+.fi-ac-fuss { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.fi-ac-fuss .rechts { margin-left: auto; }
+
+/* ── DAS EINGABEFELD ───────────────────────────────────────────────────────
+   16 px, damit iOS beim Antippen nicht hineinzoomt. Die Einheit steht als
+   Beschriftung darüber, nicht als Platzhalter im Feld — ein Platzhalter ist
+   weg, sobald getippt wird, und dann rät man wieder. */
+.fi-ac-feld { display: grid; gap: 6px; }
+.fi-ac-feld > span { font: 500 10.5px/1 'Inter', sans-serif; letter-spacing: .14em;
+  text-transform: uppercase; color: #93c5fd; }
+.fi-ac-feld input { width: 100%; min-height: 50px; border-radius: 14px; padding: 0 14px;
+  font: 400 16px/1 'Inter', sans-serif; font-variant-numeric: tabular-nums; color: #fff;
+  background: rgba(2,6,23,.4); border: 1px solid rgba(255,255,255,.14);
+  outline: none; color-scheme: dark; }
+.fi-ac-feld input::placeholder { color: #64748b; }
+.fi-ac-feld input:focus { border-color: rgba(96,165,250,.6); box-shadow: 0 0 0 3px rgba(37,99,235,.2); }
+
+/* ── DAS ERGEBNIS ──────────────────────────────────────────────────────────
+   Die Summenzeile trägt die Zahl groß und LEICHT. Sie ist das Ergebnis des
+   Gesprächs — und sie muss vorlesbar sein, ohne zu schreien. */
+.fi-ac-summe { display: grid; gap: 6px; padding: 16px 18px; border-radius: 20px;
+  background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1); }
+.fi-ac-summe .zahl { font: 300 30px/1.1 'Inter', sans-serif; letter-spacing: -.02em;
+  color: #fff; font-variant-numeric: tabular-nums; }
+.fi-ac-summe .zahl small { display: block; margin-top: 4px;
+  font: 400 11.5px/1.4 'Inter', sans-serif; letter-spacing: .04em; color: #64748b; }
+.fi-ac-summe p { margin: 0; font: 300 12.5px/1.6 'Inter', sans-serif; color: #9ca3af; }
+
+/* Der Satz, den der Mitarbeiter WÖRTLICH sagt. Er steht abgesetzt, damit er
+   nicht als Beschriftung untergeht — die Sprachregel ist bindend. */
+.fi-ac-wortlaut { margin: 0; padding: 11px 14px; border-radius: 12px;
+  background: rgba(37,99,235,.10); border: 1px solid rgba(96,165,250,.3);
+  font: 300 13px/1.55 'Inter', sans-serif; color: #dbeafe; }
+.fi-ac-wortlaut b { display: block; margin-bottom: 4px; font: 500 10.5px/1 'Inter', sans-serif;
+  letter-spacing: .14em; text-transform: uppercase; color: #93c5fd; }
+
+.fi-ac-liste { display: grid; gap: 10px; }
+.fi-ac-befund { display: grid; gap: 9px; padding: 15px 17px; border-radius: 18px;
+  background: rgba(15,23,42,.6); border: 1px solid rgba(255,255,255,.12); }
+.fi-ac-befund-kopf { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.fi-ac-befund-kopf h4 { margin: 0; flex: 1 1 200px; min-width: 0;
+  font: 400 14.5px/1.35 'Inter', sans-serif; color: #fff; }
+.fi-ac-stempel { display: inline-flex; align-items: center; padding: 4px 9px;
+  border-radius: 999px; font: 500 10px/1 'Inter', sans-serif; letter-spacing: .12em;
+  text-transform: uppercase; border: 1px solid rgba(255,255,255,.12); color: #64748b; }
+.fi-ac-stempel[data-ton="gut"] { color: #6ee7b7; border-color: rgba(52,211,153,.4); }
+.fi-ac-stempel[data-ton="warn"] { color: #fde68a; border-color: rgba(251,191,36,.4); }
+.fi-ac-betrag { font: 300 21px/1.15 'Inter', sans-serif; letter-spacing: -.02em;
+  color: #fff; font-variant-numeric: tabular-nums; }
+.fi-ac-betrag small { margin-left: 8px; font: 400 11.5px/1 'Inter', sans-serif;
+  letter-spacing: .04em; color: #64748b; }
+.fi-ac-betrag[data-offen="ja"] { font-size: 13px; color: #9ca3af; letter-spacing: 0; }
+.fi-ac-begruendung { margin: 0; font: 300 13px/1.6 'Inter', sans-serif; color: #e5e7eb; }
+
+/* Stelle · Wir tun · Grundlage — als Definitionsliste, weil es genau das ist. */
+.fi-ac-fakten { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 12px; align-items: baseline; }
+.fi-ac-fakten dt { font: 500 10px/1.5 'Inter', sans-serif; letter-spacing: .12em;
+  text-transform: uppercase; color: #64748b; white-space: nowrap; }
+.fi-ac-fakten dd { margin: 0; font: 300 12px/1.55 'Inter', sans-serif;
+  color: #cbd5e1; overflow-wrap: anywhere; }
+.fi-ac-fakten a { color: #93c5fd; }
+
+/* ── HINWEISE UND FEHLER ───────────────────────────────────────────────────
+   Bernstein heißt: schau hin, aber nichts ist kaputt. Rot heißt: es ist etwas
+   schiefgegangen, und hier steht, was. */
+.fi-ac-hinweis { margin: 0; padding: 10px 14px; border-radius: 12px;
+  background: rgba(245,158,11,.12); border: 1px solid rgba(251,191,36,.35);
+  font: 400 12.5px/1.55 'Inter', sans-serif; color: #fde68a; }
+.fi-ac-fehler { margin: 0; padding: 10px 14px; border-radius: 12px;
+  background: rgba(220,38,38,.14); border: 1px solid rgba(248,113,113,.35);
+  font: 400 12.5px/1.5 'Inter', sans-serif; color: #fecaca; }
+.fi-ac-ruhe { margin: 0; font: 300 12.5px/1.6 'Inter', sans-serif; color: #64748b; }
+
+/* Der Ladezustand: eine Fläche in der richtigen Größe, kein Springen. */
+.fi-ac-laden { height: 120px; border-radius: 18px; background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.08); }
+
+/* Sichtbarer Tastatur-Fokus — auf dunklem Glas ist der Browser-Standard weg. */
+.fi-ac-knopf:focus-visible, .fi-ac-text-knopf:focus-visible, .fi-ac-feld input:focus-visible {
+  outline: 2px solid rgba(96,165,250,.75); outline-offset: 2px; }
+
+@media (max-width: 640px) {
+  .fi-ac-reihe { flex-direction: column; }
+  .fi-ac-reihe > * { flex: 1 1 auto; width: 100%; }
+  .fi-ac-frage { font-size: 16px; }
+  .fi-ac-summe .zahl { font-size: 26px; }
+  .fi-ac-fakten { grid-template-columns: minmax(0, 1fr); gap: 1px 0; }
+  .fi-ac-fakten dd { margin-bottom: 6px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fi-ac-stufe, .fi-ac-knopf { transition: none; }
+}

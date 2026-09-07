@@ -31,6 +31,7 @@ import { KontoVerbinden } from "./Konto";
 import { MeineDaten } from "./MeineDaten";
 import { Abo } from "./Abo";
 import { Mitteilungen } from "./Mitteilungen";
+import { Passwort } from "./Passwort";
 import "@/styles/app.css";
 
 const DEMO_REF = "FIAON-DEMO";
@@ -174,6 +175,7 @@ export default function AppBereich() {
         {b && bildschirm === "mehr" && rest[0] === "termine" && <Termine kundeRef={ref} demo={demo} daten={termine} />}
         {b && bildschirm === "mehr" && rest[0] === "vollmachten" && <Vollmachten kundeRef={ref} basis={basis} demo={demo} />}
         {b && bildschirm === "mehr" && rest[0] === "mitteilungen" && <Mitteilungen kundeRef={ref} demo={demo} />}
+        {b && bildschirm === "mehr" && rest[0] === "passwort" && <Passwort kundeRef={ref} demo={demo} gesetzt={b.passwortGesetzt !== false} basis={basis} />}
         {b && bildschirm === "mehr" && rest[0] === "daten" && <MeineDaten kundeRef={ref} demo={demo} kunde={b.kunde} />}
         {b && bildschirm === "mehr" && rest[0] === "abo" && <Abo kundeRef={ref} basis={basis} demo={demo} b={b} />}
         {b && bildschirm === "mehr" && !rest[0] && <Mehr kundeRef={ref} demo={demo} basis={basis} kunde={b.kunde} paket={b.paket} ansprechpartner={b.ansprechpartner} naechsterTermin={termine?.kommende?.[0] ? `${termine.kommende[0].datumText}, ${termine.kommende[0].uhrzeit} Uhr` : null} />}

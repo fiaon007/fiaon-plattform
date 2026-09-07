@@ -9,16 +9,69 @@
 // stehen sie jetzt hier; die Gesprächs-Seite und die Pipeline lesen sie von
 // hier (Re-Export in gespraech.tsx, damit bestehende Importe halten).
 //
-// Diese Datei ist bewusst REIN (keine Abhängigkeiten).
+// Diese Datei ist bewusst REIN (keine Abhängigkeiten außer der Agenda des
+// Startgesprächs, die selbst rein ist — siehe unten).
 //
 // Regeln in den Texten (Justin, 23.08.2026, Plan §13): erste Zahlung IMMER
 // direkt per Überweisung, nie Lastschrift; Karte und Konto sind Ziel, nie
 // Zusage; keine Garantie, keine Beratung.
 // ═══════════════════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════════════════
+// EIN STARTGESPRÄCH, EINE QUELLE (06.09.2026, Scheibe 7 · Modul B)
+//
+// ── WAS VORHER WAR ─────────────────────────────────────────────────────────
+// Das Startgespräch stand ZWEIMAL im Repo: hier als handgepflegte Fassung mit
+// fünf Schritten (Willkommen, Ziel, Vollmacht, Unterlagen, nächste Schritte)
+// und in shared/fiaon-onboarding-agenda.ts als AGENDA mit sieben Schritten,
+// die das Cockpit abhakt und deren Notizen in `fiaon_termine.agenda_stand`
+// landen. Zwei Fassungen desselben Gesprächs sind zwei Produkte: Wer den
+// Leitfaden las, führte ein anderes Gespräch als der, der die Agenda abhakte.
+// Der Pflichtschritt „Abo-Klarheit“ — der teuerste Missverstand des Hauses —
+// kam im Leitfaden überhaupt nicht vor.
+//
+// ── WAS JETZT GILT ─────────────────────────────────────────────────────────
+// Der Startgesprächs-Leitfaden wird AUS der AGENDA gebaut. Kommt dort ein
+// Schritt dazu, steht er ohne weiteres Zutun im Leitfaden, im
+// Gesprächs-Begleiter, in der Pipeline-Karte und im Wissen des Copilot.
+// Die anderen sieben Leitfäden bleiben handgepflegt — für sie gibt es keine
+// zweite Fassung, die sie einholen müsste.
+//
+// ── WIE DIE FELDER ZUSAMMENPASSEN ──────────────────────────────────────────
+// `zweck` der Agenda ist, worum es in dem Schritt geht → `text` (der Absatz,
+// den der Mitarbeiter liest). Die `punkte` sind laut Agenda ausdrücklich
+// „Stichpunkte ZUM VORLESEN bzw. Vorzeigen“ → `satz` (das Zitat, das er sagt).
+//
+// ── WAS NICHT AUS DER AGENDA KOMMT ─────────────────────────────────────────
+// Die Einwände. Die Agenda sagt, was zu tun ist — nicht, was der Kunde
+// entgegnet. Sie bleiben deshalb hier von Hand gepflegt.
+// ═══════════════════════════════════════════════════════════════════════════
+import { AGENDA } from "./fiaon-onboarding-agenda";
+
 export type Art = "stufe_a" | "stufe_b" | "stufe_c" | "reaktivierung" | "erstanruf" | "rueckruf" | "startgespraech" | "zahlung";
 export interface Schritt { titel: string; text?: string; satz?: string }
 export interface Einwand { frage: string; antwort: string }
+
+/**
+ * Die Schritte des Startgesprächs — abgeleitet, nicht abgeschrieben.
+ *
+ * Exportiert, damit ein Prüfstand die Ableitung nachrechnen kann, ohne die
+ * Reihenfolge in ARTEN zu kennen.
+ */
+export const STARTGESPRAECH_SCHRITTE: Schritt[] = AGENDA.map((a) => ({
+  titel: a.titel,
+  // Zweck und Stichpunkte gehören BEIDE in `text`. `satz` bleibt leer, und das
+  // ist der Punkt: Die Oberfläche setzt `satz` als Zitat (`<q>`, pipeline.tsx),
+  // also als etwas, das man wörtlich sagt. Die Punkte der Agenda sind aber
+  // Anweisungen an den Mitarbeiter („Fragen: Was erwarten Sie von uns?"). Wer
+  // sie vorliest, liest dem Kunden seine eigene Regieanweisung vor. Die echten
+  // Sätze stehen darin ohnehin schon in Anführungszeichen.
+  text: [a.zweck, ...a.punkte].join(" · "),
+}));
+
+/** Die Kurzzeile der Karte — die Schrittzahl kommt aus der Agenda, nicht aus dem Kopf. */
+export const STARTGESPRAECH_KURZ =
+  `Bezahlter Kunde – dieselbe Agenda wie im Cockpit, ${AGENDA.length} Schritte`;
 
 export const ARTEN: { key: Art; label: string; kurz: string; schritte: Schritt[]; einwaende: Einwand[] }[] = [
   // ── Justins Leitfäden je Stufe (23.08.2026, Plan §13) – erste Zahlung IMMER direkt, nie Lastschrift ──
@@ -119,14 +172,10 @@ export const ARTEN: { key: Art; label: string; kurz: string; schritte: Schritt[]
     ],
   },
   {
-    key: "startgespraech", label: "Startgespräch", kurz: "Bezahlter Kunde – 15 Minuten, Fahrplan, Vollmacht, Unterlagen",
-    schritte: [
-      { titel: "Willkommen und Rahmen", text: "15 Minuten, Fahrplan erklären, feste Ansprechpartnerin nennen.", satz: "Willkommen bei FIAON. Wir haben jetzt eine Viertelstunde: Ich zeige Ihnen den Fahrplan, und Sie sagen mir, was Ihnen am wichtigsten ist." },
-      { titel: "Ziel und Lage", text: "Ziel bestätigen, bekannte Einträge, Briefe, Fristen.", satz: "Was ist Ihr wichtigstes Ziel in den nächsten drei Monaten?" },
-      { titel: "Vollmacht und Auskunft", text: "Auskunft wird beantragt, Einsicht etwa 24 Stunden nach Eingang. Zustimmungen gibt nur der Kunde selbst – Link schicken.", satz: "Mit Ihrer Vollmacht beantragen wir die Auskunft; etwa einen Tag nach Eingang sehen Sie jeden Eintrag erklärt in Ihrem Bereich." },
-      { titel: "Unterlagen", text: "Kontoauszug der letzten drei Monate, Ausweis – Handyfoto genügt.", satz: "Laden Sie bitte den Kontoauszug der letzten drei Monate und Ihren Ausweis hoch – ein Handyfoto reicht." },
-      { titel: "Nächste Schritte und Termin", text: "Was passiert wann; nächsten Kontakt vereinbaren.", satz: "Sobald die Auskunft da ist, melde ich mich – dann gehen wir Eintrag für Eintrag durch." },
-    ],
+    // Die Schritte kommen aus der AGENDA (oben begründet) — hier steht keine
+    // zweite Fassung mehr. Wer den Ablauf ändern will, ändert die Agenda.
+    key: "startgespraech", label: "Startgespräch", kurz: STARTGESPRAECH_KURZ,
+    schritte: STARTGESPRAECH_SCHRITTE,
     einwaende: [
       { frage: "„Wie lange dauert das alles?“", antwort: "Die Auskunft kommt meist innerhalb weniger Tage; Schreiben an Gläubiger haben Fristen von zwei bis vier Wochen. Sie sehen jeden Schritt mit Datum in Ihrem Bereich." },
       { frage: "„Bekomme ich danach sicher eine Karte?“", antwort: "Über die Karte entscheidet die Bank – das kann niemand versprechen. FIAON sorgt dafür, dass Ihre Auskunft sauber ist und der Antrag vorbereitet liegt, sobald die Schwelle erreicht ist." },

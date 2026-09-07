@@ -1919,7 +1919,12 @@ router.get("/agent/karte/verdienst", requireAgent, async (req: AgentRequest, res
     await ensureKartenTabelle();
     const [z] = (await sqlPool`
       SELECT
-        COALESCE(SUM(bonus_cents) FILTER (WHERE status IN ('gesendet','eroeffnet')), 0)::int AS vorgemerkt,
+        -- 06.09.2026 (E-154): 'gemeldet' gehört dazu. Sonst verschwinden dem
+        -- Mitarbeiter die vorgemerkten 10 €, sobald jemand die Kontoeröffnung
+        -- einträgt — ausgerechnet der Schritt, der der Bestätigung vorausgeht.
+        -- 'vorgemerkt' ist ausdrücklich die NICHT auszahlbare Spalte; fällig
+        -- wird erst 'bestaetigt' (E-067).
+        COALESCE(SUM(bonus_cents) FILTER (WHERE status IN ('gesendet','eroeffnet','gemeldet')), 0)::int AS vorgemerkt,
         COALESCE(SUM(bonus_cents) FILTER (WHERE status = 'bestaetigt'), 0)::int AS bestaetigt,
         COUNT(*) FILTER (WHERE status <> 'verfallen')::int AS anzahl
       FROM fiaon_konto_karte WHERE agent_id = ${req.agent!.id}

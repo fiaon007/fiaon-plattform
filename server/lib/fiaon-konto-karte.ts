@@ -164,8 +164,21 @@ export async function ensureKartenTabelle(lauf: Lauf = sqlPool): Promise<void> {
         agent_id      INTEGER,
         agent_name    TEXT,
         gesendet_am   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        -- DER VERSANDWEG. 'mail' ist der echte Weg zur Partnerbank.
+        -- 'gemeldet' ist KEIN Versandweg, sondern das Gegenteil: Diese Zeile
+        -- entstand ohne jeden Versand, weil ein Mitarbeiter die Kontoeröffnung
+        -- von Hand gemeldet hat (kontoEroeffnetMelden, unten). Sie MUSS überall
+        -- übersprungen werden, wo „ist der Weg schon draußen?“ gefragt wird —
+        -- kartenStand().versand und bereiteKunden({ohneVersand}) tun das.
+        -- (Keine Backticks in diesem Kommentar: Er steht in einem Tagged
+        --  Template, ein Backtick würde die SQL-Zeichenkette beenden.)
+        -- Ohne diese Unterscheidung sperrt eine Handmeldung den echten Versand
+        -- und damit die 10-€-Provision (E-067), und der Kunde bekäme in seinem
+        -- Weg einen Haken für eine Mail, die er nie erhalten hat.
         kanal         TEXT NOT NULL DEFAULT 'mail',
-        -- gesendet → eroeffnet → bestaetigt, oder verfallen.
+        -- gesendet → gemeldet → bestaetigt, oder verfallen.
+        -- ('eroeffnet' ist ein Altwert derselben Bedeutung wie 'gemeldet' und
+        --  wird überall mitgelesen — gesetzt wird er nicht mehr.)
         -- Der Bonus wird erst bei 'bestaetigt' auszahlbar: Der Partner meldet
         -- eine Eröffnung erst nach Wochen endgültig und kann sie streichen.
         -- Alles davor ist eine Vormerkung, keine Zusage.
@@ -175,10 +188,204 @@ export async function ensureKartenTabelle(lauf: Lauf = sqlPool): Promise<void> {
         notiz         TEXT
       )
     `;
+    // ── 06.09.2026, Scheibe 7 (E-154): der Tag der GEMELDETEN Eröffnung ─────
+    // Additiv und idempotent, absichtlich HIER und nicht als Migration 083:
+    // Diese Tabelle legt sich selbst an (oben), der SQL-Runner läuft aber VOR
+    // dem Code — ein ALTER in einer Migrationsdatei träfe auf einer frischen
+    // Datenbank auf eine Tabelle, die es dort noch nicht gibt.
+    //
+    // Warum eine EIGENE Spalte und nicht `bestaetigt_am`: An `bestaetigt_am`
+    // hängt die 10-€-Kontoprovision (E-067). Sie wird erst mit der Bestätigung
+    // des Kooperationspartners fällig. Eine Aussage des Kunden am Telefon darf
+    // niemals eine Auszahlung auslösen — zwei Spalten, zwei Bedeutungen.
+    await tx`ALTER TABLE fiaon_konto_karte ADD COLUMN IF NOT EXISTS gemeldet_am TIMESTAMPTZ`;
+    // Und WER gemeldet hat. `agent_name` trägt den VERSENDER des Weges — an ihm
+    // hängt die Provision, er darf sich nicht ändern, nur weil ein Kollege die
+    // Eröffnung einträgt. Ohne eigene Spalte behauptete die Akte „gemeldet von
+    // <Versender>“ und nannte damit den Falschen.
+    await tx`ALTER TABLE fiaon_konto_karte ADD COLUMN IF NOT EXISTS gemeldet_von TEXT`;
     await tx`CREATE INDEX IF NOT EXISTS fiaon_konto_karte_person ON fiaon_konto_karte (person_id)`;
     await tx`CREATE INDEX IF NOT EXISTS fiaon_konto_karte_agent ON fiaon_konto_karte (agent_id, status)`;
   });
   tabelleGeprueft = true;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE KONTOERÖFFNUNG — EINE QUELLE FÜR KUNDE UND AKTE (06.09.2026, E-154)
+//
+// Schritt 10 des Weges („Girokonto eröffnet“, shared/fiaon-rahmenweg.ts) stand
+// fest auf offen — der Balken konnte nie voll werden, auch bei einem Menschen,
+// der sein Konto längst hatte. Den Stand führt diese Tabelle ohnehin; es fehlte
+// nur der Weg, ihn einzutragen, und eine Stelle, die ihn liest.
+//
+// Diese Stelle ist hier. Kundenbereich (GET /kunde/:ref/bereich) und Akte
+// (GET /agent/app/kunde/:personId/uebersicht) rufen BEIDE `kontoEroeffnung()`.
+// Zwei Fassungen wären zwei Wege für denselben Menschen — einer mit Datum, der
+// andere ohne, und niemand wüsste, welcher stimmt.
+//
+// WELCHE ZEILE GILT: die jüngste, die „das Konto steht“ SAGT — nicht einfach
+// die jüngste. Ein später verschickter Weg legt eine neue 'gesendet'-Zeile an;
+// läse man nur die jüngste, fiele der Schritt beim Kunden wieder auf offen
+// zurück. Ein Schritt, der einmal erledigt war, bleibt erledigt
+// (shared/fiaon-rahmenweg.ts, Kopf).
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Stände, die „das Konto steht“ bedeuten. 'eroeffnet' ist der Altwert von 'gemeldet'. */
+export const KONTO_EROEFFNET_STAENDE: readonly string[] = ["gemeldet", "eroeffnet", "bestaetigt"];
+
+export interface KontoEroeffnung {
+  /** Steht das Konto? Nur bei einem der drei Stände oben. */
+  eroeffnet: boolean;
+  /** Der Tag als „dd.mm.yyyy“ (Berlin) — Bestätigung des Partners zuerst, sonst die Meldung. */
+  am: string | null;
+  /** Wer es gemeldet hat — für die Akte. Der Kunde sieht diesen Namen nicht. */
+  gemeldetVon: string | null;
+  /** Der rohe Stand der jüngsten Zeile; null, wenn es keine gibt. */
+  status: string | null;
+}
+
+/** „dd.mm.yyyy“ in Berliner Zeit. Nur formatToParts — Number(format()) ergibt NaN. */
+function tagBerlin(d: any): string | null {
+  if (!d) return null;
+  const x = d instanceof Date ? d : new Date(d);
+  if (Number.isNaN(x.getTime())) return null;
+  const teile = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(x);
+  const w = (art: string) => teile.find((p) => p.type === art)?.value ?? "";
+  return `${w("day")}.${w("month")}.${w("year")}`;
+}
+
+/** Steht das Girokonto? Die eine Auskunft für Kundenbereich und Akte. */
+export async function kontoEroeffnung(personId: number, lauf: Lauf = sqlPool): Promise<KontoEroeffnung> {
+  const leer: KontoEroeffnung = { eroeffnet: false, am: null, gemeldetVon: null, status: null };
+  try {
+    await ensureKartenTabelle(lauf);
+    // Erst die Zeile suchen, die eine Eröffnung TRÄGT — die Bestätigung des
+    // Partners schlägt dabei die Meldung des Mitarbeiters.
+    const [z] = (await lauf`
+      SELECT status, gemeldet_von, gemeldet_am, bestaetigt_am
+        FROM fiaon_konto_karte
+       WHERE person_id = ${personId} AND status = ANY (${[...KONTO_EROEFFNET_STAENDE]})
+       ORDER BY (status = 'bestaetigt') DESC,
+                COALESCE(bestaetigt_am, gemeldet_am, gesendet_am) DESC
+       LIMIT 1`) as any[];
+    if (!z) {
+      // Keine Eröffnung — aber der rohe Stand der jüngsten Zeile ist trotzdem
+      // eine Auskunft („gesendet“: der Weg ist draußen, mehr nicht).
+      const [j] = (await lauf`
+        SELECT status FROM fiaon_konto_karte WHERE person_id = ${personId}
+         ORDER BY gesendet_am DESC LIMIT 1`) as any[];
+      return { eroeffnet: false, am: null, gemeldetVon: null, status: j ? String(j.status) : null };
+    }
+    return {
+      eroeffnet: true,
+      am: tagBerlin(z.bestaetigt_am) ?? tagBerlin(z.gemeldet_am),
+      gemeldetVon: z.gemeldet_von ?? null,
+      status: String(z.status),
+    };
+  } catch (e: any) {
+    // Eine klemmende Nebenabfrage darf weder den Bereich noch die Akte
+    // mitreissen (Lehre vom 26./27.08.2026) — dann eben ohne diesen Schritt.
+    console.error("[KONTO] Eröffnungsstand:", e?.message || e);
+    return leer;
+  }
+}
+
+export interface MeldungErgebnis {
+  /** Der Stand NACH der Meldung. */
+  stand: KontoEroeffnung;
+  /** War es schon eingetragen? Dann wurde nichts geschrieben. */
+  schonGemeldet: boolean;
+}
+
+/**
+ * Der Mitarbeiter meldet: Der Kunde hat sein Girokonto eröffnet.
+ *
+ * Idempotent — zweimal melden schreibt nur einmal. Setzt `status = 'gemeldet'`
+ * und `gemeldet_am`.
+ *
+ * WAS DIESE FUNKTION NIEMALS ANFASST: `bestaetigt_am` und `bonus_cents`. Die
+ * 10 € (E-067) werden erst mit der Bestätigung des Kooperationspartners fällig,
+ * und der bestätigt Wochen später — er kann eine Eröffnung auch wieder
+ * streichen. Wer eine Kundenaussage in eine Auszahlung übersetzt, zahlt
+ * irgendwann für ein Konto, das es nie gab.
+ *
+ * @param amIso Der Eröffnungstag als „YYYY-MM-DD“. Ohne Angabe: jetzt.
+ */
+export async function kontoEroeffnetMelden(
+  personId: number,
+  agentId: number | null,
+  agentName: string | null,
+  amIso?: string | null,
+  lauf: Lauf = sqlPool,
+): Promise<MeldungErgebnis> {
+  await ensureKartenTabelle(lauf);
+
+  const notiz = `Kontoeröffnung${agentName ? ` von ${agentName}` : ""} gemeldet.`;
+
+  // ── WARUM EINE TRANSAKTION MIT SPERRE UND KEIN „LESEN, DANN SCHREIBEN“ ────
+  // Vorher stand hier: Stand lesen · Zeile suchen · schreiben. Zwei Klicks im
+  // selben Augenblick (Doppelklick, zwei Fenster) lasen beide „noch nichts da“
+  // und legten zwei Zeilen an; gelesen wurde danach nur eine, die andere blieb
+  // als Karteileiche stehen. Die Tabelle hat kein UNIQUE auf person_id, und ein
+  // nachträgliches wäre gefährlich: Der echte Versand legt bewusst je Weg eine
+  // Zeile an. Also sperren wir für die Dauer der Transaktion auf DIESEN
+  // Menschen — der zweite Klick wartet und sieht dann „schon gemeldet“.
+  const ergebnis = await lauf.begin(async (tx) => {
+    await tx`SELECT pg_advisory_xact_lock(815401, ${personId})`;
+
+    const schon = await kontoEroeffnung(personId, tx as unknown as Lauf);
+    if (schon.eroeffnet) return { stand: schon, schonGemeldet: true };
+
+    // 12:00 Uhr des gemeldeten Tages: So steht beim Zurücklesen in Berlin
+    // DERSELBE Tag da, in jeder Zeitzone, in der dieser Dienst je läuft.
+    // Mitternacht täte das nicht — sie kippt um einen Tag.
+    const [vorhanden] = (await tx`
+      SELECT id FROM fiaon_konto_karte WHERE person_id = ${personId}
+       ORDER BY gesendet_am DESC LIMIT 1`) as any[];
+
+    if (vorhanden) {
+      // Die vorhandene Zeile wird FORTGESCHRIEBEN. Eine zweite daneben wäre ein
+      // zweiter Vorgang für dieselbe Sache, und gelesen würde nur eine davon.
+      // `agent_id`/`agent_name` bleiben unberührt: Das ist der VERSENDER des
+      // Weges, an ihm hängt die Provision. Der Melder steht in `gemeldet_von`.
+      // Die Notiz wird ANGEHÄNGT, nicht ersetzt — was dort stand, stand dort
+      // aus einem Grund.
+      if (amIso) {
+        await tx`
+          UPDATE fiaon_konto_karte
+             SET status = 'gemeldet', gemeldet_am = (${amIso}::date + TIME '12:00')::timestamptz,
+                 gemeldet_von = ${agentName},
+                 notiz = TRIM(BOTH E'\n' FROM COALESCE(notiz || E'\n', '') || ${notiz})
+           WHERE id = ${Number(vorhanden.id)}`;
+      } else {
+        await tx`
+          UPDATE fiaon_konto_karte
+             SET status = 'gemeldet', gemeldet_am = NOW(),
+                 gemeldet_von = ${agentName},
+                 notiz = TRIM(BOTH E'\n' FROM COALESCE(notiz || E'\n', '') || ${notiz})
+           WHERE id = ${Number(vorhanden.id)}`;
+      }
+    } else {
+      // Ohne verschickten Weg kein Bonus: Die Provision hängt an UNSEREM Link,
+      // nicht an der Eröffnung. `bonus_cents` bleibt deshalb 0.
+      // `kanal = 'gemeldet'` sagt: HIER WURDE NICHTS VERSCHICKT. Nur deshalb
+      // sperrt diese Zeile weder den echten Versand (kartenStand().versand)
+      // noch die Tagesliste (bereiteKunden) — siehe Spaltenkommentar oben.
+      if (amIso) {
+        await tx`
+          INSERT INTO fiaon_konto_karte (person_id, agent_id, agent_name, kanal, status, bonus_cents, gemeldet_am, gemeldet_von, notiz)
+          VALUES (${personId}, ${agentId}, ${agentName}, 'gemeldet', 'gemeldet', 0,
+                  (${amIso}::date + TIME '12:00')::timestamptz, ${agentName}, ${notiz})`;
+      } else {
+        await tx`
+          INSERT INTO fiaon_konto_karte (person_id, agent_id, agent_name, kanal, status, bonus_cents, gemeldet_am, gemeldet_von, notiz)
+          VALUES (${personId}, ${agentId}, ${agentName}, 'gemeldet', 'gemeldet', 0, NOW(), ${agentName}, ${notiz})`;
+      }
+    }
+    return { stand: await kontoEroeffnung(personId, tx as unknown as Lauf), schonGemeldet: false };
+  });
+
+  return ergebnis as MeldungErgebnis;
 }
 
 /**
@@ -308,8 +515,14 @@ function toreAus(r: any): Tor[] {
         + "hat keinen Grund mehr, im Paket zu bleiben — dann zahlt er einmal und kündigt. Wer zwei "
         + "Monate dabei war, hat seinen Nutzen erlebt und bleibt. Und ohne bezahlte Auskunft wissen "
         + "wir gar nicht, ob seine Bonität die Eröffnung trägt.",
+      // 06.09.2026: Hier stand „Wir empfehlen das Konto erst …“. Das Wort
+      // „empfehlen“ steht auf der Wortwand (shared/fiaon-wortverbote.ts) und
+      // der Satz geht wörtlich an den Kunden — über das Bereich-JSON
+      // (fiaon-kunde-bereich.ts, karte.tore[].warum) und über „So sagst du es
+      // dem Kunden“ in der Akte. Der Postmeister ersetzte ihn bereits per
+      // Regex; jetzt stimmt die QUELLE, und die zweite Wahrheit dort kann weg.
       warumFuerKunden:
-        "Wir empfehlen das Konto erst, wenn Ihre Auskunft vorliegt und Ihre ersten Raten gelaufen "
+        "Der Konto-Schritt kommt erst, wenn Ihre Auskunft vorliegt und Ihre ersten Raten gelaufen "
         + "sind. Vorher wüssten wir nicht, ob die Bank Sie annimmt — und eine Ablehnung würde erneut "
         + "in Ihrer Auskunft stehen.",
     },
@@ -342,9 +555,15 @@ export async function kartenStand(personId: number, lauf: Lauf = sqlPool): Promi
   const tore = toreAus(r);
   const offen = tore.filter((t) => !t.erfuellt);
 
+  // `kanal <> 'gemeldet'` ist tragend, kein Schönheitsfilter: Eine von Hand
+  // gemeldete Kontoeröffnung ist KEIN Versand. Ohne diese Zeile hielte
+  // `versand` eine Handmeldung für eine verschickte Partnerbank-Mail — der
+  // Sendeknopf ginge mit „bereits geschickt“ zu, im Weg des Kunden erschiene
+  // ein Haken bei „Weg zu Konto und Karte erhalten“, den er nie bekommen hat,
+  // und die 10 € (E-067) könnten nie entstehen.
   const [v] = (await lauf`
     SELECT gesendet_am, agent_name, status, bestaetigt_am, bonus_cents
-    FROM fiaon_konto_karte WHERE person_id = ${personId}
+    FROM fiaon_konto_karte WHERE person_id = ${personId} AND kanal <> 'gemeldet'
     ORDER BY gesendet_am DESC LIMIT 1
   `) as any[];
 
@@ -384,7 +603,9 @@ export async function kartenStand(personId: number, lauf: Lauf = sqlPool): Promi
  * Tagesliste bitte bei den Mitarbeitern, die die Kunden betreuen." Ein
  * Mitarbeiter soll nicht die bereiten Kunden anderer sehen.
  * `ohneVersand` blendet aus, wo schon geschickt wurde: Ein zweiter Link an
- * denselben Menschen wirkt wie eine Mahnung.
+ * denselben Menschen wirkt wie eine Mahnung. „Geschickt“ heißt dabei WIRKLICH
+ * geschickt — eine von Hand gemeldete Kontoeröffnung (kanal = 'gemeldet') ist
+ * kein Versand und darf niemanden aus dieser Liste nehmen.
  */
 export async function bereiteKunden(
   opt: { agentId?: number | null; ohneVersand?: boolean; grenze?: number } = {},
@@ -403,7 +624,7 @@ export async function bereiteKunden(
      WHERE x.antrag_voll AND x.paket_bezahlt AND x.schufa_bezahlt
        AND x.raten_bezahlt >= ${KARTE_MIN_RATEN}
        AND x.hat_kontoauszug AND x.hat_ausweis
-     ${opt.ohneVersand ? "AND NOT EXISTS (SELECT 1 FROM fiaon_konto_karte k WHERE k.person_id = x.person_id)" : ""}
+     ${opt.ohneVersand ? "AND NOT EXISTS (SELECT 1 FROM fiaon_konto_karte k WHERE k.person_id = x.person_id AND k.kanal <> 'gemeldet')" : ""}
      ORDER BY x.person_id
      LIMIT ${Math.min(500, Math.max(1, opt.grenze ?? 200))}`,
     werte,

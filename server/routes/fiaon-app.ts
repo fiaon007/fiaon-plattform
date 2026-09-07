@@ -125,14 +125,21 @@ export function keinePerson(res: Response) {
 // ── Anspruchs-Check ─────────────────────────────────────────────────────────
 const FRAGE_KEYS = new Set<string>(FRAGEN.map((f) => f.schluessel));
 
-async function antwortenLaden(personId: number): Promise<Antworten> {
+// ── EXPORTIERT SEIT 06.09.2026 (Scheibe 7, Modul A) ─────────────────────────
+// Der Anspruchs-Check läuft ab jetzt an ZWEI Tischen: hier beim Kunden und im
+// Startgespräch beim Mitarbeiter (server/routes/fiaon-app-ansprueche-agent.ts).
+// Beide rechnen und speichern mit DIESEN Funktionen. Eine zweite Fassung von
+// `befundeSpeichern` wäre eine zweite Wahrheit über dieselben Zeilen in
+// fiaon_ansprueche — und die erste, die jemand vergisst mitzuändern.
+// Nur das `export` kam dazu; an der Logik ist nichts angefasst.
+export async function antwortenLaden(personId: number): Promise<Antworten> {
   const zeilen = (await sqlPool`SELECT frage_schluessel, wert FROM fiaon_anspruch_antworten WHERE person_id = ${personId}`) as any[];
   const a: Record<string, unknown> = {};
   for (let i = 0; i < zeilen.length; i++) a[zeilen[i].frage_schluessel] = zeilen[i].wert;
   return a as Antworten;
 }
 
-async function anspruecheStand(personId: number): Promise<Record<string, { stand: string; fristAm: string | null; vorgangId: number | null }>> {
+export async function anspruecheStand(personId: number): Promise<Record<string, { stand: string; fristAm: string | null; vorgangId: number | null }>> {
   const zeilen = (await sqlPool`SELECT regel_schluessel, stand, frist_am, vorgang_id FROM fiaon_ansprueche WHERE person_id = ${personId}`) as any[];
   const m: Record<string, { stand: string; fristAm: string | null; vorgangId: number | null }> = {};
   for (let i = 0; i < zeilen.length; i++) m[zeilen[i].regel_schluessel] = { stand: zeilen[i].stand, fristAm: tag(zeilen[i].frist_am), vorgangId: zeilen[i].vorgang_id ? Number(zeilen[i].vorgang_id) : null };
@@ -140,7 +147,7 @@ async function anspruecheStand(personId: number): Promise<Record<string, { stand
 }
 
 /** Befunde in fiaon_ansprueche schreiben: neue „offen“, laufende behalten, weggefallene „nicht_zutreffend“. */
-async function befundeSpeichern(personId: number, liste: Befund[]): Promise<void> {
+export async function befundeSpeichern(personId: number, liste: Befund[]): Promise<void> {
   const aktuelle: string[] = [];
   for (let i = 0; i < liste.length; i++) {
     const b = liste[i]; aktuelle.push(b.regel.schluessel);
@@ -160,7 +167,7 @@ async function befundeSpeichern(personId: number, liste: Befund[]): Promise<void
   }
 }
 
-function checkAntwort(a: Antworten, staende: Record<string, { stand: string; fristAm: string | null; vorgangId: number | null }>) {
+export function checkAntwort(a: Antworten, staende: Record<string, { stand: string; fristAm: string | null; vorgangId: number | null }>) {
   const liste = befunde(a);
   return {
     ok: true,
@@ -346,11 +353,28 @@ router.post("/kunde/:ref/app/brief", requireKunde, (req, res, next) => {
 });
 
 // ── Post: alle Vorgänge des Menschen ────────────────────────────────────────
-const STAND_TEXT: Record<string, string> = {
+/**
+ * Der Satz, den der KUNDE zu einem Vorgang liest, wenn kein eigener hinterlegt
+ * ist. Sie-Form, keine Zusage, kein Datum.
+ *
+ * EXPORTIERT SEIT 06.09.2026 (Scheibe 7, Modul C): Die Mitarbeiter-Akte zeigt
+ * unter „Was dein Kunde sieht“ (GET /agent/app/kunde/:personId/uebersicht)
+ * genau diese Sätze. Eine zweite, abgeschriebene Fassung wäre eine Karte, die
+ * zeigt, was auf dem Bildschirm des Kunden ÄHNLICH steht — und das ist genau
+ * der Fehler, den diese Karte beheben soll.
+ * Nur das `export` kam dazu; an den Sätzen ist nichts geändert.
+ */
+export const STAND_TEXT: Record<string, string> = {
   eingegangen: "Eingegangen – wird gelesen", gelesen: "Gelesen – wird bearbeitet", entwurf: "Entwurf – wird vorbereitet",
   unterschrift_offen: "Wartet auf Ihre Unterschrift", versandbereit: "Versandbereit", versandt: "Versandt – wartet auf Antwort",
   nachfrage: "Überfällig – wir haken nach", bewilligt: "Bewilligt", abgelehnt: "Abgelehnt", zurueckgezogen: "Zurückgezogen", erledigt: "Erledigt",
 };
+
+/**
+ * Vorgänge, an denen noch etwas offen ist — die Liste, die GET /kunde/:ref/app/post
+ * für `offen` benutzt. Ebenfalls seit 06.09.2026 exportiert, aus demselben Grund.
+ */
+export const OFFENE_STAENDE: string[] = ["eingegangen", "gelesen", "entwurf", "unterschrift_offen", "versandbereit", "versandt", "nachfrage"];
 const ART_TEXT: Record<string, string> = {
   brief: "Ihr Brief", p_konto: "Antrag: höherer Schutzbetrag (P-Konto)", p_konto_umwandlung: "Umwandlung in ein P-Konto", rundfunk: "Antrag: Befreiung vom Rundfunkbeitrag",
   selbstauskunft: "Selbstauskunft (Art. 15 DSGVO)", wohngeld: "Anschreiben Wohngeldstelle", kfz: "Kündigung Kfz-Versicherung", handy: "Kündigung Handyvertrag",
@@ -379,7 +403,7 @@ router.get("/kunde/:ref/app/post", requireKunde, async (req: KundeRequest, res: 
         standText: z.stand_text || STAND_TEXT[z.stand] || z.stand, fristAm: tag(z.frist_am), versandtAm: tag(z.versandt_am),
         empfaenger: z.empfaenger_name ?? null, zustaendig: z.zustaendig ?? null, aktenzeichen: z.aktenzeichen ?? null, eingegangenAm: tag(z.created_at), aktualisiertAm: tag(z.updated_at),
         dokumente: Number(z.dokumente ?? 0),
-        offen: ["eingegangen", "gelesen", "entwurf", "unterschrift_offen", "versandbereit", "versandt", "nachfrage"].indexOf(String(z.stand)) !== -1,
+        offen: OFFENE_STAENDE.indexOf(String(z.stand)) !== -1,
       })),
     });
   } catch (e: any) {

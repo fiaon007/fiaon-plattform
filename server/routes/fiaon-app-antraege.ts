@@ -1178,8 +1178,14 @@ router.get("/agent/app/dokument/:id", requireAgent, async (req: AgentRequest, re
     await ensureAppTabellen();
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) return res.status(404).end();
-    const [d] = (await sqlPool`SELECT dateiname, mime, inhalt FROM fiaon_dokumente WHERE id = ${id} AND geloescht_am IS NULL LIMIT 1`) as any[];
+    // 06.09.2026: Diese Route gab jedes Kundendokument an jeden angemeldeten
+    // Mitarbeiter heraus — Vollmachten, Anträge, fotografierte Bescheide. Es
+    // fehlte genau die Prüfung, die `vorgangFuerAgent` überall sonst macht.
+    const [d] = (await sqlPool`SELECT person_id, dateiname, mime, inhalt FROM fiaon_dokumente WHERE id = ${id} AND geloescht_am IS NULL LIMIT 1`) as any[];
     if (!d) return res.status(404).end();
+    const { rolleVon, darfAnKunde } = await import("../lib/fiaon-kundenzugriff");
+    const rolle = req.agent?.rolle || await rolleVon(req.agent!.id);
+    if (!(await darfAnKunde(req.agent!.id, rolle, Number(d.person_id)))) return res.status(403).end();
     res.setHeader("Content-Type", d.mime || "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="${sauberName(d.dateiname, "dokument.pdf")}"`);
     res.send(Buffer.from(d.inhalt));

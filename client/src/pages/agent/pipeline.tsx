@@ -122,6 +122,7 @@ import { KundeAnlegen } from "@/components/agent/KundeAnlegen";
 import { SendeMenue } from "@/components/SendeMenue";
 import { Gespraechsblatt } from "@/components/Gespraechsblatt";
 import { RechnungBestaetigung } from "@/components/agent/RechnungBestaetigung";
+import { KundenbereichKarte } from "@/components/agent/KundenbereichKarte";
 import "@/styles/office-pipeline.css";
 import { Rundgang } from "@/components/agent/Rundgang";
 import { RUNDGAENGE } from "./rundgaenge";
@@ -2669,6 +2670,13 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
               )}
             </Sek>
           )}
+
+          {/* ═══ MEIN FIAON — was der Kunde in seinem Bereich sieht ═══
+              06.09.2026 (Scheibe 7): Bisher konnte niemand im Team nachsehen,
+              was im neuen Kundenbereich steht — Weg, Ansprüche, Girokonto.
+              Genau daran scheiterten Rückfragen am Telefon. Die Karte lädt
+              selbst und trägt den einen Knopf „Girokonto eröffnet“. */}
+          <KundenbereichKarte personId={k.personId} />
         </>}
 
         {/* ═══ ZAHLUNGEN & RATEN ═══ */}

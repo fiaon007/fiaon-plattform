@@ -5,6 +5,40 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 07.09.2026 (nachts) — Mails gehen künftig zu den Stunden raus, in denen sie geöffnet werden (E-164)
+
+### Was geändert wurde
+Zwei Versandfenster verschoben, keine Zeile Logik, keine einzige Mail mehr:
+- `server/lib/fiaon-antrag-erinnerung.ts`: Slots von **7:30 / 15:00 / 16:30 / 19:00** auf
+  **12:00 / 13:30 / 17:30 / 20:00**.
+- `server/lib/fiaon-sepa-werbung.ts`: Fenster von **8–20 Uhr** auf **11–21 Uhr**.
+
+### Warum
+Über 60 Tage in `fiaon_mail_log` gemessen, Öffnungsrate je Versandstunde (ab 100 Mails):
+20 Uhr 51,6 % · 13 Uhr 46,2 % · 18 Uhr 38,6 % · 17 Uhr 36,2 % · 12 Uhr 33,2 % · 8 Uhr 23,2 % ·
+19 Uhr 21,0 % · 15 Uhr 13,5 % · 16 Uhr 13,2 % · 10 Uhr 12,1 % · 9 Uhr 9,0 % · 7 Uhr 1,5 %.
+
+Das ist nicht der Effekt der Mailart, sondern der Stunde. Bei DERSELBEN Vorlage:
+`payment_details` 7 Uhr 1,7 % (289 Mails) gegen 20 Uhr 58,8 % (51 Mails);
+`payment_reminder` 9 Uhr 7,9 % (5.053) gegen 17 Uhr 23,5 % (562);
+`lead_followup` 9 Uhr 7,9 % (4.494) gegen 19 Uhr 17,9 % (3.364).
+
+Der alte 7:30-Slot war der schlechteste im Haus: 1.498 Mails, 1,5 % geöffnet, darunter
+`bankverbindung_neu` mit 1.142 Mails und **0,0 %**. Heute liegen 19.636 Mails in den Stunden 9 und
+10 und werden zu 9 bis 12 % geöffnet.
+
+### Was das bringt
+Nichts kostet es. Die Menge bleibt gleich, der Text bleibt gleich, die Empfänger bleiben gleich.
+Verschiebt sich das Volumen der Stunden 9/10 in die Stunden 12/13 und 17–20, verdoppelt bis
+verdreifacht sich die Öffnung. Das ist der Hebel, den eine Mengenerhöhung nicht hat: Mehr Mails an
+dieselben Menschen zahlen laut eigener Messung (Kohorten in `fiaon-mail-frequenz.ts`) ab der
+sechsten Mahnung praktisch nicht mehr — 18.218 Mails an die 6+-Gruppen erzeugten fünf Zahlungen.
+
+### Wo zu finden
+Nichts am Bildschirm. Die Nachtruhe bleibt unberührt. Register E-164 mit den Abfragen zum Nachmessen.
+
+---
+
 ## 07.09.2026 (abends) — Der Mandats-Abgleich frischt jetzt auch den Status auf (E-163)
 
 ### Was geändert wurde

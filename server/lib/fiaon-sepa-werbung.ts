@@ -85,8 +85,17 @@ import { absoluteUrl } from "../fiaon-base-url";
 // Zustellbarkeit — und die brauchen die 15.934 Zahlungserinnerungen im Monat.
 const STANDARD_ABSTAND_TAGE = 2;
 const STANDARD_MAX = 10;
-/** Nachtruhe in Europe/Berlin: vor 8:00 und ab 20:00 geht nichts raus. */
-const RUHE_BIS = 8, RUHE_AB = 20;
+/**
+ * Versandfenster in Europe/Berlin: vor 11:00 und ab 21:00 geht nichts raus.
+ *
+ * 07.09.2026 (E-164): Vorher 8:00–20:00. Über 60 Tage gemessen öffnen die
+ * Stunden 8 bis 10 nur 9,0 bis 23,2 %, die Stunden 12 bis 13 und 17 bis 20
+ * dagegen 33,2 bis 51,6 % — bei derselben Vorlage (`payment_details`: 7 Uhr
+ * 1,7 %, 20 Uhr 58,8 %). Das Fenster beginnt deshalb erst um 11 und reicht
+ * bis 21, damit der Tagesdeckel in den guten Stunden verbraucht wird statt
+ * gleich morgens in den schlechten.
+ */
+const RUHE_BIS = 11, RUHE_AB = 21;
 
 /** Eine Zahl aus fiaon_settings, mit Standardwert und Deckel. */
 async function einstellung(schluessel: string, standard: number, hoechstens: number): Promise<number> {

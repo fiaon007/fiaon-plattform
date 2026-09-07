@@ -18,8 +18,39 @@ import { absoluteUrl } from "../fiaon-base-url";
 
 const STUFEN_MAX = 7;
 const ERSTE_NACH_MIN = 10;
-/** Tagesfenster in Europe/Berlin: Stunde*60+Minute. */
-const SLOTS = [7 * 60 + 30, 15 * 60, 16 * 60 + 30, 19 * 60];
+/**
+ * Tagesfenster in Europe/Berlin: Stunde*60+Minute.
+ *
+ * ── DIE STUNDE ENTSCHEIDET MEHR ALS DER TEXT (07.09.2026, E-164) ──────────
+ * Gemessen über 60 Tage in `fiaon_mail_log`, Öffnungsrate je Versandstunde
+ * über alle Ereignisse mit mindestens 100 Mails:
+ *   20 Uhr 51,6 % · 13 Uhr 46,2 % · 18 Uhr 38,6 % · 17 Uhr 36,2 % ·
+ *   12 Uhr 33,2 % · 8 Uhr 23,2 % · 19 Uhr 21,0 % · 15 Uhr 13,5 % ·
+ *   16 Uhr 13,2 % · 10 Uhr 12,1 % · 9 Uhr 9,0 % · 7 Uhr 1,5 %
+ *
+ * Das ist kein Effekt der Mailart, sondern der Stunde. Der Beweis steht in
+ * derselben Tabelle, bei DERSELBEN Vorlage:
+ *   `payment_details`  7 Uhr: 289 Mails, 1,7 % geöffnet
+ *                     19 Uhr:  65 Mails, 55,4 %
+ *                     20 Uhr:  51 Mails, 58,8 %
+ *   `payment_reminder` 9 Uhr: 5.053 Mails, 7,9 % · 17 Uhr: 562 Mails, 23,5 %
+ *   `lead_followup`    9 Uhr: 4.494 Mails, 7,9 % · 19 Uhr: 3.364 Mails, 17,9 %
+ * Gleicher Text, gleiche Empfängerart, Faktor 3 bis 33.
+ *
+ * ── WAS HIER STAND UND WARUM ES WEG MUSSTE ───────────────────────────────
+ * Der erste Slot lag auf 7:30. In dieser Stunde gingen über 60 Tage 1.498
+ * Mails raus und wurden zu 1,5 % geöffnet; `bankverbindung_neu` schaffte dort
+ * 1.142 Mails mit einer Öffnungsrate von 0,0 %. Eine Mail um halb acht kommt
+ * an, wenn der Empfänger im Bus sitzt, und ist um neun Uhr unter zwanzig
+ * anderen begraben.
+ *
+ * NEU: vier Fenster, alle in gemessen guten Stunden, weiterhin gleichmäßig
+ * über den Tag verteilt, damit ein Mensch nicht vier Mails am Stück bekommt.
+ * Die Nachtruhe (21:30–7:00) bleibt unberührt.
+ *
+ * Wer das ändert, misst vorher nach — die Abfrage steht im Register E-164.
+ */
+const SLOTS = [12 * 60, 13 * 60 + 30, 17 * 60 + 30, 20 * 60];
 const SLOT_BREITE_MIN = 30;
 const RUHE_VON = 21 * 60 + 30, RUHE_BIS = 7 * 60; // nachts keine Mail
 

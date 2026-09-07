@@ -749,6 +749,24 @@ router.post("/admin/team/gesperrte-freigeben", async (_req, res) => {
   }
 });
 
+// E-162: Ausgewählte Kunden (ohne Mandat) nach Last und Quote neu verteilen — ohne Dienst-Vorrang.
+// Body: { personIds: number[], grund: string }. Mandate bleiben, Stufe 3 geht in den Pool.
+router.post("/admin/team/neu-verteilen", async (req, res) => {
+  try {
+    await ensureAgentTables();
+    const personIds = (Array.isArray(req.body?.personIds) ? req.body.personIds : []).map(Number).filter((n: number) => Number.isFinite(n) && n > 0);
+    const grund = String(req.body?.grund || "").trim();
+    if (personIds.length === 0) return res.status(400).json({ ok: false, error: "personIds fehlen." });
+    if (!grund) return res.status(400).json({ ok: false, error: "Grund fehlt." });
+    const { neuVerteilen } = await import("../lib/fiaon-zuteilung");
+    const ergebnis = await neuVerteilen(personIds, grund, sqlPool);
+    res.json({ ok: true, ...ergebnis });
+  } catch (err) {
+    console.error("[TEAM] neu-verteilen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 router.get("/admin/team/stats", async (_req, res) => {
   const nurTest = String(_req.query?.test ?? "") === "1";
   const kontenGrenze = nurTest ? nurTestkontenSql() : echteMitarbeiterSql();

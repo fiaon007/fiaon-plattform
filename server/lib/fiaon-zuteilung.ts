@@ -79,15 +79,21 @@ const DIENST_SQL = `EXISTS (
      AND v.wochentag = EXTRACT(ISODOW FROM (NOW() AT TIME ZONE 'Europe/Berlin'))::int
      AND (NOW() AT TIME ZONE 'Europe/Berlin')::time BETWEEN v.von AND v.bis)`;
 
-export async function verteilungsTabelle(lauf: Lauf = sqlPool): Promise<VerteilungsZeile[]> {
+/**
+ * @param dienstZuerst true = der Antrag soll JETZT angerufen werden (Sofortzuteilung): wer Dienst hat, geht vor.
+ *                     false = Massen-Freigabe oder Neuverteilung: nur Last und Quote zählen — sonst landet
+ *                     abends alles beim Einzigen, der noch Dienst hat (07.09.: 73 Kunden auf einmal bei Nikita).
+ */
+export async function verteilungsTabelle(lauf: Lauf = sqlPool, dienstZuerst = true): Promise<VerteilungsZeile[]> {
   const rows = (await lauf.unsafe(`
     SELECT a.id, COALESCE(NULLIF(a.first_name, ''), a.name) AS name,
            ${DIENST_SQL} AS im_dienst,
            (SELECT COUNT(*)::int FROM fiaon_persons p
              WHERE p.assigned_agent_id = a.id AND p.merged_into_person_id IS NULL AND NOT p.is_blocked
                AND p.priority_tier BETWEEN 1 AND 2
-               AND EXISTS (SELECT 1 FROM fiaon_applications x WHERE x.person_id = p.id AND x.merged_into IS NULL
-                             AND x.created_at > NOW() - INTERVAL '7 days')) AS frisch,
+               AND (p.assigned_at > NOW() - INTERVAL '7 days'
+                    OR EXISTS (SELECT 1 FROM fiaon_applications x WHERE x.person_id = p.id AND x.merged_into IS NULL
+                                 AND x.created_at > NOW() - INTERVAL '7 days'))) AS frisch,
            (SELECT COUNT(*)::int FROM fiaon_persons p
              WHERE p.assigned_agent_id = a.id AND p.merged_into_person_id IS NULL AND NOT p.is_blocked
                AND p.priority_tier BETWEEN 1 AND 3) AS personen,
@@ -119,7 +125,7 @@ export async function verteilungsTabelle(lauf: Lauf = sqlPool): Promise<Verteilu
       personen: Number(r.personen || 0), rang: 0,
     };
   });
-  const jemandImDienst = zeilen.some((z) => z.imDienst);
+  const jemandImDienst = dienstZuerst && zeilen.some((z) => z.imDienst);
   const kandidaten = jemandImDienst ? zeilen.filter((z) => z.imDienst) : zeilen;
   const last = (z: VerteilungsZeile) => (z.frisch + 1) / z.quote;
   [...kandidaten]
@@ -129,8 +135,8 @@ export async function verteilungsTabelle(lauf: Lauf = sqlPool): Promise<Verteilu
 }
 
 /** Der Nächste nach der Verteilungsregel — null, wenn niemand verteilen darf. */
-export async function agentMitKleinsterLast(lauf: Lauf = sqlPool): Promise<number | null> {
-  const erster = (await verteilungsTabelle(lauf)).find((z) => z.rang === 1);
+export async function agentMitKleinsterLast(lauf: Lauf = sqlPool, dienstZuerst = true): Promise<number | null> {
+  const erster = (await verteilungsTabelle(lauf, dienstZuerst)).find((z) => z.rang === 1);
   return erster ? erster.agentId : null;
 }
 
@@ -171,7 +177,7 @@ export async function gesperrteFreigeben(
       if (frei.length === 0) continue;
       let an = "den Pool";
       if ([1, 2].includes(Number(r.priority_tier))) {
-        const e = await sofortZuteilen(Number(r.id), lauf);
+        const e = await sofortZuteilen(Number(r.id), lauf, false);
         if (e.zugeteilt) { out.verteilt++; an = `Mitarbeiter ${e.agentId}`; } else out.pool++;
       } else out.pool++;
       const [ref] = (await lauf`
@@ -209,7 +215,7 @@ export interface ZuteilungsErgebnis {
  *             sie ausgelöst hat, und überlebt dessen Rücknahme.
  */
 export async function sofortZuteilen(
-  personId: number, lauf: Lauf = sqlPool,
+  personId: number, lauf: Lauf = sqlPool, dienstZuerst = true,
 ): Promise<ZuteilungsErgebnis> {
   try {
     const [p] = (await lauf`
@@ -329,7 +335,7 @@ export async function sofortZuteilen(
       console.log(`[ZUTEILUNG] Person ${personId}: betreuung_seit gesetzt, aber kein echter Betreuer — wird verteilt.`);
     }
 
-    const agentId = await agentMitKleinsterLast(lauf);
+    const agentId = await agentMitKleinsterLast(lauf, dienstZuerst);
     if (!agentId) return { zugeteilt: false, agentId: null, grund: "kein verteilender Mitarbeiter aktiv" };
 
     // `AND assigned_agent_id IS NULL` im UPDATE: Zwei gleichzeitige Ereignisse
@@ -392,6 +398,46 @@ export async function sofortZuteilen(
 // normale Verteilung. Beides ist nachvollziehbar; ein pauschales „alle an
 // Daniel" wäre es nicht.
 // ═══════════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NEU VERTEILEN (07.09.2026, E-162): ausgewählte Kunden ohne Mandat werden
+// gelöst und nach Last und Quote neu vergeben — ohne Dienst-Vorrang. Gebaut,
+// nachdem die erste Freigabe der gesperrten Bestände um 21:20 alle 73 Kunden
+// beim einzigen Diensthabenden ablegte. Mandate werden nie angefasst.
+// ═══════════════════════════════════════════════════════════════════════════
+export async function neuVerteilen(
+  personIds: number[], grund: string, lauf: Lauf = sqlPool,
+): Promise<{ geprueft: number; verteilt: number; pool: number; je: Record<string, number> }> {
+  const out = { geprueft: 0, verteilt: 0, pool: 0, je: {} as Record<string, number> };
+  for (const id of personIds.slice(0, 500)) {
+    out.geprueft++;
+    const [p] = (await lauf`
+      SELECT p.id, p.priority_tier, p.assigned_agent_id, COALESCE(NULLIF(a.first_name, ''), a.name) AS von
+        FROM fiaon_persons p LEFT JOIN fiaon_agents a ON a.id = p.assigned_agent_id
+       WHERE p.id = ${Number(id)} AND p.mandat_seit IS NULL AND p.merged_into_person_id IS NULL
+         AND p.ist_test_am IS NULL AND NOT p.is_blocked AND p.priority_tier BETWEEN 1 AND 3`) as any[];
+    if (!p) continue;
+    await lauf`UPDATE fiaon_persons SET assigned_agent_id = NULL, assigned_at = NULL, updated_at = NOW()
+                WHERE id = ${Number(p.id)} AND mandat_seit IS NULL`;
+    let an = "den Pool";
+    if ([1, 2].includes(Number(p.priority_tier))) {
+      const e = await sofortZuteilen(Number(p.id), lauf, false);
+      if (e.zugeteilt) { out.verteilt++; an = `Mitarbeiter ${e.agentId}`; out.je[String(e.agentId)] = (out.je[String(e.agentId)] || 0) + 1; }
+      else out.pool++;
+    } else out.pool++;
+    const [ref] = (await lauf`
+      SELECT ref FROM fiaon_applications WHERE person_id = ${Number(p.id)} AND merged_into IS NULL AND archived_at IS NULL
+      ORDER BY created_at DESC LIMIT 1`) as any[];
+    if (ref) {
+      await lauf`
+        INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note, created_at)
+        VALUES (${ref.ref}, NULL, 'System', 'system',
+                ${`Neu verteilt (von ${p.von ?? "niemandem"} → ${an}). Grund: ${String(grund || "").slice(0, 300)}`}, NOW())`.catch(() => {});
+    }
+  }
+  console.log(`[ZUTEILUNG] neu verteilt: ${out.geprueft} geprüft, ${out.verteilt} verteilt, ${out.pool} Pool, je ${JSON.stringify(out.je)}`);
+  return out;
+}
 
 export interface BereinigungZeile {
   personId: number;

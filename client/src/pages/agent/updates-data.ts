@@ -84,6 +84,29 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-09-07-kundenbereich-akte",
+    date: "2026-09-07",
+    category: "Neu",
+    title: "Der Kundenbereich in deiner Akte, Ansprüche im Startgespräch, Portal ansehen für Betreuer",
+    summary: "Kunden haben seit dem Wochenende den neuen Bereich „Mein FIAON“ mit Weg, Briefen, Anträgen und Anspruchs-Check. Jetzt siehst du in der Akte, was dein Kunde dort sieht, prüfst die Ansprüche gleich im Startgespräch mit ihm — und öffnest das Portal deiner eigenen Kunden selbst.",
+    changes: [
+      "Akte → Reiter „Überblick“: die Karte „Mein FIAON“ zeigt den Weg des Kunden (Schritt x von 11), seine Vorgänge, Ansprüche, Vollmacht und den letzten Monatsbericht — genau das, was er auf seinem Bildschirm hat.",
+      "Auf dieser Karte liegt der Knopf „Girokonto eröffnet“. Sagt dir der Kunde im Gespräch, dass sein Konto bei der Partnerbank steht, trägst du es mit Datum ein; er sieht den Schritt sofort in seinem Weg. Die 10 € Kontoprovision entstehen davon NICHT — die kommen weiter nur mit der Bestätigung des Partners.",
+      "Startgespräch → neuer Schritt „Ansprüche prüfen“ vor dem Abschluss: zehn Fragen zu Konto, Einkommen und Verträgen, eine nach der anderen; jede Antwort ist sofort gespeichert. Danach steht in der Akte und beim Kunden dieselbe Liste dessen, was er beantragen kann.",
+      "„Portal ansehen“ in der Akte geht jetzt auch für Betreuer bei den eigenen Kunden (bisher nur Leitung). Nur lesen, 30 Minuten, der Kunde sieht den Eintrag in seinem Verlauf. Fremde Kunden bleiben zu.",
+      "Aufträge aus dem Kundenbereich (Brief lesen, Antrag versenden, Bescheid prüfen, Frist) tragen jetzt den Knopf „Vorgang öffnen“ neben „Kunde öffnen“ — dort quittierst du Versand, Ergebnis und Nachfrage.",
+      "Kunden können in „Mein FIAON“ unter Mehr → Passwort ihr Passwort festlegen oder ändern. Wer noch keins hat, meldet sich mit dem Anmelde-Link per E-Mail an.",
+    ],
+    howto: [
+      "Kunde in der Akte öffnen → Reiter „Überblick“ → Karte „Mein FIAON“. Sie lädt von selbst.",
+      "Girokonto: Knopf „Girokonto eröffnet“ → Datum wählen (Standard heute) → Eintragen. Steht es schon, sagt dir die Karte, wer es gemeldet hat.",
+      "Ansprüche: im Startgespräch den Schritt „Ansprüche prüfen“ aufklappen, Frage vorlesen, Antwort antippen. Was schon im Antrag steht, nur bestätigen lassen. Am Ende die Liste vorlesen: „Das können Sie beantragen. Über den Betrag entscheidet die Stelle.“",
+      "Portal ansehen: Akte → „Portal ansehen“ → neuer Tab. Beenden über die blaue Leiste oben.",
+    ],
+    link: { href: "/agent/kundenbereich-neu", label: "Was neu ist — die Übersicht" },
+    important: true,
+  },
+  {
     id: "2026-09-04-mara-auftraege",
     date: "2026-09-04",
     category: "Neu",

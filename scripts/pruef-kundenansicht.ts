@@ -88,9 +88,18 @@ async function main(): Promise<void> {
     LIMIT 1
   `) as any[];
   if (agent) {
-    const r = await ka.darfAnsehen("leitung", Number(agent.id), 1);
-    pruef("Ein Agent ohne Leitungsrolle darf NICHT", !r.erlaubt, r.grund);
-    pruef("Und er erfährt, warum", /Leitung|Liste/i.test(r.grund),
+    // 07.09.2026 (E-155): Ein Betreuer darf seine EIGENEN Kunden ansehen, fremde nicht.
+    const [eigener] = (await sqlPool`
+      SELECT id FROM fiaon_persons WHERE assigned_agent_id = ${agent.id} AND merged_into_person_id IS NULL LIMIT 1`) as any[];
+    const [fremder] = (await sqlPool`
+      SELECT id FROM fiaon_persons WHERE assigned_agent_id IS NOT NULL AND assigned_agent_id <> ${agent.id}
+        AND assigned_agent_id NOT IN (SELECT id FROM fiaon_agents WHERE recruited_by = ${agent.id})
+        AND merged_into_person_id IS NULL LIMIT 1`) as any[];
+    if (eigener) pruef("Ein Betreuer darf seinen EIGENEN Kunden", (await ka.darfAnsehen("leitung", Number(agent.id), Number(eigener.id))).erlaubt);
+    else pruef("Ein Betreuer darf seinen EIGENEN Kunden", true, "kein Prüffall (Betreuer ohne Kunden) — übersprungen");
+    const r = await ka.darfAnsehen("leitung", Number(agent.id), Number(fremder?.id ?? 1));
+    pruef("Ein Betreuer darf einen FREMDEN Kunden NICHT", !r.erlaubt, r.grund);
+    pruef("Und er erfährt, warum", /Leitung|zugeordnet/i.test(r.grund),
       "„Keine Berechtigung\u201c bringt niemanden weiter");
   } else pruef("Ein Agent ohne Leitungsrolle darf NICHT", false, "kein Prüffall gefunden");
 
@@ -116,10 +125,11 @@ async function main(): Promise<void> {
           AND p.assigned_agent_id NOT IN (SELECT id FROM fiaon_agents WHERE recruited_by = ${leitung.id})))
       LIMIT 1
     `) as any[];
+    // 04.09.2026 (Florentine): Die Leitung sieht ALLE Kunden — auch fremde.
     if (fremd) {
       const r = await ka.darfAnsehen("leitung", Number(leitung.id), Number(fremd.id));
-      pruef("Eine Leitung darf einen FREMDEN Kunden NICHT", !r.erlaubt, r.grund);
-    } else pruef("Eine Leitung darf einen FREMDEN Kunden NICHT", false, "kein Prüffall");
+      pruef("Eine Leitung darf auch einen FREMDEN Kunden (seit 04.09.)", r.erlaubt, r.grund);
+    } else pruef("Eine Leitung darf auch einen FREMDEN Kunden (seit 04.09.)", false, "kein Prüffall");
   } else {
     pruef("Eine Leitung darf ihren eigenen Kunden", false, "keine Leitung mit Kunden gefunden");
   }

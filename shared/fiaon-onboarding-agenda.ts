@@ -135,18 +135,6 @@ export const AGENDA: AgendaSchritt[] = [
     notizPflicht: true,
     notizFrage: "Hat der Kunde die laufenden Kosten und den Kündigungsweg bestätigt? Wörtlich, was er gesagt hat.",
   },
-  {
-    key: "abschluss",
-    titel: "Nächste Schritte & Erreichbarkeit",
-    zweck: "Das Gespräch endet mit einer Verabredung, nicht mit einem Gruß.",
-    punkte: [
-      "Zusammenfassen: „Sie machen X, wir machen Y, wir hören voneinander am Z.“",
-      "Wie er uns erreicht — und dass er sich melden soll, bevor etwas hakt.",
-      "„Ihr Konto ist ab jetzt vollständig freigeschaltet.“",
-    ],
-    notizPflicht: true,
-    notizFrage: "Was wurde konkret verabredet?",
-  },
   // ═════════════════════════════════════════════════════════════════════
   // ANSPRÜCHE PRÜFEN — DER SCHRITT MIT DEM ERGEBNIS (06.09.2026, Scheibe 7)
   //
@@ -202,6 +190,21 @@ export const AGENDA: AgendaSchritt[] = [
     ],
     notizPflicht: false,
     notizFrage: "Was ist herausgekommen, und was hat der Kunde dazu gesagt?",
+  },
+  // 07.09.2026 (TFO-Prüfung Scheibe 7): „Ansprüche prüfen“ steht VOR dem Abschluss —
+  // die Agenda endet mit dem Abschluss (Prüfstand pruef-onboarding-pflicht), und ein
+  // Gespräch, das nach dem Abschied noch zehn Fragen stellt, gibt es nicht.
+  {
+    key: "abschluss",
+    titel: "Nächste Schritte & Erreichbarkeit",
+    zweck: "Das Gespräch endet mit einer Verabredung, nicht mit einem Gruß.",
+    punkte: [
+      "Zusammenfassen: „Sie machen X, wir machen Y, wir hören voneinander am Z.“",
+      "Wie er uns erreicht — und dass er sich melden soll, bevor etwas hakt.",
+      "„Ihr Konto ist ab jetzt vollständig freigeschaltet.“",
+    ],
+    notizPflicht: true,
+    notizFrage: "Was wurde konkret verabredet?",
   },
 ];
 

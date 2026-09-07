@@ -5,6 +5,58 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 07.09.2026 — Kundenbereich in der Akte, Ansprüche im Startgespräch, Girokonto-Schritt echt (E-154) · Chefbüro für die Geschäftsführung, Portal ansehen für Betreuer (E-155)
+
+### Was geändert wurde
+
+**1. Die Akte sieht den Kundenbereich.** `GET /agent/app/kunde/:personId/uebersicht`
+(server/routes/fiaon-app-uebersicht.ts) liefert Weg (x von 11 aus derselben Funktion wie beim
+Kunden), Vorgänge, Ansprüche, Vollmacht, letzten Bericht und den letzten Besuch im Bereich;
+Baustein `KundenbereichKarte` im Überblick-Reiter der Akte.
+**2. Girokonto eröffnet (Schritt 10 des Weges) ist keine feste Null mehr.** Quelle ist
+`kontoEroeffnung()` in server/lib/fiaon-konto-karte.ts; der Betreuer meldet die Eröffnung mit
+`POST …/konto-eroeffnet` (status 'gemeldet', eigene Spalten gemeldet_am/gemeldet_von, kanal
+'gemeldet' = kein Versand). `bestaetigt_am` und `bonus_cents` bleiben unberührt — die 10 € (E-067)
+entstehen nur durch die Partnerbestätigung.
+**3. Anspruchs-Check im Startgespräch.** Achter Agenda-Schritt „Ansprüche prüfen“ (vor dem
+Abschluss), Router server/routes/fiaon-app-ansprueche-agent.ts; Befunde über dieselbe Funktion wie
+im Kundenweg (`befundeSpeichern`, jetzt exportiert). Der Startgesprächs-Leitfaden wird aus der
+Agenda erzeugt — eine Fassung statt zwei.
+**4. Passwort festlegen in „Mein FIAON“** (/app/mehr/passwort) über die bestehenden Routen
+`passwort-setzen` und `passwort`; 119 zahlende Kunden hatten keins.
+**5. Chefbüro:** Die Mitarbeiter-Wand vor /admin ließ nur die Chef-Stufe „inhaber“ durch —
+Geschäftsführung mit Mitarbeiter-Cookie bekam 403. Jetzt zählt jedes gültige Chef-Token, die
+Stufe prüft `adminCodeGate`. Statische Importe statt `require()`.
+**6. Portal ansehen für Betreuer** bei eigenen Kunden (Nur-Lesen, 30 Minuten, im Kundenverlauf).
+**7. Nebenbei geschlossen:** `GET /agent/app/dokumente/:id` gab jedes Kundendokument an jeden
+angemeldeten Mitarbeiter — jetzt mit Zuständigkeitsprüfung. Der Satz „Wir empfehlen das Konto
+erst …“ (Wortwand) heißt jetzt „Der Konto-Schritt kommt erst …“.
+
+### Warum
+Lücken-Audit vom 06.09. (04_Fahrplan/LUECKEN_KUNDENBEREICH_2026-09-06.md): Der Kunde sah mehr über
+seinen Fall als der Mensch, der ihn betreut; das Startgespräch endete ohne Ergebnis; der Weg konnte
+nie voll werden. Justin am 07.09.: Daniel und Florentine ohne Zugriff im Chefbüro, Betreuer ohne
+Zugriff aufs Kundenportal.
+
+### Wo zu finden
+Akte → Überblick → „Mein FIAON“; Startgespräch-Cockpit → „Ansprüche prüfen“; Kundenbereich →
+Mehr → Passwort; Register E-154, E-155; Agenten-Eintrag 2026-09-07-kundenbereich-akte.
+
+---
+
+## 06.09.2026 — Türen zu: Referenz allein öffnet nichts mehr, kein Kennwort im Quelltext (E-152)
+
+**Antrags-Cookie** (server/lib/fiaon-antrag-sitzung.ts): `POST /antrag/:ref/einloggen` verlangt das
+signierte 48-h-Cookie, das POST /application beim Anlegen und der Weiter-Link setzen — vorher reichte
+die Referenz von der Rechnung für eine 30-Tage-Sitzung. **requireKunde** auf Startgespräch, Profil,
+KYC-/Bonitätsstatus und Fahrplan; Vertrags-PDF und Termin-Link mit Sitzung ODER Antrags-Cookie.
+**Kein festes Admin-Kennwort** mehr (server/lib/fiaon-admin-wache.ts). **Passwörter** bei allen
+Schreibwegen gehasht, keine utm-Kopie. GoCardless-Webhook fail-closed. Aufträge aus dem Kundenbereich
+verlinken /agent/app-vorgaenge/<id>, die Aufgabenkarte zeigt „Vorgang öffnen“. Neue Seite
+/zugang/:ref für den Setz-Link aus „Zugang retten“ (war 404). /datenschutz als Alias auf /privacy.
+
+---
+
 ## 04.09.2026 — Mara ersetzt einen Mitarbeiter: Rechnung als PDF, Aufgaben mit Frist, Storno erst nach Zahlung (E-115)
 
 ### Was geändert wurde

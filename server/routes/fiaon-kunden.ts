@@ -1050,7 +1050,18 @@ router.post("/admin/kunden/:ref/konditionen", async (req: Request, res: Response
       if (!PACKS_ALLOWED[key]) return res.status(400).json({ ok: false, error: "Unbekanntes Paket" });
       const from = cur.pack_name || cur.pack_key || "—";
       if (key !== cur.pack_key) {
-        if (cur.payment_status === "paid") {
+        // ── NACHTRAG STATT WECHSEL (07.09.2026, Antonio Mičuda) ─────────────
+        // Eine bezahlte Bestellung behält ihr Paket — daran hängen Rechnung und
+        // Provision. AUSNAHME: Sie hat gar keins. FIAON-MQ9UPB8J-C172 war seit
+        // dem 11.06. bezahlt (99,99 € über Klarna), aber pack_key, Betrag und
+        // Buchungstag fehlten; der Kunde sah in seinem Bereich „Paket FIAON,
+        // Rahmen –, Wunschlimit –" und beschwerte sich. Ein Paket NACHZUTRAGEN
+        // ändert keine Rechnung und keine Provision — es gab nichts, das
+        // geändert würde. Der Abo-Motor legt dadurch keine Raten an: Ohne
+        // Buchungstag (paid_at, Bankbuchung, completed_at) bleibt sein Zyklus
+        // unberechenbar (aboBeiZahlungAnlegen: „Kein Buchungstag").
+        const nachtrag = cur.payment_status === "paid" && !cur.pack_key;
+        if (cur.payment_status === "paid" && !nachtrag) {
           return res.status(409).json({
             ok: false,
             error: "Das Paket einer BEZAHLTEN Bestellung kann nicht geändert werden — daran "
@@ -1065,16 +1076,19 @@ router.post("/admin/kunden/:ref/konditionen", async (req: Request, res: Response
               -- Der Betrag folgt dem Paket. Nur wo schon einer stand: Ein
               -- Entwurf ohne Betrag soll keinen bekommen, bloß weil jemand das
               -- Paket gesetzt hat — die Rechnung entsteht später und holt ihn
-              -- sich dann aus demselben Katalog.
-              amount_due = CASE WHEN amount_due IS NULL THEN NULL
+              -- sich dann aus demselben Katalog. Beim NACHTRAG an einer bezahlten
+              -- Bestellung ist der Katalogpreis der Betrag, der bezahlt wurde.
+              amount_due = CASE WHEN amount_due IS NULL AND NOT ${nachtrag} THEN NULL
                                 ELSE ${neuEuro.toFixed(2)}::numeric END,
               updated_at = NOW()
           WHERE ref = ${ref}
         `;
-        await auditApp(ref, `Paket geändert durch Admin: ${from} → ${PACKS_ALLOWED[key]}`
+        await auditApp(ref, `Paket ${nachtrag ? "NACHGETRAGEN (bezahlte Bestellung ohne Paket)" : "geändert"} durch Admin: ${from} → ${PACKS_ALLOWED[key]}`
           + (cur.amount_due != null
             ? ` — Betrag mit dem Katalog nachgezogen: ${altBetrag} € → ${neuEuro.toFixed(2)} €`
-            : " — kein Betrag gesetzt (Entwurf); die Rechnung holt ihn aus dem Katalog"));
+            : nachtrag
+              ? ` — Betrag aus dem Katalog gesetzt: ${neuEuro.toFixed(2)} € (bezahlt, kein Buchungstag — Abo-Motor legt keine Raten an)`
+              : " — kein Betrag gesetzt (Entwurf); die Rechnung holt ihn aus dem Katalog"));
         changes.push({ field: "Paket", from: String(from), to: PACKS_ALLOWED[key] });
         if (cur.amount_due != null) {
           changes.push({ field: "Betrag", from: `${altBetrag} €`, to: `${neuEuro.toFixed(2)} €` });

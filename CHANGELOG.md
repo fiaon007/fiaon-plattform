@@ -5,7 +5,7 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
-## 08.09.2026 — Der Mandats-Abgleich frischt jetzt auch den Status auf (E-163)
+## 07.09.2026 (abends) — Der Mandats-Abgleich frischt jetzt auch den Status auf (E-163)
 
 ### Was geändert wurde
 `POST /admin/lastschrift/abgleich` holte bisher alle Mandate von GoCardless, hängte verwaiste über die
@@ -19,7 +19,7 @@ Die Antwort trägt zwei neue Felder, `statusAenderungen` und `erloschen`.
 ### Warum
 Den Status pflegte bisher allein der Webhook. Verpasst er ein Ereignis — Ausfall, fehlendes Geheimnis, ein
 Mandat aus der Zeit vor der Einrichtung —, blieb der Wert für immer stehen, und es gab keinen zweiten Weg,
-ihn zu korrigieren. Gemessen am 08.09.2026: 21 Mandate bei GoCardless, davon 2 mit veraltetem Status bei
+ihn zu korrigieren. Gemessen am 07.09.2026: 21 Mandate bei GoCardless, davon 2 mit veraltetem Status bei
 uns und 4 gar nicht bekannt. Harmlos ist der Sprung `pending_submission` → `submitted`. Teuer ist der
 umgekehrte Fall: Ein gekündigtes Mandat, das wir für lebend halten, lässt das Forderungsmanagement auf
 einen Einzug warten, den es nicht mehr gibt.
@@ -32,6 +32,11 @@ ausschließlich in unsere Datenbank. Geldbewegungen löst weiterhin nur der Betr
 `pending_submission` ist KEIN Fehler. Ein frisch erteiltes SEPA-Mandat steht so, bis der erste Einzug
 eingereicht wurde; die Oberfläche von GoCardless nennt es trotzdem „Aktives Lastschriftmandat". Von 21
 Mandaten stehen 14 genau so. Wer das für kaputt hält, repariert etwas, das funktioniert.
+
+### Nachtrag zum Datum
+Dieser Abschnitt trug zunächst den 08.09. Airwallex liefert `posted_at` in +0800; „2026-09-08T00:19+0800"
+ist der 07.09. um 18:19 Berlin. Wer ein Datum braucht, liest es (`SELECT NOW() AT TIME ZONE
+'Europe/Berlin'`) und zählt es nicht weiter.
 
 ### Wo zu finden
 `server/routes/fiaon-lastschrift.ts`, Route `/admin/lastschrift/abgleich`. Nichts am Bildschirm, keine

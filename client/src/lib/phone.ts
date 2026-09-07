@@ -49,3 +49,15 @@ export function checkPhone(raw: string): PhoneCheck {
 export function isPhoneValid(raw: string): boolean {
   return checkPhone(raw).valid;
 }
+
+/**
+ * 07.09.2026 (Daniel): Anträge nur mit Telefonnummern aus Deutschland, Österreich und der
+ * Schweiz. Gibt den Satz für den Kunden zurück, wenn die Nummer woandersher kommt — sonst null.
+ * Wird NUR im Antrag benutzt; die Nummern-Aktualisierung bestehender Kunden bleibt frei.
+ */
+export const DACH_HINWEIS = "Aktuell nehmen wir Anträge nur aus Deutschland, Österreich und der Schweiz an. Mit einer Telefonnummer aus einem anderen Land ist ein Antrag derzeit leider nicht möglich.";
+export function dachPruefen(raw: string): string | null {
+  const c = checkPhone(raw);
+  if (!c.valid || !c.e164) return null;
+  return /^\+(49|43|41)\d/.test(c.e164) ? null : DACH_HINWEIS;
+}

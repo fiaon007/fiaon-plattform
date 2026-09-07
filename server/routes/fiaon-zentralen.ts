@@ -566,8 +566,12 @@ async function bestellungenEinteilen(refs: string[]): Promise<BestellKandidat[]>
   const rows = (await sqlPool`
     SELECT a.ref, a.payment_status, a.invoice_number, a.amount_due,
            SPLIT_PART(a.pack_name, E'\n', 1) AS paket, a.archived_at, a.gdpr_deleted_at,
+           -- 07.09.2026 (Daniel, Wasana Unglaube): Nur VERKAUFS-Provisionen (own/override) sperren.
+           -- Eine Onboarding-Provision gehört zum Startgespräch des Menschen, nicht zur Bestellung —
+           -- sie hing an einer unbezahlten Doppelbestellung und machte sie unlöschbar. Sie wandert beim
+           -- Entfernen zur bezahlten Schwester-Bestellung (siehe Route).
            (SELECT COUNT(*)::int FROM fiaon_commissions c
-             WHERE c.ref = a.ref AND c.status <> 'storniert') AS provisionen,
+             WHERE c.ref = a.ref AND c.status <> 'storniert' AND c.kind IN ('own', 'override')) AS provisionen,
            (SELECT COUNT(*)::int FROM fiaon_abo_raten r WHERE r.ref = a.ref) AS raten
     FROM fiaon_applications a WHERE a.ref = ANY(${refs})
   `) as any[];
@@ -655,6 +659,21 @@ router.post("/admin/bestellungen/entfernen", async (req: Request, res: Response)
 
     for (const k of kandidaten) {
       if (k.art === "gesperrt") continue;
+      // Provisionen, die nicht am Verkauf dieser Bestellung hängen (Onboarding u. Ä.), zur bezahlten
+      // Schwester-Bestellung desselben Menschen umhängen — sonst zeigten sie ins Leere.
+      try {
+        const [schwester] = (await sqlPool`
+          SELECT b.ref FROM fiaon_applications a JOIN fiaon_applications b ON b.person_id = a.person_id AND b.ref <> a.ref
+          WHERE a.ref = ${k.ref} AND b.payment_status = 'paid' AND b.merged_into IS NULL AND b.archived_at IS NULL
+            AND COALESCE(b.type, '') <> 'schufa' ORDER BY b.created_at DESC LIMIT 1`) as any[];
+        if (schwester?.ref) {
+          const bewegt = (await sqlPool`
+            UPDATE fiaon_commissions SET ref = ${String(schwester.ref)}, updated_at = NOW(),
+                   note = CONCAT_WS(' · ', note, ${`von ${k.ref} umgehängt (Bestellung entfernt)`}::text)
+             WHERE ref = ${k.ref} AND kind NOT IN ('own', 'override') AND status <> 'storniert' RETURNING id`) as any[];
+          if (bewegt.length) console.log(`[ZENTRALE] ${bewegt.length} Provision(en) von ${k.ref} nach ${schwester.ref} umgehängt`);
+        }
+      } catch (e: any) { console.error("[ZENTRALE] Provision umhängen:", e?.message || e); }
       if (k.art === "archivieren") {
         await archiviereAntrag(k.ref, String(req.body?.grund || "sonstiges"),
           String(req.body?.notiz || "Aus der Akte entfernt"),

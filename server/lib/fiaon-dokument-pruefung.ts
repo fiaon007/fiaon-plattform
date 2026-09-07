@@ -148,19 +148,55 @@ export async function dokumentPruefen(art: DokumentArt, pdf: Buffer): Promise<Do
         basis.hinweisIntern = `Kontoauszug erkannt, aber Zeitraum ${tage > 0 ? `nur ~${tage} Tage` : "unklar"} — drei Monate sind verlangt.`;
       }
     } else if (art === "ausweis") {
+      // 07.09.2026 (Daniel, Feedback 4): „Dokument nicht vollständig. Bitte laden Sie die
+      // Rückseite hoch." — aber nur, wenn wir es WISSEN. Ein Reisepass hat eine Datenseite
+      // (maschinenlesbare Zone), da fehlt nichts. Beim Personalausweis verrät die Textschicht
+      // die Seite: vorn stehen Name/Geburtstag/gültig bis, hinten Anschrift/Ausstellungs-
+      // behörde/Zugangsnummer. Nur vorn ohne hinten → Rückseite fehlt. Foto-PDFs ohne Text
+      // kommen hier gar nicht an (oben „nicht prüfbar").
       const mrz = text.includes("<<");
-      basis.vollstaendig = basis.seiten >= 2 || mrz ? true : null;
-      basis.hinweisIntern = `Ausweisdokument erkannt (${basis.seiten} Seite${basis.seiten === 1 ? "" : "n"}${mrz ? ", maschinenlesbare Zone gefunden" : ""}).`;
-      if (basis.seiten < 2 && !mrz) {
-        basis.fehlt = ["Möglicherweise fehlt die Rückseite"];
-        basis.hinweisKunde = "Ihr Ausweis ist angekommen. Falls die Rückseite auf einer eigenen Seite ist, laden Sie bitte beide Seiten hoch.";
+      const pass = /reisepass|passport/.test(klein);
+      const vorne = ["personalausweis", "identity card", "geburtstag", "gültig bis", "staatsangehörigkeit", "nationality"].filter((w) => klein.includes(w)).length;
+      const hinten = ["anschrift", "ausstellungsbehörde", "zugangsnummer", "authority", "address", "ausstellungsdatum", "augenfarbe", "körpergröße"].filter((w) => klein.includes(w)).length;
+      if (pass || mrz) {
+        basis.vollstaendig = true;
+        basis.hinweisIntern = `Ausweisdokument erkannt (${pass ? "Reisepass" : "maschinenlesbare Zone"}, ${basis.seiten} Seite${basis.seiten === 1 ? "" : "n"}).`;
+      } else if (vorne >= 2 && hinten === 0) {
+        basis.vollstaendig = false;
+        basis.fehlt = ["Rückseite des Personalausweises fehlt"];
+        basis.hinweisKunde = "Dokument nicht vollständig. Bitte laden Sie auch die Rückseite Ihres Personalausweises hoch.";
+        basis.hinweisIntern = `Personalausweis: nur die Vorderseite erkannt (${basis.seiten} Seite${basis.seiten === 1 ? "" : "n"}) — Rückseite fehlt.`;
+      } else if (vorne >= 1 && hinten >= 1) {
+        basis.vollstaendig = true;
+        basis.hinweisIntern = `Personalausweis erkannt, Vorder- und Rückseite (${basis.seiten} Seite${basis.seiten === 1 ? "" : "n"}).`;
+      } else {
+        basis.vollstaendig = basis.seiten >= 2 ? true : null;
+        basis.hinweisIntern = `Ausweisdokument erkannt (${basis.seiten} Seite${basis.seiten === 1 ? "" : "n"}) — Seiten nicht sicher zuzuordnen, bitte von Hand ansehen.`;
+        if (basis.seiten < 2) {
+          basis.fehlt = ["Möglicherweise fehlt die Rückseite"];
+          basis.hinweisKunde = "Ihr Ausweis ist angekommen. Falls die Rückseite auf einer eigenen Seite ist, laden Sie bitte beide Seiten hoch.";
+        }
       }
     } else {
       basis.vollstaendig = basis.seiten >= 2 ? true : null;
       basis.hinweisIntern = `Bonitätsauskunft erkannt (${basis.seiten} Seiten).`;
-      if (basis.seiten === 1) {
+      // 07.09.2026 (Justin zu einer KSV-Auskunft: „Wenn wir den ganzen Bericht haben, dann
+      // richtig"): SCHUFA, KSV1870 und CRIF nummerieren ihre Seiten („Seite 2 von 7", „Page 2
+      // of 7"). Steht eine höhere Gesamtzahl im Text, als die Datei Seiten hat, fehlt etwas.
+      const nummern = [...klein.matchAll(/(?:seite|page)\s+(\d{1,3})\s+(?:von|of|\/)\s+(\d{1,3})/g)].map((m) => Number(m[2])).filter((n) => n > 0 && n < 400);
+      const gesamt = nummern.length ? Math.max(...nummern) : 0;
+      const quelle = /ksv1870|kreditschutzverband/.test(klein) ? "KSV-Auskunft" : /crif/.test(klein) ? "CRIF-Auskunft" : "Auskunft";
+      if (gesamt > basis.seiten) {
+        basis.vollstaendig = false;
+        basis.fehlt = [`${quelle}: laut Seitenzählung ${gesamt} Seiten, in der Datei sind ${basis.seiten}`];
+        basis.hinweisKunde = `Ihre ${quelle} ist angekommen, aber nicht vollständig: Der Bericht hat ${gesamt} Seiten, in Ihrer Datei sind ${basis.seiten}. Bitte laden Sie den ganzen Bericht hoch.`;
+        basis.hinweisIntern = `${quelle} erkannt, aber unvollständig: ${basis.seiten} von ${gesamt} Seiten.`;
+      } else if (basis.seiten === 1) {
         basis.fehlt = ["Eine vollständige Auskunft hat meist mehrere Seiten"];
-        basis.hinweisKunde = "Ihre Auskunft ist angekommen, umfasst aber nur eine Seite. Bitte prüfen Sie, ob alle Seiten der Auskunft in der Datei sind.";
+        basis.hinweisKunde = `Ihre ${quelle} ist angekommen, umfasst aber nur eine Seite. Bitte prüfen Sie, ob alle Seiten der Auskunft in der Datei sind.`;
+      } else {
+        basis.vollstaendig = true;
+        basis.hinweisIntern = `${quelle} erkannt, ${basis.seiten} Seiten${gesamt ? ` (Seitenzählung bis ${gesamt} passt)` : ""}.`;
       }
     }
     return basis;

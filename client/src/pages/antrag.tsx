@@ -11,7 +11,7 @@ import { AntragStart } from "@/components/antrag/AntragStart";
 import { AdresseSuche } from "@/components/antrag/AdresseSuche";
 import { EmailBekannt } from "@/components/antrag/EmailBekannt";
 import PremiumFooter from "@/components/PremiumFooter";
-import { checkPhone } from "@/lib/phone";
+import { checkPhone, dachPruefen } from "@/lib/phone";
 
 /**
  * Hart nach oben scrollen — umgeht das globale `html { scroll-behavior: smooth }`
@@ -241,47 +241,13 @@ function PremiumPhoneInput({ countryCode, phone, onCountryCodeChange, onPhoneCha
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // 07.09.2026 (Daniel, Feedback 3): Wir betreuen Deutschland, Österreich und die Schweiz —
+  // andere Vorwahlen gibt es hier nicht mehr zur Auswahl. Wer eine fremde Nummer eintippt
+  // (+33 …), bekommt den Hinweis unten statt eines Antrags ins Leere.
   const PHONE_CODES = [
     { code: "+49", country: "Deutschland" },
     { code: "+43", country: "Österreich" },
     { code: "+41", country: "Schweiz" },
-    { code: "+31", country: "Niederlande" },
-    { code: "+32", country: "Belgien" },
-    { code: "+33", country: "Frankreich" },
-    { code: "+34", country: "Spanien" },
-    { code: "+351", country: "Portugal" },
-    { code: "+39", country: "Italien" },
-    { code: "+44", country: "UK" },
-    { code: "+46", country: "Schweden" },
-    { code: "+47", country: "Norwegen" },
-    { code: "+45", country: "Dänemark" },
-    { code: "+358", country: "Finnland" },
-    { code: "+370", country: "Litauen" },
-    { code: "+371", country: "Lettland" },
-    { code: "+372", country: "Estland" },
-    { code: "+48", country: "Polen" },
-    { code: "+420", country: "Tschechien" },
-    { code: "+421", country: "Slowakei" },
-    { code: "+36", country: "Ungarn" },
-    { code: "+40", country: "Rumänien" },
-    { code: "+30", country: "Griechenland" },
-    { code: "+352", country: "Luxemburg" },
-    { code: "+353", country: "Irland" },
-    { code: "+386", country: "Slowenien" },
-    { code: "+385", country: "Kroatien" },
-    { code: "+387", country: "Bosnien" },
-    { code: "+381", country: "Serbien" },
-    { code: "+389", country: "Nordmazedonien" },
-    { code: "+359", country: "Bulgarien" },
-    { code: "+380", country: "Ukraine" },
-    { code: "+375", country: "Belarus" },
-    { code: "+374", country: "Armenien" },
-    { code: "+373", country: "Moldau" },
-    { code: "+995", country: "Georgien" },
-    { code: "+90", country: "Türkei" },
-    { code: "+357", country: "Zypern" },
-    { code: "+354", country: "Island" },
-    { code: "+1", country: "USA/Kanada" },
   ];
 
   // #23: identische Live-Validierung wie auf der Nummer-Update-Seite (@/lib/phone).
@@ -737,6 +703,7 @@ export default function AntragPage() {
       else { const age = new Date().getFullYear() - +d.birthYear; if (age < 18) e.birth = "Sie müssen mindestens 18 Jahre alt sein"; }
       if (!d.phoneCountryCode || !d.phone) e.phone = "Telefonnummer eingeben";
       else if (!checkPhone(`${d.phoneCountryCode}${d.phone}`).valid) e.phone = checkPhone(`${d.phoneCountryCode}${d.phone}`).reason || "Bitte gültige Telefonnummer eingeben";
+      else if (dachPruefen(`${d.phoneCountryCode}${d.phone}`)) e.phone = dachPruefen(`${d.phoneCountryCode}${d.phone}`)!;
       if (!d.street) e.street = "Adresse eingeben";
       else if (!/\d/.test(d.street)) e.street = "Bitte die Hausnummer angeben";
       if (!d.zip) e.zip = "PLZ eingeben";

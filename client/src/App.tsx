@@ -131,7 +131,7 @@ const AgentTicketsPage = lazy(() => import("@/pages/agent/tickets"));
 const AgentFeedPage = lazy(() => import("@/pages/agent/feed"));
 const AgentWalletPage = lazy(() => import("@/pages/agent/wallet"));
 const AgentCollectionsPage = lazy(() => import("@/pages/agent/collections"));
-const AgentInboxPage = lazy(() => import("@/pages/agent/inbox"));
+// 07.09.2026 (Daniel): Inbox abgeschafft — Seite bleibt im Repo, Route leitet auf /agent.
 const AgentMorePage = lazy(() => import("@/pages/agent/more"));
 const AgentSpaceNeuPage = lazy(() => import("@/pages/agent/space-neu")); // Team-Feed neu (Justin 24.08.)
 const AgentAssistentPage = lazy(() => import("@/pages/agent/assistent")); // FIAON Copilot (30.08.)
@@ -528,7 +528,8 @@ function Router() {
       {/* Mail-Zentrale — Team und Vorgesetzter. Die Rolle entscheidet der Server:
           ein Teammitglied sieht nur eigene Kunden und darf an höchstens zehn. */}
       <Route path="/agent/mail-zentrale"><Redirect to="/agent/inbox" /></Route>
-      <Route path="/agent/inbox" component={AgentInboxPage} />
+      {/* 07.09.2026 (Daniel): Inbox abgeschafft — alte Adresse führt auf den Schreibtisch. */}
+      <Route path="/agent/inbox">{() => <Redirect to="/agent" />}</Route>
       <Route path="/agent/mail-zentrale-alt" component={MailZentralePage} />
       {/* Der Vorgesetzte hat SEINE Mail-Zentrale: gleiche Oberflaeche, gleiche
           Bausteine, aber ohne Agent-Anmeldung und ohne 10-Empfaenger-Grenze.

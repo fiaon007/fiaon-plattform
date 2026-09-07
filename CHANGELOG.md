@@ -5,6 +5,26 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 07.09.2026 (spätabends) — Feedback Daniel/Florentine: Bestellungen entfernen, Inbox weg, Aufträge je Kunde, Dokumentenprüfung, nur DE/AT/CH (E-160)
+
+### Was geändert wurde
+**1. Bestellungen entfernen** (server/routes/fiaon-zentralen.ts): Die Sperre zählt nur Verkaufsprovisionen
+(kind own/override); andere Provisionen (Onboarding) werden beim Entfernen zur bezahlten Schwester-Bestellung
+umgehängt. **2. Inbox** aus dem Office-Menü, `/agent/inbox` → `/agent`. **3. Mara-Aufträge** je Kunde
+(Schlüssel `postmeister:<personId>:aufgabe` ohne Tagesdatum). **4. Dokumentenprüfung**
+(server/lib/fiaon-dokument-pruefung.ts): Personalausweis Vorder-/Rückseite über Stichworte, Reisepass/MRZ gilt
+als vollständig; Auskünfte (SCHUFA/KSV/CRIF) über „Seite x von y“; der Kundenbereich zeigt die Hinweise
+dauerhaft unter Unterlagen. **5. DE/AT/CH:** `dachPruefen()` in client/src/lib/phone.ts, Vorwahl-Listen im
+Privat- und Firmenantrag auf drei Länder, Serverwand in POST /application (Code NUR_DACH).
+
+### Warum
+Daniels fünf Punkte und Florentines Fälle (Wasana Unglaube, Erwin Brunauer, KSV-Auskunft) vom 07.09.
+
+### Wo zu finden
+Chefbüro → Bestellungen; Aufgaben → Aufträge; Kundenbereich → Unterlagen; Antrag. Register E-160.
+
+---
+
 ## 07.09.2026 (abends) — Pipeline in zwei Spalten · Kündigung für jeden Mitarbeiter · Strecke auf jedem Auftrag · Buchungstage der Stripe-Ära (E-159)
 
 ### Was geändert wurde

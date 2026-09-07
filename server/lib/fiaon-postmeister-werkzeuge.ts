@@ -281,7 +281,10 @@ export const aufgabeAnBetreuer: Werkzeug = {
       personId: k.personId, ref: k.ref, titel: titelMitName, text: mailKopf + text, faelligAm, dringend: !!p.dringend,
       // Eine Aufgabe je Kunde und Tag — drei gleiche Mails (Frau Weber, 25.08.)
       // ergaben drei Aufgaben. Der Text wird an die bestehende angehängt.
-      schluessel: `postmeister:${k.personId ?? k.ref ?? k.postmeisterId ?? "x"}:aufgabe:${new Date().toISOString().slice(0, 10)}`,
+      // 07.09.2026 (Daniel, Feedback 5): EIN Auftrag je Kunde, nicht je Mail und Tag. Fünf Mails
+      // desselben Menschen hängen sich als Beiträge an denselben Auftrag; erledigt → die nächste
+      // Mail öffnet ihn wieder (auftragFuerKunden, ON CONFLICT schluessel).
+      schluessel: `postmeister:${k.personId ?? k.ref ?? k.postmeisterId ?? "x"}:aufgabe`,
       quelle: "postmeister", autorName: "Mara", agentId: zahlungGewollt ? null : (gewuenscht?.id ?? null),
       anBetreiber: zahlungGewollt,
     });

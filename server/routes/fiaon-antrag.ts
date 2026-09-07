@@ -2552,6 +2552,16 @@ router.post("/application", async (req, res) => {
       wantedLimit, purpose, billing, addon, nfc, approvedLimit, email, iban, billingMethod, salaryReceiptDay, erreichbarkeit, ag1, ag2, ag3 
     } = req.body;
     
+    // 07.09.2026 (Daniel, Feedback 3): Anträge nur mit DE/AT/CH-Nummern. Was das Formular
+    // schon abfängt, fängt der Server noch einmal — die Liste im Browser ist keine Wand.
+    {
+      const vorwahl = String(phoneCountryCode || "").replace(/\s/g, "");
+      const nummer = String(phone || "").replace(/[\s\-()./]/g, "");
+      const e164 = nummer.startsWith("+") ? nummer : nummer.startsWith("00") ? "+" + nummer.slice(2) : vorwahl + nummer.replace(/^0/, "");
+      if (nummer && e164.startsWith("+") && !/^\+(49|43|41)\d/.test(e164)) {
+        return res.status(400).json({ ok: false, code: "NUR_DACH", error: "Aktuell nehmen wir Anträge nur aus Deutschland, Österreich und der Schweiz an. Mit einer Telefonnummer aus einem anderen Land ist ein Antrag derzeit leider nicht möglich." });
+      }
+    }
     const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "";
     const birthdate = birthDay && birthMonth && birthYear ? `${birthYear}-${String(birthMonth).padStart(2, "0")}-${String(birthDay).padStart(2, "0")}` : null;
     const contactName = contactFirstName && contactLastName ? `${contactFirstName} ${contactLastName}` : contactFirstName || contactLastName || null;

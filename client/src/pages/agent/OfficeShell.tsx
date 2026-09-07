@@ -65,7 +65,8 @@ export const RAEUME: Raum[] = [
   // AgentShell keinen Zähler — GEMESSEN stand die Marke bei jedem Konto
   // dauerhaft auf 0 und sah damit aus wie „nichts offen", war aber „nicht
   // gezählt". NACHHER trägt nur eine Marke, wer wirklich gezählt wird.
-  { href: "/agent/inbox", label: "Inbox", Icon: Mail, match: ["/agent/inbox", "/agent/mail-zentrale"], szene: "schreibtisch", gruppe: "arbeit" },
+  // 07.09.2026 (Daniel, Feedback 2): „Der komplette Bereich Inbox wird nicht benötigt." — aus dem Menü genommen;
+  // die Adresse /agent/inbox leitet auf den Schreibtisch. Eingehendes wohnt in Tickets und Aufgaben.
   { href: "/agent/aufgaben", label: "Tasks", Icon: ListChecks, match: ["/agent/aufgaben"], szene: "schreibtisch", gruppe: "arbeit", badge: "/agent/aufgaben" },
   { href: "/agent/anliegen", label: "Tickets", Icon: Inbox, match: ["/agent/anliegen"], szene: "schreibtisch", gruppe: "arbeit", badge: "/agent/anliegen" },
   { href: "/agent/tools", label: "Tools", Icon: Wrench, match: ["/agent/tools"], szene: "schreibtisch", gruppe: "arbeit" },

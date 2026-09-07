@@ -84,6 +84,27 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-09-07-feedback-daniel-florentine",
+    date: "2026-09-07",
+    category: "Verbessert",
+    title: "Euer Feedback vom Wochenende: Inbox weg, Aufträge je Kunde gebündelt, Dokumente werden beim Upload geprüft, nur noch DE/AT/CH-Anträge",
+    summary: "Daniels fünf Punkte und Florentines Fälle sind umgesetzt: Doppelte Bestellungen lassen sich jetzt entfernen, die Inbox ist aus dem Menü, Mara bündelt Mails eines Kunden in einem Auftrag, Kunden sehen sofort, wenn ein Dokument unvollständig ist, und Anträge gehen nur noch mit Nummern aus Deutschland, Österreich und der Schweiz.",
+    changes: [
+      "Doppelte oder falsche Bestellung entfernen: Die Sperre „hängt eine gebuchte Provision“ greift nur noch bei echten Verkaufsprovisionen. Eine Onboarding-Provision wandert beim Entfernen zur bezahlten Bestellung desselben Kunden. Wasana Unglaubes High-End-Bestellung ist archiviert, die 99,99-€-Erinnerungen enden.",
+      "Inbox: Der Menüpunkt ist weg; die alte Adresse führt auf den Schreibtisch. Eingehendes wohnt in Tickets und Aufgaben.",
+      "Aufträge: Schickt ein Kunde fünf Mails, gibt es EINEN Auftrag — die weiteren Mails hängen sich als Beiträge daran. Erledigt und neue Mail? Derselbe Auftrag öffnet sich wieder.",
+      "Dokumente: Beim Upload prüft das System jetzt Vorder- und Rückseite des Personalausweises („Dokument nicht vollständig. Bitte laden Sie auch die Rückseite hoch.“), und bei SCHUFA-, KSV- und CRIF-Auskünften, ob alle Seiten in der Datei sind (Seitenzählung). Der Kunde sieht den Hinweis sofort und dauerhaft unter „Unterlagen“; ihr seht ihn in der Akte unter Dokumente.",
+      "Anträge: Nur noch Vorwahlen +49, +43, +41. Eine fremde Nummer bekommt den Hinweis, dass aktuell kein Antrag möglich ist — im Formular und auf dem Server.",
+    ],
+    howto: [
+      "Bestellung entfernen: Chefbüro → Bestellungen → auswählen → „1 Bestellung entfernen“ eintippen.",
+      "Aufträge: Beiträge unter dem Auftrag lesen — dort steht jede weitere Mail des Kunden.",
+      "Dokumente: Akte → Dokumente zeigt die Prüfzeile; der Kunde hat denselben Hinweis in seinem Bereich.",
+    ],
+    link: { href: "/agent/aufgaben", label: "Aufträge öffnen" },
+    important: false,
+  },
+  {
     id: "2026-09-07-pipeline-kuendigung-strecke",
     date: "2026-09-07",
     category: "Neu",

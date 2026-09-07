@@ -248,7 +248,7 @@ function Mehrfach({ frage, wert, onWeiter }: { frage: Frage; wert: string[]; onW
 // ═══════════════════════════════════════════════════════════════════════════
 // UNTERLAGEN — derselbe Endpunkt wie bisher (/upload-kyc), neue Oberfläche
 // ═══════════════════════════════════════════════════════════════════════════
-export function Unterlagen({ kundeRef, demo, u, basis = "/app" }: { kundeRef: string; demo: boolean; u: { kontoauszug: boolean; ausweis: boolean; auskunft: boolean; kycStatus?: string }; basis?: string }) {
+export function Unterlagen({ kundeRef, demo, u, basis = "/app" }: { kundeRef: string; demo: boolean; u: { hinweise?: string[]; kontoauszug: boolean; ausweis: boolean; auskunft: boolean; kycStatus?: string }; basis?: string }) {
   const [dateien, setDateien] = useState<{ bankStatement?: File; idCard?: File; schufaDoc?: File }>({});
   const [laeuft, setLaeuft] = useState(false);
   const [meldung, setMeldung] = useState<{ ton: "gut" | "fehler"; text: string } | null>(null);
@@ -274,6 +274,13 @@ export function Unterlagen({ kundeRef, demo, u, basis = "/app" }: { kundeRef: st
 
   return (
     <>
+      {/* 07.09.2026 (Daniel, Feedback 4): Was die automatische Prüfung beim Upload gefunden hat, steht
+          hier dauerhaft — nicht nur in der Meldung direkt nach dem Hochladen. */}
+      {(u.hinweise ?? []).length > 0 && (
+        <div className="ap-karte ap-auf v1" style={{ borderColor: "rgba(248,113,113,.45)" }}>
+          {(u.hinweise ?? []).map((h, i) => <p key={i} className="ap-meldung fehler" role="status" style={{ margin: i ? "8px 0 0" : 0 }}>{h}</p>)}
+        </div>
+      )}
       <h1 className="ap-gruss ap-auf">Unterlagen<small>{offen.filter((f) => !f.optional).length === 0 ? "Alles da. Wir prüfen und melden uns." : "Was noch fehlt – ein Handyfoto genügt, wenn alles lesbar ist."}</small></h1>
       {!u.kontoauszug && (
         <Link href={`${basis}/unterlagen/konto`} className="ap-karte ap-auf v1" style={{ display: "block", textDecoration: "none" }}>

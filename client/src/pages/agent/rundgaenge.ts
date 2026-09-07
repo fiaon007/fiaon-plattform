@@ -105,6 +105,17 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
       + "Hak ihn ab, und der nächste kommt. Nach dem Auflegen übernimmt die Daumen-Frage.",
     tipp: "Du musst dir nie merken, was als Nächstes dran ist — es steht immer genau eine Sache da.",
   },
+  {
+    // 07.09.2026 mitgezogen (E-154): die Karte „Mein FIAON“ im Überblick der Akte.
+    ziel: ".kbk",
+    titel: "Was dein Kunde in seinem Bereich sieht, siehst du hier.",
+    text: "Die Karte „Mein FIAON“ zeigt seinen Weg (Schritt x von 11), seine Vorgänge, Ansprüche, "
+      + "die Vollmacht und den letzten Monatsbericht — dieselben Daten wie auf seinem Bildschirm. "
+      + "Sagt er dir am Telefon „bei mir steht 5 von 11“, kannst du es bestätigen, ohne den Raum zu wechseln. "
+      + "Der Knopf „Girokonto eröffnet“ trägt die Kontoeröffnung mit Datum ein; er sieht den Schritt sofort. "
+      + "Die 10 € Kontoprovision entstehen davon nicht — die kommen nur mit der Bestätigung des Partners.",
+    tipp: "„Portal ansehen“ daneben öffnet sein Portal zum Mitlesen — nur bei deinen eigenen Kunden, nur lesend, 30 Minuten.",
+  },
 ];
 
 export const RUNDGANG_BESTAND: RundgangSchritt[] = [
@@ -238,6 +249,16 @@ export const RUNDGANG_ONBOARDING: RundgangSchritt[] = [
       + "bucht auch deine Onboarding-Vergütung. So ist ein Gespräch erst fertig, wenn der "
       + "nächste Kollege lesen kann, was besprochen wurde.",
     tipp: "Direkt nach dem Telefonat die Notiz ins Cockpit — zwei Minuten, und Doku plus Vergütung sind erledigt.",
+  },
+  {
+    // 07.09.2026 mitgezogen (E-154): der Schritt „Ansprüche prüfen“ vor dem Abschluss.
+    titel: "Das Gespräch endet mit einer Liste, nicht mit „schön, dass wir gesprochen haben“.",
+    text: "Vor dem Abschluss steht jetzt „Ansprüche prüfen“: zehn Fragen zu Konto, Einkommen und "
+      + "Verträgen, eine nach der anderen. Jede Antwort ist sofort gespeichert — auch wenn das Gespräch "
+      + "abbricht. Was schon im Antrag steht, liest du vor und lässt es nur bestätigen. Am Ende steht in "
+      + "deiner Akte und in seinem Bereich dieselbe Liste dessen, was er beantragen kann. Der Schritt hakt "
+      + "sich von selbst ab, sobald alle Fragen beantwortet sind.",
+    tipp: "Wortlaut fürs Ende: „Das können Sie beantragen. Über den Betrag entscheidet die Stelle.“ — nichts versprechen.",
   },
 ];
 

@@ -397,7 +397,7 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
 
     // Gemeinsame Ausschlüsse — dieselben Bausteine wie die große Liste, plus:
     // ein gebuchter Termin in der Zukunft heißt „Mandat angenommen“ — raus.
-    const basis = [
+    const basisTeile = [
       "p.assigned_agent_id = $1",
       "p.merged_into_person_id IS NULL",
       "p.ist_test_am IS NULL",
@@ -463,7 +463,32 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
            AND clh.outcome LIKE 'erreicht%'
            AND (clh.created_at AT TIME ZONE 'Europe/Berlin')::date
              = (NOW() AT TIME ZONE 'Europe/Berlin')::date)`,
-    ].join(" AND ");
+    ];
+    const basis = basisTeile.join(" AND ");
+    // ── DIE RECHTE SPALTE: WIEDER DRAN (07.09.2026, Justin) ─────────────────
+    // „Links die neuen Kunden, rechts die nicht erreichten — sobald ich jemanden
+    // abschließe, kommt der nächste. So ist gewährleistet, dass man auch frische
+    // Kunden anruft." Rechts stehen: nicht erreicht (Wiedervorlage fällig),
+    // Rückruf fällig, Termin heute. Dieselben Ausschlüsse wie links — nur der
+    // Nicht-erreicht-Ausschluss und der Termin-Ausschluss sind hier umgedreht.
+    const basisWieder = basisTeile
+      .filter((t) => !t.includes("unreachable_count, 0) = 0") && !t.includes("tz.status = 'gebucht'"))
+      .concat([`(
+        COALESCE(p.unreachable_count, 0) > 0
+        OR EXISTS (SELECT 1 FROM fiaon_contact_log cl JOIN fiaon_applications a3 ON a3.ref = cl.ref
+                   WHERE a3.person_id = p.id AND cl.outcome = 'rueckruf_termin' AND cl.done_at IS NULL
+                     AND cl.voided_at IS NULL AND cl.scheduled_at IS NOT NULL AND cl.scheduled_at <= NOW() + INTERVAL '2 hours')
+        OR EXISTS (SELECT 1 FROM fiaon_termine tz WHERE tz.person_id = p.id AND tz.agent_id = $1 AND tz.status = 'gebucht'
+                   AND tz.abgesagt_am IS NULL AND (tz.beginn AT TIME ZONE 'Europe/Berlin')::date = (NOW() AT TIME ZONE 'Europe/Berlin')::date)
+      )`])
+      .join(" AND ");
+    const WIEDER_GRUND_SQL = `CASE
+      WHEN EXISTS (SELECT 1 FROM fiaon_termine tz WHERE tz.person_id = p.id AND tz.agent_id = $1 AND tz.status = 'gebucht'
+                   AND tz.abgesagt_am IS NULL AND (tz.beginn AT TIME ZONE 'Europe/Berlin')::date = (NOW() AT TIME ZONE 'Europe/Berlin')::date) THEN 'termin'
+      WHEN EXISTS (SELECT 1 FROM fiaon_contact_log cl JOIN fiaon_applications a3 ON a3.ref = cl.ref
+                   WHERE a3.person_id = p.id AND cl.outcome = 'rueckruf_termin' AND cl.done_at IS NULL
+                     AND cl.voided_at IS NULL AND cl.scheduled_at IS NOT NULL AND cl.scheduled_at <= NOW() + INTERVAL '2 hours') THEN 'rueckruf'
+      ELSE 'nicht_erreicht' END AS wieder_grund`;
 
     // ═══════════════════════════════════════════════════════════════════
     // DIE REIHENFOLGE DER ARBEITSLISTE (02.09.2026, Daniels Befund)
@@ -520,7 +545,7 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
          AND a.id_card_pdf IS NOT NULL)) AS voll_kunde`;
 
     const mandate = await mandatsZahlen(me);
-    const [g1, g2, g3, zaehlerR] = await Promise.all([
+    const [g1, g2, g3, zaehlerR, gWieder] = await Promise.all([
       ...GRUPPEN.map((g) => sqlPool.unsafe(
         `SELECT ${KARTE_SQL}, p.mandat_seit, ${VOLL_SQL} FROM fiaon_persons p
          WHERE ${basis} AND p.priority_tier = ${g.tier}
@@ -533,7 +558,17 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
            COUNT(*) FILTER (WHERE p.priority_tier = 3)::int AS lead
          FROM fiaon_persons p WHERE ${basis}`, [me],
       ),
+      sqlPool.unsafe(
+        `SELECT ${KARTE_SQL}, p.mandat_seit, ${VOLL_SQL}, COALESCE(p.unreachable_count, 0) AS versuche, ${WIEDER_GRUND_SQL}
+         FROM fiaon_persons p
+         WHERE ${basisWieder} AND p.priority_tier BETWEEN 1 AND 3
+         ORDER BY ${ordnung} LIMIT ${SLOTS}`, [me],
+      ),
     ]);
+    const wieder = (gWieder as any[]).map((r) => ({
+      gruppe: Number(r.priority_tier) === 1 ? "bezahlt_gemeldet" : Number(r.priority_tier) === 2 ? "rechnung_offen" : "lead",
+      kunde: { ...karte(r), mandatSeit: r.mandat_seit ?? null, vollstaendig: !!r.voll_kunde, wiederGrund: String(r.wieder_grund), versuche: Number(r.versuche || 0) },
+    }));
 
     const toepfe: { key: string; rows: any[] }[] = [
       { key: "bezahlt_gemeldet", rows: g1 as any[] },
@@ -550,6 +585,7 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
 
     const z = (zaehlerR as any[])[0] || {};
     res.json({
+      wieder,
       ok: true,
       rolle: "agent",
       slots,

@@ -111,3 +111,8 @@
   .ta-knoepfe{gap:10px}
   .ta-punkt-zeile{margin-left:8px}
 }
+
+/* ── DIE STRECKE (07.09.2026): nummerierte Schritte auf der Auftragskarte ── */
+.ta-strecke{margin:10px 0 4px;padding:10px 12px 10px 30px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);display:grid;gap:5px;font-size:12.5px;line-height:1.4;color:#cbd5e1}
+.ta-strecke li::marker{color:#60a5fa;font-weight:600}
+.ta-strecke li:last-child{color:#94a3b8}

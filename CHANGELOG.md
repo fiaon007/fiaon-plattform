@@ -5,6 +5,32 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 07.09.2026 (abends) — Pipeline in zwei Spalten · Kündigung für jeden Mitarbeiter · Strecke auf jedem Auftrag · Buchungstage der Stripe-Ära (E-159)
+
+### Was geändert wurde
+**1. Pipeline links/rechts.** `GET /agent/vertrieb/arbeitsliste` liefert zusätzlich `wieder` (bis 6): nicht
+erreicht und Wiedervorlage fällig, Rückruf fällig, Termin heute — mit `wiederGrund`/`versuche`. Die Seite
+zeigt zwei Reihen (`.pi-spalten`), beide als Karussell; die Fokus-Karte kann aus beiden kommen.
+**2. Kündigung durch Betreuer.** `GET/POST /agent/kunden/:personId/kuendigung` und `…/zuruecknehmen`
+(requireAgent + darfAnKunde, Quelle „telefon“) — dieselbe Regel wie Chefbüro und Mara (lib/fiaon-kuendigung).
+Block `KuendigungBlock` im Reiter „Antrag“ der Akte. Der Kundenbereich zeigt die Kündigung (`vertrag` im
+Bereich-JSON, Satz auf Geld und Abo).
+**3. Strecke.** `streckeFuer()` in server/routes/fiaon-betreiber-todo.ts leitet aus Schlüssel/Bereich die
+Schritte ab; die Auftragskarte zeigt sie nummeriert. Letzter Schritt immer die Rückfrage.
+**4. Buchungstag nachtragen** (Konditionen-Route, `buchungstag`): 37 Stripe/Klarna-Bestellungen haben ihren
+Anker aus der Stripe-Sitzung; der Abo-Motor legte 25 Ketten an (8 gestoppt, 4 hatten schon eine).
+
+### Warum
+Justin, 07.09. abends: „links die neuen Kunden und rechts die nicht erreichten“; „für jeden Mitarbeiter
+freischalten, dass man Kündigungen durchsetzen kann … und im Gespräch reaktivieren“; „man bekommt Aufgaben,
+die man selbst nicht lösen kann … es muss eine nachvollziehbare Strecke geben“; „die 37 sind Abo-Kunden“.
+
+### Wo zu finden
+Pipeline; Akte → Antrag → Kündigung; Aufgaben → Aufträge; Register E-159; Team-Update
+2026-09-07-pipeline-kuendigung-strecke.
+
+---
+
 ## 07.09.2026 (später Nachmittag) — Nicht erreicht raus aus der Pipeline · Kündigung im Login · Umverteilung · Stripe-Bestellungen repariert (E-156, E-158)
 
 ### Was geändert wurde

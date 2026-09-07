@@ -560,6 +560,8 @@ function PipelineInnen() {
   //    /inkasso/liste) weiterhin. ─────────────────────────────────────────────
   // Arbeitsliste (E-043): genau 6 Slots vom Server.
   const [slots, setSlots] = useState<Slot[]>([]);
+  // 07.09.2026 (Justin): die rechte Spalte — nicht erreicht, Rückruf fällig, Termin heute.
+  const [wieder, setWieder] = useState<Slot[]>([]);
   const [slotsZaehler, setSlotsZaehler] = useState<Record<string, number>>({});
   const [slotsLaedt, setSlotsLaedt] = useState(true);
   const [slotsFehler, setSlotsFehler] = useState<string | null>(null);
@@ -634,6 +636,7 @@ function PipelineInnen() {
     const r = await api("/agent/vertrieb/arbeitsliste");
     if (r.ok) {
       setSlots(r.json.slots || []);
+      setWieder(r.json.wieder || []);
       setSlotsZaehler(r.json.zaehler || {});
       if (r.json.rolle) setRolle(r.json.rolle);
       if (r.json.mandate) setMandate((m) => ({ ...m, anzahl: Number(r.json.mandate.anzahl || 0) }));
@@ -809,8 +812,9 @@ function PipelineInnen() {
   const geoeffnet = useMemo(() => liste.find((k) => k.personId === offen) || slots.find((s) => s.kunde.personId === offen)?.kunde || fremd || null, [liste, slots, offen, fremd]);
 
   // ── Arbeitsliste: Fokus = gewählter Slot, sonst der erste ───────────────
-  const fokusSlot = useMemo(() => slots.find((s) => s.kunde.personId === fokusId) ?? slots[0] ?? null, [slots, fokusId]);
+  const fokusSlot = useMemo(() => slots.find((s) => s.kunde.personId === fokusId) ?? wieder.find((s) => s.kunde.personId === fokusId) ?? slots[0] ?? wieder[0] ?? null, [slots, wieder, fokusId]);
   const kleine = useMemo(() => slots.filter((s) => s.kunde.personId !== (fokusSlot?.kunde.personId ?? -1)), [slots, fokusSlot]);
+  const wiederOhneFokus = useMemo(() => wieder.filter((s) => s.kunde.personId !== (fokusSlot?.kunde.personId ?? -1)), [wieder, fokusSlot]);
 
   return (
     <div className="pi">
@@ -851,7 +855,7 @@ function PipelineInnen() {
           {slotsFehler && <p className="pi-fehler">{slotsFehler}</p>}
           {slotsLaedt ? (
             <div className="pi-laedt">Lade deine Arbeitsliste …</div>
-          ) : slots.length === 0 && !slotsFehler ? (
+          ) : slots.length === 0 && wieder.length === 0 && !slotsFehler ? (
             <div className="pi-fokus-karte">
               <span className="pi-pille">Arbeitsliste</span>
               <h1>{rolle === "onboarding" ? "Dein Tag läuft über den Calendar." : "Alles abgearbeitet – stark."}</h1>
@@ -887,7 +891,13 @@ function PipelineInnen() {
                 )}
                 {/* E-047 (Justin, Screenshot): Trenner zwischen JETZT und DANACH —
                   animierte Zeile „Deine nächsten Kunden“, Linien beidseits. */}
-              <div className="pi-trenner"><span className="linie" aria-hidden="true" /><b>Deine nächsten Kunden</b><span className="linie" aria-hidden="true" /></div>
+              {/* 07.09.2026 (Justin): ZWEI SPALTEN — links die neuen Kunden aus dem Pool,
+                  rechts „Wieder dran": nicht erreicht, Rückruf fällig, Termin heute.
+                  Sobald einer abgeschlossen ist, rückt der nächste nach — und links
+                  bleiben immer frische Menschen. */}
+              <div className="pi-spalten">
+              <div className="pi-spalte">
+              <div className="pi-trenner"><span className="linie" aria-hidden="true" /><b>Neu für dich</b><span className="linie" aria-hidden="true" /></div>
               {/* E-051 Nr. 1 (Justin): VORHER ein 2-spaltiges Raster (FLIP) —
                   NACHHER ein 3D-Karussell: eine Karte mittig vorn, Nachbarn
                   perspektivisch dahinter; Pfeile, Wischen, Tastatur; Klick auf
@@ -896,10 +906,21 @@ function PipelineInnen() {
                   Justin sieht das Office aber vor allem am Handy und will
                   DORT das 3D-Karussell zum Wischen. NACHHER bleibt flach nur
                   für „Bewegung reduzieren" (Systemeinstellung). */}
+              {kleine.length === 0 ? <p className="pi-fussnote pi-spalte-leer">Gerade niemand Neues — der Pool schiebt nach, sobald du den Fokus abschließt.</p> : (
               <KleinesKarussell kinder={kleine} geht={geht} gesperrt={offen != null} flach={ruhig}
                                 onFokus={(id) => setFokusId(id)}
                                 onAkte={(id) => oeffnen(id)}
-                                onEntfernen={(k) => void karteileiche(k)} />
+                                onEntfernen={(k) => void karteileiche(k)} />)}
+              </div>
+              <div className="pi-spalte">
+              <div className="pi-trenner"><span className="linie" aria-hidden="true" /><b>Wieder dran</b><span className="linie" aria-hidden="true" /></div>
+              {wiederOhneFokus.length === 0 ? <p className="pi-fussnote pi-spalte-leer">Niemand wartet auf einen zweiten Versuch — nicht erreicht, Rückrufe und heutige Termine erscheinen hier.</p> : (
+              <KleinesKarussell kinder={wiederOhneFokus} geht={geht} gesperrt={offen != null} flach={ruhig}
+                                onFokus={(id) => setFokusId(id)}
+                                onAkte={(id) => oeffnen(id)}
+                                onEntfernen={(k) => void karteileiche(k)} />)}
+              </div>
+              </div>
               </div>
             </section>
           )}
@@ -1032,7 +1053,11 @@ function KleineKarte({ k, gruppe, geht, onFokus, onAkte, onEntfernen }: {
   return (
     <div className={`pi-ak${geht ? " geht" : ""}`} style={{ ["--hitze" as string]: faellig ? "#f87171" : st.farbe }}>
       <button type="button" className="pi-ak-kern" onClick={onFokus} title="Nach vorn holen">
-        <span className="pi-ak-kopf"><i className="pi-glut" /><small>{faellig ? "Rückruf fällig" : info.name}</small></span>
+        <span className="pi-ak-kopf"><i className="pi-glut" /><small>{faellig ? "Rückruf fällig"
+          : (k as any).wiederGrund === "termin" ? "Termin heute"
+          : (k as any).wiederGrund === "rueckruf" ? "Rückruf vereinbart"
+          : (k as any).wiederGrund === "nicht_erreicht" ? `Nicht erreicht · ${(k as any).versuche || 1}× versucht`
+          : info.name}</small></span>
         <b>{k.name}</b>
         <span className="pi-ak-fuss">{(k.buchungen ?? []).find((b) => !b.erledigt && b.art === "paket")?.bezeichnung || k.produkt || "kein Paket"} · {wartezeit(k.letzterKontakt)}</span>
       </button>
@@ -3547,6 +3572,83 @@ function AngabenNachtragen({ personId, antrag, melden, onFertig }: {
  * Anmeldemaske, weil die Sitzung noch nicht steht — genau das haben Daniel und
  * Florentine gemeldet.
  */
+// ═══════════════════════════════════════════════════════════════════════════
+// KÜNDIGUNG — DURCHSETZEN UND ZURÜCKNEHMEN (07.09.2026, Justin: „für jeden
+// Mitarbeiter freischalten … aber auch im Gespräch reaktivieren … zentral")
+//
+// Dieselbe Regel wie im Chefbüro und bei Mara (server/lib/fiaon-kuendigung.ts):
+// Durchsetzen beendet die Zahlungsmails, schickt die Bestätigung und lässt die
+// Raten nach der letzten entfallen. Zurücknehmen holt die Raten zurück, das
+// Konto läuft weiter. Beides steht im Verlauf des Kunden.
+// ═══════════════════════════════════════════════════════════════════════════
+function KuendigungBlock({ personId, melden, onFrisch }: {
+  personId: number; melden: (art: "gut" | "schlecht" | "info", titel: string, text?: string) => void; onFrisch: () => void;
+}) {
+  const [stand, setStand] = useState<any | null>(null);
+  const [modus, setModus] = useState<"zu" | "kuendigen" | "zurueck">("zu");
+  const [grund, setGrund] = useState("");
+  const [sofort, setSofort] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const laden = useCallback(async () => {
+    const r = await api(`/agent/kunden/${personId}/kuendigung`);
+    setStand(r.ok ? r.json : { fehlt: true, error: r.json?.error });
+  }, [personId]);
+  useEffect(() => { void laden(); }, [laden]);
+  if (!stand || stand.fehlt) return null;
+  const tag = (x: any) => (x ? new Date(x).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" }) : null);
+  const senden = async () => {
+    if (grund.trim().length < 5) { melden("schlecht", "Grund fehlt", "Ein Satz reicht — er steht dauerhaft am Kunden."); return; }
+    setBusy(true);
+    const pfad = modus === "kuendigen" ? `/agent/kunden/${personId}/kuendigung` : `/agent/kunden/${personId}/kuendigung/zuruecknehmen`;
+    const r = await api(pfad, { method: "POST", body: JSON.stringify({ grund: grund.trim(), sofort }) });
+    setBusy(false);
+    if (!r.ok || r.json?.ok === false) { melden("schlecht", "Nicht möglich", r.json?.error || "Der Server hat abgelehnt."); return; }
+    if (modus === "kuendigen") {
+      const w = String(r.json?.weg || "");
+      const text = w === "letzte_rate" ? `Rate ${r.json?.letzteRateNr} bleibt fällig, danach ist Schluss. ${r.json?.mailGesendet ? "Die Bestätigung ist raus." : "Keine Mail (keine offene Rate oder schon bestätigt)."}`
+        : w === "storno_unbezahlt" ? "Die unbezahlte Bestellung ist storniert — keine Erinnerungen mehr."
+        : w === "bereits" ? "War schon gekündigt." : `Der Vertrag endet sofort.${r.json?.mailGesendet ? " Die Bestätigung ist raus." : ""}`;
+      melden("gut", "Kündigung durchgesetzt", text);
+    } else melden("gut", "Kündigung zurückgenommen", String(r.json?.meldung || "Das Konto läuft weiter."));
+    setModus("zu"); setGrund(""); setSofort(false);
+    await laden(); onFrisch();
+  };
+  return (
+    <div className="pi-reihe" style={{ flexDirection: "column", alignItems: "stretch", gap: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <span className="pi-pille">{stand.gekuendigt ? (stand.beendet ? "Vertrag beendet" : "Kündigung vorgemerkt") : "Vertrag läuft"}</span>
+        <small style={{ color: "#94a3b8", fontSize: 12 }}>
+          {stand.gekuendigt
+            ? `Gekündigt am ${tag(stand.gekuendigtAm)}${stand.letzteRateNr ? ` · letzte Rate ${stand.letzteRateNr}` : ""}${stand.vertragEndeAm ? ` · Ende ${tag(stand.vertragEndeAm)}` : ""}${stand.quelle ? ` · Quelle ${stand.quelle}` : ""}`
+            : `${stand.paket || "Paket"}${stand.bezahlt ? "" : " · unbezahlt"}${stand.offeneRaten ? ` · ${stand.offeneRaten} offene Rate(n)` : ""}${stand.zurueckgenommenAm ? ` · Kündigung zurückgenommen ${tag(stand.zurueckgenommenAm)}` : ""}`}
+        </small>
+        {modus === "zu" && (stand.gekuendigt
+          ? <button type="button" className="pi-knopf klein" onClick={() => setModus("zurueck")}>Kündigung zurücknehmen</button>
+          : <button type="button" className="pi-knopf still klein" onClick={() => setModus("kuendigen")}>Kündigung durchsetzen</button>)}
+      </div>
+      {modus !== "zu" && (
+        <div style={{ display: "grid", gap: 8 }}>
+          <input className="pi-eingabe" value={grund} onChange={(e) => setGrund(e.target.value)} maxLength={300}
+                 placeholder={modus === "kuendigen" ? "Was hat der Kunde gesagt? (steht dauerhaft am Kunden)" : "Was hat der Kunde gesagt — warum läuft es weiter?"} />
+          {modus === "kuendigen" && (
+            <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12, color: "#94a3b8" }}>
+              <input type="checkbox" checked={sofort} onChange={(e) => setSofort(e.target.checked)} />
+              Kulanz: sofort beenden, offene Raten entfallen (sonst bleibt die letzte Rate fällig)
+            </label>
+          )}
+          <div style={{ display: "flex", gap: 8 }}>
+            <button type="button" className="pi-knopf klein" disabled={busy} onClick={() => void senden()}>{busy ? "…" : modus === "kuendigen" ? "Jetzt kündigen" : "Konto reaktivieren"}</button>
+            <button type="button" className="pi-knopf still klein" onClick={() => { setModus("zu"); setGrund(""); }}>Abbrechen</button>
+          </div>
+          <span className="pi-fussnote">{modus === "kuendigen"
+            ? "Danach kommen keine Zahlungsmails mehr — nur die Bestätigung. Alles steht im Verlauf."
+            : "Die Raten kommen zurück, Erinnerungen laufen wieder. Alles steht im Verlauf."}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PortalAnsehen({ personId, name, melden }: {
   personId: number; name: string;
   melden: (art: "gut" | "schlecht" | "info", titel: string, text?: string) => void;
@@ -3729,6 +3831,7 @@ function AntragsBlatt({ antrag, name, personId, melden, onFrisch }: {
           steht, und man landet wieder auf der Anmeldung. */}
       <Sek titel="Portal ansehen" erklaer="So sieht der Kunde seinen eigenen Bereich — zum Nachvollziehen, was bei ihm ankommt.">
         <PortalAnsehen personId={personId} name={name} melden={melden} />
+        <KuendigungBlock personId={personId} melden={melden} onFrisch={onFrisch} />
       </Sek>
 
       <Sek titel="Der Antrag selbst" erklaer="Wann er kam, was gewählt wurde und wozu er zugestimmt hat.">

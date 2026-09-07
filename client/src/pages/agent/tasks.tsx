@@ -28,6 +28,7 @@ interface Vermerk {
 interface Beitrag { id: number; autorArt: "betreiber" | "agent" | "system"; autorName: string; art: "kommentar" | "frage" | "antwort" | "ergebnis" | "status"; text: string; am: string }
 interface Auftrag {
   id: number; titel: string; text: string | null; bereich: string; prioritaet: number; faelligAm: string | null; link: string | null;
+  strecke?: string[];
   status: "offen" | "in_arbeit" | "wartet" | "erledigt"; frageOffen: boolean; ergebnis: string | null; erledigtAm: string | null; delegiertAm: string | null; zeitleiste: Beitrag[];
   // E-029 (24.08.2026): der Austausch geht in beide Richtungen.
   frageAnAgent: boolean; neuFuerAgent: number; ergebnisPflicht: boolean; erledigtVon: string | null;
@@ -326,6 +327,12 @@ function AuftragKarte({ a, onChange, onWeg }: { a: Auftrag; onChange: (t: Auftra
           );
         })()}
 
+        {/* 07.09.2026 (Justin): die Strecke — was genau tun, wo, und was am Ende. */}
+        {a.status !== "erledigt" && a.strecke && a.strecke.length > 0 && (
+          <ol className="ta-strecke">
+            {a.strecke.map((sch, i) => <li key={i}>{sch}</li>)}
+          </ol>
+        )}
         {frageVonJustin && <div className="ta-kasten warn"><b>Justin fragt dich:</b> „{frageVonJustin.text}“</div>}
         {!frageVonJustin && letzteAntwort && a.status !== "erledigt" && (
           <div className="ta-kasten neu"><b>Neu von Justin:</b> „{letzteAntwort.text}“</div>

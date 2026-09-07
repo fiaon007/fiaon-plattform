@@ -96,7 +96,7 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
     const ref = req.kundeRef!;
     await (await import("./fiaon-abo")).ensureAboTabellen();
     const [a] = (await sqlPool`
-      SELECT a.password, a.abo_verlaengerung_gefragt_am, a.abo_verlaengert_am, a.abo_gestoppt_am, a.ref, a.person_id, a.first_name, a.last_name, a.email, a.phone, a.phone_country_code,
+      SELECT a.password, a.abo_verlaengerung_gefragt_am, a.abo_verlaengert_am, a.abo_gestoppt_am, a.gekuendigt_am, a.vertrag_ende_am, a.letzte_rate_nr, a.kuendigung_zurueckgenommen_am, a.ref, a.person_id, a.first_name, a.last_name, a.email, a.phone, a.phone_country_code,
              a.street, a.zip, a.city, a.country, a.birthdate,
              a.pack_key, a.pack_name, a.approved_limit, a.wanted_limit,
              a.payment_status, a.payment_reference, a.amount_due, a.payment_due_date,
@@ -354,6 +354,13 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
           } catch { return []; }
         })(),
       },
+      // 07.09.2026 (Justin): Eine Kündigung — egal ob per Mail, Formular, Telefon oder Chefbüro —
+      // steht auch im Kundenbereich, in einem Satz. Zurückgenommen = läuft wieder.
+      vertrag: a.gekuendigt_am ? {
+        gekuendigtAm: tag(a.gekuendigt_am), endeAm: a.vertrag_ende_am ? tag(a.vertrag_ende_am) : null,
+        letzteRateNr: a.letzte_rate_nr != null ? Number(a.letzte_rate_nr) : null,
+        beendet: !!a.vertrag_ende_am && new Date(a.vertrag_ende_am).getTime() <= Date.now(),
+      } : null,
       abo: {
         // E-024: Laufzeit erreicht? Dann zeigt der Bereich die Frage.
         verlaengerung: {

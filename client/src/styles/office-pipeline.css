@@ -1050,3 +1050,10 @@ input[type=date].pi-eingabe,input[type=file].pi-eingabe{color-scheme:dark}
 .pi-leitung { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 18px; font-size: 12.5px; background: rgba(59,130,246,.08); border-bottom: 1px solid rgba(255,255,255,.06); }
 .pi-leitung-wer b { font-weight: 600; }
 .pi-leitung-wahl { font: inherit; font-size: 12px; color: inherit; background: rgba(0,0,0,.25); border: 1px solid rgba(255,255,255,.14); border-radius: 8px; padding: 5px 8px; max-width: 220px; }
+
+/* ── ZWEI SPALTEN (07.09.2026, Justin): links „Neu für dich“, rechts „Wieder dran“ ── */
+.pi-spalten{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px;align-items:start}
+.pi-spalte{min-width:0;display:grid;gap:8px}
+.pi-spalte+.pi-spalte{border-left:1px solid rgba(255,255,255,.08);padding-left:22px}
+.pi-spalte-leer{padding:26px 14px;text-align:center;border:1px dashed rgba(255,255,255,.12);border-radius:16px;color:#94a3b8}
+@media (max-width:1040px){.pi-spalten{grid-template-columns:1fr;gap:12px}.pi-spalte+.pi-spalte{border-left:0;padding-left:0;border-top:1px solid rgba(255,255,255,.08);padding-top:12px}}

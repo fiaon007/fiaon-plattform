@@ -84,6 +84,26 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-09-07-pipeline-kuendigung-strecke",
+    date: "2026-09-07",
+    category: "Neu",
+    title: "Pipeline in zwei Spalten, Kündigung in deiner Hand, jede Aufgabe mit Strecke",
+    summary: "Die Pipeline zeigt links neue Menschen und rechts „Wieder dran“ (nicht erreicht, Rückruf, Termin heute). Kündigungen setzt du im Reiter „Antrag“ selbst durch oder nimmst sie im Gespräch zurück. Und jeder Auftrag sagt dir jetzt Schritt für Schritt, was zu tun ist.",
+    changes: [
+      "Pipeline: unter der Fokus-Karte zwei Reihen — „Neu für dich“ (Pool) und „Wieder dran“ (nicht erreicht und heute fällig, Rückruf vereinbart, Termin heute). Schließt du einen ab, rückt der nächste nach.",
+      "Akte → Reiter „Antrag“: „Kündigung durchsetzen“ (keine Zahlungsmails mehr, Bestätigung geht raus, letzte Rate bleibt fällig; Kulanz-Haken = sofort Schluss) und „Kündigung zurücknehmen“ (Raten zurück, Konto läuft). Alles im Verlauf, der Kunde sieht es in seinem Bereich.",
+      "Aufgaben → Aufträge: jede Karte trägt die Strecke — was öffnen, was tun, wo das Ergebnis hin. Letzter Schritt immer: Rückfrage stellen, Justin antwortet im Auftrag.",
+      "Der Menüpunkt „Nicht erreicht“ bleibt als große Liste; die Pipeline zeigt rechts nur die, die heute wieder dran sind.",
+    ],
+    howto: [
+      "Pipeline öffnen — links und rechts antippen wie gewohnt; die Karte rechts sagt dir, warum sie dort liegt.",
+      "Kündigung: Akte → Antrag → Knopf drücken → den Satz des Kunden eintragen → bestätigen.",
+      "Auftrag: Strecke von oben nach unten abarbeiten, Ergebnis eintragen. Geht es nicht: „Rückfrage“.",
+    ],
+    link: { href: "/agent/pipeline", label: "Pipeline öffnen" },
+    important: true,
+  },
+  {
     id: "2026-09-07-nicht-erreicht",
     date: "2026-09-07",
     category: "Geändert",

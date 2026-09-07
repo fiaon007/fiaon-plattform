@@ -55,6 +55,12 @@ export function Abo({ kundeRef, basis, demo, b }: { kundeRef: string; basis: str
   // Stand des Abos in einem Satz — nur aus Datenfeldern.
   const standSatz = (): string | null => {
     if (!b.paket.abo) return null;
+    // 07.09.2026: Kündigung zuerst — sie schlägt jede Verlängerungsfrage.
+    if (b.vertrag) {
+      if (b.vertrag.beendet) return `Ihr Vertrag ist beendet${b.vertrag.endeAm ? ` (seit ${b.vertrag.endeAm})` : ""}.`;
+      if (b.vertrag.letzteRateNr) return `Ihre Kündigung ist vorgemerkt${b.vertrag.gekuendigtAm ? ` (${b.vertrag.gekuendigtAm})` : ""} – Rate ${b.vertrag.letzteRateNr} ist die letzte, danach endet Ihr Vertrag.`;
+      return `Ihre Kündigung ist vorgemerkt${b.vertrag.endeAm ? ` – Ihr Vertrag endet am ${b.vertrag.endeAm}` : ""}.`;
+    }
     if (entschieden) return entschieden.verlaengert ? "Verlängert – Ihr Abo läuft weiter." : "Endet mit der letzten Rate.";
     if (v?.beendet) return "Endet mit der letzten Rate.";
     if (v?.verlaengert) return "Verlängert – Ihr Abo läuft weiter.";

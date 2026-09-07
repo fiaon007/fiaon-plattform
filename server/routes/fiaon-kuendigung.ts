@@ -11,6 +11,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { Router, type Request, type Response } from "express";
+import { requireAgent, type AgentRequest } from "./fiaon-agent";
 import { sqlPool } from "../lib/db-pool";
 import { kuendigungSetzen, kuendigungZuruecknehmen, kuendigungSpalten, type KuendigungQuelle } from "../lib/fiaon-kuendigung";
 import { absoluteUrl } from "../fiaon-base-url";
@@ -144,6 +145,108 @@ router.post("/admin/kuendigung/:ref/zuruecknehmen", async (req: Request, res: Re
     res.json(await kuendigungZuruecknehmen(String(req.params.ref), req.body?.grund ?? null));
   } catch (e: any) {
     res.status(500).json({ ok: false, error: String(e?.message || e).slice(0, 300) });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// KÜNDIGUNG FÜR JEDEN MITARBEITER (07.09.2026, Justin: „für jeden Mitarbeiter
+// freischalten, dass man Kündigungen durchsetzen kann … aber auch im Gespräch
+// eine Kündigung reaktivieren kann — zentral und überall")
+//
+// Dieselbe Regel wie im Chefbüro und bei Mara: kuendigungSetzen /
+// kuendigungZuruecknehmen aus server/lib/fiaon-kuendigung.ts. Der Betreuer
+// entscheidet nichts Neues — er löst dieselbe Kette aus (Zahlungsmails enden,
+// Bestätigungsmail geht raus, Raten nach der letzten entfallen) und kann sie
+// im Gespräch genauso wieder zurücknehmen (Raten kommen zurück, Konto läuft).
+// Tür: requireAgent + darfAnKunde. Quelle „telefon".
+// ═══════════════════════════════════════════════════════════════════════════
+async function bestellungFuerAgent(req: AgentRequest, res: Response): Promise<{ ref: string; personId: number } | null> {
+  const personId = Number(req.params.personId);
+  if (!Number.isFinite(personId) || personId <= 0) { res.status(400).json({ ok: false, error: "Ungültige Kundenkennung." }); return null; }
+  const { rolleVon, darfAnKunde } = await import("../lib/fiaon-kundenzugriff");
+  const rolle = req.agent?.rolle || await rolleVon(req.agent!.id);
+  if (!(await darfAnKunde(req.agent!.id, rolle, personId))) { res.status(403).json({ ok: false, error: "Dieser Kunde wird von jemand anderem betreut." }); return null; }
+  const [a] = (await sqlPool`
+    SELECT ref FROM fiaon_applications
+    WHERE person_id = ${personId} AND merged_into IS NULL AND archived_at IS NULL AND gdpr_deleted_at IS NULL
+      AND COALESCE(type,'') <> 'schufa' AND ref NOT LIKE 'FIAON-SCHUFA-%'
+    ORDER BY (payment_status = 'paid') DESC, created_at DESC LIMIT 1`) as any[];
+  if (!a) { res.status(404).json({ ok: false, error: "Keine Paketbestellung zu diesem Kunden." }); return null; }
+  return { ref: String(a.ref), personId };
+}
+
+/** GET /agent/kunden/:personId/kuendigung — Stand des Vertrags für die Akte. */
+router.get("/agent/kunden/:personId/kuendigung", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const b = await bestellungFuerAgent(req, res); if (!b) return;
+    const [a] = (await sqlPool`
+      SELECT ref, payment_status, pack_name, gekuendigt_am, kuendigung_quelle, kuendigung_grund, letzte_rate_nr,
+             vertrag_ende_am, kuendigung_zurueckgenommen_am, kuendigung_bestaetigt_mail_am, kuendigung_rueckhol_bis,
+             (SELECT COUNT(*)::int FROM fiaon_abo_raten r WHERE r.ref = fiaon_applications.ref AND r.status = 'offen') AS offene_raten
+      FROM fiaon_applications WHERE ref = ${b.ref} LIMIT 1`) as any[];
+    const gekuendigt = !!a.gekuendigt_am;
+    res.json({
+      ok: true, ref: a.ref, bezahlt: String(a.payment_status) === "paid", paket: a.pack_name ? String(a.pack_name).split("\n")[0] : null,
+      gekuendigt, gekuendigtAm: a.gekuendigt_am, quelle: a.kuendigung_quelle, grund: a.kuendigung_grund,
+      letzteRateNr: a.letzte_rate_nr, vertragEndeAm: a.vertrag_ende_am, zurueckgenommenAm: a.kuendigung_zurueckgenommen_am,
+      bestaetigungsmailAm: a.kuendigung_bestaetigt_mail_am, rueckholBis: a.kuendigung_rueckhol_bis, offeneRaten: Number(a.offene_raten || 0),
+      beendet: !!a.vertrag_ende_am && new Date(a.vertrag_ende_am).getTime() <= Date.now(),
+    });
+  } catch (e: any) {
+    console.error("[KÜNDIGUNG] agent stand:", e);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/** POST /agent/kunden/:personId/kuendigung { grund, sofort? } — Kündigung durchsetzen. */
+router.post("/agent/kunden/:personId/kuendigung", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const b = await bestellungFuerAgent(req, res); if (!b) return;
+    const grund = String(req.body?.grund || "").trim();
+    if (grund.length < 5) return res.status(400).json({ ok: false, error: "Bitte den Grund in einem Satz — er steht dauerhaft am Kunden." });
+    const sofort = req.body?.sofort === true;
+    const erg = await kuendigungSetzen(b.ref, { quelle: "telefon", grund: `${grund} (${req.agent!.name})`, sofort });
+    let mailGesendet = false;
+    if (erg.ok && erg.weg !== "bereits") mailGesendet = await bestaetigungSenden(b.ref).catch(() => false);
+    if (erg.ok) {
+      await sqlPool`
+        INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
+        VALUES (${b.ref}, ${b.personId}, ${req.agent!.id}, ${req.agent!.name}, 'system',
+                ${`Kündigung durchgesetzt durch ${req.agent!.name} (${erg.weg}${sofort ? ", Kulanz sofort" : ""}). Grund: ${grund.slice(0, 200)}. Bestätigungsmail: ${mailGesendet ? "gesendet" : "nicht gesendet"}.`}, NOW())`.catch(() => {});
+      await sqlPool`
+        UPDATE cancellation_requests SET status = 'confirmed', processed_at = NOW(),
+               admin_note = COALESCE(admin_note, '') || ${` [durch ${req.agent!.name} bestätigt]`}
+         WHERE ref = ${b.ref} AND status = 'pending'`.catch(() => {});
+    }
+    res.json({ ...erg, mailGesendet });
+  } catch (e: any) {
+    console.error("[KÜNDIGUNG] agent setzen:", e);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/** POST /agent/kunden/:personId/kuendigung/zuruecknehmen { grund } — im Gespräch reaktiviert. */
+router.post("/agent/kunden/:personId/kuendigung/zuruecknehmen", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const b = await bestellungFuerAgent(req, res); if (!b) return;
+    const grund = String(req.body?.grund || "").trim();
+    if (grund.length < 5) return res.status(400).json({ ok: false, error: "Bitte kurz festhalten, was der Kunde gesagt hat." });
+    const [a] = (await sqlPool`SELECT gekuendigt_am, payment_status FROM fiaon_applications WHERE ref = ${b.ref}`) as any[];
+    if (!a?.gekuendigt_am) return res.status(409).json({ ok: false, error: "Es liegt keine Kündigung vor." });
+    if (String(a.payment_status) === "cancelled") {
+      // Unbezahlte Bestellung war storniert — zurück auf „Zahlung offen", damit der Weg wieder läuft.
+      await sqlPool`UPDATE fiaon_applications SET payment_status = 'pending_payment', cancelled_at = NULL, mahnstopp_am = NULL, updated_at = NOW() WHERE ref = ${b.ref}`;
+    }
+    const erg = await kuendigungZuruecknehmen(b.ref, `${grund} (${req.agent!.name}, Gespräch)`);
+    await sqlPool`UPDATE fiaon_applications SET mahnstopp_am = NULL, kuendigung_bestaetigt_mail_am = NULL, updated_at = NOW() WHERE ref = ${b.ref}`.catch(() => {});
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
+      VALUES (${b.ref}, ${b.personId}, ${req.agent!.id}, ${req.agent!.name}, 'system',
+              ${`Kündigung im Gespräch zurückgenommen durch ${req.agent!.name} — Konto läuft weiter, ${erg.ratenZurueck} Rate(n) wieder offen. ${grund.slice(0, 200)}`}, NOW())`.catch(() => {});
+    res.json({ ok: true, ratenZurueck: erg.ratenZurueck, meldung: `Kündigung zurückgenommen — das Konto läuft weiter${erg.ratenZurueck ? `, ${erg.ratenZurueck} Rate(n) wieder offen` : ""}.` });
+  } catch (e: any) {
+    console.error("[KÜNDIGUNG] agent zurücknehmen:", e);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });
 

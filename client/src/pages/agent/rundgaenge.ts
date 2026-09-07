@@ -129,6 +129,26 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
       + "welchem Ergebnis), ist der Zähler zurück auf null und er steht wieder normal in der Pipeline.",
     tipp: "Ab dem sechsten Fehlversuch geht die Terminlink-Mail von selbst raus, ab dem neunten ruht der Mensch — beides bleibt wie bisher.",
   },
+  {
+    // 07.09.2026 (Justin, abends): zwei Spalten.
+    ziel: ".pi-spalten",
+    titel: "Links neu, rechts wieder dran.",
+    text: "Unter deiner Fokus-Karte stehen zwei Reihen: „Neu für dich“ sind frische Menschen aus dem Pool. "
+      + "„Wieder dran“ sind die, die du schon einmal hattest — nicht erreicht und heute wieder fällig, "
+      + "Rückruf vereinbart, Termin heute. Schließt du einen ab, rückt der nächste nach. So rufst du jeden Tag "
+      + "beides an: neue Menschen und die, die noch offen sind.",
+    tipp: "Auf der Karte rechts steht, warum sie dort liegt — zum Beispiel „Nicht erreicht · 2× versucht“.",
+  },
+  {
+    // 07.09.2026 (Justin): Kündigung in der Akte.
+    titel: "Kündigen und reaktivieren kannst du selbst — im Reiter „Antrag“.",
+    text: "Sagt ein Kunde am Telefon, er will raus, drückst du „Kündigung durchsetzen“ und schreibst seinen Satz dazu. "
+      + "Ab da kommen keine Zahlungsmails mehr, nur die Bestätigung; die letzte Rate bleibt fällig, spätere entfallen "
+      + "(Kulanz-Haken: sofort Schluss, offene Raten entfallen). Überlegt er es sich im Gespräch anders, drückst du "
+      + "„Kündigung zurücknehmen“ — die Raten kommen zurück, das Konto läuft weiter. Beides steht im Verlauf und "
+      + "der Kunde sieht es in seinem Bereich.",
+    tipp: "Kein Geld anfassen: Rückerstattungen entscheidet weiter nur die Geschäftsführung.",
+  },
 ];
 
 export const RUNDGANG_BESTAND: RundgangSchritt[] = [

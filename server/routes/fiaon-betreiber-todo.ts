@@ -538,9 +538,37 @@ export function refAusLink(link: unknown): string | null {
   return m ? m[1].toUpperCase() : null;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE STRECKE (07.09.2026, Justin: „man bekommt Aufgaben, die man selbst nicht
+// lösen kann — es steht ‚machen Sie dies oder jenes', aber wie? Es muss eine
+// nachvollziehbare Strecke geben.")
+//
+// Jeder Auftrag trägt ab jetzt seine Schritte: Was öffnen, was tun, wo das
+// Ergebnis hin. Abgeleitet aus dem Schlüssel (app-brief:…, frist7:…) bzw. dem
+// Bereich — dieselbe Quelle, die den Auftrag anlegt. Der letzte Schritt ist
+// immer derselbe: Geht es nicht, Rückfrage stellen — Justin antwortet HIER.
+// ═══════════════════════════════════════════════════════════════════════════
+export function streckeFuer(r: { schluessel?: string | null; bereich?: string | null; link?: string | null; titel?: string | null }): string[] {
+  const k = String(r.schluessel || "");
+  const vorgang = r.link && String(r.link).startsWith("/agent/app-vorgaenge/") ? "„Vorgang öffnen“ drücken" : "Kunde öffnen → Reiter Vorgänge";
+  const ende = "Geht es nicht weiter: „Rückfrage“ drücken — Justin antwortet direkt hier im Auftrag.";
+  if (k.startsWith("app-brief:")) return [vorgang, "Den fotografierten Brief lesen: Absender, Aktenzeichen, Frist", "Im Vorgang die Stelle zuordnen und dem Kunden in einem Satz sagen, was wir daraus machen", "Auftrag hier mit Ergebnis abschließen", ende];
+  if (k.startsWith("app-antrag-versand:")) return [vorgang, "Das unterschriebene PDF prüfen; fehlt die Anschrift der Stelle, beim Kunden erfragen", "Per Post oder E-Mail an die Stelle senden", "Im Vorgang „Versandt“ quittieren — erst dann sieht der Kunde es und die Frist läuft", ende];
+  if (k.startsWith("app-antrag-stopp:")) return ["NICHT versenden — der Kunde hat zurückgezogen", vorgang, "Prüfen, ob der Brief schon im Umschlag ist; wenn ja, herausnehmen", "Auftrag hier abschließen", ende];
+  if (k.startsWith("app-bescheid:")) return [vorgang, "Den Bescheid lesen: bewilligt oder abgelehnt, Betrag, Datum", "Im Vorgang das Ergebnis eintragen — mit einem Satz für den Kunden", "Auftrag hier abschließen", ende];
+  if (k.startsWith("app-ablehnung:")) return ["Kunden anrufen und die Ablehnung erklären (Satz steht im Auftrag)", "Klären: Widerspruch beim Kunden selbst, andere Stelle oder Punkt schließen", vorgang + " → Ergebnis als Notiz eintragen", ende];
+  if (k.startsWith("frist7:") || k.startsWith("nachfass:") || k.startsWith("eskalation:")) return ["Postfach und Akte prüfen: Ist eine Antwort der Stelle eingegangen?", vorgang, "Antwort da → Ergebnis eintragen; keine Antwort → Nachfrage senden und „Nachgefragt“ quittieren", ende];
+  if (k.startsWith("dringend:") || k.startsWith("dringend-ref:")) return ["Kunde öffnen → Anliegen lesen (Frist, Gericht, Inkasso?)", "Heute anrufen — der Kunde hat es als dringend markiert", "Antwort im Anliegen oder hier als Ergebnis eintragen", ende];
+  if (k.startsWith("postmeister:eskalation:")) return ["Kunde öffnen → Verlauf und die Mail von Mara lesen", "Kunden anrufen und klären, was Mara nicht klären konnte", "Ergebnis hier in einem Satz eintragen — Mara antwortet dem Kunden danach nicht mehr von selbst", ende];
+  if (k.startsWith("postmeister:") || r.bereich === "postmeister") return ["Kunde öffnen → Verlauf lesen (Mara hat die Lage zusammengefasst)", "Das Nötige tun: Rückruf, Datei prüfen, Datenänderung — steht im Auftragstext", "Ergebnis hier in einem Satz eintragen", ende];
+  if (r.bereich === "konten" || /zahlung/i.test(String(r.titel || ""))) return ["Kunde öffnen → Zahlungen: Steht die Zahlung im Bankbuch?", "Nein: Kunden nach Datum, Betrag und Verwendungszweck fragen und hier eintragen — die Verwaltung bucht", "Ja: Kunden informieren, Auftrag abschließen", ende];
+  return ["Kunde öffnen und den Verlauf lesen", "Das tun, was im Auftrag steht (Anruf, Mail, Notiz)", "Ergebnis hier in einem Satz eintragen", ende];
+}
+
 function zeile(r: any) {
   return {
     id: Number(r.id), schluessel: r.schluessel ?? null, titel: r.titel, text: r.text ?? null, bereich: r.bereich,
+    strecke: streckeFuer(r),
     /** Kunde hinter der Aufgabe — Daniel (05.09.): „würde gerne anrufen, aber wer ist das?" */
     ref: refAusLink(r.link), kunde: r.kunde_name ?? null, kundeTelefon: r.kunde_telefon ?? null, personId: r.kunde_person_id ? Number(r.kunde_person_id) : null,
     prioritaet: Number(r.prioritaet || 2), faelligAm: r.faellig_am ? String(r.faellig_am).slice(0, 10) : null,

@@ -5,6 +5,37 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 08.09.2026 — Der Mandats-Abgleich frischt jetzt auch den Status auf (E-163)
+
+### Was geändert wurde
+`POST /admin/lastschrift/abgleich` holte bisher alle Mandate von GoCardless, hängte verwaiste über die
+Kunden-E-Mail an eine Person und war damit fertig. Er verglich nur, WELCHE Mandate wir kennen, nie WIE sie
+stehen. Jetzt vergleicht er zusätzlich `fiaon_persons.gc_mandate_status` mit dem echten Status bei
+GoCardless und schreibt die Abweichung. Wechselt ein Mandat dabei von lebend auf gekündigt, fehlgeschlagen
+oder abgelaufen, entsteht dieselbe Aktennotiz wie im Webhook, mit dem Zusatz „beim Abgleich festgestellt".
+Der Trockenlauf bleibt der Standard: Ohne `{"schreiben": true}` wird nur gezeigt, was passieren würde.
+Die Antwort trägt zwei neue Felder, `statusAenderungen` und `erloschen`.
+
+### Warum
+Den Status pflegte bisher allein der Webhook. Verpasst er ein Ereignis — Ausfall, fehlendes Geheimnis, ein
+Mandat aus der Zeit vor der Einrichtung —, blieb der Wert für immer stehen, und es gab keinen zweiten Weg,
+ihn zu korrigieren. Gemessen am 08.09.2026: 21 Mandate bei GoCardless, davon 2 mit veraltetem Status bei
+uns und 4 gar nicht bekannt. Harmlos ist der Sprung `pending_submission` → `submitted`. Teuer ist der
+umgekehrte Fall: Ein gekündigtes Mandat, das wir für lebend halten, lässt das Forderungsmanagement auf
+einen Einzug warten, den es nicht mehr gibt.
+
+### Was die Route NICHT tut
+Sie legt nichts bei GoCardless an — kein Mandat, kein Abo, keine Zahlung. Sie liest dort und schreibt
+ausschließlich in unsere Datenbank. Geldbewegungen löst weiterhin nur der Betreiber selbst aus.
+
+### Klarstellung, die in den Quelltext gehört
+`pending_submission` ist KEIN Fehler. Ein frisch erteiltes SEPA-Mandat steht so, bis der erste Einzug
+eingereicht wurde; die Oberfläche von GoCardless nennt es trotzdem „Aktives Lastschriftmandat". Von 21
+Mandaten stehen 14 genau so. Wer das für kaputt hält, repariert etwas, das funktioniert.
+
+### Wo zu finden
+`server/routes/fiaon-lastschrift.ts`, Route `/admin/lastschrift/abgleich`. Nichts am Bildschirm, keine
+Agenten-Datei berührt. Register E-163.
 ## 07.09.2026 (spät) — Die heißesten Leads zuerst: Hitze statt Stufen-Quote, Verteilung nach Abschluss, gesperrte Bestände frei (E-162)
 
 **Was geändert wurde:**

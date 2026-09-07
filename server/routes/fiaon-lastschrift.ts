@@ -759,9 +759,40 @@ router.post("/admin/lastschrift/abos", async (req: Request, res: Response) => {
 
 /** POST /gocardless/webhook — Mandats- und Zahlungsstatus. Signatur: HMAC-SHA256 mit GOCARDLESS_WEBHOOK_SECRET. */
 /**
- * POST /admin/lastschrift/abgleich {schreiben:false} — alle lebenden Mandate
- * bei GoCardless gegen die Datenbank halten und Verwaiste über die
- * Kunden-E-Mail an die Person hängen (02.09.2026). Ohne `schreiben` nur zählen.
+ * POST /admin/lastschrift/abgleich {schreiben:false} — alle Mandate bei
+ * GoCardless gegen die Datenbank halten (02.09.2026). Ohne `schreiben` nur zählen.
+ *
+ * Zwei Aufgaben, und bis zum 08.09.2026 tat die Route nur die erste:
+ *   1. VERWAISTE MANDATE anhängen — bei GoCardless da, bei uns unbekannt.
+ *   2. DEN STATUS BEKANNTER MANDATE AUFFRISCHEN.
+ *
+ * ── WARUM 2 GEFEHLT HAT UND WAS DAS KOSTET (08.09.2026) ──────────────────
+ * Den Status pflegt sonst nur der Webhook (`mandates.active` und so weiter).
+ * Verpasst er ein Ereignis — Ausfall, fehlendes Geheimnis, ein Mandat, das
+ * vor der Einrichtung des Webhooks entstand —, bleibt der Wert für immer
+ * stehen. Es gab keinen zweiten Weg, ihn zu korrigieren: Der Abgleich las die
+ * Mandate, verglich aber nur, WELCHE er kennt, nie WIE sie stehen.
+ * Gemessen am 08.09.2026: 21 Mandate bei GoCardless, 2 mit veraltetem Status
+ * bei uns, 4 gar nicht bekannt.
+ *
+ * Der teure Fall ist nicht der harmlose Sprung `pending_submission` →
+ * `submitted`, sondern das Gegenteil: Ein Mandat wird gekündigt, wir merken es
+ * nicht, und das Forderungsmanagement wartet auf einen Einzug, der nie kommt.
+ * Deshalb schreibt diese Route beim Wechsel auf einen toten Status dieselbe
+ * Zeile in die Akte wie der Webhook — mit dem Zusatz „Abgleich", damit man im
+ * Verlauf sieht, auf welchem Weg es aufgefallen ist.
+ *
+ * ── WAS SIE NICHT TUT ───────────────────────────────────────────────────
+ * Sie legt NICHTS bei GoCardless an. Kein Mandat, kein Abo, keine Zahlung.
+ * Sie liest dort und schreibt ausschließlich in unsere Datenbank. Ein Abo
+ * entsteht weiter nur über `gcAboAnlegen`, und Geldbewegungen löst der
+ * Betreiber selbst aus.
+ *
+ * ── `pending_submission` IST KEIN FEHLER ────────────────────────────────
+ * Ein frisch erteiltes SEPA-Mandat steht auf `pending_submission`, bis der
+ * erste Einzug eingereicht wurde; die Oberfläche von GoCardless nennt es
+ * trotzdem „Aktives Lastschriftmandat". Wer diesen Zustand für kaputt hält,
+ * repariert etwas, das funktioniert.
  */
 router.post("/admin/lastschrift/abgleich", async (req: Request, res: Response) => {
   try {
@@ -774,9 +805,58 @@ router.post("/admin/lastschrift/abgleich", async (req: Request, res: Response) =
       after = j?.meta?.cursors?.after || null;
       if (!after) break;
     }
-    const lebend = mandate.filter((m) => !["cancelled", "failed", "expired"].includes(String(m.status)));
-    const bekannt = new Set(((await sqlPool`SELECT gc_mandate_ref FROM fiaon_persons WHERE gc_mandate_ref IS NOT NULL`) as any[]).map((r) => String(r.gc_mandate_ref)));
+    const TOT = ["cancelled", "failed", "expired"];
+    const lebend = mandate.filter((m) => !TOT.includes(String(m.status)));
+
+    // Der Stand bei uns, je Mandat. Vorher wurden hier nur die Kennungen
+    // geholt; für den Statusvergleich braucht es den Status dazu.
+    const unsere = (await sqlPool`
+      SELECT id, gc_mandate_ref, COALESCE(gc_mandate_status, '') AS gc_mandate_status
+        FROM fiaon_persons WHERE gc_mandate_ref IS NOT NULL
+    `) as any[];
+    const beiUns = new Map<string, { id: number; status: string }>(
+      unsere.map((r) => [String(r.gc_mandate_ref), { id: Number(r.id), status: String(r.gc_mandate_status) }]),
+    );
+    const bekannt = new Set(beiUns.keys());
     const verwaist = lebend.filter((m) => !bekannt.has(String(m.id)));
+
+    // ── 2. DEN STATUS BEKANNTER MANDATE AUFFRISCHEN ────────────────────
+    // Verglichen wird gegen ALLE Mandate, nicht nur die lebenden: Gerade das
+    // gekündigte muss ankommen, sonst wartet das Forderungsmanagement auf
+    // einen Einzug, den es nicht mehr gibt.
+    const statusAenderungen: any[] = [];
+    for (const m of mandate) {
+      const u = beiUns.get(String(m.id));
+      if (!u) continue;
+      const neuStatus = String(m.status || "");
+      if (!neuStatus || neuStatus === u.status) continue;
+      const wirdTot = TOT.includes(neuStatus) && !TOT.includes(u.status);
+      statusAenderungen.push({
+        mandat: m.id, personId: u.id, vorher: u.status || null, nachher: neuStatus,
+        wirdTot, grund: schreiben ? "geschrieben" : "WÜRDE geschrieben",
+      });
+      if (!schreiben) continue;
+      await sqlPool`
+        UPDATE fiaon_persons SET gc_mandate_status = ${neuStatus}, updated_at = NOW()
+         WHERE id = ${u.id} AND gc_mandate_ref = ${String(m.id)}
+      `;
+      // Dieselbe Aktennotiz wie im Webhook — mit dem Zusatz „Abgleich", damit
+      // im Verlauf steht, auf welchem Weg es aufgefallen ist. Nur beim
+      // Übergang lebend → tot, damit kein Rauschen entsteht.
+      if (wirdTot) {
+        const wort = neuStatus === "cancelled" ? "gekündigt" : neuStatus === "failed" ? "fehlgeschlagen" : "abgelaufen";
+        await sqlPool`
+          INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
+          SELECT a.ref, a.person_id, NULL, 'System', 'system',
+                 ${`Lastschrift-Mandat ${wort} (GoCardless ${String(m.id)}, beim Abgleich festgestellt). Ab jetzt kein automatischer Einzug mehr.`}
+            FROM fiaon_applications a
+           WHERE a.person_id = ${u.id} AND a.merged_into IS NULL
+           ORDER BY a.created_at DESC LIMIT 1
+        `.catch(() => {});
+      }
+    }
+
+    // ── 1. VERWAISTE ANHÄNGEN (unverändert) ────────────────────────────
     const ergebnisse: any[] = [];
     if (schreiben) {
       for (const m of verwaist) {
@@ -784,7 +864,15 @@ router.post("/admin/lastschrift/abgleich", async (req: Request, res: Response) =
         catch (e: any) { ergebnisse.push({ mandat: m.id, status: m.status, ref: null, grund: String(e?.message || e).slice(0, 160) }); }
       }
     }
-    res.json({ ok: true, schreiben, gesamt: mandate.length, lebend: lebend.length, bekannt: bekannt.size, verwaist: verwaist.map((m) => ({ id: m.id, status: m.status, erstellt: m.created_at })), ergebnisse });
+
+    res.json({
+      ok: true, schreiben,
+      gesamt: mandate.length, lebend: lebend.length, bekannt: bekannt.size,
+      verwaist: verwaist.map((m) => ({ id: m.id, status: m.status, erstellt: m.created_at })),
+      statusAenderungen,
+      erloschen: statusAenderungen.filter((a) => a.wirdTot).length,
+      ergebnisse,
+    });
   } catch (e: any) {
     res.status(500).json({ ok: false, error: String(e?.message || e).slice(0, 300) });
   }

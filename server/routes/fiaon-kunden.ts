@@ -944,7 +944,7 @@ router.post("/admin/kunden/:ref/konditionen", async (req: Request, res: Response
     const body = req.body || {};
     if (!body.confirmed) return res.status(400).json({ ok: false, error: "Bestätigung erforderlich (confirmed=true) — sensible Felder" });
     const rows = await sqlPool`
-      SELECT ref, payment_status, approved_limit, amount_due, payment_due_date, pack_key, pack_name
+      SELECT ref, payment_status, approved_limit, amount_due, payment_due_date, pack_key, pack_name, wanted_limit, paid_at
       FROM fiaon_applications WHERE ref = ${ref} AND merged_into IS NULL`;
     if (rows.length === 0) return res.status(404).json({ ok: false, error: "Kunde nicht gefunden" });
     const cur = rows[0];
@@ -962,6 +962,23 @@ router.post("/admin/kunden/:ref/konditionen", async (req: Request, res: Response
         await auditApp(ref, `Wunschlimit (wanted_limit) geändert durch Admin: ${from} € → ${v} €`);
         changes.push({ field: "Wunschlimit", from: `${from} €`, to: `${v} €` });
       }
+    }
+    // ── BUCHUNGSTAG NACHTRAGEN (07.09.2026, Justin: „Die 37 Stripe/Klarna-Kunden sind Abo-Kunden“) ──
+    // Bezahlte Bestellungen aus der Stripe-Ära hatten keinen Buchungstag (paid_at) — der Abo-Motor
+    // kann ohne Anker keine Kette anlegen (aboAnker: paid_at → Bankbuchung → completed_at). Der Tag
+    // kommt aus der Stripe-Sitzung. NUR wenn bezahlt und noch kein Buchungstag; danach legt der
+    // Motor sofort Rate 1 (bezahlt) und Rate 2 (fällig am Monats-Jahrestag) an.
+    if (body.buchungstag !== undefined) {
+      const roh = String(body.buchungstag || "").trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(roh)) return res.status(400).json({ ok: false, error: "Buchungstag muss als JJJJ-MM-TT kommen." });
+      if (cur.payment_status !== "paid") return res.status(409).json({ ok: false, error: "Ein Buchungstag gehört nur zu einer BEZAHLTEN Bestellung." });
+      if (cur.paid_at) return res.status(409).json({ ok: false, error: `Der Buchungstag steht schon (${String(cur.paid_at).slice(0, 10)}) — er wird nicht überschrieben.` });
+      await sqlPool`UPDATE fiaon_applications SET paid_at = (${roh}::date + TIME '12:00')::timestamptz, updated_at = NOW() WHERE ref = ${ref}`;
+      let abo: any = null;
+      try { const { aboBeiZahlungAnlegen } = await import("./fiaon-abo"); abo = await aboBeiZahlungAnlegen(ref); } catch (e: any) { abo = { angelegt: false, grund: String(e?.message || e) }; }
+      await auditApp(ref, `Buchungstag nachgetragen durch Admin: ${roh} (Stripe-Ära, kein paid_at) — Abo-Kette: ${abo?.angelegt ? "angelegt" : `nicht angelegt (${abo?.grund ?? "?"})`}`);
+      changes.push({ field: "Buchungstag", from: "—", to: roh });
+      (res.locals as any).abo = abo;
     }
     if (body.approvedLimit !== undefined) {
       const v = Number(body.approvedLimit);
@@ -1107,7 +1124,7 @@ router.post("/admin/kunden/:ref/konditionen", async (req: Request, res: Response
         }
       }
     }
-    res.json({ ok: true, changes });
+    res.json({ ok: true, changes, ...((res.locals as any).abo ? { abo: (res.locals as any).abo } : {}) });
   } catch (err) {
     console.error("[FIAON-KUNDEN] konditionen:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });

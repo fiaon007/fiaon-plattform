@@ -408,6 +408,43 @@ router.post("/admin/agents/:id/zugang", async (req, res) => {
   }
 });
 
+/**
+ * POST /admin/agents/:id/schulung { offen } · POST /admin/agents/:id/trainer { trainer }
+ * (07.09.2026, Besprechung 06.09. — E-161): „Neue Mitarbeiter dürfen erst eigenständig arbeiten, wenn Diana
+ * ihnen nach der Schulung das Okay gibt." In Schulung = Login ja, Academy ja, aber kein Pool-Nachschub und
+ * ein Band im Office. Freigeben kann die Schulungsleitung (trainer) oder die Vertriebsleitung
+ * (POST /agent/schulung/:id/freigeben). Trainer bekommen keinen Nachschub (distribution_active aus).
+ */
+router.post("/admin/agents/:id/schulung", async (req, res) => {
+  try {
+    await ensureAgentTables();
+    const id = Number(req.params.id);
+    const offen = req.body?.offen === true;
+    const rows = await sqlPool`
+      UPDATE fiaon_agents SET schulung_offen = ${offen},
+             schulung_freigabe_am = CASE WHEN ${offen} THEN NULL ELSE schulung_freigabe_am END,
+             distribution_active = CASE WHEN ${offen} THEN FALSE ELSE distribution_active END
+       WHERE id = ${id} RETURNING id, name, schulung_offen`;
+    if (rows.length === 0) return res.status(404).json({ ok: false, error: "Mitarbeiter nicht gefunden" });
+    await sqlPool`INSERT INTO fiaon_agent_events (agent_id, type, meta) VALUES (${id}, ${offen ? "schulung_begonnen" : "schulung_beendet"}, ${JSON.stringify({ von: "Verwaltung" })})`.catch(() => {});
+    res.json({ ok: true, agent: rows[0] });
+  } catch (err) { console.error("[FIAON-TEAM] schulung:", err); res.status(500).json({ ok: false, error: "Serverfehler" }); }
+});
+router.post("/admin/agents/:id/trainer", async (req, res) => {
+  try {
+    await ensureAgentTables();
+    const id = Number(req.params.id);
+    const trainer = req.body?.trainer === true;
+    const rows = await sqlPool`
+      UPDATE fiaon_agents SET trainer = ${trainer},
+             distribution_active = CASE WHEN ${trainer} THEN FALSE ELSE distribution_active END
+       WHERE id = ${id} RETURNING id, name, trainer, distribution_active`;
+    if (rows.length === 0) return res.status(404).json({ ok: false, error: "Mitarbeiter nicht gefunden" });
+    await sqlPool`INSERT INTO fiaon_agent_events (agent_id, type, meta) VALUES (${id}, ${trainer ? "trainer_gesetzt" : "trainer_entfernt"}, ${JSON.stringify({ von: "Verwaltung" })})`.catch(() => {});
+    res.json({ ok: true, agent: rows[0] });
+  } catch (err) { console.error("[FIAON-TEAM] trainer:", err); res.status(500).json({ ok: false, error: "Serverfehler" }); }
+});
+
 router.post("/admin/agents/:id/toggle", async (req, res) => {
   try {
     const rows = await sqlPool`

@@ -79,7 +79,8 @@ router.get("/agent/academy", requireAgent, async (req: AgentRequest, res: Respon
     //
     // Das Kennzeichen kommt vom SERVER, nicht aus einer Rollen-Prüfung in der
     // Anzeige: Eine zweite Fassung derselben Regel geht auseinander.
-    const istLeitung = r === "vertriebsleiter" || r === "admin";
+    // 07.09.2026 (E-161): Die Schulungsleitung (trainer) sieht die Leitungs-Fassung der Schulung.
+    const istLeitung = r === "vertriebsleiter" || r === "admin" || !!req.agent?.trainer;
 
     res.json({
       ok: true,
@@ -114,6 +115,52 @@ router.get("/agent/academy", requireAgent, async (req: AgentRequest, res: Respon
 // ═══════════════════════════════════════════════════════════════════════════
 // GET /agent/academy/:reise — die Kapitel einer Reise
 // ═══════════════════════════════════════════════════════════════════════════
+/**
+ * Schulung mit Freigabe (07.09.2026, E-161).
+ * GET /agent/schulung/team — wer in Schulung ist, mit Prüfungsstand; für Schulungsleitung und Vertriebsleitung.
+ * POST /agent/schulung/:id/freigeben { notiz } — Freigabe: der Mitarbeiter arbeitet ab jetzt eigenständig.
+ */
+async function darfFreigeben(req: AgentRequest): Promise<boolean> {
+  if (req.agent?.trainer) return true;
+  const [a] = (await sqlPool`SELECT COALESCE(rolle, 'agent') AS rolle FROM fiaon_agents WHERE id = ${req.agent!.id}`) as any[];
+  return String(a?.rolle) === "vertriebsleiter";
+}
+router.get("/agent/schulung/team", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    if (!(await darfFreigeben(req))) return res.status(403).json({ ok: false, error: "Nur Schulungs- oder Vertriebsleitung." });
+    const rows = (await sqlPool`
+      SELECT a.id, a.name, a.email, COALESCE(a.rolle, 'agent') AS rolle, a.created_at, a.zugang_gesperrt_am,
+             COALESCE(a.schulung_offen, FALSE) AS schulung_offen, a.schulung_freigabe_am, a.schulung_freigabe_von,
+             (SELECT MAX(z.bestanden_am) FROM fiaon_academy_zertifikate z WHERE z.agent_id = a.id) AS zertifikat_am,
+             (SELECT COUNT(*)::int FROM fiaon_academy_pruefungen p WHERE p.agent_id = a.id) AS pruefungs_versuche,
+             (SELECT BOOL_OR(COALESCE(p.bestanden, FALSE)) FROM fiaon_academy_pruefungen p WHERE p.agent_id = a.id) AS pruefung_bestanden
+      FROM fiaon_agents a
+      WHERE a.active AND NOT COALESCE(a.is_test_account, FALSE)
+        AND (COALESCE(a.schulung_offen, FALSE) OR a.schulung_freigabe_am > NOW() - INTERVAL '30 days')
+      ORDER BY COALESCE(a.schulung_offen, FALSE) DESC, a.created_at DESC`) as any[];
+    res.json({ ok: true, team: rows.map((r) => ({
+      id: Number(r.id), name: r.name, email: r.email, rolle: r.rolle, seit: r.created_at, gesperrt: !!r.zugang_gesperrt_am,
+      inSchulung: !!r.schulung_offen, freigabeAm: r.schulung_freigabe_am, freigabeVon: r.schulung_freigabe_von,
+      zertifikatAm: r.zertifikat_am ?? null, pruefungsVersuche: Number(r.pruefungs_versuche || 0), pruefungBestanden: !!r.pruefung_bestanden,
+    })) });
+  } catch (e: any) { console.error("[SCHULUNG] team:", e); res.status(500).json({ ok: false, error: "Serverfehler" }); }
+});
+router.post("/agent/schulung/:id/freigeben", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    if (!(await darfFreigeben(req))) return res.status(403).json({ ok: false, error: "Nur Schulungs- oder Vertriebsleitung." });
+    const id = Number(req.params.id);
+    const notiz = String(req.body?.notiz || "").trim().slice(0, 300);
+    const rows = (await sqlPool`
+      UPDATE fiaon_agents SET schulung_offen = FALSE, schulung_freigabe_am = NOW(), schulung_freigabe_von = ${req.agent!.name},
+             distribution_active = TRUE
+       WHERE id = ${id} AND COALESCE(schulung_offen, FALSE) RETURNING id, name`) as any[];
+    if (rows.length === 0) return res.status(404).json({ ok: false, error: "Dieser Mitarbeiter ist nicht in Schulung." });
+    await sqlPool`INSERT INTO fiaon_agent_events (agent_id, type, meta) VALUES (${id}, 'schulung_freigegeben', ${JSON.stringify({ von: req.agent!.name, notiz })})`.catch(() => {});
+    console.log(`[SCHULUNG] ${rows[0].name} freigegeben durch ${req.agent!.name}`);
+    res.json({ ok: true, meldung: `${rows[0].name} ist freigegeben und bekommt ab jetzt Kunden.` });
+  } catch (e: any) { console.error("[SCHULUNG] freigeben:", e); res.status(500).json({ ok: false, error: "Serverfehler" }); }
+});
+
 router.get("/agent/academy/:reise", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
     await ensureAcademyTabellen();

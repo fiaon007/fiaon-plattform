@@ -84,6 +84,24 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-09-07-schulung-freigabe",
+    date: "2026-09-07",
+    category: "Neu",
+    title: "Schulung mit Freigabe: Neue starten erst, wenn die Schulungsleitung das Okay gibt",
+    summary: "Aus der Besprechung vom 06.09.: Diana übernimmt die Schulung. Neue Mitarbeiter sehen in der Schulungszeit ein Band im Office und bekommen keine Kunden aus dem Pool — bis Diana oder die Leitung sie freigibt.",
+    changes: [
+      "Wer in Schulung ist, sieht oben „Schulung läuft“ und bekommt keinen Nachschub. Academy, Prüfung und Rundgänge gehen wie gewohnt.",
+      "Diana (Schulungsleitung) und die Vertriebsleitung sehen unter Academy → Schulung den Abschnitt „Schulung und Freigabe“ mit Prüfungsstand und dem Knopf „Freigeben“.",
+      "Freigeben heißt: ab sofort eigenständig, Pool-Nachschub an. Steht im Verlauf des Mitarbeiters.",
+    ],
+    howto: [
+      "Schulungsleitung: Academy → Schulung → „Schulung und Freigabe“ → Freigeben.",
+      "Neue: Academy durcharbeiten, Prüfung ablegen, dann bei Diana melden.",
+    ],
+    link: { href: "/agent/schulung", label: "Schulung öffnen" },
+    important: false,
+  },
+  {
     id: "2026-09-07-feedback-daniel-florentine",
     date: "2026-09-07",
     category: "Verbessert",

@@ -291,7 +291,12 @@ const POOL_RUECKFALL_TAGE = 3;
 /** Angefangen und liegen gelassen — nach drei Wochen gehört der Mensch wieder allen. */
 const POOL_LIEGEN_TAGE = 21;
 async function poolNachschub(me: number, istTestkonto: boolean): Promise<void> {
-  if (istTestkonto || me === 531) return;
+  if (istTestkonto) return;
+  // 07.09.2026 (E-161): Wer in Schulung ist (schulung_offen) oder aus der Verteilung genommen wurde
+  // (distribution_active = false, z. B. die Schulungsleitung), bekommt keinen Nachschub — vorher
+  // stand hier eine feste Mitarbeiter-Nummer (531, Diana).
+  const [a] = (await sqlPool`SELECT COALESCE(schulung_offen, FALSE) AS schulung, COALESCE(distribution_active, TRUE) AS verteilung FROM fiaon_agents WHERE id = ${me}`.catch(() => [])) as any[];
+  if (a && (a.schulung || !a.verteilung)) return;
 
   // ── ZWEI RÜCKFÄLLE, NICHT EINER (26.08.2026, Florentines Punkt 9) ────────
   // „In der Pipeline sollten grundsätzlich keine festen Betreuer bei den

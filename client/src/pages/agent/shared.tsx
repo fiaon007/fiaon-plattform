@@ -182,6 +182,8 @@ export interface AgentInfo {
   is_test_account?: boolean; pruefkonto?: boolean;
   /** Läuft eine Ansichts-Sitzung des Vorgesetzten? */
   ansicht?: boolean; ansichtBis?: string | null;
+  /** 07.09.2026 (E-161): Schulungsleitung bzw. „in Schulung, wartet auf Freigabe“. */
+  trainer?: boolean; schulungOffen?: boolean;
 }
 const AgentCtx = createContext<{ agent: AgentInfo | null; reload: () => void }>({ agent: null, reload: () => {} });
 export const useAgentInfo = () => useContext(AgentCtx);
@@ -1000,7 +1002,15 @@ function AgentShellInnen({ children, onRefresh }: { children: ReactNode; onRefre
     <AgentCtx.Provider value={{ agent, reload: load }}>
       {agent?.ansicht && <AnsichtsBanner agent={agent} />}
       <OfficeShell agent={agent} rolle={rolle} zaehler={zaehler} onRefresh={onRefresh} logout={logout}
-                   banner={<TeamNachrichten />} /* Verkaufsstart/Update-Hinweise wandern ins Schwarze Brett (Office-Plan §4) */>
+                   banner={<>
+                     {/* 07.09.2026 (E-161): In Schulung — kein Nachschub, bis die Schulungsleitung freigibt. */}
+                     {agent?.schulungOffen && (
+                       <div className="agent-banner-in border-b border-amber-200/80" style={{ background: "rgba(245,158,11,.08)", padding: "10px 16px", fontSize: 13, color: "#78350F" }}>
+                         <b>Schulung läuft.</b> Du bekommst noch keine Kunden aus dem Pool — arbeite die Academy durch und mach die Prüfung. Sobald die Schulungsleitung dich freigibt, geht es hier los.
+                       </div>
+                     )}
+                     <TeamNachrichten />
+                   </>} /* Verkaufsstart/Update-Hinweise wandern ins Schwarze Brett (Office-Plan §4) */>
         <div className="agent-scope">{children}</div>
       </OfficeShell>
       <TerminErinnerung />

@@ -133,6 +133,15 @@ export async function ensureAgentTables(): Promise<void> {
   `;
   // F/G/H: Konto-, Provisions- und Onboarding-Felder
   await sqlPool`ALTER TABLE fiaon_agents ALTER COLUMN password_hash DROP NOT NULL`;
+  // 07.09.2026 (Besprechung 06.09., E-161): Schulung mit Freigabe. Neue Mitarbeiter arbeiten erst
+  // eigenständig, wenn die Schulungsleitung (Diana) sie freigibt; bis dahin kein Pool-Nachschub.
+  await sqlPool`
+    ALTER TABLE fiaon_agents
+      ADD COLUMN IF NOT EXISTS trainer BOOLEAN NOT NULL DEFAULT FALSE,
+      ADD COLUMN IF NOT EXISTS schulung_offen BOOLEAN NOT NULL DEFAULT FALSE,
+      ADD COLUMN IF NOT EXISTS schulung_freigabe_am TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS schulung_freigabe_von TEXT
+  `.catch(() => {});
   await sqlPool.unsafe(`
     ALTER TABLE fiaon_agents
       ADD COLUMN IF NOT EXISTS first_name VARCHAR,
@@ -517,6 +526,8 @@ export interface AgentRequest extends Request {
     is_test_account?: boolean; pruefkonto?: boolean;
     /** Nur-Ansicht: Der Vorgesetzte sieht zu, der Mensch hat sich nicht angemeldet. */
     ansicht?: boolean; ansichtBis?: string | null;
+    /** 07.09.2026: Schulungsleitung bzw. „in Schulung, wartet auf Freigabe“ (E-161). */
+    trainer?: boolean; schulungOffen?: boolean;
   };
 }
 
@@ -585,7 +596,7 @@ export async function requireAgent(req: AgentRequest, res: Response, next: NextF
     // nachladen müssen; keine tat es. Hier geladen, stimmt es überall.
     const rows = await sqlPool`
       SELECT id, name, email, first_name, active, session_epoch, avatar, rolle, zugang_gesperrt_am,
-             is_test_account, pruefkonto
+             is_test_account, pruefkonto, COALESCE(trainer, FALSE) AS trainer, COALESCE(schulung_offen, FALSE) AS schulung_offen
       FROM fiaon_agents WHERE id = ${tok.id}
     `;
     if (rows.length === 0 || !rows[0].active) {
@@ -609,6 +620,8 @@ export async function requireAgent(req: AgentRequest, res: Response, next: NextF
       rolle: String(rows[0].rolle || "agent"),
       is_test_account: !!rows[0].is_test_account,
       pruefkonto: !!rows[0].pruefkonto,
+      trainer: !!rows[0].trainer,
+      schulungOffen: !!rows[0].schulung_offen,
       // Läuft gerade eine Ansicht? Die Oberfläche zeigt daraufhin den Banner
       // und der Server lehnt jedes Schreiben ab.
       ansicht: !!ansicht,

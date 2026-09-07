@@ -5,6 +5,19 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 07.09.2026 (nachts) — Schulung mit Freigabe (Besprechung 06.09., E-161)
+
+**Was geändert wurde:** fiaon_agents bekommt `trainer`, `schulung_offen`, `schulung_freigabe_am/von`. requireAgent
+liefert `trainer`/`schulungOffen`; Pool-Nachschub (fiaon-office-vertrieb.ts) stoppt bei Schulung oder
+`distribution_active = false` (statt fester Nummer 531). Routen: `POST /admin/agents/:id/schulung { offen }`,
+`POST /admin/agents/:id/trainer { trainer }`, `GET /agent/schulung/team`, `POST /agent/schulung/:id/freigeben`
+(Trainer oder Vertriebsleitung). /agent/schulung zeigt den Abschnitt „Schulung und Freigabe“; die Leitungs-Fassung
+öffnet sich auch für Trainer. Office-Band „Schulung läuft“.
+**Warum:** „Neue Mitarbeiter dürfen erst eigenständig arbeiten, wenn Diana ihnen nach der Schulung das Okay gibt.“
+**Wo:** Academy → Schulung; Register E-161; Team-Update 2026-09-07-schulung-freigabe.
+
+---
+
 ## 07.09.2026 (spätabends) — Feedback Daniel/Florentine: Bestellungen entfernen, Inbox weg, Aufträge je Kunde, Dokumentenprüfung, nur DE/AT/CH (E-160)
 
 ### Was geändert wurde

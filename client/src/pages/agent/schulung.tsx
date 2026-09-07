@@ -37,6 +37,18 @@ export default function AgentSchulungPage() {
   const [academy, setAcademy] = useState<any>(null);
   const [stand, setStand] = useState<any>(null);
   const [laedt, setLaedt] = useState(true);
+  // 07.09.2026 (E-161): Schulung mit Freigabe — wer wartet, wer ist durch.
+  const [freigaben, setFreigaben] = useState<any[] | null>(null);
+  const [meldung, setMeldung] = useState<string | null>(null);
+  const freigabenLaden = () => fetch("/api/fiaon/agent/schulung/team", { credentials: "include" })
+    .then((r) => r.json()).then((j) => setFreigaben(j?.ok ? j.team : null)).catch(() => setFreigaben(null));
+  const freigeben = async (id: number, name: string) => {
+    if (!window.confirm(`${name} freigeben? Ab dann arbeitet ${name.split(" ")[0]} eigenständig und bekommt Kunden aus dem Pool.`)) return;
+    const r = await fetch(`/api/fiaon/agent/schulung/${id}/freigeben`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ notiz: "Freigabe nach Schulung" }) });
+    const j = await r.json().catch(() => null);
+    setMeldung(j?.ok ? String(j.meldung) : String(j?.error || "Freigabe nicht möglich."));
+    void freigabenLaden();
+  };
 
   useEffect(() => {
     document.title = "Schulung — FIAON Team";
@@ -49,6 +61,7 @@ export default function AgentSchulungPage() {
       .then((r) => r.json())
       .then((j) => setStand(j?.ok ? j : null))
       .catch(() => {});
+    void freigabenLaden();
   }, []);
 
   const katalog = katalogFuerLeitung();
@@ -99,6 +112,30 @@ export default function AgentSchulungPage() {
             Sie steht vor allem anderen, weil sie in jedem Gespräch vorkommt.
             Dasselbe Bauteil wie in der Academy und im Cockpit.
             ══════════════════════════════════════════════════════════════════ */}
+        {/* 07.09.2026 (Besprechung 06.09., E-161): Neue Mitarbeiter arbeiten erst eigenständig, wenn die
+            Schulungsleitung sie freigibt. Bis dahin: Login ja, Academy ja, kein Pool-Nachschub. */}
+        {freigaben && freigaben.length > 0 && (
+          <section style={{ marginTop: 26 }}>
+            <h2 style={{ color: HELL, fontSize: 17, margin: "0 0 6px" }}>Schulung und Freigabe</h2>
+            <p style={{ color: LEISE, fontSize: 13.5, margin: "0 0 12px" }}>Wer hier steht, ist in der Schulung und bekommt noch keine Kunden. Die Prüfung in der Academy ist der Maßstab — freigeben heißt: ab jetzt eigenständig.</p>
+            {meldung && <p style={{ color: AKZENT, fontSize: 13, margin: "0 0 10px" }}>{meldung}</p>}
+            <div style={{ display: "grid", gap: 8 }}>
+              {freigaben.map((m) => (
+                <div key={m.id} style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, padding: "10px 14px", background: "#fff", border: "1px solid #E2E8F0", borderRadius: 12 }}>
+                  <b style={{ color: HELL, fontSize: 14 }}>{m.name}</b>
+                  <span style={{ color: LEISER, fontSize: 12 }}>{m.rolle}{m.gesperrt ? " · Zugang gesperrt" : ""}</span>
+                  <span style={{ color: m.pruefungBestanden ? "#15803D" : LEISER, fontSize: 12 }}>
+                    {m.pruefungBestanden ? `Prüfung bestanden${m.zertifikatAm ? ` (${new Date(m.zertifikatAm).toLocaleDateString("de-DE")})` : ""}` : m.pruefungsVersuche ? `Prüfung: ${m.pruefungsVersuche} Versuch(e), noch nicht bestanden` : "Prüfung noch nicht begonnen"}
+                  </span>
+                  <span style={{ flex: 1 }} />
+                  {m.inSchulung
+                    ? <button type="button" onClick={() => void freigeben(m.id, m.name)} style={{ background: AKZENT, color: "#fff", border: 0, borderRadius: 10, padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Freigeben</button>
+                    : <span style={{ color: "#15803D", fontSize: 12 }}>freigegeben{m.freigabeVon ? ` von ${m.freigabeVon}` : ""}{m.freigabeAm ? ` am ${new Date(m.freigabeAm).toLocaleDateString("de-DE")}` : ""}</span>}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
         <section style={{ marginTop: 26 }}>
           <h2 style={{ color: HELL, fontSize: 16, fontWeight: 800, margin: "0 0 10px" }}>
             Die Kernbotschaft

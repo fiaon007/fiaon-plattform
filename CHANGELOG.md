@@ -5,6 +5,32 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 07.09.2026 (später Nachmittag) — Nicht erreicht raus aus der Pipeline · Kündigung im Login · Umverteilung · Stripe-Bestellungen repariert (E-156, E-158)
+
+### Was geändert wurde
+**1. „Nicht erreicht“ verlässt die Pipeline.** `GET /agent/vertrieb/arbeitsliste`
+(server/routes/fiaon-office-vertrieb.ts) schließt Menschen mit `unreachable_count > 0` aus; sie stehen
+auf der eigenen Seite „Nicht erreicht“ (Kunden-Filter, neuer Menüpunkt im Office). Erreicht → Zähler
+null → zurück in die Pipeline. Rundgänge (Pipeline, Kunden) und Team-Update mitgezogen.
+**2. Kündigung im Mitarbeiter-Login.** Sperrgrund, der mit „Kündigung“ beginnt, zeigt den
+Abschluss-Bildschirm (Unterlagen, Abrechnung, Auszahlung folgen dort) statt „vorübergehend gesperrt“.
+**3. `POST /admin/team/umverteilen`** — alle Kunden eines Mitarbeiters reihum auf Kollegen, mit
+Bestellungen, künftigen Terminen, offenen Rückrufen und Aufträgen; Verlaufseintrag je Kunde;
+Provisionen unangetastet.
+**4. Paket nachtragen** (Konditionen-Route): bezahlte Bestellung ohne Paket darf eins bekommen;
+Wunschlimit als neues Feld. 36 Stripe-Bestellungen (29.05.–02.07.) über die Stripe-Sitzungsdaten
+repariert (18 High-End, 11 Start, 5 Pro, 2 Ultra).
+
+### Warum
+Justin, 07.09.: „heute rufen wir 50 an … morgen kommen dieselben 50 wieder rein“; Lucas gekündigt,
+Kunden auf Florentine und Daniel; Antonio Mičuda sah ein leeres Paket — und 36 weitere ebenso.
+
+### Wo zu finden
+Office → Menü „Nicht erreicht“; Anmeldung (gekündigt); Register E-156 und E-158; Team-Update
+2026-09-07-nicht-erreicht.
+
+---
+
 ## 07.09.2026 (nachmittags) — Zwei Prüfstände standen dauerhaft rot; beide sind es jetzt zu Recht nicht mehr (E-157)
 
 ### Was geändert wurde

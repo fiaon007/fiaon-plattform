@@ -120,6 +120,15 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
     // „Antrag“ und heißt „Portal ansehen als <Vorname>“.
     tipp: "Im Reiter „Antrag“ steht „Portal ansehen als …“ — damit liest du in seinem Portal mit. Nur bei deinen eigenen Kunden, nur lesend, 30 Minuten.",
   },
+  {
+    // 07.09.2026 (Justin): Nicht erreicht verlässt die Pipeline.
+    titel: "Wen du nicht erreichst, siehst du hier nicht wieder — sondern auf seiner eigenen Seite.",
+    text: "Klickst du „nicht erreicht“, verschwindet der Mensch aus der Pipeline und die Liste zieht "
+      + "frischen Nachschub. Er landet unter „Nicht erreicht“ im Menü — mit Zahl der Versuche und "
+      + "Wiedervorlage. Von dort rufst du ihn an, wenn es passt. Sobald du ihn erreichst (egal mit "
+      + "welchem Ergebnis), ist der Zähler zurück auf null und er steht wieder normal in der Pipeline.",
+    tipp: "Ab dem sechsten Fehlversuch geht die Terminlink-Mail von selbst raus, ab dem neunten ruht der Mensch — beides bleibt wie bisher.",
+  },
 ];
 
 export const RUNDGANG_BESTAND: RundgangSchritt[] = [
@@ -169,6 +178,15 @@ export const RUNDGANG_BESTAND: RundgangSchritt[] = [
       + "kostenlosen Girokonto bei unserem Kooperationspartner. Erst das Konto, dann die Karte: "
       + "Die Kreditkarte gibt es nur als Zubuchung aus dem fertigen Banking heraus.",
     tipp: "Ruf vorher an, statt den Link wortlos zu schicken. Für dich sind es 10 € je bestätigter Eröffnung — und der Kunde bleibt, weil er endlich das bekommt, weswegen er gekommen ist.",
+  },
+  {
+    // 07.09.2026 (Justin): die Seite „Nicht erreicht“ ist dieser Filter.
+    titel: "„Nicht erreicht“ ist deine zweite Anrufliste.",
+    text: "Der Filter „Nicht erreicht“ zeigt alle Menschen, die du (oder ein Kollege) nicht erreicht "
+      + "habt — mit Versuchen und Wiedervorlage. In der Pipeline stehen sie nicht mehr, damit nicht "
+      + "jeden Morgen dieselben fünfzig zurückkommen. Nimm dir die Liste zu einer anderen Tageszeit vor: "
+      + "Wer mittags nicht rangeht, geht abends oft ran.",
+    tipp: "Der Menüpunkt „Nicht erreicht“ im Office öffnet genau diesen Filter.",
   },
 ];
 

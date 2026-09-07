@@ -11,7 +11,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, BookUser, Users, Phone, Megaphone, Wallet, Calculator, GraduationCap, ListChecks, Mail, Calendar, Inbox, Landmark, MoreHorizontal, Clock, Wrench, Handshake, Boxes, LogOut, Sparkles, ChevronLeft, ChevronRight, X, Menu, Compass, Building2 } from "lucide-react";
+import { LayoutDashboard, BookUser, Users, Phone, PhoneMissed, Megaphone, Wallet, Calculator, GraduationCap, ListChecks, Mail, Calendar, Inbox, Landmark, MoreHorizontal, Clock, Wrench, Handshake, Boxes, LogOut, Sparkles, ChevronLeft, ChevronRight, X, Menu, Compass, Building2 } from "lucide-react";
 import { Einfuehrung } from "@/components/agent/Einfuehrung";
 import "@/styles/office.css";
 
@@ -50,6 +50,8 @@ function CopilotZeichen({ size = 18, ...rest }: { size?: number } & Record<strin
 export const RAEUME: Raum[] = [
   { href: "/agent/start", label: "Dashboard", Icon: LayoutDashboard, match: ["/agent/start", "/agent/heute", "/agent"], szene: "schreibtisch", gruppe: "arbeit" },
   { href: "/agent/pipeline", label: "Pipeline", Icon: BookUser, match: ["/agent/pipeline", "/agent/kunden"], szene: "kundenbuch", gruppe: "arbeit", badge: "/agent/kunden" },
+  // 07.09.2026 (Justin): „Nicht erreicht" hat eine eigene Seite — die Pipeline zeigt diese Menschen nicht mehr.
+  { href: "/agent/kunden?filter=nicht_erreicht", label: "Nicht erreicht", Icon: PhoneMissed, match: ["/agent/kunden?filter=nicht_erreicht"], szene: "kundenbuch", gruppe: "arbeit" },
   { href: "/agent/kalender", label: "Calendar", Icon: Calendar, match: ["/agent/kalender"], szene: "schreibtisch", gruppe: "arbeit" },
   { href: "/agent/onboarding", label: "Onboarding", Icon: Handshake, match: ["/agent/onboarding", "/agent/startgespraeche"], szene: "akademie", gruppe: "arbeit" },
   { href: "/agent/bestand", label: "Bestand", Icon: Boxes, match: ["/agent/bestand"], szene: "kundenbuch", gruppe: "arbeit" },

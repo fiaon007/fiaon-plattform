@@ -84,6 +84,25 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-09-07-nicht-erreicht",
+    date: "2026-09-07",
+    category: "Geändert",
+    title: "„Nicht erreicht“ hat jetzt eine eigene Seite — die Pipeline bleibt frisch",
+    summary: "Bisher kamen Menschen, die du nicht erreicht hast, am nächsten Tag wieder in die Pipeline — dieselben fünfzig jeden Morgen. Ab jetzt verschwinden sie aus der Pipeline und stehen unter „Nicht erreicht“ im Menü, mit Versuchen und Wiedervorlage.",
+    changes: [
+      "Klick auf „nicht erreicht“ nimmt den Menschen aus der Pipeline; die Liste zieht frischen Nachschub aus dem Pool.",
+      "Neuer Menüpunkt „Nicht erreicht“ (unter Pipeline): alle nicht erreichten Menschen, sortierbar, mit Zahl der Versuche.",
+      "Erreichst du jemanden — egal mit welchem Ergebnis — ist der Zähler zurück auf null und er steht wieder normal in der Pipeline.",
+      "Unverändert: ab dem sechsten Fehlversuch geht die Terminlink-Mail von selbst raus, ab dem neunten ruht der Mensch.",
+    ],
+    howto: [
+      "Menü → „Nicht erreicht“ öffnen. Die Liste ist derselbe Raum wie „Kunden“, nur mit gesetztem Filter.",
+      "Anrufen wie gewohnt, Ergebnis eintragen. Zu einer anderen Tageszeit lohnt sich die Liste am meisten.",
+    ],
+    link: { href: "/agent/kunden?filter=nicht_erreicht", label: "Nicht erreicht öffnen" },
+    important: true,
+  },
+  {
     id: "2026-09-07-kundenbereich-akte",
     date: "2026-09-07",
     category: "Neu",

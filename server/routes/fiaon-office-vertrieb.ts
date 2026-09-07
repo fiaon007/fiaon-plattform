@@ -405,6 +405,16 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
       `NOT ${ruhtSql("p")}`,
       `NOT ${wartetSql("p")}`,
       `(p.follow_up_date IS NULL OR p.follow_up_date <= ${HEUTE})`,
+      // ── NICHT ERREICHT VERLÄSST DIE PIPELINE (07.09.2026, Justin) ─────────
+      // „Heute rufen wir 50 an und klicken auf nicht erreicht, morgen kommen
+      // dieselben 50 wieder rein." Bis hierher stand ein Mensch nach dem ersten
+      // und zweiten Fehlversuch am nächsten Tag wieder in der Arbeitsliste
+      // (die Wiedervorlage streckt erst ab dem dritten Versuch). Jetzt gilt:
+      // Wer nicht erreicht wurde, steht auf der eigenen Seite „Nicht erreicht"
+      // (Kunden → Filter „Nicht erreicht", Menüpunkt im Office) und nicht mehr
+      // hier — bis er erreicht wird (erreicht_* setzt den Zähler zurück) oder
+      // sich selbst meldet. Die Pipeline zieht dafür frischen Nachschub.
+      `COALESCE(p.unreachable_count, 0) = 0`,
       // ══════════════════════════════════════════════════════════════════════
       // WER FÜR MORGEN ZAHLEN WILL, IST HEUTE NICHT DRAN
       // (26.08.2026, Florentines Punkt 6)

@@ -14,8 +14,7 @@ import {
   ensureAgentTables, getSettings, setSetting, agentRateBp,
   decryptSecret, hashToken, baseUrl, logAgentEvent,
   onCustomerRefunded, onCustomerPaid, searchCustomersAndLeads,
-  eurToCents, commissionCents,
-} from "./fiaon-agent";
+  eurToCents, commissionCents, partnerThresholds, ownRevenueCents, partnerStatusFor } from "./fiaon-agent";
 import {
   echteMitarbeiterSql, nurTestkontenSql, testkontenZaehlen, istTestkontoSql,
 } from "../lib/fiaon-mitarbeiter-sicht";
@@ -1520,6 +1519,104 @@ router.post("/admin/team/umverteilen", async (req, res) => {
     res.json({ ok: true, kunden: personen.length, jeZiel: Object.fromEntries(jeZiel), termine, rueckrufe, auftraege: todos.length });
   } catch (err) {
     console.error("[FIAON-TEAM] umverteilen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/**
+ * POST /admin/team/provision-umbuchen { vonAgentId, grund } — Provisionsanspruch der
+ * umverteilten Zahler auf den neuen Betreuer (07.09.2026, Justin: „Provision für Lucas'
+ * 34 Zahler auf Florentine und Daniel setzen").
+ *
+ * Dieselben Schritte wie „Provisionsanspruch setzen" der Vertriebsleitung
+ * (fiaon-vertrieb.ts, /agent/vertrieb/person/:id/betreuer) — nur ohne
+ * onCustomerPaid, denn das würde Kontostufe und Abo neu anstoßen:
+ *   1. commission_agent_id der Bestellung = neuer Betreuer (künftige Entscheide),
+ *   2. noch nicht ausgezahlte/angeforderte EIGENE Provisionen des alten Betreuers
+ *      werden storniert und für den neuen Betreuer neu gebucht (Satz des neuen
+ *      Betreuers, Zuschlag nach Partnerstatus, Werber-Beteiligung wie sonst),
+ *   3. Ausgezahltes bleibt, was es ist — Geld, das geflossen ist, wird nicht
+ *      umgeschrieben. Der Vorgesetzte sieht die Zahl im Ergebnis.
+ * Raten ab jetzt folgen ohnehin fiaon_applications.assigned_agent_id (onRatePaid).
+ */
+router.post("/admin/team/provision-umbuchen", async (req, res) => {
+  try {
+    await ensureAgentTables();
+    await sqlPool`
+      ALTER TABLE fiaon_applications
+      ADD COLUMN IF NOT EXISTS commission_agent_id INTEGER,
+      ADD COLUMN IF NOT EXISTS commission_decided_by VARCHAR,
+      ADD COLUMN IF NOT EXISTS commission_decided_note TEXT,
+      ADD COLUMN IF NOT EXISTS commission_decided_at TIMESTAMPTZ`;
+    const von = Number(req.body?.vonAgentId || 0);
+    const grund = String(req.body?.grund || "").trim().slice(0, 300);
+    if (!von || grund.length < 10) return res.status(400).json({ ok: false, error: "vonAgentId und ein Grund (mindestens 10 Zeichen) sind Pflicht." });
+    const [quelle] = (await sqlPool`SELECT id, name FROM fiaon_agents WHERE id = ${von}`) as any[];
+    if (!quelle) return res.status(404).json({ ok: false, error: "Mitarbeiter nicht gefunden." });
+
+    const bestellungen = (await sqlPool`
+      SELECT a.ref, a.payment_reference, a.pack_name, a.amount_due, a.person_id, p.assigned_agent_id AS ziel_id
+      FROM fiaon_applications a JOIN fiaon_persons p ON p.id = a.person_id
+      WHERE a.payment_status = 'paid' AND a.merged_into IS NULL AND a.archived_at IS NULL AND a.gdpr_deleted_at IS NULL
+        AND COALESCE(a.type, '') <> 'schufa' AND a.ref NOT LIKE 'FIAON-SCHUFA-%'
+        AND p.assigned_agent_id IS NOT NULL AND p.assigned_agent_id <> ${von}
+        AND (EXISTS (SELECT 1 FROM fiaon_commissions c WHERE c.ref = a.ref AND c.agent_id = ${von})
+             OR EXISTS (SELECT 1 FROM fiaon_contact_log cl WHERE cl.person_id = p.id
+                         AND cl.note LIKE ${`Durch die Verwaltung von ${quelle.name} an %`}))
+      ORDER BY a.created_at`) as any[];
+    const settings = await getSettings();
+    const thresholds = partnerThresholds(settings);
+    let umgeschrieben = 0, storniert = 0, neu = 0, ausgezahltBleibt = 0, neuCents = 0;
+    const jeZiel = new Map<number, number>();
+    for (const b of bestellungen) {
+      const ziel = Number(b.ziel_id);
+      await sqlPool`
+        UPDATE fiaon_applications
+           SET commission_agent_id = ${ziel}, commission_decided_by = 'Verwaltung (Justin)',
+               commission_decided_note = ${grund}, commission_decided_at = NOW(), updated_at = NOW()
+         WHERE ref = ${b.ref}`;
+      umgeschrieben++;
+      const alte = (await sqlPool`
+        SELECT id, payment_reference, base_amount_cents, status FROM fiaon_commissions
+        WHERE ref = ${b.ref} AND agent_id = ${von} AND kind = 'own' AND amount_cents > 0
+        ORDER BY id`) as any[];
+      const [zielAgent] = (await sqlPool`SELECT id, name, commission_rate_bp, recruited_by, override_rate_bp FROM fiaon_agents WHERE id = ${ziel}`) as any[];
+      if (!zielAgent) continue;
+      for (const c of alte) {
+        if (["ausgezahlt", "angefordert"].includes(String(c.status))) { ausgezahltBleibt++; continue; }
+        if (String(c.status) === "storniert") continue;
+        await sqlPool`
+          UPDATE fiaon_commissions
+             SET status = 'storniert', updated_at = NOW(),
+                 note = CONCAT_WS(' · ', note, ${`storniert ${new Date().toLocaleDateString("de-DE")}: Anspruch durch die Verwaltung auf ${zielAgent.name} gesetzt`})
+           WHERE id = ${Number(c.id)}`;
+        storniert++;
+        const revenue = await ownRevenueCents(ziel);
+        const status = partnerStatusFor(revenue, thresholds);
+        const rateBp = agentRateBp(zielAgent as any, settings) + status.bonusBp;
+        const baseCents = Number(c.base_amount_cents || 0);
+        const amountCents = Math.round(baseCents * rateBp / 10000);
+        if (amountCents <= 0) continue;
+        await sqlPool`
+          INSERT INTO fiaon_commissions (agent_id, ref, payment_reference, pack_name, base_amount_cents, rate_bp, amount_cents, status, kind, note)
+          VALUES (${ziel}, ${b.ref}, ${c.payment_reference}, ${b.pack_name}, ${baseCents}, ${rateBp}, ${amountCents}, 'bestaetigt', 'own',
+                  ${`Anspruch durch die Verwaltung übernommen von ${quelle.name}${status.bonusBp > 0 ? ` · inkl. ${status.bonusBp / 100} Prozentpunkte ${status.label}-Zuschlag` : ""}`})`;
+        await logAgentEvent(ziel, "commission_created", { ref: b.ref, amount_cents: amountCents, rate_bp: rateBp, uebernommen_von: von }).catch(() => {});
+        neu++; neuCents += amountCents;
+        jeZiel.set(ziel, (jeZiel.get(ziel) || 0) + amountCents);
+      }
+      await sqlPool`
+        INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
+        VALUES (${b.ref}, ${b.person_id}, ${ziel}, ${zielAgent.name}, 'system',
+                ${`Provisionsanspruch durch die Verwaltung von ${quelle.name} auf ${zielAgent.name} gesetzt. Grund: ${grund}`}, NOW())`.catch(() => {});
+    }
+    await sqlPool`
+      INSERT INTO fiaon_agent_events (agent_id, type, meta)
+      VALUES (${von}, 'provision_umgebucht', ${JSON.stringify({ grund, bestellungen: bestellungen.length, storniert, neu, neuCents, ausgezahltBleibt })})`.catch(() => {});
+    console.log(`[FIAON-TEAM] provision-umbuchen ${quelle.name}: ${bestellungen.length} Bestellungen, ${storniert} storniert, ${neu} neu (${(neuCents / 100).toFixed(2)} €), ${ausgezahltBleibt} ausgezahlt bleiben`);
+    res.json({ ok: true, bestellungen: bestellungen.length, umgeschrieben, storniert, neu, neuEuro: (neuCents / 100).toFixed(2), ausgezahltBleibt, jeZielEuro: Object.fromEntries([...jeZiel].map(([k, v]) => [k, (v / 100).toFixed(2)])) });
+  } catch (err) {
+    console.error("[FIAON-TEAM] provision-umbuchen:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

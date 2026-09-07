@@ -1063,7 +1063,7 @@ function KleineKarte({ k, gruppe, geht, onFokus, onAkte, onEntfernen }: {
       </button>
       <span className="pi-ak-tun">
         <button type="button" className="pi-knopf klein" disabled={!k.telefonWaehlbar} onClick={() => anrufen(k.telefonWaehlbar, k.personId, k.name)} title={k.telefonWaehlbar ?? "nicht anrufbar"}><Phone size={13} strokeWidth={1.75} /></button>
-        <button type="button" className="pi-knopf still klein" onClick={onAkte}><FileText size={13} strokeWidth={1.75} /></button>
+        <button type="button" className="pi-knopf still klein" onClick={onAkte} title="Akte öffnen und mit diesem Kunden starten"><FileText size={13} strokeWidth={1.75} /> Starten</button>
         <button type="button" className="pi-link" style={{ color: "#64748b", fontSize: 11 }} onClick={onEntfernen} title="Karteileiche? Sperren statt löschen – mit Rückfrage.">Entfernen</button>
       </span>
     </div>
@@ -1138,7 +1138,16 @@ function KleinesKarussell({ kinder, geht, gesperrt, flach, onFokus, onAkte, onEn
 
   // Ein Karten-Schritt in Pixeln — daran misst sich der Zug (`eng` steht oben).
   const SCHRITT = eng ? 150 : 210;
-  const zugStart = (x: number, id: number) => { zieh.current = { x, start: x, t: Date.now(), id }; };
+  // ── KLICKS MÜSSEN DURCHKOMMEN (07.09.2026, Justin: „man kann nur den obersten
+  // Kunden annehmen … die unteren nicht") ─────────────────────────────────
+  // Vorher griff die Bühne bei JEDEM Mausdruck den Zeiger (setPointerCapture)
+  // — damit landete der Klick auf der Bühne statt auf dem Knopf der Karte:
+  // „Starten", „Anrufen", „Akte" auf den kleinen Karten liefen mit der Maus
+  // ins Leere; nur die Fokus-Karte außerhalb der Bühne reagierte. Jetzt wird
+  // erst gezogen, wenn der Zeiger sich wirklich bewegt (6 px) — ein Klick
+  // bleibt ein Klick.
+  const ziehtSchon = useRef(false);
+  const zugStart = (x: number, id: number) => { zieh.current = { x, start: x, t: Date.now(), id }; ziehtSchon.current = false; };
   const zugLauf = (x: number) => {
     if (!zieh.current) return;
     const dx = x - zieh.current.start;
@@ -1166,10 +1175,22 @@ function KleinesKarussell({ kinder, geht, gesperrt, flach, onFokus, onAkte, onEn
            onTouchStart={(e) => zugStart(e.touches[0].clientX, 0)}
            onTouchMove={(e) => zugLauf(e.touches[0].clientX)}
            onTouchEnd={(e) => zugEnde(e.changedTouches[0].clientX)}
-           onPointerDown={(e) => { if (e.pointerType === "touch") return; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); zugStart(e.clientX, e.pointerId); }}
-           onPointerMove={(e) => { if (zieh.current && e.pointerType !== "touch") zugLauf(e.clientX); }}
-           onPointerUp={(e) => { if (e.pointerType !== "touch") zugEnde(e.clientX); }}
-           onPointerCancel={() => { setZug(0); zieh.current = null; }}>
+           onPointerDown={(e) => { if (e.pointerType === "touch") return; zugStart(e.clientX, e.pointerId); }}
+           onPointerMove={(e) => {
+             if (!zieh.current || e.pointerType === "touch") return;
+             if (!ziehtSchon.current) {
+               if (Math.abs(e.clientX - zieh.current.start) < 6) return;
+               ziehtSchon.current = true;
+               try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* egal */ }
+             }
+             zugLauf(e.clientX);
+           }}
+           onPointerUp={(e) => {
+             if (e.pointerType === "touch") return;
+             if (ziehtSchon.current) zugEnde(e.clientX); else zieh.current = null;
+             ziehtSchon.current = false;
+           }}
+           onPointerCancel={() => { setZug(0); zieh.current = null; ziehtSchon.current = false; }}>
         {kinder.map((s, i) => {
           const d = i - versatz; const ad = Math.abs(d);
           const dreh = Math.max(-1, Math.min(1, d)) * -34; // Nachbarn drehen sich weg

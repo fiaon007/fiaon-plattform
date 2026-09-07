@@ -1099,6 +1099,8 @@ function KleinesKarussell({ kinder, geht, gesperrt, flach, onFokus, onAkte, onEn
   // Loslassen rastet die nächste Karte ein.
   const [zug, setZug] = useState(0);
   const zieh = useRef<{ x: number; start: number; t: number; id: number } | null>(null);
+  // Erst ab 6 px Bewegung wird gezogen (07.09.2026) — Hook oben, vor jedem frühen return.
+  const ziehtSchon = useRef(false);
   const buehne = useRef<HTMLDivElement | null>(null);
   const flachRef = useRef<HTMLDivElement | null>(null);
   // Rückt ein Kunde nach oder geht einer, bleibt die Mitte im gültigen Bereich.
@@ -1146,7 +1148,6 @@ function KleinesKarussell({ kinder, geht, gesperrt, flach, onFokus, onAkte, onEn
   // ins Leere; nur die Fokus-Karte außerhalb der Bühne reagierte. Jetzt wird
   // erst gezogen, wenn der Zeiger sich wirklich bewegt (6 px) — ein Klick
   // bleibt ein Klick.
-  const ziehtSchon = useRef(false);
   const zugStart = (x: number, id: number) => { zieh.current = { x, start: x, t: Date.now(), id }; ziehtSchon.current = false; };
   const zugLauf = (x: number) => {
     if (!zieh.current) return;

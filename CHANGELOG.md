@@ -20,6 +20,7 @@ die Regel und die vorgemerkten Zeilen; Guthabenliste markiert „Gehalt“. Rund
 Auszahlung bei jedem frei, ab 15. des Monats werden diese ausgebucht.“ Es gab keine Sperre, sondern die Regel „nur
 eine offene Anforderung“ — und vier Anforderungen (2.253 €) vom 03./07.09. wurden nie bearbeitet.
 **Wo:** Wallet → Auszahlung; /admin/payouts (Überweisung bleibt Handarbeit); Register E-166.
+**Nachtrag:** `auszahlbar_ab` kommt aus postgres.js als JS-Date — `datumISO()` formatiert es als YYYY-MM-DD (vorher „Thu Oct 01“).
 
 ---
 

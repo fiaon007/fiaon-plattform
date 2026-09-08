@@ -3005,6 +3005,16 @@ function berlinHeuteISO(d = new Date()): string {
   return d.toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
 }
 
+/**
+ * Eine DATE-Spalte als YYYY-MM-DD. postgres.js liefert `date` als JS-Date (lokale Mitternacht) —
+ * `String(d).slice(0, 10)` ergäbe „Thu Oct 01“. Gemessen beim ersten Probelauf von E-166.
+ */
+function datumISO(v: unknown): string | null {
+  if (!v) return null;
+  if (v instanceof Date) return v.toLocaleDateString("sv-SE");
+  return String(v).slice(0, 10);
+}
+
 /** Der nächste Auszahlungstag: der 15. dieses Monats, solange er nicht vorbei ist, sonst der 15. des nächsten. */
 export function naechsterAuszahlungstag(heuteISO = berlinHeuteISO()): string {
   const [j, m, t] = heuteISO.split("-").map(Number);
@@ -3135,7 +3145,7 @@ router.get("/agent/payouts", requireAgent, async (req: AgentRequest, res) => {
       vorgemerktCents: vorgemerkt.reduce((s, r) => s + Number(r.amount_cents || 0), 0),
       vorgemerkt: vorgemerkt.map((r) => ({
         id: Number(r.id), amountCents: Number(r.amount_cents), kind: String(r.kind || ""), note: r.note ?? null,
-        auszahlbarAb: r.auszahlbar_ab ? String(r.auszahlbar_ab).slice(0, 10) : null, createdAt: r.created_at,
+        auszahlbarAb: datumISO(r.auszahlbar_ab), createdAt: r.created_at,
       })),
       minCents: Number(settings.payout_min_cents),
       hasBank: !!bank[0]?.bank_iban_masked,

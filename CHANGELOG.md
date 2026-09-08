@@ -5,6 +5,42 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 08.09.2026 — Eine fällige Rate holt den Kunden zurück in die Arbeitsliste (E-165)
+
+### Was geändert wurde
+Die sechs Plätze zogen bisher `priority_tier BETWEEN 1 AND 3`. Wer bezahlt hat, steht auf Stufe 0 und
+fiel damit aus jeder Liste. Neu kommt ein Kunde der Stufe 0 dazu, **sobald er eine offene, nicht
+stornierte Rate hat, deren Fälligkeit erreicht ist**. Ohne offene Rate bleibt er draußen.
+- `server/routes/fiaon-office-vertrieb.ts`: neues Prädikat `RATE_FAELLIG_SQL`, die Fälligkeit zählt
+  als Ereignis (`EREIGNIS_SQL`), Rang 2 in `HITZE_ORDNUNG` hinter Zusage/Termin und Rückruf, eigene
+  Gruppe `rate_faellig`, eigener Zähler.
+- `client/src/pages/agent/pipeline.tsx`: Gruppe `rate_faellig` → Stufe „rate“, Karte sagt
+  „Rate fällig seit X Tagen“.
+
+### Warum
+Gemessen am 07.09.2026: **213 Kunden auf Stufe 0 mit fälliger zweiter Rate über 16.943,52 €** standen
+in keiner Arbeitsliste. Vorgesehen war dafür der Raum „Forderungen“ (E-047, „Vertrieb ≠ Inkasso“) —
+aber die Rolle `inkasso` trägt seit Wochen kein aktives Konto: 16 Konten, davon 0 aktiv. Das Geld lag
+also zwischen zwei Zuständigkeiten und wurde von niemandem angerufen.
+Frisch fällige Raten werden zu **18,6 %** bezahlt, in Mahnstufe 5 nur noch zu **3,4 %** — deshalb
+zählt die Fälligkeit als Ereignis, damit die frischeste oben steht.
+
+### Die Grenzen, bewusst eng
+Nur der eigene Betreuer, nie der Pool. Die sechs Plätze bleiben sechs — diese Kunden zählen mit, sonst
+wüchse eine Liste um 93 Menschen auf einmal. Stufe 1 bis 3 bleibt unverändert (4.569 Personen, geprüft).
+Mahnwesen, Mailwerk und Frequenzbremse unberührt. E-047 bleibt im Kern: Der Ton ist der weiche
+Reaktivierungs-Leitfaden aus E-042, kein Inkasso-Ton, und der Reaktivierungsbonus von 50 % gilt weiter.
+
+### Was das anrufbar macht
+Lesend gegen die Produktion geprüft: **248 Kunden, 17.985,33 € offene fällige Raten**, verteilt auf
+93 / 75 / 62 bei den drei größten Betreuern.
+
+### Wo zu finden
+Office → Pipeline, „Neu für dich“ und „Wieder dran“. Register E-165, Team-Eintrag
+2026-09-08-rate-in-der-liste.
+
+---
+
 ## 07.09.2026 (nachts) — Mails gehen künftig zu den Stunden raus, in denen sie geöffnet werden (E-164)
 
 ### Was geändert wurde

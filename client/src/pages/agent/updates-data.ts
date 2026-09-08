@@ -84,6 +84,26 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-09-08-rate-in-der-liste",
+    date: "2026-09-08",
+    category: "Neu",
+    title: "Kunden mit fälliger Rate stehen jetzt in deiner Arbeitsliste",
+    summary: "Wer bezahlt hat und dessen nächste Rate fällig ist, war bisher in keiner Liste — bei niemandem. Ab sofort taucht er bei dir auf, direkt nach Zusagen, Terminen und Rückrufen.",
+    changes: [
+      "Bisher zog die Arbeitsliste nur Kunden der Stufen 1 bis 3. Wer schon bezahlt hat, steht auf Stufe 0 und fiel damit heraus — auch dann, wenn seine zweite Rate seit Wochen fällig war. Gemessen am 07.09.2026: 213 Kunden mit zusammen 16.943 € offener Rate standen in keiner einzigen Liste.",
+      "Neu: Ein Kunde auf Stufe 0 kommt in deine Liste, sobald er eine offene Rate hat, deren Fälligkeit erreicht ist. Ohne offene Rate bleibt er draußen. Er landet immer bei seinem eigenen Betreuer, nie im Pool.",
+      "Die Karte sagt „Rate fällig seit X Tagen“ und trägt die Stufe „Rate überfällig – zurückholen“. Der Leitfaden dazu ist der weiche Reaktivierungs-Leitfaden — kein Inkasso-Ton, das bleibt wie gehabt.",
+      "Reihenfolge in den sechs Plätzen: Zusage und Termin zuerst, dann fällige Rückrufe, dann fällige Raten, dann der Rest. Frisch fällige Raten stehen oben, denn die werden zu 18,6 % bezahlt — in Mahnstufe 5 nur noch zu 3,4 %.",
+      "Die sechs Plätze bleiben sechs. Diese Kunden zählen mit, sie kommen nicht obendrauf.",
+    ],
+    howto: [
+      "Nichts zu tun. Die Kunden erscheinen von selbst in „Neu für dich“ und „Wieder dran“.",
+      "Am Telefon: Es ist ein zahlender Kunde, kein Schuldner. Der Reaktivierungs-Leitfaden steht wie immer auf der Karte.",
+      "Holst du eine überfällige Rate zurück, gehören dir 50 % davon (Reaktivierungsbonus, unverändert).",
+    ],
+    important: true,
+  },
+  {
     id: "2026-09-07-heisse-leads-zuerst",
     date: "2026-09-07",
     category: "Verbessert",

@@ -300,11 +300,13 @@ function hitzeText(k: Kunde): string | null {
   const kern = h.art === "zusage" ? "Zusage fällig"
     : h.art === "termin" ? "Termin heute"
     : h.art === "rueckruf" ? "Rückruf fällig"
+    // E-165: „seit" statt „vor" — bei einer Rate zählt, wie lange sie liegt.
+    : h.art === "rate" ? `Rate fällig${h.seitMin != null && h.seitMin >= 1440 ? ` seit ${Math.round(h.seitMin / 1440)} Tagen` : " seit heute"}`
     : h.art === "zahlung_gemeldet" ? `Zahlung gemeldet${her(h.seitMin)}`
     : h.art === "antrag" ? `Antrag${her(h.seitMin)}`
     : h.art === "abbruch" ? `Antrag abgebrochen${her(h.seitMin)}`
     : "Lead ohne Antrag";
-  const fest = h.art === "zusage" || h.art === "termin" || h.art === "rueckruf";
+  const fest = h.art === "zusage" || h.art === "termin" || h.art === "rueckruf" || h.art === "rate";
   return h.nieGesprochen && !fest ? `${kern} · noch ohne Anruf` : kern;
 }
 function rueckrufFaellig(k: Kunde): boolean {
@@ -565,6 +567,12 @@ export default function AgentPipelinePage() {
 const GRUPPE_INFO: Record<string, { name: string; stufe: Hitze }> = {
   bezahlt_gemeldet: { name: "Bezahlt gemeldet – Termin fehlt", stufe: "heiss" },
   rechnung_offen: { name: "Antrag fertig – Rechnung offen", stufe: "warm" },
+  // E-165 (08.09.2026): Ein zahlender Kunde mit fälliger Rate. Ohne diese
+  // Zeile stünde er als „Registriert – noch kein Antrag" da (Rückfall auf
+  // `lead`) — und der Verkäufer führte das falsche Gespräch mit einem
+  // Menschen, der längst Kunde ist. Stufe „rate" trägt den weichen
+  // Reaktivierungs-Leitfaden aus E-042, ausdrücklich keinen Inkasso-Ton.
+  rate_faellig: { name: "Rate überfällig – zurückholen", stufe: "rate" },
   lead: { name: "Registriert – noch kein Antrag", stufe: "lead" },
 };
 interface Slot { gruppe: string; kunde: Kunde }

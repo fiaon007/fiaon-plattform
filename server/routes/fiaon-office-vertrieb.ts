@@ -304,11 +304,53 @@ const RUECKRUF_SQL = `EXISTS (
 const TERMIN_HEUTE_SQL = `EXISTS (
   SELECT 1 FROM fiaon_termine tz WHERE tz.person_id = p.id AND tz.agent_id = $1 AND tz.status = 'gebucht'
     AND tz.abgesagt_am IS NULL AND (tz.beginn AT TIME ZONE 'Europe/Berlin')::date = ${HEUTE})`;
-/** Das jüngste Ereignis: Antrag gestellt oder Zahlung gemeldet (sonst Anlage der Person). */
+/**
+ * FÄLLIGE RATE — der Grund, aus dem ein bezahlter Kunde wieder in die Liste
+ * gehört (08.09.2026, E-165).
+ *
+ * ── DER BEFUND ────────────────────────────────────────────────────────────
+ * Die sechs Plätze ziehen `priority_tier BETWEEN 1 AND 3`. Ein Kunde, der
+ * bezahlt hat, steht auf Stufe 0 und fällt damit aus jeder Arbeitsliste.
+ * Gemessen am 07.09.2026: **213 Kunden auf Stufe 0 mit einer fälligen zweiten
+ * Rate über zusammen 16.943,52 €** — verteilt auf Daniel 88, Nikita 71,
+ * Florentine 60, Diana 12, Hans-Jürgen 3. Niemand hatte sie in einer Liste.
+ * Vorgesehen war dafür der Raum „Forderungen" (E-047, „Vertrieb ≠ Inkasso"),
+ * aber die Rolle `inkasso` trägt seit Wochen kein aktives Konto: 16 Konten,
+ * davon 0 aktiv.
+ *
+ * ── WAS SICH ÄNDERT, UND WAS AUSDRÜCKLICH NICHT ───────────────────────────
+ * Ein Kunde auf Stufe 0 kommt NUR dann in die Liste, wenn er eine offene,
+ * nicht stornierte Rate hat, deren Fälligkeit erreicht ist. Stufe 0 ohne
+ * offene Rate bleibt draußen. Er landet in der Pipeline SEINES Betreuers, nie
+ * im Pool, und er zählt gegen die sechs Plätze — sonst wüchse Daniels Liste
+ * auf einen Schlag um 88 Menschen und niemand arbeitete sie ab.
+ * E-047 bleibt im Kern bestehen: Der Ton ist der weiche Reaktivierungs-
+ * Leitfaden (E-042), kein Inkasso-Ton. Das Mahnwesen bleibt unberührt.
+ */
+const RATE_FAELLIG_SQL = `EXISTS (
+  SELECT 1 FROM fiaon_abo_raten r JOIN fiaon_applications ar ON ar.ref = r.ref
+   WHERE ar.person_id = p.id AND ar.merged_into IS NULL
+     AND r.status = 'offen' AND r.storniert_am IS NULL AND r.faellig_am <= ${HEUTE})`;
+/** Die jüngste erreichte Fälligkeit — sie ist für diesen Menschen das Ereignis. */
+const RATE_FAELLIG_AM_SQL = `(
+  SELECT MAX(r2.faellig_am)::timestamptz FROM fiaon_abo_raten r2 JOIN fiaon_applications ar2 ON ar2.ref = r2.ref
+   WHERE ar2.person_id = p.id AND ar2.merged_into IS NULL
+     AND r2.status = 'offen' AND r2.storniert_am IS NULL AND r2.faellig_am <= ${HEUTE})`;
+/**
+ * Das jüngste Ereignis: Antrag gestellt, Zahlung gemeldet oder eine Rate
+ * fällig geworden (sonst Anlage der Person).
+ *
+ * 08.09.2026: Die Fälligkeit kam dazu. Ohne sie stünde ein Kunde, dessen Rate
+ * gestern fällig wurde, mit dem Datum seines drei Monate alten Antrags in der
+ * Reihung — also ganz unten. Die Reihung sortiert das jüngste Ereignis nach
+ * oben, und das ist hier genau richtig: Eine frisch fällige Rate wird zu
+ * 18,6 % bezahlt, eine in Mahnstufe 5 zu 3,4 %.
+ */
 const EREIGNIS_SQL = `GREATEST(
   COALESCE((SELECT MAX(a4.created_at) FROM fiaon_applications a4 WHERE a4.person_id = p.id AND a4.merged_into IS NULL), p.created_at),
   COALESCE((SELECT MAX(a5.claimed_paid_at) FROM fiaon_applications a5 WHERE a5.person_id = p.id AND a5.merged_into IS NULL
               AND a5.payment_status = 'claimed_paid'), p.created_at),
+  COALESCE(${RATE_FAELLIG_AM_SQL}, p.created_at),
   p.created_at)`;
 /** Noch kein Gesprächsergebnis zu diesem Menschen — niemand hat ihn je angerufen. */
 const NIE_SQL = `NOT EXISTS (
@@ -316,10 +358,14 @@ const NIE_SQL = `NOT EXISTS (
     AND (cn.person_id = p.id OR cn.ref IN (SELECT an.ref FROM fiaon_applications an WHERE an.person_id = p.id)))`;
 /** Felder für die Karte: warum steht dieser Mensch hier? */
 const HITZE_SQL = `${ZUSAGE_SQL} AS zusage_faellig, ${RUECKRUF_SQL} AS rueckruf_faellig, ${TERMIN_HEUTE_SQL} AS termin_heute,
+  ${RATE_FAELLIG_SQL} AS rate_faellig,
   ${EREIGNIS_SQL} AS ereignis_am, ${NIE_SQL} AS nie_gesprochen`;
 /** Die Reihenfolge — für „Neu für dich", „Wieder dran" dieselbe (braucht $1 = Mitarbeiter). */
 const HITZE_ORDNUNG = `
-  CASE WHEN ${ZUSAGE_SQL} OR ${TERMIN_HEUTE_SQL} THEN 0 WHEN ${RUECKRUF_SQL} THEN 1 ELSE 2 END,
+  CASE WHEN ${ZUSAGE_SQL} OR ${TERMIN_HEUTE_SQL} THEN 0
+       WHEN ${RUECKRUF_SQL} THEN 1
+       WHEN ${RATE_FAELLIG_SQL} THEN 2
+       ELSE 3 END,
   CASE WHEN p.priority_tier = 3 THEN 1 ELSE 0 END,
   (${EREIGNIS_SQL} AT TIME ZONE 'Europe/Berlin')::date DESC,
   CASE WHEN ${NIE_SQL} THEN 0 ELSE 1 END,
@@ -335,6 +381,9 @@ const POOL_ORDNUNG = `
 function hitzeVon(r: any) {
   const tier = Number(r.priority_tier);
   const art = r.zusage_faellig === true ? "zusage" : r.termin_heute === true ? "termin" : r.rueckruf_faellig === true ? "rueckruf"
+    // Die fällige Rate steht VOR den Stufen-Arten: Sie ist der Grund, aus dem
+    // dieser Mensch hier steht, und der Verkäufer muss ihn im ersten Satz sehen.
+    : r.rate_faellig === true ? "rate"
     : tier === 1 ? "zahlung_gemeldet" : tier === 2 ? "antrag" : r.tier_reason === "antrag_abgebrochen" ? "abbruch" : "lead";
   const am = r.ereignis_am ? new Date(r.ereignis_am).getTime() : NaN;
   return {
@@ -343,8 +392,15 @@ function hitzeVon(r: any) {
     nieGesprochen: r.nie_gesprochen === true,
   };
 }
-/** Die Gruppe der Karte — Übersetzung des vorhandenen priority_tier. */
-const gruppeVon = (tier: number) => (tier === 1 ? "bezahlt_gemeldet" : tier === 2 ? "rechnung_offen" : "lead");
+/**
+ * Die Gruppe der Karte — Übersetzung des vorhandenen priority_tier, mit einer
+ * Ausnahme: Wer wegen einer fälligen Rate hier steht, gehört in die eigene
+ * Gruppe. Sonst stünde ein zahlender Kunde als „Registriert – noch kein
+ * Antrag" da, und der Verkäufer führte das falsche Gespräch.
+ */
+const gruppeVon = (tier: number, rateFaellig = false) =>
+  (rateFaellig && tier === 0 ? "rate_faellig"
+    : tier === 1 ? "bezahlt_gemeldet" : tier === 2 ? "rechnung_offen" : "lead");
 
 /**
  * Zieht Nachschub aus dem Kundenpool, wenn der Mitarbeiter in „Neu für dich"
@@ -614,30 +670,34 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
     const [gSlots, zaehlerR, gWieder] = await Promise.all([
       // E-162: keine Töpfe mehr — die sechs Plätze sind die sechs heißesten Menschen.
       sqlPool.unsafe(
+        // E-165: Stufe 0 kommt dazu, aber NUR mit fälliger Rate.
         `SELECT ${KARTE_SQL}, p.mandat_seit, ${VOLL_SQL}, ${HITZE_SQL} FROM fiaon_persons p
-         WHERE ${basis} AND p.priority_tier BETWEEN 1 AND 3
+         WHERE ${basis} AND (p.priority_tier BETWEEN 1 AND 3
+                             OR (COALESCE(p.priority_tier, 0) = 0 AND ${RATE_FAELLIG_SQL}))
          ORDER BY ${ordnung} LIMIT ${SLOTS}`, [me],
       ),
       sqlPool.unsafe(
         `SELECT
            COUNT(*) FILTER (WHERE p.priority_tier = 1)::int AS bezahlt_gemeldet,
            COUNT(*) FILTER (WHERE p.priority_tier = 2)::int AS rechnung_offen,
-           COUNT(*) FILTER (WHERE p.priority_tier = 3)::int AS lead
+           COUNT(*) FILTER (WHERE p.priority_tier = 3)::int AS lead,
+           COUNT(*) FILTER (WHERE COALESCE(p.priority_tier, 0) = 0 AND ${RATE_FAELLIG_SQL})::int AS rate_faellig
          FROM fiaon_persons p WHERE ${basis}`, [me],
       ),
       sqlPool.unsafe(
         `SELECT ${KARTE_SQL}, p.mandat_seit, ${VOLL_SQL}, COALESCE(p.unreachable_count, 0) AS versuche, ${WIEDER_GRUND_SQL}, ${HITZE_SQL}
          FROM fiaon_persons p
-         WHERE ${basisWieder} AND p.priority_tier BETWEEN 1 AND 3
+         WHERE ${basisWieder} AND (p.priority_tier BETWEEN 1 AND 3
+                                   OR (COALESCE(p.priority_tier, 0) = 0 AND ${RATE_FAELLIG_SQL}))
          ORDER BY ${ordnung} LIMIT ${SLOTS}`, [me],
       ),
     ]);
     const wieder = (gWieder as any[]).map((r) => ({
-      gruppe: gruppeVon(Number(r.priority_tier)),
+      gruppe: gruppeVon(Number(r.priority_tier), r.rate_faellig === true),
       kunde: { ...karte(r), mandatSeit: r.mandat_seit ?? null, vollstaendig: !!r.voll_kunde, wiederGrund: String(r.wieder_grund), versuche: Number(r.versuche || 0), hitze: hitzeVon(r) },
     }));
     const slots: { gruppe: string; kunde: any }[] = (gSlots as any[]).map((r) => ({
-      gruppe: gruppeVon(Number(r.priority_tier)),
+      gruppe: gruppeVon(Number(r.priority_tier), r.rate_faellig === true),
       kunde: { ...karte(r), mandatSeit: r.mandat_seit ?? null, vollstaendig: !!r.voll_kunde, hitze: hitzeVon(r) },
     }));
 

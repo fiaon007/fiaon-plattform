@@ -129,7 +129,8 @@ export default function ChefPostfach() {
     try {
       const p = new URLSearchParams({ ordner, ...(postfach ? { postfach } : {}), ...(suche ? { suche } : {}) });
       const [l, k] = await Promise.all([
-        hole(`/admin/postmeister/postfach?${p}`),
+        // E-167: bis zu 100 statt 40 Zeilen laden, damit „Alle markieren“ wirklich alle wartenden Entwürfe trifft.
+        hole(`/admin/postmeister/postfach?${p}&limit=100`),
         hole("/admin/postmeister/kopf").catch(() => null),
       ]);
       setListe(l.zeilen ?? []);

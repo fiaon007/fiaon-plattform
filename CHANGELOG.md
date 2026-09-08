@@ -5,6 +5,24 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 08.09.2026 — Mara treibt die offene Rechnung selbst ein, kein Mahnstopp, kein Delegieren; Postfach „Alle markieren“ (E-167)
+
+**Was geändert wurde:** Neue erste Regel im Postmeister-Prompt (server/lib/fiaon-postmeister-agent.ts): Jeder Kunde
+mit unterschriebenem Antrag hat eine offene Rechnung — in jeder Antwort Rate, Betrag, Fälligkeit, Zahlungsseite und
+die Bitte zu zahlen; Einwände (frühere Kündigung, Widerruf, „nie bestellt“) prüft Mara selbst gegen die Akte und
+bittet um den Nachweis, bis dahin bleibt die Rate fällig. Ausstiegs-Block schließt mit der Rate statt „ohne Druck in
+einem Satz“. `mahnstopp_setzen` wird Mara nicht mehr angeboten (`lagen: []`). Beschreibungen von `notiz_an_betreuer`
+und `aufgabe_an_betreuer` enger (nie „prüfen lassen“, nie bei Ärger/Anwalt/Kündigung). Die Nachprüfung verlangte bei
+jeder offenen Frage eine Aufgabe oder Notiz — entfernt. Postfach (ChefPostfach.tsx): Knopf „Alle N markieren“ /
+„Keine markieren“, Senden in Paketen zu 60. KEINE Modellkosten: Es wurde kein Entwurf neu geschrieben; die Regeln
+gelten für neue Antworten.
+**Warum:** Justin (08.09.): „Warum verweist der Agent IMMER auf die Mitarbeiter? Der Agent soll klären, dass der Kunde
+die offene Rechnung bezahlt — nicht immer mehr Arbeit machen an die anderen! Und ich muss alle Nachrichten auswählen
+und versenden können. Keine weiteren API-Kosten.“
+**Wo:** Chefbüro → Kommunikation → Postfach; Register E-167.
+
+---
+
 ## 08.09.2026 — Auszahlung: ab dem 15. wird ausgebucht, jeder freigeschaltet, Vorgemerktes mit Freigabedatum (E-166)
 
 **Was geändert wurde:** `fiaon_commissions.auszahlbar_ab` (DATE) und Status `vorgemerkt`. `GET /agent/payouts` liefert

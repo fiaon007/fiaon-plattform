@@ -142,7 +142,7 @@ async function zustaendig(personId: number | null): Promise<{ id: number | null;
  */
 export const notizAnBetreuer: Werkzeug = {
   name: "notiz_an_betreuer",
-  beschreibung: "Schreibt dem zuständigen Betreuer eine kurze Nachricht in die Akte und legt ihm eine Aufgabe an. Nutze das, wenn ein Mensch etwas wissen oder tun muss: Kunde ist verärgert, will nicht zahlen, droht mit Anwalt, braucht ein Gespräch vor der nächsten Mahnung. Schreib so, wie du es einem Kollegen sagen würdest.",
+  beschreibung: "Schreibt dem zuständigen Betreuer eine kurze Nachricht in die Akte und legt ihm eine Aufgabe an. NUR wenn ein Mensch etwas wissen MUSS, das du nicht selbst erledigst: ausdrücklicher Rückrufwunsch, eingereichte Unterlagen (Ausweis, Kontoauszug, Bescheid), Datenänderung ohne Werkzeug, Geld-zurück-Frage. NICHT bei Ärger, Zahlungsverweigerung, Anwaltsdrohung, Kündigung oder angeblicher früherer Kündigung — das beantwortest du selbst (Vertrag, offene Rate, Zahlungsseite, Härte-Stufe). Schreib so, wie du es einem Kollegen sagen würdest.",
   stufe: "frei",
   lagen: "alle",
   parameter: {
@@ -199,7 +199,7 @@ export const notizAnBetreuer: Werkzeug = {
  */
 export const aufgabeAnBetreuer: Werkzeug = {
   name: "aufgabe_an_betreuer",
-  beschreibung: "Legt dem zuständigen Betreuer eine echte Aufgabe mit Titel, Auftrag und Frist an. Er sieht sie in seinem Portal unter Aufträge und bekommt eine Mail. Nutze das, wenn ein Mensch etwas TUN muss, das du nicht kannst: Kunde will einen Anruf, braucht eine Bescheinigung, will Daten ändern, hat Unterlagen geschickt, verlangt eine Antwort von einem Menschen, oder eine frühere Kündigung muss geprüft werden. Für einen bloßen Hinweis nimm notiz_an_betreuer.",
+  beschreibung: "Legt dem zuständigen Betreuer eine echte Aufgabe mit Titel, Auftrag und Frist an. Er sieht sie in seinem Portal unter Aufträge und bekommt eine Mail. Nutze das NUR, wenn ein Mensch etwas TUN muss, das du nicht kannst: Kunde will ausdrücklich einen Anruf, braucht eine Bescheinigung, will Daten ändern, hat Unterlagen (Ausweis, Kontoauszug, Bescheid) geschickt, oder es geht um Geld zurück (kollege Leitung) bzw. einen Zahlungsbeleg (kollege Zahlung). NIE, um eine Zahlung, eine Kündigung, einen Widerruf oder eine Beschwerde „prüfen zu lassen“ — das erledigst du selbst. Für einen bloßen Hinweis nimm notiz_an_betreuer.",
   stufe: "frei",
   lagen: "alle",
   parameter: {
@@ -415,7 +415,10 @@ export const mahnstoppSetzen: Werkzeug = {
   name: "mahnstopp_setzen",
   beschreibung: "Hält die automatischen Zahlungserinnerungen zu dieser Bestellung an. NUR wenn der Kunde eine Zahlung belegt, einen konkreten Einwand nennt (falscher Betrag, doppelt abgebucht) oder ausdrücklich um eine Ratenpause bittet. NICHT, weil er nicht zahlen will, wütend ist oder erst eine Antwort möchte — die Forderung bleibt, und die Antwort gibst du selbst.",
   stufe: "frei",
-  lagen: ["zahlung_gemeldet", "rate_ueberfaellig", "gekuendigt", "bestreitet", "unbezahlt"],
+  // 08.09.2026 (E-167, Justin): Mara bekommt dieses Werkzeug nicht mehr angeboten —
+  // die Erinnerungen laufen, bis die Zahlung gebucht ist. `lagen: []` statt Löschen,
+  // damit alte Entwürfe und das Protokoll (werkzeugFinden) den Namen weiter kennen.
+  lagen: [],
   parameter: {
     type: "object", additionalProperties: false,
     properties: { grund: { type: "string", description: "Warum die Erinnerungen anhalten sollen." } },

@@ -250,13 +250,18 @@ export default function ChefPostfach() {
     if (!markiert.length) return;
     setLaeuft("mehrere");
     try {
-      const j = await hole("/admin/postmeister/senden-mehrere", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: markiert }),
-      });
+      // Der Server nimmt höchstens 60 je Aufruf — mehr in Paketen, damit „Alle markieren" wirklich alle sendet.
+      let gesendet = 0; const fehler: any[] = [];
+      for (let i = 0; i < markiert.length; i += 60) {
+        const j = await hole("/admin/postmeister/senden-mehrere", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ids: markiert.slice(i, i + 60) }),
+        });
+        gesendet += Number(j.gesendet || 0); fehler.push(...(j.fehler || []));
+      }
       setMeldung({
-        art: j.fehler?.length ? "warn" : "gut",
-        text: `${j.gesendet} gesendet${j.fehler?.length ? `, ${j.fehler.length} zurückgehalten` : ""}.`,
+        art: fehler.length ? "warn" : "gut",
+        text: `${gesendet} gesendet${fehler.length ? `, ${fehler.length} zurückgehalten` : ""}.`,
       });
       setMarkiert([]); await laden();
     } catch (e: any) { setMeldung({ art: "warn", text: String(e?.message || e) }); }
@@ -302,6 +307,16 @@ export default function ChefPostfach() {
         <div className="pf-kz"><b>{kopf?.zahlen?.heute_gesendet ?? 0}</b><span>heute beantwortet</span></div>
         <div className="pf-kz"><b>{typeof kopf?.kostenHeuteEuro === "number" ? kopf.kostenHeuteEuro.toFixed(2).replace(".", ",") + " €" : "—"}</b><span>Modellkosten heute</span></div>
         <div className="pf-band-rechts">
+          {/* 08.09.2026 (E-167, Justin): „Ich muss auch ALLE Nachrichten auswählen und versenden können." */}
+          {ordner === "offen" && liste.some((z) => z.aktion === "entwurf") && (
+            <button type="button" className="pf-knopf still" title="Alle wartenden Entwürfe in dieser Liste markieren"
+                    onClick={() => setMarkiert((m) => {
+                      const ids = liste.filter((z) => z.aktion === "entwurf").map((z) => z.id);
+                      return ids.length > 0 && ids.every((id) => m.includes(id)) ? [] : ids;
+                    })}>
+              {liste.filter((z) => z.aktion === "entwurf").every((z) => markiert.includes(z.id)) ? "Keine markieren" : `Alle ${liste.filter((z) => z.aktion === "entwurf").length} markieren`}
+            </button>
+          )}
           {markiert.length > 0 && (
             <button type="button" className="pf-knopf" disabled={laeuft === "mehrere"} onClick={() => void markierteSenden()}>
               {laeuft === "mehrere" ? "Sendet …" : `${markiert.length} markierte senden`}

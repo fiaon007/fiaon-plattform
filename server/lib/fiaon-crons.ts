@@ -351,6 +351,11 @@ export const LAUF_FOLGEN: Record<string, { zweck: string; folge: string; fenster
     folge: "Kunden bekommen keine Abo-Rechnung — es fehlt Geld, das niemand anmahnt.",
     fenster: 2,
   },
+  auszahlungstag: {
+    zweck: "Vorgemerkte Buchungen (Gehalt) am Freigabetag bestätigen; ab dem 15. das bestätigte Guthaben aller in die Auszahlung stellen",
+    folge: "Gehalt bleibt vorgemerkt, Provisionen bleiben liegen — die Mitarbeiter sehen ihr Geld nicht kommen.",
+    fenster: 26,
+  },
   zahlungserinnerungen: {
     zweck: "Zahlungserinnerungen an Kunden mit offener Rechnung",
     folge: "Offene Rechnungen werden nicht angemahnt.",

@@ -767,6 +767,53 @@ router.post("/admin/team/neu-verteilen", async (req, res) => {
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// E-166 (08.09.2026): GEHALT ODER ZUSAGE MIT FREIGABEDATUM BUCHEN
+// Body: { amountCents, auszahlbarAb: "YYYY-MM-DD", note }. Liegt der Tag in der
+// Zukunft, steht die Buchung als `vorgemerkt` (sichtbar, nicht anforderbar) und
+// wird vom Lauf `auszahlungstag` am Freigabetag bestätigt. Sonst sofort bestätigt.
+// ═══════════════════════════════════════════════════════════════════════════
+router.post("/admin/agents/:id/gehalt", async (req, res) => {
+  try {
+    await ensureAgentTables();
+    const id = Number(req.params.id);
+    const amountCents = Math.round(Number(req.body?.amountCents));
+    const auszahlbarAb = String(req.body?.auszahlbarAb || "").trim();
+    const note = String(req.body?.note || "").trim().slice(0, 300);
+    if (!Number.isFinite(amountCents) || amountCents <= 0 || amountCents > 2_000_000) return res.status(400).json({ ok: false, error: "Betrag ungültig (0,01 € bis 20.000,00 €)" });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(auszahlbarAb)) return res.status(400).json({ ok: false, error: "auszahlbarAb fehlt (YYYY-MM-DD)" });
+    if (!note) return res.status(400).json({ ok: false, error: "Vermerk ist Pflicht (z. B. „Gehalt September“)" });
+    const [ag] = await sqlPool`SELECT id, name FROM fiaon_agents WHERE id = ${id}`;
+    if (!ag) return res.status(404).json({ ok: false, error: "Mitarbeiter nicht gefunden" });
+    const heute = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+    const status = auszahlbarAb > heute ? "vorgemerkt" : "bestaetigt";
+    const ref = `GEHALT-${auszahlbarAb.replace(/-/g, "").slice(0, 6)}-${id}-${Date.now().toString(36).toUpperCase()}`;
+    const rows = await sqlPool`
+      INSERT INTO fiaon_commissions (agent_id, ref, pack_name, base_amount_cents, rate_bp, amount_cents, status, kind, note, auszahlbar_ab)
+      VALUES (${id}, ${ref}, 'Gehalt', ${amountCents}, 0, ${amountCents}, ${status}, 'gehalt', ${note}, ${auszahlbarAb}::date)
+      RETURNING id
+    `;
+    await logAgentEvent(id, "commission_gehalt", { commission_id: rows[0].id, amount_cents: amountCents, auszahlbar_ab: auszahlbarAb, status, note });
+    console.log(`[FIAON-TEAM] Gehalt #${rows[0].id}: ${(amountCents / 100).toFixed(2)} € → ${ag.name}, ${status}, auszahlbar ab ${auszahlbarAb} (${note})`);
+    res.json({ ok: true, commissionId: Number(rows[0].id), status, auszahlbarAb });
+  } catch (err) {
+    console.error("[FIAON-TEAM] gehalt:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// E-166: Auszahlungstag-Lauf von Hand — ohne { trocken: false } zeigt er nur, was passieren würde.
+router.post("/admin/team/auszahlungstag", async (req, res) => {
+  try {
+    await ensureAgentTables();
+    const { auszahlungstagLauf } = await import("./fiaon-agent");
+    res.json({ ok: true, ...(await auszahlungstagLauf({ trocken: req.body?.trocken !== false })) });
+  } catch (err) {
+    console.error("[FIAON-TEAM] auszahlungstag:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 router.get("/admin/team/stats", async (_req, res) => {
   const nurTest = String(_req.query?.test ?? "") === "1";
   const kontenGrenze = nurTest ? nurTestkontenSql() : echteMitarbeiterSql();

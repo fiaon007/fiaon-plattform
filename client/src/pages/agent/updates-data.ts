@@ -84,6 +84,25 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-09-08-auszahlung-15",
+    date: "2026-09-08",
+    category: "Neu",
+    title: "Auszahlung: ab dem 15. wird ausgebucht – jeder ist freigeschaltet, Vorgemerktes ist sichtbar",
+    summary: "Justin: „Schalte die Auszahlung bei jedem frei, ab dem 15. des Monats wird ausgebucht.“ Die Regel „nur eine offene Anforderung“ ist weg. Alles Bestätigte geht ab dem 15. automatisch in die Auszahlung. Gehalt oder Zusagen mit Datum stehen als „Vorgemerkt“ im Wallet.",
+    changes: [
+      "Wallet → Auszahlung zeigt vier Kacheln: Verfügbar, Nächste Auszahlung, In Auszahlung, Vorgemerkt.",
+      "Ab dem 15. jeden Monats stellt das System das bestätigte Guthaben aller Mitarbeiter mit IBAN in die Auszahlung – ohne Klick. Die Überweisung macht Justin danach.",
+      "Anfordern geht jederzeit, auch wenn eine ältere Anforderung noch offen ist.",
+      "„Vorgemerkt“: fest zugesagte Beträge (z. B. Gehalt) mit Freigabedatum. Am Tag der Freigabe werden sie bestätigt und gehen in den nächsten Lauf.",
+    ],
+    howto: [
+      "Wallet → Auszahlung öffnen. Steht dort „keine IBAN“, einmal im Profil eintragen.",
+      "Vorgemerktes steht mit Datum unter den Kacheln – du musst nichts tun.",
+    ],
+    link: { href: "/agent/wallet/auszahlung", label: "Wallet öffnen" },
+    important: true,
+  },
+  {
     id: "2026-09-08-rate-in-der-liste",
     date: "2026-09-08",
     category: "Neu",

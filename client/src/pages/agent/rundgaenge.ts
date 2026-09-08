@@ -413,6 +413,15 @@ export const RUNDGANG_WALLET: RundgangSchritt[] = [
       + "noch. Was bestätigt ist, geht in die nächste Abrechnung.",
     tipp: "Wenn dir eine Zeile fehlt, prüf zuerst im Bestand, ob die Rate wirklich schon eingegangen ist.",
   },
+  {
+    // 08.09.2026 mitgezogen (E-166, Justin): Auszahlungstag und Vorgemerktes.
+    titel: "Ab dem 15. wird ausgebucht — du musst nichts beantragen.",
+    text: "Alles, was bestätigt ist, geht ab dem 15. jeden Monats automatisch in die Auszahlung. Du kannst "
+      + "trotzdem jederzeit anfordern, auch wenn eine ältere Anforderung noch offen ist. „Vorgemerkt“ heißt: "
+      + "Der Betrag ist dir fest zugesagt — Gehalt zum Beispiel — und wird am genannten Tag frei. Bis dahin "
+      + "siehst du ihn, kannst ihn aber noch nicht anfordern.",
+    tipp: "Ohne IBAN im Profil bleibt dein Guthaben stehen. Trag sie einmal ein, dann läuft es von selbst.",
+  },
 ];
 
 export const RUNDGANG_TICKETS: RundgangSchritt[] = [

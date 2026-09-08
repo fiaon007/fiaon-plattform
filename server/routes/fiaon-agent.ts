@@ -238,7 +238,9 @@ export async function ensureAgentTables(): Promise<void> {
   await sqlPool.unsafe(`
     ALTER TABLE fiaon_commissions
       ADD COLUMN IF NOT EXISTS kind VARCHAR NOT NULL DEFAULT 'own',
-      ADD COLUMN IF NOT EXISTS source_agent_id INTEGER
+      ADD COLUMN IF NOT EXISTS source_agent_id INTEGER,
+      -- E-166 (08.09.2026): vorgemerkte Buchungen (Gehalt, Zusagen) mit Freigabedatum
+      ADD COLUMN IF NOT EXISTS auszahlbar_ab DATE
   `);
   // Paket AE3: Partner-Programm — erreichte Meilensteine + Prämien-Aufgaben für den Admin
   await sqlPool`
@@ -2928,7 +2930,7 @@ router.get("/agent/earnings", requireAgent, async (req: AgentRequest, res) => {
     `;
     const entries = await sqlPool`
       SELECT c.id, c.ref, c.payment_reference, c.pack_name, c.base_amount_cents, c.rate_bp, c.amount_cents,
-             c.status, c.note, c.created_at, c.kind,
+             c.status, c.note, c.created_at, c.kind, c.auszahlbar_ab,
              a.first_name, a.last_name, a.contact_name, a.company_name
       FROM fiaon_commissions c
       LEFT JOIN fiaon_applications a ON a.ref = c.ref
@@ -2973,6 +2975,137 @@ router.get("/agent/earnings", requireAgent, async (req: AgentRequest, res) => {
 // ═══════════════ AGENT: Auszahlung (H1) ═══════════════
 // Der Antrag erzeugt AUSSCHLIESSLICH eine Anforderung — NIEMALS eine Transaktion.
 
+// ═══════════════════════════════════════════════════════════════════════════
+// AUSZAHLUNG: DER 15. (08.09.2026, E-166 — Justin)
+//
+// ── DER BEFUND ──────────────────────────────────────────────────────────
+// „Die Auszahlungen sind gesperrt, Nikita kann keine Auszahlung treffen."
+// Es gab keine Sperre, sondern die Regel „nur EINE offene Anforderung
+// gleichzeitig" — und die Anforderungen vom 03.09. (Nikita 352 €, Florentine
+// 926 €) und 07.09. (Daniel 894 €, Hans-Jürgen 81 €) wurden nie bearbeitet.
+// Wer danach neue Provisionen hatte, kam nicht mehr an sie heran.
+//
+// ── DIE REGEL (Justin, 08.09.2026) ───────────────────────────────────────
+// 1. Jeder ist freigeschaltet. Anfordern geht jederzeit, auch wenn eine
+//    ältere Anforderung noch offen ist.
+// 2. Ab dem 15. jeden Monats wird ausgebucht: Der Lauf `auszahlungstag`
+//    stellt am 15. (oder am ersten Lauftag danach) das bestätigte Guthaben
+//    ALLER Mitarbeiter mit Bankdaten in die Auszahlung — niemand muss klicken.
+//    Ohne IBAN bleibt das Guthaben verfügbar, mit Hinweis auf das Profil.
+// 3. Vorgemerkt: Gehalt oder Zusagen mit Freigabedatum stehen als
+//    `vorgemerkt` mit `auszahlbar_ab` — sichtbar, nicht anforderbar. Am
+//    Freigabetag werden sie `bestaetigt` und gehen in den nächsten Lauf.
+//    (Nikita 2.000 € ab 01.10., Diana 1.000 € ab 15.09. — Justins Anordnung.)
+// Die Überweisung selbst bleibt Handarbeit (/admin/payouts → mark-paid).
+// ═══════════════════════════════════════════════════════════════════════════
+export const AUSZAHLUNGSTAG = 15;
+
+/** Heute in Berlin als YYYY-MM-DD. */
+function berlinHeuteISO(d = new Date()): string {
+  return d.toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+}
+
+/** Der nächste Auszahlungstag: der 15. dieses Monats, solange er nicht vorbei ist, sonst der 15. des nächsten. */
+export function naechsterAuszahlungstag(heuteISO = berlinHeuteISO()): string {
+  const [j, m, t] = heuteISO.split("-").map(Number);
+  const tag = String(AUSZAHLUNGSTAG).padStart(2, "0");
+  if (t <= AUSZAHLUNGSTAG) return `${j}-${String(m).padStart(2, "0")}-${tag}`;
+  const nm = m === 12 ? 1 : m + 1;
+  const nj = m === 12 ? j + 1 : j;
+  return `${nj}-${String(nm).padStart(2, "0")}-${tag}`;
+}
+
+/** Eine Anforderung über das volle bestätigte Guthaben — der eine Weg, den Klick und Lauf teilen. */
+async function anforderungAnlegen(
+  agentId: number, quelle: "klick" | "lauf",
+): Promise<{ payoutId: number; amountCents: number } | { fehler: string }> {
+  const settings = await getSettings();
+  const minCents = Number(settings.payout_min_cents);
+  const [ag] = await sqlPool`SELECT bank_holder_enc, bank_iban_enc, bank_bic_enc, bank_iban_masked FROM fiaon_agents WHERE id = ${agentId}`;
+  if (!ag?.bank_iban_enc) return { fehler: "Bitte zuerst Auszahlungsdaten (IBAN) im Profil hinterlegen" };
+  const rows = await sqlPool`SELECT id, amount_cents FROM fiaon_commissions WHERE agent_id = ${agentId} AND status = 'bestaetigt'`;
+  const total = rows.reduce((s: number, r: any) => s + Number(r.amount_cents), 0);
+  if (total < minCents) return { fehler: `Mindestbetrag ${(minCents / 100).toFixed(2)} € nicht erreicht` };
+  const payout = await sqlPool`
+    INSERT INTO fiaon_payouts (agent_id, amount_cents, bank_holder_enc, bank_iban_enc, bank_bic_enc, iban_masked)
+    VALUES (${agentId}, ${total}, ${ag.bank_holder_enc}, ${ag.bank_iban_enc}, ${ag.bank_bic_enc}, ${ag.bank_iban_masked})
+    RETURNING id, amount_cents, requested_at
+  `;
+  await sqlPool`
+    UPDATE fiaon_commissions SET status = 'in_auszahlung', payout_id = ${payout[0].id}, updated_at = NOW()
+    WHERE agent_id = ${agentId} AND status = 'bestaetigt'
+  `;
+  await logAgentEvent(agentId, "payout_requested", { payout_id: payout[0].id, amount_cents: total, quelle });
+  console.log(`[FIAON-PAYOUT] Anforderung #${payout[0].id} (${quelle}): Agent ${agentId}, ${(total / 100).toFixed(2)} €`);
+  return { payoutId: Number(payout[0].id), amountCents: total };
+}
+
+export interface AuszahlungstagErgebnis {
+  heute: string; tag: number; monat: string; trocken: boolean; schonGelaufen: boolean; laufFaellig: boolean;
+  freigegeben: { id: number; agentId: number; amountCents: number }[];
+  anforderungen: { agentId: number; name: string; amountCents: number; payoutId?: number; fehler?: string }[];
+}
+
+/**
+ * Der Auszahlungstag-Lauf. Täglich: vorgemerkte Buchungen freigeben, deren Tag
+ * erreicht ist. Ab dem 15.: einmal im Monat das bestätigte Guthaben aller in die
+ * Auszahlung stellen. `trocken` zeigt nur, was passieren würde.
+ */
+export async function auszahlungstagLauf(opts: { trocken?: boolean } = {}): Promise<AuszahlungstagErgebnis> {
+  const trocken = opts.trocken === true;
+  const heute = berlinHeuteISO();
+  const tag = Number(heute.slice(8, 10));
+  const monat = heute.slice(0, 7);
+  // 1. Vorgemerktes freigeben, dessen Tag erreicht ist
+  const faellig = (await sqlPool`
+    SELECT id, agent_id, amount_cents FROM fiaon_commissions
+    WHERE status = 'vorgemerkt' AND auszahlbar_ab IS NOT NULL AND auszahlbar_ab <= ${heute}::date
+  `) as any[];
+  const freigegeben = faellig.map((r) => ({ id: Number(r.id), agentId: Number(r.agent_id), amountCents: Number(r.amount_cents) }));
+  if (!trocken && freigegeben.length > 0) {
+    await sqlPool`
+      UPDATE fiaon_commissions SET status = 'bestaetigt', updated_at = NOW()
+      WHERE status = 'vorgemerkt' AND auszahlbar_ab IS NOT NULL AND auszahlbar_ab <= ${heute}::date
+    `;
+    for (const f of freigegeben) await logAgentEvent(f.agentId, "commission_freigegeben", { commission_id: f.id, amount_cents: f.amountCents, am: heute });
+    console.log(`[FIAON-PAYOUT] ${freigegeben.length} vorgemerkte Buchung(en) freigegeben (${heute}).`);
+  }
+  // 2. Sammelanforderung ab dem 15. — einmal im Monat
+  const settings = await getSettings();
+  const schonGelaufen = String(settings.auszahlung_lauf_monat || "") === monat;
+  const laufFaellig = tag >= AUSZAHLUNGSTAG && !schonGelaufen;
+  const anforderungen: AuszahlungstagErgebnis["anforderungen"] = [];
+  if (laufFaellig) {
+    const minCents = Number(settings.payout_min_cents);
+    const kandidaten = (await sqlPool`
+      SELECT a.id, COALESCE(NULLIF(a.first_name, ''), a.name) AS name, (a.bank_iban_enc IS NOT NULL) AS bank,
+             COALESCE((SELECT SUM(c.amount_cents) FROM fiaon_commissions c WHERE c.agent_id = a.id AND c.status = 'bestaetigt'), 0)::bigint AS guthaben
+      FROM fiaon_agents a
+      WHERE a.active AND NOT a.is_test_account
+      ORDER BY a.id
+    `) as any[];
+    for (const k of kandidaten) {
+      const guthaben = Number(k.guthaben || 0);
+      if (guthaben < minCents) continue;
+      const zeile = { agentId: Number(k.id), name: String(k.name), amountCents: guthaben } as AuszahlungstagErgebnis["anforderungen"][number];
+      if (!k.bank) { anforderungen.push({ ...zeile, fehler: "keine IBAN im Profil" }); continue; }
+      if (trocken) { anforderungen.push(zeile); continue; }
+      const e = await anforderungAnlegen(Number(k.id), "lauf");
+      anforderungen.push("fehler" in e ? { ...zeile, fehler: e.fehler } : { ...zeile, amountCents: e.amountCents, payoutId: e.payoutId });
+    }
+    if (!trocken) {
+      await setSetting("auszahlung_lauf_monat", monat);
+      console.log(`[FIAON-PAYOUT] Auszahlungstag ${heute}: ${anforderungen.filter((a) => a.payoutId).length} Anforderung(en) angelegt.`);
+    }
+  }
+  return { heute, tag, monat, trocken, schonGelaufen, laufFaellig, freigegeben, anforderungen };
+}
+
+import("../lib/fiaon-crons").then(({ tageslauf }) => {
+  // Stündlich anklopfen, einmal am Tag laufen — `alleXStunden` holt sich selbst ein (fiaon-crons.ts).
+  tageslauf("auszahlungstag", async () => auszahlungstagLauf(), 60 * 60 * 1000, { beimStartNach: 120_000, alleXStunden: 20 });
+});
+
 router.get("/agent/payouts", requireAgent, async (req: AgentRequest, res) => {
   try {
     const me = req.agent!.id;
@@ -2981,6 +3114,15 @@ router.get("/agent/payouts", requireAgent, async (req: AgentRequest, res) => {
       SELECT COALESCE(SUM(amount_cents),0) AS s FROM fiaon_commissions
       WHERE agent_id = ${me} AND status = 'bestaetigt'
     `;
+    const inAuszahlung = await sqlPool`
+      SELECT COALESCE(SUM(amount_cents),0) AS s FROM fiaon_payouts
+      WHERE agent_id = ${me} AND status = 'angefordert'
+    `;
+    const vorgemerkt = (await sqlPool`
+      SELECT id, amount_cents, kind, note, auszahlbar_ab, created_at FROM fiaon_commissions
+      WHERE agent_id = ${me} AND status = 'vorgemerkt'
+      ORDER BY auszahlbar_ab ASC NULLS LAST, id ASC
+    `) as any[];
     const bank = await sqlPool`SELECT bank_iban_masked FROM fiaon_agents WHERE id = ${me}`;
     const history = await sqlPool`
       SELECT id, amount_cents, status, iban_masked, reject_reason, requested_at, processed_at
@@ -2989,9 +3131,18 @@ router.get("/agent/payouts", requireAgent, async (req: AgentRequest, res) => {
     res.json({
       ok: true,
       balanceCents: Number(balance[0].s),
+      inAuszahlungCents: Number(inAuszahlung[0].s),
+      vorgemerktCents: vorgemerkt.reduce((s, r) => s + Number(r.amount_cents || 0), 0),
+      vorgemerkt: vorgemerkt.map((r) => ({
+        id: Number(r.id), amountCents: Number(r.amount_cents), kind: String(r.kind || ""), note: r.note ?? null,
+        auszahlbarAb: r.auszahlbar_ab ? String(r.auszahlbar_ab).slice(0, 10) : null, createdAt: r.created_at,
+      })),
       minCents: Number(settings.payout_min_cents),
       hasBank: !!bank[0]?.bank_iban_masked,
       ibanMasked: bank[0]?.bank_iban_masked || null,
+      auszahlungstag: AUSZAHLUNGSTAG,
+      naechsteAuszahlung: naechsterAuszahlungstag(),
+      regel: `Ab dem ${AUSZAHLUNGSTAG}. jeden Monats wird ausgebucht: Alles Bestätigte geht automatisch in die Auszahlung, du musst nichts beantragen. Vorgemerktes wird am genannten Tag frei.`,
       history,
     });
   } catch (err) {
@@ -3000,32 +3151,12 @@ router.get("/agent/payouts", requireAgent, async (req: AgentRequest, res) => {
   }
 });
 
+// E-166: Anfordern geht jederzeit — die Regel „nur eine offene Anforderung" ist weg.
 router.post("/agent/payouts/request", requireAgent, async (req: AgentRequest, res) => {
   try {
-    const me = req.agent!.id;
-    const settings = await getSettings();
-    const minCents = Number(settings.payout_min_cents);
-    const agentRows = await sqlPool`SELECT bank_holder_enc, bank_iban_enc, bank_bic_enc, bank_iban_masked FROM fiaon_agents WHERE id = ${me}`;
-    if (!agentRows[0]?.bank_iban_enc) return res.status(400).json({ ok: false, error: "Bitte zuerst Auszahlungsdaten (IBAN) im Profil hinterlegen" });
-    // Nur EINE offene Anforderung gleichzeitig
-    const open = await sqlPool`SELECT id FROM fiaon_payouts WHERE agent_id = ${me} AND status = 'angefordert'`;
-    if (open.length > 0) return res.status(409).json({ ok: false, error: "Es läuft bereits eine Auszahlungs-Anforderung" });
-    // IMMER volles verfügbares Guthaben (keine Teilbeträge)
-    const rows = await sqlPool`SELECT id, amount_cents FROM fiaon_commissions WHERE agent_id = ${me} AND status = 'bestaetigt'`;
-    const total = rows.reduce((s: number, r: any) => s + Number(r.amount_cents), 0);
-    if (total < minCents) return res.status(400).json({ ok: false, error: `Mindestbetrag ${(minCents / 100).toFixed(2)} € nicht erreicht` });
-    const payout = await sqlPool`
-      INSERT INTO fiaon_payouts (agent_id, amount_cents, bank_holder_enc, bank_iban_enc, bank_bic_enc, iban_masked)
-      VALUES (${me}, ${total}, ${agentRows[0].bank_holder_enc}, ${agentRows[0].bank_iban_enc}, ${agentRows[0].bank_bic_enc}, ${agentRows[0].bank_iban_masked})
-      RETURNING id, amount_cents, requested_at
-    `;
-    await sqlPool`
-      UPDATE fiaon_commissions SET status = 'in_auszahlung', payout_id = ${payout[0].id}, updated_at = NOW()
-      WHERE agent_id = ${me} AND status = 'bestaetigt'
-    `;
-    await logAgentEvent(me, "payout_requested", { payout_id: payout[0].id, amount_cents: total });
-    console.log(`[FIAON-PAYOUT] Anforderung #${payout[0].id}: Agent ${me}, ${(total / 100).toFixed(2)} €`);
-    res.json({ ok: true, payout: payout[0] });
+    const e = await anforderungAnlegen(req.agent!.id, "klick");
+    if ("fehler" in e) return res.status(400).json({ ok: false, error: e.fehler });
+    res.json({ ok: true, payout: { id: e.payoutId, amount_cents: e.amountCents } });
   } catch (err) {
     console.error("[FIAON-AGENT] payout request:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });

@@ -35,7 +35,7 @@ const STATUS_TEXT: Record<string, [string, string]> = {
   pending_payment: ["Offen", ""], claimed_paid: ["Zahlung angekündigt", "warten"], paid: ["Bezahlt", "gut"],
   expired: ["Abgelaufen", ""], refunded: ["Erstattet", "schlecht"], superseded: ["Ersetzt (Dublette)", ""],
   bestaetigt: ["Bestätigt", "gut"], in_auszahlung: ["In Auszahlung", "warten"], ausgezahlt: ["Ausgezahlt", "gut"],
-  storniert: ["Storniert", "schlecht"], angefordert: ["Angefordert", "warten"], abgelehnt: ["Abgelehnt", "schlecht"], potenziell: ["Potenziell", ""],
+  vorgemerkt: ["Vorgemerkt", "warten"], storniert: ["Storniert", "schlecht"], angefordert: ["Angefordert", "warten"], abgelehnt: ["Abgelehnt", "schlecht"], potenziell: ["Potenziell", ""],
 };
 const Status = ({ status }: { status: string }) => { const [t, k] = STATUS_TEXT[status] ?? [status, ""]; return <span className={`wa-status ${k}`}>{t}</span>; };
 const prozent = (bp: number) => (bp / 100).toLocaleString("de-DE");
@@ -166,12 +166,13 @@ function Guthaben({ earnings, onWechsel }: { earnings: any; onWechsel: (r: Reite
         {e && e.entries.length === 0 && <p className="wa-leer">Hier erscheint jede Rate, sobald sie auf dem Konto angekommen ist.</p>}
         {e && e.entries.map((k: any) => {
           const bonus = k.kind === "feedback_bonus";
-          const name = bonus ? "Feedback-Dankeschön" : k.company_name || [k.first_name, k.last_name].filter(Boolean).join(" ") || k.contact_name || k.payment_reference || k.ref;
+          const gehalt = k.kind === "gehalt";
+          const name = gehalt ? (k.note || "Gehalt") : bonus ? "Feedback-Dankeschön" : k.company_name || [k.first_name, k.last_name].filter(Boolean).join(" ") || k.contact_name || k.payment_reference || k.ref;
           return (
             <div key={k.id} className="wa-zeile">
               <div className="wa-wer">
-                <b>{name}{k.kind === "override" && <span className="wa-marke">Team-Beteiligung</span>}{bonus && <span className="wa-marke">Feedback-Bonus</span>}</b>
-                <small>{bonus ? `Einmalige Gutschrift · ${fmtDT(k.created_at)}` : `${(k.pack_name || "—").replace(/\n/g, " ")} · ${fmtCents(k.base_amount_cents)} Rate · ${prozent(k.rate_bp)} % · ${fmtDT(k.created_at)}`}</small>
+                <b>{name}{k.kind === "override" && <span className="wa-marke">Team-Beteiligung</span>}{bonus && <span className="wa-marke">Feedback-Bonus</span>}{gehalt && <span className="wa-marke">Gehalt</span>}</b>
+                <small>{gehalt ? `Gehalt · ${k.status === "vorgemerkt" && k.auszahlbar_ab ? `auszahlbar ab ${fmtD(k.auszahlbar_ab)}` : `gebucht ${fmtDT(k.created_at)}`}` : bonus ? `Einmalige Gutschrift · ${fmtDT(k.created_at)}` : `${(k.pack_name || "—").replace(/\n/g, " ")} · ${fmtCents(k.base_amount_cents)} Rate · ${prozent(k.rate_bp)} % · ${fmtDT(k.created_at)}`}</small>
               </div>
               <div className="wa-geld"><b>{fmtCents(k.amount_cents)}</b><Status status={k.status} /></div>
             </div>
@@ -260,10 +261,12 @@ function Auszahlung() {
   const laden = useCallback(() => { api("/agent/payouts").then((r) => { if (r.ok) setData(r.json); else setMeldung({ art: "schlecht", text: r.json?.error || "Auszahlungsdaten konnten nicht geladen werden." }); }).catch(() => setMeldung({ art: "schlecht", text: "Keine Verbindung." })); }, []);
   useEffect(laden, [laden]);
   if (!data) return <p className="wa-laedt">{meldung?.text || "Lade …"}</p>;
-  const offen = data.history.some((h: any) => h.status === "angefordert");
-  const kann = data.hasBank && data.balanceCents >= data.minCents && !offen;
+  // E-166 (08.09.2026): Anfordern geht jederzeit; was angefordert ist, wird ab dem 15. ausgebucht.
+  const inAuszahlung = Number(data.inAuszahlungCents || 0);
+  const vorgemerkt: any[] = Array.isArray(data.vorgemerkt) ? data.vorgemerkt : [];
+  const kann = data.hasBank && data.balanceCents >= data.minCents;
   const beantragen = async () => {
-    const ja = await fragen({ titel: "Auszahlung beantragen?", text: `Du forderst dein gesamtes verfügbares Guthaben von ${fmtCents(data.balanceCents)} an.`, folge: `Es wird nur eine Anforderung erstellt – es fließt noch kein Geld. Nach der Prüfung überweist FIAON manuell${data.ibanMasked ? ` auf ${data.ibanMasked}` : ""}, in der Regel innerhalb von 5 Werktagen. Du erhältst dann eine E-Mail.`, ja: "Auszahlung beantragen" });
+    const ja = await fragen({ titel: "Auszahlung beantragen?", text: `Du forderst dein gesamtes verfügbares Guthaben von ${fmtCents(data.balanceCents)} an.`, folge: `Es wird nur eine Anforderung erstellt – es fließt noch kein Geld. Nach der Prüfung überweist FIAON manuell${data.ibanMasked ? ` auf ${data.ibanMasked}` : ""}, ab dem ${data.auszahlungstag || 15}. des Monats. Du erhältst dann eine E-Mail.`, ja: "Auszahlung beantragen" });
     if (!ja) return;
     setBusy(true);
     const r = await api("/agent/payouts/request", { method: "POST" });
@@ -276,18 +279,31 @@ function Auszahlung() {
       {meldung && <p className={`wa-meldung ${meldung.art === "schlecht" ? "schlecht" : ""}`}>{meldung.text}</p>}
       <section className="wa-kacheln" style={{ gridTemplateColumns: "repeat(2,1fr)" }}>
         <div className="wa-kachel hervor"><i><Wallet size={18} strokeWidth={1.75} /></i><small>Verfügbares Guthaben</small><b>{fmtCents(data.balanceCents)}</b><span>Summe bankbestätigter Provisionen</span></div>
-        <div className="wa-kachel"><i><ShieldCheck size={18} strokeWidth={1.75} /></i><small>Mindestbetrag</small><b>{fmtCents(data.minCents)}</b><span>für eine Auszahlung</span></div>
+        <div className="wa-kachel"><i><HandCoins size={18} strokeWidth={1.75} /></i><small>Nächste Auszahlung</small><b>{data.naechsteAuszahlung ? fmtD(data.naechsteAuszahlung) : `am ${data.auszahlungstag || 15}.`}</b><span>ab dem {data.auszahlungstag || 15}. jeden Monats wird ausgebucht</span></div>
+        <div className="wa-kachel"><i><ShieldCheck size={18} strokeWidth={1.75} /></i><small>In Auszahlung</small><b>{fmtCents(inAuszahlung)}</b><span>{inAuszahlung > 0 ? "angefordert · wird am Auszahlungstag überwiesen" : `Mindestbetrag ${fmtCents(data.minCents)}`}</span></div>
+        <div className="wa-kachel"><i><Wallet size={18} strokeWidth={1.75} /></i><small>Vorgemerkt</small><b>{fmtCents(Number(data.vorgemerktCents || 0))}</b><span>{vorgemerkt.length > 0 && vorgemerkt[0].auszahlbarAb ? `frei ab ${fmtD(vorgemerkt[0].auszahlbarAb)}` : "nichts vorgemerkt"}</span></div>
       </section>
       <section className="wa-block">
         <button type="button" className="wa-knopf breit" disabled={!kann || busy} onClick={beantragen} style={{ minHeight: 50 }}>{busy ? "Beantrage …" : `Auszahlung beantragen (${fmtCents(data.balanceCents)})`}</button>
         <div style={{ display: "grid", gap: 6, marginTop: 12 }}>
           {!data.hasBank && <p className="wa-hinweis">Bitte zuerst <Link href="/agent/more/profil" className="wa-link">Auszahlungsdaten im Profil</Link> hinterlegen.</p>}
           {data.hasBank && data.balanceCents < data.minCents && <p className="wa-hinweis">Guthaben liegt unter dem Mindestbetrag von {fmtCents(data.minCents)}.</p>}
-          {offen && <p className="wa-hinweis">Eine Anforderung läuft bereits und wird gerade geprüft.</p>}
+          {inAuszahlung > 0 && <p className="wa-hinweis">Angefordert: {fmtCents(inAuszahlung)} – wird ab dem {data.naechsteAuszahlung ? fmtD(data.naechsteAuszahlung) : `${data.auszahlungstag || 15}.`} ausgebucht.</p>}
           {data.ibanMasked && <p className="wa-hinweis">Auszahlung auf <span style={{ fontFamily: "ui-monospace, Menlo, monospace", color: "#e5e7eb" }}>{data.ibanMasked}</span></p>}
-          <p className="wa-hinweis">Auszahlungen werden nach Prüfung manuell überwiesen, in der Regel innerhalb von 5 Werktagen.</p>
+          <p className="wa-hinweis">{data.regel || "Ab dem 15. jeden Monats wird ausgebucht."} Beantragen kannst du trotzdem jederzeit – auch wenn eine ältere Anforderung noch offen ist.</p>
         </div>
       </section>
+      {vorgemerkt.length > 0 && (
+        <section className="wa-block leicht">
+          <div className="wa-block-kopf"><b>Vorgemerkt</b><small>wird am genannten Tag frei und geht in den nächsten Lauf</small></div>
+          {vorgemerkt.map((v: any) => (
+            <div key={v.id} className="wa-zeile">
+              <div className="wa-wer"><b>{v.note || (v.kind === "gehalt" ? "Gehalt" : "Vorgemerkte Buchung")}</b><small>{v.auszahlbarAb ? `auszahlbar ab ${fmtD(v.auszahlbarAb)}` : "Freigabe folgt"} · gebucht {fmtDT(v.createdAt)}</small></div>
+              <div className="wa-geld"><b>{fmtCents(v.amountCents)}</b><Status status="vorgemerkt" /></div>
+            </div>
+          ))}
+        </section>
+      )}
       <section className="wa-block leicht">
         <div className="wa-block-kopf"><b>Verlauf</b><small>{data.history.length} Anforderung(en)</small></div>
         {data.history.length === 0 && <p className="wa-leer">Noch keine Auszahlungen.</p>}

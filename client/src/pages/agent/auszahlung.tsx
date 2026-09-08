@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "wouter";
 import { Wallet } from "lucide-react";
-import { AgentShell, Card, Badge, FlashMessage, api, fmtCents, fmtDT, btnPrimary, ACCENT, ConfirmDialog } from "./shared";
+import { AgentShell, Card, Badge, FlashMessage, api, fmtCents, fmtDT, fmtD, btnPrimary, ACCENT, ConfirmDialog } from "./shared";
 import { Reveal, CountUp, SuccessPulse } from "./motion";
 
 // ============================================================================
@@ -30,7 +30,9 @@ export default function AgentAuszahlungPage() {
 }
 
 function AuszahlungContent() {
-  const [data, setData] = useState<{ balanceCents: number; minCents: number; hasBank: boolean; ibanMasked: string | null; history: PayoutRow[] } | null>(null);
+  const [data, setData] = useState<{ balanceCents: number; minCents: number; hasBank: boolean; ibanMasked: string | null; history: PayoutRow[];
+    inAuszahlungCents?: number; vorgemerktCents?: number; naechsteAuszahlung?: string; auszahlungstag?: number; regel?: string;
+    vorgemerkt?: { id: number; amountCents: number; kind: string; note: string | null; auszahlbarAb: string | null }[] } | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [pulse, setPulse] = useState(0);
@@ -47,8 +49,10 @@ function AuszahlungContent() {
 
   if (!data) return <p className="py-14 text-center text-[13px] text-slate-400">Lädt …</p>;
 
-  const hasOpen = data.history.some((h) => h.status === "angefordert");
-  const canRequest = data.hasBank && data.balanceCents >= data.minCents && !hasOpen;
+  // E-166 (08.09.2026): Anfordern geht jederzeit; ab dem 15. wird ausgebucht.
+  const inAuszahlung = Number(data.inAuszahlungCents || 0);
+  const vorgemerkt = data.vorgemerkt || [];
+  const canRequest = data.hasBank && data.balanceCents >= data.minCents;
 
   const request = async () => {
     setConfirmOpen(false);
@@ -109,14 +113,30 @@ function AuszahlungContent() {
           {data.hasBank && data.balanceCents < data.minCents && (
             <p className="text-[12px] text-slate-500">Guthaben liegt unter dem Mindestbetrag von {fmtCents(data.minCents)}.</p>
           )}
-          {hasOpen && <p className="text-[12px] text-slate-500">Eine Anforderung läuft bereits und wird gerade geprüft.</p>}
+          {inAuszahlung > 0 && <p className="text-[12px] text-slate-500">Angefordert: {fmtCents(inAuszahlung)} – wird ab dem {data.naechsteAuszahlung ? fmtD(data.naechsteAuszahlung) : `${data.auszahlungstag || 15}.`} ausgebucht.</p>}
           {data.ibanMasked && <p className="text-[12px] text-slate-400">Auszahlung auf <span className="font-mono">{data.ibanMasked}</span></p>}
           <p className="text-[11px] text-slate-400 pt-1">
-            Auszahlungen werden nach Prüfung manuell überwiesen, in der Regel innerhalb von 5 Werktagen.
+            {data.regel || "Ab dem 15. jeden Monats wird ausgebucht."} Beantragen kannst du trotzdem jederzeit.
           </p>
         </div>
       </Card>
 
+      {vorgemerkt.length > 0 && (
+        <>
+          <h2 className="text-[13px] font-semibold text-slate-900 mb-2">Vorgemerkt</h2>
+          <Card className="divide-y divide-slate-50 mb-6">
+            {vorgemerkt.map((v) => (
+              <div key={v.id} className="px-4 py-3 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[13px] font-semibold text-slate-900 tabular-nums">{fmtCents(v.amountCents)}</p>
+                  <p className="text-[11px] text-slate-400">{v.note || (v.kind === "gehalt" ? "Gehalt" : "Vorgemerkte Buchung")}{v.auszahlbarAb ? ` · auszahlbar ab ${fmtD(v.auszahlbarAb)}` : ""}</p>
+                </div>
+                <Badge status="vorgemerkt" />
+              </div>
+            ))}
+          </Card>
+        </>
+      )}
       <h2 className="text-[13px] font-semibold text-slate-900 mb-2">Historie</h2>
       <Card className="divide-y divide-slate-50">
         {data.history.length === 0 && <p className="px-4 py-8 text-center text-[12px] text-slate-400">Noch keine Auszahlungen.</p>}

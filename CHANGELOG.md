@@ -5,6 +5,24 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 08.09.2026 — Auszahlung: ab dem 15. wird ausgebucht, jeder freigeschaltet, Vorgemerktes mit Freigabedatum (E-166)
+
+**Was geändert wurde:** `fiaon_commissions.auszahlbar_ab` (DATE) und Status `vorgemerkt`. `GET /agent/payouts` liefert
+`inAuszahlungCents`, `vorgemerkt[]`, `vorgemerktCents`, `auszahlungstag` (15), `naechsteAuszahlung`, `regel`.
+`POST /agent/payouts/request` kennt die Regel „nur eine offene Anforderung“ nicht mehr (`anforderungAnlegen` ist der
+eine Weg für Klick und Lauf). Neuer Takt `auszahlungstag` (stündlich, einmal täglich): gibt vorgemerkte Buchungen am
+Freigabetag frei und stellt ab dem 15. einmal im Monat das bestätigte Guthaben aller Mitarbeiter mit IBAN in die
+Auszahlung (`fiaon_settings.auszahlung_lauf_monat`). Admin: `POST /admin/agents/:id/gehalt { amountCents, auszahlbarAb,
+note }` (kind `gehalt`, vorgemerkt bei Datum in der Zukunft), `POST /admin/team/auszahlungstag { trocken }`.
+Wallet (Reiter Auszahlung) und /agent/auszahlung zeigen Verfügbar · Nächste Auszahlung · In Auszahlung · Vorgemerkt,
+die Regel und die vorgemerkten Zeilen; Guthabenliste markiert „Gehalt“. Rundgang Wallet, Team-Update.
+**Warum:** Justin (08.09.): „Die Auszahlungen sind gesperrt, Nikita kann keine Auszahlung treffen. Schalte die
+Auszahlung bei jedem frei, ab 15. des Monats werden diese ausgebucht.“ Es gab keine Sperre, sondern die Regel „nur
+eine offene Anforderung“ — und vier Anforderungen (2.253 €) vom 03./07.09. wurden nie bearbeitet.
+**Wo:** Wallet → Auszahlung; /admin/payouts (Überweisung bleibt Handarbeit); Register E-166.
+
+---
+
 ## 08.09.2026 — Eine fällige Rate holt den Kunden zurück in die Arbeitsliste (E-165)
 
 ### Was geändert wurde

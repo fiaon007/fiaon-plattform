@@ -425,6 +425,9 @@ const gruppeVon = (tier: number, rateFaellig = false) =>
  * Stufe 3 zuletzt. Vorher bekamen Stufe 1 und 2 die ÄLTESTEN zuerst.
  */
 const POOL_RUECKFALL_TAGE = 3;
+/** Die Rückfall-Läufe (Hausputz über den ganzen Bestand) höchstens alle zehn Minuten. */
+const RUECKFALL_TAKT_MS = 10 * 60_000;
+let letzterRueckfallLauf = 0;
 /** Angefangen und liegen gelassen — nach drei Wochen gehört der Mensch wieder allen. */
 const POOL_LIEGEN_TAGE = 21;
 async function poolNachschub(me: number, istTestkonto: boolean): Promise<void> {
@@ -436,6 +439,14 @@ async function poolNachschub(me: number, istTestkonto: boolean): Promise<void> {
   if (a && (a.schulung || !a.verteilung)) return;
   // E-162: Was bei gesperrten Konten ohne Mandat liegt, geht sofort an den Nächsten.
   await gesperrteFreigeben(sqlPool, 40);
+  // 08.09.2026 (Störung): Die zwei Rückfall-Läufe unten prüfen den GESAMTEN Bestand (6.500 Menschen,
+  // je ~0,7 s) — und liefen bei JEDEM Aufbau JEDER Arbeitsliste. Sie sind Hausputz, kein Teil der
+  // Liste: einmal alle zehn Minuten reicht, egal wer die Liste öffnet.
+  if (Date.now() - letzterRueckfallLauf < RUECKFALL_TAKT_MS) {
+    await nachschubZiehen(me);
+    return;
+  }
+  letzterRueckfallLauf = Date.now();
 
   // ── ZWEI RÜCKFÄLLE, NICHT EINER (26.08.2026, Florentines Punkt 9) ────────
   // „In der Pipeline sollten grundsätzlich keine festen Betreuer bei den
@@ -477,6 +488,11 @@ async function poolNachschub(me: number, istTestkonto: boolean): Promise<void> {
              p.assigned_at
            ) < NOW() - INTERVAL '${POOL_LIEGEN_TAGE} days'`);
 
+  await nachschubZiehen(me);
+}
+
+/** Zieht aus dem Pool nach, wenn „Neu für dich“ nicht voll ist (E-162). */
+async function nachschubZiehen(me: number): Promise<void> {
   // ── Nachschub nach Hitze (E-162): erst wenn „Neu für dich" nicht voll ist ──
   const [zeile] = (await sqlPool.unsafe(`
     SELECT COUNT(*)::int AS n FROM fiaon_persons p

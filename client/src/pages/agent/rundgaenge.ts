@@ -27,12 +27,25 @@ import type { RundgangSchritt } from "@/components/agent/Rundgang";
 export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
   {
     titel: "Hier verdienst du dein Geld.",
-    text: "Die Pipeline ist dein Arbeitsraum für alles, was noch KEIN Mandat ist: Menschen, die "
-      + "sich gemeldet haben, die einen Antrag offen haben oder die eine Zahlung angekündigt haben. "
+    text: "Die Pipeline ist dein Arbeitsraum für alles, was gerade Geld bringt: Menschen, die "
+      + "sich gemeldet haben, die einen Antrag offen haben, die eine Zahlung angekündigt haben — "
+      + "und seit dem 08.09. auch deine eigenen Kunden, deren nächste Rate fällig geworden ist. "
       + "Du arbeitest sie von oben nach unten ab — die Reihenfolge macht das System, nicht du. "
-      + "Seit dem 07.09. heißt die Reihenfolge Hitze: Zusage und Termin zuerst, dann fällige Rückrufe, "
-      + "dann der frischeste Antrag — Minuten schlagen Tage. Leads ohne Antrag kommen erst, wenn nichts Heißes mehr da ist.",
+      + "Sie heißt Hitze: Zusage und Termin zuerst, dann fällige Rückrufe, dann das frischeste "
+      + "Ereignis — Minuten schlagen Tage. Eine gestern fällige Rate steht deshalb neben einem "
+      + "gestrigen Antrag, eine drei Wochen alte Rate hinter beiden. Das ist Absicht: Wird eine "
+      + "Rate in den ersten Tagen angesprochen, zahlen 18,6 %; nach der fünften Mahnstufe nur "
+      + "noch 3,4 %. Leads ohne Antrag kommen erst, wenn nichts Heißes mehr da ist.",
     tipp: "Wer morgens die Pipeline leerarbeitet und erst danach in andere Räume geht, hat den besten Monat.",
+  },
+  {
+    // 08.09.2026 mitgezogen (E-165): der neue Grund, aus dem jemand hier steht.
+    titel: "„Rate fällig“ heißt: dein Kunde, nicht dein Schuldner.",
+    text: "Steht auf der Karte „Rate fällig seit X Tagen“, ist das ein Mensch, der schon einmal "
+      + "bezahlt hat und dessen nächste Rate jetzt dran ist. Bis zum 08.09. tauchte er in keiner "
+      + "Liste auf — 213 solcher Kunden mit zusammen 16.943 € lagen still. Jetzt kommt er zu dir, "
+      + "und zwar zu dir persönlich, weil du sein Betreuer bist.",
+    tipp: "Der Leitfaden dazu ist der weiche Reaktivierungs-Weg, kein Inkasso-Ton. Holst du die Rate zurück, gehören dir 50 % davon.",
   },
   {
     ziel: ".pi-fokus-karte",

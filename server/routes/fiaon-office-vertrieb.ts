@@ -480,7 +480,8 @@ async function poolNachschub(me: number, istTestkonto: boolean): Promise<void> {
        AND COALESCE(p.unreachable_count, 0) = 0
        AND NOT EXISTS (SELECT 1 FROM fiaon_termine tz WHERE tz.person_id = p.id
              AND tz.status = 'gebucht' AND tz.abgesagt_am IS NULL AND tz.beginn > NOW())
-       AND p.priority_tier BETWEEN 1 AND 3`, [me])) as any[];
+       AND (p.priority_tier BETWEEN 1 AND 3
+            OR (COALESCE(p.priority_tier, 0) = 0 AND ${RATE_FAELLIG_SQL}))`, [me])) as any[];
   const fehlt = SLOTS - Number(zeile?.n ?? 0);
   if (fehlt <= 0) return;
   await sqlPool.unsafe(`

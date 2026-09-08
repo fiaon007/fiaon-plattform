@@ -12,7 +12,7 @@ Die sechs Plätze zogen bisher `priority_tier BETWEEN 1 AND 3`. Wer bezahlt hat,
 fiel damit aus jeder Liste. Neu kommt ein Kunde der Stufe 0 dazu, **sobald er eine offene, nicht
 stornierte Rate hat, deren Fälligkeit erreicht ist**. Ohne offene Rate bleibt er draußen.
 - `server/routes/fiaon-office-vertrieb.ts`: neues Prädikat `RATE_FAELLIG_SQL`, die Fälligkeit zählt
-  als Ereignis (`EREIGNIS_SQL`), KEIN eigener Rang in `HITZE_ORDNUNG` (TFO-Änderung beim Merge: die Fälligkeit zählt als Ereignis, die Frische entscheidet — ein fester Rang hätte 93 Raten vor jeden neuen Antrag gestellt), eigene
+  als Ereignis (`EREIGNIS_SQL`), vierte Filterstelle im Nachschub-Zähler von `poolNachschub` (sonst zöge der Pool nach, obwohl die sechs Plätze voll sind), KEIN eigener Rang in `HITZE_ORDNUNG` (TFO-Änderung beim Merge: die Fälligkeit zählt als Ereignis, die Frische entscheidet — ein fester Rang hätte 93 Raten vor jeden neuen Antrag gestellt), eigene
   Gruppe `rate_faellig`, eigener Zähler.
 - `client/src/pages/agent/pipeline.tsx`: Gruppe `rate_faellig` → Stufe „rate“, Karte sagt
   „Rate fällig seit X Tagen“.

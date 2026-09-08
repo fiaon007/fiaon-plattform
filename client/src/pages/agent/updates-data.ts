@@ -93,7 +93,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
       "Bisher zog die Arbeitsliste nur Kunden der Stufen 1 bis 3. Wer schon bezahlt hat, steht auf Stufe 0 und fiel damit heraus — auch dann, wenn seine zweite Rate seit Wochen fällig war. Gemessen am 07.09.2026: 213 Kunden mit zusammen 16.943 € offener Rate standen in keiner einzigen Liste.",
       "Neu: Ein Kunde auf Stufe 0 kommt in deine Liste, sobald er eine offene Rate hat, deren Fälligkeit erreicht ist. Ohne offene Rate bleibt er draußen. Er landet immer bei seinem eigenen Betreuer, nie im Pool.",
       "Die Karte sagt „Rate fällig seit X Tagen“ und trägt die Stufe „Rate überfällig – zurückholen“. Der Leitfaden dazu ist der weiche Reaktivierungs-Leitfaden — kein Inkasso-Ton, das bleibt wie gehabt.",
-      "Reihenfolge in den sechs Plätzen: Zusage und Termin zuerst, dann fällige Rückrufe, dann fällige Raten, dann der Rest. Frisch fällige Raten stehen oben, denn die werden zu 18,6 % bezahlt — in Mahnstufe 5 nur noch zu 3,4 %.",
+      "Reihenfolge in den sechs Plätzen: Zusage und Termin zuerst, dann fällige Rückrufe, dann nach Frische — die Fälligkeit der Rate zählt wie ein neuer Antrag. Frisch fällige Raten stehen oben, denn die werden zu 18,6 % bezahlt — in Mahnstufe 5 nur noch zu 3,4 %.",
       "Die sechs Plätze bleiben sechs. Diese Kunden zählen mit, sie kommen nicht obendrauf.",
     ],
     howto: [

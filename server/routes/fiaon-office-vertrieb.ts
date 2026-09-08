@@ -362,10 +362,10 @@ const HITZE_SQL = `${ZUSAGE_SQL} AS zusage_faellig, ${RUECKRUF_SQL} AS rueckruf_
   ${EREIGNIS_SQL} AS ereignis_am, ${NIE_SQL} AS nie_gesprochen`;
 /** Die Reihenfolge — für „Neu für dich", „Wieder dran" dieselbe (braucht $1 = Mitarbeiter). */
 const HITZE_ORDNUNG = `
-  CASE WHEN ${ZUSAGE_SQL} OR ${TERMIN_HEUTE_SQL} THEN 0
-       WHEN ${RUECKRUF_SQL} THEN 1
-       WHEN ${RATE_FAELLIG_SQL} THEN 2
-       ELSE 3 END,
+  -- E-165 (TFO): KEIN eigener Rang für fällige Raten. Eine gestern fällige Rate zahlt zu ~19 %, ein Antrag
+  -- von gestern zu 28 %, eine 60 Tage alte Rate fast nie — die Fälligkeit zählt als Ereignis (unten),
+  -- die Frische entscheidet. Ein fester Rang hätte bei Daniel 93 Raten vor jeden neuen Antrag gestellt.
+  CASE WHEN ${ZUSAGE_SQL} OR ${TERMIN_HEUTE_SQL} THEN 0 WHEN ${RUECKRUF_SQL} THEN 1 ELSE 2 END,
   CASE WHEN p.priority_tier = 3 THEN 1 ELSE 0 END,
   (${EREIGNIS_SQL} AT TIME ZONE 'Europe/Berlin')::date DESC,
   CASE WHEN ${NIE_SQL} THEN 0 ELSE 1 END,
@@ -711,6 +711,7 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
         bezahlt_gemeldet: Number(z.bezahlt_gemeldet || 0),
         rechnung_offen: Number(z.rechnung_offen || 0),
         lead: Number(z.lead || 0),
+        rate_faellig: Number(z.rate_faellig || 0),
       },
       mandate: { anzahl: mandate.anzahl, max: MANDATE_MAX },
     });

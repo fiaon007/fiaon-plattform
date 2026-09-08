@@ -353,9 +353,16 @@ const EREIGNIS_SQL = `GREATEST(
   COALESCE(${RATE_FAELLIG_AM_SQL}, p.created_at),
   p.created_at)`;
 /** Noch kein Gesprächsergebnis zu diesem Menschen — niemand hat ihn je angerufen. */
-const NIE_SQL = `NOT EXISTS (
-  SELECT 1 FROM fiaon_contact_log cn WHERE cn.type = 'result' AND cn.voided_at IS NULL
-    AND (cn.person_id = p.id OR cn.ref IN (SELECT an.ref FROM fiaon_applications an WHERE an.person_id = p.id)))`;
+// 08.09.2026, 15:20 (Störung: Pipeline lud bei Daniel und Nikita nicht): VORHER stand hier
+// EIN NOT EXISTS mit „cn.person_id = p.id OR cn.ref IN (…)“. Das ODER über zwei Spalten
+// lässt Postgres keinen Index nehmen — für jeden der 1.236 Kunden im Bestand wurde das
+// ganze Kontaktprotokoll (40.783 Zeilen) gelesen: 50 Millionen Zeilenprüfungen je Aufruf,
+// 10–14 Sekunden, Abbruch im Browser. NACHHER zwei NOT EXISTS, jedes über seinen Index.
+const NIE_SQL = `(NOT EXISTS (
+  SELECT 1 FROM fiaon_contact_log cn WHERE cn.person_id = p.id AND cn.type = 'result' AND cn.voided_at IS NULL)
+  AND NOT EXISTS (
+  SELECT 1 FROM fiaon_contact_log cr JOIN fiaon_applications an ON an.ref = cr.ref
+   WHERE an.person_id = p.id AND cr.type = 'result' AND cr.voided_at IS NULL))`;
 /** Felder für die Karte: warum steht dieser Mensch hier? */
 const HITZE_SQL = `${ZUSAGE_SQL} AS zusage_faellig, ${RUECKRUF_SQL} AS rueckruf_faellig, ${TERMIN_HEUTE_SQL} AS termin_heute,
   ${RATE_FAELLIG_SQL} AS rate_faellig,
@@ -668,15 +675,38 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
          AND a.id_card_pdf IS NOT NULL)) AS voll_kunde`;
 
     const mandate = await mandatsZahlen(me);
+    // ── ZWEI STUFEN STATT EINER (08.09.2026, Störung) ─────────────────────
+    // Die Hitze-Sortierung rechnet je Zeile mehrere Unterabfragen. Über Daniels
+    // 1.236 Menschen war das zu viel. Stufe 3 (797 Leads ohne Antrag) steht in
+    // der Reihung ohnehin ganz hinten — außer mit Zusage, Termin oder Rückruf.
+    // Also: erst die heißen Menschen (Stufe 1/2, Stufe 0 mit Rate, Stufe 3 nur
+    // mit Zusage/Termin/Rückruf) voll sortiert; fehlen Plätze, Stufe 3 billig
+    // nach Antragsdatum nachgefüllt. Karten- und Hitze-Felder erst für die
+    // sechs Gewinner, nicht für alle Zeilen (Unterabfrage mit LIMIT).
+    const HEISS_SQL = `(p.priority_tier BETWEEN 1 AND 2
+      OR (COALESCE(p.priority_tier, 0) = 0 AND ${RATE_FAELLIG_SQL})
+      OR (p.priority_tier = 3 AND (${ZUSAGE_SQL} OR ${TERMIN_HEUTE_SQL} OR ${RUECKRUF_SQL})))`;
+    const slotsHolen = async (): Promise<any[]> => {
+      const heiss = (await sqlPool.unsafe(
+        `SELECT ${KARTE_SQL}, p.mandat_seit, ${VOLL_SQL}, ${HITZE_SQL} FROM (
+           SELECT p.* FROM fiaon_persons p
+            WHERE ${basis} AND ${HEISS_SQL}
+            ORDER BY ${ordnung} LIMIT ${SLOTS}) p`, [me],
+      )) as any[];
+      if (heiss.length >= SLOTS) return heiss;
+      const rest = (await sqlPool.unsafe(
+        `SELECT ${KARTE_SQL}, p.mandat_seit, ${VOLL_SQL}, ${HITZE_SQL} FROM (
+           SELECT p.* FROM fiaon_persons p
+            WHERE ${basis} AND p.priority_tier = 3
+            ORDER BY COALESCE((SELECT MAX(a4.created_at) FROM fiaon_applications a4
+                                WHERE a4.person_id = p.id AND a4.merged_into IS NULL), p.created_at) DESC, p.id DESC
+            LIMIT ${SLOTS - heiss.length}) p`, [me],
+      )) as any[];
+      const schon = new Set(heiss.map((r) => Number(r.id)));
+      return [...heiss, ...rest.filter((r) => !schon.has(Number(r.id)))];
+    };
     const [gSlots, zaehlerR, gWieder] = await Promise.all([
-      // E-162: keine Töpfe mehr — die sechs Plätze sind die sechs heißesten Menschen.
-      sqlPool.unsafe(
-        // E-165: Stufe 0 kommt dazu, aber NUR mit fälliger Rate.
-        `SELECT ${KARTE_SQL}, p.mandat_seit, ${VOLL_SQL}, ${HITZE_SQL} FROM fiaon_persons p
-         WHERE ${basis} AND (p.priority_tier BETWEEN 1 AND 3
-                             OR (COALESCE(p.priority_tier, 0) = 0 AND ${RATE_FAELLIG_SQL}))
-         ORDER BY ${ordnung} LIMIT ${SLOTS}`, [me],
-      ),
+      slotsHolen(),
       sqlPool.unsafe(
         `SELECT
            COUNT(*) FILTER (WHERE p.priority_tier = 1)::int AS bezahlt_gemeldet,
@@ -687,10 +717,11 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
       ),
       sqlPool.unsafe(
         `SELECT ${KARTE_SQL}, p.mandat_seit, ${VOLL_SQL}, COALESCE(p.unreachable_count, 0) AS versuche, ${WIEDER_GRUND_SQL}, ${HITZE_SQL}
-         FROM fiaon_persons p
-         WHERE ${basisWieder} AND (p.priority_tier BETWEEN 1 AND 3
-                                   OR (COALESCE(p.priority_tier, 0) = 0 AND ${RATE_FAELLIG_SQL}))
-         ORDER BY ${ordnung} LIMIT ${SLOTS}`, [me],
+         FROM (
+           SELECT p.* FROM fiaon_persons p
+            WHERE ${basisWieder} AND (p.priority_tier BETWEEN 1 AND 3
+                                      OR (COALESCE(p.priority_tier, 0) = 0 AND ${RATE_FAELLIG_SQL}))
+            ORDER BY ${ordnung} LIMIT ${SLOTS}) p`, [me],
       ),
     ]);
     const wieder = (gWieder as any[]).map((r) => ({

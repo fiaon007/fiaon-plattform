@@ -5,6 +5,7 @@ import { AgentShell, useAgentInfo, Avatar, ACCENT } from "./shared";
 import { Reveal } from "./motion";
 import { FirstStepsPanel } from "./motivation";
 import { getUnseenCount } from "./updates-data";
+import { agentSitzung, telefon } from "@/lib/office-zustand";
 
 // ============================================================================
 // /agent/mehr (Paket AO) — alle weiteren Bereiche an einem ruhigen Ort:
@@ -67,7 +68,10 @@ function MehrContent() {
 
   const logout = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    // Im Gespräch wird nachgefragt (E-169) — ein Neuladen legt auf.
+    if (!telefon.abmeldenErlaubt()) return;
     await fetch("/api/fiaon/agent/logout", { method: "POST", credentials: "include" }).catch(() => {});
+    agentSitzung.setzen(null);
     navigate("/agent");
     window.location.reload();
   };

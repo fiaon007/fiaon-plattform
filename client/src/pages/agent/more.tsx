@@ -17,6 +17,7 @@
 // läuft vor der Anmeldung und gehört nicht ins Office.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useRef, useState } from "react";
+import { agentSitzung, telefon } from "@/lib/office-zustand";
 import { Link, useLocation } from "wouter";
 import { User, FileText, KeyRound, LogOut, GraduationCap, Sparkles, MessageSquarePlus, Wallet, Camera, Trash2, CheckCircle2, X, FileSignature, ShieldCheck, Download, Clock, Compass } from "lucide-react";
 import { AgentShell, api, useAgentInfo, fmtDT, fmtCents } from "./shared";
@@ -43,7 +44,10 @@ function MoreInnen() {
   const melden = (m: Meldung) => { setMeldung(m); if (m) window.setTimeout(() => setMeldung((x) => (x === m ? null : x)), 4500); };
 
   const abmelden = async () => {
+    // Im Gespräch wird nachgefragt (E-169) — ein Neuladen legt auf.
+    if (!telefon.abmeldenErlaubt()) return;
     await fetch("/api/fiaon/agent/logout", { method: "POST", credentials: "include" }).catch(() => {});
+    agentSitzung.setzen(null);
     navigate("/agent"); window.location.reload();
   };
 

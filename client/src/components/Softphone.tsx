@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useLocation } from "wouter";
+// Meldet dem Office-Rahmen, ob ein Gespräch läuft (Nachfrage vor „Abmelden“).
+import { telefon } from "@/lib/office-zustand";
 import { FiaonTastatur } from "@/components/FiaonGeraet";
 import { AnrufBuehne, type BuehnenGroesse } from "@/components/agent/AnrufBuehne";
 import { nachbereitungsWege, nachLageSatz, type NachEingang, type NachLage }
@@ -329,6 +332,58 @@ export function Softphone() {
   // damaligen `zustand` einfrieren — die Ref liest immer den aktuellen.
   const zustandRef = useRef(zustand);
   useEffect(() => { zustandRef.current = zustand; }, [zustand]);
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // DAS GESPRÄCH ÜBERLEBT DEN SEITENWECHSEL (09.09.2026, E-169)
+  //
+  // Hans-Jürgen (Android-Handy, Chrome): „Die Verbindung bricht alle paar
+  // Minuten ab, ich muss neu anrufen.“ Gemessen: Jeder Abbruch kam von seiner
+  // Seite, und in derselben Sekunde hat sein Browser entweder die Seite neu
+  // geladen (08.09.) oder im Office die Akte geöffnet (09.09., 09:02). Dieser
+  // Baustein hing an jeder einzelnen Office-Seite und legte beim Verlassen
+  // selbst auf. Jetzt hängt er EINMAL an der App (SoftphoneHost) — ein
+  // Seitenwechsel lässt ihn in Ruhe. Dazu vier Sicherungen für das Handy:
+  //   · closeProtection (Gerät): Neuladen/Verlassen im Gespräch fragt nach.
+  //   · maxCallSignalingTimeoutMs (Gerät): 30 s Nachsicht, wenn die
+  //     Signalleitung zu Twilio im Mobilfunk kurz abreißt — das Gespräch
+  //     bleibt stehen, das SDK verbindet die Signalisierung neu.
+  //   · Wachhalten des Bildschirms, solange gewählt/geklingelt/gesprochen
+  //     wird — ein abgeschaltetes Handy-Display legt den Tab schlafen.
+  //   · Kein Pull-to-refresh im Gespräch (html.fi-telefon-aktiv, softphone.css).
+  // ══════════════════════════════════════════════════════════════════════════
+  const [, navigiere] = useLocation();
+  const wachhalter = useRef<any>(null);
+  const wachHalten = async () => {
+    try {
+      const wl = (navigator as any).wakeLock;
+      if (!wl?.request || wachhalter.current) return;
+      const sperre = await wl.request("screen");
+      wachhalter.current = sperre;
+      sperre.addEventListener?.("release", () => { if (wachhalter.current === sperre) wachhalter.current = null; });
+    } catch { /* Kein Wachhalten möglich (Browser, Energiesparmodus) — kein Fehler. */ }
+  };
+  const wachLoslassen = () => {
+    try { void wachhalter.current?.release?.(); } catch { /* schon frei */ }
+    wachhalter.current = null;
+  };
+  const gespraechAktiv = zustand === "waehlt" || zustand === "klingelt" || zustand === "gespraech";
+  useEffect(() => {
+    telefon.setzen(gespraechAktiv);
+    document.documentElement.classList.toggle("fi-telefon-aktiv", gespraechAktiv);
+    if (gespraechAktiv) void wachHalten(); else wachLoslassen();
+    // Ein Wachhalten erlischt, sobald der Tab in den Hintergrund geht —
+    // beim Zurückkommen wird es erneuert, solange das Gespräch läuft.
+    const zurueck = () => { if (document.visibilityState === "visible" && gespraechAktiv) void wachHalten(); };
+    document.addEventListener("visibilitychange", zurueck);
+    return () => {
+      document.removeEventListener("visibilitychange", zurueck);
+      telefon.setzen(false);
+      document.documentElement.classList.remove("fi-telefon-aktiv");
+      wachLoslassen();
+    };
+    // wachHalten/wachLoslassen sind zustandslose Helfer über einer Ref.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gespraechAktiv]);
   const [callId, setCallId] = useState<number | null>(null);
   const [sekunden, setSekunden] = useState(0);
   const [stumm, setStumm] = useState(false);
@@ -660,8 +715,12 @@ export function Softphone() {
 
   useEffect(() => { void laden(); }, [laden]);
 
-  // Ein Gespräch, das beim Seitenwechsel weiterläuft, kostet weiter Geld und
-  // ist für den Kunden am anderen Ende eine offene Leitung ins Nichts.
+  // Beim ABBAU des Telefons wird aufgelegt: Ein Gespräch ohne Oberfläche kostet
+  // weiter Geld und ist für den Kunden eine offene Leitung ins Nichts.
+  // Bis zum 09.09.2026 lief dieser Abbau bei JEDEM Seitenwechsel im Office
+  // (das Telefon hing an der Seite) — genau das waren Hans-Jürgens Abbrüche.
+  // Seit E-169 hängt das Telefon an der App; abgebaut wird nur noch beim
+  // Abmelden oder beim Verlassen des Office (SoftphoneHost).
   useEffect(() => () => {
     try { verbindung.current?.disconnect?.(); } catch { /* schon getrennt */ }
     try { geraet.current?.destroy?.(); } catch { /* schon weg */ }
@@ -1297,6 +1356,15 @@ export function Softphone() {
         // wird nicht unterbrochen. Twilio geht dann selbst zur nächsten
         // Stelle in der Kette weiter (siehe fiaon-anruf-eingehend.ts).
         allowIncomingWhileBusy: false,
+        // ── SCHLIESSSCHUTZ UND SIGNAL-NACHSICHT (09.09.2026, E-169) ──────
+        // closeProtection: Im Gespräch fragt der Browser vor Neuladen oder
+        // Verlassen der Seite nach (Pull-to-refresh am Handy, Tipp auf einen
+        // Link). maxCallSignalingTimeoutMs: Reißt die Signalleitung zu Twilio
+        // kurz ab (Mobilfunk, Netzwechsel), bleibt das Gespräch bis zu 30 s
+        // stehen und das SDK verbindet die Signalisierung neu — vorher
+        // (Standard 0) war der Anruf mit dem ersten Abriss beendet.
+        closeProtection: true,
+        maxCallSignalingTimeoutMs: 30_000,
       });
       geraet.current = d;
       // Ausweis erneuern und Anmeldung wiederholen — die Selbstheilung für
@@ -1536,6 +1604,10 @@ export function Softphone() {
         // Fehlalarm, den man wegklicken muss.
         ruf.on("cancel", () => setEingehend(null));
         ruf.on("reject", () => setEingehend(null));
+        // Auch der eingehende Ruf meldet Abrisse und Fehler (E-169).
+        ruf.on("error", (e: any) => { void fehlerMelden("ruf-error", e); });
+        ruf.on("reconnecting", () => setMeldung("Die Verbindung wackelt — sie wird gerade wiederhergestellt. Bleib dran."));
+        ruf.on("reconnected", () => setMeldung((m) => (m && /wackelt/.test(m) ? null : m)));
         // ── NACH DEM AUFLEGEN KOMMT DER ERGEBNIS-SCHRITT (21.08.2026) ────
         // Beim AUSGEHENDEN Anruf tut „disconnect" genau das (Zeile weiter
         // unten). Beim eingehenden wurde nur das Klingelfenster geschlossen —
@@ -1632,6 +1704,23 @@ export function Softphone() {
       // Ereignisse, die bei Einweg-Audio feuern.
       c.on("warning", (name: string) => zustandMelden("warnung", String(name)));
       c.on("warning-cleared", (name: string) => zustandMelden("warnung_weg", String(name)));
+      // ── NEUVERBINDUNG UND FEHLER AM ANRUF (09.09.2026, E-169) ────────────
+      // Das SDK baut die Medienverbindung bei einem Abriss selbst neu auf
+      // (ICE-Restart) und meldet das als „reconnecting“/„reconnected“. Bis
+      // heute stand dazu nichts im Protokoll und nichts auf dem Bildschirm —
+      // ein Abbruch ließ sich hinterher nicht von einem Auflegen unterscheiden.
+      c.on("reconnecting", (e: any) => {
+        zustandMelden("neuverbindung", String(e?.code ?? "medien"));
+        setMeldung("Die Verbindung wackelt — sie wird gerade wiederhergestellt. Bleib dran.");
+      });
+      c.on("reconnected", () => {
+        zustandMelden("neuverbindung", "wieder da");
+        setMeldung((m) => (m && /wackelt/.test(m) ? null : m));
+      });
+      c.on("error", (e: any) => {
+        void fehlerMelden("call-error", e);
+        zustandMelden("fehler", String(e?.code ?? "?"));
+      });
 
       // ── HIER STAND `setZustand("gespraech")` ──────────────────────────────
       // Unbedingt, gleich nach dem Registrieren der Handler. Das war der Fehler
@@ -2780,13 +2869,31 @@ export function Softphone() {
                   {cockpitDaten?.kundeSeit && (
                     <span className="fi-tel-chip fi-tel-chip-leise">Kunde seit {cockpitDaten.kundeSeit}</span>
                   )}
-                  {/* Die Akte in einem NEUEN Tab: Wer im selben Tab
-                      navigiert, reißt die laufende Twilio-Verbindung ab —
-                      der Aufräum-Effekt legt beim Verlassen auf. */}
+                  {/* Die Akte im SELBEN Tab (09.09.2026, E-169): Das Telefon
+                      hängt jetzt an der App, nicht an der Seite — ein
+                      Seitenwechsel legt nicht mehr auf. Am Handy ist derselbe
+                      Tab der einzige Weg, bei dem Gespräch und Akte zusammen
+                      bleiben (vorher: neuer Tab, als Notlösung gegen den
+                      Aufräum-Effekt). Strg/Cmd-Klick öffnet weiter einen
+                      neuen Tab. */}
                   {kunde && (
                     <a className="fi-tel-akte"
                        href={`/agent/kunden?person=${kunde.personId}`}
-                       target="_blank" rel="noopener noreferrer">
+                       onClick={(e) => {
+                         if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+                         e.preventDefault();
+                         // Auf Pipeline/Bestand wohnt die Akte-Lade schon: dort per
+                         // Ereignis öffnen (die Seite liest ?person= nur beim Aufbau).
+                         // Von jeder anderen Seite: hinnavigieren, die Seite liest
+                         // ?person= beim Aufbau. Am Handy geht das Gerät dabei zur
+                         // Pille — sonst läge es über der Akte.
+                         if (/^\/agent\/(kunden|pipeline|bestand)$/.test(window.location.pathname)) {
+                           window.dispatchEvent(new CustomEvent("fiaon-akte-oeffnen", { detail: { personId: kunde.personId } }));
+                         } else {
+                           navigiere(`/agent/kunden?person=${kunde.personId}`);
+                         }
+                         if (schmal) setOffen(false);
+                       }}>
                       Akte öffnen
                     </a>
                   )}

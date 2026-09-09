@@ -1371,3 +1371,12 @@
   }
   .fi-tel-gruen:disabled svg { opacity: .5; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   IM GESPRÄCH: KEIN PULL-TO-REFRESH (09.09.2026, E-169)
+   Android Chrome lädt die Seite neu, wenn man am oberen Rand nach unten
+   zieht — und ein Neuladen legt auf. Solange gewählt, geklingelt oder
+   gesprochen wird, trägt <html> die Klasse fi-telefon-aktiv (Softphone.tsx);
+   die Geste ist dann aus. Außerhalb des Gesprächs bleibt alles wie gewohnt.
+   ═══════════════════════════════════════════════════════════════════════ */
+html.fi-telefon-aktiv, html.fi-telefon-aktiv body { overscroll-behavior-y: none; }

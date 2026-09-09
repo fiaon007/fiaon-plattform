@@ -2,6 +2,8 @@ import { lazy, Suspense, type ComponentType } from "react";
 import "@/styles/laden.css";
 import { Umleitung } from "@/components/Umleitung";
 import { Switch, Route, Redirect, useLocation } from "wouter";
+// Das Telefon des Office hängt an der App, nicht an der Seite (09.09.2026, E-169).
+import { SoftphoneHost } from "@/components/SoftphoneHost";
 import { useSeitenTitel } from "@/lib/fiaon-titel";
 import { FiaonRaum } from "@/components/FiaonRaum";
 import { queryClient } from "./lib/queryClient";
@@ -281,6 +283,7 @@ function Router() {
   useSeitenTitel(tabPfad);
 
   return (
+    <>
     <Suspense fallback={<SeiteLaedt />}>
     <Switch>
       <Route path="/" component={FiaonHome} />
@@ -702,6 +705,10 @@ function Router() {
       <Route component={NotFound} />
     </Switch>
     </Suspense>
+    {/* Außerhalb des Schalters: Ein Seitenwechsel im Office baut das Telefon
+        nicht mehr ab — ein laufendes Gespräch bleibt stehen (E-169). */}
+    <SoftphoneHost />
+    </>
   );
 }
 

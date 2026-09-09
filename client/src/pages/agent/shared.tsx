@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback, createContext, useContext, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
-import { Softphone } from "@/components/Softphone";
+// 09.09.2026 (E-169): Das Telefon hängt nicht mehr hier, sondern an der App
+// (components/SoftphoneHost.tsx). Der Rahmen meldet nur noch die Sitzung.
+import { agentSitzung, telefon } from "@/lib/office-zustand";
 import { TerminErinnerung } from "@/components/TerminErinnerung";
 import { VerkaufsstartBanner } from "@/components/VerkaufsstartBanner";
 import { Users, Calendar, Wallet, LogOut, RefreshCw, LayoutDashboard, MoreHorizontal, Sparkles, X, PhoneCall, AlertTriangle, Menu, ChevronRight, ListChecks, Mail } from "lucide-react";
@@ -715,6 +717,19 @@ function AgentShellInnen({ children, onRefresh }: { children: ReactNode; onRefre
   };
   useEffect(load, []);
 
+  // ── DIE SITZUNG FÜR DAS TELEFON (09.09.2026, E-169) ─────────────────────
+  // Das Telefon hängt an der App (SoftphoneHost), nicht an dieser Seite. Es
+  // erfährt hier, ob ein Mitarbeiter angemeldet ist und das Onboarding
+  // erledigt hat — und NUR dann. Beim Seitenwechsel bleibt der letzte Stand
+  // stehen, solange die neue Seite noch lädt (checked=false / onboarding
+  // null): Sonst würde ein laufendes Gespräch zwischen zwei Seiten aufgelegt.
+  useEffect(() => {
+    if (!checked) return;
+    if (!agent) { agentSitzung.setzen(null); return; }
+    if (onboardingComplete === null) return;
+    agentSitzung.setzen(onboardingComplete ? { email: agent.email, name: agent.name } : null);
+  }, [checked, agent, onboardingComplete]);
+
   useEffect(() => {
     if (!agent) { setOnboardingComplete(null); return; }
     api("/agent/onboarding")
@@ -946,7 +961,11 @@ function AgentShellInnen({ children, onRefresh }: { children: ReactNode; onRefre
 
   const logout = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    // Läuft ein Gespräch, wird nachgefragt (E-169): Am 08.09., 11:00, hat ein
+    // Tipp daneben am Handy mitten im Kundengespräch abgemeldet.
+    if (!telefon.abmeldenErlaubt()) return;
     await fetch("/api/fiaon/agent/logout", { method: "POST", credentials: "include" }).catch(() => {});
+    agentSitzung.setzen(null);
     navigate("/agent");
     setAgent(null);
   };
@@ -1015,7 +1034,9 @@ function AgentShellInnen({ children, onRefresh }: { children: ReactNode; onRefre
         <div className="agent-scope">{children}</div>
       </OfficeShell>
       <TerminErinnerung />
-      <Softphone />
+      {/* <Softphone /> stand hier bis zum 09.09.2026 — und wurde mit jedem
+          Seitenwechsel abgebaut (jede Seite hat ihren eigenen Rahmen). Jetzt:
+          components/SoftphoneHost.tsx, einmal an der App (E-169). */}
     </AgentCtx.Provider>
   );
 }

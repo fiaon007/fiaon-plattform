@@ -84,6 +84,26 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-09-09-telefon-bleibt-dran",
+    date: "2026-09-09",
+    category: "Behoben",
+    title: "Telefon: Das Gespräch bleibt stehen, wenn du im Office die Seite wechselst",
+    summary: "Hans-Jürgens Abbrüche „alle paar Minuten“ hatten eine Ursache: Das Telefon hing an der jeweiligen Seite. Wer während des Gesprächs die Akte öffnete, ins Menü tippte oder am Handy die Seite neu lud, legte damit auf. Jetzt hängt das Telefon an der ganzen App — du kannst im Gespräch überall hin.",
+    changes: [
+      "Seitenwechsel im Office (Pipeline → Akte, Menü, Aufgaben) beendet das Gespräch nicht mehr. Das Telefon-Fenster bleibt oben liegen.",
+      "„Akte öffnen“ im Telefon öffnet die Akte im selben Tab — Gespräch und Akte bleiben zusammen. Strg/Cmd-Klick öffnet weiter einen neuen Tab.",
+      "Am Handy: Der Bildschirm bleibt im Gespräch an, Pull-to-refresh (am oberen Rand nach unten ziehen) ist im Gespräch aus, und ein Neuladen fragt vorher nach.",
+      "Reißt die Verbindung zu Twilio im Mobilfunk kurz ab, bleibt das Gespräch bis zu 30 Sekunden stehen und verbindet sich neu — mit Hinweis „Die Verbindung wackelt“ statt Abbruch.",
+      "„Abmelden“ fragt nach, wenn gerade ein Gespräch läuft.",
+    ],
+    howto: [
+      "Anrufen wie gewohnt. Während des Gesprächs kannst du die Akte öffnen, Notizen schreiben, ins Menü gehen — das Telefon läuft weiter.",
+      "Bricht trotzdem etwas ab: Uhrzeit und Kunde in die WhatsApp-Gruppe — jeder Anruf hat jetzt ein Verbindungsprotokoll, das wir nachlesen können.",
+    ],
+    link: { href: "/agent/pipeline", label: "Pipeline öffnen" },
+    important: true,
+  },
+  {
     id: "2026-09-09-feedback-pipeline-status",
     date: "2026-09-09",
     category: "Verbessert",

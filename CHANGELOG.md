@@ -5,6 +5,32 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 09.09.2026 — Telefon bleibt beim Seitenwechsel dran (E-169): Softphone an der App statt an der Seite
+
+**Was geändert wurde:** Neu `client/src/lib/office-zustand.ts` (Sitzung + „Gespräch läuft“, useSyncExternalStore) und
+`client/src/components/SoftphoneHost.tsx` (rendert `<Softphone />` nachgeladen, sobald der Office-Rahmen eine Sitzung
+meldet, nur unter /agent). `App.tsx` rendert den Host NEBEN dem Routen-Schalter; `pages/agent/shared.tsx` rendert
+`<Softphone />` nicht mehr, meldet stattdessen die Sitzung (angemeldet + Onboarding erledigt) und fragt vor „Abmelden“
+nach, wenn ein Gespräch läuft (ebenso `more.tsx`). `Softphone.tsx`: Gerät mit `closeProtection: true` und
+`maxCallSignalingTimeoutMs: 30_000`; Wachhalten des Bildschirms (Wake Lock) im Gespräch; `html.fi-telefon-aktiv`
+schaltet Pull-to-refresh aus (softphone.css); Anruf-Ereignisse `reconnecting`/`reconnected`/`error` mit Meldung und
+Verbindungsprotokoll; „Akte öffnen“ navigiert im selben Tab (Strg/Cmd-Klick weiter neuer Tab). Team-Update
+`2026-09-09-telefon-bleibt-dran`.
+
+**Warum:** Hans-Jürgen (Android-Handy, Chrome 152, Mobilfunk): „Die Verbindung bricht alle paar Minuten ab.“ Gemessen:
+08.09. sechs Anrufe an dieselbe Nummer in zwölf Minuten, 09.09. drei in elf Minuten; vor dem 05.09. hatte er
+14-Minuten-Gespräche ohne Abbruch. Jeder Abbruch kam von seiner Seite (Twilio: Eltern-Leg „completed“ beim
+Dial-Rückruf), und in derselben Sekunde zeigen die Render-Logs entweder ein komplettes Neuladen der Seite (08.09.,
+10:59/11:05/11:08 Uhr) oder das Öffnen der Akte im Office (09.09., 09:02: GET /agent/crm/kunden/12264). Der
+Telefon-Baustein hing an jeder Office-Seite (jede Seite rendert ihren eigenen AgentShell) und legte beim Verlassen
+der Seite auf (Aufräum-Effekt). Kein Twilio-Fehler, kein Ausweis-Problem: keine device-error-Meldungen, keine
+Debugger-Alerts, Verbindungsprotokolle der Anrufe leer.
+
+**Wo zu finden:** Office → Telefon; während des Gesprächs Akte/Menü/Aufgaben wechseln — das Telefon bleibt.
+„Abmelden“ im Gespräch → Nachfrage. Verbindungsprotokoll je Anruf in `fiaon_calls.transkript_grund`.
+
+---
+
 ## 09.09.2026 — Team-Feedback 08.09. (E-168, Etappe 2): Selbstauskunft im Kundenbereich statt Abfrage im Startgespräch
 
 **Was geändert wurde:** shared/fiaon-ansprueche.ts: sieben neue Fragen (girokonto, pfaendung_frueher, kinder,

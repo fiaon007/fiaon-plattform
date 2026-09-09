@@ -62,7 +62,7 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
     text: "Früher standen hier sieben Knöpfe nebeneinander. Jetzt gibt es einen: Er öffnet die "
       + "Kundenakte. Darin findest du anrufen, die Unterlagen, den Termin, den Versand und am Ende "
       + "das Ergebnis — alles an einer Stelle, in der richtigen Reihenfolge für genau diese Lage.",
-    tipp: "Die Akte bleibt während des Telefonats offen. Ändert sich etwas — Adresse, E-Mail, Paket — trägst du es sofort ein.",
+    tipp: "Die Akte bleibt während des Telefonats offen — und das Telefon bleibt dran, auch wenn du im Office die Seite wechselst. Ändert sich etwas — Adresse, E-Mail, Paket — trägst du es sofort ein.",
   },
   {
     // 24.08.2026, mit dem WhatsApp-Knopf zusammen angelegt. Justin: „Sowas muss

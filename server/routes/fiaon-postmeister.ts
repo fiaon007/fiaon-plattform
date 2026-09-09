@@ -18,7 +18,8 @@
 //        support@  → auto      (FAQ, Status, Empfangsbestätigung)
 //        welcome@  → auto      (Onboarding, Erstschritte)
 //        info@     → hybrid    (Standard auto, komplexer Vertrieb = Entwurf)
-//        js@       → entwurf   (alles nur als Entwurf im Postfach)
+//      09.09.2026 (E-171): js@ ist raus — Justins persönliches Postfach mit der
+//      Investorenpost. Die Liste steht in lib/fiaon-postmeister-postfaecher.ts.
 //      Kündigung, Beschwerde und Rechtliches antworten NIE automatisch —
 //      Entwurf + TODO, egal welches Postfach.
 //
@@ -44,6 +45,12 @@ import { rueckrufAufnehmen } from "../lib/fiaon-rueckruf";
 import { wissenText } from "@shared/fiaon-wissen";
 import { BANK } from "@shared/fiaon-bank";
 import { getSettings, setSetting } from "./fiaon-agent";
+// Die bedienten Postfächer stehen seit dem 09.09.2026 (E-171) an EINER Stelle —
+// dieselbe Liste, die der Lauf, die Zentrale und die Sende-Wand lesen. js@fiaon.com
+// (Justins persönliches Postfach mit der Investorenpost) ist dort gestrichen.
+import { POSTFAECHER, postfachAdressen, postfachGruss, wirdBedient, type Modus }
+  from "../lib/fiaon-postmeister-postfaecher";
+export { postfachAdressen, postfachGruss, wirdBedient };
 
 const router = Router();
 
@@ -65,16 +72,6 @@ router.use("/admin/postmeister", async (req: Request, res: Response, next) => {
     return res.status(500).json({ ok: false, error: "Zugangsprüfung fehlgeschlagen" });
   }
 });
-
-type Modus = "auto" | "hybrid" | "entwurf";
-/** Justins Freigaben vom 01.09.2026 — wörtlich. Änderungen nur mit ihm. */
-const POSTFAECHER: { adresse: string; modus: Modus; gruss: string }[] = [
-  { adresse: "support@fiaon.com", modus: "auto", gruss: "Freundliche Grüße\nIhr FIAON-Support\nsupport@fiaon.com · fiaon.com" },
-  { adresse: "welcome@fiaon.com", modus: "auto", gruss: "Freundliche Grüße\nIhr FIAON Welcome-Team\nwelcome@fiaon.com · fiaon.com" },
-  // 04.09.2026: info@fiaon.com ist bei Google kein Nutzer (invalid_grant bei jedem
-  // Lauf). Justin legt es als Alias auf welcome@ — dann landet alles ohnehin hier.
-  { adresse: "js@fiaon.com", modus: "entwurf", gruss: "Freundliche Grüße\nJustin Schwarzott\nFIAON — Das Betriebssystem für Bonität" },
-];
 
 const KATEGORIEN = [
   "zahlung", "zugang_login", "termin", "unterlagen", "status_frage",
@@ -514,16 +511,10 @@ async function wirksamerModus(pf: typeof POSTFAECHER[number]): Promise<Modus | "
   return pf.modus;
 }
 
-/** Die Adressen der bedienten Postfächer — für die Erreichbarkeits-Probe im Kopf. */
-export function postfachAdressen(): string[] { return POSTFAECHER.map((p) => p.adresse); }
 /** Der wirksame Modus eines Postfachs (Not-Aus, Einstellung, Vorgabe) — für den Neubearbeitungs-Lauf. */
 export async function postfachModus(adresse: string): Promise<Modus | "aus"> {
   const pf = POSTFAECHER.find((p) => p.adresse === adresse);
   return pf ? wirksamerModus(pf) : "aus";
-}
-/** Der Gruß eines Postfachs (roh, ohne Agentennamen) — für das Neubauen beim Freigeben. */
-export function postfachGruss(adresse: string): string {
-  return POSTFAECHER.find((p) => p.adresse === adresse)?.gruss ?? "Freundliche Grüße\nIhr FIAON-Team\nfiaon.com";
 }
 
 export async function postmeisterLauf(opts: { q?: string; deckel?: number; nurOrdnen?: boolean; postfach?: string } = {}):
@@ -655,6 +646,14 @@ async function entwurfBeanspruchen(id: number): Promise<any | null> {
 
 /** Einen gespeicherten Entwurf wirklich versenden — mit (ggf. geändertem) Text. */
 async function entwurfVersenden(zeile: any, text: string): Promise<void> {
+  // ── AUCH HIER DIE WAND (09.09.2026, E-171) ──────────────────────────────
+  // Das ist der ÄLTERE Sendeweg (Einzelfreigabe und „alle senden" in dieser
+  // Datei). Er geht nicht über entwurfSenden in der Zentrale und hätte die
+  // dortige Prüfung umgangen: Die zehn Entwürfe in js@fiaon.com — Investorenpost,
+  // unterschrieben mit Justins Namen — wären von hier aus weiter sendbar gewesen.
+  if (!wirdBedient(zeile.postfach)) {
+    throw new Error(`${zeile.postfach} wird vom Agenten nicht mehr bedient — hier geht nichts mehr raus.`);
+  }
   const mail = await nachrichtLesen(zeile.postfach, zeile.gmail_id);
   await antwortSenden(zeile.postfach, mail, text);
   if (zeile.antwort_draft_id) {

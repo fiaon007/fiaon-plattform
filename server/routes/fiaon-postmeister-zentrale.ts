@@ -18,6 +18,7 @@ import { postmeisterSchema, kostenHeute } from "../lib/fiaon-postmeister-schema"
 import { wandPruefen } from "@shared/fiaon-wortverbote";
 import { postfachProbe } from "../lib/fiaon-gmail";
 import { postfachAdressen } from "./fiaon-postmeister";
+import { wirdBedient, postfachGruss as postfachGrussVorgabe } from "../lib/fiaon-postmeister-postfaecher";
 
 // Erreichbarkeit der Postfächer — alle zehn Minuten frisch, sonst aus dem Merkzettel.
 // 04.09.2026: info@fiaon.com war bei Google kein Nutzer (invalid_grant) und
@@ -220,6 +221,19 @@ async function entwurfSenden(id: number, textNeu?: string | null, wahl: SendeWah
   `) as any[];
   if (!r) return { ok: false, grund: "Nicht mehr im Entwurf-Zustand" };
 
+  // ── AUS EINEM NICHT BEDIENTEN POSTFACH GEHT NICHTS RAUS (09.09.2026, E-171)
+  // js@fiaon.com ist seit heute kein Postfach des Agenten mehr. Die zehn
+  // Entwürfe, die dort noch liegen (Investorenpost), dürfen auch nicht mehr
+  // von Hand freigegeben werden — weder einzeln noch über „Alle markieren".
+  // Der Vorgang bleibt sichtbar, er wird nur nicht mehr gesendet.
+  if (!wirdBedient(r.postfach)) {
+    await sqlPool`
+      UPDATE fiaon_postmeister SET aktion = 'entwurf',
+             begruendung = ${`Nicht gesendet: ${r.postfach} wird vom Agenten nicht mehr bedient (E-171).`}
+       WHERE id = ${id}`;
+    return { ok: false, grund: `${r.postfach} wird vom Agenten nicht mehr bedient — hier geht nichts mehr raus.` };
+  }
+
   const text = String(textNeu ?? r.antwort ?? "").trim();
   if (text.length < 20) {
     await sqlPool`UPDATE fiaon_postmeister SET aktion = 'entwurf' WHERE id = ${id}`;
@@ -323,9 +337,8 @@ async function entwurfSenden(id: number, textNeu?: string | null, wahl: SendeWah
     // Text und HTML aus dem FINALEN Text bauen — nie das alte HTML mit neuem Text.
     const { antwortAusText, grussMitAgent } = await import("../lib/fiaon-postmeister-antworttext");
     const { agentName } = await import("../lib/fiaon-postmeister-agent");
-    const { postfachGruss } = await import("./fiaon-postmeister");
     const name = await agentName();
-    const grussVorgabe = grussMitAgent(postfachGruss(String(r.postfach)), name);
+    const grussVorgabe = grussMitAgent(postfachGrussVorgabe(String(r.postfach)), name);
     const fertig = antwortAusText(text, { schritt: jsonOderLeer(r.naechster_schritt, null), betreff: String(r.betreff || ""), sprache: r.sprache ?? null, agentName: name, gruss: grussVorgabe });
     await antwortSenden(r.postfach, mail, fertig.text, fertig.html, gebaut.dateien);
     if (gebaut.dateien.length) erledigt.push(`Angehängt: ${gebaut.dateien.map((d) => d.dateiname).join(", ")}`);
@@ -606,15 +619,23 @@ router.post("/admin/postmeister/aufholen", async (req: Request, res: Response) =
     const deckelStandard = await aufholDeckel();
 
     if (phase === "antworten") {
+      // Nur bediente Postfächer (E-171): Die Liste kam aus ALTEN Zeilen der
+      // Datenbank — damit hätte der Antwort-Lauf auch in js@ weitergeschrieben,
+      // obwohl das Postfach längst aus der Liste ist. Und der Gruß ist der
+      // echte des Postfachs, nicht ein zusammengebauter.
       const gruesse: Record<string, string> = {};
-      const pf = (await sqlPool`SELECT DISTINCT postfach FROM fiaon_postmeister`) as any[];
-      for (const p of pf) gruesse[p.postfach] = `Freundliche Grüße\nIhr FIAON-Team\n${p.postfach} · fiaon.com`;
+      for (const adresse of postfachAdressen()) gruesse[adresse] = postfachGrussVorgabe(adresse);
       const erg = await phaseAntworten({ deckel: Math.min(60, Number(req.body?.deckel) || deckelStandard.antworten), gruesse });
       return res.json({ ok: true, phase, ...erg });
     }
 
+    // E-171: Die Postfächer kommen aus der einen Liste, nicht mehr als fester
+    // Text — hier stand js@fiaon.com noch drin, als es längst gestrichen war.
     const postfach = String(req.body?.postfach || "").trim();
-    const alle = postfach ? [postfach] : ["support@fiaon.com", "welcome@fiaon.com", "js@fiaon.com"];
+    if (postfach && !wirdBedient(postfach)) {
+      return res.status(400).json({ ok: false, error: `${postfach} wird vom Agenten nicht bedient.` });
+    }
+    const alle = postfach ? [postfach] : postfachAdressen();
     const staende = [];
     for (const p of alle) {
       const stand = await phaseOrdnen({

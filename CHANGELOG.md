@@ -33,6 +33,34 @@ gewohnten „Failed: 1". Ein Fehlschlag im Deploy-Protokoll ist damit wieder ein
 
 ---
 
+## 09.09.2026 — js@fiaon.com ist kein Postfach des Mail-Agenten mehr (E-171); was kein Support ist, bleibt ungelesen
+
+**Was geändert wurde:** Neu `server/lib/fiaon-postmeister-postfaecher.ts` — die bedienten Postfächer stehen an EINER
+Stelle (`POSTFAECHER`, `postfachAdressen()`, `wirdBedient()`, `postfachGruss()`), js@fiaon.com ist gestrichen,
+support@ und welcome@ stehen auf `auto`. `fiaon-postmeister.ts` hält die Liste nicht mehr selbst, sondern
+importiert und reicht sie weiter. Drei Wände dagegen, dass Mara doch wieder in ein fremdes Postfach schreibt:
+`mailBearbeiten` (fiaon-postmeister-lauf.ts) bricht VOR dem ersten Gmail-Aufruf ab, wenn das Postfach nicht bedient
+wird; `entwurfSenden` (fiaon-postmeister-zentrale.ts) verweigert das Senden aus einem nicht bedienten Postfach
+(einzeln und über „Alle markieren"); der Aufhol-Lauf nimmt seine Postfächer aus `postfachAdressen()` statt aus einem
+festen Text bzw. aus alten Zeilen der Datenbank, und weist ein fremdes Postfach mit 400 ab.
+Dazu: Fremdpost, Werbung und Spam werden nicht mehr auf „gelesen" gesetzt. Der Ordner bleibt (Werbung und Spam
+verlassen weiter den Posteingang, E-135), die ungelesene Zeile auch.
+
+**Warum:** Justin: „entferne js@fiaon.com bitte als Email Agent — nur für Welcome, support bitte und auf automatik —
+ALLE Emails die hinein kommen und NICHT Support sind, müssen irgendwie gekennzeichnet werden bzw. nicht auf
+‚geöffnet‘." Die Daten zeigen, warum: js@fiaon.com ist Justins persönliches Postfach mit der Investorenpost. Am
+08.09. um 09:29 gingen in einem Zug sechzehn von Mara geschriebene Antworten an Investoren hinaus (Portage Capital,
+b2venture, Bayern Kapital, NRW.SeedCap, BMH Hessen, Innovationsstarter Hamburg, Genius VC, Impact Shakers, Invesdor,
+bmp, GLS Crowd, Wirtschaftsagentur Wien), unterschrieben mit „Justin Schwarzott". Umgekehrt legte sie eingehende
+Investorenantworten als „automatische Nachricht" ab und markierte sie als gelesen — darunter am 09.09. um 14:57
+„Re: 550.000 € — Ihre Untergrenze schließt unsere Runde allein" von Freigeist Capital und um 15:03 die Antwort von
+Florian Gschwandtner (cashpresso). In js@ waren 44 Mails als gelesen abgelegt, in welcome@ 131.
+
+**Wo zu finden:** Chefbüro → Postfach (/chef/s/postmeister). js@-Vorgänge bleiben sichtbar, lassen sich aber nicht
+mehr senden; die zehn dort offenen Entwürfe verwirft man einzeln über „Verwerfen".
+
+---
+
 ## 09.09.2026 — Telefon bleibt beim Seitenwechsel dran (E-169): Softphone an der App statt an der Seite
 
 **Was geändert wurde:** Neu `client/src/lib/office-zustand.ts` (Sitzung + „Gespräch läuft“, useSyncExternalStore) und

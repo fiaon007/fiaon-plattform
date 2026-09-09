@@ -23,6 +23,7 @@ import { einordnen, antwortErzeugen } from "./fiaon-postmeister-agent";
 import { personSuchen, akteLesen } from "./fiaon-postmeister-dossier";
 import { anredeBestimmen, antwortBauen } from "./fiaon-postmeister-antworttext";
 import { postmeisterSchema } from "./fiaon-postmeister-schema";
+import { wirdBedient } from "./fiaon-postmeister-postfaecher";
 import { AUTOMATEN_DOMAENEN, type Aktion } from "@shared/fiaon-postmeister-typen";
 
 /**
@@ -117,6 +118,18 @@ export async function mailBearbeiten(ein: {
   await postmeisterSchema();
   const { postfach, gmailId } = ein;
 
+  // ── DIE WAND (09.09.2026, E-171) ────────────────────────────────────────
+  // Mara fasst NUR die Postfächer an, die in fiaon-postmeister-postfaecher.ts
+  // stehen. Vorher reichte ein Aufruf mit einer beliebigen Adresse — der
+  // Aufhol-Lauf trug seine Postfachliste als festen Text und der
+  // Antwort-Lauf zog sie aus alten Zeilen der Datenbank. So schrieb sie in
+  // Justins persönlichem Postfach. Diese Prüfung steht VOR dem ersten
+  // Gmail-Aufruf: Ein nicht bedientes Postfach wird nicht einmal gelesen.
+  if (!wirdBedient(postfach)) {
+    console.warn(`[POSTMEISTER] Postfach „${postfach}" wird nicht bedient — übersprungen.`);
+    return { aktion: "geordnet", grund: `Postfach ${postfach} wird nicht bedient`, id: null };
+  }
+
   // Anspruch — läuft der Takt doppelt, arbeitet nur einer.
   let anspruch = (await sqlPool`
     INSERT INTO fiaon_postmeister (postfach, gmail_id, thread_id, aktion, in_arbeit_seit)
@@ -157,9 +170,17 @@ export async function mailBearbeiten(ein: {
     const textFuerMara = neuerText + anhangHinweis;
 
     // 1. Fremdpost — eigener Ordner, nie beantworten.
+    // ── UNGELESEN BLEIBT UNGELESEN (09.09.2026, E-171) ──────────────────
+    // Justin: „ALLE Emails die hinein kommen und NICHT Support sind, müssen
+    // irgendwie gekennzeichnet werden bzw. nicht auf ‚geöffnet‘."
+    // Vorher nahm Mara hier „UNREAD" weg. Was sie falsch einsortierte, war
+    // damit unsichtbar: Am 09.09. lag „Re: 550.000 € — Ihre Untergrenze
+    // schließt unsere Runde allein" von Freigeist Capital als „automatische
+    // Nachricht" gelesen im Postfach. Der Ordner kennzeichnet die Mail; das
+    // Auge entscheidet ein Mensch.
     const fremd = istFremdpost(mail);
     if (fremd.fremd) {
-      await ablegen(postfach, gmailId, "FIAON/Kein Kunde", ["UNREAD"]);
+      await ablegen(postfach, gmailId, "FIAON/Kein Kunde");
       return fertig({ ...basis, kategorie: "intern", aktion: "ignoriert", begruendung: fremd.grund }, fremd.grund);
     }
 
@@ -202,11 +223,13 @@ export async function mailBearbeiten(ein: {
     // Posteingang; „Kein Kunde" bleibt für Automaten und Dienstleister
     // (Airwallex, GoCardless), die ein Mensch sehen will.
     if (einordnung.kategorien.length === 1 && einordnung.kategorien[0] === "werbung_newsletter") {
-      await ablegen(postfach, gmailId, "FIAON/Werbung", ["UNREAD", "INBOX"]);
+      // Aus dem Posteingang ja (E-135), auf gelesen nein (E-171): Der Ordner
+      // trägt die Kennzeichnung, die ungelesene Zeile bleibt Justins Kontrolle.
+      await ablegen(postfach, gmailId, "FIAON/Werbung", ["INBOX"]);
       return fertig({ ...gemeinsam, aktion: "ignoriert", begruendung: "Werbung" }, "Werbung");
     }
     if (einordnung.kategorien.length === 1 && einordnung.kategorien[0] === "spam") {
-      await ablegen(postfach, gmailId, "FIAON/Spam", ["UNREAD", "INBOX"]);
+      await ablegen(postfach, gmailId, "FIAON/Spam", ["INBOX"]);
       return fertig({ ...gemeinsam, aktion: "ignoriert", begruendung: "Spam" }, "Spam");
     }
 

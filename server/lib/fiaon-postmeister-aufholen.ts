@@ -25,6 +25,7 @@
 import { sqlPool } from "./db-pool";
 import { nachrichtenSuchen, nachrichtLesen } from "./fiaon-gmail";
 import { mailBearbeiten, istFremdpost } from "./fiaon-postmeister-lauf";
+import { postfachAdressen } from "./fiaon-postmeister-postfaecher";
 import { postmeisterSchema } from "./fiaon-postmeister-schema";
 
 /** Serienmails — sie beantworten nie eine Kundenfrage. */
@@ -123,6 +124,13 @@ export async function offeneUnterhaltungen(grenze = 200): Promise<any[]> {
              empfangen_am, person_id, ref, aktion, kategorie
         FROM fiaon_postmeister
        WHERE aktion IN ('vorgeordnet', 'geordnet')
+         -- ── NUR BEDIENTE POSTFÄCHER (09.09.2026, E-171) ──────────────────
+         -- Dieser Lauf nimmt seine Kandidaten aus der Datenbank, nicht aus der
+         -- Postfachliste. Ohne diese Zeile hätte er js@fiaon.com auch dann noch
+         -- geöffnet und gelesen, als das Postfach längst aus der Liste war —
+         -- 22 alte js@-Zeilen standen dafür bereit. Die Wand in mailBearbeiten
+         -- fängt das Schreiben; hier hört schon das Lesen auf.
+         AND postfach = ANY(${postfachAdressen()})
        ORDER BY thread_id, empfangen_am DESC
     )
     SELECT l.*,

@@ -9,7 +9,7 @@
 // Neu erzeugen:   npx tsx scripts/seo-fragen-erzeugen.ts
 // Nur prüfen:     npx tsx scripts/seo-fragen-erzeugen.ts --pruefen
 //
-// Seiten: / (6), /was-ist-fiaon (6), /en/what-is-fiaon (6), /privatkunden (8), /en/personal (8), /business (5), /en/business (5), /preise (6), /en/pricing (6), /en (4), /kreditkarte (5), /en/credit-card (5), /oesterreich (5), /en/austria (5), /schweiz (5), /en/switzerland (5), /sicherheit (11), /en/security (11), /kontakt (5), /en/contact (5), /investoren (4), /datenraum (3), /fiaon-erfahrungen (8), /en/how-fiaon-works (8), /termin (6), /en/book-a-call (6), /vergleich (5), /en/compare (5), /hilfe (36), /en/help (36), /ueber-uns (5), /en/about (5), /transparenz (4), /en/transparency (4), /kredit-ohne-schufa (6), /en/loans-without-schufa (6), /bonitaet-verbessern (6), /en/strengthen-your-credit-file (6), /auskunfteien (5), /en/credit-bureaus (5), /schufa-score-verstehen (6), /en/schufa-score (6), /bonitaetsauskunft-beantragen (7), /en/request-your-credit-report (7), /inkasso-brief-erhalten (6), /en/debt-collection-letter (6), /eintrag-verjaehrung (6), /en/entries-and-limitation (6), /girokonto-trotz-negativer-bonitaet (7), /en/current-account-despite-poor-credit (7), /ratenzahlung-und-bonitaet (6), /en/instalments-and-credit-file (6), /selbstauskunft-checkliste (6), /en/reading-your-credit-report (6), /schufa-neutral-anfragen (6), /en/schufa-neutral-enquiries (6), /schufa-eintrag-loeschen (5), /en/delete-a-schufa-entry (5), /plattform-konzept (5), /en/how-the-platform-works (5), /werkzeuge/basiskonto (5), /en/tools/basic-account (5), /werkzeuge/kartenkosten (5), /en/tools/card-costs (5), /werkzeuge/schuldenplan (5), /en/tools/debt-free-plan (5), /werkzeuge/dispo-rechner (5), /en/tools/overdraft-calculator (5), /werkzeuge/pfaendungsrechner (5), /en/tools/attachment-calculator (5), /werkzeuge/widerspruch (5), /en/tools/deletion-request (5), /werkzeuge/mahnbescheid (5), /en/tools/court-payment-order (5), /werkzeuge/inkasso-antwort (5), /en/tools/reply-to-debt-collector (5), /werkzeuge/mahngebuehren (5), /en/tools/reminder-fees (5), /werkzeuge/ratenplan (5), /en/tools/instalment-plan (5), /werkzeuge (4), /en/tools (4), /status (5), /en/status (5), /karriere (5), /en/careers (5), /partner (3), /en/partners (3), /presse (3), /en/press (3), /werkzeuge/kreditrechner (5), /en/tools/loan-calculator (5), /werkzeuge/umschuldung (5), /en/tools/debt-consolidation (5), /werkzeuge/schulden-check (5), /en/tools/debt-check (5)
+// Seiten: / (6), /was-ist-fiaon (6), /en/what-is-fiaon (6), /privatkunden (8), /en/personal (8), /business (5), /en/business (5), /preise (6), /en/pricing (6), /en (4), /kreditkarte (5), /en/credit-card (5), /oesterreich (5), /en/austria (5), /schweiz (5), /en/switzerland (5), /sicherheit (11), /en/security (11), /kontakt (5), /en/contact (5), /investoren (4), /datenraum (3), /fiaon-erfahrungen (8), /en/how-fiaon-works (8), /termin (6), /en/book-a-call (6), /vergleich (5), /en/compare (5), /hilfe (36), /en/help (36), /ueber-uns (5), /en/about (5), /transparenz (4), /en/transparency (4), /kredit-ohne-schufa (6), /en/loans-without-schufa (6), /bonitaet-verbessern (6), /en/strengthen-your-credit-file (6), /auskunfteien (5), /en/credit-bureaus (5), /schufa-score-verstehen (6), /en/schufa-score (6), /bonitaetsauskunft-beantragen (7), /en/request-your-credit-report (7), /inkasso-brief-erhalten (6), /en/debt-collection-letter (6), /eintrag-verjaehrung (6), /en/entries-and-limitation (6), /girokonto-trotz-negativer-bonitaet (7), /en/current-account-despite-poor-credit (7), /ratenzahlung-und-bonitaet (6), /en/instalments-and-credit-file (6), /selbstauskunft-checkliste (6), /en/reading-your-credit-report (6), /schufa-neutral-anfragen (6), /en/schufa-neutral-enquiries (6), /schufa-eintrag-loeschen (5), /en/delete-a-schufa-entry (5), /plattform-konzept (5), /en/how-the-platform-works (5), /werkzeuge/basiskonto (5), /en/tools/basic-account (5), /werkzeuge/kartenkosten (5), /en/tools/card-costs (5), /werkzeuge/schuldenplan (5), /en/tools/debt-free-plan (5), /werkzeuge/dispo-rechner (5), /en/tools/overdraft-calculator (5), /werkzeuge/pfaendungsrechner (5), /en/tools/attachment-calculator (5), /werkzeuge/widerspruch (5), /en/tools/deletion-request (5), /werkzeuge/mahnbescheid (5), /en/tools/court-payment-order (5), /werkzeuge/inkasso-antwort (5), /en/tools/reply-to-debt-collector (5), /werkzeuge/mahngebuehren (5), /en/tools/reminder-fees (5), /werkzeuge/bonitaetsindex (5), /en/tools/business-credit-index (5), /werkzeuge/verzugszinsen (5), /en/tools/late-payment-interest (5), /werkzeuge/skonto (5), /en/tools/early-payment-discount (5), /werkzeuge/firmenkarte (5), /en/tools/business-card-check (5), /werkzeuge/firmenauskunft (5), /en/tools/business-credit-report (5), /werkzeuge/ratenplan (5), /en/tools/instalment-plan (5), /werkzeuge (4), /en/tools (4), /status (5), /en/status (5), /karriere (5), /en/careers (5), /partner (3), /en/partners (3), /presse (3), /en/press (3), /werkzeuge/kreditrechner (5), /en/tools/loan-calculator (5), /werkzeuge/umschuldung (5), /en/tools/debt-consolidation (5), /werkzeuge/schulden-check (5), /en/tools/debt-check (5)
 // ═══════════════════════════════════════════════════════════════════════════
 export type SeoFrage = { f: string; a: string };
 
@@ -2172,6 +2172,226 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     {
       "f": "What do I do with excessive fees?",
       "a": "Pay the principal claim (if it is justified), reject the excessive ancillary costs in writing – with the text from the checker. Many creditors then quietly drop the items. If they stay firm, the creditor has to sue for the costs and prove them; nobody does that for one euro in dispute."
+    }
+  ],
+  "/werkzeuge/bonitaetsindex": [
+    {
+      "f": "Ist ein niedriger Bonitätsindex gut oder schlecht?",
+      "a": "Niedrig ist gut. Die Skala läuft von 100 (sehr gute Bonität) bis 600 (Zahlungseinstellung) – anders als beim SCHUFA-Score für Privatpersonen, wo ein hoher Wert der bessere ist. Diese Umkehrung führt regelmäßig zu Missverständnissen in Gesprächen mit der Bank."
+    },
+    {
+      "f": "Wie schnell ändert sich der Index?",
+      "a": "Die Zahlungsweise ist das beweglichste Merkmal: Neue Zahlungserfahrungen von Lieferanten fließen laufend ein. Strukturmerkmale wie Rechtsform, Alter oder Bilanzkennzahlen ändern sich nur mit dem Jahresabschluss oder gar nicht. Eine spürbare Bewegung nach unten braucht daher Monate, keine Tage."
+    },
+    {
+      "f": "Darf ich meinen eigenen Index erfahren?",
+      "a": "Ja. Auskunfteien geben Unternehmen Einsicht in den über sie geführten Datensatz. Kommen Sie als Inhaber oder Geschäftsführer persönlich darin vor, haben Sie zusätzlich das Auskunftsrecht aus Art. 15 DSGVO auf Ihre personenbezogenen Daten – kostenlos, mit einer Frist von einem Monat."
+    },
+    {
+      "f": "Was ist der Unterschied zwischen Bonitätsindex und Krediturteil?",
+      "a": "Der Bonitätsindex ist die verdichtete Gesamtnote als dreistellige Zahl. Das Krediturteil ist eines der zwölf Merkmale, die in sie einfließen – die Aussage, ob und in welchem Rahmen eine Geschäftsverbindung aus Sicht der Auskunftei tragbar ist. Es wiegt ein Viertel."
+    },
+    {
+      "f": "Mein Index hat sich verschlechtert, obwohl ich pünktlich zahle. Warum?",
+      "a": "Häufige Ursachen sind ein fehlender oder verspätet offengelegter Jahresabschluss, eine Veränderung im Branchenrisiko, ein Wechsel der Rechtsform – oder eine gemeldete Zahlungserfahrung, die nicht stimmt. Der letzte Fall ist der einzige, den Sie mit einer Berichtigung angreifen können; deshalb lohnt der Blick in den eigenen Datensatz."
+    }
+  ],
+  "/en/tools/business-credit-index": [
+    {
+      "f": "Is a low business credit index good or bad?",
+      "a": "Low is good. The scale runs from 100 (very good standing) to 600 (cessation of payments) – unlike the SCHUFA score for individuals, where a high value is the better one. This reversal causes regular misunderstandings in conversations with banks."
+    },
+    {
+      "f": "How quickly does the index change?",
+      "a": "Payment behaviour is the most mobile feature: new payment experiences from suppliers feed in continuously. Structural features such as legal form, age or balance sheet ratios change only with the annual accounts, or not at all. A noticeable downward movement therefore takes months, not days."
+    },
+    {
+      "f": "Am I allowed to see my own index?",
+      "a": "Yes. Agencies give companies sight of the record held about them. Where you appear personally as owner or managing director, you additionally have the right of access to your personal data under Article 15 GDPR – free of charge, within one month."
+    },
+    {
+      "f": "What is the difference between the credit index and the credit assessment?",
+      "a": "The credit index is the condensed overall rating as a three-digit number. The credit assessment is one of the twelve features feeding into it – the statement of whether, and at what volume, a business relationship is sustainable in the agency's view. It carries a quarter of the weight."
+    },
+    {
+      "f": "My index has worsened although I pay on time. Why?",
+      "a": "Common causes are annual accounts missing or filed late, a change in sector risk, a change of legal form – or a reported payment experience that is simply wrong. The last case is the only one you can attack with a correction, which is why it pays to look at your own record."
+    }
+  ],
+  "/werkzeuge/verzugszinsen": [
+    {
+      "f": "Wie hoch sind Verzugszinsen zwischen Unternehmen genau?",
+      "a": "Neun Prozentpunkte über dem Basiszinssatz (§ 288 Abs. 2 BGB). Der Basiszinssatz liegt seit dem 1. Juli 2026 bei 1,52 Prozent, der Verzugszins für Geschäfte ohne Verbraucherbeteiligung damit bei 10,52 Prozent im Jahr. Gegenüber Verbrauchern sind es nur fünf Punkte, also 6,52 Prozent."
+    },
+    {
+      "f": "Bekomme ich die 40 Euro für jede Rechnung oder einmal?",
+      "a": "Je Entgeltforderung. Bleiben drei Rechnungen desselben Kunden offen, entsteht die Pauschale dreimal. Bei Abschlagszahlungen aus einem Vertrag hat der Bundesgerichtshof das anders gesehen – dort fällt sie nur einmal an. Wichtig ist die Anrechnung auf spätere Anwaltskosten."
+    },
+    {
+      "f": "Ab wann läuft der Verzug?",
+      "a": "Nicht ab dem Rechnungsdatum. Entweder ab dem Tag nach einer kalendermäßig bestimmten Zahlungsfrist, ab dem Tag nach Zugang einer Mahnung – oder spätestens 30 Tage nach Fälligkeit und Zugang der Rechnung (§ 286 Abs. 3 BGB). Gegenüber Verbrauchern greift diese 30-Tage-Regel nur, wenn in der Rechnung darauf hingewiesen wurde."
+    },
+    {
+      "f": "Muss ich Zinsen auf den Netto- oder den Bruttobetrag rechnen?",
+      "a": "Auf den offenen Betrag – das ist die Bruttoforderung einschließlich der ausgewiesenen Umsatzsteuer. Der Kunde schuldet den Bruttobetrag, und darauf entstehen die Verzugszinsen."
+    },
+    {
+      "f": "Lohnt sich das überhaupt bei kleinen Rechnungen?",
+      "a": "Bei 800 Euro und 60 Tagen Verzug sind es rund 14 Euro Zinsen plus 40 Euro Pauschale. Der Betrag ist selten der Punkt. Wirksam ist, dass die Forderung sichtbar gestellt wird: Ein Kunde, der weiß, dass mitgezählt wird, zahlt beim nächsten Mal früher – und Ihre eigene Zahlungsweise bleibt sauber, weil das Geld ankommt."
+    }
+  ],
+  "/en/tools/late-payment-interest": [
+    {
+      "f": "Exactly how high is late payment interest between businesses?",
+      "a": "Nine percentage points above the base rate (Section 288(2) BGB). The base rate has been 1.52 per cent since 1 July 2026, putting the rate for transactions without consumer involvement at 10.52 per cent a year. Towards consumers it is only five points, so 6.52 per cent."
+    },
+    {
+      "f": "Do I get the 40 euro for every invoice or once?",
+      "a": "Per payment claim. If three invoices from the same customer remain unpaid, the fixed sum arises three times. For instalments under a single contract the Federal Court of Justice took a different view – there it arises only once. What matters most is the credit against later solicitor's costs."
+    },
+    {
+      "f": "From when does default run?",
+      "a": "Not from the invoice date. Either from the day after a payment date fixed by the calendar, from the day after a reminder is received – or at the latest 30 days after the due date and receipt of the invoice (Section 286(3) BGB). Towards consumers that 30-day rule applies only if the invoice pointed it out."
+    },
+    {
+      "f": "Do I calculate interest on the net or the gross amount?",
+      "a": "On the outstanding amount – that is the gross claim including the VAT shown. The customer owes the gross amount, and late payment interest arises on it."
+    },
+    {
+      "f": "Is it even worth it on small invoices?",
+      "a": "On 800 euro and 60 days of delay it comes to around 14 euro of interest plus the 40-euro fixed sum. The amount is rarely the point. What works is making the claim visible: a customer who knows the days are being counted pays earlier next time – and your own payment record stays clean because the money arrives."
+    }
+  ],
+  "/werkzeuge/skonto": [
+    {
+      "f": "Warum entsprechen zwei Prozent Skonto rund 37 Prozent Jahreszins?",
+      "a": "Weil die zwei Prozent nicht für ein Jahr gelten, sondern für die gewonnenen Tage. Bei „2 %, 10 Tage, 30 Tage netto“ zahlen Sie zwanzig Tage früher. Zwanzig Tage passen achtzehnmal in ein kaufmännisches Jahr – und achtzehn mal gut zwei Prozent ergeben rund siebenunddreißig."
+    },
+    {
+      "f": "Rechnet man mit 360 oder 365 Tagen?",
+      "a": "Im deutschen Geschäftsverkehr üblicherweise mit 360. Mit 365 fällt das Ergebnis rund anderthalb Prozent höher aus – an der Aussage ändert das nichts, weil der Vergleichswert, der Kontokorrentzins, in derselben Größenordnung bleibt."
+    },
+    {
+      "f": "Lohnt sich Skonto auch auf Kredit?",
+      "a": "Meistens ja, solange der Kontokorrentzins deutlich unter dem errechneten Jahreszins liegt – bei den üblichen Konditionen ist das der Fall. Die Grenze ist nicht der Zinssatz, sondern der Rahmen: Wer ihn ausreizt, um Skonto zu ziehen, hat beim nächsten unerwarteten Betrag keine Luft mehr."
+    },
+    {
+      "f": "Darf mein Kunde ein Zahlungsziel von 90 Tagen vorgeben?",
+      "a": "Nur eingeschränkt. Über 60 Tage hinaus ist eine Vereinbarung zwischen Unternehmen nur wirksam, wenn sie ausdrücklich getroffen wurde und nicht grob unbillig ist (§ 271a Abs. 1 BGB). Ist Ihr Kunde ein öffentlicher Auftraggeber, sind mehr als 60 Tage unwirksam, und über 30 Tage braucht es eine sachliche Rechtfertigung."
+    },
+    {
+      "f": "Was ist, wenn ich Skonto nach Fristablauf abziehe?",
+      "a": "Dann bleibt der Restbetrag offen. Ihr Lieferant kann ihn anmahnen, und in den Zahlungserfahrungen erscheint eine unvollständige Zahlung. Weil die Zahlungsweise ein Viertel des Bonitätsindex ausmacht, ist der kurzfristige Vorteil oft teurer als der abgezogene Betrag."
+    }
+  ],
+  "/en/tools/early-payment-discount": [
+    {
+      "f": "Why does a two per cent discount equal around 37 per cent a year?",
+      "a": "Because the two per cent applies not to a year but to the days you gain. With “2 %, 10 days, net 30” you pay twenty days earlier. Twenty days fit into a commercial year eighteen times – and eighteen times a little over two per cent comes to about thirty-seven."
+    },
+    {
+      "f": "Do you calculate with 360 or 365 days?",
+      "a": "German business practice generally uses 360. With 365 the result comes out around one and a half per cent higher, which changes nothing about the conclusion, because the comparison figure – your overdraft rate – stays in the same range."
+    },
+    {
+      "f": "Is a discount worth taking on credit?",
+      "a": "Usually yes, as long as the overdraft rate is clearly below the calculated annual rate, which it is on normal terms. The limit is not the rate but the facility: draw it down to take discounts and there is no room left for the next unexpected amount."
+    },
+    {
+      "f": "May my customer impose a payment term of 90 days?",
+      "a": "Only within limits. Beyond 60 days an agreement between companies is effective only if it was expressly made and is not grossly unfair (Section 271a(1) BGB). If your customer is a public contracting authority, more than 60 days is ineffective, and anything over 30 days needs objective justification."
+    },
+    {
+      "f": "What if I deduct the discount after the period has expired?",
+      "a": "Then the remainder stays open. Your supplier can chase it, and an incomplete payment appears in the payment records. Because payment behaviour makes up a quarter of the business credit index, the short-term gain often costs more than the amount deducted."
+    }
+  ],
+  "/werkzeuge/firmenkarte": [
+    {
+      "f": "Warum lehnen Banken Firmenkarten trotz guter Umsätze ab?",
+      "a": "Weil Umsatz nur eines von mehreren Merkmalen ist. Häufiger scheitert es an einem nicht offengelegten Jahresabschluss, an einer kurzen Kontohistorie oder an einem Negativmerkmal beim Inhaber persönlich – gerade bei Einzelunternehmen und kleinen Gesellschaften, wo Privat- und Firmenbonität zusammen betrachtet werden."
+    },
+    {
+      "f": "Zählt meine private Bonität bei einer Firmenkarte mit?",
+      "a": "Bei Einzelunternehmen, Freiberuflern und kleinen Personengesellschaften in aller Regel ja. Bei einer GmbH steht formal die Gesellschaft im Vordergrund, doch bei jungen oder kleinen Gesellschaften wird die Bonität des Geschäftsführers regelmäßig mitgeprüft, weil die Gesellschaft selbst noch keine Historie hat."
+    },
+    {
+      "f": "Was bringt es, den Jahresabschluss nachzureichen?",
+      "a": "Zwei Dinge. Die Bilanzbonität trägt zehn Prozent des Bonitätsindex, und eine fehlende Offenlegung ist im Unternehmensregister für jeden sichtbar. Zusätzlich endet das Ordnungsgeldverfahren nach § 335 HGB, das sonst weiterläuft."
+    },
+    {
+      "f": "Schadet ein abgelehnter Antrag?",
+      "a": "Die Ablehnung selbst wird nicht gespeichert, die Anfrage schon – zwölf Monate lang. Mehrere Kartenanfragen in kurzer Folge lesen sich für die nächste Bank als Muster. Deshalb lohnt es, die Unterlagen vorher zu ordnen, statt der Reihe nach zu beantragen."
+    },
+    {
+      "f": "Gibt es eine Firmenkarte ohne Bonitätsprüfung?",
+      "a": "Nicht als echte Kreditkarte mit Rahmen. Was es gibt, sind Debit- und Prepaid-Karten auf Guthabenbasis sowie Karten gegen Sicherheitsleistung. Die tragen den Zahlungsverkehr, verschaffen aber kein Zahlungsziel – und genau darum geht es bei einer Firmenkarte meistens."
+    }
+  ],
+  "/en/tools/business-card-check": [
+    {
+      "f": "Why do banks refuse business cards despite good turnover?",
+      "a": "Because turnover is only one of several features. More often it fails on annual accounts that were not filed, a short account history, or a negative entry on the owner personally – particularly for sole traders and small partnerships, where private and business standing are looked at together."
+    },
+    {
+      "f": "Does my private standing count for a business card?",
+      "a": "For sole traders, freelancers and small partnerships, as a rule yes. For a limited company the entity is formally in the foreground, yet with young or small companies the managing director's standing is regularly reviewed too, because the company itself has no history."
+    },
+    {
+      "f": "What does filing the annual accounts achieve?",
+      "a": "Two things. Balance sheet standing carries ten per cent of the credit index, and missing accounts are visible to anyone in the company register. On top of that, the penalty procedure under Section 335 HGB ends, which otherwise continues."
+    },
+    {
+      "f": "Does a refused application do damage?",
+      "a": "The refusal itself is not recorded, the enquiry is – for twelve months. Several card enquiries in quick succession read as a pattern to the next bank. That is why it pays to order the documents first rather than applying one after another."
+    },
+    {
+      "f": "Is there a business card without a credit check?",
+      "a": "Not as a real credit card with a limit. What exists are debit and prepaid cards on a balance basis, and cards against a security deposit. Those carry the payment traffic but provide no payment term – which is usually the whole point of a business card."
+    }
+  ],
+  "/werkzeuge/firmenauskunft": [
+    {
+      "f": "Hat meine GmbH ein Auskunftsrecht nach der DSGVO?",
+      "a": "Nein. Die Verordnung schützt natürliche Personen; für Daten juristischer Personen gilt sie nicht (Erwägungsgrund 14). Sie persönlich haben das Recht aber sehr wohl, wenn Sie als Geschäftsführerin oder Geschäftsführer im Datensatz vorkommen – und praktisch kommen Sie darüber fast immer auch an das, was zur Gesellschaft gespeichert ist. Unabhängig davon gewähren die Auskunfteien Unternehmen Einsicht."
+    },
+    {
+      "f": "Was kostet die Auskunft?",
+      "a": "Die Datenkopie nach Art. 15 DSGVO ist kostenlos; erst für weitere Kopien darf ein angemessenes Entgelt verlangt werden. Für die Einsicht einer Gesellschaft in ihren eigenen Datensatz gelten die Bedingungen der jeweiligen Auskunftei."
+    },
+    {
+      "f": "Wie lange darf sich die Auskunftei Zeit lassen?",
+      "a": "Einen Monat. Bei komplexen oder zahlreichen Anfragen darf sie um zwei Monate verlängern, muss Sie darüber aber innerhalb des ersten Monats informieren (Art. 12 Abs. 3 DSGVO). Bleibt die Antwort aus, ist die Beschwerde bei der Aufsichtsbehörde der nächste Schritt."
+    },
+    {
+      "f": "Ein Lieferant hat eine Forderung gemeldet, die ich bestreite. Was jetzt?",
+      "a": "Widersprechen Sie schriftlich bei der Auskunftei und weisen Sie darauf hin, dass die Forderung bestritten ist. § 31 Abs. 2 BDSG lässt die Meldung einer bestrittenen Forderung nicht zu. Die Auskunftei muss den meldenden Gläubiger befragen; kann er die Voraussetzungen nicht belegen, ist der Eintrag zu entfernen."
+    },
+    {
+      "f": "Muss ich in Österreich oder der Schweiz anders vorgehen?",
+      "a": "In Österreich gilt dieselbe DSGVO, zuständig sind KSV1870 und CRIF, Beschwerdestelle ist die Datenschutzbehörde in Wien. In der Schweiz greift Art. 25 des Datenschutzgesetzes für Ihre persönlichen Daten; für Unternehmen ist zusätzlich der Betreibungsregisterauszug nach Art. 8a SchKG entscheidend, weil ihn Geschäftspartner am häufigsten verlangen."
+    }
+  ],
+  "/en/tools/business-credit-report": [
+    {
+      "f": "Does my limited company have a right of access under the GDPR?",
+      "a": "No. The Regulation protects natural persons; it does not cover data of legal persons (Recital 14). You personally certainly do hold the right where you appear in the record as managing director – and in practice that route almost always reaches what is held on the company too. Independently of that, the agencies grant companies sight of their file."
+    },
+    {
+      "f": "What does the report cost?",
+      "a": "The copy of your data under Article 15 GDPR is free; only for further copies may a reasonable fee be charged. For a company's sight of its own record, the terms of the individual agency apply."
+    },
+    {
+      "f": "How long may the agency take?",
+      "a": "One month. For complex or numerous requests it may extend by two months but must tell you within the first month (Article 12(3) GDPR). If no answer arrives, a complaint to the supervisory authority is the next step."
+    },
+    {
+      "f": "A supplier has reported a claim I dispute. What now?",
+      "a": "Object in writing to the agency and state that the claim is disputed. Section 31(2) BDSG does not permit reporting a disputed claim. The agency must ask the reporting creditor; if it cannot evidence the conditions, the entry has to go."
+    },
+    {
+      "f": "Is the procedure different in Austria or Switzerland?",
+      "a": "In Austria the same GDPR applies, KSV1870 and CRIF are the relevant agencies, and complaints go to the data protection authority in Vienna. In Switzerland, Article 25 of the Data Protection Act covers your personal data; for companies the debt enforcement register extract under Article 8a SchKG matters as well, because business partners ask for it most often."
     }
   ],
   "/werkzeuge/ratenplan": [

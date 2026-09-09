@@ -207,6 +207,11 @@ const WzBasiskonto = lazy(() => import("@/pages/site/werkzeuge/basiskonto"));
 const WzPfaendungsrechner = lazy(() => import("@/pages/site/werkzeuge/pfaendungsrechner"));
 const WzDispoRechner = lazy(() => import("@/pages/site/werkzeuge/dispo-rechner"));
 const WzMahngebuehren = lazy(() => import("@/pages/site/werkzeuge/mahngebuehren"));
+const WzBonitaetsindex = lazy(() => import("@/pages/site/werkzeuge/bonitaetsindex"));
+const WzVerzugszinsen = lazy(() => import("@/pages/site/werkzeuge/verzugszinsen"));
+const WzSkonto = lazy(() => import("@/pages/site/werkzeuge/skonto"));
+const WzFirmenkarte = lazy(() => import("@/pages/site/werkzeuge/firmenkarte"));
+const WzFirmenauskunft = lazy(() => import("@/pages/site/werkzeuge/firmenauskunft"));
 const WzKartenkosten = lazy(() => import("@/pages/site/werkzeuge/kartenkosten"));
 const WzSchuldenplan = lazy(() => import("@/pages/site/werkzeuge/schuldenplan"));
 // Acht neue Seiten (26.08.2026): Werkzeugbank, drei Rechner, vier SEO-Pfeiler.
@@ -335,6 +340,11 @@ function Router() {
       <Route path="/en/tools/court-payment-order" component={WzMahnbescheid} />
       <Route path="/en/tools/reply-to-debt-collector" component={WzInkassoAntwort} />
       <Route path="/en/tools/reminder-fees" component={WzMahngebuehren} />
+      <Route path="/en/tools/business-credit-index" component={WzBonitaetsindex} />
+      <Route path="/en/tools/late-payment-interest" component={WzVerzugszinsen} />
+      <Route path="/en/tools/early-payment-discount" component={WzSkonto} />
+      <Route path="/en/tools/business-card-check" component={WzFirmenkarte} />
+      <Route path="/en/tools/business-credit-report" component={WzFirmenauskunft} />
       <Route path="/en/tools/instalment-plan" component={WzRatenplan} />
       <Route path="/en/tools" component={WerkzeugeHub} />
       <Route path="/en/status" component={SiteStatus} />
@@ -372,6 +382,11 @@ function Router() {
       <Route path="/werkzeuge/pfaendungsrechner" component={WzPfaendungsrechner} />
       <Route path="/werkzeuge/dispo-rechner" component={WzDispoRechner} />
       <Route path="/werkzeuge/mahngebuehren" component={WzMahngebuehren} />
+      <Route path="/werkzeuge/bonitaetsindex" component={WzBonitaetsindex} />
+      <Route path="/werkzeuge/verzugszinsen" component={WzVerzugszinsen} />
+      <Route path="/werkzeuge/skonto" component={WzSkonto} />
+      <Route path="/werkzeuge/firmenkarte" component={WzFirmenkarte} />
+      <Route path="/werkzeuge/firmenauskunft" component={WzFirmenauskunft} />
       <Route path="/werkzeuge/kartenkosten" component={WzKartenkosten} />
       <Route path="/werkzeuge/schuldenplan" component={WzSchuldenplan} />
       <Route path="/werkzeuge" component={WerkzeugeHub} />

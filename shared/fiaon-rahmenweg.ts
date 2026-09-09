@@ -128,7 +128,7 @@ export function rahmenwegAus(b: BereichEingang, o: RahmenwegOptionen = {}): Rahm
   }
 
   const s: Schritt[] = [];
-  const KURZ: Record<string, string> = { daten: "Ihre Angaben", erstzahlung: "Ihre erste Zahlung", startgespraech: "Ihr Startgespräch", anspruchs_check: "Ihr Anspruchs-Check", unterlagen: "Ihre Unterlagen", auskunft: "Ihre Bonitätsauskunft", analyse: "die Prüfung Ihrer Auskunft", erster_vorgang: "Ihr erstes Schreiben", konto_eroeffnet: "Ihr Girokonto", karte_beantragt: "Ihr Weg zu Konto und Karte" };
+  const KURZ: Record<string, string> = { daten: "Ihre Angaben", erstzahlung: "Ihre erste Zahlung", startgespraech: "Ihr Startgespräch", anspruchs_check: "Ihre Selbstauskunft", unterlagen: "Ihre Unterlagen", auskunft: "Ihre Bonitätsauskunft", analyse: "die Prüfung Ihrer Auskunft", erster_vorgang: "Ihr erstes Schreiben", konto_eroeffnet: "Ihr Girokonto", karte_beantragt: "Ihr Weg zu Konto und Karte" };
   const ok = (key: string, titel: string, erledigt: boolean, am: string | null, textOffen: string, wer: Wer, aktion: string | null, href: string | null, extra?: Partial<Schritt>) => {
     s.push({ key, titel, kurz: KURZ[key] ?? (key.startsWith("rate_") ? `Rate ${key.slice(5)}` : titel), stand: erledigt ? "erledigt" : "kommt", am: erledigt ? am : null, text: textOffen, wer: erledigt ? null : wer, aktion: erledigt ? null : aktion, href: erledigt ? null : href, ...extra });
   };
@@ -142,12 +142,13 @@ export function rahmenwegAus(b: BereichEingang, o: RahmenwegOptionen = {}): Rahm
   const startFertig = !!b.onboardingGelaufen || !!b.fahrplan?.some((e) => e.key === "start" && e.stand === "fertig");
   const terminIso = b.termin?.beginn ? String(b.termin.beginn).slice(0, 10) : null;
   const terminGebucht = !!terminIso && terminIso >= heute && b.termin!.status !== "abgesagt" && b.termin!.status !== "verpasst";
-  ok("startgespraech", "Startgespräch geführt", startFertig, datum("start"),
-    terminGebucht ? "Ihr Termin steht. Halten Sie Ihr Handy bereit – wir rufen zur gebuchten Zeit an." : "Am Telefon gehen wir Ihre Akte durch und prüfen Ihre Ansprüche.",
-    terminGebucht ? "fiaon" : "kunde", terminGebucht ? null : "Zeit wählen", terminGebucht ? null : "startgespraech");
-  // 4 · Anspruchs-Check
+  // 09.09.2026 (E-168, Team-Feedback Punkt 8): Die Selbstauskunft kommt VOR dem Startgespräch —
+  // der Kunde trägt seine Angaben beim ersten Einstieg selbst ein, das Gespräch fragt sie nicht ab.
   const checkOk = !!o.check && o.check.gesamt > 0 && o.check.beantwortet >= o.check.gesamt;
-  ok("anspruchs_check", "Ansprüche geprüft", checkOk, null, "Zehn Fragen – danach steht, was Sie beantragen können.", "kunde", "Anspruchs-Check starten", "/ansprueche/check");
+  ok("anspruchs_check", "Selbstauskunft ausgefüllt", checkOk, null, "Angaben zu Ihrer persönlichen und finanziellen Situation – in Ruhe selbst eingetragen, nicht am Telefon abgefragt. Danach steht, was Sie beantragen können.", "kunde", "Selbstauskunft ausfüllen", "/ansprueche/check");
+  ok("startgespraech", "Startgespräch geführt", startFertig, datum("start"),
+    terminGebucht ? "Ihr Termin steht. Halten Sie Ihr Handy bereit – wir rufen zur gebuchten Zeit an." : "Am Telefon gehen wir Ihre Akte und Ihre Selbstauskunft gemeinsam durch.",
+    terminGebucht ? "fiaon" : "kunde", terminGebucht ? null : "Zeit wählen", terminGebucht ? null : "startgespraech");
   // 5 · Unterlagen
   const u = b.unterlagen;
   const unterlagenOk = !!u.ausweis && (!!u.kontoauszug || !!b.kontoVerbunden) && !u.erneutAusweis && !u.erneutKontoauszug;

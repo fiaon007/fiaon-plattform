@@ -105,10 +105,12 @@ export function Ansprueche({ kundeRef, demo, startCheck = false, onFertig, anspr
 
       {n < FRAGEN.length && (
         <div className="ap-karte ap-auf v1">
-          <div className="ap-karte-kopf"><h3>Anspruchs-Check</h3><span className="ap-stempel">{n} von {FRAGEN.length} Fragen</span></div>
-          <p>{n === 0 ? "Zehn kurze Fragen, eine nach der anderen. Am Ende steht, was Sie beantragen können." : "Noch nicht alle Fragen sind beantwortet. Je vollständiger, desto genauer die Liste."}</p>
+          {/* 09.09.2026 (E-168, Team-Feedback Punkt 8): „Selbstauskunft – Angaben zu Ihrer persönlichen
+              und finanziellen Situation." Der Kunde trägt sie selbst ein — nicht mehr am Telefon abgefragt. */}
+          <div className="ap-karte-kopf"><h3>Selbstauskunft</h3><span className="ap-stempel">{n} von {FRAGEN.length} Fragen</span></div>
+          <p>{n === 0 ? `Angaben zu Ihrer persönlichen und finanziellen Situation – ${FRAGEN.length} kurze Fragen, eine nach der anderen, in Ruhe und nur für Ihre Akte. Am Ende steht, was Sie beantragen können.` : "Noch nicht alle Fragen sind beantwortet. Je vollständiger, desto genauer die Liste."}</p>
           <div className="ap-stufen hell" style={{ marginTop: 12 }}>{FRAGEN.map((f) => <span key={f.schluessel} className={`ap-stufe ${a[f.schluessel] !== undefined && a[f.schluessel] !== null ? "fertig" : ""}`} />)}</div>
-          <button type="button" className="ap-knopf" style={{ marginTop: 14 }} onClick={() => setFragen(true)}>{n === 0 ? "Check starten" : "Weiter beantworten"}</button>
+          <button type="button" className="ap-knopf" style={{ marginTop: 14 }} onClick={() => setFragen(true)}>{n === 0 ? "Selbstauskunft ausfüllen" : "Weiter beantworten"}</button>
         </div>
       )}
 

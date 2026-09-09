@@ -171,7 +171,10 @@ export const AGENDA: AgendaSchritt[] = [
   // ═════════════════════════════════════════════════════════════════════
   {
     key: "ansprueche",
-    titel: "Ansprüche prüfen",
+    // 09.09.2026 (E-168, Team-Feedback Punkt 8): „Das Gespräch sollte nicht wie ein Bewerbungs-
+    // oder Verhörgespräch wirken." Die Angaben trägt der Kunde selbst in seinem Bereich ein
+    // (Selbstauskunft, vor dem Startgespräch); hier wird nur geklärt, ob sie vorliegen.
+    titel: "Selbstauskunft",
     // ── WARUM DIESER ZWECK-SATZ NEUTRAL IST ─────────────────────────────
     // `zweck` bleibt nicht intern: client/src/pages/site/plattform-konzept.tsx
     // rendert Titel und Zweck jedes Agenda-Schritts ÖFFENTLICH (/plattform-konzept
@@ -182,14 +185,14 @@ export const AGENDA: AgendaSchritt[] = [
     // Liste kann leer sein, das Cockpit hat dafür einen eigenen Leerzustand.
     // Die Anweisungen an den Mitarbeiter stehen in `punkte`; die liest keine
     // öffentliche Seite.
-    zweck: "Fragen zu Konto, Einkommen und Verträgen — danach steht in der Akte und im Kundenbereich dieselbe Liste dessen, was sich beantragen lässt. Über den Betrag entscheidet die zuständige Stelle.",
+    zweck: "Der Kunde trägt seine Angaben zu Konto, Einkommen und Verträgen selbst in seinem Bereich ein — daraus entsteht dieselbe Liste dessen, was sich beantragen lässt. Über den Betrag entscheidet die zuständige Stelle.",
     punkte: [
-      "Die Fragen stehen unten im Schritt, eine nach der anderen. Jede Antwort ist sofort gespeichert — auch wenn das Gespräch abbricht.",
-      "Was schon im Antrag steht, liest du vor und fragst: „Stimmt das noch?“ Erst wenn er widerspricht, änderst du es. Nichts doppelt erheben.",
-      "Am Ende die Liste vorlesen — Punkt, Betrag, Stelle. Wortlaut: „Das können Sie beantragen. Über den Betrag entscheidet die Stelle.“",
+      "Nichts abfragen. Die Selbstauskunft füllt der Kunde selbst in seinem Bereich aus (Startseite → „Selbstauskunft“) — in Ruhe, nicht am Telefon.",
+      "Liegt sie vor, siehst du die Antworten unten. Kurz bestätigen, nicht vorlesen. Fehlt sie, sag ihm, dass sie in seinem Bereich auf ihn wartet und wofür sie gut ist.",
+      "Fragt er, was dabei herauskommt: „Das können Sie beantragen. Über den Betrag entscheidet die Stelle.“",
     ],
     notizPflicht: false,
-    notizFrage: "Was ist herausgekommen, und was hat der Kunde dazu gesagt?",
+    notizFrage: "Liegt die Selbstauskunft vor, oder macht der Kunde sie nach dem Gespräch?",
   },
   // 07.09.2026 (TFO-Prüfung Scheibe 7): „Ansprüche prüfen“ steht VOR dem Abschluss —
   // die Agenda endet mit dem Abschluss (Prüfstand pruef-onboarding-pflicht), und ein

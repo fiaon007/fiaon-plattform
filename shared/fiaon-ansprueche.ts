@@ -27,7 +27,12 @@
 /** Die zehn Fragen — eine sichtbar zur Zeit, Schaltflächen unten. */
 export type FrageSchluessel =
   | "p_konto" | "pfaendung" | "unterhalt" | "familienstand" | "netto_cents"
-  | "warmmiete_cents" | "haushalt" | "sozialleistung" | "rundfunk_gezahlt" | "kfz_handy";
+  | "warmmiete_cents" | "haushalt" | "sozialleistung" | "rundfunk_gezahlt" | "kfz_handy"
+  // 09.09.2026 (E-168, Team-Feedback Punkt 8): Die Selbstauskunft im Kundenbereich ersetzt die
+  // Abfrage im Startgespräch — dafür fehlten Girokonto, frühere Pfändung, Kinder, Unterhalt in Euro,
+  // weitere Einkünfte, feste Ausgaben und laufende Kredite/Finanzierungen/Leasing.
+  | "girokonto" | "pfaendung_frueher" | "kinder" | "unterhalt_cents"
+  | "einkuenfte_weitere_cents" | "ausgaben_cents" | "kredite";
 
 export type FrageArt = "ja_nein" | "zahl" | "betrag" | "wahl" | "mehrfach";
 
@@ -45,14 +50,23 @@ export interface Frage {
 }
 
 export const FRAGEN: readonly Frage[] = [
+  { schluessel: "girokonto", art: "ja_nein", text: "Haben Sie ein eigenes Girokonto?", warum: "Ohne Girokonto lässt sich kein Pfändungsschutzkonto einrichten – und viele Anträge brauchen eine Kontoverbindung." },
   { schluessel: "p_konto", art: "ja_nein", text: "Ist Ihr Girokonto ein Pfändungsschutzkonto (P-Konto)?", warum: "Auf einem P-Konto ist ein fester Betrag im Monat vor Pfändungen geschützt." },
   { schluessel: "pfaendung", art: "ja_nein", text: "Läuft aktuell eine Pfändung auf Ihrem Konto oder Lohn?", warum: "Dann zählt jeder Tag – die Umwandlung in ein P-Konto muss die Bank binnen vier Geschäftstagen vornehmen." },
+  { schluessel: "pfaendung_frueher", art: "ja_nein", text: "Gab es in der Vergangenheit schon einmal eine Pfändung – auf dem Konto oder beim Lohn?", warum: "Frühere Pfändungen wirken in Auskünften oft nach. Das gehört in die Prüfung Ihrer Akte." },
   { schluessel: "unterhalt", art: "zahl", text: "Für wie viele Personen zahlen Sie Unterhalt oder versorgen sie in Ihrem Haushalt (Kinder, Ehepartner)?", warum: "Je unterhaltsberechtigter Person steigt der geschützte Betrag auf dem P-Konto.", ausAntrag: true },
+  { schluessel: "kinder", art: "zahl", text: "Wie viele Kinder leben in Ihrem Haushalt?", warum: "Kinder erhöhen Freibeträge und wirken auf Wohngeld." },
+  { schluessel: "unterhalt_cents", art: "betrag", text: "Wie viel Unterhalt zahlen Sie im Monat? (0, wenn keinen)", warum: "Unterhaltszahlungen mindern das Einkommen, das bei Freibeträgen und Anträgen zählt." },
   { schluessel: "familienstand", art: "wahl", text: "Wie ist Ihr Familienstand?", warum: "Wirkt auf Freibeträge und auf einige Anträge.", ausAntrag: true, optionen: [
     { wert: "ledig", text: "Ledig" }, { wert: "verheiratet", text: "Verheiratet / Lebenspartnerschaft" }, { wert: "getrennt", text: "Getrennt lebend / geschieden" }, { wert: "verwitwet", text: "Verwitwet" },
   ] },
   { schluessel: "netto_cents", art: "betrag", text: "Wie hoch ist Ihr monatliches Nettoeinkommen (alle Einkünfte zusammen)?", warum: "Grundlage für Wohngeld und für den geschützten Betrag bei Lohnpfändung.", ausAntrag: true },
+  { schluessel: "einkuenfte_weitere_cents", art: "betrag", text: "Haben Sie weitere Einkünfte im Monat – Nebenjob, Rente, Kindergeld? Wenn ja, wie viel? (0, wenn keine)", warum: "Alle Einkünfte zusammen ergeben die Grundlage für Wohngeld und Freibeträge." },
   { schluessel: "warmmiete_cents", art: "betrag", text: "Wie hoch ist Ihre Warmmiete im Monat?", warum: "Wohngeld richtet sich nach Miete, Einkommen und Haushaltsgröße.", ausAntrag: true },
+  { schluessel: "ausgaben_cents", art: "betrag", text: "Wie hoch sind Ihre weiteren festen Ausgaben im Monat – Strom, Versicherungen, Handy, Abos?", warum: "So sehen wir, was Ihnen am Monatsende bleibt – und wo sich etwas sparen lässt." },
+  { schluessel: "kredite", art: "mehrfach", text: "Laufen bei Ihnen Kredite, Finanzierungen oder Leasingverträge?", warum: "Laufende Verträge gehören in die Übersicht Ihrer Akte – manche lassen sich neu ordnen.", optionen: [
+    { wert: "ratenkredit", text: "Ratenkredit" }, { wert: "finanzierung", text: "Finanzierung (z. B. Möbel, Handy, Auto)" }, { wert: "leasing", text: "Leasing" }, { wert: "keine", text: "Nichts davon" },
+  ] },
   { schluessel: "haushalt", art: "zahl", text: "Wie viele Personen leben in Ihrem Haushalt – Sie eingerechnet?", warum: "Wohngeld und Rundfunkbeitrag werden je Wohnung bzw. Haushalt betrachtet.", ausAntrag: true },
   { schluessel: "sozialleistung", art: "ja_nein", text: "Beziehen Sie Bürgergeld, Grundsicherung, Hilfe zum Lebensunterhalt oder BAföG?", warum: "Wer eine dieser Leistungen bezieht, kann sich vom Rundfunkbeitrag befreien lassen – nur auf Antrag.", ausAntrag: true },
   { schluessel: "rundfunk_gezahlt", art: "ja_nein", text: "Zahlen Sie derzeit den Rundfunkbeitrag (18,36 € im Monat)?", warum: "Eine Befreiung wirkt bis zu drei Jahre rückwirkend – aber nur, wenn sie beantragt wird." },
@@ -73,6 +87,13 @@ export interface Antworten {
   sozialleistung?: boolean;
   rundfunk_gezahlt?: boolean;
   kfz_handy?: string[];
+  girokonto?: boolean;
+  pfaendung_frueher?: boolean;
+  kinder?: number;
+  unterhalt_cents?: number;
+  einkuenfte_weitere_cents?: number;
+  ausgaben_cents?: number;
+  kredite?: string[];
 }
 
 export type Kategorie = "schutz" | "befreiung" | "vertrag" | "pruefung";

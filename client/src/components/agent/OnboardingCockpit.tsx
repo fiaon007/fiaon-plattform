@@ -595,15 +595,14 @@ export function OnboardingCockpit({
                   {auf && (
                     <div className="fi-ob-schritt-koerper">
                       <p className="fi-ob-zweck">{a.zweck}</p>
-                      {/* ── 06.09.2026 (Scheibe 7, Modul A) ─────────────────
-                          Beim Anspruchs-Check stehen statt der Stichpunkte die
-                          zehn Fragen: Dieser Schritt IST das Werkzeug, nicht
-                          seine Beschreibung. Die Stichpunkte aus der Agenda
-                          stehen weiter in der Academy — dort werden sie
-                          gelernt, hier wird gearbeitet. */}
+                      {/* ── 09.09.2026 (E-168, Punkt 8) ──────────────────────
+                          Die Selbstauskunft füllt der Kunde selbst aus. Hier
+                          stehen nur seine Antworten (SelbstauskunftStand) —
+                          das Abfragen im Gespräch ist weg; auf ausdrücklichen
+                          Wunsch des Kunden lässt sich nachtragen. */}
                       {a.key === "ansprueche" ? (
-                        <AnspruchsCheck personId={termin.personId} terminId={termin.id}
-                                        onStand={anspruecheStandMelden} />
+                        <SelbstauskunftStand personId={termin.personId} terminId={termin.id}
+                                             onStand={anspruecheStandMelden} />
                       ) : (
                         <ul className="fi-ob-punkte">
                           {a.punkte.map((punkt) => <li key={punkt}>{punkt}</li>)}
@@ -769,6 +768,64 @@ function alsDaten(j: any): CheckDaten {
     vorbelegung: (j?.vorbelegung ?? {}) as Record<string, { wert: unknown; herkunft: string; feld: string }>,
     hinweise: (j?.hinweise ?? {}) as Record<string, string>,
   };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SELBSTAUSKUNFT — ZEIGEN, NICHT ABFRAGEN (09.09.2026, E-168, Team-Feedback Punkt 8)
+//
+// Florentine: „Das Gespräch sollte nicht wie ein Bewerbungs- oder Verhörgespräch
+// wirken. Außerdem sind einige dieser Angaben sehr privat." Der Kunde trägt die
+// Angaben selbst in seinem Bereich ein (Selbstauskunft, vor dem Startgespräch).
+// Hier steht nur, was vorliegt — und ein Nachtrag-Weg für den Fall, dass der
+// Kunde am Telefon ausdrücklich darum bittet, dass der Mitarbeiter es einträgt.
+// ═══════════════════════════════════════════════════════════════════════════
+function SelbstauskunftStand({ personId, terminId, onStand }: {
+  personId: number; terminId: number; onStand: (beantwortet: number, gesamt: number) => void;
+}) {
+  const [daten, setDaten] = useState<CheckDaten | null>(null);
+  const [fehler, setFehler] = useState<string | null>(null);
+  const [nachtragen, setNachtragen] = useState(false);
+  useEffect(() => {
+    let weg = false;
+    void fetch(`/api/fiaon/agent/app/ansprueche/${personId}`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((j) => {
+        if (weg) return;
+        if (!j?.ok) { setFehler(j?.error || "Die Selbstauskunft lässt sich gerade nicht laden."); return; }
+        setDaten(alsDaten(j));
+      })
+      .catch(() => { if (!weg) setFehler("Die Selbstauskunft lässt sich gerade nicht laden."); });
+    return () => { weg = true; };
+  }, [personId]);
+  useEffect(() => { if (daten) onStand(daten.beantwortet, daten.gesamt); }, [daten, onStand]);
+  if (nachtragen) return <AnspruchsCheck personId={personId} terminId={terminId} onStand={onStand} />;
+  if (fehler) return <p className="fi-ac-hinweis">{fehler}</p>;
+  if (!daten) return <p className="fi-ac-hinweis">Lade …</p>;
+  const beantwortet = FRAGEN.filter((q) => istDa(daten.antworten[q.schluessel]));
+  return (
+    <div className="fi-ac">
+      <p className="fi-ac-hinweis">
+        {daten.beantwortet === 0
+          ? "Der Kunde hat seine Selbstauskunft noch nicht ausgefüllt. Sie wartet in seinem Bereich auf der Startseite — sag ihm, dass er sie in Ruhe nach dem Gespräch machen kann. Nichts abfragen."
+          : daten.beantwortet < daten.gesamt
+            ? `${daten.beantwortet} von ${daten.gesamt} Fragen sind beantwortet. Der Rest wartet in seinem Bereich — nicht am Telefon nachfragen.`
+            : "Die Selbstauskunft liegt vollständig vor. Kurz bestätigen, nicht vorlesen."}
+      </p>
+      {beantwortet.length > 0 && (
+        <ul className="fi-ob-punkte">
+          {beantwortet.map((q) => <li key={q.schluessel}><b>{q.text}</b> — {antwortText(q, daten.antworten[q.schluessel])}</li>)}
+        </ul>
+      )}
+      <p className="fi-ac-wortlaut">
+        <b>Wenn er fragt, was dabei herauskommt</b>
+        „Das können Sie beantragen. Über den Betrag entscheidet die Stelle.“
+      </p>
+      <button type="button" className="fi-ob-knopf-still" onClick={() => setNachtragen(true)}
+              title="Nur wenn der Kunde ausdrücklich darum bittet, dass du seine Angaben einträgst.">
+        Antworten auf Wunsch des Kunden eintragen
+      </button>
+    </div>
+  );
 }
 
 function AnspruchsCheck({ personId, terminId, onStand }: {

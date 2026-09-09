@@ -5,6 +5,22 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 09.09.2026 — Team-Feedback 08.09. (E-168, Etappe 2): Selbstauskunft im Kundenbereich statt Abfrage im Startgespräch
+
+**Was geändert wurde:** shared/fiaon-ansprueche.ts: sieben neue Fragen (girokonto, pfaendung_frueher, kinder,
+unterhalt_cents, einkuenfte_weitere_cents, ausgaben_cents, kredite) — Typen `FrageSchluessel`/`Antworten` erweitert,
+Befunde unverändert. Kundenbereich: die Karte heißt „Selbstauskunft“ (Bausteine.tsx), der Schritt steht im Kundenweg
+VOR dem Startgespräch (fiaon-rahmenweg.ts) und die Startseite zeigt beim ersten Einstieg das Band „Ihre
+Selbstauskunft … ausfüllen“ (Heute.tsx). Startgespräch: Agenda-Schritt „Selbstauskunft“ fragt nichts mehr ab
+(fiaon-onboarding-agenda.ts); das Cockpit zeigt nur die Antworten des Kunden (SelbstauskunftStand) mit Nachtrag-Weg
+auf ausdrücklichen Kundenwunsch.
+**Warum:** Florentine (08.09., Punkt 8): „Das Gespräch sollte nicht wie ein Bewerbungs- oder Verhörgespräch wirken.
+Außerdem sind einige dieser Angaben sehr privat.“ Die Daten liegen strukturiert im Kundenkonto (fiaon_anspruch_antworten,
+quelle 'kunde') statt mündlich abgefragt.
+**Wo:** Kundenbereich → Startseite/Weg/Selbstauskunft; Onboarding → Startgespräch-Cockpit; Register E-168.
+
+---
+
 ## 09.09.2026 — Team-Feedback 08.09. (E-168, Etappe 1): Pipeline links/rechts, Ratenergebnis → Person, Ablehnung stoppt Automatik, Startgespräch bleibt geführt, Support-Termin, Mail von Hand vor Automatik
 
 **Was geändert wurde:**

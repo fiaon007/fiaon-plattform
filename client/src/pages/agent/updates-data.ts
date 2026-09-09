@@ -98,6 +98,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
       "„Erreicht — abgelehnt“ stoppt jetzt systemweit: keine automatischen Zahlungserinnerungen mehr, keine Werbung, Vermerk im Verlauf.",
       "E-Mails, die ihr von Hand schickt, gehen immer raus — die Tages-, Wochen- und Monatsdeckel bremsen nur die Automatik. Und die Automatik versucht eine gebremste Mail erst nach 20 Stunden wieder, statt jede Stunde „Fehlgeschlagen“ zu schreiben.",
       "Der Menüpunkt „Nicht erreicht“ ist weg — diese Menschen stehen rechts in der Pipeline, sobald sie fällig sind.",
+      "Startgespräch: „Ansprüche prüfen“ heißt jetzt „Selbstauskunft“ und fragt nichts mehr ab. Der Kunde füllt sie selbst in seinem Bereich aus (Startseite, vor dem Startgespräch) — im Cockpit siehst du nur seine Antworten. Neue Fragen: Girokonto, frühere Pfändung, Kinder, Unterhalt in Euro, weitere Einkünfte, feste Ausgaben, Kredite/Finanzierung/Leasing.",
     ],
     howto: [
       "Pipeline öffnen: links zuerst anrufen, dann rechts. Die kleine Zeile über dem Namen sagt, warum jemand dort steht.",

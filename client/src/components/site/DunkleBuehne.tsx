@@ -4,12 +4,17 @@
 // Jede Seite: Hero → viele kurze Blöcke mit Mehrwert → Zwischen-CTAs →
 // Abschluss, der den Zusammenhang zur Startseite und zum nächsten Schritt zieht.
 // ═══════════════════════════════════════════════════════════════════════════
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode, lazy, Suspense } from "react";
 import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
-import NeuralSphere from "@/components/home3d/NeuralSphere";
-import WellenFeld from "@/components/site/WellenFeld";
-import { seoSeite } from "@shared/fiaon-seo-seiten";
+// 03.09.2026 (E-092): Die beiden Szenen werden NACHgeladen. Sie ziehen three.js
+// (520 kB) hinter sich her; weil die Bühne auf jeder öffentlichen Seite steht,
+// lag die Bibliothek vorher im kritischen Pfad — der Browser musste sie laden,
+// bevor er den ersten Text zeigen konnte. Jetzt erscheint zuerst die Seite,
+// die Szene kommt danach. Der Platzhalter hält die Fläche, damit nichts springt.
+const NeuralSphere = lazy(() => import("@/components/home3d/NeuralSphere"));
+const WellenFeld = lazy(() => import("@/components/site/WellenFeld"));
+import { seoKurz as seoSeite } from "@shared/fiaon-seo-kurz";
 import "@/styles/dunkel.css";
 
 type Seite = "startseite" | "investoren" | "karriere" | "presse" | "partner" | "datenraum" | "team" | "demo" | "ratgeber" | "login" | "privatkunden" | "kontakt" | "business" | "plattform-konzept" | "was-ist-fiaon";
@@ -234,7 +239,7 @@ export function Zwischenruf({ text, knopf, href, still }: { text: ReactNode; kno
 export function Abschluss({ titel, text, knoepfe }: { titel: ReactNode; text: ReactNode; knoepfe: ReactNode }) {
   return (
     <section className="dk-abschluss">
-      <div className="szene"><NeuralSphere variant="calm" className="absolute inset-0" /></div>
+      <div className="szene"><Suspense fallback={null}><NeuralSphere variant="calm" className="absolute inset-0" /></Suspense></div>
       <div className="schleier" />
       <div className="dk-rahmen schmal mitte" style={{ position: "relative" }}>
         <Auf>
@@ -335,7 +340,7 @@ export function Szenenbild({ src, titel, text, tief = false }: { src: string; ti
 function Welle({ unten = false }: { unten?: boolean }) {
   return (
     <div className={`dk-welle${unten ? " unten" : ""}`} aria-hidden="true">
-      <WellenFeld unten={unten} />
+      <Suspense fallback={null}><WellenFeld unten={unten} /></Suspense>
     </div>
   );
 }

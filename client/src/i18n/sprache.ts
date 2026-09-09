@@ -9,7 +9,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useLocation } from "wouter";
 import { spracheVonPfad, type Sprache } from "@shared/fiaon-sprache";
-import { schwesterPfad } from "@shared/fiaon-seo-seiten";
+import { schwesterKurz as schwesterPfad } from "@shared/fiaon-seo-kurz";
 
 export function useSprache(): Sprache {
   const [pfad] = useLocation();

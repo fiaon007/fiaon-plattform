@@ -7,7 +7,7 @@
 const de = {
   metaTitel: "Team",
   metaBeschreibung: "Das Team hinter FIAON: Justin Schwarzott (Gründer), Florentine Lombardi (Menschen & Onboarding), Daniel Stripling (Vertrieb) – und Schwarzott Capital Partners AG als Investor.",
-  pille: "Team", h1a: "Ein junges Legal- und FinTech ", h1b: "auf dem Weg zum Unicorn.",
+  pille: "Team", h1a: "Ein junges Legal- und FinTech auf dem ", h1b: "Weg zum Unicorn.",
   lead: "FIAON ist ein Team aus Vertrieb, Onboarding und Forderungsmanagement – und drei Gesellschaftern, die selbst im Betrieb stehen. Wir bauen das Betriebssystem für Bonität in Deutschland, Österreich und der Schweiz: Einsicht, Aktion, Zugang für 100 Millionen Menschen. Und wir suchen Menschen, die das mit uns bauen.",
   kontakt: "Kontakt aufnehmen", teilWerden: "Teil des Teams werden",
   szeneNamen: ["Vertrieb", "Onboarding", "Betreuung"],
@@ -58,7 +58,7 @@ const de = {
 const en: typeof de = {
   metaTitel: "Team",
   metaBeschreibung: "The team behind FIAON: Justin Schwarzott (founder), Florentine Lombardi (people & onboarding), Daniel Stripling (sales) — and Schwarzott Capital Partners AG as investor.",
-  pille: "Team", h1a: "A young legal and fintech company ", h1b: "on its way to becoming a unicorn.",
+  pille: "Team", h1a: "A young legal and fintech company on its way to ", h1b: "becoming a unicorn.",
   lead: "FIAON is a team in sales, onboarding and collections — and three shareholders who work in the business themselves. We are building the operating system for creditworthiness in Germany, Austria and Switzerland: insight, action, access for 100 million people. And we are looking for people to build it with us.",
   kontakt: "Get in touch", teilWerden: "Join the team",
   szeneNamen: ["Sales", "Onboarding", "Support"],

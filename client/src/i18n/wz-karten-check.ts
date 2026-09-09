@@ -3,7 +3,7 @@ export interface KcErgebnis { stufe: string; titel: string; text: string; schrit
 const de = {
   metaTitel: "Karten-Check · Welche Kreditkarte ist für mich realistisch?",
   metaBeschreibung: "Kostenlos, ohne Anmeldung: Fünf Angaben – eine ehrliche Einschätzung, welcher Kartenweg heute realistisch ist (Debit, Prepaid, Rahmen) und was den nächsten Schritt öffnet.",
-  pille: "Werkzeug · kostenlos, ohne Anmeldung", h1a: "Welche Karte ist ", h1b: "realistisch?",
+  pille: "Werkzeug · kostenlos, ohne Anmeldung", h1a: "Welche Karte für Sie ", h1b: "realistisch ist",
   lead: "Fünf Angaben, keine Anfrage bei einer Auskunftei, keine Spur im Score – nur eine ehrliche Einordnung und der nächste Schritt.",
   frageVon: (i: number, n: number) => `Frage ${i} von ${n}`,
   fragen: [
@@ -26,7 +26,7 @@ const de = {
 const en: typeof de = {
   metaTitel: "Card check · Which credit card is realistic for me?",
   metaBeschreibung: "Free, no sign-up: five details – an honest assessment of which card route is realistic today (debit, prepaid, credit limit) and what opens the next step.",
-  pille: "Tool · free, no sign-up", h1a: "Which card is ", h1b: "realistic?",
+  pille: "Tool · free, no sign-up", h1a: "Which card is ", h1b: "realistic for you today?",
   lead: "Five details, no enquiry at a credit bureau, no trace in your score – just an honest assessment and the next step.",
   frageVon: (i, n) => `Question ${i} of ${n}`,
   fragen: [

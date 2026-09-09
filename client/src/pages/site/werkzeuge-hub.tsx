@@ -11,7 +11,7 @@
 import { useEffect } from "react";
 import { Dunkel, Block, Licht, Knopf, Zwischenruf, Fragen, Auf } from "@/components/site/DunkleBuehne";
 import SeoDaten from "@/components/site/SeoDaten";
-import { SEO_WERKZEUGE, SEO_WERKZEUGE_EN } from "@shared/fiaon-seo-seiten";
+import { WERKZEUGE_KURZ as SEO_WERKZEUGE, WERKZEUGE_KURZ_EN as SEO_WERKZEUGE_EN } from "@shared/fiaon-seo-kurz";
 import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
 import { WZ_HUB_WOERTER } from "@/i18n/wz-hub";
 import "@/styles/ratgeber.css";

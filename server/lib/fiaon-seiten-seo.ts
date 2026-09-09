@@ -34,6 +34,7 @@ import {
   SEO_BASIS, SEO_NAV, SEO_FUSS, SEO_WERKZEUGE, SEO_WERKZEUGE_EN, SEO_GLOSSAR, SEO_GLOSSAR_EN,
   seoSeite, seoFragen, seoIndexierbar, type SeoSeite, schwesterPfad } from "@shared/fiaon-seo-seiten";
 import { EN_NAV, EN_FUSS, type Sprache } from "../../shared/fiaon-sprache";
+import { beschreibungKuerzen as kuerzen } from "../../shared/fiaon-pixel";
 
 export const BASIS = SEO_BASIS;
 
@@ -59,13 +60,7 @@ export function indexHtml(): string | null {
 }
 
 /** Meta-Description auf Google-Länge kürzen — am Wortende, ohne Satzfetzen. */
-export function beschreibungKuerzen(text: string, max = 155): string {
-  const t = String(text ?? "").replace(/\s+/g, " ").trim();
-  if (t.length <= max) return t;
-  const kurz = t.slice(0, max - 1);
-  const schnitt = Math.max(kurz.lastIndexOf(". "), kurz.lastIndexOf(", "), kurz.lastIndexOf(" – "), kurz.lastIndexOf(" "));
-  return (schnitt > max * 0.6 ? kurz.slice(0, schnitt) : kurz).replace(/[,–\-\s]+$/, "") + "…";
-}
+export { beschreibungKuerzen } from "../../shared/fiaon-pixel";
 
 export function kopfEinsetzen(html: string, kopf: {
   titel: string; beschreibung: string; url: string; ld?: unknown[];
@@ -147,9 +142,9 @@ export function organisationLd(): Record<string, unknown> {
     image: `${BASIS}/og-fiaon.jpg`,
     description: "Das Betriebssystem für Bonität: Einsicht, Aktion, Zugang – in Deutschland, Österreich und der Schweiz.",
     address: { "@type": "PostalAddress", streetAddress: "128 City Road", addressLocality: "London", postalCode: "EC1V 2NX", addressCountry: "GB" },
-    contactPoint: [{ "@type": "ContactPoint", contactType: "customer support", telephone: "+41442449301", email: "support@fiaon.com", availableLanguage: ["de"], areaServed: ["DE", "AT", "CH"] }],
+    contactPoint: [{ "@type": "ContactPoint", contactType: "customer support", telephone: "+41442449301", email: "support@fiaon.com", availableLanguage: ["de", "en"], areaServed: ["DE", "AT", "CH"] }],
     areaServed: [{ "@type": "Country", name: "Deutschland" }, { "@type": "Country", name: "Österreich" }, { "@type": "Country", name: "Schweiz" }],
-    knowsLanguage: "de",
+    knowsLanguage: ["de", "en"],   // 03.09.2026: seit E-091 gibt es 56 englische Seiten.
     knowsAbout: ["Bonität", "SCHUFA", "KSV1870", "CRIF", "Bonitätsauskunft", "Löschfristen", "Inkasso", "Kreditkarte trotz Eintrag"],
     // sameAs bleibt leer, bis Justin die Profile freigibt (LinkedIn, Trustpilot,
     // ProvenExpert …). Ein leeres Feld ist besser als ein erfundenes.
@@ -165,8 +160,13 @@ function breadcrumbLd(s: SeoSeite): Record<string, unknown> {
 function strukturierteDaten(s: SeoSeite, url: string): unknown[] {
   const ld: unknown[] = [organisationLd()];
   const fragen = seoFragen(s.pfad);
-  if (s.pfad === "/") {
-    ld.push({ "@context": "https://schema.org", "@type": "WebSite", "@id": `${BASIS}/#website`, name: "FIAON", url: BASIS, inLanguage: "de", publisher: { "@id": `${BASIS}/#organisation` } });
+  // 03.09.2026 (E-092): Die Sprache stand hier fest auf „de" — auch auf den 56
+  // englischen Seiten. Das widersprach html lang="en" und og:locale en_GB, und
+  // Google liest beides. Jetzt folgt jede Angabe der Sprache der Seite.
+  const sprache = s.sprache === "en" ? "en" : "de";
+  const webseiteId = sprache === "en" ? `${BASIS}/en#website` : `${BASIS}/#website`;
+  if (s.pfad === "/" || s.pfad === "/en") {
+    ld.push({ "@context": "https://schema.org", "@type": "WebSite", "@id": webseiteId, name: "FIAON", url: sprache === "en" ? `${BASIS}/en` : BASIS, inLanguage: sprache, publisher: { "@id": `${BASIS}/#organisation` } });
   } else {
     ld.push(breadcrumbLd(s));
   }
@@ -174,15 +174,15 @@ function strukturierteDaten(s: SeoSeite, url: string): unknown[] {
     "@context": "https://schema.org",
     "@type": s.art === "pfeiler" ? "Article" : "WebPage",
     "@id": `${url}#seite`,
-    url, name: s.titel, headline: s.h1, description: s.beschreibung, inLanguage: "de",
-    dateModified: s.stand, isPartOf: { "@id": `${BASIS}/#website` },
+    url, name: s.titel, headline: s.h1, description: s.beschreibung, inLanguage: sprache,
+    dateModified: s.stand, isPartOf: { "@id": webseiteId },
     ...(s.art === "pfeiler" ? { author: { "@id": `${BASIS}/#organisation` }, publisher: { "@id": `${BASIS}/#organisation` }, mainEntityOfPage: url } : {}),
   });
   if (fragen.length) {
     ld.push({ "@context": "https://schema.org", "@type": "FAQPage", mainEntity: fragen.map((f) => ({ "@type": "Question", name: f.f, acceptedAnswer: { "@type": "Answer", text: f.a } })) });
   }
   if (s.werkzeug) {
-    ld.push({ "@context": "https://schema.org", "@type": "WebApplication", name: s.werkzeug, url, applicationCategory: "FinanceApplication", operatingSystem: "Web", inLanguage: "de", isAccessibleForFree: true, offers: { "@type": "Offer", price: "0", priceCurrency: "EUR" }, provider: { "@id": `${BASIS}/#organisation` } });
+    ld.push({ "@context": "https://schema.org", "@type": "WebApplication", name: s.werkzeug, url, applicationCategory: "FinanceApplication", operatingSystem: "Web", inLanguage: sprache, isAccessibleForFree: true, offers: { "@type": "Offer", price: "0", priceCurrency: "EUR" }, provider: { "@id": `${BASIS}/#organisation` } });
   }
   if ((s.pfad === "/werkzeuge" || s.pfad === "/en/tools")) {
     ld.push({ "@context": "https://schema.org", "@type": "ItemList", name: s.sprache === "en" ? "Free FIAON tools" : "Kostenlose FIAON-Werkzeuge", itemListElement: (s.sprache === "en" ? SEO_WERKZEUGE_EN : SEO_WERKZEUGE).map((w, i) => ({ "@type": "ListItem", position: i + 1, name: w.name, url: `${BASIS}${s.sprache === "en" ? (schwesterPfad(w.pfad, "en") ?? w.pfad) : w.pfad}` })) });
@@ -208,7 +208,12 @@ function weiterlesen(s: SeoSeite): string {
   const ziele = (s.weiter ?? []).map((p) => seoSeite(en ? (schwesterPfad(p, "en") ?? p) : p)).filter((z): z is SeoSeite => !!z);
   if (!ziele.length) return "";
   const titel = en ? "Read on" : "Weiterlesen";
-  return `<nav aria-label="${titel}"><h2>${titel}</h2><ul>${ziele.map((z) => `<li>${link(z.pfad, z.h1.replace(/\s+/g, " "))} – ${esc(z.beschreibung)}</li>`).join("")}</ul></nav>`;
+  // 03.09.2026 (E-092): NUR der Linktext. Vorher stand hinter jedem Link die
+  // vollständige Meta-Description der Zielseite — dieselben Sätze damit auf bis
+  // zu 26 Seiten. Der Seobility-Bericht vom 02.09. zählte daraus 781 Textblöcke,
+  // die auf mehr als einer Seite vorkommen; das war der einzelne größte
+  // Inhaltsfehler der Website. Eine Verweisliste ist Navigation, kein Inhalt.
+  return `<nav aria-label="${titel}"><h2>${titel}</h2><ul>${ziele.map((z) => `<li>${link(z.pfad, z.h1.replace(/\s+/g, " "))}</li>`).join("")}</ul></nav>`;
 }
 
 /** Navigation und Fußzeile, wie sie auf jeder gerenderten Seite stehen — auch für den Ratgeber. */
@@ -234,7 +239,16 @@ function korpus(s: SeoSeite): string {
   const abschnitte = (s.abschnitte ?? []).map((a) => `<section><h2>${esc(a.h2)}</h2><p>${esc(a.text)}</p>${a.punkte?.length ? `<ul>${a.punkte.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>` : ""}</section>`).join("");
   const werkzeuge = (s.pfad === "/werkzeuge" || s.pfad === "/en/tools") ? `<section><h2>${s.sprache === "en" ? "The twenty tools" : "Die zwanzig Werkzeuge"}</h2><ul>${(s.sprache === "en" ? SEO_WERKZEUGE_EN : SEO_WERKZEUGE).map((w) => `<li>${link(s.sprache === "en" ? (schwesterPfad(w.pfad, "en") ?? w.pfad) : w.pfad, w.name)} – ${esc(w.frage)} ${esc(w.satz)}</li>`).join("")}</ul></section>` : "";
   const glossar = (s.pfad === "/glossar-bonitaet" || s.pfad === "/en/credit-glossary") ? `<section><h2>${s.sprache === "en" ? "The terms" : "Die Begriffe"}</h2><dl>${(s.sprache === "en" ? SEO_GLOSSAR_EN : SEO_GLOSSAR).map((g) => `<dt>${esc(g.wort)}</dt><dd>${esc(g.text)}</dd>`).join("")}</dl></section>` : "";
-  const faq = fragen.length ? `<section><h2>${en ? "Frequently asked questions" : "Häufige Fragen"}</h2>${fragen.map((f) => `<h3>${esc(f.f)}</h3><p>${esc(f.a)}</p>`).join("")}</section>` : "";
+  // 03.09.2026 (E-092): Ab dreizehn Fragen wird eine Definitionsliste ausgeliefert
+  // statt einer Kette von H3. Das Hilfe-Center hat 36 Fragen; als Überschriften
+  // ergaben sie 46 Überschriften auf einer Seite — dieselbe Beanstandung wie im
+  // gerenderten DOM. Bis zwölf Fragen bleibt es bei H3, dort gliedern sie wirklich.
+  const faqTitel = en ? "Frequently asked questions" : "Häufige Fragen";
+  const faq = fragen.length
+    ? (fragen.length > 12
+      ? `<section><h2>${faqTitel}</h2><dl>${fragen.map((f) => `<dt>${esc(f.f)}</dt><dd>${esc(f.a)}</dd>`).join("")}</dl></section>`
+      : `<section><h2>${faqTitel}</h2>${fragen.map((f) => `<h3>${esc(f.f)}</h3><p>${esc(f.a)}</p>`).join("")}</section>`)
+    : "";
   return `<div class="vorab">${nav}<main>${krumen}<article><h1>${esc(s.h1)}</h1><p>${esc(s.lead)}</p>${abschnitte}${werkzeuge}${glossar}${faq}${weiterlesen(s)}</article></main>${fuss}</div>`;
 }
 
@@ -251,7 +265,7 @@ export function seitenHtml(pfad: string): string | null {
   const html = indexHtml();
   if (!html) return null;
   const url = `${BASIS}${s.canonical ?? (s.pfad === "/" ? "/" : s.pfad)}`;
-  const beschreibung = beschreibungKuerzen(s.beschreibung);
+  const beschreibung = kuerzen(s.beschreibung);
   const ld = s.robots?.includes("noindex") ? [organisationLd()] : strukturierteDaten(s, url);
   const sprache: Sprache = s.sprache === "en" ? "en" : "de";
   const absolut = (p: string) => `${BASIS}${p === "/" ? "/" : p}`;

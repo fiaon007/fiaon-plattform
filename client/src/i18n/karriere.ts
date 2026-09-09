@@ -5,7 +5,7 @@ export interface Bereich { key: string; name: string; kurz: string; tun: string[
 const de = {
   metaTitel: "Karriere bei FIAON",
   metaBeschreibung: "Arbeiten bei FIAON: fest angestellt oder frei, remote in Deutschland, Österreich und der Schweiz. Sieben Bereiche, ein Ziel – Bonität für 100 Millionen Menschen sichtbar und veränderbar machen.",
-  krume: "Karriere", pille: "Karriere bei FIAON", h1a: "Bauen Sie mit an dem, was 100 Millionen Menschen ", h1b: "bisher fehlt.",
+  krume: "Karriere", pille: "Karriere bei FIAON", h1a: "Bauen Sie mit an dem, was 100 Millionen ", h1b: "Menschen bisher fehlt.",
   lead: "FIAON ist ein junges, schnell wachsendes Start-up mit Sitz in London und Zürich und Kunden in Deutschland, Österreich und der Schweiz. Wir suchen immer Menschen, die Verantwortung wollen – fest angestellt oder frei, remote oder vor Ort.",
   bewerbungStarten: "Bewerbung starten", bereicheEntdecken: "Bereiche entdecken",
   kennzahlen: [

@@ -9,7 +9,7 @@ const de = {
   seoTitel: "FIAON Transparenzbericht: Zahlen mit Definition und Stand",
   seoBeschreibung: "Was FIAON misst und veröffentlicht: zahlende Kunden, bezahlte Raten, Länder, Werkzeuge, Ratgeber – bankbestätigt, mit Definition, Stand und Herkunft. Und was noch in Messung ist.",
   krume: "Transparenzbericht", stand: "2. September 2026",
-  pille: "Transparenzbericht · Stand 2. September 2026", h1a: "Zahlen, die man ", h1b: "nachrechnen kann.",
+  pille: "Transparenzbericht · Stand 2. September 2026", h1a: "Zahlen, die ", h1b: "man nachrechnen kann.",
   lead: "Kein Marktteilnehmer zeigt, wie viele Kunden wirklich bezahlt haben und wie viele Raten wirklich eingegangen sind. FIAON tut es – mit Definition, Stand und Herkunft. Und sagt, was noch nicht gemessen ist.",
   dieZahlen: "Die Zahlen", soArbeitet: "So arbeitet FIAON",
   zahlenLabels: ["zahlende Kunden, bankbestätigt", "bezahlte Monatsraten", "Kunden in DE · AT · CH", "Werkzeuge · Ratgeber"],

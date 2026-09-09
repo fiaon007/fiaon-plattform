@@ -61,7 +61,7 @@ const en: typeof de = {
   seoBeschreibung: "Deleting a SCHUFA entry: which entries can be challenged (Section 31 BDSG), all deletion periods as a table, the route in four steps with free tools.",
   artikel: "Deleting a SCHUFA entry: deadlines, rights and the route", krume: "Deleting a SCHUFA entry",
   howto: "Deleting a SCHUFA entry: the route in four steps",
-  pille: "Know your rights · use the deadlines", h1a: "Deleting a ", h1b: "SCHUFA entry.",
+  pille: "Know your rights · use the deadlines", h1a: "Not every entry is ", h1b: "allowed to stay.",
   lead: "Not every entry has to stay: many are wrongly reported, past their deadline or recorded without the legal requirements. Here are the rules, the deadlines and the route — step by step.",
   angreifbarTitel: "Which entries can be challenged", angreifbarLead: "Three points of attack that most often succeed in practice.",
   angreifbar: [

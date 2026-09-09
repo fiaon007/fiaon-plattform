@@ -56,7 +56,7 @@ const en: typeof de = {
   seoTitel: "About FIAON: history, milestones and principles",
   seoBeschreibung: "Why FIAON exists, who is behind it, what has happened since it was founded and what the company holds to: courtesy, no guarantees, every decision on record.",
   krume: "About FIAON",
-  pille: "About FIAON", h1a: "The place ", h1b: "nobody had taken.",
+  pille: "About FIAON", h1a: "The place nobody ", h1b: "had taken.",
   lead: "Score apps show a number. Banks decide. In between stood nobody — until FIAON. Here is why we exist, what has happened since we were founded and what we hold to. With data, not feelings.",
   meilensteineKnopf: "The milestones", teamKnopf: "The team",
   zahlen: [{ wert: "2025", label: "founded, FIAON LTD" }, { wert: "440+", label: "paying customers, bank-confirmed" }, { wert: "3", label: "countries: DE, AT, CH" }, { wert: "8", label: "people in the team" }],

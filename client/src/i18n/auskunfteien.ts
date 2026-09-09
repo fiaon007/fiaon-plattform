@@ -6,7 +6,7 @@ const de = {
   seoTitel: "SCHUFA, KSV1870, CRIF · Auskunfteien im Vergleich",
   seoBeschreibung: "Wer speichert was in Deutschland, Österreich und der Schweiz – Rechte, Löschfristen und Unterschiede, verständlich erklärt.",
   artikel: "Auskunfteien in DACH: SCHUFA, KSV1870 und CRIF im Vergleich", krume: "Auskunfteien im Vergleich",
-  pille: "Deutschland · Österreich · Schweiz", h1a: "Drei Länder, drei Regelwerke — ", h1b: "ein Überblick.",
+  pille: "Deutschland · Österreich · Schweiz", h1a: "Drei Länder, drei Regelwerke – ", h1b: "ein Überblick.",
   lead: "SCHUFA, KSV1870, CRIF: Wer was speichert, welche Rechte gelten und welche Fristen laufen. Wer die Unterschiede kennt, verschenkt keine Ansprüche.",
   systemeTitel: "Die drei Systeme", systemeLead: "Gleicher Zweck, verschiedene Regeln — die Unterschiede stecken in Fristen und Rechtsgrundlagen.",
   systeme: [
@@ -50,7 +50,7 @@ const en: typeof de = {
   seoTitel: "SCHUFA, KSV1870, CRIF · credit bureaus compared",
   seoBeschreibung: "Who stores what in Germany, Austria and Switzerland — rights, deletion deadlines and differences, explained clearly.",
   artikel: "Credit bureaus in DACH: SCHUFA, KSV1870 and CRIF compared", krume: "Credit bureaus compared",
-  pille: "Germany · Austria · Switzerland", h1a: "Three countries, three sets of rules — ", h1b: "one overview.",
+  pille: "Germany · Austria · Switzerland", h1a: "Three countries, three sets of rules – ", h1b: "one overview.",
   lead: "SCHUFA, KSV1870, CRIF: who stores what, which rights apply and which deadlines run. Anyone who knows the differences gives away no claims.",
   systemeTitel: "The three systems", systemeLead: "Same purpose, different rules — the differences lie in deadlines and legal bases.",
   systeme: [

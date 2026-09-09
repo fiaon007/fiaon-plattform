@@ -33,7 +33,7 @@ const en: typeof de = {
   metaBeschreibung: "Twenty free tools on SCHUFA, credit files and loans: request your data copy, check entries and deletion deadlines, loan and consolidation calculators, debt check. No sign-up, nothing is stored.",
   seoBeschreibung: "Twenty free tools on SCHUFA, credit files and loans — no sign-up, nothing is stored.",
   krume: "Tools", ldName: "FIAON tools",
-  pille: "Twenty tools · free, no sign-up", h1a: "First know, ", h1b: "then act.",
+  pille: "Twenty tools · free, no sign-up", h1a: "First know the facts, ", h1b: "then act.",
   lead: "Each tool answers a question that otherwise costs money or weeks. Everything runs in your browser — nothing is stored. Letters to German-speaking recipients are generated in German, ready to send.",
   gruppen: [
     { key: "eintrag", titel: "Entries and claims", satz: "Know what is stored — and what can go." },

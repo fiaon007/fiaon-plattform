@@ -6,7 +6,7 @@ const de = {
   metaBeschreibung: "Löschantrag und Widerspruch gegen einen SCHUFA-, KSV- oder CRIF-Eintrag in zwei Minuten: Grund wählen, Eckdaten eintragen, zwei fertige Schreiben. Kostenlos, nichts wird gespeichert.",
   seoTitel: "Löschantrag & Widerspruch gegen SCHUFA-Eintrag: Generator", seoBeschreibung: "Löschantrag nach Art. 17 DSGVO und Widerspruch nach § 31 BDSG in zwei Minuten: Grund wählen, Eckdaten eintragen, zwei fertige Schreiben. Kostenlos.",
   werkzeugName: "Widerspruch-Generator", krumeWerkzeuge: "Werkzeuge", krume: "Widerspruch-Generator",
-  pille: "Werkzeug · kostenlos, ohne Anmeldung", h1a: "Der Löschantrag, ", h1b: "fertig formuliert.",
+  pille: "Werkzeug · kostenlos, ohne Anmeldung", h1a: "Löschantrag und Widerspruch, ", h1b: "fertig formuliert.",
   lead: "Wählen Sie, was mit dem Eintrag nicht stimmt. Das Werkzeug schreibt den Antrag an die Auskunftei und die Aufforderung an den Gläubiger – mit den richtigen Paragrafen, Fristen und der Bitte um Nachweise.",
   gruende: [
     { key: "mahnung", titel: "Ohne zwei Mahnungen gemeldet", kurz: "Ich habe vor der Meldung keine zwei Mahnungen mit mindestens vier Wochen Abstand erhalten – oder keinen Hinweis, dass gemeldet wird." },

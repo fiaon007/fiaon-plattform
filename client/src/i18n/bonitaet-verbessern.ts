@@ -7,7 +7,7 @@ const de = {
   seoTitel: "Bonität verbessern · Die Hebel nach Wirkung geordnet",
   seoBeschreibung: "Welche Maßnahmen wirklich wirken, welche Monate brauchen und welche gar nichts bringen – mit 90-Tage-Plan und kostenlosen Werkzeugen.",
   artikel: "Bonität verbessern: Die Hebel nach Wirkung geordnet", krume: "Bonität verbessern",
-  pille: "Nach Wirkung geordnet · nicht nach Beliebtheit", h1a: "Bonität verbessern — ", h1b: "was wirklich wirkt.",
+  pille: "Nach Wirkung geordnet · nicht nach Beliebtheit", h1a: "Bonität verbessern – ", h1b: "was wirklich wirkt.",
   lead: "Die meisten Ratschläge zum Score sind Folklore. Hier stehen die Hebel in der Reihenfolge ihrer Wirkung — mit ehrlicher Angabe, wie lange jeder braucht.",
   grossTitel: "Die großen Hebel", grossLead: "Wirkung in Wochen bis Monaten — hier beginnt jede ernsthafte Verbesserung.",
   gross: [
@@ -54,7 +54,7 @@ const en: typeof de = {
   seoTitel: "Strengthening your credit file · the levers ranked by effect",
   seoBeschreibung: "Which measures really work, which take months and which achieve nothing at all — with a 90-day plan and free tools.",
   artikel: "Strengthening your credit file: the levers ranked by effect", krume: "Strengthening your credit file",
-  pille: "Ranked by effect · not by popularity", h1a: "Strengthening your credit file — ", h1b: "what really works.",
+  pille: "Ranked by effect · not by popularity", h1a: "Strengthening your credit file – ", h1b: "what really works.",
   lead: "Most advice about the score is folklore. Here the levers are in order of their effect — with an honest statement of how long each one takes.",
   grossTitel: "The big levers", grossLead: "Effect within weeks to months — this is where every serious change begins.",
   gross: [

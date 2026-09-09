@@ -3,7 +3,7 @@
 const de = {
   metaTitel: "Inkassokosten-Prüfer · Sind die Gebühren zu hoch?",
   metaBeschreibung: "Kostenlos: Hauptforderung und geforderte Inkassokosten eingeben – der Prüfer rechnet die zulässigen Gebühren nach RVG und § 13e RDG nach und liefert die Formulierung für die Zurückweisung.",
-  pille: "Werkzeug · kostenlos, ohne Anmeldung", h1a: "Sind die Inkassokosten ", h1b: "zu hoch?",
+  pille: "Werkzeug · kostenlos, ohne Anmeldung", h1a: "Inkassokosten nachrechnen, ", h1b: "bevor Sie zahlen",
   lead: "Seit Oktober 2021 gelten gesetzliche Obergrenzen. Der Prüfer rechnet nach, was zulässig ist – und formuliert die Zurückweisung.",
   schritt1: "Schritt 1", frage1: "Was steht im Inkassoschreiben?",
   haupt: "Hauptforderung", gebuehr: "Geforderte Inkassogebühr", auslagen: "Auslagen / Pauschalen", sonst: "Sonstige Posten (Kontoführung, Adressermittlung …)",
@@ -26,7 +26,7 @@ const de = {
 const en: typeof de = {
   metaTitel: "Debt collection cost checker · Are the fees too high?",
   metaBeschreibung: "Free: enter the principal claim and the debt collection costs demanded – the checker recalculates the permissible fees under the RVG and Section 13e RDG and provides the wording for rejecting the excess.",
-  pille: "Tool · free, no sign-up", h1a: "Are the debt collection costs ", h1b: "too high?",
+  pille: "Tool · free, no sign-up", h1a: "Are the debt collection ", h1b: "costs too high?",
   lead: "Statutory caps have applied since October 2021. The checker recalculates what is permissible – and drafts the rejection.",
   schritt1: "Step 1", frage1: "What does the debt collection letter say?",
   haupt: "Principal claim", gebuehr: "Debt collection fee demanded", auslagen: "Expenses / flat rates", sonst: "Other items (account keeping, address tracing …)",

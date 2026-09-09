@@ -22,7 +22,7 @@
 // Basis-OG-Daten dort bleiben deshalb bestehen — hier wird nur übersteuert.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect } from "react";
-import { seoSeite } from "@shared/fiaon-seo-seiten";
+import { seoKurz as seoSeite } from "@shared/fiaon-seo-kurz";
 
 const URSPRUNG = "https://fiaon.com";
 

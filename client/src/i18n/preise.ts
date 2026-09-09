@@ -106,7 +106,7 @@ const en: typeof de = {
   seoBeschreibung: "What FIAON costs: monthly plans in twelve instalments, cancellable monthly, or the credit report on its own. Every service compared with doing it yourself.",
   krume: "Pricing",
   pille: "Pricing & plans",
-  h1a: "One price, ", h1b: "no surprises.",
+  h1a: "One price, twelve instalments, ", h1b: "no surprises.",
   lead: "Twelve monthly instalments, cancellable monthly, then we ask whether you want to stay. No commission on limits, no fee per letter, no small print. Everything is here — including what doing it yourself or a lawyer costs.",
   knopfFinder: "Which plan fits?", knopfAlle: "All plans",
   kz1: "instalments, cancellable monthly", kz2: "commission, fee per letter, mark-up", kz3: "credit report, one-off, credited later", kz4: "cheapest plan per month",

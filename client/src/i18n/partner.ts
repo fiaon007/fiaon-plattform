@@ -3,7 +3,7 @@
 const de = {
   metaTitel: "Geschäftspartner",
   metaBeschreibung: "Banken, Kartenherausgeber, Auskunfteien, Inkasso und Vermittler: FIAON bringt Kunden mit reparierter, dokumentierter Bonität – und die Einwilligung gleich mit.",
-  krume: "Partner", pille: "Geschäftspartner", h1a: "Kunden, deren Bonität repariert ist, sind die ", h1b: "besten Kunden.",
+  krume: "Partner", pille: "Geschäftspartner", h1a: "Kunden, deren Bonität repariert ist, sind ", h1b: "die besten Kunden.",
   lead: "FIAON bringt Ihnen keinen Antrag, sondern eine Akte: bereinigte Einträge, dokumentierter Spielraum aus dem Kontoauszug, eine Zahlungshistorie aus zwölf Raten – und die Einwilligung des Kunden, Ihnen genau das zu zeigen.",
   partnerWerden: "Partner werden", fuerWen: "Für wen das passt",
   kennzahlen: [
@@ -58,7 +58,7 @@ const de = {
 const en: typeof de = {
   metaTitel: "Business partners",
   metaBeschreibung: "Banks, card issuers, credit bureaus, debt collectors and introducers: FIAON brings customers with a repaired, documented credit file – and the consent to go with it.",
-  krume: "Partners", pille: "Business partners", h1a: "Customers whose credit file has been repaired are the ", h1b: "best customers.",
+  krume: "Partners", pille: "Business partners", h1a: "Customers whose credit file has been repaired ", h1b: "are the best customers.",
   lead: "FIAON brings you not an application but a file: cleaned-up entries, documented headroom from the bank statement, a payment history of twelve instalments – and the customer's consent to show you exactly that.",
   partnerWerden: "Become a partner", fuerWen: "Who this suits",
   kennzahlen: [

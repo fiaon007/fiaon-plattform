@@ -51,7 +51,7 @@ const en: typeof de = {
   seoTitel: "Instalments and your credit file: strongest lever | FIAON",
   seoBeschreibung: "How instalments affect SCHUFA and your credit file: the twelve-instalment logic, the four escalation stages with arrears and six practical tips.",
   artikel: "Instalments and creditworthiness: punctual instalments are your strongest lever", krume: "Instalments and creditworthiness",
-  pille: "The lever in your hand", h1a: "Instalments and creditworthiness: ", h1b: "paying on time pays off.",
+  pille: "The lever in your hand", h1a: "Instalments and creditworthiness: paying on ", h1b: "time pays off.",
   lead: "No feature moves your credit file as reliably as your payment behaviour — in both directions. Here is how twelve punctual instalments work, in which stages arrears escalate and how you keep both under control.",
   antragStarten: "Start the application", kostenlosPruefen: "Have it checked for free",
   leisteTitel: "Punctual instalments are your strongest lever", leisteLead: "Twelve instalments, twelve proofs. Every punctual payment is a positive data point — together they make a history that models reward.",

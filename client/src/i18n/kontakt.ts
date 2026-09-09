@@ -6,7 +6,7 @@
 const de = {
   metaTitel: "Kontakt & Support",
   metaBeschreibung: "FIAON Support: Telefon +41 44 244 93 01, E-Mail support@fiaon.com. KI-Assistent für alle Fragen zur Plattform, Dringendes direkt an die Geschäftsführung.",
-  pille: "Kontakt & Support", h1a: "Wir sind ", h1b: "erreichbar.",
+  pille: "Kontakt & Support", h1a: "Wir sind erreichbar, ohne Ticket ", h1b: "und ohne Warteschleife.",
   lead: "Ein Mensch am Telefon, eine Antwort per E-Mail, ein Assistent, der die Plattform kennt – und ein direkter Draht für alles, was nicht warten kann.",
   telefon: "Telefon", telefonSatz: "Werktags · Deutsch und Englisch", email: "E-Mail", emailSatz: "Antwort in der Regel am selben Werktag",
   dringend: "Dringend", dringendTitel: "Direkt an die Geschäftsführung", dringendSatz: "Landet sofort im Dashboard – Priorität heute",
@@ -40,7 +40,7 @@ const de = {
 const en: typeof de = {
   metaTitel: "Contact & support",
   metaBeschreibung: "FIAON support: phone +41 44 244 93 01, e-mail support@fiaon.com. An AI assistant for all questions about the platform, urgent matters straight to the management.",
-  pille: "Contact & support", h1a: "We are ", h1b: "reachable.",
+  pille: "Contact & support", h1a: "We are reachable, and ", h1b: "someone answers.",
   lead: "A person on the phone, an answer by e-mail, an assistant that knows the platform — and a direct line for everything that cannot wait.",
   telefon: "Phone", telefonSatz: "Weekdays · German and English", email: "E-mail", emailSatz: "Reply usually on the same working day",
   dringend: "Urgent", dringendTitel: "Straight to the management", dringendSatz: "Lands in the dashboard immediately — priority today",

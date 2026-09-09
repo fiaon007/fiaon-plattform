@@ -18,31 +18,26 @@ const esc = (s: string) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, 
 // schickte Google also erst durch eine Umleitung. Eine Adresse, eine Wahrheit.
 import { BASIS, beschreibungKuerzen, organisationLd, indexHtml, kopfEinsetzen, seoRahmen, VORAB_STIL } from "./fiaon-seiten-seo";
 import { SEO_SEITEN } from "@shared/fiaon-seo-seiten";
+import { titelMitMarke } from "@shared/fiaon-pixel";
 
 // Titel für die Trefferliste: höchstens 60 Zeichen. Der Report vom 02.09.
 // fand 20 Artikel „zu lang" — jeder trug „· FIAON Ratgeber" (17 Zeichen)
 // hinter einem ohnehin 50–65 Zeichen langen Titel. Jetzt: die Marke nur,
 // wenn sie noch hineinpasst; ein bereits enthaltenes „| FIAON" wird nicht
 // verdoppelt.
-export function ratgeberTitel(roh: string): string {
-  const t = String(roh ?? "").replace(/\s*[|·—-]\s*FIAON( Ratgeber)?\s*$/i, "").trim();
-  return t.length <= 51 ? `${t} | FIAON` : t;
-}
+/** Titel für die Trefferliste: Marke nur, wenn sie in die Pixelbreite passt. */
+export const ratgeberTitel = (roh: string) => titelMitMarke(roh);
 
 // 09.09.2026 (E-100): Feste Texte des Rahmens je Sprache. Der Artikeltext selbst
 // kommt aus der Datenbank und ist schon in der jeweiligen Sprache verfasst.
 const RAHMEN = {
   de: {
-    hubTitel: "Ratgeber: SCHUFA, Bonität, Inkasso erklärt | FIAON",
-    hubBeschreibung: "SCHUFA-Eintrag löschen, Auskunft kostenlos anfordern, Kreditkarte trotz Eintrag, KSV und CRIF – geprüfte Ratgeber von FIAON, ehrlich und ohne Versprechen.",
     hubH1: "Ratgeber: Bonität verstehen – SCHUFA, KSV, CRIF",
     hubLead: "Welche Einträge angreifbar sind, wie die kostenlose Auskunft funktioniert, was trotz Eintrag realistisch ist – geprüft, ehrlich, ohne Versprechen. Für Deutschland, Österreich und die Schweiz.",
     alle: "Alle Artikel", fragen: "Häufige Fragen", ratgeber: "Ratgeber", von: "Von", lesezeit: "Min. Lesezeit",
     sammlung: "FIAON Ratgeber", gebiet: "de-DE",
   },
   en: {
-    hubTitel: "Guide: SCHUFA, credit standing and debt collection | FIAON",
-    hubBeschreibung: "Deleting a SCHUFA entry, requesting your data copy free of charge, a card despite an entry, KSV and CRIF – checked guides from FIAON, honest and without promises.",
     hubH1: "Guide: understanding credit standing – SCHUFA, KSV, CRIF",
     hubLead: "Which entries can be challenged, how the free copy of your data works, what is realistic despite an entry – checked, honest, without promises. For Germany, Austria and Switzerland.",
     alle: "All articles", fragen: "Common questions", ratgeber: "Guide", von: "By", lesezeit: "min read",
@@ -80,7 +75,15 @@ export async function ratgeberSeitenHtml(slug: string | null, sprache: RatgeberS
         hasPart: rows.map((r) => ({ "@type": "Article", headline: r.titel, url: `${BASIS}${ratgeberPfad(r.slug, spr)}`, datePublished: r.published_at })) },
       { "@context": "https://schema.org", "@type": "BreadcrumbList", itemListElement: [{ "@type": "ListItem", position: 1, name: "FIAON", item: BASIS }, { "@type": "ListItem", position: 2, name: T.ratgeber, item: `${BASIS}${ratgeberHubPfad(spr)}` }] },
     ];
-    return kopfEinsetzen(html.replace("</head>", `    ${VORAB_STIL}\n  </head>`), { titel: T.hubTitel, beschreibung: T.hubBeschreibung, url: `${BASIS}${ratgeberHubPfad(spr)}`, ld, sprache: spr, alternativen: hubAlternativen() })
+    // 03.09.2026 (E-092): Titel und Beschreibung kommen aus der SEO-Tabelle,
+    // nicht aus fest verdrahteten Zeichenketten hier. Vorher standen zwei
+    // Fassungen nebeneinander — die hiesige war 1002 px breit und wurde in der
+    // Suche abgeschnitten, die in der Tabelle nicht. Zwei Quellen für dieselbe
+    // Angabe heißt: eine davon wird nie mitgepflegt.
+    // 09.09.2026 (E-100): Derselbe Grundsatz, jetzt je Sprache — die englische
+    // Übersichtsseite hat ihren eigenen Eintrag unter /en/guide.
+    const hub = SEO_SEITEN[ratgeberHubPfad(spr)];
+    return kopfEinsetzen(html.replace("</head>", `    ${VORAB_STIL}\n  </head>`), { titel: ratgeberTitel(hub.titel), beschreibung: beschreibungKuerzen(hub.beschreibung), url: `${BASIS}${ratgeberHubPfad(spr)}`, ld, sprache: spr, alternativen: hubAlternativen() })
       .replace('<div id="root"></div>', `<div id="root"><div class="vorab">${seoRahmen().kopf}${inhalt}${seoRahmen().fuss}</div></div>`);
   }
   const [a] = (await sqlPool`SELECT * FROM fiaon_ratgeber WHERE slug = ${slug} AND sprache = ${spr} AND status = 'veroeffentlicht' LIMIT 1`) as any[];
@@ -127,6 +130,6 @@ const PFEILER_STANDARD = ["/schufa-eintrag-loeschen", "/bonitaet-verbessern", "/
 function pfeilerLinks(kategorie?: string): string {
   const pfade = PFEILER_JE_KATEGORIE[kategorie ?? ""] ?? PFEILER_STANDARD;
   const eintraege = pfade.map((p) => SEO_SEITEN[p]).filter(Boolean)
-    .map((s) => `<li><a href="${esc(s.pfad)}">${esc(s.h1)}</a> – ${esc(s.beschreibung)}</li>`).join("");
+    .map((s) => `<li><a href="${esc(s.pfad)}">${esc(s.h1)}</a></li>`).join("");   // 03.09.2026 (E-092): ohne Beschreibung — sie stand sonst wortgleich unter jedem Ratgeber.
   return `<nav aria-label="Weiterlesen"><h2>Weiterlesen</h2><ul>${eintraege}</ul></nav>`;
 }

@@ -70,9 +70,22 @@ export default function Hilfe() {
               {th.fragen.map((x, i) => {
                 const id = `${th.key}-${i + 1}`; const auf = offen === id;
                 return (
-                  <div key={id} id={id} className="wz-frage" style={{ cursor: "pointer" }} onClick={() => setOffen(auf ? null : id)}>
-                    <h3 style={{ margin: 0 }}>{x.f}</h3>
-                    {auf && <p className="wz-hinweis" style={{ marginTop: 10 }}>{x.a}</p>}
+                  <div key={id} id={id} className="wz-frage">
+                    {/* 03.09.2026 (E-092): Die Frage ist eine Schaltfläche, keine Überschrift.
+                        Das Hilfe-Center trug 46 Überschriften auf einer Seite (37 davon Fragen) —
+                        der Onpage-Bericht vom 02.09. beanstandete das zu Recht: Fragen in einem
+                        Aufklapper gliedern kein Dokument, sie öffnen eine Antwort. Nebenbei ist
+                        die Seite damit mit der Tastatur bedienbar, was sie vorher nicht war. */}
+                    <button
+                      type="button"
+                      className="wz-frage-knopf"
+                      aria-expanded={auf}
+                      aria-controls={`${id}-antwort`}
+                      onClick={() => setOffen(auf ? null : id)}
+                    >
+                      {x.f}
+                    </button>
+                    {auf && <p id={`${id}-antwort`} className="wz-hinweis" style={{ marginTop: 10 }}>{x.a}</p>}
                   </div>
                 );
               })}

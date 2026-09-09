@@ -97,7 +97,7 @@ const de = {
     { f: "Wer prüft die Schreiben?", a: "Jeder Brieftyp wird vom Anwaltsteam freigegeben und versioniert. Kein Schreiben geht hinaus, das nicht geprüft ist – und keines ohne Ihre Freigabe." },
     { f: "Für welche Länder gilt das?", a: "Deutschland (SCHUFA), Österreich (KSV) und die Schweiz (CRIF). Die Plattform erkennt Ihr Land und stellt die Anfrage bei der richtigen Auskunftei." },
     { f: "Was kostet FIAON?", a: "Pakete ab 7,99 € im Monat, zwölf Raten per SEPA-Lastschrift, danach entscheiden Sie, ob Sie bleiben. Nur die Auskunft? 74 € einmalig." },
-    { f: "Wo liegen meine Daten?", a: "Verschlüsselt auf Servern in der EU, DSGVO-konform. Sie entscheiden, was Sie hochladen, und können es jederzeit löschen lassen." },
+    { f: "Wo liegen meine Daten?", a: "In der EU, verschlüsselt gespeichert und nach DSGVO verarbeitet. Alles, was in den drei Schichten entsteht – die Auskunft, die Schreiben, die Antworten der Auskunfteien –, sammelt sich in Ihrer Akte. Welche Unterlagen dort zusätzlich landen, bestimmen Sie; auf Ihre Anforderung hin wird die Akte gelöscht." },
   ],
   abschlussA: "Einsicht. Aktion. Zugang. ", abschlussB: "Ihr Weg beginnt mit einer E-Mail-Adresse.",
   abschlussText: "Konto in zwei Minuten. Ihre Auskunft innerhalb von 24 Stunden. Ein Mensch, der Sie durch alles Weitere begleitet.",
@@ -107,7 +107,7 @@ const de = {
 const en: typeof de = {
   metaTitel: "What is FIAON",
   metaBeschreibung: "FIAON is the operating system for creditworthiness: we show you what the credit bureaus hold on you, repair it with you — and open the door to an account, a card and finance. The vision, explained properly.",
-  pille: "What is FIAON", h1a: "The operating system ", h1b: "for creditworthiness.",
+  pille: "What is FIAON", h1a: "The operating system for ", h1b: "your creditworthiness.",
   lead: "FIAON shows you what the credit bureaus hold on you, repairs it with you — and then opens the door to real financial products. One sentence, three layers, one path.",
   jetztStarten: "Get started", dreiSchichten: "The three layers",
   ideePille: "The idea", ideeH2a: "Creditworthiness is not a verdict. ", ideeH2b: "It is a state.",

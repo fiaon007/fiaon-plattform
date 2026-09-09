@@ -1369,8 +1369,10 @@ Und zwei Regeln, die aus denselben neun Punkten folgen:
   Dropbox-Konfliktkopien „… in Konflikt stehende Kopie …"). Sie sind Bestand.
   **Neue Dateien müssen fehlerfrei sein**; `target` liegt unter ES2015, deshalb
   `Array.from(map.entries())` statt direkter Map-Iteration.
-- `db/migrations/006_service_orders.sql` wird vom Migrationslauf **absichtlich
-  verweigert** (enthält DROP). Das „Failed: 1" am Ende ist normal.
+- Das „Failed: 1" am Ende des Migrationslaufs ist **Vergangenheit**. Es kam von
+  `db/migrations/006_service_orders.sql`; die Datei ist am 09.09.2026 entfernt
+  worden (toter ARAS-Code, siehe unten). Meldet der Lauf jetzt einen Fehlschlag,
+  ist er **echt** und gehört angesehen.
 - `/admin/hub/badges` braucht kalt rund zehn Sekunden. Bekannt, nicht schön.
 
 ## `updated_at` beantwortet nicht die Frage „wann ist DAS passiert"
@@ -1466,9 +1468,11 @@ hätte jeden Merge blockiert und die Wand damit erledigt:
 - Die Nachverfolgungstabelle heißt `schema_migrations.filename`. Ein
   `.catch(() => [])` auf den falschen Namen ergab „0 eingespielt", und die Wand
   prüfte alle 73 Migrationen; drei alte, nicht wiederholbare wurden rot.
-- `006_service_orders.sql` ist zerstörend und wird dauerhaft verweigert — als
-  „offene Arbeit" gezählt war die Wand mit einem Befund von vor einem halben
-  Jahr rot.
+- `006_service_orders.sql` galt als zerstörend und wurde dauerhaft verweigert —
+  als „offene Arbeit" gezählt war die Wand mit einem Befund von vor einem halben
+  Jahr rot. Die Datei ist am 09.09.2026 entfernt; die Unterscheidung
+  „verweigert ≠ offen" bleibt in der Wand, weil sie für jede künftige Migration
+  mit DROP wieder greift.
 - Ein Abschnitt ohne eine einzige Prüfung meldete **„0 ok, 0 rot"**. Das las
   sich wie Erfolg. Ein Abschnitt, der nichts geprüft hat, muss es sagen.
 

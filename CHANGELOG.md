@@ -5,6 +5,34 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 09.09.2026 — Toter ARAS-Code entfernt: „Service Orders" (Router + Migration 006)
+
+**Was geändert wurde:** Gelöscht `server/routes/service-orders.ts` (866 Zeilen) und
+`db/migrations/006_service_orders.sql`. Nachgezogen: `AGENTS.md` (das „Failed: 1" im Migrationslauf ist
+keine Normalität mehr), `MIGRATION_INVENTORY.md` (eigene Zeile mit Entfernungsdatum),
+`scripts/pruef-vor-merge.ts` (Kommentar nennt 006 als Anlass, nicht als Bestand).
+Schema-Definitionen mussten nicht entfernt werden — es gab nie welche.
+
+**Warum:** Die Strecke gehörte nie zu FIAON. Sie verkauft Anrufpakete (2.500 bis 100.000 Anrufe zu
+20–39 Cent) und Leads zu 5 Cent — das Geschäft der ARAS-Plattform, die sich mit FIAON eine Codebase
+teilt; `MIGRATION_INVENTORY.md` führt sie seit dem Stripe-Ausbau am 27.08.2026 ausdrücklich als
+„anderes Produkt". Sie war zu keinem Zeitpunkt in Betrieb, und zwar vierfach nicht:
+kein `app.use` im ganzen server-Baum; die importierten Bausteine `serviceOrders` und
+`serviceOrderEvents` existieren in `shared/schema.ts` **überhaupt nicht**, die Datei ließ sich also
+seit dem ersten Commit (08.04.2026) nicht übersetzen (zwei TS2305-Fehler); in der Produktionsdatenbank
+fehlen beide Tabellen und `schema_migrations` kennt die 006 nicht; die zugehörigen Oberflächen
+(`campaign-studio/steps/ReviewCheckoutStep.tsx`, Menüeintrag in `CommandCenterLayout.tsx`) werden
+selbst von niemandem eingebunden, `/admin-dashboard` ist keine Route. Zusätzlich hing der Bezahlweg
+an Stripe, das Justin am 27.08.2026 vollständig entfernt hat.
+
+**Nebenwirkung:** Der Migrationslauf meldet ab dem nächsten Deploy **0 Fehlschläge** statt 1. Die 006
+war die einzige der 83 Dateien, die nie eingespielt wurde — und die einzige Quelle des seit Monaten
+gewohnten „Failed: 1". Ein Fehlschlag im Deploy-Protokoll ist damit wieder ein Signal.
+
+**Wo zu finden:** Prüfung `npm run haken`, `vite build`, `esbuild`. Logbuch-Eintrag E-170.
+
+---
+
 ## 09.09.2026 — Telefon bleibt beim Seitenwechsel dran (E-169): Softphone an der App statt an der Seite
 
 **Was geändert wurde:** Neu `client/src/lib/office-zustand.ts` (Sitzung + „Gespräch läuft“, useSyncExternalStore) und

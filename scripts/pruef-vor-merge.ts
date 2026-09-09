@@ -105,9 +105,11 @@ async function pruefeMigrationen(): Promise<void> {
 
   // ── ZERSTÖRENDES IST KEINE OFFENE ARBEIT ────────────────────────────
   // `run-migrations.mjs` verweigert Migrationen mit DROP/TRUNCATE dauerhaft.
-  // `006_service_orders.sql` steht deshalb seit Monaten „offen" und wird es
-  // bleiben. Sie als offene Arbeit zu zählen, hätte die Wand jeden Merge
-  // blockieren lassen — mit einem Befund von vor einem halben Jahr.
+  // Der Anlass war `006_service_orders.sql`: seit Monaten „offen", nie
+  // einspielbar. Sie als offene Arbeit zu zählen, hätte die Wand jeden Merge
+  // blockieren lassen — mit einem Befund von vor einem halben Jahr. Die Datei
+  // ist am 09.09.2026 entfernt (toter ARAS-Code); die Unterscheidung bleibt,
+  // weil sie bei der nächsten Migration mit DROP wieder gebraucht wird.
   const zerstoerend = (f: string) =>
     /\b(DROP\s+TABLE|DROP\s+DATABASE|TRUNCATE|DROP\s+COLUMN)\b/i
       .test(readFileSync(`${ordner}/${f}`, "utf-8"));

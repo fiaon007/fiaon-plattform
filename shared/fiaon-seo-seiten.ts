@@ -1252,6 +1252,18 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     lead: "Welche Einträge angreifbar sind, wie die kostenlose Auskunft funktioniert, was trotz Eintrag realistisch ist – für Deutschland, Österreich und die Schweiz. Jeder Text wird gegen Gesetz, Verhaltensregeln der Auskunfteien und die Praxis aus FIAON-Akten geprüft.",
     weiter: ["/schufa-eintrag-loeschen", "/bonitaet-verbessern", "/werkzeuge", "/glossar-bonitaet"],
     krumen: [{ name: "Ratgeber", pfad: "/ratgeber" }],
+    // 09.09.2026 (E-100): Der Ratgeber ist zweisprachig. Die Artikel selbst
+    // stehen in der Datenbank und werden von fiaon-ratgeber-seo.ts vorgerendert;
+    // dieser Eintrag ist die Übersichtsseite und liefert das hreflang-Paar.
+    en: {
+      pfad: "/en/guide",
+      titel: "Guide: SCHUFA, credit standing and collection | FIAON",
+      beschreibung: "Deleting an entry, requesting your data copy free of charge, a card despite an entry, KSV and CRIF – checked guides, honest and without promises.",
+      h1: "Knowledge that moves entries.",
+      lead: "Which entries can be challenged, how the free copy of your data works, what is realistic despite an entry – for Germany, Austria and Switzerland. Every text is checked against the law, the credit agencies' codes of conduct and the practice in FIAON case files.",
+      weiter: ["/schufa-eintrag-loeschen", "/bonitaet-verbessern", "/werkzeuge", "/glossar-bonitaet"],
+      krumen: [{ name: "Guide", pfad: "/en/guide" }],
+    },
   },
 
   // ═════════════════════════════════════════════════════════════════════════
@@ -1857,6 +1869,11 @@ for (const s of Object.values(SEO_SEITEN)) {
     titel: en.titel, beschreibung: en.beschreibung, h1: en.h1, lead: en.lead,
     abschnitte: en.abschnitte, weiter: en.weiter, krumen: en.krumen,
     werkzeug: s.werkzeug, bild: s.bild, robots: s.robots,
+    // 09.09.2026 (E-100): Hat die deutsche Seite einen eigenen Vorrenderer
+    // (/ratgeber holt die Artikel aus der Datenbank), gilt das auch für ihre
+    // englische Schwester. Ohne diese Zeile hätte der allgemeine Vorrenderer
+    // /en/guide bedient — mit Kopf, aber ohne einen einzigen Artikel.
+    eigenerVorrenderer: s.eigenerVorrenderer,
     sprache: "en", schwester: s.pfad,
   };
   s.sprache = "de";

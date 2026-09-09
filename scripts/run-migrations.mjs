@@ -101,12 +101,23 @@ async function main() {
     //
     // ALTER … DROP CONSTRAINT bleibt erlaubt: Eine Bedingung zu lösen ist
     // umkehrbar, Daten zu löschen nicht.
+    // 09.09.2026 (E-100): Die Prüfung liest jetzt den Text OHNE Kommentare.
+    // Vorher schlug sie auf auskommentierte Zeilen an — 006_service_orders.sql
+    // trägt seine DROP-Anweisungen seit jeher als Kommentar am Dateiende
+    // ("-- DROP TABLE IF EXISTS service_orders;") und wurde deshalb bei JEDEM
+    // Deploy verweigert. Die Wanderung ist nie gelaufen, die beiden Tabellen
+    // fehlen in der Produktion, und die Zusammenfassung meldete dauerhaft
+    // "Failed: 1". Eine Wache, die immer bellt, wird irgendwann überhört —
+    // das ist das eigentliche Risiko.
+    const ohneKommentare = sqlText
+      .replace(/\/\*[\s\S]*?\*\//g, " ")   // Blockkommentare
+      .replace(/--[^\n]*/g, " ");             // Zeilenkommentare
     const destructive = [
       /\bDROP\s+TABLE\b/i,
       /\bDROP\s+DATABASE\b/i,
       /\bTRUNCATE\b/i,
       /\bDROP\s+COLUMN\b/i,
-    ].some((re) => re.test(sqlText));
+    ].some((re) => re.test(ohneKommentare));
 
     if (destructive) {
       console.warn(

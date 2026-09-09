@@ -10,7 +10,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import { markdownZuHtml, textAusMarkdown } from "@shared/fiaon-markdown";
-import { AUTORIN, KATEGORIEN } from "@shared/fiaon-ratgeber";
+import { AUTORIN, KATEGORIEN, ratgeberPfad, ratgeberHubPfad, type RatgeberSprache } from "@shared/fiaon-ratgeber";
 
 const esc = (s: string) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 // 25.08.2026: Hier stand "https://www.fiaon.com". GEMESSEN: www antwortet mit
@@ -29,39 +29,78 @@ export function ratgeberTitel(roh: string): string {
   return t.length <= 51 ? `${t} | FIAON` : t;
 }
 
-export async function ratgeberSeitenHtml(slug: string | null): Promise<string | null> {
+// 09.09.2026 (E-100): Feste Texte des Rahmens je Sprache. Der Artikeltext selbst
+// kommt aus der Datenbank und ist schon in der jeweiligen Sprache verfasst.
+const RAHMEN = {
+  de: {
+    hubTitel: "Ratgeber: SCHUFA, Bonität, Inkasso erklärt | FIAON",
+    hubBeschreibung: "SCHUFA-Eintrag löschen, Auskunft kostenlos anfordern, Kreditkarte trotz Eintrag, KSV und CRIF – geprüfte Ratgeber von FIAON, ehrlich und ohne Versprechen.",
+    hubH1: "Ratgeber: Bonität verstehen – SCHUFA, KSV, CRIF",
+    hubLead: "Welche Einträge angreifbar sind, wie die kostenlose Auskunft funktioniert, was trotz Eintrag realistisch ist – geprüft, ehrlich, ohne Versprechen. Für Deutschland, Österreich und die Schweiz.",
+    alle: "Alle Artikel", fragen: "Häufige Fragen", ratgeber: "Ratgeber", von: "Von", lesezeit: "Min. Lesezeit",
+    sammlung: "FIAON Ratgeber", gebiet: "de-DE",
+  },
+  en: {
+    hubTitel: "Guide: SCHUFA, credit standing and debt collection | FIAON",
+    hubBeschreibung: "Deleting a SCHUFA entry, requesting your data copy free of charge, a card despite an entry, KSV and CRIF – checked guides from FIAON, honest and without promises.",
+    hubH1: "Guide: understanding credit standing – SCHUFA, KSV, CRIF",
+    hubLead: "Which entries can be challenged, how the free copy of your data works, what is realistic despite an entry – checked, honest, without promises. For Germany, Austria and Switzerland.",
+    alle: "All articles", fragen: "Common questions", ratgeber: "Guide", von: "By", lesezeit: "min read",
+    sammlung: "FIAON Guide", gebiet: "en-GB",
+  },
+} as const;
+
+/** hreflang-Paar der Übersichtsseiten. Beide existieren immer. */
+function hubAlternativen() {
+  return { de: `${BASIS}/ratgeber`, en: `${BASIS}/en/guide` };
+}
+
+/** hreflang-Paar eines Artikels — nur, wenn es die Schwesterfassung wirklich gibt.
+ *  Ein hreflang auf eine Adresse ohne Artikel wäre ein Fehler in der Search Console. */
+function artikelAlternativen(a: any) {
+  if (!a.schwester_slug) return undefined;
+  const eigen = ratgeberPfad(a.slug, a.sprache === "en" ? "en" : "de");
+  const schwester = ratgeberPfad(a.schwester_slug, a.sprache === "en" ? "de" : "en");
+  return a.sprache === "en"
+    ? { de: `${BASIS}${schwester}`, en: `${BASIS}${eigen}` }
+    : { de: `${BASIS}${eigen}`, en: `${BASIS}${schwester}` };
+}
+
+export async function ratgeberSeitenHtml(slug: string | null, sprache: RatgeberSprache = "de"): Promise<string | null> {
   const html = indexHtml(); if (!html) return null;
+  const spr: RatgeberSprache = sprache === "en" ? "en" : "de";
+  const T = RAHMEN[spr];
   if (!slug) {
-    const rows = (await sqlPool`SELECT slug, titel, teaser, kategorie, published_at, updated_at FROM fiaon_ratgeber WHERE status = 'veroeffentlicht' ORDER BY published_at DESC LIMIT 100`) as any[];
-    const liste = rows.map((r) => `<li><a href="/ratgeber/${esc(r.slug)}"><h3>${esc(r.titel)}</h3></a><p>${esc(r.teaser)}</p></li>`).join("");
-    const inhalt = `<main><article><h1>Ratgeber: Bonität verstehen – SCHUFA, KSV, CRIF</h1><p>Welche Einträge angreifbar sind, wie die kostenlose Auskunft funktioniert, was trotz Eintrag realistisch ist – geprüft, ehrlich, ohne Versprechen. Für Deutschland, Österreich und die Schweiz.</p><section><h2>Alle Artikel</h2><ul>${liste}</ul></section>${pfeilerLinks()}</article></main>`;
+    const rows = (await sqlPool`SELECT slug, titel, teaser, kategorie, published_at, updated_at FROM fiaon_ratgeber WHERE status = 'veroeffentlicht' AND sprache = ${spr} ORDER BY published_at DESC LIMIT 100`) as any[];
+    const liste = rows.map((r) => `<li><a href="${esc(ratgeberPfad(r.slug, spr))}"><h3>${esc(r.titel)}</h3></a><p>${esc(r.teaser)}</p></li>`).join("");
+    const inhalt = `<main><article><h1>${esc(T.hubH1)}</h1><p>${esc(T.hubLead)}</p><section><h2>${esc(T.alle)}</h2><ul>${liste}</ul></section>${pfeilerLinks()}</article></main>`;
     const ld = [
       organisationLd(),
-      { "@context": "https://schema.org", "@type": "CollectionPage", name: "FIAON Ratgeber", url: `${BASIS}/ratgeber`, inLanguage: "de",
-        hasPart: rows.map((r) => ({ "@type": "Article", headline: r.titel, url: `${BASIS}/ratgeber/${r.slug}`, datePublished: r.published_at })) },
-      { "@context": "https://schema.org", "@type": "BreadcrumbList", itemListElement: [{ "@type": "ListItem", position: 1, name: "FIAON", item: BASIS }, { "@type": "ListItem", position: 2, name: "Ratgeber", item: `${BASIS}/ratgeber` }] },
+      { "@context": "https://schema.org", "@type": "CollectionPage", name: T.sammlung, url: `${BASIS}${ratgeberHubPfad(spr)}`, inLanguage: spr,
+        hasPart: rows.map((r) => ({ "@type": "Article", headline: r.titel, url: `${BASIS}${ratgeberPfad(r.slug, spr)}`, datePublished: r.published_at })) },
+      { "@context": "https://schema.org", "@type": "BreadcrumbList", itemListElement: [{ "@type": "ListItem", position: 1, name: "FIAON", item: BASIS }, { "@type": "ListItem", position: 2, name: T.ratgeber, item: `${BASIS}${ratgeberHubPfad(spr)}` }] },
     ];
-    return kopfEinsetzen(html.replace("</head>", `    ${VORAB_STIL}\n  </head>`), { titel: "Ratgeber: SCHUFA, Bonität, Inkasso erklärt | FIAON", beschreibung: "SCHUFA-Eintrag löschen, Auskunft kostenlos anfordern, Kreditkarte trotz Eintrag, KSV und CRIF – geprüfte Ratgeber von FIAON, ehrlich und ohne Versprechen.", url: `${BASIS}/ratgeber`, ld })
+    return kopfEinsetzen(html.replace("</head>", `    ${VORAB_STIL}\n  </head>`), { titel: T.hubTitel, beschreibung: T.hubBeschreibung, url: `${BASIS}${ratgeberHubPfad(spr)}`, ld, sprache: spr, alternativen: hubAlternativen() })
       .replace('<div id="root"></div>', `<div id="root"><div class="vorab">${seoRahmen().kopf}${inhalt}${seoRahmen().fuss}</div></div>`);
   }
-  const [a] = (await sqlPool`SELECT * FROM fiaon_ratgeber WHERE slug = ${slug} AND status = 'veroeffentlicht' LIMIT 1`) as any[];
+  const [a] = (await sqlPool`SELECT * FROM fiaon_ratgeber WHERE slug = ${slug} AND sprache = ${spr} AND status = 'veroeffentlicht' LIMIT 1`) as any[];
   if (!a) return null;
   const faq = (typeof a.faq === "string" ? JSON.parse(a.faq) : a.faq) || [];
   const schlag = (typeof a.schlagworte === "string" ? JSON.parse(a.schlagworte) : a.schlagworte) || [];
-  const url = `${BASIS}/ratgeber/${a.slug}`;
+  const url = `${BASIS}${ratgeberPfad(a.slug, spr)}`;
   const kat = (KATEGORIEN as any)[a.kategorie]?.label || "Ratgeber";
   const body = markdownZuHtml(a.inhalt);
-  const faqHtml = faq.length ? `<section><h2>Häufige Fragen</h2>${faq.map((f: any) => `<h3>${esc(f.frage)}</h3><p>${esc(f.antwort)}</p>`).join("")}</section>` : "";
-  const inhalt = `<main><article><p><a href="/">FIAON</a> › <a href="/ratgeber">Ratgeber</a> › ${esc(kat)}</p><h1>${esc(a.titel)}</h1>${a.untertitel ? `<p>${esc(a.untertitel)}</p>` : ""}<p>Von ${esc(AUTORIN.name)}, ${esc(AUTORIN.rolle)} · ${new Date(a.published_at || a.updated_at).toLocaleDateString("de-DE")} · ${a.lesezeit} Min. Lesezeit</p>${body}${faqHtml}${pfeilerLinks(a.kategorie)}</article></main>`;
+  const faqHtml = faq.length ? `<section><h2>${esc(T.fragen)}</h2>${faq.map((f: any) => `<h3>${esc(f.frage)}</h3><p>${esc(f.antwort)}</p>`).join("")}</section>` : "";
+  const inhalt = `<main><article><p><a href="/">FIAON</a> › <a href="${esc(ratgeberHubPfad(spr))}">${esc(T.ratgeber)}</a> › ${esc(kat)}</p><h1>${esc(a.titel)}</h1>${a.untertitel ? `<p>${esc(a.untertitel)}</p>` : ""}<p>${esc(T.von)} ${esc(AUTORIN.name)}, ${esc(AUTORIN.rolle)} · ${new Date(a.published_at || a.updated_at).toLocaleDateString(T.gebiet)} · ${a.lesezeit} ${esc(T.lesezeit)}</p>${body}${faqHtml}${pfeilerLinks(a.kategorie)}</article></main>`;
   const ld = [
     organisationLd(),
-    { "@context": "https://schema.org", "@type": "Article", headline: a.titel, description: a.teaser, inLanguage: "de", datePublished: a.published_at, dateModified: a.updated_at,
+    { "@context": "https://schema.org", "@type": "Article", headline: a.titel, description: a.teaser, inLanguage: spr, datePublished: a.published_at, dateModified: a.updated_at,
       author: { "@type": "Person", name: AUTORIN.name, jobTitle: AUTORIN.rolle }, publisher: { "@id": `${BASIS}/#organisation` },
       mainEntityOfPage: url, keywords: schlag.join(", "), articleSection: kat, wordCount: textAusMarkdown(a.inhalt).split(" ").length },
     faq.length ? { "@context": "https://schema.org", "@type": "FAQPage", mainEntity: faq.map((f: any) => ({ "@type": "Question", name: f.frage, acceptedAnswer: { "@type": "Answer", text: f.antwort } })) } : null,
-    { "@context": "https://schema.org", "@type": "BreadcrumbList", itemListElement: [{ "@type": "ListItem", position: 1, name: "FIAON", item: BASIS }, { "@type": "ListItem", position: 2, name: "Ratgeber", item: `${BASIS}/ratgeber` }, { "@type": "ListItem", position: 3, name: a.titel, item: url }] },
+    { "@context": "https://schema.org", "@type": "BreadcrumbList", itemListElement: [{ "@type": "ListItem", position: 1, name: "FIAON", item: BASIS }, { "@type": "ListItem", position: 2, name: T.ratgeber, item: `${BASIS}${ratgeberHubPfad(spr)}` }, { "@type": "ListItem", position: 3, name: a.titel, item: url }] },
   ].filter(Boolean);
-  return kopfEinsetzen(html.replace("</head>", `    ${VORAB_STIL}\n  </head>`), { titel: ratgeberTitel(a.meta_titel || a.titel), beschreibung: beschreibungKuerzen(a.meta_beschreibung || a.teaser), url, ld, og: { type: "article" } })
+  return kopfEinsetzen(html.replace("</head>", `    ${VORAB_STIL}\n  </head>`), { titel: ratgeberTitel(a.meta_titel || a.titel), beschreibung: beschreibungKuerzen(a.meta_beschreibung || a.teaser), url, ld, og: { type: "article" }, sprache: spr, alternativen: artikelAlternativen(a) })
     .replace('<div id="root"></div>', `<div id="root"><div class="vorab">${seoRahmen().kopf}${inhalt}${seoRahmen().fuss}</div></div>`);
 }
 

@@ -6,54 +6,60 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useMemo, useState } from "react";
 import { Dunkel, Hero, Block, Licht, Knopf, Auf, Zwischenruf } from "@/components/site/DunkleBuehne";
-import { KATEGORIEN, AUTORIN, type Kategorie } from "@shared/fiaon-ratgeber";
+import { KATEGORIEN, AUTORIN, ratgeberPfad, type Kategorie } from "@shared/fiaon-ratgeber";
+import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
+import { RATGEBER_WOERTER } from "@/i18n/ratgeber";
 import "@/styles/ratgeber.css";
 
 interface Karte { slug: string; titel: string; teaser: string; kategorie: Kategorie; land: string; lesezeit: number; veroeffentlichtAm: string | null }
 
-const LANDKURZ: Record<string, string> = { DE: "Deutschland", AT: "Österreich", CH: "Schweiz", DACH: "DACH" };
-const datum = (s: string | null) => s ? new Date(s).toLocaleDateString("de-DE", { day: "2-digit", month: "long", year: "numeric" }) : "";
-
 export default function Ratgeber() {
+  const t = useWoerter(RATGEBER_WOERTER);
+  const sprache = useSprache();
+  const en = sprache === "en";
+  const zu = (p: string) => inSprache(p, sprache);
+  const datum = (s: string | null) => s ? new Date(s).toLocaleDateString(t.gebiet, { day: "2-digit", month: "long", year: "numeric" }) : "";
   const [liste, setListe] = useState<Karte[] | null>(null);
   const [kat, setKat] = useState<string>(() => new URLSearchParams(window.location.search).get("kategorie") || "");
   useEffect(() => {
-    fetch("/api/fiaon/ratgeber").then((r) => r.json()).then((j) => setListe(j?.artikel || [])).catch(() => setListe([]));
-  }, []);
-  useEffect(() => { document.title = "Ratgeber · Bonität verstehen · FIAON"; }, []);
+    // 09.09.2026 (E-100): Die Liste kommt je Sprache — sonst mischen sich die
+    // Fassungen und ein englischer Leser landet in einem deutschen Text.
+    fetch(`/api/fiaon/ratgeber?sprache=${sprache}`).then((r) => r.json()).then((j) => setListe(j?.artikel || [])).catch(() => setListe([]));
+  }, [sprache]);
+  useEffect(() => { document.title = t.dokumentTitel; }, [t]);
   const gefiltert = useMemo(() => (liste || []).filter((a) => !kat || a.kategorie === kat), [liste, kat]);
   const vorhandene = useMemo(() => new Set((liste || []).map((a) => a.kategorie)), [liste]);
 
   return (
-    <Dunkel seite="ratgeber" titel="Ratgeber" beschreibung="Bonität verstehen: SCHUFA-Einträge löschen, Auskunft kostenlos anfordern, Kreditkarte trotz Eintrag, KSV und CRIF – geprüft, ehrlich, ohne Versprechen.">
+    <Dunkel seite="ratgeber" titel={t.metaTitel} beschreibung={t.metaBeschreibung}>
       <Hero
         bild="/kino/akten.jpg"
-        pille="Ratgeber · Bonität verstehen"
-        titel={<>Wissen, das <span className="dk-verlauf">Einträge bewegt.</span></>}
-        lead="Welche Einträge angreifbar sind, wie die kostenlose Auskunft funktioniert, was trotz Eintrag realistisch ist – für Deutschland, Österreich und die Schweiz. Jeder Text wird gegen Gesetz, Verhaltensregeln der Auskunfteien und die Praxis aus FIAON-Akten geprüft."
-        knoepfe={<><Knopf href="#artikel">Artikel lesen</Knopf><Knopf href="/antrag" still>Auskunft beschaffen lassen</Knopf></>}
+        pille={t.pille}
+        titel={<>{t.heroA}<span className="dk-verlauf">{t.heroB}</span></>}
+        lead={t.heroLead}
+        knoepfe={<><Knopf href="#artikel">{t.heroKnopf}</Knopf><Knopf href="/antrag" still>{t.heroKnopfStill}</Knopf></>}
       />
 
       <Licht>
-        <Block id="artikel" pille="Alle Themen" titel={<>Ehrlich erklärt. <span className="dk-verlauf">Nichts versprochen.</span></>}
-               lead="Wählen Sie ein Thema – oder lesen Sie von oben. Neue Texte erscheinen laufend." mitte>
+        <Block id="artikel" pille={t.themenPille} titel={<>{t.themenA}<span className="dk-verlauf">{t.themenB}</span></>}
+               lead={t.themenLead} mitte>
           <div className="rg-filter" role="tablist">
-            <button type="button" data-an={kat === "" ? "1" : undefined} onClick={() => setKat("")}>Alle</button>
+            <button type="button" data-an={kat === "" ? "1" : undefined} onClick={() => setKat("")}>{t.alle}</button>
             {(Object.keys(KATEGORIEN) as Kategorie[]).filter((k) => vorhandene.has(k)).map((k) => (
               <button key={k} type="button" data-an={kat === k ? "1" : undefined} onClick={() => setKat(k)}>{KATEGORIEN[k].label}</button>
             ))}
           </div>
           <div className="rg-liste" style={{ textAlign: "left" }}>
-            {liste === null && <p className="rg-leer">Ratgeber werden geladen …</p>}
-            {liste !== null && gefiltert.length === 0 && <p className="rg-leer">In dieser Kategorie ist noch kein Text erschienen – bald.</p>}
+            {liste === null && <p className="rg-leer">{t.laden}</p>}
+            {liste !== null && gefiltert.length === 0 && <p className="rg-leer">{t.leer}</p>}
             {gefiltert.map((a, i) => (
               <Auf key={a.slug} verzoegerung={Math.min(i, 6) * 60}>
-                <a href={`/ratgeber/${a.slug}`} className={`rg-karte${i === 0 && !kat ? " gross" : ""}`}>
+                <a href={ratgeberPfad(a.slug, sprache)} className={`rg-karte${i === 0 && !kat ? " gross" : ""}`}>
                   <div className="rg-karte-text" style={{ display: "flex", flexDirection: "column", gap: 12, flex: 1 }}>
-                    <div className="rg-kopfzeile"><span>{KATEGORIEN[a.kategorie]?.label || a.kategorie}</span><span className="land">{LANDKURZ[a.land] || a.land}</span></div>
+                    <div className="rg-kopfzeile"><span>{KATEGORIEN[a.kategorie]?.label || a.kategorie}</span><span className="land">{t.laender[a.land] || a.land}</span></div>
                     <h3>{a.titel}</h3>
                     <p>{a.teaser}</p>
-                    <div className="rg-karte-fuss"><span>{datum(a.veroeffentlichtAm)} · {a.lesezeit} Min. Lesezeit</span><b>Lesen →</b></div>
+                    <div className="rg-karte-fuss"><span>{datum(a.veroeffentlichtAm)} · {a.lesezeit} {t.lesezeit}</span><b>{t.lesen}</b></div>
                   </div>
                 </a>
               </Auf>
@@ -61,19 +67,21 @@ export default function Ratgeber() {
           </div>
         </Block>
 
-        <Block id="werkzeuge" pille="Werkzeuge" titel={<>Kostenlos, sofort, <span className="dk-verlauf">ohne Anmeldung.</span></>} mitte>
+        <Block id="werkzeuge" pille={t.werkzeugePille} titel={<>{t.werkzeugeA}<span className="dk-verlauf">{t.werkzeugeB}</span></>} mitte>
           <div className="rg-liste" style={{ gridTemplateColumns: "repeat(2,1fr)", textAlign: "left", marginTop: 28 }}>
-            <a href="/werkzeuge/eintrag-pruefen" className="rg-karte"><div className="rg-kopfzeile"><span>Werkzeug</span></div><h3>Ist mein Eintrag angreifbar?</h3><p>Fünf Fragen, eine ehrliche Einschätzung nach § 31 BDSG, Löschfristen und BGH-Rechtsprechung – mit Ihrem nächsten Schritt.</p><div className="rg-karte-fuss"><span>2 Minuten</span><b>Prüfen →</b></div></a>
-            <a href="/werkzeuge/selbstauskunft" className="rg-karte"><div className="rg-kopfzeile"><span>Werkzeug</span></div><h3>Selbstauskunft-Generator</h3><p>Der fertige Brief für Ihre kostenlose Datenkopie nach Art. 15 DSGVO – an SCHUFA, KSV1870, CRIF oder Intrum. Kopieren, drucken, absenden.</p><div className="rg-karte-fuss"><span>1 Minute</span><b>Brief erstellen →</b></div></a>
-            <a href="/werkzeuge/loeschfrist" className="rg-karte"><div className="rg-kopfzeile"><span>Werkzeug</span></div><h3>Löschfrist-Rechner</h3><p>Art des Eintrags und Daten eingeben – das taggenaue Löschdatum, inklusive 100-Tage-Regel und Sechs-Monats-Frist nach Insolvenz.</p><div className="rg-fuss"><span>Sofort, ohne Anmeldung</span></div></a>
-            <a href="/werkzeuge/inkassokosten" className="rg-karte"><div className="rg-kopfzeile"><span>Werkzeug</span></div><h3>Inkassokosten-Prüfer</h3><p>Rechnet die zulässigen Gebühren nach RVG und § 13e RDG nach – und liefert die Formulierung für die Zurückweisung überhöhter Posten.</p><div className="rg-fuss"><span>Sofort, ohne Anmeldung</span></div></a>
-            <a href="/werkzeuge/verjaehrung" className="rg-karte"><div className="rg-kopfzeile"><span>Werkzeug</span></div><h3>Verjährungs-Rechner</h3><p>Fälligkeit, Titel, Anerkennung – ist die Forderung verjährt? Mit fertiger Einrede zum Kopieren.</p><div className="rg-fuss"><span>Sofort, ohne Anmeldung</span></div></a>
-            <a href="/werkzeuge/karten-check" className="rg-karte"><div className="rg-kopfzeile"><span>Werkzeug</span></div><h3>Karten-Check</h3><p>Fünf Angaben – welche Kreditkarte heute realistisch ist (Debit, Prepaid, Rahmen) und was den nächsten Schritt öffnet.</p><div className="rg-fuss"><span>Sofort, ohne Anmeldung</span></div></a>
-            <a href="/werkzeuge/spielraum" className="rg-karte"><div className="rg-kopfzeile"><span>Werkzeug</span></div><h3>Spielraum-Rechner</h3><p>Einnahmen und Fixkosten – Spielraum, Fixkostenquote und der Richtwert für einen Kartenrahmen.</p><div className="rg-fuss"><span>Sofort, ohne Anmeldung</span></div></a>
+            {t.werkzeuge.map((w) => (
+              <a key={w.pfad} href={zu(w.pfad)} className="rg-karte">
+                <div className="rg-kopfzeile"><span>{t.werkzeugLabel}</span></div>
+                <h3>{w.titel}</h3><p>{w.text}</p>
+                {w.tat
+                  ? <div className="rg-karte-fuss"><span>{w.dauer}</span><b>{w.tat}</b></div>
+                  : <div className="rg-fuss"><span>{t.sofort}</span></div>}
+              </a>
+            ))}
           </div>
         </Block>
 
-        <Block pille="Wer schreibt" mitte>
+        <Block pille={t.autorinPille} mitte>
           <div className="rg-autorin" style={{ maxWidth: 760, margin: "0 auto", textAlign: "left" }}>
             <img src={AUTORIN.bild} alt={AUTORIN.name} />
             <div><small>{AUTORIN.rolle}</small><b>{AUTORIN.name}</b><p>{AUTORIN.lang}</p></div>
@@ -81,7 +89,7 @@ export default function Ratgeber() {
         </Block>
       </Licht>
 
-      <Zwischenruf text="Lesen hilft. Handeln hilft mehr: FIAON beschafft Ihre Auskunft, erklärt jeden Eintrag und bereitet die Schreiben vor." knopf="Konto eröffnen" href="/antrag" still={{ knopf: "Was ist FIAON", href: "/was-ist-fiaon" }} />
+      <Zwischenruf text={t.zwischenruf} knopf={t.zwischenrufKnopf} href="/antrag" still={{ knopf: t.zwischenrufStill, href: zu("/was-ist-fiaon") }} />
     </Dunkel>
   );
 }

@@ -662,10 +662,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Ratgeber vorgerendert für Suchmaschinen (Kopf + Inhalt im HTML) — VOR der SPA-Auslieferung.
-  app.get(['/ratgeber', '/ratgeber/:slug'], async (req, res, next) => {
+  app.get(['/ratgeber', '/ratgeber/:slug', '/en/guide', '/en/guide/:slug'], async (req, res, next) => {
     try {
       const { ratgeberSeitenHtml } = await import('./lib/fiaon-ratgeber-seo');
-      const html = await ratgeberSeitenHtml(req.params.slug ? String(req.params.slug) : null);
+      // 09.09.2026 (E-100): Dieselbe Vorrenderung, zwei Sprachen. Die Sprache
+      // steht im Pfad, nicht in einem Cookie — nur so indexiert Google beide.
+      const sprache = req.path.startsWith('/en/') ? 'en' : 'de';
+      const html = await ratgeberSeitenHtml(req.params.slug ? String(req.params.slug) : null, sprache);
       if (!html) return next();
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.setHeader('Cache-Control', 'public, max-age=300');

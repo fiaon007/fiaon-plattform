@@ -9,15 +9,16 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Dunkel, Licht, Knopf, Zwischenruf } from "@/components/site/DunkleBuehne";
-import { KATEGORIEN, AUTORIN, type Artikel } from "@shared/fiaon-ratgeber";
+import { KATEGORIEN, AUTORIN, ratgeberPfad, ratgeberHubPfad, type Artikel } from "@shared/fiaon-ratgeber";
+import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
+import { RATGEBER_WOERTER } from "@/i18n/ratgeber";
 import { markdownZuHtml, inhaltsverzeichnis, textAusMarkdown } from "@shared/fiaon-markdown";
 import "@/styles/ratgeber.css";
 // 27.08.2026: Nach 80 Sekunden Lesezeit ein Angebot — siehe LeseAufruf.tsx.
 import LeseAufruf from "@/components/site/LeseAufruf";
 
 interface Weiterer { slug: string; titel: string; teaser: string; kategorie: string; land: string; lesezeit: number; veroeffentlichtAm: string | null }
-const LANDKURZ: Record<string, string> = { DE: "Deutschland", AT: "Österreich", CH: "Schweiz", DACH: "DACH" };
-const datum = (s: string | null | undefined) => s ? new Date(s).toLocaleDateString("de-DE", { day: "2-digit", month: "long", year: "numeric" }) : "";
+
 
 function kopfSetzen(a: Artikel) {
   document.title = `${a.metaTitel || a.titel} · FIAON Ratgeber`;
@@ -46,7 +47,13 @@ function kopfSetzen(a: Artikel) {
 }
 
 export default function RatgeberArtikel() {
-  const slug = decodeURIComponent(window.location.pathname.replace(/^\/ratgeber\//, "").replace(/\/+$/, ""));
+  const t = useWoerter(RATGEBER_WOERTER);
+  const sprache = useSprache();
+  const zu = (p: string) => inSprache(p, sprache);
+  const datum = (s: string | null | undefined) => s ? new Date(s).toLocaleDateString(t.gebiet, { day: "2-digit", month: "long", year: "numeric" }) : "";
+  // 09.09.2026 (E-100): Der Slug steht in beiden Sprachen an derselben Stelle,
+  // nur der Pfadanfang unterscheidet sich: /ratgeber/… und /en/guide/….
+  const slug = decodeURIComponent(window.location.pathname.replace(/^\/(en\/guide|ratgeber)\//, "").replace(/\/+$/, ""));
   const vorschau = new URLSearchParams(window.location.search).get("vorschau") === "1";
   const [a, setA] = useState<Artikel | null>(null);
   const [weitere, setWeitere] = useState<Weiterer[]>([]);
@@ -58,11 +65,11 @@ export default function RatgeberArtikel() {
   useEffect(() => {
     fetch(`/api/fiaon/ratgeber/${encodeURIComponent(slug)}${vorschau ? "?vorschau=1" : ""}`).then(async (r) => {
       const j = await r.json().catch(() => null);
-      if (!r.ok || !j?.ok) { setFehler(j?.error || "Diesen Ratgeber gibt es nicht."); return; }
+      if (!r.ok || !j?.ok) { setFehler(j?.error || t.aFehltStandard); return; }
       setA(j.artikel); setWeitere(j.weitere || []); kopfSetzen(j.artikel);
-    }).catch(() => setFehler("Der Ratgeber ist gerade nicht erreichbar."));
+    }).catch(() => setFehler(t.aNichtErreichbar));
     return () => { document.getElementById("rg-ld")?.remove(); };
-  }, [slug, vorschau]);
+  }, [slug, vorschau, t]);
 
   const html = useMemo(() => (a ? markdownZuHtml(a.inhalt) : ""), [a]);
   const toc = useMemo(() => (a ? inhaltsverzeichnis(a.inhalt) : []), [a]);
@@ -87,12 +94,12 @@ export default function RatgeberArtikel() {
 
   if (fehler) {
     return (
-      <Dunkel seite="ratgeber" titel="Ratgeber" beschreibung="FIAON Ratgeber">
-        <section className="dk-hero"><div className="dk-rahmen"><span className="dk-pille">Ratgeber</span><h1 className="dk-h1">Diesen Text gibt es nicht.</h1><p className="dk-lead">{fehler}</p><div className="dk-knoepfe"><Knopf href="/ratgeber">Alle Ratgeber</Knopf></div></div></section>
+      <Dunkel seite="ratgeber" titel={t.metaTitel} beschreibung={t.metaBeschreibung}>
+        <section className="dk-hero"><div className="dk-rahmen"><span className="dk-pille">{t.metaTitel}</span><h1 className="dk-h1">{t.aFehltTitel}</h1><p className="dk-lead">{fehler}</p><div className="dk-knoepfe"><Knopf href={ratgeberHubPfad(sprache)}>{t.aZurueck}</Knopf></div></div></section>
       </Dunkel>
     );
   }
-  if (!a) return <Dunkel seite="ratgeber" titel="Ratgeber" beschreibung="FIAON Ratgeber"><section className="dk-hero"><div className="dk-rahmen"><p className="dk-lead">Der Text wird geladen …</p></div></section></Dunkel>;
+  if (!a) return <Dunkel seite="ratgeber" titel={t.metaTitel} beschreibung={t.metaBeschreibung}><section className="dk-hero"><div className="dk-rahmen"><p className="dk-lead">{t.aLaden}</p></div></section></Dunkel>;
 
   return (
     <Dunkel seite="ratgeber" titel={a.metaTitel || a.titel} beschreibung={a.metaBeschreibung || a.teaser}>
@@ -104,14 +111,14 @@ export default function RatgeberArtikel() {
       <section className="dk-hero rg-artikel-hero">
         <div className="dk-hero-bild" aria-hidden="true"><img src="/kino/akten.jpg" alt="" decoding="async" /><div className="schleier" /></div>
         <div className="dk-rahmen">
-          <a href={`/ratgeber?kategorie=${a.kategorie}`} className="dk-pille" style={{ textDecoration: "none" }}>{KATEGORIEN[a.kategorie]?.label || "Ratgeber"} · {LANDKURZ[a.land] || a.land}</a>
+          <a href={`${ratgeberHubPfad(sprache)}?kategorie=${a.kategorie}`} className="dk-pille" style={{ textDecoration: "none" }}>{KATEGORIEN[a.kategorie]?.label || t.metaTitel} · {t.laender[a.land] || a.land}</a>
           <h1 className="dk-h1">{a.titel}</h1>
           {a.untertitel && <p className="dk-lead">{a.untertitel}</p>}
           <div className="rg-meta">
             <span className="autorin"><img src={AUTORIN.bild} alt="" /><span>{AUTORIN.name}<small>{AUTORIN.rolle}</small></span></span>
             <span>{datum(a.veroeffentlichtAm || a.aktualisiertAm)}</span>
-            <span>{a.lesezeit} Min. Lesezeit</span>
-            {vorschau && <span style={{ color: "#fcd34d" }}>Vorschau · {a.status}</span>}
+            <span>{a.lesezeit} {t.lesezeit}</span>
+            {vorschau && <span style={{ color: "#fcd34d" }}>{t.aVorschau} · {a.status}</span>}
           </div>
         </div>
       </section>
@@ -120,19 +127,19 @@ export default function RatgeberArtikel() {
         <div className="dk-rahmen">
           <div className="rg-leseraum">
             <aside className="rg-toc">
-              <p>Inhalt</p>
+              <p>{t.aInhalt}</p>
               <ol>{toc.map((t) => <li key={t.id}><a href={`#${t.id}`} className={`${t.ebene === 3 ? "e3" : ""}${aktiv === t.id ? " aktiv" : ""}`} onClick={springen(t.id)}>{t.text}</a></li>)}</ol>
-              <div className="rg-toc-cta"><a className="dk-knopf" href="/antrag">Auskunft beschaffen</a><small>Konto in zwei Minuten · Einsicht in 24 Stunden</small></div>
+              <div className="rg-toc-cta"><a className="dk-knopf" href="/antrag">{t.aTocKnopf}</a><small>{t.aTocKlein}</small></div>
             </aside>
             <article>
               <div ref={inhaltRef} className="rg-inhalt" dangerouslySetInnerHTML={{ __html: html }} />
               <div className="rg-einschub">
-                <div><small>Was FIAON übernimmt</small><b>Auskunft beschaffen, jeden Eintrag erklären, Schreiben versenden, Fristen halten.</b><p>Konto in zwei Minuten, Einsicht in 24 Stunden. Danach Girokonto für jeden Kunden – und die Karte, sobald der Wert reicht.</p></div>
-                <Knopf href="/antrag">Konto eröffnen</Knopf>
+                <div><small>{t.aEinschubKlein}</small><b>{t.aEinschubFett}</b><p>{t.aEinschubText}</p></div>
+                <Knopf href="/antrag">{t.aEinschubKnopf}</Knopf>
               </div>
               {a.faq.length > 0 && (
                 <section className="rg-faq">
-                  <h2>Häufige Fragen</h2>
+                  <h2>{t.aFragen}</h2>
                   {a.faq.map((f) => <details key={f.frage}><summary>{f.frage}</summary><p>{f.antwort}</p></details>)}
                 </section>
               )}
@@ -140,16 +147,16 @@ export default function RatgeberArtikel() {
                 <img src={AUTORIN.bild} alt={AUTORIN.name} />
                 <div><small>{AUTORIN.rolle}</small><b>{AUTORIN.name}</b><p>{AUTORIN.kurz}</p></div>
               </div>
-              <p className="rg-hinweis">Dieser Text informiert allgemein über Rechte und Abläufe rund um Auskunfteien und ersetzt keine Rechtsberatung im Einzelfall. FIAON beschafft Auskünfte, erklärt Einträge und bereitet Schreiben vor – über Konto, Karte und Rahmen entscheidet immer die Bank. Stand: {datum(a.aktualisiertAm)}.</p>
+              <p className="rg-hinweis">{t.aHinweis}{datum(a.aktualisiertAm)}.</p>
               {weitere.length > 0 && (
                 <section className="rg-weitere">
-                  <h2>Weiterlesen</h2>
+                  <h2>{t.aWeiter}</h2>
                   <div className="rg-liste" style={{ marginTop: 0 }}>
                     {weitere.map((w) => (
-                      <a key={w.slug} href={`/ratgeber/${w.slug}`} className="rg-karte">
-                        <div className="rg-kopfzeile"><span>{KATEGORIEN[w.kategorie as keyof typeof KATEGORIEN]?.label || w.kategorie}</span><span className="land">{LANDKURZ[w.land] || w.land}</span></div>
+                      <a key={w.slug} href={ratgeberPfad(w.slug, sprache)} className="rg-karte">
+                        <div className="rg-kopfzeile"><span>{KATEGORIEN[w.kategorie as keyof typeof KATEGORIEN]?.label || w.kategorie}</span><span className="land">{t.laender[w.land] || w.land}</span></div>
                         <h3>{w.titel}</h3><p>{w.teaser}</p>
-                        <div className="rg-karte-fuss"><span>{w.lesezeit} Min.</span><b>Lesen →</b></div>
+                        <div className="rg-karte-fuss"><span>{w.lesezeit} {t.aMin}</span><b>{t.lesen}</b></div>
                       </a>
                     ))}
                   </div>
@@ -160,7 +167,7 @@ export default function RatgeberArtikel() {
         </div>
       </Licht>
 
-      <Zwischenruf text="Sie möchten wissen, welche Ihrer Einträge angreifbar sind? FIAON beschafft die Auskunft und erklärt jeden Eintrag – innerhalb von 24 Stunden." knopf="Konto eröffnen" href="/antrag" still={{ knopf: "Alle Ratgeber", href: "/ratgeber" }} />
+      <Zwischenruf text={t.aZwischenruf} knopf={t.aEinschubKnopf} href="/antrag" still={{ knopf: t.aZurueck, href: ratgeberHubPfad(sprache) }} />
     </Dunkel>
   );
 }

@@ -123,8 +123,21 @@ STRUKTUR DES ARTIKELS (Markdown, 1.500–2.000 Wörter):
 Dazu: 5 FAQ (Frage + Antwort in 2–4 Sätzen), ein Teaser (max. 160 Zeichen), Meta-Titel (max. 60 Zeichen, enthält das Keyword),
 Meta-Beschreibung (max. 155 Zeichen), 4–6 Schlagwörter, geschätzte Lesezeit.`;
 
+/** 09.09.2026 (E-100): Der Ratgeber kannte bis hierher keine Sprachen. */
+export type RatgeberSprache = "de" | "en";
+
+/** Der Pfad eines Artikels — je Sprache eine eigene Adresse, damit Google beide indexiert. */
+export function ratgeberPfad(slug: string, sprache: RatgeberSprache = "de"): string {
+  return sprache === "en" ? `/en/guide/${slug}` : `/ratgeber/${slug}`;
+}
+/** Die Übersichtsseite je Sprache. */
+export function ratgeberHubPfad(sprache: RatgeberSprache = "de"): string {
+  return sprache === "en" ? "/en/guide" : "/ratgeber";
+}
+
 export interface Artikel {
   id: number; slug: string; titel: string; untertitel: string | null; teaser: string; inhalt: string;
+  sprache: RatgeberSprache; schwesterSlug: string | null;
   kategorie: Kategorie; land: Land; keyword: string; schlagworte: string[];
   faq: { frage: string; antwort: string }[];
   metaTitel: string; metaBeschreibung: string; lesezeit: number;

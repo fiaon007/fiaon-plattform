@@ -76,6 +76,7 @@ function zeile(r: any): Artikel {
   return {
     id: Number(r.id), slug: r.slug, titel: r.titel, untertitel: r.untertitel ?? null, teaser: r.teaser || "", inhalt: r.inhalt || "",
     kategorie: r.kategorie, land: r.land, keyword: r.keyword || "", schlagworte: j(r.schlagworte) || [], faq: j(r.faq) || [],
+    sprache: (r.sprache === "en" ? "en" : "de"), schwesterSlug: r.schwester_slug ?? null,
     metaTitel: r.meta_titel || "", metaBeschreibung: r.meta_beschreibung || "", lesezeit: Number(r.lesezeit || 6),
     status: r.status, quelle: r.quelle, modell: r.modell ?? null, pruefung: r.pruefung ? j(r.pruefung) : null,
     erstelltAm: r.created_at, aktualisiertAm: r.updated_at, veroeffentlichtAm: r.published_at ?? null,
@@ -88,9 +89,12 @@ router.get("/ratgeber", async (req: Request, res: Response) => {
   try {
     await ensureRatgeberTabelle();
     const kat = String(req.query.kategorie || "").trim();
+    // 09.09.2026 (E-100): Der Ratgeber ist zweisprachig. Ohne Angabe bleibt es
+    // beim deutschen Bestand — sonst mischten sich die Sprachen in der Liste.
+    const spr = String(req.query.sprache || "de") === "en" ? "en" : "de";
     const rows = (kat
-      ? await sqlPool`SELECT * FROM fiaon_ratgeber WHERE status = 'veroeffentlicht' AND kategorie = ${kat} ORDER BY published_at DESC LIMIT 200`
-      : await sqlPool`SELECT * FROM fiaon_ratgeber WHERE status = 'veroeffentlicht' ORDER BY published_at DESC LIMIT 200`) as any[];
+      ? await sqlPool`SELECT * FROM fiaon_ratgeber WHERE status = 'veroeffentlicht' AND sprache = ${spr} AND kategorie = ${kat} ORDER BY published_at DESC LIMIT 200`
+      : await sqlPool`SELECT * FROM fiaon_ratgeber WHERE status = 'veroeffentlicht' AND sprache = ${spr} ORDER BY published_at DESC LIMIT 200`) as any[];
     res.setHeader("Cache-Control", "public, max-age=120");
     res.json({ ok: true, artikel: rows.map((r) => { const a = oeffentlich(zeile(r)); return { ...a, inhalt: undefined }; }), autorin: AUTORIN });
   } catch (err) { console.error("[RATGEBER] liste:", err); res.status(500).json({ ok: false, error: "Der Ratgeber ist gerade nicht erreichbar." }); }
@@ -103,8 +107,10 @@ router.get("/ratgeber/:slug", async (req: Request, res: Response) => {
     const [r] = (await sqlPool`SELECT * FROM fiaon_ratgeber WHERE slug = ${String(req.params.slug)} LIMIT 1`) as any[];
     if (!r || (r.status !== "veroeffentlicht" && !vorschau)) return res.status(404).json({ ok: false, error: "Diesen Ratgeber gibt es nicht." });
     const a = oeffentlich(zeile(r));
+    // Weiterlesen bleibt in der Sprache des Artikels — ein deutscher Vorschlag
+    // unter einem englischen Text ist eine Sackgasse.
     const weitere = (await sqlPool`SELECT slug, titel, teaser, kategorie, land, lesezeit, published_at FROM fiaon_ratgeber
-      WHERE status = 'veroeffentlicht' AND slug <> ${a.slug} ORDER BY (kategorie = ${a.kategorie}) DESC, published_at DESC LIMIT 3`) as any[];
+      WHERE status = 'veroeffentlicht' AND sprache = ${a.sprache} AND slug <> ${a.slug} ORDER BY (kategorie = ${a.kategorie}) DESC, published_at DESC LIMIT 3`) as any[];
     if (!vorschau) res.setHeader("Cache-Control", "public, max-age=120");
     res.json({ ok: true, artikel: a, weitere: weitere.map((w) => ({ slug: w.slug, titel: w.titel, teaser: w.teaser, kategorie: w.kategorie, land: w.land, lesezeit: Number(w.lesezeit), veroeffentlichtAm: w.published_at })) });
   } catch (err) { console.error("[RATGEBER] artikel:", err); res.status(500).json({ ok: false, error: "Der Ratgeber ist gerade nicht erreichbar." }); }
@@ -307,9 +313,19 @@ export async function ratgeberTageslauf(): Promise<void> {
 export async function sitemapXml(statisch: string): Promise<string> {
   try {
     await ensureRatgeberTabelle();
-    const rows = (await sqlPool`SELECT slug, updated_at FROM fiaon_ratgeber WHERE status = 'veroeffentlicht' ORDER BY published_at DESC`) as any[];
-    const extra = [`  <url><loc>https://fiaon.com/ratgeber</loc><changefreq>daily</changefreq><priority>0.8</priority></url>`,
-      ...rows.map((r) => `  <url><loc>https://fiaon.com/ratgeber/${r.slug}</loc><lastmod>${new Date(r.updated_at).toISOString().slice(0, 10)}</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>`)].join("\n");
+    const rows = (await sqlPool`SELECT slug, sprache, updated_at FROM fiaon_ratgeber WHERE status = 'veroeffentlicht' ORDER BY published_at DESC`) as any[];
+    // 09.09.2026 (E-100): Englische Artikel stehen unter /en/guide/… und gehören
+    // mit EIGENER Adresse in die Sitemap — sonst kennt Google sie nicht.
+    const hatEn = rows.some((r) => r.sprache === "en");
+    const extra = [
+      `  <url><loc>https://fiaon.com/ratgeber</loc><changefreq>daily</changefreq><priority>0.8</priority></url>`,
+      ...(hatEn ? [`  <url><loc>https://fiaon.com/en/guide</loc><changefreq>daily</changefreq><priority>0.7</priority></url>`] : []),
+      ...rows.map((r) => {
+        const pfad = r.sprache === "en" ? `/en/guide/${r.slug}` : `/ratgeber/${r.slug}`;
+        const prio = r.sprache === "en" ? "0.6" : "0.7";
+        return `  <url><loc>https://fiaon.com${pfad}</loc><lastmod>${new Date(r.updated_at).toISOString().slice(0, 10)}</lastmod><changefreq>monthly</changefreq><priority>${prio}</priority></url>`;
+      }),
+    ].join("\n");
     return statisch.replace("</urlset>", `${extra}\n</urlset>`);
   } catch { return statisch; }
 }

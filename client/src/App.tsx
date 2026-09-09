@@ -297,6 +297,8 @@ function Router() {
       <Route path="/team" component={SiteTeam} />
       <Route path="/demo" component={SiteDemo} />
       <Route path="/ratgeber" component={SiteRatgeber} />
+      {/* 09.09.2026 (E-100): Der Ratgeber ist zweisprachig — eigene Adressen je Sprache. */}
+      <Route path="/en/guide" component={SiteRatgeber} />
       <Route path="/kontakt" component={SiteKontakt} />
       <Route path="/preise" component={SitePreise} />
       {/* Englisch (02.09.2026): /en und /en/pricing — die Seite liest ihre Sprache aus der Adresse. */}
@@ -412,6 +414,7 @@ function Router() {
       <Route path="/werkzeuge/eintrag-pruefen" component={SiteEintragPruefen} />
       <Route path="/werkzeuge/selbstauskunft" component={SiteSelbstauskunft} />
       <Route path="/ratgeber/:slug" component={SiteRatgeberArtikel} />
+      <Route path="/en/guide/:slug" component={SiteRatgeberArtikel} />
       <Route path="/demo/kundenbereich" component={DemoKundenbereich} />
       <Route path="/demo/produkt" component={MeinBereichPage} />
       <Route path="/start" component={StartPage} />

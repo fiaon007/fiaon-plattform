@@ -158,7 +158,16 @@ export function pruefstand(a: Pick<Artikel, "titel" | "teaser" | "inhalt" | "faq
   // staatlich anerkannten Stellen, an die der Ratgeber bei ernster Lage
   // verweisen MUSS (Regel aus /werkzeuge/schulden-check). Die Silbe „beratung"
   // darin ist kein Versprechen von FIAON — sie wird vor der Prüfung entfernt.
-  const schlecht = worthygiene(alles.replace(/schuldnerberatung/gi, ""));
+  //
+  // 09.09.2026 (E-100): Dieselbe Überlegung gilt für gesetzliche
+  // BERUFSBEZEICHNUNGEN. § 335 Abs. 2 HGB nennt ausdrücklich, wer Sie im
+  // Ordnungsgeldverfahren vertreten darf: „Wirtschaftsprüfer, vereidigte
+  // Buchprüfer, Steuerberater und Steuerbevollmächtigte". Das ist der
+  // Gesetzeswortlaut, kein Beratungsversprechen — und jede Umschreibung machte
+  // den Satz falsch. Ebenso der Name des Steuerberatungsgesetzes.
+  // Die TÄTIGKEIT bleibt verboten: „wir beraten Sie" fängt die Prüfung weiter.
+  const AUSNAHMEN = /schuldnerberatung|steuerberatungsgesetz|steuerberater(in)?(n?en)?|steuerberatungsgesellschaft/gi;
+  const schlecht = worthygiene(alles.replace(AUSNAHMEN, ""));
   if (schlecht.length) punkte.push({ art: "fehler", text: `Verbotene Wörter: ${schlecht.join(", ")}` });
   else punkte.push({ art: "ok", text: "Worthygiene: keine verbotenen Wörter" });
 

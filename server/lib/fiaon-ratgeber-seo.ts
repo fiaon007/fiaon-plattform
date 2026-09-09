@@ -79,6 +79,9 @@ const PFEILER_JE_KATEGORIE: Record<string, string[]> = {
   grundlagen: ["/schufa-score-verstehen", "/auskunfteien", "/glossar-bonitaet", "/werkzeuge"],
   at: ["/oesterreich", "/auskunfteien", "/werkzeuge/selbstauskunft", "/werkzeuge/eintrag-pruefen"],
   ch: ["/schweiz", "/auskunfteien", "/werkzeuge/selbstauskunft", "/werkzeuge/verjaehrung"],
+  // 09.09.2026 (E-099): Rubrik Firmenkunden. Die vier Ziele deployen mit
+  // demselben Merge wie die Artikel — sie können also nicht ins Leere zeigen.
+  firmen: ["/business", "/werkzeuge/bonitaetsindex", "/werkzeuge/firmenauskunft", "/werkzeuge/verzugszinsen"],
 };
 const PFEILER_STANDARD = ["/schufa-eintrag-loeschen", "/bonitaet-verbessern", "/werkzeuge", "/glossar-bonitaet"];
 

@@ -14,7 +14,7 @@
 import { worthygiene } from "./fiaon-onboarding-agenda";
 
 export type Land = "DE" | "AT" | "CH" | "DACH";
-export type Kategorie = "eintraege" | "auskunft" | "karte" | "kredit" | "score" | "inkasso" | "at" | "ch" | "grundlagen";
+export type Kategorie = "eintraege" | "auskunft" | "karte" | "kredit" | "score" | "inkasso" | "at" | "ch" | "grundlagen" | "firmen";
 export type Status = "entwurf" | "geprueft" | "veroeffentlicht" | "archiv";
 
 export const KATEGORIEN: Record<Kategorie, { label: string; kurz: string }> = {
@@ -27,6 +27,10 @@ export const KATEGORIEN: Record<Kategorie, { label: string; kurz: string }> = {
   at: { label: "Österreich · KSV", kurz: "Auskunft, Einträge, Löschung in Österreich" },
   ch: { label: "Schweiz · CRIF & Betreibung", kurz: "Auszug, Einträge, Löschung in der Schweiz" },
   grundlagen: { label: "Grundlagen", kurz: "Begriffe, die jeder kennen sollte" },
+  // 09.09.2026 (E-099): eigene Rubrik für Firmenkunden. Der Ratgeber hatte 57
+  // Artikel und nur einen mit gewerblichem Bezug. Die Rubrik erscheint auf
+  // /ratgeber automatisch, sobald Artikel darin stehen (Filter „vorhandene").
+  firmen: { label: "Firmenkunden", kurz: "Unternehmensbonität, Zahlungsziele, Firmenkarte" },
 };
 
 /** Die fiktive Autorin — niemand aus dem Team (Justin). */

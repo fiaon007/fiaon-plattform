@@ -84,6 +84,13 @@ catch { f("H1 in Tabelle und Wörterbuch weichen ab — npx tsx scripts/seo-h1-a
 try { execSync("npx tsx scripts/seo-inhalt-pruefen.ts --streng", { cwd: WURZEL, stdio: "pipe" }); }
 catch { f("Inhalts-Prüfstand meldet Befunde — npx tsx scripts/seo-inhalt-pruefen.ts"); }
 
+// 09.09.2026 (E-100): Entschieden ist britisches Englisch (colour, organisation,
+// licence, instalment). Bis heute prüfte das niemand — seo-wortverbote-en sucht
+// nur nach verbotenen Versprechen, nicht nach der Schreibung. Der Prüfer trägt
+// einen Selbsttest (--selbsttest, 20 Fälle), damit ein stiller Ausfall auffällt.
+try { execSync("npx tsx scripts/seo-britisch-pruefen.ts --streng", { cwd: WURZEL, stdio: "pipe" }); }
+catch { f("Amerikanische Schreibung auf englischen Seiten — npx tsx scripts/seo-britisch-pruefen.ts"); }
+
 console.log(`Tabelle: ${Object.keys(SEO_SEITEN).length} Seiten, ${seoIndexierbar().length} indexierbar.`);
 
 // ── Stufe 2: das ausgelieferte HTML ──────────────────────────────────────────

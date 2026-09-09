@@ -17,7 +17,7 @@ const esc = (s: string) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, 
 // 301 auf die Adresse ohne www — jede Sitemap-Zeile und jedes Canonical
 // schickte Google also erst durch eine Umleitung. Eine Adresse, eine Wahrheit.
 import { BASIS, beschreibungKuerzen, organisationLd, indexHtml, kopfEinsetzen, seoRahmen, VORAB_STIL } from "./fiaon-seiten-seo";
-import { SEO_SEITEN } from "@shared/fiaon-seo-seiten";
+import { SEO_SEITEN, schwesterPfad } from "@shared/fiaon-seo-seiten";
 import { titelMitMarke } from "@shared/fiaon-pixel";
 
 // Titel für die Trefferliste: höchstens 60 Zeichen. Der Report vom 02.09.
@@ -68,7 +68,7 @@ export async function ratgeberSeitenHtml(slug: string | null, sprache: RatgeberS
   if (!slug) {
     const rows = (await sqlPool`SELECT slug, titel, teaser, kategorie, published_at, updated_at FROM fiaon_ratgeber WHERE status = 'veroeffentlicht' AND sprache = ${spr} ORDER BY published_at DESC LIMIT 100`) as any[];
     const liste = rows.map((r) => `<li><a href="${esc(ratgeberPfad(r.slug, spr))}"><h3>${esc(r.titel)}</h3></a><p>${esc(r.teaser)}</p></li>`).join("");
-    const inhalt = `<main><article><h1>${esc(T.hubH1)}</h1><p>${esc(T.hubLead)}</p><section><h2>${esc(T.alle)}</h2><ul>${liste}</ul></section>${pfeilerLinks()}</article></main>`;
+    const inhalt = `<main><article><h1>${esc(T.hubH1)}</h1><p>${esc(T.hubLead)}</p><section><h2>${esc(T.alle)}</h2><ul>${liste}</ul></section>${pfeilerLinks(undefined, spr)}</article></main>`;
     const ld = [
       organisationLd(),
       { "@context": "https://schema.org", "@type": "CollectionPage", name: T.sammlung, url: `${BASIS}${ratgeberHubPfad(spr)}`, inLanguage: spr,
@@ -84,7 +84,7 @@ export async function ratgeberSeitenHtml(slug: string | null, sprache: RatgeberS
     // Übersichtsseite hat ihren eigenen Eintrag unter /en/guide.
     const hub = SEO_SEITEN[ratgeberHubPfad(spr)];
     return kopfEinsetzen(html.replace("</head>", `    ${VORAB_STIL}\n  </head>`), { titel: ratgeberTitel(hub.titel), beschreibung: beschreibungKuerzen(hub.beschreibung), url: `${BASIS}${ratgeberHubPfad(spr)}`, ld, sprache: spr, alternativen: hubAlternativen() })
-      .replace('<div id="root"></div>', `<div id="root"><div class="vorab">${seoRahmen().kopf}${inhalt}${seoRahmen().fuss}</div></div>`);
+      .replace('<div id="root"></div>', `<div id="root"><div class="vorab">${seoRahmen(spr).kopf}${inhalt}${seoRahmen(spr).fuss}</div></div>`);
   }
   const [a] = (await sqlPool`SELECT * FROM fiaon_ratgeber WHERE slug = ${slug} AND sprache = ${spr} AND status = 'veroeffentlicht' LIMIT 1`) as any[];
   if (!a) return null;
@@ -94,7 +94,7 @@ export async function ratgeberSeitenHtml(slug: string | null, sprache: RatgeberS
   const kat = (KATEGORIEN as any)[a.kategorie]?.label || "Ratgeber";
   const body = markdownZuHtml(a.inhalt);
   const faqHtml = faq.length ? `<section><h2>${esc(T.fragen)}</h2>${faq.map((f: any) => `<h3>${esc(f.frage)}</h3><p>${esc(f.antwort)}</p>`).join("")}</section>` : "";
-  const inhalt = `<main><article><p><a href="/">FIAON</a> › <a href="${esc(ratgeberHubPfad(spr))}">${esc(T.ratgeber)}</a> › ${esc(kat)}</p><h1>${esc(a.titel)}</h1>${a.untertitel ? `<p>${esc(a.untertitel)}</p>` : ""}<p>${esc(T.von)} ${esc(AUTORIN.name)}, ${esc(AUTORIN.rolle)} · ${new Date(a.published_at || a.updated_at).toLocaleDateString(T.gebiet)} · ${a.lesezeit} ${esc(T.lesezeit)}</p>${body}${faqHtml}${pfeilerLinks(a.kategorie)}</article></main>`;
+  const inhalt = `<main><article><p><a href="/">FIAON</a> › <a href="${esc(ratgeberHubPfad(spr))}">${esc(T.ratgeber)}</a> › ${esc(kat)}</p><h1>${esc(a.titel)}</h1>${a.untertitel ? `<p>${esc(a.untertitel)}</p>` : ""}<p>${esc(T.von)} ${esc(AUTORIN.name)}, ${esc(AUTORIN.rolle)} · ${new Date(a.published_at || a.updated_at).toLocaleDateString(T.gebiet)} · ${a.lesezeit} ${esc(T.lesezeit)}</p>${body}${faqHtml}${pfeilerLinks(a.kategorie, spr)}</article></main>`;
   const ld = [
     organisationLd(),
     { "@context": "https://schema.org", "@type": "Article", headline: a.titel, description: a.teaser, inLanguage: spr, datePublished: a.published_at, dateModified: a.updated_at,
@@ -104,7 +104,7 @@ export async function ratgeberSeitenHtml(slug: string | null, sprache: RatgeberS
     { "@context": "https://schema.org", "@type": "BreadcrumbList", itemListElement: [{ "@type": "ListItem", position: 1, name: "FIAON", item: BASIS }, { "@type": "ListItem", position: 2, name: T.ratgeber, item: `${BASIS}${ratgeberHubPfad(spr)}` }, { "@type": "ListItem", position: 3, name: a.titel, item: url }] },
   ].filter(Boolean);
   return kopfEinsetzen(html.replace("</head>", `    ${VORAB_STIL}\n  </head>`), { titel: ratgeberTitel(a.meta_titel || a.titel), beschreibung: beschreibungKuerzen(a.meta_beschreibung || a.teaser), url, ld, og: { type: "article" }, sprache: spr, alternativen: artikelAlternativen(a) })
-    .replace('<div id="root"></div>', `<div id="root"><div class="vorab">${seoRahmen().kopf}${inhalt}${seoRahmen().fuss}</div></div>`);
+    .replace('<div id="root"></div>', `<div id="root"><div class="vorab">${seoRahmen(spr).kopf}${inhalt}${seoRahmen(spr).fuss}</div></div>`);
 }
 
 // ── Weiterlesen: von jedem Artikel zu den Pfeilern und Werkzeugen ────────────
@@ -127,9 +127,16 @@ const PFEILER_JE_KATEGORIE: Record<string, string[]> = {
 };
 const PFEILER_STANDARD = ["/schufa-eintrag-loeschen", "/bonitaet-verbessern", "/werkzeuge", "/glossar-bonitaet"];
 
-function pfeilerLinks(kategorie?: string): string {
+function pfeilerLinks(kategorie?: string, spr: RatgeberSprache = "de"): string {
   const pfade = PFEILER_JE_KATEGORIE[kategorie ?? ""] ?? PFEILER_STANDARD;
-  const eintraege = pfade.map((p) => SEO_SEITEN[p]).filter(Boolean)
+  // 09.09.2026 (E-100): Auf einer englischen Seite zeigen die Verweise auf die
+  // englische Schwester, wo es sie gibt. Ein deutscher Verweis unter einem
+  // englischen Text ist für den Leser eine Sackgasse — und für Google ein
+  // Sprachwechsel mitten in der Seite.
+  const eintraege = pfade
+    .map((p) => (spr === "en" ? SEO_SEITEN[schwesterPfad(p, "en") ?? p] : SEO_SEITEN[p]))
+    .filter(Boolean)
     .map((s) => `<li><a href="${esc(s.pfad)}">${esc(s.h1)}</a></li>`).join("");   // 03.09.2026 (E-092): ohne Beschreibung — sie stand sonst wortgleich unter jedem Ratgeber.
-  return `<nav aria-label="Weiterlesen"><h2>Weiterlesen</h2><ul>${eintraege}</ul></nav>`;
+  const titel = spr === "en" ? "Read on" : "Weiterlesen";
+  return `<nav aria-label="${titel}"><h2>${titel}</h2><ul>${eintraege}</ul></nav>`;
 }

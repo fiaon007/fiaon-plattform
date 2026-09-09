@@ -50,10 +50,18 @@ function hubAlternativen() {
   return { de: `${BASIS}/ratgeber`, en: `${BASIS}/en/guide` };
 }
 
-/** hreflang-Paar eines Artikels — nur, wenn es die Schwesterfassung wirklich gibt.
- *  Ein hreflang auf eine Adresse ohne Artikel wäre ein Fehler in der Search Console. */
-function artikelAlternativen(a: any) {
+/** hreflang-Paar eines Artikels — nur, wenn die Schwesterfassung wirklich
+ *  existiert UND veröffentlicht ist.
+ *
+ *  09.09.2026: Das „und veröffentlicht" ist kein Detail. Am Tag der Umstellung
+ *  standen fünf englische Artikel in der Datenbank, bevor der Code sie
+ *  ausliefern konnte — sie mussten kurzfristig auf 'entwurf' zurück. Ein
+ *  hreflang hätte in dieser Zeit auf eine 404-Adresse gezeigt. Die Prüfung
+ *  kostet eine Abfrage und schließt den Fall dauerhaft. */
+async function artikelAlternativen(a: any) {
   if (!a.schwester_slug) return undefined;
+  const [schwesterZeile] = (await sqlPool`SELECT 1 FROM fiaon_ratgeber WHERE slug = ${a.schwester_slug} AND status = 'veroeffentlicht' LIMIT 1`) as any[];
+  if (!schwesterZeile) return undefined;
   const eigen = ratgeberPfad(a.slug, a.sprache === "en" ? "en" : "de");
   const schwester = ratgeberPfad(a.schwester_slug, a.sprache === "en" ? "de" : "en");
   return a.sprache === "en"
@@ -103,7 +111,7 @@ export async function ratgeberSeitenHtml(slug: string | null, sprache: RatgeberS
     faq.length ? { "@context": "https://schema.org", "@type": "FAQPage", mainEntity: faq.map((f: any) => ({ "@type": "Question", name: f.frage, acceptedAnswer: { "@type": "Answer", text: f.antwort } })) } : null,
     { "@context": "https://schema.org", "@type": "BreadcrumbList", itemListElement: [{ "@type": "ListItem", position: 1, name: "FIAON", item: BASIS }, { "@type": "ListItem", position: 2, name: T.ratgeber, item: `${BASIS}${ratgeberHubPfad(spr)}` }, { "@type": "ListItem", position: 3, name: a.titel, item: url }] },
   ].filter(Boolean);
-  return kopfEinsetzen(html.replace("</head>", `    ${VORAB_STIL}\n  </head>`), { titel: ratgeberTitel(a.meta_titel || a.titel), beschreibung: beschreibungKuerzen(a.meta_beschreibung || a.teaser), url, ld, og: { type: "article" }, sprache: spr, alternativen: artikelAlternativen(a) })
+  return kopfEinsetzen(html.replace("</head>", `    ${VORAB_STIL}\n  </head>`), { titel: ratgeberTitel(a.meta_titel || a.titel), beschreibung: beschreibungKuerzen(a.meta_beschreibung || a.teaser), url, ld, og: { type: "article" }, sprache: spr, alternativen: await artikelAlternativen(a) })
     .replace('<div id="root"></div>', `<div id="root"><div class="vorab">${seoRahmen(spr).kopf}${inhalt}${seoRahmen(spr).fuss}</div></div>`);
 }
 

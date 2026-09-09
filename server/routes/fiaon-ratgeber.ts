@@ -316,10 +316,13 @@ export async function sitemapXml(statisch: string): Promise<string> {
     const rows = (await sqlPool`SELECT slug, sprache, updated_at FROM fiaon_ratgeber WHERE status = 'veroeffentlicht' ORDER BY published_at DESC`) as any[];
     // 09.09.2026 (E-100): Englische Artikel stehen unter /en/guide/… und gehören
     // mit EIGENER Adresse in die Sitemap — sonst kennt Google sie nicht.
-    const hatEn = rows.some((r) => r.sprache === "en");
+    // Die englische Übersichtsseite steht IMMER drin, auch ohne Artikel: Sie
+    // trägt einen eigenen Textkörper, und /ratgeber verweist per hreflang auf
+    // sie. Eine hreflang-Angabe auf eine Adresse, die nicht in der Sitemap
+    // steht, ist ein Widerspruch, den die Search Console anmerkt.
     const extra = [
       `  <url><loc>https://fiaon.com/ratgeber</loc><changefreq>daily</changefreq><priority>0.8</priority></url>`,
-      ...(hatEn ? [`  <url><loc>https://fiaon.com/en/guide</loc><changefreq>daily</changefreq><priority>0.7</priority></url>`] : []),
+      `  <url><loc>https://fiaon.com/en/guide</loc><changefreq>daily</changefreq><priority>0.7</priority></url>`,
       ...rows.map((r) => {
         const pfad = r.sprache === "en" ? `/en/guide/${r.slug}` : `/ratgeber/${r.slug}`;
         const prio = r.sprache === "en" ? "0.6" : "0.7";

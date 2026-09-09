@@ -5,6 +5,35 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 09.09.2026 — Team-Feedback 08.09. (E-168, Etappe 1): Pipeline links/rechts, Ratenergebnis → Person, Ablehnung stoppt Automatik, Startgespräch bleibt geführt, Support-Termin, Mail von Hand vor Automatik
+
+**Was geändert wurde:**
+1. **Pipeline** (fiaon-office-vertrieb.ts): links nur Stufe 1–3 ohne Gesprächsergebnis (`NIE_SQL`); rechts alles
+   Kontaktierte, das heute fällig ist (Wiedervorlage, Zusage, Rückruf, Termin, Rate) — `wieder_grund` kennt jetzt
+   zusage/rate/wiedervorlage. Der Nachschub zählt nur nie Kontaktierte als „Neu für dich“.
+2. **Ratenergebnis** (fiaon-inkasso.ts): trägt die Person nach (follow_up_date, promised_payment_date,
+   unreachable_count, ruhe_seit) und schreibt ein `result` in fiaon_contact_log — vorher blieb die Person unberührt
+   und Ratenkunden standen nach „nicht erreicht“ sofort wieder rechts.
+3. **Ablehnung** (fiaon-kontakt-ergebnis.ts): `erreicht_abgelehnt` setzt mahnstopp_am auf alle offenen
+   Bestellungen, werbung_gesperrt_am auf die Person, Vermerk im Verlauf.
+4. **Startgespräch** (`kundenSituation`): neue Art `startgespraech_erledigt` (erledigter onboarding_call oder
+   Gespräch im Verlauf), `terminQuelle`, `startgespraechAm`; Akte zeigt „Startgespräch geführt am …“.
+5. **Support-Termin**: `QUELLEN.support` (20 Min), `POST /agent/termine { art: "support" }`, Kundenlink ergibt
+   für bezahlte Kunden mit geführtem Startgespräch automatisch „support“ (fiaon-zustaendigkeit.ts). Akte: Knopf
+   „Support-Termin buchen“.
+6. **Mail** (fiaon-mail-frequenz.ts, make-webhook.ts, fiaon-mail-log.ts): `darfAnEmpfaenger(…, { manuell })` lässt
+   von Hand ausgelöste Mails durch (nur Rückläufer/Spam sperren); `frequenzRuhe` — nach einem gebremsten Versuch
+   20 Stunden Ruhe ohne neuen Protokolleintrag; Abo-Mahnlauf überspringt Raten mit Fehlversuch < 20 h; manuelle
+   Ratenerinnerung mit `manuell: true`.
+7. **Verlauf**: „Erreicht — zahlt am 15.09.2026“ mit Datum. **Menü**: „Nicht erreicht“ entfernt. Rundgang Pipeline
+   und Team-Update angepasst.
+**Warum:** Team-Feedback vom 08.09. (Florentine, neun Punkte): „Ein Status sollte nicht nur ein Label sein,
+sondern den tatsächlichen nächsten Prozessschritt bestimmen.“ Gemessen: neun Ratenkunden ohne Wiedervorlage nach
+„nicht erreicht“; 3.219 vergebliche Mahnversuche in 7 Tagen; Wochendeckel blockte eine manuelle Zahlungserinnerung.
+**Wo:** Pipeline, Kundenakte → Überblick/Verlauf, Termine; Register E-168.
+
+---
+
 ## 08.09.2026 — Mara treibt die offene Rechnung selbst ein, kein Mahnstopp, kein Delegieren; Postfach „Alle markieren“ (E-167)
 
 **Was geändert wurde:** Neue erste Regel im Postmeister-Prompt (server/lib/fiaon-postmeister-agent.ts): Jeder Kunde

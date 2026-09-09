@@ -169,7 +169,11 @@ export function versandwegCacheLeeren(): void { versandwegCache = null; }
  * rausging — sonst landet ein Kunde nach 14 Tagen auf „Entscheidung nötig",
  * ohne je eine Erinnerung bekommen zu haben.
  */
-export async function sendMakeWebhookMitGrund(eventType: MakeEventType, payload: MakeWebhookPayload): Promise<MakeVersand> {
+export async function sendMakeWebhookMitGrund(
+  eventType: MakeEventType, payload: MakeWebhookPayload,
+  /** E-168: `manuell` = von einem Mitarbeiter ausgelöst — nur die harte Sperre gilt, keine Ruhe. */
+  opts: { manuell?: boolean } = {},
+): Promise<MakeVersand> {
   // ── DIE ADRESSE KOMMT VON DER PERSON, NICHT VON DER BESTELLZEILE ────────
   // Siehe server/lib/fiaon-empfaenger.ts. Die Auflösung steht HIER, an der
   // einen Tür, durch die jeder Versand muss — und nicht in den 29
@@ -203,8 +207,13 @@ export async function sendMakeWebhookMitGrund(eventType: MakeEventType, payload:
   // Pflichtmails (Zugang, Zahlungsbestätigung, Terminbestätigung) laufen ohne
   // Prüfung durch — die Liste steht in fiaon-mail-frequenz.ts. Bei einer
   // Störung lässt die Bremse durch, statt den Mailverkehr anzuhalten.
-  const { darfAnEmpfaenger } = await import("./lib/fiaon-mail-frequenz");
-  const frequenz = await darfAnEmpfaenger(String(payload.email || ""), eventType);
+  const { darfAnEmpfaenger, frequenzRuhe } = await import("./lib/fiaon-mail-frequenz");
+  if (!opts.manuell) {
+    // E-168: Schon einmal zurückgehalten? Dann ruhen — ohne neuen Protokolleintrag.
+    const ruhe = await frequenzRuhe(String(payload.email || ""), eventType);
+    if (ruhe) return { ok: false, grund: ruhe };
+  }
+  const frequenz = await darfAnEmpfaenger(String(payload.email || ""), eventType, { manuell: opts.manuell === true });
   if (!frequenz.ok) {
     const erg: MakeVersand = { ok: false, grund: `Frequenzbremse: ${frequenz.grund}` };
     protokollNebenbei(eventType, payload, erg);

@@ -137,23 +137,24 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
     tipp: "Im Reiter „Antrag“ steht „Portal ansehen als …“ — damit liest du in seinem Portal mit. Nur bei deinen eigenen Kunden, nur lesend, 30 Minuten.",
   },
   {
-    // 07.09.2026 (Justin): Nicht erreicht verlässt die Pipeline.
-    titel: "Wen du nicht erreichst, siehst du hier nicht wieder — sondern auf seiner eigenen Seite.",
-    text: "Klickst du „nicht erreicht“, verschwindet der Mensch aus der Pipeline und die Liste zieht "
-      + "frischen Nachschub. Er landet unter „Nicht erreicht“ im Menü — mit Zahl der Versuche und "
-      + "Wiedervorlage. Von dort rufst du ihn an, wenn es passt. Sobald du ihn erreichst (egal mit "
-      + "welchem Ergebnis), ist der Zähler zurück auf null und er steht wieder normal in der Pipeline.",
+    // 09.09.2026 (E-168, Team-Feedback): Nicht erreicht = morgen rechts, nicht heute.
+    titel: "Wen du nicht erreichst, siehst du heute nicht wieder — morgen rechts unter „Wieder dran“.",
+    text: "Klickst du „nicht erreicht“, verschwindet der Mensch für heute aus der Pipeline, die Liste "
+      + "zieht frischen Nachschub, und seine Wiedervorlage steht auf morgen. Dann taucht er rechts "
+      + "unter „Wieder dran“ auf — mit Zahl der Versuche. Sobald du ihn erreichst (egal mit welchem "
+      + "Ergebnis), ist der Zähler zurück auf null.",
     tipp: "Ab dem sechsten Fehlversuch geht die Terminlink-Mail von selbst raus, ab dem neunten ruht der Mensch — beides bleibt wie bisher.",
   },
   {
     // 07.09.2026 (Justin, abends): zwei Spalten.
     ziel: ".pi-spalten",
     titel: "Links neu, rechts wieder dran.",
-    text: "Unter deiner Fokus-Karte stehen zwei Reihen: „Neu für dich“ sind frische Menschen aus dem Pool. "
-      + "„Wieder dran“ sind die, die du schon einmal hattest — nicht erreicht und heute wieder fällig, "
-      + "Rückruf vereinbart, Termin heute. Schließt du einen ab, rückt der nächste nach. So rufst du jeden Tag "
-      + "beides an: neue Menschen und die, die noch offen sind.",
-    tipp: "Auf der Karte rechts steht, warum sie dort liegt — zum Beispiel „Nicht erreicht · 2× versucht“.",
+    text: "Unter deiner Fokus-Karte stehen zwei Reihen. Links „Neu für dich“: Menschen, die noch NIE "
+      + "jemand angerufen hat — neuer Antrag, kein einziger Versuch. Rechts „Wieder dran“: alle, die "
+      + "schon einmal Kontakt hatten und heute wieder etwas brauchen — nicht erreicht und fällig, Zusage "
+      + "nicht gehalten, Rückruf vereinbart, Termin heute, Rate fällig, Wiedervorlage. Schließt du einen ab, "
+      + "rückt der nächste nach.",
+    tipp: "Links: Wen rufe ich heute zum ersten Mal an? Rechts: Welche Fälle brauchen mich noch einmal? Die Karte rechts sagt, warum sie dort liegt.",
   },
   {
     // 07.09.2026 (Justin): Kündigung in der Akte.
@@ -216,12 +217,11 @@ export const RUNDGANG_BESTAND: RundgangSchritt[] = [
     tipp: "Ruf vorher an, statt den Link wortlos zu schicken. Für dich sind es 10 € je bestätigter Eröffnung — und der Kunde bleibt, weil er endlich das bekommt, weswegen er gekommen ist.",
   },
   {
-    // 07.09.2026 (Justin): die Seite „Nicht erreicht“ ist dieser Filter.
-    titel: "„Nicht erreicht“ ist deine zweite Anrufliste.",
-    text: "Der Filter „Nicht erreicht“ zeigt alle Menschen, die du (oder ein Kollege) nicht erreicht "
-      + "habt — mit Versuchen und Wiedervorlage. In der Pipeline stehen sie nicht mehr, damit nicht "
-      + "jeden Morgen dieselben fünfzig zurückkommen. Nimm dir die Liste zu einer anderen Tageszeit vor: "
-      + "Wer mittags nicht rangeht, geht abends oft ran.",
+    // 09.09.2026 (E-168): Der Menüpunkt ist weg — der Filter bleibt als Nachschlagewerk.
+    titel: "Der Filter „Nicht erreicht“ ist dein Nachschlagewerk.",
+    text: "Der Filter zeigt alle Menschen, die du (oder ein Kollege) nicht erreicht habt — mit Versuchen "
+      + "und Wiedervorlage. Anrufen tust du sie aus der Pipeline: Sobald die Wiedervorlage fällig ist, "
+      + "stehen sie rechts unter „Wieder dran“. Hier schaust du nur nach, wenn du jemanden suchst.",
     tipp: "Der Menüpunkt „Nicht erreicht“ im Office öffnet genau diesen Filter.",
   },
 ];

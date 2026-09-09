@@ -130,7 +130,8 @@ export async function versendenUndProtokollieren(
     const { protokolliertSelbst } = await import("../make-webhook");
     protokolliertSelbst.add(event);
     try {
-      const versand = await sendMakeWebhookMitGrund(event, payload);
+      // E-168: Von Hand ausgelöst (ausgeloestVon) heißt manuell — der Mensch steht über der Automatik.
+      const versand = await sendMakeWebhookMitGrund(event, payload, { manuell: !!opts.ausgeloestVon });
       status = versand.ok ? "versandt" : "fehlgeschlagen";
       grund = versand.ok ? null : (versand.grund ?? "unbekannt");
       brevoMessageId = versand.brevoMessageId ?? null;
@@ -143,6 +144,9 @@ export async function versendenUndProtokollieren(
     grund = err instanceof Error ? err.message : String(err);
   }
 
+  // E-168: Die Ruhe der Frequenzbremse ist kein neuer Vorgang — der erste Versuch steht
+  // schon im Protokoll. Kein zweiter Eintrag, kein zweites „FEHLGESCHLAGEN" im Verlauf.
+  if (grund && grund.startsWith("Frequenzbremse-Ruhe")) return { status, grund };
   await mailProtokoll({
     event, personId: opts.personId, empfaenger: String(payload.email),
     status, grund, payload: payload as Record<string, unknown>,

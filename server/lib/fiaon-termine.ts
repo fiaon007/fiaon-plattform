@@ -69,6 +69,10 @@ export const QUELLEN = {
   // 05.09.2026 (E-124): Justins eigene Buchungsseite (/justin). Keine Rolle,
   // keine Ableitung aus dem Kundenzustand — wer hier bucht, will den Gründer.
   gruender: { minuten: 30, text: "Gespräch mit Justin Schwarzott, Gründer von FIAON" },
+  // 09.09.2026 (E-168, Team-Feedback Punkt 2): eigener Typ für Bestandskunden, die nach dem
+  // Startgespräch noch einmal Hilfe brauchen — vom Kunden selbst oder vom Betreuer buchbar,
+  // eindeutig gekennzeichnet, ändert den Startgespräch-Stand nicht.
+  support: { minuten: 20, text: "Support-Gespräch mit deinem persönlichen Ansprechpartner" },
 } as const;
 
 export type TerminQuelle = keyof typeof QUELLEN;

@@ -759,8 +759,9 @@ router.post("/inkasso/rate/:id/erinnerung", requireAgent, async (req: AgentReque
 
     const { aboErinnerungPayload } = await import("./fiaon-abo");
     const { sendMakeWebhookMitGrund } = await import("../make-webhook");
+    // E-168: von Hand — nur die harte Sperre gilt (Rückläufer/Spam), kein Wochendeckel.
     const versand = await sendMakeWebhookMitGrund(
-      "abo_payment_reminder", aboErinnerungPayload(r) as any,
+      "abo_payment_reminder", aboErinnerungPayload(r) as any, { manuell: true },
     );
 
     // Der Versand steht in der Akte — auch wenn er scheitert. Ein Mitarbeiter,

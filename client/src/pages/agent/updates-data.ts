@@ -84,6 +84,29 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-09-09-feedback-pipeline-status",
+    date: "2026-09-09",
+    category: "Verbessert",
+    title: "Euer Feedback: Links nur nie Angerufene, rechts alles Fällige, Startgespräch bleibt geführt, Support-Termin, Mails von Hand gehen immer raus",
+    summary: "Florentines Punkte vom 08.09. sind umgesetzt: Die Pipeline trennt jetzt „noch nie kontaktiert“ (links) von „schon kontaktiert, wieder fällig“ (rechts). Ein geführtes Startgespräch springt nicht mehr zurück. Es gibt einen Support-Termin. Wer ablehnt, bekommt keine automatischen Zahlungserinnerungen mehr. Und die E-Mail-Sperre gilt nur noch für die Automatik, nicht für euch.",
+    changes: [
+      "Pipeline links „Neu für dich“: nur Menschen ohne jeden Kontaktversuch. Rechts „Wieder dran“: nicht erreicht und wieder fällig, Zusage nicht gehalten, Rückruf, Termin heute, Rate fällig, Wiedervorlage — mit Grund auf der Karte.",
+      "„Nicht erreicht“ setzt die Wiedervorlage auf morgen — auch bei Ratenkunden. Niemand taucht zwei Minuten später wieder auf.",
+      "Kundenakte → Überblick: Ein abgehaktes Startgespräch bleibt „Startgespräch geführt am …“. Ein Support-Termin ändert daran nichts.",
+      "Neuer Termin-Typ „Support“ für Bestandskunden: Knopf in der Akte („Support-Termin buchen“), und der Kunde bucht ihn selbst über seinen Terminlink.",
+      "Verlauf: „Erreicht — zahlt am 15.09.2026“ statt „zahlt am“ ohne Datum.",
+      "„Erreicht — abgelehnt“ stoppt jetzt systemweit: keine automatischen Zahlungserinnerungen mehr, keine Werbung, Vermerk im Verlauf.",
+      "E-Mails, die ihr von Hand schickt, gehen immer raus — die Tages-, Wochen- und Monatsdeckel bremsen nur die Automatik. Und die Automatik versucht eine gebremste Mail erst nach 20 Stunden wieder, statt jede Stunde „Fehlgeschlagen“ zu schreiben.",
+      "Der Menüpunkt „Nicht erreicht“ ist weg — diese Menschen stehen rechts in der Pipeline, sobald sie fällig sind.",
+    ],
+    howto: [
+      "Pipeline öffnen: links zuerst anrufen, dann rechts. Die kleine Zeile über dem Namen sagt, warum jemand dort steht.",
+      "Bestandskunde braucht Hilfe: Akte → Überblick → „Support-Termin buchen“.",
+    ],
+    link: { href: "/agent/pipeline", label: "Pipeline öffnen" },
+    important: true,
+  },
+  {
     id: "2026-09-08-auszahlung-15",
     date: "2026-09-08",
     category: "Neu",

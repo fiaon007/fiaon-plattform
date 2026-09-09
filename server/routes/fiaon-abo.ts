@@ -733,6 +733,10 @@ async function faelligeRaten(limit: number, opts: { abStichtag?: string | null }
       -- Ein Kunde, den wir nicht erreichen können, muss auffallen.
       -- ══════════════════════════════════════════════════════════════════
       AND (r.letzte_erinnerung_at IS NULL OR r.letzte_erinnerung_at < NOW() - INTERVAL '20 hours')
+      -- 09.09.2026 (E-168): Nach einem gescheiterten Versuch (Frequenzbremse, Rückläufer)
+      -- frühestens 20 Stunden später noch einmal — nicht bei jedem Lauf. Gemessen:
+      -- 3.219 vergebliche Versuche in 7 Tagen, bis zu 143 je Empfänger.
+      AND (r.letzter_fehler_at IS NULL OR r.letzter_fehler_at < NOW() - INTERVAL '20 hours')
       -- Stufe erst, wenn der Abstand erreicht ist. Der Ausdruck kommt aus
       -- MAHNSTUFEN (Tag 0/3/7/14/21) und steht nicht mehr zweimal da.
       AND (${heute}::date - r.faellig_am) >= ${sqlPool.unsafe(mahnAbstandSql())}

@@ -187,7 +187,7 @@ export async function ergebnisAnwenden(
       gesperrt = true;
       zusage = null;
       wiedervorlage = null;
-      meldung = "Abgelehnt — der Kunde erscheint in keiner Anrufliste mehr.";
+      meldung = "Abgelehnt — keine Anrufliste, keine Zahlungserinnerung, keine Werbung mehr.";
       break;
     case "erreicht_sonstiges":
       // Erreicht heisst: der Zaehler „nicht erreicht" wird NICHT hochgezaehlt,
@@ -253,6 +253,30 @@ export async function ergebnisAnwenden(
       else patch.is_blocked = true;
     }
     await lauf`UPDATE fiaon_persons SET ${lauf(patch)} WHERE id = ${personId}`;
+    // ── ABGELEHNT HEISST ABGELEHNT — AUCH FÜR DIE AUTOMATIK (09.09.2026, E-168, Punkt 9) ──
+    // Team: „Wenn ein Kunde ausdrücklich ablehnt, werden trotzdem weiter Rechnungen
+    // und Zahlungsaufforderungen versendet." Bis heute setzte „erreicht — abgelehnt"
+    // nur die Vertriebssperre (is_blocked); die Erinnerungs-Engine liest die nicht,
+    // sondern mahnstopp_am, und die Rückholung/Werbung liest werbung_gesperrt_am.
+    // Jetzt gilt der Status systemweit: Mahnstopp auf jede offene Bestellung, Werbe-
+    // sperre auf die Person, Vermerk im Verlauf. Zahlende Kunden behalten ihre Raten
+    // (das ist eine Kündigung, kein „kein Interesse").
+    if (gesperrt) {
+      const offen = (await lauf`
+        UPDATE fiaon_applications SET mahnstopp_am = COALESCE(mahnstopp_am, NOW()), updated_at = NOW()
+         WHERE person_id = ${personId} AND merged_into IS NULL AND archived_at IS NULL
+           AND payment_status IN ('pending', 'pending_payment', 'claimed_paid', 'expired')
+         RETURNING ref`) as any[];
+      await lauf`UPDATE fiaon_persons SET werbung_gesperrt_am = COALESCE(werbung_gesperrt_am, NOW()), updated_at = NOW() WHERE id = ${personId}`;
+      const refNote = e.ref || offen[0]?.ref || null;
+      if (refNote) {
+        await lauf`
+          INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
+          VALUES (${refNote}, ${personId}, NULL, 'System', 'system',
+                  ${`Kunde hat abgelehnt: automatische Zahlungserinnerungen gestoppt (${offen.length} offene Bestellung${offen.length === 1 ? "" : "en"}), Werbung gesperrt. Kein Anruf mehr aus der Pipeline.`},
+                  NOW())`.catch(() => {});
+      }
+    }
     // Der Zähler verweist auf sich selbst und geht deshalb nicht als Wert mit.
     if (zaehlerHoch) {
       await lauf`

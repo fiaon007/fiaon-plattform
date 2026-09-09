@@ -323,7 +323,18 @@ export async function terminartFuerPerson(
 ): Promise<Terminentscheid | null> {
   const z = await zustaendigeRolle(personId, lauf);
   if (!z) return null;
-  const quelle = QUELLE_FUER_ROLLE[z.rolle];
+  let quelle: string = QUELLE_FUER_ROLLE[z.rolle];
+  // 09.09.2026 (E-168, Team-Feedback Punkt 2): Wer bezahlt hat UND sein Startgespräch
+  // geführt hat, bucht über den Kundenlink kein Verkaufs- oder Startgespräch mehr,
+  // sondern einen Support-Termin. Der ändert den Startgespräch-Stand nicht.
+  if (z.rolle === "vertrieb") {
+    const [k] = (await lauf`
+      SELECT EXISTS (SELECT 1 FROM fiaon_applications a WHERE a.person_id = ${personId} AND a.merged_into IS NULL
+                       AND a.archived_at IS NULL AND a.payment_status = 'paid') AS bezahlt,
+             EXISTS (SELECT 1 FROM fiaon_termine t WHERE t.person_id = ${personId}
+                       AND t.quelle = 'onboarding_call' AND t.status = 'erledigt') AS start`) as any[];
+    if (k?.bezahlt && k?.start) quelle = "support";
+  }
   return {
     quelle,
     zustaendig: z.rolle,

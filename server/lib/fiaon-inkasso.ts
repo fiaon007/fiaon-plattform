@@ -268,6 +268,40 @@ export async function ratenErgebnisAnwenden(
     }
   }
 
+  // ── DIE PERSON ZIEHT MIT (09.09.2026, E-168, Team-Feedback Punkt 5) ──────
+  // Seit E-165 stehen Ratenkunden in der Pipeline ihres Betreuers — die liest
+  // fiaon_persons (follow_up_date, unreachable_count, promised_payment_date).
+  // Ein Ratenergebnis schrieb bisher nur die Rate (inkasso_wiedervorlage). Folge,
+  // gemessen am 09.09. bei Daniel: neun „nicht erreicht" an Ratenkunden, bei
+  // keinem eine Wiedervorlage — alle standen zwei Minuten später wieder unter
+  // „Wieder dran". Jetzt trägt jedes Ratenergebnis die Person nach und schreibt
+  // ein Gesprächsergebnis in den Verlauf (Akte und „heute erreicht" lesen
+  // fiaon_contact_log, nicht fiaon_raten_arbeit).
+  {
+    const [pz] = (await lauf`SELECT person_id FROM fiaon_applications WHERE ref = ${rate.ref} LIMIT 1`) as any[];
+    const pid = pz?.person_id ? Number(pz.person_id) : null;
+    if (pid) {
+      const erreicht = opts.ergebnis === "zahlt_am" || opts.ergebnis === "ueberwiesen_beleg" || opts.ergebnis === "eskalation";
+      const zaehlerPlus = opts.ergebnis === "nicht_erreicht" ? 1 : 0;
+      await lauf`
+        UPDATE fiaon_persons SET
+          follow_up_date = ${wiedervorlage},
+          promised_payment_date = CASE WHEN ${opts.ergebnis === "zahlt_am"} THEN ${zusage}::date ELSE promised_payment_date END,
+          unreachable_count = CASE WHEN ${erreicht} THEN 0 ELSE COALESCE(unreachable_count, 0) + ${zaehlerPlus} END,
+          ruhe_seit = CASE WHEN ${erreicht} THEN NULL ELSE ruhe_seit END,
+          updated_at = NOW()
+        WHERE id = ${pid}`.catch((e: any) => console.error("[INKASSO] Person nachtragen:", e?.message || e));
+      const outcome = opts.ergebnis === "zahlt_am" ? "erreicht_zahlt_am"
+        : opts.ergebnis === "nicht_erreicht" ? "nicht_erreicht"
+        : opts.ergebnis === "nummer_blockiert" ? "nummer_blockiert"
+        : "erreicht_sonstiges";
+      await lauf`
+        INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, outcome, note, promised_date, created_at)
+        VALUES (${rate.ref}, ${pid}, ${opts.agentId}, ${opts.agentName}, 'result', ${outcome},
+                ${`Rate ${rate.rate_nr}: ${meldung}${opts.notiz ? ` — ${String(opts.notiz).slice(0, 500)}` : ""}`},
+                ${opts.ergebnis === "zahlt_am" ? zusage : null}, NOW())`.catch((e: any) => console.error("[INKASSO] Verlauf:", e?.message || e));
+    }
+  }
   await lauf`
     INSERT INTO fiaon_raten_arbeit (rate_id, ref, agent_id, agent_name, ergebnis, zusage_am, wiedervorlage, notiz)
     VALUES (${rate.id}, ${rate.ref}, ${opts.agentId}, ${opts.agentName}, ${opts.ergebnis},

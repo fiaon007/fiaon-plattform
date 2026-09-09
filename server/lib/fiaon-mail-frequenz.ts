@@ -138,7 +138,37 @@ const STANDARD = { tag: 2, woche: 4, monat: 8 };
  * lautet die Antwort JA: Eine Bremse, die bei einer Störung den gesamten
  * Mailverkehr anhält, ist schlimmer als das Problem, das sie löst.
  */
-export async function darfAnEmpfaenger(email: string, event: string): Promise<FrequenzUrteil> {
+/**
+ * Gab es zu diesem Empfänger und Ereignis in den letzten 20 Stunden schon einen
+ * von der Frequenzbremse zurückgehaltenen Versuch? Dann ruht der Versand — ohne
+ * neuen Protokolleintrag. Gemessen am 09.09.2026 (7 Tage): abo_payment_reminder
+ * 3.219 vergebliche Versuche an 56 Empfänger, bis zu 143 je Empfänger, jedes
+ * Mal „Fehlgeschlagen" im Verlauf. Team: „nicht permanent dieselben Mails erneut
+ * versuchen". Der Grund beginnt mit „Frequenzbremse-Ruhe" — daran erkennen die
+ * Protokollstellen, dass sie NICHT noch einmal schreiben sollen.
+ */
+export async function frequenzRuhe(email: string, event: string): Promise<string | null> {
+  const adresse = String(email || "").trim().toLowerCase();
+  if (!adresse) return null;
+  try {
+    const [r] = (await sqlPool`
+      SELECT grund FROM fiaon_mail_log
+       WHERE LOWER(TRIM(empfaenger)) = ${adresse} AND event = ${event}
+         AND status = 'fehlgeschlagen' AND grund LIKE 'Frequenzbremse:%'
+         AND created_at > NOW() - INTERVAL '20 hours'
+       ORDER BY created_at DESC LIMIT 1`) as any[];
+    return r ? `Frequenzbremse-Ruhe (kein neuer Versuch binnen 20 Stunden): ${String(r.grund).replace(/^Frequenzbremse: /, "")}` : null;
+  } catch { return null; }
+}
+
+/**
+ * @param opts.manuell true = ein Mitarbeiter schickt die Mail von Hand. Dann gilt nur die
+ *   harte Sperre (Rückläufer/Spam); Tages-, Wochen-, Monatsdeckel und Werbesperre sind für
+ *   die Automatik da. Team-Feedback 09.09.2026 (E-168): „Der Mensch muss über dem
+ *   automatisierten Systemprozess stehen." Vorher blockte der Wochendeckel auch die
+ *   Zahlungserinnerung, die Daniel von Hand an Frau Gummelt schicken wollte.
+ */
+export async function darfAnEmpfaenger(email: string, event: string, opts: { manuell?: boolean } = {}): Promise<FrequenzUrteil> {
   const adresse = String(email || "").trim().toLowerCase();
   if (!adresse) return { ok: true, grund: null };
 
@@ -188,6 +218,10 @@ export async function darfAnEmpfaenger(email: string, event: string): Promise<Fr
     `) as any[];
 
     const zaehler = { heute: Number(z?.heute || 0), woche: Number(z?.woche || 0), monat: Number(z?.monat || 0) };
+    if (opts.manuell) {
+      if (Number(z?.hart || 0) > 0) return { ok: false, grund: "Adresse ist unzustellbar (Rückläufer oder Spam-Meldung)", zaehler };
+      return { ok: true, grund: null, zaehler };
+    }
 
     // ── DIE WERBESPERRE: EIN MENSCH HAT „STOPP“ GESAGT ────────────────────
     // Gesetzt an fiaon_persons.werbung_gesperrt_am — von Hand, vom Postmeister

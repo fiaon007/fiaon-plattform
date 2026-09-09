@@ -1408,6 +1408,7 @@ router.post("/agent/termine", requireAgent, async (req: AgentRequest, res: Respo
     const ART_ZU_QUELLE: Record<string, string> = {
       rueckruf: "agent_manuell", vertrieb: "agent_manuell",
       onboarding: "onboarding_call", zahlung: "inkasso_call",
+      support: "support", // E-168: Bestandskunde braucht später Hilfe
     };
     const art = String(req.body?.art || "");
     const notiz = req.body?.notiz ? String(req.body.notiz).trim().slice(0, 500) : null;

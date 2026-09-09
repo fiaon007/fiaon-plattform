@@ -145,7 +145,7 @@ export async function kundeVollstaendig(personId: number): Promise<{
 //   lead_ohne_antrag → termin_heute → alles_gut
 // ═══════════════════════════════════════════════════════════════════════════
 export type SituationsArt = "rate_ueberfaellig" | "zusage_gebrochen" | "rueckruf_faellig"
-  | "bezahlt_ohne_termin" | "zahlung_gemeldet" | "rechnung_offen" | "lead_ohne_antrag"
+  | "bezahlt_ohne_termin" | "startgespraech_erledigt" | "zahlung_gemeldet" | "rechnung_offen" | "lead_ohne_antrag"
   | "termin_heute" | "alles_gut";
 export interface KundenSituation {
   art: SituationsArt;
@@ -160,6 +160,10 @@ export interface KundenSituation {
   terminHeute: string | null;
   /** Gesprächsart des heutigen Termins — der Leitfaden richtet sich danach. */
   terminHeuteQuelle: string | null;
+  /** E-168: Art des nächsten gebuchten Termins (z. B. „support") — ein Support-Termin ändert den Startgespräch-Stand nicht. */
+  terminQuelle?: string | null;
+  /** E-168: Wann das Startgespräch geführt wurde — bleibt stehen, wenn es einmal erledigt ist. */
+  startgespraechAm?: string | null;
   naechsteRate: { faelligAm: string; betragCents: number } | null;
   tier: number;
 }
@@ -187,6 +191,19 @@ export async function kundenSituation(personId: number): Promise<KundenSituation
         AND a3.payment_status = 'paid') AS bezahlt,
       (SELECT t.beginn FROM fiaon_termine t WHERE t.person_id = p.id AND t.status = 'gebucht'
          AND t.abgesagt_am IS NULL AND t.beginn > NOW() ORDER BY t.beginn LIMIT 1) AS termin_am,
+      (SELECT t.quelle FROM fiaon_termine t WHERE t.person_id = p.id AND t.status = 'gebucht'
+         AND t.abgesagt_am IS NULL AND t.beginn > NOW() ORDER BY t.beginn LIMIT 1) AS termin_quelle,
+      -- 09.09.2026 (E-168, Team-Feedback Punkt 1): Ein geführtes Startgespräch bleibt geführt.
+      -- Vorher sprang der Stand nach dem Abhaken zurück auf „Termin fehlt", weil nur
+      -- KÜNFTIGE Termine gelesen wurden. Dieselbe Regel wie im Kundenbereich
+      -- (fiaon-kunde-bereich.ts): erledigter onboarding_call ODER Gespräch im Verlauf.
+      COALESCE(
+        (SELECT MAX(COALESCE(t.erledigt_am, t.beginn)) FROM fiaon_termine t
+          WHERE t.person_id = p.id AND t.quelle = 'onboarding_call' AND t.status = 'erledigt'),
+        (SELECT MAX(cl.created_at) FROM fiaon_contact_log cl
+          WHERE cl.type IN ('onboarding', 'startgespraech') AND cl.voided_at IS NULL
+            AND (cl.person_id = p.id OR cl.ref IN (SELECT ao.ref FROM fiaon_applications ao WHERE ao.person_id = p.id)))
+      ) AS startgespraech_am,
       (SELECT t.beginn FROM fiaon_termine t WHERE t.person_id = p.id AND t.status = 'gebucht'
          AND t.abgesagt_am IS NULL
          AND (t.beginn AT TIME ZONE 'Europe/Berlin')::date = (NOW() AT TIME ZONE 'Europe/Berlin')::date
@@ -234,7 +251,7 @@ export async function kundenSituation(personId: number): Promise<KundenSituation
     rate ? "rate_ueberfaellig"
     : zusageGebrochen ? "zusage_gebrochen"
     : z.rueckruf_am ? "rueckruf_faellig"
-    : (z.bezahlt && !z.termin_am && !z.termin_heute) ? "bezahlt_ohne_termin"
+    : (z.bezahlt && !z.termin_am && !z.termin_heute) ? (z.startgespraech_am ? "startgespraech_erledigt" : "bezahlt_ohne_termin")
     : tier === 1 ? "zahlung_gemeldet"
     : tier === 2 ? "rechnung_offen"
     : tier === 3 ? "lead_ohne_antrag"
@@ -248,6 +265,8 @@ export async function kundenSituation(personId: number): Promise<KundenSituation
     terminFaelligAm: z.termin_faellig_am ?? null,
     terminHeute: z.termin_heute ?? null,
     terminHeuteQuelle: z.termin_heute_quelle ?? null,
+    terminQuelle: z.termin_quelle ?? null,
+    startgespraechAm: z.startgespraech_am ?? null,
     naechsteRate: z.naechste_rate ? { faelligAm: String(z.naechste_rate.faellig_am), betragCents: Number(z.naechste_rate.betrag_cents || 0) } : null,
     tier,
   };
@@ -501,6 +520,7 @@ async function nachschubZiehen(me: number): Promise<void> {
        AND NOT ${ruhtSql("p")} AND NOT ${wartetSql("p")}
        AND (p.follow_up_date IS NULL OR p.follow_up_date <= ${HEUTE})
        AND COALESCE(p.unreachable_count, 0) = 0
+       AND ${NIE_SQL}
        AND NOT EXISTS (SELECT 1 FROM fiaon_termine tz WHERE tz.person_id = p.id
              AND tz.status = 'gebucht' AND tz.abgesagt_am IS NULL AND tz.beginn > NOW())
        AND (p.priority_tier BETWEEN 1 AND 3
@@ -634,14 +654,15 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
     // Nicht-erreicht-Ausschluss und der Termin-Ausschluss sind hier umgedreht.
     const basisWieder = basisTeile
       .filter((t) => !t.includes("unreachable_count, 0) = 0") && !t.includes("tz.status = 'gebucht'"))
-      .concat([`(
-        COALESCE(p.unreachable_count, 0) > 0
-        OR EXISTS (SELECT 1 FROM fiaon_contact_log cl JOIN fiaon_applications a3 ON a3.ref = cl.ref
-                   WHERE a3.person_id = p.id AND cl.outcome = 'rueckruf_termin' AND cl.done_at IS NULL
-                     AND cl.voided_at IS NULL AND cl.scheduled_at IS NOT NULL AND cl.scheduled_at <= NOW() + INTERVAL '2 hours')
-        OR EXISTS (SELECT 1 FROM fiaon_termine tz WHERE tz.person_id = p.id AND tz.agent_id = $1 AND tz.status = 'gebucht'
-                   AND tz.abgesagt_am IS NULL AND (tz.beginn AT TIME ZONE 'Europe/Berlin')::date = (NOW() AT TIME ZONE 'Europe/Berlin')::date)
-      )`])
+      // 09.09.2026 (E-168): rechts = schon kontaktiert (oder Ratenkunde) UND heute fällig.
+      // Die Fälligkeit steckt in basisTeile (follow_up_date, Zusage, nicht heute erreicht);
+      // hier kommt nur noch dazu: nicht links — also mindestens ein Gesprächsergebnis
+      // oder ein bezahlter Kunde mit fälliger Rate. Wer „nicht erreicht" bekommt, hat
+      // seit E-162 die Wiedervorlage auf morgen und verschwindet damit für heute.
+      .concat([`NOT (p.priority_tier BETWEEN 1 AND 3 AND ${NIE_SQL})`,
+        // Ein Termin an einem SPÄTEREN Tag nimmt den Menschen aus beiden Spalten — heute nur, wer heute dran ist.
+        `NOT EXISTS (SELECT 1 FROM fiaon_termine tz WHERE tz.person_id = p.id AND tz.status = 'gebucht' AND tz.abgesagt_am IS NULL
+                     AND (tz.beginn AT TIME ZONE 'Europe/Berlin')::date > (NOW() AT TIME ZONE 'Europe/Berlin')::date)`])
       .join(" AND ");
     const WIEDER_GRUND_SQL = `CASE
       WHEN EXISTS (SELECT 1 FROM fiaon_termine tz WHERE tz.person_id = p.id AND tz.agent_id = $1 AND tz.status = 'gebucht'
@@ -649,7 +670,10 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
       WHEN EXISTS (SELECT 1 FROM fiaon_contact_log cl JOIN fiaon_applications a3 ON a3.ref = cl.ref
                    WHERE a3.person_id = p.id AND cl.outcome = 'rueckruf_termin' AND cl.done_at IS NULL
                      AND cl.voided_at IS NULL AND cl.scheduled_at IS NOT NULL AND cl.scheduled_at <= NOW() + INTERVAL '2 hours') THEN 'rueckruf'
-      ELSE 'nicht_erreicht' END AS wieder_grund`;
+      WHEN ${ZUSAGE_SQL} THEN 'zusage'
+      WHEN COALESCE(p.unreachable_count, 0) > 0 THEN 'nicht_erreicht'
+      WHEN COALESCE(p.priority_tier, 0) = 0 THEN 'rate'
+      ELSE 'wiedervorlage' END AS wieder_grund`;
 
     // ═══════════════════════════════════════════════════════════════════
     // DIE REIHENFOLGE DER ARBEITSLISTE (02.09.2026, Daniels Befund)
@@ -699,9 +723,15 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
     // mit Zusage/Termin/Rückruf) voll sortiert; fehlen Plätze, Stufe 3 billig
     // nach Antragsdatum nachgefüllt. Karten- und Hitze-Felder erst für die
     // sechs Gewinner, nicht für alle Zeilen (Unterabfrage mit LIMIT).
-    const HEISS_SQL = `(p.priority_tier BETWEEN 1 AND 2
-      OR (COALESCE(p.priority_tier, 0) = 0 AND ${RATE_FAELLIG_SQL})
-      OR (p.priority_tier = 3 AND (${ZUSAGE_SQL} OR ${TERMIN_HEUTE_SQL} OR ${RUECKRUF_SQL})))`;
+    // ── LINKS = NOCH NIE KONTAKTIERT (09.09.2026, E-168, Team-Feedback Punkt 6) ──
+    // Florentine: „Links sollten wirklich ausschließlich ganz neue Anträge erscheinen
+    // — noch kein einziger Kontaktversuch. Rechts alle, bei denen schon eine
+    // Bearbeitung stattgefunden hat und eine weitere Aktion nötig ist." Vorher
+    // stand links jeder, der heute fällig war — auch wer gestern erreicht wurde.
+    // Jetzt: links nur Stufe 1–3 ohne jedes Gesprächsergebnis (NIE_SQL); alles
+    // andere (nicht erreicht und fällig, Zusage gebrochen, Rückruf, Termin heute,
+    // fällige Rate, Wiedervorlage) steht rechts unter „Wieder dran".
+    const HEISS_SQL = `(p.priority_tier BETWEEN 1 AND 3 AND ${NIE_SQL})`;
     const slotsHolen = async (): Promise<any[]> => {
       const heiss = (await sqlPool.unsafe(
         `SELECT ${KARTE_SQL}, p.mandat_seit, ${VOLL_SQL}, ${HITZE_SQL} FROM (
@@ -713,7 +743,7 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
       const rest = (await sqlPool.unsafe(
         `SELECT ${KARTE_SQL}, p.mandat_seit, ${VOLL_SQL}, ${HITZE_SQL} FROM (
            SELECT p.* FROM fiaon_persons p
-            WHERE ${basis} AND p.priority_tier = 3
+            WHERE ${basis} AND p.priority_tier = 3 AND ${NIE_SQL}
             ORDER BY COALESCE((SELECT MAX(a4.created_at) FROM fiaon_applications a4
                                 WHERE a4.person_id = p.id AND a4.merged_into IS NULL), p.created_at) DESC, p.id DESC
             LIMIT ${SLOTS - heiss.length}) p`, [me],

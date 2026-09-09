@@ -1088,6 +1088,9 @@ function KleineKarte({ k, gruppe, geht, onFokus, onAkte, onEntfernen }: {
           : (k as any).wiederGrund === "termin" ? "Termin heute"
           : (k as any).wiederGrund === "rueckruf" ? "Rückruf vereinbart"
           : (k as any).wiederGrund === "nicht_erreicht" ? `Nicht erreicht · ${(k as any).versuche || 1}× versucht`
+          : (k as any).wiederGrund === "zusage" ? "Zusage nicht gehalten"
+          : (k as any).wiederGrund === "rate" ? "Rate fällig"
+          : (k as any).wiederGrund === "wiedervorlage" ? (hitzeText(k) ?? "Wieder dran")
           : (hitzeText(k) ?? info.name)}</small></span>
         <b>{k.name}</b>
         <span className="pi-ak-fuss">{(k.buchungen ?? []).find((b) => !b.erledigt && b.art === "paket")?.bezeichnung || k.produkt || "kein Paket"} · {wartezeit(k.letzterKontakt)}</span>
@@ -1986,7 +1989,9 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
   // eines echten freien Slots aus SlotWahl; POST /agent/termine prüft erneut.
   const terminBuchen = async (beginnIso: string, label: string): Promise<boolean> => {
     setLaeuft("termin");
-    const r = await api("/agent/termine", { method: "POST", body: JSON.stringify({ personId: k.personId, beginn: beginnIso }) });
+    // E-168: Für Bestandskunden mit geführtem Startgespräch ist es ein Support-Termin (eigener Typ).
+    const art = sitArt === "startgespraech_erledigt" || (k.tier === 0 && !!(sit as any)?.startgespraechAm) ? "support" : undefined;
+    const r = await api("/agent/termine", { method: "POST", body: JSON.stringify({ personId: k.personId, beginn: beginnIso, ...(art ? { art } : {}) }) });
     setLaeuft(null);
     if (!r.ok) { melden("schlecht", "Nicht gebucht", r.json?.error || "Der Termin konnte nicht gebucht werden."); return false; }
     const text = r.json.termin?.datumText ? `${r.json.termin.datumText}, ${r.json.termin.uhrzeit} Uhr` : label;
@@ -2364,6 +2369,8 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
                     : sitArt === "zusage_gebrochen" ? `Zusage vom ${dtag(sit?.zusageAm ?? k.zusagedatum)} nicht gehalten – fass nach`
                     : sitArt === "rueckruf_faellig" ? `Rückruf war für ${sit?.rueckrufAm ? terminText(sit.rueckrufAm) : "heute"} vereinbart – er wartet auf dich`
                     : sitArt === "bezahlt_ohne_termin" ? "Mandat da, Termin fehlt – buche das Startgespräch"
+                    : sitArt === "startgespraech_erledigt" ? `Startgespräch geführt${(sit as any)?.startgespraechAm ? ` am ${dtag((sit as any).startgespraechAm)}` : ""} – ${sit?.naechsteRate ? `nächste Rate ${eur(sit.naechsteRate.betragCents)} am ${dtag(sit.naechsteRate.faelligAm)}` : "alles läuft"}`
+                    : sitArt === "alles_gut" && sit?.terminAm && (sit as any)?.terminQuelle === "support" ? `Support-Termin ${terminText(sit.terminAm)} – der Kunde braucht Hilfe`
                     : sitArt === "zahlung_gemeldet" ? "Kunde meldet Zahlung – das Geld ist noch nicht da. Sichere den Termin"
                     : sitArt === "rechnung_offen" ? `Antrag fertig – ${paketPreis(k) ? `${eur(paketPreis(k))} offen` : "Rechnung offen"}. Schick die Zahlungsdaten`
                     : sitArt === "lead_ohne_antrag" ? "Registriert, noch kein Antrag – hol das Mandat"
@@ -2380,6 +2387,8 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
                     : sitArt === "zusage_gebrochen" ? "Kein Vorwurf am Telefon – frag, was dazwischenkam, und vereinbare ein neues, konkretes Datum."
                     : sitArt === "rueckruf_faellig" ? "Der Kunde hat diese Zeit selbst gewählt – ruf jetzt an und knüpf ans letzte Gespräch an."
                     : sitArt === "bezahlt_ohne_termin" ? "Der Kunde hat bezahlt und wartet. Im Startgespräch aktivierst du sein Konto – vergib den nächsten freien Termin."
+                    : sitArt === "startgespraech_erledigt" ? "Das Startgespräch ist geführt und bleibt es. Braucht der Kunde später Hilfe – Technik, Ablauf, Unterlagen –, buch ihm einen Support-Termin. Der ändert diesen Stand nicht."
+                    : sitArt === "alles_gut" && sit?.terminAm && (sit as any)?.terminQuelle === "support" ? "Ein Support-Termin ist ein Hilfegespräch für einen Bestandskunden – kein Verkauf, kein Startgespräch. Akte kurz durchsehen, pünktlich anrufen."
                     : sitArt === "zahlung_gemeldet" ? "Bitte um den Überweisungsbeleg und sichere den Termin – mit dem Eingang aktivierst du direkt im Gespräch."
                     : sitArt === "rechnung_offen" ? "Antrag und Rechnung sind da – die Zahlung fehlt noch. Ruf an, vereinbare den Termin und weise dezent darauf hin: Geht die Rechnung vor dem Termin ein, aktivierst du im Gespräch direkt."
                     : sitArt === "lead_ohne_antrag" ? "Daten aufnehmen, Paket am Telefon annehmen lassen, Zugänge senden – der Leitfaden führt dich durch."
@@ -2401,6 +2410,9 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
                 )}
                 {(sitArt === "zusage_gebrochen" || sitArt === "rueckruf_faellig" || sitArt === "termin_heute") && (
                   <button type="button" className="pi-knopf riesig" disabled={!k.telefonWaehlbar} onClick={() => anrufen(k.telefonWaehlbar, k.personId, k.name, sitRate?.id ?? null)}><Phone size={18} strokeWidth={1.75} /> Anrufen</button>
+                )}
+                {sitArt === "startgespraech_erledigt" && (
+                  <button type="button" className={`pi-knopf riesig${hatTermin ? " gut" : " still"}`} onClick={() => setTerminOffen((v) => !v)}>{hatTermin ? <><Check size={17} strokeWidth={2} /> Termin steht</> : "Support-Termin buchen"}</button>
                 )}
                 {(sitArt === "bezahlt_ohne_termin" || sitArt === "zahlung_gemeldet") && (
                   <button type="button" className={`pi-knopf riesig${hatTermin ? " gut" : ""}`} onClick={() => setTerminOffen((v) => !v)}>{hatTermin ? <><Check size={17} strokeWidth={2} /> Termin steht</> : "Termin buchen"}</button>
@@ -2809,7 +2821,10 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
                 {verlauf.map((v: any, i: number) => (
                   <li key={v.id ?? i}>
                     <b>{new Date(v.am).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</b>
-                    {" · "}<span>{v.von || v.agentName || v.agent || "System"}: {(ERGEBNIS_TEXT as Record<string, string>)[String(v.ergebnis)] || (v.art === "note" ? "Notiz" : v.art)}</span>
+                    {" · "}<span>{v.von || v.agentName || v.agent || "System"}: {
+                      /* E-168 (Team-Feedback Punkt 7): „Erreicht – zahlt am" ohne Datum ist keine verwertbare Information. */
+                      v.ergebnis === "erreicht_zahlt_am" && v.zusagedatum ? `Erreicht — zahlt am ${dtag(v.zusagedatum)}`
+                        : (ERGEBNIS_TEXT as Record<string, string>)[String(v.ergebnis)] || (v.art === "note" ? "Notiz" : v.art)}</span>
                     {v.notiz && <> — {v.notiz}</>}
                     {/* „Irrtümlich erfasst?" (P12, 01.09.2026): Soft-Storno über den
                         bestehenden Server-Weg — nicht gelöscht, sondern markiert. */}

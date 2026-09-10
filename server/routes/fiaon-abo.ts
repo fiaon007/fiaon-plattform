@@ -51,7 +51,7 @@ import { sqlPool } from "../lib/db-pool";
 import { sendMakeWebhookMitGrund, makePayloadFromRow } from "../make-webhook";
 import { berlinToday } from "../lib/fiaon-time";
 import {
-  ankerTag, faelligkeit, kurzTag, naechsteFaelligkeit, tagMinus, zyklenBis, zyklusText,
+  ankerTag, faelligkeit, kurzTag, naechsteFaelligkeit, tageImMonat, tagMinus, zyklenBis, zyklusText,
 } from "../lib/fiaon-abo-zyklus";
 import { paketPreisCents } from "@shared/fiaon-pakete";
 import { FIAON_BANK_DETAILS } from "./fiaon-antrag";
@@ -490,7 +490,45 @@ export async function naechsteRateAnlegen(
   // Der nächste Jahrestag NACH der gerade bezahlten Fälligkeit. Nicht nach
   // dem Zahlungstag — sonst überspringt eine sehr späte Zahlung einen Monat.
   const bisher = ankerTag(letzteRate.faellig_am) ?? abDatum ?? berlinToday();
-  const faellig = naechsteFaelligkeit(anker, bisher);
+  // ══════════════════════════════════════════════════════════════════════════
+  // DER RHYTHMUS FOLGT DER LETZTEN RATE, NICHT DEM BUCHUNGSTAG (10.09.2026, E-175)
+  //
+  // ── DER ANLASS ────────────────────────────────────────────────────────────
+  // Am 10.09.2026 wurden zehn Ratenketten von Hand geradegezogen, die aus zwei
+  // Rechenregeln zusammengesetzt waren (30-Tage-Lauf vom 11.08., Kalendermonat
+  // ab 16.08.). Bei vier Kunden wich Rate 1 vom Buchungstag ab, und Justin hat
+  // entschieden: Es gilt der Rhythmus, den der Kunde von Rate 1 kennt.
+  //
+  // Diese Korrektur wäre bei der NÄCHSTEN Rate wieder verloren gewesen. Der
+  // Tag im Monat kam bisher aus `anker` — dem Buchungstag. Beispiel Ralf
+  // Pantel: Buchung 15.07., Rate 2 auf den 29.08. gesetzt, nächste Rate wäre
+  // wieder der 15.09. gewesen — siebzehn Tage nach der vorigen. Derselbe
+  // Fehler, aus dem er gerade herausgeholt wurde.
+  //
+  // ── DIE REGEL ─────────────────────────────────────────────────────────────
+  // Der Monatstag kommt aus der LETZTEN Rate. Bei einer gesunden Kette ist das
+  // derselbe Tag wie im Anker, es ändert sich also nichts. Bei einer
+  // verschobenen Kette heilt sie sich ab der nächsten Rate selbst.
+  //
+  // ── DIE AUSNAHME, DIE BLEIBEN MUSS ────────────────────────────────────────
+  // Fällt die letzte Rate auf den LETZTEN Tag ihres Monats, kann das eine
+  // Kappung sein: Anker 31.01. ergibt den 28.02. Würde der 28. zum neuen
+  // Rhythmus, verlöre der Kunde den 31. für immer (28.03. statt 31.03.). In
+  // diesem Fall bleibt der ursprüngliche Anker maßgeblich — genau dafür ist er
+  // gebaut (siehe `faelligkeit` in fiaon-abo-zyklus.ts).
+  // ══════════════════════════════════════════════════════════════════════════
+  // Der Rueckfall greift NUR, wenn die letzte Rate wie eine GEKAPPTE Fassung des
+  // Ankers aussieht: Sie liegt auf dem Monatsletzten UND der Anker nennt einen
+  // spaeteren Tag, der in diesem Monat nicht existiert (Anker 31., Februar 28.).
+  // Ohne diese zweite Bedingung wuerde eine korrigierte Kette, die zufaellig auf
+  // einen Monatsletzten faellt, wieder auf den Buchungstag zurueckspringen —
+  // bei Iris Gamauf waere aus dem 30.09. wieder der 13.10. geworden.
+  const letzterTag = Number(bisher.slice(8, 10));
+  const ankerTagZahl = Number(anker.slice(8, 10));
+  const amMonatsende = letzterTag === tageImMonat(Number(bisher.slice(0, 4)), Number(bisher.slice(5, 7)));
+  const wirktGekappt = amMonatsende && ankerTagZahl > letzterTag;
+  const rhythmus = wirktGekappt ? anker : bisher;
+  const faellig = naechsteFaelligkeit(rhythmus, bisher);
   await sqlPool`
     INSERT INTO fiaon_abo_raten (ref, rate_nr, zahlungsreferenz, betrag_cents, faellig_am, status, quelle)
     VALUES (${ref}, ${nr}, ${`${referenz}-${nr}`}, ${betrag}, ${faellig}::date, 'offen', 'auto')

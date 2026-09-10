@@ -33,6 +33,42 @@ gewohnten „Failed: 1". Ein Fehlschlag im Deploy-Protokoll ist damit wieder ein
 
 ---
 
+## 10.09.2026 — Die hochgeladene Bonitätsauskunft wird gelesen (E-174); zweite Betrags-Tür zu; Raten verschiebbar
+
+**Was geändert wurde:**
+· Neu `server/lib/fiaon-schufa-analyse.ts` — Zwillingsbau zu `fiaon-kontoauszug-analyse.ts`: PDF-Text, EIN
+  Modellaufruf mit striktem JSON-Schema, Tabelle `fiaon_schufa_analysen`, Eintrag in die Akte. Erfasst jeden
+  Eintrag einzeln (Art, Gläubiger, Betrag, gemeldet, erledigt, Löschdatum, offen), dazu Anfragen,
+  Positivmerkmale, Auskunftei, Datum und Score. Kein 60.000-Zeichen-Deckel wie in der Dokumentenprüfung,
+  sondern 400.000 — und die Analyse sagt es, wenn sie kürzen musste.
+· Die AMPEL rechnet der Server, nicht das Modell (`ampelAus()`): vier Stufen, nach der anstehenden ARBEIT
+  benannt statt nach einer Note. Jeder Kundensatz geht durch `wandPruefen` — was durchfällt, wird ersetzt.
+· Anzeige im ALTEN Kundenbereich (`client/src/pages/mein-bereich.tsx`, Abschnitt „Ihre Bonität"): Ampel,
+  jeder Eintrag mit seinem nächsten Schritt, was für den Kunden spricht, und was jetzt zu tun ist — getrennt
+  nach „Ihr Zug" und „Liegt bei FIAON". Dort stand bis heute das Versprechen, die Auswertung erscheine,
+  „sobald die Analyse freigegeben ist".
+· Auslöser beim Upload (`fiaon-antrag.ts`), Routen `POST /admin/schufa/:ref/analysieren` und
+  `GET /admin/schufa/:ref`, Feld `bonitaetAnalyse` in `GET /kunde/:ref/bereich`.
+· `server/lib/fiaon-bonitaet-status.ts`: Eine erkannte Auskunft wird nicht mehr beanstandet, nur weil die
+  Prüfung sie für unvollständig hält. Nur „nicht erkannt" weist noch ab.
+· `server/routes/fiaon-admin-hub.ts`: Ratenerinnerungen werden dort abgewiesen — dieses Werkzeug kennt nur
+  die Bestellung, nicht die Rate (zweite Tür zum Fehler aus E-173).
+· `server/routes/fiaon-abo.ts`: Der Katalogpreis schlägt das historische Bestellfeld beim Anlegen der ersten
+  Raten (Rangfolge wie an den drei anderen Stellen). Neu `POST /admin/abo/raten/:id/verschieben
+  {faelligAm, grund}` — verschiebt eine OFFENE Rate, setzt den Mahnstand zurück und schreibt beides in die Akte.
+
+**Warum:** Justin über Dirk Ladewig: „Die Schufa die er hochgeladen hat ist 100 % vollständig, bedeutet: der KI
+Agent muss die hochgeladene SCHUFA KOMPLETT und 100 % analysieren, eine ehrlich aber PERFEKT aussehende Ampel
+darstellen und ihm Handlungsempfehlungen geben." Gemessen: 56 Bestellungen haben eine hochgeladene Auskunft,
+KEINE wurde je inhaltlich gelesen. Dirks 38-seitige Auskunft lag seit dem 03.09. ungelesen in der Datenbank —
+und war zugleich als „unvollständig" beanstandet, weil die Dokumentenprüfung nur die ersten 60.000 Zeichen
+sieht und dort Stammdaten und Score vermisste. Von sechs so beanstandeten Auskünften war genau eine erkannt:
+seine. Eine Datenkopie nach Art. 15 DSGVO enthält planmäßig keinen Score.
+
+**Wo zu finden:** Kundenbereich → Ihre Bonität. Verwaltung: `POST /admin/schufa/:ref/analysieren`.
+
+---
+
 ## 10.09.2026 — Die Ratenerinnerung von Hand nennt die Rate, nicht die Bestellung (E-173)
 
 **Was geändert wurde:** `server/lib/fiaon-mail-senden.ts` — `sendePayloadBauen()` baut die Nutzlast für

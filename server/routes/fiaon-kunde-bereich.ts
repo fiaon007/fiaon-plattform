@@ -384,6 +384,10 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
       passwortGesetzt: istGehasht(a.password),
       // Die Auswertung des Kontoauszugs (22.08.2026) — null, solange keiner da ist.
       finanzen: await (await import("../lib/fiaon-kontoauszug-analyse")).analyseFuer(ref).catch(() => null),
+      // ── DIE AUSWERTUNG DER BONITAETSAUSKUNFT (10.09.2026, E-174) ────────
+      // Bis heute sah der Kunde zu seiner hochgeladenen Auskunft genau einen
+      // Satz: dass sie eingegangen sei. Was drinsteht, erfuhr er nie.
+      bonitaetAnalyse: await (await import("../lib/fiaon-schufa-analyse")).schufaAnalyseFuer(ref).catch(() => null),
     });
   } catch (err) {
     console.error("[MEIN-BEREICH] bereich:", err);

@@ -395,7 +395,16 @@ export async function aboBeiZahlungAnlegen(ref: string): Promise<{ angelegt: boo
     if (app.merged_into) return { angelegt: false, grund: "zusammengeführt" };
     if (app.abo_gestoppt_am) return { angelegt: false, grund: "Abo gestoppt" };
     if (istBonitaetsCheck(app)) return { angelegt: false, grund: "Bonitäts-Check ist kein Abo" };
-    const betrag = cents(app.amount_due) || paketPreisCents(app.pack_key);
+    // ── DER KATALOG SCHLAEGT DAS BESTELLFELD (10.09.2026, E-174) ──────────
+    // Hier stand die Rangfolge umgekehrt, anders als an den drei anderen
+    // Anlagestellen (:480, :557 und fiaon-abo-pflicht.ts). `amount_due` ist
+    // der historische Preis EINER Bestellung; bei Gerold Kuhn und Godwin Uche
+    // steht dort 79,99 EUR fuer ein High-End-Paket, das 99,99 EUR kostet — ein
+    // Rest des Preis-Tauschs vom 16.08.2026 und eines Dubletten-Nachtrags.
+    // Eine daraus gebaute Rate waere dauerhaft zu niedrig. `shared/fiaon-pakete.ts`
+    // ist die eine Preisquelle; das Bestellfeld ist nur noch der Rueckfall,
+    // wenn das Paket unbekannt ist.
+    const betrag = paketPreisCents(app.pack_key) || cents(app.amount_due);
     if (betrag <= 0) return { angelegt: false, grund: "Betrag unklar" };
     const referenz = app.payment_reference || app.ref;
 
@@ -1545,6 +1554,78 @@ export async function rateBezahltBuchen(opts: {
   const { tag: anker } = await aboAnker(rate.ref);
   return { ok: true, naechsteFaelligkeit: anker ? naechsteFaelligkeit(anker, zahlungsdatum) : null };
 }
+
+/**
+ * POST /admin/abo/raten/:id/verschieben { faelligAm, grund }
+ *
+ * ── WARUM ES DIESEN WEG GIBT (10.09.2026, E-174) ──────────────────────────
+ * Am 11.08.2026 legte ein Massenlauf Ratenketten mit festen 30 TAGEN an, an
+ * den Anlagetag der Bestellung gehängt. Am 16.08. wurde auf den Kalendermonat
+ * umgestellt (fiaon-abo-zyklus.ts). Wer dazwischen liegt, hat eine Kette aus
+ * zwei Regeln — und an der Nahtstelle stehen zwei Raten einen Tag
+ * auseinander. Dirk Ladewig: Rate 2 fällig 27.08., Rate 3 fällig 28.08.
+ * Zwischen beiden liegt kein Monat; Rate 3 ist der August ein zweites Mal.
+ * Gemessen am 10.09.2026: zwölf echte Verträge mit weniger als zwanzig Tagen
+ * Abstand zwischen zwei Raten.
+ *
+ * Eine Fälligkeit von Hand zu verschieben war bis heute nur per SQL möglich —
+ * also gar nicht, denn Geld wird im Haus nie per SQL angefasst. Dieser Weg
+ * macht es nachvollziehbar: Er verlangt einen Grund, setzt den Mahnstand
+ * zurück (der Kunde wurde für eine Rate gemahnt, die nicht fällig war) und
+ * schreibt beides in die Akte.
+ *
+ * Er verschiebt NUR offene Raten. Eine bezahlte Rate ist eine Tatsache.
+ */
+router.post("/admin/abo/raten/:id/verschieben", async (req: Request, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const faelligAm = String(req.body?.faelligAm || "").trim();
+    const grund = String(req.body?.grund || "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(faelligAm)) {
+      return res.status(400).json({ ok: false, error: "faelligAm fehlt oder hat nicht die Form JJJJ-MM-TT." });
+    }
+    if (grund.length < 10) {
+      return res.status(400).json({ ok: false, error: "Bitte einen Grund angeben — er steht später in der Akte." });
+    }
+    await ensureAboTabellen();
+    const [alt] = (await sqlPool`
+      SELECT id, ref, rate_nr, zahlungsreferenz, betrag_cents, faellig_am, status, mahnstufe, erinnerungen
+      FROM fiaon_abo_raten WHERE id = ${id}
+    `) as any[];
+    if (!alt) return res.status(404).json({ ok: false, error: "Diese Rate gibt es nicht." });
+    if (alt.status !== "offen") {
+      return res.status(409).json({
+        ok: false,
+        error: `Rate ${alt.rate_nr} steht auf „${alt.status}“. Verschoben wird nur, was offen ist — eine bezahlte Rate ist eine Tatsache.`,
+      });
+    }
+    const vorher = alt.faellig_am ? new Date(alt.faellig_am).toISOString().slice(0, 10) : "?";
+    const [neu] = (await sqlPool`
+      UPDATE fiaon_abo_raten
+         SET faellig_am = ${faelligAm}::date,
+             -- Der Kunde wurde für eine Rate gemahnt, die nicht fällig war.
+             -- Mit der Fälligkeit fällt auch der Mahnstand.
+             mahnstufe = 0, erinnerungen = 0, letzte_erinnerung_at = NULL,
+             ueberfaellig_seit = NULL, mahnstufe_bestaetigt_am = NULL,
+             mahnstufe_versuch_am = NULL, mahnstufe_fehler = NULL,
+             notiz = LEFT(COALESCE(notiz || ' | ', '') || ${`Fälligkeit ${vorher} → ${faelligAm}: ${grund}`}, 2000),
+             updated_at = NOW()
+       WHERE id = ${id} AND status = 'offen'
+       RETURNING id, rate_nr, faellig_am
+    `) as any[];
+    if (!neu) return res.status(409).json({ ok: false, error: "Die Rate hat sich zwischenzeitlich geändert." });
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+      VALUES (${alt.ref}, NULL, 'System', 'system',
+              ${`Rate ${alt.rate_nr} (${alt.zahlungsreferenz}): Fälligkeit von ${vorher} auf ${faelligAm} verschoben, Mahnstand zurückgesetzt. Grund: ${grund}`})
+    `.catch(() => {});
+    console.log(`[FIAON-ABO] Rate ${id} (${alt.ref}, Nr. ${alt.rate_nr}) verschoben: ${vorher} → ${faelligAm} — ${grund}`);
+    res.json({ ok: true, rateNr: alt.rate_nr, vorher, jetzt: faelligAm, ref: alt.ref });
+  } catch (err) {
+    console.error("[FIAON-ABO] verschieben:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
 
 router.post("/admin/abo/raten/:id/bezahlt", async (req: Request, res: Response) => {
   try {

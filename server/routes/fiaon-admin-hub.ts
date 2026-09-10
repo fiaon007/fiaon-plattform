@@ -1568,6 +1568,23 @@ router.post("/admin/events/send-real", async (req, res) => {
     `;
     if (rows.length === 0) return res.status(404).json({ ok: false, error: "Kunde/Bestellung nicht gefunden" });
     const row = rows[0];
+    // ── DIE RATENERINNERUNG KENNT DIESES WERKZEUG NICHT (10.09.2026, E-174) ──
+    // Dieses Werkzeug arbeitet auf einer BESTELLZEILE und baut seinen Betrag
+    // aus `amount_due`. Eine Ratenerinnerung meint aber eine bestimmte
+    // Monatsrate: anderer Betrag, andere Fälligkeit, anderer Verwendungszweck
+    // (mit Ratenkennung). Fiele sie hier in den default-Zweig, ginge genau der
+    // Fehler raus, den E-173 an der anderen Tür geschlossen hat — Ilijana
+    // Weber bekam so eine Mahnung über 79,99 € statt 99,99 €, ohne
+    // Ratennummer und mit einem Verwendungszweck, dem sich keine Rate
+    // zuordnen lässt.
+    if (def.type === "abo_payment_reminder") {
+      return res.status(400).json({
+        ok: false,
+        error: "Ratenerinnerungen gehen nicht über dieses Werkzeug: Es kennt nur die Bestellung, "
+          + "nicht die einzelne Rate. Verschicke sie aus der Kundenakte oder aus dem Forderungsmanagement — "
+          + "dort trägt die Mail Betrag, Ratennummer und den Verwendungszweck der Rate.",
+      });
+    }
     const realPayload = buildRealPayload(def.type, row);
     if (!realPayload.email) return res.status(400).json({ ok: false, error: "Kunde hat keine E-Mail-Adresse hinterlegt" });
 

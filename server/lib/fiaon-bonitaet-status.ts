@@ -140,12 +140,30 @@ export function bonitaetAbleiten(z: Zeilen): BonitaetStand {
   // unvollständig meldet, gilt überall als beanstandet — mit dem Hinweis
   // der Prüfung, damit der Kunde es selbst korrigieren kann.
   const ki = z.ki_urteil && typeof z.ki_urteil === "object" ? z.ki_urteil : null;
-  const kiBeanstandet = !!ki && ki.pruefbar !== false && (ki.erkannt === false || ki.vollstaendig === false);
+  // ── UNVOLLSTAENDIG REICHT NICHT MEHR ZUM ABWEISEN (10.09.2026, E-174) ──
+  // Dirk Ladewig, 38 Seiten, 491 KB, echte Bonitätsauskunft: Die Prüfung
+  // erkannte sie (erkannt = true), meldete aber vollstaendig = false, weil ihr
+  // Stammdaten und Score fehlten — und der Kunde las die Aufforderung, die
+  // richtige Datei erneut hochzuladen.
+  //
+  // Beides ist kein Beleg für ein unvollständiges Dokument:
+  //   · Die Prüfung sieht nur die ersten 60.000 Zeichen
+  //     (fiaon-dokument-pruefung.ts:301) und darf mit 400 Token antworten. Bei
+  //     38 Seiten liest sie einen Bruchteil und schließt aus dem Fehlen im
+  //     GELESENEN auf ein Fehlen im GANZEN.
+  //   · Eine Datenkopie nach Art. 15 DSGVO enthält planmäßig KEINEN Score.
+  //     Score fehlt ist dort die Regel, nicht der Mangel.
+  //
+  // Gemessen am 10.09.2026: Von sechs so beanstandeten Auskünften war genau
+  // eine erkannt (Ladewig, 38 Seiten). Die anderen fünf haben eine bis drei
+  // Seiten und sind mit erkannt = false zu Recht abgewiesen — dieser Grund
+  // bleibt. Der Hinweis auf Fehlendes bleibt ebenfalls, er steht in der Akte.
+  const kiBeanstandet = !!ki && ki.pruefbar !== false && ki.erkannt === false;
   if (hatDokument && status !== "approved" && kiBeanstandet) {
     const fehlt = Array.isArray(ki.fehlt) && ki.fehlt.length ? ` Es fehlt: ${ki.fehlt.join(", ")}.` : "";
     return {
       ...roh, stufe: "beanstandet",
-      grund: `Die Prüfung erkennt das Dokument nicht als vollständige Bonitätsauskunft.${fehlt}`,
+      grund: `Die Prüfung erkennt das Dokument nicht als Bonitätsauskunft.${fehlt}`,
       fuerKunden: String(ki.hinweisKunde || "Das hochgeladene Dokument ist keine vollständige Bonitätsauskunft — bitte laden Sie die richtige Datei erneut hoch."),
       naechsterSchritt: "Der Kunde muss die richtige, vollständige Auskunft hochladen. Der Prüfhinweis steht in der Akte.",
       darfKaufen: false, darfHochladen: true,

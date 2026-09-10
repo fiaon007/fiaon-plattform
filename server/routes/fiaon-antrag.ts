@@ -3374,6 +3374,16 @@ router.post("/upload-kyc", (req, res, next) => {
         .then(({ kontoauszugAnalysieren }) => kontoauszugAnalysieren(String(ref), { erzwingen: true }))
         .catch((e) => console.error("[FIAON-KYC] Analyse:", e));
     }
+    // ── DIE BONITAETSAUSKUNFT WIRD JETZT AUCH GELESEN (10.09.2026, E-174) ──
+    // Bis heute wurde eine hochgeladene Auskunft nur auf Echtheit beklopft und
+    // dann abgelegt. 56 Dokumente lagen so ungelesen in der Datenbank. Die
+    // Auswertung laeuft wie beim Kontoauszug sofort los und haelt die Antwort
+    // nicht auf.
+    if (files.schufaDoc) {
+      void import("../lib/fiaon-schufa-analyse")
+        .then(({ schufaAnalysieren }) => schufaAnalysieren(String(ref), { erzwingen: true }))
+        .catch((e) => console.error("[FIAON-KYC] SCHUFA-Analyse:", e));
+    }
 
     const hasSchufa = !!(files.schufaDoc || currentApp.schufa_pdf);
     res.json({ 
@@ -3414,6 +3424,27 @@ router.get("/admin/kontoauszug/:ref", async (req, res) => {
   try {
     const { analyseFuer } = await import("../lib/fiaon-kontoauszug-analyse");
     res.json({ ok: true, analyse: await analyseFuer(String(req.params.ref)) });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/** Verwaltung: Bonitaetsauskunft (erneut) auswerten / Ergebnis lesen (E-174). */
+router.post("/admin/schufa/:ref/analysieren", async (req, res) => {
+  try {
+    const { schufaAnalysieren } = await import("../lib/fiaon-schufa-analyse");
+    const a = await schufaAnalysieren(String(req.params.ref), { erzwingen: true });
+    if (!a) return res.status(404).json({ ok: false, error: "Keine Bonitaetsauskunft hinterlegt." });
+    res.json({ ok: true, analyse: a });
+  } catch (err) {
+    console.error("[ADMIN] schufa analysieren:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+router.get("/admin/schufa/:ref", async (req, res) => {
+  try {
+    const { schufaAnalyseFuer } = await import("../lib/fiaon-schufa-analyse");
+    res.json({ ok: true, analyse: await schufaAnalyseFuer(String(req.params.ref)) });
   } catch (err) {
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }

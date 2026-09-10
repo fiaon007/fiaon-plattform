@@ -47,6 +47,8 @@ interface Bereich {
   kontoVerbunden: boolean;
   passwortGesetzt?: boolean;
   finanzen?: any;
+  /** Die Auswertung der hochgeladenen Bonitätsauskunft (E-174). */
+  bonitaetAnalyse?: any;
 }
 
 const eur = (n: number | null | undefined) => n == null ? "—" : new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", minimumFractionDigits: 0 }).format(n);
@@ -407,9 +409,13 @@ export default function MeinBereichPage() {
             <section id="bonitaet">
               <div className="mb-abschnitt-kopf"><div><h2>Ihre Bonität</h2><p>{d.bonitaet?.fuerKunden || "Eine Auskunft, jeder Eintrag geprüft, in Menschensprache erklärt."}</p></div></div>
               <div className="mb-karte">
-                {d.bonitaet?.geprueft ? (
-                  <div className="mb-warte"><b>Ihre Auskunft ist geprüft.</b> Die Auswertung mit Ihren Einträgen und deren Wirkung in Punkten erscheint hier, sobald die Analyse freigegeben ist. Ihre Ansprechpartnerin meldet sich dazu.</div>
-                ) : d.bonitaet?.hatDokument ? (
+                {d.bonitaetAnalyse?.status === "fertig" ? (
+                  <BonitaetAuswertung a={d.bonitaetAnalyse} />
+                ) : d.bonitaetAnalyse?.status === "unlesbar" ? (
+                  <div className="mb-warte"><b>Ihre Datei lässt sich nicht lesen.</b> {d.bonitaetAnalyse.fehler} <a href="#unterlagen">Datei erneut hochladen</a></div>
+                ) : d.bonitaetAnalyse?.status === "laeuft" ? (
+                  <div className="mb-warte"><b>Ihre Auskunft wird gerade ausgewertet.</b> Das dauert wenige Minuten. Laden Sie die Seite danach neu.</div>
+                ) : d.bonitaet?.geprueft || d.bonitaet?.hatDokument ? (
                   <div className="mb-warte"><b>Ihre Auskunft ist eingegangen.</b> Wir gehen jeden Eintrag durch und leiten daraus Ihre nächsten Schritte ab. Sie hören von uns, sobald die Auswertung vorliegt.</div>
                 ) : d.bonitaet?.bezahlt ? (
                   <div className="mb-warte"><b>Bezahlt — die Auskunft wird beschafft.</b> {d.bonitaet.naechsterSchritt}</div>
@@ -822,6 +828,131 @@ function FinanzAnalyse({ a, hatAuszug }: { a: any; hatAuszug: boolean }) {
 }
 
 // ── Nach Rate 12: „Möchten Sie bleiben?" (E-024) ──────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE AUSWERTUNG DER BONITAETSAUSKUNFT (10.09.2026, E-174)
+//
+// Justin: „der KI Agent muss die hochgeladene SCHUFA KOMPLETT und 100 %
+// analysieren, eine ehrlich aber PERFEKT aussehende Ampel darstellen und ihm
+// Handlungsempfehlungen geben".
+//
+// An dieser Stelle stand bis heute ein Versprechen: „Die Auswertung … erscheint
+// hier, sobald die Analyse freigegeben ist." Sie erschien nie — es gab sie
+// nicht. Jetzt steht hier, was in der Auskunft steht.
+//
+// Die AMPEL ist nach der ARBEIT benannt, nicht nach einer Note. Sie kommt
+// fertig aus server/lib/fiaon-schufa-analyse.ts; diese Datei malt sie nur.
+// ═══════════════════════════════════════════════════════════════════════════
+const AMPEL_FARBE: Record<string, { grund: string; linie: string; wort: string }> = {
+  frei:        { grund: "rgba(16,185,129,.10)", linie: "rgba(16,185,129,.35)", wort: "#047857" },
+  aufraeumen:  { grund: "rgba(37,99,235,.09)",  linie: "rgba(37,99,235,.30)",  wort: "#1d4ed8" },
+  angreifbar:  { grund: "rgba(245,158,11,.11)", linie: "rgba(245,158,11,.38)", wort: "#92400e" },
+  dringend:    { grund: "rgba(239,68,68,.09)",  linie: "rgba(239,68,68,.32)",  wort: "#b91c1c" },
+};
+const AMPEL_WORT: Record<string, string> = {
+  frei: "Nichts Belastendes gefunden",
+  aufraeumen: "Erledigt — es läuft nur noch die Zeit",
+  angreifbar: "Überschaubar — hier lässt sich arbeiten",
+  dringend: "Viel auf einmal — wir fangen beim Größten an",
+};
+const dtag = (iso: string | null) => (iso ? iso.split("-").reverse().join(".") : null);
+
+function BonitaetAuswertung({ a }: { a: any }) {
+  const eintraege: any[] = Array.isArray(a.eintraege) ? a.eintraege : [];
+  const offen = eintraege.filter((e) => e.offen);
+  const erledigt = eintraege.filter((e) => !e.offen);
+  const f = AMPEL_FARBE[a.ampel] || AMPEL_FARBE.angreifbar;
+  const empf: any[] = Array.isArray(a.empfehlungen) ? a.empfehlungen : [];
+  const positiv: any[] = Array.isArray(a.positiv) ? a.positiv : [];
+  const anfragen: any[] = Array.isArray(a.anfragen) ? a.anfragen : [];
+
+  return (
+    <div>
+      {/* Die Ampel */}
+      <div style={{ background: f.grund, border: `1px solid ${f.linie}`, borderRadius: 14, padding: "16px 18px" }}>
+        <div style={{ fontSize: 11.5, letterSpacing: ".08em", textTransform: "uppercase", color: f.wort, fontWeight: 700 }}>
+          Ihre Lage
+        </div>
+        <div style={{ fontSize: 19, fontWeight: 700, margin: "3px 0 6px", color: f.wort }}>
+          {AMPEL_WORT[a.ampel] || "Ausgewertet"}
+        </div>
+        <p style={{ margin: 0, fontSize: 14.5, lineHeight: 1.5 }}>{a.ampelGrund}</p>
+        <div style={{ marginTop: 12, display: "flex", gap: 18, flexWrap: "wrap", fontSize: 13 }}>
+          <span><b>{eintraege.length}</b> {eintraege.length === 1 ? "Eintrag" : "Einträge"}</span>
+          <span><b>{offen.length}</b> offen</span>
+          <span><b>{erledigt.length}</b> erledigt</span>
+          {a.summeOffenCents ? <span>offen zusammen <b>{eurCents(a.summeOffenCents)}</b></span> : null}
+          {anfragen.length ? <span><b>{anfragen.length}</b> Anfragen</span> : null}
+        </div>
+        <div style={{ marginTop: 8, fontSize: 12, color: "var(--text-still)" }}>
+          {[a.auskunftei, a.auskunftVom ? `Auskunft vom ${dtag(a.auskunftVom)}` : null,
+            a.seiten ? `${a.seiten} Seiten gelesen` : null,
+            a.score != null ? `Score ${a.score}` : null].filter(Boolean).join(" · ")}
+        </div>
+      </div>
+
+      {/* Die Einträge, jeder mit seinem nächsten Schritt */}
+      {eintraege.length > 0 && (
+        <div style={{ marginTop: 18 }}>
+          <h4 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 10px" }}>Was in Ihrer Auskunft steht</h4>
+          {eintraege.map((e, i) => (
+            <div key={i} style={{ padding: "12px 0", borderTop: i ? "1px solid var(--linie)" : "none" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                <b style={{ fontSize: 14.5 }}>{e.glaeubiger || e.art}</b>
+                <span style={{ fontSize: 13.5, whiteSpace: "nowrap" }}>
+                  {e.betragCents != null ? eurCents(e.betragCents) : "ohne Betrag"}
+                  <span style={{ marginLeft: 8, fontSize: 12, color: e.offen ? "#b91c1c" : "#047857" }}>
+                    {e.offen ? "offen" : "erledigt"}
+                  </span>
+                </span>
+              </div>
+              <div style={{ fontSize: 12.5, color: "var(--text-still)", marginTop: 2 }}>
+                {[e.art, e.gemeldetAm ? `gemeldet ${dtag(e.gemeldetAm)}` : null,
+                  e.erledigtAm ? `erledigt ${dtag(e.erledigtAm)}` : null,
+                  e.loeschungAm ? `Löschung ${dtag(e.loeschungAm)}` : null].filter(Boolean).join(" · ")}
+              </div>
+              {e.ansatz && <p style={{ margin: "6px 0 0", fontSize: 13.5, lineHeight: 1.5 }}>{e.ansatz}</p>}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Was für Sie spricht */}
+      {positiv.length > 0 && (
+        <div style={{ marginTop: 18 }}>
+          <h4 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 8px" }}>Was für Sie spricht</h4>
+          {positiv.map((p2, i) => (
+            <p key={i} style={{ margin: "4px 0", fontSize: 13.5 }}>{p2.text || p2.art}</p>
+          ))}
+        </div>
+      )}
+
+      {/* Die nächsten Schritte */}
+      {empf.length > 0 && (
+        <div style={{ marginTop: 18 }}>
+          <h4 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 10px" }}>Was jetzt zu tun ist</h4>
+          {empf.map((v, i) => (
+            <div key={i} style={{ padding: "10px 0", borderTop: i ? "1px solid var(--linie)" : "none" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                <b style={{ fontSize: 14 }}>{v.titel}</b>
+                <span style={{ fontSize: 11.5, whiteSpace: "nowrap", color: v.wer === "kunde" ? "#92400e" : "var(--text-still)" }}>
+                  {v.wer === "kunde" ? "Ihr Zug" : "Liegt bei FIAON"}
+                </span>
+              </div>
+              <p style={{ margin: "4px 0 0", fontSize: 13.5, lineHeight: 1.5 }}>{v.text}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <p style={{ margin: "16px 0 0", fontSize: 12, color: "var(--text-still)", lineHeight: 1.5 }}>
+        Diese Auswertung liest, was in Ihrer Auskunft steht. Über Löschungen entscheidet die Auskunftei, über Karte,
+        Konto und Rahmen entscheidet die Bank. Fragen dazu klären Sie mit Ihrer Ansprechpartnerin.
+        {a.gekuerzt ? " Ihre Auskunft ist sehr lang; sehr weit hinten stehende Angaben können fehlen." : ""}
+      </p>
+    </div>
+  );
+}
+
 function Verlaengerung({ refKunde, raten }: { refKunde: string; raten: number }) {
   const [laeuft, setLaeuft] = useState<"ja" | "nein" | null>(null);
   const [meldung, setMeldung] = useState<string | null>(null);

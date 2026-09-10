@@ -33,6 +33,28 @@ gewohnten „Failed: 1". Ein Fehlschlag im Deploy-Protokoll ist damit wieder ein
 
 ---
 
+## 10.09.2026 — Die Ratenerinnerung von Hand nennt die Rate, nicht die Bestellung (E-173)
+
+**Was geändert wurde:** `server/lib/fiaon-mail-senden.ts` — `sendePayloadBauen()` baut die Nutzlast für
+`abo_payment_reminder` jetzt aus der offenen RATE statt aus der Bestellung. Neue Funktion
+`offeneRateFuerErinnerung(personId)` in `server/routes/fiaon-abo.ts` liefert die älteste offene, nicht stornierte
+Rate mit denselben Feldern wie der automatische Mahnlauf; beide füttern dieselbe `aboErinnerungPayload()`. Weil
+`sendePayloadBauen` auch die Vorschau speist, sieht der Mitarbeiter ab sofort genau das, was rausgeht. Ist keine
+Rate offen, wird nicht gesendet — Vorschau und Versand sagen das mit Grund.
+
+**Warum:** Justin: „Iliane Weber hat immer 99.99 bezahlt und jetzt muss sie nur mehr 79.99 bezahlen? WTF?" Im
+Protokoll steht beides nebeneinander: Der automatische Lauf schrieb ihr am 02.09. korrekt 99,99 € mit Ratennummer 2
+und dem Verwendungszweck FIAON-5BNPWZ-2. Die Mail, die ein Mitarbeiter am 09.09. um 18:55 von Hand aus der Akte
+schickte, nannte 79,99 €, keine Ratennummer und als Verwendungszweck FIAON-5BNPWZ ohne Ratenkennung — eine
+Überweisung darauf hätte sich keiner Rate zuordnen lassen. Ursache: Der Handweg nahm `betrag` und
+`payment_reference` aus `fiaon_applications.amount_due` bzw. der Bestellung. Betroffen waren alle Handversände
+dieser Art: drei Kunden wurden zur Zahlung von 74,00 € aufgefordert, dem Preis der Bonitätsauskunft.
+
+**Wo zu finden:** Mitarbeiter-Akte → Mails → „Zahlungserinnerung (Rate)". Die Vorschau zeigt jetzt Betrag,
+Ratennummer, Fälligkeit und den Verwendungszweck mit Ratenkennung.
+
+---
+
 ## 10.09.2026 — Die Demo beginnt bei Schritt 1 und hat eine Regie (E-172)
 
 **Was geändert wurde:** Neu `shared/fiaon-demo-stufen.ts` — zwölf Stufen des Kundenwegs (elf Schritte plus „alles

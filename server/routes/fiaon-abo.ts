@@ -601,6 +601,42 @@ const MAHN_TEXT: Record<number, string> = {
  * Empfänger, IBAN, BIC und den Verwendungszweck. Ohne den Verwendungszweck
  * kann der Kunde überweisen, und wir können die Zahlung nicht zuordnen.
  */
+/**
+ * Die älteste offene Rate eines Kunden — die, die eine Erinnerung meint.
+ *
+ * ── WARUM ES DIESE FUNKTION GIBT (10.09.2026, E-173) ──────────────────────
+ * Die Handmail „Zahlungserinnerung (Rate)" aus der Kundenakte baute ihren
+ * Betrag bis heute aus `fiaon_applications.amount_due` — dem Preis der
+ * BESTELLUNG. Ilijana Weber bekam deshalb am 09.09. eine Erinnerung über
+ * 79,99 €, obwohl ihre offene Rate 99,99 € ist; drei weitere Kunden wurden
+ * zur Zahlung von 74,00 € aufgefordert, dem Preis der Bonitätsauskunft.
+ * Schlimmer noch: Als Verwendungszweck stand die Bestellreferenz statt der
+ * RATENreferenz — eine Überweisung darauf hätte sich keiner Rate zuordnen
+ * lassen.
+ *
+ * Die Felder sind genau die von `faelligeRaten` — beide füttern dieselbe
+ * `aboErinnerungPayload`, damit die Mail von Hand und die Mail aus dem Takt
+ * dasselbe sagen.
+ */
+export async function offeneRateFuerErinnerung(personId: number): Promise<any | null> {
+  await ensureAboTabellen();
+  const [r] = (await sqlPool`
+    SELECT r.*, a.first_name, a.last_name, a.contact_name, a.company_name,
+           a.person_id, a.email, a.contact_email, a.billing_email, a.pack_name,
+           a.amount_due, a.ref,
+           ag.name AS agent_name
+    FROM fiaon_abo_raten r
+    JOIN fiaon_applications a ON a.ref = r.ref AND a.merged_into IS NULL AND a.abo_gestoppt_am IS NULL
+    LEFT JOIN fiaon_agents ag ON ag.id = a.assigned_agent_id
+    WHERE a.person_id = ${personId}
+      AND r.status = 'offen'
+      AND r.storniert_am IS NULL
+    ORDER BY r.faellig_am ASC, r.rate_nr ASC
+    LIMIT 1
+  `) as any[];
+  return r ?? null;
+}
+
 export function aboErinnerungPayload(r: any) {
   const faellig = new Date(r.faellig_am).toISOString().slice(0, 10);
   const heute = berlinToday();

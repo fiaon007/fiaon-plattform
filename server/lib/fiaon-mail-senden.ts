@@ -104,9 +104,58 @@ export async function sendePayloadBauen(
   eventType: string,
   personId: number,
   lauf: Lauf = sqlPool,
-): Promise<{ basis: Record<string, unknown>; links: Record<string, unknown>; ref: string | null } | null> {
+): Promise<{ basis: Record<string, unknown>; links: Record<string, unknown>; ref: string | null; fehler?: string } | null> {
   const basis = await payloadFuer(personId, lauf);
   if (!basis) return null;
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // DIE RATENERINNERUNG SPRICHT ÜBER DIE RATE, NICHT ÜBER DIE BESTELLUNG
+  // (10.09.2026, E-173)
+  //
+  // ── DER BEFUND ───────────────────────────────────────────────────────────
+  // `payloadFuer` nimmt `betrag` aus `fiaon_applications.amount_due` — dem Preis
+  // der BESTELLUNG — und `payment_reference` aus derselben Zeile. Für jedes
+  // andere Ereignis ist das richtig. Für `abo_payment_reminder` ist es falsch,
+  // denn diese Mail meint eine bestimmte MONATSRATE.
+  //
+  // Was dabei herauskam, steht im Protokoll: Ilijana Weber bekam am 09.09. um
+  // 18:55 von Hand eine Erinnerung über 79,99 €, während ihre offene Rate 2
+  // 99,99 € beträgt — der automatische Lauf hatte ihr sieben Tage zuvor
+  // korrekt 99,99 € geschrieben. Drei weitere Kunden wurden zur Zahlung von
+  // 74,00 € aufgefordert; das ist der Preis der Bonitätsauskunft, nicht ihre
+  // Rate. In keiner dieser Mails stand eine Ratennummer, und als
+  // Verwendungszweck stand die Bestellreferenz statt der RATENreferenz
+  // (FIAON-5BNPWZ statt FIAON-5BNPWZ-2) — eine Überweisung darauf hätte sich
+  // keiner Rate zuordnen lassen.
+  //
+  // ── DIE REGEL ────────────────────────────────────────────────────────────
+  // Dieses Ereignis baut seinen Inhalt aus der offenen Rate, mit derselben
+  // Funktion wie der automatische Takt (`aboErinnerungPayload`). Weil diese
+  // Funktion Vorschau UND Versand speist, sieht der Mitarbeiter ab sofort
+  // genau das, was rausgeht. Gibt es keine offene Rate, wird nicht gesendet:
+  // Eine Mahnung ohne Forderung ist schlimmer als keine Mahnung.
+  // ══════════════════════════════════════════════════════════════════════════
+  if (eventType === "abo_payment_reminder") {
+    const { offeneRateFuerErinnerung, aboErinnerungPayload } = await import("../routes/fiaon-abo");
+    const rate = await offeneRateFuerErinnerung(personId);
+    if (!rate) {
+      return {
+        basis: basis as Record<string, unknown>, links: {}, ref: (basis as any)._ref ?? null,
+        fehler: "Bei diesem Kunden ist gerade keine Rate offen. Es gibt nichts zu erinnern.",
+      };
+    }
+    const ausRate = aboErinnerungPayload(rate) as Record<string, unknown>;
+    const ref = (basis as any)._ref as string | null;
+    delete (basis as any)._ref;
+    return {
+      // Die Rate schlägt die Bestellung. Nur die Adresse bleibt die des
+      // Kunden — `payloadFuer` löst sie über die Person auf und findet sie
+      // auch dann, wenn an der Bestellung keine steht.
+      basis: { ...basis, ...ausRate, email: ausRate.email || (basis as any).email },
+      links: {},
+      ref: (rate.ref as string) || ref,
+    };
+  }
 
   // Links, die nur der Server bauen kann.
   const links: Record<string, unknown> = {};
@@ -150,6 +199,7 @@ export async function mailVorschau(ein: {
 
   const gebaut = await sendePayloadBauen(def.type, ein.personId, lauf);
   if (!gebaut) return { ok: false, grund: "Kunde nicht gefunden." };
+  if (gebaut.fehler) return { ok: false, grund: gebaut.fehler };
   const zusatz = await partnerLinkErgaenzen(def.type, ein.personId, (ein as any).agentId ?? null, ein.zusatz, lauf);
   const payload = { ...gebaut.basis, ...gebaut.links, ...zusatz };
 
@@ -250,6 +300,8 @@ export async function mailSenden(ein: SendeEingabe): Promise<SendeErgebnis> {
 
   const gebaut = await sendePayloadBauen(def.type, ein.personId, lauf);
   if (!gebaut) return abgelehnt("Kunde nicht gefunden.");
+  // E-173: Eine Ratenerinnerung ohne offene Rate geht nicht raus.
+  if (gebaut.fehler) return abgelehnt(gebaut.fehler);
   const { basis, links, ref } = gebaut;
   if (!basis.email) return abgelehnt("Keine E-Mail-Adresse hinterlegt.");
 

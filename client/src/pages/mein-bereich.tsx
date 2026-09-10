@@ -906,7 +906,9 @@ function BonitaetAuswertung({ a }: { a: any }) {
                 </span>
               </div>
               <div style={{ fontSize: 12.5, color: "var(--text-still)", marginTop: 2 }}>
-                {[e.art, e.gemeldetAm ? `gemeldet ${dtag(e.gemeldetAm)}` : null,
+                {[e.art, e.gemeldetAm ? `seit ${dtag(e.gemeldetAm)}` : null,
+                  e.letzterStandAm ? `Stand ${dtag(e.letzterStandAm)}` : null,
+                  e.meldungen && e.meldungen > 1 ? `${e.meldungen} Saldo-Meldungen` : null,
                   e.erledigtAm ? `erledigt ${dtag(e.erledigtAm)}` : null,
                   e.loeschungAm ? `Löschung ${dtag(e.loeschungAm)}` : null].filter(Boolean).join(" · ")}
               </div>

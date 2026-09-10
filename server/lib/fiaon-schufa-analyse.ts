@@ -80,10 +80,14 @@ export async function ensureSchufaTabelle(): Promise<void> {
 export type AmpelStufe = "frei" | "aufraeumen" | "angreifbar" | "dringend";
 
 export interface SchufaEintrag {
+  nummer: number | null;
   art: string;
   glaeubiger: string | null;
   betragCents: number | null;
+  /** Wie viele Saldo-Meldungen die Auskunft zu diesem Posten führt. */
+  meldungen: number | null;
   gemeldetAm: string | null;
+  letzterStandAm: string | null;
   erledigtAm: string | null;
   loeschungAm: string | null;
   offen: boolean;
@@ -155,7 +159,9 @@ export async function schufaAnalyseFuer(ref: string): Promise<SchufaAnalyse | nu
 // sich nach deren Regeln), die Kreditwürdigkeit (darüber entscheidet die Bank)
 // und die Aussichten eines einzelnen Antrags.
 // ═══════════════════════════════════════════════════════════════════════════
-const HART = /insolvenz|eidesstattlich|verm[oö]gensausk|haftbefehl|titel|zwangsvollstreck/i;
+// „Vollstreckungsverfahren" steht so in Dirk Ladewigs Auskunft — das engere
+// „zwangsvollstreck" hätte es nicht gefasst.
+const HART = /insolvenz|eidesstattlich|verm[oö]gensausk|haftbefehl|titel|vollstreck|gerichtlich/i;
 
 export function ampelAus(eintraege: SchufaEintrag[]): { stufe: AmpelStufe; grund: string } {
   const offen = eintraege.filter((e) => e.offen);
@@ -217,19 +223,22 @@ const SCHEMA = {
     score_text: { type: ["string", "null"], description: "Wortlaut der Score-Einordnung, falls angegeben" },
     eintraege: {
       type: "array",
-      description: "JEDER Negativeintrag: offene und erledigte Forderungen, Kredite in Verzug, Inkasso, Titel, Insolvenz.",
+      description: "Die NUMMERIERTEN Bonitätsinformationen der Auskunft (1., 2., 3. …) — EIN Objekt je Nummer, nie je Saldo-Zeile.",
       items: {
         type: "object", additionalProperties: false,
         properties: {
-          art: { type: "string", description: "z. B. Forderung, Inkasso, Kredit, Girokonto gekündigt, Titel, Insolvenz" },
-          glaeubiger: { type: ["string", "null"] },
-          betrag_cents: { type: ["integer", "null"] },
-          gemeldet_am: { type: ["string", "null"], description: "YYYY-MM-DD" },
+          nummer: { type: ["integer", "null"], description: "Die Nummer der Bonitätsinformation in der Auskunft" },
+          art: { type: "string", description: "Wortlaut der Auskunft, z. B. Abwicklungskonto, Vollstreckungsverfahren, Inkasso, Forderung" },
+          glaeubiger: { type: ["string", "null"], description: "Vertragspartner oder Gläubiger, falls genannt" },
+          betrag_cents: { type: ["integer", "null"], description: "Der ZULETZT gemeldete Forderungsbetrag dieses Postens, nicht die Summe aller Meldungen" },
+          meldungen: { type: ["integer", "null"], description: "Wie viele Saldo-Meldungen zu diesem Posten aufgeführt sind" },
+          gemeldet_am: { type: ["string", "null"], description: "Datum des ERSTEN Ereignisses, YYYY-MM-DD" },
+          letzter_stand_am: { type: ["string", "null"], description: "Datum der JÜNGSTEN Saldo-Meldung, YYYY-MM-DD" },
           erledigt_am: { type: ["string", "null"], description: "YYYY-MM-DD, falls als erledigt/ausgeglichen vermerkt" },
           loeschung_am: { type: ["string", "null"], description: "YYYY-MM-DD, falls ein Löschdatum genannt ist" },
-          offen: { type: "boolean", description: "true, solange die Forderung nicht als erledigt vermerkt ist" },
+          offen: { type: "boolean", description: "true, solange der Posten nicht als erledigt vermerkt ist" },
         },
-        required: ["art", "glaeubiger", "betrag_cents", "gemeldet_am", "erledigt_am", "loeschung_am", "offen"],
+        required: ["nummer", "art", "glaeubiger", "betrag_cents", "meldungen", "gemeldet_am", "letzter_stand_am", "erledigt_am", "loeschung_am", "offen"],
       },
     },
     anfragen: {
@@ -259,8 +268,19 @@ const ANWEISUNG = [
   "Du liest den Text einer Bonitätsauskunft (SCHUFA, CRIF, Creditreform, KSV1870 oder ähnlich) und erfasst,",
   "was darin steht. Du bewertest NICHT und du empfiehlst NICHTS — du liest.",
   "",
-  "Regeln:",
-  "· Erfasse JEDEN Negativeintrag einzeln, auch mehrfach genannte. Lieber einen zu viel als einen zu wenig.",
+  "DIE WICHTIGSTE REGEL — EIN POSTEN IST NICHT EINE ZEILE:",
+  "Eine Bonitätsauskunft führt ihre Posten NUMMERIERT auf (1. Abwicklungskonto, 2. Abwicklungskonto,",
+  "10. Vollstreckungsverfahren …). Zu JEDEM Posten meldet der Vertragspartner den Saldo immer wieder neu —",
+  "oft monatlich, mit leicht steigendem Betrag durch Zinsen und Gebühren. Diese Wiederholungen sehen aus wie",
+  "viele Forderungen, sind aber IMMER DIESELBE. Bei Dirk Ladewigs Auskunft stehen 14 nummerierte Posten und",
+  "165 Saldo-Meldungen dazu.",
+  "· Liefere GENAU EIN Objekt je NUMMERIERTEM Posten. Niemals eines je Saldo-Zeile.",
+  "· betrag_cents ist der ZULETZT gemeldete Forderungsbetrag dieses Postens — nicht die Summe der Meldungen",
+  "  und nicht der erste Betrag.",
+  "· meldungen ist die Anzahl der Saldo-Meldungen zu diesem Posten.",
+  "· gemeldet_am ist das erste genannte Ereignisdatum, letzter_stand_am das jüngste.",
+  "",
+  "Weitere Regeln:",
   "· Beträge in Cent als ganze Zahlen (Euro × 100). Steht kein Betrag da, schreibe null — erfinde keinen.",
   "· offen = true, solange die Forderung nicht ausdrücklich als erledigt, ausgeglichen oder bezahlt vermerkt ist.",
   "· Datumsangaben als YYYY-MM-DD. Steht nur ein Monat da, nimm den ersten des Monats. Steht nichts da, null.",
@@ -438,10 +458,13 @@ export async function schufaAnalysieren(ref: string, opts: { erzwingen?: boolean
     const heute = new Date().toISOString().slice(0, 10);
     const eintraege: SchufaEintrag[] = (daten.eintraege || []).map((e: any) => {
       const roh: SchufaEintrag = {
+        nummer: e.nummer ?? null,
         art: String(e.art || "Eintrag"),
         glaeubiger: e.glaeubiger ? String(e.glaeubiger) : null,
         betragCents: e.betrag_cents ?? null,
+        meldungen: e.meldungen ?? null,
         gemeldetAm: e.gemeldet_am || null,
+        letzterStandAm: e.letzter_stand_am || null,
         erledigtAm: e.erledigt_am || null,
         loeschungAm: e.loeschung_am || null,
         offen: e.offen !== false,

@@ -226,8 +226,11 @@ export function ampelAus(eintraege: SchufaEintrag[]): { stufe: AmpelStufe; grund
   if (hart.length > 0) {
     return {
       stufe: "dringend",
-      grund: `In Ihrer Auskunft steht ${hart.length === 1 ? "ein Eintrag" : `${hart.length} Einträge`} aus einem Gerichts- oder `
-        + "Vollstreckungsverfahren. Solche Einträge wiegen am schwersten, und sie brauchen als Erstes Arbeit.",
+      grund: hart.length === 1
+        ? "In Ihrer Auskunft steht ein Eintrag aus einem Gerichts- oder Vollstreckungsverfahren. Solche Einträge wiegen "
+          + "am schwersten, und sie brauchen als Erstes Arbeit."
+        : `In Ihrer Auskunft stehen ${hart.length} Einträge aus einem Gerichts- oder Vollstreckungsverfahren. Solche `
+          + "Einträge wiegen am schwersten, und sie brauchen als Erstes Arbeit.",
     };
   }
   if (offen.length === 0 && erledigt.length === 0) {
@@ -479,11 +482,28 @@ function empfehlungenAus(eintraege: SchufaEintrag[], anfragen: number, score: nu
       wer: "fiaon",
     });
   }
-  if (offen.length) {
+  // ── NUR POSTEN MIT BEZIFFERTEM BETRAG (10.09.2026, E-175) ────────────────
+  // Vorher zaehlte diese Empfehlung alle offenen Posten. Bei Dirk Ladewig stand
+  // dort „Unterlagen zu den 14 offenen Forderungen anfordern" — sechs davon sind
+  // Vollstreckungsvermerke aus dem Schuldnerverzeichnis. Dort gibt es keinen
+  // Glaeubiger, den man um einen Vertrag bitten koennte; fuer sie ist die
+  // Pruefbitte an die Auskunftei der Weg, und die steht als eigene Empfehlung.
+  const beziffert = offen.filter((e) => (e.betragCents ?? 0) > 0);
+  if (beziffert.length) {
     out.push({
-      titel: `Unterlagen zu ${offen.length === 1 ? "der offenen Forderung" : `den ${offen.length} offenen Forderungen`} anfordern`,
+      titel: `Unterlagen zu ${beziffert.length === 1 ? "der offenen Forderung" : `den ${beziffert.length} offenen Forderungen`} anfordern`,
       text: "Wir schreiben die Gläubiger an und verlangen den Nachweis: Vertrag, Abrechnung, Zeitpunkt. Ohne belegte Forderung "
         + "steht ein Eintrag auf schwachen Füßen. Sie müssen dafür nichts tun.",
+      wer: "fiaon",
+    });
+  }
+  const zuPruefen = schreibenPosten(eintraege).pruefen;
+  if (zuPruefen.length) {
+    out.push({
+      titel: `Auskunft und Prüfung zu ${zuPruefen.length === 1 ? "einem Eintrag" : `${zuPruefen.length} Einträgen`} verlangen`,
+      text: `Zu ${zuPruefen.length === 1 ? "einem Eintrag" : `${zuPruefen.length} Einträgen`} nennt Ihre Auskunft keinen `
+        + "bezifferten Betrag. Wir verlangen von der Auskunftei nach Art. 15 DSGVO Auskunft, worauf sie beruhen und wann "
+        + "sie entfallen — und wo die Meldevoraussetzungen nicht belegt sind, beantragen wir die Löschung. Ein Klick genügt.",
       wer: "fiaon",
     });
   }

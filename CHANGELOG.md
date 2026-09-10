@@ -33,6 +33,37 @@ gewohnten „Failed: 1". Ein Fehlschlag im Deploy-Protokoll ist damit wieder ein
 
 ---
 
+## 10.09.2026 — Die Demo beginnt bei Schritt 1 und hat eine Regie (E-172)
+
+**Was geändert wurde:** Neu `shared/fiaon-demo-stufen.ts` — zwölf Stufen des Kundenwegs (elf Schritte plus „alles
+erledigt“), `demoStand()`, `demoAlterTage()`, `demoCheckAnteil()`. `server/routes/fiaon-demo.ts` baut die Antwort von
+`GET /kunde/FIAON-DEMO/bereich?stufe=n` vollständig aus der Stufe: Alter der Akte, Raten, Unterlagen, Auskunft,
+Girokonto, Kartenweg, Termin, Tickets und die Finanzauswertung (die es vor dem Kontoauszug schlicht nicht gibt).
+Neue Route `GET /kunde/FIAON-DEMO/stufen`. `client/src/pages/app/Regie.tsx` ist der Demo-Modus: Griff, Blatt am Handy,
+feste Schiene ab 1100 px, Stufenliste, Zurück/Weiter, Pfeiltasten, „Vorführung starten“ (der Weg läuft von allein und
+wandert dabei über die Schirme), dazu „Was der Kunde jetzt sieht“, „Was sich damit ändert“ je Schirm und „Woraus
+dieser Stand entsteht“ Feld für Feld. `Bausteine.tsx`: `demoVorgaenge(stufe)` statt fester Post. `Bereich.tsx` hält die
+Stufe im Zustand, liest sie aus der Adresse, merkt sie in der Sitzung und schreibt sie nach jedem Reiterwechsel
+zurück. Gestaltung in `app.css` unter `.ap-regie-*`.
+
+**Warum:** Justin: „Setze es mir so zurück /app/demo/weg, dass wir direkt sehen, wie es der Kunde sieht, also starten
+bei 1! Und bitte in HIGH END Demo Modus, dass wir es uns im Detail ansehen können.“ Die Demo zeigte einen Kunden
+mitten im Weg: Startgespräch geführt, vier Raten bezahlt, zwei Schreiben unterwegs. Der Anfang war damit nie zu
+sehen, und der Anfang ist die Stelle, an der ein echter Kunde zum ersten Mal auf den Bereich schaut.
+
+**Drei Bauregeln aus der Entwurfsrunde (drei Entwürfe, neun Juroren):** (1) Die Regie ist MATTES Navy ohne
+backdrop-filter, ohne Glanz, ohne FIAON-Blau — das eine Navy-Glas bleibt der Zielkarte. So lässt sich die Bedienung
+keine Sekunde mit dem Produkt verwechseln. (2) EINE Zählung: Der Bereich sagt „0 von 11 Schritten“, die Regie sagt
+„Schritt 1“ — nie eine zweite Bruchzahl daneben. (3) EINE Quelle: Jede Stufe ist ein echter Schnappschuss, der durch
+dieselbe Funktion `rahmenwegAus()` läuft wie bei einem echten Kunden. In Heute, Weg, Geld und Brief steht kein
+einziges neues `if (demo)`.
+
+**Wo zu finden:** https://fiaon.com/app/demo/weg (öffnet auf Stufe 1). Griff unten rechts, am Rechner die Schiene.
+Jede Adresse trägt ihre Stufe (`?stufe=9`) und lässt sich so teilen. Der echte Kundenbereich unter /app ist
+unberührt: dort wird die Regie nicht geladen und nicht gerendert.
+
+---
+
 ## 09.09.2026 — js@fiaon.com ist kein Postfach des Mail-Agenten mehr (E-171); was kein Support ist, bleibt ungelesen
 
 **Was geändert wurde:** Neu `server/lib/fiaon-postmeister-postfaecher.ts` — die bedienten Postfächer stehen an EINER

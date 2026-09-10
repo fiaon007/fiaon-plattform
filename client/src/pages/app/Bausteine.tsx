@@ -12,6 +12,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import { FRAGEN, befunde, beantwortet as anzahlBeantwortet, summeMonatlichCents, type Antworten, type Frage } from "@shared/fiaon-ansprueche";
 import type { Vorgang } from "./typen";
+import { demoStand, demoAlterTage, DEMO_STUFEN_MAX } from "@shared/fiaon-demo-stufen";
 
 export const eur = (cents: number) => new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(cents / 100);
 /** ISO-Zeit → „Sa., 09.05., 10:30“ in Berliner Zeit (Zeit-Falle: nie Number(format())). */
@@ -37,11 +38,51 @@ export async function startgespraechBuchen(kundeRef: string): Promise<string | n
 
 // ── Demo-Daten: feste Vorführwerte, nie ein echter Datensatz ────────────────
 export const DEMO_ANTWORTEN: Antworten = { p_konto: true, pfaendung: false, unterhalt: 2, familienstand: "getrennt", netto_cents: 198000, warmmiete_cents: 98000, haushalt: 3, sozialleistung: false, rundfunk_gezahlt: true, kfz_handy: ["kfz", "handy"] };
-export const DEMO_POST: Vorgang[] = [
-  { id: 3, art: "brief", artText: "Ihr Brief", titel: "Brief vom 03.09.2026", stand: "gelesen", standText: "Gelesen – Mahnung eines Inkassobüros, wir prüfen die Forderung", fristAm: null, versandtAm: null, empfaenger: null, zustaendig: "Lena Winter", eingegangenAm: "03.09.2026", aktualisiertAm: "04.09.2026", dokumente: 1, offen: true },
-  { id: 2, art: "p_konto", artText: "Antrag: höherer Schutzbetrag (P-Konto)", titel: "Antrag an Ihre Bank", stand: "versandt", standText: "Versandt – wartet auf Antwort", fristAm: "19.09.2026", versandtAm: "29.08.2026", empfaenger: "Ihre Bank", zustaendig: "Lena Winter", eingegangenAm: "28.08.2026", aktualisiertAm: "29.08.2026", dokumente: 2, offen: true },
-  { id: 1, art: "selbstauskunft", artText: "Selbstauskunft (Art. 15 DSGVO)", titel: "Datenkopie bei der Auskunftei", stand: "bewilligt", standText: "Antwort da – Auskunft liegt in Ihrem Bereich", fristAm: null, versandtAm: "12.05.2026", empfaenger: "Auskunftei", zustaendig: "Lena Winter", eingegangenAm: "12.05.2026", aktualisiertAm: "02.06.2026", dokumente: 2, offen: false },
-];
+
+// ── DIE POST DER DEMO FOLGT DER STUFE (10.09.2026, E-172) ───────────────────
+// Vorher stand hier EINE feste Liste: drei Vorgänge, darunter ein versandter
+// Antrag und eine bewilligte Selbstauskunft. Auf Stufe 1 hätte ein brandneuer
+// Kunde damit Post gehabt, bevor er seine erste Rate bezahlt hat — und Schritt 8
+// des Weges („Erstes Schreiben versandt") wäre von Anfang an abgehakt gewesen,
+// weil der Weg die versandten Vorgänge zählt.
+//
+// Die Daten sind bewusst hier und nicht auf dem Server: Der Kundenbereich holt
+// die Post im Demo-Fall gar nicht ab (es gibt keine Sitzung). Die Stufen-Regeln
+// stehen trotzdem an EINER Stelle — shared/fiaon-demo-stufen.ts.
+const dt = (tageZurueck: number): string => {
+  const d = new Date(); d.setDate(d.getDate() - Math.max(0, tageZurueck));
+  return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+};
+
+export function demoVorgaenge(stufeRoh: unknown): Vorgang[] {
+  const st = demoStand(stufeRoh);
+  const alter = demoAlterTage(st.stufe);
+  const seit = (n: number) => dt(Math.max(0, alter - n));
+  const liste: Vorgang[] = [];
+
+  // Erst mit der geprüften Auskunft gibt es überhaupt etwas zu schreiben.
+  if (st.analyse) {
+    liste.push({ id: 1, art: "selbstauskunft", artText: "Selbstauskunft (Art. 15 DSGVO)", titel: "Datenkopie bei der Auskunftei",
+      stand: "bewilligt", standText: "Antwort da – Auskunft liegt in Ihrem Bereich", fristAm: null, versandtAm: seit(13),
+      empfaenger: "Auskunftei", zustaendig: "Lena Winter", eingegangenAm: seit(13), aktualisiertAm: seit(16), dokumente: 2, offen: false });
+  }
+  // Schritt 8: das erste Schreiben. Es ist der Vorgang, den der Weg zählt.
+  if (st.schreiben) {
+    liste.push({ id: 2, art: "p_konto", artText: "Antrag: höherer Schutzbetrag (P-Konto)", titel: "Antrag an Ihre Bank",
+      stand: "versandt", standText: "Versandt – wartet auf Antwort", fristAm: dt(-14), versandtAm: seit(26),
+      empfaenger: "Ihre Bank", zustaendig: "Lena Winter", eingegangenAm: seit(27), aktualisiertAm: seit(26), dokumente: 2, offen: true });
+  }
+  // Eingehende Post gibt es, sobald jemand die Akte führt.
+  if (st.rate2) {
+    liste.push({ id: 3, art: "brief", artText: "Ihr Brief", titel: `Brief vom ${seit(60)}`,
+      stand: "gelesen", standText: "Gelesen – Mahnung eines Inkassobüros, wir prüfen die Forderung", fristAm: null, versandtAm: null,
+      empfaenger: null, zustaendig: "Lena Winter", eingegangenAm: seit(60), aktualisiertAm: seit(59), dokumente: 1, offen: true });
+  }
+  return liste.sort((a, b) => b.id - a.id);
+}
+
+/** Der Bestand der Demo auf der höchsten Stufe — für Aufrufer ohne Stufenbegriff. */
+export const DEMO_POST: Vorgang[] = demoVorgaenge(DEMO_STUFEN_MAX);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ANSPRÜCHE

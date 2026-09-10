@@ -350,3 +350,133 @@ html.ap-scroll, html.ap-scroll body, html.ap-scroll #root {
   .ap-inhalt { padding-top: 24px; gap: 22px; }
   .ap-ziel-zahl { font-size: 52px; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DIE REGIE — der Demo-Modus (10.09.2026, E-172)
+
+   MATERIALREGEL: mattes Navy, KEIN backdrop-filter, KEIN Glanz, KEIN Verlauf,
+   KEIN FIAON-Blau. Das eine Navy-GLAS bleibt der Zielkarte auf „Heute“
+   (Justins Regel „Navy-Glas an EINER Stelle“). So kann man die Bedienung
+   keine Sekunde mit dem Produkt verwechseln.
+
+   ORTSREGEL: Alles hier liegt AUSSERHALB der Inhaltsspalte. Der Kundenbereich
+   darunter wird nicht gefärbt, nicht verschoben, nicht überschrieben. Diese
+   Regeln greifen nur unter /app/demo — die Regie wird sonst nicht gerendert.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root { --ap-regie-grund: #16233d; --ap-regie-tiefer: #101a2e; --ap-regie-schiene: 380px; }
+
+/* Der Griff: ruhig, immer sichtbar, weit über beiden Fußleisten — er darf nie
+   über dem Knopf liegen, den der Kunde drücken soll (Aktionsleiste = 29). */
+.ap-regie-griff {
+  position: fixed; right: 12px; z-index: 46;
+  bottom: calc(var(--ap-bar) + env(safe-area-inset-bottom, 0px) + 88px);
+  display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+  padding: 9px 14px; border: 1px solid rgba(255,255,255,.16); border-radius: 14px;
+  background: var(--ap-regie-grund); color: #fff; cursor: pointer;
+  box-shadow: 0 8px 22px rgba(15,23,42,.30);
+  transition: transform 160ms ease, background 160ms ease;
+}
+.ap-regie-griff:hover { transform: translateY(-1px); }
+.ap-regie-griff.auf { background: var(--ap-regie-tiefer); }
+.ap-regie-griff.laeuft { border-color: rgba(255,255,255,.42); }
+.ap-regie-griff-wort { font-size: 11px; letter-spacing: .10em; text-transform: uppercase; color: rgba(255,255,255,.62); }
+.ap-regie-griff-schritt { font-size: 14px; font-weight: 600; }
+
+.ap-regie-schleier { position: fixed; inset: 0; z-index: 47; background: rgba(15,23,42,.34); }
+
+/* Das Blatt am Handy — von unten, scrollt in sich. */
+.ap-regie {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 48;
+  max-height: 78dvh; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  background: var(--ap-regie-grund); color: #fff;
+  border-top: 1px solid rgba(255,255,255,.14);
+  border-radius: 20px 20px 0 0;
+  padding: 14px var(--ap-rand) calc(env(safe-area-inset-bottom, 0px) + 18px);
+  transform: translateY(101%); visibility: hidden;
+  transition: transform 260ms cubic-bezier(.22,.61,.36,1), visibility 0s linear 260ms;
+}
+.ap-regie.auf { transform: translateY(0); visibility: visible; transition-delay: 0s; }
+@media (prefers-reduced-motion: reduce) { .ap-regie { transition-duration: 0ms; } }
+
+.ap-regie-kopf { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.ap-regie-marke { font-family: Outfit, Inter, sans-serif; font-weight: 600; font-size: 19px; letter-spacing: .01em; }
+.ap-regie-wer { font-size: 12.5px; color: rgba(255,255,255,.60); margin-top: 2px; }
+.ap-regie-zu {
+  flex: none; width: 34px; height: 34px; border-radius: 10px; cursor: pointer;
+  background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); color: #fff; font-size: 15px;
+}
+.ap-regie-satz { font-size: 12.5px; line-height: 1.5; color: rgba(255,255,255,.55); margin: 10px 0 14px; }
+
+.ap-regie-steuer { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; gap: 10px; }
+.ap-regie-pfeil {
+  height: 44px; border-radius: 12px; cursor: pointer; font-size: 22px; line-height: 1;
+  background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); color: #fff;
+}
+.ap-regie-pfeil:disabled { opacity: .28; cursor: default; }
+.ap-regie-stand { text-align: center; min-width: 0; }
+.ap-regie-stand b { display: block; font-size: 15px; }
+.ap-regie-stand span { display: block; font-size: 12.5px; color: rgba(255,255,255,.60); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.ap-regie-film {
+  display: block; width: 100%; margin-top: 12px; padding: 11px 14px; cursor: pointer; text-align: left;
+  border-radius: 12px; border: 1px solid rgba(255,255,255,.20); background: rgba(255,255,255,.06); color: #fff;
+}
+.ap-regie-film.an { background: #fff; color: var(--ap-regie-tiefer); border-color: #fff; }
+.ap-regie-film b { display: block; font-size: 14.5px; }
+.ap-regie-film i { display: block; font-style: normal; font-size: 12px; opacity: .62; margin-top: 1px; }
+
+.ap-regie-block { margin-top: 18px; }
+.ap-regie-block h3 {
+  margin: 0 0 8px; font-size: 11px; letter-spacing: .10em; text-transform: uppercase;
+  color: rgba(255,255,255,.45); font-weight: 600;
+}
+.ap-regie-was { margin: 0; font-size: 14.5px; line-height: 1.5; color: rgba(255,255,255,.90); }
+
+.ap-regie-liste { list-style: none; margin: 0; padding: 0; }
+.ap-regie-zeile {
+  display: grid; grid-template-columns: 26px 1fr auto; align-items: center; gap: 10px;
+  width: 100%; padding: 9px 0; cursor: pointer; text-align: left;
+  background: none; border: 0; border-bottom: 1px solid rgba(255,255,255,.07); color: rgba(255,255,255,.52);
+}
+.ap-regie-zeile.fertig { color: rgba(255,255,255,.74); }
+.ap-regie-zeile.hier { color: #fff; }
+.ap-regie-nr {
+  width: 24px; height: 24px; border-radius: 12px; display: grid; place-items: center;
+  font-size: 12px; border: 1px solid rgba(255,255,255,.24);
+}
+.ap-regie-zeile.fertig .ap-regie-nr { background: rgba(255,255,255,.86); color: var(--ap-regie-tiefer); border-color: transparent; }
+.ap-regie-zeile.hier .ap-regie-nr { border-width: 2px; border-color: #fff; }
+.ap-regie-titel { font-size: 14px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ap-regie-marke-wer { font-size: 10.5px; color: rgba(255,255,255,.40); white-space: nowrap; }
+
+.ap-regie-schirme, .ap-regie-daten { list-style: none; margin: 0; padding: 0; }
+.ap-regie-schirme li button {
+  display: grid; grid-template-columns: 62px 1fr; gap: 10px; align-items: baseline;
+  width: 100%; padding: 8px 0; cursor: pointer; text-align: left;
+  background: none; border: 0; border-bottom: 1px solid rgba(255,255,255,.07); color: #fff;
+}
+.ap-regie-schirme li.still button { color: rgba(255,255,255,.34); cursor: default; }
+.ap-regie-schirme b, .ap-regie-daten b { font-size: 13px; font-weight: 600; }
+.ap-regie-schirme span, .ap-regie-daten span { font-size: 12.5px; color: rgba(255,255,255,.62); }
+.ap-regie-schirme li.still span { color: rgba(255,255,255,.32); }
+.ap-regie-daten li {
+  display: grid; grid-template-columns: 1fr auto; gap: 10px; padding: 7px 0;
+  border-bottom: 1px solid rgba(255,255,255,.07);
+}
+.ap-regie-fuss { margin: 10px 0 0; font-size: 11.5px; line-height: 1.5; color: rgba(255,255,255,.38); }
+
+/* ── DIE BÜHNE AM RECHNER ──────────────────────────────────────────────────
+   Ab 1100 px steht die Regie als feste Schiene rechts, immer offen, und der
+   Kundenbereich rückt daneben. Kein Pixel liegt dann über der Kundenansicht —
+   man sieht den Bereich und die Bedienung gleichzeitig und vollständig. */
+@media (min-width: 1100px) {
+  html.ap-regie-an body { padding-right: var(--ap-regie-schiene); background: #eef2f7; }
+  html.ap-regie-an .ap-bar, html.ap-regie-an .ap-aktion { right: var(--ap-regie-schiene); }
+  html.ap-regie-an .ap-regie-griff, html.ap-regie-an .ap-regie-schleier, html.ap-regie-an .ap-regie-zu { display: none; }
+  html.ap-regie-an .ap-regie {
+    top: 0; bottom: 0; left: auto; width: var(--ap-regie-schiene);
+    max-height: none; border-radius: 0; border-top: 0;
+    border-left: 1px solid rgba(255,255,255,.12);
+    transform: none; visibility: visible; padding-top: 20px;
+  }
+}

@@ -16,7 +16,9 @@ import { Link, useLocation } from "wouter";
 import { rahmenwegAus, type Schritt } from "@shared/fiaon-rahmenweg";
 import { FRAGEN, beantwortet as anzahlBeantwortet } from "@shared/fiaon-ansprueche";
 import type { Bereich, Vorgang } from "./typen";
-import { api, startgespraechBuchen, DEMO_ANTWORTEN, DEMO_POST, Ansprueche, Unterlagen, Mehr } from "./Bausteine";
+import { api, startgespraechBuchen, demoVorgaenge, Ansprueche, Unterlagen, Mehr } from "./Bausteine";
+import { Regie } from "./Regie";
+import { demoStufeAus, demoCheckAnteil } from "@shared/fiaon-demo-stufen";
 import { Heute } from "./Heute";
 import { Weg } from "./Weg";
 import { Brief } from "./Brief";
@@ -64,12 +66,37 @@ export default function AppBereich() {
   const demo = basis === "/app/demo";
   const { bildschirm, rest } = bildschirmAus(ort, basis);
   const [b, setB] = useState<Bereich | null>(null);
-  const [post, setPost] = useState<Vorgang[] | null>(demo ? DEMO_POST : null);
+
+  // ── DIE STUFE DER DEMO (10.09.2026, E-172) ──────────────────────────────
+  // Sie lebt im Zustand dieser Seite, NICHT in der Adresse allein: Die Reiter
+  // unten sind gewöhnliche Verweise ohne Suchteil, ein Wechsel auf „Geld“
+  // würde `?stufe=` sonst abstreifen und die Demo bei jedem Tippen auf
+  // Schritt 1 zurückwerfen. Gelesen wird die Adresse trotzdem — ein geteilter
+  // Link soll genau die Stufe öffnen, über die gesprochen wurde. Danach hält
+  // sie der Sitzungsspeicher, und jede Änderung schreibt sie still in die
+  // Adresse zurück (replaceState, kein Seitenwechsel).
+  const [stufe, setStufeRoh] = useState<number>(() => {
+    if (!demo) return 0;
+    try {
+      const ausAdresse = new URLSearchParams(window.location.search).get("stufe");
+      if (ausAdresse) return demoStufeAus(ausAdresse);
+      const gemerkt = sessionStorage.getItem("fiaon_demo_stufe");
+      if (gemerkt) return demoStufeAus(gemerkt);
+    } catch { /* ohne Speicher fangen wir bei 1 an */ }
+    return 1;
+  });
+  const setzeStufe = (n: number) => {
+    const s = demoStufeAus(n);
+    setStufeRoh(s);
+    try { sessionStorage.setItem("fiaon_demo_stufe", String(s)); } catch { /* egal */ }
+  };
+
+  const [post, setPost] = useState<Vorgang[] | null>(demo ? demoVorgaenge(stufe) : null);
   const [postGrund, setPostGrund] = useState<string | null>(null);
   // Brief-Weg freigeschaltet? Kommt mit /app/post vom Server (fiaon_settings.app_brief_an); Demo immer an.
   const [briefAn, setBriefAn] = useState<boolean>(demo);
   const [termine, setTermine] = useState<{ kommende: any[]; vergangene: any[]; buchungsLink: string | null } | null>(null);
-  const [check, setCheck] = useState<{ beantwortet: number; gesamt: number } | null>(demo ? { beantwortet: anzahlBeantwortet(DEMO_ANTWORTEN), gesamt: FRAGEN.length } : null);
+  const [check, setCheck] = useState<{ beantwortet: number; gesamt: number } | null>(demo ? { beantwortet: demoCheckAnteil(stufe, FRAGEN.length), gesamt: FRAGEN.length } : null);
   const [fehler, setFehler] = useState<string | null>(null);
   const [hinweis, setHinweis] = useState<string | null>(null);
 
@@ -88,8 +115,14 @@ export default function AppBereich() {
     (async () => {
       try {
         if (demo) {
-          const r = await api(`/kunde/${DEMO_REF}/bereich`); if (aktiv) setB(r.json);
-          api(`/kunde/${DEMO_REF}/termine`).then((t) => aktiv && setTermine(t.json?.ok ? { kommende: t.json.kommende ?? [], vergangene: t.json.vergangene ?? [], buchungsLink: t.json.buchungsLink ?? null } : { kommende: [], vergangene: [], buchungsLink: null })).catch(() => aktiv && setTermine({ kommende: [], vergangene: [], buchungsLink: null }));
+          // Alles, was die Stufe verändert, kommt aus EINER Quelle: der Server
+          // baut die Antwort in genau der Form, die auch ein echter Kunde
+          // bekommt. Zwei Dinge holt der Bereich sonst über eigene Endpunkte —
+          // die Post und den Stand der Selbstauskunft; sie folgen hier
+          // derselben Stufe (shared/fiaon-demo-stufen.ts).
+          const r = await api(`/kunde/${DEMO_REF}/bereich?stufe=${stufe}`); if (aktiv) setB(r.json);
+          if (aktiv) { setPost(demoVorgaenge(stufe)); setCheck({ beantwortet: demoCheckAnteil(stufe, FRAGEN.length), gesamt: FRAGEN.length }); }
+          api(`/kunde/${DEMO_REF}/termine?stufe=${stufe}`).then((t) => aktiv && setTermine(t.json?.ok ? { kommende: t.json.kommende ?? [], vergangene: t.json.vergangene ?? [], buchungsLink: t.json.buchungsLink ?? null } : { kommende: [], vergangene: [], buchungsLink: null })).catch(() => aktiv && setTermine({ kommende: [], vergangene: [], buchungsLink: null }));
           return;
         }
         const me = await api("/kunde/me");
@@ -108,9 +141,25 @@ export default function AppBereich() {
       }
     })();
     return () => { aktiv = false; };
-  }, [demo]);
+  }, [demo, stufe]);
 
   useEffect(() => { window.scrollTo({ top: 0 }); setHinweis(null); }, [bildschirm]);
+
+  // ── DIE STUFE BLEIBT IN DER ADRESSE (10.09.2026, E-172) ──────────────────
+  // Die Reiter unten sind gewöhnliche Verweise ohne Suchteil; ein Wechsel auf
+  // „Geld“ streift `?stufe=` ab. Dieser Effekt schreibt sie nach JEDEM Wechsel
+  // still zurück (replaceState — kein Eintrag in der Zurück-Liste). Damit
+  // trägt jede Adresse in der Demo ihre Stufe, und ein geteilter Link öffnet
+  // genau den Moment, über den gesprochen wurde.
+  useEffect(() => {
+    if (!demo) return;
+    try {
+      const u = new URL(window.location.href);
+      if (u.searchParams.get("stufe") === String(stufe)) return;
+      u.searchParams.set("stufe", String(stufe));
+      window.history.replaceState(null, "", u.toString());
+    } catch { /* ohne Adressleiste hält der Sitzungsspeicher die Stufe */ }
+  }, [demo, stufe, ort]);
 
   // App-Installation (Bauvorlage 8.4): eigenes Manifest für /app und ein Service Worker, der nur die
   // Hülle cached — nie Antworten mit Personendaten. Beides nur außerhalb der Demo und nur, wenn der Browser es kann.
@@ -185,6 +234,17 @@ export default function AppBereich() {
         <div className="ap-aktion"><div className="ap-aktion-innen"><button type="button" className="ap-knopf" onClick={() => aktion(primaer)}>{primaer.aktion}</button></div></div>
       )}
       <BottomBar aktiv={aktivReiter} basis={basis} />
+      {/* Die Regie liegt als eigene Ebene über dem Bereich und wird NUR in der
+          Demo gerendert. Unter /app (echter Kunde) gibt es sie nicht. */}
+      {demo && (
+        <Regie
+          stufe={stufe}
+          setzeStufe={setzeStufe}
+          b={b}
+          rw={rw}
+          schirmWechsel={(schirm) => navigiere(schirm ? `${basis}/${schirm}` : basis)}
+        />
+      )}
     </div>
   );
 }

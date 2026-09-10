@@ -277,7 +277,7 @@ export async function pruefungAnstossen(
       // eigene, reichere KI-Analyse (fiaon-kontoauszug-analyse); doppelt
       // bezahlen wäre Verschwendung.
       if (art !== "kontoauszug" && urteil.pruefbar) {
-        void kiVerfeinern(ref, art, pdf).catch((e) => console.error("[DOK-PRUEFUNG] KI:", e?.message));
+        void kiVerfeinern(ref, art, pdf, urteil).catch((e) => console.error("[DOK-PRUEFUNG] KI:", e?.message));
       }
       return urteil;
     }
@@ -293,7 +293,7 @@ export async function pruefungAnstossen(
 }
 
 // ── Scheibe 2: das KI-Urteil (Ausweis + Bonitätsauskunft) ───────────────────
-async function kiVerfeinern(ref: string, art: DokumentArt, pdf: Buffer): Promise<void> {
+async function kiVerfeinern(ref: string, art: DokumentArt, pdf: Buffer, vorher: DokumentUrteil): Promise<void> {
   const key = process.env.OPENAI_API_KEY;
   if (!key) return;
   const modell = process.env.FIAON_ANALYSE_MODELL || "gpt-4.1-mini";
@@ -302,7 +302,15 @@ async function kiVerfeinern(ref: string, art: DokumentArt, pdf: Buffer): Promise
   if (!pdfTextBrauchbar(text)) return;
   const frage = art === "ausweis"
     ? "Ist das ein gültiges Ausweisdokument (Personalausweis/Reisepass)? Sind Vorder- und Rückseite bzw. alle nötigen Angaben (Name, Geburtsdatum, Gültigkeit) enthalten und lesbar?"
-    : "Ist das eine Bonitätsauskunft (SCHUFA/KSV1870/CRIF, z. B. Datenkopie nach Art. 15 DSGVO)? Wirken alle Seiten/Abschnitte vollständig (Stammdaten, Einträge, ggf. Score)?";
+    // ── NUR NOCH DIE ART, NICHT DIE VOLLSTAENDIGKEIT (10.09.2026, E-175) ──
+    // Hier stand zusaetzlich „Wirken alle Seiten/Abschnitte vollstaendig
+    // (Stammdaten, Einträge, ggf. Score)?". Das Modell sieht 60.000 Zeichen —
+    // bei Dirk Ladewigs 38 Seiten ein Bruchteil — und antwortete
+    // pflichtschuldig „unvollstaendig, es fehlen Stammdaten und Score". Der
+    // Mitarbeiter sah eine gelbe Warnung an einer vollstaendigen Auskunft.
+    // Ob Seiten fehlen, weiss die Heuristik: Sie zaehlt die Seiten der Datei
+    // gegen die Seitennummerierung im Bericht selbst („Seite 2 von 7").
+    : "Ist das eine Bonitätsauskunft (SCHUFA/KSV1870/CRIF, z. B. Datenkopie nach Art. 15 DSGVO)?";
   const r = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
@@ -310,7 +318,7 @@ async function kiVerfeinern(ref: string, art: DokumentArt, pdf: Buffer): Promise
       model: modell, temperature: 0, max_tokens: 400,
       response_format: { type: "json_object" },
       messages: [
-        { role: "system", content: `Du prüfst ein hochgeladenes Dokument für eine Bonitätsplattform. ${frage} Antworte NUR als JSON: {"erkannt": bool, "vollstaendig": bool, "fehlt": ["…"], "hinweis_kunde": "ein Satz in Sie-Form oder leer"}. Keine Namen oder Daten aus dem Dokument in den Hinweis übernehmen.` },
+        { role: "system", content: `Du prüfst ein hochgeladenes Dokument für eine Bonitätsplattform. ${frage} Antworte NUR als JSON: {"erkannt": bool, "vollstaendig": bool, "fehlt": ["…"], "hinweis_kunde": "ein Satz in Sie-Form oder leer"}. Bei einer Bonitätsauskunft zählt nur "erkannt" — du siehst nur den Anfang des Dokuments und kannst Vollständigkeit nicht beurteilen. Keine Namen oder Daten aus dem Dokument in den Hinweis übernehmen.` },
         { role: "user", content: `DOKUMENTTEXT:\n${text}` },
       ],
     }),
@@ -319,14 +327,30 @@ async function kiVerfeinern(ref: string, art: DokumentArt, pdf: Buffer): Promise
   if (!r.ok) { console.error("[DOK-PRUEFUNG] KI", r.status, j?.error?.message); return; }
   let b: any = null; try { b = JSON.parse(String(j?.choices?.[0]?.message?.content || "{}")); } catch { return; }
   if (typeof b?.erkannt !== "boolean") return;
+  // Bei der Bonitätsauskunft behaelt das Urteil der Heuristik seine Kraft: Sie
+  // hat gezaehlt, das Modell hat geraten. Das Modell steuert genau eine Sache
+  // bei, die die Wortliste nicht kann — ob es wirklich eine Auskunft IST.
+  const istAuskunft = art === "schufa";
   const urteil: DokumentUrteil = {
     art, pruefbar: true, quelle: "ki",
     erkannt: b.erkannt,
-    vollstaendig: typeof b.vollstaendig === "boolean" ? b.vollstaendig : null,
-    fehlt: Array.isArray(b.fehlt) ? b.fehlt.map(String).slice(0, 6) : [],
+    vollstaendig: istAuskunft ? vorher.vollstaendig : (typeof b.vollstaendig === "boolean" ? b.vollstaendig : null),
+    fehlt: istAuskunft ? vorher.fehlt : (Array.isArray(b.fehlt) ? b.fehlt.map(String).slice(0, 6) : []),
     seiten: seiten.length,
-    hinweisKunde: b.hinweis_kunde ? String(b.hinweis_kunde).slice(0, 300) : null,
-    hinweisIntern: `${PROFILE[art].label} (KI): ${b.erkannt ? "erkannt" : "NICHT erkannt"}${b.vollstaendig === false ? ", unvollständig" : ""}${Array.isArray(b.fehlt) && b.fehlt.length ? ` — fehlt: ${b.fehlt.slice(0, 3).join(", ")}` : ""}`,
+    hinweisKunde: istAuskunft ? vorher.hinweisKunde : (b.hinweis_kunde ? String(b.hinweis_kunde).slice(0, 300) : null),
+    // ── KEINE VOLLSTAENDIGKEITS-BEHAUPTUNG MEHR (10.09.2026, E-175) ────────
+    // Hier stand „erkannt, unvollstaendig — fehlt: Stammdaten, Score". Der
+    // Mitarbeiter las das als gelbe Warnung an einer Auskunft, die vollstaendig
+    // war. Diese Pruefung sieht nur die ersten 60.000 Zeichen und darf mit 400
+    // Token antworten; bei 38 Seiten ist das ein Bruchteil. Sie kann sagen, ob
+    // ein Dokument eine Bonitaetsauskunft IST — nicht, ob es vollstaendig ist.
+    // Was drinsteht, sagt die Analyse (fiaon-schufa-analyse.ts).
+    hinweisIntern: istAuskunft
+      ? (b.erkannt
+          ? (vorher.hinweisIntern || `Bonitätsauskunft erkannt (${seiten.length} Seiten).`)
+          : `Bonitätsauskunft (KI): NICHT erkannt — bitte von Hand ansehen.`)
+      : `${PROFILE[art].label} (KI): ${b.erkannt ? "erkannt" : "NICHT erkannt"}${
+          !b.erkannt && Array.isArray(b.fehlt) && b.fehlt.length ? ` — fehlt: ${b.fehlt.slice(0, 3).join(", ")}` : ""}`,
   };
   await urteilSpeichern(ref, urteil);
   console.log(`[DOK-PRUEFUNG] KI-Urteil ${ref}/${art}: erkannt=${urteil.erkannt} vollstaendig=${urteil.vollstaendig}`);

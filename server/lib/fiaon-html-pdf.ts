@@ -186,6 +186,13 @@ export async function htmlZuPdfMitFusszeile(opts: {
   html: string;
   fusszeile: string;
   rand: { oben: string; unten: string; links: string; rechts: string };
+  /**
+   * Wie der Notbehelf das Dokument ueberschreibt. Ohne Angabe steht dort
+   * "Provisionsabrechnung" - das war jahrelang der einzige Nutzer. Seit E-175
+   * druckt hier auch die Bonitaetsauswertung, und ein Ersatzdruck mit dem
+   * falschen Titel waere ein Beleg, der etwas anderes behauptet als er ist.
+   */
+  titel?: string;
 }): Promise<Buffer> {
   try {
     return await chromiumMitFusszeile(opts);
@@ -198,7 +205,7 @@ export async function htmlZuPdfMitFusszeile(opts: {
     // die Fußzeile als Text. `wrapFiaonDocument` läuft hier NICHT, weil das
     // HTML schon vollständig ist.
     return await renderPdfKitFallback({
-      documentTitle: "Provisionsabrechnung",
+      documentTitle: opts.titel || "Provisionsabrechnung",
       subtitle: "Ersatzdruck — die pixelgenaue Fassung war nicht erzeugbar",
       bodyHtml: opts.html,
       fusszeile: opts.fusszeile,

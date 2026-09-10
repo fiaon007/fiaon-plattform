@@ -1480,6 +1480,91 @@ router.get("/agent/dokumente/:personId/:art/datei", requireAgent, async (req: Ag
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE AUSWERTUNG FÜR DEN BETREUER (10.09.2026, E-175)
+//
+// Justin: „Außerdem hat der Agent in der Ansicht bei Bonitätsauskunft einen
+// gelben Warntext mit ‚Bonitätsauskunft (KI) erkannt - unvollständig - fehlt
+// Stammdaten, Score' — das passt ja auch nicht, das muss ja passend sein."
+//
+// Der gelbe Text war das EINZIGE, was der Betreuer über eine 38-seitige
+// Auskunft erfuhr — und er war falsch. Der Grund liegt eine Ebene tiefer
+// (fiaon-dokument-pruefung.ts urteilt nicht mehr über Vollständigkeit), aber
+// die eigentliche Lücke ist diese: Es gab die Auswertung, und niemand im
+// Portal konnte sie sehen. Ab hier sieht der Betreuer dieselbe Ampel wie der
+// Kunde — und hat die beiden Papiere in der Hand, wenn der Kunde anruft.
+//
+// Der Zugang ist derselbe wie überall: eigener Kunde oder Leitung.
+// ═══════════════════════════════════════════════════════════════════════════
+async function schufaZugang(req: AgentRequest, ref: string): Promise<boolean> {
+  const [a] = (await sqlPool`
+    SELECT person_id FROM fiaon_applications WHERE ref = ${ref} AND merged_into IS NULL LIMIT 1
+  `.catch(() => [] as any[])) as any[];
+  if (!a?.person_id) return false;
+  const rolle = await rolleVon(req.agent!.id);
+  return darfAnKunde(req.agent!.id, rolle, Number(a.person_id));
+}
+
+/** GET /agent/schufa/:ref — die Auswertung der Bonitätsauskunft. */
+router.get("/agent/schufa/:ref", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const ref = String(req.params.ref);
+    if (!(await schufaZugang(req, ref))) return res.status(403).json({ ok: false, error: "Dieser Kunde gehört nicht zu deiner Liste." });
+    const { schufaAnalyseFuer } = await import("../lib/fiaon-schufa-analyse");
+    res.json({ ok: true, analyse: await schufaAnalyseFuer(ref) });
+  } catch (err) {
+    console.error("[AGENT] schufa:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/** POST /agent/schufa/:ref/analysieren — Auskunft (erneut) auswerten. */
+router.post("/agent/schufa/:ref/analysieren", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const ref = String(req.params.ref);
+    if (!(await schufaZugang(req, ref))) return res.status(403).json({ ok: false, error: "Dieser Kunde gehört nicht zu deiner Liste." });
+    const { schufaAnalysieren } = await import("../lib/fiaon-schufa-analyse");
+    const a = await schufaAnalysieren(ref, { erzwingen: true });
+    if (!a) return res.status(404).json({ ok: false, error: "Zu dieser Bestellung liegt keine Bonitätsauskunft." });
+    res.json({ ok: true, analyse: a });
+  } catch (err) {
+    console.error("[AGENT] schufa analysieren:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/**
+ * GET /agent/schufa/:ref/bericht.pdf und /loeschantrag.pdf — dieselben zwei
+ * Papiere wie beim Kunden. Zwei getrennte Routen und kein Muster mit Klammern:
+ * In Express 4 folgt auf einen Parameter mit „.pdf" eine Formatgruppe, und die
+ * Route greift dann nicht mehr so, wie sie aussieht.
+ */
+async function schufaPapier(
+  req: AgentRequest, res: Response, welches: "bericht" | "loeschantrag",
+): Promise<void> {
+  try {
+    const ref = String(req.params.ref);
+    if (!(await schufaZugang(req, ref))) { res.status(403).json({ ok: false, error: "Dieser Kunde gehört nicht zu deiner Liste." }); return; }
+    const werk = await import("../lib/fiaon-bonitaet-schreiben");
+    const erg = welches === "bericht" ? await werk.berichtAlsPdf(ref) : await werk.loeschantragAlsPdf(ref);
+    if (!erg) {
+      res.status(404).json({ ok: false, error: welches === "bericht"
+        ? "Für diese Bestellung liegt keine fertige Auswertung vor."
+        : "Kein Eintrag, zu dem sich ein Schreiben lohnt." });
+      return;
+    }
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${erg.datei}"`);
+    res.setHeader("Cache-Control", "no-store, private");
+    res.send(erg.pdf);
+  } catch (err) {
+    console.error("[AGENT] schufa papier:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+}
+router.get("/agent/schufa/:ref/bericht.pdf", requireAgent, (req: AgentRequest, res: Response) => void schufaPapier(req, res, "bericht"));
+router.get("/agent/schufa/:ref/loeschantrag.pdf", requireAgent, (req: AgentRequest, res: Response) => void schufaPapier(req, res, "loeschantrag"));
+
 /**
  * POST /agent/dokumente/:personId/:art/loeschen — falsches Dokument entfernen.
  *

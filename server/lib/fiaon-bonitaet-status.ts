@@ -40,6 +40,8 @@ export const BONITAET_PREIS = 74;
 export type BonitaetStufe =
   /** Nichts da: nicht gekauft, kein Dokument. */
   | "nichts"
+  /** Die Auskunft liegt vor UND ist ausgewertet (E-175). */
+  | "ausgewertet"
   /** Gekauft, Zahlung noch offen. */
   | "zahlung_offen"
   /** Bezahlt, aber die Auskunft liegt noch nicht vor. Wir sind dran. */
@@ -84,6 +86,10 @@ interface Zeilen {
   schufa_status?: string | null;
   /** Jüngstes KI-Urteil zum Dokument (fiaon_dokument_pruefungen, art schufa) — 05.09.2026. */
   ki_urteil?: any;
+  /** Die fertige Auswertung (E-175) — sie schlaegt jeden Zwischenstand. */
+  analyse_ampel?: string | null;
+  analyse_posten?: number | null;
+  analyse_offen?: number | null;
   kauf_status?: string | null;
   kauf_ref?: string | null;
 }
@@ -178,6 +184,22 @@ export function bonitaetAbleiten(z: Zeilen): BonitaetStand {
       darfKaufen: false, darfHochladen: true,
     };
   }
+  // ── LIEGT EINE AUSWERTUNG VOR, GILT SIE (10.09.2026, E-175) ─────────────
+  // „Ein Dokument liegt vor und wartet auf Pruefung" stimmte, solange niemand
+  // es las. Seit E-174 liest die Analyse jede hochgeladene Auskunft. Wer sie
+  // hat, wartet auf nichts mehr — und der Mitarbeiter soll das Ergebnis sehen,
+  // nicht den Zwischenstand.
+  if (hatDokument && z.analyse_ampel) {
+    const zahl = Number(z.analyse_posten || 0);
+    const offen = Number(z.analyse_offen || 0);
+    return {
+      ...roh, stufe: "ausgewertet",
+      grund: `Auskunft ausgewertet: ${zahl} ${zahl === 1 ? "Posten" : "Posten"}, davon ${offen} offen.`,
+      fuerKunden: "Ihre Bonitätsauskunft ist ausgewertet. Sie sehen jeden Eintrag und den nächsten Schritt in Ihrem Bereich.",
+      naechsterSchritt: "Auswertung in der Akte lesen und die vorbereiteten Schreiben freigeben.",
+      darfKaufen: false, darfHochladen: false,
+    };
+  }
   if (hatDokument) {
     return {
       ...roh, stufe: "liegt_zur_pruefung",
@@ -225,6 +247,7 @@ export function bonitaetAbleiten(z: Zeilen): BonitaetStand {
 /** Die kurze Marke für Listen und Kacheln. */
 export const BONITAET_MARKE: Record<BonitaetStufe, string> = {
   nichts: "Keine Auskunft",
+  ausgewertet: "Ausgewertet",
   zahlung_offen: "Bestellt — Zahlung offen",
   beschaffung_laeuft: "Bezahlt — wird beschafft",
   liegt_zur_pruefung: "Liegt zur Prüfung",
@@ -235,6 +258,7 @@ export const BONITAET_MARKE: Record<BonitaetStufe, string> = {
 /** Farbton je Stufe — bernstein heißt „jemand muss etwas tun". */
 export const BONITAET_TON: Record<BonitaetStufe, string> = {
   nichts: "#64748b",
+  ausgewertet: "#059669",
   zahlung_offen: "#d97706",
   beschaffung_laeuft: "#2563eb",
   liegt_zur_pruefung: "#d97706",
@@ -253,6 +277,14 @@ export async function bonitaetFuer(ref: string): Promise<BonitaetStand | null> {
            a.schufa_status,
            (SELECT k.urteil FROM fiaon_dokument_pruefungen k
              WHERE k.ref = a.ref AND k.art = 'schufa' ORDER BY k.created_at DESC LIMIT 1) AS ki_urteil,
+           -- E-175: Die fertige Auswertung schlaegt jeden Zwischenstand.
+           (SELECT sa.ampel FROM fiaon_schufa_analysen sa
+             WHERE sa.ref = a.ref AND sa.status = 'fertig' ORDER BY sa.created_at DESC LIMIT 1) AS analyse_ampel,
+           (SELECT jsonb_array_length(sa.eintraege) FROM fiaon_schufa_analysen sa
+             WHERE sa.ref = a.ref AND sa.status = 'fertig' ORDER BY sa.created_at DESC LIMIT 1) AS analyse_posten,
+           (SELECT (SELECT COUNT(*) FROM jsonb_array_elements(sa.eintraege) e WHERE (e->>'offen')::boolean)
+              FROM fiaon_schufa_analysen sa
+             WHERE sa.ref = a.ref AND sa.status = 'fertig' ORDER BY sa.created_at DESC LIMIT 1) AS analyse_offen,
            -- ── DIE ZUORDNUNG: PERSON ZUERST, E-MAIL ALS RÜCKFALL ─────────
            -- Die alte Route verband nur über die E-Mail. Seit dem
            -- Kontakt-Umzug hängen 104 von 113 Bestellungen an einer Person;
@@ -301,6 +333,14 @@ export async function bonitaetFuerViele(
            a.schufa_status,
            (SELECT k.urteil FROM fiaon_dokument_pruefungen k
              WHERE k.ref = a.ref AND k.art = 'schufa' ORDER BY k.created_at DESC LIMIT 1) AS ki_urteil,
+           -- E-175: Die fertige Auswertung schlaegt jeden Zwischenstand.
+           (SELECT sa.ampel FROM fiaon_schufa_analysen sa
+             WHERE sa.ref = a.ref AND sa.status = 'fertig' ORDER BY sa.created_at DESC LIMIT 1) AS analyse_ampel,
+           (SELECT jsonb_array_length(sa.eintraege) FROM fiaon_schufa_analysen sa
+             WHERE sa.ref = a.ref AND sa.status = 'fertig' ORDER BY sa.created_at DESC LIMIT 1) AS analyse_posten,
+           (SELECT (SELECT COUNT(*) FROM jsonb_array_elements(sa.eintraege) e WHERE (e->>'offen')::boolean)
+              FROM fiaon_schufa_analysen sa
+             WHERE sa.ref = a.ref AND sa.status = 'fertig' ORDER BY sa.created_at DESC LIMIT 1) AS analyse_offen,
            sb.payment_status AS kauf_status,
            sb.ref AS kauf_ref
     FROM fiaon_applications a

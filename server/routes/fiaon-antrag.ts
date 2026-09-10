@@ -3450,6 +3450,69 @@ router.get("/admin/schufa/:ref", async (req, res) => {
   }
 });
 
+/**
+ * POST /admin/dokumente/:ref/:art/pruefen — die Dokumentenpruefung erneut laufen lassen.
+ *
+ * ── WARUM ES DIESE ROUTE BRAUCHT (10.09.2026, E-175) ──────────────────────
+ * Ein gespeichertes Urteil bleibt stehen, bis das Dokument neu hochgeladen
+ * wird. Als die Pruefung heute aufhoerte, Vollstaendigkeit zu behaupten, trug
+ * Dirk Ladewigs Auskunft in der Datenbank weiter „erkannt, unvollstaendig -
+ * fehlt Stammdaten, Score" - der gelbe Warntext, den Justin gemeldet hat.
+ * Eine Regel im Code aendert keine Bestandsdaten; das tut dieser Knopf.
+ */
+router.post("/admin/dokumente/:ref/:art/pruefen", async (req, res) => {
+  try {
+    const ref = String(req.params.ref);
+    const art = String(req.params.art);
+    const spalte = art === "schufa" ? "schufa_pdf" : art === "ausweis" ? "id_card_pdf" : art === "kontoauszug" ? "bank_statement_pdf" : null;
+    if (!spalte) return res.status(400).json({ ok: false, error: "Unbekannte Dokumentart." });
+    const [a] = (await sqlPool`
+      SELECT schufa_pdf, id_card_pdf, bank_statement_pdf FROM fiaon_applications
+      WHERE ref = ${ref} AND merged_into IS NULL LIMIT 1
+    `.catch(() => [] as any[])) as any[];
+    const pdf = a?.[spalte] as Buffer | null;
+    if (!pdf) return res.status(404).json({ ok: false, error: "Zu dieser Bestellung liegt das Dokument nicht vor." });
+    const { pruefungAnstossen } = await import("../lib/fiaon-dokument-pruefung");
+    const u = await pruefungAnstossen(ref, art as any, Buffer.from(pdf), 20000);
+    res.json({ ok: true, urteil: u });
+  } catch (err) {
+    console.error("[ADMIN] dokument pruefen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ── DIESELBEN ZWEI PAPIERE FUER DEN BETREUER (10.09.2026, E-175) ───────────
+// Der Kunde beauftragt den Loeschantrag im Kundenbereich; versendet wird er
+// vom Betreuer. Ohne diese beiden Routen stuende in seiner Aufgabe „das
+// Schreiben liegt bereit" und nirgends laege es. Erzeugt wird beides frisch
+// aus der Analyse - es gibt keine zweite, aeltere Fassung irgendwo.
+router.get("/admin/schufa/:ref/bericht.pdf", async (req, res) => {
+  try {
+    const { berichtAlsPdf } = await import("../lib/fiaon-bonitaet-schreiben");
+    const erg = await berichtAlsPdf(String(req.params.ref));
+    if (!erg) return res.status(404).json({ ok: false, error: "Keine fertige Auswertung." });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${erg.datei}"`);
+    res.send(erg.pdf);
+  } catch (err) {
+    console.error("[ADMIN] schufa bericht:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+router.get("/admin/schufa/:ref/loeschantrag.pdf", async (req, res) => {
+  try {
+    const { loeschantragAlsPdf } = await import("../lib/fiaon-bonitaet-schreiben");
+    const erg = await loeschantragAlsPdf(String(req.params.ref));
+    if (!erg) return res.status(404).json({ ok: false, error: "Kein Posten, zu dem sich ein Schreiben lohnt." });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${erg.datei}"`);
+    res.send(erg.pdf);
+  } catch (err) {
+    console.error("[ADMIN] schufa loeschantrag:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 // Check KYC document status
 router.get("/kyc-status/:ref", requireKunde, async (req, res) => {
   try {

@@ -596,3 +596,129 @@ router.get("/kunde/:ref/termine", requireKunde, async (req: KundeRequest, res: R
   }
 });
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ZWEI PAPIERE UND EIN KNOPF (10.09.2026, E-175)
+//
+// Justin über Dirk Ladewigs Analyse: „Die Einträge die auf 0 sind und gelöscht
+// werden können müssen ja durch uns direkt gelöscht werden … er muss mit
+// 1 Klick die Auskunftei anschreiben können, er braucht die Bonitätsanalyse
+// von uns in einem juristischen Dokument als PDF die er sich zusätzlich
+// herunterladen könnte."
+//
+// ── WARUM DER KNOPF NICHT SELBST SENDET ───────────────────────────────────
+// Ein Schreiben an eine Auskunftei ist eine Willenserklärung des Kunden über
+// seine eigenen Daten. Es braucht seine Angaben, seine Unterschrift und einen
+// nachweisbaren Weg. Der Klick tut deshalb genau drei Dinge, die alle wahr
+// sind: Er erzeugt den fertigen Antrag als PDF, er hält an der Analyse fest,
+// dass er beauftragt ist, und er legt dem Betreuer den Versand als Aufgabe
+// mit Frist auf den Tisch. Was der Kundenbereich danach anzeigt, ist „am
+// TT.MM. beauftragt" — keine Zusage, wann die Auskunftei antwortet.
+//
+// ── WER DARF ──────────────────────────────────────────────────────────────
+// `requireKunde` und `req.kundeRef` — NIE `req.params.ref`. Die Referenz in
+// der Adresse ist eine Behauptung, das Cookie ist der Nachweis (E-152).
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** GET /kunde/:ref/bonitaet/bericht.pdf — die Auswertung zum Mitnehmen. */
+router.get("/kunde/:ref/bonitaet/bericht.pdf", requireKunde, async (req: KundeRequest, res: Response) => {
+  try {
+    const ref = req.kundeRef!;
+    const { berichtAlsPdf } = await import("../lib/fiaon-bonitaet-schreiben");
+    const erg = await berichtAlsPdf(ref);
+    if (!erg) return res.status(404).json({ ok: false, error: "Für Ihre Auskunft liegt noch keine fertige Auswertung vor." });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${erg.datei}"`);
+    res.send(erg.pdf);
+  } catch (err) {
+    console.error("[KUNDE] bonitaet bericht:", err);
+    res.status(500).json({ ok: false, error: "Das Dokument konnte nicht erzeugt werden." });
+  }
+});
+
+/** GET /kunde/:ref/bonitaet/loeschantrag.pdf — der fertige Antrag zum Ansehen und Unterschreiben. */
+router.get("/kunde/:ref/bonitaet/loeschantrag.pdf", requireKunde, async (req: KundeRequest, res: Response) => {
+  try {
+    const ref = req.kundeRef!;
+    const { loeschantragAlsPdf } = await import("../lib/fiaon-bonitaet-schreiben");
+    const erg = await loeschantragAlsPdf(ref);
+    if (!erg) return res.status(404).json({ ok: false, error: "In Ihrer Auskunft ist derzeit kein Eintrag, zu dem sich ein Schreiben lohnt." });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${erg.datei}"`);
+    res.send(erg.pdf);
+  } catch (err) {
+    console.error("[KUNDE] bonitaet loeschantrag pdf:", err);
+    res.status(500).json({ ok: false, error: "Das Schreiben konnte nicht erzeugt werden." });
+  }
+});
+
+/** POST /kunde/:ref/bonitaet/loeschantrag — FIAON übernimmt den Versand. */
+router.post("/kunde/:ref/bonitaet/loeschantrag", requireKunde, async (req: KundeRequest, res: Response) => {
+  try {
+    const ref = req.kundeRef!;
+    const { loeschantragAlsPdf, empfaengerFuer, auskunfteiAnschrift } = await import("../lib/fiaon-bonitaet-schreiben");
+    const { schufaAnalyseFuer, loeschantragVermerken } = await import("../lib/fiaon-schufa-analyse");
+
+    const analyse = await schufaAnalyseFuer(ref);
+    if (!analyse || analyse.status !== "fertig") {
+      return res.status(400).json({ ok: false, error: "Ihre Auskunft ist noch nicht fertig ausgewertet." });
+    }
+    if (analyse.loeschantragAm) {
+      return res.json({ ok: true, schon: true, beauftragtAm: analyse.loeschantragAm, posten: analyse.loeschantragPosten ?? 0 });
+    }
+    const erg = await loeschantragAlsPdf(ref);
+    if (!erg) return res.status(400).json({ ok: false, error: "In Ihrer Auskunft ist derzeit kein Eintrag, zu dem sich ein Schreiben lohnt." });
+
+    const beauftragtAm = await loeschantragVermerken(ref, erg.posten);
+    const kunde = await empfaengerFuer(ref);
+    const stelle = auskunfteiAnschrift(analyse.auskunftei)[0];
+
+    const [a] = (await sqlPool`
+      SELECT person_id FROM fiaon_applications WHERE ref = ${ref} AND merged_into IS NULL LIMIT 1
+    `.catch(() => [] as any[])) as any[];
+
+    const { schreibenPosten } = await import("../lib/fiaon-schufa-analyse");
+    const teile = schreibenPosten(analyse.eintraege || []);
+    const zeileFuer = (e: any, warum: string) =>
+      `· ${e.glaeubiger || e.art}${e.nummer ? ` (Nr. ${e.nummer})` : ""} — ${warum}`;
+    const posten = [
+      ...teile.ueberfaellig.map((e: any) => zeileFuer(e, `Frist abgelaufen am `
+        + `${String(e.loeschung?.am || "").split("-").reverse().join(".")} (${e.loeschung?.rechtsgrund || ""})`)),
+      ...teile.pruefen.map((e: any) => zeileFuer(e, "Auskunft nach Art. 15 DSGVO und Prüfbitte")),
+    ].join("\n");
+
+    const { auftragFuerKunden } = await import("./fiaon-betreiber-todo");
+    await auftragFuerKunden({
+      personId: a?.person_id ?? null,
+      ref,
+      titel: `Schreiben an ${stelle} versenden (${erg.posten} Posten)`,
+      text: `${kunde?.name || ref} hat im Kundenbereich das Schreiben an die Auskunftei beauftragt `
+        + `(${erg.ueberfaellig} Löschung nach Fristablauf, ${erg.pruefen} Auskunft und Prüfbitte).\n\n`
+        + `Empfänger: ${stelle}\nGrundlage: ${analyse.auskunftei || "Auskunftei"}`
+        + `${analyse.auskunftVom ? `, Auskunft vom ${analyse.auskunftVom.split("-").reverse().join(".")}` : ""}\n\n`
+        + `Betroffene Posten:\n${posten}\n\n`
+        + `Das fertige Schreiben liegt unter /admin/kunde/${ref} als PDF bereit. `
+        + `Zu tun: ausdrucken, vom Kunden unterschreiben lassen oder mit Vollmacht versenden, `
+        + `Versandweg in der Akte vermerken.`,
+      dringend: false,
+      schluessel: `bonitaet:${ref}:loeschantrag`,
+      quelle: "bonitaet",
+      bereich: "pruefen",
+      link: `/admin/kunde/${ref}`,
+      autorName: "Kundenbereich",
+    }).catch((e) => console.error("[KUNDE] loeschantrag auftrag:", e));
+
+    await sqlPool`
+      INSERT INTO fiaon_vermerke (art, ref, text, sicht, autor_art, autor_name, created_at)
+      VALUES ('system', ${ref},
+              ${`Der Kunde hat das Schreiben an ${stelle} beauftragt — ${erg.ueberfaellig} Posten mit abgelaufener Speicherfrist, `
+                + `${erg.pruefen} Posten zur Auskunft und Prüfung.`},
+              'intern', 'kunde', 'Kundenbereich', NOW())
+    `.catch(() => {});
+
+    res.json({ ok: true, schon: false, beauftragtAm, posten: erg.posten, ueberfaellig: erg.ueberfaellig, pruefen: erg.pruefen, stelle });
+  } catch (err) {
+    console.error("[KUNDE] bonitaet loeschantrag:", err);
+    res.status(500).json({ ok: false, error: "Der Antrag konnte nicht beauftragt werden. Bitte versuchen Sie es erneut." });
+  }
+});

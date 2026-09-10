@@ -2944,6 +2944,10 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
                     </div>
                   </div>
                 ))}
+                {/* E-175: Was in der Auskunft STEHT — nicht nur, dass sie da ist. */}
+                {(doku.dokumente || []).some((d: any) => d.art === "schufa" && d.vorhanden) && doku.ref && (
+                  <BonitaetsBefund bestellRef={String(doku.ref)} melden={melden} />
+                )}
                 {/* P13 (28.08.2026): Die Bank-Anleitungen zum VORLESEN am
                     Telefon — dieselbe Quelle wie im Kundenportal. */}
                 <details>
@@ -3032,6 +3036,131 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
                               onSenden={(ref) => void zahlungsdaten(ref)} sendeFehler={sendeFehler} />
       )}
     </aside>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE AUSWERTUNG DER BONITÄTSAUSKUNFT — FÜR DEN BETREUER (10.09.2026, E-175)
+//
+// Justin: „Außerdem hat der Agent in der Ansicht bei Bonitätsauskunft einen
+// gelben Warntext … das passt ja auch nicht, das muss ja passend sein."
+//
+// Der gelbe Warntext war nicht nur falsch, er war ALLES, was hier stand. Eine
+// 38-seitige Auskunft, seit dem 03.09. in der Datenbank, ausgewertet seit
+// gestern — und im Portal nichts davon. Wer den Kunden anrief, wusste weniger
+// als der Kunde selbst.
+//
+// Was hier steht, ist dieselbe Ampel, derselbe Score und dieselbe Postenliste
+// wie im Kundenbereich, dazu die zwei Papiere und der Knopf „Neu auswerten"
+// für den Fall, dass eine neue Auskunft hochgeladen wurde.
+// ═══════════════════════════════════════════════════════════════════════════
+const SCHUFA_AMPEL: Record<string, { wort: string; farbe: string }> = {
+  frei: { wort: "Nichts Belastendes gefunden", farbe: "#34d399" },
+  aufraeumen: { wort: "Erledigt — es läuft nur noch die Zeit", farbe: "#60a5fa" },
+  angreifbar: { wort: "Überschaubar — hier lässt sich arbeiten", farbe: "#fbbf24" },
+  dringend: { wort: "Viel auf einmal — beim Größten anfangen", farbe: "#f87171" },
+};
+
+function BonitaetsBefund({ bestellRef, melden }: {
+  bestellRef: string;
+  melden: (art: "gut" | "schlecht" | "info", titel: string, text?: string) => void;
+}) {
+  const [a, setA] = useState<any | null>(null);
+  const [geladen, setGeladen] = useState(false);
+  const [laeuft, setLaeuft] = useState(false);
+
+  const laden = useCallback(async () => {
+    const r = await api(`/agent/schufa/${encodeURIComponent(bestellRef)}`);
+    setA(r.ok ? (r.json?.analyse ?? null) : null);
+    setGeladen(true);
+  }, [bestellRef]);
+  useEffect(() => { void laden(); }, [laden]);
+
+  const neuAuswerten = async () => {
+    setLaeuft(true);
+    const r = await api(`/agent/schufa/${encodeURIComponent(bestellRef)}/analysieren`, { method: "POST" });
+    setLaeuft(false);
+    if (r.ok) { setA(r.json?.analyse ?? null); melden("gut", "Auskunft ausgewertet", "Der Befund unten ist auf dem neuesten Stand."); }
+    else melden("schlecht", "Nicht ausgewertet", r.json?.error || "Bitte später erneut versuchen.");
+  };
+
+  if (!geladen) return null;
+
+  const eintraege: any[] = Array.isArray(a?.eintraege) ? a.eintraege : [];
+  const loeschbar = eintraege.filter((e) => e?.loeschung?.faellig);
+  const schreibbar = Number(a?.schreiben?.ueberfaellig ?? 0) + Number(a?.schreiben?.pruefen ?? 0);
+  const ampel = SCHUFA_AMPEL[a?.ampel] || null;
+
+  return (
+    <div style={{ marginTop: 14, border: "1px solid rgba(148,163,184,.22)", borderRadius: 12, padding: "12px 14px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <b style={{ fontSize: 13 }}>Auswertung der Bonitätsauskunft</b>
+        <button type="button" className="pi-knopf still klein" disabled={laeuft} onClick={() => void neuAuswerten()}>
+          {laeuft ? "Wertet aus …" : a ? "Neu auswerten" : "Jetzt auswerten"}
+        </button>
+      </div>
+
+      {!a && <p className="pi-sek-satz leise" style={{ marginTop: 6 }}>Noch nicht ausgewertet. Liegt eine Auskunft vor, startest du die Auswertung mit dem Knopf oben — sie dauert ein bis zwei Minuten.</p>}
+      {a?.status === "laeuft" && <p className="pi-sek-satz leise" style={{ marginTop: 6 }}>Die Auswertung läuft gerade. Lade die Akte in ein bis zwei Minuten neu.</p>}
+      {a?.status === "unlesbar" && <p className="pi-sek-satz" style={{ marginTop: 6, color: "#fbbf24" }}>Die Datei ist nicht lesbar: {a.fehler}</p>}
+      {a?.status === "fehler" && <p className="pi-sek-satz" style={{ marginTop: 6, color: "#f87171" }}>Die Auswertung ist gescheitert: {a.fehler}</p>}
+
+      {a?.status === "fertig" && (
+        <>
+          <div style={{ marginTop: 8, display: "flex", gap: 14, flexWrap: "wrap", alignItems: "baseline" }}>
+            {ampel && <span style={{ color: ampel.farbe, fontWeight: 700, fontSize: 13 }}>{ampel.wort}</span>}
+            <span style={{ fontSize: 12, opacity: .85 }}>
+              Score: <b>{a.score != null ? String(a.score).replace(".", ",") : "nicht in der Auskunft enthalten"}</b>
+            </span>
+            <span style={{ fontSize: 12, opacity: .85 }}>{eintraege.length} Posten · {eintraege.filter((e) => e.offen).length} offen{a.summeOffenCents ? ` über ${euro0(a.summeOffenCents)}` : ""}</span>
+            {loeschbar.length > 0 && <span style={{ fontSize: 12, color: "#34d399" }}>{loeschbar.length} mit abgelaufener Speicherfrist</span>}
+            {Number(a.schreiben?.pruefen ?? 0) > 0 && <span style={{ fontSize: 12, opacity: .85 }}>{a.schreiben.pruefen} zur Prüfbitte</span>}
+          </div>
+          <div style={{ fontSize: 11.5, opacity: .65, marginTop: 3 }}>
+            {[a.auskunftei, a.auskunftVom ? `Auskunft vom ${dtag(a.auskunftVom)}` : null, a.seiten ? `${a.seiten} Seiten gelesen` : null,
+              a.loeschantragAm ? `Schreiben beauftragt am ${dtag(a.loeschantragAm)}` : null].filter(Boolean).join(" · ")}
+          </div>
+          {a.ampelGrund && <p className="pi-sek-satz leise" style={{ marginTop: 6 }}>{a.ampelGrund}</p>}
+
+          {eintraege.length > 0 && (
+            <details style={{ marginTop: 8 }}>
+              <summary className="pi-sek-satz" style={{ cursor: "pointer", fontWeight: 600 }}>Alle {eintraege.length} Posten ansehen</summary>
+              <div style={{ display: "grid", gap: 6, marginTop: 6 }}>
+                {eintraege.map((e, i) => (
+                  <div key={i} style={{ fontSize: 12, opacity: .9 }}>
+                    <b>{e.glaeubiger || e.art}</b>
+                    {e.betragCents != null ? ` · ${euro0(e.betragCents)}` : ""}
+                    {` · ${e.offen ? "offen" : "erledigt"}`}
+                    {e.gemeldetAm ? ` · seit ${dtag(e.gemeldetAm)}` : ""}
+                    {e.meldungen && e.meldungen > 1 ? ` · ${e.meldungen} Saldo-Meldungen` : ""}
+                    {e?.loeschung ? (
+                      <span style={{ color: e.loeschung.faellig ? "#34d399" : "inherit" }}>
+                        {` · Frist ${e.loeschung.faellig ? "abgelaufen am" : "bis"} ${dtag(e.loeschung.am)}`}
+                      </span>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
+
+          <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <a className="pi-knopf still klein" href={`/api/fiaon/agent/schufa/${encodeURIComponent(bestellRef)}/bericht.pdf`} target="_blank" rel="noreferrer">
+              Auswertung als PDF <ExternalLink size={12} />
+            </a>
+            {schreibbar > 0 && (
+              <a className="pi-knopf still klein" href={`/api/fiaon/agent/schufa/${encodeURIComponent(bestellRef)}/loeschantrag.pdf`} target="_blank" rel="noreferrer">
+                Schreiben an die Auskunftei ({schreibbar}) <ExternalLink size={12} />
+              </a>
+            )}
+          </div>
+          <p className="pi-sek-satz leise" style={{ marginTop: 8 }}>
+            Der Kunde sieht dieselbe Auswertung in seinem Bereich und kann das Schreiben an die Auskunftei dort selbst
+            beauftragen. Tut er das, bekommst du eine Aufgabe mit dem fertigen Brief.
+          </p>
+        </>
+      )}
+    </div>
   );
 }
 

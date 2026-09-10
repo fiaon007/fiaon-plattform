@@ -74,6 +74,12 @@ export async function ensureSchufaTabelle(): Promise<void> {
     )
   `;
   await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_schufa_analysen_ref_idx ON fiaon_schufa_analysen (ref, created_at DESC)`;
+  // ── NACHGEZOGEN AM 10.09.2026 (E-175) ────────────────────────────────────
+  // Die Tabelle steht seit gestern in Produktion; CREATE TABLE IF NOT EXISTS
+  // ergaenzt keine Spalte. Der Loeschantrag merkt sich hier, wann er
+  // beauftragt wurde - sonst schickt derselbe Knopf ihn jeden Tag neu los.
+  await sqlPool`ALTER TABLE fiaon_schufa_analysen ADD COLUMN IF NOT EXISTS loeschantrag_am TIMESTAMPTZ`.catch(() => {});
+  await sqlPool`ALTER TABLE fiaon_schufa_analysen ADD COLUMN IF NOT EXISTS loeschantrag_posten INTEGER`.catch(() => {});
   tabelleGeprueft = true;
 }
 
@@ -93,6 +99,46 @@ export interface SchufaEintrag {
   offen: boolean;
   /** Warum dieser Eintrag Arbeit verträgt — in Kundensprache, ohne Zusage. */
   ansatz: string | null;
+  /** Wann dieser Posten nach den Verhaltensregeln zu löschen ist (E-175). */
+  loeschung: { faellig: boolean; am: string | null; grund: string; rechtsgrund: string } | null;
+}
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * WELCHE POSTEN IN DAS SCHREIBEN AN DIE AUSKUNFTEI GEHÖREN (10.09.2026, E-175)
+ *
+ * Justin: „Die Einträge die auf 0 sind und gelöscht werden können müssen ja
+ * durch uns direkt gelöscht werden."
+ *
+ * Es sind zwei verschiedene Fälle, und sie brauchen zwei verschiedene Sätze:
+ *
+ *   ÜBERFÄLLIG — die Speicherfrist ist abgelaufen. Hier gibt es nichts zu
+ *   diskutieren: Art. 17 Abs. 1 DSGVO, Löschung.
+ *
+ *   ZU PRÜFEN — ein offener Posten, für den die Auskunft keinen bezifferten
+ *   Betrag nennt (bei Dirk Ladewig sind das sechs von vierzehn: Einträge aus
+ *   dem Schuldnerverzeichnis), oder ein erledigter Posten ohne Löschdatum.
+ *   Hier ist die Frist NICHT abgelaufen — eine Löschung zu behaupten wäre
+ *   falsch. Aber die Auskunftei muss nach Art. 15 DSGVO sagen, worauf der
+ *   Eintrag beruht und wann er entfällt; und wo die Meldevoraussetzungen des
+ *   § 31 Abs. 2 BDSG nicht belegt sind, greift Art. 17 Abs. 1 lit. d.
+ *
+ * Diese eine Funktion entscheidet das für BEIDE Seiten: Das Schreiben
+ * (fiaon-bonitaet-schreiben.ts) füllt daraus seine zwei Abschnitte, und
+ * Kundenbereich wie Betreuerportal lesen die Zahlen aus `schreiben` unten.
+ * Stünde die Regel zweimal da, zeigte der Knopf irgendwann eine andere Zahl
+ * als der Brief.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+export function schreibenPosten(eintraege: SchufaEintrag[]): { ueberfaellig: SchufaEintrag[]; pruefen: SchufaEintrag[] } {
+  const alle = Array.isArray(eintraege) ? eintraege : [];
+  const ueberfaellig = alle.filter((e) => e?.loeschung?.faellig);
+  const pruefen = alle.filter((e) => {
+    if (e?.loeschung?.faellig) return false;
+    if (e.offen) return e.betragCents == null || e.betragCents === 0;
+    return !e.loeschung;
+  });
+  return { ueberfaellig, pruefen };
 }
 
 export interface SchufaAnalyse {
@@ -108,6 +154,11 @@ export interface SchufaAnalyse {
   empfehlungen: { titel: string; text: string; wer: "kunde" | "fiaon" }[];
   merksaetze: string[];
   seiten: number | null; gekuerzt: boolean;
+  /** Wann der Kunde den Loeschantrag beauftragt hat (E-175) - null = noch nie. */
+  loeschantragAm: string | null;
+  loeschantragPosten: number | null;
+  /** Wie viele Posten in das Schreiben gehoeren - je Abschnitt (E-175). */
+  schreiben: { ueberfaellig: number; pruefen: number };
   erstelltAm: string;
 }
 
@@ -130,9 +181,12 @@ function zeile(r: any): SchufaAnalyse {
     score: r.score == null ? null : Number(r.score), scoreText: r.score_text ?? null,
     summeOffenCents: r.summe_offen_cents == null ? null : Number(r.summe_offen_cents),
     eintraege: liste(r.eintraege), anfragen: liste(r.anfragen), positiv: liste(r.positiv),
+    schreiben: (() => { const t = schreibenPosten(liste(r.eintraege)); return { ueberfaellig: t.ueberfaellig.length, pruefen: t.pruefen.length }; })(),
     ampel: (r.ampel as AmpelStufe) ?? null, ampelGrund: r.ampel_grund ?? null,
     empfehlungen: liste(r.empfehlungen), merksaetze: liste(r.merksaetze),
     seiten: r.seiten == null ? null : Number(r.seiten), gekuerzt: !!r.gekuerzt,
+    loeschantragAm: r.loeschantrag_am ? new Date(r.loeschantrag_am).toISOString() : null,
+    loeschantragPosten: r.loeschantrag_posten == null ? null : Number(r.loeschantrag_posten),
     erstelltAm: r.created_at,
   };
 }
@@ -317,25 +371,97 @@ async function openaiAuswertung(text: string): Promise<{ modell: string; daten: 
 // heikel sind: Sie beschreiben, was FIAON TUT, und sagen dazu, wer entscheidet.
 // Kein „wird gelöscht", kein „steht Ihnen zu", keine Frist.
 // ═══════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
+// WANN IST EIN POSTEN ZU LÖSCHEN? (10.09.2026, E-175)
+//
+// Justin: „Die Einträge die auf 0 sind und gelöscht werden können müssen ja
+// durch uns direkt gelöscht werden."
+//
+// Diese Funktion rechnet die Frist, sie behauptet nichts. Alle Regeln stehen im
+// Hauswissen (client/src/pages/agent/academy/kapitel-6-schufa.ts) MIT Quelle:
+//   · Erledigte Forderung: drei Jahre taggenau nach der Erledigung
+//     (Verhaltensregeln der Wirtschaftsauskunfteien, Fassung 2024).
+//     Wurde binnen 100 Tagen nach der Meldung bezahlt: achtzehn Monate.
+//   · Vollstreckungsverfahren / Schuldnerverzeichnis: drei Jahre (§ 882e ZPO).
+//   · Restschuldbefreiung: sechs Monate (EuGH, 7.12.2023, C-26/22 und C-64/22).
+//   · Ein in der Auskunft GENANNTES Löschdatum geht allem vor — steht es in der
+//     Vergangenheit, ist die Löschung überfällig.
+//
+// Was hier NICHT passiert: eine offene Forderung für löschbar erklären. Ein
+// berechtigter Eintrag mit ordnungsgemäßen Mahnungen bleibt seine Frist stehen;
+// das steht so im Hauswissen und wird dem Kunden auch so gesagt.
+// ═══════════════════════════════════════════════════════════════════════════
+function monatePlus(iso: string, n: number): string {
+  const [j, m, t] = iso.split("-").map(Number);
+  const gesamt = j * 12 + (m - 1) + n;
+  const jahr = Math.floor(gesamt / 12);
+  const monat = (gesamt % 12) + 1;
+  const letzter = new Date(Date.UTC(jahr, monat, 0)).getUTCDate();
+  return `${jahr}-${String(monat).padStart(2, "0")}-${String(Math.min(t, letzter)).padStart(2, "0")}`;
+}
+
+const VOLLSTRECKUNG = /vollstreck|schuldnerverzeichnis|verm[oö]gensausk|haftbefehl/i;
+const RESTSCHULD = /restschuldbefreiung|insolvenz/i;
+
+export function loeschungFuer(e: SchufaEintrag, heute: string): SchufaEintrag["loeschung"] {
+  const bezeichnung = `${e.art} ${e.glaeubiger ?? ""}`;
+  const fertig = (am: string, grund: string, rechtsgrund: string) =>
+    ({ faellig: am <= heute, am, grund, rechtsgrund });
+
+  // Ein genanntes Löschdatum geht allem vor.
+  if (e.loeschungAm) {
+    return fertig(e.loeschungAm, "Die Auskunft nennt dieses Löschdatum selbst.",
+      "Verhaltensregeln der Wirtschaftsauskunfteien, Fassung 2024");
+  }
+  if (RESTSCHULD.test(bezeichnung) && e.gemeldetAm) {
+    return fertig(monatePlus(e.gemeldetAm, 6),
+      "Sechs Monate nach Erteilung der Restschuldbefreiung.",
+      "EuGH, Urteile vom 7.12.2023, C-26/22 und C-64/22");
+  }
+  if (VOLLSTRECKUNG.test(bezeichnung) && e.gemeldetAm) {
+    return fertig(monatePlus(e.gemeldetAm, 36),
+      "Drei Jahre nach der Eintragung im Schuldnerverzeichnis.", "§ 882e ZPO");
+  }
+  if (!e.offen && e.erledigtAm) {
+    // Die 100-Tage-Regel verkürzt auf achtzehn Monate — nur wenn beide Daten da sind.
+    const binnen100 = !!e.gemeldetAm
+      && (Date.parse(e.erledigtAm) - Date.parse(e.gemeldetAm)) / 86_400_000 <= 100;
+    return binnen100
+      ? fertig(monatePlus(e.erledigtAm, 18),
+          "Achtzehn Monate, weil binnen hundert Tagen nach der Meldung ausgeglichen wurde.",
+          "Verhaltensregeln der Wirtschaftsauskunfteien, Fassung 2024 (100-Tage-Regel)")
+      : fertig(monatePlus(e.erledigtAm, 36), "Drei Jahre taggenau nach der Erledigung.",
+          "Verhaltensregeln der Wirtschaftsauskunfteien, Fassung 2024");
+  }
+  return null;
+}
+
+const dtDE = (iso: string) => iso.split("-").reverse().join(".");
+
 function ansatzFuer(e: SchufaEintrag, heute: string): string | null {
+  const l = e.loeschung;
+  // Überfällig schlägt alles: Ein Posten, dessen Frist abgelaufen ist, gehört
+  // weg — und das ist der Satz, den ein Kunde zuerst lesen soll.
+  if (l?.faellig) {
+    return `Die Speicherfrist für diesen Posten ist am ${dtDE(l.am!)} abgelaufen (${l.grund}). Wir fordern die Löschung `
+      + "bei der Auskunftei an. Sie müssen dafür nichts tun.";
+  }
+  if (l?.am) {
+    return `Nach den geltenden Fristen entfällt dieser Posten am ${dtDE(l.am)} (${l.grund}). Wir halten den Termin nach `
+      + "und melden uns, wenn er dann noch stehen sollte.";
+  }
   if (HART.test(`${e.art} ${e.glaeubiger ?? ""}`)) {
     return "Einträge aus einem Gerichts- oder Vollstreckungsverfahren folgen eigenen Regeln. Wir sehen uns die Unterlagen an "
       + "und sagen Ihnen, was möglich ist.";
   }
-  if (!e.offen && e.loeschungAm && e.loeschungAm <= heute) {
-    return "Dieser Eintrag ist erledigt und sein Löschdatum ist erreicht. Wir fragen bei der Auskunftei nach, warum er noch steht.";
-  }
-  if (!e.offen && e.loeschungAm) {
-    return `Erledigt. Als Löschdatum ist der ${e.loeschungAm.split("-").reverse().join(".")} vermerkt. Wir behalten den Termin im Blick.`;
-  }
   if (!e.offen) {
-    return "Erledigt, aber ohne vermerktes Löschdatum. Wir fragen die Auskunftei, wann der Eintrag entfällt.";
+    return "Erledigt, aber ohne vermerktes Löschdatum. Wir fragen die Auskunftei, wann der Posten entfällt.";
   }
   if (e.betragCents != null && e.betragCents > 0) {
-    return "Offene Forderung. Wir prüfen die Unterlagen des Gläubigers: Ist die Forderung belegt, ist die Höhe richtig, "
-      + "ist sie noch durchsetzbar? Was dabei herauskommt, entscheidet den nächsten Schritt.";
+    return "Offene Forderung. Wir fordern beim Gläubiger die Unterlagen an: die beiden Mahnungen mit Zugangsnachweis, den "
+      + "Hinweis auf die Meldung und eine Forderungsaufstellung. Fehlt davon etwas, ist die Meldung angreifbar.";
   }
-  return "Offener Eintrag ohne Betrag. Wir fordern beim Gläubiger die Unterlagen an, damit klar wird, worum es geht.";
+  return "Offener Posten ohne Betrag. Wir fordern beim Gläubiger die Unterlagen an, damit klar wird, worum es geht.";
 }
 
 function empfehlungenAus(eintraege: SchufaEintrag[], anfragen: number, score: number | null): { titel: string; text: string; wer: "kunde" | "fiaon" }[] {
@@ -343,6 +469,16 @@ function empfehlungenAus(eintraege: SchufaEintrag[], anfragen: number, score: nu
   const offen = eintraege.filter((e) => e.offen);
   const erledigtOhneDatum = eintraege.filter((e) => !e.offen && !e.loeschungAm);
 
+  const loeschbar = eintraege.filter((e) => e.loeschung?.faellig);
+  if (loeschbar.length) {
+    out.push({
+      titel: `Löschung von ${loeschbar.length === 1 ? "einem Posten" : `${loeschbar.length} Posten`} anfordern`,
+      text: "Bei " + (loeschbar.length === 1 ? "einem Posten" : `${loeschbar.length} Posten`) + " ist die Speicherfrist "
+        + "abgelaufen. Wir schreiben die Auskunftei an und verlangen die Löschung nach Art. 17 DSGVO, mit Frist und "
+        + "Bitte um Bestätigung. Ein Klick genügt, den Rest übernehmen wir.",
+      wer: "fiaon",
+    });
+  }
   if (offen.length) {
     out.push({
       titel: `Unterlagen zu ${offen.length === 1 ? "der offenen Forderung" : `den ${offen.length} offenen Forderungen`} anfordern`,
@@ -469,7 +605,9 @@ export async function schufaAnalysieren(ref: string, opts: { erzwingen?: boolean
         loeschungAm: e.loeschung_am || null,
         offen: e.offen !== false,
         ansatz: null,
+        loeschung: null,
       };
+      roh.loeschung = loeschungFuer(roh, heute);
       roh.ansatz = durchDieWand(ansatzFuer(roh, heute) || "", "einen Ansatz", ref);
       return roh;
     });
@@ -523,4 +661,26 @@ export async function schufaAnalysieren(ref: string, opts: { erzwingen?: boolean
     console.error("[SCHUFA-ANALYSE]", ref, e);
     return schufaAnalyseFuer(ref);
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DER LÖSCHANTRAG IST BEAUFTRAGT (10.09.2026, E-175)
+//
+// Justin: „Die Einträge die auf 0 sind und gelöscht werden können müssen ja
+// durch uns direkt gelöscht werden … er muss mit 1 Klick die Auskunftei
+// anschreiben können."
+//
+// Ein Klick darf nicht heißen: jeden Tag ein neuer Antrag. Deshalb steht der
+// Zeitpunkt an der Analyse. Der Knopf im Kundenbereich liest ihn und sagt
+// danach, wann der Antrag rausging — statt ein zweites Mal anzubieten.
+// ═══════════════════════════════════════════════════════════════════════════
+export async function loeschantragVermerken(ref: string, posten: number): Promise<string | null> {
+  await ensureSchufaTabelle();
+  const [r] = (await sqlPool`
+    UPDATE fiaon_schufa_analysen
+       SET loeschantrag_am = NOW(), loeschantrag_posten = ${posten}, updated_at = NOW()
+     WHERE id = (SELECT id FROM fiaon_schufa_analysen WHERE ref = ${ref} ORDER BY created_at DESC LIMIT 1)
+     RETURNING loeschantrag_am
+  `.catch(() => [] as any[])) as any[];
+  return r?.loeschantrag_am ? new Date(r.loeschantrag_am).toISOString() : null;
 }

@@ -410,7 +410,7 @@ export default function MeinBereichPage() {
               <div className="mb-abschnitt-kopf"><div><h2>Ihre Bonität</h2><p>{d.bonitaet?.fuerKunden || "Eine Auskunft, jeder Eintrag geprüft, in Menschensprache erklärt."}</p></div></div>
               <div className="mb-karte">
                 {d.bonitaetAnalyse?.status === "fertig" ? (
-                  <BonitaetAuswertung a={d.bonitaetAnalyse} />
+                  <BonitaetAuswertung a={d.bonitaetAnalyse} refKunde={d.kunde.ref} />
                 ) : d.bonitaetAnalyse?.status === "unlesbar" ? (
                   <div className="mb-warte"><b>Ihre Datei lässt sich nicht lesen.</b> {d.bonitaetAnalyse.fehler} <a href="#unterlagen">Datei erneut hochladen</a></div>
                 ) : d.bonitaetAnalyse?.status === "laeuft" ? (
@@ -856,14 +856,35 @@ const AMPEL_WORT: Record<string, string> = {
 };
 const dtag = (iso: string | null) => (iso ? iso.split("-").reverse().join(".") : null);
 
-function BonitaetAuswertung({ a }: { a: any }) {
+function BonitaetAuswertung({ a, refKunde }: { a: any; refKunde: string }) {
   const eintraege: any[] = Array.isArray(a.eintraege) ? a.eintraege : [];
   const offen = eintraege.filter((e) => e.offen);
   const erledigt = eintraege.filter((e) => !e.offen);
+  const loeschbar = eintraege.filter((e) => e?.loeschung?.faellig);
+  // Wie viele Posten in das Schreiben gehören, entscheidet der Server
+  // (schreibenPosten in fiaon-schufa-analyse.ts) — hier stehen nur die Zahlen.
+  const schreibbar = Number(a.schreiben?.ueberfaellig ?? 0) + Number(a.schreiben?.pruefen ?? 0);
   const f = AMPEL_FARBE[a.ampel] || AMPEL_FARBE.angreifbar;
   const empf: any[] = Array.isArray(a.empfehlungen) ? a.empfehlungen : [];
   const positiv: any[] = Array.isArray(a.positiv) ? a.positiv : [];
   const anfragen: any[] = Array.isArray(a.anfragen) ? a.anfragen : [];
+
+  // ── DER EINE KLICK (10.09.2026, E-175) ─────────────────────────────────
+  // Justin: „er muss mit 1 Klick die Auskunftsdatei anschreiben können".
+  // Der Klick beauftragt; versendet wird mit Unterschrift. Was hier steht,
+  // ist deshalb „beauftragt", nie „gelöscht" — und der Zeitpunkt kommt vom
+  // Server zurück, damit ein Neuladen dieselbe Wahrheit zeigt.
+  const [beauftragt, setBeauftragt] = useState<string | null>(a.loeschantragAm ?? null);
+  const [laeuft, setLaeuft] = useState(false);
+  const [fehler, setFehler] = useState<string | null>(null);
+  const anschreiben = async () => {
+    if (DEMO) { setBeauftragt(new Date().toISOString()); return; }
+    setLaeuft(true); setFehler(null);
+    const r = await api(`/kunde/${refKunde}/bonitaet/loeschantrag`, { method: "POST" });
+    setLaeuft(false);
+    if (r.ok) setBeauftragt(r.json?.beauftragtAm || new Date().toISOString());
+    else setFehler(r.json?.error || "Der Antrag konnte gerade nicht beauftragt werden. Bitte versuchen Sie es erneut.");
+  };
 
   return (
     <div>
@@ -885,9 +906,33 @@ function BonitaetAuswertung({ a }: { a: any }) {
         </div>
         <div style={{ marginTop: 8, fontSize: 12, color: "var(--text-still)" }}>
           {[a.auskunftei, a.auskunftVom ? `Auskunft vom ${dtag(a.auskunftVom)}` : null,
-            a.seiten ? `${a.seiten} Seiten gelesen` : null,
-            a.score != null ? `Score ${a.score}` : null].filter(Boolean).join(" · ")}
+            a.seiten ? `${a.seiten} Seiten gelesen` : null].filter(Boolean).join(" · ")}
         </div>
+      </div>
+
+      {/* ── IHR SCORE (10.09.2026, E-175) ──────────────────────────────────
+          Justin: „wo ist die Ampel mit sein score?" — Der Score stand als
+          vierter Eintrag in einer grauen Zeile unter der Ampel und war damit
+          unsichtbar. Er bekommt jetzt eine eigene Fläche.
+          UND: Dirks Auskunft ENTHÄLT keinen Score. Eine erfundene Zahl wäre
+          das Schlimmste, was hier stehen könnte. Steht keiner drin, sagt das
+          Feld genau das — samt dem Weg, wie er dazu kommt. */}
+      <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap",
+                    border: "1px solid var(--linie)", borderRadius: 14, padding: "14px 18px" }}>
+        <div style={{ minWidth: 92, textAlign: "center" }}>
+          <div style={{ fontSize: a.score != null ? 30 : 22, fontWeight: 800, lineHeight: 1.1,
+                        color: a.score != null ? f.wort : "var(--text-still)" }}>
+            {a.score != null ? String(a.score).replace(".", ",") : "kein Wert"}
+          </div>
+          <div style={{ fontSize: 10.5, letterSpacing: ".08em", textTransform: "uppercase", color: "var(--text-still)", marginTop: 2 }}>
+            Score
+          </div>
+        </div>
+        <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.55, flex: "1 1 260px" }}>
+          {a.score != null
+            ? <>{a.scoreText || `Das ist der Wert, den ${a.auskunftei || "die Auskunftei"} zu Ihnen führt.`} Der Score folgt den gespeicherten Daten — er ändert sich, wenn sich die Einträge ändern.</>
+            : <>Ihre Auskunft enthält keinen Score-Wert{a.scoreText ? ` (${a.scoreText})` : ""}. Das ist kein Fehler: Viele Auskünfte zeigen nur die gespeicherten Daten. Den Score sehen Sie in der kostenlosen Datenkopie nach Art. 15 DSGVO, die Sie direkt bei {a.auskunftei || "der Auskunftei"} anfordern können — Ihre Ansprechpartnerin zeigt Ihnen den Weg.</>}
+        </p>
       </div>
 
       {/* Die Einträge, jeder mit seinem nächsten Schritt */}
@@ -897,7 +942,17 @@ function BonitaetAuswertung({ a }: { a: any }) {
           {eintraege.map((e, i) => (
             <div key={i} style={{ padding: "12px 0", borderTop: i ? "1px solid var(--linie)" : "none" }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-                <b style={{ fontSize: 14.5 }}>{e.glaeubiger || e.art}</b>
+                <b style={{ fontSize: 14.5 }}>
+                  {e.glaeubiger || e.art}
+                  {e?.loeschung?.faellig && (
+                    <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, letterSpacing: ".04em",
+                                   background: "rgba(16,185,129,.12)", color: "#047857",
+                                   border: "1px solid rgba(16,185,129,.35)", borderRadius: 999, padding: "2px 8px",
+                                   whiteSpace: "nowrap", verticalAlign: "middle" }}>
+                      Frist abgelaufen
+                    </span>
+                  )}
+                </b>
                 <span style={{ fontSize: 13.5, whiteSpace: "nowrap" }}>
                   {e.betragCents != null ? eurCents(e.betragCents) : "ohne Betrag"}
                   <span style={{ marginLeft: 8, fontSize: 12, color: e.offen ? "#b91c1c" : "#047857" }}>
@@ -906,13 +961,23 @@ function BonitaetAuswertung({ a }: { a: any }) {
                 </span>
               </div>
               <div style={{ fontSize: 12.5, color: "var(--text-still)", marginTop: 2 }}>
-                {[e.art, e.gemeldetAm ? `seit ${dtag(e.gemeldetAm)}` : null,
+                {[e.art !== (e.glaeubiger || e.art) ? e.art : null, e.gemeldetAm ? `seit ${dtag(e.gemeldetAm)}` : null,
                   e.letzterStandAm ? `Stand ${dtag(e.letzterStandAm)}` : null,
                   e.meldungen && e.meldungen > 1 ? `${e.meldungen} Saldo-Meldungen` : null,
                   e.erledigtAm ? `erledigt ${dtag(e.erledigtAm)}` : null,
                   e.loeschungAm ? `Löschung ${dtag(e.loeschungAm)}` : null].filter(Boolean).join(" · ")}
               </div>
               {e.ansatz && <p style={{ margin: "6px 0 0", fontSize: 13.5, lineHeight: 1.5 }}>{e.ansatz}</p>}
+              {/* Die Frist steht sichtbar am Posten — sie ist der Grund, warum
+                  FIAON diesen Eintrag anfassen kann (E-175). */}
+              {e?.loeschung && (
+                <div style={{ marginTop: 5, fontSize: 12, color: e.loeschung.faellig ? "#047857" : "var(--text-still)" }}>
+                  {e.loeschung.faellig
+                    ? `Speicherfrist abgelaufen am ${dtag(e.loeschung.am)} — ${e.loeschung.grund}`
+                    : `Speicherfrist läuft bis ${dtag(e.loeschung.am)} — ${e.loeschung.grund}`}
+                  {e.loeschung.rechtsgrund ? ` (${e.loeschung.rechtsgrund})` : ""}
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -945,6 +1010,61 @@ function BonitaetAuswertung({ a }: { a: any }) {
           ))}
         </div>
       )}
+
+      {/* ═══ IHRE PAPIERE (10.09.2026, E-175) ═══════════════════════════════
+          Justin: „er braucht die Bonitätsanalyse von uns in einem juristischen
+          Dokument als PDF die er sich zusätzlich herunterladen könnte" und
+          „er muss mit 1 Klick die Auskunftei anschreiben können".
+
+          Der Löschantrag erscheint nur, wenn es wirklich einen Posten gibt,
+          dessen Speicherfrist abgelaufen ist. Ein Knopf, der ins Leere
+          schreibt, wäre schlimmer als keiner. */}
+      <div style={{ marginTop: 20, borderTop: "1px solid var(--linie)", paddingTop: 16 }}>
+        <h4 style={{ fontSize: 15, fontWeight: 700, margin: "0 0 4px" }}>Ihre Papiere</h4>
+        <p style={{ margin: "0 0 12px", fontSize: 13, color: "var(--text-leise)", maxWidth: "62ch" }}>
+          Die vollständige Auswertung als Dokument — mit jedem Posten, seiner Frist und der Rechtsgrundlage.
+          Sie können sie mitnehmen, wohin Sie möchten.
+        </p>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <a className="mb-knopf" href={`/api/fiaon/kunde/${refKunde}/bonitaet/bericht.pdf`}>
+            Auswertung als PDF
+          </a>
+          {schreibbar > 0 && (
+            <a className="mb-knopf still" href={`/api/fiaon/kunde/${refKunde}/bonitaet/loeschantrag.pdf`}>
+              Schreiben ansehen
+            </a>
+          )}
+          {schreibbar > 0 && !beauftragt && (
+            <button className="mb-knopf" type="button" onClick={anschreiben} disabled={laeuft}>
+              {laeuft ? "Wird beauftragt …" : `${a.auskunftei || "Die Auskunftei"} anschreiben (${schreibbar} ${schreibbar === 1 ? "Eintrag" : "Einträge"})`}
+            </button>
+          )}
+        </div>
+        {schreibbar > 0 && !beauftragt && (
+          <p style={{ margin: "10px 0 0", fontSize: 12.5, color: "var(--text-still)", maxWidth: "68ch" }}>
+            {loeschbar.length > 0
+              ? `Ein Klick, und wir übernehmen: Für ${loeschbar.length} ${loeschbar.length === 1 ? "Eintrag" : "Einträge"} ist die Speicherfrist abgelaufen — dafür fordern wir die Löschung nach Art. 17 DSGVO.`
+              : "Ein Klick, und wir übernehmen: "}
+            {Number(a.schreiben?.pruefen ?? 0) > 0
+              ? `Für ${a.schreiben.pruefen} weitere ${Number(a.schreiben.pruefen) === 1 ? "Eintrag" : "Einträge"} verlangen wir Auskunft nach Art. 15 DSGVO: worauf sie beruhen und wann sie entfallen. Wo die Meldevoraussetzungen nicht belegt sind, beantragen wir die Löschung.`
+              : ""}
+          </p>
+        )}
+        {schreibbar > 0 && beauftragt && (
+          <div className="mb-meldung gut" style={{ marginTop: 12 }}>
+            <b>Ihr Schreiben ist beauftragt</b> — am {new Date(beauftragt).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })}.
+            Wir schreiben {a.auskunftei || "die Auskunftei"} zu {schreibbar} {schreibbar === 1 ? "Eintrag" : "Einträgen"} an.
+            Die Auskunftei antwortet nach Art. 12 Abs. 3 DSGVO innerhalb eines Monats; wir tragen die Antwort hier ein.
+          </div>
+        )}
+        {schreibbar === 0 && (
+          <p style={{ margin: "10px 0 0", fontSize: 12.5, color: "var(--text-still)" }}>
+            Zurzeit gibt es keinen Eintrag, zu dem sich ein Schreiben an die Auskunftei lohnt. Sobald eine Frist endet,
+            erscheint es hier fertig zum Absenden.
+          </p>
+        )}
+        {fehler && <div className="mb-meldung fehler" style={{ marginTop: 12 }}>{fehler}</div>}
+      </div>
 
       <p style={{ margin: "16px 0 0", fontSize: 12, color: "var(--text-still)", lineHeight: 1.5 }}>
         Diese Auswertung liest, was in Ihrer Auskunft steht. Über Löschungen entscheidet die Auskunftei, über Karte,

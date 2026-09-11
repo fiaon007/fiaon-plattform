@@ -485,3 +485,43 @@
   .ein-zeile{grid-template-columns:1fr auto;grid-template-areas:"l k" "w k";row-gap:3px;column-gap:12px}
   .ein-zeile span{grid-area:l}.ein-zeile b{grid-area:w}.ein-zeile small{grid-area:k;align-self:center}
 }
+
+/* ═══ FINANZKALENDER (11.09.2026, E-178) — jede Buchung an ihrem Tag ═══ */
+.mb-kal-tag{cursor:pointer;transition:transform .14s,box-shadow .14s}
+.mb-kal-tag:hover{transform:translateY(-1px);box-shadow:var(--sch-ruhe),var(--glanz)}
+.mb-kal-tag.leer{cursor:default;transform:none;box-shadow:none}
+.mb-kal-tag.gewaehlt{outline:2px solid var(--blau);outline-offset:-2px;background:var(--flaeche)}
+.mb-kal-tag.vergangen{opacity:.92}
+.mb-kal-tag .p.ein{background:var(--gut)}
+.mb-kal-tag .p.aus{background:var(--text-still)}
+.mb-kal-tag .p.rate{background:var(--blau)}
+.mb-kal-tag .p.erwartet{background:transparent;border:1.5px dashed var(--blau);box-sizing:border-box}
+.mb-kal-tag .s{font:600 8.5px/1 'JetBrains Mono',monospace;color:var(--text-still);letter-spacing:-.02em}
+.mb-kal-tag .s.minus{color:var(--text)}
+.mb-kal-tag .s.plus{color:var(--gut)}
+.mb-kal-eintrag.ein .b{color:var(--gut)}
+.mb-kal-eintrag.aus .b{color:var(--text)}
+.mb-kal-eintrag.rate .b{color:var(--blau-tief)}
+.mb-kal-eintrag.erwartet{border-style:dashed;background:transparent}
+.mb-kal-eintrag.erwartet .b{color:var(--blau-tief)}
+.mb-kal-eintrag .t em{font-style:normal;font:600 9.5px/1 'Inter',sans-serif;text-transform:uppercase;letter-spacing:.08em;color:var(--text-still);background:var(--flaeche);border:1px solid var(--linie);padding:2px 6px;border-radius:5px;margin-left:6px;vertical-align:middle}
+.mb-kal-legende{display:flex;gap:12px 16px;flex-wrap:wrap;font:500 11px/1 'Inter',sans-serif;color:var(--text-still);margin-top:12px}
+.mb-kal-legende span{display:inline-flex;align-items:center;gap:6px}
+.mb-kal-legende i{width:8px;height:8px;border-radius:50%;display:inline-block}
+.mb-kal-legende i.ein{background:var(--gut)}.mb-kal-legende i.aus{background:var(--text-still)}.mb-kal-legende i.rate{background:var(--blau)}
+.mb-kal-legende i.erwartet{background:transparent;border:1.5px dashed var(--blau);box-sizing:border-box}
+.mb-kal-tagkopf{display:flex;justify-content:space-between;align-items:baseline;font:700 11px/1 'Inter',sans-serif;text-transform:uppercase;letter-spacing:.1em;color:var(--text-still);margin:10px 0 2px;padding:0 2px}
+.mb-kal-tagkopf b{font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:0;text-transform:none}
+.mb-kal-summe.vier{grid-template-columns:repeat(4,1fr)}
+@media(max-width:560px){.mb-kal-summe.vier{grid-template-columns:repeat(2,1fr)}}
+.mb-kal-filter{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;font:500 12px/1 'Inter',sans-serif;color:var(--text-leise)}
+.mb-kal-filter button{font:600 11.5px/1 'Inter',sans-serif;padding:7px 10px;border-radius:9px;border:1px solid var(--linie);background:var(--flaeche);color:var(--text-leise);cursor:pointer;box-shadow:var(--glanz)}
+.mb-kal-filter button.aktiv{background:var(--blau);border-color:var(--blau);color:#fff}
+.mb-pruef{display:inline-flex;align-items:center;gap:6px;font:600 11px/1 'Inter',sans-serif;padding:5px 9px;border-radius:999px;border:1px solid var(--linie);background:var(--flaeche-still);color:var(--text-leise)}
+.mb-pruef.gut{background:color-mix(in srgb,var(--gut) 12%,transparent);color:var(--gut);border-color:transparent}
+.mb-pruef.frist{background:color-mix(in srgb,var(--frist) 13%,transparent);color:var(--frist);border-color:transparent}
+.mb-fix{display:grid;grid-template-columns:1fr auto;gap:6px 14px;align-items:center;padding:10px 0;border-bottom:1px solid var(--linie)}
+.mb-fix:last-child{border-bottom:0}
+.mb-fix small{display:block;color:var(--text-still);font-size:11.5px;margin-top:2px}
+.mb-fix .zahl{font:600 13.5px/1 'JetBrains Mono',monospace;text-align:right}
+.mb-fix .zahl small{text-align:right}

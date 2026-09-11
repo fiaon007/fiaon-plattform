@@ -66,6 +66,8 @@ export interface Stufenlage {
   termin: { id: number; beginn: string; status: string } | null;
   gespraechErledigt: boolean;
   auskunftBezahlt: boolean;
+  /** E-178: gekauft ODER eigene, ausgewertete Auskunft — das, was zaehlt. */
+  auskunftVorhanden: boolean;
   /** Ist das eine reine Auskunft-Bestellung (74 €, kein Paket)? */
   nurAuskunft: boolean;
   ablauf: AblaufStand;
@@ -82,6 +84,8 @@ export interface Stufenlage {
  * Kunde wären das zweihundert.
  */
 export async function stufeAbleiten(ref: string, lauf: Lauf = sqlPool): Promise<Stufenlage | null> {
+  // E-178: fiaon_schufa_analysen entsteht lazy — vor der Abfrage sicherstellen.
+  await import("./fiaon-schufa-analyse").then((m) => m.ensureSchufaTabelle()).catch(() => {});
   const [a] = (await lauf`
     SELECT a.ref, a.person_id, a.payment_status, a.status, a.type,
            a.onboarding_stufe, a.onboarding_pflicht,
@@ -107,6 +111,12 @@ export async function stufeAbleiten(ref: string, lauf: Lauf = sqlPool): Promise<
                  OR (NULLIF(TRIM(COALESCE(a.email, '')), '') IS NOT NULL
                      AND LOWER(TRIM(COALESCE(s.email, ''))) = LOWER(TRIM(a.email))))
            ) AS auskunft_bezahlt,
+           -- E-178: Hat er seine EIGENE Auskunft hochgeladen, und ist sie ausgewertet?
+           EXISTS (
+             SELECT 1 FROM fiaon_schufa_analysen sa
+             JOIN fiaon_applications x ON x.ref = sa.ref
+             WHERE sa.status = 'fertig' AND x.merged_into IS NULL AND x.person_id = a.person_id
+           ) AS auskunft_eigene,
            -- Läuft ein Abo? Für die Ablauf-Leiste.
            EXISTS (
              SELECT 1 FROM fiaon_abo_raten r WHERE r.ref = a.ref
@@ -131,7 +141,7 @@ export async function stufeAbleiten(ref: string, lauf: Lauf = sqlPool): Promise<
                WHERE t.person_id = a.person_id AND t.quelle = 'onboarding_call'
                  AND t.status = 'gebucht' AND t.beginn > NOW()
                ORDER BY t.beginn ASC LIMIT 1) AS gebucht_id,
-             FALSE AS auskunft_bezahlt, FALSE AS abo_laeuft
+             FALSE AS auskunft_bezahlt, FALSE AS auskunft_eigene, FALSE AS abo_laeuft
       FROM fiaon_applications a
       WHERE a.ref = ${ref} AND a.merged_into IS NULL
     `) as any[];
@@ -210,12 +220,13 @@ export async function stufeAbleiten(ref: string, lauf: Lauf = sqlPool): Promise<
     termin: termin ? { id: Number(termin.id), beginn: termin.beginn, status: String(termin.status) } : null,
     gespraechErledigt: erledigt,
     auskunftBezahlt: a.auskunft_bezahlt === true,
+    auskunftVorhanden: a.auskunft_bezahlt === true || a.auskunft_eigene === true,
     nurAuskunft,
     ablauf: {
       antrag: true,
       zahlung: bezahlt,
       startgespraech: erledigt,
-      auskunft: a.auskunft_bezahlt === true,
+      auskunft: a.auskunft_bezahlt === true || a.auskunft_eigene === true,
       vollAktiv: stufe === "voll_aktiv",
       aboLaeuft: a.abo_laeuft === true,
     },

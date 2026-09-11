@@ -147,6 +147,58 @@ function zeilenAus(items: any[]): string[] {
   ].filter(Boolean);
 }
 
+/**
+ * Die ZEILEN jeder Seite — aus den Koordinaten der Textstücke rekonstruiert.
+ *
+ * ── WARUM ES DIESE FUNKTION BRAUCHT (11.09.2026, E-178) ───────────────────
+ * `pdfTextJeSeite` klebt alle Textstücke einer Seite mit Leerzeichen zu EINER
+ * Zeile zusammen. Für „kommt das Wort vor" reicht das. Für einen Kontoauszug
+ * nicht: Dort ist eine Buchung eine ZEILE — Datum, Empfänger, Betrag, Saldo —
+ * und wenn die Zeile weg ist, muss ein Modell raten, welcher Betrag zu welchem
+ * Datum gehört. Gemessen an drei echten Auszügen (Sparkasse-Format mit
+ * nachgestelltem Minus, ein Format mit Datum ohne Jahr, ING-Übersicht): Aus
+ * dem verklebten Text sind die Buchungen nicht mehr sicher zu trennen.
+ *
+ * pdfjs liefert zu jedem Stück die Position (transform[4] = x, [5] = y).
+ * Stücke mit gleichem y (± 2,5 pt) sind eine Zeile; innerhalb der Zeile nach x
+ * sortiert. Ein größerer Abstand zwischen zwei Stücken (> 6 pt) ist eine
+ * Spaltengrenze und wird als „ | " geschrieben — das Modell sieht dann Spalten,
+ * nicht Wortsalat.
+ */
+export async function pdfZeilenJeSeite(buf: Buffer): Promise<string[][]> {
+  const doc = await dokument(buf);
+  const seiten: string[][] = [];
+  for (let i = 1; i <= doc.numPages; i++) {
+    const seite = await doc.getPage(i);
+    const inhalt = await seite.getTextContent();
+    const stuecke = (inhalt.items as any[])
+      .filter((s) => typeof s?.str === "string" && s.str.trim() && Array.isArray(s.transform))
+      .map((s) => ({ x: Number(s.transform[4]), y: Number(s.transform[5]), w: Number(s.width || 0), s: String(s.str) }));
+    const zeilen: { y: number; teile: { x: number; w: number; s: string }[] }[] = [];
+    for (const t of stuecke) {
+      let z = zeilen.find((r) => Math.abs(r.y - t.y) <= 2.5);
+      if (!z) { z = { y: t.y, teile: [] }; zeilen.push(z); }
+      z.teile.push(t);
+    }
+    zeilen.sort((a, b) => b.y - a.y);
+    seiten.push(zeilen.map((z) => {
+      const teile = z.teile.sort((a, b) => a.x - b.x);
+      let aus = "";
+      let ende = -Infinity;
+      for (const t of teile) {
+        const luecke = t.x - ende;
+        if (aus) aus += luecke > 6 ? " | " : " ";
+        aus += t.s.trim();
+        ende = t.x + t.w;
+      }
+      return aus.replace(/\s+/g, " ").trim();
+    }).filter(Boolean));
+    seite.cleanup?.();
+  }
+  await doc.destroy?.();
+  return seiten;
+}
+
 /** Der Text des ganzen Dokuments. */
 export async function pdfText(buf: Buffer): Promise<string> {
   return (await pdfTextJeSeite(buf)).join("\n\n");

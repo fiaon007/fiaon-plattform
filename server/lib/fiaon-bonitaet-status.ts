@@ -66,6 +66,8 @@ export interface BonitaetStand {
   zahlungOffen: boolean;
   hatDokument: boolean;
   dokumentGeprueft: boolean;
+  /** E-178: Die Auswertung (fiaon-schufa-analyse) liegt vor. */
+  ausgewertet: boolean;
   /** Die Bestell-Referenz der Auskunft, wenn es eine gibt. */
   bestellRef: string | null;
   /**
@@ -124,6 +126,9 @@ export function bonitaetAbleiten(z: Zeilen): BonitaetStand {
   const roh = {
     bezahlt, zahlungOffen, hatDokument,
     dokumentGeprueft: status === "approved",
+    // E-178: Die automatische Auswertung ist da — fuer Fahrplan, Rahmenweg und
+    // Karten-Tor zaehlt sie wie eine Pruefung von Hand.
+    ausgewertet: hatDokument && !!z.analyse_ampel,
     bestellRef: z.kauf_ref ?? null,
   };
 

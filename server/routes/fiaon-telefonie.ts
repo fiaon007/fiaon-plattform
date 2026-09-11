@@ -1565,6 +1565,41 @@ async function schufaPapier(
 router.get("/agent/schufa/:ref/bericht.pdf", requireAgent, (req: AgentRequest, res: Response) => void schufaPapier(req, res, "bericht"));
 router.get("/agent/schufa/:ref/loeschantrag.pdf", requireAgent, (req: AgentRequest, res: Response) => void schufaPapier(req, res, "loeschantrag"));
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE FINANZAUSWERTUNG FÜR DEN BETREUER (11.09.2026, E-178)
+//
+// Justin: „Wenn wir einen Kontoauszug haben, dann muss dieser millimetergenau
+// analysiert werden … der Kunde braucht durch uns wirklich einen Nutzen."
+// Der Betreuer sieht dieselben Zahlen wie der Kunde — Zeitraum, Einnahmen,
+// Ausgaben, feste Zahlungen, Warnungen und die Cent-Prüfung — und kann die
+// Auswertung neu anstoßen, wenn ein neuer Auszug hochgeladen wurde.
+// Zugang wie bei der Bonität: eigener Kunde oder Leitung (schufaZugang).
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/agent/finanzen/:ref", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const ref = String(req.params.ref);
+    if (!(await schufaZugang(req, ref))) return res.status(403).json({ ok: false, error: "Dieser Kunde gehört nicht zu deiner Liste." });
+    const { analyseFuer } = await import("../lib/fiaon-kontoauszug-analyse");
+    res.json({ ok: true, analyse: await analyseFuer(ref) });
+  } catch (err) {
+    console.error("[AGENT] finanzen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+router.post("/agent/finanzen/:ref/analysieren", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const ref = String(req.params.ref);
+    if (!(await schufaZugang(req, ref))) return res.status(403).json({ ok: false, error: "Dieser Kunde gehört nicht zu deiner Liste." });
+    const { kontoauszugAnalysieren } = await import("../lib/fiaon-kontoauszug-analyse");
+    const a = await kontoauszugAnalysieren(ref, { erzwingen: true });
+    if (!a) return res.status(404).json({ ok: false, error: "Zu dieser Bestellung liegt kein Kontoauszug." });
+    res.json({ ok: true, analyse: a });
+  } catch (err) {
+    console.error("[AGENT] finanzen analysieren:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 /**
  * POST /agent/dokumente/:personId/:art/loeschen — falsches Dokument entfernen.
  *

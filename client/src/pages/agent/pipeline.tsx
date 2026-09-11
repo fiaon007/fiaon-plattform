@@ -2948,6 +2948,10 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
                 {(doku.dokumente || []).some((d: any) => d.art === "schufa" && d.vorhanden) && doku.ref && (
                   <BonitaetsBefund bestellRef={String(doku.ref)} melden={melden} />
                 )}
+                {/* E-178: Was im Kontoauszug STEHT — gerechnet, gegen den Saldo geprüft. */}
+                {(doku.dokumente || []).some((d: any) => d.art === "kontoauszug" && d.vorhanden) && doku.ref && (
+                  <FinanzBefund bestellRef={String(doku.ref)} melden={melden} />
+                )}
                 {/* P13 (28.08.2026): Die Bank-Anleitungen zum VORLESEN am
                     Telefon — dieselbe Quelle wie im Kundenportal. */}
                 <details>
@@ -3158,6 +3162,98 @@ function BonitaetsBefund({ bestellRef, melden }: {
             Der Kunde sieht dieselbe Auswertung in seinem Bereich und kann das Schreiben an die Auskunftei dort selbst
             beauftragen. Tut er das, bekommst du eine Aufgabe mit dem fertigen Brief.
           </p>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE FINANZAUSWERTUNG — FÜR DEN BETREUER (11.09.2026, E-178)
+//
+// Justin: „Wenn wir einen Kontoauszug haben, dann muss dieser millimetergenau
+// analysiert werden … der Kunde braucht durch uns wirklich einen Nutzen."
+// Der Betreuer sieht hier dieselben gerechneten Zahlen wie der Kunde unter
+// „Ihre Finanzen": Zeitraum, Einnahmen, Ausgaben, Einkommen, feste Zahlungen,
+// Warnungen — und die Cent-Prüfung. Wer den Kunden anruft, weiß, wovon er
+// lebt und was jeden Monat abgeht.
+// ═══════════════════════════════════════════════════════════════════════════
+function FinanzBefund({ bestellRef, melden }: {
+  bestellRef: string;
+  melden: (art: "gut" | "schlecht" | "info", titel: string, text?: string) => void;
+}) {
+  const [a, setA] = useState<any | null>(null);
+  const [geladen, setGeladen] = useState(false);
+  const [laeuft, setLaeuft] = useState(false);
+  const laden = useCallback(async () => {
+    const r = await api(`/agent/finanzen/${encodeURIComponent(bestellRef)}`);
+    setA(r.ok ? (r.json?.analyse ?? null) : null);
+    setGeladen(true);
+  }, [bestellRef]);
+  useEffect(() => { void laden(); }, [laden]);
+  const neuAuswerten = async () => {
+    setLaeuft(true);
+    const r = await api(`/agent/finanzen/${encodeURIComponent(bestellRef)}/analysieren`, { method: "POST" });
+    setLaeuft(false);
+    if (r.ok) { setA(r.json?.analyse ?? null); melden("gut", "Kontoauszug ausgewertet", "Zahlen und Kalender des Kunden sind auf dem neuesten Stand."); }
+    else melden("schlecht", "Nicht ausgewertet", r.json?.error || "Bitte später erneut versuchen.");
+  };
+  if (!geladen) return null;
+  const fix: any[] = Array.isArray(a?.fixkosten) ? a.fixkosten : [];
+  const warn: any[] = Array.isArray(a?.warnungen) ? a.warnungen : [];
+  const pruef = a?.pruefung ?? null;
+  const dt = (iso: string | null) => (iso ? iso.split("-").reverse().join(".") : "—");
+  const rest = (a?.einnahmenCents ?? 0) - (a?.ausgabenCents ?? 0);
+  return (
+    <div style={{ marginTop: 14, border: "1px solid rgba(148,163,184,.22)", borderRadius: 12, padding: "12px 14px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <b style={{ fontSize: 13 }}>Auswertung des Kontoauszugs</b>
+        <button type="button" className="pi-knopf still klein" disabled={laeuft} onClick={() => void neuAuswerten()}>
+          {laeuft ? "Wertet aus …" : a?.status === "fertig" && Array.isArray(a.buchungen) && a.buchungen.length ? "Neu auswerten" : "Jetzt auswerten"}
+        </button>
+      </div>
+      {!a && <p className="pi-sek-satz leise" style={{ marginTop: 6 }}>Noch nicht ausgewertet. Mit dem Knopf liest die Analyse jede Buchung und prüft sie gegen den Kontostand — ein bis zwei Minuten.</p>}
+      {a?.status === "laeuft" && <p className="pi-sek-satz leise" style={{ marginTop: 6 }}>Die Auswertung läuft gerade. Lade die Akte in ein bis zwei Minuten neu.</p>}
+      {a?.status === "unlesbar" && <p className="pi-sek-satz" style={{ marginTop: 6, color: "#fbbf24" }}>Nicht auswertbar — der Kunde sieht: „{a.fehler}“</p>}
+      {a?.status === "fehler" && <p className="pi-sek-satz" style={{ marginTop: 6, color: "#f87171" }}>Die Auswertung ist gescheitert: {a.fehler}</p>}
+      {a?.status === "fertig" && (
+        <>
+          <div style={{ fontSize: 11.5, opacity: .7, marginTop: 4 }}>
+            {[a.bank, a.zeitraumVon && a.zeitraumBis ? `${dt(a.zeitraumVon)} – ${dt(a.zeitraumBis)}` : null, Array.isArray(a.buchungen) ? `${a.buchungen.length} Buchungen` : null, a.seiten ? `${a.seiten} Seiten` : null].filter(Boolean).join(" · ")}
+          </div>
+          {pruef && (
+            <div style={{ marginTop: 6, fontSize: 12, color: pruef.stimmt === true ? "#34d399" : pruef.stimmt === false ? "#fbbf24" : "inherit" }}>
+              {pruef.stimmt === true ? "✓ Stimmt auf den Cent: Anfangssaldo + Buchungen = Endsaldo." : pruef.stimmt === false ? `Differenz ${euro0(Math.abs(pruef.differenzCents || 0))} zwischen Saldo und Buchungen — ${pruef.durchlaeufe} Durchläufe.` : "Kein Anfangs-/Endsaldo im Auszug — Summe nicht gegengerechnet."}
+            </div>
+          )}
+          <div style={{ marginTop: 8, display: "flex", gap: 14, flexWrap: "wrap", fontSize: 12 }}>
+            <span>Einnahmen <b style={{ color: "#34d399" }}>{euro0(a.einnahmenCents || 0)}</b></span>
+            <span>Ausgaben <b>{euro0(a.ausgabenCents || 0)}</b></span>
+            <span>Bleibt <b style={{ color: rest >= 0 ? "#34d399" : "#f87171" }}>{euro0(rest)}</b></span>
+            {a.gehaltCents != null && <span>Einkommen/Monat <b>{euro0(a.gehaltCents)}</b></span>}
+            {fix.length > 0 && <span>Fest/Monat <b>{euro0(fix.reduce((s: number, f: any) => s + Number(f.betragCents || 0), 0))}</b></span>}
+          </div>
+          {(a.dispoGenutzt || a.ruecklastschriften > 0) && (
+            <div style={{ marginTop: 6, fontSize: 12, color: "#fbbf24" }}>
+              {a.dispoGenutzt ? `Konto im Minus${a.dispoTiefstCents != null ? ` (tiefster Stand ${euro0(a.dispoTiefstCents)})` : ""}` : ""}{a.dispoGenutzt && a.ruecklastschriften > 0 ? " · " : ""}{a.ruecklastschriften > 0 ? `${a.ruecklastschriften} Rücklastschrift${a.ruecklastschriften === 1 ? "" : "en"}` : ""}
+            </div>
+          )}
+          {warn.length > 0 && (
+            <div style={{ marginTop: 8, display: "grid", gap: 3 }}>
+              {warn.map((w: any, i: number) => <div key={i} style={{ fontSize: 12, color: ["inkasso", "ruecklastschrift", "gluecksspiel", "pfaendung"].includes(w.art) ? "#f87171" : "#fbbf24" }}>⚠ {w.text}</div>)}
+            </div>
+          )}
+          {fix.length > 0 && (
+            <details style={{ marginTop: 8 }}>
+              <summary className="pi-sek-satz" style={{ cursor: "pointer", fontWeight: 600 }}>{fix.length} feste Zahlungen ansehen</summary>
+              <div style={{ display: "grid", gap: 4, marginTop: 6 }}>
+                {fix.map((f: any, i: number) => (
+                  <div key={i} style={{ fontSize: 12, opacity: .9 }}><b>{f.name}</b> · {euro0(f.betragCents)} · {f.rhythmus}{f.tagImMonat ? ` · am ${f.tagImMonat}.` : ""}{f.naechsteAm ? ` · nächste ${dt(f.naechsteAm)}` : ""} <span style={{ opacity: .6 }}>({f.kategorie})</span></div>
+                ))}
+              </div>
+            </details>
+          )}
+          <p className="pi-sek-satz leise" style={{ marginTop: 8 }}>Der Kunde sieht dieselben Zahlen unter „Ihre Finanzen“ — und jede Buchung an ihrem Tag im Kalender, dazu die erwarteten festen Zahlungen der nächsten Monate.</p>
         </>
       )}
     </div>

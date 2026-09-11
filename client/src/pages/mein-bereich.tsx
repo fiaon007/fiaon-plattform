@@ -14,6 +14,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BANK_ANLEITUNGEN, AUSZUG_GRUNDSATZ, bankAnleitungFuer } from "@shared/fiaon-bank-anleitungen";
+import { kategorieLabel, istFest } from "@shared/fiaon-kontoauszug-kategorien";
 import { LayoutDashboard, ShieldCheck, Link2, Wallet, Map, FileText, FolderOpen, Gift, UserRound, CreditCard, Lock, LifeBuoy, LogOut, ChevronLeft, ChevronRight, X } from "lucide-react";
 import "@/styles/mein-bereich.css";
 import { Einrichtung, einrichtungsPhase } from "@/components/kunde/Einrichtung";
@@ -562,9 +563,9 @@ export default function MeinBereichPage() {
             <section id="finanzen">
               <div className="mb-abschnitt-kopf"><div><h2>Ihre Finanzen</h2><p>Wohin Ihr Geld geht — nicht geschätzt, gezählt.</p></div></div>
               <FinanzAnalyse a={d.finanzen ?? null} hatAuszug={d.unterlagen.kontoauszug} />
-              <Zahlungskalender raten={d.abo.raten} paket={d.paket.name} />
+              <Finanzkalender finanzen={d.finanzen ?? null} raten={d.abo.raten} paket={d.paket.name} />
                   <p style={{ margin: "14px 0 0", fontSize: 12, color: "var(--text-still)" }}>Sie möchten nicht weitermachen? <a href="/abo-kuendigen" style={{ color: "var(--text-leise)", textDecoration: "underline", textUnderlineOffset: 3 }}>Abo kündigen</a> – wir sagen Ihnen vorher ehrlich, was Sie verlieren.</p>
-              {!d.finanzen && <div className="mb-hinweis" style={{ marginTop: 16 }}><b>Sobald Ihr Kontoauszug vorliegt</b> (oder Ihr Konto verbunden ist), erscheinen hier Miete, Strom, Versicherungen, Abos und alle anderen festen Zahlungen — mit Betrag und Rhythmus. Dazu Ihr Ausgabenprofil nach Bereichen und Merksätze, die benennen, wo Spielraum ist.</div>}
+              {!d.finanzen && <div className="mb-hinweis" style={{ marginTop: 16 }}><b>Sobald Ihr Kontoauszug vorliegt</b> (oder Ihr Konto verbunden ist), steht hier jede Buchung an ihrem Tag im Kalender: Miete, Strom, Versicherungen, Abos und alle anderen festen Zahlungen — mit Betrag, Rhythmus und dem Tag, an dem sie abgehen. Dazu Ihr Ausgabenprofil nach Bereichen und Merksätze, die benennen, wo Spielraum ist.</div>}
             </section>
 
             {/* ═══ VORTEILE ═══ */}
@@ -711,21 +712,88 @@ function Passwort({ refKunde }: { refKunde: string }) {
   );
 }
 
-// ── Zahlungskalender: heute die FIAON-Raten, später alle festen Zahlungen ───
-function Zahlungskalender({ raten, paket }: { raten: Bereich["abo"]["raten"]; paket: string }) {
-  const [monat, setMonat] = useState(() => { const h = new Date(); return new Date(h.getFullYear(), h.getMonth(), 1); });
-  const heute = new Date(); const heuteKey = heute.toISOString().slice(0, 10);
-  const eintraege = raten.filter((r) => r.faelligIso).map((r) => ({
-    datum: r.faelligIso as string, titel: `${/^fiaon/i.test(paket) ? paket : `FIAON ${paket}`} · Rate ${r.nr}`,
-    zweck: `Verwendungszweck: ${(r as any).referenz || "siehe Rechnung"}`, betragCents: r.betragCents,
-    art: r.status === "bezahlt" ? "bezahlt" : "offen", bezahltAm: r.bezahltAm,
-  }));
-  const imMonat = eintraege.filter((e) => e.datum.startsWith(monat.toISOString().slice(0, 7)));
-  const summe = (art: string) => imMonat.filter((e) => e.art === art).reduce((a, e) => a + e.betragCents, 0);
-  const ersterWt = (monat.getDay() + 6) % 7; const tage = new Date(monat.getFullYear(), monat.getMonth() + 1, 0).getDate();
-  const zellen = [...Array(ersterWt).fill(null), ...Array.from({ length: tage }, (_, i) => i + 1)];
+// ═══════════════════════════════════════════════════════════════════════════
+// DER FINANZKALENDER — jede Buchung an ihrem Tag (11.09.2026, E-178)
+//
+// Justin: „Wenn wir einen Kontoauszug haben, dann muss dieser millimetergenau
+// analysiert werden, ALLE Ausgaben müssen im Kalender mit KORREKTEM Datum
+// hinterlegt sein, der Kunde braucht durch uns wirklich einen Nutzen."
+//
+// Bis heute zeigte der Kalender nur die FIAON-Raten. Jetzt liegt darin, was
+// der Kontoauszug sagt: jede Einnahme und jede Ausgabe an ihrem Tag, die
+// festen Zahlungen als solche markiert — und für die Monate NACH dem Auszug
+// die erwarteten festen Zahlungen (gestrichelt), damit der Kunde sieht, was
+// auf ihn zukommt, bevor es abgebucht wird.
+//
+// Was hier steht, ist gerechnet, nicht geschätzt: Die Zahlen kommen aus den
+// Buchungen, die die Analyse gegen Anfangs- und Endsaldo geprüft hat
+// (server/lib/fiaon-kontoauszug-analyse.ts). Diese Datei malt sie nur.
+// ═══════════════════════════════════════════════════════════════════════════
+type KalArt = "ein" | "aus" | "rate" | "erwartet";
+interface KalEintrag { datum: string; titel: string; zweck: string; betragCents: number; art: KalArt; stempel?: string; fix?: boolean; offen?: boolean }
+
+const monatPlusTag = (iso: string, n: number, tag: number): string => {
+  const j = Number(iso.slice(0, 4)), m = Number(iso.slice(5, 7));
+  const g = j * 12 + (m - 1) + n; const jahr = Math.floor(g / 12), monat = (g % 12) + 1;
+  const letzter = new Date(jahr, monat, 0).getDate();
+  return `${jahr}-${String(monat).padStart(2, "0")}-${String(Math.min(tag, letzter)).padStart(2, "0")}`;
+};
+const kurzEuro = (c: number): string => {
+  const e = Math.abs(c) / 100;
+  const t = e >= 1000 ? `${(e / 1000).toFixed(1).replace(".", ",")}k` : String(Math.round(e));
+  return `${c < 0 ? "−" : "+"}${t}`;
+};
+
+function Finanzkalender({ finanzen, raten, paket }: { finanzen: any; raten: Bereich["abo"]["raten"]; paket: string }) {
+  const fertig = finanzen?.status === "fertig";
+  const buchungen: any[] = fertig && Array.isArray(finanzen.buchungen) ? finanzen.buchungen : [];
+  const fix: any[] = fertig && Array.isArray(finanzen.fixkosten) ? finanzen.fixkosten : [];
+  const von: string | null = finanzen?.zeitraumVon ?? null;
+  const bis: string | null = finanzen?.zeitraumBis ?? null;
+  const heuteKey = new Date().toISOString().slice(0, 10);
+  // Der Kalender öffnet im letzten Monat des Auszugs — dort steht am meisten.
+  const [monat, setMonat] = useState(() => { const q = bis && buchungen.length ? bis : heuteKey; return new Date(Number(q.slice(0, 4)), Number(q.slice(5, 7)) - 1, 1); });
+  const [tag, setTag] = useState<string | null>(null);
+  const [filter, setFilter] = useState<"alle" | "aus" | "ein" | "fix">("alle");
+  const monatKey = `${monat.getFullYear()}-${String(monat.getMonth() + 1).padStart(2, "0")}`;
+  const imAuszug = !!von && !!bis && monatKey >= von.slice(0, 7) && monatKey <= bis.slice(0, 7);
+
+  const eintraege = useMemo<KalEintrag[]>(() => {
+    const e: KalEintrag[] = [];
+    for (const b of buchungen) {
+      const fest = istFest(b.kategorie, b.wiederkehrend);
+      e.push({ datum: b.datum, titel: b.empfaenger || kategorieLabel(b.kategorie), zweck: [kategorieLabel(b.kategorie), b.zweck].filter(Boolean).join(" · "),
+               betragCents: Number(b.betragCents || 0), art: Number(b.betragCents || 0) >= 0 ? "ein" : "aus", stempel: fest ? "fest" : undefined, fix: fest });
+    }
+    for (const r of raten) if (r.faelligIso) e.push({
+      datum: r.faelligIso as string, titel: `${/^fiaon/i.test(paket) ? paket : `FIAON ${paket}`} · Rate ${r.nr}`,
+      zweck: r.status === "bezahlt" ? `bezahlt${r.bezahltAm ? ` am ${r.bezahltAm}` : ""}` : `Verwendungszweck: ${(r as any).referenz || "siehe Rechnung"}`,
+      betragCents: -r.betragCents, art: "rate", stempel: r.status === "bezahlt" ? "bezahlt" : "offen", offen: r.status !== "bezahlt",
+    });
+    // Erwartete feste Zahlungen: drei Monate ab der nächsten Fälligkeit, am Tag der letzten Buchung.
+    for (const f of fix) {
+      if (!f?.naechsteAm || !f?.tagImMonat || f.rhythmus !== "monatlich") continue;
+      for (let m = 0; m < 3; m++) e.push({ datum: monatPlusTag(f.naechsteAm, m, Number(f.tagImMonat)), titel: f.name, zweck: `${f.kategorie} · erwartet wie im Auszug`, betragCents: -Number(f.betragCents || 0), art: "erwartet", stempel: "erwartet", fix: true });
+    }
+    return e;
+  }, [buchungen, raten, fix, paket]);
+
+  const imMonat = eintraege.filter((x) => x.datum.startsWith(monatKey));
+  const sum = (pred: (x: KalEintrag) => boolean) => imMonat.filter(pred).reduce((a, x) => a + x.betragCents, 0);
+  const einM = sum((x) => x.art === "ein"), ausM = -sum((x) => x.art === "aus"), festM = -sum((x) => x.art === "aus" && !!x.fix);
+  const erwartetM = -sum((x) => x.art === "erwartet"), ratenOffenM = -sum((x) => x.art === "rate" && !!x.offen);
+  const gefiltert = imMonat.filter((x) => filter === "alle" ? true : filter === "ein" ? x.art === "ein" : filter === "aus" ? x.art !== "ein" : !!x.fix);
+  const zuZeigen = (tag ? gefiltert.filter((x) => x.datum === tag) : gefiltert).sort((a, b) => a.datum.localeCompare(b.datum) || a.betragCents - b.betragCents);
+  const tage = zuZeigen.reduce<Record<string, KalEintrag[]>>((acc, x) => { (acc[x.datum] ||= []).push(x); return acc; }, {});
+
+  const ersterWt = (monat.getDay() + 6) % 7; const tageImMonat = new Date(monat.getFullYear(), monat.getMonth() + 1, 0).getDate();
+  const zellen = [...Array(ersterWt).fill(null), ...Array.from({ length: tageImMonat }, (_, i) => i + 1)];
   const monatsName = monat.toLocaleDateString("de-DE", { month: "long", year: "numeric" });
-  const schieben = (n: number) => setMonat(new Date(monat.getFullYear(), monat.getMonth() + n, 1));
+  const schieben = (n: number) => { setMonat(new Date(monat.getFullYear(), monat.getMonth() + n, 1)); setTag(null); };
+  const dt = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.`;
+  const wt = (iso: string) => new Date(iso).toLocaleDateString("de-DE", { weekday: "short" });
+  const pruef = finanzen?.pruefung ?? null;
+
   return (
     <div className="mb-karte mb-kal">
       <div>
@@ -734,27 +802,77 @@ function Zahlungskalender({ raten, paket }: { raten: Bereich["abo"]["raten"]; pa
           {["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"].map((w) => <div className="mb-kal-wt" key={w}>{w}</div>)}
           {zellen.map((t, i) => {
             if (!t) return <div className="mb-kal-tag leer" key={`l${i}`} />;
-            const key = `${monat.getFullYear()}-${String(monat.getMonth() + 1).padStart(2, "0")}-${String(t).padStart(2, "0")}`;
-            const am = eintraege.filter((e) => e.datum === key);
-            return <div className={`mb-kal-tag${key === heuteKey ? " heute" : ""}${am.length ? " mit" : ""}`} key={key}>{t}{am.length > 0 && <span style={{ display: "flex", gap: 3 }}>{am.slice(0, 3).map((e, j) => <span key={j} className={`p ${e.art}`} />)}</span>}</div>;
+            const key = `${monatKey}-${String(t).padStart(2, "0")}`;
+            const am = imMonat.filter((e) => e.datum === key);
+            const aus = am.filter((e) => e.art !== "ein").reduce((a, e) => a + e.betragCents, 0);
+            const ein = am.filter((e) => e.art === "ein").reduce((a, e) => a + e.betragCents, 0);
+            const arten = Array.from(new Set(am.map((e) => e.art === "rate" ? "rate" : e.art))).slice(0, 3);
+            return (
+              <div className={`mb-kal-tag${key === heuteKey ? " heute" : ""}${am.length ? " mit" : ""}${tag === key ? " gewaehlt" : ""}`} key={key}
+                   role="button" tabIndex={0} onClick={() => setTag(tag === key ? null : key)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setTag(tag === key ? null : key); } }}
+                   aria-label={`${t}. ${monatsName}${am.length ? `, ${am.length} Buchungen` : ""}`}>
+                {t}
+                {arten.length > 0 && <span style={{ display: "flex", gap: 3 }}>{arten.map((a) => <span key={a} className={`p ${a}`} />)}</span>}
+                {(aus || ein) ? <span className={`s ${aus ? "minus" : "plus"}`}>{kurzEuro(aus || ein)}</span> : null}
+              </div>
+            );
           })}
         </div>
+        <div className="mb-kal-legende">
+          <span><i className="ein" />Einnahme</span><span><i className="aus" />Ausgabe</span><span><i className="rate" />FIAON-Rate</span><span><i className="erwartet" />erwartet</span>
+        </div>
+        {von && bis && (
+          <p style={{ margin: "12px 0 0", fontSize: 12, color: "var(--text-still)", lineHeight: 1.5 }}>
+            Aus Ihrem Kontoauszug vom {von.split("-").reverse().join(".")} bis {bis.split("-").reverse().join(".")} — {buchungen.length} Buchungen, jede an ihrem Tag.
+            Gestrichelt: feste Zahlungen, die nach dem Auszug erwartet werden — am Tag, an dem sie zuletzt abgingen.
+          </p>
+        )}
       </div>
       <div>
-        <div className="mb-kal-summe">
-          <div className="mb-kz"><small>Im Monat</small><b className="zahl">{eurCents(summe("offen") + summe("bezahlt"))}</b></div>
-          <div className="mb-kz"><small>Offen</small><b className="zahl" style={{ color: summe("offen") ? "var(--frist)" : undefined }}>{eurCents(summe("offen"))}</b></div>
-          <div className="mb-kz"><small>Bezahlt</small><b className="zahl" style={{ color: "var(--gut)" }}>{eurCents(summe("bezahlt"))}</b></div>
+        {imAuszug ? (
+          <div className="mb-kal-summe vier">
+            <div className="mb-kz"><small>Einnahmen</small><b className="zahl" style={{ color: "var(--gut)" }}>{eurCents(einM)}</b></div>
+            <div className="mb-kz"><small>Ausgaben</small><b className="zahl">{eurCents(ausM)}</b></div>
+            <div className="mb-kz"><small>davon fest</small><b className="zahl">{eurCents(festM)}</b></div>
+            <div className="mb-kz"><small>Bleibt</small><b className="zahl" style={{ color: einM - ausM >= 0 ? "var(--gut)" : "var(--kritisch)" }}>{eurCents(einM - ausM)}</b></div>
+          </div>
+        ) : (
+          <div className="mb-kal-summe">
+            <div className="mb-kz"><small>Feste Zahlungen erwartet</small><b className="zahl">{eurCents(erwartetM)}</b></div>
+            <div className="mb-kz"><small>FIAON-Rate offen</small><b className="zahl" style={{ color: ratenOffenM ? "var(--frist)" : undefined }}>{eurCents(ratenOffenM)}</b></div>
+            <div className="mb-kz"><small>Zusammen</small><b className="zahl">{eurCents(erwartetM + ratenOffenM)}</b></div>
+          </div>
+        )}
+        {pruef && imAuszug && (
+          <div style={{ marginBottom: 12 }}>
+            <span className={`mb-pruef ${pruef.stimmt === true ? "gut" : pruef.stimmt === false ? "frist" : ""}`}>
+              {pruef.stimmt === true ? "✓ Stimmt auf den Cent" : pruef.stimmt === false ? `Differenz ${eurCents(Math.abs(pruef.differenzCents || 0))}` : "Ohne Saldo-Prüfung"}
+            </span>
+          </div>
+        )}
+        <div className="mb-kal-filter">
+          {([["alle", "Alles"], ["aus", "Ausgaben"], ["ein", "Einnahmen"], ["fix", "Feste Zahlungen"]] as const).map(([k, l]) => (
+            <button type="button" key={k} className={filter === k ? "aktiv" : ""} onClick={() => setFilter(k)}>{l}</button>
+          ))}
+          {tag && <button type="button" onClick={() => setTag(null)}>Alle Tage</button>}
         </div>
         <div className="mb-kal-liste">
-          {imMonat.length === 0 && <div className="mb-warte">In diesem Monat sind keine Zahlungen eingetragen.</div>}
-          {imMonat.sort((a, b) => a.datum.localeCompare(b.datum)).map((e, i) => (
-            <div className={`mb-kal-eintrag ${e.art}`} key={i}>
-              <div className="d">{e.datum.slice(8, 10)}.{e.datum.slice(5, 7)}.<small>{new Date(e.datum).toLocaleDateString("de-DE", { weekday: "short" })}</small></div>
-              <div className="t">{e.titel}<small>{e.zweck}{e.bezahltAm ? ` · bezahlt am ${e.bezahltAm}` : ""}</small></div>
-              <div className="b">{eurCents(e.betragCents)}<small>{e.art === "bezahlt" ? "bezahlt" : "offen"}</small></div>
-            </div>
-          ))}
+          {zuZeigen.length === 0 && <div className="mb-warte">{tag ? `Am ${dt(tag)} ist nichts eingetragen.` : imMonat.length ? "Nichts in dieser Auswahl." : buchungen.length ? "In diesem Monat sind keine Buchungen und keine erwarteten Zahlungen eingetragen." : "Sobald Ihr Kontoauszug ausgewertet ist, steht hier jede Buchung an ihrem Tag."}</div>}
+          {Object.entries(tage).map(([d, liste]) => {
+            const tagesAus = liste.filter((e) => e.art !== "ein").reduce((a, e) => a + e.betragCents, 0);
+            return (
+              <div key={d}>
+                <div className="mb-kal-tagkopf"><span>{wt(d)}, {dt(d)}</span>{tagesAus ? <b>{eurCents(tagesAus)}</b> : null}</div>
+                {liste.map((e, i) => (
+                  <div className={`mb-kal-eintrag ${e.art}`} key={i} style={{ marginBottom: 6 }}>
+                    <div className="d">{dt(e.datum)}<small>{wt(e.datum)}</small></div>
+                    <div className="t">{e.titel}{e.stempel ? <em>{e.stempel}</em> : null}<small>{e.zweck}</small></div>
+                    <div className="b">{e.betragCents > 0 ? "+" : ""}{eurCents(e.betragCents)}<small>{e.art === "ein" ? "Eingang" : e.art === "rate" ? (e.offen ? "offen" : "bezahlt") : e.art === "erwartet" ? "erwartet" : "Ausgabe"}</small></div>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
@@ -767,24 +885,46 @@ function FinanzAnalyse({ a, hatAuszug }: { a: any; hatAuszug: boolean }) {
     if (!hatAuszug) return null;
     return <div className="mb-karte" style={{ marginBottom: 16 }}><h4 style={{ fontSize: 15 }}>Ihre Auswertung wird vorbereitet</h4><p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-leise)" }}>Ihr Kontoauszug liegt vor. Die Auswertung erscheint hier, sobald sie fertig ist — laden Sie die Seite in ein paar Minuten neu.</p></div>;
   }
-  if (a.status === "laeuft") return <div className="mb-karte" style={{ marginBottom: 16 }}><h4 style={{ fontSize: 15 }}>Ihr Kontoauszug wird gerade ausgewertet</h4><p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-leise)" }}>Das dauert in der Regel unter einer Minute. Laden Sie die Seite gleich neu.</p></div>;
+  if (a.status === "laeuft") return <div className="mb-karte" style={{ marginBottom: 16 }}><h4 style={{ fontSize: 15 }}>Ihr Kontoauszug wird gerade ausgewertet</h4><p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-leise)" }}>Jede Buchung wird gelesen und gegen den Kontostand geprüft. Das dauert in der Regel ein bis zwei Minuten — laden Sie die Seite gleich neu.</p></div>;
   if (a.status === "unlesbar") return <div className="mb-karte" style={{ marginBottom: 16 }}><h4 style={{ fontSize: 15 }}>Ihr Kontoauszug ließ sich nicht auswerten</h4><p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-leise)" }}>{a.fehler}</p><a className="mb-knopf still" href="#unterlagen" style={{ marginTop: 10, display: "inline-block" }}>Neue Datei hochladen</a></div>;
   if (a.status === "fehler") return <div className="mb-karte" style={{ marginBottom: 16 }}><h4 style={{ fontSize: 15 }}>Die Auswertung ist nicht gelungen</h4><p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-leise)" }}>Wir prüfen das und melden uns. Ihr Kontoauszug ist sicher gespeichert.</p></div>;
   const zeitraum = a.zeitraumVon && a.zeitraumBis ? `${a.zeitraumVon.split("-").reverse().join(".")} – ${a.zeitraumBis.split("-").reverse().join(".")}` : "Zeitraum des Auszugs";
   const rest = (a.einnahmenCents ?? 0) - (a.ausgabenCents ?? 0);
-  const ton = (art: string) => (art === "inkasso" || art === "pfaendung" || art === "ruecklastschrift") ? "var(--kritisch)" : art === "dispo" || art === "mahnung" || art === "kredit" ? "var(--frist)" : "var(--text-leise)";
+  const monate: any[] = Array.isArray(a.monate) ? a.monate : [];
+  const pruef = a.pruefung ?? null;
+  const ton = (art: string) => (art === "inkasso" || art === "pfaendung" || art === "ruecklastschrift" || art === "gluecksspiel") ? "var(--kritisch)" : art === "dispo" || art === "mahnung" || art === "kredit" ? "var(--frist)" : "var(--text-leise)";
+  const mon = (m: string) => new Date(Number(m.slice(0, 4)), Number(m.slice(5, 7)) - 1, 1).toLocaleDateString("de-DE", { month: "long", year: "numeric" });
   return (
     <div style={{ display: "grid", gap: 14, marginBottom: 16 }}>
       <div className="mb-karte">
-        <p style={{ margin: 0, fontSize: 11, fontWeight: 700, letterSpacing: ".14em", textTransform: "uppercase", color: "var(--text-still)" }}>Aus Ihrem Kontoauszug · {zeitraum}</p>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <p style={{ margin: 0, fontSize: 11, fontWeight: 700, letterSpacing: ".14em", textTransform: "uppercase", color: "var(--text-still)" }}>{a.bank ? `${a.bank} · ` : "Aus Ihrem Kontoauszug · "}{zeitraum}</p>
+          {pruef && (
+            <span className={`mb-pruef ${pruef.stimmt === true ? "gut" : pruef.stimmt === false ? "frist" : ""}`} title={pruef.hinweis || ""}>
+              {pruef.stimmt === true ? `✓ ${pruef.erfasst} Buchungen, stimmt auf den Cent` : pruef.stimmt === false ? `${pruef.erfasst} Buchungen · Differenz ${eurCents(Math.abs(pruef.differenzCents || 0))}` : `${pruef.erfasst} Buchungen gelesen`}
+            </span>
+          )}
+        </div>
         <div className="mb-raster" style={{ marginTop: 12 }}>
-          {[["Einnahmen", a.einnahmenCents, "var(--gut)"], ["Ausgaben", a.ausgabenCents, "var(--text)"], ["Bleibt übrig", rest, rest >= 0 ? "var(--gut)" : "var(--kritisch)"], ["Gehalt / Rente", a.gehaltCents, "var(--text)"]].map(([t, v, c]) => (
+          {[["Einnahmen", a.einnahmenCents, "var(--gut)"], ["Ausgaben", a.ausgabenCents, "var(--text)"], ["Bleibt übrig", rest, rest >= 0 ? "var(--gut)" : "var(--kritisch)"], ["Einkommen im Monat", a.gehaltCents, "var(--text)"]].map(([t, v, c]) => (
             <article className="mb-kachel" key={String(t)}><p style={{ margin: 0, fontSize: 11.5, color: "var(--text-still)" }}>{t as string}</p><p className="zahl" style={{ margin: "4px 0 0", fontSize: 22, fontWeight: 700, color: c as string }}>{v == null ? "—" : eurCents(v as number)}</p></article>
           ))}
         </div>
+        {monate.length > 1 && (
+          <div style={{ marginTop: 14, overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+              <thead><tr style={{ color: "var(--text-still)", fontSize: 10.5, textTransform: "uppercase", letterSpacing: ".08em" }}><th style={{ textAlign: "left", padding: "4px 0" }}>Monat</th><th style={{ textAlign: "right" }}>Einnahmen</th><th style={{ textAlign: "right" }}>Ausgaben</th><th style={{ textAlign: "right" }}>davon fest</th><th style={{ textAlign: "right" }}>Bleibt</th></tr></thead>
+              <tbody>{monate.map((m) => (
+                <tr key={m.monat} style={{ borderTop: "1px solid var(--linie)" }}>
+                  <td style={{ padding: "7px 0" }}>{mon(m.monat)}</td><td className="zahl" style={{ textAlign: "right", color: "var(--gut)" }}>{eurCents(m.einnahmenCents)}</td><td className="zahl" style={{ textAlign: "right" }}>{eurCents(m.ausgabenCents)}</td><td className="zahl" style={{ textAlign: "right", color: "var(--text-leise)" }}>{eurCents(m.fixCents)}</td><td className="zahl" style={{ textAlign: "right", fontWeight: 700, color: m.freiCents >= 0 ? "var(--gut)" : "var(--kritisch)" }}>{eurCents(m.freiCents)}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        )}
         {(a.dispoGenutzt || a.ruecklastschriften > 0) && (
           <p style={{ margin: "12px 0 0", fontSize: 13, color: "var(--frist)", fontWeight: 600 }}>
-            {a.dispoGenutzt ? `Dispo genutzt${a.dispoTiefstCents != null ? ` (tiefster Stand ${eurCents(a.dispoTiefstCents)})` : ""}` : ""}
+            {a.dispoGenutzt ? `Konto im Minus${a.dispoTiefstCents != null ? ` (tiefster Stand ${eurCents(a.dispoTiefstCents)})` : ""}` : ""}
             {a.dispoGenutzt && a.ruecklastschriften > 0 ? " · " : ""}
             {a.ruecklastschriften > 0 ? `${a.ruecklastschriften} Rücklastschrift${a.ruecklastschriften === 1 ? "" : "en"}` : ""}
           </p>
@@ -798,18 +938,22 @@ function FinanzAnalyse({ a, hatAuszug }: { a: any; hatAuszug: boolean }) {
       )}
       {a.fixkosten?.length > 0 && (
         <div className="mb-karte">
-          <h4 style={{ fontSize: 15, marginBottom: 8 }}>Ihre festen Zahlungen</h4>
+          <h4 style={{ fontSize: 15, marginBottom: 4 }}>Ihre festen Zahlungen</h4>
+          <p style={{ margin: "0 0 8px", fontSize: 12.5, color: "var(--text-still)" }}>Zusammen {eurCents(a.fixkosten.reduce((s: number, f: any) => s + Number(f.betragCents || 0), 0))} im Monat. Der Tag ist der, an dem die Zahlung zuletzt abging.</p>
           {a.fixkosten.map((f: any, i: number) => (
-            <div className="mb-zeile" key={i}><span>{f.name}<small style={{ display: "block", color: "var(--text-still)" }}>{f.kategorie} · {f.rhythmus}</small></span><span className="zahl">{eurCents(f.betragCents ?? f.betrag_cents)}</span></div>
+            <div className="mb-fix" key={i}>
+              <span>{f.name}<small>{f.kategorie} · {f.rhythmus}{f.anzahl > 1 ? ` · ${f.anzahl}× im Auszug` : ""}</small></span>
+              <span className="zahl">{eurCents(f.betragCents)}<small>{f.naechsteAm ? `nächste am ${f.naechsteAm.split("-").reverse().join(".")}` : f.tagImMonat ? `am ${f.tagImMonat}.` : ""}</small></span>
+            </div>
           ))}
         </div>
       )}
       {a.kategorien?.length > 0 && (
         <div className="mb-karte">
           <h4 style={{ fontSize: 15, marginBottom: 8 }}>Wohin Ihr Geld geht</h4>
-          {a.kategorien.slice().sort((x: any, y: any) => (y.betragCents ?? y.betrag_cents ?? 0) - (x.betragCents ?? x.betrag_cents ?? 0)).map((k: any, i: number) => (
+          {a.kategorien.slice().sort((x: any, y: any) => (y.betragCents ?? 0) - (x.betragCents ?? 0)).map((k: any, i: number) => (
             <div key={i} style={{ margin: "8px 0" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}><span>{k.name}</span><span className="zahl">{eurCents(k.betragCents ?? k.betrag_cents)} · {Math.round((k.anteil || 0) * 100)} %</span></div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}><span>{k.name}</span><span className="zahl">{eurCents(k.betragCents)} · {Math.round((k.anteil || 0) * 100)} %</span></div>
               <div style={{ height: 6, borderRadius: 6, background: "var(--flaeche-still)", marginTop: 4, overflow: "hidden" }}><div style={{ width: `${Math.min(100, Math.round((k.anteil || 0) * 100))}%`, height: "100%", background: "linear-gradient(90deg,#288DFA,#1D4ED8)" }} /></div>
             </div>
           ))}
@@ -819,7 +963,7 @@ function FinanzAnalyse({ a, hatAuszug }: { a: any; hatAuszug: boolean }) {
         <div className="mb-karte">
           <h4 style={{ fontSize: 15, marginBottom: 8 }}>Was für Ihre Bonität zählt</h4>
           {a.warnungen.map((w: any, i: number) => (
-            <p key={i} style={{ margin: "6px 0 0", fontSize: 13.5, color: ton(w.art) }}>{w.text}{(w.betragCents ?? w.betrag_cents) != null ? ` (${eurCents(w.betragCents ?? w.betrag_cents)})` : ""}</p>
+            <p key={i} style={{ margin: "6px 0 0", fontSize: 13.5, color: ton(w.art) }}>{w.text}{w.betragCents != null && w.art !== "dispo" && w.art !== "kredit" ? ` (${eurCents(w.betragCents)})` : ""}</p>
           ))}
         </div>
       )}

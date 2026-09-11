@@ -213,7 +213,8 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
     const startErledigt = !!start && start.status === "erledigt";
     const auskunftBezahlt = !!bonitaet?.bezahlt;
     const auskunftDa = !!bonitaet?.hatDokument;
-    const analyseFertig = !!bonitaet?.dokumentGeprueft;
+    // E-178: Die automatische Auswertung gilt — Dirk Ladewig stand mit fertiger Analyse auf „Analyse durch FIAON: kommt“.
+    const analyseFertig = !!bonitaet?.dokumentGeprueft || !!bonitaet?.ausgewertet;
 
     const etappen: Etappe[] = [
       {
@@ -243,7 +244,7 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
       },
       {
         key: "analyse", titel: "Analyse durch FIAON",
-        text: analyseFertig ? "Jeder Eintrag geprüft und in Menschensprache erklärt."
+        text: analyseFertig ? "Jeder Eintrag ausgewertet — mit Frist, Rechtsgrundlage und dem nächsten Schritt unter „Ihre Bonität“."
           : "Wir gehen jeden Eintrag durch, bewerten seine Wirkung und leiten daraus Ihre nächsten Schritte ab.",
         stand: analyseFertig ? "fertig" : "kommt", datum: null, stempel: analyseFertig ? "fertig" : "nach der Auskunft",
       },
@@ -329,7 +330,7 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
       },
       bonitaet: bonitaet ? {
         stufe: bonitaet.stufe, fuerKunden: bonitaet.fuerKunden, naechsterSchritt: bonitaet.naechsterSchritt,
-        bezahlt: bonitaet.bezahlt, hatDokument: bonitaet.hatDokument, geprueft: bonitaet.dokumentGeprueft,
+        bezahlt: bonitaet.bezahlt, hatDokument: bonitaet.hatDokument, geprueft: bonitaet.dokumentGeprueft || bonitaet.ausgewertet, ausgewertet: bonitaet.ausgewertet,
         darfKaufen: bonitaet.darfKaufen, darfHochladen: bonitaet.darfHochladen, bestellRef: bonitaet.bestellRef,
         zahlungsreferenz: schufa?.payment_reference || null, zahlungsstatus: schufa?.payment_status || null,
         preisEuro: schufa?.amount_due != null ? Number(schufa.amount_due) : 74,

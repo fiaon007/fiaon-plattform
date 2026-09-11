@@ -146,6 +146,8 @@ export interface KartenStand {
   zahlen: {
     ratenBezahlt: number; minRaten: number;
     paketBezahlt: boolean; auskunftBezahlt: boolean;
+    /** E-178: gekauft ODER eigene, ausgewertete Auskunft. */
+    auskunftVorhanden: boolean;
     /** Die nächste offene Rate — damit die Oberfläche ein Datum nennen kann. */
     naechsteRateAm: string | null;
   };
@@ -426,6 +428,18 @@ const STAND_SQL = `
       WHERE a.person_id = p.id AND a.merged_into IS NULL
         AND a.payment_status = 'paid' AND a.ref LIKE 'FIAON-SCHUFA-%'
     ) AS schufa_bezahlt,
+    -- ── EINE EIGENE, AUSGEWERTETE AUSKUNFT ZAEHLT WIE EINE GEKAUFTE (11.09.2026, E-178) ──
+    -- Justin: „Bei Dirk Ladewig koennen wir den DKB-Link nicht versenden, weil
+    -- da steht, dass er keine Analyse hat — obwohl er die ja hat, die haben wir
+    -- selbst gemacht! Wenn uns jemand eine hochlaedt, die passt, muss er ueber
+    -- uns keine kaufen." Das Tor verlangte bis heute die BESTELLUNG der
+    -- Auskunft; die Sache dahinter ist, dass wir seine Bonitaet kennen. Das tun
+    -- wir, sobald seine eigene Auskunft ausgewertet ist (fiaon-schufa-analyse).
+    EXISTS (
+      SELECT 1 FROM fiaon_schufa_analysen sa
+      JOIN fiaon_applications a ON a.ref = sa.ref
+      WHERE a.person_id = p.id AND a.merged_into IS NULL AND sa.status = 'fertig'
+    ) AS schufa_eigene,
     -- ── DIE STARTZAHLUNG ZAEHLT AUCH OHNE KETTENEINTRAG (27.08.2026) ──
     -- Team-Punkt 16 (Beispiel Dirk Ladewig): Der Antrag ist bankbestaetigt
     -- bezahlt, aber die rueckwirkend angelegte Kette trug Rate 1 als offen —
@@ -465,14 +479,25 @@ const STAND_SQL = `
   FROM fiaon_persons p
 `;
 
+/**
+ * `fiaon_schufa_analysen` entsteht beim ersten Lauf der Analyse (lazy). STAND_SQL
+ * fragt sie jetzt ab — auf einer frischen Datenbank wuerde die ganze Abfrage
+ * an der fehlenden Tabelle scheitern. Deshalb vor jeder Nutzung sicherstellen.
+ */
+async function schufaTabelleSicher(): Promise<void> {
+  await import("./fiaon-schufa-analyse").then((m) => m.ensureSchufaTabelle()).catch(() => {});
+}
+
 /** Aus einer Zeile die drei Tore mit Begründungen bauen. */
 function toreAus(r: any): Tor[] {
   const raten = Number(r.raten_bezahlt || 0);
-  const geldOk = r.paket_bezahlt && r.schufa_bezahlt && raten >= KARTE_MIN_RATEN;
+  // E-178: gekauft ODER eigene, ausgewertete Auskunft — beides heisst: Wir kennen seine Bonitaet.
+  const auskunftDa = !!(r.schufa_bezahlt || r.schufa_eigene);
+  const geldOk = r.paket_bezahlt && auskunftDa && raten >= KARTE_MIN_RATEN;
 
   const geldFehlt = [
     !r.paket_bezahlt ? "das Paket ist nicht bezahlt" : null,
-    !r.schufa_bezahlt ? "die Bonitätsauskunft ist nicht bezahlt" : null,
+    !auskunftDa ? "die Bonitätsauskunft liegt weder gekauft noch als eigene, ausgewertete Auskunft vor" : null,
     raten < KARTE_MIN_RATEN
       ? `für die Karte sind erst ${raten} von ${KARTE_MIN_RATEN} nötigen Monatsraten gelaufen (das Abo selbst läuft 12 Raten)`
       : null,
@@ -503,11 +528,11 @@ function toreAus(r: any): Tor[] {
       // bezahlt, 2 von 12 Monatsraten gelaufen" — direkt über dem gelben
       // „das Paket ist nicht bezahlt". Der Titel ist eine ANFORDERUNG; er
       // muss als Bedingung lesbar sein und den echten Stand zeigen.
-      titel: `Bezahlt: Paket, Auskunft und mindestens ${KARTE_MIN_RATEN} der 12 Monatsraten (aktuell ${raten} ${raten === 1 ? "Rate" : "Raten"} gelaufen)`,
+      titel: `Bezahlt: Paket und mindestens ${KARTE_MIN_RATEN} der 12 Monatsraten (aktuell ${raten} ${raten === 1 ? "Rate" : "Raten"} gelaufen); Bonitätsauskunft gekauft oder eigene ausgewertet`,
       erfuellt: !!geldOk,
       fehlt: geldOk ? null : geldFehlt,
       wieWeiter: geldOk ? null
-        : !r.schufa_bezahlt ? "Die Bonitätsauskunft (74 €) verkaufen — sie ist die Grundlage für alles Weitere."
+        : !auskunftDa ? "Die Bonitätsauskunft (74 €) verkaufen — oder der Kunde lädt seine eigene hoch und wir werten sie aus."
         : raten < KARTE_MIN_RATEN ? `Noch ${KARTE_MIN_RATEN - raten} Rate abwarten oder nachfassen.`
         : "Zahlungsdaten senden und die Zahlung nachhalten.",
       warumIntern:
@@ -546,6 +571,7 @@ function toreAus(r: any): Tor[] {
 /** Stand für EINE Person, inklusive bisherigem Versand. */
 export async function kartenStand(personId: number, lauf: Lauf = sqlPool): Promise<KartenStand | null> {
   await ensureKartenTabelle(lauf);
+  await schufaTabelleSicher();
   const [r] = (await lauf.unsafe(
     `${STAND_SQL} WHERE p.id = $1 AND p.merged_into_person_id IS NULL`,
     [personId],
@@ -591,6 +617,7 @@ export async function kartenStand(personId: number, lauf: Lauf = sqlPool): Promi
       minRaten: KARTE_MIN_RATEN,
       paketBezahlt: !!r.paket_bezahlt,
       auskunftBezahlt: !!r.schufa_bezahlt,
+      auskunftVorhanden: !!(r.schufa_bezahlt || r.schufa_eigene),
       naechsteRateAm: r.naechste_rate_am ? String(r.naechste_rate_am).slice(0, 10) : null,
     },
   };
@@ -612,6 +639,7 @@ export async function bereiteKunden(
   lauf: Lauf = sqlPool,
 ): Promise<{ personId: number; name: string; agentId: number | null }[]> {
   await ensureKartenTabelle(lauf);
+  await schufaTabelleSicher();
   const bedingungen: string[] = ["p.merged_into_person_id IS NULL"];
   const werte: any[] = [];
   if (opt.agentId) { werte.push(opt.agentId); bedingungen.push(`p.assigned_agent_id = $${werte.length}`); }

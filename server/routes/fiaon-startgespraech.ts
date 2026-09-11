@@ -199,6 +199,7 @@ router.get("/kunde/:ref/startgespraech", requireKunde, async (req: Request, res:
       naechsterSchritt: abgeleitet?.naechsterSchritt ?? null,
       ablauf: abgeleitet?.ablauf ?? null,
       auskunftBezahlt: abgeleitet?.auskunftBezahlt ?? false,
+      auskunftVorhanden: abgeleitet?.auskunftVorhanden ?? false,
       ausnahme: abgeleitet?.ausnahme ?? null,
       // ── DIE WAND IST WEG (27.08.2026, Florentine ueber Justin) ────────
       // „Wenn der Kunde sich anmeldet, muss er immer einen Termin buchen,

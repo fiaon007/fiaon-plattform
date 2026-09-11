@@ -197,7 +197,8 @@ export async function bereichEingangFuerPerson(personId: number): Promise<Eingan
     try {
       const { bonitaetFuer } = await import("../lib/fiaon-bonitaet-status");
       const b = await bonitaetFuer(ref);
-      if (b) bonitaet = { hatDokument: !!b.hatDokument, geprueft: !!b.dokumentGeprueft, darfKaufen: !!b.darfKaufen, bezahlt: !!b.bezahlt };
+      // E-178: die automatische Auswertung zaehlt als „geprueft und erklaert“ (Schritt 7 des Weges).
+      if (b) bonitaet = { hatDokument: !!b.hatDokument, geprueft: !!b.dokumentGeprueft || !!b.ausgewertet, darfKaufen: !!b.darfKaufen, bezahlt: !!b.bezahlt };
     } catch (e: any) { console.error("[UEBERSICHT] bonitaetFuer:", e?.message || e); }
   }
 

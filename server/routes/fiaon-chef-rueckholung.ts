@@ -27,8 +27,10 @@ const ERLAUBTE_SCHLUESSEL = new Set([
   "rueckhol_dauerpflege_abstand_tage", // Abstand der Dauerpflege-Mails (min. 21, serverseitig erzwungen)
   "frequenzbremse_an",       // 1 | 0 — die globale Empfänger-Bremse
   "frequenz_pro_tag", "frequenz_pro_woche", "frequenz_pro_monat",
-  "max_reminders",           // Obergrenze Mahnungen je Bestellung (Mahnkette)
+  "max_reminders",           // Obergrenze Mahnungen je Bestellung (Mahnkette); 0 = ohne (E-182)
   "mahn_takte_pro_tag",      // wie oft am Tag die Mahnkette läuft
+  "mahn_dauer_tage",         // E-182: Raten nach Stufe 5 alle N Tage weiter; 0 = Schluss nach Stufe 5
+  "sepa_werbung_pro_tag",    // Tagesdeckel der Lastschrift-Einladung; 0 = aus
 ]);
 
 const SEGMENTE: Segment[] = ["s1_frisch", "s2_behauptet", "s3_preis_fehlt", "s4_nie_gemahnt", "s5_altbestand"];
@@ -97,7 +99,7 @@ router.get("/chef/rueckholung", requireChef("geschaeftsfuehrung"), async (_req: 
       einstellungen([
         "rueckhol_pro_tag", "rueckhol_s1_an", "rueckhol_s2_an", "rueckhol_s3_an", "rueckhol_s4_an", "rueckhol_s5_an", "rueckhol_dauerpflege_abstand_tage",
         "frequenzbremse_an", "frequenz_pro_tag", "frequenz_pro_woche", "frequenz_pro_monat",
-        "max_reminders", "mahn_takte_pro_tag",
+        "max_reminders", "mahn_takte_pro_tag", "mahn_dauer_tage", "sepa_werbung_pro_tag",
       ]),
       // Rückhol-Versand je Segment, heute und gesamt.
       sqlPool`

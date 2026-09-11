@@ -90,6 +90,20 @@ export const PFLICHTMAILS = new Set<string>([
 /** Ereignisse an MITARBEITER, nicht an Kunden — eigener Kanal, eigene Regeln. */
 const TEAM_PRAEFIX = ["agent_", "aufgabe_", "team_", "chef_", "contract_"];
 
+/**
+ * ZAHLUNGSPOST: die Erinnerung an eine Rate aus einem laufenden, bezahlten Vertrag.
+ * Das ist keine Werbung, sondern eine Forderung — die Werbesperre („Stopp“ auf eine
+ * Rückhol-Mail) trifft sie nicht. Wer NICHT mehr gemahnt werden soll, bekommt einen
+ * Mahnstopp an der Bestellung (abo_gestoppt_am) — das ist die Entscheidung eines
+ * Menschen und wird in `faelligeRaten` beachtet. Justin, 11.09.2026 (E-182).
+ */
+const ZAHLUNGSPOST = new Set<string>(["abo_payment_reminder"]);
+
+/** Der Hauptschalter der Bremse: fiaon_settings.frequenzbremse_an (Standard 1). */
+async function bremseAn(): Promise<boolean> {
+  return (await zahl("frequenzbremse_an", 1)) === 1;
+}
+
 export interface FrequenzUrteil {
   ok: boolean;
   /** Klartext für das Protokoll. Null, wenn erlaubt. */
@@ -151,6 +165,8 @@ export async function frequenzRuhe(email: string, event: string): Promise<string
   const adresse = String(email || "").trim().toLowerCase();
   if (!adresse) return null;
   try {
+    // Bremse aus → auch keine Ruhe nach einem gebremsten Versuch (E-182).
+    if (!(await bremseAn())) return null;
     const [r] = (await sqlPool`
       SELECT grund FROM fiaon_mail_log
        WHERE LOWER(TRIM(empfaenger)) = ${adresse} AND event = ${event}
@@ -177,8 +193,18 @@ export async function darfAnEmpfaenger(email: string, event: string, opts: { man
   if (TEAM_PRAEFIX.some((p) => event.startsWith(p))) return { ok: true, grund: null };
 
   try {
-    const an = await zahl("frequenzbremse_an", 1);
-    if (an !== 1) return { ok: true, grund: null };
+    // ── DER HAUPTSCHALTER (Justin, 11.09.2026, E-182) ─────────────────────
+    // „Es soll keine Bremse, Mahnpause oder sonstiges geben.“ Steht
+    // frequenzbremse_an auf 0, fallen Tages-, Wochen- und Monatsdeckel, die
+    // 14-Tage-Ruhe nach Blockaden und die 20-Stunden-Ruhe (frequenzRuhe) weg.
+    // Was auch dann bleibt, weil es keine Bremse ist, sondern Physik und Recht:
+    //   · hart unzustellbare Adressen (Rückläufer/Spam-Meldung) — Brevo stellt
+    //     dorthin ohnehin nicht zu; jeder Versuch ist nur ein Schlag auf den
+    //     Absender-Ruf, ohne dass ein Mensch die Mail sieht.
+    //   · die Werbesperre für WERBUNG — „Dann nehmen wir Sie aus allen
+    //     Verteilern“ ist ein gegebenes Versprechen. Zahlungspost (Rate aus
+    //     einem laufenden Vertrag) ist keine Werbung und geht trotzdem raus.
+    const bremse = await bremseAn();
 
     // ── WAS GEZÄHLT WIRD — UND WAS NICHT (Hotfix 02.09.2026, 08:20) ─────────
     // Am ersten Morgen mit scharfer Rückholung ging KEINE einzige Mail raus:
@@ -245,7 +271,7 @@ export async function darfAnEmpfaenger(email: string, event: string, opts: { man
         )
       LIMIT 1
     `) as any[];
-    if (gesperrt) {
+    if (gesperrt && !ZAHLUNGSPOST.has(event)) {
       return { ok: false, grund: "Werbesperre: Diese Person hat um keine weitere Post gebeten" };
     }
 
@@ -256,6 +282,8 @@ export async function darfAnEmpfaenger(email: string, event: string, opts: { man
     if (Number(z?.hart || 0) > 0) {
       return { ok: false, grund: "Adresse ist unzustellbar (Rückläufer oder Spam-Meldung)", zaehler };
     }
+    // Ab hier nur noch Deckel und Ruhen — bei abgeschalteter Bremse ist Schluss.
+    if (!bremse) return { ok: true, grund: null, zaehler };
     // Blockiert ist weicher: Der Postfachanbieter hat abgelehnt, die Adresse
     // kann gültig sein. Zwei Wochen Ruhe, dann darf es wieder versucht werden.
     if (Number(z?.blockiert || 0) >= 3) {

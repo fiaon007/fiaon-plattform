@@ -210,11 +210,14 @@ export default function ChefRueckholung() {
         <div className="cr-schalter">
           {([
             ["rueckhol_pro_tag", "Rückhol-Mails je Tag", "Der Haupthahn. 0 = kein Versand. Empfehlung zum Start: 30 — erst S1/S2 abarbeiten, Wirkung ansehen, dann erhöhen."],
+            ["sepa_werbung_pro_tag", "Lastschrift-Einladungen je Tag", "Kunden mit offenen Raten und ohne Mandat. 0 = aus."],
+            ["frequenzbremse_an", "Frequenzbremse (1 = an, 0 = aus)", "0 = keine Deckel je Empfänger, keine 14-Tage-Ruhe nach Blockaden, keine 20-Stunden-Ruhe. Unzustellbare Adressen und die Werbesperre für Werbung bleiben immer."],
             ["frequenz_pro_tag", "Je Empfänger: Mails pro Tag", "Deckel über ALLE werbenden Mails des Hauses. Standard 2."],
             ["frequenz_pro_woche", "Je Empfänger: pro Woche", "Standard 4. Justins 2-Tage-Takt passt darunter."],
             ["frequenz_pro_monat", "Je Empfänger: pro 30 Tage", "Standard 8. Ab Mail 6 verdoppelt sich die Blockquote — 8 ist die Oberkante."],
-            ["max_reminders", "Mahnungen je Bestellung (Kette)", "Steht live auf 60. Die Messung sagt: Ab Mahnung 6 ist die Ausbeute null. Empfehlung: 6."],
+            ["max_reminders", "Erstzahlung: Erinnerungen je Bestellung", "0 = ohne Obergrenze (Justin, 11.09.). Die Messung vom 02.09. sagt: Ab Mahnung 6 ist die Ausbeute null."],
             ["mahn_takte_pro_tag", "Mahnläufe pro Tag", "2 = zweimal täglich dieselben Leute. Empfehlung: 1."],
+            ["mahn_dauer_tage", "Raten: Dauermahnung alle … Tage", "Nach Stufe 5 (Tag 21) geht es alle N Tage weiter, bis bezahlt oder Mahnstopp. Standard 3. 0 = Schluss nach Stufe 5."],
             ["rueckhol_dauerpflege_abstand_tage", "Dauerpflege: Tage zwischen zwei Mails", "Standard 28, Minimum 21 (sonst kollidiert es mit dem Monatsdeckel der Bremse)."],
           ] as const).map(([key, label, satz]) => (
             <label key={key} className="cr-schalter-feld">

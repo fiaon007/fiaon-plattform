@@ -1732,7 +1732,15 @@ async function runPaymentReminders(opts: { force?: boolean } = {}): Promise<{ ex
     result.skippedWindow = true;
     return result;
   }
-  const maxReminders = Math.max(0, Math.round(Number(settings.max_reminders)) || 6);
+  // 11.09.2026 (E-182), Justin: „keine Bremse, keine Mahnpause". max_reminders = 0
+  // heißt seither OHNE Obergrenze; leer/ungültig bleibt bei 6. Vorher fiel 0
+  // über `|| 6` still auf die Sechs zurück — und 890 offene Erstzahlungen mit
+  // 11+ Erinnerungen bekamen seit dem 02.09. gar nichts mehr (2 Mails am Tag
+  // statt 2.128).
+  const maxRoh = Math.round(Number(settings.max_reminders));
+  const maxReminders: number | null =
+    String(settings.max_reminders ?? "").trim() === "0" ? null
+    : Number.isFinite(maxRoh) && maxRoh > 0 ? maxRoh : 6;
   // Justins Vorgabe (28.08.2026): offene Rechnungen 2× am Tag anmahnen.
   // mahn_takte_pro_tag steuert das aus dem Mailwerk: 2 → Mindestabstand 5 h
   // (der stündliche Lauf trifft damit vormittags und nachmittags je einmal),

@@ -85,11 +85,27 @@ export const ABO_ZYKLUS = "monatlich zum Jahrestag der Buchung";
 // lag eine Woche Stille, in der die meisten Zahlungen kippen.
 //
 // Der Index ist die Mahnstufe: Stufe 0 wird am Fälligkeitstag versandt, Stufe 1
-// drei Tage danach, und so weiter. Nach der letzten Stufe kommt KEINE weitere
-// Mail, sondern ein Punkt „Entscheidung nötig" in der Zahlungszentrale — eine
-// sechste Mail liest niemand mehr.
+// drei Tage danach, und so weiter. Nach der letzten Stufe erscheint der Punkt
+// „Entscheidung nötig" in der Zahlungszentrale.
+//
+// ── DAUERMAHNUNG (Justin, 11.09.2026, E-182) ──────────────────────────────
+// Bis dahin war nach Stufe 5 Schluss: 100 überfällige Raten (6.447 €) lagen
+// still, weil `mahnstufe < MAHNSTUFEN.length` sie aus jedem Lauf nahm. Justin:
+// „keine Bremse, keine Mahnpause". Seither läuft es nach Stufe 5 weiter — alle
+// `mahn_dauer_tage` Tage (Standard 3), bis bezahlt oder Mahnstopp. 0 stellt
+// das alte Verhalten wieder her. Die Stufe bleibt bei 5, `erinnerungen` zählt.
 // ═══════════════════════════════════════════════════════════════════════════
 export const MAHNSTUFEN = [0, 3, 7, 14, 21] as const;
+export const MAHN_DAUER_TAGE_VORGABE = 3;
+
+/** Abstand der Dauermahnung nach der letzten Stufe; 0 = Schluss nach Stufe 5. */
+export async function mahnDauerTage(): Promise<number> {
+  try {
+    const s = await getSettings();
+    const n = Math.round(Number(s.mahn_dauer_tage));
+    return Number.isFinite(n) && n >= 0 ? n : MAHN_DAUER_TAGE_VORGABE;
+  } catch { return MAHN_DAUER_TAGE_VORGABE; }
+}
 
 /**
  * Dieselben Abstände als SQL-CASE.
@@ -748,6 +764,7 @@ async function imVersandfenster(): Promise<boolean> {
 /** Fällige Raten mit allen Kundendaten — Grundlage für Motor und Anzeige. */
 async function faelligeRaten(limit: number, opts: { abStichtag?: string | null } = {}) {
   const heute = berlinToday();
+  const dauer = await mahnDauerTage();
   return sqlPool`
     SELECT r.*, a.first_name, a.last_name, a.contact_name, a.company_name,
            a.person_id, a.email, a.contact_email, a.billing_email, a.pack_name,
@@ -759,7 +776,9 @@ async function faelligeRaten(limit: number, opts: { abStichtag?: string | null }
     WHERE r.status = 'offen'
       AND r.storniert_am IS NULL
       AND r.faellig_am <= ${heute}::date
-      AND r.mahnstufe < ${MAHNSTUFEN.length}
+      AND (r.mahnstufe < ${MAHNSTUFEN.length}
+           OR (${dauer} > 0 AND r.letzte_erinnerung_at IS NOT NULL
+               AND r.letzte_erinnerung_at < NOW() - make_interval(days => ${dauer})))
       -- ══════════════════════════════════════════════════════════════════
       -- KEINE MAHNUNG AN JEMANDEN, BEI DEM WIR SELBST EINZIEHEN (02.09.2026)
       --

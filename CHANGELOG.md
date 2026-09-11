@@ -5,6 +5,32 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 11.09.2026 — Ein Zeilenleser für PDFs statt zwei (E-180)
+
+**Was geändert wurde:** `server/lib/fiaon-pdf-lesen.ts` hatte seit dem 11.09. zwei Funktionen, die aus den Koordinaten
+der Textstücke einer PDF Zeilen bauen — `pdfTextUndZeilen` (E-179, Zeitraum-Erkennung der Dokumentenprüfung) und
+`pdfZeilenJeSeite` (E-178, Kontoauszug-Analyse), aus zwei Sitzungen am selben Tag. Jetzt gibt es EINE:
+`pdfTextUndZeilen(buf, { spalten })`. Sie vereint, was beide konnten: Toleranz aus der Schrifthöhe statt fester 2,5 pt,
+hochkant gesetzter Randtext bleibt aus den Zeilen draußen, Steuerzeichen werden Leerraum (E-179) — und mit
+`spalten: true` wird eine Lücke über 6 pt als Spaltentrenner „ | " geschrieben (E-178). Die Kontoauszug-Analyse
+(`server/lib/fiaon-kontoauszug-analyse.ts`) ruft die Funktion mit `spalten: true`; die Dokumentenprüfung bleibt
+unverändert. `pdfZeilenJeSeite` ist entfernt. Nebenbei: `scripts/pruef-kontoauszug.ts` importierte `sqlPool` nicht und
+wäre mit ReferenceError abgebrochen — behoben.
+
+**Warum:** Zwei Leser für dieselbe Frage driften auseinander. Am BAWAG-Auszug gemessen, was der feste 2,5-pt-Wert falsch
+machte: Die hochkant gesetzte Formularnummer am Seitenrand stand zwölfmal MITTEN in Buchungszeilen, und Zeilen, die
+zusammengehören (IBAN, Empfänger, Datum — 2,7 bis 4,1 pt versetzt), waren zerschnitten.
+
+**Gemessen (vorher → nachher):** Dokumentenprüfung: `npx tsx scripts/pruef-auszugszeitraum.ts` 15/15 vorher und
+nachher; 60 jüngste echte Auszüge alt gegen neu (nur lesend): Text, Zeilen und Zeitraum-Urteil 60/60 identisch.
+Kontoauszug-Analyse (`scripts/pruef-kontoauszug.ts`, kein Schreibzugriff): Revolut FIAON-MT70UE7U-CK6B 40 Buchungen,
+Kette lückenlos, stimmt auf den Cent, 189 Zeilen — vorher wie nachher, Zeilen zeichengleich. BAWAG FIAON-MR6CLYN8-P06W
+55 Buchungen ohne Saldospalte: vorher 190 € Differenz (Register vom Vormittag: 90 € — das Modell schwankt bei gleichem
+Text), nachher zweimal 70 €, 344 statt 339 Zeilen. Wände: pruef-backticks 0, haken 0, vite build, esbuild, tsc 183 =
+Ausgangswert.
+
+---
+
 ## 11.09.2026 — Bewerbungen: Liste mit Status, Zuständige, Zusage/Absage per Mail, Brücke zur Einladung (E-177, Umsetzung)
 
 **Was geändert wurde:** Bewerbungen über `/karriere` haben jetzt einen eigenen Weg. Die Tabelle `fiaon_anfragen`

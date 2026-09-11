@@ -21,7 +21,7 @@
 //      übersieht, liefert trotzdem eine glatte Zahl.
 //
 // ── WIE ES JETZT LÄUFT ─────────────────────────────────────────────────────
-// 1. ZEILEN statt Textsalat: `pdfZeilenJeSeite` baut aus den Koordinaten die
+// 1. ZEILEN statt Textsalat: `pdfTextUndZeilen(buf, { spalten: true })` baut aus den Koordinaten die
 //    Zeilen und Spalten des Auszugs nach (server/lib/fiaon-pdf-lesen.ts).
 // 2. KOPF zuerst: Bank, Zeitraum, Anfangs- und Endsaldo — aus den ersten
 //    Seiten. Der Zeitraum ist nötig, weil manche Banken Daten ohne Jahr drucken.
@@ -46,7 +46,7 @@
 // An das Modell geht nur Text, keine Datei, und kein Name des Kunden.
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
-import { pdfZeilenJeSeite } from "./fiaon-pdf-lesen";
+import { pdfTextUndZeilen } from "./fiaon-pdf-lesen";
 import { wandPruefen } from "@shared/fiaon-wortverbote";
 import { KATEGORIEN, KATEGORIE_SCHLUESSEL, istFest } from "@shared/fiaon-kontoauszug-kategorien";
 
@@ -530,7 +530,7 @@ export async function kontoauszugProbe(buf: Buffer): Promise<Probe> {
     ({ status, fehler, akte, modell, seiten, bank: null, zeitraumVon: null, zeitraumBis: null, saldoAnfang: null, saldoEnde: null, buchungen: [], pruefung: null, z: null, merksaetze: [] });
 
   let seiten: string[][] = [];
-  try { seiten = await pdfZeilenJeSeite(buf); } catch (e) { console.warn("[ANALYSE] PDF nicht lesbar:", (e as Error).message); }
+  try { seiten = (await pdfTextUndZeilen(buf, { spalten: true })).zeilen; } catch (e) { console.warn("[ANALYSE] PDF nicht lesbar:", (e as Error).message); }
   const seitenText = seiten.map((z) => z.join("\n"));
   const gesamt = seitenText.join("\n\n");
   if (!auszugBrauchbar(gesamt)) {

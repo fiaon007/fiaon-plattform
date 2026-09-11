@@ -16,6 +16,7 @@
 // Ladewigs „Kontoauszug" eine Gehaltsabrechnung ist und dass das Modell bei
 // Revolut Erstattungen als Ausgaben las — beides, bevor eine Zeile live war.
 // ═══════════════════════════════════════════════════════════════════════════
+import { sqlPool } from "../server/lib/db-pool";
 import { kontoauszugProbe } from "../server/lib/fiaon-kontoauszug-analyse";
 (async () => {
   for (const ref of process.argv.slice(2)) {

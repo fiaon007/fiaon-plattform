@@ -40,6 +40,14 @@ export interface SendeEingabe {
   zusatz?: Record<string, unknown>;
   /** Wer sendet — für Rechteprüfung, Protokoll und Akte. */
   akteur: { name: string; agentId: number | null; rolle: Rolle };
+  /**
+   * Empfänger OHNE Person im Haus (11.09.2026, E-177): ein Bewerber, der kein
+   * Kunde ist. Die Nutzlast kommt vollständig aus `zusatz`; Zustandsregeln
+   * gibt es nicht, weil es keinen Kundenzustand gibt. Protokolliert wird wie
+   * jede andere Mail (fiaon_mail_log, person_id leer). Nur wirksam, wenn
+   * keine personId angegeben ist.
+   */
+  ohnePerson?: { email: string };
   /** Prüfversand: geht an die Testadresse und zählt nicht gegen Limits. */
   test?: boolean;
   testAdresse?: string;
@@ -276,6 +284,23 @@ export async function mailSenden(ein: SendeEingabe): Promise<SendeErgebnis> {
     return {
       ok: erg.status === "versandt", status: erg.status, grund: erg.grund,
       meldung: erg.status === "versandt" ? `Prüfversand an ${an} raus.` : `Prüfversand fehlgeschlagen: ${erg.grund}`,
+    };
+  }
+
+  // ── Echter Versand an einen Menschen ohne Person (E-177) ───────────────
+  if (!ein.personId && ein.ohnePerson) {
+    const an = String(ein.ohnePerson.email || "").trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(an)) return abgelehnt("Keine gültige E-Mail-Adresse.");
+    const erg = await versendenUndProtokollieren(
+      def.type as MakeEventType,
+      { ...(ein.zusatz || {}), email: an } as any,
+      { personId: null, ausgeloestVon: ein.akteur.name, ausgeloestAgentId: ein.akteur.agentId, lauf },
+    );
+    return {
+      ok: erg.status === "versandt", status: erg.status, grund: erg.grund,
+      meldung: erg.status === "versandt"
+        ? `„${def.label}“ an ${an} verschickt.`
+        : `Nicht verschickt: ${erg.grund}. Es steht mit Grund im Protokoll.`,
     };
   }
 

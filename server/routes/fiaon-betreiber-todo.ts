@@ -187,6 +187,12 @@ export interface AuftragEin {
   anBetreiber?: boolean;
   /** Ausdrücklich dieser Mitarbeiter (z. B. weil der Kunde ihn nennt) — statt der Ableitung. */
   agentId?: number | null;
+  /**
+   * Der erste Satz in der Zeitleiste (11.09.2026, E-177). Ohne ihn steht dort
+   * „Angelegt von … aus dem Postfach" — für eine Bewerbung von der Website
+   * wäre das falsch.
+   */
+  anlageText?: string;
 }
 
 /** Ein bestimmter aktiver Mitarbeiter als Empfänger. */
@@ -344,7 +350,7 @@ export async function auftragFuerKunden(ein: AuftragEin): Promise<AuftragErgebni
 
   if (wer.id) {
     await delegieren(id, wer.id, "");
-    await beitrag(id, { autorArt: "system", autorName: ein.autorName ?? "Mara", art: "kommentar", text: `Angelegt von ${ein.autorName ?? "Mara"} aus dem Postfach.` }).catch(() => {});
+    await beitrag(id, { autorArt: "system", autorName: ein.autorName ?? "Mara", art: "kommentar", text: ein.anlageText ?? `Angelegt von ${ein.autorName ?? "Mara"} aus dem Postfach.` }).catch(() => {});
     // Die Mail an den Mitarbeiter — derselbe Weg wie bei /admin/vermerke.
     if (wer.email) {
       let kunde: string | null = null;

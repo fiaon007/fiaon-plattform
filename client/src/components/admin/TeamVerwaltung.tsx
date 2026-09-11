@@ -112,7 +112,10 @@ const MODELLE: Record<string, { titel: string; felder: ("provision" | "stunden" 
 
 export function InviteModal({ defaults, prefill, onClose, onDone, flash }: {
   defaults: { commissionRateBp: number };
-  prefill?: { firstName: string; lastName: string; email: string; phone: string; recruitedBy: number | null; suggestionId: number };
+  // E-177 (11.09.2026): Neben dem Partner-Vorschlag (suggestionId) kann die
+  // Vorbelegung aus einer Bewerbung kommen (bewerbungId) — der Server hängt
+  // dann das neue Konto an die Bewerbung.
+  prefill?: { firstName: string; lastName: string; email: string; phone: string; recruitedBy?: number | null; suggestionId?: number | null; bewerbungId?: number | null };
   onClose: () => void;
   onDone: () => void;
   flash: (m: string) => void;
@@ -151,6 +154,7 @@ export function InviteModal({ defaults, prefill, onClose, onDone, flash }: {
         monthlyGoalCents: cents(form.goal),
         recruitedBy: prefill?.recruitedBy ?? null,
         suggestionId: prefill?.suggestionId ?? null,
+        bewerbungId: prefill?.bewerbungId ?? null,
       }),
     });
     setBusy(false);

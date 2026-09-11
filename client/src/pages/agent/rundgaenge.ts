@@ -209,12 +209,24 @@ export const RUNDGANG_BESTAND: RundgangSchritt[] = [
     // bei allen anderen läge der Scheinwerfer auf nichts.
     titel: "Konto & Karte — worauf alles hinausläuft.",
     text: "Fast jeder kommt mit dem Satz „Ich brauche eine Kreditkarte“. Sobald ein Kunde drei Dinge "
-      + "erfüllt — Antrag vollständig, Paket und Auskunft bezahlt mit zwei gelaufenen Raten, "
-      + "Kontoauszug und Ausweis da — steht auf seiner Karte „Bereit für Konto & Karte“, und der "
+      + "erfüllt — Antrag vollständig, Paket bezahlt mit zwei gelaufenen Raten und die Bonitätsauskunft "
+      + "da (gekauft oder seine eigene, von uns ausgewertet), Kontoauszug und Ausweis da — steht auf "
+      + "seiner Karte „Bereit für Konto & Karte“, und der "
       + "Filter oben zeigt dir alle auf einmal. In der Akte schickst du ihm dann den Weg zum "
       + "kostenlosen Girokonto bei unserem Kooperationspartner. Erst das Konto, dann die Karte: "
       + "Die Kreditkarte gibt es nur als Zubuchung aus dem fertigen Banking heraus.",
     tipp: "Ruf vorher an, statt den Link wortlos zu schicken. Für dich sind es 10 € je bestätigter Eröffnung — und der Kunde bleibt, weil er endlich das bekommt, weswegen er gekommen ist.",
+  },
+  {
+    // 11.09.2026 (E-175/E-178): Auskunft und Kontoauszug werden gelesen — der
+    // Betreuer sieht das Ergebnis im Reiter „Dokumente“, nicht nur die Datei.
+    titel: "Unter „Dokumente“ steht, was Auskunft und Kontoauszug SAGEN.",
+    text: "Eine hochgeladene Bonitätsauskunft wird gelesen: Ampel, Score, jeder Posten mit Löschfrist und "
+      + "Rechtsgrundlage, dazu die Auswertung als PDF und das fertige Schreiben an die Auskunftei. Ein "
+      + "Kontoauszug wird Buchung für Buchung erfasst und gegen den Kontostand geprüft: Einnahmen, Ausgaben, "
+      + "Einkommen, feste Zahlungen mit Tag im Monat, Warnungen. Beides steht im Reiter „Dokumente“ direkt "
+      + "unter der Datei — und der Kunde sieht dieselben Zahlen in seinem Bereich.",
+    tipp: "Vor dem Anruf einmal reinschauen: Wer weiß, was jeden Monat abgeht und wovon der Kunde lebt, führt ein anderes Gespräch.",
   },
   {
     // 09.09.2026 (E-168): Der Menüpunkt ist weg — der Filter bleibt als Nachschlagewerk.
@@ -750,7 +762,54 @@ export const RUNDGANG_APP_VORGANG: RundgangSchritt[] = [
   },
 ];
 
+// ── BEWERBUNGEN (E-177, 11.09.2026) — Chefbüro Team → Bewerbungen und /admin/team ─
+// Bis zum 11.09.2026 gab es diese Liste nicht: zehn Bewerbungen lagen ohne
+// Status und ohne Zuständigen. Der Rundgang erklärt, wie das Versprechen der
+// Website („Florentine Lombardi meldet sich persönlich") hier eingelöst wird.
+export const RUNDGANG_BEWERBUNGEN: RundgangSchritt[] = [
+  {
+    titel: "Hier liegen die Menschen, die bei uns arbeiten wollen.",
+    text: "Jede Bewerbung über fiaon.com/karriere landet in dieser Liste — mit allem, was der Bewerber angegeben hat, "
+      + "und mit ihrem Stand: neu, im Gespräch, zugesagt, abgesagt. Die Website verspricht: „Florentine Lombardi meldet "
+      + "sich persönlich bei Ihnen.“ Dieses Versprechen wird hier eingelöst — von einem Menschen, nicht von einer Automatik.",
+    tipp: "Fast alle Bewerber sind Kunden. Wer vor dem Anruf die Akte öffnet, weiß, wie das Kundenverhältnis gerade läuft.",
+  },
+  {
+    ziel: ".bw-standard",
+    titel: "Wer neue Bewerbungen bekommt.",
+    text: "Jede neue Bewerbung wird als Auftrag an diese Person übergeben — mit Mail „Neuer Auftrag für dich“ und Eintrag "
+      + "unter Aufgaben → Aufträge. Die Geschäftsführung wechselt die Person hier, ohne dass jemand Code anfasst.",
+  },
+  {
+    ziel: ".bw-filter",
+    titel: "Offen, entschieden, Tests.",
+    text: "„Offen“ zeigt, was Arbeit braucht: neu und im Gespräch. „Entschieden“ ist das Archiv. Eigene Probeeinträge "
+      + "werden als Test markiert statt gelöscht — die Tabelle vergisst nichts, die Liste zeigt es nur nicht mehr.",
+  },
+  {
+    ziel: ".bw-karte",
+    titel: "Eine Bewerbung, alles auf einen Blick.",
+    text: "Bereich, Land, Erfahrung, gewünschte Zusammenarbeit, frühester Start, Stunden pro Woche, Kontaktdaten — und ob "
+      + "der Bewerber Kunde ist: dann stehen Betreuer und Akte daneben. Darunter der Satz, warum er zu FIAON will.",
+  },
+  {
+    ziel: ".bw-knoepfe",
+    titel: "Übernehmen, übergeben, entscheiden.",
+    text: "„Übernehmen“ macht dich zuständig und legt den Auftrag bei dir an. „Übergeben an …“ gibt ihn jemand anderem. "
+      + "„Zusagen“ und „Absagen“ schicken je eine Mail an den Bewerber — vorher siehst du sie in der Vorschau. Nach der "
+      + "Zusage öffnet sich die Mitarbeiter-Einladung mit den Daten aus der Bewerbung; sie schickt den Zugangslink.",
+    tipp: "Erst sprechen, dann klicken. Die Mails sind freundlich und ohne Fristen — die Entscheidung fällt im Gespräch.",
+  },
+  {
+    ziel: ".bw-notiz",
+    titel: "Die Notiz ist das Gedächtnis des Gesprächs.",
+    text: "Was besprochen wurde, wann der Rückruf ist, was noch fehlt — hier hinein, damit die nächste Person nicht von "
+      + "vorn anfängt. Gespeichert wird beim Verlassen des Felds.",
+  },
+];
+
 export const RUNDGAENGE: Record<string, { titel: string; schritte: RundgangSchritt[] }> = {
+  bewerbungen:  { titel: "Bewerbungen",  schritte: RUNDGANG_BEWERBUNGEN },
   appVorgang: { titel: "Vorgang", schritte: RUNDGANG_APP_VORGANG },
   firmen:      { titel: "Firmenkunden", schritte: RUNDGANG_FIRMEN },
   pipeline:    { titel: "Pipeline",     schritte: RUNDGANG_PIPELINE },

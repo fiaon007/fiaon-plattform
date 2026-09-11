@@ -70,7 +70,7 @@ const de = {
       { f: "Wie bekomme ich eine Kopie meiner Daten bei FIAON?", a: "Im Kundenbereich unter Mein Konto oder per E-Mail – Auskunft nach Art. 15 DSGVO, kostenlos, innerhalb eines Monats." },
     ] },
     { key: "mitarbeiter", titel: "Mitarbeiter werden", satz: "Von zuhause, fest oder frei.", fragen: [
-      { f: "Kann ich als Kunde für FIAON arbeiten?", a: "Ja – viele im Team waren selbst Kunden. Bewerbung in vier Schritten auf der Karriere-Seite; Florentine meldet sich persönlich innerhalb von zwei Werktagen." },
+      { f: "Kann ich als Kunde für FIAON arbeiten?", a: "Ja – viele im Team waren selbst Kunden. Bewerbung in vier Schritten auf der Karriere-Seite; Florentine Lombardi meldet sich persönlich bei Ihnen." },
       { f: "Fest oder frei?", a: "Beides: Festanstellung oder freie Mitarbeit auf Provision, remote in Deutschland, Österreich und der Schweiz. Niemand spricht mit Kunden, bevor er die Academy bestanden hat." },
       { f: "Was verdiene ich?", a: "Das steht im Gespräch und im Vertrag – ehrlich geregelt, keine Fantasiezahlen auf der Website. Auf der Karriere-Seite steht, wie die Zusammenarbeit funktioniert." },
     ] },
@@ -141,7 +141,7 @@ const en: typeof de = {
       { f: "How do I get a copy of my data at FIAON?", a: "In the customer area under My account or by e-mail — access under Art. 15 GDPR, free, within one month." },
     ] },
     { key: "mitarbeiter", titel: "Joining the team", satz: "From home, employed or freelance.", fragen: [
-      { f: "Can I work for FIAON as a customer?", a: "Yes — many in the team were customers themselves. Application in four steps on the careers page; Florentine gets in touch personally within two working days." },
+      { f: "Can I work for FIAON as a customer?", a: "Yes — many in the team were customers themselves. Application in four steps on the careers page; Florentine Lombardi gets in touch with you personally." },
       { f: "Employed or freelance?", a: "Both: employment or freelance work on commission, remote in Germany, Austria and Switzerland. Nobody speaks to customers before passing the Academy." },
       { f: "What do I earn?", a: "That is settled in the conversation and in the contract — regulated honestly, no fantasy numbers on the website. The careers page explains how the collaboration works." },
     ] },

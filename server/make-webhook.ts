@@ -33,6 +33,9 @@ export type MakeEventType =
   | "number_update_request" // #23: Kunde/Lead aktualisiert Telefonnummer selbst
   | "abo_payment_reminder"  // monatliche Paketrate fällig (Abo) — Stufen 1–3
   | "aufgabe_zugewiesen"    // Vorgesetzter weist einem Mitarbeiter eine Aufgabe zu
+  // Bewerbungen (E-177, 11.09.2026): an BEWERBER, gesiezt, ohne Fristen — nur von Hand aus /chef/s/bewerbungen.
+  | "bewerbung_zusage"      // die Leitung sagt zu; der Zugangslink folgt getrennt mit agent_invite
+  | "bewerbung_absage"      // die Leitung sagt ab
   // ── Lead-Pipeline und Terminsystem ────────────────────────────────────────
   | "nicht_erreicht_termin"  // 2× nicht erreicht → Kunde bucht selbst einen Termin
   | "termin_bestaetigung"    // Termin gebucht — mit Storno-Link

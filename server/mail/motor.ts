@@ -36,6 +36,7 @@ import { AUSKUNFT_LEAD_VORLAGEN } from "./vorlagen/auskunft-lead";
 import { TEAM_VORLAGEN } from "./vorlagen/team";
 import { RUECKHOLUNG_VORLAGEN } from "./vorlagen/rueckholung";
 import { APP_VORLAGEN } from "./vorlagen/app";
+import { BEWERBUNG_VORLAGEN } from "./vorlagen/bewerbung";
 
 /** Alle Vorlagen, ein Verzeichnis. Schlüssel = Ereignisname. */
 export const VORLAGEN: Record<string, MailBaustein> = {
@@ -46,6 +47,7 @@ export const VORLAGEN: Record<string, MailBaustein> = {
   ...TEAM_VORLAGEN,
   ...RUECKHOLUNG_VORLAGEN,
   ...APP_VORLAGEN,
+  ...BEWERBUNG_VORLAGEN,
 };
 
 /** Wer als Absender im Postfach steht — je Ereignis. Alles nicht Genannte: welcome. */
@@ -74,6 +76,9 @@ const ROLLE_JE_EVENT: Record<string, AbsenderRolle> = {
   agent_feedback_rewarded: "team",
   agent_feedback_reply: "team",
   aufgabe_zugewiesen: "team",
+  // Bewerber bekommen Post vom Team — nicht von Welcome (das ist die Kundenstimme).
+  bewerbung_zusage: "team",
+  bewerbung_absage: "team",
   contract_signed: "team",
   commission_statement_issued: "team",
 };

@@ -442,6 +442,40 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       admin_name: "FIAON Admin",
     },
   },
+  // ── Bewerbungen (E-177, 11.09.2026) ──────────────────────────────────────
+  // Beide gehen an BEWERBER (gesiezt), nicht an Mitarbeiter. Ausgelöst nur von
+  // Hand aus der Bewerbungsliste (/chef/s/bewerbungen); die Zusage mündet in
+  // die Mitarbeiter-Einladung (agent_invite), die den Zugangslink trägt.
+  {
+    type: "bewerbung_zusage",
+    label: "Bewerbung: Zusage (Bewerber)",
+    description: "Feuert, wenn die Leitung in der Bewerbungsliste „Zusagen“ klickt. Der Zugangslink kommt getrennt über agent_invite, sobald die Einladung ausgefüllt ist. Keine Fristen, keine Vergütungsaussagen — das gehört ins Gespräch.",
+    customerBound: false,
+    example: {
+      email: "anna.schmidt@example.com",
+      vorname: "Anna",
+      nachname: "Schmidt",
+      bereich: "Onboarding & Kundenbetreuung",
+      anstellung: "Freie Mitarbeit",
+      land: "Österreich",
+      ansprechpartner: "Florentine Lombardi",
+    },
+  },
+  {
+    type: "bewerbung_absage",
+    label: "Bewerbung: Absage (Bewerber)",
+    description: "Feuert, wenn die Leitung in der Bewerbungsliste „Absagen“ klickt — freundlich, ohne Begründungspflicht, ohne Fristen. Ein Kundenkonto des Bewerbers bleibt unberührt.",
+    customerBound: false,
+    example: {
+      email: "anna.schmidt@example.com",
+      vorname: "Anna",
+      nachname: "Schmidt",
+      bereich: "Vertrieb",
+      anstellung: "Festanstellung",
+      land: "Deutschland",
+      ansprechpartner: "Florentine Lombardi",
+    },
+  },
   {
     type: "agent_password_reset",
     label: "Mitarbeiter Passwort-Reset",

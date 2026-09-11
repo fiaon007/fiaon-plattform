@@ -79,6 +79,9 @@ const Recht = lazy(() => import("@/pages/admin-recht"));
 const Todo = lazy(() => import("@/pages/admin-todo"));
 const Aufgaben = lazy(() => import("@/pages/admin-aufgaben"));
 const Hub = lazy(() => import("@/pages/admin-hub"));
+// 11.09.2026 (E-177): Bewerbungen von /karriere — zehn Eingänge lagen ohne
+// Status und ohne Zuständigen in einer zugeklappten Werkstatt-Karte.
+const Bewerbungen = lazy(() => import("@/components/admin/Bewerbungen"));
 
 export interface ChefSeite {
   /** Adresse im Chefbüro: /chef/s/<slug> */
@@ -137,6 +140,7 @@ export const CHEF_SEITEN: ChefSeite[] = [
   { slug: "nachbuchung", label: "Provision nachbuchen", satz: "Eine übersehene Provision nachträglich anlegen.", Seite: TeamZentrale, raum: "team", mindest: "geschaeftsfuehrung", suche: "tab=nachbuchung", auch: "nachtragen backfill" },
   { slug: "rangliste", label: "Rangliste & Leistung", satz: "Wer steht wo — auch zum Teilen.", Seite: TeamZentrale, raum: "team", suche: "rang=1", auch: "ranking wettbewerb deckungsbeitrag" },
   { slug: "einladen", label: "Teammitglied einladen", satz: "Neuen Mitarbeiter per E-Mail anlegen.", Seite: TeamZentrale, raum: "team", suche: "einladen=1" },
+  { slug: "bewerbungen", label: "Bewerbungen", satz: "Wer sich beworben hat, wer zuständig ist — Zusage oder Absage mit Mail, dann die Einladung.", Seite: Bewerbungen, raum: "team", auch: "karriere bewerber bewerbung einstellen recruiting" },
   { slug: "vertraege", label: "Onboarding & Verträge", satz: "Zustimmungen, Vertragsstand, Vorlagen, Nachweise.", Seite: Vertraege, raum: "team" },
   { slug: "agent-portal", label: "Team-Updates & Feedback", satz: "Portal-Updates posten, Feedback prüfen.", Seite: AgentPortal, raum: "team" },
 

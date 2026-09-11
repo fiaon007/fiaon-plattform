@@ -47,7 +47,7 @@ const de = {
   ],
   zitat: "Wir suchen keine Leute, die Anweisungen abarbeiten. Wir suchen Leute, die einen Bereich übernehmen – und ihn besser machen, als wir ihn übergeben haben.", zitatWer: "Florentine Lombardi, Gesellschafterin · Menschen & Onboarding",
   zwischenruf: "Sie wissen noch nicht, welcher Bereich passt? Bewerben Sie sich trotzdem – im Gespräch finden wir es gemeinsam heraus.", teamKennenlernen: "Das Team kennenlernen",
-  bewerbungPille: "Bewerbung", bewerbungA: "In vier Schritten ", bewerbungB: "zu uns.", bewerbungLead: "Kein Lebenslauf-Upload, kein Anschreiben. Vier kurze Schritte, drei Minuten. Danach meldet sich Florentine persönlich – innerhalb von zwei Werktagen.",
+  bewerbungPille: "Bewerbung", bewerbungA: "In vier Schritten ", bewerbungB: "zu uns.", bewerbungLead: "Kein Lebenslauf-Upload, kein Anschreiben. Vier kurze Schritte, drei Minuten. Danach meldet sich Florentine Lombardi persönlich bei Ihnen.",
   fragenPille: "Häufige Fragen",
   fragen: [
     { f: "Stellt FIAON fest an oder nur auf Provision?", a: "Beides. Festanstellungen in allen Bereichen, freie Mitarbeit vor allem im Vertrieb, Onboarding und Forderungsmanagement, Werkstudenten in Marketing, Technik, Onboarding und Operations." },
@@ -58,7 +58,7 @@ const de = {
   ],
   abschlussA: "Wachsen Sie mit etwas, das ", abschlussB: "wirklich fehlt.", abschlussText: "Ein junges Unternehmen, ein klares Ziel, sieben Bereiche – und ein Platz, der auf Sie wartet.", wasFiaon: "Was FIAON ist",
   // Bewerbungsprozess
-  eingegangen: "Eingegangen", danke: "Danke — wir melden uns.", fehler: "Das hat nicht geklappt. Bitte schreiben Sie an florentine@fiaon.com.",
+  eingegangen: "Eingegangen", danke: "Danke — Ihre Bewerbung ist da. Florentine Lombardi meldet sich persönlich bei Ihnen.", fehler: "Das hat nicht geklappt. Bitte schreiben Sie an florentine@fiaon.com.",
   zusammenfassung: (bereich: string, art: string, land: string) => `Bereich: ${bereich} · ${art} · ${land}. Florentine Lombardi liest jede Bewerbung selbst.`,
   stufen: ["Bereich", "Rahmen", "Über Sie", "Absenden"],
   f0: "In welchem Bereich möchten Sie arbeiten?", f1: "Wie möchten Sie mit uns arbeiten?", bereichLabel: "Bereich", artLabel: "Art der Zusammenarbeit", landLabel: "Land",
@@ -66,6 +66,7 @@ const de = {
   f2: "Wer sind Sie?", name: "Vollständiger Name *", email: "E-Mail *", telefon: "Telefon *", erfahrung: "Erfahrung", erfahrungOptionen: ["Berufseinstieg", "1–3 Jahre", "3–7 Jahre", "über 7 Jahre", "Führungserfahrung"], linkedin: "LinkedIn oder Website (optional)", warumFeld: "Warum FIAON – in drei Sätzen",
   f3: "Alles richtig?", pruefZeilen: ["Bereich", "Zusammenarbeit", "Land", "Start", "Stunden/Woche", "Name", "E-Mail", "Telefon", "Erfahrung"], offen: "offen",
   datenschutz: "Ihre Angaben gehen direkt an Florentine Lombardi. Keine Weitergabe, kein Newsletter.",
+  vorbelegt: "Name, E-Mail, Telefon und Land haben wir aus Ihrem Kundenbereich übernommen — bitte kurz prüfen.",
   zurueck: "Zurück", weiter: "Weiter", sendet: "Wird gesendet …", absenden: "Bewerbung absenden",
 };
 const en: typeof de = {
@@ -113,7 +114,7 @@ const en: typeof de = {
   ],
   zitat: "We are not looking for people who work through instructions. We are looking for people who take over an area – and make it better than we handed it over.", zitatWer: "Florentine Lombardi, shareholder · People & onboarding",
   zwischenruf: "Not sure yet which area fits? Apply anyway – we will find out together in the conversation.", teamKennenlernen: "Meet the team",
-  bewerbungPille: "Application", bewerbungA: "Four steps ", bewerbungB: "to join us.", bewerbungLead: "No CV upload, no cover letter. Four short steps, three minutes. Then Florentine gets in touch personally – within two working days.",
+  bewerbungPille: "Application", bewerbungA: "Four steps ", bewerbungB: "to join us.", bewerbungLead: "No CV upload, no cover letter. Four short steps, three minutes. Then Florentine Lombardi gets in touch with you personally.",
   fragenPille: "Frequently asked questions",
   fragen: [
     { f: "Does FIAON employ people or only pay commission?", a: "Both. Employment in all areas, freelance work above all in sales, onboarding and receivables management, working students in marketing, engineering, onboarding and operations." },
@@ -123,7 +124,7 @@ const en: typeof de = {
     { f: "When can I start?", a: "As soon as it fits. We are growing fast and always need support – a start is possible at any time." },
   ],
   abschlussA: "Grow with something that ", abschlussB: "is really missing.", abschlussText: "A young company, a clear goal, seven areas – and a place waiting for you.", wasFiaon: "What FIAON is",
-  eingegangen: "Received", danke: "Thank you — we will be in touch.", fehler: "That did not work. Please write to florentine@fiaon.com.",
+  eingegangen: "Received", danke: "Thank you — your application has arrived. Florentine Lombardi will be in touch with you personally.", fehler: "That did not work. Please write to florentine@fiaon.com.",
   zusammenfassung: (bereich, art, land) => `Area: ${bereich} · ${art} · ${land}. Florentine Lombardi reads every application herself.`,
   stufen: ["Area", "Framework", "About you", "Send"],
   f0: "In which area would you like to work?", f1: "How would you like to work with us?", bereichLabel: "Area", artLabel: "Type of collaboration", landLabel: "Country",
@@ -131,6 +132,7 @@ const en: typeof de = {
   f2: "Who are you?", name: "Full name *", email: "E-mail *", telefon: "Phone *", erfahrung: "Experience", erfahrungOptionen: ["Berufseinstieg", "1–3 Jahre", "3–7 Jahre", "über 7 Jahre", "Führungserfahrung"], linkedin: "LinkedIn or website (optional)", warumFeld: "Why FIAON – in three sentences",
   f3: "Everything correct?", pruefZeilen: ["Area", "Collaboration", "Country", "Start", "Hours/week", "Name", "E-mail", "Phone", "Experience"], offen: "open",
   datenschutz: "Your details go directly to Florentine Lombardi. No passing on, no newsletter.",
+  vorbelegt: "We have taken your name, e-mail, phone and country from your customer area — please check them briefly.",
   zurueck: "Back", weiter: "Next", sendet: "Sending …", absenden: "Send application",
 };
 // Etiketten für Auswahlwerte, die unverändert an den Server gehen.

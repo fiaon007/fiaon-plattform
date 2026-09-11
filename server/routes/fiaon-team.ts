@@ -204,6 +204,20 @@ router.post("/admin/agents", async (req, res) => {
         WHERE id = ${Number(suggestionId)} AND status = 'offen'
       `;
     }
+    // ── DIE BRÜCKE VON DER BEWERBUNG (11.09.2026, E-177) ──────────────────
+    // Kam die Person über /karriere, wird ihre Bewerbung mit dem neuen Konto
+    // verknüpft: Status „zugesagt", agent_id gesetzt. Bis heute gab es diesen
+    // Weg nicht — sieben Bewerber, null Mitarbeiter, keine Spur dazwischen.
+    if (req.body?.bewerbungId != null && Number(req.body.bewerbungId) > 0) {
+      try {
+        const { ensureAnfragenSpalten } = await import("./fiaon-bewerbungen");
+        await ensureAnfragenSpalten();
+        await sqlPool`
+          UPDATE fiaon_anfragen
+             SET agent_id = ${rows[0].id}, status = 'zugesagt', bearbeitet_am = COALESCE(bearbeitet_am, NOW())
+           WHERE id = ${Number(req.body.bewerbungId)} AND art = 'karriere'`;
+      } catch (e) { console.error("[FIAON-TEAM] Bewerbung verknüpfen:", String(e).slice(0, 160)); }
+    }
     sendMakeWebhook("agent_invite", {
       email: rows[0].email,
       vorname: String(firstName).trim(),

@@ -6,6 +6,7 @@ import { FiaonEbene } from "@/components/FiaonEbene";
 import { NachbuchenTafel } from "@/components/admin/NachbuchenTafel";
 import { AnrufPlayer } from "@/components/AnrufPlayer";
 import VerguetungTafel from "@/components/admin/VerguetungTafel";
+import Bewerbungen from "@/components/admin/Bewerbungen";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TEAM-ZENTRALE — alles über einen Menschen an einem Ort
@@ -1290,10 +1291,10 @@ export default function AdminTeamZentrale() {
   // Detail. Jetzt ist sie da, wo der Weg schon hinzeigte.
   const [reiter, setReiter] = useState<
     "menschen" | "nachbuchung" | "aktivitaet" | "inkasso" | "neu" | "partner"
-    | "praemien" | "skripte" | "einstellungen"
+    | "praemien" | "skripte" | "einstellungen" | "bewerbungen"
   >(() => {
     const t = new URLSearchParams(window.location.search).get("tab");
-    return (["menschen", "nachbuchung", "aktivitaet", "inkasso", "neu", "partner", "praemien", "skripte", "einstellungen"].includes(String(t))
+    return (["menschen", "nachbuchung", "aktivitaet", "inkasso", "neu", "partner", "praemien", "skripte", "einstellungen", "bewerbungen"].includes(String(t))
       ? t : "menschen") as any;
   });
   const [einladen, setEinladen] = useState(
@@ -1403,6 +1404,9 @@ export default function AdminTeamZentrale() {
             ["inkasso", "Inkasso-Zuteilung"],
             ["neu", "Neu im Team"],
             ["partner", "Partner-Anfragen"],
+            // 11.09.2026 (E-177): Bewerbungen von /karriere — bis dahin nur
+            // in einer zugeklappten Werkstatt-Karte des Chefbüros zu sehen.
+            ["bewerbungen", "Bewerbungen"],
             ["praemien", "Meilenstein-Prämien"],
             ["skripte", "Skripte & Leitfäden"],
             ["einstellungen", "Einstellungen"],
@@ -1438,6 +1442,7 @@ export default function AdminTeamZentrale() {
         {reiter === "partner" && (
           <PartnerSuggestionsCard flash={(m) => setMeldung({ art: "gut", text: m })} onChanged={laden} />
         )}
+        {reiter === "bewerbungen" && <Bewerbungen />}
         {reiter === "praemien" && (
           <MilestoneTasksCard flash={(m) => setMeldung({ art: "gut", text: m })} />
         )}

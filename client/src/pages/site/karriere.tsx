@@ -4,7 +4,7 @@
 // Leute anwerben; Abteilungen wählbar." Der Satz „Kunden werden Mitarbeiter" bleibt intern.
 // Texte: client/src/i18n/karriere.ts. Auswahlwerte (Festanstellung, Vollzeit …) gehen unverändert an den Server;
 // die englische Seite zeigt Etiketten dafür.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Dunkel, Hero, Block, Karten, Kennzahlen, Glas, Zitat, Fragen, Zwischenruf, Abschluss, Knopf, Auf, Licht } from "@/components/site/DunkleBuehne";
 import SeoDaten from "@/components/site/SeoDaten";
 import NeuralSphere from "@/components/home3d/NeuralSphere";
@@ -14,6 +14,12 @@ import { KARRIERE_WOERTER, KARRIERE_OPTION_EN, type Bereich } from "@/i18n/karri
 const ARTEN = ["Festanstellung", "Freie Mitarbeit", "Werkstudent"];
 const LAENDER = ["DE", "AT", "CH"];
 type W = typeof KARRIERE_WOERTER.de;
+// E-177 (11.09.2026): Die Kachel im Kundenbereich verspricht seit dem 22.08.
+// „Ihre Daten sind schon eingetragen" — und diese Seite las ?ref= nie aus.
+// Jetzt holt sie Name, E-Mail, Telefon und Land mit der Kundensitzung ab
+// (GET /kunde/:ref/bewerbung-vorbelegung, requireKunde). Ohne Sitzung
+// passiert nichts, und die Seite bleibt eine normale Bewerbungsseite.
+type Vorbelegung = { name: string; email: string; telefon: string; land: string };
 
 export default function Karriere() {
   const t = useWoerter(KARRIERE_WOERTER);
@@ -25,6 +31,17 @@ export default function Karriere() {
   const [gewaehlt, setGewaehlt] = useState<string>(BEREICHE[0].key);
   const bereich = useMemo(() => BEREICHE.find((b) => b.key === gewaehlt) || BEREICHE[0], [gewaehlt, BEREICHE]);
   const [vorwahl, setVorwahl] = useState<string | null>(null);
+  const [vorbelegung, setVorbelegung] = useState<Vorbelegung | null>(null);
+  useEffect(() => {
+    const ref = new URLSearchParams(window.location.search).get("ref");
+    if (!ref || !/^[A-Z0-9-]{6,40}$/i.test(ref)) return;
+    let an = true;
+    fetch(`/api/fiaon/kunde/${encodeURIComponent(ref)}/bewerbung-vorbelegung`, { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (an && j?.ok) setVorbelegung({ name: j.name || "", email: j.email || "", telefon: j.telefon || "", land: j.land || "" }); })
+      .catch(() => {});
+    return () => { an = false; };
+  }, []);
   const zurBewerbung = (key?: string) => { if (key) setVorwahl(key); document.getElementById("bewerbung")?.scrollIntoView({ behavior: "smooth" }); };
   const artL = (a: string) => t.artenLabel[a] ?? a;
 
@@ -92,7 +109,7 @@ export default function Karriere() {
       <Zwischenruf text={t.zwischenruf} knopf={t.bewerbungStarten} href="#bewerbung" still={{ knopf: t.teamKennenlernen, href: zu("/team") }} />
 
       <Block id="bewerbung" pille={t.bewerbungPille} titel={<>{t.bewerbungA}<span className="dk-verlauf">{t.bewerbungB}</span></>} lead={t.bewerbungLead} schmal>
-        <Bewerbung vorwahl={vorwahl} t={t} en={en} bereiche={BEREICHE} />
+        <Bewerbung vorwahl={vorwahl} t={t} en={en} bereiche={BEREICHE} vorbelegung={vorbelegung} />
       </Block>
 
       <Block eng schmal pille={t.fragenPille}>
@@ -109,7 +126,7 @@ export default function Karriere() {
 }
 
 /* ── Der Bewerbungsprozess ──────────────────────────────────────────────── */
-function Bewerbung({ vorwahl, t, en, bereiche }: { vorwahl: string | null; t: W; en: boolean; bereiche: Bereich[] }) {
+function Bewerbung({ vorwahl, t, en, bereiche, vorbelegung }: { vorwahl: string | null; t: W; en: boolean; bereiche: Bereich[]; vorbelegung: Vorbelegung | null }) {
   const opt = (v: string) => (en ? KARRIERE_OPTION_EN[v] ?? v : v);
   const artL = (a: string) => t.artenLabel[a] ?? a;
   const [schritt, setSchritt] = useState(0);
@@ -117,6 +134,12 @@ function Bewerbung({ vorwahl, t, en, bereiche }: { vorwahl: string | null; t: W;
   const [stand, setStand] = useState<"offen" | "sendet" | "fertig" | "fehler">("offen");
   const [meldung, setMeldung] = useState<string | null>(null);
   if (vorwahl && w.bereich !== vorwahl && schritt === 0 && !w.art) { setW({ ...w, bereich: vorwahl }); }
+  // Vorbelegung aus dem Kundenbereich — nur leere Felder werden gefüllt,
+  // was der Mensch schon getippt hat, bleibt.
+  useEffect(() => {
+    if (!vorbelegung) return;
+    setW((a) => ({ ...a, name: a.name || vorbelegung.name, email: a.email || vorbelegung.email, telefon: a.telefon || vorbelegung.telefon, land: a.land || vorbelegung.land }));
+  }, [vorbelegung]);
   const setze = (k: string, v: string) => setW((a) => ({ ...a, [k]: v }));
   const b = bereiche.find((x) => x.key === w.bereich);
   const weiter = [!!w.bereich, !!w.art && !!w.land, !!w.name && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(w.email) && !!w.telefon, true];
@@ -182,6 +205,7 @@ function Bewerbung({ vorwahl, t, en, bereiche }: { vorwahl: string | null; t: W;
         {schritt === 2 && (
           <>
             <h3 className="dk-h3">{t.f2}</h3>
+            {vorbelegung && <p className="dk-leise" style={{ marginTop: 6 }}>{t.vorbelegt}</p>}
             <div className="dk-form" style={{ marginTop: 18 }}>
               <div className="zwei">
                 <div><label className="dk-label" htmlFor="ka-name">{t.name}</label><input id="ka-name" className="dk-feld" value={w.name} onChange={(e) => setze("name", e.target.value)} /></div>

@@ -5,6 +5,62 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 11.09.2026 — Bewerbungen: Liste mit Status, Zuständige, Zusage/Absage per Mail, Brücke zur Einladung (E-177, Umsetzung)
+
+**Was geändert wurde:** Bewerbungen über `/karriere` haben jetzt einen eigenen Weg. Die Tabelle `fiaon_anfragen`
+bekommt beim Start die Spalten `status` (neu · in_gespraech · zugesagt · abgesagt · zurueckgezogen), `zustaendig_agent_id`,
+`bearbeitet_am`, `bearbeitet_von`, `notiz`, `ist_test` und `agent_id` (ALTER TABLE … ADD COLUMN IF NOT EXISTS, Muster
+`ensureSchufaTabelle`). Beim Eingang entsteht kein unzugewiesener Vermerk mehr, sondern ein **Auftrag an die zuständige
+Person** über `auftragFuerKunden` (Schlüssel `bewerbung:<id>`, Bereich „entscheidung", Mail „Neuer Auftrag für dich",
+Link auf die Liste). Zuständig ist Florentine Lombardi (Agent 10) — so sagt es die Website; änderbar ohne Code in
+`fiaon_settings.bewerbung_zustaendig_agent_id`, in der Liste selbst als Auswahl (nur Geschäftsführung).
+
+Neue Seite **Bewerbungen**: im Chefbüro unter Team (`/chef/s/bewerbungen`, Register-Suchworte karriere/bewerber) und
+unter `/admin/team` als Reiter. Je Bewerbung: Name, Eingang, Status, Bereich, Land, Erfahrung, Zusammenarbeit, frühester
+Start, Stunden/Woche, LinkedIn, Sprache, Kontakt, Kunde ja/nein mit Betreuer und Akten-Link, zuständige Person mit
+Auftragsstand, „Warum FIAON", Notiz. Knöpfe: **Übernehmen** (Auftrag bei mir), **Übergeben an …**, **Zusagen**,
+**Absagen**, **Zurückgezogen**, **Als Test markieren** (Test bleibt in der Tabelle, verschwindet aus der Arbeit),
+**Wieder öffnen**. Zusage und Absage zeigen zuerst die Vorschau (dieselbe Vorlage und Nutzlast wie der Versand) und
+schicken dann je eine Mail über `mailSenden` — neue Vorlagen `bewerbung_zusage` und `bewerbung_absage`
+(`server/mail/vorlagen/bewerbung.ts`, Absender FIAON Team, gesiezt, keine Fristen, keine Vergütungsaussagen). Geht die
+Mail nicht raus, ändert sich kein Status. Nach der Zusage öffnet sich die bestehende **Mitarbeiter-Einladung**
+(`InviteModal`) mit Vorname, Nachname, E-Mail und Telefon aus der Bewerbung; `POST /admin/agents` nimmt `bewerbungId`
+an und hängt das neue Konto an die Bewerbung (`agent_id`). Zusage, Absage, Rückzug und Testmarke erledigen den alten
+Vermerk und den Auftrag mit Ergebnis in der Zeitleiste.
+
+`mailSenden` kann jetzt an einen Menschen **ohne Person** senden (`ohnePerson: { email }`) — für Bewerber, die keine
+Kunden sind; protokolliert wie jede Mail. `auftragFuerKunden` nimmt `anlageText` (der erste Zeitleisten-Satz war fest
+„aus dem Postfach"). Werkstatt → Posteingang verlinkt Bewerbungen auf die neue Seite.
+
+**Website:** Die vier widersprüchlichen Versprechen (Rückruf in zwei Werktagen / „direkt an Florentine" / „Aufgabe bei
+der Leitung" / Kommentar „an Justin") sind EIN Satz, DE und EN: „Florentine Lombardi meldet sich persönlich bei Ihnen."
+— in `client/src/i18n/karriere.ts`, `hilfe.ts`, `shared/fiaon-seo-fragen.ts`, im Bestätigungstext des Servers (er nennt
+die Person, bei der der Auftrag wirklich liegt) und im Update-Protokoll. Keine Frist mehr. `/karriere?ref=…` liest die
+Referenz jetzt wirklich aus: Mit Kundensitzung holt die Seite Name, E-Mail, Telefon und Land
+(`GET /kunde/:ref/bewerbung-vorbelegung`, requireKunde) und füllt leere Felder vor — die Kachel im Kundenbereich
+(„Ihre Daten sind schon eingetragen") stimmt damit.
+
+**Warum:** Seit dem 22.08. zehn Bewerbungen (sieben echte, alle Kunden), keine bearbeitet, keine zugewiesen, keine Mail
+— die einzige Liste lag zugeklappt in einer Werkstatt-Karte ohne Status und Knopf (Befund E-177 im Register).
+
+**Praxistest (lokal gegen die Produktionsdatenbank, Worktree aus HEAD + diese Dateien, CRONS=aus):** Liste liefert
+10 Zeilen mit Spalten, Status überall „neu", Zuständige = Daniel Stripling und Florentine Lombardi, Standard =
+Florentine; Vorschau Zusage (#10) und Absage (#9) rendern mit echten Namen, keine leeren Platzhalter; ohne Chef-Cookie
+401, Vorbelegung ohne Kundensitzung 401, fremde Referenz 403, eigene Referenz liefert Name/E-Mail/Telefon/Land. Es
+wurde keine Mail an einen Bewerber verschickt und kein Status geändert.
+
+**Wo zu finden:** `server/routes/fiaon-bewerbungen.ts` (neu), `server/routes/fiaon-anfragen.ts`,
+`server/mail/vorlagen/bewerbung.ts` (neu), `server/lib/fiaon-mail-senden.ts`, `server/lib/fiaon-mail-events.ts`,
+`server/make-events-registry.ts`, `server/make-webhook.ts`, `server/mail/motor.ts`, `server/routes/fiaon-betreiber-todo.ts`,
+`server/routes/fiaon-team.ts`, `server/routes.ts`, `client/src/components/admin/Bewerbungen.tsx` (neu),
+`client/src/components/admin/chef-seiten.tsx`, `client/src/pages/admin-team-zentrale.tsx`,
+`client/src/components/admin/TeamVerwaltung.tsx`, `client/src/components/admin/ChefWerkzeuge.tsx`,
+`client/src/pages/site/karriere.tsx`, `client/src/i18n/karriere.ts`, `client/src/i18n/hilfe.ts`,
+`shared/fiaon-seo-fragen.ts`, `client/src/pages/agent/rundgaenge.ts` (Rundgang `bewerbungen`),
+`client/src/pages/agent/updates-data.ts`.
+
+---
+
 ## 11.09.2026 — Kontoauszug: Das Druckdatum macht aus einem Monat keine drei mehr (E-179)
 
 **Was geändert wurde:** Die automatische Dokumentenprüfung bestimmt den Zeitraum eines Kontoauszugs nicht mehr
@@ -39,6 +95,7 @@ Rückfrage bei Justin (`POST /api/fiaon/admin/dokumente/:ref/kontoauszug/pruefen
 **Wo zu finden:** `server/lib/fiaon-dokument-pruefung.ts` (`auszugsZeitraum`), `server/lib/fiaon-pdf-lesen.ts`
 (`pdfTextUndZeilen`), Prüfstand `npx tsx scripts/pruef-auszugszeitraum.ts` (15 Fälle, den echten Auszügen
 nachgebaut, ohne echte Daten).
+
 
 ---
 

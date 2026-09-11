@@ -1,11 +1,16 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // ANFRAGEN VON DER WEBSITE — Investoren, Presse, Datenraum, Partner, Karriere
-// Ein Endpunkt, eine Tabelle, eine Aufgabe an Justin (fiaon_vermerke,
-// fuer_betreiber). Bewerbungen (E-026) zusätzlich mit Kunden-Bezug, wenn
-// der Bewerber ein Kunde ist.
+// Ein Endpunkt, eine Tabelle. Investoren-, Presse-, Datenraum-, Partner- und
+// Termin-Anfragen werden eine Aufgabe des Betreibers (fiaon_vermerke,
+// fuer_betreiber). Bewerbungen (E-026) gehen seit dem 11.09.2026 (E-177)
+// einen eigenen Weg: Sie bekommen einen Status, eine zuständige Person und
+// einen Auftrag mit Mail — siehe fiaon-bewerbungen.ts. Vorher entstand für
+// sie ein Vermerk ohne Zuständigen und ohne Mail; zehn Bewerbungen lagen so
+// bis zu 18 Tage unangefasst.
 // ═══════════════════════════════════════════════════════════════════════════
 import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
+import { ensureAnfragenSpalten, bewerbungAuftrag } from "./fiaon-bewerbungen";
 
 const router = Router();
 // 02.09.2026 (E-083): „termin" = Wunsch nach einem Startgespräch von /termin —
@@ -27,10 +32,8 @@ router.post("/anfrage", async (req: Request, res: Response) => {
     if (Date.now() - t < 60_000) return res.json({ ok: true, meldung: "Ihre Anfrage ist angekommen." });
     letzte.set(k, Date.now());
 
-    await sqlPool`
-      CREATE TABLE IF NOT EXISTS fiaon_anfragen (
-        id SERIAL PRIMARY KEY, art VARCHAR NOT NULL, name TEXT, email TEXT, firma TEXT, telefon TEXT, rolle TEXT, land TEXT,
-        kunde TEXT, erfahrung TEXT, text TEXT, person_id INTEGER, ip TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`;
+    // Tabelle samt Status-Spalten (E-177) — eine Stelle für das Schema.
+    await ensureAnfragenSpalten();
     const ip = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim() || req.socket.remoteAddress || "";
     // Jede Seite hat eigene Zusatzfelder (Ticketgröße, Thema, Frist, Zweck …). Die landen
     // als Zeilen im Text, damit nichts verloren geht und keine neue Spalte je Seite nötig ist.
@@ -49,24 +52,38 @@ router.post("/anfrage", async (req: Request, res: Response) => {
               ${String(b.erfahrung || "").slice(0, 100) || null}, ${text || null}, ${kunde?.person_id ?? null}, ${ip})
       RETURNING id`) as any[];
 
-    const zeilen = [
-      `${TITEL[art]} #${row.id} über die Website.`,
-      `Name: ${name} · E-Mail: ${email}${b.telefon ? ` · Telefon: ${b.telefon}` : ""}${b.firma ? ` · ${b.firma}` : ""}`,
-      b.rolle ? `Rolle: ${b.rolle}` : null, b.land ? `Land: ${b.land}` : null, b.kunde ? `Kunde: ${b.kunde}` : null, b.erfahrung ? `Erfahrung: ${b.erfahrung}` : null,
-      kunde?.ref ? `Bestehender Kunde (${kunde.ref}).` : null,
-      text ? `\n${text.slice(0, 1500)}` : null,
-    ].filter(Boolean).join("\n");
-    await sqlPool`
-      INSERT INTO fiaon_vermerke (art, ref, text, sicht, fuer_betreiber, dringend, status, autor_art, autor_name, faellig_am)
-      VALUES ('aufgabe', ${kunde?.ref ?? null}, ${zeilen}, 'betreiber', TRUE, ${art === "investor" || art === "datenraum"}, 'offen', 'system', 'Website',
-              ((NOW() AT TIME ZONE 'Europe/Berlin')::date + 2))
-    `.catch((e) => console.error("[ANFRAGE] Aufgabe:", e?.message));
+    // ── BEWERBUNG: Auftrag an die zuständige Person (E-177) ────────────────
+    // Kein unzugewiesener Vermerk mehr. Der Auftrag geht mit Mail an die
+    // Person aus fiaon_settings.bewerbung_zustaendig_agent_id (Standard:
+    // Florentine Lombardi), landet in ihrem Portal unter Aufgaben → Aufträge
+    // und verlinkt auf die Bewerbungsliste.
+    let zustaendigName: string | null = null;
+    if (art === "karriere") {
+      const erg = await bewerbungAuftrag(Number(row.id)).catch((e) => { console.error("[ANFRAGE] Bewerbungs-Auftrag:", e?.message); return null; });
+      zustaendigName = erg?.agentName ?? null;
+    } else {
+      const zeilen = [
+        `${TITEL[art]} #${row.id} über die Website.`,
+        `Name: ${name} · E-Mail: ${email}${b.telefon ? ` · Telefon: ${b.telefon}` : ""}${b.firma ? ` · ${b.firma}` : ""}`,
+        b.rolle ? `Rolle: ${b.rolle}` : null, b.land ? `Land: ${b.land}` : null, b.kunde ? `Kunde: ${b.kunde}` : null, b.erfahrung ? `Erfahrung: ${b.erfahrung}` : null,
+        kunde?.ref ? `Bestehender Kunde (${kunde.ref}).` : null,
+        text ? `\n${text.slice(0, 1500)}` : null,
+      ].filter(Boolean).join("\n");
+      await sqlPool`
+        INSERT INTO fiaon_vermerke (art, ref, text, sicht, fuer_betreiber, dringend, status, autor_art, autor_name, faellig_am)
+        VALUES ('aufgabe', ${kunde?.ref ?? null}, ${zeilen}, 'betreiber', TRUE, ${art === "investor" || art === "datenraum"}, 'offen', 'system', 'Website',
+                ((NOW() AT TIME ZONE 'Europe/Berlin')::date + 2))
+      `.catch((e) => console.error("[ANFRAGE] Aufgabe:", e?.message));
+    }
     if (kunde?.ref) {
       await sqlPool`INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
-        VALUES (${kunde.ref}, ${kunde.person_id ?? null}, NULL, 'System', 'system', ${`${TITEL[art]} über die Website eingegangen.`})`.catch(() => {});
+        VALUES (${kunde.ref}, ${kunde.person_id ?? null}, NULL, 'System', 'system', ${`${TITEL[art]} über die Website eingegangen.${zustaendigName ? ` Auftrag bei ${zustaendigName}.` : ""}`})`.catch(() => {});
     }
+    // Die Aussage an den Bewerber ist dieselbe wie auf der Website: EIN
+    // Versprechen, keine Frist — und es nennt die Person, bei der der
+    // Auftrag wirklich liegt.
     const meldung = art === "termin" ? "Danke — wir rufen Sie im gewünschten Zeitfenster an, spätestens am nächsten Werktag."
-      : art === "karriere" ? "Danke — Ihre Bewerbung ist da. Wir rufen Sie innerhalb von zwei Werktagen an."
+      : art === "karriere" ? `Danke — Ihre Bewerbung ist da. ${zustaendigName || "Florentine Lombardi"} meldet sich persönlich bei Ihnen.`
       : art === "presse" ? "Danke — wir melden uns innerhalb eines Werktags."
       : "Danke — Ihre Anfrage ist angekommen. Wir melden uns innerhalb von zwei Werktagen.";
     res.json({ ok: true, meldung });

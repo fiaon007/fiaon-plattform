@@ -739,6 +739,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const chefWerkzeuge = await import('./routes/fiaon-chef-werkzeuge');
   app.use('/api/fiaon', chefWerkzeuge.default);
 
+  // 📨 Bewerbungen (E-177, 11.09.2026): Liste mit Status und Zuständigem,
+  // Zu-/Absage per Mail, Brücke zur Mitarbeiter-Einladung, Vorbelegung für
+  // Kunden auf /karriere.
+  const bewerbungen = await import('./routes/fiaon-bewerbungen');
+  app.use('/api/fiaon', bewerbungen.default);
+
   // 👥 Chefbüro-Übersichten: Kundenauflistung und Zahlungszentrale.
   const chefUebersichten = await import('./routes/fiaon-chef-uebersichten');
   app.use('/api/fiaon', chefUebersichten.default);

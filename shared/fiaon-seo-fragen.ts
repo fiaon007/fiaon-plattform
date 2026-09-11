@@ -873,7 +873,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Kann ich als Kunde für FIAON arbeiten?",
-      "a": "Ja – viele im Team waren selbst Kunden. Bewerbung in vier Schritten auf der Karriere-Seite; Florentine meldet sich persönlich innerhalb von zwei Werktagen."
+      "a": "Ja – viele im Team waren selbst Kunden. Bewerbung in vier Schritten auf der Karriere-Seite; Florentine Lombardi meldet sich persönlich bei Ihnen."
     },
     {
       "f": "Fest oder frei?",
@@ -1019,7 +1019,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Can I work for FIAON as a customer?",
-      "a": "Yes — many in the team were customers themselves. Application in four steps on the careers page; Florentine gets in touch personally within two working days."
+      "a": "Yes — many in the team were customers themselves. Application in four steps on the careers page; Florentine Lombardi gets in touch with you personally."
     },
     {
       "f": "Employed or freelance?",

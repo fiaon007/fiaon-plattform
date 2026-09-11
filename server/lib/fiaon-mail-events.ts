@@ -213,6 +213,19 @@ const ZUSATZ: Partial<Record<MakeEventType, EventZusatz>> = {
     gruppe: "konto", zielgruppe: "kunde", rollen: ["admin"],
     klartext: "Bestätigung einer Löschung nach DSGVO.",
   },
+  // ── Bewerbungen (E-177, 11.09.2026) ──────────────────────────────────────
+  // Zielgruppe „kunde": ein Mensch von draußen, gesiezt. Rolle nur „admin":
+  // Die Knöpfe liegen in der Bewerbungsliste des Chefbüros, nicht im
+  // Sende-Menü der Akte — dort hätte die Mail keine Bewerbung, aus der sie
+  // ihren Inhalt nimmt.
+  bewerbung_zusage: {
+    gruppe: "team", zielgruppe: "kunde", rollen: ["admin"],
+    klartext: "Zusage an einen Bewerber — von Hand aus der Bewerbungsliste; der Zugangslink folgt mit der Mitarbeiter-Einladung.",
+  },
+  bewerbung_absage: {
+    gruppe: "team", zielgruppe: "kunde", rollen: ["admin"],
+    klartext: "Absage an einen Bewerber — von Hand aus der Bewerbungsliste, freundlich und ohne Fristen.",
+  },
 };
 
 const VORGABE_ZUSATZ: EventZusatz = {

@@ -527,7 +527,9 @@ function Posteingang() {
       <p className="cw-erklaerung">
         Anfragen von der Website und offene Kundenanfragen aus dem
         Kundenbereich. Beides stand bisher in der Datenbank, ohne dass es
-        irgendwo zu sehen war.
+        irgendwo zu sehen war. Bewerbungen haben seit dem 11.09.2026 eine
+        eigene Seite mit Status, Zuständigem und Knöpfen:{" "}
+        <a href="/chef/s/bewerbungen">Team → Bewerbungen</a>.
       </p>
 
       <h4>Offene Kundenanfragen <span>{zahl(d.tickets.anzahl)}</span></h4>
@@ -566,6 +568,7 @@ function Posteingang() {
               <span className="cw-post-zeit">
                 <b>{datumZeit(a.created_at)}</b>
                 <em>{a.email || a.telefon || "keine Kontaktdaten"}</em>
+                {a.art === "karriere" && <a className="cw-knopf klein" href={`/chef/s/bewerbungen?id=${a.id}`}>Bewerbung öffnen</a>}
               </span>
             </li>
           ))}

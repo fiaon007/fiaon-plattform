@@ -84,6 +84,30 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-09-11-bewerbungen",
+    date: "2026-09-11",
+    category: "Neu",
+    title: "Bewerbungen haben eine Liste: Zuständig ist Florentine, Zusage und Absage gehen per Mail",
+    summary:
+      "Wer sich über fiaon.com/karriere bewirbt, landet jetzt als Auftrag bei Florentine Lombardi — mit Mail. Die Leitung sieht "
+      + "alle Bewerbungen im Chefbüro unter Team → Bewerbungen (und unter /admin/team → „Bewerbungen“): Stand, Zuständige, Kunde "
+      + "ja/nein mit Akte, Knöpfe für Zusage, Absage und die Einladung als Mitarbeiter. Vorher lagen zehn Bewerbungen unbeantwortet.",
+    changes: [
+      "Jede Bewerbung hat einen Stand: Neu · Im Gespräch · Zugesagt · Abgesagt · Zurückgezogen. Eigene Probeeinträge lassen sich als Test markieren und verschwinden aus der Arbeit.",
+      "Beim Eingang entsteht ein Auftrag bei der zuständigen Person (Standard Florentine Lombardi, in der Liste änderbar) — sie bekommt die Mail „Neuer Auftrag für dich“ und sieht ihn unter Aufgaben → Aufträge.",
+      "„Zusagen“ schickt die Mail „Wir möchten mit Ihnen arbeiten“ und öffnet danach die Mitarbeiter-Einladung mit den Daten aus der Bewerbung. „Absagen“ schickt eine freundliche Absage. Beide zeigen vorher die Vorschau.",
+      "Website, Hilfe und Bestätigungstext sagen jetzt dasselbe: „Florentine Lombardi meldet sich persönlich bei Ihnen.“ Keine Frist mehr, die niemand einhält.",
+      "Kunden, die aus ihrem Bereich auf „Jetzt bewerben“ klicken, finden Name, E-Mail, Telefon und Land vorbelegt — das stand seit dem 22.08. auf der Kachel und stimmte bis heute nicht.",
+    ],
+    howto: [
+      "Leitung: Chefbüro → Team → Bewerbungen (oder /admin/team → Reiter „Bewerbungen“). Offene Bewerbungen stehen oben; „Übernehmen“ macht dich zuständig, „Übergeben an …“ gibt sie weiter.",
+      "Erst anrufen und sprechen, dann entscheiden: „Zusagen“ oder „Absagen“ — die Vorschau zeigt die Mail, bevor sie rausgeht.",
+      "Nach der Zusage: Einladung ausfüllen (Position, Vergütung) — sie schickt den Zugangslink. Die Bewerbung zeigt danach den neuen Mitarbeiter.",
+      "Sagt ein Kunde am Telefon, er wolle mitarbeiten: auf fiaon.com/karriere verweisen — aus seinem Bereich ist die Bewerbung vorbelegt.",
+    ],
+    link: { href: "/chef/s/bewerbungen", label: "Bewerbungen öffnen" },
+  },
+  {
     id: "2026-09-09-telefon-bleibt-dran",
     date: "2026-09-09",
     category: "Behoben",
@@ -437,7 +461,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
       + "benannte Schritte und eine Prüfung mit nachvollziehbaren Teilschritten.",
     changes: [
       "ANTRAG: Kunden werden gesiezt (E-002). Fünf Schritte: Daten · Finanzen · Karte · Vertrag · Zugang. Die Bonitätsprüfung zeigt, was gerade geprüft wird (Identität, Anschrift, Auskunftei je Land, Einkommen, Haushalt, Rahmen, Freigabe).",
-      "WEBSITE: Startseite erklärt die drei Schichten Einsicht · Aktion · Zugang. Neue Seiten: /karriere (Kunden können sich als Mitarbeiter bewerben — Bewerbungen landen als Aufgabe bei der Leitung), /partner, /presse, /investoren, /datenraum.",
+      "WEBSITE: Startseite erklärt die drei Schichten Einsicht · Aktion · Zugang. Neue Seiten: /karriere (Kunden können sich als Mitarbeiter bewerben — seit dem 11.09.2026 landen Bewerbungen als Auftrag bei Florentine Lombardi, Liste im Chefbüro unter Team → Bewerbungen), /partner, /presse, /investoren, /datenraum.",
       "PREISE: Die Startseite liest die Preise aus derselben Quelle wie das Portal (shared/fiaon-pakete.ts) — keine abweichenden Zahlen mehr zwischen Website und Akte.",
     ],
     howto: [

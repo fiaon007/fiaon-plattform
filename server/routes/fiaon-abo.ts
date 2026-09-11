@@ -1947,7 +1947,15 @@ const LAUF_TEXT: Record<LaufArt, string> = {
 };
 
 /** Kandidaten der gewählten Ansicht — inklusive Begründung, was übersprungen wird. */
-async function laufKandidaten(art: LaufArt) {
+/**
+ * @param opts.nurSendbare true = Raten, die in den letzten 20 Stunden schon erinnert
+ *   wurden, gar nicht erst laden. Gemessen am 11.09.2026 (E-182): Der Handlauf
+ *   „überfällig" lud mit LIMIT 40 immer dieselben 40 ältesten Raten — nach dem
+ *   ersten Durchgang waren alle 40 gesperrt, `rest` blieb wahr, und die übrigen
+ *   220 überfälligen Raten kamen nie an die Reihe. Die Vorschau lädt weiter ohne
+ *   den Filter, damit sie die Gesperrten zählen kann.
+ */
+async function laufKandidaten(art: LaufArt, opts: { nurSendbare?: boolean } = {}) {
   const heute = berlinToday();
   const wo =
     art === "heute" ? `r.faellig_am = '${heute}'::date`
@@ -1978,6 +1986,7 @@ async function laufKandidaten(art: LaufArt) {
     JOIN fiaon_applications a ON a.ref = r.ref AND a.merged_into IS NULL AND a.abo_gestoppt_am IS NULL
     LEFT JOIN fiaon_agents ag ON ag.id = a.assigned_agent_id
     WHERE r.status = 'offen' AND r.storniert_am IS NULL AND ${wo}
+      ${opts.nurSendbare ? "AND (r.letzte_erinnerung_at IS NULL OR r.letzte_erinnerung_at < NOW() - INTERVAL '20 hours')" : ""}
     ORDER BY r.faellig_am ASC
     LIMIT ${ABO_BATCH}
   `);
@@ -2027,7 +2036,7 @@ router.post("/admin/abo/lauf", async (req: Request, res: Response) => {
         error: "Außerhalb des Versandfensters (08–20 Uhr Berliner Zeit). Kundenmails gehen nachts nicht raus.",
       });
     }
-    const kandidaten = await laufKandidaten(art);
+    const kandidaten = await laufKandidaten(art, { nurSendbare: true });
     const { senden, ohneMail, gesperrt } = laufAufteilen(kandidaten as any[]);
 
     let gesendet = 0;

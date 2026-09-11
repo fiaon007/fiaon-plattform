@@ -34,7 +34,7 @@ Kunden sind; protokolliert wie jede Mail. `auftragFuerKunden` nimmt `anlageText`
 
 **Website:** Die vier widersprüchlichen Versprechen (Rückruf in zwei Werktagen / „direkt an Florentine" / „Aufgabe bei
 der Leitung" / Kommentar „an Justin") sind EIN Satz, DE und EN: „Florentine Lombardi meldet sich persönlich bei Ihnen."
-— in `client/src/i18n/karriere.ts`, `hilfe.ts`, `shared/fiaon-seo-fragen.ts`, im Bestätigungstext des Servers (er nennt
+— in `client/src/i18n/karriere.ts`, `hilfe.ts`, `shared/fiaon-seo-fragen.ts`, `shared/fiaon-seo-seiten.ts` (Server-Korpus der Karriereseite, Nachtrag 19b2a19+1), im Bestätigungstext des Servers (er nennt
 die Person, bei der der Auftrag wirklich liegt) und im Update-Protokoll. Keine Frist mehr. `/karriere?ref=…` liest die
 Referenz jetzt wirklich aus: Mit Kundensitzung holt die Seite Name, E-Mail, Telefon und Land
 (`GET /kunde/:ref/bewerbung-vorbelegung`, requireKunde) und füllt leere Felder vor — die Kachel im Kundenbereich

@@ -597,7 +597,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
       { h2: "Ein Start-up, das etwas repariert.", text: "Wir bauen das Betriebssystem für Bonität: Menschen sehen, was Auskunfteien über sie speichern, ändern es – und bekommen Zugang zu Konto, Karte und Finanzierung. Das ist Arbeit mit Sinn, in einem Tempo, das nur ein junges Unternehmen hat." },
       { h2: "Wo Sie einsteigen können.", text: "Vertrieb, Onboarding, Forderungsmanagement, Kundenbetreuung, Marketing, Technik, Partner – wählen Sie einen Bereich und sehen Sie, was Sie dort tun, was Sie mitbringen und in welcher Form wir zusammenarbeiten." },
       { h2: "Remote, aber nie allein.", text: "Erst lernen, dann Kunden: Niemand spricht mit Kunden, bevor er die Academy bestanden hat. Alles in einem Portal – Softphone, Kalender, Akte, Aufträge. Feste Ansprechpartner: Florentine führt Onboarding und Einschulung, Daniel den Vertrieb." },
-      { h2: "In vier Schritten zu uns.", text: "Kein Lebenslauf-Upload, kein Anschreiben. Vier kurze Schritte, drei Minuten. Danach meldet sich Florentine persönlich – innerhalb von zwei Werktagen." },
+      { h2: "In vier Schritten zu uns.", text: "Kein Lebenslauf-Upload, kein Anschreiben. Vier kurze Schritte, drei Minuten. Danach meldet sich Florentine Lombardi persönlich bei Ihnen." },
     ],
     weiter: ["/team", "/was-ist-fiaon", "/fiaon-erfahrungen"],
     krumen: [{ name: "Karriere", pfad: "/karriere" }],
@@ -610,7 +610,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
       abschnitte: [
         { h2: "Where you can join", text: "Sales, onboarding and customer care, receivables management, marketing and content, product and engineering, legal and compliance, finance and operations – mostly remote in DACH, meetings in Zurich." },
         { h2: "Employed or freelance – both regulated honestly", text: "Employment with fixed salary, equipment and a clear development path; freelance work with remuneration per deal and per collected instalment, visible in the portal. Nobody speaks to customers before passing the academy." },
-        { h2: "Four steps to join us", text: "No CV upload, no cover letter: choose the area, set the framework, tell us who you are, send. Florentine Lombardi replies personally within two working days." },
+        { h2: "Four steps to join us", text: "No CV upload, no cover letter: choose the area, set the framework, tell us who you are, send. Florentine Lombardi gets in touch with you personally." },
       ],
       weiter: ["/team", "/ueber-uns", "/was-ist-fiaon"],
       krumen: [{ name: "Careers", pfad: "/en/careers" }],

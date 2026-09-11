@@ -113,9 +113,10 @@ export async function stufeAbleiten(ref: string, lauf: Lauf = sqlPool): Promise<
            ) AS auskunft_bezahlt,
            -- E-178: Hat er seine EIGENE Auskunft hochgeladen, und ist sie ausgewertet?
            EXISTS (
-             SELECT 1 FROM fiaon_schufa_analysen sa
-             JOIN fiaon_applications x ON x.ref = sa.ref
-             WHERE sa.status = 'fertig' AND x.merged_into IS NULL AND x.person_id = a.person_id
+             SELECT 1 FROM fiaon_applications x
+             WHERE x.merged_into IS NULL AND x.person_id = a.person_id
+               AND (SELECT sa.status FROM fiaon_schufa_analysen sa
+                     WHERE sa.ref = x.ref ORDER BY sa.created_at DESC LIMIT 1) = 'fertig'
            ) AS auskunft_eigene,
            -- Läuft ein Abo? Für die Ablauf-Leiste.
            EXISTS (

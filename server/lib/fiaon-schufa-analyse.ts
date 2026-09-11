@@ -708,13 +708,18 @@ export async function schufaAnalysieren(ref: string, opts: { erzwingen?: boolean
       score: daten.score ?? null,
       score_text: daten.score_text || null,
       summe_offen_cents: summeOffen,
-      eintraege: JSON.stringify(eintraege),
-      anfragen: JSON.stringify(anfragen),
-      positiv: JSON.stringify(positiv),
+      // ── KEIN JSON.stringify MEHR (11.09.2026, E-178) ─────────────────────
+      // Der Treiber serialisiert einen JS-String fuer eine jsonb-Spalte als JSON-
+      // STRING — gemessen: jsonb_typeof(eintraege) = 'string' bei jeder Zeile.
+      // Ein Array uebergeben, und es wird ein JSON-Array. Die Leser (liste())
+      // und die SQL-Zaehler (CASE jsonb_typeof) verstehen beide Formen.
+      eintraege,
+      anfragen,
+      positiv,
       ampel: ampel.stufe,
       ampel_grund: durchDieWand(ampel.grund, "den Ampel-Grund", ref),
-      empfehlungen: JSON.stringify(empfehlungen),
-      merksaetze: JSON.stringify(merksaetze),
+      empfehlungen,
+      merksaetze,
     });
 
     await sqlPool`

@@ -3716,7 +3716,9 @@ router.get("/bonitaet-status/:ref", requireKunde, async (req, res) => {
       // StartgespraechGate.tsx). Ein Umbenennen hätte sie stumm kaputt
       // gemacht — die alten Werte werden also weiter geliefert, abgeleitet
       // aus der neuen Stufe.
-      zustand: stand.stufe === "geprueft" || stand.stufe === "liegt_zur_pruefung"
+      // 11.09.2026 (E-178): „ausgewertet" ist geliefert — sonst boten Startgespräch-Tafel
+      // und Dashboard einem Kunden mit fertig ausgewerteter eigener Auskunft die 74 € weiter an.
+      zustand: stand.stufe === "geprueft" || stand.stufe === "liegt_zur_pruefung" || stand.stufe === "ausgewertet"
         ? "geliefert"
         : stand.stufe === "beschaffung_laeuft" ? "bezahlt"
         : stand.stufe === "zahlung_offen" ? "zahlung_offen"

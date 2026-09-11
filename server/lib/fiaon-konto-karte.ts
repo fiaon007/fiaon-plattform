@@ -435,10 +435,14 @@ const STAND_SQL = `
     -- uns keine kaufen." Das Tor verlangte bis heute die BESTELLUNG der
     -- Auskunft; die Sache dahinter ist, dass wir seine Bonitaet kennen. Das tun
     -- wir, sobald seine eigene Auskunft ausgewertet ist (fiaon-schufa-analyse).
+    -- Es zaehlt der JUENGSTE Lauf je Bestellung: Eine aeltere fertige Analyse
+    -- ueber eine Datei, die der neueste Lauf als „keine Auskunft" einstuft
+    -- (Cengiz, Camara Pinter am 11.09.), darf kein Tor oeffnen.
     EXISTS (
-      SELECT 1 FROM fiaon_schufa_analysen sa
-      JOIN fiaon_applications a ON a.ref = sa.ref
-      WHERE a.person_id = p.id AND a.merged_into IS NULL AND sa.status = 'fertig'
+      SELECT 1 FROM fiaon_applications a
+      WHERE a.person_id = p.id AND a.merged_into IS NULL
+        AND (SELECT sa.status FROM fiaon_schufa_analysen sa
+              WHERE sa.ref = a.ref ORDER BY sa.created_at DESC LIMIT 1) = 'fertig'
     ) AS schufa_eigene,
     -- ── DIE STARTZAHLUNG ZAEHLT AUCH OHNE KETTENEINTRAG (27.08.2026) ──
     -- Team-Punkt 16 (Beispiel Dirk Ladewig): Der Antrag ist bankbestaetigt
@@ -618,7 +622,11 @@ export async function kartenStand(personId: number, lauf: Lauf = sqlPool): Promi
       paketBezahlt: !!r.paket_bezahlt,
       auskunftBezahlt: !!r.schufa_bezahlt,
       auskunftVorhanden: !!(r.schufa_bezahlt || r.schufa_eigene),
-      naechsteRateAm: r.naechste_rate_am ? String(r.naechste_rate_am).slice(0, 10) : null,
+      // Der Treiber liefert DATE als Date-Objekt; String() davon ist „Tue Sep 29 …“ —
+      // daraus wurde in der Akte „29.9.2001“. Deshalb Jahr-Monat-Tag von Hand.
+      naechsteRateAm: r.naechste_rate_am instanceof Date
+        ? `${r.naechste_rate_am.getFullYear()}-${String(r.naechste_rate_am.getMonth() + 1).padStart(2, "0")}-${String(r.naechste_rate_am.getDate()).padStart(2, "0")}`
+        : r.naechste_rate_am ? String(r.naechste_rate_am).slice(0, 10) : null,
     },
   };
 }
@@ -649,7 +657,7 @@ export async function bereiteKunden(
             pp.assigned_agent_id
      FROM (${STAND_SQL} WHERE ${bedingungen.join(" AND ")}) x
      JOIN fiaon_persons pp ON pp.id = x.person_id
-     WHERE x.antrag_voll AND x.paket_bezahlt AND x.schufa_bezahlt
+     WHERE x.antrag_voll AND x.paket_bezahlt AND (x.schufa_bezahlt OR x.schufa_eigene)
        AND x.raten_bezahlt >= ${KARTE_MIN_RATEN}
        AND x.hat_kontoauszug AND x.hat_ausweis
      ${opt.ohneVersand ? "AND NOT EXISTS (SELECT 1 FROM fiaon_konto_karte k WHERE k.person_id = x.person_id AND k.kanal <> 'gemeldet')" : ""}

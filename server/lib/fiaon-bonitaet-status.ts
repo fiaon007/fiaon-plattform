@@ -287,13 +287,15 @@ export async function bonitaetFuer(ref: string): Promise<BonitaetStand | null> {
            -- fiaon-schufa-analyse.ts reicht JSON.stringify durch). jsonb_array_length auf
            -- einen Text wirft „cannot get array length of a scalar" und riss seit dem
            -- 10.09. 09:16 die ganze Abfrage mit. Der CASE nimmt beide Formen.
-           (SELECT sa.ampel FROM fiaon_schufa_analysen sa
-             WHERE sa.ref = a.ref AND sa.status = 'fertig' ORDER BY sa.created_at DESC LIMIT 1) AS analyse_ampel,
-           (SELECT jsonb_array_length((CASE WHEN jsonb_typeof(sa.eintraege) = 'string' THEN (sa.eintraege #>> '{}')::jsonb ELSE sa.eintraege END)) FROM fiaon_schufa_analysen sa
-             WHERE sa.ref = a.ref AND sa.status = 'fertig' ORDER BY sa.created_at DESC LIMIT 1) AS analyse_posten,
-           (SELECT (SELECT COUNT(*) FROM jsonb_array_elements((CASE WHEN jsonb_typeof(sa.eintraege) = 'string' THEN (sa.eintraege #>> '{}')::jsonb ELSE sa.eintraege END)) e WHERE (e->>'offen')::boolean)
+           -- 11.09.2026: der JUENGSTE Lauf entscheidet — eine aeltere fertige Analyse
+           -- ueber eine Datei, die der neueste Lauf als „keine Auskunft" einstuft, zaehlt nicht.
+           (SELECT CASE WHEN sa.status = 'fertig' THEN sa.ampel END FROM fiaon_schufa_analysen sa
+             WHERE sa.ref = a.ref ORDER BY sa.created_at DESC LIMIT 1) AS analyse_ampel,
+           (SELECT CASE WHEN sa.status = 'fertig' THEN jsonb_array_length((CASE WHEN jsonb_typeof(sa.eintraege) = 'string' THEN (sa.eintraege #>> '{}')::jsonb ELSE sa.eintraege END)) END FROM fiaon_schufa_analysen sa
+             WHERE sa.ref = a.ref ORDER BY sa.created_at DESC LIMIT 1) AS analyse_posten,
+           (SELECT CASE WHEN sa.status = 'fertig' THEN (SELECT COUNT(*) FROM jsonb_array_elements((CASE WHEN jsonb_typeof(sa.eintraege) = 'string' THEN (sa.eintraege #>> '{}')::jsonb ELSE sa.eintraege END)) e WHERE (e->>'offen')::boolean) END
               FROM fiaon_schufa_analysen sa
-             WHERE sa.ref = a.ref AND sa.status = 'fertig' ORDER BY sa.created_at DESC LIMIT 1) AS analyse_offen,
+             WHERE sa.ref = a.ref ORDER BY sa.created_at DESC LIMIT 1) AS analyse_offen,
            -- ── DIE ZUORDNUNG: PERSON ZUERST, E-MAIL ALS RÜCKFALL ─────────
            -- Die alte Route verband nur über die E-Mail. Seit dem
            -- Kontakt-Umzug hängen 104 von 113 Bestellungen an einer Person;
@@ -347,13 +349,15 @@ export async function bonitaetFuerViele(
            -- fiaon-schufa-analyse.ts reicht JSON.stringify durch). jsonb_array_length auf
            -- einen Text wirft „cannot get array length of a scalar" und riss seit dem
            -- 10.09. 09:16 die ganze Abfrage mit. Der CASE nimmt beide Formen.
-           (SELECT sa.ampel FROM fiaon_schufa_analysen sa
-             WHERE sa.ref = a.ref AND sa.status = 'fertig' ORDER BY sa.created_at DESC LIMIT 1) AS analyse_ampel,
-           (SELECT jsonb_array_length((CASE WHEN jsonb_typeof(sa.eintraege) = 'string' THEN (sa.eintraege #>> '{}')::jsonb ELSE sa.eintraege END)) FROM fiaon_schufa_analysen sa
-             WHERE sa.ref = a.ref AND sa.status = 'fertig' ORDER BY sa.created_at DESC LIMIT 1) AS analyse_posten,
-           (SELECT (SELECT COUNT(*) FROM jsonb_array_elements((CASE WHEN jsonb_typeof(sa.eintraege) = 'string' THEN (sa.eintraege #>> '{}')::jsonb ELSE sa.eintraege END)) e WHERE (e->>'offen')::boolean)
+           -- 11.09.2026: der JUENGSTE Lauf entscheidet — eine aeltere fertige Analyse
+           -- ueber eine Datei, die der neueste Lauf als „keine Auskunft" einstuft, zaehlt nicht.
+           (SELECT CASE WHEN sa.status = 'fertig' THEN sa.ampel END FROM fiaon_schufa_analysen sa
+             WHERE sa.ref = a.ref ORDER BY sa.created_at DESC LIMIT 1) AS analyse_ampel,
+           (SELECT CASE WHEN sa.status = 'fertig' THEN jsonb_array_length((CASE WHEN jsonb_typeof(sa.eintraege) = 'string' THEN (sa.eintraege #>> '{}')::jsonb ELSE sa.eintraege END)) END FROM fiaon_schufa_analysen sa
+             WHERE sa.ref = a.ref ORDER BY sa.created_at DESC LIMIT 1) AS analyse_posten,
+           (SELECT CASE WHEN sa.status = 'fertig' THEN (SELECT COUNT(*) FROM jsonb_array_elements((CASE WHEN jsonb_typeof(sa.eintraege) = 'string' THEN (sa.eintraege #>> '{}')::jsonb ELSE sa.eintraege END)) e WHERE (e->>'offen')::boolean) END
               FROM fiaon_schufa_analysen sa
-             WHERE sa.ref = a.ref AND sa.status = 'fertig' ORDER BY sa.created_at DESC LIMIT 1) AS analyse_offen,
+             WHERE sa.ref = a.ref ORDER BY sa.created_at DESC LIMIT 1) AS analyse_offen,
            sb.payment_status AS kauf_status,
            sb.ref AS kauf_ref
     FROM fiaon_applications a

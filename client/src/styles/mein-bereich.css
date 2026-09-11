@@ -496,7 +496,7 @@
 .mb-kal-tag .p.aus{background:var(--text-still)}
 .mb-kal-tag .p.rate{background:var(--blau)}
 .mb-kal-tag .p.erwartet{background:transparent;border:1.5px dashed var(--blau);box-sizing:border-box}
-.mb-kal-tag .s{font:600 8.5px/1 'JetBrains Mono',monospace;color:var(--text-still);letter-spacing:-.02em}
+.mb-kal-tag .s{font:600 9.5px/1 'JetBrains Mono',monospace;color:var(--text-leise);letter-spacing:-.02em}
 .mb-kal-tag .s.minus{color:var(--text)}
 .mb-kal-tag .s.plus{color:var(--gut)}
 .mb-kal-eintrag.ein .b{color:var(--gut)}

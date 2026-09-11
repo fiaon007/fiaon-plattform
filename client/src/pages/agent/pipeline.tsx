@@ -3195,7 +3195,10 @@ function FinanzBefund({ bestellRef, melden }: {
     setLaeuft(true);
     const r = await api(`/agent/finanzen/${encodeURIComponent(bestellRef)}/analysieren`, { method: "POST" });
     setLaeuft(false);
-    if (r.ok) { setA(r.json?.analyse ?? null); melden("gut", "Kontoauszug ausgewertet", "Zahlen und Kalender des Kunden sind auf dem neuesten Stand."); }
+    const ana = r.ok ? (r.json?.analyse ?? null) : null;
+    if (ana) setA(ana);
+    if (ana?.status === "fertig") melden("gut", "Kontoauszug ausgewertet", "Zahlen und Kalender des Kunden sind auf dem neuesten Stand.");
+    else if (ana) melden("info", "Nicht auswertbar", ana.fehler || "Die Datei ist kein lesbarer Kontoauszug.");
     else melden("schlecht", "Nicht ausgewertet", r.json?.error || "Bitte später erneut versuchen.");
   };
   if (!geladen) return null;

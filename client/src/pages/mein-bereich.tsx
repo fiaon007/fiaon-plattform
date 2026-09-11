@@ -750,33 +750,50 @@ function Finanzkalender({ finanzen, raten, paket }: { finanzen: any; raten: Bere
   const fix: any[] = fertig && Array.isArray(finanzen.fixkosten) ? finanzen.fixkosten : [];
   const von: string | null = finanzen?.zeitraumVon ?? null;
   const bis: string | null = finanzen?.zeitraumBis ?? null;
-  const heuteKey = new Date().toISOString().slice(0, 10);
+  // Lokaler Tag, nicht UTC: toISOString liefert abends in Berlin den Vortag (Hausfalle).
+  const jetzt = new Date();
+  const heuteKey = `${jetzt.getFullYear()}-${String(jetzt.getMonth() + 1).padStart(2, "0")}-${String(jetzt.getDate()).padStart(2, "0")}`;
   // Der Kalender öffnet im letzten Monat des Auszugs — dort steht am meisten.
   const [monat, setMonat] = useState(() => { const q = bis && buchungen.length ? bis : heuteKey; return new Date(Number(q.slice(0, 4)), Number(q.slice(5, 7)) - 1, 1); });
   const [tag, setTag] = useState<string | null>(null);
   const [filter, setFilter] = useState<"alle" | "aus" | "ein" | "fix">("alle");
   const monatKey = `${monat.getFullYear()}-${String(monat.getMonth() + 1).padStart(2, "0")}`;
   const imAuszug = !!von && !!bis && monatKey >= von.slice(0, 7) && monatKey <= bis.slice(0, 7);
+  // Ein angebrochener Monat (Auszug ab dem 5. oder bis zum 5.) ist keine Monatsbilanz — das steht dabei.
+  const teilAb = imAuszug && von!.slice(0, 7) === monatKey && Number(von!.slice(8, 10)) > 1 ? von!.slice(8, 10) + "." + von!.slice(5, 7) + "." : null;
+  const teilBis = imAuszug && bis!.slice(0, 7) === monatKey && Number(bis!.slice(8, 10)) < new Date(Number(bis!.slice(0, 4)), Number(bis!.slice(5, 7)), 0).getDate() ? bis!.slice(8, 10) + "." + bis!.slice(5, 7) + "." : null;
+  const teilmonat = teilAb || teilBis ? `nur ${teilAb ? `ab ${teilAb}` : ""}${teilAb && teilBis ? " " : ""}${teilBis ? `bis ${teilBis}` : ""}` : null;
 
   const eintraege = useMemo<KalEintrag[]>(() => {
     const e: KalEintrag[] = [];
     for (const b of buchungen) {
-      const fest = istFest(b.kategorie, b.wiederkehrend);
+      const betrag = Number(b.betragCents || 0);
+      // „fest" ist eine Ausgabe, die wiederkehrt — das Gehalt kehrt auch wieder, ist aber keine feste Zahlung.
+      const fest = betrag < 0 && istFest(b.kategorie, b.wiederkehrend);
       e.push({ datum: b.datum, titel: b.empfaenger || kategorieLabel(b.kategorie), zweck: [kategorieLabel(b.kategorie), b.zweck].filter(Boolean).join(" · "),
-               betragCents: Number(b.betragCents || 0), art: Number(b.betragCents || 0) >= 0 ? "ein" : "aus", stempel: fest ? "fest" : undefined, fix: fest });
+               betragCents: betrag, art: betrag >= 0 ? "ein" : "aus", stempel: fest ? "fest" : undefined, fix: fest });
     }
-    for (const r of raten) if (r.faelligIso) e.push({
-      datum: r.faelligIso as string, titel: `${/^fiaon/i.test(paket) ? paket : `FIAON ${paket}`} · Rate ${r.nr}`,
-      zweck: r.status === "bezahlt" ? `bezahlt${r.bezahltAm ? ` am ${r.bezahltAm}` : ""}` : `Verwendungszweck: ${(r as any).referenz || "siehe Rechnung"}`,
-      betragCents: -r.betragCents, art: "rate", stempel: r.status === "bezahlt" ? "bezahlt" : "offen", offen: r.status !== "bezahlt",
-    });
-    // Erwartete feste Zahlungen: drei Monate ab der nächsten Fälligkeit, am Tag der letzten Buchung.
-    for (const f of fix) {
-      if (!f?.naechsteAm || !f?.tagImMonat || f.rhythmus !== "monatlich") continue;
-      for (let m = 0; m < 3; m++) e.push({ datum: monatPlusTag(f.naechsteAm, m, Number(f.tagImMonat)), titel: f.name, zweck: `${f.kategorie} · erwartet wie im Auszug`, betragCents: -Number(f.betragCents || 0), art: "erwartet", stempel: "erwartet", fix: true });
+    for (const r of raten) {
+      if (!r.faelligIso) continue;
+      // Eine BEZAHLTE Rate in einem Monat, den der Auszug abdeckt, steht dort schon als
+      // Bankbuchung an FIAON — sie ein zweites Mal einzutragen zählte sie doppelt.
+      const imAuszugsMonat = !!von && !!bis && r.faelligIso.slice(0, 7) >= von.slice(0, 7) && r.faelligIso.slice(0, 7) <= bis.slice(0, 7);
+      if (imAuszugsMonat && r.status === "bezahlt" && buchungen.length) continue;
+      e.push({
+        datum: r.faelligIso as string, titel: `${/^fiaon/i.test(paket) ? paket : `FIAON ${paket}`} · Rate ${r.nr}`,
+        zweck: r.status === "bezahlt" ? `bezahlt${r.bezahltAm ? ` am ${r.bezahltAm}` : ""}` : `Verwendungszweck: ${(r as any).referenz || "siehe Rechnung"}`,
+        betragCents: -r.betragCents, art: "rate", stempel: r.status === "bezahlt" ? "bezahlt" : "offen", offen: r.status !== "bezahlt",
+      });
+    }
+    // Erwartete feste Zahlungen: die drei Monate NACH dem Auszug, je am Tag, an dem die Zahlung zuletzt abging.
+    // Nicht ab „nächste Fälligkeit": Eine Zahlung, die nur im ersten Auszugsmonat stand, hätte sonst
+    // in Monaten gelegen, die der Auszug schon abdeckt — und in der Zukunft gefehlt.
+    if (bis) for (const f of fix) {
+      if (!f?.tagImMonat || f.rhythmus !== "monatlich") continue;
+      for (let m = 1; m <= 3; m++) e.push({ datum: monatPlusTag(bis, m, Number(f.tagImMonat)), titel: f.name, zweck: `${f.kategorie} · erwartet wie im Auszug`, betragCents: -Number(f.betragCents || 0), art: "erwartet", stempel: "erwartet", fix: true });
     }
     return e;
-  }, [buchungen, raten, fix, paket]);
+  }, [buchungen, raten, fix, paket, von, bis]);
 
   const imMonat = eintraege.filter((x) => x.datum.startsWith(monatKey));
   const sum = (pred: (x: KalEintrag) => boolean) => imMonat.filter(pred).reduce((a, x) => a + x.betragCents, 0);
@@ -813,7 +830,7 @@ function Finanzkalender({ finanzen, raten, paket }: { finanzen: any; raten: Bere
                    aria-label={`${t}. ${monatsName}${am.length ? `, ${am.length} Buchungen` : ""}`}>
                 {t}
                 {arten.length > 0 && <span style={{ display: "flex", gap: 3 }}>{arten.map((a) => <span key={a} className={`p ${a}`} />)}</span>}
-                {(aus || ein) ? <span className={`s ${aus ? "minus" : "plus"}`}>{kurzEuro(aus || ein)}</span> : null}
+                {(aus || ein) ? <span className={`s ${Math.abs(aus) >= ein ? "minus" : "plus"}`}>{kurzEuro(Math.abs(aus) >= ein ? aus : ein)}</span> : null}
               </div>
             );
           })}
@@ -821,7 +838,7 @@ function Finanzkalender({ finanzen, raten, paket }: { finanzen: any; raten: Bere
         <div className="mb-kal-legende">
           <span><i className="ein" />Einnahme</span><span><i className="aus" />Ausgabe</span><span><i className="rate" />FIAON-Rate</span><span><i className="erwartet" />erwartet</span>
         </div>
-        {von && bis && (
+        {von && bis && buchungen.length > 0 && (
           <p style={{ margin: "12px 0 0", fontSize: 12, color: "var(--text-still)", lineHeight: 1.5 }}>
             Aus Ihrem Kontoauszug vom {von.split("-").reverse().join(".")} bis {bis.split("-").reverse().join(".")} — {buchungen.length} Buchungen, jede an ihrem Tag.
             Gestrichelt: feste Zahlungen, die nach dem Auszug erwartet werden — am Tag, an dem sie zuletzt abgingen.
@@ -834,7 +851,7 @@ function Finanzkalender({ finanzen, raten, paket }: { finanzen: any; raten: Bere
             <div className="mb-kz"><small>Einnahmen</small><b className="zahl" style={{ color: "var(--gut)" }}>{eurCents(einM)}</b></div>
             <div className="mb-kz"><small>Ausgaben</small><b className="zahl">{eurCents(ausM)}</b></div>
             <div className="mb-kz"><small>davon fest</small><b className="zahl">{eurCents(festM)}</b></div>
-            <div className="mb-kz"><small>Bleibt</small><b className="zahl" style={{ color: einM - ausM >= 0 ? "var(--gut)" : "var(--kritisch)" }}>{eurCents(einM - ausM)}</b></div>
+            <div className="mb-kz"><small>Bleibt{teilmonat ? ` (${teilmonat})` : ""}</small><b className="zahl" style={{ color: teilmonat ? undefined : einM - ausM >= 0 ? "var(--gut)" : "var(--kritisch)" }}>{eurCents(einM - ausM)}</b></div>
           </div>
         ) : (
           <div className="mb-kal-summe">
@@ -852,7 +869,7 @@ function Finanzkalender({ finanzen, raten, paket }: { finanzen: any; raten: Bere
         )}
         <div className="mb-kal-filter">
           {([["alle", "Alles"], ["aus", "Ausgaben"], ["ein", "Einnahmen"], ["fix", "Feste Zahlungen"]] as const).map(([k, l]) => (
-            <button type="button" key={k} className={filter === k ? "aktiv" : ""} onClick={() => setFilter(k)}>{l}</button>
+            <button type="button" key={k} className={filter === k ? "aktiv" : ""} aria-pressed={filter === k} onClick={() => setFilter(k)}>{l}</button>
           ))}
           {tag && <button type="button" onClick={() => setTag(null)}>Alle Tage</button>}
         </div>
@@ -888,6 +905,8 @@ function FinanzAnalyse({ a, hatAuszug }: { a: any; hatAuszug: boolean }) {
   if (a.status === "laeuft") return <div className="mb-karte" style={{ marginBottom: 16 }}><h4 style={{ fontSize: 15 }}>Ihr Kontoauszug wird gerade ausgewertet</h4><p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-leise)" }}>Jede Buchung wird gelesen und gegen den Kontostand geprüft. Das dauert in der Regel ein bis zwei Minuten — laden Sie die Seite gleich neu.</p></div>;
   if (a.status === "unlesbar") return <div className="mb-karte" style={{ marginBottom: 16 }}><h4 style={{ fontSize: 15 }}>Ihr Kontoauszug ließ sich nicht auswerten</h4><p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-leise)" }}>{a.fehler}</p><a className="mb-knopf still" href="#unterlagen" style={{ marginTop: 10, display: "inline-block" }}>Neue Datei hochladen</a></div>;
   if (a.status === "fehler") return <div className="mb-karte" style={{ marginBottom: 16 }}><h4 style={{ fontSize: 15 }}>Die Auswertung ist nicht gelungen</h4><p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-leise)" }}>Wir prüfen das und melden uns. Ihr Kontoauszug ist sicher gespeichert.</p></div>;
+  // Eine Auswertung aus der Zeit vor dem 11.09.2026 kennt keine einzelnen Buchungen — sie wird neu gerechnet.
+  if (!Array.isArray(a.buchungen) || a.buchungen.length === 0) return <div className="mb-karte" style={{ marginBottom: 16 }}><h4 style={{ fontSize: 15 }}>Ihre Auswertung wird gerade neu gerechnet</h4><p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-leise)" }}>Wir lesen Ihren Kontoauszug jetzt Buchung für Buchung und prüfen ihn gegen den Kontostand. Laden Sie die Seite später neu.</p></div>;
   const zeitraum = a.zeitraumVon && a.zeitraumBis ? `${a.zeitraumVon.split("-").reverse().join(".")} – ${a.zeitraumBis.split("-").reverse().join(".")}` : "Zeitraum des Auszugs";
   const rest = (a.einnahmenCents ?? 0) - (a.ausgabenCents ?? 0);
   const monate: any[] = Array.isArray(a.monate) ? a.monate : [];
@@ -916,7 +935,12 @@ function FinanzAnalyse({ a, hatAuszug }: { a: any; hatAuszug: boolean }) {
               <thead><tr style={{ color: "var(--text-still)", fontSize: 10.5, textTransform: "uppercase", letterSpacing: ".08em" }}><th style={{ textAlign: "left", padding: "4px 0" }}>Monat</th><th style={{ textAlign: "right" }}>Einnahmen</th><th style={{ textAlign: "right" }}>Ausgaben</th><th style={{ textAlign: "right" }}>davon fest</th><th style={{ textAlign: "right" }}>Bleibt</th></tr></thead>
               <tbody>{monate.map((m) => (
                 <tr key={m.monat} style={{ borderTop: "1px solid var(--linie)" }}>
-                  <td style={{ padding: "7px 0" }}>{mon(m.monat)}</td><td className="zahl" style={{ textAlign: "right", color: "var(--gut)" }}>{eurCents(m.einnahmenCents)}</td><td className="zahl" style={{ textAlign: "right" }}>{eurCents(m.ausgabenCents)}</td><td className="zahl" style={{ textAlign: "right", color: "var(--text-leise)" }}>{eurCents(m.fixCents)}</td><td className="zahl" style={{ textAlign: "right", fontWeight: 700, color: m.freiCents >= 0 ? "var(--gut)" : "var(--kritisch)" }}>{eurCents(m.freiCents)}</td>
+                  <td style={{ padding: "7px 0" }}>{mon(m.monat)}{(() => {
+                    const ab = a.zeitraumVon && a.zeitraumVon.slice(0, 7) === m.monat && Number(a.zeitraumVon.slice(8, 10)) > 1 ? `ab ${a.zeitraumVon.slice(8, 10)}.` : null;
+                    const letzter = a.zeitraumBis ? new Date(Number(a.zeitraumBis.slice(0, 4)), Number(a.zeitraumBis.slice(5, 7)), 0).getDate() : 0;
+                    const bisT = a.zeitraumBis && a.zeitraumBis.slice(0, 7) === m.monat && Number(a.zeitraumBis.slice(8, 10)) < letzter ? `bis ${a.zeitraumBis.slice(8, 10)}.` : null;
+                    return ab || bisT ? <small style={{ color: "var(--text-still)" }}> ({[ab, bisT].filter(Boolean).join(" ")})</small> : null;
+                  })()}</td><td className="zahl" style={{ textAlign: "right", color: "var(--gut)" }}>{eurCents(m.einnahmenCents)}</td><td className="zahl" style={{ textAlign: "right" }}>{eurCents(m.ausgabenCents)}</td><td className="zahl" style={{ textAlign: "right", color: "var(--text-leise)" }}>{eurCents(m.fixCents)}</td><td className="zahl" style={{ textAlign: "right", fontWeight: 700, color: m.freiCents >= 0 ? "var(--gut)" : "var(--kritisch)" }}>{eurCents(m.freiCents)}</td>
                 </tr>
               ))}</tbody>
             </table>

@@ -26,7 +26,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { sqlPool } from "./db-pool";
-import { pdfSeiten, pdfTextJeSeite, pdfTextBrauchbar } from "./fiaon-pdf-lesen";
+import { pdfSeiten, pdfTextJeSeite, pdfTextUndZeilen, pdfTextBrauchbar } from "./fiaon-pdf-lesen";
 
 export type DokumentArt = "kontoauszug" | "ausweis" | "schufa";
 
@@ -77,20 +77,163 @@ const PROFILE: Record<DokumentArt, { woerter: string[]; label: string }> = {
   schufa: { label: "Bonitätsauskunft", woerter: ["schufa", "bonitätsauskunft", "datenkopie", "auskunft nach art. 15", "basisscore", "ksv1870", "crif", "score"] },
 };
 
-function datumsSpanne(text: string): { von: Date | null; bis: Date | null } {
-  const treffer = text.match(/\b([0-3]?\d)\.([01]?\d)\.(20\d\d)\b/g) || [];
-  let von: Date | null = null; let bis: Date | null = null;
-  const jetzt = Date.now();
-  for (const t of treffer) {
-    const [tag, monat, jahr] = t.split(".").map(Number);
-    const d = new Date(Date.UTC(jahr, monat - 1, tag));
-    if (Number.isNaN(d.getTime()) || d.getTime() > jetzt + 86_400_000) continue;
-    // Daten vor 2020 sind fast immer Geburts- oder Vertragsdaten, kein Umsatz.
-    if (jahr < 2020) continue;
-    if (!von || d < von) von = d;
-    if (!bis || d > bis) bis = d;
+// ═══════════════════════════════════════════════════════════════════════════
+// DER ZEITRAUM EINES KONTOAUSZUGS (11.09.2026, E-179)
+//
+// ── DER BEFUND ──────────────────────────────────────────────────────────────
+// Dogan Cengiz (FIAON-MT70UE7U-CK6B) hat nur den JUNI-Auszug hochgeladen,
+// drei Seiten. Die Prüfung meldete „vollständig, 10.06. bis 10.09.2026" —
+// sie nahm das kleinste und das größte Datum im ganzen Text, und das größte
+// war das Druckdatum „… am 10.09.2026". 92 Tage Spanne, kein Hinweis an den
+// Kunden, keiner an die Verwaltung.
+//
+// Der Praxistest über die 130 jüngsten Auszüge fand dieselbe Sorte Randdatum
+// bei fast jeder Bank: das Druckdatum auf jeder Seite (Revolut, Tomorrow, N26,
+// Sparkasse-Fußzeile mit Uhrzeit), „Datum geöffnet" der Kontoeröffnung (N26),
+// der Gebührenzeitraum „Abrechnungszeitraum vom 01.04. bis 30.06." mitten im
+// Juni-Auszug (Sparkasse), „Abschluss vom 01.01. bis 31.03." (VR), der
+// Kontostand „per" Abfragetag, eine Rechnung von 2023 (PayPal). „Mehrfach
+// vorkommend" hilft nicht: Das Druckdatum steht auf JEDER Seite.
+//
+// ── DIE REGEL — DREI STUFEN, DIE ERSTE, DIE TRÄGT, GILT ─────────────────────
+//   1. Buchungstage. Ein Datum ist ein Buchungstag, wenn in SEINER Zeile ein
+//      Betrag steht, es nicht Teil einer Spanne „… bis …" ist und kein
+//      Kontostand, Saldo oder Druckvermerk davorsteht. Ab drei verschiedenen
+//      Buchungstagen ist das der Zeitraum. Eine Spanne, die der Auszug selbst
+//      nennt, darf ihn um höchstens zehn Tage über die Buchungen hinaus
+//      ergänzen — Monatsanfang ohne Umsatz, mehr nicht.
+//   2. Ausdrücklich genannte Auszugszeiträume („Kontoauszug vom … bis …",
+//      „Zeitraum: … – …", „Umsätze von … bis …"). Nötig für Auszüge ohne
+//      messbare Buchungstage: Bei der Postbank-Art steht „02.02" oben und
+//      „2026" in der Zeile darunter, bei VR und Sparda fehlt das Jahr ganz.
+//      Gebühren-, Abschluss- und Vertragsspannen zählen hier nie.
+//   3. Alle übrigen Daten ohne Druck- und Kontostandsvermerk.
+// Auf Stufe 1 und 3 fallen einzelne Ausreißer am Rand weg (bis zu zwei Tage,
+// durch eine große Lücke vom Rest getrennt): der Vertrag von 2025 in einer
+// Buchungszeile, die Karten-Uhrzeit von 2021.
+// ═══════════════════════════════════════════════════════════════════════════
+
+const MS_TAG = 86_400_000;
+/** Dieselbe Datumsform wie bisher: TT.MM.JJJJ, Tag und Monat auch einstellig. */
+const DATUM = /\b([0-3]?\d)\.([01]?\d)\.(20\d\d)\b/g;
+/**
+ * Was nach Datum oder Uhrzeit aussieht, fliegt vor der Betragssuche aus der
+ * Zeile — sonst hält „18.08" aus „18.08.2026" oder „20.42 UHR" als Betrag her.
+ */
+const DATUM_ODER_ZEIT = new RegExp([
+  String.raw`\b(?:0?[1-9]|[12]\d|3[01])\.(?:0?[1-9]|1[0-2])(?:\.(?:20)?\d{2}(?!\d)|\.|(?![\d,]))`,
+  String.raw`\b\d{1,2}[.:]\d{2}(?:[.:]\d{2})?\s*uhr\b`,
+  String.raw`\b\d{1,2}:\d{2}(?::\d{2})?\b`,
+  String.raw`\b20\d\d-\d\d-\d\d\b`,
+].join("|"), "gi");
+/** Ein Betrag: „1.234,56", „-29,24", „9,99-", „1'000.00", „-195 ,00". Kein Prozentsatz, kein Wechselkurs. */
+const BETRAG = /(?<![\d.,'’])\d{1,3}(?:[.'’ ]?\d{3})*\s?[,.]\s?\d{2}(?![\d%]|\s?%|[.,]\d)/;
+/** Steht das vor einem Datum, ist es ein Stand oder ein Druckvermerk, kein Buchungstag. */
+const RANDVERMERK = /kontostand|saldo|\bstand\b|erstellt|gedruckt|druckdatum|ausdruck|ausgestellt|abgerufen|abfrage|eröffn|geöffnet|gültig|created|generated|printed|issued|opened|balance|\bas of\b/;
+/** Zwei Daten, nur durch „bis", „-" oder „to" getrennt, sind eine Spanne. */
+const VERBINDER = /^\s*(?:(?:bis|to|until|till|through)(?:\s+(?:zum|einschl\.?|einschließlich))?|[-–—])\s*$/i;
+/** Diese Spannen beschreiben Gebühren, Zinsen oder Verträge — nie den Auszug. */
+const FREMDE_SPANNE = /abrechnungszeitraum|abschluss|entgelt|zins|gebühr|gültig|laufzeit|versicherung|vertrag|freistell/i;
+/** Direkt vor (oder hinter) einer Spanne: Hier nennt der Auszug seinen eigenen Zeitraum. */
+const AUSZUG_DAVOR = /(?:kontoauszug|auszug|zeitraum|umsätze|umsatz|buchungsdatum|buchungszeitraum|statement|period)\s*(?:vom|von|from)?\s*:?\s*$/i;
+const AUSZUG_DAHINTER = /^\s*(?:buchungsdatum|buchungszeitraum)/i;
+
+export type ZeitraumQuelle = "buchungen" | "auszugsangabe" | "uebrige_daten" | "keine";
+
+function tagesNummer(tag: number, monat: number, jahr: number): number | null {
+  if (monat < 1 || monat > 12 || tag < 1 || tag > 31) return null;
+  const d = new Date(Date.UTC(jahr, monat - 1, tag));
+  // 31.02. gibt es nicht — Date.UTC würde still den 03.03. daraus machen.
+  if (d.getUTCDate() !== tag || d.getUTCMonth() !== monat - 1) return null;
+  return Math.round(d.getTime() / MS_TAG);
+}
+
+/** Einzelne Randtage, durch eine große Lücke vom Rest getrennt, gehören nicht zum Zeitraum. */
+function randBereinigt(tage: number[]): number[] {
+  const t = Array.from(new Set(tage)).sort((a, b) => a - b);
+  if (t.length < 4) return t;
+  const luecken = t.slice(1).map((x, i) => x - t[i]).sort((a, b) => a - b);
+  // „Groß" misst sich an der üblichen Lücke dieses Auszugs: Ein Konto mit
+  // zwei Buchungen im Monat hat andere Abstände als eines mit zwanzig.
+  const schwelle = Math.max(21, 4 * luecken[Math.floor(luecken.length / 2)]);
+  let lo = 0; let hi = t.length - 1;
+  for (let runde = 0; runde < 3; runde++) {
+    let weg = false;
+    for (let k = 1; k <= 2 && !weg; k++) {
+      if (hi - (lo + k) + 1 >= 3 && t[lo + k] - t[lo + k - 1] > schwelle) { lo += k; weg = true; }
+    }
+    for (let k = 1; k <= 2 && !weg; k++) {
+      if ((hi - k) - lo + 1 >= 3 && t[hi - k + 1] - t[hi - k] > schwelle) { hi -= k; weg = true; }
+    }
+    if (!weg) break;
   }
-  return { von, bis };
+  return t.slice(lo, hi + 1);
+}
+
+/**
+ * Der Zeitraum eines Kontoauszugs aus seinen Zeilen. Rein — liest nichts,
+ * schreibt nichts. `jetzt` nur für den Prüfstand.
+ */
+export function auszugsZeitraum(zeilen: string[], jetzt: number = Date.now()): { von: string | null; bis: string | null; tage: number; quelle: ZeitraumQuelle } {
+  const heute = Math.floor((jetzt + MS_TAG) / MS_TAG);
+  // Daten vor 2020 sind fast immer Geburts- oder Vertragsdaten, Daten in der
+  // Zukunft Laufzeiten — beides kein Umsatz (wie bisher).
+  const brauchbar = (t: number | null): t is number => t != null && t <= heute && t >= 18_262; // 01.01.2020
+  const buchungen: number[] = [];
+  const uebrige: number[] = [];
+  const spannen: { von: number | null; bis: number | null; auszug: boolean; fremd: boolean }[] = [];
+
+  for (const zeile of zeilen) {
+    const funde = Array.from(zeile.matchAll(DATUM)).map((m) => ({
+      start: m.index ?? 0, ende: (m.index ?? 0) + m[0].length,
+      tag: tagesNummer(Number(m[1]), Number(m[2]), Number(m[3])), inSpanne: false,
+    }));
+    if (!funde.length) continue;
+    for (let i = 0; i + 1 < funde.length; i++) {
+      if (!VERBINDER.test(zeile.slice(funde[i].ende, funde[i + 1].start))) continue;
+      funde[i].inSpanne = funde[i + 1].inSpanne = true;
+      const davor = zeile.slice(Math.max(0, funde[i].start - 40), funde[i].start);
+      const umfeld = davor + " " + zeile.slice(funde[i + 1].ende, funde[i + 1].ende + 25);
+      spannen.push({
+        von: funde[i].tag, bis: funde[i + 1].tag,
+        fremd: FREMDE_SPANNE.test(umfeld),
+        auszug: AUSZUG_DAVOR.test(davor) || AUSZUG_DAHINTER.test(zeile.slice(funde[i + 1].ende)),
+      });
+    }
+    const mitBetrag = BETRAG.test(zeile.replace(DATUM_ODER_ZEIT, " "));
+    for (const f of funde) {
+      if (f.inSpanne || !brauchbar(f.tag)) continue;
+      if (RANDVERMERK.test(zeile.slice(Math.max(0, f.start - 40), f.start).toLowerCase())) continue;
+      (mitBetrag ? buchungen : uebrige).push(f.tag);
+    }
+  }
+
+  const ergebnis = (von: number, bis: number, quelle: ZeitraumQuelle) => ({
+    von: new Date(von * MS_TAG).toISOString().slice(0, 10),
+    bis: new Date(bis * MS_TAG).toISOString().slice(0, 10),
+    tage: bis - von, quelle,
+  });
+  const eigene = spannen.filter((s) => !s.fremd && brauchbar(s.von) && brauchbar(s.bis) && s.von <= s.bis) as { von: number; bis: number; auszug: boolean }[];
+
+  // Stufe 1 — die Buchungen
+  const kern = randBereinigt(buchungen);
+  if (kern.length >= 3) {
+    let von = kern[0]; let bis = kern[kern.length - 1];
+    for (const s of eigene) {
+      if (s.von < von && von - s.von <= 10) von = s.von;
+      if (s.bis > bis && s.bis - bis <= 10) bis = s.bis;
+    }
+    return ergebnis(von, bis, "buchungen");
+  }
+  // Stufe 2 — was der Auszug über sich selbst sagt
+  const angaben = eigene.filter((s) => s.auszug);
+  if (angaben.length) {
+    return ergebnis(Math.min(...angaben.map((s) => s.von)), Math.max(...angaben.map((s) => s.bis)), "auszugsangabe");
+  }
+  // Stufe 3 — alles Übrige, ohne Druck- und Kontostandsvermerke
+  const rest = randBereinigt([...buchungen, ...uebrige, ...eigene.flatMap((s) => [s.von, s.bis])]);
+  if (rest.length) return ergebnis(rest[0], rest[rest.length - 1], "uebrige_daten");
+  return { von: null, bis: null, tage: 0, quelle: "keine" };
 }
 
 /** Scheibe 1: das Heuristik-Urteil — schnell, deterministisch, ehrlich. */
@@ -102,7 +245,10 @@ export async function dokumentPruefen(art: DokumentArt, pdf: Buffer): Promise<Do
   };
   try {
     basis.seiten = await pdfSeiten(pdf).catch(() => 0);
-    const seitenTexte = await pdfTextJeSeite(pdf);
+    // Ein Lesedurchgang für beides: den Text (Stichwortprofil) und die Zeilen
+    // (Zeitraum des Kontoauszugs, E-179). `seitenTexte` ist derselbe Text wie
+    // aus pdfTextJeSeite.
+    const { seiten: seitenTexte, zeilen } = await pdfTextUndZeilen(pdf);
     const text = seitenTexte.join("\n");
     if (!pdfTextBrauchbar(text)) {
       // Foto-PDF: die einzige Textschicht ist unsere eigene Fußzeile.
@@ -130,10 +276,12 @@ export async function dokumentPruefen(art: DokumentArt, pdf: Buffer): Promise<Do
     }
 
     if (art === "kontoauszug") {
-      const { von, bis } = datumsSpanne(text);
-      basis.zeitraumVon = von ? von.toISOString().slice(0, 10) : null;
-      basis.zeitraumBis = bis ? bis.toISOString().slice(0, 10) : null;
-      const tage = von && bis ? Math.round((bis.getTime() - von.getTime()) / 86_400_000) : 0;
+      // E-179: nicht mehr kleinstes bis größtes Datum im Text — das Druckdatum
+      // hat so aus einem Monat drei gemacht. Siehe auszugsZeitraum() oben.
+      const zeitraum = auszugsZeitraum(zeilen.flat());
+      basis.zeitraumVon = zeitraum.von;
+      basis.zeitraumBis = zeitraum.bis;
+      const tage = zeitraum.tage;
       // Verlangt sind die letzten drei Monate (Portal-Text) — 75 Tage Spanne
       // lassen Puffer für Monatsanfang/-ende, ohne Halbes durchzuwinken.
       if (tage >= 75) {

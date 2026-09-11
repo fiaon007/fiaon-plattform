@@ -5,6 +5,43 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 11.09.2026 — Kontoauszug: Das Druckdatum macht aus einem Monat keine drei mehr (E-179)
+
+**Was geändert wurde:** Die automatische Dokumentenprüfung bestimmt den Zeitraum eines Kontoauszugs nicht mehr
+aus dem kleinsten und größten Datum im ganzen Text, sondern in drei Stufen — die erste, die trägt, gilt:
+1. **Buchungstage.** Ein Datum zählt, wenn in seiner Zeile ein Betrag steht, es nicht Teil einer Spanne
+   „… bis …" ist und kein Kontostand-, Saldo- oder Druckvermerk davorsteht (ab drei verschiedenen Tagen). Eine
+   Spanne, die der Auszug selbst nennt, darf den Zeitraum um höchstens zehn Tage ergänzen.
+2. **Was der Auszug über sich sagt** („Kontoauszug vom … bis …", „Zeitraum: … – …", „Umsätze von … bis …") —
+   für Auszüge ohne messbare Buchungstage: bei der Postbank-Art stehen Tag und Jahr auf zwei Zeilen, bei VR und
+   Sparda fehlt das Jahr. Gebühren-, Abschluss- und Vertragsspannen zählen hier nie.
+3. **Alle übrigen Daten**, ohne Druck- und Kontostandsvermerke.
+
+Einzelne Ausreißer am Rand (bis zu zwei Tage, durch eine große Lücke vom Rest getrennt) fallen weg. Dafür liest
+`fiaon-pdf-lesen.ts` die PDF jetzt auch zeilenweise (`pdfTextUndZeilen`, ein Lesedurchgang für Text und Zeilen);
+Steuerzeichen, die manche Bank statt Leerzeichen setzt, werden dort zu Leerraum. Die Schwelle (75 Tage) und alle
+Sätze an Kunde und Verwaltung sind unverändert.
+
+**Warum:** Dogan Cengiz (FIAON-MT70UE7U-CK6B) hat nur den Juni in der Akte. Die Prüfung meldete „vollständig,
+10.06. bis 10.09." — das größte Datum im Text war das Druckdatum 10.09. Weder er noch die Verwaltung bekamen einen
+Hinweis. Praxistest gegen die 130 jüngsten Auszüge (nur lesend, alte und neue Fassung nebeneinander): **alt 54
+vollständig, neu 37 — 17 Umschläge, alle von „vollständig" nach „unvollständig", keiner zurück.** Jeder der 17 ist
+ein Ein- oder Zweimonatsauszug, den ein Randdatum gestreckt hatte: das Druckdatum (Revolut, Tomorrow,
+Sparkasse-Fußzeile), die Kontoeröffnung (N26), das Gebührenquartal im Monatsauszug (Sparkasse), „Abschluss vom …
+bis …" (VR), eine Rechnung von 2023 (PayPal), eine Karten-Uhrzeit von 2021. Dogan steht jetzt auf
+„unvollständig, 10.06.–30.06." und bekäme den Satz „… deckt aber nur etwa 1 Monat(e) ab".
+
+**Bestand:** Gespeicherte Urteile ändern sich nicht von selbst. Von den 16 gespeicherten Kontoauszug-Urteilen
+würden sich beim Erneuern 3 ändern, alle „vollständig" → „unvollständig" (Dogan, FIAON-MSK3KAAI-GH7W,
+FIAON-MT8HA6XV-VJ2D); bei zweien verschiebt sich nur der Zeitraum um wenige Tage. Erneuert wird erst nach
+Rückfrage bei Justin (`POST /api/fiaon/admin/dokumente/:ref/kontoauszug/pruefen`).
+
+**Wo zu finden:** `server/lib/fiaon-dokument-pruefung.ts` (`auszugsZeitraum`), `server/lib/fiaon-pdf-lesen.ts`
+(`pdfTextUndZeilen`), Prüfstand `npx tsx scripts/pruef-auszugszeitraum.ts` (15 Fälle, den echten Auszügen
+nachgebaut, ohne echte Daten).
+
+---
+
 ## 11.09.2026 — Kundenbereich: mehrere Dateien je Unterlage, gebunden zu einer PDF (E-177)
 
 **Was geändert wurde:** Im alten Kundenbereich (`/mein-bereich`, Abschnitt „Unterlagen" → „Jetzt einreichen")

@@ -86,6 +86,67 @@ export async function pdfTextJeSeite(buf: Buffer): Promise<string[]> {
   return seiten;
 }
 
+/**
+ * Text UND Zeilen jeder Seite aus einem einzigen Lesedurchgang.
+ *
+ * ── WOZU ZEILEN (11.09.2026, E-179) ─────────────────────────────────────
+ * `pdfTextJeSeite` verbindet alle Textstücke einer Seite zu EINER Zeichenkette.
+ * Für die Zeitraum-Erkennung beim Kontoauszug reicht das nicht: Ob ein Datum
+ * ein Buchungstag ist oder das Druckdatum, verrät erst die Zeile, in der es
+ * steht — Buchungen haben einen Betrag daneben, „Erstellt am 10.09.2026" nicht.
+ *
+ * Die Zeilen werden über die senkrechte Lage der Textstücke gebildet, nicht
+ * über die Reihenfolge im Inhaltsstrom: Viele Banken schreiben erst die ganze
+ * Datumsspalte und dann die Betragsspalte. `seiten` ist Zeichen für Zeichen
+ * dasselbe, was `pdfTextJeSeite` liefert.
+ */
+export async function pdfTextUndZeilen(buf: Buffer): Promise<{ seiten: string[]; zeilen: string[][] }> {
+  const doc = await dokument(buf);
+  const seiten: string[] = [];
+  const zeilen: string[][] = [];
+  for (let i = 1; i <= doc.numPages; i++) {
+    const seite = await doc.getPage(i);
+    const items = (await seite.getTextContent()).items as any[];
+    seiten.push(items
+      .map((s) => (typeof s?.str === "string" ? s.str : ""))
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim());
+    zeilen.push(zeilenAus(items));
+    seite.cleanup?.();
+  }
+  await doc.destroy?.();
+  return { seiten, zeilen };
+}
+
+function zeilenAus(items: any[]): string[] {
+  const teile = items
+    .filter((s) => typeof s?.str === "string" && s.str.trim() && Array.isArray(s.transform))
+    .map((s) => ({
+      x: Number(s.transform[4]), y: Number(s.transform[5]), t: String(s.str),
+      h: Math.abs(Number(s.transform[3])) || Number(s.height) || 8,
+      // Hochkant gesetzter Randtext (Formularnummern am Seitenrand) gehört zu
+      // keiner Zeile — sonst landet er mitten in einer Buchung.
+      quer: Math.abs(Number(s.transform[1])) > Math.abs(Number(s.transform[0])),
+    }));
+  const liegend = teile.filter((t) => !t.quer).sort((a, b) => b.y - a.y || a.x - b.x);
+  const gruppen: { y: number; h: number; t: { x: number; t: string }[] }[] = [];
+  for (const p of liegend) {
+    const g = gruppen[gruppen.length - 1];
+    if (g && Math.abs(g.y - p.y) <= Math.max(1.5, 0.5 * Math.min(g.h, p.h))) g.t.push(p);
+    else gruppen.push({ y: p.y, h: p.h, t: [p] });
+  }
+  // Manche Bank-PDFs trennen Wörter mit Steuerzeichen statt Leerzeichen —
+  // gemessen: „Kontoauszug<U+0001>vom<U+0001>31.01.2026<U+0001>bis…" (Praxistest
+  // E-179, 55-Seiten-Auszug). Für `\s` ist das kein Zwischenraum; „vom … bis …"
+  // wäre keine Spanne. In den Zeilen wird es Leerraum, im Text bleibt alles, wie es war.
+  const glatt = (s: string) => s.replace(/[\u0000-\u001f\u007f\u200b]/g, " ").replace(/\s+/g, " ").trim();
+  return [
+    ...gruppen.map((g) => glatt(g.t.sort((a, b) => a.x - b.x).map((q) => q.t).join(" "))),
+    ...teile.filter((t) => t.quer).map((t) => glatt(t.t)),
+  ].filter(Boolean);
+}
+
 /** Der Text des ganzen Dokuments. */
 export async function pdfText(buf: Buffer): Promise<string> {
   return (await pdfTextJeSeite(buf)).join("\n\n");

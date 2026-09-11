@@ -170,10 +170,55 @@ export async function dokumentStand(
     FROM fiaon_applications
     WHERE ${opts.ref ? lauf`ref = ${opts.ref}` : lauf`person_id = ${opts.personId ?? -1}`}
       AND merged_into IS NULL AND gdpr_deleted_at IS NULL
-    ORDER BY (payment_status = 'paid') DESC, created_at DESC
+    -- ── DIE PAKET-BESTELLUNG ZUERST (11.09.2026, E-181) ────────────────────
+    -- Michael Lorenz: Ultra bezahlt am 17.07., Bonitaetsauskunft dazu bezahlt
+    -- am 15.08. „Neueste zuerst" waehlte die Auskunft-Bestellung, deren Typ
+    -- „schufa" nur die Auskunft verlangt — und die Akte sagte „Fuer dieses
+    -- Paket kein Ausweis noetig", waehrend Ausweis und Kontoauszug an der
+    -- Ultra-Bestellung hingen. 63 Personen haben mehr als eine Bestellung.
+    ORDER BY (payment_status = 'paid') DESC,
+             (COALESCE(type, '') <> 'schufa' AND ref NOT LIKE 'FIAON-SCHUFA-%') DESC,
+             created_at DESC
     LIMIT 1
   `) as any[];
   if (!a) return null;
+
+  // ── DIE DATEI KANN AN JEDER BESTELLUNG DER PERSON HAENGEN (E-181) ──────
+  // Der Kunde laedt in seinem Bereich hoch — an die Bestellung, mit der er
+  // angemeldet ist. Der Betreuer sieht die Akte der Person. Deshalb zaehlt
+  // eine Datei, die IRGENDWO an der Person haengt, und der Inhalt kommt von
+  // der Bestellung, die sie traegt (die massgebliche zuerst).
+  const personId = a.person_id != null ? Number(a.person_id) : null;
+  let hatPaket = String(a.type || "") !== "schufa" && !String(a.ref).startsWith("FIAON-SCHUFA-");
+  if (personId != null) {
+    const [ueberall] = (await lauf`
+      SELECT
+        bool_or(COALESCE(x.type, '') <> 'schufa' AND x.ref NOT LIKE 'FIAON-SCHUFA-%') AS hat_paket,
+        MAX(x.documents_uploaded_at) AS hochgeladen_am,
+        bool_or(x.reupload_id_card) AS re_ausweis, bool_or(x.reupload_bank_statement) AS re_auszug,
+        (SELECT LENGTH(y.id_card_pdf) FROM fiaon_applications y WHERE y.person_id = ${personId} AND y.merged_into IS NULL AND y.id_card_pdf IS NOT NULL ORDER BY (y.ref = ${a.ref}) DESC, y.created_at DESC LIMIT 1) AS gr_ausweis,
+        (SELECT SUBSTRING(y.id_card_pdf FROM 1 FOR 4) FROM fiaon_applications y WHERE y.person_id = ${personId} AND y.merged_into IS NULL AND y.id_card_pdf IS NOT NULL ORDER BY (y.ref = ${a.ref}) DESC, y.created_at DESC LIMIT 1) AS kopf_ausweis,
+        (SELECT y.ref FROM fiaon_applications y WHERE y.person_id = ${personId} AND y.merged_into IS NULL AND y.id_card_pdf IS NOT NULL ORDER BY (y.ref = ${a.ref}) DESC, y.created_at DESC LIMIT 1) AS ref_ausweis,
+        (SELECT LENGTH(y.bank_statement_pdf) FROM fiaon_applications y WHERE y.person_id = ${personId} AND y.merged_into IS NULL AND y.bank_statement_pdf IS NOT NULL ORDER BY (y.ref = ${a.ref}) DESC, y.created_at DESC LIMIT 1) AS gr_auszug,
+        (SELECT SUBSTRING(y.bank_statement_pdf FROM 1 FOR 4) FROM fiaon_applications y WHERE y.person_id = ${personId} AND y.merged_into IS NULL AND y.bank_statement_pdf IS NOT NULL ORDER BY (y.ref = ${a.ref}) DESC, y.created_at DESC LIMIT 1) AS kopf_auszug,
+        (SELECT y.ref FROM fiaon_applications y WHERE y.person_id = ${personId} AND y.merged_into IS NULL AND y.bank_statement_pdf IS NOT NULL ORDER BY (y.ref = ${a.ref}) DESC, y.created_at DESC LIMIT 1) AS ref_auszug,
+        (SELECT LENGTH(y.schufa_pdf) FROM fiaon_applications y WHERE y.person_id = ${personId} AND y.merged_into IS NULL AND y.schufa_pdf IS NOT NULL ORDER BY (y.ref = ${a.ref}) DESC, y.created_at DESC LIMIT 1) AS gr_schufa,
+        (SELECT SUBSTRING(y.schufa_pdf FROM 1 FOR 4) FROM fiaon_applications y WHERE y.person_id = ${personId} AND y.merged_into IS NULL AND y.schufa_pdf IS NOT NULL ORDER BY (y.ref = ${a.ref}) DESC, y.created_at DESC LIMIT 1) AS kopf_schufa,
+        (SELECT y.ref FROM fiaon_applications y WHERE y.person_id = ${personId} AND y.merged_into IS NULL AND y.schufa_pdf IS NOT NULL ORDER BY (y.ref = ${a.ref}) DESC, y.created_at DESC LIMIT 1) AS ref_schufa
+      FROM fiaon_applications x
+      WHERE x.person_id = ${personId} AND x.merged_into IS NULL AND x.gdpr_deleted_at IS NULL
+    `.catch(() => [null])) as any[];
+    if (ueberall) {
+      hatPaket = hatPaket || !!ueberall.hat_paket;
+      a.documents_uploaded_at = ueberall.hochgeladen_am ?? a.documents_uploaded_at;
+      a.re_ausweis = !!ueberall.re_ausweis; a.re_auszug = !!ueberall.re_auszug;
+      for (const art of ["ausweis", "auszug", "schufa"] as const) {
+        a[`gr_${art}`] = ueberall[`gr_${art}`] ?? null;
+        a[`kopf_${art}`] = ueberall[`kopf_${art}`] ?? null;
+        a[`ref_${art}`] = ueberall[`ref_${art}`] ?? null;
+      }
+    }
+  }
 
   // ══════════════════════════════════════════════════════════════════════
   // DIE BONITÄTSAUSKUNFT WIRD BEI JEDEM PAKET GEBRAUCHT (27.08.2026)
@@ -196,10 +241,13 @@ export async function dokumentStand(
   // bleiben, wo sie waren — bei einer reinen Auskunftsbestellung beschafft
   // FIAON die Auskunft, dort ist sie ohnehin der einzige Gegenstand.
   // ══════════════════════════════════════════════════════════════════════
-  const istBonitaet = String(a.type || "") === "schufa";
-  const benoetigt: DokumentArt[] = istBonitaet
-    ? ["schufa"]
-    : ["ausweis", "kontoauszug", "schufa"];
+  // E-181: Nur wer AUSSCHLIESSLICH eine Bonitaetsauskunft bestellt hat, braucht
+  // nur die Auskunft. Wer irgendein Paket hat, braucht alle drei — egal, welche
+  // Bestellung die Akte gerade traegt. Justin: „JEDER braucht Ausweis,
+  // Kontoauszug, SCHUFA."
+  const benoetigt: DokumentArt[] = hatPaket
+    ? ["ausweis", "kontoauszug", "schufa"]
+    : ["schufa"];
 
   const groessen: Record<DokumentArt, number | null> = {
     ausweis: a.gr_ausweis, kontoauszug: a.gr_auszug, schufa: a.gr_schufa,
@@ -217,7 +265,16 @@ export async function dokumentStand(
   let urteile: Record<string, any> = {};
   try {
     const { urteileLesen } = await import("./fiaon-dokument-pruefung");
-    urteile = await urteileLesen([String(a.ref)]);
+    // `urteileLesen` liefert ein Objekt je DokumentART (fuer eine Bestellung).
+    // Je Art zaehlt das Urteil der Bestellung, an der die Datei haengt.
+    const refs = Array.from(new Set([String(a.ref), a.ref_ausweis, a.ref_auszug, a.ref_schufa].filter(Boolean).map(String)));
+    const jeRef: Record<string, Record<string, any>> = {};
+    for (const r of refs) jeRef[r] = await urteileLesen([r]);
+    urteile = {
+      ausweis: jeRef[String(a.ref_ausweis || a.ref)]?.ausweis ?? jeRef[String(a.ref)]?.ausweis,
+      kontoauszug: jeRef[String(a.ref_auszug || a.ref)]?.kontoauszug ?? jeRef[String(a.ref)]?.kontoauszug,
+      schufa: jeRef[String(a.ref_schufa || a.ref)]?.schufa ?? jeRef[String(a.ref)]?.schufa,
+    };
   } catch { /* Prüfmodul darf die Akte nie aufhalten */ }
 
   return {

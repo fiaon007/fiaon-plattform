@@ -2175,26 +2175,42 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
   // zu Geld, das die Buchhaltung niemandem zuordnen kann.
   // ═══════════════════════════════════════════════════════════════════════════
   const waNummer = (k.telefonWaehlbar || "").replace(/[^\d]/g, "");
+  // ── DIE WHATSAPP-NACHRICHT IST VOLLSTAENDIG (11.09.2026, E-181) ─────────
+  // Justin: „Da steht kein Betrag dabei — die WhatsApp fuer den Kunden muss
+  // PERFEKT und vollstaendig geschrieben sein." Vorher gewann der Klartext der
+  // ERSTEN Zahlung auch dann, wenn eine Rate offen war, und Betrag, Paket,
+  // Faelligkeit und der Weg ueber die Zahlungsseite fehlten. Jetzt: Ist eine
+  // Rate offen, geht es um die Rate (Betrag, Nummer, Referenz, Faelligkeit);
+  // sonst um die erste Zahlung. Bankdaten aus derselben Serverantwort wie die
+  // Mail — nichts wird im Browser erfunden.
   const waText = () => {
-    const vorname = String(k.name || "").trim().split(/\s+/)[0] || "";
-    const daten = k.zahlung?.klartext || [
-      k.zahlung?.empfaenger ? `Empfänger: ${k.zahlung.empfaenger}` : null,
-      k.zahlung?.iban ? `IBAN: ${k.zahlung.iban}` : null,
-      sitRate ? `Betrag: ${eur(sitRate.betragCents)}` : null,
-      `Verwendungszweck: ${sitRate?.referenz ?? k.zahlung?.referenz ?? "siehe Ihre E-Mail"}`,
-    ].filter(Boolean).join("\n");
-    return [
-      `Guten Tag${vorname ? ` ${vorname}` : ""},`,
+    const name = String(k.name || "").trim();
+    const paket = (k.buchungen || []).find((b: any) => b.art === "paket")?.bezeichnung || "";
+    const z = k.zahlung || ({} as any);
+    const referenz = sitRate?.referenz ?? z.referenz ?? null;
+    const betragCents = sitRate?.betragCents ?? (z.klartext?.match(/Betrag: ([\d.]+,\d{2}) €/)?.[1] ? Math.round(Number(z.klartext.match(/Betrag: ([\d.]+,\d{2}) €/)![1].replace(/\./g, "").replace(",", ".")) * 100) : null);
+    const faellig = sitRate?.faelligAm ?? z.frist ?? null;
+    const zeilen = [
+      `Guten Tag${name ? ` ${name}` : ""},`,
       "",
-      "wie eben besprochen hier Ihre Zahlungsdaten:",
+      sitRate
+        ? `wie eben besprochen hier die Zahlungsdaten für Ihre ${sitRate.nr}. Monatsrate${paket ? ` (${paket})` : ""}:`
+        : `wie eben besprochen hier Ihre Zahlungsdaten${paket ? ` für ${paket}` : ""}:`,
       "",
-      daten,
+      betragCents != null ? `Betrag: ${eur(betragCents)}` : null,
+      faellig ? `Fällig: ${faellig}` : null,
+      z.empfaenger ? `Empfänger: ${z.empfaenger}` : null,
+      z.iban ? `IBAN: ${z.iban}` : null,
+      z.bic ? `BIC: ${z.bic}` : null,
+      `Verwendungszweck: ${referenz || "siehe Ihre E-Mail"}`,
       "",
+      referenz ? `Am schnellsten geht es über Ihre Zahlungsseite: https://fiaon.com/zahlung/${encodeURIComponent(referenz)} — dort übernehmen Sie die Daten mit einem Klick in Ihre Banking-App.` : null,
       "Bitte geben Sie den Verwendungszweck genau so an — dann ist Ihre Zahlung sofort Ihrem Konto zugeordnet.",
       "",
       "Freundliche Grüße",
-      "FIAON",
-    ].join("\n");
+      k.betreuer ? `${k.betreuer}, FIAON` : "FIAON",
+    ];
+    return zeilen.filter((l) => l !== null).join("\n");
   };
   const perWhatsApp = () => {
     if (!waNummer) { melden("schlecht", "Keine Nummer", "Ohne Telefonnummer gibt es keinen WhatsApp-Chat. Trag sie unter „Daten“ nach."); return; }

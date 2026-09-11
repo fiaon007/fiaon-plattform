@@ -950,6 +950,26 @@ router.post("/admin/kunden/:ref/konditionen", async (req: Request, res: Response
     const cur = rows[0];
     const changes: Array<{ field: string; from: string; to: string }> = [];
 
+    // ── DER BETRAG WIRD AN DEN KATALOG GEZOGEN (11.09.2026, E-181) ─────────
+    // Ilijana Weber, Gerold Kuhn, Godwin Uche: High-End (99,99 €), im Feld
+    // `amount_due` aber 79,99 € aus der Stripe-Aera. Das Feld speist die Rechnung
+    // der Bestellung, den Betrag in der Akte und die Provisionsrechnung — bei
+    // Frau Weber standen am 09.09. drei Mails mit 79,99 €. Das Paket darf bei
+    // bezahlten Bestellungen nicht wechseln (Rechnung und Provision haengen
+    // daran); der BETRAG eines bekannten Pakets darf aber nur der Katalogpreis
+    // sein. Genau das tut dieser Weg — nichts anderes, mit Grund in der Akte.
+    if (body.betragAnKatalog === true) {
+      const katalog = paketPreisEuro(cur.pack_key);
+      if (!(katalog > 0)) return res.status(400).json({ ok: false, error: "Ohne bekanntes Paket gibt es keinen Katalogpreis." });
+      const alt = cur.amount_due != null ? Number(cur.amount_due) : null;
+      if (alt === katalog) return res.json({ ok: true, changes: [], hinweis: `Der Betrag entspricht bereits dem Katalog (${katalog.toFixed(2)} €).` });
+      await sqlPool`UPDATE fiaon_applications SET amount_due = ${katalog}, updated_at = NOW() WHERE ref = ${ref}`;
+      const grund = String(body.grund || "").trim().slice(0, 300);
+      await auditApp(ref, `Betrag der Bestellung an den Katalog gezogen durch Admin: ${alt != null ? alt.toFixed(2) : "—"} € → ${katalog.toFixed(2)} € (${cur.pack_key})${grund ? ` — ${grund}` : ""}`);
+      changes.push({ field: "amount_due", from: alt != null ? alt.toFixed(2) : "—", to: katalog.toFixed(2) });
+      return res.json({ ok: true, changes });
+    }
+
     // Limit (approved_limit) — reine Anzeige-/Portal-Größe, kein Geldfluss
     // 07.09.2026 (Justin, Fall Mičuda): Das Wunschlimit hatte kein Verwaltungsfeld —
     // der Kunde sah „Wunschlimit –", obwohl seine Auskunfts-Bestellung 25.000 nannte.

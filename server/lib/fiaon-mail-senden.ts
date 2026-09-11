@@ -16,6 +16,7 @@
 //   Wie protokolliert  server/lib/fiaon-mail-log.ts
 // ═══════════════════════════════════════════════════════════════════════════
 
+import { paketPreisCents } from "@shared/fiaon-pakete";
 import { sqlPool } from "./db-pool";
 import { mailEvent, type Rolle } from "./fiaon-mail-events";
 import { versendenUndProtokollieren, type VersandStatus } from "./fiaon-mail-log";
@@ -78,6 +79,9 @@ async function payloadFuer(personId: number, lauf: Lauf): Promise<Record<string,
            (SELECT a4.amount_due FROM fiaon_applications a4
              WHERE a4.person_id = p.id AND a4.merged_into IS NULL AND a4.archived_at IS NULL
              ORDER BY a4.created_at DESC LIMIT 1) AS betrag,
+           (SELECT a4.pack_key FROM fiaon_applications a4
+             WHERE a4.person_id = p.id AND a4.merged_into IS NULL AND a4.archived_at IS NULL
+             ORDER BY a4.created_at DESC LIMIT 1) AS pack_key,
            (SELECT a5.pack_name FROM fiaon_applications a5
              WHERE a5.person_id = p.id AND a5.merged_into IS NULL AND a5.archived_at IS NULL
              ORDER BY a5.created_at DESC LIMIT 1) AS paket
@@ -91,7 +95,24 @@ async function payloadFuer(personId: number, lauf: Lauf): Promise<Record<string,
     nachname: p.nachname || null,
     antrag_id: p.ref || undefined,
     payment_reference: p.zahlungsreferenz || null,
-    betrag: p.betrag != null ? String(p.betrag) : null,
+    // ── DER BETRAG KOMMT AUS DEM KATALOG, NICHT AUS DEM ALTEN BESTELLFELD (11.09.2026, E-181) ──
+    // Ilijana Weber bekam am 09.09. DREI Mails mit 79,99 €: die Ratenerinnerung
+    // (E-173 hat sie repariert) — und zwei Terminmails, die denselben `betrag`
+    // aus `amount_due` der Bestellung nehmen. Ihr Paket ist High-End, 99,99 €;
+    // das Feld trug den Wert aus der Stripe-Aera. Drei High-End-Bestellungen
+    // tragen 79,99 €, jede Mail mit Betrag haette es wiederholt.
+    // Regel: Ist das Paket bekannt, gilt der Katalogpreis. Das Bestellfeld ist
+    // nur noch der Rueckfall fuer Bestellungen ohne Paket — und weicht es ab,
+    // steht es im Protokoll, damit es jemand geraderueckt.
+    betrag: (() => {
+      const katalog = paketPreisCents(p.pack_key);
+      const feld = p.betrag != null ? Math.round(Number(p.betrag) * 100) : null;
+      if (katalog > 0 && feld != null && feld !== katalog) {
+        console.warn(`[MAIL] Betrag der Bestellung ${p.ref} weicht vom Katalog ab: ${(feld / 100).toFixed(2)} € statt ${(katalog / 100).toFixed(2)} € (${p.pack_key}) — Katalog gilt.`);
+      }
+      const cents = katalog > 0 ? katalog : feld;
+      return cents != null ? (cents / 100).toFixed(2) : null;
+    })(),
     paket: p.paket ? String(p.paket).split("\n")[0].trim() : null,
     // Kunden werden gesiezt — auch im Notnagel, wenn kein Betreuer zugewiesen ist.
     agent_vorname: p.agent_vorname || "Ihr Ansprechpartner",

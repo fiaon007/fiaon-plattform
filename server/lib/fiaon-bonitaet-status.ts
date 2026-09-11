@@ -123,12 +123,16 @@ export function bonitaetAbleiten(z: Zeilen): BonitaetStand {
   const bezahlt = kauf === "paid";
   const zahlungOffen = ["pending_payment", "claimed_paid"].includes(kauf);
 
+  const ki = z.ki_urteil && typeof z.ki_urteil === "object" ? z.ki_urteil : null;
+  const kiBeanstandet = !!ki && ki.pruefbar !== false && ki.erkannt === false;
   const roh = {
     bezahlt, zahlungOffen, hatDokument,
     dokumentGeprueft: status === "approved",
     // E-178: Die automatische Auswertung ist da — fuer Fahrplan, Rahmenweg und
-    // Karten-Tor zaehlt sie wie eine Pruefung von Hand.
-    ausgewertet: hatDokument && !!z.analyse_ampel,
+    // Karten-Tor zaehlt sie wie eine Pruefung von Hand. Aber nie zusammen mit
+    // einer Beanstandung: Was die Pruefung nicht als Auskunft erkennt oder die
+    // Verwaltung zurueckgewiesen hat, ist nicht „ausgewertet" (Skeptiker, 11.09.).
+    ausgewertet: hatDokument && !!z.analyse_ampel && !kiBeanstandet && status !== "changes_requested",
     bestellRef: z.kauf_ref ?? null,
   };
 
@@ -150,7 +154,6 @@ export function bonitaetAbleiten(z: Zeilen): BonitaetStand {
   // Dokument, das die Prüfung nicht als Bonitätsauskunft erkennt oder als
   // unvollständig meldet, gilt überall als beanstandet — mit dem Hinweis
   // der Prüfung, damit der Kunde es selbst korrigieren kann.
-  const ki = z.ki_urteil && typeof z.ki_urteil === "object" ? z.ki_urteil : null;
   // ── UNVOLLSTAENDIG REICHT NICHT MEHR ZUM ABWEISEN (10.09.2026, E-174) ──
   // Dirk Ladewig, 38 Seiten, 491 KB, echte Bonitätsauskunft: Die Prüfung
   // erkannte sie (erkannt = true), meldete aber vollstaendig = false, weil ihr
@@ -169,7 +172,6 @@ export function bonitaetAbleiten(z: Zeilen): BonitaetStand {
   // eine erkannt (Ladewig, 38 Seiten). Die anderen fünf haben eine bis drei
   // Seiten und sind mit erkannt = false zu Recht abgewiesen — dieser Grund
   // bleibt. Der Hinweis auf Fehlendes bleibt ebenfalls, er steht in der Akte.
-  const kiBeanstandet = !!ki && ki.pruefbar !== false && ki.erkannt === false;
   if (hatDokument && status !== "approved" && kiBeanstandet) {
     const fehlt = Array.isArray(ki.fehlt) && ki.fehlt.length ? ` Es fehlt: ${ki.fehlt.join(", ")}.` : "";
     return {

@@ -23,6 +23,7 @@
 // mehr, sondern die Reihenfolge steht in der einen Liste.
 // ═══════════════════════════════════════════════════════════════════════════
 
+import { paketPreisCents } from "@shared/fiaon-pakete";
 import { Router, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { aufbereiten } from "../lib/fiaon-buchungen";
@@ -201,6 +202,10 @@ export const KARTE_SQL = `
     WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
     ORDER BY (a.payment_status IN ('pending_payment','claimed_paid','expired')) DESC,
              a.created_at DESC LIMIT 1) AS amount_due,
+  (SELECT a.pack_key FROM fiaon_applications a
+    WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
+    ORDER BY (a.payment_status IN ('pending_payment','claimed_paid','expired')) DESC,
+             a.created_at DESC LIMIT 1) AS pack_key,
   (SELECT a.status FROM fiaon_applications a
     WHERE a.person_id = p.id AND a.merged_into IS NULL
     ORDER BY a.created_at DESC LIMIT 1) AS letzter_status,
@@ -354,7 +359,8 @@ export function karte(p: any) {
         ? zahlungstext({
             empfaenger: BANK.recipient, iban: BANK.iban, ibanAnzeige: BANK.ibanDisplay,
             bic: BANK.bic, verwendungszweck: String(p.zahlungsreferenz),
-            betragCent: p.amount_due != null ? Math.round(Number(p.amount_due) * 100) : null,
+            // E-181: Katalogpreis vor dem alten Bestellfeld (Weber: 79,99 statt 99,99 im Feld).
+            betragCent: paketPreisCents(p.pack_key) || (p.amount_due != null ? Math.round(Number(p.amount_due) * 100) : null),
           })
         : null,
     },

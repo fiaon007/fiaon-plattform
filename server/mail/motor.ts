@@ -268,6 +268,8 @@ export function freitextRendern(ein: { betreff: string; text: string; anrede?: s
 /** Freitext direkt über Brevo senden. */
 export async function freitextSenden(ein: {
   an: string; betreff: string; text: string; anrede?: string | null;
+  /** E-181: z. B. die korrigierte Rechnung — Name und Inhalt, der Rest ist Brevo. */
+  anhaenge?: { name: string; inhalt: Buffer }[];
 }): Promise<{ ok: boolean; messageId: string | null; grund?: string }> {
   if (!adresseSiehtGueltigAus(String(ein.an || "").trim())) {
     return { ok: false, messageId: null, grund: `Empfängeradresse ungültig: „${ein.an}“ — bitte in der Akte korrigieren.` };
@@ -284,6 +286,7 @@ export async function freitextSenden(ein: {
         to: [{ email: ein.an }],
         subject: mail.betreff, htmlContent: mail.html, textContent: mail.text,
         tags: ["frei_text"],
+        ...(ein.anhaenge?.length ? { attachment: ein.anhaenge.map((a) => ({ name: a.name, content: a.inhalt.toString("base64") })) } : {}),
       }),
       signal: AbortSignal.timeout(15_000),
     });

@@ -358,7 +358,9 @@ function fixkostenAus(buchungen: Buchung[], monateImAuszug: number): Fixkosten[]
       : "monatlich";
     const sortiert = [...g].sort((a, b) => a.datum.localeCompare(b.datum));
     const letzte = sortiert[sortiert.length - 1];
-    const tag = median(g.map((b) => Number(b.datum.slice(8, 10))));
+    // Der Tag der LETZTEN Zahlung — der Kundentext verspricht genau das
+    // („der Tag, an dem die Zahlung zuletzt abging"), kein Median (Skeptiker, 11.09.).
+    const tag = Number(letzte.datum.slice(8, 10));
     aus.push({
       name: letzte.empfaenger, betragCents: median(g.map((b) => -b.betragCents)),
       rhythmus, kategorie: KATEGORIEN[letzte.kategorie]?.label || letzte.kategorie,
@@ -707,9 +709,14 @@ export async function kontoauszugAnalysieren(ref: string, opts: { erzwingen?: bo
       saldo_anfang_cents: pr.saldoAnfang, saldo_ende_cents: pr.saldoEnde,
       dispo_genutzt: z.dispoGenutzt, dispo_tiefst_cents: z.tiefst,
       ruecklastschriften: z.ruecklastschriften,
-      buchungen: JSON.stringify(buchungen), monate: JSON.stringify(z.monate), pruefung: JSON.stringify(pruefung),
-      fixkosten: JSON.stringify(z.fixkosten), kategorien: JSON.stringify(z.kategorien),
-      warnungen: JSON.stringify(z.warnungen), merksaetze: JSON.stringify(merksaetze),
+      // ── KEIN JSON.stringify (11.09.2026, E-181) ─────────────────────────
+      // Der Treiber serialisiert einen JS-String fuer eine jsonb-Spalte als
+      // JSON-STRING — gemessen: jsonb_typeof(buchungen) = 'string' an allen
+      // frischen Zeilen. Arrays und Objekte uebergeben, dann wird es JSON.
+      // Die Leser liste()/objekt() und die SQL-Zaehler verstehen beide Formen.
+      buchungen, monate: z.monate, pruefung,
+      fixkosten: z.fixkosten, kategorien: z.kategorien,
+      warnungen: z.warnungen, merksaetze,
     });
     await akte(`Kontoauszug ausgewertet (${pr.bank || "Bank unbekannt"}, ${pr.zeitraumVon || "?"} bis ${pr.zeitraumBis || "?"}, ${pr.seiten} Seiten): `
       + `${buchungen.length} Buchungen, Einnahmen ${(z.einnahmen / 100).toFixed(2)} €, Ausgaben ${(z.ausgaben / 100).toFixed(2)} €, `

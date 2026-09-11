@@ -192,7 +192,10 @@ export async function dokumentLage(personId: number): Promise<DokumentLage> {
              WHERE x.person_id = ${personId} AND x.merged_into IS NULL) AS gr_schufa
     FROM fiaon_applications
     WHERE person_id = ${personId} AND merged_into IS NULL
-    ORDER BY (payment_status = 'paid') DESC, created_at DESC
+    -- E-181 (11.09.2026): die PAKET-Bestellung ist massgeblich, nicht die neueste.
+    ORDER BY (payment_status = 'paid') DESC,
+             (COALESCE(type, '') <> 'schufa' AND ref NOT LIKE 'FIAON-SCHUFA-%') DESC,
+             created_at DESC
     LIMIT 1
   `;
   if (!a) {
@@ -219,8 +222,8 @@ export async function dokumentLage(personId: number): Promise<DokumentLage> {
   // bleiben, wo sie waren — bei einer reinen Auskunftsbestellung beschafft
   // FIAON die Auskunft, dort ist sie ohnehin der einzige Gegenstand.
   // ══════════════════════════════════════════════════════════════════════
-  const istBonitaet = String(a.type || "") === "schufa";
-  const benoetigt = istBonitaet
+  const nurAuskunft = String(a.type || "") === "schufa" || String(a.ref || "").startsWith("FIAON-SCHUFA-");
+  const benoetigt = nurAuskunft
     ? ["schufa"]
     : ["ausweis", "kontoauszug", "schufa"];
   const da: Record<string, { hat: boolean; gr: number | null }> = {

@@ -69,7 +69,7 @@ export default function ZustimmungPage() {
     const j = await res?.json().catch(() => null);
     setLaedt(false);
     if (!j?.ok) {
-      setFehler(j?.error || "Wir konnten diesen Link nicht öffnen. Bitte melde dich kurz bei uns.");
+      setFehler(j?.error || "Wir konnten diesen Link nicht öffnen. Bitte melden Sie sich kurz bei uns.");
       return;
     }
     setFehler(null);
@@ -97,7 +97,7 @@ export default function ZustimmungPage() {
     // Auch der stille: Ohne Antwort steht hier ein Satz und nicht nichts.
     if (!j?.ok) {
       setFehler(j?.error
-        || "Deine Bestätigung ist nicht angekommen. Bitte prüfe deine Verbindung und versuch es noch einmal.");
+        || "Ihre Bestätigung ist nicht angekommen. Bitte prüfen Sie Ihre Verbindung und versuchen Sie es noch einmal.");
       return;
     }
     setLage(j.lage as Lage);
@@ -130,7 +130,7 @@ export default function ZustimmungPage() {
       <>
         <h1 className="text-[26px] font-bold text-slate-900 mb-3">Danke — alles bestätigt</h1>
         <p className="text-[15px] leading-relaxed text-slate-600">
-          Deine Bestätigung ist gespeichert. Du musst nichts weiter tun; dein
+          Ihre Bestätigung ist gespeichert. Sie müssen nichts weiter tun; Ihr
           Ansprechpartner meldet sich, wenn noch etwas offen ist.
         </p>
         {lage?.paket && (
@@ -145,11 +145,11 @@ export default function ZustimmungPage() {
   return rahmen(
     <>
       <h1 className="text-[26px] font-bold text-slate-900 mb-2">
-        {lage?.name ? `Hallo ${lage.name.split(" ")[0]},` : "Hallo,"}
+        {lage?.name ? `Guten Tag ${lage.name},` : "Guten Tag,"}
       </h1>
       <p className="text-[15px] leading-relaxed text-slate-600 mb-6">
-        für deinen Vertrag fehlt noch deine Bestätigung. Das dauert zwei Klicks —
-        und niemand außer dir darf sie geben.
+        für Ihren Vertrag fehlt noch Ihre Bestätigung. Das dauert zwei Klicks —
+        und niemand außer Ihnen darf sie geben.
       </p>
 
       {lage?.paket && (
@@ -202,8 +202,8 @@ export default function ZustimmungPage() {
       )}
 
       <p className="mt-6 text-[12.5px] leading-relaxed text-slate-400">
-        Wir halten Zeitpunkt und Gerät fest, mit dem du bestätigt hast. Das ist
-        der Nachweis, dass die Erklärung von dir kommt — und nicht von uns.
+        Wir halten Zeitpunkt und Gerät fest, mit dem Sie bestätigt haben. Das ist
+        der Nachweis, dass die Erklärung von Ihnen kommt — und nicht von uns.
       </p>
     </>,
   );

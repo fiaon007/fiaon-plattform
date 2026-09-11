@@ -34,6 +34,7 @@
 // Paket bezahlt + SCHUFA (pack_key='schufa') bezahlt + Kontoauszug + Ausweis.
 // Exportiert — das Chefbüro (Admin) nutzt dieselbe Funktion später.
 // ═══════════════════════════════════════════════════════════════════════════
+import { jetztErreichbarSql } from "@shared/fiaon-erreichbarkeit";
 import { Router, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
@@ -382,24 +383,50 @@ const NIE_SQL = `(NOT EXISTS (
   AND NOT EXISTS (
   SELECT 1 FROM fiaon_contact_log cr JOIN fiaon_applications an ON an.ref = cr.ref
    WHERE an.person_id = p.id AND cr.type = 'result' AND cr.voided_at IS NULL))`;
+// ── WANN WILL DER KUNDE ANGERUFEN WERDEN? (11.09.2026, E-184, Team-Feedback 2) ──
+// „Kunde gibt 08–12 an → wird nur in diesem Zeitraum angezeigt; 18–20 → erst
+// ab 18 Uhr; flexibel → den ganzen Tag." Die Angabe steht im jüngsten Antrag
+// (fiaon_applications.erreichbarkeit, P18). Die Stunde ist die Berliner, wie
+// HEUTE oben. Ohne Angabe oder „Flexibel" gilt: immer erreichbar.
+// Tabelle und Regel: shared/fiaon-erreichbarkeit.ts — eine Quelle für
+// Formular, Reihung und Karte.
+const STUNDE_SQL = `EXTRACT(HOUR FROM (NOW() AT TIME ZONE 'Europe/Berlin'))::int`;
+const ERREICHBAR_ANGABE_SQL = `(SELECT a9.erreichbarkeit FROM fiaon_applications a9
+   WHERE a9.person_id = p.id AND a9.merged_into IS NULL AND NULLIF(a9.erreichbarkeit, '') IS NOT NULL
+   ORDER BY a9.created_at DESC LIMIT 1)`;
+const JETZT_ERREICHBAR_SQL = jetztErreichbarSql(ERREICHBAR_ANGABE_SQL, STUNDE_SQL);
+/** Als Reihungs-Kriterium: passendes Fenster (oder keine Angabe) zuerst. */
+const FENSTER_ORDNUNG = `CASE WHEN ${JETZT_ERREICHBAR_SQL} THEN 0 ELSE 1 END`;
 /** Felder für die Karte: warum steht dieser Mensch hier? */
 const HITZE_SQL = `${ZUSAGE_SQL} AS zusage_faellig, ${RUECKRUF_SQL} AS rueckruf_faellig, ${TERMIN_HEUTE_SQL} AS termin_heute,
   ${RATE_FAELLIG_SQL} AS rate_faellig,
-  ${EREIGNIS_SQL} AS ereignis_am, ${NIE_SQL} AS nie_gesprochen`;
+  ${EREIGNIS_SQL} AS ereignis_am, ${NIE_SQL} AS nie_gesprochen,
+  ${JETZT_ERREICHBAR_SQL} AS jetzt_erreichbar`;
 /** Die Reihenfolge — für „Neu für dich", „Wieder dran" dieselbe (braucht $1 = Mitarbeiter). */
 const HITZE_ORDNUNG = `
   -- E-165 (TFO): KEIN eigener Rang für fällige Raten. Eine gestern fällige Rate zahlt zu ~19 %, ein Antrag
   -- von gestern zu 28 %, eine 60 Tage alte Rate fast nie — die Fälligkeit zählt als Ereignis (unten),
   -- die Frische entscheidet. Ein fester Rang hätte bei Daniel 93 Raten vor jeden neuen Antrag gestellt.
   CASE WHEN ${ZUSAGE_SQL} OR ${TERMIN_HEUTE_SQL} THEN 0 WHEN ${RUECKRUF_SQL} THEN 1 ELSE 2 END,
+  -- E-184: feste Zeiten (Zusage, Termin, Rückruf) bleiben vorn; danach zählt,
+  -- ob der Kunde laut Antrag JETZT erreichbar sein will.
+  ${FENSTER_ORDNUNG},
   CASE WHEN p.priority_tier = 3 THEN 1 ELSE 0 END,
   (${EREIGNIS_SQL} AT TIME ZONE 'Europe/Berlin')::date DESC,
   CASE WHEN ${NIE_SQL} THEN 0 ELSE 1 END,
   COALESCE(p.unreachable_count, 0) ASC,
   ${EREIGNIS_SQL} DESC,
   p.id DESC`;
-/** Pool-Reihenfolge (ohne Termin-Bezug): Stufe 3 zuletzt, jüngstes Ereignis zuerst. */
+/**
+ * „Neu für dich" (E-184): HITZE_ORDNUNG trägt das Wunschfenster bereits an
+ * zweiter Stelle — direkt hinter Zusage, Termin heute und Rückruf. Wer heute um
+ * 14:30 seinen Termin hat, steht auch um 14 Uhr vorn, egal welches Fenster er
+ * im Antrag nannte. Ein eigener Rang DAVOR hätte genau das gebrochen.
+ */
+const NEU_ORDNUNG = HITZE_ORDNUNG;
+/** Pool-Reihenfolge (ohne Termin-Bezug): Fenster passend zuerst, Stufe 3 zuletzt, jüngstes Ereignis zuerst. */
 const POOL_ORDNUNG = `
+  ${FENSTER_ORDNUNG},
   CASE WHEN p.priority_tier = 3 THEN 1 ELSE 0 END,
   ${EREIGNIS_SQL} DESC,
   p.id DESC`;
@@ -416,6 +443,8 @@ function hitzeVon(r: any) {
     art,
     seitMin: Number.isFinite(am) ? Math.max(0, Math.round((Date.now() - am) / 60_000)) : null,
     nieGesprochen: r.nie_gesprochen === true,
+    // E-184: false nur, wenn der Kunde ein Fenster nannte und wir gerade außerhalb liegen.
+    jetztErreichbar: r.jetzt_erreichbar !== false,
   };
 }
 /**
@@ -524,9 +553,23 @@ async function nachschubZiehen(me: number): Promise<void> {
        AND NOT EXISTS (SELECT 1 FROM fiaon_termine tz WHERE tz.person_id = p.id
              AND tz.status = 'gebucht' AND tz.abgesagt_am IS NULL AND tz.beginn > NOW())
        AND (p.priority_tier BETWEEN 1 AND 3
-            OR (COALESCE(p.priority_tier, 0) = 0 AND ${RATE_FAELLIG_SQL}))`, [me])) as any[];
+            OR (COALESCE(p.priority_tier, 0) = 0 AND ${RATE_FAELLIG_SQL}))
+       -- E-184: Wer laut Antrag gerade NICHT erreichbar sein will, hält keinen
+       -- Platz besetzt — sonst stünde links den ganzen Vormittag ein Abendkunde.
+       -- Unberührte fallen nach drei Tagen von selbst in den Pool zurück (oben).
+       AND ${JETZT_ERREICHBAR_SQL}`, [me])) as any[];
   const fehlt = SLOTS - Number(zeile?.n ?? 0);
   if (fehlt <= 0) return;
+  // ── KEIN HORTEN (E-184): Wer außerhalb seines Fensters liegt, zählt oben
+  // nicht als besetzt — damit nicht jeder Fensterwechsel sechs neue Menschen
+  // zieht, gilt ein Deckel über ALLE unberührten Zugeteilten, und der Pool gibt
+  // nur heraus, wer JETZT erreichbar sein will (oder nichts angab).
+  const [alle] = (await sqlPool.unsafe(`
+    SELECT COUNT(*)::int AS n FROM fiaon_persons p
+     WHERE p.assigned_agent_id = $1 AND p.merged_into_person_id IS NULL
+       AND p.ist_test_am IS NULL AND NOT p.is_blocked AND p.mandat_seit IS NULL
+       AND ${NIE_SQL} AND p.priority_tier BETWEEN 1 AND 3`, [me])) as any[];
+  if (Number(alle?.n ?? 0) >= SLOTS * 3) return;
   await sqlPool.unsafe(`
     UPDATE fiaon_persons SET assigned_agent_id = $1, assigned_at = NOW(), betreuung_seit = COALESCE(betreuung_seit, NOW())
      WHERE id IN (
@@ -535,6 +578,7 @@ async function nachschubZiehen(me: number): Promise<void> {
           AND p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL
           AND NOT p.is_blocked AND NOT ${ruhtSql("p")} AND NOT ${wartetSql("p")}
           AND p.priority_tier BETWEEN 1 AND 3
+          AND ${JETZT_ERREICHBAR_SQL}
         ORDER BY ${POOL_ORDNUNG}
         LIMIT ${fehlt}
         FOR UPDATE SKIP LOCKED)`, [me]);
@@ -737,14 +781,14 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
         `SELECT ${KARTE_SQL}, p.mandat_seit, ${VOLL_SQL}, ${HITZE_SQL} FROM (
            SELECT p.* FROM fiaon_persons p
             WHERE ${basis} AND ${HEISS_SQL}
-            ORDER BY ${ordnung} LIMIT ${SLOTS}) p`, [me],
+            ORDER BY ${NEU_ORDNUNG} LIMIT ${SLOTS}) p`, [me],
       )) as any[];
       if (heiss.length >= SLOTS) return heiss;
       const rest = (await sqlPool.unsafe(
         `SELECT ${KARTE_SQL}, p.mandat_seit, ${VOLL_SQL}, ${HITZE_SQL} FROM (
            SELECT p.* FROM fiaon_persons p
             WHERE ${basis} AND p.priority_tier = 3 AND ${NIE_SQL}
-            ORDER BY COALESCE((SELECT MAX(a4.created_at) FROM fiaon_applications a4
+            ORDER BY ${FENSTER_ORDNUNG}, COALESCE((SELECT MAX(a4.created_at) FROM fiaon_applications a4
                                 WHERE a4.person_id = p.id AND a4.merged_into IS NULL), p.created_at) DESC, p.id DESC
             LIMIT ${SLOTS - heiss.length}) p`, [me],
       )) as any[];

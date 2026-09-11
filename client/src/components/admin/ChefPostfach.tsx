@@ -295,7 +295,8 @@ export default function ChefPostfach() {
   const E = detail?.eintrag;
   const A = detail?.akte;
   const flags = (E?.flags ?? {}) as Record<string, boolean>;
-  const istEntwurf = !!E && (E.aktion === "entwurf" || E.aktion === "fehler");
+  // E-184: Auch eine wartende oder endgültig gescheiterte Antwort ist von Hand sendbar.
+  const istEntwurf = !!E && ["entwurf", "fehler", "versand_wartet", "versand_fehlgeschlagen"].includes(String(E.aktion));
   const kannSenden = istEntwurf && entwurf.trim().length > 0;
 
   return (
@@ -381,6 +382,8 @@ export default function ChefPostfach() {
               if (z.kundenlage && LAGE_TEXT[z.kundenlage] && !["aktiv", "unklar"].includes(z.kundenlage)) marken.push({ t: LAGE_TEXT[z.kundenlage], ton: "grau" });
               if ((z.nachrichtenImThread ?? 1) > 1) marken.push({ t: `${z.nachrichtenImThread} Nachrichten`, ton: "grau" });
               if (z.aktion === "fehler") marken.push({ t: "Fehler", ton: "rot" });
+              if (z.aktion === "versand_wartet") marken.push({ t: `Versand wartet ${z.versandVersuche || 1}/4`, ton: "warn" });
+              if (z.aktion === "versand_fehlgeschlagen") marken.push({ t: "Versand fehlgeschlagen", ton: "rot" });
               return (
                 <div key={z.id} className={`pf-zeile${an ? " an" : ""}`}>
                   {z.aktion === "entwurf" && (
@@ -427,6 +430,18 @@ export default function ChefPostfach() {
                 )}
                 {E.aktion === "fehler" && E.begruendung && (
                   <div className="pf-warnband rot"><b>Mara konnte nicht antworten.</b> {E.begruendung}</div>
+                )}
+                {E.aktion === "versand_wartet" && (
+                  <div className="pf-warnband">
+                    <b>Versand wartet — Versuch {E.versandVersuche || 1}/4, nächster gegen {E.naechsterVersuchAm ? zeit(E.naechsterVersuchAm) : "gleich"}.</b>
+                    {" "}Die Antwort steht, nur Gmail hat sie nicht angenommen{E.versandFehler ? ` (${E.versandFehler})` : ""}. Du kannst sie jetzt von Hand senden.
+                  </div>
+                )}
+                {E.aktion === "versand_fehlgeschlagen" && (
+                  <div className="pf-warnband rot">
+                    <b>Versand endgültig fehlgeschlagen — Aufgabe liegt beim Betreuer.</b>
+                    {" "}Vier Versuche{E.versandFehler ? ` (${E.versandFehler})` : ""}. Von Hand senden geht weiterhin — oder den Kunden anrufen.
+                  </div>
                 )}
 
                 <section className="pf-abs">

@@ -108,6 +108,13 @@ async function agentMitWenigstenTier1(): Promise<number | null> {
      AND NOT p.is_blocked
      AND p.ist_test_am IS NULL
     WHERE a.active AND a.distribution_active AND NOT a.is_test_account
+      -- 11.09.2026 (E-184): dieselbe Kandidatenregel wie die Sofortzuteilung
+      -- (fiaon-zuteilung.ts) — gesperrte Konten und Konten in Schulung
+      -- bekommen keine Zahlungsmelder. Vorher bekam ein gesperrtes Konto mit
+      -- distribution_active = TRUE hier weiter A-Kunden.
+      AND a.zugang_gesperrt_am IS NULL
+      AND COALESCE(a.schulung_offen, FALSE) = FALSE
+      AND a.rolle IN ('agent', 'vertriebsleiter')
     GROUP BY a.id
     HAVING count(p.id) < ${cap1}
     ORDER BY count(p.id) ASC, a.id ASC
@@ -186,82 +193,22 @@ export async function autoAssignTier1(personId: number): Promise<number | null> 
  *
  * @param nurAgent Nur diesen Agenten prüfen (nach einer Statusänderung).
  */
-export async function nachschub(nurAgent?: number): Promise<{ tier1: number; tier2: number; tier3: number }> {
-  const { ensureBetreuungSpalte } = await import("../lib/tier");
-  await ensureBetreuungSpalte(sqlPool);
-  const s = await getSettings();
-  const cap1 = parseInt(s.pool_cap_tier1 ?? "30", 10);
-  const cap2 = parseInt(s.pool_cap_tier2 ?? "60", 10);
-  // Stufe C (Leads) hat einen eigenen, weiten Deckel. Sie ist die Kür: Sie
-  // wird erst gearbeitet, wenn A und B leer sind, kostet also keinen Platz in
-  // der Pflicht — aber ein zu enger Deckel ließe den Vorrat wieder versickern.
-  const cap3 = parseInt(s.pool_cap_tier3 ?? "800", 10);
-  const schwelle = parseInt(s.pool_refill_threshold ?? "20", 10);
-  const ergebnis = { tier1: 0, tier2: 0, tier3: 0 };
-
-  const agenten = (await sqlPool`
-    SELECT a.id,
-           count(p.id) FILTER (WHERE p.priority_tier = 1)::int AS offen1,
-           count(p.id) FILTER (WHERE p.priority_tier = 2)::int AS offen2,
-           count(p.id) FILTER (WHERE p.priority_tier = 3)::int AS offen3
-    FROM fiaon_agents a
-    LEFT JOIN fiaon_persons p
-      ON p.assigned_agent_id = a.id AND p.merged_into_person_id IS NULL AND NOT p.is_blocked
-    WHERE a.active AND a.distribution_active AND NOT a.is_test_account
-      AND (${nurAgent ?? null}::int IS NULL OR a.id = ${nurAgent ?? null}::int)
-    GROUP BY a.id ORDER BY a.id
-  `) as any[];
-
-  for (const a of agenten) {
-    // Die Reihenfolge ist die Geschäftsregel: erst A auffüllen, dann B, dann C.
-    // Wer noch Pflicht offen hat, bekommt keine Kür nachgelegt.
-    for (const [tier, offen, cap] of [[1, a.offen1, cap1], [2, a.offen2, cap2], [3, a.offen3, cap3]] as const) {
-      // Die Schwelle gilt bewusst nur für Tier 1. Tier 2 wird aufgefüllt, sobald
-      // Platz ist: Dort ist der Deckel das wirksame Mittel gegen Horten, nicht
-      // die Untergrenze.
-      if (tier === 1 && offen >= schwelle) continue;
-      const luecke = cap - offen;
-      if (luecke <= 0) continue;
-
-      const kandidaten = (await sqlPool`
-        SELECT p.id FROM fiaon_persons p
-        WHERE p.assigned_agent_id IS NULL
-          AND p.merged_into_person_id IS NULL
-          AND p.priority_tier = ${tier}
-          AND NOT p.is_blocked
-          -- BESITZSCHUTZ (05.08.2026): Nur unberührte Personen kommen aus der
-          -- Reserve. Wer schon einmal dokumentiert betreut wurde, bleibt bei
-          -- seinem Betreuer — auch dann, wenn die Zuweisung verloren ging.
-          -- Ohne diese Zeile verteilte der Nachschub fremde Kunden weiter und
-          -- zwei Mitarbeiter riefen denselben Menschen an.
-          AND p.betreuung_seit IS NULL
-          AND p.ist_test_am IS NULL
-        ORDER BY
-          (p.promised_payment_date IS NULL),
-          p.promised_payment_date ASC NULLS LAST,
-          (SELECT MAX(ap.created_at) FROM fiaon_applications ap
-            WHERE ap.person_id = p.id AND ap.merged_into IS NULL AND ap.archived_at IS NULL) DESC NULLS LAST,
-          p.id ASC
-        LIMIT ${luecke}
-      `) as any[];
-      if (kandidaten.length === 0) continue;
-
-      const ids = kandidaten.map((k) => k.id);
-      await sqlPool.begin(async (tx) => {
-        await tx`SELECT set_config('fiaon.reason', 'nachschub', true)`;
-        await tx`SELECT set_config('fiaon.actor', 'system:followup', true)`;
-        await tx`
-          UPDATE fiaon_persons SET assigned_agent_id = ${a.id}
-          WHERE id = ANY(${ids}) AND assigned_agent_id IS NULL
-        `;
-      });
-      if (tier === 1) ergebnis.tier1 += ids.length;
-      else if (tier === 2) ergebnis.tier2 += ids.length;
-      else ergebnis.tier3 += ids.length;
-      console.log(`[FIAON-FOLLOWUP] Nachschub: Agent ${a.id} +${ids.length} Tier-${tier} (war ${offen}, Deckel ${cap})`);
-    }
-  }
-  return ergebnis;
+/**
+ * ── ABGESCHALTET (Justin, 11.09.2026, E-184) ─────────────────────────────
+ * Der alte Tages-Nachschub füllte jeden verteilenden Mitarbeiter auf
+ * pool_cap_tier1/2/3 (30 / 60 / 800) auf — ohne Sperr- oder Schulungsprüfung,
+ * ohne Hitze. Am 04.09. schrieb er Blöcke von ~800 C-Kunden in private
+ * Vorräte („Vika hat nur C-Kunden", E-122), am 09.09. noch einmal 1.573.
+ * Seit E-162 gibt es den einen Weg: die Arbeitsliste zieht sechs Plätze nach
+ * Hitze aus dem Pool (poolNachschub in fiaon-office-vertrieb.ts), frische
+ * A/B-Kunden gehen per sofortZuteilen nach Dienst und Quote. Beides prüft
+ * Sperre und Schulung. Justin: „Ja, schalte den alten Nachschub ab."
+ *
+ * Die Signatur bleibt, damit Tageswerk, Gesprächsergebnis und die Admin-Route
+ * weiterlaufen — sie bekommen Nullen und das Kennzeichen `abgeschaltet`.
+ */
+export async function nachschub(_nurAgent?: number): Promise<{ tier1: number; tier2: number; tier3: number; abgeschaltet: true }> {
+  return { tier1: 0, tier2: 0, tier3: 0, abgeschaltet: true };
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -297,10 +244,13 @@ export async function runFollowUpTageslauf(opts: { force?: boolean } = {}): Prom
   // Sie ist seit dem 30.08.2026 keine SPERRE mehr, sondern nur noch die
   // bevorzugte Zeit: Sie steht in der Meldung, damit im Protokoll erkennbar
   // bleibt, ob der Lauf zur gewünschten Stunde kam oder nachgeholt wurde.
+  // 11.09.2026 (E-184): Number(format()) ergab „08 Uhr" → NaN, jede Meldung
+  // endete mit „(nachgeholt um NaN Uhr)" — die Zeit-Falle aus fiaon-zeit-berlin.
+  // formatToParts liefert die Ziffern ohne Beiwerk.
   const wienStunde = Number(
-    new Intl.DateTimeFormat("de-AT", { timeZone: "Europe/Vienna", hour: "numeric", hour12: false })
-      .format(new Date()),
-  );
+    new Intl.DateTimeFormat("de-AT", { timeZone: "Europe/Vienna", hour: "2-digit", hour12: false })
+      .formatToParts(new Date()).find((t) => t.type === "hour")?.value ?? "0",
+  ) % 24;
   const zurGewuenschtenStunde = wienStunde === LAUF_STUNDE;
   const heute = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Vienna" }).format(new Date());
 
@@ -428,8 +378,9 @@ export async function runFollowUpTageslauf(opts: { force?: boolean } = {}): Prom
       else break;
     }
 
-    // 2 · Nachschub für alle
-    const nach = await nachschub();
+    // 2 · Nachschub: seit 11.09.2026 abgeschaltet (E-184) — die Arbeitsliste
+    //     zieht nach Hitze aus dem Pool, frische A/B-Kunden gehen per
+    //     Sofortzuteilung. Siehe nachschub() oben.
 
     // 3 · Eskalation: seit ESKALATION_TAGE keine dokumentierte Aktivität.
     //     Es wird NICHT umverteilt — nur markiert. Wem der Kunde weggenommen
@@ -503,7 +454,7 @@ export async function runFollowUpTageslauf(opts: { force?: boolean } = {}): Prom
       INSERT INTO fiaon_lauf_historie (name, ergebnis, begonnen, beendet, dauer_ms, meldung)
       VALUES ('followup-und-termine-tageswerk', 'erfolg', NOW(), NOW(), 0,
               ${`${autoAssign} zugeteilt, ${eskaliert.length} eskaliert, `
-                + `Nachschub ${nach.tier1}/${nach.tier2}/${nach.tier3}`
+                + "Nachschub abgeschaltet (E-184)"
                 + (zurGewuenschtenStunde ? "" : ` (nachgeholt um ${wienStunde} Uhr)`)})
     `.catch((e) => console.error("[FIAON-FOLLOWUP] Historie:", e));
 
@@ -513,14 +464,14 @@ export async function runFollowUpTageslauf(opts: { force?: boolean } = {}): Prom
       ueberfaellig: z.ueberfaellig,
       eskalationen: eskaliert.length,
       autoAssign,
-      nachschubTier1: nach.tier1,
-      nachschubTier2: nach.tier2,
-      nachschubTier3: nach.tier3,
+      nachschubTier1: 0,
+      nachschubTier2: 0,
+      nachschubTier3: 0,
     };
     console.log(
       `[FIAON-FOLLOWUP] Tageslauf: ${ergebnis.heuteFaellig} fällig, ${ergebnis.ueberfaellig} überfällig, ` +
       `${ergebnis.eskalationen} eskaliert, ${autoAssign} auto-zugewiesen, ` +
-      `Nachschub +${nach.tier1}/+${nach.tier2}/+${nach.tier3}`,
+      "Nachschub abgeschaltet (E-184)",
     );
     return ergebnis;
   } finally {
@@ -791,7 +742,7 @@ router.post("/admin/followup/nachschub", async (req: Request, res: Response) => 
   try {
     const nurAgent = req.body?.agentId ? Number(req.body.agentId) : undefined;
     const ergebnis = await nachschub(nurAgent);
-    res.json({ ok: true, ...ergebnis });
+    res.json({ ok: true, ...ergebnis, meldung: "Der alte Nachschub ist seit 11.09.2026 abgeschaltet (E-184). Kunden kommen über die Arbeitsliste (sechs Plätze nach Hitze) und die Sofortzuteilung." });
   } catch (err) {
     console.error("[FIAON-FOLLOWUP] nachschub:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });

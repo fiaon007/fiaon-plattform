@@ -78,7 +78,9 @@ router.get("/admin/postmeister/postfach", async (req: Request, res: Response) =>
 
     const wo: string[] = ["1=1"];
     const werte: any[] = [];
-    if (ordner === "offen") wo.push("pm.aktion IN ('entwurf','fehler')");
+    // 11.09.2026 (E-184): Auch die Antworten, deren Versand wartet oder
+    // endgültig scheiterte, liegen unter „Zu prüfen" — von Hand sendbar.
+    if (ordner === "offen") wo.push("pm.aktion IN ('entwurf','fehler','versand_wartet','versand_fehlgeschlagen')");
     else if (ordner === "gesendet") wo.push("pm.aktion IN ('gesendet','auto_beantwortet')");
     else if (ordner === "kein_kunde") wo.push("pm.aktion = 'ignoriert'");
     else if (ordner === "geordnet") wo.push("pm.aktion IN ('geordnet','vorgeordnet')");
@@ -91,6 +93,7 @@ router.get("/admin/postmeister/postfach", async (req: Request, res: Response) =>
              pm.zusammenfassung, pm.kategorie, pm.kategorien, pm.flags, pm.kundenlage, pm.dringend,
              pm.aktion, pm.person_id, pm.ref, pm.antwort, pm.antwort_html, pm.belege, pm.handlungen,
              pm.naechster_schritt, pm.pruefung, pm.gesendet_am, pm.begruendung, pm.person_kandidaten,
+             pm.versand_versuche, pm.versand_fehler, pm.naechster_versuch_am,
              p.first_name, p.last_name, ag.first_name AS betreuer,
              (SELECT COUNT(*) FROM fiaon_postmeister x WHERE x.thread_id = pm.thread_id)::int AS im_thread
         FROM fiaon_postmeister pm
@@ -102,7 +105,7 @@ router.get("/admin/postmeister/postfach", async (req: Request, res: Response) =>
     `, werte)) as any[];
 
     const [z] = (await sqlPool`
-      SELECT COUNT(*) FILTER (WHERE aktion IN ('entwurf','fehler'))::int AS offen,
+      SELECT COUNT(*) FILTER (WHERE aktion IN ('entwurf','fehler','versand_wartet','versand_fehlgeschlagen'))::int AS offen,
              COUNT(*) FILTER (WHERE aktion IN ('gesendet','auto_beantwortet'))::int AS gesendet,
              COUNT(*) FILTER (WHERE aktion = 'ignoriert')::int AS kein_kunde,
              COUNT(*) FILTER (WHERE aktion IN ('geordnet','vorgeordnet'))::int AS geordnet,
@@ -130,6 +133,7 @@ router.get("/admin/postmeister/postfach", async (req: Request, res: Response) =>
         naechsterSchritt: jsonOderLeer(r.naechster_schritt, null),
         pruefung: jsonOderLeer(r.pruefung, null),
         gesendetAm: r.gesendet_am, begruendung: r.begruendung,
+        versandVersuche: Number(r.versand_versuche || 0), versandFehler: r.versand_fehler ?? null, naechsterVersuchAm: r.naechster_versuch_am ?? null,
         kandidaten: jsonOderLeer(r.person_kandidaten, []),
         nachrichtenImThread: r.im_thread ?? 1,
       })),
@@ -176,6 +180,9 @@ router.get("/admin/postmeister/eintrag/:id", async (req: Request, res: Response)
         belege: jsonOderLeer(r.belege, []), handlungen: handlungenLesen(r.handlungen),
         pruefung: jsonOderLeer(r.pruefung, null), naechsterSchritt: jsonOderLeer(r.naechster_schritt, null),
         begruendung: r.begruendung, gesendetAm: r.gesendet_am, ref: r.ref, personId: r.person_id,
+        // E-184: Stand des Versands, wenn er wartet oder scheiterte.
+        versandVersuche: Number(r.versand_versuche || 0), versandFehler: r.versand_fehler ?? null,
+        naechsterVersuchAm: r.naechster_versuch_am ?? null, versandAufgegebenAm: r.versand_aufgegeben_am ?? null,
       },
       verlauf: verlauf.map((v) => ({
         id: v.id, richtung: "ein", von: v.von, am: v.empfangen_am, betreff: v.betreff,
@@ -215,11 +222,15 @@ async function handlungMerken(id: number, werkzeug: string, ergebnis: string, ok
 
 /** Ein Entwurf wird gesendet — mit frischer Prüfung kurz davor. */
 async function entwurfSenden(id: number, textNeu?: string | null, wahl: SendeWahl = {}): Promise<{ ok: boolean; grund: string; erledigt?: string[] }> {
+  // 11.09.2026 (E-184): Auch eine wartende oder endgültig gescheiterte
+  // Antwort darf ein Mensch sofort von Hand senden. Geht es schief, fällt die
+  // Zeile in IHREN Zustand zurück — der Nachhol-Zeitplan bleibt erhalten.
   const [r] = (await sqlPool`
     UPDATE fiaon_postmeister SET aktion = 'sendet', updated_at = NOW()
-     WHERE id = ${id} AND aktion IN ('entwurf', 'fehler') RETURNING *
+     WHERE id = ${id} AND aktion IN ('entwurf', 'fehler', 'versand_wartet', 'versand_fehlgeschlagen') RETURNING *
   `) as any[];
   if (!r) return { ok: false, grund: "Nicht mehr im Entwurf-Zustand" };
+  const zurueck: string = String(r.aktion).startsWith("versand_") ? String(r.aktion) : "entwurf";
 
   // ── AUS EINEM NICHT BEDIENTEN POSTFACH GEHT NICHTS RAUS (09.09.2026, E-171)
   // js@fiaon.com ist seit heute kein Postfach des Agenten mehr. Die zehn
@@ -228,7 +239,7 @@ async function entwurfSenden(id: number, textNeu?: string | null, wahl: SendeWah
   // Der Vorgang bleibt sichtbar, er wird nur nicht mehr gesendet.
   if (!wirdBedient(r.postfach)) {
     await sqlPool`
-      UPDATE fiaon_postmeister SET aktion = 'entwurf',
+      UPDATE fiaon_postmeister SET aktion = ${zurueck},
              begruendung = ${`Nicht gesendet: ${r.postfach} wird vom Agenten nicht mehr bedient (E-171).`}
        WHERE id = ${id}`;
     return { ok: false, grund: `${r.postfach} wird vom Agenten nicht mehr bedient — hier geht nichts mehr raus.` };
@@ -236,7 +247,7 @@ async function entwurfSenden(id: number, textNeu?: string | null, wahl: SendeWah
 
   const text = String(textNeu ?? r.antwort ?? "").trim();
   if (text.length < 20) {
-    await sqlPool`UPDATE fiaon_postmeister SET aktion = 'entwurf' WHERE id = ${id}`;
+    await sqlPool`UPDATE fiaon_postmeister SET aktion = ${zurueck} WHERE id = ${id}`;
     return { ok: false, grund: "Text ist zu kurz" };
   }
 
@@ -273,7 +284,7 @@ async function entwurfSenden(id: number, textNeu?: string | null, wahl: SendeWah
   // Schalter 1: Kündigung — ein Mensch entscheidet, deshalb ohne Willenserklärungs-Wand.
   if (wahl.kuendigung?.vormerken) {
     if (!r.ref) {
-      await sqlPool`UPDATE fiaon_postmeister SET aktion = 'entwurf' WHERE id = ${id}`;
+      await sqlPool`UPDATE fiaon_postmeister SET aktion = ${zurueck} WHERE id = ${id}`;
       return { ok: false, grund: "Ohne Bestellung kann keine Kündigung vorgemerkt werden." };
     }
     const { kuendigungSetzen } = await import("../lib/fiaon-kuendigung");
@@ -282,7 +293,7 @@ async function entwurfSenden(id: number, textNeu?: string | null, wahl: SendeWah
       postmeisterId: id, sofort: wahl.kuendigung.nachZahlung === false,
     });
     if (!erg.ok) {
-      await sqlPool`UPDATE fiaon_postmeister SET aktion = 'entwurf', begruendung = ${`Kündigung nicht vorgemerkt: ${erg.grund}`} WHERE id = ${id}`;
+      await sqlPool`UPDATE fiaon_postmeister SET aktion = ${zurueck}, begruendung = ${`Kündigung nicht vorgemerkt: ${erg.grund}`} WHERE id = ${id}`;
       return { ok: false, grund: `Kündigung: ${erg.grund}` };
     }
     const satz = erg.weg === "letzte_rate"
@@ -324,7 +335,7 @@ async function entwurfSenden(id: number, textNeu?: string | null, wahl: SendeWah
   const treffer = wandPruefen(text, gelaufen).filter((t) => t.art !== "floskel");
   if (treffer.length) {
     await sqlPool`
-      UPDATE fiaon_postmeister SET aktion = 'entwurf', begruendung = ${`Nicht gesendet: ${treffer.map((t) => t.treffer).join("; ")}`} WHERE id = ${id}
+      UPDATE fiaon_postmeister SET aktion = ${zurueck}, begruendung = ${`Nicht gesendet: ${treffer.map((t) => t.treffer).join("; ")}`} WHERE id = ${id}
     `;
     return { ok: false, grund: `Prüfung: ${treffer.map((t) => t.treffer).join("; ")}` };
   }
@@ -346,7 +357,8 @@ async function entwurfSenden(id: number, textNeu?: string | null, wahl: SendeWah
     await nachrichtLabeln(r.postfach, r.gmail_id, [await labelSicherstellen(r.postfach, "FIAON/Beantwortet")], ["UNREAD"]).catch(() => {});
     await sqlPool`
       UPDATE fiaon_postmeister SET aktion = 'gesendet', antwort = ${fertig.text}, antwort_html = ${fertig.html}, gesendet_am = NOW(), updated_at = NOW(),
-             anhaenge = ${plan.length ? sqlPool.json(plan as any) : null} WHERE id = ${id}
+             anhaenge = ${plan.length ? sqlPool.json(plan as any) : null},
+             versand_fehler = NULL, naechster_versuch_am = NULL WHERE id = ${id}
     `;
     if (r.ref) {
       await sqlPool`
@@ -356,7 +368,7 @@ async function entwurfSenden(id: number, textNeu?: string | null, wahl: SendeWah
     }
     return { ok: true, grund: "gesendet", erledigt };
   } catch (e: any) {
-    await sqlPool`UPDATE fiaon_postmeister SET aktion = 'entwurf', begruendung = ${String(e?.message || e).slice(0, 300)} WHERE id = ${id}`;
+    await sqlPool`UPDATE fiaon_postmeister SET aktion = ${zurueck}, begruendung = ${String(e?.message || e).slice(0, 300)} WHERE id = ${id}`;
     return { ok: false, grund: String(e?.message || e).slice(0, 200) };
   }
 }

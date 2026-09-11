@@ -520,12 +520,19 @@ export async function postfachModus(adresse: string): Promise<Modus | "aus"> {
 export async function postmeisterLauf(opts: { q?: string; deckel?: number; nurOrdnen?: boolean; postfach?: string } = {}):
   Promise<{ verarbeitet: number; aktionen: Record<string, number> }> {
   await ensureTabelle();
+  // 11.09.2026 (E-184): Das Sieb unten liest naechster_versuch_am — die Spalte
+  // legt postmeisterSchema an. Vorher lief es erst in mailBearbeiten, also
+  // NACH dem Sieb; auf einer frischen Datenbank wäre der erste Takt gescheitert.
+  const { postmeisterSchema } = await import("../lib/fiaon-postmeister-schema");
+  await postmeisterSchema();
   const aktionen: Record<string, number> = {};
   let verarbeitet = 0;
+  const aktivePostfaecher: string[] = [];
   for (const pf of POSTFAECHER) {
     if (opts.postfach && pf.adresse !== opts.postfach) continue;
     const modus = await wirksamerModus(pf);
     if (modus === "aus") continue;
+    aktivePostfaecher.push(pf.adresse);
     const pfWirksam = { ...pf, modus };
     try {
       // ── SEITENWEISE LESEN (E-094): Gmail liefert höchstens 100 je Seite und
@@ -544,9 +551,19 @@ export async function postmeisterLauf(opts: { q?: string; deckel?: number; nurOr
 
       // Schon Abgeschlossenes aussieben — 'fehler' und 'vorgeordnet' bleiben
       // beanspruchbar, sonst verbraucht ein KI-Aussetzer die Mail für immer.
+      // 11.09.2026 (E-184): 'fehler' nur, wenn die Wiedervorlage fällig ist und
+      // noch Versuche übrig sind — vorher kam jede 'fehler'-Zeile in JEDEM Takt
+      // neu dran (vier KI-Antworten in 20 Minuten). 'in_arbeit' älter als
+      // 15 Minuten ist ein abgebrochener Lauf (Neustart) und wird wieder
+      // aufgenommen; mailBearbeiten sendet dabei nichts zweimal (gesendet_am).
+      // 'versand_wartet' und 'versand_fehlgeschlagen' tragen die fertige
+      // Antwort und gelten als bekannt — sie werden nachgeholt, nicht neu erzeugt.
       const bekannte = new Set(((await sqlPool`
         SELECT gmail_id FROM fiaon_postmeister
-         WHERE gmail_id = ANY(${alleIds}) AND aktion NOT IN ('fehler', 'vorgeordnet')
+         WHERE gmail_id = ANY(${alleIds})
+           AND aktion <> 'vorgeordnet'
+           AND NOT (aktion = 'fehler' AND versuche < 3 AND (naechster_versuch_am IS NULL OR naechster_versuch_am <= NOW()))
+           AND NOT (aktion = 'in_arbeit' AND COALESCE(in_arbeit_seit, updated_at) < NOW() - INTERVAL '15 minutes')
       `) as any[]).map((r) => String(r.gmail_id)));
       const neue = alleIds.filter((id) => !bekannte.has(id)).slice(0, opts.deckel ?? LAUF_DECKEL);
 
@@ -566,6 +583,23 @@ export async function postmeisterLauf(opts: { q?: string; deckel?: number; nurOr
     } catch (e: any) {
       console.error(`[POSTMEISTER] Lauf ${pf.adresse}:`, String(e?.message || e).slice(0, 300));
       aktionen.fehler = (aktionen.fehler || 0) + 1;
+    }
+  }
+  // ── LIEGENGEBLIEBENE ANTWORTEN NACHHOLEN (11.09.2026, E-184) ─────────────
+  // Derselbe 5-Minuten-Takt, kein eigener Cron. Nur für Postfächer, die nicht
+  // auf „aus" stehen, und nicht beim reinen Ordnen (Vorschau-Lauf).
+  if (!opts.nurOrdnen) {
+    try {
+      const { versandNachholen } = await import("../lib/fiaon-postmeister-lauf");
+      const n = await versandNachholen({ postfaecher: aktivePostfaecher });
+      if (n.geprueft > 0) {
+        if (n.gesendet) aktionen.versand_nachgeholt = (aktionen.versand_nachgeholt || 0) + n.gesendet;
+        if (n.verschoben) aktionen.versand_wartet = (aktionen.versand_wartet || 0) + n.verschoben;
+        if (n.aufgegeben) aktionen.versand_fehlgeschlagen = (aktionen.versand_fehlgeschlagen || 0) + n.aufgegeben;
+        console.log(`[POSTMEISTER] Versand nachgeholt: ${n.gesendet} gesendet, ${n.verschoben} verschoben, ${n.aufgegeben} aufgegeben`);
+      }
+    } catch (e: any) {
+      console.error("[POSTMEISTER] Versand nachholen:", String(e?.message || e).slice(0, 200));
     }
   }
   letzterLauf = { wann: new Date().toISOString(), verarbeitet, fehler: aktionen.fehler || 0 };
@@ -626,6 +660,63 @@ router.post("/admin/postmeister/aufholen", async (req: Request, res: Response) =
     res.json({ ok: true, ...erg });
   } catch (e: any) {
     res.status(502).json({ ok: false, error: String(e?.message || e).slice(0, 300) });
+  }
+});
+
+/**
+ * Hängen gebliebene Läufe freigeben (11.09.2026, E-184). Nach Server-Neustarts
+ * blieben 13 Zeilen (01.–07.09.) auf 'in_arbeit' stehen: Das Sieb hielt sie
+ * für „in Bearbeitung", die Zentrale zeigte sie nicht, /lage zählte sie nicht.
+ * Der Knopf setzt sie auf 'fehler' mit versuche=0 — sie erscheinen unter
+ * „Zu prüfen" und werden vom Takt (2-Tage-Fenster) bzw. vom Aufhol-Lauf wieder
+ * aufgenommen. Ein Knopf in der Zentrale, kein Skript gegen die Datenbank.
+ */
+router.post("/admin/postmeister/waisen-freigeben", async (_req: Request, res: Response) => {
+  try {
+    await ensureTabelle();
+    const { postmeisterSchema } = await import("../lib/fiaon-postmeister-schema");
+    await postmeisterSchema();
+    // Hängen geblieben im VERSAND (aktion 'sendet'): die fertige Antwort liegt
+    // da — zurück auf 'versand_wartet', der Takt holt sie nach.
+    const versand = (await sqlPool`
+      UPDATE fiaon_postmeister
+         SET aktion = 'versand_wartet', naechster_versuch_am = NOW(), in_arbeit_seit = NULL,
+             begruendung = 'Beim Senden hängen geblieben — wird nachgeholt (E-184)', updated_at = NOW()
+       WHERE aktion = 'sendet' AND COALESCE(in_arbeit_seit, updated_at) < NOW() - INTERVAL '1 hour'
+       RETURNING id
+    `) as any[];
+    // Hängen geblieben in der BEARBEITUNG: Wurde der Mensch seit Eingang schon
+    // beantwortet (eigene Antwort im Faden oder Freitext an die Person), ist die
+    // Mail erledigt → 'geordnet'. Sonst 'fehler' — der Aufhol-Lauf nimmt sie.
+    // Ohne diese Prüfung antwortete der Aufhol-Lauf auf 6–9 Tage alte Mails
+    // ein zweites Mal (Skeptiker-Befund 11.09.).
+    const zeilen = (await sqlPool`
+      UPDATE fiaon_postmeister x
+         SET aktion = CASE WHEN EXISTS (
+                        SELECT 1 FROM fiaon_postmeister y
+                         WHERE y.thread_id = x.thread_id AND y.id <> x.id
+                           AND (y.gesendet_am IS NOT NULL OR y.aktion = 'auto_beantwortet')
+                           AND y.created_at > x.empfangen_am)
+                      OR EXISTS (
+                        SELECT 1 FROM fiaon_mail_log m
+                         WHERE x.person_id IS NOT NULL AND m.person_id = x.person_id
+                           AND m.event = 'frei_text' AND m.status = 'versandt' AND m.created_at > x.empfangen_am)
+                      THEN 'geordnet' ELSE 'fehler' END,
+             versuche = 0, naechster_versuch_am = NULL, in_arbeit_seit = NULL,
+             begruendung = 'Nach Neustart hängen geblieben — freigegeben (E-184)', updated_at = NOW()
+       WHERE x.aktion = 'in_arbeit' AND x.in_arbeit_seit < NOW() - INTERVAL '1 hour'
+       RETURNING x.id, x.aktion
+    `) as any[];
+    const alle = [...versand, ...zeilen];
+    if (alle.length) console.log(`[POSTMEISTER] ${alle.length} hängende Läufe freigegeben (E-184): ${alle.map((z) => `${z.id}${z.aktion ? `→${z.aktion}` : "→versand_wartet"}`).join(", ")}`);
+    res.json({
+      ok: true, freigegeben: alle.length, ids: alle.map((z) => Number(z.id)),
+      nachgeholt: versand.length,
+      erledigt: zeilen.filter((z) => z.aktion === "geordnet").length,
+      neuBearbeiten: zeilen.filter((z) => z.aktion === "fehler").length,
+    });
+  } catch (e: any) {
+    res.status(500).json({ ok: false, error: String(e?.message || e).slice(0, 300) });
   }
 });
 
@@ -792,6 +883,8 @@ router.post("/admin/postmeister/einstellung", async (req: Request, res: Response
 router.get("/admin/postmeister/lage", async (_req: Request, res: Response) => {
   try {
     await ensureTabelle();
+    const { postmeisterSchema } = await import("../lib/fiaon-postmeister-schema");
+    await postmeisterSchema();
     const [z] = (await sqlPool`
       SELECT COUNT(*)::int AS gesamt,
              COUNT(*) FILTER (WHERE aktion = 'auto_beantwortet')::int AS auto,
@@ -799,6 +892,10 @@ router.get("/admin/postmeister/lage", async (_req: Request, res: Response) => {
              COUNT(*) FILTER (WHERE aktion = 'gesendet' AND created_at > NOW() - INTERVAL '24 hours')::int AS von_hand,
              COUNT(*) FILTER (WHERE aktion = 'geordnet')::int AS geordnet,
              COUNT(*) FILTER (WHERE aktion = 'fehler')::int AS fehler,
+             COUNT(*) FILTER (WHERE aktion = 'versand_wartet')::int AS versand_wartet,
+             COUNT(*) FILTER (WHERE aktion = 'versand_fehlgeschlagen')::int AS versand_fehlgeschlagen,
+             COUNT(*) FILTER (WHERE (aktion = 'in_arbeit' AND in_arbeit_seit < NOW() - INTERVAL '1 hour')
+                                 OR (aktion = 'sendet' AND COALESCE(in_arbeit_seit, updated_at) < NOW() - INTERVAL '1 hour'))::int AS haengend,
              COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours')::int AS heute,
              COUNT(*) FILTER (WHERE aktion = 'auto_beantwortet' AND created_at > NOW() - INTERVAL '24 hours')::int AS heute_auto,
              COUNT(*) FILTER (WHERE person_id IS NOT NULL)::int AS mit_akte

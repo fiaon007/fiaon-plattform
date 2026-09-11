@@ -1308,6 +1308,9 @@ export const fiaonApplications = pgTable("fiaon_applications", {
   iban: varchar("iban"),
   billingMethod: varchar("billing_method"),
   salaryReceiptDay: varchar("salary_receipt_day"),
+  // P18 (28.08.2026): Wunsch-Erreichbarkeit aus Schritt 1; seit E-184 auch im
+  // Schema, damit der erste INSERT den Wert nicht verwirft.
+  erreichbarkeit: varchar("erreichbarkeit"),
 
   consentAgb: boolean("consent_agb").default(false),
   consentSchufa: boolean("consent_schufa").default(false),

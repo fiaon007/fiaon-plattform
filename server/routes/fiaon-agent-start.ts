@@ -23,6 +23,7 @@
 // mehr, sondern die Reihenfolge steht in der einen Liste.
 // ═══════════════════════════════════════════════════════════════════════════
 
+import { katalogpreisCents } from "../lib/fiaon-massgebliche-bestellung";
 import { paketPreisCents } from "@shared/fiaon-pakete";
 import { Router, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
@@ -153,6 +154,12 @@ export const KARTE_SQL = `
   -- Getrennt: nur die drei Willenserklaerungen. Sie sperren nichts, aber sie
   -- entscheiden, ob die Karte den Knopf „Zustimmungs-Link an den Kunden“ zeigt.
   ${zustimmungFehltSql("p")} AS zustimmung_fehlt,
+  -- E-184: Art der Bestellung, aus der pack_key stammt — eine Bonitätsauskunft
+  -- kostet 74 € auch dann, wenn ein fremder pack_key an ihr hängt.
+  (SELECT a.type FROM fiaon_applications a
+    WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
+    ORDER BY (a.payment_status IN ('pending_payment','claimed_paid','expired')) DESC,
+             a.created_at DESC LIMIT 1) AS bestell_type,
   -- ── WER IST ZUSTAENDIG? EINE ABLEITUNG (21.08.2026) ─────────────────────
   -- Die Liste zeigt sie an, sie FILTERT nicht danach. Der Filter bleibt, wie
   -- er ist (Termin fuer Onboarding, Betreuung fuer Vertrieb) — er ist gemessen
@@ -355,12 +362,15 @@ export function karte(p: any) {
       empfaenger: BANK.recipient,
       iban: BANK.ibanDisplay,
       bic: BANK.bic,
+      // E-184: der Betrag als Zahl — die WhatsApp-Nachricht las ihn bisher per
+      // Muster aus dem Klartext; ohne Betragszeile stand dort kein Preis.
+      betragCents: katalogpreisCents({ type: p.bestell_type, pack_key: p.pack_key }) || (p.amount_due != null ? Math.round(Number(p.amount_due) * 100) : null),
       klartext: p.zahlungsreferenz
         ? zahlungstext({
             empfaenger: BANK.recipient, iban: BANK.iban, ibanAnzeige: BANK.ibanDisplay,
             bic: BANK.bic, verwendungszweck: String(p.zahlungsreferenz),
             // E-181: Katalogpreis vor dem alten Bestellfeld (Weber: 79,99 statt 99,99 im Feld).
-            betragCent: paketPreisCents(p.pack_key) || (p.amount_due != null ? Math.round(Number(p.amount_due) * 100) : null),
+            betragCent: katalogpreisCents({ type: p.bestell_type, pack_key: p.pack_key }) || (p.amount_due != null ? Math.round(Number(p.amount_due) * 100) : null),
           })
         : null,
     },

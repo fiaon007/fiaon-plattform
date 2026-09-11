@@ -27,6 +27,63 @@ import { wirdBedient } from "./fiaon-postmeister-postfaecher";
 import { AUTOMATEN_DOMAENEN, type Aktion } from "@shared/fiaon-postmeister-typen";
 
 /**
+ * Wiedervorlage nach dem n-ten Fehlversuch (11.09.2026, E-184): 15 Minuten,
+ * 2 Stunden, 24 Stunden — danach ist Schluss und ein Mensch bekommt die
+ * Aufgabe. Dieselbe Tabelle für KI-Fehler (versuche) und Versandfehler
+ * (versand_versuche); Erstversuch + drei Wiederholungen = vier Versuche.
+ */
+const WIEDERVORLAGE_MS: Record<number, number> = { 1: 15 * 60_000, 2: 2 * 3_600_000, 3: 24 * 3_600_000 };
+
+/** „HH:MM" in Berliner Zeit — nur formatToParts, nie Number(format()) (Zeit-Falle Berlin-Stunde). */
+function uhrzeitBerlin(d: Date): string {
+  const t = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(d);
+  const w = (n: string) => t.find((p) => p.type === n)?.value ?? "";
+  return `${w("hour")}:${w("minute")}`;
+}
+
+/** JSONB kommt als Objekt, Altzeilen als Text — beides lesen, nie werfen. */
+function jsonLesen(w: unknown): any {
+  if (w == null) return null;
+  if (typeof w === "object") return w;
+  try { return JSON.parse(String(w)); } catch { return null; }
+}
+
+/**
+ * Die Aufgabe an einen Menschen, wenn Mara nach vier Versuchen aufgibt (E-184).
+ * Idempotent über den Schlüssel: entsteht EINMAL je Mail und Art, nicht in
+ * jedem Takt. Ohne Person und Referenz bleibt sie beim Betreiber.
+ */
+async function aufgabeNachAufgabe(ein: {
+  id: number; postfach: string; betreff: string; grund: string;
+  personId: number | null; ref: string | null; art: "versand" | "ki-fehler";
+}): Promise<void> {
+  try {
+    const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+    const betreff = String(ein.betreff || "(ohne Betreff)").slice(0, 120);
+    const text = ein.art === "versand"
+      ? `Postfach ${ein.postfach}, Betreff „${betreff}“, Fehler: ${ein.grund}. Die Antwort liegt in der Postmeister-Zentrale (Zu prüfen) und kann von Hand gesendet werden — oder den Kunden anrufen.`
+      : `Postfach ${ein.postfach}, Betreff „${betreff}“, Fehler: ${ein.grund}. Mara konnte viermal keine Antwort erzeugen. Die Mail liegt in der Postmeister-Zentrale (Zu prüfen) — bitte von Hand antworten oder den Kunden anrufen.`;
+    await auftragFuerKunden({
+      personId: ein.personId, ref: ein.ref,
+      titel: ein.art === "versand" ? "Mail-Antwort konnte nicht gesendet werden" : "Mail-Antwort konnte nicht erzeugt werden",
+      text, dringend: true, schluessel: `postmeister:${ein.id}:${ein.art}`, quelle: "postmeister", autorName: "Mara",
+      link: "/chef/s/postmeister", anBetreiber: !ein.personId && !ein.ref,
+    });
+  } catch (e) {
+    console.error("[POSTMEISTER] Aufgabe an Menschen:", String(e).slice(0, 160));
+  }
+}
+
+/** Vermerk in der Kundenakte — nur mit Referenz, und nie eine Mail daran scheitern lassen. */
+async function akteVermerk(ref: string | null, personId: number | null, note: string): Promise<void> {
+  if (!ref) return;
+  await sqlPool`
+    INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
+    VALUES (${ref}, ${personId}, NULL, 'Postmeister', 'system', ${note})
+  `.catch(() => {});
+}
+
+/**
  * Eine Nachricht in einen Ordner legen — und daran NIE eine Mail scheitern lassen.
  *
  * 02.09.2026: Die vier Aufrufstellen sahen so aus:
@@ -131,21 +188,30 @@ export async function mailBearbeiten(ein: {
   }
 
   // Anspruch — läuft der Takt doppelt, arbeitet nur einer.
+  // 11.09.2026 (E-184): Eine 'fehler'-Zeile wird erst wieder beansprucht, wenn
+  // ihre Wiedervorlage (naechster_versuch_am) fällig ist — vorher kam sie in
+  // JEDEM 5-Minuten-Takt erneut dran, vier KI-Läufe in 20 Minuten. Ein
+  // 'in_arbeit' älter als 15 Minuten ist ein abgebrochener Lauf (Neustart).
   let anspruch = (await sqlPool`
     INSERT INTO fiaon_postmeister (postfach, gmail_id, thread_id, aktion, in_arbeit_seit)
     VALUES (${postfach}, ${gmailId}, '', 'in_arbeit', NOW())
-    ON CONFLICT (gmail_id) DO NOTHING RETURNING id
+    ON CONFLICT (gmail_id) DO NOTHING RETURNING id, versuche, gesendet_am
   `) as any[];
   if (!anspruch.length) {
     anspruch = (await sqlPool`
       UPDATE fiaon_postmeister SET aktion = 'in_arbeit', in_arbeit_seit = NOW(), versuche = versuche + 1, updated_at = NOW()
-       WHERE gmail_id = ${gmailId} AND (aktion IN ('vorgeordnet', 'fehler') OR (aktion = 'in_arbeit' AND in_arbeit_seit < NOW() - INTERVAL '15 minutes'))
+       WHERE gmail_id = ${gmailId}
+         AND (aktion = 'vorgeordnet'
+              OR (aktion = 'fehler' AND (naechster_versuch_am IS NULL OR naechster_versuch_am <= NOW()))
+              OR (aktion = 'in_arbeit' AND COALESCE(in_arbeit_seit, updated_at) < NOW() - INTERVAL '15 minutes'))
          AND versuche < 3
-       RETURNING id
+       RETURNING id, versuche, gesendet_am
     `) as any[];
     if (!anspruch.length) return { aktion: "geordnet", grund: "schon bearbeitet", id: null };
   }
   const id = Number(anspruch[0].id);
+  /** Bisherige Anläufe (0 beim ersten) — der laufende ist Nummer versuche + 1. */
+  const versuche = Number(anspruch[0].versuche ?? 0);
 
   const fertig = async (felder: Record<string, unknown>, grund: string): Promise<LaufErgebnis> => {
     await sqlPool`
@@ -154,8 +220,34 @@ export async function mailBearbeiten(ein: {
     return { aktion: String(felder.aktion) as Aktion, grund, id };
   };
 
+  // ── NIE ZWEIMAL SENDEN (E-184) ────────────────────────────────────────
+  // Ein wiederaufgenommener Lauf trifft eine Zeile, deren Antwort schon
+  // draußen ist (gesendet_am gesetzt, aber der Abschluss kam nicht mehr):
+  // nichts erzeugen, nichts senden — nur den Zustand geradeziehen.
+  if (anspruch[0].gesendet_am) {
+    return fertig({ aktion: "auto_beantwortet", begruendung: "Antwort war schon gesendet — Wiederaufnahme ohne zweiten Versand (E-184)" }, "schon gesendet");
+  }
+
+  // ── KI-FEHLER MIT ZEITPLAN (E-184) ────────────────────────────────────
+  // Wer schreibt und worum es geht, merkt sich der Lauf für die Aufgabe, die
+  // nach dem vierten Fehlversuch an einen Menschen geht. Vorher blieb die
+  // Zeile mit versuche=3 stumm auf 'fehler' stehen — kein Vermerk, keine Aufgabe.
+  let fuerAufgabe: { personId: number | null; ref: string | null; betreff: string } = { personId: null, ref: null, betreff: "" };
+  const fehlerFelder = async (grund: string): Promise<Record<string, unknown>> => {
+    const fehlversuch = versuche + 1;
+    const naechster = WIEDERVORLAGE_MS[fehlversuch] ? new Date(Date.now() + WIEDERVORLAGE_MS[fehlversuch]) : null;
+    if (naechster) {
+      await akteVermerk(fuerAufgabe.ref, fuerAufgabe.personId, `Antwort NICHT erzeugt (Versuch ${fehlversuch}/4, nächster gegen ${uhrzeitBerlin(naechster)}): ${grund}`);
+    } else {
+      await akteVermerk(fuerAufgabe.ref, fuerAufgabe.personId, `Antwort endgültig nicht erzeugt nach 4 Versuchen: ${grund}`);
+      await aufgabeNachAufgabe({ id, postfach, betreff: fuerAufgabe.betreff, grund, personId: fuerAufgabe.personId, ref: fuerAufgabe.ref, art: "ki-fehler" });
+    }
+    return { aktion: "fehler", begruendung: grund.slice(0, 400), naechster_versuch_am: naechster };
+  };
+
   try {
     const mail = await nachrichtLesen(postfach, gmailId);
+    fuerAufgabe.betreff = mail.betreff;
     const neuerText = ohneZitat(mail.text) || mail.snippet || "";
     const basis = {
       thread_id: mail.threadId, von: mail.von, betreff: mail.betreff, empfangen_am: mail.datum,
@@ -197,6 +289,7 @@ export async function mailBearbeiten(ein: {
 
     // 3. Wer schreibt da?
     const wer = await personSuchen(mail.von, neuerText);
+    fuerAufgabe = { personId: wer.personId, ref: wer.ref, betreff: mail.betreff };
     const alterTage = Math.floor((Date.now() - mail.datum.getTime()) / 86_400_000);
 
     // 4. Einordnen.
@@ -257,7 +350,7 @@ export async function mailBearbeiten(ein: {
 
     if (!erg.ok || !erg.antwort) {
       return fertig({
-        ...gemeinsam, kundenlage, aktion: "fehler", begruendung: erg.grund.slice(0, 400),
+        ...gemeinsam, kundenlage, ...(await fehlerFelder(erg.grund)),
         handlungen: JSON.stringify(erg.handlungen), pruefung: JSON.stringify(erg.pruefung),
       }, erg.grund);
     }
@@ -292,7 +385,7 @@ export async function mailBearbeiten(ein: {
     //     Rechnung gleich mitschickt. Dazu, was das Werkzeug rechnung_anhaengen
     //     schon an die Zeile geschrieben hat.
     const { anhaengePlanen, anhaengeBauen } = await import("./fiaon-postmeister-anhaenge");
-    const [zeileJetzt] = (await sqlPool`SELECT anhaenge FROM fiaon_postmeister WHERE id = ${id}`.catch(() => [])) as any[];
+    const [zeileJetzt] = (await sqlPool`SELECT anhaenge, gesendet_am FROM fiaon_postmeister WHERE id = ${id}`.catch(() => [])) as any[];
     const anhangPlan = anhaengePlanen(zeileJetzt?.anhaenge, erg.naechsterSchritt);
     const gebaut = anhangPlan.length ? await anhaengeBauen(anhangPlan) : { dateien: [], fehler: [] as string[] };
     if (gebaut.fehler.length) console.warn(`[POSTMEISTER] Anhänge ${id}:`, gebaut.fehler.join("; "));
@@ -308,8 +401,34 @@ export async function mailBearbeiten(ein: {
       anhaenge: anhangPlan.length ? JSON.stringify(anhangPlan) : null,
     };
 
+    // Zweite Sperre gegen den Doppelversand (E-184): Sollte die Antwort
+    // während dieses Laufs anderswo hinausgegangen sein, nicht noch einmal.
+    if (zeileJetzt?.gesendet_am) {
+      return fertig({ ...gemeinsam, kundenlage, aktion: "auto_beantwortet", begruendung: "Antwort war schon gesendet — nicht erneut geschickt (E-184)" }, "schon gesendet");
+    }
+
     if (darfAuto) {
-      await antwortSenden(postfach, mail, fertigeAntwort.text, fertigeAntwort.html, gebaut.dateien);
+      // ── VERSAND SCHEITERT ≠ ANTWORT SCHEITERT (11.09.2026, E-184) ─────
+      // Bis heute landete ein Gmail-Fehler beim Senden im äußeren catch: die
+      // fertige Antwort ging verloren, die Zeile auf 'fehler', und der nächste
+      // Takt erzeugte alles neu — viermal in 20 Minuten. Jetzt bleibt die
+      // Antwort mit allen Feldern in der Zeile und wird nachgeholt (unten,
+      // versandNachholen): in 15 Minuten, dann 2 Stunden, dann 24 Stunden.
+      try {
+        await antwortSenden(postfach, mail, fertigeAntwort.text, fertigeAntwort.html, gebaut.dateien);
+      } catch (e: any) {
+        const grund = String(e?.message || e).slice(0, 300);
+        const naechster = new Date(Date.now() + WIEDERVORLAGE_MS[1]);
+        console.error(`[POSTMEISTER] Versand ${postfach}/${gmailId} fehlgeschlagen (Versuch 1/4, nächster ${uhrzeitBerlin(naechster)}):`, grund);
+        await akteVermerk(wer.ref, wer.personId, `Antwort NICHT gesendet (Versuch 1/4, nächster gegen ${uhrzeitBerlin(naechster)}): ${grund}`);
+        return fertig({
+          ...felder, aktion: "versand_wartet", versand_versuche: 1, versand_fehler: grund,
+          naechster_versuch_am: naechster, versand_aufgegeben_am: null, begruendung: erg.grund,
+        }, `Versand fehlgeschlagen: ${grund}`);
+      }
+      // Sofort festhalten, dass die Mail draußen ist — auch wenn Ablage oder
+      // Vermerk gleich scheitern oder der Server neu startet (E-184).
+      await sqlPool`UPDATE fiaon_postmeister SET gesendet_am = NOW(), aktion = 'auto_beantwortet', updated_at = NOW() WHERE id = ${id}`.catch(() => {});
       await ablegen(postfach, gmailId, "FIAON/Auto-beantwortet", ["UNREAD"]);
       if (wer.ref) {
         await sqlPool`
@@ -326,7 +445,119 @@ export async function mailBearbeiten(ein: {
     return fertig({ ...felder, aktion: "entwurf", antwort_draft_id: draftId, begruendung: erg.grund }, erg.grund);
   } catch (e: any) {
     const grund = String(e?.message || e).slice(0, 300);
-    console.error(`[POSTMEISTER] ${postfach}/${gmailId}:`, grund);
-    return fertig({ aktion: "fehler", begruendung: grund }, grund);
+    console.error(`[POSTMEISTER] ${postfach}/${gmailId} (Versuch ${versuche + 1}/4):`, grund);
+    return fertig(await fehlerFelder(grund), grund);
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VERSAND NACHHOLEN (11.09.2026, E-184 — Team-Feedback Punkt 1)
+//
+// DIE MESSUNG: Scheiterte der Gmail-Versand, landete die Mail auf 'fehler'.
+// Das Sieb im 5-Minuten-Takt legte jede 'fehler'-Zeile in JEDEM Takt neu vor,
+// und jedes Mal erzeugte die KI die Antwort NEU — vier Versuche in 15 bis 20
+// Minuten (343 postmeister-antwort-Aufrufe in drei Tagen, im Schnitt 2,3 ct
+// und 12 Sekunden je Aufruf). Danach stand die Zeile mit versuche=3 für immer
+// auf 'fehler': kein Vermerk, keine Aufgabe, niemand erfuhr davon. Dazu hingen
+// 13 Zeilen nach Server-Neustarts in 'in_arbeit' (01.–07.09.), für Sieb und
+// Zentrale unsichtbar.
+//
+// JETZT: Scheitert nur der Versand, bleibt die fertige Antwort in der Zeile
+// (aktion='versand_wartet') und wird hier nachgeholt — DIESELBE Antwort, nie
+// eine neue: 15 Minuten, 2 Stunden und 24 Stunden nach dem Erstversuch. Nach
+// dem vierten Fehlschlag: 'versand_fehlgeschlagen', Vermerk in der Akte,
+// dringende Aufgabe an den Betreuer (Schlüssel postmeister:<id>:versand —
+// entsteht einmal, nicht je Takt). In der Zentrale bleibt die Antwort unter
+// „Zu prüfen“ und kann jederzeit von Hand gesendet werden.
+//
+// Läuft am Ende jedes Takts (postmeisterLauf), kein eigener Cron. Beansprucht
+// wird wie beim Handversand über aktion='sendet': Wer die Zeile zuerst nimmt,
+// sendet — ein zweiter Takt oder ein Mensch findet sie nicht mehr.
+// ═══════════════════════════════════════════════════════════════════════════
+export async function versandNachholen(ein: { postfaecher?: string[] } = {}):
+  Promise<{ geprueft: number; gesendet: number; verschoben: number; aufgegeben: number }> {
+  await postmeisterSchema();
+  const erg = { geprueft: 0, gesendet: 0, verschoben: 0, aufgegeben: 0 };
+  const zeilen = (await sqlPool`
+    UPDATE fiaon_postmeister SET aktion = 'sendet', in_arbeit_seit = NOW(), updated_at = NOW()
+     WHERE id IN (SELECT id FROM fiaon_postmeister
+                   WHERE aktion = 'versand_wartet' AND naechster_versuch_am <= NOW()
+                     AND (${ein.postfaecher ? sqlPool`postfach = ANY(${ein.postfaecher})` : sqlPool`TRUE`})
+                   ORDER BY naechster_versuch_am ASC LIMIT 10 FOR UPDATE SKIP LOCKED)
+     RETURNING *
+  `) as any[];
+
+  for (const r of zeilen) {
+    erg.geprueft += 1;
+    const id = Number(r.id);
+    const versuch = Number(r.versand_versuche || 0) + 1;
+    const ref: string | null = r.ref ?? null;
+    const personId: number | null = r.person_id ?? null;
+
+    const verschieben = async (grund: string, naechster: Date): Promise<void> => {
+      await sqlPool`
+        UPDATE fiaon_postmeister SET aktion = 'versand_wartet', versand_versuche = ${versuch}, versand_fehler = ${grund},
+               naechster_versuch_am = ${naechster}, in_arbeit_seit = NULL, updated_at = NOW() WHERE id = ${id}
+      `.catch((e) => console.error("[POSTMEISTER] nachholen speichern:", String(e).slice(0, 160)));
+      await akteVermerk(ref, personId, `Antwort NICHT gesendet (Versuch ${versuch}/4, nächster gegen ${uhrzeitBerlin(naechster)}): ${grund}`);
+      console.warn(`[POSTMEISTER] Versand ${r.postfach}/${r.gmail_id} erneut gescheitert (Versuch ${versuch}/4, nächster ${uhrzeitBerlin(naechster)}):`, grund);
+      erg.verschoben += 1;
+    };
+    const aufgeben = async (grund: string): Promise<void> => {
+      await sqlPool`
+        UPDATE fiaon_postmeister SET aktion = 'versand_fehlgeschlagen', versand_versuche = ${versuch}, versand_fehler = ${grund},
+               naechster_versuch_am = NULL, versand_aufgegeben_am = NOW(), in_arbeit_seit = NULL, updated_at = NOW() WHERE id = ${id}
+      `.catch((e) => console.error("[POSTMEISTER] nachholen speichern:", String(e).slice(0, 160)));
+      await akteVermerk(ref, personId, `Versand endgültig fehlgeschlagen nach 4 Versuchen: ${grund}`);
+      await aufgabeNachAufgabe({ id, postfach: String(r.postfach), betreff: String(r.betreff || ""), grund, personId, ref, art: "versand" });
+      console.error(`[POSTMEISTER] Versand ${r.postfach}/${r.gmail_id} endgültig fehlgeschlagen — Aufgabe angelegt:`, grund);
+      erg.aufgegeben += 1;
+    };
+
+    // Ein nicht bedientes Postfach (E-171) wird nie wieder senden — sofort aufgeben, nicht 26 Stunden warten.
+    if (!wirdBedient(String(r.postfach))) {
+      await aufgeben(`Postfach ${r.postfach} wird vom Agenten nicht bedient (E-171)`);
+      continue;
+    }
+
+    try {
+      // Genau der Weg des Handversands (Zentrale): Nachricht lesen, Anhänge
+      // bauen, antwortSenden — nur der Text kommt aus der Zeile, nicht vom Modell.
+      const mail = await nachrichtLesen(String(r.postfach), String(r.gmail_id));
+      const { anhaengePlanen, anhaengeBauen } = await import("./fiaon-postmeister-anhaenge");
+      const plan = anhaengePlanen(r.anhaenge, jsonLesen(r.naechster_schritt));
+      const gebaut = plan.length ? await anhaengeBauen(plan) : { dateien: [], fehler: [] as string[] };
+      if (gebaut.fehler.length) console.warn(`[POSTMEISTER] Anhänge ${id} (nachgeholt):`, gebaut.fehler.join("; "));
+      const text = String(r.antwort || "");
+      if (text.trim().length < 20) throw new Error("Gespeicherte Antwort fehlt oder ist zu kurz");
+      // Das HTML aus dem Erstversuch. Fehlt es (Altzeile), wird es aus dem Text
+      // gebaut — derselbe Weg wie beim Freigeben eines Entwurfs.
+      let html: string | null = r.antwort_html ? String(r.antwort_html) : null;
+      if (!html) {
+        const { antwortAusText, grussMitAgent } = await import("./fiaon-postmeister-antworttext");
+        const { agentName } = await import("./fiaon-postmeister-agent");
+        const { postfachGruss } = await import("./fiaon-postmeister-postfaecher");
+        const name = await agentName();
+        html = antwortAusText(text, {
+          schritt: jsonLesen(r.naechster_schritt), betreff: String(r.betreff || ""), sprache: r.sprache ?? null,
+          agentName: name, gruss: grussMitAgent(postfachGruss(String(r.postfach)), name),
+        }).html;
+      }
+      await antwortSenden(String(r.postfach), mail, text, html, gebaut.dateien);
+      await sqlPool`
+        UPDATE fiaon_postmeister SET aktion = 'auto_beantwortet', gesendet_am = NOW(), versand_versuche = ${versuch},
+               versand_fehler = NULL, naechster_versuch_am = NULL, in_arbeit_seit = NULL, updated_at = NOW() WHERE id = ${id}
+      `.catch((e) => console.error("[POSTMEISTER] nachholen speichern:", String(e).slice(0, 160)));
+      await ablegen(String(r.postfach), String(r.gmail_id), "FIAON/Auto-beantwortet", ["UNREAD"]);
+      await akteVermerk(ref, personId, `Antwort gesendet (nachgeholt, Versuch ${versuch}${gebaut.dateien.length ? `, mit ${gebaut.dateien.map((d) => d.dateiname).join(", ")}` : ""}): ${text.slice(0, 400)}`);
+      console.log(`[POSTMEISTER] Versand ${r.postfach}/${r.gmail_id} nachgeholt (Versuch ${versuch}).`);
+      erg.gesendet += 1;
+    } catch (e: any) {
+      const grund = String(e?.message || e).slice(0, 300);
+      const wartezeit = WIEDERVORLAGE_MS[versuch];
+      if (wartezeit) await verschieben(grund, new Date(Date.now() + wartezeit));
+      else await aufgeben(grund);
+    }
+  }
+  return erg;
 }

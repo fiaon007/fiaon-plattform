@@ -640,6 +640,13 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     example: { ...CUSTOMER_EXAMPLE, login_url: "https://www.fiaon.com/login", hinweis: "Bitte laden Sie einen aktuellen Kontoauszug (letzte 3 Monate) hoch." },
   },
   {
+    type: "zustimmung_link",
+    label: "Zustimmungs-Link (Kunde)",
+    description: "E-184 (11.09.2026): Der Betreuer schickt aus der Akte den Link, über den der Kunde AGB/Datenschutz, Bonitätsprüfung und Vertragsannahme selbst bestätigt (30 Tage gültig). Vorher lief das über documents_change_request, das nur die Verwaltung senden darf — die Mail ging nie raus.",
+    customerBound: true,
+    example: { ...CUSTOMER_EXAMPLE, zustimmung_url: "https://www.fiaon.com/zustimmung/FIAON-BEISPIEL.1760000000.0123456789abcdef0123456789abcdef", offen: "Zustimmung zu den AGB, SCHUFA-Einwilligung, Zustimmung zum Vertrag", paket: "FIAON Ultra", paket_satz: " über FIAON Ultra" },
+  },
+  {
     type: "schufa_approved",
     label: "SCHUFA/Bonität genehmigt (Kunde)",
     description: "EMPFEHLUNG (noch kein Auto-Versand): Sollte feuern, wenn eine SCHUFA-/Bonitätsprüfung genehmigt wird. Vorgesetzten-TODO: Make-Zweig 'schufa_approved' + Brevo-Template.",

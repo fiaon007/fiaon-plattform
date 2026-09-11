@@ -469,16 +469,10 @@ export async function ergebnisNachbereiten(
   }
 
   // ── 5. NACHSCHUB ──────────────────────────────────────────────────────
-  // Wer einen Fall abschließt, verliert eine Karte. Ohne Nachschub bestraft
-  // die Ehrlichkeit den Fleißigen mit einer kürzeren Liste.
-  if (ein.akteur.id && (uebergabe?.ok
-      || ein.ergebnis === "erreicht_abgelehnt"
-      || ein.ergebnis === "erreicht_zahlt_gleich"
-      || ein.ergebnis === "erreicht_zahlt_am")) {
-    void import("../routes/fiaon-followup")
-      .then((m) => m.nachschub(ein.akteur.id!))
-      .catch((e) => console.error("[ERGEBNIS] Nachschub:", e));
-  }
+  // Wer einen Fall abschließt, verliert eine Karte. Seit 11.09.2026 (E-184)
+  // holt die Arbeitsliste beim nächsten Aufbau selbst nach — sechs Plätze nach
+  // Hitze aus dem Pool (poolNachschub in fiaon-office-vertrieb.ts). Der alte
+  // Tages-Nachschub, der hier angestoßen wurde, ist abgeschaltet.
 
   return {
     wirkung,

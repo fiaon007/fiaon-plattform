@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { unzustellbarSql, zielMailSql } from "../lib/fiaon-empfaenger";
 import { db } from "../db";
 import { fiaonApplications, fiaonClickEvents } from "@shared/schema";
 import { PAKET_PREISE_EURO, SCHUFA_PREIS_EURO } from "@shared/fiaon-pakete";
@@ -1648,6 +1649,10 @@ async function claimReminderBatch(
         -- schriftlich, dass die Erinnerungen enden. Hier wird es eingeloest.
         AND fa.mahnstopp_am IS NULL
         AND COALESCE(NULLIF(fa.email, ''), NULLIF(fa.contact_email, ''), NULLIF(fa.billing_email, '')) IS NOT NULL
+        -- E-184 (11.09.2026): hart unzustellbare Adressen (Rückläufer/Spam) werden nicht
+        -- mehr in jedem Takt erneut „erinnert" — 42 Adressen je Lauf, Zähler wuchs, nichts kam an.
+        -- Dieselbe Definition wie im Abo-Motor (fiaon-empfaenger.ts unzustellbarSql).
+        AND NOT ${sqlPool.unsafe(unzustellbarSql("fa"))}
         AND (fa.last_reminder_at IS NULL OR fa.last_reminder_at < NOW() - make_interval(hours => ${abstand}))
         AND (${!opts.requireAge24h} OR COALESCE(fa.payment_email_sent_at, fa.created_at) < NOW() - INTERVAL '24 hours')
         AND (${opts.maxReminders == null} OR COALESCE(fa.reminder_count, 0) < ${opts.maxReminders ?? 0})
@@ -1686,9 +1691,54 @@ function reminderPayload(r: any) {
   };
 }
 
-async function runPaymentReminders(opts: { force?: boolean } = {}): Promise<{ expired: number; fristAbgelaufen: number; remindersSent: number; skippedWindow: boolean }> {
+/**
+ * E-184 (11.09.2026): Offene Erstzahlungen, deren Adresse hart unzustellbar
+ * ist, sieht die Erinnerungsmaschine nicht mehr — also meldet sie sie hier
+ * einmal je Bestellung an den Betreuer: Adresse klären oder anrufen. Der
+ * Schlüssel macht es idempotent, der Lauf ist stündlich und billig.
+ */
+async function unzustellbareErstzahlungenMelden(): Promise<number> {
+  const zeilen = (await sqlPool.unsafe(`
+    SELECT fa.ref, fa.person_id, fa.amount_due, fa.pack_name, ${zielMailSql("fa")} AS mail
+      FROM fiaon_applications fa
+      LEFT JOIN fiaon_persons pt ON pt.id = fa.person_id
+     WHERE fa.payment_status IN ('pending_payment', 'claimed_paid')
+       AND fa.payment_reference IS NOT NULL AND fa.merged_into IS NULL
+       AND fa.archived_at IS NULL AND fa.mahnstopp_am IS NULL
+       AND pt.ist_test_am IS NULL
+       AND ${unzustellbarSql("fa")}
+       AND ${zielMailSql("fa")} NOT ILIKE '%.test'
+       AND NOT EXISTS (SELECT 1 FROM fiaon_betreiber_todos t WHERE t.schluessel = 'antrag:' || fa.ref || ':unzustellbar')
+     ORDER BY fa.created_at DESC
+     LIMIT 50`)) as any[];
+  if (zeilen.length === 0) return 0;
+  const { auftragFuerKunden } = await import("./fiaon-betreiber-todo");
+  let n = 0;
+  for (const z of zeilen) {
+    try {
+      await auftragFuerKunden({
+        personId: z.person_id ? Number(z.person_id) : null,
+        ref: String(z.ref),
+        titel: "Erstzahlung: E-Mail unzustellbar — Adresse klären oder anrufen",
+        text: `Die Zahlungserinnerung${z.pack_name ? ` für ${String(z.pack_name).split("\n")[0]}` : ""} kommt nicht an: `
+          + `Die Adresse ${z.mail || "—"} ist als unzustellbar gemeldet (Rückläufer oder Spam-Meldung). `
+          + "Bis eine neue Adresse in der Akte steht, geht keine weitere Erinnerung raus. Bitte anrufen oder die Adresse berichtigen.",
+        dringend: true,
+        schluessel: `antrag:${z.ref}:unzustellbar`,
+        quelle: "antrag",
+        bereich: "konten",
+        autorName: "Erinnerungsmaschine",
+      });
+      n++;
+    } catch (e) { console.error("[FIAON-PAYMENT] Aufgabe unzustellbar:", e); }
+  }
+  if (n > 0) console.log(`[FIAON-PAYMENT] ${n} Aufgabe(n) wegen unzustellbarer Adresse angelegt`);
+  return n;
+}
+
+async function runPaymentReminders(opts: { force?: boolean } = {}): Promise<{ expired: number; fristAbgelaufen: number; remindersSent: number; remindersFailed: number; skippedWindow: boolean }> {
   await ensurePaymentColumns();
-  const result = { expired: 0, fristAbgelaufen: 0, remindersSent: 0, skippedWindow: false };
+  const result = { expired: 0, fristAbgelaufen: 0, remindersSent: 0, remindersFailed: 0, skippedWindow: false };
 
   // 1) Abgelaufene Fristen ZÄHLEN — nicht mehr schreiben.
   //
@@ -1753,12 +1803,14 @@ async function runPaymentReminders(opts: { force?: boolean } = {}): Promise<{ ex
     const batch = await claimReminderBatch(REMINDER_BATCH, { requireAge24h: true, maxReminders, abstandStunden });
     if (batch.length === 0) break;
     for (const r of batch) {
-      await sendMakeWebhook("payment_reminder", reminderPayload(r));
-      result.remindersSent++;
+      // E-184: Ein Fehlschlag zählte bisher als „versendet" — jetzt getrennt.
+      if (await sendMakeWebhook("payment_reminder", reminderPayload(r))) result.remindersSent++;
+      else result.remindersFailed++;
     }
     if (batch.length < REMINDER_BATCH) break;
   }
-  if (result.remindersSent) console.log(`[FIAON-PAYMENT] Reminder-Engine: ${result.remindersSent} Zahlungserinnerung(en) versendet`);
+  if (result.remindersSent || result.remindersFailed) console.log(`[FIAON-PAYMENT] Reminder-Engine: ${result.remindersSent} Zahlungserinnerung(en) versendet, ${result.remindersFailed} nicht zugestellt`);
+  await unzustellbareErstzahlungenMelden().catch((e) => console.error("[FIAON-PAYMENT] unzustellbar melden:", e));
 
   return result;
 }

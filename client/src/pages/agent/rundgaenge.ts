@@ -65,6 +65,15 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
     tipp: "Die Akte bleibt während des Telefonats offen — und das Telefon bleibt dran, auch wenn du im Office die Seite wechselst. Ändert sich etwas — Adresse, E-Mail, Paket — trägst du es sofort ein.",
   },
   {
+    // 11.09.2026 (E-184, Team-Feedback 3): Zustimmungen gibt nur der Kunde — der Weg dorthin per Mail oder WhatsApp.
+    titel: "Zustimmungen gibt nur der Kunde — du schickst ihm den Weg.",
+    text: "Fehlen AGB/Datenschutz, Bonitätsprüfung oder die Vertragsannahme, zeigt die Akte die Vertragslücke mit zwei "
+      + "Knöpfen: „Zustimmungs-Link per E-Mail senden“ und „Per WhatsApp“. Der Link gilt 30 Tage; der Verlauf sagt "
+      + "ehrlich, ob die Mail rausging. Bestätigt der Kunde, stellt das Haus die erste Rechnung von selbst und schickt "
+      + "die Zahlungsdaten in deinem Namen — die Zahlungsdaten selbst kannst du immer senden, auch vor der Zustimmung.",
+    tipp: "Am Telefon: WhatsApp drücken, Nachricht abschicken, Kunde klickt zwei Kästchen — fertig.",
+  },
+  {
     // 24.08.2026, mit dem WhatsApp-Knopf zusammen angelegt. Justin: „Sowas muss
     // unbedingt mit aufgenommen werden für die Einführung — denke da IMMER mit."
     // Es gibt kein Ziel-Element, das immer da ist (der Knopf erscheint nur bei
@@ -153,8 +162,10 @@ export const RUNDGANG_PIPELINE: RundgangSchritt[] = [
       + "jemand angerufen hat — neuer Antrag, kein einziger Versuch. Rechts „Wieder dran“: alle, die "
       + "schon einmal Kontakt hatten und heute wieder etwas brauchen — nicht erreicht und fällig, Zusage "
       + "nicht gehalten, Rückruf vereinbart, Termin heute, Rate fällig, Wiedervorlage. Schließt du einen ab, "
-      + "rückt der nächste nach.",
-    tipp: "Links: Wen rufe ich heute zum ersten Mal an? Rechts: Welche Fälle brauchen mich noch einmal? Die Karte rechts sagt, warum sie dort liegt.",
+      + "rückt der nächste nach. Links steht zuerst, wer laut Antrag JETZT erreichbar sein will (8–12, 12–15, "
+      + "15–18, 18–20 Uhr) — „Flexibel“ oder keine Angabe zählt immer. Wer außerhalb seines Fensters liegt, "
+      + "rückt erst nach, wenn niemand Passendes mehr da ist; die Karte zeigt das Fenster unten.",
+    tipp: "Links: Wen rufe ich heute zum ersten Mal an? Rechts: Welche Fälle brauchen mich noch einmal? Die Karte rechts sagt, warum sie dort liegt — und wann der Mensch angerufen werden will.",
   },
   {
     // 07.09.2026 (Justin): Kündigung in der Akte.
@@ -308,7 +319,13 @@ export const RUNDGANG_ONBOARDING: RundgangSchritt[] = [
     titel: "Wartende, Termine, Erledigte.",
     text: "Wer bezahlt hat und noch keinen Termin hat, steht bei den Wartenden — dort schickst du "
       + "mit einem Klick die Einladung, und der Kunde wählt seine Zeit selbst. Erscheint jemand "
-      + "nicht, meldest du das; er bekommt sofort eine E-Mail mit dem Link auf einen neuen Termin.",
+      + "nicht, meldest du das; er bekommt sofort eine E-Mail mit dem Link auf einen neuen Termin. "
+      // 11.09.2026 (E-184, Team-Feedback 4): Leitung sieht alle, Sammelversand mit Vorschau.
+      + "Als Vertriebsleitung siehst du hier die Wartenden aller Mitarbeiter: Der Filter „Kein Startgespräch "
+      + "gebucht“ steht voreingestellt, ein Auswahlfeld zeigt jeden Betreuer mit Anzahl. Setze Haken oder nimm "
+      + "„Alle offenen einladen“ — erst zeigt dir eine Vorschau, wer die Einladung bekommt und wer warum "
+      + "übersprungen wird (zum Beispiel, weil er in den letzten 7 Tagen schon eine bekam), dann sendest du. "
+      + "Jede Einladung steht danach in der Akte des Kunden.",
   },
   {
     // P10 (01.09.2026): Termin-Haken ≠ Onboarding-Abschluss.

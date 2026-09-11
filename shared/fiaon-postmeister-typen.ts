@@ -126,7 +126,11 @@ export type Aktion =
   | "geordnet"         // eingeordnet, keine Antwort nötig
   | "ignoriert"        // Automat/Lieferant/eigene Post — nie beantworten
   | "vorgeordnet"      // nur geordnet (Aufhol-Phase 1), wird noch beantwortet
-  | "fehler";          // technisch gescheitert, wird wiederholt
+  | "fehler"           // technisch gescheitert, wird nach Zeitplan wiederholt (15 min, 2 h, 24 h)
+  // 11.09.2026 (E-184): Nur der VERSAND scheiterte — die fertige Antwort bleibt
+  // in der Zeile und wird nachgeholt (versandNachholen), nie neu erzeugt.
+  | "versand_wartet"          // Antwort fertig, Gmail-Versand scheiterte, nächster Versuch steht (naechster_versuch_am)
+  | "versand_fehlgeschlagen"; // vier Versuche vorbei — Aufgabe beim Betreuer, von Hand sendbar
 
 /**
  * Absender, die NIE eine Antwort bekommen. Geprüft wird der Host nach dem

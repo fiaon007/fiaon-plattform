@@ -113,6 +113,22 @@ knopf: { text: "Sofort per Bank-App bezahlen — in einer Minute gebucht", url: 
     fussnote: "Solange das Dokument fehlt, liegt Ihre Akte auf Pause — je schneller es da ist, desto schneller geht es weiter.",
   },
 
+  // E-184 (11.09.2026): Der Zustimmungs-Link aus der Akte. Vorher nahm die Route
+  // documents_change_request („Ein Dokument fehlt noch"), das nur die Verwaltung
+  // senden darf — zwölf Klicks des Teams, null Mails. Jetzt eine eigene, gesiezte
+  // Vorlage, die sagt, was fehlt und was der Kunde tun soll.
+  zustimmung_link: {
+    betreff: "Ihre Bestätigung für den Vertrag, {{params.vorname}}",
+    preheader: "Zwei Klicks, dann ist Ihr Vertrag vollständig.",
+    titel: "Es fehlt noch Ihre Bestätigung",
+    absaetze: [
+      "Guten Tag {{params.vorname}}, für Ihren Vertrag{{params.paket_satz}} fehlt noch Ihre Bestätigung zu: <b>{{params.offen}}</b>.",
+      "Diese Erklärungen können nur Sie selbst abgeben. Über den Knopf öffnen Sie eine Seite, auf der Sie die Punkte ankreuzen — das dauert zwei Klicks, danach geht es sofort weiter.",
+    ],
+    knopf: { text: "Jetzt bestätigen", url: "{{params.zustimmung_url}}" },
+    fussnote: "Der Link gilt 30 Tage. Bei Fragen antworten Sie einfach auf diese E-Mail.",
+  },
+
   number_update_request: {
     betreff: "Stimmt Ihre Telefonnummer noch, {{params.vorname}}?",
     preheader: "Wir erreichen Sie nicht — eine korrekte Nummer genügt.",

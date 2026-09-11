@@ -1,4 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from "react";
+import { ERREICHBARKEIT_WERTE } from "@shared/fiaon-erreichbarkeit";
 import { EmailVorschlaege } from "@/components/EmailVorschlaege";
 import { landErkennen, VORWAHL, LANDNAME } from "@/lib/land-erkennen";
 import { appViewport } from "@/lib/app-viewport";
@@ -1022,7 +1023,7 @@ export default function AntragPage() {
                       Wann erreichen wir Sie am besten? <span className="normal-case font-normal tracking-normal">(optional)</span>
                     </label>
                     <div className="flex flex-wrap gap-2">
-                      {["Vormittags (8–12)", "Mittags (12–15)", "Nachmittags (15–18)", "Abends (18–20)", "Flexibel"].map((z) => (
+                      {ERREICHBARKEIT_WERTE.map((z) => (
                         <button key={z} type="button"
                                 onClick={() => up("erreichbarkeit", d.erreichbarkeit === z ? "" : z)}
                                 aria-pressed={d.erreichbarkeit === z}

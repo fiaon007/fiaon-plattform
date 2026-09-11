@@ -45,6 +45,10 @@ const AKTION_TEXT: Record<string, [string, string]> = {
   verworfen: ["verworfen", "still"],
   fehler: ["Fehler", "rot"],
   schon_verarbeitet: ["übersprungen — schon verarbeitet", "still"],
+  // E-184: Der Versand wird nachgeholt (15 min, 2 h, 24 h) — nach vier Versuchen Aufgabe beim Betreuer.
+  versand_wartet: ["Versand wartet — wird nachgeholt", "warte"],
+  versand_fehlgeschlagen: ["Versand endgültig fehlgeschlagen", "rot"],
+  versand_nachgeholt: ["Versand nachgeholt", "gut"],
 };
 
 // ═══ DIE ENTITÄT ════════════════════════════════════════════════════════════
@@ -185,6 +189,18 @@ export default function ChefPostmeister() {
     const r = await api("/admin/postmeister/einstellung", { method: "POST", body: JSON.stringify({ schluessel, wert }) });
     setLaeuft(null);
     sag(r.ok ? `Geschaltet: ${schluessel.replace("postmeister_", "").replace("modus_", "")} → ${wert}` : (r.json?.error || "Konnte nicht schalten."));
+    void laden(true);
+  };
+  // E-184: Läufe, die nach einem Server-Neustart in „in Bearbeitung" hängen
+  // blieben (älter als eine Stunde), wieder freigeben — sie erscheinen dann
+  // unter „Zu prüfen" und werden vom Takt wieder aufgenommen.
+  const waisenFreigeben = async () => {
+    setLaeuft("waisen");
+    const r = await api("/admin/postmeister/waisen-freigeben", { method: "POST", body: "{}" });
+    setLaeuft(null);
+    sag(r.ok
+      ? (Number(r.json.freigegeben) > 0 ? `${r.json.freigegeben} hängende Läufe freigegeben — sie liegen jetzt unter „Zu prüfen“ und kommen im nächsten Takt dran.` : "Nichts hängt — kein Lauf älter als eine Stunde in Bearbeitung.")
+      : (r.json?.error || "Freigeben fehlgeschlagen."));
     void laden(true);
   };
   const takt = async (nurOrdnen: boolean) => {
@@ -333,6 +349,11 @@ export default function ChefPostmeister() {
                     onClick={() => void takt(false)}>{laeuft === "takt" ? "Läuft …" : "Jetzt einen Takt laufen lassen"}</button>
             <button type="button" className="pm-knopf still" disabled={laeuft === "takt" || !an}
                     onClick={() => void takt(true)}>Nur ordnen (ohne Antworten)</button>
+            <button type="button" className="pm-knopf still" disabled={laeuft === "waisen"}
+                    title="Läufe, die nach einem Neustart länger als eine Stunde in Bearbeitung hängen, wieder freigeben (E-184)"
+                    onClick={() => void waisenFreigeben()}>
+              {laeuft === "waisen" ? "Gebe frei …" : `Hängende Läufe freigeben${Number(z.haengend) > 0 ? ` (${z.haengend})` : ""}`}
+            </button>
           </footer>
         </section>
 
@@ -359,7 +380,14 @@ export default function ChefPostmeister() {
 
       {/* ═══ DER STROM ═══ */}
       <section className="pm-tafel breit">
-        <header><b>Die letzten Handgriffe</b><small>{z.gesamt ?? 0} Mails insgesamt · {z.auto ?? 0} automatisch beantwortet</small></header>
+        <header>
+          <b>Die letzten Handgriffe</b>
+          <small>
+            {z.gesamt ?? 0} Mails insgesamt · {z.auto ?? 0} automatisch beantwortet
+            {Number(z.versand_wartet) > 0 ? ` · ${z.versand_wartet} Versand wartet` : ""}
+            {Number(z.versand_fehlgeschlagen) > 0 ? ` · ${z.versand_fehlgeschlagen} Versand endgültig fehlgeschlagen` : ""}
+          </small>
+        </header>
         <ul className="pm-strom">
           {(lage?.strom || []).map((m: any) => {
             const [text, ton] = AKTION_TEXT[m.aktion] || [m.aktion, "still"];

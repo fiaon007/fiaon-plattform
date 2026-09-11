@@ -48,7 +48,6 @@ import { signInvoiceUrl } from "../fiaon-invoice";
 import {
   sendeGrundSql, SENDE_GRUND_TEXT, fehlendeFelderSql, zustimmungFehltSql,
 } from "../lib/fiaon-massgebliche-bestellung";
-import { nachschub } from "./fiaon-followup";
 import { FIAON_BANK_DETAILS as BANK } from "./fiaon-antrag";
 import { zahlungstext } from "../lib/fiaon-verwendungszweck";
 import { aufbereiten } from "../lib/fiaon-buchungen";
@@ -1571,45 +1570,60 @@ router.post("/agent/crm/kunden/:personId/zustimmungs-link", requireAgent, async 
     }
 
     const link = zustimmungLink(ref);
-    const empfaenger = (await empfaengerFuer(personId, ref)).adresse;
-    if (!empfaenger) {
+    const offenText = lage.offen.join(", ");
+    // ── ZWEI WEGE, EIN EHRLICHER VERLAUF (11.09.2026, E-184, Team-Feedback 3) ──
+    // Gemessen: 12 Klicks vom 21.08. bis 10.09., 0 Mails. Die Route nahm das
+    // Ereignis documents_change_request, das nur die Verwaltung senden darf —
+    // mailSenden lehnte still ab, der Verlauf behauptete trotzdem „geschickt".
+    // Jetzt: eigenes Ereignis zustimmung_link (Betreuer dürfen), Weg „mail"
+    // oder „whatsapp" (der Browser öffnet den Chat, hier steht nur der Vermerk),
+    // und der Verlauf sagt, was wirklich passiert ist.
+    const weg = req.body?.weg === "whatsapp" ? "whatsapp" : "mail";
+    const vermerk = (note: string) => sqlPool`
+      INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
+      VALUES (${ref}, ${personId}, ${req.agent!.id}, ${req.agent!.name}, 'system', ${note}, NOW())
+    `.catch((e) => console.error("[AGENT-KUNDEN] zustimmungs-link Verlauf:", e));
+
+    if (weg === "whatsapp") {
+      // Der Server weiß nur, dass der Chat geöffnet wurde — abgeschickt hat
+      // die Nachricht der Betreuer selbst. So steht es auch im Verlauf.
+      await vermerk(`WhatsApp-Chat mit Zustimmungs-Link geöffnet — abgeschickt hat ihn ${req.agent!.name} selbst (offen: ${offenText}).`);
       return res.json({
-        ok: true, link, gesendet: false, offen: lage.offen,
-        meldung: "Für diesen Kunden ist keine E-Mail hinterlegt. Der Link steht hier — "
-          + "gib ihn am Telefon durch oder schick ihn über einen anderen Weg.",
+        ok: true, link, offen: lage.offen, gesendet: false, geoeffnet: true, weg,
+        meldung: `WhatsApp geöffnet — der Link steht in der Nachricht, abschicken musst du sie selbst. Offen: ${offenText}.`,
       });
     }
 
-    // Ein BESTEHENDES Ereignis, kein neues: `documents_change_request` ist die
-    // Rückfrage an den Kunden zu seinen Unterlagen und hat 65 zugestellte
-    // Sendungen im Protokoll. Ein neues Ereignis wäre ein zweiter Brevo-Text,
-    // den beim nächsten Wortwechsel jemand an einer Stelle ändert.
+    const empfaenger = (await empfaengerFuer(personId, ref)).adresse;
+    if (!empfaenger) {
+      await vermerk(`Zustimmungs-Link erzeugt — keine E-Mail hinterlegt, Link von Hand übergeben (offen: ${offenText}).`);
+      return res.json({
+        ok: true, link, gesendet: false, offen: lage.offen, weg,
+        meldung: "Für diesen Kunden ist keine E-Mail hinterlegt. Der Link steht hier — "
+          + "per WhatsApp schicken oder am Telefon durchgeben.",
+      });
+    }
+
     const { mailSenden } = await import("../lib/fiaon-mail-senden");
     const { rolleVon } = await import("../lib/fiaon-kundenzugriff");
     const rolle = await rolleVon(req.agent!.id);
     const v = await mailSenden({
-      event: "documents_change_request", personId,
-      zusatz: {
-        login_url: link,
-        hinweis: `Es fehlt noch deine Bestätigung: ${lage.offen.join(", ")}. `
-          + "Über den Link brauchst du dafür nur zwei Klicks.",
-      },
+      event: "zustimmung_link", personId,
+      zusatz: { zustimmung_url: link, offen: offenText, paket: lage.paket ?? "", paket_satz: lage.paket ? ` über ${lage.paket}` : "" },
       akteur: { name: req.agent!.name, agentId: req.agent!.id, rolle: rolle as any },
     }).catch((e) => ({ ok: false, grund: e instanceof Error ? e.message : String(e) }));
+    const gesendet = (v as any).ok === true;
+    const grund = (v as any).grund ?? "unbekannt";
 
-    await sqlPool`
-      INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
-      VALUES (${ref}, ${personId}, ${req.agent!.id}, ${req.agent!.name}, 'system',
-              ${`Zustimmungs-Link an ${empfaenger} geschickt (offen: ${lage.offen.join(", ")}).`}, NOW())
-    `.catch((e) => console.error("[AGENT-KUNDEN] zustimmungs-link Verlauf:", e));
+    await vermerk(gesendet
+      ? `Zustimmungs-Link per E-Mail an ${empfaenger} geschickt (offen: ${offenText}).`
+      : `Zustimmungs-Link NICHT per E-Mail verschickt (${grund}) — Link von Hand übergeben (offen: ${offenText}).`);
 
     res.json({
-      ok: true, link, offen: lage.offen,
-      gesendet: (v as any).ok === true,
-      meldung: (v as any).ok
-        ? `Link an ${empfaenger} verschickt. Offen: ${lage.offen.join(", ")}.`
-        : `Die Mail ging nicht raus (${(v as any).grund ?? "unbekannt"}). `
-          + "Der Link steht hier — du kannst ihn dem Kunden direkt geben.",
+      ok: true, link, offen: lage.offen, gesendet, weg,
+      meldung: gesendet
+        ? `Link an ${empfaenger} verschickt. Offen: ${offenText}.`
+        : `Die Mail ging nicht raus (${grund}). Der Link steht hier — per WhatsApp schicken oder am Telefon durchgeben.`,
     });
   } catch (err) {
     console.error("[AGENT-KUNDEN] zustimmungs-link:", err);

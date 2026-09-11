@@ -38,7 +38,11 @@ export async function postmeisterSchema(): Promise<void> {
       ADD COLUMN IF NOT EXISTS ki_kosten_cents NUMERIC(8,3),
       ADD COLUMN IF NOT EXISTS gdpr_geleert_am TIMESTAMPTZ,
       ADD COLUMN IF NOT EXISTS anhaenge JSONB,
-      ADD COLUMN IF NOT EXISTS anhaenge_eingang JSONB
+      ADD COLUMN IF NOT EXISTS anhaenge_eingang JSONB,
+      ADD COLUMN IF NOT EXISTS versand_versuche INTEGER NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS versand_fehler TEXT,
+      ADD COLUMN IF NOT EXISTS naechster_versuch_am TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS versand_aufgegeben_am TIMESTAMPTZ
   `.catch((e) => console.error("[POSTMEISTER-SCHEMA] fiaon_postmeister:", String(e).slice(0, 200)));
 
   await sqlPool`

@@ -211,3 +211,38 @@ export function zustellbarSql(p = "p"): string {
                                NULLIF(TRIM(ax.billing_email),'')) IS NOT NULL)
   )`;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HART UNZUSTELLBAR — EINE DEFINITION FÜR ALLE LÄUFE (11.09.2026, E-184)
+//
+// Der Versand geht über empfaengerAufloesen an die PERSON (primary_email),
+// sonst an den jüngsten Alias, erst dann an die Bestellzeile. Eine Sperre,
+// die nur a.email prüft, sperrt die falsche Adresse: Trägt der Betreuer die
+// neue Adresse in der Akte nach (Person), bliebe a.email gebounct und die Rate
+// für immer draußen — oder umgekehrt bounct die Person-Adresse, und der Lauf
+// versucht es alle 20 Stunden neu. Deshalb hier dieselbe Kette wie beim
+// Versand. Und: Ein Rückläufer zählt nur, solange danach keine Zustellung mehr
+// gelang (gemessen: 16 von 156 gebouncten Adressen bekamen später wieder Post).
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Die Adresse, an die der Versand für diese Bestellzeile `a` tatsächlich ginge. */
+export function zielMailSql(a = "a"): string {
+  return `COALESCE(
+    (SELECT NULLIF(TRIM(p9.primary_email), '') FROM fiaon_persons p9 WHERE p9.id = ${a}.person_id),
+    (SELECT al9.value_norm FROM fiaon_person_aliases al9
+      WHERE al9.person_id = ${a}.person_id AND al9.kind = 'email' ORDER BY al9.created_at DESC LIMIT 1),
+    NULLIF(TRIM(${a}.email), ''), NULLIF(TRIM(${a}.contact_email), ''), NULLIF(TRIM(${a}.billing_email), ''))`;
+}
+
+/** Wahr, wenn die Zieladresse hart zurückkam (Rückläufer/Spam) und seither nichts mehr zugestellt wurde. */
+export function unzustellbarSql(a = "a"): string {
+  return `EXISTS (
+    SELECT 1 FROM fiaon_mail_log mlb
+     WHERE LOWER(TRIM(mlb.empfaenger)) = LOWER(TRIM(${zielMailSql(a)}))
+       AND mlb.zustellung IN ('gebounct', 'spam')
+       AND NOT EXISTS (
+         SELECT 1 FROM fiaon_mail_log mlz
+          WHERE LOWER(TRIM(mlz.empfaenger)) = LOWER(TRIM(mlb.empfaenger))
+            AND mlz.zustellung IN ('zugestellt', 'geoeffnet', 'geklickt')
+            AND mlz.created_at > mlb.created_at))`;
+}

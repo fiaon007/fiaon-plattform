@@ -20,6 +20,7 @@
 // Aktionen: POST /agent/onboarding/termine/:id/ergebnis { ergebnis, notiz }
 //           POST /agent/onboarding/person/:id/notiz { notiz } · /einladung
 //           POST /agent/onboarding/wartende/:id/einladung
+//           POST /agent/onboarding/wartende/einladen (E-184: Sammelversand der Leitung)
 // Anruf: Ereignis `fiaon-anrufen`. Akte: /agent/kunden?person=<ID>.
 // Datei heißt onboarding-raum.tsx, weil onboarding.tsx das Vertrags-Gate ist.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -55,7 +56,15 @@ interface Kennzahlen {
   heuteGeplant?: number; heuteErledigt?: number; heuteNoShow?: number; wartend?: number; wartendOhneTermin?: number;
   freigeschaltetWoche?: number; dieseWoche?: number; nurEigene?: boolean;
 }
-interface Wartender { personId: number; name: string; telefon: string | null; email: string | null; paket: string | null; tage: number | null; terminAm: string | null; eingeladenAm: string | null; verpasst: number }
+interface Wartender {
+  personId: number; name: string; telefon: string | null; email: string | null; paket: string | null; tage: number | null;
+  terminAm: string | null; eingeladenAm: string | null; verpasst: number;
+  // E-184 (11.09.2026): Betreuer, letzte versandte Einladung, Zahl der Einladungen in 7 Tagen,
+  // „Startgespräch gebucht" nach derselben Regel wie der Versand (künftiger Termin, nicht abgesagt).
+  betreuer?: string | null; betreuerId?: number | null; terminGebucht?: boolean; naechsterTerminAm?: string | null;
+  naechsterTerminQuelle?: string | null;
+  letzteEinladung?: string | null; einladungen7?: number;
+}
 const sgErledigt = (t: SgTermin) => t.status === "erledigt" || t.status === "verpasst" || !!t.erledigtAm || !!t.abgesagtAm;
 // P10 (01.09.2026): Gespräch geführt, aber Onboarding noch nicht dokumentiert —
 // dieser Kunde ist NICHT fertig; er bleibt im Raum, bis das Cockpit abschließt.
@@ -197,11 +206,11 @@ function OnboardingInnen() {
                   onClick={() => setFilter(filter === k.k ? "offen" : k.k)} aria-pressed={filter === k.k}>
             <small>{k.label}</small>
             <b>{zahlen ? (k.wert ?? 0) : "–"}</b>
-            {k.k === "wartende" && zahlen != null && <span>{zahlen.wartendOhneTermin ?? 0} ohne Termin</span>}
+            {k.k === "wartende" && zahlen != null && <span>{zahlen.wartendOhneTermin ?? 0} ohne Termin{zahlen.nurEigene === false ? " · Leitung: alle Mitarbeiter" : ""}</span>}
           </button>
         ))}
       </section>
-      {zahlen && <p className="ob-fussnote">{zahlen.nurEigene ? "Zahlen aus deinem Bestand" : "Zahlen hausweit"} · Freigeschaltet in 7 Tagen: {zahlen.freigeschaltetWoche ?? 0}{filter !== "offen" ? " · Kachel erneut klicken = alle offenen" : ""}</p>}
+      {zahlen && <p className="ob-fussnote">{zahlen.nurEigene ? "Zahlen aus deinem Bestand" : "Zahlen hausweit · Leitung: alle Mitarbeiter"} · Freigeschaltet in 7 Tagen: {zahlen.freigeschaltetWoche ?? 0}{filter !== "offen" ? " · Kachel erneut klicken = alle offenen" : ""}</p>}
 
       {filter === "wartende" && <Wartende onGeaendert={() => void laden()} flash={flash} />}
 
@@ -416,17 +425,56 @@ function SgKarte({ t, offen, onOeffnen, onFertig, onCockpit, flash }: { t: SgTer
 }
 
 // ── Die Wartenden (übernommen aus calendar.tsx, E-051) ───────────────────────
+// E-184 (11.09.2026, Team-Feedback Punkt 4): Die Leitung sieht hier ALLE
+// Kunden aller Mitarbeiter ohne gebuchtes Startgespräch — Chips „Kein
+// Startgespräch gebucht" (Standard) / „Alle", „Noch nie eingeladen" / „Länger
+// als 7 Tage nicht" / „Egal", Auswahlfeld je Betreuer — und lädt per
+// Sammelversand ein: erst die Vorschau (wer geht, wer wird warum
+// übersprungen), dann „Jetzt senden". Jede Einladung steht danach in der Akte.
+// Für alle anderen Rollen bleibt die Liste, wie sie war: eigene Kunden,
+// Einzelknopf je Zeile. Der Server bildet die Empfängermenge selbst — die
+// Haken hier sind ein Wunsch, keine Wahrheit.
+type SgFilter = "kein_startgespraech" | "alle";
+type EingeladenFilter = "nie" | "aelter7" | "alle";
+interface BetreuerEintrag { id: number | null; name: string; anzahl: number }
+interface SammelZeile { personId: number; name: string; grund: string }
+interface SammelVorschau { wuerdenGehen: number; uebersprungen: SammelZeile[]; namen: string[]; alle: boolean; personIds: number[]; stand: { filter: SgFilter; eingeladen: EingeladenFilter; betreuer: string } }
+interface SammelErgebnis { gesendet: number; uebersprungen: SammelZeile[]; fehlgeschlagen: SammelZeile[]; meldung: string }
+const SG_CHIPS: [SgFilter, string][] = [["kein_startgespraech", "Kein Startgespräch gebucht"], ["alle", "Alle"]];
+const EIN_CHIPS: [EingeladenFilter, string][] = [["nie", "Noch nie eingeladen"], ["aelter7", "Länger als 7 Tage nicht"], ["alle", "Egal"]];
+const tageSeit = (iso: string) => Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000));
+const vorTagen = (n: number) => n === 0 ? "heute" : n === 1 ? "gestern" : `vor ${n} Tagen`;
+
 function Wartende({ onGeaendert, flash }: { onGeaendert: () => void; flash: (text: string, warn?: boolean) => void }) {
   const [zeilen, setZeilen] = useState<Wartender[] | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
-  const [nur, setNur] = useState<"ohne_termin" | "alle">("ohne_termin");
+  const [sgFilter, setSgFilter] = useState<SgFilter>("kein_startgespraech");
+  const [eingeladen, setEingeladen] = useState<EingeladenFilter>("alle");
+  const [betreuer, setBetreuer] = useState("");
+  const [leitung, setLeitung] = useState(false);
+  const [betreuerListe, setBetreuerListe] = useState<BetreuerEintrag[]>([]);
+  const [auswahl, setAuswahl] = useState<Set<number>>(() => new Set());
   const [busy, setBusy] = useState<number | null>(null);
   const [link, setLink] = useState<Record<number, string>>({});
+  const [vorschau, setVorschau] = useState<SammelVorschau | null>(null);
+  const [ergebnis, setErgebnis] = useState<SammelErgebnis | null>(null);
+  const [sammelBusy, setSammelBusy] = useState(false);
+
   const laden = useCallback(async () => {
-    const r = await api("/agent/onboarding/wartende");
-    if (r.ok) { setZeilen(r.json.wartende || []); setFehler(null); } else setFehler(r.json?.error || `Die Liste kam nicht (HTTP ${r.status}).`);
-  }, []);
+    const q = new URLSearchParams({ filter: sgFilter, eingeladen });
+    if (betreuer) q.set("betreuer", betreuer);
+    const r = await api(`/agent/onboarding/wartende?${q.toString()}`);
+    if (r.ok) {
+      const neu: Wartender[] = r.json.wartende || [];
+      setZeilen(neu); setLeitung(!!r.json.leitung); setBetreuerListe(r.json.betreuerListe || []); setFehler(null);
+      // Die Auswahl darf nur enthalten, was gerade sichtbar ist.
+      setAuswahl((a) => new Set(Array.from(a).filter((id) => neu.some((z) => z.personId === id))));
+      // Eine stehende Vorschau gehört zu einer anderen Empfängermenge — weg damit.
+      setVorschau(null);
+    } else setFehler(r.json?.error || `Die Liste kam nicht (HTTP ${r.status}).`);
+  }, [sgFilter, eingeladen, betreuer]);
   useEffect(() => { void laden(); }, [laden]);
+
   const einladen = async (w: Wartender) => {
     setBusy(w.personId);
     const r = await api(`/agent/onboarding/wartende/${w.personId}/einladung`, { method: "POST" });
@@ -435,31 +483,135 @@ function Wartende({ onGeaendert, flash }: { onGeaendert: () => void; flash: (tex
     if (r.ok) { flash(`Einladung verschickt – ${w.name} hat den Terminlink per E-Mail bekommen.`); void laden(); onGeaendert(); }
     else flash(r.json?.error || r.json?.grund || "Nicht verschickt – bitte anrufen und den Link durchgeben.", true);
   };
-  const sichtbar = (zeilen ?? []).filter((w) => nur === "alle" || !w.terminAm);
+
+  // ── Sammelversand (nur Leitung) ────────────────────────────────────────
+  const sichtbar = zeilen ?? [];
+  const alleGewaehlt = sichtbar.length > 0 && sichtbar.every((w) => auswahl.has(w.personId));
+  const umschalten = (id: number) => setAuswahl((a) => { const n = new Set(a); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const alleWaehlen = () => setAuswahl(alleGewaehlt ? new Set() : new Set(sichtbar.map((w) => w.personId)));
+  // Der Filterstand wird in die Vorschau EINGEFROREN: Was die Leitung gesehen
+  // hat, wird gesendet — nicht, was sie danach noch umgeschaltet hat.
+  type SammelStand = SammelVorschau["stand"];
+  const sammelBody = (alle: boolean, personIds: number[], schreiben: boolean, stand: SammelStand) => JSON.stringify(alle
+    ? { alle: true, filter: stand.filter, eingeladen: stand.eingeladen, betreuer: stand.betreuer || undefined, schreiben }
+    : { personIds, filter: stand.filter, schreiben });
+  const sammelVorschau = async (alle: boolean) => {
+    const personIds = alle ? [] : Array.from(auswahl);
+    if (!alle && personIds.length === 0) return;
+    const stand: SammelStand = { filter: sgFilter, eingeladen, betreuer };
+    setSammelBusy(true); setErgebnis(null);
+    const r = await api("/agent/onboarding/wartende/einladen", { method: "POST", body: sammelBody(alle, personIds, false, stand) });
+    setSammelBusy(false);
+    if (!r.ok) { flash(r.json?.error || "Die Vorschau kam nicht – bitte erneut versuchen.", true); return; }
+    setVorschau({ wuerdenGehen: Number(r.json.wuerdenGehen || 0), uebersprungen: r.json.uebersprungen || [], namen: r.json.namen || [], alle, personIds, stand });
+  };
+  const sammelSenden = async () => {
+    if (!vorschau || vorschau.wuerdenGehen === 0) return;
+    setSammelBusy(true);
+    const r = await api("/agent/onboarding/wartende/einladen", { method: "POST", body: sammelBody(vorschau.alle, vorschau.personIds, true, vorschau.stand) });
+    setSammelBusy(false);
+    if (!r.ok) { flash(r.json?.error || "Der Versand ist nicht durchgelaufen – bitte die Liste neu laden und prüfen.", true); return; }
+    setVorschau(null); setAuswahl(new Set());
+    setErgebnis({ gesendet: Number(r.json.gesendet || 0), uebersprungen: r.json.uebersprungen || [], fehlgeschlagen: r.json.fehlgeschlagen || [], meldung: r.json.meldung || "" });
+    flash(r.json.meldung || `${r.json.gesendet} Einladungen verschickt.`, Number(r.json.gesendet || 0) === 0);
+    void laden(); onGeaendert();
+  };
+
+  const gesamt = betreuerListe.reduce((s, b) => s + b.anzahl, 0);
   return (
     <section className="ob-block">
       <div className="ob-block-kopf">
-        <div><b>Bezahlt, aber noch kein Startgespräch</b><br /><small>Nach Wartezeit sortiert. Ohne Termin: Terminlink mit einem Klick. Ohne Reaktion: anrufen.</small></div>
-        <div className="ob-wartend-filter">{([["ohne_termin", "Ohne Termin"], ["alle", "Alle Wartenden"]] as const).map(([k, l]) => <button key={k} type="button" className={nur === k ? "an" : ""} onClick={() => setNur(k)}>{l}</button>)}</div>
+        <div><b>Bezahlt, aber noch kein Startgespräch</b><br /><small>{leitung ? "Leitung: alle Kunden aller Mitarbeiter. Haken setzen und die Auswahl einladen – oder alle offenen auf einmal. Jede Einladung steht danach in der Akte." : "Nach Wartezeit sortiert. Ohne Termin: Terminlink mit einem Klick. Ohne Reaktion: anrufen."}</small></div>
+        <div className="ob-wartend-filter" role="group" aria-label="Startgespräch">{SG_CHIPS.map(([k, l]) => <button key={k} type="button" className={sgFilter === k ? "an" : ""} aria-pressed={sgFilter === k} onClick={() => setSgFilter(k)}>{l}</button>)}</div>
       </div>
-      {fehler && <p className="ob-fehler">{fehler} <button type="button" className="ob-knopf klein still" style={{ marginLeft: 8 }} onClick={() => void laden()}>Noch einmal laden</button></p>}
-      {!zeilen && !fehler && <p className="ob-lade">Lade …</p>}
-      {zeilen && sichtbar.length === 0 && <p className="ob-leer">Niemand wartet{nur === "ohne_termin" ? " ohne Termin" : ""}.</p>}
-      {sichtbar.map((w) => (
-        <div key={w.personId} className="ob-zeile">
-          <div className="ob-wer">
-            <b>{w.name}</b>
-            <small><span>{w.paket || "Paket"}</span>{w.tage != null && <span>· bezahlt vor {w.tage} {w.tage === 1 ? "Tag" : "Tagen"}</span>}{w.verpasst > 0 && <span>· {w.verpasst}× nicht erschienen</span>}</small>
-            <span className={`ob-stand ${w.terminAm ? "gut" : w.eingeladenAm ? "warn" : "rot"}`}>{w.terminAm ? `Termin gebucht: ${zeitTag(w.terminAm)}` : w.eingeladenAm ? `Eingeladen am ${zeitTag(w.eingeladenAm)} — noch keine Buchung` : "Noch nie eingeladen"}</span>
-            {link[w.personId] && <span className="ob-code">Terminlink zum Durchgeben: {link[w.personId]}</span>}
-          </div>
+      <div className="ob-wartend-leiste">
+        <div className="ob-wartend-filter klein" role="group" aria-label="Einladung">{EIN_CHIPS.map(([k, l]) => <button key={k} type="button" className={eingeladen === k ? "an" : ""} aria-pressed={eingeladen === k} onClick={() => setEingeladen(k)}>{l}</button>)}</div>
+        {leitung && (
+          <select className="ob-select" value={betreuer} onChange={(e) => setBetreuer(e.target.value)} aria-label="Betreuer">
+            <option value="">Alle Mitarbeiter ({gesamt})</option>
+            {betreuerListe.map((b) => <option key={b.id ?? "ohne"} value={b.id ?? "ohne"}>{b.name} ({b.anzahl})</option>)}
+          </select>
+        )}
+      </div>
+      {leitung && (
+        <div className="ob-sammel-kopf">
+          <label className="ob-wahl"><input type="checkbox" checked={alleGewaehlt} onChange={alleWaehlen} disabled={sichtbar.length === 0} /> Alle sichtbaren wählen ({sichtbar.length})</label>
           <div className="ob-aktion">
-            {w.telefon && <button type="button" className="ob-knopf klein" onClick={() => anrufen(w.telefon, w.personId, w.name)}><Phone size={14} strokeWidth={1.75} /> Anrufen</button>}
-            {!w.terminAm && <button type="button" className="ob-knopf klein still" disabled={busy === w.personId} onClick={() => void einladen(w)}>{busy === w.personId ? "Sendet …" : w.eingeladenAm ? "Erneut einladen" : "Einladung senden"}</button>}
-            <Link href={`/agent/kunden?person=${w.personId}`} className="ob-knopf klein still">Akte</Link>
+            <button type="button" className="ob-knopf klein" disabled={auswahl.size === 0 || sammelBusy} onClick={() => void sammelVorschau(false)}>{sammelBusy ? "Prüft …" : `Einladung an Auswahl (${auswahl.size})`}</button>
+            <button type="button" className="ob-knopf klein still" disabled={sammelBusy || sichtbar.length === 0} onClick={() => void sammelVorschau(true)}>Alle offenen einladen</button>
           </div>
         </div>
-      ))}
+      )}
+      {vorschau && (
+        <div className="ob-vorschau" role="region" aria-label="Sammelversand prüfen">
+          <b>{vorschau.wuerdenGehen === 0 ? "Keine Einladung würde rausgehen" : `${vorschau.wuerdenGehen} ${vorschau.wuerdenGehen === 1 ? "Einladung würde" : "Einladungen würden"} jetzt rausgehen`}{vorschau.alle ? " (alle offenen in dieser Ansicht)" : " (deine Auswahl)"}.</b>
+          {vorschau.namen.length > 0 && <p className="ob-vorschau-namen">{vorschau.namen.join(", ")}</p>}
+          {vorschau.uebersprungen.length > 0 && (
+            <details open={vorschau.wuerdenGehen === 0}>
+              <summary>{vorschau.uebersprungen.length} {vorschau.uebersprungen.length === 1 ? "wird" : "werden"} übersprungen – warum</summary>
+              <ul>{vorschau.uebersprungen.map((u) => <li key={u.personId}><b>{u.name}</b> — {u.grund}</li>)}</ul>
+            </details>
+          )}
+          <div className="ob-form-knoepfe">
+            <button type="button" className="ob-knopf klein" disabled={vorschau.wuerdenGehen === 0 || sammelBusy} onClick={() => void sammelSenden()}>{sammelBusy ? "Sendet …" : `Jetzt senden (${vorschau.wuerdenGehen})`}</button>
+            <button type="button" className="ob-knopf klein still" disabled={sammelBusy} onClick={() => setVorschau(null)}>Abbrechen</button>
+            <small>Höchstens eine Einladung je 7 Tage – wer kürzlich eine bekam, bleibt außen vor. Jede versandte Mail steht in der Akte des Kunden.</small>
+          </div>
+        </div>
+      )}
+      {ergebnis && (
+        <div className="ob-vorschau fertig" role="status">
+          <b>{ergebnis.meldung || `${ergebnis.gesendet} Einladungen verschickt.`}</b>
+          {ergebnis.fehlgeschlagen.length > 0 && (
+            <details open>
+              <summary>{ergebnis.fehlgeschlagen.length} fehlgeschlagen – der Kunde hat nichts erhalten</summary>
+              <ul>{ergebnis.fehlgeschlagen.map((u) => <li key={u.personId}><b>{u.name}</b> — {u.grund}</li>)}</ul>
+            </details>
+          )}
+          {ergebnis.uebersprungen.length > 0 && (
+            <details>
+              <summary>{ergebnis.uebersprungen.length} übersprungen</summary>
+              <ul>{ergebnis.uebersprungen.map((u) => <li key={u.personId}><b>{u.name}</b> — {u.grund}</li>)}</ul>
+            </details>
+          )}
+          <div className="ob-form-knoepfe"><button type="button" className="ob-knopf klein still" onClick={() => setErgebnis(null)}>Schließen</button></div>
+        </div>
+      )}
+      {fehler && <p className="ob-fehler">{fehler} <button type="button" className="ob-knopf klein still" style={{ marginLeft: 8 }} onClick={() => void laden()}>Noch einmal laden</button></p>}
+      {!zeilen && !fehler && <p className="ob-lade">Lade …</p>}
+      {zeilen && sichtbar.length === 0 && <p className="ob-leer">{sgFilter === "kein_startgespraech" ? "Niemand ohne gebuchtes Startgespräch" : "Niemand wartet"}{eingeladen === "nie" ? ", der noch nie eingeladen wurde" : eingeladen === "aelter7" ? ", der länger als 7 Tage nicht eingeladen wurde" : ""}.</p>}
+      {sichtbar.map((w) => {
+        const gebucht = w.terminGebucht ?? !!w.terminAm;
+        const gewaehlt = auswahl.has(w.personId);
+        const q = w.naechsterTerminQuelle;
+        const terminArt = q === "onboarding_call" || !q ? "Startgespräch gebucht" : q === "inkasso_call" ? "Termin (Inkasso) gebucht — kein Startgespräch" : q === "support" ? "Termin (Support) gebucht — kein Startgespräch" : "Termin gebucht — kein Startgespräch";
+        const stand = gebucht ? { ton: q === "onboarding_call" || !q ? "gut" : "warn", text: `${terminArt}: ${zeitTag(w.naechsterTerminAm || w.terminAm || "")}` }
+          : w.terminAm ? { ton: "warn", text: `Termin war ${zeitTag(w.terminAm)} — ohne Ergebnis` }
+          : w.eingeladenAm ? { ton: "warn", text: `Eingeladen am ${zeitTag(w.eingeladenAm)} — noch keine Buchung` }
+          : { ton: "rot", text: "Noch nie eingeladen" };
+        return (
+          <div key={w.personId} className={`ob-zeile${leitung ? " mit-wahl" : ""}${gewaehlt ? " gewaehlt" : ""}`}>
+            {leitung && <label className="ob-wahl"><input type="checkbox" checked={gewaehlt} onChange={() => umschalten(w.personId)} aria-label={`${w.name} auswählen`} /></label>}
+            <div className="ob-wer">
+              <b>{w.name}</b>
+              <small>
+                <span>{w.paket || "Paket"}</span>
+                {w.betreuer && <span className="ob-betreuer">· {w.betreuer}</span>}
+                {w.tage != null && <span>· bezahlt vor {w.tage} {w.tage === 1 ? "Tag" : "Tagen"}</span>}
+                {w.verpasst > 0 && <span>· {w.verpasst}× nicht erschienen</span>}
+                {w.letzteEinladung && <span>· zuletzt eingeladen {vorTagen(tageSeit(w.letzteEinladung))}{(w.einladungen7 ?? 0) > 1 ? ` (${w.einladungen7}× in 7 Tagen)` : ""}</span>}
+              </small>
+              <span className={`ob-stand ${stand.ton}`}>{stand.text}</span>
+              {link[w.personId] && <span className="ob-code">Terminlink zum Durchgeben: {link[w.personId]}</span>}
+            </div>
+            <div className="ob-aktion">
+              {w.telefon && <button type="button" className="ob-knopf klein" onClick={() => anrufen(w.telefon, w.personId, w.name)}><Phone size={14} strokeWidth={1.75} /> Anrufen</button>}
+              {!gebucht && <button type="button" className="ob-knopf klein still" disabled={busy === w.personId} onClick={() => void einladen(w)}>{busy === w.personId ? "Sendet …" : (w.eingeladenAm || w.letzteEinladung) ? "Erneut einladen" : "Einladung senden"}</button>}
+              <Link href={`/agent/kunden?person=${w.personId}`} className="ob-knopf klein still">Akte</Link>
+            </div>
+          </div>
+        );
+      })}
     </section>
   );
 }

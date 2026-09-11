@@ -84,6 +84,33 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-09-11-team-feedback-e184",
+    date: "2026-09-11",
+    category: "Verbessert",
+    title: "Vier Punkte aus eurem Feedback: Erreichbarkeit in der Pipeline, Zustimmungs-Link per Mail/WhatsApp, Startgespräche gesammelt einladen, keine Mail-Wiederholungen",
+    summary:
+      "Die Arbeitsliste reiht jetzt nach dem Wunschfenster des Kunden (8–12, 12–15, 15–18, 18–20 Uhr) — wer laut Antrag "
+      + "gerade erreichbar sein will, steht links zuerst. Der Zustimmungs-Link geht mit einem Klick per E-Mail oder WhatsApp raus "
+      + "(vorher ging die Mail nie ab). Die Vertriebsleitung sieht im Onboarding alle Wartenden aller Mitarbeiter und lädt sie "
+      + "gesammelt ein. Und keine Maschine im Haus versucht mehr, an eine unzustellbare Adresse zu senden — stattdessen bekommst du eine Aufgabe.",
+    changes: [
+      "Pipeline: Links steht zuerst, wer laut Antrag JETZT erreichbar sein will; „Flexibel“ oder keine Angabe zählt immer. Die Karte zeigt das Fenster („Erreichbar 18–20 Uhr“, „jetzt außerhalb“). Die Liste lädt alle zehn Minuten leise nach, damit der Wechsel um 12, 15 und 18 Uhr sichtbar wird.",
+      "Akte → Vertragslücke: zwei Knöpfe — „Zustimmungs-Link per E-Mail senden“ und „Per WhatsApp“. Der Verlauf sagt ehrlich, ob die Mail rausging. Bestätigt der Kunde, stellt das Haus die erste Rechnung von selbst und schickt die Zahlungsdaten in deinem Namen.",
+      "WhatsApp-Zahlungsdaten: Der Betrag kommt jetzt aus dem Paketkatalog; fehlen Zustimmungen, steht der Link dazu gleich mit in der Nachricht.",
+      "Onboarding → Wartet auf Gespräch (Leitung): Filter „Kein Startgespräch gebucht“, Auswahl je Betreuer, Haken setzen, „Einladung an Auswahl“ oder „Alle offenen einladen“ — mit Vorschau, wer warum übersprungen wird (z. B. in den letzten 7 Tagen schon eingeladen). Jede Einladung steht in der Akte.",
+      "Ratenerinnerung und Erstzahlungs-Erinnerung lassen Adressen aus, die hart zurückkamen (Rückläufer/Spam) — du bekommst dafür eine dringende Aufgabe „E-Mail unzustellbar — Adresse klären oder anrufen“. Mara holt eine nicht gesendete Antwort nach 15 Minuten, 2 Stunden und 24 Stunden nach, statt sie alle fünf Minuten neu zu schreiben; nach dem vierten Versuch bekommt der Betreuer eine Aufgabe.",
+      "Der alte Tages-Nachschub, der jedem Mitarbeiter bis zu 800 C-Kunden in den privaten Vorrat schob, ist abgeschaltet. Kunden kommen über die Arbeitsliste (sechs Plätze nach Hitze) und die Sofortzuteilung.",
+    ],
+    howto: [
+      "Pipeline wie gewohnt öffnen — links stehen die, die jetzt erreichbar sein wollen. Nennt ein Kunde am Telefon eine bessere Zeit, trag sie unter „Daten“ ein.",
+      "Fehlt eine Zustimmung: Akte → Vertragslücke → „Per E-Mail“ oder „Per WhatsApp“ (WhatsApp öffnet den Chat mit fertigem Text, abschicken musst du selbst).",
+      "Leitung: Onboarding → Kachel „Wartet auf Gespräch“ → Filter setzen → Haken → „Einladung an Auswahl“ → Vorschau lesen → „Jetzt senden“.",
+      "Aufgabe „E-Mail unzustellbar“: Kunden anrufen, neue Adresse unter „Daten“ eintragen — dann laufen die Erinnerungen von selbst weiter.",
+    ],
+    link: { href: "/agent/kunden", label: "Pipeline öffnen" },
+    important: true,
+  },
+  {
     id: "2026-09-11-bewerbungen",
     date: "2026-09-11",
     category: "Neu",

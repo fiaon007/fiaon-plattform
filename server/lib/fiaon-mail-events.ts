@@ -165,6 +165,11 @@ const ZUSATZ: Partial<Record<MakeEventType, EventZusatz>> = {
     gruppe: "konto", zielgruppe: "kunde", rollen: ["admin", "vertriebsleiter", "agent"],
     klartext: "Bitte an den Kunden, seine Rufnummer selbst zu berichtigen.",
   },
+  // E-184 (11.09.2026): Zustimmungen gibt nur der Kunde — der Betreuer schickt den Weg dorthin.
+  zustimmung_link: {
+    gruppe: "konto", zielgruppe: "kunde", rollen: ["admin", "vertriebsleiter", "agent", "onboarding"],
+    klartext: "Bitte an den Kunden, AGB/Datenschutz, Bonitätsprüfung und Vertrag selbst zu bestätigen — mit dem Link auf die Zustimmungsseite (30 Tage gültig).",
+  },
   lead_followup: {
     gruppe: "lead", zielgruppe: "kunde", rollen: ["admin", "vertriebsleiter"],
     klartext: "Nachfassen bei einem Lead, der noch keinen Antrag gestellt hat.",

@@ -48,6 +48,7 @@
 
 import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
+import { unzustellbarSql, zielMailSql } from "../lib/fiaon-empfaenger";
 import { sendMakeWebhookMitGrund, makePayloadFromRow } from "../make-webhook";
 import { berlinToday } from "../lib/fiaon-time";
 import {
@@ -130,6 +131,20 @@ export function mahnAbstandSql(spalte = "r.mahnstufe"): string {
   return `CASE ${spalte} ${zweige} ELSE ${MAHNSTUFEN[MAHNSTUFEN.length - 1]} END`;
 }
 const ABO_BATCH = 40;
+
+// ── HART UNZUSTELLBAR: NICHT NOCH EINMAL (11.09.2026, E-184, Team-Feedback 1) ──
+// „Bei einem Fehler soll der Versand als fehlgeschlagen markiert werden und
+// nicht unkontrolliert wiederholt." Gemessen: 119 offene Raten mit
+// Fehlversuchen, Summe 3.640, eine Rate 179-mal — 970 Versuche an neun
+// Adressen, die hart zurückkamen (Rückläufer oder Spam-Meldung). Dorthin kommt
+// nichts an; jeder Versuch ist nur ein Schlag auf den Absender-Ruf.
+// Die Zieladresse ist dieselbe wie beim Versand (Person → Alias → Bestellung,
+// siehe unzustellbarSql in fiaon-empfaenger.ts). Trägt der Betreuer eine neue
+// Adresse ein oder kommt wieder Post an, greift die Sperre nicht mehr — sie
+// hängt an der Adresse, nicht an der Rate. Der Betreuer bekommt je Bestellung
+// eine Aufgabe (unzustellbareMelden im Motor, rateErinnern beim Fehlversuch).
+const ZIEL_MAIL_SQL = zielMailSql("a");
+const UNZUSTELLBAR_SQL = unzustellbarSql("a");
 
 /** Vorab-Erinnerung: Vorgabe drei Tage vor Fälligkeit, abschaltbar (0). */
 export const VORAB_TAGE_VORGABE = 3;
@@ -773,8 +788,11 @@ async function faelligeRaten(limit: number, opts: { abStichtag?: string | null }
     FROM fiaon_abo_raten r
     JOIN fiaon_applications a ON a.ref = r.ref AND a.merged_into IS NULL AND a.abo_gestoppt_am IS NULL
     LEFT JOIN fiaon_agents ag ON ag.id = a.assigned_agent_id
+    LEFT JOIN fiaon_persons pt ON pt.id = a.person_id
     WHERE r.status = 'offen'
       AND r.storniert_am IS NULL
+      -- E-184: Testkonten mahnt der Motor nicht (7 der 9 gebouncten Adressen waren pruefstand.test).
+      AND pt.ist_test_am IS NULL
       AND r.faellig_am <= ${heute}::date
       AND (r.mahnstufe < ${MAHNSTUFEN.length}
            OR (${dauer} > 0 AND r.letzte_erinnerung_at IS NOT NULL
@@ -839,6 +857,8 @@ async function faelligeRaten(limit: number, opts: { abStichtag?: string | null }
       -- frühestens 20 Stunden später noch einmal — nicht bei jedem Lauf. Gemessen:
       -- 3.219 vergebliche Versuche in 7 Tagen, bis zu 143 je Empfänger.
       AND (r.letzter_fehler_at IS NULL OR r.letzter_fehler_at < NOW() - INTERVAL '20 hours')
+      -- E-184: hart unzustellbare Adressen bleiben draußen (siehe UNZUSTELLBAR_SQL oben).
+      AND NOT ${sqlPool.unsafe(UNZUSTELLBAR_SQL)}
       -- Stufe erst, wenn der Abstand erreicht ist. Der Ausdruck kommt aus
       -- MAHNSTUFEN (Tag 0/3/7/14/21) und steht nicht mehr zweimal da.
       AND (${heute}::date - r.faellig_am) >= ${sqlPool.unsafe(mahnAbstandSql())}
@@ -858,6 +878,55 @@ async function faelligeRaten(limit: number, opts: { abStichtag?: string | null }
  * Rechnung gestellt wurden. Diese Fälle bleiben sichtbar und können bewusst
  * per Sammelversand freigegeben werden.
  */
+/**
+ * E-184 (11.09.2026): Überfällige Raten, deren Adresse hart unzustellbar ist,
+ * bekommt der Motor nie mehr zu sehen (UNZUSTELLBAR_SQL) — also auch keinen
+ * Fehlversuch, der die Aufgabe auslösen könnte. Deshalb meldet er sie hier
+ * einmal je Bestellung an den Betreuer: Adresse klären oder anrufen. Der
+ * Schlüssel macht es idempotent; ein zweiter Lauf legt nichts Neues an und
+ * schickt keine zweite Mail. Testkonten und .test-Adressen bleiben draußen.
+ */
+async function unzustellbareMelden(): Promise<number> {
+  // Nur Raten, die der Motor überhaupt mahnen würde: ab dem Abo-Stichtag.
+  const stichtag = String((await getSettings()).abo_stichtag || "").trim();
+  const abStichtag = /^\d{4}-\d{2}-\d{2}$/.test(stichtag) ? stichtag : null;
+  const zeilen = (await sqlPool.unsafe(`
+    SELECT DISTINCT ON (r.ref) r.ref, r.betrag_cents, r.rate_nr AS nummer, a.person_id, ${ZIEL_MAIL_SQL} AS mail
+      FROM fiaon_abo_raten r
+      JOIN fiaon_applications a ON a.ref = r.ref AND a.merged_into IS NULL AND a.abo_gestoppt_am IS NULL
+      LEFT JOIN fiaon_persons p ON p.id = a.person_id
+     WHERE r.status = 'offen' AND r.storniert_am IS NULL AND r.faellig_am <= CURRENT_DATE
+       AND ($1::date IS NULL OR r.faellig_am >= $1::date)
+       AND ${UNZUSTELLBAR_SQL}
+       AND p.ist_test_am IS NULL AND ${ZIEL_MAIL_SQL} NOT ILIKE '%.test'
+       AND NOT EXISTS (SELECT 1 FROM fiaon_betreiber_todos t WHERE t.schluessel = 'abo:' || r.ref || ':unzustellbar')
+     ORDER BY r.ref, r.faellig_am ASC
+     LIMIT 50`, [abStichtag])) as any[];
+  if (zeilen.length === 0) return 0;
+  const { auftragFuerKunden } = await import("./fiaon-betreiber-todo");
+  let n = 0;
+  for (const z of zeilen) {
+    try {
+      await auftragFuerKunden({
+        personId: z.person_id ? Number(z.person_id) : null,
+        ref: String(z.ref),
+        titel: `Rate${z.nummer ? ` ${z.nummer}` : ""}: E-Mail unzustellbar — Adresse klären oder anrufen`,
+        text: `Die Ratenerinnerung (${(Number(z.betrag_cents || 0) / 100).toFixed(2).replace(".", ",")} €) kommt nicht an: `
+          + `Die Adresse ${z.mail || "—"} ist als unzustellbar gemeldet (Rückläufer oder Spam-Meldung). `
+          + "Bis eine neue Adresse in der Akte steht, geht keine weitere Mail raus. Bitte anrufen oder die Adresse berichtigen.",
+        dringend: true,
+        schluessel: `abo:${z.ref}:unzustellbar`,
+        quelle: "abo",
+        bereich: "konten",
+        autorName: "Abo-Motor",
+      });
+      n++;
+    } catch (e) { console.error("[FIAON-ABO] unzustellbar melden:", e); }
+  }
+  if (n > 0) console.log(`[FIAON-ABO] ${n} Aufgabe(n) wegen unzustellbarer Adresse angelegt`);
+  return n;
+}
+
 export async function aboMotor(opts: { force?: boolean } = {}): Promise<{
   gesendet: number; fehlgeschlagen: number; uebersprungenFenster: boolean;
 }> {
@@ -888,6 +957,7 @@ export async function aboMotor(opts: { force?: boolean } = {}): Promise<{
     if (erg.ok) ergebnis.gesendet++;
     else ergebnis.fehlgeschlagen++;
   }
+  await unzustellbareMelden();
   if (ergebnis.gesendet > 0) {
     console.log(`[FIAON-ABO] ${ergebnis.gesendet} Abo-Erinnerung(en) versendet`);
   }
@@ -1244,6 +1314,28 @@ async function rateErinnern(r: any, opts: { stufeErhoehen?: boolean } = {}): Pro
         updated_at = NOW()
     WHERE id = ${r.id}
   `;
+  // E-184: Eine hart unzustellbare Adresse ist kein Fall für die Maschine —
+  // ab jetzt hält UNZUSTELLBAR_SQL die Rate aus jedem Lauf, und ein Mensch
+  // klärt die Adresse oder ruft an. Idempotent über den Schlüssel.
+  if (/unzustellbar/i.test(String(versand.grund || "")) && r.ref) {
+    const nr = r.rate_nr ?? null;
+    void import("./fiaon-betreiber-todo")
+      .then(({ auftragFuerKunden }) => auftragFuerKunden({
+        personId: r.person_id ? Number(r.person_id) : null,
+        ref: String(r.ref),
+        titel: `Rate${nr ? ` ${nr}` : ""}: E-Mail unzustellbar — Adresse klären oder anrufen`,
+        text: `Die Erinnerung zur Rate${nr ? ` ${nr}` : ""} (${(Number(r.betrag_cents || 0) / 100).toFixed(2).replace(".", ",")} €) `
+          + `kommt nicht an: Die Adresse ${r.ziel_mail || r.email || r.contact_email || r.billing_email || "—"} ist als unzustellbar gemeldet `
+          + "(Rückläufer oder Spam-Meldung). Bis eine neue Adresse in der Akte steht, geht keine weitere Mail raus. "
+          + "Bitte anrufen oder die Adresse berichtigen.",
+        dringend: true,
+        schluessel: `abo:${r.ref}:unzustellbar`,
+        quelle: "abo",
+        bereich: "konten",
+        autorName: "Abo-Motor",
+      }))
+      .catch((e) => console.error("[FIAON-ABO] Aufgabe unzustellbar:", e));
+  }
   return { ok: false, grund: versand.grund };
 }
 
@@ -1981,23 +2073,29 @@ async function laufKandidaten(art: LaufArt, opts: { nurSendbare?: boolean } = {}
                ORDER BY al.created_at DESC LIMIT 1),
              NULLIF(TRIM(a.email),''), NULLIF(TRIM(a.contact_email),''), NULLIF(TRIM(a.billing_email),'')
            ) AS ziel_mail,
-           (r.letzte_erinnerung_at IS NOT NULL AND r.letzte_erinnerung_at >= NOW() - INTERVAL '20 hours') AS gesperrt
+           (r.letzte_erinnerung_at IS NOT NULL AND r.letzte_erinnerung_at >= NOW() - INTERVAL '20 hours') AS gesperrt,
+           ${UNZUSTELLBAR_SQL} AS unzustellbar
     FROM fiaon_abo_raten r
     JOIN fiaon_applications a ON a.ref = r.ref AND a.merged_into IS NULL AND a.abo_gestoppt_am IS NULL
     LEFT JOIN fiaon_agents ag ON ag.id = a.assigned_agent_id
     WHERE r.status = 'offen' AND r.storniert_am IS NULL AND ${wo}
-      ${opts.nurSendbare ? "AND (r.letzte_erinnerung_at IS NULL OR r.letzte_erinnerung_at < NOW() - INTERVAL '20 hours')" : ""}
+      ${opts.nurSendbare ? `AND (r.letzte_erinnerung_at IS NULL OR r.letzte_erinnerung_at < NOW() - INTERVAL '20 hours')
+        AND (r.letzter_fehler_at IS NULL OR r.letzter_fehler_at < NOW() - INTERVAL '20 hours')
+        AND NOT ${UNZUSTELLBAR_SQL}` : ""}
     ORDER BY r.faellig_am ASC
     LIMIT ${ABO_BATCH}
   `);
 }
 
 function laufAufteilen(kandidaten: any[]) {
-  const senden = kandidaten.filter((r) => r.ziel_mail && !r.gesperrt);
+  // E-184: Unzustellbare bleiben in Ansicht und Vorschau sichtbar (Ansicht
+  // „Zustellfehler" lebt davon), gehen aber nie in den Versand.
+  const senden = kandidaten.filter((r) => r.ziel_mail && !r.gesperrt && r.unzustellbar !== true);
   return {
     senden,
     ohneMail: kandidaten.filter((r) => !r.ziel_mail).length,
-    gesperrt: kandidaten.filter((r) => r.ziel_mail && r.gesperrt).length,
+    gesperrt: kandidaten.filter((r) => r.ziel_mail && r.gesperrt && r.unzustellbar !== true).length,
+    unzustellbar: kandidaten.filter((r) => r.ziel_mail && r.unzustellbar === true).length,
   };
 }
 
@@ -2006,14 +2104,14 @@ router.get("/admin/abo/lauf/vorschau", async (req: Request, res: Response) => {
     await ensureAboTabellen();
     const art = (String(req.query.art || "heute") as LaufArt);
     const kandidaten = await laufKandidaten(LAUF_TEXT[art] ? art : "heute");
-    const { senden, ohneMail, gesperrt } = laufAufteilen(kandidaten as any[]);
+    const { senden, ohneMail, gesperrt, unzustellbar } = laufAufteilen(kandidaten as any[]);
     res.json({
       ok: true,
       art, artText: LAUF_TEXT[art] || LAUF_TEXT.heute,
       gefunden: kandidaten.length,
       sendbar: senden.length,
       summeCents: senden.reduce((s, r) => s + Number(r.betrag_cents || 0), 0),
-      uebersprungen: { ohneMail, gesperrt },
+      uebersprungen: { ohneMail, gesperrt, unzustellbar },
       imFenster: await imVersandfenster(),
       // Bei künftigen Raten steigt die Mahnstufe NICHT — das muss vor dem Klick
       // klar sein, sonst wirkt der Lauf wie eine Mahnwelle.
@@ -2037,7 +2135,7 @@ router.post("/admin/abo/lauf", async (req: Request, res: Response) => {
       });
     }
     const kandidaten = await laufKandidaten(art, { nurSendbare: true });
-    const { senden, ohneMail, gesperrt } = laufAufteilen(kandidaten as any[]);
+    const { senden, ohneMail, gesperrt, unzustellbar } = laufAufteilen(kandidaten as any[]);
 
     let gesendet = 0;
     let fehlgeschlagen = 0;
@@ -2057,12 +2155,13 @@ router.post("/admin/abo/lauf", async (req: Request, res: Response) => {
     if (fehlgeschlagen > 0) teile.push(`${fehlgeschlagen} NICHT zugestellt (Mahnstufe unverändert)`);
     if (gesperrt > 0) teile.push(`${gesperrt} übersprungen (vor weniger als 20 Stunden schon erinnert)`);
     if (ohneMail > 0) teile.push(`${ohneMail} ohne E-Mail-Adresse`);
+    if (unzustellbar > 0) teile.push(`${unzustellbar} mit unzustellbarer Adresse (Aufgabe beim Betreuer)`);
     if (kandidaten.length === 0) teile[0] = `Keine Rate in der Ansicht „${LAUF_TEXT[art]}"`;
 
     res.json({
       ok: true, art, artText: LAUF_TEXT[art],
       gesendet, fehlgeschlagen,
-      uebersprungen: { ohneMail, gesperrt },
+      uebersprungen: { ohneMail, gesperrt, unzustellbar },
       fehlerGruende: fehler,
       rest: kandidaten.length === ABO_BATCH,
       meldung: `${teile.join(" · ")}.`,

@@ -1339,25 +1339,77 @@ router.post("/agent/onboarding/termine/:id/nicht-erschienen", requireAgent, nurO
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// DIE WARTENDEN — bezahlt, kein Startgespräch (22.08.2026, E-022 / K10)
+// E-184 (11.09.2026): EINE ABFRAGE FÜR LISTE UND SAMMELVERSAND
 //
-// `wartendeZaehlen` rechnete „wartend" und „ohne Termin" seit Tagen aus; die
-// Seite warf beide Zahlen weg. Und ein Onboarder konnte einen wartenden
-// Kunden ohne Termin nicht einmal SEHEN — die Einladung brauchte eine
-// personId aus einem bestehenden Termin. 213 Menschen lagen damit außerhalb
-// der Reichweite genau der Abteilung, die sie erreichen soll.
+// TEAM-WUNSCH (Punkt 4): „Für die Vertriebsleitung wäre im Bereich Onboarding
+//   eine zentrale Übersicht sinnvoll, in der alle Kunden von allen Mitarbeitern
+//   angezeigt werden, bei denen noch kein Startgespräch gebucht wurde — Filter
+//   ‚Kein Startgespräch gebucht'. Zusätzlich ein Button, mit dem die
+//   Vertriebsleitung gleichzeitig an alle ausgewählten bzw. alle offenen Kunden
+//   eine Einladung zum Startgespräch schickt. Der Versand muss anschließend in
+//   der jeweiligen Kundenakte dokumentiert werden."
+//
+// GEMESSEN am 11.09.2026: 337 Wartende, davon 324 ohne künftigen gebuchten
+//   Termin — aber nur 35 davon NICHT in den letzten 7 Tagen eingeladen. Im
+//   Zeitraum von 14 Tagen bekamen 241 Personen mehr als eine Einladung; heute
+//   allein 211 von Hand. LIMIT 300 schnitt 37 von 337 ab.
+//
+// VORHER: Die Liste kannte keinen Betreuer, keine letzte Einladung und keine
+//   Parameter; „hat Termin" hatte im Haus fünf Fassungen; Einladung nur je Zeile.
+// NACHHER: Diese eine Funktion baut die Kandidatenmenge für GET UND für den
+//   Sammelversand. „Startgespräch gebucht" heißt hier wie in `versandErlaubt`:
+//   irgendein Termin mit status = 'gebucht', beginn > NOW(), nicht abgesagt.
+//   Der Sammelversand überspringt, wer in den letzten 7 Tagen schon eine
+//   versandte Einladung hat — der Einzelknopf je Zeile bleibt unverändert frei.
 // ═══════════════════════════════════════════════════════════════════════════
-router.get("/agent/onboarding/wartende", requireAgent, nurOnboarding, nurMitZusage, async (_req: AgentRequest, res: Response) => {
-  try {
-    // E-045: VORHER sahen hier alle (Onboarding-Pool) die komplette Warteliste.
-    // NACHHER: Onboarding/Leitung weiter alles; ein Bonitätsmanager nur die
-    // Wartenden aus dem EIGENEN Bestand (assigned_agent_id = ich).
-    const alle = await siehtAlleWartenden(_req.agent!.id);
-    const zeilen = (await sqlPool`
+
+type WartendeFilter = "kein_startgespraech" | "alle";
+type WartendeEingeladen = "nie" | "aelter7" | "alle";
+/** Ruhezeit des Sammelversands: keine zweite Einladung innerhalb dieser Tage. */
+const EINLADUNG_RUHE_TAGE = 7;
+
+interface WartenderZeile {
+  personId: number; name: string; vorname: string | null; telefon: string | null; email: string | null;
+  ref: string | null; paket: string | null; bezahltAm: string | null; tage: number | null;
+  terminAm: string | null; eingeladenAm: string | null; spaeterAm: string | null; verpasst: number;
+  // E-184
+  betreuerId: number | null; betreuer: string | null; terminGebucht: boolean;
+  naechsterTerminQuelle: string | null; naechsterTerminAm: string | null;
+  letzteEinladung: string | null; einladungen7: number;
+}
+
+function wartendeFilterAus(roh: unknown): WartendeFilter {
+  return roh === "kein_startgespraech" ? "kein_startgespraech" : "alle";
+}
+function wartendeEingeladenAus(roh: unknown): WartendeEingeladen {
+  return roh === "nie" || roh === "aelter7" ? roh : "alle";
+}
+/** „" = alle · „ohne" = ohne Betreuer · Zahl = dieser Mitarbeiter. */
+function wartendeBetreuerAus(roh: unknown): number | "ohne" | null {
+  const s = String(roh ?? "").trim();
+  if (s === "ohne") return "ohne";
+  const n = Number(s);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+async function wartendeLaden(opts: {
+  agentId: number; alle: boolean;
+  filter?: WartendeFilter; eingeladen?: WartendeEingeladen;
+  betreuer?: number | "ohne" | null; personIds?: number[] | null;
+}): Promise<{ zeilen: WartenderZeile[]; betreuerListe: { id: number | null; name: string; anzahl: number }[] }> {
+  const filter = opts.filter ?? "alle";
+  const eingeladen = opts.eingeladen ?? "alle";
+  const ids = (opts.personIds ?? []).map(Number).filter((n) => Number.isInteger(n) && n > 0);
+  const nurIds = ids.length > 0;
+  // Die inneren Spalten rechnen jede Regel genau EINMAL; die äußere WHERE
+  // filtert darauf. So steht „Startgespräch gebucht" nicht zweimal im Text.
+  const rows = (await sqlPool`
+    SELECT * FROM (
       SELECT p.id AS person_id,
              COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''), p.company_name, p.contact_name, p.primary_email) AS name,
              COALESCE(NULLIF(p.first_name, ''), p.contact_name) AS vorname,
              p.primary_phone, p.primary_email, p.startgespraech_mail_am, p.startgespraech_spaeter_am,
+             p.assigned_agent_id AS betreuer_id, ag.name AS betreuer,
              (SELECT a.ref FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.archived_at IS NULL
                 AND a.payment_status = 'paid' AND a.onboarding_stufe = 'wartet_auf_onboarding'
                 ORDER BY a.paid_at DESC NULLS LAST, a.created_at DESC LIMIT 1) AS ref,
@@ -1369,31 +1421,280 @@ router.get("/agent/onboarding/wartende", requireAgent, nurOnboarding, nurMitZusa
              (SELECT t.beginn FROM fiaon_termine t WHERE t.person_id = p.id AND t.quelle = 'onboarding_call'
                 AND t.status = 'gebucht' AND t.abgesagt_am IS NULL ORDER BY t.beginn LIMIT 1) AS termin_am,
              (SELECT COUNT(*)::int FROM fiaon_termine t WHERE t.person_id = p.id AND t.quelle = 'onboarding_call'
-                AND t.status = 'verpasst') AS verpasst
+                AND t.status = 'verpasst') AS verpasst,
+             (SELECT MIN(t.beginn) FROM fiaon_termine t WHERE t.person_id = p.id
+                AND t.status = 'gebucht' AND t.beginn > NOW() AND t.abgesagt_am IS NULL) AS naechster_termin_am,
+             (SELECT t.quelle FROM fiaon_termine t WHERE t.person_id = p.id
+                AND t.status = 'gebucht' AND t.beginn > NOW() AND t.abgesagt_am IS NULL
+                ORDER BY t.beginn LIMIT 1) AS naechster_termin_quelle,
+             -- E-184: dieselbe Adressregel wie der Einzelversand (Person, sonst Bestellzeile).
+             COALESCE(NULLIF(TRIM(p.primary_email), ''),
+               (SELECT COALESCE(NULLIF(TRIM(a.email), ''), NULLIF(TRIM(a.contact_email), ''), NULLIF(TRIM(a.billing_email), ''))
+                  FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL AND a.payment_status = 'paid'
+                  ORDER BY a.paid_at DESC NULLS LAST, a.created_at DESC LIMIT 1)) AS email_ziel,
+             (SELECT MAX(m.created_at) FROM fiaon_mail_log m WHERE m.person_id = p.id
+                AND m.event = 'onboarding_einladung' AND m.status = 'versandt') AS letzte_einladung,
+             (SELECT COUNT(*)::int FROM fiaon_mail_log m WHERE m.person_id = p.id
+                AND m.event = 'onboarding_einladung' AND m.status = 'versandt'
+                AND m.created_at > NOW() - (${EINLADUNG_RUHE_TAGE}::int * INTERVAL '1 day')) AS einladungen7
       FROM fiaon_persons p
+      LEFT JOIN fiaon_agents ag ON ag.id = p.assigned_agent_id
       WHERE p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL AND NOT COALESCE(p.is_blocked, FALSE)
-        AND (${alle} OR p.assigned_agent_id = ${_req.agent!.id})
+        AND (${opts.alle} OR p.assigned_agent_id = ${opts.agentId})
+        AND (${!nurIds} OR p.id = ANY(${ids}::int[]))
         AND EXISTS (SELECT 1 FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL
               AND a.archived_at IS NULL AND a.payment_status = 'paid' AND a.onboarding_stufe = 'wartet_auf_onboarding')
         AND NOT EXISTS (SELECT 1 FROM fiaon_termine t WHERE t.person_id = p.id AND t.quelle = 'onboarding_call' AND t.status = 'erledigt')
-      ORDER BY termin_am NULLS FIRST, bezahlt_am ASC NULLS LAST
-      LIMIT 300
-    `) as any[];
-    const jetzt = Date.now();
+    ) w
+    WHERE (${filter !== "kein_startgespraech"} OR w.naechster_termin_am IS NULL)
+      AND (${eingeladen !== "nie"} OR w.letzte_einladung IS NULL)
+      AND (${eingeladen !== "aelter7"} OR w.letzte_einladung IS NULL
+           OR w.letzte_einladung < NOW() - (${EINLADUNG_RUHE_TAGE}::int * INTERVAL '1 day'))
+    ORDER BY w.termin_am NULLS FIRST, w.bezahlt_am ASC NULLS LAST
+    LIMIT 1000
+  `) as any[];
+  const jetzt = Date.now();
+  const alleZeilen: WartenderZeile[] = rows.map((z) => ({
+    personId: Number(z.person_id), name: z.name, vorname: z.vorname, telefon: z.primary_phone, email: z.email_ziel ?? z.primary_email,
+    ref: z.ref ?? null, paket: z.paket ?? null, bezahltAm: z.bezahlt_am ?? null,
+    tage: z.bezahlt_am ? Math.floor((jetzt - new Date(z.bezahlt_am).getTime()) / 86_400_000) : null,
+    terminAm: z.termin_am ?? null, eingeladenAm: z.startgespraech_mail_am ?? null,
+    spaeterAm: z.startgespraech_spaeter_am ?? null, verpasst: Number(z.verpasst || 0),
+    betreuerId: z.betreuer_id != null ? Number(z.betreuer_id) : null, betreuer: z.betreuer ?? null,
+    terminGebucht: !!z.naechster_termin_am, naechsterTerminAm: z.naechster_termin_am ?? null,
+    naechsterTerminQuelle: z.naechster_termin_quelle ?? null,
+    letzteEinladung: z.letzte_einladung ?? null, einladungen7: Number(z.einladungen7 || 0),
+  }));
+  // Die Betreuer-Liste zählt VOR dem Betreuer-Filter — sonst stünde im
+  // Auswahlfeld nur noch der eine Name, den man gerade gewählt hat.
+  const zaehler = new Map<number | null, { id: number | null; name: string; anzahl: number }>();
+  for (const z of alleZeilen) {
+    const e = zaehler.get(z.betreuerId) ?? { id: z.betreuerId, name: z.betreuer ?? "Ohne Betreuer", anzahl: 0 };
+    e.anzahl++;
+    zaehler.set(z.betreuerId, e);
+  }
+  const betreuerListe = Array.from(zaehler.values()).sort((a, b) => b.anzahl - a.anzahl || a.name.localeCompare(b.name, "de"));
+  const betreuer = opts.alle ? (opts.betreuer ?? null) : null;
+  const zeilen = betreuer == null ? alleZeilen
+    : alleZeilen.filter((z) => betreuer === "ohne" ? z.betreuerId == null : z.betreuerId === betreuer);
+  return { zeilen, betreuerListe };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE WARTENDEN — bezahlt, kein Startgespräch (22.08.2026, E-022 / K10)
+//
+// `wartendeZaehlen` rechnete „wartend" und „ohne Termin" seit Tagen aus; die
+// Seite warf beide Zahlen weg. Und ein Onboarder konnte einen wartenden
+// Kunden ohne Termin nicht einmal SEHEN — die Einladung brauchte eine
+// personId aus einem bestehenden Termin. 213 Menschen lagen damit außerhalb
+// der Reichweite genau der Abteilung, die sie erreichen soll.
+//
+// E-184 (11.09.2026): Query-Parameter `filter`, `eingeladen`, `betreuer` —
+// ohne Parameter dieselbe Antwort wie bisher (plus die neuen Felder je Zeile,
+// `leitung` und `betreuerListe`). Nichts umbenannt.
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/agent/onboarding/wartende", requireAgent, nurOnboarding, nurMitZusage, async (req: AgentRequest, res: Response) => {
+  try {
+    // E-045: VORHER sahen hier alle (Onboarding-Pool) die komplette Warteliste.
+    // NACHHER: Onboarding/Leitung weiter alles; ein Bonitätsmanager nur die
+    // Wartenden aus dem EIGENEN Bestand (assigned_agent_id = ich).
+    const alle = await siehtAlleWartenden(req.agent!.id);
+    const { zeilen, betreuerListe } = await wartendeLaden({
+      agentId: req.agent!.id, alle,
+      filter: wartendeFilterAus(req.query?.filter),
+      eingeladen: wartendeEingeladenAus(req.query?.eingeladen),
+      betreuer: wartendeBetreuerAus(req.query?.betreuer),
+    });
     res.json({
       ok: true,
-      wartende: zeilen.map((z) => ({
-        personId: Number(z.person_id), name: z.name, vorname: z.vorname, telefon: z.primary_phone, email: z.primary_email,
-        ref: z.ref, paket: z.paket, bezahltAm: z.bezahlt_am ?? null,
-        tage: z.bezahlt_am ? Math.floor((jetzt - new Date(z.bezahlt_am).getTime()) / 86_400_000) : null,
-        terminAm: z.termin_am ?? null, eingeladenAm: z.startgespraech_mail_am ?? null,
-        spaeterAm: z.startgespraech_spaeter_am ?? null, verpasst: Number(z.verpasst || 0),
-      })),
-      ohneTermin: zeilen.filter((z) => !z.termin_am).length,
-      mitTermin: zeilen.filter((z) => !!z.termin_am).length,
+      wartende: zeilen,
+      ohneTermin: zeilen.filter((z) => !z.terminAm).length,
+      mitTermin: zeilen.filter((z) => !!z.terminAm).length,
+      leitung: alle,
+      betreuerListe,
     });
   } catch (err) {
     console.error("[ONBOARDING] wartende:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/**
+ * Der Kern des Einzelversands — ausgezogen am 11.09.2026 (E-184), damit der
+ * Sammelversand denselben Weg nimmt: Person prüfen (bezahlt, wartet, kein
+ * geführtes Gespräch), E-Mail vorhanden, `versandErlaubt`, dann
+ * `versendenUndProtokollieren` mit Akte-Eintrag (`verlaufRef` + `verlaufText`),
+ * bei Erfolg der Stempel `startgespraech_mail_am`.
+ *
+ * `http` sagt der Einzelroute, mit welchem Status sie wie bisher antwortet
+ * (404 „wartet nicht", 409 „keine E-Mail" / Versandregel); 200 heißt: die Mail
+ * wurde versucht, `status` ist das Ergebnis.
+ */
+interface EinladungErgebnis {
+  status: "versandt" | "uebersprungen" | "fehlgeschlagen";
+  grund: string | null;
+  http: 200 | 404 | 409;
+  terminLink: string;
+}
+async function einladungAnWartenden(
+  personId: number, agent: { id: number; name: string }, verlaufText: string,
+): Promise<EinladungErgebnis> {
+  const link = terminLink(personId, "onboarding_einladung");
+  const [p] = (await sqlPool`
+    SELECT p.id, COALESCE(NULLIF(p.first_name, ''), p.contact_name) AS vorname,
+           COALESCE(NULLIF(p.primary_email, ''), (
+             SELECT NULLIF(COALESCE(a.email, a.contact_email, a.billing_email), '')
+             FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL
+             ORDER BY a.created_at DESC LIMIT 1)) AS email,
+           (SELECT a2.ref FROM fiaon_applications a2
+             WHERE a2.person_id = p.id AND a2.merged_into IS NULL AND a2.archived_at IS NULL
+             ORDER BY a2.created_at DESC LIMIT 1) AS ref
+    FROM fiaon_persons p
+    WHERE p.id = ${personId} AND p.merged_into_person_id IS NULL
+      AND EXISTS (SELECT 1 FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL
+            AND a.payment_status = 'paid' AND a.onboarding_stufe = 'wartet_auf_onboarding')
+      AND NOT EXISTS (SELECT 1 FROM fiaon_termine t WHERE t.person_id = p.id AND t.quelle = 'onboarding_call' AND t.status = 'erledigt')
+  `) as any[];
+  if (!p) return { status: "uebersprungen", grund: "Dieser Kunde wartet nicht (mehr) auf ein Startgespräch.", http: 404, terminLink: link };
+  if (!p.email) return { status: "uebersprungen", grund: "Keine E-Mail-Adresse — bitte anrufen und den Terminlink durchgeben.", http: 409, terminLink: link };
+
+  const { versandErlaubt } = await import("../lib/fiaon-versand");
+  const pruefung = await versandErlaubt(personId, "onboarding_einladung");
+  if (!pruefung.erlaubt) return { status: "uebersprungen", grund: pruefung.grund, http: 409, terminLink: link };
+
+  const erg = await versendenUndProtokollieren(
+    "onboarding_einladung",
+    // ── HERKUNFT STATT FOLGENLOSER QUELLE (24.08.2026) ──────────────────
+    // VORHER „onboarding_call" — eine QUELLE, die `terminLink` verworfen hat.
+    // NACHHER der WEG; er landet als `fiaon_termine.herkunft` am Termin.
+    { email: String(p.email), vorname: p.vorname || null, termin_link: link },
+    {
+      personId, verlaufRef: p.ref || null, verlaufText,
+      ausgeloestVon: agent.name, ausgeloestAgentId: agent.id,
+    },
+  );
+  if (erg.status === "versandt") {
+    await sqlPool`UPDATE fiaon_persons SET startgespraech_mail_am = NOW(), updated_at = NOW() WHERE id = ${personId}`.catch(() => {});
+  }
+  const status: EinladungErgebnis["status"] = erg.status === "versandt" ? "versandt"
+    : erg.status === "uebersprungen" ? "uebersprungen" : "fehlgeschlagen";
+  return { status, grund: erg.grund ?? null, http: 200, terminLink: link };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// POST /agent/onboarding/wartende/einladen — SAMMELVERSAND FÜR DIE LEITUNG
+// 11.09.2026 · E-184 · Team-Feedback Punkt 4
+//
+// TEAM-WUNSCH: „… ein Button, mit dem die Vertriebsleitung gleichzeitig an
+//   alle ausgewählten bzw. alle offenen Kunden eine Einladung zum
+//   Startgespräch schickt. Der Versand muss anschließend in der jeweiligen
+//   Kundenakte dokumentiert werden."
+// GEMESSEN 11.09.2026: 324 bezahlte Kunden ohne gebuchtes/geführtes
+//   Startgespräch, davon 295 in den letzten 7 Tagen schon eingeladen; in 14
+//   Tagen bekamen 241 Personen mehr als eine Einladung. Ein Knopf ohne
+//   Wiederholungsschutz hätte dieselbe Mail ein drittes Mal geschickt.
+//
+// Wände: requireAgent, nurOnboarding, nurMitZusage, dazu 404 für alle, die
+//   nicht ALLE Wartenden sehen (Onboarding-Pool, Vertriebsleitung, Admin).
+// Body: { personIds?: number[] (≤ 500), alle?: true, filter?, betreuer?,
+//   eingeladen?, schreiben: boolean }
+//   · Der Server bildet die Kandidatenmenge SELBST (wartendeLaden, dieselbe
+//     SQL wie GET). Bei personIds nur die Schnittmenge — Client-Zustand
+//     wird nie geglaubt.
+//   · schreiben:false = Vorschau { wuerdenGehen, uebersprungen: [{personId,
+//     name, grund}], namen }. schreiben:true = Versand in Schleife, 150 ms
+//     Abstand, Antwort { ok, gesendet, uebersprungen, fehlgeschlagen, meldung }.
+//   · Übersprungen wird, wer: schon einen künftigen Termin hat, keine E-Mail,
+//     keine Bestellung (kein Akte-Eintrag möglich), oder in den letzten
+//     7 Tagen eine versandte Einladung bekam. Der Einzelknopf bleibt frei.
+//
+// MUSS VOR `/wartende/:id/einladung` STEHEN — sonst fängt `:id` das Wort.
+// ═══════════════════════════════════════════════════════════════════════════
+router.post("/agent/onboarding/wartende/einladen", requireAgent, nurOnboarding, nurMitZusage, async (req: AgentRequest, res: Response) => {
+  try {
+    if (!(await siehtAlleWartenden(req.agent!.id))) return res.status(404).json({ ok: false, error: "Nicht gefunden" });
+    const b = req.body ?? {};
+    const personIds: number[] = Array.isArray(b.personIds)
+      ? Array.from(new Set(b.personIds.map((n: any) => Number(n)).filter((n: number) => Number.isInteger(n) && n > 0)))
+      : [];
+    const alleOffenen = b.alle === true;
+    if (personIds.length === 0 && !alleOffenen) return res.status(400).json({ ok: false, error: "Keine Kunden ausgewählt." });
+    if (personIds.length > 500) return res.status(400).json({ ok: false, error: "Höchstens 500 Kunden auf einmal." });
+    const schreiben = b.schreiben === true;
+    // Ohne ausdrücklichen Filter nimmt der Sammelversand nur, wer KEIN
+    // Startgespräch gebucht hat — das ist der Zweck des Knopfes.
+    const filter: WartendeFilter = b.filter === "alle" ? "alle" : "kein_startgespraech";
+
+    const { zeilen } = await wartendeLaden({
+      agentId: req.agent!.id, alle: true, filter,
+      eingeladen: wartendeEingeladenAus(b.eingeladen),
+      betreuer: wartendeBetreuerAus(b.betreuer),
+      personIds: personIds.length > 0 ? personIds : null,
+    });
+
+    const gehen: WartenderZeile[] = [];
+    const uebersprungen: { personId: number; name: string; grund: string }[] = [];
+    const jetzt = Date.now();
+    for (const z of zeilen) {
+      if (z.terminGebucht) {
+        const q = z.naechsterTerminQuelle;
+        const art = q === "onboarding_call" ? "Startgespräch" : q === "inkasso_call" ? "Termin (Inkasso)" : q === "support" ? "Termin (Support)" : q === "gruender" ? "Termin (Gründer)" : "Termin";
+        const wann = z.naechsterTerminAm ? new Date(z.naechsterTerminAm).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", timeZone: "Europe/Berlin" }) : "";
+        uebersprungen.push({ personId: z.personId, name: z.name, grund: q === "onboarding_call" ? "Startgespräch bereits gebucht" : `hat bereits einen ${art}${wann ? ` am ${wann}` : ""} — kein zweiter Termin per Mail` });
+      }
+      else if (!z.email) uebersprungen.push({ personId: z.personId, name: z.name, grund: "keine E-Mail-Adresse — anrufen und Terminlink durchgeben" });
+      else if (!z.ref) uebersprungen.push({ personId: z.personId, name: z.name, grund: "keine Bestellung" });
+      else if (z.einladungen7 > 0) {
+        const vorTagen = z.letzteEinladung ? Math.floor((jetzt - new Date(z.letzteEinladung).getTime()) / 86_400_000) : 0;
+        uebersprungen.push({
+          personId: z.personId, name: z.name,
+          grund: `schon eingeladen ${vorTagen === 0 ? "heute" : vorTagen === 1 ? "gestern" : `vor ${vorTagen} Tagen`} — höchstens eine Einladung je ${EINLADUNG_RUHE_TAGE} Tage`,
+        });
+      } else gehen.push(z);
+    }
+    // Gewählte, die die Kandidatenmenge gar nicht (mehr) enthält: nicht still verschlucken.
+    if (personIds.length > 0) {
+      const drin = new Set(zeilen.map((z) => z.personId));
+      for (const id of personIds) {
+        if (!drin.has(id)) uebersprungen.push({ personId: id, name: `Kunde ${id}`, grund: "wartet nicht (mehr) auf ein Startgespräch" });
+      }
+    }
+
+    if (!schreiben) {
+      return res.json({
+        ok: true, vorschau: true,
+        wuerdenGehen: gehen.length,
+        jeLauf: 60,
+        uebersprungen,
+        namen: gehen.map((z) => z.name),
+      });
+    }
+
+    // Höchstens 60 je Aufruf: Der Versand läuft in der Anfrage, jede Mail braucht
+    // 1–2 s — mehr, und der Proxy bricht die Antwort ab, während der Server weiter
+    // sendet. Der Rest steht in `rest`; die Leitung drückt noch einmal.
+    const HOECHSTENS_JE_LAUF = 60;
+    const jetztGehen = gehen.slice(0, HOECHSTENS_JE_LAUF);
+    const rest = gehen.length - jetztGehen.length;
+    const verlaufText = `Einladung zum Startgespräch versandt von ${req.agent!.name} (Sammelversand an ${jetztGehen.length} Kunden).`;
+    const agent = { id: req.agent!.id, name: req.agent!.name };
+    let gesendet = 0;
+    const fehlgeschlagen: { personId: number; name: string; grund: string }[] = [];
+    for (let i = 0; i < jetztGehen.length; i++) {
+      const z = jetztGehen[i];
+      if (i > 0) await new Promise((r) => setTimeout(r, 150));
+      const erg = await einladungAnWartenden(z.personId, agent, verlaufText);
+      if (erg.status === "versandt") gesendet++;
+      else if (erg.status === "fehlgeschlagen") fehlgeschlagen.push({ personId: z.personId, name: z.name, grund: erg.grund ?? "unbekannt" });
+      else uebersprungen.push({ personId: z.personId, name: z.name, grund: erg.grund ?? "übersprungen" });
+    }
+    console.log(`[ONBOARDING] Sammelversand E-184 durch ${req.agent!.name} (#${req.agent!.id}): ${gesendet} gesendet, ${uebersprungen.length} übersprungen, ${fehlgeschlagen.length} fehlgeschlagen`);
+    const meldung = gesendet === 0
+      ? `Keine Einladung verschickt${uebersprungen.length ? ` — ${uebersprungen.length} übersprungen` : ""}${fehlgeschlagen.length ? `, ${fehlgeschlagen.length} fehlgeschlagen` : ""}.`
+      : `${gesendet} ${gesendet === 1 ? "Einladung" : "Einladungen"} verschickt — jede steht in der Akte des Kunden.${uebersprungen.length ? ` ${uebersprungen.length} übersprungen.` : ""}${fehlgeschlagen.length ? ` ${fehlgeschlagen.length} fehlgeschlagen.` : ""}`;
+    res.json({ ok: true, gesendet, uebersprungen, fehlgeschlagen, rest, meldung: rest > 0 ? `${meldung} ${rest} weitere warten — bitte noch einmal senden.` : meldung });
+  } catch (err) {
+    console.error("[ONBOARDING] wartende/einladen (Sammelversand):", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });
@@ -1403,6 +1704,8 @@ router.get("/agent/onboarding/wartende", requireAgent, nurOnboarding, nurMitZusa
  * Anders als `/person/:id/einladung` braucht das keinen bestehenden Termin —
  * nur: bezahlt, wartet, noch kein geführtes Gespräch. Schreibend genau diese
  * eine Sache, sonst nichts.
+ * Seit 11.09.2026 (E-184) läuft der Kern in `einladungAnWartenden`; Antwort
+ * und Statuscodes sind dieselben wie zuvor.
  */
 router.post("/agent/onboarding/wartende/:id/einladung", requireAgent, nurOnboarding, nurMitZusage, async (req: AgentRequest, res: Response) => {
   try {
@@ -1415,45 +1718,12 @@ router.post("/agent/onboarding/wartende/:id/einladung", requireAgent, nurOnboard
       `) as any[];
       if (!meiner) return res.status(404).json({ ok: false, error: "Dieser Kunde gehört nicht zu deinem Bestand." });
     }
-    const [p] = (await sqlPool`
-      SELECT p.id, COALESCE(NULLIF(p.first_name, ''), p.contact_name) AS vorname,
-             COALESCE(NULLIF(p.primary_email, ''), (
-               SELECT NULLIF(COALESCE(a.email, a.contact_email, a.billing_email), '')
-               FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL
-               ORDER BY a.created_at DESC LIMIT 1)) AS email,
-             (SELECT a2.ref FROM fiaon_applications a2
-               WHERE a2.person_id = p.id AND a2.merged_into IS NULL AND a2.archived_at IS NULL
-               ORDER BY a2.created_at DESC LIMIT 1) AS ref
-      FROM fiaon_persons p
-      WHERE p.id = ${id} AND p.merged_into_person_id IS NULL
-        AND EXISTS (SELECT 1 FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL
-              AND a.payment_status = 'paid' AND a.onboarding_stufe = 'wartet_auf_onboarding')
-        AND NOT EXISTS (SELECT 1 FROM fiaon_termine t WHERE t.person_id = p.id AND t.quelle = 'onboarding_call' AND t.status = 'erledigt')
-    `) as any[];
-    if (!p) return res.status(404).json({ ok: false, error: "Dieser Kunde wartet nicht (mehr) auf ein Startgespräch." });
-    if (!p.email) return res.status(409).json({ ok: false, error: "Keine E-Mail-Adresse — bitte anrufen und den Terminlink durchgeben." });
-
-    const { versandErlaubt } = await import("../lib/fiaon-versand");
-    const pruefung = await versandErlaubt(id, "onboarding_einladung");
-    if (!pruefung.erlaubt) return res.status(409).json({ ok: false, error: pruefung.grund });
-
-    const erg = await versendenUndProtokollieren(
-      "onboarding_einladung",
-      // ── HERKUNFT STATT FOLGENLOSER QUELLE (24.08.2026) ──────────────────
-      // VORHER „onboarding_call" — eine QUELLE, die `terminLink` verworfen hat.
-      // NACHHER der WEG; er landet als `fiaon_termine.herkunft` am Termin.
-      { email: String(p.email), vorname: p.vorname || null, termin_link: terminLink(id, "onboarding_einladung") },
-      {
-        personId: id, verlaufRef: p.ref || null,
-        verlaufText: `Einladung zum Startgespräch versandt von ${req.agent!.name} (aus der Liste der Wartenden).`,
-        ausgeloestVon: req.agent!.name, ausgeloestAgentId: req.agent!.id,
-      },
+    const erg = await einladungAnWartenden(
+      id, { id: req.agent!.id, name: req.agent!.name },
+      `Einladung zum Startgespräch versandt von ${req.agent!.name} (aus der Liste der Wartenden).`,
     );
-    if (erg.status === "versandt") {
-      await sqlPool`UPDATE fiaon_persons SET startgespraech_mail_am = NOW(), updated_at = NOW() WHERE id = ${id}`.catch(() => {});
-    }
-    res.json({ ok: erg.status === "versandt", status: erg.status, grund: erg.grund,
-      terminLink: terminLink(id, "onboarding_einladung") });
+    if (erg.http !== 200) return res.status(erg.http).json({ ok: false, error: erg.grund });
+    res.json({ ok: erg.status === "versandt", status: erg.status, grund: erg.grund, terminLink: erg.terminLink });
   } catch (err) {
     console.error("[ONBOARDING] wartende/einladung:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });

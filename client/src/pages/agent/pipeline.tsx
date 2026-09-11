@@ -103,6 +103,7 @@
 // Regel (Justin): Die erste Zahlung ist immer eine Überweisung – nirgends
 // Lastschrift. Liste: GET /agent/kunden/liste (+ filter=bezahlt für Aktive).
 // ═══════════════════════════════════════════════════════════════════════════
+import { kurzFenster } from "@shared/fiaon-erreichbarkeit";
 import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "wouter";
@@ -144,6 +145,8 @@ export interface Kunde {
   sendeGrund?: string | null;
   fehlendeFelder?: string | null;
   zustimmungFehlt?: string | null;
+  /** E-184: Wunsch-Erreichbarkeit aus dem Antrag („Abends (18–20)“), leer = keine Angabe. */
+  erreichbarkeit?: string | null;
   sendeMoeglich?: boolean;
   sendeText?: string | null;
   sendeTat?: string | null;
@@ -184,7 +187,7 @@ export interface Kunde {
   letzterKontakt: string | null;
   letztesErgebnis: string | null;
   stammdaten: { strasse: string | null; plz: string | null; ort: string | null; land: string | null; geburtsdatum: string | null } | null;
-  zahlung: { referenz: string | null; status: string | null; ref: string | null; empfaenger?: string | null; iban?: string | null; bic?: string | null; klartext?: string | null } | null;
+  zahlung: { referenz: string | null; status: string | null; ref: string | null; empfaenger?: string | null; iban?: string | null; bic?: string | null; betragCents?: number | null; klartext?: string | null } | null;
   // ── E-042: „Rate überfällig – zurückholen“ – gefüllt aus /inkasso/liste, wenn erreichbar ──
   istRate?: boolean;
   rateCents?: number | null;
@@ -199,7 +202,7 @@ export interface Kunde {
   mandatSeit?: string | null;
   vollstaendig?: boolean;
   /** E-162: warum dieser Mensch jetzt oben steht — Art, Alter des Ereignisses, noch ohne Anruf. */
-  hitze?: { art: string; seitMin: number | null; nieGesprochen: boolean } | null;
+  hitze?: { art: string; seitMin: number | null; nieGesprochen: boolean; jetztErreichbar?: boolean } | null;
 }
 
 type Zaehler = Record<string, number>;
@@ -677,6 +680,13 @@ function PipelineInnen() {
     setGeht(new Set());
   }, []);
   useEffect(() => { void arbeitslisteLaden(); }, [arbeitslisteLaden]);
+  // E-184: Die Reihung kennt das Wunschfenster des Kunden (8–12, 12–15, 15–18,
+  // 18–20 Uhr). Damit der Wechsel um 12, 15 und 18 Uhr von selbst sichtbar
+  // wird, lädt die Liste alle zehn Minuten leise nach — nur im sichtbaren Tab.
+  useEffect(() => {
+    const t = setInterval(() => { if (document.visibilityState === "visible") void arbeitslisteLaden(true); }, 10 * 60_000);
+    return () => clearInterval(t);
+  }, [arbeitslisteLaden]);
 
   const laden = useCallback(async (leise = false, nurZaehler = false) => {
     if (!leise) setLaedt(true);
@@ -1060,6 +1070,12 @@ function ArbeitsFokus({ k, gruppe, satz, geht, onAkte, onEntfernen }: {
         <span className="pi-marke">Wert: {preis ? euro0(wert) : "–"} · 12 Raten</span>
         <span className="pi-marke gut">Deine Provision: {preis ? euro0(Math.round(wert * satz)) : "–"}</span>
         <span className="pi-marke still">{wartezeit(k.letzterKontakt)}{k.nichtErreicht > 0 ? ` · ${k.nichtErreicht}× nicht erreicht` : ""}</span>
+        {/* E-184: Wann will der Kunde angerufen werden? Aus dem Antrag; „jetzt außerhalb“ heißt: sein Fenster ist gerade nicht. */}
+        {k.erreichbarkeit && (
+          <span className={`pi-marke${k.hitze?.jetztErreichbar === false ? " still" : " gut"}`} title="So hat der Kunde es im Antrag angegeben.">
+            Erreichbar {kurzFenster(k.erreichbarkeit) || k.erreichbarkeit}{k.hitze?.jetztErreichbar === false ? " · jetzt außerhalb" : ""}
+          </span>
+        )}
       </div>
 
       {/* Justin 24.08.: EIN Knopf statt sieben — „Starten“ öffnet die Akte. */}
@@ -1093,7 +1109,7 @@ function KleineKarte({ k, gruppe, geht, onFokus, onAkte, onEntfernen }: {
           : (k as any).wiederGrund === "wiedervorlage" ? (hitzeText(k) ?? "Wieder dran")
           : (hitzeText(k) ?? info.name)}</small></span>
         <b>{k.name}</b>
-        <span className="pi-ak-fuss">{(k.buchungen ?? []).find((b) => !b.erledigt && b.art === "paket")?.bezeichnung || k.produkt || "kein Paket"} · {wartezeit(k.letzterKontakt)}</span>
+        <span className="pi-ak-fuss">{(k.buchungen ?? []).find((b) => !b.erledigt && b.art === "paket")?.bezeichnung || k.produkt || "kein Paket"} · {wartezeit(k.letzterKontakt)}{kurzFenster(k.erreichbarkeit) ? ` · ${kurzFenster(k.erreichbarkeit)}` : ""}</span>
       </button>
       <span className="pi-ak-tun">
         <button type="button" className="pi-knopf klein" disabled={!k.telefonWaehlbar} onClick={() => anrufen(k.telefonWaehlbar, k.personId, k.name)} title={k.telefonWaehlbar ?? "nicht anrufbar"}><Phone size={13} strokeWidth={1.75} /></button>
@@ -1374,7 +1390,7 @@ export function Strom({ liste, aktiv, setAktiv, erledigt, onAkte, flach, ruhig, 
         <span className="pi-sk-kopf"><i className="pi-glut" /><small>{faellig ? "Rückruf fällig" : STUFE[s].kurz}</small>{fertig && <em><Check size={11} strokeWidth={2.5} /> gebucht</em>}</span>
         <b>{k.name}</b>
         <span className="pi-sk-paket">{s === "rate" ? `Rate${k.rateNr ? ` ${k.rateNr}` : ""}${(k.rateAnzahl ?? 1) > 1 ? ` · ${k.rateAnzahl} offen` : ""} · zurückholen` : `${(k.buchungen ?? []).find((b) => !b.erledigt && b.art === "paket")?.bezeichnung || k.produkt || "kein Paket"}${preis ? ` · ${eur(preis)}` : ""}`}</span>
-        <span className="pi-sk-fuss">{s === "rate" ? `${k.rateCents ? eur(k.rateCents) : "Rate"} überfällig${k.rateFaelligAm ? ` seit ${dtag(k.rateFaelligAm)}` : ""} · ${k.rateListe?.[0] ? (sepaGrund(k.rateListe[0]).ton === "rot" ? "Rücklastschrift" : sepaGrund(k.rateListe[0]).ton === "gelb" ? "kein SEPA" : "offen") : "offen"}` : k.termin ? `${terminText(k.termin.beginn)} · ${k.termin.art}` : k.rueckrufAm ? `Rückruf ${terminText(k.rueckrufAm)}` : relativ(k.zusagedatum) ? `Zusage ${relativ(k.zusagedatum)!.text}` : wartezeit(k.letzterKontakt)}</span>
+        <span className="pi-sk-fuss">{s === "rate" ? `${k.rateCents ? eur(k.rateCents) : "Rate"} überfällig${k.rateFaelligAm ? ` seit ${dtag(k.rateFaelligAm)}` : ""} · ${k.rateListe?.[0] ? (sepaGrund(k.rateListe[0]).ton === "rot" ? "Rücklastschrift" : sepaGrund(k.rateListe[0]).ton === "gelb" ? "kein SEPA" : "offen") : "offen"}` : k.termin ? `${terminText(k.termin.beginn)} · ${k.termin.art}` : k.rueckrufAm ? `Rückruf ${terminText(k.rueckrufAm)}` : relativ(k.zusagedatum) ? `Zusage ${relativ(k.zusagedatum)!.text}` : wartezeit(k.letzterKontakt)}{kurzFenster(k.erreichbarkeit) ? ` · ${kurzFenster(k.erreichbarkeit)}` : ""}</span>
       </button>
     );
   };
@@ -2188,7 +2204,9 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
     const paket = (k.buchungen || []).find((b: any) => b.art === "paket")?.bezeichnung || "";
     const z = k.zahlung || ({} as any);
     const referenz = sitRate?.referenz ?? z.referenz ?? null;
-    const betragCents = sitRate?.betragCents ?? (z.klartext?.match(/Betrag: ([\d.]+,\d{2}) €/)?.[1] ? Math.round(Number(z.klartext.match(/Betrag: ([\d.]+,\d{2}) €/)![1].replace(/\./g, "").replace(",", ".")) * 100) : null);
+    // E-184: der Betrag kommt als Zahl vom Server (Katalogpreis des Pakets); das
+    // Muster über den Klartext bleibt nur als Rückfall für alte Antworten.
+    const betragCents = sitRate?.betragCents ?? z.betragCents ?? (z.klartext?.match(/Betrag: ([\d.]+,\d{2}) €/)?.[1] ? Math.round(Number(z.klartext.match(/Betrag: ([\d.]+,\d{2}) €/)![1].replace(/\./g, "").replace(",", ".")) * 100) : null);
     const faellig = sitRate?.faelligAm ?? z.frist ?? null;
     const zeilen = [
       `Guten Tag${name ? ` ${name}` : ""},`,
@@ -2412,10 +2430,10 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
                     : "Betreuter Kunde ohne offenen Schritt. Eine kurze Notiz nach jedem Kontakt hält die Akte lebendig."}
                 </p>
               </div>
-              {(k as any).erreichbarkeit && (
+              {k.erreichbarkeit && (
                 <p className="pi-fussnote" style={{ color: "#93c5fd" }}
                    title="So hat der Kunde es im Antrag angegeben.">
-                  Wunsch-Erreichbarkeit: {(k as any).erreichbarkeit}
+                  Wunsch-Erreichbarkeit: {k.erreichbarkeit}{k.hitze?.jetztErreichbar === false ? " — gerade außerhalb seines Fensters" : ""}
                 </p>
               )}
               <div className="pi-situation-tun">
@@ -4246,13 +4264,44 @@ function VertragsLuecke({ k, melden, onNachtragen }: {
   if (!k.fehlendeFelder) return null;
   const zustimmungen = (k.zustimmungFehlt || "").split(", ").filter(Boolean);
   const sachangaben = k.fehlendeFelder.split(", ").filter((f) => f.trim() && !zustimmungen.includes(f.trim()));
-  const linkSenden = async () => {
+  // ── E-184 (Team-Feedback 3): den Link direkt senden — per E-Mail oder WhatsApp ──
+  const linkSenden = async (weg: "mail" | "whatsapp") => {
     setLaeuft(true);
-    const r = await api(`/agent/crm/kunden/${k.personId}/zustimmungs-link`, { method: "POST" });
+    const r = await api(`/agent/crm/kunden/${k.personId}/zustimmungs-link`, { method: "POST", body: JSON.stringify({ weg }) });
     setLaeuft(false);
     if (!r.ok) { melden("schlecht", "Nicht möglich", r.json?.error || "Bitte erneut versuchen."); return; }
     setLink(r.json.link ?? null);
-    melden(r.json.gesendet ? "gut" : "schlecht", r.json.gesendet ? "Link verschickt" : "Mail nicht zugestellt", r.json.meldung);
+    if (weg === "mail") melden(r.json.gesendet ? "gut" : "schlecht", r.json.gesendet ? "Link verschickt" : "Mail nicht zugestellt", r.json.meldung);
+  };
+  const waNummer = (k.telefonWaehlbar || "").replace(/[^\d]/g, "");
+  const perWhatsApp = async () => {
+    if (!waNummer) { melden("schlecht", "Keine Nummer", "Ohne Telefonnummer gibt es keinen WhatsApp-Chat. Trag sie unter „Daten“ nach."); return; }
+    // Der Link entsteht NUR auf dem Server, auf Klick, mit Vermerk — er liegt
+    // nie vorab in der Kartenantwort (30 Tage gültig, ohne Anmeldung).
+    // Das Fenster geht SYNCHRON auf (sonst blockt es der Browser), die Adresse
+    // kommt nach der Antwort hinein.
+    const fenster = window.open("", "_blank", "noopener,noreferrer");
+    setLaeuft(true);
+    const r = await api(`/agent/crm/kunden/${k.personId}/zustimmungs-link`, { method: "POST", body: JSON.stringify({ weg: "whatsapp" }) });
+    setLaeuft(false);
+    const url: string | null = r.ok ? (r.json.link ?? null) : null;
+    if (!url) { fenster?.close(); melden("schlecht", "Nicht möglich", r.json?.error || "Bitte erneut versuchen."); return; }
+    setLink(url);
+    const name = String(k.name || "").trim();
+    const paket = (k.buchungen || []).find((b) => b.art === "paket")?.bezeichnung || k.produkt || "";
+    const text = [
+      `Guten Tag${name ? ` ${name}` : ""},`,
+      "",
+      `für Ihren Vertrag${paket ? ` (${paket})` : ""} fehlt noch Ihre Bestätigung zu: ${zustimmungen.join(", ")}.`,
+      "",
+      `Bitte hier bestätigen — das dauert zwei Klicks: ${url}`,
+      "",
+      "Freundliche Grüße",
+      k.betreuer ? `${k.betreuer}, FIAON` : "FIAON",
+    ].join("\n");
+    const ziel = `https://wa.me/${waNummer}?text=${encodeURIComponent(text)}`;
+    if (fenster) fenster.location.href = ziel; else window.open(ziel, "_blank", "noopener,noreferrer");
+    melden("info", "WhatsApp geöffnet", "Die Nachricht mit dem Link steht fertig im Chat — abschicken musst du sie selbst.");
   };
   return (
     <span className="pi-stapel breit">
@@ -4272,9 +4321,14 @@ function VertragsLuecke({ k, melden, onNachtragen }: {
       </span>
       {zustimmungen.length > 0 && (
         <>
-          <button type="button" className="pi-link" style={{ justifySelf: "start", alignSelf: "flex-start" }} onClick={() => void linkSenden()} disabled={laeuft} title="Zustimmungen darf nur der Kunde selbst geben — dieser Link führt ihn hin.">
-            {laeuft ? "Sende …" : "Zustimmungs-Link an den Kunden senden"}
-          </button>
+          <span style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+            <button type="button" className="pi-link" onClick={() => void linkSenden("mail")} disabled={laeuft} title="Zustimmungen darf nur der Kunde selbst geben — die Mail führt ihn hin (Link 30 Tage gültig).">
+              {laeuft ? "Sende …" : "Zustimmungs-Link per E-Mail senden"}
+            </button>
+            <button type="button" className="pi-link" onClick={() => void perWhatsApp()} disabled={laeuft || !waNummer} title={waNummer ? "Öffnet WhatsApp mit dem fertigen Text samt Link." : "Keine Telefonnummer — unter „Daten“ nachtragen."}>
+              Per WhatsApp
+            </button>
+          </span>
           {link && <input readOnly value={link} onFocus={(e) => e.currentTarget.select()} className="pi-luecke-link" aria-label="Zustimmungs-Link zum Kopieren" />}
         </>
       )}

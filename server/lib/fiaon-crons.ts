@@ -321,7 +321,7 @@ export async function laufMitHistorie<T>(
  */
 export const LAUF_FOLGEN: Record<string, { zweck: string; folge: string; fenster: number }> = {
   "followup-und-termine": {
-    zweck: "Einstufung, Zuteilung, Eskalation überfälliger Zahlungszusagen, Nachschub",
+    zweck: "Einstufung, Zuteilung herrenloser Zahlungsmelder, Eskalation überfälliger Zahlungszusagen",
     folge: "Bezahlbereite Kunden liegen in niemandes Liste, gebrochene Zusagen werden "
       + "nicht eskaliert, und die Stufen veralten.",
     fenster: 24,
@@ -387,7 +387,7 @@ export const LAUF_FOLGEN: Record<string, { zweck: string; folge: string; fenster
     fenster: 24,
   },
   "followup-und-termine-tageswerk": {
-    zweck: "Das Tageswerk im Folgelauf: Zuteilung, Eskalation, Nachschub (einmal täglich)",
+    zweck: "Das Tageswerk im Folgelauf: Zuteilung, Eskalation (einmal täglich; der alte Nachschub ist seit 11.09.2026 abgeschaltet)",
     folge: "Gebrochene Zahlungszusagen werden nicht eskaliert und herrenlose Kunden "
       + "nicht verteilt. GENAU DIESER Lauf stand im August 15 Tage still.",
     fenster: 24,

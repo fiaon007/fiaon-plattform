@@ -302,6 +302,18 @@
 .mb-upload label:hover{border-color:var(--blau);color:var(--text)}
 .mb-upload input[type=file]{display:none}
 .mb-upload .gewaehlt{font:600 11px/1 'JetBrains Mono',monospace;color:var(--blau-tief);max-width:46%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* E-177 (11.09.2026): mehrere Dateien je Feld — Titel und Hinweis links, Zähler rechts, Liste darunter.
+   Der Hinweis („ein neuer Upload ersetzt den vorigen“) steht in voller Textfarbe: Er soll gelesen werden. */
+.mb-upload-feld{display:flex;flex-direction:column;gap:6px}
+.mb-upload .mb-upload-text{display:flex;flex-direction:column;gap:3px;min-width:0}
+.mb-upload .mb-upload-text>span{color:var(--text);font-weight:600}
+.mb-upload .mb-upload-text small{font:400 12px/1.45 'Inter',sans-serif;color:var(--text)}
+.mb-upload .gewaehlt{flex:none}
+.mb-upload-liste{list-style:none;margin:0;padding:0 4px 0 13px;display:flex;flex-direction:column;gap:2px}
+.mb-upload-liste li{display:flex;align-items:center;justify-content:space-between;gap:8px;font:500 12px/1.4 'Inter',sans-serif;color:var(--text)}
+.mb-upload-liste li span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mb-upload-liste button{flex:none;border:0;background:none;color:var(--text-leise);font:500 16px/1 'Inter',sans-serif;padding:3px 7px;border-radius:6px;cursor:pointer}
+.mb-upload-liste button:hover{color:var(--text);background:var(--flaeche-still)}
 
 /* Pflicht-Karte (Startgespräch) */
 .mb-pflicht{background:linear-gradient(135deg,color-mix(in srgb,var(--blau) 9%,#fff),#fff);border:1px solid color-mix(in srgb,var(--blau) 22%,transparent);border-radius:var(--r-gross);box-shadow:var(--sch-hoch),var(--glanz);padding:22px 26px;display:grid;grid-template-columns:1fr auto;gap:18px;align-items:center}

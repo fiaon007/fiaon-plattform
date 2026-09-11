@@ -1101,13 +1101,31 @@ function Verlaengerung({ refKunde, raten }: { refKunde: string; raten: number })
 }
 
 // ── Upload: direkt an den bestehenden Endpunkt /upload-kyc (multipart) ──────
+// ── MEHRERE DATEIEN JE UNTERLAGE (11.09.2026, E-177) ──────────────────────
+// Bis heute nahm jedes Feld genau eine Datei, und jeder Upload ersetzte den
+// vorigen. Dogan Cengiz lud am 10.09. erst den August, eine Minute später den
+// Juni hoch — in der Akte blieb nur der Juni. Jetzt nimmt jedes Feld mehrere
+// Dateien, und der Server bindet sie zu EINER PDF (server/lib/fiaon-pdf-binden.ts,
+// dieselbe Bindung wie im Betreuerportal). Eine zweite Auswahl hängt an, statt
+// die erste zu verwerfen — am Handy wählen viele Menschen Datei für Datei.
+// Grenzen wie auf dem Server: 25 MB je Datei, zehn Dateien je Upload.
+const UPLOAD_MAX_DATEIEN = 10;
+const UPLOAD_MAX_MB = 25;
+type UploadFeld = "bankStatement" | "idCard" | "schufaDoc";
+const UPLOAD_LEER: Record<UploadFeld, File[]> = { bankStatement: [], idCard: [], schufaDoc: [] };
 function Upload({ refKunde, fehlt }: { refKunde: string; fehlt: { kontoauszug: boolean; ausweis: boolean; auskunft: boolean } }) {
-  const [dateien, setDateien] = useState<{ bankStatement?: File; idCard?: File; schufaDoc?: File }>({});
+  const [dateien, setDateien] = useState<Record<UploadFeld, File[]>>(UPLOAD_LEER);
   const [laeuft, setLaeuft] = useState(false);
   const [meldung, setMeldung] = useState<{ ton: "gut" | "fehler" | "warnung"; text: string } | null>(null);
-  const felder: { key: "bankStatement" | "idCard" | "schufaDoc"; label: string; zeigen: boolean; hinweis?: string }[] = [
-    { key: "bankStatement", label: "Kontoauszug (PDF oder Foto)", zeigen: fehlt.kontoauszug },
-    { key: "idCard", label: "Ausweis oder Reisepass (PDF oder Foto)", zeigen: fehlt.ausweis },
+  const felder: { key: UploadFeld; label: string; zeigen: boolean; hinweis: string }[] = [
+    {
+      key: "bankStatement", label: "Kontoauszug der letzten drei Monate (PDF oder Foto)", zeigen: fehlt.kontoauszug,
+      hinweis: "Wählen Sie alle drei Monate auf einmal aus — ein neuer Upload ersetzt den vorigen.",
+    },
+    {
+      key: "idCard", label: "Ausweis oder Reisepass (PDF oder Foto)", zeigen: fehlt.ausweis,
+      hinweis: "Vorder- und Rückseite zusammen auswählen — ein neuer Upload ersetzt den vorigen.",
+    },
     // Die Auskunft beschafft FIAON — das Feld ist ein Angebot für Kunden, die schon eine haben, keine Aufforderung.
     // 02.09.2026 (Daniel: „Das Bild von der Schufa laden so viele hoch"): Der
     // Satz „Ein Handyfoto genügt" steht über allen drei Feldern. Für Ausweis
@@ -1118,19 +1136,41 @@ function Upload({ refKunde, fehlt }: { refKunde: string; fehlt: { kontoauszug: b
       key: "schufaDoc",
       label: "Eigene Bonitätsauskunft — nur falls Sie schon eine haben (optional)",
       zeigen: fehlt.auskunft,
-      hinweis: "Gemeint ist die vollständige Datenkopie nach Art. 15 DSGVO (kostenlos, meist mehrere Seiten) — bitte alle Seiten. Ein Foto oder Screenshot der reinen Score-Anzeige aus einer App können wir nicht verwenden.",
+      hinweis: "Gemeint ist die vollständige Datenkopie nach Art. 15 DSGVO (kostenlos, meist mehrere Seiten) — bitte alle Seiten auf einmal auswählen. Ein Foto oder Screenshot der reinen Score-Anzeige aus einer App können wir nicht verwenden.",
     },
   ];
   const sichtbar = felder.filter((f) => f.zeigen);
   if (sichtbar.length === 0) return null;
+  const gesamt = sichtbar.reduce((summe, f) => summe + dateien[f.key].length, 0);
+  const hinzufuegen = (key: UploadFeld, auswahl: File[]) => {
+    if (!auswahl.length) return;
+    const grenze = UPLOAD_MAX_MB * 1024 * 1024;
+    const zuGross = auswahl.filter((d) => d.size > grenze);
+    const vorhanden = dateien[key];
+    // Dieselbe Datei zweimal gewählt? Nur einmal übernehmen.
+    const neu = auswahl.filter((d) => d.size <= grenze
+      && !vorhanden.some((v) => v.name === d.name && v.size === d.size && v.lastModified === d.lastModified));
+    const passt = neu.slice(0, Math.max(0, UPLOAD_MAX_DATEIEN - gesamt));
+    setDateien({ ...dateien, [key]: [...vorhanden, ...passt] });
+    const saetze: string[] = [];
+    if (zuGross.length) saetze.push(`${zuGross.map((d) => `„${d.name}“`).join(", ")} ${zuGross.length === 1 ? "ist" : "sind"} größer als ${UPLOAD_MAX_MB} MB. Bitte fotografieren Sie die Seite mit geringerer Auflösung oder laden Sie eine kleinere PDF-Datei hoch.`);
+    if (passt.length < neu.length) saetze.push(`Höchstens ${UPLOAD_MAX_DATEIEN} Dateien auf einmal — ${neu.length - passt.length === 1 ? "eine Datei wurde" : `${neu.length - passt.length} Dateien wurden`} nicht übernommen.`);
+    setMeldung(saetze.length ? { ton: "fehler", text: saetze.join(" ") } : null);
+  };
+  const entfernen = (key: UploadFeld, i: number) => setDateien({ ...dateien, [key]: dateien[key].filter((_, j) => j !== i) });
   const senden = async () => {
     const fd = new FormData(); fd.append("ref", refKunde);
-    let n = 0; for (const f of sichtbar) { const d = dateien[f.key]; if (d) { fd.append(f.key, d); n++; } }
+    let n = 0; for (const f of sichtbar) for (const d of dateien[f.key]) { fd.append(f.key, d); n++; }
     if (!n) { setMeldung({ ton: "fehler", text: "Bitte wählen Sie zuerst eine Datei aus." }); return; }
+    // Die Demo zeigt Platzhalterdaten — hochgeladen wird dort nichts.
+    if (DEMO) { setMeldung({ ton: "gut", text: `In der Demo wird nichts hochgeladen. Im echten Bereich gingen jetzt ${n === 1 ? "eine Datei" : `${n} Dateien`} an FIAON.` }); return; }
     setLaeuft(true); setMeldung(null);
-    const r = await fetch("/api/fiaon/upload-kyc", { method: "POST", body: fd, credentials: "include" });
-    const j = await r.json().catch(() => null); setLaeuft(false);
-    if (r.ok && j?.ok !== false) {
+    // Mehrere Dateien sind am Handy schnell 30 MB. Reißt die Verbindung ab,
+    // soll der Knopf nicht für immer „Lädt hoch …“ sagen.
+    const r = await fetch("/api/fiaon/upload-kyc", { method: "POST", body: fd, credentials: "include" }).catch(() => null);
+    const j = r ? await r.json().catch(() => null) : null; setLaeuft(false);
+    if (r?.ok && j?.ok !== false) {
+      setDateien(UPLOAD_LEER);
       // ── DER HINWEIS MUSS STEHEN BLEIBEN (02.09.2026) ────────────────────
       // Die Prüfung erkennt eine unbrauchbare Datei und schickt einen Satz mit
       // — der wurde hier nach 2,2 Sekunden vom Neuladen weggewischt. Der Kunde
@@ -1145,22 +1185,38 @@ function Upload({ refKunde, fehlt }: { refKunde: string; fehlt: { kontoauszug: b
       });
       if (!auffaellig) setTimeout(() => window.location.reload(), 2200);
     }
-    else setMeldung({ ton: "fehler", text: j?.error || "Der Upload hat nicht geklappt. Bitte versuchen Sie es erneut." });
+    else setMeldung({ ton: "fehler", text: j?.error || (r ? "Der Upload hat nicht geklappt. Bitte versuchen Sie es erneut." : "Keine Verbindung zum Server. Bitte prüfen Sie Ihre Internetverbindung und versuchen Sie es erneut.") });
   };
   return (
     <div className="mb-karte" style={{ marginTop: 16 }}>
       <h4 style={{ fontSize: 15 }}>Jetzt einreichen</h4>
-      <p style={{ margin: "4px 0 0", fontSize: 12.8, color: "var(--text-leise)" }}>PDF, JPG oder PNG, bis 25 MB je Datei. Ein Handyfoto genügt, wenn alles lesbar ist — alle vier Ecken im Bild. iPhone-Fotos im Format HEIC können wir nicht lesen; die Fotos-App erzeugt über „Teilen → Drucken → Als PDF sichern“ in zehn Sekunden eine passende Datei.</p>
+      <p style={{ margin: "4px 0 0", fontSize: 12.8, color: "var(--text-leise)" }}>PDF, JPG oder PNG, bis 25 MB je Datei und bis zu zehn Dateien auf einmal — mehrere Dateien einer Unterlage legen wir als ein Dokument ab. Ein Handyfoto genügt, wenn alles lesbar ist — alle vier Ecken im Bild. iPhone-Fotos im Format HEIC können wir nicht lesen; die Fotos-App erzeugt über „Teilen → Drucken → Als PDF sichern“ in zehn Sekunden eine passende Datei.</p>
       <div className="mb-upload">
-        {sichtbar.map((f) => (
-          <label key={f.key}>
-            <span>{f.label}</span>
-            {f.hinweis && <span style={{ display: "block", fontSize: 12, lineHeight: 1.45, color: "var(--text-leise)", fontWeight: 400, marginTop: 2 }}>{f.hinweis}</span>}
-            <span className="gewaehlt">{dateien[f.key]?.name || "Datei wählen"}</span>
-            <input type="file" accept=".pdf,image/*" onChange={(e) => setDateien({ ...dateien, [f.key]: e.target.files?.[0] })} /></label>
-        ))}
+        {sichtbar.map((f) => {
+          const liste = dateien[f.key];
+          return (
+            <div key={f.key} className="mb-upload-feld">
+              <label>
+                <span className="mb-upload-text"><span>{f.label}</span><small>{f.hinweis}</small></span>
+                <span className="gewaehlt">{liste.length === 0 ? "Dateien wählen" : liste.length === 1 ? "1 Datei gewählt" : `${liste.length} Dateien gewählt`}</span>
+                {/* value zurücksetzen, damit dieselbe Datei nach dem Entfernen wieder gewählt werden kann */}
+                <input type="file" multiple accept=".pdf,image/*" onChange={(e) => { hinzufuegen(f.key, Array.from(e.target.files ?? [])); e.target.value = ""; }} />
+              </label>
+              {liste.length > 0 && (
+                <ul className="mb-upload-liste">
+                  {liste.map((d, i) => (
+                    <li key={`${d.name}-${d.size}-${d.lastModified}`}>
+                      <span>{d.name}</span>
+                      <button type="button" aria-label={`${d.name} aus der Auswahl entfernen`} onClick={() => entfernen(f.key, i)}>×</button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          );
+        })}
       </div>
-      <div style={{ marginTop: 12 }}><button className="mb-knopf klein" type="button" disabled={laeuft} onClick={senden}>{laeuft ? "Lädt hoch …" : "Hochladen"}</button></div>
+      <div style={{ marginTop: 12 }}><button className="mb-knopf klein" type="button" disabled={laeuft} onClick={senden}>{laeuft ? "Lädt hoch …" : gesamt > 1 ? `${gesamt} Dateien hochladen` : "Hochladen"}</button></div>
       {meldung && <div className={`mb-meldung ${meldung.ton}`}>{meldung.text}</div>}
     </div>
   );

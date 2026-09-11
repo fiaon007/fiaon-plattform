@@ -69,7 +69,7 @@ DER WEG FÜR NEUE KUNDEN
 Die Bonitätsauskunft (${SCHUFA_PREIS_EURO.toFixed(2).replace(".", ",")} €) wird im Kundenbereich angeboten, sobald das Paket bezahlt ist.
 
 DER KUNDENBEREICH (fiaon.com/login → „Mein Bereich“)
-Übersicht mit Fahrplan (Etappen: Startgespräch, Unterlagen, Bonitätsauskunft, Analyse, Schreiben, Girokonto, Kreditkarte), Meine Bonität, Konto verbinden (Kontoanbindung kommt), Meine Finanzen (Auswertung des Kontoauszugs), Meine Schreiben, Unterlagen (Kontoauszug der letzten drei Monate, Ausweis — Handyfoto genügt), Meine Vorteile, Mein Konto, Abo & Zahlungen (Raten, Zahlungskalender, Abo kündigen), Passwort & Sicherheit, Hilfe (Anliegen an die Ansprechpartnerin). Passwort vergessen: fiaon.com/passwort-vergessen.
+Übersicht mit Fahrplan (Etappen: Startgespräch, Unterlagen, Bonitätsauskunft, Analyse, Schreiben, Girokonto, Kreditkarte), Meine Bonität, Konto verbinden (Kontoanbindung kommt), Meine Finanzen (Auswertung des Kontoauszugs), Meine Schreiben, Unterlagen (Kontoauszug der letzten drei Monate, Ausweis — Handyfoto genügt; je Unterlage mehrere Dateien auf einmal auswählen, z. B. drei Monatsauszüge oder Vorder- und Rückseite, sie werden zu einem Dokument zusammengefügt — ein neuer Upload ersetzt den vorigen), Meine Vorteile, Mein Konto, Abo & Zahlungen (Raten, Zahlungskalender, Abo kündigen), Passwort & Sicherheit, Hilfe (Anliegen an die Ansprechpartnerin). Passwort vergessen: fiaon.com/passwort-vergessen.
 
 DAS STARTGESPRÄCH (Agenda des Mitarbeiters)
 ${agenda}

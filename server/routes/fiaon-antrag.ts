@@ -53,6 +53,9 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
     fileSize: 25 * 1024 * 1024, // 25MB max per file
+    // E-177 (11.09.2026): mehrere Dateien je Unterlage — höchstens zehn je
+    // Upload über alle Felder zusammen, wie im Betreuerportal (.array("datei", 10)).
+    files: 10,
   },
   // 27.08.2026: Nahm bis heute AUSSCHLIESSLICH PDF an — der Kundenbereich
   // verspricht daneben „PDF, JPG oder PNG, ein Handyfoto genügt". Jedes Foto
@@ -3149,14 +3152,20 @@ router.post("/number-update/:token", async (req, res) => {
 
 // Upload KYC documents
 router.post("/upload-kyc", (req, res, next) => {
+  // E-177 (11.09.2026): je Unterlage mehrere Dateien — drei Monate Kontoauszug,
+  // Vorder- und Rückseite des Ausweises. Unten werden sie zu EINER PDF gebunden.
+  // Die Obergrenze über alle Felder (zehn) steht an `upload` oben.
   upload.fields([
-    { name: 'bankStatement', maxCount: 1 },
-    { name: 'idCard', maxCount: 1 },
-    { name: 'schufaDoc', maxCount: 1 },
+    { name: 'bankStatement', maxCount: 10 },
+    { name: 'idCard', maxCount: 10 },
+    { name: 'schufaDoc', maxCount: 10 },
   ])(req, res, (err) => {
     if (err) {
       if (err.code === 'LIMIT_FILE_SIZE') {
-        return res.status(400).json({ error: "Diese Datei ist größer als 25 MB. Bitte fotografieren Sie die Seite noch einmal mit geringerer Auflösung oder laden Sie eine kleinere PDF-Datei hoch." });
+        return res.status(400).json({ error: "Eine der gewählten Dateien ist größer als 25 MB. Bitte fotografieren Sie die Seite noch einmal mit geringerer Auflösung oder laden Sie eine kleinere PDF-Datei hoch." });
+      }
+      if (err.code === 'LIMIT_FILE_COUNT' || err.code === 'LIMIT_UNEXPECTED_FILE') {
+        return res.status(400).json({ error: "Bitte wählen Sie höchstens zehn Dateien auf einmal aus." });
       }
       return res.status(400).json({ error: err.message || "Upload-Fehler" });
     }
@@ -3235,23 +3244,60 @@ router.post("/upload-kyc", (req, res, next) => {
         return pdf;
       } catch (e) {
         console.error("[FIAON-KYC] Wandlung fehlgeschlagen:", String(e).slice(0, 160));
-        throw new Error("Dieses Bild konnten wir nicht verarbeiten. Bitte versuchen Sie es mit einem anderen Foto oder laden Sie eine PDF-Datei hoch.");
+        // kundenText: Dieser Satz kommt beim Kunden an (catch am Ende der Route).
+        // Bis 11.09.2026 wurde er dort zu „Fehler beim Hochladen der Dokumente“.
+        const text = "Dieses Bild konnten wir nicht verarbeiten. Bitte versuchen Sie es mit einem anderen Foto oder laden Sie eine PDF-Datei hoch.";
+        throw Object.assign(new Error(text), { kundenText: f.originalname ? `„${f.originalname}“: ${text}` : text });
       }
     };
 
-    if (files.bankStatement && files.bankStatement[0]) {
+    // ══════════════════════════════════════════════════════════════════════
+    // MEHRERE DATEIEN JE UNTERLAGE → EINE PDF (11.09.2026, E-177)
+    //
+    // Jedes Feld nahm genau eine Datei, und jeder Upload überschrieb die
+    // Spalte. Dogan Cengiz (FIAON-MT70UE7U-CK6B) lud am 10.09. um 10:20 den
+    // August und um 10:21 den Juni hoch — in der Akte liegt nur der Juni.
+    // Jetzt: erst jede Datei für sich zur PDF (Fotos wie bisher), dann in der
+    // gewählten Reihenfolge zu EINER Datei gebunden — mit derselben Funktion
+    // wie im Betreuerportal (server/lib/fiaon-pdf-binden.ts). Eine einzelne
+    // Datei geht unverändert durch, wie bisher.
+    //
+    // Gebunden wird VOR dem Speichern: Scheitert eine Datei (verschlüsselt,
+    // unlesbar), wird nichts geschrieben, und der Kunde erfährt, welche. Die
+    // automatische Prüfung weiter unten bekommt genau die gebundene PDF, die
+    // auch in der Spalte landet.
+    // ══════════════════════════════════════════════════════════════════════
+    const { zuEinerPdf } = await import("../lib/fiaon-pdf-binden");
+    type KycFeld = "bankStatement" | "idCard" | "schufaDoc";
+    const gebunden: Partial<Record<KycFeld, number>> = {};
+    const feldAlsPdf = async (feld: KycFeld): Promise<Buffer | null> => {
+      const liste = files?.[feld] ?? [];
+      if (liste.length === 0) return null;
+      if (liste.length === 1) return alsPdf(liste[0]);
+      const teile: { buffer: Buffer; name: string }[] = [];
+      for (const f of liste) teile.push({ buffer: await alsPdf(f), name: f.originalname || "Datei" });
+      const pdf = await zuEinerPdf(teile);
+      gebunden[feld] = liste.length;
+      console.log(`[FIAON-KYC] ${ref} ${feld}: ${liste.length} Dateien zu einer PDF gebunden (${Math.round(pdf.length / 1024)} KB)`);
+      return pdf;
+    };
+
+    const kontoauszugPdf = await feldAlsPdf("bankStatement");
+    if (kontoauszugPdf) {
       updates.push('bank_statement_pdf = $bankStatementPdf');
-      values.bankStatementPdf = await alsPdf(files.bankStatement[0]);
+      values.bankStatementPdf = kontoauszugPdf;
     }
     
-    if (files.idCard && files.idCard[0]) {
+    const ausweisPdf = await feldAlsPdf("idCard");
+    if (ausweisPdf) {
       updates.push('id_card_pdf = $idCardPdf');
-      values.idCardPdf = await alsPdf(files.idCard[0]);
+      values.idCardPdf = ausweisPdf;
     }
 
-    if (files.schufaDoc && files.schufaDoc[0]) {
+    const auskunftPdf = await feldAlsPdf("schufaDoc");
+    if (auskunftPdf) {
       updates.push('schufa_pdf = $schufaPdf');
-      values.schufaPdf = await alsPdf(files.schufaDoc[0]);
+      values.schufaPdf = auskunftPdf;
     }
     
     if (updates.length === 0) {
@@ -3329,8 +3375,16 @@ router.post("/upload-kyc", (req, res, next) => {
     // Akteneintrag (der Betreuer sieht es), Aufgabe an die Verwaltung (die
     // prüft), und die Antwort nennt die Frist.
     // ══════════════════════════════════════════════════════════════════════
-    const was = [files.bankStatement ? "Kontoauszug" : null, files.idCard ? "Ausweis" : null, files.schufaDoc ? "eigene Bonitätsauskunft" : null]
+    // E-177: Wurden mehrere Dateien gebunden, stehen Zahl und Hinweis in der
+    // Akte (Verlauf, Aufgabe) und in der Antwort an den Kunden.
+    const mitZahl = (label: string, feld: KycFeld) =>
+      gebunden[feld] ? `${label} (${gebunden[feld]} Dateien zu einer PDF gebunden)` : label;
+    const was = [files.bankStatement ? mitZahl("Kontoauszug", "bankStatement") : null, files.idCard ? mitZahl("Ausweis", "idCard") : null, files.schufaDoc ? mitZahl("eigene Bonitätsauskunft", "schufaDoc") : null]
       .filter(Boolean).join(", ");
+    const imDativ: Record<KycFeld, string> = { bankStatement: "zum Kontoauszug", idCard: "zum Ausweis", schufaDoc: "zur Bonitätsauskunft" };
+    const gebundenSatz = (Object.keys(gebunden) as KycFeld[])
+      .map((feld) => `Ihre ${gebunden[feld]} Dateien ${imDativ[feld]} liegen als ein Dokument in Ihrer Akte. `)
+      .join("");
 
     // ── AUTOMATISCHE DOKUMENTPRÜFUNG (P9, 01.09.2026) ─────────────────────
     // Synchron mit hartem Timeout: Der Kunde erfährt SOFORT, wenn die Datei
@@ -3390,9 +3444,10 @@ router.post("/upload-kyc", (req, res, next) => {
       ok: true, 
       // P9: Steht ein Sofort-Befund an, führt ER die Meldung an — der Kunde
       // soll die falsche Datei JETZT tauschen, nicht in zwei Werktagen.
-      message: (kundenSaetze.length ? `${kundenSaetze.join(" ")} ` : "") + (files.bankStatement
-        ? "Eingegangen. Ihr Kontoauszug wird jetzt ausgewertet — in wenigen Minuten sehen Sie das Ergebnis unter „Ihre Finanzen“. Die Prüfung Ihrer Unterlagen dauert bis zu zwei Werktage."
-        : "Eingegangen. Wir prüfen Ihre Unterlagen innerhalb von zwei Werktagen und melden uns."),
+      // E-177: gebundenSatz sagt, dass mehrere Dateien als EIN Dokument ankamen.
+      message: (kundenSaetze.length ? `${kundenSaetze.join(" ")} ` : "") + "Eingegangen. " + gebundenSatz + (files.bankStatement
+        ? "Ihr Kontoauszug wird jetzt ausgewertet — in wenigen Minuten sehen Sie das Ergebnis unter „Ihre Finanzen“. Die Prüfung Ihrer Unterlagen dauert bis zu zwei Werktage."
+        : "Wir prüfen Ihre Unterlagen innerhalb von zwei Werktagen und melden uns."),
       pruefungen,
       hasBankStatement: !!hasBankStatement,
       hasIdCard: !!hasIdCard,
@@ -3402,7 +3457,16 @@ router.post("/upload-kyc", (req, res, next) => {
       reuploadBankStatement: files.bankStatement ? false : !!(currentApp.reupload_bank_statement),
       reuploadIdCard: files.idCard ? false : !!(currentApp.reupload_id_card),
     });
-  } catch (err) {
+  } catch (err: any) {
+    // E-177: Sätze, die für den Kunden geschrieben sind, kommen bei ihm an.
+    // Bis 11.09.2026 wurde hier auch „Dieses Bild konnten wir nicht
+    // verarbeiten …“ zu „Fehler beim Hochladen der Dokumente“.
+    const { BindeFehler, bindeSatz } = await import("../lib/fiaon-pdf-binden");
+    if (err instanceof BindeFehler) {
+      console.warn(`[FIAON-KYC] Binden abgewiesen: ${err.message}`);
+      return res.status(400).json({ error: bindeSatz(err, "sie") });
+    }
+    if (err?.kundenText) return res.status(400).json({ error: String(err.kundenText) });
     console.error("[FIAON-KYC]", err);
     res.status(500).json({ error: "Fehler beim Hochladen der Dokumente" });
   }

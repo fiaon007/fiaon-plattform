@@ -5,6 +5,42 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 11.09.2026 — Kundenbereich: mehrere Dateien je Unterlage, gebunden zu einer PDF (E-177)
+
+**Was geändert wurde:** Im alten Kundenbereich (`/mein-bereich`, Abschnitt „Unterlagen" → „Jetzt einreichen")
+nimmt jedes Feld jetzt mehrere Dateien auf einmal — Kontoauszug, Ausweis und eigene Bonitätsauskunft. Eine
+zweite Auswahl hängt an, statt die erste zu verwerfen; jede Datei steht mit Namen in einer Liste und lässt sich
+mit × wieder entfernen. Zähler („3 Dateien gewählt") und Knopf („3 Dateien hochladen") zeigen vor dem Absenden,
+wie viele es sind. Am Kontoauszug steht: „Wählen Sie alle drei Monate auf einmal aus — ein neuer Upload ersetzt
+den vorigen." Der Server (`/api/fiaon/upload-kyc`) nimmt bis zu zehn Dateien je Upload, 25 MB je Datei — wie
+das Betreuerportal —, wandelt Fotos wie bisher in PDF und bindet mehrere Dateien einer Unterlage zu EINER PDF,
+bevor er speichert. Die automatische Dokumentenprüfung und die Kontoauszug-Auswertung bekommen die gebundene PDF.
+
+Die Bindung wohnt jetzt in `server/lib/fiaon-pdf-binden.ts` und wird von Kundenbereich UND Betreuerportal
+benutzt. Neu darin: Eine von der Bank verschlüsselte PDF wird nie mit anderen gebunden — der Mensch bekommt
+einen Satz, welche Datei es ist und was er tun kann. Eine einzelne Datei geht wie bisher unverändert durch.
+
+**Warum:** Jeder Upload überschrieb den vorigen. Dogan Cengiz (FIAON-MT70UE7U-CK6B) lud am 10.09. um 10:20 den
+August und um 10:21 den Juni hoch — in der Akte liegt nur der Juni. Verlangt sind drei Monate. Die bisherige
+Bindung des Betreuerportals lud Bank-PDFs mit `ignoreEncryption`; gegen echte Auszüge geprobt: 6 von 136 sind
+verschlüsselt, und daraus wurde entweder ein Absturz oder eine Datei mit allen Seiten und keinem Zeichen
+(32 Seiten, 45.844 Zeichen → 0). Im Bestand ist das nie eingetreten (0 Betreuer-Bindungen im Verlauf).
+
+**Nebenbei:** Die Meldung „Dieses Bild konnten wir nicht verarbeiten …" erreichte den Kunden nie — sie wurde zu
+„Fehler beim Hochladen der Dokumente". Jetzt kommt sie an, mit Dateiname. Die Wissensbasis des KI-Assistenten
+(`shared/fiaon-wissen.ts`) kennt den Mehrfach-Upload. In der Demo (`/demo/produkt`) wird nichts hochgeladen.
+
+**Für den Merge von E-168 (`/app`, Zweig `e-168-selbstauskunft`):** Dort steckt ein eigener Mehrfach-Upload
+(`fiaon-pdf-zusammenfuegen.ts`, nur Kontoauszug, höchstens vier). Konflikt in `/upload-kyc` zugunsten dieses
+Stands lösen und `fiaon-pdf-zusammenfuegen.ts` weglassen — sie lädt ebenfalls mit `ignoreEncryption`. Die
+Oberfläche aus E-168 (`Bausteine.tsx`) funktioniert mit diesem Server unverändert.
+
+**Wo zu finden:** `client/src/pages/mein-bereich.tsx` (Komponente `Upload`), `client/src/styles/mein-bereich.css`,
+`server/lib/fiaon-pdf-binden.ts`, `server/routes/fiaon-antrag.ts` (`/upload-kyc`),
+`server/routes/fiaon-telefonie.ts` (`/agent/dokumente/:personId/:art/hochladen`).
+
+---
+
 ## 09.09.2026 — Toter ARAS-Code entfernt: „Service Orders" (Router + Migration 006)
 
 **Was geändert wurde:** Gelöscht `server/routes/service-orders.ts` (866 Zeilen) und

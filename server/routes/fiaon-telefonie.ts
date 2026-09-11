@@ -1780,12 +1780,9 @@ router.post(
 
       // Nur das, was hinterher auch wieder angezeigt werden kann. Eine .docx in
       // der Ausweisspalte wäre eine Datei, die niemand mehr öffnet.
-      const artVon = (b: Buffer): "pdf" | "jpg" | "png" | null => {
-        if (b.subarray(0, 4).toString("latin1").startsWith("%PDF")) return "pdf";
-        if (b[0] === 0xff && b[1] === 0xd8) return "jpg";
-        if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return "png";
-        return null;
-      };
+      // Erkennung und Bindung wohnen seit 11.09.2026 (E-177) in
+      // server/lib/fiaon-pdf-binden.ts — derselbe Weg wie im Kundenbereich.
+      const { dateiArt: artVon, zuEinerPdf, BindeFehler, bindeSatz } = await import("../lib/fiaon-pdf-binden");
       for (const d of dateien) {
         if (!artVon(d.buffer)) {
           return res.status(400).json({
@@ -1813,22 +1810,19 @@ router.post(
       if (dateien.length === 1) {
         datei = dateien[0];
       } else {
-        const { PDFDocument } = await import("pdf-lib");
-        const ziel = await PDFDocument.create();
-        for (const d of dateien) {
-          const art2 = artVon(d.buffer)!;
-          if (art2 === "pdf") {
-            const quelle = await PDFDocument.load(d.buffer, { ignoreEncryption: true });
-            const seiten = await ziel.copyPages(quelle, quelle.getPageIndices());
-            for (const seite of seiten) ziel.addPage(seite);
-          } else {
-            const bild = art2 === "jpg" ? await ziel.embedJpg(d.buffer) : await ziel.embedPng(d.buffer);
-            const seite = ziel.addPage([bild.width, bild.height]);
-            seite.drawImage(bild, { x: 0, y: 0, width: bild.width, height: bild.height });
-          }
+        // 11.09.2026 (E-177): Hier lud die Bindung Bank-PDFs mit ignoreEncryption.
+        // Bei verschlüsselten kam ein Absturz („Serverfehler“) oder eine Akte mit
+        // allen Seiten und keinem Zeichen heraus. Jetzt sagt ein Satz, welche Datei
+        // es ist — Probe und Zahlen in fiaon-pdf-binden.ts.
+        let gebunden: Buffer;
+        try {
+          gebunden = await zuEinerPdf(dateien.map((d) => ({ buffer: d.buffer, name: d.originalname })));
+        } catch (e) {
+          if (e instanceof BindeFehler) return res.status(400).json({ ok: false, error: bindeSatz(e, "du") });
+          throw e;
         }
         datei = {
-          buffer: Buffer.from(await ziel.save()),
+          buffer: gebunden,
           mimetype: "application/pdf",
           originalname: `${art}-${dateien.length}-dateien.pdf`,
         };

@@ -43,6 +43,12 @@ import { wandPruefen } from "@shared/fiaon-wortverbote";
 
 /** So viel Text geht ans Modell. Eine 38-Seiten-Auskunft liegt weit darunter. */
 const TEXT_DECKEL = 400_000;
+/**
+ * Darunter ist es keine Auskunft. Eine SCHUFA-Datenkopie ohne einen einzigen
+ * Eintrag hat trotzdem Stammdaten, Erläuterungen und Rechtshinweise — weit über
+ * tausend Zeichen. Dogan Cengiz' Datei hatte 105.
+ */
+const MINDEST_TEXT = 500;
 
 let tabelleGeprueft = false;
 export async function ensureSchufaTabelle(): Promise<void> {
@@ -317,8 +323,12 @@ const SCHEMA = {
       },
     },
     vollstaendig_gelesen: { type: "boolean", description: "false, wenn der Text erkennbar abbricht" },
+    ist_bonitaetsauskunft: {
+      type: "boolean",
+      description: "true NUR, wenn der Text die Auskunft oder Datenkopie einer Auskunftei ist, die die zur Person gespeicherten Daten aufführt. false bei Rechnungen, Bestell- oder Zahlungsbestätigungen, Anschreiben, Ausweisen, Kontoauszügen, leeren oder fast leeren Seiten.",
+    },
   },
-  required: ["auskunftei", "auskunft_vom", "score", "score_text", "eintraege", "anfragen", "positiv", "vollstaendig_gelesen"],
+  required: ["auskunftei", "auskunft_vom", "score", "score_text", "eintraege", "anfragen", "positiv", "vollstaendig_gelesen", "ist_bonitaetsauskunft"],
 } as const;
 
 const ANWEISUNG = [
@@ -344,6 +354,9 @@ const ANWEISUNG = [
   "· Ein fehlender Score ist normal: Eine Datenkopie nach Art. 15 DSGVO enthält planmäßig keinen. Dann null.",
   "· Namen, Anschriften und Geburtsdaten der Person gehören NICHT in die Antwort.",
   "· vollstaendig_gelesen = false nur, wenn der Text sichtbar mitten im Satz oder mitten in einer Tabelle abbricht.",
+  "· ist_bonitaetsauskunft = false, wenn das Dokument KEINE Auskunft ist — etwa eine Rechnung über eine Auskunft,",
+  "  eine Bestellbestätigung, ein Anschreiben oder ein Foto mit kaum Text. Dann alle Listen leer lassen. Das Wort",
+  "  „SCHUFA\" allein macht ein Dokument nicht zur Auskunft.",
 ].join("\n");
 
 async function openaiAuswertung(text: string): Promise<{ modell: string; daten: any }> {
@@ -608,8 +621,46 @@ export async function schufaAnalysieren(ref: string, opts: { erzwingen?: boolean
       return schufaAnalyseFuer(ref);
     }
 
+    // ── KEINE AUSKUNFT, KEINE AMPEL (11.09.2026) ──────────────────────────
+    // Zwei von drei ausgewerteten Kunden bekamen am 10./11.09. „Nichts
+    // Belastendes gefunden — die Ausgangslage, die sich jede Bank wünscht" —
+    // über Dateien, die gar keine Auskunft waren: bei Dogan Cengiz eine Seite
+    // mit 105 Zeichen Text, bei Silvia Camara Pinter eine Rechnung. Eine leere
+    // Liste ist nur dann eine gute Nachricht, wenn feststeht, dass eine
+    // Auskunft gelesen wurde. Deshalb zwei Wände:
+    //   1. Unter MINDEST_TEXT Zeichen ist es keine vollständige Auskunft — kein
+    //      Modellaufruf, kein Geld.
+    //   2. Das Modell muss sagen, ob es eine Auskunft IST; ohne Auskunftei-Namen
+    //      und ohne einen einzigen Posten zählt es ebenfalls nicht.
+    // In beiden Fällen wird die Analyse „unlesbar" mit einem Satz, der sagt,
+    // was stattdessen gebraucht wird — nie „frei".
+    const keineAuskunft = async (warum: string, intern: string) => {
+      await fertig({ status: "unlesbar", seiten, fehler: warum });
+      await sqlPool`
+        INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+        VALUES (${ref}, NULL, 'System', 'system', ${`Bonitätsauskunft nicht auswertbar: ${intern}`})
+      `.catch(() => {});
+      return schufaAnalyseFuer(ref);
+    };
+    const BITTE = "Bitte laden Sie Ihre Bonitätsauskunft hoch, so wie die Auskunftei sie verschickt hat — "
+      + "zum Beispiel die SCHUFA-Datenkopie als PDF.";
+    if (text.trim().length < MINDEST_TEXT) {
+      return keineAuskunft(
+        `Die Datei enthält fast keinen Text und ist deshalb keine vollständige Bonitätsauskunft. ${BITTE}`,
+        `${text.trim().length} Zeichen Text auf ${seiten ?? "?"} Seite(n) — zu wenig für eine Auskunft. Der Kunde sieht die Bitte um die richtige Datei.`,
+      );
+    }
+
     const gekuerzt = text.length > TEXT_DECKEL;
     const { modell, daten } = await openaiAuswertung(text.slice(0, TEXT_DECKEL));
+
+    const listenLeer = !(daten.eintraege || []).length && !(daten.anfragen || []).length;
+    if (daten.ist_bonitaetsauskunft === false || (!daten.auskunftei && listenLeer)) {
+      return keineAuskunft(
+        `Diese Datei ist keine Bonitätsauskunft. ${BITTE}`,
+        `Die Datei (${seiten ?? "?"} Seite(n)) ist laut Auswertung keine Auskunft einer Auskunftei — z. B. eine Rechnung oder Bestätigung. Der Kunde sieht die Bitte um die richtige Datei.`,
+      );
+    }
 
     const heute = new Date().toISOString().slice(0, 10);
     const eintraege: SchufaEintrag[] = (daten.eintraege || []).map((e: any) => {

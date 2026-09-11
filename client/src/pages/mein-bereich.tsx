@@ -412,7 +412,7 @@ export default function MeinBereichPage() {
                 {d.bonitaetAnalyse?.status === "fertig" ? (
                   <BonitaetAuswertung a={d.bonitaetAnalyse} refKunde={d.kunde.ref} />
                 ) : d.bonitaetAnalyse?.status === "unlesbar" ? (
-                  <div className="mb-warte"><b>Ihre Datei lässt sich nicht lesen.</b> {d.bonitaetAnalyse.fehler} <a href="#unterlagen">Datei erneut hochladen</a></div>
+                  <div className="mb-warte"><b>Diese Datei können wir nicht auswerten.</b> {d.bonitaetAnalyse.fehler} <a href="#unterlagen">Richtige Datei hochladen</a></div>
                 ) : d.bonitaetAnalyse?.status === "laeuft" ? (
                   <div className="mb-warte"><b>Ihre Auskunft wird gerade ausgewertet.</b> Das dauert wenige Minuten. Laden Sie die Seite danach neu.</div>
                 ) : d.bonitaet?.geprueft || d.bonitaet?.hatDokument ? (

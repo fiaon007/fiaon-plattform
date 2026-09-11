@@ -278,11 +278,15 @@ export async function bonitaetFuer(ref: string): Promise<BonitaetStand | null> {
            (SELECT k.urteil FROM fiaon_dokument_pruefungen k
              WHERE k.ref = a.ref AND k.art = 'schufa' ORDER BY k.created_at DESC LIMIT 1) AS ki_urteil,
            -- E-175: Die fertige Auswertung schlaegt jeden Zwischenstand.
+           -- 11.09.2026: eintraege liegt als JSON-TEXT im jsonb-Feld (der Schreibweg in
+           -- fiaon-schufa-analyse.ts reicht JSON.stringify durch). jsonb_array_length auf
+           -- einen Text wirft „cannot get array length of a scalar" und riss seit dem
+           -- 10.09. 09:16 die ganze Abfrage mit. Der CASE nimmt beide Formen.
            (SELECT sa.ampel FROM fiaon_schufa_analysen sa
              WHERE sa.ref = a.ref AND sa.status = 'fertig' ORDER BY sa.created_at DESC LIMIT 1) AS analyse_ampel,
-           (SELECT jsonb_array_length(sa.eintraege) FROM fiaon_schufa_analysen sa
+           (SELECT jsonb_array_length((CASE WHEN jsonb_typeof(sa.eintraege) = 'string' THEN (sa.eintraege #>> '{}')::jsonb ELSE sa.eintraege END)) FROM fiaon_schufa_analysen sa
              WHERE sa.ref = a.ref AND sa.status = 'fertig' ORDER BY sa.created_at DESC LIMIT 1) AS analyse_posten,
-           (SELECT (SELECT COUNT(*) FROM jsonb_array_elements(sa.eintraege) e WHERE (e->>'offen')::boolean)
+           (SELECT (SELECT COUNT(*) FROM jsonb_array_elements((CASE WHEN jsonb_typeof(sa.eintraege) = 'string' THEN (sa.eintraege #>> '{}')::jsonb ELSE sa.eintraege END)) e WHERE (e->>'offen')::boolean)
               FROM fiaon_schufa_analysen sa
              WHERE sa.ref = a.ref AND sa.status = 'fertig' ORDER BY sa.created_at DESC LIMIT 1) AS analyse_offen,
            -- ── DIE ZUORDNUNG: PERSON ZUERST, E-MAIL ALS RÜCKFALL ─────────
@@ -334,11 +338,15 @@ export async function bonitaetFuerViele(
            (SELECT k.urteil FROM fiaon_dokument_pruefungen k
              WHERE k.ref = a.ref AND k.art = 'schufa' ORDER BY k.created_at DESC LIMIT 1) AS ki_urteil,
            -- E-175: Die fertige Auswertung schlaegt jeden Zwischenstand.
+           -- 11.09.2026: eintraege liegt als JSON-TEXT im jsonb-Feld (der Schreibweg in
+           -- fiaon-schufa-analyse.ts reicht JSON.stringify durch). jsonb_array_length auf
+           -- einen Text wirft „cannot get array length of a scalar" und riss seit dem
+           -- 10.09. 09:16 die ganze Abfrage mit. Der CASE nimmt beide Formen.
            (SELECT sa.ampel FROM fiaon_schufa_analysen sa
              WHERE sa.ref = a.ref AND sa.status = 'fertig' ORDER BY sa.created_at DESC LIMIT 1) AS analyse_ampel,
-           (SELECT jsonb_array_length(sa.eintraege) FROM fiaon_schufa_analysen sa
+           (SELECT jsonb_array_length((CASE WHEN jsonb_typeof(sa.eintraege) = 'string' THEN (sa.eintraege #>> '{}')::jsonb ELSE sa.eintraege END)) FROM fiaon_schufa_analysen sa
              WHERE sa.ref = a.ref AND sa.status = 'fertig' ORDER BY sa.created_at DESC LIMIT 1) AS analyse_posten,
-           (SELECT (SELECT COUNT(*) FROM jsonb_array_elements(sa.eintraege) e WHERE (e->>'offen')::boolean)
+           (SELECT (SELECT COUNT(*) FROM jsonb_array_elements((CASE WHEN jsonb_typeof(sa.eintraege) = 'string' THEN (sa.eintraege #>> '{}')::jsonb ELSE sa.eintraege END)) e WHERE (e->>'offen')::boolean)
               FROM fiaon_schufa_analysen sa
              WHERE sa.ref = a.ref AND sa.status = 'fertig' ORDER BY sa.created_at DESC LIMIT 1) AS analyse_offen,
            sb.payment_status AS kauf_status,

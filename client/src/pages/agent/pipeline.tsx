@@ -3102,7 +3102,7 @@ function BonitaetsBefund({ bestellRef, melden }: {
 
       {!a && <p className="pi-sek-satz leise" style={{ marginTop: 6 }}>Noch nicht ausgewertet. Liegt eine Auskunft vor, startest du die Auswertung mit dem Knopf oben — sie dauert ein bis zwei Minuten.</p>}
       {a?.status === "laeuft" && <p className="pi-sek-satz leise" style={{ marginTop: 6 }}>Die Auswertung läuft gerade. Lade die Akte in ein bis zwei Minuten neu.</p>}
-      {a?.status === "unlesbar" && <p className="pi-sek-satz" style={{ marginTop: 6, color: "#fbbf24" }}>Die Datei ist nicht lesbar: {a.fehler}</p>}
+      {a?.status === "unlesbar" && <p className="pi-sek-satz" style={{ marginTop: 6, color: "#fbbf24" }}>Nicht auswertbar — der Kunde sieht: „{a.fehler}“ Die richtige Datei lädst du oben unter „Bonitätsauskunft“ hoch; danach „Neu auswerten“.</p>}
       {a?.status === "fehler" && <p className="pi-sek-satz" style={{ marginTop: 6, color: "#f87171" }}>Die Auswertung ist gescheitert: {a.fehler}</p>}
 
       {a?.status === "fertig" && (

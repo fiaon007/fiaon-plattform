@@ -401,6 +401,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   //    steht in server/lib/fiaon-zustimmung.ts. Signiertes Token, kein Login.
   const fiaonZustimmungRoutes = await import('./routes/fiaon-zustimmung');
   app.use('/api/fiaon', fiaonZustimmungRoutes.default);
+  // 🧾 Abschluss eines gekündigten Mitarbeiters (13.09.2026, E-185): Schreiben
+  //    lesen, Empfang unterschreiben, Ausfertigung per Mail, Schlussabrechnung.
+  //    Signiertes Token, kein Login (server/lib/fiaon-kuendigung-mitarbeiter.ts).
+  const fiaonAbschlussRoutes = await import('./routes/fiaon-abschluss');
+  app.use('/api/fiaon', fiaonAbschlussRoutes.default);
 
   // 🤝 FIAON Onboarding — eigener Bereich fuer die Startgespraeche. 404 fuer
   //    alle ohne die Rolle, 403 ohne angenommene Verpflichtungserklaerung.

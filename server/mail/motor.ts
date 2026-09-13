@@ -254,13 +254,14 @@ export function freitextBaustein(ein: { betreff: string; text: string; anrede?: 
 }
 
 /** Freitext rendern — für die Vorschau in der Akte. */
-export function freitextRendern(ein: { betreff: string; text: string; anrede?: string | null }): GerenderteMail {
+export function freitextRendern(ein: { betreff: string; text: string; anrede?: string | null; absender?: AbsenderRolle }): GerenderteMail {
   const b = freitextBaustein(ein);
   return {
     betreff: b.betreff,
     html: mailHtml(b),
     text: mailText(b),
-    absender: ABSENDER.welcome,
+    // E-185: Vertragspost (z. B. die Kündigung eines Mitarbeiters) kommt von „FIAON Legal", nicht von „Welcome".
+    absender: ABSENDER[ein.absender ?? "welcome"],
     fehlend: [],
   };
 }
@@ -270,6 +271,8 @@ export async function freitextSenden(ein: {
   an: string; betreff: string; text: string; anrede?: string | null;
   /** E-181: z. B. die korrigierte Rechnung — Name und Inhalt, der Rest ist Brevo. */
   anhaenge?: { name: string; inhalt: Buffer }[];
+  /** E-185: Absenderrolle (welcome | accounting | legal | team); Vorgabe welcome. */
+  absender?: AbsenderRolle;
 }): Promise<{ ok: boolean; messageId: string | null; grund?: string }> {
   if (!adresseSiehtGueltigAus(String(ein.an || "").trim())) {
     return { ok: false, messageId: null, grund: `Empfängeradresse ungültig: „${ein.an}“ — bitte in der Akte korrigieren.` };

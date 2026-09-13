@@ -81,6 +81,9 @@ const TerminPage = lazy(() => import("@/pages/termin"));
 // Die Zustimmungsseite: Nur der Kunde selbst darf AGB, Bonitaetspruefung und
 // Vertrag bestaetigen (server/lib/fiaon-zustimmung.ts).
 const ZustimmungPage = lazy(() => import("@/pages/zustimmung"));
+// Abschluss der Mitarbeiterzeit (13.09.2026): Kündigung lesen, Erhalt unterschreiben,
+// Ausfertigung per Mail — ohne Login, der Token aus dem Login-Schirm ist der Ausweis.
+const MitarbeiterAbschlussPage = lazy(() => import("@/pages/mitarbeiter-abschluss"));
 const TerminAbsagenPage = lazy(() => import("@/pages/termin").then((m) => ({ default: m.TerminAbsagenPage })));
 // Justins eigene Buchungsseite — ohne Token, höchstens drei Zeiten je Tag (E-124).
 const GruenderTerminPage = lazy(() => import("@/pages/gruender-termin"));
@@ -677,6 +680,7 @@ function Router() {
       <Route path="/termin/justin" component={GruenderTerminPage} />
       <Route path="/termin/:token" component={TerminPage} />
       <Route path="/zustimmung/:token" component={ZustimmungPage} />
+      <Route path="/mitarbeiter/abschluss/:token" component={MitarbeiterAbschlussPage} />
       <Route path="/zahlung/:paymentRef/danke" component={ZahlungDankePage} />
       <Route path="/zahlung/:paymentRef" component={ZahlungPage} />
       <Route path="/nummer-aktualisieren" component={NummerAktualisierenPage} />

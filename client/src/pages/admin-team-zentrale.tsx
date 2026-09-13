@@ -2751,6 +2751,10 @@ function VerwaltungTafel({
           </button>
         </div>
       </div>
+
+      {/* ── Kündigung (13.09.2026) ────────────────────────────────────────── */}
+      <KuendigungBlock m={m} onHinweis={onHinweis} onAenderung={onAenderung} />
+
       <div className="flex flex-wrap gap-1.5 mb-1.5">
         <button type="button" disabled={busy != null}
                 onClick={() => void ruf(`/admin/agents/${m.id}/force-reset`, {}, "reset")}
@@ -2974,6 +2978,201 @@ function VerwaltungTafel({
           </div>
         </div>
       )}
+    </>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// KÜNDIGUNG — ausgesprochen in der Akte, abgeschlossen im Login (13.09.2026)
+//
+// Justin: Ein gekündigter Mitarbeiter soll beim Login den Abschluss sehen —
+// Kündigung lesen, Erhalt unterschreiben, Ausfertigung als PDF an eine
+// Adresse seiner Wahl, offene Provisionen am 1. des Folgemonats.
+//
+// Dieser Block ist die Seite der Leitung: Kündigung aussprechen (Datum, der
+// Server rechnet Vertragsende +1 Monat und sperrt den Zugang selbst mit dem
+// Grund „Kündigung …"), den Stand sehen, die PDF öffnen, den Abschluss-Link
+// kopieren, und — solange nichts unterschrieben ist — zurücknehmen.
+//
+// Er hängt direkt unter „Zugang", weil beides dieselbe Tür betrifft. Die
+// Gegenseite ist `pages/mitarbeiter-abschluss.tsx`.
+// ═══════════════════════════════════════════════════════════════════════════
+interface KuendigungLage {
+  id: number;
+  status: "offen" | "unterschrieben" | "zurueckgenommen";
+  ausgesprochenAm: string; wirksamAm: string; freigestelltAb: string;
+  schlussabrechnungAm: string | null;
+  unterschriebenAm: string | null; unterschriftName: string | null;
+  empfangsEmail: string | null; mailVersandtAm: string | null; mailFehler: string | null;
+  provisionenOffenCents: number; schlussPayoutId: number | null;
+  link: string | null; pdfUrl: string | null;
+  schlussBetragCents?: number | null;
+  schlussFehler?: string | null;
+  schlussAbgeschlossenAm?: string | null;
+  anforderungenOffenCents?: number;
+  zustellMailVersandtAm?: string | null;
+  zustellMailFehler?: string | null;
+}
+
+/** „2026-09-13" → „13.09.2026"; ein Zeitstempel → mit Uhrzeit (Berlin). */
+function kuendigungDatum(wert: string | null | undefined, mitZeit = false): string {
+  if (!wert) return "–";
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(wert);
+  if (m) return `${m[3]}.${m[2]}.${m[1]}`;
+  const d = new Date(wert);
+  if (Number.isNaN(d.getTime())) return wert;
+  const tag = d.toLocaleDateString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "numeric" });
+  if (!mitZeit) return tag;
+  return `${tag}, ${d.toLocaleTimeString("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit" })} Uhr`;
+}
+
+/** Heute in Berlin als YYYY-MM-DD — en-CA liefert genau diese Form. */
+function heuteBerlin(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+}
+
+function KuendigungBlock({ m, onHinweis, onAenderung }: {
+  m: Mitglied; onHinweis: (t: string) => void; onAenderung: () => void;
+}) {
+  // undefined = lädt noch, null = keine Kündigung.
+  const [k, setK] = useState<KuendigungLage | null | undefined>(undefined);
+  const [ladeFehler, setLadeFehler] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const laden = useCallback(async () => {
+    const r = await fetch(`/api/fiaon/admin/agents/${m.id}/kuendigung`, { credentials: "include" }).catch(() => null);
+    const j = await r?.json().catch(() => null);
+    if (!j?.ok) { setLadeFehler(j?.error || "Kündigungsstand konnte nicht geladen werden."); setK(null); return; }
+    setLadeFehler(null);
+    setK((j.kuendigung as KuendigungLage | null) ?? null);
+  }, [m.id]);
+  useEffect(() => { void laden(); }, [laden]);
+
+  const ruf = async (pfad: string, koerper: unknown, name: string) => {
+    setBusy(name);
+    const r = await fetch(`/api/fiaon${pfad}`, {
+      method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(koerper ?? {}),
+    }).catch(() => null);
+    const j = await r?.json().catch(() => null);
+    setBusy(null);
+    onHinweis(j?.meldung || j?.error || (j?.ok ? "Erledigt." : "Fehler."));
+    if (j?.ok) { await laden(); onAenderung(); }
+    return j;
+  };
+
+  const aussprechen = () => {
+    const eingabe = window.prompt(
+      `Kündigung von ${m.name} aussprechen — Datum der Kündigung (JJJJ-MM-TT). Der Server rechnet das Vertragsende (+1 Monat), sperrt den Zugang und legt den Abschluss-Link an.`,
+      heuteBerlin(),
+    );
+    if (eingabe == null) return;
+    const ausgesprochenAm = eingabe.trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(ausgesprochenAm)) { onHinweis("Bitte das Datum als JJJJ-MM-TT eingeben, z. B. 2026-09-13."); return; }
+    void ruf(`/admin/agents/${m.id}/kuendigung`, { ausgesprochenAm }, "kuendigung");
+  };
+
+  const zuruecknehmen = () => {
+    if (!window.confirm(`Kündigung von ${m.name} zurücknehmen? Der Abschluss-Link wird ungültig; den Zugang gibst du danach im Block „Zugang" wieder frei.`)) return;
+    void ruf(`/admin/agents/${m.id}/kuendigung/zuruecknehmen`, {}, "zuruecknehmen");
+  };
+
+  const linkKopieren = async () => {
+    if (!k?.link) return;
+    const voll = /^https?:\/\//.test(k.link) ? k.link : `${window.location.origin}${k.link.startsWith("/") ? "" : "/"}${k.link}`;
+    try {
+      await navigator.clipboard.writeText(voll);
+      onHinweis("Abschluss-Link kopiert.");
+    } catch {
+      window.prompt("Kopieren nicht möglich — bitte von Hand:", voll);
+    }
+  };
+
+  const knopf = "px-3 py-2 rounded-xl text-[12.5px] font-semibold bg-white text-slate-700 disabled:opacity-40";
+  const knopfRahmen = { boxShadow: "inset 0 0 0 1px #e2e8f0" };
+
+  const statusZeile = (() => {
+    if (!k) return "";
+    if (k.status === "zurueckgenommen") return `zurückgenommen — ausgesprochen war sie am ${kuendigungDatum(k.ausgesprochenAm)}.`;
+    if (k.status === "unterschrieben") {
+      const mail = k.empfangsEmail
+        ? `, Ausfertigung an ${k.empfangsEmail}${k.mailVersandtAm ? " gesendet" : k.mailFehler ? ` (Mail nicht gesendet: ${k.mailFehler})` : ""}`
+        : "";
+      const schluss = k.schlussFehler
+        ? ` Schlussabrechnung am ${kuendigungDatum(k.schlussabrechnungAm)} NICHT möglich: ${k.schlussFehler}.`
+        : k.schlussPayoutId
+          ? ` Schlussabrechnung am ${kuendigungDatum(k.schlussabrechnungAm)}: Anforderung #${k.schlussPayoutId} über ${eur(k.schlussBetragCents ?? 0)} angelegt — Überweisung unter Auszahlungen.`
+          : k.schlussAbgeschlossenAm
+            ? ` Schlussabrechnung am ${kuendigungDatum(k.schlussabrechnungAm)}: keine offenen Provisionen.`
+            : ` Schlussabrechnung am ${kuendigungDatum(k.schlussabrechnungAm)} über ${eur(k.provisionenOffenCents)}.`;
+      const alt = (k.anforderungenOffenCents ?? 0) > 0 ? ` Bereits angefordert, noch nicht überwiesen: ${eur(k.anforderungenOffenCents ?? 0)}.` : "";
+      return `unterschrieben am ${kuendigungDatum(k.unterschriebenAm, true)} von ${k.unterschriftName || m.name}${mail}.${schluss}${alt}`;
+    }
+    const zustellung = k.zustellMailVersandtAm ? " Zugestellt per Mail." : k.zustellMailFehler ? ` Zustell-Mail NICHT gesendet (${k.zustellMailFehler}) — Link von Hand geben.` : "";
+    return `ausgesprochen am ${kuendigungDatum(k.ausgesprochenAm)}, Vertragsende ${kuendigungDatum(k.wirksamAm)}, freigestellt ab ${kuendigungDatum(k.freigestelltAb)} — wartet auf Unterschrift. Offene Provisionen: ${eur(k.provisionenOffenCents)}.${zustellung}`;
+  })();
+
+  const farbe = k?.status === "unterschrieben" ? "#047857" : k?.status === "offen" ? "#b45309" : "#0f172a";
+  const grund = k?.status === "unterschrieben"
+    ? { background: "rgba(4,120,87,.06)", boxShadow: "inset 0 0 0 1px rgba(4,120,87,.25)" }
+    : k?.status === "offen"
+      ? { background: "rgba(180,83,9,.06)", boxShadow: "inset 0 0 0 1px rgba(180,83,9,.25)" }
+      : { background: "#f8fafc", boxShadow: "inset 0 0 0 1px #e2e8f0" };
+
+  return (
+    <>
+      <p className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400 mb-2">Kündigung</p>
+      <div className="rounded-2xl p-3.5 mb-3" style={grund}>
+        {k === undefined ? (
+          <p className="text-[11.5px] text-slate-500">Kündigungsstand wird geladen …</p>
+        ) : ladeFehler ? (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-[11.5px] text-red-700">{ladeFehler}</p>
+            <button type="button" onClick={() => void laden()} className={knopf} style={knopfRahmen}>Erneut laden</button>
+          </div>
+        ) : !k ? (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[13px] font-bold text-slate-900">Keine Kündigung</p>
+              <p className="text-[11.5px] text-slate-500 leading-snug mt-0.5">
+                Aussprechen legt Vertragsende (+1 Monat), Freistellung und den Abschluss-Link an und sperrt den Zugang. Der Mitarbeiter sieht beim nächsten Login das Schreiben, unterschreibt den Erhalt und bekommt die Ausfertigung per Mail.
+              </p>
+            </div>
+            <button type="button" disabled={busy != null} onClick={aussprechen}
+                    className="px-4 py-2.5 rounded-xl text-[13px] font-bold text-white disabled:opacity-40"
+                    style={{ background: "#b91c1c" }}>
+              {busy === "kuendigung" ? "…" : "Kündigung aussprechen"}
+            </button>
+          </div>
+        ) : (
+          <>
+            <p className="text-[13px] font-bold" style={{ color: farbe }}>
+              {k.status === "unterschrieben" ? "Kündigung unterschrieben" : k.status === "offen" ? "Kündigung ausgesprochen" : "Kündigung zurückgenommen"}
+            </p>
+            <p className="text-[11.5px] text-slate-600 leading-snug mt-0.5">{statusZeile}</p>
+            <div className="flex flex-wrap gap-1.5 mt-2.5">
+              {k.pdfUrl && (
+                <a href={k.pdfUrl} target="_blank" rel="noopener noreferrer" className={knopf} style={knopfRahmen}>PDF</a>
+              )}
+              {k.link && k.status !== "zurueckgenommen" && (
+                <button type="button" disabled={busy != null} onClick={() => void linkKopieren()} className={knopf} style={knopfRahmen}>Link kopieren</button>
+              )}
+              {k.status === "offen" && (
+                <button type="button" disabled={busy != null} onClick={zuruecknehmen}
+                        className="px-3 py-2 rounded-xl text-[12.5px] font-semibold text-white disabled:opacity-40"
+                        style={{ background: "#b91c1c" }}>
+                  {busy === "zuruecknehmen" ? "…" : "Zurücknehmen"}
+                </button>
+              )}
+              {k.status === "zurueckgenommen" && (
+                <button type="button" disabled={busy != null} onClick={aussprechen} className={knopf} style={knopfRahmen}>
+                  {busy === "kuendigung" ? "…" : "Erneut aussprechen"}
+                </button>
+              )}
+            </div>
+          </>
+        )}
+      </div>
     </>
   );
 }

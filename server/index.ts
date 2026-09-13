@@ -53,7 +53,9 @@ app.use((req, res, next) => {
   res.on("finish", () => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
+      // E-185: signierte Links (Abschluss, Zustimmung) nie mit Token ins Log.
+      const pfadOhneToken = path.replace(/\/(abschluss|zustimmung)\/[^/?]+/, "/$1/…");
+      let logLine = `${req.method} ${pfadOhneToken} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       }

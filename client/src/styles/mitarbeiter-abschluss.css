@@ -1,0 +1,98 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   ABSCHLUSS DER MITARBEITERZEIT — /mitarbeiter/abschluss/:token (13.09.2026)
+
+   Die Bühne ist die der Mitarbeiter-Anmeldung (agent-anmeldung.css: `.aa`,
+   `.aa-kopf`, `.aa-pille`, `.aa-verlauf`) — wer hier landet, wollte sich
+   gerade anmelden und soll denselben Raum wiedererkennen.
+
+   Darauf liegt Papier: Das Kündigungsschreiben ist ein Dokument, es wird
+   gelesen, unterschrieben, abgeheftet. Dunkle Schrift auf hellem Grund,
+   serifenlos, 15 px, Zeilenhöhe 1,6, höchstens 760 px breit. Die Kacheln
+   darüber und die Unterschrift darunter tragen dieselbe Sprache der Abstände
+   wie das Office (Radius 20–26 px, Haarlinien, Gewichte 300/400/500).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.ma-buehne{position:relative;z-index:2;max-width:860px;margin:0 auto;padding:30px clamp(18px,4vw,48px) 110px}
+.ma-kopf{padding:20px 0 34px}
+.ma-kopf h1{margin:0;font:300 clamp(34px,5.4vw,58px)/1.06 'Inter',sans-serif;letter-spacing:-.03em;color:#fff}
+.ma-kopf>p{margin:18px 0 0;font:300 16.5px/1.65 'Inter',sans-serif;color:#cbd5e1;max-width:60ch}
+
+/* Kacheln */
+.ma-kacheln{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:22px}
+/* Die Auszahlung trägt vor der Unterschrift einen ganzen Satz — sie bekommt die volle Breite. */
+.ma-kachel.breit{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 18px}
+.ma-kachel.breit small{flex:0 0 100%}
+.ma-kachel.breit span{margin-top:0}
+.ma-kachel{padding:16px 18px;border-radius:18px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);box-shadow:inset 0 1px 0 rgba(255,255,255,.06);min-width:0}
+.ma-kachel small{display:block;font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#93c5fd;margin-bottom:9px}
+.ma-kachel b{display:block;font:400 18px/1.25 'Inter',sans-serif;letter-spacing:-.01em;color:#fff;overflow-wrap:anywhere}
+.ma-kachel b.klein{font-size:14.5px;line-height:1.45}
+.ma-kachel span{display:block;margin-top:5px;font-size:12.5px;line-height:1.45;color:#9ca3af;overflow-wrap:anywhere}
+
+/* Das Papier */
+.ma-papier{position:relative;max-width:760px;margin:0 auto;padding:clamp(22px,4vw,44px) clamp(20px,4.5vw,52px);border-radius:22px;background:#fdfdfb;color:#1f2937;box-shadow:0 40px 90px rgba(2,6,23,.55),0 1px 0 rgba(255,255,255,.35) inset;animation:aaAuf .6s cubic-bezier(.2,.8,.2,1) both}
+.ma-papier-band{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 22px;padding-bottom:14px;border-bottom:1px solid #e5e7eb;font:500 10.5px/1 'Inter',sans-serif;letter-spacing:.14em;text-transform:uppercase;color:#6b7280}
+.ma-papier-band b{font-weight:600;color:#0b1426;letter-spacing:.08em}
+.ma-dokument{font:400 15px/1.6 'Inter',system-ui,-apple-system,sans-serif;color:#1f2937}
+.ma-dokument h1,.ma-dokument h2,.ma-dokument h3{color:#0b1426;font-family:'Inter',system-ui,sans-serif;letter-spacing:-.015em;line-height:1.25;margin:0 0 12px}
+.ma-dokument h1{font-size:24px;font-weight:500}
+.ma-dokument h2{font-size:18px;font-weight:500;margin-top:26px}
+.ma-dokument h3{font-size:15.5px;font-weight:600;margin-top:20px}
+.ma-dokument p{margin:0 0 14px}
+.ma-dokument ul,.ma-dokument ol{margin:0 0 14px;padding-left:22px}
+.ma-dokument li{margin:0 0 6px}
+.ma-dokument strong,.ma-dokument b{font-weight:600;color:#0b1426}
+.ma-dokument a{color:#1e3a8a}
+.ma-dokument hr{border:0;border-top:1px solid #e5e7eb;margin:22px 0}
+.ma-dokument table{width:100%;border-collapse:collapse;margin:0 0 16px;font-size:14px}
+.ma-dokument th,.ma-dokument td{padding:8px 10px;text-align:left;vertical-align:top;border-bottom:1px solid #e5e7eb}
+.ma-dokument th{font-weight:600;color:#0b1426;font-size:12.5px;letter-spacing:.02em}
+.ma-dokument td.zahl,.ma-dokument th.zahl{text-align:right;font-variant-numeric:tabular-nums}
+.ma-dokument .meta{font-size:12.5px;line-height:1.5;color:#6b7280}
+.ma-dokument .hash{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:#6b7280;overflow-wrap:anywhere}
+.ma-dokument .sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-top:34px}
+.ma-dokument .sig-col{min-width:0}
+.ma-dokument .sig-line{border-top:1px solid #1f2937;margin-top:44px;padding-top:6px;font-size:12px;color:#6b7280}
+.ma-dokument img.sig-img{display:block;max-height:60px;max-width:100%;height:auto;width:auto}
+
+/* Unterschrift */
+.ma-unterschrift{max-width:760px;margin:16px auto 0;padding:clamp(20px,3.6vw,30px) clamp(20px,4vw,36px);border-radius:22px;background:#fff;color:#0f172a;box-shadow:0 30px 70px rgba(2,6,23,.45)}
+.ma-unterschrift h2{margin:0 0 4px;font:500 19px/1.25 'Inter',sans-serif;letter-spacing:-.01em;color:#0b1426}
+.ma-unterschrift>p{margin:0 0 16px;font-size:13.5px;line-height:1.55;color:#64748b}
+.ma-feld{display:grid;gap:6px;margin-top:14px}
+.ma-feld>span{font:600 12px/1 'Inter',sans-serif;color:#475569}
+.ma-feld input{width:100%;min-height:46px;padding:10px 14px;border-radius:12px;border:1px solid #e2e8f0;background:#fff;color:#0f172a;font:400 15px/1.3 'Inter',sans-serif;outline:none;transition:border-color .15s,box-shadow .15s}
+.ma-feld input:focus{border-color:#2563eb;box-shadow:0 0 0 4px rgba(37,99,235,.12)}
+.ma-feld small{font-size:12px;color:#94a3b8}
+.ma-modi{display:flex;gap:8px;margin-top:16px}
+.ma-modus{flex:1;min-height:40px;padding:8px 10px;border-radius:12px;border:1px solid #e2e8f0;background:#fff;color:#475569;font:600 12.5px/1 'Inter',sans-serif;cursor:pointer;transition:border-color .15s,background .15s,color .15s}
+.ma-modus:hover{border-color:#cbd5e1}
+.ma-modus.an{background:#2563eb;border-color:transparent;color:#fff}
+.ma-getippt{margin-top:12px;padding:18px;border-radius:12px;border:1px solid #e2e8f0;background:#f8fafc;text-align:center}
+.ma-getippt span{display:block;font:400 30px/1.2 'Brush Script MT','Snell Roundhand',cursive;color:#1f2937;overflow-wrap:anywhere}
+.ma-getippt small{display:block;margin-top:4px;font-size:11px;color:#94a3b8}
+.ma-haken{display:flex;align-items:flex-start;gap:12px;margin-top:18px;cursor:pointer;user-select:none}
+.ma-haken input{width:20px;height:20px;margin-top:2px;flex:0 0 20px;accent-color:#2563eb}
+.ma-haken span{font-size:13.5px;line-height:1.5;font-weight:500;color:#334155}
+.ma-senden{display:flex;align-items:center;justify-content:center;width:100%;min-height:52px;margin-top:18px;padding:0 22px;border-radius:14px;border:0;background:linear-gradient(135deg,#2563eb,#3b82f6);color:#fff;font:500 14.5px/1 'Inter',sans-serif;cursor:pointer;box-shadow:0 12px 28px rgba(37,99,235,.3);transition:transform .2s,box-shadow .2s,opacity .2s}
+.ma-senden:hover{transform:translateY(-1px);box-shadow:0 16px 34px rgba(37,99,235,.38)}
+.ma-senden:disabled{opacity:.4;transform:none;box-shadow:none;cursor:default}
+.ma-fehler{margin:12px 0 0;padding:10px 12px;border-radius:11px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:13px;line-height:1.5}
+.ma-hinweis{margin:14px 0 0;font-size:12px;line-height:1.5;color:#94a3b8}
+
+/* Nach der Unterschrift */
+.ma-fertig{max-width:760px;margin:16px auto 0;padding:clamp(20px,3.6vw,30px) clamp(20px,4vw,36px);border-radius:22px;background:rgba(5,150,105,.1);border:1px solid rgba(52,211,153,.35);color:#e5e7eb}
+.ma-fertig h2{margin:0 0 6px;font:400 20px/1.25 'Inter',sans-serif;letter-spacing:-.01em;color:#a7f3d0}
+.ma-fertig p{margin:8px 0 0;font:300 15px/1.6 'Inter',sans-serif;color:#d1fae5}
+.ma-fertig p.warnung{padding:10px 12px;border-radius:11px;background:rgba(245,158,11,.12);border:1px solid rgba(251,191,36,.4);color:#fde68a;font-weight:400}
+.ma-fertig .aa-knopf{margin-top:16px}
+.ma-dank{max-width:760px;margin:26px auto 0;font:300 15px/1.65 'Inter',sans-serif;color:#9ca3af;text-align:center}
+
+/* Warten und Fehler */
+.ma-mitte{position:relative;z-index:2;max-width:640px;margin:0 auto;padding:90px clamp(18px,4vw,48px) 120px;text-align:center;min-height:calc(100vh - 90px);display:flex;flex-direction:column;align-items:center;justify-content:center}
+.ma-mitte h1{margin:0;font:300 clamp(30px,5vw,52px)/1.08 'Inter',sans-serif;letter-spacing:-.03em;color:#fff}
+.ma-mitte p{margin:18px 0 0;font:300 16px/1.65 'Inter',sans-serif;color:#cbd5e1;max-width:52ch}
+
+@media(max-width:860px){.ma-kacheln{grid-template-columns:1fr 1fr}.ma-kachel.breit{display:block}.ma-kachel.breit span{margin-top:5px}}
+@media(max-width:560px){.ma-kacheln{grid-template-columns:1fr}.ma-dokument .sig-grid{grid-template-columns:1fr;gap:18px}.ma-modi{flex-direction:column}.ma-papier-band{flex-direction:column;align-items:flex-start;gap:6px}}
+@media(prefers-reduced-motion:reduce){.ma-papier{animation:none}}

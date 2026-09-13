@@ -1648,9 +1648,18 @@ router.post("/agent/login", async (req, res) => {
       // gesperrt"-Schirm, sondern den sauberen Abschluss — Unterlagen, Abrechnung und
       // Auszahlung erscheinen in den kommenden Tagen genau dort. Erkannt am Grund,
       // der mit „Kündigung" beginnt (gesetzt über POST /admin/agents/:id/zugang).
-      const gekuendigt = /^k(ü|ue)ndigung/i.test(String(rows[0].zugang_gesperrt_grund || ""));
+      // 13.09.2026 (E-185): Die Kündigungsakte entscheidet — nicht nur der Text des
+      // Sperrgrunds (der wurde bei Lucas am 10.09. von Hand mit „Schulung" überschrieben).
+      // Liegt eine Akte vor, bekommt der Mensch ein signiertes Token für den
+      // Abschluss-Bildschirm; der braucht keine Sitzung.
+      let abschlussToken: string | null = null;
+      try {
+        const { abschlussTokenFuer } = await import("../lib/fiaon-kuendigung-mitarbeiter");
+        abschlussToken = await abschlussTokenFuer(Number(rows[0].id));
+      } catch (e) { console.error("[FIAON-AGENT] Abschluss-Token:", e); }
+      const gekuendigt = abschlussToken != null;
       return res.status(423).json({
-        ok: false, gesperrt: true, gekuendigt, vorname,
+        ok: false, gesperrt: true, gekuendigt, vorname, abschlussToken,
         grund: rows[0].zugang_gesperrt_grund || null,
         seit: rows[0].zugang_gesperrt_am,
         error: gekuendigt ? "Dein Zugang ist beendet." : "Dein Zugang ist vorübergehend gesperrt.",
@@ -3027,10 +3036,12 @@ export function naechsterAuszahlungstag(heuteISO = berlinHeuteISO()): string {
 
 /** Eine Anforderung über das volle bestätigte Guthaben — der eine Weg, den Klick und Lauf teilen. */
 async function anforderungAnlegen(
-  agentId: number, quelle: "klick" | "lauf",
+  agentId: number, quelle: "klick" | "lauf" | "kuendigung",
+  opts: { ohneMindestbetrag?: boolean } = {},
 ): Promise<{ payoutId: number; amountCents: number } | { fehler: string }> {
   const settings = await getSettings();
-  const minCents = Number(settings.payout_min_cents);
+  // E-185: Die Schlussabrechnung nach einer Kündigung zahlt alles aus — auch unter dem Mindestbetrag.
+  const minCents = opts.ohneMindestbetrag ? 1 : Number(settings.payout_min_cents);
   const [ag] = await sqlPool`SELECT bank_holder_enc, bank_iban_enc, bank_bic_enc, bank_iban_masked FROM fiaon_agents WHERE id = ${agentId}`;
   if (!ag?.bank_iban_enc) return { fehler: "Bitte zuerst Auszahlungsdaten (IBAN) im Profil hinterlegen" };
   const rows = await sqlPool`SELECT id, amount_cents FROM fiaon_commissions WHERE agent_id = ${agentId} AND status = 'bestaetigt'`;
@@ -3081,6 +3092,47 @@ export async function auszahlungstagLauf(opts: { trocken?: boolean } = {}): Prom
     console.log(`[FIAON-PAYOUT] ${freigegeben.length} vorgemerkte Buchung(en) freigegeben (${heute}).`);
   }
   // 2. Sammelanforderung ab dem 15. — einmal im Monat
+  // ── E-185: SCHLUSSABRECHNUNG GEKÜNDIGTER MITARBEITER ────────────────────
+  // Am 1. des auf die Unterschrift folgenden Monats: alles Bestätigte in eine
+  // Anforderung, ohne Mindestbetrag. Bis dahin lässt der Sammellauf unten das
+  // Konto in Ruhe (schlussabrechnungOffenAgentIds).
+  const { schlussabrechnungenFaellig, schlussabrechnungAbschliessen, schlussabrechnungOffenAgentIds, schlussabrechnungAbgeschlossenAgentIds } =
+    await import("../lib/fiaon-kuendigung-mitarbeiter");
+  const schluss = trocken ? [] : await schlussabrechnungenFaellig(heute);
+  for (const s of schluss) {
+    const [guthaben] = (await sqlPool`
+      SELECT COALESCE(SUM(amount_cents), 0)::bigint AS s FROM fiaon_commissions
+       WHERE agent_id = ${s.agentId} AND status = 'bestaetigt'`) as any[];
+    const summe = Number(guthaben?.s || 0);
+    if (summe <= 0) {
+      await schlussabrechnungAbschliessen(s.id, null, 0);
+      await logAgentEvent(s.agentId, "schlussabrechnung", { kuendigung_id: s.id, amount_cents: 0, am: heute, hinweis: "keine offenen Provisionen" });
+      continue;
+    }
+    const e = await anforderungAnlegen(s.agentId, "kuendigung", { ohneMindestbetrag: true });
+    if ("payoutId" in e) {
+      await schlussabrechnungAbschliessen(s.id, e.payoutId, e.amountCents);
+      await logAgentEvent(s.agentId, "schlussabrechnung", { kuendigung_id: s.id, payout_id: e.payoutId, amount_cents: e.amountCents, am: heute });
+      console.log(`[FIAON-PAYOUT] Schlussabrechnung nach Kündigung: Agent ${s.agentId}, Anforderung #${e.payoutId}, ${(e.amountCents / 100).toFixed(2)} €`);
+    } else {
+      await schlussabrechnungAbschliessen(s.id, null, summe, e.fehler);
+      console.warn(`[FIAON-PAYOUT] Schlussabrechnung Agent ${s.agentId} nicht möglich: ${e.fehler}`);
+      // Ein Mensch muss ran (meist: keine IBAN) — einmalig, nicht täglich neu.
+      try {
+        const { auftragFuerKunden } = await import("./fiaon-betreiber-todo");
+        await auftragFuerKunden({
+          personId: null, ref: null,
+          titel: `Schlussabrechnung nach Kündigung nicht möglich (Konto ${s.agentId})`,
+          text: `Der Auszahlungstag-Lauf konnte die Schlussabrechnung über ${(summe / 100).toFixed(2).replace(".", ",")} € nicht anlegen: ${e.fehler}. Bitte in der Mitarbeiterakte klären (Bankdaten) — der Lauf versucht es täglich erneut.`,
+          dringend: true, schluessel: `kuendigung:${s.id}:schluss-fehler`, quelle: "kuendigung", bereich: "konten",
+          autorName: "System", anBetreiber: true, link: "/admin/team",
+        });
+      } catch (err) { console.error("[FIAON-PAYOUT] Aufgabe Schluss-Fehler:", err); }
+    }
+  }
+  const schlussOffen = await schlussabrechnungOffenAgentIds();
+  const schlussFertig = await schlussabrechnungAbgeschlossenAgentIds();
+
   const settings = await getSettings();
   const schonGelaufen = String(settings.auszahlung_lauf_monat || "") === monat;
   const laufFaellig = tag >= AUSZAHLUNGSTAG && !schonGelaufen;
@@ -3091,16 +3143,22 @@ export async function auszahlungstagLauf(opts: { trocken?: boolean } = {}): Prom
       SELECT a.id, COALESCE(NULLIF(a.first_name, ''), a.name) AS name, (a.bank_iban_enc IS NOT NULL) AS bank,
              COALESCE((SELECT SUM(c.amount_cents) FROM fiaon_commissions c WHERE c.agent_id = a.id AND c.status = 'bestaetigt'), 0)::bigint AS guthaben
       FROM fiaon_agents a
-      WHERE a.active AND NOT a.is_test_account
+      -- E-185: Gekündigte mit abgeschlossener Schlussabrechnung bleiben drin, auch wenn
+      -- das Konto inzwischen deaktiviert ist — spätere Raten gehören ihnen trotzdem.
+      WHERE (a.active OR a.id = ANY(${Array.from(schlussFertig)}::int[])) AND NOT a.is_test_account
       ORDER BY a.id
     `) as any[];
     for (const k of kandidaten) {
+      // E-185: gekündigt und Schlussabrechnung noch offen → nicht im Sammellauf.
+      if (schlussOffen.has(Number(k.id))) continue;
       const guthaben = Number(k.guthaben || 0);
-      if (guthaben < minCents) continue;
+      // E-185: nach der Schlussabrechnung zahlt das Haus jede weitere Buchung aus — ohne Mindestbetrag.
+      const nachKuendigung = schlussFertig.has(Number(k.id));
+      if (guthaben < (nachKuendigung ? 1 : minCents)) continue;
       const zeile = { agentId: Number(k.id), name: String(k.name), amountCents: guthaben } as AuszahlungstagErgebnis["anforderungen"][number];
       if (!k.bank) { anforderungen.push({ ...zeile, fehler: "keine IBAN im Profil" }); continue; }
       if (trocken) { anforderungen.push(zeile); continue; }
-      const e = await anforderungAnlegen(Number(k.id), "lauf");
+      const e = await anforderungAnlegen(Number(k.id), nachKuendigung ? "kuendigung" : "lauf", { ohneMindestbetrag: nachKuendigung });
       anforderungen.push("fehler" in e ? { ...zeile, fehler: e.fehler } : { ...zeile, amountCents: e.amountCents, payoutId: e.payoutId });
     }
     if (!trocken) {

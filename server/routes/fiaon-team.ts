@@ -396,6 +396,15 @@ router.post("/admin/agents/:id/zugang", async (req, res) => {
     const id = Number(req.params.id);
     const gesperrt = req.body?.gesperrt === true;
     const grund = String(req.body?.grund || "").trim().slice(0, 300) || null;
+    // E-185: Läuft eine Kündigung, bleibt die Tür zu — der Abschluss geht über den
+    // Kündigungs-Block; Freigeben hier würde ihm eine normale Sitzung geben.
+    if (!gesperrt) {
+      const { kuendigungLesen } = await import("../lib/fiaon-kuendigung-mitarbeiter");
+      const k = await kuendigungLesen(id);
+      if (k && !k.schluss_abgeschlossen_am) {
+        return res.status(409).json({ ok: false, error: "Für diesen Mitarbeiter läuft eine Kündigung — erst im Block „Kündigung“ zurücknehmen, dann freigeben." });
+      }
+    }
     const rows = gesperrt
       ? await sqlPool`
           UPDATE fiaon_agents
@@ -461,6 +470,15 @@ router.post("/admin/agents/:id/trainer", async (req, res) => {
 
 router.post("/admin/agents/:id/toggle", async (req, res) => {
   try {
+    // E-185: Ein gekündigter Mitarbeiter braucht sein Konto bis zur Schlussabrechnung —
+    // deaktiviert käme er nicht mehr an die Unterschrift und aus keinem Lauf mehr.
+    {
+      const { kuendigungLesen } = await import("../lib/fiaon-kuendigung-mitarbeiter");
+      const k = await kuendigungLesen(Number(req.params.id));
+      if (k && !k.schluss_abgeschlossen_am) {
+        return res.status(409).json({ ok: false, error: "Für diesen Mitarbeiter läuft eine Kündigung — das Konto bleibt bis zur Schlussabrechnung aktiv." });
+      }
+    }
     const rows = await sqlPool`
       UPDATE fiaon_agents SET active = NOT active WHERE id = ${Number(req.params.id)}
       RETURNING id, name, email, active

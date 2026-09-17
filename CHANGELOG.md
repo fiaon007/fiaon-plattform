@@ -5,6 +5,44 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 15.09.2026 — Neue Seite /global: die US-Positionierung (FIAON Global OS)
+
+**Was geändert wurde:** Es gibt eine neue öffentliche Seite unter `/global` — parallel zu `/business`, das
+unverändert bleibt. Die Seite stellt FIAON als Global Liquidity & Growth Platform vor: US-Entity (LLC/C-Corp),
+EIN, Business-Banking und US-Kreditkarten mit Ziel-Limits bis 250.000 $. Vier Pakete als einmalige
+Setup-Investition (Starter Credit 2.499 €, Pro Scale 4.999 €, Enterprise Limit 6.999 €, VIP Miami Experience
+35.999 €). Der alte Zahlungsziel-Rechner-Gedanke ist hier ein „US-Limit-Audit": Werbe- und Einkaufsausgaben
+eintragen, Richtwert-Limit und Paketempfehlung sehen. Die Knöpfe führen nur auf `/termin` und `/kontakt` —
+kein Checkout, kein Formular auf der Seite.
+
+Zweite Fassung (gleicher Tag): seriöser und räumlicher. Hero ist jetzt der KinoHero (Video-Bühne mit
+Scroll-Parallax) mit zwei schwebenden 3D-FIAON-Karten statt Flagge — die US-Flagge ist raus, die Pille
+trägt nur noch Text. Neu: Block „Die Architektur" mit der SchichtenSzene (drei 3D-Glasplatten:
+US-Entity · US-Banking · US-Limit), Team-Block mit den drei Gesellschaftern aus der bestehenden
+Team-Komponente (Porträts + Link auf /team), Maus-Tiefe (3D-Neigung) auf Paket- und Glaskarten,
+Miami-Band als Video (flug.mp4) mit 3D-Relief-Titel. KinoHero bekam dafür ein optionales `karten`-Prop
+(Standard 1 — bestehende Nutzung unverändert).
+
+Dritte Fassung (gleicher Tag): komplette Umstellung auf die **Sie-Form** — der Ton ist jetzt
+Unternehmensberatung statt Du-Marketing („Ihre US-Entity", „Ihr Limit", „Sie unterschreiben, wir
+erledigen"). Neue Headline: „Ihr Kapital. Ohne europäische Obergrenze." Dazu mehr Glas im
+Apple-Stil: Audit-Karte, Ergebnis-Panel, Paket-Karten und Glasflächen laufen jetzt mit
+`backdrop-filter: blur + saturate`, specularer Oberkante (`inset 0 1px 0`) und weicheren,
+tieferen Schatten.
+
+**Warum:** Die neue Positionierung verkauft Zugang zu US-Finanzinfrastruktur statt Auskunftei-Bereinigung —
+andere Zielgruppe (E-Com, Media Buyer, Gründer), andere Preise. Die alte Seite ersetzen hätte laufende
+Verweise und den bestehenden Antrag beschädigt; deshalb eigene Adresse, eigene Texte, eigener Look auf
+derselben dunklen Bühne. Die zweite Fassung folgt der Rückmeldung: seriöser (keine Flagge/Icons), das Team
+sichtbar, mehr räumliche Tiefe und Animation ohne unruhig zu werden.
+
+**Wo:** `client/src/pages/site/global.tsx`, `client/src/i18n/global.ts`, `client/src/styles/global.css`,
+Route in `client/src/App.tsx`, Sitemap-/Meta-Eintrag in `shared/fiaon-seo-seiten.ts`, optionales
+`karten`-Prop in `client/src/components/site/KinoHero.tsx`. Nur Deutsch; die Struktur ist für eine
+spätere englische Fassung vorbereitet.
+
+---
+
 ## 11.09.2026 — Ein Zeilenleser für PDFs statt zwei (E-180)
 
 **Was geändert wurde:** `server/lib/fiaon-pdf-lesen.ts` hatte seit dem 11.09. zwei Funktionen, die aus den Koordinaten

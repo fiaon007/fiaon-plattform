@@ -187,6 +187,9 @@ const SiteDemo = lazy(() => import("@/pages/site/demo"));
 const SiteRatgeber = lazy(() => import("@/pages/site/ratgeber"));
 const SiteKontakt = lazy(() => import("@/pages/site/kontakt"));
 const SitePreise = lazy(() => import("@/pages/site/preise"));
+// 15.09.2026: /global — die US-Positionierung (Entity, Banking, hohe Limits).
+// Neue Seite, kein Ersatz: /business bleibt parallel bestehen.
+const SiteGlobal = lazy(() => import("@/pages/site/global"));
 // Englische Seiten (02.09.2026): eigene Adressen unter /en, dieselben Bausteine.
 const SiteEnStart = lazy(() => import("@/pages/site/en-start"));
 const SiteKreditkarte = lazy(() => import("@/pages/site/kreditkarte"));
@@ -408,6 +411,7 @@ function Router() {
       <Route path="/start" component={StartPage} />
       <Route path="/karte-sichern" component={StartPage} />
       <Route path="/business" component={BusinessPage} />
+      <Route path="/global" component={SiteGlobal} />
       <Route path="/privatkunden" component={SitePrivatkunden} />
       <Route path="/antrag" component={AntragPage} />
       <Route path="/business-antrag" component={BusinessAntragPage} />

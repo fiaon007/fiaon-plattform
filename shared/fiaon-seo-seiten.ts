@@ -341,6 +341,22 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
       krumen: [{ name: "Business", pfad: "/en/business" }],
     },
   },
+  // 15.09.2026: /global — die US-Positionierung (FIAON Global OS). Neue Seite,
+  // kein Ersatz: /business bleibt parallel. Vorerst nur Deutsch.
+  "/global": {
+    pfad: "/global", art: "produkt", stand: "2026-09-15", prio: 0.8,
+    titel: "US-Unternehmensstruktur & bis zu 250.000 $ Limit — FIAON Global",
+    beschreibung: "US-Entity, EIN und Business-Banking für DACH-Unternehmen: FIAON gründet Ihre US-Struktur und bereitet US-Kreditkarten mit hohem Limit vor. Pakete ab 2.499 € einmalig.",
+    h1: "Entfessle dein Kapital. US-Struktur & bis zu 250.000 $ Limit.",
+    lead: "US-Unternehmensstruktur für DACH-Unternehmen: FIAON gründet Ihre US-Entity, stellt Banking und Firmeninfrastruktur — und bereitet den Zugang zu US-Kreditkarten mit hohen Limits vor.",
+    abschnitte: [
+      { h2: "Europäische Banken deckeln. US-Infrastruktur skaliert.", text: "FIAON gründet die US-Entity (LLC oder C-Corp), beantragt die EIN, richtet Business-Accounts bei US-Finanzpartnern ein und bereitet Kartenanträge mit hohen Limits vor. Über Karte und Limit entscheidet der Herausgeber — FIAON verspricht keine Garantie." },
+      { h2: "Vier Wege in die USA. Ein Ziel: das Limit.", text: "Starter Credit 2.499 €, Pro Scale 4.999 €, Enterprise Limit 6.999 € und die VIP Miami Experience 35.999 € — jedes Paket eine einmalige Setup-Investition mit Ziel-Limits von 50.000 bis 250.000 $.", punkte: ["US-LLC oder C-Corp inklusive Registrierung und EIN", "Business-Accounts mit ACH/Wire bei US-Finanzpartnern", "Karten-Setup Richtung 50.000 bis 250.000 $ Ziel-Limit", "VIP Miami: All-inclusive Setup vor Ort mit Bankterminen"] },
+      { h2: "Ehrliche Erwartungen.", text: "Das US-Limit-Audit auf der Seite zeigt einen Richtwert, keine Zusage. FIAON bietet keine Steuer- oder Rechtsberatung; die Compliance-Vorbereitung läuft mit Partnern. Der Wohnsitz bleibt in der DACH-Region." },
+    ],
+    weiter: ["/business", "/preise", "/kontakt", "/termin", "/sicherheit"],
+    krumen: [{ name: "Global", pfad: "/global" }],
+  },
   // 02.09.2026 (E-091, Entscheidung TFO/Justin): Alt-Seite in Du-Form, 973 Zeilen — wird nicht
   // übersetzt und nicht mehr eigenständig indexiert; canonical zeigt auf die neue, zweisprachige
   // Seite /bonitaetsauskunft-beantragen. Erreichbar bleibt sie (Verweise, Kampagnen-Links).

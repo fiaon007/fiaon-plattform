@@ -22,6 +22,7 @@
 
 import { sqlPool } from "./db-pool";
 import type { Kundenlage, AkteKurz } from "@shared/fiaon-postmeister-typen";
+import { istGlobalPaket } from "@shared/fiaon-pakete";
 
 /** Berliner Zeitangaben — nie Number(format()), immer formatToParts. */
 function berlinJetzt(): { text: string; iso: string } {

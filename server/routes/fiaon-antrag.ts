@@ -5013,7 +5013,9 @@ router.post("/verify-identity", async (req, res) => {
     // bezahlten Bestellungen der Familie Global-Aufträge und stimmt der Name mit dem Unterzeichner überein,
     // bekommt er den Hinweis und den Link per Mail — an die Adresse seines Auftrags. Ohne Namenstreffer
     // bleibt es bei der neutralen Meldung; für jede Familie ohne Global-Auftrag ändert sich nichts.
-    if (globalKontoLage(family) === "nur_global") {
+    // Hat der Mensch daneben einen eigenen Privat-Antrag, der zu Name UND Geburtsdatum passt, bleibt der
+    // Reset für ihn, wie er war — umgeleitet wird nur, wer hier sonst nichts Eigenes zurückzusetzen hätte.
+    if (globalKontoLage(family) === "nur_global" && candidates.every((r: any) => isGlobalOrderRow(r))) {
       const nameTrifft = family.some((r: any) => isGlobalOrderRow(r) && glatt(r.first_name) === wantFirst && glatt(r.last_name) === wantLast)
         || personen.some((x) => glatt(x.first_name) === wantFirst && glatt(x.last_name) === wantLast);
       if (nameTrifft) {

@@ -53,7 +53,7 @@ import { sqlPool } from "../lib/db-pool";
 import { kundenSitzungSetzen } from "../lib/fiaon-kunde-session";
 import { mailSenden } from "../lib/fiaon-mail-senden";
 import { absoluteUrl } from "../fiaon-base-url";
-import { maskEmailForLog, pickAccountRow, globalKontoLage } from "../fiaon-login-logic";
+import { maskEmailForLog, pickAccountRow, istNurFirmenkunde } from "../fiaon-login-logic";
 import { loadLoginFamily } from "./fiaon-antrag";
 
 const router = Router();
@@ -151,7 +151,8 @@ export async function kontoFuerAdresse(normalizedEmail: string): Promise<{ ref: 
   if (!account?.ref) return null;
   // E-188: Sind die einzigen bezahlten Bestellungen Aufträge über FIAON Global, gibt es keinen Bereich
   // unter /app, in den ein Anmelde-Link führen dürfte — dieselbe Regel wie am Passwort-Login.
-  const nurGlobal = globalKontoLage(family) === "nur_global";
+  // Wer daneben einen eigenen Privat-Antrag mit Passwort hat, bekommt seinen Anmelde-Link wie bisher.
+  const nurGlobal = istNurFirmenkunde(family);
   // Der Mensch hinter dem Konto — notfalls aus einer Zeile, die zu DIESEM Konto
   // gehört (die Kontozeile selbst oder eine in sie zusammengeführte Bestellung).
   // NIE aus einer beliebigen Familienzeile: Die Familie umfasst alles, was die

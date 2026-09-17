@@ -1639,7 +1639,8 @@ function KundenKarte({
                         {paketListe.map((pk: any) => {
                           const euro = Number.isFinite(Number(pk?.preisEuro)) ? Number(pk.preisEuro)
                             : Number.isFinite(Number(pk?.preisCents)) ? Number(pk.preisCents) / 100 : null;
-                          return <option key={pk.key} value={pk.key}>{pk.label}{euro != null ? ` – ${euro.toLocaleString("de-DE", { minimumFractionDigits: 2 })} €/Monat` : ""}</option>;
+                          // E-188: FIAON Global und die Bonitätsauskunft sind Einmalpreise — „/Monat" nur beim Abo.
+                          return <option key={pk.key} value={pk.key}>{pk.label}{euro != null ? ` – ${euro.toLocaleString("de-DE", { minimumFractionDigits: 2 })} €${pk.abo === false ? " einmalig" : "/Monat"}` : ""}</option>;
                         })}
                       </select>
                       <button type="button" disabled={!paketGewaehlt || laeuft === "paket"}

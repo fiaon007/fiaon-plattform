@@ -405,8 +405,10 @@ function InkassoZuteilung() {
       {(abos?.schufaMitRaten ?? []).length > 0 && (
         <p className="mb-4 px-4 py-3 rounded-xl text-[12.5px] leading-relaxed"
            style={{ background: "rgba(185,28,28,.06)", color: "#b91c1c" }}>
-          <b>{abos.schufaMitRaten.length} SCHUFA-Bestellungen haben Abo-Raten.</b> Eine
-          Bonitätsauskunft ist eine Einmalzahlung — sie darf keine monatliche Rate haben.
+          {/* E-188: Die Gegenprobe umfasst jeden Einmalkauf des Katalogs — auch FIAON Global. */}
+          <b>{abos.schufaMitRaten.length} Einmalkäufe haben Abo-Raten.</b> Die
+          Bonitätsauskunft und die FIAON-Global-Pakete sind Einmalzahlungen — sie dürfen keine
+          monatliche Rate haben. Betroffen: {abos.schufaMitRaten.map((z: any) => `${z.name || z.ref}${z.paket ? ` (${z.paket})` : ""}`).join(", ")}.
         </p>
       )}
 

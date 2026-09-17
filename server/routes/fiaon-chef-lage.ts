@@ -213,8 +213,9 @@ router.get("/chef/lage", requireChef("leitung"), async (_req: Request, res: Resp
       team: { teamAktiv, kontakteHeute, termineHeute, termineOhneErgebnis },
       klemmt: { zusageGebrochen, ohneTermin, dublettenVerdacht, nummerOhneLand },
       verlauf: umsatz.verlauf.map((v) => ({
-        monat: v.monat, cents: v.ratenCents + v.auskunftCents,
-        auskunftCents: v.auskunftCents, zahlungen: v.zahlungen,
+        // E-188: FIAON Global ist Einmalerlös wie die Auskunft — er zählt zum Monat.
+        monat: v.monat, cents: v.ratenCents + v.auskunftCents + v.globalCents,
+        auskunftCents: v.auskunftCents, globalCents: v.globalCents, zahlungen: v.zahlungen,
       })),
       mitarbeiter: team.map((t) => ({
         id: Number(t.id), name: t.name, rolle: t.rolle,

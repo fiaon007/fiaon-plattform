@@ -91,6 +91,7 @@ import { sofortUrlFuer } from "./fiaon-zahlungsauftrag";
 // Die Bankverbindung hat seit dem 02.09.2026 GENAU EINE Quelle. Ein Literal
 // hier wäre die zehnte Stelle, die beim nächsten Kontowechsel vergessen wird.
 import { BANK } from "@shared/fiaon-bank";
+import { produktkategorieSql } from "./fiaon-produktkategorie";
 
 export type Segment = "s1_frisch" | "s2_behauptet" | "s3_preis_fehlt" | "s4_nie_gemahnt" | "s5_altbestand";
 
@@ -220,6 +221,11 @@ function grundmenge() {
        AND (a.gekuendigt_am IS NULL OR a.kuendigung_zurueckgenommen_am IS NOT NULL) AND a.refunded_at IS NULL
        AND COALESCE(a.ist_entwurf, FALSE) = FALSE
        AND a.ref NOT LIKE 'FIAON-TEST%' AND a.ref NOT LIKE 'FIAON-SCHUFA-%'
+       -- E-188 (17.09.2026): Die Rückhol-Mails sprechen von Auskunft, Einträgen
+       -- und Raten — die Sprache der Privatlinie. Eine offene FIAON-Global-
+       -- Bestellung (Unternehmen, Einmalpreis) bekommt sie nicht; dort fasst der
+       -- feste Ansprechpartner nach.
+       AND NOT (${sqlPool.unsafe(produktkategorieSql("a"))} = 'global')
        AND p.ist_test_am IS NULL
        AND p.werbung_gesperrt_am IS NULL
   `;

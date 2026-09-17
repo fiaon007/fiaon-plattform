@@ -6,7 +6,8 @@
 // Liquidität — Liquidität hängt an der Firmen-Bonität (Creditreform, SCHUFA
 // B2B, KSV). Diese Strecke macht aus einer Firmenliste einen Selbstläufer:
 // Liste rein → Tagesliste → Anruf mit Leitfaden → Ergebnis in einem Klick →
-// Info-Mail/Antragslink → Wiedervorlage → Abschluss über /business-antrag.
+// Info-Mail/Antragslink → Wiedervorlage → Abschluss (bis 17.09.2026 über
+// /business-antrag, seither über /business/start — siehe unten).
 //
 // BEWUSSTE GRENZEN:
 //  · ADDITIV: Firmen-Leads sind KEINE fiaon_persons und KEINE fiaon_leads —
@@ -17,12 +18,29 @@
 //    Auskunfteien — die sind in Verhandlung, nicht unterschrieben.
 //  · Info-Mail: höchstens EINE je Firma je 7 Tage, Versand über das
 //    Dienstkonto (welcome@), Antwortweg = der anrufende Mitarbeiter.
+//
+// ── SEIT DEM 17.09.2026 VERKAUFT DIESE STRECKE FIAON GLOBAL (E-188) ────────
+// Die vier Business-Abos sind eingestellt (shared/fiaon-pakete.ts). Das
+// Cockpit bleibt, wie es ist — Liste, Ring, Ergebnis-Knöpfe —, aber was es
+// SAGT und was es VERKAUFT, ist neu:
+//   · Abschluss: die Pakete kommen aus verkaufbarePakete("global"), nicht mehr
+//     aus einer harten Liste. Ein eingestelltes Paket ist nicht wählbar.
+//     Global-Pakete sind EINMALPREISE — keine „erste Rate".
+//   · Info-Mail und KI-Vorbereitung: Texte aus shared/fiaon-global-vertrieb.ts
+//     (eine Stelle, von scripts/pruef-pakete.ts durch die Wortwand geschickt).
+//     Keine Zusage zu Karte, Rahmen, Zins, Frist oder Bank; Steuer und Recht
+//     nur über Steuerberater und Anwälte auf eigenes Mandat.
+//   · Der Antragslink zeigt auf /business/start (shared/fiaon-global-wege.ts),
+//     nicht mehr auf /business-antrag.
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { Router, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
 import { gmailBereit, mailNeuSenden } from "../lib/fiaon-gmail";
+import { verkaufbarePakete } from "@shared/fiaon-pakete";
+import { globalInfoMail, globalVorbereitungSystem } from "@shared/fiaon-global-vertrieb";
+import { globalStartUrl } from "@shared/fiaon-global-wege";
 
 const router = Router();
 
@@ -234,27 +252,13 @@ router.post("/agent/firmen/:id/mail", requireAgent, async (req: AgentRequest, re
     `) as any[];
     if (schon) return res.status(409).json({ ok: false, error: "Diese Firma hat in den letzten 7 Tagen schon eine Info-Mail bekommen." });
 
-    const anrede = firma.ansprechpartner ? `Guten Tag ${firma.ansprechpartner},` : "Guten Tag,";
-    const text = `${anrede}
+    // E-188: Der Text steht in shared/fiaon-global-vertrieb.ts — dieselben
+    // Sätze wie auf /business, Preise aus dem Katalog, durch die Wortwand geprüft.
+    const { betreff, text } = globalInfoMail({
+      ansprechpartner: firma.ansprechpartner, firma: String(firma.firma), agentName: req.agent!.name,
+    });
 
-vielen Dank für das Gespräch eben. Wie besprochen in aller Kürze, worum es geht:
-
-Über die Bonität Ihres Unternehmens entscheiden Einträge bei Auskunfteien wie Creditreform, SCHUFA und KSV — und dort stehen erfahrungsgemäß oft Dinge, die längst erledigt sind oder schlicht nicht stimmen. Genau das kostet Unternehmen Liquidität: schlechtere Konditionen, zähe Finanzierungen, abgelehnte Leasing- und Lieferantenkredite.
-
-FIAON macht daraus einen geordneten Weg: Wir beschaffen mit Ihrer Vollmacht die Auskünfte, erklären jeden Eintrag in Menschensprache, und für alles Angreifbare liegen anwaltlich geprüfte Schreiben bereit — Sie geben frei, wir versenden und verfolgen die Antworten. Ziel: eine Firmen-Bonität, mit der Bankgespräche wieder Spaß machen.
-
-Den Einstieg finden Sie hier, dauert online wenige Minuten:
-https://fiaon.com/business
-
-Wenn Sie lieber erst Fragen klären: Antworten Sie einfach auf diese E-Mail oder rufen Sie mich zurück — ich bin Ihr fester Ansprechpartner.
-
-Freundliche Grüße
-${req.agent!.name}
-FIAON — Das Betriebssystem für Bonität
-welcome@fiaon.com · fiaon.com/business`;
-
-    await mailNeuSenden("welcome@fiaon.com", String(firma.email).trim(),
-      `Ihre Firmen-Bonität — die Unterlagen zu unserem Gespräch (${firma.firma})`, text);
+    await mailNeuSenden("welcome@fiaon.com", String(firma.email).trim(), betreff, text);
     await sqlPool`
       INSERT INTO fiaon_firmen_log (firma_id, agent_id, agent_name, art, notiz)
       VALUES (${id}, ${req.agent!.id}, ${req.agent!.name}, 'mail', 'Info-Mail nach Gespräch (welcome@) versendet')
@@ -308,8 +312,10 @@ router.post("/agent/firmen/:id/notiz", requireAgent, async (req: AgentRequest, r
 //
 // Liest, wenn vorhanden, die WEBSITE der Firma (öffentlich, 6 s Deckel) und
 // baut daraus mit dem Firmenwissen des Hauses eine Gesprächsvorbereitung:
-// Kurzlage, drei Schmerzpunkte, Einstiegssatz, Fragen, Einwand-Tipp,
-// Paket-Empfehlung. Ergebnis wird 7 Tage im Verlauf gecacht (art='analyse').
+// Kurzlage, drei Anknüpfungspunkte, Einstiegssatz, Fragen, Einwand-Tipp,
+// passendes Paket. Ergebnis wird 7 Tage im Verlauf gecacht (art='analyse').
+// Seit E-188 für FIAON Global — eine Vorbereitung aus der Bonitäts-Zeit wird
+// nicht mehr aus dem Cache gereicht (siehe unten).
 // EHRLICH: Ohne Website sagt die Vorbereitung, dass sie nur aus Branche/Ort
 // schätzt — sie erfindet keine Fakten über die Firma.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -344,7 +350,11 @@ router.post("/agent/firmen/:id/vorbereitung", requireAgent, async (req: AgentReq
         WHERE firma_id = ${id} AND art = 'analyse' AND created_at > NOW() - INTERVAL '7 days'
         ORDER BY created_at DESC LIMIT 1
       `) as any[];
-      if (cache?.notiz) {
+      // E-188: Eine Vorbereitung aus der Zeit der Business-Abos nennt ein
+      // eingestelltes Paket und spricht von Firmen-Bonität — sie wird nicht mehr
+      // ausgeliefert, sondern neu gerechnet. Erkannt am Paketschlüssel, nicht
+      // am Datum: So stimmt es unabhängig vom Tag des Deploys.
+      if (cache?.notiz && !/business_(starter|pro|ultra|enterprise)/.test(String(cache.notiz))) {
         try { return res.json({ ok: true, vorbereitung: JSON.parse(cache.notiz), quelle: "gespeichert" }); } catch { /* neu rechnen */ }
       }
     }
@@ -352,11 +362,9 @@ router.post("/agent/firmen/:id/vorbereitung", requireAgent, async (req: AgentReq
     const key = process.env.OPENAI_API_KEY;
     if (!key) return res.status(502).json({ ok: false, error: "KI nicht eingerichtet." });
     const seite = await websiteText(firma.website);
-    const system = `Du bereitest einen FIAON-Vertriebsmitarbeiter auf einen B2B-KALTANRUF vor.
-FIAON hilft Unternehmen, ihre Firmen-Bonität (Creditreform, SCHUFA B2B, KSV) einzusehen und zu reparieren: Auskünfte mit Vollmacht beschaffen, jeden Eintrag erklären, angreifbare Einträge mit anwaltlich geprüften Schreiben angehen. Ziel des Anrufs: Interesse wecken → Info-Mail/Termin/Antrag. Geschäftspakete ab 39,99 €/Monat, monatlich kündbar.
-STRENG: Keine Fakten über die Firma ERFINDEN. Was du nur aus Branche/Ort ableitest, kennzeichne als Vermutung („vermutlich", „typisch für…"). NIEMALS versprechen: garantierte Löschung, Kredite, bestimmte Scores.
-Antworte NUR als JSON:
-{"kurzlage":"2-3 Sätze, was diese Firma macht (aus der Website; ohne Website: was Branche/Ort vermuten lassen)","schmerzpunkte":["3 wahrscheinliche Bonitäts-/Liquiditäts-Schmerzpunkte GENAU dieser Firma"],"einstieg":"EIN gesprochener Einstiegssatz für den Anruf, auf diese Firma zugeschnitten, Sie-Form","fragen":["3 kluge Fragen, die Kompetenz zeigen"],"einwand_tipp":"der wahrscheinlichste Einwand dieser Firma + die beste Antwort in einem Satz","paket":"business_starter|business_pro|business_ultra|business_enterprise mit 1 Satz Begründung"}`;
+    // E-188: Die Anweisung kommt aus shared/fiaon-global-vertrieb.ts (FIAON
+    // Global statt Firmen-Bonität; Paketschlüssel und Preise aus dem Katalog).
+    const system = globalVorbereitungSystem();
     const nutzer = `FIRMA: ${firma.firma}${firma.branche ? ` · Branche: ${firma.branche}` : ""}${firma.ort ? ` · Ort: ${firma.ort}` : ""}${firma.ansprechpartner ? ` · Ansprechpartner: ${firma.ansprechpartner}` : ""}${firma.notiz ? `\nNOTIZEN: ${String(firma.notiz).slice(0, 800)}` : ""}
 ${seite ? `WEBSITE-INHALT (${firma.website}):\n${seite}` : "KEINE Website erreichbar — arbeite mit Branche/Ort und sage das ehrlich."}`;
     const r = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -402,17 +410,20 @@ router.post("/agent/firmen/:id/abschluss", requireAgent, async (req: AgentReques
     if (!firma) return res.status(404).json({ ok: false, error: "Firma nicht gefunden" });
 
     const b = req.body || {};
-    const paket = String(b.paket || "");
-    const erlaubt = ["business_starter", "business_pro", "business_ultra", "business_enterprise"];
-    if (!erlaubt.includes(paket)) return res.status(400).json({ ok: false, error: "Bitte ein Geschäftspaket wählen." });
+    const paket = String(b.paket || "").trim().toLowerCase();
+    // ── DIE PAKETE KOMMEN AUS DEM KATALOG (17.09.2026, E-188) ──────────────
+    // Hier stand eine harte Liste der vier Business-Abos. Sie sind eingestellt;
+    // verkauft wird FIAON Global. `verkaufbarePakete("global")` kennt genau die
+    // Pakete, die heute angeboten werden — kommt ein fünftes dazu oder fällt
+    // eines weg, stimmt diese Route ohne Änderung.
+    const paketDef = verkaufbarePakete("global").find((x) => x.key === paket);
+    if (!paketDef) return res.status(400).json({ ok: false, error: "Bitte ein FIAON-Global-Paket wählen. Die früheren Business-Abos werden nicht mehr verkauft." });
     const email = String(b.email || firma.email || "").trim();
     if (!/^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/.test(email)) return res.status(400).json({ ok: false, error: "Gültige E-Mail-Adresse nötig — dorthin gehen Zugang und Zahlungsdaten." });
     const vorname = String(b.vorname || "").trim();
     const nachname = String(b.nachname || "").trim();
     if (!vorname || !nachname) return res.status(400).json({ ok: false, error: "Vor- und Nachname des Ansprechpartners nötig." });
 
-    const { PAKETE } = await import("@shared/fiaon-pakete");
-    const paketDef = PAKETE.find((x: any) => x.key === paket);
     const ref = `FIAON-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
     const port = process.env.PORT || 5000;
     const antwort = await fetch(`http://127.0.0.1:${port}/api/fiaon/application`, {
@@ -420,7 +431,7 @@ router.post("/agent/firmen/:id/abschluss", requireAgent, async (req: AgentReques
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         ref, type: "business", status: "submitted", currentStep: 6,
-        packKey: paket, packName: paketDef?.label || paket,
+        packKey: paket, packName: paketDef.label,
         companyName: firma.firma, legalForm: String(b.rechtsform || "").trim() || null,
         contactFirstName: vorname, contactLastName: nachname,
         contactEmail: email, email,
@@ -430,7 +441,18 @@ router.post("/agent/firmen/:id/abschluss", requireAgent, async (req: AgentReques
         zip: String(b.plz || "").trim() || null,
         city: String(b.ort || firma.ort || "").trim() || null,
         country: String(b.land || "DE").trim(),
-        billingEmail: email, ag1: true, ag2: true, ag3: true,
+        billingEmail: email,
+        // ── KEINE ZUSTIMMUNG, DIE NIEMAND GEGEBEN HAT (17.09.2026, E-188) ──
+        // Bei den Business-Abos standen hier drei „true": AGB, SCHUFA-
+        // Einwilligung, Vertrag — das Muster „Vertrag am Telefon". Für FIAON
+        // Global trägt es nicht: Eine SCHUFA-Einwilligung gibt es dort nicht,
+        // und den Global-Vertrag (shared/fiaon-global.ts, GLOBAL_VERTRAG_VERSION)
+        // hat der Kunde am Telefon nicht gesehen. Diese drei Felder stehen
+        // später als BELEG in der Akte und im Forderungsdossier — ein Haken,
+        // den niemand gesetzt hat, wäre ein falscher Beleg über einen Auftrag
+        // von 2.499 bis 35.999 €. Der Kunde unterschreibt über den
+        // Auftragslink (/business/start); die Antwort unten liefert ihn mit.
+        ag1: false, ag2: false, ag3: false,
       }),
     });
     if (!antwort.ok) {
@@ -452,11 +474,16 @@ router.post("/agent/firmen/:id/abschluss", requireAgent, async (req: AgentReques
     await sqlPool`
       INSERT INTO fiaon_firmen_log (firma_id, agent_id, agent_name, art, ergebnis, notiz)
       VALUES (${id}, ${req.agent!.id}, ${req.agent!.name}, 'anruf', 'erreicht_antrag',
-              ${`Abschluss am Telefon: ${paketDef?.label || paket} — Antrag ${app.payment_reference || app.ref} angelegt`})
+              ${`Abschluss am Telefon: ${paketDef.label} (${(paketDef.preisCents / 100).toFixed(2)} € einmalig) — Antrag ${app.payment_reference || app.ref} angelegt`})
     `;
     res.json({
-      ok: true, ref: app.ref, zahlungsreferenz: app.payment_reference, betrag: app.amount_due,
+      ok: true, ref: app.ref, zahlungsreferenz: app.payment_reference,
+      // Der Betrag kommt aus dem Katalog, nicht aus dem Bestellfeld (E-181) —
+      // und er ist ein EINMALPREIS, keine erste Rate.
+      betrag: paketDef.preisCents / 100, einmalig: !paketDef.abo, paket: paketDef.label,
       zahlungslink: app.payment_reference ? `https://fiaon.com/zahlung/${app.payment_reference}` : null,
+      // Der Weg, auf dem der Kunde den Vertrag selbst unterschreibt.
+      auftragslink: globalStartUrl(paket),
     });
   } catch (err: any) {
     console.error("[FIRMEN] abschluss:", err);

@@ -8,6 +8,10 @@
 // nicht — und sagt das dann auch (statt zu raten).
 // ═══════════════════════════════════════════════════════════════════════════
 import { PAKETE, SCHUFA_PREIS_EURO } from "./fiaon-pakete";
+import {
+  GLOBAL_PAKETE, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_GELD_ZURUECK,
+  globalKatalog, globalPreisText, globalPlanungText,
+} from "./fiaon-global";
 import { AGENDA } from "./fiaon-onboarding-agenda";
 
 export const SUPPORT = {
@@ -21,9 +25,59 @@ export const SUPPORT = {
 
 const preis = (c: number) => (c / 100).toFixed(2).replace(".", ",") + " €";
 
+// ═══════════════════════════════════════════════════════════════════════════
+// WAS VERKAUFT WIRD — UND WAS NUR NOCH LÄUFT (17.09.2026, E-188)
+//
+// Bis heute stand hier EINE Liste: jedes Abo-Paket „im Monat, zwölf
+// Monatsraten". Seit E-188 stimmt das für die Geschäftskunden nicht mehr:
+//   · Die vier Business-Abos sind eingestellt — sie werden nicht mehr
+//     angeboten, Bestandskunden laufen unverändert weiter.
+//   · An ihre Stelle tritt FIAON Global: vier EINMALPREISE, kein Abo.
+// Ein Assistent, der das nicht weiß, nennt einem Unternehmer „2.499 € im
+// Monat" oder bietet ihm ein Paket an, das es nicht mehr gibt. Deshalb drei
+// Bausteine aus dem Katalog: was verkauft wird (Abo), was nur noch läuft, und
+// FIAON Global mit den Sätzen aus shared/fiaon-global.ts — dieselben, die auf
+// der Seite und im Vertrag stehen.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Die Abo-Pakete, die heute verkauft werden. */
+function paketZeilen(): string {
+  return PAKETE.filter((p) => p.abo && !p.eingestellt)
+    .map((p) => `- ${p.label} (${p.art === "privat" ? "Privatkunden" : "Geschäftskunden"}): ${preis(p.preisCents)} im Monat, zwölf Monatsraten per SEPA-Lastschrift oder Überweisung; Vertrag über zwölf Raten (siehe VERTRAG UND KÜNDIGUNG)`)
+    .join("\n");
+}
+
+/** Eingestellte Abos — nur für Fragen von Bestandskunden. */
+function eingestellteZeilen(): string {
+  return PAKETE.filter((p) => p.abo && p.eingestellt)
+    .map((p) => `- ${p.label}: ${preis(p.preisCents)} im Monat (nur Bestandskunden)`)
+    .join("\n");
+}
+
+/** FIAON Global als Faktenblock — Einmalpreise, Rollen, Pflichthinweise, Wege. */
+export function globalWissen(): string {
+  const tafeln = GLOBAL_PAKETE.map((g) => {
+    const k = globalKatalog(g.key);
+    return `- ${k?.label ?? g.de.name}: ${globalPreisText(g.key)} EINMALIG (kein Abo, keine Monatsrate). ${g.de.fuer} ${g.de.dauer}. Planungsgröße des Kunden: ${globalPlanungText(g.key)}. Enthalten: ${g.de.leistungen.join("; ")}.`;
+  }).join("\n");
+  const geldZurueck = GLOBAL_GELD_ZURUECK.aktiv
+    ? `\n${GLOBAL_GELD_ZURUECK.de.titel}: ${GLOBAL_GELD_ZURUECK.de.text} ${GLOBAL_GELD_ZURUECK.de.bedingungen}`
+    : "";
+  return `FIAON GLOBAL — DIE US-STRUKTUR FÜR UNTERNEHMEN (seit 17.09.2026 das einzige Angebot für Geschäftskunden)
+Was es ist: FIAON gründet für Unternehmen aus Deutschland, Österreich und der Schweiz eine US-Gesellschaft, bereitet die Steuernummern (EIN, ITIN) vor und reicht sie ein, stellt US-Geschäftsadresse, US-Telefonnummer, Registered Agent und Dokumentenraum und bereitet Konto- und Kartenanträge vollständig vor — mit einem Team vor Ort in den USA und einem festen Ansprechpartner. Für jede Unternehmensart, vom Handwerksbetrieb bis zur Projektentwicklung.
+Vier Pakete, jedes ein EINMALPREIS. Es gibt keine Monatsraten, keine Lastschrift und keine Mindestlaufzeit; bezahlt wird einmal per Überweisung auf Rechnung:
+${tafeln}
+Die Planungsgröße in US-Dollar ist der Rahmen, den der KUNDE anstrebt — an ihr richten sich Dauer und Tiefe der Betreuung aus. Sie ist kein Ergebnis und keine Zusage von FIAON. Dauern sind Erfahrungswerte („in der Regel"), nie Fristen.
+Wer entscheidet: Über Konto, Karte und Rahmen entscheidet allein das jeweilige US-Institut. ${GLOBAL_ROLLEN.de.fiaon} FIAON vermittelt keine Kredite. Nenne keine Banknamen als Zusage, keine Zinssätze, kein „bis zu" und keine Frist mit Zahl.
+Steuer und Recht: ${GLOBAL_ROLLEN.de.partner} ${GLOBAL_ROLLEN.de.kosten} Steuerliche oder rechtliche Einzelfragen beantwortet FIAON nicht — dafür sind die Steuerberater und Anwälte mit eigenem Mandat da.
+Pflichthinweise (immer nennen, wenn es um Steuern, Meldungen oder Haftung geht):
+${GLOBAL_PFLICHTHINWEIS.de.map((h) => `- ${h}`).join("\n")}${geldZurueck}
+Die zwei Wege: (1) Direkt beauftragen unter fiaon.com/business/start — Paket wählen, Unternehmen angeben, Vertrag unterschreiben, Rechnung per Überweisung; der Zahlungseingang ist der Start. (2) Erst sprechen: Gespräch buchen unter fiaon.com/business#gespraech. Alle Pakete im Überblick: fiaon.com/business#pakete.
+Die früheren Business-Abos sind seit dem 17.09.2026 NICHT MEHR IM VERKAUF — biete sie niemandem an. Bestandskunden laufen unverändert weiter (gleiche Monatsrate, gleiche Regeln unter VERTRAG UND KÜNDIGUNG):
+${eingestellteZeilen()}`;
+}
+
 export function wissenText(): string {
-  const pakete = PAKETE.filter((p) => p.abo).map((p) => `- ${p.label} (${p.art === "privat" ? "Privatkunden" : "Geschäftskunden"}): ${preis(p.preisCents)} im Monat, zwölf Monatsraten per SEPA-Lastschrift oder Überweisung; Vertrag über zwölf Raten (siehe VERTRAG UND KÜNDIGUNG)`).join("\n");
-  const agenda = AGENDA.map((a, i) => `${i + 1}. ${a.titel}: ${a.zweck}`).join("\n");
   return `${wissenFakten()}
 
 VERHALTEN
@@ -44,7 +98,7 @@ VERHALTEN
  * vollständig; Verhalten je Einsatzort.
  */
 export function wissenFakten(): string {
-  const pakete = PAKETE.filter((p) => p.abo).map((p) => `- ${p.label} (${p.art === "privat" ? "Privatkunden" : "Geschäftskunden"}): ${preis(p.preisCents)} im Monat, zwölf Monatsraten per SEPA-Lastschrift oder Überweisung; Vertrag über zwölf Raten (siehe VERTRAG UND KÜNDIGUNG)`).join("\n");
+  const pakete = paketZeilen();
   const agenda = AGENDA.map((a, i) => `${i + 1}. ${a.titel}: ${a.zweck}`).join("\n");
   return `FIAON — DAS HAUS IN FAKTEN (Stand: laufend gepflegt in shared/fiaon-wissen.ts)
 
@@ -60,6 +114,9 @@ PAKETE UND PREISE (Stand heute, aus dem Katalog)
 ${pakete}
 - Nur die Bonitätsauskunft, ohne Paket: ${SCHUFA_PREIS_EURO.toFixed(2).replace(".", ",")} € einmalig, kein Abo.
 Das Paket lässt sich im Antrag und im Startgespräch ändern. Zahlung: erste Rate per Überweisung (Zahlungsdaten mit QR-Code im Kundenbereich), weitere Raten per SEPA-Lastschrift.
+Für Unternehmen gibt es keine Monatspakete mehr, sondern FIAON Global (nächster Abschnitt).
+
+${globalWissen()}
 
 DER WEG FÜR NEUE KUNDEN
 1. Paket wählen (fiaon.com/privatkunden oder fiaon.com/antrag) — der Antrag dauert etwa zwei Minuten: E-Mail, Name, Geburtsdatum, Telefon, Adresse (füllt sich beim Tippen selbst aus), Beschäftigung, Einkommen, Wunschlimit.
@@ -93,7 +150,7 @@ KOSTENLOSE WERKZEUGE UND RATGEBER
 - fiaon.com/werkzeuge/verjaehrung: Verjährungs-Rechner (Datum, Einrede zum Kopieren).
 - fiaon.com/werkzeuge/karten-check: Karten-Check (welche Karte realistisch ist).
 - fiaon.com/werkzeuge/spielraum: Spielraum-Rechner (Einnahmen, Fixkosten, Richtwert Kartenrahmen).
-- fiaon.com/business: Geschäftskunden – Firmenkarte, Zahlungsziel bis 58 Tage, Pakete Business Starter bis Enterprise, Zielrahmen 5.000 bis 250.000 € (Bank entscheidet), Werkzeuge Zahlungsziel-Rechner und Limit-Bedarf. Anfrage: fiaon.com/business-antrag.
+- fiaon.com/business: FIAON Global für Unternehmen – US-Gesellschaft aus einer Hand, vier Pakete zum Einmalpreis (siehe FIAON GLOBAL). Direkt beauftragen: fiaon.com/business/start. Gespräch buchen: fiaon.com/business#gespraech.
 - fiaon.com/plattform-konzept: die ganze Plattform erklärt, Paketfinder, Weg Tag für Tag.
 - fiaon.com/preise: alle Pakete im Leistungsvergleich, Werkzeug „Was kostet Selbermachen?“.
 - fiaon.com/kreditkarte: Kreditkarte trotz Eintrag – drei Wege, Rahmen-Zeitachse.

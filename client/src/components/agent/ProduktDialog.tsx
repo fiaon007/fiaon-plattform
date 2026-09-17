@@ -34,7 +34,8 @@ import { useEffect, useState } from "react";
 
 interface Paket {
   key: string; label: string; preisEuro: number;
-  art: "privat" | "business"; abo: boolean;
+  // 17.09.2026 (E-188): „global" = FIAON Global, Einmalpreis für Unternehmen.
+  art: "privat" | "business" | "global"; abo: boolean;
 }
 
 export interface Buchung {
@@ -94,6 +95,12 @@ export function ProduktDialog({
   const auskunftBezahlt = buchungen.some((b) => b.bezahlt && b.art === "bonitaet");
 
   const paket = pakete.find((p) => p.key === gewaehlt);
+  // ── FIAON GLOBAL IST EIN EIGENES FACH (17.09.2026, E-188) ───────────────
+  // Der Server legt nur innerhalb derselben Kategorie still: Ein Global-Paket
+  // ersetzt keine offene Privatbestellung und umgekehrt. Die Anzeige darf
+  // deshalb nicht „ersetzt" sagen, wenn nichts ersetzt wird.
+  const offenesIstGlobal = /FIAON Global/i.test(String(offenesPaket?.bezeichnung ?? ""));
+  const ersetztOffenes = istTausch && !!paket && paket.key !== "schufa" && (paket.art === "global") === offenesIstGlobal;
   const anlegen = async () => {
     if (!paket) return;
     setLaeuft(true);
@@ -195,7 +202,7 @@ export function ProduktDialog({
               {pakete.filter((p) => p.key !== "schufa").map((p) => (
                 <option key={p.key} value={p.key}
                         disabled={offenesPaket?.bezeichnung?.includes(p.label)}>
-                  {p.label} — {euro(p.preisEuro)} / Monat
+                  {p.label} — {euro(p.preisEuro)}{p.abo ? " / Monat" : " einmalig"}
                   {offenesPaket?.bezeichnung?.includes(p.label) ? " (schon offen)" : ""}
                 </option>
               ))}
@@ -218,8 +225,11 @@ export function ProduktDialog({
                style={{ background: "rgba(15,23,42,.035)" }}>
               <b>{paket.label}</b> · {euro(paket.preisEuro)}
               {paket.abo ? " monatlich" : " einmalig"}
-              {istTausch && paket.key !== "schufa" && (
+              {ersetztOffenes && (
                 <> · ersetzt <b>{offenesPaket!.bezeichnung}</b></>
+              )}
+              {istTausch && !ersetztOffenes && paket.key !== "schufa" && (
+                <> · <b>eigenes Produkt</b> – {offenesPaket!.bezeichnung} bleibt offen</>
               )}
               {paket.key === "schufa" && (
                 <> · <b>zusätzlich</b> zum Konto, kein Ersatz</>

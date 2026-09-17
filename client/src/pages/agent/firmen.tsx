@@ -16,13 +16,22 @@
 //     Anrufers) und der Antragslink zum Kopieren.
 //   · Nachschub: Listen einfach einkleben (Import versteht CSV/Tab/Excel-
 //     Kopien und überspringt Doppelte).
+//
+// 17.09.2026 (E-188): Das Cockpit verkauft FIAON Global — vier EINMALPREISE
+// statt der eingestellten Business-Abos. Der Leitfaden kommt aus
+// shared/fiaon-global-vertrieb.ts (dieselbe Stelle wie Info-Mail und
+// KI-Vorbereitung, durch die Wortwand geprüft), das Auswahlfeld aus
+// verkaufbarePakete("global"), der Auftragslink aus shared/fiaon-global-wege.ts.
+// Nichts hier sagt eine Karte, einen Rahmen, einen Zins oder eine Frist zu.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useState } from "react";
 import { AgentShell } from "./shared";
 import { useOffice } from "./OfficeShell";
 import { Rundgang } from "@/components/agent/Rundgang";
 import { RUNDGAENGE } from "./rundgaenge";
-import { PAKETE } from "@shared/fiaon-pakete";
+import { verkaufbarePakete } from "@shared/fiaon-pakete";
+import { globalLeitfaden } from "@shared/fiaon-global-vertrieb";
+import { globalStartUrl } from "@shared/fiaon-global-wege";
 import "@/styles/office-firmen.css";
 
 async function api(pfad: string, init?: RequestInit) {
@@ -50,31 +59,12 @@ const ERGEBNIS_KNOEPFE: [string, string, string][] = [
   ["nummer_falsch", "Nummer falsch", "rot"],
 ];
 
-const LEITFADEN = [
-  { t: "Der Öffner (10 Sekunden)", s: [
-    "„Guten Tag, [Name] von FIAON — ich halte Sie kurz: Wir helfen Unternehmen, ihre Firmen-Bonität bei Creditreform, SCHUFA und KSV in Ordnung zu bringen. Darf ich Ihnen in einem Satz sagen, warum sich das für Sie rechnet?“",
-    "Dann SOFORT der eine Satz: „Über Ihre Kreditlinien, Leasingverträge und Lieferantenkonditionen entscheidet Ihre Auskunftei-Akte — und da stehen bei den meisten Unternehmen Dinge, die längst erledigt sind oder nicht stimmen.“",
-  ]},
-  { t: "Die drei Schmerzpunkte (den passenden wählen)", s: [
-    "LIQUIDITÄT: „Wann hat Ihre Bank zuletzt die Konditionen erhöht oder die Linie gekürzt — und hat sie Ihnen gesagt, WARUM? Meist steht der Grund in der Auskunftei-Akte, nicht in Ihren Zahlen.“",
-    "ALTE EINTRÄGE: „Ein erledigter Eintrag verschwindet nicht von selbst. Er kostet Sie jeden Monat Geld, ohne dass Sie ihn je zu Gesicht bekommen.“",
-    "BLINDFLUG: „Die Auskunfteien kennen Ihre Firma besser als Sie deren Akte. Wir drehen das um: Sie sehen alles, erklärt in Menschensprache — und was angreifbar ist, greifen wir an.“",
-  ]},
-  { t: "Was FIAON konkret tut (ehrlich, ohne Übertreibung)", s: [
-    "Mit Vollmacht beschaffen wir die Firmen-Auskünfte (Creditreform, SCHUFA, KSV), erklären jeden Eintrag und legen für alles Angreifbare anwaltlich geprüfte Schreiben vor — der Kunde gibt frei, wir versenden und verfolgen die Antworten.",
-    "NIE versprechen: Löschung „garantiert“, bestimmte Scores, Kredite oder Karten. Die Entscheidung trifft immer die Bank/Auskunftei — WIR liefern die bestmögliche Akte dafür.",
-  ]},
-  { t: "Einwände", s: [
-    "„Macht mein Steuerberater.“ — „Ihr Steuerberater macht Ihre Zahlen. Die Auskunftei-Akte ist eine ANDERE Baustelle: Da geht es um Datenschutzrecht und Fristen, nicht um Buchhaltung. Genau dafür sind wir da.“",
-    "„Keine Zeit.“ — „Deshalb rufe ich an: Sie unterschreiben einmal die Vollmacht, alles Weitere sehen Sie bequem im Firmenbereich. Ihr Zeiteinsatz: zehn Minuten.“",
-    "„Was kostet das?“ — „Die Geschäftspakete starten bei 39,99 € im Monat, monatlich kündbar. Eine einzige bessere Finanzierungskondition holt das um ein Vielfaches wieder rein.“",
-    "„Seriös?“ — „Prüfen Sie uns an drei Punkten: Wir garantieren keine Löschungen, wir vermitteln keine Kredite, und jedes Schreiben sehen Sie vor dem Versand. Wer Ihnen mehr verspricht, will Vorkasse.“",
-  ]},
-  { t: "Der Abschluss", s: [
-    "„Ich schicke Ihnen jetzt die kurze Info-Mail mit dem Einstiegslink — die Anmeldung dauert online wenige Minuten. Schaffen Sie das heute noch, oder sollen wir gleich einen festen Termin machen?“",
-    "Termin > vage Zusage. Wer zögert: Termin-Knopf, morgen früh.",
-  ]},
-];
+// Der Leitfaden steht in shared/fiaon-global-vertrieb.ts: Kundensätze (Sie-Form,
+// durch die Wortwand geprüft) und Anweisungen an dich (kursiv gesetzt).
+const LEITFADEN = globalLeitfaden();
+const GLOBAL_PAKETE_WAHL = verkaufbarePakete("global");
+const ERSTES_PAKET = GLOBAL_PAKETE_WAHL[0]?.key ?? "";
+const ganzeEuro = (cents: number) => Math.round(cents / 100).toLocaleString("de-DE") + " €";
 
 export default function AgentFirmenPage() { return <AgentShell><FirmenInnen /></AgentShell>; }
 
@@ -110,7 +100,7 @@ function FirmenInnen() {
   const oeffnen = async (f: any) => {
     setAktiv(f); setVerlauf(null); setNotiz("");
     setVorbereitung(null); setAbschlussAuf(false); setAbErgebnis(null);
-    setAb({ email: f.email || "", telefon: f.telefon || "", ort: f.ort || "", paket: "business_starter" });
+    setAb({ email: f.email || "", telefon: f.telefon || "", ort: f.ort || "", paket: ERSTES_PAKET });
     const r = await api(`/agent/firmen/${f.id}`);
     if (r.ok) { setAktiv(r.json.firma); setVerlauf(r.json.verlauf || []); }
   };
@@ -162,11 +152,14 @@ function FirmenInnen() {
     } else sag(r.json?.error || "Abschluss fehlgeschlagen.");
   };
 
+  // E-188: Der Link führt in den Auftrag (/business/start) — mit dem Paket, das
+  // im Abschluss-Feld gerade gewählt ist. Dort unterschreibt der Kunde selbst.
   const linkKopieren = async () => {
+    const link = globalStartUrl(ab.paket || ERSTES_PAKET);
     try {
-      await navigator.clipboard.writeText("https://fiaon.com/business");
-      sag("Antragslink kopiert — z. B. für WhatsApp Business.");
-    } catch { sag("Kopieren nicht möglich — Link: fiaon.com/business"); }
+      await navigator.clipboard.writeText(link);
+      sag("Auftragslink kopiert — z. B. für WhatsApp Business.");
+    } catch { sag(`Kopieren nicht möglich — Link: ${link}`); }
   };
 
   const importieren = async () => {
@@ -189,7 +182,7 @@ function FirmenInnen() {
       <section className="fk-kopf">
         <div>
           <span className="fk-pille">Firmenkunden · B2B</span>
-          <h1>Jede Firma braucht <span className="fk-verlauf">Liquidität.</span></h1>
+          <h1>Die US-Struktur. <span className="fk-verlauf">Aus einer Hand.</span></h1>
           <p>Deine Tagesliste, der Leitfaden direkt daneben, jedes Ergebnis ein Klick. Vorrat: {zahlen.vorrat_neu ?? 0} neue Firmen{Number(zahlen.faellig || 0) > 0 ? ` · ${zahlen.faellig} Wiedervorlagen fällig` : ""}.</p>
         </div>
         <div className="fk-ring" role="img" aria-label={`${anrufe} von ${ziel} Anrufen heute`}>
@@ -216,7 +209,7 @@ function FirmenInnen() {
             {LEITFADEN.map((b) => (
               <div key={b.t} className="fk-leitfaden-block">
                 <b>{b.t}</b>
-                {b.s.map((satz, i) => <p key={i}>{satz}</p>)}
+                {b.s.map((satz, i) => <p key={i} style={satz.kunde ? undefined : { fontStyle: "italic", opacity: .82 }}>{satz.text}</p>)}
               </div>
             ))}
           </div>
@@ -311,11 +304,11 @@ function FirmenInnen() {
                   <p className="fk-vb-lage">{vorbereitung.kurzlage}</p>
                   <div className="fk-vb-einstieg"><b>Dein Einstieg:</b> {vorbereitung.einstieg}</div>
                   <div className="fk-vb-spalten">
-                    <div><b>Schmerzpunkte</b><ul>{(vorbereitung.schmerzpunkte || []).map((x: string, i: number) => <li key={i}>{x}</li>)}</ul></div>
+                    <div><b>Anknüpfungspunkte</b><ul>{(vorbereitung.schmerzpunkte || []).map((x: string, i: number) => <li key={i}>{x}</li>)}</ul></div>
                     <div><b>Kluge Fragen</b><ul>{(vorbereitung.fragen || []).map((x: string, i: number) => <li key={i}>{x}</li>)}</ul></div>
                   </div>
                   {vorbereitung.einwand_tipp && <p className="fk-vb-einwand"><b>Wahrscheinlichster Einwand:</b> {vorbereitung.einwand_tipp}</p>}
-                  {vorbereitung.paket && <p className="fk-vb-paket"><b>Paket-Empfehlung:</b> {vorbereitung.paket}</p>}
+                  {vorbereitung.paket && <p className="fk-vb-paket"><b>Passendes Paket:</b> {vorbereitung.paket}</p>}
                 </div>
               )}
 
@@ -326,18 +319,19 @@ function FirmenInnen() {
                 <button type="button" className="fk-knopf gut" onClick={() => { setAbschlussAuf(!abschlussAuf); setAbErgebnis(null); }}>
                   {abschlussAuf ? "Abschluss zuklappen" : "Abschluss am Telefon"}
                 </button>
-                <button type="button" className="fk-knopf still" onClick={() => void linkKopieren()}>Antragslink kopieren</button>
+                <button type="button" className="fk-knopf still" title="Der Kunde wählt das Paket, unterschreibt den Vertrag selbst und überweist auf Rechnung."
+                        onClick={() => void linkKopieren()}>Auftragslink kopieren</button>
               </div>
 
               {/* ── Der Abschluss am Telefon: Antrag gemeinsam anlegen ── */}
               {abschlussAuf && !abErgebnis && (
                 <div className="fk-abschluss">
-                  <p className="fk-leise">Ihr füllt das GEMEINSAM am Telefon aus — der Antrag läuft über denselben Weg wie das Formular auf fiaon.com/business. Zugang und Zahlungsdaten gehen an die E-Mail.</p>
+                  <p className="fk-leise">Ihr füllt das GEMEINSAM am Telefon aus — es entsteht die Bestellung mit dem Katalogpreis, die Zahlungsdaten gehen an die E-Mail. FIAON Global ist ein EINMALPREIS: keine Monatsrate, keine Lastschrift. Sag vorher die drei Pflichtsätze aus dem Leitfaden — und sag nichts zu, was eine Bank entscheidet.</p>
                   <div className="fk-ab-felder">
                     <label>Paket
-                      <select value={ab.paket || "business_starter"} onChange={(e) => setAb({ ...ab, paket: e.target.value })}>
-                        {PAKETE.filter((x) => x.art === "business").map((x) => (
-                          <option key={x.key} value={x.key}>{x.label} — {(x.preisCents / 100).toFixed(2).replace(".", ",")} €/Monat</option>
+                      <select value={ab.paket || ERSTES_PAKET} onChange={(e) => setAb({ ...ab, paket: e.target.value })}>
+                        {GLOBAL_PAKETE_WAHL.map((x) => (
+                          <option key={x.key} value={x.key}>{x.label} — {ganzeEuro(x.preisCents)} einmalig</option>
                         ))}
                       </select>
                     </label>
@@ -359,12 +353,18 @@ function FirmenInnen() {
               {abErgebnis && (
                 <div className="fk-abschluss fertig">
                   <b>Antrag steht! 🎉</b>
-                  <p>Zahlungsreferenz: <code>{abErgebnis.zahlungsreferenz}</code>{abErgebnis.betrag ? ` · erste Rate ${String(abErgebnis.betrag).replace(".", ",")} €` : ""}</p>
-                  <p>Sag dem Kunden: „Sie bekommen gleich eine E-Mail mit allem — oder Sie zahlen direkt hier:"</p>
+                  <p>{abErgebnis.paket ? <>{abErgebnis.paket} · </> : null}{abErgebnis.zahlungsreferenz ? <>Zahlungsreferenz: <code>{abErgebnis.zahlungsreferenz}</code></> : "Die Zahlungsreferenz entsteht mit der Rechnung."}{abErgebnis.betrag ? ` · ${Number(abErgebnis.betrag).toLocaleString("de-DE", { minimumFractionDigits: 2 })} € einmalig` : ""}</p>
+                  <p>Sag dem Kunden: „Sie bekommen die Zahlungsdaten per E-Mail. Bezahlt wird einmal, per Überweisung auf Rechnung — mit dem Zahlungseingang legen wir los.“</p>
+                  <p className="fk-leise">Der Vertrag ist damit NICHT unterschrieben: Am Telefon wird keine Zustimmung vermerkt. Schick dem Kunden den Auftragslink — dort liest und unterschreibt er den Global-Vertrag selbst.</p>
                   {abErgebnis.zahlungslink && (
                     <button type="button" className="fk-knopf" onClick={async () => {
                       try { await navigator.clipboard.writeText(abErgebnis.zahlungslink); sag("Zahlungslink kopiert."); } catch { sag(abErgebnis.zahlungslink); }
                     }}>Zahlungslink kopieren</button>
+                  )}
+                  {abErgebnis.auftragslink && (
+                    <button type="button" className="fk-knopf still" onClick={async () => {
+                      try { await navigator.clipboard.writeText(abErgebnis.auftragslink); sag("Auftragslink kopiert — dort unterschreibt der Kunde den Vertrag selbst."); } catch { sag(abErgebnis.auftragslink); }
+                    }}>Auftragslink kopieren</button>
                   )}
                 </div>
               )}

@@ -34,6 +34,7 @@
 
 import { sqlPool } from "./db-pool";
 import { PAKET_PREISE_CENTS } from "@shared/fiaon-pakete";
+import { istKeinAboPaket, KEIN_ABO_SQL } from "./fiaon-kein-abo";
 
 type Lauf = typeof sqlPool;
 
@@ -82,6 +83,26 @@ export function istSchufa(a: { amount_due?: unknown; pack_name?: unknown; pack_k
   if (String(a.pack_key ?? "") === "schufa") return true;
   const n = String(a.pack_name ?? "").toLowerCase();
   return n.includes("onitäts") || n.includes("onitaets");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// „BIS AUF SCHUFA" HEISST SEIT DEM 17.09.2026: BIS AUF JEDEN EINMALKAUF (E-188)
+//
+// Die Regel des Vorgesetzten oben stammt aus der Zeit, als die
+// Bonitätsauskunft der einzige Einmalkauf war. Mit FIAON Global stehen vier
+// weitere im Katalog (`abo: false`, 2.499 € bis 35.999 € einmalig). Ohne diese
+// Ergänzung hätte der Nachtrag hier jedem bezahlten Global-Kunden „fehlende"
+// Monatsraten über den vollen Paketpreis angelegt — und das Forderungs-
+// management hätte sie gemahnt.
+//
+// SCHUFA_SQL und istSchufa bleiben, wie sie sind: Sie erkennen die Auskunft
+// auch an Betrag und Name, wenn der Schlüssel fehlt. Der Katalog-Ausdruck
+// KEIN_ABO_SQL (server/lib/fiaon-kein-abo.ts) kommt DAZU.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Einmalkauf — die Bonitätsauskunft (auch ohne Schlüssel) oder ein Katalogpaket mit `abo: false`. */
+export function istEinmalkauf(a: { amount_due?: unknown; pack_name?: unknown; pack_key?: unknown }): boolean {
+  return istKeinAboPaket(a.pack_key) || istSchufa(a);
 }
 
 export interface FehlendeAbo {
@@ -133,6 +154,9 @@ export async function fehlendeAbos(lauf: Lauf = sqlPool): Promise<FehlendeAbo[]>
       -- werden und die Zeile stillschweigend ausschließen — genau der Fehler,
       -- der mich 63 Kunden gekostet hat. Deshalb COALESCE.
       AND NOT COALESCE(${SCHUFA_SQL}, FALSE)
+      -- E-188: und kein anderer Einmalkauf des Katalogs (FIAON Global). Der
+      -- Ausdruck ist durch COALESCE nie NULL (siehe fiaon-kein-abo.ts).
+      AND NOT ${KEIN_ABO_SQL}
       AND NOT EXISTS (SELECT 1 FROM fiaon_abo_raten r WHERE r.ref = a.ref)
     ORDER BY COALESCE(a.paid_at::date,
       (SELECT MIN(t.booked_at)::date FROM fiaon_bank_txns t
@@ -142,6 +166,8 @@ export async function fehlendeAbos(lauf: Lauf = sqlPool): Promise<FehlendeAbo[]>
   const heute = berlinToday();
 
   return zeilen.flatMap((z) => {
+    // Gürtel zum Hosenträger im SQL: Ein Einmalkauf ist nie „fehlendes Abo".
+    if (istEinmalkauf(z)) return [];
     // Der Anker in derselben Rangfolge wie überall: Verbuchung, dann
     // Bankbuchung, dann Antragsabschluss. `created_at` steht bewusst NICHT
     // mehr dabei — der Tag, an dem jemand ein Formular geöffnet hat, ist kein
@@ -296,16 +322,23 @@ export async function abosNachtragen(
  * jemand sie vergisst.
  */
 export async function schufaMitRaten(lauf: Lauf = sqlPool): Promise<{
-  ref: string; name: string; raten: number;
+  ref: string; name: string; raten: number; paket: string | null;
 }[]> {
+  // E-188: Die Gegenprobe gilt für JEDEN Einmalkauf. Eine Rate an einem
+  // FIAON-Global-Paket wäre der teurere Fehler (2.499 € statt 74 €) — der
+  // Name der Funktion bleibt, damit die Aufrufer nicht brechen.
   return (await lauf.unsafe(`
     SELECT a.ref,
            TRIM(COALESCE(a.first_name, '') || ' ' || COALESCE(a.last_name, '')) AS name,
-           (SELECT COUNT(*)::int FROM fiaon_abo_raten r WHERE r.ref = a.ref) AS raten
+           (SELECT COUNT(*)::int FROM fiaon_abo_raten r WHERE r.ref = a.ref) AS raten,
+           COALESCE(NULLIF(TRIM(a.pack_name), ''), a.pack_key) AS paket
     FROM fiaon_applications a
     WHERE a.payment_status = 'paid' AND a.merged_into IS NULL
       AND a.gdpr_deleted_at IS NULL
-      AND COALESCE(${SCHUFA_SQL}, FALSE)
+      AND (COALESCE(${SCHUFA_SQL}, FALSE) OR ${KEIN_ABO_SQL})
       AND EXISTS (SELECT 1 FROM fiaon_abo_raten r WHERE r.ref = a.ref)
   `)) as any[];
 }
+
+/** Derselbe Lauf unter dem Namen, der seit E-188 stimmt. */
+export const einmalkaufMitRaten = schufaMitRaten;

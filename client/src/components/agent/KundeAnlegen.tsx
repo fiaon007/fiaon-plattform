@@ -68,7 +68,9 @@ import "@/styles/office-pipeline.css";
 
 interface Paket {
   key: string; label: string; preisEuro: number;
-  art: "privat" | "business"; abo: boolean;
+  // 17.09.2026 (E-188): „global" = FIAON Global (Einmalpreis, Firmenkunde). Der
+  // Katalog liefert nur noch, was verkauft wird — die Business-Abos fehlen.
+  art: "privat" | "business" | "global"; abo: boolean;
 }
 
 interface Treffer {
@@ -504,6 +506,12 @@ export function KundeAnlegen({ offen, aufKlappen, fertig, aufAkte }: {
                 {euro(gewaehlt.preisEuro)}{gewaehlt.abo ? " monatlich" : " einmalig"} — der Preis
                 kommt aus dem Katalog und ist nicht änderbar. Der Kunde steht danach sofort
                 auf „Zahlung offen“ und bekommt einen Verwendungszweck.
+                {gewaehlt.art === "global" && (
+                  <> FIAON Global ist ein Firmenkunde mit Einmalpreis: keine Monatsrate, keine
+                  Lastschrift. Für Unternehmen ist das Firmen-Cockpit der bessere Weg — dort
+                  stehen Firmenname, Rechtsform und der Auftragslink, über den der Kunde den
+                  Vertrag selbst unterschreibt.</>
+                )}
               </p>
             ) : (
               <p className="pi-anl-hinweis warn">

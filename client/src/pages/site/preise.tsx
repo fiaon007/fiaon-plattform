@@ -14,6 +14,13 @@
 //   · Leistungstabelle, Business-Stufen bleiben; neue Zeile: neuer Score
 // Preise kommen ausschließlich aus shared/fiaon-pakete.ts (eine Quelle).
 //
+// 17.09.2026 (E-188): Die vier Business-Abos sind eingestellt. Der Abschnitt
+// für Unternehmen zeigt FIAON Global — vier EINMALPREISE, Namen und „für wen"
+// aus shared/fiaon-global.ts (beide Sprachen), Links aus
+// shared/fiaon-global-wege.ts. Der Paketfinder fragt ein Unternehmen nicht mehr
+// nach Lage und Tempo (das sind Fragen der Bonitätslinie), sondern zeigt den
+// Weg zu FIAON Global.
+//
 // 02.09.2026 (Zweisprachigkeit, Scheibe 1): dieselbe Seite läuft unter /preise
 // (Deutsch) und /en/pricing (Englisch). Alle Texte stehen im Wörterbuch
 // client/src/i18n/preise.ts; die Sprache kommt aus der Adresse (useWoerter).
@@ -26,6 +33,8 @@ import { Dunkel, Hero, Block, Licht, Knopf, Auf, Kennzahlen, Fragen, Zwischenruf
 import KartenSzene from "@/components/home3d/KartenSzene";
 import SeoDaten from "@/components/site/SeoDaten";
 import { PAKETE, SCHUFA_PREIS_EURO } from "@shared/fiaon-pakete";
+import { GLOBAL_PAKETE, globalPreisText } from "@shared/fiaon-global";
+import { globalGespraechPfad, globalPaketePfad, globalStartPfad } from "@shared/fiaon-global-wege";
 import "@/styles/preise.css";
 import "@/styles/plattform-konzept.css";
 import "@/styles/seo-seiten.css";
@@ -55,8 +64,9 @@ const SPALTEN = ["schufa", "start", "pro", "ultra", "highend"];
 // Text zum Grund steht im Wörterbuch (beide Sprachen).
 type Antwort = Record<string, string>;
 function paketFuer(a: Antwort): { key: string; grund: string } | null {
+  // E-188: Ein Unternehmen bekommt sofort seine Antwort — FIAON Global.
+  if (a.wer === "business") return { key: "global", grund: "global" };
   if (!a.wer || !a.lage || !a.tempo) return null;
-  if (a.wer === "business") return a.lage === "klar" ? { key: "business_starter", grund: "business_starter" } : a.tempo === "sofort" ? { key: "business_ultra", grund: "business_ultra" } : { key: "business_pro", grund: "business_pro" };
   if (a.lage === "klar") return { key: "schufa", grund: "schufa" };
   if (a.lage === "eintrag") return a.tempo === "ruhig" ? { key: "start", grund: "start" } : { key: "pro", grund: "pro_fristen" };
   if (a.lage === "zugang") return { key: "pro", grund: "pro_zugang" };
@@ -73,8 +83,7 @@ export default function Preise() {
   const euro0 = (n: number) => n.toLocaleString(en ? "en-GB" : "de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
   const schufaPreis = en ? "€" + SCHUFA_PREIS_EURO.toFixed(2) : SCHUFA_PREIS_EURO.toFixed(2).replace(".", ",") + " €";
   const zelle = (w: boolean | "s" | "v" | "t") => w === true ? <span className="pr-ja">✓</span> : w === false ? <span className="pr-nein">–</span> : <span className="pr-text">{w === "s" ? t.selbstversand : w === "v" ? t.fiaonVersendet : t.abSchwelle}</span>;
-  const privat = PAKETE.filter((p) => p.art === "privat" && p.abo);
-  const business = PAKETE.filter((p) => p.art === "business");
+  const privat = PAKETE.filter((p) => p.art === "privat" && p.abo && !p.eingestellt);
   const pro = PAKETE.find((p) => p.key === "pro")!;
 
   // Paketfinder
@@ -118,19 +127,28 @@ export default function Preise() {
       <Licht>
         <Block id="finder" schmal titel={<>{t.finderH2a}<span className="dk-verlauf">{t.finderH2b}</span></>} lead={t.finderLead}>
           <div className="pk-finder">
-            {t.finder.map((f, i) => (
+            {t.finder.filter((f) => a.wer !== "business" || f.key === "wer").map((f, i) => (
               <div key={f.key} className={`pk-frage${a[f.key] ? " beantwortet" : ""}`}>
                 <p className="pk-frage-nr">{t.frage} {i + 1}</p><h3>{f.frage}</h3>
                 <div className="pk-optionen">{f.optionen.map(([w, l]) => <button key={w} type="button" className={`pk-option${a[f.key] === w ? " an" : ""}`} onClick={() => setA({ ...a, [f.key]: w })}>{l}</button>)}</div>
               </div>
             ))}
+            {vorschlag?.key === "global" && (
+              <div className="pk-ergebnis">
+                <small>{t.vorschlag}</small>
+                <h3>{t.globalTitel}</h3>
+                <p className="pk-preis">{t.globalAb(globalPreisText(GLOBAL_PAKETE[0].key, sprache))}</p>
+                <p>{t.globalText}</p>
+                <div className="pk-weg-knoepfe"><Knopf href={globalPaketePfad(sprache)}>{t.zurBusiness}</Knopf><Knopf href={globalGespraechPfad(sprache)} still>{t.globalGespraech}</Knopf></div>
+              </div>
+            )}
             {paketV && vorschlag && (
               <div className="pk-ergebnis">
                 <small>{t.vorschlag}</small>
                 <h3>{paketV.label}</h3>
                 <p className="pk-preis">{paketV.abo ? <>{geld(paketV.preisCents)} <span>{t.imMonat} · {t.zwoelfRaten} · {geld(paketV.preisCents * 12)} {t.gesamt}</span></> : <>{schufaPreis} <span>{t.einmalig}</span></>}</p>
                 <p>{t.gruende[vorschlag.grund]}</p>
-                <div className="pk-weg-knoepfe"><Knopf href={paketV.key === "schufa" ? "/antrag?pack=schufa" : paketV.art === "business" ? zu("/business") : `/antrag?pack=${paketV.key}&src=preise`}>{paketV.art === "business" ? t.zurBusiness : t.diesesPaket}</Knopf><Knopf href={zu("/kontakt")} still>{t.lieberReden}</Knopf></div>
+                <div className="pk-weg-knoepfe"><Knopf href={paketV.key === "schufa" ? "/antrag?pack=schufa" : `/antrag?pack=${paketV.key}&src=preise`}>{t.diesesPaket}</Knopf><Knopf href={zu("/kontakt")} still>{t.lieberReden}</Knopf></div>
               </div>
             )}
           </div>
@@ -205,8 +223,9 @@ export default function Preise() {
       </Licht>
 
       <Block id="business" pille={t.businessPille} titel={<>{t.businessH2a}<span className="dk-verlauf">{t.businessH2b}</span></>} lead={t.businessLead}>
-        <div className="pr-business">{business.map((p, i) => <Auf key={p.key} verzoegerung={i * 60}><a href={`/business-antrag?pack=${p.key}`} className="pr-bkarte"><small>{p.label.replace("FIAON ", "")}</small><b>{geld(p.preisCents)}</b><span>{t.imMonatZwoelf}</span></a></Auf>)}</div>
-        <div className="dk-knoepfe" style={{ marginTop: 24 }}><Knopf href={zu("/business")}>{t.zurBusiness}</Knopf></div>
+        <div className="pr-business">{GLOBAL_PAKETE.map((g, i) => <Auf key={g.key} verzoegerung={i * 60}><a href={globalStartPfad(g.key, sprache)} className="pr-bkarte"><small>{g[sprache].name}</small><b>{globalPreisText(g.key, sprache)}</b><span>{t.globalEinmalig}</span><span>{g[sprache].fuer}</span></a></Auf>)}</div>
+        <p className="dk-leise" style={{ marginTop: 18, maxWidth: "78ch" }}>{t.globalKosten}</p>
+        <div className="dk-knoepfe" style={{ marginTop: 24 }}><Knopf href={globalPaketePfad(sprache)}>{t.zurBusiness}</Knopf><Knopf href={globalGespraechPfad(sprache)} still>{t.globalGespraech}</Knopf></div>
       </Block>
 
       <Licht>

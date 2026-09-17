@@ -13,6 +13,7 @@ import { sqlPool } from "../lib/db-pool";
 import { requireKunde, istGehasht, passwortHashen } from "../lib/fiaon-kunde-session";
 import { antragCookieSetzen, antragPasst, angabenPassen, requireKundeOderAntrag } from "../lib/fiaon-antrag-sitzung";
 import { antragsSpaltenOhneAnhaenge } from "../lib/fiaon-antrag-spalten";
+import { produktkategorie, produktkategorieSql, KATEGORIE_TEXT } from "../lib/fiaon-produktkategorie";
 // Die zwei Reinigungen — eine Definition, ein Ort (siehe AGENTS.md).
 import { paketNameEinzeilig } from "../../shared/fiaon-paketname";
 import { nameSauber } from "../../shared/fiaon-namen";
@@ -100,6 +101,10 @@ export const FIAON_BANK_DETAILS = {
 // Ultra und High End: Der Kunde kaufte für 79,99 € und bekam Rechnungen über
 // 99,99 €. Zwei Preislisten sind schlimmer als eine falsche — bei einer
 // falschen merkt man es.
+//
+// 17.09.2026 (E-188): Die vier FIAON-Global-Einmalpreise (global_struktur …
+// global_vip) stehen im Katalog und damit automatisch auch hier — geprüft von
+// scripts/pruef-pakete.ts. Bei `abo: false` ist der Wert der EINMALPREIS.
 const PACK_PRICES: Record<string, number> = PAKET_PREISE_EURO;
 const SCHUFA_PRICE = SCHUFA_PREIS_EURO;
 const PAYMENT_DUE_DAYS = 7;
@@ -108,6 +113,19 @@ const PAYMENT_DUE_DAYS = 7;
 // PACKS/BUSINESS_PACKS im Frontend). Quelle der Wahrheit fürs Portal, falls das
 // pro-Antrag berechnete `approved_limit` fehlt oder auf den Funnel-Mindestwert
 // (250 €) geklemmt wurde (Bug: Ultra-Kunde sah 250 € statt 15.000 €).
+//
+// ── FIAON GLOBAL STEHT HIER BEWUSST NICHT (17.09.2026, E-188) ───────────────
+// Diese Tabelle füllt im Kundenportal das Feld „Ihr Rahmen" (effectiveLimit →
+// approvedLimit), in EURO, als Wert der Bonitätslinie. Die Global-Pakete haben
+// keinen solchen Wert: Ihre Dollar-Zahl (shared/fiaon-global.ts, planungUsd)
+// ist die PLANUNGSGRÖSSE des Kunden — über jeden Rahmen entscheidet das
+// US-Institut. Stünde sie hier, zeigte das Portal einem Global-Kunden
+// „250.000" als seinen Rahmen: falsche Währung und genau die Ergebniszusage,
+// die E-188 verbietet (§ 5 UWG, OLG Frankfurt 6 U 25/26). Für global_* liefert
+// effectiveLimit deshalb null — das Portal zeigt dann keinen Rahmen. Auch die
+// Zahlungs- und Rechnungsmails lesen diese Tabelle nicht (nur die drei
+// effectiveLimit-Aufrufe für das Portal). Die eingestellten business_*-Zeilen
+// bleiben für die Bestandskunden.
 export const PACK_LIMITS: Record<string, number> = {
   start: 500, pro: 5000, ultra: 15000, highend: 25000,
   business_starter: 5000, business_pro: 25000, business_ultra: 75000, business_enterprise: 250000,
@@ -295,7 +313,7 @@ async function backfillPaidAccessOnce(): Promise<void> {
 // Zeilen ohne Person (Altbestand, Funnel-Abbrecher).
 export async function supersedeSisterOrders(paidRef: string): Promise<{ count: number; refs: string[] }> {
   const paid = await sqlPool`
-    SELECT ref, payment_reference, email, assigned_agent_id, pack_name, type, person_id,
+    SELECT ref, payment_reference, email, assigned_agent_id, pack_name, pack_key, type, person_id,
            payment_status
     FROM fiaon_applications WHERE ref = ${paidRef}
   `;
@@ -330,9 +348,16 @@ export async function supersedeSisterOrders(paidRef: string): Promise<{ count: n
   // „FIAON Pro | (Standard)"), ein Namensvergleich würde echte Dubletten
   // übersehen. `type='schufa'` ist die Marke, die die Bestellanlage selbst setzt
   // (siehe POST /payment-order) und die `isAddonOrderRow` bereits auswertet.
-  const istZusatzprodukt =
-    String(paid[0].type || "").toLowerCase() === "schufa" || String(paid[0].ref || "").startsWith("FIAON-SCHUFA-");
-  const kategorie = istZusatzprodukt ? "Zusatzprodukt (Bonitätsauskunft)" : "Stufenpaket (Kontoaktivierung)";
+  //
+  // ── DRITTE KATEGORIE: FIAON GLOBAL (17.09.2026, E-188) ───────────────────
+  // Ein Global-Paket (2.499 € bis 35.999 € einmalig, für die Firma) ist kein
+  // Stufenpaket der Bonitätslinie. Wer privat FIAON Pro hat und für sein
+  // Unternehmen Global Struktur bestellt, hat zwei Produkte — keines ersetzt
+  // das andere. Ohne diese Grenze hätte eine Privatbestellung über 7,99 € die
+  // offene Global-Bestellung stillgelegt: derselbe Fehler wie am 03.08., nur
+  // mit drei Nullen mehr. Die Regel steht in server/lib/fiaon-produktkategorie.ts.
+  const kategorieSchluessel = produktkategorie(paid[0]);
+  const kategorie = KATEGORIE_TEXT[kategorieSchluessel];
   // Der Auslöser steht im Protokoll, wie er ist: Beim Aufruf aus /payment-order
   // ist die Bestellung noch NICHT bezahlt, und „durch bezahlte Bestellung
   // ersetzt" wäre dort eine falsche Auskunft in der Kundenakte.
@@ -377,8 +402,8 @@ export async function supersedeSisterOrders(paidRef: string): Promise<{ count: n
       )
       -- Nur dieselbe Kategorie. Ein bezahltes Stufenpaket beendet offene
       -- Stufenpakete (Upgrade), lässt die Bonitätsauskunft aber unberührt —
-      -- und umgekehrt.
-      AND (COALESCE(type, '') = 'schufa' OR ref LIKE 'FIAON-SCHUFA-%') = ${istZusatzprodukt}
+      -- und umgekehrt. Seit E-188 gilt das genauso für FIAON Global.
+      AND ${sqlPool.unsafe(produktkategorieSql())} = ${kategorieSchluessel}::text
     RETURNING ref, assigned_agent_id, pack_name
   `;
   for (const r of rows) {
@@ -1644,6 +1669,20 @@ async function claimReminderBatch(
         -- einen Testeintrag oder eine doppelt angelegte Bestellung ist eine
         -- Mail, die der Kunde nicht versteht.
         AND fa.archived_at IS NULL
+        -- ════════════════════════════════════════════════════════════════
+        -- FIAON GLOBAL BEKOMMT DIESE ERINNERUNG NICHT (17.09.2026, E-188)
+        --
+        -- Diese Maschine schickt das Ereignis payment_reminder: eine Vorlage
+        -- der Privatlinie, zweimal am Tag, seit E-182 ohne Obergrenze. Eine
+        -- offene Global-Bestellung ist ein Unternehmen mit einem Auftrag über
+        -- 2.499 bis 35.999 Euro und einem festen Ansprechpartner. Zwei
+        -- Privatkunden-Mahnungen am Tag auf unbestimmte Zeit wären dort der
+        -- sicherste Weg, den Auftrag zu verlieren. Bis es einen eigenen,
+        -- ruhigen Takt für Firmenkunden gibt, fasst der Ansprechpartner
+        -- persönlich nach; die Bestellung bleibt in jeder Arbeitsliste.
+        -- Einzel- und Sammelversand laufen beide durch diese Abfrage.
+        -- ════════════════════════════════════════════════════════════════
+        AND NOT (${sqlPool.unsafe(produktkategorieSql("fa"))} = 'global')
         AND fa.mahnstopp_am IS NULL
         -- Mahnstopp (02.09.2026): Die Rueckholung verspricht diesen Menschen
         -- schriftlich, dass die Erinnerungen enden. Hier wird es eingeloest.

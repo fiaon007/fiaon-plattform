@@ -20,6 +20,10 @@
 //     lagen 266 von 289 offenen Raten NICHT auf dem Jahrestag ihrer Buchung.
 //  2. Betrag: der Paketpreis, den der Kunde bezahlt hat (amount_due).
 //  3. Der Bonitäts-Check (74 €) ist KEIN Abo — Einmalkauf, erzeugt keine Rate.
+//     Seit dem 17.09.2026 (E-188) gilt dasselbe für JEDES Paket, das im
+//     Katalog mit `abo: false` steht — heute die vier FIAON-Global-Pakete.
+//     Gefragt wird der Katalog (server/lib/fiaon-kein-abo.ts), nicht mehr nur
+//     das Wort „schufa".
 //  4. Referenz je Rate: Zahlungsreferenz der Bestellung + „-<Ratennummer>",
 //     also FIAON-A1B2C3-2 für die zweite Rate. Damit ist jede Überweisung im
 //     Verwendungszweck eindeutig einer Rate zuzuordnen — ohne diesen Zusatz
@@ -55,6 +59,7 @@ import {
   ankerTag, faelligkeit, kurzTag, naechsteFaelligkeit, tageImMonat, tagMinus, zyklenBis, zyklusText,
 } from "../lib/fiaon-abo-zyklus";
 import { paketPreisCents } from "@shared/fiaon-pakete";
+import { istKeinAboPaket, keinAboName, KEIN_ABO_SQL } from "../lib/fiaon-kein-abo";
 import { FIAON_BANK_DETAILS } from "./fiaon-antrag";
 import { getSettings, setSetting } from "./fiaon-agent";
 import { absoluteUrl } from "../fiaon-base-url";
@@ -359,6 +364,22 @@ function istBonitaetsCheck(app: { pack_name?: string | null; amount_due?: any })
   return Math.round(Number(app.amount_due || 0) * 100) === 7400;
 }
 
+/**
+ * Ist diese Bestellung ein EINMALKAUF — und bekommt deshalb nie eine Rate?
+ *
+ * ── WARUM ZWEI FRAGEN (17.09.2026, E-188) ─────────────────────────────────
+ * Bis heute stand hier nur `istBonitaetsCheck`: Wort „schufa" oder 74,00 €.
+ * Ein bezahltes FIAON-Global-Paket (2.499 € einmalig) heißt weder so noch
+ * kostet es so viel — es hätte zwölf Monatsraten à 2.499 € bekommen, mit
+ * Dauermahnung. Die erste Frage geht deshalb an den Katalog: Steht das Paket
+ * dort mit `abo: false`, ist die Sache entschieden. Die zweite Frage bleibt
+ * für Altbestellungen OHNE pack_key, bei denen nur Name oder Betrag die
+ * Bonitätsauskunft verraten.
+ */
+function istEinmalkauf(app: { pack_key?: string | null; pack_name?: string | null; amount_due?: any }): boolean {
+  return istKeinAboPaket(app.pack_key) || istBonitaetsCheck(app);
+}
+
 function cents(v: any): number {
   return Math.round(Number(v || 0) * 100);
 }
@@ -425,6 +446,10 @@ export async function aboBeiZahlungAnlegen(ref: string): Promise<{ angelegt: boo
     if (app.payment_status !== "paid") return { angelegt: false, grund: "nicht bezahlt" };
     if (app.merged_into) return { angelegt: false, grund: "zusammengeführt" };
     if (app.abo_gestoppt_am) return { angelegt: false, grund: "Abo gestoppt" };
+    // Der Katalog zuerst (E-188): FIAON Global und die Bonitätsauskunft sind
+    // Einmalkäufe. Für sie entsteht KEINE Rate — auch keine dokumentarische
+    // Rate 1. Ihr Umsatz steht an der Bestellung, nicht in fiaon_abo_raten.
+    if (istKeinAboPaket(app.pack_key)) return { angelegt: false, grund: `${keinAboName(app.pack_key)} ist ein Einmalkauf — kein Abo` };
     if (istBonitaetsCheck(app)) return { angelegt: false, grund: "Bonitäts-Check ist kein Abo" };
     // ── DER KATALOG SCHLAEGT DAS BESTELLFELD (10.09.2026, E-174) ──────────
     // Hier stand die Rangfolge umgekehrt, anders als an den drei anderen
@@ -500,6 +525,12 @@ export async function naechsteRateAnlegen(
     FROM fiaon_applications WHERE ref = ${ref}
   `;
   if (!app || app.abo_gestoppt_am) return;
+  // ── EIN EINMALKAUF HAT KEINE NÄCHSTE RATE (17.09.2026, E-188) ─────────────
+  // Hier kommt nur an, wer schon eine Rate hat — ein Einmalkauf dürfte also
+  // nie auftauchen. Wird aber ein Paket nachträglich auf FIAON Global
+  // umgestellt (Konditionen-Route) oder eine Rate von Hand gebucht, endet die
+  // Kette an dieser Stelle und wächst nicht um 2.499 € im Monat weiter.
+  if (istKeinAboPaket(app.pack_key)) return;
   // ── GEKÜNDIGT: NACH DER LETZTEN RATE KOMMT KEINE MEHR (02.09.2026, E-092) ──
   // Vorher legte der Tageslauf bei 21 Kündigern noch Rate 3 und 4 an, obwohl
   // sie längst gekündigt hatten. Die letzte Rate bleibt fällig — mehr nicht.
@@ -597,7 +628,9 @@ export async function ketteSicherstellen(): Promise<{ neu: number }> {
       AND a.merged_into IS NULL AND a.abo_gestoppt_am IS NULL
       AND a.archived_at IS NULL AND a.gdpr_deleted_at IS NULL
       AND a.type IS DISTINCT FROM 'schufa' AND a.ref NOT LIKE 'FIAON-SCHUFA-%'
-      AND a.pack_key IS DISTINCT FROM 'schufa'
+      -- E-188: jeder Einmalkauf des Katalogs (Bonitätsauskunft, FIAON Global),
+      -- nicht mehr nur der Schlüssel schufa. Der Ausdruck ist nie NULL.
+      AND NOT ${sqlPool.unsafe(KEIN_ABO_SQL)}
       AND NOT EXISTS (SELECT 1 FROM fiaon_abo_raten r
                        WHERE r.ref = a.ref AND r.rate_nr > 1 AND r.storniert_am IS NULL)
   `;
@@ -623,15 +656,17 @@ export async function aboNachziehen(opts: { rueckwirkend?: boolean; nurZaehlen?:
       AND a.archived_at IS NULL AND a.gdpr_deleted_at IS NULL
       -- SCHUFA erzeugt NIE eine Rate. Dreifach abgesichert (Typ, Referenz,
       -- Paketname/Betrag), weil jedes einzelne Merkmal irgendwo fehlt.
+      -- E-188: Dasselbe gilt für jeden Einmalkauf des Katalogs (FIAON Global).
+      -- Der Schlüssel-Filter kommt deshalb aus dem Katalog und ist nie NULL.
       AND a.type IS DISTINCT FROM 'schufa' AND a.ref NOT LIKE 'FIAON-SCHUFA-%'
-      AND a.pack_key IS DISTINCT FROM 'schufa'
+      AND NOT ${sqlPool.unsafe(KEIN_ABO_SQL)}
       AND NOT EXISTS (SELECT 1 FROM fiaon_abo_raten r
                        WHERE r.ref = a.ref AND r.rate_nr > 1 AND r.storniert_am IS NULL)
     ORDER BY COALESCE(a.paid_at, a.completed_at) DESC
   `;
   let neu = 0, uebersprungen = 0;
   for (const app of apps) {
-    if (istBonitaetsCheck(app)) { uebersprungen++; continue; }
+    if (istEinmalkauf(app)) { uebersprungen++; continue; }
     const betrag = paketPreisCents(app.pack_key) || cents(app.amount_due);
     if (betrag <= 0) { uebersprungen++; continue; }
     // Derselbe Anker wie überall — ohne ihn ist der Zyklus nicht berechenbar
@@ -793,6 +828,11 @@ async function faelligeRaten(limit: number, opts: { abStichtag?: string | null }
       AND r.storniert_am IS NULL
       -- E-184: Testkonten mahnt der Motor nicht (7 der 9 gebouncten Adressen waren pruefstand.test).
       AND pt.ist_test_am IS NULL
+      -- E-188: Ein Einmalkauf (Bonitätsauskunft, FIAON Global) hat keine Rate.
+      -- Steht trotzdem eine da, ist sie ein Fehler und kein Außenstand — sie
+      -- wird nicht gemahnt, sondern in der Gegenprobe einmalkaufMitRaten
+      -- (fiaon-abo-pflicht.ts, Seite Team-Zentrale) rot gezeigt.
+      AND NOT ${sqlPool.unsafe(KEIN_ABO_SQL)}
       AND r.faellig_am <= ${heute}::date
       AND (r.mahnstufe < ${MAHNSTUFEN.length}
            OR (${dauer} > 0 AND r.letzte_erinnerung_at IS NOT NULL
@@ -1021,7 +1061,8 @@ async function ratenFuerHeuteErzeugen(heute: string, lauf: Lauf = sqlPool): Prom
            OR a.letzte_rate_nr IS NULL
            OR COALESCE((SELECT MAX(r2.rate_nr) FROM fiaon_abo_raten r2 WHERE r2.ref = a.ref), 0) < a.letzte_rate_nr)
       AND a.type IS DISTINCT FROM 'schufa' AND a.ref NOT LIKE 'FIAON-SCHUFA-%'
-      AND a.pack_key IS DISTINCT FROM 'schufa'
+      -- E-188: kein Einmalkauf des Katalogs (Bonitätsauskunft, FIAON Global)
+      AND NOT ${KEIN_ABO_SQL}
       -- Nichts anlegen, solange noch eine offene Rate im Raum steht: Es soll
       -- kein Schuldenberg entstehen, den niemand entschieden hat.
       AND NOT EXISTS (SELECT 1 FROM fiaon_abo_raten r
@@ -1039,6 +1080,8 @@ async function ratenFuerHeuteErzeugen(heute: string, lauf: Lauf = sqlPool): Prom
     const nr = zyklenBis(anker, heute);
     if (nr < 1 || faelligkeit(anker, nr) !== heute) continue;
 
+    // Gürtel zum Hosenträger im SQL oben: nie eine Monatsrate für einen Einmalkauf.
+    if (istKeinAboPaket(k.pack_key)) continue;
     const betrag = paketPreisCents(k.pack_key) || cents(k.amount_due);
     if (betrag <= 0) continue;
     const referenz = k.payment_reference || k.ref;
@@ -1399,6 +1442,11 @@ export async function aboUebersicht() {
     SELECT COUNT(*)::int AS c FROM fiaon_applications a
     WHERE a.payment_status = 'paid' AND NOT COALESCE(a.alt_bestand, FALSE) AND a.merged_into IS NULL
       AND a.completed_at IS NOT NULL AND a.abo_gestoppt_am IS NULL
+      -- E-188: Ein Einmalkauf (Bonitätsauskunft, FIAON Global) hat nie eine
+      -- Kette — er ist deshalb auch kein Fall von „ohne Kette". Dieselbe Grenze
+      -- wie in ketteSicherstellen.
+      AND a.type IS DISTINCT FROM 'schufa' AND a.ref NOT LIKE 'FIAON-SCHUFA-%'
+      AND NOT ${sqlPool.unsafe(KEIN_ABO_SQL)}
       AND NOT EXISTS (SELECT 1 FROM fiaon_abo_raten r WHERE r.ref = a.ref AND r.rate_nr > 1)
   `;
   const zahl = (v: any) => Number(v || 0);

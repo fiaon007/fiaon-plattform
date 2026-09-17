@@ -684,9 +684,12 @@ export const RUNDGANG_ASSISTENT: RundgangSchritt[] = [
 export const RUNDGANG_FIRMEN: RundgangSchritt[] = [
   {
     titel: "Hier holst du Unternehmen ins Haus.",
-    text: "Jede Firma braucht Liquidität — und Liquidität hängt an der Firmen-Bonität bei "
-      + "Creditreform, SCHUFA und KSV. Dein Auftrag: 50 Anrufe am Tag, aus Fremden werden "
-      + "Firmenkunden. Alles, was du dafür brauchst, liegt in diesem einen Raum.",
+    // 17.09.2026 (E-188): Das Cockpit verkauft FIAON Global — die US-Struktur
+    // für Unternehmen zum Einmalpreis. Die Business-Abos sind eingestellt.
+    text: "Seit dem 17.09.2026 verkaufst du hier FIAON Global: FIAON gründet für Unternehmen die "
+      + "US-Gesellschaft, bereitet Steuernummern, Adresse, Dokumente sowie Konto- und Kartenanträge "
+      + "vor — mit einem Team vor Ort in den USA. Vier Pakete, jedes ein EINMALPREIS, kein Abo. "
+      + "Dein Auftrag: 50 Anrufe am Tag. Alles, was du dafür brauchst, liegt in diesem einen Raum.",
     tipp: "Blocke dir feste Anrufzeiten. 50 Anrufe sind 3–4 Stunden konzentriertes Telefonieren — der Ring oben zeigt dir live, wo du stehst.",
   },
   {
@@ -710,7 +713,7 @@ export const RUNDGANG_FIRMEN: RundgangSchritt[] = [
     titel: "Die Anruf-Karte: ein Blick, alles da.",
     text: "Große Nummer zum Antippen, Website, Verlauf, Notizfeld. Und der wichtigste Knopf: "
       + "„KI-Vorbereitung\u201c — ein Klick, und das System liest die Website der Firma und legt dir "
-      + "Gesprächseinstieg, Schmerzpunkte, kluge Fragen und eine Paket-Empfehlung hin. "
+      + "Gesprächseinstieg, Anknüpfungspunkte, kluge Fragen und das passende Paket hin. "
       + "Dreißig Sekunden Vorbereitung, die dich klingen lassen wie einen, der die Firma kennt.",
     tipp: "Erst Vorbereitung lesen, dann wählen. Der Einstiegssatz ist zum laut Vorlesen gebaut.",
   },
@@ -725,17 +728,21 @@ export const RUNDGANG_FIRMEN: RundgangSchritt[] = [
   {
     titel: "Interesse? Dann gibt es zwei Wege.",
     text: "Weg 1: „Info-Mail senden\u201c — die Firma bekommt sofort eine persönliche Mail mit deinem "
-      + "Namen und dem Einstiegslink. Weg 2, der starke: „Abschluss am Telefon\u201c — ihr füllt den "
-      + "Antrag GEMEINSAM aus, du wählst das Paket, und am Ende hast du den Zahlungslink, den du "
-      + "ihm noch im Gespräch nennst. Aus einem Anruf wird ein Kunde, ohne dass er je ein Formular sieht.",
+      + "Namen, den vier Paketen, den Pflichthinweisen und dem Link zum Auftrag. „Auftragslink "
+      + "kopieren\u201c gibt dir denselben Link für WhatsApp: Dort wählt der Kunde das Paket, "
+      + "unterschreibt den Vertrag selbst und überweist auf Rechnung. Weg 2: „Abschluss am Telefon\u201c — "
+      + "ihr legt die Bestellung GEMEINSAM an, du wählst das Global-Paket (Einmalpreis aus dem Katalog), "
+      + "und die Zahlungsdaten gehen an seine E-Mail. Den Vertrag unterschreibt er danach selbst über den "
+      + "Auftragslink — am Telefon wird keine Zustimmung vermerkt. Der Zahlungseingang ist der Start.",
     tipp: "Wer „schick mir was\u201c sagt, bekommt die Mail UND einen festen Rückruf-Termin. Wer zögert, unterschreibt selten von allein.",
   },
   {
     titel: "Was du NIE versprichst.",
-    text: "Keine garantierten Löschungen, keine Kredite, keine Score-Zusagen — und keine "
-      + "Exklusiv-Verträge mit Auskunfteien. Unsere Karte ist die Seriosität: alles einsehbar, "
-      + "jedes Schreiben anwaltlich geprüft, jeder Schritt dokumentiert. Genau das unterscheidet "
-      + "uns von denen, vor denen Unternehmer gewarnt werden.",
+    text: "Keine Karte, kein Konto, keinen Rahmen oder Dollarbetrag, keinen Zinssatz, keine Frist, "
+      + "keine Steuerersparnis, kein Darlehen — und du nennst keine Bank als Zusage. Über Konto, Karte "
+      + "und Rahmen entscheidet allein das Institut; die Dollar-Zahl am Paket ist die Planungsgröße des "
+      + "Kunden, kein Ergebnis. Steuer- und Rechtsfragen beantworten Steuerberater und Anwälte auf "
+      + "eigenes Mandat — nicht du. Unsere Karte ist die Seriosität: Wir sagen zu, was wir selbst liefern.",
     tipp: "Der Leitfaden über der Liste hat für jeden Einwand eine Antwort — einmal am Tag durchlesen, bis er sitzt.",
   },
 ];

@@ -6,11 +6,14 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { type KapitelInhalt, p, ul, ol, merk, warn, tab, sichten, kacheln, link, frage } from "./typen";
 import { PAKETE, SCHUFA_PREIS_EURO } from "@shared/fiaon-pakete";
+import { GLOBAL_PAKETE, GLOBAL_ROLLEN, globalKatalog, globalPreisText } from "@shared/fiaon-global";
 import { SUPPORT } from "@shared/fiaon-wissen";
 
 const eur = (c: number) => (c / 100).toFixed(2).replace(".", ",") + " €";
-const PRIVAT = PAKETE.filter((x) => x.abo && x.art === "privat");
-const BUSINESS = PAKETE.filter((x) => x.abo && x.art === "business");
+const PRIVAT = PAKETE.filter((x) => x.abo && x.art === "privat" && !x.eingestellt);
+// 17.09.2026 (E-188): Die Business-Abos sind eingestellt. Für Unternehmen gibt
+// es FIAON Global — vier Einmalpreise, Texte aus shared/fiaon-global.ts.
+const ALT_BUSINESS = PAKETE.filter((x) => x.abo && x.art === "business" && x.eingestellt);
 const preis = (key: string) => eur(PAKETE.find((x) => x.key === key)?.preisCents ?? 0);
 const schufa = SCHUFA_PREIS_EURO.toFixed(2).replace(".", ",") + " €";
 
@@ -40,7 +43,11 @@ export const KAPITEL_2: KapitelInhalt = {
       einleitung: "Preise kommen aus dem Paketkatalog – nie aus dem Kopf. Diese Tabelle wird aus demselben Katalog erzeugt, den der Antrag und die Rechnung benutzen.",
       bloecke: [
         tab(["Paket (Privat)", "Monat", "Deine Provision je Rate (25 %)"], ...PRIVAT.map((x) => [x.label, eur(x.preisCents), eur(Math.round(x.preisCents * 0.25))])),
-        tab(["Paket (Geschäft)", "Monat", "Deine Provision je Rate (25 %)"], ...BUSINESS.map((x) => [x.label, eur(x.preisCents), eur(Math.round(x.preisCents * 0.25))])),
+        tab(["Paket (Unternehmen · FIAON Global)", "Einmalpreis", "Für wen"], ...GLOBAL_PAKETE.map((g) => [globalKatalog(g.key)?.label ?? g.de.name, `${globalPreisText(g.key)} einmalig`, g.de.fuer])),
+        p(`FIAON Global ist seit dem 17.09.2026 das einzige Angebot für Unternehmen: FIAON gründet die US-Gesellschaft mit einem Team vor Ort, bereitet EIN und ITIN vor, stellt Adresse, Telefonnummer und Dokumentenraum und bereitet Konto- und Kartenanträge vor. Es ist ein EINMALPREIS – kein Abo, keine Monatsrate, keine Lastschrift, keine Mahnkette. ${GLOBAL_ROLLEN.de.partner}`),
+        warn("Bei FIAON Global sagst du nie einen Rahmen, eine Karte, einen Zinssatz oder eine Frist zu, und du nennst keine Bank als Zusage. Über Konto, Karte und Rahmen entscheidet allein das Institut. Die Dollar-Zahl am Paket ist die Planungsgröße des Kunden, kein Ergebnis. Steuer- und Rechtsfragen beantworten Steuerberater und Anwälte auf eigenes Mandat – nicht du."),
+        p(`Die früheren Business-Abos (${ALT_BUSINESS.map((x) => `${x.label} ${eur(x.preisCents)}`).join(", ")} im Monat) werden nicht mehr verkauft. Bestandskunden laufen unverändert weiter – gleiche Rate, gleiche Provision. Die Provision für Global-Abschlüsse ist eine eigene Einstellung der Geschäftsführung; nenne keinen Satz, den du nicht im Office gesehen hast.`),
+        link("/business", "FIAON Global ansehen"),
         p(`Ohne Paket, einmalig: Bonitätsauskunft ${schufa} – kein Abo, erzeugt nie eine Rate. Sie wird im Kundenbereich angeboten, sobald das Paket bezahlt ist. Im Startgespräch erklärst du sie als Auskunft, nicht als Rat; der Kunde entscheidet selbst.`),
         ul(
           "Zwölf Raten: Die erste Rate immer direkt per Überweisung mit Zahlungsreferenz (QR-Code im Bereich, Zahlungsdaten per E-Mail) – nie Lastschrift. Die weiteren Raten per SEPA-Lastschrift (GoCardless) oder Überweisung – Geld landet direkt auf dem FIAON-Konto bei Wise.",

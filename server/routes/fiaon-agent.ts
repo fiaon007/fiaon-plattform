@@ -28,6 +28,8 @@ import { parseBerlinInput, formatBerlin, pruefeTerminZukunft } from "../lib/fiao
 import { ERGEBNISSE, ergebnisAnwenden, type Ergebnis, pruefeNotiz } from "../lib/fiaon-kontakt-ergebnis";
 import { nummerAusZeile } from "../lib/fiaon-telefon";
 import { terminArtAusQuelle, terminArtRueckruf } from "../../shared/fiaon-termin-art";
+// E-188 (17.09.2026): FIAON Global — Einmalpreis, kein Abo, eigener Provisionssatz (siehe onCustomerPaid).
+import { istGlobalPaket } from "../../shared/fiaon-pakete";
 
 const router = Router();
 
@@ -901,13 +903,41 @@ export async function ermittleProvisionsAnspruch(
  * Vertriebssystemen. Diese Regel ist bewusst und darf nicht aufgeweicht werden.
  */
 export async function onCustomerPaid(ref: string, opts?: { forceAgentId?: number; forceReason?: string }): Promise<void> {
+  await abschlussNachZahlung(ref, opts);
+  // ══════════════════════════════════════════════════════════════════════════
+  // FIAON GLOBAL: NACH DER PROVISION BEGINNT DAS PROJEKT (17.09.2026, E-188)
+  //
+  // Aus demselben Grund an DIESER Stelle, aus dem Abo und Onboarding-Stufe hier
+  // stehen: Alle Buchungswege gehen durch diese Funktion (mark-paid,
+  // Kontoabgleich, Buchung der Vertriebsleitung, Nachbuchungs-Center).
+  // Und bewusst NACH der Provisionsfrage: Der Start trägt die zuständige Person
+  // als Betreuer ein. Stünde er davor, sähe ermittleProvisionsAnspruch im
+  // Altmodell eine Zuweisung, die erst durch die Zahlung entstanden ist — und
+  // vergäbe eine Provision für einen Verkauf, den niemand geführt hat.
+  // Idempotent: Ein zweiter Aufruf startet nichts doppelt.
+  // ══════════════════════════════════════════════════════════════════════════
+  try {
+    const [g] = (await sqlPool`SELECT pack_key FROM fiaon_applications WHERE ref = ${ref} LIMIT 1`) as any[];
+    if (istGlobalPaket(g?.pack_key)) {
+      const { globalNachZahlung } = await import("../lib/fiaon-global-auftrag");
+      await globalNachZahlung(ref);
+    }
+  } catch (e) {
+    console.error(`[FIAON-GLOBAL] ${ref}: Start nach Zahlungseingang fehlgeschlagen — die Aufgabe „US-Struktur starten" fehlt, der Kunde hat KEINE Startmail:`, e);
+  }
+}
+
+async function abschlussNachZahlung(ref: string, opts?: { forceAgentId?: number; forceReason?: string }): Promise<void> {
   await ensureAgentTables();
   const apps = await sqlPool`
-    SELECT ref, payment_reference, pack_name, amount_due, assigned_agent_id, created_at, email
+    SELECT ref, payment_reference, pack_name, pack_key, amount_due, assigned_agent_id, created_at, email
     FROM fiaon_applications WHERE ref = ${ref}
   `;
   if (apps.length === 0) return;
   const app = apps[0];
+  // E-188: FIAON Global ist ein EINMALPREIS für ein Firmenprojekt — kein Abo, kein
+  // Kundenbereich, kein Pflicht-Startgespräch mit dem Onboarding-Team.
+  const istGlobal = istGlobalPaket(app.pack_key);
 
   // ── Abo-Kette anlegen (monatliche Paketrate) ────────────────────────────────
   // Bewusst HIER, vor allen weiteren Abbruchbedingungen dieser Funktion: unten
@@ -915,9 +945,15 @@ export async function onCustomerPaid(ref: string, opts?: { forceAgentId?: number
   // Betrag 0). Stünde der Aufruf weiter unten, hätte ein Direktzahler kein Abo
   // — und damit nie wieder eine Rechnung. Fire-and-forget: eine Zahlung darf
   // nicht daran scheitern, dass das Abo-Modul etwas nicht anlegen kann.
-  import("./fiaon-abo")
-    .then((m) => m.aboBeiZahlungAnlegen(ref))
-    .catch((e) => console.error("[FIAON-ABO] Anlage nach Zahlung:", e));
+  // E-188 — DOPPELTER BODEN: Für FIAON Global wird das Abo-Modul gar nicht erst
+  // gerufen. fiaon-abo.ts prüft zusätzlich selbst (istAboPaket), aber ein bezahltes
+  // Global-Paket mit zwölf Monatsraten à 2.499 € samt Dauermahnung (E-182) wäre der
+  // teuerste denkbare Fehler — er darf nicht an EINER Prüfung hängen.
+  if (!istGlobal) {
+    import("./fiaon-abo")
+      .then((m) => m.aboBeiZahlungAnlegen(ref))
+      .catch((e) => console.error("[FIAON-ABO] Anlage nach Zahlung:", e));
+  }
 
   // ── DIE ONBOARDING-STUFE ─────────────────────────────────────────────────
   // Die Geschäftsregel: „Zahlung gebucht → Kunde bekommt Zugang → PFLICHT-
@@ -931,9 +967,13 @@ export async function onCustomerPaid(ref: string, opts?: { forceAgentId?: number
   // gewesen, ohne je ein Gespräch geführt zu haben.
   //
   // Fire-and-forget: Eine Zahlung darf nicht daran scheitern.
-  import("../lib/fiaon-kontostufe")
-    .then((m) => m.aufWartestufeSetzen(ref))
-    .catch((e) => console.error("[KONTOSTUFE] nach Zahlung:", e));
+  // E-188: Nicht für FIAON Global — dort gibt es keinen Kundenbereich, der auf ein
+  // Startgespräch des Onboarding-Teams wartet; den Start führt die zuständige Person.
+  if (!istGlobal) {
+    import("../lib/fiaon-kontostufe")
+      .then((m) => m.aufWartestufeSetzen(ref))
+      .catch((e) => console.error("[KONTOSTUFE] nach Zahlung:", e));
+  }
 
   // ── DIE PERSON VERLÄSST DEN VERTRIEB ───────────────────────────────────────
   // Ebenfalls VOR allen frühen `return` dieser Funktion. Das Tier war fachlich
@@ -1032,7 +1072,22 @@ export async function onCustomerPaid(ref: string, opts?: { forceAgentId?: number
   // Meilenstein-Zuschlag auf Basis des Eigenumsatzes VOR diesem Abschluss
   const revenueBefore = await ownRevenueCents(app.assigned_agent_id);
   const statusBefore = partnerStatusFor(revenueBefore, thresholds);
-  const rateBp = agentRateBp(agents[0] as any, settings) + statusBefore.bonusBp;
+  // ── FIAON GLOBAL: EIN SATZ AUS DEN EINSTELLUNGEN (17.09.2026, E-188) ────────
+  // Der persönliche Satz (Vorgabe 25 %) ist für Monatspakete von 7,99 bis 99,99 €
+  // gebaut. Für Einmalpreise von 2.499 bis 35.999 € steuert ihn
+  // fiaon_settings.global_provision_prozent (Vorgabe 25, im Chefbüro unter
+  // Rückholung → Schalter → FIAON Global). Bewusst OHNE Partnerstatus-Zuschlag:
+  // Der Satz, den Justin einstellt, ist der Satz, der gebucht wird — bei 2.499 €
+  // und 25 % sind das 624,75 €. 0 heißt: keine Provision (die Zeile unten bricht
+  // bei 0 € ab, auch der Override entfällt dann). Wer Anspruch hat, entscheidet
+  // weiter ermittleProvisionsAnspruch — ein reiner Web-Kauf ohne dokumentierten
+  // Kontakt bleibt ein Direktzahler.
+  const globalBp = (() => {
+    const roh = String(settings.global_provision_prozent ?? "").trim();
+    const n = roh === "" ? 25 : Number(roh);
+    return Number.isFinite(n) && n >= 0 && n <= 50 ? Math.round(n * 100) : 2500;
+  })();
+  const rateBp = istGlobal ? globalBp : agentRateBp(agents[0] as any, settings) + statusBefore.bonusBp;
   const baseCents = eurToCents(app.amount_due);
   const amountCents = commissionCents(baseCents, rateBp);
   if (amountCents <= 0) return;
@@ -1040,7 +1095,8 @@ export async function onCustomerPaid(ref: string, opts?: { forceAgentId?: number
     INSERT INTO fiaon_commissions (agent_id, ref, payment_reference, pack_name, base_amount_cents, rate_bp, amount_cents, status, kind,
                                    note)
     VALUES (${app.assigned_agent_id}, ${ref}, ${app.payment_reference}, ${app.pack_name}, ${baseCents}, ${rateBp}, ${amountCents}, 'bestaetigt', 'own',
-            ${statusBefore.bonusBp > 0 ? `inkl. ${statusBefore.bonusBp / 100} Prozentpunkte ${statusBefore.label}-Zuschlag` : null})
+            ${istGlobal ? `FIAON Global: Einmalpreis, Satz ${rateBp / 100} % aus global_provision_prozent (E-188)`
+              : statusBefore.bonusBp > 0 ? `inkl. ${statusBefore.bonusBp / 100} Prozentpunkte ${statusBefore.label}-Zuschlag` : null})
   `;
   await logAgentEvent(app.assigned_agent_id, "commission_created", { ref, amount_cents: amountCents, rate_bp: rateBp });
   console.log(`[FIAON-COMMISSION] bestätigt: ${ref} → Agent ${app.assigned_agent_id}, ${(amountCents / 100).toFixed(2)} € (${rateBp / 100} %)`);

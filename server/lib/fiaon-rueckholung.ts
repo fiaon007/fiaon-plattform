@@ -91,6 +91,10 @@ import { sofortUrlFuer } from "./fiaon-zahlungsauftrag";
 // Die Bankverbindung hat seit dem 02.09.2026 GENAU EINE Quelle. Ein Literal
 // hier wäre die zehnte Stelle, die beim nächsten Kontowechsel vergessen wird.
 import { BANK } from "@shared/fiaon-bank";
+import { GLOBAL_PAKETE } from "@shared/fiaon-global";
+
+/** E-188: Schlüssel der Global-Pakete (Katalog-Art "global") — sie laufen nicht durch die Rückholung. */
+const GLOBAL_SCHLUESSEL: string[] = GLOBAL_PAKETE.map((p) => p.key);
 
 export type Segment = "s1_frisch" | "s2_behauptet" | "s3_preis_fehlt" | "s4_nie_gemahnt" | "s5_altbestand";
 
@@ -220,6 +224,10 @@ function grundmenge() {
        AND (a.gekuendigt_am IS NULL OR a.kuendigung_zurueckgenommen_am IS NOT NULL) AND a.refunded_at IS NULL
        AND COALESCE(a.ist_entwurf, FALSE) = FALSE
        AND a.ref NOT LIKE 'FIAON-TEST%' AND a.ref NOT LIKE 'FIAON-SCHUFA-%'
+       -- E-188 (17.09.2026): FIAON Global gehört nicht in die Rückholung. Alle fünf Segmente
+       -- schreiben über Bonität, Akte und Karte an Privatkunden; ein offener Firmenauftrag über
+       -- 2.499 € und mehr liegt als Aufgabe bei der zuständigen Person (/chef/s/global-auftraege).
+       AND NOT (COALESCE(a.pack_key, '') = ANY(${GLOBAL_SCHLUESSEL}))
        AND p.ist_test_am IS NULL
        AND p.werbung_gesperrt_am IS NULL
   `;

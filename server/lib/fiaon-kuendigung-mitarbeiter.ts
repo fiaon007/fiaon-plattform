@@ -506,8 +506,12 @@ export async function abschlussLage(agentId: number, token?: string | null) {
   };
 }
 
-/** Wie beim Kundenantrag: nur ein echtes PNG mit Kopf 89 50 4E 47, 100 Byte bis 400 KB. */
-function signaturPruefen(roh: unknown): string | null {
+/**
+ * Wie beim Kundenantrag: nur ein echtes PNG mit Kopf 89 50 4E 47, 100 Byte bis 400 KB.
+ * Exportiert seit E-188 (17.09.2026): Der Auftrag über FIAON Global nimmt die
+ * Unterschrift vom selben Pad entgegen und prüft sie mit derselben Regel.
+ */
+export function signaturPruefen(roh: unknown): string | null {
   const s = String(roh ?? "");
   if (!/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(s)) return null;
   const b64 = s.slice("data:image/png;base64,".length);

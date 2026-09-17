@@ -1,0 +1,71 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   CHEFBÜRO · GLOBAL-AUFTRÄGE (17.09.2026, E-188)
+
+   Baut auf den Tafeln (chef-zahlen.css) und der Tabelle des Mailwerks
+   (chef-mailwerk.css) auf — hier steht nur, was diese Seite zusätzlich
+   braucht: die vier Zahlen, die Filterleiste, die Statusmarken, die Knöpfe
+   mit Text und das kleine Formular in der Zeile. Farben aus dem Blau-Paar
+   des Hauses; Rot nur dort, wo ein Mensch etwas tun muss.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.cg { display: grid; gap: 18px; }
+
+.cg-zahlen { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.cg-zahlen > div {
+  display: grid; gap: 3px; padding: 14px 16px; border-radius: 14px;
+  background: rgba(15, 23, 42, .55); border: 1px solid rgba(148, 163, 184, .12);
+}
+.cg-zahlen b { font-size: 24px; font-weight: 600; color: #e2e8f0; font-variant-numeric: tabular-nums; }
+.cg-zahlen span { font-size: 12px; line-height: 1.45; color: rgba(148, 163, 184, .9); }
+.cg-zahlen .cg-warn { border-color: rgba(248, 113, 113, .4); }
+.cg-zahlen .cg-warn b { color: #fca5a5; }
+.cg-einstellungen { margin-top: 14px; }
+.cg-einstellungen b { color: #e2e8f0; font-weight: 600; }
+.cg-einstellungen a, .cg .cz-block > header a { color: #93c5fd; }
+
+.cg-filter { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.cg-filter button {
+  padding: 7px 13px; border-radius: 999px; font-size: 12.5px; cursor: pointer;
+  color: rgba(203, 213, 225, .9); background: transparent; border: 1px solid rgba(148, 163, 184, .2);
+}
+.cg-filter button.aktiv { color: #fff; background: rgba(30, 58, 138, .45); border-color: rgba(96, 165, 250, .45); }
+.cg-leer { margin: 8px 0 0; font-size: 13px; color: rgba(148, 163, 184, .9); }
+
+.cg-tab { min-width: 980px; }
+.cg-tab td { color: rgba(226, 232, 240, .88); }
+.cg-ref { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+.cg-rot, .cm-klartext.cg-rot { color: #fca5a5; }
+
+.cg-marke {
+  display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 600; white-space: nowrap;
+  color: #bfdbfe; background: rgba(30, 58, 138, .35); border: 1px solid rgba(96, 165, 250, .3);
+}
+.cg-marke-bezahlt { color: #fecaca; background: rgba(127, 29, 29, .35); border-color: rgba(248, 113, 113, .4); }
+.cg-marke-gestartet { color: #bbf7d0; background: rgba(20, 83, 45, .35); border-color: rgba(74, 222, 128, .35); }
+.cg-marke-storniert { color: rgba(148, 163, 184, .9); background: rgba(30, 41, 59, .5); border-color: rgba(148, 163, 184, .2); }
+
+.cg-links { display: grid; gap: 6px; }
+.cg-links a { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: #93c5fd; text-decoration: none; white-space: nowrap; }
+.cg-links a:hover { text-decoration: underline; }
+
+.cg-knoepfe { display: grid; gap: 6px; justify-items: start; }
+.cg-knopf {
+  display: inline-flex; align-items: center; gap: 6px; padding: 7px 11px; border-radius: 9px; font-size: 12.5px; cursor: pointer; white-space: nowrap;
+  color: #bfdbfe; background: rgba(30, 58, 138, .25); border: 1px solid rgba(96, 165, 250, .25);
+}
+.cg-knopf:hover { background: rgba(30, 58, 138, .5); }
+.cg-knopf:disabled { opacity: .45; cursor: not-allowed; }
+.cg-knopf-haupt { color: #fff; background: #1d4ed8; border-color: #1d4ed8; }
+.cg-knopf-haupt:hover { background: #2563eb; }
+
+.cg-form {
+  display: grid; gap: 8px; margin-top: 10px; padding: 12px; border-radius: 12px; min-width: 260px;
+  background: rgba(15, 23, 42, .7); border: 1px solid rgba(96, 165, 250, .25);
+}
+.cg-form label { display: grid; gap: 5px; font-size: 12px; color: rgba(148, 163, 184, .95); }
+.cg-form input[type="date"], .cg-form select {
+  padding: 7px 10px; border-radius: 8px; font-size: 13.5px; color: #fff;
+  background: rgba(0, 0, 0, .3); border: 1px solid rgba(148, 163, 184, .25);
+}
+.cg-form select option { color: #0f172a; }
+.cg-form .cg-haken { display: flex; align-items: flex-start; gap: 8px; line-height: 1.45; }
+.cg-form-knoepfe { display: flex; gap: 6px; }

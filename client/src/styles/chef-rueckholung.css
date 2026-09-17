@@ -53,6 +53,9 @@
 .cr-schalter-label { font-size: 12.5px; font-weight: 700; color: #fff; }
 .cr-schalter-feld input { background: rgba(0,0,0,.25); border: 1px solid rgba(255,255,255,.18); border-radius: 8px; color: #fff; padding: 7px 10px; font-size: 14px; width: 110px; }
 .cr-schalter-feld small { font-size: 11px; line-height: 1.45; color: rgba(255,255,255,.55); }
+/* E-188: Auswahlfelder (zuständige Person, USt-Modus bei FIAON Global) — dieselbe Fläche wie die Zahlenfelder. */
+.cr-schalter-feld select { background: rgba(0,0,0,.25); border: 1px solid rgba(255,255,255,.18); border-radius: 8px; color: #fff; padding: 7px 10px; font-size: 13.5px; width: 100%; }
+.cr-schalter-feld select option { color: #0f172a; }
 
 /* 5 · Wirkung */
 .cr-stufen { display: flex; align-items: stretch; gap: 10px; flex-wrap: wrap; }

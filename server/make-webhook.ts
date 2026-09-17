@@ -6,6 +6,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import postgres from "postgres";
+import { istGlobalPaket } from "@shared/fiaon-pakete";
 
 // WICHTIG: Jeder neue Event-Typ MUSS zusätzlich in die Registry
 // (server/make-events-registry.ts) eingetragen werden — sie ist die
@@ -82,6 +83,12 @@ export type MakeEventType =
   | "payment_reactivated"     // abgelaufene Bestellung reaktiviert (neue Frist)
   | "documents_change_request"// Dokumente-Änderung angefordert (changes_requested)
   | "zustimmung_link"        // E-184: Bitte an den Kunden, AGB/Bonitätsprüfung/Vertrag selbst zu bestätigen
+  // ── FIAON Global (E-188, 17.09.2026) — Firmenkunden, US-Struktur. Gehen NIE über Make:
+  //    `global_auftrag` trägt Vertrag und Rechnung als PDF; der Bestellweg sendet alle drei
+  //    direkt über den Motor (server/lib/fiaon-global-auftrag.ts) und protokolliert selbst.
+  | "global_auftrag"         // Auftrag unterschrieben: Vertrag + Rechnung als PDF, Knopf zur Zahlungsseite
+  | "global_start"           // Zahlung eingegangen: Ansprechpartner, Unterlagenliste, Startgespräch
+  | "global_stichtag"        // der im Startgespräch festgelegte Stichtag, in Textform
   | "schufa_approved"         // SCHUFA genehmigt
   | "schufa_rejected"         // SCHUFA abgelehnt
   | "schufa_requested"        // neues SCHUFA-Dokument angefordert
@@ -200,6 +207,25 @@ export async function sendMakeWebhookMitGrund(
     payload = { ...payload, email: aufgeloest.email, empfaenger_quelle: aufgeloest.quelle };
   }
 
+  // ── FIAON GLOBAL BEKOMMT KEINE MAIL DER PRIVATKUNDENLINIE (17.09.2026, E-188) ──
+  // Dieselbe Begründung wie bei der Adresse: EINE Tür statt 29 Aufrufstellen. Die Automatik
+  // ist an ihren Quellen abgeschaltet (fiaon-antrag.ts, fiaon-rueckholung.ts) — aber es gibt
+  // Knöpfe: „Zahlungsdaten senden" in der Akte, „Rechnung stellen", die Vorlagen aus dem
+  // Sende-Menü. Jede dieser Mails spricht von Bonität, Bereich und Karte und druckt die
+  // Bankdaten in den Text. An einen Firmenkunden mit einem Auftrag über 2.499 € und mehr
+  // gehört keine davon; er bekommt Vertrag, Rechnung und Startmail aus dem Bestellweg.
+  // Entschieden wird an der BESTELLUNG der Nutzlast — derselbe Mensch darf für sein
+  // Privatpaket weiter jede Mail bekommen. Bei einer Störung lässt die Wand durch.
+  if (PRIVATLINIE.has(eventType) && !payload.test) {
+    const global = await istGlobalBestellung(payload).catch(() => false);
+    if (global) {
+      const erg: MakeVersand = { ok: false, grund: "FIAON Global: Diese Mail gehört zur Privatkundenlinie. Der Firmenkunde bekommt Vertrag, Rechnung und Startmail aus dem Bestellweg — siehe /chef/s/global-auftraege." };
+      protokollNebenbei(eventType, payload, erg);
+      console.warn(`[MAKE-WEBHOOK] '${eventType}' NICHT gesendet: Bestellung ${payload.antrag_id ?? payload.payment_reference ?? "?"} ist ein Global-Auftrag.`);
+      return erg;
+    }
+  }
+
   // ── DIE FREQUENZBREMSE (02.09.2026) ────────────────────────────────────
   // Sie steht hier und nicht in den Läufen, weil es mehr als einen Auslöser
   // gibt: der Mahn-Takt, der Massenversand (der `maxReminders: null` setzt und
@@ -269,6 +295,27 @@ export async function sendMakeWebhookMitGrund(
   // `fireAndForget`: Ein klemmendes Protokoll darf keine Mail verhindern.
   protokollNebenbei(eventType, payload, erg);
   return erg;
+}
+
+/** E-188: Ereignisse, die nur für Privatpakete stimmen — Zahlung, Konto, Rückholung, Abo. */
+const PRIVATLINIE = new Set<string>([
+  "welcome", "payment_details", "followup_48h", "payment_reminder", "claim_received", "payment_confirmed",
+  "agent_payment_reminder", "payment_reactivated", "abo_payment_reminder", "abo_verlaengerung_frage", "sepa_einrichten",
+  "onboarding_einladung", "konto_karte_einladung", "zustimmung_link", "antrag_erinnerung",
+  "rueckhol_s1", "rueckhol_s2", "rueckhol_s3", "rueckhol_s4", "rueckhol_s5", "rueckhol_s5b", "rueckhol_s5c", "rueckhol_s5d",
+]);
+
+/** Gehört die Bestellung dieser Nutzlast zu FIAON Global (Katalog-Art "global")? */
+async function istGlobalBestellung(payload: MakeWebhookPayload): Promise<boolean> {
+  const ref = String(payload.antrag_id ?? "").trim();
+  const zahlRef = String(payload.payment_reference ?? "").trim();
+  if ((!ref && !zahlRef) || !process.env.DATABASE_URL) return false;
+  const { sqlPool } = await import("./lib/db-pool");
+  const [a] = (await sqlPool`
+    SELECT pack_key FROM fiaon_applications
+     WHERE (${ref} <> '' AND ref = ${ref}) OR (${zahlRef} <> '' AND payment_reference = ${zahlRef})
+     ORDER BY (ref = ${ref}) DESC LIMIT 1`) as any[];
+  return istGlobalPaket(a?.pack_key);
 }
 
 /**

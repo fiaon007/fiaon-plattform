@@ -825,8 +825,55 @@ export const RUNDGANG_BEWERBUNGEN: RundgangSchritt[] = [
   },
 ];
 
+// ── /chef/s/global-auftraege (17.09.2026, E-188) ────────────────────────────
+export const RUNDGANG_GLOBAL_AUFTRAEGE: RundgangSchritt[] = [
+  {
+    titel: "Hier liegen die Aufträge der Unternehmen.",
+    text: "FIAON Global ist der Aufbau einer US-Unternehmensstruktur — vier Pakete, 2.499 bis 35.999 €, einmalig. Ein Unternehmen "
+      + "liest den Auftrag auf fiaon.com/business/start, unterschreibt auf dem Pad und bekommt Vertrag und Rechnung als PDF. "
+      + "Bezahlt wird per Überweisung. Mit dem Zahlungseingang startet der Auftrag von selbst.",
+    tipp: "Geld wird hier nicht gebucht. Der Zahlungseingang läuft über „Zahlungen verbuchen“ wie bei jedem Kunden.",
+  },
+  {
+    ziel: ".cg-zahlen",
+    titel: "Vier Zahlen, zwei davon sind Alarm.",
+    text: "„Bezahlt, nicht gestartet“ heißt: Das Geld ist da, aber die Aufgabe oder die Startmail hing. „Gestartet ohne Stichtag“ "
+      + "heißt: Das Startgespräch ist noch nicht geführt oder nicht eingetragen. Beide sollten null sein.",
+  },
+  {
+    ziel: ".cg-marke",
+    titel: "Offen, bezahlt, gestartet.",
+    text: "Offen wartet auf die Überweisung — die zuständige Person hat dazu eine Aufgabe. Bezahlt wird beim Buchen der Zahlung; "
+      + "gestartet wird erst, wenn die Aufgabe „US-Struktur starten“ bei jemandem liegt. Erst dann geht die Startmail an den Kunden, "
+      + "denn sie sagt: „Ihr Ansprechpartner meldet sich bei Ihnen.“",
+  },
+  {
+    ziel: ".cg-knopf-stichtag",
+    titel: "Der Stichtag — an ihm hängt die Geld-zurück-Zusage.",
+    text: "Ziffer 6 des Auftrags: Stehen Gesellschaft und EIN nicht zum vereinbarten Stichtag, erstatten wir den Paketpreis. Der Tag wird "
+      + "im Startgespräch gemeinsam festgelegt und HIER eingetragen. Mit dem Haken bekommt der Kunde ihn sofort per Mail — der Auftrag "
+      + "sagt diese Mitteilung in Textform zu.",
+    tipp: "Trage nur ein, was mit dem Kunden besprochen ist. Der Stichtag ist ein Vertragsdatum, keine Planungsgröße.",
+  },
+  {
+    ziel: ".cg-knopf-zustaendig",
+    titel: "Zuständig ändern.",
+    text: "Die offene Aufgabe wandert mit, die neue Person bekommt eine Mail und steht ab dann als Ansprechpartner in den Kundenmails. "
+      + "Wer NEUE Aufträge bekommt, steht bei den Schaltern im Raum Rückholung (FIAON Global) — dort auch Provisionssatz und "
+      + "Umsatzsteuer-Modus der Rechnung.",
+  },
+  {
+    ziel: ".cg-links",
+    titel: "Vertrag und Rechnung — dieselben Dateien, die der Kunde hat.",
+    text: "Der Vertrag trägt Unterschrift, Zeitpunkt, IP-Adresse und einen Hash über den Text. Die Rechnung nennt die Firma mit "
+      + "Anschrift und USt-IdNr. und „einmalig“. Steht in einer Zeile „Kein unterschriebener Auftrag“, wurde die Bestellung nicht "
+      + "über /business/start angelegt — dann den Kunden dort unterschreiben lassen.",
+  },
+];
+
 export const RUNDGAENGE: Record<string, { titel: string; schritte: RundgangSchritt[] }> = {
   bewerbungen:  { titel: "Bewerbungen",  schritte: RUNDGANG_BEWERBUNGEN },
+  globalAuftraege: { titel: "Global-Aufträge", schritte: RUNDGANG_GLOBAL_AUFTRAEGE },
   appVorgang: { titel: "Vorgang", schritte: RUNDGANG_APP_VORGANG },
   firmen:      { titel: "Firmenkunden", schritte: RUNDGANG_FIRMEN },
   pipeline:    { titel: "Pipeline",     schritte: RUNDGANG_PIPELINE },

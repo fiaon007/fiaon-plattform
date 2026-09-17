@@ -31,6 +31,8 @@ interface Antwort {
   wirkung: { angeschrieben: number; termine: number; bezahlt: number; umsatz_cents: number };
   schalter: Record<string, string | null>;
   laeufe: { name: string; letzteMeldung: string | null; letzterErfolg: string | null; stundenHer: number | null; ampel: string }[];
+  /** E-188: Auswahl für die zuständige Person bei FIAON Global. */
+  mitarbeiter?: { id: number; name: string; rolle: string }[];
 }
 
 // Was jedes Segment IST und WARUM es so behandelt wird — die Messung steht
@@ -227,6 +229,42 @@ export default function ChefRueckholung() {
               <small>{satz}</small>
             </label>
           ))}
+        </div>
+      </section>
+
+      {/* ── 4b. FIAON Global (17.09.2026, E-188) ─────────────────────────────
+          Drei Einstellungen des Bestellwegs für Unternehmen. Sie stehen hier,
+          weil dies die Seite der Schalter ist — die Aufträge selbst zeigt
+          /chef/s/global-auftraege. */}
+      <section className="cz-block">
+        <header className="cz-block-kopf"><h3>FIAON Global — der Bestellweg für Unternehmen</h3>
+          <p>Wer einen neuen Auftrag bekommt, welcher Satz bei einem Abschluss gebucht wird und was zur Umsatzsteuer auf der Rechnung steht. Wirkt sofort, ohne Auslieferung. Die Aufträge selbst: <a href="/chef/s/global-auftraege">Global-Aufträge</a>.</p>
+        </header>
+        <div className="cr-schalter">
+          <label className="cr-schalter-feld">
+            <span className="cr-schalter-label">Zuständige Person</span>
+            <select value={daten.schalter.global_zustaendig_agent_id && daten.schalter.global_zustaendig_agent_id !== "0" ? daten.schalter.global_zustaendig_agent_id : ""}
+              onChange={(e) => speichern("global_zustaendig_agent_id", e.target.value, e.target.value ? "Zuständige Person für FIAON Global gespeichert." : "Keine feste Person — neue Aufträge gehen an die Vertriebsleitung.")}>
+              <option value="">Vertriebsleitung (wer am wenigsten offen hat)</option>
+              {(daten.mitarbeiter ?? []).map((m) => <option key={m.id} value={String(m.id)}>{m.name}{m.rolle === "vertriebsleiter" ? " · Vertriebsleitung" : ""}</option>)}
+            </select>
+            <small>Bekommt bei jedem neuen Auftrag eine Aufgabe mit Mail, wird als Betreuer eingetragen (wenn noch keiner da ist) und steht als Ansprechpartner in den Kundenmails. Nach dem Zahlungseingang bekommt sie die Aufgabe „US-Struktur starten“.</small>
+          </label>
+          <label className="cr-schalter-feld">
+            <span className="cr-schalter-label">Provision bei Global-Abschlüssen, in Prozent</span>
+            <input type="number" min={0} max={50} defaultValue={daten.schalter.global_provision_prozent ?? ""} placeholder="25"
+              onBlur={(e) => { const v = e.target.value.trim(); if (v !== (daten.schalter.global_provision_prozent ?? "")) speichern("global_provision_prozent", v || "25", `Provision FIAON Global: ${v || "25"} %.`); }} />
+            <small>Vorgabe 25. Gebucht wird beim Zahlungseingang auf den Einmalpreis, ohne Partnerstatus-Zuschlag: bei 2.499 € und 25 % sind das 624,75 €, bei 35.999 € 8.999,75 €. Anspruch hat nur, wer vor der Zahlung ein Gespräch dokumentiert hat — ein reiner Web-Kauf bleibt ohne Provision. Hat der Mitarbeiter einen Werber, kommt dessen Team-Umsatzbeteiligung wie bei jedem Abschluss dazu. 0 = keine Provision.</small>
+          </label>
+          <label className="cr-schalter-feld">
+            <span className="cr-schalter-label">Umsatzsteuer auf der Firmenrechnung</span>
+            <select value={daten.schalter.rechnung_b2b_ust_modus === "reverse_charge" ? "reverse_charge" : "none"}
+              onChange={(e) => speichern("rechnung_b2b_ust_modus", e.target.value, e.target.value === "reverse_charge" ? "Neue Firmenrechnungen: Reverse Charge." : "Neue Firmenrechnungen: ohne Steuerausweis.")}>
+              <option value="none">Ohne gesonderten Steuerausweis (Vorgabe)</option>
+              <option value="reverse_charge">Reverse Charge — netto, Steuerschuld beim Kunden</option>
+            </select>
+            <small>Erst umstellen, wenn der Steuerberater entschieden hat. Gilt für NEUE Aufträge und steht danach fest an der Bestellung — eine gestellte Rechnung ändert sich nicht mehr. Reverse Charge braucht die USt-IdNr. des Kunden; fehlt sie, geht die Rechnung ohne Steuerausweis raus und die Aufgabe sagt es. 19 % weist das System nie aus.</small>
+          </label>
         </div>
       </section>
 

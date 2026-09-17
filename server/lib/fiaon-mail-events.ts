@@ -170,6 +170,21 @@ const ZUSATZ: Partial<Record<MakeEventType, EventZusatz>> = {
     gruppe: "konto", zielgruppe: "kunde", rollen: ["admin", "vertriebsleiter", "agent", "onboarding"],
     klartext: "Bitte an den Kunden, AGB/Datenschutz, Bonitätsprüfung und Vertrag selbst zu bestätigen — mit dem Link auf die Zustimmungsseite (30 Tage gültig).",
   },
+  // E-188 (17.09.2026): FIAON Global. Alle drei entstehen aus der Auftragsakte und gehen
+  // automatisch bzw. aus /chef/s/global-auftraege — von Hand aus einer Kundenakte wären sie
+  // ohne Vertrag, Rechnung und Stichtag unvollständig. Deshalb nur die Verwaltung (Prüfversand).
+  global_auftrag: {
+    gruppe: "zahlung", zielgruppe: "kunde", rollen: ["admin"],
+    klartext: "FIAON Global: Auftrag unterschrieben — Vertrag und Rechnung als PDF, Knopf zur Zahlungsseite. Geht automatisch nach der Unterschrift.",
+  },
+  global_start: {
+    gruppe: "zahlung", zielgruppe: "kunde", rollen: ["admin"],
+    klartext: "FIAON Global: Zahlung eingegangen — Ansprechpartner, Unterlagenliste, Startgespräch. Geht automatisch nach der Buchung, sobald die Start-Aufgabe vergeben ist.",
+  },
+  global_stichtag: {
+    gruppe: "konto", zielgruppe: "kunde", rollen: ["admin"],
+    klartext: "FIAON Global: der im Startgespräch vereinbarte Stichtag für Gesellschaft und EIN, in Textform.",
+  },
   lead_followup: {
     gruppe: "lead", zielgruppe: "kunde", rollen: ["admin", "vertriebsleiter"],
     klartext: "Nachfassen bei einem Lead, der noch keinen Antrag gestellt hat.",

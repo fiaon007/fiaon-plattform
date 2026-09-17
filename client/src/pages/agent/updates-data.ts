@@ -84,6 +84,30 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-09-17-global-bestellweg-e188",
+    date: "2026-09-17",
+    category: "Neu",
+    title: "FIAON Global: Unternehmen bestellen direkt — du bekommst den Auftrag als Aufgabe, und mit dem Zahlungseingang startet er",
+    summary:
+      "Ein Unternehmen kann die US-Struktur (FIAON Global, 2.499 bis 35.999 € einmalig) jetzt direkt bestellen: Auftrag lesen, "
+      + "unterschreiben, Vertrag und Rechnung per Mail, Überweisung. Die zuständige Person bekommt dazu eine Aufgabe mit Mail und "
+      + "ist Betreuer des Kunden. Ist die Zahlung gebucht, kommt die Aufgabe „US-Struktur starten“ — und der Kunde bekommt eine "
+      + "Mail mit deinem Namen: Er erwartet deinen Anruf.",
+    changes: [
+      "Neuer Auftrag: Aufgabe „FIAON Global: neuer Auftrag — Firma, Paket“ mit Ansprechpartner, Telefon, Betrag, Verwendungszweck und Link zur Zahlungsseite. Der Kunde steht unter „Meine Kunden“ als offene Bestellung.",
+      "Zahlungseingang = Start: Aufgabe „FIAON Global: US-Struktur starten“ mit der Unterlagenliste (Reisepass, Adressnachweis, Gesellschafterliste oder Handelsregisterauszug, Wunschname in drei Varianten, Tätigkeitsbeschreibung) und dem Hinweis auf den Stichtag.",
+      "Ein Global-Kunde bekommt KEINE Mails der Privatkundenlinie — keine Zahlungsdaten-Mail, keine Zahlungserinnerung, keine Rückhol-Mail, auch nicht von Hand aus der Akte. Der Versand sagt dir dann, warum. Er hat Vertrag, Rechnung und Zahlungsseite aus dem Bestellweg.",
+      "FIAON Global ist ein Einmalpreis: kein Abo, keine Raten, kein Kundenbereich, kein Startgespräch des Onboarding-Teams — das Startgespräch führst du.",
+      "Provision: wie bei jedem Abschluss nur mit dokumentiertem Gespräch vor der Zahlung; der Satz für Global steht in den Einstellungen der Geschäftsführung.",
+    ],
+    howto: [
+      "Aufgabe „neuer Auftrag“: Kunden kurz anrufen, Eingang bestätigen, Fragen zur Überweisung klären — und das Gespräch in der Akte dokumentieren.",
+      "Aufgabe „US-Struktur starten“: Startgespräch vereinbaren, dort den Stichtag für Gesellschaft und EIN festlegen und der Leitung nennen (sie trägt ihn im Chefbüro unter Kunden → Global-Aufträge ein; der Kunde bekommt ihn per Mail).",
+      "Fremdkosten (Staatsgebühren, Registered Agent, Honorare von Steuerberater und Anwalt) nennst du dem Kunden VOR dem Start — sie sind nicht im Paketpreis.",
+    ],
+    link: { href: "/agent/aufgaben", label: "Aufgaben öffnen" },
+  },
+  {
     id: "2026-09-11-team-feedback-e184",
     date: "2026-09-11",
     category: "Verbessert",

@@ -5,6 +5,51 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 17.09.2026 — FIAON Global: der Bestellweg im Server — Vertrag, Rechnung, Zahlung aufs Konto = Start (E-188)
+
+**Was geändert wurde:** Ein Unternehmen kann eines der vier Global-Pakete (2.499 bis 35.999 €, einmalig) direkt
+bestellen. Der Server liefert dafür vier Adressen unter `/api/fiaon/global`: den Auftrag als Text VOR der Unterschrift
+(`POST /vertrag/vorschau`), die Bestellung mit Unterschrift vom Pad (`POST /auftrag`), die Auftragsseite des Kunden und
+seine beiden PDFs (`GET /auftrag/:ref…`, ohne Anmeldung, über einen signierten 30-Tage-Link). Dahinter läuft die
+bestehende Kette — Antrag, Bestellung, fortlaufende Rechnungsnummer, Zahlungsseite mit QR-Code — plus eine
+Auftragsakte (`fiaon_global_auftraege`) mit Firma, Ansprechpartner, Bestätigungen, Unterschrift, Zeitpunkt, IP und dem
+unterschriebenen Vertrag als PDF. Der Vertrag (zwölf Ziffern, deutsch und britisches Englisch) entsteht aus
+`shared/fiaon-global.ts` und dem Paketkatalog; Bildschirm und PDF tragen denselben Text. Die Rechnung nennt die Firma
+mit Anschrift und USt-IdNr., „einmalig“ und einen sachlichen Satz zur Umsatzsteuer (Vorgabe: ohne Steuerausweis;
+„Reverse Charge“ per Einstellung, nie 19 %). Der Kunde bekommt EINE Mail mit Vertrag und Rechnung als Anhang und dem
+Knopf zur Zahlungsseite; die zuständige Person bekommt eine Aufgabe mit Mail und wird als Betreuer eingetragen.
+**Mit der Zahlungsbuchung startet der Auftrag:** Aufgabe „US-Struktur starten“ (Unterlagenliste, Stichtag,
+Provisionsstand), danach Status „gestartet“ und die Startmail an den Kunden — kein Kundenbereich, kein Abo, keine
+Onboarding-Stufe. Die Provision läuft über die bestehende Buchung mit dem Satz aus `global_provision_prozent`
+(Vorgabe 25 %, ohne Partnerstatus-Zuschlag; bei 2.499 € sind das 624,75 €) — Anspruch hat wie immer nur, wer vor der
+Zahlung ein Gespräch dokumentiert hat. Neu im Chefbüro: **Kunden → Global-Aufträge** (Stand, zuständig, Stichtag
+setzen mit Mail an den Kunden, Zuständig ändern, Start anstoßen, Vertrag und Rechnung als PDF) und bei den Schaltern
+unter **Rückholung → FIAON Global** die drei Einstellungen (zuständige Person, Provisionssatz, USt-Modus). Die
+Zahlungsseite spricht bei einem Firmenauftrag die Firma an („einmalig“, keine Sätze über Konto und Karte, keine
+Sofortzahlung).
+
+**Warum:** Justin: „Direktkauf: Vertrag, Rechnung, Zahlung aufs Bankkonto = Start.“ Ohne eigene Kategorie hätte das
+Haus einen Global-Auftrag wie ein Privatpaket behandelt: Er wäre in die Privatbestellung desselben Menschen gemergt
+oder von ihr stillgelegt worden, der Kunde hätte „Ihr Bereich ist geöffnet, Ihre Karte …“ gelesen, zweimal täglich
+eine Privatkunden-Mahnung bekommen (seit E-182 ohne Obergrenze) und nach der Zahlung zwölf Monatsraten à 2.499 €.
+FIAON Global ist deshalb überall eine dritte Produktkategorie neben Stufenpaket und Bonitätsauskunft: in der
+Dubletten-Prävention, beim Stilllegen von Schwesterbestellungen, in der Erinnerungsmaschine, in der Rückholung — und
+an der einen Mail-Tür (`make-webhook.ts`) geht keine Mail der Privatkundenlinie mehr an eine Global-Bestellung, auch
+nicht von Hand aus der Akte.
+
+**Wo:** `server/lib/fiaon-global-vertrag.ts` (Vertragstext + PDF), `server/lib/fiaon-global-auftrag.ts` (Bestellweg,
+Akte, Mails, Start), `server/routes/fiaon-global.ts`, `server/mail/vorlagen/global.ts` (global_auftrag, global_start,
+global_stichtag), `server/fiaon-invoice.ts` (Firmenrechnung), `server/routes/fiaon-antrag.ts` (bestellungFuerAntrag
+herausgelöst, Global-Zweige), `server/routes/fiaon-agent.ts` (onCustomerPaid: kein Abo, Global-Satz, Start),
+`server/make-webhook.ts`, `server/lib/fiaon-rueckholung.ts`, `server/lib/fiaon-zahlungsauftrag.ts`,
+`shared/fiaon-dach-telefon.ts` (die Nur-DE/AT/CH-Prüfung an einer Stelle), `client/src/pages/zahlung.tsx`,
+`client/src/components/admin/ChefGlobalAuftraege.tsx`, `client/src/components/admin/ChefRueckholung.tsx`.
+Prüfstand ohne Datenbank: `npx tsx scripts/pruef-global-vertrag.ts` (über 400 Prüfungen: Ziffern, Katalogpreis,
+Pflichthinweise, Wortwand, Mails, Eingabeprüfung, Token). Beispielrechnungen: `npx tsx scripts/render-test-invoice.ts`.
+Offen vor dem Live-Gang: Anwalt (Vertragstext, Rechtswahl), Steuerberater (USt-Modus), Justin (Provisionssatz).
+
+---
+
 ## 15.09.2026 — Neue Seite /global: die US-Positionierung (FIAON Global OS)
 
 **Was geändert wurde:** Es gibt eine neue öffentliche Seite unter `/global` — parallel zu `/business`, das

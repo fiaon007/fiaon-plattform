@@ -52,6 +52,7 @@ const LeadAutomatik = lazy(() => import("@/pages/admin-leads"));
 const Mailwerk = lazy(() => import("@/components/admin/ChefMailwerk"));
 const Postmeister = lazy(() => import("@/components/admin/ChefPostfach"));
 const Dubletten = lazy(() => import("@/pages/admin-dubletten"));
+const GlobalAuftraege = lazy(() => import("@/components/admin/ChefGlobalAuftraege"));
 const Fahrplan = lazy(() => import("@/pages/admin-fahrplan"));
 const TeamZentrale = lazy(() => import("@/pages/admin-team-zentrale"));
 const Vertraege = lazy(() => import("@/pages/admin-vertraege"));
@@ -130,6 +131,10 @@ export const CHEF_SEITEN: ChefSeite[] = [
   { slug: "kuendigungen", label: "Kündigungen", satz: "Wer hat gekündigt, und was ist daraus geworden?", Seite: Kunden, raum: "kunden", suche: "kuendigungen=1", auch: "storno beenden" },
   { slug: "leads", label: "Kalte Leads (Stufe C)", satz: "Der Vorrat, aus dem nachgefasst wird.", Seite: Kunden, raum: "kunden", suche: "stufe=C", auch: "vorrat kalt" },
   { slug: "ohne-onboarding", label: "Bezahlt ohne Startgespräch", satz: "Die Kunden, bei denen das Onboarding hängt.", Seite: Kunden, raum: "kunden", suche: "bezahltOhneOnboarding=1" },
+  // 17.09.2026 (E-188): FIAON Global — Firmenaufträge über die US-Struktur. Eigene Liste, weil ein
+  // Auftrag über 2.499 bis 35.999 € mit Vertrag, Stichtag und zuständiger Person keine Zeile der
+  // Privatkunden-Zentrale ist.
+  { slug: "global-auftraege", label: "Global-Aufträge", satz: "Firmenaufträge über die US-Struktur: Stand, zuständige Person, Stichtag, Vertrag und Rechnung.", Seite: GlobalAuftraege, raum: "kunden", auch: "global business firma firmenkunde b2b us llc struktur auftrag vertrag stichtag" },
   { slug: "termine", label: "Termin-Zentrale", satz: "Alle Termine aller Mitarbeiter — und wer keinen hat.", Seite: Termine, raum: "kunden" },
   { slug: "lead-automatik", label: "Lead-Automatik", satz: "Nachfass-Maschine: Sendefenster, Bulk-Versand, Verteilung.", Seite: LeadAutomatik, raum: "kunden" },
   { slug: "dubletten", label: "Dubletten", satz: "Mehrfach angelegte Personen zusammenführen — umkehrbar.", Seite: Dubletten, raum: "kunden", auch: "doppelt merge trennen" },

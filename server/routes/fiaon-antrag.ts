@@ -2,7 +2,10 @@ import { Router } from "express";
 import { unzustellbarSql, zielMailSql } from "../lib/fiaon-empfaenger";
 import { db } from "../db";
 import { fiaonApplications, fiaonClickEvents } from "@shared/schema";
-import { PAKET_PREISE_EURO, SCHUFA_PREIS_EURO } from "@shared/fiaon-pakete";
+import { PAKET_PREISE_EURO, SCHUFA_PREIS_EURO, istGlobalPaket } from "@shared/fiaon-pakete";
+// E-188 (17.09.2026): FIAON Global ist eine eigene Produktkategorie — siehe GLOBAL_SCHLUESSEL unten.
+import { GLOBAL_PAKETE } from "@shared/fiaon-global";
+import { istAuslandsnummer, NUR_DACH_MELDUNG } from "@shared/fiaon-dach-telefon";
 import { eq } from "drizzle-orm";
 import PDFDocument from "pdfkit";
 import { ZipArchive } from "archiver";
@@ -103,6 +106,26 @@ export const FIAON_BANK_DETAILS = {
 const PACK_PRICES: Record<string, number> = PAKET_PREISE_EURO;
 const SCHUFA_PRICE = SCHUFA_PREIS_EURO;
 const PAYMENT_DUE_DAYS = 7;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FIAON GLOBAL IST EINE DRITTE PRODUKTKATEGORIE (17.09.2026, E-188)
+//
+// Bis heute kannte diese Datei zwei Arten von Bestellungen: das Stufenpaket
+// (ein Konto, eine Stufe) und das Zusatzprodukt (Bonitätsauskunft). FIAON
+// Global — die US-Struktur für Unternehmen, 2.499 bis 35.999 € einmalig — ist
+// keines von beiden. Ohne eigene Kategorie wäre Folgendes passiert:
+//   · Ein Unternehmer, der schon Privatkunde ist, bestellt Global: Die
+//     Prävention (linkDuplicateToPaidOrActive) hätte den Auftrag in seine
+//     Privatbestellung gemergt — keine Rechnung, kein Auftrag.
+//   · Er bezahlt seine Ultra-Rate: supersedeSisterOrders hätte den offenen
+//     Global-Auftrag als „Dublette, dieselbe Produktkategorie" stillgelegt.
+//   · Jede Kundenmail dieser Datei (welcome, payment_details, payment_reminder,
+//     claim_received, payment_confirmed) spricht von Bonität, Bereich und
+//     Karte. Ein Firmenkunde bekommt stattdessen die Global-Mails aus
+//     server/lib/fiaon-global-auftrag.ts — nie beides.
+// Der Schlüssel kommt aus dem Katalog (art "global"), nicht aus einem Namen.
+// ═══════════════════════════════════════════════════════════════════════════
+const GLOBAL_SCHLUESSEL: string[] = GLOBAL_PAKETE.map((p) => p.key);
 
 // ── #20: Kanonische Paket-Kreditlimits (Headline „bis zu X €", identisch zu den
 // PACKS/BUSINESS_PACKS im Frontend). Quelle der Wahrheit fürs Portal, falls das
@@ -295,7 +318,7 @@ async function backfillPaidAccessOnce(): Promise<void> {
 // Zeilen ohne Person (Altbestand, Funnel-Abbrecher).
 export async function supersedeSisterOrders(paidRef: string): Promise<{ count: number; refs: string[] }> {
   const paid = await sqlPool`
-    SELECT ref, payment_reference, email, assigned_agent_id, pack_name, type, person_id,
+    SELECT ref, payment_reference, email, assigned_agent_id, pack_name, pack_key, type, person_id,
            payment_status
     FROM fiaon_applications WHERE ref = ${paidRef}
   `;
@@ -332,7 +355,13 @@ export async function supersedeSisterOrders(paidRef: string): Promise<{ count: n
   // (siehe POST /payment-order) und die `isAddonOrderRow` bereits auswertet.
   const istZusatzprodukt =
     String(paid[0].type || "").toLowerCase() === "schufa" || String(paid[0].ref || "").startsWith("FIAON-SCHUFA-");
-  const kategorie = istZusatzprodukt ? "Zusatzprodukt (Bonitätsauskunft)" : "Stufenpaket (Kontoaktivierung)";
+  // E-188 (17.09.2026): FIAON Global ist die dritte Kategorie. Ein Global-Auftrag
+  // beendet nur einen älteren offenen Global-Auftrag desselben Menschen (er hat
+  // sich für ein anderes Paket entschieden) — nie ein Stufenpaket, und ein
+  // bezahltes Stufenpaket beendet nie einen Global-Auftrag.
+  const istGlobal = !istZusatzprodukt && istGlobalPaket(paid[0].pack_key);
+  const kategorie = istZusatzprodukt ? "Zusatzprodukt (Bonitätsauskunft)"
+    : istGlobal ? "FIAON Global (US-Struktur)" : "Stufenpaket (Kontoaktivierung)";
   // Der Auslöser steht im Protokoll, wie er ist: Beim Aufruf aus /payment-order
   // ist die Bestellung noch NICHT bezahlt, und „durch bezahlte Bestellung
   // ersetzt" wäre dort eine falsche Auskunft in der Kundenakte.
@@ -379,6 +408,7 @@ export async function supersedeSisterOrders(paidRef: string): Promise<{ count: n
       -- Stufenpakete (Upgrade), lässt die Bonitätsauskunft aber unberührt —
       -- und umgekehrt.
       AND (COALESCE(type, '') = 'schufa' OR ref LIKE 'FIAON-SCHUFA-%') = ${istZusatzprodukt}
+      AND (COALESCE(pack_key, '') = ANY(${GLOBAL_SCHLUESSEL})) = ${istGlobal}
     RETURNING ref, assigned_agent_id, pack_name
   `;
   for (const r of rows) {
@@ -756,7 +786,7 @@ export async function linkDuplicateToPaidOrActive(
   try {
     await ensurePaymentColumns();
     const rows = await sqlPool`
-      SELECT ref, type, email, contact_email, billing_email, phone, phone_country_code, contact_phone,
+      SELECT ref, type, pack_key, email, contact_email, billing_email, phone, phone_country_code, contact_phone,
              payment_status, merged_into
       FROM fiaon_applications WHERE ref = ${newRef} LIMIT 1
     `;
@@ -767,6 +797,9 @@ export async function linkDuplicateToPaidOrActive(
     if (me.payment_status === "paid") return { linked: false };
     // SCHUFA/Bonität ist ein eigenes Produkt — nie automatisch verknüpfen.
     if (String(me.type || "").toLowerCase() === "schufa" || newRef.startsWith("FIAON-SCHUFA-")) return { linked: false };
+    // E-188: Ein Auftrag über FIAON Global ist ein eigenes Produkt mit eigenem Vertrag
+    // und eigener Rechnung — er wird nie in eine Privatbestellung desselben Menschen gemergt.
+    if (istGlobalPaket(me.pack_key)) return { linked: false };
 
     const email = String(me.email || me.contact_email || me.billing_email || "").trim().toLowerCase() || null;
     const phone = normalizeApplicationPhone(me);
@@ -780,6 +813,9 @@ export async function linkDuplicateToPaidOrActive(
       FROM fiaon_applications
       WHERE ref <> ${newRef} AND merged_into IS NULL
         AND COALESCE(type,'') <> 'schufa' AND ref NOT LIKE 'FIAON-SCHUFA-%'
+        -- E-188: Und umgekehrt — ein Global-Auftrag ist kein „bestehender Kunde", in den
+        -- ein neuer Privatantrag desselben Menschen verschwinden dürfte.
+        AND NOT (COALESCE(pack_key, '') = ANY(${GLOBAL_SCHLUESSEL}))
         AND payment_status IN ('paid','pending_payment','claimed_paid')
     `;
     const sameParty = candidates.filter((c: any) => {
@@ -841,6 +877,13 @@ export async function linkDuplicateToPaidOrActive(
 // Wiederverwendbar für mark-paid UND Kontoabgleich (fiaon-reconcile.ts).
 export async function sendPaymentConfirmedOnce(ref: string): Promise<boolean> {
   try {
+    // E-188 (17.09.2026): „Ihr Zugang ist da — Ihr persönlicher Bereich ist geöffnet" ist für
+    // einen Firmenauftrag über FIAON Global falsch: Es gibt keinen Kundenbereich, es beginnt
+    // ein Projekt. Die Bestätigung dieses Kunden ist `global_start` — sie geht aus
+    // onCustomerPaid (fiaon-agent.ts) über globalNachZahlung, NACHDEM die interne Aufgabe steht.
+    // Die Wand steht HIER, weil beide Buchungswege (mark-paid, Kontoabgleich) diese Funktion rufen.
+    const [paket] = (await sqlPool`SELECT pack_key FROM fiaon_applications WHERE ref = ${ref} LIMIT 1`) as any[];
+    if (istGlobalPaket(paket?.pack_key)) return false;
     const confirmed = await sqlPool`
       UPDATE fiaon_applications SET confirmed_email_sent_at = NOW()
       WHERE ref = ${ref} AND confirmed_email_sent_at IS NULL
@@ -857,6 +900,204 @@ export async function sendPaymentConfirmedOnce(ref: string): Promise<boolean> {
     console.error("[MAKE-WEBHOOK] payment_confirmed claim:", whErr);
     return false;
   }
+}
+
+/**
+ * DIE BESTELLUNG ZU EINEM ANTRAG (herausgelöst am 17.09.2026, E-188).
+ *
+ * Bis heute stand dieser Teil nur in POST /payment-order. Der Bestellweg von
+ * FIAON Global (server/lib/fiaon-global-auftrag.ts) braucht genau dieselbe
+ * Kette — Betrag aus dem Katalog, Verwendungszweck, Fälligkeit, fortlaufende
+ * Rechnungsnummer, Personenbindung — und ein Loopback auf die eigene Route
+ * hätte den Schalter für die Zahlungsmail über HTTP reichen müssen. Deshalb
+ * eine Funktion, zwei Aufrufer. Für Privatkunden ändert sich nichts: Die
+ * Route ruft sie ohne Optionen und gibt Status und Antwort unverändert weiter.
+ *
+ * `globalMailFolgt`: Der Aufrufer verschickt selbst die Global-Auftragsmail
+ * (Vertrag + Rechnung). Wirkt NUR bei Paketen der Art "global".
+ */
+export async function bestellungFuerAntrag(
+  ref: string,
+  opts: { globalMailFolgt?: boolean } = {},
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  await ensurePaymentColumns();
+  const rows = await sqlPool`
+    SELECT ref, type, pack_key, pack_name, first_name, contact_name, email, contact_email, billing_email,
+           payment_reference, payment_status, payment_due_date, amount_due, currency
+    FROM fiaon_applications WHERE ref = ${ref} LIMIT 1
+  `;
+  if (rows.length === 0) return { status: 404, body: { ok: false, error: "Antrag nicht gefunden" } };
+  const app = rows[0];
+
+  // Idempotenz: bestehende offene/gemeldete/bezahlte Bestellung wiederverwenden
+  if (app.payment_reference && ["pending_payment", "claimed_paid", "paid"].includes(app.payment_status)) {
+    return { status: 200, body: { ok: true, paymentReference: app.payment_reference, existing: true } };
+  }
+
+  // ── P1 PRÄVENTION: Bevor dieser Antrag als eigenständiger Kunde in Umlauf
+  // geht, prüfen, ob dieselbe Person (E-Mail ODER Telefon) bereits bezahlt hat
+  // oder in aktiver Betreuung ist. Wenn ja: neuen Antrag verknüpfen (Soft-Merge)
+  // und die BESTEHENDE Bestellung wiederverwenden — kein zweiter Kunde/Agent/Anruf.
+  // Berührt keine bestehende Zahlung/Provision/Rechnung. Bei Unsicherheit (zwei
+  // Bezahlte) wird NICHT gemergt, sondern für /admin/dubletten geflaggt.
+  const link = await linkDuplicateToPaidOrActive(ref);
+  if (link.linked && link.winnerRef) {
+    const w = await sqlPool`
+      SELECT payment_reference, payment_status FROM fiaon_applications WHERE ref = ${link.winnerRef} LIMIT 1
+    `;
+    const winnerPaid = (w[0]?.payment_status || link.winnerPaymentStatus) === "paid";
+    console.log(`[FIAON-PAYMENT] ${ref} an bestehenden Kunden ${link.winnerRef} verknüpft (${w[0]?.payment_status}) — keine zweite Bestellung`);
+    return {
+      status: 200,
+      body: {
+        ok: true,
+        paymentReference: w[0]?.payment_reference || link.winnerPaymentReference || null,
+        existing: true,
+        linkedToExisting: true,
+        alreadyPaid: winnerPaid,
+      },
+    };
+  }
+
+  const amount = app.type === "schufa" ? SCHUFA_PRICE : PACK_PRICES[app.pack_key];
+  if (!amount) return { status: 400, body: { ok: false, error: `Unbekanntes Paket: ${app.pack_key}` } };
+
+  const paymentReference = app.payment_reference || (await generateUniquePaymentReference());
+  const dueDate = new Date(Date.now() + PAYMENT_DUE_DAYS * 24 * 60 * 60 * 1000);
+
+  await sqlPool`
+    UPDATE fiaon_applications SET
+      payment_reference = ${paymentReference},
+      payment_status = 'pending_payment',
+      payment_due_date = ${dueDate},
+      amount_due = ${amount.toFixed(2)},
+      currency = 'EUR',
+      reminder_sent_at_24h = NULL,
+      reminder_sent_at_72h = NULL,
+      updated_at = NOW()
+    WHERE ref = ${ref}
+  `;
+
+  console.log(`[FIAON-PAYMENT] Bestellung angelegt: ${paymentReference} (ref=${ref}, ${amount.toFixed(2)} EUR, fällig ${dueDate.toISOString()})`);
+
+  // ── EIN KUNDE, EINE STUFE (08.08.2026) ────────────────────────────────
+  // Fordert derselbe Mensch eine Rechnung für ein Stufenpaket an, ist seine
+  // ÄLTERE offene Stufenpaket-Bestellung damit erledigt — er hat sich gerade
+  // neu entschieden. Vorher passierte das erst beim Bezahlen; bis dahin lagen
+  // zwei offene Rechnungen beim Kunden, er bekam zwei Mahnketten, und im
+  // Bestand liegen 9 Personen mit genau diesem Zustand.
+  //
+  // Der Auslöser ist bewusst die RECHNUNGSANFORDERUNG und nicht die Anlage
+  // der Zeile: Beim reinen Öffnen des Formulars hat der Kunde nichts
+  // entschieden, und eine stillgelegte Bestellung mit einer Referenz, die er
+  // schon per Mail hat, wäre eine Zahlung ohne Zuordnung.
+  // Zusatzprodukte (Bonitätsauskunft) bleiben unberührt — dieselbe
+  // Kategoriegrenze wie beim Bezahlen.
+  supersedeSisterOrders(ref).catch((e) => console.error("[FIAON-DUBLETTE] supersede bei Anlage:", e));
+
+  // ══ P1-C DAUERSCHUTZ: Bestellung an bestehender Person ════════════════
+  // Besonders wichtig beim Bonitäts-Kauf: Der legt bewusst eine EIGENE
+  // Antragszeile an (`FIAON-SCHUFA-…`, oben in dieser Route). Genau diese
+  // Zeile hat den Login-Ausfall ausgelöst — sie war die jüngste Zeile der
+  // E-Mail und trug kein Passwort.
+  //
+  // Sie wird jetzt derselben Person zugeordnet wie das Konto. Damit zählt der
+  // Bonitäts-Käufer strukturell nur noch EINMAL, und der Ausfall kann sich
+  // nicht wiederholen: Das Passwort hängt an der Person, nicht an der Zeile.
+  await bindePersonAnAntrag(ref).catch((e) =>
+    console.error("[FIAON-PERSON] Zuordnung nach /payment-order:", e));
+
+  // Paket AE1: neue Bestellung sofort fair verteilen (Round-Robin, fire-and-forget)
+  import("./fiaon-agent").then((m) => m.distributeUnassignedOrders()).catch((e) => console.error("[FIAON-VERTEILUNG]", e));
+
+  // P3-A: Dubletten-ERKENNUNG (E-Mail ODER Telefon) — nur erkennen + flaggen,
+  // KEIN Merge/Reuse. Fire-and-forget: blockiert oder verändert den Zahlungsfluss nie.
+  detectAndFlagDuplicateApplication(ref).catch((e) => console.error("[FIAON-DUBLETTE] Erkennung:", e));
+
+  // Paket BA3: Auto-Konversion (Sicherheitsnetz) — Lead per E-Mail/Telefon konvertieren.
+  try {
+    const convPhone = (app.phone_country_code || app.phone) ? `${app.phone_country_code || ""}${app.phone || ""}` : (app.contact_phone || null);
+    import("./fiaon-leads").then((m) => m.convertLeadsForContact(app.email || app.contact_email || app.billing_email || null, convPhone, ref)).catch(() => {});
+  } catch { /* fire-and-forget */ }
+
+  // Rechnung: fortlaufende, lückenlose Nummer genau einmal beim Übergang zu pending_payment
+  try {
+    await ensureInvoiceNumber(sqlPool, ref);
+  } catch (invErr) {
+    console.error("[FIAON-INVOICE] Nummernvergabe:", invErr);
+  }
+
+  // ── FIAON GLOBAL BEKOMMT NIE DIE PRIVATKUNDEN-ZAHLUNGSMAIL (17.09.2026, E-188) ──
+  // `payment_details` spricht vom „persönlichen Bereich", trägt den Karten-Ziel-
+  // Block und die Bankdaten im Text. Ein Firmenkunde, der gerade einen Auftrag
+  // über 2.499 € und mehr unterschrieben hat, bekommt stattdessen EINE Mail mit
+  // Vertrag und Rechnung als PDF und dem Weg zur Zahlungsseite (`global_auftrag`,
+  // server/lib/fiaon-global-auftrag.ts). Der Schalter hängt am KATALOG, nicht an
+  // einem Feld aus dem Browser — niemand kann so die Zahlungsmail einer
+  // Privatbestellung abbestellen. Kommt ein Global-Auftrag NICHT aus dem
+  // Bestellweg (z. B. am Telefon angelegt), bekommt die zuständige Person eine
+  // Aufgabe: Es fehlt der unterschriebene Auftrag, und der Kunde hat noch keine Mail.
+  if (istGlobalPaket(app.pack_key)) {
+    if (!opts.globalMailFolgt) {
+      import("../lib/fiaon-global-auftrag")
+        .then((m) => m.globalOhneAuftragMelden(ref))
+        .catch((e) => console.error(`[FIAON-GLOBAL] ${ref}: Meldung „Bestellung ohne unterschriebenen Auftrag" nicht angelegt:`, e));
+    }
+    return { status: 200, body: { ok: true, paymentReference } };
+  }
+
+  // Make-Webhook 'payment_details' — genau einmal beim Übergang nach pending_payment.
+  // Atomarer Flag-Claim verhindert Doppelversand; Fehler blockieren den Flow nicht.
+  try {
+    const claimed = await sqlPool`
+      UPDATE fiaon_applications SET payment_email_sent_at = NOW()
+      WHERE ref = ${ref} AND payment_email_sent_at IS NULL
+      RETURNING ref, first_name, last_name, contact_name, email, contact_email, billing_email, pack_name, payment_reference, amount_due
+    `;
+    if (claimed.length > 0) {
+      // invoice_url: signierter, ablaufender Download-Link (Brevo-Template: „Rechnung herunterladen"-Button)
+      const payload = { ...makePayloadFromRow(claimed[0]), invoice_url: signInvoiceUrl(paymentReference) };
+      sendMakeWebhook("payment_details", payload)
+        .catch((e) => console.error(`[MAKE-WEBHOOK] payment_details für ${ref} nicht `
+          + "abgesetzt — der Kunde bekommt seine Zahlungsdaten NICHT:", e));
+
+      // ══════════════════════════════════════════════════════════════════
+      // DIE AKTE ERFÄHRT AUCH VON DER AUTOMATISCHEN RECHNUNG
+      //
+      // ── DER BEFUND (21.08.2026) ─────────────────────────────────────
+      // Dieser Weg — der Kunde stellt seinen Antrag selbst fertig — hat die
+      // Zahlungsdaten immer verschickt und NIE einen Verlaufseintrag
+      // hinterlassen. `rechnungStellen` (der Weg über den Mitarbeiter) tut
+      // es; dieser nicht.
+      //
+      // Die Folge ist dieselbe wie beim geschluckten SQL-Fehler vom 19.08.:
+      // Ein Mitarbeiter öffnet die Akte, sieht keine Rechnung — und schickt
+      // sie ein zweites Mal. GEMESSEN: zwei Fälle allein am 21.08. zwischen
+      // 12:53 und 13:05 Uhr; über die ganze Woche 5 von 63.
+      //
+      // Kein `.catch(() => {})`: Bleibt der Eintrag aus, steht es im Log.
+      // Genau dieses stumme catch hat den 19.08. drei Tage lang verdeckt.
+      // ══════════════════════════════════════════════════════════════════
+      const c = claimed[0] as any;
+      const betrag = c.amount_due != null
+        ? `${Number(c.amount_due).toFixed(2)} €` : "Betrag unbekannt";
+      const empfaenger = c.email || c.contact_email || c.billing_email || "die hinterlegte Adresse";
+      await sqlPool`
+        INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
+        SELECT ${ref}, a.person_id, NULL, 'System', 'system',
+               ${`Erste Rechnung gestellt (automatisch beim Antragsabschluss): ${betrag}, `
+                 + `Verwendungszweck ${c.payment_reference ?? paymentReference} — `
+                 + `verschickt an ${empfaenger}.`}
+        FROM fiaon_applications a WHERE a.ref = ${ref}
+      `.catch((e) => console.error(`[ANTRAG] Verlaufseintrag zur automatischen Rechnung `
+        + `${ref} nicht geschrieben — die Akte zeigt sie nicht, und jemand schickt sie `
+        + "ein zweites Mal:", e));
+    }
+  } catch (whErr) {
+    console.error("[MAKE-WEBHOOK] payment_details claim:", whErr);
+  }
+
+  return { status: 200, body: { ok: true, paymentReference } };
 }
 
 // Bestellung anlegen (nach Antragsabschluss). Idempotent pro ref.
@@ -904,161 +1145,8 @@ router.post("/payment-order", async (req, res) => {
 
     if (!ref) return res.status(400).json({ ok: false, error: "ref fehlt" });
 
-    const rows = await sqlPool`
-      SELECT ref, type, pack_key, pack_name, first_name, contact_name, email, contact_email, billing_email,
-             payment_reference, payment_status, payment_due_date, amount_due, currency
-      FROM fiaon_applications WHERE ref = ${ref} LIMIT 1
-    `;
-    if (rows.length === 0) return res.status(404).json({ ok: false, error: "Antrag nicht gefunden" });
-    const app = rows[0];
-
-    // Idempotenz: bestehende offene/gemeldete/bezahlte Bestellung wiederverwenden
-    if (app.payment_reference && ["pending_payment", "claimed_paid", "paid"].includes(app.payment_status)) {
-      return res.json({ ok: true, paymentReference: app.payment_reference, existing: true });
-    }
-
-    // ── P1 PRÄVENTION: Bevor dieser Antrag als eigenständiger Kunde in Umlauf
-    // geht, prüfen, ob dieselbe Person (E-Mail ODER Telefon) bereits bezahlt hat
-    // oder in aktiver Betreuung ist. Wenn ja: neuen Antrag verknüpfen (Soft-Merge)
-    // und die BESTEHENDE Bestellung wiederverwenden — kein zweiter Kunde/Agent/Anruf.
-    // Berührt keine bestehende Zahlung/Provision/Rechnung. Bei Unsicherheit (zwei
-    // Bezahlte) wird NICHT gemergt, sondern für /admin/dubletten geflaggt.
-    const link = await linkDuplicateToPaidOrActive(ref);
-    if (link.linked && link.winnerRef) {
-      const w = await sqlPool`
-        SELECT payment_reference, payment_status FROM fiaon_applications WHERE ref = ${link.winnerRef} LIMIT 1
-      `;
-      const winnerPaid = (w[0]?.payment_status || link.winnerPaymentStatus) === "paid";
-      console.log(`[FIAON-PAYMENT] ${ref} an bestehenden Kunden ${link.winnerRef} verknüpft (${w[0]?.payment_status}) — keine zweite Bestellung`);
-      return res.json({
-        ok: true,
-        paymentReference: w[0]?.payment_reference || link.winnerPaymentReference || null,
-        existing: true,
-        linkedToExisting: true,
-        alreadyPaid: winnerPaid,
-      });
-    }
-
-    const amount = app.type === "schufa" ? SCHUFA_PRICE : PACK_PRICES[app.pack_key];
-    if (!amount) return res.status(400).json({ ok: false, error: `Unbekanntes Paket: ${app.pack_key}` });
-
-    const paymentReference = app.payment_reference || (await generateUniquePaymentReference());
-    const dueDate = new Date(Date.now() + PAYMENT_DUE_DAYS * 24 * 60 * 60 * 1000);
-
-    await sqlPool`
-      UPDATE fiaon_applications SET
-        payment_reference = ${paymentReference},
-        payment_status = 'pending_payment',
-        payment_due_date = ${dueDate},
-        amount_due = ${amount.toFixed(2)},
-        currency = 'EUR',
-        reminder_sent_at_24h = NULL,
-        reminder_sent_at_72h = NULL,
-        updated_at = NOW()
-      WHERE ref = ${ref}
-    `;
-
-    console.log(`[FIAON-PAYMENT] Bestellung angelegt: ${paymentReference} (ref=${ref}, ${amount.toFixed(2)} EUR, fällig ${dueDate.toISOString()})`);
-
-    // ── EIN KUNDE, EINE STUFE (08.08.2026) ────────────────────────────────
-    // Fordert derselbe Mensch eine Rechnung für ein Stufenpaket an, ist seine
-    // ÄLTERE offene Stufenpaket-Bestellung damit erledigt — er hat sich gerade
-    // neu entschieden. Vorher passierte das erst beim Bezahlen; bis dahin lagen
-    // zwei offene Rechnungen beim Kunden, er bekam zwei Mahnketten, und im
-    // Bestand liegen 9 Personen mit genau diesem Zustand.
-    //
-    // Der Auslöser ist bewusst die RECHNUNGSANFORDERUNG und nicht die Anlage
-    // der Zeile: Beim reinen Öffnen des Formulars hat der Kunde nichts
-    // entschieden, und eine stillgelegte Bestellung mit einer Referenz, die er
-    // schon per Mail hat, wäre eine Zahlung ohne Zuordnung.
-    // Zusatzprodukte (Bonitätsauskunft) bleiben unberührt — dieselbe
-    // Kategoriegrenze wie beim Bezahlen.
-    supersedeSisterOrders(ref).catch((e) => console.error("[FIAON-DUBLETTE] supersede bei Anlage:", e));
-
-    // ══ P1-C DAUERSCHUTZ: Bestellung an bestehender Person ════════════════
-    // Besonders wichtig beim Bonitäts-Kauf: Der legt bewusst eine EIGENE
-    // Antragszeile an (`FIAON-SCHUFA-…`, oben in dieser Route). Genau diese
-    // Zeile hat den Login-Ausfall ausgelöst — sie war die jüngste Zeile der
-    // E-Mail und trug kein Passwort.
-    //
-    // Sie wird jetzt derselben Person zugeordnet wie das Konto. Damit zählt der
-    // Bonitäts-Käufer strukturell nur noch EINMAL, und der Ausfall kann sich
-    // nicht wiederholen: Das Passwort hängt an der Person, nicht an der Zeile.
-    await bindePersonAnAntrag(ref).catch((e) =>
-      console.error("[FIAON-PERSON] Zuordnung nach /payment-order:", e));
-
-    // Paket AE1: neue Bestellung sofort fair verteilen (Round-Robin, fire-and-forget)
-    import("./fiaon-agent").then((m) => m.distributeUnassignedOrders()).catch((e) => console.error("[FIAON-VERTEILUNG]", e));
-
-    // P3-A: Dubletten-ERKENNUNG (E-Mail ODER Telefon) — nur erkennen + flaggen,
-    // KEIN Merge/Reuse. Fire-and-forget: blockiert oder verändert den Zahlungsfluss nie.
-    detectAndFlagDuplicateApplication(ref).catch((e) => console.error("[FIAON-DUBLETTE] Erkennung:", e));
-
-    // Paket BA3: Auto-Konversion (Sicherheitsnetz) — Lead per E-Mail/Telefon konvertieren.
-    try {
-      const convPhone = (app.phone_country_code || app.phone) ? `${app.phone_country_code || ""}${app.phone || ""}` : (app.contact_phone || null);
-      import("./fiaon-leads").then((m) => m.convertLeadsForContact(app.email || app.contact_email || app.billing_email || null, convPhone, ref)).catch(() => {});
-    } catch { /* fire-and-forget */ }
-
-    // Rechnung: fortlaufende, lückenlose Nummer genau einmal beim Übergang zu pending_payment
-    try {
-      await ensureInvoiceNumber(sqlPool, ref);
-    } catch (invErr) {
-      console.error("[FIAON-INVOICE] Nummernvergabe:", invErr);
-    }
-
-    // Make-Webhook 'payment_details' — genau einmal beim Übergang nach pending_payment.
-    // Atomarer Flag-Claim verhindert Doppelversand; Fehler blockieren den Flow nicht.
-    try {
-      const claimed = await sqlPool`
-        UPDATE fiaon_applications SET payment_email_sent_at = NOW()
-        WHERE ref = ${ref} AND payment_email_sent_at IS NULL
-        RETURNING ref, first_name, last_name, contact_name, email, contact_email, billing_email, pack_name, payment_reference, amount_due
-      `;
-      if (claimed.length > 0) {
-        // invoice_url: signierter, ablaufender Download-Link (Brevo-Template: „Rechnung herunterladen"-Button)
-        const payload = { ...makePayloadFromRow(claimed[0]), invoice_url: signInvoiceUrl(paymentReference) };
-        sendMakeWebhook("payment_details", payload)
-          .catch((e) => console.error(`[MAKE-WEBHOOK] payment_details für ${ref} nicht `
-            + "abgesetzt — der Kunde bekommt seine Zahlungsdaten NICHT:", e));
-
-        // ══════════════════════════════════════════════════════════════════
-        // DIE AKTE ERFÄHRT AUCH VON DER AUTOMATISCHEN RECHNUNG
-        //
-        // ── DER BEFUND (21.08.2026) ─────────────────────────────────────
-        // Dieser Weg — der Kunde stellt seinen Antrag selbst fertig — hat die
-        // Zahlungsdaten immer verschickt und NIE einen Verlaufseintrag
-        // hinterlassen. `rechnungStellen` (der Weg über den Mitarbeiter) tut
-        // es; dieser nicht.
-        //
-        // Die Folge ist dieselbe wie beim geschluckten SQL-Fehler vom 19.08.:
-        // Ein Mitarbeiter öffnet die Akte, sieht keine Rechnung — und schickt
-        // sie ein zweites Mal. GEMESSEN: zwei Fälle allein am 21.08. zwischen
-        // 12:53 und 13:05 Uhr; über die ganze Woche 5 von 63.
-        //
-        // Kein `.catch(() => {})`: Bleibt der Eintrag aus, steht es im Log.
-        // Genau dieses stumme catch hat den 19.08. drei Tage lang verdeckt.
-        // ══════════════════════════════════════════════════════════════════
-        const c = claimed[0] as any;
-        const betrag = c.amount_due != null
-          ? `${Number(c.amount_due).toFixed(2)} €` : "Betrag unbekannt";
-        const empfaenger = c.email || c.contact_email || c.billing_email || "die hinterlegte Adresse";
-        await sqlPool`
-          INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
-          SELECT ${ref}, a.person_id, NULL, 'System', 'system',
-                 ${`Erste Rechnung gestellt (automatisch beim Antragsabschluss): ${betrag}, `
-                   + `Verwendungszweck ${c.payment_reference ?? paymentReference} — `
-                   + `verschickt an ${empfaenger}.`}
-          FROM fiaon_applications a WHERE a.ref = ${ref}
-        `.catch((e) => console.error(`[ANTRAG] Verlaufseintrag zur automatischen Rechnung `
-          + `${ref} nicht geschrieben — die Akte zeigt sie nicht, und jemand schickt sie `
-          + "ein zweites Mal:", e));
-      }
-    } catch (whErr) {
-      console.error("[MAKE-WEBHOOK] payment_details claim:", whErr);
-    }
-
-    res.json({ ok: true, paymentReference });
+    const erg = await bestellungFuerAntrag(ref);
+    res.status(erg.status).json(erg.body);
   } catch (err) {
     console.error("[FIAON-PAYMENT] payment-order:", err);
     res.status(500).json({ ok: false, error: "Bestellung konnte nicht angelegt werden" });
@@ -1148,7 +1236,17 @@ router.post("/payment-order/:paymentRef/claim-paid", async (req, res) => {
     }
     // Paket U: Bestätigungsmail 'claim_received' — genau 1× pro Bestellung
     // (atomarer Flag-Claim; Mehrfachklick feuert NICHT erneut). Fehler blockieren nie.
+    // E-188: Nicht für FIAON Global — die Mail verspricht „Ihr Bereich geht automatisch auf"
+    // und druckt die Bankdaten in den Text. Dort erfährt stattdessen die zuständige Person
+    // sofort von der Zahlungsmeldung (Kommentar an ihrer Aufgabe).
     try {
+      const [gemeldet] = (await sqlPool`SELECT ref, pack_key FROM fiaon_applications WHERE payment_reference = ${req.params.paymentRef} LIMIT 1`) as any[];
+      if (gemeldet && istGlobalPaket(gemeldet.pack_key)) {
+        import("../lib/fiaon-global-auftrag")
+          .then((m) => m.globalZahlungGemeldet(String(gemeldet.ref)))
+          .catch((e) => console.error("[FIAON-GLOBAL] Zahlungsmeldung nicht weitergegeben:", e));
+        return res.json({ ok: true });
+      }
       const claimed = await sqlPool`
         UPDATE fiaon_applications SET claim_email_sent_at = NOW()
         WHERE payment_reference = ${req.params.paymentRef} AND claim_email_sent_at IS NULL
@@ -1392,7 +1490,7 @@ router.get("/invoice/:paymentRef.pdf", async (req, res) => {
 export async function alsBezahltBuchen(
   paymentRef: string,
   opts: { zahlungsdatum?: string | null; quelle?: string } = {},
-): Promise<{ ok: true; data: any; zahlungsdatum: string; naechsteAboFaelligkeit: string }
+): Promise<{ ok: true; data: any; zahlungsdatum: string; naechsteAboFaelligkeit: string; einmalig?: boolean }
          | { ok: false; status: number; error: string }> {
   await ensurePaymentColumns();
   const { pruefeZahlungsdatum } = await import("./fiaon-abo");
@@ -1413,13 +1511,50 @@ export async function alsBezahltBuchen(
       completed_at = COALESCE(completed_at, ${eingang}),
       updated_at = NOW()
     WHERE payment_reference = ${paymentRef}
-    RETURNING ref, payment_reference, payment_due_date, amount_due, first_name, contact_name, email, contact_email, billing_email, pack_name, account_status, completed_at
+    RETURNING ref, payment_reference, payment_due_date, amount_due, first_name, contact_name, email, contact_email, billing_email, pack_name, pack_key, account_status, completed_at
   `;
   if (rows.length === 0) return { ok: false, status: 404, error: "Bestellung nicht gefunden" };
 
   console.log(`[FIAON-PAYMENT] Als bezahlt markiert: ${paymentRef} (ref=${rows[0].ref}, Quelle: ${opts.quelle || "admin"})`);
   // Paket AD1: offene Schwester-Bestellungen derselben E-Mail automatisch superseden
   supersedeSisterOrders(rows[0].ref).catch((e) => console.error("[FIAON-DUBLETTE] supersede:", e));
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // FIAON GLOBAL: ZAHLUNGSEINGANG = START (17.09.2026, E-188)
+  //
+  // Justin: „Direktkauf: Vertrag, Rechnung, Zahlung aufs Bankkonto = Start."
+  // Für einen Firmenauftrag bedeutet „bezahlt" etwas anderes als für ein
+  // Privatpaket — kein Kundenbereich, keine Willkommensmail mit Anmelde-Link,
+  // KEIN Abo (ein Einmalpreis darf nie zwölf Raten erzeugen). Stattdessen:
+  //   1. die Provision nach der Hausregel (onCustomerPaid kennt den Global-Satz
+  //      aus fiaon_settings.global_provision_prozent und legt für Global weder
+  //      Abo noch Onboarding-Stufe an),
+  //   2. der Start: Aufgabe „US-Struktur starten" an die zuständige Person, DANN
+  //      erst Status „gestartet" und die Mail `global_start` an den Kunden
+  //      (globalNachZahlung in server/lib/fiaon-global-auftrag.ts — gerufen am
+  //      Ende von onCustomerPaid, weil dort ALLE Buchungswege durchgehen, auch
+  //      der Kontoabgleich).
+  // Hier wird GEWARTET statt gefeuert: Die Reihenfolge ist die Zusage an den
+  // Kunden („Ihr Ansprechpartner meldet sich") — sie darf erst rausgehen, wenn
+  // die Aufgabe wirklich bei jemandem liegt. Beide Schritte sind idempotent;
+  // ein zweiter Klick auf „bezahlt" startet nichts doppelt.
+  // ══════════════════════════════════════════════════════════════════════════
+  if (istGlobalPaket(rows[0].pack_key)) {
+    try {
+      const agentModul = await import("./fiaon-agent");
+      await agentModul.onCustomerPaid(rows[0].ref);
+    } catch (e) {
+      console.error("[FIAON-COMMISSION] Global:", e);
+    }
+    return {
+      ok: true,
+      data: rows[0],
+      zahlungsdatum: pruefung.datum,
+      // Ein Einmalpreis hat keine nächste Rate — leer, damit keine Oberfläche eine erfindet.
+      naechsteAboFaelligkeit: "",
+      einmalig: true,
+    };
+  }
   // Paket X: Bestätigung läuft über Make ('payment_confirmed' mit login_url) —
   // ersetzt die frühere direkte Plattform-Freischaltmail. Genau 1× pro Bestellung
   // (atomarer Flag-Claim), damit ALLE Kundenmails einheitlich über Make/Brevo laufen.
@@ -1644,6 +1779,12 @@ async function claimReminderBatch(
         -- einen Testeintrag oder eine doppelt angelegte Bestellung ist eine
         -- Mail, die der Kunde nicht versteht.
         AND fa.archived_at IS NULL
+        -- E-188 (17.09.2026): FIAON Global läuft NICHT durch diese Maschine. Die Mail payment_reminder
+        -- sagt „wir holen Ihre Auskunft" und trägt den Karten-Ziel-Block — und seit E-182 gibt es
+        -- keine Obergrenze mehr: Ein Firmenkunde mit einer offenen Rechnung über 2.499 € bekäme
+        -- zweimal täglich eine Privatkunden-Mahnung. Um offene Global-Aufträge kümmert sich die
+        -- zuständige Person (Aufgabe aus dem Bestellweg), sichtbar unter /chef/s/global-auftraege.
+        AND NOT (COALESCE(fa.pack_key, '') = ANY(${GLOBAL_SCHLUESSEL}))
         AND fa.mahnstopp_am IS NULL
         -- Mahnstopp (02.09.2026): Die Rueckholung verspricht diesen Menschen
         -- schriftlich, dass die Erinnerungen enden. Hier wird es eingeloest.
@@ -2617,13 +2758,10 @@ router.post("/application", async (req, res) => {
     
     // 07.09.2026 (Daniel, Feedback 3): Anträge nur mit DE/AT/CH-Nummern. Was das Formular
     // schon abfängt, fängt der Server noch einmal — die Liste im Browser ist keine Wand.
-    {
-      const vorwahl = String(phoneCountryCode || "").replace(/\s/g, "");
-      const nummer = String(phone || "").replace(/[\s\-()./]/g, "");
-      const e164 = nummer.startsWith("+") ? nummer : nummer.startsWith("00") ? "+" + nummer.slice(2) : vorwahl + nummer.replace(/^0/, "");
-      if (nummer && e164.startsWith("+") && !/^\+(49|43|41)\d/.test(e164)) {
-        return res.status(400).json({ ok: false, code: "NUR_DACH", error: "Aktuell nehmen wir Anträge nur aus Deutschland, Österreich und der Schweiz an. Mit einer Telefonnummer aus einem anderen Land ist ein Antrag derzeit leider nicht möglich." });
-      }
+    // 17.09.2026 (E-188): Die Prüfung selbst steht jetzt in shared/fiaon-dach-telefon.ts —
+    // der Bestellweg von FIAON Global braucht dieselbe Wand. Verhalten unverändert.
+    if (istAuslandsnummer(phoneCountryCode, phone)) {
+      return res.status(400).json({ ok: false, code: "NUR_DACH", error: NUR_DACH_MELDUNG });
     }
     const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "";
     const birthdate = birthDay && birthMonth && birthYear ? `${birthYear}-${String(birthMonth).padStart(2, "0")}-${String(birthDay).padStart(2, "0")}` : null;
@@ -2844,9 +2982,12 @@ router.post("/application", async (req, res) => {
     // Make-Webhook 'welcome' — genau einmal, sobald der E-Mail-Schritt abgeschlossen ist
     // (erste Speicherung mit E-Mail-Adresse). Atomarer Flag-Claim: Vor/Zurück-Navigation
     // oder parallele Saves lösen NICHT erneut aus. Fehler blockieren den Antrag nicht.
+    // E-188 (17.09.2026): Nicht für FIAON Global. `welcome` zeigt das Kartenbild und kündigt
+    // „Auskunft holen, Einträge prüfen" an — der Firmenkunde bekommt stattdessen `global_auftrag`
+    // mit Vertrag und Rechnung. Der Schalter hängt am Katalog, nicht an einem Feld des Aufrufers.
     try {
       await ensurePaymentColumns();
-      const claimed = await sqlPool`
+      const claimed = istGlobalPaket(packKey) ? [] : await sqlPool`
         UPDATE fiaon_applications SET welcome_sent_at = NOW()
         WHERE ref = ${ref} AND welcome_sent_at IS NULL
           AND COALESCE(NULLIF(email, ''), NULLIF(contact_email, ''), NULLIF(billing_email, '')) IS NOT NULL

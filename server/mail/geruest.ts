@@ -78,7 +78,23 @@ export interface MailBaustein {
   marke?: string;
   /** Persönliche Nachricht eines Mitarbeiters — die „automatisch erstellt"-Zeile entfällt. */
   persoenlich?: boolean;
+  /**
+   * Der Satz rechts im Kopf. Vorgabe: „Bonität ist machbar." — die Stimme der
+   * Privatkundenlinie. FIAON Global (E-188, 17.09.2026) spricht Unternehmen an
+   * und setzt hier seinen eigenen Satz; ohne Angabe bleibt jede Mail, wie sie ist.
+   */
+  kopfSatz?: string;
+  /**
+   * Der Pflichtsatz im Fuß. Vorgabe: „FIAON ist keine Rechtsberatung und
+   * verspricht keine Löschung berechtigter Einträge." — für eine Mail über eine
+   * US-Gesellschaft der falsche Hinweis. FIAON Global setzt den Satz aus
+   * shared/fiaon-global.ts (GLOBAL_ROLLEN).
+   */
+  rechtsSatz?: string;
 }
+
+const KOPF_SATZ = "Bonität ist machbar.";
+const RECHTS_SATZ = "FIAON ist keine Rechtsberatung und verspricht keine Löschung berechtigter Einträge.";
 
 const NAVY = "#0f2044";
 const NAVY_TIEF = "#0a1730";
@@ -192,7 +208,7 @@ export function mailHtml(b: MailBaustein): string {
         <tr><td style="background:${NAVY};background-image:linear-gradient(135deg,#12264f,${NAVY_TIEF});padding:26px 34px;">
           <table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr>
             <td style="font:700 21px/1 ${SCHRIFT};letter-spacing:.13em;color:#ffffff;">FIAON</td>
-            <td align="right" style="font:400 12px/1 ${SCHRIFT};color:#93c5fd;">Bonität ist machbar.</td>
+            <td align="right" style="font:400 12px/1 ${SCHRIFT};color:#93c5fd;">${b.kopfSatz ?? KOPF_SATZ}</td>
           </tr></table>
         </td></tr>
         ${hero}
@@ -220,7 +236,7 @@ export function mailHtml(b: MailBaustein): string {
             FIAON LTD · <a href="${BASIS_URL}" style="color:#9ca3af;">fiaon.com</a> ·
             <a href="${BASIS_URL}/impressum" style="color:#9ca3af;">Impressum</a> ·
             <a href="${BASIS_URL}/datenschutz" style="color:#9ca3af;">Datenschutz</a><br />
-            FIAON ist keine Rechtsberatung und verspricht keine Löschung berechtigter Einträge.
+            ${b.rechtsSatz ?? RECHTS_SATZ}
           </p>
           ${abmelden}
         </td></tr>
@@ -259,7 +275,7 @@ export function ratenLeisteEinsetzen(html: string): string {
 export function mailText(b: MailBaustein): string {
   const ohneTags = (s: string) => s.replace(/<[^>]+>/g, "");
   return [
-    "FIAON — Bonität ist machbar.",
+    `FIAON — ${b.kopfSatz ?? KOPF_SATZ}`,
     "",
     b.titel.toUpperCase(),
     "",
@@ -272,7 +288,7 @@ export function mailText(b: MailBaustein): string {
     "",
     "—",
     "FIAON LTD · fiaon.com · Impressum: fiaon.com/impressum · Datenschutz: fiaon.com/datenschutz",
-    "FIAON ist keine Rechtsberatung und verspricht keine Löschung berechtigter Einträge.",
+    b.rechtsSatz ?? RECHTS_SATZ,
     ...(b.abmeldeUrl ? [`Abmelden: ${b.abmeldeUrl}`] : []),
   ].join("\n").replace(/%%RATENLEISTE:[^%]*%%/g, "");
 }

@@ -32,12 +32,25 @@ export interface Paket {
   key: string;
   /** Wie es dem Kunden gegenüber heißt. */
   label: string;
-  /** Der Monatspreis in CENT. Ganzzahlig, damit nichts gerundet wird. */
+  /**
+   * Der Preis in CENT. Ganzzahlig, damit nichts gerundet wird.
+   * Bei `abo: true` ist es der MONATSPREIS, bei `abo: false` der EINMALPREIS.
+   */
   preisCents: number;
-  /** Privat- oder Geschäftskunde. */
-  art: "privat" | "business";
-  /** Ist das ein Abonnement? Die Bonitätsauskunft ist es nicht. */
+  /**
+   * Privatkunde, Geschäftskunde der alten Bonitätslinie oder FIAON Global
+   * (17.09.2026, E-188: die US-Struktur für Unternehmen — sie ersetzt die
+   * Business-Abos im Verkauf).
+   */
+  art: "privat" | "business" | "global";
+  /** Ist das ein Abonnement? Die Bonitätsauskunft und FIAON Global sind es nicht. */
   abo: boolean;
+  /**
+   * Wird nicht mehr verkauft. Der Eintrag bleibt, weil Bestandskunden ihn in
+   * `pack_key` tragen und ihre Raten weiter den Katalogpreis brauchen. Keine
+   * Preisliste, kein Auswahlfeld und kein Antrag bietet ihn mehr an.
+   */
+  eingestellt?: boolean;
 }
 
 export const PAKETE: Paket[] = [
@@ -45,14 +58,28 @@ export const PAKETE: Paket[] = [
   { key: "pro",                 label: "FIAON Pro (Standard)",      preisCents:  5999, art: "privat",   abo: true },
   { key: "ultra",               label: "FIAON Ultra",               preisCents:  7999, art: "privat",   abo: true },
   { key: "highend",             label: "FIAON High-End",            preisCents:  9999, art: "privat",   abo: true },
-  { key: "business_starter",    label: "FIAON Business Starter",    preisCents:  4999, art: "business", abo: true },
-  { key: "business_pro",        label: "FIAON Business Pro",        preisCents:  9999, art: "business", abo: true },
-  { key: "business_ultra",      label: "FIAON Business Ultra",      preisCents: 14999, art: "business", abo: true },
-  { key: "business_enterprise", label: "FIAON Business Enterprise", preisCents: 24999, art: "business", abo: true },
+  // ── EINGESTELLT (17.09.2026, E-188) ──────────────────────────────────────
+  // Die vier Business-Abos werden nicht mehr verkauft: /business ist seit
+  // E-188 FIAON Global. Sie bleiben hier, damit die Raten der Bestandskunden
+  // ihren Preis behalten.
+  { key: "business_starter",    label: "FIAON Business Starter",    preisCents:  4999, art: "business", abo: true, eingestellt: true },
+  { key: "business_pro",        label: "FIAON Business Pro",        preisCents:  9999, art: "business", abo: true, eingestellt: true },
+  { key: "business_ultra",      label: "FIAON Business Ultra",      preisCents: 14999, art: "business", abo: true, eingestellt: true },
+  { key: "business_enterprise", label: "FIAON Business Enterprise", preisCents: 24999, art: "business", abo: true, eingestellt: true },
   // ── KEIN ABO ─────────────────────────────────────────────────────────────
   // Die Bonitätsauskunft ist ein Einmalkauf. Sie steht hier, damit sie einen
   // Preis hat — und mit `abo: false`, damit sie NIE eine Rate erzeugt.
   { key: "schufa",              label: "Bonitätsauskunft",          preisCents:  7400, art: "privat",   abo: false },
+  // ── FIAON GLOBAL (17.09.2026, E-188) — EINMALPREISE, KEIN ABO ────────────
+  // Justin: „3 Pakete und 1 VIP Paket — die Preise so wie sie sind sind gut."
+  // Was ein Paket enthält, steht in shared/fiaon-global.ts. `abo: false` ist
+  // hier lebenswichtig: Ein Global-Paket darf NIE zwölf Monatsraten erzeugen.
+  // Der Abo-Motor fragt deshalb `istAboPaket()` und nicht mehr das Wort
+  // „schufa" (siehe fiaon-abo.ts).
+  { key: "global_struktur",     label: "FIAON Global Struktur",     preisCents:  249900, art: "global", abo: false },
+  { key: "global_banking",      label: "FIAON Global Banking",      preisCents:  499900, art: "global", abo: false },
+  { key: "global_kapital",      label: "FIAON Global Kapital",      preisCents:  699900, art: "global", abo: false },
+  { key: "global_vip",          label: "FIAON Global VIP",          preisCents: 3599900, art: "global", abo: false },
 ];
 
 const NACH_KEY = new Map(PAKETE.map((p) => [p.key, p]));
@@ -61,7 +88,7 @@ export function paket(key: unknown): Paket | null {
   return NACH_KEY.get(String(key ?? "").trim().toLowerCase()) ?? null;
 }
 
-/** Der Monatspreis in Cent — 0, wenn das Paket unbekannt ist. */
+/** Der Katalogpreis in Cent (Monat bei Abo, sonst einmalig) — 0, wenn das Paket unbekannt ist. */
 export function paketPreisCents(key: unknown): number {
   return paket(key)?.preisCents ?? 0;
 }
@@ -75,6 +102,19 @@ export function paketPreisEuro(key: unknown): number {
 export function istAboPaket(key: unknown): boolean {
   return paket(key)?.abo === true;
 }
+
+/** Gehört dieses Paket zu FIAON Global (Einmalpreis, US-Struktur)? */
+export function istGlobalPaket(key: unknown): boolean {
+  return paket(key)?.art === "global";
+}
+
+/** Was heute verkauft wird — eingestellte Pakete fehlen. */
+export function verkaufbarePakete(art?: Paket["art"]): Paket[] {
+  return PAKETE.filter((p) => !p.eingestellt && (!art || p.art === art));
+}
+
+/** Schlüssel aller Pakete, die KEINE Rate erzeugen dürfen — für SQL-Filter des Abo-Motors. */
+export const NICHT_ABO_SCHLUESSEL: string[] = PAKETE.filter((p) => !p.abo).map((p) => p.key);
 
 /** Die Preisliste in Euro — für Stellen, die historisch mit Euro rechnen. */
 export const PAKET_PREISE_EURO: Record<string, number> = Object.fromEntries(

@@ -52,7 +52,7 @@ Tageslauf), `server/lib/fiaon-global-bereich-regeln.ts` (Dateityp, Dateiname, Zu
 (englische Fassung über `sprache` in der Nutzlast), `server/mail/vorlagen/global.ts`, `server/routes.ts`,
 `server/index.ts` (Zugriffslog maskiert auch diese Pfade). Tabellen (entstehen beim ersten Zugriff):
 `fiaon_global_dokumente`, `fiaon_global_verlauf`, `fiaon_global_fristen`, neue Spalten an `fiaon_global_auftraege`.
-Prüfstände: `scripts/pruef-global-bereich.ts` (ohne Datenbank, 324 Prüfungen) und
+Prüfstände: `scripts/pruef-global-bereich.ts` (ohne Datenbank, 327 Prüfungen) und
 `scripts/pruef-global-bereich-lokal.ts` (nur gegen eine lokale Wegwerf-Datenbank, 158 Prüfungen — er fand beim ersten
 Lauf, dass postgres.js ein mit JSON.stringify gebautes JSONB doppelt kodiert; seitdem schreibt der Bereich über
 `sqlPool.json`).

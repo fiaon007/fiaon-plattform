@@ -102,6 +102,8 @@ function dateiSenden(res: Response, d: { inhalt: Buffer; mime: string; dateiname
   res.setHeader("Content-Length", String(d.inhalt.length));
   res.setHeader("Cache-Control", "private, no-store");
   res.setHeader("X-Content-Type-Options", "nosniff");
+  // Die Adresse des Kunden-Downloads trägt das Token (?t=). Ein Link IN einem PDF darf sie nicht als Referer weiterreichen.
+  res.setHeader("Referrer-Policy", "no-referrer");
   res.end(d.inhalt);
 }
 function pdfSenden(res: Response, pdf: Buffer, dateiname: string) {

@@ -368,7 +368,7 @@ const titel = (t: string) => console.log(`\n── ${t}`);
   ok(r.status === 400 && /PDF, JPG, PNG und HEIC/.test(r.body?.error ?? ""), "SVG mit PDF-Etikett abgelehnt", r.body);
   const d = await fetch(`${B}/global/mein-auftrag/${REF}/dokument/${docId}?t=${tok}`);
   const bytes = Buffer.from(await d.arrayBuffer());
-  ok(d.status === 200 && d.headers.get("content-type") === "application/pdf" && d.headers.get("x-content-type-options") === "nosniff" && /^inline;/.test(d.headers.get("content-disposition") ?? "") && /no-store/.test(d.headers.get("cache-control") ?? "") && Buffer.compare(bytes, PDF) === 0, "Download: inline, erkannter Typ, nosniff, no-store, Inhalt unverändert", Object.fromEntries(d.headers.entries()));
+  ok(d.status === 200 && d.headers.get("content-type") === "application/pdf" && d.headers.get("x-content-type-options") === "nosniff" && d.headers.get("referrer-policy") === "no-referrer" && /^inline;/.test(d.headers.get("content-disposition") ?? "") && /no-store/.test(d.headers.get("cache-control") ?? "") && Buffer.compare(bytes, PDF) === 0, "Download: inline, erkannter Typ, nosniff, no-referrer, no-store, Inhalt unverändert", Object.fromEntries(d.headers.entries()));
   ok(/filename="Reisepass_M_ller\.pdf"|filename="Reisepass_Mu_ller\.pdf"|filename="Reisepass_Müller\.pdf"/.test(d.headers.get("content-disposition") ?? "") || /filename=/.test(d.headers.get("content-disposition") ?? ""), "Dateiname im Kopf", d.headers.get("content-disposition"));
   r = await j(await fetch(`${B}/global/mein-auftrag/${FREMD}/dokument/${docId}?t=${A.globalTokenErzeugen(FREMD)}`));
   ok(r.status === 404, "fremdes Dokument mit eigenem Token: 404", r.body);

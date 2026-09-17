@@ -136,7 +136,7 @@ gleich(B.GLOBAL_ETAPPEN.slice(1, 5).map((e) => e.en.titel), GLOBAL_WOERTER.en.we
 const de: [string, string][] = []; const en: [string, string][] = [];
 for (const e of B.GLOBAL_ETAPPEN) { de.push([`etappe ${e.nr}`, `${e.de.titel}. ${e.de.text}`]); en.push([`etappe ${e.nr}`, `${e.en.titel}. ${e.en.text}`]); }
 for (const a of B.GLOBAL_DOKUMENTARTEN) { de.push([`art ${a.art}`, a.de]); en.push([`art ${a.art}`, a.en]); }
-for (const u of B.GLOBAL_UNTERLAGEN_LISTE) { de.push([`unterlage ${u.art}`, `${u.de.zeile}. ${u.de.titel}. ${u.de.hinweis}`]); en.push([`unterlage ${u.art}`, `${u.en.zeile}. ${u.en.titel}. ${u.en.hinweis}`]); }
+for (const u of B.GLOBAL_UNTERLAGEN_LISTE) { de.push([`unterlage ${u.art}`, `${u.de.zeile}. ${u.de.titel}. ${u.de.hinweis} ${u.de.textHinweis ?? ""}`]); en.push([`unterlage ${u.art}`, `${u.en.zeile}. ${u.en.titel}. ${u.en.hinweis} ${u.en.textHinweis ?? ""}`]); }
 for (const [staat, form] of [["DE", "LLC"], ["DE", "Corporation"], ["WY", "LLC"], ["FL", "LLC"], ["NM", "LLC"]] as const) {
   for (const f of B.globalPflichtFristen({ bundesstaat: staat, form, gegruendetAm: "2026-03-31" }, "2026-12-31", "de")) de.push([`frist ${staat}/${form}/${f.regelKey}`, `${f.titel}. ${f.hinweis}`]);
   for (const f of B.globalPflichtFristen({ bundesstaat: staat, form, gegruendetAm: "2026-03-31" }, "2026-12-31", "en")) en.push([`frist ${staat}/${form}/${f.regelKey}`, `${f.titel}. ${f.hinweis}`]);
@@ -186,6 +186,10 @@ gleich(B.globalUnterlagenOffen(["reisepass", "sonstiges"]), 4, "Reisepass da");
 ok(B.globalUnterlagenStand(["gesellschafterliste"]).find((u) => u.art === "registerauszug")!.vorhanden, "Gesellschafterliste ODER Handelsregisterauszug — eines genügt");
 gleich(B.globalUnterlagenOffen(["reisepass", "adressnachweis", "registerauszug", "namenswunsch", "taetigkeitsbeschreibung"]), 0, "alle fünf da");
 ok(!B.globalKundeDarfArt("ein_brief") && !B.globalKundeDarfArt("gruendungsurkunde") && B.globalKundeDarfArt("bank_unterlage") && !B.globalKundeDarfArt("exe"), "Kunde darf nur Arten „kunde“ und „beide“");
+// Die zwei Text-Unterlagen: Das Angebot „als Text eintragen" steht getrennt vom Hinweis — die Seite zeigt es nur, wenn sie das Feld hat.
+gleich(B.globalUnterlagenStand([]).filter((u) => u.alsText).map((u) => u.art), ["namenswunsch", "taetigkeitsbeschreibung"], "als Text einreichbar: Namenswunsch und Tätigkeit");
+ok(B.globalUnterlagenStand([], "de").every((u) => !/als Text/i.test(u.hinweis)) && B.globalUnterlagenStand([], "en").every((u) => !/as text/i.test(u.hinweis)), "ein Hinweis verspricht ein Textfeld, das die Seite nicht haben muss");
+ok(B.globalUnterlagenStand([], "en").filter((u) => u.alsText).every((u) => /as text/.test(u.textHinweis ?? "")), "textHinweis englisch");
 gleich(B.GLOBAL_DOKUMENTARTEN.map((a) => a.art).sort(), ["adressnachweis", "bank_unterlage", "ein_brief", "gesellschafterliste", "gruendungsurkunde", "itin_bescheid", "namenswunsch", "operating_agreement", "registerauszug", "reisepass", "sonstiges", "taetigkeitsbeschreibung"], "zwölf Dokumentarten");
 
 gleich(B.globalDokumentArtenFuer("office").length, 12, "das Office wählt aus allen zwölf Arten");

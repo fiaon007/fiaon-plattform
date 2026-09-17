@@ -198,11 +198,14 @@ export const GLOBAL_TEXT_UNTERLAGEN: GlobalDokumentArt[] = ["namenswunsch", "tae
 // server/mail/vorlagen/global.ts; dort wird sie jetzt nur noch eingelesen.
 // `zeile` ist der Satz der Mail, `titel`/`hinweis` sind die Zeile auf der Seite.
 // `erfuelltDurch`: Ein Dokument einer dieser Arten macht die Zeile „vorhanden".
+// `textHinweis` (nur bei den zwei Text-Unterlagen): der Satz, den die Seite zeigt, WENN sie das Textfeld
+// dazu anbietet (POST …/nachricht { text, art }). Er steht bewusst NICHT im `hinweis`: Ein Hinweis, der
+// ein Eingabefeld verspricht, das die Seite nicht hat, wäre ein Knopf ohne Route von der anderen Seite.
 export interface GlobalUnterlage {
   art: GlobalDokumentArt;
   erfuelltDurch: GlobalDokumentArt[];
-  de: { zeile: string; titel: string; hinweis: string };
-  en: { zeile: string; titel: string; hinweis: string };
+  de: { zeile: string; titel: string; hinweis: string; textHinweis?: string };
+  en: { zeile: string; titel: string; hinweis: string; textHinweis?: string };
 }
 export const GLOBAL_UNTERLAGEN_LISTE: GlobalUnterlage[] = [
   {
@@ -222,13 +225,13 @@ export const GLOBAL_UNTERLAGEN_LISTE: GlobalUnterlage[] = [
   },
   {
     art: "namenswunsch", erfuelltDurch: ["namenswunsch"],
-    de: { zeile: "der gewünschte Name der US-Gesellschaft in drei Varianten", titel: "Name der US-Gesellschaft", hinweis: "Drei Varianten in der Reihenfolge Ihres Wunsches — der Bundesstaat vergibt jeden Namen nur einmal. Sie können die Namen hier auch einfach als Text eintragen." },
-    en: { zeile: "The name you would like for the US company, in three variants", titel: "Name of the US company", hinweis: "Three variants in order of preference — each state registers a name only once. You can also simply enter the names here as text." },
+    de: { zeile: "der gewünschte Name der US-Gesellschaft in drei Varianten", titel: "Name der US-Gesellschaft", hinweis: "Drei Varianten in der Reihenfolge Ihres Wunsches — der Bundesstaat vergibt jeden Namen nur einmal.", textHinweis: "Sie können die Namen hier auch einfach als Text eintragen." },
+    en: { zeile: "The name you would like for the US company, in three variants", titel: "Name of the US company", hinweis: "Three variants in order of preference — each state registers a name only once.", textHinweis: "You can also simply enter the names here as text." },
   },
   {
     art: "taetigkeitsbeschreibung", erfuelltDurch: ["taetigkeitsbeschreibung"],
-    de: { zeile: "eine kurze Beschreibung der Geschäftstätigkeit", titel: "Beschreibung der Geschäftstätigkeit", hinweis: "Einige Sätze genügen: was die US-Gesellschaft tun wird, für wen und in welchen Ländern. Auch als Text möglich." },
-    en: { zeile: "A short description of the business activity", titel: "Description of the business activity", hinweis: "A few sentences are enough: what the US company will do, for whom and in which countries. You can also enter this as text." },
+    de: { zeile: "eine kurze Beschreibung der Geschäftstätigkeit", titel: "Beschreibung der Geschäftstätigkeit", hinweis: "Einige Sätze genügen: was die US-Gesellschaft tun wird, für wen und in welchen Ländern.", textHinweis: "Sie können die Beschreibung hier auch einfach als Text eintragen." },
+    en: { zeile: "A short description of the business activity", titel: "Description of the business activity", hinweis: "A few sentences are enough: what the US company will do, for whom and in which countries.", textHinweis: "You can also simply enter the description here as text." },
   },
 ];
 
@@ -238,11 +241,14 @@ export const GLOBAL_UNTERLAGEN: string[] = GLOBAL_UNTERLAGEN_LISTE.map((u) => u.
 export const GLOBAL_UNTERLAGEN_EN: string[] = GLOBAL_UNTERLAGEN_LISTE.map((u) => u.en.zeile);
 
 /** Welche Unterlagen liegen vor? `arten` = die Arten aller nicht gelöschten Dokumente des Auftrags. */
-export function globalUnterlagenStand(arten: Iterable<string>, sprache: BereichSprache = "de"): { art: GlobalDokumentArt; titel: string; hinweis: string; vorhanden: boolean }[] {
+export function globalUnterlagenStand(arten: Iterable<string>, sprache: BereichSprache = "de"): { art: GlobalDokumentArt; titel: string; hinweis: string; vorhanden: boolean; alsText?: true; textHinweis?: string }[] {
   const da = new Set(Array.from(arten, (a) => String(a)));
   return GLOBAL_UNTERLAGEN_LISTE.map((u) => {
     const t = sprache === "en" ? u.en : u.de;
-    return { art: u.art, titel: t.titel, hinweis: t.hinweis, vorhanden: u.erfuelltDurch.some((a) => da.has(a)) };
+    return {
+      art: u.art, titel: t.titel, hinweis: t.hinweis, vorhanden: u.erfuelltDurch.some((a) => da.has(a)),
+      ...(GLOBAL_TEXT_UNTERLAGEN.includes(u.art) && t.textHinweis ? { alsText: true as const, textHinweis: t.textHinweis } : {}),
+    };
   });
 }
 export function globalUnterlagenOffen(arten: Iterable<string>): number {

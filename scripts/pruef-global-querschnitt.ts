@@ -217,7 +217,7 @@ abschnitt(`B · Beleg: kein Privatkunden-Login ändert sich (gegen ${BASIS})`);
 const alt = mkdtempSync(path.join(tmpdir(), "fiaon-pruef-basis-"));
 let altGeladen = false;
 try {
-  const tar = execFileSync("git", ["-C", WURZEL, "archive", BASIS, "server/mail", "server/fiaon-login-logic.ts", "server/lib/fiaon-kunde-session.ts", "server/lib/fiaon-html-pdf.ts"], { maxBuffer: 64 * 1024 * 1024 });
+  const tar = execFileSync("git", ["-C", WURZEL, "archive", BASIS, "server/mail", "server/fiaon-login-logic.ts", "server/lib/fiaon-kunde-session.ts", "server/lib/fiaon-html-pdf.ts", "server/fiaon-invoice.ts", "server/fiaon-base-url.ts"], { maxBuffer: 64 * 1024 * 1024 });
   execFileSync("tar", ["-x", "-C", alt], { input: tar });
   writeFileSync(path.join(alt, "package.json"), '{"type":"module"}');
   altGeladen = true;
@@ -407,6 +407,36 @@ for (const event of ereignisse) {
   for (const s of [1, 2] as const) ok(wandPruefen(vorlagen.GLOBAL_ERINNERUNG_ANLASS.de[s]).length === 0, `Anlass-Satz ${s}: Wortwand`);
 }
 
+{
+  // Die Bestätigung des Erstgesprächs (global_termin): Global-Rahmen statt Privatkunden-Rahmen, und englisch für /en/business.
+  const termin = await import("../server/mail/vorlagen/termin");
+  const { globalTerminPayload } = await import("../server/lib/fiaon-global-termin");
+  const de = termin.TERMIN_VORLAGEN.global_termin; const en = termin.GLOBAL_TERMIN_EN.global_termin;
+  const platzhalter = (b: unknown) => Array.from(new Set(Array.from(JSON.stringify(b).matchAll(/\{\{params\.([a-z_0-9]+)\}\}/g)).map((m) => m[1]))).sort().join(",");
+  ok(de.absaetze.length === en.absaetze.length && (de.daten ?? []).length === (en.daten ?? []).length && de.knopf?.url === en.knopf?.url && de.knopf2?.url === en.knopf2?.url && platzhalter(de) === platzhalter(en), "global_termin: das Paar de/en ist nicht gleich gebaut");
+  const ein = { email: "m.muster@muster-gmbh.example", name: "Max Muster", firma: "Muster GmbH", telefon: "+49 171 1234567", paketText: "Global Kapital (6.999 €)", ansprechpartner: "Daniel", datumText: "Donnerstag, 24.09.2026", uhrzeit: "14:30", stornoToken: "abc123", beginn: "2026-09-24T12:30:00Z", paket: "global_kapital" };
+  for (const sprache of ["de", "en"] as const) {
+    const mail = motor.mailRendern("global_termin", globalTerminPayload({ ...ein, sprache }));
+    const wo = `global_termin/${sprache}`;
+    ok(!!mail && mail.fehlend.length === 0, `${wo}: Platzhalter ohne Wert — ${mail?.fehlend.join(", ")}`);
+    if (!mail) continue;
+    ok(mail.html.includes("FIAON Global") && !/Bonität ist machbar|keine Löschung berechtigter Einträge/.test(mail.html), `${wo}: trägt den Privatkunden-Rahmen`);
+    if (sprache === "de") {
+      for (const t of wandPruefen(mail.text, ["aufgabe_an_betreuer"])) ok(false, `${wo}: Wortwand [${t.art}] „${t.treffer}“`);
+      for (const r of SCHAERFER) ok(!r.muster.test(mail.text), `${wo}: E-188-Regel „${r.grund}“`);
+      ok(mail.text.includes("Donnerstag, 24.09.2026"), `${wo}: deutsches Datum fehlt`);
+    } else {
+      const sichtbar = mail.html.slice(mail.html.indexOf("<body")).replace(/<style[\s\S]*?<\/style>/g, " ").replace(/<[^>]+>/g, " ").replace(/&nbsp;|&#\d+;|&[a-z]+;/g, " ");
+      const nackt = `${mail.text}\n${sichtbar}`.replace(/Muster GmbH|Max Muster|Daniel|https?:\/\/\S+|fiaon\.com\/\S+/g, "·");
+      const rest = nackt.match(DEUTSCHER_REST);
+      ok(!rest, `${wo}: deutscher Rest „${rest?.[0]}“ in „…${rest ? nackt.slice(Math.max(0, (rest.index ?? 0) - 40), (rest.index ?? 0) + 40).replace(/\s+/g, " ") : ""}…“`);
+      for (const f of englischeVerbote(mail.text)) ok(false, `${wo}: englisches Verbot — ${f}`);
+      ok(mail.text.includes("Thursday, 24 September 2026") && mail.text.includes("14:30 (German time)"), `${wo}: Datum/Uhrzeit nicht im englischen Bild (deutsche Zeit)`);
+      ok(mail.text.includes(`FIAON ${kapital.en.name}`), `${wo}: englischer Paketname fehlt`);
+    }
+  }
+}
+
 // ═══ D · DAS GERÜST: DEUTSCHE MAILS BYTE-GLEICH ═════════════════════════════
 abschnitt(`D · Gerüst: deutsche Mails byte-gleich (gegen ${BASIS})`);
 if (altGeladen) {
@@ -455,6 +485,35 @@ if (altGeladen) {
   ok(en.includes('Page <span class="pageNumber"></span> of <span class="totalPages"></span></span>') && !/Seite|von </.test(en), "PDF-Fuß englisch: nicht „Page X of Y“");
   ok(de.includes("&lt;1&gt;") && de.replace("Seite", "Page").replace(" von ", " of ").replace("Auftrag", "Order") === en, "PDF-Fuß: die Sprachen unterscheiden sich in mehr als den zwei Wörtern");
   ok(/sprache: d\.sprache/.test(lies("server/lib/fiaon-global-vertrag.ts")), "Vertrag: reicht die Sprache nicht an die Fußzeile durch");
+
+  // (4) Die Rechnung: deutsch Byte für Byte wie vor dem Umbau (Privatkunde, Firmenkunde ohne und mit
+  //     Reverse Charge); die englische Zweitzeile erscheint NUR mit rechnung_sprache = "en" am Firmenauftrag.
+  const PDFDocument = (await import("pdfkit")).default;
+  const rechnungNeu = await import("../server/fiaon-invoice");
+  const rechnungAlt = await import(path.join(alt, "server/fiaon-invoice.ts"));
+  const zeichne = (render: (doc: any, a: any) => void, zeile: any): Promise<string> => new Promise((ja, nein) => {
+    const doc = new PDFDocument({ size: "A4", margin: 50, info: { CreationDate: new Date("2026-09-17T10:00:00Z") } });
+    const teile: Buffer[] = []; doc.on("data", (c: Buffer) => teile.push(c)); doc.on("error", nein);
+    doc.on("end", () => ja(Buffer.concat(teile).toString("latin1").replace(/\/ID \[[^\]]*\]/g, "").replace(/\/CreationDate \([^)]*\)/g, "")));
+    render(doc, zeile); doc.end();
+  });
+  const kopf = { ref: "FIAON-MB2XK4LQ-7T9A", invoice_number: "FIAON-INV-2026-00321", invoice_date: "2026-09-17T10:00:00Z", payment_reference: "FIAON-A1B2C3", payment_due_date: "2026-09-24T10:00:00Z" };
+  const privat = { ...kopf, pack_key: "pro", pack_name: "FIAON Pro", amount_due: "59.99", first_name: "Kim", last_name: "Beispiel", street: "Weg 1", zip: "10115", city: "Berlin", email: "kim@example.org" };
+  const firma = { ...kopf, pack_key: "global_kapital", pack_name: "FIAON Global Kapital", amount_due: "6999.00", company_name: "Muster & Söhne Projektentwicklungsgesellschaft mbH", contact_name: "Max Muster", street: "Beispielweg 12", zip: "80331", city: "München", country: "DE", tax_id: "DE123456789", contact_email: "m.muster@muster-gmbh.example" };
+  for (const [name, zeile] of Object.entries({ "Privatkunde": privat, "Privatkunde mit rechnung_sprache en": { ...privat, rechnung_sprache: "en" }, "Firmenkunde": firma, "Firmenkunde Reverse Charge": { ...firma, rechnung_ust_modus: "reverse_charge" } })) {
+    ok(sha(await zeichne(rechnungNeu.renderInvoicePdf, zeile)) === sha(await zeichne(rechnungAlt.renderInvoicePdf, zeile)), `Rechnung „${name}“: nicht mehr byte-gleich zur Fassung ${BASIS}`);
+  }
+  for (const modus of ["none", "reverse_charge"]) {
+    const de = await zeichne(rechnungNeu.renderInvoicePdf, { ...firma, rechnung_ust_modus: modus });
+    const en = await zeichne(rechnungNeu.renderInvoicePdf, { ...firma, rechnung_ust_modus: modus, rechnung_sprache: "en" });
+    ok(en !== de && en.length > de.length, `Rechnung en (${modus}): trägt keine englische Zweitzeile`);
+    ok((en.match(/\/Type \/Page\b/g) ?? []).length === 1, `Rechnung en (${modus}): läuft über mehr als eine Seite`);
+  }
+  // Fünf Zeichenstellen der Bestellrechnung (Kunde, Betreuer, Verwaltung, ZIP-Export, Mail-Anhang) — jede setzt die Sprache.
+  for (const [d, muster] of [["server/lib/fiaon-rechnung-pdf.ts", /await zeichnen\(a\)/g], ["server/routes/fiaon-antrag.ts", /renderInvoicePdf\(doc, /g], ["server/routes/fiaon-agent.ts", /renderInvoicePdf\(doc, /g]] as const) {
+    const q = lies(d);
+    ok((q.match(/await rechnungsSpracheSetzen\(sqlPool, /g) ?? []).length === (q.match(muster) ?? []).length, `${d}: nicht jede Zeichenstelle der Bestellrechnung setzt die Sprache — der Kunde sähe eine andere Rechnung als das Haus`);
+  }
 }
 rmSync(alt, { recursive: true, force: true });
 
@@ -547,6 +606,15 @@ abschnitt("G · Verdrahtung: Lauf, Ereignisse, Frequenzbremse, Türen");
   ok((antrag.match(/globalZugangSenden\(/g) ?? []).length >= 2, "Login und „Passwort vergessen“ schicken den Link nicht beide über globalZugangSenden");
   ok(/istNurFirmenkunde\(family\)/.test(app) && /globalZugangSenden\(/.test(app), "Der Anmelde-Link von /app kennt den Firmenkunden nicht");
   ok(/verdict\.globalZugang/.test(antrag), "POST /login wertet globalZugang nicht aus");
+  // Das Wissen des Assistenten und der Postmeisterin: nur, was stimmt.
+  const { globalWissen } = await import("../shared/fiaon-wissen");
+  const gw = globalWissen();
+  ok(/„Mein Auftrag“/.test(gw) && /KEIN Passwort/.test(gw) && /ausschließlich an die Adresse, die am Auftrag steht/.test(gw), "Wissen: „Mein Auftrag“ (kein Passwort, Link nur an die Adresse des Auftrags) fehlt");
+  ok(/zuständige Person/.test(gw) && /Startgespräch/.test(gw), "Wissen: die zuständige Person und das Startgespräch fehlen");
+  ok(/gelten die Abo-Regeln unter VERTRAG UND KÜNDIGUNG NICHT/.test(gw) && /weder Storno noch Erstattung/.test(gw), "Wissen: Storno/Erstattung bei FIAON Global — die Abo-Regeln würden gelten");
+  ok(/fiaon\.com\/business\/start/.test(gw) && /fiaon\.com\/business#gespraech/.test(gw) && /EINMALIG/.test(gw) && /auf eigenes Mandat/.test(gw), "Wissen: Einmalpreis, Direktauftrag, Gespräch oder Mandatssatz fehlen");
+  ok(!/\b[A-Z]{2}\d{2}[ ]?\d{4}[ ]?\d{4}/.test(gw), "Wissen: Bankdaten im Global-Block");
+  ok(/KEIN ABO/.test(lies("server/lib/fiaon-postmeister-dossier.ts")) && /istGlobalPaket\(a\?\.pack_key\)/.test(lies("server/lib/fiaon-postmeister-dossier.ts")), "Postmeister-Dossier: ein Firmenauftrag bekäme die Zwölf-Monats-Regeln als Vertrag");
   // Tier: Global geht nicht in die Bewertung ein; wer sonst nichts hat, ist -1/ausgeschlossen.
   const { personTierSql } = await import("../server/lib/tier");
   const sql = personTierSql();

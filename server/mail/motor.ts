@@ -31,7 +31,7 @@ import {
 } from "./geruest";
 import { KONTO_VORLAGEN } from "./vorlagen/konto";
 import { ZAHLUNG_VORLAGEN } from "./vorlagen/zahlung";
-import { TERMIN_VORLAGEN } from "./vorlagen/termin";
+import { TERMIN_VORLAGEN, GLOBAL_TERMIN_EN } from "./vorlagen/termin";
 import { AUSKUNFT_LEAD_VORLAGEN } from "./vorlagen/auskunft-lead";
 import { TEAM_VORLAGEN } from "./vorlagen/team";
 import { RUECKHOLUNG_VORLAGEN } from "./vorlagen/rueckholung";
@@ -64,6 +64,7 @@ export const VORLAGEN: Record<string, MailBaustein> = {
  */
 export const VORLAGEN_EN: Record<string, MailBaustein> = {
   ...GLOBAL_VORLAGEN_EN,
+  ...GLOBAL_TERMIN_EN,
 };
 
 /** Wer als Absender im Postfach steht — je Ereignis. Alles nicht Genannte: welcome. */

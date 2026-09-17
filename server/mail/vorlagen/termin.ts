@@ -8,6 +8,7 @@
 //   bucht nicht neu.
 // ═══════════════════════════════════════════════════════════════════════════
 import type { MailBaustein } from "../geruest";
+import { GLOBAL_ROLLEN } from "@shared/fiaon-global";
 
 export const TERMIN_VORLAGEN: Record<string, MailBaustein> = {
 
@@ -39,7 +40,15 @@ export const TERMIN_VORLAGEN: Record<string, MailBaustein> = {
   // Kundentexte gesperrt), und über Konto, Karte und Rahmen entscheidet das
   // Institut. Der zweite Knopf trägt die Kalenderdatei — als LINK, weil die
   // Vorlagen-Mails des Hauses keine Anhänge tragen (mailDirektSenden).
+  //
+  // Querschnitt 17.09.2026: Kopf- und Rechtssatz der Global-Linie. Bis dahin trug
+  // diese Mail den Privatkunden-Rahmen — „Bonität ist machbar." im Kopf und im Fuß
+  // „… verspricht keine Löschung berechtigter Einträge": beides falsch gegenüber
+  // einem Unternehmen, das über eine US-Gesellschaft sprechen will. Die englische
+  // Fassung steht unten (GLOBAL_TERMIN_EN); der Motor nimmt sie, wenn die Nutzlast
+  // `sprache: "en"` trägt (wer auf /en/business bucht).
   global_termin: {
+    kopfSatz: "FIAON Global", rechtsSatz: GLOBAL_ROLLEN.de.fiaon,
     betreff: "Ihr Gespräch zu FIAON Global: {{params.termin_datum}}, {{params.termin_uhrzeit}} Uhr",
     preheader: "Bestätigt. {{params.agent_vorname}} ruft Sie an — Sie müssen nichts vorbereiten.",
     titel: "Ihr Gespräch ist eingetragen",
@@ -125,5 +134,35 @@ export const TERMIN_VORLAGEN: Record<string, MailBaustein> = {
     knopf: { text: "Startgespräch buchen", url: "{{params.termin_link}}" },
     fussnote: "Der Kalender zeigt alle freien Zeiten. Wir rufen Sie zur gewählten Zeit an.",
     karteZiel: true,
+  },
+};
+
+// ── E-188, Querschnitt: die englische Bestätigung des Erstgesprächs ──────────
+// Gleicher Aufbau, gleiche Platzhalter, gleiche Knöpfe wie `global_termin` oben —
+// britisches Englisch, dieselben Grenzen (das Institut entscheidet; FIAON
+// „discusses" und „explains"). scripts/pruef-global-querschnitt.ts vergleicht das Paar.
+// Die Seite hinter „Reschedule or cancel" und die Kalenderdatei sind noch deutsch.
+export const GLOBAL_TERMIN_EN: Record<string, MailBaustein> = {
+  global_termin: {
+    sprache: "en", kopfSatz: "FIAON Global", rechtsSatz: GLOBAL_ROLLEN.en.fiaon,
+    betreff: "Your call about FIAON Global: {{params.termin_datum}}, {{params.termin_uhrzeit}}",
+    preheader: "Confirmed. {{params.agent_vorname}} will call you — there is nothing to prepare.",
+    titel: "Your call is booked",
+    absaetze: [
+      "Dear {{params.name}}, your first call about FIAON Global is firmly booked — here is everything at a glance:",
+      "<b>{{params.agent_vorname}}</b> will call you at the agreed time on {{params.telefon}}. The call takes around {{params.termin_dauer}} minutes; there is nothing you need to prepare.",
+      "We discuss where your company stands today, which limit you are aiming for and which package fits — and what we take on for it. The institution decides on the account, the card and the limit.",
+    ],
+    daten: [
+      { label: "Call", wert: "{{params.termin_art}}" },
+      { label: "Date", wert: "{{params.termin_datum}}" },
+      { label: "Time", wert: "{{params.termin_uhrzeit}} (German time)" },
+      { label: "Company", wert: "{{params.firma}}" },
+      { label: "Package of interest", wert: "{{params.paket}}" },
+      { label: "Your contact", wert: "{{params.agent_vorname}}" },
+    ],
+    knopf: { text: "Add to calendar", url: "{{params.kalender_url}}" },
+    knopf2: { text: "Reschedule or cancel", url: "{{params.storno_link}}" },
+    fussnote: "Does the time no longer suit you? Use “Reschedule or cancel” at any time and choose a new slot at fiaon.com/en/business.",
   },
 };

@@ -394,6 +394,7 @@ export async function globalTerminBuchen(ein: {
       email: k.email, name: k.name, firma: k.firma, telefon: k.telefon, paketText: k.paketText,
       ansprechpartner: person.name, datumText: buchung.datumText, uhrzeit: buchung.uhrzeit,
       stornoToken: buchung.stornoToken,
+      sprache: k.sprache, beginn: buchung.beginn, paket: k.paket,
     }) as any,
     {
       personId: zu.personId, verlaufRef: akte?.ref ?? null,
@@ -445,7 +446,28 @@ export async function globalTerminBuchen(ein: {
 export function globalTerminPayload(ein: {
   email: string; name: string; firma: string; telefon: string; paketText: string | null;
   ansprechpartner: string; datumText: string; uhrzeit: string; stornoToken: string;
+  /** Querschnitt 17.09.2026: Wer auf /en/business gebucht hat, bekommt die englische Bestätigung. */
+  sprache?: "de" | "en"; beginn?: string | Date | null; paket?: string | null;
 }): Record<string, string> {
+  if (ein.sprache === "en") {
+    const g = globalPaket(ein.paket);
+    const wann = ein.beginn ? new Date(ein.beginn) : null;
+    return {
+      email: ein.email, sprache: "en",
+      name: ein.name, firma: ein.firma, telefon: ein.telefon,
+      paket: g ? `FIAON ${g.en.name}` : "still open — we will clarify it in the call",
+      agent_vorname: ein.ansprechpartner,
+      // Das Datum im englischen Zahlenbild, in deutscher Zeit — der Anruf kommt aus Deutschland.
+      termin_datum: wann && !Number.isNaN(wann.getTime())
+        ? wann.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Berlin" })
+        : ein.datumText,
+      termin_uhrzeit: ein.uhrzeit,
+      termin_art: "First call, FIAON Global",
+      termin_dauer: String(GLOBAL_DAUER_MIN),
+      storno_link: `${stornoLink(ein.stornoToken)}?anrede=sie`,
+      kalender_url: globalKalenderUrl(ein.stornoToken),
+    };
+  }
   return {
     email: ein.email,
     name: ein.name,

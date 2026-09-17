@@ -22,7 +22,7 @@ import bcrypt from "bcryptjs";
 import { createHmac, createHash, randomBytes, createCipheriv, createDecipheriv } from "crypto";
 import PDFDocument from "pdfkit";
 import { sendMakeWebhook, makePayloadFromRow } from "../make-webhook";
-import { renderInvoicePdf, signInvoiceUrl, ensureInvoiceNumber } from "../fiaon-invoice";
+import { renderInvoicePdf, signInvoiceUrl, ensureInvoiceNumber, rechnungsSpracheSetzen } from "../fiaon-invoice";
 import { fiaonBaseUrl } from "../fiaon-base-url";
 import { parseBerlinInput, formatBerlin, pruefeTerminZukunft } from "../lib/fiaon-time";
 import { ERGEBNISSE, ergebnisAnwenden, type Ergebnis, pruefeNotiz } from "../lib/fiaon-kontakt-ergebnis";
@@ -2944,6 +2944,7 @@ router.get("/agent/customers/:ref/invoice.pdf", requireAgent, requireEigenerKund
     }
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="${row.invoice_number || "FIAON-Rechnung"}.pdf"`);
+    await rechnungsSpracheSetzen(sqlPool, row); // E-188: englisch geführter Firmenauftrag → englische Zweitzeile
     const doc = new PDFDocument({ size: "A4", margin: 50 });
     doc.pipe(res);
     renderInvoicePdf(doc, row);

@@ -23,7 +23,7 @@ import { nameSauber } from "../../shared/fiaon-namen";
 import multer from "multer";
 import { randomBytes, createHash } from "crypto";
 import { sendMakeWebhook, makePayloadFromRow } from "../make-webhook";
-import { ensureInvoiceNumber, renderInvoicePdf, signInvoiceUrl, verifyInvoiceSig } from "../fiaon-invoice";
+import { ensureInvoiceNumber, renderInvoicePdf, signInvoiceUrl, verifyInvoiceSig, rechnungsSpracheSetzen } from "../fiaon-invoice";
 import { absoluteUrl } from "../fiaon-base-url";
 import { normalizePhone } from "./fiaon-agent";
 import { verifyNumberToken, markNumberUpdated } from "../fiaon-number-update";
@@ -1389,6 +1389,7 @@ router.get("/admin/payments/:paymentRef/invoice.pdf", async (req, res) => {
     }
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="${row.invoice_number || "FIAON-Rechnung"}.pdf"`);
+    await rechnungsSpracheSetzen(sqlPool, row); // E-188: englisch geführter Firmenauftrag → englische Zweitzeile
     const doc = new PDFDocument({ size: "A4", margin: 50 });
     doc.pipe(res);
     renderInvoicePdf(doc, row);
@@ -1446,6 +1447,7 @@ router.get("/admin/invoices/download-all", async (req, res) => {
 
     // 2) Ein Rechnungs-PDF je Kunde
     for (const a of apps) {
+      await rechnungsSpracheSetzen(sqlPool, a); // E-188: dieselbe Rechnung wie beim Kunden — auch im ZIP-Export
       const doc = new PDFDocument({ size: "A4", margin: 50 });
       const fileName = `Rechnungen/${a.invoice_number || a.payment_reference || a.ref}.pdf`;
       archive.append(doc as any, { name: fileName });
@@ -1473,6 +1475,7 @@ router.get("/invoice/:paymentRef.pdf", async (req, res) => {
     if (rows.length === 0) return res.status(404).json({ ok: false, error: "Bestellung nicht gefunden" });
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="${rows[0].invoice_number || "FIAON-Rechnung"}.pdf"`);
+    await rechnungsSpracheSetzen(sqlPool, rows[0]); // E-188: englisch geführter Firmenauftrag → englische Zweitzeile
     const doc = new PDFDocument({ size: "A4", margin: 50 });
     doc.pipe(res);
     renderInvoicePdf(doc, rows[0]);

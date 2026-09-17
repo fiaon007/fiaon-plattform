@@ -887,9 +887,121 @@ export const RUNDGANG_GLOBAL_AUFTRAEGE: RundgangSchritt[] = [
   },
 ];
 
+// ── /agent/global (17.09.2026, E-188) — die Liste der Global-Aufträge ───────
+// Das Werkzeug der zuständigen Person. Der Rundgang erklärt, was oben steht und
+// warum — und dass hier kein Geld gebucht und nichts zugesagt wird.
+export const RUNDGANG_GLOBAL: RundgangSchritt[] = [
+  {
+    titel: "Hier lieferst du, was FIAON Global verspricht.",
+    text: "Ein Unternehmen hat auf fiaon.com/business/start unterschrieben und überweist einmalig. Dafür sagen die Pakete einen "
+      + "eigenen Dokumentenraum, einen Pflichtenkalender, einen festen Ansprechpartner und den monatlichen Durchgang zu. Der Kunde "
+      + "sieht das alles auf seiner Seite „Mein Auftrag“ — und du pflegst es hier. Diesen Raum sieht nur, wer für einen "
+      + "Global-Auftrag zuständig ist, und die Vertriebsleitung.",
+    tipp: "Geld wird hier nicht gebucht. Der Zahlungseingang läuft über den einen Weg des Hauses — mit ihm startet der Auftrag von selbst.",
+  },
+  {
+    ziel: ".gl-zahlen",
+    titel: "Vier Zahlen. Zwei davon wollen heute etwas von dir.",
+    text: "„Offen, unbezahlt“ wartet auf die Überweisung — ein kurzer Anruf hilft. „Bezahlt, nicht gestartet“ heißt: Das Geld ist da, "
+      + "das Startgespräch fehlt. „In Arbeit“ sind deine laufenden Aufträge. „Fristen in 30 Tagen“ zählt Aufträge, bei denen eine "
+      + "Frist aus dem Pflichtenkalender fällig wird oder schon überfällig ist.",
+    tipp: "Steht bei „Bezahlt, nicht gestartet“ keine Null, fang dort an. Der Kunde hat bezahlt und erwartet deinen Anruf.",
+  },
+  {
+    ziel: ".gl-leiste",
+    titel: "Filter und Suche.",
+    text: "„Laufend“ zeigt alles, was Arbeit braucht; Abgeschlossenes und Storniertes blendet es aus. Die Suche findet Firma, Ort, "
+      + "Referenz, Paket und den Text des nächsten Schritts.",
+  },
+  {
+    ziel: ".gl-tafel",
+    titel: "Die Reihenfolge macht die Liste, nicht du.",
+    text: "Ganz oben steht, wer bezahlt hat und noch nicht gestartet ist. Danach geht es nach der nächsten Frist, dann nach dem "
+      + "Alter des Auftrags. Je Zeile: Stand, Etappe als vier Striche, Stichtag, nächster Schritt des Kunden, fehlende Unterlagen "
+      + "und die nächste Frist. Ein Klick — oder Enter — öffnet die Akte.",
+    tipp: "Steht beim Stichtag „fehlt“, ist der Auftrag gestartet, aber der Tag aus dem Startgespräch noch nicht eingetragen. An ihm hängt die Geld-zurück-Zusage.",
+  },
+];
+
+// ── /agent/global/:ref (17.09.2026, E-188) — die Akte eines Global-Auftrags ──
+export const RUNDGANG_GLOBAL_AKTE: RundgangSchritt[] = [
+  {
+    titel: "Eine Akte, zwei Spalten: links arbeitest du, rechts liest du nach.",
+    text: "Links liegen vier Reiter — Stand, Gesellschaft & Pflichten, Dokumente, Verlauf. Rechts stehen Kontakt, Firmendaten, "
+      + "Vertrag und Rechnung. Alles, was du hier für den Kunden sichtbar speicherst, steht Sekunden später auf seiner Seite "
+      + "„Mein Auftrag“ — wörtlich.",
+    tipp: "Schreibst du an den Kunden, liest das Werkzeug mit: Steht unter dem Feld ein gelber Hinweis, prüf den Satz, bevor du speicherst.",
+  },
+  {
+    ziel: ".gl-knoepfe",
+    titel: "Anrufen, schreiben, mit den Augen des Kunden sehen.",
+    text: "„Kundenansicht öffnen“ zeigt dir in einem neuen Fenster genau das, was der Kunde sieht. „Zugang senden“ schickt ihm "
+      + "einen frischen Link per E-Mail — dafür ist der Knopf da, wenn er seinen Link nicht mehr findet oder der alte abgelaufen ist.",
+  },
+  {
+    ziel: ".gl-etappen",
+    titel: "Vier Etappen — ein Klick setzt sie.",
+    text: "Gründung und Dokumente, die erste Firmenkarte, die Kartenleiter, das Bankdarlehen. Ein Klick auf eine Etappe öffnet den "
+      + "Dialog: Text für den Kunden (vorbelegt, änderbar) und der Haken „Kunden benachrichtigen“. Nicht jedes Paket reicht bis "
+      + "Etappe 4 — was nicht dazugehört, ist blass und mit „nicht im Paket“ beschriftet.",
+    tipp: "Der Text sagt, was FIAON gerade TUT. Keine Frist, keine Zusage — über Konto, Karte, Rahmen und Darlehen entscheidet das Institut.",
+  },
+  {
+    ziel: ".gl-ab-schritt",
+    titel: "Der nächste Schritt gehört dem Kunden.",
+    text: "Dieser Satz steht ganz oben auf seiner Seite: was ER als Nächstes tut, wenn du magst mit Datum. Ist es erledigt, leer "
+      + "den Schritt — dann liest er: „Im Moment ist nichts von Ihnen nötig.“",
+  },
+  {
+    ziel: ".gl-ab-stichtag",
+    titel: "Der Stichtag ist ein Vertragsdatum.",
+    text: "Im Startgespräch vereinbart ihr, bis wann Gesellschaft und EIN stehen. An diesem Tag hängt die Geld-zurück-Zusage aus "
+      + "Ziffer 6 des Auftrags. Mit dem Haken bekommt der Kunde den Tag sofort per E-Mail — der Auftrag sagt ihm diese Mitteilung zu.",
+    tipp: "Trag nur ein, was besprochen ist. Die Zusage gilt für Gesellschaft und EIN — nie für eine Entscheidung einer Bank.",
+  },
+  {
+    ziel: '[data-reiter="gesellschaft"]',
+    titel: "Gesellschaft eintragen — der Pflichtenkalender füllt sich von selbst.",
+    text: "Sobald Name, Form, Bundesstaat und Gründungsdatum gespeichert sind, setzt der Server die Regel-Fristen in den Kalender — "
+      + "die wiederkehrenden US-Meldungen und Staatsgebühren, die zu dieser Gesellschaft gehören. Du hakst ab, was erledigt ist, und "
+      + "legst eigene Fristen dazu — zum Beispiel den monatlichen Durchgang, den die Pakete ab Global Banking zusagen.",
+    tipp: "Ob eine Frist für diesen Kunden gilt, bestätigt sein Steuerberater bzw. US-CPA auf eigenes Mandat. Du erinnerst — du berätst nicht.",
+  },
+  {
+    ziel: '[data-reiter="dokumente"]',
+    titel: "Dokumente: was fehlt, was da ist, was du dazulegst.",
+    text: "Oben die Liste der Unterlagen, die der Kunde liefern muss — mit „fehlt noch“ oder „liegt vor“. Darunter lädst du selbst "
+      + "hoch: Art wählen, Datei wählen (PDF, JPG, PNG, HEIC bis 15 MB), entscheiden, ob der Kunde es sieht. Im Dokumentenraum "
+      + "liegen beide Richtungen; „Ansehen“ öffnet, „Löschen“ blendet aus und steht im Verlauf.",
+    tipp: "Gründungsdokument, EIN-Bestätigung, Operating Agreement: immer „für den Kunden sichtbar“ — das ist der Dokumentenraum, den er gekauft hat.",
+  },
+  {
+    ziel: '[data-reiter="verlauf"]',
+    titel: "Der Verlauf ist das Gedächtnis — mit zwei Farben.",
+    text: "Grün markiert ist, was der Kunde sieht; grau bleibt intern. Eine Notiz ist zuerst intern. Erst mit dem Haken „für den "
+      + "Kunden sichtbar“ landet sie in seinem Verlauf — dann in Sie-Form und ohne Zusage.",
+    tipp: "Halt den monatlichen Durchgang hier fest: intern, was besprochen wurde — sichtbar, was als Nächstes passiert.",
+  },
+  {
+    ziel: ".gl-nicht",
+    titel: "Was du dem Kunden NICHT zusagst.",
+    text: "Keine Karte, kein Konto, kein Rahmen, kein Zinssatz, keine Frist, keine Steuerersparnis, kein Darlehen — und keine "
+      + "Banknamen als Versprechen. Steuer- und Rechtsfragen beantworten Steuerberater und Anwälte auf eigenes Mandat. Der Kasten "
+      + "hält die Sätze bereit, mit denen du das dem Kunden freundlich sagst.",
+  },
+  {
+    ziel: ".gl-karte-abschluss",
+    titel: "Abschließen, wenn alles aus dem Paket geliefert ist.",
+    text: "„Auftrag abschließen“ setzt den Stand auf abgeschlossen und die Etappe auf 5. Der Kunde liest deinen Abschlusstext in "
+      + "seinem Verlauf; Dokumente und Pflichtenkalender bleiben für ihn sichtbar.",
+  },
+];
+
 export const RUNDGAENGE: Record<string, { titel: string; schritte: RundgangSchritt[] }> = {
   bewerbungen:  { titel: "Bewerbungen",  schritte: RUNDGANG_BEWERBUNGEN },
   globalAuftraege: { titel: "Global-Aufträge", schritte: RUNDGANG_GLOBAL_AUFTRAEGE },
+  global:      { titel: "FIAON Global", schritte: RUNDGANG_GLOBAL },
+  globalAkte:  { titel: "Global-Akte",  schritte: RUNDGANG_GLOBAL_AKTE },
   appVorgang: { titel: "Vorgang", schritte: RUNDGANG_APP_VORGANG },
   firmen:      { titel: "Firmenkunden", schritte: RUNDGANG_FIRMEN },
   pipeline:    { titel: "Pipeline",     schritte: RUNDGANG_PIPELINE },

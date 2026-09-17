@@ -5,6 +5,49 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 17.09.2026 — FIAON Global im Office: der Raum „Global“ — Liste und Akte für die zuständige Person (E-188)
+
+**Was geändert wurde:** Im Mitarbeiter-Office gibt es einen neuen Raum **Global** (Leiste, direkt hinter „Firmen“;
+Adressen `/agent/global` und `/agent/global/<Referenz>`). Er ist das Werkzeug der Person, die für FIAON Global
+zuständig ist (Justin, 17.09.2026: Daniel Stripling), und liefert, was die Pakete versprechen: Dokumentenraum,
+Pflichtenkalender, fester Ansprechpartner, monatlicher Durchgang. **Die Liste** zeigt vier ruhige Zahlen (offen
+unbezahlt · bezahlt, nicht gestartet · in Arbeit · Fristen in 30 Tagen) und je Auftrag Firma, Paket, Stand, Etappe als
+Vier-Punkt-Leiste, Stichtag, nächsten Schritt, fehlende Unterlagen, nächste Frist und Alter — sortiert nach „bezahlt,
+nicht gestartet“, dann nächster Frist, dann Alter; mit Filter und Suche. **Die Akte** hat zwei Spalten. Links vier
+Reiter: *Stand* (vier Etappen zum Anklicken, Dialog „Etappe setzen“ mit Text für den Kunden und Haken „Kunden
+benachrichtigen“, nächster Schritt des Kunden mit Datum, Stichtag mit Mitteilung), *Gesellschaft & Pflichten* (Name,
+LLC/Corporation, Bundesstaat aus 50 Staaten und DC, Gründungsdatum, EIN, ITIN — danach zeigt der Pflichtenkalender die
+Regel-Fristen; Fristen abhaken, eigene anlegen, ändern, löschen), *Dokumente* (Unterlagen-Liste „fehlt noch / liegt
+vor“, Hochladen mit Art und „für den Kunden sichtbar“, Fortschrittsbalken, Dokumentenraum beider Richtungen mit
+Ansehen und Löschen) und *Verlauf* (Notiz intern oder für den Kunden sichtbar, alle Einträge, sichtbare grün
+markiert). Rechts: Kontakt, Firmendaten, USt-IdNr., Vertrag und Rechnung als PDF, der Kasten „Was ich dem Kunden
+NICHT zusage“ (wörtlich aus Leitfaden und Pflichthinweisen) und „Auftrag abschließen“. Im Kopf: Anrufen, E-Mail,
+„Kundenansicht öffnen“ und „Zugang senden“. Jeder Satz, der an den Kunden geht, wird beim Schreiben gegen die Wortwand
+und die schärferen Global-Regeln geprüft (gelber Hinweis, keine Sperre). Für englische Aufträge sind die
+Vorschlagstexte englisch.
+
+**Warum:** Justin: „Mach alles fix fertig, keine Platzhalter.“ Der Kunde hat seine Seite „Mein Auftrag“ — ohne
+Gegenseite im Office wären Dokumentenraum und Pflichtenkalender leere Hüllen geblieben, und die zuständige Person hätte
+Etappen, Stichtag und Fristen über Aufgaben und Zuruf führen müssen. Der Raum ist nur für die zuständige Person, die
+Vertriebsleitung und die Leitung sichtbar: Der Server antwortet allen anderen mit 403, die Leiste blendet den Raum
+dann aus (Merker zehn Minuten, damit nicht jeder Klick im Office nachfragt). Der Bildschirm ändert sich erst, wenn der
+Server „ok“ gesagt hat; fehlt in einer Antwort ein Feld, bleibt die Stelle leer statt abzustürzen.
+
+**Stand:** Die Oberfläche ist gebaut und geprüft (Typen, eslint, Build, eigener Prüfstand ohne Datenbank und ohne
+Netz). Die Server-Routen unter `/api/fiaon/agent/global/…` entstehen im selben Vorhaben in einem eigenen Teil; bis sie
+ausgeliefert sind, sagt die Seite „noch nicht freigeschaltet“. Der Eintrag für Mitarbeiter spricht deshalb von „kommt
+mit dem Start von FIAON Global“.
+
+**Wo:** `client/src/pages/agent/global.tsx` (Liste), `client/src/pages/agent/global-akte.tsx` (Akte),
+`client/src/pages/agent/global-logik.ts` (Lesen der Antwort, Reihenfolge, Zahlen, Datums-/Dateiprüfung,
+Vorschlagstexte), `client/src/pages/agent/global-zugriff.ts` (Merker der Leiste), `client/src/styles/office-global.css`,
+`shared/fiaon-global-wortregeln.ts` (die schärferen Global-Regeln als Baustein), `client/src/pages/agent/OfficeShell.tsx`
+(Raum + Sichtbarkeit), `client/src/App.tsx` (zwei Routen), `client/src/pages/agent/rundgaenge.ts` (Rundgänge „global“
+und „globalAkte“), `client/src/pages/agent/updates-data.ts`, `client/src/components/admin/ChefSeitenverzeichnis.tsx`,
+`scripts/pruef-global-office.ts` (Prüfstand).
+
+---
+
 ## 17.09.2026 — FIAON Global: der Bestellweg im Server — Vertrag, Rechnung, Zahlung aufs Konto = Start (E-188)
 
 **Was geändert wurde:** Ein Unternehmen kann eines der vier Global-Pakete (2.499 bis 35.999 €, einmalig) direkt

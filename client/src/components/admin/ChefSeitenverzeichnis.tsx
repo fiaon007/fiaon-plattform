@@ -60,7 +60,7 @@ const GRUPPEN: Gruppe[] = [
     titel: "Antrag & Zahlung",
     hinweis: "Der Weg vom Interessenten zum zahlenden Kunden.",
     eintraege: [
-      ["/antrag", "Der Antrag (Privat)"], ["/business-antrag", "Der Antrag (Business)"],
+      ["/antrag", "Der Antrag (Privat)"], ["/business/start", "Der Auftrag (FIAON Global)"],
       ["/bonitaet-antrag", "Antrag Bonitätsauskunft"], ["/bonitaet-danke", "Danke-Seite Auskunft"],
       ["/zahlung/BEISPIEL", "Zahlungsseite (je Referenz)"], ["/karte-sichern", "Karte sichern (Kampagne)"],
       ["/als-kunde", "Als Kunde bewerben"],

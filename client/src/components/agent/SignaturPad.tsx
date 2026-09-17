@@ -15,7 +15,9 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useRef } from "react";
 
-export default function SignaturePad({ onChange }: { onChange: (dataUrl: string | null) => void }) {
+// 17.09.2026 (E-188): Die beiden Beschriftungen sind überschreibbar — der
+// Auftrag für FIAON Global (/business/start) gibt es auch auf Englisch.
+export default function SignaturePad({ onChange, hinweis = "Hier mit Finger oder Maus unterschreiben", zuruecksetzen = "Zurücksetzen" }: { onChange: (dataUrl: string | null) => void; hinweis?: string; zuruecksetzen?: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
   const hasInk = useRef(false);
@@ -84,10 +86,10 @@ export default function SignaturePad({ onChange }: { onChange: (dataUrl: string 
           className="w-full touch-none block"
           style={{ height: 150 }}
         />
-        <span className="absolute bottom-2 left-0 right-0 text-center text-[10px] text-slate-300 pointer-events-none">Hier mit Finger oder Maus unterschreiben</span>
+        <span className="absolute bottom-2 left-0 right-0 text-center text-[10px] text-slate-300 pointer-events-none">{hinweis}</span>
       </div>
       <button type="button" onClick={clear} className="mt-2 text-[11.5px] font-semibold text-slate-400 hover:text-slate-600 transition-colors">
-        Zurücksetzen
+        {zuruecksetzen}
       </button>
     </div>
   );

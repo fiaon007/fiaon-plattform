@@ -19,7 +19,6 @@ const BusinessPage = lazy(() => import("@/pages/site/business"));
 // Sie werden erst beim Aufruf geladen, damit das Agent-Portal auf dem Handy
 // nicht die komplette Kundenstrecke mitziehen muss.
 const AntragPage = lazy(() => import("@/pages/antrag"));
-const BusinessAntragPage = lazy(() => import("@/pages/business-antrag"));
 const Terms = lazy(() => import("@/pages/terms"));
 const Privacy = lazy(() => import("@/pages/privacy"));
 import NotFound from "@/pages/not-found";
@@ -187,9 +186,10 @@ const SiteDemo = lazy(() => import("@/pages/site/demo"));
 const SiteRatgeber = lazy(() => import("@/pages/site/ratgeber"));
 const SiteKontakt = lazy(() => import("@/pages/site/kontakt"));
 const SitePreise = lazy(() => import("@/pages/site/preise"));
-// 15.09.2026: /global — die US-Positionierung (Entity, Banking, hohe Limits).
-// Neue Seite, kein Ersatz: /business bleibt parallel bestehen.
-const SiteGlobal = lazy(() => import("@/pages/site/global"));
+// 17.09.2026 (E-188): FIAON Global IST /business. Der Entwurf unter /global
+// (15.09.) und der alte Business-Antrag (/business-antrag, Monatsabos mit
+// Lastschrift) sind ersetzt; beide Adressen leiten weiter.
+const BusinessStartPage = lazy(() => import("@/pages/business-start"));
 // Englische Seiten (02.09.2026): eigene Adressen unter /en, dieselben Bausteine.
 const SiteEnStart = lazy(() => import("@/pages/site/en-start"));
 const SiteKreditkarte = lazy(() => import("@/pages/site/kreditkarte"));
@@ -309,6 +309,7 @@ function Router() {
       <Route path="/en/what-is-fiaon" component={WasIstFiaonPage} />
       <Route path="/en/personal" component={SitePrivatkunden} />
       <Route path="/en/business" component={BusinessPage} />
+      <Route path="/en/business/start" component={BusinessStartPage} />
       <Route path="/en/credit-card" component={SiteKreditkarte} />
       <Route path="/en/about" component={SiteUeberUns} />
       <Route path="/en/team" component={SiteTeam} />
@@ -411,10 +412,11 @@ function Router() {
       <Route path="/start" component={StartPage} />
       <Route path="/karte-sichern" component={StartPage} />
       <Route path="/business" component={BusinessPage} />
-      <Route path="/global" component={SiteGlobal} />
+      <Route path="/business/start" component={BusinessStartPage} />
+      <Route path="/global"><Redirect to="/business" /></Route>
       <Route path="/privatkunden" component={SitePrivatkunden} />
       <Route path="/antrag" component={AntragPage} />
-      <Route path="/business-antrag" component={BusinessAntragPage} />
+      <Route path="/business-antrag"><Redirect to="/business/start" /></Route>
       <Route path="/login" component={LoginPage} />
       <Route path="/app/login" component={AppLogin} />
       <Route path="/app/unterschrift/:token" component={AppUnterschrift} />

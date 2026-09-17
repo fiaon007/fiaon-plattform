@@ -9,7 +9,7 @@
 // Neu erzeugen:   npx tsx scripts/seo-fragen-erzeugen.ts
 // Nur prüfen:     npx tsx scripts/seo-fragen-erzeugen.ts --pruefen
 //
-// Seiten: / (6), /was-ist-fiaon (6), /en/what-is-fiaon (6), /privatkunden (8), /en/personal (8), /business (5), /en/business (5), /preise (6), /en/pricing (6), /en (4), /kreditkarte (5), /en/credit-card (5), /oesterreich (5), /en/austria (5), /schweiz (5), /en/switzerland (5), /sicherheit (11), /en/security (11), /kontakt (5), /en/contact (5), /investoren (4), /datenraum (3), /fiaon-erfahrungen (8), /en/how-fiaon-works (8), /termin (6), /en/book-a-call (6), /vergleich (5), /en/compare (5), /hilfe (36), /en/help (36), /ueber-uns (5), /en/about (5), /transparenz (4), /en/transparency (4), /kredit-ohne-schufa (6), /en/loans-without-schufa (6), /bonitaet-verbessern (6), /en/strengthen-your-credit-file (6), /auskunfteien (5), /en/credit-bureaus (5), /schufa-score-verstehen (6), /en/schufa-score (6), /bonitaetsauskunft-beantragen (7), /en/request-your-credit-report (7), /inkasso-brief-erhalten (6), /en/debt-collection-letter (6), /eintrag-verjaehrung (6), /en/entries-and-limitation (6), /girokonto-trotz-negativer-bonitaet (7), /en/current-account-despite-poor-credit (7), /ratenzahlung-und-bonitaet (6), /en/instalments-and-credit-file (6), /selbstauskunft-checkliste (6), /en/reading-your-credit-report (6), /schufa-neutral-anfragen (6), /en/schufa-neutral-enquiries (6), /schufa-eintrag-loeschen (5), /en/delete-a-schufa-entry (5), /plattform-konzept (5), /en/how-the-platform-works (5), /werkzeuge/basiskonto (5), /en/tools/basic-account (5), /werkzeuge/kartenkosten (5), /en/tools/card-costs (5), /werkzeuge/schuldenplan (5), /en/tools/debt-free-plan (5), /werkzeuge/dispo-rechner (5), /en/tools/overdraft-calculator (5), /werkzeuge/pfaendungsrechner (5), /en/tools/attachment-calculator (5), /werkzeuge/widerspruch (5), /en/tools/deletion-request (5), /werkzeuge/mahnbescheid (5), /en/tools/court-payment-order (5), /werkzeuge/inkasso-antwort (5), /en/tools/reply-to-debt-collector (5), /werkzeuge/mahngebuehren (5), /en/tools/reminder-fees (5), /werkzeuge/ratenplan (5), /en/tools/instalment-plan (5), /werkzeuge (4), /en/tools (4), /status (5), /en/status (5), /karriere (5), /en/careers (5), /partner (3), /en/partners (3), /presse (3), /en/press (3), /werkzeuge/kreditrechner (5), /en/tools/loan-calculator (5), /werkzeuge/umschuldung (5), /en/tools/debt-consolidation (5), /werkzeuge/schulden-check (5), /en/tools/debt-check (5)
+// Seiten: / (6), /was-ist-fiaon (6), /en/what-is-fiaon (6), /privatkunden (8), /en/personal (8), /business (8), /en/business (8), /preise (6), /en/pricing (6), /en (4), /kreditkarte (5), /en/credit-card (5), /oesterreich (5), /en/austria (5), /schweiz (5), /en/switzerland (5), /sicherheit (11), /en/security (11), /kontakt (5), /en/contact (5), /investoren (4), /datenraum (3), /fiaon-erfahrungen (8), /en/how-fiaon-works (8), /termin (6), /en/book-a-call (6), /vergleich (5), /en/compare (5), /hilfe (36), /en/help (36), /ueber-uns (5), /en/about (5), /transparenz (4), /en/transparency (4), /kredit-ohne-schufa (6), /en/loans-without-schufa (6), /bonitaet-verbessern (6), /en/strengthen-your-credit-file (6), /auskunfteien (5), /en/credit-bureaus (5), /schufa-score-verstehen (6), /en/schufa-score (6), /bonitaetsauskunft-beantragen (7), /en/request-your-credit-report (7), /inkasso-brief-erhalten (6), /en/debt-collection-letter (6), /eintrag-verjaehrung (6), /en/entries-and-limitation (6), /girokonto-trotz-negativer-bonitaet (7), /en/current-account-despite-poor-credit (7), /ratenzahlung-und-bonitaet (6), /en/instalments-and-credit-file (6), /selbstauskunft-checkliste (6), /en/reading-your-credit-report (6), /schufa-neutral-anfragen (6), /en/schufa-neutral-enquiries (6), /schufa-eintrag-loeschen (5), /en/delete-a-schufa-entry (5), /plattform-konzept (5), /en/how-the-platform-works (5), /werkzeuge/basiskonto (5), /en/tools/basic-account (5), /werkzeuge/kartenkosten (5), /en/tools/card-costs (5), /werkzeuge/schuldenplan (5), /en/tools/debt-free-plan (5), /werkzeuge/dispo-rechner (5), /en/tools/overdraft-calculator (5), /werkzeuge/pfaendungsrechner (5), /en/tools/attachment-calculator (5), /werkzeuge/widerspruch (5), /en/tools/deletion-request (5), /werkzeuge/mahnbescheid (5), /en/tools/court-payment-order (5), /werkzeuge/inkasso-antwort (5), /en/tools/reply-to-debt-collector (5), /werkzeuge/mahngebuehren (5), /en/tools/reminder-fees (5), /werkzeuge/ratenplan (5), /en/tools/instalment-plan (5), /werkzeuge (4), /en/tools (4), /status (5), /en/status (5), /karriere (5), /en/careers (5), /partner (3), /en/partners (3), /presse (3), /en/press (3), /werkzeuge/kreditrechner (5), /en/tools/loan-calculator (5), /werkzeuge/umschuldung (5), /en/tools/debt-consolidation (5), /werkzeuge/schulden-check (5), /en/tools/debt-check (5)
 // ═══════════════════════════════════════════════════════════════════════════
 export type SeoFrage = { f: string; a: string };
 
@@ -162,46 +162,70 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
   ],
   "/business": [
     {
-      "f": "Garantiert FIAON einen Kartenrahmen?",
-      "a": "Nein. Über Karte und Rahmen entscheidet der Herausgeber. FIAON sorgt dafür, dass Auskunft und Unterlagen so sind, dass die Entscheidung positiv ausfallen kann – und bereitet Aufstockungen vor."
+      "f": "Entscheidet FIAON über Karten und Rahmen?",
+      "a": "Nein. Über Konto, Karte und Rahmen entscheidet das jeweilige Institut nach eigenen Regeln. FIAON baut die Struktur auf, bereitet Anträge vor und plant die Reihenfolge."
     },
     {
-      "f": "Mein Unternehmen ist jung – geht das trotzdem?",
-      "a": "Ja. Bei jungen Unternehmen zählt die Bonität der Inhaber. FIAON beschafft beide Auskünfte, trennt privat und geschäftlich und beginnt mit einem Rahmen, der wächst."
+      "f": "Muss ich in die USA reisen?",
+      "a": "In der Regel nicht. Unser Team vor Ort nimmt Termine wahr. Wer den Aufbau persönlich erleben möchte, wählt Global VIP."
     },
     {
-      "f": "Was kostet es – und gibt es versteckte Gebühren?",
-      "a": "Die Pakete kosten zwischen Business Starter und Business Enterprise je nach Stufe, zwölf Raten. Kartengebühren legt der Herausgeber fest; FIAON nennt sie vorher. Keine Provision auf Rahmen."
+      "f": "Was ist mit Steuern?",
+      "a": "Die US-Gesellschaft ersetzt keine Steuerpflicht zu Hause: Wer sie aus Deutschland, Österreich oder der Schweiz führt, versteuert dort. Steuerberater im Partnernetz prüfen Ihre Lage vor der Gründung und begleiten die jährlichen Meldungen in den USA — auf eigenes Mandat."
     },
     {
-      "f": "Welche Karten sind möglich?",
-      "a": "Firmenkreditkarten mit Monatsabrechnung (Charge) internationaler Herausgeber, je nach Land und Profil. Welche konkret, klärt das Startgespräch – abhängig von Rechtsform, Umsatz und Auskunft."
+      "f": "Wie lange dauert es?",
+      "a": "Gründung und Dokumente in der Regel wenige Wochen, die ITIN in der Frist der US-Steuerbehörde, die erste Firmenkarte danach, weitere Herausgeber über mehrere Monate. Feste Fristen nennen wir nicht — Behörden und Institute bestimmen das Tempo."
     },
     {
-      "f": "Auch in Österreich und der Schweiz?",
-      "a": "Ja. FIAON kennt KSV1870, CRIF und das Betreibungsregister und arbeitet mit Kartenpartnern in allen drei Ländern."
+      "f": "Warum ein Einmalpreis?",
+      "a": "Weil der Aufbau ein abgeschlossener Auftrag mit klarem Ziel ist. Laufende Kosten — Staatsgebühren, Registered Agent, jährliche Meldungen — fallen bei jeder US-Gesellschaft an und werden getrennt ausgewiesen."
+    },
+    {
+      "f": "Kann ich sofort beauftragen?",
+      "a": "Ja. Sie wählen ein Paket, tragen Ihr Unternehmen ein, unterschreiben den Vertrag am Bildschirm und erhalten Vertrag und Rechnung per E-Mail. Mit dem Zahlungseingang beginnt Ihr Ansprechpartner."
+    },
+    {
+      "f": "Für wen passt es nicht?",
+      "a": "Für Vorhaben ohne Bezug zu den USA und ohne Bereitschaft, eine echte Gesellschaft mit Pflichten zu führen. Das klären wir im ersten Gespräch — offen, auch wenn die Antwort ein Nein ist."
+    },
+    {
+      "f": "Wer ist mein Vertragspartner?",
+      "a": "Die FIAON LTD. Steuerberater, Anwälte und Institute beauftragen Sie direkt."
     }
   ],
   "/en/business": [
     {
-      "f": "Does FIAON guarantee a card limit?",
-      "a": "No. The issuer decides on card and limit. FIAON makes sure the report and documents are such that the decision can be positive — and prepares increases."
+      "f": "Does FIAON decide on cards and limits?",
+      "a": "No. The institution concerned decides on account, card and limit under its own rules. FIAON builds the structure, prepares applications and plans the sequence."
     },
     {
-      "f": "My company is young — does it still work?",
-      "a": "Yes. With young companies the owners' credit file counts. FIAON obtains both reports, separates private and business and starts with a limit that grows."
+      "f": "Do I have to travel to the US?",
+      "a": "Usually not. Our team on the ground attends the appointments. If you want to experience the build-up in person, choose Global VIP."
     },
     {
-      "f": "What does it cost — and are there hidden fees?",
-      "a": "The plans range from Business Starter to Business Enterprise depending on the tier, twelve instalments. Card fees are set by the issuer; FIAON tells you beforehand. No commission on limits."
+      "f": "What about taxes?",
+      "a": "The US company does not replace tax liability at home: if you manage it from Germany, Austria or Switzerland, you pay tax there. Tax advisers in our partner network review your position before formation and handle the annual US filings — under their own engagement."
     },
     {
-      "f": "Which cards are possible?",
-      "a": "Company charge cards with monthly statements from international issuers, depending on country and profile. Which one exactly is settled in the onboarding call — depending on legal form, turnover and report."
+      "f": "How long does it take?",
+      "a": "Formation and documents typically a few weeks, the ITIN on the US tax authority's timeline, the first business card after that, further issuers over several months. We do not quote fixed deadlines — authorities and institutions set the pace."
     },
     {
-      "f": "Also in Austria and Switzerland?",
-      "a": "Yes. FIAON knows KSV1870, CRIF and the Swiss debt enforcement register (Betreibungsregister) and works with card partners in all three countries."
+      "f": "Why a one-off price?",
+      "a": "Because the build-up is a defined engagement with a clear goal. Running costs — state fees, registered agent, annual filings — arise with every US company and are itemised separately."
+    },
+    {
+      "f": "Can I order straight away?",
+      "a": "Yes. You choose a package, enter your company, sign the contract on screen and receive contract and invoice by email. Your contact starts once payment has been received."
+    },
+    {
+      "f": "Who is it not for?",
+      "a": "For plans with no connection to the US and no willingness to run a real company with duties. We clarify that in the first call — openly, even if the answer is no."
+    },
+    {
+      "f": "Who is my contracting party?",
+      "a": "FIAON LTD. You instruct tax advisers, lawyers and institutions directly."
     }
   ],
   "/preise": [

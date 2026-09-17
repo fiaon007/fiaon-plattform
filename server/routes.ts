@@ -646,6 +646,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // liefert neben dem Kopf einen lesbaren Korpus (H1, Text, FAQ, Links) in
   // #root — der Report vom 02.09. hatte auf 44 Seiten „keinen Text" gefunden.
   // ══════════════════════════════════════════════════════════════════════════
+  // 17.09.2026 (E-188): FIAON Global IST /business. Der Entwurf unter /global
+  // und der alte Business-Antrag sind ersetzt — dauerhaft umgezogen, damit
+  // Suchmaschinen und alte Links (Mails, Cockpit, Lesezeichen) richtig ankommen.
+  // Die Abfrage (z. B. ?paket=…) reist mit.
+  const UMGEZOGEN: Record<string, string> = { '/global': '/business', '/en/global': '/en/business', '/business-antrag': '/business/start' };
+  app.get(Object.keys(UMGEZOGEN), (req, res) => {
+    const abfrage = req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?')) : '';
+    res.redirect(301, UMGEZOGEN[req.path.replace(/\/$/, '')] + (req.path === '/business-antrag' ? '' : abfrage));
+  });
+
   app.get('*', async (req, res, next) => {
     if (req.method !== 'GET' || req.path.startsWith('/api') || req.path.includes('.')) return next();
     try {

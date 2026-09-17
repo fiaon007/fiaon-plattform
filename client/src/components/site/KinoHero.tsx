@@ -13,10 +13,8 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import KartenSzene from "@/components/home3d/KartenSzene";
 
-export function KinoHero({ pille, titel, lead, punkte, knoepfe, hinweis, video, bild, karten = 1 }: {
+export function KinoHero({ pille, titel, lead, punkte, knoepfe, hinweis, video, bild }: {
   pille: string; titel: ReactNode; lead: ReactNode; punkte?: string[]; knoepfe: ReactNode; hinweis?: string; video?: string; bild: string;
-  /** 15.09.2026: /global zeigt zwei Karten (Multibank-Gedanke); Standard bleibt eine. */
-  karten?: 1 | 2;
 }) {
   const ref = useRef<HTMLElement>(null);
   const [p, setP] = useState(0);
@@ -66,7 +64,7 @@ export function KinoHero({ pille, titel, lead, punkte, knoepfe, hinweis, video, 
           {hinweis && <p className="dk-leise" style={{ marginTop: 16 }}>{hinweis}</p>}
         </div>
         <div className="kino-szene" style={{ transform: `translateY(${p * -140}px)`, opacity: 1 - p * 0.9 }}>
-          <KartenSzene anzahl={karten} className="absolute inset-0" />
+          <KartenSzene anzahl={1} className="absolute inset-0" />
         </div>
       </div>
 

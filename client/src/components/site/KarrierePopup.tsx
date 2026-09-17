@@ -9,7 +9,9 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useRef, useState } from "react";
 
-const ERLAUBT = ["/", "/was-ist-fiaon", "/privatkunden", "/business", "/plattform-konzept", "/bonitaet", "/bonitaet-service", "/team", "/partner", "/presse", "/investoren", "/datenraum"];
+// 17.09.2026 (E-188): /business ist seit heute FIAON Global — eine Seite für Unternehmer, die
+// einen Auftrag über mehrere tausend Euro prüfen. Dort wirbt nichts um Bewerber.
+const ERLAUBT = ["/", "/was-ist-fiaon", "/privatkunden", "/plattform-konzept", "/bonitaet", "/bonitaet-service", "/team", "/partner", "/presse", "/investoren", "/datenraum"];
 const KEY = "fiaon_karriere_popup";
 
 export default function KarrierePopup() {

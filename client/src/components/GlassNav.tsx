@@ -176,7 +176,7 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
                 { href: zu("/was-ist-fiaon"), label: "What is FIAON", text: "The vision, explained properly" },
                 { href: zu("/privatkunden"), label: "Personal", text: "Plans, process, pricing" },
                 { href: zu("/bonitaet"), label: "Credit report", text: "Your report, obtained by FIAON" },
-                { href: zu("/business"), label: "Business", text: "Company credit standing and business account" },
+                { href: zu("/business"), label: "Business", text: "FIAON Global: US company, banking, capital" },
               ] },
               { titel: "Company", eintraege: [
                 { href: zu("/team"), label: "Team", text: "Who builds FIAON" },
@@ -192,7 +192,7 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
                 { href: "/was-ist-fiaon", label: "Was ist FIAON", text: "Die Vision, genau erklärt" },
                 { href: "/privatkunden", label: "Privatkunden", text: "Pakete, Ablauf, Preise" },
                 { href: "/bonitaet", label: "Bonitäts-Auszug", text: "Ihre Auskunft, beantragt durch FIAON" },
-                { href: "/business", label: "Business", text: "Firmenbonität und Geschäftskonto" },
+                { href: "/business", label: "Business", text: "FIAON Global: US-Gesellschaft, Bankzugang, Kapital" },
                 { href: "/termin", label: "Startgespräch buchen", text: "15 Minuten, ein Mensch – kostenlos" },
                 { href: "/hilfe", label: "Hilfe-Center", text: "Antworten zu Antrag, Zahlung, Auskunft" },
                 { href: "/vergleich", label: "Vergleich", text: "Anwalt, App, selbst – oder FIAON?" },
@@ -256,7 +256,7 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
                     { href: zu("/werkzeuge/eintrag-pruefen"), label: "Check an entry", text: "Five questions — can your entry be challenged?", key: "werkzeuge" },
                     { href: zu("/privatkunden"), label: "Personal", text: "Plans, process, pricing", key: "privatkunden" },
                     { href: zu("/bonitaet"), label: "Credit report", text: "Your report, obtained by FIAON", key: "bonitaet" },
-                    { href: zu("/business"), label: "Business", text: "Company credit standing and business account", key: "business" },
+                    { href: zu("/business"), label: "Business", text: "FIAON Global: US company, banking, capital", key: "business" },
                   ] },
                   { titel: "Company", eintraege: [
                     { href: zu("/team"), label: "Team", text: "Who builds FIAON", key: "team" },
@@ -274,7 +274,7 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
                     { href: "/werkzeuge/eintrag-pruefen", label: "Eintrag prüfen", text: "Fünf Fragen – ist Ihr Eintrag angreifbar?", key: "werkzeuge" },
                     { href: "/privatkunden", label: "Privatkunden", text: "Pakete, Ablauf, Preise", key: "privatkunden" },
                     { href: "/bonitaet", label: "Bonitäts-Auszug", text: "Ihre Auskunft, beantragt durch FIAON", key: "bonitaet" },
-                    { href: "/business", label: "Business", text: "Firmenbonität und Geschäftskonto", key: "business" },
+                    { href: "/business", label: "Business", text: "FIAON Global: US-Gesellschaft, Bankzugang, Kapital", key: "business" },
                     { href: "/termin", label: "Startgespräch buchen", text: "15 Minuten, ein Mensch – kostenlos", key: "termin" },
                     { href: "/hilfe", label: "Hilfe-Center", text: "Antworten zu Antrag, Zahlung, Auskunft", key: "hilfe" },
                     { href: "/vergleich", label: "Vergleich", text: "Anwalt, App, selbst – oder FIAON?", key: "vergleich" },
@@ -414,7 +414,7 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
                   </div>
                   <div className="flex-1 min-w-0 text-left">
                     <p className="text-[15.5px] font-semibold text-gray-900">Als Geschäftskunde</p>
-                    <p className="text-[13px] text-gray-500">Business-Kreditkarte für Unternehmen</p>
+                    <p className="text-[13px] text-gray-500">FIAON Global: US-Gesellschaft, Bankzugang, Kapital</p>
                   </div>
                   <span className="w-8 h-8 rounded-full bg-gray-50 group-hover:bg-[#2563eb] flex items-center justify-center text-gray-400 group-hover:text-white transition-all duration-300 shrink-0">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">

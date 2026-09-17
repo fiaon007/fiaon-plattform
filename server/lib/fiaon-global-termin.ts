@@ -24,8 +24,8 @@
 //
 // ZUSTÄNDIG ist die Person aus fiaon_settings.global_zustaendig_agent_id (die
 // Einstellung bedient das Chefbüro; diese Datei liest sie nur). Ist sie leer:
-// der aktive Mitarbeiter mit dem Vornamen Nikita (er führt das Firmen-Cockpit),
-// sonst die aktive Vertriebsleitung. Gibt es niemanden, bleibt die Anfrage —
+// der aktive Mitarbeiter mit dem Vornamen Daniel — Justin, 17.09.2026: „Daniel
+// soll zuständig sein" (Leitung Vertrieb) —, sonst die aktive Vertriebsleitung. Gibt es niemanden, bleibt die Anfrage —
 // der Auftrag geht dann an den Betreiber.
 //
 // ── WAS HIER BEWUSST NICHT PASSIERT ────────────────────────────────────────
@@ -57,7 +57,7 @@ import { GLOBAL_TEXTE, globalText } from "@shared/fiaon-global-termin-texte";
 
 const SETTING_ZUSTAENDIG = "global_zustaendig_agent_id";
 const SETTING_PRO_TAG = "global_termin_pro_tag";
-const VORGABE_VORNAME = "nikita";
+const VORGABE_VORNAME = "daniel";
 
 export const GLOBAL_ZEITZONE = "Europe/Berlin";
 
@@ -72,7 +72,7 @@ export interface GlobalZustaendig {
   email: string | null;
   bild: string | null;
   /** Woher die Wahl kommt — für Protokoll und Chefbüro. */
-  wahl: "einstellung" | "vorgabe_nikita" | "vertriebsleitung";
+  wahl: "einstellung" | "vorgabe_daniel" | "vertriebsleitung";
 }
 
 function zustaendigAus(a: any, wahl: GlobalZustaendig["wahl"]): GlobalZustaendig {
@@ -111,7 +111,7 @@ export async function globalZustaendig(): Promise<GlobalZustaendig | null> {
       AND LOWER(COALESCE(NULLIF(first_name, ''), split_part(name, ' ', 1))) = ${VORGABE_VORNAME}
     ORDER BY id LIMIT 1
   `) as any[];
-  if (n) return zustaendigAus(n, "vorgabe_nikita");
+  if (n) return zustaendigAus(n, "vorgabe_daniel");
   const [l] = (await sqlPool`
     SELECT id, COALESCE(NULLIF(first_name, ''), name) AS vorname, name, email, avatar
     FROM fiaon_agents

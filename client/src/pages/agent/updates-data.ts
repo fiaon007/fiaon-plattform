@@ -84,6 +84,28 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-09-17-global-office-e188",
+    date: "2026-09-17",
+    category: "Neu",
+    title: "FIAON Global bekommt einen eigenen Raum im Office — kommt mit dem Start von FIAON Global",
+    summary:
+      "Für die Aufträge von FIAON Global ist ein eigener Raum gebaut: „Global“ in der Leiste, direkt hinter „Firmen“. Er kommt mit dem "
+      + "Start von FIAON Global und ist noch nicht freigeschaltet. Sehen wird ihn nur, wer für einen Global-Auftrag zuständig ist, "
+      + "und die Vertriebsleitung — alle anderen merken davon nichts.",
+    changes: [
+      "Die Liste zeigt je Auftrag Stand, Etappe, Stichtag, nächsten Schritt, fehlende Unterlagen und die nächste Frist. Oben steht, wer bezahlt hat und noch kein Startgespräch hatte.",
+      "Die Akte hat vier Reiter: Stand (Etappe setzen, nächster Schritt des Kunden, Stichtag), Gesellschaft & Pflichten (US-Gesellschaft eintragen, Pflichtenkalender führen), Dokumente (Unterlagen-Liste, Hochladen, Dokumentenraum), Verlauf (Notizen intern oder für den Kunden sichtbar).",
+      "Was du für den Kunden sichtbar speicherst, steht sofort auf seiner Seite „Mein Auftrag“. Beim Schreiben liest das Werkzeug mit und warnt gelb bei Zusagen, Fristen oder Steuerversprechen.",
+      "Rechts in der Akte: Kontakt, Firmendaten, USt-IdNr., Vertrag und Rechnung — und der Kasten „Was ich dem Kunden NICHT zusage“ mit den Sätzen aus dem Leitfaden.",
+      "Geld wird dort nicht gebucht. Der Zahlungseingang läuft wie immer über die Zahlungsbuchung; mit ihm startet der Auftrag.",
+    ],
+    howto: [
+      "Bis zum Start ändert sich für dich nichts: Neue Global-Aufträge kommen weiter als Aufgabe mit Mail.",
+      "Nach dem Start (zuständige Person und Vertriebsleitung): Leiste → Global → Auftrag anklicken. Der Knopf „Rundgang“ unten rechts erklärt Liste und Akte Schritt für Schritt.",
+      "Fragt ein Unternehmen bei dir nach der US-Struktur: Raum Firmen — dort liegen Leitfaden und Auftragslink.",
+    ],
+  },
+  {
     id: "2026-09-17-global-bestellweg-e188",
     date: "2026-09-17",
     category: "Neu",

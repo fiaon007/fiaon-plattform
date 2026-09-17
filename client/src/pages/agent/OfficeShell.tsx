@@ -13,9 +13,12 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState, type R
 import { Link, useLocation } from "wouter";
 import { LayoutDashboard, BookUser, Users, Phone, Megaphone, Wallet, Calculator, GraduationCap, ListChecks, Mail, Calendar, Inbox, Landmark, MoreHorizontal, Clock, Wrench, Handshake, Boxes, LogOut, Sparkles, ChevronLeft, ChevronRight, X, Menu, Compass, Building2 } from "lucide-react";
 import { Einfuehrung } from "@/components/agent/Einfuehrung";
+import { globalZugriffLesen, globalZugriffMerken } from "./global-zugriff";
 import "@/styles/office.css";
 
-export interface Raum { href: string; label: string; Icon: any; match: string[]; szene: string; gruppe: "arbeit" | "team" | "ich" | "mehr"; nurRolle?: string; nichtRolle?: string[]; badge?: string }
+export interface Raum { href: string; label: string; Icon: any; match: string[]; szene: string; gruppe: "arbeit" | "team" | "ich" | "mehr"; nurRolle?: string; nichtRolle?: string[]; badge?: string;
+  /** Der Raum erscheint nur, wenn der Server den Zugriff bestätigt hat (E-188: „global"). */
+  nurMitZugriff?: "global" }
 
 /** Das Zeichen des Copilot — selbst gezeichnet (AGENTS.md: keine neuen
  *  Bibliotheks-Icons), 1,5-px-Strich, currentColor, Bauform wie lucide. */
@@ -26,6 +29,19 @@ function CopilotZeichen({ size = 18, ...rest }: { size?: number } & Record<strin
       <circle cx="12" cy="12" r="2.6" />
       <path d="M12 2.8v3M12 18.2v3M2.8 12h3M18.2 12h3" />
       <path d="M18.4 5.6a9 9 0 0 1 0 12.8M5.6 18.4a9 9 0 0 1 0-12.8" />
+    </svg>
+  );
+}
+
+/** Das Zeichen für FIAON Global — ein Globus aus Kreis, Meridian und zwei Breitenkreisen.
+ *  Selbst gezeichnet wie das Copilot-Zeichen (AGENTS.md: keine neuen Bibliotheks-Icons). */
+function GlobalZeichen({ size = 18, ...rest }: { size?: number } & Record<string, unknown>) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...rest}>
+      <circle cx="12" cy="12" r="9" />
+      <ellipse cx="12" cy="12" rx="3.8" ry="9" />
+      <path d="M3.6 9h16.8M3.6 15h16.8" />
     </svg>
   );
 }
@@ -59,6 +75,11 @@ export const RAEUME: Raum[] = [
   // Firmenkunden (02.09.2026): die B2B-Jagdstrecke — Tagesliste, Leitfaden,
   // Ein-Klick-Ergebnisse. Eigener Topf neben dem Privatgeschäft.
   { href: "/agent/firmen", label: "Firmen", Icon: Building2, match: ["/agent/firmen"], szene: "kundenbuch", gruppe: "arbeit" },
+  // FIAON Global (17.09.2026, E-188): das Werkzeug der zuständigen Person — Aufträge,
+  // Etappen, Dokumentenraum, Pflichtenkalender. Steht direkt hinter „Firmen", weil aus dem
+  // Firmengespräch der Auftrag wird. Sichtbar NUR mit Zugriff (siehe `globalZugriff` unten);
+  // die Szene ist ein Standbild — hinter der Glasfläche bewegt sich nichts.
+  { href: "/agent/global", label: "Global", Icon: GlobalZeichen, match: ["/agent/global"], szene: "kundenbuch", gruppe: "arbeit", nurMitZugriff: "global" },
   { href: "/agent/collections", label: "Collections", Icon: Landmark, match: ["/agent/collections", "/agent/inkasso"], szene: "kasse", gruppe: "arbeit" },
   // Der Schreibtisch-Teil: was hereinkommt und beantwortet werden will.
   // 24.08.2026: VORHER trug „Inbox" den Marken-Schlüssel /agent/mail-zentrale
@@ -266,11 +287,43 @@ export function OfficeShell({ children, agent, rolle, zaehler, onRefresh, logout
   }, [nochDa]);
   const binDa = () => { letzteAktivitaet.current = Date.now(); setNochDa(false); setPraesenz("da"); };
   const inPause = () => { setNochDa(false); setPraesenz("pause"); };
+  // ── DER RAUM „GLOBAL" GEHÖRT NICHT JEDEM (17.09.2026, E-188) ─────────────
+  // Global-Aufträge sieht die zuständige Person, die Vertriebsleitung und die
+  // Leitung — der Server antwortet allen anderen mit 403. Die Leiste fragt
+  // deshalb GET /agent/global/auftraege und zeigt den Raum nur bei „ok".
+  //   · Vertriebsleitung: immer sichtbar, ohne Abfrage.
+  //   · 403 → ausgeblendet. Jede andere Absage des Servers (auch „Route gibt es
+  //     noch nicht") ebenso — und gemerkt, sonst fragte bis zum Start von FIAON
+  //     Global jede Seite jedes Mitarbeiters ins Leere. Nur ein Netzfehler wird
+  //     nicht gemerkt.
+  //   · Die Leiste baut sich mit jeder Seite neu auf; ein Merker (10 Minuten,
+  //     je Konto) verhindert, dass jeder Klick im Office eine Abfrage auslöst.
+  // Das ist Aufräumen der Ansicht, kein Schutz — die Tür schließt der Server.
+  // `agent.rolle` kommt aus /agent/me und ist beim ersten Bild schon da; `rolle` folgt erst
+  // nach der großen Startseiten-Abfrage. Beide zählen — sonst fragte auch die Leitung einmal nach.
+  const istVertriebsleitung = rolle === "vertriebsleiter" || agent.rolle === "vertriebsleiter";
+  const [globalZugriff, setGlobalZugriff] = useState<boolean>(() => istVertriebsleitung || globalZugriffLesen(agent.email) === true);
+  useEffect(() => {
+    if (istVertriebsleitung) { setGlobalZugriff(true); return; }
+    const gemerkt = globalZugriffLesen(agent.email);
+    if (gemerkt !== null) { setGlobalZugriff(gemerkt); return; }
+    let an = true;
+    fetch("/api/fiaon/agent/global/auftraege", { credentials: "include" })
+      .then(async (r) => {
+        const json = await r.json().catch(() => null);
+        if (!an) return;
+        if (r.ok && json?.ok) { globalZugriffMerken(agent.email, true); setGlobalZugriff(true); }
+        else { globalZugriffMerken(agent.email, false); setGlobalZugriff(false); }
+      })
+      .catch(() => { if (an) setGlobalZugriff(false); });
+    return () => { an = false; };
+  }, [istVertriebsleitung, agent.email]);
+
   const vorherigerOrt = useRef(location);
   useEffect(() => { if (vorherigerOrt.current === location) return; vorherigerOrt.current = location; setMenueOffen(false); setDunkel(false); setTitel(null); }, [location]);
   useEffect(() => { const r = document.getElementById("root"); if (r) r.style.overflow = menueOffen ? "hidden" : ""; return () => { if (r) r.style.overflow = ""; }; }, [menueOffen]);
 
-  const sichtbar = RAEUME.filter((r) => (!r.nurRolle || r.nurRolle === rolle) && !(r.nichtRolle ?? []).includes(rolle));
+  const sichtbar = RAEUME.filter((r) => (!r.nurRolle || r.nurRolle === rolle) && !(r.nichtRolle ?? []).includes(rolle) && (r.nurMitZugriff !== "global" || globalZugriff));
   const aktiv = useMemo(() => sichtbar.find((r) => r.match.some((m) => m === "/agent" ? location === "/agent" : location === m || location.startsWith(m + "/") || location.startsWith(m + "?"))) ?? sichtbar[0], [location, sichtbar]);
   const szene = aktiv?.szene ?? "schreibtisch";
   const initialen = String(agent.name || "?").split(/\s+/).map((t) => t[0]).join("").slice(0, 2).toUpperCase();

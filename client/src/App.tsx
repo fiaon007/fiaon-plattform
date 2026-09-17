@@ -177,6 +177,10 @@ const AdminTodoPage = lazy(() => import("@/pages/admin-todo"));
 // Die neue Website (22.08.2026): Startseite + fünf Seiten für Investoren, Presse, Datenraum, Partner, Karriere.
 const SiteInvestoren = lazy(() => import("@/pages/site/investoren"));
 const AgentFirmenPage = lazy(() => import("@/pages/agent/firmen"));
+// FIAON Global im Office (17.09.2026, E-188): Liste und Akte der Global-Aufträge —
+// das Werkzeug der zuständigen Person. Zugriff entscheidet der Server (403 für alle anderen).
+const AgentGlobalPage = lazy(() => import("@/pages/agent/global"));
+const AgentGlobalAktePage = lazy(() => import("@/pages/agent/global-akte"));
 const SitePresse = lazy(() => import("@/pages/site/presse"));
 const SiteDatenraum = lazy(() => import("@/pages/site/datenraum"));
 const SitePartner = lazy(() => import("@/pages/site/partner"));
@@ -583,6 +587,8 @@ function Router() {
           verloren geht. */}
       <Route path="/agent/kunden" component={AgentPipelinePage} />
       <Route path="/agent/firmen" component={AgentFirmenPage} />
+      <Route path="/agent/global" component={AgentGlobalPage} />
+      <Route path="/agent/global/:ref" component={AgentGlobalAktePage} />
       <Route path="/agent/pipeline" component={AgentPipelinePage} />
       <Route path="/agent/bestand" component={AgentBestandPage} />
       <Route path="/agent/praesentation" component={AgentPraesentationPage} />

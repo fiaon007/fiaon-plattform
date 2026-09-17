@@ -533,6 +533,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonFirmenRoutes = await import('./routes/fiaon-firmen');
   app.use('/api/fiaon', fiaonFirmenRoutes.default);
 
+  // 🔎 Firmensuche im B2B-Auftrag (E-188, 17.09.2026): Firma eintippen → Register
+  //    öffnet sich → Klick füllt den Bogen. Öffentlich, ohne Login. Schweiz voll,
+  //    DE/AT mit Schlüssel, sonst „Website → Impressum auslesen".
+  const fiaonFirmensucheRoutes = await import('./routes/fiaon-firmensuche');
+  app.use('/api/fiaon', fiaonFirmensucheRoutes.default);
+
   // 📬 Postmeister-Zentrale (E-094): das Postfach, das die Menschen bedienen.
   const fiaonPostmeisterZentrale = await import('./routes/fiaon-postmeister-zentrale');
   app.use('/api/fiaon', fiaonPostmeisterZentrale.default);

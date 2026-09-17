@@ -5,6 +5,45 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 17.09.2026 — Firmensuche für den B2B-Auftrag: Firma eintippen, Register öffnet sich, Klick füllt aus (E-188, Serverteil)
+
+**Was geändert wurde:** Der Server kann jetzt Firmen nachschlagen — die Oberfläche im Auftrag `/business/start`
+folgt. Vier öffentliche Adressen unter `/api/fiaon/firmensuche`: die Trefferliste beim Tippen (ab 3 Zeichen),
+der ausgefüllte Firmenbogen zum angeklickten Treffer, „Website eintragen → Impressum auslesen" und die Prüfung
+einer USt-IdNr. Dazu `/firmensuche/lage`: Für welches Land gibt es gerade eine Namenssuche?
+
+- **Schweiz: geht heute voll, ohne Schlüssel.** Zuerst das UID-Register des Bundesamts für Statistik (antwortet
+  in 0,3–2 s, kennt auch Einzelunternehmen und liefert die MWST-Nummer), als Rückfall LINDAS, der
+  Linked-Data-Dienst des Bundes. LINDAS braucht für eine Namenssuche rund 6 s (gemessen) — zu langsam fürs
+  Tippen, deshalb steht es hinten und füllt mit seiner späten Antwort nur den Zwischenspeicher.
+- **Deutschland und Österreich: Trefferliste erst mit Schlüssel.** Eine legale Namenssuche ohne Schlüssel gibt
+  es in beiden Ländern nicht (handelsregister.de darf nicht ausgelesen werden). Vorbereitet sind openregister.de
+  und handelsregister.ai (DE) sowie die kostenlose Firmenbuch-Schnittstelle des BMJ (AT). Ohne Schlüssel
+  antwortet die Suche mit leerer Liste und dem Hinweis „website".
+- **Impressum auslesen (alle Länder, heute nutzbar):** Der Server liest höchstens drei Seiten der genannten
+  Website, eine KI überträgt die Angaben in Felder. Durch kommt nur, was WÖRTLICH auf der Seite steht und sein
+  Format trägt (HRB/FN/CHE/USt-IdNr./PLZ); zu jedem Feld geht der Textausschnitt als Beleg mit. Fällt die KI
+  aus, bleiben die Felder, die sich sicher per Muster erkennen lassen. Geraten wird nie.
+- **Schutz:** Der Abruf fremder Websites lehnt private, lokale und Cloud-Metadaten-Adressen ab — auch nach
+  einer Weiterleitung und auch, wenn ein harmloser Name dorthin zeigt. 6 s Frist, 600 KB Deckel, robots.txt
+  wird geachtet. Bremse je IP-Adresse, je Anbieter ein eigener Eimer.
+- **Kein Schattenregister:** Antworten liegen höchstens 24 Stunden in `fiaon_firmensuche_cache` (die Grenze aus
+  den AGB von handelsregister.ai, für alle Quellen gleich). Dauerhaft gespeichert wird nur, was der Kunde im
+  Auftrag bestätigt. Im Log steht nie ein Suchbegriff.
+
+**Warum:** Justin: „Wenn man seine Firma eingibt, soll sich ein Register öffnen, der Kunde klickt auf seine
+Firma und alle Daten füllen sich aus." Das spart dem Firmenkunden das Abtippen und uns falsche Stammdaten.
+
+**Was Justin dafür anlegen muss:** einen Schlüssel bei openregister.de oder handelsregister.ai (DE), den
+IWG-Antrag „FBW" auf JustizOnline (AT), optional ein Zefix-Konto (CH). Die Variablen stehen mit Erklärzeile
+in `.env.example`.
+
+**Wo:** `server/routes/fiaon-firmensuche.ts`, `server/lib/firmensuche/` (ein Modul je Anbieter, dazu
+`netzschutz.ts`, `impressum.ts`, `formate.ts`), Einhängung in `server/routes.ts`, Prüfstand
+`scripts/pruef-firmensuche.ts` (ohne Netz und ohne Datenbank; `NETZ=1` fragt die öffentlichen Quellen je einmal).
+
+---
+
 ## 15.09.2026 — Neue Seite /global: die US-Positionierung (FIAON Global OS)
 
 **Was geändert wurde:** Es gibt eine neue öffentliche Seite unter `/global` — parallel zu `/business`, das

@@ -15,6 +15,7 @@
 import { sqlPool } from "./db-pool";
 import { BANK } from "@shared/fiaon-bank";
 import { epcQrNutzlast } from "@shared/fiaon-epc-qr";
+import { istGlobalPaket, paket as katalogPaket } from "@shared/fiaon-pakete";
 
 export interface Zahlungsauftrag {
   art: "bestellung" | "rate";
@@ -28,6 +29,14 @@ export interface Zahlungsauftrag {
   packName: string;
   rateNr?: number;
   ratenVon?: number;
+  /**
+   * E-188 (17.09.2026): ein Firmenauftrag über FIAON Global — Einmalpreis, kein
+   * Konto, das „aktiviert" wird, keine Karte „unterwegs". Die Zahlungsseite
+   * spricht dann das Unternehmen an (der Firmenname ist keine Personenangabe)
+   * und lässt alle Sätze der Privatkundenlinie weg.
+   */
+  firmenauftrag?: boolean;
+  firmenName?: string;
 }
 
 const RATEN_MUSTER = /^FIAON-[A-Z0-9]{6}-(\d{1,2})$/i;
@@ -62,10 +71,11 @@ export async function zahlungsauftragFinden(refRoh: string): Promise<Zahlungsauf
   }
 
   const [a] = (await sqlPool`
-    SELECT payment_reference, payment_status, payment_due_date, amount_due, currency, first_name, pack_name
+    SELECT payment_reference, payment_status, payment_due_date, amount_due, currency, first_name, pack_name, pack_key, company_name
     FROM fiaon_applications WHERE payment_reference = ${ref} LIMIT 1
   `) as any[];
   if (!a) return null;
+  const firmenauftrag = istGlobalPaket(a.pack_key);
   return {
     art: "bestellung",
     paymentReference: a.payment_reference,
@@ -73,8 +83,10 @@ export async function zahlungsauftragFinden(refRoh: string): Promise<Zahlungsauf
     dueDate: a.payment_due_date ? new Date(a.payment_due_date).toISOString() : null,
     amountDue: String(a.amount_due),
     currency: a.currency || "EUR",
-    firstName: a.first_name || "",
-    packName: a.pack_name || "",
+    // Beim Firmenauftrag steht oben die Firma, nicht ein Vorname.
+    firstName: firmenauftrag ? "" : (a.first_name || ""),
+    packName: firmenauftrag ? (katalogPaket(a.pack_key)?.label ?? a.pack_name ?? "") : (a.pack_name || ""),
+    ...(firmenauftrag ? { firmenauftrag: true, firmenName: String(a.company_name || "") } : {}),
   };
 }
 
@@ -115,6 +127,10 @@ export function sofortUrlFuer(ref: string | null | undefined): string | null {
  * kein Betriebsmodus.
  */
 export async function sofortErlaubt(z: Zahlungsauftrag): Promise<{ erlaubt: boolean; grund: string }> {
+  // E-188: Ein Firmenauftrag über FIAON Global (2.499 bis 35.999 €) wird auf Rechnung überwiesen —
+  // auch dann, wenn der Schalter unten die Sofortzahlung für Erstzahlungen freigibt. Instant Bank
+  // Pay trägt je Zahlung höchstens 5.000 €, und das Geld soll ohne Umweg auf dem Hauskonto ankommen.
+  if (z.firmenauftrag) return { erlaubt: false, grund: "Firmenauftrag: Überweisung auf Rechnung" };
   if (z.art !== "rate") {
     try {
       const { sqlPool } = await import("./db-pool");

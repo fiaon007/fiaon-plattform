@@ -37,6 +37,7 @@ import { TEAM_VORLAGEN } from "./vorlagen/team";
 import { RUECKHOLUNG_VORLAGEN } from "./vorlagen/rueckholung";
 import { APP_VORLAGEN } from "./vorlagen/app";
 import { BEWERBUNG_VORLAGEN } from "./vorlagen/bewerbung";
+import { GLOBAL_VORLAGEN } from "./vorlagen/global";
 
 /** Alle Vorlagen, ein Verzeichnis. Schlüssel = Ereignisname. */
 export const VORLAGEN: Record<string, MailBaustein> = {
@@ -48,6 +49,7 @@ export const VORLAGEN: Record<string, MailBaustein> = {
   ...RUECKHOLUNG_VORLAGEN,
   ...APP_VORLAGEN,
   ...BEWERBUNG_VORLAGEN,
+  ...GLOBAL_VORLAGEN,
 };
 
 /** Wer als Absender im Postfach steht — je Ereignis. Alles nicht Genannte: welcome. */
@@ -81,6 +83,8 @@ const ROLLE_JE_EVENT: Record<string, AbsenderRolle> = {
   bewerbung_absage: "team",
   contract_signed: "team",
   commission_statement_issued: "team",
+  // E-188: Vertrag und Rechnung eines Firmenauftrags kommen aus der Buchhaltung.
+  global_auftrag: "accounting",
 };
 
 export function absenderFuer(event: string): { name: string; email: string } {
@@ -324,6 +328,13 @@ function adresseSiehtGueltigAus(an: string): boolean {
 export async function mailDirektSenden(
   event: string,
   payload: Record<string, unknown>,
+  /**
+   * E-188 (17.09.2026): Anhänge — der unterschriebene Auftrag und die Rechnung
+   * von FIAON Global. Dasselbe Feld wie bei freitextSenden (E-181). Make kann
+   * keine Anhänge tragen; wer welche mitgibt, ruft den Motor deshalb direkt
+   * und protokolliert selbst (siehe fiaon-global-auftrag.ts).
+   */
+  opts: { anhaenge?: { name: string; inhalt: Buffer }[] } = {},
 ): Promise<{ ok: boolean; messageId: string | null; grund?: string }> {
   // Den Vorrang der Zahlwege vor dem Rendern nachlesen (60-Sekunden-Puffer).
   // `mailRendern` ist synchron und nimmt den gepufferten Wert; der Anfangswert
@@ -352,6 +363,7 @@ export async function mailDirektSenden(
         textContent: mail.text,
         // Für Auswertungen in Brevo: welche Mail welches Ereignis war.
         tags: [event],
+        ...(opts.anhaenge?.length ? { attachment: opts.anhaenge.map((a) => ({ name: a.name, content: a.inhalt.toString("base64") })) } : {}),
         // One-Click-Abmeldung (RFC 8058): Trägt die Nutzlast einen Abmeldelink,
         // bekommt der Postfach-Anbieter die Kopfzeilen, um den Abmeldeknopf
         // oben zu zeigen — sonst klicken Menschen „Spam“, und das trifft die

@@ -1309,8 +1309,11 @@ router.post("/agent/vertrieb/zahlung/:paymentRef/bezahlt", requireAgent, nurLeit
 
     res.json({
       ok: true,
-      meldung: `Als bezahlt gebucht. Das Konto ist freigeschaltet, die Bestätigung an den Kunden ist unterwegs.`
-        + ` Erste Monatsrate fällig am ${wirkung.naechsteAboFaelligkeit}.`,
+      // E-188: FIAON Global ist ein Einmalpreis — kein Konto, keine Monatsrate; dort beginnt das Projekt.
+      meldung: wirkung.einmalig
+        ? "Als bezahlt gebucht. FIAON Global: Der Auftrag startet jetzt — die Aufgabe „US-Struktur starten“ geht an die zuständige Person, danach die Startmail an den Kunden. Stand: Chefbüro → Kunden → Global-Aufträge."
+        : `Als bezahlt gebucht. Das Konto ist freigeschaltet, die Bestätigung an den Kunden ist unterwegs.`
+          + ` Erste Monatsrate fällig am ${wirkung.naechsteAboFaelligkeit}.`,
       zahlungsdatum: wirkung.zahlungsdatum,
       naechsteAboFaelligkeit: wirkung.naechsteAboFaelligkeit,
     });

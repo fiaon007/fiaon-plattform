@@ -36,6 +36,13 @@ interface PaymentOrder {
   currency: string;
   firstName: string;
   packName: string;
+  /**
+   * E-188 (17.09.2026): Firmenauftrag über FIAON Global — Einmalpreis von 2.499 bis 35.999 €.
+   * Die Seite spricht dann das Unternehmen an und lässt weg, was nur für das Privatpaket
+   * stimmt: „Konto aktivieren", „Karte", Startgespräch-Kachel, Sofortzahlung.
+   */
+  firmenauftrag?: boolean;
+  firmenName?: string;
   bank: { recipient: string; iban: string; ibanDisplay: string; bic: string };
 }
 
@@ -267,6 +274,8 @@ function TerminAngebot({ paymentReference, art, sofortUrl, sofortVorrang }: { pa
 
 // ── Danke-Seite nach "Ich habe die Überweisung getätigt" ──────────────
 export function ZahlungDankePage() {
+  // E-188: Der Firmenauftrag kommt mit ?art=firma — dort wird kein Konto freigeschaltet, dort beginnt ein Projekt.
+  const firma = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("art") === "firma";
   return (
     <div className="antrag-dk dk min-h-screen antialiased">
       <div className="dk-grund" aria-hidden="true"><span className="dk-nebel a" /><span className="dk-nebel b" /><span className="dk-nebel c" /></div>
@@ -278,8 +287,10 @@ export function ZahlungDankePage() {
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight zahlung-shimmer-heading mb-4">Danke!</h1>
           <p className="text-[15px] text-slate-600 leading-relaxed max-w-md mx-auto">
-            Wir prüfen Ihren Zahlungseingang. Sobald er da ist – meist innerhalb von 24 Stunden – schalten wir Ihr
-            Konto frei und Sie bekommen eine E-Mail. Sie müssen nichts weiter tun.
+            {firma
+              ? "Wir prüfen Ihren Zahlungseingang. Sobald er gebucht ist, beginnt Ihr Auftrag: Sie erhalten eine E-Mail mit Ihrem Ansprechpartner und der Liste der Unterlagen. Sie müssen nichts weiter tun."
+              : <>Wir prüfen Ihren Zahlungseingang. Sobald er da ist – meist innerhalb von 24 Stunden – schalten wir Ihr
+                Konto frei und Sie bekommen eine E-Mail. Sie müssen nichts weiter tun.</>}
           </p>
           <div className="mt-10">
             <TrustBadges />
@@ -440,7 +451,7 @@ export default function ZahlungPage() {
           method: "POST",
         });
       } catch {}
-      window.location.href = `/zahlung/${order.paymentReference}/danke`;
+      window.location.href = `/zahlung/${order.paymentReference}/danke${order.firmenauftrag ? "?art=firma" : ""}`;
     },
     [order, claiming],
   );
@@ -472,7 +483,9 @@ export default function ZahlungPage() {
             </div>
             <h1 className="text-2xl font-bold mb-3">Zahlung eingegangen ✓</h1>
             <p className="text-[14px] text-gray-500">
-              {order.firstName ? `${order.firstName}, Ihre` : "Ihre"} Zahlung ist bei uns eingegangen — Ihr Konto ist aktiv und Ihre Karte ist unterwegs.
+              {order.firmenauftrag
+                ? `Die Zahlung${order.firmenName ? ` von ${order.firmenName}` : ""} ist bei uns eingegangen — Ihr Auftrag${order.packName ? ` ${order.packName}` : ""} hat begonnen. Ihren Ansprechpartner und die Liste der Unterlagen finden Sie in unserer E-Mail.`
+                : <>{order.firstName ? `${order.firstName}, Ihre` : "Ihre"} Zahlung ist bei uns eingegangen — Ihr Konto ist aktiv und Ihre Karte ist unterwegs.</>}
             </p>
           </div>
         )}
@@ -493,15 +506,22 @@ export default function ZahlungPage() {
             {/* 1. Headline mit dezentem Gradient-Shimmer */}
             <div className="text-center mb-6">
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight zahlung-shimmer-heading mb-3 leading-tight pb-1">
-                {order.art === "rate" ? `Ihre Monatsrate ${order.rateNr ?? ""} von ${order.ratenVon ?? 12}` : "Letzter Schritt: Konto aktivieren"}
+                {order.art === "rate" ? `Ihre Monatsrate ${order.rateNr ?? ""} von ${order.ratenVon ?? 12}` : order.firmenauftrag ? "Ihr Auftrag: Zahlung per Überweisung" : "Letzter Schritt: Konto aktivieren"}
               </h1>
               {/* 2. Statuszeile */}
               <p className="text-[13px] sm:text-[14px] text-slate-500">
                 {order.art === "rate"
                   ? <>Fällig am <b className="text-slate-900">{dueDateStr}</b> — Ihr Verwendungszweck: <b className="text-slate-900">{order.paymentReference}</b></>
-                  : <>Ihr Platz ist bis zum <b className="text-slate-900">{dueDateStr}</b> reserviert.</>}
+                  : order.firmenauftrag
+                    ? <>Einmalig <b className="text-slate-900">{amount.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</b>, zahlbar bis zum <b className="text-slate-900">{dueDateStr}</b>. Mit dem Zahlungseingang beginnen wir.</>
+                    : <>Ihr Platz ist bis zum <b className="text-slate-900">{dueDateStr}</b> reserviert.</>}
               </p>
-              {order.firstName && (
+              {order.firmenauftrag && (
+                <p className="text-[12px] text-slate-400 mt-1.5">
+                  {order.firmenName ? `${order.firmenName} · ` : ""}{order.packName ? `${order.packName.replace(/\n/g, " ")} · einmalig · ` : ""}{order.paymentReference}
+                </p>
+              )}
+              {!order.firmenauftrag && order.firstName && (
                 <p className="text-[12px] text-slate-400 mt-1.5">
                   {order.firstName}
                   {order.packName ? ` · ${order.packName.replace(/\n/g, " ")}` : ""} · {order.paymentReference}
@@ -518,12 +538,17 @@ export default function ZahlungPage() {
                 danach viermal vergeblich angerufen. Der Terminweg ist kein
                 Ausweichgleis, sondern der zweite richtige Ausgang. Deshalb
                 steht er gleichrangig oben, nicht als Kleingedrucktes unten. */}
-            <TerminAngebot paymentReference={order.paymentReference} art={order.art} sofortUrl={order.sofortUrl} sofortVorrang={order.sofortVorrang} />
+            {/* E-188: Nicht beim Firmenauftrag — die Kacheln versprechen „Konto sofort aktiv" und bieten das
+                Startgespräch der Privatkundenlinie an. Dort führt die Rechnung, und den Termin macht der
+                Ansprechpartner aus der Auftragsbestätigung. */}
+            {!order.firmenauftrag && <TerminAngebot paymentReference={order.paymentReference} art={order.art} sofortUrl={order.sofortUrl} sofortVorrang={order.sofortVorrang} />}
 
             {order.status === "claimed_paid" && (
               <div className="mb-5 rounded-xl bg-emerald-50 border border-emerald-200 p-4 text-center">
                 <p className="text-[13px] font-semibold text-emerald-700">
-                  Danke! Wir prüfen Ihren Zahlungseingang – meist innerhalb von 24 Stunden. Sie bekommen eine E-Mail, sobald Ihr Konto frei ist.
+                  {order.firmenauftrag
+                    ? "Danke — wir prüfen Ihren Zahlungseingang. Sobald er gebucht ist, erhalten Sie eine E-Mail, und Ihr Auftrag beginnt."
+                    : "Danke! Wir prüfen Ihren Zahlungseingang – meist innerhalb von 24 Stunden. Sie bekommen eine E-Mail, sobald Ihr Konto frei ist."}
                 </p>
               </div>
             )}
@@ -538,7 +563,7 @@ export default function ZahlungPage() {
 
             {/* 3. Erklär-Box: So bezahlen Sie – ganz einfach */}
             <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-5 sm:p-6 mb-5">
-              <p className="text-[16px] sm:text-[17px] font-bold zahlung-shimmer-heading mb-4 inline-block">{order.art === "rate" ? "Rate überweisen – ganz einfach" : <>Konto aktivieren &amp; Karte versenden – ganz einfach</>}</p>
+              <p className="text-[16px] sm:text-[17px] font-bold zahlung-shimmer-heading mb-4 inline-block">{order.art === "rate" ? "Rate überweisen – ganz einfach" : order.firmenauftrag ? "Rechnung überweisen – ganz einfach" : <>Konto aktivieren &amp; Karte versenden – ganz einfach</>}</p>
 
               <p className="text-[12px] font-bold uppercase tracking-wider text-[#2563eb] mb-2.5">Empfohlen (schnell &amp; fehlerfrei)</p>
               <ol className="space-y-2.5 mb-5">

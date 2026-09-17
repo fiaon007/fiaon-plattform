@@ -6,11 +6,29 @@
 // TAX REVIEW REQUIRED: Non-Union OSS Registrierung ausstehend – USt-Behandlung
 // vor Massenversand mit Steuerberater festlegen. NIEMALS 19% ausweisen,
 // solange keine Registrierung vorliegt (INVOICE_VAT_MODE, Default "none").
+//
+// ── FIRMENKUNDEN: FIAON GLOBAL (17.09.2026, E-188) ─────────────────
+// Eine Rechnung über 2.499 bis 35.999 € an eine GmbH braucht die Firma als
+// Empfänger, ihre Anschrift und ihre USt-IdNr. — und einen Satz zur
+// Umsatzsteuer, der nicht „folgt nach Registrierung" heißt. Erkannt wird der
+// Firmenkunde am KATALOG (Paket der Art "global"), nicht am Aufrufer: Alle
+// fünf Stellen, die diese Rechnung zeichnen (Kunde, Betreuer, Verwaltung,
+// ZIP-Export, Mail-Anhang), liefern so dieselbe Rechnung.
+// Der USt-Modus steht AN DER BESTELLUNG (fiaon_applications.rechnung_ust_modus)
+// und wird beim Auftrag eingefroren — eine Rechnung darf sich nicht ändern,
+// weil später jemand einen Schalter umlegt. Werte:
+//   none            ohne gesonderten Steuerausweis (Vorgabe, bis der
+//                   Steuerberater entschieden hat)
+//   reverse_charge  Netto, Hinweis auf die Steuerschuldnerschaft des
+//                   Leistungsempfängers; nur MIT USt-IdNr. des Kunden
+// Auch hier gilt: NIEMALS selbst 19 % ausweisen.
+// Privatkunden-Rechnungen laufen durch keinen der neuen Zweige.
 // ═══════════════════════════════════════════════════════════════════
 
 import { createHmac } from "crypto";
 import { absoluteUrl } from "./fiaon-base-url";
 import { BANK } from "@shared/fiaon-bank";
+import { istGlobalPaket } from "@shared/fiaon-pakete";
 import type PDFKit from "pdfkit";
 
 export const FIAON_ENTITY = {
@@ -119,6 +137,15 @@ function groupIban(iban: string): string {
   return String(iban).replace(/\s/g, "").replace(/(.{4})/g, "$1 ").trim();
 }
 
+export type B2bUstModus = "none" | "reverse_charge";
+
+/** Der wirksame USt-Modus einer Firmenrechnung: Reverse Charge nur MIT USt-IdNr. des Kunden. */
+export function b2bUstModus(a: { rechnung_ust_modus?: unknown; tax_id?: unknown }): B2bUstModus {
+  return String(a?.rechnung_ust_modus || "") === "reverse_charge" && String(a?.tax_id || "").trim() ? "reverse_charge" : "none";
+}
+
+const LAND_NAME: Record<string, string> = { DE: "Deutschland", AT: "Österreich", CH: "Schweiz" };
+
 /**
  * Zeichnet die Rechnung in ein pdfkit-Dokument. Erwartet eine fiaon_applications-Zeile
  * mit invoice_number, payment_reference, amount_due, payment_due_date etc.
@@ -142,11 +169,14 @@ export function renderInvoicePdf(doc: PDFKit.PDFDocument, a: any): void {
     || a.contact_name || a.company_name || "Kunde";
   const packName = a.pack_name ? String(a.pack_name).replace(/\n/g, " ") : "FIAON Zugang";
   const amount = a.amount_due != null ? parseFloat(String(a.amount_due)) : 0;
+  // E-188: Firmenkunde = Paket der Art "global" (siehe Kopfkommentar).
+  const firmenkunde = istGlobalPaket(a.pack_key);
+  const ustModus: B2bUstModus = firmenkunde ? b2bUstModus(a) : "none";
 
   // ── Kopf: FIAON Wortmarke links, Entity-Block rechtsbündig ──
   doc.font("Helvetica-Bold").fontSize(24).fillColor(CI.blue).text("FIAON", M, M);
   doc.font("Helvetica").fontSize(8).fillColor(CI.slate)
-    .text("SaaS- & E-Learning-Plattform", M, M + 28);
+    .text(firmenkunde ? "FIAON Global" : "SaaS- & E-Learning-Plattform", M, M + 28);
 
   const entityW = 210;
   const entityX = M + W - entityW;
@@ -174,11 +204,27 @@ export function renderInvoicePdf(doc: PDFKit.PDFDocument, a: any): void {
   let ay = doc.y + 8;
   doc.font("Helvetica-Bold").fontSize(9).fillColor(CI.dark).text("Rechnungsempfänger", M, ay, { width: addrW });
   ay = doc.y + 3;
-  doc.font("Helvetica").fontSize(10).fillColor(CI.dark).text(customerName, M, ay, { width: addrW });
-  ay = doc.y + 1;
-  if (a.street) { doc.text(String(a.street), M, ay, { width: addrW }); ay = doc.y + 1; }
-  if (a.zip || a.city) { doc.text(`${a.zip || ""} ${a.city || ""}`.trim(), M, ay, { width: addrW }); ay = doc.y + 1; }
-  if (a.email) { doc.fillColor(CI.slate).fontSize(8.5).text(String(a.email), M, ay, { width: addrW }); ay = doc.y + 1; }
+  if (firmenkunde) {
+    // Rechnungsempfänger ist die FIRMA — der Mensch steht als Ansprechpartner darunter.
+    const firma = String(a.company_name || "").trim() || customerName;
+    const ansprech = String(a.contact_name || [a.first_name, a.last_name].filter(Boolean).join(" ") || "").trim();
+    doc.font("Helvetica").fontSize(10).fillColor(CI.dark).text(firma, M, ay, { width: addrW });
+    ay = doc.y + 1;
+    if (ansprech && ansprech !== firma) { doc.text(`z. Hd. ${ansprech}`, M, ay, { width: addrW }); ay = doc.y + 1; }
+    if (a.street) { doc.text(String(a.street), M, ay, { width: addrW }); ay = doc.y + 1; }
+    if (a.zip || a.city) { doc.text(`${a.zip || ""} ${a.city || ""}`.trim(), M, ay, { width: addrW }); ay = doc.y + 1; }
+    const land = String(a.country || "").trim().toUpperCase();
+    if (land) { doc.text(LAND_NAME[land] ?? land, M, ay, { width: addrW }); ay = doc.y + 1; }
+    if (String(a.tax_id || "").trim()) { doc.fontSize(9).text(`USt-IdNr.: ${String(a.tax_id).trim()}`, M, ay + 2, { width: addrW }); ay = doc.y + 1; }
+    const mail = a.contact_email || a.email || a.billing_email;
+    if (mail) { doc.fillColor(CI.slate).fontSize(8.5).text(String(mail), M, ay, { width: addrW }); ay = doc.y + 1; }
+  } else {
+    doc.font("Helvetica").fontSize(10).fillColor(CI.dark).text(customerName, M, ay, { width: addrW });
+    ay = doc.y + 1;
+    if (a.street) { doc.text(String(a.street), M, ay, { width: addrW }); ay = doc.y + 1; }
+    if (a.zip || a.city) { doc.text(`${a.zip || ""} ${a.city || ""}`.trim(), M, ay, { width: addrW }); ay = doc.y + 1; }
+    if (a.email) { doc.fillColor(CI.slate).fontSize(8.5).text(String(a.email), M, ay, { width: addrW }); ay = doc.y + 1; }
+  }
   const addrBottom = doc.y;
 
   // Rechnungsmeta rechtsbündig als Block (Label links, Wert rechts)
@@ -220,8 +266,10 @@ export function renderInvoicePdf(doc: PDFKit.PDFDocument, a: any): void {
   // eigener Beschreibung und eigenem Zeitraum — die Zeile darf sie mitbringen.
   const description = a.beschreibung
     ? String(a.beschreibung)
-    : `${packName} — monatlicher Zugang zur FIAON SaaS- und E-Learning-Plattform (Software-Lizenz, KI-Profilanalyse, Lernmodule, Dashboard)`;
-  const zeitraum = a.zeitraum ? String(a.zeitraum) : "1 Monat ab Freischaltung des Zugangs";
+    : firmenkunde
+      ? `${packName} — Aufbau einer US-Unternehmensstruktur gemäß Auftrag ${a.ref || ""}`.trim()
+      : `${packName} — monatlicher Zugang zur FIAON SaaS- und E-Learning-Plattform (Software-Lizenz, KI-Profilanalyse, Lernmodule, Dashboard)`;
+  const zeitraum = a.zeitraum ? String(a.zeitraum) : firmenkunde ? "einmalig" : "1 Monat ab Freischaltung des Zugangs";
   const rowTop = y + 10;
   doc.font("Helvetica").fontSize(9.5).fillColor(CI.dark)
     .text(description, descX, rowTop, { width: descW });
@@ -237,11 +285,24 @@ export function renderInvoicePdf(doc: PDFKit.PDFDocument, a: any): void {
 
   // ── Summenblock rechts (Gesamtbetrag fett) + USt-Hinweis ──
   const vatMode = (process.env.INVOICE_VAT_MODE || "none").toLowerCase();
+  if (firmenkunde && ustModus === "reverse_charge") {
+    doc.font("Helvetica").fontSize(9.5).fillColor(CI.slate)
+      .text("Nettobetrag", metaX, y, { width: 110, lineBreak: false })
+      .text(eur(amount), metaX + 110, y, { width: metaW - 110, align: "right", lineBreak: false });
+    y += 16;
+  }
   doc.font("Helvetica-Bold").fontSize(12).fillColor(CI.dark)
-    .text("Gesamtbetrag", metaX, y, { width: 110, lineBreak: false })
+    .text(firmenkunde && ustModus === "reverse_charge" ? "Rechnungsbetrag" : "Gesamtbetrag", metaX, y, { width: 110, lineBreak: false })
     .text(eur(amount), metaX + 110, y, { width: metaW - 110, align: "right", lineBreak: false });
   y += 20;
-  if (vatMode === "none") {
+  if (firmenkunde) {
+    // Sachlich, ohne „folgt nach Registrierung": Was auf dieser Rechnung gilt, steht auf dieser Rechnung.
+    const satz = ustModus === "reverse_charge"
+      ? `Steuerschuldnerschaft des Leistungsempfängers (Reverse Charge). USt-IdNr. des Leistungsempfängers: ${String(a.tax_id).trim()}. Der Rechnungsbetrag enthält keine Umsatzsteuer.`
+      : "Rechnungsbetrag ohne gesonderten Ausweis von Umsatzsteuer.";
+    doc.font("Helvetica").fontSize(8).fillColor(CI.slate).text(satz, M, y, { width: W, align: "right" });
+    y = doc.y;
+  } else if (vatMode === "none") {
     doc.font("Helvetica").fontSize(8).fillColor(CI.slate)
       .text("Gesamtbetrag ohne gesonderten Steuerausweis. Hinweis zur Umsatzsteuer: folgt nach steuerlicher Registrierung.", M, y, { width: W, align: "right" });
     y = doc.y;

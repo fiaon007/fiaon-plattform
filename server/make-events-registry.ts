@@ -646,6 +646,42 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     customerBound: true,
     example: { ...CUSTOMER_EXAMPLE, zustimmung_url: "https://www.fiaon.com/zustimmung/FIAON-BEISPIEL.1760000000.0123456789abcdef0123456789abcdef", offen: "Zustimmung zu den AGB, SCHUFA-Einwilligung, Zustimmung zum Vertrag", paket: "FIAON Ultra", paket_satz: " über FIAON Ultra" },
   },
+  // ── FIAON Global (E-188, 17.09.2026) ────────────────────────────────────
+  // customerBound: false — die Nutzlast entsteht aus der Auftragsakte
+  // (fiaon_global_auftraege), nicht aus einer Bestellzeile allein, und
+  // `global_auftrag` braucht die beiden PDF-Anhänge. „Für echten Kunden senden"
+  // würde eine Mail ohne Vertrag und Rechnung verschicken.
+  {
+    type: "global_auftrag",
+    label: "FIAON Global: Auftrag eingegangen — Vertrag + Rechnung (Firmenkunde)",
+    description: "Geht automatisch direkt nach der Unterschrift auf /business/start, mit dem unterschriebenen Auftrag und der Rechnung als PDF. Immer Direktversand über den Motor — Make trägt keine Anhänge.",
+    customerBound: false,
+    example: {
+      email: "m.muster@muster-gmbh.example", anrede_zeile: "Guten Tag Herr Muster", firma: "Muster GmbH", paket: "FIAON Global Struktur",
+      betrag_text: "2.499,00 €", antrag_id: "FIAON-MB2XK4LQ-7T9A", payment_reference: "FIAON-A1B2C3", faellig_am_text: "24.09.2026",
+      zahlungsseite_url: "https://www.fiaon.com/zahlung/FIAON-A1B2C3", ansprechpartner: "Herr Beispiel",
+    },
+  },
+  {
+    type: "global_start",
+    label: "FIAON Global: Zahlung eingegangen — wir starten (Firmenkunde)",
+    description: "Geht automatisch nach der Zahlungsbuchung eines Global-Auftrags — erst, wenn die Aufgabe „US-Struktur starten“ bei der zuständigen Person liegt. Ersetzt für Global die Privatkunden-Mail payment_confirmed.",
+    customerBound: false,
+    example: {
+      email: "m.muster@muster-gmbh.example", anrede_zeile: "Guten Tag Herr Muster", firma: "Muster GmbH", paket: "FIAON Global Struktur",
+      betrag_text: "2.499,00 €", antrag_id: "FIAON-MB2XK4LQ-7T9A", ansprechpartner: "Herr Beispiel",
+    },
+  },
+  {
+    type: "global_stichtag",
+    label: "FIAON Global: Stichtag für Gesellschaft und EIN (Firmenkunde)",
+    description: "Von Hand aus /chef/s/global-auftraege, wenn der im Startgespräch vereinbarte Stichtag gesetzt wird — die Mitteilung in Textform, die der Auftrag zusagt.",
+    customerBound: false,
+    example: {
+      email: "m.muster@muster-gmbh.example", anrede_zeile: "Guten Tag Herr Muster", firma: "Muster GmbH", paket: "FIAON Global Struktur",
+      antrag_id: "FIAON-MB2XK4LQ-7T9A", stichtag_text: "30.10.2026", ansprechpartner: "Herr Beispiel",
+    },
+  },
   {
     type: "global_termin",
     label: "FIAON Global: Erstgespräch bestätigt (Unternehmen)",

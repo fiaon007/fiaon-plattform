@@ -282,6 +282,15 @@ export function wrapFiaonDocument(opts: {
       eine Abrechnung ohne Absender darf nicht entstehen. */
   markenzeile?: string;
   fusszeile?: string;
+  /**
+   * Zusätzliche CSS-Regeln NACH den Hausregeln (17.09.2026, E-188). Der Auftrag
+   * über FIAON Global trägt das ruhige CI der Website — dünne Schrift, Navy —
+   * und eine laufende Fußzeile statt der fest positionierten. Steht bewusst
+   * hier und nicht als <style> im Rumpf: Der pdfkit-Notbehelf liest den Rumpf
+   * als Text und würde die Regeln sonst mitdrucken. Ohne Angabe bleibt jedes
+   * bestehende Dokument, wie es ist.
+   */
+  zusatzCss?: string;
 }): string {
   const { documentTitle, subtitle, bodyHtml, watermark } = opts;
   const markenzeile = opts.markenzeile
@@ -339,6 +348,7 @@ export function wrapFiaonDocument(opts: {
     transform: rotate(-24deg); letter-spacing: .05em; z-index: 0; pointer-events: none;
   }
   .content { position: relative; z-index: 1; }
+  ${opts.zusatzCss ?? ""}
 </style>
 </head>
 <body>
@@ -365,6 +375,8 @@ export interface DocumentPdfOptions {
   watermark?: string | null;
   markenzeile?: string;
   fusszeile?: string;
+  /** Siehe wrapFiaonDocument. */
+  zusatzCss?: string;
 }
 
 /**
@@ -398,6 +410,9 @@ interface Block { kind: "h1" | "h2" | "p" | "row"; text: string; }
 
 function htmlToBlocks(html: string): Block[] {
   let s = html;
+  // 17.09.2026 (E-188): Stilregeln sind kein Inhalt. htmlZuPdfMitFusszeile reicht im
+  // Notbehelf das GANZE Dokument herein — ohne diese Zeile stünde das CSS als Text im Beleg.
+  s = s.replace(/<style[\s\S]*?<\/style>/gi, "").replace(/<head[\s\S]*?<\/head>/gi, "");
   s = s.replace(/<img[^>]*>/gi, "[electronic signature on file]");
   s = s.replace(/<tr[^>]*>/gi, "\n[[ROW]]").replace(/<\/tr>/gi, "");
   s = s.replace(/<(td|th)[^>]*>/gi, "").replace(/<\/(td|th)>/gi, " \u00b7 ");

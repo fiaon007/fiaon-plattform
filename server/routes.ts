@@ -411,6 +411,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   //    Signiertes Token, kein Login (server/lib/fiaon-kuendigung-mitarbeiter.ts).
   const fiaonAbschlussRoutes = await import('./routes/fiaon-abschluss');
   app.use('/api/fiaon', fiaonAbschlussRoutes.default);
+  // 🌐 FIAON Global — der Bestellweg für Unternehmen (17.09.2026, E-188): Auftrag
+  //    lesen, unterschreiben, Vertrag + Rechnung als PDF, Zahlung aufs Konto = Start.
+  //    Kundenseite ohne Login (signiertes Token, an die Antragsnummer gebunden);
+  //    die Liste der Leitung liegt unter /admin/global und damit hinter dem Gate oben.
+  const fiaonGlobalRoutes = await import('./routes/fiaon-global');
+  app.use('/api/fiaon', fiaonGlobalRoutes.default);
 
   // 🤝 FIAON Onboarding — eigener Bereich fuer die Startgespraeche. 404 fuer
   //    alle ohne die Rolle, 403 ohne angenommene Verpflichtungserklaerung.

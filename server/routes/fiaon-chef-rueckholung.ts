@@ -31,7 +31,31 @@ const ERLAUBTE_SCHLUESSEL = new Set([
   "mahn_takte_pro_tag",      // wie oft am Tag die Mahnkette läuft
   "mahn_dauer_tage",         // E-182: Raten nach Stufe 5 alle N Tage weiter; 0 = Schluss nach Stufe 5
   "sepa_werbung_pro_tag",    // Tagesdeckel der Lastschrift-Einladung; 0 = aus
+  // ── FIAON Global (17.09.2026, E-188) — drei Einstellungen des Bestellwegs ──
+  "global_zustaendig_agent_id", // wer neue Global-Aufträge und den Start bekommt; leer = Vertriebsleitung
+  "global_provision_prozent",   // Satz der Abschlussprovision für Global-Einmalpreise; Vorgabe 25, 0 = keine
+  "rechnung_b2b_ust_modus",     // none | reverse_charge — gilt für NEUE Aufträge, steht danach fest an der Bestellung
 ]);
+
+/**
+ * Schlüssel mit eigener Wertprüfung (E-188). Alle anderen bleiben „nur ganze Zahlen".
+ * Gibt den Fehlertext zurück oder `null`, wenn der Wert in Ordnung ist.
+ */
+async function sonderPruefung(key: string, value: string): Promise<string | null | undefined> {
+  if (key === "rechnung_b2b_ust_modus") {
+    return value === "none" || value === "reverse_charge" ? null : "Erlaubt sind none und reverse_charge.";
+  }
+  if (key === "global_provision_prozent") {
+    return /^\d{1,2}$/.test(value) && Number(value) <= 50 ? null : "Bitte eine ganze Zahl von 0 bis 50.";
+  }
+  if (key === "global_zustaendig_agent_id") {
+    if (value === "" || value === "0") return null; // leer = die Vertriebsleitung mit den wenigsten offenen Aufgaben
+    if (!/^\d{1,6}$/.test(value)) return "Bitte eine Person aus der Liste wählen.";
+    const { globalMitarbeiter } = await import("../lib/fiaon-global-auftrag");
+    return (await globalMitarbeiter()).some((m) => m.id === Number(value)) ? null : "Diese Person ist nicht aktiv oder gehört nicht zu Vertrieb und Leitung.";
+  }
+  return undefined; // kein Sonderfall
+}
 
 const SEGMENTE: Segment[] = ["s1_frisch", "s2_behauptet", "s3_preis_fehlt", "s4_nie_gemahnt", "s5_altbestand"];
 
@@ -100,6 +124,7 @@ router.get("/chef/rueckholung", requireChef("geschaeftsfuehrung"), async (_req: 
         "rueckhol_pro_tag", "rueckhol_s1_an", "rueckhol_s2_an", "rueckhol_s3_an", "rueckhol_s4_an", "rueckhol_s5_an", "rueckhol_dauerpflege_abstand_tage",
         "frequenzbremse_an", "frequenz_pro_tag", "frequenz_pro_woche", "frequenz_pro_monat",
         "max_reminders", "mahn_takte_pro_tag", "mahn_dauer_tage", "sepa_werbung_pro_tag",
+        "global_zustaendig_agent_id", "global_provision_prozent", "rechnung_b2b_ust_modus",
       ]),
       // Rückhol-Versand je Segment, heute und gesamt.
       sqlPool`
@@ -141,6 +166,8 @@ router.get("/chef/rueckholung", requireChef("geschaeftsfuehrung"), async (_req: 
       },
       schalter,
       laeufe,
+      // E-188: die Auswahl für „zuständige Person FIAON Global" — aktive Mitarbeiter aus Vertrieb und Leitung.
+      mitarbeiter: await import("../lib/fiaon-global-auftrag").then((m) => m.globalMitarbeiter()).catch(() => []),
     });
   } catch (err) {
     console.error("[CHEF-RUECKHOLUNG] lesen:", err);
@@ -175,7 +202,9 @@ router.post("/chef/rueckholung/einstellung", requireChef("geschaeftsfuehrung"), 
     const key = String(req.body?.key || "");
     const value = String(req.body?.value ?? "");
     if (!ERLAUBTE_SCHLUESSEL.has(key)) return res.status(400).json({ ok: false, error: "Diesen Schlüssel darf der Leitstand nicht schreiben." });
-    if (!/^[0-9]{0,6}$/.test(value)) return res.status(400).json({ ok: false, error: "Nur ganze Zahlen." });
+    const sonder = await sonderPruefung(key, value);
+    if (sonder) return res.status(400).json({ ok: false, error: sonder });
+    if (sonder === undefined && !/^[0-9]{0,6}$/.test(value)) return res.status(400).json({ ok: false, error: "Nur ganze Zahlen." });
     await sqlPool`
       INSERT INTO fiaon_settings (key, value, updated_at) VALUES (${key}, ${value}, NOW())
       ON CONFLICT (key) DO UPDATE SET value = ${value}, updated_at = NOW()

@@ -54,9 +54,15 @@ app.use((req, res, next) => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
       // E-185: signierte Links (Abschluss, Zustimmung) nie mit Token ins Log.
-      const pfadOhneToken = path.replace(/\/(abschluss|zustimmung)\/[^/?]+/, "/$1/…");
+      // E-188: dasselbe für den Global-Auftrag — dort ist die Antragsnummer Teil des Schlüssels
+      // (das Token reist als ?t=… und steht ohnehin nicht in req.path). Und weil die Antwort auf
+      // POST /global/auftrag Nummer UND Token trägt, wird für diese Pfade keine Antwort mitgeschrieben.
+      const pfadOhneToken = path
+        .replace(/\/(abschluss|zustimmung)\/[^/?]+/, "/$1/…")
+        .replace(/\/global\/auftrag\/[^/?]+/, "/global/auftrag/…");
+      const ohneAntwort = /\/api\/fiaon\/global\//.test(path);
       let logLine = `${req.method} ${pfadOhneToken} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
+      if (capturedJsonResponse && !ohneAntwort) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       }
 

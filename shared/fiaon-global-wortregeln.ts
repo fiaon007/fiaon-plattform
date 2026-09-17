@@ -1,28 +1,38 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// FIAON GLOBAL — DIE SCHÄRFEREN WORTREGELN (17.09.2026, E-188)
+// FIAON GLOBAL — DIE SCHÄRFEREN WORTREGELN ALS BAUSTEIN (17.09.2026, E-188)
 //
-// shared/fiaon-wortverbote.ts ist die Wand für JEDEN Kundentext des Hauses. Für
-// FIAON Global gelten darüber hinaus Regeln, die das Regex der Wand nicht kennt
-// (Register E-188): kein „bis zu", kein Bankname, keine Frist mit Ziffer in
-// Tagen/Wochen/Monaten, kein „Ziel-Limit", kein „empfohlen", kein „0 %" als
-// Zahl, keine „Unternehmensberatung"/„Gruppe" als Selbstbezeichnung, kein „ohne
-// Sicherheiten", kein Steuerversprechen.
+// ── WARUM DIESE DATEI ──────────────────────────────────────────────────────
+// Die Wortwand (shared/fiaon-wortverbote.ts) kennt die Hausregeln: nichts
+// garantieren, nicht beraten, nichts empfehlen, keine Frist in Tagen. Für
+// FIAON Global gelten dazu schärfere Regeln (Register E-188): kein „bis zu",
+// kein Bankname als Versprechen, keine Frist mit Ziffer in Wochen oder Monaten,
+// kein „0 %", kein „ohne Sicherheiten", keine „Unternehmensberatung", kein
+// Steuerversprechen. Bis heute standen sie nur im Prüfstand
+// scripts/pruef-wortwand-de.ts — der prüft, was im CODE steht.
 //
-// Bis zum 17.09. stand die Liste nur in scripts/pruef-wortwand-de.ts. Seit es
-// den Bereich „Mein Auftrag" gibt, prüft ein zweiter Prüfstand dieselben Regeln
-// (scripts/pruef-global-bereich.ts: Etappen, Unterlagen, Pflichtenkalender,
-// Mails) — zwei Kopien derselben Liste wären die nächste 059-Kopie. Deshalb
-// steht sie hier, und beide Prüfstände lesen sie.
+// Im Office schreibt aber ein MENSCH an den Kunden: den Satz zur Etappe, den
+// nächsten Schritt, die sichtbare Notiz. Diese Sätze stehen in keiner Datei,
+// die ein Prüfstand lesen könnte. Deshalb liegen die Regeln hier, wo Server
+// und Oberfläche sie beide erreichen: Das Werkzeug /agent/global zeigt die
+// Treffer, WÄHREND der Mitarbeiter schreibt — bevor der Satz beim Kunden ist.
 //
-// GILT FÜR: die festen Texte des Hauses (Seite, Auftrag, Vertrag, Mails,
-// Etappen, Kalender). NICHT für den Satz, den die zuständige Person im laufenden
-// Auftrag von Hand an den Kunden schreibt — dort muss der Name eines Instituts
-// stehen dürfen („Ihr Antrag liegt beim Herausgeber …"); für diese Sätze gilt
-// die Wand des Hauses.
+// ── EINE DEFINITION, EIN ORT ───────────────────────────────────────────────
+// Die Liste ist wortgleich mit SCHAERFER in scripts/pruef-wortwand-de.ts.
+// scripts/pruef-global-office.ts liest jenen Prüfstand als Text und schlägt an,
+// sobald eine Regel hier fehlt oder dort dazukommt. Beim Zusammenführen kann
+// der Prüfstand seine Liste durch einen Import von hier ersetzen.
+//
+// ── WAS DIE TREFFER IM OFFICE BEDEUTEN ─────────────────────────────────────
+// Ein Hinweis, keine Sperre. Im laufenden Auftrag ist „Ihr Antrag liegt beim
+// Institut" eine Auskunft und kein Werbeversprechen; ob ein Satz eine Zusage
+// ist, entscheidet der Zusammenhang — und den kennt der Mensch. Das Werkzeug
+// sagt, WORAUF er achten soll.
 // ═══════════════════════════════════════════════════════════════════════════
 import { wandPruefen } from "./fiaon-wortverbote";
 
-export const GLOBAL_SCHAERFER: { muster: RegExp; grund: string }[] = [
+export interface GlobalWortregel { muster: RegExp; grund: string }
+
+export const GLOBAL_SCHAERFER: GlobalWortregel[] = [
   { muster: /\bbis zu\b/i, grund: "„bis zu“ ist ein Spitzenwert-Versprechen (OLG Frankfurt 6 U 25/26)" },
   { muster: /\b(capital one|american express|amex|bank of america|chase|mercury|brex|ramp)\b/i, grund: "kein Bankname als Versprechen (BGH I ZR 170/08)" },
   { muster: /\b(innerhalb|binnen)\s+(von\s+)?\d+\s*(wochen|monaten|tagen|werktagen)\b/i, grund: "keine Frist mit Ziffer" },
@@ -35,19 +45,27 @@ export const GLOBAL_SCHAERFER: { muster: RegExp; grund: string }[] = [
   { muster: /steuern sparen|steuerersparnis|steuervorteil/i, grund: "kein Steuerversprechen" },
 ];
 
-export interface GlobalWortTreffer { quelle: "wand" | "e188"; treffer: string; grund: string }
+export interface GlobalWorthinweis {
+  /** „wand" = Hausregel aus fiaon-wortverbote.ts, „global" = schärfere Regel aus E-188. */
+  quelle: "wand" | "global";
+  /** Die Stelle im Text, an der es hängt (gekürzt). */
+  treffer: string;
+  /** Was stattdessen zu sagen ist. */
+  hinweis: string;
+}
 
 /**
- * Ein deutscher Kundentext von FIAON Global gegen BEIDE Listen. `gedeckt` sind
- * die Werkzeuge, die eine Zusage der Wand decken (z. B. „aufgabe_an_betreuer",
- * wenn der Versand erst nach angelegter Aufgabe geschieht).
+ * Prüft einen Satz, der an einen Global-Kunden geht. `gedeckt` nennt die
+ * Werkzeuge, die zur Zusage gehören (z. B. "aufgabe_an_betreuer", wenn beim
+ * Absenden wirklich eine Aufgabe entsteht) — wie bei wandPruefen.
  */
-export function globalWortPruefen(text: string, gedeckt: string[] = []): GlobalWortTreffer[] {
-  const t = String(text || "");
-  const funde: GlobalWortTreffer[] = wandPruefen(t, gedeckt).map((f) => ({ quelle: "wand" as const, treffer: f.treffer, grund: f.hinweis }));
+export function globalWortPruefen(text: string, gedeckt: string[] = []): GlobalWorthinweis[] {
+  const t = String(text ?? "");
+  if (!t.trim()) return [];
+  const funde: GlobalWorthinweis[] = wandPruefen(t, gedeckt).map((f) => ({ quelle: "wand" as const, treffer: f.treffer, hinweis: f.hinweis }));
   for (const r of GLOBAL_SCHAERFER) {
     const m = t.match(r.muster);
-    if (m) funde.push({ quelle: "e188", treffer: m[0].slice(0, 60), grund: r.grund });
+    if (m) funde.push({ quelle: "global", treffer: m[0].slice(0, 60), hinweis: r.grund });
   }
   return funde;
 }

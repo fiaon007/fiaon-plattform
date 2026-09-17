@@ -423,9 +423,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonGlobalBereichRoutes = await import('./routes/fiaon-global-bereich');
   app.use('/api/fiaon', fiaonGlobalBereichRoutes.default);
   // Tageslauf dazu: Erinnerungen aus dem Pflichtenkalender, monatlicher Durchgang, Nachfassen bei
-  // fehlenden Unterlagen. Stündlicher Takt, wirksam einmal am Tag (alleXStunden) — wie der Auszahlungstag.
+  // fehlenden Unterlagen. Stündlicher Takt; der Lauf arbeitet nur zwischen 8 und 20 Uhr Berliner Zeit
+  // und ist über Marken und Aufgaben-Schlüssel wiederholbar (Begründung an globalTageslauf).
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
-    tageslauf('global_tageslauf', async () => await (await import('./lib/fiaon-global-bereich')).globalTageslauf(), 60 * 60 * 1000, { beimStartNach: 540_000, alleXStunden: 20 });
+    tageslauf('global_tageslauf', async () => await (await import('./lib/fiaon-global-bereich')).globalTageslauf(), 60 * 60 * 1000, { beimStartNach: 540_000 });
   });
 
   // 🤝 FIAON Onboarding — eigener Bereich fuer die Startgespraeche. 404 fuer

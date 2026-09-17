@@ -100,14 +100,17 @@ const PAARE: Record<string, Record<GlobalBereichSprache, MailBaustein>> = {
 
   // Eine neue Etappe — von Hand aus dem Office (POST …/etappe mit mitteilen) oder beim Abschluss.
   // `etappe_weiter` ist nie leer: der persönliche Satz der zuständigen Person, der nächste
-  // Schritt — oder der Hinweis, wo der Stand steht.
+  // Schritt — oder der Hinweis, wo der Stand steht. Der TITEL ist fest: Das Gerüst setzt ihn im
+  // Textteil in Großbuchstaben (mailText), und aus „{{params.etappe_titel}}" würde dabei ein
+  // Platzhalter, den die Nutzlast nicht kennt — der Titel bliebe leer. Die Etappe steht im Betreff,
+  // in der Marke und im ersten Absatz.
   global_etappe: {
     de: {
       kopfSatz: KOPF, rechtsSatz: GLOBAL_ROLLEN.de.fiaon,
       marke: "{{params.etappe_marke}}",
       betreff: "Ihr Auftrag {{params.paket}}: {{params.etappe_titel}}",
       preheader: "Der Stand Ihres Auftrags und der nächste Schritt.",
-      titel: "{{params.etappe_titel}}",
+      titel: "Neuer Stand in Ihrem Auftrag",
       absaetze: [
         "{{params.anrede_zeile}}, in Ihrem Auftrag für <b>{{params.firma}}</b> gibt es einen neuen Stand: <b>{{params.etappe_titel}}</b>.",
         "{{params.etappe_text}}",
@@ -126,7 +129,7 @@ const PAARE: Record<string, Record<GlobalBereichSprache, MailBaustein>> = {
       marke: "{{params.etappe_marke}}",
       betreff: "Your order {{params.paket}}: {{params.etappe_titel}}",
       preheader: "The status of your order and the next step.",
-      titel: "{{params.etappe_titel}}",
+      titel: "A new status in your order",
       absaetze: [
         "{{params.anrede_zeile}}, there is a new status in your order for <b>{{params.firma}}</b>: <b>{{params.etappe_titel}}</b>.",
         "{{params.etappe_text}}",

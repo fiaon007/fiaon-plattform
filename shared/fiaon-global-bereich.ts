@@ -45,15 +45,22 @@
 //   · Wyoming Secretary of State, FAQ Business: „The annual report due date …
 //     is based on the anniversary month of formation" — fällig am ersten Tag
 //     dieses Monats. https://sos.wyo.gov/faqs.aspx?root=BUS
-//   · Florida Department of State (Sunbiz): Jahresberichte „are due each year
-//     between January 1 and May 1". https://dos.fl.gov/sunbiz/manage-business/efile/annual-report/
-//     (Die Seite selbst verweigerte am 17.09. den automatischen Abruf; der Satz
-//     stammt aus dem Suchtreffer derselben Behörde und ihrer Pressemitteilung 2026.)
-//   · New Mexico: LLCs reichen beim Secretary of State keinen Jahres- oder
-//     Zweijahresbericht ein (Corporations schon — dafür gibt es hier KEINE
-//     Regel, sondern den Handeintrag). Die Seite der Behörde war am 17.09. nicht
-//     abrufbar; die Aussage stützt sich auf übereinstimmende Sekundärquellen
-//     und ist deshalb im Bericht zu E-188 als offen vermerkt.
+//   · Florida: § 605.0212(3) Florida Statutes (LLC) und § 607.1622(4) (Corporation),
+//     wortgleich: „The first annual report must be delivered to the department
+//     between January 1 and May 1 of the year following the calendar year in
+//     which … became effective … Subsequent annual reports must be delivered …
+//     between January 1 and May 1 of each calendar year thereafter."
+//     http://www.leg.state.fl.us/statutes/ (Kapitel 605 und 607). Die Seite von
+//     Sunbiz (dos.fl.gov) verweigerte am 17.09. den automatischen Abruf (403);
+//     geprüft ist deshalb der Gesetzestext selbst.
+//   · New Mexico: LLCs reichen beim Secretary of State nach unserem Stand keinen
+//     Jahres- oder Zweijahresbericht ein (Corporations schon — dafür gibt es hier
+//     KEINE Regel, sondern den Handeintrag). NICHT an einer Primärquelle belegt:
+//     Die Seiten der Behörde (sos.nm.gov) nennen die Frage nicht bzw. waren am
+//     17.09. nicht abrufbar; die Aussage stützt sich auf übereinstimmende
+//     Sekundärquellen. Für New Mexico entsteht deshalb schlicht KEINE Staatsfrist
+//     (wie für jeden Staat ohne Regel), und das Office bekommt beim Speichern den
+//     Satz, das vom Registered Agent bestätigen zu lassen. Im Bericht zu E-188 offen.
 // Der erste Staatstermin liegt überall im Jahr NACH der Gründung. Die
 // Verlängerung des Registered Agent ist kein Gesetzestermin, sondern die
 // übliche Jahresabrechnung ab Gründung — der Hinweis sagt das.
@@ -169,6 +176,17 @@ export function globalDokumentArtText(art: unknown, sprache: BereichSprache = "d
 export function globalKundeDarfArt(art: unknown): boolean {
   const a = globalDokumentArt(art);
   return !!a && a.von !== "fiaon";
+}
+
+/**
+ * Die Auswahl beim Hochladen: Der Kunde bekommt nur die Arten, die er liefern
+ * darf; das Office jede. EINE Liste für beide Oberflächen (Feld `dokumentArten`
+ * in GET …/mein-auftrag/:ref und GET /agent/global/auftraege/:ref).
+ */
+export function globalDokumentArtenFuer(fuer: "kunde" | "office", sprache: BereichSprache = "de"): { art: GlobalDokumentArt; titel: string }[] {
+  return GLOBAL_DOKUMENTARTEN
+    .filter((a) => fuer === "office" || a.von !== "fiaon")
+    .map((a) => ({ art: a.art, titel: sprache === "en" ? a.en : a.de }));
 }
 
 /** Die zwei Unterlagen, die keine Datei sein müssen: Der Kunde kann sie auch als Text einreichen — abgelegt wird eine Textdatei. */
@@ -314,6 +332,29 @@ export function globalDurchgangMonat(startIso: unknown, heuteIso: unknown): stri
     treffer = faellig.slice(0, 7);
   }
   return treffer;
+}
+
+/**
+ * Welche Erinnerung ist für eine Frist HEUTE dran? Rund einen Monat vorher die
+ * Marke 30, rund eine Woche vorher die Marke 7 — jede genau einmal (`schon`).
+ * Wer die Woche erreicht, ohne dass die Monatsmarke je gesetzt wurde (Frist
+ * kurzfristig eingetragen), bekommt NUR die Wochen-Erinnerung. Vergangenes und
+ * was weiter als 30 Tage weg liegt: keine.
+ */
+export function globalFristMarke(faelligAm: unknown, heute: unknown, schon: { m30: boolean; m7: boolean }): 30 | 7 | null {
+  if (!istIsoTag(faelligAm) || !istIsoTag(heute) || faelligAm < heute) return null;
+  if (faelligAm <= isoPlusTage(heute, 7)) return schon.m7 ? null : 7;
+  if (faelligAm <= isoPlusTage(heute, 30)) return schon.m30 ? null : 30;
+  return null;
+}
+
+/**
+ * Der Tageslauf arbeitet nur am Tag (Berliner Zeit, 08:00 bis vor 20:00): Er
+ * verschickt Erinnerungen an Firmenkunden und Aufgaben-Mails an Mitarbeiter —
+ * beides gehört nicht in die Nacht. `minuten` = Minuten seit Mitternacht in Berlin.
+ */
+export function globalTageslaufFenster(minuten: number): boolean {
+  return Number.isFinite(minuten) && minuten >= 8 * 60 && minuten < 20 * 60;
 }
 
 /** Nach so vielen Tagen ohne vollständige Unterlagen bekommt die zuständige Person eine Aufgabe (keine Mail-Kaskade an den Kunden). */

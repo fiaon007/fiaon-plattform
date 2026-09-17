@@ -39,10 +39,10 @@ import {
   globalBereichKundenSicht, globalBereichOfficeSicht, globalBereichListe, globalBereichZustaendig, globalKundenDokument, globalOfficeDokument,
   globalDokumentLesen, globalDokumentEntfernen, globalKundenNachricht, globalZugangAnfordern, globalEtappeSetzen, globalNaechsterSchrittSetzen,
   globalGesellschaftSetzen, globalFristAnlegen, globalFristAendern, globalFristLoeschen, globalNotizSchreiben, globalBereichStichtag,
-  globalZugangSenden, globalAbschliessen, type BereichAgent, type DateiEin,
+  globalZugangSenden, globalAbschliessen, globalBereichRaumLage, type BereichAgent, type DateiEin,
 } from "../lib/fiaon-global-bereich";
 import {
-  GLOBAL_DATEI_MAX_BYTES, fensterDrossel, globalDateinameKopf, globalMimeAuslieferbar, globalOfficeSiehtAlle, globalOfficeZugriff,
+  GLOBAL_DATEI_MAX_BYTES, fensterDrossel, globalDateinameKopf, globalMimeAuslieferbar, globalOfficeRaumZugriff, globalOfficeSiehtAlle, globalOfficeZugriff,
 } from "../lib/fiaon-global-bereich-regeln";
 
 const router = Router();
@@ -178,8 +178,16 @@ router.post("/global/zugang", (req: Request, res: Response) => {
 });
 
 // ═══ DAS OFFICE ══════════════════════════════════════════════════════════════
+/**
+ * Wer fragt? Der angemeldete Mitarbeiter (requireAgent) — dazu, ob derselbe Browser zusätzlich als
+ * Chef (E-053/E-155) oder Verwaltung ausgewiesen ist. requireAgent selbst lässt weder Chef-Token noch
+ * Verwaltungs-Code ohne Mitarbeiter-Anmeldung durch; die Leitung ohne Office-Konto arbeitet über
+ * /chef/s/global-auftraege. In einer ANSICHTS-Sitzung („mit den Augen eines Mitarbeiters") zählen die
+ * Ausweise des Betrachters nicht: Er soll sehen, was der Mitarbeiter sieht — nicht mehr.
+ */
 function wer(req: AgentRequest) {
-  return { agentId: req.agent?.id, rolle: req.agent?.rolle, chef: !!readChef(req), adminCode: hasAdminCode(req) };
+  const ansicht = !!req.agent?.ansicht;
+  return { agentId: req.agent?.id, rolle: req.agent?.rolle, chef: !ansicht && !!readChef(req), adminCode: !ansicht && hasAdminCode(req) };
 }
 
 /**
@@ -213,10 +221,16 @@ function aktion(name: string, tun: (ref: string, body: any, agent: BereichAgent,
   };
 }
 
+// Die Office-Leiste entscheidet an DIESER Antwort, ob sie den Raum „Global" zeigt: 403 = ausblenden.
+// Eine leere Liste mit 200 bekäme jeder Mitarbeiter — dann sähen alle den Raum (globalOfficeRaumZugriff).
 router.get("/agent/global/auftraege", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
-    const alle = !!globalOfficeSiehtAlle(wer(req));
-    res.json({ ok: true, alle, zeilen: await globalBereichListe({ agentId: req.agent!.id, alle }) });
+    const person = wer(req);
+    const siehtAlle = !!globalOfficeSiehtAlle(person);
+    const urteil = globalOfficeRaumZugriff(person, siehtAlle ? { fuehrtAuftraege: false, istEingestellt: false } : await globalBereichRaumLage(req.agent!.id));
+    if (!urteil.erlaubt) return res.status(403).json({ ok: false, error: "Dieser Raum gehört der Person, die FIAON Global führt, und der Leitung." });
+    res.setHeader("Cache-Control", "private, no-store");
+    res.json({ ok: true, alle: urteil.alle, zeilen: await globalBereichListe({ agentId: req.agent!.id, alle: urteil.alle }) });
   } catch (err) {
     console.error("[GLOBAL-BEREICH] office liste:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });

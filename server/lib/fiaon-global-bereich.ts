@@ -53,7 +53,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { createHash } from "node:crypto";
 import { sqlPool } from "./db-pool";
-import { berlinToday, berlinDatum } from "./fiaon-time";
+import { berlinToday, berlinDatum, berlinOffsetMinutes } from "./fiaon-time";
 import { isoTag } from "./fiaon-kuendigung-mitarbeiter";
 import { escapeHtml } from "./fiaon-html-pdf";
 import { paket as katalogPaket } from "@shared/fiaon-pakete";
@@ -62,8 +62,8 @@ import { wandPruefen, wandUrteil } from "@shared/fiaon-wortverbote";
 import { globalOfficeAuftragPfad } from "@shared/fiaon-global-wege";
 import {
   GLOBAL_ETAPPEN, GLOBAL_ETAPPE_MAX, GLOBAL_FRIST_STANDARDHINWEIS, GLOBAL_TEXT_UNTERLAGEN, GLOBAL_UNTERLAGEN_NACHFASS_TAGE, GLOBAL_VERLAUF_TEXT,
-  globalDokumentArt, globalDokumentArtText, globalDurchgangMonat, globalEtappeStand, globalEtappeText, globalFristAbstandText,
-  globalHatMonatsdurchgang, globalHeimatMeldungSchritt, globalKundeDarfArt, globalPaketEtappeBis, globalPflichtFristen, globalTagAlsText,
+  globalDokumentArt, globalDokumentArtText, globalDokumentArtenFuer, globalDurchgangMonat, globalEtappeStand, globalEtappeText, globalFristAbstandText,
+  globalFristMarke, globalTageslaufFenster, globalHatMonatsdurchgang, globalHeimatMeldungSchritt, globalKundeDarfArt, globalPaketEtappeBis, globalPflichtFristen, globalTagAlsText,
   globalUnterlagenOffen, globalUnterlagenStand, isoPlusTage, istIsoTag, usBundesstaatCode, usBundesstaatName,
   type BereichSprache, type GlobalGesellschaft,
 } from "@shared/fiaon-global-bereich";
@@ -161,9 +161,25 @@ const knapp = (v: unknown, max: number) => String(v ?? "").replace(/\s+/g, " ").
 /** Mehrzeiliger Text: Zeilenumbrüche bleiben, Steuerzeichen nicht. */
 const absatz = (v: unknown, max: number) => String(v ?? "").replace(/\r\n?/g, "\n").replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, "").replace(/\n{3,}/g, "\n\n").trim().slice(0, max);
 
-/** Der Satz eines Mitarbeiters, den der KUNDE liest — gegen die Wand des Hauses (Muster kundensatzPruefen in fiaon-app-antraege.ts). */
-function kundensatz(text: string): string | null {
-  const funde = wandPruefen(text);
+/**
+ * Der Satz eines Mitarbeiters, den der KUNDE liest — gegen die Wand des Hauses
+ * (Muster kundensatzPruefen in fiaon-app-antraege.ts). Harte Treffer sperren:
+ * garantieren, beraten, empfehlen, eine Frist in Tagen zusagen.
+ *
+ * Die SCHÄRFEREN Global-Regeln (shared/fiaon-global-wortregeln.ts: Bankname,
+ * „bis zu" …) sperren hier bewusst NICHT — sie gelten für die festen Texte des
+ * Hauses. Im laufenden Auftrag muss der Name eines Instituts stehen dürfen
+ * („Bitte bestätigen Sie die E-Mail von …"); die Office-Seite zeigt diese
+ * Treffer beim Tippen als Hinweis.
+ *
+ * Gedeckt sind die Zusagen „ich rufe Sie an" / „ich melde mich" / „notiert":
+ * Wer hier schreibt, IST die zuständige Person mit dem Auftrag vor sich — er
+ * verspricht die Handlung selbst (bei Mara deckt sie das Werkzeug, das die
+ * Aufgabe an den Betreuer anlegt).
+ */
+const SELBST_GEDECKT = ["notiz_an_betreuer", "aufgabe_an_betreuer"];
+export function kundensatz(text: string): string | null {
+  const funde = wandPruefen(text, SELBST_GEDECKT);
   if (wandUrteil(funde).sendbar) return null;
   return `Der Text für den Kunden enthält Formulierungen, die wir nicht verwenden: ${funde.filter((f) => f.art !== "floskel").map((f) => `„${f.treffer}“`).join(", ")}. Bitte formuliere um.`;
 }
@@ -285,7 +301,11 @@ async function sichtBauen(l: Lage, fuer: "kunde" | "office"): Promise<Record<str
   const gesellschaft = g && (g.name || g.form || g.bundesstaat || g.gegruendetAm || g.einVorhanden != null || g.itinStand)
     ? {
       ...(g.name ? { name: g.name } : {}), ...(g.form ? { form: g.form } : {}),
-      ...(g.bundesstaat ? { bundesstaat: usBundesstaatName(g.bundesstaat) ?? g.bundesstaat, bundesstaatCode: g.bundesstaat } : {}),
+      // Der Kunde liest den Namen („Delaware" — „DE" sähe für ihn nach Deutschland aus); das Office
+      // bekommt das Kürzel, weil sein Formular es so zurückschickt. Das jeweils andere reist mit.
+      ...(g.bundesstaat ? (fuer === "office"
+        ? { bundesstaat: g.bundesstaat, bundesstaatName: usBundesstaatName(g.bundesstaat) ?? g.bundesstaat }
+        : { bundesstaat: usBundesstaatName(g.bundesstaat) ?? g.bundesstaat, bundesstaatCode: g.bundesstaat }) : {}),
       ...(g.gegruendetAm ? { gegruendetAm: g.gegruendetAm } : {}),
       ...(g.einVorhanden != null ? { einVorhanden: !!g.einVorhanden } : {}), ...(g.itinStand ? { itinStand: g.itinStand } : {}),
     } : undefined;
@@ -314,8 +334,10 @@ async function sichtBauen(l: Lage, fuer: "kunde" | "office"): Promise<Record<str
       ...(fuer === "office" ? { quelle: String(f.quelle), erledigtAm: iso(f.erledigt_am), erinnert30Am: iso(f.erinnert_30_am), erinnert7Am: iso(f.erinnert_7_am) } : {}),
     })),
     verlauf: verlaufAlles.filter((v) => v.sichtbar).map((v) => ({ am: v.am, text: v.text })),
-    // Dürfen jetzt Dokumente hochgeladen werden? (nur bezahlt | gestartet)
-    uploadOffen: LAEUFT.includes(l.status),
+    // Dürfen jetzt Dokumente hochgeladen werden? (Kunde: nur bezahlt | gestartet; Office auch nach dem Abschluss)
+    uploadOffen: fuer === "office" ? BEZAHLT.includes(l.status) : LAEUFT.includes(l.status),
+    // Die Auswahl beim Hochladen — der Kunde nur, was er liefern darf; das Office jede Art (in seiner Sprache: deutsch).
+    dokumentArten: globalDokumentArtenFuer(fuer, fuer === "office" ? "de" : sprache),
     _verlaufAlles: verlaufAlles,
   };
 }
@@ -376,6 +398,17 @@ export async function globalBereichZustaendig(ref: string): Promise<number | nul
   const [z] = (await sqlPool`SELECT zustaendig_agent_id FROM fiaon_global_auftraege WHERE ref = ${ref} LIMIT 1`) as any[];
   if (!z) return undefined;
   return z.zustaendig_agent_id ? Number(z.zustaendig_agent_id) : null;
+}
+
+/**
+ * Was die Raum-Regel (globalOfficeRaumZugriff) über diese Person wissen muss: Führt sie mindestens
+ * einen Auftrag, und steht sie in den Einstellungen als zuständige Person für FIAON Global?
+ */
+export async function globalBereichRaumLage(agentId: number): Promise<{ fuehrtAuftraege: boolean; istEingestellt: boolean }> {
+  await ensureGlobalBereich();
+  const [z] = (await sqlPool`SELECT 1 AS da FROM fiaon_global_auftraege WHERE zustaendig_agent_id = ${agentId} LIMIT 1`) as any[];
+  const eingestellt = (await globalEinstellungen()).zustaendigAgentId;
+  return { fuehrtAuftraege: !!z, istEingestellt: eingestellt != null && eingestellt === agentId };
 }
 
 // ── Die Liste im Office ──────────────────────────────────────────────────────
@@ -584,11 +617,14 @@ export async function globalGesellschaftSetzen(ref: string, ein: Record<string, 
   }
   const staatOhneRegel = g.bundesstaat && !["DE", "WY", "FL", "NM"].includes(g.bundesstaat);
   const nmCorp = g.bundesstaat === "NM" && g.form === "Corporation";
+  const nmLlc = g.bundesstaat === "NM" && !nmCorp;
   return {
     ok: true, fristen,
     meldung: `Gesellschaft gespeichert. Pflichtenkalender: ${fristen.neu} neu, ${fristen.geaendert} geändert, ${fristen.entfernt} entfernt.`
       + (!g.gegruendetAm ? " Ohne Gründungstag entstehen keine Regel-Fristen." : "")
-      + (staatOhneRegel || nmCorp ? ` Für ${usBundesstaatName(g.bundesstaat) ?? g.bundesstaat}${nmCorp ? " (Corporation)" : ""} gibt es keine Staatsregel — bitte den Jahresbericht bzw. die Jahressteuer des Bundesstaats von Hand als Frist eintragen.` : ""),
+      + (staatOhneRegel || nmCorp ? ` Für ${usBundesstaatName(g.bundesstaat) ?? g.bundesstaat}${nmCorp ? " (Corporation)" : ""} gibt es keine Staatsregel — bitte den Jahresbericht bzw. die Jahressteuer des Bundesstaats von Hand als Frist eintragen.` : "")
+      // New Mexico (LLC): nach unserem Stand keine jährliche Meldung an den Staat — aber nicht an einer Primärquelle belegt.
+      + (nmLlc ? " New Mexico verlangt von LLCs nach unserem Stand keine jährliche Meldung an den Staat, deshalb steht keine Staatsfrist im Kalender — bitte vom Registered Agent bestätigen lassen und, falls doch eine gilt, von Hand eintragen." : ""),
   };
 }
 
@@ -934,7 +970,7 @@ export function globalZugangAnfordern(emailRoh: unknown, ip: string): void {
 }
 
 // ── TAGESLAUF ────────────────────────────────────────────────────────────────
-export interface GlobalTageslaufErgebnis { regelFristen: number; fristMails: number; fristAufgaben: number; durchgaenge: number; unterlagen: number; fehler: number }
+export interface GlobalTageslaufErgebnis { ruhe: boolean; regelFristen: number; fristMails: number; fristAufgaben: number; durchgaenge: number; unterlagen: number; fehler: number }
 
 /** Gibt es die Aufgabe schon? auftragFuerKunden würde eine ERLEDIGTE wieder öffnen — deshalb vorher nachsehen (Muster Fristenwächter). */
 async function aufgabeDa(schluessel: string): Promise<boolean> {
@@ -942,18 +978,36 @@ async function aufgabeDa(schluessel: string): Promise<boolean> {
   return (await todoSchluesselVorhanden([schluessel])).has(schluessel);
 }
 
+/** Minuten seit Mitternacht in Berlin — aus dem Offset von fiaon-time.ts (formatToParts), nie aus Number(Intl.format()). */
+function berlinMinutenVon(jetzt: Date): number {
+  const roh = jetzt.getUTCHours() * 60 + jetzt.getUTCMinutes() + berlinOffsetMinutes(jetzt);
+  return ((roh % 1440) + 1440) % 1440;
+}
+
 /**
- * `global_tageslauf` — einmal am Tag (fiaon-crons.ts, alleXStunden). Alles ist über Marken-Spalten
- * bzw. Aufgaben-Schlüssel wiederholbar; ein Auftrag, der klemmt, hält die anderen nicht auf.
+ * `global_tageslauf` — stündlicher Takt (fiaon-crons.ts), gearbeitet wird nur am Tag (Berliner Zeit,
+ * globalTageslaufFenster): Der Lauf schreibt Firmenkunden und Mitarbeitern, und beides gehört nicht
+ * in die Nacht. Bewusst OHNE `alleXStunden`: Ein 20-Stunden-Abstand wandert jeden Tag vier Stunden
+ * nach vorn und landet nach drei Tagen um zwei Uhr nachts. Alles hier ist über Marken-Spalten bzw.
+ * Aufgaben-Schlüssel wiederholbar — ein zweiter Lauf am selben Tag findet nichts mehr zu tun —, und
+ * ein Auftrag, der klemmt, hält die anderen nicht auf.
  *   (0) Regel-Fristen laufender Aufträge nachziehen — das 18-Monats-Fenster wandert mit.
  *   (a) Fristen: rund einen Monat und rund eine Woche vorher Mail `global_frist` an den Kunden
- *       (gestartet und abgeschlossen) und eine Aufgabe an die zuständige Person (nur gestartet).
+ *       (gestartet und abgeschlossen) und eine Aufgabe an die zuständige Person (gestartet — oder
+ *       wenn die Mail nicht rausging: dann muss ein Mensch erinnern). Je Marke GENAU einmal: Die
+ *       Marke wird vor dem Versand gesetzt und nie zurückgenommen; scheitert die Mail, steht es in
+ *       der Aufgabe und im Verlauf.
  *   (b) Monatlicher Durchgang (Banking, Kapital, VIP; nur gestartet): Aufgabe am Monatstag des Starts.
  *   (c) Unterlagen: fünf Tage nach dem Start unvollständig → EINE Aufgabe. Keine Kundenmail.
+ * Legt selbst keine Auftragstabelle an: Ohne den ersten Auftrag gibt es nichts zu tun.
  */
-export async function globalTageslauf(heute: string = berlinToday()): Promise<GlobalTageslaufErgebnis> {
+export async function globalTageslauf(jetzt: Date = new Date()): Promise<GlobalTageslaufErgebnis> {
+  const erg: GlobalTageslaufErgebnis = { ruhe: false, regelFristen: 0, fristMails: 0, fristAufgaben: 0, durchgaenge: 0, unterlagen: 0, fehler: 0 };
+  if (!globalTageslaufFenster(berlinMinutenVon(jetzt))) { erg.ruhe = true; return erg; }
+  const [tabelle] = (await sqlPool`SELECT to_regclass('public.fiaon_global_auftraege') AS da`) as any[];
+  if (!tabelle?.da) return erg;
   await ensureGlobalBereich();
-  const erg: GlobalTageslaufErgebnis = { regelFristen: 0, fristMails: 0, fristAufgaben: 0, durchgaenge: 0, unterlagen: 0, fehler: 0 };
+  const heute = berlinToday(jetzt);
   const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
   const einstellungen = await globalEinstellungen();
 
@@ -982,21 +1036,20 @@ export async function globalTageslauf(heute: string = berlinToday()): Promise<Gl
         erg.regelFristen += r.neu;
       }
 
-      // (a) Fristen
-      const in30 = isoPlusTage(heute, 30); const in7 = isoPlusTage(heute, 7);
+      // (a) Fristen — welche Marke heute dran ist, sagt die reine Regel (globalFristMarke).
       const fristen = (await sqlPool`
         SELECT id, titel, faellig_am, hinweis, erinnert_30_am, erinnert_7_am FROM fiaon_global_fristen
-         WHERE ref = ${ref} AND erledigt_am IS NULL AND faellig_am >= ${heute}::date AND faellig_am <= ${in30}::date
-           AND (erinnert_30_am IS NULL OR (faellig_am <= ${in7}::date AND erinnert_7_am IS NULL))
-         ORDER BY faellig_am ASC`) as any[];
+         WHERE ref = ${ref} AND erledigt_am IS NULL AND faellig_am >= ${heute}::date AND faellig_am <= ${isoPlusTage(heute, 30)}::date
+           AND (erinnert_30_am IS NULL OR erinnert_7_am IS NULL)
+         ORDER BY faellig_am ASC, id ASC`) as any[];
       for (const f of fristen) {
         const tag = isoTag(f.faellig_am);
-        const marke: 30 | 7 = tag <= in7 ? 7 : 30;
-        // Die Marke zuerst — sie ist die Sperre gegen eine zweite Instanz. Wer die Woche erreicht, ohne
-        // dass die Monatsmarke je gesetzt wurde (Frist kurzfristig eingetragen), bekommt NUR die Wochen-Erinnerung.
+        const marke = globalFristMarke(tag, heute, { m30: !!f.erinnert_30_am, m7: !!f.erinnert_7_am });
+        if (!marke) continue;
+        // Die Marke zuerst — sie ist die Sperre gegen eine zweite Instanz und gegen den nächsten Takt.
         const frei = marke === 7
-          ? ((await sqlPool`UPDATE fiaon_global_fristen SET erinnert_7_am = NOW(), erinnert_30_am = COALESCE(erinnert_30_am, NOW()) WHERE id = ${f.id} AND erinnert_7_am IS NULL RETURNING id`) as any[])
-          : ((await sqlPool`UPDATE fiaon_global_fristen SET erinnert_30_am = NOW() WHERE id = ${f.id} AND erinnert_30_am IS NULL RETURNING id`) as any[]);
+          ? ((await sqlPool`UPDATE fiaon_global_fristen SET erinnert_7_am = NOW(), erinnert_30_am = COALESCE(erinnert_30_am, NOW()) WHERE id = ${f.id} AND erinnert_7_am IS NULL AND erledigt_am IS NULL RETURNING id`) as any[])
+          : ((await sqlPool`UPDATE fiaon_global_fristen SET erinnert_30_am = NOW() WHERE id = ${f.id} AND erinnert_30_am IS NULL AND erledigt_am IS NULL RETURNING id`) as any[]);
         if (!frei.length) continue;
         const l = await lageLesen(ref);
         if (!l || l.status === "storniert") continue;
@@ -1004,21 +1057,21 @@ export async function globalTageslauf(heute: string = berlinToday()): Promise<Gl
           frist_titel: escapeHtml(String(f.titel)), frist_datum: globalTagAlsText(tag, sprache), frist_abstand: globalFristAbstandText(marke, sprache),
           frist_hinweis: escapeHtml(String(f.hinweis || GLOBAL_FRIST_STANDARDHINWEIS[sprache])),
         }, "Tageslauf (Pflichtenkalender)");
+        const wann = marke === 7 ? "rund eine Woche" : "rund einen Monat";
         if (mail.ok) {
           erg.fristMails++;
-          await verlaufSchreiben(ref, { art: "erinnerung", text: `Erinnerung an „${String(f.titel)}“ (${globalTagAlsText(tag, "de")}) an den Kunden geschickt — ${marke === 7 ? "rund eine Woche" : "rund einen Monat"} vorher.`, sichtbar: false });
+          await verlaufSchreiben(ref, { art: "erinnerung", text: `Erinnerung an „${String(f.titel)}“ (${globalTagAlsText(tag, "de")}) an den Kunden geschickt — ${wann} vorher.`, sichtbar: false });
         } else {
-          // Marke zurück: Der nächste Lauf versucht es wieder. Die Aufgabe unten entsteht trotzdem nur einmal (Schlüssel).
-          if (marke === 7) await sqlPool`UPDATE fiaon_global_fristen SET erinnert_7_am = NULL WHERE id = ${f.id}`.catch(() => {});
-          else await sqlPool`UPDATE fiaon_global_fristen SET erinnert_30_am = NULL WHERE id = ${f.id}`.catch(() => {});
-          console.error(`[GLOBAL-TAGESLAUF] ${ref}: Frist-Mail ${f.id}/${marke} ging nicht raus: ${mail.grund}`);
           erg.fehler++;
+          console.error(`[GLOBAL-TAGESLAUF] ${ref}: Frist-Mail ${f.id}/${marke} ging nicht raus: ${mail.grund}`);
+          await verlaufSchreiben(ref, { art: "erinnerung", text: `Erinnerung an „${String(f.titel)}“ (${globalTagAlsText(tag, "de")}, ${wann} vorher) ging NICHT raus: ${mail.grund ?? "unbekannt"}. Die zuständige Person hat eine Aufgabe.`, sichtbar: false });
         }
+        // Die Aufgabe: solange der Auftrag läuft immer — und sonst dann, wenn die Mail nicht rausging.
         const schluessel = `global:${ref}:frist:${f.id}:${marke}`;
-        if (laeuft && !(await aufgabeDa(schluessel))) {
+        if ((laeuft || !mail.ok) && !(await aufgabeDa(schluessel))) {
           await aufgabe(schluessel, `FIAON Global: Frist ${marke === 7 ? "in einer Woche" : "in einem Monat"} — ${firma}`,
-            `„${String(f.titel)}“ ist am ${globalTagAlsText(tag, "de")} fällig. Der Kunde ${mail.ok ? "hat heute die Erinnerung per Mail bekommen" : "hat KEINE Erinnerung bekommen (Mail ging nicht raus)"}. Bitte klären, ob Steuerberater bzw. US-CPA die Sache führen, und die Frist im Auftrag als erledigt eintragen, sobald sie es ist: ${globalOfficeAuftragPfad(ref)}`,
-            marke === 7 ? heute : isoPlusTage(heute, 2), marke === 7);
+            `„${String(f.titel)}“ ist am ${globalTagAlsText(tag, "de")} fällig. Der Kunde ${mail.ok ? "hat heute die Erinnerung per Mail bekommen" : `hat KEINE Erinnerung bekommen — die Mail ging nicht raus (${mail.grund ?? "unbekannt"}); bitte erinnere ihn selbst, eine zweite Mail kommt nicht von allein`}. Bitte klären, ob Steuerberater bzw. US-CPA die Sache führen, und die Frist im Auftrag als erledigt eintragen, sobald sie es ist: ${globalOfficeAuftragPfad(ref)}`,
+            marke === 7 || !mail.ok ? heute : isoPlusTage(heute, 2), marke === 7 || !mail.ok);
           erg.fristAufgaben++;
         }
       }

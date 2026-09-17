@@ -51,7 +51,7 @@ const termine = (ein: Parameters<typeof B.globalPflichtFristen>[0], heute: strin
 gleich(termine({ bundesstaat: "DE", form: "LLC", gegruendetAm: "2026-10-01" }, "2026-10-02"),
   ["us_meldung:2027=2027-04-15", "staat:DE:2027=2027-06-01", "agent:2027=2027-10-01"], "Delaware LLC, gegründet 01.10.2026");
 gleich(termine({ bundesstaat: "Delaware", form: "Corporation", gegruendetAm: "2026-10-01" }, "2026-10-02"),
-  ["staat:DE:2027=2027-03-01", "us_meldung:2027=2027-04-15", "agent:2027=2027-10-01"], "Delaware Corporation: 1. März statt 1. Juni");
+  ["staat:DE:2027=2027-03-01", "us_meldung:2027=2027-04-15", "agent:2027=2027-10-01", "staat:DE:2028=2028-03-01"], "Delaware Corporation: 1. März statt 1. Juni (der 01.03.2028 liegt noch im Fenster bis 02.04.2028)");
 gleich(termine({ bundesstaat: "WY", form: "LLC", gegruendetAm: "2026-05-15" }, "2026-06-01"),
   ["us_meldung:2027=2027-04-15", "staat:WY:2027=2027-05-01", "agent:2027=2027-05-15"], "Wyoming: erster Tag des Gründungsmonats, erst im Folgejahr");
 gleich(termine({ bundesstaat: "FL", form: "LLC", gegruendetAm: "2026-11-20" }, "2026-12-01"),
@@ -118,6 +118,15 @@ gleich(["global_struktur", "global_banking", "global_kapital", "global_vip", "ul
 gleich(["global_struktur", "global_banking", "global_kapital", "global_vip"].map((k) => B.globalPaketEtappeBis(k)), [2, 3, 4, 4], "bis zu welcher Etappe ein Paket begleitet");
 gleich([B.globalEtappeStand(1, 2), B.globalEtappeStand(2, 2), B.globalEtappeStand(3, 2), B.globalEtappeStand(0, 0), B.globalEtappeStand(5, 5), B.globalEtappeStand(3, 5)], ["fertig", "jetzt", "offen", "jetzt", "fertig", "fertig"], "Stand einer Etappe");
 
+// Erinnerungsmarken des Pflichtenkalenders: rund einen Monat und rund eine Woche vorher, je genau einmal.
+const marke = (tag: string, heute: string, m30 = false, m7 = false) => B.globalFristMarke(tag, heute, { m30, m7 });
+gleich([marke("2027-04-15", "2027-03-15"), marke("2027-04-15", "2027-03-16"), marke("2027-04-15", "2027-03-16", true)], [null, 30, null], "Marke 30: ab dreißig Tagen vorher, einmal");
+gleich([marke("2027-04-15", "2027-04-07", true), marke("2027-04-15", "2027-04-08", true), marke("2027-04-15", "2027-04-08", true, true)], [null, 7, null], "Marke 7: ab sieben Tagen vorher, einmal");
+gleich(marke("2027-04-15", "2027-04-10", false, false), 7, "kurzfristig eingetragen: nur die Wochen-Erinnerung");
+gleich([marke("2027-04-15", "2027-04-15", true), marke("2027-04-15", "2027-04-16"), marke("2027-02-29", "2027-02-01"), marke("2027-04-15", "heute")], [7, null, null, null], "heute fällig zählt, gestern und Kaputtes nicht");
+gleich(marke("2027-01-05", "2026-12-30", true), 7, "Marke 7 über den Jahreswechsel");
+gleich([B.globalTageslaufFenster(7 * 60 + 59), B.globalTageslaufFenster(8 * 60), B.globalTageslaufFenster(19 * 60 + 59), B.globalTageslaufFenster(20 * 60), B.globalTageslaufFenster(2 * 60), B.globalTageslaufFenster(NaN)], [false, true, true, false, false, false], "Tageslauf arbeitet nur von 8 bis vor 20 Uhr");
+
 // ═══ 3: TEXTE ═══════════════════════════════════════════════════════════════
 abschnitt("Texte: Wortwand + Global-Regeln (de), Gegenprobe (en)");
 gleich(B.GLOBAL_ETAPPEN.map((e) => e.nr), [0, 1, 2, 3, 4, 5], "sechs Etappen 0–5");
@@ -145,7 +154,7 @@ for (const [sprache, ziel] of [["de", de], ["en", en]] as const) {
   ziel.push(["standardhinweis", B.GLOBAL_FRIST_STANDARDHINWEIS[sprache]]);
 }
 let wandTreffer = 0;
-for (const [pfad, text] of de) for (const tr of globalWortPruefen(text)) { wandTreffer++; ok(false, `WORTWAHL (de) ${pfad}: „${tr.treffer}“ — ${tr.grund}`); }
+for (const [pfad, text] of de) for (const tr of globalWortPruefen(text)) { wandTreffer++; ok(false, `WORTWAHL (de) ${pfad}: „${tr.treffer}“ — ${tr.hinweis}`); }
 // Englisch: dieselben Grenzen wie scripts/seo-wortverbote-en.ts. „personal guarantee" ist der Rechtsbegriff
 // der persönlichen Haftung (er warnt), und eine Verneinung („not tax or legal advice") schließt aus, was verboten ist.
 const enTreffer = (text: string): string[] => {
@@ -179,6 +188,10 @@ gleich(B.globalUnterlagenOffen(["reisepass", "adressnachweis", "registerauszug",
 ok(!B.globalKundeDarfArt("ein_brief") && !B.globalKundeDarfArt("gruendungsurkunde") && B.globalKundeDarfArt("bank_unterlage") && !B.globalKundeDarfArt("exe"), "Kunde darf nur Arten „kunde“ und „beide“");
 gleich(B.GLOBAL_DOKUMENTARTEN.map((a) => a.art).sort(), ["adressnachweis", "bank_unterlage", "ein_brief", "gesellschafterliste", "gruendungsurkunde", "itin_bescheid", "namenswunsch", "operating_agreement", "registerauszug", "reisepass", "sonstiges", "taetigkeitsbeschreibung"], "zwölf Dokumentarten");
 
+gleich(B.globalDokumentArtenFuer("office").length, 12, "das Office wählt aus allen zwölf Arten");
+ok(B.globalDokumentArtenFuer("kunde").every((a) => B.globalKundeDarfArt(a.art)) && B.globalDokumentArtenFuer("kunde").some((a) => a.art === "sonstiges") && B.globalDokumentArtenFuer("kunde").length === 8, "der Kunde wählt nur aus Arten, die er liefern darf (acht, mit „Sonstiges“)");
+gleich(B.globalDokumentArtenFuer("kunde", "en").find((a) => a.art === "reisepass")?.titel, "Passport", "Auswahl englisch");
+
 // ═══ 5: MAILS ═══════════════════════════════════════════════════════════════
 abschnitt("Mails: global_zugang · global_etappe · global_frist · global_dokument");
 const EREIGNISSE = ["global_zugang", "global_etappe", "global_frist", "global_dokument"];
@@ -191,6 +204,8 @@ for (const event of EREIGNISSE) {
   gleich(platzhalter(paar.en), platzhalter(paar.de), `${event}: Platzhalter de/en`);
   gleich([paar.en.knopf?.url, paar.en.knopf2?.url, paar.en.daten?.length, paar.en.absaetze.length], [paar.de.knopf?.url, paar.de.knopf2?.url, paar.de.daten?.length, paar.de.absaetze.length], `${event}: Aufbau de/en`);
   ok(paar.de.knopf?.url === "{{params.mein_auftrag_url}}", `${event}: der Knopf führt nicht zu „Mein Auftrag“`);
+  // Der Textteil setzt den Titel in Großbuchstaben — ein Platzhalter dort bliebe leer (mailText im Gerüst).
+  ok(!/\{\{/.test(paar.de.titel) && !/\{\{/.test(paar.en.titel), `${event}: Platzhalter im Titel`);
   const def = MAKE_EVENT_REGISTRY.find((e: { type: string }) => e.type === event);
   ok(!!def, `${event}: nicht registriert (make-events-registry.ts)`);
   if (!def) continue;
@@ -205,7 +220,7 @@ for (const event of EREIGNISSE) {
     ok(!/\{\{|\}\}|undefined|null/.test(mail.text), `${event}/${sprache}: Rest eines Platzhalters im Text`);
     if (sprache === "de") {
       // Der Link selbst ist kein Kundensatz (und trüge zufällige Ziffern in die Regeln).
-      for (const tr of globalWortPruefen(mail.text.split(String(def.example.mein_auftrag_url)).join(""))) ok(false, `${event}: WORTWAHL „${tr.treffer}“ — ${tr.grund}`);
+      for (const tr of globalWortPruefen(mail.text.split(String(def.example.mein_auftrag_url)).join(""))) ok(false, `${event}: WORTWAHL „${tr.treffer}“ — ${tr.hinweis}`);
       ok(/Ihr|Sie/.test(mail.text) && !/\b(du|dein|dir)\b/i.test(mail.text), `${event}: nicht in Sie-Form`);
     } else {
       ok(paar.en.betreff !== paar.de.betreff && /Your|your/.test(mail.text) && !/\b(Ihre?|Sie)\b/.test(mail.text.split("—")[0]), `${event}/en: nicht englisch`);
@@ -331,6 +346,27 @@ gleich(darf({ agentId: 12, rolle: "agent", adminCode: true }, 8), { erlaubt: tru
 ok([undefined, null, 0, -1, NaN, 1.5].every((id) => !darf({ agentId: id as any, rolle: "vertriebsleiter", chef: true, adminCode: true }, 8).erlaubt), "ohne angemeldeten Mitarbeiter nie — auch nicht mit Chef-Token");
 gleich(darf({ agentId: 12, rolle: "agent", chef: "true" as any }, 8).erlaubt, false, "chef muss ein echtes true sein");
 gleich([R.globalOfficeSiehtAlle({ agentId: 1, rolle: "agent" }), R.globalOfficeSiehtAlle({ agentId: 1, rolle: "vertriebsleiter" })], [null, "vertriebsleitung"], "wer alle Aufträge sieht");
+// Der RAUM (Liste): 403 für alle, die weder alles sehen noch einen Auftrag führen noch eingestellt sind —
+// sonst zeigte die Office-Leiste den Raum „Global" jedem Mitarbeiter.
+const raum = (w: Parameters<typeof R.globalOfficeRaumZugriff>[0], fuehrt = false, eingestellt = false) => R.globalOfficeRaumZugriff(w, { fuehrtAuftraege: fuehrt, istEingestellt: eingestellt });
+gleich(raum({ agentId: 12, rolle: "agent" }), { erlaubt: false, alle: false, grund: null }, "gewöhnlicher Mitarbeiter: kein Raum");
+gleich(raum({ agentId: 12, rolle: "agent" }, true), { erlaubt: true, alle: false, grund: "zustaendig" }, "führt einen Auftrag: Raum mit den eigenen");
+gleich(raum({ agentId: 12, rolle: "agent" }, false, true), { erlaubt: true, alle: false, grund: "eingestellt" }, "in den Einstellungen zuständig: Raum schon vor dem ersten Auftrag");
+gleich(raum({ agentId: 8, rolle: "vertriebsleiter" }), { erlaubt: true, alle: true, grund: "vertriebsleitung" }, "Vertriebsleitung: Raum mit allen");
+gleich(raum({ agentId: 12, rolle: "onboarding", chef: true }).alle, true, "Chef-Token: Raum mit allen");
+gleich(raum({ agentId: 0, rolle: "vertriebsleiter", chef: true }, true, true).erlaubt, false, "ohne angemeldeten Mitarbeiter kein Raum");
+gleich(raum({ agentId: 12, rolle: "agent" }, "true" as any, 1 as any).erlaubt, false, "die Lage muss ein echtes true sein");
+
+// Der Satz, den ein Mitarbeiter an den Kunden schreibt: harte Treffer der Hauswand sperren, eine
+// selbst gegebene Zusage („ich rufe Sie an") und der Name eines Instituts nicht.
+const { kundensatz } = await import("../server/lib/fiaon-global-bereich");
+ok(kundensatz("Bitte laden Sie den aktuellen Adressnachweis hoch. Ich rufe Sie am Dienstag an.") === null, "Kundensatz: „ich rufe Sie an“ wird gesperrt, obwohl der Schreibende es selbst zusagt");
+ok(kundensatz("Bitte bestätigen Sie die E-Mail von Mercury, damit die Kontoeröffnung weitergeht.") === null, "Kundensatz: Institutsname im laufenden Auftrag wird gesperrt");
+ok(!!kundensatz("Wir garantieren Ihnen die Karte."), "Kundensatz: „garantieren“ geht durch");
+ok(!!kundensatz("Das erledigen wir innerhalb von 10 Tagen."), "Kundensatz: Frist in Tagen geht durch");
+ok(!!kundensatz("Wir empfehlen Ihnen Delaware."), "Kundensatz: Empfehlung geht durch");
+ok(!!kundensatz("Ihr Zugang wurde freigeschaltet."), "Kundensatz: fremde Zusage (Freischaltung) geht durch");
+
 const drossel = R.fensterDrossel(2, 1000);
 gleich([drossel("a", 0), drossel("a", 1), drossel("a", 2), drossel("b", 2), drossel("a", 999), drossel("a", 1001), drossel("a", 1002), drossel("a", 1003)], [false, false, true, false, true, false, false, true], "Fenster-Drossel: zwei je Sekunde, je Schlüssel");
 

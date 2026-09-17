@@ -134,6 +134,29 @@ export function globalOfficeZugriff(wer: GlobalOfficeWer, zustaendigAgentId: num
   return { erlaubt: !!alle, grund: alle };
 }
 
+/**
+ * Darf diese Person den RAUM „Global" öffnen (GET /agent/global/auftraege)?
+ *
+ * Die Office-Leiste fragt genau diese Route, um zu entscheiden, ob sie den Raum
+ * zeigt: 200 = zeigen, 403 = ausblenden. Eine leere Liste mit 200 hieße, dass
+ * JEDER Mitarbeiter den Raum sieht. Deshalb gilt: Den Raum hat, wer alle
+ * Aufträge sieht (Vertriebsleitung, Chef, Verwaltung), wer mindestens einen
+ * Auftrag führt — oder wer in den Einstellungen als zuständige Person für
+ * FIAON Global steht (er hat den Raum schon, bevor der erste Auftrag kommt).
+ */
+export function globalOfficeRaumZugriff(
+  wer: GlobalOfficeWer,
+  lage: { fuehrtAuftraege: boolean; istEingestellt: boolean },
+): { erlaubt: boolean; alle: boolean; grund: GlobalOfficeGrund | "eingestellt" | null } {
+  const id = Number(wer.agentId);
+  if (!Number.isInteger(id) || id <= 0) return { erlaubt: false, alle: false, grund: null };
+  const alle = globalOfficeSiehtAlle(wer);
+  if (alle) return { erlaubt: true, alle: true, grund: alle };
+  if (lage.fuehrtAuftraege === true) return { erlaubt: true, alle: false, grund: "zustaendig" };
+  if (lage.istEingestellt === true) return { erlaubt: true, alle: false, grund: "eingestellt" };
+  return { erlaubt: false, alle: false, grund: null };
+}
+
 // ── Fenster-Drossel ──────────────────────────────────────────────────────────
 /**
  * `max` Ereignisse je Schlüssel im gleitenden Fenster. `true` = zu viel. Der

@@ -667,6 +667,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // und der alte Business-Antrag sind ersetzt — dauerhaft umgezogen, damit
   // Suchmaschinen und alte Links (Mails, Cockpit, Lesezeichen) richtig ankommen.
   // Die Abfrage (z. B. ?paket=…) reist mit.
+  // „Mein Auftrag" trägt sein Token in der Adresse (?t=…). Die Seite darf in keinen Index,
+  // und die Adresse darf nicht als Referer an fremde Hosts (Schriften, Bilder) mitreisen.
+  app.get(['/business/auftrag', '/business/auftrag/*', '/en/business/auftrag', '/en/business/auftrag/*'], (_req, res, next) => {
+    res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('Cache-Control', 'private, no-store');
+    next();
+  });
+
   const UMGEZOGEN: Record<string, string> = { '/global': '/business', '/en/global': '/en/business', '/business-antrag': '/business/start' };
   app.get(Object.keys(UMGEZOGEN), (req, res) => {
     const abfrage = req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?')) : '';

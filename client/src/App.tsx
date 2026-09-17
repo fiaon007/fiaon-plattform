@@ -190,6 +190,7 @@ const SitePreise = lazy(() => import("@/pages/site/preise"));
 // (15.09.) und der alte Business-Antrag (/business-antrag, Monatsabos mit
 // Lastschrift) sind ersetzt; beide Adressen leiten weiter.
 const BusinessStartPage = lazy(() => import("@/pages/business-start"));
+const BusinessAuftragPage = lazy(() => import("@/pages/business-auftrag"));
 // Englische Seiten (02.09.2026): eigene Adressen unter /en, dieselben Bausteine.
 const SiteEnStart = lazy(() => import("@/pages/site/en-start"));
 const SiteKreditkarte = lazy(() => import("@/pages/site/kreditkarte"));
@@ -310,6 +311,7 @@ function Router() {
       <Route path="/en/personal" component={SitePrivatkunden} />
       <Route path="/en/business" component={BusinessPage} />
       <Route path="/en/business/start" component={BusinessStartPage} />
+      <Route path="/en/business/auftrag/:ref?" component={BusinessAuftragPage} />
       <Route path="/en/credit-card" component={SiteKreditkarte} />
       <Route path="/en/about" component={SiteUeberUns} />
       <Route path="/en/team" component={SiteTeam} />
@@ -413,6 +415,7 @@ function Router() {
       <Route path="/karte-sichern" component={StartPage} />
       <Route path="/business" component={BusinessPage} />
       <Route path="/business/start" component={BusinessStartPage} />
+      <Route path="/business/auftrag/:ref?" component={BusinessAuftragPage} />
       <Route path="/global"><Redirect to="/business" /></Route>
       <Route path="/privatkunden" component={SitePrivatkunden} />
       <Route path="/antrag" component={AntragPage} />

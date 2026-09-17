@@ -1,0 +1,91 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   /business/auftrag/:ref — „MEIN AUFTRAG" (17.09.2026, E-188)
+
+   Dieselbe Welt wie der Auftrag (/business/start, global-start.css): nacht-
+   blauer Grund, EIN weißes Blatt, daneben als einziger Glas-Ort die Karte mit
+   Ansprechpartner und Auftrag. Das Blatt ist eine Akte, kein Dashboard:
+   Abschnitte untereinander, jede mit einer Linie, nichts blinkt.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.ga-abschnitt{padding:34px 0;border-top:1px solid rgba(15,23,42,.08)}
+.ga-abschnitt:first-child{padding-top:4px;border-top:0}
+.ga-abschnitt h2{font-size:12px;font-weight:400;letter-spacing:.2em;text-transform:uppercase;color:#1d4ed8;margin:0}
+.ga-abschnitt .lead{margin:10px 0 0;font-size:14px;font-weight:300;color:#475569;line-height:1.7;max-width:62ch}
+.ga-leer{margin:16px 0 0;font-size:13.5px;font-weight:300;color:#64748b}
+
+/* Hinweis „wartet auf Zahlung" */
+.ga-zahlung{margin:0 0 30px;padding:24px 26px;border-radius:16px;background:#f6f9ff;border:1px solid rgba(29,78,216,.18)}
+.ga-zahlung h3{margin:0;font-size:16px;font-weight:500;color:#0f172a;letter-spacing:-.01em}
+.ga-zahlung p{margin:8px 0 16px;font-size:14px;font-weight:300;color:#475569;line-height:1.7;max-width:62ch}
+.ga-zahlung .dk-knopf{min-height:46px;background:#1d4ed8}
+
+/* Der Weg: senkrechte Linie mit Stationen */
+.ga-weg{list-style:none;margin:22px 0 0;padding:0;position:relative}
+.ga-weg li{position:relative;padding:0 0 26px 34px}
+.ga-weg li:last-child{padding-bottom:0}
+.ga-weg li::before{content:"";position:absolute;left:6px;top:8px;bottom:-8px;width:1px;background:rgba(15,23,42,.14)}
+.ga-weg li:last-child::before{display:none}
+.ga-weg li::after{content:"";position:absolute;left:0;top:5px;width:13px;height:13px;border-radius:50%;background:#fff;border:1px solid rgba(15,23,42,.25)}
+.ga-weg li[data-stand="fertig"]::after{background:#1d4ed8;border-color:#1d4ed8}
+.ga-weg li[data-stand="fertig"]::before{background:#1d4ed8}
+.ga-weg li[data-stand="jetzt"]::after{background:#fff;border:1px solid #1d4ed8;box-shadow:0 0 0 5px rgba(29,78,216,.14)}
+.ga-weg b{display:block;font-size:15px;font-weight:500;color:#0f172a;letter-spacing:-.005em}
+.ga-weg li[data-stand="offen"] b{color:#64748b;font-weight:400}
+.ga-weg small{display:inline-block;margin-left:10px;font-size:11px;font-weight:400;letter-spacing:.12em;text-transform:uppercase;color:#64748b}
+.ga-weg li[data-stand="jetzt"] small{color:#1d4ed8}
+.ga-weg p{margin:5px 0 0;font-size:13.5px;font-weight:300;color:#475569;line-height:1.65;max-width:60ch}
+.ga-weg li[data-stand="offen"] p{color:#94a3b8}
+
+/* Nächster Schritt */
+.ga-schritt{margin:18px 0 0;padding:22px 24px;border-radius:16px;border:1px solid rgba(15,23,42,.1);background:#fcfdff}
+.ga-schritt p{margin:0;font-size:15.5px;font-weight:300;color:#0f172a;line-height:1.6}
+.ga-schritt small{display:block;margin-top:8px;font-size:12.5px;color:#1d4ed8}
+.ga-stichtag{margin:14px 0 0;font-size:13px;font-weight:300;color:#475569}
+.ga-stichtag b{font-weight:500;color:#0f172a;font-variant-numeric:tabular-nums}
+
+/* Listen: Unterlagen, Dokumente, Fristen, Verlauf */
+.ga-liste{list-style:none;margin:18px 0 0;padding:0;border:1px solid rgba(15,23,42,.1);border-radius:16px;overflow:hidden}
+.ga-liste li{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center;padding:15px 20px;border-bottom:1px solid rgba(15,23,42,.06);background:#fff}
+.ga-liste li:last-child{border-bottom:0}
+.ga-liste b{display:block;font-size:14.5px;font-weight:500;color:#0f172a}
+.ga-liste span{display:block;margin-top:2px;font-size:12.5px;font-weight:300;color:#64748b;line-height:1.55}
+.ga-marke{display:inline-flex;align-items:center;min-height:26px;padding:0 10px;border-radius:999px;font-size:11.5px;font-weight:400;white-space:nowrap}
+.ga-marke.gut{background:#eef6ff;color:#1d4ed8}
+.ga-marke.offen{background:#f1f5f9;color:#64748b}
+.ga-rechts{display:flex;align-items:center;gap:10px}
+.ga-knopf{display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:0 16px;border-radius:999px;border:1px solid rgba(15,23,42,.16);background:#fff;color:#0f172a;font:400 13px/1 'Inter',sans-serif;cursor:pointer;text-decoration:none;white-space:nowrap}
+.ga-knopf:hover{background:#f8fafc}
+.ga-knopf[disabled],.ga-knopf[aria-disabled="true"]{opacity:.5;cursor:default}
+.ga-knopf.blau{background:#1d4ed8;border-color:#1d4ed8;color:#fff}
+.ga-knopf.blau:hover{background:#1e40af}
+.ga-datei{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.ga-fuss{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+.ga-frist-datum{font-size:13.5px;font-weight:400;color:#0f172a;font-variant-numeric:tabular-nums;white-space:nowrap}
+.ga-liste li[data-erledigt="1"] b,.ga-liste li[data-erledigt="1"] .ga-frist-datum{color:#94a3b8;text-decoration:line-through}
+.ga-verlauf{list-style:none;margin:18px 0 0;padding:0;display:grid;gap:14px}
+.ga-verlauf li{display:grid;grid-template-columns:96px 1fr;gap:16px;font-size:13.5px;font-weight:300;color:#334155;line-height:1.6}
+.ga-verlauf time{color:#64748b;font-variant-numeric:tabular-nums;font-size:12.5px;padding-top:1px}
+@media(max-width:560px){.ga-liste li{grid-template-columns:1fr}.ga-rechts{justify-content:flex-start}.ga-verlauf li{grid-template-columns:1fr;gap:2px}}
+
+/* Nachricht */
+.ga-nachricht textarea{width:100%;min-height:110px;margin-top:16px;padding:14px 16px;border-radius:12px;border:1px solid rgba(15,23,42,.14);background:#fff;color:#0f172a;font:300 15px/1.6 'Inter',sans-serif;outline:none;resize:vertical}
+.ga-nachricht textarea:focus{border-color:#1d4ed8;box-shadow:0 0 0 4px rgba(29,78,216,.12)}
+.ga-meldung{margin:12px 0 0;font-size:13.5px;font-weight:300}
+.ga-meldung.gut{color:#1d4ed8}
+.ga-meldung.schlecht{color:#b91c1c}
+
+/* Seitenkarte: Ansprechpartner */
+.ga-person{display:flex;gap:14px;align-items:center;margin-top:16px}
+.ga-person img,.ga-person .mono{width:54px;height:54px;border-radius:50%;object-fit:cover;flex:0 0 auto;border:1px solid rgba(255,255,255,.18)}
+.ga-person .mono{display:grid;place-items:center;background:rgba(255,255,255,.08);color:#dbeafe;font-size:17px;font-weight:300}
+.ga-person b{display:block;font-size:15.5px;font-weight:500;color:#fff}
+.gs-seite .ga-kontakt{display:block;margin-top:4px;font-size:13px;font-weight:300;color:#93c5fd;text-decoration:none;word-break:break-all}
+.gs-seite .ga-kontakt:hover{text-decoration:underline}
+.ga-zeilen{margin:14px 0 0;display:grid;gap:10px}
+.ga-zeilen div{display:grid;gap:2px}
+.ga-zeilen span{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#7f8ea6}
+.ga-zeilen b{font-size:14px;font-weight:400;color:#e8eef8;word-break:break-word}
+
+/* Zugang neu anfordern */
+.ga-zugang{max-width:520px}
+.ga-zugang .gs-felder{margin-top:22px}
+.ga-zugang .dk-knopf{min-height:50px;background:#1d4ed8;margin-top:6px}

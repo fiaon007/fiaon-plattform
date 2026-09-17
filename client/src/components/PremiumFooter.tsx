@@ -121,7 +121,7 @@ export default function PremiumFooter() {
       <div className="max-w-[1280px] mx-auto px-6 py-16">
         {/* Die Demo-Präsentation — der Kundenbereich, wie er gemeint ist (Justin, 23.08.2026: „in der Fußzeile schön präsentieren") */}
         {/* Nicht im Antrag und auf Zahlungsseiten — dort hat die Demo nichts verloren (Justin, 23.08.). */}
-        {!/^\/(antrag|bonitaet-antrag|business\/start|en\/business\/start|zahlung|termin|login|dashboard|mein-bereich)/.test(typeof window !== "undefined" ? window.location.pathname : "") && (
+        {!/^\/(antrag|bonitaet-antrag|business\/start|business\/auftrag|en\/business\/start|en\/business\/auftrag|zahlung|termin|login|dashboard|mein-bereich)/.test(typeof window !== "undefined" ? window.location.pathname : "") && (
         <a href="/demo/kundenbereich" className="pf-demo" aria-label="Präsentation des Kundenbereichs öffnen">
           <span className="pf-demo-marke" aria-hidden="true"><i /></span>
           <span className="pf-demo-text"><b>{ui.demoFuer}</b> {ui.demoBand}</span>

@@ -19,6 +19,7 @@
 import { wandPruefen } from "../shared/fiaon-wortverbote";
 import { GLOBAL_WOERTER, GLOBAL_GESPRAECH_WOERTER } from "../client/src/i18n/global";
 import { GLOBAL_START_WOERTER } from "../client/src/i18n/global-start";
+import { GLOBAL_AUFTRAG_WOERTER } from "../client/src/i18n/global-auftrag";
 import { GLOBAL_PAKETE, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_GELD_ZURUECK } from "../shared/fiaon-global";
 import { SEO_SEITEN } from "../shared/fiaon-seo-seiten";
 
@@ -46,11 +47,12 @@ const texte: [string, string][] = [];
 sammle(GLOBAL_WOERTER.de, "i18n/global", texte);
 sammle(GLOBAL_GESPRAECH_WOERTER.de, "i18n/global#gespraech", texte);
 sammle(GLOBAL_START_WOERTER.de, "i18n/global-start", texte);
+sammle(GLOBAL_AUFTRAG_WOERTER.de, "i18n/global-auftrag", texte);
 for (const p of GLOBAL_PAKETE) sammle(p.de, `fiaon-global/${p.key}`, texte);
 sammle(GLOBAL_PFLICHTHINWEIS.de, "fiaon-global/pflichthinweis", texte);
 sammle(GLOBAL_ROLLEN.de, "fiaon-global/rollen", texte);
 sammle(GLOBAL_GELD_ZURUECK.de, "fiaon-global/geld-zurueck", texte);
-for (const pfad of ["/business", "/business/start"]) {
+for (const pfad of ["/business", "/business/start", "/business/auftrag"]) {
   const e = (SEO_SEITEN as Record<string, any>)[pfad];
   if (!e) { console.log(`FEHLER: SEO-Eintrag ${pfad} fehlt`); process.exitCode = 1; continue; }
   const { en: _en, ...deutsch } = e;

@@ -105,7 +105,8 @@ export const KAPITEL_3: KapitelInhalt = {
           ["Aussetzen statt Druck", "0 € – du darfst die überfällige Rate einen Monat aussetzen. Dafür hast du dich vorgestellt und den Onboarding-Termin gebucht: Der Kunde bleibt, und ab der nächsten Rate läuft deine Provision wieder.", "deine Entscheidung im Gespräch"],
         ),
         tab(["Paket", "Rate", "Für dich je Rate (25 %)", "Mit Zertifikat (30 %)", "Über 12 Monate (25 %)"],
-          ...PAKETE.filter((x) => x.abo).map((x) => [x.label, eur(x.preisCents), eur(Math.round(x.preisCents * 0.25)), eur(Math.round(x.preisCents * 0.3)), eur(Math.round(x.preisCents * 0.25) * 12)]),
+          // E-188: nur, was heute verkauft wird — die Business-Abos sind eingestellt.
+          ...PAKETE.filter((x) => x.abo && !x.eingestellt).map((x) => [x.label, eur(x.preisCents), eur(Math.round(x.preisCents * 0.25)), eur(Math.round(x.preisCents * 0.3)), eur(Math.round(x.preisCents * 0.25) * 12)]),
           ["Bonitätsauskunft (Onboarding)", schufa, "10,00 € fest", "10,00 € fest", "–"],
         ),
         ul(
@@ -117,7 +118,7 @@ export const KAPITEL_3: KapitelInhalt = {
           `Beispiel: 5 Abschlüsse am Tag, Ø Rate 64,36 € (echter Paketmix Juli/August), Haltequote 80/92 % → Monat 1 rund 1.689 €, Monat 6 rund 7.449 €, Monat 12 rund 11.832 € (Rechenmodell, keine Zusage – siehe Earnings).`,
         ),
         merk(`Ein Pro-Kunde, der zwölf Raten zahlt, bringt dir ${eur(Math.round((PAKETE.find((x) => x.key === "pro")?.preisCents ?? 0) * 0.25) * 12)}. Ein Termin, der nicht zum Kunden wird, bringt nichts. Das Modell belohnt Begleitung, nicht Anrufe.`),
-        p(`Zum Vergleich das alte Modell: 20 % der Startzahlung einmalig (Vertrieb) bzw. 15 € je gehaltenem Termin (Onboarding). Im ersten Monat gleichwertig – ab Monat 6 verdient ein Bonitätsmanager das Vier- bis Fünffache, weil jeder gehaltene Kunde weiterzahlt. Ein Start-Kunde bringt ${prov("start")} je Rate, ein Business-Enterprise-Kunde ${prov("business_enterprise")}.`),
+        p(`Zum Vergleich das alte Modell: 20 % der Startzahlung einmalig (Vertrieb) bzw. 15 € je gehaltenem Termin (Onboarding). Im ersten Monat gleichwertig – ab Monat 6 verdient ein Bonitätsmanager das Vier- bis Fünffache, weil jeder gehaltene Kunde weiterzahlt. Ein Start-Kunde bringt ${prov("start")} je Rate, ein High-End-Kunde ${prov("highend")}.`),
       ],
     },
   },

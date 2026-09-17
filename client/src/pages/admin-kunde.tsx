@@ -10,6 +10,7 @@ import { FiaonEbene } from "@/components/FiaonEbene";
 import VermerkTafel from "@/components/admin/VermerkTafel";
 import ArchivDialog from "@/components/admin/ArchivDialog";
 import { KUNDENSTATUS, zahlungsstatusText } from "@shared/fiaon-kundenstatus";
+import { PAKETE } from "@shared/fiaon-pakete";
 import { LABEL_VERTRIEB, LABEL_FORDERUNG, zustaendigText } from "@shared/fiaon-zustaendigkeit-text";
 import { AnrufPlayer } from "@/components/AnrufPlayer";
 
@@ -714,8 +715,11 @@ export default function AdminKundeAktePage() {
                       className="px-2.5 py-1.5 rounded-lg border border-slate-300 text-[13px] bg-white"
                     >
                       <option value="">{app.packName || "— Paket wählen —"}</option>
-                      {["start", "pro", "ultra", "highend", "business_starter", "business_pro", "business_ultra", "business_enterprise"].map((k) => (
-                        <option key={k} value={k}>{k}</option>
+                      {/* 17.09.2026 (E-188): aus dem Katalog statt aus einer harten Liste — FIAON Global
+                          fehlte hier, und die eingestellten Business-Abos bleiben nur für den Nachtrag
+                          an Bestandskunden wählbar (dieselbe Liste wie PACKS_ALLOWED auf dem Server). */}
+                      {PAKETE.filter((pk) => pk.key !== "schufa").map((pk) => (
+                        <option key={pk.key} value={pk.key}>{pk.key}{pk.eingestellt ? " (eingestellt — nur Bestand)" : pk.abo ? "" : " (einmalig)"}</option>
                       ))}
                     </select>
                   </div>

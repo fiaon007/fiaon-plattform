@@ -13,15 +13,21 @@ import { useMemo, useState } from "react";
 import { Dunkel, Hero, Block, Licht, Knopf, Auf, Glas, Karten, Kennzahlen, Zeilen, Fragen, Zwischenruf, Abschluss, Szenenbild } from "@/components/site/DunkleBuehne";
 import SeoDaten from "@/components/site/SeoDaten";
 import { PAKETE, SCHUFA_PREIS_EURO } from "@shared/fiaon-pakete";
+import { GLOBAL_PAKETE, globalPreisText } from "@shared/fiaon-global";
+import { globalGespraechPfad, globalPaketePfad } from "@shared/fiaon-global-wege";
 import { AGENDA } from "@shared/fiaon-onboarding-agenda";
 import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
 import { PLATTFORM_KONZEPT_WOERTER } from "@/i18n/plattform-konzept";
 import "@/styles/plattform-konzept.css";
 
 type Antwort = Record<string, string>;
+// 17.09.2026 (E-188): Die Business-Abos sind eingestellt. Ein Unternehmen
+// bekommt sofort seine Antwort — FIAON Global (Einmalpreis) — und wird nicht
+// mehr nach Lage und Tempo gefragt; das sind Fragen der Bonitätslinie.
+// Dieselbe Logik wie auf /preise, damit zwei Seiten nie zwei Antworten geben.
 function paketFuer(a: Antwort): { key: string; grund: string } | null {
+  if (a.wer === "business") return { key: "global", grund: "global" };
   if (!a.wer || !a.lage || !a.tempo) return null;
-  if (a.wer === "business") return a.lage === "klar" ? { key: "business_starter", grund: "business_starter" } : a.tempo === "sofort" ? { key: "business_ultra", grund: "business_ultra" } : { key: "business_pro", grund: "business_pro" };
   if (a.lage === "klar") return { key: "schufa", grund: "schufa" };
   if (a.lage === "eintrag") return a.tempo === "ruhig" ? { key: "start", grund: "start" } : { key: "pro", grund: "pro_fristen" };
   if (a.lage === "zugang") return { key: "pro", grund: "pro_zugang" };
@@ -81,19 +87,28 @@ export default function PlattformKonzept() {
 
         <Block id="paketfinder" pille={t.finderPille} titel={<>{t.finderA}<span className="dk-verlauf">{t.finderB}</span></>} lead={t.finderLead} mitte>
           <div className="pk-finder">
-            {t.finderFragen.map((f, i) => (
+            {t.finderFragen.filter((f) => a.wer !== "business" || f.key === "wer").map((f, i) => (
               <div key={f.key} className={`pk-frage${a[f.key] ? " beantwortet" : ""}`}>
                 <p className="pk-frage-nr">{t.frage} {i + 1}</p><h3>{f.frage}</h3>
                 <div className="pk-optionen">{f.optionen.map(([w, l]) => <button key={w} type="button" className={`pk-option${a[f.key] === w ? " an" : ""}`} onClick={() => setA({ ...a, [f.key]: w })}>{l}</button>)}</div>
               </div>
             ))}
+            {vorschlag?.key === "global" && (
+              <div className="pk-ergebnis">
+                <small>{t.vorschlag}</small>
+                <h3>{t.globalTitel}</h3>
+                <p className="pk-preis">{t.globalAb(globalPreisText(GLOBAL_PAKETE[0].key, sprache))}</p>
+                <p>{t.globalText}</p>
+                <div className="pk-weg-knoepfe"><Knopf href={globalPaketePfad(sprache)}>{t.zuBusiness}</Knopf><Knopf href={globalGespraechPfad(sprache)} still>{t.globalGespraech}</Knopf></div>
+              </div>
+            )}
             {paket && vorschlag && (
               <div className="pk-ergebnis">
                 <small>{t.vorschlag}</small>
                 <h3>{paket.label}</h3>
                 <p className="pk-preis">{paket.abo ? <>{euro(paket.preisCents)} <span>{t.imMonat}</span></> : <>{euro(Math.round(SCHUFA_PREIS_EURO * 100))} <span>{t.einmalig}</span></>}</p>
                 <p>{t.gruende[vorschlag.grund]}</p>
-                <div className="pk-weg-knoepfe"><Knopf href={paket.key === "schufa" ? "/antrag?pack=schufa" : paket.art === "business" ? zu("/business") : `/antrag?pack=${paket.key}&src=konzept`}>{paket.art === "business" ? t.zuBusiness : t.mitPaket}</Knopf><Knopf href={zu("/privatkunden")} still>{t.alleVergleichen}</Knopf></div>
+                <div className="pk-weg-knoepfe"><Knopf href={paket.key === "schufa" ? "/antrag?pack=schufa" : `/antrag?pack=${paket.key}&src=konzept`}>{t.mitPaket}</Knopf><Knopf href={zu("/privatkunden")} still>{t.alleVergleichen}</Knopf></div>
               </div>
             )}
           </div>

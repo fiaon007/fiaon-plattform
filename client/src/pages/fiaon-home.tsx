@@ -17,6 +17,8 @@ import { FlugHero } from "@/components/site/FlugHero";
 import ArasCore from "@/components/home3d/ArasCore";
 import SchichtenSzene from "@/components/home3d/SchichtenSzene";
 import { paket as paketVon, SCHUFA_PREIS_EURO } from "@shared/fiaon-pakete";
+import { GLOBAL_PAKETE, GLOBAL_ROLLEN, globalPreisText } from "@shared/fiaon-global";
+import { globalGespraechPfad, globalSeitePfad, globalStartPfad } from "@shared/fiaon-global-wege";
 
 const preisText = (key: string) => ((paketVon(key)?.preisCents ?? 0) / 100).toFixed(2).replace(".", ",");
 
@@ -39,7 +41,8 @@ function CustomerModal({ open, onClose }: { open: boolean; onClose: () => void }
           <div className="space-y-3">
             {[
               { href: "/antrag", titel: "Privatkunde", text: "Bonität einsehen, reparieren, Zugang erhalten", von: "#2563eb", bis: "#60a5fa" },
-              { href: "/business-antrag", titel: "Geschäftskunde", text: "Firmenbonität und Geschäftskonto", von: "#1e40af", bis: "#2563eb" },
+              // 17.09.2026 (E-188): /business-antrag gibt es nicht mehr — Unternehmen gehen zu FIAON Global.
+              { href: globalSeitePfad(), titel: "Unternehmen", text: "FIAON Global – Ihre US-Gesellschaft aus einer Hand", von: "#1e40af", bis: "#2563eb" },
             ].map((w) => (
               <a key={w.href} href={w.href} className="group flex items-center gap-4 p-4 rounded-2xl border border-gray-100 bg-white hover:border-blue-200 hover:bg-blue-50/40 transition-all duration-300">
                 <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white shrink-0" style={{ background: `linear-gradient(135deg,${w.von},${w.bis})`, boxShadow: "0 8px 20px rgba(37,99,235,.28)" }}>
@@ -63,26 +66,40 @@ const PRIVATE_PACKS = [
   { key: "ultra", name: "FIAON Ultra", sub: "Mit Karte", scenario: "Kreditkarte bis 15.000 € bei guter Bonität", feats: ["Alles aus Pro", "Begleitung bis zur Kreditkarte", "Bevorzugte Bearbeitung Ihrer Schreiben", "Telefonische Betreuung"] },
   { key: "highend", name: "FIAON High End", sub: "Das Maximum", scenario: "Finanzierung und persönliche Betreuung", feats: ["Alles aus Ultra", "Persönlicher Betreuer für Ihre Akte", "Vorbereitung auf Finanzierungen", "Erreichbar auch außerhalb der Bürozeiten"] },
 ];
-const BUSINESS_PACKS = [
-  { key: "business_starter", name: "FIAON Business Starter", sub: "Der Einstieg", scenario: "Firmenrahmen bis 5.000 €", feats: ["Firmeneintrag prüfen und verstehen", "Geschäftskonto-Zugang", "Unterstützung für Ihr Unternehmen", "Monatliche Übersicht"] },
-  { key: "business_pro", name: "FIAON Business Pro", sub: "Standard", scenario: "Firmenrahmen bis 25.000 €", rec: true, feats: ["Alles aus Starter", "Löschanträge und Widersprüche für das Unternehmen", "Firmenkarte mit Rahmen", "Bevorzugte Bearbeitung"] },
-  { key: "business_ultra", name: "FIAON Business Ultra", sub: "Mit Betreuung", scenario: "Firmenrahmen bis 75.000 €", feats: ["Alles aus Pro", "Fester Ansprechpartner", "Mehrere Nutzer im Bereich", "Vorbereitung auf Finanzierungen"] },
-  { key: "business_enterprise", name: "FIAON Business Enterprise", sub: "Das Maximum", scenario: "Firmenrahmen bis 250.000 €", feats: ["Alles aus Ultra", "Betreuung auch außerhalb der Bürozeiten", "Schnittstelle zu Ihrer Buchhaltung", "Unbegrenzte Nutzer"] },
-];
+// ── FÜR UNTERNEHMEN: FIAON GLOBAL (17.09.2026, E-188) ───────────────────────
+// Hier stand eine eigene Liste der vier Business-Abos — mit „Firmenrahmen bis
+// 250.000 €" als Ziel und dem Link auf /business-antrag. Die Abos sind
+// eingestellt; für Unternehmen gibt es FIAON Global zum EINMALPREIS. Namen,
+// „für wen", Dauer und Leistungen kommen aus shared/fiaon-global.ts (dieselben
+// Sätze wie auf /business und im Vertrag), der Preis aus dem Katalog. Kein
+// „Beliebt"-Band, kein Rahmen als Ziel: Über Konto, Karte und Rahmen
+// entscheidet das Institut.
 
 function Pakete({ tab, setTab }: { tab: "privat" | "business"; setTab: (t: "privat" | "business") => void }) {
-  const packs = tab === "privat" ? PRIVATE_PACKS : BUSINESS_PACKS;
-  const antragHref = tab === "privat" ? "/antrag" : "/business-antrag";
   return (
     <Block id="setups" pille="Ihr Paket" titel={<>W&auml;hlen Sie, wie weit Sie gehen. <span className="dk-verlauf">Nicht, ob.</span></>}
-           lead="Jedes Paket beginnt mit Ihrer Auskunft. Je weiter Sie gehen, desto mehr nimmt FIAON Ihnen ab – bis zu Konto, Karte und Finanzierung. Über die Vergabe entscheidet immer die Bank; FIAON bereitet Sie darauf vor." mitte>
+           lead={tab === "privat"
+             ? "Jedes Paket beginnt mit Ihrer Auskunft. Je weiter Sie gehen, desto mehr nimmt FIAON Ihnen ab – bis zu Konto, Karte und Finanzierung. Über die Vergabe entscheidet immer die Bank; FIAON bereitet Sie darauf vor."
+             : "FIAON Global: Ihre US-Gesellschaft aus einer Hand – mit einem Team vor Ort in den USA und einem Ansprechpartner. Vier Pakete, jedes zum Einmalpreis. Über Konto, Karte und Rahmen entscheidet allein das jeweilige Institut; FIAON bereitet vor."} mitte>
       <Auf>
         <div className="dk-tabs" role="tablist">
-          {(["privat", "business"] as const).map((t) => <button key={t} type="button" role="tab" data-an={tab === t ? "1" : undefined} onClick={() => setTab(t)}>{t === "privat" ? "Privatkunde" : "Geschäftskunde"}</button>)}
+          {(["privat", "business"] as const).map((t) => <button key={t} type="button" role="tab" data-an={tab === t ? "1" : undefined} onClick={() => setTab(t)}>{t === "privat" ? "Privatkunde" : "Unternehmen"}</button>)}
         </div>
       </Auf>
       <div className="dk-preise" style={{ textAlign: "left" }}>
-        {packs.map((p, i) => (
+        {tab === "business" && GLOBAL_PAKETE.map((g, i) => (
+          <Auf key={`business-${g.key}`} verzoegerung={i * 90}>
+            <div className="dk-preis" style={{ height: "100%" }}>
+              <p className="name">FIAON {g.de.name}</p>
+              <p className="sub">{g.de.dauer}</p>
+              <p className="betrag dk-verlauf zahl">{globalPreisText(g.key)}<small> einmalig</small></p>
+              <p className="ziel">{g.de.fuer}</p>
+              <ul className="dk-liste">{g.de.leistungen.map((f) => <li key={f}>{f}</li>)}</ul>
+              <a href={globalStartPfad(g.key)} className="dk-knopf still">Direkt beauftragen</a>
+            </div>
+          </Auf>
+        ))}
+        {tab === "privat" && PRIVATE_PACKS.map((p, i) => (
           <Auf key={`${tab}-${p.key}`} verzoegerung={i * 90}>
             <div className="dk-preis" data-top={p.rec ? "1" : undefined} style={{ height: "100%" }}>
               {p.rec && <span className="band">Beliebt</span>}
@@ -91,7 +108,7 @@ function Pakete({ tab, setTab }: { tab: "privat" | "business"; setTab: (t: "priv
               <p className="betrag dk-verlauf zahl">{preisText(p.key)} &euro;<small>/ Monat</small></p>
               <p className="ziel">Ziel: {p.scenario}</p>
               <ul className="dk-liste">{p.feats.map((f) => <li key={f}>{f}</li>)}</ul>
-              <a href={antragHref} className={`dk-knopf${p.rec ? "" : " still"}`}>Konto er&ouml;ffnen</a>
+              <a href="/antrag" className={`dk-knopf${p.rec ? "" : " still"}`}>Konto er&ouml;ffnen</a>
             </div>
           </Auf>
         ))}
@@ -99,8 +116,13 @@ function Pakete({ tab, setTab }: { tab: "privat" | "business"; setTab: (t: "priv
       <p className="dk-leise" style={{ marginTop: 28, maxWidth: "72ch", marginLeft: "auto", marginRight: "auto" }}>
         {tab === "privat"
           ? `Alle Pakete: monatlich per SEPA-Lastschrift · zwölf Raten, danach entscheiden Sie, ob Sie bleiben · Nur die Auskunft? Bonitätsauskunft ${SCHUFA_PREIS_EURO.toFixed(2).replace(".", ",")} € einmalig. Über Konto, Karte und Rahmen entscheidet die jeweilige Bank.`
-          : "Alle Pakete: monatlich per SEPA-Lastschrift · zwölf Raten, danach entscheiden Sie, ob Sie bleiben. Über Konto, Karte und Rahmen entscheidet die jeweilige Bank."}
+          : `FIAON Global: ein Preis, einmalig – kein Abo, keine Monatsraten. Über Konto, Karte und Rahmen entscheidet allein das jeweilige Institut. ${GLOBAL_ROLLEN.de.kosten}`}
       </p>
+      {tab === "business" && (
+        <div className="dk-knoepfe" style={{ marginTop: 22, justifyContent: "center" }}>
+          <Knopf href={globalSeitePfad()}>FIAON Global ansehen</Knopf><Knopf href={globalGespraechPfad()} still>Erst sprechen</Knopf>
+        </div>
+      )}
     </Block>
   );
 }
@@ -182,7 +204,7 @@ export default function FiaonHome() {
         <div className="dk-raster zwei" style={{ textAlign: "left" }}>
           {[
             { key: "privat" as const, titel: "Für Privatkunden", text: "Vom ersten Eintrag bis zur Kreditkarte: Sie sehen Ihre Auskunft, räumen auf, was nicht hineingehört, und arbeiten Etappe für Etappe auf Konto und Karte zu – mit einem Ansprechpartner, der Ihre Akte kennt.", ziele: "Typische Ziele: Eintrag löschen lassen · Ratenvereinbarung treffen · Girokonto eröffnen · Kreditkarte bis 25.000 €" },
-            { key: "business" as const, titel: "Für Geschäftskunden", text: "Firmenbonität entscheidet über Lieferantenkredit, Leasing und Geschäftskonto. FIAON Business zeigt Selbstständigen und Unternehmen, was Auskunfteien über sie führen – und hilft, es in Ordnung zu bringen.", ziele: "Typische Ziele: Firmeneintrag prüfen · Geschäftskonto eröffnen · Firmenkarte mit Rahmen · Privat und Geschäft trennen" },
+            { key: "business" as const, titel: "Für Unternehmen", text: "FIAON Global: FIAON gründet Ihre US-Gesellschaft, bereitet Steuernummern und Dokumente vor und baut Schritt für Schritt Ihre Bank- und Kartenbeziehung auf – mit einem Team vor Ort in den USA und einem Ansprechpartner für Sie. Für jede Unternehmensart, vom Handwerksbetrieb bis zur Projektentwicklung.", ziele: "Vier Pakete zum Einmalpreis · Steuerberater und Anwälte im Partnernetz auf eigenes Mandat · Über Konto, Karte und Rahmen entscheidet das Institut" },
           ].map((w, i) => (
             <Auf key={w.key} verzoegerung={i * 120}>
               <Glas titel={w.titel} style={{ height: "100%", display: "flex", flexDirection: "column" }}>

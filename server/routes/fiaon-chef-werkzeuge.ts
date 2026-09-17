@@ -23,6 +23,7 @@
 import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { requireChef, type ChefRequest } from "./fiaon-chef-zugang";
+import { KEIN_ABO_SQL } from "../lib/fiaon-kein-abo";
 
 const router = Router();
 
@@ -66,7 +67,10 @@ router.get("/chef/werkzeug/wahrheit", requireChef("geschaeftsfuehrung"), async (
         FROM fiaon_applications a
         LEFT JOIN fiaon_persons p ON p.id = a.person_id
        WHERE a.payment_status = 'paid' AND a.merged_into IS NULL AND a.archived_at IS NULL
-         AND COALESCE(a.pack_key,'') NOT IN ('schufa','')
+         -- E-188: Einmalkäufe des Katalogs (Bonitätsauskunft, FIAON Global) haben
+         -- NIE eine Kette. Ohne diese Grenze stünde jeder bezahlte Global-Kunde
+         -- hier als Fehlalarm, mit dem Knopf, ihm Monatsraten nachzuziehen.
+         AND COALESCE(a.pack_key,'') <> '' AND NOT ${KEIN_ABO_SQL}
          AND NOT EXISTS (SELECT 1 FROM fiaon_abo_raten r WHERE r.ref = a.ref)
        ORDER BY a.created_at DESC LIMIT 50`);
     pruefungen.push({
@@ -214,7 +218,7 @@ router.get("/chef/werkzeug/wahrheit", requireChef("geschaeftsfuehrung"), async (
         JOIN fiaon_persons p ON p.id = a.person_id
        WHERE a.payment_status = 'paid' AND a.merged_into IS NULL AND a.archived_at IS NULL
          AND p.ist_test_am IS NULL AND a.type <> 'schufa'
-         AND COALESCE(a.pack_key,'') NOT IN ('schufa','')
+         AND COALESCE(a.pack_key,'') <> '' AND NOT ${KEIN_ABO_SQL}
          AND EXISTS (SELECT 1 FROM fiaon_abo_raten r WHERE r.ref = a.ref)
          AND NOT EXISTS (SELECT 1 FROM fiaon_abo_raten r WHERE r.ref = a.ref AND r.bezahlt_am IS NOT NULL)
        ORDER BY a.created_at DESC`);

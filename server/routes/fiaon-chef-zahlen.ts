@@ -16,11 +16,14 @@
 // ── DIE REGELN DIESER ZAHLEN ───────────────────────────────────────────────
 // · VERDIENT ist nur, was bankbestätigt im System gebucht ist: bezahlte
 //   Raten (Rate 1 = Startzahlung; die Ketten sind seit dem 27.08. konsistent)
-//   plus bezahlte Bonitätsauskünfte. Kein amount_due, kein „angekündigt".
+//   plus bezahlte Bonitätsauskünfte — und seit dem 17.09.2026 (E-188) die
+//   bezahlten FIAON-Global-Pakete als dritter, getrennt ausgewiesener
+//   Einmalerlös. Kein „angekündigt", nichts Unbezahltes.
 // · Testkonten (FIAON-TEST-% und fiaon_persons.ist_test_am) zählen NIE mit —
 //   der Fehler vom 26.08. (495,92 € zu viel) passiert nicht noch einmal.
 // · MRR = Summe der Monatsraten aller AKTIVEN Abos (bezahlt, nicht gestoppt,
-//   nicht storniert, nicht erstattet, keine Auskunfts-Bestellung).
+//   nicht storniert, nicht erstattet, keine Auskunfts-Bestellung, kein
+//   Einmalkauf des Katalogs — FIAON Global ist kein wiederkehrender Umsatz).
 // · Der VERTRAGSBESTAND rechnet ×12: Jedes aktive Abo steht für zwölf
 //   Monatsraten. Vereinnahmt = seine bezahlten Raten; der Rest ist
 //   vertraglich ausstehend. Beides wird GETRENNT gezeigt — eingegangenes
@@ -32,11 +35,29 @@
 import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { requireChef } from "./fiaon-chef-zugang";
+import { KEIN_ABO_SQL } from "../lib/fiaon-kein-abo";
+import { produktkategorieSql } from "../lib/fiaon-produktkategorie";
 
 const router = Router();
 
 /** Echte Kunden: keine Prüfstand-Referenzen, keine als Test markierten Personen. */
 const ECHT = `a.ref NOT LIKE 'FIAON-TEST%' AND COALESCE(p.ist_test_am IS NOT NULL, FALSE) = FALSE`;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FIAON GLOBAL IST UMSATZ — ABER KEIN ABO (17.09.2026, E-188)
+//
+// Ein Global-Paket (2.499 € bis 35.999 € einmalig) erzeugt KEINE Rate, auch
+// keine dokumentarische Rate 1 (server/lib/fiaon-kein-abo.ts). Gerechnet wurde
+// der Umsatz hier bisher aus zwei Quellen: bezahlte Raten und bezahlte
+// Bonitätsauskünfte. Ein bezahltes Global-Paket stünde in keiner von beiden —
+// der größte Einzelerlös des Hauses wäre im Wert-Raum unsichtbar gewesen und
+// hätte zugleich (ohne den Ausschluss unten) als 2.499 € MRR gezählt.
+//
+// Deshalb eine dritte Quelle mit derselben Regel wie die Auskunft: bezahlte
+// Bestellung, Betrag der Bestellung, Buchungstag. Getrennt ausgewiesen —
+// Einmalerlös und wiederkehrender Umsatz gehören nie in einen Topf.
+// ═══════════════════════════════════════════════════════════════════════════
+const IST_GLOBAL = `${produktkategorieSql("a")} = 'global'`;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DER EINE UMSATZ-BAUSTEIN (27.08.2026, Justins Regel: „ALLE ZAHLEN MÜSSEN
@@ -51,7 +72,7 @@ const ECHT = `a.ref NOT LIKE 'FIAON-TEST%' AND COALESCE(p.ist_test_am IS NOT NUL
 export async function umsatzBausteine(): Promise<{
   heuteCents: number; wocheCents: number; monatCents: number;
   vormonatCents: number; jahrCents: number; gesamtCents: number;
-  verlauf: { monat: string; ratenCents: number; auskunftCents: number; zahlungen: number }[];
+  verlauf: { monat: string; ratenCents: number; auskunftCents: number; globalCents: number; zahlungen: number }[];
 }> {
   const QUELLE = `
     SELECT r.betrag_cents AS cents, r.bezahlt_am AS am, 'rate' AS art
@@ -66,6 +87,13 @@ export async function umsatzBausteine(): Promise<{
       LEFT JOIN fiaon_persons p ON p.id = a.person_id
      WHERE a.payment_status = 'paid' AND a.merged_into IS NULL
        AND a.ref LIKE 'FIAON-SCHUFA-%' AND COALESCE(a.paid_at, a.completed_at) IS NOT NULL
+       AND ${ECHT}
+    UNION ALL
+    SELECT COALESCE(ROUND(a.amount_due * 100), 0)::int, COALESCE(a.paid_at, a.completed_at), 'global'
+      FROM fiaon_applications a
+      LEFT JOIN fiaon_persons p ON p.id = a.person_id
+     WHERE a.payment_status = 'paid' AND a.merged_into IS NULL
+       AND ${IST_GLOBAL} AND COALESCE(a.paid_at, a.completed_at) IS NOT NULL
        AND ${ECHT}`;
 
   const [summen] = (await sqlPool.unsafe(`
@@ -88,6 +116,7 @@ export async function umsatzBausteine(): Promise<{
     SELECT to_char(date_trunc('month', am AT TIME ZONE 'Europe/Berlin'), 'YYYY-MM') AS monat,
            COALESCE(SUM(cents) FILTER (WHERE art = 'rate'), 0)::bigint AS raten_cents,
            COALESCE(SUM(cents) FILTER (WHERE art = 'auskunft'), 0)::bigint AS auskunft_cents,
+           COALESCE(SUM(cents) FILTER (WHERE art = 'global'), 0)::bigint AS global_cents,
            COUNT(*)::int AS zahlungen
       FROM q GROUP BY 1 ORDER BY 1`)) as any[];
 
@@ -97,7 +126,8 @@ export async function umsatzBausteine(): Promise<{
     jahrCents: Number(summen.jahr), gesamtCents: Number(summen.gesamt),
     verlauf: verlauf.map((v: any) => ({
       monat: String(v.monat), ratenCents: Number(v.raten_cents),
-      auskunftCents: Number(v.auskunft_cents), zahlungen: Number(v.zahlungen),
+      auskunftCents: Number(v.auskunft_cents), globalCents: Number(v.global_cents),
+      zahlungen: Number(v.zahlungen),
     })),
   };
 }
@@ -121,7 +151,16 @@ router.get("/chef/zahlen", requireChef("geschaeftsfuehrung"), async (_req: Reque
         COALESCE((SELECT COUNT(*) FROM fiaon_applications a
           LEFT JOIN fiaon_persons p ON p.id = a.person_id
           WHERE a.payment_status='paid' AND a.merged_into IS NULL
-            AND a.ref LIKE 'FIAON-SCHUFA-%' AND ${ECHT}), 0)::int AS auskunft_anzahl
+            AND a.ref LIKE 'FIAON-SCHUFA-%' AND ${ECHT}), 0)::int AS auskunft_anzahl,
+        -- E-188: FIAON Global — Einmalerlöse, dieselbe Regel wie die Auskunft.
+        COALESCE((SELECT SUM(ROUND(a.amount_due * 100)) FROM fiaon_applications a
+          LEFT JOIN fiaon_persons p ON p.id = a.person_id
+          WHERE a.payment_status='paid' AND a.merged_into IS NULL
+            AND ${IST_GLOBAL} AND ${ECHT}), 0)::bigint AS global_cents,
+        COALESCE((SELECT COUNT(*) FROM fiaon_applications a
+          LEFT JOIN fiaon_persons p ON p.id = a.person_id
+          WHERE a.payment_status='paid' AND a.merged_into IS NULL
+            AND ${IST_GLOBAL} AND ${ECHT}), 0)::int AS global_anzahl
     `)) as any[];
 
     // Aktive Abos + MRR — und der Vertragsbestand ×12 je Abo.
@@ -132,6 +171,10 @@ router.get("/chef/zahlen", requireChef("geschaeftsfuehrung"), async (_req: Reque
           LEFT JOIN fiaon_persons p ON p.id = a.person_id
          WHERE a.payment_status='paid' AND a.merged_into IS NULL AND a.gdpr_deleted_at IS NULL
            AND a.ref NOT LIKE 'FIAON-SCHUFA-%'
+           -- E-188: Ein Einmalkauf des Katalogs (FIAON Global) ist kein Abo. Ohne
+           -- diese Grenze stünde ein 2.499-€-Paket als 2.499 € MRR und mit
+           -- 29.988 € im Vertragsbestand — und die Bewertung rechnete darauf.
+           AND NOT ${KEIN_ABO_SQL}
            AND a.abo_gestoppt_am IS NULL AND a.cancelled_at IS NULL AND a.refunded_at IS NULL
            AND a.amount_due IS NOT NULL AND ${ECHT})
       SELECT COUNT(*)::int AS aktive,
@@ -150,6 +193,7 @@ router.get("/chef/zahlen", requireChef("geschaeftsfuehrung"), async (_req: Reque
         LEFT JOIN fiaon_persons p ON p.id = a.person_id
        WHERE a.payment_status='paid' AND a.merged_into IS NULL AND a.gdpr_deleted_at IS NULL
          AND a.ref NOT LIKE 'FIAON-SCHUFA-%'
+         AND NOT ${KEIN_ABO_SQL}
          AND a.abo_gestoppt_am IS NULL AND a.cancelled_at IS NULL AND a.refunded_at IS NULL
          AND a.amount_due IS NOT NULL AND ${ECHT}
        GROUP BY 1 ORDER BY 3 DESC
@@ -186,7 +230,9 @@ router.get("/chef/zahlen", requireChef("geschaeftsfuehrung"), async (_req: Reque
         ratenAnzahl: Number(verdient.raten_anzahl),
         auskunftCents: Number(verdient.auskunft_cents),
         auskunftAnzahl: Number(verdient.auskunft_anzahl),
-        gesamtCents: Number(verdient.raten_cents) + Number(verdient.auskunft_cents),
+        globalCents: Number(verdient.global_cents),
+        globalAnzahl: Number(verdient.global_anzahl),
+        gesamtCents: Number(verdient.raten_cents) + Number(verdient.auskunft_cents) + Number(verdient.global_cents),
       },
       abo: {
         aktive: Number(abo.aktive),
@@ -201,7 +247,7 @@ router.get("/chef/zahlen", requireChef("geschaeftsfuehrung"), async (_req: Reque
         paket: String(r.paket), anzahl: Number(r.anzahl), mrrCents: Number(r.mrr_cents),
       })),
       monate: monate.map((m) => ({
-        monat: m.monat, ratenCents: m.ratenCents, auskunftCents: m.auskunftCents,
+        monat: m.monat, ratenCents: m.ratenCents, auskunftCents: m.auskunftCents, globalCents: m.globalCents,
       })),
       bewertung: { arrCents, szenarien },
     });
@@ -270,6 +316,14 @@ router.get("/chef/zahlungszentrale", requireChef("geschaeftsfuehrung"), async (r
             LEFT JOIN fiaon_persons p ON p.id = a.person_id
            WHERE a.payment_status = 'paid' AND a.merged_into IS NULL
              AND a.ref LIKE 'FIAON-SCHUFA-%'
+             AND COALESCE(a.paid_at, a.completed_at) IS NOT NULL AND ${ECHT} ${suche}
+          UNION ALL
+          SELECT COALESCE(a.paid_at, a.completed_at), COALESCE(ROUND(a.amount_due * 100), 0)::int,
+                 'FIAON Global (einmalig)', a.ref, a.person_id, a.pack_name, a.payment_reference
+            FROM fiaon_applications a
+            LEFT JOIN fiaon_persons p ON p.id = a.person_id
+           WHERE a.payment_status = 'paid' AND a.merged_into IS NULL
+             AND ${IST_GLOBAL}
              AND COALESCE(a.paid_at, a.completed_at) IS NOT NULL AND ${ECHT} ${suche}
         ) e
         LEFT JOIN fiaon_persons p2 ON p2.id = e.person_id`;

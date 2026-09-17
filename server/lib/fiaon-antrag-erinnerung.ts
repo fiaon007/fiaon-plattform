@@ -15,6 +15,7 @@
 import { createHmac } from "node:crypto";
 import { sqlPool } from "./db-pool";
 import { absoluteUrl } from "../fiaon-base-url";
+import { produktkategorieSql } from "./fiaon-produktkategorie";
 
 const STUFEN_MAX = 7;
 const ERSTE_NACH_MIN = 10;
@@ -132,6 +133,10 @@ export async function antragErinnerungenLauf(): Promise<number> {
       AND a.email NOT ILIKE '%@example.%' AND a.email NOT ILIKE '%test%' AND a.email NOT ILIKE '%fiaon.%'
       AND a.merged_into IS NULL AND a.archived_at IS NULL AND a.gdpr_deleted_at IS NULL
       AND a.payment_reference IS NULL AND a.payment_status IS DISTINCT FROM 'paid'
+      -- E-188 (17.09.2026): Die Abbruch-Erinnerung führt zurück in den PRIVATEN
+      -- Antrag und spricht von Auskunft und Einträgen. Ein begonnener
+      -- FIAON-Global-Auftrag (Unternehmen) bekommt sie nicht.
+      AND NOT (${sqlPool.unsafe(produktkategorieSql("a"))} = 'global')
       AND a.status NOT IN ('submitted', 'completed', 'payment_completed', 'documents_submitted', 'approved', 'processing')
       AND COALESCE(a.current_step, 0) BETWEEN 1 AND 7
       AND a.antrag_erinnerung_stufe < ${STUFEN_MAX}

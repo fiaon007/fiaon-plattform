@@ -7,6 +7,12 @@
 // Vorgabe 25 % je bankbestätigter Rate) und drei Sätze fürs Gespräch (Sie-Form).
 // Wortregeln: FIAON berät nicht und garantiert nichts – hier steht „passt“,
 // „zeigt“, „bereitet vor“.
+//
+// 17.09.2026 (E-188): Die Business-Abos sind eingestellt. „Unternehmen“ führt
+// nicht mehr durch die Bonitätsfragen (Negativeinträge, Budget im Monat — beides
+// passt nicht zu einem Einmalpreis), sondern zeigt die vier FIAON-Global-Pakete
+// aus dem Katalog und schickt ins Firmen-Cockpit, wo Leitfaden, Pflichtsätze und
+// Auftragslink liegen.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
@@ -14,6 +20,7 @@ import { ArrowLeft, Copy, Check } from "lucide-react";
 import { AgentShell, api } from "../shared";
 import { useOffice } from "../OfficeShell";
 import { PAKETE, type Paket } from "@shared/fiaon-pakete";
+import { GLOBAL_PAKETE, globalKatalog, globalPreisText } from "@shared/fiaon-global";
 import "@/styles/office-tools.css";
 
 type Art = "privat" | "business";
@@ -30,34 +37,25 @@ const LEISTUNG: Record<string, { kurz: string; punkte: string[] }> = {
   pro: { kurz: "FIAON versendet und verfolgt die Schreiben, Girokonto vorbereitet, Karte ab Schwelle", punkte: ["Alles aus Start", "FIAON versendet die Schreiben und verfolgt Fristen und Antworten", "Girokonto vorbereitet", "Kreditkarte vorbereitet, sobald die Schwelle des Kartenpartners erreicht ist"] },
   ultra: { kurz: "Kreditkarte vorbereitet, Vorrang bei Fristen und Rückfragen", punkte: ["Alles aus Pro", "Kreditkarte vorbereitet", "Vorrang bei Fristen und Rückfragen"] },
   highend: { kurz: "alles aus einer Hand mit direkter Durchwahl", punkte: ["Alles aus Ultra", "Direkte Durchwahl, alles aus einer Hand", "Das Maximum an Begleitung"] },
-  business_starter: { kurz: "Auskunft für Unternehmen und Inhaber, Firmenkarte bis 5.000 € Zielrahmen vorbereitet", punkte: ["Bonitätsauskunft für Unternehmen und Inhaber", "Erklärung jedes Eintrags, Löschfristen", "Vorbereitung einer Firmenkarte bis 5.000 € Zielrahmen", "Fester Ansprechpartner"] },
-  business_pro: { kurz: "Schreiben versendet und verfolgt, Trennung privat/geschäftlich, Karte bis 25.000 € Zielrahmen", punkte: ["Alles aus Starter", "Schreiben an Gläubiger und Auskunfteien, versendet und verfolgt", "Trennung privat/geschäftlich in der Auskunft", "Kartenvorbereitung bis 25.000 € Zielrahmen"] },
-  business_ultra: { kurz: "Mehrkarten-Struktur, Vorrang, Karte bis 75.000 € Zielrahmen", punkte: ["Alles aus Pro", "Mehrkarten-Struktur für Geschäftsführung und Mitarbeiter", "Vorrang bei Fristen und Schreiben", "Kartenvorbereitung bis 75.000 € Zielrahmen"] },
-  business_enterprise: { kurz: "eigener Ansprechpartner mit Durchwahl, Strukturen bis 250.000 € Zielrahmen", punkte: ["Alles aus Ultra", "Eigener Ansprechpartner mit direkter Durchwahl", "Reise-, Spesen- und Mitarbeiterkarten", "Strukturen bis 250.000 € Zielrahmen"] },
 };
 const PRIVAT_STUFEN = ["start", "pro", "ultra", "highend"];
-const BUSINESS_STUFEN = ["business_starter", "business_pro", "business_ultra", "business_enterprise"];
 
 interface Vorschlag { paket: Paket; gruende: string[]; budgetHinweis: string | null; alternative: Paket | null; alternativeText: string | null }
 
 function finden(art: Art, ziel: Ziel, negativ: Negativ, dringlich: Dringlich, budgetEuro: number): Vorschlag {
-  const stufen = art === "business" ? BUSINESS_STUFEN : PRIVAT_STUFEN;
-  const pakete = stufen.map((k) => PAKETE.find((p) => p.key === k)!).filter(Boolean);
+  // `art` ist hier immer „privat": Für Unternehmen rechnet dieses Werkzeug seit
+  // E-188 nichts mehr aus (siehe Kopf).
+  if (art !== "privat") throw new Error("Der Paketfinder rechnet nur Privatpakete — Unternehmen: FIAON Global.");
+  const pakete = PRIVAT_STUFEN.map((k) => PAKETE.find((p) => p.key === k)!).filter(Boolean);
   const gruende: string[] = [];
   let stufe = 0;
-  if (art === "business") {
-    gruende.push("Geschäftskunde – die Business-Pakete enthalten die Auskunft für Unternehmen und Inhaber.");
-    if (negativ === "ja") { stufe = Math.max(stufe, 1); gruende.push("Negativeinträge vorhanden – ab Business Pro versendet und verfolgt FIAON die Schreiben."); }
-    if (dringlich === "sofort") { stufe = Math.max(stufe, 2); gruende.push("Es eilt – ab Business Ultra hat der Kunde Vorrang bei Fristen und Schreiben."); }
-  } else {
-    if (ziel === "kreditkarte") { stufe = negativ === "nein" ? 1 : 2; gruende.push(negativ === "nein" ? "Ziel Kreditkarte ohne Negativeinträge – Pro bereitet die Karte vor, sobald die Schwelle erreicht ist." : "Ziel Kreditkarte – ab Ultra ist die Kreditkarte fest Teil des Pakets."); }
-    if (ziel === "kredit") { stufe = 2; gruende.push("Ziel Kredit – dafür zählt eine saubere Auskunft und Vorrang bei Fristen (Ultra)."); }
-    if (ziel === "wohnung") { stufe = 0; gruende.push("Ziel Wohnung – der Vermieter will die Auskunft sehen; Start beschafft und erklärt sie."); }
-    if (ziel === "unternehmen") { stufe = 1; gruende.push("Ziel Selbstständigkeit – Pro mit Girokonto und verfolgten Schreiben; bei einer Firma passt eher Business."); }
-    if (negativ === "ja" && stufe < 1) { stufe = 1; gruende.push("Negativeinträge vorhanden – ab Pro versendet und verfolgt FIAON die Schreiben selbst."); }
-    if (negativ === "ja" && dringlich === "sofort") { stufe = 3; gruende.push("Negativeinträge und es eilt – High-End: alles aus einer Hand, direkte Durchwahl."); }
-    else if (dringlich === "sofort" && stufe < 2) { stufe = 2; gruende.push("Es eilt – ab Ultra hat der Kunde Vorrang bei Fristen und Rückfragen."); }
-  }
+  if (ziel === "kreditkarte") { stufe = negativ === "nein" ? 1 : 2; gruende.push(negativ === "nein" ? "Ziel Kreditkarte ohne Negativeinträge – Pro bereitet die Karte vor, sobald die Schwelle erreicht ist." : "Ziel Kreditkarte – ab Ultra ist die Kreditkarte fest Teil des Pakets."); }
+  if (ziel === "kredit") { stufe = 2; gruende.push("Ziel Kredit – dafür zählt eine saubere Auskunft und Vorrang bei Fristen (Ultra)."); }
+  if (ziel === "wohnung") { stufe = 0; gruende.push("Ziel Wohnung – der Vermieter will die Auskunft sehen; Start beschafft und erklärt sie."); }
+  if (ziel === "unternehmen") { stufe = 1; gruende.push("Ziel Selbstständigkeit – Pro mit Girokonto und verfolgten Schreiben. Für ein Unternehmen mit US-Bezug gibt es FIAON Global (oben „Unternehmen“)."); }
+  if (negativ === "ja" && stufe < 1) { stufe = 1; gruende.push("Negativeinträge vorhanden – ab Pro versendet und verfolgt FIAON die Schreiben selbst."); }
+  if (negativ === "ja" && dringlich === "sofort") { stufe = 3; gruende.push("Negativeinträge und es eilt – High-End: alles aus einer Hand, direkte Durchwahl."); }
+  else if (dringlich === "sofort" && stufe < 2) { stufe = 2; gruende.push("Es eilt – ab Ultra hat der Kunde Vorrang bei Fristen und Rückfragen."); }
   const gewollt = pakete[stufe];
   const budgetCents = Math.round(budgetEuro * 100);
   let paket = gewollt; let budgetHinweis: string | null = null; let alternative: Paket | null = null; let alternativeText: string | null = null;
@@ -84,7 +82,7 @@ const ZIEL_SATZ: Record<Ziel, string> = {
   kreditkarte: "Ihr Ziel ist die Kreditkarte. FIAON beschafft zuerst Ihre Bonitätsauskunft, erklärt jeden Eintrag und bereitet den Kartenantrag vor, sobald Ihre Bonität die Schwelle des Kartenpartners erreicht. Über die Karte entscheidet am Ende die Bank – FIAON sorgt dafür, dass Ihre Unterlagen stimmen.",
   kredit: "Ihr Ziel ist ein Kredit. Banken schauen zuerst in die Auskunft – FIAON beschafft sie, zeigt, welche Einträge angreifbar sind, und versendet die Schreiben in Ihrem Namen. Je sauberer die Auskunft, desto besser Ihre Ausgangslage beim Gespräch mit der Bank.",
   wohnung: "Ihr Ziel ist die Wohnung. Der Vermieter will Ihre Auskunft sehen – FIAON beschafft sie, erklärt jeden Eintrag und zeigt, was sich vor der Bewerbung noch klären lässt.",
-  unternehmen: "Ihr Ziel ist Ihr Unternehmen. FIAON beschafft die Auskunft für Sie als Inhaber und für die Firma, trennt privat und geschäftlich und bereitet die Firmenkarte vor – über Karte und Rahmen entscheidet die Bank.",
+  unternehmen: "Ihr Ziel ist die Selbstständigkeit. FIAON beschafft Ihre Auskunft als Inhaber, zeigt, was Banken dort sehen, und bereitet Girokonto und Karte vor – über Konto, Karte und Rahmen entscheidet die Bank.",
 };
 
 export default function AgentPaketfinderPage() { return <AgentShell><PaketfinderInnen /></AgentShell>; }
@@ -101,13 +99,13 @@ function PaketfinderInnen() {
   const [budget, setBudget] = useState(80);
   const [kopiert, setKopiert] = useState<number | null>(null);
 
-  const fertig = !!(art === "business" ? true : ziel) && !!negativ && !!dringlich;
-  const e = useMemo(() => (fertig ? finden(art, art === "business" ? "unternehmen" : (ziel as Ziel), negativ as Negativ, dringlich as Dringlich, budget) : null), [art, ziel, negativ, dringlich, budget, fertig]);
+  const fertig = art === "privat" && !!ziel && !!negativ && !!dringlich;
+  const e = useMemo(() => (fertig ? finden(art, ziel as Ziel, negativ as Negativ, dringlich as Dringlich, budget) : null), [art, ziel, negativ, dringlich, budget, fertig]);
   const provisionRate = e ? Math.round(e.paket.preisCents * satz) : 0;
   const laufzeit = e?.paket.abo ? 12 : 1;
   const saetze = e ? [
     { t: "Einstieg", s: `Nach dem, was Sie mir schildern, passt FIAON ${e.paket.label.replace("FIAON ", "").replace(" (Standard)", "")} zu Ihnen: ${LEISTUNG[e.paket.key]?.kurz ?? ""}. ${e.paket.abo ? `Das sind ${euro(e.paket.preisCents)} im Monat, zwölf Raten – danach entscheiden Sie, ob Sie bleiben.` : `Das sind einmalig ${euro(e.paket.preisCents)}, kein Abo.`}` },
-    { t: "Nutzen", s: ZIEL_SATZ[art === "business" ? "unternehmen" : (ziel as Ziel)] },
+    { t: "Nutzen", s: ZIEL_SATZ[ziel as Ziel] },
     { t: "Abschluss", s: e.paket.abo ? "Wenn das für Sie passt, schicke ich Ihnen jetzt die Zahlungsdaten. Mit der ersten Rate ist Ihr Bereich aktiv, und wir buchen direkt Ihr Startgespräch – fünfzehn Minuten, dann weiß Ihre Ansprechpartnerin genau, worum es bei Ihnen geht." : "Wenn das für Sie passt, schicke ich Ihnen jetzt die Zahlungsdaten. Nach dem Eingang beschafft FIAON Ihre Auskunft, und Sie sehen jeden Eintrag erklärt in Ihrem Bereich." },
   ] : [];
   const kopieren = async (i: number, text: string) => { try { await navigator.clipboard.writeText(text); setKopiert(i); setTimeout(() => setKopiert(null), 1800); } catch { /* egal */ } };
@@ -131,7 +129,7 @@ function PaketfinderInnen() {
           <div className="to-frage"><b>Wer ist der Kunde?</b>
             <div className="to-optionen zwei">
               <Opt wert="privat" an={art} setzen={setArt} b="Privatkunde" s="Start · Pro · Ultra · High-End" />
-              <Opt wert="business" an={art} setzen={setArt} b="Geschäftskunde" s="Business Starter bis Enterprise" />
+              <Opt wert="business" an={art} setzen={setArt} b="Unternehmen" s="FIAON Global · Einmalpreis" />
             </div>
           </div>
           {art === "privat" && (
@@ -144,6 +142,14 @@ function PaketfinderInnen() {
               </div>
             </div>
           )}
+          {art === "business" && (
+            <div className="to-frage"><b>Für Unternehmen: FIAON Global</b>
+              <p className="leise">Die früheren Business-Abos werden nicht mehr verkauft. FIAON Global ist ein Einmalpreis – keine Monatsrate, kein Budget im Monat. Sag keine Karte, keinen Rahmen, keinen Zins und keine Frist zu; über Konto, Karte und Rahmen entscheidet allein das Institut.</p>
+              <ul className="to-liste">{GLOBAL_PAKETE.map((g) => <li key={g.key}><b style={{ color: "#fff", fontWeight: 500 }}>{globalKatalog(g.key)?.label ?? g.de.name}</b> – {globalPreisText(g.key)} einmalig. {g.de.fuer}</li>)}</ul>
+              <Link href="/agent/firmen" className="to-zurueck">Zum Firmen-Cockpit: Leitfaden, Pflichtsätze, Auftragslink</Link>
+            </div>
+          )}
+          {art === "privat" && (<>
           <div className="to-frage"><b>Gibt es Negativeinträge?</b>
             <div className="to-optionen">
               <Opt wert="ja" an={negativ} setzen={setNegativ} b="Ja" s="Mahnung, Inkasso, Titel, Insolvenz" />
@@ -164,13 +170,14 @@ function PaketfinderInnen() {
               <input type="range" min={0} max={260} step={5} value={budget} onChange={(ev) => setBudget(Number(ev.target.value))} aria-label="Budget im Monat" />
             </div>
           </div>
+          </>)}
         </section>
 
         <section className={`to-block${e ? " hervor" : ""}`}>
           {!e ? (
             <>
               <div className="to-block-kopf"><b>Dein Vorschlag</b></div>
-              <p className="leise">Beantworte die Fragen links – der Vorschlag erscheint hier, sobald alles gesetzt ist.</p>
+              <p className="leise">{art === "business" ? "Für Unternehmen rechnet dieses Werkzeug nichts aus: Die vier Global-Pakete stehen links, verkauft wird im Firmen-Cockpit." : "Beantworte die Fragen links – der Vorschlag erscheint hier, sobald alles gesetzt ist."}</p>
             </>
           ) : (
             <div className="to-ergebnis">

@@ -125,6 +125,15 @@ async function flowStarten(ref: string, rueckkehrPfad: (brId: string) => string)
     return { ok: false, code: "ERST_ZAHLEN",
       error: "Die Lastschrift können Sie einrichten, sobald Ihre erste Zahlung eingegangen ist." };
   }
+  // ── EIN EINMALKAUF BRAUCHT KEIN MANDAT (17.09.2026, E-188) ───────────────
+  // FIAON Global und die Bonitätsauskunft werden einmal überwiesen; es gibt
+  // keine Monatsrate, die eingezogen werden könnte. `gcAboAnlegen` legt für
+  // sie ohnehin kein Abo an (`pk.abo`) — ein Mandat ohne Einzug wäre nur ein
+  // offenes Ende bei GoCardless. Die Tür steht hier, nicht nur im Browser.
+  if (paketVon(a.pack_key)?.abo === false) {
+    return { ok: false, code: "KEIN_ABO",
+      error: "Für dieses Paket gibt es keine Monatsrate — eine Lastschrift ist nicht nötig." };
+  }
 
   const br = await gc("/billing_requests", { method: "POST", idem: `br-${ref}-${Date.now()}`, body: {
     billing_requests: { mandate_request: { scheme: "sepa_core", currency: "EUR" }, metadata: { ref } } } });

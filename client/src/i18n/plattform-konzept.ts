@@ -35,10 +35,13 @@ const de = {
     { key: "lage", frage: "Wie ist die Lage?", optionen: [["klar", "Ich will nur wissen, was drinsteht"], ["eintrag", "Es gibt Einträge, die weg sollen"], ["zugang", "Ich brauche Konto oder Karte"], ["alles", "Alles davon – und einen festen Ansprechpartner"]] as [string, string][] },
     { key: "tempo", frage: "Wie schnell soll es gehen?", optionen: [["ruhig", "In Ruhe, Schritt für Schritt"], ["zuegig", "Zügig, ich habe Fristen"], ["sofort", "So schnell wie irgendwie möglich"]] as [string, string][] },
   ],
+  // 17.09.2026 (E-188): Für Unternehmen gibt es FIAON Global statt der früheren
+  // Monatspakete — derselbe Text wie im Paketfinder auf /preise.
+  globalTitel: "FIAON Global",
+  globalText: "Für Unternehmen gibt es FIAON Global: Ihre US-Gesellschaft aus einer Hand, mit einem Team vor Ort in den USA und einem Ansprechpartner. Vier Pakete, jedes zum Einmalpreis – kein Abo. Über Konto, Karte und Rahmen entscheidet allein das jeweilige Institut.",
+  globalAb: (ab: string) => `ab ${ab} einmalig`,
+  globalGespraech: "Erst sprechen",
   gruende: {
-    business_starter: "Übersicht über die Bonität des Unternehmens und der Inhaber – der Einstieg.",
-    business_ultra: "Fristen, Schreiben und Kartenvorbereitung mit Vorrang.",
-    business_pro: "Einträge bereinigen und Liquidität vorbereiten – das Paket für die meisten Unternehmen.",
     schufa: "Nur die Auskunft, erklärt – kein Abo. Wer danach mehr will, rechnet den Betrag an.",
     start: "Auskunft, Erklärung und die Schreiben zum Selbstversand – günstig und vollständig.",
     pro_fristen: "FIAON versendet und verfolgt – bei Fristen der Unterschied zwischen Tag 100 und Tag 101.",
@@ -47,7 +50,7 @@ const de = {
     ultra: "Bereinigen, Konto, Karte und ein fester Ansprechpartner – das volle Programm.",
   } as Record<string, string>,
   vorschlag: "Unser Vorschlag", imMonat: "im Monat · zwölf Raten", einmalig: "einmalig · kein Abo",
-  zuBusiness: "Zu den Business-Paketen", mitPaket: "Mit diesem Paket starten", alleVergleichen: "Alle Pakete vergleichen",
+  zuBusiness: "Zu FIAON Global", mitPaket: "Mit diesem Paket starten", alleVergleichen: "Alle Pakete vergleichen",
   bereichPille: "Der Kundenbereich", bereichA: "Zwölf Räume, ", bereichB: "eine Akte.", bereichLead: "Alles, was FIAON für Sie tut, steht an einem Ort – nachlesbar, jederzeit, vom Handy.",
   bereich: [
     ["Übersicht", "Fahrplan mit Etappen, nächste Schritte, Stand der Akte."], ["Meine Bonität", "Jeder Eintrag erklärt und bewertet; Score-Entwicklung."], ["Konto verbinden", "Kontoanbindung für die laufende Auswertung (kommt)."], ["Meine Finanzen", "Einnahmen, Fixkosten, Spielraum aus dem Kontoauszug."],
@@ -121,10 +124,11 @@ const en: typeof de = {
     { key: "lage", frage: "What is the situation?", optionen: [["klar", "I just want to know what is in there"], ["eintrag", "There are entries that should go"], ["zugang", "I need an account or a card"], ["alles", "All of that – and a dedicated contact"]] },
     { key: "tempo", frage: "How fast should it go?", optionen: [["ruhig", "Calmly, step by step"], ["zuegig", "Quickly, I have deadlines"], ["sofort", "As fast as at all possible"]] },
   ],
+  globalTitel: "FIAON Global",
+  globalText: "For companies there is FIAON Global: your US company from a single source, with a team on the ground in the United States and one dedicated contact. Four packages, each at a one-off price – no subscription. The institution alone decides on the account, the card and the limit.",
+  globalAb: (ab: string) => `from ${ab} one-off`,
+  globalGespraech: "Talk first",
   gruende: {
-    business_starter: "An overview of the creditworthiness of the business and its owners – the entry point.",
-    business_ultra: "Deadlines, letters and card preparation with priority.",
-    business_pro: "Clear up entries and prepare liquidity – the plan for most businesses.",
     schufa: "Just the report, explained – no subscription. Anyone who wants more afterwards has the amount credited.",
     start: "Report, explanation and the letters for you to send yourself – inexpensive and complete.",
     pro_fristen: "FIAON sends and tracks – with deadlines, the difference between day 100 and day 101.",
@@ -133,7 +137,7 @@ const en: typeof de = {
     ultra: "Clear-up, account, card and a dedicated contact – the full programme.",
   },
   vorschlag: "Our suggestion", imMonat: "a month · twelve instalments", einmalig: "one-off · no subscription",
-  zuBusiness: "To the business plans", mitPaket: "Start with this plan", alleVergleichen: "Compare all plans",
+  zuBusiness: "To FIAON Global", mitPaket: "Start with this plan", alleVergleichen: "Compare all plans",
   bereichPille: "The customer area", bereichA: "Twelve rooms, ", bereichB: "one file.", bereichLead: "Everything FIAON does for you is in one place – readable at any time, from your phone.",
   bereich: [
     ["Overview", "Roadmap with stages, next steps, status of your file."], ["My credit file", "Every entry explained and assessed; score development."], ["Connect account", "Account connection for ongoing analysis (coming)."], ["My finances", "Income, fixed costs, headroom from the bank statement."],

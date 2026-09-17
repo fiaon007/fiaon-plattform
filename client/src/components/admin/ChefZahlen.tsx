@@ -23,10 +23,11 @@ import "@/styles/chef-zahlen.css";
 
 interface Zahlen {
   stand: string;
-  verdient: { ratenCents: number; ratenAnzahl: number; auskunftCents: number; auskunftAnzahl: number; gesamtCents: number };
+  // 17.09.2026 (E-188): FIAON Global — Einmalerlöse neben Raten und Auskünften.
+  verdient: { ratenCents: number; ratenAnzahl: number; auskunftCents: number; auskunftAnzahl: number; globalCents?: number; globalAnzahl?: number; gesamtCents: number };
   abo: { aktive: number; mrrCents: number; arrCents: number; vertrag12Cents: number; vereinnahmtCents: number; ausstehendCents: number; letzte30TageCents: number };
   jePaket: { paket: string; anzahl: number; mrrCents: number }[];
-  monate: { monat: string; ratenCents: number; auskunftCents: number }[];
+  monate: { monat: string; ratenCents: number; auskunftCents: number; globalCents?: number }[];
   bewertung: { arrCents: number; szenarien: { name: string; faktor: number; satz: string; wertCents: number }[] };
 }
 
@@ -80,7 +81,7 @@ export default function ChefZahlen() {
   const spanneVon = d.bewertung.szenarien[0]?.wertCents ?? 0;
   const spanneBis = d.bewertung.szenarien[d.bewertung.szenarien.length - 1]?.wertCents ?? 0;
   const mitte = d.bewertung.szenarien[1]?.wertCents ?? Math.round((spanneVon + spanneBis) / 2);
-  const maxMonat = Math.max(1, ...d.monate.map((m) => m.ratenCents + m.auskunftCents));
+  const maxMonat = Math.max(1, ...d.monate.map((m) => m.ratenCents + m.auskunftCents + (m.globalCents ?? 0)));
   const maxPaketMrr = Math.max(1, ...d.jePaket.map((p) => p.mrrCents));
   const anteilVereinnahmt = d.abo.vertrag12Cents > 0
     ? d.abo.vereinnahmtCents / d.abo.vertrag12Cents : 0;
@@ -112,7 +113,7 @@ export default function ChefZahlen() {
           <article className="cz-karte">
             <small>Gesamt eingegangen</small>
             <b>{eur(d.verdient.gesamtCents)}</b>
-            <span>{d.verdient.ratenAnzahl} Raten + {d.verdient.auskunftAnzahl} Bonitätsauskünfte</span>
+            <span>{d.verdient.ratenAnzahl} Raten + {d.verdient.auskunftAnzahl} Bonitätsauskünfte{(d.verdient.globalAnzahl ?? 0) > 0 ? ` + ${d.verdient.globalAnzahl} FIAON-Global-Aufträge` : ""}</span>
           </article>
           <article className="cz-karte">
             <small>Davon Abo-Raten</small>
@@ -120,21 +121,22 @@ export default function ChefZahlen() {
             <span>Start- und Monatsraten der Pakete</span>
           </article>
           <article className="cz-karte">
-            <small>Davon Bonitätsauskünfte</small>
-            <b>{eur(d.verdient.auskunftCents)}</b>
-            <span>Einmalerlöse — bewusst getrennt vom Abo</span>
+            <small>Davon Einmalerlöse</small>
+            <b>{eur(d.verdient.auskunftCents + (d.verdient.globalCents ?? 0))}</b>
+            <span>Bonitätsauskünfte {eur(d.verdient.auskunftCents)} · FIAON Global {eur(d.verdient.globalCents ?? 0)} — bewusst getrennt vom Abo</span>
           </article>
         </div>
 
         <div className="cz-monate" role="img" aria-label="Einnahmen je Monat">
           {d.monate.map((m) => {
-            const summe = m.ratenCents + m.auskunftCents;
+            const einmal = m.auskunftCents + (m.globalCents ?? 0);
+            const summe = m.ratenCents + einmal;
             const [jahr, mm] = m.monat.split("-");
             return (
               <div key={m.monat} className={`cz-monat${m.monat === heuteMonat ? " laufend" : ""}`}
-                   title={`${MONAT_NAME[mm]} ${jahr}: ${eur(m.ratenCents)} Raten + ${eur(m.auskunftCents)} Auskünfte`}>
+                   title={`${MONAT_NAME[mm]} ${jahr}: ${eur(m.ratenCents)} Raten + ${eur(m.auskunftCents)} Auskünfte${(m.globalCents ?? 0) > 0 ? ` + ${eur(m.globalCents ?? 0)} FIAON Global` : ""}`}>
                 <i style={{ height: `${Math.max(3, Math.round((summe / maxMonat) * 100))}%` }}>
-                  <em style={{ height: `${summe > 0 ? Math.round((m.auskunftCents / summe) * 100) : 0}%` }} />
+                  <em style={{ height: `${summe > 0 ? Math.round((einmal / summe) * 100) : 0}%` }} />
                 </i>
                 <b>{eur(summe)}</b>
                 <span>{MONAT_NAME[mm]}{m.monat === heuteMonat ? " · läuft" : ""}</span>
@@ -142,7 +144,7 @@ export default function ChefZahlen() {
             );
           })}
         </div>
-        <p className="cz-fuss">Heller Abschnitt im Balken = Bonitätsauskünfte. Der laufende Monat ist noch nicht zu Ende — er wird noch größer.</p>
+        <p className="cz-fuss">Heller Abschnitt im Balken = Einmalerlöse (Bonitätsauskünfte, FIAON Global). Der laufende Monat ist noch nicht zu Ende — er wird noch größer.</p>
       </section>
 
       {/* ── DER ABO-MOTOR — Justins ×12, richtig erzählt ───────────────── */}

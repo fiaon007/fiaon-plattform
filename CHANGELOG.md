@@ -5,6 +5,38 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 17.09.2026 — FIAON Global im Katalog: Abo-Motor abgesichert, alle Leser umgestellt (E-188)
+
+**Was geändert wurde:** Die vier FIAON-Global-Pakete (2.499 € / 4.999 € / 6.999 € / 35.999 €) sind
+EINMALPREISE. Bis heute erkannte der Abo-Motor „kein Abo" nur am Wort „schufa" und am Betrag 74,00 € —
+ein bezahltes Global-Paket hätte zwölf Monatsraten à 2.499 € samt Dauermahnung bekommen. Jetzt fragt
+jede Stelle, die eine Rate anlegt oder mahnt, den Katalog (`abo: false`): Buchung einer Zahlung,
+nächste Rate, Ketten nachziehen, Tageslauf, Nachtrag fehlender Abos, Mahnlauf, Lastschrift-Mandat,
+Einladung zum Bankeinzug. Die alte Erkennung der Bonitätsauskunft über Name und Betrag bleibt daneben
+(Altbestellungen ohne Paketschlüssel).
+
+Dazu: (1) Eine dritte Produktkategorie — eine Global-Bestellung legt keine offene Privatbestellung
+desselben Menschen still und umgekehrt. (2) Die drei Erinnerungsmaschinen der Privatlinie
+(Zahlungserinnerung zweimal täglich, Rückholung, Abbruch-Erinnerung) lassen offene Global-Bestellungen
+aus; dort fasst der feste Ansprechpartner nach. (3) Im Chefbüro zählt FIAON Global als eigener
+Einmalerlös zum Umsatz, aber nicht zum MRR und nicht zum Vertragsbestand ×12. (4) Die vier Business-Abos
+sind eingestellt: Sie stehen in keinem Auswahlfeld mehr (Office-Katalog, Firmen-Cockpit, Paketwechsel
+der Leitung), eine neue Bestellung darauf wird abgelehnt; Bestandskunden laufen unverändert weiter.
+(5) Das Firmen-Cockpit verkauft FIAON Global: Auswahlfeld aus dem Katalog („einmalig"), neuer
+Leitfaden, neue Info-Mail, neue KI-Vorbereitung, Auftragslink auf /business/start. (6) Startseite
+(Reiter „Unternehmen"), /preise, /investoren, /plattform-konzept (deutsch und englisch), das Wissen
+von Mara und dem Website-Assistenten, der Copilot, die Academy (Kapitel 1–3), der Paketfinder und der
+Rundgang „Firmenkunden" sprechen von FIAON Global statt von Business-Abos. Kein Link zeigt aus diesen
+Dateien mehr auf /business-antrag.
+
+**Warum:** E-188 — FIAON Global ersetzt /business. Ohne die Abo-Sicherung hätte der erste bezahlte
+Global-Auftrag eine Mahnkette über 2.499 € im Monat ausgelöst.
+
+**Wo zu finden:** `server/lib/fiaon-kein-abo.ts` (die eine Regel, als Funktion und als SQL),
+`server/lib/fiaon-produktkategorie.ts`, `server/routes/fiaon-abo.ts`, `server/lib/fiaon-abo-pflicht.ts`,
+`shared/fiaon-global-vertrieb.ts` (Leitfaden, Info-Mail, KI-Anweisung), `shared/fiaon-global-wege.ts`
+(alle Links), `shared/fiaon-wissen.ts`. Prüfstand ohne Datenbank: `npx tsx scripts/pruef-pakete.ts`.
+
 ## 15.09.2026 — Neue Seite /global: die US-Positionierung (FIAON Global OS)
 
 **Was geändert wurde:** Es gibt eine neue öffentliche Seite unter `/global` — parallel zu `/business`, das

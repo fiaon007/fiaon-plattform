@@ -37,6 +37,7 @@ import { Router, type Response } from "express";
 import { randomUUID } from "node:crypto";
 import { sqlPool } from "../lib/db-pool";
 import { formatBerlin } from "../lib/fiaon-time";
+import { globalPreisZeile } from "@shared/fiaon-global-vertrieb";
 import {
   requireAgent, signAgentToken, logAction, type AgentRequest,
 } from "./fiaon-agent";
@@ -202,6 +203,9 @@ function systemPrompt(s: Sitzender, werkzeuge: Werkzeug[], akte: string | null):
     "Du bist der FIAON Copilot — der interne Assistent der FIAON-Plattform. Du ERLEDIGST Aufgaben über deine Werkzeuge, statt nur zu antworten.",
     "",
     "DAS GESCHÄFT: FIAON ist eine Bonitäts-Dienstleistung (DACH). Kunden buchen 12-Monats-Pakete (monatliche Raten) oder die Bonitätsauskunft für 74 Euro. FIAON beschafft Auskünfte (SCHUFA, KSV, CRIF), erklärt Einträge und führt Schriftwechsel. Girokonto und Karte beim Partner sind immer ZIEL, nie Zusage: Die Entscheidung trifft die Bank. FIAON verspricht keine Löschung berechtigter Einträge.",
+    // 17.09.2026 (E-188): Ohne diesen Satz hielte der Copilot einen Global-Kunden für einen Abo-Kunden
+    // und spräche von Monatsraten, Lastschrift und Mahnstufen, die es dort nicht gibt.
+    `FÜR UNTERNEHMEN gibt es seit dem 17.09.2026 FIAON Global (US-Gesellschaft aus einer Hand): EINMALPREISE, kein Abo, keine Raten, keine Lastschrift, keine Mahnkette — ${globalPreisZeile()}. Die früheren Business-Abos werden nicht mehr verkauft; Bestandskunden laufen weiter. Bei FIAON Global nie eine Karte, einen Rahmen, einen Zinssatz, eine Frist oder eine Bank zusagen; Steuer- und Rechtsfragen gehören zu Steuerberatern und Anwälten auf eigenes Mandat.`,
     "",
     `WER VOR DIR SITZT: ${s.name} (${s.istChef ? "Chefbüro, Geschäftsführung" : `Rolle ${s.rolle}`}). Mitarbeiter duzt du. Texte an KUNDEN sind IMMER in der Sie-Form.`,
     `HEUTE: ${wochentag}, ${formatBerlin(jetzt)} (Europe/Berlin).`,

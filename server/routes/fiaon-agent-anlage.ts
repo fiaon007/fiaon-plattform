@@ -38,10 +38,41 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { Router, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
-import { PAKETE, paket, paketPreisEuro } from "../../shared/fiaon-pakete";
+import { paket, paketPreisEuro, verkaufbarePakete, type Paket } from "../../shared/fiaon-pakete";
+import { produktkategorie, produktkategorieSql } from "../lib/fiaon-produktkategorie";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
 
 const router = Router();
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FIAON GLOBAL IN DER ANLAGE (17.09.2026, E-188)
+//
+// Drei Dinge, die der Katalog seit heute verlangt und die hier an EINER Stelle
+// stehen, weil drei Routen dieselbe Frage stellen:
+//
+//   1. DER TYP. Hier stand dreimal `p.art === "business" ? "business" :
+//      "private"`. Ein Global-Paket (art „global") wäre damit als PRIVATKUNDE
+//      gespeichert worden — mit Privat-Pipeline, Privat-Mails und ohne
+//      Firmenfelder. FIAON Global ist ein Firmenkunde: type „business".
+//   2. EINGESTELLTE PAKETE. Die vier Business-Abos stehen noch im Katalog,
+//      damit die Raten der Bestandskunden ihren Preis behalten — verkauft
+//      werden sie nicht mehr. Eine NEUE Bestellung darauf lehnt die Anlage ab.
+//   3. DIE KATEGORIE. Ein Global-Paket ist kein Stufenpaket der
+//      Bonitätslinie; es ersetzt keine offene Privatbestellung und wird von
+//      keiner ersetzt (server/lib/fiaon-produktkategorie.ts).
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Der `type` der Bestellung zum Paket — FIAON Global ist ein Firmenkunde. */
+function bestellTyp(p: Paket | null | undefined): "business" | "private" {
+  return p && (p.art === "business" || p.art === "global") ? "business" : "private";
+}
+
+/** Fehlertext, wenn das Paket nicht mehr verkauft wird — sonst null. */
+function nichtMehrImVerkauf(p: Paket | null | undefined): string | null {
+  if (!p?.eingestellt) return null;
+  return `${p.label} wird seit dem 17.09.2026 nicht mehr verkauft. Für Unternehmen gibt es FIAON Global `
+    + "(Einmalpreis) — bitte eines der Global-Pakete wählen. Bestandskunden mit diesem Paket laufen unverändert weiter.";
+}
 
 /** Zahlungsdaten als Text — dieselbe Quelle wie Karte und Rechnung (keine zweite IBAN). */
 async function zahlungsKlartextFuer(verwendungszweck: string, preisEuro: unknown): Promise<string> {
@@ -118,7 +149,11 @@ function normNummer(v: unknown): string | null {
 router.get("/agent/katalog", requireAgent, async (_req: AgentRequest, res: Response) => {
   res.json({
     ok: true,
-    pakete: PAKETE.map((p) => ({
+    // E-188: nur, was heute verkauft wird. Die eingestellten Business-Abos
+    // stehen in keinem Auswahlfeld mehr; `abo: false` sagt der Oberfläche,
+    // dass sie „einmalig" statt „monatlich" schreiben muss (FIAON Global,
+    // Bonitätsauskunft).
+    pakete: verkaufbarePakete().map((p) => ({
       key: p.key, label: p.label,
       preisEuro: p.preisCents / 100,
       art: p.art, abo: p.abo,
@@ -261,6 +296,8 @@ router.post("/agent/kunden/neu", requireAgent, async (req: AgentRequest, res: Re
         error: `Unbekanntes Paket „${paketKey}". Preise kommen nur aus dem Katalog.`,
       });
     }
+    const eingestelltFehler = nichtMehrImVerkauf(p);
+    if (eingestelltFehler) return res.status(400).json({ ok: false, grund: "eingestellt", error: eingestelltFehler });
     if (b.amountDue != null || b.preis != null) {
       // Kein stiller Fehlschlag: Wer einen Betrag mitschickt, soll wissen,
       // dass er nicht gilt.
@@ -321,7 +358,7 @@ router.post("/agent/kunden/neu", requireAgent, async (req: AgentRequest, res: Re
         assigned_agent_id, created_at, updated_at
       ) VALUES (
         ${ref},
-        ${p?.art === "business" ? "business" : "private"},
+        ${bestellTyp(p)},
         -- Ein von Hand angelegter Kunde steht sofort auf „Zahlung offen":
         -- Das ist der Punkt, an dem der Kunde zahlen kann, und genau dort
         -- endet der Auftrag.
@@ -370,7 +407,7 @@ router.post("/agent/kunden/neu", requireAgent, async (req: AgentRequest, res: Re
       VALUES (${ref}, ${req.agent!.id}, ${req.agent!.name}, 'system',
               ${`Kunde von ${req.agent!.name} angelegt (Telefon-Anlage). `
                 + `${vorname} ${nachname}, ${mail ?? "keine E-Mail"}, ${nummer ?? "keine Nummer"}. `
-                + (p ? `Paket ${p.label} (${paketPreisEuro(paketKey).toFixed(2)} € aus dem Katalog), `
+                + (p ? `Paket ${p.label} (${paketPreisEuro(paketKey).toFixed(2)} € ${p.abo ? "im Monat" : "einmalig"} aus dem Katalog), `
                      + `Verwendungszweck ${zahlungsreferenz}.`
                    : "Noch kein Paket gewählt.")})
     `.catch(() => {});
@@ -479,6 +516,8 @@ router.post("/agent/customers/:ref/produkt", requireAgent, async (req: AgentRequ
         error: `Unbekanntes Paket „${paketKey}". Preise kommen nur aus dem Katalog.`,
       });
     }
+    const eingestelltFehler = nichtMehrImVerkauf(p);
+    if (eingestelltFehler) return res.status(400).json({ ok: false, grund: "eingestellt", error: eingestelltFehler });
     if (req.body?.amountDue != null || req.body?.preis != null) {
       return res.status(400).json({
         ok: false,
@@ -487,6 +526,13 @@ router.post("/agent/customers/:ref/produkt", requireAgent, async (req: AgentRequ
     }
 
     const istAuskunft = p.key === "schufa";
+    // ── DREI KATEGORIEN STATT ZWEI (17.09.2026, E-188) ─────────────────────
+    // Bisher: Auskunft oder nicht. FIAON Global ist ein drittes Fach — es darf
+    // die offene Privatbestellung desselben Menschen nicht stilllegen und
+    // umgekehrt. Verglichen wird deshalb die Kategorie (auskunft | global |
+    // konto), nicht mehr nur „ist es die Auskunft?".
+    const kategorie = istAuskunft ? "auskunft" : produktkategorie({ pack_key: p.key });
+    const KATEGORIE_SQL = produktkategorieSql();
 
     // ── WAND 1: BEZAHLTES IST UNANTASTBAR ──────────────────────────────────
     // Gibt es dieses Produkt schon BEZAHLT, wird nichts angelegt. Ein zweites
@@ -495,7 +541,7 @@ router.post("/agent/customers/:ref/produkt", requireAgent, async (req: AgentRequ
       SELECT ref, pack_name, paid_at FROM fiaon_applications
       WHERE person_id = ${quelle.person_id} AND merged_into IS NULL
         AND payment_status = 'paid'
-        AND ${istAuskunft}::boolean = (COALESCE(type, '') = 'schufa' OR ref LIKE 'FIAON-SCHUFA-%')
+        AND ${sqlPool.unsafe(KATEGORIE_SQL)} = ${kategorie}::text
       ORDER BY created_at DESC LIMIT 1
     `) as any[];
     if (schonBezahlt && istAuskunft) {
@@ -512,7 +558,7 @@ router.post("/agent/customers/:ref/produkt", requireAgent, async (req: AgentRequ
       SELECT ref, pack_name, amount_due, payment_status FROM fiaon_applications
       WHERE person_id = ${quelle.person_id} AND merged_into IS NULL
         AND payment_status IN ('pending_payment', 'claimed_paid')
-        AND ${istAuskunft}::boolean = (COALESCE(type, '') = 'schufa' OR ref LIKE 'FIAON-SCHUFA-%')
+        AND ${sqlPool.unsafe(KATEGORIE_SQL)} = ${kategorie}::text
       ORDER BY created_at DESC
     `) as any[];
 
@@ -545,7 +591,7 @@ router.post("/agent/customers/:ref/produkt", requireAgent, async (req: AgentRequ
         person_id, assigned_agent_id, created_at, updated_at
       ) VALUES (
         ${ref},
-        ${istAuskunft ? "schufa" : (p.art === "business" ? "business" : "private")},
+        ${istAuskunft ? "schufa" : bestellTyp(p)},
         'payment_pending', 'pending_payment', 5,
         ${p.key}, ${p.label}, ${paketPreisEuro(p.key)}, 'EUR', ${zahlungsreferenz},
         ${quelle.first_name}, ${quelle.last_name}, ${quelle.company_name},
@@ -586,7 +632,7 @@ router.post("/agent/customers/:ref/produkt", requireAgent, async (req: AgentRequ
       INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
       VALUES (${ref}, ${req.agent!.id}, ${req.agent!.name}, 'system',
               ${`Produkt von ${req.agent!.name} angelegt: ${p.label} `
-                + `(${paketPreisEuro(p.key).toFixed(2)} € aus dem Katalog), `
+                + `(${paketPreisEuro(p.key).toFixed(2)} € ${p.abo ? "im Monat" : "einmalig"} aus dem Katalog), `
                 + `Verwendungszweck ${zahlungsreferenz}.`
                 + (ersetzt.length ? ` Ersetzt: ${ersetzt.join(", ")}.` : "")})
     `.catch(() => {});
@@ -822,6 +868,8 @@ router.post("/agent/crm/kunden/:personId/bestellung", requireAgent, async (req: 
     if (!pk) {
       return res.status(400).json({ ok: false, error: "Unbekanntes Paket. Preise kommen nur aus dem Katalog." });
     }
+    const eingestelltFehler = nichtMehrImVerkauf(pk);
+    if (eingestelltFehler) return res.status(400).json({ ok: false, grund: "eingestellt", error: eingestelltFehler });
 
     const [person] = (await sqlPool`
       SELECT id, first_name, last_name, primary_email, primary_phone,
@@ -834,10 +882,17 @@ router.post("/agent/crm/kunden/:personId/bestellung", requireAgent, async (req: 
     // Dann ist das ein TAUSCH und gehört auf den bestehenden Weg
     // (/agent/customers/:ref/produkt). Zwei offene Pakete an einem Menschen
     // hießen zwei Rechnungen und zwei Abo-Reihen.
+    //
+    // E-188: FIAON Global ist ein eigenes Fach. Eine offene Privatbestellung
+    // sperrt die Global-Bestellung desselben Menschen nicht (und umgekehrt) —
+    // es sind zwei Produkte, nicht zwei Stufen desselben Kontos. Innerhalb des
+    // Fachs bleibt alles, wie es war.
+    const istGlobal = pk.art === "global";
     const [offen] = (await sqlPool`
       SELECT ref FROM fiaon_applications
       WHERE person_id = ${personId} AND merged_into IS NULL AND archived_at IS NULL
         AND pack_key IS NOT NULL AND payment_status IS DISTINCT FROM 'paid'
+        AND (${sqlPool.unsafe(produktkategorieSql())} = 'global') = ${istGlobal}::boolean
       ORDER BY created_at DESC LIMIT 1
     `) as any[];
     if (offen) {
@@ -859,7 +914,7 @@ router.post("/agent/crm/kunden/:personId/bestellung", requireAgent, async (req: 
         person_id, assigned_agent_id, created_at, updated_at
       ) VALUES (
         ${ref},
-        ${pk.art === "business" ? "business" : "private"},
+        ${bestellTyp(pk)},
         'payment_pending', 'pending_payment', 5,
         ${paketKey}, ${pk.label},
         ${paketPreisEuro(paketKey)}, 'EUR', ${zahlungsreferenz},
@@ -885,7 +940,7 @@ router.post("/agent/crm/kunden/:personId/bestellung", requireAgent, async (req: 
       await sqlPool`
         INSERT INTO fiaon_contact_log (person_id, agent_id, agent_name, type, note, ref, created_at)
         VALUES (${personId}, ${req.agent!.id}, ${req.agent!.name}, 'system',
-                ${`Bestellung angelegt: ${pk.label} (${paketPreisEuro(paketKey).toFixed(2)} € aus dem Katalog).`},
+                ${`Bestellung angelegt: ${pk.label} (${paketPreisEuro(paketKey).toFixed(2)} € ${pk.abo ? "im Monat" : "einmalig"} aus dem Katalog).`},
                 ${ref}, NOW())
       `.catch(() => {});
     }

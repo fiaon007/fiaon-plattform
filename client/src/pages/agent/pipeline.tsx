@@ -3535,7 +3535,7 @@ function ProduktDunkel({ k, aufKlappen, fertig }: { k: Kunde; aufKlappen: (v: bo
                   onClick={() => setGewaehlt(gewaehlt === p.key ? "" : p.key)}>
             <b>{p.label}</b>
             <span>{preisText(p)}</span>
-            {p.art && <em>{p.art === "privat" ? "Privat" : p.art === "business" ? "Geschäftlich" : p.art}</em>}
+            {p.art && <em>{p.art === "privat" ? "Privat" : p.art === "business" ? "Geschäftlich" : p.art === "global" ? "Unternehmen · FIAON Global" : p.art}</em>}
           </button>
         ))}
       </div>
@@ -3546,6 +3546,13 @@ function ProduktDunkel({ k, aufKlappen, fertig }: { k: Kunde; aufKlappen: (v: bo
         </button>
         {paket && <span className="pi-sek-neben">{paket.label} · {preisText(paket)}</span>}
       </div>
+      {/* E-188: FIAON Global ist ein eigenes Fach — der Server ersetzt nur innerhalb
+          derselben Kategorie. Die Überschrift oben sagt „wird ersetzt"; stimmt das
+          für die Wahl nicht, steht es hier. */}
+      {istTausch && paket && paket.key !== "schufa"
+        && (paket.art === "global") !== /FIAON Global/i.test(String(offenesPaket?.bezeichnung ?? "")) && (
+        <p className="pi-sek-satz leise">{paket.label} ist ein eigenes Produkt: {offenesPaket?.bezeichnung} bleibt daneben offen und wird nicht ersetzt.</p>
+      )}
       {fehler && <p className="pi-sek-satz warn">{fehler}</p>}
     </div>
   );

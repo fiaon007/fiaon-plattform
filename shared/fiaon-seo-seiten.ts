@@ -376,7 +376,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
   "/preise": {
     pfad: "/preise", art: "produkt", stand: PFEILER, prio: 0.9,
     titel: "Preise & Pakete: FIAON ab 7,99 € im Monat",
-    beschreibung: "Alle FIAON-Pakete auf einen Blick: Start, Pro, Ultra, High-End und Business – was enthalten ist, was es kostet, was Selbermachen kostet. Zwölf Raten.",
+    beschreibung: "Alle FIAON-Pakete auf einen Blick: Start, Pro, Ultra und High-End – was enthalten ist, was es kostet, was Selbermachen kostet. Zwölf Raten.",
     h1: "Ein Preis, keine Überraschung.",
     lead: "Zwölf monatliche Raten, monatlich kündbar, danach fragen wir, ob Sie bleiben. Keine Provision auf Rahmen, keine Gebühr je Schreiben, kein Kleingedrucktes. Hier steht alles – inklusive dessen, was Selbermachen und Anwalt kosten.",
     abschnitte: [
@@ -384,7 +384,8 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
       { h2: "Vier Pakete, eine Auskunft.", text: "Jedes Paket beginnt mit Ihrer Bonitätsauskunft, erklärt in Menschensprache – inklusive des neuen SCHUFA-Scores je Kriterium.", punkte: ["FIAON Start – 7,99 € im Monat: Auskunft erklärt, Finanzauswertung, Schreiben zum Selbstversand, fester Ansprechpartner.", "FIAON Pro (Standard) – 59,99 € im Monat: FIAON versendet und verfolgt, Ratenvereinbarungen, Girokonto vorbereitet, Kreditkarte ab Schwelle.", "FIAON Ultra – 79,99 € im Monat: dazu Kreditkarte vorbereitet und Vorrang bei Fristen und Rückfragen.", "FIAON High-End – 99,99 € im Monat: alles aus Ultra plus direkte Durchwahl, alles aus einer Hand.", "Bonitätsauskunft einzeln – 74 € einmalig, anrechenbar auf ein Paket innerhalb von 30 Tagen."] },
       { h2: "Was kostet mein Fall?", text: "Einträge, Auskunfteien und Ziel eingeben – der Rechner nennt das passende Paket, den Gesamtpreis über zwölf Raten und was derselbe Fall in eigener Zeit oder beim Anwalt (Richtwert 190 € je Schreiben) kostet. Bei einem einzigen klaren Eintrag reichen die kostenlosen Werkzeuge oft aus." },
       { h2: "Der Zahlungsweg – Schritt für Schritt.", text: "Antrag und Vertrag, erste Rate per Überweisung (bankbestätigt, dann Startgespräch), ab Monat zwei SEPA-Lastschrift zum Monatsanfang, kündbar jederzeit zum Monatsende, formlos. Keine Vorkasse für Leistungen, die noch nicht erbracht sind." },
-      { h2: "Für Unternehmen: vier Stufen.", text: "Business Starter 49,99 €, Business Pro 99,99 €, Business Ultra 149,99 €, Business Enterprise 249,99 € im Monat – Unternehmens- und Inhaberauskunft, Firmenkarte mit Zahlungsziel, wachsender Rahmen." },
+      // 17.09.2026 (E-188): Business-Abos eingestellt, für Unternehmen gibt es FIAON Global (Einmalpreise aus shared/fiaon-pakete.ts, geprüft von scripts/pruef-pakete.ts).
+      { h2: "Für Unternehmen: FIAON Global.", text: "FIAON gründet Ihre US-Gesellschaft mit einem Team vor Ort in den USA, bereitet Steuernummern, Dokumente sowie Konto- und Kartenanträge vor. Vier Pakete zum Einmalpreis, kein Abo: Global Struktur 2.499 €, Global Banking 4.999 €, Global Kapital 6.999 €, Global VIP 35.999 €. Über Konto, Karte und Rahmen entscheidet allein das jeweilige Institut." },
       { h2: "Wann Sie FIAON nicht brauchen", text: "Ein einziger, klar erledigter Eintrag: der kostenlose Löschantrag-Generator. Nur wissen, was drinsteht: die kostenlose Datenkopie. FIAON lohnt sich bei mehreren Einträgen, mehreren Ländern, Fristen und Antworten – oder wenn Konto und Karte das Ziel sind." },
     ],
     weiter: ["/privatkunden", "/business", "/bonitaetsauskunft-beantragen", "/fiaon-erfahrungen", "/werkzeuge"],

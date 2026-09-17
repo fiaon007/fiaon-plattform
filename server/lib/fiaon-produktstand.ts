@@ -17,6 +17,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import { OFFENE_STUFE } from "./fiaon-produkt-hygiene";
+import { paket as katalogPaket } from "@shared/fiaon-pakete";
 
 type Lauf = typeof sqlPool;
 
@@ -40,7 +41,8 @@ export function paketKurz(packName: unknown, packKey?: unknown): string | null {
     business_starter: "Business Starter", business_pro: "Business Pro",
     business_ultra: "Business Ultra", business_enterprise: "Business Enterprise",
   };
-  return namen[key] ?? key;
+  // E-188: Was die Liste nicht kennt (FIAON Global), nennt der Katalog — nie der rohe Schlüssel.
+  return namen[key] ?? katalogPaket(key)?.label.replace(/^FIAON\s+/i, "") ?? key;
 }
 
 export interface ProduktZeile {

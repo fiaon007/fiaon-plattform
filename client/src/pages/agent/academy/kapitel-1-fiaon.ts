@@ -43,7 +43,7 @@ export const KAPITEL_1: KapitelInhalt = {
           ["Der Abgelehnte", "Kreditkarte, Konto oder Wohnung abgelehnt – weiß nicht genau warum, vermutet „SCHUFA“. Will eine Erklärung und einen Weg."],
           ["Der Überraschte", "Hat einen Inkassobrief oder eine Mahnung mit Meldungsandrohung – hat Angst vor dem Eintrag. Braucht Struktur, sofort."],
           ["Der Wiederaufsteiger", "Nach Insolvenz, Trennung, Krankheit. Will zurück zu einem normalen Konto und einer Karte. Braucht Geduld und sichtbaren Fortschritt."],
-          ["Der Geschäftskunde", "Firmenkarte, Zahlungsziel, Limit – Pakete Business Starter bis Enterprise, Zielrahmen 5.000 bis 250.000 €; die Bank entscheidet."],
+          ["Der Unternehmer (FIAON Global)", "Will eine US-Gesellschaft mit Bank- und Kartenbeziehung aufbauen. Vier Pakete zum Einmalpreis, Team vor Ort in den USA, ein Ansprechpartner. Über Konto, Karte und Rahmen entscheidet das Institut – wir sagen nichts davon zu."],
         ),
         p("Gemeinsam ist allen: Sie haben sich überwunden, jemanden anzurufen oder ein Formular auszufüllen. Scham ist der größte Gegner unseres Geschäfts – nicht die Konkurrenz. Deshalb ist der Ton das Wichtigste, was du lernst."),
         warn("Der Kunde ist kein „Schuldner“. Er ist ein Mensch mit einer Akte, die wir gemeinsam bereinigen. Dieses Wort benutzen wir intern nicht und nach außen nie."),

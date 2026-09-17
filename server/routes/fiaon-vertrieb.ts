@@ -971,9 +971,21 @@ router.patch("/agent/vertrieb/person/:id/paket", requireAgent, nurLeitung, nurMi
     const id = Number(req.params.id);
     const packKey = String(req.body?.packKey || "");
     const grund = String(req.body?.grund || "").trim();
-    const { paket, PAKETE } = await import("@shared/fiaon-pakete");
+    const { paket, verkaufbarePakete } = await import("@shared/fiaon-pakete");
     const pk = paket(packKey);
-    if (!pk || !pk.abo) return res.status(400).json({ ok: false, error: `Unbekanntes Paket. Erlaubt: ${PAKETE.filter((x) => x.abo).map((x) => x.key).join(", ")}` });
+    // ── WAS HIER WÄHLBAR IST (17.09.2026, E-188) ──────────────────────────
+    // Vorher: jedes Abo-Paket — also auch die vier eingestellten Business-Abos,
+    // aber kein FIAON-Global-Paket (Einmalpreis). Jetzt: alles, was heute
+    // verkauft wird, außer der Bonitätsauskunft (sie ist eine eigene
+    // Bestellung). Ein Wechsel ZWISCHEN den Fächern — Privatpaket auf Global
+    // oder zurück — ist kein Paketwechsel, sondern ein anderes Produkt mit
+    // anderem Kundentyp: Das gehört neu angelegt.
+    const waehlbar = verkaufbarePakete().filter((x) => x.key !== "schufa");
+    if (!pk || !waehlbar.some((x) => x.key === pk.key)) {
+      return res.status(400).json({ ok: false, error: pk?.eingestellt
+        ? `${pk.label} wird nicht mehr verkauft. Erlaubt: ${waehlbar.map((x) => x.key).join(", ")}`
+        : `Unbekanntes Paket. Erlaubt: ${waehlbar.map((x) => x.key).join(", ")}` });
+    }
     if (grund.length < 5) return res.status(400).json({ ok: false, error: "Bitte kurz begründen — die Änderung steht dauerhaft am Kunden." });
     const [a] = (await sqlPool`
       SELECT ref, pack_key, pack_name, amount_due, payment_status FROM fiaon_applications
@@ -982,6 +994,9 @@ router.patch("/agent/vertrieb/person/:id/paket", requireAgent, nurLeitung, nurMi
       ORDER BY created_at DESC LIMIT 1`) as any[];
     if (!a) return res.status(404).json({ ok: false, error: "Keine Paketbestellung zu diesem Kunden." });
     if (String(a.payment_status) === "paid") return res.status(409).json({ ok: false, error: "Diese Bestellung ist bezahlt. Ein Paketwechsel danach ist eine Rückerstattung oder Nachbuchung — bitte den Vorgesetzten." });
+    if ((paket(a.pack_key)?.art === "global") !== (pk.art === "global")) {
+      return res.status(409).json({ ok: false, error: "FIAON Global und die Privatpakete sind zwei verschiedene Produkte. Bitte die passende Bestellung neu anlegen, statt diese umzustellen." });
+    }
     const { paketNameFuerDaten } = await import("@shared/fiaon-paketname");
     const name = paketNameFuerDaten(pk.key) ?? pk.label;
     const betrag = (pk.preisCents / 100).toFixed(2);

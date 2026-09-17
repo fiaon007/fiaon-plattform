@@ -152,6 +152,10 @@ export function ensureGlobalBereich(): Promise<void> {
 }
 
 // ── Kleine Helfer ────────────────────────────────────────────────────────────
+// JSONB schreiben: IMMER über sqlPool.json(). Einen mit JSON.stringify gebauten Text, der auf ::jsonb
+// gegossen wird, kodiert postgres.js ein zweites Mal — in der Spalte stünde eine JSON-ZEICHENKETTE statt
+// eines Objekts, und das Anhängen an etappen_seit (Operator ||) ergäbe ein Feld statt eines Objekts (gemessen am 17.09.2026 gegen PostgreSQL 16). Der Leser unten verträgt beides,
+// weil die Akte des Bestellwegs (firma, ansprechpartner) so geschrieben ist.
 function json<T>(v: unknown, leer: T): T {
   if (v && typeof v === "object") return v as T;
   try { return (JSON.parse(String(v ?? "")) as T) ?? leer; } catch { return leer; }
@@ -477,7 +481,7 @@ export async function globalStartVermerken(ref: string): Promise<boolean> {
   const jetzt = new Date().toISOString();
   const [z] = (await sqlPool`
     UPDATE fiaon_global_auftraege
-       SET etappe = 1, etappe_seit = NOW(), etappen_seit = COALESCE(etappen_seit, '{}'::jsonb) || ${JSON.stringify({ 1: jetzt })}::jsonb, updated_at = NOW()
+       SET etappe = 1, etappe_seit = NOW(), etappen_seit = COALESCE(etappen_seit, '{}'::jsonb) || ${sqlPool.json({ "1": jetzt })}, updated_at = NOW()
      WHERE ref = ${ref} AND etappe = 0 AND status = 'gestartet'
      RETURNING vertrag_sprache`) as any[];
   if (!z) return false;
@@ -501,7 +505,7 @@ export async function globalEtappeSetzen(ref: string, ein: { etappe: unknown; te
   const warZu = l.status === "abgeschlossen";
   await sqlPool`
     UPDATE fiaon_global_auftraege
-       SET etappe = ${nr}, etappe_seit = NOW(), etappen_seit = ${JSON.stringify(seit)}::jsonb,
+       SET etappe = ${nr}, etappe_seit = NOW(), etappen_seit = ${sqlPool.json(seit)},
            status = CASE WHEN status = 'abgeschlossen' THEN 'gestartet' ELSE status END,
            abgeschlossen_am = NULL, updated_at = NOW()
      WHERE ref = ${ref}`;
@@ -554,7 +558,7 @@ export async function globalAbschliessen(ref: string, ein: { text?: unknown; mit
   await sqlPool`
     UPDATE fiaon_global_auftraege
        SET status = 'abgeschlossen', abgeschlossen_am = NOW(), etappe = ${GLOBAL_ETAPPE_MAX}, etappe_seit = NOW(),
-           etappen_seit = ${JSON.stringify(seit)}::jsonb, naechster_schritt = NULL, naechster_schritt_bis = NULL, updated_at = NOW()
+           etappen_seit = ${sqlPool.json(seit)}, naechster_schritt = NULL, naechster_schritt_bis = NULL, updated_at = NOW()
      WHERE ref = ${ref} AND status = 'gestartet'`;
   const T = GLOBAL_VERLAUF_TEXT[l.sprache];
   await verlaufSchreiben(ref, { art: "abschluss", text: [T.etappe(GLOBAL_ETAPPE_MAX, ""), text || null].filter(Boolean).join(" "), sichtbar: true, agentId: agent.id });
@@ -603,7 +607,7 @@ export async function globalGesellschaftSetzen(ref: string, ein: Record<string, 
     g.itinStand = (s || null) as GlobalGesellschaft["itinStand"];
   }
   const ersteGruendung = !l.gesellschaft.gegruendetAm && !!g.gegruendetAm;
-  await sqlPool`UPDATE fiaon_global_auftraege SET gesellschaft = ${JSON.stringify(g)}::jsonb, updated_at = NOW() WHERE ref = ${ref}`;
+  await sqlPool`UPDATE fiaon_global_auftraege SET gesellschaft = ${sqlPool.json(g as any)}, updated_at = NOW() WHERE ref = ${ref}`;
   const T = GLOBAL_VERLAUF_TEXT[l.sprache];
   await verlaufSchreiben(ref, { art: "gesellschaft", text: T.gesellschaft, sichtbar: true, agentId: agent.id });
   const fristen = await regelFristenSetzen(ref, g, l.sprache);

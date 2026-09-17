@@ -25,19 +25,21 @@
 //
 // Nutzlast (globalMailNutzlast in fiaon-global-auftrag.ts), HTML-entschärft:
 //   anrede_zeile, firma, paket, betrag_text, antrag_id, payment_reference,
-//   faellig_am_text, zahlungsseite_url, ansprechpartner, stichtag_text, email.
+//   faellig_am_text, zahlungsseite_url, mein_auftrag_url, ansprechpartner,
+//   stichtag_text, email, sprache.
 // ═══════════════════════════════════════════════════════════════════════════
 import type { MailBaustein } from "../geruest";
 import { GLOBAL_ROLLEN, GLOBAL_GELD_ZURUECK } from "@shared/fiaon-global";
+import { GLOBAL_UNTERLAGEN, GLOBAL_UNTERLAGEN_EN } from "@shared/fiaon-global-bereich";
 
-/** Was der Kunde für den Start bereithält — dieselbe Liste in der Startmail und in der Aufgabe. */
-export const GLOBAL_UNTERLAGEN: string[] = [
-  "Reisepass der Gesellschafter und der Geschäftsführung (Farbkopie)",
-  "Adressnachweis, nicht älter als drei Monate",
-  "Gesellschafterliste oder Handelsregisterauszug Ihres Unternehmens",
-  "der gewünschte Name der US-Gesellschaft in drei Varianten",
-  "eine kurze Beschreibung der Geschäftstätigkeit",
-];
+/**
+ * Was der Kunde für den Start bereithält — dieselbe Liste in der Startmail, in
+ * der Aufgabe, auf der Seite „Mein Auftrag" und im Tageslauf. Seit dem
+ * 17.09.2026 steht sie an EINER Stelle (shared/fiaon-global-bereich.ts, dort mit
+ * Dokumentart und Hinweis je Zeile); hier wird sie nur weitergereicht, damit
+ * bestehende Importe gelten.
+ */
+export { GLOBAL_UNTERLAGEN, GLOBAL_UNTERLAGEN_EN };
 
 const KOPF = "FIAON Global";
 const FUSS = GLOBAL_ROLLEN.de.fiaon;
@@ -65,6 +67,9 @@ export const GLOBAL_VORLAGEN: Record<string, MailBaustein> = {
       { label: "Ihr Ansprechpartner", wert: "{{params.ansprechpartner}}" },
     ],
     knopf: { text: "Zur Zahlungsseite", url: "{{params.zahlungsseite_url}}" },
+    // „Mein Auftrag": Stand, Vertrag, Rechnung und später der Dokumentenraum — der Link trägt ein
+    // frisches Token (globalMeinAuftragUrl). Fehlt er in der Nutzlast, lässt der Motor den Knopf weg.
+    knopf2: { text: "Mein Auftrag öffnen", url: "{{params.mein_auftrag_url}}" },
     fussnote: GLOBAL_ROLLEN.de.kosten,
   },
 
@@ -78,7 +83,7 @@ export const GLOBAL_VORLAGEN: Record<string, MailBaustein> = {
       "{{params.anrede_zeile}}, Ihre Zahlung für <b>{{params.paket}}</b> ist eingegangen — vielen Dank. Damit beginnt der Aufbau der US-Struktur für <b>{{params.firma}}</b>.",
       "Ihr Ansprechpartner ist <b>{{params.ansprechpartner}}</b> und meldet sich bei Ihnen, um das Startgespräch zu vereinbaren. Dort gehen wir die Schritte durch und legen gemeinsam den Stichtag für Gesellschaft und EIN fest.",
       `Bitte halten Sie für den Start bereit:<br />${GLOBAL_UNTERLAGEN.map((u) => `· ${u}`).join("<br />")}`,
-      "Wie Sie uns die Unterlagen sicher übermitteln, besprechen wir im Startgespräch.",
+      "Ihre Unterlagen laden Sie unter „Mein Auftrag“ hoch — dort sehen Sie auch jederzeit den Stand, Ihre Dokumente und die nächsten Schritte. Der Knopf unten führt dorthin.",
     ],
     daten: [
       { label: "Auftrag", wert: "{{params.antrag_id}}" },
@@ -86,6 +91,7 @@ export const GLOBAL_VORLAGEN: Record<string, MailBaustein> = {
       { label: "Bezahlt", wert: "{{params.betrag_text}}" },
       { label: "Ihr Ansprechpartner", wert: "{{params.ansprechpartner}}" },
     ],
+    knopf: { text: "Mein Auftrag öffnen", url: "{{params.mein_auftrag_url}}" },
     fussnote: "Über Konto, Karte und Rahmen entscheidet allein das jeweilige Institut.",
   },
 

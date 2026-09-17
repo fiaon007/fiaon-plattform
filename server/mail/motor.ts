@@ -38,6 +38,7 @@ import { RUECKHOLUNG_VORLAGEN } from "./vorlagen/rueckholung";
 import { APP_VORLAGEN } from "./vorlagen/app";
 import { BEWERBUNG_VORLAGEN } from "./vorlagen/bewerbung";
 import { GLOBAL_VORLAGEN } from "./vorlagen/global";
+import { GLOBAL_BEREICH_VORLAGEN, GLOBAL_BEREICH_VORLAGEN_EN } from "./vorlagen/global-bereich";
 
 /** Alle Vorlagen, ein Verzeichnis. Schlüssel = Ereignisname. */
 export const VORLAGEN: Record<string, MailBaustein> = {
@@ -50,6 +51,21 @@ export const VORLAGEN: Record<string, MailBaustein> = {
   ...APP_VORLAGEN,
   ...BEWERBUNG_VORLAGEN,
   ...GLOBAL_VORLAGEN,
+  ...GLOBAL_BEREICH_VORLAGEN,
+};
+
+/**
+ * Englische Fassungen — gleicher Ereignisname, andere Sprache (E-188, 17.09.2026).
+ *
+ * Es gibt sie nur dort, wo ein Kunde seinen Vorgang auf Englisch geführt hat:
+ * beim Auftrag über FIAON Global (/en/business/start; die Sprache steht in der
+ * Akte). Gewählt wird über die NUTZLAST (`sprache: "en"`), nicht über einen
+ * zweiten Ereignisnamen — so bleibt es im Protokoll und im Mailwerk EIN
+ * Ereignis. Fehlt die englische Fassung oder das Feld, gilt die deutsche: Keine
+ * einzige bestehende Mail ändert sich dadurch.
+ */
+export const VORLAGEN_EN: Record<string, MailBaustein> = {
+  ...GLOBAL_BEREICH_VORLAGEN_EN,
 };
 
 /** Wer als Absender im Postfach steht — je Ereignis. Alles nicht Genannte: welcome. */
@@ -181,6 +197,8 @@ function leadStreckenBaustein(payload: Record<string, unknown>): MailBaustein | 
 export function mailRendern(event: string, payload: Record<string, unknown>): GerenderteMail | null {
   let vorlage = VORLAGEN[event];
   if (!vorlage) return null;
+  // E-188: Trägt die Nutzlast `sprache: "en"` und gibt es die Vorlage auf Englisch, gilt diese.
+  if (String((payload as any)?.sprache ?? "") === "en" && VORLAGEN_EN[event]) vorlage = VORLAGEN_EN[event];
   if (event === "lead_followup") vorlage = leadStreckenBaustein(payload) ?? vorlage;
 
   // Ein Knopf, dessen Adresse die Nutzlast nicht füllt (z. B. {{params.sofort_url}},

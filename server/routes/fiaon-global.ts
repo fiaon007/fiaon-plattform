@@ -23,7 +23,7 @@ import { sqlPool } from "../lib/db-pool";
 import { requireChef, type ChefRequest } from "./fiaon-chef-zugang";
 import {
   globalAuftragPruefen, globalAuftragAnlegen, globalAuftragSicht, globalTokenPruefen, globalVorschauPruefen, vorschauZuViel,
-  globalVertragPdfLesen, globalRechnungPdf, globalAuftraegeListe, globalStichtagSetzen, globalZustaendigAendern,
+  globalVertragPdfLesen, globalRechnungPdf, globalAuftraegeListe, globalZustaendigAendern,
   globalNachZahlung, globalAuftragsMailNachholen,
 } from "../lib/fiaon-global-auftrag";
 import { globalVertragVorschauHtml } from "../lib/fiaon-global-vertrag";
@@ -140,7 +140,9 @@ router.get("/admin/global/auftraege", requireChef("leitung"), async (_req: ChefR
 
 router.post("/admin/global/auftraege/:ref/stichtag", requireChef("leitung"), async (req: ChefRequest, res: Response) => {
   try {
-    const erg = await globalStichtagSetzen(String(req.params.ref), req.body?.stichtag, await chefName(req), req.body?.mitteilen !== false);
+    // Über den Bereich „Mein Auftrag": dieselbe Funktion (globalStichtagSetzen), dazu die Zeile im Verlauf des Kunden.
+    const { globalBereichStichtag } = await import("../lib/fiaon-global-bereich");
+    const erg = await globalBereichStichtag(String(req.params.ref), req.body?.stichtag, await chefName(req), req.body?.mitteilen !== false, req.chef?.agentId ?? null);
     if (!erg.ok) return res.status(400).json({ ok: false, error: erg.error });
     res.json({ ok: true, meldung: erg.meldung });
   } catch (err) {

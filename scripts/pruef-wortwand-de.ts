@@ -17,23 +17,15 @@
 //     npx tsx scripts/pruef-wortwand-de.ts        → Fehlercode 1 bei Treffern
 // ═══════════════════════════════════════════════════════════════════════════
 import { wandPruefen } from "../shared/fiaon-wortverbote";
+import { GLOBAL_SCHAERFER } from "../shared/fiaon-global-wortregeln";
 import { GLOBAL_WOERTER, GLOBAL_GESPRAECH_WOERTER } from "../client/src/i18n/global";
 import { GLOBAL_START_WOERTER } from "../client/src/i18n/global-start";
 import { GLOBAL_PAKETE, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_GELD_ZURUECK } from "../shared/fiaon-global";
 import { SEO_SEITEN } from "../shared/fiaon-seo-seiten";
 
-const SCHAERFER: { muster: RegExp; grund: string }[] = [
-  { muster: /\bbis zu\b/i, grund: "„bis zu“ ist ein Spitzenwert-Versprechen (OLG Frankfurt 6 U 25/26)" },
-  { muster: /\b(capital one|american express|amex|bank of america|chase|mercury|brex|ramp)\b/i, grund: "kein Bankname als Versprechen (BGH I ZR 170/08)" },
-  { muster: /\b(innerhalb|binnen)\s+(von\s+)?\d+\s*(wochen|monaten|tagen|werktagen)\b/i, grund: "keine Frist mit Ziffer" },
-  { muster: /\bin\s+\d+\s*(–|-|bis)\s*\d+\s*(wochen|monaten)\b/i, grund: "keine Frist mit Ziffer" },
-  { muster: /ziel-?(limit|rahmen)/i, grund: "Planungsgröße statt Ziel-Limit" },
-  { muster: /\bempfohlen\w*\b/i, grund: "keine Empfehlung" },
-  { muster: /\b0\s?%/, grund: "kein Zinssatz als Zahl — „Einführungszeitraum ohne Sollzins“" },
-  { muster: /unternehmensberat|\bberatungsgruppe\b|\bfiaon group\b/i, grund: "Selbstbezeichnung (AT § 94 Z 74 GewO, § 18 HGB)" },
-  { muster: /ohne sicherheiten/i, grund: "die persönliche Haftung IST die Sicherheit — „ohne Bareinlage“" },
-  { muster: /steuern sparen|steuerersparnis|steuervorteil/i, grund: "kein Steuerversprechen" },
-];
+// Die Liste steht seit dem 17.09.2026 in shared/fiaon-global-wortregeln.ts — der Prüfstand für
+// „Mein Auftrag" (scripts/pruef-global-bereich.ts) liest dieselbe.
+const SCHAERFER = GLOBAL_SCHAERFER;
 
 function sammle(wert: unknown, pfad: string, aus: [string, string][]) {
   if (typeof wert === "string") { if (wert.trim()) aus.push([pfad, wert]); return; }

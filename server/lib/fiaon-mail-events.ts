@@ -191,6 +191,24 @@ const ZUSATZ: Partial<Record<MakeEventType, EventZusatz>> = {
     gruppe: "konto", zielgruppe: "kunde", rollen: ["admin"],
     klartext: "FIAON Global: der im Startgespräch vereinbarte Stichtag für Gesellschaft und EIN, in Textform.",
   },
+  // E-188 „Mein Auftrag": Alle vier entstehen aus der Auftragsakte und tragen einen signierten Link —
+  // ausgelöst werden sie im Auftrag selbst (/agent/global/<ref>) bzw. vom Tageslauf, nicht aus dem Sende-Menü.
+  global_zugang: {
+    gruppe: "konto", zielgruppe: "kunde", rollen: ["admin"],
+    klartext: "FIAON Global: frischer Link zu „Mein Auftrag“ — vom Kunden angefordert oder im Auftrag mit „Zugang senden“ verschickt.",
+  },
+  global_etappe: {
+    gruppe: "konto", zielgruppe: "kunde", rollen: ["admin"],
+    klartext: "FIAON Global: eine neue Etappe im Auftrag, mit dem nächsten Schritt. Geht aus dem Auftrag, wenn „dem Kunden mitteilen“ gesetzt ist.",
+  },
+  global_frist: {
+    gruppe: "termin", zielgruppe: "kunde", rollen: ["admin"],
+    klartext: "FIAON Global: Erinnerung aus dem Pflichtenkalender, rund einen Monat und rund eine Woche vor dem Termin. Geht automatisch.",
+  },
+  global_dokument: {
+    gruppe: "dokumente", zielgruppe: "kunde", rollen: ["admin"],
+    klartext: "FIAON Global: FIAON hat ein Dokument im Dokumentenraum bereitgestellt. Das Dokument reist nie als Anhang.",
+  },
   lead_followup: {
     gruppe: "lead", zielgruppe: "kunde", rollen: ["admin", "vertriebsleiter"],
     klartext: "Nachfassen bei einem Lead, der noch keinen Antrag gestellt hat.",

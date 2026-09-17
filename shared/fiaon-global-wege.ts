@@ -51,5 +51,21 @@ export function globalStartUrl(key?: unknown): string {
   return `https://fiaon.com${globalStartPfad(key, "de")}`;
 }
 
+/**
+ * „Mein Auftrag" — die Seite des Firmenkunden nach dem Kauf: Stand, Etappen,
+ * Vertrag, Rechnung, Dokumentenraum, Pflichtenkalender. Kein Login; der Zugang
+ * ist das signierte Token aus server/lib/fiaon-global-auftrag.ts
+ * (globalTokenErzeugen), gebunden an die Antragsnummer. Englisch geführte
+ * Aufträge öffnen die englische Seite (/en/business/auftrag/…).
+ */
+export function globalMeinAuftragPfad(ref: string, token: string, sprache: GlobalSprache = "de"): string {
+  return `${globalSeitePfad(sprache)}/auftrag/${encodeURIComponent(ref)}?t=${encodeURIComponent(token)}`;
+}
+
+/** Derselbe Auftrag im Office — die Seite der zuständigen Person. */
+export function globalOfficeAuftragPfad(ref: string): string {
+  return `/agent/global/${encodeURIComponent(ref)}`;
+}
+
 export const GLOBAL_SEITE_URL = "https://fiaon.com/business";
 export const GLOBAL_GESPRAECH_URL = "https://fiaon.com/business#gespraech";

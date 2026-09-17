@@ -90,6 +90,12 @@ export type MakeEventType =
   | "global_auftrag"         // Auftrag unterschrieben: Vertrag + Rechnung als PDF, Knopf zur Zahlungsseite
   | "global_start"           // Zahlung eingegangen: Ansprechpartner, Unterlagenliste, Startgespräch
   | "global_stichtag"        // der im Startgespräch festgelegte Stichtag, in Textform
+  // ── „Mein Auftrag" (E-188): ebenfalls nur Direktversand, je deutsch und englisch
+  //    (server/mail/vorlagen/global-bereich.ts, Auslöser in server/lib/fiaon-global-bereich.ts).
+  | "global_zugang"          // frischer Link zu „Mein Auftrag" — angefordert vom Kunden oder aus dem Office
+  | "global_etappe"          // neue Etappe im Auftrag, mit nächstem Schritt
+  | "global_frist"           // Erinnerung aus dem Pflichtenkalender (rund einen Monat / eine Woche vorher)
+  | "global_dokument"        // FIAON hat ein Dokument im Dokumentenraum bereitgestellt
   | "schufa_approved"         // SCHUFA genehmigt
   | "schufa_rejected"         // SCHUFA abgelehnt
   | "schufa_requested"        // neues SCHUFA-Dokument angefordert

@@ -417,6 +417,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   //    die Liste der Leitung liegt unter /admin/global und damit hinter dem Gate oben.
   const fiaonGlobalRoutes = await import('./routes/fiaon-global');
   app.use('/api/fiaon', fiaonGlobalRoutes.default);
+  // 🌐 FIAON Global — „Mein Auftrag" (17.09.2026, E-188): der Bereich des Firmenkunden nach dem Kauf
+  //    (Etappen, Dokumentenraum, Pflichtenkalender, Nachricht; ohne Login, dasselbe Token wie der Auftrag)
+  //    und die Office-Routen dazu unter /agent/global (zuständige Person, Vertriebsleitung, Chef).
+  const fiaonGlobalBereichRoutes = await import('./routes/fiaon-global-bereich');
+  app.use('/api/fiaon', fiaonGlobalBereichRoutes.default);
+  // Tageslauf dazu: Erinnerungen aus dem Pflichtenkalender, monatlicher Durchgang, Nachfassen bei
+  // fehlenden Unterlagen. Stündlicher Takt, wirksam einmal am Tag (alleXStunden) — wie der Auszahlungstag.
+  import('./lib/fiaon-crons').then(({ tageslauf }) => {
+    tageslauf('global_tageslauf', async () => await (await import('./lib/fiaon-global-bereich')).globalTageslauf(), 60 * 60 * 1000, { beimStartNach: 540_000, alleXStunden: 20 });
+  });
 
   // 🤝 FIAON Onboarding — eigener Bereich fuer die Startgespraeche. 404 fuer
   //    alle ohne die Rolle, 403 ohne angenommene Verpflichtungserklaerung.

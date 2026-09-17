@@ -23,6 +23,13 @@
 // KI-Vorbereitung, durch die Wortwand geprüft), das Auswahlfeld aus
 // verkaufbarePakete("global"), der Auftragslink aus shared/fiaon-global-wege.ts.
 // Nichts hier sagt eine Karte, einen Rahmen, einen Zins oder eine Frist zu.
+//
+// 17.09.2026 (E-188) — DER EINGANG VON DER WEBSITE: Wer auf fiaon.com/business
+// ein Erstgespräch zu FIAON Global bucht oder um einen Anruf bittet, steht hier
+// mit der Marke „Global" ganz oben in „Jetzt dran" — mit Paketwunsch auf der
+// Karte und der Buchung im Verlauf. Kalender, Startseite und der Auftrag
+// springen direkt auf die Firma: /agent/firmen?firma=<id> bzw. ?person=<id>
+// (der Termin hängt am Firmenkontakt, die Arbeit liegt hier).
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useState } from "react";
 import { AgentShell } from "./shared";
@@ -66,6 +73,16 @@ const GLOBAL_PAKETE_WAHL = verkaufbarePakete("global");
 const ERSTES_PAKET = GLOBAL_PAKETE_WAHL[0]?.key ?? "";
 const ganzeEuro = (cents: number) => Math.round(cents / 100).toLocaleString("de-DE") + " €";
 
+// E-188: Was im Verlauf steht, wenn die Zeile von der Website oder aus dem
+// Kalender kommt (art „global" in fiaon_firmen_log).
+const GLOBAL_EREIGNIS: Record<string, string> = {
+  termin_gebucht: "FIAON Global — Erstgespräch gebucht",
+  anfrage: "FIAON Global — bittet um einen Anruf",
+  termin_abgesagt: "FIAON Global — Gespräch abgesagt",
+  gespraech_gefuehrt: "FIAON Global — Erstgespräch geführt",
+  gespraech_nicht_zustande: "FIAON Global — Gespräch kam nicht zustande",
+};
+
 export default function AgentFirmenPage() { return <AgentShell><FirmenInnen /></AgentShell>; }
 
 function FirmenInnen() {
@@ -104,6 +121,27 @@ function FirmenInnen() {
     const r = await api(`/agent/firmen/${f.id}`);
     if (r.ok) { setAktiv(r.json.firma); setVerlauf(r.json.verlauf || []); }
   };
+
+  // ── E-188: DER SPRUNG AUS KALENDER UND AUFTRAG ───────────────────────────
+  // ?firma=<id> kommt aus dem Auftrag („Öffnen →"), ?person=<id> aus Kalender
+  // und Startseite: Der Termin kennt nur den Firmenkontakt, der Server findet
+  // die Firma dazu. Geht der Sprung ins Leere, sagt die Seite das — statt so zu
+  // tun, als wäre die erste Firma der Liste gemeint (dieselbe Lehre wie beim
+  // Kalender-Sprung in die Pipeline, 28.08.2026).
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search);
+    const firma = Number(p.get("firma"));
+    const person = Number(p.get("person"));
+    if (!(firma > 0) && !(person > 0)) return;
+    void (async () => {
+      const r = await api(firma > 0 ? `/agent/firmen/${firma}` : `/agent/firmen/zu-person/${person}`);
+      if (r.ok && r.json?.firma) {
+        const f = r.json.firma;
+        setAktiv(f); setVerlauf(r.json.verlauf || []);
+        setAb({ email: f.email || "", telefon: f.telefon || "", ort: f.ort || "", paket: "business_starter" });
+      } else sag(r.json?.error || "Diese Firma wurde nicht gefunden — bitte such sie über das Suchfeld.");
+    })();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const ergebnis = async (wert: string) => {
     if (!aktiv) return;
@@ -244,7 +282,7 @@ function FirmenInnen() {
               return (
                 <li key={f.id}>
                   <button type="button" className={aktiv?.id === f.id ? "an" : ""} onClick={() => void oeffnen(f)}>
-                    <span className="fk-liste-wer"><b>{f.firma}</b><small>{[f.ort, f.branche].filter(Boolean).join(" · ") || "—"}</small></span>
+                    <span className="fk-liste-wer"><b>{f.firma}</b><small>{[f.global_am ? "FIAON Global" : null, f.ort, f.branche].filter(Boolean).join(" · ") || "—"}</small></span>
                     <span className={`fk-marke ${ton}`}>{st}</span>
                   </button>
                 </li>
@@ -275,6 +313,8 @@ function FirmenInnen() {
                   {aktiv.website && <a href={/^https?:/.test(aktiv.website) ? aktiv.website : `https://${aktiv.website}`} target="_blank" rel="noreferrer">{aktiv.website}</a>}
                 </div>
               </div>
+              {/* E-188: Was das Unternehmen auf fiaon.com/business gewählt hat — vor dem Anruf lesen. */}
+              {aktiv.paketwunsch && <p className="fk-notizen"><b>FIAON Global · Paketwunsch:</b> {aktiv.paketwunsch}</p>}
               {aktiv.notiz && <p className="fk-notizen">{aktiv.notiz}</p>}
 
               <textarea className="fk-notiz-feld" rows={2} value={notiz} onChange={(e) => setNotiz(e.target.value)}
@@ -377,7 +417,7 @@ function FirmenInnen() {
                   {(verlauf || []).map((v, i) => (
                     <li key={i}>
                       <span>{new Date(v.created_at).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
-                      <span>{v.agent_name || "System"}: {v.art === "anruf" ? (ERGEBNIS_KNOEPFE.find(([w]) => w === v.ergebnis)?.[1] || v.ergebnis) : v.art === "mail" ? "Info-Mail versendet" : "Notiz"}{v.notiz ? ` — ${v.notiz}` : ""}</span>
+                      <span>{v.agent_name || "System"}: {v.art === "anruf" ? (ERGEBNIS_KNOEPFE.find(([w]) => w === v.ergebnis)?.[1] || v.ergebnis) : v.art === "mail" ? "Info-Mail versendet" : v.art === "global" ? (GLOBAL_EREIGNIS[v.ergebnis] || "FIAON Global") : "Notiz"}{v.notiz ? ` — ${v.notiz}` : ""}</span>
                     </li>
                   ))}
                 </ul>

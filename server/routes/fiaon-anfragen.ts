@@ -7,6 +7,15 @@
 // einen Auftrag mit Mail — siehe fiaon-bewerbungen.ts. Vorher entstand für
 // sie ein Vermerk ohne Zuständigen und ohne Mail; zehn Bewerbungen lagen so
 // bis zu 18 Tage unangefasst.
+//
+// 17.09.2026 (E-188): Die Art „global" — ein Unternehmen bittet um ein
+// Erstgespräch zu FIAON Global — geht denselben Weg wie die Bewerbung, nicht
+// den des Betreiber-Vermerks: Auftrag an die zuständige Person (Portal + Mail,
+// fällig HEUTE) und eine Zeile ganz oben im Firmen-Cockpit. Ein Lead über ein
+// Paket ab 2.499 € wartet nicht zwei Tage in einer Liste, die kein
+// Mitarbeiter sieht. Die Arbeit macht globalAnfrageAnnehmen
+// (server/lib/fiaon-global-termin.ts) — dieselbe Funktion wie hinter
+// POST /api/fiaon/global/anfrage, damit es EINEN Weg gibt.
 // ═══════════════════════════════════════════════════════════════════════════
 import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
@@ -15,8 +24,8 @@ import { ensureAnfragenSpalten, bewerbungAuftrag } from "./fiaon-bewerbungen";
 const router = Router();
 // 02.09.2026 (E-083): „termin" = Wunsch nach einem Startgespräch von /termin —
 // Zeitfenster und Anliegen kommen im Feld text mit.
-const ARTEN = new Set(["investor", "presse", "datenraum", "partner", "karriere", "termin"]);
-const TITEL: Record<string, string> = { investor: "Investoren-Anfrage", presse: "Presseanfrage", datenraum: "Datenraum-Zugang angefragt", partner: "Partner-Anfrage", termin: "Startgespräch gewünscht", karriere: "Bewerbung (Werde Teil des Teams)" };
+const ARTEN = new Set(["investor", "presse", "datenraum", "partner", "karriere", "termin", "global"]);
+const TITEL: Record<string, string> = { investor: "Investoren-Anfrage", presse: "Presseanfrage", datenraum: "Datenraum-Zugang angefragt", partner: "Partner-Anfrage", termin: "Startgespräch gewünscht", karriere: "Bewerbung (Werde Teil des Teams)", global: "FIAON Global: Erstgespräch gewünscht" };
 const letzte = new Map<string, number>();
 
 router.post("/anfrage", async (req: Request, res: Response) => {
@@ -35,6 +44,34 @@ router.post("/anfrage", async (req: Request, res: Response) => {
     // Tabelle samt Status-Spalten (E-177) — eine Stelle für das Schema.
     await ensureAnfragenSpalten();
     const ip = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim() || req.socket.remoteAddress || "";
+
+    // ── FIAON GLOBAL: Auftrag + Firmen-Cockpit statt Betreiber-Vermerk (E-188) ──
+    if (art === "global") {
+      const { globalKontaktLesen, globalAnfrageAnnehmen } = await import("../lib/fiaon-global-termin");
+      const { GLOBAL_TEXTE, globalText } = await import("@shared/fiaon-global-termin-texte");
+      // Honigtopf wie auf /business: Das Feld „falle" füllt kein Mensch.
+      if (String(b.falle ?? "").trim()) return res.json({ ok: true, meldung: GLOBAL_TEXTE.de.anfrageDankeOhneName });
+      const kontakt = globalKontaktLesen(b);
+      if ("error" in kontakt) { letzte.delete(k); return res.status(400).json({ ok: false, error: kontakt.error, feld: kontakt.feld }); }
+      const T = kontakt.sprache === "en" ? GLOBAL_TEXTE.en : GLOBAL_TEXTE.de;
+      const erg = await globalAnfrageAnnehmen({
+        kontakt,
+        // Das Formular von /termin schickt das Zeitfenster im Feld „rolle".
+        wunschzeit: String(b.wunschzeit || b.rolle || "").replace(/\s+/g, " ").trim().slice(0, 200) || null,
+        text: String(b.text || "").trim().slice(0, 4000) || null,
+        ip,
+      }).catch((e) => {
+        // Die Minuten-Sperre lösen: Sonst bekäme der zweite Versuch nach einem
+        // Serverfehler ein stilles „angekommen" — und es gäbe keinen Lead.
+        letzte.delete(k);
+        throw e;
+      });
+      return res.json({
+        ok: true,
+        meldung: erg.zustaendigName && !erg.anBetreiber
+          ? globalText(T.anfrageDanke, { name: erg.zustaendigName }) : T.anfrageDankeOhneName,
+      });
+    }
     // Jede Seite hat eigene Zusatzfelder (Ticketgröße, Thema, Frist, Zweck …). Die landen
     // als Zeilen im Text, damit nichts verloren geht und keine neue Spalte je Seite nötig ist.
     const BEKANNT = new Set(["art", "name", "email", "firma", "telefon", "rolle", "land", "kunde", "erfahrung", "text"]);

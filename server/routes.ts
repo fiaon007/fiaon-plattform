@@ -387,6 +387,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const fiaonGruenderTerminRoutes = await import('./routes/fiaon-gruender-termin');
   app.use('/api/fiaon', fiaonGruenderTerminRoutes.default);
 
+  // 🌐 FIAON Global — „Gespräch vereinbaren" auf /business: freie Zeiten der
+  //    zuständigen Person, Buchung, Anfrage als Rückfall (E-188, 17.09.2026).
+  const fiaonGlobalTerminRoutes = await import('./routes/fiaon-global-termin');
+  app.use('/api/fiaon/global', fiaonGlobalTerminRoutes.default);
+
   // 📨 Mails aus dem Postfach für Mitarbeiter: Aufgabe [Mail #id] → ganze Mail
   //    und Anhänge (Beleg), gleiche Zugriffsregel wie die Akte (05.09.2026).
   const fiaonAgentPostmeisterRoutes = await import('./routes/fiaon-agent-postmeister');

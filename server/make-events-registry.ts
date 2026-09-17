@@ -647,6 +647,27 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     example: { ...CUSTOMER_EXAMPLE, zustimmung_url: "https://www.fiaon.com/zustimmung/FIAON-BEISPIEL.1760000000.0123456789abcdef0123456789abcdef", offen: "Zustimmung zu den AGB, SCHUFA-Einwilligung, Zustimmung zum Vertrag", paket: "FIAON Ultra", paket_satz: " über FIAON Ultra" },
   },
   {
+    type: "global_termin",
+    label: "FIAON Global: Erstgespräch bestätigt (Unternehmen)",
+    description: "E-188 (17.09.2026): Feuert sofort, wenn ein Unternehmen über den Gesprächskalender auf /business ein Erstgespräch zu FIAON Global bucht (server/lib/fiaon-global-termin.ts). Gesiezt, mit Firma und Paketwunsch im Datenkasten, Kalenderdatei als Link (kalender_url) und Storno-Link. Eigene Vorlage, weil termin_bestaetigung einen Privatkunden anspricht. Kein Make-Zweig nötig — die Vorlage liegt im Quelltext (server/mail/vorlagen/termin.ts).",
+    // Die Nutzlast kommt aus der Buchung, nicht aus einer Bestellung — „für echten Kunden senden" gibt es hier nicht.
+    customerBound: false,
+    example: {
+      email: "m.beispiel@beispiel-gmbh.de",
+      name: "Maria Beispiel",
+      firma: "Beispiel GmbH",
+      telefon: "+49 30 1234567",
+      paket: "Global Banking (4.999 €)",
+      agent_vorname: "Nikita Boychenko",
+      termin_datum: "22.09.2026",
+      termin_uhrzeit: "10:30",
+      termin_art: "FIAON Global – Erstgespräch",
+      termin_dauer: "30",
+      storno_link: "https://www.fiaon.com/termin/absagen/9b2c…?anrede=sie",
+      kalender_url: "https://www.fiaon.com/api/fiaon/global/termine/kalender/9b2c….ics",
+    },
+  },
+  {
     type: "schufa_approved",
     label: "SCHUFA/Bonität genehmigt (Kunde)",
     description: "EMPFEHLUNG (noch kein Auto-Versand): Sollte feuern, wenn eine SCHUFA-/Bonitätsprüfung genehmigt wird. Vorgesetzten-TODO: Make-Zweig 'schufa_approved' + Brevo-Template.",

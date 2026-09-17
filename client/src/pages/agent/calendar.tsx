@@ -207,8 +207,16 @@ const tSelbstGebucht = (a: Termin) =>
 //                     frei und beendet den gemeldeten Buchungs-Kreislauf)
 //   inkasso_call    → Forderungsmanagement (Collections-Sicht)
 //   alles andere    → CRM-/Vertriebsakte wie bisher
-const akteHref = (a: { person_id?: number | null; personId?: number | null; ref?: string | null; quelle?: string }) => {
+//   global          → Firmen-Cockpit (17.09.2026, E-188): Das Erstgespräch zu
+//                     FIAON Global hängt an einem Firmenkontakt OHNE Antrag —
+//                     in der Vertriebsakte stünde er nicht (sie zeigt nur
+//                     eigene Kunden). Firma, Paketwunsch und Verlauf liegen im
+//                     Cockpit; /agent/firmen?person=… öffnet die Firma dazu.
+//                     Die echte Gesprächsart steht bei Terminen in
+//                     `buchungsquelle` (`quelle` ist dort nur „termin").
+const akteHref = (a: { person_id?: number | null; personId?: number | null; ref?: string | null; quelle?: string; buchungsquelle?: string }) => {
   const pid = a.person_id ?? a.personId;
+  if ((a.buchungsquelle === "global" || a.quelle === "global") && pid) return `/agent/firmen?person=${pid}`;
   if (a.quelle === "onboarding_call" && pid) return `/agent/onboarding?person=${pid}`;
   if (a.quelle === "inkasso_call" && pid) return `/agent/collections?person=${pid}`;
   return pid ? `/agent/kunden?person=${pid}` : `/agent/kunden?ref=${encodeURIComponent(a.ref || "")}`;

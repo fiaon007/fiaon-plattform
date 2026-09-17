@@ -35,6 +35,9 @@ const QUELLE_TEXT: Record<string, string> = {
   nichterreicht_mail: "Rückruf-Termin (zweimal nicht erreicht)",
   agent_manuell: "von dir selbst angelegt",
   gruender: "Gespräch mit dem Gründer — selbst gebucht über fiaon.com/justin",
+  // E-188: Die BUCHUNG eines Global-Gesprächs meldet der Auftrag
+  // (fiaon-global-termin.ts), nicht diese Datei — die ABSAGE läuft hier durch.
+  global: "FIAON Global – Erstgespräch mit einem Unternehmen (gebucht über fiaon.com/business)",
 };
 
 interface Beteiligte {
@@ -92,7 +95,11 @@ async function melden(opts: {
   if (!b) return { gemeldet: false, grund: "Termin nicht gefunden" };
 
   const wann = `${berlinDatumText(opts.beginn)} um ${berlinUhrzeit(opts.beginn)} Uhr`;
-  const akte = b.personId ? absoluteUrl(`/agent/kunden?person=${b.personId}`) : absoluteUrl("/agent/kalender");
+  // E-188: Ein Global-Gespräch hängt an einem Firmen-Lead — seine „Akte" ist
+  // das Firmen-Cockpit, die Kundenakte wäre für einen Firmenkontakt leer.
+  const akte = !b.personId ? absoluteUrl("/agent/kalender")
+    : opts.quelle === "global" ? absoluteUrl(`/agent/firmen?person=${b.personId}`)
+    : absoluteUrl(`/agent/kunden?person=${b.personId}`);
   const quelle = QUELLE_TEXT[opts.quelle] ?? opts.quelle;
 
   const betreff = opts.art === "buchung"

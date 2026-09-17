@@ -12,17 +12,42 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // 02.09.2026: zweisprachig — /termin (Deutsch) und /en/book-a-call (Englisch);
 // Texte im Wörterbuch client/src/i18n/termin.ts.
+//
+// 17.09.2026 (E-188) — DIE WEICHE FÜR FIAON GLOBAL: Wer mit ?quelle=global
+// hier ankommt (Paketkarten, alte Links, Mails), will kein Startgespräch für
+// Privatkunden, sondern das Erstgespräch zu FIAON Global. Das hat auf
+// /business einen echten Kalender (#gespraech). Diese Seite leitet dorthin
+// weiter und reicht den Paketwunsch durch — sie baut KEINE zweite Oberfläche.
+// Nur bekannte Paketschlüssel gehen mit; alles andere aus der Adresszeile
+// bleibt hier liegen.
 import { Dunkel, Hero, Block, Licht, Knopf, Anfrage, Karten, Schritte, Fragen, Kennzahlen, Zwischenruf } from "@/components/site/DunkleBuehne";
 import SeoDaten from "@/components/site/SeoDaten";
 import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
 import { TERMIN_WOERTER } from "@/i18n/termin";
+import { useEffect } from "react";
+import { useLocation } from "wouter";
+import { globalPaket } from "@shared/fiaon-global";
 import "@/styles/ratgeber.css";
 import "@/styles/seo-seiten.css";
+
+/** Wohin ?quelle=global führt — null, wenn die Adresse keine Global-Anfrage ist. */
+function globalZiel(suche: string, en: boolean): string | null {
+  const p = new URLSearchParams(suche);
+  if ((p.get("quelle") || "").trim().toLowerCase() !== "global") return null;
+  const paket = globalPaket(p.get("paket"))?.key;
+  return `${en ? "/en/business" : "/business"}${paket ? `?paket=${paket}` : ""}#gespraech`;
+}
 
 export default function Termin() {
   const t = useWoerter(TERMIN_WOERTER);
   const sprache = useSprache();
   const en = sprache === "en";
+  const [, geheZu] = useLocation();
+  const ziel = typeof window === "undefined" ? null : globalZiel(window.location.search, en);
+  useEffect(() => { if (ziel) geheZu(ziel, { replace: true }); }, [ziel, geheZu]);
+  // Während der Weiterleitung nichts zeigen: Sonst blitzt für einen Moment das
+  // Privatkunden-Formular auf, und wer schnell ist, füllt das falsche aus.
+  if (ziel) return null;
   const zu = (p: string) => inSprache(p, sprache);
   const pfad = en ? "/en/book-a-call" : "/termin";
   return (

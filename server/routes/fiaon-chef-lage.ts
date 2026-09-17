@@ -114,6 +114,10 @@ router.get("/chef/lage", requireChef("leitung"), async (_req: Request, res: Resp
     ]);
 
     // ── TEAM ────────────────────────────────────────────────────────────────
+    // E-188 (17.09.2026): „erledigt ohne Ergebnis" misst das Ergebnis im
+    // Kundenverlauf. Ein Erstgespräch zu FIAON Global dokumentiert sich im
+    // Firmen-Cockpit (fiaon_firmen_log) — hier mitgezählt, wäre jedes davon ein
+    // falscher Alarm. Deshalb steht „global" neben dem Startgespräch draußen.
     const [teamAktiv, kontakteHeute, termineHeute, termineOhneErgebnis] = await Promise.all([
       eineZahl(`SELECT COUNT(*) FROM fiaon_agents WHERE active AND NOT COALESCE(is_test_account, FALSE)`),
       eineZahl(`SELECT COUNT(*) FROM fiaon_contact_log
@@ -122,7 +126,7 @@ router.get("/chef/lage", requireChef("leitung"), async (_req: Request, res: Resp
                  WHERE (beginn AT TIME ZONE 'Europe/Berlin')::date = ${HEUTE}
                    AND status = 'gebucht' AND abgesagt_am IS NULL`),
       eineZahl(`SELECT COUNT(*) FROM fiaon_termine t
-                 WHERE t.status = 'erledigt' AND t.quelle <> 'onboarding_call'
+                 WHERE t.status = 'erledigt' AND t.quelle NOT IN ('onboarding_call', 'global')
                    AND NOT EXISTS (SELECT 1 FROM fiaon_contact_log c
                                     WHERE c.person_id = t.person_id AND c.type = 'result'
                                       AND c.created_at >= t.beginn)`),

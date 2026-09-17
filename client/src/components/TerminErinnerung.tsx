@@ -60,6 +60,8 @@ interface Faellig {
   inMinuten: number;
   notiz: string | null;
   art: "rueckruf" | "startgespraech";
+  /** Die Art des Gesprächs aus shared/fiaon-termin-art.ts — „global" führt ins Firmen-Cockpit. */
+  terminArt?: string | null;
   terminArtText?: string | null;
   terminArtTon?: string | null;
   terminArtErklaerung?: string | null;
@@ -76,7 +78,14 @@ interface EigenTermin {
   /** „14:30" — vom Server in Europe/Berlin gerechnet. */
   uhrzeit: string;
   status: string;
+  terminArt?: string | null;
 }
+
+// 17.09.2026 (E-188): Ein Erstgespräch zu FIAON Global hängt an einem
+// Firmenkontakt ohne Antrag. Seine „Akte" ist das Firmen-Cockpit — die
+// Vertriebsakte zeigt nur eigene Kunden und bliebe für ihn leer.
+const akteZiel = (t: { personId: number; terminArt?: string | null }, sonst: string) =>
+  t.terminArt === "global" ? `/agent/firmen?person=${t.personId}` : `${sonst}?person=${t.personId}`;
 
 /** Wie weit im Voraus wird erinnert? */
 const VORLAUF_MIN = 30;
@@ -236,7 +245,7 @@ export function TerminErinnerung() {
       {/* Der Klick führt DIREKT zum Kunden — Punkt 8 der Rückmeldung vom
           11.08.: „Beim Klick auf den Termin direkt den zugehörigen
           Kundendatensatz öffnen." */}
-      <Link href={`/agent/kunden?person=${t.personId}`} className="fi-erin-name">{t.name}</Link>
+      <Link href={akteZiel(t, "/agent/kunden")} className="fi-erin-name">{t.name}</Link>
       {t.notiz && <span className="fi-erin-notiz">{t.notiz}</span>}
     </span>
   );
@@ -304,7 +313,7 @@ export function TerminErinnerung() {
               <button type="button" className="of-modal-knopf" onClick={anrufen} disabled={!popup.telefon}>
                 Jetzt anrufen
               </button>
-              <Link href={`/agent/pipeline?person=${popup.personId}`} className="of-modal-knopf still"
+              <Link href={akteZiel(popup, "/agent/pipeline")} className="of-modal-knopf still"
                     onClick={() => setPopup(null)}>
                 Zur Akte
               </Link>

@@ -35,6 +35,7 @@ import GlobalGespraech from "@/components/site/GlobalGespraech";
 import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
 import { GLOBAL_WOERTER } from "@/i18n/global";
 import { GLOBAL_PAKETE, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_GELD_ZURUECK, globalPreisText, globalPlanungText } from "@shared/fiaon-global";
+import { globalStartPfad } from "@shared/fiaon-global-wege";
 import "@/styles/global.css";
 
 export default function Business() {
@@ -42,7 +43,7 @@ export default function Business() {
   const sprache = useSprache();
   const s = sprache === "en" ? "en" : "de";
   const zu = (p: string) => inSprache(p, sprache);
-  const start = (paket: string) => `${zu("/business/start")}?paket=${paket}`;
+  const start = (paket: string) => globalStartPfad(paket, s);
 
   // Der Paketwunsch reist von der Tafel („Erst sprechen") in den Kalender.
   const [wunsch, setWunsch] = useState<string | null>(null);

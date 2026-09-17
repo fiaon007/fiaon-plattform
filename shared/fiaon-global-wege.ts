@@ -43,9 +43,9 @@ export function globalGespraechPfad(sprache: GlobalSprache = "de"): string {
  * Ein unbekannter Schlüssel führt zum Auftrag ohne Vorauswahl, nie ins Leere.
  */
 export function globalStartPfad(key?: unknown, sprache: GlobalSprache = "de"): string {
-  if (sprache === "en") return globalPaketePfad("en");
+  const basis = sprache === "en" ? "/en/business/start" : "/business/start";
   const g = globalPaket(key);
-  return g ? `/business/start?paket=${encodeURIComponent(g.key)}` : "/business/start";
+  return g ? `${basis}?paket=${encodeURIComponent(g.key)}` : basis;
 }
 
 /** Dasselbe als vollständige Adresse — für Mails, WhatsApp und die Zwischenablage. */

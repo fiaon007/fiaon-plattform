@@ -123,6 +123,12 @@ const ZUSATZ: Partial<Record<MakeEventType, EventZusatz>> = {
     gruppe: "termin", zielgruppe: "kunde", rollen: ["admin"],
     klartext: "Bestätigung nach einer Buchung, mit Storno-Link.",
   },
+  // E-188 (17.09.2026): Die Bestätigung gehört zu einer Buchung — von Hand
+  // sendet sie nur die Verwaltung (Prüfversand aus dem Mailwerk).
+  global_termin: {
+    gruppe: "termin", zielgruppe: "kunde", rollen: ["admin"],
+    klartext: "Bestätigung für das Erstgespräch zu FIAON Global — an das Unternehmen, mit Kalenderdatei und Storno-Link.",
+  },
   termin_absage: {
     gruppe: "termin", zielgruppe: "kunde", rollen: ["admin"],
     klartext: "Absage durch den Mitarbeiter — der Kunde erfaehrt es sofort, mit Link auf eine neue Zeit.",

@@ -147,3 +147,64 @@ export function formatBerlin(at: Date | string | null | undefined, withTime = tr
   }).format(d);
   return `${date} um ${time} Uhr`;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WANDZEIT ↔ ZEITPUNKT — DIE REINEN RECHNER (hierher gezogen 17.09.2026, E-188)
+//
+// Diese fünf Funktionen standen bis heute in server/lib/fiaon-termine.ts. Dort
+// hängt am Dateikopf der Datenbank-Pool; wer sie in einem reinen Prüfskript
+// (ohne DB, ohne Netz) brauchte, konnte sie nicht laden. Der Gesprächskalender
+// für FIAON Global (server/lib/fiaon-global-zeiten.ts) rechnet seine Zeitfenster
+// aber genau damit — und eine zweite Fassung von `berlinZeitpunkt` wäre der
+// Sommerzeit-Fehler, vor dem der Kopf von fiaon-termine.ts warnt.
+//
+// Deshalb: EINE Fassung, hier, ohne jeden Import. fiaon-termine.ts reicht sie
+// unverändert weiter (export … from), kein Aufrufer merkt den Umzug.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Ein Datum („2026-08-12") plus eine Wandzeit in Minuten ab Mitternacht,
+ * beides in Europe/Berlin, ergibt einen echten Zeitpunkt.
+ *
+ * Zwei-Pass wie in `parseBerlinInput`: Der Offset hängt vom Zeitpunkt ab, den
+ * wir gerade erst ausrechnen. An den Sommerzeit-Rändern ist der erste Versuch
+ * eine Stunde daneben.
+ */
+export function berlinZeitpunkt(datumISO: string, minutenAbMitternacht: number): Date {
+  const [y, m, d] = datumISO.split("-").map(Number);
+  const wall = Date.UTC(y, m - 1, d, 0, minutenAbMitternacht, 0);
+  const off1 = berlinOffsetMinutes(new Date(wall));
+  let utc = wall - off1 * 60000;
+  const off2 = berlinOffsetMinutes(new Date(utc));
+  if (off2 !== off1) utc = wall - off2 * 60000;
+  return new Date(utc);
+}
+
+/** Datum in Berlin als „YYYY-MM-DD". */
+export function berlinDatum(at: Date): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(at);
+}
+
+/** Wochentag nach ISO in Berlin: 1 = Montag … 7 = Sonntag. */
+export function berlinWochentag(datumISO: string): number {
+  const [y, m, d] = datumISO.split("-").map(Number);
+  const wt = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  return wt === 0 ? 7 : wt;
+}
+
+/** „HH:MM" → Minuten ab Mitternacht. Unlesbares ergibt null. */
+export function zeitZuMinuten(hhmm: unknown): number | null {
+  const m = String(hhmm ?? "").match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return null;
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  if (h < 0 || h > 23 || min < 0 || min > 59) return null;
+  return h * 60 + min;
+}
+
+/** Minuten ab Mitternacht → „HH:MM". */
+export function minutenZuZeit(min: number): string {
+  return `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
+}

@@ -32,6 +32,17 @@
 //     nur über Steuerberater und Anwälte auf eigenes Mandat.
 //   · Der Antragslink zeigt auf /business/start (shared/fiaon-global-wege.ts),
 //     nicht mehr auf /business-antrag.
+//
+// ── 17.09.2026 (E-188): DER TOPF HAT EINEN EINGANG VON DER WEBSITE ─────────
+// Bis heute kam eine Firma nur über „Liste einkleben" hierher. Wer auf
+// /business ein Erstgespräch zu FIAON Global bucht oder um einen Anruf bittet,
+// landet jetzt als Lead mit quelle „global" in DIESEM Topf — ganz oben in der
+// Tagesliste der zuständigen Person (`globalLeadAufnehmen`). Was aus dem
+// Gespräch wird, schreibt `globalLeadFortschreiben` in denselben Verlauf.
+// Neu dafür: die Spalten person_id (der Firmenkontakt in fiaon_persons, an dem
+// der Termin hängt), paketwunsch und global_am (wann sich das Unternehmen
+// zuletzt SELBST gemeldet hat — die Liste zeigt es als Zusatz „FIAON Global"
+// und ordnet es vor die Kaltakquise; `quelle` bleibt, was sie war).
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { Router, type Response } from "express";
@@ -41,6 +52,7 @@ import { gmailBereit, mailNeuSenden } from "../lib/fiaon-gmail";
 import { verkaufbarePakete } from "@shared/fiaon-pakete";
 import { globalInfoMail, globalVorbereitungSystem } from "@shared/fiaon-global-vertrieb";
 import { globalStartUrl } from "@shared/fiaon-global-wege";
+import { berlinToday, berlinPlusTage } from "../lib/fiaon-time";
 
 const router = Router();
 
@@ -80,9 +92,168 @@ function ensureFirmen(): Promise<void> {
         )`;
       await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_firmen_log_idx ON fiaon_firmen_log (firma_id, created_at DESC)`;
       await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_firmen_log_tag_idx ON fiaon_firmen_log (agent_id, art, created_at DESC)`;
+      // E-188: CREATE TABLE IF NOT EXISTS ergänzt keine Spalte — deshalb ALTER,
+      // mit lock_timeout (Muster ensureAnfragenSpalten): Lieber nach 3 s
+      // aufgeben und beim nächsten Aufruf neu versuchen, als sich hinter eine
+      // lange Transaktion zu stellen und das Cockpit anzuhalten.
+      await sqlPool.begin(async (tx: any) => {
+        await tx`SET LOCAL lock_timeout = '3s'`;
+        await tx`ALTER TABLE fiaon_firmen_leads
+          ADD COLUMN IF NOT EXISTS person_id INTEGER,
+          ADD COLUMN IF NOT EXISTS paketwunsch TEXT,
+          ADD COLUMN IF NOT EXISTS global_am TIMESTAMPTZ`;
+      });
+      await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_firmen_person_idx ON fiaon_firmen_leads (person_id) WHERE person_id IS NOT NULL`;
     })().catch((e) => { bereit = null; throw e; });
   }
   return bereit;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FIAON GLOBAL — DER EINGANG VON DER WEBSITE (17.09.2026, E-188)
+//
+// Zwei Funktionen, beide von server/lib/fiaon-global-termin.ts gerufen:
+//
+//   globalLeadAufnehmen       Buchung oder Anfrage von /business: Lead finden
+//                             (Person, E-Mail oder Firmenname) oder anlegen,
+//                             nach oben in die Tagesliste, Zeile im Verlauf.
+//   globalLeadFortschreiben   Gespräch geführt, nicht zustande gekommen,
+//                             abgesagt: Status und Wiedervorlage nachziehen.
+//
+// „OBEN" HEISST HIER: Die Liste (GET /agent/firmen/liste) ordnet fällige
+// Wiedervorlagen zuerst — und unter den fälligen die Unternehmen, die sich
+// SELBST gemeldet haben (global_am), vor allem anderen. Ein Lead mit
+// Wiedervorlage HEUTE steht deshalb ganz vorn — bis die zuständige Person ein
+// Ergebnis klickt. Eine Wiedervorlage am Gesprächstag würde ihn bis dahin aus
+// „Jetzt dran" ausblenden; genau das soll nicht passieren.
+//
+// Verlaufszeilen tragen art „global" und zählen NICHT auf den Anruf-Ring (der
+// zählt art „anruf") — ein gebuchtes Gespräch ist kein geführter Anruf.
+// ═══════════════════════════════════════════════════════════════════════════
+
+export type GlobalLeadStatus = "termin" | "wiedervorlage" | "in_arbeit" | "kein_interesse";
+export type GlobalLeadEreignis =
+  | "termin_gebucht" | "anfrage" | "termin_abgesagt" | "gespraech_gefuehrt" | "gespraech_nicht_zustande";
+
+function wiedervorlageTag(wann: "heute" | "morgen" | null): string | null {
+  return wann === "heute" ? berlinToday() : wann === "morgen" ? berlinPlusTage(1) : null;
+}
+
+export async function globalLeadAufnehmen(ein: {
+  firma: string; ansprechpartner: string; telefon: string; email: string;
+  land?: string | null;
+  /** Klartext, z. B. „Global Banking (4.999 €)". */
+  paketwunsch?: string | null;
+  personId?: number | null;
+  zustaendigAgentId: number | null;
+  status: GlobalLeadStatus;
+  ereignis: GlobalLeadEreignis;
+  /** Die Zeile für den Verlauf — was gebucht oder gewünscht wurde. */
+  verlauf: string;
+}): Promise<{ firmaId: number; neu: boolean }> {
+  await ensureFirmen();
+  const firma = ein.firma.trim().slice(0, 200);
+  const email = ein.email.trim().toLowerCase();
+  const personId = ein.personId ?? null;
+  const heute = berlinToday();
+  // Eine kurze Zeile für das Notizfeld der Anruf-Karte — dort liest die
+  // zuständige Person zuerst. Das Ausführliche steht im Verlauf.
+  const notizZeile = `FIAON Global (${heute.split("-").reverse().join(".")}): ${ein.verlauf}`.slice(0, 600);
+
+  // Dubletten vermeiden: erst die Person, dann die E-Mail, dann der Firmenname.
+  const [da] = (await sqlPool`
+    SELECT id FROM fiaon_firmen_leads
+    WHERE (${personId}::int IS NOT NULL AND person_id = ${personId}::int)
+       OR (${email} <> '' AND LOWER(COALESCE(email, '')) = ${email})
+       OR LOWER(TRIM(firma)) = ${firma.toLowerCase()}
+    ORDER BY COALESCE(person_id = ${personId}::int, FALSE) DESC,
+             (${email} <> '' AND LOWER(COALESCE(email, '')) = ${email}) DESC, id ASC
+    LIMIT 1
+  `) as any[];
+
+  let firmaId: number;
+  if (da) {
+    firmaId = Number(da.id);
+    // Nur leere Felder füllen — was die zuständige Person am Telefon
+    // nachgetragen hat, überschreibt kein Formular. Den Besitz behält, wer ihn
+    // hat und arbeiten kann; ein inaktives oder gesperrtes Konto gibt ihn ab.
+    await sqlPool`
+      UPDATE fiaon_firmen_leads SET
+        ansprechpartner = COALESCE(NULLIF(ansprechpartner, ''), ${ein.ansprechpartner || null}),
+        telefon = COALESCE(NULLIF(telefon, ''), ${ein.telefon || null}),
+        email = COALESCE(NULLIF(email, ''), ${email || null}),
+        ort = COALESCE(NULLIF(ort, ''), ${ein.land || null}),
+        person_id = COALESCE(person_id, ${personId}::int),
+        paketwunsch = COALESCE(${ein.paketwunsch || null}, paketwunsch),
+        quelle = CASE WHEN COALESCE(quelle, '') = '' THEN 'global' ELSE quelle END,
+        global_am = NOW(),
+        status = ${ein.status},
+        wiedervorlage = ${heute}::date,
+        zustaendig_agent_id = CASE
+          WHEN zustaendig_agent_id IS NULL THEN ${ein.zustaendigAgentId}::int
+          WHEN EXISTS (SELECT 1 FROM fiaon_agents a
+                        WHERE a.id = fiaon_firmen_leads.zustaendig_agent_id
+                          AND a.active AND a.zugang_gesperrt_am IS NULL) THEN zustaendig_agent_id
+          ELSE COALESCE(${ein.zustaendigAgentId}::int, zustaendig_agent_id) END,
+        notiz = CONCAT_WS(E'\n', NULLIF(notiz, ''), ${notizZeile}::text),
+        updated_at = NOW()
+      WHERE id = ${firmaId}
+    `;
+  } else {
+    const [neu] = (await sqlPool`
+      INSERT INTO fiaon_firmen_leads
+        (firma, ansprechpartner, telefon, email, ort, notiz, quelle, status,
+         zustaendig_agent_id, wiedervorlage, person_id, paketwunsch, global_am)
+      VALUES (${firma}, ${ein.ansprechpartner || null}, ${ein.telefon || null}, ${email || null},
+              ${ein.land || null}, ${notizZeile}, 'global', ${ein.status},
+              ${ein.zustaendigAgentId}::int, ${heute}::date, ${personId}::int, ${ein.paketwunsch || null}, NOW())
+      RETURNING id
+    `) as any[];
+    firmaId = Number(neu.id);
+  }
+
+  await sqlPool`
+    INSERT INTO fiaon_firmen_log (firma_id, agent_id, agent_name, art, ergebnis, notiz)
+    VALUES (${firmaId}, NULL, 'Website', 'global', ${ein.ereignis}, ${ein.verlauf.slice(0, 2000)})
+  `;
+  return { firmaId, neu: !da };
+}
+
+/**
+ * Den Lead zu einem Firmenkontakt fortschreiben — nach dem Gespräch, nach
+ * einer Absage. Findet nichts (der Lead wurde nie angelegt), passiert nichts:
+ * Ein Termin darf nicht daran hängen bleiben, dass sein Lead fehlt.
+ */
+export async function globalLeadFortschreiben(ein: {
+  personId: number;
+  status: GlobalLeadStatus;
+  wiedervorlage: "heute" | "morgen" | null;
+  ereignis: GlobalLeadEreignis;
+  verlauf: string;
+  agent?: { id: number; name: string } | null;
+  /** Hat ein Mensch mit dem Unternehmen gesprochen? Dann zählt es als Kontakt. */
+  kontakt?: boolean;
+}): Promise<{ firmaId: number | null }> {
+  await ensureFirmen();
+  const [lead] = (await sqlPool`
+    SELECT id FROM fiaon_firmen_leads WHERE person_id = ${ein.personId} ORDER BY updated_at DESC LIMIT 1
+  `) as any[];
+  if (!lead) return { firmaId: null };
+  const firmaId = Number(lead.id);
+  await sqlPool`
+    UPDATE fiaon_firmen_leads SET
+      status = ${ein.status},
+      wiedervorlage = ${wiedervorlageTag(ein.wiedervorlage)}::date,
+      letzter_kontakt = CASE WHEN ${ein.kontakt === true} THEN NOW() ELSE letzter_kontakt END,
+      updated_at = NOW()
+    WHERE id = ${firmaId}
+  `;
+  await sqlPool`
+    INSERT INTO fiaon_firmen_log (firma_id, agent_id, agent_name, art, ergebnis, notiz)
+    VALUES (${firmaId}, ${ein.agent?.id ?? null}, ${ein.agent?.name ?? "System"}, 'global',
+            ${ein.ereignis}, ${ein.verlauf.slice(0, 2000)})
+  `;
+  return { firmaId };
 }
 
 const HEUTE_BERLIN = `(NOW() AT TIME ZONE 'Europe/Berlin')::date`;
@@ -97,6 +268,10 @@ router.get("/agent/firmen/liste", requireAgent, async (req: AgentRequest, res: R
 
     // Arbeit = was JETZT dran ist: fällige Wiedervorlagen zuerst, dann Neues.
     // „Kein Interesse"/ungültig/Antrag sind raus; fremd zugeteilte auch.
+    // E-188 (17.09.2026): Unter den Fälligen steht vorn, wer sich über
+    // fiaon.com/business SELBST gemeldet hat (global_am) — ein Unternehmen, das
+    // um ein Gespräch zu FIAON Global bittet, wartet nicht hinter der
+    // Kaltakquise von letzter Woche.
     const zeilen = await sqlPool.unsafe(`
       SELECT f.*,
              (SELECT COUNT(*)::int FROM fiaon_firmen_log l WHERE l.firma_id = f.id AND l.art = 'anruf') AS anrufe,
@@ -115,6 +290,7 @@ router.get("/agent/firmen/liste", requireAgent, async (req: AgentRequest, res: R
           )
         END
       ORDER BY (f.wiedervorlage IS NOT NULL AND f.wiedervorlage <= ${HEUTE_BERLIN}) DESC,
+               (f.global_am IS NOT NULL AND f.status IN ('termin', 'wiedervorlage')) DESC,
                f.status = 'termin' DESC, f.status = 'in_arbeit' DESC,
                f.created_at ASC
       LIMIT 80
@@ -268,6 +444,33 @@ router.post("/agent/firmen/:id/mail", requireAgent, async (req: AgentRequest, re
   } catch (err: any) {
     console.error("[FIRMEN] mail:", err);
     res.status(502).json({ ok: false, error: String(err?.message || err).slice(0, 200) });
+  }
+});
+
+// ── E-188: Vom Termin zur Firma ─────────────────────────────────────────────
+// Ein Erstgespräch zu FIAON Global hängt im Kalender an einer PERSON (dem
+// Firmenkontakt). Die Arbeit dazu liegt aber hier, im Firmen-Cockpit. Kalender
+// und Startseite springen deshalb auf /agent/firmen?person=… — und diese Route
+// findet die Firma dazu. Sie MUSS vor „/agent/firmen/:id" stehen, sonst liest
+// Express „zu-person" als Kennung.
+router.get("/agent/firmen/zu-person/:personId", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    await ensureFirmen();
+    const personId = Number(req.params.personId);
+    if (!Number.isInteger(personId) || personId <= 0) return res.status(400).json({ ok: false, error: "Ungültige Kennung" });
+    const [firma] = (await sqlPool`
+      SELECT * FROM fiaon_firmen_leads WHERE person_id = ${personId} ORDER BY updated_at DESC LIMIT 1
+    `) as any[];
+    if (!firma) return res.status(404).json({ ok: false, error: "Zu diesem Kontakt gibt es keine Firma im Cockpit." });
+    const verlauf = (await sqlPool`
+      SELECT art, ergebnis, notiz, agent_name, created_at
+      FROM fiaon_firmen_log WHERE firma_id = ${firma.id}
+      ORDER BY created_at DESC LIMIT 40
+    `) as any[];
+    res.json({ ok: true, firma, verlauf });
+  } catch (err) {
+    console.error("[FIRMEN] zu-person:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });
 

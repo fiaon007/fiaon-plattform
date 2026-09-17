@@ -662,7 +662,13 @@ async function anlegen(ein: GlobalEingabe, kontext: { ip: string; userAgent: str
   return fertigstellen(ref, ein);
 }
 
-/** Bestellung, Rechnungsmodus, Aufgabe, Betreuer, Mail — jeder Schritt verträgt einen zweiten Anlauf. */
+/**
+ * Bestellung und Rechnungsmodus — danach steht alles, was die Antwort braucht.
+ * Aufgabe, Betreuer und Mail laufen HINTER der Antwort weiter (nacharbeit): Der
+ * Kunde soll nach der Unterschrift nicht zwanzig Sekunden auf zwei Mailserver
+ * warten. Jeder Schritt verträgt einen zweiten Anlauf; hängt die Mail, zeigt es
+ * die Liste der Leitung mit dem Knopf „Vertrag + Rechnung senden".
+ */
 async function fertigstellen(ref: string, ein: GlobalEingabe): Promise<GlobalAuftragAntwort> {
   const { bestellungFuerAntrag } = await import("../routes/fiaon-antrag");
   const bestellung = await bestellungFuerAntrag(ref, { globalMailFolgt: true });
@@ -675,6 +681,12 @@ async function fertigstellen(ref: string, ein: GlobalEingabe): Promise<GlobalAuf
   await sqlPool`UPDATE fiaon_applications SET rechnung_ust_modus = ${String(akte?.rechnung_ust_modus || "none")} WHERE ref = ${ref}`
     .catch((e) => console.error(`[FIAON-GLOBAL] ${ref}: USt-Modus nicht an der Bestellung vermerkt:`, e));
 
+  void nacharbeit(ref, ein, paymentRef, akte)
+    .catch((e) => console.error(`[FIAON-GLOBAL] ${ref}: Nacharbeit (Aufgabe, Betreuer, Auftragsmail) abgebrochen — bitte unter /chef/s/global-auftraege nachsehen:`, e));
+  return antwortFuer(ref, paymentRef, ein.paket, ein.ansprechpartner.email);
+}
+
+async function nacharbeit(ref: string, ein: GlobalEingabe, paymentRef: string, akte: any): Promise<void> {
   // Der Betrag kommt aus dem Katalog — weicht die Bestellzeile ab, ist das ein Fall für einen Menschen.
   const b = await bestellungLesen(ref);
   const kat = katalogPaket(ein.paket);
@@ -720,8 +732,6 @@ async function fertigstellen(ref: string, ein: GlobalEingabe): Promise<GlobalAuf
   // ── Die eine Mail an den Kunden ────────────────────────────────────────────
   const mail = await auftragsMailSenden(ref).catch((e) => ({ ok: false, grund: String(e) }));
   if (!mail.ok) console.error(`[FIAON-GLOBAL] ${ref}: Auftragsmail nicht versandt: ${mail.grund}`);
-
-  return antwortFuer(ref, paymentRef, ein.paket, ein.ansprechpartner.email);
 }
 
 // ── Eine Global-Bestellung, die NICHT über den Bestellweg kam ────────────────
@@ -851,13 +861,16 @@ export async function globalNachZahlung(ref: string): Promise<{ gestartet: boole
 // ── Die Liste für die Leitung ────────────────────────────────────────────────
 export async function globalAuftraegeListe(): Promise<{ zeilen: Record<string, unknown>[]; mitarbeiter: { id: number; name: string; rolle: string }[]; einstellungen: GlobalEinstellungen }> {
   await ensureGlobalTabelle();
+  // Die Liste liest die Aufgabentabelle mit (Start-Aufgabe) — sie muss da sein, bevor die erste Aufgabe je angelegt wurde.
+  await import("../routes/fiaon-betreiber-todo").then((m) => m.ensureTodoTabelle()).catch(() => {});
   const rows = (await sqlPool`
     SELECT a.ref, a.pack_key, a.pack_name, a.company_name, a.contact_name, a.city, a.amount_due, a.payment_reference, a.payment_status,
            a.payment_due_date, a.invoice_number, a.created_at, a.completed_at, a.claimed_paid_at, a.archived_at, a.person_id,
            g.id AS akte_id, g.status AS akte_status, g.firma, g.ansprechpartner, g.email, g.zustaendig_agent_id, g.stichtag, g.unterschrieben_am,
            g.gestartet_am, g.rechnung_ust_modus, g.ust_hinweis, g.auftrag_mail_am, g.auftrag_mail_fehler, g.start_mail_am, g.start_mail_fehler,
            g.stichtag_mail_am, g.vertrag_sprache, g.quelle, (g.vertrag_pdf IS NOT NULL) AS hat_vertrag,
-           z.name AS zustaendig_name, bt.name AS betreuer_name
+           z.name AS zustaendig_name, bt.name AS betreuer_name,
+           (SELECT t.id FROM fiaon_betreiber_todos t WHERE t.schluessel = 'global:' || a.ref || ':start' LIMIT 1) AS start_aufgabe_id
       FROM fiaon_applications a
       LEFT JOIN fiaon_global_auftraege g ON g.ref = a.ref
       LEFT JOIN fiaon_agents z ON z.id = g.zustaendig_agent_id
@@ -873,7 +886,9 @@ export async function globalAuftraegeListe(): Promise<{ zeilen: Record<string, u
     const erstellt = new Date(r.created_at);
     return {
       ref: String(r.ref),
-      status: r.archived_at ? "storniert" : statusAus({ status: r.akte_status }, r),
+      // Ohne Auftragsakte (Bestellung außerhalb des Bestellwegs) gibt es kein „gestartet" in der Akte —
+      // dort zählt, ob die Aufgabe „US-Struktur starten" angelegt wurde.
+      status: r.archived_at ? "storniert" : statusAus({ status: !r.akte_id && r.start_aufgabe_id ? "gestartet" : r.akte_status }, r),
       ohneAuftrag: !r.akte_id,
       firma: String(firma.name || r.company_name || "—"), ort: String(firma.ort || r.city || ""), land: firma.land ?? null,
       ansprechpartner: [ap.anrede, ap.vorname, ap.nachname].filter(Boolean).join(" ") || String(r.contact_name || ""),

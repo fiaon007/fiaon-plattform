@@ -1534,18 +1534,16 @@ export async function alsBezahltBuchen(
   //      (globalNachZahlung in server/lib/fiaon-global-auftrag.ts — gerufen am
   //      Ende von onCustomerPaid, weil dort ALLE Buchungswege durchgehen, auch
   //      der Kontoabgleich).
-  // Hier wird GEWARTET statt gefeuert: Die Reihenfolge ist die Zusage an den
-  // Kunden („Ihr Ansprechpartner meldet sich") — sie darf erst rausgehen, wenn
-  // die Aufgabe wirklich bei jemandem liegt. Beide Schritte sind idempotent;
-  // ein zweiter Klick auf „bezahlt" startet nichts doppelt.
+  // Die Reihenfolge ist die Zusage an den Kunden („Ihr Ansprechpartner meldet
+  // sich"): Sie geht erst raus, wenn die Aufgabe wirklich bei jemandem liegt —
+  // dafür sorgt globalNachZahlung selbst. Die Buchung wartet darauf nicht
+  // (wie beim Privatpaket); hängt der Start, zeigt /chef/s/global-auftraege den
+  // Auftrag als „bezahlt, nicht gestartet" mit dem Knopf „Start anstoßen".
+  // Beide Schritte sind idempotent; ein zweiter Klick startet nichts doppelt.
   // ══════════════════════════════════════════════════════════════════════════
   if (istGlobalPaket(rows[0].pack_key)) {
-    try {
-      const agentModul = await import("./fiaon-agent");
-      await agentModul.onCustomerPaid(rows[0].ref);
-    } catch (e) {
-      console.error("[FIAON-COMMISSION] Global:", e);
-    }
+    import("./fiaon-agent").then((m) => m.onCustomerPaid(rows[0].ref))
+      .catch((e) => console.error(`[FIAON-GLOBAL] ${rows[0].ref}: Provision/Start nach Zahlungseingang:`, e));
     return {
       ok: true,
       data: rows[0],

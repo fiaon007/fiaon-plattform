@@ -1638,7 +1638,7 @@ router.post("/agent/onboarding/wartende/einladen", requireAgent, nurOnboarding, 
     for (const z of zeilen) {
       if (z.terminGebucht) {
         const q = z.naechsterTerminQuelle;
-        const art = q === "onboarding_call" ? "Startgespräch" : q === "inkasso_call" ? "Termin (Inkasso)" : q === "support" ? "Termin (Support)" : q === "gruender" ? "Termin (Gründer)" : "Termin";
+        const art = q === "onboarding_call" ? "Startgespräch" : q === "inkasso_call" ? "Termin (Inkasso)" : q === "support" ? "Termin (Support)" : q === "gruender" ? "Termin (Gründer)" : q === "global" ? "Termin (FIAON Global)" : "Termin";
         const wann = z.naechsterTerminAm ? new Date(z.naechsterTerminAm).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", timeZone: "Europe/Berlin" }) : "";
         uebersprungen.push({ personId: z.personId, name: z.name, grund: q === "onboarding_call" ? "Startgespräch bereits gebucht" : `hat bereits einen ${art}${wann ? ` am ${wann}` : ""} — kein zweiter Termin per Mail` });
       }

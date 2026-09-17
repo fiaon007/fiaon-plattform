@@ -406,6 +406,14 @@ router.post("/termin/absagen/:stornoToken", async (req: Request, res: Response) 
     // Bewusst OHNE Herkunft (24.08.2026): Wer nach einer Absage neu bucht, kam
     // ursprünglich über irgendeinen Weg — welchen, weiß dieser Link nicht mehr.
     // „unbekannt" ist hier ehrlicher als ein geratener Wert.
+    // 17.09.2026 (E-188): Ein Erstgespräch zu FIAON Global wird auf /business
+    // neu gewählt. Der Terminlink der Privatkunden leitete die Gesprächsart aus
+    // dem Kundenzustand ab — für ein Unternehmen käme ein Vertriebsgespräch in
+    // Du-Form heraus.
+    if (String(ergebnis.termin.quelle) === "global") {
+      const { absoluteUrl } = await import("../fiaon-base-url");
+      return res.json({ ok: true, neuBuchen: absoluteUrl("/business#gespraech") });
+    }
     res.json({ ok: true, neuBuchen: terminLink(Number(ergebnis.termin.person_id)) });
   } catch (err) {
     console.error("[TERMIN] absagen:", err);
@@ -578,6 +586,31 @@ router.post("/agent/termine/:id/nicht-zustande", requireAgent, async (req: Agent
       }
     }
 
+    // ══════════════════════════════════════════════════════════════════════
+    // 17.09.2026 (E-188): EIN GLOBAL-GESPRÄCH BEKOMMT KEINE PRIVATKUNDEN-MAIL
+    //
+    // Drei der vier Gründe unten verschicken eine Mail, und alle drei sind für
+    // Privatkunden geschrieben: „Wir haben Sie verpasst" mit einem Terminlink,
+    // der ein Vertriebsgespräch in Du-Form anbietet; die Bitte um
+    // Nummern-Korrektur; die Einladung zum Startgespräch („Ihr Bereich ist
+    // offen, Ihre Akte liegt bereit"). Der vierte Grund sperrt die Person für
+    // den Vertrieb. Am anderen Ende sitzt hier aber ein UNTERNEHMEN, das über
+    // FIAON Global sprechen wollte — es hat weder Akte noch Bereich.
+    // Das Gespräch endet deshalb im Firmen-Cockpit: Status, Verlauf,
+    // Wiedervorlage heute — und die zuständige Person ruft an. Begründung und
+    // Regel stehen in server/lib/fiaon-global-termin.ts (globalTerminErgebnis).
+    // ══════════════════════════════════════════════════════════════════════
+    if (String(termin.quelle) === "global") {
+      const { globalTerminErgebnis } = await import("../lib/fiaon-global-termin");
+      const erg = await globalTerminErgebnis({
+        terminId: id, personId: Number(termin.person_id), beginn: termin.beginn,
+        agent: { id: req.agent!.id, name: req.agent!.name },
+        ergebnis: "verpasst", grund,
+        notiz: req.body?.notiz ? String(req.body.notiz) : null,
+      });
+      return res.json({ ok: true, hinweis: erg.hinweis });
+    }
+
     await sqlPool`
       UPDATE fiaon_termine
       SET status = 'verpasst', erledigt_am = NOW(),
@@ -704,6 +737,23 @@ router.post("/agent/termine/:id/ergebnis", requireAgent, async (req: AgentReques
         ergebnis, notiz, jederZustaendige: true,
       });
       return res.status(erg.status).json(erg.body);
+    }
+
+    // ── 17.09.2026 (E-188): EIN GLOBAL-GESPRÄCH ENDET IM FIRMEN-COCKPIT ──────
+    // Der allgemeine Weg unten zählt „verpasst" als erfolglosen Anrufversuch
+    // der PERSON und lässt die Nicht-erreicht-Automatik der Privatkunden
+    // anlaufen (Terminlink-Mail ab dem sechsten Versuch). Ein Firmenkontakt
+    // gehört in keinen dieser Zähler — sein Verlauf ist der Firmen-Lead.
+    if (String(termin.quelle) === "global") {
+      const { globalTerminErgebnis } = await import("../lib/fiaon-global-termin");
+      const erg = await globalTerminErgebnis({
+        terminId: id, personId: Number(termin.person_id), beginn: termin.beginn,
+        agent: { id: req.agent!.id, name: req.agent!.name },
+        ergebnis: String(ergebnis) === "erledigt" ? "erledigt" : "verpasst",
+        grund: String(ergebnis) === "verpasst" ? "nicht_erschienen" : null,
+        notiz: notiz ? String(notiz) : null,
+      });
+      return res.json({ ok: true, hinweis: erg.hinweis });
     }
 
     // COALESCE: Eine fehlende Notiz ist keine Anweisung zum Löschen — dieselbe

@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// VORLAGEN: TERMINE (6) — Absender „FIAON Welcome"
+// VORLAGEN: TERMINE (7) — Absender „FIAON Welcome"
 //
 // Schreibregeln: siehe konto.ts. Zusätzlich hier:
 // · Termin-Mails nennen Datum, Uhrzeit und Gesprächspartner im Datenkasten —
@@ -27,6 +27,38 @@ export const TERMIN_VORLAGEN: Record<string, MailBaustein> = {
     ],
     knopf: { text: "Termin verschieben oder absagen", url: "{{params.storno_link}}" },
     fussnote: "{{params.hinweis_absage}}",
+  },
+
+  // ── E-188 (17.09.2026): DIE BESTÄTIGUNG FÜR DAS ERSTGESPRÄCH ZU FIAON GLOBAL ──
+  // Eine eigene Vorlage und nicht `termin_bestaetigung`: Die spricht einen
+  // Privatkunden an („Ihre Akte", Vor- und Nachname aus der Person). Hier liest
+  // ein Unternehmen, das über ein Paket ab 2.499 € sprechen will — es sieht
+  // Firma und Paketwunsch im Datenkasten und erfährt in einem Satz, worum es in
+  // den 30 Minuten geht. Zwei Grenzen der Wortwahl stehen im Text selbst:
+  // FIAON „bespricht" und „erklärt" (das Wort aus Justins Auftrag ist für
+  // Kundentexte gesperrt), und über Konto, Karte und Rahmen entscheidet das
+  // Institut. Der zweite Knopf trägt die Kalenderdatei — als LINK, weil die
+  // Vorlagen-Mails des Hauses keine Anhänge tragen (mailDirektSenden).
+  global_termin: {
+    betreff: "Ihr Gespräch zu FIAON Global: {{params.termin_datum}}, {{params.termin_uhrzeit}} Uhr",
+    preheader: "Bestätigt. {{params.agent_vorname}} ruft Sie an — Sie müssen nichts vorbereiten.",
+    titel: "Ihr Gespräch ist eingetragen",
+    absaetze: [
+      "Guten Tag {{params.name}}, Ihr Erstgespräch zu FIAON Global ist fest eingetragen — hier alles auf einen Blick:",
+      "<b>{{params.agent_vorname}}</b> ruft Sie zur vereinbarten Zeit unter {{params.telefon}} an. Das Gespräch dauert rund {{params.termin_dauer}} Minuten; Sie brauchen nichts vorzubereiten.",
+      "Wir besprechen, wo Ihr Unternehmen heute steht, welchen Rahmen Sie anstreben und welches Paket dazu passt — und was wir dafür übernehmen. Über Konto, Karte und Rahmen entscheidet das jeweilige Institut.",
+    ],
+    daten: [
+      { label: "Gespräch", wert: "{{params.termin_art}}" },
+      { label: "Datum", wert: "{{params.termin_datum}}" },
+      { label: "Uhrzeit", wert: "{{params.termin_uhrzeit}} Uhr (deutsche Zeit)" },
+      { label: "Unternehmen", wert: "{{params.firma}}" },
+      { label: "Paketwunsch", wert: "{{params.paket}}" },
+      { label: "Ihr Gesprächspartner", wert: "{{params.agent_vorname}}" },
+    ],
+    knopf: { text: "In den Kalender eintragen", url: "{{params.kalender_url}}" },
+    knopf2: { text: "Termin verschieben oder absagen", url: "{{params.storno_link}}" },
+    fussnote: "Passt es doch nicht? Über „Termin verschieben oder absagen“ sagen Sie jederzeit ab und wählen auf fiaon.com/business eine neue Zeit.",
   },
 
   termin_erinnerung: {

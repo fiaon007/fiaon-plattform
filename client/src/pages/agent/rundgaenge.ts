@@ -261,7 +261,11 @@ export const RUNDGANG_CALENDAR: RundgangSchritt[] = [
     titel: "Die Farbe sagt dir, welche Art es ist.",
     text: "Blau ist ein Vertriebsgespräch — der Mensch hat noch nicht bezahlt. Grün ist ein "
       + "Startgespräch nach der Zahlung. Braun ist ein Rückruf, den du selbst notiert hast. "
-      + "Bernstein geht um eine offene Rate. Wer das vorher weiß, geht anders ins Gespräch.",
+      + "Bernstein geht um eine offene Rate. Wer das vorher weiß, geht anders ins Gespräch. "
+      // 17.09.2026 (E-188) mitgezogen: die Marke „FIAON Global" und ihr Sprung ins Firmen-Cockpit.
+      + "Steht auf einer Karte „FIAON Global“, hat ein Unternehmen über fiaon.com/business ein "
+      + "Erstgespräch gebucht: 30 Minuten, du rufst an — und „Zur Akte“ führt dich ins "
+      + "Firmen-Cockpit, wo Firma, Paketwunsch und Verlauf liegen.",
     tipp: "Auf jeder Terminkarte steht außerdem, ob der Kunde selbst gebucht hat oder ob du den Termin eingetragen hast.",
   },
   {
@@ -702,7 +706,12 @@ export const RUNDGANG_FIRMEN: RundgangSchritt[] = [
     titel: "Die Liste sagt dir, wer dran ist.",
     text: "„Jetzt dran\u201c zeigt zuerst fällige Wiedervorlagen (Menschen, denen du einen Anruf "
       + "versprochen hast), dann Neues. Ein Klick öffnet rechts die Anruf-Karte. Nachschub holst "
-      + "du dir über „Liste einkleben\u201c — eine Excel-Kopie reicht, Doppelte sortiert das System aus.",
+      + "du dir über „Liste einkleben\u201c — eine Excel-Kopie reicht, Doppelte sortiert das System aus. "
+      // 17.09.2026 (E-188) mitgezogen: der Eingang von fiaon.com/business.
+      + "Ganz oben stehen außerdem Unternehmen, die sich SELBST gemeldet haben: Wer auf "
+      + "fiaon.com/business ein Erstgespräch zu FIAON Global bucht oder um einen Anruf bittet, "
+      + "erscheint hier mit dem Zusatz „FIAON Global\u201c — mit Paketwunsch auf der Karte und der "
+      + "Buchung im Verlauf. Das gebuchte Gespräch steht zusätzlich in deinem Kalender.",
     tipp: "Wiedervorlagen zuerst. Ein gehaltenes Versprechen verkauft besser als zehn Kaltanrufe.",
   },
   {

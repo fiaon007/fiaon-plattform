@@ -45,6 +45,8 @@ export const QUELLE_TEXT: Record<string, string> = {
   inkasso_call: "Zahlungsgespräch",
   agent_manuell: "Vom Agenten eingetragen",
   gruender: "Gespräch mit dem Gründer",
+  // 17.09.2026 (E-188): der Gesprächskalender auf /business.
+  global: "FIAON Global – Erstgespräch",
 };
 
 /**

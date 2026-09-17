@@ -82,6 +82,7 @@ export type MakeEventType =
   | "payment_reactivated"     // abgelaufene Bestellung reaktiviert (neue Frist)
   | "documents_change_request"// Dokumente-Änderung angefordert (changes_requested)
   | "zustimmung_link"        // E-184: Bitte an den Kunden, AGB/Bonitätsprüfung/Vertrag selbst zu bestätigen
+  | "global_termin"          // E-188: Bestätigung des Erstgesprächs zu FIAON Global (Kalender auf /business)
   | "schufa_approved"         // SCHUFA genehmigt
   | "schufa_rejected"         // SCHUFA abgelehnt
   | "schufa_requested"        // neues SCHUFA-Dokument angefordert

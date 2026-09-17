@@ -24,7 +24,8 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { sqlPool } from "./db-pool";
 import { absoluteUrl } from "../fiaon-base-url";
-import { berlinOffsetMinutes } from "./fiaon-time";
+import { berlinZeitpunkt, berlinDatum, berlinWochentag, zeitZuMinuten, minutenZuZeit } from "./fiaon-time";
+import { GLOBAL_DAUER_MIN } from "./fiaon-global-zeiten";
 
 type Lauf = typeof sqlPool;
 
@@ -73,6 +74,14 @@ export const QUELLEN = {
   // Startgespräch noch einmal Hilfe brauchen — vom Kunden selbst oder vom Betreuer buchbar,
   // eindeutig gekennzeichnet, ändert den Startgespräch-Stand nicht.
   support: { minuten: 20, text: "Support-Gespräch mit deinem persönlichen Ansprechpartner" },
+  // 17.09.2026 (E-188): Das Erstgespräch zu FIAON Global, gebucht über den
+  // Gesprächskalender auf /business (server/routes/fiaon-global-termin.ts). Wie
+  // `gruender` keine Rolle und keine Ableitung aus dem Kundenzustand: Wer hier
+  // bucht, ist ein Unternehmen und (noch) kein Kunde. 30 Minuten — die Dauer
+  // steht als GLOBAL_DAUER_MIN in fiaon-global-zeiten.ts, damit die reine
+  // Zeitfenster-Rechnung und die Raster-Wand unten dieselbe Zahl benutzen.
+  // Der Text ist gesiezt: Er steht nur in Mails an Unternehmen.
+  global: { minuten: GLOBAL_DAUER_MIN, text: "FIAON Global – Erstgespräch" },
 } as const;
 
 export type TerminQuelle = keyof typeof QUELLEN;
@@ -115,6 +124,8 @@ export const HERKUENFTE = {
   rueckholung: "Terminlink aus einer Rückhol-Mail (offener Antrag)",
   agent: "Von einem Mitarbeiter weitergegeben oder eingetragen",
   gruender_seite: "Buchungsseite des Gründers (/justin)",
+  // 17.09.2026 (E-188): der Gesprächskalender auf /business (FIAON Global).
+  global_seite: "Gesprächskalender FIAON Global (/business)",
   unbekannt: "Weg nicht mitgeführt",
 } as const;
 
@@ -381,52 +392,17 @@ export const VORGABE_TAGE = [1, 2, 3, 4, 5];
 // Zeitrechnung
 // ───────────────────────────────────────────────────────────────────────────
 
-/**
- * Ein Datum („2026-08-12") plus eine Wandzeit in Minuten ab Mitternacht,
- * beides in Europe/Berlin, ergibt einen echten Zeitpunkt.
- *
- * Zwei-Pass wie in `parseBerlinInput`: Der Offset hängt vom Zeitpunkt ab, den
- * wir gerade erst ausrechnen. An den Sommerzeit-Rändern ist der erste Versuch
- * eine Stunde daneben.
- */
-export function berlinZeitpunkt(datumISO: string, minutenAbMitternacht: number): Date {
-  const [y, m, d] = datumISO.split("-").map(Number);
-  const wall = Date.UTC(y, m - 1, d, 0, minutenAbMitternacht, 0);
-  const off1 = berlinOffsetMinutes(new Date(wall));
-  let utc = wall - off1 * 60000;
-  const off2 = berlinOffsetMinutes(new Date(utc));
-  if (off2 !== off1) utc = wall - off2 * 60000;
-  return new Date(utc);
-}
-
-/** Datum in Berlin als „YYYY-MM-DD". */
-export function berlinDatum(at: Date): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit",
-  }).format(at);
-}
-
-/** Wochentag nach ISO in Berlin: 1 = Montag … 7 = Sonntag. */
-export function berlinWochentag(datumISO: string): number {
-  const [y, m, d] = datumISO.split("-").map(Number);
-  const wt = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
-  return wt === 0 ? 7 : wt;
-}
-
-/** „HH:MM" → Minuten ab Mitternacht. Unlesbares ergibt null. */
-export function zeitZuMinuten(hhmm: unknown): number | null {
-  const m = String(hhmm ?? "").match(/^(\d{1,2}):(\d{2})/);
-  if (!m) return null;
-  const h = Number(m[1]);
-  const min = Number(m[2]);
-  if (h < 0 || h > 23 || min < 0 || min > 59) return null;
-  return h * 60 + min;
-}
-
-/** Minuten ab Mitternacht → „HH:MM". */
-export function minutenZuZeit(min: number): string {
-  return `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
-}
+// ── 17.09.2026 (E-188): DIE FÜNF REINEN RECHNER WOHNEN JETZT IN fiaon-time.ts ──
+// VORHER standen `berlinZeitpunkt`, `berlinDatum`, `berlinWochentag`,
+// `zeitZuMinuten` und `minutenZuZeit` hier. NACHHER stehen sie — unverändert —
+// in server/lib/fiaon-time.ts und werden von hier weitergereicht.
+// GRUND: Diese Datei lädt den Datenbank-Pool. Der Gesprächskalender für FIAON
+// Global rechnet seine Zeitfenster in einer reinen Datei
+// (fiaon-global-zeiten.ts), die ein Prüfskript ohne DB und ohne Netz laden
+// können muss — und eine zweite Fassung von `berlinZeitpunkt` wäre genau der
+// Nachbau, vor dem der Kopf dieser Datei warnt. Für jeden bisherigen Aufrufer
+// ändert sich nichts: Die Namen kommen weiter aus dieser Datei.
+export { berlinZeitpunkt, berlinDatum, berlinWochentag, zeitZuMinuten, minutenZuZeit };
 
 /** Uhrzeit eines Zeitpunkts in Berlin, „HH:MM". */
 export function berlinUhrzeit(at: Date | string): string {
@@ -1027,6 +1003,8 @@ export const VERSUCH_GRUND_TEXT: Record<string, string> = {
   zeit_unlesbar: "Zeitangabe unlesbar",
   link_ungueltig: "Link ungültig oder abgelaufen",
   keine_auswahl: "Kein Slot ausgewählt",
+  // E-188: nur beim Erstgespräch zu FIAON Global (höchstens vier je Tag).
+  tag_voll: "Tagesdeckel erreicht (FIAON Global)",
   serverfehler: "Serverfehler",
   unbekannt: "ohne Grund-Code",
 };
@@ -1189,8 +1167,13 @@ export async function terminBuchen(
   // Die Regel bleibt fuer oeffentliche Wege richtig (ein URL-Parameter darf
   // nicht entscheiden, wer anruft). Ein ANGEMELDETER Mitarbeiter ist kein
   // URL-Parameter: Buchungen mit herkunft 'agent' behalten die gewaehlte Art.
+  // 17.09.2026 (E-188): `global` wie `gruender` — die Art setzt der Server in
+  // der eigenen Route fest, nie ein Parameter von außen. Ein Unternehmen, das
+  // ein Erstgespräch zu FIAON Global bucht, hat keinen Kundenzustand, aus dem
+  // sich etwas ableiten ließe; die Ableitung würde daraus ein Vertriebsgespräch
+  // für Privatkunden machen.
   const eigenerRueckruf = gewuenscht === "agent_manuell" || gewuenscht === "onboarding"
-    || gewuenscht === "gruender" || eingabe.herkunft === "agent";
+    || gewuenscht === "gruender" || gewuenscht === "global" || eingabe.herkunft === "agent";
   const abgeleitet = eigenerRueckruf
     ? null
     : await entscheidFuerPerson(eingabe.personId, gewuenscht, lauf);
@@ -1516,6 +1499,18 @@ export async function terminAbsagen(
     ))
     .catch((e) => console.error("[TERMINE] Absagemeldung:", e));
 
+  // ── 17.09.2026 (E-188): EIN ABGESAGTES GLOBAL-GESPRÄCH GEHT ZURÜCK INS COCKPIT ──
+  // Das Erstgespräch zu FIAON Global hängt an einem Firmen-Lead
+  // (fiaon_firmen_leads), nicht an einer Kundenakte. Sagt das Unternehmen ab,
+  // steht der Lead sonst weiter auf „Termin steht" — und niemand fasst nach.
+  if (String(termin.quelle) === "global") {
+    void import("./fiaon-global-termin")
+      .then((m) => m.globalTerminAbgesagt({
+        terminId: Number(termin.id), personId: Number(termin.person_id), beginn: termin.beginn, wer,
+      }))
+      .catch((e) => console.error("[TERMINE] Global-Absage nicht im Firmen-Topf vermerkt:", e));
+  }
+
   // ── SAGT DER MITARBEITER AB, ERFAEHRT ES DER KUNDE (27.08.2026, Team-P.9) ──
   // Vorher bekam nur der ZUSTAENDIGE eine Meldung. Der Kunde sass zur
   // vereinbarten Zeit am Telefon und wartete auf einen Anruf, der nie kam.
@@ -1552,7 +1547,12 @@ export async function terminAbsagen(
             termin_datum: berlinDatumText(beginnDatum),
             termin_uhrzeit: berlinUhrzeit(beginnDatum),
             termin_art: (await import("@shared/fiaon-termin-art")).terminArtAusQuelle(String(termin.quelle)).text,
-            neu_buchen_link: absoluteUrl(`/termin/${terminTokenErzeugen(Number(termin.person_id))}`),
+            // 17.09.2026 (E-188): Ein Global-Erstgespräch wird auf /business neu
+            // gewählt — der Terminlink der Privatkunden würde ein
+            // Vertriebsgespräch in Du-Form anbieten.
+            neu_buchen_link: String(termin.quelle) === "global"
+              ? absoluteUrl("/business#gespraech")
+              : absoluteUrl(`/termin/${terminTokenErzeugen(Number(termin.person_id))}`),
           },
           {
             personId: Number(termin.person_id),

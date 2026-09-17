@@ -39,7 +39,14 @@
 // Zuständigkeiten ist. Ohne eigene Marke wäre ein Zahlungsgespräch im
 // Kalender als „Vertrieb" erschienen — und der Mitarbeiter hätte sich auf ein
 // Verkaufsgespräch eingestellt.
-export type TerminArt = "onboarding" | "vertrieb" | "rueckruf" | "forderung" | "gruender";
+//
+// ── DIE SECHSTE (17.09.2026, E-188) ──────────────────────────────────────
+// Das Erstgespräch zu FIAON Global, gebucht über den Kalender auf /business.
+// Eigene Marke, weil der Rückfall „unbekannte Quelle → Vertrieb" hier genau
+// das Falsche sagte: Der Mitarbeiter stellte sich auf einen Privatkunden ein,
+// der noch nicht bezahlt hat — am Telefon ist ein Unternehmen, das über ein
+// Paket ab 2.499 € sprechen will. Die Arbeit dazu liegt im Firmen-Cockpit.
+export type TerminArt = "onboarding" | "vertrieb" | "rueckruf" | "forderung" | "gruender" | "global";
 
 export interface TerminArtMarke {
   art: TerminArt;
@@ -86,6 +93,14 @@ const MARKEN: Record<TerminArt, Omit<TerminArtMarke, "grund">> = {
     erklaerung: "Gespräch mit Justin Schwarzott, selbst gebucht über /justin — Partner, Investoren, Presse oder Kunden, die den Gründer sprechen wollen.",
     ton: "#0B1220",
   },
+  global: {
+    art: "global",
+    text: "FIAON Global",
+    erklaerung: "Erstgespräch mit einem Unternehmen zu FIAON Global (US-Struktur), gebucht über fiaon.com/business — 30 Minuten, du rufst an. Firma, Paketwunsch und Verlauf stehen im Firmen-Cockpit.",
+    // Petrol: weder das Vertriebs-Blau noch das Onboarding-Grün — ein
+    // Unternehmen ist keines von beiden.
+    ton: "#0f766e",
+  },
 };
 
 /**
@@ -122,6 +137,8 @@ export function terminArtAusQuelle(quelle: unknown): TerminArtMarke {
       return { ...MARKEN.vertrieb, grund: `Quelle „${q}“` };
     case "gruender":
       return { ...MARKEN.gruender, grund: `Quelle „${q}“` };
+    case "global":
+      return { ...MARKEN.global, grund: `Quelle „${q}“` };
     default:
       return {
         ...MARKEN.vertrieb,

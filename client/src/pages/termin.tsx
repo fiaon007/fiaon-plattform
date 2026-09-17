@@ -435,10 +435,16 @@ export default function TerminPage() {
 
 // ═══════════════════════════════════════════════════════════════════════════
 // /termin/absagen/:stornoToken — der Link aus der Bestätigungsmail
+//
+// 17.09.2026 (E-188): Die Seite duzt — sie wurde für Privatkunden gebaut. Die
+// Bestätigung des Erstgesprächs zu FIAON Global hängt deshalb ?anrede=sie an
+// den Storno-Link: Ein Unternehmen liest hier die Sie-Fassung. Wohin „neu
+// wählen" führt, sagt weiter der Server (bei FIAON Global: /business#gespraech).
 // ═══════════════════════════════════════════════════════════════════════════
 export function TerminAbsagenPage() {
   const [, params] = useRoute("/termin/absagen/:stornoToken");
   const token = params?.stornoToken || "";
+  const sie = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("anrede") === "sie";
   const [stand, setStand] = useState<"frage" | "laeuft" | "weg" | "fehler">("frage");
   const [neuBuchen, setNeuBuchen] = useState<string | null>(null);
   const [fehler, setFehler] = useState("");
@@ -460,7 +466,8 @@ export function TerminAbsagenPage() {
           <>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight mb-3">Termin abgesagt</h1>
             <p className="text-[15px] text-slate-600 leading-relaxed">
-              Die Zeit ist wieder frei. Wenn du möchtest, wähl gleich eine neue.
+              {sie ? "Die Zeit ist wieder frei. Wenn Sie möchten, wählen Sie gleich eine neue."
+                   : "Die Zeit ist wieder frei. Wenn du möchtest, wähl gleich eine neue."}
             </p>
             {neuBuchen && (
               <a href={neuBuchen}
@@ -479,7 +486,8 @@ export function TerminAbsagenPage() {
           <>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight mb-3">Termin absagen?</h1>
             <p className="text-[15px] text-slate-600 leading-relaxed mb-6">
-              Dein Ansprechpartner ruft dich dann nicht an. Du kannst danach jederzeit eine neue Zeit wählen.
+              {sie ? "Das Gespräch findet dann nicht statt. Sie können danach jederzeit eine neue Zeit wählen."
+                   : "Dein Ansprechpartner ruft dich dann nicht an. Du kannst danach jederzeit eine neue Zeit wählen."}
             </p>
             <button type="button" onClick={() => void absagen()} disabled={stand === "laeuft"}
                     className="px-5 py-3 rounded-xl text-[14px] font-bold border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-60"

@@ -23,6 +23,13 @@ import "@/styles/office-rundgang.css";
 const euro = (c: number) => (c / 100).toLocaleString("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
 const uhr = (iso: string) => new Date(iso).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" });
 const heuteIso = () => new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+// 17.09.2026 (E-188): Ein Erstgespräch zu FIAON Global hängt an einem
+// Firmenkontakt ohne Antrag — seine „Akte" ist das Firmen-Cockpit. Die
+// Vertriebsakte zeigt nur eigene Kunden und bliebe für ihn leer.
+const terminZiel = (t: any) => {
+  const pid = t.personId ?? t.person_id;
+  return t.quelle === "global" ? `/agent/firmen?person=${pid}` : `/agent/kunden?person=${pid}`;
+};
 const anrufen = (nummer: string | null | undefined, personId: number | null, name: string) => { if (!nummer) return; window.dispatchEvent(new CustomEvent("fiaon-anrufen", { detail: { nummer, personId, name } })); };
 
 export default function AgentSchreibtischPage() { return <AgentShell><SchreibtischInnen /></AgentShell>; }
@@ -160,7 +167,7 @@ function SchreibtischInnen() {
               <div className="st-wer"><b>{t.name}</b><small>{t.art || terminArtAusQuelle(t.quelle).text}{t.status === "verpasst" ? " · verpasst" : ""}</small></div>
               <div className="st-aktion">
                 <button type="button" className="st-knopf" onClick={() => anrufen(t.telefon ?? t.primary_phone, t.personId ?? t.person_id, t.name)} disabled={!(t.telefon ?? t.primary_phone)}><Phone size={15} /> Anrufen</button>
-                <Link href={`/agent/kunden?person=${t.personId ?? t.person_id}`} className="st-knopf still">Akte</Link>
+                <Link href={terminZiel(t)} className="st-knopf still">Akte</Link>
               </div>
             </div>
           ))}
@@ -223,7 +230,7 @@ function SchreibtischInnen() {
             <div key={`s${t.id}`} className="st-zeile klein">
               <div className="st-zeit"><b>{new Date(t.beginn).toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", timeZone: "Europe/Berlin" })}</b><small>{uhr(t.beginn)}</small></div>
               <div className="st-wer"><b>{t.name}</b><small>{t.art || terminArtAusQuelle(t.quelle).text}</small></div>
-              <Link href={`/agent/kunden?person=${t.personId ?? t.person_id}`} className="st-knopf still">Akte</Link>
+              <Link href={terminZiel(t)} className="st-knopf still">Akte</Link>
             </div>
           ))}
           </div>

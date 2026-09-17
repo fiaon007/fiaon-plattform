@@ -38,6 +38,11 @@ const registerText = (art: unknown, nr: unknown, g: unknown): string | undefined
   return kern ? [kern, gericht(g)?.replace(/^Amtsgericht /, "AG ")].filter(Boolean).join(", ") : undefined;
 };
 
+function ortOderNichts(roh: unknown): string | undefined {
+  const o = sauber(roh, 80);
+  return o && !o.includes(":") && o.length <= 50 ? o : undefined;
+}
+
 export function openregisterTreffer(j: any): Treffer[] {
   const liste = Array.isArray(j?.results) ? j.results : [];
   const treffer: Treffer[] = [];
@@ -46,7 +51,9 @@ export function openregisterTreffer(j: any): Treffer[] {
     treffer.push(ohneLeere({
       id: String(z.company_id).slice(0, 80), name: String(z.name).slice(0, 200),
       rechtsform: rechtsformDE(z.legal_form),
-      ort: sauber(z.address?.city, 80), plz: sauber(z.address?.postal_code, 10),
+      // Live-Test 17.09.2026: openregister liefert bei einzelnen Einträgen Registertext im
+      // Ortsfeld („Errichtet: HARIBO Service-GmbH"). Ein Ort hat keinen Doppelpunkt.
+      ort: ortOderNichts(z.address?.city), plz: sauber(z.address?.postal_code, 10),
       register: registerText(z.register_type, z.register_number, z.register_court),
       status: z.active === false ? "gelöscht" : z.active === true ? "aktiv" : undefined,
     }));

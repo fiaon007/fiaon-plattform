@@ -41,7 +41,7 @@ type Land = "DE" | "AT" | "CH";
 type Firma = { land: Land; name: string; rechtsform: string; registergericht: string; registernummer: string; strasse: string; plz: string; ort: string; ustId: string; website: string; quelleRegister?: string };
 type Person = { anrede: string; vorname: string; nachname: string; funktion: string; email: string; telefon: string };
 type Treffer = { id: string; name: string; rechtsform?: string; ort?: string; plz?: string; register?: string; quelle?: string };
-type Vertreter = { vorname?: string; nachname?: string; funktion?: string };
+type Vertreter = { vorname?: string; nachname?: string; name?: string; funktion?: string };
 type Fertig = { ref: string; token: string; email: string };
 type Status = { betragCents: number; paketName: string; zahlung?: { empfaenger: string; ibanAnzeige: string; bic: string; bank?: string; verwendungszweck: string; faelligAm?: string; qrDatenUrl?: string }; vertragUrl?: string; rechnungUrl?: string };
 
@@ -82,6 +82,7 @@ export default function BusinessStart() {
   const [q, setQ] = useState(firma.name);
   const [treffer, setTreffer] = useState<Treffer[] | null>(null);
   const [quelleText, setQuelleText] = useState("");
+  const [quelle, setQuelle] = useState("");
   const [sucht, setSucht] = useState(false);
   const [offen, setOffen] = useState(false);
   const [aktiv, setAktiv] = useState(-1);
@@ -94,6 +95,11 @@ export default function BusinessStart() {
   const [webLaedt, setWebLaedt] = useState(false);
   const [webFehler, setWebFehler] = useState("");
   const stumm = useRef(false); // nach einer Auswahl nicht sofort wieder suchen
+  // Welche Länder eine Namenssuche haben, sagt der Server (hängt an Schlüsseln und Anträgen,
+  // die kommen und gehen). Ohne Namenssuche steht der Website-Weg sofort da, nicht erst nach dem Tippen.
+  const [lage, setLage] = useState<Record<string, { namenssuche?: boolean }> | null>(null);
+  useEffect(() => { fetch("/api/fiaon/firmensuche/lage").then((r) => r.json()).then((j) => { if (j.ok) setLage(j.laender || null); }).catch(() => {}); }, []);
+  const ohneRegister = lage ? lage[firma.land]?.namenssuche === false : false;
 
   useEffect(() => {
     if (stumm.current) { stumm.current = false; return; }
@@ -106,7 +112,7 @@ export default function BusinessStart() {
         const r = await fetch(`/api/fiaon/firmensuche?land=${firma.land}&q=${encodeURIComponent(wort)}`, { signal: ab.signal });
         const j = await r.json();
         setTreffer(Array.isArray(j.treffer) ? j.treffer : []);
-        setQuelleText(j.quelleText || "");
+        setQuelleText(j.quelleText || ""); setQuelle(j.quelle || "");
         setNurWebsite(j.hinweis === "website");
         setAktiv(-1);
       } catch (e: any) {
@@ -120,7 +126,11 @@ export default function BusinessStart() {
     const felder = (["name", "rechtsform", "registergericht", "registernummer", "strasse", "plz", "ort", "ustId", "website"] as const).filter((k) => f[k]);
     setFirma((alt) => ({ ...alt, ...Object.fromEntries(felder.map((k) => [k, String(f[k])])), quelleRegister: f.quelleRegister || alt.quelleRegister }));
     setGefuellt(felder as unknown as string[]);
-    setVertreter(Array.isArray(f.vertreter) ? f.vertreter.filter((v) => v.nachname).slice(0, 4) : []);
+    setVertreter(Array.isArray(f.vertreter) ? f.vertreter.map((v) => {
+      if (v.nachname || !v.name) return v;
+      const w = v.name.trim().split(/\s+/); // voller Name ohne Trennung: letztes Wort = Nachname
+      return { ...v, nachname: w.pop() || "", vorname: w.join(" ") };
+    }).filter((v) => v.nachname).slice(0, 4) : []);
     setGefundenText(f.quelleText || "");
     setFelderOffen(true);
     if (f.name) { stumm.current = true; setQ(String(f.name)); }
@@ -132,7 +142,7 @@ export default function BusinessStart() {
     stumm.current = true; setQ(x.name);
     uebernimm({ name: x.name, rechtsform: x.rechtsform, ort: x.ort, plz: x.plz, quelleText });
     try {
-      const r = await fetch(`/api/fiaon/firmensuche/detail?land=${firma.land}&quelle=${encodeURIComponent(x.quelle || "")}&id=${encodeURIComponent(x.id)}`);
+      const r = await fetch(`/api/fiaon/firmensuche/detail?land=${firma.land}&quelle=${encodeURIComponent(x.quelle || quelle)}&id=${encodeURIComponent(x.id)}`);
       const j = await r.json();
       if (j.ok && j.firma) uebernimm({ ...j.firma, quelleText: j.firma.quelleText || quelleText });
     } catch { /* die Trefferzeile steht schon in den Feldern — der Rest von Hand */ }
@@ -355,7 +365,7 @@ export default function BusinessStart() {
                         </div>
                       </div>
 
-                      {(nurWebsite || treffer?.length === 0) && (
+                      {(ohneRegister || nurWebsite || treffer?.length === 0) && (
                         <div className="gs-web">
                           <h3>{t.websiteTitel}</h3>
                           <p>{t.websiteText}</p>

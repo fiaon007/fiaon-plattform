@@ -52,6 +52,7 @@ const RECHTSFORMEN: Record<Land, string[]> = {
   AT: ["GmbH", "FlexKapG", "AG", "KG", "OG", "e. U.", "Einzelunternehmen", "GesbR"],
   CH: ["AG", "GmbH", "Einzelunternehmen", "Kollektivgesellschaft", "Kommanditgesellschaft", "Genossenschaft"],
 };
+const rang = (f?: string) => /gesch(ä|ae)ftsf|vorstand|inhaber|direktor|managing|owner|director/i.test(f || "") ? 0 : /prokur/i.test(f || "") ? 2 : 1;
 const ENTWURF = "fiaon_global_auftrag";
 const ABSCHLUSS = "fiaon_global_auftrag_fertig";
 const lesen = <T,>(k: string): T | null => { try { const v = sessionStorage.getItem(k); return v ? JSON.parse(v) as T : null; } catch { return null; } };
@@ -130,7 +131,9 @@ export default function BusinessStart() {
       if (v.nachname || !v.name) return v;
       const w = v.name.trim().split(/\s+/); // voller Name ohne Trennung: letztes Wort = Nachname
       return { ...v, nachname: w.pop() || "", vorname: w.join(" ") };
-    }).filter((v) => v.nachname).slice(0, 4) : []);
+    }).filter((v) => v.nachname)
+      // Wer allein zeichnen darf, steht vorn: Geschäftsführung, Vorstand, Inhaber — dann Prokura.
+      .sort((a, b) => rang(a.funktion) - rang(b.funktion)).slice(0, 4) : []);
     setGefundenText(f.quelleText || "");
     setFelderOffen(true);
     if (f.name) { stumm.current = true; setQ(String(f.name)); }

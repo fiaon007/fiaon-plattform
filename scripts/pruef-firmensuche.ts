@@ -160,7 +160,7 @@ const fb = firmenbuchFirma(fbAuszug, "FN 58468h")!;
 ok("Firmenbuch-Auszug: aufrechter Name, Anschrift, Rechtsform, Gericht", fb.name === "EDV-Technik Dipl.-Ing. Went Gesellschaft m.b.H." && fb.strasse === "Kärntner Straße 337" && fb.plz === "8054" && fb.ort === "Graz"
   && fb.rechtsform === "Gesellschaft mit beschränkter Haftung" && fb.registergericht === "Landesgericht für ZRS Graz" && fb.registernummer === "FN 58468h", JSON.stringify(fb));
 gleich("Firmenbuch-Auszug: nur der AUFRECHTE Geschäftsführer, kein Gesellschafter", fb.vertreter,
-  [{ vorname: "Karl", nachname: "Went", name: "Dipl.-Ing. Karl Went", funktion: "Geschäftsführer/in (handelsrechtlich)" }]);
+  [{ vorname: "Karl", nachname: "Went", name: "Dipl.-Ing. Karl Went", funktion: "Geschäftsführer (handelsrechtlich)" }]); // 17.09.2026: Funktionen stehen in der Grundform (funktionSauber)
 ok("Firmenbuch-Auszug: das Geburtsdatum wird NICHT weitergereicht", !JSON.stringify(fb).includes("1950"));
 ok("Firmenbuch: Quellenangabe des BMJ steht im Bogen", /Republik Österreich, vertreten durch das BMJ/.test(fb.quelleText));
 

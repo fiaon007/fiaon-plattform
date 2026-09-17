@@ -190,12 +190,22 @@ export function ohneLeere<T extends object>(o: T): T {
  * zwei Wörter. „Anna Maria von der Heide" bleibt ganz im Feld name — die
  * Oberfläche zeigt ihn an, der Kunde teilt ihn selbst.
  */
+/**
+ * Register und Anbieter schreiben Funktionen teils mit Gender-Zeichen („Geschäftsführer:in",
+ * „Inhaber/in", „Vorstand*in"). Die Funktion landet im Vertrag neben einem Namen — dort steht
+ * sie in der Grundform; der Unterzeichner kann sie im Auftrag ändern (17.09.2026, Live-Test).
+ */
+export function funktionSauber(roh: unknown): string | undefined {
+  const f = sauber(roh, 120);
+  return f ? f.replace(/\s*[:*\/_]\s*in(nen)?\b/gi, "").replace(/\(in\)/gi, "").trim() || undefined : undefined;
+}
+
 export function vertreterAus(name: string | undefined, funktion?: string, vorname?: string, nachname?: string): Vertreter | null {
   const v = sauber(vorname, 80), n = sauber(nachname, 80);
   const ganz = sauber(name, 160) ?? sauber([v, n].filter(Boolean).join(" "), 160);
   if (!ganz) return null;
-  if (v || n) return ohneLeere({ vorname: v, nachname: n, name: ganz, funktion: sauber(funktion, 120) });
+  if (v || n) return ohneLeere({ vorname: v, nachname: n, name: ganz, funktion: funktionSauber(funktion) });
   const teile = ganz.split(" ");
-  if (teile.length === 2 && !/[.,]/.test(ganz)) return ohneLeere({ vorname: teile[0], nachname: teile[1], name: ganz, funktion: sauber(funktion, 120) });
-  return ohneLeere({ name: ganz, funktion: sauber(funktion, 120) });
+  if (teile.length === 2 && !/[.,]/.test(ganz)) return ohneLeere({ vorname: teile[0], nachname: teile[1], name: ganz, funktion: funktionSauber(funktion) });
+  return ohneLeere({ name: ganz, funktion: funktionSauber(funktion) });
 }

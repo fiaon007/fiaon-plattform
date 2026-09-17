@@ -64,7 +64,7 @@ export default function BusinessStart() {
   const s = sprache === "en" ? "en" : "de";
   const zu = (p: string) => inSprache(p, sprache);
 
-  const entwurf = useMemo(() => lesen<{ paket: string; firma: Firma; person: Person; schritt: number }>(ENTWURF), []);
+  const entwurf = useMemo(() => lesen<{ paket: string; firma: Firma; person: Person; schritt: number; vertreter?: Vertreter[] }>(ENTWURF), []);
   const [schritt, setSchritt] = useState(entwurf?.schritt ?? 0);
   const [paket, setPaket] = useState<string>(() => {
     const ausAdresse = new URLSearchParams(window.location.search).get("paket");
@@ -75,7 +75,7 @@ export default function BusinessStart() {
   const [fehler, setFehler] = useState("");
   const [fertig, setFertig] = useState<Fertig | null>(() => lesen<Fertig>(ABSCHLUSS));
 
-  useEffect(() => { if (!fertig) schreiben(ENTWURF, { paket, firma, person, schritt: Math.min(schritt, 2) }); }, [paket, firma, person, schritt, fertig]);
+  
   const blatt = useRef<HTMLDivElement>(null);
   const gehe = (n: number) => { setFehler(""); setSchritt(n); requestAnimationFrame(() => blatt.current?.scrollIntoView({ block: "start", behavior: "auto" })); };
 
@@ -90,7 +90,8 @@ export default function BusinessStart() {
   const [nurWebsite, setNurWebsite] = useState(false);
   const [felderOffen, setFelderOffen] = useState(!!entwurf?.firma?.strasse);
   const [gefuellt, setGefuellt] = useState<string[]>([]);
-  const [vertreter, setVertreter] = useState<Vertreter[]>([]);
+  const [vertreter, setVertreter] = useState<Vertreter[]>(entwurf?.vertreter ?? []);
+  useEffect(() => { if (!fertig) schreiben(ENTWURF, { paket, firma, person, vertreter, schritt: Math.min(schritt, 2) }); }, [paket, firma, person, vertreter, schritt, fertig]);
   const [gefundenText, setGefundenText] = useState("");
   const [webUrl, setWebUrl] = useState(firma.website);
   const [webLaedt, setWebLaedt] = useState(false);

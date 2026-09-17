@@ -14,10 +14,8 @@
 // ändert sich der Weg, ändert er sich an einer Stelle.
 //
 // ── ENGLISCH ───────────────────────────────────────────────────────────────
-// /en/business ist die englische Seite. Einen englischen Auftragsweg gibt es
-// (noch) nicht als eigene Adresse; englische Leser landen deshalb bei den
-// Paketen der englischen Seite und gehen von dort weiter. Kommt
-// /en/business/start, ist es HIER eine Zeile.
+// /en/business ist die englische Seite, /en/business/start der englische
+// Auftrag — dieselbe Strecke, die Sprache kommt aus der Adresse.
 // ═══════════════════════════════════════════════════════════════════════════
 import { globalPaket } from "./fiaon-global";
 

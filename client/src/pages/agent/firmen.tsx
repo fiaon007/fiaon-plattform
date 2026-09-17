@@ -138,7 +138,7 @@ function FirmenInnen() {
       if (r.ok && r.json?.firma) {
         const f = r.json.firma;
         setAktiv(f); setVerlauf(r.json.verlauf || []);
-        setAb({ email: f.email || "", telefon: f.telefon || "", ort: f.ort || "", paket: "business_starter" });
+        setAb({ email: f.email || "", telefon: f.telefon || "", ort: f.ort || "", paket: ERSTES_PAKET });
       } else sag(r.json?.error || "Diese Firma wurde nicht gefunden — bitte such sie über das Suchfeld.");
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps

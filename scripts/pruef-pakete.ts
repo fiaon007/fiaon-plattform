@@ -320,7 +320,7 @@ ok("globalWissen() ist Teil von wissenFakten()", wissen.includes(globalWissen())
 
 gleich("Weg: Direktauftrag mit Paket", globalStartPfad("global_vip"), "/business/start?paket=global_vip");
 gleich("Weg: unbekanntes Paket führt in den Auftrag ohne Vorauswahl", globalStartPfad("business_pro"), "/business/start");
-gleich("Weg: Englisch führt zu den Paketen der englischen Seite", globalStartPfad("global_vip", "en"), "/en/business#pakete");
+gleich("Weg: Englisch führt in den englischen Auftrag", globalStartPfad("global_vip", "en"), "/en/business/start?paket=global_vip");
 gleich("Weg: Seite, Pakete, Gespräch", [globalSeitePfad(), globalPaketePfad(), globalGespraechPfad(), globalSeitePfad("en")], ["/business", "/business#pakete", "/business#gespraech", "/en/business"]);
 gleich("Weg: volle Adresse für Mail und Zwischenablage", globalStartUrl("global_banking"), "https://fiaon.com/business/start?paket=global_banking");
 

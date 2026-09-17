@@ -375,8 +375,9 @@ export async function globalBereichOfficeSicht(ref: string): Promise<Record<stri
   return {
     ...s,
     dokumente: (s.dokumente as any[]).map((d) => ({ ...d, url: `/api/fiaon/agent/global/auftraege/${r}/dokument/${d.id}` })),
-    vertragUrl: `/api/fiaon/agent/global/auftraege/${r}/vertrag.pdf`,
-    rechnungUrl: `/api/fiaon/agent/global/auftraege/${r}/rechnung.pdf`,
+    // Nur, was es gibt: Ohne unterschriebenen Vertrag bzw. ohne Bestellnummer zeigt die Office-Seite „nicht hinterlegt“.
+    vertragUrl: l.akte.hat_vertrag ? `/api/fiaon/agent/global/auftraege/${r}/vertrag.pdf` : null,
+    rechnungUrl: l.b.payment_reference ? `/api/fiaon/agent/global/auftraege/${r}/rechnung.pdf` : null,
     kontakt: {
       anrede: String(ap.anrede || ""), vorname: String(ap.vorname || ""), nachname: String(ap.nachname || ""),
       funktion: String(ap.funktion || ""), email: String(l.akte.email || ap.email || ""), telefon: String(ap.telefon || ""),

@@ -453,6 +453,31 @@ const titel = (t: string) => console.log(`\n── ${t}`);
   server.close();
 }
 
+// ═══ TEIL 3: ZAHLUNGSEINGANG = START = ETAPPE 1 ═════════════════════════════
+// Der kleine Eingriff in den Bestellweg (globalNachZahlung ruft globalStartVermerken): Etappe 1, die
+// Zeile im Verlauf des Kunden, die Start-Aufgabe mit dem Link ins Office — und nichts davon doppelt.
+{
+  titel("Zahlungseingang → Start → Etappe 1");
+  const REF = "FIAON-NZ-0001";
+  await sqlPool`INSERT INTO fiaon_applications (ref, type, status, pack_key, pack_name, payment_reference, payment_status, amount_due, company_name, contact_email, email, paid_at)
+    VALUES (${REF}, 'business', 'submitted', 'global_struktur', 'FIAON Global Struktur', 'PAY-NZ', 'paid', 2499.00, 'Start GmbH', 's@start.example', 's@start.example', NOW())`;
+  await sqlPool`INSERT INTO fiaon_global_auftraege (ref, paket_key, land, firma, ansprechpartner, bestaetigungen, vertrag_version, vertrag_sprache, unterschrieben_am, status, zustaendig_agent_id, firma_name, email)
+    VALUES (${REF}, 'global_struktur', 'DE', ${sqlPool.json({ name: "Start GmbH", ort: "Köln", land: "DE" })}, ${sqlPool.json({ anrede: "Herr", vorname: "Sam", nachname: "Start", email: "s@start.example" })},
+            '{}'::jsonb, 'v1', 'de', NOW(), 'offen', 8, 'Start GmbH', 's@start.example')`;
+  const erg: any = await A.globalNachZahlung(REF);
+  await new Promise((r) => setTimeout(r, 500));
+  const [g] = (await sqlPool`SELECT status, etappe, etappen_seit FROM fiaon_global_auftraege WHERE ref = ${REF}`) as any[];
+  ok(erg?.gestartet === true && g.status === "gestartet" && Number(g.etappe) === 1 && typeof g.etappen_seit === "object" && !Array.isArray(g.etappen_seit) && !!g.etappen_seit["1"], "gestartet, Etappe 1, etappen_seit ist ein Objekt", { erg, g });
+  const [aufgabe] = (await sqlPool`SELECT link, zustaendig_agent_id FROM fiaon_betreiber_todos WHERE schluessel = ${`global:${REF}:start`}`) as any[];
+  ok(aufgabe?.link === `/agent/global/${REF}` && Number(aufgabe.zustaendig_agent_id) === 8, "Aufgabe „US-Struktur starten“ führt ins Office zum Auftrag", aufgabe);
+  let s: any = await L.globalBereichKundenSicht(REF, "T");
+  ok(s.etappe === 1 && s.verlauf.length === 3 && /Etappe 1 hat begonnen: Gründung und Dokumente/.test(s.verlauf[0].text), "Verlauf des Kunden: Auftrag, Zahlung, Start", s.verlauf);
+  await A.globalNachZahlung(REF);
+  await new Promise((r) => setTimeout(r, 300));
+  s = await L.globalBereichKundenSicht(REF, "T");
+  ok(s.verlauf.length === 3 && s.etappe === 1, "zweiter Aufruf (wiederholbar): nichts doppelt", s.verlauf);
+}
+
 console.log(`\n── Ergebnis: ${n} Prüfungen, ${fehler} Fehler.`);
 await sqlPool.end({ timeout: 2 });
 process.exit(fehler ? 1 : 0);

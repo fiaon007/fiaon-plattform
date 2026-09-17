@@ -42,8 +42,8 @@ type Firma = { land: Land; name: string; rechtsform: string; registergericht: st
 type Person = { anrede: string; vorname: string; nachname: string; funktion: string; email: string; telefon: string };
 type Treffer = { id: string; name: string; rechtsform?: string; ort?: string; plz?: string; register?: string; quelle?: string };
 type Vertreter = { vorname?: string; nachname?: string; name?: string; funktion?: string };
-type Fertig = { ref: string; token: string; email: string };
-type Status = { betragCents: number; paketName: string; zahlung?: { empfaenger: string; ibanAnzeige: string; bic: string; bank?: string; verwendungszweck: string; faelligAm?: string; qrDatenUrl?: string }; vertragUrl?: string; rechnungUrl?: string };
+type Fertig = { ref: string; token: string; email: string; zahlungsseite?: string };
+type Status = { betragCents: number; paketName: string; zahlungsseite?: string; status?: string; zahlung?: { empfaenger: string; ibanAnzeige: string; bic: string; bank?: string; verwendungszweck: string; faelligAm?: string; qrDatenUrl?: string }; vertragUrl?: string; rechnungUrl?: string };
 
 const FIRMA_LEER: Firma = { land: "DE", name: "", rechtsform: "", registergericht: "", registernummer: "", strasse: "", plz: "", ort: "", ustId: "", website: "" };
 const PERSON_LEER: Person = { anrede: "", vorname: "", nachname: "", funktion: "", email: "", telefon: "" };
@@ -211,7 +211,7 @@ export default function BusinessStart() {
         if (typeof j.feld === "string") { if (j.feld.startsWith("firma")) gehe(1); else if (j.feld.startsWith("ansprechpartner")) gehe(2); setFehler(j.error || t.fehler); }
         return;
       }
-      const f: Fertig = { ref: j.ref, token: j.token, email: j.email || person.email };
+      const f: Fertig = { ref: j.ref, token: j.token, email: j.email || person.email, zahlungsseite: j.zahlungsseite };
       schreiben(ABSCHLUSS, f); schreiben(ENTWURF, null);
       setFertig(f);
       requestAnimationFrame(() => blatt.current?.scrollIntoView({ block: "start" }));
@@ -287,7 +287,7 @@ export default function BusinessStart() {
                   <div className="gs-dateien">
                     {status?.vertragUrl && <a href={status.vertragUrl} target="_blank" rel="noopener">{t.vertragPdf}</a>}
                     {status?.rechnungUrl && <a href={status.rechnungUrl} target="_blank" rel="noopener">{t.rechnungPdf}</a>}
-                    <a href={`/zahlung/${encodeURIComponent(fertig.ref)}`}>{t.zahlungsseite}</a>
+                    {(status?.zahlungsseite || fertig.zahlungsseite) && <a href={status?.zahlungsseite || fertig.zahlungsseite}>{t.zahlungsseite}</a>}
                   </div>
                   <div className="gs-fuss"><a className="gs-zurueck" href={zu("/business")} onClick={() => schreiben(ABSCHLUSS, null)}>{t.zurSeite}</a><span /></div>
                 </>

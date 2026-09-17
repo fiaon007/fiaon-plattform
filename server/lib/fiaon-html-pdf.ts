@@ -193,6 +193,12 @@ export async function htmlZuPdfMitFusszeile(opts: {
    * falschen Titel waere ein Beleg, der etwas anderes behauptet als er ist.
    */
   titel?: string;
+  /**
+   * E-188 (17.09.2026): Der englische Auftrag fuer FIAON Global trug im Fuss
+   * "Seite 1 von 3". Wer hier "en" angibt, bekommt "Page 1 of 3"; ohne Angabe
+   * bleibt jeder Beleg des Hauses, wie er ist.
+   */
+  sprache?: "de" | "en";
 }): Promise<Buffer> {
   try {
     return await chromiumMitFusszeile(opts);
@@ -213,10 +219,27 @@ export async function htmlZuPdfMitFusszeile(opts: {
   }
 }
 
+/**
+ * Die laufende Fusszeile als Chromium-Vorlage — eigene, reine Funktion, damit der
+ * Pruefstand (scripts/pruef-global-querschnitt.ts) die Seitenzahl je Sprache lesen
+ * kann, ohne einen Browser zu starten.
+ */
+export function fusszeilenVorlage(fusszeile: string, sprache: "de" | "en" = "de"): string {
+  const [seite, von] = sprache === "en" ? ["Page", "of"] : ["Seite", "von"];
+  return `<div style="width:100%;padding:0 16mm;font-family:Inter,Helvetica,Arial,sans-serif;`
+    + `font-size:6.5pt;color:#94a3b8;display:flex;justify-content:space-between;`
+    + `align-items:center;border-top:0.4pt solid #e2e8f0;padding-top:2mm;">`
+    + `<span>${escapeHtml(fusszeile)}</span>`
+    + `<span style="white-space:nowrap;padding-left:6mm;">`
+    + `${seite} <span class="pageNumber"></span> ${von} <span class="totalPages"></span></span>`
+    + `</div>`;
+}
+
 async function chromiumMitFusszeile(opts: {
   html: string;
   fusszeile: string;
   rand: { oben: string; unten: string; links: string; rechts: string };
+  sprache?: "de" | "en";
 }): Promise<Buffer> {
   const browser = await getBrowser();
   const page = await browser.newPage();
@@ -230,14 +253,7 @@ async function chromiumMitFusszeile(opts: {
       // Vorgabe (Titel und Datum) — das wäre eine zweite Datumsangabe auf jeder
       // Seite, und genau die wurden am alten Dokument zehnmal gezählt.
       headerTemplate: "<div></div>",
-      footerTemplate:
-        `<div style="width:100%;padding:0 16mm;font-family:Inter,Helvetica,Arial,sans-serif;`
-        + `font-size:6.5pt;color:#94a3b8;display:flex;justify-content:space-between;`
-        + `align-items:center;border-top:0.4pt solid #e2e8f0;padding-top:2mm;">`
-        + `<span>${escapeHtml(opts.fusszeile)}</span>`
-        + `<span style="white-space:nowrap;padding-left:6mm;">`
-        + `Seite <span class="pageNumber"></span> von <span class="totalPages"></span></span>`
-        + `</div>`,
+      footerTemplate: fusszeilenVorlage(opts.fusszeile, opts.sprache),
       margin: {
         top: opts.rand.oben, bottom: opts.rand.unten,
         left: opts.rand.links, right: opts.rand.rechts,

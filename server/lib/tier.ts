@@ -42,6 +42,7 @@
  * anderen bewertbaren Antrag hat. Wer nach einer Erstattung neu bestellt,
  * bleibt also im Vertrieb — sonst wäre der Rückkehrer für immer unsichtbar.
  */
+import { produktkategorieSql } from "./fiaon-produktkategorie";
 
 /**
  * Abbruchstellen innerhalb von `payment_status = 'pending'`. Wer hier steht,
@@ -131,6 +132,45 @@ export function grundSql(rang = "rang"): string {
     END`;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// FIAON GLOBAL STEHT NICHT IM PRIVATVERTRIEB (17.09.2026, E-188)
+//
+// ── WAS OHNE DIESE REGEL GESCHÄHE ─────────────────────────────────────────
+// Ein Auftrag über FIAON Global (2.499 € und mehr, einmalig) ist für die
+// Einstufung eine Bestellung wie jede andere: `pending_payment` → Rang 40 →
+// Stufe B „Rechnung offen". Damit
+//   · stünde der Firmenkunde in den Anruflisten des Privatvertriebs — mit dem
+//     Leitfaden „Antrag fertig, Rechnung offen" (Bonität, Auskunft, Raten);
+//   · gäbe ihn die Sofortzuteilung (fiaon-zuteilung.ts, Stufe 0–2) im Moment
+//     des Auftrags an den Privatkunden-Mitarbeiter mit der kleinsten Last —
+//     BEVOR der Bestellweg die zuständige Person eintragen kann („wenn frei");
+//   · fiele er nach drei Tagen ohne Kontakt in den Kundenpool zurück
+//     (fiaon-office-vertrieb.ts, priority_tier IN (1,2,3)) und würde von dort
+//     an den Nächsten herausgegeben;
+//   · schlüge die offene Global-Rechnung bei einem BEZAHLTEN Privatkunden das
+//     „bezahlt" (Regel „nur eine offene Rechnung schlägt bezahlt") — er käme
+//     mit seiner Firmenrechnung zurück in die Privat-Anrufliste.
+//
+// ── DIE REGEL ────────────────────────────────────────────────────────────
+// Global-Bestellungen gehen in die Bewertung NICHT ein. Wer außer ihnen nichts
+// Bewertbares hat, ist kein Lead und kein Arbeitsvorrat, sondern Firmenkunde:
+// Stufe -1, „ausgeschlossen" — dieselbe Stufe, die alle Listen, der Pool, die
+// Sofortzuteilung und der Nachschub schon heute übergehen. Er gehört der
+// zuständigen Person und steht unter /agent/global.
+//
+// Ein eigener Grund („firmenkunde_global") wäre sprechender, scheitert aber an
+// fiaon_persons_tier_reason_chk: Die Datenbank lässt nur die acht bekannten
+// Werte zu, und ein abgewiesenes UPDATE an dieser Stelle risse den Auftrag
+// selbst mit. Der Hinweistext zu „ausgeschlossen" nennt den Fall deshalb mit
+// (tier-hinweise.ts).
+//
+// Erkannt wird Global wie überall am Katalog (fiaon-produktkategorie.ts). Für
+// jede Person OHNE Global-Bestellung liefert die Abfrage exakt dasselbe wie
+// vorher: Ihre Bestellungen stehen unverändert in `bewertet`, und `firmenkunde`
+// enthält sie nicht.
+// ═══════════════════════════════════════════════════════════════════════════
+const NICHT_GLOBAL_SQL = (a: string) => `${produktkategorieSql(a)} <> 'global'`;
+
 /**
  * Tier je lebender Person, inklusive des Antrags, der den Rang bestimmt.
  *
@@ -150,6 +190,13 @@ export function personTierSql(): string {
              a.ref
       FROM fiaon_applications a
       WHERE ${antragBasisSql("a")}
+        AND ${NICHT_GLOBAL_SQL("a")}
+    ),
+    firmenkunde AS (
+      SELECT DISTINCT a.person_id
+      FROM fiaon_applications a
+      WHERE ${antragBasisSql("a")}
+        AND NOT ${NICHT_GLOBAL_SQL("a")}
     ),
     gewinner AS (
       -- ══════════════════════════════════════════════════════════════════════
@@ -208,12 +255,15 @@ export function personTierSql(): string {
     )
     SELECT p.id                        AS person_id,
            COALESCE(g.rang, 0)         AS rang,
-           ${tierSql("COALESCE(g.rang, 0)")}  AS priority_tier,
-           ${grundSql("COALESCE(g.rang, 0)")} AS tier_reason,
+           CASE WHEN g.person_id IS NULL AND f.person_id IS NOT NULL THEN -1
+                ELSE ${tierSql("COALESCE(g.rang, 0)")} END AS priority_tier,
+           CASE WHEN g.person_id IS NULL AND f.person_id IS NOT NULL THEN 'ausgeschlossen'
+                ELSE ${grundSql("COALESCE(g.rang, 0)")} END AS tier_reason,
            g.status                    AS abbruch_status,
            g.ref                       AS quell_ref
     FROM fiaon_persons p
     LEFT JOIN gewinner g ON g.person_id = p.id
+    LEFT JOIN firmenkunde f ON f.person_id = p.id
     WHERE p.merged_into_person_id IS NULL`;
 }
 

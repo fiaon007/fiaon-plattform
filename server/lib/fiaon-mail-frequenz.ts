@@ -76,6 +76,7 @@ export const PFLICHTMAILS = new Set<string>([
   "documents_change_request",
   "commission_statement_issued",
   "app_login_link",          // 06.09.2026: Zugang — der Kunde hat den Anmelde-Link selbst angefordert; gebremst wäre die Tür zu.
+  "global_zugang",           // E-188: dasselbe für Firmenkunden — der Link zu „Mein Auftrag" ist ihr einziger Zugang.
   // Betriebsmeldungen an die Hausleitung, nie an Kunden — dürfen nie stocken.
   "kritisch", "warnung", "info",
 ]);
@@ -98,7 +99,12 @@ const TEAM_PRAEFIX = ["agent_", "aufgabe_", "team_", "chef_", "contract_"];
  * Mahnstopp an der Bestellung (abo_gestoppt_am) — das ist die Entscheidung eines
  * Menschen und wird in `faelligeRaten` beachtet. Justin, 11.09.2026 (E-182).
  */
-const ZAHLUNGSPOST = new Set<string>(["abo_payment_reminder"]);
+const ZAHLUNGSPOST = new Set<string>([
+  "abo_payment_reminder",
+  // E-188 (17.09.2026): die Erinnerung an die Rechnung eines unterschriebenen Firmenauftrags — höchstens
+  // zwei je Auftrag (server/lib/fiaon-global-zahlungstakt.ts). Forderung aus einem Vertrag, keine Werbung.
+  "global_zahlung_erinnerung",
+]);
 
 /** Der Hauptschalter der Bremse: fiaon_settings.frequenzbremse_an (Standard 1). */
 async function bremseAn(): Promise<boolean> {

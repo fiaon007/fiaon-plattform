@@ -393,7 +393,20 @@ export async function akteLesen(personId: number | null, ref: string | null): Pr
 /** Welche Vertragsfassung gilt für diesen Kunden? Entscheidet den Wortlaut. */
 export async function vertragsfassung(ref: string | null): Promise<{ jahresvertrag: boolean; text: string }> {
   if (!ref) return { jahresvertrag: false, text: "keine Bestellung" };
-  const [a] = (await sqlPool`SELECT agb_stand FROM fiaon_applications WHERE ref = ${ref} LIMIT 1`) as any[];
+  const [a] = (await sqlPool`SELECT agb_stand, pack_key FROM fiaon_applications WHERE ref = ${ref} LIMIT 1`) as any[];
+  // E-188: Ein Auftrag über FIAON Global ist kein Abo — Mara bekäme sonst die Zwölf-Monats-Regeln der
+  // Privatkunden als „VERTRAG" in den Prompt und würde einem Unternehmen Monatsraten und Kündigungsfristen erklären.
+  if (istGlobalPaket(a?.pack_key)) {
+    return {
+      jahresvertrag: false,
+      text: "FIRMENAUFTRAG ÜBER FIAON GLOBAL — KEIN ABO. Einmalpreis, bezahlt einmal per Überweisung auf Rechnung; es gibt keine Monatsraten, "
+        + "keine Lastschrift, keine Mindestlaufzeit, keine Mahnkette und keinen Kundenbereich mit Passwort. Der Kunde hat die Seite „Mein Auftrag“ "
+        + "(Stand, Vertrag, Rechnung, Unterlagen, Fristen); den Link dorthin schickst du mit global_zugang_senden. Mit dem Zahlungseingang beginnt der "
+        + "Auftrag, die zuständige Person führt das Startgespräch. Storno, Beendigung, Erstattung und die Geld-zurück-Zusage entscheidet die Leitung — "
+        + "sage dazu nichts zu, sondern gib das Anliegen mit aufgabe_an_betreuer an die zuständige Person. Über Konto, Karte, Rahmen und Darlehen "
+        + "entscheidet allein das jeweilige Institut; Steuer- und Rechtsfragen beantworten Steuerberater und Anwälte auf eigenes Mandat, FIAON koordiniert.",
+    };
+  }
   const neu = !!a?.agb_stand && new Date(a.agb_stand) >= new Date("2026-09-03");
   return {
     jahresvertrag: neu,

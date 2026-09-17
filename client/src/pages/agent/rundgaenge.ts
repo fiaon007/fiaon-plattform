@@ -864,6 +864,24 @@ export const RUNDGANG_GLOBAL_AUFTRAEGE: RundgangSchritt[] = [
       + "denn sie sagt: „Ihr Ansprechpartner meldet sich bei Ihnen.“",
   },
   {
+    ziel: ".cg-marke",
+    titel: "Bleibt die Zahlung aus, fasst das System ruhig nach.",
+    text: "Am dritten und am siebten Tag nach dem Auftrag bekommt das Unternehmen eine sachliche Erinnerung: ein Satz Anlass, der Knopf zur "
+      + "Zahlungsseite, Vertrag und Rechnung über „Mein Auftrag“. Keine Mahnstufe, keine Bankdaten im Text, nie nachts oder sonntags. "
+      + "Am zehnten Tag kommt keine Mail mehr, sondern eine dringende Aufgabe an die zuständige Person: anrufen. Unter dem Stand steht, "
+      + "wann was rausging — und in Rot, wenn etwas den Takt aufgehalten hat (zum Beispiel eine unzustellbare Adresse).",
+    tipp: "Hat der Kunde auf der Zahlungsseite „überwiesen“ gemeldet, bekommt er keine Erinnerung. Die Aufgabe am zehnten Tag entsteht trotzdem.",
+  },
+  {
+    ziel: ".cg-knopf-storno",
+    titel: "Auftrag stornieren — mit Grund, ohne Geldbewegung.",
+    text: "Der Grund ist Pflicht; bei einem bezahlten Auftrag ein ganzer Satz. „Mit Erstattung“ bewegt kein Geld: Justin bekommt die dringende "
+      + "Aufgabe „Erstattung veranlassen“ und überweist von Hand, die Bestellung geht auf storniert und gebuchte Provisionen werden "
+      + "zurückgenommen. Ohne Erstattung bleibt die Zahlung gebucht — storniert wird dann nur der Auftrag. In beiden Fällen erfährt es die "
+      + "zuständige Person als Aufgabe; der Kunde bekommt keine automatische Mail.",
+    tipp: "Ein Storno lässt sich hier nicht zurücknehmen. Vertrag, Rechnung und Verlauf bleiben in der Akte.",
+  },
+  {
     ziel: ".cg-knopf-stichtag",
     titel: "Der Stichtag — an ihm hängt die Geld-zurück-Zusage.",
     text: "Ziffer 6 des Auftrags: Stehen Gesellschaft und EIN nicht zum vereinbarten Stichtag, erstatten wir den Paketpreis. Der Tag wird "

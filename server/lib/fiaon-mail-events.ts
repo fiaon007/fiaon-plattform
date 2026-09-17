@@ -191,6 +191,17 @@ const ZUSATZ: Partial<Record<MakeEventType, EventZusatz>> = {
     gruppe: "konto", zielgruppe: "kunde", rollen: ["admin"],
     klartext: "FIAON Global: der im Startgespräch vereinbarte Stichtag für Gesellschaft und EIN, in Textform.",
   },
+  // Querschnitt 17.09.2026: Beide entstehen aus der Auftragsakte (Token, Sprache, zuständige Person) —
+  // von Hand aus einer Kundenakte fehlte ihnen der Link. Der Zugang geht über den Knopf im Office bzw.
+  // die Leitungs-Seite raus, die Erinnerung über den Lauf global_zahlung_takt.
+  global_zahlung_erinnerung: {
+    gruppe: "zahlung", zielgruppe: "kunde", rollen: ["admin"],
+    klartext: "FIAON Global: ruhige Erinnerung an die offene Überweisung — am 3. und 7. Tag nach dem Auftrag, je einmal. Knopf zur Zahlungsseite, keine Bankdaten im Text.",
+  },
+  global_zugang: {
+    gruppe: "konto", zielgruppe: "kunde", rollen: ["admin"],
+    klartext: "FIAON Global: frischer Link zu „Mein Auftrag“ (30 Tage) — Firmenkunden haben kein Passwort.",
+  },
   lead_followup: {
     gruppe: "lead", zielgruppe: "kunde", rollen: ["admin", "vertriebsleiter"],
     klartext: "Nachfassen bei einem Lead, der noch keinen Antrag gestellt hat.",

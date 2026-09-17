@@ -42,6 +42,9 @@ import {
   pickAccountRow,
   storedPasswordOf,
   birthdateKey,
+  globalKontoLage,
+  isGlobalOrderRow,
+  GLOBAL_LOGIN_HINWEIS,
 } from "../fiaon-login-logic";
 
 const router = Router();
@@ -2291,27 +2294,43 @@ router.get("/admin/payments/bulk-reminder/status", async (_req, res) => {
 
 // Bestellung stornieren: Status 'cancelled', stoppt Reminder/Listen sofort,
 // storniert vorhandene Provisionen (bestehende Clawback-Mechanik). Mit Audit.
+//
+// E-188 (17.09.2026): Als FUNKTION herausgelöst, damit der Storno eines Firmenauftrags
+// (server/lib/fiaon-global-storno.ts) denselben Weg geht wie dieser Knopf — dieselben Status, dieselbe
+// Provisions-Rücknahme über onCustomerRefunded, derselbe Verlaufseintrag. Die Route ruft sie unverändert.
+export async function bestellungStornieren(
+  wo: { paymentRef?: string | null; ref?: string | null }, wer = "Admin",
+): Promise<{ ref: string; commissions: { cancelled: number; clawback: number } } | null> {
+  await ensurePaymentColumns();
+  const paymentRef = String(wo.paymentRef ?? "").trim();
+  const ref = String(wo.ref ?? "").trim();
+  if (!paymentRef && !ref) return null;
+  const rows = await sqlPool`
+    UPDATE fiaon_applications SET
+      payment_status = 'cancelled',
+      cancelled_at = NOW(),
+      updated_at = NOW()
+    WHERE ((${paymentRef} <> '' AND payment_reference = ${paymentRef}) OR (${ref} <> '' AND ref = ${ref}))
+      AND payment_status IN ('pending_payment', 'claimed_paid', 'expired', 'paid')
+    RETURNING ref, payment_status
+  `;
+  if (rows.length === 0) return null;
+  const commissions = await import("./fiaon-agent").then((m) => m.onCustomerRefunded(rows[0].ref)).catch(() => ({ cancelled: 0, clawback: 0 }));
+  await sqlPool`
+    INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
+    VALUES (${rows[0].ref}, NULL, ${wer}, 'system',
+            ${`Bestellung storniert (${wer}) — Provisionen: ${commissions.cancelled} storniert, ${commissions.clawback} verrechnet`})
+  `;
+  return { ref: String(rows[0].ref), commissions };
+}
+
 router.post("/admin/payments/:paymentRef/cancel", async (req, res) => {
   try {
-    await ensurePaymentColumns();
-    const rows = await sqlPool`
-      UPDATE fiaon_applications SET
-        payment_status = 'cancelled',
-        cancelled_at = NOW(),
-        updated_at = NOW()
-      WHERE payment_reference = ${req.params.paymentRef}
-        AND payment_status IN ('pending_payment', 'claimed_paid', 'expired', 'paid')
-      RETURNING ref, payment_status
-    `;
-    if (rows.length === 0) return res.status(404).json({ ok: false, error: "Bestellung nicht gefunden oder bereits storniert" });
-    const commissions = await import("./fiaon-agent").then((m) => m.onCustomerRefunded(rows[0].ref)).catch(() => ({ cancelled: 0, clawback: 0 }));
-    await sqlPool`
-      INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
-      VALUES (${rows[0].ref}, NULL, 'Admin', 'system',
-              ${`Bestellung storniert (Admin) — Provisionen: ${commissions.cancelled} storniert, ${commissions.clawback} verrechnet`})
-    `;
+    const erg = await bestellungStornieren({ paymentRef: req.params.paymentRef });
+    if (!erg) return res.status(404).json({ ok: false, error: "Bestellung nicht gefunden oder bereits storniert" });
+    const { commissions } = erg;
     console.log(`[FIAON-CANCEL] ${req.params.paymentRef} storniert (Provision: ${JSON.stringify(commissions)})`);
-    res.json({ ok: true, ref: rows[0].ref, commissions });
+    res.json({ ok: true, ref: erg.ref, commissions });
   } catch (err) {
     console.error("[FIAON-CANCEL]", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
@@ -3210,6 +3229,13 @@ router.post("/login", async (req, res) => {
 
     if (!verdict.granted) {
       logLoginAttempt({ email: normalizedEmail, code: verdict.code, reason: verdict.reason, ref: verdict.ref, ip, userAgent });
+      // E-188: Firmenkunde von FIAON Global — sein Bereich ist „Mein Auftrag". Der Link geht an die
+      // Adresse SEINES Auftrags (nicht an die getippte), gedrosselt je Adresse; die Antwort wartet nicht darauf.
+      if (verdict.globalZugang) {
+        void import("../lib/fiaon-global-zugang")
+          .then((m) => m.globalZugangSenden(normalizedEmail, { ausgeloestVon: "Anmeldeversuch am Kunden-Login" }))
+          .catch((e) => console.error("[FIAON-LOGIN] Global-Zugang:", e));
+      }
       return res.status(verdict.status).json({
         ok: false,
         code: verdict.code,
@@ -4979,6 +5005,29 @@ router.post("/verify-identity", async (req, res) => {
       const geburtVonPerson = !r.birthdate && personen.some((x) => Number(x.id) === Number(r.person_id) && birthdateKey(x.birthdate) === birthdate);
       return (namePasst && (geburtPasst || geburtVonPerson)) || personPasst(r.person_id);
     });
+
+    // ── E-188 (17.09.2026): DER FIRMENKUNDE BEI „PASSWORT VERGESSEN" ──────────
+    // Ein Auftrag über FIAON Global trägt kein Geburtsdatum und bekommt kein Passwort — sein Bereich ist
+    // „Mein Auftrag". Bis heute lief er hier in „Die Angaben stimmen nicht" (kein Geburtsdatum) oder, wenn
+    // die Person eines hatte, zu einem Passwort für den PRIVATKUNDENBEREICH. Jetzt: Sind die einzigen
+    // bezahlten Bestellungen der Familie Global-Aufträge und stimmt der Name mit dem Unterzeichner überein,
+    // bekommt er den Hinweis und den Link per Mail — an die Adresse seines Auftrags. Ohne Namenstreffer
+    // bleibt es bei der neutralen Meldung; für jede Familie ohne Global-Auftrag ändert sich nichts.
+    if (globalKontoLage(family) === "nur_global") {
+      const nameTrifft = family.some((r: any) => isGlobalOrderRow(r) && glatt(r.first_name) === wantFirst && glatt(r.last_name) === wantLast)
+        || personen.some((x) => glatt(x.first_name) === wantFirst && glatt(x.last_name) === wantLast);
+      if (nameTrifft) {
+        logLoginAttempt({
+          email: trimEmail, code: "RESET-GLOBAL", reason: "Reset: Firmenkunde FIAON Global — Link zu „Mein Auftrag“ statt Passwort",
+          ip: (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "",
+          userAgent: String(req.headers["user-agent"] || ""),
+        });
+        void import("../lib/fiaon-global-zugang")
+          .then((m) => m.globalZugangSenden(trimEmail, { ausgeloestVon: "„Passwort vergessen“ am Kunden-Login" }))
+          .catch((e) => console.error("[FIAON-VERIFY-IDENTITY] Global-Zugang:", e));
+        return res.status(409).json({ ok: false, code: LOGIN_CODES.GLOBAL, error: `${GLOBAL_LOGIN_HINWEIS.error} ${GLOBAL_LOGIN_HINWEIS.hint}` });
+      }
+    }
 
     if (candidates.length === 0) {
       logLoginAttempt({

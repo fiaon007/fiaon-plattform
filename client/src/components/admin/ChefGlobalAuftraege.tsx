@@ -14,6 +14,11 @@
 //     aus Ziffer 6 des Auftrags; er wird im Startgespräch vereinbart, hier
 //     eingetragen und dem Kunden von hier in Textform mitgeteilt.
 //   · Vertrag und Rechnung als PDF — dieselben Dateien, die der Kunde hat.
+//   · Ob und wann der ruhige Zahlungstakt erinnert hat (Tag 3 und 7 per Mail, Tag 10
+//     als Aufgabe „anrufen" an die zuständige Person) — server/lib/fiaon-global-zahlungstakt.ts.
+//   · „Auftrag stornieren": Grund ist Pflicht (bezahlt: ein ganzer Satz). „Mit
+//     Erstattung" bewegt KEIN Geld — es entsteht eine dringende Aufgabe für Justin,
+//     der von Hand überweist. Regeln: server/lib/fiaon-global-storno.ts.
 // Geld wird hier nicht gebucht: Der Zahlungseingang läuft über den einen Weg
 // (Zahlungen verbuchen), und mit ihm startet der Auftrag von selbst.
 //
@@ -44,6 +49,8 @@ interface Zeile {
   stichtag: string | null; stichtagMailAm: string | null;
   auftragMailAm: string | null; auftragMailFehler: string | null; startMailAm: string | null; startMailFehler: string | null;
   sprache: string | null; quelle: string | null;
+  erinnerung1Am: string | null; erinnerung2Am: string | null; anrufAufgabeAm: string | null; taktHinweis: string | null;
+  storniertAm: string | null; storniertVon: string | null; stornoGrund: string | null; stornoErstattung: boolean;
   vertragUrl: string | null; rechnungUrl: string | null; zahlungsseite: string | null;
 }
 interface Antwort {
@@ -58,9 +65,10 @@ export default function ChefGlobalAuftraege() {
   const { daten, fehler, neu } = useDaten<Antwort>("/admin/global/auftraege");
   const [filter, setFilter] = useState<Filter>("laufend");
   const [meldung, setMeldung] = useState<string | null>(null);
-  const [offen, setOffen] = useState<{ ref: string; art: "stichtag" | "zustaendig" } | null>(null);
+  const [offen, setOffen] = useState<{ ref: string; art: "stichtag" | "zustaendig" | "storno" } | null>(null);
   const [wert, setWert] = useState("");
   const [mitteilen, setMitteilen] = useState(true);
+  const [erstattung, setErstattung] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
 
   const senden = async (ref: string, pfad: string, body: Record<string, unknown>) => {
@@ -142,8 +150,15 @@ export default function ChefGlobalAuftraege() {
                       {z.status === "offen" && <>seit {z.alterTage === 0 ? "heute" : `${z.alterTage} ${z.alterTage === 1 ? "Tag" : "Tagen"}`}{z.faelligAm ? ` · zahlbar bis ${datum(z.faelligAm)}` : ""}{z.zahlungGemeldetAm ? ` · Kunde meldet Überweisung am ${datum(z.zahlungGemeldetAm)}` : ""}</>}
                       {z.status === "bezahlt" && <>bezahlt am {datum(z.bezahltAm)} — Aufgabe oder Startmail fehlt</>}
                       {z.status === "gestartet" && <>bezahlt am {datum(z.bezahltAm)} · gestartet am {datum(z.gestartetAm)}</>}
-                      {z.status === "storniert" && <>angelegt am {datum(z.erstelltAm)}</>}
+                      {z.status === "storniert" && <>angelegt am {datum(z.erstelltAm)}{z.storniertAm ? ` · storniert am ${datum(z.storniertAm)}${z.storniertVon ? ` von ${z.storniertVon}` : ""}` : ""}</>}
                     </span>
+                    {z.status === "storniert" && z.stornoGrund && <span className="cm-klartext">Grund: {z.stornoGrund}{z.stornoErstattung ? " · Erstattung liegt als Aufgabe bei Justin" : z.bezahltAm ? " · ohne Erstattung" : ""}</span>}
+                    {z.status === "offen" && (z.erinnerung1Am || z.erinnerung2Am || z.anrufAufgabeAm) && (
+                      <span className="cm-klartext">
+                        {[z.erinnerung1Am ? `Erinnerung 1 am ${datum(z.erinnerung1Am)}` : null, z.erinnerung2Am ? `Erinnerung 2 am ${datum(z.erinnerung2Am)}` : null, z.anrufAufgabeAm ? `Aufgabe „anrufen“ am ${datum(z.anrufAufgabeAm)}` : null].filter(Boolean).join(" · ")}
+                      </span>
+                    )}
+                    {z.status === "offen" && z.taktHinweis && <span className="cm-klartext cg-rot">Zahlungstakt: {z.taktHinweis}</span>}
                     {z.ohneAuftrag && <span className="cm-klartext cg-rot">Kein unterschriebener Auftrag — nicht über /business/start angelegt.</span>}
                     {z.auftragMailFehler && !z.auftragMailAm && <span className="cm-klartext cg-rot">Vertrag und Rechnung gingen nicht raus: {z.auftragMailFehler}</span>}
                     {z.startMailFehler && !z.startMailAm && <span className="cm-klartext cg-rot">Startmail ging nicht raus: {z.startMailFehler}</span>}
@@ -188,7 +203,40 @@ export default function ChefGlobalAuftraege() {
                           Vertrag + Rechnung senden
                         </button>
                       )}
+                      {z.status !== "storniert" && (
+                        <button type="button" className="cg-knopf cg-knopf-storno" onClick={() => { setOffen({ ref: z.ref, art: "storno" }); setWert(""); setErstattung(false); }}>
+                          Auftrag stornieren
+                        </button>
+                      )}
                     </div>
+                    {offen?.ref === z.ref && offen.art === "storno" && (() => {
+                      const bezahlt = !!z.bezahltAm;
+                      const mindest = bezahlt ? 10 : 3;
+                      return (
+                        <div className="cg-form" role="dialog" aria-label={`Auftrag ${z.firma} stornieren`}>
+                          <p className="cm-fein"><b>{z.firma}</b> · {z.paketName.replace(/^FIAON /, "")} · {eur(z.betragCents)} — {bezahlt ? `bezahlt am ${datum(z.bezahltAm)}` : "nicht bezahlt"}.</p>
+                          <label>Grund{bezahlt ? " (ein ganzer Satz — der Auftrag ist bezahlt)" : ""}
+                            <textarea rows={3} value={wert} maxLength={1000} onChange={(e) => setWert(e.target.value)} placeholder={bezahlt ? "Zum Beispiel: Kunde beendet den Auftrag vor der Gründung, Rückzahlung mit Justin am 17.09. abgestimmt." : "Zum Beispiel: Kunde will den Auftrag nicht mehr."} />
+                          </label>
+                          {bezahlt && (
+                            <label className="cg-haken"><input type="checkbox" checked={erstattung} onChange={(e) => setErstattung(e.target.checked)} /> mit Erstattung von {eur(z.betragCents)}</label>
+                          )}
+                          <p className="cm-fein">
+                            {bezahlt
+                              ? (erstattung
+                                ? "Es wird KEIN Geld bewegt: Justin bekommt die dringende Aufgabe „Erstattung veranlassen“ und überweist von Hand. Die Bestellung geht auf storniert, gebuchte Provisionen werden zurückgenommen."
+                                : "Ohne Erstattung bleibt die Zahlung gebucht und die Provision stehen — storniert wird nur der Auftrag (der Kunde beendet, die erbrachte Leistung ist bezahlt).")
+                              : "Die Bestellung geht auf storniert; Erinnerungen gehen keine mehr raus."}
+                            {" "}Die zuständige Person erfährt es als Aufgabe. Der Kunde bekommt keine automatische Mail.
+                          </p>
+                          <div className="cg-form-knoepfe">
+                            <button type="button" className="cg-knopf cg-knopf-storno" disabled={wert.trim().length < mindest || busy === `${z.ref}:storno`} onClick={() => senden(z.ref, "storno", { grund: wert.trim(), erstattung: bezahlt && erstattung })}>Jetzt stornieren</button>
+                            <button type="button" className="cg-knopf" onClick={() => setOffen(null)}>Abbrechen</button>
+                          </div>
+                          {wert.trim().length < mindest && <p className="cm-fein">Noch {mindest - wert.trim().length} Zeichen bis zum Grund.</p>}
+                        </div>
+                      );
+                    })()}
                     {offen?.ref === z.ref && offen.art === "stichtag" && (
                       <div className="cg-form">
                         <label>Stichtag für Gesellschaft und EIN

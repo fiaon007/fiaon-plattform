@@ -37,7 +37,7 @@ import { TEAM_VORLAGEN } from "./vorlagen/team";
 import { RUECKHOLUNG_VORLAGEN } from "./vorlagen/rueckholung";
 import { APP_VORLAGEN } from "./vorlagen/app";
 import { BEWERBUNG_VORLAGEN } from "./vorlagen/bewerbung";
-import { GLOBAL_VORLAGEN } from "./vorlagen/global";
+import { GLOBAL_VORLAGEN, GLOBAL_VORLAGEN_EN } from "./vorlagen/global";
 
 /** Alle Vorlagen, ein Verzeichnis. Schlüssel = Ereignisname. */
 export const VORLAGEN: Record<string, MailBaustein> = {
@@ -50,6 +50,20 @@ export const VORLAGEN: Record<string, MailBaustein> = {
   ...APP_VORLAGEN,
   ...BEWERBUNG_VORLAGEN,
   ...GLOBAL_VORLAGEN,
+};
+
+/**
+ * Englische Fassungen — gleicher Ereignisname, andere Sprache (E-188, 17.09.2026).
+ *
+ * Es gibt sie nur dort, wo ein Kunde seinen Vorgang auf Englisch geführt hat:
+ * beim Auftrag über FIAON Global (/en/business/start). Gewählt wird über die
+ * NUTZLAST (`sprache: "en"`), nicht über einen zweiten Ereignisnamen — so bleibt
+ * es im Protokoll, im Mailwerk und in der Frequenzbremse EIN Ereignis. Fehlt die
+ * englische Fassung oder das Feld, gilt die deutsche: Keine einzige bestehende
+ * Mail ändert sich dadurch.
+ */
+export const VORLAGEN_EN: Record<string, MailBaustein> = {
+  ...GLOBAL_VORLAGEN_EN,
 };
 
 /** Wer als Absender im Postfach steht — je Ereignis. Alles nicht Genannte: welcome. */
@@ -85,6 +99,8 @@ const ROLLE_JE_EVENT: Record<string, AbsenderRolle> = {
   commission_statement_issued: "team",
   // E-188: Vertrag und Rechnung eines Firmenauftrags kommen aus der Buchhaltung.
   global_auftrag: "accounting",
+  // … und die ruhige Erinnerung an dieselbe Rechnung ebenfalls.
+  global_zahlung_erinnerung: "accounting",
 };
 
 export function absenderFuer(event: string): { name: string; email: string } {
@@ -181,6 +197,8 @@ function leadStreckenBaustein(payload: Record<string, unknown>): MailBaustein | 
 export function mailRendern(event: string, payload: Record<string, unknown>): GerenderteMail | null {
   let vorlage = VORLAGEN[event];
   if (!vorlage) return null;
+  // E-188: Trägt die Nutzlast `sprache: "en"` und gibt es die Vorlage auf Englisch, gilt diese.
+  if (String((payload as any)?.sprache ?? "") === "en" && VORLAGEN_EN[event]) vorlage = VORLAGEN_EN[event];
   if (event === "lead_followup") vorlage = leadStreckenBaustein(payload) ?? vorlage;
 
   // Ein Knopf, dessen Adresse die Nutzlast nicht füllt (z. B. {{params.sofort_url}},

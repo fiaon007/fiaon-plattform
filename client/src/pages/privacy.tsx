@@ -1,3 +1,21 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// DATENSCHUTZERKLÄRUNG — /datenschutz und /privacy (eine Seite, deutsch)
+//
+// 17.09.2026 (E-188): zwei Abschnitte ergänzt, weil /business seit heute FIAON
+// Global ist und dort Daten anfallen, die die Erklärung bisher nicht nannte:
+//   VII a  FIAON Global — Auftrag für Unternehmen (Firma, Register, Unterzeichner,
+//          Unterschrift als Bild, IP/Zeit der Unterschrift, Dokumentenraum)
+//   VII b  Firmensuche und Auslesen des Impressums im Auftrag
+// BEIDE ABSCHNITTE STEHEN ZUR ANWALTLICHEN DURCHSICHT MIT DEN GLOBAL-VERTRÄGEN
+// (Register E-188 „offen: Anwalt"): Rechtsgrundlagen, die Weitergabe an Partner und
+// Stellen in den USA (Art. 49 DSGVO) und der KI-Dienst beim Impressum sind nach
+// bestem Wissen beschrieben, aber nicht anwaltlich geprüft. Genannt sind nur
+// Anbieter, die heute wirklich angefragt werden (server/lib/firmensuche/index.ts):
+// openregister.de für Deutschland, UID-Register und LINDAS für die Schweiz, VIES.
+// Kommt ein Anbieter dazu (Schlüssel gesetzt), gehört er HIER hinein — vorher nicht.
+// Die Nummern „VII a/b" sind Absicht: VIII–X behalten ihre Nummern, auf die
+// Verträge und Mails verweisen können.
+// ═══════════════════════════════════════════════════════════════════════════
 import { useEffect } from "react";
 import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
@@ -239,6 +257,68 @@ export default function PrivacyPage() {
                   <div>
                     <h3 className="font-semibold mb-2">2. Zweck und Rechtsgrundlage</h3>
                     <p className="text-sm">Die Verarbeitung der personenbezogenen Daten aus der Eingabemaske dient uns allein zur Bearbeitung der Kontaktaufnahme und des Support-Falles. Rechtsgrundlage ist bei Vorliegen einer Einwilligung des Nutzers Art. 6 Abs. 1 lit. a DSGVO. Zielt die Kontaktaufnahme auf den Abschluss eines Vertrages ab oder betrifft sie Support-Leistungen im Rahmen eines bestehenden Abonnements, so ist zusätzliche Rechtsgrundlage Art. 6 Abs. 1 lit. b DSGVO.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* VII a. FIAON Global — Auftrag für Unternehmen (E-188) */}
+            {/* LEGAL REVIEW REQUIRED: zur anwaltlichen Durchsicht mit den Global-Verträgen — Rechtsgrundlagen, Weitergabe an Partner, Übermittlung in die USA (Art. 49 DSGVO), Aufbewahrung. */}
+            <div id="fiaon-global" className="fiaon-glass-panel rounded-2xl p-8 relative overflow-hidden">
+              <div className="absolute inset-0 opacity-15 pointer-events-none" style={{
+                background: "linear-gradient(135deg, rgba(37,99,235,0.1), rgba(147,197,253,0.2), rgba(37,99,235,0.1))",
+                backgroundSize: "200% 200%",
+                animation: "limitGlow 6s ease-in-out infinite"
+              }} />
+              <div className="relative z-10">
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">VII a. FIAON Global — Auftrag für Unternehmen</h2>
+                <div className="space-y-4 text-gray-700">
+                  <div>
+                    <h3 className="font-semibold mb-2">1. Beschreibung und Umfang der Datenverarbeitung</h3>
+                    <p className="text-sm">FIAON Global richtet sich ausschließlich an Unternehmen. Erteilt ein Unternehmen auf unserer Website einen Auftrag, verarbeiten wir: die Angaben zum Unternehmen (Firma, Rechtsform, Sitz und Anschrift, Registergericht und Registernummer, USt-IdNr., Website), die Angaben zur unterzeichnenden Person (Anrede, Vor- und Nachname, Funktion im Unternehmen, geschäftliche E-Mail-Adresse und Telefonnummer), die vor der Unterschrift abgegebenen Bestätigungen, die Unterschrift als Bild sowie Zeitpunkt, IP-Adresse und Browser-Kennung der Unterschrift und einen Prüfwert (Hash) über den unterschriebenen Text. Aus diesen Angaben erstellen wir den Auftrag und die Rechnung als PDF. Vereinbaren Sie vorab ein Gespräch, verarbeiten wir dafür Name, Unternehmen, E-Mail-Adresse, Telefonnummer, den gewählten Termin und Ihr Anliegen.</p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold mb-2">2. Dokumentenraum und „Mein Auftrag“</h3>
+                    <p className="text-sm">Nach dem Zahlungseingang führen wir zu Ihrem Auftrag eine Seite „Mein Auftrag“ mit einem Dokumentenraum. Dort liegen die Unterlagen, die Sie hochladen oder die wir für Sie einstellen — zum Beispiel Ausweiskopien und Adressnachweise der Gesellschafter und der Geschäftsführung, Registerauszüge und Gründungsunterlagen —, dazu der Stand des Auftrags, Fristen, Ihre Nachrichten an die zuständige Person und der Verlauf der Bearbeitung. Die Seite hat kein Passwort: Sie öffnet sich über einen signierten Link, der an Ihre Auftragsnummer gebunden ist und 30 Tage gilt. Einen neuen Link senden wir ausschließlich an die E-Mail-Adresse, die am Auftrag hinterlegt ist.</p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold mb-2">3. Zweck und Rechtsgrundlage</h3>
+                    <p className="text-sm">Die Verarbeitung dient dem Abschluss und der Durchführung des Auftrags: Vertrag und Rechnung ausfertigen, den Zahlungseingang zuordnen und an eine offene Zahlung erinnern, die Gründung und die weiteren Schritte vorbereiten, Fristen führen und mit Ihnen in Kontakt bleiben. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO. Unterschriftsbild, Zeitpunkt, IP-Adresse und Prüfwert dienen dem Nachweis, wer den Auftrag wann in welcher Fassung erteilt hat; Rechtsgrundlage ist insoweit Art. 6 Abs. 1 lit. b und lit. f DSGVO. Soweit wir Unterlagen nach Handels- und Steuerrecht aufbewahren müssen, ist Rechtsgrundlage Art. 6 Abs. 1 lit. c DSGVO.</p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold mb-2">4. Empfänger</h3>
+                    <p className="text-sm">Im Haus haben die für Ihren Auftrag zuständige Person und die Leitung Zugriff. An Partner — Steuerberater, Anwälte, den Registered Agent — sowie an Behörden und Institute geben wir Daten und Unterlagen nur auf Ihre Veranlassung weiter: wenn Sie uns beauftragen, etwas einzureichen oder weiterzuleiten, oder wenn Sie den Partner selbst mandatieren. Steuerberater und Anwälte arbeiten auf eigenes Mandat und sind für die dort verarbeiteten Daten selbst verantwortlich. Gehen Daten dabei an Stellen in den USA (Behörden, Registered Agent, Institute), geschieht das zur Erfüllung Ihres Auftrags und auf Ihre Veranlassung (Art. 49 Abs. 1 lit. b DSGVO). Für das Hosting (Server in der Europäischen Union, siehe Abschnitt IV) und den E-Mail-Versand setzen wir technische Dienstleister ein, die die Daten nur nach unserer Weisung verarbeiten.</p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold mb-2">5. Dauer der Speicherung</h3>
+                    <p className="text-sm">Auftrag, Rechnung, Zahlungsdaten und die dazugehörige Korrespondenz bewahren wir nach den handels- und steuerrechtlichen Fristen auf. Unterlagen im Dokumentenraum bewahren wir für die Dauer des Auftrags auf; danach gelten dieselben Fristen, soweit die Unterlagen zu den Geschäftsunterlagen gehören. Unterlagen, für die keine Aufbewahrungspflicht besteht, löschen wir auf Ihren Wunsch — eine Nachricht an support@fiaon.com genügt.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* VII b. Firmensuche im Auftrag (E-188) */}
+            {/* LEGAL REVIEW REQUIRED: zur anwaltlichen Durchsicht mit den Global-Verträgen — Anbieter der Registerdaten, KI-Dienst beim Auslesen des Impressums (Drittland), Rechtsgrundlage lit. b/f. */}
+            <div id="firmensuche" className="fiaon-glass-panel rounded-2xl p-8 relative overflow-hidden">
+              <div className="absolute inset-0 opacity-15 pointer-events-none" style={{
+                background: "linear-gradient(135deg, rgba(37,99,235,0.1), rgba(147,197,253,0.2), rgba(37,99,235,0.1))",
+                backgroundSize: "200% 200%",
+                animation: "limitGlow 6s ease-in-out infinite"
+              }} />
+              <div className="relative z-10">
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">VII b. Firmensuche und Auslesen des Impressums im Auftrag</h2>
+                <div className="space-y-4 text-gray-700">
+                  <div>
+                    <h3 className="font-semibold mb-2">1. Beschreibung und Umfang der Datenverarbeitung</h3>
+                    <p className="text-sm">Im Auftrag für Unternehmen können Sie Ihr Unternehmen suchen, statt alle Angaben von Hand einzutragen. Ihr Suchbegriff und das gewählte Land gehen dazu von unserem Server an einen Anbieter von Registerdaten: für Deutschland an openregister.de (Daten aus dem Handelsregister), für die Schweiz an das UID-Register des Bundesamts für Statistik und an den Linked-Data-Dienst LINDAS des Bundes. Übermittelt werden nur Suchbegriff und Land — nicht Ihre IP-Adresse und keine Kontaktdaten. Zurück kommen die im Register veröffentlichten Angaben (Firma, Rechtsform, Sitz, Register und Registernummer, vertretungsberechtigte Personen). Geben Sie eine USt-IdNr. an, prüfen wir sie über das System VIES der Europäischen Kommission, eine Schweizer UID über das UID-Register; übermittelt wird nur die Nummer.</p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold mb-2">2. Auslesen des Impressums</h3>
+                    <p className="text-sm">Nennen Sie stattdessen die Website Ihres Unternehmens, ruft unser Server höchstens drei öffentlich zugängliche Seiten ab (Startseite, Impressum oder Kontakt) und liest daraus die Pflichtangaben aus. Beim Auslesen hilft ein KI-Dienst (OpenAI, USA), an den der Text dieser öffentlichen Seite geht — ohne Ihre Kontaktdaten. Übernommen werden nur Werte, die wörtlich auf der Seite stehen; jeden Wert bestätigen oder ändern Sie selbst.</p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold mb-2">3. Zweck, Rechtsgrundlage und Speicherung</h3>
+                    <p className="text-sm">Suche und Auslesen dienen allein dazu, den Auftrag richtig und ohne Tipparbeit vorzubefüllen; sie sind freiwillig, und jedes Feld lässt sich von Hand ausfüllen. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO (vorvertragliche Maßnahmen auf Ihre Anfrage) sowie Art. 6 Abs. 1 lit. f DSGVO (richtige Unternehmensdaten im Vertrag). Treffer halten wir höchstens 24 Stunden im Zwischenspeicher. Dauerhaft gespeichert werden nur die Werte, die Sie im Auftrag bestätigen — zusammen mit der Angabe, aus welcher Quelle sie stammen (siehe Abschnitt VII a).</p>
                   </div>
                 </div>
               </div>

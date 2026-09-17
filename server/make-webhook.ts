@@ -90,6 +90,8 @@ export type MakeEventType =
   | "global_auftrag"         // Auftrag unterschrieben: Vertrag + Rechnung als PDF, Knopf zur Zahlungsseite
   | "global_start"           // Zahlung eingegangen: Ansprechpartner, Unterlagenliste, Startgespräch
   | "global_stichtag"        // der im Startgespräch festgelegte Stichtag, in Textform
+  | "global_zahlung_erinnerung" // ruhige Erinnerung am 3. und 7. Tag nach dem Auftrag (server/lib/fiaon-global-zahlungstakt.ts)
+  | "global_zugang"          // frischer Link zu „Mein Auftrag" — Firmenkunden haben kein Passwort (server/lib/fiaon-global-zugang.ts)
   | "schufa_approved"         // SCHUFA genehmigt
   | "schufa_rejected"         // SCHUFA abgelehnt
   | "schufa_requested"        // neues SCHUFA-Dokument angefordert

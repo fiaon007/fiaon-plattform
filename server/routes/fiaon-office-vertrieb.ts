@@ -45,6 +45,7 @@ import { ensureKartenSpalten } from "../lib/fiaon-kartenstatus";
 import { ensureBetreuungSpalte } from "../lib/tier";
 import { rohSlots, dauerFuer } from "../lib/fiaon-termine";
 import { gesperrteFreigeben } from "../lib/fiaon-zuteilung";
+import { produktkategorieSql } from "../lib/fiaon-produktkategorie";
 
 const router = Router();
 
@@ -187,9 +188,12 @@ export async function kundenSituation(personId: number): Promise<KundenSituation
            AND cl.done_at IS NULL AND cl.voided_at IS NULL
            AND cl.scheduled_at IS NOT NULL AND cl.scheduled_at <= NOW()
          ORDER BY cl.scheduled_at DESC LIMIT 1) AS rueckruf_am,
+      -- E-188: Ein bezahlter Auftrag über FIAON Global ist kein bezahltes PAKET — sonst ginge in der Akte
+      -- der Leitfaden „bezahlt, Startgespräch vereinbaren" der Privatkunden auf (Auskunft, Einträge, Raten).
       EXISTS (SELECT 1 FROM fiaon_applications a3 WHERE a3.person_id = p.id
         AND a3.merged_into IS NULL AND a3.archived_at IS NULL
-        AND a3.payment_status = 'paid') AS bezahlt,
+        AND a3.payment_status = 'paid'
+        AND ${sqlPool.unsafe(produktkategorieSql("a3"))} <> 'global') AS bezahlt,
       (SELECT t.beginn FROM fiaon_termine t WHERE t.person_id = p.id AND t.status = 'gebucht'
          AND t.abgesagt_am IS NULL AND t.beginn > NOW() ORDER BY t.beginn LIMIT 1) AS termin_am,
       (SELECT t.quelle FROM fiaon_termine t WHERE t.person_id = p.id AND t.status = 'gebucht'

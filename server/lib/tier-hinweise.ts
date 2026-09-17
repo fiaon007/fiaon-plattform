@@ -121,11 +121,14 @@ export const TIER_HINWEISE: Record<TierGrund, TierHinweis> = {
     hinweis: "Erstkontakt. Interesse prüfen und zum Antrag führen.",
   },
 
+  // E-188 (17.09.2026): Dieselbe Stufe trägt auch der Firmenkunde von FIAON Global, der sonst
+  // nichts bestellt hat (tier.ts, „FIAON Global steht nicht im Privatvertrieb") — der Text nennt ihn mit.
   ausgeschlossen: {
-    titel: "Aus dem Vertrieb ausgeschlossen",
+    titel: "Nicht im Privatvertrieb",
     hinweis:
-      "Erstattet oder storniert. Erscheint in keinem Vertriebs-Pool und wird nicht " +
-      "kontaktiert. Nur über den Admin-Filter sichtbar.",
+      "Erstattet oder storniert — oder Firmenkunde von FIAON Global: Der gehört der zuständigen " +
+      "Person und steht unter „FIAON Global“, nicht in den Anruflisten. Erscheint in keinem " +
+      "Vertriebs-Pool und wird aus dem Privatvertrieb nicht kontaktiert.",
   },
 };
 

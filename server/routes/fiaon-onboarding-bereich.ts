@@ -30,6 +30,7 @@ import { versendenUndProtokollieren } from "../lib/fiaon-mail-log";
 import { absoluteUrl } from "../fiaon-base-url";
 import { terminArtAusQuelle } from "../../shared/fiaon-termin-art";
 import { sorgeFuerAkte } from "../lib/fiaon-akte-anker";
+import { produktkategorieSql } from "../lib/fiaon-produktkategorie";
 
 const router = Router();
 
@@ -1998,6 +1999,9 @@ import("../lib/fiaon-crons").then(({ tageslauf }) => {
       JOIN fiaon_persons p ON p.id = a.person_id
       WHERE a.merged_into IS NULL AND a.archived_at IS NULL AND a.payment_status = 'paid'
         AND COALESCE(a.type, '') <> 'schufa' AND a.ref NOT LIKE 'FIAON-SCHUFA-%'
+        -- E-188: Ein Auftrag über FIAON Global bekommt keine Einladung zum Startgespräch der Privatkunden.
+        -- Die Mail-Tür hielte sie NICHT auf: Diese Nutzlast trägt keine Antragsnummer, an der sie Global erkennt.
+        AND ${sqlPool.unsafe(produktkategorieSql("a"))} <> 'global'
         AND p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL
         AND a.gekuendigt_am IS NULL AND (a.vertrag_ende_am IS NULL OR a.vertrag_ende_am > NOW())
         AND COALESCE(a.paid_at, a.updated_at) BETWEEN NOW() - INTERVAL '30 days' AND NOW() - INTERVAL '24 hours'

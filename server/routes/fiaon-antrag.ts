@@ -3799,6 +3799,8 @@ router.post("/admin/analysen/nachholen", async (req, res) => {
     // Nach einer besseren Anweisung an die Texterkennung: fertige Kontoauszug-Analysen aus der
     // Texterkennung, deren Saldo-Kette nicht aufging, noch einmal rechnen (höchstens einmal je Stand).
     const ocrNeu = req.body?.ocrNeu === true;
+    // Nach dem Tagessaldo-Fix (18.09.2026): ALLE fertigen Auszüge, deren Saldo-Kette nicht aufging, neu rechnen.
+    const ketteNeu = req.body?.ketteNeu === true;
     // Kontoauszug: jüngster Lauf je Bestellung ist „ohne Text", „fehler" oder hängt.
     const auszug = (await sqlPool`
       SELECT a.ref FROM fiaon_applications a
@@ -3808,6 +3810,8 @@ router.post("/admin/analysen/nachholen", async (req, res) => {
         AND ((j.status = 'unlesbar' AND j.fehler ILIKE '%keinen lesbaren Text%')
              OR j.status = 'fehler'
              OR (j.status = 'laeuft' AND j.created_at < NOW() - INTERVAL '15 minutes')
+             OR (${ketteNeu} AND j.status = 'fertig'
+                 AND COALESCE((CASE WHEN jsonb_typeof(j.pruefung) = 'string' THEN (j.pruefung #>> '{}')::jsonb ELSE j.pruefung END)->>'stimmt', 'true') = 'false')
              OR (${ocrNeu} AND j.status = 'fertig' AND j.modell ILIKE '%Texterkennung%'
                  AND COALESCE((CASE WHEN jsonb_typeof(j.pruefung) = 'string' THEN (j.pruefung #>> '{}')::jsonb ELSE j.pruefung END)->>'stimmt', 'true') = 'false'))
     `) as any[];

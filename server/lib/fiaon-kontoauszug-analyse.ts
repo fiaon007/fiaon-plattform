@@ -453,13 +453,30 @@ function auswerten(buchungen: Buchung[], kopf: { saldoAnfang: number | null; sal
  * Reihenfolge = Reihenfolge im Ausdruck (so liefert das Modell sie), nicht
  * nach Datum sortiert: Zwei Buchungen am selben Tag haben eine Druckfolge.
  */
-function saldoKette(b: Buchung[], saldoAnfang: number | null): { geprueft: number; brueche: { nach: number; erwartet: number; gedruckt: number }[] } {
+/**
+ * TAGESSALDO (18.09.2026). Manche Banken drucken den Saldo nur einmal je Tag. Das Modell
+ * schrieb ihn dann an JEDE Buchung des Tages — und die Kette „brach" an jeder Stelle
+ * (gemessen: 37 von 37, echte Kundenauszüge). Gleicher Tag und gleicher Saldo in Folge
+ * heißt: Tagessaldo — er gehört nur hinter die letzte Buchung des Tages.
+ */
+export function tagessalden(b: Buchung[]): Buchung[] {
+  const aus = b.map((x) => ({ ...x }));
+  for (let i = 0; i < aus.length - 1; i++) {
+    const x = aus[i], n = aus[i + 1];
+    if (x.saldoDanachCents != null && x.datum === n.datum && x.saldoDanachCents === n.saldoDanachCents) x.saldoDanachCents = null;
+  }
+  return aus;
+}
+
+export function saldoKette(b: Buchung[], saldoAnfang: number | null): { geprueft: number; brueche: { nach: number; erwartet: number; gedruckt: number }[] } {
   const brueche: { nach: number; erwartet: number; gedruckt: number }[] = [];
   let geprueft = 0;
   let vorher: number | null = saldoAnfang;
   for (let i = 0; i < b.length; i++) {
     const s = b[i].saldoDanachCents;
-    if (s == null) { vorher = null; continue; }
+    // 18.09.2026: Ohne gedruckten Saldo läuft die Kette rechnerisch weiter (vorher: Abbruch) —
+    // Banken mit Tagessaldo drucken ihn nur hinter der letzten Buchung des Tages.
+    if (s == null) { if (vorher != null) vorher += b[i].betragCents; continue; }
     if (vorher != null) {
       geprueft++;
       const erwartet = vorher + b[i].betragCents;
@@ -484,10 +501,13 @@ function vorzeichenAusKette(b: Buchung[], saldoAnfang: number | null): { buchung
   const aus = b.map((x) => ({ ...x }));
   let korrigiert = 0;
   let vorher: number | null = saldoAnfang;
+  // Repariert wird nur, wo der Saldo direkt davor gedruckt war — nach Zeilen ohne Saldo könnte
+  // die Lücke von jeder der dazwischenliegenden Buchungen stammen.
+  let direkt = true;
   for (let i = 0; i < aus.length; i++) {
     const x = aus[i];
-    if (x.saldoDanachCents == null) { vorher = null; continue; }
-    if (vorher != null) {
+    if (x.saldoDanachCents == null) { if (vorher != null) vorher += x.betragCents; direkt = false; continue; }
+    if (vorher != null && direkt) {
       const erwartet = vorher + x.betragCents;
       const luecke = x.saldoDanachCents - erwartet;
       if (Math.abs(luecke) > 1 && Math.abs(luecke + 2 * x.betragCents) <= 1) {
@@ -497,6 +517,7 @@ function vorzeichenAusKette(b: Buchung[], saldoAnfang: number | null): { buchung
       }
     }
     vorher = x.saldoDanachCents;
+    direkt = true;
   }
   return { buchungen: aus, korrigiert };
 }
@@ -592,13 +613,30 @@ export async function kontoauszugProbe(buf: Buffer): Promise<Probe> {
   }
   if (lauf) stuecke.push(lauf);
   const anweisung = BUCHUNG_ANWEISUNG(zeitraumVon, zeitraumBis);
+  // 18.09.2026: Eine lange Seite aus der Texterkennung ließ die Antwort abbrechen („Unterminated
+  // string in JSON"). Dann wird das Stück an einer Zeilengrenze halbiert, höchstens zweimal.
+  const stueckLesen = async (text: string, teil: string, hinweis: string | null, tiefe = 0): Promise<Buchung[]> => {
+    const nutzer = `Kontoauszug, ${teil}. Jede Zeile ist eine Zeile des Ausdrucks; das Zeichen | trennt Spalten.`
+      + (hinweis ? `\n\nKONTROLLE AUS DEM ERSTEN DURCHLAUF: ${hinweis}` : "") + `\n\n${text}`;
+    try {
+      const { daten } = await modellAufruf("kontoauszug_buchungen", BUCHUNG_SCHEMA, anweisung, nutzer);
+      const aus: Buchung[] = [];
+      for (const b of daten.buchungen || []) { const x = buchungAus(b); if (x) aus.push(x); }
+      return aus;
+    } catch (e) {
+      if (tiefe >= 2 || text.length < 1500) throw e;
+      const zeilen = text.split("\n");
+      const mitte = Math.floor(zeilen.length / 2);
+      return [
+        ...await stueckLesen(zeilen.slice(0, mitte).join("\n"), `${teil}, erste Hälfte`, hinweis, tiefe + 1),
+        ...await stueckLesen(zeilen.slice(mitte).join("\n"), `${teil}, zweite Hälfte`, hinweis, tiefe + 1),
+      ];
+    }
+  };
   const lesen = async (hinweis: string | null): Promise<Buchung[]> => {
     const alle: Buchung[] = [];
     for (let i = 0; i < stuecke.length; i++) {
-      const nutzer = `Kontoauszug, Teil ${i + 1} von ${stuecke.length}. Jede Zeile ist eine Zeile des Ausdrucks; das Zeichen | trennt Spalten.`
-        + (hinweis ? `\n\nKONTROLLE AUS DEM ERSTEN DURCHLAUF: ${hinweis}` : "") + `\n\n${stuecke[i]}`;
-      const { daten } = await modellAufruf("kontoauszug_buchungen", BUCHUNG_SCHEMA, anweisung, nutzer);
-      for (const b of daten.buchungen || []) { const x = buchungAus(b); if (x) alle.push(x); }
+      alle.push(...await stueckLesen(stuecke[i], `Teil ${i + 1} von ${stuecke.length}`, hinweis));
     }
     return alle; // Druckreihenfolge — die Saldo-Kette braucht sie
   };
@@ -607,7 +645,7 @@ export async function kontoauszugProbe(buf: Buffer): Promise<Probe> {
 
   let korrigiert = 0;
   const lesenUndRichten = async (hinweis: string | null): Promise<Buchung[]> => {
-    const rep = vorzeichenAusKette(await lesen(hinweis), saldoAnfang);
+    const rep = vorzeichenAusKette(tagessalden(await lesen(hinweis)), saldoAnfang);
     korrigiert += rep.korrigiert;
     return rep.buchungen;
   };

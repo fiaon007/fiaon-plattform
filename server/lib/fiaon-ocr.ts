@@ -51,7 +51,14 @@ function merken(schluessel: string, e: OcrErgebnis): void {
 
 function anweisung(art: OcrArt, ab: number, bis: number): string {
   const wozu: Record<OcrArt, string> = {
-    kontoauszug: "Es ist vermutlich ein Kontoauszug: Jede Buchung steht auf EINER Zeile (Datum | Text | Betrag | ggf. Saldo). Vorzeichen, Soll/Haben-Kennzeichen, Komma und Tausenderpunkt exakt wie gedruckt.",
+    // 18.09.2026, erster Produktionslauf: 130 Buchungen gelesen, aber die Saldo-Kette brach an 54
+    // von 56 Stellen. Ursache sind Tabellen mit getrennten Spalten „Soll | Haben": Ohne Markierung der
+    // LEEREN Zelle weiß niemand mehr, in welcher Spalte ein Betrag stand. Deshalb: Kopfzeile mit, jede
+    // leere Zelle als „—", und die Spaltenzahl bleibt in jeder Zeile gleich.
+    kontoauszug: "Es ist vermutlich ein Kontoauszug. Übertrage die Kopfzeile jeder Buchungstabelle (z. B. „Datum | Text | Soll | Haben | Saldo“). "
+      + "Danach jede Buchung auf EINER Zeile mit GENAU so vielen Spalten wie die Kopfzeile; eine leere Zelle schreibst du als „—“, damit klar bleibt, in welcher Spalte ein Betrag steht. "
+      + "Mehrzeilige Buchungstexte gehören in die Textspalte derselben Zeile. Vorzeichen, Soll/Haben-Kennzeichen (S, H, -, +), Komma und Tausenderpunkt exakt wie gedruckt. "
+      + "Anfangs- und Endsaldo („Alter Kontostand“, „Neuer Kontostand“) wörtlich mit ihrem Betrag.",
     schufa: "Es ist vermutlich eine Bonitätsauskunft (z. B. SCHUFA-Datenkopie): Nummerierte Einträge, Daten, Beträge und Vertragsnummern exakt wie gedruckt.",
     ausweis: "Es ist vermutlich ein Ausweisdokument (Personalausweis, Reisepass, Aufenthaltstitel): Übertrage alle Beschriftungen und Felder, auch die maschinenlesbare Zone (MRZ) Zeichen für Zeichen.",
     allgemein: "",

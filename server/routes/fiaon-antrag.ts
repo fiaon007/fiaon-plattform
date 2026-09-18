@@ -3794,15 +3794,22 @@ router.post("/admin/analysen/nachholen", async (req, res) => {
   try {
     if (nachholStand.laeuft) return res.json({ ok: true, schon: true, stand: nachholStand });
     const max = Math.min(Math.max(Number(req.body?.max) || 200, 1), 400);
+    // Welche Arten? Vorgabe alle drei; z. B. ["schufa", "pruefung"] für einen Teillauf.
+    const arten: string[] = Array.isArray(req.body?.arten) && req.body.arten.length ? req.body.arten.map(String) : ["kontoauszug", "schufa", "pruefung"];
+    // Nach einer besseren Anweisung an die Texterkennung: fertige Kontoauszug-Analysen aus der
+    // Texterkennung, deren Saldo-Kette nicht aufging, noch einmal rechnen (höchstens einmal je Stand).
+    const ocrNeu = req.body?.ocrNeu === true;
     // Kontoauszug: jüngster Lauf je Bestellung ist „ohne Text", „fehler" oder hängt.
     const auszug = (await sqlPool`
       SELECT a.ref FROM fiaon_applications a
-      JOIN LATERAL (SELECT k.status, k.fehler, k.created_at FROM fiaon_kontoauszug_analysen k
+      JOIN LATERAL (SELECT k.status, k.fehler, k.created_at, k.modell, k.pruefung FROM fiaon_kontoauszug_analysen k
                      WHERE k.ref = a.ref ORDER BY k.created_at DESC LIMIT 1) j ON TRUE
       WHERE a.bank_statement_pdf IS NOT NULL AND a.gdpr_deleted_at IS NULL
         AND ((j.status = 'unlesbar' AND j.fehler ILIKE '%keinen lesbaren Text%')
              OR j.status = 'fehler'
-             OR (j.status = 'laeuft' AND j.created_at < NOW() - INTERVAL '15 minutes'))
+             OR (j.status = 'laeuft' AND j.created_at < NOW() - INTERVAL '15 minutes')
+             OR (${ocrNeu} AND j.status = 'fertig' AND j.modell ILIKE '%Texterkennung%'
+                 AND COALESCE((CASE WHEN jsonb_typeof(j.pruefung) = 'string' THEN (j.pruefung #>> '{}')::jsonb ELSE j.pruefung END)->>'stimmt', 'true') = 'false'))
     `) as any[];
     // Bonitätsauskunft: jüngster Lauf „unlesbar" wegen fehlendem Text, „fehler",
     // hängt — oder ein Dokument, das nie ausgewertet wurde.
@@ -3827,9 +3834,9 @@ router.post("/admin/analysen/nachholen", async (req, res) => {
     `.catch(() => [] as any[])) as any[];
 
     const auftraege: { art: string; ref: string }[] = [
-      ...auszug.map((r) => ({ art: "kontoauszug", ref: String(r.ref) })),
-      ...schufa.map((r) => ({ art: "schufa", ref: String(r.ref) })),
-      ...pruef.map((r) => ({ art: `pruefung:${r.art}`, ref: String(r.ref) })),
+      ...(arten.includes("kontoauszug") ? auszug.map((r) => ({ art: "kontoauszug", ref: String(r.ref) })) : []),
+      ...(arten.includes("schufa") ? schufa.map((r) => ({ art: "schufa", ref: String(r.ref) })) : []),
+      ...(arten.includes("pruefung") ? pruef.map((r) => ({ art: `pruefung:${r.art}`, ref: String(r.ref) })) : []),
     ].slice(0, max);
     Object.assign(nachholStand, { laeuft: true, start: new Date().toISOString(), ende: null, gesamt: auftraege.length, fertig: 0, fehler: 0, je: {}, letzte: [] });
     for (const a of auftraege) nachholStand.je[a.art] = (nachholStand.je[a.art] || 0) + 1;

@@ -5,6 +5,67 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 18.09.2026 — Kundenmails: „Zugang zum Bereich“ statt „Willkommen“, jeder Knopf mit Ziel (Team-Feedback, Priorität 3)
+
+**Was geändert wurde:**
+
+- **„Willkommen und Zugang“ heißt jetzt „Zugang zum Bereich“** und schickt eine eigene Mail (`zugang_link`): Knopf
+  „In meinen Bereich“ und Link „Passwort festlegen“. Vorher ging dort die automatische Antrag-eingegangen-Mail
+  (`welcome`) raus — ohne Knopf und mit „Sie erhalten gleich eine separate E-Mail mit Ihren Zahlungsdaten“. Gemessen:
+  211 solcher Handversände an 166 Menschen, 207 davon an Kunden, die längst bezahlt hatten. `welcome` darf von Hand
+  nur noch die Verwaltung schicken, und nur an Kunden OHNE Zahlung. „Zugang retten“ (Setz-Link, 60 Minuten) nutzt
+  dieselbe neue Mail.
+- **Kein Knopf verschwindet mehr still.** Fehlte das Ziel eines Knopfs, ließ der Mail-Motor ihn weg und meldete es
+  nirgends. Jetzt steht die Lücke in der Fehlliste und im Protokoll; der Handversand (Sende-Menü, Versandzentrum,
+  jede Aufrufstelle über `mailSenden`) prüft VOR dem Versand und lehnt mit Klartext ab, statt eine Mail ohne ihren
+  Knopf zu schicken. Einzige erwartete Lücke: die Sofortzahlung bei der Erstzahlung (dann rückt „QR-Code &
+  Bankdaten“ auf). Die Abmeldezeile erscheint nur noch mit Ziel; Werbe-Mails ohne Abmeldelink gehen nicht raus.
+- **Der Handversand baut jetzt alle Links selbst** (EIN Baustein für Sende-Menü, Vorschau und Versandzentrum):
+  Anmeldung, Passwort, Zahlungsseite der OFFENEN Bestellung, Lastschrift-Link, Nummern-Formular plus Terminlink,
+  Zustimmungsseite, Antragslink, Abmeldelink, Wiedereinstieg in den begonnenen Antrag, Anmelde-Link ohne Passwort
+  (Schlüssel nur beim echten Versand). Vorher baute er genau einen Link (Terminlink, drei Mails).
+- **Nach dem Startgespräch** kommt „Ihr Bereich ist jetzt vollständig freigeschaltet“ mit Knopf (`bereich_freigeschaltet`)
+  statt „Ihr Zugang ist wieder frei“ ohne Knopf (100 Mails). „Wieder frei“ bleibt für die Entsperrung.
+- **Termine:** Die No-Show-Mail nennt Datum und Uhrzeit (vorher „am  um  Uhr“, 67 von 76 Mails); „Termin kam nicht
+  zustande“ funktioniert auch für den Vertrieb; „Nummer falsch“ schickt die Nummern-Mail mit Formular-Knopf; das
+  Verschieben schickt eine vollständige Bestätigung (vorher lehnte die Rechteprüfung jede Umbuchung eines
+  Mitarbeiters ab).
+- **Menüs zeigen nur, was von Hand vollständig geht.** Terminbestätigungen, Sperr-, Storno-, Lösch-, Global- und
+  Bewerbungs-Mails brauchen Angaben, die nur ihr eigener Auslöser kennt — sie stehen nicht mehr im Sende-Menü.
+  „Konto & Karte“ steht im allgemeinen Menü nur für die Verwaltung (das Team nutzt den eigenen Knopf, der die drei
+  Bedingungen prüft und die 10 € vormerkt); die drei Bedingungen gelten jetzt auf jedem Weg.
+- **Regeln:** Zahlungsbestätigung nur an Kunden mit gebuchter Zahlung; Lastschrift-Bitte nur nach der ersten Zahlung —
+  auch aus dem Sende-Menü (vorher nur im Versandzentrum).
+- **Vorschau:** Im Sende-Menü gibt es wieder einen Vorschau-Knopf; er zeigt die echte Mail dieses Kunden, leere
+  Angaben und — falls der Versand ablehnen würde — den Grund. Auch die Academy zeigt die Mails wieder.
+- **Texte:** „Antrag eingegangen“ verspricht keine Zahlungsmail mehr, die nie kommt; die Lead-Strecke hat je Variante
+  den passenden Knopf („Zeitfenster wählen“ bei den Termin-Varianten) und duzt bis in den Fuß; „Dein Zugang wartet“
+  an Menschen ohne Konto ist weg; Rückhol-Mails ohne Paketnamen sagen „die FIAON-Betreuung“ statt einer Lücke;
+  „Dokument anfordern“ sagt, welches Dokument fehlt, und hat einen Knopf; die Nummern-Mail zeigt den Terminlink;
+  Kontowechsel kommt von „FIAON Accounting“, Kündigung und Vertragsende von „FIAON Legal“.
+- **Protokoll:** Automatische Mails ohne Personenbezug (Zahlungsbestätigung, Zahlungsdaten, Erinnerungen, Lead-Strecke
+  …) werden im Protokoll der Person zugeordnet — sie erscheinen jetzt in der Akte.
+
+**Warum:** Team-Feedback vom 18.09.2026: „Bei ‚Willkommen und Zugang‘ erhalten Kunden stattdessen eine Nachricht mit
+‚Ihr Antrag ist genehmigt, bitte zahlen Sie‘ … in manchen E-Mails steht ‚Klicken Sie unten‘, aber es gibt dort keinen
+Link oder Button.“ Beides war gemessen richtig.
+
+**Offen (Entscheidung Justin):** Die automatische Antrags-Erinnerung (E-023) sucht Anträge ohne Zahlungsreferenz —
+jeder Antrag hat aber eine. Sie hat seit Bestehen genau eine Mail verschickt. Nicht eingeschaltet, weil sie sofort
+bis zu sieben Mails je abgebrochenem Antrag auslösen würde (gemessen: 47 Anträge der letzten 14 Tage mit Adresse).
+
+**Wo:** `server/mail/motor.ts`, `server/mail/geruest.ts`, `server/mail/vorlagen/konto.ts`,
+`server/lib/fiaon-mail-senden.ts` (Link-Baustein, `versandLuecke`), `server/lib/fiaon-versand.ts`,
+`server/lib/fiaon-mail-events.ts`, `server/make-events-registry.ts`, `server/make-webhook.ts`,
+`server/lib/fiaon-mail-log.ts`, `server/lib/fiaon-mail-frequenz.ts`, `server/routes/fiaon-versand.ts`,
+`server/routes/fiaon-mail.ts`, `server/routes/fiaon-termin.ts`, `server/routes/fiaon-telefonie.ts`,
+`server/routes/fiaon-onboarding-bereich.ts`, `server/routes/fiaon-zugang-retten.ts`, `server/routes/fiaon-app-login.ts`,
+`server/routes/fiaon-admin-hub.ts`, `server/routes/fiaon-leads.ts`, `server/lib/fiaon-lead-strecke.ts`,
+`shared/fiaon-lead-strecke.ts`, `server/lib/fiaon-rueckholung.ts`, `server/fiaon-number-update.ts`,
+`client/src/components/SendeMenue.tsx`; Prüfstand `scripts/pruef-mail-knoepfe.ts`.
+
+---
+
 ## 17.09.2026 — FIAON Global: der Querschnitt — Zahlungstakt, Zugang ohne Passwort, Storno, zwei Sprachen, Datenschutz (E-188)
 
 **Was geändert wurde:** Sieben Lücken, die nach dem Bestellweg offen waren, sind geschlossen.

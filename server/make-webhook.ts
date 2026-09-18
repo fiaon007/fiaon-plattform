@@ -13,6 +13,14 @@ import { istGlobalPaket } from "@shared/fiaon-pakete";
 // Quelle für die Event-Test-Konsole /admin/events (Paket T).
 export type MakeEventType =
   | "welcome"
+  // ── 18.09.2026 (Team-Feedback, Priorität 3) ──────────────────────────────
+  // „Willkommen und Zugang" schickte `welcome` — die Antrag-eingegangen-Mail
+  // OHNE Knopf, mit „Sie erhalten gleich eine separate E-Mail mit Ihren
+  // Zahlungsdaten". 211 Handversände an 166 Menschen, 207 davon an Kunden mit
+  // bezahlter Bestellung (Messung 18.09.2026). Der Weg in den Bereich ist
+  // jetzt ein eigenes Ereignis mit Knopf.
+  | "zugang_link"            // Weg in den Kundenbereich: Anmeldung + „Passwort festlegen"
+  | "bereich_freigeschaltet" // nach dem geführten Startgespräch — der Bereich ist vollständig offen
   | "payment_details"
   | "followup_48h" // deprecated — ersetzt durch payment_reminder (Paket V)
   | "payment_reminder"
@@ -236,6 +244,22 @@ export async function sendMakeWebhookMitGrund(
     }
   }
 
+  // ── WERBUNG NUR MIT ABMELDELINK (18.09.2026) ────────────────────────────
+  // Lead-Strecke und Dauerpflege schreiben Menschen ohne Vertrag an. Fehlt
+  // der Abmeldelink, rendert das Gerüst die Zeile „Hier abmelden" nicht mehr
+  // (vorher: ein Link mit leerem Ziel) — und eine Werbemail ohne Ausgang geht
+  // hier gar nicht erst raus. Dieselbe Tür für Automatik, Handversand und
+  // Make-Weg; die Liste steht im Motor (ABMELDEPFLICHT).
+  if (!payload.test) {
+    const { ABMELDEPFLICHT } = await import("./mail/motor");
+    if (ABMELDEPFLICHT.has(eventType) && !String(payload.abmelde_url ?? "").trim()) {
+      const erg: MakeVersand = { ok: false, grund: "Werbe-Mail ohne Abmeldelink — nicht verschickt. Der Auslöser muss abmelde_url mitgeben." };
+      protokollNebenbei(eventType, payload, erg);
+      console.warn(`[MAKE-WEBHOOK] '${eventType}' NICHT gesendet: kein Abmeldelink an ${payload.email || "?"}.`);
+      return erg;
+    }
+  }
+
   // ── DIE FREQUENZBREMSE (02.09.2026) ────────────────────────────────────
   // Sie steht hier und nicht in den Läufen, weil es mehr als einen Auslöser
   // gibt: der Mahn-Takt, der Massenversand (der `maxReminders: null` setzt und
@@ -315,7 +339,9 @@ export async function sendMakeWebhookMitGrund(
 
 /** E-188: Ereignisse, die nur für Privatpakete stimmen — Zahlung, Konto, Rückholung, Abo. */
 const PRIVATLINIE = new Set<string>([
-  "welcome", "payment_details", "followup_48h", "payment_reminder", "claim_received", "payment_confirmed",
+  // 18.09.2026: zugang_link und bereich_freigeschaltet sprechen vom Kundenbereich — den hat ein Firmenauftrag nicht.
+  "welcome", "zugang_link", "bereich_freigeschaltet",
+  "payment_details", "followup_48h", "payment_reminder", "claim_received", "payment_confirmed",
   "agent_payment_reminder", "payment_reactivated", "abo_payment_reminder", "abo_verlaengerung_frage", "sepa_einrichten",
   "onboarding_einladung", "konto_karte_einladung", "zustimmung_link", "antrag_erinnerung",
   "rueckhol_s1", "rueckhol_s2", "rueckhol_s3", "rueckhol_s4", "rueckhol_s5", "rueckhol_s5b", "rueckhol_s5c", "rueckhol_s5d",
@@ -497,11 +523,18 @@ function protokollNebenbei(eventType: MakeEventType, payload: MakeWebhookPayload
     try {
       if (!process.env.DATABASE_URL) return;
       const { mailProtokoll } = await import("./lib/fiaon-mail-log");
+      // Ohne person_id ist ein Protokolleintrag nicht auffindbar: Die Akte
+      // filtert danach, und die Zustellkarte verlinkt darauf. Fehlt sie in der
+      // Nutzlast, wird sie HIER aufgelöst (18.09.2026, siehe personAusNutzlast).
+      const personId = payload.person_id != null && Number(payload.person_id) > 0
+        ? Number(payload.person_id)
+        : await personAusNutzlast(payload).catch((e) => {
+            console.warn(`[MAKE-WEBHOOK] Person zu '${eventType}' nicht aufgelöst — der Eintrag fehlt in der Akte:`, e instanceof Error ? e.message : e);
+            return null;
+          });
       await mailProtokoll({
         event: eventType,
-        // Ohne person_id ist ein Protokolleintrag nicht auffindbar: Die Akte
-        // filtert danach, und die Zustellkarte verlinkt darauf.
-        personId: payload.person_id != null ? Number(payload.person_id) : null,
+        personId,
         empfaenger: payload.email ? String(payload.email) : null,
         status: erg.ok ? "versandt" : "fehlgeschlagen",
         grund: erg.grund ?? null,
@@ -512,6 +545,48 @@ function protokollNebenbei(eventType: MakeEventType, payload: MakeWebhookPayload
       // Ein Protokoll, das klemmt, darf den Versand nicht mitreißen.
     }
   })();
+}
+
+/**
+ * Zu welcher Person gehört eine Nutzlast ohne person_id? (18.09.2026)
+ *
+ * GEMESSEN über 30 Tage: 19.186 Zahlungserinnerungen, 865 Zahlungsdaten-, 566
+ * Willkommens-, 121 Zahlungsmeldungs- und 110 Zahlungsbestätigungs-Mails
+ * standen OHNE person_id im Protokoll. Die automatischen Wege in
+ * fiaon-antrag.ts holen die Bestellzeile ohne diese Spalte, der Nummern-Weg
+ * kannte sie gar nicht. Die Akte filtert nach person_id — die echte
+ * Zugangsmail nach der Zahlungsbuchung erschien dort deshalb nie.
+ *
+ * Statt zehn RETURNING-Klauseln nachzuziehen (und die elfte zu vergessen),
+ * löst die EINE Protokollstelle die Person selbst auf: Aktenzeichen, dann
+ * Verwendungszweck (Bestellung, dann Rate), dann Lead. Findet sie nichts,
+ * bleibt das Feld leer wie bisher.
+ */
+async function personAusNutzlast(payload: MakeWebhookPayload): Promise<number | null> {
+  const { sqlPool } = await import("./lib/db-pool");
+  const ref = String(payload.antrag_id ?? "").trim();
+  if (ref) {
+    const [a] = (await sqlPool`
+      SELECT person_id FROM fiaon_applications WHERE ref = ${ref} AND person_id IS NOT NULL LIMIT 1`) as any[];
+    if (a?.person_id) return Number(a.person_id);
+  }
+  const zahlRef = String(payload.payment_reference ?? "").trim();
+  if (zahlRef) {
+    const [b] = (await sqlPool`
+      SELECT person_id FROM fiaon_applications WHERE payment_reference = ${zahlRef} AND person_id IS NOT NULL LIMIT 1`) as any[];
+    if (b?.person_id) return Number(b.person_id);
+    const [r] = (await sqlPool`
+      SELECT a.person_id FROM fiaon_abo_raten r JOIN fiaon_applications a ON a.ref = r.ref
+       WHERE r.zahlungsreferenz = ${zahlRef} AND a.person_id IS NOT NULL LIMIT 1`) as any[];
+    if (r?.person_id) return Number(r.person_id);
+  }
+  const leadId = Number(payload.lead_id);
+  if (Number.isInteger(leadId) && leadId > 0) {
+    const [l] = (await sqlPool`
+      SELECT person_id FROM fiaon_leads WHERE id = ${leadId} AND person_id IS NOT NULL`) as any[];
+    if (l?.person_id) return Number(l.person_id);
+  }
+  return null;
 }
 
 /**

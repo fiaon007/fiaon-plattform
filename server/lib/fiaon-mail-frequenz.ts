@@ -55,7 +55,9 @@ import { sqlPool } from "./db-pool";
  */
 export const PFLICHTMAILS = new Set<string>([
   "payment_confirmed",       // Zahlung da → Zugang. Ohne das ist das Geld weg und die Tür zu.
+  "zugang_link",             // 18.09.2026: Der Kunde kommt nicht in seinen bezahlten Bereich — die Tür, nicht Werbung.
   "account_activated",
+  "bereich_freigeschaltet",  // 18.09.2026: Antwort auf das eben geführte Startgespräch.
   "welcome",                 // Antwort auf den abgeschickten Antrag.
   "payment_details",         // Die Zahlungsdaten zum eben abgeschlossenen Antrag.
   "bankverbindung_neu",      // 02.09.2026: Kontowechsel — wer die alte IBAN hat, MUSS die neue bekommen.

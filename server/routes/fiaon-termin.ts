@@ -30,8 +30,24 @@ const router = Router();
 
 // ───────────────────────────────────────────────────────────────────────────
 // Gemeinsam: Bestätigungsmail nach einer Buchung
+//
+// 18.09.2026: Auch das VERSCHIEBEN nimmt diese Funktion. Dort stand ein
+// mailSenden(„termin_bestaetigung") mit nur zwei Feldern (Datum als
+// Wochentagstext, verschoben_von): ohne Uhrzeit, ohne Storno-Link, ohne
+// Gesprächspartner — und weil termin_bestaetigung nur die Verwaltung von Hand
+// senden darf, lehnte die Rollenprüfung jede Umbuchung durch einen
+// Mitarbeiter ab. Die Bestätigung ist eine Systemmail zu einer Buchung; sie
+// geht hier mit vollständiger Nutzlast über versendenUndProtokollieren.
 // ───────────────────────────────────────────────────────────────────────────
-async function bestaetigungSenden(buchung: Awaited<ReturnType<typeof terminBuchen>>): Promise<void> {
+async function bestaetigungSenden(
+  buchung: Pick<Awaited<ReturnType<typeof terminBuchen>>, "personId" | "agentVorname" | "datumText" | "uhrzeit" | "quelle" | "stornoToken">,
+  opts: {
+    verlaufText?: string;
+    zusatz?: Record<string, unknown>;
+    ausgeloestVon?: string | null;
+    ausgeloestAgentId?: number | null;
+  } = {},
+): Promise<Awaited<ReturnType<typeof versendenUndProtokollieren>> | null> {
   const [p] = (await sqlPool`
     SELECT COALESCE(NULLIF(p.first_name, ''), p.contact_name) AS vorname, p.last_name AS nachname,
            COALESCE(NULLIF(p.primary_email, ''), (
@@ -45,8 +61,8 @@ async function bestaetigungSenden(buchung: Awaited<ReturnType<typeof terminBuche
              ORDER BY a2.created_at DESC LIMIT 1) AS ref
     FROM fiaon_persons p WHERE p.id = ${buchung.personId}
   `) as any[];
-  if (!p) return;
-  await versendenUndProtokollieren(
+  if (!p) return null;
+  return versendenUndProtokollieren(
     "termin_bestaetigung",
     {
       email: String(p.email || ""),
@@ -64,7 +80,7 @@ async function bestaetigungSenden(buchung: Awaited<ReturnType<typeof terminBuche
       // das nicht geschehen ist, wird das Feld übertragen und nicht angezeigt
       // — es schadet nichts und wartet.
       termin_art: terminArtAusQuelle(buchung.quelle).text,
-      storno_link: stornoLink(buchung.stornoToken),
+      storno_link: buchung.stornoToken ? stornoLink(buchung.stornoToken) : null,
       // ── „WIR RUFEN AN" ALS FERTIGER SATZ (19.08.2026) ──────────────────
       // Der Kunde, der einen Videokonferenz-Link erwartet, sitzt zur
       // vereinbarten Zeit vor seinem Rechner, während das Telefon klingelt.
@@ -77,11 +93,14 @@ async function bestaetigungSenden(buchung: Awaited<ReturnType<typeof terminBuche
       // shared/fiaon-termin-text.ts.
       hinweis_anruf: anrufHinweisSie(buchung.agentVorname),
       hinweis_absage: ABSAGE_HINWEIS_SIE,
+      ...(opts.zusatz || {}),
     },
     {
       personId: buchung.personId,
       verlaufRef: p.ref || null,
-      verlaufText: `Terminbestätigung versandt (${buchung.datumText} um ${buchung.uhrzeit} Uhr).`,
+      verlaufText: opts.verlaufText ?? `Terminbestätigung versandt (${buchung.datumText} um ${buchung.uhrzeit} Uhr).`,
+      ausgeloestVon: opts.ausgeloestVon ?? null,
+      ausgeloestAgentId: opts.ausgeloestAgentId ?? null,
     },
   );
 }
@@ -573,7 +592,9 @@ router.post("/agent/termine/:id/nicht-zustande", requireAgent, async (req: Agent
     const [termin] = (await sqlPool`
       SELECT t.id, t.person_id, t.beginn, t.agent_id, t.quelle, t.status,
              COALESCE(NULLIF(TRIM(CONCAT_WS(' ', p.first_name, p.last_name)), ''),
-                      p.company_name, 'Der Kunde') AS name
+                      p.company_name, 'Der Kunde') AS name,
+             (SELECT COALESCE(NULLIF(ag.first_name, ''), ag.name) FROM fiaon_agents ag
+               WHERE ag.id = t.agent_id) AS agent_vorname
       FROM fiaon_termine t LEFT JOIN fiaon_persons p ON p.id = t.person_id
       WHERE t.id = ${id} AND t.status IN ('gebucht', 'verpasst')`) as any[];
     if (!termin) return res.status(404).json({ ok: false, error: "Termin nicht gefunden." });
@@ -637,12 +658,53 @@ router.post("/agent/termine/:id/nicht-zustande", requireAgent, async (req: Agent
     // Zustellprotokoll. Eine zweite Versandlogik neben ihm wäre die zweite
     // Wahrheit, an der wir heute schon mehrfach hängengeblieben sind.
     let versandFehler: string | null = null;
-    if (regel.art) {
+    if (regel.art === "number_update_request") {
+      // ── „NUMMER FALSCH" ÜBER DEN NUMMERN-WEG (18.09.2026) ─────────────────
+      // Hier lief mailSenden(„number_update_request") — ohne update_url, also
+      // ohne den Knopf „Nummer prüfen und korrigieren", der der ganze Sinn der
+      // Mail ist. Der Nummern-Weg (fiaon-number-update.ts) baut den signierten
+      // Link und den Terminlink, merkt die Anfrage vor (Prüfung nach dem
+      // Ausfüllen) und hält die Grenze von einer Anfrage je Tag ein —
+      // derselbe Weg wie beim Kontakt-Ergebnis „Falsche Nummer".
+      const [ap] = (await sqlPool`
+        SELECT a.ref, COALESCE(NULLIF(p.first_name, ''), p.contact_name) AS vorname
+        FROM fiaon_persons p
+        LEFT JOIN LATERAL (
+          SELECT ref FROM fiaon_applications
+          WHERE person_id = p.id AND merged_into IS NULL AND gdpr_deleted_at IS NULL
+          ORDER BY created_at DESC LIMIT 1
+        ) a ON TRUE
+        WHERE p.id = ${termin.person_id}`) as any[];
+      if (!ap?.ref) {
+        versandFehler = "Zu diesem Kunden gibt es keine Bestellung — der Nummern-Link hat kein Ziel. Bitte die Nummer am Telefon oder per Mail erfragen.";
+      } else {
+        const { empfaengerFuer } = await import("../lib/fiaon-massgebliche-bestellung");
+        const { maybeSendNumberUpdateMail } = await import("../fiaon-number-update");
+        const an = (await empfaengerFuer(Number(termin.person_id), String(ap.ref))).adresse;
+        const r = await maybeSendNumberUpdateMail("app", String(ap.ref), { email: an, firstName: ap.vorname || null });
+        if (!r.sent) {
+          versandFehler = r.reason === "rate_limit"
+            ? "Die Bitte um eine neue Nummer ging heute schon raus — eine zweite am selben Tag schicken wir nicht."
+            : r.reason === "keine_email"
+              ? "Keine E-Mail-Adresse hinterlegt."
+              : "Die Nachricht konnte nicht gesendet werden — sie steht mit Grund im Zustellprotokoll.";
+        }
+      }
+    } else if (regel.art) {
       const { mailSenden } = await import("../lib/fiaon-mail-senden");
       const { rolleVon } = await import("../lib/fiaon-kundenzugriff");
       const erg = await mailSenden({
         event: regel.art,
         personId: Number(termin.person_id),
+        // 18.09.2026: Der No-Show nennt SEINEN Termin. Ohne diese Felder stand
+        // in der Mail „am  um  Uhr" (67 von 76 verschickten, Messung 18.09.).
+        zusatz: regel.art === "termin_verpasst" && termin.beginn
+          ? {
+              termin_datum: berlinDatumText(termin.beginn),
+              termin_uhrzeit: berlinUhrzeit(termin.beginn),
+              ...(termin.agent_vorname ? { agent_vorname: String(termin.agent_vorname) } : {}),
+            }
+          : undefined,
         akteur: { name: req.agent!.name, agentId: req.agent!.id, rolle: (await rolleVon(req.agent!.id)) as any },
       }).catch((e) => ({ ok: false, grund: e instanceof Error ? e.message : String(e) }));
       if (!(erg as any).ok) versandFehler = (erg as any).grund || "Die Nachricht konnte nicht gesendet werden.";
@@ -866,8 +928,10 @@ router.post("/agent/termine/:id/verschieben", requireAgent, async (req: AgentReq
     }
 
     const [t] = (await sqlPool`
-      SELECT id, person_id, agent_id, beginn, dauer_min, quelle, status
-      FROM fiaon_termine WHERE id = ${id}
+      SELECT t.id, t.person_id, t.agent_id, t.beginn, t.dauer_min, t.quelle, t.status, t.storno_token,
+             (SELECT COALESCE(NULLIF(ag.first_name, ''), ag.name) FROM fiaon_agents ag
+               WHERE ag.id = t.agent_id) AS agent_vorname
+      FROM fiaon_termine t WHERE t.id = ${id}
     `) as any[];
     if (!t) return res.status(404).json({ ok: false, error: "Termin nicht gefunden." });
     if (t.status !== "gebucht") {
@@ -921,17 +985,28 @@ router.post("/agent/termine/:id/verschieben", requireAgent, async (req: AgentReq
     // Der Kunde erfährt die neue Zeit. Misslingt die Mail, ist der Termin
     // trotzdem verschoben — aber die Antwort sagt es, damit der Mitarbeiter
     // von sich aus anruft.
+    // 18.09.2026: dieselbe Bestätigung wie nach einer Buchung (siehe
+    // bestaetigungSenden) — vorher ein Handversand, den die Rollenprüfung für
+    // jeden außer der Verwaltung ablehnte, und dem Uhrzeit und Storno-Link fehlten.
     let mailOk = false;
     try {
-      const { mailSenden } = await import("../lib/fiaon-mail-senden");
-      const erg = await mailSenden({
-        event: "termin_bestaetigung",
+      const erg = await bestaetigungSenden({
         personId: Number(t.person_id),
-        zusatz: { termin_datum: wann(neu), verschoben_von: wann(alt) },
-        akteur: { name: req.agent!.name, agentId: req.agent!.id, rolle: rolle as any },
+        agentVorname: String(t.agent_vorname || "Ihr Ansprechpartner"),
+        datumText: berlinDatumText(neu),
+        uhrzeit: berlinUhrzeit(neu),
+        quelle: String(t.quelle || ""),
+        stornoToken: String(t.storno_token || ""),
+      }, {
+        zusatz: { verschoben_von: wann(alt) },
+        verlaufText: `Terminbestätigung nach dem Verschieben versandt (${berlinDatumText(neu)} um ${berlinUhrzeit(neu)} Uhr).`,
+        ausgeloestVon: req.agent!.name,
+        ausgeloestAgentId: req.agent!.id,
       });
-      mailOk = !!(erg as any)?.ok;
-    } catch { /* siehe oben */ }
+      mailOk = erg?.status === "versandt";
+    } catch (e) {
+      console.error("[TERMIN] Bestätigung nach dem Verschieben:", e);
+    }
 
     res.json({
       ok: true,

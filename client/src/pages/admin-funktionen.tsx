@@ -91,7 +91,9 @@ export const CATALOG: FnGroup[] = [
     title: "E-Mails / Events",
     intro: "Alle Make-Events testen und den Verdrahtungs-Status prüfen — ohne an echte Kunden zu senden.",
     items: [
-      { name: "Willkommen", desc: "Feuert automatisch, sobald ein Antrag mit E-Mail abgeschlossen wurde.", href: "/admin/events", event: "welcome", button: "welcome (automatisch)" },
+      // 18.09.2026: „welcome" feuert beim E-Mail-Schritt des Antrags, nicht beim Abschluss — und ist keine Zugangsmail.
+      { name: "Antrag eingegangen (Willkommen)", desc: "Feuert automatisch beim E-Mail-Schritt des Antrags. Kein Zugang, keine Zahlungsdaten.", href: "/admin/events", event: "welcome", button: "welcome (automatisch)" },
+      { name: "Zugang zum Bereich", desc: "Von Hand an bezahlte Kunden, die nicht hineinkommen: Knopf zur Anmeldung und Link „Passwort festlegen“.", href: "/admin/events", event: "zugang_link", button: "zugang_link (Versandzentrum, Sende-Menü)" },
       { name: "Zahlungsdaten", desc: "Feuert beim Übergang zu offen (Bestellung/Reaktivierung), enthält Rechnungs-Link.", href: "/admin/events", event: "payment_details", button: "payment_details (automatisch)" },
       { name: "Überweisung angekündigt", desc: "Feuert, wenn der Kunde Ich habe überwiesen klickt.", href: "/admin/events", event: "claim_received", button: "claim_received (automatisch)" },
       { name: "Nummer-Update-Link", desc: "Bei Kontakt-Ergebnis Nummer falsch — Selbst-Korrektur-Mail an den Kunden.", href: "/admin/events", event: "number_update_request", button: "number_update_request (Kontakt-Ergebnis)" },

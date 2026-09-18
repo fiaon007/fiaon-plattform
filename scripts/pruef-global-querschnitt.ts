@@ -50,6 +50,10 @@ const WURZEL = path.resolve(import.meta.dirname ?? ".", "..");
 // absichtlichen Änderungen seitdem (Mail-Fuß, Rechnung „Auftrags-Nr.“); verglichen wird, dass der
 // Querschnitt selbst keine deutsche Mail und keine deutsche Rechnung verändert.
 const BASIS = process.env.PRUEF_BASIS || "c9f299a";
+// 18.09.2026 abends: Nach dem Mail-Umbau (fix/mails-0918: Knöpfe, Du-Form, Absender) sind deutsche
+// Mails absichtlich anders als vor dem Querschnitt. Der Byte-Vergleich hat seinen Zweck erfüllt und
+// läuft nur noch, wenn PRUEF_BASIS ausdrücklich gesetzt ist.
+const BYTEVERGLEICH = !!process.env.PRUEF_BASIS;
 
 let fehler = 0; let geprueft = 0;
 const ok = (bedingung: boolean, was: string) => { geprueft++; if (!bedingung) { fehler++; console.log(`  FEHLER  ${was}`); } };
@@ -446,7 +450,7 @@ for (const event of ereignisse) {
 
 // ═══ D · DAS GERÜST: DEUTSCHE MAILS BYTE-GLEICH ═════════════════════════════
 abschnitt(`D · Gerüst: deutsche Mails byte-gleich (gegen ${BASIS})`);
-if (altGeladen) {
+if (altGeladen && BYTEVERGLEICH) {
   const geruestAlt = await import(path.join(alt, "server/mail/geruest.ts"));
   const motorAlt = await import(path.join(alt, "server/mail/motor.ts"));
   const geruestNeu = await import("../server/mail/geruest");

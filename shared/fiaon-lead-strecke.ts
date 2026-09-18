@@ -50,7 +50,11 @@ export const MINDESTABSTAND_STUNDEN = 20;
 export interface StreckenVariante {
   /** Stabiler Schlüssel — er landet im Protokoll. */
   key: string;
-  /** Worum es geht — für den Betreiber, nicht für den Kunden. */
+  /**
+   * Worum es geht — für den Betreiber, nicht für den Kunden.
+   * 18.09.2026: `termin` entscheidet auch über den Knopf der Mail — „Zeitfenster
+   * wählen" auf /termin statt „Jetzt Antrag starten" (streckenKnopf unten).
+   */
   art: "nutzen" | "einwand" | "beweis" | "erinnerung" | "termin" | "auskunft";
   betreff: string;
   /** Der Text. Duzen, kurz, ein Gedanke. */
@@ -74,13 +78,20 @@ export const VARIANTEN: StreckenVariante[] = [
       + "du anrufen kannst.\n\n"
       + "Kein Papierkram, den du allein sortieren musst. Kein Warten darauf, dass sich jemand meldet.",
   },
+  // 18.09.2026: Hier stand „du hast angefangen, den Antrag auszufüllen … Der
+  // Link unten führt genau dorthin zurück, wo du aufgehört hast." Beides trifft
+  // niemanden, der diese Mail bekommt: Die Strecke schreibt NUR Leads ohne
+  // Antrag an (faellige() in server/lib/fiaon-lead-strecke.ts schließt jeden
+  // mit Bestellung aus), und /antrag?lead=… liest der Antrag nicht. Ohne
+  // Entwurf gibt es auch keinen Wiedereinstiegs-Link. Der Text sagt jetzt, was
+  // stimmt; der Schlüssel bleibt, weil er im Protokoll steht.
   {
     key: "erinnerung-antrag",
     art: "erinnerung",
-    betreff: "Dein Antrag liegt noch offen",
-    text: "du hast angefangen, den Antrag auszufüllen — abgeschickt ist er noch nicht.\n\n"
+    betreff: "Dein Antrag fehlt noch",
+    text: "du hattest dich bei uns gemeldet — deinen Antrag hast du aber noch nicht gestellt.\n\n"
       + "Das dauert keine fünf Minuten, und danach weißt du, wo du stehst. "
-      + "Der Link unten führt genau dorthin zurück, wo du aufgehört hast.",
+      + "Der Link unten führt dich direkt hinein.",
   },
   {
     key: "einwand-zeit",
@@ -96,7 +107,7 @@ export const VARIANTEN: StreckenVariante[] = [
     art: "termin",
     betreff: "Lieber kurz telefonieren?",
     text: "manche Fragen klärt ein Gespräch schneller als jede E-Mail.\n\n"
-      + "Such dir einen Zeitpunkt aus, der dir passt — wir rufen dich an. "
+      + "Such dir ein Zeitfenster aus, das dir passt — wir rufen dich an. "
       + "Fünfzehn Minuten, und du weißt, ob FIAON etwas für dich ist.",
   },
   {
@@ -137,7 +148,8 @@ export const VARIANTEN: StreckenVariante[] = [
     key: "erinnerung-offen",
     art: "erinnerung",
     betreff: "Steht das noch auf deiner Liste?",
-    text: "falls du es aus den Augen verloren hast: Dein Zugang wartet noch.\n\n"
+    // 18.09.2026: vorher „Dein Zugang wartet noch" — an Menschen ohne Konto.
+    text: "falls du es aus den Augen verloren hast: Der Weg zu FIAON steht dir weiter offen.\n\n"
       + "Wenn es gerade nicht passt, ist das völlig in Ordnung — meld dich, wenn es passt. "
       + "Wenn du gar nichts mehr hören willst, steht unten der Weg dafür.",
   },
@@ -164,11 +176,27 @@ export const VARIANTEN: StreckenVariante[] = [
     art: "termin",
     betreff: "Ein Anruf, dann weißt du es",
     text: "wir schreiben dir seit einer Weile, und du hast nicht geantwortet — das ist dein Recht.\n\n"
-      + "Falls es nur daran liegt, dass Schreiben mühsam ist: Wähl einen Zeitpunkt, wir rufen an. "
+      + "Falls es nur daran liegt, dass Schreiben mühsam ist: Wähl ein Zeitfenster, wir rufen an. "
       + "Und falls du wirklich nichts mehr hören willst, ist der Weg dafür unten. "
       + "Dann ist es das letzte Mal.",
   },
 ];
+
+/**
+ * Der Knopf einer Variante (18.09.2026).
+ *
+ * Die zwei Termin-Varianten versprechen „wähl ein Zeitfenster, wir rufen an" —
+ * ihr Knopf hieß trotzdem „Jetzt Antrag starten". Jetzt führt er dorthin, wo
+ * man ein Zeitfenster wählt (/termin, dieselbe Seite wie „Startgespräch
+ * buchen" auf der Website); alle anderen führen in den Antrag. `zeile` ist die
+ * Knopfzeile im Text-Teil — der Mail-Motor erkennt sie am Anfang und setzt
+ * stattdessen den Knopf.
+ */
+export function streckenKnopf(v: StreckenVariante): { text: string; termin: boolean; zeile: "Zum Termin" | "Zum Antrag" } {
+  return v.art === "termin"
+    ? { text: "Zeitfenster wählen", termin: true, zeile: "Zum Termin" }
+    : { text: "Jetzt Antrag starten", termin: false, zeile: "Zum Antrag" };
+}
 
 /** Verbotene Worte — der Prüfstand geht damit über jede Variante. */
 export const VERBOTENE_WORTE = [

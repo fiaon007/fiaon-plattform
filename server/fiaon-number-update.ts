@@ -92,22 +92,21 @@ export async function maybeSendNumberUpdateMail(
     if (recent.length > 0) return { sent: false, reason: "rate_limit" };
 
     const url = signNumberUpdateUrl(kind, id);
-    await sql`
-      INSERT INTO fiaon_number_update_requests (kind, target_id, email) VALUES (${kind}, ${id}, ${email})
-    `;
     // ── DER TERMIN-LINK GEHÖRT MIT IN DIE MAIL ───────────────────────────
     // Wer keine erreichbare Nummer hat, soll ZWEI Wege haben: die Nummer
     // nachtragen ODER gleich einen Termin wählen. Ohne den zweiten Weg wartet
     // ein Kunde, der lieber einen Termin will, auf einen Anruf, der nicht
     // kommen kann.
     //
-    // BETREIBER-TODO: In der Brevo-Vorlage T23 muss `{{params.termin_link}}`
-    // eingebaut werden — sonst fährt die Variable mit und wird nicht gezeigt.
+    // 18.09.2026: Die Quelltext-Vorlage (server/mail/vorlagen/konto.ts) zeigt
+    // ihn jetzt als zweiten Weg; bis dahin fuhr er mit und stand nirgends.
     let terminLink: string | null = null;
+    let zuPerson: number | null = null;
     try {
       const [personId] = kind === "app"
         ? ((await sql`SELECT person_id FROM fiaon_applications WHERE ref = ${id}`) as any[])
         : ((await sql`SELECT person_id FROM fiaon_leads WHERE id = ${Number(id)}`) as any[]);
+      zuPerson = personId?.person_id ? Number(personId.person_id) : null;
       if (personId?.person_id) {
         const { terminLink: linkFuer } = await import("./lib/fiaon-termine");
         // ── DIESER WEG HINTERLIESS BISHER GAR NICHTS (24.08.2026) ────────
@@ -121,14 +120,28 @@ export async function maybeSendNumberUpdateMail(
       }
     } catch { /* ohne Termin-Link ist die Mail nicht falsch, nur ärmer */ }
 
-    await sendMakeWebhook("number_update_request", {
+    // 18.09.2026: person_id fährt mit — ohne sie stand die Mail im Protokoll
+    // ohne Person und fehlte im Verlauf der Akte (66 Mails in 30 Tagen). Und
+    // das Ergebnis zählt: Vorher meldete die Funktion „gesendet", auch wenn
+    // der Versand scheiterte, und die Tagesgrenze sperrte dann den zweiten
+    // Versuch. Die Anfrage wird jetzt erst NACH einem erfolgreichen Versand
+    // vorgemerkt.
+    const gesendet = await sendMakeWebhook("number_update_request", {
       email,
+      person_id: zuPerson,
       vorname: opts.firstName || null,
       antrag_id: kind === "app" ? id : undefined,
       lead_id: kind === "lead" ? Number(id) : undefined,
       update_url: url,
       termin_link: terminLink,
     });
+    if (!gesendet) {
+      console.warn(`[FIAON-NUMUPDATE] Anfrage NICHT gesendet: ${kind}:${id} → ${email} (Grund im Zustellprotokoll)`);
+      return { sent: false, reason: "versand" };
+    }
+    await sql`
+      INSERT INTO fiaon_number_update_requests (kind, target_id, email) VALUES (${kind}, ${id}, ${email})
+    `;
     console.log(`[FIAON-NUMUPDATE] Anfrage gesendet: ${kind}:${id} → ${email}`);
     return { sent: true };
   } catch (err) {

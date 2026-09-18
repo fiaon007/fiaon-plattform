@@ -66,7 +66,16 @@ export interface VersandPruefung {
 
 export type VersandArt =
   | "payment_details"          // Zahlungsdaten mit Verwendungszweck
-  | "welcome"                  // Willkommen / Zugang
+  // ── 18.09.2026: „Willkommen und Zugang" war `welcome` ─────────────────────
+  // … und `welcome` ist die Antrag-eingegangen-Mail ohne Knopf („Sie erhalten
+  // gleich Ihre Zahlungsdaten"). 211 Handversände an 166 Menschen, 207 davon
+  // an Bezahlte (Messung 18.09.2026, ohne Prüfversände). Der Knopf heißt jetzt
+  // „Zugang zum Bereich" und schickt zugang_link. `welcome` bleibt als Art,
+  // damit ihre Regel (nur an Kunden OHNE Zahlung) auch den Handversand der
+  // Verwaltung trifft — angeboten wird sie im Versandzentrum nicht mehr.
+  | "welcome"                  // Antrag eingegangen — nur Regel, kein Knopf
+  | "zugang_link"              // Weg in den Bereich: Anmeldung + Passwort festlegen
+  | "payment_confirmed"        // 18.09.2026: nur Regel — die Bestätigung geht nur an Bezahlte
   | "nicht_erreicht_termin"    // Terminlink (Vertriebsgespräch)
   | "onboarding_einladung"     // Einladung zum Startgespräch
   // ── NEU 24.08.2026 ──────────────────────────────────────────────────────
@@ -111,8 +120,16 @@ export const VERSAND_TEXT: Record<VersandArt, { titel: string; zweck: string }> 
     zweck: "Bankverbindung, Betrag und Verwendungszweck — wenn der Kunde sie nicht findet.",
   },
   welcome: {
-    titel: "Willkommen und Zugang",
-    zweck: "Begrüßung mit dem Weg ins Konto — wenn der Kunde nicht hineinkommt.",
+    titel: "Antrag eingegangen",
+    zweck: "Die automatische Begrüßung beim Antrag — ohne Zugang und ohne Zahlungsdaten.",
+  },
+  zugang_link: {
+    titel: "Zugang zum Bereich",
+    zweck: "Knopf zur Anmeldung und Link „Passwort festlegen“ — wenn der Kunde nicht hineinkommt.",
+  },
+  payment_confirmed: {
+    titel: "Zahlungsbestätigung",
+    zweck: "Das Geld ist da, der Bereich ist offen — mit Knopf zur Anmeldung.",
   },
   nicht_erreicht_termin: {
     titel: "Terminlink",
@@ -143,13 +160,26 @@ export const VERSAND_TEXT: Record<VersandArt, { titel: string; zweck: string }> 
   },
 };
 
+/**
+ * Alle Arten mit Zustandsregel — die Liste, die mailSenden prüft (18.09.2026).
+ * Abgeleitet aus VERSAND_TEXT, damit eine neue Art nicht in einer zweiten
+ * Liste nachgetragen werden muss: Vorher fehlte sepa_einrichten in der Liste
+ * von mailSenden, und payment_confirmed hatte gar keine Regel.
+ */
+export const VERSAND_ARTEN = Object.keys(VERSAND_TEXT) as VersandArt[];
+
+export function istVersandArt(art: string): art is VersandArt {
+  return (VERSAND_ARTEN as string[]).includes(art);
+}
+
 /** Was diese Rolle überhaupt senden darf. */
 export function artenFuerRolle(rolle: string): VersandArt[] {
   // VORHER 24.08.2026: ohne "termin_verpasst". NACHHER: mit. Die Rolle
   // „onboarding" bekommt sie zuerst — sie ist es, die den No-Show meldet.
   // GRUND: Auftrag des Inhabers vom 24.08.2026.
-  if (rolle === "onboarding") return ["onboarding_einladung", "termin_verpasst", "welcome", "sepa_einrichten"];
-  return ["payment_details", "welcome", "nicht_erreicht_termin", "onboarding_einladung", "termin_verpasst", "sepa_einrichten", "number_update_request"];
+  // 18.09.2026: „welcome" → „zugang_link" (siehe VersandArt oben).
+  if (rolle === "onboarding") return ["onboarding_einladung", "termin_verpasst", "zugang_link", "sepa_einrichten"];
+  return ["payment_details", "zugang_link", "nicht_erreicht_termin", "onboarding_einladung", "termin_verpasst", "sepa_einrichten", "number_update_request"];
 }
 
 interface Zustand {
@@ -160,6 +190,8 @@ interface Zustand {
   hatTermin: boolean;
   gdpr: boolean;
   archiviert: boolean;
+  /** 18.09.2026: Gibt es einen als verpasst vermerkten Termin? Ohne ihn hat „termin_verpasst" kein Datum. */
+  hatVerpasst: boolean;
 }
 
 async function zustandVon(personId: number, lauf: Lauf = sqlPool): Promise<Zustand | null> {
@@ -180,7 +212,9 @@ async function zustandVon(personId: number, lauf: Lauf = sqlPool): Promise<Zusta
       NOT EXISTS (SELECT 1 FROM fiaon_applications a4 WHERE a4.person_id = p.id
                 AND a4.merged_into IS NULL AND a4.archived_at IS NULL) AS alles_archiviert,
       EXISTS (SELECT 1 FROM fiaon_termine t WHERE t.person_id = p.id
-                AND t.status = 'gebucht' AND t.beginn > NOW()) AS hat_termin
+                AND t.status = 'gebucht' AND t.beginn > NOW()) AS hat_termin,
+      EXISTS (SELECT 1 FROM fiaon_termine t2 WHERE t2.person_id = p.id
+                AND t2.status = 'verpasst') AS hat_verpasst
     FROM fiaon_persons p WHERE p.id = ${personId} AND p.merged_into_person_id IS NULL
   `) as any[];
   if (!z) return null;
@@ -192,6 +226,7 @@ async function zustandVon(personId: number, lauf: Lauf = sqlPool): Promise<Zusta
     hatTermin: !!z.hat_termin,
     gdpr: !!z.gdpr,
     archiviert: !!z.alles_archiviert,
+    hatVerpasst: !!z.hat_verpasst,
   };
 }
 
@@ -233,7 +268,10 @@ function bewerten(
 ): VersandPruefung {
   if (z.gdpr) return { erlaubt: false, grund: "Für diesen Kunden liegt eine Löschung nach DSGVO vor.", warnung: null, heute };
   if (!z.hatEmail) return { erlaubt: false, grund: "Keine E-Mail-Adresse hinterlegt.", warnung: null, heute };
-  if (z.gesperrt && art !== "welcome") {
+  // Die Ausnahme für den Zugang bleibt: Ein Mensch mit Kontaktsperre hat
+  // trotzdem ein Recht auf den Weg in seinen bezahlten Bereich. Sie hing bis
+  // zum 18.09.2026 an „welcome" — seitdem an der Zugangsmail.
+  if (z.gesperrt && art !== "zugang_link") {
     return { erlaubt: false, grund: "Der Kunde hat abgelehnt oder eine Kontaktsperre — kein Versand.", warnung: null, heute };
   }
 
@@ -243,8 +281,26 @@ function bewerten(
     }
     if (!z.offeneZahlung) return { erlaubt: false, grund: "Keine offene Zahlung.", warnung: null, heute };
   }
-  if (art === "welcome" && !z.bezahlt) {
+  // ── 18.09.2026: DIE REGEL FÜR „welcome" IST UMGEDREHT ─────────────────────
+  // VORHER: `welcome` NUR an Bezahlte — genau die Menschen, denen die Mail
+  //   „Sie erhalten gleich eine separate E-Mail mit Ihren Zahlungsdaten"
+  //   ankündigt. NACHHER: die Antrag-eingegangen-Mail nur an Kunden OHNE
+  //   Zahlung; der Zugang für Bezahlte ist zugang_link, mit der alten Regel.
+  if (art === "welcome" && z.bezahlt) {
+    return { erlaubt: false, grund: "Der Kunde hat bezahlt — „Antrag eingegangen“ kündigt Zahlungsdaten an und wäre falsch. Für den Weg in den Bereich: „Zugang zum Bereich“.", warnung: null, heute };
+  }
+  if (art === "zugang_link" && !z.bezahlt) {
     return { erlaubt: false, grund: "Der Zugang wird erst nach der Zahlung freigeschaltet.", warnung: null, heute };
+  }
+  // 18.09.2026: Die Zahlungsbestätigung hatte keine Regel — von Hand ging sie
+  // auch an Menschen, deren Zahlung nie gebucht war.
+  if (art === "payment_confirmed" && !z.bezahlt) {
+    return { erlaubt: false, grund: "Für diesen Kunden ist keine Zahlung gebucht — eine Zahlungsbestätigung wäre falsch.", warnung: null, heute };
+  }
+  // Die drei Bedingungen prüft kartenStand() beim Zusammenbau der Nutzlast;
+  // hier nur das, was der Zustand schon weiß.
+  if (art === "konto_karte_einladung" && !z.bezahlt) {
+    return { erlaubt: false, grund: "Konto & Karte gibt es erst nach der Zahlung.", warnung: null, heute };
   }
   // NEU 24.08.2026: Die Bitte um die Lastschrift ergibt nur Sinn, wenn es
   // überhaupt Folgeraten gibt — also nach der ersten, überwiesenen Zahlung.
@@ -274,6 +330,13 @@ function bewerten(
   // ══════════════════════════════════════════════════════════════════════
   if (art === "termin_verpasst") {
     if (z.archiviert) return { erlaubt: false, grund: "Alle Bestellungen dieses Kunden sind archiviert.", warnung: null, heute };
+    // 18.09.2026: Ohne Datum steht in der Mail „am  um  Uhr" — gemessen bei
+    // 67 von 76 verschickten, alle von Hand ausgelöst. Der Kommentar in der
+    // Route behauptete, die Vorlage lasse den Satz dann weg; der Motor hat das
+    // nie getan. Ohne verpassten Termin gibt es kein Datum — also keine Mail.
+    if (!z.hatVerpasst) {
+      return { erlaubt: false, grund: "Für diesen Kunden ist kein verpasster Termin vermerkt — die Mail nennt Datum und Uhrzeit des verpassten Termins. Für eine neue Einladung: „Terminlink“ oder „Einladung zum Startgespräch“.", warnung: null, heute };
+    }
     return {
       erlaubt: true, grund: null, heute,
       warnung: z.hatTermin

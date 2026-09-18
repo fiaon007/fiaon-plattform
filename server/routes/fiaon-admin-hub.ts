@@ -1473,7 +1473,11 @@ function buildRealPayload(eventType: string, row: any): MakeWebhookPayload {
         reminder_number: Number(row.reminder_count || 0) + 1,
       };
     case "payment_confirmed":
+    case "bereich_freigeschaltet":
       return { ...base, login_url: absoluteUrl("/login") };
+    // 18.09.2026: die Zugangsmail (siehe fiaon-mail-senden.ts, Link-Baustein).
+    case "zugang_link":
+      return { ...base, login_url: absoluteUrl("/login"), passwort_url: absoluteUrl("/passwort-vergessen") };
     default: // welcome
       return base;
   }
@@ -1590,6 +1594,22 @@ router.post("/admin/events/send-real", async (req, res) => {
     }
     const realPayload = buildRealPayload(def.type, row);
     if (!realPayload.email) return res.status(400).json({ ok: false, error: "Kunde hat keine E-Mail-Adresse hinterlegt" });
+    // ── VOLLSTÄNDIG ODER GAR NICHT (18.09.2026) ─────────────────────────────
+    // Dieses Werkzeug baut nur die Felder einer Bestellzeile. Für Ereignisse
+    // mit Termin-, Lastschrift-, Zustimmungs- oder Anmelde-Link (default-Zweig
+    // oben) ging die Mail ohne ihren Knopf raus — der Motor ließ ihn still weg.
+    // Dieselbe Prüfung wie beim Handversand sagt es jetzt schon in der
+    // Vorschau; für solche Mails ist der Weg das Sende-Menü in der Akte, das
+    // die Links selbst baut.
+    {
+      const { mailEvent } = await import("../lib/fiaon-mail-events");
+      const { versandLuecke } = await import("../lib/fiaon-mail-senden");
+      const volldef = await mailEvent(def.type);
+      const luecke = volldef ? await versandLuecke(volldef, realPayload as Record<string, unknown>) : null;
+      if (luecke) {
+        return res.status(400).json({ ok: false, error: `${luecke} Dieses Werkzeug kennt nur die Bestellung — bitte aus der Kundenakte senden (E-Mail senden).` });
+      }
+    }
 
     if (dryRun) {
       return res.json({

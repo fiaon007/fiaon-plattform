@@ -1273,7 +1273,8 @@ const MAIL_TEXT: Record<string, string> = {
   payment_reminder: "Zahlungserinnerung (Erstzahlung)",
   payment_details: "Zahlungsdaten",
   payment_confirmed: "Zahlung bestätigt",
-  welcome: "Willkommen",
+  welcome: "Antrag eingegangen",
+  zugang_link: "Zugang zum Bereich",
   followup_48h: "Nachfassen nach 48 Std",
 };
 

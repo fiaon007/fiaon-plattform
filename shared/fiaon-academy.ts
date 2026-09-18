@@ -447,7 +447,10 @@ const ONBOARDING: Kapitel[] = [
       + "was jetzt offen ist.",
     warum: "Zwischen Gespräch und Freischaltung darf keine Stunde liegen. Wer nach einem "
       + "guten Gespräch vor einer gesperrten Seite sitzt, glaubt dem Gespräch nicht mehr.",
-    mailEvent: "account_activated",
+    // 18.09.2026: Nach dem Startgespräch geht bereich_freigeschaltet raus, nicht
+    // mehr account_activated („Ihr Zugang ist wieder frei" — der Entsperrungs-Text).
+    // Die Schulung zeigt die Mail, die der Kunde in diesem Moment wirklich bekommt.
+    mailEvent: "bereich_freigeschaltet",
   },
   {
     key: "gutschrift",

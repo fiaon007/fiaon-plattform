@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// VORLAGEN: DER KONTO-WEG (12) — vom Antrag bis zur Löschung
+// VORLAGEN: DER KONTO-WEG (15) — vom Antrag bis zur Löschung
 //
 // ── DIE SCHREIBREGELN (gelten für ALLE Vorlagen-Dateien) ──────────────────
 // · Gesiezt. Immer.
@@ -28,22 +28,71 @@ export const KONTO_VORLAGEN: Record<string, MailBaustein> = {
   // bekommt niemand mehr eingesammelt. Der Preis entsteht mit der
   // Bestellung, und mit ihr feuert payment_details: DORT gehören QR-Code,
   // Sofortzahlung und Bankdaten hin, und dort stehen sie vollständig.
+  //
+  // ── KEINE ZUSAGE EINER MAIL, DIE NICHT KOMMT (18.09.2026) ─────────────────
+  // `welcome` geht beim E-MAIL-SCHRITT des Antrags raus (fiaon-antrag.ts), also
+  // meist lange vor der Bestellung. Der Text kündigte „gleich eine separate
+  // E-Mail mit Ihren Zahlungsdaten" an — laut Prüfung vom 18.09. kam sie bei
+  // 65 von 195 Empfängern nie: Sie hatten den Antrag nicht abgeschlossen, und
+  // payment_details feuert erst mit der Bestellung. Jetzt steht da, was in
+  // beiden Fällen stimmt — die Zahlungsdaten kommen mit dem Abschluss.
+  // Und diese Mail ist KEINE Zugangsmail: Die heißt zugang_link.
   welcome: {
     betreff: "Willkommen bei FIAON, {{params.vorname}}",
-    preheader: "Ihr Antrag ist da — das sind die drei nächsten Schritte.",
-    titel: "Ihr Antrag ist angekommen",
+    preheader: "Ihr Antrag ist angelegt — das sind die nächsten Schritte.",
+    titel: "Ihr Antrag ist angelegt",
     heroKarte: true,
     absaetze: [
-      "Guten Tag {{params.vorname}} {{params.nachname}}, schön, dass Sie da sind. Ihr Antrag für <b>{{params.paket}}</b> liegt uns vor — damit ist der erste Schritt getan.",
-      "So geht es jetzt weiter: <b>1.</b> Sie erhalten gleich eine separate E-Mail mit Ihren Zahlungsdaten. <b>2.</b> Sobald Ihre Zahlung da ist, öffnet sich Ihr persönlicher Bereich. <b>3.</b> Ihr Ansprechpartner meldet sich zum Startgespräch — fünfzehn Minuten, in denen wir Ihre Akte gemeinsam durchgehen.",
+      "Guten Tag {{params.vorname}} {{params.nachname}}, schön, dass Sie da sind. Ihr Antrag für <b>{{params.paket}}</b> ist bei uns angelegt — damit ist der erste Schritt getan.",
+      "So geht es weiter: <b>1.</b> Sobald Sie den Antrag abschließen, erhalten Sie eine eigene E-Mail mit Ihren Zahlungsdaten. <b>2.</b> Sobald Ihre Zahlung da ist, öffnet sich Ihr persönlicher Bereich. <b>3.</b> Ihr Ansprechpartner meldet sich zum Startgespräch — fünfzehn Minuten, in denen wir Ihre Akte gemeinsam durchgehen.",
       "Ab dann arbeiten wir für Sie: Auskunft holen, jeden Eintrag prüfen, angreifbare Einträge anschreiben. Jeden Schritt sehen Sie live in Ihrem Bereich.",
     ],
     daten: [
       { label: "Ihr Paket", wert: "{{params.paket}}" },
       { label: "Ihr Aktenzeichen", wert: "{{params.antrag_id}}" },
     ],
-    fussnote: "Die E-Mail mit den Zahlungsdaten kommt in wenigen Minuten. Nichts erhalten? Ein Blick in den Spam-Ordner hilft — oder antworten Sie einfach hier.",
+    fussnote: "Antrag schon abgeschlossen? Dann haben wir Ihnen die Zahlungsdaten in einer eigenen E-Mail geschickt. Nicht gefunden? Ein Blick in den Spam-Ordner hilft — oder antworten Sie einfach hier.",
     karteZiel: true,
+  },
+
+  // ── DER WEG IN DEN BEREICH (18.09.2026, Team-Feedback Priorität 3) ────────
+  // „Bei ‚Willkommen und Zugang' erhalten Kunden stattdessen eine Nachricht mit
+  // ‚Ihr Antrag ist genehmigt, bitte zahlen Sie'." Gemessen: Der Knopf schickte
+  // `welcome` — die Antrag-eingegangen-Mail ohne Knopf — 211-mal an 166
+  // Menschen, 207-mal an Kunden mit bezahlter Bestellung (Messung 18.09.2026,
+  // ohne Prüfversände). Das hier ist die
+  // Zugangsmail: ein Knopf in den Bereich, ein Link zum eigenen Passwort.
+  // „Zugang retten" (Vertriebsleitung) schickt sie mit einem Setz-Link, der 60
+  // Minuten gilt, in beiden Feldern — die Fußnote stimmt für beide Wege.
+  zugang_link: {
+    betreff: "Ihr Zugang zu Ihrem Bereich, {{params.vorname}}",
+    preheader: "Ein Klick zur Anmeldung — und der Weg zu Ihrem eigenen Passwort.",
+    titel: "So kommen Sie in Ihren Bereich",
+    absaetze: [
+      "Guten Tag {{params.vorname}}, hier ist Ihr direkter Weg in Ihren persönlichen Bereich — mit Ihrem Fahrplan, Ihren Unterlagen und dem Stand jedes Schrittes.",
+      "Melden Sie sich mit der E-Mail-Adresse an, an die diese Nachricht ging. Noch kein Passwort, oder ist es Ihnen entfallen? Dann nehmen Sie den Link „Passwort festlegen“ unter dem Knopf — dort vergeben Sie es in einem Schritt selbst.",
+    ],
+    knopf: { text: "In meinen Bereich", url: "{{params.login_url}}" },
+    knopf2: { text: "Passwort festlegen", url: "{{params.passwort_url}}" },
+    fussnote: "Ein Link zum Festlegen des Passworts gilt aus Sicherheitsgründen 60 Minuten. Ist er abgelaufen, fordern Sie auf der Anmeldeseite unter „Passwort vergessen“ einfach einen neuen an — oder antworten Sie auf diese E-Mail.",
+  },
+
+  // ── NACH DEM STARTGESPRÄCH (18.09.2026) ────────────────────────────────────
+  // Hier ging bis heute account_activated raus: „Ihr Zugang ist wieder frei"
+  // — der Text für eine ENTSPERRUNG, an Menschen, die nie gesperrt waren. Und
+  // weil der Aufrufer portal_url statt login_url schickte, ohne Knopf (100
+  // Versände, Messung 18.09.2026). Die erste Freischaltung hat jetzt ihre eigene Mail;
+  // „wieder frei" bleibt der Entsperrung (fiaon-agent-kunden.ts).
+  bereich_freigeschaltet: {
+    betreff: "Ihr Bereich ist jetzt vollständig freigeschaltet, {{params.vorname}}",
+    preheader: "Nach Ihrem Startgespräch steht Ihnen alles offen — Fahrplan, Unterlagen, jeder Schritt.",
+    titel: "Ihr Bereich ist vollständig freigeschaltet",
+    absaetze: [
+      "Guten Tag {{params.vorname}}, danke für das Startgespräch. Ihr persönlicher Bereich ist jetzt vollständig freigeschaltet: Ihr Fahrplan, Ihre Unterlagen und der Stand jedes Schrittes stehen Ihnen ab sofort offen.",
+      "Dort sehen Sie auch, was als Nächstes ansteht und ob wir noch etwas von Ihnen brauchen. Melden Sie sich mit der E-Mail-Adresse an, an die diese Nachricht ging.",
+    ],
+    knopf: { text: "In meinen Bereich", url: "{{params.login_url}}" },
+    fussnote: "Noch kein Passwort? Wählen Sie beim Anmelden „Passwort vergessen“ — Sie vergeben es in einem Schritt selbst.",
   },
 
   payment_details: {
@@ -138,6 +187,10 @@ knopf: { text: "Sofort per Bank-App bezahlen — in einer Minute gebucht", url: 
       "Ein Anruf ist der schnellste Weg, Ihre Akte voranzubringen: Im Gespräch klären wir in Minuten, was per E-Mail Tage dauert. Prüfen Sie kurz Ihre Nummer — ein Klick genügt.",
     ],
     knopf: { text: "Nummer prüfen und korrigieren", url: "{{params.update_url}}" },
+    // 18.09.2026: Der Terminlink fuhr seit dem 24.08. in der Nutzlast mit
+    // (fiaon-number-update.ts: „zwei Wege — Nummer nachtragen ODER gleich einen
+    // Termin wählen") — die Vorlage zeigte ihn nie. Jetzt als leiser zweiter Weg.
+    knopf2: { text: "Oder direkt einen Gesprächstermin wählen", url: "{{params.termin_link}}" },
     fussnote: "Die Nummer stimmt? Dann antworten Sie kurz mit einer Uhrzeit, zu der wir Sie gut erreichen.",
   },
 

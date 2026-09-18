@@ -68,10 +68,17 @@ async function nurRettung(req: AgentRequest, res: Response, next: any) {
 /**
  * POST /agent/zugang/:ref/setz-link — Link erzeugen und verschicken.
  *
- * Der Versand läuft über den bestehenden Weg `welcome`: Er trägt bereits den
- * Kontext „so kommst du in dein Konto" und ist als Zweig aktiv. Ein eigenes
- * Ereignis dafür anzulegen hieße, einen weiteren Make-Zweig und ein weiteres
- * Brevo-Template zu verlangen — für dieselbe Aussage.
+ * ── 18.09.2026: ÜBER zugang_link, NICHT MEHR ÜBER welcome ──────────────────
+ * VORHER stand hier: „Der Versand läuft über den bestehenden Weg `welcome`:
+ * Er trägt bereits den Kontext ‚so kommst du in dein Konto'." Das stimmte
+ * nie. `welcome` ist die Antrag-eingegangen-Mail — ohne Knopf, und die
+ * Vorlage las weder login_url noch passwort_link. Der Kunde bekam „Sie
+ * erhalten gleich eine separate E-Mail mit Ihren Zahlungsdaten"; der
+ * Setz-Link stand nirgends in der Mail.
+ * NACHHER: zugang_link — Knopf „In meinen Bereich" und Link „Passwort
+ * festlegen", beide auf den Setz-Link; die Fußnote nennt die 60 Minuten.
+ * Die Regeln bleiben dieselben wie vorher bei welcome: nur an Bezahlte,
+ * Kontaktsperre gilt nicht (fiaon-versand.ts).
  */
 router.post("/agent/zugang/:ref/setz-link", requireAgent, nurRettung, keinFirmenauftrag, async (req: AgentRequest, res: Response) => {
   try {
@@ -88,10 +95,13 @@ router.post("/agent/zugang/:ref/setz-link", requireAgent, nurRettung, keinFirmen
     if (!a.email) return res.status(400).json({ ok: false, error: "Keine E-Mail hinterlegt." });
 
     const link = setzLinkErzeugen(ref);
+    // Der Setz-Link öffnet /zugang/:ref: Passwort setzen und direkt angemeldet
+    // sein. Deshalb führen BEIDE Wege der Mail dorthin — der Kunde hat ja
+    // gerade kein Passwort, mit dem er sich unter /login anmelden könnte.
     const versand = a.person_id
       ? await mailSenden({
-          event: "welcome", personId: Number(a.person_id),
-          zusatz: { login_url: link, passwort_link: link },
+          event: "zugang_link", personId: Number(a.person_id),
+          zusatz: { login_url: link, passwort_url: link },
           akteur: { name: req.agent!.name, agentId: req.agent!.id, rolle: "vertriebsleiter" },
         })
       : { ok: false, status: "abgelehnt" as const, grund: "Keine Person zugeordnet", meldung: "" };

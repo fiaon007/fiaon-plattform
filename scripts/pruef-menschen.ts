@@ -423,8 +423,14 @@ async function main(): Promise<void> {
       const zahl2 = await versandErlaubt(offenP, "payment_details", tx as any);
       ok("Zahlungsdaten bei offener Rechnung: erlaubt", zahl2.erlaubt, zahl2.grund ?? "");
 
-      const willkommen = await versandErlaubt(offenP, "welcome", tx as any);
+      // 18.09.2026: Die Zugangsmail ist zugang_link. Hier stand
+      //   versandErlaubt(offenP, „welcome") — „welcome" ist die Antrag-
+      //   eingegangen-Mail, und ihre Regel ist seitdem umgedreht (nur an
+      //   Unbezahlte). Die Prüfung bleibt dieselbe, nur am richtigen Ereignis.
+      const willkommen = await versandErlaubt(offenP, "zugang_link", tx as any);
       ok("Zugangsmail an einen Unbezahlten: gesperrt", !willkommen.erlaubt, willkommen.grund ?? "");
+      const antragMail = await versandErlaubt(bezahltP, "welcome", tx as any);
+      ok("„Antrag eingegangen“ an einen Bezahlten: gesperrt", !antragMail.erlaubt, antragMail.grund ?? "");
 
       const gesperrtP = await person({ first_name: "Gesperrt", primary_email: MAIL("gs"), is_blocked: true, priority_tier: 2, tier_reason: "rechnung_offen" });
       await bestellung({ ref: REF("BLOCK"), person_id: gesperrtP, payment_status: "pending_payment" });

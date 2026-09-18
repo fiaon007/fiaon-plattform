@@ -825,10 +825,17 @@ export async function startgespraechErgebnis(opts: {
       if (frei.freigeschaltet > 0) {
         hinweis = "Startgespräch erledigt — das Konto ist jetzt VOLL freigeschaltet. "
           + "Der Kunde sieht ab sofort seinen Fahrplan und alle Inhalte.";
-        // Der Kunde erfährt es: Der Zweig `account_activated` steht in der
-        // Ereignisliste. Fehlt er bei Make, scheitert der Versand SICHTBAR im
-        // Zustellprotokoll — besser als ein Kunde, der nicht weiß, dass er
-        // jetzt darf.
+        // Der Kunde erfährt es. Fehlt der Zweig, scheitert der Versand
+        // SICHTBAR im Zustellprotokoll — besser als ein Kunde, der nicht
+        // weiß, dass er jetzt darf.
+        // ── 18.09.2026: bereich_freigeschaltet STATT account_activated ─────
+        // VORHER ging hier account_activated raus — „Ihr Zugang ist wieder
+        // frei", der Text einer ENTSPERRUNG, an Menschen, die nie gesperrt
+        // waren. Und mit portal_url, während die Vorlage login_url liest: 100
+        // Mails aus diesem Weg kamen OHNE Knopf an (Messung 18.09.2026, alle
+        // 100 von 165 account_activated ohne login_url). NACHHER die eigene Mail für die
+        // erste Freischaltung, mit login_url; portal_url bleibt für ältere
+        // Auswertungen in der Nutzlast.
         try {
           const { sendMakeWebhookMitGrund } = await import("../make-webhook");
           const [k] = (await sqlPool`
@@ -838,14 +845,15 @@ export async function startgespraechErgebnis(opts: {
           `) as any[];
           if (k) {
             const { makePayloadFromRow } = await import("../make-webhook");
-            await sendMakeWebhookMitGrund("account_activated", {
+            await sendMakeWebhookMitGrund("bereich_freigeschaltet", {
               ...makePayloadFromRow(k),
+              login_url: absoluteUrl("/login"),
               portal_url: absoluteUrl("/dashboard"),
               freigeschaltet_am_text: berlinDatumText(new Date()),
             } as any);
           }
         } catch (e) {
-          console.error("[ONBOARDING] account_activated:", e);
+          console.error("[ONBOARDING] bereich_freigeschaltet:", e);
         }
       }
 

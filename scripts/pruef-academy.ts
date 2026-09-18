@@ -98,8 +98,11 @@ function main(): void {
   // Und umgekehrt: Welche wichtigen Ereignisse fehlen in der Schulung? Das ist
   // kein Fehler, aber es gehört sichtbar — sonst wächst die Registry und die
   // Schulung bleibt stehen.
+  // 18.09.2026 ERSETZT: Hier stand „account_activated“. Nach dem Startgespräch
+  // geht seitdem bereich_freigeschaltet raus; account_activated ist nur noch die
+  // Entsperrung. Die Liste nennt die Mail, die der Kunde im Onboarding bekommt.
   const wichtig = ["welcome", "payment_details", "payment_confirmed",
-                   "nicht_erreicht_termin", "onboarding_einladung", "account_activated"];
+                   "nicht_erreicht_termin", "onboarding_einladung", "bereich_freigeschaltet"];
   const fehlend = wichtig.filter((e) => !benutzt.includes(e));
   pruef("Die wichtigsten Ereignisse kommen vor", fehlend.length <= 1,
     fehlend.length ? `nicht behandelt: ${fehlend.join(", ")}` : "—");

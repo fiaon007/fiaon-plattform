@@ -28,16 +28,10 @@
 //   faellig_am_text, zahlungsseite_url, ansprechpartner, stichtag_text, email.
 // ═══════════════════════════════════════════════════════════════════════════
 import type { MailBaustein } from "../geruest";
-import { GLOBAL_ROLLEN, GLOBAL_GELD_ZURUECK } from "@shared/fiaon-global";
+import { GLOBAL_ROLLEN, GLOBAL_GELD_ZURUECK, GLOBAL_UNTERLAGEN_TEXTE } from "@shared/fiaon-global";
 
 /** Was der Kunde für den Start bereithält — dieselbe Liste in der Startmail und in der Aufgabe. */
-export const GLOBAL_UNTERLAGEN: string[] = [
-  "Reisepass der Gesellschafter und der Geschäftsführung (Farbkopie)",
-  "Adressnachweis, nicht älter als drei Monate",
-  "Gesellschafterliste oder Handelsregisterauszug Ihres Unternehmens",
-  "der gewünschte Name der US-Gesellschaft in drei Varianten",
-  "eine kurze Beschreibung der Geschäftstätigkeit",
-];
+export const GLOBAL_UNTERLAGEN: string[] = [...GLOBAL_UNTERLAGEN_TEXTE.de]; // 18.09.2026: eine Quelle mit der Seite (shared/fiaon-global.ts)
 
 const KOPF = "FIAON Global";
 const FUSS = GLOBAL_ROLLEN.de.fiaon;

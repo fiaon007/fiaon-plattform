@@ -30,16 +30,18 @@ import { absoluteUrl } from "./fiaon-base-url";
 import { BANK } from "@shared/fiaon-bank";
 import { istGlobalPaket } from "@shared/fiaon-pakete";
 import type PDFKit from "pdfkit";
+import { FIAON_FIRMA } from "@shared/fiaon-firma";
 
+// 18.09.2026 (E-188): Die Angaben kommen aus shared/fiaon-firma.ts — die Seite /business zeigt denselben Vertragspartner.
 export const FIAON_ENTITY = {
-  name: "FIAON LTD",
-  addressLine1: "128 City Road",
-  addressLine2: "London, EC1V 2NX",
-  country: "United Kingdom",
-  companyNo: "17318250",
-  director: "Justin Schwarzott",
-  email: "support@fiaon.com",
-  registeredFooter: "Registered in England and Wales, Companies House No. 17318250 · Director: Justin Schwarzott",
+  name: FIAON_FIRMA.name,
+  addressLine1: FIAON_FIRMA.strasse,
+  addressLine2: FIAON_FIRMA.ortZeile,
+  country: FIAON_FIRMA.land,
+  companyNo: FIAON_FIRMA.companyNo,
+  director: FIAON_FIRMA.director,
+  email: FIAON_FIRMA.email,
+  registeredFooter: `Registered in England and Wales, Companies House No. ${FIAON_FIRMA.companyNo} · Director: ${FIAON_FIRMA.director}`,
 };
 
 export const FIAON_BANK_DETAILS = {
@@ -233,7 +235,8 @@ export function renderInvoicePdf(doc: PDFKit.PDFDocument, a: any): void {
     ["Rechnungsnummer", a.invoice_number || "—"],
     ["Rechnungsdatum", deDate(invoiceDate)],
     ["Zahlungsreferenz", a.payment_reference || "—"],
-    ["Antrags-Nr.", a.ref || "—"],
+    // Firmenkunden erteilen einen Auftrag, Privatkunden stellen einen Antrag.
+    [firmenkunde ? "Auftrags-Nr." : "Antrags-Nr.", a.ref || "—"],
   ];
   if (dueDate) meta.push(["Zahlungsziel", deDate(dueDate)]);
   for (const [label, value] of meta) {

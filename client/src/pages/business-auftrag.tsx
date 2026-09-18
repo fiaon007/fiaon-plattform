@@ -135,9 +135,9 @@ export default function BusinessAuftrag() {
       <div className="gs">
         <div className="dk-rahmen">
           <header className="gs-kopf">
-            <span className="dk-pille">{t.pille}</span>
-            <h1 className="dk-h1">{stand === "laedt" ? t.laedt : titel}</h1>
-            {stand === "da" && a && <p className="dk-lead">FIAON {a.paketName.replace(/^FIAON\s+/, "")} · {t.status[a.status] || a.status}</p>}
+            <span className="gs-auge">{t.pille}</span>
+            <h1 className="gs-h1">{stand === "laedt" ? t.laedt : titel}</h1>
+            {stand === "da" && a && <p className="gs-lead">FIAON {a.paketName.replace(/^FIAON\s+/, "")} · {t.status[a.status] || a.status}</p>}
           </header>
 
           {stand === "zugang" && (
@@ -149,7 +149,7 @@ export default function BusinessAuftrag() {
                   <form onSubmit={zugang} className="gs-felder" noValidate>
                     <label><span className="gs-label">{t.zugangEmail}</span><input className="gs-feld" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} /></label>
                     <input className="gs-falle" tabIndex={-1} autoComplete="off" aria-hidden="true" value={falle} onChange={(e) => setFalle(e.target.value)} />
-                    <button type="submit" className="dk-knopf" disabled={zugangStand === "sendet" || !email.trim()}>{zugangStand === "sendet" ? t.zugangSendet : t.zugangKnopf}</button>
+                    <button type="submit" className="gs-knopf" disabled={zugangStand === "sendet" || !email.trim()}>{zugangStand === "sendet" ? t.zugangSendet : t.zugangKnopf}</button>
                   </form>
                 )}
                 <div className="gs-fuss"><a className="gs-zurueck" href={inSprache("/business", sprache)}>{t.zurSeite}</a><span /></div>
@@ -166,7 +166,7 @@ export default function BusinessAuftrag() {
                   <div className="ga-zahlung">
                     <h3>{t.zahlungOffenTitel}</h3>
                     <p>{t.zahlungOffenText}</p>
-                    {a.zahlung?.zahlungsseite && <a className="dk-knopf" href={a.zahlung.zahlungsseite}>{t.zurZahlung}</a>}
+                    {a.zahlung?.zahlungsseite && <a className="gs-knopf" href={a.zahlung.zahlungsseite}>{t.zurZahlung}</a>}
                   </div>
                 )}
 
@@ -255,7 +255,7 @@ export default function BusinessAuftrag() {
                 </section>
               </div>
 
-              <aside className="gs-seite" aria-label={t.seiteAnsprech}>
+              <aside className="gs-seite ga-seite" aria-label={t.seiteAnsprech}>
                 <h2>{t.seiteAnsprech}</h2>
                 {a.ansprechpartner ? (
                   <div className="ga-person">

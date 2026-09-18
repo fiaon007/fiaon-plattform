@@ -28,7 +28,7 @@ import { deflateSync } from "node:zlib";
 process.env.DATABASE_URL = "postgres://pruefstand:ohne@127.0.0.1:1/keine-datenbank";
 
 const { PAKETE, paketPreisCents } = await import("../shared/fiaon-pakete");
-const { GLOBAL_PAKETE, GLOBAL_PFLICHTHINWEIS, GLOBAL_GELD_ZURUECK, GLOBAL_VERTRAG_VERSION, globalPlanungText } = await import("../shared/fiaon-global");
+const { GLOBAL_PAKETE, GLOBAL_PFLICHTHINWEIS, GLOBAL_GELD_ZURUECK, GLOBAL_VERTRAG_VERSION, GLOBAL_INKLUSIVE, GLOBAL_LAUFEND_VERTRAG, globalPlanungText, inVertragssprache } = await import("../shared/fiaon-global");
 const { wandPruefen } = await import("../shared/fiaon-wortverbote");
 const vertrag = await import("../server/lib/fiaon-global-vertrag");
 const { mailRendern } = await import("../server/mail/motor");
@@ -100,8 +100,8 @@ for (const p of GLOBAL_PAKETE) {
     ok(text.includes(globalPlanungText(p.key, sprache)), `Planungsgröße ${globalPlanungText(p.key, sprache)} fehlt`);
     ok(sprache === "de" ? text.includes("ein bestimmtes Ergebnis ist nicht geschuldet") : text.includes("no particular result is owed"), "Satz „kein bestimmtes Ergebnis geschuldet“ fehlt");
     if (GLOBAL_GELD_ZURUECK.aktiv) {
-      ok(text.includes(GLOBAL_GELD_ZURUECK[sprache].text), "Geld-zurück-Zusage steht nicht wörtlich im Vertrag");
-      ok(text.includes(GLOBAL_GELD_ZURUECK[sprache].bedingungen), "Bedingungen der Geld-zurück-Zusage stehen nicht wörtlich im Vertrag");
+      ok(text.includes(GLOBAL_GELD_ZURUECK[sprache].vertrag), "Geld-zurück-Zusage (Vertragssprache) steht nicht wörtlich im Vertrag");
+      ok(text.includes(GLOBAL_GELD_ZURUECK[sprache].vertragBedingungen), "Bedingungen der Geld-zurück-Zusage (Vertragssprache) stehen nicht wörtlich im Vertrag");
     }
     ok(vorschau.includes(GLOBAL_VERTRAG_VERSION), "Vertragsversion fehlt in der Unterzeile");
     ok(text.startsWith(vertrag.globalVertragTitel(p.key, sprache)), "Titel stimmt nicht");
@@ -112,7 +112,14 @@ for (const p of GLOBAL_PAKETE) {
     const leistungen = vertrag.globalLeistungenVollstaendig(p.key, sprache);
     ok(leistungen.length >= p[sprache].leistungen.length, "Leistungsliste kürzer als die Tafel");
     ok(!/Alles aus |Everything in /.test(text), "„Alles aus …“ steht im Vertrag — Leistungen müssen ausgeschrieben sein");
-    for (const l of leistungen) ok(text.includes(l), `Leistung fehlt: „${l}“`);
+    for (const l of leistungen) ok(text.includes(inVertragssprache(l, sprache)), `Leistung fehlt: „${l}“`);
+
+    // 4b · Vertragssprache (18.09.2026): Der Vertrag spricht über die Parteien, nicht zu ihnen.
+    const ansprache = sprache === "de" ? /\b(Ihr|Ihre|Ihrer|Ihrem|Ihren|Ihres|Ihnen|[Uu]nser\w*|[Ww]ir)\b/g : /\b(your|our|we|you|Your|Our|We|You)\b/g;
+    const angesprochen = Array.from(new Set(ohneSignatur(text).match(ansprache) ?? []));
+    ok(angesprochen.length === 0, `Kundenansprache im Vertrag: ${angesprochen.join(", ")} — Ersetzung in VERTRAGSSPRACHE (shared/fiaon-global.ts) ergänzen`);
+    for (const z of GLOBAL_INKLUSIVE[sprache]) ok(text.includes(inVertragssprache(z, sprache)), `Festpreis-Posten fehlt im Vertrag: „${z}“`);
+    ok(text.includes(GLOBAL_LAUFEND_VERTRAG[sprache]), "Satz zu den laufenden Kosten ab dem zweiten Jahr fehlt");
 
     // 5 · Vorschau und unterschriebene Fassung: derselbe Text
     ok(ohneSignatur(text) === ohneSignatur(textSigniert), "Der Text VOR der Unterschrift weicht vom unterschriebenen ab");

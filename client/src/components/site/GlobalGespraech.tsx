@@ -92,20 +92,20 @@ export default function GlobalGespraech({ paket }: { paket?: string | null }) {
 
   const feld = (k: keyof typeof leer, label: string, typ = "text", auto?: string) => (
     <label>
-      <span className="dk-label">{label}</span>
-      <input className="dk-feld" type={typ} autoComplete={auto} value={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.value })} />
+      <span className="fg-label">{label}</span>
+      <input className="fg-feld" type={typ} autoComplete={auto} value={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.value })} />
     </label>
   );
 
   return (
-    <div className="gl-gespraech">
-      <ul className="gl-punkte">
-        {t.punkte.map((p) => <li key={p}>{p}</li>)}
+    <div className="fg-gespraech">
+      <ul className="fg-punkte">
+        {t.punkte.map((p) => <li key={p}><svg className="fg-haken" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="7.25" stroke="currentColor" strokeOpacity=".28" /><path d="M4.8 8.2l2.1 2.1 4.3-4.6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>{p}</li>)}
       </ul>
 
-      <div className="gl-kal" aria-live="polite">
+      <div className="fg-kal" aria-live="polite">
         {fertig ? (
-          <div className="gl-fertig">
+          <div className="fg-fertig">
             <h3>{fertig.art === "termin" ? t.fertigTitel : t.anfrageTitel}</h3>
             <p>{fertig.art === "termin" ? t.fertigText(fertig.wann || "", fertig.wer || "") : t.anfrageText}</p>
           </div>
@@ -121,35 +121,35 @@ export default function GlobalGespraech({ paket }: { paket?: string | null }) {
             ) : (
               <>
                 <h3>{t.tagWaehlen}</h3>
-                <div className="gl-tage" role="group" aria-label={t.tagWaehlen}>
+                <div className="fg-tage" role="group" aria-label={t.tagWaehlen}>
                   {tage.map((x) => {
                     const k = tagText(x.tag) as { kurz: string; datum: string };
                     return (
-                      <button key={x.tag} type="button" className="gl-tag" aria-pressed={tag === x.tag} onClick={() => { setTag(x.tag); setZeit(null); }}>
+                      <button key={x.tag} type="button" className="fg-tag" aria-pressed={tag === x.tag} onClick={() => { setTag(x.tag); setZeit(null); }}>
                         <small>{k.kurz}</small><b>{k.datum}</b>
                       </button>
                     );
                   })}
                 </div>
                 <h3 style={{ marginTop: 26 }}>{t.zeitWaehlen}</h3>
-                <div className="gl-zeiten" role="group" aria-label={t.zeitWaehlen}>
-                  {zeiten.map((z) => <button key={z} type="button" className="gl-zeit" aria-pressed={zeit === z} onClick={() => setZeit(z)}>{z}</button>)}
+                <div className="fg-zeiten" role="group" aria-label={t.zeitWaehlen}>
+                  {zeiten.map((z) => <button key={z} type="button" className="fg-zeit" aria-pressed={zeit === z} onClick={() => setZeit(z)}>{z}</button>)}
                 </div>
                 <p className="hinweis">{t.zeitzone}</p>
-                {tag && zeit && <p className="gl-gewaehlt"><b>{t.gewaehlt(tagText(tag, true) as string, zeit)}</b></p>}
+                {tag && zeit && <p className="fg-gewaehlt"><b>{t.gewaehlt(tagText(tag, true) as string, zeit)}</b></p>}
               </>
             )}
 
             {(formularRueckruf || (tag && zeit)) && (
-              <div className="dk-form">
+              <div className="fg-form">
                 {paketName && <p className="hinweis" style={{ margin: 0 }}>{t.paketGewaehlt(paketName)}</p>}
                 <div className="zwei">{feld("name", t.name, "text", "name")}{feld("firma", t.firma, "text", "organization")}</div>
                 <div className="zwei">{feld("email", t.email, "email", "email")}{feld("telefon", t.telefon, "tel", "tel")}</div>
                 {formularRueckruf && feld("wunschzeit", t.wunschzeit)}
                 {feld("thema", t.thema)}
-                <input className="gl-falle" tabIndex={-1} autoComplete="off" aria-hidden="true" value={f.falle} onChange={(e) => setF({ ...f, falle: e.target.value })} />
+                <input className="fg-falle" tabIndex={-1} autoComplete="off" aria-hidden="true" value={f.falle} onChange={(e) => setF({ ...f, falle: e.target.value })} />
                 {fehler && <p className="fehler" role="alert">{fehler}</p>}
-                <button type="submit" className="dk-knopf" disabled={sendet}>{sendet ? t.sendet : formularRueckruf ? t.anfragen : t.buchen}</button>
+                <button type="submit" className="fg-knopf voll" disabled={sendet}>{sendet ? t.sendet : formularRueckruf ? t.anfragen : t.buchen}</button>
                 <p className="hinweis">{t.datenschutz}</p>
               </div>
             )}

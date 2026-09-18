@@ -320,13 +320,13 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
   "/business": {
     pfad: "/business", art: "produkt", stand: "2026-09-17", prio: 0.9,
     titel: "US-Gesellschaft aus einer Hand — FIAON Global",
-    beschreibung: "US-Gesellschaft mit Team vor Ort: Gründung, Steuernummern, Dokumente, Bank- und Kartenaufbau aus einer Hand. Vier Pakete, ein Ansprechpartner.",
-    h1: "Ihre Gesellschaft in den USA. Aufgebaut von Menschen vor Ort.",
-    lead: "FIAON gründet Ihre US-Gesellschaft, besorgt Steuernummern und Dokumente und baut Schritt für Schritt Ihre Bank- und Kartenbeziehung in den USA auf — mit einem Team vor Ort und einem Ansprechpartner für Sie.",
+    beschreibung: "US-Gesellschaft mit Team vor Ort: Gründung, Steuernummern, Bank- und Kartenaufbau aus einer Hand. Festpreis, alle Gebühren inklusive.",
+    h1: "Ihre US-Gesellschaft. Aus einer Hand, zum Festpreis.",
+    lead: "Gründung, Steuernummern, Bankkonto und Firmenkarten in den USA: Unser Team vor Ort, unsere Partner-Anwälte und Partner-Steuerberater übernehmen alles. Ein Ansprechpartner, ein Vertrag, ein Festpreis — alle Gebühren inklusive.",
     abschnitte: [
-      { h2: "Ein Ansprechpartner. Ein Team vor Ort. Ein Partnernetz.", text: "Hinter jeder US-Struktur stehen Gründungsagenten, Steuerberater, Anwälte, Banken, Adress- und Telefonanbieter. Bei FIAON koordiniert ein Ansprechpartner alle. Steuerberater und Anwälte arbeiten auf eigenes Mandat und rechnen direkt mit Ihnen ab; über Konto, Karte und Rahmen entscheidet das jeweilige Institut." },
+      { h2: "Ein Ansprechpartner. Ein Team vor Ort. Ein Partnernetz.", text: "Hinter jeder US-Struktur stehen Gründungsagenten, Steuerberater, Anwälte, Banken, Adress- und Telefonanbieter. Bei FIAON koordiniert ein Ansprechpartner alle. Steuerberater, US-CPA und Anwälte arbeiten auf das Mandat des Kunden, ihre Honorare trägt FIAON; über Konto, Karte und Rahmen entscheidet das jeweilige Institut." },
       { h2: "Vier Etappen. Eine Reihenfolge, die sich bewährt hat.", text: "Gründung und Dokumente (Gesellschaft, EIN, ITIN, Registered Agent, US-Adresse), die erste Firmenkarte mit kleinem Rahmen, die Kartenleiter über weitere Herausgeber und später ein mögliches Bankdarlehen. Dauern nennt FIAON als Erfahrungswerte — Behörden und Institute bestimmen das Tempo.", punkte: ["Gründung und Dokumente", "Die erste Firmenkarte", "Die Kartenleiter", "Das Bankdarlehen"] },
-      { h2: "Vier Pakete. Ein Preis, einmalig.", text: "Global Struktur 2.499 €, Global Banking 4.999 €, Global Kapital 6.999 € und Global VIP mit Auftakt vor Ort in Miami 35.999 € — jeweils einmalig. Direkt beauftragen mit Vertrag, Rechnung und Überweisung oder zuerst ein Gespräch vereinbaren. Staatliche Gebühren, Registered Agent und Partnerhonorare werden getrennt ausgewiesen." },
+      { h2: "Vier Pakete. Ein Festpreis, alles inklusive.", text: "Global Struktur 2.499 €, Global Banking 4.999 €, Global Kapital 6.999 € und Global VIP mit Auftakt vor Ort in Miami 35.999 € — jeweils einmalig, alle Gebühren und Honorare der Partner inklusive: Staatsgebühren, Registered Agent, Partner-Anwalt, Partner-Steuerberater und US-CPA. Direkt beauftragen mit Vertrag, Rechnung und Überweisung oder zuerst ein Gespräch vereinbaren." },
       { h2: "Was Sie vor dem Auftrag wissen müssen.", text: "Eine US-Gesellschaft, die aus Deutschland, Österreich oder der Schweiz geführt wird, bleibt dort steuerpflichtig; die Gründung ist dem Finanzamt zu melden. In den USA gelten jährliche Meldepflichten, auch ohne Umsatz. US-Firmenkarten setzen in der Regel die persönliche Haftung des Inhabers voraus." },
     ],
     weiter: ["/preise", "/team", "/kontakt", "/sicherheit", "/privatkunden"],

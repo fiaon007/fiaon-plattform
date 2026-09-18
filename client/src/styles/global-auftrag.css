@@ -16,7 +16,7 @@
 .ga-zahlung{margin:0 0 30px;padding:24px 26px;border-radius:16px;background:#f6f9ff;border:1px solid rgba(29,78,216,.18)}
 .ga-zahlung h3{margin:0;font-size:16px;font-weight:500;color:#0f172a;letter-spacing:-.01em}
 .ga-zahlung p{margin:8px 0 16px;font-size:14px;font-weight:300;color:#475569;line-height:1.7;max-width:62ch}
-.ga-zahlung .dk-knopf{min-height:46px;background:#1d4ed8}
+.ga-zahlung .gs-knopf{min-height:46px}
 
 /* Der Weg: senkrechte Linie mit Stationen */
 .ga-weg{list-style:none;margin:22px 0 0;padding:0;position:relative}
@@ -75,17 +75,21 @@
 
 /* Seitenkarte: Ansprechpartner */
 .ga-person{display:flex;gap:14px;align-items:center;margin-top:16px}
-.ga-person img,.ga-person .mono{width:54px;height:54px;border-radius:50%;object-fit:cover;flex:0 0 auto;border:1px solid rgba(255,255,255,.18)}
-.ga-person .mono{display:grid;place-items:center;background:rgba(255,255,255,.08);color:#dbeafe;font-size:17px;font-weight:300}
-.ga-person b{display:block;font-size:15.5px;font-weight:500;color:#fff}
-.gs-seite .ga-kontakt{display:block;margin-top:4px;font-size:13px;font-weight:300;color:#93c5fd;text-decoration:none;word-break:break-all}
+.ga-person img,.ga-person .mono{width:54px;height:54px;border-radius:50%;object-fit:cover;flex:0 0 auto;border:1px solid var(--linie)}
+.ga-person .mono{display:grid;place-items:center;background:var(--blau-hell);color:var(--navy);font-size:17px;font-weight:400}
+.ga-person b{display:block;font-size:15.5px;font-weight:500;color:var(--tinte)}
+.gs-seite .ga-kontakt{display:block;margin-top:4px;font-size:13px;color:var(--navy);text-decoration:none;word-break:break-all}
 .gs-seite .ga-kontakt:hover{text-decoration:underline}
 .ga-zeilen{margin:14px 0 0;display:grid;gap:10px}
 .ga-zeilen div{display:grid;gap:2px}
-.ga-zeilen span{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#7f8ea6}
-.ga-zeilen b{font-size:14px;font-weight:400;color:#e8eef8;word-break:break-word}
+.ga-zeilen span{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--leise)}
+.ga-zeilen b{font-size:14px;font-weight:500;color:var(--tinte);word-break:break-word}
 
 /* Zugang neu anfordern */
 .ga-zugang{max-width:520px}
 .ga-zugang .gs-felder{margin-top:22px}
-.ga-zugang .dk-knopf{min-height:50px;background:#1d4ed8;margin-top:6px}
+.ga-zugang .gs-knopf{margin-top:6px}
+
+/* 18.09.2026: helle Aufstellung — „Mein Auftrag" hat kein Kopfband, der Inhalt braucht Innenabstand. */
+.gs-seite.ga-seite{padding:24px 26px}
+.ga-seite .preis{font-size:30px}

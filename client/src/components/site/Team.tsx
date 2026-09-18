@@ -64,7 +64,7 @@ function Portrait({ kuerzel, name, gross = false }: { kuerzel: string; name: str
   const initialen = name.split(" ").map((t) => t[0]).join("").slice(0, 2);
   const groesse = gross ? 168 : 104;
   return (
-    <div style={{ width: groesse, height: groesse, borderRadius: "50%", overflow: "hidden", flex: "0 0 auto", position: "relative",
+    <div className="tm-portrait" style={{ width: groesse, height: groesse, borderRadius: "50%", overflow: "hidden", flex: "0 0 auto", position: "relative",
                   background: "linear-gradient(135deg,rgba(37,99,235,.35),rgba(15,23,42,.6))", border: "1px solid rgba(255,255,255,.14)",
                   boxShadow: "0 20px 50px rgba(2,6,23,.45), inset 0 1px 0 rgba(255,255,255,.12)" }}>
       {!fehlt ? (

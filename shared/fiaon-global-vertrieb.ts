@@ -68,11 +68,11 @@ export function globalLeitfaden(): LeitfadenBlock[] {
     { t: "Einwände", s: [
       k(`„Was kostet das?“ — „Es ist ein Einmalpreis, kein Abo: ${globalPreisZeile()}. ${GLOBAL_ROLLEN.de.kosten}“`),
       k("„Bekomme ich dann sicher eine Karte mit hohem Rahmen?“ — „Das sagt Ihnen niemand seriös zu. Über Konto, Karte und Rahmen entscheidet allein das Institut. Was wir zusagen, ist unsere eigene Leistung: vollständige Unterlagen, saubere Anträge und ein Team, das den Ablauf kennt.“"),
-      k("„Spare ich damit Steuern?“ — „Nein. Eine US-Gesellschaft, die von hier geführt wird, bleibt hier steuerpflichtig. Es geht um Zugang zu US-Banken und US-Kunden, nicht um einen niedrigeren Steuersatz. Die Einzelheiten klärt der Steuerberater aus unserem Partnernetz mit Ihnen — auf eigenes Mandat, direkt mit Ihnen abgerechnet.“"),
+      k("„Spare ich damit Steuern?“ — „Nein. Eine US-Gesellschaft, die von hier geführt wird, bleibt hier steuerpflichtig. Es geht um Zugang zu US-Banken und US-Kunden, nicht um einen niedrigeren Steuersatz. Die Einzelheiten klärt der Steuerberater aus unserem Partnernetz mit Ihnen — auf Ihr Mandat, das Honorar trägt FIAON.“"),
       k("„Muss ich in die USA reisen?“ — „In der Regel nicht. Unser Team vor Ort nimmt die Termine wahr. Wer den Auftakt persönlich erleben möchte, wählt Global VIP.“"),
       k(GLOBAL_GELD_ZURUECK.aktiv
-        ? `„Seriös?“ — „Prüfen Sie uns an drei Punkten: Wir sagen keine Bankentscheidung zu. Steuerberater und Anwälte arbeiten auf eigenes Mandat und rechnen direkt mit Ihnen ab. Und: ${GLOBAL_GELD_ZURUECK.de.text} ${GLOBAL_GELD_ZURUECK.de.bedingungen}“`
-        : "„Seriös?“ — „Prüfen Sie uns an zwei Punkten: Wir sagen keine Bankentscheidung zu, und Steuerberater und Anwälte arbeiten auf eigenes Mandat und rechnen direkt mit Ihnen ab.“"),
+        ? `„Seriös?“ — „Prüfen Sie uns an drei Punkten: Wir sagen keine Bankentscheidung zu. Steuerberater und Anwälte arbeiten auf Ihr Mandat, ihre Honorare sind im Festpreis enthalten. Und: ${GLOBAL_GELD_ZURUECK.de.text} ${GLOBAL_GELD_ZURUECK.de.bedingungen}“`
+        : "„Seriös?“ — „Prüfen Sie uns an zwei Punkten: Wir sagen keine Bankentscheidung zu, und Steuerberater und Anwälte arbeiten auf Ihr Mandat, ihre Honorare sind im Festpreis enthalten.“"),
     ]},
     { t: "Der Abschluss", s: [
       k("„Ich schicke Ihnen jetzt die kurze Info-Mail mit den Paketen und dem Weg zum Auftrag. Möchten Sie direkt beauftragen — oder machen wir einen festen Gesprächstermin?“"),

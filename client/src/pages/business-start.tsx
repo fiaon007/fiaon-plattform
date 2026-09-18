@@ -34,7 +34,7 @@ import { Dunkel } from "@/components/site/DunkleBuehne";
 import SignaturePad from "@/components/agent/SignaturPad";
 import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
 import { GLOBAL_START_WOERTER } from "@/i18n/global-start";
-import { GLOBAL_PAKETE, globalPaket, globalPreisText, globalPlanungText } from "@shared/fiaon-global";
+import { GLOBAL_PAKETE, GLOBAL_INKLUSIVE, globalPaket, globalPreisText, globalPlanungText } from "@shared/fiaon-global";
 import "@/styles/global-start.css";
 
 type Land = "DE" | "AT" | "CH";
@@ -142,7 +142,7 @@ export default function BusinessStart() {
   };
 
   const waehle = async (x: Treffer) => {
-    setOffen(false);
+    setOffen(false); setFehler("");
     stumm.current = true; setQ(x.name);
     uebernimm({ name: x.name, rechtsform: x.rechtsform, ort: x.ort, plz: x.plz, quelleText });
     try {
@@ -160,6 +160,7 @@ export default function BusinessStart() {
       const r = await fetch("/api/fiaon/firmensuche/impressum", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: webUrl.trim(), land: firma.land }) });
       const j = await r.json();
       if (!j.ok || !j.firma) { setWebFehler(t.websiteFehler); setFelderOffen(true); return; }
+      setFehler("");
       uebernimm({ ...j.firma, website: j.firma.website || webUrl.trim() });
     } catch { setWebFehler(t.websiteFehler); setFelderOffen(true); }
     finally { setWebLaedt(false); }
@@ -168,6 +169,7 @@ export default function BusinessStart() {
   // ── Schritt 4: Vertrag ──────────────────────────────────────────────────
   const [vertragHtml, setVertragHtml] = useState("");
   const [vertragStand, setVertragStand] = useState<"leer" | "laedt" | "da" | "fehler">("leer");
+  const [vertragFehler, setVertragFehler] = useState("");
   const [haken, setHaken] = useState({ vertrag: false, pflichthinweis: false, unternehmer: false, vertretung: false });
   const [unterschrift, setUnterschrift] = useState<string | null>(null);
   const [sendet, setSendet] = useState(false);
@@ -177,10 +179,18 @@ export default function BusinessStart() {
     setVertragStand("laedt");
     try {
       const r = await fetch("/api/fiaon/global/vertrag/vorschau", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paket, firma, ansprechpartner: person, sprache: s }) });
-      const j = await r.json();
-      if (!j.ok || !j.html) throw new Error();
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.ok || !j.html) {
+        // 17.09.2026 live: sechs Vorschauen mit 400 — der Kunde sah nur „konnte nicht geladen werden".
+        // Der Server nennt Grund und Feld; wir führen dorthin zurück, wo es zu korrigieren ist.
+        const feld = typeof j.feld === "string" ? j.feld : "";
+        if (feld.startsWith("firma")) { setFelderOffen(true); gehe(1); setFehler(j.error || t.firmaPflicht); setVertragStand("leer"); return; }
+        if (feld.startsWith("ansprechpartner")) { gehe(2); setFehler(j.error || t.personPflicht); setVertragStand("leer"); return; }
+        if (feld === "paket") { gehe(0); setFehler(j.error || t.paketWaehlen); setVertragStand("leer"); return; }
+        setVertragFehler(j.error || ""); setVertragStand("fehler"); return;
+      }
       setVertragHtml(String(j.html)); setVertragStand("da");
-    } catch { setVertragStand("fehler"); }
+    } catch { setVertragFehler(""); setVertragStand("fehler"); }
   };
   useEffect(() => { if (schritt === 3 && !fertig) vertragLaden(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [schritt]);
 
@@ -189,6 +199,11 @@ export default function BusinessStart() {
     if (schritt === 0) { if (!globalPaket(paket)) return setFehler(t.paketWaehlen); return gehe(1); }
     if (schritt === 1) {
       if (!firma.name.trim() || !firma.rechtsform.trim() || !firma.strasse.trim() || !firma.plz.trim() || !firma.ort.trim()) { setFelderOffen(true); return setFehler(t.firmaPflicht); }
+      // Dieselben Regeln wie server/lib/fiaon-global-auftrag.ts (firmaPruefen) — sonst scheitert erst die Vertragsvorschau.
+      if (firma.strasse.trim().length < 3) { setFelderOffen(true); return setFehler(t.strasseFalsch); }
+      if (!(firma.land === "DE" ? /^\d{5}$/ : /^\d{4}$/).test(firma.plz.trim())) { setFelderOffen(true); return setFehler(t.plzFalsch(t.laender[firma.land], firma.land === "DE" ? 5 : 4)); }
+      const ust = firma.ustId.toUpperCase().replace(/[\s.\-]/g, "");
+      if (ust && !/^(DE\d{9}|ATU\d{8}|CHE\d{9}(MWST|TVA|IVA)?)$/.test(ust)) { setFelderOffen(true); return setFehler(t.ustIdFalsch); }
       return gehe(2);
     }
     if (schritt === 2) {
@@ -255,9 +270,9 @@ export default function BusinessStart() {
       <div className="gs">
         <div className="dk-rahmen">
           <header className="gs-kopf">
-            <span className="dk-pille">{fertig ? t.fertigPille : t.pille}</span>
-            <h1 className="dk-h1">{fertig ? t.fertigTitel : t.titel}</h1>
-            <p className="dk-lead">{fertig ? t.fertigLead(fertig.email) : t.lead}</p>
+            <span className="gs-auge">{fertig ? t.fertigPille : t.pille}</span>
+            <h1 className="gs-h1">{fertig ? t.fertigTitel : t.titel}</h1>
+            <p className="gs-lead">{fertig ? t.fertigLead(fertig.email) : t.lead}</p>
           </header>
 
           <div className="gs-rahmen">
@@ -299,7 +314,7 @@ export default function BusinessStart() {
                 <>
                   <ol className="gs-schritte" aria-label={t.titel}>
                     {t.schritte.map((name, i) => (
-                      <li key={name} data-stand={i < schritt ? "fertig" : i === schritt ? "jetzt" : "offen"} aria-current={i === schritt ? "step" : undefined}><span>{String(i + 1).padStart(2, "0")}</span>{name}</li>
+                      <li key={name} data-stand={i < schritt ? "fertig" : i === schritt ? "jetzt" : "offen"} aria-current={i === schritt ? "step" : undefined}><span>{i < schritt ? "✓" : i + 1}</span>{name}</li>
                     ))}
                   </ol>
 
@@ -375,7 +390,7 @@ export default function BusinessStart() {
                           <p>{t.websiteText}</p>
                           <div className="reihe">
                             <input className="gs-feld" inputMode="url" autoComplete="url" placeholder={t.websitePlatz} value={webUrl} onChange={(e) => setWebUrl(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); ausWebsite(); } }} />
-                            <button type="button" className="dk-knopf" style={{ minHeight: 50 }} disabled={webLaedt || !webUrl.trim()} onClick={ausWebsite}>{webLaedt ? t.websiteLaedt : t.websiteKnopf}</button>
+                            <button type="button" className="gs-knopf" style={{ minHeight: 50 }} disabled={webLaedt || !webUrl.trim()} onClick={ausWebsite}>{webLaedt ? t.websiteLaedt : t.websiteKnopf}</button>
                           </div>
                           {webFehler && <p className="gs-fehler" role="alert" style={{ marginTop: 12 }}>{webFehler}</p>}
                         </div>
@@ -447,7 +462,7 @@ export default function BusinessStart() {
                       <h2>{t.vertragTitel}</h2>
                       <p className="lead">{t.vertragLead}</p>
                       {vertragStand === "laedt" && <p className="gs-gut">{t.vertragLaedt}</p>}
-                      {vertragStand === "fehler" && <p className="gs-fehler" role="alert">{t.vertragFehler} <button type="button" className="gs-link" style={{ marginTop: 0 }} onClick={vertragLaden}>{t.erneut}</button></p>}
+                      {vertragStand === "fehler" && <p className="gs-fehler" role="alert">{vertragFehler || t.vertragFehler} <button type="button" className="gs-link" style={{ marginTop: 0 }} onClick={vertragLaden}>{t.erneut}</button></p>}
                       {vertragStand === "da" && (
                         <>
                           {/* Der Text kommt von unserem eigenen Server aus derselben Quelle wie das PDF; Kundenangaben sind dort maskiert. */}
@@ -471,29 +486,37 @@ export default function BusinessStart() {
                   <div className="gs-fuss">
                     {schritt > 0 ? <button type="button" className="gs-zurueck" onClick={() => gehe(schritt - 1)}>← {t.zurueck}</button> : <span />}
                     {schritt < 3
-                      ? <button type="button" className="dk-knopf" onClick={weiter}>{t.weiter}</button>
-                      : <button type="button" className="dk-knopf" onClick={beauftragen} disabled={sendet || vertragStand !== "da"}>{sendet ? t.sendet : t.beauftragen}</button>}
+                      ? <button type="button" className="gs-knopf" onClick={weiter}>{t.weiter}</button>
+                      : <button type="button" className="gs-knopf" onClick={beauftragen} disabled={sendet || vertragStand !== "da"}>{sendet ? t.sendet : t.beauftragen}</button>}
                   </div>
                 </>
               )}
             </div>
 
             <aside className="gs-seite" aria-label={t.auftrag}>
-              <h2>{t.auftrag}</h2>
-              {g ? (
-                <>
-                  <p className="name">FIAON {g[s].name}</p>
-                  <p className="preis">{globalPreisText(g.key, s)}<small>{t.einmalig}</small></p>
+              <div className="gs-seite-kopf">
+                <h2>{t.auftrag}</h2>
+                {g ? (
+                  <>
+                    <p className="name">FIAON {g[s].name}</p>
+                    <p className="preis">{globalPreisText(g.key, s)}<small>{t.festpreis}</small></p>
+                  </>
+                ) : <p className="klein" style={{ marginTop: 10 }}>{t.paketWaehlen}</p>}
+              </div>
+              <div className="gs-seite-rumpf">
+                {g && (
                   <div className="masse">
                     <div><span>{t.planung}</span><b>{globalPlanungText(g.key, s)}</b><em>{t.planungZusatz}</em></div>
-                    <div><b>{g[s].dauer}</b></div>
+                    <div><span>{t.begleitung}</span><b>{g[s].dauerKurz}</b></div>
                   </div>
-                </>
-              ) : <p className="klein" style={{ marginTop: 14 }}>{t.paketWaehlen}</p>}
-              <h2 style={{ marginTop: 24 }}>{t.soGehtEs}</h2>
-              <ol>{t.ablauf.map((x) => <li key={x}>{x}</li>)}</ol>
-              <p className="klein">{t.nichtEnthalten}</p>
-              {!fertig && <a href={`${zu("/business")}${paket ? `?paket=${paket}` : ""}#gespraech`}>{t.lieberSprechen}</a>}
+                )}
+                <h3>{t.inklusiveTitel}</h3>
+                <ul className="gs-inkl">{GLOBAL_INKLUSIVE[s].map((x) => <li key={x}>{x}</li>)}</ul>
+                <h3>{t.soGehtEs}</h3>
+                <ol>{t.ablauf.map((x) => <li key={x}>{x}</li>)}</ol>
+                <ul className="gs-sicher">{t.sicher.map((x) => <li key={x}>{x}</li>)}</ul>
+                {!fertig && <a className="gs-sprechen" href={`${zu("/business")}${paket ? `?paket=${paket}` : ""}#gespraech`}>{t.lieberSprechen}</a>}
+              </div>
             </aside>
           </div>
         </div>

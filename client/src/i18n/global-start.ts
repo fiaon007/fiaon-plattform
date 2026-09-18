@@ -52,6 +52,9 @@ const de = {
   ustId: "USt-IdNr. (falls vorhanden)",
   website: "Website (falls vorhanden)",
   firmaPflicht: "Bitte füllen Sie Firma, Rechtsform, Straße, PLZ und Ort aus.",
+  strasseFalsch: "Bitte geben Sie Straße und Hausnummer vollständig an.",
+  plzFalsch: (land: string, n: number) => `Bitte prüfen Sie die Postleitzahl — in ${land} hat sie ${n === 5 ? "fünf" : "vier"} Ziffern. Stimmt das Land oben?`,
+  ustIdFalsch: "Bitte prüfen Sie die USt-IdNr. — zum Beispiel DE123456789, ATU12345678 oder CHE-123.456.789. Sie können das Feld auch leer lassen.",
 
   // Schritt 3
   personTitel: "Wer unterschreibt?",
@@ -71,7 +74,7 @@ const de = {
 
   // Schritt 4
   vertragTitel: "Ihr Vertrag",
-  vertragLead: "Lesen Sie den Vertrag in Ruhe. Er nennt genau die Leistungen Ihres Pakets — und klar, was nicht dazugehört.",
+  vertragLead: "Lesen Sie den Vertrag in Ruhe. Er nennt genau die Leistungen Ihres Pakets und was der Festpreis abdeckt.",
   vertragLaedt: "Vertrag wird erstellt …",
   vertragFehler: "Der Vertrag konnte nicht geladen werden. Bitte versuchen Sie es in einem Moment erneut.",
   erneut: "Erneut laden",
@@ -94,7 +97,10 @@ const de = {
   soGehtEs: "So geht es weiter",
   ablauf: ["Vertrag am Bildschirm unterschreiben", "Vertrag und Rechnung per E-Mail", "Überweisung auf das Geschäftskonto der FIAON LTD", "Mit dem Zahlungseingang beginnt Ihr Ansprechpartner"],
   lieberSprechen: "Lieber erst sprechen? Gespräch vereinbaren",
-  nichtEnthalten: "Staatliche Gebühren, Registered Agent sowie Honorare von Steuerberatern und Anwälten sind nicht enthalten und werden vor dem Start ausgewiesen.",
+  festpreis: "Festpreis · einmalig",
+  begleitung: "Begleitung",
+  inklusiveTitel: "Im Festpreis enthalten",
+  sicher: ["Vertrag in Textform", "Geld zurück, wenn wir nicht liefern", "Kein Abo, keine Raten"],
 
   // Bestätigung
   fertigPille: "Auftrag angelegt",
@@ -161,6 +167,9 @@ const en: typeof de = {
   ustId: "VAT ID (if available)",
   website: "Website (if available)",
   firmaPflicht: "Please fill in company, legal form, street, postcode and town.",
+  strasseFalsch: "Please enter the full street and number.",
+  plzFalsch: (land: string, n: number) => `Please check the postcode — in ${land} it has ${n === 5 ? "five" : "four"} digits. Is the country above correct?`,
+  ustIdFalsch: "Please check the VAT ID — for example DE123456789, ATU12345678 or CHE-123.456.789. You can also leave the field empty.",
 
   personTitel: "Who signs?",
   personLead: "The person who signs the order and can be reached by us.",
@@ -178,7 +187,7 @@ const en: typeof de = {
   telefonFalsch: "Please enter a phone number from Germany, Austria or Switzerland.",
 
   vertragTitel: "Your contract",
-  vertragLead: "Take your time to read the contract. It lists exactly the services in your package — and clearly what is not included.",
+  vertragLead: "Take your time to read the contract. It lists exactly the services in your package and what the fixed price covers.",
   vertragLaedt: "Preparing the contract …",
   vertragFehler: "The contract could not be loaded. Please try again in a moment.",
   erneut: "Reload",
@@ -200,7 +209,10 @@ const en: typeof de = {
   soGehtEs: "What happens next",
   ablauf: ["Sign the contract on screen", "Contract and invoice by email", "Bank transfer to the business account of FIAON LTD", "Your contact starts once payment has been received"],
   lieberSprechen: "Prefer to talk first? Arrange a call",
-  nichtEnthalten: "State fees, the registered agent and the fees of tax advisers and lawyers are not included and are itemised before work starts.",
+  festpreis: "Fixed price · one-off",
+  begleitung: "Support",
+  inklusiveTitel: "Included in the fixed price",
+  sicher: ["Contract in text form", "Your money back if we do not deliver", "No subscription, no instalments"],
 
   fertigPille: "Order created",
   fertigTitel: "Thank you. Your order is in place.",

@@ -312,7 +312,7 @@ for (const g of GLOBAL_PAKETE) {
 ok("Wissen: Global nie als Monatsrate", !/FIAON Global [A-Za-z]+[^\n]*im Monat, zwölf/.test(wissen));
 ok("Wissen: Business-Abos stehen NICHT mehr in der Verkaufsliste", !/FIAON Business [A-Za-z]+ \(Geschäftskunden\)/.test(wissen));
 ok("Wissen: Business-Abos als „nicht mehr im Verkauf“, Bestand läuft weiter", /NICHT MEHR IM VERKAUF/.test(wissen) && Object.keys(BUSINESS_ALT).every((k) => wissen.includes(`${paket(k)?.label}: `)));
-ok("Wissen: wer entscheidet, Mandat, Wege", /entscheidet allein das jeweilige US-Institut/.test(wissen) && /auf eigenes Mandat/.test(wissen) && wissen.includes("fiaon.com/business/start") && wissen.includes("fiaon.com/business#gespraech"));
+ok("Wissen: wer entscheidet, Mandat, Wege", /entscheidet allein das jeweilige US-Institut/.test(wissen) && /auf (eigenes|Ihr) Mandat/.test(wissen) && wissen.includes("fiaon.com/business/start") && wissen.includes("fiaon.com/business#gespraech"));
 ok("Wissen: die drei Pflichthinweise stehen drin", GLOBAL_PFLICHTHINWEIS.de.every((h) => wissen.includes(h)));
 ok("Wissen: kein /business-antrag, kein alter Zielrahmen", !/business-antrag|Zielrahmen 5\.000/.test(wissen));
 ok("Wissen: die Privatpakete stehen unverändert als Abo drin", ["start", "pro", "ultra", "highend"].every((k) => wissen.includes(`${paket(k)?.label} (Privatkunden): `)));

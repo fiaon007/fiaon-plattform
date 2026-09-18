@@ -34,7 +34,7 @@ import { escapeHtml, wrapFiaonDocument, htmlZuPdfMitFusszeile } from "./fiaon-ht
 import { FIAON_ENTITY } from "../fiaon-invoice";
 import { paketPreisCents } from "@shared/fiaon-pakete";
 import {
-  GLOBAL_PAKETE, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_GELD_ZURUECK, GLOBAL_VERTRAG_VERSION,
+  GLOBAL_PAKETE, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_GELD_ZURUECK, GLOBAL_VERTRAG_VERSION, GLOBAL_INKLUSIVE, GLOBAL_LAUFEND_VERTRAG, inVertragssprache,
   globalPaket, globalPlanungText, type GlobalSchluessel,
 } from "@shared/fiaon-global";
 
@@ -63,13 +63,13 @@ export interface GlobalVertragDaten {
 /** Die zwölf Ziffern, die kein Auftrag verlieren darf — der Prüfstand zählt sie nach. */
 export const GLOBAL_VERTRAG_ZIFFERN: Record<VertragSprache, string[]> = {
   de: [
-    "Parteien", "Gegenstand und Leistungen", "Was nicht Teil des Auftrags ist", "Mitwirkung des Auftraggebers",
-    "Vergütung", GLOBAL_GELD_ZURUECK.de.titel, "Pflichthinweise", "Dauer und Beendigung", "Haftung",
+    "Parteien", "Gegenstand und Leistungen", "Partner und Abgrenzung", "Mitwirkung des Auftraggebers",
+    "Vergütung", "Erstattungszusage", "Pflichthinweise", "Dauer und Beendigung", "Haftung",
     "Vertraulichkeit und Datenschutz", "Unternehmer-Bestätigung", "Schlussbestimmungen",
   ],
   en: [
-    "Parties", "Subject matter and services", "What is not part of this engagement", "Cooperation of the client",
-    "Fee", GLOBAL_GELD_ZURUECK.en.titel, "Mandatory notices", "Term and termination", "Liability",
+    "Parties", "Subject matter and services", "Partners and scope", "Cooperation of the client",
+    "Fee", "Refund commitment", "Mandatory notices", "Term and termination", "Liability",
     "Confidentiality and data protection", "Business confirmation", "Final provisions",
   ],
 };
@@ -147,8 +147,8 @@ function parteien(d: GlobalVertragDaten): string {
     ? `<b>${e(FIAON_ENTITY.name)}</b>, ${e(FIAON_ENTITY.addressLine1)}, ${e(FIAON_ENTITY.addressLine2)}, ${e(FIAON_ENTITY.country)}, registered at Companies House (England and Wales) under Company No. ${e(FIAON_ENTITY.companyNo)}, represented by its Director ${e(FIAON_ENTITY.director)}, e-mail ${e(FIAON_ENTITY.email)} — hereinafter “FIAON”.`
     : `<b>${e(FIAON_ENTITY.name)}</b>, ${e(FIAON_ENTITY.addressLine1)}, ${e(FIAON_ENTITY.addressLine2)}, ${e(FIAON_ENTITY.country)}, eingetragen im Companies House (England and Wales) unter der Company No. ${e(FIAON_ENTITY.companyNo)}, vertreten durch den Director ${e(FIAON_ENTITY.director)}, E-Mail ${e(FIAON_ENTITY.email)} — nachfolgend „FIAON“.`;
   const kunde = en
-    ? `<b>${e(f.name)}</b> (${e(f.rechtsform)})${register ? `, registered at ${e(register)}` : ""}, ${e(f.strasse)}, ${e(f.plz)} ${e(f.ort)}, ${e(land)}${f.ustId ? `, VAT ID ${e(f.ustId)}` : ""}, represented by ${e(vertreter)}, ${e(a.funktion)} — hereinafter the “Client”.`
-    : `<b>${e(f.name)}</b> (${e(f.rechtsform)})${register ? `, eingetragen: ${e(register)}` : ""}, ${e(f.strasse)}, ${e(f.plz)} ${e(f.ort)}, ${e(land)}${f.ustId ? `, USt-IdNr. ${e(f.ustId)}` : ""}, vertreten durch ${e(vertreter)}, ${e(a.funktion)} — nachfolgend „Auftraggeber“.`;
+    ? `<b>${e(f.name)}</b>${f.rechtsform ? `, ${e(f.rechtsform)}` : ""}${register ? `, registered at ${e(register)}` : ""}, ${e(f.strasse)}, ${e(f.plz)} ${e(f.ort)}, ${e(land)}${f.ustId ? `, VAT ID ${e(f.ustId)}` : ""}, represented by ${e(vertreter)}, ${e(a.funktion)} — hereinafter the “Client”.`
+    : `<b>${e(f.name)}</b>${f.rechtsform ? `, ${e(f.rechtsform)}` : ""}${register ? `, eingetragen: ${e(register)}` : ""}, ${e(f.strasse)}, ${e(f.plz)} ${e(f.ort)}, ${e(land)}${f.ustId ? `, USt-IdNr. ${e(f.ustId)}` : ""}, vertreten durch ${e(vertreter)}, ${e(a.funktion)} — nachfolgend „Auftraggeber“.`;
   return `<p>${fiaon}</p><p>${kunde}</p>`;
 }
 
@@ -191,7 +191,9 @@ function vertragsRumpf(d: GlobalVertragDaten): string {
   const preis = globalVertragPreis(d.paket, d.sprache);
   const planung = globalPlanungText(d.paket, d.sprache);
   const rollen = GLOBAL_ROLLEN[d.sprache];
-  const leistungen = globalLeistungenVollstaendig(d.paket, d.sprache);
+  // Der Vertrag spricht über die Parteien, nicht zu ihnen — dieselben Leistungen in Vertragssprache.
+  const leistungen = globalLeistungenVollstaendig(d.paket, d.sprache).map((z) => inVertragssprache(z, d.sprache));
+  const inklusive = GLOBAL_INKLUSIVE[d.sprache].map((z) => inVertragssprache(z, d.sprache));
   const liste = (zeilen: readonly string[]) => `<ul>${zeilen.map((z) => `<li>${e(z)}</li>`).join("")}</ul>`;
 
   const ziffern: (string | null)[] = [
@@ -210,9 +212,9 @@ function vertragsRumpf(d: GlobalVertragDaten): string {
 
     // 3 — Was nicht Teil des Auftrags ist
     (en
-      ? `<p>Tax and legal questions are answered by tax advisers and lawyers under their own engagement with the Client. ${e(rollen.partner)}</p>`
+      ? `<p>Tax and legal services within the scope of clause 2 are provided by tax advisers, US CPAs and lawyers from the FIAON partner network under their own engagement with the Client. FIAON pays the partners’ fees for these services; they are included in the package price. FIAON receives no remuneration from the partners. Services beyond this scope are agreed by the Client directly with the partner.</p>`
         + `<p>FIAON is neither a bank nor a lender, does not accept client funds and has no authority over the Client’s accounts. The Client enters into contracts with institutions itself.</p>`
-      : `<p>Steuerliche und rechtliche Fragen beantworten Steuerberater und Anwälte auf eigenes Mandat des Auftraggebers. ${e(rollen.partner)}</p>`
+      : `<p>Steuerliche und rechtliche Leistungen im Umfang von Ziffer 2 erbringen Steuerberater, US-CPA und Anwälte aus dem Partnernetz von FIAON auf eigenes Mandat des Auftraggebers. Die Honorare der Partner für diese Leistungen trägt FIAON; sie sind im Paketpreis enthalten. FIAON erhält von den Partnern keine Vergütung. Leistungen darüber hinaus vereinbart der Auftraggeber unmittelbar mit dem Partner.</p>`
         + `<p>FIAON ist keine Bank und kein Kreditgeber, nimmt keine Kundengelder entgegen und verfügt nicht über Konten des Auftraggebers. Verträge mit Instituten schließt der Auftraggeber selbst.</p>`),
 
     // 4 — Mitwirkung des Auftraggebers
@@ -223,15 +225,15 @@ function vertragsRumpf(d: GlobalVertragDaten): string {
     // 5 — Vergütung
     (en
       ? `<p>The package price is a one-off fee of <b>${e(preis)}</b>. It is payable in advance by bank transfer to the account stated on the invoice; the Client receives the invoice together with this engagement. FIAON starts work once payment has been received.</p>`
-        + `<p>${e(rollen.kosten)}</p>`
+        + `<p>The package price is a fixed price. It covers all fees and charges for the services under clause 2, in particular: ${e(inklusive.join("; "))}. ${e(GLOBAL_LAUFEND_VERTRAG.en)}</p>`
         + `<p>The VAT treatment is shown on the invoice; where the Client owes the VAT as the recipient of the service (reverse charge), the invoice says so.</p>`
       : `<p>Der Paketpreis beträgt einmalig <b>${e(preis)}</b>. Er ist im Voraus per Überweisung auf das in der Rechnung genannte Konto zu zahlen; die Rechnung erhält der Auftraggeber zusammen mit diesem Auftrag. FIAON beginnt mit dem Zahlungseingang.</p>`
-        + `<p>${e(rollen.kosten)}</p>`
+        + `<p>Der Paketpreis ist ein Festpreis. Er umfasst alle Gebühren und Honorare für die Leistungen nach Ziffer 2, insbesondere: ${e(inklusive.join("; "))}. ${e(GLOBAL_LAUFEND_VERTRAG.de)}</p>`
         + `<p>Die umsatzsteuerliche Behandlung ergibt sich aus der Rechnung; schuldet der Auftraggeber die Umsatzsteuer als Leistungsempfänger (Reverse Charge), weist die Rechnung darauf hin.</p>`),
 
     // 6 — Geld zurück (nur, solange der Schalter in shared/fiaon-global.ts an ist)
     GLOBAL_GELD_ZURUECK.aktiv
-      ? `<p>${e(GLOBAL_GELD_ZURUECK[d.sprache].text)}</p><p>${e(GLOBAL_GELD_ZURUECK[d.sprache].bedingungen)}</p>`
+      ? `<p>${e(GLOBAL_GELD_ZURUECK[d.sprache].vertrag)}</p><p>${e(GLOBAL_GELD_ZURUECK[d.sprache].vertragBedingungen)}</p>`
         + (en
           ? `<p>FIAON and the Client set this date together at the start; FIAON records it in the order file and communicates it to the Client in text form. The refund covers the package price; this commitment gives rise to no further claims.</p>`
           : `<p>Den Stichtag legen FIAON und der Auftraggeber beim Start gemeinsam fest; FIAON hält ihn in der Auftragsakte fest und teilt ihn dem Auftraggeber in Textform mit. Die Erstattung umfasst den Paketpreis; weitergehende Ansprüche aus dieser Zusage bestehen nicht.</p>`)
@@ -287,7 +289,7 @@ function vertragsRumpf(d: GlobalVertragDaten): string {
 
 /** Regeln, die nur innerhalb von .gv greifen — gefahrlos auf jeder Seite einsetzbar. */
 export const GLOBAL_VERTRAG_CSS = `
-  .gv { font-family: Inter, "Helvetica Neue", Helvetica, Arial, sans-serif; font-weight: 300; color: #0f2044; line-height: 1.6; }
+  .gv { font-family: Inter, "Helvetica Neue", Helvetica, Arial, sans-serif; font-weight: 400; color: #0f2044; line-height: 1.6; }
   .gv .gv-titel { font-size: 1.35em; font-weight: 300; letter-spacing: -.01em; margin: 0 0 4px; color: #0f2044; line-height: 1.25; }
   .gv .gv-unterzeile { font-size: .85em; color: #64748b; margin: 0 0 18px; }
   .gv h2 { font-size: 1em; font-weight: 500; letter-spacing: .01em; color: #0f2044; margin: 20px 0 6px; break-after: avoid; }
@@ -295,9 +297,9 @@ export const GLOBAL_VERTRAG_CSS = `
   .gv .gv-anfang, .gv .gv-kasten, .gv .gv-schluss { break-inside: avoid; page-break-inside: avoid; }
   .gv p, .gv li { orphans: 2; widows: 2; }
   .gv .gv-nr { display: inline-block; min-width: 1.6em; color: #1d4ed8; font-weight: 400; }
-  .gv p { margin: 0 0 8px; text-align: left; font-weight: 300; }
-  .gv b { font-weight: 500; }
-  .gv ul { margin: 4px 0 10px; padding-left: 1.2em; }
+  .gv p { margin: 0 0 8px; text-align: left; font-weight: 400; }
+  .gv b { font-weight: 600; }
+  .gv ul { margin: 4px 0 10px; padding-left: 1.2em; list-style: disc; }
   .gv li { margin: 2px 0; }
   .gv .gv-kasten { border: 1px solid #dbe4f0; border-radius: 6px; padding: 10px 12px; background: #f7f9fc; }
   .gv .gv-leise { color: #64748b; font-size: .9em; }
@@ -313,7 +315,7 @@ export const GLOBAL_VERTRAG_CSS = `
 
 /** Was nur das PDF betrifft: Kopf und Titel des Hausdokuments beruhigen, feste Fußzeile weg (sie läuft über die Druckvorlage). */
 const PDF_CSS = `
-  body { font-weight: 300; color: #0f2044; }
+  body { font-weight: 400; color: #0f2044; }
   .wordmark { font-weight: 300; letter-spacing: .18em; color: #0f2044; font-size: 17pt; }
   header.doc { border-bottom: 1px solid #0f2044; }
   h1.doc-title { font-weight: 300; font-size: 16pt; line-height: 1.25; color: #0f2044; letter-spacing: -.01em; }

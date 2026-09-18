@@ -84,6 +84,31 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-09-18-mails-knoepfe",
+    date: "2026-09-18",
+    category: "Behoben",
+    title: "E-Mails an Kunden: „Zugang zum Bereich“ schickt jetzt wirklich den Zugang — und keine Mail geht mehr ohne ihren Knopf raus",
+    summary:
+      "Euer Hinweis stimmte: „Willkommen und Zugang“ schickte die automatische Antrag-Mail („Sie erhalten gleich Ihre "
+      + "Zahlungsdaten“) — ohne Knopf. Der Knopf heißt jetzt „Zugang zum Bereich“ und schickt eine eigene Mail mit Knopf "
+      + "„In meinen Bereich“ und Link „Passwort festlegen“. Und jede Mail, die ihr von Hand schickt, bekommt ihre Links "
+      + "jetzt vom System — fehlt trotzdem ein Ziel, geht sie nicht raus, und ihr lest den Grund.",
+    changes: [
+      "Versandzentrum in der Akte: „Willkommen und Zugang“ heißt jetzt „Zugang zum Bereich“ (nur für Kunden, die bezahlt haben).",
+      "E-Mail senden: Jede Mail hat wieder einen Knopf „Vorschau“. Er zeigt die echte Mail dieses Kunden — und oben, was leer bliebe oder warum sie so nicht rausgehen würde.",
+      "Im Menü stehen nur noch Mails, die von Hand vollständig gehen. Terminbestätigungen, Sperr- oder Löschmails kommen von ihren eigenen Knöpfen (Termin buchen, Entsperren …).",
+      "Konto & Karte schickt ihr über den eigenen Knopf in der Akte (er prüft die drei Bedingungen und merkt die 10 € vor), nicht über „E-Mail senden“.",
+      "„Termin kam nicht zustande“: Die Mail nennt jetzt Datum und Uhrzeit des Termins, und sie geht auch, wenn ihr im Vertrieb arbeitet. Bei „Nummer falsch“ bekommt der Kunde das Formular für die neue Nummer — mit Knopf.",
+      "Termin verschieben: Der Kunde bekommt eine vollständige Bestätigung mit neuer Uhrzeit und Absage-Link.",
+      "„Dokument anfordern“ schreibt dem Kunden, WELCHES Dokument fehlt, mit Knopf in seinen Bereich.",
+    ],
+    howto: [
+      "Kunde kommt nicht in seinen Bereich: Akte → Versandzentrum → „Zugang zum Bereich“.",
+      "Vor dem Senden: im Menü „E-Mail senden“ auf „Vorschau“ — steht dort ein gelber Satz, geht die Mail so nicht raus; der Satz sagt, was fehlt.",
+    ],
+    important: true,
+  },
+  {
     id: "2026-09-17-global-office-e188",
     date: "2026-09-17",
     category: "Neu",

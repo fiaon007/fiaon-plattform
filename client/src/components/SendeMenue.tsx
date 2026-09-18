@@ -314,7 +314,7 @@ export function SendeMenue({
         ton={ton}
         kinder={inhalt}
       />
-      {vorschau && <MailVorschau event={vorschau} onZu={() => setVorschau(null)} ton={ton} />}
+      {vorschau && <MailVorschau event={vorschau} personId={personId} basis={basis} onZu={() => setVorschau(null)} ton={ton} />}
     </>
   );
 }
@@ -322,25 +322,42 @@ export function SendeMenue({
 // ═══════════════════════════════════════════════════════════════════════════
 // LIVE-VORSCHAU — „wie sieht die Mail aus?"
 //
-// Das echte Vorlagen-HTML aus Brevo, mit den Beispielwerten der Registry
-// gefüllt. In einem abgeschotteten iframe: Vorlagen enthalten fremdes HTML,
-// und das hat im Seitenkontext nichts verloren.
+// 18.09.2026: DIE MAIL DIESES KUNDEN, NICHT DIE BREVO-VORLAGE
+// VORHER lud die Vorschau /admin/mail/vorschau/:event — das Brevo-Template
+// mit Beispielwerten. Seit dem 28.08. hat kein Ereignis mehr eine
+// Brevo-Vorlage, und die Route liegt hinter dem Verwaltungs-Tor: Im Menü
+// stand deshalb nie ein Vorschau-Knopf, und hätte er dagestanden, hätte er
+// nichts gezeigt. NACHHER dieselbe Route wie die Akte
+// (/agent/mail/:personId/:event/vorschau): die echte Mail mit den Daten
+// dieses Kunden, dazu, welche Angaben leer blieben und ob der Versand
+// ablehnen würde. Ohne personId (Aufruf von außen) bleibt der alte Weg.
 //
-// Der Geräterahmen ist kein schmaler Kasten, sondern ein Rahmen mit Radius,
-// Rand und Kerbe. Wer beurteilen soll, ob eine Mail auf dem Telefon gut
-// aussieht, braucht den Eindruck eines Telefons.
+// In einem abgeschotteten iframe: Vorlagen enthalten fremdes HTML, und das
+// hat im Seitenkontext nichts verloren. Der Geräterahmen ist kein schmaler
+// Kasten, sondern ein Rahmen mit Radius, Rand und Kerbe. Wer beurteilen soll,
+// ob eine Mail auf dem Telefon gut aussieht, braucht den Eindruck eines Telefons.
 // ═══════════════════════════════════════════════════════════════════════════
-export function MailVorschau({ event, onZu, ton = "hell" }: { event: string; onZu: () => void; ton?: "hell" | "dunkel" }) {
-  const [daten, setDaten] = useState<{ html: string | null; betreff?: string; grund?: string } | null>(null);
+export function MailVorschau({ event, personId, basis = "/api/fiaon/agent/mail", onZu, ton = "hell" }: {
+  event: string; personId?: number; basis?: string; onZu: () => void; ton?: "hell" | "dunkel";
+}) {
+  const [daten, setDaten] = useState<{
+    html: string | null; betreff?: string; grund?: string;
+    empfaenger?: string; absender?: { name?: string } | string; fehlend?: string[]; sperre?: string | null;
+  } | null>(null);
   const [geraet, setGeraet] = useState<"desktop" | "handy">("desktop");
   const dunkel = ton === "dunkel";
 
   useEffect(() => {
-    fetch(`/api/fiaon/admin/mail/vorschau/${encodeURIComponent(event)}`, { credentials: "include" })
-      .then((r) => r.json())
-      .then((j) => setDaten(j?.ok ? j : { html: null, grund: j?.error || "Vorschau nicht ladbar." }))
-      .catch(() => setDaten({ html: null, grund: "Vorschau nicht ladbar." }));
-  }, [event]);
+    const adresse = personId
+      ? `${basis}/${personId}/${encodeURIComponent(event)}/vorschau`
+      : `/api/fiaon/admin/mail/vorschau/${encodeURIComponent(event)}`;
+    fetch(adresse, { credentials: "include" })
+      .then(async (r) => {
+        const j = await r.json().catch(() => null);
+        setDaten(j?.ok ? j : { html: null, grund: j?.error || `Vorschau nicht ladbar (Antwort ${r.status}).` });
+      })
+      .catch(() => setDaten({ html: null, grund: "Keine Verbindung zum Server — Vorschau nicht ladbar." }));
+  }, [event, personId, basis]);
 
   return (
     <FiaonEbene
@@ -383,6 +400,11 @@ export function MailVorschau({ event, onZu, ton = "hell" }: { event: string; onZ
  * Der Inhalt der Vorschau: das echte Vorlagen-HTML in einem abgeschotteten
  * iframe. Vorlagen enthalten fremdes HTML — ohne `sandbox` könnte darin
  * Skriptcode laufen, der die Verwaltung mitliest.
+ *
+ * 18.09.2026: Darüber stehen Empfänger, Absender, die leer gebliebenen
+ * Angaben und — falls der Versand ablehnen würde — der Grund. Eine Vorschau,
+ * die eine Lücke zeigt, ohne sie zu nennen, ist das „leere Feld", das der
+ * Rundgang den Mitarbeitern zu suchen aufträgt.
  */
 function VorschauInhalt({ daten, geraet }: { daten: any; geraet: "desktop" | "handy" }) {
   if (!daten) {
@@ -395,7 +417,32 @@ function VorschauInhalt({ daten, geraet }: { daten: any; geraet: "desktop" | "ha
       </p>
     );
   }
+  const absender = typeof daten.absender === "string" ? daten.absender : daten.absender?.name;
+  const fehlend: string[] = Array.isArray(daten.fehlend) ? daten.fehlend : [];
   return (
+    <>
+    {(daten.empfaenger || absender || fehlend.length > 0 || daten.sperre) && (
+      <div className="mb-3 text-[12px] leading-relaxed" data-fiaon="mail-vorschau-kopf">
+        {(daten.empfaenger || absender) && (
+          <p style={{ color: "var(--fi-text-leise)" }}>
+            {daten.empfaenger && <><b>An:</b> {daten.empfaenger}</>}
+            {daten.empfaenger && absender && " · "}
+            {absender && <><b>Von:</b> {absender}</>}
+          </p>
+        )}
+        {daten.sperre && (
+          <p className="mt-1.5 px-3 py-2 rounded-xl font-semibold"
+             style={{ background: "rgba(217,119,6,.10)", color: "#b45309" }}>
+            So geht sie nicht raus: {daten.sperre}
+          </p>
+        )}
+        {!daten.sperre && fehlend.length > 0 && (
+          <p className="mt-1" style={{ color: "#b45309" }}>
+            Ohne Wert bleiben: {fehlend.join(", ")} — bitte kurz prüfen, ob die Mail so Sinn ergibt.
+          </p>
+        )}
+      </div>
+    )}
     <div style={{
       margin: "0 auto",
       maxWidth: geraet === "handy" ? 390 : "100%",
@@ -415,5 +462,6 @@ function VorschauInhalt({ daten, geraet }: { daten: any; geraet: "desktop" | "ha
         style={{ width: "100%", height: geraet === "handy" ? 620 : 560, border: 0, background: "#fff" }}
       />
     </div>
+    </>
   );
 }

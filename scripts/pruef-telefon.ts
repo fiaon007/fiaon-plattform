@@ -271,8 +271,18 @@ async function main(): Promise<void> {
       ok("Ein nicht vorhandenes Dokument gibt 404", !fehlt.ok && (fehlt as any).code === 404);
 
       const telefonieQuelle = readFileSync("server/routes/fiaon-telefonie.ts", "utf8");
-      ok("„Anfordern“ läuft über die bestehende Registry",
-        /schufa_requested/.test(telefonieQuelle) && /documents_change_request/.test(telefonieQuelle));
+      // 18.09.2026 ERSETZT. Die Regel lautete:
+      //   „Anfordern“ läuft über die bestehende Registry —
+      //   /schufa_requested/ UND /documents_change_request/ im Quelltext.
+      // schufa_requested sagt „Wir holen Ihre Auskunft ein — Sie müssen nichts
+      // tun" und ist damit das Gegenteil einer Bitte um ein Dokument. Seitdem
+      // geht jede Anforderung über documents_change_request, mit dem Hinweis,
+      // WAS fehlt (die Vorlage druckt `hinweis`, nicht `grund`). Geprüft am Code
+      // ohne Kommentare — der erklärende Kommentar nennt schufa_requested selbst.
+      const telefonieCode = telefonieQuelle.split("\n").filter((z) => !/^\s*(\/\/|\*)/.test(z)).join("\n");
+      ok("„Anfordern“ schickt documents_change_request mit Hinweis, nie schufa_requested",
+        /event: "documents_change_request"/.test(telefonieCode) && /hinweis: notiz \|\| ANFORDERN_HINWEIS\[art\]/.test(telefonieCode)
+        && !/schufa_requested/.test(telefonieCode));
       ok("… über mailSenden, also mit Zustandsprüfung", /mailSenden\(\{/.test(telefonieQuelle));
       ok("Die Datei-Route setzt no-store", /no-store, private/.test(telefonieQuelle));
 

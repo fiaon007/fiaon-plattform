@@ -45,10 +45,29 @@ const INVOICE_URL_EXAMPLE =
 export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
   {
     type: "welcome",
-    label: "Willkommen (Antrag eingegangen)",
-    description: "Feuert genau einmal, sobald ein Antrag mit gültiger E-Mail-Adresse abgeschlossen wurde.",
+    // 18.09.2026: Die Beschreibung sagte „sobald ein Antrag … abgeschlossen
+    // wurde" — der Code (fiaon-antrag.ts) feuert beim E-MAIL-SCHRITT, also
+    // meist vor der Bestellung. Und diese Mail ist keine Zugangsmail; wer sie
+    // von Hand als „Willkommen und Zugang" schickte, schickte die falsche.
+    label: "Antrag eingegangen (Willkommen)",
+    description: "Feuert genau einmal beim E-Mail-Schritt des Antrags (erste Speicherung mit gültiger E-Mail-Adresse) — meist vor der Bestellung. Enthält weder Zugang noch Zahlungsdaten. Von Hand nur durch die Verwaltung und nur an Kunden, die noch nicht bezahlt haben; die Zugangsmail heißt zugang_link.",
     customerBound: true,
     example: { ...CUSTOMER_EXAMPLE },
+  },
+  // ── 18.09.2026 (Team-Feedback, Priorität 3): die Zugangsmail ──────────────
+  {
+    type: "zugang_link",
+    label: "Zugang zum Bereich (Kunde)",
+    description: "Von Hand aus Versandzentrum und Sende-Menü, wenn ein BEZAHLTER Kunde nicht in seinen Bereich kommt: Knopf zur Anmeldung (login_url) und Link „Passwort festlegen“ (passwort_url). „Zugang retten“ (Vertriebsleitung) schickt dieselbe Mail mit einem Setz-Link, der 60 Minuten gilt. Ersetzt den Handversand von welcome, der die Antrag-eingegangen-Mail ohne Knopf verschickte. Pflichtmail — die Frequenzbremse greift nicht.",
+    customerBound: true,
+    example: { ...CUSTOMER_EXAMPLE, login_url: "https://www.fiaon.com/login", passwort_url: "https://www.fiaon.com/passwort-vergessen" },
+  },
+  {
+    type: "bereich_freigeschaltet",
+    label: "Bereich freigeschaltet nach dem Startgespräch (Kunde)",
+    description: "Feuert automatisch, wenn das Onboarding ein Startgespräch als erledigt markiert und das Konto damit voll freigeschaltet wird (fiaon-onboarding-bereich.ts) — mit Knopf in den Bereich (login_url). Bis zum 18.09.2026 ging dort account_activated raus: der Entsperrungs-Text „Ihr Zugang ist wieder frei“, ohne Knopf.",
+    customerBound: true,
+    example: { ...CUSTOMER_EXAMPLE, login_url: "https://www.fiaon.com/login", freigeschaltet_am_text: "18.09.2026" },
   },
   {
     type: "payment_details",
@@ -62,14 +81,17 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     label: "Kündigung bestätigt (letzte Rate offen)",
     description: "E-092: Bestätigt die Kündigung und nennt die letzte, noch offene Rate mit Zahlungsseite. Pflichtmail (Vertragspost), einmalig je Bestellung.",
     customerBound: true,
-    example: { ...CUSTOMER_EXAMPLE, rate_nr: "3", faellig_am_text: "15.09.2026" },
+    // 18.09.2026: verwendungszweck (Knopf zur Zahlungsseite) und portal_url fehlten —
+    // Galerie und Prüfversand zeigten die Mail ohne ihren Knopf (pruef-mail-knoepfe.ts).
+    example: { ...CUSTOMER_EXAMPLE, rate_nr: "3", faellig_am_text: "15.09.2026", verwendungszweck: "FIAON-A1B2C3-3", portal_url: "https://www.fiaon.com/login" },
   },
   {
     type: "vertrag_beendet",
     label: "Vertrag beendet (letzte Rate bezahlt)",
     description: "E-092: Die letzte Rate ist eingegangen, der Vertrag ist aus. Unterlagen bleiben 90 Tage einsehbar. Pflichtmail, ausgelöst im Buchungsweg.",
     customerBound: true,
-    example: { ...CUSTOMER_EXAMPLE, rate_nr: "3" },
+    // 18.09.2026: portal_url (Knopf „Zu meinen Unterlagen“) fehlte im Beispiel.
+    example: { ...CUSTOMER_EXAMPLE, rate_nr: "3", portal_url: "https://www.fiaon.com/login" },
   },
   {
     type: "bankverbindung_neu",
@@ -301,7 +323,11 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       email: "max.mustermann@example.com",
       vorname: "Max",
       agent_vorname: "Daniel",
-      kundenbereich_link: "https://www.fiaon.com/kundenbereich",
+      // 18.09.2026: Die Vorlage führt über sepa_link (signierter Direktlink in
+      // die Mandatsstrecke, E-072). Ohne ihn im Beispiel zeigten Galerie und
+      // Prüfversand die Mail ohne ihren Knopf.
+      sepa_link: "https://www.fiaon.com/api/fiaon/lastschrift/direkt/FIAON-BEISPIEL.1760000000000.0123456789abcdef",
+      kundenbereich_link: "https://www.fiaon.com/dashboard#abo",
     },
   },
   // ══════════════════════════════════════════════════════════════════════════
@@ -606,6 +632,8 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       email: "interessent@example.com",
       vorname: "Lena",
       update_url: "https://www.fiaon.com/nummer-aktualisieren?token=YXBwOkZJQU9OLi4u.0f3a9b7c2e4d",
+      // 18.09.2026: Die Vorlage zeigt den Terminlink jetzt als zweiten Weg.
+      termin_link: "https://www.fiaon.com/termin/7f3a…?von=nummer_korrektur",
     },
   },
 
@@ -731,8 +759,11 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
   },
   {
     type: "account_activated",
-    label: "Konto aktiviert (Kunde)",
-    description: "EMPFEHLUNG (noch kein Auto-Versand): Sollte feuern, wenn ein Konto vom Admin aktiviert wird (account_status='active'). Hinweis: Bei Zahlung läuft bereits 'payment_confirmed' — dieses Event ist für manuelle Aktivierungen ohne Zahlungstrigger. Vorgesetzten-TODO: Make-Zweig 'account_activated' + Brevo-Template.",
+    label: "Konto wieder freigeschaltet (Kunde)",
+    // 18.09.2026: Die Beschreibung sprach von einer Empfehlung ohne Versand —
+    // gesendet wird sie seit dem 28.08. beim Entsperren in der Akte, und bis
+    // heute auch nach dem Startgespräch (dort jetzt bereich_freigeschaltet).
+    description: "Die Entsperrungs-Mail „Ihr Zugang ist wieder frei“: feuert, wenn ein gesperrtes Konto in der Akte wieder freigeschaltet wird (fiaon-agent-kunden.ts), mit login_url. Die erste Freischaltung nach dem Startgespräch ist bereich_freigeschaltet. Bei Zahlung läuft payment_confirmed.",
     customerBound: true,
     recommendationOnly: true,
     example: { ...CUSTOMER_EXAMPLE, login_url: "https://www.fiaon.com/login" },

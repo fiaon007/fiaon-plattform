@@ -79,6 +79,12 @@ export interface MailBaustein {
   /** Persönliche Nachricht eines Mitarbeiters — die „automatisch erstellt"-Zeile entfällt. */
   persoenlich?: boolean;
   /**
+   * 18.09.2026: Die Mail duzt (Lead-Strecke). Dann duzen auch der Fuß („Fragen?
+   * Antworte …"), die Abmeldezeile und die Automatik-Zeile — vorher stand unter
+   * einem Du-Text ein Sie-Fuß.
+   */
+  du?: boolean;
+  /**
    * Der Satz rechts im Kopf. Vorgabe: „Bonität ist machbar." — die Stimme der
    * Privatkundenlinie. FIAON Global (E-188, 17.09.2026) spricht Unternehmen an
    * und setzt hier seinen eigenen Satz; ohne Angabe bleibt jede Mail, wie sie ist.
@@ -171,8 +177,10 @@ export function mailHtml(b: MailBaustein): string {
           </table>
         </td></tr>` : "";
 
+  // Die Zeile steht nur mit Ziel da: Der Motor nimmt `abmeldeUrl` weg, wenn der
+  // Platzhalter leer bliebe (18.09.2026 — vorher „Hier abmelden" mit href="").
   const abmelden = b.abmeldeUrl
-    ? `<p style="margin:10px 0 0;font:400 12px/1.6 ${SCHRIFT};color:#9ca3af;">Sie möchten diese Hinweise nicht mehr? <a href="${b.abmeldeUrl}" style="color:#9ca3af;">Hier abmelden</a> — ein Klick genügt.</p>` : "";
+    ? `<p style="margin:10px 0 0;font:400 12px/1.6 ${SCHRIFT};color:#9ca3af;">${b.du ? "Du möchtest" : "Sie möchten"} diese Hinweise nicht mehr? <a href="${b.abmeldeUrl}" style="color:#9ca3af;">Hier abmelden</a> — ein Klick genügt.</p>` : "";
 
   return `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="de">
@@ -230,7 +238,7 @@ export function mailHtml(b: MailBaustein): string {
 
         <tr><td style="padding:22px 34px 30px;">
           <p style="margin:0 0 10px;font:400 13px/1.6 ${SCHRIFT};color:${LEISE};">
-            Fragen? Antworten Sie einfach auf diese E-Mail — sie landet bei Ihrem Ansprechpartner.
+            ${b.du ? "Fragen? Antworte einfach auf diese E-Mail — sie landet direkt bei uns." : "Fragen? Antworten Sie einfach auf diese E-Mail — sie landet bei Ihrem Ansprechpartner."}
           </p>
           <p style="margin:0;font:400 12px/1.6 ${SCHRIFT};color:#9ca3af;">
             FIAON LTD · <a href="${BASIS_URL}" style="color:#9ca3af;">fiaon.com</a> ·
@@ -243,7 +251,7 @@ export function mailHtml(b: MailBaustein): string {
 
       </table>
 
-      ${b.persoenlich ? "" : `<p style="margin:18px 0 0;font:400 11px/1.5 ${SCHRIFT};color:#9aa7bd;">Diese Nachricht wurde automatisch zu Ihrem Vorgang erstellt.</p>`}
+      ${b.persoenlich ? "" : `<p style="margin:18px 0 0;font:400 11px/1.5 ${SCHRIFT};color:#9aa7bd;">${b.du ? "Diese Nachricht wurde automatisch erstellt." : "Diese Nachricht wurde automatisch zu Ihrem Vorgang erstellt."}</p>`}
     </td></tr>
   </table>
 </body>
@@ -271,13 +279,19 @@ export function ratenLeisteEinsetzen(html: string): string {
 /**
  * Der Text-Teil derselben Mail — für Spamfilter und Nur-Text-Leser.
  * Bewusst schlicht: Titel, Absätze, Daten, der Link des Knopfs.
+ *
+ * `titelFuellen` (18.09.2026): Der Titel steht hier in Großbuchstaben. Vorher
+ * wurde er VOR dem Füllen großgeschrieben — aus „{{params.monat_text}}" wurde
+ * „{{PARAMS.MONAT_TEXT}}", der Motor fand dazu keinen Wert, und im Text-Teil
+ * des Monatsberichts fehlte der Monat. Der Motor reicht seine Füllfunktion
+ * herein; ohne sie bleibt es beim Rohtext (Freitext hat keine Platzhalter).
  */
-export function mailText(b: MailBaustein): string {
+export function mailText(b: MailBaustein, titelFuellen: (s: string) => string = (s) => s): string {
   const ohneTags = (s: string) => s.replace(/<[^>]+>/g, "");
   return [
     `FIAON — ${b.kopfSatz ?? KOPF_SATZ}`,
     "",
-    b.titel.toUpperCase(),
+    titelFuellen(b.titel).toUpperCase(),
     "",
     ...b.absaetze.map(ohneTags),
     ...(b.daten?.length ? ["", ...b.daten.map((d) => `${d.label}: ${ohneTags(d.wert)}`)] : []),

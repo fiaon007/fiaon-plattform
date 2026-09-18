@@ -1701,9 +1701,17 @@ router.post("/admin/leads/:id/send-followup", async (req: Request, res: Response
         letzter_kontakt_am = NOW(), status = CASE WHEN status = 'neu' THEN 'kontaktiert' ELSE status END, updated_at = NOW()
       WHERE id = ${id} RETURNING id, vorname, nachname, email, telefon, quelle, lead_reminder_count
     `;
-    await sendMakeWebhook("lead_followup", followupPayload(updated[0]));
-    await logLead(id, ADMIN_ACTOR, "followup", { note: `Manueller Nachfass #${updated[0].lead_reminder_count} gesendet (Admin, Make: lead_followup)` });
-    res.json({ ok: true });
+    // 18.09.2026: MIT Abmeldelink. Diese Route schickte als einzige die
+    // Werbe-Mail ohne ihn (followupPayload statt followupPayloadMitAbmeldung) —
+    // seitdem lehnt die Tür in make-webhook.ts so eine Mail ab (ABMELDEPFLICHT),
+    // und der Verlauf behauptete trotzdem „gesendet". Jetzt zählt das Ergebnis.
+    const gesendet = await sendMakeWebhook("lead_followup", (await followupPayloadMitAbmeldung(updated[0])) as any);
+    await logLead(id, ADMIN_ACTOR, "followup", {
+      note: gesendet
+        ? `Manueller Nachfass #${updated[0].lead_reminder_count} gesendet (Admin, lead_followup)`
+        : `Manueller Nachfass #${updated[0].lead_reminder_count} NICHT gesendet — Grund im Zustellprotokoll (lead_followup)`,
+    });
+    res.json(gesendet ? { ok: true } : { ok: false, error: "Die Mail ging nicht raus — der Grund steht im Zustellprotokoll." });
   } catch (err) {
     console.error("[FIAON-LEADS] admin send-followup:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });

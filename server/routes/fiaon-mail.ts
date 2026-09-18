@@ -11,7 +11,7 @@ import { darfAnKunde, rolleVon } from "../lib/fiaon-kundenzugriff";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
 import { ensureRolleSpalte } from "./fiaon-vertrieb";
 import {
-  eventsFuerRolle, mailEvent, mailEvents, templateZuordnen, verifikationsText, type Rolle,
+  eventsFuerRolle, imMenue, mailEvent, mailEvents, templateZuordnen, verifikationsText, type Rolle,
 } from "../lib/fiaon-mail-events";
 import { mailSenden, mailVorschau } from "../lib/fiaon-mail-senden";
 import { brevoKonfiguriert, eigeneMailSenden, OHNE_SCHLUESSEL, rahmen, vorlagen, vorlagenHtml } from "../lib/fiaon-brevo";
@@ -129,7 +129,16 @@ router.get("/admin/mail/vorschau/:event", async (req: Request, res: Response) =>
     const def = await mailEvent(String(req.params.event));
     if (!def) return res.status(404).json({ ok: false, error: "Unbekanntes Ereignis." });
     if (!def.brevoTemplateId) {
-      return res.json({ ok: true, html: null, grund: "Diesem Ereignis ist noch keine Brevo-Vorlage zugeordnet." });
+      // ── DIE VORLAGE IST DER QUELLTEXT (18.09.2026) ──────────────────────
+      // Seit dem 28.08. rendert der Motor jede Mail aus server/mail/vorlagen,
+      // und keinem Ereignis ist eine Brevo-Vorlage zugeordnet (gemessen: 0).
+      // Diese Route sagte deshalb bei JEDEM Ereignis „noch keine Vorlage" —
+      // in der Academy und im Sende-Menü. Jetzt zeigt sie die Motor-Vorlage
+      // mit den Beispielwerten der Registry, wie die Galerie.
+      const { mailRendern } = await import("../mail/motor");
+      const mail = mailRendern(def.type, (def.example ?? {}) as Record<string, unknown>);
+      if (mail) return res.json({ ok: true, html: mail.html, betreff: mail.betreff, absender: mail.absender.name, quelle: "motor" });
+      return res.json({ ok: true, html: null, grund: "Für dieses Ereignis gibt es keine Vorlage." });
     }
     // Eine Stunde Zwischenspeicher: Vorlagen ändern sich selten, und die
     // Vorschau wird beim Durchklicken sonst zur Dauerlast auf Brevos API.
@@ -294,7 +303,12 @@ router.get("/agent/mail/:personId", requireAgent, async (req: AgentRequest, res:
       eventsFuerRolle(rolle as any),
       versandHistorie(personId),
     ]);
-    const events = alleEvents.filter((x) => x.zielgruppe === "kunde");
+    // 18.09.2026: Was nur sein eigener Auslöser vollständig bauen kann
+    // (Termin, Grund, Auftragsakte …) oder über einen eigenen Knopf geht
+    // (Konto & Karte), steht nicht im Menü — dieselbe Regel lehnt es beim
+    // Senden ab (imMenue in fiaon-mail-events.ts).
+    const events = alleEvents.filter((x) => x.zielgruppe === "kunde" && imMenue(x, rolle).ja);
+    const { hatVorlage } = await import("../mail/motor");
     // PARALLEL, nicht nacheinander: Vierzehn Zustandsprüfungen in Folge sind
     // vierzehn Runden zur Datenbank. Im Screenshot vom 09.08.2026 stand das
     // Menü deshalb sekundenlang auf „Wird geladen …". Nebeneinander kostet es
@@ -306,7 +320,10 @@ router.get("/agent/mail/:personId", requireAgent, async (req: AgentRequest, res:
       return {
         type: e.type, label: e.label, gruppe: e.gruppe, klartext: e.klartext,
         verifikation: e.verifikation, verifikationsText: verifikationsText(e),
-        hatVorlage: !!e.brevoTemplateId,
+        // 18.09.2026: Die Vorlage ist der Quelltext des Motors. Vorher stand
+        // hier !!e.brevoTemplateId — bei keinem Ereignis gesetzt, also gab es
+        // im Sende-Menü nie einen Vorschau-Knopf.
+        hatVorlage: hatVorlage(e.type) || !!e.brevoTemplateId,
         erlaubt: p.erlaubt, grund: p.grund, heute: p.heute,
       };
     });
@@ -336,7 +353,7 @@ router.get("/agent/mail/:personId/:event/vorschau", requireAgent, async (req: Ag
     if (!(await darfAnKunde(req.agent!.id, rolle, personId))) {
       return res.status(403).json({ ok: false, error: "Dieser Kunde wird von jemand anderem betreut." });
     }
-    const v = await mailVorschau({ event: String(req.params.event), personId, rolle: rolle as any });
+    const v = await mailVorschau({ event: String(req.params.event), personId, rolle: rolle as any, akteurName: req.agent!.name });
     if (!v.ok) return res.json({ ok: false, error: v.grund });
     res.json(v);
   } catch (err) {
@@ -586,6 +603,12 @@ router.post("/agent/mail/:personId/:event", requireAgent, async (req: AgentReque
     if (!(await darfAnKunde(req.agent!.id, rolle, personId))) {
       return res.status(403).json({ ok: false, error: "Dieser Kunde wird von jemand anderem betreut." });
     }
+    // Was das Menü nicht zeigt, schickt diese Route auch nicht (18.09.2026).
+    const def = await mailEvent(String(req.params.event));
+    const menue = def ? imMenue(def, rolle) : { ja: true, grund: null };
+    if (!menue.ja) {
+      return res.json({ ok: false, status: "abgelehnt", grund: menue.grund, meldung: menue.grund, historie: await versandHistorie(personId) });
+    }
     const erg = await mailSenden({
       event: String(req.params.event), personId,
       akteur: { name: req.agent!.name, agentId: req.agent!.id, rolle: rolle as any },
@@ -612,6 +635,13 @@ router.post("/admin/mail/:personId/:event", async (req: Request, res: Response) 
   try {
     const personId = Number(req.params.personId);
     if (!Number.isFinite(personId) || personId <= 0) return res.status(400).json({ ok: false, error: "Kunde fehlt." });
+    // Dieselbe Menü-Regel wie beim Mitarbeiter (18.09.2026): Eine Terminbestätigung
+    // ohne Termin oder eine Sperrmail ohne Grund geht auch aus der Verwaltung nicht.
+    const def = await mailEvent(String(req.params.event));
+    const menue = def ? imMenue(def, "admin") : { ja: true, grund: null };
+    if (!menue.ja) {
+      return res.status(400).json({ ok: false, status: "abgelehnt", grund: menue.grund, meldung: menue.grund, error: menue.grund, historie: await versandHistorie(personId) });
+    }
     const erg = await mailSenden({
       event: String(req.params.event), personId,
       akteur: { name: "Verwaltung", agentId: null, rolle: "admin" as any },

@@ -23,6 +23,10 @@
 // im Ergebnis gemeldet. Beim Prüfversand sieht man es sofort; im Betrieb
 // steht es im Protokoll-Grund. Vorher hätte Make kommentarlos „{{vorname}}"
 // in die Mail gedruckt.
+// 18.09.2026: Das galt NICHT für Knöpfe — ein Knopf ohne Ziel verschwand
+// still, bevor gefüllt wurde. Jetzt steht auch er in der Fehlliste
+// (knopfEntfallen), und der Handversand lehnt ab (versandLuecke in
+// server/lib/fiaon-mail-senden.ts). Prüfstand: scripts/pruef-mail-knoepfe.ts.
 // ═══════════════════════════════════════════════════════════════════════════
 import { BANK } from "@shared/fiaon-bank";
 import {
@@ -85,7 +89,32 @@ const ROLLE_JE_EVENT: Record<string, AbsenderRolle> = {
   commission_statement_issued: "team",
   // E-188: Vertrag und Rechnung eines Firmenauftrags kommen aus der Buchhaltung.
   global_auftrag: "accounting",
+  // 18.09.2026: Diese drei kamen als „FIAON Welcome" — die Stimme der
+  // Begrüßung. Der Kontowechsel ist Buchhaltung; Kündigung und Vertragsende
+  // sind Vertragspost und kommen wie die Kündigung eines Mitarbeiters (E-185)
+  // von „FIAON Legal".
+  bankverbindung_neu: "accounting",
+  kuendigung_bestaetigt: "legal",
+  vertrag_beendet: "legal",
 };
+
+/**
+ * Werbung an Menschen ohne Vertrag — hier ist der Abmeldelink Pflicht
+ * (18.09.2026). Ohne ihn geht die Mail nicht raus: Die Tür in make-webhook.ts
+ * lehnt ab, und mailSenden sagt es vorher im Klartext. Wer eine neue
+ * Werbe-Vorlage mit `abmeldeUrl` baut, trägt sie hier ein.
+ */
+export const ABMELDEPFLICHT = new Set<string>([
+  "lead_followup", "rueckhol_s5", "rueckhol_s5b", "rueckhol_s5c", "rueckhol_s5d",
+]);
+
+/**
+ * Knöpfe, deren leerer Platzhalter ERWARTET ist und keinen Versand aufhält
+ * (18.09.2026): Die Sofortzahlung fehlt bei jeder Erstzahlung mit Absicht
+ * (makePayloadFromRow, Regel vom 02.09.) — dann rückt „QR-Code & Bankdaten"
+ * auf. Jeder andere Knopf ohne Ziel ist ein Fehler, den der Handversand ablehnt.
+ */
+export const KNOPF_DARF_FEHLEN = new Set<string>(["sofort_url"]);
 
 export function absenderFuer(event: string): { name: string; email: string } {
   return ABSENDER[ROLLE_JE_EVENT[event] ?? "welcome"];
@@ -151,8 +180,17 @@ export interface GerenderteMail {
   html: string;
   text: string;
   absender: { name: string; email: string };
-  /** Platzhalter, die die Nutzlast nicht mitbrachte. */
+  /** Platzhalter, die die Nutzlast nicht mitbrachte — seit 18.09.2026 auch die eines weggelassenen Knopfs, Bilds oder Abmeldelinks. */
   fehlend: string[];
+  /**
+   * 18.09.2026: Ist ein Knopf mangels Ziel weggefallen? Bis heute verschwand er
+   * VOR dem Füllen und tauchte deshalb nie in `fehlend` auf — die Mail ging
+   * ohne Knopf raus, und niemand erfuhr davon. Erwartete Lücken
+   * (KNOPF_DARF_FEHLEN) zählen nicht.
+   */
+  knopfEntfallen: boolean;
+  /** Welche Knöpfe entfielen — Platzhalter und Beschriftung, für den Klartext einer Ablehnung. */
+  entfalleneKnoepfe: { platzhalter: string; text: string }[];
 }
 
 /**
@@ -171,10 +209,31 @@ function leadStreckenBaustein(payload: Record<string, unknown>): MailBaustein | 
     .map((a) => a.trim())
     // Knopf, Gruß und Abmeldezeile setzt das Gerüst selbst — die Rohtext-
     // Fassungen davon fliegen raus, sonst stünde alles doppelt in der Mail.
-    .filter((a) => a && !/^Zum Antrag:/i.test(a) && !/^Viele Grüße/i.test(a)
+    // 18.09.2026: „Zum Termin:" ist die Knopfzeile der Termin-Varianten.
+    .filter((a) => a && !/^Zum (Antrag|Termin):/i.test(a) && !/^Viele Grüße/i.test(a)
       && !/^─/.test(a) && !/keine Nachrichten mehr/i.test(a))
     .map((a) => a.replace(/\n/g, "<br />"));
-  return { ...basis, betreff, preheader: basis.preheader, titel: absaetze.shift() ?? basis.titel, absaetze };
+  const titel = absaetze.shift() ?? basis.titel;
+  // ── DER KNOPF GEHÖRT ZUR VARIANTE (18.09.2026) ────────────────────────────
+  // „termin-anruf" und „termin-letzte" versprechen „wähl ein Zeitfenster, wir
+  // rufen an" — der Knopf darunter hieß „Jetzt Antrag starten". Die Strecke
+  // bringt Text und Ziel jetzt je Variante mit (knopf_text, knopf_url); ohne
+  // beides bleibt der Antrags-Knopf der statischen Vorlage.
+  const knopfText = String((payload as any).knopf_text ?? "").trim()
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return {
+    ...basis, betreff, titel, absaetze,
+    // Die Zeile neben dem Betreff war die Sie-Fassung der statischen Vorlage
+    // („… übernimmt Ihr persönliches Team") — in einer Du-Mail. Jetzt der
+    // erste Satz der Variante selbst.
+    preheader: (absaetze[0] ?? "").replace(/<[^>]+>/g, "").slice(0, 90) || basis.preheader,
+    knopf: knopfText ? { text: knopfText, url: "{{params.knopf_url}}" } : basis.knopf,
+    // Die Strecke duzt. Fußnote und Gerüst-Fuß der statischen Vorlage siezten;
+    // den Karten-Satz (KARTE_SATZ) darf niemand umformulieren — er entfällt hier.
+    du: true,
+    fussnote: "Lieber erst sprechen? Antworte einfach auf diese E-Mail — wir rufen dich zurück.",
+    karteZiel: false,
+  };
 }
 
 /** Rendert eine Vorlage mit einer Nutzlast — Vorschau und Versand nutzen DIESELBE Funktion. */
@@ -183,20 +242,56 @@ export function mailRendern(event: string, payload: Record<string, unknown>): Ge
   if (!vorlage) return null;
   if (event === "lead_followup") vorlage = leadStreckenBaustein(payload) ?? vorlage;
 
+  const fehlend = new Set<string>();
+  const entfalleneKnoepfe: { platzhalter: string; text: string }[] = [];
+  const platzhalterIn = (url?: string): string | null =>
+    url?.match(/\{\{params\.([a-z_0-9]+)\}\}/i)?.[1] ?? null;
+  const ohneWert = (k: string) =>
+    String((payload as any)[k] ?? "").trim() === "" && BANK_FALLBACK[k] === undefined;
+
   // Ein Knopf, dessen Adresse die Nutzlast nicht füllt (z. B. {{params.sofort_url}},
   // solange die Sofortzahlung nicht eingerichtet ist), wird weggelassen — ein
   // Knopf ohne Ziel ist schlimmer als kein Knopf. Der Ersatz: knopf2 rückt auf.
   const knopfLeer = (k?: { url: string }) => {
-    const m = k?.url.match(/\{\{params\.([a-z_0-9]+)\}\}/i);
-    return !!(m && String((payload as any)[m[1]] ?? "").trim() === "" && BANK_FALLBACK[m[1]] === undefined);
+    const p = platzhalterIn(k?.url);
+    return !!(p && ohneWert(p));
   };
   // Dasselbe für das Bild: Eine QR-Adresse mit ungefülltem Platzhalter wird
   // zu …/zahlung//qr.png — ein kaputter Kasten mit der Unterschrift „scannen
   // Sie hier“. Lieber kein Bild als ein totes (Prüfung 02.09.2026).
+  // 18.09.2026: Was wegfällt, steht jetzt in `fehlend` — vorher verschwand es
+  // VOR dem Füllen und tauchte in keiner Fehlliste auf.
   {
-    const m = vorlage.bild?.url.match(/\{\{params\.([a-z_0-9]+)\}\}/i);
-    if (m && String((payload as any)[m[1]] ?? "").trim() === "" && BANK_FALLBACK[m[1]] === undefined) {
+    const p = platzhalterIn(vorlage.bild?.url);
+    if (p && ohneWert(p)) {
       vorlage = { ...vorlage, bild: undefined };
+      fehlend.add(p);
+    }
+  }
+  // ── DIE ABMELDEZEILE NUR MIT ZIEL (18.09.2026) ────────────────────────────
+  // Ohne abmelde_url druckte das Gerüst „Hier abmelden" mit href="" — ein
+  // Link, der nichts tut, in genau der Zeile, die rechtlich zählt. Jetzt
+  // entfällt die Zeile, und der Platzhalter steht in `fehlend`. Werbe-Mails
+  // (ABMELDEPFLICHT) gehen ohne sie gar nicht erst raus.
+  {
+    const p = platzhalterIn(vorlage.abmeldeUrl);
+    if (p && ohneWert(p)) {
+      vorlage = { ...vorlage, abmeldeUrl: undefined };
+      fehlend.add(p);
+    }
+  }
+  // ── ABSÄTZE, DIE NUR AUS EINEM PLATZHALTER BESTEHEN (18.09.2026) ──────────
+  // Sie sind in den Vorlagen als WAHLWEISE gebaut: „{{params.offene_rate_hinweis}}"
+  // in sepa_einrichten steht nur da, wenn wirklich eine Rate offen ist — so
+  // steht es dort im Kommentar. Der Motor hat das aber nie getan; übrig blieb
+  // ein leerer Absatz. Jetzt entfällt er, ohne als Lücke zu zählen. Dasselbe
+  // für eine Fußnote aus einem einzigen Platzhalter.
+  {
+    const nurPlatzhalter = (s?: string) => String(s ?? "").trim().match(/^\{\{params\.([a-z_0-9]+)\}\}$/i)?.[1] ?? null;
+    const absaetze = vorlage.absaetze.filter((a) => { const p = nurPlatzhalter(a); return !(p && ohneWert(p)); });
+    const fussP = nurPlatzhalter(vorlage.fussnote);
+    if (absaetze.length !== vorlage.absaetze.length || (fussP && ohneWert(fussP))) {
+      vorlage = { ...vorlage, absaetze, fussnote: fussP && ohneWert(fussP) ? undefined : vorlage.fussnote };
     }
   }
   // ══════════════════════════════════════════════════════════════════════
@@ -221,16 +316,46 @@ export function mailRendern(event: string, payload: Record<string, unknown>): Ge
     vorlage = { ...vorlage, knopf: vorlage.knopf2, knopf2: vorlage.knopf };
   }
   if (knopfLeer(vorlage.knopf) || knopfLeer(vorlage.knopf2)) {
+    // 18.09.2026: Jeder weggelassene Knopf wird gemeldet — außer der
+    // erwarteten Lücke (KNOPF_DARF_FEHLEN). Der Handversand lehnt damit ab,
+    // statt eine Mail ohne ihren eigentlichen Knopf zu verschicken.
+    for (const k of [vorlage.knopf, vorlage.knopf2]) {
+      const p = knopfLeer(k) ? platzhalterIn(k!.url) : null;
+      if (p && !KNOPF_DARF_FEHLEN.has(p)) {
+        fehlend.add(p);
+        entfalleneKnoepfe.push({ platzhalter: p, text: k!.text });
+      }
+    }
     vorlage = { ...vorlage };
     if (knopfLeer(vorlage.knopf)) { vorlage.knopf = knopfLeer(vorlage.knopf2) ? undefined : vorlage.knopf2; vorlage.knopf2 = undefined; }
     else if (knopfLeer(vorlage.knopf2)) vorlage.knopf2 = undefined;
   }
 
-  const fehlend = new Set<string>();
   const html = ratenLeisteEinsetzen(fuellen(mailHtml(vorlage), payload, fehlend));
-  const text = fuellen(mailText(vorlage), payload, fehlend).replace(/%%RATENLEISTE[^%]*%%/g, "");
+  // Der Titel wird im Text-Teil großgeschrieben — erst NACH dem Füllen. Vorher
+  // wurde aus „{{params.monat_text}}" ein „{{PARAMS.MONAT_TEXT}}", das kein
+  // Wert mehr traf (18.09.2026; betraf app_monatsbericht).
+  const text = fuellen(mailText(vorlage, (s) => fuellen(s, payload, fehlend)), payload, fehlend)
+    .replace(/%%RATENLEISTE[^%]*%%/g, "");
   const betreff = fuellen(vorlage.betreff, payload, fehlend);
-  return { betreff, html, text, absender: absenderFuer(event), fehlend: Array.from(fehlend).sort() };
+  return {
+    betreff, html, text, absender: absenderFuer(event), fehlend: Array.from(fehlend).sort(),
+    knopfEntfallen: entfalleneKnoepfe.length > 0, entfalleneKnoepfe,
+  };
+}
+
+/**
+ * Der Hinweis, den ein ERFOLGREICHER Versand mitbringt (18.09.2026): welche
+ * Platzhalter leer blieben und welcher Knopf deshalb fehlt. Er steht im
+ * Protokoll (grund) und in der Meldung an den Mitarbeiter — nicht mehr nur in
+ * einem Feld, das der Handversand auf null setzte.
+ */
+export function versandHinweis(mail: GerenderteMail): string | null {
+  if (!mail.fehlend.length) return null;
+  const knopf = mail.knopfEntfallen
+    ? ` — ohne Knopf ${mail.entfalleneKnoepfe.map((k) => `„${k.text}“`).join(", ")}`
+    : "";
+  return `Platzhalter ohne Wert: ${mail.fehlend.join(", ")}${knopf}`;
 }
 
 /**
@@ -267,6 +392,8 @@ export function freitextRendern(ein: { betreff: string; text: string; anrede?: s
     // E-185: Vertragspost (z. B. die Kündigung eines Mitarbeiters) kommt von „FIAON Legal", nicht von „Welcome".
     absender: ABSENDER[ein.absender ?? "welcome"],
     fehlend: [],
+    knopfEntfallen: false,
+    entfalleneKnoepfe: [],
   };
 }
 
@@ -380,8 +507,7 @@ export async function mailDirektSenden(
       return { ok: false, messageId: null, grund: `Brevo hat abgelehnt (HTTP ${res.status}): ${t.slice(0, 200)}` };
     }
     const d = (await res.json().catch(() => ({}))) as { messageId?: string };
-    const fehltHinweis = mail.fehlend.length ? ` (Platzhalter ohne Wert: ${mail.fehlend.join(", ")})` : "";
-    return { ok: true, messageId: d.messageId ?? null, grund: fehltHinweis || undefined };
+    return { ok: true, messageId: d.messageId ?? null, grund: versandHinweis(mail) ?? undefined };
   } catch (err) {
     return { ok: false, messageId: null, grund: `Brevo nicht erreichbar: ${err instanceof Error ? err.message : String(err)}` };
   }

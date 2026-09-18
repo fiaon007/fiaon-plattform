@@ -163,6 +163,39 @@ export async function kontoFuerAdresse(normalizedEmail: string): Promise<{ ref: 
 }
 
 /**
+ * Einen Anmelde-Link erzeugen — Token speichern (nur als Hash), Adresse bauen.
+ *
+ * 18.09.2026 aus loginLinkAnfordern herausgelöst: Der Handversand aus dem
+ * Sende-Menü (fiaon-mail-senden.ts, Link-Baustein) schickte app_login_link
+ * OHNE Link — der Knopf „Jetzt anmelden" fiel still weg. Jetzt erzeugen beide
+ * Wege den Link mit DIESER Funktion. Der Aufrufer verwirft ihn mit
+ * `anmeldeLinkVerwerfen`, wenn die Mail nicht rausgeht: Ein gültiges
+ * Geheimnis, das nie ankam, darf nicht herumliegen.
+ */
+export async function anmeldeLinkErzeugen(
+  ref: string, opts: { ip?: string | null; userAgent?: string | null; weiter?: unknown } = {},
+): Promise<{ url: string; tokenHash: string }> {
+  await ensureLoginLinkTabelle();
+  const token = randomBytes(32).toString("base64url");
+  const tokenHash = sha256(token);
+  const gueltigBis = new Date(Date.now() + LINK_MS);
+  await sqlPool`INSERT INTO fiaon_login_links (ref, token_hash, gueltig_bis, ip, user_agent)
+                VALUES (${ref}, ${tokenHash}, ${gueltigBis}, ${opts.ip || null}, ${String(opts.userAgent || "").slice(0, 300) || null})`;
+  const ziel = weiterZiel(opts.weiter);
+  // Direkt die API-Route: Sie löst ein und antwortet mit 302. Ein Link auf
+  // /app/login/link/… liefe in den Client-Catch-all /app/* und von dort in den
+  // Login-Bildschirm — der Token würde nie eingelöst.
+  const url = absoluteUrl(`${LOGIN_LINK_PFAD}/${token}${ziel !== "/app" ? `?weiter=${encodeURIComponent(ziel)}` : ""}`);
+  return { url, tokenHash };
+}
+
+/** Nicht versandt = nicht einlösbar (siehe anmeldeLinkErzeugen). */
+export async function anmeldeLinkVerwerfen(tokenHash: string): Promise<void> {
+  await sqlPool`UPDATE fiaon_login_links SET genutzt_am = NOW() WHERE token_hash = ${tokenHash} AND genutzt_am IS NULL`
+    .catch((e) => console.error("[APP-LOGIN] Unverschickter Anmelde-Link nicht verworfen — er bliebe 60 Minuten gültig:", e));
+}
+
+/**
  * Link erzeugen und verschicken. Gibt zurück, was geschah — für Protokoll und
  * Prüfstand, NIE für die HTTP-Antwort (die ist immer dieselbe).
  */
@@ -174,16 +207,7 @@ export async function loginLinkAnfordern(ein: { email: string; ip: string; userA
   if (konto.gesperrt) return { ergebnis: "gesperrt", ref: konto.ref };
   if (!konto.personId) return { ergebnis: "keine_person", ref: konto.ref };
 
-  const token = randomBytes(32).toString("base64url");
-  const gueltigBis = new Date(Date.now() + LINK_MS);
-  await sqlPool`INSERT INTO fiaon_login_links (ref, token_hash, gueltig_bis, ip, user_agent)
-                VALUES (${konto.ref}, ${sha256(token)}, ${gueltigBis}, ${ein.ip || null}, ${String(ein.userAgent || "").slice(0, 300) || null})`;
-
-  const ziel = weiterZiel(ein.weiter);
-  // Direkt die API-Route: Sie löst ein und antwortet mit 302. Ein Link auf
-  // /app/login/link/… liefe in den Client-Catch-all /app/* und von dort in den
-  // Login-Bildschirm — der Token würde nie eingelöst.
-  const url = absoluteUrl(`${LOGIN_LINK_PFAD}/${token}${ziel !== "/app" ? `?weiter=${encodeURIComponent(ziel)}` : ""}`);
+  const { url, tokenHash } = await anmeldeLinkErzeugen(konto.ref, { ip: ein.ip, userAgent: ein.userAgent, weiter: ein.weiter });
   const versand = await mailSenden({
     event: "app_login_link",
     personId: konto.personId,
@@ -203,7 +227,7 @@ export async function loginLinkAnfordern(ein: { email: string; ip: string; userA
   });
   if (!versand.ok) {
     // Nicht versandt = nicht einlösbar. Sonst läge ein gültiges Geheimnis herum, das nie ankam.
-    await sqlPool`UPDATE fiaon_login_links SET genutzt_am = NOW() WHERE token_hash = ${sha256(token)} AND genutzt_am IS NULL`.catch(() => undefined);
+    await anmeldeLinkVerwerfen(tokenHash);
     return { ergebnis: "mail_abgelehnt", ref: konto.ref, grund: versand.grund ?? versand.meldung };
   }
   return { ergebnis: "versandt", ref: konto.ref };

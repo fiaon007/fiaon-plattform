@@ -1117,8 +1117,11 @@ function klickTitel(event: string, step: number | null, page: string | null, dat
   return event.replace(/[_-]+/g, " ");
 }
 
+// 18.09.2026: „welcome" ist die Antrag-eingegangen-Mail, der Zugang ist
+// zugang_link — die Anzeige sagte bisher für beides „Zugangs-Mail".
 const MAIL_TITEL: Record<string, string> = {
-  payment_details: "Zahlungsdaten-Mail", welcome: "Willkommens-/Zugangs-Mail",
+  payment_details: "Zahlungsdaten-Mail", welcome: "Mail „Antrag eingegangen“",
+  zugang_link: "Zugangs-Mail", bereich_freigeschaltet: "Mail „Bereich freigeschaltet“",
   nicht_erreicht_termin: "Terminlink-Mail", onboarding_einladung: "Einladung zum Startgespräch",
   number_update_request: "Bitte um neue Rufnummer", payment_reminder: "Zahlungserinnerung",
   payment_confirmed: "Zahlungsbestätigung", lead_followup: "Nachfass-Mail",

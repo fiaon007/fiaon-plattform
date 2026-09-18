@@ -125,6 +125,13 @@ export async function versendenUndProtokollieren(
   let grund: string | null = null;
   let brevoMessageId: string | null = null;
   let hinweis: string | null = null;
+  // 18.09.2026: Der Hinweis des Motors bei ERFOLG („Platzhalter ohne Wert: …",
+  // „ohne Knopf …"). Er kam als `versand.grund` zurück und wurde hier mit
+  // `grund = null` weggeworfen — die Protokollzeile des Handversands sagte nie,
+  // dass etwas fehlte, während derselbe Hinweis bei der Automatik (Protokoll
+  // in make-webhook.ts) dastand. Jetzt steht er im Protokoll UND geht als
+  // `hinweis` an den Mitarbeiter; `grund` im Ergebnis bleibt der Fehlergrund.
+  let motorHinweis: string | null = null;
   try {
     // Marke setzen: Der Webhook protokolliert seit dem 09.08.2026 selbst
     // (make-webhook.ts). Hier schreiben wir aber gleich einen vollständigeren
@@ -137,7 +144,8 @@ export async function versendenUndProtokollieren(
       const versand = await sendMakeWebhookMitGrund(event, payload, { manuell: !!opts.ausgeloestVon });
       status = versand.ok ? "versandt" : "fehlgeschlagen";
       grund = versand.ok ? null : (versand.grund ?? "unbekannt");
-      hinweis = versand.hinweis ?? null;
+      motorHinweis = versand.ok ? (versand.grund ?? null) : null;
+      hinweis = [motorHinweis, versand.hinweis].filter(Boolean).join(" · ") || null;
       brevoMessageId = versand.brevoMessageId ?? null;
     } finally {
       protokolliertSelbst.delete(event);
@@ -153,7 +161,7 @@ export async function versendenUndProtokollieren(
   if (grund && grund.startsWith("Frequenzbremse-Ruhe")) return { status, grund, hinweis };
   await mailProtokoll({
     event, personId: opts.personId, empfaenger: String(payload.email),
-    status, grund, payload: payload as Record<string, unknown>,
+    status, grund: status === "versandt" ? motorHinweis : grund, payload: payload as Record<string, unknown>,
     ausgeloestVon: opts.ausgeloestVon, ausgeloestAgentId: opts.ausgeloestAgentId,
     brevoMessageId,
   }, lauf);

@@ -114,7 +114,9 @@ export function stufeFaellig(opts: { stufe: number; standAm: Date; letzteAm: Dat
   return opts.stufe + 1;
 }
 
-const SCHRITT_TEXT: Record<number, string> = {
+// 18.09.2026 exportiert: Der Handversand aus dem Sende-Menü (fiaon-mail-senden.ts)
+// nennt denselben Schritt wie der Lauf — eine Liste, nicht zwei.
+export const SCHRITT_TEXT: Record<number, string> = {
   1: "Schritt 1 von 5 — Persönliche Daten", 2: "Schritt 2 von 5 — Beruf & Finanzen", 3: "Schritt 3 von 5 — Karte konfigurieren",
   4: "Schritt 3 von 5 — Bonitätsprüfung", 5: "Schritt 3 von 5 — Ihr Rahmen steht", 6: "Schritt 4 von 5 — Vertrag annehmen", 7: "Schritt 4 von 5 — Vertrag annehmen",
 };

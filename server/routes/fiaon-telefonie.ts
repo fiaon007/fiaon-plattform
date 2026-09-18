@@ -1985,6 +1985,17 @@ router.post(
   },
 );
 
+/**
+ * Der Satz, den die Mail „Ein Dokument fehlt noch" fett druckt — je Unterlage
+ * (18.09.2026). Gesiezt, ohne Frist, ohne Zusage: Die Bonitätsauskunft holt
+ * FIAON sonst selbst ein, deshalb steht dort der Ausweg per Antwort.
+ */
+const ANFORDERN_HINWEIS: Record<string, string> = {
+  ausweis: "Bitte laden Sie eine gut lesbare Kopie Ihres Ausweises hoch — Vorder- und Rückseite.",
+  kontoauszug: "Bitte laden Sie Ihre Kontoauszüge der letzten drei Monate hoch.",
+  schufa: "Ihre Bonitätsauskunft (SCHUFA-Datenkopie) liegt uns noch nicht vor. Haben Sie eine, laden Sie sie bitte hoch — sonst antworten Sie kurz auf diese E-Mail.",
+};
+
 /** POST /dokumente/:personId/anfordern — über die Registry, mit Zustandsprüfung. */
 router.post("/dokumente/:personId/anfordern", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
@@ -1994,12 +2005,22 @@ router.post("/dokumente/:personId/anfordern", requireAgent, async (req: AgentReq
       return res.status(403).json({ ok: false, error: "Nicht dein Kunde." });
     }
     const art = String(req.body?.art || "");
-    // Zwei Ereignisse aus der bestehenden Registry — keine neuen erfinden.
-    const event = art === "schufa" ? "schufa_requested" : "documents_change_request";
+    if (!istDokumentArt(art)) return res.status(400).json({ ok: false, error: "Unbekannte Unterlage." });
+    // ── EIN EREIGNIS, MIT DEM SATZ, DEN DIE VORLAGE DRUCKT (18.09.2026) ──────
+    // VORHER: bei „schufa" das Ereignis schufa_requested („Wir holen jetzt Ihre
+    //   Bonitätsauskunft ein — Sie müssen nichts tun") — das Gegenteil einer
+    //   Bitte um ein Dokument. Sonst documents_change_request, aber mit dem
+    //   Feld `grund`, während die Vorlage `hinweis` druckt, und ohne login_url:
+    //   „ist uns etwas aufgefallen: [leer]" und ein Knopf ohne Ziel. Und weil
+    //   das Ereignis nur für die Verwaltung freigegeben war, lehnte mailSenden
+    //   jeden Klick des Teams ab.
+    // NACHHER: immer documents_change_request, mit einem Hinweis je Unterlage
+    //   (oder der Notiz des Mitarbeiters); login_url baut der Link-Baustein.
     const { mailSenden } = await import("../lib/fiaon-mail-senden");
+    const notiz = String(req.body?.notiz || "").trim();
     const erg = await mailSenden({
-      event, personId,
-      zusatz: req.body?.notiz ? { grund: String(req.body.notiz) } : {},
+      event: "documents_change_request", personId,
+      zusatz: { hinweis: notiz || ANFORDERN_HINWEIS[art] },
       akteur: { name: req.agent!.name, agentId: req.agent!.id, rolle: rolle as any },
     });
     res.json(erg);

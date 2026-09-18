@@ -25,7 +25,7 @@ import { randomBytes } from "node:crypto";
 import { sqlPool } from "./db-pool";
 import { absoluteUrl } from "../fiaon-base-url";
 import {
-  MINDESTABSTAND_STUNDEN, faelligNachTagen, varianteFuer,
+  MINDESTABSTAND_STUNDEN, faelligNachTagen, streckenKnopf, varianteFuer,
 } from "../../shared/fiaon-lead-strecke";
 
 type Lauf = typeof sqlPool;
@@ -206,19 +206,25 @@ export async function faellige(
  * kommt sie trotzdem an, und der Betreiber sieht es im Protokoll.
  */
 export async function streckenMail(
-  lead: { id: number; email: string; vorname: string | null; nachname: string | null },
+  lead: { id: number; email: string; vorname: string | null; nachname: string | null; person_id?: number | null },
   stufe: number,
   lauf: Lauf = sqlPool,
 ): Promise<{ status: "versandt" | "fehlgeschlagen" | "uebersprungen"; grund?: string; variante: string }> {
   const v = varianteFuer(stufe, lead.id);
   const abmelden = await abmeldeLink(lead.id, lauf);
   const antrag = absoluteUrl(`/antrag?lead=${lead.id}`);
+  // ── DER KNOPF GEHÖRT ZUR VARIANTE (18.09.2026) ────────────────────────────
+  // Die Termin-Varianten versprechen „wähl ein Zeitfenster, wir rufen an" —
+  // ihr Knopf hieß „Jetzt Antrag starten". Jetzt: /termin für sie, der Antrag
+  // für alle anderen (shared/fiaon-lead-strecke.ts, streckenKnopf).
+  const knopf = streckenKnopf(v);
+  const knopfUrl = knopf.termin ? absoluteUrl("/termin") : antrag;
   const anrede = lead.vorname ? `Hallo ${lead.vorname},` : "Hallo,";
 
   // Der volle Text — Anrede, Inhalt, Abschluss, Abmeldung. An EINER Stelle
   // zusammengesetzt, damit die Abmelde-Zeile nicht in elf Varianten fehlen kann.
   const text = `${anrede}\n\n${v.text}\n\n`
-    + `Zum Antrag: ${antrag}\n\n`
+    + `${knopf.zeile}: ${knopfUrl}\n\n`
     + `Viele Grüße\ndein FIAON-Team\n\n`
     + `─────\n`
     + `Du möchtest keine Nachrichten mehr? Ein Klick genügt: ${abmelden}`;
@@ -227,6 +233,10 @@ export async function streckenMail(
     const { sendMakeWebhookMitGrund } = await import("../make-webhook");
     const erg = await sendMakeWebhookMitGrund("lead_followup", {
       email: lead.email,
+      // 18.09.2026: Ohne person_id stand keine der 10.987 Strecken-Mails der
+      // letzten 30 Tage in einer Akte — obwohl 10.977 dieser Leads eine Person
+      // haben. Fehlt sie hier, löst das Protokoll sie über lead_id auf.
+      person_id: lead.person_id ?? null,
       vorname: lead.vorname,
       nachname: lead.nachname,
       lead_id: lead.id,
@@ -238,6 +248,8 @@ export async function streckenMail(
       text,
       abmelde_url: abmelden,
       antrag_url: antrag,
+      knopf_text: knopf.text,
+      knopf_url: knopfUrl,
     } as any);
     if (erg.ok) return { status: "versandt", variante: v.key };
 

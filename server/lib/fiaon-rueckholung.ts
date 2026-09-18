@@ -91,6 +91,7 @@ import { sofortUrlFuer } from "./fiaon-zahlungsauftrag";
 // Die Bankverbindung hat seit dem 02.09.2026 GENAU EINE Quelle. Ein Literal
 // hier wäre die zehnte Stelle, die beim nächsten Kontowechsel vergessen wird.
 import { BANK } from "@shared/fiaon-bank";
+import { paket as katalogPaket } from "@shared/fiaon-pakete";
 import { produktkategorieSql } from "./fiaon-produktkategorie";
 
 export type Segment = "s1_frisch" | "s2_behauptet" | "s3_preis_fehlt" | "s4_nie_gemahnt" | "s5_altbestand";
@@ -207,7 +208,7 @@ function grundmenge() {
            COALESCE(NULLIF(a.first_name, ''), NULLIF(a.contact_name, '')) AS vorname,
            COALESCE(NULLIF(TRIM(a.email), ''), NULLIF(TRIM(a.contact_email), ''), NULLIF(TRIM(a.billing_email), '')) AS email,
            COALESCE(NULLIF(TRIM(a.phone), ''), NULLIF(TRIM(a.contact_phone), '')) AS telefon,
-           a.pack_name, a.amount_due, a.payment_reference,
+           a.pack_name, a.pack_key, a.amount_due, a.payment_reference,
            COALESCE(a.reminder_count, 0) AS mahnungen,
            EXTRACT(DAY FROM NOW() - a.created_at)::int AS alter_tage,
            EXTRACT(DAY FROM NOW() - a.claimed_paid_at)::int AS claimed_tage,
@@ -395,13 +396,28 @@ export interface RueckholFall {
   lage: Segment;
 }
 
+// ── DER PAKETNAME DARF NICHT LEER BLEIBEN (18.09.2026) ─────────────────────
+// Jede Rückhol-Vorlage sagt „Ihr Antrag für <b>{{params.paket}}</b>". Gemessen:
+// 140 von 460 rueckhol_s3-Mails gingen mit leerem Paket raus — „einen Antrag
+// für  gestellt". Alle 140 Bestellungen haben weder pack_name noch pack_key;
+// es sind Altanträge aus der Zeit vor dem Katalog. Rückfall deshalb in zwei
+// Stufen: der Katalogname zum Schlüssel (hier, echte Daten) — und NUR in der
+// Mail eine Bezeichnung, die in jeden der Sätze passt und kein bestimmtes
+// Paket behauptet (PAKET_RUECKFALL beim Versand). Die Liste im Leitstand
+// zeigt die Lücke weiter als Lücke (AGENTS.md: angezeigt, nicht gefüllt).
+const PAKET_RUECKFALL = "die FIAON-Betreuung";
+function paketText(packName: unknown, packKey: unknown): string | null {
+  const name = String(packName ?? "").split("\n")[0].trim();
+  return name || katalogPaket(packKey)?.label || null;
+}
+
 function fallAusZeile(z: any, segment: Segment, event: string): RueckholFall {
   return {
     ref: String(z.ref), personId: Number(z.person_id), segment, event,
     lage: (z.segment as Segment) || segment,
     email: z.email || null, telefon: z.telefon || null, vorname: z.vorname || null,
     betrag: z.amount_due != null ? String(z.amount_due) : null,
-    paket: z.pack_name ? String(z.pack_name).split("\n")[0].trim() : null,
+    paket: paketText(z.pack_name, z.pack_key),
     zahlungsreferenz: z.payment_reference || null,
     alterTage: Number(z.alter_tage || 0), mahnungen: Number(z.mahnungen || 0),
     claimedTage: z.claimed_tage != null ? Number(z.claimed_tage) : null,
@@ -548,7 +564,7 @@ export async function rueckholLauf(): Promise<LaufErgebnis[]> {
         const erg = await versendenUndProtokollieren(f.event as any, {
           email: String(f.email),
           vorname: f.vorname || "",
-          paket: f.paket,
+          paket: f.paket || PAKET_RUECKFALL,
           betrag: f.betrag,
           payment_reference: f.zahlungsreferenz,
           antrag_id: f.ref,

@@ -722,6 +722,12 @@ function PipelineInnen() {
         const zusammen = [...haupt, ...extra];
         if (ink?.ok && Array.isArray(ink.json?.personen)) {
           ink.json.personen.forEach((pers: any, i: number) => {
+            // 18.09.2026 (Team-Feedback Priorität 5): Die Inkasso-Liste führt auch Raten, die erst in
+            // den nächsten sieben Tagen fällig werden. „Rate überfällig" heißt aber überfällig — nach
+            // einer Ratenpause stand der Kunde sonst weiter als überfällig in Pipeline und Akte.
+            const heute = heuteIso();
+            const ueber = (pers.raten || []).filter((x: any) => x?.ueberfaellig === true || (x?.faellig_am && String(x.faellig_am).slice(0, 10) < heute));
+            if (ueber.length === 0) return;
             const d = pers.dringendste || pers.raten?.[0] || {};
             const felder = {
               istRate: true, rateCents: d.betrag_cents != null ? Number(d.betrag_cents) : null,
@@ -2988,6 +2994,22 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
                     </div>
                   </div>
                 ))}
+                {/* 18.09.2026 (Team-Feedback Priorität 1): Nichts geht verloren — ersetzte Fassungen bleiben abrufbar. */}
+                {Array.isArray(doku.fruehere) && doku.fruehere.length > 0 && (
+                  <p className="pi-sek-satz leise" style={{ marginTop: 6 }}>
+                    Frühere Fassungen:{" "}
+                    {doku.fruehere.map((f: any, i: number) => {
+                      const label = (doku.dokumente || []).find((d: any) => d.art === f.art)?.label ?? f.art;
+                      const am = new Date(f.am).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit" });
+                      return (
+                        <span key={f.id}>
+                          {i > 0 && " · "}
+                          <a className="pi-link" href={`/api/fiaon/agent/dokumente/${k.personId}/archiv/${f.id}`} target="_blank" rel="noreferrer">{label} vom {am}</a>
+                        </span>
+                      );
+                    })}
+                  </p>
+                )}
                 {/* E-175: Was in der Auskunft STEHT — nicht nur, dass sie da ist. */}
                 {(doku.dokumente || []).some((d: any) => d.art === "schufa" && d.vorhanden) && doku.ref && (
                   <BonitaetsBefund bestellRef={String(doku.ref)} melden={melden} />

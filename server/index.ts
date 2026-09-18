@@ -59,8 +59,10 @@ app.use((req, res, next) => {
       // POST /global/auftrag Nummer UND Token trägt, wird für diese Pfade keine Antwort mitgeschrieben.
       const pfadOhneToken = path
         .replace(/\/(abschluss|zustimmung)\/[^/?]+/, "/$1/…")
-        .replace(/\/global\/auftrag\/[^/?]+/, "/global/auftrag/…");
-      const ohneAntwort = /\/api\/fiaon\/global\//.test(path);
+        // „Mein Auftrag" (Kunde) und die Office-/Leitungsrouten dazu: dieselbe Nummer, derselbe Schutz.
+        .replace(/\/global\/(auftrag|mein-auftrag|auftraege)\/[^/?]+/, "/global/$1/…");
+      // Die Antworten der Office- und Leitungsrouten tragen den Kundenlink mit frischem Token — auch sie bleiben draußen.
+      const ohneAntwort = /\/api\/fiaon\/((agent|admin)\/)?global\//.test(path);
       let logLine = `${req.method} ${pfadOhneToken} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse && !ohneAntwort) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;

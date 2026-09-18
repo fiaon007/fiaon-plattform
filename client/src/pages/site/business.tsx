@@ -30,10 +30,11 @@ import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
 import { GLOBAL_WOERTER } from "@/i18n/global";
 import {
   GLOBAL_PAKETE, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_GELD_ZURUECK, GLOBAL_INKLUSIVE, GLOBAL_LAUFEND,
-  GLOBAL_UNTERLAGEN_TEXTE, GLOBAL_VERGLEICH, globalPreisText, globalPlanungText,
+  GLOBAL_VERGLEICH, globalPreisText, globalPlanungText,
 } from "@shared/fiaon-global";
 import { globalStartPfad } from "@shared/fiaon-global-wege";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
+import { GLOBAL_UNTERLAGEN, GLOBAL_UNTERLAGEN_EN } from "@shared/fiaon-global-bereich";
 import "@/styles/global.css";
 
 /** Das eine Zeichen der Seite: ein ruhiger Haken. */
@@ -311,7 +312,7 @@ export default function Business() {
                 <div><span className="fg-auge">{t.unterlagenAuge}</span><h2 className="fg-h2">{t.unterlagenH2}</h2></div>
                 <p className="fg-lead">{t.unterlagenLead}</p>
               </div>
-              <ol className="fg-unterlagen">{GLOBAL_UNTERLAGEN_TEXTE[s].map((x) => <li key={x}>{x.charAt(0).toUpperCase() + x.slice(1)}</li>)}</ol>
+              <ol className="fg-unterlagen">{(s === "en" ? GLOBAL_UNTERLAGEN_EN : GLOBAL_UNTERLAGEN).map((x) => <li key={x}>{x.charAt(0).toUpperCase() + x.slice(1)}</li>)}</ol>
             </Auf>
           </div>
         </section>

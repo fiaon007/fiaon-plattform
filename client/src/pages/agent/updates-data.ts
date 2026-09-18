@@ -84,6 +84,31 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-09-17-global-mein-auftrag-e188",
+    date: "2026-09-17",
+    category: "Neu",
+    title: "FIAON Global: Der Kunde hat „Mein Auftrag“ — und du bekommst Aufgaben zu Unterlagen, Fristen und dem monatlichen Durchgang",
+    summary:
+      "Nach dem Kauf führt der Firmenkunde seinen Auftrag auf einer eigenen Seite (Link in seinen Mails, ohne Passwort): Stand in Etappen, "
+      + "nächster Schritt, Unterlagen hochladen, Dokumente, Pflichtenkalender, Nachricht an dich. Für die zuständige Person entstehen daraus "
+      + "Aufgaben — jede führt direkt zum Auftrag im Raum „Global“.",
+    changes: [
+      "Lädt der Kunde etwas hoch oder schreibt er dir, bekommst du eine Aufgabe („neue Unterlagen“ bzw. „Nachricht von …“) — je Tag eine, Weiteres steht als Kommentar darin.",
+      "Pflichtenkalender: Trägst du Bundesstaat, Gründungstag und Rechtsform ein, entstehen die allgemein bekannten Termine der nächsten achtzehn Monate von selbst (US-Meldung 15. April; Delaware, Wyoming, Florida; Registered Agent). Für andere Staaten trägst du den Termin von Hand ein. Rund einen Monat und rund eine Woche vorher bekommt der Kunde eine Erinnerung und du eine Aufgabe.",
+      "Monatlicher Durchgang (Banking, Kapital, VIP): Am Monatstag des Starts kommt die Aufgabe „monatlicher Durchgang — Firma“. Das Paket sagt ihn zu.",
+      "Fehlen fünf Tage nach dem Start noch Unterlagen, bekommst du EINE Aufgabe zum Nachfassen. Der Kunde bekommt dazu keine automatische Mail.",
+      "Was du an den Kunden schreibst (Etappe, nächster Schritt, sichtbare Notiz, Frist), prüft der Server gegen die Wortregeln: nichts garantieren, nicht beraten, nichts empfehlen, keine Frist in Tagen zusagen. Er sagt dir, welche Stelle er meint.",
+      "Deine private Mailadresse und Nummer sieht der Kunde nie — er sieht deinen Namen und dein Bild.",
+    ],
+    howto: [
+      "Aufgabe öffnen → der Link führt in den Raum „Global“ zum Auftrag.",
+      "Nach dem Startgespräch: Stichtag setzen, Etappe und nächsten Schritt pflegen — der Kunde liest beides auf seiner Seite.",
+      "Hat der Kunde seinen Link verloren: im Auftrag „Zugang senden“. Er kann ihn sich auf der Seite auch selbst mit seiner E-Mail-Adresse neu holen.",
+      "Nach dem monatlichen Durchgang eine sichtbare Notiz hinterlassen („Durchgang 2026-10: …“) — dann steht er im Verlauf des Kunden.",
+    ],
+    link: { href: "/agent/aufgaben", label: "Aufgaben öffnen" },
+  },
+  {
     id: "2026-09-17-global-office-e188",
     date: "2026-09-17",
     category: "Neu",

@@ -5,6 +5,61 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 17.09.2026 — FIAON Global: „Mein Auftrag“ im Server — Etappen, Dokumentenraum, Pflichtenkalender, monatlicher Durchgang (E-188)
+
+**Was geändert wurde:** Die Pakete von FIAON Global sagen einen eigenen Dokumentenraum, einen Pflichtenkalender, einen
+festen Ansprechpartner und den monatlichen Durchgang zu — das gibt es jetzt als Funktion. **Für den Kunden** (ohne
+Anmeldung, mit demselben signierten Link wie beim Auftrag) unter `/api/fiaon/global/mein-auftrag/:ref`: der Stand in
+sechs Etappen (Auftrag angelegt · Gründung und Dokumente · Die erste Firmenkarte · Die Kartenleiter · Das Bankdarlehen ·
+Abgeschlossen), der nächste Schritt, der Stichtag, der Ansprechpartner, die fünf Unterlagen mit „liegt vor / fehlt“, der
+Dokumentenraum (hochladen: PDF, JPG, PNG, HEIC bis 15 MB, höchstens vierzig Dokumente; ansehen: eigene und
+freigegebene), der Pflichtenkalender, der Verlauf, eine Nachricht an die zuständige Person — und „Zugang neu
+anfordern“ (`POST /global/zugang`, antwortet immer gleich). **Für das Office** unter `/api/fiaon/agent/global/…`:
+Liste und Akte, Etappe setzen (auf Wunsch mit Mail), nächster Schritt, Angaben zur US-Gesellschaft, Fristen von Hand,
+Dokumente ablegen (sichtbar oder intern), Notiz (sichtbar oder intern), Stichtag, Zugang senden, Auftrag abschließen.
+Zugriff haben die zuständige Person, die Vertriebsleitung und wer zusätzlich als Chef oder Verwaltung ausgewiesen ist;
+alle anderen bekommen 403 — schon auf der Liste, damit die Leiste den Raum nur denen zeigt, die ihn haben.
+**Der Pflichtenkalender** entsteht aus Bundesstaat, Gründungstag und Rechtsform: die jährliche US-Meldung zum 15. April
+(Form 5472 mit Form 1120), Delaware (LLC 1. Juni, Corporation 1. März), Wyoming (erster Tag des Gründungsmonats),
+Florida (1. Mai), dazu die Verlängerung des Registered Agent am Jahrestag — immer nur die nächsten achtzehn Monate,
+nie ein Termin im Gründungsjahr, ohne Beträge und Steuersätze, jeder mit dem Satz „Ihr Steuerberater bzw. US-CPA
+bestätigt die für Sie geltenden Fristen“. Für andere Staaten trägt die zuständige Person den Termin von Hand ein. Die
+Meldung beim heimischen Finanzamt wird zum nächsten Schritt, nicht zur Frist. **Vier neue Mails**, je deutsch und
+englisch nach der Sprache des Auftrags: Zugang, neue Etappe, Erinnerung aus dem Pflichtenkalender, neues Dokument
+(nie als Anhang). Auftrags- und Startmail tragen jetzt den Knopf „Mein Auftrag öffnen“; die Startmail schickt die
+Unterlagen dorthin statt „besprechen wir im Startgespräch“. **Der Tageslauf `global_tageslauf`** (stündlich, arbeitet
+nur von 8 bis 20 Uhr Berliner Zeit): erinnert rund einen Monat und rund eine Woche vor einer Frist den Kunden per Mail
+und die zuständige Person per Aufgabe (je Marke genau einmal; geht die Mail nicht raus, steht es in der Aufgabe),
+stellt für Banking, Kapital und VIP am Monatstag des Starts die Aufgabe „monatlicher Durchgang“ ein und fasst fünf
+Tage nach dem Start bei fehlenden Unterlagen nach — als Aufgabe, nicht als Mailkaskade an den Kunden. Mit dem
+Zahlungseingang steht der Auftrag auf Etappe 1; die Aufgaben „neuer Auftrag“ und „US-Struktur starten“ führen jetzt
+ins Office zum Auftrag (`/agent/global/<Nummer>`), die Liste der Leitung zeigt Etappe und Kundenlink.
+
+**Warum:** Justin: „Mach alles fix fertig, keine Platzhalter.“ Was ein Paket zusagt, muss es geben — sonst ist es ein
+Versprechen auf der Preisseite. Ein Firmenkunde, der 2.499 bis 35.999 € überwiesen hat, braucht einen Ort, an dem er
+sieht, was geschieht, wohin er seinen Reisepass gibt und wann seine US-Gesellschaft etwas melden muss; und Daniel
+braucht ein Werkzeug, das ihn an den Durchgang erinnert, den das Paket zusagt. Ein Link gilt dreißig Tage, ein Auftrag
+läuft länger: Deshalb bringt jede Mail einen frischen Link mit, und die Seite stellt auf Anforderung jederzeit einen
+neuen aus — nur an die Adresse des Auftrags. Dateien werden am INHALT erkannt, nie am Namen oder am gemeldeten Typ
+(eine HTML-Seite mit dem Etikett „PDF“ kommt nicht durch), unverändert abgelegt (nichts wird gebunden — E-178) und nur
+inline mit festem Typ ausgeliefert.
+
+**Wo:** `shared/fiaon-global-bereich.ts` (Etappen, Dokumentarten, die EINE Unterlagenliste, Pflichten-Regeln mit
+Quellen — alles rein), `server/lib/fiaon-global-bereich.ts` (Akte, Dokumentenraum, Fristen, Verlauf, Mails,
+Tageslauf), `server/lib/fiaon-global-bereich-regeln.ts` (Dateityp, Dateiname, Zugriffsregel, Drossel — rein),
+`server/routes/fiaon-global-bereich.ts`, `server/mail/vorlagen/global-bereich.ts`; kleine Eingriffe in
+`server/lib/fiaon-global-auftrag.ts` (Etappe 1 beim Start, Links, Sprache der Mail), `server/mail/motor.ts`
+(englische Fassung über `sprache` in der Nutzlast), `server/mail/vorlagen/global.ts`, `server/routes.ts`,
+`server/index.ts` (Zugriffslog maskiert auch diese Pfade). Tabellen (entstehen beim ersten Zugriff):
+`fiaon_global_dokumente`, `fiaon_global_verlauf`, `fiaon_global_fristen`, neue Spalten an `fiaon_global_auftraege`.
+Prüfstände: `scripts/pruef-global-bereich.ts` (ohne Datenbank, 327 Prüfungen) und
+`scripts/pruef-global-bereich-lokal.ts` (nur gegen eine lokale Wegwerf-Datenbank, 158 Prüfungen — er fand beim ersten
+Lauf, dass postgres.js ein mit JSON.stringify gebautes JSONB doppelt kodiert; seitdem schreibt der Bereich über
+`sqlPool.json`).
+
+**Offen:** New Mexico ist nicht an einer Primärquelle belegt (deshalb dort keine Staatsfrist, mit Hinweis ans Office).
+Der Kunde sieht als Adresse des Ansprechpartners `welcome@fiaon.com`, solange der Mitarbeiter keine Hausadresse hat —
+private Adressen und Nummern gehen nie an den Kunden. Noch kein Auftrag ist gegen die Produktion gelaufen.
 ## 17.09.2026 — FIAON Global im Office: der Raum „Global“ — Liste und Akte für die zuständige Person (E-188)
 
 **Was geändert wurde:** Im Mitarbeiter-Office gibt es einen neuen Raum **Global** (Leiste, direkt hinter „Firmen“;

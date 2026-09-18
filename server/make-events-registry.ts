@@ -682,6 +682,60 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       antrag_id: "FIAON-MB2XK4LQ-7T9A", stichtag_text: "30.10.2026", ansprechpartner: "Herr Beispiel",
     },
   },
+  // ── „Mein Auftrag" (E-188, 17.09.2026) — der Bereich des Firmenkunden nach dem Kauf.
+  // customerBound: false wie oben: Die Nutzlast entsteht aus der Auftragsakte, und der Link
+  // trägt ein frisches, an die Antragsnummer gebundenes Token. Englische Fassung je Ereignis
+  // über `sprache: "en"` in der Nutzlast.
+  {
+    type: "global_zugang",
+    label: "FIAON Global: Zugang zu „Mein Auftrag“ (Firmenkunde)",
+    description: "Frischer Link zu „Mein Auftrag“ (30 Tage). Geht raus, wenn der Kunde ihn auf der Seite mit seiner E-Mail-Adresse anfordert (POST /global/zugang) oder wenn die zuständige Person im Office „Zugang senden“ drückt. Immer Direktversand über den Motor.",
+    customerBound: false,
+    example: {
+      email: "m.muster@muster-gmbh.example", anrede_zeile: "Guten Tag Herr Muster", firma: "Muster GmbH", paket: "FIAON Global Struktur",
+      antrag_id: "FIAON-MB2XK4LQ-7T9A", ansprechpartner: "Herr Beispiel",
+      mein_auftrag_url: "https://www.fiaon.com/business/auftrag/FIAON-MB2XK4LQ-7T9A?t=1760000000000.0123456789abcdef0123456789abcdef",
+    },
+  },
+  {
+    type: "global_etappe",
+    label: "FIAON Global: neue Etappe im Auftrag (Firmenkunde)",
+    description: "Von Hand aus dem Office (/agent/global/<ref>, „Etappe setzen“ mit Haken „dem Kunden mitteilen“) und beim Abschluss. Etappentitel und -text kommen aus shared/fiaon-global-bereich.ts; der dritte Absatz ist der persönliche Satz der zuständigen Person bzw. der nächste Schritt.",
+    customerBound: false,
+    example: {
+      email: "m.muster@muster-gmbh.example", anrede_zeile: "Guten Tag Herr Muster", firma: "Muster GmbH", paket: "FIAON Global Struktur",
+      antrag_id: "FIAON-MB2XK4LQ-7T9A", ansprechpartner: "Herr Beispiel",
+      etappe_marke: "Etappe 2", etappe_titel: "Die erste Firmenkarte",
+      etappe_text: "Mit vollständigen Dokumenten stellen Sie den ersten Antrag bei einem US-Herausgeber. Wir bereiten den Antrag vor; der Herausgeber entscheidet.",
+      etappe_weiter: "Ihr nächster Schritt: Bitte laden Sie den aktuellen Adressnachweis hoch.",
+      mein_auftrag_url: "https://www.fiaon.com/business/auftrag/FIAON-MB2XK4LQ-7T9A?t=1760000000000.0123456789abcdef0123456789abcdef",
+    },
+  },
+  {
+    type: "global_frist",
+    label: "FIAON Global: Erinnerung aus dem Pflichtenkalender (Firmenkunde)",
+    description: "Geht automatisch aus dem Tageslauf global_tageslauf: rund einen Monat und rund eine Woche vor einem Termin des Pflichtenkalenders, je Marke genau einmal. Information ohne Beträge und Steuersätze; der Hinweis endet mit dem Satz, dass Steuerberater bzw. US-CPA die geltenden Fristen bestätigen.",
+    customerBound: false,
+    example: {
+      email: "m.muster@muster-gmbh.example", anrede_zeile: "Guten Tag Herr Muster", firma: "Muster GmbH", paket: "FIAON Global Banking",
+      antrag_id: "FIAON-MB2XK4LQ-7T9A", ansprechpartner: "Herr Beispiel",
+      frist_titel: "Jahressteuer des Bundesstaats Delaware", frist_datum: "01.06.2027", frist_abstand: "in rund einem Monat",
+      frist_hinweis: "Delaware erhebt die Jahressteuer für das Vorjahr; einen Jahresbericht reichen LLCs dort nicht ein. Ihr Steuerberater bzw. US-CPA bestätigt die für Sie geltenden Fristen.",
+      mein_auftrag_url: "https://www.fiaon.com/business/auftrag/FIAON-MB2XK4LQ-7T9A?t=1760000000000.0123456789abcdef0123456789abcdef",
+    },
+  },
+  {
+    type: "global_dokument",
+    label: "FIAON Global: neues Dokument im Dokumentenraum (Firmenkunde)",
+    description: "Geht raus, wenn die zuständige Person im Office ein Dokument für den Kunden sichtbar ablegt und „dem Kunden mitteilen“ gesetzt ist (höchstens eine Mail je Auftrag in zehn Minuten). Das Dokument selbst reist nie als Anhang.",
+    customerBound: false,
+    example: {
+      email: "m.muster@muster-gmbh.example", anrede_zeile: "Guten Tag Herr Muster", firma: "Muster GmbH", paket: "FIAON Global Struktur",
+      antrag_id: "FIAON-MB2XK4LQ-7T9A", ansprechpartner: "Herr Beispiel",
+      dokument_art: "EIN-Bestätigung der US-Steuerbehörde", dokument_name: "EIN_Muster_LLC.pdf",
+      mein_auftrag_url: "https://www.fiaon.com/business/auftrag/FIAON-MB2XK4LQ-7T9A?t=1760000000000.0123456789abcdef0123456789abcdef",
+    },
+  },
   {
     type: "global_termin",
     label: "FIAON Global: Erstgespräch bestätigt (Unternehmen)",

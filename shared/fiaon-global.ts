@@ -365,23 +365,8 @@ export function inVertragssprache(zeile: string, sprache: "de" | "en"): string {
   return t;
 }
 
-/** Was der Kunde für den Start bereithält — Seite, Startmail und Aufgabe lesen diese Liste. */
-export const GLOBAL_UNTERLAGEN_TEXTE = {
-  de: [
-    "Reisepass der Gesellschafter und der Geschäftsführung (Farbkopie)",
-    "Adressnachweis, nicht älter als drei Monate",
-    "Gesellschafterliste oder Handelsregisterauszug Ihres Unternehmens",
-    "der gewünschte Name der US-Gesellschaft in drei Varianten",
-    "eine kurze Beschreibung der Geschäftstätigkeit",
-  ],
-  en: [
-    "Passports of the shareholders and managing directors (colour copy)",
-    "Proof of address, no older than three months",
-    "List of shareholders or commercial register extract of your company",
-    "The desired name of the US company in three variants",
-    "A short description of the business activity",
-  ],
-} as const;
+// Die Unterlagen für den Start stehen seit dem Merge (18.09.2026) an EINER Stelle:
+// shared/fiaon-global-bereich.ts (GLOBAL_UNTERLAGEN / GLOBAL_UNTERLAGEN_EN, mit Art und Hinweis je Zeile).
 
 // ── ALLE LEISTUNGEN IM VERGLEICH (18.09.2026) ───────────────────────────────
 // Die Tabelle unter den Paketen. Jede Zeile nennt, in welchem Paket sie steckt —

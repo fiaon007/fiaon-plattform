@@ -386,6 +386,16 @@ export const LAUF_FOLGEN: Record<string, { zweck: string; folge: string; fenster
     folge: "Aufnahmen liegen länger als erlaubt — ein Datenschutzverstoß, der wächst.",
     fenster: 24,
   },
+  // 17.09.2026 (E-188): „Mein Auftrag" von FIAON Global. Die Pakete sagen Pflichtenkalender und
+  // monatlichen Durchgang zu — bleibt dieser Lauf aus, bleibt beides stumm, und niemand merkt es,
+  // weil ein Firmenkunde sich nicht über eine Erinnerung beschwert, die er nie bekommen hat.
+  global_tageslauf: {
+    zweck: "FIAON Global: Kunden an Termine des Pflichtenkalenders erinnern (rund einen Monat und eine Woche vorher), "
+      + "den monatlichen Durchgang als Aufgabe einstellen, bei fehlenden Unterlagen nach fünf Tagen nachfassen lassen",
+    folge: "Firmenkunden werden nicht an US-Meldungen und Staatstermine erinnert, der zugesagte monatliche "
+      + "Durchgang findet nicht statt, und Aufträge ohne Unterlagen bleiben unbemerkt liegen.",
+    fenster: 26,
+  },
   "followup-und-termine-tageswerk": {
     zweck: "Das Tageswerk im Folgelauf: Zuteilung, Eskalation (einmal täglich; der alte Nachschub ist seit 11.09.2026 abgeschaltet)",
     folge: "Gebrochene Zahlungszusagen werden nicht eskaliert und herrenlose Kunden "

@@ -53,6 +53,7 @@ import { BANK } from "@shared/fiaon-bank";
 import { epcQrNutzlast } from "@shared/fiaon-epc-qr";
 import { paket as katalogPaket, verkaufbarePakete, istGlobalPaket } from "@shared/fiaon-pakete";
 import { GLOBAL_PAKETE, GLOBAL_VERTRAG_VERSION, globalPaket, type GlobalSchluessel } from "@shared/fiaon-global";
+import { globalMeinAuftragPfad, globalOfficeAuftragPfad } from "@shared/fiaon-global-wege";
 import { dachNummer, type DachLand } from "@shared/fiaon-dach-telefon";
 import {
   globalVertragPdf, globalVertragRumpfHtml, type GlobalVertragDaten, type VertragSprache,
@@ -372,7 +373,10 @@ export type GlobalStatus = "offen" | "bezahlt" | "gestartet" | "storniert";
 function statusAus(akte: any, bestellung: any): GlobalStatus {
   if (bestellung?.cancelled_at || ["cancelled", "superseded"].includes(String(bestellung?.payment_status))) return "storniert";
   if (String(akte?.status) === "storniert") return "storniert";
-  if (String(akte?.status) === "gestartet") return "gestartet";
+  // „abgeschlossen" setzt der Bereich „Mein Auftrag" (fiaon-global-bereich.ts). Für den Bestellweg
+  // und die Liste der Leitung bleibt das ein gestarteter Auftrag — sonst stünde dort „bezahlt, nicht
+  // gestartet" mit dem Knopf „Start anstoßen". Den fünften Zustand kennt nur der Bereich selbst.
+  if (String(akte?.status) === "gestartet" || String(akte?.status) === "abgeschlossen") return "gestartet";
   if (String(bestellung?.payment_status) === "paid" || String(akte?.status) === "bezahlt") return "bezahlt";
   return "offen";
 }
@@ -414,7 +418,27 @@ export async function globalAuftragSicht(ref: string, token: string): Promise<Re
 }
 
 // ── Die Mails — immer direkt über den Motor, immer im Protokoll ─────────────
-type GlobalMail = "global_auftrag" | "global_start" | "global_stichtag";
+// Die vier unteren gehören zum Bereich „Mein Auftrag" (server/mail/vorlagen/global-bereich.ts).
+export type GlobalMail =
+  | "global_auftrag" | "global_start" | "global_stichtag"
+  | "global_zugang" | "global_etappe" | "global_frist" | "global_dokument";
+export type GlobalMailSprache = "de" | "en";
+
+/** In welcher Sprache der Kunde seinen Auftrag geführt hat — sie steht in der Akte (vertrag_sprache). */
+export function globalSpracheVon(akte: any): GlobalMailSprache {
+  return String(akte?.vertrag_sprache ?? "").trim().toLowerCase() === "en" ? "en" : "de";
+}
+
+/**
+ * Der Link zu „Mein Auftrag" — mit einem FRISCHEN Token. Das Token gilt 30 Tage
+ * (GLOBAL_TOKEN_TAGE); ein Auftrag läuft sechs Monate und länger. Deshalb trägt
+ * JEDE Mail, die dorthin führt, ihren eigenen neuen Link, und wer einen
+ * abgelaufenen öffnet, fordert über POST /global/zugang jederzeit einen neuen an.
+ * Ein Token lässt sich nicht widerrufen; es ist an die Antragsnummer gebunden.
+ */
+export function globalMeinAuftragUrl(ref: string, sprache: GlobalMailSprache = "de"): string {
+  return absoluteUrl(globalMeinAuftragPfad(ref, globalTokenErzeugen(ref), sprache));
+}
 
 async function ansprechpartnerName(agentId: number | null): Promise<string> {
   if (agentId) {
@@ -425,7 +449,7 @@ async function ansprechpartnerName(agentId: number | null): Promise<string> {
   return "Ihr Team von FIAON Global";
 }
 
-async function globalMailSenden(
+export async function globalMailSenden(
   event: GlobalMail, akte: any, b: any,
   extra: { anhaenge?: { name: string; inhalt: Buffer }[]; zusatz?: Record<string, string>; ausgeloestVon?: string } = {},
 ): Promise<{ ok: boolean; grund: string | null }> {
@@ -434,9 +458,14 @@ async function globalMailSenden(
   const an = String(akte?.email || ap.email || b?.contact_email || b?.email || "").trim().toLowerCase();
   const kat = katalogPaket(akte?.paket_key ?? b?.pack_key);
   const betragCents = kat?.preisCents ?? Math.round(Number(b?.amount_due || 0) * 100);
+  const sprache = globalSpracheVon(akte);
+  const refFuerLink = String(b?.ref || akte?.ref || "");
   // Der Motor setzt Werte ungeprüft ins HTML — also hier entschärfen.
   const nutzlast: Record<string, string> = {
     email: an,
+    // Die Sprache des Auftrags — der Motor nimmt die englische Fassung einer Vorlage, wenn es sie gibt.
+    sprache,
+    mein_auftrag_url: refFuerLink ? globalMeinAuftragUrl(refFuerLink, sprache) : "",
     anrede_zeile: escapeHtml(ap.nachname || ap.vorname ? anredeZeile(ap) : `Guten Tag${b?.contact_name ? ` ${b.contact_name}` : ""}`),
     firma: escapeHtml(String(firma.name || akte?.firma_name || b?.company_name || "Ihr Unternehmen")),
     paket: escapeHtml(kat?.label ?? String(b?.pack_name || "FIAON Global")),
@@ -462,7 +491,8 @@ async function globalMailSenden(
     await mailProtokoll({
       event, personId: b?.person_id != null ? Number(b.person_id) : null, empfaenger: an || null,
       status: ok ? "versandt" : "fehlgeschlagen", grund: ok ? grund : (grund || "unbekannt"),
-      payload: { ...nutzlast, anhaenge: (extra.anhaenge ?? []).map((a) => a.name) },
+      // Der Link zu „Mein Auftrag" ist ein Zugang — er gehört nicht im Klartext ins Protokoll.
+      payload: { ...nutzlast, mein_auftrag_url: nutzlast.mein_auftrag_url ? "[Link zu Mein Auftrag]" : "", anhaenge: (extra.anhaenge ?? []).map((a) => a.name) },
       ausgeloestVon: extra.ausgeloestVon ?? "System (FIAON Global)", brevoMessageId: messageId,
     });
   } catch (e) { console.error(`[FIAON-GLOBAL] ${akte?.ref}: Mailprotokoll ${event}:`, e); }
@@ -714,9 +744,10 @@ async function nacharbeit(ref: string, ein: GlobalEingabe, paymentRef: string, a
         "Bitte kurz anrufen, den Eingang des Auftrags bestätigen und Fragen zur Überweisung klären. MIT DEM ZAHLUNGSEINGANG startet der Auftrag von selbst: Du bekommst dann die Aufgabe „US-Struktur starten“ mit der Unterlagenliste.",
         akte?.ust_hinweis ? `Rechnung: ${akte.ust_hinweis}` : null,
         betragWarnung,
-        `Übersicht aller Global-Aufträge: /chef/s/global-auftraege`,
+        `Der Auftrag im Office: ${globalOfficeAuftragPfad(ref)} · Übersicht der Leitung: /chef/s/global-auftraege`,
       ].filter(Boolean).join("\n"),
       schluessel: `global:${ref}:auftrag`, bereich: "konten", quelle: "global", autorName: "FIAON Global",
+      link: globalOfficeAuftragPfad(ref),
       agentId: einstellungen.zustaendigAgentId,
       anlageText: "Auftrag über /business/start eingegangen und unterschrieben.",
     });
@@ -765,6 +796,7 @@ export async function globalZahlungGemeldet(ref: string): Promise<void> {
     titel: `FIAON Global: neuer Auftrag — ${akte?.firma_name || b.company_name || ref}, ${String(b.pack_name || b.pack_key)}`,
     text: `Der Kunde hat am ${tagDe(new Date())} auf der Zahlungsseite gemeldet, dass er ${eur(Math.round(Number(b.amount_due || 0) * 100))} überwiesen hat (Verwendungszweck ${b.payment_reference ?? "—"}). Den Eingang prüft die Zahlungsstelle; sobald er gebucht ist, startet der Auftrag von selbst.`,
     schluessel: `global:${ref}:auftrag`, bereich: "konten", quelle: "global", autorName: "FIAON Global",
+    link: globalOfficeAuftragPfad(ref),
     agentId: akte?.zustaendig_agent_id ? Number(akte.zustaendig_agent_id) : (await globalEinstellungen()).zustaendigAgentId,
   });
   await verlauf(ref, "FIAON Global: Der Kunde hat auf der Zahlungsseite gemeldet, dass er überwiesen hat. Keine Privatkunden-Mail; die zuständige Person ist informiert.");
@@ -811,14 +843,15 @@ export async function globalNachZahlung(ref: string): Promise<{ gestartet: boole
         `Die Zahlung über ${eur(betragCents)} ist eingegangen — der Auftrag startet JETZT. Der Kunde bekommt die Startmail mit deinem Namen: Er erwartet, dass du dich meldest.`,
         ap.email || ap.telefon ? `Ansprechpartner: ${[ap.anrede, ap.vorname, ap.nachname].filter(Boolean).join(" ")}${ap.funktion ? `, ${ap.funktion}` : ""} · ${ap.email ?? "—"} · ${ap.telefon ?? "—"}` : null,
         "1. Startgespräch vereinbaren und führen.",
-        "2. Im Startgespräch den STICHTAG für Gesellschaft und EIN festlegen und unter /chef/s/global-auftraege eintragen (Knopf „Stichtag setzen“) — an ihm hängt die Geld-zurück-Zusage aus Ziffer 6 des Auftrags. Der Kunde bekommt ihn von dort in Textform.",
-        `3. Unterlagen einsammeln: ${GLOBAL_UNTERLAGEN.join("; ")}.`,
+        `2. Im Startgespräch den STICHTAG für Gesellschaft und EIN festlegen und im Auftrag eintragen (${globalOfficeAuftragPfad(ref)}, „Stichtag setzen“) — an ihm hängt die Geld-zurück-Zusage aus Ziffer 6 des Auftrags. Der Kunde bekommt ihn von dort in Textform.`,
+        `3. Unterlagen einsammeln: ${GLOBAL_UNTERLAGEN.join("; ")}. Der Kunde lädt sie in „Mein Auftrag“ hoch (Link in seiner Startmail); was dort liegt, siehst du im Auftrag.`,
         "4. Fremdkosten (Staatsgebühren, Registered Agent, Honorare von Steuerberater und Anwalt) VOR dem Start ausweisen — sie sind nicht im Paketpreis.",
         akte ? null : "ACHTUNG: Zu dieser Bestellung gibt es keinen unterschriebenen Auftrag (nicht über /business/start angelegt). Vor dem Start unterschreiben lassen.",
         akte?.ust_hinweis ? `Rechnung: ${akte.ust_hinweis}` : null,
         provisionSatz,
       ].filter(Boolean).join("\n"),
       dringend: true, schluessel: `global:${ref}:start`, bereich: "konten", quelle: "global", autorName: "FIAON Global",
+      link: globalOfficeAuftragPfad(ref),
       agentId: (akte?.zustaendig_agent_id ? Number(akte.zustaendig_agent_id) : null) ?? einstellungen.zustaendigAgentId,
       anlageText: "Zahlungseingang gebucht — Auftrag startet.",
     });
@@ -836,6 +869,10 @@ export async function globalNachZahlung(ref: string): Promise<{ gestartet: boole
        SET status = 'gestartet', gestartet_am = COALESCE(gestartet_am, NOW()),
            zustaendig_agent_id = COALESCE(${agentId}, zustaendig_agent_id), updated_at = NOW()
      WHERE ref = ${ref} AND status IN ('offen', 'bezahlt')`;
+  // „Mein Auftrag": Etappe 1 („Gründung und Dokumente") und die Zeile im Verlauf, die der Kunde liest.
+  // Wiederholbar (wirkt nur von Etappe 0 aus) und nie ein Grund, den Start aufzuhalten.
+  await import("./fiaon-global-bereich").then((m) => m.globalStartVermerken(ref))
+    .catch((e) => console.error(`[FIAON-GLOBAL] ${ref}: Etappe 1 / Verlauf nicht vermerkt:`, e));
   // Die Provisionsfrage ist entschieden (diese Funktion läuft danach) — jetzt darf auch die Kopie an der Bestellung mit.
   if (agentId) await betreuerSetzenWennFrei(ref, agentId, { mitBestellung: true }).catch((e) => console.error(`[FIAON-GLOBAL] ${ref}: Betreuer:`, e));
 
@@ -879,6 +916,14 @@ export async function globalAuftraegeListe(): Promise<{ zeilen: Record<string, u
      WHERE a.pack_key = ANY(${GLOBAL_SCHLUESSEL}) AND a.merged_into IS NULL
      ORDER BY a.created_at DESC
      LIMIT 300`) as any[];
+  // Etappe und Abschluss aus „Mein Auftrag" — eigene, fehlertolerante Abfrage: Klappt das Anlegen der
+  // Spalten einmal nicht (lock_timeout), bleibt die Liste der Leitung trotzdem vollständig lesbar.
+  const bereich = new Map<string, { etappe: number; abgeschlossenAm: string | null }>();
+  try {
+    await import("./fiaon-global-bereich").then((m) => m.ensureGlobalBereich());
+    const e = (await sqlPool`SELECT ref, etappe, abgeschlossen_am FROM fiaon_global_auftraege`) as any[];
+    for (const z of e) bereich.set(String(z.ref), { etappe: Number(z.etappe || 0), abgeschlossenAm: z.abgeschlossen_am ? new Date(z.abgeschlossen_am).toISOString() : null });
+  } catch (e) { console.error("[FIAON-GLOBAL] Liste: Etappen nicht gelesen:", e); }
   const zeilen = rows.map((r) => {
     const firma = json<Partial<GlobalFirma>>(r.firma, {});
     const ap = json<Partial<GlobalAnsprechpartner>>(r.ansprechpartner, {});
@@ -912,6 +957,12 @@ export async function globalAuftraegeListe(): Promise<{ zeilen: Record<string, u
       vertragUrl: r.hat_vertrag ? `/api/fiaon/admin/global/auftraege/${encodeURIComponent(String(r.ref))}/vertrag.pdf` : null,
       rechnungUrl: r.payment_reference ? `/api/fiaon/admin/global/auftraege/${encodeURIComponent(String(r.ref))}/rechnung.pdf` : null,
       zahlungsseite: r.payment_reference ? `/zahlung/${r.payment_reference}` : null,
+      // „Mein Auftrag" (E-188): Etappe 0–5, Abschluss, der Auftrag im Office und der Link, den der Kunde
+      // öffnet — mit frischem Token, nur für Aufträge mit Akte.
+      etappe: bereich.get(String(r.ref))?.etappe ?? 0,
+      abgeschlossenAm: bereich.get(String(r.ref))?.abgeschlossenAm ?? null,
+      officeLink: r.akte_id ? globalOfficeAuftragPfad(String(r.ref)) : null,
+      kundenLink: r.akte_id ? globalMeinAuftragUrl(String(r.ref), String(r.vertrag_sprache) === "en" ? "en" : "de") : null,
     };
   });
   return { zeilen, mitarbeiter: await globalMitarbeiter(), einstellungen: await globalEinstellungen() };
@@ -966,6 +1017,7 @@ export async function globalZustaendigAendern(ref: string, agentIdRoh: unknown, 
     titel: `FIAON Global: ${bezahlt ? "US-Struktur starten" : "neuer Auftrag"} — ${akte.firma_name || ref}, ${katalogPaket(akte.paket_key)?.label ?? akte.paket_key}`,
     text: `${wer} hat die Zuständigkeit an ${ziel.name} übergeben.`,
     schluessel: `global:${ref}:${bezahlt ? "start" : "auftrag"}`, bereich: "konten", quelle: "global", autorName: wer, agentId,
+    link: globalOfficeAuftragPfad(ref),
   }).catch((e) => console.error(`[FIAON-GLOBAL] ${ref}: Aufgabe nicht übergeben:`, e));
   await verlauf(ref, `FIAON Global: Zuständigkeit an ${ziel.name} übergeben (${wer}).`);
   return { ok: true, meldung: `${ziel.name} ist jetzt zuständig und hat die Aufgabe.` };
@@ -979,3 +1031,8 @@ export async function globalAuftragsMailNachholen(ref: string): Promise<{ ok: bo
   const mail = await auftragsMailSenden(ref);
   return mail.ok ? { ok: true, meldung: "Vertrag und Rechnung sind jetzt beim Kunden." } : { ok: false, error: `Die Mail ging wieder nicht raus: ${mail.grund}` };
 }
+
+// ── Für die Nachbarn dieses Bestellwegs („Mein Auftrag", fiaon-global-bereich.ts) ──
+// Derselbe Leser und dieselbe Statusregel wie oben — unter einem Namen, der
+// außerhalb dieser Datei sagt, wozu er gehört.
+export { bestellungLesen as globalBestellungLesen, statusAus as globalStatusAus };

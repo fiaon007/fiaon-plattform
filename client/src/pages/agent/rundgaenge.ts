@@ -749,7 +749,7 @@ export const RUNDGANG_FIRMEN: RundgangSchritt[] = [
     titel: "Was du NIE versprichst.",
     text: "Keine Karte, kein Konto, keinen Rahmen oder Dollarbetrag, keinen Zinssatz, keine Frist, "
       + "keine Steuerersparnis, kein Darlehen — und du nennst keine Bank als Zusage. Über Konto, Karte "
-      + "und Rahmen entscheidet allein das Institut; die Dollar-Zahl am Paket ist die Planungsgröße des "
+      + "und Rahmen entscheidet allein das Institut; die Dollar-Zahl am Paket ist der Kapitalrahmen des "
       + "Kunden, kein Ergebnis. Steuer- und Rechtsfragen beantworten Steuerberater und Anwälte auf "
       + "eigenes Mandat — nicht du. Unsere Karte ist die Seriosität: Wir sagen zu, was wir selbst liefern.",
     tipp: "Der Leitfaden über der Liste hat für jeden Einwand eine Antwort — einmal am Tag durchlesen, bis er sitzt.",

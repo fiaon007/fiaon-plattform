@@ -12,8 +12,16 @@
 // Hell wie ein Kanzlei- oder Bankauftritt (Stil: styles/global.css, .fg-):
 //   Hero mit Mandatsübersicht → Ohne/Mit → Aus einer Hand → Der Weg (I–IV)
 //   → Für wen → Pakete (Festpreis, alles inklusive) → Vergleichstabelle
-//   → Unterlagen → Klare Verhältnisse (Rollen, Vertragspartner) → Menschen
-//   → Gespräch → Fragen → Schlussband.
+//   → Unterlagen → Klare Verhältnisse (Rollen, Vertragspartner) → Gespräch
+//   → Fragen → Schlussband. Das Team steht seit 18.09.2026 abends nicht mehr
+//   hier (Justin: „Das Team bitte weg"); die Seite /team bleibt.
+//
+// ── KAPITALRAHMEN UND GLANZ (18.09.2026 abends, Justin) ────────────────────
+// „Statt Planungsgröße sowas wie Kapitalgröße — und präsenter machen, darum
+// geht's ja." Der Kapitalrahmen steht im Kopf der Seite (Spanne über alle
+// Pakete) und auf jeder Tafel groß über dem Preis; der Satz „über den Rahmen
+// entscheidet das Institut" steht direkt darunter (Blickfang-Regel).
+// Überschriften, Kapitalrahmen und Preise tragen einen langsamen Glanz.
 // Zwei dunkle Flächen, sonst Papier: der Kopf der Mandatsübersicht und das
 // Schlussband. Zwei Handlungen auf der ganzen Seite: direkt beauftragen
 // (/business/start) oder ein Gespräch vereinbaren (#gespraech).
@@ -24,13 +32,12 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useState } from "react";
 import { Dunkel, Auf, Fragen } from "@/components/site/DunkleBuehne";
-import { Team } from "@/components/site/Team";
 import GlobalGespraech from "@/components/site/GlobalGespraech";
-import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
+import { useWoerter, useSprache } from "@/i18n/sprache";
 import { GLOBAL_WOERTER } from "@/i18n/global";
 import {
   GLOBAL_PAKETE, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_GELD_ZURUECK, GLOBAL_INKLUSIVE, GLOBAL_LAUFEND,
-  GLOBAL_VERGLEICH, globalPreisText, globalPlanungText,
+  GLOBAL_VERGLEICH, globalPreisText, globalPlanungText, globalKapital, globalKapitalSpanne,
 } from "@shared/fiaon-global";
 import { globalStartPfad } from "@shared/fiaon-global-wege";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
@@ -57,7 +64,6 @@ export default function Business() {
   const t = useWoerter(GLOBAL_WOERTER);
   const sprache = useSprache();
   const s = sprache === "en" ? "en" : "de";
-  const zu = (p: string) => inSprache(p, sprache);
   const start = (paket: string) => globalStartPfad(paket, s);
 
   // Der Paketwunsch reist von der Tafel („Erst sprechen") in den Kalender.
@@ -87,6 +93,11 @@ export default function Business() {
               <span className="fg-auge">{t.auge}</span>
               <h1 className="fg-h1">{t.h1a}<br /><em>{t.h1b}</em></h1>
               <p className="fg-lead">{t.lead}</p>
+              <div className="fg-kopf-kapital">
+                <span>{t.kapitalKopf}</span>
+                <b className="fg-glanz">{globalKapitalSpanne(s)}</b>
+                <em>{t.kapitalKopfZusatz}</em>
+              </div>
               <div className="fg-knoepfe">
                 <button type="button" className="fg-knopf" onClick={zuDenPaketen}>{t.knopfPakete}<Pfeil /></button>
                 <button type="button" className="fg-knopf hell" onClick={() => zumGespraech()}>{t.knopfGespraech}</button>
@@ -195,19 +206,25 @@ export default function Business() {
             <div className="fg-pakete">
               {GLOBAL_PAKETE.map((p, i) => {
                 const w = p[s];
+                const kapital = globalKapital(p.key, s);
                 return (
                   <Auf key={p.key} verzoegerung={i * 70}>
                     <article className={`fg-paket${p.key === FOKUS ? " fokus" : ""}`} style={{ height: "100%" }}>
                       <span className="marke">{w.marke}</span>
                       <h3>{w.name}</h3>
                       <p className="fuer">{w.fuer}</p>
+                      <div className="fg-kapital">
+                        {/* „bis zu" gehört in die Überzeile — so bleibt die Zahl allein und jede Tafel gleich hoch */}
+                        <span>{kapital.bisZu ? `${t.planung} ${kapital.bisZu}` : t.planung}</span>
+                        <b className="fg-glanz">{kapital.wert}</b>
+                        <em>{t.planungZusatz}</em>
+                      </div>
                       <div className="fg-preis">
-                        <b>{globalPreisText(p.key, s)}</b>
+                        <b className="fg-glanz">{globalPreisText(p.key, s)}</b>
                         <span>{t.festpreis}</span>
                         <span className="fg-chip"><Haken groesse={13} />{t.inklusive}</span>
                       </div>
                       <div className="fg-masse">
-                        <div><span>{t.planung}</span><b>{globalPlanungText(p.key, s)}</b><em>{t.planungZusatz}</em></div>
                         <div><span>{t.begleitung}</span><b>{w.dauerKurz}</b></div>
                       </div>
                       <ul>{w.leistungen.map((x, j) => <li key={x} className={j === 0 && i > 0 ? "erbe" : undefined}><Haken />{x}</li>)}</ul>
@@ -353,22 +370,8 @@ export default function Business() {
           </div>
         </section>
 
-        {/* ── Die Menschen ───────────────────────────────────────────────────── */}
-        <section className="fg-sek stein">
-          <div className="fg-rahmen">
-            <Auf>
-              <div className="fg-kopf">
-                <div><span className="fg-auge">{t.teamAuge}</span><h2 className="fg-h2">{t.teamH2}</h2></div>
-                <p className="fg-lead">{t.teamLead}</p>
-              </div>
-            </Auf>
-            <Team kompakt />
-            <div className="fg-knoepfe"><a className="fg-knopf hell" href={zu("/team")}>{t.teamKnopf}</a></div>
-          </div>
-        </section>
-
         {/* ── Gespräch ───────────────────────────────────────────────────────── */}
-        <section id="gespraech" className="fg-sek" style={{ scrollMarginTop: 72 }}>
+        <section id="gespraech" className="fg-sek stein" style={{ scrollMarginTop: 72 }}>
           <div className="fg-rahmen">
             <Auf>
               <div className="fg-kopf">
@@ -381,7 +384,7 @@ export default function Business() {
         </section>
 
         {/* ── Fragen ─────────────────────────────────────────────────────────── */}
-        <section className="fg-sek stein">
+        <section className="fg-sek">
           <div className="fg-rahmen schmal">
             <Auf>
               <span className="fg-auge">{t.fragenAuge}</span>

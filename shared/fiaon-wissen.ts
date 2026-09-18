@@ -58,7 +58,7 @@ function eingestellteZeilen(): string {
 export function globalWissen(): string {
   const tafeln = GLOBAL_PAKETE.map((g) => {
     const k = globalKatalog(g.key);
-    return `- ${k?.label ?? g.de.name}: ${globalPreisText(g.key)} EINMALIG (kein Abo, keine Monatsrate). ${g.de.fuer} ${g.de.dauer}. Planungsgröße des Kunden: ${globalPlanungText(g.key)}. Enthalten: ${g.de.leistungen.join("; ")}.`;
+    return `- ${k?.label ?? g.de.name}: ${globalPreisText(g.key)} EINMALIG (kein Abo, keine Monatsrate). ${g.de.fuer} ${g.de.dauer}. Kapitalrahmen (Ziel des Kunden): ${globalPlanungText(g.key)}. Enthalten: ${g.de.leistungen.join("; ")}.`;
   }).join("\n");
   const geldZurueck = GLOBAL_GELD_ZURUECK.aktiv
     ? `\n${GLOBAL_GELD_ZURUECK.de.titel}: ${GLOBAL_GELD_ZURUECK.de.text} ${GLOBAL_GELD_ZURUECK.de.bedingungen}`
@@ -67,7 +67,7 @@ export function globalWissen(): string {
 Was es ist: FIAON gründet für Unternehmen aus Deutschland, Österreich und der Schweiz eine US-Gesellschaft, bereitet die Steuernummern (EIN, ITIN) vor und reicht sie ein, stellt US-Geschäftsadresse, US-Telefonnummer, Registered Agent und Dokumentenraum und bereitet Konto- und Kartenanträge vollständig vor — mit einem Team vor Ort in den USA und einem festen Ansprechpartner. Für jede Unternehmensart, vom Handwerksbetrieb bis zur Projektentwicklung.
 Vier Pakete, jedes ein EINMALPREIS. Es gibt keine Monatsraten, keine Lastschrift und keine Mindestlaufzeit; bezahlt wird einmal per Überweisung auf Rechnung:
 ${tafeln}
-Die Planungsgröße in US-Dollar ist der Rahmen, den der KUNDE anstrebt — an ihr richten sich Dauer und Tiefe der Betreuung aus. Sie ist kein Ergebnis und keine Zusage von FIAON. Dauern sind Erfahrungswerte („in der Regel"), nie Fristen.
+Der Kapitalrahmen in US-Dollar (bis 18.09.2026 „Planungsgröße“) ist der Rahmen, den der KUNDE anstrebt — an ihm richten sich Dauer und Tiefe der Betreuung aus. Er ist kein Ergebnis und keine Zusage von FIAON, auch beim VIP-Paket („bis zu 1.000.000 $“) nicht; über jeden Rahmen entscheidet das Institut. Dauern sind Erfahrungswerte („in der Regel"), nie Fristen.
 Wer entscheidet: Über Konto, Karte und Rahmen entscheidet allein das jeweilige US-Institut. ${GLOBAL_ROLLEN.de.fiaon} FIAON vermittelt keine Kredite. Nenne keine Banknamen als Zusage, keine Zinssätze, kein „bis zu" und keine Frist mit Zahl.
 Steuer und Recht: ${GLOBAL_ROLLEN.de.partner} ${GLOBAL_ROLLEN.de.kosten} Steuerliche oder rechtliche Einzelfragen beantwortet FIAON nicht — dafür sind die Steuerberater und Anwälte mit eigenem Mandat da.
 Pflichthinweise (immer nennen, wenn es um Steuern, Meldungen oder Haftung geht):

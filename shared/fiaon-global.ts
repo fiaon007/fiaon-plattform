@@ -20,6 +20,11 @@
 //     ist deshalb die PLANUNGSGRÖSSE des Kunden, nie ein Ergebnis von FIAON,
 //     und der Satz dazu steht in derselben Tafel (Blickfang-Regel, BGH
 //     I ZR 129/13). Kein „bis zu", keine Banknamen, kein Zinssatz als Zahl.
+//     AUSNAHME (Justin, 18.09.2026, E-190): Auf der Seite heißt die Zahl
+//     „Kapitalrahmen" und steht groß — „darum geht's ja"; beim VIP-Paket
+//     „bis zu 1 Mio. US-Dollar". Das „bis zu" gibt es NUR in dieser einen Zahl
+//     (planungBisZu, globalPlanungText); der Satz „über den Rahmen entscheidet
+//     das Institut" steht weiter direkt darunter. Überall sonst gilt die Regel.
 //   · Steuerliche und rechtliche Fragen beantworten Steuerberater und
 //     Anwälte auf eigenes Mandat (§ 5, § 9 StBerG) — FIAON koordiniert.
 //   · Dauer nur als Erfahrungswert („in der Regel"), nie als Frist.
@@ -51,11 +56,14 @@ export interface GlobalPaketText {
 export interface GlobalPaket {
   key: GlobalSchluessel;
   /**
-   * Die Planungsgröße in US-Dollar: der Rahmen, den der KUNDE anstrebt und an
-   * dem sich Dauer und Tiefe der Betreuung ausrichten. Kein Ergebnis, keine
-   * Zusage — über jeden Rahmen entscheidet das Institut.
+   * Der Kapitalrahmen in US-Dollar (bis 18.09.2026 „Planungsgröße"): der Rahmen,
+   * den der KUNDE anstrebt und an dem sich Dauer und Tiefe der Betreuung
+   * ausrichten. Kein Ergebnis, keine Zusage — über jeden Rahmen entscheidet das
+   * Institut.
    */
   planungUsd: number;
+  /** Die Zahl ist eine Obergrenze: „bis zu …" (nur Global VIP, Justin 18.09.2026). */
+  planungBisZu?: boolean;
   /** Vor-Ort-Paket mit Reise (VIP). */
   vorOrt: boolean;
   de: GlobalPaketText;
@@ -174,7 +182,9 @@ export const GLOBAL_PAKETE: GlobalPaket[] = [
   },
   {
     key: "global_vip",
-    planungUsd: 250_000,
+    // Justin, 18.09.2026: „Beim VIP-Paket bis zu 1 Mio. US-Dollar Kapital."
+    planungUsd: 1_000_000,
+    planungBisZu: true,
     vorOrt: true,
     de: {
       name: "Global VIP",
@@ -227,10 +237,28 @@ export function globalPreisText(key: unknown, sprache: "de" | "en" = "de"): stri
   return sprache === "en" ? "€" + euro.toLocaleString("en-GB") : euro.toLocaleString("de-DE") + " €";
 }
 
-/** „50.000 $" bzw. „$50,000". */
+/**
+ * Der Kapitalrahmen in zwei Teilen — „bis zu" klein, die Zahl groß (Paketkarte).
+ * `bisZu` ist null, wo die Zahl keine Obergrenze ist.
+ */
+export function globalKapital(key: unknown, sprache: "de" | "en" = "de"): { bisZu: string | null; wert: string } {
+  const g = globalPaket(key);
+  const usd = g?.planungUsd ?? 0;
+  const wert = sprache === "en" ? "$" + usd.toLocaleString("en-GB") : usd.toLocaleString("de-DE") + " $";
+  return { bisZu: g?.planungBisZu ? (sprache === "en" ? "up to" : "bis zu") : null, wert };
+}
+
+/** „50.000 $" bzw. „$50,000" — beim VIP-Paket „bis zu 1.000.000 $" bzw. „up to $1,000,000". */
 export function globalPlanungText(key: unknown, sprache: "de" | "en" = "de"): string {
-  const usd = globalPaket(key)?.planungUsd ?? 0;
-  return sprache === "en" ? "$" + usd.toLocaleString("en-GB") : usd.toLocaleString("de-DE") + " $";
+  const k = globalKapital(key, sprache);
+  return k.bisZu ? `${k.bisZu} ${k.wert}` : k.wert;
+}
+
+/** Die Spanne über alle Pakete — „50.000 $ – 1.000.000 $" (Kopf der Seite). */
+export function globalKapitalSpanne(sprache: "de" | "en" = "de"): string {
+  const werte = GLOBAL_PAKETE.map((p) => p.planungUsd);
+  const zahl = (usd: number) => (sprache === "en" ? "$" + usd.toLocaleString("en-GB") : usd.toLocaleString("de-DE") + " $");
+  return `${zahl(Math.min(...werte))} – ${zahl(Math.max(...werte))}`;
 }
 
 // ── DIE SÄTZE, DIE NIE FEHLEN DÜRFEN ───────────────────────────────────────
@@ -439,4 +467,4 @@ export const GLOBAL_GELD_ZURUECK = {
 } as const;
 
 /** Version des Vertragstexts — steht im PDF und in der Auftragsakte. */
-export const GLOBAL_VERTRAG_VERSION = "2026-09-18b";
+export const GLOBAL_VERTRAG_VERSION = "2026-09-18c";

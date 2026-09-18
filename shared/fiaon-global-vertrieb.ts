@@ -60,7 +60,7 @@ export function globalLeitfaden(): LeitfadenBlock[] {
     ]},
     { t: "Was FIAON Global konkret tut (ehrlich, ohne Übertreibung)", s: [
       k("„Wir gründen die Gesellschaft mit unserem Team vor Ort, bereiten EIN und ITIN vor und reichen sie ein, stellen US-Geschäftsadresse, US-Telefonnummer, Registered Agent und Dokumentenraum — und bereiten jeden Konto- und Kartenantrag vollständig vor.“"),
-      intern("NIE zusagen oder andeuten: eine Karte, ein Konto, einen Rahmen oder Dollarbetrag, einen Zinssatz, eine Frist, eine Steuerersparnis, ein Darlehen. KEINE Banknamen. Die Dollar-Zahl am Paket ist die Planungsgröße des Kunden — kein Ergebnis. Über Konto, Karte und Rahmen entscheidet allein das Institut."),
+      intern("NIE zusagen oder andeuten: eine Karte, ein Konto, einen Rahmen oder Dollarbetrag, einen Zinssatz, eine Frist, eine Steuerersparnis, ein Darlehen. KEINE Banknamen. Die Dollar-Zahl am Paket ist der Kapitalrahmen, den der Kunde anstrebt — kein Ergebnis, auch beim VIP-Paket („bis zu 1.000.000 $“) nicht. Über Konto, Karte und Rahmen entscheidet allein das Institut."),
       intern("Steuer und Recht beantwortest du NICHT — auch nicht „nur kurz“. Dein Satz dafür steht bei den Einwänden."),
       intern("Diese drei Sätze sagst du IMMER, bevor jemand beauftragt:"),
       ...GLOBAL_PFLICHTHINWEIS.de.map((h) => k(`„${h}“`)),

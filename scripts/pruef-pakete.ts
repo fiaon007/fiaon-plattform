@@ -31,7 +31,7 @@ import {
 } from "../shared/fiaon-pakete";
 import {
   GLOBAL_PAKETE, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_GELD_ZURUECK,
-  globalPaket, globalKatalog, globalPreisText, globalPlanungText,
+  globalPaket, globalKatalog, globalPreisText, globalPlanungText, globalKapitalSpanne,
 } from "../shared/fiaon-global";
 import { globalStartPfad, globalStartUrl, globalPaketePfad, globalGespraechPfad, globalSeitePfad } from "../shared/fiaon-global-wege";
 import { globalLeitfaden, globalInfoMail, globalVorbereitungSystem, globalPreisZeile } from "../shared/fiaon-global-vertrieb";
@@ -130,6 +130,10 @@ for (const g of GLOBAL_PAKETE) {
 gleich("globalPreisText: 2.499 € / €2,499", [globalPreisText("global_struktur"), globalPreisText("global_struktur", "en")], ["2.499 €", "€2,499"]);
 gleich("globalPreisText: 35.999 €", globalPreisText("global_vip"), "35.999 €");
 gleich("globalPlanungText: 50.000 $ / $50,000", [globalPlanungText("global_struktur"), globalPlanungText("global_struktur", "en")], ["50.000 $", "$50,000"]);
+// Justin, 18.09.2026 (E-190): „Beim VIP-Paket bis zu 1 Mio. US-Dollar Kapital" — das „bis zu" nur an dieser einen Zahl.
+gleich("globalPlanungText VIP: bis zu 1.000.000 $ / up to $1,000,000", [globalPlanungText("global_vip"), globalPlanungText("global_vip", "en")], ["bis zu 1.000.000 $", "up to $1,000,000"]);
+gleich("globalKapitalSpanne: 50.000 $ – 1.000.000 $", [globalKapitalSpanne(), globalKapitalSpanne("en")], ["50.000 $ – 1.000.000 $", "$50,000 – $1,000,000"]);
+ok("„bis zu“ trägt nur Global VIP", GLOBAL_PAKETE.filter((g) => g.planungBisZu).map((g) => g.key).join() === "global_vip");
 
 // ═══════════════════════════════════════════════════════════════════════════
 titel("3. DIE WORTWAND — alle deutschen Kundensätze");

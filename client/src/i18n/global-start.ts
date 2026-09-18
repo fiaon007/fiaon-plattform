@@ -17,7 +17,7 @@ const de = {
   weiter: "Weiter",
   zurueck: "Zurück",
   einmalig: "einmalig",
-  planung: "Planungsgröße",
+  planung: "Kapitalrahmen",
   planungZusatz: "Ihr Ziel — über den Rahmen entscheidet das Institut",
 
   // Schritt 1
@@ -134,7 +134,7 @@ const en: typeof de = {
   weiter: "Continue",
   zurueck: "Back",
   einmalig: "one-off",
-  planung: "Planning figure",
+  planung: "Capital range",
   planungZusatz: "Your target — the institution decides on the limit",
 
   paketTitel: "Which package fits your plans?",

@@ -35,7 +35,7 @@ import { FIAON_ENTITY } from "../fiaon-invoice";
 import { paketPreisCents } from "@shared/fiaon-pakete";
 import {
   GLOBAL_PAKETE, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_GELD_ZURUECK, GLOBAL_VERTRAG_VERSION, GLOBAL_INKLUSIVE, GLOBAL_LAUFEND_VERTRAG, GLOBAL_VIP_REISE, inVertragssprache,
-  globalPaket, globalPlanungText, type GlobalSchluessel,
+  globalPaket, globalKapital, type GlobalSchluessel,
 } from "@shared/fiaon-global";
 
 export type VertragSprache = "de" | "en";
@@ -189,7 +189,8 @@ function vertragsRumpf(d: GlobalVertragDaten): string {
   const t = p[d.sprache];
   const titel = GLOBAL_VERTRAG_ZIFFERN[d.sprache];
   const preis = globalVertragPreis(d.paket, d.sprache);
-  const planung = globalPlanungText(d.paket, d.sprache);
+  // 18.09.2026: Die Seite nennt die Zahl „Kapitalrahmen"; beim VIP-Paket ist sie eine Obergrenze.
+  const kapital = globalKapital(d.paket, d.sprache);
   const rollen = GLOBAL_ROLLEN[d.sprache];
   // Der Vertrag spricht über die Parteien, nicht zu ihnen — dieselben Leistungen in Vertragssprache.
   const leistungen = globalLeistungenVollstaendig(d.paket, d.sprache).map((z) => inVertragssprache(z, d.sprache));
@@ -207,8 +208,8 @@ function vertragsRumpf(d: GlobalVertragDaten): string {
       + liste(leistungen)
       + `<p>${e(rollen.fiaon)}</p>`
       + (en
-        ? `<p class="gv-kasten">The Client is aiming for a limit of around ${e(planung)}; the duration and depth of the support are based on this. The institution concerned alone decides on the account, the card, the limit and any loan; no particular result is owed.</p>`
-        : `<p class="gv-kasten">Der Auftraggeber strebt einen Rahmen von rund ${e(planung)} an; danach richten sich Dauer und Tiefe der Begleitung. Über Konto, Karte, Rahmen und Darlehen entscheidet allein das jeweilige Institut; ein bestimmtes Ergebnis ist nicht geschuldet.</p>`),
+        ? `<p class="gv-kasten">The Client is aiming for a capital range of ${kapital.bisZu ? "up to" : "around"} ${e(kapital.wert)}; the duration and depth of the support are based on this. The institution concerned alone decides on the account, the card, the limit and any loan; no particular result is owed.</p>`
+        : `<p class="gv-kasten">Der Auftraggeber strebt einen Kapitalrahmen von ${kapital.bisZu ? "bis zu" : "rund"} ${e(kapital.wert)} an; danach richten sich Dauer und Tiefe der Begleitung. Über Konto, Karte, Rahmen und Darlehen entscheidet allein das jeweilige Institut; ein bestimmtes Ergebnis ist nicht geschuldet.</p>`),
 
     // 3 — Was nicht Teil des Auftrags ist
     (en

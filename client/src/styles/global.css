@@ -14,8 +14,10 @@
      (Kopf der Mandatsübersicht, Schlussband), Zahlen tabellarisch, Festpreis
      groß und ruhig.
    · Beratung: Vergleich „ohne / mit", Leistungstabelle, klare Rollen.
-   Keine Glaseffekte, keine Nebel, keine schwebenden Karten. Bewegung nur als
-   einmaliges Einblenden (dk-auf) und 1–2 px Hover.
+   Keine Glaseffekte, keine Nebel, keine schwebenden Karten. Bewegung: einmaliges
+   Einblenden (dk-auf), 1–2 px Hover — und seit 18.09.2026 abends ein langsamer
+   Glanz über Überschriften, Kapitalrahmen und Preisen (Justin: „Farbanimationen
+   in den Überschriften, eine Art Glanz — die Paketpreise ebenfalls").
 
    Präfix .fg- (FIAON Global, öffentlich). NICHT .gl- — das gehört dem Office
    (office-global.css); beide Stilblätter können in einer Sitzung geladen sein.
@@ -58,6 +60,27 @@
 @media(max-width:900px){.fg-kopf{grid-template-columns:1fr;gap:18px}}
 .fg-leise{font-size:12.5px;color:var(--leise);line-height:1.6}
 
+/* ── Glanz (18.09.2026 abends) ──────────────────────────────────────────────
+   Ein Lichtstreif zieht in gut drei Sekunden über die Schrift und ruht dann
+   sechs Sekunden. Die Schrift behält ihre Farbe als Grund (--glanz-grund);
+   ohne background-clip:text und bei reduzierter Bewegung steht sie still. */
+@supports ((-webkit-background-clip:text) or (background-clip:text)){
+  .fg-h1,.fg-h2,.fg-glanz{
+    --glanz-grund:var(--tinte);--glanz-mitte:#2c5cc5;--glanz-licht:#7ea2e8;
+    background-image:linear-gradient(105deg,var(--glanz-grund) 0%,var(--glanz-grund) 42%,var(--glanz-mitte) 47%,var(--glanz-licht) 50%,var(--glanz-mitte) 53%,var(--glanz-grund) 58%,var(--glanz-grund) 100%);
+    background-size:300% 100%;background-position:100% 0;background-repeat:no-repeat;
+    -webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent;
+    animation:fg-glanz 9.5s cubic-bezier(.45,.05,.35,1) infinite;
+  }
+  .fg-schluss .fg-h2{--glanz-grund:#ffffff;--glanz-mitte:#d5e1f7;--glanz-licht:#9fbcf0}
+  .fg-schluss .fg-h2 em{-webkit-text-fill-color:#c9d6ee}
+  /* Die vier Tafeln glänzen nacheinander, nicht im Gleichschritt */
+  .fg-pakete>:nth-child(2) .fg-glanz{animation-delay:.35s}
+  .fg-pakete>:nth-child(3) .fg-glanz{animation-delay:.7s}
+  .fg-pakete>:nth-child(4) .fg-glanz{animation-delay:1.05s}
+}
+@keyframes fg-glanz{0%{background-position:100% 0}36%,100%{background-position:0 0}}
+
 /* ── Knöpfe: rechteckig wie in einer Bank, keine Pillen ─────────────────── */
 .fg-knopf{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:52px;padding:0 26px;border-radius:8px;
   background:var(--navy);color:#fff;border:1px solid var(--navy);font:400 14.5px/1 var(--sans);letter-spacing:.01em;text-decoration:none;cursor:pointer;
@@ -82,6 +105,12 @@
 @media(max-width:1020px){.fg-hero-raster{grid-template-columns:1fr;gap:48px}}
 .fg-vertrauen{display:flex;flex-wrap:wrap;gap:12px 26px;margin-top:40px;padding-top:24px;border-top:1px solid var(--linie);list-style:none;padding-left:0}
 .fg-vertrauen li{display:flex;align-items:center;gap:9px;font-size:13.5px;color:var(--text)}
+/* Der Kapitalrahmen im Kopf — „präsenter machen, darum geht's ja" (Justin, 18.09.2026) */
+.fg-kopf-kapital{display:grid;gap:6px;margin-top:30px;padding:18px 0 16px;border-top:1px solid var(--linie);border-bottom:1px solid var(--linie)}
+.fg-kopf-kapital span{font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--navy)}
+.fg-kopf-kapital b{font-family:var(--serif);font-weight:500;font-size:clamp(32px,3.6vw,46px);line-height:1.06;letter-spacing:-.02em;color:var(--tinte);font-variant-numeric:lining-nums tabular-nums}
+.fg-kopf-kapital em{font-style:normal;font-size:12.5px;line-height:1.55;color:var(--leise)}
+.fg-kopf-kapital+.fg-knoepfe{margin-top:28px}
 
 /* Die Mandatsübersicht — eine Aufstellung wie aus einer Kanzlei */
 .fg-mandat{background:#fff;border:1px solid var(--linie);border-radius:14px;overflow:hidden;box-shadow:0 1px 2px rgba(12,26,46,.04),0 30px 70px rgba(18,40,74,.12)}
@@ -156,8 +185,13 @@
 .fg-paket h3{font-family:var(--serif);font-weight:400;font-size:27px;line-height:1.1;color:var(--tinte);margin-top:14px;letter-spacing:-.01em}
 .fg-paket .fuer{font-size:13.5px;line-height:1.62;font-weight:300;color:var(--text);margin-top:10px;min-height:6.5em}
 @media(max-width:640px){.fg-paket .fuer{min-height:0}}
-.fg-preis{margin-top:22px;padding-top:20px;border-top:1px solid var(--linie)}
-.fg-preis b{display:block;font-family:var(--serif);font-weight:300;font-size:46px;line-height:1;letter-spacing:-.02em;color:var(--tinte);font-variant-numeric:lining-nums tabular-nums}
+/* Der Kapitalrahmen: groß über dem Preis, der Satz zum Institut in derselben Tafel */
+.fg-kapital{margin-top:22px;padding:16px 16px 14px;border-radius:10px;background:linear-gradient(160deg,#f5f8fd 0%,#e9f0fb 100%);border:1px solid #d8e2f3}
+.fg-kapital span{display:block;font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--navy)}
+.fg-kapital b{display:block;margin-top:8px;font-family:var(--serif);font-weight:500;font-size:clamp(28px,2.4vw,34px);line-height:1.05;letter-spacing:-.015em;color:var(--tinte);font-variant-numeric:lining-nums tabular-nums;white-space:nowrap}
+.fg-kapital em{display:block;margin-top:8px;font-style:normal;font-size:11.5px;line-height:1.5;color:var(--leise)}
+.fg-preis{margin-top:20px;padding-top:18px;border-top:1px solid var(--linie)}
+.fg-preis b{display:block;font-family:var(--serif);font-weight:400;font-size:46px;line-height:1;letter-spacing:-.02em;color:var(--tinte);font-variant-numeric:lining-nums tabular-nums}
 .fg-preis span{display:block;margin-top:8px;font-size:12px;color:var(--leise);letter-spacing:.02em}
 .fg-preis .fg-chip,.fg-chip{display:inline-flex;align-items:center;gap:6px;margin-top:14px;padding:6px 10px;border-radius:4px;background:var(--blau-hell);color:var(--navy);font-size:11.5px;font-weight:500;letter-spacing:.01em}
 .fg-masse{margin-top:18px;display:grid;gap:10px;padding:14px 0;border-top:1px solid var(--linie);border-bottom:1px solid var(--linie)}
@@ -215,8 +249,6 @@
 .fg-wisch{display:none;margin-top:28px;font-size:12.5px;color:var(--leise)}
 @media(max-width:900px){.fg-wisch{display:block}.fg-wisch+.fg-tabelle{margin-top:12px}}
 @media(max-width:640px){.fg-tabelle table{min-width:680px;font-size:13px}.fg-tabelle th,.fg-tabelle td{padding:12px 12px}.fg-tabelle th:first-child,.fg-tabelle td:first-child{min-width:150px;max-width:170px;box-shadow:1px 0 0 var(--linie)}.fg-tabelle thead th b{font-size:17px}}
-/* Porträts aus Team.tsx tragen den dunklen Schatten der Nachtseiten — auf Papier leiser */
-.fg .tm-portrait{box-shadow:0 10px 26px rgba(12,26,46,.14)!important;border-color:var(--linie)!important}
 
 /* ── Unterlagen ─────────────────────────────────────────────────────────── */
 .fg-unterlagen{list-style:none;padding:0;margin-top:44px;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:16px;counter-reset:u}
@@ -242,7 +274,7 @@
 @media(max-width:900px){.fg-ablauf ol{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:480px){.fg-ablauf ol{grid-template-columns:1fr}}
 
-/* ── Fremde Bausteine auf hellem Grund: Team (dk-glas) und Fragen (dk-frage) ── */
+/* ── Fremde Bausteine auf hellem Grund: Karten (dk-glas) und Fragen (dk-frage) ── */
 .fg .dk-raster{margin-top:44px}
 .fg .dk-glas{background:#fff;border:1px solid var(--linie);box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none;border-radius:14px}
 .fg .dk-glas:hover{transform:none;border-color:var(--linie-2)}
@@ -304,6 +336,7 @@
 .fg-schluss .fg-knopf.hell:hover{background:rgba(255,255,255,.08)}
 
 @media(prefers-reduced-motion:reduce){
+  .fg-h1,.fg-h2,.fg-glanz{animation:none}
   .fg-knopf,.fg-paket{transition:none}
   .fg-knopf:hover,.fg-paket:hover{transform:none}
 }

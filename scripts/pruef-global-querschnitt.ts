@@ -15,12 +15,14 @@
 //                                      Englischen, Wortwand + schärfere Global-Regeln,
 //                                      englische Verbote, kein Drohwort, keine Bankdaten,
 //                                      der Link zu „Mein Auftrag" trägt ein gültiges Token.
-//   D  Das Gerüst                     Jede deutsche Mail des Hauses ist nach dem Umbau
+//   D  Das Gerüst, PDF-Fuß, Rechnung  Jede deutsche Mail des Hauses ist nach dem Umbau
 //                                      Byte für Byte dieselbe wie davor (SHA-256 gegen die
-//                                      Fassung aus `git archive <BASIS>`).
+//                                      Fassung aus `git archive <BASIS>`); ebenso die
+//                                      deutschen Rechnungen. „Page X of Y" und die englische
+//                                      Zweitzeile der Rechnung nur für englische Aufträge.
 //   E  Storno, Zugang, Mara-Wand      Eingabeprüfung, Drossel je Adresse, Werkzeug-Sperre.
-//   F  PDF-Fuß und Zahlungsseite      „Page X of Y" nur englisch; beide Wörterbuch-Hälften
-//                                      tragen dieselben Schlüssel.
+//   F  Zahlungsseite                  beide Wörterbuch-Hälften tragen dieselben Schlüssel,
+//                                      Englisch nur für den englischen Firmenauftrag.
 //   G  Verdrahtung                    Lauf im Register, Ereignisse registriert, Pflichtmail/
 //                                      Zahlungspost in der Frequenzbremse.
 //
@@ -615,6 +617,9 @@ abschnitt("G · Verdrahtung: Lauf, Ereignisse, Frequenzbremse, Türen");
   ok(/fiaon\.com\/business\/start/.test(gw) && /fiaon\.com\/business#gespraech/.test(gw) && /EINMALIG/.test(gw) && /auf eigenes Mandat/.test(gw), "Wissen: Einmalpreis, Direktauftrag, Gespräch oder Mandatssatz fehlen");
   ok(!/\b[A-Z]{2}\d{2}[ ]?\d{4}[ ]?\d{4}/.test(gw), "Wissen: Bankdaten im Global-Block");
   ok(/KEIN ABO/.test(lies("server/lib/fiaon-postmeister-dossier.ts")) && /istGlobalPaket\(a\?\.pack_key\)/.test(lies("server/lib/fiaon-postmeister-dossier.ts")), "Postmeister-Dossier: ein Firmenauftrag bekäme die Zwölf-Monats-Regeln als Vertrag");
+  // „Zugang retten" der Leitung vergibt für einen Firmenauftrag kein Passwort.
+  const retten = lies("server/routes/fiaon-zugang-retten.ts");
+  ok((retten.match(/nurRettung, keinFirmenauftrag, async/g) ?? []).length === 3, "Zugang retten: nicht alle drei Wege (Setz-Link, Einmal-Passwort, freischalten) stehen hinter der Firmenauftrag-Wand");
   // Tier: Global geht nicht in die Bewertung ein; wer sonst nichts hat, ist -1/ausgeschlossen.
   const { personTierSql } = await import("../server/lib/tier");
   const sql = personTierSql();

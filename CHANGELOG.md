@@ -17,7 +17,8 @@ Adressen nie — dann steht der Grund in Akte, Liste und Aufgabe). (2) **Kein Pr
 einzigen bezahlten Bestellungen Global-Aufträge, antworten Login, „Passwort vergessen“ und der Anmelde-Link von /app mit
 dem Hinweis auf „Mein Auftrag“ und schicken den frischen Link per Mail (`global_zugang`) — immer an die Adresse des
 Auftrags, höchstens drei Anforderungen je Stunde und Adresse. Wer Privat UND Global hat, behält seinen Bereich; das
-Konto ist dabei nie der Firmenauftrag. (3) **Firmenkunden stehen nicht im Privatvertrieb:** Global-Bestellungen gehen
+Konto ist dabei nie der Firmenauftrag. Auch „Zugang retten“ der Vertriebsleitung vergibt für einen Firmenauftrag kein
+Passwort mehr, sondern schickt den Link. (3) **Firmenkunden stehen nicht im Privatvertrieb:** Global-Bestellungen gehen
 nicht mehr in die Einstufung ein; wer sonst nichts hat, ist „nicht im Privatvertrieb“ (Stufe −1) — also weder Pipeline
 noch Sofortzuteilung, Pool-Rückfall, Onboarding-Raum, Einladung zum Startgespräch, Bestandswache, „Dokumente fehlen“ oder
 „Zugang offen“. (4) **Storno für die Leitung:** Chefbüro → Kunden → Global-Aufträge → „Auftrag stornieren“ mit Grund
@@ -47,7 +48,7 @@ deutschen Rechnungen sind Byte für Byte dieselben (Prüfstand).
 `server/fiaon-invoice.ts` (`rechnung_sprache`), `client/src/i18n/zahlung.ts`, `client/src/pages/privacy.tsx`,
 `shared/fiaon-wissen.ts`, `server/lib/fiaon-postmeister-werkzeuge.ts`; Leitungs-Seite
 `client/src/components/admin/ChefGlobalAuftraege.tsx` (Knopf „Auftrag stornieren“, Stand des Zahlungstakts).
-Prüfstand ohne Datenbank: `npx tsx scripts/pruef-global-querschnitt.ts` (565 Prüfungen).
+Prüfstand ohne Datenbank: `npx tsx scripts/pruef-global-querschnitt.ts` (gut 560 Prüfungen).
 
 ---
 

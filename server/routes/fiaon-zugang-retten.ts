@@ -16,8 +16,46 @@ import {
   zugangFreischalten, zugangProtokoll, LINK_MINUTEN, EINMAL_STUNDEN,
 } from "../lib/fiaon-zugang";
 import { mailSenden } from "../lib/fiaon-mail-senden";
+import { istGlobalPaket } from "@shared/fiaon-pakete";
 
 const router = Router();
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EIN FIRMENAUFTRAG HAT KEIN PASSWORT (17.09.2026, E-188)
+//
+// Setz-Link, Einmal-Passwort und „freischalten" öffnen den PRIVATKUNDENBEREICH.
+// Für einen Auftrag über FIAON Global gibt es den nicht: Sein Bereich ist „Mein
+// Auftrag", der Zugang ein signierter Link (server/lib/fiaon-global-zugang.ts).
+// Ein hier vergebenes Passwort liefe am Login ohnehin in den Wegweiser — die
+// Leitung hätte dem Kunden am Telefon etwas vorgelesen, das nicht funktioniert.
+// Deshalb lehnt diese Wand ab UND tut das Richtige: Sie schickt den frischen Link
+// an die Adresse des Auftrags und sagt der Leitung, was sie dem Kunden sagen kann.
+// Für jede andere Bestellung ändert sich nichts.
+// ═══════════════════════════════════════════════════════════════════════════
+async function keinFirmenauftrag(req: AgentRequest, res: Response, next: any) {
+  try {
+    const ref = String(req.params.ref);
+    const [a] = (await sqlPool`SELECT pack_key FROM fiaon_applications WHERE ref = ${ref} LIMIT 1`) as any[];
+    if (!a || !istGlobalPaket(a.pack_key)) return next();
+    const [g] = (await sqlPool`SELECT email FROM fiaon_global_auftraege WHERE ref = ${ref} LIMIT 1`.catch(() => [])) as any[];
+    let verschickt = 0;
+    if (g?.email && !/freischalten$/.test(req.path)) {
+      const { globalZugangSenden } = await import("../lib/fiaon-global-zugang");
+      verschickt = await globalZugangSenden(String(g.email), { ref, ohneDrossel: true, ausgeloestVon: `${req.agent!.name} (Zugang retten)` });
+    }
+    // Der Versand steht im Verlauf der Akte (globalZugangSenden schreibt ihn mit dem Namen des Auslösers).
+    return res.status(409).json({
+      ok: false,
+      error: "Das ist ein Firmenauftrag über FIAON Global — dafür gibt es kein Passwort und keinen Kundenbereich. "
+        + (verschickt
+          ? `Der frische Link zu „Mein Auftrag“ ist gerade an ${g.email} gegangen (gilt dreißig Tage). Sag dem Kunden: Mail öffnen, Knopf „Mein Auftrag öffnen“.`
+          : "Der Kunde öffnet „Mein Auftrag“ über den Link aus seinen Mails; einen frischen schickt die zuständige Person aus der Akte unter „FIAON Global“."),
+    });
+  } catch (err) {
+    console.error("[ZUGANG] Firmenauftrag-Wand:", err);
+    return next();
+  }
+}
 
 /** Nur Vorgesetzter und Vertriebsleitung. 403, nicht 404: Die Leitung DARF wissen, dass es das gibt. */
 async function nurRettung(req: AgentRequest, res: Response, next: any) {
@@ -35,7 +73,7 @@ async function nurRettung(req: AgentRequest, res: Response, next: any) {
  * Ereignis dafür anzulegen hieße, einen weiteren Make-Zweig und ein weiteres
  * Brevo-Template zu verlangen — für dieselbe Aussage.
  */
-router.post("/agent/zugang/:ref/setz-link", requireAgent, nurRettung, async (req: AgentRequest, res: Response) => {
+router.post("/agent/zugang/:ref/setz-link", requireAgent, nurRettung, keinFirmenauftrag, async (req: AgentRequest, res: Response) => {
   try {
     const ref = String(req.params.ref);
     const grund = String(req.body?.grund || "").trim();
@@ -76,7 +114,7 @@ router.post("/agent/zugang/:ref/setz-link", requireAgent, nurRettung, async (req
 });
 
 /** POST /agent/zugang/:ref/einmal-passwort — für den Telefonfall. */
-router.post("/agent/zugang/:ref/einmal-passwort", requireAgent, nurRettung, async (req: AgentRequest, res: Response) => {
+router.post("/agent/zugang/:ref/einmal-passwort", requireAgent, nurRettung, keinFirmenauftrag, async (req: AgentRequest, res: Response) => {
   try {
     const grund = String(req.body?.grund || "").trim();
     if (grund.length < 5) return res.status(400).json({ ok: false, error: "Bitte kurz begründen." });
@@ -96,7 +134,7 @@ router.post("/agent/zugang/:ref/einmal-passwort", requireAgent, nurRettung, asyn
 });
 
 /** POST /agent/zugang/:ref/freischalten */
-router.post("/agent/zugang/:ref/freischalten", requireAgent, nurRettung, async (req: AgentRequest, res: Response) => {
+router.post("/agent/zugang/:ref/freischalten", requireAgent, nurRettung, keinFirmenauftrag, async (req: AgentRequest, res: Response) => {
   try {
     const erg = await zugangFreischalten(String(req.params.ref), req.agent!.name, String(req.body?.grund || ""));
     if (!erg.ok) return res.status(400).json({ ok: false, error: erg.grund });

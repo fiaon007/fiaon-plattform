@@ -91,10 +91,42 @@ export interface MailBaustein {
    * shared/fiaon-global.ts (GLOBAL_ROLLEN).
    */
   rechtsSatz?: string;
+  /**
+   * Die Sprache des RAHMENS (E-188, 17.09.2026): Der Auftrag für FIAON Global
+   * existiert auch unter /en/business/start, und die Sprache steht in der Akte
+   * (vertrag_sprache). Eine englische Mail mit deutschem Fuß („Fragen? Antworten
+   * Sie einfach …") liest sich wie ein Versehen. "en" stellt die festen Sätze
+   * des Gerüsts um — Hilfszeile, Pflichtlinks, Automatik-Zeile, Abmeldung und
+   * das lang-Attribut. Ohne Angabe bleibt jede Mail Byte für Byte, wie sie war;
+   * das belegt scripts/pruef-global-querschnitt.ts gegen die Fassung vor dem Umbau.
+   */
+  sprache?: "de" | "en";
 }
 
 const KOPF_SATZ = "Bonität ist machbar.";
 const RECHTS_SATZ = "FIAON ist keine Rechtsberatung und verspricht keine Löschung berechtigter Einträge.";
+
+/** Die festen Sätze des Rahmens — je Sprache. Deutsch ist wörtlich der Bestand vom 28.08.2026. */
+const RAHMEN = {
+  de: {
+    lang: "de",
+    fragen: "Fragen? Antworten Sie einfach auf diese E-Mail — sie kommt bei uns an und geht, wo nötig, direkt an Ihren Ansprechpartner.",
+    impressum: "Impressum", datenschutz: "Datenschutz",
+    automatisch: "Diese Nachricht wurde automatisch zu Ihrem Vorgang erstellt.",
+    abmeldenFrage: "Sie möchten diese Hinweise nicht mehr?", abmeldenLink: "Hier abmelden", abmeldenSchluss: "ein Klick genügt.",
+    abmeldenText: "Abmelden",
+    textFuss: "FIAON LTD · fiaon.com · Impressum: fiaon.com/impressum · Datenschutz: fiaon.com/datenschutz",
+  },
+  en: {
+    lang: "en",
+    fragen: "Questions? Simply reply to this email — it reaches your contact at FIAON.",
+    impressum: "Legal notice", datenschutz: "Privacy",
+    automatisch: "This message was created automatically for your order.",
+    abmeldenFrage: "No longer wish to receive these notes?", abmeldenLink: "Unsubscribe here", abmeldenSchluss: "one click is enough.",
+    abmeldenText: "Unsubscribe",
+    textFuss: "FIAON LTD · fiaon.com · Legal notice: fiaon.com/impressum · Privacy: fiaon.com/datenschutz",
+  },
+} as const;
 
 const NAVY = "#0f2044";
 const NAVY_TIEF = "#0a1730";
@@ -111,6 +143,7 @@ const BANNER_BILD = `${BASIS_URL}/mail/fiaon-karte-banner.jpg`;
 
 /** Baut das vollständige HTML einer Vorlage (Platzhalter bleiben drin). */
 export function mailHtml(b: MailBaustein): string {
+  const r = RAHMEN[b.sprache === "en" ? "en" : "de"];
   // 04.09.2026: Ein Zeilenumbruch im Absatz wird zum <br>. Bis dahin wurde
   // „Freundliche Grüße\nIhr FIAON Welcome-Team\nwelcome@fiaon.com" zu EINER
   // Zeile geplättet — gemessen an einem echten Entwurf. Das <font>-Attribut
@@ -172,10 +205,10 @@ export function mailHtml(b: MailBaustein): string {
         </td></tr>` : "";
 
   const abmelden = b.abmeldeUrl
-    ? `<p style="margin:10px 0 0;font:400 12px/1.6 ${SCHRIFT};color:#9ca3af;">Sie möchten diese Hinweise nicht mehr? <a href="${b.abmeldeUrl}" style="color:#9ca3af;">Hier abmelden</a> — ein Klick genügt.</p>` : "";
+    ? `<p style="margin:10px 0 0;font:400 12px/1.6 ${SCHRIFT};color:#9ca3af;">${r.abmeldenFrage} <a href="${b.abmeldeUrl}" style="color:#9ca3af;">${r.abmeldenLink}</a> — ${r.abmeldenSchluss}</p>` : "";
 
   return `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml" lang="de">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="${r.lang}">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -230,12 +263,12 @@ export function mailHtml(b: MailBaustein): string {
 
         <tr><td style="padding:22px 34px 30px;">
           <p style="margin:0 0 10px;font:400 13px/1.6 ${SCHRIFT};color:${LEISE};">
-            Fragen? Antworten Sie einfach auf diese E-Mail — sie kommt bei uns an und geht, wo nötig, direkt an Ihren Ansprechpartner.
+            ${r.fragen}
           </p>
           <p style="margin:0;font:400 12px/1.6 ${SCHRIFT};color:#9ca3af;">
             FIAON LTD · <a href="${BASIS_URL}" style="color:#9ca3af;">fiaon.com</a> ·
-            <a href="${BASIS_URL}/impressum" style="color:#9ca3af;">Impressum</a> ·
-            <a href="${BASIS_URL}/datenschutz" style="color:#9ca3af;">Datenschutz</a><br />
+            <a href="${BASIS_URL}/impressum" style="color:#9ca3af;">${r.impressum}</a> ·
+            <a href="${BASIS_URL}/datenschutz" style="color:#9ca3af;">${r.datenschutz}</a><br />
             ${b.rechtsSatz ?? RECHTS_SATZ}
           </p>
           ${abmelden}
@@ -243,7 +276,7 @@ export function mailHtml(b: MailBaustein): string {
 
       </table>
 
-      ${b.persoenlich ? "" : `<p style="margin:18px 0 0;font:400 11px/1.5 ${SCHRIFT};color:#9aa7bd;">Diese Nachricht wurde automatisch zu Ihrem Vorgang erstellt.</p>`}
+      ${b.persoenlich ? "" : `<p style="margin:18px 0 0;font:400 11px/1.5 ${SCHRIFT};color:#9aa7bd;">${r.automatisch}</p>`}
     </td></tr>
   </table>
 </body>
@@ -273,6 +306,7 @@ export function ratenLeisteEinsetzen(html: string): string {
  * Bewusst schlicht: Titel, Absätze, Daten, der Link des Knopfs.
  */
 export function mailText(b: MailBaustein): string {
+  const r = RAHMEN[b.sprache === "en" ? "en" : "de"];
   const ohneTags = (s: string) => s.replace(/<[^>]+>/g, "");
   return [
     `FIAON — ${b.kopfSatz ?? KOPF_SATZ}`,
@@ -287,8 +321,8 @@ export function mailText(b: MailBaustein): string {
     ...(b.karteZiel ? ["", KARTE_SATZ] : []),
     "",
     "—",
-    "FIAON LTD · fiaon.com · Impressum: fiaon.com/impressum · Datenschutz: fiaon.com/datenschutz",
+    r.textFuss,
     b.rechtsSatz ?? RECHTS_SATZ,
-    ...(b.abmeldeUrl ? [`Abmelden: ${b.abmeldeUrl}`] : []),
+    ...(b.abmeldeUrl ? [`${r.abmeldenText}: ${b.abmeldeUrl}`] : []),
   ].join("\n").replace(/%%RATENLEISTE:[^%]*%%/g, "");
 }

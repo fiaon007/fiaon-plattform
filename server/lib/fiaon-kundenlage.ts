@@ -28,6 +28,13 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import { fristAbgelaufenSql, nichtArchiviertSql, offeneZahlungSql } from "./fiaon-bestand-filter";
+import { produktkategorieSql } from "./fiaon-produktkategorie";
+
+// E-188 (17.09.2026): Ein bezahlter Auftrag über FIAON Global hat weder Ausweis und Kontoauszug an der
+// Bestellung (seine Unterlagen liegen im Dokumentenraum von „Mein Auftrag") noch je ein Passwort (sein
+// Zugang ist ein signierter Link). In den Arbeitslisten „Dokumente fehlen" und „Zugang offen" stünde er
+// deshalb für immer — als Fall, den niemand lösen kann. Er gehört unter „FIAON Global", nicht hierher.
+const KEIN_FIRMENAUFTRAG = (alias: string) => `${produktkategorieSql(alias)} <> 'global'`;
 
 export interface ZahlungsLage {
   ref: string | null;
@@ -327,11 +334,13 @@ export async function serviceZahlen(): Promise<{
       COUNT(*) FILTER (WHERE ${fristAbgelaufenSql("fiaon_applications")})::int AS frist_abgelaufen,
       COUNT(*) FILTER (WHERE ${offeneZahlungSql("fiaon_applications")})::int AS offene_zahlungen,
       COUNT(*) FILTER (WHERE payment_status = 'paid' AND type <> 'schufa'
+                         AND ${KEIN_FIRMENAUFTRAG("fiaon_applications")}
                          AND (NOT EXISTS (SELECT 1 FROM fiaon_applications d WHERE d.gdpr_deleted_at IS NULL AND d.id_card_pdf IS NOT NULL
                                             AND (d.ref = fiaon_applications.ref OR (fiaon_applications.person_id IS NOT NULL AND d.person_id = fiaon_applications.person_id)))
                               OR NOT EXISTS (SELECT 1 FROM fiaon_applications d WHERE d.gdpr_deleted_at IS NULL AND d.bank_statement_pdf IS NOT NULL
                                             AND (d.ref = fiaon_applications.ref OR (fiaon_applications.person_id IS NOT NULL AND d.person_id = fiaon_applications.person_id)))))::int AS dokumente_fehlen,
       COUNT(*) FILTER (WHERE payment_status = 'paid'
+                         AND ${KEIN_FIRMENAUFTRAG("fiaon_applications")}
                          AND (account_status IS DISTINCT FROM 'active' OR password IS NULL))::int AS zugang_offen
     FROM fiaon_applications
     WHERE merged_into IS NULL AND gdpr_deleted_at IS NULL
@@ -409,6 +418,7 @@ export async function fehlendeDokumente(q: string): Promise<any[]> {
     LEFT JOIN fiaon_agents ag ON ag.id = p.assigned_agent_id
     WHERE a.merged_into IS NULL AND a.gdpr_deleted_at IS NULL
       AND a.payment_status = 'paid' AND a.type <> 'schufa'
+      AND ${KEIN_FIRMENAUFTRAG("a")}
       AND (NOT EXISTS (SELECT 1 FROM fiaon_applications d WHERE d.gdpr_deleted_at IS NULL AND d.id_card_pdf IS NOT NULL AND (d.ref = a.ref OR (a.person_id IS NOT NULL AND d.person_id = a.person_id))) OR NOT EXISTS (SELECT 1 FROM fiaon_applications d WHERE d.gdpr_deleted_at IS NULL AND d.bank_statement_pdf IS NOT NULL AND (d.ref = a.ref OR (a.person_id IS NOT NULL AND d.person_id = a.person_id))))
       AND ($1 = '' OR ${NAME} ILIKE '%' || $1 || '%' OR COALESCE(a.email,'') ILIKE '%' || $1 || '%'
            OR a.ref ILIKE '%' || $1 || '%')
@@ -437,6 +447,7 @@ export async function zugangsProbleme(q: string): Promise<any[]> {
     LEFT JOIN fiaon_agents ag ON ag.id = p.assigned_agent_id
     WHERE a.merged_into IS NULL AND a.gdpr_deleted_at IS NULL
       AND a.payment_status = 'paid'
+      AND ${sqlPool.unsafe(KEIN_FIRMENAUFTRAG("a"))}
       AND (a.account_status IS DISTINCT FROM 'active' OR a.password IS NULL)
     ORDER BY a.completed_at DESC NULLS LAST
     LIMIT 200

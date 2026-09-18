@@ -428,6 +428,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('global_tageslauf', async () => await (await import('./lib/fiaon-global-bereich')).globalTageslauf(), 60 * 60 * 1000, { beimStartNach: 540_000 });
   });
+  // 🌐 FIAON Global — der ruhige Zahlungstakt für Firmenaufträge (E-188): am 3. und 7. Tag eine Mail, am
+  //    10. Tag eine dringende Aufgabe „anrufen". Halbstündlich; der Lauf hält sich selbst ans Sendefenster.
+  import('./lib/fiaon-crons').then(({ tageslauf }) => {
+    tageslauf('global_zahlung_takt', async () => await (await import('./lib/fiaon-global-zahlungstakt')).globalZahlungTaktLauf(), 30 * 60 * 1000, { beimStartNach: 240_000 });
+  });
 
   // 🤝 FIAON Onboarding — eigener Bereich fuer die Startgespraeche. 404 fuer
   //    alle ohne die Rolle, 403 ohne angenommene Verpflichtungserklaerung.

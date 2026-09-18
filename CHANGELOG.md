@@ -5,6 +5,50 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 17.09.2026 — FIAON Global: der Querschnitt — Zahlungstakt, Zugang ohne Passwort, Storno, zwei Sprachen, Datenschutz (E-188)
+
+**Was geändert wurde:** Sieben Lücken, die nach dem Bestellweg offen waren, sind geschlossen.
+(1) **Ruhige Zahlungserinnerung für Firmen:** Offene Global-Aufträge bekommen am dritten und am siebten Tag je EINE
+sachliche Mail (`global_zahlung_erinnerung`: ein Satz Anlass, Knopf zur Zahlungsseite, Vertrag und Rechnung über „Mein
+Auftrag“, keine Bankdaten, kein Mahnton); am zehnten Tag entsteht statt einer Mail die dringende Aufgabe „… anrufen“ bei
+der zuständigen Person. Lauf `global_zahlung_takt` (halbstündlich, arbeitet nur Berlin 8–20 Uhr, Mo–Sa; jede Stufe genau
+einmal über Marken an der Auftragsakte; wer „überwiesen“ gemeldet hat, bekommt keine Erinnerung; hart unzustellbare
+Adressen nie — dann steht der Grund in Akte, Liste und Aufgabe). (2) **Kein Privatbereich für Firmenkunden:** Sind die
+einzigen bezahlten Bestellungen Global-Aufträge, antworten Login, „Passwort vergessen“ und der Anmelde-Link von /app mit
+dem Hinweis auf „Mein Auftrag“ und schicken den frischen Link per Mail (`global_zugang`) — immer an die Adresse des
+Auftrags, höchstens drei Anforderungen je Stunde und Adresse. Wer Privat UND Global hat, behält seinen Bereich; das
+Konto ist dabei nie der Firmenauftrag. Auch „Zugang retten“ der Vertriebsleitung vergibt für einen Firmenauftrag kein
+Passwort mehr, sondern schickt den Link. (3) **Firmenkunden stehen nicht im Privatvertrieb:** Global-Bestellungen gehen
+nicht mehr in die Einstufung ein; wer sonst nichts hat, ist „nicht im Privatvertrieb“ (Stufe −1) — also weder Pipeline
+noch Sofortzuteilung, Pool-Rückfall, Onboarding-Raum, Einladung zum Startgespräch, Bestandswache, „Dokumente fehlen“ oder
+„Zugang offen“. (4) **Storno für die Leitung:** Chefbüro → Kunden → Global-Aufträge → „Auftrag stornieren“ mit Grund
+(bezahlt: mindestens ein Satz). „Mit Erstattung“ bewegt kein Geld — es entsteht die dringende Aufgabe „Erstattung
+veranlassen: Betrag an Firma“ für Justin; Bestellung und Provisionen gehen über den bestehenden Storno-Weg zurück. Ohne
+Erstattung bleibt die Zahlung gebucht, storniert wird nur der Auftrag. Die zuständige Person erfährt es als Aufgabe.
+(5) **Englisch:** alle Global-Mails als Paar {de, en} (britisches Englisch, gewählt über die Sprache der Auftragsakte),
+das Mail-Gerüst kann seinen Rahmen englisch, der englische Vertrag zählt „Page X of Y“, die Zahlungsseite liest sich für
+englische Firmenaufträge englisch, die Rechnung bleibt deutsch und trägt für diese Aufträge je Kopfbegriff eine englische
+Zweitzeile; die Bestätigung des Erstgesprächs (`global_termin`) trägt jetzt den Global-Rahmen und gibt es englisch.
+(6) **Datenschutz:** zwei neue Abschnitte VII a (Auftrag für Unternehmen, Dokumentenraum, „Mein Auftrag“) und VII b
+(Firmensuche, Auslesen des Impressums) — zur anwaltlichen Durchsicht mit den Global-Verträgen. (7) **Wissen:** Assistent
+und Mara kennen „Mein Auftrag“, die zuständige Person und den Zahlungstakt; Mara kündigt, stoppt, eskaliert und schaltet
+bei einem Firmenauftrag nichts frei (Wand vor den Werkzeugen) und kann stattdessen den Link neu schicken.
+
+**Warum:** Nach dem Bestellweg lag ein unterschriebener Auftrag über 2.499 € und mehr ohne Zahlung still, bis es jemandem
+auffiel; ein Firmenkunde wäre über „Passwort vergessen“ im Privatkundenbereich gelandet (Bonität, Raten, Karte); er hätte
+als „Rechnung offen“ in den Anruflisten des Privatvertriebs gestanden und wäre nach drei Tagen in den Pool gefallen; für
+ein Storno gab es weder Ort noch Grund noch Namen; und wer englisch bestellt hatte, bekam deutsche Mails. Kein
+bestehender Privatkunde merkt etwas: 3.770 erzeugte Login-Fälle entscheiden wie vor dem Umbau, 60 deutsche Mails und die
+deutschen Rechnungen sind Byte für Byte dieselben (Prüfstand).
+
+**Wo:** `server/lib/fiaon-global-zahlungstakt.ts`, `server/lib/fiaon-global-zugang.ts` (`globalZugangSenden(email)`),
+`server/lib/fiaon-global-storno.ts` + Route `POST /admin/global/auftraege/:ref/storno`, `server/fiaon-login-logic.ts`
+(`globalKontoLage`, `istNurFirmenkunde`), `server/lib/tier.ts`, `server/lib/fiaon-kundenstufe.ts`,
+`server/lib/fiaon-kundenlage.ts`, `server/mail/vorlagen/global.ts`, `server/mail/geruest.ts` (`sprache`),
+`server/fiaon-invoice.ts` (`rechnung_sprache`), `client/src/i18n/zahlung.ts`, `client/src/pages/privacy.tsx`,
+`shared/fiaon-wissen.ts`, `server/lib/fiaon-postmeister-werkzeuge.ts`; Leitungs-Seite
+`client/src/components/admin/ChefGlobalAuftraege.tsx` (Knopf „Auftrag stornieren“, Stand des Zahlungstakts).
+Prüfstand ohne Datenbank: `npx tsx scripts/pruef-global-querschnitt.ts` (gut 560 Prüfungen).
 ## 17.09.2026 — FIAON Global: „Mein Auftrag“ im Server — Etappen, Dokumentenraum, Pflichtenkalender, monatlicher Durchgang (E-188)
 
 **Was geändert wurde:** Die Pakete von FIAON Global sagen einen eigenen Dokumentenraum, einen Pflichtenkalender, einen

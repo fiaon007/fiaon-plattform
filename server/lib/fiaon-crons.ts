@@ -396,6 +396,14 @@ export const LAUF_FOLGEN: Record<string, { zweck: string; folge: string; fenster
       + "Durchgang findet nicht statt, und Aufträge ohne Unterlagen bleiben unbemerkt liegen.",
     fenster: 26,
   },
+  // E-188 (17.09.2026): Der Lauf tickt halbstündlich und arbeitet nur im Sendefenster (Berlin 8–20 Uhr,
+  // Mo–Sa) — außerhalb kehrt er sofort zurück und zählt trotzdem als gelaufen. Steht er, steht der Takt.
+  global_zahlung_takt: {
+    zweck: "FIAON Global: offene Firmenaufträge am 3. und 7. Tag ruhig an die Überweisung erinnern, am 10. Tag eine dringende Aufgabe „anrufen“ an die zuständige Person",
+    folge: "Ein unterschriebener Firmenauftrag über 2.499 € und mehr bleibt ohne Zahlung liegen, und niemand fasst nach — "
+      + "die Erinnerungen der Privatkunden gelten für FIAON Global bewusst nicht.",
+    fenster: 24,
+  },
   "followup-und-termine-tageswerk": {
     zweck: "Das Tageswerk im Folgelauf: Zuteilung, Eskalation (einmal täglich; der alte Nachschub ist seit 11.09.2026 abgeschaltet)",
     folge: "Gebrochene Zahlungszusagen werden nicht eskaliert und herrenlose Kunden "

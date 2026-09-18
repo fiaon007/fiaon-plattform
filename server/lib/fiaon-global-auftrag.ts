@@ -351,7 +351,8 @@ export async function globalAkteLesen(ref: string): Promise<any | null> {
 async function bestellungLesen(ref: string): Promise<any | null> {
   const [a] = (await sqlPool`
     SELECT ref, person_id, pack_key, pack_name, payment_reference, payment_status, payment_due_date, amount_due, invoice_number,
-           company_name, contact_name, contact_email, email, assigned_agent_id, completed_at, cancelled_at, merged_into
+           company_name, contact_name, contact_email, email, assigned_agent_id, completed_at, cancelled_at, merged_into,
+           claimed_paid_at, archived_at
       FROM fiaon_applications WHERE ref = ${ref} LIMIT 1`) as any[];
   return a ?? null;
 }
@@ -420,7 +421,7 @@ export async function globalAuftragSicht(ref: string, token: string): Promise<Re
 // ── Die Mails — immer direkt über den Motor, immer im Protokoll ─────────────
 // Die vier unteren gehören zum Bereich „Mein Auftrag" (server/mail/vorlagen/global-bereich.ts).
 export type GlobalMail =
-  | "global_auftrag" | "global_start" | "global_stichtag"
+  | "global_auftrag" | "global_start" | "global_stichtag" | "global_zahlung_erinnerung"
   | "global_zugang" | "global_etappe" | "global_frist" | "global_dokument";
 export type GlobalMailSprache = "de" | "en";
 
@@ -440,43 +441,89 @@ export function globalMeinAuftragUrl(ref: string, sprache: GlobalMailSprache = "
   return absoluteUrl(globalMeinAuftragPfad(ref, globalTokenErzeugen(ref), sprache));
 }
 
-async function ansprechpartnerName(agentId: number | null): Promise<string> {
+async function ansprechpartnerName(agentId: number | null, sprache: GlobalMailSprache = "de"): Promise<string> {
   if (agentId) {
     const { empfaengerNachId } = await import("../routes/fiaon-betreiber-todo");
     const e = await empfaengerNachId(agentId).catch(() => null);
     if (e?.kundenName) return e.kundenName;
   }
-  return "Ihr Team von FIAON Global";
+  return sprache === "en" ? "your FIAON Global team" : "Ihr Team von FIAON Global";
+}
+
+function eurEn(cents: number): string {
+  return "€" + (cents / 100).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function tagEn(v: Date | string | null | undefined): string {
+  if (!v) return "—";
+  const d = v instanceof Date ? v : new Date(String(v).length === 10 ? `${v}T12:00:00Z` : String(v));
+  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Berlin" });
+}
+function anredeZeileEn(a: { anrede?: string | null; vorname?: string | null; nachname?: string | null }): string {
+  const nach = String(a.nachname || "").trim();
+  if ((a.anrede === "Herr" || a.anrede === "Frau") && nach) return `Dear ${a.anrede === "Herr" ? "Mr" : "Ms"} ${nach}`;
+  const voll = [a.vorname, a.nachname].map((x) => String(x || "").trim()).filter(Boolean).join(" ");
+  return voll ? `Dear ${voll}` : "Good day";
+}
+/** Ein Datum im Zahlenbild der Auftragssprache — für Nutzlast-Felder wie `stichtag_text`. */
+export function globalTagText(v: Date | string | null | undefined, sprache: GlobalMailSprache = "de"): string {
+  return sprache === "en" ? tagEn(v) : tagDe(v);
+}
+
+/**
+ * Die Nutzlast einer Global-Mail — REIN (keine Datenbank, kein Netz), damit der
+ * Prüfstand jede Vorlage in beiden Sprachen mit echten Feldern rendern kann.
+ * Der Motor setzt Werte ungeprüft ins HTML — also hier entschärfen.
+ *
+ * `token` ist ein FRISCHES Zugangstoken für „Mein Auftrag" (30 Tage): Jede Mail,
+ * die den Kunden zu Vertrag und Rechnung führt, bringt ihren eigenen Link mit.
+ */
+export function globalMailNutzlast(
+  akte: any, b: any,
+  opts: { ansprechpartner: string; token?: string | null; zusatz?: Record<string, string> },
+): Record<string, string> {
+  const sprache = globalSpracheVon(akte);
+  const en = sprache === "en";
+  const ap = json<Partial<GlobalAnsprechpartner>>(akte?.ansprechpartner, {});
+  const firma = json<Partial<GlobalFirma>>(akte?.firma, {});
+  const an = String(akte?.email || ap.email || b?.contact_email || b?.email || "").trim().toLowerCase();
+  const paketKey = akte?.paket_key ?? b?.pack_key;
+  const kat = katalogPaket(paketKey);
+  const gp = globalPaket(paketKey);
+  const betragCents = kat?.preisCents ?? Math.round(Number(b?.amount_due || 0) * 100);
+  const ref = String(b?.ref || akte?.ref || "");
+  const anrede = ap.nachname || ap.vorname
+    ? (en ? anredeZeileEn(ap) : anredeZeile(ap))
+    : (en ? (b?.contact_name ? `Dear ${b.contact_name}` : "Good day") : `Guten Tag${b?.contact_name ? ` ${b.contact_name}` : ""}`);
+  return {
+    email: an,
+    sprache,
+    anrede_zeile: escapeHtml(anrede),
+    firma: escapeHtml(String(firma.name || akte?.firma_name || b?.company_name || (en ? "your company" : "Ihr Unternehmen"))),
+    // Englisch heißt das Paket, wie es im englischen Auftrag heißt („FIAON Global Capital").
+    paket: escapeHtml(en && gp ? `FIAON ${gp.en.name}` : (kat?.label ?? String(b?.pack_name || "FIAON Global"))),
+    betrag_text: en ? eurEn(betragCents) : eur(betragCents),
+    antrag_id: escapeHtml(ref),
+    payment_reference: escapeHtml(String(b?.payment_reference || "")),
+    faellig_am_text: b?.payment_due_date ? globalTagText(new Date(b.payment_due_date), sprache) : "",
+    zahlungsseite_url: b?.payment_reference ? absoluteUrl(`/zahlung/${encodeURIComponent(String(b.payment_reference))}`) : "",
+    mein_auftrag_url: ref && opts.token ? absoluteUrl(globalMeinAuftragPfad(ref, opts.token, sprache)) : "",
+    ansprechpartner: escapeHtml(opts.ansprechpartner),
+    ...(opts.zusatz ?? {}),
+  };
 }
 
 export async function globalMailSenden(
   event: GlobalMail, akte: any, b: any,
   extra: { anhaenge?: { name: string; inhalt: Buffer }[]; zusatz?: Record<string, string>; ausgeloestVon?: string } = {},
 ): Promise<{ ok: boolean; grund: string | null }> {
-  const ap = json<Partial<GlobalAnsprechpartner>>(akte?.ansprechpartner, {});
-  const firma = json<Partial<GlobalFirma>>(akte?.firma, {});
-  const an = String(akte?.email || ap.email || b?.contact_email || b?.email || "").trim().toLowerCase();
-  const kat = katalogPaket(akte?.paket_key ?? b?.pack_key);
-  const betragCents = kat?.preisCents ?? Math.round(Number(b?.amount_due || 0) * 100);
   const sprache = globalSpracheVon(akte);
-  const refFuerLink = String(b?.ref || akte?.ref || "");
-  // Der Motor setzt Werte ungeprüft ins HTML — also hier entschärfen.
-  const nutzlast: Record<string, string> = {
-    email: an,
-    // Die Sprache des Auftrags — der Motor nimmt die englische Fassung einer Vorlage, wenn es sie gibt.
-    sprache,
-    mein_auftrag_url: refFuerLink ? globalMeinAuftragUrl(refFuerLink, sprache) : "",
-    anrede_zeile: escapeHtml(ap.nachname || ap.vorname ? anredeZeile(ap) : `Guten Tag${b?.contact_name ? ` ${b.contact_name}` : ""}`),
-    firma: escapeHtml(String(firma.name || akte?.firma_name || b?.company_name || "Ihr Unternehmen")),
-    paket: escapeHtml(kat?.label ?? String(b?.pack_name || "FIAON Global")),
-    betrag_text: eur(betragCents),
-    antrag_id: escapeHtml(String(b?.ref || akte?.ref || "")),
-    payment_reference: escapeHtml(String(b?.payment_reference || "")),
-    faellig_am_text: b?.payment_due_date ? tagDe(new Date(b.payment_due_date)) : "",
-    zahlungsseite_url: b?.payment_reference ? absoluteUrl(`/zahlung/${encodeURIComponent(String(b.payment_reference))}`) : "",
-    ansprechpartner: escapeHtml(await ansprechpartnerName(akte?.zustaendig_agent_id ? Number(akte.zustaendig_agent_id) : null)),
-    ...(extra.zusatz ?? {}),
-  };
+  const ref = String(b?.ref || akte?.ref || "");
+  const nutzlast = globalMailNutzlast(akte, b, {
+    ansprechpartner: await ansprechpartnerName(akte?.zustaendig_agent_id ? Number(akte.zustaendig_agent_id) : null, sprache),
+    token: ref ? globalTokenErzeugen(ref) : null,
+    zusatz: extra.zusatz,
+  });
+  const an = nutzlast.email;
   let ok = false; let grund: string | null = null; let messageId: string | null = null;
   if (!an) grund = "keine E-Mail-Adresse am Auftrag";
   else {
@@ -900,12 +947,18 @@ export async function globalAuftraegeListe(): Promise<{ zeilen: Record<string, u
   await ensureGlobalTabelle();
   // Die Liste liest die Aufgabentabelle mit (Start-Aufgabe) — sie muss da sein, bevor die erste Aufgabe je angelegt wurde.
   await import("../routes/fiaon-betreiber-todo").then((m) => m.ensureTodoTabelle()).catch(() => {});
+  // Die Marken des Zahlungstakts und des Stornos liegen an derselben Akte, werden aber von ihren eigenen
+  // Dateien angelegt — die Liste liest sie mit und stellt deshalb sicher, dass es die Spalten gibt.
+  await import("./fiaon-global-zahlungstakt").then((m) => m.ensureTaktSpalten());
+  await import("./fiaon-global-storno").then((m) => m.ensureStornoSpalten());
   const rows = (await sqlPool`
     SELECT a.ref, a.pack_key, a.pack_name, a.company_name, a.contact_name, a.city, a.amount_due, a.payment_reference, a.payment_status,
            a.payment_due_date, a.invoice_number, a.created_at, a.completed_at, a.claimed_paid_at, a.archived_at, a.person_id,
            g.id AS akte_id, g.status AS akte_status, g.firma, g.ansprechpartner, g.email, g.zustaendig_agent_id, g.stichtag, g.unterschrieben_am,
            g.gestartet_am, g.rechnung_ust_modus, g.ust_hinweis, g.auftrag_mail_am, g.auftrag_mail_fehler, g.start_mail_am, g.start_mail_fehler,
            g.stichtag_mail_am, g.vertrag_sprache, g.quelle, (g.vertrag_pdf IS NOT NULL) AS hat_vertrag,
+           g.zahlung_erinnerung_1_am, g.zahlung_erinnerung_2_am, g.zahlung_aufgabe_am, g.zahlung_takt_hinweis,
+           g.storniert_am, g.storniert_von, g.storno_grund, g.storno_erstattung,
            z.name AS zustaendig_name, bt.name AS betreuer_name,
            (SELECT t.id FROM fiaon_betreiber_todos t WHERE t.schluessel = 'global:' || a.ref || ':start' LIMIT 1) AS start_aufgabe_id
       FROM fiaon_applications a
@@ -954,6 +1007,15 @@ export async function globalAuftraegeListe(): Promise<{ zeilen: Record<string, u
       auftragMailAm: r.auftrag_mail_am ? new Date(r.auftrag_mail_am).toISOString() : null, auftragMailFehler: r.auftrag_mail_fehler ?? null,
       startMailAm: r.start_mail_am ? new Date(r.start_mail_am).toISOString() : null, startMailFehler: r.start_mail_fehler ?? null,
       sprache: r.vertrag_sprache ?? null, quelle: r.quelle ?? null,
+      // Der ruhige Zahlungstakt: wann erinnert wurde, wann die Aufgabe „anrufen" entstand, was ihn aufhielt.
+      erinnerung1Am: r.zahlung_erinnerung_1_am ? new Date(r.zahlung_erinnerung_1_am).toISOString() : null,
+      erinnerung2Am: r.zahlung_erinnerung_2_am ? new Date(r.zahlung_erinnerung_2_am).toISOString() : null,
+      anrufAufgabeAm: r.zahlung_aufgabe_am ? new Date(r.zahlung_aufgabe_am).toISOString() : null,
+      taktHinweis: r.zahlung_takt_hinweis ?? null,
+      // Der Storno: wer, wann, warum, mit oder ohne Erstattung.
+      storniertAm: r.storniert_am ? new Date(r.storniert_am).toISOString() : null,
+      storniertVon: r.storniert_von ?? null, stornoGrund: r.storno_grund ?? null,
+      stornoErstattung: r.storno_erstattung === true,
       vertragUrl: r.hat_vertrag ? `/api/fiaon/admin/global/auftraege/${encodeURIComponent(String(r.ref))}/vertrag.pdf` : null,
       rechnungUrl: r.payment_reference ? `/api/fiaon/admin/global/auftraege/${encodeURIComponent(String(r.ref))}/rechnung.pdf` : null,
       zahlungsseite: r.payment_reference ? `/zahlung/${r.payment_reference}` : null,
@@ -990,7 +1052,8 @@ export async function globalStichtagSetzen(ref: string, stichtagRoh: unknown, we
   await sqlPool`UPDATE fiaon_global_auftraege SET stichtag = ${tag}::date, stichtag_gesetzt_von = ${wer}, updated_at = NOW() WHERE ref = ${ref}`;
   await verlauf(ref, `FIAON Global: Stichtag für Gesellschaft und EIN auf den ${tagDe(tag)} gesetzt (${wer}).`);
   if (!mitteilen) return { ok: true, meldung: `Stichtag ${tagDe(tag)} eingetragen. Der Auftrag sagt zu, dass der Kunde ihn in Textform bekommt — bitte noch mitteilen.` };
-  const mail = await globalMailSenden("global_stichtag", await globalAkteLesen(ref), b, { zusatz: { stichtag_text: tagDe(tag) }, ausgeloestVon: wer });
+  const frisch = await globalAkteLesen(ref);
+  const mail = await globalMailSenden("global_stichtag", frisch, b, { zusatz: { stichtag_text: globalTagText(tag, globalSpracheVon(frisch)) }, ausgeloestVon: wer });
   if (mail.ok) await sqlPool`UPDATE fiaon_global_auftraege SET stichtag_mail_am = NOW(), updated_at = NOW() WHERE ref = ${ref}`.catch(() => {});
   return { ok: true, meldung: mail.ok ? `Stichtag ${tagDe(tag)} eingetragen und dem Kunden per Mail mitgeteilt.` : `Stichtag ${tagDe(tag)} eingetragen — die Mail an den Kunden ging NICHT raus (${mail.grund}). Bitte von Hand mitteilen.` };
 }
@@ -1032,7 +1095,7 @@ export async function globalAuftragsMailNachholen(ref: string): Promise<{ ok: bo
   return mail.ok ? { ok: true, meldung: "Vertrag und Rechnung sind jetzt beim Kunden." } : { ok: false, error: `Die Mail ging wieder nicht raus: ${mail.grund}` };
 }
 
-// ── Für die Nachbarn dieses Bestellwegs („Mein Auftrag", fiaon-global-bereich.ts) ──
-// Derselbe Leser und dieselbe Statusregel wie oben — unter einem Namen, der
-// außerhalb dieser Datei sagt, wozu er gehört.
-export { bestellungLesen as globalBestellungLesen, statusAus as globalStatusAus };
+// ── Für die Nachbarn dieses Bestellwegs („Mein Auftrag", Zahlungstakt, Zugang, Storno) ──
+// Dieselben Leser, dieselbe Statusregel und derselbe Verlaufseintrag wie oben — unter einem Namen,
+// der außerhalb dieser Datei sagt, wozu er gehört.
+export { bestellungLesen as globalBestellungLesen, statusAus as globalStatusAus, verlauf as globalVerlauf, eur as globalEur };

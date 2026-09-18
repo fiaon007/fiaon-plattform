@@ -16,6 +16,7 @@ import { sqlPool } from "./db-pool";
 import { BANK } from "@shared/fiaon-bank";
 import { epcQrNutzlast } from "@shared/fiaon-epc-qr";
 import { istGlobalPaket, paket as katalogPaket } from "@shared/fiaon-pakete";
+import { globalPaket } from "@shared/fiaon-global";
 
 export interface Zahlungsauftrag {
   art: "bestellung" | "rate";
@@ -37,6 +38,12 @@ export interface Zahlungsauftrag {
    */
   firmenauftrag?: boolean;
   firmenName?: string;
+  /**
+   * Nur beim Firmenauftrag: die Sprache, in der das Unternehmen seinen Auftrag geführt hat
+   * (fiaon_global_auftraege.vertrag_sprache). Wer auf /en/business/start unterschrieben hat,
+   * liest die Zahlungsseite englisch (kleines Wörterbuch in client/src/pages/zahlung.tsx).
+   */
+  sprache?: "de" | "en";
 }
 
 const RATEN_MUSTER = /^FIAON-[A-Z0-9]{6}-(\d{1,2})$/i;
@@ -71,11 +78,19 @@ export async function zahlungsauftragFinden(refRoh: string): Promise<Zahlungsauf
   }
 
   const [a] = (await sqlPool`
-    SELECT payment_reference, payment_status, payment_due_date, amount_due, currency, first_name, pack_name, pack_key, company_name
+    SELECT ref, payment_reference, payment_status, payment_due_date, amount_due, currency, first_name, pack_name, pack_key, company_name
     FROM fiaon_applications WHERE payment_reference = ${ref} LIMIT 1
   `) as any[];
   if (!a) return null;
   const firmenauftrag = istGlobalPaket(a.pack_key);
+  // Die Sprache steht in der Auftragsakte. Fehlt die Akte (Bestellung außerhalb des Bestellwegs) oder
+  // die Tabelle, bleibt die Seite deutsch — die Zahlungsseite darf daran nie scheitern.
+  let sprache: "de" | "en" = "de";
+  if (firmenauftrag) {
+    const [g] = (await sqlPool`SELECT vertrag_sprache FROM fiaon_global_auftraege WHERE ref = ${a.ref} LIMIT 1`.catch(() => [])) as any[];
+    if (String(g?.vertrag_sprache ?? "").toLowerCase() === "en") sprache = "en";
+  }
+  const enName = sprache === "en" ? globalPaket(a.pack_key)?.en.name : null;
   return {
     art: "bestellung",
     paymentReference: a.payment_reference,
@@ -85,8 +100,8 @@ export async function zahlungsauftragFinden(refRoh: string): Promise<Zahlungsauf
     currency: a.currency || "EUR",
     // Beim Firmenauftrag steht oben die Firma, nicht ein Vorname.
     firstName: firmenauftrag ? "" : (a.first_name || ""),
-    packName: firmenauftrag ? (katalogPaket(a.pack_key)?.label ?? a.pack_name ?? "") : (a.pack_name || ""),
-    ...(firmenauftrag ? { firmenauftrag: true, firmenName: String(a.company_name || "") } : {}),
+    packName: firmenauftrag ? (enName ? `FIAON ${enName}` : (katalogPaket(a.pack_key)?.label ?? a.pack_name ?? "")) : (a.pack_name || ""),
+    ...(firmenauftrag ? { firmenauftrag: true, firmenName: String(a.company_name || ""), sprache } : {}),
   };
 }
 

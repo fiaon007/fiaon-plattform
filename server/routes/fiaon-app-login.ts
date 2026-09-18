@@ -53,7 +53,7 @@ import { sqlPool } from "../lib/db-pool";
 import { kundenSitzungSetzen } from "../lib/fiaon-kunde-session";
 import { mailSenden } from "../lib/fiaon-mail-senden";
 import { absoluteUrl } from "../fiaon-base-url";
-import { maskEmailForLog, pickAccountRow } from "../fiaon-login-logic";
+import { maskEmailForLog, pickAccountRow, istNurFirmenkunde } from "../fiaon-login-logic";
 import { loadLoginFamily } from "./fiaon-antrag";
 
 const router = Router();
@@ -144,11 +144,15 @@ export function weiterZiel(roh: unknown): string {
 }
 
 /** Konto zur Adresse — exakt die Auswahlregel des Passwort-Logins, ohne Passwort. */
-export async function kontoFuerAdresse(normalizedEmail: string): Promise<{ ref: string; personId: number | null; gesperrt: boolean } | null> {
+export async function kontoFuerAdresse(normalizedEmail: string): Promise<{ ref: string; personId: number | null; gesperrt: boolean; nurGlobal: boolean } | null> {
   const family = await loadLoginFamily(normalizedEmail);
   if (!family.length) return null;
   const account = pickAccountRow(family);
   if (!account?.ref) return null;
+  // E-188: Sind die einzigen bezahlten Bestellungen Aufträge über FIAON Global, gibt es keinen Bereich
+  // unter /app, in den ein Anmelde-Link führen dürfte — dieselbe Regel wie am Passwort-Login.
+  // Wer daneben einen eigenen Privat-Antrag mit Passwort hat, bekommt seinen Anmelde-Link wie bisher.
+  const nurGlobal = istNurFirmenkunde(family);
   // Der Mensch hinter dem Konto — notfalls aus einer Zeile, die zu DIESEM Konto
   // gehört (die Kontozeile selbst oder eine in sie zusammengeführte Bestellung).
   // NIE aus einer beliebigen Familienzeile: Die Familie umfasst alles, was die
@@ -159,7 +163,7 @@ export async function kontoFuerAdresse(normalizedEmail: string): Promise<{ ref: 
     const mit = family.find((r: any) => r.person_id && (r.ref === account.ref || r.merged_into === account.ref));
     personId = mit?.person_id ? Number(mit.person_id) : null;
   }
-  return { ref: String(account.ref), personId, gesperrt: account.account_status === "suspended" };
+  return { ref: String(account.ref), personId, gesperrt: account.account_status === "suspended", nurGlobal };
 }
 
 /**
@@ -167,11 +171,18 @@ export async function kontoFuerAdresse(normalizedEmail: string): Promise<{ ref: 
  * Prüfstand, NIE für die HTTP-Antwort (die ist immer dieselbe).
  */
 export async function loginLinkAnfordern(ein: { email: string; ip: string; userAgent: string; weiter?: unknown }):
-  Promise<{ ergebnis: "versandt" | "kein_konto" | "gesperrt" | "keine_person" | "mail_abgelehnt"; ref: string | null; grund?: string }> {
+  Promise<{ ergebnis: "versandt" | "kein_konto" | "gesperrt" | "keine_person" | "mail_abgelehnt" | "global_zugang"; ref: string | null; grund?: string }> {
   await ensureLoginLinkTabelle();
   const konto = await kontoFuerAdresse(ein.email);
   if (!konto) return { ergebnis: "kein_konto", ref: null };
   if (konto.gesperrt) return { ergebnis: "gesperrt", ref: konto.ref };
+  // E-188: Der Firmenkunde bekommt statt des Anmelde-Links für /app den Link zu „Mein Auftrag" — an die
+  // Adresse seines Auftrags, gedrosselt je Adresse. Die HTTP-Antwort bleibt dieselbe wie für jeden.
+  if (konto.nurGlobal) {
+    const { globalZugangSenden } = await import("../lib/fiaon-global-zugang");
+    const n = await globalZugangSenden(ein.email, { ausgeloestVon: "Anmelde-Link von /app angefordert" });
+    return { ergebnis: "global_zugang", ref: konto.ref, grund: `${n} Mail(s) mit dem Link zu „Mein Auftrag“` };
+  }
   if (!konto.personId) return { ergebnis: "keine_person", ref: konto.ref };
 
   const token = randomBytes(32).toString("base64url");

@@ -37,6 +37,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { sqlPool } from "./db-pool";
+import { istGlobalPaket } from "@shared/fiaon-pakete";
+import { produktkategorieSql } from "./fiaon-produktkategorie";
 
 type Lauf = typeof sqlPool;
 
@@ -87,7 +89,7 @@ export async function stufeAbleiten(ref: string, lauf: Lauf = sqlPool): Promise<
   // E-178: fiaon_schufa_analysen entsteht lazy — vor der Abfrage sicherstellen.
   await import("./fiaon-schufa-analyse").then((m) => m.ensureSchufaTabelle()).catch(() => {});
   const [a] = (await lauf`
-    SELECT a.ref, a.person_id, a.payment_status, a.status, a.type,
+    SELECT a.ref, a.person_id, a.payment_status, a.status, a.type, a.pack_key,
            a.onboarding_stufe, a.onboarding_pflicht,
            a.onboarding_ausnahme_grund, a.onboarding_ausnahme_von, a.onboarding_ausnahme_am,
            -- Ist das eine reine Auskunft-Bestellung? Sie hat kein Paket und
@@ -129,7 +131,7 @@ export async function stufeAbleiten(ref: string, lauf: Lauf = sqlPool): Promise<
     // Dann läuft die Abfrage ohne sie. Eine fehlende Migration darf die Stufe
     // nicht unbestimmt machen — sie ist die Grundlage jeder Anzeige.
     return (await lauf`
-      SELECT a.ref, a.person_id, a.payment_status, a.status, a.type,
+      SELECT a.ref, a.person_id, a.payment_status, a.status, a.type, a.pack_key,
              a.onboarding_stufe, a.onboarding_pflicht,
              NULL::text AS onboarding_ausnahme_grund,
              NULL::text AS onboarding_ausnahme_von,
@@ -159,6 +161,7 @@ export async function stufeAbleiten(ref: string, lauf: Lauf = sqlPool): Promise<
   const bezahlt = String(a.payment_status) === "paid";
   const erledigt = a.erledigt_id != null;
   const nurAuskunft = a.ist_auskunft === true;
+  const firmenauftrag = istGlobalPaket(a.pack_key);
   const ausnahmeGesetzt = a.onboarding_pflicht === false
     && String(a.onboarding_ausnahme_grund ?? "").trim() !== "";
 
@@ -175,6 +178,17 @@ export async function stufeAbleiten(ref: string, lauf: Lauf = sqlPool): Promise<
     naechsterSchritt = String(a.payment_status) === "claimed_paid"
       ? "Kunde hat „überwiesen“ gemeldet — Zahlungseingang prüfen und buchen."
       : "Zahlungseingang abwarten oder die Zahlungsdaten erneut senden.";
+  } else if (firmenauftrag) {
+    // ── EIN FIRMENAUFTRAG WARTET NICHT AUF DAS ONBOARDING-TEAM (E-188) ──
+    // onCustomerPaid setzt für FIAON Global bewusst keine Wartestufe. Diese
+    // Ableitung hätte sie trotzdem behauptet — und `stufeAbgleichen` hätte
+    // „wartet_auf_onboarding" beim nächsten Öffnen der Akte in die Spalte
+    // geschrieben: Der Firmenkunde stünde im Onboarding-Raum, mit dem
+    // Leitfaden für das Startgespräch der Privatkunden. Seinen Start führt
+    // die zuständige Person (Aufgabe „US-Struktur starten").
+    stufe = "voll_aktiv";
+    grund = "FIAON Global: Firmenauftrag — den Start führt die zuständige Person, nicht das Onboarding-Team.";
+    naechsterSchritt = "Nichts im Onboarding. Der Auftrag steht unter „FIAON Global“.";
   } else if (nurAuskunft) {
     // ── EINE AUSKUNFT IST KEIN KONTO ────────────────────────────────────
     // Wer nur die Bonitätsauskunft gekauft hat, braucht kein Startgespräch:
@@ -257,6 +271,7 @@ export async function stufenFuerListe(
     SELECT a.ref,
            CASE
              WHEN a.payment_status <> 'paid' THEN 'kein_zugang'
+             WHEN ${lauf.unsafe(produktkategorieSql("a"))} = 'global' THEN 'voll_aktiv'
              WHEN (a.type = 'schufa' OR a.ref LIKE 'FIAON-SCHUFA-%') THEN 'voll_aktiv'
              WHEN EXISTS (SELECT 1 FROM fiaon_termine t
                            WHERE t.person_id = a.person_id AND t.quelle = 'onboarding_call'

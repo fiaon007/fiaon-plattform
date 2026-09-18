@@ -96,6 +96,7 @@ export type MakeEventType =
   | "global_etappe"          // neue Etappe im Auftrag, mit nächstem Schritt
   | "global_frist"           // Erinnerung aus dem Pflichtenkalender (rund einen Monat / eine Woche vorher)
   | "global_dokument"        // FIAON hat ein Dokument im Dokumentenraum bereitgestellt
+  | "global_zahlung_erinnerung" // ruhige Erinnerung am 3. und 7. Tag nach dem Auftrag (server/lib/fiaon-global-zahlungstakt.ts)
   | "schufa_approved"         // SCHUFA genehmigt
   | "schufa_rejected"         // SCHUFA abgelehnt
   | "schufa_requested"        // neues SCHUFA-Dokument angefordert

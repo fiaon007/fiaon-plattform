@@ -1,4 +1,5 @@
 import { passwortPasst } from "./lib/fiaon-kunde-session";
+import { istGlobalPaket } from "@shared/fiaon-pakete";
 /**
  * ═══════════════════════════════════════════════════════════════════════════
  * KUNDEN-LOGIN — DIE ENTSCHEIDUNG (reine Logik, keine Datenbank, keine Seiteneffekte)
@@ -48,6 +49,8 @@ export const LOGIN_CODES = {
   PAYMENT_PENDING: "AUTH-03",
   SUSPENDED: "AUTH-04",
   TECHNICAL: "AUTH-05",
+  /** E-188: Firmenkunde von FIAON Global — sein Zugang ist „Mein Auftrag", nicht der Privatkundenbereich. */
+  GLOBAL: "AUTH-06",
 } as const;
 
 /** Neutrale Meldung für „falsches Passwort" UND „unbekannte E-Mail" — bewusst
@@ -73,6 +76,80 @@ export function isAddonOrderRow(row: any): boolean {
 }
 
 /**
+ * Auftrag über FIAON Global (E-188, 17.09.2026) — ein Firmenauftrag mit Einmalpreis,
+ * KEIN Konto im Privatkundenbereich. Erkannt wird er, wie überall im Haus, allein am
+ * Katalog (pack_key → art "global"); `type` ist bei Global "business" wie bei den
+ * eingestellten Business-Abos und taugt deshalb nicht.
+ */
+export function isGlobalOrderRow(row: any): boolean {
+  return istGlobalPaket(row?.pack_key);
+}
+
+/**
+ * WAS FÜR EIN KUNDE STEHT VOR DER TÜR? (E-188, 17.09.2026)
+ *
+ * ── DIE LÜCKE ────────────────────────────────────────────────────────────
+ * Die Zahlungsbuchung setzt auch für einen Global-Auftrag account_status =
+ * 'active'. Der Auftrag vergibt kein Passwort — aber „Passwort vergessen", ein
+ * Einmal-Passwort aus „Zugang retten" oder der Anmelde-Link von /app hätten den
+ * Firmenkunden in den PRIVATKUNDENBEREICH geführt: Bonität, Raten, Karte,
+ * Startgespräch. Nichts davon gehört zu seinem Auftrag. Sein Bereich ist „Mein
+ * Auftrag" (signierter Link, kein Passwort).
+ *
+ * ── DIE REGEL ────────────────────────────────────────────────────────────
+ * Gezählt werden die BEZAHLTEN, nicht zusammengeführten Bestellungen der Familie:
+ *   nur_global         → alle bezahlten Bestellungen sind Global-Aufträge.
+ *                        Kein Privatbereich; Hinweis + Mail mit dem Link.
+ *   global_und_privat  → beides bezahlt. Der Privatbereich bleibt, wie er ist —
+ *                        und die Kontozeile ist NIE der Global-Auftrag
+ *                        (pickAccountRow).
+ *   nur_privat         → der Normalfall. Nichts ändert sich.
+ *   nichts             → nichts bezahlt. Nichts ändert sich.
+ * Eine Familie OHNE Global-Zeile landet immer in „nur_privat" oder „nichts" —
+ * für sie ist jede Entscheidung dieses Moduls dieselbe wie vor E-188. Das belegt
+ * scripts/pruef-global-querschnitt.ts gegen die Fassung vor dem Umbau.
+ */
+export type GlobalKontoLage = "nur_global" | "global_und_privat" | "nur_privat" | "nichts";
+
+export function globalKontoLage(family: any[]): GlobalKontoLage {
+  const bezahlt = (family ?? []).filter((r) => r && !r.merged_into && r.payment_status === "paid");
+  const global = bezahlt.some((r) => isGlobalOrderRow(r));
+  const privat = bezahlt.some((r) => !isGlobalOrderRow(r));
+  if (global && privat) return "global_und_privat";
+  if (global) return "nur_global";
+  return privat ? "nur_privat" : "nichts";
+}
+
+/**
+ * DIE EINE FRAGE AN ALLEN DREI TÜREN (Login, „Passwort vergessen", Anmelde-Link):
+ * Bekommt dieser Mensch statt des Privatbereichs den Wegweiser zu „Mein Auftrag"?
+ *
+ * Ja, wenn die einzigen bezahlten Bestellungen Global-Aufträge sind (`nur_global`) —
+ * MIT EINER AUSNAHME, die den Bestand schützt: Wer zusätzlich einen eigenen
+ * Privat-Antrag MIT Passwort hat (noch unbezahlt), konnte sich dort seit dem
+ * 27.08.2026 anmelden und seinen Zahlungsstand sehen. Dass er später für seine
+ * Firma FIAON Global kauft, darf ihm diese Tür nicht zuschlagen:
+ *   · mit `matched` (das Passwort stimmte): nur wenn es an einem GLOBAL-Auftrag lag
+ *     (dorthin kann es nur „Zugang retten" gelegt haben) — lag es an seinem
+ *     Privat-Antrag, bleibt alles wie vor E-188;
+ *   · ohne `matched` (Anmelde-Link, kein Passwort in der Familie): nur wenn KEINE
+ *     lebende Privat-Zeile ein Passwort trägt.
+ * Für jede Familie ohne bezahlten Global-Auftrag ist die Antwort immer „nein".
+ */
+export function istNurFirmenkunde(family: any[], matched?: any): boolean {
+  if (globalKontoLage(family) !== "nur_global") return false;
+  if (matched) return isGlobalOrderRow(matched);
+  return !(family ?? []).some((r) => r && !r.merged_into && !isGlobalOrderRow(r) && storedPasswordOf(r) !== null);
+}
+
+/** Der Hinweis für den Firmenkunden — dieselben Worte an Login, Passwort-Reset und Anmelde-Link. */
+export const GLOBAL_LOGIN_HINWEIS = {
+  error: "Für Ihren Firmenauftrag gibt es keine Anmeldung mit Passwort.",
+  hint: "Ihr Bereich heißt „Mein Auftrag“ — dort stehen Stand, Vertrag, Rechnung und Ihre Unterlagen. "
+    + "Den persönlichen Link dorthin senden wir Ihnen jetzt an die E-Mail-Adresse Ihres Auftrags. Bitte sehen Sie auch im Spam-Ordner nach.",
+} as const;
+
+/**
  * Das hinterlegte Passwort einer Antragszeile. Historisch an zwei Orten:
  * Spalte `password` (heute) und `utm->>'password'` (Altbestand). Leerstrings
  * gelten als „nicht gesetzt". Der Wert selbst wird NICHT verändert (kein trim),
@@ -96,18 +173,27 @@ export function storedPasswordOf(row: any): string | null {
 /**
  * Die Zeile, die das KONTO des Kunden ist — sie entscheidet über Zugang, Status
  * und die Daten im Portal. Rangfolge (höher = besser):
- *   +8 nicht als Dublette zusammengeführt
+ *  +16 nicht als Dublette zusammengeführt
+ *   +8 kein Auftrag über FIAON Global (E-188: ein Firmenauftrag ist nie das Privatkonto)
  *   +4 keine Zusatzbestellung (Bonität/SCHUFA ist ein Produkt, kein Konto)
  *   +2 freigeschaltet oder bezahlt
  *   +1 die Zeile, in der das eingegebene Passwort tatsächlich lag
  * Bei Gleichstand gewinnt die zuerst übergebene Zeile — die Familie wird
  * absteigend nach Alter geladen, also die neuere.
+ *
+ * E-188 (17.09.2026): Bis dahin hieß die Leiter 8/4/2/1. Wer ein Privat-Abo UND ein
+ * Global-Paket bezahlt hatte, bekam als „Konto" die jüngere der beiden Zeilen — also
+ * womöglich den Firmenauftrag, und der Privatbereich zeigte dann dessen Daten. Die
+ * neue Stufe steht ZWISCHEN „zusammengeführt" und „Zusatzbestellung"; für jede
+ * Familie ohne Global-Zeile bekommt jede Zeile dieselben acht Punkte dazu — die
+ * Reihenfolge und damit die gewählte Zeile bleiben exakt dieselben.
  */
 export function pickAccountRow(family: any[], matched?: any): any | null {
   if (!family || family.length === 0) return null;
   const score = (r: any) => {
     let s = 0;
-    if (!r.merged_into) s += 8;
+    if (!r.merged_into) s += 16;
+    if (!isGlobalOrderRow(r)) s += 8;
     if (!isAddonOrderRow(r)) s += 4;
     if (r.payment_status === "paid" || LOGIN_ACCESS_STATUSES.has(r.status)) s += 2;
     if (matched && r.ref === matched.ref) s += 1;
@@ -136,9 +222,26 @@ export interface LoginDenied {
   action?: string;
   actionHref?: string;
   reference?: string | null;
+  /** E-188: true = Firmenkunde von FIAON Global — der Aufrufer schickt den Link zu „Mein Auftrag" (globalZugangSenden). */
+  globalZugang?: boolean;
 }
 
 export type LoginVerdict = LoginGranted | LoginDenied;
+
+/** Die Abweisung des Firmenkunden — kein Fehler des Kunden, sondern der Wegweiser zu seinem Bereich. */
+function globalVerdict(rows: any[], reason: string): LoginDenied {
+  const auftrag = rows.find((r) => !r.merged_into && r.payment_status === "paid" && isGlobalOrderRow(r));
+  return {
+    granted: false,
+    status: 403,
+    code: LOGIN_CODES.GLOBAL,
+    reason,
+    ref: auftrag?.ref ?? null,
+    error: GLOBAL_LOGIN_HINWEIS.error,
+    hint: GLOBAL_LOGIN_HINWEIS.hint,
+    globalZugang: true,
+  };
+}
 
 /**
  * Die Entscheidung. `family` sind alle Antragszeilen zur eingegebenen E-Mail
@@ -173,6 +276,10 @@ export function decideLogin(family: any[], password: string): LoginVerdict {
     // UNS verloren gegangen ist. Darum eng begrenzt: nur für BEZAHLTE Konten
     // ohne jedes Passwort. Für alle anderen bleibt die Meldung neutral.
     if (rows.length > 0 && !familyHasPassword && familyIsPaid) {
+      // E-188: Der bezahlte Firmenkunde hat NIE ein Passwort — „Passwort jetzt setzen" führte ihn in den
+      // Privatkunden-Reset, den er ohne Geburtsdatum nicht besteht. Dieselbe Abwägung wie unten (die Auskunft
+      // verrät ein bezahltes Konto), derselbe enge Fall — nur mit dem Weg, der für ihn stimmt.
+      if (istNurFirmenkunde(rows)) return globalVerdict(rows, "FIAON Global: kein Passwort, Zugang ist „Mein Auftrag“");
       const account = pickAccountRow(rows);
       return {
         granted: false,
@@ -202,6 +309,10 @@ export function decideLogin(family: any[], password: string): LoginVerdict {
 
   // ── Schritt 2: Ab hier ist der Kunde nachgewiesen. Jetzt darf die Meldung
   // konkret werden, ohne Sicherheitsrisiko.
+  // E-188: Sind die EINZIGEN bezahlten Bestellungen Aufträge über FIAON Global und lag das Passwort an
+  // einem solchen Auftrag („Zugang retten" kann es dorthin gelegt haben), gibt es keinen Privatbereich zu
+  // öffnen. Lag es an einem eigenen Privat-Antrag, bleibt alles wie vor E-188 (istNurFirmenkunde).
+  if (istNurFirmenkunde(rows, matched)) return globalVerdict(rows, "FIAON Global: Passwort stimmt, Zugang ist „Mein Auftrag“");
   const account = pickAccountRow(rows, matched) ?? matched;
 
   // ── HIER STAND DAS ZAHLUNGS-TOR (entfernt am 27.08.2026) ────────────────

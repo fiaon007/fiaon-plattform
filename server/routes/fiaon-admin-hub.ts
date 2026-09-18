@@ -19,6 +19,7 @@ import { sendMakeWebhook, makePayloadFromRow, type MakeWebhookPayload } from "..
 import { MAKE_EVENT_REGISTRY, getEventDef } from "../make-events-registry";
 import { signInvoiceUrl } from "../fiaon-invoice";
 import { berlinToday } from "../lib/fiaon-time";
+import { produktkategorieSql } from "../lib/fiaon-produktkategorie";
 
 const router = Router();
 
@@ -471,6 +472,8 @@ router.get("/admin/hub/knopfdurchgang", async (_req, res) => {
         JOIN fiaon_applications a ON a.person_id = p.id AND a.payment_status = 'paid'
          AND a.merged_into IS NULL AND a.archived_at IS NULL AND a.gdpr_deleted_at IS NULL
          AND NOT (a.type = 'schufa' OR a.ref LIKE 'FIAON-SCHUFA-%')
+         -- E-188: FIAON Global kennt kein Startgespräch des Onboarding-Teams (dieselbe Regel wie die Bestandswache).
+         AND ${sqlPool.unsafe(produktkategorieSql("a"))} <> 'global'
         WHERE p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL
           AND NOT COALESCE(p.is_blocked, FALSE)
           AND NOT EXISTS (SELECT 1 FROM fiaon_termine t

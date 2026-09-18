@@ -737,6 +737,30 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     },
   },
   {
+    type: "global_zahlung_erinnerung",
+    label: "FIAON Global: Zahlung steht noch aus — ruhige Erinnerung (Firmenkunde)",
+    description: "Geht automatisch am dritten und am siebten Tag nach dem Auftrag, je Stufe genau einmal und nur solange der Auftrag offen ist (Lauf global_zahlung_takt, Berlin 8–20 Uhr, Mo–Sa). Ein Satz Anlass, Knopf zur Zahlungsseite, Vertrag und Rechnung über „Mein Auftrag“ — keine Mahnstufe, keine Bankdaten im Text. Am zehnten Tag folgt keine Mail, sondern eine dringende Aufgabe an die zuständige Person. Englische Fassung über sprache: \"en\".",
+    customerBound: false,
+    example: {
+      email: "m.muster@muster-gmbh.example", anrede_zeile: "Guten Tag Herr Muster", firma: "Muster GmbH", paket: "FIAON Global Struktur",
+      betrag_text: "2.499,00 €", antrag_id: "FIAON-MB2XK4LQ-7T9A", payment_reference: "FIAON-A1B2C3",
+      zahlungsseite_url: "https://www.fiaon.com/zahlung/FIAON-A1B2C3",
+      mein_auftrag_url: "https://www.fiaon.com/business/auftrag/FIAON-MB2XK4LQ-7T9A?t=1760000000000.0123456789abcdef0123456789abcdef",
+      ansprechpartner: "Herr Beispiel", anlass: "Deshalb erinnern wir Sie kurz daran.",
+    },
+  },
+  {
+    type: "global_zugang",
+    label: "FIAON Global: Link zu „Mein Auftrag“ (Firmenkunde)",
+    description: "Ein frischer, signierter Link je Auftrag (30 Tage). Geht raus, wenn der Kunde ihn selbst anfordert (abgelaufener Link, POST /global/zugang), wenn ein Firmenkunde es am Privatkunden-Login oder über „Passwort vergessen“ versucht, oder wenn die zuständige Person ihn aus dem Office schickt. Firmenaufträge haben kein Passwort. Englische Fassung über sprache: \"en\".",
+    customerBound: false,
+    example: {
+      email: "m.muster@muster-gmbh.example", anrede_zeile: "Guten Tag Herr Muster", firma: "Muster GmbH", paket: "FIAON Global Struktur",
+      antrag_id: "FIAON-MB2XK4LQ-7T9A", ansprechpartner: "Herr Beispiel",
+      mein_auftrag_url: "https://www.fiaon.com/business/auftrag/FIAON-MB2XK4LQ-7T9A?t=1760000000000.0123456789abcdef0123456789abcdef",
+    },
+  },
+  {
     type: "global_termin",
     label: "FIAON Global: Erstgespräch bestätigt (Unternehmen)",
     description: "E-188 (17.09.2026): Feuert sofort, wenn ein Unternehmen über den Gesprächskalender auf /business ein Erstgespräch zu FIAON Global bucht (server/lib/fiaon-global-termin.ts). Gesiezt, mit Firma und Paketwunsch im Datenkasten, Kalenderdatei als Link (kalender_url) und Storno-Link. Eigene Vorlage, weil termin_bestaetigung einen Privatkunden anspricht. Kein Make-Zweig nötig — die Vorlage liegt im Quelltext (server/mail/vorlagen/termin.ts).",

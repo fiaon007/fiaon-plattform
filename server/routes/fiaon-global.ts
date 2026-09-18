@@ -185,6 +185,23 @@ router.post("/admin/global/auftraege/:ref/auftragsmail", requireChef("leitung"),
   }
 });
 
+/**
+ * Auftrag stornieren — { grund, erstattung }. Bezahlt: Grund mit mindestens zehn Zeichen.
+ * `erstattung: true` bewegt KEIN Geld: Es entsteht eine dringende Aufgabe für Justin, der von Hand
+ * überweist (Hausregel). Die Regeln stehen in server/lib/fiaon-global-storno.ts.
+ */
+router.post("/admin/global/auftraege/:ref/storno", requireChef("leitung"), async (req: ChefRequest, res: Response) => {
+  try {
+    const { globalAuftragStornieren } = await import("../lib/fiaon-global-storno");
+    const erg = await globalAuftragStornieren(String(req.params.ref), { grund: req.body?.grund, erstattung: req.body?.erstattung === true }, await chefName(req));
+    if (!erg.ok) return res.status(erg.status ?? 400).json({ ok: false, error: erg.error });
+    res.json({ ok: true, meldung: erg.meldung });
+  } catch (err) {
+    console.error("[FIAON-GLOBAL] admin storno:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 router.get("/admin/global/auftraege/:ref/vertrag.pdf", requireChef("leitung"), async (req: ChefRequest, res: Response) => {
   try {
     const ref = String(req.params.ref);

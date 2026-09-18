@@ -25,6 +25,7 @@
 import { sqlPool } from "./db-pool";
 import { absoluteUrl } from "../fiaon-base-url";
 import type { Kundenlage } from "@shared/fiaon-postmeister-typen";
+import { istGlobalPaket } from "@shared/fiaon-pakete";
 
 export type Stufe = "frei" | "bestaetigen";
 
@@ -580,11 +581,106 @@ export const eskalationVorbereiten: Werkzeug = {
   },
 };
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE WAND FÜR FIAON GLOBAL (17.09.2026, E-188)
+//
+// Ein Firmenkunde von FIAON Global schreibt an dasselbe Postfach — die Mails des
+// Bestellwegs bitten ihn sogar darum („Antworten Sie einfach auf diese E-Mail").
+// Seine Bestellung ist für die Akte eine Bestellung wie jede andere, seine Lage
+// „unbezahlt" oder „aktiv" — und damit bekäme Mara Werkzeuge angeboten, die für
+// einen Auftrag über 2.499 € und mehr falsch sind:
+//   · kuendigung_vormerken  storniert eine unbezahlte Bestellung SOFORT und spricht
+//                           sonst von zwölf Monatsraten — einen Firmenauftrag
+//                           storniert nur die Leitung (fiaon-global-storno.ts),
+//   · mahnstopp_setzen      gehört zur Mahnkette der Privatkunden; FIAON Global hat
+//                           seinen eigenen ruhigen Takt (fiaon-global-zahlungstakt.ts),
+//   · eskalation_vorbereiten übergibt an das Forderungsmanagement der Abo-Raten,
+//   · konto_freischalten    öffnet den PRIVATKUNDENBEREICH — den es für ihn nicht gibt,
+//   · terminlink_bauen      führt in den Kalender des Privatvertriebs.
+// Ein Satz im Prompt wäre eine Bitte. Die Wand steht deshalb VOR der Ausführung,
+// für jeden Aufrufer (Modell, Vorab-Aufruf, Freigabe in der Werkbank): Sie liest
+// die Bestellung des Vorgangs und lehnt mit einem Satz ab, der dem Modell sagt,
+// was stattdessen zu tun ist. Erlaubt bleiben Zahlungsseite, Rechnung, Notiz,
+// Aufgabe, Vermerk, Werbesperre — und das eigene Werkzeug global_zugang_senden.
+// Für jeden Vorgang OHNE Global-Bestellung ändert sich nichts.
+// ═══════════════════════════════════════════════════════════════════════════
+export const NUR_PRIVATKUNDEN_WERKZEUGE = new Set<string>([
+  "kuendigung_vormerken", "mahnstopp_setzen", "eskalation_vorbereiten", "konto_freischalten", "terminlink_bauen",
+]);
+
+/** Rein: Darf dieses Werkzeug in diesem Vorgang laufen? `null` = ja; sonst der Satz für das Modell. */
+export function globalWerkzeugSperre(werkzeug: string, istGlobalVorgang: boolean): string | null {
+  if (werkzeug === "global_zugang_senden") {
+    return istGlobalVorgang ? null : "Dieses Werkzeug gibt es nur für Firmenaufträge über FIAON Global. Privatkunden melden sich unter fiaon.com/login an.";
+  }
+  if (!istGlobalVorgang || !NUR_PRIVATKUNDEN_WERKZEUGE.has(werkzeug)) return null;
+  return "Das ist ein Firmenauftrag über FIAON Global — dieses Werkzeug gehört zur Privatkundenlinie und läuft hier nicht. "
+    + "Storno, Beendigung, Erstattung und Zahlungsfragen entscheidet die Leitung mit der zuständigen Person: "
+    + "Gib das Anliegen mit aufgabe_an_betreuer weiter (mit Zitat) und sage dem Kunden nur zu, was die Aufgabe deckt. "
+    + "Kein Wort über Monatsraten, Kündigungsfristen, Mahnungen oder den Kundenbereich — das alles gibt es bei FIAON Global nicht.";
+}
+
+/** Gehört dieser Vorgang zu FIAON Global? Entschieden an der Bestellung — ohne Bestellung an ALLEN Bestellungen der Person. */
+export async function istGlobalVorgang(k: Pick<WerkzeugKontext, "personId" | "ref">): Promise<boolean> {
+  try {
+    if (k.ref) {
+      const [a] = (await sqlPool`SELECT pack_key FROM fiaon_applications WHERE ref = ${k.ref} LIMIT 1`) as any[];
+      return istGlobalPaket(a?.pack_key);
+    }
+    if (k.personId) {
+      const zeilen = (await sqlPool`
+        SELECT pack_key FROM fiaon_applications
+         WHERE person_id = ${k.personId} AND merged_into IS NULL AND archived_at IS NULL`) as any[];
+      return zeilen.length > 0 && zeilen.every((z) => istGlobalPaket(z.pack_key));
+    }
+  } catch (e) {
+    console.error("[POSTMEISTER] Global-Wand konnte die Bestellung nicht lesen:", String(e).slice(0, 160));
+  }
+  return false;
+}
+
+/**
+ * ZUGANG ZU „MEIN AUFTRAG" — der Firmenkunde hat kein Passwort. Ist sein Link
+ * abgelaufen oder verloren, bekommt er einen frischen: an die Adresse SEINES
+ * Auftrags, nie an eine andere (server/lib/fiaon-global-zugang.ts).
+ */
+export const globalZugangSendenWerkzeug: Werkzeug = {
+  name: "global_zugang_senden",
+  beschreibung: "NUR für Firmenaufträge über FIAON Global: schickt dem Kunden einen frischen Link zu seiner Seite „Mein Auftrag“ (Stand, Vertrag, Rechnung, Unterlagen, Fristen). Nutze das, wenn sein Link abgelaufen oder verloren ist oder er fragt, wo er Vertrag, Rechnung oder seine Unterlagen findet. Der Link geht ausschließlich an die E-Mail-Adresse des Auftrags — nenne ihm keine andere Anmeldung, es gibt für ihn kein Passwort.",
+  stufe: "frei",
+  lagen: "alle",
+  parameter: { type: "object", additionalProperties: false, properties: {}, required: [] },
+  async ausfuehren(_p, k) {
+    if (!k.ref) return { ok: false, ergebnis: "", fehler: "Ohne Bestellung nicht möglich." };
+    const [g] = (await sqlPool`SELECT email FROM fiaon_global_auftraege WHERE ref = ${k.ref} LIMIT 1`.catch(() => [])) as any[];
+    if (!g?.email) return { ok: false, ergebnis: "", fehler: "Zu dieser Bestellung gibt es keinen unterschriebenen Auftrag — gib das Anliegen mit aufgabe_an_betreuer weiter." };
+    const { globalZugangSenden } = await import("./fiaon-global-zugang");
+    const n = await globalZugangSenden(String(g.email), { ref: k.ref, ohneDrossel: true, ausgeloestVon: "Postmeister (Anfrage des Kunden per E-Mail)" });
+    if (n < 1) return { ok: false, ergebnis: "", fehler: "Der Link ließ sich nicht verschicken (Auftrag storniert oder Versand abgelehnt) — gib das Anliegen mit aufgabe_an_betreuer weiter." };
+    await protokoll(k, "global_zugang_senden", "Frischer Link zu „Mein Auftrag“ an die Adresse des Auftrags geschickt.", false);
+    return { ok: true, ergebnis: "Der Link zu „Mein Auftrag“ ist an die E-Mail-Adresse des Auftrags unterwegs.", daten: { verschickt: n } };
+  },
+};
+
+/** Stellt die Wand vor ein Werkzeug — die Beschreibung und die Parameter bleiben, wie sie sind. */
+function mitGlobalWand(w: Werkzeug): Werkzeug {
+  if (!NUR_PRIVATKUNDEN_WERKZEUGE.has(w.name) && w.name !== "global_zugang_senden") return w;
+  return {
+    ...w,
+    async ausfuehren(p, k) {
+      const sperre = globalWerkzeugSperre(w.name, await istGlobalVorgang(k));
+      if (sperre) return { ok: false, ergebnis: "", fehler: sperre };
+      return w.ausfuehren(p, k);
+    },
+  };
+}
+
 /** Alle Werkzeuge, in der Reihenfolge, in der das Modell sie sehen soll. */
 export const POSTMEISTER_WERKZEUGE: Werkzeug[] = [
   zahlungslinkBauen, rechnungAnhaengen, terminlinkBauen, notizAnBetreuer, aufgabeAnBetreuer, vermerkSchreiben,
   kuendigungVormerken, werbesperreSetzen, mahnstoppSetzen, eskalationVorbereiten, kontoFreischalten,
-];
+  globalZugangSendenWerkzeug,
+].map(mitGlobalWand);
 
 /** Welche Werkzeuge in dieser Lage angeboten werden. */
 export function werkzeugeFuerLage(lage: Kundenlage): Werkzeug[] {

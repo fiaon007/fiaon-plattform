@@ -23,6 +23,18 @@
 //                   Leistungsempfängers; nur MIT USt-IdNr. des Kunden
 // Auch hier gilt: NIEMALS selbst 19 % ausweisen.
 // Privatkunden-Rechnungen laufen durch keinen der neuen Zweige.
+//
+// ── ENGLISCHE ZWEITZEILE (17.09.2026, E-188, Querschnitt) ───────────
+// Wer seinen Auftrag auf /en/business/start geführt hat, bekam Vertrag, Mail
+// und Zahlungsseite englisch — und eine rein deutsche Rechnung. Die Rechnung
+// BLEIBT deutsch (ein Beleg, eine Sprache für die Buchhaltung); für diese
+// Aufträge trägt aber jeder Kopfbegriff eine kleine englische Zweitzeile
+// („Rechnungsnummer / Invoice no."), dazu Beschreibung, Steuersatz und
+// Zahlungshinweis in einem zweiten, englischen Satz. Gesteuert über
+// `rechnung_sprache = "en"` an der Zeile; gesetzt von rechnungsSpracheSetzen()
+// aus der Auftragsakte (fiaon_global_auftraege.vertrag_sprache) — an allen
+// fünf Zeichenstellen, damit es dieselbe Rechnung bleibt. Ohne das Feld ist
+// jede Rechnung Byte für Byte, wie sie war (Zeilenhöhen, Kastenhöhen, Texte).
 // ═══════════════════════════════════════════════════════════════════
 
 import { createHmac } from "crypto";
@@ -149,6 +161,19 @@ export function b2bUstModus(a: { rechnung_ust_modus?: unknown; tax_id?: unknown 
 const LAND_NAME: Record<string, string> = { DE: "Deutschland", AT: "Österreich", CH: "Schweiz" };
 
 /**
+ * Die Sprache der Rechnung an die Zeile hängen — NUR für Aufträge über FIAON Global, deren Auftrag
+ * englisch geführt wurde. Fehlt die Akte oder die Tabelle, bleibt die Rechnung deutsch: Eine Rechnung
+ * darf an dieser Frage nie scheitern.
+ */
+export async function rechnungsSpracheSetzen(sqlPool: any, a: any): Promise<void> {
+  if (!a || a.rechnung_sprache || !istGlobalPaket(a.pack_key) || !a.ref) return;
+  try {
+    const [g] = await sqlPool`SELECT vertrag_sprache FROM fiaon_global_auftraege WHERE ref = ${a.ref} LIMIT 1`;
+    if (String(g?.vertrag_sprache ?? "").trim().toLowerCase() === "en") a.rechnung_sprache = "en";
+  } catch { /* keine Akte, keine Tabelle → deutsch */ }
+}
+
+/**
  * Zeichnet die Rechnung in ein pdfkit-Dokument. Erwartet eine fiaon_applications-Zeile
  * mit invoice_number, payment_reference, amount_due, payment_due_date etc.
  */
@@ -174,6 +199,11 @@ export function renderInvoicePdf(doc: PDFKit.PDFDocument, a: any): void {
   // E-188: Firmenkunde = Paket der Art "global" (siehe Kopfkommentar).
   const firmenkunde = istGlobalPaket(a.pack_key);
   const ustModus: B2bUstModus = firmenkunde ? b2bUstModus(a) : "none";
+  // Englische Zweitzeile je Kopfbegriff — nur Firmenauftrag, nur wenn der Auftrag englisch geführt wurde.
+  const en = firmenkunde && String(a.rechnung_sprache || "").trim().toLowerCase() === "en";
+  const zweit = (text: string, x: number, yy: number, width: number, align: "left" | "right" = "left") => {
+    if (en) doc.font("Helvetica").fontSize(6.5).fillColor(CI.slate).text(text, x, yy, { width, align, lineBreak: false });
+  };
 
   // ── Kopf: FIAON Wortmarke links, Entity-Block rechtsbündig ──
   doc.font("Helvetica-Bold").fontSize(24).fillColor(CI.blue).text("FIAON", M, M);
@@ -206,6 +236,7 @@ export function renderInvoicePdf(doc: PDFKit.PDFDocument, a: any): void {
   let ay = doc.y + 8;
   doc.font("Helvetica-Bold").fontSize(9).fillColor(CI.dark).text("Rechnungsempfänger", M, ay, { width: addrW });
   ay = doc.y + 3;
+  if (en) { zweit("Bill to", M, ay - 3, addrW); ay += 8; }
   if (firmenkunde) {
     // Rechnungsempfänger ist die FIRMA — der Mensch steht als Ansprechpartner darunter.
     const firma = String(a.company_name || "").trim() || customerName;
@@ -231,24 +262,26 @@ export function renderInvoicePdf(doc: PDFKit.PDFDocument, a: any): void {
 
   // Rechnungsmeta rechtsbündig als Block (Label links, Wert rechts)
   let my = y;
-  const meta: Array<[string, string]> = [
-    ["Rechnungsnummer", a.invoice_number || "—"],
-    ["Rechnungsdatum", deDate(invoiceDate)],
-    ["Zahlungsreferenz", a.payment_reference || "—"],
-    // Firmenkunden erteilen einen Auftrag, Privatkunden stellen einen Antrag.
-    [firmenkunde ? "Auftrags-Nr." : "Antrags-Nr.", a.ref || "—"],
+  const meta: Array<[string, string, string]> = [
+    ["Rechnungsnummer", a.invoice_number || "—", "Invoice no."],
+    ["Rechnungsdatum", deDate(invoiceDate), "Invoice date (DD.MM.YYYY)"],
+    ["Zahlungsreferenz", a.payment_reference || "—", "Payment reference"],
+    // Firmenkunden erteilen einen Auftrag, Privatkunden stellen einen Antrag (18.09.2026).
+    [firmenkunde ? "Auftrags-Nr." : "Antrags-Nr.", a.ref || "—", "Order no."],
   ];
-  if (dueDate) meta.push(["Zahlungsziel", deDate(dueDate)]);
-  for (const [label, value] of meta) {
+  if (dueDate) meta.push(["Zahlungsziel", deDate(dueDate), "Payment due"]);
+  for (const [label, value, labelEn] of meta) {
     doc.font("Helvetica").fontSize(8.5).fillColor(CI.slate).text(label, metaX, my, { width: 108, lineBreak: false });
     doc.font("Helvetica-Bold").fontSize(8.5).fillColor(CI.dark).text(value, metaX + 110, my, { width: metaW - 110, align: "right", lineBreak: false });
-    my += 15;
+    zweit(labelEn, metaX, my + 10, 108);
+    my += en ? 22 : 15;
   }
 
   // ── Titel ──
   y = Math.max(addrBottom, my) + 26;
   doc.font("Helvetica-Bold").fontSize(16).fillColor(CI.dark).text("Rechnung", M, y);
-  y += 26;
+  if (en) doc.font("Helvetica").fontSize(9).fillColor(CI.slate).text("Invoice", M, y + 19, { lineBreak: false });
+  y += en ? 38 : 26;
 
   // ── Positionstabelle: Beschreibung | Zeitraum | Betrag (Beträge RECHTSBÜNDIG) ──
   const amountW = 90;
@@ -258,12 +291,16 @@ export function renderInvoicePdf(doc: PDFKit.PDFDocument, a: any): void {
   const periodX = M + 10 + descW + 10;
   const amountX = M + W - amountW - 10;
 
-  doc.rect(M, y, W, 22).fillColor(CI.bgSoft).fill();
+  const kopfH = en ? 31 : 22;
+  doc.rect(M, y, W, kopfH).fillColor(CI.bgSoft).fill();
   doc.font("Helvetica-Bold").fontSize(9).fillColor(CI.slate)
     .text("Beschreibung", descX, y + 7, { width: descW, lineBreak: false })
     .text("Zeitraum", periodX, y + 7, { width: periodW, lineBreak: false })
     .text("Betrag", amountX, y + 7, { width: amountW, align: "right", lineBreak: false });
-  y += 22;
+  zweit("Description", descX, y + 19, descW);
+  zweit("Period", periodX, y + 19, periodW);
+  zweit("Amount", amountX, y + 19, amountW, "right");
+  y += kopfH;
 
   // 04.09.2026 (E-115): Eine Monatsrate bekommt dieselbe Rechnung, nur mit
   // eigener Beschreibung und eigenem Zeitraum — die Zeile darf sie mitbringen.
@@ -276,9 +313,14 @@ export function renderInvoicePdf(doc: PDFKit.PDFDocument, a: any): void {
   const rowTop = y + 10;
   doc.font("Helvetica").fontSize(9.5).fillColor(CI.dark)
     .text(description, descX, rowTop, { width: descW });
+  if (en && !a.beschreibung) {
+    doc.font("Helvetica").fontSize(8).fillColor(CI.slate)
+      .text(`Set-up of a US company structure as per order ${a.ref || ""}`.trim(), descX, doc.y + 3, { width: descW });
+  }
   const descBottom = doc.y;
   doc.font("Helvetica").fontSize(8.5).fillColor(CI.slate)
     .text(zeitraum, periodX, rowTop, { width: periodW });
+  if (en && !a.zeitraum) doc.font("Helvetica").fontSize(6.5).fillColor(CI.slate).text("one-off", periodX, doc.y + 1, { width: periodW });
   const periodBottom = doc.y;
   doc.font("Helvetica-Bold").fontSize(10).fillColor(CI.dark)
     .text(eur(amount), amountX, rowTop, { width: amountW, align: "right", lineBreak: false });
@@ -292,18 +334,26 @@ export function renderInvoicePdf(doc: PDFKit.PDFDocument, a: any): void {
     doc.font("Helvetica").fontSize(9.5).fillColor(CI.slate)
       .text("Nettobetrag", metaX, y, { width: 110, lineBreak: false })
       .text(eur(amount), metaX + 110, y, { width: metaW - 110, align: "right", lineBreak: false });
-    y += 16;
+    zweit("Net amount", metaX, y + 11, 110);
+    y += en ? 23 : 16;
   }
   doc.font("Helvetica-Bold").fontSize(12).fillColor(CI.dark)
     .text(firmenkunde && ustModus === "reverse_charge" ? "Rechnungsbetrag" : "Gesamtbetrag", metaX, y, { width: 110, lineBreak: false })
     .text(eur(amount), metaX + 110, y, { width: metaW - 110, align: "right", lineBreak: false });
-  y += 20;
+  zweit(ustModus === "reverse_charge" ? "Invoice amount" : "Total", metaX, y + 14, 110);
+  y += en ? 27 : 20;
   if (firmenkunde) {
     // Sachlich, ohne „folgt nach Registrierung": Was auf dieser Rechnung gilt, steht auf dieser Rechnung.
     const satz = ustModus === "reverse_charge"
       ? `Steuerschuldnerschaft des Leistungsempfängers (Reverse Charge). USt-IdNr. des Leistungsempfängers: ${String(a.tax_id).trim()}. Der Rechnungsbetrag enthält keine Umsatzsteuer.`
       : "Rechnungsbetrag ohne gesonderten Ausweis von Umsatzsteuer.";
     doc.font("Helvetica").fontSize(8).fillColor(CI.slate).text(satz, M, y, { width: W, align: "right" });
+    if (en) {
+      const satzEn = ustModus === "reverse_charge"
+        ? `Reverse charge: the recipient of the service is liable for VAT. VAT ID of the recipient: ${String(a.tax_id).trim()}. The invoice amount contains no VAT.`
+        : "Invoice amount without separate statement of VAT.";
+      doc.font("Helvetica").fontSize(7).fillColor(CI.slate).text(satzEn, M, doc.y + 2, { width: W, align: "right" });
+    }
     y = doc.y;
   } else if (vatMode === "none") {
     doc.font("Helvetica").fontSize(8).fillColor(CI.slate)
@@ -313,25 +363,29 @@ export function renderInvoicePdf(doc: PDFKit.PDFDocument, a: any): void {
   y += 22;
 
   // ── Zahlungsdaten-Block (dynamische Höhe — Hinweiszeile kollidiert NIE) ──
-  const payRows: Array<[string, string]> = [
-    ["Empfänger", FIAON_BANK_DETAILS.recipient],
-    ["IBAN", groupIban(FIAON_BANK_DETAILS.iban)],
-    ["BIC", FIAON_BANK_DETAILS.bic],
-    ["Verwendungszweck", a.payment_reference || "—"],
-    ["Zahlungsziel", dueDate ? deDate(dueDate) : "—"],
+  const payRows: Array<[string, string, string]> = [
+    ["Empfänger", FIAON_BANK_DETAILS.recipient, "Recipient"],
+    ["IBAN", groupIban(FIAON_BANK_DETAILS.iban), ""],
+    ["BIC", FIAON_BANK_DETAILS.bic, ""],
+    ["Verwendungszweck", a.payment_reference || "—", "Payment reference"],
+    ["Zahlungsziel", dueDate ? deDate(dueDate) : "—", "Payment due"],
   ];
-  const payBoxH = 12 + 20 + payRows.length * 14 + 18; // Titel + Zeilen + Hinweis
+  const payStep = en ? 21 : 14;
+  const payBoxH = 12 + 20 + (en ? 9 : 0) + payRows.length * payStep + 18 + (en ? 10 : 0); // Titel + Zeilen + Hinweis
   doc.roundedRect(M, y, W, payBoxH, 8).fillColor(CI.bgSoft).fill();
   doc.roundedRect(M, y, W, payBoxH, 8).lineWidth(1).strokeColor(CI.lightLine).stroke();
   doc.font("Helvetica-Bold").fontSize(10).fillColor(CI.blue).text("Zahlung per SEPA-Banküberweisung (Vorkasse)", M + 14, y + 12, { width: W - 28, lineBreak: false });
-  let py = y + 32;
-  for (const [label, value] of payRows) {
+  zweit("Payment by SEPA bank transfer (payment in advance)", M + 14, y + 25, W - 28);
+  let py = y + 32 + (en ? 9 : 0);
+  for (const [label, value, labelEn] of payRows) {
     doc.font("Helvetica").fontSize(8.5).fillColor(CI.slate).text(label, M + 14, py, { width: 120, lineBreak: false });
     doc.font("Helvetica-Bold").fontSize(8.5).fillColor(CI.dark).text(value, M + 140, py, { width: W - 154, lineBreak: false });
-    py += 14;
+    if (labelEn) zweit(labelEn, M + 14, py + 10, 120);
+    py += payStep;
   }
   doc.font("Helvetica").fontSize(7.5).fillColor(CI.slate)
     .text("Bitte geben Sie den Verwendungszweck exakt an – nur so kann Ihre Zahlung automatisch zugeordnet werden.", M + 14, py + 4, { width: W - 28, lineBreak: false });
+  zweit("Please state the payment reference exactly – it is the only way your payment can be matched automatically.", M + 14, py + 14, W - 28);
 
   // ── Fußzeile: einzeilig sauber + Seitenzahl bei Mehrseitigkeit ──
   const range = doc.bufferedPageRange ? doc.bufferedPageRange() : { start: 0, count: 1 };

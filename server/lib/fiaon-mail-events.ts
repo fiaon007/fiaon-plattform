@@ -193,10 +193,6 @@ const ZUSATZ: Partial<Record<MakeEventType, EventZusatz>> = {
   },
   // E-188 „Mein Auftrag": Alle vier entstehen aus der Auftragsakte und tragen einen signierten Link —
   // ausgelöst werden sie im Auftrag selbst (/agent/global/<ref>) bzw. vom Tageslauf, nicht aus dem Sende-Menü.
-  global_zugang: {
-    gruppe: "konto", zielgruppe: "kunde", rollen: ["admin"],
-    klartext: "FIAON Global: frischer Link zu „Mein Auftrag“ — vom Kunden angefordert oder im Auftrag mit „Zugang senden“ verschickt.",
-  },
   global_etappe: {
     gruppe: "konto", zielgruppe: "kunde", rollen: ["admin"],
     klartext: "FIAON Global: eine neue Etappe im Auftrag, mit dem nächsten Schritt. Geht aus dem Auftrag, wenn „dem Kunden mitteilen“ gesetzt ist.",
@@ -208,6 +204,17 @@ const ZUSATZ: Partial<Record<MakeEventType, EventZusatz>> = {
   global_dokument: {
     gruppe: "dokumente", zielgruppe: "kunde", rollen: ["admin"],
     klartext: "FIAON Global: FIAON hat ein Dokument im Dokumentenraum bereitgestellt. Das Dokument reist nie als Anhang.",
+  },
+  // Querschnitt 17.09.2026: Beide entstehen aus der Auftragsakte (Token, Sprache, zuständige Person) —
+  // von Hand aus einer Kundenakte fehlte ihnen der Link. Der Zugang geht über den Knopf im Office bzw.
+  // die Leitungs-Seite raus, die Erinnerung über den Lauf global_zahlung_takt.
+  global_zahlung_erinnerung: {
+    gruppe: "zahlung", zielgruppe: "kunde", rollen: ["admin"],
+    klartext: "FIAON Global: ruhige Erinnerung an die offene Überweisung — am 3. und 7. Tag nach dem Auftrag, je einmal. Knopf zur Zahlungsseite, keine Bankdaten im Text.",
+  },
+  global_zugang: {
+    gruppe: "konto", zielgruppe: "kunde", rollen: ["admin"],
+    klartext: "FIAON Global: frischer Link zu „Mein Auftrag“ (30 Tage) — Firmenkunden haben kein Passwort.",
   },
   lead_followup: {
     gruppe: "lead", zielgruppe: "kunde", rollen: ["admin", "vertriebsleiter"],

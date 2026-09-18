@@ -370,6 +370,8 @@ export async function globalVertragPdf(d: GlobalVertragDaten): Promise<Buffer> {
   return htmlZuPdfMitFusszeile({
     html, fusszeile: fuss, titel,
     rand: { oben: "18mm", unten: "20mm", links: "16mm", rechts: "16mm" },
+    // Der englische Auftrag zählt seine Seiten englisch: „Page 1 of 3".
+    sprache: d.sprache,
   });
 }
 

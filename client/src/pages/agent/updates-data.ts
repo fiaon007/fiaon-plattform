@@ -84,6 +84,33 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-09-17-global-querschnitt-e188",
+    date: "2026-09-17",
+    category: "Geändert",
+    title: "FIAON Global: Firmenkunden stehen nicht mehr in euren Anruflisten — und bleibt die Zahlung aus, fasst das Haus ruhig nach",
+    summary:
+      "Ein Unternehmen mit einem Auftrag über FIAON Global ist kein Privatkunde: Es erscheint ab jetzt weder in der Pipeline noch im "
+      + "Kundenpool, im Onboarding-Raum oder in den Listen „Dokumente fehlen“ und „Zugang offen“. Es gehört der zuständigen Person "
+      + "für FIAON Global. Bleibt die Überweisung aus, erinnert das Haus am dritten und am siebten Tag sachlich per Mail — am zehnten "
+      + "Tag bekommt die zuständige Person die dringende Aufgabe „anrufen“.",
+    changes: [
+      "Pipeline, Arbeitsliste, Sofortzuteilung, Pool-Rückfall: Wer NUR einen Global-Auftrag hat, wird dort nicht mehr geführt. Wer daneben Privatkunde ist, bleibt mit seinem Privatpaket genau dort, wo er war — die offene Firmenrechnung zieht ihn nicht zurück in die Anrufliste.",
+      "Akte eines Firmenkunden: kein Leitfaden „bezahlt, Startgespräch vereinbaren“, keine Wartestufe „wartet auf Onboarding“, keine Einladung zum Startgespräch der Privatkunden.",
+      "Zahlung offen: Erinnerung 1 (Tag 3) und Erinnerung 2 (Tag 7) gehen automatisch raus — werktags und samstags zwischen 8 und 20 Uhr, mit Knopf zur Zahlungsseite, ohne Mahnton. Hat der Kunde auf der Zahlungsseite „überwiesen“ gemeldet, bekommt er keine Erinnerung.",
+      "Tag 10: dringende Aufgabe „FIAON Global: offener Auftrag seit zehn Tagen — Firma anrufen“ an die zuständige Person, mit Ansprechpartner, Telefon, Betrag und dem Stand der Erinnerungen. Danach geht keine Mail mehr raus.",
+      "Firmenkunden haben kein Passwort. Versucht es einer am Kunden-Login oder über „Passwort vergessen“, bekommt er den Hinweis auf „Mein Auftrag“ und den Link dorthin per Mail — an die Adresse seines Auftrags.",
+      "Mara (Postfach) kündigt, stoppt Mahnungen, eskaliert und schaltet bei einem Firmenauftrag NICHTS frei. Sie gibt das Anliegen als Aufgabe an die zuständige Person und kann dem Kunden nur den Link zu „Mein Auftrag“ neu schicken.",
+      "Wer auf Englisch bestellt hat, bekommt Mails, Zahlungsseite und die Seitenzahl im Vertrag englisch; die Rechnung bleibt deutsch und trägt je Begriff eine englische Zweitzeile.",
+    ],
+    howto: [
+      "Aufgabe „… anrufen“ am zehnten Tag: anrufen und klären — kommt die Zahlung, gibt es Fragen, oder will das Unternehmen nicht mehr? Das Gespräch in der Akte dokumentieren.",
+      "Will der Kunde nicht mehr: der Leitung Bescheid geben. Storniert wird nur dort (Chefbüro → Kunden → Global-Aufträge → „Auftrag stornieren“); eine Erstattung überweist ausschließlich Justin von Hand — nenne dem Kunden dafür keinen Termin.",
+      "Fragt ein Firmenkunde nach seinem Zugang: Er braucht kein Passwort. Der Link zu „Mein Auftrag“ steht in seinen Mails und gilt dreißig Tage; einen frischen fordert er auf der Seite selbst an („Zugang neu anfordern“) — oder er versucht es mit seiner E-Mail-Adresse am Kunden-Login, dann kommt der Link von selbst.",
+    ],
+    link: { href: "/agent/aufgaben", label: "Aufgaben öffnen" },
+    important: true,
+  },
+  {
     id: "2026-09-17-global-mein-auftrag-e188",
     date: "2026-09-17",
     category: "Neu",

@@ -29,6 +29,7 @@
 
 import { sqlPool } from "./db-pool";
 import { istTestkontoSql } from "./fiaon-mitarbeiter-sicht";
+import { produktkategorieSql } from "./fiaon-produktkategorie";
 
 type Lauf = typeof sqlPool;
 
@@ -129,6 +130,8 @@ export async function bestandPruefen(lauf: Lauf = sqlPool): Promise<Befund[]> {
        AND ap.merged_into IS NULL AND ap.archived_at IS NULL
        AND ap.payment_status = 'paid'
        AND NOT (ap.type = 'schufa' OR ap.ref LIKE 'FIAON-SCHUFA-%')
+       -- E-188: Ein Auftrag über FIAON Global hat kein Startgespräch des Onboarding-Teams — er ist kein Befund.
+       AND ${produktkategorieSql("ap")} <> 'global'
       WHERE p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL
         AND NOT COALESCE(p.is_blocked, FALSE)
         AND NOT EXISTS (SELECT 1 FROM fiaon_termine t

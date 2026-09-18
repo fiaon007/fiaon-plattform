@@ -17,7 +17,7 @@
 
 import PDFDocument from "pdfkit";
 import { sqlPool } from "./db-pool";
-import { renderInvoicePdf, ensureInvoiceNumber, ensureInvoiceTables } from "../fiaon-invoice";
+import { renderInvoicePdf, ensureInvoiceNumber, ensureInvoiceTables, rechnungsSpracheSetzen } from "../fiaon-invoice";
 
 export interface RechnungPdf {
   pdf: Buffer;
@@ -130,6 +130,8 @@ export async function rechnungAlsPdf(referenzRoh: string): Promise<RechnungPdf |
     [a] = (await sqlPool`SELECT * FROM fiaon_applications WHERE ref = ${a.ref} LIMIT 1`) as any[];
   }
   const nummer = String(a.invoice_number || "FIAON-Rechnung");
+  // E-188: englisch geführter Firmenauftrag → englische Zweitzeile je Kopfbegriff (fiaon-invoice.ts).
+  await rechnungsSpracheSetzen(sqlPool, a);
   const pdf = await zeichnen(a);
   return { pdf, dateiname: `${nummer}.pdf`, rechnungsnummer: nummer, art: "bestellung", referenz: String(a.payment_reference || a.ref), betrag: String(a.amount_due ?? "") };
 }

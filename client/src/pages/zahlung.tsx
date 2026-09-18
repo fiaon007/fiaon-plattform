@@ -8,6 +8,7 @@ import "@/styles/antrag-dunkel.css";
 import PremiumFooter from "@/components/PremiumFooter";
 import { buildEpcQrPayload } from "@/lib/epc-qr";
 import { BANK } from "@shared/fiaon-bank";
+import { ZAHLUNG_WOERTER, type ZahlungWorte } from "@/i18n/zahlung";
 
 // ============================================================================
 // /zahlung/[payment_reference] — Zahlungsseite (SEPA-Vorkasse), v2
@@ -43,8 +44,15 @@ interface PaymentOrder {
    */
   firmenauftrag?: boolean;
   firmenName?: string;
+  /** Nur beim Firmenauftrag: die Sprache des Auftrags (/en/business/start → "en"). */
+  sprache?: "de" | "en";
   bank: { recipient: string; iban: string; ibanDisplay: string; bic: string };
 }
+
+// E-188: Das kleine Wörterbuch der Seite (deutsch = Bestand, englisch nur für den Firmenauftrag,
+// der auf /en/business/start unterschrieben wurde) liegt im Hausmuster unter client/src/i18n/zahlung.ts.
+const WORTE = ZAHLUNG_WOERTER;
+type Worte = ZahlungWorte;
 
 async function copyToClipboard(text: string): Promise<boolean> {
   try {
@@ -67,7 +75,7 @@ async function copyToClipboard(text: string): Promise<boolean> {
   }
 }
 
-function CopyField({ label, display, copyValue, highlight, hint }: { label: string; display: string; copyValue: string; highlight?: boolean; hint?: string }) {
+function CopyField({ label, display, copyValue, highlight, hint, w = WORTE.de }: { label: string; display: string; copyValue: string; highlight?: boolean; hint?: string; w?: Worte }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = useCallback(
@@ -102,17 +110,17 @@ function CopyField({ label, display, copyValue, highlight, hint }: { label: stri
               : "bg-blue-50 text-[#2563eb] border border-blue-100 hover:bg-blue-100"
           }`}
           style={{ minHeight: 42 }}
-          aria-label={`${label} kopieren`}
+          aria-label={w.kopierenLabel(label)}
         >
           {copied ? (
             <>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>
-              Kopiert ✓
+              {w.kopiert}
             </>
           ) : (
             <>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
-              Kopieren
+              {w.kopieren}
             </>
           )}
         </button>
@@ -123,18 +131,18 @@ function CopyField({ label, display, copyValue, highlight, hint }: { label: stri
 }
 
 // Ruhige Vertrauens-Badges (SSL / SEPA / EU-Konto) — keine reißerischen Elemente
-function TrustBadges() {
+function TrustBadges({ w = WORTE.de }: { w?: Worte }) {
   const items = [
     {
-      label: "SSL-verschlüsselt",
+      label: w.badges[0],
       icon: <path d="M12 3L4 7v6c0 5.5 3.8 10.7 8 12 4.2-1.3 8-6.5 8-12V7z" />,
     },
     {
-      label: "SEPA-Überweisung",
+      label: w.badges[1],
       icon: <><rect x="2" y="5" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" /></>,
     },
     {
-      label: "EU-Konto",
+      label: w.badges[2],
       icon: <><circle cx="12" cy="12" r="9" /><path d="M3.5 9h17M3.5 15h17M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18" /></>,
     },
   ];
@@ -276,8 +284,10 @@ function TerminAngebot({ paymentReference, art, sofortUrl, sofortVorrang }: { pa
 export function ZahlungDankePage() {
   // E-188: Der Firmenauftrag kommt mit ?art=firma — dort wird kein Konto freigeschaltet, dort beginnt ein Projekt.
   const firma = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("art") === "firma";
+  // … und mit &sprache=en, wenn der Auftrag englisch geführt wurde (Feld `sprache` der Zahlungsseite).
+  const englisch = firma && new URLSearchParams(window.location.search).get("sprache") === "en";
   return (
-    <div className="antrag-dk dk min-h-screen antialiased">
+    <div className="antrag-dk dk min-h-screen antialiased" lang={englisch ? "en" : undefined}>
       <div className="dk-grund" aria-hidden="true"><span className="dk-nebel a" /><span className="dk-nebel b" /><span className="dk-nebel c" /></div>
       <GlassNav />
       <div className="relative z-10 max-w-xl mx-auto px-4 sm:px-6 pt-28 sm:pt-32 pb-16">
@@ -285,15 +295,17 @@ export function ZahlungDankePage() {
           <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight zahlung-shimmer-heading mb-4">Danke!</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight zahlung-shimmer-heading mb-4">{englisch ? "Thank you!" : "Danke!"}</h1>
           <p className="text-[15px] text-slate-600 leading-relaxed max-w-md mx-auto">
-            {firma
+            {englisch
+              ? "We are checking for your payment. As soon as it has been recorded, your order begins: you will receive an email with your contact and the list of documents. There is nothing more you need to do."
+              : firma
               ? "Wir prüfen Ihren Zahlungseingang. Sobald er gebucht ist, beginnt Ihr Auftrag: Sie erhalten eine E-Mail mit Ihrem Ansprechpartner und der Liste der Unterlagen. Sie müssen nichts weiter tun."
               : <>Wir prüfen Ihren Zahlungseingang. Sobald er da ist – meist innerhalb von 24 Stunden – schalten wir Ihr
                 Konto frei und Sie bekommen eine E-Mail. Sie müssen nichts weiter tun.</>}
           </p>
           <div className="mt-10">
-            <TrustBadges />
+            <TrustBadges w={englisch ? WORTE.en : WORTE.de} />
           </div>
         </div>
       </div>
@@ -383,9 +395,15 @@ export default function ZahlungPage() {
   }, [paymentRef]);
 
   const amount = order ? Number(order.amountDue) : 0;
+  // E-188: Englisch nur für den Firmenauftrag, dessen Auftrag englisch geführt wurde — sonst wörtlich der Bestand.
+  const englisch = !!order?.firmenauftrag && order.sprache === "en";
+  const w: Worte = englisch ? WORTE.en : WORTE.de;
   const dueDateStr = order
-    ? new Date(order.dueDate).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })
+    ? (englisch
+      ? new Date(order.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })
+      : new Date(order.dueDate).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" }))
     : "";
+  const betragText = amount.toLocaleString(w.zahlen, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const qrPayload = order
     ? buildEpcQrPayload({
@@ -451,13 +469,13 @@ export default function ZahlungPage() {
           method: "POST",
         });
       } catch {}
-      window.location.href = `/zahlung/${order.paymentReference}/danke${order.firmenauftrag ? "?art=firma" : ""}`;
+      window.location.href = `/zahlung/${order.paymentReference}/danke${order.firmenauftrag ? `?art=firma${order.sprache === "en" ? "&sprache=en" : ""}` : ""}`;
     },
     [order, claiming],
   );
 
   return (
-    <div className="antrag-dk dk min-h-screen antialiased">
+    <div className="antrag-dk dk min-h-screen antialiased" lang={englisch ? "en" : undefined}>
       <div className="dk-grund" aria-hidden="true"><span className="dk-nebel a" /><span className="dk-nebel b" /><span className="dk-nebel c" /></div>
       <GlassNav />
 
@@ -465,13 +483,13 @@ export default function ZahlungPage() {
         {loading && (
           <div className="flex flex-col items-center py-24">
             <div className="w-12 h-12 rounded-full border-[3px] border-transparent border-t-[#2563eb] animate-spin mb-4" />
-            <p className="text-[14px] text-gray-400">Zahlungsdaten werden geladen…</p>
+            <p className="text-[14px] text-gray-400">{w.laden}</p>
           </div>
         )}
 
         {!loading && error && (
           <div className="text-center py-24">
-            <h1 className="text-2xl font-bold mb-3">Bestellung nicht gefunden</h1>
+            <h1 className="text-2xl font-bold mb-3">{w.nichtGefunden}</h1>
             <p className="text-[14px] text-gray-500">{error}</p>
           </div>
         )}
@@ -481,10 +499,10 @@ export default function ZahlungPage() {
             <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center">
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>
             </div>
-            <h1 className="text-2xl font-bold mb-3">Zahlung eingegangen ✓</h1>
+            <h1 className="text-2xl font-bold mb-3">{w.bezahltTitel}</h1>
             <p className="text-[14px] text-gray-500">
               {order.firmenauftrag
-                ? `Die Zahlung${order.firmenName ? ` von ${order.firmenName}` : ""} ist bei uns eingegangen — Ihr Auftrag${order.packName ? ` ${order.packName}` : ""} hat begonnen. Ihren Ansprechpartner und die Liste der Unterlagen finden Sie in unserer E-Mail.`
+                ? w.bezahltFirma(order.firmenName || "", order.packName || "")
                 : <>{order.firstName ? `${order.firstName}, Ihre` : "Ihre"} Zahlung ist bei uns eingegangen — Ihr Konto ist aktiv und Ihre Karte ist unterwegs.</>}
             </p>
           </div>
@@ -506,19 +524,19 @@ export default function ZahlungPage() {
             {/* 1. Headline mit dezentem Gradient-Shimmer */}
             <div className="text-center mb-6">
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight zahlung-shimmer-heading mb-3 leading-tight pb-1">
-                {order.art === "rate" ? `Ihre Monatsrate ${order.rateNr ?? ""} von ${order.ratenVon ?? 12}` : order.firmenauftrag ? "Ihr Auftrag: Zahlung per Überweisung" : "Letzter Schritt: Konto aktivieren"}
+                {order.art === "rate" ? `Ihre Monatsrate ${order.rateNr ?? ""} von ${order.ratenVon ?? 12}` : order.firmenauftrag ? w.titelFirma : "Letzter Schritt: Konto aktivieren"}
               </h1>
               {/* 2. Statuszeile */}
               <p className="text-[13px] sm:text-[14px] text-slate-500">
                 {order.art === "rate"
                   ? <>Fällig am <b className="text-slate-900">{dueDateStr}</b> — Ihr Verwendungszweck: <b className="text-slate-900">{order.paymentReference}</b></>
                   : order.firmenauftrag
-                    ? <>Einmalig <b className="text-slate-900">{amount.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</b>, zahlbar bis zum <b className="text-slate-900">{dueDateStr}</b>. Mit dem Zahlungseingang beginnen wir.</>
+                    ? <>{w.statusFirma[0]}<b className="text-slate-900">{englisch ? `€${betragText}` : `${betragText} €`}</b>{w.statusFirma[1]}<b className="text-slate-900">{dueDateStr}</b>{w.statusFirma[2]}</>
                     : <>Ihr Platz ist bis zum <b className="text-slate-900">{dueDateStr}</b> reserviert.</>}
               </p>
               {order.firmenauftrag && (
                 <p className="text-[12px] text-slate-400 mt-1.5">
-                  {order.firmenName ? `${order.firmenName} · ` : ""}{order.packName ? `${order.packName.replace(/\n/g, " ")} · einmalig · ` : ""}{order.paymentReference}
+                  {order.firmenName ? `${order.firmenName} · ` : ""}{order.packName ? `${order.packName.replace(/\n/g, " ")} · ${w.einmalig} · ` : ""}{order.paymentReference}
                 </p>
               )}
               {!order.firmenauftrag && order.firstName && (
@@ -528,7 +546,7 @@ export default function ZahlungPage() {
                 </p>
               )}
               <div className="mt-4">
-                <TrustBadges />
+                <TrustBadges w={w} />
               </div>
             </div>
 
@@ -547,7 +565,7 @@ export default function ZahlungPage() {
               <div className="mb-5 rounded-xl bg-emerald-50 border border-emerald-200 p-4 text-center">
                 <p className="text-[13px] font-semibold text-emerald-700">
                   {order.firmenauftrag
-                    ? "Danke — wir prüfen Ihren Zahlungseingang. Sobald er gebucht ist, erhalten Sie eine E-Mail, und Ihr Auftrag beginnt."
+                    ? w.gemeldetFirma
                     : "Danke! Wir prüfen Ihren Zahlungseingang – meist innerhalb von 24 Stunden. Sie bekommen eine E-Mail, sobald Ihr Konto frei ist."}
                 </p>
               </div>
@@ -556,39 +574,38 @@ export default function ZahlungPage() {
             {order.status === "expired" && (
               <div className="mb-5 rounded-xl bg-red-50 border border-red-100 p-4 text-center">
                 <p className="text-[13px] font-semibold text-red-600">
-                  Die Zahlungsfrist ist abgelaufen. Bitte kontaktieren Sie unseren Support, um Ihren Antrag zu reaktivieren.
+                  {w.abgelaufen}
                 </p>
               </div>
             )}
 
             {/* 3. Erklär-Box: So bezahlen Sie – ganz einfach */}
             <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-5 sm:p-6 mb-5">
-              <p className="text-[16px] sm:text-[17px] font-bold zahlung-shimmer-heading mb-4 inline-block">{order.art === "rate" ? "Rate überweisen – ganz einfach" : order.firmenauftrag ? "Rechnung überweisen – ganz einfach" : <>Konto aktivieren &amp; Karte versenden – ganz einfach</>}</p>
+              <p className="text-[16px] sm:text-[17px] font-bold zahlung-shimmer-heading mb-4 inline-block">{order.art === "rate" ? "Rate überweisen – ganz einfach" : order.firmenauftrag ? w.boxTitelFirma : <>Konto aktivieren &amp; Karte versenden – ganz einfach</>}</p>
 
-              <p className="text-[12px] font-bold uppercase tracking-wider text-[#2563eb] mb-2.5">Empfohlen (schnell &amp; fehlerfrei)</p>
+              <p className="text-[12px] font-bold uppercase tracking-wider text-[#2563eb] mb-2.5">{order.firmenauftrag ? w.schnellFirma : <>Empfohlen (schnell &amp; fehlerfrei)</>}</p>
               <ol className="space-y-2.5 mb-5">
                 <li className="flex gap-3 text-[13.5px] sm:text-[14px] text-slate-700 leading-relaxed">
                   <span className="shrink-0 w-6 h-6 rounded-full bg-[#2563eb] text-white text-[12px] font-bold flex items-center justify-center">1</span>
-                  <span>Tippen Sie unten auf <b>„QR-Code speichern"</b> – der Code wird in Ihrer Foto-Galerie gespeichert.</span>
+                  <span>{w.schritt1[0]}<b>{w.schritt1[1]}</b>{w.schritt1[2]}</span>
                 </li>
                 <li className="flex gap-3 text-[13.5px] sm:text-[14px] text-slate-700 leading-relaxed">
                   <span className="shrink-0 w-6 h-6 rounded-full bg-[#2563eb] text-white text-[12px] font-bold flex items-center justify-center">2</span>
-                  Öffnen Sie Ihre Banking-App und starten Sie eine neue Überweisung.
+                  {w.schritt2}
                 </li>
                 <li className="flex gap-3 text-[13.5px] sm:text-[14px] text-slate-700 leading-relaxed">
                   <span className="shrink-0 w-6 h-6 rounded-full bg-[#2563eb] text-white text-[12px] font-bold flex items-center justify-center">3</span>
                   <span>
-                    Wähle dort <b>„Rechnung fotografieren"</b> oder <b>„QR-Code aus Galerie"</b> und lade den gespeicherten
-                    Code hoch. Alle Daten – auch Ihr persönlicher Code – werden automatisch ausgefüllt.
-                    <span className="hidden sm:inline"> Oder scannen Sie den Code unten einfach mit Ihrer Banking-App am Handy.</span>
+                    {w.schritt3[0]}<b>{w.schritt3[1]}</b>{w.schritt3[2]}<b>{w.schritt3[3]}</b>{w.schritt3[4]}
+                    <span className="hidden sm:inline">{w.schritt3Breit}</span>
                   </span>
                 </li>
               </ol>
 
-              <p className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Alternativ (von Hand)</p>
+              <p className="text-[12px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">{w.alternativ}</p>
               <p className="text-[13px] text-slate-600 leading-relaxed">
-                Sie können die Daten auch einzeln unten kopieren und selbst eintragen. Wichtig: Tragen Sie dabei den Code{" "}
-                <b className="text-slate-900">{order.paymentReference}</b> als Verwendungszweck ein.
+                {w.alternativText[0]}{" "}
+                <b className="text-slate-900">{order.paymentReference}</b>{w.alternativText[1]}
               </p>
             </div>
 
@@ -599,7 +616,7 @@ export default function ZahlungPage() {
                 <QRCodeSVG value={qrPayload} size={190} level="M" marginSize={2} bgColor="#ffffff" fgColor="#0f172a" />
               </div>
               <p className="text-[12px] text-slate-500 mb-4">
-                GiroCode — enthält Empfänger, IBAN, Betrag und Ihren persönlichen Verwendungszweck.
+                {w.qrText}
               </p>
 
               <button
@@ -615,23 +632,23 @@ export default function ZahlungPage() {
                 {qrSaved ? (
                   <>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>
-                    QR-Code gespeichert ✓
+                    {w.qrGespeichert}
                   </>
                 ) : (
                   <>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
-                    QR-Code speichern
+                    {w.qrSpeichern}
                   </>
                 )}
               </button>
               {qrSaved === "shared" && (
                 <p className="mt-3 text-[13px] font-semibold text-emerald-600">
-                  QR-Code gespeichert – öffnen Sie jetzt Ihre Banking-App und laden Sie ihn dort hoch.
+                  {w.qrGeteilt}
                 </p>
               )}
               {qrSaved === "downloaded" && (
                 <p className="mt-3 text-[13px] font-semibold text-emerald-600">
-                  Das Bild wurde gespeichert – Sie finden es in Ihren Downloads/Fotos. Öffnen Sie jetzt Ihre Banking-App und laden Sie es dort hoch.
+                  {w.qrGeladen}
                 </p>
               )}
 
@@ -643,38 +660,36 @@ export default function ZahlungPage() {
 
             {/* 5. Bankdaten einzeln (Alternativ-Weg) */}
             <div id="bankdaten" className="space-y-2.5 mb-5" style={{ scrollMarginTop: 96 }}>
-              <CopyField label="Empfänger" display={order.bank.recipient} copyValue={order.bank.recipient} />
-              <CopyField label="IBAN" display={order.bank.ibanDisplay} copyValue={order.bank.iban} />
-              <CopyField label="BIC" display={order.bank.bic} copyValue={order.bank.bic} />
+              <CopyField w={w} label={w.empfaenger} display={order.bank.recipient} copyValue={order.bank.recipient} />
+              <CopyField w={w} label="IBAN" display={order.bank.ibanDisplay} copyValue={order.bank.iban} />
+              <CopyField w={w} label="BIC" display={order.bank.bic} copyValue={order.bank.bic} />
               <CopyField
-                label="Betrag"
-                display={`${amount.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EUR`}
+                w={w}
+                label={w.betrag}
+                display={`${betragText} EUR`}
                 copyValue={amount.toFixed(2)}
               />
               <CopyField
-                label="Verwendungszweck"
+                w={w}
+                label={w.zweck}
                 display={order.paymentReference}
                 copyValue={order.paymentReference}
                 highlight
-                hint="Ohne diesen Code können wir Ihre Zahlung nicht zuordnen."
+                hint={w.zweckHinweis}
               />
             </div>
 
             {/* 6. IBAN-Herkunft-Hinweis */}
             <div className="rounded-xl bg-blue-50/70 border border-blue-100 p-4 sm:p-5 mb-4">
               <p className="text-[13px] text-slate-600 leading-relaxed">
-                Ihre Überweisung geht an unser Geschäftskonto bei {BANK.bank} (die IBAN beginnt mit {BANK.iban.slice(0, 2)}). Das
-                ist eine ganz normale SEPA-Überweisung – kostenlos und in der Regel innerhalb eines Bankarbeitstages,
-                genau wie eine Inlandsüberweisung.
+                {w.ibanHinweis(BANK.bank, BANK.iban.slice(0, 2))}
               </p>
             </div>
 
             {/* 7. Vertrauens-Absatz */}
             <div className="rounded-xl bg-slate-50 border border-slate-100 p-4 sm:p-5 mb-6">
               <p className="text-[13px] text-slate-600 leading-relaxed">
-                <b className="text-slate-800">Warum Überweisung?</b> Sie behalten die volle Kontrolle: keine
-                automatischen Kartenabbuchungen, keine gespeicherten Zahlungsdaten. Sie entscheiden bei jeder Zahlung
-                selbst.
+                <b className="text-slate-800">{w.warumTitel}</b>{w.warumText}
               </p>
             </div>
 
@@ -693,17 +708,17 @@ export default function ZahlungPage() {
                 style={{ minHeight: 60 }}
               >
                 {claiming ? (
-                  "Einen Moment…"
+                  w.moment
                 ) : (
                   <>
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>
-                    Ich habe die Überweisung getätigt
+                    {w.claim}
                   </>
                 )}
               </button>
             </div>
             <p className="text-center text-[12px] text-slate-400 mt-2.5">
-              Bitte erst tippen, wenn Sie die Überweisung in Ihrer Banking-App abgeschickt haben.
+              {w.claimHinweis}
             </p>
             </>)}
           </div>

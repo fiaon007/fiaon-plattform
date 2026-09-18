@@ -29,6 +29,8 @@ export type VersandStatus = "versandt" | "fehlgeschlagen" | "ausstehend" | "uebe
 export interface VersandErgebnis {
   status: VersandStatus;
   grund: string | null;
+  /** 18.09.2026: Hinweis an den Mitarbeiter auch bei Erfolg (z. B. Adresse zuletzt gesperrt). */
+  hinweis?: string | null;
 }
 
 /**
@@ -122,6 +124,7 @@ export async function versendenUndProtokollieren(
   let status: VersandStatus = "fehlgeschlagen";
   let grund: string | null = null;
   let brevoMessageId: string | null = null;
+  let hinweis: string | null = null;
   try {
     // Marke setzen: Der Webhook protokolliert seit dem 09.08.2026 selbst
     // (make-webhook.ts). Hier schreiben wir aber gleich einen vollständigeren
@@ -134,6 +137,7 @@ export async function versendenUndProtokollieren(
       const versand = await sendMakeWebhookMitGrund(event, payload, { manuell: !!opts.ausgeloestVon });
       status = versand.ok ? "versandt" : "fehlgeschlagen";
       grund = versand.ok ? null : (versand.grund ?? "unbekannt");
+      hinweis = versand.hinweis ?? null;
       brevoMessageId = versand.brevoMessageId ?? null;
     } finally {
       protokolliertSelbst.delete(event);
@@ -146,7 +150,7 @@ export async function versendenUndProtokollieren(
 
   // E-168: Die Ruhe der Frequenzbremse ist kein neuer Vorgang — der erste Versuch steht
   // schon im Protokoll. Kein zweiter Eintrag, kein zweites „FEHLGESCHLAGEN" im Verlauf.
-  if (grund && grund.startsWith("Frequenzbremse-Ruhe")) return { status, grund };
+  if (grund && grund.startsWith("Frequenzbremse-Ruhe")) return { status, grund, hinweis };
   await mailProtokoll({
     event, personId: opts.personId, empfaenger: String(payload.email),
     status, grund, payload: payload as Record<string, unknown>,
@@ -170,5 +174,5 @@ export async function versendenUndProtokollieren(
       `[MAIL-LOG] Verlaufseintrag ${opts.verlaufRef} nicht geschrieben:`, e));
   }
 
-  return { status, grund };
+  return { status, grund, hinweis };
 }

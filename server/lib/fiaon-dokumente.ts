@@ -143,6 +143,8 @@ export interface DokumentLageVoll {
   dokumente: DokumentStand[];
   /** Darf der Aufrufer Inhalte öffnen? Die Oberfläche zeigt danach an. */
   inhaltErlaubt: boolean;
+  /** 18.09.2026: ersetzte Fassungen (Archiv), neueste zuerst. */
+  fruehere: { id: number; art: string; am: string; kb: number }[];
 }
 
 /**
@@ -153,7 +155,7 @@ export interface DokumentLageVoll {
  * vor" anzuzeigen.
  */
 export async function dokumentStand(
-  opts: { personId?: number | null; ref?: string | null; rolle: string },
+  opts: { personId?: number | null; ref?: string | null; rolle: string; zustaendig?: boolean },
   lauf: Lauf = sqlPool,
 ): Promise<DokumentLageVoll | null> {
   const [a] = (await lauf`
@@ -196,15 +198,15 @@ export async function dokumentStand(
         bool_or(COALESCE(x.type, '') <> 'schufa' AND x.ref NOT LIKE 'FIAON-SCHUFA-%') AS hat_paket,
         MAX(x.documents_uploaded_at) AS hochgeladen_am,
         bool_or(x.reupload_id_card) AS re_ausweis, bool_or(x.reupload_bank_statement) AS re_auszug,
-        (SELECT LENGTH(y.id_card_pdf) FROM fiaon_applications y WHERE y.person_id = ${personId} AND y.merged_into IS NULL AND y.id_card_pdf IS NOT NULL ORDER BY (y.ref = ${a.ref}) DESC, y.created_at DESC LIMIT 1) AS gr_ausweis,
-        (SELECT SUBSTRING(y.id_card_pdf FROM 1 FOR 4) FROM fiaon_applications y WHERE y.person_id = ${personId} AND y.merged_into IS NULL AND y.id_card_pdf IS NOT NULL ORDER BY (y.ref = ${a.ref}) DESC, y.created_at DESC LIMIT 1) AS kopf_ausweis,
-        (SELECT y.ref FROM fiaon_applications y WHERE y.person_id = ${personId} AND y.merged_into IS NULL AND y.id_card_pdf IS NOT NULL ORDER BY (y.ref = ${a.ref}) DESC, y.created_at DESC LIMIT 1) AS ref_ausweis,
-        (SELECT LENGTH(y.bank_statement_pdf) FROM fiaon_applications y WHERE y.person_id = ${personId} AND y.merged_into IS NULL AND y.bank_statement_pdf IS NOT NULL ORDER BY (y.ref = ${a.ref}) DESC, y.created_at DESC LIMIT 1) AS gr_auszug,
-        (SELECT SUBSTRING(y.bank_statement_pdf FROM 1 FOR 4) FROM fiaon_applications y WHERE y.person_id = ${personId} AND y.merged_into IS NULL AND y.bank_statement_pdf IS NOT NULL ORDER BY (y.ref = ${a.ref}) DESC, y.created_at DESC LIMIT 1) AS kopf_auszug,
-        (SELECT y.ref FROM fiaon_applications y WHERE y.person_id = ${personId} AND y.merged_into IS NULL AND y.bank_statement_pdf IS NOT NULL ORDER BY (y.ref = ${a.ref}) DESC, y.created_at DESC LIMIT 1) AS ref_auszug,
-        (SELECT LENGTH(y.schufa_pdf) FROM fiaon_applications y WHERE y.person_id = ${personId} AND y.merged_into IS NULL AND y.schufa_pdf IS NOT NULL ORDER BY (y.ref = ${a.ref}) DESC, y.created_at DESC LIMIT 1) AS gr_schufa,
-        (SELECT SUBSTRING(y.schufa_pdf FROM 1 FOR 4) FROM fiaon_applications y WHERE y.person_id = ${personId} AND y.merged_into IS NULL AND y.schufa_pdf IS NOT NULL ORDER BY (y.ref = ${a.ref}) DESC, y.created_at DESC LIMIT 1) AS kopf_schufa,
-        (SELECT y.ref FROM fiaon_applications y WHERE y.person_id = ${personId} AND y.merged_into IS NULL AND y.schufa_pdf IS NOT NULL ORDER BY (y.ref = ${a.ref}) DESC, y.created_at DESC LIMIT 1) AS ref_schufa
+        (SELECT LENGTH(y.id_card_pdf) FROM fiaon_applications y WHERE y.person_id = ${personId} AND y.gdpr_deleted_at IS NULL AND y.id_card_pdf IS NOT NULL ORDER BY (y.ref = ${a.ref}) DESC, (y.merged_into IS NULL) DESC, y.created_at DESC LIMIT 1) AS gr_ausweis,
+        (SELECT SUBSTRING(y.id_card_pdf FROM 1 FOR 4) FROM fiaon_applications y WHERE y.person_id = ${personId} AND y.gdpr_deleted_at IS NULL AND y.id_card_pdf IS NOT NULL ORDER BY (y.ref = ${a.ref}) DESC, (y.merged_into IS NULL) DESC, y.created_at DESC LIMIT 1) AS kopf_ausweis,
+        (SELECT y.ref FROM fiaon_applications y WHERE y.person_id = ${personId} AND y.gdpr_deleted_at IS NULL AND y.id_card_pdf IS NOT NULL ORDER BY (y.ref = ${a.ref}) DESC, (y.merged_into IS NULL) DESC, y.created_at DESC LIMIT 1) AS ref_ausweis,
+        (SELECT LENGTH(y.bank_statement_pdf) FROM fiaon_applications y WHERE y.person_id = ${personId} AND y.gdpr_deleted_at IS NULL AND y.bank_statement_pdf IS NOT NULL ORDER BY (y.ref = ${a.ref}) DESC, (y.merged_into IS NULL) DESC, y.created_at DESC LIMIT 1) AS gr_auszug,
+        (SELECT SUBSTRING(y.bank_statement_pdf FROM 1 FOR 4) FROM fiaon_applications y WHERE y.person_id = ${personId} AND y.gdpr_deleted_at IS NULL AND y.bank_statement_pdf IS NOT NULL ORDER BY (y.ref = ${a.ref}) DESC, (y.merged_into IS NULL) DESC, y.created_at DESC LIMIT 1) AS kopf_auszug,
+        (SELECT y.ref FROM fiaon_applications y WHERE y.person_id = ${personId} AND y.gdpr_deleted_at IS NULL AND y.bank_statement_pdf IS NOT NULL ORDER BY (y.ref = ${a.ref}) DESC, (y.merged_into IS NULL) DESC, y.created_at DESC LIMIT 1) AS ref_auszug,
+        (SELECT LENGTH(y.schufa_pdf) FROM fiaon_applications y WHERE y.person_id = ${personId} AND y.gdpr_deleted_at IS NULL AND y.schufa_pdf IS NOT NULL ORDER BY (y.ref = ${a.ref}) DESC, (y.merged_into IS NULL) DESC, y.created_at DESC LIMIT 1) AS gr_schufa,
+        (SELECT SUBSTRING(y.schufa_pdf FROM 1 FOR 4) FROM fiaon_applications y WHERE y.person_id = ${personId} AND y.gdpr_deleted_at IS NULL AND y.schufa_pdf IS NOT NULL ORDER BY (y.ref = ${a.ref}) DESC, (y.merged_into IS NULL) DESC, y.created_at DESC LIMIT 1) AS kopf_schufa,
+        (SELECT y.ref FROM fiaon_applications y WHERE y.person_id = ${personId} AND y.gdpr_deleted_at IS NULL AND y.schufa_pdf IS NOT NULL ORDER BY (y.ref = ${a.ref}) DESC, (y.merged_into IS NULL) DESC, y.created_at DESC LIMIT 1) AS ref_schufa
       FROM fiaon_applications x
       WHERE x.person_id = ${personId} AND x.merged_into IS NULL AND x.gdpr_deleted_at IS NULL
     `.catch(() => [null])) as any[];
@@ -285,7 +287,8 @@ export async function dokumentStand(
     schufaNotiz: a.admin_schufa_note ?? null,
     geprueftAm: a.admin_reviewed_at ?? null,
     hochgeladenAm: a.documents_uploaded_at ?? null,
-    inhaltErlaubt: darfInhalt(opts.rolle),
+    inhaltErlaubt: darfInhalt(opts.rolle) || !!opts.zustaendig,
+    fruehere: personId != null ? await fruehereFassungen(personId, lauf) : [],
     dokumente: DOKUMENTE.map((d) => {
       const gr = groessen[d.art];
       return {
@@ -327,23 +330,102 @@ export function mimeFuer(typ: string | null): string {
   return typ === "bild" ? "image/jpeg" : "application/pdf";
 }
 
-/** Der Inhalt. Nur über diese eine Funktion — sie prüft die Rolle selbst. */
+/**
+ * Vor dem Ersetzen: die bisherige Fassung ins Archiv (18.09.2026).
+ *
+ * Team-Feedback, Priorität 1: „Alle hochgeladenen Dokumente müssen dauerhaft im
+ * System gespeichert bleiben." Bis heute überschrieb jeder neue Upload die
+ * Spalte — der Juni war weg, sobald der Juli kam. Jetzt wandert die alte Fassung
+ * nach `fiaon_dokumente` (quelle = 'ersetzt', ohne Vorgang), bevor die neue
+ * geschrieben wird. Die Akte zeigt sie unter „Frühere Fassungen".
+ * Kein Fehler hier darf den Upload aufhalten — er wird protokolliert.
+ */
+export async function unterlageSichern(ref: string, art: DokumentArt, lauf: Lauf = sqlPool): Promise<void> {
+  const spalte = DOKUMENTE.find((d) => d.art === art)!.spalte;
+  await lauf.unsafe(
+    `INSERT INTO fiaon_dokumente (person_id, ref, art, dateiname, mime, bytes, inhalt, quelle, doc_hash, hochgeladen_am)
+     SELECT a.person_id, a.ref, $2,
+            $2 || '-fruehere-fassung.' || CASE WHEN substring(a.${spalte} from 1 for 4) = '\\x25504446'::bytea THEN 'pdf' ELSE 'jpg' END,
+            CASE WHEN substring(a.${spalte} from 1 for 4) = '\\x25504446'::bytea THEN 'application/pdf' ELSE 'image/jpeg' END,
+            LENGTH(a.${spalte}), a.${spalte}, 'ersetzt', encode(sha256(a.${spalte}), 'hex'),
+            COALESCE(a.documents_uploaded_at, a.updated_at, NOW())
+       FROM fiaon_applications a
+      WHERE a.ref = $1 AND a.person_id IS NOT NULL AND a.${spalte} IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM fiaon_dokumente d
+                         WHERE d.person_id = a.person_id AND d.quelle = 'ersetzt'
+                           AND d.doc_hash = encode(sha256(a.${spalte}), 'hex'))`,
+    [ref, art],
+  ).catch((e: any) => console.error(`[DOK] Archiv ${ref}/${art}:`, String(e?.message || e).slice(0, 200)));
+}
+
+/** Frühere Fassungen einer Person (ohne Inhalt) — für die Akte. */
+export async function fruehereFassungen(personId: number, lauf: Lauf = sqlPool): Promise<{ id: number; art: string; am: string; kb: number }[]> {
+  const zeilen = (await lauf`
+    SELECT id, art, hochgeladen_am, bytes FROM fiaon_dokumente
+     WHERE person_id = ${personId} AND quelle = 'ersetzt' AND geloescht_am IS NULL
+     ORDER BY hochgeladen_am DESC LIMIT 30
+  `.catch(() => [] as any[])) as any[];
+  return zeilen.map((z) => ({ id: Number(z.id), art: String(z.art), am: new Date(z.hochgeladen_am).toISOString(), kb: Math.max(1, Math.round(Number(z.bytes) / 1024)) }));
+}
+
+/**
+ * Welche Bestellung trägt das Dokument dieser Person? (18.09.2026)
+ *
+ * ── DER BEFUND (Team-Feedback, Priorität 1) ─────────────────────────────
+ * „Bezahlte Bonitätsauskünfte sind verschwunden und weder für den Kunden noch
+ * für den Mitarbeiter einsehbar." Gelöscht wurde nichts — aber eine Person hat
+ * oft mehrere Bestellungen (Paket, Auskunft, Dublette), und 63 Bestellungen mit
+ * Unterlagen haben eine jüngere Schwester. Wer über die Schwester schaute
+ * (Kundenbereich, Download, Analyse), fand „nichts". Neun Personen hatten ihre
+ * Unterlagen nur an einer zusammengeführten Bestellung (merged_into).
+ *
+ * Die Regel: Ein Dokument gehört der PERSON. Gesucht wird an allen ihren
+ * Bestellungen — die angefragte zuerst, dann die nicht zusammengeführten,
+ * dann die jüngste. Ohne Person bleibt es bei der Bestellung selbst.
+ */
+export async function dokumentTraeger(
+  q: { ref?: string | null; personId?: number | null }, art: DokumentArt, lauf: Lauf = sqlPool,
+): Promise<string | null> {
+  const spalte = DOKUMENTE.find((d) => d.art === art)!.spalte;
+  const [row] = (await lauf.unsafe(
+    `SELECT y.ref FROM fiaon_applications y
+      WHERE y.gdpr_deleted_at IS NULL AND y.${spalte} IS NOT NULL
+        AND (y.ref = $1
+             OR y.person_id = COALESCE($2::bigint, (SELECT x.person_id FROM fiaon_applications x WHERE x.ref = $1 LIMIT 1)))
+      ORDER BY (y.ref = $1) DESC, (y.merged_into IS NULL) DESC, y.documents_uploaded_at DESC NULLS LAST, y.created_at DESC
+      LIMIT 1`,
+    [q.ref ?? "", q.personId ?? null],
+  )) as any[];
+  return row?.ref ? String(row.ref) : null;
+}
+
+/**
+ * Der Inhalt. Nur über diese eine Funktion — sie prüft die Rolle selbst.
+ *
+ * 18.09.2026 (Team-Feedback): „Sowohl wir als Mitarbeiter als auch die Kunden
+ * müssen darauf zugreifen können." Bis heute durfte nur die Leitung öffnen;
+ * der Betreuer sah „liegt vor" und konnte mit dem Kunden nicht über dessen
+ * Auszug sprechen. Jetzt öffnet auch, wer den Kunden betreut (`zustaendig`,
+ * geprüft über darfAnKunde) — jeder Abruf steht mit Namen im Verlauf.
+ * Gesucht wird personenweit (dokumentTraeger).
+ */
 export async function dokumentInhalt(
-  ref: string, art: DokumentArt, rolle: string, lauf: Lauf = sqlPool,
-): Promise<{ ok: true; daten: Buffer; typ: string } | { ok: false; grund: string; code: number }> {
-  if (!darfInhalt(rolle)) {
+  ref: string, art: DokumentArt, rolle: string, lauf: Lauf = sqlPool, opts: { zustaendig?: boolean } = {},
+): Promise<{ ok: true; daten: Buffer; typ: string; ref: string } | { ok: false; grund: string; code: number }> {
+  if (!darfInhalt(rolle) && !opts.zustaendig) {
     return {
       ok: false, code: 403,
-      grund: "Kundendokumente darf nur der Vorgesetzte öffnen. Sichtbar ist für dich, ob sie vorliegen — "
-        + "so steht es in deiner Verpflichtungserklärung.",
+      grund: "Dieses Dokument darf nur öffnen, wer den Kunden betreut, oder die Leitung.",
     };
   }
+  const traeger = await dokumentTraeger({ ref }, art, lauf);
+  if (!traeger) return { ok: false, code: 404, grund: "Dieses Dokument liegt nicht vor." };
   const spalte = DOKUMENTE.find((d) => d.art === art)!.spalte;
   const [row] = (await lauf.unsafe(
     `SELECT ${spalte} AS daten FROM fiaon_applications
-      WHERE ref = $1 AND gdpr_deleted_at IS NULL LIMIT 1`, [ref],
+      WHERE ref = $1 AND gdpr_deleted_at IS NULL LIMIT 1`, [traeger],
   )) as any[];
   if (!row?.daten) return { ok: false, code: 404, grund: "Dieses Dokument liegt nicht vor." };
   const daten = Buffer.from(row.daten);
-  return { ok: true, daten, typ: mimeFuer(dateiTyp(daten.subarray(0, 4))) };
+  return { ok: true, daten, typ: mimeFuer(dateiTyp(daten.subarray(0, 4))), ref: traeger };
 }

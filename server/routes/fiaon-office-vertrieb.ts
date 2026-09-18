@@ -123,10 +123,10 @@ export async function kundeVollstaendig(personId: number): Promise<{
           AND a.payment_status = 'paid'
           AND (a.pack_key = 'schufa' OR a.pack_name ILIKE '%bonität%' OR a.pack_name ILIKE '%schufa%')) AS schufa,
       EXISTS (SELECT 1 FROM fiaon_applications a
-        WHERE a.person_id = ${personId} AND a.merged_into IS NULL
+        WHERE a.person_id = ${personId} AND a.gdpr_deleted_at IS NULL
           AND a.bank_statement_pdf IS NOT NULL) AS kontoauszug,
       EXISTS (SELECT 1 FROM fiaon_applications a
-        WHERE a.person_id = ${personId} AND a.merged_into IS NULL
+        WHERE a.person_id = ${personId} AND a.gdpr_deleted_at IS NULL
           AND a.id_card_pdf IS NOT NULL) AS ausweis
   `) as any[];
   const paketBezahlt = !!z?.paket, schufaBezahlt = !!z?.schufa, kontoauszug = !!z?.kontoauszug, ausweis = !!z?.ausweis;
@@ -753,9 +753,9 @@ router.get("/agent/vertrieb/arbeitsliste", requireAgent, async (req: AgentReques
        AND EXISTS (SELECT 1 FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL
          AND a.archived_at IS NULL AND a.payment_status = 'paid'
          AND (a.pack_key = 'schufa' OR a.pack_name ILIKE '%bonität%' OR a.pack_name ILIKE '%schufa%'))
-       AND EXISTS (SELECT 1 FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL
+       AND EXISTS (SELECT 1 FROM fiaon_applications a WHERE a.person_id = p.id AND a.gdpr_deleted_at IS NULL
          AND a.bank_statement_pdf IS NOT NULL)
-       AND EXISTS (SELECT 1 FROM fiaon_applications a WHERE a.person_id = p.id AND a.merged_into IS NULL
+       AND EXISTS (SELECT 1 FROM fiaon_applications a WHERE a.person_id = p.id AND a.gdpr_deleted_at IS NULL
          AND a.id_card_pdf IS NOT NULL)) AS voll_kunde`;
 
     const mandate = await mandatsZahlen(me);

@@ -84,6 +84,32 @@ export interface BrevoVorlage {
   aktiv: boolean;
 }
 
+/**
+ * Hebt die Versandsperre einer Adresse bei Brevo auf (18.09.2026, Team-Feedback
+ * Priorität 4: „Die KI darf nicht über dem Menschen stehen").
+ *
+ * Nach einem Rückläufer oder einer Spam-Meldung setzt Brevo die Adresse auf die
+ * Sperrliste für Transaktionsmails — jede weitere Mail wird still verworfen.
+ * Schickt ein Mitarbeiter von Hand, hat er meist gerade mit dem Kunden
+ * gesprochen („ich habe nichts bekommen"). Dann muss die Mail ankommen können.
+ * 204 = aufgehoben, 404 = war nicht gesperrt — beides ist Erfolg.
+ */
+export async function brevoSperreAufheben(email: string): Promise<boolean> {
+  const key = process.env.BREVO_API_KEY;
+  const adresse = String(email || "").trim();
+  if (!key || !adresse) return false;
+  try {
+    const res = await fetch(`${BASIS}/smtp/blockedContacts/${encodeURIComponent(adresse)}`, {
+      method: "DELETE",
+      headers: { "api-key": key, accept: "application/json" },
+      signal: AbortSignal.timeout(10_000),
+    });
+    return res.status === 204 || res.status === 404;
+  } catch {
+    return false;
+  }
+}
+
 export async function vorlagen(): Promise<{ ok: boolean; liste: BrevoVorlage[]; grund?: string }> {
   const r = await brevo<{ templates?: any[] }>("/smtp/templates?limit=200&sort=asc");
   if (!r.ok) return { ok: false, liste: [], grund: r.grund };

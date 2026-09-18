@@ -3570,6 +3570,13 @@ router.post("/upload-kyc", (req, res, next) => {
     sql += ` WHERE ref = $${paramIndex}`;
     params.push(ref);
     
+    // 18.09.2026 (Team-Feedback, Priorität 1): Was ersetzt wird, geht nicht
+    // verloren — die bisherige Fassung wandert vorher ins Archiv.
+    const { unterlageSichern } = await import("../lib/fiaon-dokumente");
+    if (values.bankStatementPdf) await unterlageSichern(String(ref), "kontoauszug");
+    if (values.idCardPdf) await unterlageSichern(String(ref), "ausweis");
+    if (values.schufaPdf) await unterlageSichern(String(ref), "schufa");
+
     // Execute update
     await sqlPool.unsafe(sql, params);
 
@@ -3736,6 +3743,107 @@ router.get("/admin/schufa/:ref", async (req, res) => {
     res.json({ ok: true, analyse: await schufaAnalyseFuer(String(req.params.ref)) });
   } catch (err) {
     res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NACHHOLEN NACH DER TEXTERKENNUNG (18.09.2026, Team-Feedback Priorität 2)
+//
+// Die Texterkennung (fiaon-ocr.ts) liest Fotos und Scans — aber nur, wenn
+// jemand die Analyse neu anstößt. 66 Bonitäts- und 47 Kontoauszug-Läufe stehen
+// als „unlesbar (Foto oder Scan)", sieben Kontoauszug-Läufe hängen seit dem
+// 11.09. auf „läuft", und die Prüfurteile an Ausweisfotos sagen „nicht
+// erkannt". Dieser Lauf holt genau diese Fälle nach — im Hintergrund, zwei
+// gleichzeitig, jeder Fall mit seinem Ergebnis in der Akte. GET zeigt den Stand.
+// ═══════════════════════════════════════════════════════════════════════════
+const nachholStand: { laeuft: boolean; start: string | null; ende: string | null; gesamt: number; fertig: number; fehler: number; je: Record<string, number>; letzte: string[] } =
+  { laeuft: false, start: null, ende: null, gesamt: 0, fertig: 0, fehler: 0, je: {}, letzte: [] };
+
+router.get("/admin/analysen/nachholen", (_req, res) => res.json({ ok: true, stand: nachholStand }));
+
+router.post("/admin/analysen/nachholen", async (req, res) => {
+  try {
+    if (nachholStand.laeuft) return res.json({ ok: true, schon: true, stand: nachholStand });
+    const max = Math.min(Math.max(Number(req.body?.max) || 200, 1), 400);
+    // Kontoauszug: jüngster Lauf je Bestellung ist „ohne Text", „fehler" oder hängt.
+    const auszug = (await sqlPool`
+      SELECT a.ref FROM fiaon_applications a
+      JOIN LATERAL (SELECT k.status, k.fehler, k.created_at FROM fiaon_kontoauszug_analysen k
+                     WHERE k.ref = a.ref ORDER BY k.created_at DESC LIMIT 1) j ON TRUE
+      WHERE a.bank_statement_pdf IS NOT NULL AND a.gdpr_deleted_at IS NULL
+        AND ((j.status = 'unlesbar' AND j.fehler ILIKE '%keinen lesbaren Text%')
+             OR j.status = 'fehler'
+             OR (j.status = 'laeuft' AND j.created_at < NOW() - INTERVAL '15 minutes'))
+    `) as any[];
+    // Bonitätsauskunft: jüngster Lauf „unlesbar" wegen fehlendem Text, „fehler",
+    // hängt — oder ein Dokument, das nie ausgewertet wurde.
+    const schufa = (await sqlPool`
+      SELECT a.ref FROM fiaon_applications a
+      LEFT JOIN LATERAL (SELECT s.status, s.fehler, s.created_at FROM fiaon_schufa_analysen s
+                          WHERE s.ref = a.ref ORDER BY s.created_at DESC LIMIT 1) j ON TRUE
+      WHERE a.schufa_pdf IS NOT NULL AND a.gdpr_deleted_at IS NULL
+        AND (j.status IS NULL
+             OR (j.status = 'unlesbar' AND (j.fehler ILIKE '%keinen lesbaren Text%' OR j.fehler ILIKE '%fast keinen Text%'))
+             OR j.status = 'fehler'
+             OR (j.status = 'laeuft' AND j.created_at < NOW() - INTERVAL '15 minutes'))
+    `) as any[];
+    // Prüfurteile an Ausweis und Auskunft, die an der fehlenden Textschicht hingen.
+    const pruef = (await sqlPool`
+      SELECT a.ref, k.art FROM fiaon_applications a
+      JOIN LATERAL (SELECT p.art, p.urteil FROM fiaon_dokument_pruefungen p
+                     WHERE p.ref = a.ref AND p.art IN ('ausweis', 'schufa') ORDER BY p.created_at DESC LIMIT 1) k ON TRUE
+      WHERE a.gdpr_deleted_at IS NULL
+        AND ((k.art = 'ausweis' AND a.id_card_pdf IS NOT NULL) OR (k.art = 'schufa' AND a.schufa_pdf IS NOT NULL))
+        AND (COALESCE((k.urteil->>'erkannt')::boolean, FALSE) = FALSE)
+    `.catch(() => [] as any[])) as any[];
+
+    const auftraege: { art: string; ref: string }[] = [
+      ...auszug.map((r) => ({ art: "kontoauszug", ref: String(r.ref) })),
+      ...schufa.map((r) => ({ art: "schufa", ref: String(r.ref) })),
+      ...pruef.map((r) => ({ art: `pruefung:${r.art}`, ref: String(r.ref) })),
+    ].slice(0, max);
+    Object.assign(nachholStand, { laeuft: true, start: new Date().toISOString(), ende: null, gesamt: auftraege.length, fertig: 0, fehler: 0, je: {}, letzte: [] });
+    for (const a of auftraege) nachholStand.je[a.art] = (nachholStand.je[a.art] || 0) + 1;
+    res.json({ ok: true, stand: nachholStand });
+
+    const { kontoauszugAnalysieren } = await import("../lib/fiaon-kontoauszug-analyse");
+    const { schufaAnalysieren } = await import("../lib/fiaon-schufa-analyse");
+    const { pruefungAnstossen } = await import("../lib/fiaon-dokument-pruefung");
+    let i = 0;
+    const arbeiter = async () => {
+      while (i < auftraege.length) {
+        const a = auftraege[i++];
+        try {
+          if (a.art === "kontoauszug") {
+            const r = await kontoauszugAnalysieren(a.ref, { erzwingen: true });
+            nachholStand.letzte.unshift(`${a.ref} Kontoauszug: ${r?.status ?? "—"}`);
+          } else if (a.art === "schufa") {
+            const r = await schufaAnalysieren(a.ref, { erzwingen: true });
+            nachholStand.letzte.unshift(`${a.ref} Auskunft: ${r?.status ?? "—"}`);
+          } else {
+            const art = a.art.split(":")[1] as "ausweis" | "schufa";
+            const spalte = art === "ausweis" ? "id_card_pdf" : "schufa_pdf";
+            const [z] = (await sqlPool.unsafe(`SELECT ${spalte} AS d FROM fiaon_applications WHERE ref = $1`, [a.ref])) as any[];
+            if (z?.d) {
+              const u = await pruefungAnstossen(a.ref, art, Buffer.from(z.d), 180_000);
+              nachholStand.letzte.unshift(`${a.ref} Prüfung ${art}: ${u ? (u.erkannt ? "erkannt" : "nicht erkannt") : "—"}`);
+            }
+          }
+          nachholStand.fertig++;
+        } catch (e: any) {
+          nachholStand.fehler++;
+          nachholStand.letzte.unshift(`${a.ref} ${a.art}: FEHLER ${String(e?.message || e).slice(0, 120)}`);
+        }
+        nachholStand.letzte = nachholStand.letzte.slice(0, 40);
+      }
+    };
+    await Promise.all([arbeiter(), arbeiter()]);
+    nachholStand.laeuft = false; nachholStand.ende = new Date().toISOString();
+    console.log(`[NACHHOLEN] fertig: ${nachholStand.fertig}/${nachholStand.gesamt}, Fehler ${nachholStand.fehler}`);
+  } catch (err) {
+    nachholStand.laeuft = false;
+    console.error("[NACHHOLEN]", err);
+    if (!res.headersSent) res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });
 
@@ -4207,7 +4315,9 @@ router.get("/document/:ref/:type", async (req, res) => {
   try {
     const { ref, type } = req.params;
 
-    if (type !== "bank-statement" && type !== "id-card") {
+    // 18.09.2026: auch die Bonitätsauskunft (Team-Feedback: Kunden bezahlen dafür
+    // und konnten sie nicht einsehen).
+    if (type !== "bank-statement" && type !== "id-card" && type !== "schufa") {
       return res.status(400).json({ error: "Ungültiger Dokumenttyp" });
     }
 
@@ -4221,30 +4331,19 @@ router.get("/document/:ref/:type", async (req, res) => {
       });
     }
 
-    const apps = await sqlPool`
-      SELECT
-        bank_statement_pdf,
-        id_card_pdf
-      FROM fiaon_applications
-      WHERE ref = ${ref}
-      LIMIT 1
-    `;
-
-    if (apps.length === 0) {
-      return res.status(404).json({ error: "Antrag nicht gefunden" });
-    }
-
-    const app = apps[0];
-    const buffer = type === "bank-statement" ? app.bank_statement_pdf : app.id_card_pdf;
-
-    if (!buffer) {
+    // Personenweit: Die Datei kann an einer anderen Bestellung derselben Person
+    // hängen (18.09.2026, dokumentTraeger). Der Kunde öffnet seine eigenen
+    // Unterlagen — die Rolle „kunde" gilt hier als zuständig.
+    const { dokumentInhalt } = await import("../lib/fiaon-dokumente");
+    const erg = await dokumentInhalt(String(ref), art, "kunde", sqlPool, { zustaendig: true });
+    if (!erg.ok) {
       return res.status(404).json({ error: "Dokument nicht gefunden" });
     }
-
-    const filename = type === "bank-statement" ? "Kontoauszüge.pdf" : "Ausweis.pdf";
-    res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-    res.send(buffer);
+    const filename = type === "bank-statement" ? "Kontoauszüge" : type === "id-card" ? "Ausweis" : "Bonitätsauskunft";
+    res.setHeader("Content-Type", erg.typ);
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}${erg.typ === "application/pdf" ? ".pdf" : ".jpg"}"`);
+    res.setHeader("Cache-Control", "no-store, private");
+    res.send(erg.daten);
   } catch (err) {
     console.error("[FIAON-DOCUMENT-DOWNLOAD]", err);
     res.status(500).json({ error: "Fehler beim Herunterladen des Dokuments" });

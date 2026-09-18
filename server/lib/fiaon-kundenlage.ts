@@ -327,7 +327,10 @@ export async function serviceZahlen(): Promise<{
       COUNT(*) FILTER (WHERE ${fristAbgelaufenSql("fiaon_applications")})::int AS frist_abgelaufen,
       COUNT(*) FILTER (WHERE ${offeneZahlungSql("fiaon_applications")})::int AS offene_zahlungen,
       COUNT(*) FILTER (WHERE payment_status = 'paid' AND type <> 'schufa'
-                         AND (id_card_pdf IS NULL OR bank_statement_pdf IS NULL))::int AS dokumente_fehlen,
+                         AND (NOT EXISTS (SELECT 1 FROM fiaon_applications d WHERE d.gdpr_deleted_at IS NULL AND d.id_card_pdf IS NOT NULL
+                                            AND (d.ref = fiaon_applications.ref OR (fiaon_applications.person_id IS NOT NULL AND d.person_id = fiaon_applications.person_id)))
+                              OR NOT EXISTS (SELECT 1 FROM fiaon_applications d WHERE d.gdpr_deleted_at IS NULL AND d.bank_statement_pdf IS NOT NULL
+                                            AND (d.ref = fiaon_applications.ref OR (fiaon_applications.person_id IS NOT NULL AND d.person_id = fiaon_applications.person_id)))))::int AS dokumente_fehlen,
       COUNT(*) FILTER (WHERE payment_status = 'paid'
                          AND (account_status IS DISTINCT FROM 'active' OR password IS NULL))::int AS zugang_offen
     FROM fiaon_applications
@@ -398,15 +401,15 @@ export async function fehlendeDokumente(q: string): Promise<any[]> {
   return await sqlPool.unsafe(`
     SELECT a.ref, a.person_id, ${NAME} AS name, a.email, a.pack_name, a.type,
            a.kyc_status, a.completed_at, a.profile_completed_at,
-           (a.id_card_pdf IS NULL) AS ausweis_fehlt,
-           (a.bank_statement_pdf IS NULL) AS auszug_fehlt,
+           NOT EXISTS (SELECT 1 FROM fiaon_applications d WHERE d.gdpr_deleted_at IS NULL AND d.id_card_pdf IS NOT NULL AND (d.ref = a.ref OR (a.person_id IS NOT NULL AND d.person_id = a.person_id))) AS ausweis_fehlt,
+           NOT EXISTS (SELECT 1 FROM fiaon_applications d WHERE d.gdpr_deleted_at IS NULL AND d.bank_statement_pdf IS NOT NULL AND (d.ref = a.ref OR (a.person_id IS NOT NULL AND d.person_id = a.person_id))) AS auszug_fehlt,
            p.assigned_agent_id, ag.name AS agent_name
     FROM fiaon_applications a
     LEFT JOIN fiaon_persons p ON p.id = a.person_id
     LEFT JOIN fiaon_agents ag ON ag.id = p.assigned_agent_id
     WHERE a.merged_into IS NULL AND a.gdpr_deleted_at IS NULL
       AND a.payment_status = 'paid' AND a.type <> 'schufa'
-      AND (a.id_card_pdf IS NULL OR a.bank_statement_pdf IS NULL)
+      AND (NOT EXISTS (SELECT 1 FROM fiaon_applications d WHERE d.gdpr_deleted_at IS NULL AND d.id_card_pdf IS NOT NULL AND (d.ref = a.ref OR (a.person_id IS NOT NULL AND d.person_id = a.person_id))) OR NOT EXISTS (SELECT 1 FROM fiaon_applications d WHERE d.gdpr_deleted_at IS NULL AND d.bank_statement_pdf IS NOT NULL AND (d.ref = a.ref OR (a.person_id IS NOT NULL AND d.person_id = a.person_id))))
       AND ($1 = '' OR ${NAME} ILIKE '%' || $1 || '%' OR COALESCE(a.email,'') ILIKE '%' || $1 || '%'
            OR a.ref ILIKE '%' || $1 || '%')
     ORDER BY a.completed_at DESC NULLS LAST

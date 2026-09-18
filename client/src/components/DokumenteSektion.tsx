@@ -26,6 +26,8 @@ interface Stand {
   adminNotiz: string | null; schufaNotiz: string | null;
   geprueftAm: string | null; hochgeladenAm: string | null;
   dokumente: Dokument[]; inhaltErlaubt: boolean;
+  /** 18.09.2026: ersetzte Fassungen — nichts geht mehr verloren. */
+  fruehere?: { id: number; art: string; am: string; kb: number }[];
 }
 
 const KYC_TEXT: Record<string, { text: string; farbe: string }> = {
@@ -111,7 +113,7 @@ export function DokumenteSektion({
         )}
         {!stand.inhaltErlaubt && (
           <span className="text-[11.5px] text-slate-400">
-            · Inhalte öffnet nur der Vorgesetzte
+            · Inhalte öffnet, wer den Kunden betreut, und die Leitung
           </span>
         )}
       </div>
@@ -178,6 +180,28 @@ export function DokumenteSektion({
           </div>
         ))}
       </div>
+
+      {/* 18.09.2026: Frühere Fassungen — ein neuer Upload ersetzt die Datei in der
+          Akte, die alte bleibt hier abrufbar (Team-Feedback, Priorität 1). */}
+      {stand.inhaltErlaubt && !adminSicht && (stand.fruehere?.length ?? 0) > 0 && (
+        <div className="mt-3 text-[12px] text-slate-500 leading-relaxed">
+          <span className="font-semibold text-slate-600">Frühere Fassungen: </span>
+          {stand.fruehere!.map((f, i) => {
+            const label = stand.dokumente.find((d) => d.art === f.art)?.label ?? f.art;
+            const am = new Date(f.am).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit" });
+            return (
+              <span key={f.id}>
+                {i > 0 && " · "}
+                <button type="button" className="underline decoration-slate-300 hover:text-slate-800"
+                        onClick={() => setVorschau({ art: f.art, label: `${label} (Fassung vom ${am})`, typ: "pdf",
+                                                    url: `/api/fiaon/agent/dokumente/${personId}/archiv/${f.id}` })}>
+                  {label} vom {am}
+                </button>
+              </span>
+            );
+          })}
+        </div>
+      )}
 
       {(stand.adminNotiz || stand.schufaNotiz) && (
         <p className="mt-3 text-[12px] text-slate-500 leading-relaxed">

@@ -280,10 +280,11 @@ export const BONITAET_TON: Record<BonitaetStufe, string> = {
  */
 export async function bonitaetFuer(ref: string): Promise<BonitaetStand | null> {
   const [a] = (await sqlPool`
-    SELECT a.schufa_pdf IS NOT NULL AS schufa_pdf_da,
+    -- 18.09.2026: Dokument, Urteil und Analyse gehören der PERSON (Team-Feedback, Priorität 1).
+    SELECT EXISTS (SELECT 1 FROM fiaon_applications d WHERE d.gdpr_deleted_at IS NULL AND d.schufa_pdf IS NOT NULL AND (d.ref = a.ref OR (a.person_id IS NOT NULL AND d.person_id = a.person_id))) AS schufa_pdf_da,
            a.schufa_status,
            (SELECT k.urteil FROM fiaon_dokument_pruefungen k
-             WHERE k.ref = a.ref AND k.art = 'schufa' ORDER BY k.created_at DESC LIMIT 1) AS ki_urteil,
+             WHERE k.ref IN (SELECT x.ref FROM fiaon_applications x WHERE x.gdpr_deleted_at IS NULL AND (x.ref = a.ref OR (a.person_id IS NOT NULL AND x.person_id = a.person_id))) AND k.art = 'schufa' ORDER BY k.created_at DESC LIMIT 1) AS ki_urteil,
            -- E-175: Die fertige Auswertung schlaegt jeden Zwischenstand.
            -- 11.09.2026: eintraege liegt als JSON-TEXT im jsonb-Feld (der Schreibweg in
            -- fiaon-schufa-analyse.ts reicht JSON.stringify durch). jsonb_array_length auf
@@ -292,12 +293,12 @@ export async function bonitaetFuer(ref: string): Promise<BonitaetStand | null> {
            -- 11.09.2026: der JUENGSTE Lauf entscheidet — eine aeltere fertige Analyse
            -- ueber eine Datei, die der neueste Lauf als „keine Auskunft" einstuft, zaehlt nicht.
            (SELECT CASE WHEN sa.status = 'fertig' THEN sa.ampel END FROM fiaon_schufa_analysen sa
-             WHERE sa.ref = a.ref ORDER BY sa.created_at DESC LIMIT 1) AS analyse_ampel,
+             WHERE sa.ref IN (SELECT x.ref FROM fiaon_applications x WHERE x.gdpr_deleted_at IS NULL AND (x.ref = a.ref OR (a.person_id IS NOT NULL AND x.person_id = a.person_id))) ORDER BY sa.created_at DESC LIMIT 1) AS analyse_ampel,
            (SELECT CASE WHEN sa.status = 'fertig' THEN jsonb_array_length((CASE WHEN jsonb_typeof(sa.eintraege) = 'string' THEN (sa.eintraege #>> '{}')::jsonb ELSE sa.eintraege END)) END FROM fiaon_schufa_analysen sa
-             WHERE sa.ref = a.ref ORDER BY sa.created_at DESC LIMIT 1) AS analyse_posten,
+             WHERE sa.ref IN (SELECT x.ref FROM fiaon_applications x WHERE x.gdpr_deleted_at IS NULL AND (x.ref = a.ref OR (a.person_id IS NOT NULL AND x.person_id = a.person_id))) ORDER BY sa.created_at DESC LIMIT 1) AS analyse_posten,
            (SELECT CASE WHEN sa.status = 'fertig' THEN (SELECT COUNT(*) FROM jsonb_array_elements((CASE WHEN jsonb_typeof(sa.eintraege) = 'string' THEN (sa.eintraege #>> '{}')::jsonb ELSE sa.eintraege END)) e WHERE (e->>'offen')::boolean) END
               FROM fiaon_schufa_analysen sa
-             WHERE sa.ref = a.ref ORDER BY sa.created_at DESC LIMIT 1) AS analyse_offen,
+             WHERE sa.ref IN (SELECT x.ref FROM fiaon_applications x WHERE x.gdpr_deleted_at IS NULL AND (x.ref = a.ref OR (a.person_id IS NOT NULL AND x.person_id = a.person_id))) ORDER BY sa.created_at DESC LIMIT 1) AS analyse_offen,
            -- ── DIE ZUORDNUNG: PERSON ZUERST, E-MAIL ALS RÜCKFALL ─────────
            -- Die alte Route verband nur über die E-Mail. Seit dem
            -- Kontakt-Umzug hängen 104 von 113 Bestellungen an einer Person;
@@ -342,10 +343,10 @@ export async function bonitaetFuerViele(
   if (refs.length === 0) return karte;
   const zeilen = (await sqlPool`
     SELECT a.ref,
-           a.schufa_pdf IS NOT NULL AS schufa_pdf_da,
+           EXISTS (SELECT 1 FROM fiaon_applications d WHERE d.gdpr_deleted_at IS NULL AND d.schufa_pdf IS NOT NULL AND (d.ref = a.ref OR (a.person_id IS NOT NULL AND d.person_id = a.person_id))) AS schufa_pdf_da,
            a.schufa_status,
            (SELECT k.urteil FROM fiaon_dokument_pruefungen k
-             WHERE k.ref = a.ref AND k.art = 'schufa' ORDER BY k.created_at DESC LIMIT 1) AS ki_urteil,
+             WHERE k.ref IN (SELECT x.ref FROM fiaon_applications x WHERE x.gdpr_deleted_at IS NULL AND (x.ref = a.ref OR (a.person_id IS NOT NULL AND x.person_id = a.person_id))) AND k.art = 'schufa' ORDER BY k.created_at DESC LIMIT 1) AS ki_urteil,
            -- E-175: Die fertige Auswertung schlaegt jeden Zwischenstand.
            -- 11.09.2026: eintraege liegt als JSON-TEXT im jsonb-Feld (der Schreibweg in
            -- fiaon-schufa-analyse.ts reicht JSON.stringify durch). jsonb_array_length auf
@@ -354,12 +355,12 @@ export async function bonitaetFuerViele(
            -- 11.09.2026: der JUENGSTE Lauf entscheidet — eine aeltere fertige Analyse
            -- ueber eine Datei, die der neueste Lauf als „keine Auskunft" einstuft, zaehlt nicht.
            (SELECT CASE WHEN sa.status = 'fertig' THEN sa.ampel END FROM fiaon_schufa_analysen sa
-             WHERE sa.ref = a.ref ORDER BY sa.created_at DESC LIMIT 1) AS analyse_ampel,
+             WHERE sa.ref IN (SELECT x.ref FROM fiaon_applications x WHERE x.gdpr_deleted_at IS NULL AND (x.ref = a.ref OR (a.person_id IS NOT NULL AND x.person_id = a.person_id))) ORDER BY sa.created_at DESC LIMIT 1) AS analyse_ampel,
            (SELECT CASE WHEN sa.status = 'fertig' THEN jsonb_array_length((CASE WHEN jsonb_typeof(sa.eintraege) = 'string' THEN (sa.eintraege #>> '{}')::jsonb ELSE sa.eintraege END)) END FROM fiaon_schufa_analysen sa
-             WHERE sa.ref = a.ref ORDER BY sa.created_at DESC LIMIT 1) AS analyse_posten,
+             WHERE sa.ref IN (SELECT x.ref FROM fiaon_applications x WHERE x.gdpr_deleted_at IS NULL AND (x.ref = a.ref OR (a.person_id IS NOT NULL AND x.person_id = a.person_id))) ORDER BY sa.created_at DESC LIMIT 1) AS analyse_posten,
            (SELECT CASE WHEN sa.status = 'fertig' THEN (SELECT COUNT(*) FROM jsonb_array_elements((CASE WHEN jsonb_typeof(sa.eintraege) = 'string' THEN (sa.eintraege #>> '{}')::jsonb ELSE sa.eintraege END)) e WHERE (e->>'offen')::boolean) END
               FROM fiaon_schufa_analysen sa
-             WHERE sa.ref = a.ref ORDER BY sa.created_at DESC LIMIT 1) AS analyse_offen,
+             WHERE sa.ref IN (SELECT x.ref FROM fiaon_applications x WHERE x.gdpr_deleted_at IS NULL AND (x.ref = a.ref OR (a.person_id IS NOT NULL AND x.person_id = a.person_id))) ORDER BY sa.created_at DESC LIMIT 1) AS analyse_offen,
            sb.payment_status AS kauf_status,
            sb.ref AS kauf_ref
     FROM fiaon_applications a

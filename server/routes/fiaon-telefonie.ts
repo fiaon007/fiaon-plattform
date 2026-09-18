@@ -16,7 +16,7 @@ import {
   twimlAusgehend, wahlProtokoll, wahlPruefen, zugangsAusweis,
   nummerKontingent, nummerWarnungMelden,
 } from "../lib/fiaon-softphone";
-import { DOKUMENTE, dokumentInhalt, dokumentStand, istDokumentArt } from "../lib/fiaon-dokumente";
+import { DOKUMENTE, dokumentInhalt, dokumentStand, istDokumentArt, unterlageSichern } from "../lib/fiaon-dokumente";
 import { gespraechsblatt } from "../lib/fiaon-gespraechsblatt";
 import { anrufNachbereiten } from "../lib/fiaon-transkript";
 import { ergebnisNachbereiten, istErgebnis } from "../lib/fiaon-kontakt-ergebnis";
@@ -1398,7 +1398,8 @@ router.get("/dokumente/:personId", requireAgent, async (req: AgentRequest, res: 
     if (!(await darfAnKunde(req.agent!.id, rolle, personId))) {
       return res.status(403).json({ ok: false, error: "Nicht dein Kunde." });
     }
-    const stand = await dokumentStand({ personId, rolle }, sqlPool);
+    // 18.09.2026: Wer den Kunden betreut, darf seine Unterlagen öffnen (Team-Feedback, Priorität 1).
+    const stand = await dokumentStand({ personId, rolle, zustaendig: true }, sqlPool);
     if (!stand) return res.json({ ok: true, stand: null });
     res.json({ ok: true, stand });
   } catch (err) {
@@ -1454,28 +1455,69 @@ router.get("/agent/dokumente/:personId/:art/datei", requireAgent, async (req: Ag
     const art = String(req.params.art);
     if (!istDokumentArt(art)) return res.status(400).json({ ok: false, error: "Unbekannte Dokumentart." });
     const rolle = await rolleVon(req.agent!.id);
-    // ── DIE DATEI KANN AN JEDER BESTELLUNG DER PERSON HÄNGEN (P10/P14) ────
-    // Vorher: nur die NEUESTE Bestellung. Wer Paket + Bonitätsauskunft hat,
-    // dessen Ausweis hängt oft an der jeweils anderen Zeile — Ergebnis:
-    // „Dokument nicht einsehbar", obwohl es da ist. Jetzt werden alle
-    // Bestellungen der Person probiert, neueste zuerst.
-    const refs = (await sqlPool`
-      SELECT ref FROM fiaon_applications
-      WHERE person_id = ${Number(req.params.personId)} AND merged_into IS NULL
-      ORDER BY (payment_status = 'paid') DESC, created_at DESC LIMIT 8
-    `) as any[];
-    if (refs.length === 0) return res.status(404).json({ ok: false, error: "Keine Bestellung gefunden." });
-    let erg: Awaited<ReturnType<typeof dokumentInhalt>> | null = null;
-    for (const r of refs) {
-      erg = await dokumentInhalt(String(r.ref), art, rolle);
-      if (erg.ok) break;
+    const personId = Number(req.params.personId);
+    // ── WER DEN KUNDEN BETREUT, ÖFFNET SEINE UNTERLAGEN (18.09.2026) ──────
+    // Team-Feedback, Priorität 1: „weder für den Kunden noch für den
+    // zuständigen Mitarbeiter einsehbar". Bis heute öffnete nur die Leitung.
+    // Jetzt: eigener Kunde (dieselbe Prüfung wie überall, darfAnKunde) oder
+    // Leitung — und jeder Abruf steht mit Namen im Verlauf.
+    if (!(await darfAnKunde(req.agent!.id, rolle, personId))) {
+      return res.status(403).json({ ok: false, error: "Nicht dein Kunde." });
     }
-    if (!erg || !erg.ok) return res.status(erg?.code ?? 404).json({ ok: false, error: erg?.grund ?? "Nicht gefunden." });
+    // Die Datei kann an jeder Bestellung der Person hängen, auch an einer
+    // zusammengeführten — dokumentTraeger sucht personenweit.
+    const [irgendeine] = (await sqlPool`
+      SELECT ref FROM fiaon_applications
+      WHERE person_id = ${personId} AND gdpr_deleted_at IS NULL
+      ORDER BY (merged_into IS NULL) DESC, (payment_status = 'paid') DESC, created_at DESC LIMIT 1
+    `) as any[];
+    if (!irgendeine) return res.status(404).json({ ok: false, error: "Keine Bestellung gefunden." });
+    const erg = await dokumentInhalt(String(irgendeine.ref), art, rolle, sqlPool, { zustaendig: true });
+    if (!erg.ok) return res.status(erg.code).json({ ok: false, error: erg.grund });
+    const label = DOKUMENTE.find((d) => d.art === art)?.label ?? art;
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
+      VALUES (${erg.ref}, ${personId}, ${req.agent!.id}, ${req.agent!.name}, 'system',
+              ${`Dokument geöffnet: ${label} (von ${req.agent!.name}).`}, NOW())
+    `.catch(() => {});
     res.setHeader("Content-Type", erg.typ);
     res.setHeader("Cache-Control", "no-store, private");
     res.send(erg.daten);
   } catch (err) {
     console.error("[DOK] agent datei:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/**
+ * GET /agent/dokumente/:personId/archiv/:id — eine frühere Fassung (18.09.2026).
+ * Dieselbe Grenze wie die aktuelle Datei: eigener Kunde oder Leitung, jeder
+ * Abruf mit Namen im Verlauf.
+ */
+router.get("/agent/dokumente/:personId/archiv/:id", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const personId = Number(req.params.personId);
+    const rolle = await rolleVon(req.agent!.id);
+    if (!(await darfAnKunde(req.agent!.id, rolle, personId))) {
+      return res.status(403).json({ ok: false, error: "Nicht dein Kunde." });
+    }
+    const [d] = (await sqlPool`
+      SELECT id, ref, art, mime, inhalt, hochgeladen_am FROM fiaon_dokumente
+       WHERE id = ${Number(req.params.id)} AND person_id = ${personId} AND quelle = 'ersetzt' AND geloescht_am IS NULL
+       LIMIT 1
+    `) as any[];
+    if (!d) return res.status(404).json({ ok: false, error: "Diese Fassung gibt es nicht." });
+    const label = DOKUMENTE.find((x) => x.art === d.art)?.label ?? String(d.art);
+    await sqlPool`
+      INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
+      VALUES (${d.ref}, ${personId}, ${req.agent!.id}, ${req.agent!.name}, 'system',
+              ${`Frühere Fassung geöffnet: ${label} vom ${new Date(d.hochgeladen_am).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" })} (von ${req.agent!.name}).`}, NOW())
+    `.catch(() => {});
+    res.setHeader("Content-Type", String(d.mime || "application/pdf"));
+    res.setHeader("Cache-Control", "no-store, private");
+    res.send(Buffer.from(d.inhalt));
+  } catch (err) {
+    console.error("[DOK] archiv:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });
@@ -1863,10 +1905,16 @@ router.post(
         };
       }
 
+      // 18.09.2026: dieselbe Reihenfolge wie die Akte (dokumentStand) — die
+      // bezahlte Paket-Bestellung zuerst, nicht die jüngste Zeile. Die jüngste
+      // war oft die Auskunft-Bestellung, und der Kundenbereich des Pakets sah
+      // dann „Fehlt".
       const [antrag] = (await sqlPool`
         SELECT ref FROM fiaon_applications
-        WHERE person_id = ${personId} AND merged_into IS NULL
-        ORDER BY created_at DESC LIMIT 1
+        WHERE person_id = ${personId} AND merged_into IS NULL AND gdpr_deleted_at IS NULL
+        ORDER BY (payment_status = 'paid') DESC,
+                 (COALESCE(type, '') <> 'schufa' AND ref NOT LIKE 'FIAON-SCHUFA-%') DESC,
+                 created_at DESC LIMIT 1
       `) as any[];
       // 25.08.2026: Ein Ausweis gehoert dem Menschen, nicht seiner Bestellung.
       // Fehlt die Akte, wird sie angelegt statt den Upload abzuweisen.
@@ -1877,6 +1925,8 @@ router.post(
 
       const spalte = DOKUMENTE.find((d) => d.art === art)!.spalte;
       const label = DOKUMENTE.find((d) => d.art === art)!.label;
+      // Was ersetzt wird, geht nicht verloren (18.09.2026, Team-Feedback Priorität 1).
+      await unterlageSichern(antragRef, art);
       // Spaltenname kommt aus der festen Liste oben, nicht aus der Anfrage.
       await sqlPool.unsafe(
         `UPDATE fiaon_applications
@@ -1926,7 +1976,7 @@ router.post(
         console.error("[DOK] Prüfung:", String(e).slice(0, 160));
       }
 
-      const stand = await dokumentStand({ personId, rolle }, sqlPool);
+      const stand = await dokumentStand({ personId, rolle, zustaendig: true }, sqlPool);
       res.json({ ok: true, stand, meldung: `${label} liegt jetzt in der Akte.${pruefSatz}` });
     } catch (err) {
       console.error("[DOK] agent hochladen:", err);

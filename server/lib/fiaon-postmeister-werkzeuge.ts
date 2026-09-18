@@ -166,7 +166,7 @@ export const notizAnBetreuer: Werkzeug = {
               ${p.dringend ? "Kunde braucht heute jemanden" : "Hinweis vom Postmeister"},
               ${text}, 'postmeister', ${p.dringend ? 1 : 3},
               ${p.dringend ? new Date() : new Date(Date.now() + 2 * 864e5)},
-              ${k.ref ? `/chef/s/akte?ref=${k.ref}` : null}, 'postmeister', 'offen',
+              ${k.personId ? `/agent/kunden?person=${k.personId}` : k.ref ? `/agent/kunden?ref=${k.ref}` : null}, 'postmeister', 'offen',
               ${wer.id ? "agent" : "betreiber"}, ${wer.id}, ${wer.name})
       ON CONFLICT (schluessel) DO UPDATE SET text = fiaon_betreiber_todos.text || E'\\n\\n' || EXCLUDED.text,
              prioritaet = LEAST(fiaon_betreiber_todos.prioritaet, EXCLUDED.prioritaet), letzte_aktivitaet = NOW()

@@ -1881,6 +1881,8 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
   const [abschluss, setAbschluss] = useState<null | "abgelehnt">(null);
   const [abschlussTermin, setAbschlussTermin] = useState(false);
   const [sitDatum, setSitDatum] = useState(tagPlus(1));
+  // 18.09.2026: Grund der Ratenpause — steht im Verlauf (Team-Feedback, Priorität 5).
+  const [sitGrund, setSitGrund] = useState("Kunde sieht noch keine Leistung (Analyse fehlt noch).");
   const [sitZeit, setSitZeit] = useState("10:00");
   // Gespräche: Anrufe mit Aufnahme (lazy je Reiter)
   const [anrufe, setAnrufe] = useState<any[] | null>(null);
@@ -2614,7 +2616,7 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
               <div className="pi-ew">
                 <div className="pi-reihe">
                   <button type="button" className={`pi-knopf klein ${sitFeld === "zahlt_am" ? "" : "still"}`} disabled={!!laeuft} onClick={() => { setSitFeld(sitFeld === "zahlt_am" ? null : "zahlt_am"); setSitDatum(tagPlus(1)); }}>Zahlt Rate am …</button>
-                  <button type="button" className={`pi-knopf klein ${sitFeld === "ausgesetzt" ? "" : "still"}`} disabled={!!laeuft} onClick={() => { setSitFeld(sitFeld === "ausgesetzt" ? null : "ausgesetzt"); setSitDatum(tagPlus(30)); }}>1 Monat ausgesetzt + Termin</button>
+                  <button type="button" className={`pi-knopf klein ${sitFeld === "ausgesetzt" ? "" : "still"}`} disabled={!!laeuft} onClick={() => setSitFeld(sitFeld === "ausgesetzt" ? null : "ausgesetzt")}>Ratenpause: 1 Monat aussetzen</button>
                   <button type="button" className="pi-knopf klein still" disabled={!!laeuft} onClick={() => void sitRatenErgebnis("nicht_erreicht")}>{laeuft === "sit-nicht_erreicht" ? "…" : "Nicht erreicht"}</button>
                   <button type="button" className="pi-knopf klein warn" disabled={!!laeuft} onClick={() => void sitRatenErgebnis("nummer_blockiert")}>{laeuft === "sit-nummer_blockiert" ? "…" : "Kein Kontakt mehr möglich"}</button>
                 </div>
@@ -2624,11 +2626,14 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
                     <button type="button" className="pi-knopf klein" disabled={!!laeuft} onClick={() => void sitRatenErgebnis("zahlt_am", { zusageDatum: sitDatum })}>Speichern</button>
                   </div>
                 )}
+                {/* 18.09.2026 (Team-Feedback, Priorität 5): Hier stand eine Zahlungszusage in
+                    30 Tagen — die Rate blieb überfällig, die Mahnungen liefen weiter. Jetzt
+                    rückt die Kette wirklich um einen Monat (server/lib/fiaon-ratenpause.ts). */}
                 {sitFeld === "ausgesetzt" && (
                   <div className="pi-ew-feld">
-                    <label>Zahlt wieder am<input type="date" className="pi-eingabe" value={sitDatum} min={heuteIso()} onChange={(e) => setSitDatum(e.target.value)} /></label>
-                    <button type="button" className="pi-knopf klein" disabled={!!laeuft} onClick={() => void sitRatenErgebnis("zahlt_am", { zusageDatum: sitDatum, notiz: "1 Monat ausgesetzt – Neustart mit Termin vereinbart." })}>Speichern</button>
-                    <small className="pi-sek-neben">Buch danach oben den Termin – ausgesetzt ohne Gespräch verliert den Kunden.</small>
+                    <label>Grund<input type="text" className="pi-eingabe" value={sitGrund} maxLength={300} onChange={(e) => setSitGrund(e.target.value)} /></label>
+                    <button type="button" className="pi-knopf klein" disabled={!!laeuft || sitGrund.trim().length < 5} onClick={() => void sitRatenErgebnis("ratenpause", { notiz: sitGrund.trim() })}>{laeuft === "sit-ratenpause" ? "…" : "Pause setzen"}</button>
+                    <small className="pi-sek-neben">Alle offenen Raten rücken einen Monat, Mahnungen ruhen bis zur neuen Fälligkeit. Buch danach oben den Termin – ausgesetzt ohne Gespräch verliert den Kunden.</small>
                   </div>
                 )}
               </div>

@@ -221,7 +221,7 @@ async function handlungMerken(id: number, werkzeug: string, ergebnis: string, ok
 }
 
 /** Ein Entwurf wird gesendet — mit frischer Prüfung kurz davor. */
-async function entwurfSenden(id: number, textNeu?: string | null, wahl: SendeWahl = {}): Promise<{ ok: boolean; grund: string; erledigt?: string[] }> {
+export async function entwurfSenden(id: number, textNeu?: string | null, wahl: SendeWahl = {}): Promise<{ ok: boolean; grund: string; erledigt?: string[] }> {
   // 11.09.2026 (E-184): Auch eine wartende oder endgültig gescheiterte
   // Antwort darf ein Mensch sofort von Hand senden. Geht es schief, fällt die
   // Zeile in IHREN Zustand zurück — der Nachhol-Zeitplan bleibt erhalten.

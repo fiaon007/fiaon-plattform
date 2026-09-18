@@ -237,7 +237,7 @@ async function wegRechnen(personId: number, heuteIso: string, lauf: Lauf): Promi
   // Auswahlregel wie der Login (fiaon-login-logic.ts).
   const [a] = (await lauf`
     SELECT a.ref, a.payment_status, a.wanted_limit,
-           (a.bank_statement_pdf IS NOT NULL) AS hat_kontoauszug, (a.id_card_pdf IS NOT NULL) AS hat_ausweis,
+           EXISTS (SELECT 1 FROM fiaon_applications d WHERE d.gdpr_deleted_at IS NULL AND d.bank_statement_pdf IS NOT NULL AND (d.ref = a.ref OR (a.person_id IS NOT NULL AND d.person_id = a.person_id))) AS hat_kontoauszug, EXISTS (SELECT 1 FROM fiaon_applications d WHERE d.gdpr_deleted_at IS NULL AND d.id_card_pdf IS NOT NULL AND (d.ref = a.ref OR (a.person_id IS NOT NULL AND d.person_id = a.person_id))) AS hat_ausweis,
            a.reupload_bank_statement, a.reupload_id_card
       FROM fiaon_applications a
      WHERE a.person_id = ${personId} AND a.merged_into IS NULL AND a.archived_at IS NULL AND a.gdpr_deleted_at IS NULL

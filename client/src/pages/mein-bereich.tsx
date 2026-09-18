@@ -510,12 +510,15 @@ export default function MeinBereichPage() {
               <div className="mb-abschnitt-kopf"><div><h2>Unterlagen</h2><p>Was vorliegt, was fehlt — und wie Sie es einreichen.</p></div></div>
               <div className="mb-raster">
                 {[
-                  { t: "Kontoauszug", da: d.unterlagen.kontoauszug && !d.unterlagen.erneutKontoauszug, x: d.unterlagen.erneutKontoauszug ? "Bitte erneut einreichen — die erste Fassung war nicht lesbar." : "Die letzten drei Monate, als PDF aus Ihrem Online-Banking. Ein Handyfoto genügt, wenn alles lesbar ist." },
-                  { t: "Ausweis oder Reisepass", da: d.unterlagen.ausweis && !d.unterlagen.erneutAusweis, x: d.unterlagen.erneutAusweis ? "Bitte erneut einreichen — die erste Fassung war nicht lesbar." : "Vorder- und Rückseite, gut beleuchtet, alle vier Ecken sichtbar." },
-                  { t: "Bonitätsauskunft", da: d.unterlagen.auskunft, x: "Über uns beschafft oder selbst hochgeladen — beides geht." },
+                  { t: "Kontoauszug", art: "kontoauszug", liegt: d.unterlagen.kontoauszug, da: d.unterlagen.kontoauszug && !d.unterlagen.erneutKontoauszug, x: d.unterlagen.erneutKontoauszug ? "Bitte erneut einreichen — die erste Fassung war nicht lesbar." : "Die letzten drei Monate, als PDF aus Ihrem Online-Banking. Ein Handyfoto genügt, wenn alles lesbar ist." },
+                  { t: "Ausweis oder Reisepass", art: "ausweis", liegt: d.unterlagen.ausweis, da: d.unterlagen.ausweis && !d.unterlagen.erneutAusweis, x: d.unterlagen.erneutAusweis ? "Bitte erneut einreichen — die erste Fassung war nicht lesbar." : "Vorder- und Rückseite, gut beleuchtet, alle vier Ecken sichtbar." },
+                  { t: "Bonitätsauskunft", art: "schufa", liegt: d.unterlagen.auskunft, da: d.unterlagen.auskunft, x: "Über uns beschafft oder selbst hochgeladen — beides geht." },
                 ].map((u) => (
                   <article className="mb-kachel" key={u.t}><h4>{u.t}</h4><p>{u.x}</p>
-                    <div className="mb-kachel-fuss"><span className={`mb-lage ${u.da ? "gut" : "frist"}`}>{u.da ? "Liegt vor" : "Fehlt"}</span></div></article>
+                    <div className="mb-kachel-fuss"><span className={`mb-lage ${u.da ? "gut" : "frist"}`}>{u.da ? "Liegt vor" : "Fehlt"}</span>
+                      {/* 18.09.2026: Der Kunde öffnet seine Unterlagen selbst (Team-Feedback, Priorität 1). */}
+                      {u.liegt && <a className="mb-knopf still" style={{ marginLeft: 8, padding: "4px 10px", fontSize: 12.5 }} href={`/api/fiaon/kunde/${encodeURIComponent(d.kunde.ref)}/dokument/${u.art}`} target="_blank" rel="noopener noreferrer">Ansehen</a>}
+                    </div></article>
                 ))}
               </div>
               <Upload refKunde={d.kunde.ref} fehlt={{ kontoauszug: !d.unterlagen.kontoauszug || d.unterlagen.erneutKontoauszug, ausweis: !d.unterlagen.ausweis || d.unterlagen.erneutAusweis, auskunft: !d.unterlagen.auskunft && !!d.bonitaet?.darfHochladen }} />

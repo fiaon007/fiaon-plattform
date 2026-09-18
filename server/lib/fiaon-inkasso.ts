@@ -238,6 +238,15 @@ export async function ratenErgebnisAnwenden(
       meldung = `Nummer blockiert uns — die Rate ruht ${BLOCKIERT_RUHE_TAGE} Tage. `
         + "Die Mahnungen laufen weiter, der Anrufweg ist zu.";
       break;
+    case "ratenpause": {
+      // 18.09.2026 (Team-Feedback Priorität 5): eine echte Pause — Fälligkeiten
+      // rücken, Mahnstand fällt (server/lib/fiaon-ratenpause.ts).
+      const { ratenpauseAnwenden } = await import("./fiaon-ratenpause");
+      const p = await ratenpauseAnwenden({ ref: rate.ref, grund: String(opts.notiz || ""), agentId: opts.agentId, agentName: opts.agentName, verlauf: false }, lauf);
+      if (!p.ok) return { ok: false, fehler: p.fehler };
+      meldung = p.meldung;
+      break;
+    }
     case "eskalation": {
       const n = String(opts.notiz || "").trim();
       // Pflicht-Notiz: Eine Weitergabe ohne Begründung ist für den Vorgesetzten
@@ -281,7 +290,7 @@ export async function ratenErgebnisAnwenden(
     const [pz] = (await lauf`SELECT person_id FROM fiaon_applications WHERE ref = ${rate.ref} LIMIT 1`) as any[];
     const pid = pz?.person_id ? Number(pz.person_id) : null;
     if (pid) {
-      const erreicht = opts.ergebnis === "zahlt_am" || opts.ergebnis === "ueberwiesen_beleg" || opts.ergebnis === "eskalation";
+      const erreicht = opts.ergebnis === "zahlt_am" || opts.ergebnis === "ueberwiesen_beleg" || opts.ergebnis === "eskalation" || opts.ergebnis === "ratenpause";
       const zaehlerPlus = opts.ergebnis === "nicht_erreicht" ? 1 : 0;
       await lauf`
         UPDATE fiaon_persons SET

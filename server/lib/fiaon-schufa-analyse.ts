@@ -39,6 +39,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import { pdfText, pdfTextBrauchbar, pdfSeiten } from "./fiaon-pdf-lesen";
+import { ocrLesen, ohneFotoVermerk } from "./fiaon-ocr";
 import { wandPruefen } from "@shared/fiaon-wortverbote";
 
 /** So viel Text geht ans Modell. Eine 38-Seiten-Auskunft liegt weit darunter. */
@@ -197,11 +198,16 @@ function zeile(r: any): SchufaAnalyse {
   };
 }
 
-/** Die jüngste Analyse einer Bestellung (oder null). */
+/**
+ * Die jüngste Analyse der PERSON hinter dieser Bestellung (oder null).
+ * 18.09.2026: Die Analyse läuft an der Bestellung, die das Dokument trägt —
+ * gefragt wird oft über eine andere (Kundenbereich, Betreuer). Deshalb
+ * personenweit (Team-Feedback, Priorität 1).
+ */
 export async function schufaAnalyseFuer(ref: string): Promise<SchufaAnalyse | null> {
   await ensureSchufaTabelle();
   const [r] = (await sqlPool`
-    SELECT * FROM fiaon_schufa_analysen WHERE ref = ${ref} ORDER BY created_at DESC LIMIT 1
+    SELECT * FROM fiaon_schufa_analysen WHERE ref IN (SELECT x.ref FROM fiaon_applications x WHERE x.gdpr_deleted_at IS NULL AND (x.ref = ${ref} OR x.person_id = (SELECT y.person_id FROM fiaon_applications y WHERE y.ref = ${ref} LIMIT 1))) ORDER BY created_at DESC LIMIT 1
   `) as any[];
   return r ? zeile(r) : null;
 }
@@ -571,9 +577,13 @@ function durchDieWand(text: string, wo: string, ref: string): string {
  */
 export async function schufaAnalysieren(ref: string, opts: { erzwingen?: boolean } = {}): Promise<SchufaAnalyse | null> {
   await ensureSchufaTabelle();
+  // 18.09.2026: an der Bestellung, die die Auskunft TRÄGT — auch wenn über eine
+  // andere Bestellung der Person gefragt wird (dokumentTraeger).
+  const { dokumentTraeger } = await import("./fiaon-dokumente");
+  ref = (await dokumentTraeger({ ref }, "schufa")) ?? ref;
   const [a] = (await sqlPool`
     SELECT a.ref, a.person_id, a.schufa_pdf, a.documents_uploaded_at
-    FROM fiaon_applications a WHERE a.ref = ${ref} AND a.merged_into IS NULL LIMIT 1
+    FROM fiaon_applications a WHERE a.ref = ${ref} AND a.gdpr_deleted_at IS NULL LIMIT 1
   `) as any[];
   if (!a?.schufa_pdf) return null;
 
@@ -607,16 +617,29 @@ export async function schufaAnalysieren(ref: string, opts: { erzwingen?: boolean
     try { seiten = await pdfSeiten(buf); } catch { /* Seitenzahl ist Beiwerk */ }
     let text = "";
     try { text = await pdfText(buf); } catch (e) { console.warn("[SCHUFA-ANALYSE] PDF nicht lesbar:", (e as Error).message); }
+    // ── FOTO ODER SCAN: DIE TEXTERKENNUNG LIEST (18.09.2026) ───────────────
+    // 66 Läufe endeten hier mit „kein lesbarer Text" — bei gut lesbaren Fotos.
+    // Ohne Textschicht (oder mit kaum mehr als unserer eigenen Fußzeile) liest
+    // jetzt das Bildmodell die Seiten (fiaon-ocr.ts); ausgewertet wird danach
+    // derselbe Text auf demselben Weg.
+    let ocrModell: string | null = null;
+    if (!pdfTextBrauchbar(ohneFotoVermerk(text)) || ohneFotoVermerk(text).length < MINDEST_TEXT) {
+      try {
+        const ocr = await ocrLesen(buf, "schufa");
+        const erkannt = ocr ? ocr.seiten.join("\n\n") : "";
+        if (erkannt.trim().length > text.trim().length) { text = erkannt; ocrModell = ocr!.modell; }
+      } catch (e) { console.warn("[SCHUFA-ANALYSE] Texterkennung:", (e as Error).message); }
+    }
     if (!pdfTextBrauchbar(text)) {
       await fertig({
         status: "unlesbar", seiten,
-        fehler: "Die Datei enthält keinen lesbaren Text (Foto oder Scan). Bitte laden Sie die Auskunft als PDF hoch, "
-          + "so wie die Auskunftei sie verschickt hat.",
+        fehler: "Die Datei ist nicht lesbar — auch die Texterkennung findet keinen Text (zu unscharf, abgeschnitten oder leer). "
+          + "Bitte laden Sie die Auskunft als PDF hoch, so wie die Auskunftei sie verschickt hat, oder fotografieren Sie jede Seite gerade und scharf.",
       });
       await sqlPool`
         INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
         VALUES (${ref}, NULL, 'System', 'system',
-                'Bonitätsauskunft: Datei ohne lesbaren Text (Foto oder Scan). Der Kunde sieht die Bitte um ein PDF.')
+                'Bonitätsauskunft: Datei auch mit Texterkennung nicht lesbar. Der Kunde sieht die Bitte um ein PDF oder ein scharfes Foto.')
       `.catch(() => {});
       return schufaAnalyseFuer(ref);
     }
@@ -652,7 +675,8 @@ export async function schufaAnalysieren(ref: string, opts: { erzwingen?: boolean
     }
 
     const gekuerzt = text.length > TEXT_DECKEL;
-    const { modell, daten } = await openaiAuswertung(text.slice(0, TEXT_DECKEL));
+    const { modell: auswerter, daten } = await openaiAuswertung(text.slice(0, TEXT_DECKEL));
+    const modell = ocrModell ? `${auswerter} (Texterkennung ${ocrModell})` : auswerter;
 
     const listenLeer = !(daten.eintraege || []).length && !(daten.anfragen || []).length;
     if (daten.ist_bonitaetsauskunft === false || (!daten.auskunftei && listenLeer)) {
@@ -755,7 +779,7 @@ export async function loeschantragVermerken(ref: string, posten: number): Promis
   const [r] = (await sqlPool`
     UPDATE fiaon_schufa_analysen
        SET loeschantrag_am = NOW(), loeschantrag_posten = ${posten}, updated_at = NOW()
-     WHERE id = (SELECT id FROM fiaon_schufa_analysen WHERE ref = ${ref} ORDER BY created_at DESC LIMIT 1)
+     WHERE id = (SELECT id FROM fiaon_schufa_analysen WHERE ref IN (SELECT x.ref FROM fiaon_applications x WHERE x.gdpr_deleted_at IS NULL AND (x.ref = ${ref} OR x.person_id = (SELECT y.person_id FROM fiaon_applications y WHERE y.ref = ${ref} LIMIT 1))) ORDER BY created_at DESC LIMIT 1)
      RETURNING loeschantrag_am
   `.catch(() => [] as any[])) as any[];
   return r?.loeschantrag_am ? new Date(r.loeschantrag_am).toISOString() : null;

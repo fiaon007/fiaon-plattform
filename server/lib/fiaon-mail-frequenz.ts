@@ -111,6 +111,10 @@ export interface FrequenzUrteil {
   grund: string | null;
   /** Nur zur Anzeige im Leitstand: was den Ausschlag gab. */
   zaehler?: { heute: number; woche: number; monat: number };
+  /** 18.09.2026: Handversand an eine zuletzt gesperrte Adresse — erlaubt, mit Hinweis. */
+  hinweis?: string | null;
+  /** Vor dem Versand die Brevo-Sperre der Adresse aufheben. */
+  sperreAufheben?: boolean;
 }
 
 /** Eine Zahl aus fiaon_settings mit Standardwert. */
@@ -246,7 +250,20 @@ export async function darfAnEmpfaenger(email: string, event: string, opts: { man
 
     const zaehler = { heute: Number(z?.heute || 0), woche: Number(z?.woche || 0), monat: Number(z?.monat || 0) };
     if (opts.manuell) {
-      if (Number(z?.hart || 0) > 0) return { ok: false, grund: "Adresse ist unzustellbar (Rückläufer oder Spam-Meldung)", zaehler };
+      // ── DER MENSCH STEHT ÜBER DER SPERRE (18.09.2026, Team-Feedback P4) ────
+      // Hier stand die letzte Wand für Handversände: Nach einem Rückläufer oder
+      // einer Spam-Meldung lehnte das System JEDE Mail an die Adresse ab — 28-mal
+      // in sieben Tagen, u. a. Einladungen, die Daniel nach einem Telefonat
+      // schicken wollte. Wer von Hand schickt, hat meist gerade mit dem Kunden
+      // gesprochen. Jetzt: Versand erlaubt, Brevo-Sperre aufgehoben, und der
+      // Mitarbeiter liest, dass er die Adresse bestätigen soll.
+      if (Number(z?.hart || 0) > 0) {
+        return {
+          ok: true, grund: null, zaehler, sperreAufheben: true,
+          hinweis: "An diese Adresse kam zuletzt eine Mail zurück (Rückläufer oder Spam-Meldung). "
+            + "Für deinen Versand ist die Sperre aufgehoben — bitte die Adresse mit dem Kunden bestätigen.",
+        };
+      }
       return { ok: true, grund: null, zaehler };
     }
 

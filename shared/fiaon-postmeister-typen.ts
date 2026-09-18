@@ -136,11 +136,15 @@ export type Aktion =
  * Absender, die NIE eine Antwort bekommen. Geprüft wird der Host nach dem
  * letzten @ — exakt oder als Subdomain, niemals als Teilstring: sonst sperrt
  * „google" auch „mail.google-partner-beratung.de" (Fund der Prüfer 02.09.).
+ *
+ * 18.09.2026: „googlemail.com" stand hier — das ist Gmail für Privatleute
+ * (89 Kunden). Acht echte Antworten („Re: Ihre Monatsrate 2 …") wurden als
+ * „Dienstleister" verworfen (Team-Feedback, Priorität 6).
  */
 export const AUTOMATEN_DOMAENEN = [
   "stripe.com", "airwallex.com", "gocardless.com", "amazon.de", "amazon.com", "amazonses.com",
   "dhl.de", "dpd.de", "gls-group.eu", "hermesworld.com", "ups.com", "deutschepost.de",
-  "brevo.com", "sendinblue.com", "make.com", "integromat.com", "google.com", "googlemail.com",
+  "brevo.com", "sendinblue.com", "make.com", "integromat.com", "google.com",
   "twilio.com", "render.com", "paypal.com", "paypal.de", "klarna.com", "sumup.com",
   "notify.microsoft.com", "atlassian.net", "github.com", "openai.com", "anthropic.com",
   "linkedin.com", "xing.com", "facebook.com", "meta.com", "tiktok.com", "docusign.net",

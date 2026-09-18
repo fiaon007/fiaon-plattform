@@ -26,7 +26,28 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { sqlPool } from "./db-pool";
-import { pdfSeiten, pdfTextJeSeite, pdfTextUndZeilen, pdfTextBrauchbar } from "./fiaon-pdf-lesen";
+import { pdfSeiten, pdfTextUndZeilen, pdfTextBrauchbar } from "./fiaon-pdf-lesen";
+import { ocrLesen, ocrZeilen, ohneFotoVermerk } from "./fiaon-ocr";
+
+/**
+ * Der Text eines Dokuments — aus der Textschicht, sonst aus der Texterkennung
+ * (18.09.2026). Ein Handyfoto hat keine Textschicht; bis heute hieß das hier
+ * „automatisch nicht prüfbar" — bei Ausweisen fast immer. Die Erkennung ist im
+ * Prozess zwischengespeichert: Heuristik und KI-Urteil lesen dieselbe Datei
+ * nur einmal.
+ */
+async function lesbarerText(pdf: Buffer, art: DokumentArt): Promise<{ seiten: string[]; zeilen: string[][]; ocr: string | null }> {
+  const { seiten, zeilen } = await pdfTextUndZeilen(pdf);
+  const eigen = ohneFotoVermerk(seiten.join("\n"));
+  if (eigen.length >= 40 && pdfTextBrauchbar(eigen)) return { seiten, zeilen, ocr: null };
+  try {
+    const e = await ocrLesen(pdf, art);
+    if (e && pdfTextBrauchbar(e.seiten.join("\n"))) return { seiten: e.seiten, zeilen: ocrZeilen(e), ocr: e.modell };
+  } catch (err) {
+    console.warn("[DOK-PRUEFUNG] Texterkennung:", String((err as Error)?.message || err).slice(0, 200));
+  }
+  return { seiten, zeilen, ocr: null };
+}
 
 export type DokumentArt = "kontoauszug" | "ausweis" | "schufa";
 
@@ -248,11 +269,11 @@ export async function dokumentPruefen(art: DokumentArt, pdf: Buffer): Promise<Do
     // Ein Lesedurchgang für beides: den Text (Stichwortprofil) und die Zeilen
     // (Zeitraum des Kontoauszugs, E-179). `seitenTexte` ist derselbe Text wie
     // aus pdfTextJeSeite.
-    const { seiten: seitenTexte, zeilen } = await pdfTextUndZeilen(pdf);
+    const { seiten: seitenTexte, zeilen } = await lesbarerText(pdf, art);
     const text = seitenTexte.join("\n");
     if (!pdfTextBrauchbar(text)) {
-      // Foto-PDF: die einzige Textschicht ist unsere eigene Fußzeile.
-      basis.hinweisIntern = `${profil.label}: Foto ohne Textschicht — automatisch nicht prüfbar, bitte von Hand ansehen.`;
+      // Foto-PDF, und auch die Texterkennung fand nichts Lesbares.
+      basis.hinweisIntern = `${profil.label}: auch mit Texterkennung nicht lesbar (unscharf, abgeschnitten oder leer) — bitte von Hand ansehen.`;
       return basis;
     }
     basis.pruefbar = true;
@@ -430,8 +451,13 @@ export async function pruefungAnstossen(
       return urteil;
     }
     // Timeout: die Prüfung läuft im Hintergrund zu Ende und speichert selbst.
+    // 18.09.2026: Mit der Texterkennung ist das bei Fotos der Normalfall — das
+    // KI-Urteil muss deshalb auch hier folgen, nicht nur im schnellen Weg.
     void dokumentPruefen(art, pdf)
-      .then((u) => urteilSpeichern(ref, u))
+      .then(async (u) => {
+        await urteilSpeichern(ref, u);
+        if (art !== "kontoauszug" && u.pruefbar) await kiVerfeinern(ref, art, pdf, u);
+      })
       .catch((e) => console.error("[DOK-PRUEFUNG] nachlauf:", e?.message));
     return null;
   } catch (e) {
@@ -445,7 +471,7 @@ async function kiVerfeinern(ref: string, art: DokumentArt, pdf: Buffer, vorher: 
   const key = process.env.OPENAI_API_KEY;
   if (!key) return;
   const modell = process.env.FIAON_ANALYSE_MODELL || "gpt-4.1-mini";
-  const seiten = await pdfTextJeSeite(pdf);
+  const { seiten } = await lesbarerText(pdf, art);
   const text = seiten.join("\n").slice(0, 60_000);
   if (!pdfTextBrauchbar(text)) return;
   const frage = art === "ausweis"

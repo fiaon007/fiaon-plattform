@@ -261,6 +261,12 @@ async function anonymisieren(
                 + `Rechnungsdaten (${a.invoice_number || "keine Rechnung"}) bleiben nach § 147 AO erhalten.`})
     `;
   }
+  // 18.09.2026: Archivierte Fassungen und Schreiben der Person (fiaon_dokumente)
+  // gehören genauso zu „Unterlagen entfernt" — Inhalt leeren, Zeile als Spur.
+  await lauf`
+    UPDATE fiaon_dokumente SET inhalt = '\\x'::bytea, bytes = 0, geloescht_am = COALESCE(geloescht_am, NOW())
+     WHERE person_id = ${k.personId}
+  `.catch(() => {});
   // Die Person selbst: Kontaktdaten weg, Zeile bleibt als Anker für die
   // Bestellungen. Aus jeder Liste fällt sie über `gdpr_deleted_at`.
   await lauf`

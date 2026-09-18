@@ -134,6 +134,8 @@ export interface MakeVersand {
   grund?: string;
   /** Beim Direktversand: die Annahme-Kennung von Brevo — die erste echte Zustellspur. */
   brevoMessageId?: string | null;
+  /** 18.09.2026: Hinweis an den Mitarbeiter (z. B. Adresse zuletzt gesperrt), auch bei Erfolg. */
+  hinweis?: string | null;
 }
 
 // ── DER VERSANDWEG-SCHALTER (28.08.2026) ────────────────────────────────────
@@ -245,6 +247,11 @@ export async function sendMakeWebhookMitGrund(
     if (ruhe) return { ok: false, grund: ruhe };
   }
   const frequenz = await darfAnEmpfaenger(String(payload.email || ""), eventType, { manuell: opts.manuell === true });
+  if (frequenz.ok && frequenz.sperreAufheben) {
+    const { brevoSperreAufheben } = await import("./lib/fiaon-brevo");
+    const aufgehoben = await brevoSperreAufheben(String(payload.email || ""));
+    console.log(`[FREQUENZ] Handversand '${eventType}' an ${payload.email}: Brevo-Sperre ${aufgehoben ? "aufgehoben" : "nicht aufhebbar"}.`);
+  }
   if (!frequenz.ok) {
     const erg: MakeVersand = { ok: false, grund: `Frequenzbremse: ${frequenz.grund}` };
     protokollNebenbei(eventType, payload, erg);
@@ -295,6 +302,7 @@ export async function sendMakeWebhookMitGrund(
   //
   // `fireAndForget`: Ein klemmendes Protokoll darf keine Mail verhindern.
   protokollNebenbei(eventType, payload, erg);
+  if (erg.ok && frequenz.hinweis) erg.hinweis = frequenz.hinweis;
   return erg;
 }
 

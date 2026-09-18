@@ -101,8 +101,11 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
              a.pack_key, a.pack_name, a.approved_limit, a.wanted_limit,
              a.payment_status, a.payment_reference, a.amount_due, a.payment_due_date,
              a.created_at, a.account_status, a.kyc_status,
-             (a.bank_statement_pdf IS NOT NULL) AS hat_kontoauszug,
-             (a.id_card_pdf IS NOT NULL) AS hat_ausweis,
+             -- 18.09.2026: Unterlagen gehören der PERSON — sie können an einer anderen
+             -- (auch zusammengeführten) Bestellung hängen. Vorher sah der Kunde „Fehlt"
+             -- und wurde erneut zum Hochladen aufgefordert (Team-Feedback, Priorität 1).
+             EXISTS (SELECT 1 FROM fiaon_applications d WHERE d.gdpr_deleted_at IS NULL AND d.bank_statement_pdf IS NOT NULL AND (d.ref = a.ref OR (a.person_id IS NOT NULL AND d.person_id = a.person_id))) AS hat_kontoauszug,
+             EXISTS (SELECT 1 FROM fiaon_applications d WHERE d.gdpr_deleted_at IS NULL AND d.id_card_pdf IS NOT NULL AND (d.ref = a.ref OR (a.person_id IS NOT NULL AND d.person_id = a.person_id))) AS hat_ausweis,
              a.reupload_bank_statement, a.reupload_id_card, a.profile_changes_requested, a.admin_profile_note,
              p.assigned_agent_id, p.gc_mandate_ref, p.gc_mandate_status,
              (SELECT g.name FROM fiaon_agents g WHERE g.id = p.assigned_agent_id) AS betreuer_name,
@@ -620,6 +623,33 @@ router.get("/kunde/:ref/termine", requireKunde, async (req: KundeRequest, res: R
 // `requireKunde` und `req.kundeRef` — NIE `req.params.ref`. Die Referenz in
 // der Adresse ist eine Behauptung, das Cookie ist der Nachweis (E-152).
 // ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /kunde/:ref/dokument/:art — die eigenen Unterlagen ansehen (18.09.2026).
+ *
+ * Team-Feedback, Priorität 1: „Kunden bezahlen für eine Bonitätsauskunft,
+ * können diese aber anschließend nicht einsehen." Der Bereich zeigte nur
+ * „Liegt vor". Jetzt öffnet der Kunde Ausweis, Kontoauszug und
+ * Bonitätsauskunft selbst — personenweit gesucht (dokumentTraeger), mit
+ * derselben Sitzung wie der Bereich (requireKunde), nie zwischengespeichert.
+ */
+router.get("/kunde/:ref/dokument/:art", requireKunde, async (req: KundeRequest, res: Response) => {
+  try {
+    const { istDokumentArt, dokumentInhalt } = await import("../lib/fiaon-dokumente");
+    const art = String(req.params.art);
+    if (!istDokumentArt(art)) return res.status(400).json({ ok: false, error: "Unbekannte Unterlage." });
+    const erg = await dokumentInhalt(req.kundeRef!, art, "kunde", sqlPool, { zustaendig: true });
+    if (!erg.ok) return res.status(404).json({ ok: false, error: "Diese Unterlage liegt noch nicht vor." });
+    const name = art === "ausweis" ? "Ausweis" : art === "kontoauszug" ? "Kontoauszug" : "Bonitaetsauskunft";
+    res.setHeader("Content-Type", erg.typ);
+    res.setHeader("Content-Disposition", `inline; filename="${name}${erg.typ === "application/pdf" ? ".pdf" : ".jpg"}"`);
+    res.setHeader("Cache-Control", "no-store, private");
+    res.send(erg.daten);
+  } catch (err) {
+    console.error("[KUNDE] dokument:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
 
 /** GET /kunde/:ref/bonitaet/bericht.pdf — die Auswertung zum Mitnehmen. */
 router.get("/kunde/:ref/bonitaet/bericht.pdf", requireKunde, async (req: KundeRequest, res: Response) => {

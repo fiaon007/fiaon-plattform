@@ -340,6 +340,13 @@ export function Unterlagen({ kundeRef, demo, u, basis = "/app" }: { kundeRef: st
               <div>
                 <b>{f.titel}{f.optional && !f.da ? " (optional)" : ""}</b>
                 <small>{f.da ? "Liegt vor." : f.text}</small>
+                {/* 18.09.2026: die eigene Unterlage öffnen (Team-Feedback, Priorität 1). */}
+                {f.da && !demo && (
+                  <a className="ap-link" style={{ display: "inline-block", marginTop: 4 }} target="_blank" rel="noopener noreferrer"
+                     href={`/api/fiaon/kunde/${encodeURIComponent(kundeRef)}/dokument/${f.key === "bankStatement" ? "kontoauszug" : f.key === "idCard" ? "ausweis" : "schufa"}`}>
+                    Ansehen
+                  </a>
+                )}
                 {!f.da && (
                   <label className="ap-datei">
                     <input type="file" accept="image/jpeg,image/png,application/pdf" hidden onChange={(e) => setDateien({ ...dateien, [f.key]: e.target.files?.[0] ?? undefined })} />
@@ -347,7 +354,7 @@ export function Unterlagen({ kundeRef, demo, u, basis = "/app" }: { kundeRef: st
                   </label>
                 )}
               </div>
-              <span className="ap-stempel">{f.da ? "geprüft" : ""}</span>
+              <span className="ap-stempel">{f.da ? "liegt vor" : ""}</span>
             </li>
           ))}
         </ol>

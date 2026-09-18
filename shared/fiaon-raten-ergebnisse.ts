@@ -9,7 +9,7 @@
 // die zwei Oberflächen einzeln kennen, wird an der dritten vergessen.
 // ═══════════════════════════════════════════════════════════════════════════
 export type RatenErgebnis = "zahlt_am" | "ueberwiesen_beleg" | "nicht_erreicht"
-  | "nummer_blockiert" | "eskalation";
+  | "nummer_blockiert" | "eskalation" | "ratenpause";
 
 /**
  * Wie viele Tage ruht eine Rate, deren Nummer uns blockiert?
@@ -46,6 +46,16 @@ export const RATEN_ERGEBNISSE: {
     art: "nummer_blockiert", label: "Nummer blockiert uns",
     hinweis: `Die Nummer wird markiert und die Rate ruht ${BLOCKIERT_RUHE_TAGE} Tage. `
       + "Anrufen bringt hier nichts mehr — der Weg läuft über Mail und Mahnung.",
+  },
+  // ── DIE RATENPAUSE (18.09.2026, Team-Feedback Priorität 5) ───────────────
+  // Vorher gab es nur „Zahlt Rate am …" — die Pause war eine Wiedervorlage,
+  // und die Mahnungen liefen weiter. Jetzt eine echte Aktion
+  // (server/lib/fiaon-ratenpause.ts).
+  {
+    art: "ratenpause", label: "Ratenpause — einen Monat aussetzen", braucht: "notiz",
+    hinweis: "Alle offenen Raten rücken um einen Monat, Mahnstufe und Überfälligkeit fallen weg — bis zur neuen "
+      + "Fälligkeit gehen keine Erinnerungen raus. Für Kunden, die noch keine Leistung sehen (z. B. Analyse fehlt). "
+      + "Höchstens einmal in 60 Tagen; Grund steht im Verlauf.",
   },
   {
     art: "eskalation", label: "Härtefall — an den Vorgesetzten", braucht: "notiz",

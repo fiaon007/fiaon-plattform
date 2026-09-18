@@ -125,10 +125,84 @@ export function ohneZitat(text: string): string {
   return zeilen.join("\n").trim();
 }
 
+/**
+ * Muss hier ein Mensch ran? (18.09.2026, Team-Feedback Priorität 6)
+ *
+ * Bis heute entschied allein das Modell, ob es selbst antwortet — von 527
+ * Mails bekannter Kunden lösten 38 % überhaupt eine Übergabe aus, und 17
+ * „sonstige" Anliegen gingen automatisch raus. Diese Regel steht im Code, nicht
+ * im Prompt: Beschwerde, Widerspruch, Rechtliches, Anwalt, Widerruf,
+ * Zahlungsunfähigkeit, dringende Fälle, unklare Anliegen — und wer ausdrücklich
+ * einen Menschen sprechen will — gehen an den Betreuer.
+ */
+export function menschNoetig(e: { kategorien: readonly string[]; flags: object; dringend: boolean }, text: string): string | null {
+  const f = (e.flags || {}) as Record<string, boolean>;
+  if (f.beschwerde) return "Beschwerde";
+  if (f.bestreitet) return "Kunde bestreitet eine Forderung";
+  if (f.droht_anwalt || f.rechtlich) return "rechtliches Anliegen";
+  if (f.widerruf) return "Widerruf";
+  if (f.zahlungsunfaehig) return "Kunde kann nicht zahlen";
+  const k = new Set(e.kategorien || []);
+  if (k.has("beschwerde") || k.has("rechtlich") || k.has("vertrieb_komplex") || k.has("sonstiges")) return "Anliegen braucht einen Menschen";
+  if (e.dringend) return "dringend";
+  if (/\b(ansprechpartner(in)?|betreuer(in)?|sachbearbeiter(in)?|mitarbeiter(in)?|einen menschen|mit jemandem sprechen|persönlich sprechen|rufen sie mich|ruft mich|rückruf|zurückrufen|anrufen)\b/i.test(String(text || ""))) {
+    return "Kunde möchte mit seinem Ansprechpartner sprechen";
+  }
+  return null;
+}
+
+/** Die Aufgabe beim Betreuer: eine je Kunde, weitere Mails hängen sich an. */
+async function anBetreuerUebergeben(ein: {
+  id: number; personId: number | null; ref: string | null; postfach: string; betreff: string;
+  zusammenfassung: string; grund: string; dringend: boolean;
+}): Promise<void> {
+  try {
+    const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+    await auftragFuerKunden({
+      personId: ein.personId, ref: ein.ref,
+      titel: ein.dringend ? "Kunde hat geschrieben — bitte heute antworten" : "Kunde hat geschrieben — bitte antworten",
+      text: `${ein.grund}. Betreff „${String(ein.betreff || "(ohne Betreff)").slice(0, 120)}“ an ${ein.postfach}: `
+        + `${String(ein.zusammenfassung || "").slice(0, 400)} Mara hat einen Entwurf vorbereitet — ansehen, senden, ändern oder selbst antworten. [Mail #${ein.id}]`,
+      dringend: ein.dringend,
+      schluessel: `postmeister:antwort:${ein.personId ?? ein.ref ?? ein.id}`,
+      quelle: "postmeister", autorName: "Mara",
+      link: ein.personId ? `/agent/kunden?person=${ein.personId}` : ein.ref ? `/agent/kunden?ref=${ein.ref}` : "/chef/s/postmeister",
+      anBetreiber: !ein.personId && !ein.ref,
+    });
+  } catch (e) {
+    console.error("[POSTMEISTER] Übergabe an Betreuer:", String(e).slice(0, 160));
+  }
+}
+
+/**
+ * Schreibt hier ein bekannter Kunde? (18.09.2026, Team-Feedback Priorität 6)
+ * Gefragt VOR jeder Verwerf-Regel: Ein Kunde mit einer Adresse bei
+ * googlemail.com — oder ein Testkunde des Teams mit fiaon.com-Adresse — ist
+ * ein Kunde. Seine Antwort darf nie als „Dienstleister" oder „eigene Post"
+ * verschwinden (Befund: 8 echte Antworten, dazu der Test eines Mitarbeiters).
+ */
+export async function absenderIstKunde(adresse: string): Promise<boolean> {
+  const a = String(adresse || "").trim().toLowerCase();
+  if (!a.includes("@")) return false;
+  const [r] = (await sqlPool`
+    SELECT 1 AS ja FROM fiaon_persons p WHERE LOWER(TRIM(COALESCE(p.primary_email, ''))) = ${a}
+    UNION ALL
+    SELECT 1 FROM fiaon_applications x
+     WHERE x.gdpr_deleted_at IS NULL
+       AND ${a} IN (LOWER(TRIM(COALESCE(x.email, ''))), LOWER(TRIM(COALESCE(x.contact_email, ''))), LOWER(TRIM(COALESCE(x.billing_email, ''))))
+    LIMIT 1
+  `.catch(() => [] as any[])) as any[];
+  return !!r;
+}
+
 /** Post, die nie eine Antwort bekommt. Host-genau, nie als Teilstring. */
-export function istFremdpost(mail: GmailNachricht): { fremd: boolean; grund: string } {
+export function istFremdpost(mail: GmailNachricht, bekannterKunde = false): { fremd: boolean; grund: string } {
   const adresse = String(mail.vonAdresse || "").toLowerCase();
   const host = adresse.split("@")[1] ?? "";
+  // Ein bekannter Kunde ist nie Fremdpost — außer seiner Abwesenheitsnotiz.
+  if (bekannterKunde) {
+    return mail.autoHinweis ? { fremd: true, grund: "automatische Nachricht eines Kunden (z. B. Abwesenheitsnotiz)" } : { fremd: false, grund: "" };
+  }
   if (adresse.endsWith("@fiaon.com")) return { fremd: true, grund: "eigene Post" };
   if (mail.autoHinweis) return { fremd: true, grund: "automatische Nachricht (kein Absender, der antwortet)" };
   for (const d of AUTOMATEN_DOMAENEN) {
@@ -270,7 +344,7 @@ export async function mailBearbeiten(ein: {
     // schließt unsere Runde allein" von Freigeist Capital als „automatische
     // Nachricht" gelesen im Postfach. Der Ordner kennzeichnet die Mail; das
     // Auge entscheidet ein Mensch.
-    const fremd = istFremdpost(mail);
+    const fremd = istFremdpost(mail, await absenderIstKunde(String(mail.vonAdresse || "")));
     if (fremd.fremd) {
       await ablegen(postfach, gmailId, "FIAON/Kein Kunde");
       return fertig({ ...basis, kategorie: "intern", aktion: "ignoriert", begruendung: fremd.grund }, fremd.grund);
@@ -391,7 +465,11 @@ export async function mailBearbeiten(ein: {
     if (gebaut.fehler.length) console.warn(`[POSTMEISTER] Anhänge ${id}:`, gebaut.fehler.join("; "));
 
     // 8. Senden oder Entwurf. Im Zweifel Entwurf.
-    const darfAuto = ein.modus === "auto" && erg.automatischErlaubt && !ein.nurOrdnen;
+    // 18.09.2026 (Team-Feedback Priorität 6): „Die KI übergibt bei komplexeren
+    // Anliegen an einen Mitarbeiter." Was ein Mensch klären muss, geht nie
+    // automatisch raus — es wird ein Entwurf UND eine Aufgabe beim Betreuer.
+    const mensch = menschNoetig(einordnung, neuerText);
+    const darfAuto = ein.modus === "auto" && erg.automatischErlaubt && !ein.nurOrdnen && !mensch;
     const felder = {
       ...gemeinsam, kundenlage,
       antwort: fertigeAntwort.text, antwort_html: fertigeAntwort.html,
@@ -442,7 +520,16 @@ export async function mailBearbeiten(ein: {
 
     const draftId = await entwurfAnlegen(postfach, mail, fertigeAntwort.text, fertigeAntwort.html, gebaut.dateien).catch(() => null);
     await ablegen(postfach, gmailId, "FIAON/Entwurf wartet");
-    return fertig({ ...felder, aktion: "entwurf", antwort_draft_id: draftId, begruendung: erg.grund }, erg.grund);
+    const ergebnis = await fertig({ ...felder, aktion: "entwurf", antwort_draft_id: draftId, begruendung: mensch ? `Übergabe an den Betreuer: ${mensch}` : erg.grund }, erg.grund);
+    // Der Entwurf wartet nicht mehr nur in der Zentrale: Der Betreuer bekommt
+    // die Mail samt Maras Vorschlag als Aufgabe und kann ihn senden, ändern
+    // oder selbst antworten (Aufgaben → „E-Mail anzeigen").
+    await anBetreuerUebergeben({
+      id, personId: wer.personId, ref: wer.ref, postfach, betreff: mail.betreff,
+      zusammenfassung: einordnung.zusammenfassung, grund: mensch ?? "Mara hat einen Entwurf vorbereitet, aber nicht gesendet.",
+      dringend: einordnung.dringend || !!mensch,
+    });
+    return ergebnis;
   } catch (e: any) {
     const grund = String(e?.message || e).slice(0, 300);
     console.error(`[POSTMEISTER] ${postfach}/${gmailId} (Versuch ${versuche + 1}/4):`, grund);

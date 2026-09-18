@@ -88,4 +88,64 @@ router.get("/agent/postmeister/:id/anhang/:idx", requireAgent, async (req: Agent
   }
 });
 
+/**
+ * POST /agent/postmeister/:id/senden — Maras Entwurf (ggf. geändert) an den Kunden (18.09.2026).
+ *
+ * Team-Feedback, Priorität 6: Entwürfe warteten in einer Zentrale, die nur der
+ * Inhaber öffnen kann (Median 17,5 Stunden). Jetzt sendet der Betreuer selbst —
+ * derselbe Weg wie in der Zentrale (entwurfSenden: frische Prüfung, Versand aus
+ * dem Postfach, Vermerk in der Akte).
+ */
+router.post("/agent/postmeister/:id/senden", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const z = await zeileFuer(req, Number(req.params.id));
+    if (!z.ok) return res.status(z.status).json({ ok: false, error: z.error });
+    if (z.r.gesendet_am) return res.status(409).json({ ok: false, error: "Diese Antwort ist schon gesendet." });
+    const text = typeof req.body?.text === "string" && req.body.text.trim().length >= 10 ? String(req.body.text) : null;
+    const { entwurfSenden } = await import("./fiaon-postmeister-zentrale");
+    const erg = await entwurfSenden(Number(req.params.id), text);
+    if (erg.ok && z.r.ref) {
+      await sqlPool`
+        INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
+        VALUES (${z.r.ref}, ${z.r.person_id ?? null}, ${req.agent!.id}, ${req.agent!.name}, 'system',
+                ${`Antwort auf „${String(z.r.betreff || "").slice(0, 90)}" von ${req.agent!.name} freigegeben und gesendet${text ? " (geändert)" : ""}.`})
+      `.catch(() => {});
+    }
+    res.status(erg.ok ? 200 : 409).json({ ok: erg.ok, error: erg.ok ? undefined : erg.grund, meldung: erg.ok ? "Gesendet." : undefined });
+  } catch (err) {
+    console.error("[AGENT-POSTMEISTER] senden:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/** POST /agent/postmeister/:id/erledigt — selbst beantwortet oder angerufen; Maras Entwurf wird verworfen. */
+router.post("/agent/postmeister/:id/erledigt", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const z = await zeileFuer(req, Number(req.params.id));
+    if (!z.ok) return res.status(z.status).json({ ok: false, error: z.error });
+    const wie = String(req.body?.wie || "selbst beantwortet").slice(0, 200);
+    const [r] = (await sqlPool`
+      UPDATE fiaon_postmeister
+         SET aktion = 'geordnet', begruendung = ${`Vom Betreuer übernommen (${req.agent!.name}): ${wie}`}, updated_at = NOW()
+       WHERE id = ${Number(req.params.id)} AND aktion IN ('entwurf', 'fehler', 'versand_wartet', 'versand_fehlgeschlagen')
+       RETURNING postfach, antwort_draft_id
+    `) as any[];
+    if (r?.antwort_draft_id) {
+      const { entwurfLoeschen } = await import("../lib/fiaon-gmail");
+      await entwurfLoeschen(r.postfach, r.antwort_draft_id).catch(() => {});
+    }
+    if (z.r.ref) {
+      await sqlPool`
+        INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
+        VALUES (${z.r.ref}, ${z.r.person_id ?? null}, ${req.agent!.id}, ${req.agent!.name}, 'system',
+                ${`E-Mail „${String(z.r.betreff || "").slice(0, 90)}" von ${req.agent!.name} übernommen: ${wie}.`})
+      `.catch(() => {});
+    }
+    res.json({ ok: true, meldung: r ? "Übernommen — Maras Entwurf ist verworfen." : "Vermerkt." });
+  } catch (err) {
+    console.error("[AGENT-POSTMEISTER] erledigt:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 export default router;

@@ -47,6 +47,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import { pdfTextUndZeilen } from "./fiaon-pdf-lesen";
+import { ocrLesen, ocrZeilen } from "./fiaon-ocr";
 import { wandPruefen } from "@shared/fiaon-wortverbote";
 import { KATEGORIEN, KATEGORIE_SCHLUESSEL, istFest } from "@shared/fiaon-kontoauszug-kategorien";
 
@@ -188,10 +189,14 @@ function zeile(r: any): Analyse {
   };
 }
 
-/** Die jüngste Analyse einer Bestellung (oder null). */
+/**
+ * Die jüngste Analyse der PERSON hinter dieser Bestellung (oder null).
+ * 18.09.2026: personenweit — die Analyse hängt an der Bestellung mit dem
+ * Auszug, gefragt wird oft über eine andere (Team-Feedback, Priorität 1).
+ */
 export async function analyseFuer(ref: string): Promise<Analyse | null> {
   await ensureAnalyseTabelle();
-  const [r] = (await sqlPool`SELECT * FROM fiaon_kontoauszug_analysen WHERE ref = ${ref} ORDER BY created_at DESC LIMIT 1`) as any[];
+  const [r] = (await sqlPool`SELECT * FROM fiaon_kontoauszug_analysen WHERE ref IN (SELECT x.ref FROM fiaon_applications x WHERE x.gdpr_deleted_at IS NULL AND (x.ref = ${ref} OR x.person_id = (SELECT y.person_id FROM fiaon_applications y WHERE y.ref = ${ref} LIMIT 1))) ORDER BY created_at DESC LIMIT 1`) as any[];
   return r ? zeile(r) : null;
 }
 
@@ -533,11 +538,27 @@ export async function kontoauszugProbe(buf: Buffer): Promise<Probe> {
 
   let seiten: string[][] = [];
   try { seiten = (await pdfTextUndZeilen(buf, { spalten: true })).zeilen; } catch (e) { console.warn("[ANALYSE] PDF nicht lesbar:", (e as Error).message); }
-  const seitenText = seiten.map((z) => z.join("\n"));
-  const gesamt = seitenText.join("\n\n");
+  let seitenText = seiten.map((z) => z.join("\n"));
+  let gesamt = seitenText.join("\n\n");
+  // ── FOTO ODER SCAN: DIE TEXTERKENNUNG LIEST (18.09.2026) ───────────────
+  // 47 Auszüge endeten hier als „Foto oder Scan" — auch scharfe Fotos, die ein
+  // Mensch mühelos liest. Ohne brauchbare Textschicht liest jetzt das
+  // Bildmodell die Seiten zeilengetreu (fiaon-ocr.ts); gerechnet wird danach
+  // derselbe Weg wie bei einem PDF aus dem Online-Banking.
+  let ocrModell: string | null = null;
   if (!auszugBrauchbar(gesamt)) {
-    return leer("unlesbar", "Die Datei enthält keinen lesbaren Text (Foto oder Scan). Bitte laden Sie den Kontoauszug als PDF aus dem Online-Banking hoch.",
-      "Kontoauszug-Analyse: Datei ohne lesbaren Text (Foto/Scan). Der Kunde sieht die Bitte um ein PDF aus dem Online-Banking.", seiten.length);
+    try {
+      const ocr = await ocrLesen(buf, "kontoauszug");
+      if (ocr) {
+        const z = ocrZeilen(ocr);
+        const t = z.map((zeilen) => zeilen.join("\n"));
+        if (auszugBrauchbar(t.join("\n\n"))) { seiten = z; seitenText = t; gesamt = t.join("\n\n"); ocrModell = ocr.modell; }
+      }
+    } catch (e) { console.warn("[ANALYSE] Texterkennung:", (e as Error).message); }
+  }
+  if (!auszugBrauchbar(gesamt)) {
+    return leer("unlesbar", "Die Datei ist nicht lesbar — auch die Texterkennung findet keine Buchungen (zu unscharf, abgeschnitten oder leer). Bitte laden Sie den Kontoauszug als PDF aus dem Online-Banking hoch oder fotografieren Sie jede Seite gerade und scharf.",
+      "Kontoauszug-Analyse: Datei auch mit Texterkennung nicht lesbar. Der Kunde sieht die Bitte um ein PDF aus dem Online-Banking oder ein scharfes Foto.", seiten.length);
   }
 
   // ── 1 · Der Kopf ───────────────────────────────────────────────────────
@@ -655,7 +676,7 @@ export async function kontoauszugProbe(buf: Buffer): Promise<Probe> {
     ];
   }
 
-  return { status: "fertig", fehler: null, akte: null, modell, seiten: seiten.length, bank: kopf.bank ? String(kopf.bank).slice(0, 80) : null,
+  return { status: "fertig", fehler: null, akte: null, modell: ocrModell ? `${modell} (Texterkennung ${ocrModell})` : modell, seiten: seiten.length, bank: kopf.bank ? String(kopf.bank).slice(0, 80) : null,
            zeitraumVon, zeitraumBis, saldoAnfang, saldoEnde, buchungen, pruefung, z, merksaetze };
 }
 
@@ -670,14 +691,23 @@ export async function kontoauszugProbe(buf: Buffer): Promise<Probe> {
  */
 export async function kontoauszugAnalysieren(ref: string, opts: { erzwingen?: boolean } = {}): Promise<Analyse | null> {
   await ensureAnalyseTabelle();
+  // 18.09.2026: an der Bestellung, die den Auszug TRÄGT (dokumentTraeger).
+  const { dokumentTraeger } = await import("./fiaon-dokumente");
+  ref = (await dokumentTraeger({ ref }, "kontoauszug")) ?? ref;
   const [a] = (await sqlPool`
     SELECT a.ref, a.person_id, a.bank_statement_pdf, a.documents_uploaded_at FROM fiaon_applications a
-    WHERE a.ref = ${ref} AND a.merged_into IS NULL LIMIT 1`) as any[];
+    WHERE a.ref = ${ref} AND a.gdpr_deleted_at IS NULL LIMIT 1`) as any[];
   if (!a?.bank_statement_pdf) return null;
   if (!opts.erzwingen) {
-    const [j] = (await sqlPool`SELECT id, status, created_at, buchungen FROM fiaon_kontoauszug_analysen WHERE ref = ${ref} ORDER BY created_at DESC LIMIT 1`) as any[];
+    const [j] = (await sqlPool`SELECT id, status, created_at, fehler, buchungen FROM fiaon_kontoauszug_analysen WHERE ref = ${ref} ORDER BY created_at DESC LIMIT 1`) as any[];
     const juenger = !!j && (!a.documents_uploaded_at || new Date(j.created_at) >= new Date(a.documents_uploaded_at));
-    const vollwertig = !!j && (j.status === "laeuft" || j.status === "unlesbar" || liste(j.buchungen).length > 0);
+    // 18.09.2026: Ein Lauf, der seit einer Viertelstunde „läuft", ist tot (Neustart
+    // mitten im Lauf) — sieben Zeilen standen seit dem 11.09. so und blockierten
+    // jede Wiederholung. Und ein „unlesbar" aus der Zeit vor der Texterkennung
+    // zählt nicht: Genau diese Fotos kann der Server jetzt lesen.
+    const tot = !!j && j.status === "laeuft" && Date.now() - new Date(j.created_at).getTime() > 15 * 60_000;
+    const vorOcr = !!j && j.status === "unlesbar" && /keinen lesbaren Text/.test(String(j.fehler || ""));
+    const vollwertig = !!j && !tot && !vorOcr && (j.status === "laeuft" || j.status === "unlesbar" || liste(j.buchungen).length > 0);
     if (juenger && vollwertig && j.status !== "fehler") return analyseFuer(ref);
   }
   const [neu] = (await sqlPool`

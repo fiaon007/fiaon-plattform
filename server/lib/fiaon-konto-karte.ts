@@ -472,12 +472,12 @@ const STAND_SQL = `
     ) AS naechste_rate_am,
     EXISTS (
       SELECT 1 FROM fiaon_applications a
-      WHERE a.person_id = p.id AND a.merged_into IS NULL
+      WHERE a.person_id = p.id AND a.gdpr_deleted_at IS NULL
         AND a.bank_statement_pdf IS NOT NULL
     ) AS hat_kontoauszug,
     EXISTS (
       SELECT 1 FROM fiaon_applications a
-      WHERE a.person_id = p.id AND a.merged_into IS NULL
+      WHERE a.person_id = p.id AND a.gdpr_deleted_at IS NULL
         AND a.id_card_pdf IS NOT NULL
     ) AS hat_ausweis
   FROM fiaon_persons p

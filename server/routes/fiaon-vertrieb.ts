@@ -1542,6 +1542,12 @@ router.post("/agent/vertrieb/person/:id/loeschen", requireAgent, nurLeitung, nur
       `;
     }
 
+    // 18.09.2026: archivierte Fassungen und Schreiben (fiaon_dokumente) leeren.
+    await sqlPool`
+      UPDATE fiaon_dokumente SET inhalt = '\\x'::bytea, bytes = 0, geloescht_am = COALESCE(geloescht_am, NOW())
+       WHERE person_id = ${id}
+    `.catch(() => {});
+
     // Die Person selbst: anonymisiert und aus allen Arbeitslisten heraus.
     await sqlPool`
       UPDATE fiaon_persons SET

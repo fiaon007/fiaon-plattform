@@ -369,7 +369,7 @@ export async function mailSenden(ein: SendeEingabe): Promise<SendeErgebnis> {
     status: erg.status,
     grund: erg.grund,
     meldung: erg.status === "versandt"
-      ? `„${def.label}“ an ${basis.email} verschickt.`
+      ? `„${def.label}“ an ${basis.email} verschickt.${erg.hinweis ? ` ${erg.hinweis}` : ""}`
       : `Nicht verschickt: ${erg.grund}. Es steht mit Grund im Protokoll.`,
   };
 }

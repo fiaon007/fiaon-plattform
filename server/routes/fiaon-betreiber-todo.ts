@@ -336,6 +336,18 @@ export async function auftragFuerKunden(ein: AuftragEin): Promise<AuftragErgebni
     // Schon beim richtigen Menschen? Dann nicht noch einmal übergeben.
     if (id && !r.neu && r.zustaendig_agent_id && Number(r.zustaendig_agent_id) === wer.id) {
       await beitrag(id, { autorArt: "system", autorName: ein.autorName ?? "Mara", art: "kommentar", text: text.slice(0, 2000) }).catch(() => {});
+      // 18.09.2026 (Team-Feedback Priorität 6): Eine zweite Mail desselben Kunden
+      // hing bisher still als Kommentar an — ungelesen blieb nichts, und von 199
+      // offenen Postfach-Aufgaben waren 178 nie geöffnet. Jetzt gilt die Aufgabe
+      // wieder als ungelesen und steht wieder offen.
+      if (quelle === "postmeister") {
+        await sqlPool`
+          UPDATE fiaon_betreiber_todos
+             SET agent_gelesen_am = NULL, letzte_aktivitaet = NOW(),
+                 status = CASE WHEN status = 'erledigt' THEN 'offen' ELSE status END, updated_at = NOW()
+           WHERE id = ${id}
+        `.catch(() => {});
+      }
       return { id, agentId: wer.id, agentName: wer.name, kundenName: wer.kundenName, anBetreiber: !wer.id, faelligAm };
     }
   } else {
@@ -358,6 +370,13 @@ export async function auftragFuerKunden(ein: AuftragEin): Promise<AuftragErgebni
         const [k] = (await sqlPool`SELECT TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')) AS n FROM fiaon_applications WHERE ref = ${ein.ref} LIMIT 1`.catch(() => [])) as any[];
         kunde = k?.n || null;
       }
+      // 18.09.2026: Ohne Bestellung (z. B. Gesprächsanfrage FIAON Global) stand
+      // „Platzhalter ohne Wert: kunde" im Protokoll — der Name kommt dann von der Person.
+      if (!kunde && ein.personId) {
+        const [p] = (await sqlPool`SELECT TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')) AS n FROM fiaon_persons WHERE id = ${ein.personId} LIMIT 1`.catch(() => [])) as any[];
+        kunde = p?.n || null;
+      }
+      if (!kunde) kunde = "ohne Kundenbezug";
       try {
         const { sendMakeWebhook } = await import("../make-webhook");
         const { absoluteUrl } = await import("../fiaon-base-url");

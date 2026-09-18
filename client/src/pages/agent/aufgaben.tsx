@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AgentShell, ACCENT } from "./shared";
 import { Reveal } from "./motion";
 import { AuftraegeListe } from "./auftraege-liste";
+import { PostmeisterMail as MailAnsicht } from "@/components/agent/PostmeisterMail";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // /agent/aufgaben — was die Verwaltung von mir erwartet
@@ -54,43 +55,14 @@ function mailIdAus(text: string): number | null {
   const m = /\[Mail #(\d+)\]/.exec(String(text || ""));
   return m ? Number(m[1]) : null;
 }
-
-/** Die ganze E-Mail zur Aufgabe: Betreff, Absender, Zeit, Text, Maras Antwort, Anhänge. */
-function MailAnsicht({ id }: { id: number }) {
-  const [mail, setMail] = useState<any>(null);
-  const [fehler, setFehler] = useState<string | null>(null);
-  useEffect(() => {
-    void api(`/agent/postmeister/${id}`).then((r) => {
-      if (r.ok) setMail(r.json.mail); else setFehler(r.json?.error || "Die E-Mail konnte nicht geladen werden.");
-    });
-  }, [id]);
-  if (fehler) return <p className="mt-2 text-[12px]" style={{ color: "#b45309" }}>{fehler}</p>;
-  if (!mail) return <p className="mt-2 text-[12px] text-slate-400">E-Mail wird geladen …</p>;
-  return (
-    <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3 text-[12.5px] text-slate-700">
-      <p className="text-[11px] uppercase tracking-[.08em] font-semibold text-slate-400 mb-1">E-Mail des Kunden</p>
-      <p><b>{mail.betreff || "(kein Betreff)"}</b></p>
-      <p className="text-slate-500">von {mail.von} · {zeit(mail.empfangenAm)} · an {mail.postfach}</p>
-      <pre className="mt-2 whitespace-pre-wrap font-sans text-[12.5px] leading-relaxed text-slate-800">{mail.text}</pre>
-      {Array.isArray(mail.anhaenge) && mail.anhaenge.length > 0 && (
-        <p className="mt-2">
-          Anhänge:{" "}
-          {mail.anhaenge.map((a: any) => (
-            <a key={a.idx} href={`/api/fiaon/agent/postmeister/${id}/anhang/${a.idx}`} target="_blank" rel="noreferrer"
-               className="font-semibold mr-2" style={{ color: ACCENT }}>{a.name}</a>
-          ))}
-        </p>
-      )}
-      {mail.antwort && (
-        <>
-          <p className="text-[11px] uppercase tracking-[.08em] font-semibold text-slate-400 mt-3 mb-1">
-            Antwort von Mara {mail.gesendetAm ? `(gesendet ${zeit(mail.gesendetAm)})` : "(Entwurf, noch nicht gesendet)"}
-          </p>
-          <pre className="whitespace-pre-wrap font-sans text-[12.5px] leading-relaxed text-slate-700">{mail.antwort}</pre>
-        </>
-      )}
-    </div>
-  );
+/**
+ * ALLE Marken, neueste zuerst (18.09.2026, Team-Feedback Priorität 6): Schreibt
+ * ein Kunde ein zweites Mal, hängt sich die Mail an dieselbe Aufgabe — bisher
+ * zeigte die Karte nur die erste.
+ */
+function mailIdsAus(text: string): number[] {
+  const ids = Array.from(String(text || "").matchAll(/\[Mail #(\d+)\]/g)).map((m) => Number(m[1]));
+  return Array.from(new Set(ids)).sort((a, b) => b - a);
 }
 
 function tag(iso: string | null): string {
@@ -348,10 +320,10 @@ function Inhalt() {
                       onClick={() => setMailOffen((m) => ({ ...m, [v.id]: !m[v.id] }))}
                       className="inline-flex items-center gap-1 mt-2 text-[12px] font-semibold"
                       style={{ color: ACCENT }}>
-                      {mailOffen[v.id] ? "E-Mail schließen" : "E-Mail ansehen"}
+                      {mailOffen[v.id] ? "E-Mail schließen" : mailIdsAus(v.text).length > 1 ? `${mailIdsAus(v.text).length} E-Mails ansehen` : "E-Mail ansehen"}
                     </button>
                   )}
-                  {mailOffen[v.id] && mailIdAus(v.text) && <MailAnsicht id={mailIdAus(v.text)!} />}
+                  {mailOffen[v.id] && mailIdsAus(v.text).map((mid) => <MailAnsicht key={mid} id={mid} />)}
                 </div>
               </div>
             </Reveal>

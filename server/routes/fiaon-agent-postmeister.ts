@@ -89,6 +89,71 @@ router.get("/agent/postmeister/:id/anhang/:idx", requireAgent, async (req: Agent
 });
 
 /**
+ * GET /agent/schriftverkehr/:personId — der ganze Mailverkehr eines Kunden (18.09.2026).
+ *
+ * Team-Feedback, Priorität 6: „Alle relevanten E-Mail-Verläufe müssen für die
+ * zuständigen Mitarbeiter einsehbar sein." Die Akte kannte nur ausgehende
+ * Protokollzeilen und Einzeiler im Verlauf; was der Kunde schrieb und was Mara
+ * antwortete, stand in einer Zentrale, die nur der Inhaber öffnet. Jetzt eine
+ * Zeitleiste: Ausgang (fiaon_mail_log, automatisch und von Hand) und Eingang
+ * (fiaon_postmeister, jede Kundenmail mit Antwort oder Entwurf). Zugang wie
+ * überall: eigener Kunde oder Leitung.
+ */
+router.get("/agent/schriftverkehr/:personId", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const personId = Number(req.params.personId);
+    const { rolleVon, darfAnKunde } = await import("../lib/fiaon-kundenzugriff");
+    const rolle = await rolleVon(req.agent!.id);
+    if (!(await darfAnKunde(req.agent!.id, rolle, personId))) {
+      return res.status(403).json({ ok: false, error: "Dieser Kunde liegt nicht bei dir." });
+    }
+    const adr = (await sqlPool`
+      SELECT DISTINCT LOWER(TRIM(x)) AS a FROM (
+        SELECT primary_email AS x FROM fiaon_persons WHERE id = ${personId}
+        UNION ALL SELECT email FROM fiaon_applications WHERE person_id = ${personId}
+        UNION ALL SELECT contact_email FROM fiaon_applications WHERE person_id = ${personId}
+        UNION ALL SELECT billing_email FROM fiaon_applications WHERE person_id = ${personId}
+      ) q WHERE x IS NOT NULL AND x LIKE '%@%'
+    `) as any[];
+    const adressen: string[] = adr.map((r) => String(r.a)).filter(Boolean);
+    const ausgang = (await sqlPool`
+      SELECT id, event, betreff, status, grund, created_at, ausgeloest_von, zustellung
+        FROM fiaon_mail_log
+       WHERE (person_id = ${personId} OR LOWER(TRIM(COALESCE(empfaenger, ''))) = ANY(${adressen}))
+         AND COALESCE(art, 'echt') <> 'test'
+       ORDER BY created_at DESC LIMIT 80
+    `.catch(() => [] as any[])) as any[];
+    const eingang = (await sqlPool`
+      SELECT id, postfach, betreff, empfangen_am, created_at, aktion, zusammenfassung, gesendet_am,
+             (antwort IS NOT NULL) AS hat_antwort, kategorie, dringend
+        FROM fiaon_postmeister p
+       WHERE p.person_id = ${personId}
+          OR EXISTS (SELECT 1 FROM unnest(${adressen}::text[]) a WHERE LOWER(p.von) LIKE '%' || a || '%')
+       ORDER BY COALESCE(p.empfangen_am, p.created_at) DESC LIMIT 60
+    `.catch(() => [] as any[])) as any[];
+    const OFFEN = new Set(["entwurf", "fehler", "versand_wartet", "versand_fehlgeschlagen"]);
+    const zeilen = [
+      ...eingang.map((r) => ({
+        art: "ein" as const, id: Number(r.id), am: r.empfangen_am ?? r.created_at,
+        betreff: String(r.betreff || "(ohne Betreff)"), text: String(r.zusammenfassung || ""),
+        status: r.gesendet_am ? "beantwortet" : OFFEN.has(String(r.aktion)) && r.hat_antwort ? "entwurf" : String(r.aktion || ""),
+        offen: !r.gesendet_am && OFFEN.has(String(r.aktion)), dringend: !!r.dringend, postfach: r.postfach,
+      })),
+      ...ausgang.map((r) => ({
+        art: "aus" as const, id: Number(r.id), am: r.created_at,
+        betreff: String(r.betreff || r.event || "E-Mail"), text: r.status === "versandt" ? "" : String(r.grund || ""),
+        status: String(r.zustellung || r.status || ""), offen: false, dringend: false,
+        von: r.ausgeloest_von ? String(r.ausgeloest_von) : "automatisch",
+      })),
+    ].sort((a, b) => new Date(b.am).getTime() - new Date(a.am).getTime());
+    res.json({ ok: true, zeilen, offen: zeilen.filter((z) => z.offen).length });
+  } catch (err) {
+    console.error("[AGENT-POSTMEISTER] schriftverkehr:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/**
  * POST /agent/postmeister/:id/senden — Maras Entwurf (ggf. geändert) an den Kunden (18.09.2026).
  *
  * Team-Feedback, Priorität 6: Entwürfe warteten in einer Zentrale, die nur der

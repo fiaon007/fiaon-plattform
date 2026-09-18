@@ -34,7 +34,7 @@ import { escapeHtml, wrapFiaonDocument, htmlZuPdfMitFusszeile } from "./fiaon-ht
 import { FIAON_ENTITY } from "../fiaon-invoice";
 import { paketPreisCents } from "@shared/fiaon-pakete";
 import {
-  GLOBAL_PAKETE, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_GELD_ZURUECK, GLOBAL_VERTRAG_VERSION, GLOBAL_INKLUSIVE, GLOBAL_LAUFEND_VERTRAG, inVertragssprache,
+  GLOBAL_PAKETE, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_GELD_ZURUECK, GLOBAL_VERTRAG_VERSION, GLOBAL_INKLUSIVE, GLOBAL_LAUFEND_VERTRAG, GLOBAL_VIP_REISE, inVertragssprache,
   globalPaket, globalPlanungText, type GlobalSchluessel,
 } from "@shared/fiaon-global";
 
@@ -226,9 +226,11 @@ function vertragsRumpf(d: GlobalVertragDaten): string {
     (en
       ? `<p>The package price is a one-off fee of <b>${e(preis)}</b>. It is payable in advance by bank transfer to the account stated on the invoice; the Client receives the invoice together with this engagement. FIAON starts work once payment has been received.</p>`
         + `<p>The package price is a fixed price. It covers all fees and charges for the services under clause 2, in particular: ${e(inklusive.join("; "))}. ${e(GLOBAL_LAUFEND_VERTRAG.en)}</p>`
+        + (d.paket === "global_vip" ? `<p>${e(GLOBAL_VIP_REISE.en)}</p>` : "")
         + `<p>The VAT treatment is shown on the invoice; where the Client owes the VAT as the recipient of the service (reverse charge), the invoice says so.</p>`
       : `<p>Der Paketpreis beträgt einmalig <b>${e(preis)}</b>. Er ist im Voraus per Überweisung auf das in der Rechnung genannte Konto zu zahlen; die Rechnung erhält der Auftraggeber zusammen mit diesem Auftrag. FIAON beginnt mit dem Zahlungseingang.</p>`
         + `<p>Der Paketpreis ist ein Festpreis. Er umfasst alle Gebühren und Honorare für die Leistungen nach Ziffer 2, insbesondere: ${e(inklusive.join("; "))}. ${e(GLOBAL_LAUFEND_VERTRAG.de)}</p>`
+        + (d.paket === "global_vip" ? `<p>${e(GLOBAL_VIP_REISE.de)}</p>` : "")
         + `<p>Die umsatzsteuerliche Behandlung ergibt sich aus der Rechnung; schuldet der Auftraggeber die Umsatzsteuer als Leistungsempfänger (Reverse Charge), weist die Rechnung darauf hin.</p>`),
 
     // 6 — Geld zurück (nur, solange der Schalter in shared/fiaon-global.ts an ist)

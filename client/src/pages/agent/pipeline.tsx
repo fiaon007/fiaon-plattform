@@ -116,6 +116,7 @@ import { statusMitZahlungswahrheit, type Stufe } from "@shared/fiaon-kundenstatu
 import { BANK_ANLEITUNGEN, AUSZUG_GRUNDSATZ } from "@shared/fiaon-bank-anleitungen";
 import { ERGEBNIS_TEXT, ERGEBNIS_LISTE, NOTIZ_MINDESTLAENGE } from "@shared/fiaon-kontakt-ergebnis-liste";
 import { RATEN_ERGEBNISSE, type RatenErgebnis } from "@shared/fiaon-raten-ergebnisse";
+import { Schriftverkehr } from "@/components/agent/Schriftverkehr";
 import { AnrufPlayer } from "@/components/AnrufPlayer";
 import { PAKETE } from "@shared/fiaon-pakete";
 import { ARTEN, type Art as LeitfadenArt } from "./tools/gespraech";
@@ -2921,12 +2922,16 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
         </>}
 
         {/* ═══ E-MAILS ═══ */}
-        {reiter === "mails" && (
+        {reiter === "mails" && (<>
+          {/* 18.09.2026 (Team-Feedback Priorität 6): der ganze Mailverkehr — auch was der Kunde schrieb. */}
+          <Sek titel="Schriftverkehr" erklaer="Jede E-Mail zwischen Kunde und FIAON: was er geschrieben hat, was Mara oder du geantwortet hast, was automatisch rausging. Offene Entwürfe stehen oben.">
+            <Schriftverkehr personId={k.personId} />
+          </Sek>
           <Sek titel="Versand" erklaer="Was an diesen Kunden rausging und was du erneut schicken kannst. Freie E-Mails mit Vorschau öffnen im Sendefenster darüber."
                kopfRechts={<button type="button" className="pi-knopf klein" onClick={() => setSendeMenue(true)}><Mail size={13} strokeWidth={1.75} /> E-Mail senden</button>}>
             <Versandzentrum personId={k.personId} />
           </Sek>
-        )}
+        </>)}
 
         {/* ═══ DOKUMENTE ═══ */}
         {reiter === "dokumente" && (

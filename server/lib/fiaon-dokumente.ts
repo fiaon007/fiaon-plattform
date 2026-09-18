@@ -336,7 +336,8 @@ export function mimeFuer(typ: string | null): string {
  * Team-Feedback, Priorität 1: „Alle hochgeladenen Dokumente müssen dauerhaft im
  * System gespeichert bleiben." Bis heute überschrieb jeder neue Upload die
  * Spalte — der Juni war weg, sobald der Juli kam. Jetzt wandert die alte Fassung
- * nach `fiaon_dokumente` (quelle = 'ersetzt', ohne Vorgang), bevor die neue
+ * nach `fiaon_dokumente` (art = 'frueher_<art>', ohne Vorgang — die Tabelle
+ * erlaubt als quelle nur kunde/mitarbeiter/erzeugt/eingegangen), bevor die neue
  * geschrieben wird. Die Akte zeigt sie unter „Frühere Fassungen".
  * Kein Fehler hier darf den Upload aufhalten — er wird protokolliert.
  */
@@ -344,15 +345,15 @@ export async function unterlageSichern(ref: string, art: DokumentArt, lauf: Lauf
   const spalte = DOKUMENTE.find((d) => d.art === art)!.spalte;
   await lauf.unsafe(
     `INSERT INTO fiaon_dokumente (person_id, ref, art, dateiname, mime, bytes, inhalt, quelle, doc_hash, hochgeladen_am)
-     SELECT a.person_id, a.ref, $2,
+     SELECT a.person_id, a.ref, 'frueher_' || $2,
             $2 || '-fruehere-fassung.' || CASE WHEN substring(a.${spalte} from 1 for 4) = '\\x25504446'::bytea THEN 'pdf' ELSE 'jpg' END,
             CASE WHEN substring(a.${spalte} from 1 for 4) = '\\x25504446'::bytea THEN 'application/pdf' ELSE 'image/jpeg' END,
-            LENGTH(a.${spalte}), a.${spalte}, 'ersetzt', encode(sha256(a.${spalte}), 'hex'),
+            LENGTH(a.${spalte}), a.${spalte}, 'kunde', encode(sha256(a.${spalte}), 'hex'),
             COALESCE(a.documents_uploaded_at, a.updated_at, NOW())
        FROM fiaon_applications a
       WHERE a.ref = $1 AND a.person_id IS NOT NULL AND a.${spalte} IS NOT NULL
         AND NOT EXISTS (SELECT 1 FROM fiaon_dokumente d
-                         WHERE d.person_id = a.person_id AND d.quelle = 'ersetzt'
+                         WHERE d.person_id = a.person_id AND d.art = 'frueher_' || $2
                            AND d.doc_hash = encode(sha256(a.${spalte}), 'hex'))`,
     [ref, art],
   ).catch((e: any) => console.error(`[DOK] Archiv ${ref}/${art}:`, String(e?.message || e).slice(0, 200)));
@@ -361,8 +362,8 @@ export async function unterlageSichern(ref: string, art: DokumentArt, lauf: Lauf
 /** Frühere Fassungen einer Person (ohne Inhalt) — für die Akte. */
 export async function fruehereFassungen(personId: number, lauf: Lauf = sqlPool): Promise<{ id: number; art: string; am: string; kb: number }[]> {
   const zeilen = (await lauf`
-    SELECT id, art, hochgeladen_am, bytes FROM fiaon_dokumente
-     WHERE person_id = ${personId} AND quelle = 'ersetzt' AND geloescht_am IS NULL
+    SELECT id, substring(art from 9) AS art, hochgeladen_am, bytes FROM fiaon_dokumente
+     WHERE person_id = ${personId} AND art LIKE 'frueher\\_%' AND geloescht_am IS NULL
      ORDER BY hochgeladen_am DESC LIMIT 30
   `.catch(() => [] as any[])) as any[];
   return zeilen.map((z) => ({ id: Number(z.id), art: String(z.art), am: new Date(z.hochgeladen_am).toISOString(), kb: Math.max(1, Math.round(Number(z.bytes) / 1024)) }));

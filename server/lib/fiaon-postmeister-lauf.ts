@@ -152,7 +152,7 @@ export function menschNoetig(e: { kategorien: readonly string[]; flags: object; 
 }
 
 /** Die Aufgabe beim Betreuer: eine je Kunde, weitere Mails hängen sich an. */
-async function anBetreuerUebergeben(ein: {
+export async function anBetreuerUebergeben(ein: {
   id: number; personId: number | null; ref: string | null; postfach: string; betreff: string;
   zusammenfassung: string; grund: string; dringend: boolean;
 }): Promise<void> {

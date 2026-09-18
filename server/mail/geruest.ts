@@ -230,7 +230,7 @@ export function mailHtml(b: MailBaustein): string {
 
         <tr><td style="padding:22px 34px 30px;">
           <p style="margin:0 0 10px;font:400 13px/1.6 ${SCHRIFT};color:${LEISE};">
-            Fragen? Antworten Sie einfach auf diese E-Mail — sie landet bei Ihrem Ansprechpartner.
+            Fragen? Antworten Sie einfach auf diese E-Mail — sie kommt bei uns an und geht, wo nötig, direkt an Ihren Ansprechpartner.
           </p>
           <p style="margin:0;font:400 12px/1.6 ${SCHRIFT};color:#9ca3af;">
             FIAON LTD · <a href="${BASIS_URL}" style="color:#9ca3af;">fiaon.com</a> ·

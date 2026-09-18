@@ -520,7 +520,11 @@ router.post("/admin/postmeister/neu-bearbeiten", async (req: Request, res: Respo
     const postfach = typeof req.body?.postfach === "string" ? req.body.postfach : null;
     const kandidaten = (await sqlPool`
       SELECT id, postfach, gmail_id, von, antwort_draft_id, thread_id, empfangen_am FROM fiaon_postmeister
-       WHERE aktion IN ('entwurf', 'fehler') AND gmail_id IS NOT NULL AND gmail_id <> ''
+       -- 18.09.2026 (Team-Feedback Priorität 6): Mit ausdrücklichen ids auch verworfene
+       -- Mails — echte Kundenantworten, die als „Dienstleister" (googlemail.com) oder
+       -- „eigene Post" abgelegt wurden, laufen damit noch einmal durch.
+       WHERE (aktion IN ('entwurf', 'fehler') OR (${ids.length > 0} AND aktion = 'ignoriert'))
+         AND gmail_id IS NOT NULL AND gmail_id <> ''
          AND (${ids.length ? sqlPool`id = ANY(${ids})` : sqlPool`TRUE`})
          AND (${postfach ? sqlPool`postfach = ${postfach}` : sqlPool`TRUE`})
        ORDER BY empfangen_am ASC NULLS LAST, id ASC LIMIT ${deckel}
@@ -547,6 +551,37 @@ router.post("/admin/postmeister/neu-bearbeiten", async (req: Request, res: Respo
     }
     void neuLaufStarten(bearbeiten, parallel).catch((e) => { neuLauf.laeuft = false; console.error("[POSTMEISTER] Neubearbeitung:", e); });
     res.json({ ok: true, gestartet: bearbeiten.length, doppelteGeordnet: geordnet, parallel });
+  } catch (e: any) {
+    res.status(500).json({ ok: false, error: String(e?.message || e).slice(0, 200) });
+  }
+});
+
+/**
+ * POST /admin/postmeister/entwuerfe-uebergeben — wartende Entwürfe an die Betreuer (18.09.2026).
+ * Seit heute wird jeder neue Entwurf eine Aufgabe beim Betreuer. Die Entwürfe,
+ * die schon warteten (Median 17,5 Stunden, viele dringend), bekommen ihre
+ * Aufgabe hier nachträglich — einmal je Kunde, weitere Mails hängen sich an.
+ */
+router.post("/admin/postmeister/entwuerfe-uebergeben", async (_req: Request, res: Response) => {
+  try {
+    const zeilen = (await sqlPool`
+      SELECT id, person_id, ref, postfach, betreff, zusammenfassung, begruendung, dringend
+        FROM fiaon_postmeister
+       WHERE aktion = 'entwurf' AND gesendet_am IS NULL AND (person_id IS NOT NULL OR ref IS NOT NULL)
+       ORDER BY COALESCE(empfangen_am, created_at) ASC LIMIT 300
+    `) as any[];
+    const { anBetreuerUebergeben } = await import("../lib/fiaon-postmeister-lauf");
+    let n = 0;
+    for (const z of zeilen) {
+      await anBetreuerUebergeben({
+        id: Number(z.id), personId: z.person_id != null ? Number(z.person_id) : null, ref: z.ref ?? null,
+        postfach: String(z.postfach || ""), betreff: String(z.betreff || ""),
+        zusammenfassung: String(z.zusammenfassung || ""),
+        grund: "Kunde wartet auf eine Antwort (Entwurf lag in der Zentrale)", dringend: !!z.dringend,
+      });
+      n++;
+    }
+    res.json({ ok: true, uebergeben: n });
   } catch (e: any) {
     res.status(500).json({ ok: false, error: String(e?.message || e).slice(0, 200) });
   }

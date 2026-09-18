@@ -186,7 +186,7 @@ export const GLOBAL_PAKETE: GlobalPaket[] = [
         "Alles aus Global Kapital",
         "Der Auftakt persönlich vor Ort in Miami",
         "Termine bei Behörden und Banken gemeinsam mit unserem Team",
-        "Reise und Aufenthalt für Sie organisiert",
+        "Flug und Hotel für den Auftakt in Miami inklusive",
         "Begleitung durch die Geschäftsführung",
       ],
     },
@@ -200,7 +200,7 @@ export const GLOBAL_PAKETE: GlobalPaket[] = [
         "Everything in Global Capital",
         "The kick-off in person in Miami",
         "Appointments with authorities and banks together with our team",
-        "Travel and accommodation arranged for you",
+        "Flights and hotel for the kick-off in Miami included",
         "Accompanied by our management",
       ],
     },
@@ -323,7 +323,6 @@ const VERTRAGSSPRACHE: Record<"de" | "en", ReadonlyArray<readonly [string, strin
     ["mit Ihrem Ansprechpartner", "mit dem Ansprechpartner"],
     ["Terminen unseres Teams vor Ort", "Terminen des Teams von FIAON vor Ort"],
     ["gemeinsam mit unserem Team", "gemeinsam mit dem Team von FIAON"],
-    ["Reise und Aufenthalt für Sie organisiert", "Reise und Aufenthalt für den Auftraggeber organisiert"],
     ["Begleitung durch die Geschäftsführung", "Begleitung durch die Geschäftsführung von FIAON"],
     ["Honorar unseres Partner-Anwalts", "Honorar des Partner-Anwalts"],
     ["Honorar unseres Partner-Steuerberaters", "Honorar des Partner-Steuerberaters"],
@@ -341,7 +340,6 @@ const VERTRAGSSPRACHE: Record<"de" | "en", ReadonlyArray<readonly [string, strin
     ["with our partner lawyer and partner tax adviser", "with the partner lawyer and partner tax adviser"],
     ["handled by our team on the ground", "handled by FIAON’s team on the ground"],
     ["together with our team", "together with FIAON’s team"],
-    ["arranged for you", "arranged for the Client"],
     ["Accompanied by our management", "Accompanied by FIAON’s management"],
     ["Our partner lawyer’s fee", "The partner lawyer’s fee"],
     ["Our partner tax adviser’s fee", "The partner tax adviser’s fee"],
@@ -349,6 +347,16 @@ const VERTRAGSSPRACHE: Record<"de" | "en", ReadonlyArray<readonly [string, strin
     ["Your dedicated contact for the entire engagement", "A dedicated contact for the entire engagement"],
   ],
 };
+
+// ── FLUG UND HOTEL IM PAKET VIP (18.09.2026, Justin: „Flug und Hotel ist im VIP
+// Paket enthalten — kein Reiseunternehmen.") ─────────────────────────────────
+// Gebaut als Kostenübernahme wie bei den Partner-Honoraren: FIAON trägt die
+// Kosten einer Geschäftsreise, gebucht im Namen des Auftraggebers — FIAON
+// verkauft keine Reise. Der Satz steht so im Auftrag (Ziffer 5).
+export const GLOBAL_VIP_REISE = {
+  de: "Beim Paket FIAON Global VIP trägt FIAON zusätzlich die Kosten für Hin- und Rückflug ab Deutschland, Österreich oder der Schweiz und für die Hotelübernachtungen in Miami während des Auftakts, jeweils für eine vom Auftraggeber benannte Person. Gebucht wird im Namen des Auftraggebers; Reisedaten, Flugklasse und Hotel stimmen die Parteien vor der Buchung ab. Die Reise ist Teil der Begleitung und keine eigenständige Reiseleistung.",
+  en: "For the FIAON Global VIP package, FIAON additionally bears the costs of the return flight from Germany, Austria or Switzerland and of the hotel nights in Miami during the kick-off, in each case for one person named by the Client. Bookings are made in the Client’s name; travel dates, class of travel and hotel are agreed between the parties before booking. The trip is part of the support and not a separate travel service.",
+} as const;
 
 /** Eine Zeile aus Paketliste oder Inklusiv-Liste in Vertragssprache. */
 export function inVertragssprache(zeile: string, sprache: "de" | "en"): string {
@@ -414,7 +422,7 @@ export const GLOBAL_VERGLEICH: GlobalVergleichGruppe[] = [
     { de: "Monatlicher Durchgang", en: "Monthly review", in: abBanking },
     { de: "Pflichtenkalender für US-Meldungen", en: "Compliance calendar for US filings", in: abBanking },
     { de: "Vorrang bei Terminen vor Ort", en: "Priority for appointments on the ground", in: abKapital },
-    { de: "Auftakt persönlich in Miami, Reise organisiert", en: "Kick-off in person in Miami, travel arranged", in: nurVip },
+    { de: "Auftakt persönlich in Miami, Flug und Hotel inklusive", en: "Kick-off in person in Miami, flights and hotel included", in: nurVip },
     { de: "Begleitung durch die Geschäftsführung", en: "Accompanied by our management", in: nurVip },
   ] },
 ];
@@ -446,4 +454,4 @@ export const GLOBAL_GELD_ZURUECK = {
 } as const;
 
 /** Version des Vertragstexts — steht im PDF und in der Auftragsakte. */
-export const GLOBAL_VERTRAG_VERSION = "2026-09-18";
+export const GLOBAL_VERTRAG_VERSION = "2026-09-18b";

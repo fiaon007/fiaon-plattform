@@ -1502,8 +1502,8 @@ router.get("/agent/dokumente/:personId/archiv/:id", requireAgent, async (req: Ag
       return res.status(403).json({ ok: false, error: "Nicht dein Kunde." });
     }
     const [d] = (await sqlPool`
-      SELECT id, ref, art, mime, inhalt, hochgeladen_am FROM fiaon_dokumente
-       WHERE id = ${Number(req.params.id)} AND person_id = ${personId} AND quelle = 'ersetzt' AND geloescht_am IS NULL
+      SELECT id, ref, substring(art from 9) AS art, mime, inhalt, hochgeladen_am FROM fiaon_dokumente
+       WHERE id = ${Number(req.params.id)} AND person_id = ${personId} AND art LIKE 'frueher\\_%' AND geloescht_am IS NULL
        LIMIT 1
     `) as any[];
     if (!d) return res.status(404).json({ ok: false, error: "Diese Fassung gibt es nicht." });

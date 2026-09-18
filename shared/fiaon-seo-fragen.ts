@@ -175,7 +175,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Muss ich in die USA reisen?",
-      "a": "In der Regel nicht. Unser Team vor Ort nimmt Termine wahr. Wer den Aufbau persönlich erleben möchte, wählt Global VIP."
+      "a": "In der Regel nicht. Unser Team vor Ort nimmt die Termine wahr. Wer den Aufbau persönlich erleben möchte, wählt Global VIP — Flug und Hotel für den Auftakt in Miami sind dort im Festpreis enthalten."
     },
     {
       "f": "Was ist mit Steuern?",
@@ -217,7 +217,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Do I have to travel to the US?",
-      "a": "Usually not. Our team on the ground attends the appointments. If you want to experience the build-up in person, choose Global VIP."
+      "a": "Usually not. Our team on the ground attends the appointments. If you want to experience the build-up in person, choose Global VIP — flights and hotel for the kick-off in Miami are included in its fixed price."
     },
     {
       "f": "What about taxes?",

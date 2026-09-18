@@ -481,6 +481,26 @@ export function tagessalden(b: Buchung[]): Buchung[] {
   return aus;
 }
 
+/**
+ * DRUCKRICHTUNG (18.09.2026). Umsatzlisten aus dem Online-Banking stehen oft mit der
+ * jüngsten Buchung oben (gemessen: Finom, Revolut-Export). Die Kette lief dann von oben
+ * nach unten gegen die Zeit und „brach" an fast jeder Stelle — 43 von 43 und 556 von 574
+ * an echten Kundenauszügen, obwohl jede Buchung richtig gelesen war. Geprüft werden vier
+ * Lesarten: Druckfolge und umgekehrt, jeweils mit Saldo je Zeile oder je Tag. Es gewinnt
+ * die mit den wenigsten Brüchen, bei Gleichstand die Druckfolge — gedreht wird nur, wenn
+ * die gedruckten Salden es belegen.
+ */
+export function kettenLesart(roh: Buchung[], saldoAnfang: number | null): Buchung[] {
+  const rueck = [...roh].reverse();
+  let beste = roh;
+  let brueche = saldoKette(roh, saldoAnfang).brueche.length;
+  for (const lesart of [tagessalden(roh), rueck, tagessalden(rueck)]) {
+    const n = saldoKette(lesart, saldoAnfang).brueche.length;
+    if (n < brueche) { beste = lesart; brueche = n; }
+  }
+  return beste;
+}
+
 export function saldoKette(b: Buchung[], saldoAnfang: number | null): { geprueft: number; brueche: { nach: number; erwartet: number; gedruckt: number }[] } {
   const brueche: { nach: number; erwartet: number; gedruckt: number }[] = [];
   let geprueft = 0;
@@ -659,9 +679,8 @@ export async function kontoauszugProbe(buf: Buffer): Promise<Probe> {
   let korrigiert = 0;
   const lesenUndRichten = async (hinweis: string | null): Promise<Buchung[]> => {
     const roh = await lesen(hinweis);
-    // Zwei Lesarten des gedruckten Saldos — je Zeile oder je Tag. Die mit weniger Brüchen gewinnt.
-    const jeTag = tagessalden(roh);
-    const basis = saldoKette(jeTag, saldoAnfang).brueche.length < saldoKette(roh, saldoAnfang).brueche.length ? jeTag : roh;
+    // Vier Lesarten (Richtung × Saldo je Zeile/je Tag) — die mit den wenigsten Brüchen gewinnt.
+    const basis = kettenLesart(roh, saldoAnfang);
     const rep = vorzeichenAusKette(basis, saldoAnfang);
     korrigiert += rep.korrigiert;
     return rep.buchungen;
@@ -697,11 +716,12 @@ export async function kontoauszugProbe(buf: Buffer): Promise<Probe> {
   const ketteVoll = kette.geprueft > 0 && kette.geprueft === buchungen.length && kette.brueche.length === 0;
   const stimmt = ketteVoll ? true : diff == null ? null : Math.abs(diff) <= TOLERANZ_CENTS && kette.brueche.length === 0;
   buchungen = buchungen.map((b, i) => ({ ...b, _i: i })).sort((p: any, q: any) => p.datum.localeCompare(q.datum) || p._i - q._i).map(({ _i, ...b }: any) => b as Buchung);
+  const euroDe = (c: number) => `${(c / 100).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
   const pruefung = {
     stimmt, differenzCents: diff, erfasst: buchungen.length, zeilen: seiten.reduce((s, z) => s + z.length, 0), durchlaeufe,
     kette: { geprueft: kette.geprueft, brueche: kette.brueche.length, korrigiert },
     hinweis: stimmt === true ? (ketteVoll ? `Alle ${buchungen.length} Buchungen passen lückenlos zum gedruckten Kontostand.` : "Anfangssaldo, alle Buchungen und Endsaldo stimmen überein.")
-      : stimmt === false ? (kette.brueche.length ? `An ${kette.brueche.length} Stelle${kette.brueche.length === 1 ? "" : "n"} passt die Buchungsfolge nicht zum gedruckten Kontostand${diff != null ? `; Differenz zum Endsaldo ${(Math.abs(diff) / 100).toFixed(2)} €` : ""}.` : `Zwischen Anfangssaldo, Buchungen und Endsaldo bleibt eine Differenz von ${(Math.abs(diff!) / 100).toFixed(2)} €.`)
+      : stimmt === false ? (kette.brueche.length ? `An ${kette.brueche.length} Stelle${kette.brueche.length === 1 ? "" : "n"} passt die Buchungsfolge nicht zum gedruckten Kontostand${diff != null ? `; Differenz zum Endsaldo ${euroDe(Math.abs(diff))}` : ""}.` : `Zwischen Anfangssaldo, Buchungen und Endsaldo bleibt eine Differenz von ${euroDe(Math.abs(diff!))}.`)
       : "Der Auszug nennt keinen Anfangs- oder Endsaldo — die Summe konnte nicht gegengerechnet werden.",
   };
   // ── 4 · Rechnen ───────────────────────────────────────────────────────

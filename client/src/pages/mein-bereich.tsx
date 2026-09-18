@@ -863,10 +863,13 @@ function Finanzkalender({ finanzen, raten, paket }: { finanzen: any; raten: Bere
             <div className="mb-kz"><small>Zusammen</small><b className="zahl">{eurCents(erwartetM + ratenOffenM)}</b></div>
           </div>
         )}
-        {pruef && imAuszug && (
+        {/* 18.09.2026: Eine Saldo-Probe, die nicht aufgeht, ist eine Prüfnotiz für die Betreuung
+            (gebundene Mehrfach-Auszüge, falsch gelesener Kopf) — dem Kunden zeigte sie
+            „Differenz 24.254,57 €" für ein Konto, an dem nichts fehlt. */}
+        {pruef && imAuszug && pruef.stimmt !== false && (
           <div style={{ marginBottom: 12 }}>
-            <span className={`mb-pruef ${pruef.stimmt === true ? "gut" : pruef.stimmt === false ? "frist" : ""}`}>
-              {pruef.stimmt === true ? "✓ Stimmt auf den Cent" : pruef.stimmt === false ? `Differenz ${eurCents(Math.abs(pruef.differenzCents || 0))}` : "Ohne Saldo-Prüfung"}
+            <span className={`mb-pruef ${pruef.stimmt === true ? "gut" : ""}`}>
+              {pruef.stimmt === true ? "✓ Stimmt auf den Cent" : "Ohne Saldo-Prüfung"}
             </span>
           </div>
         )}
@@ -922,8 +925,8 @@ function FinanzAnalyse({ a, hatAuszug }: { a: any; hatAuszug: boolean }) {
         <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
           <p style={{ margin: 0, fontSize: 11, fontWeight: 700, letterSpacing: ".14em", textTransform: "uppercase", color: "var(--text-still)" }}>{a.bank ? `${a.bank} · ` : "Aus Ihrem Kontoauszug · "}{zeitraum}</p>
           {pruef && (
-            <span className={`mb-pruef ${pruef.stimmt === true ? "gut" : pruef.stimmt === false ? "frist" : ""}`} title={pruef.hinweis || ""}>
-              {pruef.stimmt === true ? `✓ ${pruef.erfasst} Buchungen, stimmt auf den Cent` : pruef.stimmt === false ? `${pruef.erfasst} Buchungen · Differenz ${eurCents(Math.abs(pruef.differenzCents || 0))}` : `${pruef.erfasst} Buchungen gelesen`}
+            <span className={`mb-pruef ${pruef.stimmt === true ? "gut" : ""}`} title={pruef.stimmt === true ? pruef.hinweis || "" : ""}>
+              {pruef.stimmt === true ? `✓ ${pruef.erfasst} Buchungen, stimmt auf den Cent` : `${pruef.erfasst} Buchungen gelesen`}
             </span>
           )}
         </div>

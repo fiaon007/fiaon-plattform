@@ -3292,7 +3292,7 @@ function FinanzBefund({ bestellRef, melden }: {
           </div>
           {pruef && (
             <div style={{ marginTop: 6, fontSize: 12, color: pruef.stimmt === true ? "#34d399" : pruef.stimmt === false ? "#fbbf24" : "inherit" }}>
-              {pruef.stimmt === true ? "✓ Stimmt auf den Cent: Anfangssaldo + Buchungen = Endsaldo." : pruef.stimmt === false ? `Differenz ${euro0(Math.abs(pruef.differenzCents || 0))} zwischen Saldo und Buchungen — ${pruef.durchlaeufe} Durchläufe.` : "Kein Anfangs-/Endsaldo im Auszug — Summe nicht gegengerechnet."}
+              {pruef.stimmt === true ? "✓ Stimmt auf den Cent: Anfangssaldo + Buchungen = Endsaldo." : pruef.stimmt === false ? `Nicht auf den Cent bestätigt — ${pruef.hinweis || `Differenz ${euro0(Math.abs(pruef.differenzCents || 0))} zwischen Saldo und Buchungen.`} Vor dem Gespräch die Zahlen am Auszug gegenlesen. (Der Kunde sieht nur die Zahl der Buchungen.)` : "Kein Anfangs-/Endsaldo im Auszug — Summe nicht gegengerechnet."}
             </div>
           )}
           <div style={{ marginTop: 8, display: "flex", gap: 14, flexWrap: "wrap", fontSize: 12 }}>

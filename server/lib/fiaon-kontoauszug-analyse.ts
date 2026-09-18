@@ -454,16 +454,29 @@ function auswerten(buchungen: Buchung[], kopf: { saldoAnfang: number | null; sal
  * nach Datum sortiert: Zwei Buchungen am selben Tag haben eine Druckfolge.
  */
 /**
- * TAGESSALDO (18.09.2026). Manche Banken drucken den Saldo nur einmal je Tag. Das Modell
- * schrieb ihn dann an JEDE Buchung des Tages — und die Kette „brach" an jeder Stelle
- * (gemessen: 37 von 37, echte Kundenauszüge). Gleicher Tag und gleicher Saldo in Folge
- * heißt: Tagessaldo — er gehört nur hinter die letzte Buchung des Tages.
+ * TAGESSALDO (18.09.2026). Manche Banken drucken den Saldo nur einmal je Tag — mal
+ * hinter der ersten, mal hinter der letzten Buchung des Tages. Das Modell schrieb ihn
+ * dann an JEDE Buchung des Tages (oder an die erste) — und die Kette „brach" an jeder
+ * Stelle (gemessen: 37 von 37 an einem echten Kundenauszug). Trägt ein Tag mit mehreren
+ * Buchungen genau EINEN gedruckten Saldowert, ist das der Stand am Tagesende: Er gehört
+ * hinter die letzte Buchung des Tages. Ob diese Lesart stimmt, entscheidet die Kette
+ * selbst (siehe lesenUndRichten: die Fassung mit weniger Brüchen gewinnt).
  */
 export function tagessalden(b: Buchung[]): Buchung[] {
   const aus = b.map((x) => ({ ...x }));
-  for (let i = 0; i < aus.length - 1; i++) {
-    const x = aus[i], n = aus[i + 1];
-    if (x.saldoDanachCents != null && x.datum === n.datum && x.saldoDanachCents === n.saldoDanachCents) x.saldoDanachCents = null;
+  let i = 0;
+  while (i < aus.length) {
+    let j = i;
+    while (j + 1 < aus.length && aus[j + 1].datum === aus[i].datum) j++;
+    if (j > i) {
+      const werte = new Set(aus.slice(i, j + 1).map((x) => x.saldoDanachCents).filter((v) => v != null));
+      if (werte.size === 1) {
+        const wert = Array.from(werte)[0] as number;
+        for (let k = i; k < j; k++) aus[k].saldoDanachCents = null;
+        aus[j].saldoDanachCents = wert;
+      }
+    }
+    i = j + 1;
   }
   return aus;
 }
@@ -645,7 +658,11 @@ export async function kontoauszugProbe(buf: Buffer): Promise<Probe> {
 
   let korrigiert = 0;
   const lesenUndRichten = async (hinweis: string | null): Promise<Buchung[]> => {
-    const rep = vorzeichenAusKette(tagessalden(await lesen(hinweis)), saldoAnfang);
+    const roh = await lesen(hinweis);
+    // Zwei Lesarten des gedruckten Saldos — je Zeile oder je Tag. Die mit weniger Brüchen gewinnt.
+    const jeTag = tagessalden(roh);
+    const basis = saldoKette(jeTag, saldoAnfang).brueche.length < saldoKette(roh, saldoAnfang).brueche.length ? jeTag : roh;
+    const rep = vorzeichenAusKette(basis, saldoAnfang);
     korrigiert += rep.korrigiert;
     return rep.buchungen;
   };

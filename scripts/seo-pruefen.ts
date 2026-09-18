@@ -23,6 +23,9 @@ import fs from "fs";
 import path from "path";
 import { execSync } from "child_process";
 import { SEO_SEITEN, seoIndexierbar, seoFragen } from "../shared/fiaon-seo-seiten";
+// 19.09.2026 (E-191): Die Unterseiten von FIAON Global trägt der Server in die Tabelle ein
+// (server/lib/fiaon-global-seo.ts) — hier genauso, damit sie dieselben Prüfungen durchlaufen.
+import "../server/lib/fiaon-global-seo";
 
 const WURZEL = path.resolve(import.meta.dirname, "..");
 const fehler: string[] = [];

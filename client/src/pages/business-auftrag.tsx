@@ -33,6 +33,9 @@ type Etappe = { nr: number; titel: string; text?: string; stand: "fertig" | "jet
 type Dokument = { id: number | string; art: string; artText?: string; name: string; groesse?: number; von: "kunde" | "fiaon"; am?: string };
 type Auftrag = {
   ref: string; status: string; paket: string; paketName: string;
+  auftraggeber?: "unternehmen" | "privat";
+  /** Nur Privatauftrag (E-191): Ende der Widerrufsfrist, Starttag ohne Wunsch nach sofortigem Beginn. */
+  widerruf?: { fristEnde: string; startAb: string; sofortBeginn: boolean } | null;
   firma: { name: string; ort?: string; land?: string };
   zahlung?: { status: string; zahlungsseite?: string };
   etappe: number; etappen: Etappe[]; stichtag?: string | null;
@@ -188,6 +191,12 @@ export default function BusinessAuftrag() {
                     ? <div className="ga-schritt"><p>{a.naechsterSchritt.text}</p>{a.naechsterSchritt.bis && <small>{t.schrittBis(tag(a.naechsterSchritt.bis))}</small>}</div>
                     : <p className="ga-leer">{t.schrittLeer}</p>}
                   {a.stichtag && <p className="ga-stichtag">{t.stichtag}: <b>{tag(a.stichtag)}</b></p>}
+                  {a.widerruf && (
+                    <p className="ga-stichtag">
+                      {t.widerrufBis}: <b>{tag(a.widerruf.fristEnde)}</b>
+                      {!a.widerruf.sofortBeginn && (a.status === "offen" || a.status === "bezahlt") && <><br />{t.startNachFrist(tag(a.widerruf.startAb))}</>}
+                    </p>
+                  )}
                 </section>
 
                 <section className="ga-abschnitt">

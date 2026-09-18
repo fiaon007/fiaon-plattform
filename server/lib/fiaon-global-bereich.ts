@@ -71,6 +71,7 @@ import {
   ensureGlobalTabelle, globalAkteLesen, globalBestellungLesen, globalEinstellungen, globalMailSenden, globalMeinAuftragUrl, globalSpracheVon,
   globalStatusAus, globalStichtagSetzen, type GlobalMail,
 } from "./fiaon-global-auftrag";
+import { globalWiderrufsfrist } from "./fiaon-global-vertrag";
 import { GLOBAL_DATEI_MAX_BYTES, GLOBAL_DOKUMENTE_MAX, fensterDrossel, globalDateiTyp, globalDateiname } from "./fiaon-global-bereich-regeln";
 
 export type GlobalBereichStatus = "offen" | "bezahlt" | "gestartet" | "abgeschlossen" | "storniert";
@@ -314,10 +315,16 @@ async function sichtBauen(l: Lage, fuer: "kunde" | "office"): Promise<Record<str
       ...(g.einVorhanden != null ? { einVorhanden: !!g.einVorhanden } : {}), ...(g.itinStand ? { itinStand: g.itinStand } : {}),
     } : undefined;
   const sichtbareDokumente = dokumente.filter((d) => fuer === "office" || d.von === "kunde" || d.sichtbar_fuer_kunde);
+  // 19.09.2026 (E-191): Beim Privatauftrag das Widerrufsrecht — bis wann, und ob die Arbeit erst danach beginnt.
+  const widerruf = firma.art === "privat" && akte.unterschrieben_am
+    ? { ...globalWiderrufsfrist(new Date(akte.unterschrieben_am)), sofortBeginn: json<Record<string, unknown>>(akte.bestaetigungen, {}).sofortBeginn === true }
+    : null;
   const verlaufAlles = verlaufBauen(l, geschrieben, paketName);
   const bezahlt = String(b.payment_status) === "paid";
   return {
     ref, status: l.status, sprache, paket: String(akte.paket_key), paketName,
+    auftraggeber: firma.art === "privat" ? "privat" : "unternehmen",
+    ...(widerruf ? { widerruf } : {}),
     firma: { name: String(firma.name || akte.firma_name || ""), ort: String(firma.ort || ""), land: String(firma.land || akte.land || "") },
     zahlung: { status: bezahlt ? "bezahlt" : "offen", ...(!bezahlt && l.status === "offen" && b.payment_reference ? { zahlungsseite: `/zahlung/${b.payment_reference}` } : {}) },
     etappe: l.etappe, etappen,
@@ -326,7 +333,7 @@ async function sichtBauen(l: Lage, fuer: "kunde" | "office"): Promise<Record<str
     ...(ansprechpartner ? { ansprechpartner } : {}),
     ...(gesellschaft ? { gesellschaft } : {}),
     // Vorhanden ist eine Unterlage, sobald ein Dokument ihrer Art im Raum liegt — gleich, wer es abgelegt hat.
-    unterlagen: globalUnterlagenStand(dokumente.map((d) => String(d.art)), sprache),
+    unterlagen: globalUnterlagenStand(dokumente.map((d) => String(d.art)), sprache, firma.art === "privat"),
     dokumente: sichtbareDokumente.map((d) => ({
       id: Number(d.id), art: String(d.art), artText: globalDokumentArtText(d.art, sprache), name: String(d.dateiname),
       groesse: Number(d.groesse || 0), von: d.von === "kunde" ? "kunde" : "fiaon", am: iso(d.created_at),
@@ -1102,7 +1109,8 @@ export async function globalTageslauf(jetzt: Date = new Date()): Promise<GlobalT
         const schluessel = `global:${ref}:unterlagen`;
         if (!(await aufgabeDa(schluessel))) {
           const arten = (await sqlPool`SELECT DISTINCT art FROM fiaon_global_dokumente WHERE ref = ${ref} AND geloescht_am IS NULL`) as any[];
-          const stand = globalUnterlagenStand(arten.map((a) => String(a.art)), "de");
+          const [fa] = (await sqlPool`SELECT firma FROM fiaon_global_auftraege WHERE ref = ${ref} LIMIT 1`) as any[];
+          const stand = globalUnterlagenStand(arten.map((a) => String(a.art)), "de", json<Record<string, any>>(fa?.firma, {}).art === "privat");
           const fehlt = stand.filter((u) => !u.vorhanden);
           if (fehlt.length) {
             await aufgabe(schluessel, `FIAON Global: Unterlagen fehlen — ${firma}`,

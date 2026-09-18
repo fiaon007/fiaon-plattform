@@ -34,6 +34,9 @@ import {
   SEO_BASIS, SEO_NAV, SEO_FUSS, SEO_WERKZEUGE, SEO_WERKZEUGE_EN, SEO_GLOSSAR, SEO_GLOSSAR_EN,
   seoSeite, seoFragen, seoIndexierbar, type SeoSeite, schwesterPfad } from "@shared/fiaon-seo-seiten";
 import { EN_NAV, EN_FUSS, type Sprache } from "../../shared/fiaon-sprache";
+import { GLOBAL_PAKETE, globalKatalog } from "@shared/fiaon-global";
+// Trägt die Unterseiten von FIAON Global in die SEO-Tabelle ein — VOR jeder Abfrage.
+import "./fiaon-global-seo";
 
 export const BASIS = SEO_BASIS;
 
@@ -190,11 +193,27 @@ function strukturierteDaten(s: SeoSeite, url: string): unknown[] {
   if ((s.pfad === "/glossar-bonitaet" || s.pfad === "/en/credit-glossary")) {
     ld.push({ "@context": "https://schema.org", "@type": "DefinedTermSet", "@id": `${url}#glossar`, name: s.sprache === "en" ? "Credit glossary" : "Bonitäts-Glossar", inLanguage: s.sprache === "en" ? "en" : "de", hasDefinedTerm: (s.sprache === "en" ? SEO_GLOSSAR_EN : SEO_GLOSSAR).map((g) => ({ "@type": "DefinedTerm", name: g.wort, description: g.text, inDefinedTermSet: `${url}#glossar` })) });
   }
-  if (s.pfad === "/preise" || s.pfad === "/privatkunden" || s.pfad === "/business") {
+  if (s.pfad === "/preise" || s.pfad === "/privatkunden") {
     // Die Preise stehen in shared/fiaon-pakete.ts — hier nur die Spanne, damit
     // nie zwei Zahlen auseinanderlaufen. Zwölf Raten, monatlich.
-    ld.push({ "@context": "https://schema.org", "@type": "Service", name: s.pfad === "/business" ? "FIAON Business" : "FIAON Bonitäts-Programm", serviceType: "Bonitätsauskunft, Bereinigung von Auskunftei-Einträgen, Kontovorbereitung", provider: { "@id": `${BASIS}/#organisation` }, areaServed: ["DE", "AT", "CH"], url,
-      offers: { "@type": "AggregateOffer", priceCurrency: "EUR", lowPrice: s.pfad === "/business" ? "49.99" : "7.99", highPrice: s.pfad === "/business" ? "249.99" : "99.99", offerCount: 4, url: `${BASIS}/preise` } });
+    ld.push({ "@context": "https://schema.org", "@type": "Service", name: "FIAON Bonitäts-Programm", serviceType: "Bonitätsauskunft, Bereinigung von Auskunftei-Einträgen, Kontovorbereitung", provider: { "@id": `${BASIS}/#organisation` }, areaServed: ["DE", "AT", "CH"], url,
+      offers: { "@type": "AggregateOffer", priceCurrency: "EUR", lowPrice: "7.99", highPrice: "99.99", offerCount: 4, url: `${BASIS}/preise` } });
+  }
+  // 19.09.2026 (E-191): /business trug bis hier das Markup des eingestellten Abos
+  // „FIAON Business" (49,99–249,99 € im Monat). FIAON Global verkauft vier Pakete
+  // zu Einmalpreisen — die Zahlen kommen aus dem Katalog, nie von Hand.
+  if (s.pfad === "/business" || s.pfad === "/en/business" || s.global === "leistung" || s.global === "preise" || s.global === "zielgruppe" || s.global === "land") {
+    const preise = GLOBAL_PAKETE.map((p) => (globalKatalog(p.key)?.preisCents ?? 0) / 100).filter((x) => x > 0);
+    ld.push({
+      "@context": "https://schema.org", "@type": "Service", "@id": `${BASIS}/business#leistung`,
+      name: "FIAON Global", serviceType: "Gründung einer US-Gesellschaft, US-Steuernummern (EIN, ITIN), Registered Agent, Vorbereitung von Konto- und Kartenanträgen",
+      description: "US-Gesellschaft aus einer Hand: Gründung, EIN und ITIN, Registered Agent, US-Adresse, Partner-Anwalt, Partner-Steuerberater und US-CPA — Festpreis, einmalig.",
+      provider: { "@id": `${BASIS}/#organisation` }, areaServed: ["DE", "AT", "CH"], audience: { "@type": "Audience", audienceType: "Unternehmen, Selbständige, Gründer und Privatpersonen" }, url,
+      offers: {
+        "@type": "AggregateOffer", priceCurrency: "EUR", lowPrice: Math.min(...preise).toFixed(2), highPrice: Math.max(...preise).toFixed(2), offerCount: preise.length, url: `${BASIS}/business#pakete`,
+        offers: GLOBAL_PAKETE.map((p) => ({ "@type": "Offer", name: `FIAON ${p.de.name}`, price: ((globalKatalog(p.key)?.preisCents ?? 0) / 100).toFixed(2), priceCurrency: "EUR", url: `${BASIS}/business/start?paket=${p.key}`, availability: "https://schema.org/InStock" })),
+      },
+    });
   }
   return ld;
 }

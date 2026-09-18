@@ -247,6 +247,10 @@ function Kopf({ akte, tun, laeuft }: Werk) {
         <span className={`pi-marke ${ton}`}>{standText}</span>
         <span className={`pi-marke ${akte.zahlung.status === "bezahlt" ? "gut" : "warn"}`}>{akte.zahlung.status === "bezahlt" ? "Zahlung eingegangen" : "Zahlung offen"}</span>
         {akte.sprache === "en" && <span className="pi-marke still" title="Der Kunde hat auf der englischen Seite unterschrieben — schreib ihm auf Englisch.">Kunde liest Englisch</span>}
+        {akte.auftraggeber === "privat" && <span className="pi-marke still" title="Beauftragt als Privatperson: Vertrag mit Widerrufsbelehrung, Preis als Endpreis, kein Registerauszug.">Privatperson</span>}
+        {akte.widerruf && (akte.widerruf.sofortBeginn
+          ? <span className="pi-marke still" title="Der Kunde hat ausdrücklich verlangt, dass wir vor Ablauf der Widerrufsfrist beginnen. Widerruft er, zahlt er anteilig.">{`Widerruf bis ${tagText(akte.widerruf.fristEnde)} · sofort beginnen`}</span>
+          : <span className={`pi-marke ${berlinTag() < akte.widerruf.startAb ? "warn" : "still"}`} title="Kein Wunsch nach sofortigem Beginn: Vor dem Starttag nichts beantragen und keine Gebühren auslösen. Der Auftrag startet am Starttag von selbst.">{`Widerruf bis ${tagText(akte.widerruf.fristEnde)} · Start ab ${tagText(akte.widerruf.startAb)}`}</span>)}
       </div>
       <div className="gl-akte-unter">
         <b>{akte.paketName}</b>
@@ -735,7 +739,7 @@ function Kontext({ akte, tun, laeuft }: Werk) {
   const [abschluss, setAbschluss] = useState<{ text: string } | null>(null);
   const zu = useCallback(() => setAbschluss(null), []);
   const bekannt = new Set(FIRMA_FELDER.map(([s]) => s));
-  const weitere = Object.entries(akte.firmaVoll).filter(([s]) => !bekannt.has(s) && s !== "ustId");
+  const weitere = Object.entries(akte.firmaVoll).filter(([s]) => !bekannt.has(s) && s !== "ustId" && s !== "art");
   const kannAbschliessen = akte.status === "gestartet";
   const abschliessen = async () => {
     if (!abschluss) return;
@@ -751,7 +755,7 @@ function Kontext({ akte, tun, laeuft }: Werk) {
         <h2>Kontakt</h2>
         <dl className="gl-paare">
           <div><dt>Person</dt><dd>{[k.anrede, k.vorname, k.nachname].filter(Boolean).join(" ") || "—"}</dd></div>
-          <div><dt>Funktion</dt><dd>{k.funktion || "—"}</dd></div>
+          <div><dt>Funktion</dt><dd>{akte.auftraggeber === "privat" ? "beauftragt selbst, als Privatperson" : k.funktion || "—"}</dd></div>
           <div><dt>E-Mail</dt><dd>{k.email ? <a href={`mailto:${k.email}`}>{k.email}</a> : "—"}</dd></div>
           <div><dt>Telefon</dt><dd>{k.telefon ? <a href={telLink(k.telefon)}>{k.telefon}</a> : "—"}</dd></div>
           <div><dt>Sprache</dt><dd>{akte.sprache === "en" ? "Englisch" : "Deutsch"}</dd></div>
@@ -760,11 +764,11 @@ function Kontext({ akte, tun, laeuft }: Werk) {
       </div>
 
       <div className="gl-karte gl-karte-firma">
-        <h2>Firmendaten</h2>
+        <h2>{akte.auftraggeber === "privat" ? "Auftraggeber (Privatperson)" : "Firmendaten"}</h2>
         <dl className="gl-paare">
           {FIRMA_FELDER.filter(([s]) => akte.firmaVoll[s]).map(([s, titel]) => <div key={s}><dt>{titel}</dt><dd>{s === "land" ? LAND_NAME[akte.firmaVoll[s]] ?? akte.firmaVoll[s] : akte.firmaVoll[s]}</dd></div>)}
           {Object.keys(akte.firmaVoll).length === 0 && <div><dt>Firma</dt><dd>{akte.firma.name}{akte.firma.ort ? `, ${akte.firma.ort}` : ""}</dd></div>}
-          <div><dt>USt-IdNr.</dt><dd>{akte.ustId || "nicht angegeben"}</dd></div>
+          {akte.auftraggeber !== "privat" && <div><dt>USt-IdNr.</dt><dd>{akte.ustId || "nicht angegeben"}</dd></div>}
           {weitere.map(([s, w]) => <div key={s}><dt>{s}</dt><dd>{w}</dd></div>)}
         </dl>
       </div>

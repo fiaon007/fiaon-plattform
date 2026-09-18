@@ -188,7 +188,8 @@ const PAARE: Record<string, Record<GlobalMailSprache, MailBaustein>> = {
       absaetze: [
         "{{params.anrede_zeile}}, Ihre Zahlung für <b>{{params.paket}}</b> ist eingegangen — vielen Dank. Damit beginnt der Aufbau der US-Struktur für <b>{{params.firma}}</b>.",
         "Ihr Ansprechpartner ist <b>{{params.ansprechpartner}}</b> und meldet sich bei Ihnen, um das Startgespräch zu vereinbaren. Dort gehen wir die Schritte durch und legen gemeinsam den Stichtag für Gesellschaft und EIN fest.",
-        `Bitte halten Sie für den Start bereit:<br />${GLOBAL_UNTERLAGEN.map((u) => `· ${u}`).join("<br />")}`,
+        // 19.09.2026 (E-191): Die Liste hängt am Auftraggeber (Privatperson ohne Registerauszug) — globalMailNutzlast füllt sie.
+        "Bitte halten Sie für den Start bereit:<br />{{params.unterlagen_liste}}",
         "Ihre Unterlagen laden Sie unter „Mein Auftrag“ hoch — dort sehen Sie auch jederzeit den Stand, Ihre Dokumente und die nächsten Schritte. Der Knopf unten führt dorthin.",
       ],
       daten: [
@@ -208,7 +209,7 @@ const PAARE: Record<string, Record<GlobalMailSprache, MailBaustein>> = {
       absaetze: [
         "{{params.anrede_zeile}}, your payment for <b>{{params.paket}}</b> has arrived — thank you. This starts the set-up of the US structure for <b>{{params.firma}}</b>.",
         "Your contact is <b>{{params.ansprechpartner}}</b>, who will be in touch to arrange the kick-off call. There we go through the steps and set the agreed date for the company and the EIN together.",
-        `Please have the following ready for the start:<br />${GLOBAL_UNTERLAGEN_EN.map((u) => `· ${u}`).join("<br />")}`,
+        "Please have the following ready for the start:<br />{{params.unterlagen_liste}}",
         "You upload your documents under “My order” — where you can also see the status, your documents and the next steps at any time. The button below takes you there.",
       ],
       daten: [

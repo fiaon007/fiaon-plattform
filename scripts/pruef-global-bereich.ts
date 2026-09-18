@@ -238,6 +238,8 @@ ok(!/\d+\s*(Tag|Woche|Monat|day|week|month)/i.test(JSON.stringify(GLOBAL_BEREICH
 const NUTZLAST = {
   email: "m.muster@muster-gmbh.example", anrede_zeile: "Guten Tag Herr Muster", firma: "Muster GmbH", paket: "FIAON Global Struktur", betrag_text: "2.499,00 €",
   antrag_id: "FIAON-PRUEFSTAND-0001", payment_reference: "FIAON-A1B2C3", faellig_am_text: "24.09.2026", zahlungsseite_url: "https://fiaon.com/zahlung/FIAON-A1B2C3", ansprechpartner: "Herr Beispiel",
+  // Seit E-191 füllt globalMailNutzlast die Liste je Auftraggeber — hier die des Unternehmens.
+  unterlagen_liste: B.GLOBAL_UNTERLAGEN.map((u) => `· ${u}`).join("<br />"),
 };
 for (const event of ["global_auftrag", "global_start"]) {
   const mit = mailRendern(event, { ...NUTZLAST, mein_auftrag_url: "https://fiaon.com/business/auftrag/FIAON-PRUEFSTAND-0001?t=1.abc" });

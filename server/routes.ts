@@ -433,6 +433,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('global_zahlung_takt', async () => await (await import('./lib/fiaon-global-zahlungstakt')).globalZahlungTaktLauf(), 30 * 60 * 1000, { beimStartNach: 240_000 });
   });
+  // 🌐 FIAON Global — Privataufträge ohne den Wunsch nach sofortigem Beginn starten erst nach der
+  //    Widerrufsfrist (E-191). Stündlich; der Lauf hält sich ans Sendefenster (die Startmail geht mit).
+  import('./lib/fiaon-crons').then(({ tageslauf }) => {
+    tageslauf('global_widerruf_start', async () => await (await import('./lib/fiaon-global-auftrag')).globalWiderrufsStartLauf(), 60 * 60 * 1000, { beimStartNach: 600_000 });
+  });
 
   // 🤝 FIAON Onboarding — eigener Bereich fuer die Startgespraeche. 404 fuer
   //    alle ohne die Rolle, 403 ohne angenommene Verpflichtungserklaerung.

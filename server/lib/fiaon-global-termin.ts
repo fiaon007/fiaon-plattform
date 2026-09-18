@@ -205,11 +205,14 @@ export function globalKontaktLesen(b: any): GlobalKontakt | GlobalFeldFehler {
   const en = String(b?.sprache ?? "").toLowerCase().startsWith("en");
   const T = en ? GLOBAL_TEXTE.en : GLOBAL_TEXTE.de;
   const name = String(b?.name ?? "").replace(/\s+/g, " ").trim().slice(0, 160);
-  const firma = String(b?.firma ?? "").replace(/\s+/g, " ").trim().slice(0, 200);
+  // 19.09.2026 (Justin): Auch Privatpersonen — und Unternehmer, die privat buchen —
+  // können FIAON Global beauftragen. Ohne Firma heißt der Lead „Privatperson · Name",
+  // damit das Team im Firmen-Cockpit sofort sieht, wer anfragt.
+  const firmaRoh = String(b?.firma ?? "").replace(/\s+/g, " ").trim().slice(0, 200);
   const email = String(b?.email ?? "").trim().toLowerCase().slice(0, 160);
   const telefon = String(b?.telefon ?? "").trim().slice(0, 40);
   if (name.length < 2) return { feld: "name", error: T.fehlerName };
-  if (firma.length < 2) return { feld: "firma", error: T.fehlerFirma };
+  const firma = firmaRoh.length >= 2 ? firmaRoh : `${en ? "Private individual" : "Privatperson"} · ${name}`;
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return { feld: "email", error: T.fehlerEmail };
   if (telefon.replace(/\D/g, "").length < 6) return { feld: "telefon", error: T.fehlerTelefon };
   // Ein unbekanntes Paket ist kein Fehler des Menschen: Der Wunsch bleibt

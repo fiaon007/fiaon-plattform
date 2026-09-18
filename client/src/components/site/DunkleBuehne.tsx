@@ -29,7 +29,9 @@ export function Dunkel({ seite, titel, beschreibung, children }: { seite: Seite;
     // die deutsche Tabelle. Seiten unter /en (02.09.2026) stehen mit
     // sprache "en" IN der Tabelle und nehmen deren Kopf.
     const tabelle = eintrag && (eintrag.sprache === "en" || document.documentElement.lang !== "en") ? eintrag : null;
-    const neuerTitel = tabelle ? tabelle.titel : `${titel} · FIAON`;
+    // Seiten, deren Titel die Marke schon trägt (FIAON Global, 19.09.2026), bekommen
+    // kein zweites „· FIAON" — der Server schreibt denselben Titel ins HTML.
+    const neuerTitel = tabelle ? tabelle.titel : (/FIAON/.test(titel) ? titel : `${titel} · FIAON`);
     const neueBeschreibung = tabelle ? tabelle.beschreibung : beschreibung;
     const vorher = document.title;
     document.title = neuerTitel;

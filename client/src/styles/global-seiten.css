@@ -1,0 +1,297 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   FIAON GLOBAL — DIE UNTERSEITEN („Dossier", 19.09.2026, E-191)
+
+   Justin: „ultra seriös … wie von einer Anwaltskanzlei, Unternehmensberater —
+   aber dennoch ultra modern, denke an JEDES Detail!"
+
+   DIE HALTUNG
+   · Kanzlei: Jede Seite ist ein Merkblatt mit Kennung und Stand, Abschnitte
+     tragen römische Ziffern, Hinweise stehen gerahmt wie ein Vermerk, Quellen
+     am Ende wie Fußnoten.
+   · Beratung: Tabellen wie in einem Bericht, Etappen als Zeitleiste, Rollen
+     in drei Spalten, das Inhaltsverzeichnis läuft links mit.
+   · Modern: ein feines Linienraster im Kopf, das ins Papier ausläuft, der
+     Glanz auf Überschriften und Zahlen (global.css), die Ortszeit der drei
+     Standorte live, eine Lesefortschrittslinie, am Handy eine ruhige
+     Handlungsleiste.
+   Präfix .fd- (FIAON Dossier). Die Farben und Schriften erbt die Seite von
+   .fg (styles/global.css) — beide Klassen stehen am Wurzelelement.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Lesefortschritt ─────────────────────────────────────────────────────── */
+.fd-fortschritt{position:fixed;top:0;left:0;right:0;height:2px;z-index:120;pointer-events:none}
+.fd-fortschritt i{display:block;height:100%;transform-origin:0 50%;transform:scaleX(var(--fd-p,0));background:linear-gradient(90deg,var(--navy),var(--blau));transition:transform .08s linear}
+
+/* ── Kopf ────────────────────────────────────────────────────────────────── */
+.fd-kopf{position:relative;padding:150px 0 76px;background:linear-gradient(180deg,#f6f8fb 0%,#ffffff 84%);border-bottom:1px solid var(--linie);overflow:hidden}
+.fd-kopf::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background-image:linear-gradient(to right,rgba(18,40,74,.05) 1px,transparent 1px),linear-gradient(to bottom,rgba(18,40,74,.05) 1px,transparent 1px);
+  background-size:72px 72px;background-position:-1px -1px;
+  -webkit-mask-image:radial-gradient(ellipse 70% 80% at 78% 18%,#000 12%,transparent 72%);mask-image:radial-gradient(ellipse 70% 80% at 78% 18%,#000 12%,transparent 72%)}
+@media(max-width:720px){.fd-kopf{padding:118px 0 56px}}
+.fd-kopf-raster{position:relative;display:grid;grid-template-columns:minmax(0,1.18fr) minmax(0,.82fr);gap:64px;align-items:start}
+@media(max-width:1020px){.fd-kopf-raster{grid-template-columns:1fr;gap:44px}}
+
+.fd-krumen{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:0 0 26px;padding:0;list-style:none;font-size:12px;color:var(--leise)}
+.fd-krumen a{color:var(--leise);text-decoration:none;transition:color .2s}
+.fd-krumen a:hover{color:var(--navy);text-decoration:underline;text-underline-offset:3px}
+.fd-krumen li+li::before{content:"/";margin-right:10px;color:var(--linie-2)}
+.fd-krumen [aria-current]{color:var(--tinte)}
+
+.fd .fd-h1{font-size:clamp(38px,4.7vw,62px);margin-top:20px}
+.fd-lead{font-size:clamp(16px,1.25vw,18px);line-height:1.74;font-weight:300;color:var(--text);max-width:62ch;margin-top:22px}
+
+.fd-ziffern{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin-top:36px;border-top:1px solid var(--linie)}
+.fd-ziffern>div{padding:18px 18px 0 0;min-width:0}
+.fd-ziffern>div+div{padding-left:18px;border-left:1px solid var(--linie)}
+.fd-ziffern b{display:block;font-family:var(--serif);font-weight:500;font-size:clamp(20px,1.9vw,26px);line-height:1.12;letter-spacing:-.01em;color:var(--tinte);font-variant-numeric:lining-nums tabular-nums;overflow-wrap:anywhere}
+.fd-ziffern span{display:block;margin-top:7px;font-size:12px;line-height:1.5;color:var(--leise)}
+@media(max-width:640px){.fd-ziffern{grid-template-columns:1fr}.fd-ziffern>div,.fd-ziffern>div+div{padding:16px 0 0;border-left:0}.fd-ziffern>div+div{margin-top:16px;border-top:1px solid var(--linie)}}
+
+/* Das Merkblatt rechts im Kopf — wie ein Deckblatt aus der Akte */
+.fd-merkblatt{position:relative;background:#fff;border:1px solid var(--linie);border-radius:14px;overflow:hidden;box-shadow:0 1px 2px rgba(12,26,46,.04),0 30px 70px rgba(18,40,74,.12)}
+.fd-merkblatt-kopf{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:19px 24px;background:var(--navy);color:#fff}
+.fd-merkblatt-kopf b{font-family:var(--serif);font-weight:300;font-size:21px;letter-spacing:-.005em}
+.fd-merkblatt-kopf span{font-size:10.5px;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:#aebbd0;font-variant-numeric:tabular-nums;white-space:nowrap}
+.fd-merkblatt dl{display:grid;margin:0}
+.fd-merkblatt dl>div{display:grid;grid-template-columns:138px minmax(0,1fr);gap:14px;padding:13px 24px;border-top:1px solid var(--linie)}
+.fd-merkblatt dl>div:first-child{border-top:0}
+.fd-merkblatt dt{font-size:10.5px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--leise);padding-top:3px}
+.fd-merkblatt dd{margin:0;font-size:14px;line-height:1.55;color:var(--tinte)}
+.fd-merkblatt-fuss{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:12px 24px;background:var(--stein);border-top:1px solid var(--linie);font-size:11.5px;color:var(--leise);font-variant-numeric:tabular-nums}
+@media(max-width:520px){.fd-merkblatt dl>div{grid-template-columns:1fr;gap:3px;padding:12px 18px}.fd-merkblatt-kopf,.fd-merkblatt-fuss{padding-left:18px;padding-right:18px}}
+
+/* ── Körper: Inhalt links, Text rechts ───────────────────────────────────── */
+.fd-koerper{display:grid;grid-template-columns:236px minmax(0,1fr);gap:76px;max-width:1200px;margin:0 auto;padding:84px 24px 24px}
+@media(max-width:1100px){.fd-koerper{grid-template-columns:minmax(0,1fr);gap:0;padding-top:56px}}
+.fd-inhalt{position:sticky;top:112px;align-self:start;max-height:calc(100vh - 140px);overflow:auto;padding-bottom:12px}
+.fd-inhalt p{font-size:10.5px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--navy);margin:0 0 12px}
+.fd-inhalt ol{list-style:none;margin:0;padding:0;display:grid;border-left:1px solid var(--linie)}
+.fd-inhalt ol a{display:grid;grid-template-columns:26px minmax(0,1fr);gap:4px;padding:8px 8px 8px 14px;margin-left:-1px;border-left:1px solid transparent;font-size:13px;line-height:1.42;color:var(--leise);text-decoration:none;transition:color .2s,border-color .2s}
+.fd-inhalt ol a i{font-style:normal;font-family:var(--serif);font-size:13.5px;color:var(--linie-2);transition:color .2s}
+.fd-inhalt ol a:hover{color:var(--tinte)}
+.fd-inhalt ol a[aria-current="true"]{color:var(--tinte);border-left-color:var(--navy)}
+.fd-inhalt ol a[aria-current="true"] i{color:var(--navy)}
+.fd-inhalt-fuss{margin-top:22px;display:grid;gap:8px}
+.fd-inhalt-fuss .fg-knopf{min-height:44px;font-size:13.5px;padding:0 16px;width:100%}
+@media(max-width:1100px){.fd-inhalt{display:none}}
+
+.fd-inhalt-mobil{display:none;margin-bottom:34px;border:1px solid var(--linie);border-radius:12px;background:#fff}
+.fd-inhalt-mobil summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:14px 16px;font-size:13px;font-weight:500;color:var(--tinte)}
+.fd-inhalt-mobil summary::-webkit-details-marker{display:none}
+.fd-inhalt-mobil summary::after{content:"";width:8px;height:8px;border-right:1.5px solid var(--navy);border-bottom:1.5px solid var(--navy);transform:rotate(45deg) translateY(-2px);transition:transform .25s}
+.fd-inhalt-mobil[open] summary::after{transform:rotate(-135deg)}
+.fd-inhalt-mobil ol{list-style:none;margin:0;padding:0 16px 10px;display:grid}
+.fd-inhalt-mobil a{display:grid;grid-template-columns:26px minmax(0,1fr);padding:9px 0;border-top:1px solid var(--linie);font-size:13.5px;color:var(--text);text-decoration:none}
+.fd-inhalt-mobil a i{font-style:normal;font-family:var(--serif);color:var(--navy)}
+@media(max-width:1100px){.fd-inhalt-mobil{display:block}}
+
+.fd-text{min-width:0;max-width:780px}
+
+/* ── Kurz beantwortet ────────────────────────────────────────────────────── */
+.fd-kurz{padding:26px 0 30px;border-top:2px solid var(--tinte);border-bottom:1px solid var(--linie);scroll-margin-top:112px}
+.fd-marke{display:inline-flex;align-items:center;gap:10px;font-size:11px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--navy)}
+.fd-kurz p{margin-top:14px;font-family:var(--serif);font-weight:300;font-size:clamp(19px,1.65vw,23px);line-height:1.56;color:var(--tinte);text-wrap:pretty}
+
+/* ── Abschnitte ──────────────────────────────────────────────────────────── */
+.fd-abschnitt{padding:60px 0 6px;scroll-margin-top:104px}
+.fd-abschnitt+.fd-abschnitt{border-top:1px solid var(--linie)}
+.fd-nr{display:block;margin-bottom:10px;font-family:var(--serif);font-style:italic;font-size:15px;color:var(--navy);letter-spacing:.02em}
+.fd .fd-h2{font-family:var(--serif);font-weight:400;font-size:clamp(26px,2.5vw,35px);line-height:1.16;letter-spacing:-.012em;color:var(--tinte);text-wrap:balance;max-width:28ch;margin:0}
+.fd-block-lead{margin-top:14px;font-size:16px;line-height:1.72;font-weight:300;color:var(--text);max-width:64ch}
+.fd-p{margin-top:18px;font-size:16.5px;line-height:1.8;font-weight:300;color:var(--text);max-width:68ch}
+.fd-p:first-of-type{margin-top:20px}
+.fd-punkte{list-style:none;padding:0;margin:20px 0 0;display:grid;gap:11px}
+.fd-punkte li{display:flex;gap:12px;align-items:flex-start;font-size:15.5px;line-height:1.62;color:var(--text)}
+.fd-punkte li .fg-haken{margin-top:3px}
+.fd-nach{margin-top:20px;font-size:15.5px;line-height:1.65;color:var(--tinte)}
+
+/* Etappen — die Zeitleiste */
+.fd-etappen{list-style:none;margin:30px 0 0;padding:0;position:relative}
+.fd-etappen::before{content:"";position:absolute;left:23.5px;top:10px;bottom:34px;width:1px;background:linear-gradient(180deg,var(--linie-2),var(--linie))}
+.fd-etappe{position:relative;display:grid;grid-template-columns:48px minmax(0,1fr);gap:20px;padding-bottom:28px}
+.fd-etappe .nr{position:relative;z-index:1;width:48px;height:48px;border-radius:50%;display:grid;place-items:center;background:#fff;border:1px solid var(--linie-2);font-family:var(--serif);font-size:16px;color:var(--navy);font-variant-numeric:lining-nums}
+.fd-etappe:first-child .nr{background:var(--navy);border-color:var(--navy);color:#fff}
+.fd-etappe h3{margin:0;padding-top:4px;font-size:17px;font-weight:500;line-height:1.35;color:var(--tinte)}
+.fd-etappe .dauer{display:inline-block;margin-top:5px;font-size:11.5px;font-weight:500;letter-spacing:.05em;color:var(--blau)}
+.fd-etappe p{margin:7px 0 0;font-size:15px;line-height:1.72;font-weight:300;color:var(--text)}
+
+/* Rollen — drei Spalten */
+.fd-rollen{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:28px}
+.fd-rolle{border:1px solid var(--linie);border-radius:12px;padding:22px 20px 18px;background:#fff}
+.fd-rolle.fiaon{border-color:var(--navy);box-shadow:0 0 0 1px var(--navy),0 18px 40px rgba(18,40,74,.08)}
+.fd-rolle h3{margin:0;font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--navy)}
+.fd-rolle ul{list-style:none;margin:14px 0 0;padding:0;display:grid;gap:9px}
+.fd-rolle li{position:relative;padding-left:14px;font-size:14px;line-height:1.55;color:var(--text)}
+.fd-rolle li::before{content:"";position:absolute;left:0;top:.62em;width:5px;height:5px;border-radius:50%;background:var(--linie-2)}
+.fd-rolle.fiaon li::before{background:var(--navy)}
+@media(max-width:820px){.fd-rollen{grid-template-columns:1fr}}
+
+/* Tabelle — wie in einem Bericht */
+.fd-tabelle{margin-top:26px;border:1px solid var(--linie);border-radius:12px;background:#fff;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.fd-tabelle table{width:100%;border-collapse:collapse;font-size:14px;min-width:560px}
+.fd-tabelle th{text-align:left;padding:13px 16px;font-size:10.5px;font-weight:600;letter-spacing:.13em;text-transform:uppercase;color:var(--leise);background:var(--stein);border-bottom:1px solid var(--linie);white-space:nowrap}
+.fd-tabelle td{padding:14px 16px;border-top:1px solid var(--linie);vertical-align:top;line-height:1.55;color:var(--text);font-variant-numeric:lining-nums tabular-nums}
+.fd-tabelle tbody tr:first-child td{border-top:0}
+.fd-tabelle td:first-child{color:var(--tinte);font-weight:500}
+.fd-tabelle th.hervor,.fd-tabelle td.hervor{background:var(--blau-hell)}
+.fd-tabelle td.hervor{color:var(--tinte);font-weight:500}
+.fd-tabelle tbody tr:hover td{background:rgba(245,247,250,.7)}
+.fd-tabelle tbody tr:hover td.hervor{background:#e5edfd}
+@media(max-width:640px){.fd-tabelle td:first-child,.fd-tabelle th:first-child{position:sticky;left:0;background:#fff;box-shadow:1px 0 0 var(--linie);z-index:1}.fd-tabelle th:first-child{background:var(--stein)}}
+.fd-fuss{margin:12px 0 0;padding:0;list-style:none;display:grid;gap:4px;font-size:12.5px;line-height:1.6;color:var(--leise)}
+
+/* Karten */
+.fd-karten{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:26px}
+.fd-karten.drei{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media(max-width:900px){.fd-karten.drei{grid-template-columns:1fr}}
+@media(max-width:640px){.fd-karten{grid-template-columns:1fr}}
+.fd-karte{display:block;border:1px solid var(--linie);border-radius:12px;padding:22px 20px 20px;background:#fff;text-decoration:none;transition:border-color .2s,box-shadow .25s,transform .25s}
+a.fd-karte:hover{border-color:#b9c5d6;box-shadow:0 16px 36px rgba(18,40,74,.08);transform:translateY(-2px)}
+.fd-karte .tag{display:block;font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--navy)}
+.fd-karte h3{margin:10px 0 0;font-family:var(--serif);font-weight:400;font-size:21px;line-height:1.25;color:var(--tinte)}
+.fd-karte p{margin:10px 0 0;font-size:14.5px;line-height:1.68;font-weight:300;color:var(--text)}
+
+/* Hinweis — der Vermerk */
+.fd-hinweis{margin-top:26px;border:1px solid var(--linie-2);border-radius:14px;background:var(--stein);padding:24px 26px 22px}
+.fd-hinweis ol{margin:16px 0 0;padding:0;list-style:none;counter-reset:h;display:grid;gap:12px}
+.fd-hinweis li{counter-increment:h;display:grid;grid-template-columns:26px minmax(0,1fr);gap:8px;font-size:14.5px;line-height:1.68;color:var(--text)}
+.fd-hinweis li::before{content:counter(h,lower-roman) ".";font-family:var(--serif);font-style:italic;color:var(--navy)}
+
+/* Zitat */
+.fd-zitat{margin:44px 0 0;font-family:var(--serif);font-style:italic;font-weight:300;font-size:clamp(22px,2.1vw,29px);line-height:1.42;color:var(--tinte);max-width:34ch}
+.fd-zitat footer{margin-top:12px;font-family:var(--sans);font-style:normal;font-size:12.5px;color:var(--leise)}
+
+/* Die Paket-Tafel — das eine passende Paket */
+.fd-tafel{margin-top:28px;display:grid;grid-template-columns:minmax(0,1.08fr) minmax(0,.92fr);border-radius:16px;overflow:hidden;background:#fff;border:1px solid var(--navy);box-shadow:0 0 0 1px var(--navy),0 28px 64px rgba(18,40,74,.13)}
+.fd-tafel-links{padding:28px 28px 26px}
+.fd-tafel-links .marke{display:inline-flex;padding:3px 10px;border-radius:4px;background:var(--navy);color:#fff;font-size:10.5px;font-weight:500;letter-spacing:.16em;text-transform:uppercase}
+.fd-tafel-links h3{margin:14px 0 0;font-family:var(--serif);font-weight:400;font-size:30px;line-height:1.1;letter-spacing:-.012em;color:var(--tinte)}
+.fd-tafel-links .fuer{margin:10px 0 0;font-size:14px;line-height:1.62;font-weight:300;color:var(--text)}
+.fd-tafel-links ul{list-style:none;margin:18px 0 0;padding:0;display:grid;gap:9px}
+.fd-tafel-links li{display:flex;gap:10px;align-items:flex-start;font-size:13.5px;line-height:1.5;color:var(--text)}
+.fd-tafel-links li .fg-haken{margin-top:2px}
+.fd-tafel-links .mehr{display:inline-block;margin-top:16px;font-size:13px;color:var(--navy);text-underline-offset:3px}
+.fd-tafel-rechts{padding:26px 26px 24px;background:var(--stein);border-left:1px solid var(--linie);display:flex;flex-direction:column}
+.fd-tafel-rechts .fg-kapital{margin-top:0}
+.fd-tafel-rechts .fg-preis{margin-top:18px}
+.fd-tafel-rechts .tun{display:grid;gap:8px;margin-top:auto;padding-top:22px}
+.fd-tafel-rechts .tun .fg-knopf{min-height:48px;font-size:14px}
+@media(max-width:820px){.fd-tafel{grid-template-columns:1fr}.fd-tafel-rechts{border-left:0;border-top:1px solid var(--linie)}}
+
+/* Alle vier Pakete kompakt */
+.fd-pakete{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:26px}
+@media(max-width:640px){.fd-pakete{grid-template-columns:1fr}}
+.fd-paket{position:relative;display:grid;gap:4px;padding:20px 20px 18px;border:1px solid var(--linie);border-radius:12px;background:#fff;text-decoration:none;transition:border-color .2s,box-shadow .25s,transform .25s}
+.fd-paket:hover{border-color:#b9c5d6;box-shadow:0 16px 36px rgba(18,40,74,.08);transform:translateY(-2px)}
+.fd-paket.fokus{border-color:var(--navy);box-shadow:0 0 0 1px var(--navy)}
+.fd-paket .marke{font-size:10px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--navy)}
+.fd-paket .name{margin-top:4px;font-family:var(--serif);font-weight:400;font-size:22px;color:var(--tinte)}
+.fd-paket .kap{margin-top:8px;font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--leise)}
+.fd-paket .kapwert{font-family:var(--serif);font-weight:500;font-size:25px;line-height:1.1;letter-spacing:-.012em;font-variant-numeric:lining-nums tabular-nums}
+.fd-paket .zeile{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-top:10px;padding-top:10px;border-top:1px solid var(--linie);font-size:13px;color:var(--text)}
+.fd-paket .zeile b{font-family:var(--serif);font-weight:400;font-size:19px;color:var(--tinte);font-variant-numeric:lining-nums tabular-nums}
+.fd-paket .pfeil{position:absolute;top:20px;right:18px;color:var(--navy);transition:transform .25s}
+.fd-paket:hover .pfeil{transform:translateX(3px)}
+
+/* Standorte — London · Zürich · Miami */
+.fd-standorte{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin-top:28px;border-top:1px solid var(--tinte)}
+.fd-standort{padding:24px 20px 6px 0;min-width:0}
+.fd-standort+.fd-standort{padding-left:20px;border-left:1px solid var(--linie)}
+.fd-standort .stadt{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.fd-standort .stadt b{font-family:var(--serif);font-weight:300;font-size:clamp(28px,2.6vw,36px);letter-spacing:-.015em;color:var(--tinte)}
+.fd-standort .zeit{display:inline-flex;align-items:center;gap:7px;font-size:12px;letter-spacing:.04em;color:var(--leise);font-variant-numeric:tabular-nums;white-space:nowrap}
+.fd-standort .zeit::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--blau);box-shadow:0 0 0 3px rgba(29,78,216,.14)}
+.fd-standort .land{display:block;margin-top:2px;font-size:11.5px;letter-spacing:.06em;color:var(--leise)}
+.fd-standort .ges{display:block;margin-top:16px;font-size:14.5px;font-weight:500;color:var(--tinte)}
+.fd-standort .rechtsform{display:block;font-size:12px;color:var(--leise)}
+.fd-standort .rolle{margin:10px 0 0;font-size:13.5px;line-height:1.6;color:var(--text)}
+.fd-standort address{margin-top:12px;font-style:normal;font-size:12.5px;line-height:1.65;color:var(--leise)}
+.fd-standort address span{display:block}
+.fd-standort .reg{display:block;margin-top:6px;font-size:11.5px;letter-spacing:.03em;color:var(--leise);font-variant-numeric:tabular-nums}
+.fd-verbunden{margin-top:20px;padding-top:16px;border-top:1px solid var(--linie);font-size:12.5px;line-height:1.6;color:var(--leise);max-width:80ch}
+@media(max-width:820px){.fd-standorte{grid-template-columns:1fr}.fd-standort,.fd-standort+.fd-standort{padding:22px 0 16px;border-left:0}.fd-standort+.fd-standort{border-top:1px solid var(--linie)}}
+
+/* Verzeichnis — für Wissen und Fragen */
+.fd-verzeichnis{list-style:none;margin:24px 0 0;padding:0;border-top:1px solid var(--linie)}
+.fd-verzeichnis a{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:20px;padding:22px 4px 22px 0;border-bottom:1px solid var(--linie);text-decoration:none}
+.fd-verzeichnis .tag{display:block;font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--navy)}
+.fd-verzeichnis .titel{display:block;margin-top:6px;font-family:var(--serif);font-weight:400;font-size:22px;line-height:1.25;color:var(--tinte);transition:color .2s}
+.fd-verzeichnis .text{display:block;margin-top:6px;font-size:14px;line-height:1.6;color:var(--text);font-weight:300}
+.fd-verzeichnis .pfeil{color:var(--navy);transition:transform .25s}
+.fd-verzeichnis a:hover .titel{color:var(--navy)}
+.fd-verzeichnis a:hover .pfeil{transform:translateX(4px)}
+
+/* Fragen */
+.fd-fragen{margin-top:4px}
+.fd .fd-fragen .dk-frage button{font-size:16px}
+
+/* Vermerk: Stand und Quellen */
+.fd-vermerk{margin-top:56px;padding-top:22px;border-top:1px solid var(--linie);display:grid;gap:14px;font-size:12.5px;line-height:1.6;color:var(--leise)}
+.fd-vermerk b{font-weight:500;color:var(--tinte)}
+.fd-vermerk ol{margin:0;padding:0;list-style:none;display:grid;gap:4px;counter-reset:q}
+.fd-vermerk li{counter-increment:q;display:grid;grid-template-columns:22px minmax(0,1fr)}
+.fd-vermerk li::before{content:"[" counter(q) "]";font-variant-numeric:tabular-nums;color:var(--linie-2)}
+.fd-vermerk a{color:var(--navy);text-underline-offset:3px;text-decoration-color:rgba(18,40,74,.3);overflow-wrap:anywhere}
+
+/* Weiterlesen */
+.fd-weiter{max-width:1200px;margin:0 auto;padding:48px 24px 104px}
+.fd-weiter-raster{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:22px}
+@media(max-width:1020px){.fd-weiter-raster{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.fd-weiter-raster{grid-template-columns:1fr}}
+.fd-weiter-raster a{position:relative;display:flex;flex-direction:column;gap:8px;min-height:168px;padding:22px 20px 20px;border:1px solid var(--linie);border-radius:12px;background:#fff;text-decoration:none;transition:border-color .2s,box-shadow .25s,transform .25s}
+.fd-weiter-raster a:hover{border-color:#b9c5d6;box-shadow:0 16px 36px rgba(18,40,74,.08);transform:translateY(-2px)}
+.fd-weiter-raster .tag{font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--navy)}
+.fd-weiter-raster .titel{font-family:var(--serif);font-weight:400;font-size:20px;line-height:1.25;color:var(--tinte)}
+.fd-weiter-raster .text{font-size:13px;line-height:1.55;color:var(--leise)}
+.fd-weiter-raster .pfeil{margin-top:auto;color:var(--navy);transition:transform .25s}
+.fd-weiter-raster a:hover .pfeil{transform:translateX(4px)}
+
+/* Der Paket-Finder */
+.fd-finder{margin-top:28px;border:1px solid var(--linie);border-radius:16px;background:#fff;overflow:hidden;box-shadow:0 1px 2px rgba(12,26,46,.03),0 22px 50px rgba(18,40,74,.08)}
+.fd-finder-stufen{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-bottom:1px solid var(--linie);background:var(--stein)}
+.fd-finder-stufen li{list-style:none;position:relative;padding:14px 16px;font-size:11.5px;letter-spacing:.04em;color:var(--leise)}
+.fd-finder-stufen li+li{border-left:1px solid var(--linie)}
+.fd-finder-stufen li b{display:block;font-family:var(--serif);font-weight:400;font-size:15px;color:var(--linie-2)}
+.fd-finder-stufen li[data-stand="aktiv"]{color:var(--tinte);background:#fff}
+.fd-finder-stufen li[data-stand="aktiv"] b,.fd-finder-stufen li[data-stand="fertig"] b{color:var(--navy)}
+.fd-finder-stufen li[data-stand="aktiv"]::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--navy)}
+@media(max-width:640px){.fd-finder-stufen li{padding:10px 10px;font-size:0}.fd-finder-stufen li b{font-size:14px}}
+.fd-finder-frage{padding:28px 28px 8px}
+.fd-finder-frage legend{padding:0;font-family:var(--serif);font-weight:400;font-size:clamp(21px,2vw,26px);line-height:1.25;color:var(--tinte)}
+.fd-finder-frage .hilfe{margin:8px 0 0;font-size:13.5px;color:var(--leise)}
+.fd-optionen{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:20px}
+@media(max-width:640px){.fd-optionen{grid-template-columns:1fr}}
+.fd-option{display:grid;grid-template-columns:22px minmax(0,1fr);gap:12px;align-items:start;text-align:left;padding:16px 16px;border:1px solid var(--linie);border-radius:12px;background:#fff;cursor:pointer;font:inherit;transition:border-color .2s,background .2s,box-shadow .2s}
+.fd-option:hover{border-color:#b9c5d6;background:#fbfcfe}
+.fd-option .kreis{width:18px;height:18px;margin-top:2px;border-radius:50%;border:1.5px solid var(--linie-2);display:grid;place-items:center;transition:border-color .2s}
+.fd-option .kreis::after{content:"";width:8px;height:8px;border-radius:50%;background:var(--navy);transform:scale(0);transition:transform .2s}
+.fd-option b{display:block;font-size:14.5px;font-weight:500;color:var(--tinte)}
+.fd-option span.t{display:block;margin-top:3px;font-size:12.5px;line-height:1.5;color:var(--leise)}
+.fd-option[aria-pressed="true"]{border-color:var(--navy);box-shadow:0 0 0 1px var(--navy);background:#f7f9fd}
+.fd-option[aria-pressed="true"] .kreis{border-color:var(--navy)}
+.fd-option[aria-pressed="true"] .kreis::after{transform:scale(1)}
+.fd-finder-fuss{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:18px 28px 24px}
+.fd-finder-fuss .fg-textknopf[disabled]{opacity:.35;cursor:default}
+.fd-ergebnis{padding:28px}
+.fd-ergebnis .fd-marke{margin-bottom:6px}
+.fd-ergebnis h3{margin:8px 0 0;font-family:var(--serif);font-weight:400;font-size:clamp(26px,2.6vw,34px);line-height:1.15;color:var(--tinte)}
+.fd-ergebnis .gruende{list-style:none;margin:18px 0 0;padding:0;display:grid;gap:9px}
+.fd-ergebnis .gruende li{display:flex;gap:10px;align-items:flex-start;font-size:14.5px;line-height:1.6;color:var(--text)}
+.fd-ergebnis .gruende li .fg-haken{margin-top:3px}
+
+/* Mobile Handlungsleiste */
+.fd-mobil{position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:95;display:none;gap:8px;padding:8px;border-radius:16px;
+  background:rgba(255,255,255,.92);border:1px solid var(--linie);box-shadow:0 18px 44px rgba(12,26,46,.2);backdrop-filter:blur(16px) saturate(150%);-webkit-backdrop-filter:blur(16px) saturate(150%);
+  transform:translateY(calc(100% + 30px));transition:transform .4s cubic-bezier(.22,1,.36,1)}
+.fd-mobil.da{transform:none}
+.fd-mobil a{flex:1;display:inline-flex;align-items:center;justify-content:center;min-height:46px;border-radius:10px;font-size:14px;text-decoration:none}
+.fd-mobil a.voll{background:var(--navy);color:#fff}
+.fd-mobil a.hell{background:#fff;color:var(--navy);border:1px solid var(--linie-2)}
+@media(max-width:820px){.fd-mobil{display:flex}.fd .fg-schluss{padding-bottom:140px}}
+
+@media(prefers-reduced-motion:reduce){
+  .fd-fortschritt i,.fd-mobil,.fd-karte,.fd-paket,.fd-weiter-raster a,.fd-option{transition:none}
+  a.fd-karte:hover,.fd-paket:hover,.fd-weiter-raster a:hover{transform:none}
+}
+@media print{.fd-inhalt,.fd-mobil,.fd-fortschritt,.fd-kopf::before{display:none}.fd-koerper{grid-template-columns:1fr}}

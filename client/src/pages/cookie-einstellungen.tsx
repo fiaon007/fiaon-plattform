@@ -2,6 +2,12 @@ import { useEffect } from "react";
 import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
 
+// 19.09.2026 (E-191): Bis hier versprach diese Seite „keine Analyse-Tools" — Microsoft Clarity lief
+// aber bei jedem Aufruf. Seitdem lädt nichts außer dem Notwendigen ohne Zustimmung (client/src/lib/
+// werbung.ts); die Auswahl öffnet der Knopf unten (Ereignis „fiaon-einwilligung-oeffnen", gehört dem
+// Hinweis components/site/EinwilligungsHinweis.tsx). ANWALT: Text mit der Datenschutzerklärung (VI.) abgleichen.
+const auswahlOeffnen = () => window.dispatchEvent(new Event("fiaon-einwilligung-oeffnen"));
+
 export default function CookieEinstellungenPage() {
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -22,7 +28,7 @@ export default function CookieEinstellungenPage() {
           <div className="text-center mb-16 animate-[fadeInUp_.6s_ease]">
             <h1 className="text-5xl font-bold fiaon-gradient-text-animated mb-4">Cookie-Einstellungen & Lokale Speicherung</h1>
             <p className="text-sm text-gray-500 uppercase tracking-widest font-semibold">
-              Transparenz statt Tracking: Das FIAON Cookie-Versprechen
+              Notwendig ist nur, was den Betrieb sichert — alles andere nur mit Ihrer Zustimmung
             </p>
           </div>
 
@@ -42,14 +48,20 @@ export default function CookieEinstellungenPage() {
                       <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                     </svg>
                   </div>
-                  <h2 className="text-xl font-semibold text-gray-900">Unser Versprechen</h2>
+                  <h2 className="text-xl font-semibold text-gray-900">Unser Grundsatz</h2>
                 </div>
                 <p className="text-gray-700 leading-relaxed">
                   Als unabhängige Software-as-a-Service (SaaS) Plattform finanzieren wir uns ausschließlich durch die Abonnement-Gebühren unserer Nutzer. Wir verkaufen keine Daten, wir leiten Sie nicht über Affiliate-Links an Banken weiter und wir nutzen keine Werbenetzwerke.
                 </p>
                 <p className="text-gray-700 leading-relaxed mt-4">
-                  Aus diesem Grund verzichten wir auf unserer Plattform und im Nutzer-Dashboard vollständig auf kommerzielle Drittanbieter-Tracker (wie z. B. Meta Pixel, Google Analytics Tracking-Cookies oder Werbe-Retargeting). Wir setzen ausschließlich Technologien ein, die für den sicheren und fehlerfreien Betrieb unserer Software zwingend erforderlich sind.
+                  Ohne Ihre Zustimmung laden wir nur, was für den sicheren und fehlerfreien Betrieb zwingend nötig ist. Statistik (Microsoft Clarity, Google Analytics) und die Messung unserer Anzeigen (Google Ads) laden erst, wenn Sie zustimmen. Retargeting, also Werbung, die Ihnen über andere Websites folgt, setzen wir nicht ein — auch nicht mit Ihrer Zustimmung.
                 </p>
+                <p className="text-gray-700 leading-relaxed mt-4">
+                  Ihre Wahl können Sie jederzeit ändern oder widerrufen:
+                </p>
+                <button type="button" onClick={auswahlOeffnen} className="mt-3 inline-flex items-center gap-2 rounded-xl bg-[#12284a] px-5 py-3 text-sm font-medium text-white hover:bg-[#0b1c36] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">
+                  Cookie-Einstellungen öffnen
+                </button>
                 <p className="text-gray-700 leading-relaxed mt-4">
                   Die nachfolgende Übersicht informiert Sie darüber, welche Daten wir auf Ihrem Endgerät speichern.
                 </p>
@@ -129,6 +141,17 @@ export default function CookieEinstellungenPage() {
                       </svg>
                     </div>
                     <div>
+                      <p className="font-semibold">Ihre Cookie-Auswahl:</p>
+                      <p className="text-sm">Ihre Entscheidung zu Statistik und Marketing speichern wir als „fiaon_einwilligung“ im Local Storage Ihres Browsers — damit wir Sie nicht bei jedem Aufruf erneut fragen. Sie bleibt, bis Sie sie ändern oder Ihre Browserdaten löschen.</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <div>
                       <p className="font-semibold">Benutzeroberfläche (UI Preferences):</p>
                       <p className="text-sm">Um Ihre Interface-Einstellungen (z. B. die Auswahl zwischen Light Mode und Dark Mode oder das Ausblenden von Tooltips) lokal in Ihrem Browser zu speichern.</p>
                     </div>
@@ -163,7 +186,7 @@ export default function CookieEinstellungenPage() {
               </div>
             </div>
 
-            {/* 4. Keine Analyse-, Marketing- oder Affiliate-Cookies */}
+            {/* 4. Statistik und Anzeigenmessung — nur mit Einwilligung (E-191) */}
             <div className="fiaon-glass-panel rounded-2xl p-8 relative overflow-hidden border-2 border-green-200/50">
               <div className="absolute inset-0 opacity-10 pointer-events-none" style={{
                 background: "linear-gradient(135deg, rgba(34,197,94,0.1), rgba(74,222,128,0.2), rgba(34,197,94,0.1))",
@@ -177,10 +200,44 @@ export default function CookieEinstellungenPage() {
                       <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                     </svg>
                   </div>
-                  <h2 className="text-xl font-semibold text-gray-900">4. Keine Analyse-, Marketing- oder Affiliate-Cookies</h2>
+                  <h2 className="text-xl font-semibold text-gray-900">4. Statistik und Anzeigenmessung — nur mit Ihrer Einwilligung</h2>
                 </div>
+                <p className="text-gray-700 leading-relaxed mb-4">
+                  Die folgenden Dienste laden erst, wenn Sie im Cookie-Hinweis zustimmen (§ 25 Abs. 1 TDDDG, Art. 6 Abs. 1 lit. a DSGVO). Ohne Zustimmung wird kein Skript dieser Anbieter geladen und kein Cookie gesetzt.
+                </p>
+                <div className="overflow-x-auto mb-6">
+                  <table className="w-full text-sm text-left text-gray-700 border-collapse">
+                    <thead>
+                      <tr className="border-b border-gray-200">
+                        <th className="py-2 pr-4 font-semibold">Dienst und Anbieter</th>
+                        <th className="py-2 pr-4 font-semibold">Zweck</th>
+                        <th className="py-2 font-semibold">Cookies · Speicherdauer</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="border-b border-gray-100 align-top">
+                        <td className="py-3 pr-4"><b>Microsoft Clarity</b> (Statistik)<br />Microsoft Corporation, Redmond, USA; in der EU Microsoft Ireland Operations Ltd., Dublin</td>
+                        <td className="py-3 pr-4">Welche Seiten gelesen werden, wo Besucher hängen bleiben — mit Heatmaps und Sitzungsaufzeichnungen, in denen Eingaben in Formularfeldern maskiert sind.</td>
+                        <td className="py-3">_clck (1 Jahr), _clsk (1 Tag)</td>
+                      </tr>
+                      <tr className="border-b border-gray-100 align-top">
+                        <td className="py-3 pr-4"><b>Google Analytics 4</b> (Statistik)<br />Google Ireland Limited, Dublin</td>
+                        <td className="py-3 pr-4">Zugriffszahlen und Wege durch die Website, ohne Google-Signale und ohne Personalisierung.</td>
+                        <td className="py-3">_ga, _ga_* (2 Jahre)</td>
+                      </tr>
+                      <tr className="align-top">
+                        <td className="py-3 pr-4"><b>Google Ads Conversion-Messung</b> (Marketing)<br />Google Ireland Limited, Dublin</td>
+                        <td className="py-3 pr-4">Ob ein Gespräch oder ein Auftrag aus einer unserer Anzeigen kam. Keine personalisierte Werbung, kein Retargeting.</td>
+                        <td className="py-3">_gcl_au (90 Tage)</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <p className="text-gray-700 leading-relaxed mb-4 text-sm">
+                  Microsoft und Google können Daten in den USA verarbeiten. Beide sind nach dem EU-US Data Privacy Framework zertifiziert, für das die Europäische Kommission am 10. Juli 2023 ein angemessenes Datenschutzniveau festgestellt hat (Art. 45 DSGVO). Einzelheiten stehen in unserer <a href="/datenschutz" className="text-blue-600 hover:text-blue-700 underline">Datenschutzerklärung</a> (Abschnitt VI).
+                </p>
                 <p className="text-gray-700 leading-relaxed mb-4 font-semibold">
-                  Wir möchten es noch einmal in aller Deutlichkeit festhalten:
+                  Was wir auch mit Ihrer Zustimmung nicht tun:
                 </p>
                 <div className="space-y-4 text-gray-700">
                   <div className="flex items-start gap-3">
@@ -202,7 +259,7 @@ export default function CookieEinstellungenPage() {
                     </div>
                     <div>
                       <p className="font-semibold">Kein Retargeting:</p>
-                      <p className="text-sm">Wir verfolgen Sie nicht mit Werbeanzeigen über das Internet.</p>
+                      <p className="text-sm">Wir verfolgen Sie nicht mit Werbeanzeigen über das Internet und bilden keine Zielgruppen aus Ihrem Besuch.</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
@@ -230,7 +287,7 @@ export default function CookieEinstellungenPage() {
               <div className="relative z-10">
                 <h2 className="text-xl font-semibold text-gray-900 mb-4">5. Verwaltung Ihrer Browser-Einstellungen</h2>
                 <p className="text-gray-700 leading-relaxed mb-4">
-                  Da wir ausschließlich essenzielle Technologien verwenden, finden Sie auf unserer Plattform keinen komplexen „Cookie-Consent-Banner" mit Auswahlmöglichkeiten für Marketing-Cookies – weil es diese bei uns nicht gibt.
+                  Ihre Auswahl zu Statistik und Marketing ändern oder widerrufen Sie jederzeit über den Knopf „Cookie-Einstellungen öffnen“ oben auf dieser Seite. Der Widerruf gilt ab dann; bereits gesetzte Cookies der Anbieter löschen Sie über Ihren Browser.
                 </p>
                 <p className="text-gray-700 leading-relaxed mb-4">
                   Wenn Sie dennoch nicht möchten, dass essenzielle Cookies oder Local Storage-Daten auf Ihrem Endgerät gespeichert werden, können Sie dies über die Einstellungen Ihres Webbrowsers verhindern oder bestehende Daten löschen.

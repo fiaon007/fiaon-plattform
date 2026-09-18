@@ -21,6 +21,7 @@
 // durch die Wortwand (scripts/pruef-global-termin.ts prüft jeden Satz).
 // ═══════════════════════════════════════════════════════════════════════════
 import { Router, type Request, type Response } from "express";
+import { kampagneSpeichern } from "../lib/fiaon-werbung";
 import {
   globalAngebotLaden, globalKontaktLesen, globalZuViel, globalTerminBuchen, globalAnfrageAnnehmen,
   globalKalenderZuToken, GLOBAL_ZEITZONE, type GlobalAngebotStand,
@@ -85,6 +86,7 @@ router.post("/termine", async (req: Request, res: Response) => {
     const thema = String(b.thema ?? "").replace(/\s+/g, " ").trim().slice(0, 300) || null;
     const erg = await globalTerminBuchen({ kontakt, tag, zeit, thema });
     if (erg.ok) {
+      void kampagneSpeichern("termin", erg.terminId, b.kampagne);
       return res.json({
         ok: true, terminId: erg.terminId, wann: erg.wann, datumText: erg.datumText, uhrzeit: erg.uhrzeit,
         ansprechpartner: erg.ansprechpartner, kalenderUrl: erg.kalenderUrl,
@@ -126,6 +128,7 @@ router.post("/anfrage", async (req: Request, res: Response) => {
       text: String(b.text ?? "").trim().slice(0, 4000) || null,
       ip: ipVon(req),
     });
+    void kampagneSpeichern("anfrage", erg.anfrageId, b.kampagne);
     // Die Antwort nennt die Person, bei der der Auftrag WIRKLICH liegt — und
     // nennt niemanden, wenn er beim Betreiber gelandet ist.
     res.json({

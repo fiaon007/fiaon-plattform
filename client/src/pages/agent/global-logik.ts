@@ -51,6 +51,9 @@ export interface GlobalGesellschaft { name: string; form: "" | "LLC" | "Corporat
 
 export interface GlobalAkte {
   ref: string; status: GlobalStatus; sprache: "de" | "en"; paket: string; paketName: string; betragCents: number | null;
+  /** 19.09.2026 (E-191): Wer beauftragt hat — und beim Privatauftrag die Widerrufsfrist. */
+  auftraggeber: "unternehmen" | "privat";
+  widerruf: { fristEnde: string; startAb: string; sofortBeginn: boolean } | null;
   firma: { name: string; ort: string; land: string };
   zahlung: { status: "offen" | "bezahlt"; zahlungsseite: string | null };
   etappe: number; etappen: GlobalEtappe[];
@@ -206,8 +209,12 @@ export function akteLesen(json: unknown): GlobalAkte | null {
   const firmaVoll: Record<string, string> = {};
   for (const [schluessel, wert] of Object.entries(voll)) { const t = txt(wert); if (t) firmaVoll[schluessel] = t; }
   const apName = txt(ap.name) || [txt(ap.vorname), txt(ap.nachname)].filter(Boolean).join(" ");
+  const w = ding(a.widerruf);
+  const fristEnde = isoTagAus(w.fristEnde); const startAb = isoTagAus(w.startAb);
   return {
     ref, status, sprache: txt(a.sprache) === "en" ? "en" : "de",
+    auftraggeber: txt(a.auftraggeber) === "privat" || txt(voll.art) === "privat" ? "privat" : "unternehmen",
+    widerruf: fristEnde && startAb ? { fristEnde, startAb, sofortBeginn: w.sofortBeginn === true } : null,
     paket: txt(a.paket), paketName: txt(a.paketName) || globalKatalog(a.paket)?.label || txt(a.paket) || "FIAON Global",
     betragCents: a.betragCents != null && Number.isFinite(Number(a.betragCents)) ? Number(a.betragCents) : globalKatalog(a.paket)?.preisCents ?? null,
     firma: { name: txt(firma.name) || txt(voll.name) || "Ohne Firmennamen", ort: txt(firma.ort) || txt(voll.ort), land: txt(firma.land) || txt(voll.land) },

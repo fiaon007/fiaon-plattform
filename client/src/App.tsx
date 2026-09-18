@@ -45,6 +45,7 @@ import ImpressumPage from "@/pages/impressum";
 import AGBPage from "@/pages/agb";
 import WiderrufsbelehrungPage from "@/pages/widerrufsbelehrung";
 import CookieEinstellungenPage from "@/pages/cookie-einstellungen";
+import EinwilligungsHinweis from "@/components/site/EinwilligungsHinweis";
 import PasswortVergessenPage from "@/pages/passwort-vergessen";
 const AboKuendigenPage = lazy(() => import("@/pages/abo-kuendigen"));
 const BonitaetPage = lazy(() => import("@/pages/bonitaet"));
@@ -194,6 +195,9 @@ const SitePreise = lazy(() => import("@/pages/site/preise"));
 // (15.09.) und der alte Business-Antrag (/business-antrag, Monatsabos mit
 // Lastschrift) sind ersetzt; beide Adressen leiten weiter.
 const BusinessStartPage = lazy(() => import("@/pages/business-start"));
+// 19.09.2026 (E-191): FIAON Global — die Unterseiten und die Anzeigen-Landingpages.
+const GlobalSeitePage = lazy(() => import("@/pages/site/global-seite"));
+const GlobalLandingPage = lazy(() => import("@/pages/site/global-lp"));
 const BusinessAuftragPage = lazy(() => import("@/pages/business-auftrag"));
 // Englische Seiten (02.09.2026): eigene Adressen unter /en, dieselben Bausteine.
 const SiteEnStart = lazy(() => import("@/pages/site/en-start"));
@@ -420,6 +424,9 @@ function Router() {
       <Route path="/business" component={BusinessPage} />
       <Route path="/business/start" component={BusinessStartPage} />
       <Route path="/business/auftrag/:ref?" component={BusinessAuftragPage} />
+      <Route path="/business/lp/:slug" component={GlobalLandingPage} />
+      <Route path="/business/wissen/:slug" component={GlobalSeitePage} />
+      <Route path="/business/:slug" component={GlobalSeitePage} />
       <Route path="/global"><Redirect to="/business" /></Route>
       <Route path="/privatkunden" component={SitePrivatkunden} />
       <Route path="/antrag" component={AntragPage} />
@@ -752,6 +759,8 @@ function App() {
         <KundenansichtBanner />
         <Toaster />
         <Router />
+        {/* 19.09.2026 (E-191): Einwilligung vor jeder Messung — Clarity, Google Analytics, Google Ads. */}
+        <EinwilligungsHinweis />
       </div>
     </QueryClientProvider>
   );

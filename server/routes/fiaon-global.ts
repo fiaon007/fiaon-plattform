@@ -27,6 +27,7 @@ import {
   globalNachZahlung, globalAuftragsMailNachholen,
 } from "../lib/fiaon-global-auftrag";
 import { globalVertragVorschauHtml } from "../lib/fiaon-global-vertrag";
+import { messKonfig, kampagneSpeichern } from "../lib/fiaon-werbung";
 
 const router = Router();
 
@@ -52,6 +53,12 @@ function zutritt(req: Request, res: Response): string | null {
   return ref;
 }
 
+// ── Messung (19.09.2026, E-191) — die Kennungen aus Render, sonst null ──────
+router.get("/global/messung", (_req: Request, res: Response) => {
+  res.setHeader("Cache-Control", "public, max-age=300");
+  res.json({ ok: true, ...messKonfig() });
+});
+
 // ── Der Kunde ────────────────────────────────────────────────────────────────
 router.post("/global/vertrag/vorschau", (req: Request, res: Response) => {
   try {
@@ -71,6 +78,8 @@ router.post("/global/auftrag", async (req: Request, res: Response) => {
     if (!p.ok) return res.status(p.status).json({ ok: false, error: p.error, feld: p.feld });
     const erg = await globalAuftragAnlegen(p.daten, { ip: clientIp(req), userAgent: String(req.headers["user-agent"] || "") });
     if (!erg.ok) return res.status(erg.status).json({ ok: false, error: erg.error, feld: erg.feld });
+    // Kam der Auftrag aus einer Anzeige? Nur wenn der Browser es mitschickt (Einwilligung).
+    void kampagneSpeichern("auftrag", (erg as any).ref, req.body?.kampagne);
     res.json(erg);
   } catch (err) {
     console.error("[FIAON-GLOBAL] auftrag:", err);

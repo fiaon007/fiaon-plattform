@@ -28,6 +28,8 @@ const de = {
   schrittBis: (tag: string) => `bis ${tag}`,
   schrittLeer: "Im Moment ist nichts von Ihnen nötig. Ihr Ansprechpartner meldet sich, sobald der nächste Schritt ansteht.",
   stichtag: "Vereinbarter Stichtag für Gesellschaft und EIN",
+  widerrufBis: "Ihr Widerrufsrecht als Verbraucher läuft bis",
+  startNachFrist: (tag: string) => `Wie gewünscht beginnen wir nach Ablauf der Widerrufsfrist — ab dem ${tag}.`,
 
   unterlagenTitel: "Unterlagen, die wir von Ihnen brauchen",
   unterlagenLead: "Laden Sie jede Unterlage einmal hoch — als PDF oder Foto. Ihr Ansprechpartner sieht sie sofort.",
@@ -100,6 +102,8 @@ const en: typeof de = {
   schrittBis: (tag: string) => `by ${tag}`,
   schrittLeer: "Nothing is needed from you at the moment. Your contact will get in touch as soon as the next step is due.",
   stichtag: "Agreed date for company and EIN",
+  widerrufBis: "Your right of withdrawal as a consumer runs until",
+  startNachFrist: (tag: string) => `As you requested, we start after the withdrawal period has expired — from ${tag}.`,
 
   unterlagenTitel: "Documents we need from you",
   unterlagenLead: "Upload each document once — as a PDF or photo. Your contact sees it straight away.",

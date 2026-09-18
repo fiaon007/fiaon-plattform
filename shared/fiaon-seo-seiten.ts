@@ -85,6 +85,8 @@ export interface SeoSeite {
   schwester?: string;
   /** Die englische Fassung dieser Seite: eigener Pfad unter /en, eigener Kopf und Korpus. Britisches Englisch. */
   en?: SeoEnglisch;
+  /** Unterseite von FIAON Global (shared/fiaon-global-seiten) — steuert Service- und Angebotsmarkup. */
+  global?: "leistung" | "preise" | "werkzeug" | "zielgruppe" | "land" | "staat" | "wissen" | "hub" | "partner";
 }
 
 export interface SeoEnglisch {
@@ -317,30 +319,34 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
   // Unternehmen. Die Business-Abos der Bonitätslinie sind eingestellt; /global
   // (Entwurf vom 15.09.) leitet dauerhaft hierher. Sie-Form wie die Seite,
   // keine Zahl im Blickfang, kein Bankname, Entscheidung beim Institut.
+  // 19.09.2026 (E-191): auch für Privatpersonen; Standorte London · Zürich · Miami; Weiterlesen auf die Unterseiten.
   "/business": {
-    pfad: "/business", art: "produkt", stand: "2026-09-17", prio: 0.9,
+    pfad: "/business", art: "produkt", stand: "2026-09-19", prio: 0.9,
     titel: "US-Gesellschaft aus einer Hand — FIAON Global",
-    beschreibung: "US-Gesellschaft mit Team vor Ort: Gründung, Steuernummern, Bank- und Kartenaufbau aus einer Hand. Festpreis, alle Gebühren inklusive.",
+    beschreibung: "US-Gesellschaft mit Team vor Ort — für Unternehmen und Privatpersonen: Gründung, EIN, ITIN, Bank- und Kartenaufbau. Festpreis, alle Gebühren inklusive.",
     h1: "Ihre US-Gesellschaft. Aus einer Hand, zum Festpreis.",
     lead: "Gründung, Steuernummern, Bankkonto und Firmenkarten in den USA: Unser Team vor Ort, unsere Partner-Anwälte und Partner-Steuerberater übernehmen alles. Ein Ansprechpartner, ein Vertrag, ein Festpreis — alle Gebühren inklusive.",
     abschnitte: [
       { h2: "Ein Ansprechpartner. Ein Team vor Ort. Ein Partnernetz.", text: "Hinter jeder US-Struktur stehen Gründungsagenten, Steuerberater, Anwälte, Banken, Adress- und Telefonanbieter. Bei FIAON koordiniert ein Ansprechpartner alle. Steuerberater, US-CPA und Anwälte arbeiten auf das Mandat des Kunden, ihre Honorare trägt FIAON; über Konto, Karte und Rahmen entscheidet das jeweilige Institut." },
       { h2: "Vier Etappen. Eine Reihenfolge, die sich bewährt hat.", text: "Gründung und Dokumente (Gesellschaft, EIN, ITIN, Registered Agent, US-Adresse), die erste Firmenkarte mit kleinem Rahmen, die Kartenleiter über weitere Herausgeber und später ein mögliches Bankdarlehen. Dauern nennt FIAON als Erfahrungswerte — Behörden und Institute bestimmen das Tempo.", punkte: ["Gründung und Dokumente", "Die erste Firmenkarte", "Die Kartenleiter", "Das Bankdarlehen"] },
       { h2: "Vier Pakete. Ein Festpreis, alles inklusive.", text: "Global Struktur 2.499 €, Global Banking 4.999 €, Global Kapital 6.999 € und Global VIP mit Auftakt vor Ort in Miami 35.999 € — jeweils einmalig, alle Gebühren und Honorare der Partner inklusive: Staatsgebühren, Registered Agent, Partner-Anwalt, Partner-Steuerberater und US-CPA. Direkt beauftragen mit Vertrag, Rechnung und Überweisung oder zuerst ein Gespräch vereinbaren." },
+      { h2: "Auch für Privatpersonen.", text: "Eine eigene Firma ist nicht nötig: Gründer, Selbständige und Unternehmer, die privat buchen, beauftragen FIAON Global direkt und werden selbst Gesellschafter der US-Gesellschaft. Vertrag und Rechnung laufen auf ihren Namen, der Festpreis ist ein Endpreis, und Verbraucher haben ein Widerrufsrecht von vierzehn Tagen." },
+      { h2: "London, Zürich, Miami.", text: "Vertragspartner ist in jedem Fall die FIAON LTD in London. Die Schwarzott Capital Partners AG in Zürich begleitet die Kapital-Etappe und Kunden aus der Schweiz, die Schwarzott Global LLC in Miami stellt das Team vor Ort. Beide sind mit FIAON über den Gründer Justin Schwarzott verbunden." },
       { h2: "Was Sie vor dem Auftrag wissen müssen.", text: "Eine US-Gesellschaft, die aus Deutschland, Österreich oder der Schweiz geführt wird, bleibt dort steuerpflichtig; die Gründung ist dem Finanzamt zu melden. In den USA gelten jährliche Meldepflichten, auch ohne Umsatz. US-Firmenkarten setzen in der Regel die persönliche Haftung des Inhabers voraus." },
     ],
-    weiter: ["/preise", "/team", "/kontakt", "/sicherheit", "/privatkunden"],
+    weiter: ["/business/us-firmengruendung", "/business/kosten", "/business/privatpersonen", "/business/wissen", "/business/partner", "/business/fragen"],
     krumen: [{ name: "Business", pfad: "/business" }],
     en: {
       pfad: "/en/business",
       titel: "Your US company, handled end to end — FIAON Global",
-      beschreibung: "A US company with a team on the ground: formation, tax numbers, documents, banking and card build-up from one source. Four packages, one contact.",
-      h1: "Your company in the United States. Built by people on the ground.",
-      lead: "FIAON forms your US company, obtains tax numbers and documents and builds your banking and card relationship in the United States step by step — with a team on the ground and one contact for you.",
+      beschreibung: "A US company with a team on the ground — for companies and private individuals: formation, EIN, ITIN, banking and cards. Fixed price, all fees included.",
+      h1: "Your US company. From one source, at a fixed price.",
+      lead: "Formation, tax numbers, bank account and business cards in the United States: our team on the ground, our partner lawyers and partner tax advisers handle everything. One contact, one contract, one fixed price — all fees included.",
       abschnitte: [
-        { h2: "One contact. One team on the ground. One partner network.", text: "Every US structure involves formation agents, tax advisers, lawyers, banks, address and phone providers. At FIAON one contact coordinates them all. Tax advisers and lawyers act under their own engagement and invoice you directly; the institution concerned decides on account, card and limit." },
+        { h2: "One contact. One team on the ground. One partner network.", text: "Every US structure involves formation agents, tax advisers, lawyers, banks, address and phone providers. At FIAON one contact coordinates them all. Tax advisers, US CPA and lawyers act under the client’s engagement; FIAON pays their fees. The institution concerned decides on account, card and limit." },
         { h2: "Four stages. A sequence that has proven itself.", text: "Formation and documents (company, EIN, ITIN, registered agent, US address), the first business card with a small limit, the card ladder across further issuers and, later, a possible bank loan. FIAON gives durations as typical experience — authorities and institutions set the pace." },
-        { h2: "Four packages. One price, one-off.", text: "Global Structure €2,499, Global Banking €4,999, Global Capital €6,999 and Global VIP with the kick-off in person in Miami €35,999 — each one-off. Order directly with contract, invoice and bank transfer, or arrange a call first. State fees, the registered agent and partner fees are itemised separately." },
+        { h2: "Four packages. One fixed price, everything included.", text: "Global Structure €2,499, Global Banking €4,999, Global Capital €6,999 and Global VIP with the kick-off in person in Miami €35,999 — each one-off, with all fees and partner fees included: state fees, registered agent, partner lawyer, partner tax adviser and US CPA. Order directly with contract, invoice and bank transfer, or arrange a call first." },
+        { h2: "Also for private individuals.", text: "You do not need a company of your own: founders, freelancers and business owners ordering privately instruct FIAON Global directly and become the shareholder of the US company themselves. Contract and invoice are issued in their name, the fixed price is a final price, and consumers have a fourteen-day right of withdrawal." },
       ],
       weiter: ["/preise", "/privatkunden"],
       krumen: [{ name: "Business", pfad: "/en/business" }],
@@ -1750,6 +1756,19 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
   "/scp-datenraum": { pfad: "/scp-datenraum", art: "intern", stand: "2026-08-22", prio: 0.1, robots: "noindex,nofollow", bild: "", titel: "Datenraum", beschreibung: "Vertraulicher Zugang.", h1: "Datenraum", lead: "Vertraulicher Zugang." },
 };
 
+// ── Einträge, die der SERVER ergänzt (19.09.2026, E-191) ────────────────────
+// Die Unterseiten von FIAON Global kommen aus shared/fiaon-global-seiten —
+// mit ihrem ganzen Text. Diese Tabelle wird aber auch im Browser geladen
+// (Titel im Client, Sprachumschalter); dort würde der Text jede Seite der
+// Website schwerer machen. Deshalb trägt der Server sie beim Start ein
+// (server/lib/fiaon-global-seo.ts); der Client kennt die Titel aus den
+// Seitendaten selbst.
+const FRAGEN_ZUSATZ = new Map<string, SeoFrage[]>();
+export function seoZusatzEintragen(seiten: SeoSeite[], fragen: Map<string, SeoFrage[]>): void {
+  for (const s of seiten) SEO_SEITEN[s.pfad] = s;
+  fragen.forEach((f, pfad) => FRAGEN_ZUSATZ.set(pfad, f));
+}
+
 // ── Die englischen Einträge entstehen aus `en` — eine Tabelle, zwei Sprachen ──
 // Jede Seite mit `en` bekommt einen zweiten Eintrag unter ihrem englischen
 // Pfad (sprache "en", schwester = deutscher Pfad) und trägt selbst die
@@ -1779,7 +1798,8 @@ export function schwesterPfad(pfad: string, ziel: "de" | "en"): string | null {
 
 /** Die FAQ einer Seite — aus der generierten Datei, nie von Hand. */
 export function seoFragen(pfad: string): SeoFrage[] {
-  return SEO_FRAGEN[pfad] ?? [];
+  // FIAON Global: die Fragen stehen am Datensatz der Seite (sichtbar dort, FAQPage hier).
+  return SEO_FRAGEN[pfad] ?? FRAGEN_ZUSATZ.get(pfad) ?? [];
 }
 
 export { SEO_GLOSSAR, SEO_GLOSSAR_EN };

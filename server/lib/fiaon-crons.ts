@@ -404,6 +404,11 @@ export const LAUF_FOLGEN: Record<string, { zweck: string; folge: string; fenster
       + "die Erinnerungen der Privatkunden gelten für FIAON Global bewusst nicht.",
     fenster: 24,
   },
+  global_widerruf_start: {
+    zweck: "FIAON Global: bezahlte Privataufträge ohne den Wunsch nach sofortigem Beginn nach Ablauf der Widerrufsfrist starten (Aufgabe „US-Struktur starten“, Startmail)",
+    folge: "Ein bezahlter Privatauftrag bleibt nach der Widerrufsfrist liegen: keine Start-Aufgabe, keine Startmail, der Kunde wartet.",
+    fenster: 24,
+  },
   "followup-und-termine-tageswerk": {
     zweck: "Das Tageswerk im Folgelauf: Zuteilung, Eskalation (einmal täglich; der alte Nachschub ist seit 11.09.2026 abgeschaltet)",
     folge: "Gebrochene Zahlungszusagen werden nicht eskaliert und herrenlose Kunden "

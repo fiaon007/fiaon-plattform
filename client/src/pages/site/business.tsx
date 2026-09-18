@@ -42,6 +42,8 @@ import {
 import { globalStartPfad } from "@shared/fiaon-global-wege";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
 import { GLOBAL_UNTERLAGEN, GLOBAL_UNTERLAGEN_EN } from "@shared/fiaon-global-bereich";
+import { GLOBAL_STANDORTE } from "@shared/fiaon-global-partner";
+import { globalMenue } from "@shared/fiaon-global-menue";
 import "@/styles/global.css";
 
 /** Das eine Zeichen der Seite: ein ruhiger Haken. */
@@ -189,6 +191,15 @@ export default function Business() {
                 <p className="fg-lead">{t.fuerLead}</p>
               </div>
               <div className="fg-fuer">{t.fuer.map((x) => <div key={x.tag}><b>{x.tag}</b><p>{x.text}</p></div>)}</div>
+              {/* 19.09.2026 (E-191): Auch ohne eigene Firma — die englische Seite führt direkt in den Auftrag (die Unterseite gibt es nur deutsch). */}
+              <a className="fg-privat" href={s === "en" ? globalStartPfad(undefined, "en", "privat") : "/business/privatpersonen"}>
+                <span className="fg-privat-rumpf">
+                  <span className="fg-auge">{t.privatAuge}</span>
+                  <b>{t.privatTitel}</b>
+                  <span>{t.privatText}</span>
+                </span>
+                <span className="fg-privat-knopf">{t.privatKnopf}<Pfeil /></span>
+              </a>
               <p className="fg-ausstieg">{t.fuerAusstieg}</p>
             </Auf>
           </div>
@@ -362,6 +373,24 @@ export default function Business() {
                   <a href={`mailto:${FIAON_FIRMA.email}`} style={{ color: "var(--navy)" }}>{FIAON_FIRMA.email}</a>
                 </address>
               </div>
+              {/* Die drei Standorte — und offen gesagt, wie sie verbunden sind (shared/fiaon-global-partner.ts). */}
+              <div className="fg-standorte">
+                <div className="fg-standorte-kopf">
+                  <span className="fg-auge">{t.standorteAuge}</span>
+                  <h3>{t.standorteTitel}</h3>
+                </div>
+                <ul>
+                  {GLOBAL_STANDORTE.map((o) => (
+                    <li key={o.schluessel}>
+                      <span className="stadt">{o.stadt}</span>
+                      <b>{o.gesellschaft}</b>
+                      <span className="rolle">{t.standorteRolle[o.schluessel]}</span>
+                      <address>{o.adresse.join(", ")} · {t.standorteLand[o.schluessel]}{o.register ? <><br />{o.register}</> : null}</address>
+                    </li>
+                  ))}
+                </ul>
+                <p className="fg-leise">{t.standorteVerbunden}{s === "de" && <> <a href="/business/partner">{t.standorteMehr}</a></>}</p>
+              </div>
               <div className="fg-ablauf">
                 <h3>{t.ablaufTitel}</h3>
                 <ol>{t.ablauf.map((x) => <li key={x}>{x}</li>)}</ol>
@@ -382,6 +411,32 @@ export default function Business() {
             <GlobalGespraech paket={wunsch} />
           </div>
         </section>
+
+        {/* ── Verzeichnis der Unterseiten (nur deutsch — die Unterseiten gibt es nur deutsch) ── */}
+        {s === "de" && (
+          <section className="fg-sek stein eng">
+            <div className="fg-rahmen">
+              <Auf>
+                <div className="fg-kopf">
+                  <div><span className="fg-auge">{t.verzeichnisAuge}</span><h2 className="fg-h2">{t.verzeichnisH2}</h2></div>
+                  <p className="fg-lead">{t.verzeichnisLead}</p>
+                </div>
+                <nav className="fg-verzeichnis" aria-label={t.verzeichnisAuge}>
+                  {globalMenue().map((g) => (
+                    <div key={g.gruppe}>
+                      <h3>{g.titel}</h3>
+                      <ul>
+                        {g.eintraege.filter((m) => !m.pfad.includes("#")).map((m) => (
+                          <li key={m.pfad}><a href={m.pfad}><b>{m.titel}</b><span>{m.text}</span></a></li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </nav>
+              </Auf>
+            </div>
+          </section>
+        )}
 
         {/* ── Fragen ─────────────────────────────────────────────────────────── */}
         <section className="fg-sek">

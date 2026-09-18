@@ -17,6 +17,9 @@
 //   8. Die drei Mails: kein Platzhalter ohne Wert, Wortwand, keine Bankdaten.
 //   9. Die Eingabeprüfung: Pflichtfelder, Land, Telefon nur DE/AT/CH,
 //      USt-IdNr., vier Bestätigungen, echtes PNG, Honigtopf; das Token.
+//  10. Der Auftrag einer PRIVATPERSON (19.09.2026, E-191): Parteien, Ziffer 5/9/
+//      11/12, die gesetzliche Widerrufsbelehrung als Anlage (im Hash-Rumpf),
+//      Wortwand; Eingabeprüfung, Widerrufsfrist-Rechnung, Startmail-Liste.
 //
 // Aufruf: npx tsx scripts/pruef-global-vertrag.ts        (Exit 1 bei Fehlern)
 // ═══════════════════════════════════════════════════════════════════════════
@@ -151,6 +154,7 @@ const NUTZLAST = {
   email: "m.muster@muster-gmbh.example", anrede_zeile: "Guten Tag Herr Muster", firma: "Muster GmbH", paket: "FIAON Global Struktur",
   betrag_text: "2.499,00 €", antrag_id: "FIAON-PRUEFSTAND-0001", payment_reference: "FIAON-A1B2C3", faellig_am_text: "24.09.2026",
   zahlungsseite_url: "https://fiaon.com/zahlung/FIAON-A1B2C3", ansprechpartner: "Herr Beispiel", stichtag_text: "30.10.2026",
+  unterlagen_liste: "· Reisepass<br />· Adressnachweis",
 };
 // `global_start` sagt „Ihr Ansprechpartner … meldet sich bei Ihnen". Gedeckt ist das, weil der Versand
 // erst NACH der Aufgabe „US-Struktur starten" geschieht (globalNachZahlung) — hier wie dort dieselbe Deckung.
@@ -219,6 +223,122 @@ ok(auftrag.globalTokenPruefen("FIAON-PRUEFSTAND-0002", token) === null, "Token g
 ok(auftrag.globalTokenPruefen("FIAON-PRUEFSTAND-0001", auftrag.globalTokenErzeugen("FIAON-PRUEFSTAND-0001", -1000)) === "abgelaufen", "abgelaufenes Token wird nicht erkannt");
 ok(auftrag.globalTokenPruefen("FIAON-PRUEFSTAND-0001", token.replace(/.$/, (z) => (z === "0" ? "1" : "0"))) === null, "verändertes Token gilt");
 ok(auftrag.globalTokenPruefen("FIAON-PRUEFSTAND-0001", "") === null && auftrag.globalTokenPruefen("FIAON-PRUEFSTAND-0001", undefined) === null, "leeres Token gilt");
+
+
+// ═══ 10: DER AUFTRAG EINER PRIVATPERSON (E-191) ═════════════════════════════
+const ANSCHRIFT = { land: "DE", strasse: "Lindenweg 3", plz: "80331", ort: "München" };
+const PRIVAT_FIRMA = { art: "privat", ...ANSCHRIFT, name: "Erika <i>Muster</i>", rechtsform: "Privatperson", ustId: null, registergericht: null, registernummer: null };
+const PRIVAT_PERSON = { anrede: "Frau", vorname: "Erika", nachname: "<i>Muster</i>", funktion: "Privatperson" };
+const firmaText = vertrag.globalVertragText({ paket: "global_struktur", sprache: "de", firma: FIRMA, ansprechpartner: PERSON } as any);
+ok(!/Widerrufsbelehrung|wohnhaft|Endpreis|Muster-Widerrufsformular/.test(firmaText), "Firmenauftrag trägt Sätze des Privatauftrags");
+ok(firmaText.includes("Unternehmer im Sinne von § 14 BGB") && firmaText.includes("begrenzt auf den Paketpreis"), "Firmenauftrag: Ziffer 9/11 nicht mehr wie bisher");
+for (const p of GLOBAL_PAKETE) {
+  for (const sprache of ["de", "en"] as const) {
+    for (const sofortBeginn of [false, true]) {
+      abschnitt(`Privatauftrag ${p.key} · ${sprache} · ${sofortBeginn ? "sofort" : "nach der Frist"}`);
+      const daten = { paket: p.key, sprache, auftraggeber: "privat", sofortBeginn, firma: PRIVAT_FIRMA, ansprechpartner: PRIVAT_PERSON } as any;
+      const vorschau = vertrag.globalVertragVorschauHtml(daten);
+      const text = vertrag.globalVertragText(daten);
+      const rumpf = vertrag.globalVertragRumpfHtml({ ...daten, ref: "FIAON-PRUEFSTAND-0002", unterschrift: { png: PNG, am: new Date("2026-09-19T10:30:00Z"), ip: "203.0.113.8", hash: "b".repeat(64) } });
+      const erwartet = vertrag.GLOBAL_VERTRAG_ZIFFERN_PRIVAT[sprache].filter((_, i) => i !== 5 || GLOBAL_GELD_ZURUECK.aktiv);
+      const gefunden = Array.from(vorschau.matchAll(/<h2><span class="gv-nr">(\d+)<\/span>([^<]+)<\/h2>/g)).map((m) => `${m[1]} ${m[2]}`);
+      ok(gefunden.length === erwartet.length && erwartet.every((t, i) => gefunden[i] === `${i + 1} ${t}`), `Ziffern des Privatauftrags: ${gefunden.join(" | ")}`);
+      const de = sprache === "de";
+      // Parteien und Unterschrift: Person mit Wohnanschrift, keine Funktion, entschärft
+      ok(text.includes(de ? "wohnhaft Lindenweg 3, 80331 München, Deutschland" : "residing at Lindenweg 3, 80331 München, Germany"), "Parteien: Wohnanschrift fehlt");
+      ok(!/vertreten durch|represented by (?!its Director)/.test(text.replace(/vertreten durch den Director/g, "")), "Parteien: Privatperson wird „vertreten“");
+      ok(!vorschau.includes("<i>Muster</i>") && vorschau.includes("&lt;i&gt;Muster&lt;/i&gt;"), "Name der Privatperson wird nicht entschärft");
+      ok(!/Privatperson<br\/>|, Privatperson<br/.test(vorschau), "Unterschriftszeile nennt eine Funktion");
+      // Ziffer 5, 9, 11, 12
+      ok(text.includes(de ? "ist der Paketpreis ein Endpreis" : "the package price is a final price"), "Ziffer 5: Endpreis fehlt");
+      ok(!/Reverse Charge|reverse charge/.test(text), "Privatauftrag spricht von Reverse Charge");
+      const nr = GLOBAL_GELD_ZURUECK.aktiv ? 11 : 10;
+      const beginnWartet = de ? `FIAON beginnt nach Ablauf der Widerrufsfrist (Ziffer ${nr}), frühestens mit dem Zahlungseingang.` : `FIAON starts work after the withdrawal period has expired (clause ${nr}), and not before payment has been received.`;
+      ok(text.includes(beginnWartet) === !sofortBeginn, `Ziffer 5: Beginn-Satz passt nicht zur Wahl (sofort=${sofortBeginn})`);
+      ok(text.includes(de ? "vertragstypischen, bei Vertragsschluss vorhersehbaren Schaden" : "typical damage foreseeable"), "Ziffer 9: Haftungsgrenze für Privatpersonen fehlt");
+      ok(!text.includes(de ? "begrenzt auf den Paketpreis" : "limited in amount to the package price"), "Ziffer 9: Grenze Paketpreis im Privatauftrag");
+      ok(text.includes(de ? "Der Auftraggeber hat ausdrücklich verlangt" : "The Client has expressly requested") === sofortBeginn, "Ziffer 11: ausdrückliches Verlangen passt nicht zur Wahl");
+      ok(text.includes(de ? "Der Auftraggeber hat nicht verlangt" : "The Client has not requested") === !sofortBeginn, "Ziffer 11: Satz ohne Verlangen passt nicht zur Wahl");
+      ok(!text.includes(de ? "Unternehmer im Sinne von § 14 BGB" : "entrepreneur within the meaning"), "Ziffer 11: Unternehmer-Bestätigung im Privatauftrag");
+      ok(text.includes(de ? "zwingenden Bestimmungen des Rechts des Staates seines gewöhnlichen Aufenthalts" : "mandatory provisions of the law of the state of the Client’s habitual residence"), "Ziffer 12: Verbraucherschutz-Satz fehlt");
+      // Anlage: gesetzliche Belehrung und Formular — hinter der Unterschrift, im Hash-Rumpf
+      for (const satz of de
+        ? ["Sie haben das Recht, binnen vierzehn Tagen ohne Angabe von Gründen diesen Vertrag zu widerrufen.", "Die Widerrufsfrist beträgt vierzehn Tage ab dem Tag des Vertragsabschlusses.", "Folgen des Widerrufs", "Haben Sie verlangt, dass die Dienstleistungen während der Widerrufsfrist beginnen soll", "Muster-Widerrufsformular", "Unzutreffendes streichen", "support@fiaon.com", "128 City Road"]
+        : ["You have the right to withdraw from this contract within 14 days without giving any reason.", "Effects of withdrawal", "If you requested to begin the performance of services during the withdrawal period", "Model withdrawal form", "Delete as appropriate", "support@fiaon.com"]) {
+        ok(text.includes(satz), `Anlage: „${satz.slice(0, 50)}…“ fehlt`);
+      }
+      ok(rumpf.indexOf("gv-anlage") > rumpf.indexOf("sig-img"), "Anlage steht nicht HINTER der Unterschrift");
+      ok(rumpf.includes("gv-anlage"), "Anlage fehlt im Rumpf (Hash und PDF)");
+      // Vertragssprache bis zur Unterschrift; danach spricht das gesetzliche Muster den Kunden an
+      const ansprache = de ? /\b(Ihr|Ihre|Ihrer|Ihrem|Ihren|Ihres|Ihnen|[Uu]nser\w*|[Ww]ir)\b/g : /\b(your|our|we|you|Your|Our|We|You)\b/g;
+      const angesprochen = Array.from(new Set(ohneSignatur(text).match(ansprache) ?? []));
+      ok(angesprochen.length === 0, `Privatauftrag: Kundenansprache vor der Unterschrift: ${angesprochen.join(", ")}`);
+      if (de) for (const t of wandPruefen(text)) { wandTreffer.push(`privat ${p.key}: [${t.art}] „${t.treffer}“ — ${t.hinweis}`); ok(false, `Wortwand [${t.art}] „${t.treffer}“`); }
+      console.log(`  ${gefunden.length} Ziffern · Anlage mit Belehrung und Formular · ${text.length} Zeichen`);
+    }
+  }
+}
+
+abschnitt("Widerrufsfrist und Start nach der Frist");
+const frist = (iso: string) => vertrag.globalWiderrufsfrist(new Date(iso));
+ok(JSON.stringify(frist("2026-09-21T10:00:00Z")) === JSON.stringify({ fristEnde: "2026-10-05", startAb: "2026-10-08" }), `Montag: ${JSON.stringify(frist("2026-09-21T10:00:00Z"))}`);
+ok(frist("2026-09-19T10:00:00Z").fristEnde === "2026-10-05", `Ende am Samstag → Montag: ${frist("2026-09-19T10:00:00Z").fristEnde}`);
+ok(frist("2026-09-20T10:00:00Z").fristEnde === "2026-10-05", `Ende am Sonntag → Montag: ${frist("2026-09-20T10:00:00Z").fristEnde}`);
+ok(frist("2026-09-20T23:30:00Z").fristEnde === "2026-10-05", `nach Mitternacht Berlin zählt der Berliner Tag: ${frist("2026-09-20T23:30:00Z").fristEnde}`);
+ok(frist("2026-10-20T09:00:00Z").fristEnde === "2026-11-03", `über die Zeitumstellung: ${frist("2026-10-20T09:00:00Z").fristEnde}`);
+const akteP = (sofort: boolean) => ({ firma: { art: "privat" }, bestaetigungen: { vertrag: true, sofortBeginn: sofort }, unterschrieben_am: "2026-09-21T10:00:00Z" });
+ok(auftrag.globalStartWartet(akteP(false), new Date("2026-09-25T10:00:00Z"))?.startAb === "2026-10-08", "Privat ohne Wunsch: wartet nicht");
+ok(auftrag.globalStartWartet(akteP(false), new Date("2026-10-08T07:00:00Z")) === null, "Privat ohne Wunsch: wartet am Starttag noch");
+ok(auftrag.globalStartWartet(akteP(true), new Date("2026-09-25T10:00:00Z")) === null, "Privat MIT Wunsch: wartet trotzdem");
+ok(auftrag.globalStartWartet({ firma: { name: "Muster GmbH" }, bestaetigungen: {}, unterschrieben_am: "2026-09-21T10:00:00Z" }, new Date("2026-09-25T10:00:00Z")) === null, "Firmenauftrag wartet auf eine Widerrufsfrist");
+ok(auftrag.globalStartWartet({ firma: JSON.stringify({ art: "privat" }), bestaetigungen: JSON.stringify({ sofortBeginn: false }), unterschrieben_am: "2026-09-21T10:00:00Z" }, new Date("2026-09-25T10:00:00Z")) !== null, "JSON als Text (wie aus der Datenbank) wird nicht gelesen");
+
+abschnitt("Startmail: Unterlagen je Auftraggeber");
+const nutzlastPrivat = auftrag.globalMailNutzlast({ ref: "FIAON-P", paket_key: "global_struktur", firma: { art: "privat", name: "Erika Muster" }, ansprechpartner: { anrede: "Frau", nachname: "Muster" }, email: "e@x.example" }, { ref: "FIAON-P" }, { ansprechpartner: "Team" });
+const nutzlastFirma = auftrag.globalMailNutzlast({ ref: "FIAON-F", paket_key: "global_struktur", firma: { name: "Muster GmbH" }, ansprechpartner: { anrede: "Herr", nachname: "Muster" }, email: "m@x.example" }, { ref: "FIAON-F" }, { ansprechpartner: "Team" });
+ok(!/Handelsregister|Gesellschafterliste/.test(nutzlastPrivat.unterlagen_liste) && nutzlastPrivat.unterlagen_liste.includes("Reisepass"), "Privatperson bekommt die Registerzeile");
+ok(/Handelsregister/.test(nutzlastFirma.unterlagen_liste), "Firma bekommt die Registerzeile nicht");
+const startPrivat = mailRendern("global_start", { ...NUTZLAST, unterlagen_liste: nutzlastPrivat.unterlagen_liste });
+ok(!!startPrivat && startPrivat.fehlend.length === 0 && !/Handelsregister/.test(startPrivat.text) && startPrivat.text.includes("Reisepass"), "global_start (privat): Liste falsch oder Platzhalter offen");
+
+abschnitt("Eingabeprüfung: Privatperson");
+const GUT_PRIVAT = () => ({
+  paket: "global_struktur", auftraggeber: "privat",
+  firma: { ...ANSCHRIFT, name: "Soll ignoriert werden GmbH", rechtsform: "GmbH", ustId: "DE123456789" },
+  ansprechpartner: { anrede: "Frau", vorname: "Erika", nachname: "Muster", funktion: "", email: "Erika@Example.org", telefon: "0171 7654321" },
+  bestaetigungen: { vertrag: true, pflichthinweis: true, widerruf: true } as Record<string, unknown>,
+  unterschriftPng: PNG, falle: "",
+});
+const gp = auftrag.globalAuftragPruefen(GUT_PRIVAT());
+ok(gp.ok === true, `vollständige Privateingabe wird abgelehnt: ${(gp as any).error}`);
+if (gp.ok) {
+  const d = gp.daten as any;
+  ok(d.auftraggeber === "privat" && d.firma.art === "privat" && d.firma.rechtsform === "Privatperson" && d.firma.name === "Erika Muster", `Privatperson falsch abgelegt: ${JSON.stringify(d.firma)}`);
+  ok(d.firma.ustId === null && d.firma.registernummer === null, "Privatperson trägt Firmenfelder aus der Eingabe");
+  ok(d.bestaetigungen.sofortBeginn === false && d.bestaetigungen.widerruf === true && !("unternehmer" in d.bestaetigungen), `Bestätigungen falsch: ${JSON.stringify(d.bestaetigungen)}`);
+  ok(d.ansprechpartner.funktion === "Privatperson" && d.ansprechpartner.email === "erika@example.org" && d.ansprechpartner.telefon === "+491717654321", "Ansprechpartner der Privatperson falsch");
+}
+const mitWunsch = GUT_PRIVAT(); mitWunsch.bestaetigungen.sofortBeginn = true;
+ok((auftrag.globalAuftragPruefen(mitWunsch) as any).daten?.bestaetigungen.sofortBeginn === true, "sofortiger Beginn wird nicht übernommen");
+const alsText = GUT_PRIVAT(); alsText.bestaetigungen.sofortBeginn = "true";
+ok((auftrag.globalAuftragPruefen(alsText) as any).daten?.bestaetigungen.sofortBeginn === false, "„true“ als Text gilt als ausdrückliches Verlangen");
+const vorschauP = auftrag.globalVorschauPruefen({ ...GUT_PRIVAT(), bestaetigungen: { sofortBeginn: true } });
+ok(vorschauP.ok === true && (vorschauP as any).daten.sofortBeginn === true && (vorschauP as any).daten.auftraggeber === "privat", "Vorschau liest den Wunsch zum Beginn nicht");
+const abgelehntP = (aendern: (b: any) => void, feld: string | undefined, was: string) => {
+  const b = GUT_PRIVAT(); aendern(b);
+  const r = auftrag.globalAuftragPruefen(b);
+  ok(!r.ok && (r as any).feld === feld, `${was} — erwartet Ablehnung am Feld ${feld ?? "—"}, bekam ${r.ok ? "Annahme" : `${(r as any).feld}: ${(r as any).error}`}`);
+};
+abgelehntP((b) => { b.ansprechpartner.vorname = ""; }, "privat.vorname", "Vorname fehlt");
+abgelehntP((b) => { b.ansprechpartner.nachname = " "; }, "privat.nachname", "Nachname fehlt");
+abgelehntP((b) => { b.firma.land = "FR"; }, "privat.land", "Wohnsitz außerhalb DE/AT/CH");
+abgelehntP((b) => { b.firma.plz = "1234"; }, "privat.plz", "deutsche PLZ mit vier Ziffern");
+abgelehntP((b) => { b.firma.strasse = "a"; }, "privat.strasse", "Straße zu kurz");
+abgelehntP((b) => { b.bestaetigungen.widerruf = false; }, "bestaetigungen.widerruf", "Widerrufsbelehrung nicht bestätigt");
+abgelehntP((b) => { b.bestaetigungen.vertrag = false; }, "bestaetigungen.vertrag", "Vertrag nicht bestätigt");
+abgelehntP((b) => { b.ansprechpartner.telefon = "+33 1 23 45 67 89"; }, "ansprechpartner.telefon", "französische Nummer");
+const firmaOhneArt = GUT(); (firmaOhneArt as any).auftraggeber = "irgendwas";
+ok(auftrag.globalAuftragPruefen(firmaOhneArt).ok === true && (auftrag.globalAuftragPruefen(firmaOhneArt) as any).daten.auftraggeber === "unternehmen", "unbekannter Auftraggeber wird nicht als Unternehmen gelesen");
 
 // ═══ ERGEBNIS ═══════════════════════════════════════════════════════════════
 abschnitt("Ergebnis");

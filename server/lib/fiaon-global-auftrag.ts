@@ -36,6 +36,19 @@
 //     aus server/mail/vorlagen/global.ts.
 //   · Kein Abo, keine Onboarding-Stufe (fiaon-agent.ts, onCustomerPaid).
 //
+// ── AUCH PRIVATPERSONEN (19.09.2026, E-191) ───────────────────────────────
+// Justin: „Man muss nicht als Firma unser Paket kaufen, auch Privatpersonen
+// können über uns kaufen/gründen." Der Auftraggeber ist `unternehmen` oder
+// `privat`. Beim Privatauftrag steht in `firma` die Person (art "privat",
+// name = Vor- und Nachname, rechtsform "Privatperson", Wohnanschrift) — so
+// lesen Liste, Aufgaben, Mails und Rechnung weiter aus EINER Stelle. Die
+// Bestellzeile bekommt KEINEN Firmennamen: Die Rechnung nennt dann die Person.
+// Bestätigt werden Vertrag, Pflichthinweise und die Widerrufsbelehrung; der
+// sofortige Beginn ist freiwillig. Ohne ihn startet ein bezahlter Privatauftrag
+// erst nach der Widerrufsfrist (globalNachZahlung wartet, der Stundenlauf
+// globalWiderrufsStartLauf holt den Start nach) — sonst hätte FIAON bei einem
+// Widerruf keinen Anspruch auf Wertersatz (§ 357a Abs. 2 BGB).
+//
 // ── DER ZUGANG OHNE ANMELDUNG ─────────────────────────────────────────────
 // Der Kunde hat kein Konto. Seine Auftragsseite und die beiden PDFs hängen an
 // einem signierten Token (HMAC wie beim Mitarbeiter-Abschluss, E-185), das an
@@ -56,9 +69,9 @@ import { GLOBAL_PAKETE, GLOBAL_VERTRAG_VERSION, globalPaket, type GlobalSchluess
 import { globalMeinAuftragPfad, globalOfficeAuftragPfad } from "@shared/fiaon-global-wege";
 import { dachNummer, type DachLand } from "@shared/fiaon-dach-telefon";
 import {
-  globalVertragPdf, globalVertragRumpfHtml, type GlobalVertragDaten, type VertragSprache,
+  globalVertragPdf, globalVertragRumpfHtml, globalWiderrufsfrist, type GlobalAuftraggeber, type GlobalVertragDaten, type VertragSprache,
 } from "./fiaon-global-vertrag";
-import { GLOBAL_UNTERLAGEN } from "../mail/vorlagen/global";
+import { globalUnterlagenZeilen } from "@shared/fiaon-global-bereich";
 
 export const GLOBAL_TOKEN_TAGE = 30;
 export const GLOBAL_SCHLUESSEL: string[] = GLOBAL_PAKETE.map((p) => p.key);
@@ -173,6 +186,8 @@ export async function globalEinstellungen(): Promise<GlobalEinstellungen> {
 
 // ── Eingabe prüfen ───────────────────────────────────────────────────────────
 export interface GlobalFirma {
+  /** 19.09.2026 (E-191): "privat" = eine Privatperson beauftragt; dann ist `name` ihr voller Name. */
+  art?: "privat";
   land: DachLand; name: string; rechtsform: string;
   registergericht: string | null; registernummer: string | null;
   strasse: string; plz: string; ort: string;
@@ -181,11 +196,15 @@ export interface GlobalFirma {
 export interface GlobalAnsprechpartner {
   anrede: "Herr" | "Frau" | ""; vorname: string; nachname: string; funktion: string; email: string; telefon: string;
 }
+export type GlobalBestaetigungen =
+  | { vertrag: true; pflichthinweis: true; unternehmer: true; vertretung: true }
+  | { vertrag: true; pflichthinweis: true; widerruf: true; sofortBeginn: boolean };
 export interface GlobalEingabe {
   paket: GlobalSchluessel;
+  auftraggeber: GlobalAuftraggeber;
   firma: GlobalFirma;
   ansprechpartner: GlobalAnsprechpartner;
-  bestaetigungen: { vertrag: true; pflichthinweis: true; unternehmer: true; vertretung: true };
+  bestaetigungen: GlobalBestaetigungen;
   unterschriftPng: string;
   sprache: VertragSprache;
   quelle: string | null;
@@ -211,6 +230,30 @@ function paketPruefen(roh: unknown): GlobalSchluessel | null {
   return verkaufbarePakete("global").some((p) => p.key === key) && globalPaket(key) ? (key as GlobalSchluessel) : null;
 }
 
+/** Wer beauftragt — alles außer "privat" ist ein Unternehmen (so lauten alle Aufträge vor dem 19.09.2026). */
+export function globalAuftraggeberVon(roh: unknown): GlobalAuftraggeber {
+  return String(roh ?? "").trim().toLowerCase() === "privat" ? "privat" : "unternehmen";
+}
+/** Ist diese Akte der Auftrag einer Privatperson? Liest die Firma-Spalte (JSON), wie sie in der Akte steht. */
+export function globalIstPrivat(firmaRoh: unknown): boolean {
+  return json<Partial<GlobalFirma>>(firmaRoh, {}).art === "privat";
+}
+
+/** Land, Straße, PLZ und Ort — dieselbe Prüfung für den Sitz eines Unternehmens und den Wohnsitz einer Privatperson. */
+function anschriftPruefen(f: any, vorsilbe: "firma" | "privat"): Pruefung<{ land: DachLand; strasse: string; plz: string; ort: string }> {
+  const land = String(f?.land ?? "").trim().toUpperCase() as DachLand;
+  if (!LAENDER.includes(land)) return fehler(vorsilbe === "privat"
+    ? "FIAON Global richtet sich derzeit an Kunden mit Wohnsitz in Deutschland, Österreich oder der Schweiz. Bitte wählen Sie eines dieser Länder."
+    : "FIAON Global richtet sich derzeit an Unternehmen mit Sitz in Deutschland, Österreich oder der Schweiz. Bitte wählen Sie eines dieser Länder.", `${vorsilbe}.land`);
+  const strasse = text(f?.strasse, 160);
+  if (strasse.length < 3) return fehler("Bitte geben Sie Straße und Hausnummer an.", `${vorsilbe}.strasse`);
+  const plz = text(f?.plz, 10);
+  if (!(land === "DE" ? /^\d{5}$/ : /^\d{4}$/).test(plz)) return fehler(`Bitte prüfen Sie die Postleitzahl — in ${LAND_NAME[land]} hat sie ${land === "DE" ? "fünf" : "vier"} Ziffern.`, `${vorsilbe}.plz`);
+  const ort = text(f?.ort, 120);
+  if (ort.length < 2) return fehler("Bitte geben Sie den Ort an.", `${vorsilbe}.ort`);
+  return { ok: true, daten: { land, strasse, plz, ort } };
+}
+
 /** Die Felder, die Vorschau UND Auftrag brauchen — eine Prüfung, damit beide denselben Text ergeben. */
 function firmaPruefen(f: any, streng: boolean): Pruefung<GlobalFirma> {
   const land = String(f?.land ?? "").trim().toUpperCase() as DachLand;
@@ -219,12 +262,9 @@ function firmaPruefen(f: any, streng: boolean): Pruefung<GlobalFirma> {
   if (name.length < 2) return fehler("Bitte geben Sie den Namen Ihres Unternehmens an.", "firma.name");
   const rechtsform = text(f?.rechtsform, 80);
   if (!rechtsform) return fehler("Bitte geben Sie die Rechtsform Ihres Unternehmens an.", "firma.rechtsform");
-  const strasse = text(f?.strasse, 160);
-  if (strasse.length < 3) return fehler("Bitte geben Sie Straße und Hausnummer an.", "firma.strasse");
-  const plz = text(f?.plz, 10);
-  if (!(land === "DE" ? /^\d{5}$/ : /^\d{4}$/).test(plz)) return fehler(`Bitte prüfen Sie die Postleitzahl — in ${LAND_NAME[land]} hat sie ${land === "DE" ? "fünf" : "vier"} Ziffern.`, "firma.plz");
-  const ort = text(f?.ort, 120);
-  if (ort.length < 2) return fehler("Bitte geben Sie den Ort an.", "firma.ort");
+  const anschrift = anschriftPruefen(f, "firma");
+  if (!anschrift.ok) return anschrift;
+  const { strasse, plz, ort } = anschrift.daten;
   const ustRoh = text(f?.ustId, 30);
   const ustId = ustRoh ? ustIdNormalisieren(ustRoh) : null;
   if (streng && ustRoh && !ustId) return fehler("Bitte prüfen Sie die USt-IdNr. — erwartet wird zum Beispiel DE123456789, ATU12345678 oder CHE-123.456.789. Sie können das Feld auch leer lassen.", "firma.ustId");
@@ -237,9 +277,38 @@ function firmaPruefen(f: any, streng: boolean): Pruefung<GlobalFirma> {
   } };
 }
 
+/**
+ * Die Privatperson als Auftraggeber: Vor- und Nachname und Wohnanschrift (Schritt 2 der Seite).
+ * Sie steht danach in `firma` wie ein Unternehmen — mit art "privat", ohne Register und USt-IdNr.
+ */
+function privatPruefen(b: any): Pruefung<{ firma: GlobalFirma; anrede: string; vorname: string; nachname: string }> {
+  const vorname = text(b?.ansprechpartner?.vorname, 80); const nachname = text(b?.ansprechpartner?.nachname, 80);
+  if (!vorname || !nachname) return fehler("Bitte geben Sie Ihren Vor- und Nachnamen an.", !vorname ? "privat.vorname" : "privat.nachname");
+  const anschrift = anschriftPruefen(b?.firma, "privat");
+  if (!anschrift.ok) return anschrift;
+  const anrede = ["Herr", "Frau"].includes(String(b?.ansprechpartner?.anrede)) ? String(b.ansprechpartner.anrede) : "";
+  return { ok: true, daten: {
+    anrede, vorname, nachname,
+    firma: {
+      art: "privat", ...anschrift.daten, name: `${vorname} ${nachname}`, rechtsform: "Privatperson",
+      registergericht: null, registernummer: null, ustId: null, website: null, quelleRegister: null,
+    },
+  } };
+}
+
 export function globalVorschauPruefen(b: any): Pruefung<GlobalVertragDaten> {
   const paket = paketPruefen(b?.paket);
   if (!paket) return fehler("Bitte wählen Sie eines der vier Pakete.", "paket");
+  if (globalAuftraggeberVon(b?.auftraggeber) === "privat") {
+    const pr = privatPruefen(b);
+    if (!pr.ok) return pr;
+    return { ok: true, daten: {
+      paket, sprache: b?.sprache === "en" ? "en" : "de", auftraggeber: "privat",
+      // Vorschau und Auftrag lesen den Wunsch zum Beginn an derselben Stelle — sonst stünde im PDF ein anderer Satz.
+      sofortBeginn: b?.bestaetigungen?.sofortBeginn === true,
+      firma: pr.daten.firma, ansprechpartner: { anrede: pr.daten.anrede, vorname: pr.daten.vorname, nachname: pr.daten.nachname, funktion: "Privatperson" },
+    } };
+  }
   const firma = firmaPruefen(b?.firma, false);
   if (!firma.ok) return firma;
   const vorname = text(b?.ansprechpartner?.vorname, 80); const nachname = text(b?.ansprechpartner?.nachname, 80);
@@ -248,7 +317,7 @@ export function globalVorschauPruefen(b: any): Pruefung<GlobalVertragDaten> {
   if (!funktion) return fehler("Bitte geben Sie Ihre Funktion im Unternehmen an, zum Beispiel Geschäftsführer.", "ansprechpartner.funktion");
   const anrede = ["Herr", "Frau"].includes(String(b?.ansprechpartner?.anrede)) ? String(b.ansprechpartner.anrede) : "";
   return { ok: true, daten: {
-    paket, sprache: b?.sprache === "en" ? "en" : "de",
+    paket, sprache: b?.sprache === "en" ? "en" : "de", auftraggeber: "unternehmen",
     firma: firma.daten, ansprechpartner: { anrede, vorname, nachname, funktion },
   } };
 }
@@ -258,7 +327,9 @@ export function globalAuftragPruefen(b: any): Pruefung<GlobalEingabe> {
   if (String(b?.falle ?? "").trim()) return fehler("Ihre Angaben konnten nicht verarbeitet werden. Bitte laden Sie die Seite neu und versuchen Sie es noch einmal.");
   const vor = globalVorschauPruefen(b);
   if (!vor.ok) return vor;
-  const firma = firmaPruefen(b?.firma, true);
+  const privat = vor.daten.auftraggeber === "privat";
+  // Das Unternehmen noch einmal streng (USt-IdNr.); die Privatperson hat keine Firmenfelder.
+  const firma: Pruefung<GlobalFirma> = privat ? { ok: true, daten: vor.daten.firma as GlobalFirma } : firmaPruefen(b?.firma, true);
   if (!firma.ok) return firma;
 
   const email = text(b?.ansprechpartner?.email, 160).toLowerCase();
@@ -269,26 +340,35 @@ export function globalAuftragPruefen(b: any): Pruefung<GlobalEingabe> {
   if (!telefon) {
     const fremd = /^(\+|00)/.test(telefonRoh.replace(/\s/g, "")) && !/^(\+|00)\s*(49|43|41)/.test(telefonRoh.replace(/\s/g, ""));
     return fehler(fremd
-      ? "Bitte geben Sie eine Telefonnummer aus Deutschland, Österreich oder der Schweiz an — FIAON Global richtet sich derzeit an Unternehmen aus diesen drei Ländern."
+      ? "Bitte geben Sie eine Telefonnummer aus Deutschland, Österreich oder der Schweiz an — FIAON Global richtet sich derzeit an Kunden aus diesen drei Ländern."
       : "Bitte prüfen Sie die Telefonnummer — zum Beispiel +49 171 1234567.", "ansprechpartner.telefon");
   }
 
   const best = b?.bestaetigungen ?? {};
-  const SAETZE: Record<string, string> = {
-    vertrag: "Bitte bestätigen Sie, dass Sie den Auftrag gelesen haben und ihn erteilen.",
-    pflichthinweis: "Bitte bestätigen Sie, dass Sie die Pflichthinweise zur Steuerpflicht, zu den US-Meldungen und zur persönlichen Haftung gelesen haben.",
-    unternehmer: "Bitte bestätigen Sie, dass Sie als Unternehmer handeln — FIAON Global richtet sich nicht an Verbraucher.",
-    vertretung: "Bitte bestätigen Sie, dass Sie Ihr Unternehmen vertreten dürfen.",
-  };
+  const SAETZE: Record<string, string> = privat
+    ? {
+      vertrag: "Bitte bestätigen Sie, dass Sie den Auftrag gelesen haben und ihn erteilen.",
+      pflichthinweis: "Bitte bestätigen Sie, dass Sie die Pflichthinweise zur Steuerpflicht, zu den US-Meldungen und zur persönlichen Haftung gelesen haben.",
+      widerruf: "Bitte bestätigen Sie, dass Sie die Widerrufsbelehrung zur Kenntnis genommen haben.",
+    }
+    : {
+      vertrag: "Bitte bestätigen Sie, dass Sie den Auftrag gelesen haben und ihn erteilen.",
+      pflichthinweis: "Bitte bestätigen Sie, dass Sie die Pflichthinweise zur Steuerpflicht, zu den US-Meldungen und zur persönlichen Haftung gelesen haben.",
+      unternehmer: "Bitte bestätigen Sie, dass Sie als Unternehmer handeln. Als Privatperson wählen Sie im zweiten Schritt „Privatperson“.",
+      vertretung: "Bitte bestätigen Sie, dass Sie Ihr Unternehmen vertreten dürfen.",
+    };
   for (const k of Object.keys(SAETZE)) if (best[k] !== true) return fehler(SAETZE[k], `bestaetigungen.${k}`);
 
   const png = signaturPruefen(b?.unterschriftPng);
   if (!png) return fehler("Die Unterschrift fehlt oder ist unbrauchbar — bitte unterschreiben Sie noch einmal im Feld.", "unterschriftPng");
 
   return { ok: true, daten: {
-    paket: vor.daten.paket, sprache: vor.daten.sprache, firma: firma.daten,
+    paket: vor.daten.paket, sprache: vor.daten.sprache, auftraggeber: privat ? "privat" : "unternehmen", firma: firma.daten,
     ansprechpartner: { ...(vor.daten.ansprechpartner as any), email, telefon },
-    bestaetigungen: { vertrag: true, pflichthinweis: true, unternehmer: true, vertretung: true },
+    // Der sofortige Beginn ist freiwillig — nur ein echtes true zählt als ausdrückliches Verlangen.
+    bestaetigungen: privat
+      ? { vertrag: true, pflichthinweis: true, widerruf: true, sofortBeginn: best.sofortBeginn === true }
+      : { vertrag: true, pflichthinweis: true, unternehmer: true, vertretung: true },
     unterschriftPng: png, quelle: text(b?.quelle, 60) || null,
   } };
 }
@@ -399,8 +479,13 @@ export async function globalAuftragSicht(ref: string, token: string): Promise<Re
     ).catch(() => null);
   }
   const t = encodeURIComponent(token); const r = encodeURIComponent(ref);
+  const privat = firma.art === "privat";
+  const frist = privat && akte.unterschrieben_am ? globalWiderrufsfrist(new Date(akte.unterschrieben_am)) : null;
   return {
     ok: true, ref, status,
+    auftraggeber: privat ? "privat" : "unternehmen",
+    // Privatauftrag: bis wann widerrufen werden kann und ob die Arbeit erst danach beginnt.
+    ...(frist ? { widerruf: { fristEnde: frist.fristEnde, startAb: frist.startAb, sofortBeginn: json<Record<string, unknown>>(akte.bestaetigungen, {}).sofortBeginn === true } } : {}),
     paket: akte.paket_key, paketName: kat?.label ?? String(b.pack_name || akte.paket_key), betragCents,
     firma: { name: String(firma.name || akte.firma_name || ""), ort: String(firma.ort || "") },
     email: String(akte.email || ""),
@@ -508,6 +593,8 @@ export function globalMailNutzlast(
     zahlungsseite_url: b?.payment_reference ? absoluteUrl(`/zahlung/${encodeURIComponent(String(b.payment_reference))}`) : "",
     mein_auftrag_url: ref && opts.token ? absoluteUrl(globalMeinAuftragPfad(ref, opts.token, sprache)) : "",
     ansprechpartner: escapeHtml(opts.ansprechpartner),
+    // Die Unterlagen für den Start — je Auftraggeber (die Privatperson braucht keinen Registerauszug).
+    unterlagen_liste: globalUnterlagenZeilen(sprache, firma.art === "privat").map((u) => `· ${escapeHtml(u)}`).join("<br />"),
     ...(opts.zusatz ?? {}),
   };
 }
@@ -652,11 +739,21 @@ async function anlegen(ein: GlobalEingabe, kontext: { ip: string; userAgent: str
   // Ein Doppelklick oder „Zurück und noch einmal senden" ist kein zweiter Kauf. Steht der erste
   // Versuch ohne Bestellung da (Abbruch zwischen zwei Schritten), wird er hier zu Ende geführt.
   const [vorhanden] = (await sqlPool`
-    SELECT ref FROM fiaon_global_auftraege
+    SELECT ref, bestaetigungen FROM fiaon_global_auftraege
      WHERE LOWER(email) = ${ein.ansprechpartner.email} AND paket_key = ${ein.paket} AND LOWER(firma_name) = ${ein.firma.name.toLowerCase()}
        AND status = 'offen' AND created_at > NOW() - INTERVAL '10 minutes'
      ORDER BY created_at DESC LIMIT 1`) as any[];
-  if (vorhanden?.ref) return fertigstellen(String(vorhanden.ref), ein);
+  if (vorhanden?.ref) {
+    // Privatauftrag (E-191): Der Wunsch zum Beginn steht im UNTERSCHRIEBENEN Vertrag. Kommt derselbe Auftrag
+    // mit der anderen Wahl noch einmal, wird er nicht still überschrieben — der Kunde erfährt es und schreibt uns.
+    if ("sofortBeginn" in ein.bestaetigungen) {
+      const vorher = json<Record<string, unknown>>(vorhanden.bestaetigungen, {}).sofortBeginn === true;
+      if (vorher !== ein.bestaetigungen.sofortBeginn) {
+        return fehler(`Diesen Auftrag haben Sie vor wenigen Minuten bereits erteilt (Referenz ${vorhanden.ref}) — ${vorher ? "mit dem Wunsch, dass wir sofort beginnen" : "ohne den Wunsch, dass wir vor Ablauf der Widerrufsfrist beginnen"}. Vertrag und Rechnung haben Sie per E-Mail. Möchten Sie Ihre Wahl ändern, schreiben Sie uns an support@fiaon.com.`, "bestaetigungen.sofortBeginn", 409);
+      }
+    }
+    return fertigstellen(String(vorhanden.ref), ein);
+  }
 
   if (zuViel(kontext.ip)) return fehler("Von Ihrem Anschluss kamen gerade mehrere Aufträge. Bitte versuchen Sie es in einigen Minuten noch einmal — oder schreiben Sie uns an support@fiaon.com.", undefined, 429);
   const { istRoboterUnterschrift } = await import("./fiaon-vertrieb-zusage");
@@ -668,14 +765,17 @@ async function anlegen(ein: GlobalEingabe, kontext: { ip: string; userAgent: str
   const einstellungen = await globalEinstellungen();
   // Reverse Charge nur MIT USt-IdNr. — fehlt sie, wird der Auftrag trotzdem angenommen,
   // die Rechnung geht im Modus „none" raus, und die Aufgabe sagt es der zuständigen Person.
-  const ustModus: UstModus = einstellungen.ustModus === "reverse_charge" && ein.firma.ustId ? "reverse_charge" : "none";
-  const ustHinweis = einstellungen.ustModus === "reverse_charge" && !ein.firma.ustId
+  // Eine Privatperson hat keine USt-IdNr. und bekommt nie Reverse Charge: Ihr Preis ist ein Endpreis.
+  const privat = ein.auftraggeber === "privat";
+  const ustModus: UstModus = !privat && einstellungen.ustModus === "reverse_charge" && ein.firma.ustId ? "reverse_charge" : "none";
+  const ustHinweis = !privat && einstellungen.ustModus === "reverse_charge" && !ein.firma.ustId
     ? "Der USt-Modus steht auf Reverse Charge, der Kunde hat aber keine USt-IdNr. angegeben — die Rechnung ging ohne Steuerausweis raus (Modus none). Bitte die USt-IdNr. erfragen und die Rechnung mit der Buchhaltung klären."
     : null;
 
   // ── 1. Ohne PDF keine Annahme ─────────────────────────────────────────────
   const vertragsDaten: GlobalVertragDaten = {
-    paket: ein.paket, sprache: ein.sprache, ref,
+    paket: ein.paket, sprache: ein.sprache, ref, auftraggeber: ein.auftraggeber,
+    sofortBeginn: "sofortBeginn" in ein.bestaetigungen ? ein.bestaetigungen.sofortBeginn : undefined,
     firma: { ...ein.firma }, ansprechpartner: { ...ein.ansprechpartner },
   };
   const hash = docHash(`global-auftrag|${ref}|${GLOBAL_VERTRAG_VERSION}|${ein.ansprechpartner.vorname} ${ein.ansprechpartner.nachname}|${jetzt.toISOString()}|${kontext.ip}|${globalVertragRumpfHtml(vertragsDaten)}`);
@@ -698,7 +798,8 @@ async function anlegen(ein: GlobalEingabe, kontext: { ip: string; userAgent: str
       body: JSON.stringify({
         ref, type: "business", status: "submitted", currentStep: 6,
         packKey: kat.key, packName: kat.label,
-        companyName: ein.firma.name, legalForm: ein.firma.rechtsform, taxId: ein.firma.ustId,
+        // Privatperson: KEIN Firmenname an der Bestellung — die Rechnung nennt dann die Person selbst.
+        companyName: privat ? null : ein.firma.name, legalForm: privat ? null : ein.firma.rechtsform, taxId: privat ? null : ein.firma.ustId,
         firstName: ein.ansprechpartner.vorname, lastName: ein.ansprechpartner.nachname,
         contactFirstName: ein.ansprechpartner.vorname, contactLastName: ein.ansprechpartner.nachname,
         contactEmail: ein.ansprechpartner.email, email: ein.ansprechpartner.email, billingEmail: ein.ansprechpartner.email,
@@ -781,14 +882,26 @@ async function nacharbeit(ref: string, ein: GlobalEingabe, paymentRef: string, a
     const einstellungen = await globalEinstellungen();
     const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
     const ap = ein.ansprechpartner;
+    const privat = ein.auftraggeber === "privat";
+    const widerruf = privat && akte?.unterschrieben_am ? globalWiderrufsfrist(new Date(akte.unterschrieben_am)) : null;
+    const sofort = "sofortBeginn" in ein.bestaetigungen && ein.bestaetigungen.sofortBeginn;
     const erg = await auftragFuerKunden({
       personId: b?.person_id != null ? Number(b.person_id) : null, ref,
-      titel: `FIAON Global: neuer Auftrag — ${ein.firma.name}, ${kat?.label ?? ein.paket}`,
+      titel: `FIAON Global: neuer Auftrag — ${ein.firma.name}${privat ? " (Privatperson)" : ""}, ${kat?.label ?? ein.paket}`,
       text: [
         `${ein.firma.name} (${ein.firma.rechtsform}, ${ein.firma.plz} ${ein.firma.ort}, ${LAND_NAME[ein.firma.land]}) hat ${kat?.label ?? ein.paket} für ${eur(sollCents)} einmalig bestellt und den Auftrag unterschrieben.`,
-        `Ansprechpartner: ${[ap.anrede, ap.vorname, ap.nachname].filter(Boolean).join(" ")}, ${ap.funktion} · ${ap.email} · ${ap.telefon}`,
+        privat
+          ? `Ansprechpartner: ${[ap.anrede, ap.vorname, ap.nachname].filter(Boolean).join(" ")} (beauftragt selbst, als Privatperson) · ${ap.email} · ${ap.telefon}`
+          : `Ansprechpartner: ${[ap.anrede, ap.vorname, ap.nachname].filter(Boolean).join(" ")}, ${ap.funktion} · ${ap.email} · ${ap.telefon}`,
+        privat && widerruf
+          ? (sofort
+            ? `PRIVATPERSON: Widerrufsrecht bis ${tagDe(widerruf.fristEnde)}. Der Kunde hat ausdrücklich verlangt, dass wir sofort beginnen — der Auftrag startet mit dem Zahlungseingang. Widerruft er, zahlt er anteilig für das bis dahin Erbrachte.`
+            : `PRIVATPERSON: Widerrufsrecht bis ${tagDe(widerruf.fristEnde)}. Der Kunde hat NICHT verlangt, dass wir vorher beginnen — der Auftrag startet frühestens am ${tagDe(widerruf.startAb)} von selbst, auch wenn die Zahlung früher eingeht. Bis dahin nichts beantragen und keine Gebühren auslösen.`)
+          : null,
         `Vertrag und Rechnung${b?.invoice_number ? ` ${b.invoice_number}` : ""} sind per Mail beim Kunden; gezahlt wird per Überweisung, Verwendungszweck ${paymentRef}, Zahlungsseite ${absoluteUrl(`/zahlung/${paymentRef}`)}.`,
-        "Bitte kurz anrufen, den Eingang des Auftrags bestätigen und Fragen zur Überweisung klären. MIT DEM ZAHLUNGSEINGANG startet der Auftrag von selbst: Du bekommst dann die Aufgabe „US-Struktur starten“ mit der Unterlagenliste.",
+        privat && widerruf && !sofort
+          ? `Bitte kurz anrufen, den Eingang des Auftrags bestätigen und Fragen zur Überweisung klären. Nach dem Zahlungseingang wartet der Auftrag bis zum ${tagDe(widerruf.startAb)}; dann startet er von selbst und du bekommst die Aufgabe „US-Struktur starten“ mit der Unterlagenliste.`
+          : "Bitte kurz anrufen, den Eingang des Auftrags bestätigen und Fragen zur Überweisung klären. MIT DEM ZAHLUNGSEINGANG startet der Auftrag von selbst: Du bekommst dann die Aufgabe „US-Struktur starten“ mit der Unterlagenliste.",
         akte?.ust_hinweis ? `Rechnung: ${akte.ust_hinweis}` : null,
         betragWarnung,
         `Der Auftrag im Office: ${globalOfficeAuftragPfad(ref)} · Übersicht der Leitung: /chef/s/global-auftraege`,
@@ -849,6 +962,52 @@ export async function globalZahlungGemeldet(ref: string): Promise<void> {
   await verlauf(ref, "FIAON Global: Der Kunde hat auf der Zahlungsseite gemeldet, dass er überwiesen hat. Keine Privatkunden-Mail; die zuständige Person ist informiert.");
 }
 
+// ── PRIVATAUFTRAG: START NACH DER WIDERRUFSFRIST ─────────────────────────────
+/**
+ * Wartet dieser Auftrag noch auf das Ende der Widerrufsfrist? Nur ein Privatauftrag ohne den
+ * ausdrücklichen Wunsch nach sofortigem Beginn — dann Fristende und Starttag (JJJJ-MM-TT), sonst null.
+ */
+export function globalStartWartet(akte: any, jetzt: Date = new Date()): { fristEnde: string; startAb: string } | null {
+  if (!akte || !globalIstPrivat(akte.firma)) return null;
+  if (json<Record<string, unknown>>(akte.bestaetigungen, {}).sofortBeginn === true) return null;
+  const am = akte.unterschrieben_am ? new Date(akte.unterschrieben_am) : null;
+  if (!am || Number.isNaN(am.getTime())) return null;
+  const frist = globalWiderrufsfrist(am);
+  return berlinToday(jetzt) < frist.startAb ? frist : null;
+}
+
+/**
+ * Der Stundenlauf für bezahlte Privataufträge, die die Widerrufsfrist abgewartet haben: Ist der
+ * Starttag erreicht, startet globalNachZahlung sie — wiederholbar, derselbe Weg wie nach jeder
+ * Zahlung. Nur im Sendefenster der Kundenmails, weil die Startmail mitgeht.
+ * Registriert in routes.ts als tageslauf("global_widerruf_start", …, 60 Minuten).
+ */
+export async function globalWiderrufsStartLauf(jetzt: Date = new Date()): Promise<{ geprueft: number; gestartet: number; grund?: string }> {
+  const { imSendefenster } = await import("./fiaon-global-zahlungstakt");
+  if (!imSendefenster(jetzt)) return { geprueft: 0, gestartet: 0, grund: "außerhalb des Sendefensters (Berlin 8–20 Uhr, Mo–Sa)" };
+  const [t] = (await sqlPool`SELECT to_regclass('public.fiaon_global_auftraege') AS tabelle`) as any[];
+  if (!t?.tabelle) return { geprueft: 0, gestartet: 0, grund: "noch kein Global-Auftrag" };
+  const zeilen = (await sqlPool`
+    SELECT g.ref, g.firma, g.bestaetigungen, g.unterschrieben_am
+      FROM fiaon_global_auftraege g
+      JOIN fiaon_applications a ON a.ref = g.ref
+     -- firma liegt als JSON-TEXT in der jsonb-Spalte (postgres.js verpackt den String noch einmal) —
+     -- #>> '{}' holt den Text heraus, ::jsonb macht wieder ein Objekt daraus. Klappt auch für echte Objekte.
+     WHERE g.status = 'bezahlt' AND ((g.firma #>> '{}')::jsonb ->> 'art') = 'privat'
+       AND a.payment_status = 'paid' AND a.cancelled_at IS NULL AND a.merged_into IS NULL
+     ORDER BY g.unterschrieben_am ASC
+     LIMIT 50`) as any[];
+  let gestartet = 0;
+  for (const z of zeilen) {
+    if (globalStartWartet(z, jetzt)) continue;
+    const erg = await globalNachZahlung(String(z.ref), { jetzt })
+      .catch((e) => { console.error(`[FIAON-GLOBAL] ${z.ref}: Start nach der Widerrufsfrist abgebrochen:`, e); return { gestartet: false }; });
+    if (erg.gestartet) gestartet++;
+  }
+  if (gestartet) console.log(`[FIAON-GLOBAL] Start nach der Widerrufsfrist: ${gestartet} von ${zeilen.length} Privataufträgen gestartet.`);
+  return { geprueft: zeilen.length, gestartet };
+}
+
 // ── ZAHLUNGSEINGANG = START ──────────────────────────────────────────────────
 /**
  * Gerufen am Ende von onCustomerPaid (fiaon-agent.ts) — NACH der Provisionsfrage.
@@ -856,7 +1015,7 @@ export async function globalZahlungGemeldet(ref: string): Promise<void> {
  * „gestartet", Betreuer, Startmail. Jeder Schritt ist wiederholbar; ein zweiter
  * Aufruf (zweiter Klick, Nachbuchungs-Center, Kontoabgleich) startet nichts doppelt.
  */
-export async function globalNachZahlung(ref: string): Promise<{ gestartet: boolean; grund?: string }> {
+export async function globalNachZahlung(ref: string, opts: { jetzt?: Date } = {}): Promise<{ gestartet: boolean; grund?: string }> {
   await ensureGlobalTabelle();
   const b = await bestellungLesen(ref);
   if (!b || !istGlobalPaket(b.pack_key)) return { gestartet: false, grund: "kein Global-Auftrag" };
@@ -868,6 +1027,34 @@ export async function globalNachZahlung(ref: string): Promise<{ gestartet: boole
   const kat = katalogPaket(b.pack_key);
   const firmenName = String(akte?.firma_name || b.company_name || b.contact_name || ref);
   const betragCents = Math.round(Number(b.amount_due || 0) * 100);
+  const privat = globalIstPrivat(akte?.firma);
+
+  // ── Privatauftrag ohne den Wunsch nach sofortigem Beginn: erst nach der Widerrufsfrist ──
+  // Bezahlt ist er (oben vermerkt); gestartet wird er vom Stundenlauf globalWiderrufsStartLauf.
+  const warten = globalStartWartet(akte, opts.jetzt);
+  if (warten) {
+    try {
+      const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+      await auftragFuerKunden({
+        personId: b.person_id != null ? Number(b.person_id) : null, ref,
+        titel: `FIAON Global: bezahlt, Start nach der Widerrufsfrist — ${firmenName}, ${kat?.label ?? String(b.pack_name || b.pack_key)}`,
+        text: [
+          `Die Zahlung über ${eur(betragCents)} ist eingegangen. ${firmenName} hat als Privatperson beauftragt und NICHT verlangt, dass wir vor Ablauf der Widerrufsfrist beginnen.`,
+          `Die Widerrufsfrist endet am ${tagDe(warten.fristEnde)}. Der Auftrag startet am ${tagDe(warten.startAb)} von selbst — dann kommt die Aufgabe „US-Struktur starten“ und der Kunde die Startmail.`,
+          "Bis dahin: nichts beantragen und keine Gebühren auslösen. Ein Anruf zur Begrüßung ist in Ordnung.",
+          "Widerruft der Kunde (Brief oder E-Mail genügt), sofort die Leitung informieren: Das Geld geht binnen 14 Tagen vollständig zurück.",
+        ].join("\n"),
+        schluessel: `global:${ref}:widerruf`, bereich: "konten", quelle: "global", autorName: "FIAON Global",
+        link: globalOfficeAuftragPfad(ref),
+        agentId: (akte?.zustaendig_agent_id ? Number(akte.zustaendig_agent_id) : null) ?? (await globalEinstellungen()).zustaendigAgentId,
+        anlageText: "Zahlungseingang gebucht — Start nach der Widerrufsfrist.",
+      });
+    } catch (e) {
+      console.error(`[FIAON-GLOBAL] ${ref}: Aufgabe „Start nach der Widerrufsfrist" nicht angelegt:`, e);
+    }
+    await verlauf(ref, `FIAON Global: Zahlung gebucht. Privatauftrag ohne Wunsch nach sofortigem Beginn — Start am ${tagDe(warten.startAb)} (Widerrufsfrist bis ${tagDe(warten.fristEnde)}).`);
+    return { gestartet: false, grund: `Privatauftrag: Start am ${tagDe(warten.startAb)}, nach der Widerrufsfrist` };
+  }
 
   // Was die Provisions-Maschine gebucht hat — gelesen, nie geschrieben.
   const provisionen = (await sqlPool`
@@ -887,12 +1074,16 @@ export async function globalNachZahlung(ref: string): Promise<{ gestartet: boole
       personId: b.person_id != null ? Number(b.person_id) : null, ref,
       titel: `FIAON Global: US-Struktur starten — ${firmenName}, ${kat?.label ?? String(b.pack_name || b.pack_key)}`,
       text: [
-        `Die Zahlung über ${eur(betragCents)} ist eingegangen — der Auftrag startet JETZT. Der Kunde bekommt die Startmail mit deinem Namen: Er erwartet, dass du dich meldest.`,
+        privat && json<Record<string, unknown>>(akte?.bestaetigungen, {}).sofortBeginn !== true
+          ? `Die Widerrufsfrist ist abgelaufen und die Zahlung über ${eur(betragCents)} liegt vor — der Auftrag startet JETZT. Der Kunde bekommt die Startmail mit deinem Namen: Er erwartet, dass du dich meldest.`
+          : `Die Zahlung über ${eur(betragCents)} ist eingegangen — der Auftrag startet JETZT. Der Kunde bekommt die Startmail mit deinem Namen: Er erwartet, dass du dich meldest.`,
         ap.email || ap.telefon ? `Ansprechpartner: ${[ap.anrede, ap.vorname, ap.nachname].filter(Boolean).join(" ")}${ap.funktion ? `, ${ap.funktion}` : ""} · ${ap.email ?? "—"} · ${ap.telefon ?? "—"}` : null,
         "1. Startgespräch vereinbaren und führen.",
         `2. Im Startgespräch den STICHTAG für Gesellschaft und EIN festlegen und im Auftrag eintragen (${globalOfficeAuftragPfad(ref)}, „Stichtag setzen“) — an ihm hängt die Geld-zurück-Zusage aus Ziffer 6 des Auftrags. Der Kunde bekommt ihn von dort in Textform.`,
-        `3. Unterlagen einsammeln: ${GLOBAL_UNTERLAGEN.join("; ")}. Der Kunde lädt sie in „Mein Auftrag“ hoch (Link in seiner Startmail); was dort liegt, siehst du im Auftrag.`,
-        "4. Fremdkosten (Staatsgebühren, Registered Agent, Honorare von Steuerberater und Anwalt) VOR dem Start ausweisen — sie sind nicht im Paketpreis.",
+        `3. Unterlagen einsammeln: ${globalUnterlagenZeilen("de", privat).join("; ")}. Der Kunde lädt sie in „Mein Auftrag“ hoch (Link in seiner Startmail); was dort liegt, siehst du im Auftrag.`,
+        // 18.09.2026: Festpreis — alles für die Leistungen des Pakets ist enthalten (GLOBAL_INKLUSIVE, Ziffer 5 des Auftrags).
+        "4. Staatsgebühren, Registered Agent im ersten Jahr und die Honorare der Partner für die Paketleistungen sind im Festpreis enthalten — dem Kunden NICHTS davon extra berechnen. Laufende Kosten ab dem zweiten Jahr im Startgespräch erklären.",
+        privat ? "5. PRIVATPERSON: Der Kunde wird selbst Gesellschafter der US-Gesellschaft. Kein Registerauszug nötig; Meldung nach § 138 AO betrifft ihn persönlich (Partner-Steuerberater)." : null,
         akte ? null : "ACHTUNG: Zu dieser Bestellung gibt es keinen unterschriebenen Auftrag (nicht über /business/start angelegt). Vor dem Start unterschreiben lassen.",
         akte?.ust_hinweis ? `Rechnung: ${akte.ust_hinweis}` : null,
         provisionSatz,

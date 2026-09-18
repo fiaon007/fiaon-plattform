@@ -28,6 +28,27 @@
 // entscheidet das Institut; der Dollar-Wert ist die Planungsgröße des
 // AUFTRAGGEBERS. Zugesagt wird nur die eigene Leistung.
 //
+// ── AUFTRAGGEBER: UNTERNEHMEN ODER PRIVATPERSON (19.09.2026, E-191) ────────
+// Justin: „Man muss nicht als Firma unser Paket kaufen, auch Privatpersonen
+// können über uns kaufen/gründen … auch ein Unternehmer privat buchen/kaufen."
+// Für den Auftrag eines Unternehmens bleibt jeder Satz, wie er war. Beauftragt
+// eine Privatperson, ändern sich genau diese Stellen:
+//   · Ziffer 1 und Unterschrift: Name und Wohnanschrift statt Firma/Funktion,
+//   · Ziffer 5: Beginn nach der Widerrufsfrist, wenn der Auftraggeber den
+//     sofortigen Beginn nicht verlangt hat; der Preis ist ein Endpreis,
+//   · Ziffer 9: die übliche Haftungsgrenze „vertragstypischer, vorhersehbarer
+//     Schaden" (§ 309 Nr. 7, § 307 BGB) statt der Grenze Paketpreis,
+//   · Ziffer 11: „Widerrufsrecht" statt „Unternehmer-Bestätigung", mit dem
+//     ausdrücklichen Verlangen nach § 356 Abs. 4, § 357a Abs. 2 BGB,
+//   · Ziffer 12: der Verbraucherschutz-Satz zur Rechtswahl (Art. 6 Rom I),
+//   · danach die ANLAGE: gesetzliche Muster-Widerrufsbelehrung und
+//     Muster-Widerrufsformular (Anlagen 1 und 2 zu Art. 246a EGBGB; englisch
+//     nach Anhang I der Richtlinie 2011/83/EU) — im PDF auf eigener Seite, im
+//     Hash mitgerechnet: Was der Kunde unterschreibt, trägt die Belehrung.
+// ANWALT: Belehrung, Haftung und Rechtswahl für Verbraucher prüfen lassen;
+// die Belehrung verlangt seit 2022 eine Telefonnummer (Art. 246a § 1 Abs. 1
+// Nr. 3 EGBGB) — FIAON_FIRMA hat noch keine (offen bei Justin).
+//
 // Diese Datei fasst keine Datenbank an — der Prüfstand lädt sie ohne Netz.
 // ═══════════════════════════════════════════════════════════════════════════
 import { escapeHtml, wrapFiaonDocument, htmlZuPdfMitFusszeile } from "./fiaon-html-pdf";
@@ -49,11 +70,18 @@ export interface VertragFirma {
 export interface VertragPerson { anrede?: string | null; vorname: string; nachname: string; funktion: string }
 export interface VertragUnterschrift { png: string; am: Date; ip: string; hash: string }
 
+/** Wer beauftragt: ein Unternehmen (Vorgabe) oder eine Privatperson (19.09.2026, E-191). */
+export type GlobalAuftraggeber = "unternehmen" | "privat";
+
 export interface GlobalVertragDaten {
   paket: GlobalSchluessel;
   sprache: VertragSprache;
   firma: VertragFirma;
   ansprechpartner: VertragPerson;
+  /** Fehlt es, beauftragt ein Unternehmen — so lauten alle Aufträge vor dem 19.09.2026. */
+  auftraggeber?: GlobalAuftraggeber;
+  /** Nur Privatperson: hat ausdrücklich verlangt, dass FIAON vor Ablauf der Widerrufsfrist beginnt. */
+  sofortBeginn?: boolean;
   /** Die Antragsnummer — steht in Unterzeile und Fußzeile. In der Vorschau gibt es sie noch nicht. */
   ref?: string | null;
   /** Fehlt sie, ist es die Fassung VOR der Unterschrift. */
@@ -73,6 +101,41 @@ export const GLOBAL_VERTRAG_ZIFFERN: Record<VertragSprache, string[]> = {
     "Confidentiality and data protection", "Business confirmation", "Final provisions",
   ],
 };
+
+/** Dieselben zwölf Ziffern im Auftrag einer Privatperson — Ziffer 11 regelt den Widerruf. */
+export const GLOBAL_VERTRAG_ZIFFERN_PRIVAT: Record<VertragSprache, string[]> = {
+  de: GLOBAL_VERTRAG_ZIFFERN.de.map((z) => (z === "Unternehmer-Bestätigung" ? "Widerrufsrecht" : z)),
+  en: GLOBAL_VERTRAG_ZIFFERN.en.map((z) => (z === "Business confirmation" ? "Right of withdrawal" : z)),
+};
+export function globalVertragZiffern(sprache: VertragSprache, auftraggeber: GlobalAuftraggeber = "unternehmen"): string[] {
+  return (auftraggeber === "privat" ? GLOBAL_VERTRAG_ZIFFERN_PRIVAT : GLOBAL_VERTRAG_ZIFFERN)[sprache];
+}
+
+/** Die Widerrufsfrist in Tagen (§ 355 Abs. 2 BGB). */
+export const GLOBAL_WIDERRUF_TAGE = 14;
+/**
+ * Tage nach dem Fristende, bevor ein Auftrag ohne den Wunsch nach sofortigem Beginn startet:
+ * Ein Widerruf ist rechtzeitig, wenn er vor Fristende ABGESCHICKT wurde (§ 355 Abs. 1 S. 5 BGB) —
+ * ein Brief vom letzten Tag muss noch ankommen können.
+ */
+export const GLOBAL_WIDERRUF_PUFFER_TAGE = 3;
+
+const isoPlus = (iso: string, n: number) => { const d = new Date(`${iso}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+const berlinIso = (am: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit" }).format(am);
+
+/**
+ * Das Ende der Widerrufsfrist und der Tag, ab dem ein Privatauftrag OHNE den Wunsch nach
+ * sofortigem Beginn startet — beides als JJJJ-MM-TT (Berlin).
+ * Die Frist beginnt mit dem Vertragsschluss, also der Unterschrift (§ 355 Abs. 2 S. 2 BGB);
+ * der Tag selbst zählt nicht mit (§ 187 Abs. 1 BGB). Endet sie an einem Samstag oder Sonntag,
+ * läuft sie bis Montag (§ 193 BGB); Feiertage fängt der Puffer auf.
+ */
+export function globalWiderrufsfrist(unterschriebenAm: Date): { fristEnde: string; startAb: string } {
+  let ende = isoPlus(berlinIso(unterschriebenAm), GLOBAL_WIDERRUF_TAGE);
+  const wochentag = new Date(`${ende}T12:00:00Z`).getUTCDay();
+  if (wochentag === 6) ende = isoPlus(ende, 2); else if (wochentag === 0) ende = isoPlus(ende, 1);
+  return { fristEnde: ende, startAb: isoPlus(ende, GLOBAL_WIDERRUF_PUFFER_TAGE) };
+}
 
 const LAND_NAME: Record<VertragSprache, Record<string, string>> = {
   de: { DE: "Deutschland", AT: "Österreich", CH: "Schweiz" },
@@ -146,7 +209,13 @@ function parteien(d: GlobalVertragDaten): string {
   const fiaon = en
     ? `<b>${e(FIAON_ENTITY.name)}</b>, ${e(FIAON_ENTITY.addressLine1)}, ${e(FIAON_ENTITY.addressLine2)}, ${e(FIAON_ENTITY.country)}, registered at Companies House (England and Wales) under Company No. ${e(FIAON_ENTITY.companyNo)}, represented by its Director ${e(FIAON_ENTITY.director)}, e-mail ${e(FIAON_ENTITY.email)} — hereinafter “FIAON”.`
     : `<b>${e(FIAON_ENTITY.name)}</b>, ${e(FIAON_ENTITY.addressLine1)}, ${e(FIAON_ENTITY.addressLine2)}, ${e(FIAON_ENTITY.country)}, eingetragen im Companies House (England and Wales) unter der Company No. ${e(FIAON_ENTITY.companyNo)}, vertreten durch den Director ${e(FIAON_ENTITY.director)}, E-Mail ${e(FIAON_ENTITY.email)} — nachfolgend „FIAON“.`;
-  const kunde = en
+  // Eine Privatperson beauftragt selbst: Name und Wohnanschrift, kein Register, keine Vertretung.
+  const person = [a.vorname, a.nachname].map((x) => String(x || "").trim()).filter(Boolean).join(" ");
+  const kunde = d.auftraggeber === "privat"
+    ? (en
+      ? `<b>${e(person)}</b>, residing at ${e(f.strasse)}, ${e(f.plz)} ${e(f.ort)}, ${e(land)} — hereinafter the “Client”.`
+      : `<b>${e(person)}</b>, wohnhaft ${e(f.strasse)}, ${e(f.plz)} ${e(f.ort)}, ${e(land)} — nachfolgend „Auftraggeber“.`)
+    : en
     ? `<b>${e(f.name)}</b>${f.rechtsform ? `, ${e(f.rechtsform)}` : ""}${register ? `, registered at ${e(register)}` : ""}, ${e(f.strasse)}, ${e(f.plz)} ${e(f.ort)}, ${e(land)}${f.ustId ? `, VAT ID ${e(f.ustId)}` : ""}, represented by ${e(vertreter)}, ${e(a.funktion)} — hereinafter the “Client”.`
     : `<b>${e(f.name)}</b>${f.rechtsform ? `, ${e(f.rechtsform)}` : ""}${register ? `, eingetragen: ${e(register)}` : ""}, ${e(f.strasse)}, ${e(f.plz)} ${e(f.ort)}, ${e(land)}${f.ustId ? `, USt-IdNr. ${e(f.ustId)}` : ""}, vertreten durch ${e(vertreter)}, ${e(a.funktion)} — nachfolgend „Auftraggeber“.`;
   return `<p>${fiaon}</p><p>${kunde}</p>`;
@@ -175,7 +244,7 @@ function unterschriftsBlock(d: GlobalVertragDaten): string {
     <div class="sig-col">
       <div class="gv-sig-kopf">${en ? "For the Client" : "Für den Auftraggeber"}</div>
       <div class="gv-sig-feld">${bild}</div>
-      <div class="sig-line">${e(name)}, ${e(a.funktion)}<br/>${en ? "Place, date" : "Ort, Datum"}: ${ortDatum}</div>
+      <div class="sig-line">${e(name)}${d.auftraggeber === "privat" ? "" : `, ${e(a.funktion)}`}<br/>${en ? "Place, date" : "Ort, Datum"}: ${ortDatum}</div>
       ${meta ? `<div class="meta">${meta}</div>` : ""}
     </div>
   </div>`;
@@ -187,7 +256,12 @@ function vertragsRumpf(d: GlobalVertragDaten): string {
   const p = globalPaket(d.paket);
   if (!p) throw new Error(`Unbekanntes Global-Paket: ${d.paket}`);
   const t = p[d.sprache];
-  const titel = GLOBAL_VERTRAG_ZIFFERN[d.sprache];
+  const privat = d.auftraggeber === "privat";
+  // Ohne den Wunsch nach sofortigem Beginn wartet ein Privatauftrag die Widerrufsfrist ab (§ 357a Abs. 2 BGB).
+  const wartet = privat && !d.sofortBeginn;
+  const titel = globalVertragZiffern(d.sprache, d.auftraggeber);
+  // Die Nummer der Widerrufs-Ziffer — fällt Ziffer 6 weg (Schalter aus), rückt sie auf.
+  const nrWiderruf = GLOBAL_GELD_ZURUECK.aktiv ? 11 : 10;
   const preis = globalVertragPreis(d.paket, d.sprache);
   // 18.09.2026: Die Seite nennt die Zahl „Kapitalrahmen"; beim VIP-Paket ist sie eine Obergrenze.
   const kapital = globalKapital(d.paket, d.sprache);
@@ -225,14 +299,18 @@ function vertragsRumpf(d: GlobalVertragDaten): string {
 
     // 5 — Vergütung
     (en
-      ? `<p>The package price is a one-off fee of <b>${e(preis)}</b>. It is payable in advance by bank transfer to the account stated on the invoice; the Client receives the invoice together with this engagement. FIAON starts work once payment has been received.</p>`
+      ? `<p>The package price is a one-off fee of <b>${e(preis)}</b>. It is payable in advance by bank transfer to the account stated on the invoice; the Client receives the invoice together with this engagement. ${wartet ? `FIAON starts work after the withdrawal period has expired (clause ${nrWiderruf}), and not before payment has been received.` : "FIAON starts work once payment has been received."}</p>`
         + `<p>The package price is a fixed price. It covers all fees and charges for the services under clause 2, in particular: ${e(inklusive.join("; "))}. ${e(GLOBAL_LAUFEND_VERTRAG.en)}</p>`
         + (d.paket === "global_vip" ? `<p>${e(GLOBAL_VIP_REISE.en)}</p>` : "")
-        + `<p>The VAT treatment is shown on the invoice; where the Client owes the VAT as the recipient of the service (reverse charge), the invoice says so.</p>`
-      : `<p>Der Paketpreis beträgt einmalig <b>${e(preis)}</b>. Er ist im Voraus per Überweisung auf das in der Rechnung genannte Konto zu zahlen; die Rechnung erhält der Auftraggeber zusammen mit diesem Auftrag. FIAON beginnt mit dem Zahlungseingang.</p>`
+        + (privat
+          ? `<p>For the Client as a private individual, the package price is a final price; any VAT that may be due is included in it.</p>`
+          : `<p>The VAT treatment is shown on the invoice; where the Client owes the VAT as the recipient of the service (reverse charge), the invoice says so.</p>`)
+      : `<p>Der Paketpreis beträgt einmalig <b>${e(preis)}</b>. Er ist im Voraus per Überweisung auf das in der Rechnung genannte Konto zu zahlen; die Rechnung erhält der Auftraggeber zusammen mit diesem Auftrag. ${wartet ? `FIAON beginnt nach Ablauf der Widerrufsfrist (Ziffer ${nrWiderruf}), frühestens mit dem Zahlungseingang.` : "FIAON beginnt mit dem Zahlungseingang."}</p>`
         + `<p>Der Paketpreis ist ein Festpreis. Er umfasst alle Gebühren und Honorare für die Leistungen nach Ziffer 2, insbesondere: ${e(inklusive.join("; "))}. ${e(GLOBAL_LAUFEND_VERTRAG.de)}</p>`
         + (d.paket === "global_vip" ? `<p>${e(GLOBAL_VIP_REISE.de)}</p>` : "")
-        + `<p>Die umsatzsteuerliche Behandlung ergibt sich aus der Rechnung; schuldet der Auftraggeber die Umsatzsteuer als Leistungsempfänger (Reverse Charge), weist die Rechnung darauf hin.</p>`),
+        + (privat
+          ? `<p>Für den Auftraggeber als Privatperson ist der Paketpreis ein Endpreis; eine etwa anfallende Umsatzsteuer ist darin enthalten.</p>`
+          : `<p>Die umsatzsteuerliche Behandlung ergibt sich aus der Rechnung; schuldet der Auftraggeber die Umsatzsteuer als Leistungsempfänger (Reverse Charge), weist die Rechnung darauf hin.</p>`)),
 
     // 6 — Geld zurück (nur, solange der Schalter in shared/fiaon-global.ts an ist)
     GLOBAL_GELD_ZURUECK.aktiv
@@ -248,29 +326,43 @@ function vertragsRumpf(d: GlobalVertragDaten): string {
     // 8 — Dauer und Beendigung
     (en
       ? `<p>${e(t.dauer)}. This is an empirical value, not a deadline. The engagement ends once the services under clause 2 have been provided.</p>`
-        + `<p>Either party may end the engagement at any time in text form. Services already provided are not refunded; clause 6 remains unaffected. The right to terminate for good cause remains.</p>`
+        + `<p>Either party may end the engagement at any time in text form. Services already provided are not refunded${GLOBAL_GELD_ZURUECK.aktiv ? "; clause 6 remains unaffected" : ""}.${privat ? ` The right of withdrawal under clause ${nrWiderruf} remains unaffected.` : ""} The right to terminate for good cause remains.</p>`
       : `<p>${e(t.dauer)}. Diese Angabe ist ein Erfahrungswert und keine Frist. Der Auftrag endet, wenn die Leistungen nach Ziffer 2 erbracht sind.</p>`
-        + `<p>Jede Partei kann den Auftrag jederzeit in Textform beenden. Bereits erbrachte Leistungen werden nicht erstattet; Ziffer 6 bleibt unberührt. Das Recht zur Beendigung aus wichtigem Grund bleibt bestehen.</p>`),
+        + `<p>Jede Partei kann den Auftrag jederzeit in Textform beenden. Bereits erbrachte Leistungen werden nicht erstattet${GLOBAL_GELD_ZURUECK.aktiv ? "; Ziffer 6 bleibt unberührt" : ""}.${privat ? ` Das Widerrufsrecht nach Ziffer ${nrWiderruf} bleibt unberührt.` : ""} Das Recht zur Beendigung aus wichtigem Grund bleibt bestehen.</p>`),
 
-    // 9 — Haftung
-    (en
-      ? `<p>FIAON is liable without limitation for intent and gross negligence and for injury to life, body or health. Otherwise FIAON is liable only for the breach of essential contractual duties, limited in amount to the package price. FIAON is not liable for decisions of third parties — in particular authorities, banks, card issuers, tax advisers and lawyers.</p>`
-      : `<p>FIAON haftet unbeschränkt bei Vorsatz und grober Fahrlässigkeit sowie bei der Verletzung von Leben, Körper oder Gesundheit. Im Übrigen haftet FIAON nur bei der Verletzung wesentlicher Vertragspflichten und der Höhe nach begrenzt auf den Paketpreis. Für Entscheidungen Dritter — insbesondere von Behörden, Banken, Kartenherausgebern, Steuerberatern und Anwälten — haftet FIAON nicht.</p>`),
+    // 9 — Haftung (Privatperson: die übliche Grenze „vertragstypischer, vorhersehbarer Schaden")
+    privat
+      ? (en
+        ? `<p>FIAON is liable without limitation for intent and gross negligence and for injury to life, body or health. In the event of a slightly negligent breach of essential contractual duties, FIAON’s liability is limited to the typical damage foreseeable at the time the contract was concluded; otherwise liability for slight negligence is excluded. FIAON is not liable for decisions of third parties — in particular authorities, banks, card issuers, tax advisers and lawyers.</p>`
+        : `<p>FIAON haftet unbeschränkt bei Vorsatz und grober Fahrlässigkeit sowie bei der Verletzung von Leben, Körper oder Gesundheit. Bei leicht fahrlässiger Verletzung wesentlicher Vertragspflichten ist die Haftung auf den vertragstypischen, bei Vertragsschluss vorhersehbaren Schaden begrenzt; im Übrigen ist die Haftung für leichte Fahrlässigkeit ausgeschlossen. Für Entscheidungen Dritter — insbesondere von Behörden, Banken, Kartenherausgebern, Steuerberatern und Anwälten — haftet FIAON nicht.</p>`)
+      : (en
+        ? `<p>FIAON is liable without limitation for intent and gross negligence and for injury to life, body or health. Otherwise FIAON is liable only for the breach of essential contractual duties, limited in amount to the package price. FIAON is not liable for decisions of third parties — in particular authorities, banks, card issuers, tax advisers and lawyers.</p>`
+        : `<p>FIAON haftet unbeschränkt bei Vorsatz und grober Fahrlässigkeit sowie bei der Verletzung von Leben, Körper oder Gesundheit. Im Übrigen haftet FIAON nur bei der Verletzung wesentlicher Vertragspflichten und der Höhe nach begrenzt auf den Paketpreis. Für Entscheidungen Dritter — insbesondere von Behörden, Banken, Kartenherausgebern, Steuerberatern und Anwälten — haftet FIAON nicht.</p>`),
 
     // 10 — Vertraulichkeit und Datenschutz
     (en
       ? `<p>Both parties treat non-public information of the other party as confidential. FIAON processes personal data in accordance with its privacy policy at fiaon.com/datenschutz. Where the service requires it, FIAON passes documents to authorities, to the registered agent and to the tax advisers and lawyers engaged by the Client.</p>`
       : `<p>Beide Parteien behandeln nicht öffentliche Informationen der anderen Partei vertraulich. FIAON verarbeitet personenbezogene Daten nach der Datenschutzerklärung unter fiaon.com/datenschutz. Soweit es die Leistung erfordert, gibt FIAON Unterlagen an Behörden, an den Registered Agent und an die vom Auftraggeber mandatierten Steuerberater und Anwälte weiter.</p>`),
 
-    // 11 — Unternehmer-Bestätigung
-    (en
-      ? `<p>The Client confirms that it is acting in the course of its trade, business or profession when placing this order (entrepreneur within the meaning of section 14 of the German Civil Code). A consumer right of withdrawal therefore does not apply. The signatory confirms that he or she is authorised to represent the Client.</p>`
-      : `<p>Der Auftraggeber erklärt, bei Abschluss dieses Auftrags in Ausübung seiner gewerblichen oder selbständigen beruflichen Tätigkeit zu handeln (Unternehmer im Sinne von § 14 BGB). Ein Widerrufsrecht für Verbraucher besteht deshalb nicht. Der Unterzeichner erklärt, zur Vertretung des Auftraggebers berechtigt zu sein.</p>`),
+    // 11 — Unternehmer-Bestätigung bzw. beim Privatauftrag das Widerrufsrecht
+    privat
+      ? (en
+        ? `<p>If the Client is acting as a consumer (section 13 of the German Civil Code), the Client may withdraw from this engagement within fourteen days in accordance with the withdrawal instructions in the annex; the annex also contains the model withdrawal form.</p>`
+          + (d.sofortBeginn
+            ? `<p>The Client has expressly requested that FIAON begin performance before the withdrawal period expires. The Client is aware that in the event of withdrawal the Client pays a reasonable amount for the services provided up to that point, and that the right of withdrawal lapses once FIAON has fully performed the services.</p>`
+            : `<p>The Client has not requested that FIAON begin before the withdrawal period expires. FIAON therefore begins only after the withdrawal period has expired, and not before payment has been received.</p>`)
+        : `<p>Handelt der Auftraggeber als Verbraucher (§ 13 BGB), kann er diesen Auftrag binnen vierzehn Tagen nach Maßgabe der Widerrufsbelehrung in der Anlage widerrufen; die Anlage enthält auch das Muster-Widerrufsformular.</p>`
+          + (d.sofortBeginn
+            ? `<p>Der Auftraggeber hat ausdrücklich verlangt, dass FIAON vor Ablauf der Widerrufsfrist mit der Ausführung beginnt. Ihm ist bekannt, dass er im Fall des Widerrufs einen angemessenen Betrag für die bis dahin erbrachten Leistungen zahlt und dass sein Widerrufsrecht erlischt, wenn FIAON die Leistungen vollständig erbracht hat.</p>`
+            : `<p>Der Auftraggeber hat nicht verlangt, dass FIAON vor Ablauf der Widerrufsfrist beginnt. FIAON beginnt deshalb erst nach Ablauf der Widerrufsfrist, frühestens mit dem Zahlungseingang.</p>`))
+      : (en
+        ? `<p>The Client confirms that it is acting in the course of its trade, business or profession when placing this order (entrepreneur within the meaning of section 14 of the German Civil Code). A consumer right of withdrawal therefore does not apply. The signatory confirms that he or she is authorised to represent the Client.</p>`
+        : `<p>Der Auftraggeber erklärt, bei Abschluss dieses Auftrags in Ausübung seiner gewerblichen oder selbständigen beruflichen Tätigkeit zu handeln (Unternehmer im Sinne von § 14 BGB). Ein Widerrufsrecht für Verbraucher besteht deshalb nicht. Der Unterzeichner erklärt, zur Vertretung des Auftraggebers berechtigt zu sein.</p>`),
 
     // 12 — Schlussbestimmungen (Rechtswahl und Gerichtsstand wie § 12 der AGB des Hauses)
     (en
-      ? `<p>Amendments and additions must be made in text form. The law of the Federal Republic of Germany applies, excluding the UN Convention on Contracts for the International Sale of Goods. If the Client is a merchant, a legal entity under public law or a special fund under public law, the exclusive place of jurisdiction for all disputes arising from this engagement is Munich. Should individual provisions be or become invalid, the validity of the remainder is not affected; the statutory provisions apply in place of the invalid provision.</p>`
-      : `<p>Änderungen und Ergänzungen bedürfen der Textform. Es gilt das Recht der Bundesrepublik Deutschland unter Ausschluss des UN-Kaufrechts. Ist der Auftraggeber Kaufmann, eine juristische Person des öffentlichen Rechts oder ein öffentlich-rechtliches Sondervermögen, ist ausschließlicher Gerichtsstand für alle Streitigkeiten aus diesem Auftrag München. Sollten einzelne Bestimmungen unwirksam sein oder werden, bleibt die Gültigkeit im Übrigen unberührt; an die Stelle der unwirksamen Bestimmung treten die gesetzlichen Vorschriften.</p>`),
+      ? `<p>Amendments and additions must be made in text form. The law of the Federal Republic of Germany applies, excluding the UN Convention on Contracts for the International Sale of Goods.${privat ? " If the Client is a consumer, this choice of law applies only insofar as it does not deprive the Client of the protection afforded by the mandatory provisions of the law of the state of the Client’s habitual residence." : ""} If the Client is a merchant, a legal entity under public law or a special fund under public law, the exclusive place of jurisdiction for all disputes arising from this engagement is Munich. Should individual provisions be or become invalid, the validity of the remainder is not affected; the statutory provisions apply in place of the invalid provision.</p>`
+      : `<p>Änderungen und Ergänzungen bedürfen der Textform. Es gilt das Recht der Bundesrepublik Deutschland unter Ausschluss des UN-Kaufrechts.${privat ? " Ist der Auftraggeber Verbraucher, gilt diese Rechtswahl nur, soweit ihm dadurch nicht der Schutz entzogen wird, den ihm die zwingenden Bestimmungen des Rechts des Staates seines gewöhnlichen Aufenthalts gewähren." : ""} Ist der Auftraggeber Kaufmann, eine juristische Person des öffentlichen Rechts oder ein öffentlich-rechtliches Sondervermögen, ist ausschließlicher Gerichtsstand für alle Streitigkeiten aus diesem Auftrag München. Sollten einzelne Bestimmungen unwirksam sein oder werden, bleibt die Gültigkeit im Übrigen unberührt; an die Stelle der unwirksamen Bestimmung treten die gesetzlichen Vorschriften.</p>`),
   ];
 
   // Fällt Ziffer 6 weg (Schalter aus), rücken die folgenden auf — im Text UND in der Zählung.
@@ -287,7 +379,72 @@ function vertragsRumpf(d: GlobalVertragDaten): string {
   // Die Unterschrift steht nie allein auf einer Seite: Die letzte Ziffer und der
   // Unterschriftsblock bleiben im Druck zusammen (.gv-schluss).
   const letzte = abschnitte.pop() ?? "";
-  return `${abschnitte.join("\n")}\n<div class="gv-schluss">${letzte}${unterschriftsBlock(d)}</div>`;
+  return `${abschnitte.join("\n")}\n<div class="gv-schluss">${letzte}${unterschriftsBlock(d)}</div>${privat ? anlageWiderruf(d) : ""}`;
+}
+
+/**
+ * Die Anlage zum Auftrag einer Privatperson: gesetzliche Muster-Widerrufsbelehrung für Dienstleistungen
+ * (Anlage 1 zu Art. 246a § 1 Abs. 2 S. 2 EGBGB, mit Gestaltungshinweis 6) und Muster-Widerrufsformular
+ * (Anlage 2) — WÖRTLICH, damit die gesetzliche Musterwirkung greift; englisch nach Anhang I A und B der
+ * Richtlinie 2011/83/EU. Die Sätze sprechen den Kunden an („Sie") — so lautet das gesetzliche Muster.
+ */
+function anlageWiderruf(d: GlobalVertragDaten): string {
+  const en = d.sprache === "en";
+  const wir = `${e(FIAON_ENTITY.name)}, ${e(FIAON_ENTITY.addressLine1)}, ${e(FIAON_ENTITY.addressLine2)}, ${e(FIAON_ENTITY.country)}, ${en ? "e-mail" : "E-Mail"}: ${e(FIAON_ENTITY.email)}`;
+  const zeile = (text: string) => `<li><span>${text}</span><i aria-hidden="true"></i></li>`;
+  return en ? `
+  <section class="gv-anlage" lang="en">
+    <h2>Annex — Withdrawal instructions</h2>
+    <p class="gv-leise">Applies if the Client is acting as a consumer.</p>
+    <h3>Right of withdrawal</h3>
+    <p>You have the right to withdraw from this contract within 14 days without giving any reason.</p>
+    <p>The withdrawal period will expire after 14 days from the day of the conclusion of the contract.</p>
+    <p>To exercise the right of withdrawal, you must inform us (${wir}) of your decision to withdraw from this contract by an unequivocal statement (e.g. a letter sent by post or e-mail). You may use the attached model withdrawal form, but it is not obligatory.</p>
+    <p>To meet the withdrawal deadline, it is sufficient for you to send your communication concerning your exercise of the right of withdrawal before the withdrawal period has expired.</p>
+    <h3>Effects of withdrawal</h3>
+    <p>If you withdraw from this contract, we shall reimburse to you all payments received from you, including the costs of delivery (with the exception of the supplementary costs resulting from your choice of a type of delivery other than the least expensive type of standard delivery offered by us), without undue delay and in any event not later than 14 days from the day on which we are informed about your decision to withdraw from this contract. We will carry out such reimbursement using the same means of payment as you used for the initial transaction, unless you have expressly agreed otherwise; in any event, you will not incur any fees as a result of such reimbursement.</p>
+    <p>If you requested to begin the performance of services during the withdrawal period, you shall pay us an amount which is in proportion to what has been provided until you have communicated us your withdrawal from this contract, in comparison with the full coverage of the contract.</p>
+    <div class="gv-formular">
+      <h3>Model withdrawal form</h3>
+      <p class="gv-leise">(Complete and return this form only if you wish to withdraw from the contract.)</p>
+      <ul>
+        <li><span>To ${wir}:</span></li>
+        ${zeile("I/We (*) hereby give notice that I/We (*) withdraw from my/our (*) contract of sale of the following goods (*)/for the provision of the following service (*),")}
+        ${zeile("Ordered on (*)/received on (*),")}
+        ${zeile("Name of consumer(s),")}
+        ${zeile("Address of consumer(s),")}
+        ${zeile("Signature of consumer(s) (only if this form is notified on paper),")}
+        ${zeile("Date")}
+      </ul>
+      <p class="gv-leise">(*) Delete as appropriate.</p>
+    </div>
+  </section>` : `
+  <section class="gv-anlage" lang="de">
+    <h2>Anlage — Widerrufsbelehrung</h2>
+    <p class="gv-leise">Gilt, wenn der Auftraggeber als Verbraucher handelt.</p>
+    <h3>Widerrufsrecht</h3>
+    <p>Sie haben das Recht, binnen vierzehn Tagen ohne Angabe von Gründen diesen Vertrag zu widerrufen.</p>
+    <p>Die Widerrufsfrist beträgt vierzehn Tage ab dem Tag des Vertragsabschlusses.</p>
+    <p>Um Ihr Widerrufsrecht auszuüben, müssen Sie uns (${wir}) mittels einer eindeutigen Erklärung (z. B. ein mit der Post versandter Brief oder E-Mail) über Ihren Entschluss, diesen Vertrag zu widerrufen, informieren. Sie können dafür das beigefügte Muster-Widerrufsformular verwenden, das jedoch nicht vorgeschrieben ist.</p>
+    <p>Zur Wahrung der Widerrufsfrist reicht es aus, dass Sie die Mitteilung über die Ausübung des Widerrufsrechts vor Ablauf der Widerrufsfrist absenden.</p>
+    <h3>Folgen des Widerrufs</h3>
+    <p>Wenn Sie diesen Vertrag widerrufen, haben wir Ihnen alle Zahlungen, die wir von Ihnen erhalten haben, einschließlich der Lieferkosten (mit Ausnahme der zusätzlichen Kosten, die sich daraus ergeben, dass Sie eine andere Art der Lieferung als die von uns angebotene, günstigste Standardlieferung gewählt haben), unverzüglich und spätestens binnen vierzehn Tagen ab dem Tag zurückzuzahlen, an dem die Mitteilung über Ihren Widerruf dieses Vertrags bei uns eingegangen ist. Für diese Rückzahlung verwenden wir dasselbe Zahlungsmittel, das Sie bei der ursprünglichen Transaktion eingesetzt haben, es sei denn, mit Ihnen wurde ausdrücklich etwas anderes vereinbart; in keinem Fall werden Ihnen wegen dieser Rückzahlung Entgelte berechnet.</p>
+    <p>Haben Sie verlangt, dass die Dienstleistungen während der Widerrufsfrist beginnen soll, so haben Sie uns einen angemessenen Betrag zu zahlen, der dem Anteil der bis zu dem Zeitpunkt, zu dem Sie uns von der Ausübung des Widerrufsrechts hinsichtlich dieses Vertrags unterrichten, bereits erbrachten Dienstleistungen im Vergleich zum Gesamtumfang der im Vertrag vorgesehenen Dienstleistungen entspricht.</p>
+    <div class="gv-formular">
+      <h3>Muster-Widerrufsformular</h3>
+      <p class="gv-leise">(Wenn Sie den Vertrag widerrufen wollen, dann füllen Sie bitte dieses Formular aus und senden Sie es zurück.)</p>
+      <ul>
+        <li><span>An ${wir}:</span></li>
+        ${zeile("Hiermit widerrufe(n) ich/wir (*) den von mir/uns (*) abgeschlossenen Vertrag über den Kauf der folgenden Waren (*)/die Erbringung der folgenden Dienstleistung (*)")}
+        ${zeile("Bestellt am (*)/erhalten am (*)")}
+        ${zeile("Name des/der Verbraucher(s)")}
+        ${zeile("Anschrift des/der Verbraucher(s)")}
+        ${zeile("Unterschrift des/der Verbraucher(s) (nur bei Mitteilung auf Papier)")}
+        ${zeile("Datum")}
+      </ul>
+      <p class="gv-leise">(*) Unzutreffendes streichen.</p>
+    </div>
+  </section>`;
 }
 
 /** Regeln, die nur innerhalb von .gv greifen — gefahrlos auf jeder Seite einsetzbar. */
@@ -314,6 +471,14 @@ export const GLOBAL_VERTRAG_CSS = `
   .gv .gv-sig .sig-img { max-height: 70px; max-width: 240px; }
   .gv .gv-sig .meta { font-size: .75em; color: #64748b; margin-top: 4px; }
   .gv .gv-sig .hash { font-family: "Courier New", monospace; font-size: .9em; word-break: break-all; color: #94a3b8; }
+  /* Die Anlage beim Privatauftrag: im PDF auf eigener Seite, am Bildschirm durch eine Linie getrennt. */
+  .gv .gv-anlage { break-before: page; page-break-before: always; margin-top: 30px; padding-top: 18px; border-top: 1px solid #dbe4f0; }
+  .gv .gv-anlage h2 { margin-top: 0; }
+  .gv h3 { font-size: .95em; font-weight: 500; color: #0f2044; margin: 14px 0 4px; break-after: avoid; }
+  .gv .gv-formular { break-inside: avoid; page-break-inside: avoid; border: 1px solid #dbe4f0; border-radius: 6px; padding: 4px 14px 10px; margin-top: 16px; }
+  .gv .gv-formular ul { list-style: none; padding-left: 0; }
+  .gv .gv-formular li { margin: 8px 0; }
+  .gv .gv-formular li i { display: block; border-bottom: 1px dotted #94a3b8; height: 18px; }
 `;
 
 /** Was nur das PDF betrifft: Kopf und Titel des Hausdokuments beruhigen, feste Fußzeile weg (sie läuft über die Druckvorlage). */
@@ -348,7 +513,7 @@ export function globalVertragRumpfHtml(d: GlobalVertragDaten): string {
 /** Reiner Text — für den Prüfstand und die Wortwand. */
 export function globalVertragText(d: GlobalVertragDaten): string {
   return `${globalVertragTitel(d.paket, d.sprache)}\n${vertragsRumpf(d)}`
-    .replace(/<\/(p|li|h2|section|div)>/gi, "\n").replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "")
+    .replace(/<\/(p|li|h2|h3|section|div)>/gi, "\n").replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "")
     .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'")
     .replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n").trim();
 }

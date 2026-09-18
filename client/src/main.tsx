@@ -1,11 +1,11 @@
 import { createRoot } from "react-dom/client";
-import Clarity from "@microsoft/clarity";
 import App from "./App";
 import "./index.css";
 
-// Initialize Microsoft Clarity (runs once at app startup)
-const clarityProjectId = "wf58sx5vcm";
-Clarity.init(clarityProjectId);
+// 19.09.2026 (E-191): Microsoft Clarity lief hier bei jedem Aufruf — ohne
+// Einwilligung, obwohl Cookie-Seite und Datenschutzerklärung „keine Analyse-
+// Tools" versprachen. Clarity lädt jetzt erst nach Zustimmung zur Statistik:
+// client/src/lib/werbung.ts, Hinweis in components/site/EinwilligungsHinweis.tsx.
 
 // ═══════════════════════════════════════════════════════════════════════════
 // KEIN ZOOMEN AM TELEFON — AUCH NICHT AUF DEM iPHONE

@@ -294,13 +294,18 @@ process.env.DATABASE_URL = "postgres://pruefstand:pruefstand@127.0.0.1:9/nirgend
   const einWort = globalKontaktLesen({ ...gut0, name: "Schmidt" });
   ok("ein einzelnes Wort als Name geht durch (Nachname)", !("error" in einWort) && einWort.nachname === "Schmidt" && einWort.vorname === null);
   for (const [feld, eingabe] of Object.entries({
-    name: { ...gut0, name: " " }, firma: { ...gut0, firma: "X" }, email: { ...gut0, email: "maria@beispiel" }, telefon: { ...gut0, telefon: "12 34" },
+    name: { ...gut0, name: " " }, email: { ...gut0, email: "maria@beispiel" }, telefon: { ...gut0, telefon: "12 34" },
   })) {
     const f = globalKontaktLesen(eingabe);
     ok(`fehlt/kaputt: ${feld} → Fehler mit feld „${feld}“`, "error" in f && f.feld === feld, JSON.stringify(f));
   }
-  const englisch = globalKontaktLesen({ ...gut0, sprache: "en", firma: "" });
-  ok("mit sprache=en kommt der Fehler auf Englisch", "error" in englisch && englisch.error === GLOBAL_TEXTE.en.fehlerFirma);
+  // 19.09.2026 (E-191): Auch Privatpersonen buchen ein Gespräch — ohne Firma steht „Privatperson · Name“ da.
+  const privatK = globalKontaktLesen({ ...gut0, firma: "" });
+  ok("ohne Firma: kein Fehler, „Privatperson · Name“", !("error" in privatK) && privatK.firma === "Privatperson · Dr. Maria Beispiel", JSON.stringify(privatK));
+  const privatEn = globalKontaktLesen({ ...gut0, firma: " ", sprache: "en" });
+  ok("ohne Firma, englisch: „Private individual · Name“", !("error" in privatEn) && privatEn.firma === "Private individual · Dr. Maria Beispiel", JSON.stringify(privatEn));
+  const englisch = globalKontaktLesen({ ...gut0, sprache: "en", email: "maria@beispiel" });
+  ok("mit sprache=en kommt der Fehler auf Englisch", "error" in englisch && englisch.error === GLOBAL_TEXTE.en.fehlerEmail);
 
   ok("Bremse: drei Versuche je Adresse gehen, der vierte nicht",
     !globalZuViel("198.51.100.7", "a@x.de") && !globalZuViel("198.51.100.7", "b@x.de") && !globalZuViel("198.51.100.7", "c@x.de") && globalZuViel("198.51.100.7", "d@x.de"));
@@ -324,8 +329,9 @@ process.env.DATABASE_URL = "postgres://pruefstand:pruefstand@127.0.0.1:9/nirgend
   ok("Honigtopf (Buchung): ein freundliches Ja, kein Termin", falle.status === 200 && falle.json?.ok === true && falle.json?.terminId === null);
   const falle2 = await rufe("post", "/anfrage", { ...gut0, falle: "x" });
   ok("Honigtopf (Anfrage): ein freundliches Ja", falle2.status === 200 && falle2.json?.ok === true);
-  const ohneFirma = await rufe("post", "/termine", { ...gut0, firma: "", tag: "2026-09-22", zeit: "10:30" });
-  ok("Buchung ohne Firma: 400 mit feld „firma“", ohneFirma.status === 400 && ohneFirma.json?.ok === false && ohneFirma.json?.feld === "firma");
+  // Ohne Firma scheitert die Buchung NICHT an der Firma (Privatperson) — hier erst an der unlesbaren Zeit, vor jeder Datenbank.
+  const ohneFirma = await rufe("post", "/termine", { ...gut0, firma: "", tag: "22.09.2026", zeit: "halb elf" });
+  ok("Buchung ohne Firma: kein Fehler am Feld „firma“", ohneFirma.status === 400 && ohneFirma.json?.feld === "zeit");
   const ohneZeit = await rufe("post", "/termine", { ...gut0, tag: "22.09.2026", zeit: "halb elf" });
   ok("Buchung mit unlesbarer Zeit: 400 mit feld „zeit“", ohneZeit.status === 400 && ohneZeit.json?.feld === "zeit" && ohneZeit.json?.error === GLOBAL_TEXTE.de.fehlerZeitWaehlen);
   const ohneMail = await rufe("post", "/anfrage", { ...gut0, email: "" });

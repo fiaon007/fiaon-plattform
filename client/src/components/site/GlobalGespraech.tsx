@@ -18,6 +18,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useWoerter, useSprache } from "@/i18n/sprache";
 import { GLOBAL_GESPRAECH_WOERTER } from "@/i18n/global";
 import { globalPaket } from "@shared/fiaon-global";
+import { kampagne, werbeKonversion } from "@/lib/werbung";
 
 type FreierTag = { tag: string; zeiten: string[] };
 type Frei = { ok: boolean; tage?: FreierTag[]; ansprechpartner?: { vorname?: string } | null; rueckfall?: boolean };
@@ -66,15 +67,17 @@ export default function GlobalGespraech({ paket }: { paket?: string | null }) {
   const absenden = async (e: FormEvent) => {
     e.preventDefault();
     setFehler("");
-    if (!f.name.trim() || !f.firma.trim() || !f.email.trim() || !f.telefon.trim()) { setFehler(t.pflicht); return; }
+    // 19.09.2026: Die Firma ist freiwillig — auch Privatpersonen buchen FIAON Global.
+    if (!f.name.trim() || !f.email.trim() || !f.telefon.trim()) { setFehler(t.pflicht); return; }
     setSendet(true);
     try {
-      const gemeinsam = { name: f.name.trim(), firma: f.firma.trim(), email: f.email.trim(), telefon: f.telefon.trim(), paket: paket || undefined, sprache, falle: f.falle };
+      const gemeinsam = { name: f.name.trim(), firma: f.firma.trim(), email: f.email.trim(), telefon: f.telefon.trim(), paket: paket || undefined, sprache, falle: f.falle, kampagne: kampagne() };
       if (formularRueckruf) {
         const r = await fetch("/api/fiaon/global/anfrage", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...gemeinsam, wunschzeit: f.wunschzeit.trim() || undefined, text: f.thema.trim() || undefined }) });
         const j = await r.json().catch(() => ({}));
         if (!r.ok || !j.ok) { setFehler(j.error || t.fehler); return; }
         setFertig({ art: "anfrage" });
+        void werbeKonversion("gespraech", { paket: paket || undefined });
         return;
       }
       if (!tag || !zeit) return;
@@ -83,6 +86,7 @@ export default function GlobalGespraech({ paket }: { paket?: string | null }) {
       if (r.status === 409) { setFehler(t.vergeben); setZeit(null); await laden(); return; }
       if (!r.ok || !j.ok) { setFehler(j.error || t.fehler); return; }
       setFertig({ art: "termin", wann: `${tagText(tag, true)}, ${zeit}`, wer: j.ansprechpartner?.vorname || frei?.ansprechpartner?.vorname || "" });
+      void werbeKonversion("gespraech", { paket: paket || undefined });
     } catch {
       setFehler(t.fehler);
     } finally {

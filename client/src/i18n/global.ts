@@ -17,11 +17,13 @@
 // scripts/pruef-wortwand-de.ts, jeder englische scripts/seo-wortverbote-en.ts.
 // ═══════════════════════════════════════════════════════════════════════════
 
+import { GLOBAL_VERBUNDEN } from "@shared/fiaon-global-partner";
+
 const de = {
   metaTitel: "US-Gesellschaft aus einer Hand — FIAON Global",
-  metaBeschreibung: "US-Gesellschaft mit Team vor Ort: Gründung, Steuernummern, Bank- und Kartenaufbau aus einer Hand. Festpreis, alle Gebühren inklusive.",
+  metaBeschreibung: "US-Gesellschaft mit Team vor Ort — für Unternehmen und Privatpersonen: Gründung, EIN, ITIN, Bank- und Kartenaufbau. Festpreis, alle Gebühren inklusive.",
 
-  auge: "FIAON Global · US-Struktur für Unternehmen",
+  auge: "FIAON Global · Für Unternehmen und Privatpersonen",
   h1a: "Ihre US-Gesellschaft.",
   h1b: "Aus einer Hand, zum Festpreis.",
   lead: "Gründung, Steuernummern, Bankkonto und Firmenkarten in den USA: Unser Team vor Ort, unsere Partner-Anwälte und Partner-Steuerberater übernehmen alles. Sie haben einen Ansprechpartner, einen Vertrag und einen Festpreis — alle Gebühren inklusive.",
@@ -85,8 +87,8 @@ const de = {
   wegErfahrung: "Wir sind diesen Weg selbst gegangen — mit eigener US-Gesellschaft, eigenen Karten, eigenen Fehlern. Davon profitieren Sie.",
 
   fuerAuge: "Für wen",
-  fuerH2: "Für Unternehmen jeder Art — nicht für eine Branche.",
-  fuerLead: "Die US-Struktur passt zu Betrieben, die in den USA Kunden, Lieferanten, Projekte oder Kapitalbedarf haben — und zu Inhabern, die ein zweites Standbein mit eigener Bank- und Kartenhistorie aufbauen wollen.",
+  fuerH2: "Für Unternehmen jeder Art — und für Sie persönlich.",
+  fuerLead: "Die US-Struktur passt zu Betrieben, die in den USA Kunden, Lieferanten, Projekte oder Kapitalbedarf haben — und zu Menschen, die ein zweites Standbein mit eigener Bank- und Kartenhistorie aufbauen wollen. Eine eigene Firma brauchen Sie dafür nicht.",
   fuer: [
     { tag: "Handwerk und Bau", text: "Betriebe mit Aufträgen, Material oder Partnern in den USA." },
     { tag: "Handel und Online-Handel", text: "Wareneinkauf, Lager und Zahlungsverkehr in US-Dollar." },
@@ -95,6 +97,10 @@ const de = {
     { tag: "Projektentwicklung und Immobilien", text: "Objektgesellschaften, Partner und Finanzierung in den USA." },
     { tag: "Gründer und Holdings", text: "Die US-Gesellschaft als zweites Standbein mit eigener Historie." },
   ],
+  privatAuge: "Auch ohne eigene Firma",
+  privatTitel: "Als Privatperson beauftragen",
+  privatText: "Gründer, Selbständige oder Unternehmer, die privat buchen: Sie werden selbst Gesellschafter der US-Gesellschaft. Vertrag und Rechnung laufen auf Ihren Namen, der Festpreis ist Ihr Endpreis, und als Verbraucher haben Sie vierzehn Tage Widerrufsrecht.",
+  privatKnopf: "So beauftragen Privatpersonen",
   fuerAusstieg: "Im ersten Gespräch prüfen wir gemeinsam, ob die Struktur zu Ihrem Vorhaben passt — und sagen es Ihnen auch, wenn nicht.",
 
   paketeAuge: "Pakete",
@@ -130,7 +136,7 @@ const de = {
 
   unterlagenAuge: "Für den Start",
   unterlagenH2: "Was wir von Ihnen brauchen.",
-  unterlagenLead: "Fünf Unterlagen — alles Weitere besorgt unser Team. Sie laden sie nach dem Start in Ihren Dokumentenraum.",
+  unterlagenLead: "Fünf Unterlagen — alles Weitere besorgt unser Team. Sie laden sie nach dem Start in Ihren Dokumentenraum. Beauftragen Sie als Privatperson, entfällt der Registerauszug.",
 
   sicherAuge: "Klare Verhältnisse",
   sicherH2: "Wer was tut — und mit wem Sie den Vertrag schließen.",
@@ -139,13 +145,26 @@ const de = {
   vertragspartnerText: "Der Auftrag kommt mit der FIAON LTD zustande. Vertrag und Rechnung erhalten Sie direkt nach der Unterschrift in Textform.",
   ablaufTitel: "So läuft es ab",
   ablauf: ["Gespräch oder Direktauftrag", "Vertrag und Rechnung", "Zahlungseingang", "Startgespräch und Unterlagen", "Prüfung durch den Steuerberater", "Gründung", "Karten", "Bank"],
+  standorteAuge: "London · Zürich · Miami",
+  standorteTitel: "Drei Standorte, ein Vertragspartner.",
+  standorteLand: { london: "Vereinigtes Königreich", zuerich: "Schweiz", miami: "USA" },
+  standorteRolle: {
+    london: "Ihr Vertragspartner — Vertrag, Rechnung, Ansprechpartner",
+    zuerich: "Partner für die Kapital-Etappe und für Kunden aus der Schweiz",
+    miami: "Unser Team vor Ort in den USA",
+  },
+  standorteMehr: "Standorte und Partner im Detail",
+  standorteVerbunden: GLOBAL_VERBUNDEN,
+  verzeichnisAuge: "FIAON Global im Detail",
+  verzeichnisH2: "Alles, was Sie vor dem Auftrag wissen wollen.",
+  verzeichnisLead: "Leistungen, Kosten, Rechtsformen und Pflichten — jede Seite mit Quellen und Stand.",
 
   gespraechAuge: "Gespräch",
   gespraechH2: "Erst sprechen, dann entscheiden.",
   gespraechLead: "Dreißig Minuten mit Ihrem Ansprechpartner: Vorhaben, Wohnsitz, Ziel — und welches Paket dazu passt. Ohne Verpflichtung.",
 
   fragenAuge: "Häufige Fragen",
-  fragenH2: "Was Unternehmer vor dem Auftrag fragen.",
+  fragenH2: "Was Unternehmer und Gründer vor dem Auftrag fragen.",
   fragen: [
     { f: "Was ist im Festpreis enthalten?", a: "Alle Gebühren und Honorare für die Leistungen Ihres Pakets: staatliche Gründungsgebühren, Registered Agent, US-Adresse und Telefon im ersten Jahr, die Anträge für EIN und ITIN, die Honorare unseres Partner-Anwalts, unseres Partner-Steuerberaters und unseres US-CPA sowie die Arbeit unseres Teams vor Ort. Sie zahlen einen Preis — wir bezahlen alle, die für Ihre Gesellschaft arbeiten." },
     { f: "Was kostet die Gesellschaft ab dem zweiten Jahr?", a: "Ab dem zweiten Jahr fallen die laufenden Kosten Ihrer Gesellschaft an: Staatsgebühr, Registered Agent und die jährliche US-Meldung. Die Höhe hängt vom Bundesstaat ab; wir nennen sie Ihnen rechtzeitig vorab." },
@@ -153,7 +172,8 @@ const de = {
     { f: "Muss ich in die USA reisen?", a: "In der Regel nicht. Unser Team vor Ort nimmt die Termine wahr. Wer den Aufbau persönlich erleben möchte, wählt Global VIP — Flug und Hotel für den Auftakt in Miami sind dort im Festpreis enthalten." },
     { f: "Was ist mit Steuern?", a: "Die US-Gesellschaft ersetzt keine Steuerpflicht zu Hause: Wer sie aus Deutschland, Österreich oder der Schweiz führt, versteuert dort. Unser Partner-Steuerberater prüft Ihre Lage vor der Gründung, unser US-CPA übernimmt die erste jährliche US-Meldung — beide auf Ihr Mandat, die Honorare trägt FIAON." },
     { f: "Wie lange dauert es?", a: "Gründung und Dokumente in der Regel wenige Wochen, die ITIN in der Frist der US-Steuerbehörde, die erste Firmenkarte danach, weitere Herausgeber über mehrere Monate. Feste Fristen nennen wir nicht — Behörden und Institute bestimmen das Tempo." },
-    { f: "Kann ich sofort beauftragen?", a: "Ja. Sie wählen ein Paket, tragen Ihr Unternehmen ein, unterschreiben den Vertrag am Bildschirm und erhalten Vertrag und Rechnung per E-Mail. Mit dem Zahlungseingang beginnt Ihr Ansprechpartner." },
+    { f: "Kann ich sofort beauftragen?", a: "Ja. Sie wählen ein Paket, tragen Ihr Unternehmen oder sich selbst als Privatperson ein, unterschreiben den Vertrag am Bildschirm und erhalten Vertrag und Rechnung per E-Mail. Mit dem Zahlungseingang beginnt Ihr Ansprechpartner — als Privatperson auf Ihren Wunsch sofort, sonst nach Ablauf der Widerrufsfrist." },
+    { f: "Kann ich auch als Privatperson beauftragen?", a: "Ja. Sie brauchen keine eigene Firma: Im Auftrag wählen Sie „Privatperson“, werden selbst Gesellschafter der US-Gesellschaft und erhalten Vertrag und Rechnung auf Ihren Namen. Der Festpreis ist für Sie ein Endpreis; als Verbraucher haben Sie ein Widerrufsrecht von vierzehn Tagen." },
     { f: "Wie bezahle ich?", a: "Per Überweisung auf das Geschäftskonto der FIAON LTD — Bankverbindung und Verwendungszweck stehen auf Ihrer Rechnung. Es gibt kein Abo und keine Raten." },
     { f: "Für wen passt es nicht?", a: "Für Vorhaben ohne Bezug zu den USA und ohne Bereitschaft, eine echte Gesellschaft mit Pflichten zu führen. Das klären wir im ersten Gespräch — offen, auch wenn die Antwort ein Nein ist." },
     { f: "Wer ist mein Vertragspartner?", a: "Die FIAON LTD, eingetragen im Companies House (England and Wales) unter der Nummer 17318250. Steuerberater, US-CPA und Anwälte arbeiten auf Ihr Mandat; ihre Honorare trägt FIAON." },
@@ -166,9 +186,9 @@ const de = {
 
 const en: typeof de = {
   metaTitel: "Your US company, handled end to end — FIAON Global",
-  metaBeschreibung: "A US company with a team on the ground: formation, tax numbers, banking and card build-up from one source. Fixed price, all fees included.",
+  metaBeschreibung: "A US company with a team on the ground — for companies and private individuals: formation, EIN, ITIN, banking and cards. Fixed price, all fees included.",
 
-  auge: "FIAON Global · US structure for companies",
+  auge: "FIAON Global · For companies and private individuals",
   h1a: "Your US company.",
   h1b: "From one source, at a fixed price.",
   lead: "Formation, tax numbers, bank account and business cards in the United States: our team on the ground, our partner lawyers and partner tax advisers handle everything. You have one contact, one contract and one fixed price — all fees included.",
@@ -232,8 +252,8 @@ const en: typeof de = {
   wegErfahrung: "We have walked this path ourselves — with our own US company, our own cards, our own mistakes. You benefit from that.",
 
   fuerAuge: "Who it is for",
-  fuerH2: "For companies of every kind — not for one sector.",
-  fuerLead: "The US structure suits businesses with customers, suppliers, projects or capital needs in the United States — and owners who want to build a second pillar with its own banking and card history.",
+  fuerH2: "For companies of every kind — and for you in person.",
+  fuerLead: "The US structure suits businesses with customers, suppliers, projects or capital needs in the United States — and people who want to build a second pillar with its own banking and card history. You do not need a company of your own for it.",
   fuer: [
     { tag: "Trades and construction", text: "Businesses with contracts, materials or partners in the US." },
     { tag: "Retail and e-commerce", text: "Purchasing, warehousing and payments in US dollars." },
@@ -242,6 +262,10 @@ const en: typeof de = {
     { tag: "Project development and property", text: "Project companies, partners and financing in the US." },
     { tag: "Founders and holdings", text: "The US company as a second pillar with its own history." },
   ],
+  privatAuge: "No company of your own needed",
+  privatTitel: "Order as a private individual",
+  privatText: "Founders, freelancers or business owners ordering privately: you become the shareholder of the US company yourself. Contract and invoice are issued in your name, the fixed price is your final price, and as a consumer you have a fourteen-day right of withdrawal.",
+  privatKnopf: "Order as a private individual",
   fuerAusstieg: "In the first call we check together whether the structure fits your plans — and we tell you if it does not.",
 
   paketeAuge: "Packages",
@@ -277,7 +301,7 @@ const en: typeof de = {
 
   unterlagenAuge: "For the start",
   unterlagenH2: "What we need from you.",
-  unterlagenLead: "Five documents — our team obtains everything else. You upload them to your document room once work starts.",
+  unterlagenLead: "Five documents — our team obtains everything else. You upload them to your document room once work starts. If you order as a private individual, the register extract is not needed.",
 
   sicherAuge: "Clear arrangements",
   sicherH2: "Who does what — and whom you contract with.",
@@ -286,13 +310,26 @@ const en: typeof de = {
   vertragspartnerText: "The engagement is concluded with FIAON LTD. You receive contract and invoice in text form straight after signing.",
   ablaufTitel: "How it works",
   ablauf: ["Call or direct order", "Contract and invoice", "Payment received", "Kick-off call and documents", "Review by the tax adviser", "Formation", "Cards", "Bank"],
+  standorteAuge: "London · Zurich · Miami",
+  standorteTitel: "Three locations, one contracting party.",
+  standorteLand: { london: "United Kingdom", zuerich: "Switzerland", miami: "USA" },
+  standorteRolle: {
+    london: "Your contracting party — contract, invoice, contact",
+    zuerich: "Partner for the capital stage and for clients from Switzerland",
+    miami: "Our team on the ground in the USA",
+  },
+  standorteMehr: "Locations and partners in detail",
+  standorteVerbunden: "Schwarzott Capital Partners AG and Schwarzott Global LLC are connected to FIAON through our founder Justin Schwarzott. Your contracting party is always FIAON LTD.",
+  verzeichnisAuge: "FIAON Global in detail",
+  verzeichnisH2: "Everything you want to know before ordering.",
+  verzeichnisLead: "Services, costs, legal forms and obligations — every page with sources and date.",
 
   gespraechAuge: "Call",
   gespraechH2: "Talk first, then decide.",
   gespraechLead: "Thirty minutes with your contact: your plans, your residence, your goal — and which package fits. No obligation.",
 
   fragenAuge: "Frequently asked questions",
-  fragenH2: "What business owners ask before ordering.",
+  fragenH2: "What business owners and founders ask before ordering.",
   fragen: [
     { f: "What is included in the fixed price?", a: "All fees and charges for the services in your package: US state formation fees, registered agent, US address and phone in the first year, the EIN and ITIN applications, the fees of our partner lawyer, partner tax adviser and US CPA, and the work of our team on the ground. You pay one price — we pay everyone who works on your company." },
     { f: "What does the company cost from the second year?", a: "From the second year onwards your company incurs running costs: the state fee, the registered agent and the annual US filing. The amount depends on the state; we tell you about it well in advance." },
@@ -300,7 +337,8 @@ const en: typeof de = {
     { f: "Do I have to travel to the US?", a: "Usually not. Our team on the ground attends the appointments. If you want to experience the build-up in person, choose Global VIP — flights and hotel for the kick-off in Miami are included in its fixed price." },
     { f: "What about taxes?", a: "The US company does not replace tax liability at home: if you manage it from Germany, Austria or Switzerland, you pay tax there. Our partner tax adviser reviews your position before formation and our US CPA handles the first annual US filing — both under your engagement, with FIAON paying their fees." },
     { f: "How long does it take?", a: "Formation and documents typically a few weeks, the ITIN on the US tax authority's timeline, the first business card after that, further issuers over several months. We do not quote fixed deadlines — authorities and institutions set the pace." },
-    { f: "Can I order straight away?", a: "Yes. You choose a package, enter your company, sign the contract on screen and receive contract and invoice by email. Your contact starts once payment has been received." },
+    { f: "Can I order straight away?", a: "Yes. You choose a package, enter your company or yourself as a private individual, sign the contract on screen and receive contract and invoice by email. Your contact starts once payment has been received — as a private individual immediately if you request it, otherwise after the withdrawal period." },
+    { f: "Can I order as a private individual?", a: "Yes. You do not need a company of your own: in the order you choose “Private individual”, become the shareholder of the US company yourself and receive contract and invoice in your name. The fixed price is your final price; as a consumer you have a fourteen-day right of withdrawal." },
     { f: "How do I pay?", a: "By bank transfer to the business account of FIAON LTD — bank details and payment reference are on your invoice. There is no subscription and there are no instalments." },
     { f: "Who is it not for?", a: "For plans with no connection to the US and no willingness to run a real company with duties. We clarify that in the first call — openly, even if the answer is no." },
     { f: "Who is my contracting party?", a: "FIAON LTD, registered at Companies House (England and Wales) under number 17318250. Tax advisers, US CPAs and lawyers act under your engagement; FIAON pays their fees." },
@@ -326,7 +364,7 @@ const gespraechDe = {
   zeitzone: "Alle Zeiten in deutscher Zeit (Berlin).",
   gewaehlt: (tag: string, zeit: string) => `Ihr Gespräch: ${tag}, ${zeit} Uhr`,
   name: "Ihr Name",
-  firma: "Unternehmen",
+  firma: "Unternehmen (freiwillig — leer lassen, wenn Sie privat buchen)",
   email: "E-Mail",
   telefon: "Telefon (mit Ländervorwahl)",
   thema: "Worum geht es? (optional)",
@@ -340,7 +378,7 @@ const gespraechDe = {
   zurueckKalender: "Zurück zu den freien Zeiten",
   vergeben: "Diese Zeit wurde gerade vergeben. Bitte wählen Sie eine andere.",
   fehler: "Das hat nicht geklappt. Bitte prüfen Sie Ihre Angaben und versuchen Sie es erneut.",
-  pflicht: "Bitte füllen Sie Name, Unternehmen, E-Mail und Telefon aus.",
+  pflicht: "Bitte füllen Sie Name, E-Mail und Telefon aus.",
   fertigTitel: "Ihr Gespräch steht.",
   fertigText: (wann: string, wer: string) => `${wann} Uhr${wer ? " mit " + wer : ""}. Die Bestätigung ist unterwegs an Ihre E-Mail-Adresse — mit allem, was Sie für das Gespräch brauchen.`,
   anfrageTitel: "Ihre Anfrage ist angekommen.",
@@ -361,7 +399,7 @@ const gespraechEn: typeof gespraechDe = {
   zeitzone: "All times are German time (Berlin).",
   gewaehlt: (tag: string, zeit: string) => `Your call: ${tag}, ${zeit}`,
   name: "Your name",
-  firma: "Company",
+  firma: "Company (optional — leave empty if you are booking privately)",
   email: "Email",
   telefon: "Phone (with country code)",
   thema: "What is it about? (optional)",
@@ -375,7 +413,7 @@ const gespraechEn: typeof gespraechDe = {
   zurueckKalender: "Back to the available times",
   vergeben: "This time has just been taken. Please choose another one.",
   fehler: "That did not work. Please check your details and try again.",
-  pflicht: "Please fill in name, company, email and phone.",
+  pflicht: "Please fill in name, email and phone.",
   fertigTitel: "Your call is booked.",
   fertigText: (wann: string, wer: string) => `${wann}${wer ? " with " + wer : ""}. The confirmation is on its way to your email address — with everything you need for the call.`,
   anfrageTitel: "Your request has arrived.",

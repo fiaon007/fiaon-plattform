@@ -1,0 +1,168 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// PRÜFSTAND: DIE UNTERSEITEN VON FIAON GLOBAL (19.09.2026, E-191)
+//
+// Ohne Datenbank, ohne Netz, ohne Browser. Geprüft wird das Register
+// shared/fiaon-global-seiten — die eine Liste, aus der Seite, Menü, SEO-Kopf,
+// FAQ-Daten und Sitemap lesen:
+//
+//   1. Register: Pfade und Kennungen eindeutig, Stand als Datum (nicht in der
+//      Zukunft), Pflichtteile vorhanden, Anker gültig, Pakete aus dem Katalog,
+//      Quellen mit https (Wissen-Seiten mindestens zwei).
+//   2. Wege: jedes Weiterlesen-, Verzeichnis- und Karten-Ziel existiert; jede
+//      Seite passt auf eine Route des Clients (App.tsx); keine Waise.
+//   3. Menü: jeder Eintrag zeigt auf eine Seite, jede Seite (außer den
+//      Landingpages) steht im Menü oder wird von einer anderen verlinkt.
+//   4. SEO: jede Seite steht in der SEO-Tabelle (server/lib/fiaon-global-seo),
+//      Titel ≤ 62 Zeichen, Beschreibung 110–155, FAQ-Daten = sichtbare Fragen,
+//      Landingpages noindex, Unterseiten indexierbar.
+//   5. Landingpages (Anzeigen): verdichten eine existierende Seite, handeln von
+//      Gründung/Steuernummern/Pflichten — kein Kapitalrahmen, keine Karten, kein
+//      Kredit (Google-Ads-Richtlinie Finanzdienstleistungen, E-191).
+//   6. Privatpersonen: die Seite führt in den Privatauftrag (?art=privat).
+//
+// Die Wortwahl prüft scripts/pruef-wortwand-de.ts (dort stehen seit E-191 auch
+// alle Texte dieser Seiten).
+//
+// Aufruf: npx tsx scripts/pruef-global-seiten.ts        (Exit 1 bei Fehlern)
+// ═══════════════════════════════════════════════════════════════════════════
+import fs from "fs";
+import path from "path";
+import { GLOBAL_SEITEN, LANDINGPAGES, globalInhalt, type GlobalBlock, type GlobalSeite } from "../shared/fiaon-global-seiten";
+import { GLOBAL_MENUE } from "../shared/fiaon-global-menue";
+import { globalPaket } from "../shared/fiaon-global";
+import { globalStartPfad } from "../shared/fiaon-global-wege";
+import { SEO_SEITEN, seoFragen, seoIndexierbar } from "../shared/fiaon-seo-seiten";
+import "../server/lib/fiaon-global-seo";
+
+const HEUTE = "2026-09-19";
+let fehler = 0; let geprueft = 0;
+const hinweise: string[] = [];
+const ok = (bedingung: boolean, was: string) => { geprueft++; if (!bedingung) { fehler++; console.log(`  FEHLER  ${was}`); } };
+const abschnitt = (t: string) => console.log(`\n── ${t} ${"─".repeat(Math.max(3, 70 - t.length))}`);
+
+const alle = [...GLOBAL_SEITEN.map((s) => s.pfad), ...LANDINGPAGES.map((l) => l.pfad)];
+const seitenPfade = new Set(GLOBAL_SEITEN.map((s) => s.pfad));
+// Ziele außerhalb des Registers, auf die eine Unterseite zeigen darf.
+const AUSSERHALB = new Set(["/business", "/business/start", "/kontakt", "/datenschutz", "/impressum", "/agb", "/widerrufsbelehrung", "/cookie-einstellungen"]);
+const zielDa = (ziel: string) => {
+  const basis = ziel.split("#")[0].split("?")[0] || "/business";
+  return seitenPfade.has(basis) || AUSSERHALB.has(basis) || !!(SEO_SEITEN as Record<string, unknown>)[basis];
+};
+
+// ═══ 1: DAS REGISTER ═════════════════════════════════════════════════════════
+abschnitt("Register");
+ok(new Set(alle).size === alle.length, `Pfade doppelt: ${alle.filter((p, i) => alle.indexOf(p) !== i).join(", ")}`);
+const kennungen = GLOBAL_SEITEN.map((s) => s.kennung);
+ok(new Set(kennungen).size === kennungen.length, `Kennungen doppelt: ${kennungen.filter((k, i) => kennungen.indexOf(k) !== i).join(", ")}`);
+for (const s of GLOBAL_SEITEN) {
+  const w = s.pfad;
+  ok(/^\/business\/(wissen\/)?[a-z0-9-]+$/.test(w), `${w}: Pfad passt auf keine Route (/business/:slug oder /business/wissen/:slug)`);
+  ok(/^\d{4}-\d{2}-\d{2}$/.test(s.stand) && s.stand <= HEUTE, `${w}: Stand „${s.stand}“ ist kein Datum oder liegt in der Zukunft`);
+  ok(!!s.h1.trim() && !!s.lead.trim() && s.kurz.trim().length >= 120, `${w}: H1, Lead oder „Kurz beantwortet“ fehlt/zu kurz`);
+  ok(s.blick.length >= 3, `${w}: „Auf einen Blick“ hat nur ${s.blick.length} Zeilen`);
+  // Werkzeuge (Paket-Finder) tragen weniger Bausteine; Übersichten (Wissen, Fragen) keine eigene FAQ.
+  ok(s.bloecke.length >= (s.art === "werkzeug" ? 2 : 3), `${w}: nur ${s.bloecke.length} Bausteine`);
+  ok(s.fragen.length >= 3 || s.art === "hub" || s.pfad === "/business/fragen", `${w}: nur ${s.fragen.length} Fragen`);
+  ok(s.weiter.length >= 2, `${w}: nur ${s.weiter.length} Weiterlesen-Ziele`);
+  const ids = s.bloecke.map((b) => b.id);
+  ok(new Set(ids).size === ids.length, `${w}: Anker doppelt (${ids.join(", ")})`);
+  ok(ids.every((id) => /^[a-z0-9-]+$/.test(id) && !["kurz", "fragen"].includes(id)), `${w}: ungültiger oder reservierter Anker (${ids.join(", ")})`);
+  ok(globalInhalt(s).length >= 4, `${w}: Inhaltsverzeichnis zu kurz`);
+  if (s.paket) ok(!!globalPaket(s.paket), `${w}: Paket ${s.paket} nicht im Katalog`);
+  for (const b of s.bloecke) if (b.typ === "paket") ok(!!globalPaket(b.paket), `${w}: Baustein ${b.id} zeigt auf unbekanntes Paket ${b.paket}`);
+  for (const q of s.quellen ?? []) ok(/^https:\/\/[^\s]+$/.test(q.url) && !!q.titel.trim(), `${w}: Quelle ohne https-Adresse oder Titel: ${q.titel} ${q.url}`);
+  if (s.art === "wissen") ok((s.quellen?.length ?? 0) >= 2, `${w}: Wissen-Seite mit ${s.quellen?.length ?? 0} Quellen`);
+}
+console.log(`  ${GLOBAL_SEITEN.length} Seiten, ${LANDINGPAGES.length} Landingpages, ${GLOBAL_SEITEN.reduce((n, s) => n + s.fragen.length, 0)} Fragen, ${GLOBAL_SEITEN.reduce((n, s) => n + (s.quellen?.length ?? 0), 0)} Quellen`);
+
+// ═══ 2: WEGE ═════════════════════════════════════════════════════════════════
+abschnitt("Wege");
+const verlinkt = new Map<string, number>();
+const zeige = (von: string, ziel: string, wo: string) => {
+  ok(zielDa(ziel), `${von}: ${wo} → ${ziel} existiert nicht`);
+  const basis = ziel.split("#")[0].split("?")[0];
+  if (basis !== von) verlinkt.set(basis, (verlinkt.get(basis) ?? 0) + 1);
+};
+const bausteinZiele = (b: GlobalBlock): { ziel: string; wo: string }[] => {
+  if (b.typ === "verzeichnis") return b.eintraege.map((e) => ({ ziel: e.pfad, wo: `Verzeichnis ${b.id}` }));
+  if (b.typ === "karten") return b.karten.filter((k) => k.pfad).map((k) => ({ ziel: k.pfad!, wo: `Karte „${k.titel}“` }));
+  return [];
+};
+for (const s of GLOBAL_SEITEN) {
+  for (const z of s.weiter) zeige(s.pfad, z, "Weiterlesen");
+  ok(!s.weiter.includes(s.pfad), `${s.pfad}: verlinkt sich selbst im Weiterlesen`);
+  for (const b of s.bloecke) for (const { ziel, wo } of bausteinZiele(b)) zeige(s.pfad, ziel, wo);
+}
+for (const l of LANDINGPAGES) {
+  ok(seitenPfade.has(l.quelle), `${l.pfad}: Quelle ${l.quelle} ist keine Unterseite`);
+  ok(/^\/business\/lp\/[a-z0-9-]+$/.test(l.pfad), `${l.pfad}: Pfad passt nicht auf /business/lp/:slug`);
+}
+const appTsx = fs.readFileSync(path.resolve(import.meta.dirname, "../client/src/App.tsx"), "utf8");
+for (const route of ["/business/lp/:slug", "/business/wissen/:slug", "/business/:slug"]) ok(appTsx.includes(`path="${route}"`), `App.tsx: Route ${route} fehlt`);
+ok(appTsx.indexOf(`path="/business/start"`) < appTsx.indexOf(`path="/business/:slug"`), "App.tsx: /business/start steht HINTER /business/:slug und würde verschluckt");
+
+// ═══ 3: MENÜ ═════════════════════════════════════════════════════════════════
+abschnitt("Menü");
+const menuePfade = new Set(GLOBAL_MENUE.map((m) => m.pfad.split("#")[0]));
+for (const m of GLOBAL_MENUE) {
+  const basis = m.pfad.split("#")[0];
+  ok(basis === "/business" || seitenPfade.has(basis), `Menü „${m.titel}“ → ${m.pfad} ist keine Seite`);
+  ok(m.titel.length <= 30 && m.text.length <= 52, `Menü „${m.titel}“: Titel oder Zeile zu lang für das Panel`);
+}
+const reihen = GLOBAL_MENUE.map((m) => `${m.gruppe}:${m.reihe}`);
+ok(new Set(reihen).size === reihen.length, `Menü: Reihenfolge doppelt (${reihen.filter((r, i) => reihen.indexOf(r) !== i).join(", ")})`);
+for (const s of GLOBAL_SEITEN) {
+  const imMenue = menuePfade.has(s.pfad);
+  ok(imMenue || (verlinkt.get(s.pfad) ?? 0) > 0, `${s.pfad}: Waise — weder im Menü noch von einer anderen Seite verlinkt`);
+  if (!imMenue) hinweise.push(`${s.pfad}: nicht im Menü, ${verlinkt.get(s.pfad) ?? 0}× verlinkt`);
+}
+
+// ═══ 4: SEO ═══════════════════════════════════════════════════════════════════
+abschnitt("SEO-Tabelle");
+const tabelle = SEO_SEITEN as Record<string, any>;
+for (const s of GLOBAL_SEITEN) {
+  const e = tabelle[s.pfad];
+  ok(!!e, `${s.pfad}: fehlt in der SEO-Tabelle`);
+  if (!e) continue;
+  ok(e.titel === s.seo.titel && e.beschreibung === s.seo.beschreibung, `${s.pfad}: SEO-Eintrag weicht vom Register ab`);
+  ok(s.seo.titel.length <= 62, `${s.pfad}: Titel ${s.seo.titel.length} Zeichen (max 62)`);
+  ok(s.seo.beschreibung.length >= 110 && s.seo.beschreibung.length <= 155, `${s.pfad}: Beschreibung ${s.seo.beschreibung.length} Zeichen (110–155)`);
+  ok(/— FIAON Global$/.test(s.seo.titel), `${s.pfad}: Titel endet nicht auf „— FIAON Global“`);
+  ok(seoIndexierbar().some((x: any) => x.pfad === s.pfad), `${s.pfad}: nicht indexierbar (fehlt in der Sitemap)`);
+  const faq = seoFragen(s.pfad);
+  ok(faq.length === s.fragen.length, `${s.pfad}: FAQ-Daten ${faq.length}, sichtbar ${s.fragen.length}`);
+}
+const titel = GLOBAL_SEITEN.map((s) => s.seo.titel);
+ok(new Set(titel).size === titel.length, `Titel doppelt: ${titel.filter((t, i) => titel.indexOf(t) !== i).join(" | ")}`);
+for (const l of LANDINGPAGES) {
+  const e = tabelle[l.pfad];
+  ok(!!e && /noindex/.test(String(e.robots ?? "")), `${l.pfad}: Landingpage nicht noindex`);
+  ok(!seoIndexierbar().some((x: any) => x.pfad === l.pfad), `${l.pfad}: Landingpage steht in der Sitemap`);
+}
+
+// ═══ 5: LANDINGPAGES FÜR ANZEIGEN ════════════════════════════════════════════
+abschnitt("Landingpages");
+const FINANZ = /kapitalrahmen|kreditkarte|firmenkarte|\bkarten?\b|darlehen|\bkredit|finanzierung|kartenleiter/i;
+for (const l of LANDINGPAGES) {
+  ok(!!globalPaket(l.paket), `${l.pfad}: Paket ${l.paket} nicht im Katalog`);
+  ok(l.vorteile.length >= 3 && l.fragen.length >= 3, `${l.pfad}: zu wenige Vorteile oder Fragen`);
+  const text = [l.seo.titel, l.seo.beschreibung, l.auge, l.h1, l.h1b ?? "", l.lead, ...l.vorteile, ...l.fragen.flatMap((f) => [f.f, f.a])].join(" \n ");
+  const m = text.match(FINANZ);
+  ok(!m, `${l.pfad}: Finanzbegriff „${m?.[0]}“ auf einer Anzeigen-Landingpage (Google-Ads-Richtlinie Finanzdienstleistungen)`);
+}
+
+// ═══ 6: PRIVATPERSONEN ═══════════════════════════════════════════════════════
+abschnitt("Privatpersonen");
+const privat = GLOBAL_SEITEN.find((s) => s.pfad === "/business/privatpersonen") as GlobalSeite | undefined;
+ok(!!privat && privat.auftraggeber === "privat", "/business/privatpersonen fehlt oder führt nicht in den Privatauftrag");
+ok(globalStartPfad("global_struktur", "de", "privat") === "/business/start?paket=global_struktur&art=privat", `Startpfad privat: ${globalStartPfad("global_struktur", "de", "privat")}`);
+ok(globalStartPfad(undefined, "en", "privat") === "/en/business/start?art=privat", `Startpfad privat ohne Paket: ${globalStartPfad(undefined, "en", "privat")}`);
+ok(globalStartPfad("global_vip") === "/business/start?paket=global_vip" && globalStartPfad("unbekannt") === "/business/start", "Startpfad ohne Privatperson verändert");
+ok(menuePfade.has("/business/privatpersonen"), "Privatpersonen fehlt im Menü");
+ok(GLOBAL_SEITEN.filter((s) => s.pfad !== "/business/privatpersonen").some((s) => s.weiter.includes("/business/privatpersonen")), "keine Unterseite verweist auf /business/privatpersonen");
+
+// ═══ ERGEBNIS ═══════════════════════════════════════════════════════════════
+abschnitt("Ergebnis");
+if (hinweise.length) { console.log("  Hinweise (kein Fehler):"); for (const h of hinweise) console.log(`    · ${h}`); }
+console.log(`  ${geprueft} Prüfungen, ${fehler} Fehler.`);
+process.exit(fehler ? 1 : 0);

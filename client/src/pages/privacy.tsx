@@ -15,10 +15,19 @@
 // Kommt ein Anbieter dazu (Schlüssel gesetzt), gehört er HIER hinein — vorher nicht.
 // Die Nummern „VII a/b" sind Absicht: VIII–X behalten ihre Nummern, auf die
 // Verträge und Mails verweisen können.
+//
+// 19.09.2026 (E-191): VI neu gefasst — Statistik (Microsoft Clarity, Google
+// Analytics 4) und Anzeigenmessung (Google Ads) nur mit Einwilligung, dazu die
+// Kampagnen-Zuordnung (gclid/utm, 13 Monate) und der Widerruf über den Knopf.
+// VII a gilt jetzt für Unternehmen UND Privatpersonen. Beides zur anwaltlichen
+// Durchsicht (Register E-191).
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect } from "react";
 import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
+
+// Öffnet die Cookie-Auswahl (components/site/EinwilligungsHinweis.tsx hört auf dieses Ereignis).
+const auswahlOeffnen = () => window.dispatchEvent(new Event("fiaon-einwilligung-oeffnen"));
 
 export default function PrivacyPage() {
   useEffect(() => {
@@ -230,11 +239,26 @@ export default function PrivacyPage() {
                   </div>
                   <div>
                     <h3 className="font-semibold mb-2">2. Technisch notwendige Daten (Essenziell)</h3>
-                    <p className="text-sm">Wir setzen Cookies und Local Storage primär dazu ein, um die Login-Sitzung in unserem geschützten Dashboard aufrechtzuerhalten und die IT-Sicherheit zu gewährleisten. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO (sowie § 25 Abs. 2 TTDSG). Unser berechtigtes Interesse liegt in der sicheren und fehlerfreien Bereitstellung der bezahlten SaaS-Infrastruktur.</p>
+                    <p className="text-sm">Wir setzen Cookies und Local Storage primär dazu ein, um die Login-Sitzung in unserem geschützten Dashboard aufrechtzuerhalten und die IT-Sicherheit zu gewährleisten. Dazu gehört auch Ihre Entscheidung im Cookie-Hinweis, die wir im Local Storage Ihres Browsers speichern, damit wir Sie nicht bei jedem Aufruf erneut fragen. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO (sowie § 25 Abs. 2 Nr. 2 TDDDG). Unser berechtigtes Interesse liegt in der sicheren und fehlerfreien Bereitstellung unserer Dienste.</p>
                   </div>
                   <div>
-                    <h3 className="font-semibold mb-2">3. Keine Drittanbieter-Tracking-Cookies</h3>
-                    <p className="text-sm">Als unabhängige Softwareplattform finanzieren wir uns ausschließlich durch die Abonnement-Gebühren unserer Nutzer. Daher verzichten wir strikt auf den Einsatz von werblichen Drittanbieter-Cookies (wie z. B. Meta Pixel oder Google Ads Tracking), die Ihr Nutzerverhalten über Webseiten hinweg verfolgen, um Sie zu Werbezwecken zu profilieren.</p>
+                    <h3 className="font-semibold mb-2">3. Statistik und Anzeigenmessung — nur mit Ihrer Einwilligung</h3>
+                    <p className="text-sm">Mit Ihrer Einwilligung setzen wir folgende Dienste ein. Ohne Einwilligung wird keines ihrer Skripte geladen und kein Cookie gesetzt.</p>
+                    <ul className="list-disc pl-5 text-sm space-y-2 mt-2">
+                      <li><b>Microsoft Clarity</b> (Statistik) — Anbieter: Microsoft Corporation, One Microsoft Way, Redmond, WA 98052, USA; in der EU Microsoft Ireland Operations Limited, One Microsoft Place, South County Business Park, Leopardstown, Dublin 18, Irland. Zweck: Nutzung der Website verstehen (aufgerufene Seiten, Klicks, Scrolltiefe, Heatmaps und Sitzungsaufzeichnungen, in denen Formulareingaben maskiert sind). Cookies: _clck (1 Jahr), _clsk (1 Tag).</li>
+                      <li><b>Google Analytics 4</b> (Statistik) — Anbieter: Google Ireland Limited, Gordon House, Barrow Street, Dublin 4, Irland. Zweck: Zugriffszahlen und Wege durch die Website; Google-Signale und Personalisierung sind ausgeschaltet. Cookies: _ga und _ga_* (2 Jahre).</li>
+                      <li><b>Google Ads Conversion-Messung</b> (Marketing) — Anbieter: Google Ireland Limited (Anschrift wie oben). Zweck: zu erkennen, ob ein Gespräch oder ein Auftrag aus einer unserer Anzeigen kam. Personalisierte Werbung und Retargeting sind ausgeschaltet. Cookie: _gcl_au (90 Tage).</li>
+                    </ul>
+                    <p className="text-sm mt-2">Rechtsgrundlage ist Ihre Einwilligung nach § 25 Abs. 1 TDDDG und Art. 6 Abs. 1 lit. a DSGVO. Microsoft und Google können Daten in den USA verarbeiten; beide sind nach dem EU-US Data Privacy Framework zertifiziert, für das die Europäische Kommission am 10. Juli 2023 ein angemessenes Datenschutzniveau festgestellt hat (Art. 45 DSGVO).</p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold mb-2">4. Zuordnung von Anzeigen und Kampagnen</h3>
+                    <p className="text-sm">Kommen Sie über eine Anzeige oder einen Kampagnen-Link zu uns, enthält die Adresse Kampagnenangaben (zum Beispiel utm_campaign oder die Klick-Kennung gclid). Vereinbaren Sie während desselben Besuchs ein Gespräch oder erteilen Sie einen Auftrag, speichern wir diese Angaben zusammen mit der Buchung oder dem Auftrag, um zu erkennen, welche Kampagne zu einem Auftrag geführt hat. Auf Ihrem Gerät abgelegt (Session Storage) werden die Angaben nur mit Ihrer Einwilligung in Marketing. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO; unser berechtigtes Interesse ist die Bewertung unserer Werbung. An Google geben wir diese Angaben nicht weiter. Wir löschen sie nach 13 Monaten.</p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold mb-2">5. Widerruf Ihrer Einwilligung</h3>
+                    <p className="text-sm">Sie können Ihre Einwilligung jederzeit mit Wirkung für die Zukunft ändern oder widerrufen — über den Knopf unten oder die Seite <a href="/cookie-einstellungen" className="text-blue-600 hover:text-blue-700 underline">Cookie-Einstellungen</a>. Bereits gesetzte Cookies der Anbieter löschen Sie über Ihren Browser.</p>
+                    <button type="button" onClick={auswahlOeffnen} className="mt-3 inline-flex items-center gap-2 rounded-xl bg-[#12284a] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#0b1c36] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">Cookie-Einstellungen öffnen</button>
                   </div>
                 </div>
               </div>
@@ -271,11 +295,11 @@ export default function PrivacyPage() {
                 animation: "limitGlow 6s ease-in-out infinite"
               }} />
               <div className="relative z-10">
-                <h2 className="text-xl font-semibold text-gray-900 mb-4">VII a. FIAON Global — Auftrag für Unternehmen</h2>
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">VII a. FIAON Global — Auftrag für Unternehmen und Privatpersonen</h2>
                 <div className="space-y-4 text-gray-700">
                   <div>
                     <h3 className="font-semibold mb-2">1. Beschreibung und Umfang der Datenverarbeitung</h3>
-                    <p className="text-sm">FIAON Global richtet sich ausschließlich an Unternehmen. Erteilt ein Unternehmen auf unserer Website einen Auftrag, verarbeiten wir: die Angaben zum Unternehmen (Firma, Rechtsform, Sitz und Anschrift, Registergericht und Registernummer, USt-IdNr., Website), die Angaben zur unterzeichnenden Person (Anrede, Vor- und Nachname, Funktion im Unternehmen, geschäftliche E-Mail-Adresse und Telefonnummer), die vor der Unterschrift abgegebenen Bestätigungen, die Unterschrift als Bild sowie Zeitpunkt, IP-Adresse und Browser-Kennung der Unterschrift und einen Prüfwert (Hash) über den unterschriebenen Text. Aus diesen Angaben erstellen wir den Auftrag und die Rechnung als PDF. Vereinbaren Sie vorab ein Gespräch, verarbeiten wir dafür Name, Unternehmen, E-Mail-Adresse, Telefonnummer, den gewählten Termin und Ihr Anliegen.</p>
+                    <p className="text-sm">FIAON Global richtet sich an Unternehmen und an Privatpersonen. Erteilt ein Unternehmen auf unserer Website einen Auftrag, verarbeiten wir: die Angaben zum Unternehmen (Firma, Rechtsform, Sitz und Anschrift, Registergericht und Registernummer, USt-IdNr., Website), die Angaben zur unterzeichnenden Person (Anrede, Vor- und Nachname, Funktion im Unternehmen, geschäftliche E-Mail-Adresse und Telefonnummer), die vor der Unterschrift abgegebenen Bestätigungen, die Unterschrift als Bild sowie Zeitpunkt, IP-Adresse und Browser-Kennung der Unterschrift und einen Prüfwert (Hash) über den unterschriebenen Text. Beauftragen Sie als Privatperson, verarbeiten wir statt der Angaben zum Unternehmen Ihren Namen und Ihre Wohnanschrift, Ihre E-Mail-Adresse und Telefonnummer sowie Ihre Entscheidung, ob wir vor Ablauf der Widerrufsfrist beginnen sollen. Aus diesen Angaben erstellen wir den Auftrag und die Rechnung als PDF. Vereinbaren Sie vorab ein Gespräch, verarbeiten wir dafür Name, Unternehmen (freiwillig), E-Mail-Adresse, Telefonnummer, den gewählten Termin und Ihr Anliegen.</p>
                   </div>
                   <div>
                     <h3 className="font-semibold mb-2">2. Dokumentenraum und „Mein Auftrag“</h3>
@@ -405,7 +429,7 @@ export default function PrivacyPage() {
               <div className="relative z-10">
                 <h2 className="text-xl font-semibold text-gray-900 mb-4">X. Aktualität und Änderung dieser Datenschutzerklärung</h2>
                 <p className="text-gray-700 leading-relaxed">
-                  Diese Datenschutzerklärung ist aktuell gültig und hat den Stand April 2026. Durch die Weiterentwicklung unserer SaaS-Plattform, die Implementierung neuer KI-Features oder aufgrund geänderter gesetzlicher bzw. behördlicher Vorgaben kann es notwendig werden, diese Datenschutzerklärung zu ändern. Die jeweils aktuelle Datenschutzerklärung kann jederzeit auf unserer Website unter <a href="/privacy" className="text-blue-600 hover:text-blue-700 underline">fiaon.com/privacy</a> von Ihnen abgerufen und ausgedruckt werden.
+                  Diese Datenschutzerklärung ist aktuell gültig und hat den Stand 19. September 2026. Durch die Weiterentwicklung unserer SaaS-Plattform, die Implementierung neuer KI-Features oder aufgrund geänderter gesetzlicher bzw. behördlicher Vorgaben kann es notwendig werden, diese Datenschutzerklärung zu ändern. Die jeweils aktuelle Datenschutzerklärung kann jederzeit auf unserer Website unter <a href="/privacy" className="text-blue-600 hover:text-blue-700 underline">fiaon.com/privacy</a> von Ihnen abgerufen und ausgedruckt werden.
                 </p>
               </div>
             </div>

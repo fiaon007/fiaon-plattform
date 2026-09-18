@@ -467,4 +467,4 @@ export const GLOBAL_GELD_ZURUECK = {
 } as const;
 
 /** Version des Vertragstexts — steht im PDF und in der Auftragsakte. */
-export const GLOBAL_VERTRAG_VERSION = "2026-09-18c";
+export const GLOBAL_VERTRAG_VERSION = "2026-09-19a";

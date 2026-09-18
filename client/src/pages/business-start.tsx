@@ -26,6 +26,15 @@
 //      die Überweisungsdaten. Zahlungseingang = Start (bucht die Leitung über
 //      den einen Buchungsweg; die Aufgabe „US-Struktur starten" entsteht dort).
 //
+// ── AUCH ALS PRIVATPERSON (19.09.2026, E-191) ──────────────────────────────
+// Justin: „Man muss nicht als Firma unser Paket kaufen, auch Privatpersonen
+// können über uns kaufen/gründen." Schritt 2 fragt zuerst, WER beauftragt
+// (vorwählbar über ?art=privat). Die Privatperson trägt Name und Wohnanschrift
+// ein (Schritt 2), E-Mail und Telefon (Schritt 3), liest den Vertrag mit der
+// Widerrufsbelehrung als Anlage und entscheidet selbst, ob wir vor Ablauf der
+// Widerrufsfrist beginnen (freiwillig, nie vorangekreuzt — § 356 Abs. 4 BGB).
+// Der Knopf heißt „Zahlungspflichtig beauftragen" (§ 312j Abs. 3 BGB).
+//
 // Der Entwurf (ohne Unterschrift) liegt in sessionStorage: Ein versehentliches
 // Neuladen kostet den Kunden nichts. Glas trägt hier nur die Zusammenfassung.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -35,18 +44,22 @@ import SignaturePad from "@/components/agent/SignaturPad";
 import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
 import { GLOBAL_START_WOERTER } from "@/i18n/global-start";
 import { GLOBAL_PAKETE, GLOBAL_INKLUSIVE, globalPaket, globalPreisText, globalPlanungText } from "@shared/fiaon-global";
+import { kampagne, werbeKonversion } from "@/lib/werbung";
 import "@/styles/global-start.css";
 
 type Land = "DE" | "AT" | "CH";
+type Auftraggeber = "unternehmen" | "privat";
+type Anschrift = { land: Land; strasse: string; plz: string; ort: string };
 type Firma = { land: Land; name: string; rechtsform: string; registergericht: string; registernummer: string; strasse: string; plz: string; ort: string; ustId: string; website: string; quelleRegister?: string };
 type Person = { anrede: string; vorname: string; nachname: string; funktion: string; email: string; telefon: string };
 type Treffer = { id: string; name: string; rechtsform?: string; ort?: string; plz?: string; register?: string; quelle?: string };
 type Vertreter = { vorname?: string; nachname?: string; name?: string; funktion?: string };
-type Fertig = { ref: string; token: string; email: string; zahlungsseite?: string };
+type Fertig = { ref: string; token: string; email: string; zahlungsseite?: string; art?: Auftraggeber; sofort?: boolean };
 type Status = { betragCents: number; paketName: string; zahlungsseite?: string; status?: string; zahlung?: { empfaenger: string; ibanAnzeige: string; bic: string; bank?: string; verwendungszweck: string; faelligAm?: string; qrDatenUrl?: string }; vertragUrl?: string; rechnungUrl?: string };
 
 const FIRMA_LEER: Firma = { land: "DE", name: "", rechtsform: "", registergericht: "", registernummer: "", strasse: "", plz: "", ort: "", ustId: "", website: "" };
 const PERSON_LEER: Person = { anrede: "", vorname: "", nachname: "", funktion: "", email: "", telefon: "" };
+const ANSCHRIFT_LEER: Anschrift = { land: "DE", strasse: "", plz: "", ort: "" };
 const RECHTSFORMEN: Record<Land, string[]> = {
   DE: ["GmbH", "UG (haftungsbeschränkt)", "GmbH & Co. KG", "AG", "KG", "OHG", "e. K.", "GbR", "Einzelunternehmen", "Freiberufler", "eG", "PartG mbB"],
   AT: ["GmbH", "FlexKapG", "AG", "KG", "OG", "e. U.", "Einzelunternehmen", "GesbR"],
@@ -64,7 +77,7 @@ export default function BusinessStart() {
   const s = sprache === "en" ? "en" : "de";
   const zu = (p: string) => inSprache(p, sprache);
 
-  const entwurf = useMemo(() => lesen<{ paket: string; firma: Firma; person: Person; schritt: number; vertreter?: Vertreter[] }>(ENTWURF), []);
+  const entwurf = useMemo(() => lesen<{ paket: string; firma: Firma; person: Person; schritt: number; vertreter?: Vertreter[]; art?: Auftraggeber; anschrift?: Anschrift }>(ENTWURF), []);
   const [schritt, setSchritt] = useState(entwurf?.schritt ?? 0);
   const [paket, setPaket] = useState<string>(() => {
     const ausAdresse = new URLSearchParams(window.location.search).get("paket");
@@ -72,6 +85,14 @@ export default function BusinessStart() {
   });
   const [firma, setFirma] = useState<Firma>(entwurf?.firma ?? FIRMA_LEER);
   const [person, setPerson] = useState<Person>(entwurf?.person ?? PERSON_LEER);
+  // Wer beauftragt — ?art=privat (von /business/privatpersonen) geht vor dem Entwurf.
+  const [art, setArt] = useState<Auftraggeber>(() => {
+    const ausAdresse = new URLSearchParams(window.location.search).get("art");
+    return ausAdresse === "privat" || ausAdresse === "unternehmen" ? ausAdresse : entwurf?.art ?? "unternehmen";
+  });
+  const privat = art === "privat";
+  // Die Wohnanschrift der Privatperson steht getrennt von der Firmenanschrift: Wer umschaltet, trägt nicht versehentlich den Firmensitz als Wohnsitz ein.
+  const [anschrift, setAnschrift] = useState<Anschrift>(entwurf?.anschrift ?? ANSCHRIFT_LEER);
   const [fehler, setFehler] = useState("");
   const [fertig, setFertig] = useState<Fertig | null>(() => lesen<Fertig>(ABSCHLUSS));
 
@@ -91,7 +112,7 @@ export default function BusinessStart() {
   const [felderOffen, setFelderOffen] = useState(!!entwurf?.firma?.strasse);
   const [gefuellt, setGefuellt] = useState<string[]>([]);
   const [vertreter, setVertreter] = useState<Vertreter[]>(entwurf?.vertreter ?? []);
-  useEffect(() => { if (!fertig) schreiben(ENTWURF, { paket, firma, person, vertreter, schritt: Math.min(schritt, 2) }); }, [paket, firma, person, vertreter, schritt, fertig]);
+  useEffect(() => { if (!fertig) schreiben(ENTWURF, { paket, firma, person, vertreter, art, anschrift, schritt: Math.min(schritt, 2) }); }, [paket, firma, person, vertreter, art, anschrift, schritt, fertig]);
   const [gefundenText, setGefundenText] = useState("");
   const [webUrl, setWebUrl] = useState(firma.website);
   const [webLaedt, setWebLaedt] = useState(false);
@@ -171,32 +192,57 @@ export default function BusinessStart() {
   const [vertragStand, setVertragStand] = useState<"leer" | "laedt" | "da" | "fehler">("leer");
   const [vertragFehler, setVertragFehler] = useState("");
   const [haken, setHaken] = useState({ vertrag: false, pflichthinweis: false, unternehmer: false, vertretung: false });
+  const [hakenPrivat, setHakenPrivat] = useState({ vertrag: false, pflichthinweis: false, widerruf: false });
+  // Freiwillig und nie vorangekreuzt: der ausdrückliche Wunsch, vor Ablauf der Widerrufsfrist zu beginnen.
+  const [sofortBeginn, setSofortBeginn] = useState(false);
+  // Die Wahl ändert Ziffer 5 und 11 — bis die neue Fassung da ist, bleibt die alte stehen, der Knopf wartet.
+  const [vertragVeraltet, setVertragVeraltet] = useState(false);
   const [unterschrift, setUnterschrift] = useState<string | null>(null);
   const [sendet, setSendet] = useState(false);
   const [falle, setFalle] = useState("");
 
-  const vertragLaden = async () => {
-    setVertragStand("laedt");
+  // Was Vorschau und Auftrag über den Auftraggeber schicken — eine Stelle für beide Anfragen.
+  const auftraggeberDaten = () => privat
+    ? { auftraggeber: "privat", firma: anschrift, ansprechpartner: { ...person, funktion: "" } }
+    : { auftraggeber: "unternehmen", firma: { ...firma, quelleRegister: firma.quelleRegister || undefined }, ansprechpartner: person };
+
+  const vertragLaden = async (still = false) => {
+    if (still) setVertragVeraltet(true); else setVertragStand("laedt");
     try {
-      const r = await fetch("/api/fiaon/global/vertrag/vorschau", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paket, firma, ansprechpartner: person, sprache: s }) });
+      const r = await fetch("/api/fiaon/global/vertrag/vorschau", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paket, ...auftraggeberDaten(), bestaetigungen: privat ? { sofortBeginn } : undefined, sprache: s }) });
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j.ok || !j.html) {
         // 17.09.2026 live: sechs Vorschauen mit 400 — der Kunde sah nur „konnte nicht geladen werden".
         // Der Server nennt Grund und Feld; wir führen dorthin zurück, wo es zu korrigieren ist.
         const feld = typeof j.feld === "string" ? j.feld : "";
-        if (feld.startsWith("firma")) { setFelderOffen(true); gehe(1); setFehler(j.error || t.firmaPflicht); setVertragStand("leer"); return; }
-        if (feld.startsWith("ansprechpartner")) { gehe(2); setFehler(j.error || t.personPflicht); setVertragStand("leer"); return; }
+        if (feld.startsWith("firma") || feld.startsWith("privat")) { setFelderOffen(true); gehe(1); setFehler(j.error || (privat ? t.privatPflicht : t.firmaPflicht)); setVertragStand("leer"); return; }
+        if (feld.startsWith("ansprechpartner")) { gehe(2); setFehler(j.error || (privat ? t.kontaktPflicht : t.personPflicht)); setVertragStand("leer"); return; }
         if (feld === "paket") { gehe(0); setFehler(j.error || t.paketWaehlen); setVertragStand("leer"); return; }
         setVertragFehler(j.error || ""); setVertragStand("fehler"); return;
       }
       setVertragHtml(String(j.html)); setVertragStand("da");
     } catch { setVertragFehler(""); setVertragStand("fehler"); }
+    finally { setVertragVeraltet(false); }
   };
   useEffect(() => { if (schritt === 3 && !fertig) vertragLaden(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [schritt]);
+  // Der Wunsch zum Beginn steht im Vertrag (Ziffer 5 und 11) — die Vorschau zieht still nach.
+  const ersterBeginn = useRef(true);
+  useEffect(() => {
+    if (ersterBeginn.current) { ersterBeginn.current = false; return; }
+    if (schritt === 3 && !fertig && privat && vertragStand === "da") vertragLaden(true);
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [sofortBeginn]);
 
   // ── Prüfen und weiter ───────────────────────────────────────────────────
   const weiter = () => {
     if (schritt === 0) { if (!globalPaket(paket)) return setFehler(t.paketWaehlen); return gehe(1); }
+    if (schritt === 1 && privat) {
+      // Dieselben Regeln wie server/lib/fiaon-global-auftrag.ts (privatPruefen/anschriftPruefen).
+      if (!person.vorname.trim() || !person.nachname.trim() || !anschrift.strasse.trim() || !anschrift.plz.trim() || !anschrift.ort.trim()) return setFehler(t.privatPflicht);
+      if (anschrift.strasse.trim().length < 3) return setFehler(t.strasseFalsch);
+      if (!(anschrift.land === "DE" ? /^\d{5}$/ : /^\d{4}$/).test(anschrift.plz.trim())) return setFehler(t.plzFalsch(t.laender[anschrift.land], anschrift.land === "DE" ? 5 : 4));
+      return gehe(2);
+    }
     if (schritt === 1) {
       if (!firma.name.trim() || !firma.rechtsform.trim() || !firma.strasse.trim() || !firma.plz.trim() || !firma.ort.trim()) { setFelderOffen(true); return setFehler(t.firmaPflicht); }
       // Dieselben Regeln wie server/lib/fiaon-global-auftrag.ts (firmaPruefen) — sonst scheitert erst die Vertragsvorschau.
@@ -207,7 +253,7 @@ export default function BusinessStart() {
       return gehe(2);
     }
     if (schritt === 2) {
-      if (!person.vorname.trim() || !person.nachname.trim() || !person.funktion.trim() || !person.email.trim() || !person.telefon.trim()) return setFehler(t.personPflicht);
+      if (privat ? (!person.email.trim() || !person.telefon.trim()) : (!person.vorname.trim() || !person.nachname.trim() || !person.funktion.trim() || !person.email.trim() || !person.telefon.trim())) return setFehler(privat ? t.kontaktPflicht : t.personPflicht);
       if (!/^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/.test(person.email.trim())) return setFehler(t.emailFalsch);
       const ziffern = person.telefon.replace(/[^\d+]/g, "");
       if (ziffern.replace(/\D/g, "").length < 7 || !/^(\+4[913]|004[913]|0)/.test(ziffern)) return setFehler(t.telefonFalsch);
@@ -217,20 +263,25 @@ export default function BusinessStart() {
 
   const beauftragen = async () => {
     setFehler("");
-    if (!haken.vertrag || !haken.pflichthinweis || !haken.unternehmer || !haken.vertretung || !unterschrift) return setFehler(t.hakenFehlen);
+    const alleHaken = privat
+      ? hakenPrivat.vertrag && hakenPrivat.pflichthinweis && hakenPrivat.widerruf
+      : haken.vertrag && haken.pflichthinweis && haken.unternehmer && haken.vertretung;
+    if (!alleHaken || !unterschrift) return setFehler(privat ? t.hakenFehlenPrivat : t.hakenFehlen);
     setSendet(true);
     try {
       const r = await fetch("/api/fiaon/global/auftrag", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
-        paket, firma: { ...firma, quelleRegister: firma.quelleRegister || undefined }, ansprechpartner: person,
-        bestaetigungen: haken, unterschriftPng: unterschrift, sprache: s, quelle: new URLSearchParams(window.location.search).get("quelle") || "business_seite", falle,
+        paket, ...auftraggeberDaten(),
+        bestaetigungen: privat ? { ...hakenPrivat, sofortBeginn } : haken, unterschriftPng: unterschrift, sprache: s, quelle: new URLSearchParams(window.location.search).get("quelle") || "business_seite", falle,
+        kampagne: kampagne(),
       }) });
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j.ok) {
         setFehler(j.error || t.fehler);
-        if (typeof j.feld === "string") { if (j.feld.startsWith("firma")) gehe(1); else if (j.feld.startsWith("ansprechpartner")) gehe(2); setFehler(j.error || t.fehler); }
+        if (typeof j.feld === "string") { if (j.feld.startsWith("firma") || j.feld.startsWith("privat")) gehe(1); else if (j.feld.startsWith("ansprechpartner")) gehe(2); setFehler(j.error || t.fehler); }
         return;
       }
-      const f: Fertig = { ref: j.ref, token: j.token, email: j.email || person.email, zahlungsseite: j.zahlungsseite };
+      void werbeKonversion("auftrag", { wert: typeof j.betragCents === "number" ? j.betragCents / 100 : undefined, id: String(j.ref || ""), paket });
+      const f: Fertig = { ref: j.ref, token: j.token, email: j.email || person.email, zahlungsseite: j.zahlungsseite, art, sofort: privat ? sofortBeginn : undefined };
       schreiben(ABSCHLUSS, f); schreiben(ENTWURF, null);
       setFertig(f);
       requestAnimationFrame(() => blatt.current?.scrollIntoView({ block: "start" }));
@@ -258,6 +309,20 @@ export default function BusinessStart() {
       <input className="gs-feld" data-gefuellt={gefuellt.includes(k) ? "1" : undefined} value={String(firma[k] ?? "")} onChange={(e) => { setFirma({ ...firma, [k]: e.target.value }); setGefuellt(gefuellt.filter((x) => x !== k)); }} {...extra} />
     </label>
   );
+  const feldA = (k: Exclude<keyof Anschrift, "land">, label: string, extra: Record<string, unknown> = {}) => (
+    <label>
+      <span className="gs-label">{label}</span>
+      <input className="gs-feld" value={anschrift[k]} onChange={(e) => setAnschrift({ ...anschrift, [k]: e.target.value })} {...extra} />
+    </label>
+  );
+  const anredeFeld = (
+    <label>
+      <span className="gs-label">{t.anrede}</span>
+      <select className="gs-feld" value={person.anrede} onChange={(e) => setPerson({ ...person, anrede: e.target.value })}>
+        {t.anreden.map((a, i) => <option key={i} value={["", "Frau", "Herr"][i]}>{a || "—"}</option>)}
+      </select>
+    </label>
+  );
   const feldP = (k: keyof Person, label: string, typ = "text", auto?: string) => (
     <label>
       <span className="gs-label">{label}</span>
@@ -272,7 +337,7 @@ export default function BusinessStart() {
           <header className="gs-kopf">
             <span className="gs-auge">{fertig ? t.fertigPille : t.pille}</span>
             <h1 className="gs-h1">{fertig ? t.fertigTitel : t.titel}</h1>
-            <p className="gs-lead">{fertig ? t.fertigLead(fertig.email) : t.lead}</p>
+            <p className="gs-lead">{fertig ? (fertig.art === "privat" && !fertig.sofort ? t.fertigLeadWartet(fertig.email) : t.fertigLead(fertig.email)) : t.lead}</p>
           </header>
 
           <div className="gs-rahmen">
@@ -313,7 +378,7 @@ export default function BusinessStart() {
               ) : (
                 <>
                   <ol className="gs-schritte" aria-label={t.titel}>
-                    {t.schritte.map((name, i) => (
+                    {(privat ? t.schrittePrivat : t.schritte).map((name, i) => (
                       <li key={name} data-stand={i < schritt ? "fertig" : i === schritt ? "jetzt" : "offen"} aria-current={i === schritt ? "step" : undefined}><span>{i < schritt ? "✓" : i + 1}</span>{name}</li>
                     ))}
                   </ol>
@@ -340,8 +405,38 @@ export default function BusinessStart() {
 
                   {schritt === 1 && (
                     <>
-                      <h2>{t.firmaTitel}</h2>
-                      <p className="lead">{t.firmaLead}</p>
+                      <h2>{privat ? t.privatTitel : t.firmaTitel}</h2>
+                      <p className="lead">{privat ? t.privatLead : t.firmaLead}</p>
+                      <div className="gs-art" role="radiogroup" aria-label={t.artLabel}>
+                        {(["unternehmen", "privat"] as Auftraggeber[]).map((a) => (
+                          <button key={a} type="button" role="radio" aria-checked={art === a} onClick={() => { setArt(a); setFehler(""); }}>
+                            <span className="punkt" aria-hidden="true" />
+                            <span><b>{a === "privat" ? t.artPrivat : t.artUnternehmen}</b><small>{a === "privat" ? t.artPrivatText : t.artUnternehmenText}</small></span>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+
+                  {schritt === 1 && privat && (
+                    <div className="gs-felder">
+                      <div>
+                        <span className="gs-label">{t.wohnsitz}</span>
+                        <div className="gs-seg" role="group" aria-label={t.wohnsitz}>
+                          {(["DE", "AT", "CH"] as Land[]).map((l) => (
+                            <button key={l} type="button" aria-pressed={anschrift.land === l} onClick={() => setAnschrift({ ...anschrift, land: l })}>{t.laender[l]}</button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="drei">{anredeFeld}{feldP("vorname", t.vorname, "text", "given-name")}</div>
+                      {feldP("nachname", t.nachname, "text", "family-name")}
+                      {feldA("strasse", t.strasse, { autoComplete: "street-address" })}
+                      <div className="drei">{feldA("plz", t.plz, { autoComplete: "postal-code", inputMode: "numeric" })}{feldA("ort", t.ort, { autoComplete: "address-level2" })}</div>
+                    </div>
+                  )}
+
+                  {schritt === 1 && !privat && (
+                    <>
                       <div className="gs-felder">
                         <div>
                           <span className="gs-label">{t.land}</span>
@@ -420,7 +515,17 @@ export default function BusinessStart() {
                     </>
                   )}
 
-                  {schritt === 2 && (
+                  {schritt === 2 && privat && (
+                    <>
+                      <h2>{t.kontaktTitel}</h2>
+                      <p className="lead">{t.kontaktLead}</p>
+                      <div className="gs-felder">
+                        <div className="zwei">{feldP("email", t.emailPrivat, "email", "email")}{feldP("telefon", t.telefon, "tel", "tel")}</div>
+                      </div>
+                    </>
+                  )}
+
+                  {schritt === 2 && !privat && (
                     <>
                       <h2>{t.personTitel}</h2>
                       <p className="lead">{t.personLead}</p>
@@ -436,12 +541,7 @@ export default function BusinessStart() {
                       )}
                       <div className="gs-felder">
                         <div className="drei">
-                          <label>
-                            <span className="gs-label">{t.anrede}</span>
-                            <select className="gs-feld" value={person.anrede} onChange={(e) => setPerson({ ...person, anrede: e.target.value })}>
-                              {t.anreden.map((a, i) => <option key={i} value={["", "Frau", "Herr"][i]}>{a || "—"}</option>)}
-                            </select>
-                          </label>
+                          {anredeFeld}
                           {feldP("vorname", t.vorname, "text", "given-name")}
                         </div>
                         <div className="zwei">
@@ -460,20 +560,31 @@ export default function BusinessStart() {
                   {schritt === 3 && (
                     <>
                       <h2>{t.vertragTitel}</h2>
-                      <p className="lead">{t.vertragLead}</p>
+                      <p className="lead">{privat ? t.vertragLeadPrivat : t.vertragLead}</p>
+                      {privat && vertragStand === "da" && (
+                        <div className="gs-beginn">
+                          <h3>{t.beginnTitel}</h3>
+                          <p>{t.beginnText}</p>
+                          <label><input type="checkbox" checked={sofortBeginn} onChange={(e) => setSofortBeginn(e.target.checked)} /><span>{t.sofortBeginn}</span></label>
+                        </div>
+                      )}
                       {vertragStand === "laedt" && <p className="gs-gut">{t.vertragLaedt}</p>}
-                      {vertragStand === "fehler" && <p className="gs-fehler" role="alert">{vertragFehler || t.vertragFehler} <button type="button" className="gs-link" style={{ marginTop: 0 }} onClick={vertragLaden}>{t.erneut}</button></p>}
+                      {vertragStand === "fehler" && <p className="gs-fehler" role="alert">{vertragFehler || t.vertragFehler} <button type="button" className="gs-link" style={{ marginTop: 0 }} onClick={() => vertragLaden()}>{t.erneut}</button></p>}
                       {vertragStand === "da" && (
                         <>
                           {/* Der Text kommt von unserem eigenen Server aus derselben Quelle wie das PDF; Kundenangaben sind dort maskiert. */}
-                          <div className="gs-vertrag" tabIndex={0} dangerouslySetInnerHTML={{ __html: vertragHtml }} />
+                          <div className="gs-vertrag" tabIndex={0} aria-busy={vertragVeraltet || undefined} data-veraltet={vertragVeraltet ? "1" : undefined} dangerouslySetInnerHTML={{ __html: vertragHtml }} />
                           <div className="gs-haken">
-                            {(Object.keys(haken) as (keyof typeof haken)[]).map((k) => (
-                              <label key={k}><input type="checkbox" checked={haken[k]} onChange={(e) => setHaken({ ...haken, [k]: e.target.checked })} /><span>{t.haken[k]}</span></label>
-                            ))}
+                            {privat
+                              ? (Object.keys(hakenPrivat) as (keyof typeof hakenPrivat)[]).map((k) => (
+                                <label key={k}><input type="checkbox" checked={hakenPrivat[k]} onChange={(e) => setHakenPrivat({ ...hakenPrivat, [k]: e.target.checked })} /><span>{t.hakenPrivat[k]}</span></label>
+                              ))
+                              : (Object.keys(haken) as (keyof typeof haken)[]).map((k) => (
+                                <label key={k}><input type="checkbox" checked={haken[k]} onChange={(e) => setHaken({ ...haken, [k]: e.target.checked })} /><span>{t.haken[k]}</span></label>
+                              ))}
                           </div>
                           <div className="gs-unterschrift">
-                            <h3>{t.unterschrift} — {[person.vorname, person.nachname].filter(Boolean).join(" ")}, {person.funktion}</h3>
+                            <h3>{t.unterschrift} — {[person.vorname, person.nachname].filter(Boolean).join(" ")}{privat ? "" : `, ${person.funktion}`}</h3>
                             <SignaturePad onChange={(d) => setUnterschrift(d && d.startsWith("data:image/png") ? d : null)} hinweis={t.unterschriftHinweis} zuruecksetzen={t.zuruecksetzen} />
                           </div>
                           <input className="gs-falle" tabIndex={-1} autoComplete="off" aria-hidden="true" value={falle} onChange={(e) => setFalle(e.target.value)} />
@@ -487,7 +598,7 @@ export default function BusinessStart() {
                     {schritt > 0 ? <button type="button" className="gs-zurueck" onClick={() => gehe(schritt - 1)}>← {t.zurueck}</button> : <span />}
                     {schritt < 3
                       ? <button type="button" className="gs-knopf" onClick={weiter}>{t.weiter}</button>
-                      : <button type="button" className="gs-knopf" onClick={beauftragen} disabled={sendet || vertragStand !== "da"}>{sendet ? t.sendet : t.beauftragen}</button>}
+                      : <button type="button" className="gs-knopf" onClick={beauftragen} disabled={sendet || vertragStand !== "da" || vertragVeraltet}>{sendet ? t.sendet : t.beauftragen}</button>}
                   </div>
                 </>
               )}
@@ -513,8 +624,8 @@ export default function BusinessStart() {
                 <h3>{t.inklusiveTitel}</h3>
                 <ul className="gs-inkl">{GLOBAL_INKLUSIVE[s].map((x) => <li key={x}>{x}</li>)}</ul>
                 <h3>{t.soGehtEs}</h3>
-                <ol>{t.ablauf.map((x) => <li key={x}>{x}</li>)}</ol>
-                <ul className="gs-sicher">{t.sicher.map((x) => <li key={x}>{x}</li>)}</ul>
+                <ol>{(privat ? t.ablaufPrivat : t.ablauf).map((x) => <li key={x}>{x}</li>)}</ol>
+                <ul className="gs-sicher">{(privat ? t.sicherPrivat : t.sicher).map((x) => <li key={x}>{x}</li>)}</ul>
                 {!fertig && <a className="gs-sprechen" href={`${zu("/business")}${paket ? `?paket=${paket}` : ""}#gespraech`}>{t.lieberSprechen}</a>}
               </div>
             </aside>

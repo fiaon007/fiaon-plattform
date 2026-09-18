@@ -39,11 +39,13 @@ export function globalGespraechPfad(sprache: GlobalSprache = "de"): string {
 /**
  * „Direkt beauftragen" — mit vorgewähltem Paket, wenn der Schlüssel stimmt.
  * Ein unbekannter Schlüssel führt zum Auftrag ohne Vorauswahl, nie ins Leere.
+ * `art: "privat"` (19.09.2026, E-191) öffnet den Auftrag gleich für eine Privatperson.
  */
-export function globalStartPfad(key?: unknown, sprache: GlobalSprache = "de"): string {
+export function globalStartPfad(key?: unknown, sprache: GlobalSprache = "de", art?: "privat"): string {
   const basis = sprache === "en" ? "/en/business/start" : "/business/start";
   const g = globalPaket(key);
-  return g ? `${basis}?paket=${encodeURIComponent(g.key)}` : basis;
+  const q = [g ? `paket=${encodeURIComponent(g.key)}` : null, art === "privat" ? "art=privat" : null].filter(Boolean);
+  return q.length ? `${basis}?${q.join("&")}` : basis;
 }
 
 /** Dasselbe als vollständige Adresse — für Mails, WhatsApp und die Zwischenablage. */

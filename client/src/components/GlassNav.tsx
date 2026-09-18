@@ -4,6 +4,7 @@ import KarrierePopup from "@/components/site/KarrierePopup";
 import { UI } from "@shared/fiaon-sprache";
 import { schwesterPfad } from "@shared/fiaon-seo-seiten";
 import { useSprache, inSprache } from "@/i18n/sprache";
+import { globalMenue } from "@shared/fiaon-global-menue";
 
 interface GlassNavProps {
   activePage?: "startseite" | "privatkunden" | "business" | "was-ist-fiaon" | "plattform-konzept" | "login" | "investoren" | "karriere" | "presse" | "partner" | "datenraum" | "team" | "demo" | "ratgeber" | "kontakt";
@@ -15,6 +16,9 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
   const [showModal, setShowModal] = useState(false);
   // Mega-Menü am Rechner: öffnet beim Überfahren der Leiste, schließt mit kurzer Verzögerung
   const [mega, setMega] = useState(false);
+  // 19.09.2026 (E-191): „Business" öffnet ein eigenes Panel für FIAON Global — Leistungen,
+  // Für wen, Preise und Ablauf, Wissen. Alle anderen Links öffnen das große Menü wie bisher.
+  const [panel, setPanel] = useState<"alles" | "business">("alles");
   const megaTimer = useRef<number | null>(null);
   const oeffneMega = () => { if (megaTimer.current) window.clearTimeout(megaTimer.current); setMega(true); };
   const schliesseMega = () => { if (megaTimer.current) window.clearTimeout(megaTimer.current); megaTimer.current = window.setTimeout(() => setMega(false), 180); };
@@ -55,7 +59,8 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
   const ui = UI[sprache];
   const zu = (href: string) => inSprache(href, sprache);
   const aktuellerPfad = typeof window !== "undefined" ? window.location.pathname : "/";
-  const andereSprache = en ? (schwesterPfad(aktuellerPfad, "de") ?? "/") : (schwesterPfad(aktuellerPfad, "en") ?? "/en");
+  // Die Unterseiten von FIAON Global gibt es (noch) nur auf Deutsch — ihr englisches Gegenüber ist die Übersicht.
+  const andereSprache = en ? (schwesterPfad(aktuellerPfad, "de") ?? "/") : (schwesterPfad(aktuellerPfad, "en") ?? (aktuellerPfad.startsWith("/business") ? "/en/business" : "/en"));
   const pages = en ? [
     { label: "Home", href: "/en", key: "startseite" },
     { label: "What is FIAON", href: zu("/was-ist-fiaon"), key: "was-ist-fiaon", hasGradient: true },
@@ -106,6 +111,9 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
               <div className="hidden lg:flex items-center justify-center gap-6 xl:gap-8 flex-1 min-w-0 whitespace-nowrap">
                 {pages.map((p) => (
                   <a key={p.key} href={p.href}
+                     onMouseEnter={() => setPanel(p.key === "business" && !en ? "business" : "alles")}
+                     onFocus={() => { if (p.key === "business" && !en) { setPanel("business"); oeffneMega(); } }}
+                     aria-haspopup={p.key === "business" && !en ? "true" : undefined}
                      className={`relative text-[13px] font-medium pb-0.5 transition-colors duration-300 ${activePage === p.key ? "text-gray-900" : "text-gray-500 hover:text-gray-900"}`}>
                     {p.hasGradient ? <>{en ? "What is " : "Was ist "}<span className="fiaon-gradient-text-animated">FIAON</span></> : p.label}
                     {activePage === p.key && <span className="absolute -bottom-0.5 left-0 right-0 h-[1.5px] rounded-full bg-[#2563eb]" style={{ boxShadow: "0 0 6px rgba(37,99,235,.4)" }} />}
@@ -168,7 +176,36 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
         </div>
 
         {/* Desktop: Mega-Menü — alle Seiten, öffnet beim Überfahren der Leiste */}
-        <div className={`hidden lg:block nav-mega ${mega ? "auf" : ""}`} onMouseEnter={oeffneMega} onMouseLeave={schliesseMega} aria-hidden={!mega}>
+        <div className={`hidden lg:block nav-mega ${mega ? "auf" : ""}${panel === "business" && !en ? " global" : ""}`} onMouseEnter={oeffneMega} onMouseLeave={schliesseMega} aria-hidden={!mega}>
+          {panel === "business" && !en ? (
+            <div className="nav-mega-innen nav-global">
+              <div className="nav-global-kopf">
+                <div>
+                  <p className="nav-mega-titel" style={{ margin: 0 }}>FIAON Global</p>
+                  <p className="nav-global-satz">US-Gesellschaft aus einer Hand — für Unternehmen und Privatpersonen. Festpreis, alles inklusive.</p>
+                </div>
+                <a href="/business" className="nav-global-link">Zur Übersicht<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg></a>
+              </div>
+              {globalMenue().map((g) => (
+                <div key={g.gruppe} className="nav-mega-gruppe">
+                  <p className="nav-mega-titel">{g.titel}</p>
+                  {g.eintraege.map((e) => (
+                    <a key={e.pfad} href={e.pfad} className="nav-mega-eintrag" data-an={aktuellerPfad === e.pfad ? "1" : undefined} tabIndex={mega ? 0 : -1}>
+                      <span className="label">{e.titel}</span>
+                      <span className="text">{e.text}</span>
+                    </a>
+                  ))}
+                </div>
+              ))}
+              <div className="nav-global-fuss">
+                <span className="orte"><b>London</b> Vertragspartner<i aria-hidden="true">·</i><b>Zürich</b> Kapital-Etappe<i aria-hidden="true">·</i><b>Miami</b> Team vor Ort</span>
+                <span className="tun">
+                  <a href="/business/paket-finder" className="nav-mega-knopf still" tabIndex={mega ? 0 : -1}>Paket-Finder</a>
+                  <a href="/business#gespraech" className="nav-mega-knopf" tabIndex={mega ? 0 : -1}>Gespräch vereinbaren</a>
+                </span>
+              </div>
+            </div>
+          ) : (
           <div className="nav-mega-innen">
             {(en ? [
               { titel: "For customers", eintraege: [
@@ -227,6 +264,7 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
               <p className="nav-mega-fuss">{ui.vertrauen}</p>
             </div>
           </div>
+          )}
         </div>
 
         {/* ── Handy-Menü (neu 22.08.2026): dunkle Glasbühne statt leerer weißer Fläche.
@@ -290,7 +328,16 @@ export default function GlassNav({ activePage = "startseite" }: GlassNavProps) {
                     { href: "/transparenz", label: "Transparenzbericht", text: "Zahlen mit Definition und Stand", key: "transparenz" },
                     { href: "/status", label: "Status", text: "Läuft FIAON gerade? Live geprüft", key: "status" },
                   ] },
-                ]).map((g, gi) => (
+                ]).reduce((liste, g) => {
+                  // 19.09.2026 (E-191): FIAON Global als eigene Gruppe — auf den Business-Seiten zuerst.
+                  if (en || liste.some((x) => x.titel === "FIAON Global")) return [...liste, g];
+                  const global = { titel: "FIAON Global", eintraege: [
+                    { href: "/business", label: "Übersicht und Pakete", text: "US-Gesellschaft aus einer Hand, Festpreis", key: "business" },
+                    ...globalMenue().flatMap((m) => m.eintraege).filter((e) => ["/business/us-firmengruendung", "/business/ein-itin", "/business/firmenkarten-kapital", "/business/privatpersonen", "/business/kosten", "/business/paket-finder", "/business/wissen", "/business/fragen"].includes(e.pfad))
+                      .map((e) => ({ href: e.pfad, label: e.titel, text: e.text, key: e.pfad })),
+                  ] };
+                  return activePage === "business" ? [global, ...liste, g] : [...liste, g, ...(liste.length === 1 ? [global] : [])];
+                }, [] as { titel: string; eintraege: { href: string; label: string; text: string; key: string }[] }[]).map((g, gi) => (
                   <div key={g.titel} className={gi ? "mt-4" : ""} style={{ animation: `mobItemIn .45s cubic-bezier(.22,1,.36,1) ${0.06 + gi * 0.08}s both` }}>
                     <p className="text-[10.5px] uppercase tracking-[.2em] mb-1.5 px-2" style={{ color: "#2563eb" }}>{g.titel}</p>
                     <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,.55)", border: "1px solid rgba(15,23,42,.06)" }}>

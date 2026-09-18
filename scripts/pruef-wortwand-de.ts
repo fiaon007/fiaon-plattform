@@ -20,8 +20,12 @@ import { wandPruefen } from "../shared/fiaon-wortverbote";
 import { GLOBAL_WOERTER, GLOBAL_GESPRAECH_WOERTER } from "../client/src/i18n/global";
 import { GLOBAL_START_WOERTER } from "../client/src/i18n/global-start";
 import { GLOBAL_AUFTRAG_WOERTER } from "../client/src/i18n/global-auftrag";
-import { GLOBAL_PAKETE, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_GELD_ZURUECK } from "../shared/fiaon-global";
+import { GLOBAL_PAKETE, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_GELD_ZURUECK, globalKapital } from "../shared/fiaon-global";
 import { SEO_SEITEN } from "../shared/fiaon-seo-seiten";
+// 19.09.2026 (E-191): die Unterseiten, Landingpages, das Business-Menü und die Standorte.
+import { GLOBAL_SEITEN, LANDINGPAGES } from "../shared/fiaon-global-seiten";
+import { GLOBAL_MENUE } from "../shared/fiaon-global-menue";
+import { GLOBAL_STANDORTE, GLOBAL_VERBUNDEN } from "../shared/fiaon-global-partner";
 
 const SCHAERFER: { muster: RegExp; grund: string }[] = [
   { muster: /\bbis zu\b/i, grund: "„bis zu“ ist ein Spitzenwert-Versprechen (OLG Frankfurt 6 U 25/26)" },
@@ -59,15 +63,26 @@ for (const pfad of ["/business", "/business/start", "/business/auftrag"]) {
   sammle(deutsch, `seo${pfad}`, texte);
 }
 
+for (const seite of [...GLOBAL_SEITEN, ...LANDINGPAGES]) sammle(seite, `seiten${seite.pfad}`, texte);
+sammle(GLOBAL_MENUE, "menue", texte);
+sammle(GLOBAL_STANDORTE, "standorte", texte);
+sammle(GLOBAL_VERBUNDEN, "verbunden", texte);
+
+// E-190 (18.09.2026, Justin): „Beim VIP Pakete bis zu 1 Mio US Dollar Kapital". Die EINE erlaubte Stelle
+// für „bis zu" ist der Kapitalrahmen des Pakets Global VIP — wörtlich, wie globalKapital() ihn schreibt.
+// Jedes andere „bis zu" bleibt ein Treffer. (Anwalt prüft die Formulierung, Register E-190/E-191.)
+const VIP_ERLAUBT = `${globalKapital("global_vip", "de").bisZu} ${globalKapital("global_vip", "de").wert}`;
+
 let fehler = 0;
 for (const [pfad, text] of texte) {
-  // Felder ohne Kundentext (Pfade, Schlüssel, Datumsangaben) überspringen
-  if (/\.(pfad|art|stand|robots|key)$/.test(pfad) || /\.(weiter|krumen)\b/.test(pfad)) continue;
+  // Felder ohne Kundentext (Pfade, Schlüssel, Datumsangaben, Adressen von Quellen) überspringen
+  if (/\.(pfad|art|stand|robots|key|kennung|url|paket|typ|id|zeitzone|schluessel|quelle|auftraggeber|gruppe)$/.test(pfad) || /\.(weiter|krumen)\b/.test(pfad)) continue;
   // Zusagen „wir melden uns / Rückruf" sind auf diesen Flächen GEDECKT: Jede Anfrage und
   // jeder Auftrag legt beim Absenden eine Aufgabe für die zuständige Person an
   // (POST /api/fiaon/global/anfrage, /termine, /auftrag) — das ist das Werkzeug zur Zusage.
   for (const t of wandPruefen(text, ["aufgabe_an_betreuer"])) { fehler++; console.log(`WAND  ${pfad}: „${text.slice(0, 90)}“ → ${t.hinweis ?? JSON.stringify(t)}`); }
-  for (const r of SCHAERFER) if (r.muster.test(text)) { fehler++; console.log(`E-188 ${pfad}: „${text.slice(0, 90)}“ → ${r.grund}`); }
+  const ohneVip = text.split(VIP_ERLAUBT).join("");
+  for (const r of SCHAERFER) if (r.muster.test(ohneVip)) { fehler++; console.log(`E-188 ${pfad}: „${text.slice(0, 90)}“ → ${r.grund}`); }
 }
 console.log(`${texte.length} deutsche Texte geprüft — ${fehler} Treffer.`);
 if (fehler) process.exitCode = 1;

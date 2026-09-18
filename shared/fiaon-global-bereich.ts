@@ -240,10 +240,22 @@ export const GLOBAL_UNTERLAGEN: string[] = GLOBAL_UNTERLAGEN_LISTE.map((u) => u.
 /** Dieselbe Liste englisch — gleiche Reihenfolge, gleicher Umfang. */
 export const GLOBAL_UNTERLAGEN_EN: string[] = GLOBAL_UNTERLAGEN_LISTE.map((u) => u.en.zeile);
 
+/**
+ * Die Liste je Auftraggeber (19.09.2026, E-191): Beauftragt eine Privatperson, gibt es kein Unternehmen
+ * zu Hause — also keinen Registerauszug und keine Gesellschafterliste. Alles andere gilt für beide.
+ */
+export function globalUnterlagenListe(privat = false): GlobalUnterlage[] {
+  return privat ? GLOBAL_UNTERLAGEN_LISTE.filter((u) => u.art !== "registerauszug") : GLOBAL_UNTERLAGEN_LISTE;
+}
+/** Die Sätze der Liste — für Startmail und Aufgabe, in der Sprache des Auftrags. */
+export function globalUnterlagenZeilen(sprache: BereichSprache = "de", privat = false): string[] {
+  return globalUnterlagenListe(privat).map((u) => u[sprache].zeile);
+}
+
 /** Welche Unterlagen liegen vor? `arten` = die Arten aller nicht gelöschten Dokumente des Auftrags. */
-export function globalUnterlagenStand(arten: Iterable<string>, sprache: BereichSprache = "de"): { art: GlobalDokumentArt; titel: string; hinweis: string; vorhanden: boolean; alsText?: true; textHinweis?: string }[] {
+export function globalUnterlagenStand(arten: Iterable<string>, sprache: BereichSprache = "de", privat = false): { art: GlobalDokumentArt; titel: string; hinweis: string; vorhanden: boolean; alsText?: true; textHinweis?: string }[] {
   const da = new Set(Array.from(arten, (a) => String(a)));
-  return GLOBAL_UNTERLAGEN_LISTE.map((u) => {
+  return globalUnterlagenListe(privat).map((u) => {
     const t = sprache === "en" ? u.en : u.de;
     return {
       art: u.art, titel: t.titel, hinweis: t.hinweis, vorhanden: u.erfuelltDurch.some((a) => da.has(a)),
@@ -251,8 +263,8 @@ export function globalUnterlagenStand(arten: Iterable<string>, sprache: BereichS
     };
   });
 }
-export function globalUnterlagenOffen(arten: Iterable<string>): number {
-  return globalUnterlagenStand(arten).filter((u) => !u.vorhanden).length;
+export function globalUnterlagenOffen(arten: Iterable<string>, privat = false): number {
+  return globalUnterlagenStand(arten, "de", privat).filter((u) => !u.vorhanden).length;
 }
 
 // ── DIE US-GESELLSCHAFT ──────────────────────────────────────────────────────

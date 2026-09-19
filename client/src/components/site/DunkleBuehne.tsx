@@ -47,6 +47,12 @@ export function Dunkel({ seite, titel, beschreibung, children }: { seite: Seite;
   // 19.09.2026: Die Business-Seiten sind hell (Kanzlei) und tragen Kopf und Fuß von FIAON Global —
   // GlassNav und PremiumFooter schalten im Business-Bereich selbst um (lib/bereich.ts).
   const business = seite === "business";
+  // … und sie scrollen im Dokument, nicht in #root (Begründung: styles/global-rahmen.css, fg-dokument).
+  useEffect(() => {
+    if (!business) return;
+    document.documentElement.classList.add("fg-dokument");
+    return () => document.documentElement.classList.remove("fg-dokument");
+  }, [business]);
   return (
     <div className={`dk${business ? " dk-business" : ""}`}>
       {!business && (

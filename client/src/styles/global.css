@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,300;1,6..72,400&display=swap');
 /* ═══════════════════════════════════════════════════════════════════════════
    /business — FIAON GLOBAL (Neugestaltung 18.09.2026, E-188)
 
@@ -29,7 +28,7 @@
 .fg{
   --papier:#ffffff; --stein:#f5f7fa; --stein-2:#eef1f5;
   --linie:#e3e7ee; --linie-2:#cdd5e0;
-  --tinte:#0c1a2e; --text:#3b4658; --leise:#6b7587;
+  --tinte:#0c1a2e; --text:#3b4658; --leise:#5d6678;
   --navy:#12284a; --navy-2:#0b1c36; --blau:#1d4ed8; --blau-hell:#eef3fe;
   --serif:'Newsreader','Iowan Old Style','Palatino Linotype',Georgia,serif;
   --sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
@@ -96,21 +95,15 @@
 
 /* Haken und Striche */
 .fg-haken{flex:0 0 auto;color:var(--blau)}
-.fg-strich{display:inline-block;width:12px;height:1px;background:var(--linie-2)}
+.fg-strich{display:inline-block;width:12px;height:1px;background:#a3aebe}
 
 /* ── Hero ───────────────────────────────────────────────────────────────── */
-.fg-hero{padding:168px 0 96px;background:linear-gradient(180deg,#f6f8fb 0%,#ffffff 78%);border-bottom:1px solid var(--linie)}
-@media(max-width:720px){.fg-hero{padding:128px 0 64px}}
+.fg-hero{padding:136px 0 88px;background:linear-gradient(180deg,#f6f8fb 0%,#ffffff 78%);border-bottom:1px solid var(--linie)}
+@media(max-width:720px){.fg-hero{padding:112px 0 56px}}
 .fg-hero-raster{display:grid;grid-template-columns:minmax(0,1.12fr) minmax(0,.88fr);gap:64px;align-items:center}
 @media(max-width:1020px){.fg-hero-raster{grid-template-columns:1fr;gap:48px}}
 .fg-vertrauen{display:flex;flex-wrap:wrap;gap:12px 26px;margin-top:40px;padding-top:24px;border-top:1px solid var(--linie);list-style:none;padding-left:0}
 .fg-vertrauen li{display:flex;align-items:center;gap:9px;font-size:13.5px;color:var(--text)}
-/* Der Kapitalrahmen im Kopf — „präsenter machen, darum geht's ja" (Justin, 18.09.2026) */
-.fg-kopf-kapital{display:grid;gap:6px;margin-top:30px;padding:18px 0 16px;border-top:1px solid var(--linie);border-bottom:1px solid var(--linie)}
-.fg-kopf-kapital span{font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--navy)}
-.fg-kopf-kapital b{font-family:var(--serif);font-weight:500;font-size:clamp(32px,3.6vw,46px);line-height:1.06;letter-spacing:-.02em;color:var(--tinte);font-variant-numeric:lining-nums tabular-nums}
-.fg-kopf-kapital em{font-style:normal;font-size:12.5px;line-height:1.55;color:var(--leise)}
-.fg-kopf-kapital+.fg-knoepfe{margin-top:28px}
 
 /* Die Mandatsübersicht — eine Aufstellung wie aus einer Kanzlei */
 .fg-mandat{background:#fff;border:1px solid var(--linie);border-radius:14px;overflow:hidden;box-shadow:0 1px 2px rgba(12,26,46,.04),0 30px 70px rgba(18,40,74,.12)}
@@ -138,39 +131,34 @@
 .fg-vs-karte ol,.fg-vs-karte ul{list-style:none;padding:0;margin-top:20px;display:grid;gap:12px}
 .fg-vs-karte li{display:flex;gap:12px;align-items:flex-start;font-size:15px;line-height:1.5;color:var(--text)}
 .fg-vs-karte.ohne li{color:var(--leise)}
-.fg-vs-karte.ohne li .nr{flex:0 0 22px;font-family:var(--serif);font-size:15px;color:var(--linie-2);font-variant-numeric:lining-nums tabular-nums}
+.fg-vs-karte.ohne li .nr{flex:0 0 22px;font-family:var(--serif);font-size:15px;color:#9aa5b5;font-variant-numeric:lining-nums tabular-nums}
 .fg-vs-karte.mit li{font-size:16.5px;color:var(--tinte)}
 .fg-vs-karte.mit li .fg-haken{margin-top:4px}
 
-/* ── Aus einer Hand ─────────────────────────────────────────────────────── */
-.fg-vier{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;margin-top:56px;border-top:1px solid var(--tinte)}
-.fg-vier>div{padding:28px 28px 8px 0}
-.fg-vier>div+div{padding-left:28px;border-left:1px solid var(--linie)}
-.fg-vier .tag{display:block;font-size:11px;font-weight:500;letter-spacing:.16em;text-transform:uppercase;color:var(--navy)}
-.fg-vier h3{font-family:var(--serif);font-weight:400;font-size:21px;line-height:1.25;color:var(--tinte);margin-top:14px}
-.fg-vier p{font-size:14.5px;line-height:1.72;font-weight:300;color:var(--text);margin-top:12px}
-@media(max-width:1020px){.fg-vier{grid-template-columns:repeat(2,minmax(0,1fr))}.fg-vier>div:nth-child(3){padding-left:0;border-left:0}.fg-vier>div:nth-child(n+3){border-top:1px solid var(--linie);margin-top:12px}}
-@media(max-width:600px){.fg-vier{grid-template-columns:1fr}.fg-vier>div,.fg-vier>div+div{padding:24px 0 8px;border-left:0}.fg-vier>div+div{border-top:1px solid var(--linie)}}
 
 /* ── Der Weg: römische Ziffern ──────────────────────────────────────────── */
 .fg-weg{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:32px;margin-top:56px;list-style:none;padding:0}
 .fg-weg li{position:relative;padding-top:26px;border-top:1px solid var(--linie-2)}
-.fg-weg .nr{position:absolute;top:-16px;left:0;padding-right:12px;background:var(--stein);font-family:var(--serif);font-size:24px;font-weight:400;color:var(--navy);line-height:1}
+.fg-weg .nr{position:absolute;top:-16px;left:0;padding-right:12px;background:var(--papier);font-family:var(--serif);font-size:24px;font-weight:400;color:var(--navy);line-height:1}
 .fg-weg h3{font-size:16.5px;font-weight:500;color:var(--tinte);letter-spacing:-.005em}
 .fg-weg .dauer{display:block;margin-top:6px;font-size:12px;font-weight:500;letter-spacing:.06em;color:var(--blau)}
-.fg-weg p{font-size:14.5px;line-height:1.72;font-weight:300;color:var(--text);margin-top:12px}
+.fg-weg p{font-size:14.5px;line-height:1.72;font-weight:400;color:var(--text);margin-top:12px}
 @media(max-width:1020px){.fg-weg{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:48px}}
 @media(max-width:600px){.fg-weg{grid-template-columns:1fr}}
-.fg-zitat{margin-top:64px;padding:30px 0 0;border-top:1px solid var(--linie-2);font-family:var(--serif);font-style:italic;font-weight:300;font-size:clamp(20px,2vw,26px);line-height:1.45;color:var(--tinte);max-width:44ch}
 
 /* ── Für wen ────────────────────────────────────────────────────────────── */
-.fg-fuer{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin-top:52px;border-top:1px solid var(--linie);border-left:1px solid var(--linie)}
-.fg-fuer>div{padding:26px 26px 28px;border-right:1px solid var(--linie);border-bottom:1px solid var(--linie);background:#fff}
+.fg-fuer{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));margin-top:52px;border-top:1px solid var(--linie);border-left:1px solid var(--linie)}
+.fg-fuer>div,.fg-fuer>a{position:relative;display:block;padding:26px 26px 28px;border-right:1px solid var(--linie);border-bottom:1px solid var(--linie);background:#fff;text-decoration:none;color:inherit}
+.fg-fuer>a{padding-right:44px;transition:background .2s}
+.fg-fuer>a:hover{background:var(--stein)}
+.fg-fuer>a:hover b{color:var(--blau)}
+.fg-fuer .pfeil{position:absolute;right:20px;top:28px;color:var(--navy);opacity:.55;transition:opacity .2s,transform .2s}
+.fg-fuer>a:hover .pfeil{opacity:1;transform:translateX(2px)}
 .fg-fuer b{display:block;font-size:15px;font-weight:500;color:var(--tinte)}
-.fg-fuer p{font-size:14px;line-height:1.65;font-weight:300;color:var(--text);margin-top:6px}
+.fg-fuer p{font-size:14px;line-height:1.65;font-weight:400;color:var(--text);margin-top:6px}
 @media(max-width:900px){.fg-fuer{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:560px){.fg-fuer{grid-template-columns:1fr}}
-.fg-ausstieg{margin-top:28px;font-size:15px;font-weight:300;color:var(--text);max-width:62ch;line-height:1.7}
+.fg-ausstieg{margin-top:28px;font-size:15px;font-weight:400;color:var(--text);max-width:62ch;line-height:1.7}
 
 /* ── Pakete ─────────────────────────────────────────────────────────────── */
 .fg-pakete{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-top:56px;align-items:stretch}
@@ -183,7 +171,7 @@
 .fg-paket .marke{display:flex;align-items:center;min-height:24px;font-size:10.5px;font-weight:500;letter-spacing:.16em;text-transform:uppercase;color:var(--navy)}
 .fg-paket.fokus .marke{display:inline-flex;align-self:flex-start;padding:0 10px;border-radius:4px;background:var(--navy);color:#fff}
 .fg-paket h3{font-family:var(--serif);font-weight:400;font-size:27px;line-height:1.1;color:var(--tinte);margin-top:14px;letter-spacing:-.01em}
-.fg-paket .fuer{font-size:13.5px;line-height:1.62;font-weight:300;color:var(--text);margin-top:10px;min-height:6.5em}
+.fg-paket .fuer{font-size:13.5px;line-height:1.62;font-weight:400;color:var(--text);margin-top:10px;min-height:6.5em}
 @media(max-width:640px){.fg-paket .fuer{min-height:0}}
 /* Der Kapitalrahmen: groß über dem Preis, der Satz zum Institut in derselben Tafel */
 .fg-kapital{margin-top:22px;padding:16px 16px 14px;border-radius:10px;background:linear-gradient(160deg,#f5f8fd 0%,#e9f0fb 100%);border:1px solid #d8e2f3}
@@ -217,16 +205,13 @@
 .fg-inkl li .fg-haken{margin-top:2px}
 .fg-inkl .fg-leise{margin-top:18px}
 
-/* Zusage und Pflichthinweise */
-.fg-zwei{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:16px;margin-top:16px}
-@media(max-width:900px){.fg-zwei{grid-template-columns:1fr}}
 .fg-karte{background:#fff;border:1px solid var(--linie);border-radius:14px;padding:30px 30px 28px}
 .fg-karte .tag{display:block;font-size:10.5px;font-weight:500;letter-spacing:.16em;text-transform:uppercase;color:var(--navy)}
 .fg-karte h3{font-family:var(--serif);font-weight:400;font-size:22px;line-height:1.25;color:var(--tinte);margin-top:10px}
-.fg-karte p{font-size:14.5px;line-height:1.7;font-weight:300;color:var(--text);margin-top:10px}
+.fg-karte p{font-size:14.5px;line-height:1.7;font-weight:400;color:var(--text);margin-top:10px}
 .fg-karte .klein{font-size:12.5px;line-height:1.65;color:var(--leise)}
 .fg-karte ul{list-style:none;padding:0;margin-top:14px;display:grid;gap:12px}
-.fg-karte li{position:relative;padding-left:20px;font-size:14px;line-height:1.65;font-weight:300;color:var(--text)}
+.fg-karte li{position:relative;padding-left:20px;font-size:14px;line-height:1.65;font-weight:400;color:var(--text)}
 .fg-karte li::before{content:"";position:absolute;left:0;top:.8em;width:10px;height:1px;background:var(--navy)}
 
 /* ── Vergleichstabelle ──────────────────────────────────────────────────── */
@@ -241,7 +226,9 @@
 .fg-tabelle tbody th{font-weight:400;color:var(--tinte)}
 .fg-tabelle tr.gruppe td{background:var(--stein);text-align:left;font-size:10.5px;font-weight:500;letter-spacing:.16em;text-transform:uppercase;color:var(--navy);padding-top:12px;padding-bottom:12px}
 .fg-tabelle tr.gruppe td:first-child{background:var(--stein)}
-.fg-tabelle td.fokus{background:#fafbfd}
+.fg-tabelle td.fokus{background:#f3f6fc}
+.fg-tabelle thead th.fokus{background:#f3f6fc}
+.fg-tabelle td>span[role="img"]{display:inline-flex;vertical-align:middle}
 .fg-tabelle tr.zahl td{font-variant-numeric:tabular-nums;color:var(--tinte);font-size:13.5px}
 .fg-tabelle tfoot td{border-bottom:0;padding-top:18px;padding-bottom:22px}
 .fg-tabelle tfoot .fg-knopf{min-height:42px;padding:0 16px;font-size:13px;white-space:nowrap}
@@ -250,29 +237,10 @@
 @media(max-width:900px){.fg-wisch{display:block}.fg-wisch+.fg-tabelle{margin-top:12px}}
 @media(max-width:640px){.fg-tabelle table{min-width:680px;font-size:13px}.fg-tabelle th,.fg-tabelle td{padding:12px 12px}.fg-tabelle th:first-child,.fg-tabelle td:first-child{min-width:150px;max-width:170px;box-shadow:1px 0 0 var(--linie)}.fg-tabelle thead th b{font-size:17px}}
 
-/* ── Unterlagen ─────────────────────────────────────────────────────────── */
-.fg-unterlagen{list-style:none;padding:0;margin-top:44px;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:16px;counter-reset:u}
-.fg-unterlagen li{counter-increment:u;background:#fff;border:1px solid var(--linie);border-radius:12px;padding:22px 20px;font-size:14px;line-height:1.55;color:var(--tinte)}
-.fg-unterlagen li::before{content:counter(u,upper-roman);display:block;font-family:var(--serif);font-size:18px;color:var(--navy);margin-bottom:10px}
-@media(max-width:1020px){.fg-unterlagen{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:560px){.fg-unterlagen{grid-template-columns:1fr}}
 
 /* ── Klare Verhältnisse ─────────────────────────────────────────────────── */
 .fg-drei{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:52px}
 @media(max-width:900px){.fg-drei{grid-template-columns:1fr}}
-.fg-partei{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:40px;margin-top:16px;padding:32px 34px;border-radius:14px;border:1px solid var(--linie);background:#fff}
-@media(max-width:820px){.fg-partei{grid-template-columns:1fr;gap:20px}}
-.fg-partei h3{font-family:var(--serif);font-weight:400;font-size:22px;color:var(--tinte);margin-top:10px}
-.fg-partei p{font-size:14.5px;line-height:1.7;font-weight:300;color:var(--text);margin-top:10px}
-.fg-partei address{font-style:normal;font-size:14px;line-height:1.75;color:var(--tinte);padding-left:20px;border-left:1px solid var(--linie-2)}
-.fg-partei address span{color:var(--leise)}
-.fg-ablauf{margin-top:40px;padding-top:26px;border-top:1px solid var(--linie)}
-.fg-ablauf h3{font-size:10.5px;font-weight:500;letter-spacing:.16em;text-transform:uppercase;color:var(--navy)}
-.fg-ablauf ol{list-style:none;margin:18px 0 0;padding:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0 28px;counter-reset:ab}
-.fg-ablauf li{counter-increment:ab;display:flex;gap:12px;align-items:baseline;padding:14px 0;border-top:1px solid var(--linie);font-size:14px;line-height:1.45;color:var(--tinte)}
-.fg-ablauf li::before{content:counter(ab);flex:0 0 18px;font-family:var(--serif);font-size:17px;color:var(--navy);font-variant-numeric:lining-nums}
-@media(max-width:900px){.fg-ablauf ol{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:480px){.fg-ablauf ol{grid-template-columns:1fr}}
 
 /* ── Fremde Bausteine auf hellem Grund: Karten (dk-glas) und Fragen (dk-frage) ── */
 .fg .dk-raster{margin-top:44px}
@@ -284,30 +252,31 @@
 .fg .dk-leise{color:var(--leise)}
 .fg .dk-leise span{color:var(--tinte) !important}
 .fg .dk-frage{border-bottom:1px solid var(--linie)}
-.fg .dk-frage button{color:var(--tinte);font-size:16px;padding:22px 0}
+.fg .dk-frage button{color:var(--tinte);font-size:16px;padding:22px 0;text-align:left;gap:18px}
 .fg .dk-frage .plus{border-color:var(--linie-2);color:var(--navy)}
 .fg .dk-frage.auf .plus{background:var(--navy);border-color:var(--navy);color:#fff}
-.fg .dk-frage .antwort p{color:var(--text);font-size:15px;line-height:1.72;font-weight:300}
+.fg .dk-frage .antwort p{color:var(--text);font-size:15px;line-height:1.72;font-weight:400}
 
 /* ── Gespräch: Kalender auf hellem Grund ────────────────────────────────── */
 .fg-gespraech{display:grid;gap:56px;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);align-items:start;margin-top:48px}
 .fg-gespraech>*{min-width:0}
 @media(max-width:960px){.fg-gespraech{grid-template-columns:minmax(0,1fr);gap:32px}}
 .fg-punkte{list-style:none;margin:0;padding:0;display:grid;gap:18px}
-.fg-punkte li{display:flex;gap:12px;align-items:flex-start;font-size:15.5px;line-height:1.65;font-weight:300;color:var(--text)}
+.fg-punkte li{display:flex;gap:12px;align-items:flex-start;font-size:15.5px;line-height:1.65;font-weight:400;color:var(--text)}
 .fg-punkte li .fg-haken{margin-top:4px}
 .fg-kal{border-radius:14px;padding:30px;background:#fff;border:1px solid var(--linie);box-shadow:0 20px 50px rgba(18,40,74,.08)}
 @media(max-width:640px){.fg-kal{padding:20px}}
 .fg-kal h3{font-size:10.5px;font-weight:500;letter-spacing:.16em;text-transform:uppercase;color:var(--navy);margin:0 0 14px}
 .fg-tage{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;scrollbar-width:thin}
-.fg-tag{flex:0 0 auto;min-width:72px;padding:10px 8px;border-radius:8px;border:1px solid var(--linie);background:#fff;color:var(--text);cursor:pointer;text-align:center;font-family:inherit;transition:border-color .2s,background .2s}
+.fg-tag{flex:0 0 auto;min-width:72px;min-height:56px;padding:10px 8px;border-radius:8px;border:1px solid var(--linie);background:#fff;color:var(--text);cursor:pointer;text-align:center;font-family:inherit;transition:border-color .2s,background .2s}
 .fg-tag small{display:block;font-size:10.5px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:var(--leise)}
 .fg-tag b{display:block;margin-top:4px;font-size:15px;font-weight:400;color:var(--tinte);font-variant-numeric:tabular-nums}
 .fg-tag:hover{border-color:var(--linie-2)}
 .fg-tag[aria-pressed="true"]{background:var(--navy);border-color:var(--navy)}
 .fg-tag[aria-pressed="true"] small,.fg-tag[aria-pressed="true"] b{color:#fff}
 .fg-zeiten{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px}
-.fg-zeit{min-height:42px;border-radius:8px;border:1px solid var(--linie);background:#fff;color:var(--tinte);font:400 14px/1 var(--sans);font-variant-numeric:tabular-nums;cursor:pointer;transition:border-color .2s,background .2s}
+@media(max-width:560px){.fg-zeiten{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.fg-zeit{min-height:48px;border-radius:8px;border:1px solid var(--linie);background:#fff;color:var(--tinte);font:400 14px/1 var(--sans);font-variant-numeric:tabular-nums;cursor:pointer;transition:border-color .2s,background .2s}
 .fg-zeit:hover{border-color:var(--linie-2)}
 .fg-zeit[aria-pressed="true"]{background:var(--navy);border-color:var(--navy);color:#fff}
 .fg-kal .hinweis{margin-top:14px;font-size:12.5px;color:var(--leise);line-height:1.6}
@@ -334,6 +303,8 @@
 .fg-schluss .fg-knopf:hover{background:#eef1f6}
 .fg-schluss .fg-knopf.hell{background:transparent;color:#fff;border-color:rgba(255,255,255,.35)}
 .fg-schluss .fg-knopf.hell:hover{background:rgba(255,255,255,.08)}
+.fg-schluss :focus-visible{outline-color:#fff}
+@media(max-width:560px){.fg-schluss .fg-knoepfe{flex-direction:column;align-items:stretch}.fg-schluss .fg-knopf{width:100%}}
 
 @media(prefers-reduced-motion:reduce){
   .fg-h1,.fg-h2,.fg-glanz{animation:none}
@@ -341,12 +312,12 @@
   .fg-knopf:hover,.fg-paket:hover{transform:none}
 }
 
-/* ── /business: Privatpersonen, Standorte, Verzeichnis (19.09.2026, E-191) ── */
+/* ── /business: Privatpersonen und Standorte (19.09.2026, E-191) ── */
 .fg-privat{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:24px;align-items:center;margin-top:28px;padding:26px 30px;border-radius:14px;border:1px solid var(--linie);background:linear-gradient(135deg,#ffffff 0%,var(--blau-hell) 100%);text-decoration:none;color:inherit;transition:border-color .2s,box-shadow .2s,transform .2s}
 .fg-privat:hover{border-color:var(--linie-2);box-shadow:0 18px 40px rgba(18,40,74,.10);transform:translateY(-1px)}
 .fg-privat-rumpf{display:grid;gap:8px;max-width:68ch}
 .fg-privat-rumpf b{font-family:var(--serif);font-weight:400;font-size:clamp(22px,2.2vw,28px);letter-spacing:-.01em;color:var(--tinte);line-height:1.2}
-.fg-privat-rumpf>span:last-child{font-size:14.5px;font-weight:300;line-height:1.7;color:var(--text)}
+.fg-privat-rumpf>span:last-child{font-size:14.5px;font-weight:400;line-height:1.7;color:var(--text)}
 .fg-privat-knopf{display:inline-flex;align-items:center;gap:10px;white-space:nowrap;font-size:14px;color:var(--navy);font-weight:500}
 @media(max-width:720px){.fg-privat{grid-template-columns:1fr;padding:22px}.fg-privat-knopf{white-space:normal}}
 
@@ -356,20 +327,148 @@
 .fg-standorte li{display:grid;gap:6px;align-content:start;padding:20px 22px;border-radius:12px;border:1px solid var(--linie);background:#fff}
 .fg-standorte .stadt{font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--navy)}
 .fg-standorte b{font-size:15px;font-weight:500;color:var(--tinte);line-height:1.35}
-.fg-standorte .rolle{font-size:13.5px;font-weight:300;color:var(--text);line-height:1.6}
+.fg-standorte .rolle{font-size:13.5px;font-weight:400;color:var(--text);line-height:1.6}
 .fg-standorte address{font-style:normal;font-size:12px;color:var(--leise);line-height:1.6;margin-top:4px;font-variant-numeric:tabular-nums}
 .fg-standorte .fg-leise{margin-top:14px;max-width:80ch}
 .fg-standorte .fg-leise a{color:var(--navy);text-underline-offset:3px}
 @media(max-width:860px){.fg-standorte ul{grid-template-columns:1fr}}
 
-.fg-verzeichnis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:28px;margin-top:34px}
-.fg-verzeichnis h3{font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--navy);padding-bottom:10px;border-bottom:1px solid var(--linie-2)}
-.fg-verzeichnis ul{list-style:none;padding:0;margin:0}
-.fg-verzeichnis li{border-bottom:1px solid var(--linie)}
-.fg-verzeichnis a{display:grid;gap:2px;padding:11px 0;text-decoration:none;color:inherit}
-.fg-verzeichnis a b{font-size:14px;font-weight:500;color:var(--tinte);line-height:1.35}
-.fg-verzeichnis a span{font-size:12.5px;font-weight:300;color:var(--leise);line-height:1.5}
-.fg-verzeichnis a:hover b{color:var(--blau)}
-@media(max-width:980px){.fg-verzeichnis{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:560px){.fg-verzeichnis{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){.fg-privat{transition:none}.fg-privat:hover{transform:none}}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   /business neu geordnet (19.09.2026, E-192) — Preis im ersten Bildschirm,
+   ehrliche Zeile, Etappen mit Paket, Tafeln mit Band, „Nicht im Festpreis",
+   Tabelle am Handy zugeklappt, Fragen zweispaltig, Handlungsleiste am Handy.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Hero: Kapitalrahmen und Festpreis nebeneinander, darunter die Handlungen.
+   Am Handy stehen die Knöpfe vor den Zahlen (order), damit sie im ersten Bild liegen. */
+.fg-hero-text{display:flex;flex-direction:column;align-items:flex-start}
+.fg-hero-text>.fg-h1,.fg-hero-text>.fg-lead{align-self:stretch}
+/* Die Überschrift darf den ersten Bildschirm nicht allein füllen: Zahlen und Knöpfe gehören hinein. */
+.fg-hero .fg-h1{font-size:clamp(38px,4.3vw,56px)}
+.fg-hero .fg-lead{margin-top:18px}
+.fg-kopf-zahlen{display:flex;flex-wrap:wrap;gap:18px 44px;align-self:stretch;margin-top:30px;padding:18px 0 16px;border-top:1px solid var(--linie);border-bottom:1px solid var(--linie)}
+.fg-kopf-zahlen>div{display:grid;gap:6px;align-content:start}
+.fg-kopf-zahlen span{font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--navy)}
+.fg-kopf-zahlen b{font-family:var(--serif);font-weight:500;font-size:clamp(28px,2.6vw,36px);line-height:1.06;letter-spacing:-.02em;color:var(--tinte);font-variant-numeric:lining-nums tabular-nums;white-space:nowrap}
+.fg-kopf-zahlen em{font-style:normal;font-size:12.5px;line-height:1.55;color:var(--leise);max-width:32ch}
+.fg-hero-knoepfe{margin-top:28px}
+.fg-mikro{margin-top:12px;font-size:13px;line-height:1.55;color:var(--leise)}
+.fg-vertrauen{align-self:stretch}
+.fg-vertrauen li{font-size:13.5px;line-height:1.45}
+.fg-vertrauen sup,.fg-fussnote sup{font-size:.7em;margin-left:1px;color:var(--leise)}
+.fg-vertrauen a{color:var(--navy);text-decoration:underline;text-underline-offset:3px;text-decoration-color:rgba(18,40,74,.35)}
+.fg-vertrauen a:hover{text-decoration-color:var(--navy)}
+.fg-fussnote{margin-top:12px;font-size:11.5px;line-height:1.55;color:var(--leise);max-width:72ch}
+.fg-mandat dl>div.preis dd{font-weight:500}
+@media(max-width:720px){
+  .fg-kopf-zahlen{order:1;margin-top:26px}
+  .fg-vertrauen{order:2;border-top:0;padding-top:0;margin-top:22px}
+  .fg-fussnote{order:3}
+  .fg-hero-knoepfe{flex-direction:column;align-items:stretch;align-self:stretch}
+  .fg-hero-knoepfe .fg-knopf{width:100%}
+  /* Die Auftragsübersicht wiederholt, was darunter ausführlich steht — am Handy zählt der Weg zum Knopf. */
+  .fg-hero-auftrag{display:none}
+}
+
+/* Acht Anlaufstellen: die ehrliche Zeile */
+.fg-ehrlich{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px 22px;align-items:baseline;margin-top:28px;padding:22px 26px;border-radius:14px;background:#fff;border:1px solid var(--linie)}
+.fg-ehrlich b{font-family:var(--serif);font-weight:400;font-style:italic;font-size:19px;color:var(--navy);white-space:nowrap}
+.fg-ehrlich p{font-size:14.5px;line-height:1.7;color:var(--text);max-width:88ch}
+.fg-ehrlich a{grid-column:2;display:inline;justify-self:start;font-size:14px;color:var(--navy);text-decoration:underline;text-underline-offset:3px;text-decoration-color:rgba(18,40,74,.3)}
+.fg-ehrlich a:hover{text-decoration-color:var(--navy)}
+.fg-ehrlich a svg{display:inline;vertical-align:-2px;margin-left:6px}
+@media(max-width:640px){.fg-ehrlich{grid-template-columns:1fr;padding:20px}.fg-ehrlich a{grid-column:1}}
+
+/* Der Weg: ab welchem Paket eine Etappe enthalten ist */
+.fg-etappe-paket{display:inline-flex;align-items:center;margin-bottom:12px;padding:3px 9px;border-radius:4px;background:var(--blau-hell);color:var(--navy);font-size:11px;font-weight:500;letter-spacing:.04em}
+.fg-etappe-paket.alle{background:var(--stein-2);color:var(--text)}
+
+/* Tafeln: Band über dem Fokus, Preisbeschriftung vor der Zahl, Knopftext nach Breite */
+.fg-paket-band{position:absolute;top:-12px;left:24px;display:inline-flex;align-items:center;min-height:24px;padding:0 10px;border-radius:4px;background:var(--navy);color:#fff;font-size:10.5px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;box-shadow:0 6px 16px rgba(18,40,74,.22)}
+.fg-paket.fokus .marke{display:flex;align-self:auto;padding:0;border-radius:0;background:none;color:var(--navy)}
+.fg-preis .fg-preis-marke{display:block;margin:0 0 8px;font-size:10.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--leise)}
+.fg-paket .tun .fg-knopf{padding:0 16px;text-align:center;line-height:1.25}
+.fg-paket .tun .kurz{display:none}
+@media(min-width:1181px){.fg-paket .tun .lang{display:none}.fg-paket .tun .kurz{display:inline}}
+.fg-paket-fuss{display:grid;gap:6px;margin-top:22px}
+.fg-paket-fuss p{font-size:13px;line-height:1.6;color:var(--text)}
+.fg-paket-fuss a{color:var(--navy);text-decoration:underline;text-underline-offset:3px;text-decoration-color:rgba(18,40,74,.35)}
+.fg-paket-fuss a:hover{text-decoration-color:var(--navy)}
+
+/* Geld zurück · Nicht im Festpreis · Was Sie wissen müssen */
+.fg-klar{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:16px}
+.fg-klar.ohne-geld{grid-template-columns:repeat(2,minmax(0,1fr))}
+.fg-klar .fg-karte{padding:28px 26px 26px}
+.fg-klar .fg-karte.geld{border-color:var(--navy);box-shadow:0 0 0 1px var(--navy)}
+@media(max-width:1020px){.fg-klar,.fg-klar.ohne-geld{grid-template-columns:1fr}}
+
+/* Vergleichstabelle: am Handy erst auf Wunsch */
+.fg-tabelle-schalter{display:none;margin-top:28px}
+@media(max-width:900px){
+  .fg-tabelle-schalter{display:inline-flex;width:100%}
+  .fg-vergleich:not(.auf) .fg-tabelle,.fg-vergleich:not(.auf) .fg-wisch{display:none}
+  .fg-vergleich .fg-wisch{margin-top:16px}
+}
+
+/* Für wen: vier Kacheln, Länder als Zeile */
+@media(max-width:1020px){.fg-fuer{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.fg-fuer{grid-template-columns:1fr}}
+.fg-laender{margin-top:18px;font-size:14px;color:var(--text)}
+.fg-laender a{color:var(--navy);text-decoration:underline;text-underline-offset:3px;text-decoration-color:rgba(18,40,74,.35)}
+
+/* Standorte: der Vertragspartner mit Kontakt */
+.fg-standorte li.vertragspartner{border-color:var(--navy);box-shadow:0 0 0 1px var(--navy)}
+.fg-standorte address a{color:var(--navy);text-underline-offset:3px}
+
+/* Fragen: links Überschrift und Kontakt, rechts die Antworten */
+.fg-fragen{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:56px;align-items:start}
+.fg-fragen>div:last-child{margin-top:0 !important}
+.fg-fragen-kopf{position:sticky;top:96px}
+.fg-fragen-kontakt{margin-top:28px;padding-top:22px;border-top:1px solid var(--linie)}
+.fg-fragen-kontakt b{display:block;font-size:15px;font-weight:500;color:var(--tinte)}
+.fg-fragen-kontakt p{margin-top:8px;font-size:14px;line-height:1.65;color:var(--text)}
+.fg-fragen-kontakt a{color:var(--navy);text-underline-offset:3px}
+.fg-fragen-alle{display:inline-flex;align-items:center;gap:8px;margin-top:14px;font-size:14px}
+@media(max-width:900px){.fg-fragen{grid-template-columns:1fr;gap:8px}.fg-fragen-kopf{position:static}}
+
+/* Handlungsleiste am Handy (wie .fd-mobil der Unterseiten) */
+.fg-mobil{position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:95;display:none;gap:8px;padding:8px;border-radius:16px;
+  background:rgba(255,255,255,.94);border:1px solid var(--linie);box-shadow:0 18px 44px rgba(12,26,46,.2);backdrop-filter:blur(16px) saturate(150%);-webkit-backdrop-filter:blur(16px) saturate(150%);
+  transform:translateY(calc(100% + 30px));transition:transform .4s cubic-bezier(.22,1,.36,1)}
+.fg-mobil.da{transform:none}
+.fg-mobil a,.fg-mobil button{flex:1;display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0 10px;border-radius:10px;font:400 14px/1.2 var(--sans);text-decoration:none;cursor:pointer;text-align:center}
+.fg-mobil .voll{background:var(--navy);color:#fff;border:1px solid var(--navy)}
+.fg-mobil .hell{background:#fff;color:var(--navy);border:1px solid var(--linie-2)}
+@media(max-width:820px){.fg-mobil{display:flex}}
+@media(prefers-reduced-motion:reduce){.fg-mobil{transition:none}.fg-fuer>a,.fg-fuer .pfeil{transition:none}}
+@media print{.fg-mobil{display:none}}
+
+/* Kalender: wer anruft, und die Nummer für alle, die gleich sprechen wollen (19.09.2026) */
+.fg-kal-person{display:flex;gap:14px;align-items:center;margin:0 0 22px;padding:0 0 18px;border-bottom:1px solid var(--linie)}
+.fg-kal-person span{flex:0 0 44px;width:44px;height:44px;border-radius:50%}
+.fg-kal-person span{display:inline-flex;align-items:center;justify-content:center;background:var(--navy);color:#fff;font-family:var(--serif);font-size:20px}
+.fg-kal-person p{display:grid;gap:2px;font-size:13px;line-height:1.5;color:var(--text)}
+.fg-kal-person b{font-size:15px;font-weight:500;color:var(--tinte)}
+.fg-kal-direkt{margin-top:18px;padding-top:14px;border-top:1px solid var(--linie);font-size:13.5px;color:var(--text)}
+.fg-kal-direkt a{color:var(--navy);font-weight:500;text-underline-offset:3px;white-space:nowrap}
+
+/* Verweise im Fließtext: unterstrichen, damit man sie als Verweis erkennt (19.09.2026) */
+.fg p a:not(.fg-knopf),.fg address a,.fg-fragen-kontakt a{text-decoration:underline;text-underline-offset:3px;text-decoration-color:rgba(18,40,74,.35)}
+.fg p a:not(.fg-knopf):hover,.fg address a:hover,.fg-fragen-kontakt a:hover{text-decoration-color:currentColor}
+.fg-vertrauen li>span{display:inline}
+
+/* Pakete am Handy: eine Tafel, darüber die Wahl mit allen vier Preisen (19.09.2026) */
+.fg-paket-wahl{display:none}
+@media(max-width:640px){
+  .fg-paket-wahl{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;margin-top:36px;padding:4px;border-radius:12px;background:#fff;border:1px solid var(--linie);position:sticky;top:76px;z-index:5;box-shadow:0 8px 20px rgba(12,26,46,.06)}
+  .fg-paket-wahl button{display:grid;gap:2px;justify-items:center;min-height:52px;padding:6px 2px;border:0;border-radius:9px;background:transparent;cursor:pointer;font-family:inherit;color:var(--text)}
+  .fg-paket-wahl b{font-size:13px;font-weight:500;color:var(--tinte)}
+  .fg-paket-wahl span{font-size:11.5px;color:var(--leise);font-variant-numeric:tabular-nums}
+  .fg-paket-wahl button[aria-selected="true"]{background:var(--navy)}
+  .fg-paket-wahl button[aria-selected="true"] b,.fg-paket-wahl button[aria-selected="true"] span{color:#fff}
+  .fg-pakete{margin-top:22px}
+  .fg-pakete>.dk-auf:not(:has(.gewaehlt)){display:none}
+  .fg-pakete>.dk-auf{opacity:1;transform:none;transition-delay:0s!important}
+}

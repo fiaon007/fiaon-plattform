@@ -82,7 +82,7 @@ export const GLOBAL_PAKETE: GlobalPaket[] = [
     de: {
       name: "Global Struktur",
       marke: "Gründung und erste Karte",
-      fuer: "Für Unternehmen, die ihre US-Gesellschaft sauber aufsetzen und die erste Bank- und Kartenbeziehung beginnen.",
+      fuer: "Für den sauberen Start: Gesellschaft, Steuernummern und der erste Konto- und Kartenantrag.",
       dauer: "Begleitung in der Regel rund acht Wochen",
       dauerKurz: "rund acht Wochen",
       leistungen: [
@@ -99,7 +99,7 @@ export const GLOBAL_PAKETE: GlobalPaket[] = [
     en: {
       name: "Global Structure",
       marke: "Formation and first card",
-      fuer: "For companies setting up their US entity properly and starting their first banking and card relationship.",
+      fuer: "For a clean start: the company, tax numbers and the first account and card application.",
       dauer: "Support typically runs for around eight weeks",
       dauerKurz: "around eight weeks",
       leistungen: [
@@ -121,7 +121,7 @@ export const GLOBAL_PAKETE: GlobalPaket[] = [
     de: {
       name: "Global Banking",
       marke: "Mit Kartenleiter",
-      fuer: "Für Unternehmen, die nach der ersten Karte planvoll weitere Herausgeber gewinnen wollen.",
+      fuer: "Für den planvollen Ausbau nach der ersten Karte — weitere Herausgeber in der richtigen Reihenfolge.",
       dauer: "Begleitung in der Regel drei bis fünf Monate",
       dauerKurz: "drei bis fünf Monate",
       leistungen: [
@@ -135,7 +135,7 @@ export const GLOBAL_PAKETE: GlobalPaket[] = [
     en: {
       name: "Global Banking",
       marke: "With the card ladder",
-      fuer: "For companies that want to add further issuers in a planned sequence after the first card.",
+      fuer: "For a planned build-up after the first card — further issuers in the right order.",
       dauer: "Support typically runs for three to five months",
       dauerKurz: "three to five months",
       leistungen: [
@@ -154,7 +154,7 @@ export const GLOBAL_PAKETE: GlobalPaket[] = [
     de: {
       name: "Global Kapital",
       marke: "Bis zum Bankdarlehen",
-      fuer: "Für Unternehmen mit größerem Kapitalbedarf, die den Aufbau über mehrere Institute hinweg führen lassen.",
+      fuer: "Für größeren Kapitalbedarf: der ganze Weg über mehrere Institute, einschließlich der Unterlagen für ein Bankdarlehen.",
       dauer: "Begleitung in der Regel sechs Monate und länger",
       dauerKurz: "sechs Monate und länger",
       leistungen: [
@@ -168,7 +168,7 @@ export const GLOBAL_PAKETE: GlobalPaket[] = [
     en: {
       name: "Global Capital",
       marke: "Through to the bank loan",
-      fuer: "For companies with larger capital needs that want the build-up managed across several institutions.",
+      fuer: "For larger capital needs: the whole route across several institutions, including the documents for a bank loan.",
       dauer: "Support typically runs for six months or longer",
       dauerKurz: "six months or longer",
       leistungen: [
@@ -189,7 +189,7 @@ export const GLOBAL_PAKETE: GlobalPaket[] = [
     de: {
       name: "Global VIP",
       marke: "Persönlich vor Ort",
-      fuer: "Für Unternehmer, die den Aufbau persönlich vor Ort in Miami erleben und selbst am Tisch sitzen wollen.",
+      fuer: "Für alle, die den Aufbau persönlich in Miami erleben und selbst am Tisch sitzen wollen.",
       dauer: "Begleitung wie Global Kapital, Auftakt persönlich vor Ort",
       dauerKurz: "wie Global Kapital, Auftakt vor Ort",
       leistungen: [
@@ -203,7 +203,7 @@ export const GLOBAL_PAKETE: GlobalPaket[] = [
     en: {
       name: "Global VIP",
       marke: "In person on site",
-      fuer: "For business owners who want to experience the build-up in person in Miami and sit at the table themselves.",
+      fuer: "For everyone who wants to experience the build-up in person in Miami and sit at the table themselves.",
       dauer: "Support as in Global Capital, with the kick-off in person on site",
       dauerKurz: "as Global Capital, kick-off on site",
       leistungen: [
@@ -330,6 +330,26 @@ export const GLOBAL_LAUFEND = {
   en: "From the second year onwards your company incurs running costs: the state fee, the registered agent and the annual US filing. We tell you about them well in advance.",
 } as const;
 
+// ── NICHT IM FESTPREIS (19.09.2026, E-192) ──────────────────────────────────
+// „Alle Gebühren inklusive" heißt: alle Gebühren für die Leistungen des Pakets.
+// Was darüber hinaus anfallen kann, steht auf /business direkt neben den Paketen —
+// deckungsgleich mit /business/kosten („nicht Teil der Pakete") und dem Vertrag
+// (Ziffer 5: die laufenden Kosten ab dem zweiten Jahr trägt der Auftraggeber).
+export const GLOBAL_NICHT_INKLUSIVE = {
+  de: [
+    "Laufende Kosten Ihrer Gesellschaft ab dem zweiten Jahr: Staatsgebühr, Registered Agent und die jährliche US-Meldung",
+    "Laufende Buchhaltung und die Steuererklärungen in Ihrem Wohnsitzland",
+    "Umsatzsteuer-Registrierungen in einzelnen US-Bundesstaaten",
+    "Gebühren, Einlagen oder Zinsen, die ein Institut selbst verlangt",
+  ],
+  en: [
+    "Your company’s running costs from the second year: state fee, registered agent and the annual US filing",
+    "Ongoing bookkeeping and the tax returns in your country of residence",
+    "Sales tax registrations in individual US states",
+    "Fees, deposits or interest charged by an institution itself",
+  ],
+} as const;
+
 // ── VERTRAGSSPRACHE (18.09.2026) ────────────────────────────────────────────
 // Die Seite spricht den Kunden an („Ihre Gesellschaft", „unser Team"), der Vertrag
 // spricht über die Parteien („der Auftraggeber", „FIAON"). Dieselben Inhalte, zwei
@@ -451,6 +471,8 @@ export const GLOBAL_GELD_ZURUECK = {
   aktiv: true,
   de: {
     titel: "Geld zurück, wenn wir nicht liefern",
+    // Für Listen und Leisten, in denen die Bedingungen nicht direkt daneben stehen: genau begrenzt.
+    kurz: "Geld zurück, wenn Gesellschaft und EIN nicht zum vereinbarten Stichtag stehen",
     text: "Stehen Ihre US-Gesellschaft und die EIN nicht zu dem Stichtag, den wir beim Start mit Ihnen vereinbaren, erstatten wir den Paketpreis.",
     bedingungen: "Voraussetzung sind vollständige Unterlagen und Ihre Mitwirkung. Ausgenommen ist die Ablehnung durch eine Behörde aus Gründen, die in Ihrer Person oder Ihrem Unternehmen liegen. Entscheidungen von Banken und Kartenherausgebern sind nicht Gegenstand dieser Zusage.",
     // Dieselbe Zusage in Vertragssprache (Ziffer 6 des Auftrags).
@@ -459,6 +481,7 @@ export const GLOBAL_GELD_ZURUECK = {
   },
   en: {
     titel: "Your money back if we do not deliver",
+    kurz: "Your money back if the company and EIN are not in place by the agreed date",
     text: "If your US company and the EIN are not in place by the date we agree with you at the start, we refund the package price.",
     bedingungen: "This requires complete documents and your cooperation. It does not cover a refusal by an authority for reasons relating to you or your company. Decisions by banks and card issuers are not part of this commitment.",
     vertrag: "If the Client’s US company and the EIN are not in place by the date agreed between FIAON and the Client at the start, FIAON refunds the package price.",

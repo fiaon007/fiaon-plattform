@@ -18,6 +18,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useWoerter, useSprache } from "@/i18n/sprache";
 import { GLOBAL_GESPRAECH_WOERTER } from "@/i18n/global";
 import { globalPaket } from "@shared/fiaon-global";
+import { FIAON_FIRMA } from "@shared/fiaon-firma";
 import { kampagne, werbeKonversion } from "@/lib/werbung";
 
 type FreierTag = { tag: string; zeiten: string[] };
@@ -63,6 +64,12 @@ export default function GlobalGespraech({ paket }: { paket?: string | null }) {
       ? d.toLocaleDateString(loc, { weekday: "long", day: "numeric", month: "long" })
       : { kurz: d.toLocaleDateString(loc, { weekday: "short" }).replace(".", ""), datum: d.toLocaleDateString(loc, { day: "2-digit", month: "2-digit" }) };
   };
+
+  const wannKurz = (iso: string, z: string) => {
+    const k = tagText(iso) as { kurz: string; datum: string };
+    return sprache === "en" ? `${k.kurz} ${k.datum} at ${z}` : `${k.kurz} ${k.datum} um ${z}`;
+  };
+  const person = frei?.ansprechpartner?.vorname ? frei.ansprechpartner : null;
 
   const absenden = async (e: FormEvent) => {
     e.preventDefault();
@@ -124,6 +131,12 @@ export default function GlobalGespraech({ paket }: { paket?: string | null }) {
               </>
             ) : (
               <>
+                {person && (
+                  <div className="fg-kal-person">
+                    <span aria-hidden="true">{person.vorname!.charAt(0)}</span>
+                    <p><b>{t.mitWem(person.vorname!)}</b>{t.mitWemZusatz}</p>
+                  </div>
+                )}
                 <h3>{t.tagWaehlen}</h3>
                 <div className="fg-tage" role="group" aria-label={t.tagWaehlen}>
                   {tage.map((x) => {
@@ -153,7 +166,7 @@ export default function GlobalGespraech({ paket }: { paket?: string | null }) {
                 {feld("thema", t.thema)}
                 <input className="fg-falle" tabIndex={-1} autoComplete="off" aria-hidden="true" value={f.falle} onChange={(e) => setF({ ...f, falle: e.target.value })} />
                 {fehler && <p className="fehler" role="alert">{fehler}</p>}
-                <button type="submit" className="fg-knopf voll" disabled={sendet}>{sendet ? t.sendet : formularRueckruf ? t.anfragen : t.buchen}</button>
+                <button type="submit" className="fg-knopf voll" disabled={sendet}>{sendet ? t.sendet : formularRueckruf ? t.anfragen : tag && zeit ? t.buchen(wannKurz(tag, zeit)) : t.anfragen}</button>
                 <p className="hinweis">{t.datenschutz}</p>
               </div>
             )}
@@ -165,6 +178,7 @@ export default function GlobalGespraech({ paket }: { paket?: string | null }) {
             )}
           </form>
         )}
+        {!fertig && <p className="fg-kal-direkt">{t.direkt} <a href={`tel:${FIAON_FIRMA.telefonTel}`}>{FIAON_FIRMA.telefon}</a></p>}
       </div>
     </div>
   );

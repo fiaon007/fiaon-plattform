@@ -190,7 +190,7 @@ a.fd-karte:hover{border-color:#b9c5d6;box-shadow:0 16px 36px rgba(18,40,74,.08);
 .fd-paket .kap{margin-top:8px;font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--leise)}
 .fd-paket .kapwert{font-family:var(--serif);font-weight:500;font-size:25px;line-height:1.1;letter-spacing:-.012em;font-variant-numeric:lining-nums tabular-nums}
 .fd-paket .zeile{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-top:10px;padding-top:10px;border-top:1px solid var(--linie);font-size:13px;color:var(--text)}
-.fd-paket .zeile b{font-family:var(--serif);font-weight:400;font-size:19px;color:var(--tinte);font-variant-numeric:lining-nums tabular-nums}
+.fd-paket .zeile b{font-family:var(--serif);font-weight:400;font-size:19px;color:var(--tinte);font-variant-numeric:lining-nums tabular-nums;white-space:nowrap}
 .fd-paket .pfeil{position:absolute;top:20px;right:18px;color:var(--navy);transition:transform .25s}
 .fd-paket:hover .pfeil{transform:translateX(3px)}
 
@@ -324,3 +324,24 @@ a.fd-karte:hover{border-color:#b9c5d6;box-shadow:0 16px 36px rgba(18,40,74,.08);
 .gr-quelle{max-width:900px;margin:18px auto 0}
 @media(max-width:640px){.gr-papier{padding:24px 18px}.gr-seg{width:100%}.gr-seg button{flex:1 1 45%}.gr-formular{padding:4px 18px 20px}}
 @media print{.gk,.gf,.fd-kopf,.gr-beginn,.gr-drucken,.ew-karte{display:none!important}.gr-text{margin-top:0}}
+
+/* ── 19.09.2026 (E-192): Kopf mit Knöpfen vor den Ziffern; Tabellen am Handy als Karten ── */
+.fd-kopf-knoepfe{margin-top:30px}
+.fd-kopf-knoepfe+.fd-ziffern{margin-top:30px}
+@media(max-width:560px){
+  .fd-kopf-knoepfe{flex-direction:column;align-items:stretch}
+  .fd-kopf-knoepfe .fg-knopf{width:100%}
+  .fd-tabelle{overflow:visible;border:0;background:transparent;border-radius:0}
+  .fd-tabelle table{min-width:0}
+  .fd-tabelle thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  .fd-tabelle tbody,.fd-tabelle tr,.fd-tabelle td,.fd-tabelle tbody th{display:block}
+  .fd-tabelle tr{margin-top:12px;border:1px solid var(--linie);border-radius:12px;background:#fff;overflow:hidden}
+  .fd-tabelle tbody tr:first-child{margin-top:0}
+  .fd-tabelle tbody th,.fd-tabelle td:first-child{position:static!important;box-shadow:none!important;padding:13px 16px 11px!important;background:var(--stein)!important;border:0!important;font-weight:500;color:var(--tinte)}
+  .fd-tabelle td{border-top:1px solid var(--linie);padding:11px 16px}
+  .fd-tabelle tbody tr:first-child td{border-top:1px solid var(--linie)}
+  .fd-tabelle tbody tr:first-child td:first-child{border-top:0!important}
+  .fd-tabelle td[data-label]::before{content:attr(data-label);display:block;margin-bottom:3px;font-size:10px;font-weight:600;letter-spacing:.13em;text-transform:uppercase;color:var(--leise)}
+  .fd-tabelle tbody tr:hover td{background:transparent}
+  .fd-tabelle tbody tr:hover td.hervor{background:var(--blau-hell)}
+}

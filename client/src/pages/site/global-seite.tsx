@@ -111,17 +111,17 @@ function Seite({ s }: { s: GlobalSeite }) {
               <span className="fg-auge">{s.auge}</span>
               <h1 className="fg-h1 fd-h1">{s.h1}{s.h1b && <><br /><em>{s.h1b}</em></>}</h1>
               <p className="fd-lead">{s.lead}</p>
-              {s.ziffern?.length ? (
-                <div className="fd-ziffern">
-                  {s.ziffern.map((z) => <div key={z.label}><b className="fg-glanz">{z.wert}</b><span>{z.label}</span></div>)}
-                </div>
-              ) : null}
-              <div className="fg-knoepfe">
+              <div className="fg-knoepfe fd-kopf-knoepfe">
                 <a className="fg-knopf" href={beauftragen} onClick={paket ? klickBeauftragen : undefined}>
                   {paket ? `${globalPaket(paket)!.de.name} beauftragen` : t.knopfPakete}<Pfeil />
                 </a>
                 <a className="fg-knopf hell" href="#gespraech" onClick={zumGespraech}>{t.knopfGespraech}</a>
               </div>
+              {s.ziffern?.length ? (
+                <div className="fd-ziffern">
+                  {s.ziffern.map((z) => <div key={z.label}><b className="fg-glanz">{z.wert}</b><span>{z.label}</span></div>)}
+                </div>
+              ) : null}
             </Auf>
             <Auf verzoegerung={140}>
               <aside className="fd-merkblatt" aria-label="Auf einen Blick">
@@ -147,7 +147,7 @@ function Seite({ s }: { s: GlobalSeite }) {
             </ol>
             <div className="fd-inhalt-fuss">
               <a className="fg-knopf" href={beauftragen} onClick={paket ? klickBeauftragen : undefined}>{paket ? "Jetzt beauftragen" : t.knopfPakete}</a>
-              <a className="fg-knopf hell" href="#gespraech" onClick={zumGespraech}>Gespräch vereinbaren</a>
+              <a className="fg-knopf hell" href="#gespraech" onClick={zumGespraech}>{t.knopfGespraech}</a>
             </div>
           </nav>
 
@@ -187,6 +187,19 @@ function Seite({ s }: { s: GlobalSeite }) {
           </article>
         </div>
 
+        {/* ── Gespräch ───────────────────────────────────────────────────── */}
+        <section id="gespraech" className="fg-sek stein" style={{ scrollMarginTop: 72 }}>
+          <div className="fg-rahmen">
+            <Auf>
+              <div className="fg-kopf">
+                <div><span className="fg-auge">{t.gespraechAuge}</span><h2 className="fg-h2">{t.gespraechH2}</h2></div>
+                <p className="fg-lead">{t.gespraechLead}</p>
+              </div>
+            </Auf>
+            <GlobalGespraech paket={paket} />
+          </div>
+        </section>
+
         {/* ── Weiterlesen ────────────────────────────────────────────────── */}
         {s.weiter.length > 0 && (
           <section className="fd-weiter" aria-labelledby="fd-weiter-titel">
@@ -207,24 +220,11 @@ function Seite({ s }: { s: GlobalSeite }) {
           </section>
         )}
 
-        {/* ── Gespräch ───────────────────────────────────────────────────── */}
-        <section id="gespraech" className="fg-sek stein" style={{ scrollMarginTop: 72 }}>
-          <div className="fg-rahmen">
-            <Auf>
-              <div className="fg-kopf">
-                <div><span className="fg-auge">{t.gespraechAuge}</span><h2 className="fg-h2">{t.gespraechH2}</h2></div>
-                <p className="fg-lead">{t.gespraechLead}</p>
-              </div>
-            </Auf>
-            <GlobalGespraech paket={paket} />
-          </div>
-        </section>
-
         {/* ── Schlussband ────────────────────────────────────────────────── */}
         <section className="fg-schluss">
           <div className="fg-rahmen schmal">
-            <h2 className="fg-h2">{s.schluss?.a ?? "Eine Struktur, die Ihnen gehört — "}<em>{s.schluss?.b ?? "aufgebaut von Menschen, die Sie kennen."}</em></h2>
-            <p className="fg-lead">{s.schluss?.text ?? "Wählen Sie ein Paket oder vereinbaren Sie ein Gespräch. Sie erhalten eine Antwort von einem Menschen, nicht von einem Automaten."}</p>
+            <h2 className="fg-h2">{s.schluss?.a ?? t.schlussA}<em>{s.schluss?.b ?? t.schlussB}</em></h2>
+            <p className="fg-lead">{s.schluss?.text ?? t.schlussText}</p>
             <div className="fg-knoepfe">
               <a className="fg-knopf" href="/business#pakete">{t.knopfPakete}<Pfeil /></a>
               <a className="fg-knopf hell" href="#gespraech" onClick={zumGespraech}>{t.knopfGespraech}</a>
@@ -234,8 +234,8 @@ function Seite({ s }: { s: GlobalSeite }) {
 
         {/* ── Handlungsleiste am Handy ───────────────────────────────────── */}
         <div className={`fd-mobil${leiste ? " da" : ""}`} aria-hidden={!leiste}>
-          <a className="hell" href="#gespraech" onClick={zumGespraech} tabIndex={leiste ? 0 : -1}>Gespräch</a>
-          <a className="voll" href={beauftragen} onClick={paket ? klickBeauftragen : undefined} tabIndex={leiste ? 0 : -1}>{paket ? "Beauftragen" : "Pakete"}</a>
+          <a className="hell" href="#gespraech" onClick={zumGespraech} tabIndex={leiste ? 0 : -1}>Erstgespräch</a>
+          <a className="voll" href={beauftragen} onClick={paket ? klickBeauftragen : undefined} tabIndex={leiste ? 0 : -1}>{paket ? `${globalPaket(paket)!.de.name.replace(/^Global\s+/, "")} beauftragen` : `Pakete ab ${globalPreisText("global_struktur")}`}</a>
         </div>
       </div>
     </Dunkel>
@@ -318,7 +318,7 @@ function Baustein({ b, nr, seite }: { b: GlobalBlock; nr?: string; seite: Global
               <thead><tr>{b.kopf.map((k, i) => <th key={i} scope="col" className={b.hervor === i ? "hervor" : undefined}>{k}</th>)}</tr></thead>
               <tbody>
                 {b.zeilen.map((z, zi) => (
-                  <tr key={zi}>{z.map((zelle, i) => (i === 0 && b.kopf[0] === "" ? <th key={i} scope="row" style={{ textAlign: "left", fontWeight: 500, color: "var(--tinte)", textTransform: "none", letterSpacing: 0, fontSize: 14, background: "transparent", borderBottom: 0, borderTop: zi ? "1px solid var(--linie)" : 0, padding: "14px 16px", whiteSpace: "normal" }}>{zelle}</th> : <td key={i} className={b.hervor === i ? "hervor" : undefined}>{zelle}</td>))}</tr>
+                  <tr key={zi}>{z.map((zelle, i) => (i === 0 && b.kopf[0] === "" ? <th key={i} scope="row" style={{ textAlign: "left", fontWeight: 500, color: "var(--tinte)", textTransform: "none", letterSpacing: 0, fontSize: 14, background: "transparent", borderBottom: 0, borderTop: zi ? "1px solid var(--linie)" : 0, padding: "14px 16px", whiteSpace: "normal" }}>{zelle}</th> : <td key={i} className={b.hervor === i ? "hervor" : undefined} data-label={i > 0 && b.kopf[i] ? b.kopf[i] : undefined}>{zelle}</td>))}</tr>
                 ))}
               </tbody>
             </table>
@@ -431,8 +431,8 @@ export function PaketTafel({ k, seite, art }: { k: GlobalSchluessel; seite: stri
           <em>{t.planungZusatz}</em>
         </div>
         <div className="fg-preis">
+          <span className="fg-preis-marke">{t.festpreis}</span>
           <b className="fg-glanz">{globalPreisText(k)}</b>
-          <span>{t.festpreis}</span>
           <span className="fg-chip"><Haken groesse={13} />{t.inklusive}</span>
         </div>
         <div className="tun">

@@ -22,9 +22,15 @@ import { werbeEreignis } from "@/lib/werbung";
 import { Haken, Pfeil, Standorte } from "@/pages/site/global-seite";
 import "@/styles/global.css";
 import "@/styles/global-seiten.css";
+import "@/styles/global-rahmen.css";
 
 export default function GlobalLandingPage() {
   const lp = globalLandingpage(typeof window !== "undefined" ? window.location.pathname : "");
+  // Wie die Business-Seiten: Das Dokument scrollt (styles/global-rahmen.css, fg-dokument).
+  useEffect(() => {
+    document.documentElement.classList.add("fg-dokument");
+    return () => document.documentElement.classList.remove("fg-dokument");
+  }, []);
   useEffect(() => {
     if (!lp) return;
     const e = seoSeite(lp.pfad);
@@ -101,9 +107,8 @@ export default function GlobalLandingPage() {
           <div className="fd-pakete" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))" }}>
             {GLOBAL_PAKETE.map((p) => (
               <a key={p.key} className={`fd-paket${p.key === lp.paket ? " fokus" : ""}`} href={globalStartPfad(p.key, "de")} onClick={() => werbeEreignis("global_beauftragen_klick", { paket: p.key, seite: lp.pfad })}>
-                <span className="marke">{p.de.marke}</span>
+                {p.key === lp.paket && <span className="marke">Zu diesem Thema</span>}
                 <span className="name">{p.de.name}</span>
-                <span style={{ fontSize: 13, lineHeight: 1.55, color: "var(--text)", fontWeight: 300, marginTop: 6 }}>{p.de.fuer}</span>
                 <span className="zeile"><span>{p.de.dauerKurz.charAt(0).toUpperCase() + p.de.dauerKurz.slice(1)}</span><b>{globalPreisText(p.key)}</b></span>
                 <span className="pfeil"><Pfeil /></span>
               </a>

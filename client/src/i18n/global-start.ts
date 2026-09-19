@@ -7,6 +7,7 @@
 // Quelle wie das PDF). Hier steht nur, was der Bildschirm sagt.
 // 19.09.2026 (E-191): auch für Privatpersonen — Widerruf, Beginn, Endpreis.
 // ═══════════════════════════════════════════════════════════════════════════
+import { FIAON_FIRMA } from "@shared/fiaon-firma";
 
 const de = {
   metaTitel: "Auftrag — FIAON Global",
@@ -18,6 +19,8 @@ const de = {
   schrittePrivat: ["Paket", "Ihre Angaben", "Kontakt", "Vertrag"],
   weiter: "Weiter",
   zurueck: "Zurück",
+  ihrPaket: "Ihr Paket",
+  paketAendern: "Paket ändern",
   einmalig: "einmalig",
   planung: "Kapitalrahmen",
   planungZusatz: "Ihr Ziel — über den Rahmen entscheidet das Institut",
@@ -97,7 +100,7 @@ const de = {
   vertragLead: "Lesen Sie den Vertrag in Ruhe. Er nennt genau die Leistungen Ihres Pakets und was der Festpreis abdeckt.",
   vertragLeadPrivat: "Lesen Sie den Vertrag in Ruhe. Er nennt genau die Leistungen Ihres Pakets und was der Festpreis abdeckt; die Widerrufsbelehrung und das Muster-Widerrufsformular stehen in der Anlage.",
   beginnTitel: "Wann sollen wir beginnen?",
-  beginnText: "Als Verbraucher haben Sie ein Widerrufsrecht von vierzehn Tagen. Ohne Ihren ausdrücklichen Wunsch beginnen wir erst nach Ablauf dieser Frist; mit ihm, sobald Ihre Zahlung eingegangen ist. Der Vertrag unten folgt Ihrer Wahl.",
+  beginnText: "Als Verbraucher haben Sie das gesetzliche Widerrufsrecht von vierzehn Tagen. Ohne Ihren ausdrücklichen Wunsch beginnen wir erst nach Ablauf dieser Frist; mit ihm, sobald Ihre Zahlung eingegangen ist. Der Vertrag unten folgt Ihrer Wahl.",
   sofortBeginn: "Ich verlange ausdrücklich, dass FIAON vor Ablauf der Widerrufsfrist mit der Arbeit beginnt. Mir ist bekannt, dass ich bei einem Widerruf die bis dahin erbrachten Leistungen anteilig bezahle und dass mein Widerrufsrecht erlischt, wenn FIAON den Vertrag vollständig erfüllt hat.",
   vertragLaedt: "Vertrag wird erstellt …",
   vertragFehler: "Der Vertrag konnte nicht geladen werden. Bitte versuchen Sie es in einem Moment erneut.",
@@ -132,8 +135,8 @@ const de = {
   festpreis: "Festpreis · einmalig",
   begleitung: "Begleitung",
   inklusiveTitel: "Im Festpreis enthalten",
-  sicher: ["Vertrag in Textform", "Geld zurück, wenn wir nicht liefern", "Kein Abo, keine Raten"],
-  sicherPrivat: ["Festpreis als Endpreis", "Vierzehn Tage Widerrufsrecht für Verbraucher", "Geld zurück, wenn wir nicht liefern", "Kein Abo, keine Raten"],
+  sicher: ["Vertrag vor der Unterschrift lesen", "Einmal zahlen, per Rechnung — kein Abo"],
+  sicherPrivat: ["Festpreis als Endpreis", "Vertrag und Rechnung auf Ihren Namen", "Einmal zahlen, per Rechnung — kein Abo"],
 
   // Bestätigung
   fertigPille: "Auftrag angelegt",
@@ -151,7 +154,7 @@ const de = {
   faellig: "Zahlbar bis",
   kopieren: "Kopieren",
   kopiert: "Kopiert",
-  zweckHinweis: "Bitte geben Sie den Verwendungszweck genau so an — daran erkennen wir Ihre Zahlung.",
+  zweckHinweis: `Bitte geben Sie den Verwendungszweck genau so an — daran erkennen wir Ihre Zahlung. Dieselbe Bankverbindung steht auf Ihrer Rechnung. Nennt Ihnen jemals eine E-Mail eine andere, rufen Sie uns an, bevor Sie überweisen: ${FIAON_FIRMA.telefon}.`,
   vertragPdf: "Vertrag (PDF)",
   rechnungPdf: "Rechnung (PDF)",
   zahlungsseite: "Zahlungsseite mit QR-Code öffnen",
@@ -168,6 +171,8 @@ const en: typeof de = {
   schrittePrivat: ["Package", "Your details", "Contact", "Contract"],
   weiter: "Continue",
   zurueck: "Back",
+  ihrPaket: "Your package",
+  paketAendern: "Change package",
   einmalig: "one-off",
   planung: "Capital range",
   planungZusatz: "Your target — the institution decides on the limit",
@@ -242,7 +247,7 @@ const en: typeof de = {
   vertragLead: "Take your time to read the contract. It lists exactly the services in your package and what the fixed price covers.",
   vertragLeadPrivat: "Take your time to read the contract. It lists exactly the services in your package and what the fixed price covers; the withdrawal instructions and the model withdrawal form are in the annex.",
   beginnTitel: "When should we start?",
-  beginnText: "As a consumer you have a fourteen-day right of withdrawal. Without your express request we start only after this period has expired; with it, as soon as your payment has arrived. The contract below follows your choice.",
+  beginnText: "As a consumer you have the statutory fourteen-day right of withdrawal. Without your express request we start only after this period has expired; with it, as soon as your payment has arrived. The contract below follows your choice.",
   sofortBeginn: "I expressly request that FIAON begins work before the withdrawal period expires. I understand that if I withdraw, I pay a proportionate amount for the services provided until then, and that my right of withdrawal lapses once FIAON has fully performed the contract.",
   vertragLaedt: "Preparing the contract …",
   vertragFehler: "The contract could not be loaded. Please try again in a moment.",
@@ -275,8 +280,8 @@ const en: typeof de = {
   festpreis: "Fixed price · one-off",
   begleitung: "Support",
   inklusiveTitel: "Included in the fixed price",
-  sicher: ["Contract in text form", "Your money back if we do not deliver", "No subscription, no instalments"],
-  sicherPrivat: ["Fixed price as final price", "Fourteen-day right of withdrawal for consumers", "Your money back if we do not deliver", "No subscription, no instalments"],
+  sicher: ["Read the contract before you sign", "Pay once, by invoice — no subscription"],
+  sicherPrivat: ["Fixed price as final price", "Contract and invoice in your name", "Pay once, by invoice — no subscription"],
 
   fertigPille: "Order created",
   fertigTitel: "Thank you. Your order is in place.",
@@ -293,7 +298,7 @@ const en: typeof de = {
   faellig: "Payable by",
   kopieren: "Copy",
   kopiert: "Copied",
-  zweckHinweis: "Please enter the payment reference exactly as shown — that is how we identify your payment.",
+  zweckHinweis: `Please enter the payment reference exactly as shown — that is how we identify your payment. The same bank details are on your invoice. If an email ever gives you different details, call us before you transfer: ${FIAON_FIRMA.telefon}.`,
   vertragPdf: "Contract (PDF)",
   rechnungPdf: "Invoice (PDF)",
   zahlungsseite: "Open payment page with QR code",

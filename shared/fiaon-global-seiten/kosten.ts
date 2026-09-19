@@ -36,7 +36,7 @@ export const KOSTEN: GlobalSeite[] = [
       ["Staat, einmalig", `Florida ${STAAT.florida.gruendung} · Delaware ${STAAT.delaware.gruendung} · Wyoming ${STAAT.wyoming.gruendung}`],
       ["Staat, jährlich", `Florida ${STAAT.florida.jahr} · Delaware ${STAAT.delaware.jahr} · Wyoming ${STAAT.wyoming.jahr}`],
       ["IRS", "EIN und ITIN ohne Gebühr"],
-      ["Umsatzsteuer", "Preise zuzüglich Umsatzsteuer, soweit sie anfällt"],
+      ["Umsatzsteuer", "Unternehmen: zuzüglich, soweit sie anfällt · Privatpersonen: Endpreise"],
     ],
     kurz: `Die Gründung einer US-LLC kostet beim Bundesstaat ${STAAT.wyoming.gruendung} (Wyoming) bis ${STAAT.florida.gruendung} (Florida); EIN und ITIN vergibt die IRS ohne Gebühr. Jährlich fallen die Staatsgebühr oder -steuer, der Registered Agent (am Markt ${MARKT.agent}) und die Meldung an die IRS durch einen US-CPA (am Markt ${MARKT.cpa5472}) an. Bei FIAON Global ist das erste Jahr im Festpreis ab ${globalPreisText("global_struktur")} enthalten — mit Anwalt, Steuerberater und US-CPA.`,
     bloecke: [
@@ -46,7 +46,7 @@ export const KOSTEN: GlobalSeite[] = [
         kopf: ["Paket", "Festpreis", "Kapitalrahmen", "Begleitung"],
         zeilen: GLOBAL_PAKETE.map((p) => [p.de.name, globalPreisText(p.key), globalPlanungText(p.key), gross(p.de.dauerKurz)]),
         hervor: 1,
-        fuss: ["Alle Preise zuzüglich Umsatzsteuer, soweit sie anfällt. Der Kapitalrahmen ist Ihr Ziel; über jeden Rahmen entscheidet das Institut."],
+        fuss: ["Unternehmen: zuzüglich Umsatzsteuer, soweit sie anfällt. Privatpersonen: Endpreise. Der Kapitalrahmen ist Ihr Ziel; über jeden Rahmen entscheidet das Institut."],
       },
       {
         typ: "text", id: "enthalten", h2: "Was im Festpreis enthalten ist",
@@ -117,7 +117,7 @@ export const KOSTEN: GlobalSeite[] = [
       { f: "Welche laufenden Kosten hat eine US-LLC?", a: `Jährlich die Staatsgebühr oder -steuer (60 $ bis 400 $ je nach Staat), den Registered Agent (am Markt ${MARKT.agent}) und die Meldung an die IRS durch einen US-CPA (am Markt ${MARKT.cpa5472}).` },
       { f: "Was kosten EIN und ITIN?", a: `Bei der IRS nichts. Wer die ITIN über einen Acceptance Agent beantragt, zahlt am Markt ${MARKT.acceptanceAgent}. Bei FIAON Global sind beide Anträge im Festpreis enthalten.` },
       { f: "Gibt es versteckte Kosten?", a: "Nein. Was im Festpreis steckt, steht im Vertrag. Die laufenden Kosten Ihrer Gesellschaft ab dem zweiten Jahr nennen wir Ihnen rechtzeitig vorab; Buchhaltung und Steuererklärung im Heimatland sind nicht Teil der Pakete." },
-      { f: "Ist die Umsatzsteuer im Festpreis enthalten?", a: "Die Preise verstehen sich zuzüglich Umsatzsteuer, soweit sie anfällt." },
+      { f: "Ist die Umsatzsteuer im Festpreis enthalten?", a: "Für Unternehmen verstehen sich die Preise zuzüglich Umsatzsteuer, soweit sie anfällt. Für Privatpersonen sind die Festpreise Endpreise." },
       { f: "Warum ist der Festpreis höher als die Staatsgebühr?", a: "Weil er alle enthält, die für Ihre Gesellschaft arbeiten: Registered Agent, Adresse, Telefon, Anwalt, Steuerberater, US-CPA, die Anträge für EIN und ITIN und die Vorbereitung von Konto und Karte — koordiniert von einem Ansprechpartner." },
     ],
     weiter: ["/business/vergleich", "/business/paket-finder", "/business/privatpersonen", "/business/us-pflichten"],

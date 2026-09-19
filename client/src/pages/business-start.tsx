@@ -43,7 +43,7 @@ import { Dunkel } from "@/components/site/DunkleBuehne";
 import SignaturePad from "@/components/agent/SignaturPad";
 import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
 import { GLOBAL_START_WOERTER } from "@/i18n/global-start";
-import { GLOBAL_PAKETE, GLOBAL_INKLUSIVE, globalPaket, globalPreisText, globalPlanungText, istFiaonSelbst } from "@shared/fiaon-global";
+import { GLOBAL_PAKETE, GLOBAL_INKLUSIVE, GLOBAL_GELD_ZURUECK, globalPaket, globalPreisText, globalPlanungText, istFiaonSelbst } from "@shared/fiaon-global";
 import { kampagne, werbeKonversion } from "@/lib/werbung";
 import "@/styles/global-start.css";
 
@@ -78,7 +78,12 @@ export default function BusinessStart() {
   const zu = (p: string) => inSprache(p, sprache);
 
   const entwurf = useMemo(() => lesen<{ paket: string; firma: Firma; person: Person; schritt: number; vertreter?: Vertreter[]; art?: Auftraggeber; anschrift?: Anschrift }>(ENTWURF), []);
-  const [schritt, setSchritt] = useState(entwurf?.schritt ?? 0);
+  // 19.09.2026: Wer mit ?paket= von einer Tafel kommt, hat das Paket schon gewählt — der Weg beginnt bei Schritt 2.
+  const [schritt, setSchritt] = useState(() => {
+    const ausAdresse = new URLSearchParams(window.location.search).get("paket");
+    if (!entwurf?.schritt && ausAdresse && globalPaket(ausAdresse)) return 1;
+    return entwurf?.schritt ?? 0;
+  });
   const [paket, setPaket] = useState<string>(() => {
     const ausAdresse = new URLSearchParams(window.location.search).get("paket");
     return (ausAdresse && globalPaket(ausAdresse)?.key) || entwurf?.paket || "";
@@ -407,6 +412,14 @@ export default function BusinessStart() {
                     </>
                   )}
 
+                  {/* Das gewählte Paket bleibt sichtbar — am Handy steht die Übersicht erst unter dem Formular. */}
+                  {schritt > 0 && g && (
+                    <p className="gs-gewaehlt">
+                      <span>{t.ihrPaket}: <b>FIAON {g[s].name}</b> · {globalPreisText(g.key, s)}</span>
+                      <button type="button" onClick={() => gehe(0)}>{t.paketAendern}</button>
+                    </p>
+                  )}
+
                   {schritt === 1 && (
                     <>
                       <h2>{privat ? t.privatTitel : t.firmaTitel}</h2>
@@ -598,10 +611,10 @@ export default function BusinessStart() {
                   )}
 
                   {fehler && <p className="gs-fehler" role="alert">{fehler}</p>}
-                  <div className="gs-fuss">
+                  <div className="gs-fuss gs-fuss-schritt">
                     {schritt > 0 ? <button type="button" className="gs-zurueck" onClick={() => gehe(schritt - 1)}>← {t.zurueck}</button> : <span />}
                     {schritt < 3
-                      ? <button type="button" className="gs-knopf" onClick={weiter}>{t.weiter}</button>
+                      ? <button type="button" className="gs-knopf" onClick={weiter}>{t.weiter}: {(privat ? t.schrittePrivat : t.schritte)[schritt + 1]}</button>
                       : <button type="button" className="gs-knopf" onClick={beauftragen} disabled={sendet || vertragStand !== "da" || vertragVeraltet}>{sendet ? t.sendet : t.beauftragen}</button>}
                   </div>
                 </>
@@ -629,7 +642,7 @@ export default function BusinessStart() {
                 <ul className="gs-inkl">{GLOBAL_INKLUSIVE[s].map((x) => <li key={x}>{x}</li>)}</ul>
                 <h3>{t.soGehtEs}</h3>
                 <ol>{(privat ? t.ablaufPrivat : t.ablauf).map((x) => <li key={x}>{x}</li>)}</ol>
-                <ul className="gs-sicher">{(privat ? t.sicherPrivat : t.sicher).map((x) => <li key={x}>{x}</li>)}</ul>
+                <ul className="gs-sicher">{[...(GLOBAL_GELD_ZURUECK.aktiv ? [GLOBAL_GELD_ZURUECK[s].kurz] : []), ...(privat ? t.sicherPrivat : t.sicher)].map((x) => <li key={x}>{x}</li>)}</ul>
                 {!fertig && <a className="gs-sprechen" href={`${zu("/business")}${paket ? `?paket=${paket}` : ""}#gespraech`}>{t.lieberSprechen}</a>}
               </div>
             </aside>

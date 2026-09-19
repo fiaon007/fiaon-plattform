@@ -65,11 +65,14 @@ export default function GlobalNav() {
   const uhr = useRef<number | null>(null);
   const kopf = useRef<HTMLElement>(null);
 
+  // Business-Seiten scrollen im Dokument, gemeinsame Seiten (Impressum mit ?bereich=business) noch in #root.
   useEffect(() => {
-    const fn = () => setGescrollt(window.scrollY > 8);
+    const root = document.getElementById("root");
+    const fn = () => setGescrollt(Math.max(window.scrollY, root?.scrollTop ?? 0) > 8);
     fn();
     window.addEventListener("scroll", fn, { passive: true });
-    return () => window.removeEventListener("scroll", fn);
+    root?.addEventListener("scroll", fn, { passive: true });
+    return () => { window.removeEventListener("scroll", fn); root?.removeEventListener("scroll", fn); };
   }, []);
   // Escape schließt Panel und Handy-Menü; ein Klick daneben schließt das Panel.
   useEffect(() => {

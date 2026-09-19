@@ -30,7 +30,7 @@ export const PRIVAT_SEITE: GlobalSeite = {
   lead: "Sie brauchen kein bestehendes Unternehmen, um FIAON Global zu beauftragen. Als Privatperson, als Gründer oder als Unternehmer, der privat bucht, werden Sie selbst Gesellschafter Ihrer US-Gesellschaft — mit demselben Festpreis, demselben Team vor Ort und denselben Partnern.",
   ziffern: [
     { wert: `ab ${globalPreisText("global_struktur")}`, label: "Festpreis, für Privatpersonen Endpreis" },
-    { wert: "14 Tage", label: "Widerrufsrecht für Verbraucher" },
+    { wert: "Ihr Name", label: "auf Vertrag und Rechnung" },
     { wert: "Sie selbst", label: "als Gesellschafter der US-Gesellschaft" },
   ],
   blick: [
@@ -38,10 +38,10 @@ export const PRIVAT_SEITE: GlobalSeite = {
     ["Gesellschafter", "Sie selbst; später auf Wunsch Ihre Holding"],
     ["Unterlagen", "Reisepass, Adressnachweis, Namenswunsch, Tätigkeitsbeschreibung"],
     ["Preis", `ab ${globalPreisText("global_struktur")} — Endpreis, alle Gebühren inklusive`],
-    ["Widerruf", "Vierzehn Tage für Verbraucher; Beginn vorher nur auf Ihren Wunsch"],
+    ["Widerruf", "Gesetzliches Widerrufsrecht für Verbraucher; Beginn vor Fristende nur auf Ihren Wunsch"],
     ["Vertragspartner", "FIAON LTD, London"],
   ],
-  kurz: "Ja — Sie können FIAON Global auch als Privatperson beauftragen. Sie brauchen keine eigene Firma: Sie werden persönlich Gesellschafter der US-Gesellschaft, Vertrag und Rechnung laufen auf Ihren Namen. Die Festpreise sind für Privatpersonen Endpreise. Handeln Sie als Verbraucher, haben Sie ein Widerrufsrecht von vierzehn Tagen; mit der Arbeit beginnen wir vorher nur, wenn Sie es ausdrücklich wünschen.",
+  kurz: "Ja — Sie können FIAON Global auch als Privatperson beauftragen. Sie brauchen keine eigene Firma: Sie werden persönlich Gesellschafter der US-Gesellschaft, Vertrag und Rechnung laufen auf Ihren Namen. Die Festpreise sind für Privatpersonen Endpreise. Handeln Sie als Verbraucher, gilt das gesetzliche Widerrufsrecht von vierzehn Tagen; vor Ablauf der Frist beginnen wir nur, wenn Sie es ausdrücklich wünschen.",
   bloecke: [
     {
       typ: "karten", id: "fuer-wen", h2: "Für wen das passt", spalten: 3,
@@ -68,7 +68,7 @@ export const PRIVAT_SEITE: GlobalSeite = {
         ["Gesellschafter der US-Gesellschaft", "Sie selbst", "Ihr Unternehmen oder Sie"],
         ["Unterlagen", "Pass, Adressnachweis, Namenswunsch, Tätigkeit", "zusätzlich Registerauszug oder Gesellschafterliste"],
         ["Preisangabe", "Endpreis", "zuzüglich Umsatzsteuer, soweit sie anfällt"],
-        ["Widerrufsrecht", "vierzehn Tage, wenn Sie Verbraucher sind", "gesetzlich keins"],
+        ["Widerrufsrecht", "gesetzlich vierzehn Tage, wenn Sie Verbraucher sind", "gesetzlich keins"],
         ["Leistungen", "dieselben", "dieselben"],
       ],
       hervor: 1,
@@ -93,7 +93,7 @@ export const PRIVAT_SEITE: GlobalSeite = {
   fragen: [
     { f: "Kann ich als Privatperson eine US-Firma gründen?", a: "Ja. Sie brauchen weder eine eigene Firma noch einen Wohnsitz in den USA. Sie werden persönlich Gesellschafter der US-Gesellschaft; Vertrag und Rechnung laufen auf Ihren Namen." },
     { f: "Brauche ich eine Firma, um FIAON Global zu beauftragen?", a: "Nein. Im Auftrag wählen Sie „Privatperson“ und tragen Name und Anschrift ein. Registerauszug und Firmendaten entfallen." },
-    { f: "Habe ich als Privatperson ein Widerrufsrecht?", a: "Wenn Sie als Verbraucher handeln, ja: vierzehn Tage ab Vertragsschluss. Vor Ablauf beginnen wir nur auf Ihren ausdrücklichen Wunsch; dann zahlen Sie im Fall des Widerrufs einen angemessenen Anteil für bereits Erbrachtes." },
+    { f: "Habe ich als Privatperson ein Widerrufsrecht?", a: "Wenn Sie als Verbraucher handeln, ja — das gesetzliche Widerrufsrecht von vierzehn Tagen ab Vertragsschluss. Vor Ablauf beginnen wir nur auf Ihren ausdrücklichen Wunsch; dann zahlen Sie im Fall des Widerrufs einen angemessenen Anteil für bereits Erbrachtes." },
     { f: "Gilt der Festpreis auch für Privatpersonen?", a: `Ja, als Endpreis: ab ${globalPreisText("global_struktur")} für Global Struktur, mit allen Gebühren und Partner-Honoraren des Pakets.` },
     { f: "Kann ich die US-Gesellschaft später auf meine Firma übertragen?", a: "Grundsätzlich ja. Eine Übertragung hat steuerliche Folgen in beiden Ländern; das prüfen Sie vorher mit Ihrem Steuerberater." },
     { f: "Welche Unterlagen brauche ich als Privatperson?", a: "Ihren Reisepass, einen Adressnachweis, den gewünschten Namen der Gesellschaft in drei Varianten und eine kurze Beschreibung der geplanten Tätigkeit." },

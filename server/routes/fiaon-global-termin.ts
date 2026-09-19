@@ -37,7 +37,9 @@ function angebotAntwort(a: GlobalAngebotStand) {
     zeitzone: GLOBAL_ZEITZONE,
     dauerMin: GLOBAL_DAUER_MIN,
     tage: a.tage,
-    ansprechpartner: a.person ? { vorname: a.person.vorname, ...(a.person.bild ? { bild: a.person.bild } : {}) } : null,
+    // 19.09.2026: nur der Vorname — das Profilbild einer Mitarbeiterin/eines Mitarbeiters gehört ohne
+    // ausdrückliche Freigabe nicht auf eine öffentliche Seite (die Seite zeigt den Anfangsbuchstaben).
+    ansprechpartner: a.person ? { vorname: a.person.vorname } : null,
     rueckfall: a.rueckfall,
   };
 }

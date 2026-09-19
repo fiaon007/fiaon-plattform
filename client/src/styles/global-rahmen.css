@@ -4,7 +4,6 @@
    (Impressum, Datenschutz …) gleich aussieht, die global.css nicht laden.
    Sprache wie die Seite: Papierweiß, Navy, eine leichte Serife, ruhige Knöpfe.
    ═══════════════════════════════════════════════════════════════════════════ */
-@import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;1,6..72,400&display=swap');
 
 .gk, .gf, .gk-mobil {
   --gk-papier:#ffffff; --gk-stein:#f5f7fa; --gk-linie:#e3e7ee; --gk-linie-2:#cdd5e0;
@@ -16,6 +15,14 @@
 }
 .gk *, .gf *, .gk-mobil * { box-sizing:border-box; }
 .gk :focus-visible, .gf :focus-visible { outline:2px solid var(--gk-blau); outline-offset:3px; border-radius:6px; }
+
+/* ── Das Dokument scrollt (19.09.2026) ──────────────────────────────────────
+   index.css lässt #root scrollen (html, body, #root: height 100 %, overflow auto) — dann bleibt
+   window.scrollY immer 0: die Handlungsleiste am Handy erschien nie, der Lesefortschritt stand still,
+   und iOS blendet seine Leisten nur beim Scrollen des Dokuments aus. Auf den Business-Seiten setzt der
+   Rahmen (DunkleBuehne/Landingpage) die Klasse fg-dokument an <html>; nur dort scrollt das Dokument. */
+html.fg-dokument, html.fg-dokument body, html.fg-dokument #root { height:auto; min-height:100%; overflow:visible; }
+html.fg-dokument #root { overflow-x:clip; }
 
 /* ── Kopf ───────────────────────────────────────────────────────────────── */
 .gk { position:fixed; top:0; left:0; right:0; z-index:60; background:rgba(255,255,255,.88);

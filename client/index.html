@@ -55,7 +55,10 @@
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    <!-- 19.09.2026: Newsreader (Serife von FIAON Global) im selben Abruf wie Inter — vorher per @import
+         in zwei Stilblättern mit unterschiedlichen Schnitten. Die Schriftdateien lädt der Browser nur,
+         wo die Serife wirklich vorkommt. -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,300;1,6..72,400&display=swap" rel="stylesheet" />
     
     <!-- Strukturierte Daten (Organization, WebSite, Breadcrumb, FAQ …) setzt der
          Server je Seite ein: server/lib/fiaon-seiten-seo.ts (E-079). -->

@@ -43,7 +43,7 @@ export const GLOBAL_MENUE: GlobalMenuePunkt[] = [
   { gruppe: "preise", pfad: "/business/fragen", titel: "Fragen und Antworten", text: "Alle Antworten an einem Ort", reihe: 6 },
 
   { gruppe: "wissen", pfad: "/business/wissen", titel: "Alle Beiträge", text: "Steuern, Staaten, Rechtsformen", reihe: 1 },
-  { gruppe: "wissen", pfad: "/business/wissen/us-llc-steuern", titel: "Steuern, ehrlich erklärt", text: "Spart eine US-LLC Steuern?", reihe: 2 },
+  { gruppe: "wissen", pfad: "/business/wissen/us-llc-steuern", titel: "Steuern, ehrlich erklärt", text: "Ist eine US-LLC ein Steuermodell?", reihe: 2 },
   { gruppe: "wissen", pfad: "/business/wissen/bundesstaat-waehlen", titel: "Welcher Bundesstaat?", text: "Florida, Delaware oder Wyoming", reihe: 3 },
   { gruppe: "wissen", pfad: "/business/wissen/llc-oder-corporation", titel: "LLC oder Corporation", text: "Die Wahl der Rechtsform", reihe: 4 },
   { gruppe: "wissen", pfad: "/business/wissen/form-5472", titel: "Form 5472", text: "Die Meldung, die niemand vergessen darf", reihe: 5 },

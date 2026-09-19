@@ -42,7 +42,7 @@ export const WISSEN: GlobalSeite[] = [
       { wert: FAKTEN_STAND, label: "Stand aller Zahlen" },
     ],
     blick: [
-      ["Steuern", "Spart eine US-LLC Steuern? Die ehrliche Antwort"],
+      ["Steuern", "Ist eine US-LLC ein Steuermodell? Die ehrliche Antwort"],
       ["Rechtsform", "LLC oder Corporation · LLC oder GmbH"],
       ["Meldungen", "Form 5472 mit Form 1120"],
       ["Bundesstaaten", "Florida, Delaware, Wyoming — und wie man wählt"],

@@ -161,9 +161,14 @@ export function organisationLd(): Record<string, unknown> {
   };
 }
 
-function breadcrumbLd(s: SeoSeite): Record<string, unknown> {
-  const items = [{ "@type": "ListItem", position: 1, name: "FIAON", item: `${BASIS}/` }];
-  (s.krumen ?? []).forEach((k, i) => items.push({ "@type": "ListItem", position: i + 2, name: k.name, item: `${BASIS}${k.pfad}` }));
+function breadcrumbLd(s: SeoSeite): Record<string, unknown> | null {
+  // 19.09.2026 (E-192): Die Business-Welt beginnt bei FIAON Global, nicht auf der Startseite
+  // der Privatkunden — wie die sichtbaren Brotkrumen (globalKrumen) und korpus() unten.
+  const business = /^\/(en\/)?business(\/|$)/.test(s.pfad);
+  const wurzel = business ? { name: "FIAON Global", pfad: s.sprache === "en" ? "/en/business" : "/business" } : { name: "FIAON", pfad: "/" };
+  const kette = [wurzel, ...(s.krumen ?? []).filter((k) => !(business && k.pfad === wurzel.pfad))];
+  if (kette.length < 2) return null; // Die Startseite eines Bereichs braucht keine Brotkrumen.
+  const items = kette.map((k, i) => ({ "@type": "ListItem", position: i + 1, name: k.name, item: `${BASIS}${k.pfad}` }));
   return { "@context": "https://schema.org", "@type": "BreadcrumbList", itemListElement: items };
 }
 
@@ -173,7 +178,8 @@ function strukturierteDaten(s: SeoSeite, url: string): unknown[] {
   if (s.pfad === "/") {
     ld.push({ "@context": "https://schema.org", "@type": "WebSite", "@id": `${BASIS}/#website`, name: "FIAON", url: BASIS, inLanguage: "de", publisher: { "@id": `${BASIS}/#organisation` } });
   } else {
-    ld.push(breadcrumbLd(s));
+    const krumen = breadcrumbLd(s);
+    if (krumen) ld.push(krumen);
   }
   ld.push({
     "@context": "https://schema.org",

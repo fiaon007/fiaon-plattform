@@ -35,10 +35,12 @@ import path from "path";
 import { GLOBAL_SEITEN, LANDINGPAGES, globalInhalt, type GlobalBlock, type GlobalSeite } from "../shared/fiaon-global-seiten";
 import { GLOBAL_MENUE } from "../shared/fiaon-global-menue";
 import { globalPaket } from "../shared/fiaon-global";
+import { PAKETE } from "../shared/fiaon-pakete";
 import { globalStartPfad } from "../shared/fiaon-global-wege";
 import { SEO_SEITEN, seoFragen, seoIndexierbar } from "../shared/fiaon-seo-seiten";
 import "../server/lib/fiaon-global-seo";
 import { istBusinessBereich, mitBereich } from "../client/src/lib/bereich";
+import { GLOBAL_WOERTER } from "../client/src/i18n/global";
 
 const HEUTE = "2026-09-19";
 let fehler = 0; let geprueft = 0;
@@ -156,6 +158,10 @@ for (const l of LANDINGPAGES) {
   const m = text.match(FINANZ);
   ok(!m, `${l.pfad}: Finanzbegriff „${m?.[0]}“ auf einer Anzeigen-Landingpage (Google-Ads-Richtlinie Finanzdienstleistungen)`);
 }
+// 19.09.2026 (E-192): Die Pakettafeln der Landingpages zeigen nur Name, Dauer und Preis — Überzeile,
+// Paketzeile und Leistungsliste sprechen von Karten und Darlehen (Global Banking, Global Kapital).
+const lpQuelle = fs.readFileSync(path.resolve(import.meta.dirname, "../client/src/pages/site/global-lp.tsx"), "utf8");
+ok(!/\bp\.de\.(marke|fuer|leistungen)\b/.test(lpQuelle) && !/paket\.de\.(marke|fuer|leistungen)\b/.test(lpQuelle), "global-lp.tsx: Pakettafel zeigt Überzeile, Paketzeile oder Leistungen (Finanzbegriffe auf der Anzeigenseite)");
 
 // ═══ 6: PRIVATPERSONEN ═══════════════════════════════════════════════════════
 abschnitt("Privatpersonen");
@@ -182,6 +188,8 @@ for (const datei of BUSINESS_DATEIEN) {
   const m = text.match(PRIVAT_ZIEL);
   ok(!m, `${datei}: verlinkt die Privatkunden-Linie (${m?.[0]})`);
   ok(!/href=\{?["'`]\/["'`]/.test(text), `${datei}: verlinkt die Startseite der Privatkunden („/“)`);
+  // Die Wortwand liest nur Textdateien; in JSX stand am 19.09.2026 kurz ein „Empfohlen" (Register E-188: keine Empfehlung).
+  ok(!/\bempf(ohlen|ehl\w*)\b/i.test(text), `${datei}: „${text.match(/\bempf(ohlen|ehl\w*)\b/i)?.[0]}“ — FIAON Global spricht keine Empfehlung aus`);
 }
 for (const s2 of [...GLOBAL_SEITEN, ...LANDINGPAGES] as any[]) {
   const ziele = [...(s2.weiter ?? []), ...((s2.bloecke ?? []) as any[]).flatMap((b: any) => (b.eintraege ?? []).map((e: any) => e.pfad).concat((b.karten ?? []).map((k: any) => k.pfad).filter(Boolean)))];
@@ -197,10 +205,40 @@ for (const [pfad, suche, soll] of [["/business", "", true], ["/business/kosten",
   ok(istBusinessBereich(pfad, suche) === soll, `istBusinessBereich(${pfad}${suche}) ist nicht ${soll}`);
 }
 ok(mitBereich("/impressum") === "/impressum?bereich=business" && mitBereich("/datenschutz#vi") === "/datenschutz?bereich=business#vi" && mitBereich("/x?a=1") === "/x?a=1&bereich=business", "mitBereich() baut die Adresse falsch");
+// Auch das Vorrendering (Weiterlesen, Brotkrumen) bleibt in der Business-Welt — bis 19.09.2026 verwies /en/business auf /preise und /privatkunden.
+for (const [pfad, e] of Object.entries(tabelle) as [string, any][]) {
+  if (!/^\/(en\/)?business(\/|$)/.test(pfad)) continue;
+  for (const eintrag of [e, e.en].filter(Boolean)) {
+    const ziele = [...(eintrag.weiter ?? []), ...((eintrag.krumen ?? []) as any[]).map((k) => k.pfad)];
+    const fremd = ziele.filter((z: string) => !/^\/(en\/)?(business|impressum|datenschutz|cookie-einstellungen|legal-notice|privacy)/.test(z));
+    ok(fremd.length === 0, `SEO ${eintrag.pfad ?? pfad}: Weiterlesen/Brotkrumen führen aus der Business-Welt: ${fremd.join(", ")}`);
+  }
+}
+// Die Kacheln „Für wen" auf /business führen auf Unterseiten, die es gibt.
+for (const k of GLOBAL_WOERTER.de.fuer) ok(!k.pfad || seitenPfade.has(k.pfad), `/business „Für wen": ${k.tag} → ${k.pfad} gibt es nicht`);
+for (const [ziel] of GLOBAL_WOERTER.de.fuerLaenderLinks) ok(seitenPfade.has(ziel), `/business „Für wen": ${ziel} gibt es nicht`);
 for (const route of ["/business/widerrufsbelehrung", "/business/mustervertrag"]) {
   ok(appTsx.includes(`path="${route}"`) && appTsx.indexOf(`path="${route}"`) < appTsx.indexOf(`path="/business/:slug"`), `App.tsx: Route ${route} fehlt oder steht hinter /business/:slug`);
   ok(/noindex/.test(String(tabelle[route]?.robots ?? "")), `${route}: fehlt in der SEO-Tabelle oder ist nicht noindex`);
 }
+
+// ═══ 8: DIE HAUPTSEITE /business ═════════════════════════════════════════════
+abschnitt("Hauptseite /business");
+// Justins eigener US-Fall steht nie auf der Seite (Entscheidung 17.09.2026) — auch nicht als „Wir sind diesen Weg selbst gegangen".
+const EIGENER_FALL = /selbst gegangen|eigene[nr]? US-Gesellschaft, eigene[nr]? Karten|walked this path ourselves/i;
+const hubTexte = JSON.stringify([GLOBAL_WOERTER.de, GLOBAL_WOERTER.en, GLOBAL_SEITEN, LANDINGPAGES]);
+ok(!EIGENER_FALL.test(hubTexte), `Texte erzählen den eigenen Fall: „${hubTexte.match(EIGENER_FALL)?.[0]}“`);
+// Die FAQ stehen als reine Zeichenketten da — nur so liest scripts/seo-fragen-erzeugen.ts sie ins FAQ-Markup.
+const hubQuelle = fs.readFileSync(path.join(WURZEL, "client/src/i18n/global.ts"), "utf8");
+const faqRoh = [...hubQuelle.matchAll(/\{\s*f:\s*"((?:[^"\\]|\\.)*)",\s*a:\s*"((?:[^"\\]|\\.)*)"/gs)].length;
+ok(faqRoh === GLOBAL_WOERTER.de.fragen.length + GLOBAL_WOERTER.en.fragen.length, `i18n/global.ts: ${GLOBAL_WOERTER.de.fragen.length + GLOBAL_WOERTER.en.fragen.length} Fragen, aber nur ${faqRoh} als reine Zeichenkette (fehlen im FAQ-Markup)`);
+ok(GLOBAL_WOERTER.de.fragen.length === GLOBAL_WOERTER.en.fragen.length, "/business: deutsche und englische Fragen verschieden viele");
+// Preis und Kapitalrahmen im ersten Bildschirm, der Titel nennt den Einstiegspreis aus dem Katalog.
+const hubSeite = fs.readFileSync(path.join(WURZEL, "client/src/pages/site/business.tsx"), "utf8");
+ok(/globalKapitalSpanne\(s\)/.test(hubSeite.slice(0, hubSeite.indexOf('id="leistungen"'))) && /abPreis/.test(hubSeite.slice(0, hubSeite.indexOf('id="leistungen"'))), "/business: Kapitalrahmen oder Festpreis fehlen im Kopf");
+const einstieg = String(Math.round((PAKETE.find((x) => x.key === "global_struktur")?.preisCents ?? 0) / 100).toLocaleString("de-DE"));
+ok(GLOBAL_WOERTER.de.metaTitel.includes(einstieg) && String(tabelle["/business"]?.titel).includes(einstieg), `/business: Titel nennt nicht den Einstiegspreis ${einstieg} € (Seite und SEO-Tabelle)`);
+ok(GLOBAL_WOERTER.de.metaTitel === tabelle["/business"]?.titel && GLOBAL_WOERTER.en.metaTitel === tabelle["/business"]?.en?.titel, "/business: Titel der Seite und der SEO-Tabelle weichen voneinander ab");
 
 // ═══ ERGEBNIS ═══════════════════════════════════════════════════════════════
 abschnitt("Ergebnis");

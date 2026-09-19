@@ -22,10 +22,10 @@ import type { GlobalLandingpage } from "./typen";
 const ab = `ab ${globalPreisText("global_struktur")}`;
 
 const GRUND_FRAGEN = [
-  { f: "Muss ich dafür in die USA reisen?", a: "Nein. Unser Team vor Ort in Miami reicht ein und nimmt Termine wahr; Sie unterschreiben digital." },
+  { f: "Muss ich dafür in die USA reisen?", a: "In der Regel nicht. Unser Team vor Ort in Miami reicht ein und nimmt Termine wahr; Sie unterschreiben digital. Verlangt ein Institut ausnahmsweise einen persönlichen Termin, begleitet Sie unser Team in Miami." },
   { f: "Was ist im Festpreis enthalten?", a: "Staatliche Gründungsgebühren, Registered Agent, US-Adresse und Telefon im ersten Jahr, die Anträge für EIN und ITIN sowie die Honorare von Partner-Anwalt, Partner-Steuerberater und US-CPA für die Leistungen Ihres Pakets." },
   { f: "Wer ist mein Vertragspartner?", a: "Die FIAON LTD in London, eingetragen im Companies House unter der Nummer 17318250. Vertrag und Rechnung erhalten Sie direkt nach der Unterschrift." },
-  { f: "Spart eine US-Gesellschaft Steuern?", a: "In der Regel nicht. Wird sie aus Deutschland, Österreich oder der Schweiz geführt, bleibt sie dort steuerpflichtig. Das prüft unser Partner-Steuerberater vor der Gründung." },
+  { f: "Ist eine US-Gesellschaft ein Steuermodell?", a: "Nein. Wird sie aus Deutschland, Österreich oder der Schweiz geführt, ist sie in der Regel dort steuerpflichtig. Das prüft unser Partner-Steuerberater vor der Gründung." },
 ];
 
 export const LANDINGPAGES: GlobalLandingpage[] = [
@@ -60,7 +60,7 @@ export const LANDINGPAGES: GlobalLandingpage[] = [
       "Operating Agreement oder Satzung durch unseren Partner-Anwalt",
       "Team vor Ort in Miami für Termine und Einreichungen",
     ],
-    paket: "global_banking",
+    paket: "global_struktur",
     fragen: [
       { f: "Kann meine GmbH Gesellschafterin der US-Gesellschaft sein?", a: "Ja. Wir benötigen dann den Registerauszug der Muttergesellschaft und die Pässe der Geschäftsführung." },
       ...GRUND_FRAGEN,
@@ -101,7 +101,7 @@ export const LANDINGPAGES: GlobalLandingpage[] = [
       "Meldung zu Hause vorbereitet für Ihren Steuerberater",
       "Ein Ansprechpartner für alle Fristen",
     ],
-    paket: "global_banking",
+    paket: "global_struktur",
     fragen: [
       { f: "Muss ich Form 5472 auch ohne Umsatz abgeben?", a: "Ja. Die Pflicht hängt nicht am Umsatz, sondern daran, dass die Gesellschaft einem ausländischen Gesellschafter gehört." },
       ...GRUND_FRAGEN,

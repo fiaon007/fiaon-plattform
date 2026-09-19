@@ -322,7 +322,7 @@ export default function Business() {
             </div>
             <div className="fg-paket-fuss">
               <p>
-                {t.vertragVorab}{s === "de" && <> <a href="/business/mustervertrag">{t.mustervertragLesen}</a>.</>} {t.perRechnung} {t.kostenHinweis}
+                {t.vertragVorab} <a href={s === "en" ? "/en/business/mustervertrag" : "/business/mustervertrag"}>{t.mustervertragLesen}</a>. {t.perRechnung} {t.kostenHinweis}
               </p>
               {s === "de" && <p>{t.finderFrage} <a href="/business/paket-finder">{t.finderLink}</a></p>}
             </div>

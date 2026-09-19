@@ -43,7 +43,10 @@ for (const s of Object.values(SEO_SEITEN)) {
   if (index && s.titel.length < 20) f(`${s.pfad}: Titel zu kurz (${s.titel.length})`);
   if (s.beschreibung.length > 155) f(`${s.pfad}: Beschreibung ${s.beschreibung.length} Zeichen (max 155)`);
   if (index && s.beschreibung.length < 80) f(`${s.pfad}: Beschreibung zu kurz (${s.beschreibung.length})`);
-  if (titel.has(s.titel)) f(`${s.pfad}: Titel doppelt mit ${titel.get(s.titel)}`); else titel.set(s.titel, s.pfad);
+  // Ein Alias mit canonical auf eine andere Seite (z. B. /datenschutz → /privacy, noindex) trägt deren Titel mit Absicht —
+  // das ist keine Dublette, sondern dieselbe Seite unter zweitem Namen (19.09.2026; vorher seit 06.09. dauerhaft rot).
+  const alias = !!s.canonical && s.canonical !== s.pfad;
+  if (!alias && titel.has(s.titel)) f(`${s.pfad}: Titel doppelt mit ${titel.get(s.titel)}`); else if (!alias) titel.set(s.titel, s.pfad);
   if (index) { if (beschr.has(s.beschreibung)) f(`${s.pfad}: Beschreibung doppelt mit ${beschr.get(s.beschreibung)}`); else beschr.set(s.beschreibung, s.pfad); }
   if (!s.h1 || !s.lead) f(`${s.pfad}: H1 oder Einleitung fehlt`);
   if (s.h1.length > 120) hinweise.push(`${s.pfad}: H1 länger als 120 Zeichen`);

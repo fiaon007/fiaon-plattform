@@ -138,7 +138,14 @@ const html404 = nichtGefundenHtml("/business/gibt-es-nicht") ?? "";
 const robots404 = html404.match(/<meta name="robots"[^>]*>/g) ?? [];
 ok(robots404.length === 1 && robots404[0] === '<meta name="robots" content="noindex" />', `404-Seite: robots-Angabe ${robots404.join(" ") || "fehlt"}`);
 ok(!/rel="canonical"/.test(html404), "404-Seite trägt ein canonical");
-ok(html404.includes("<title>Seite nicht gefunden — FIAON</title>"), "404-Seite: Titel fehlt");
+ok(html404.includes("<title>Seite nicht gefunden — FIAON Global</title>"), "404-Seite: Titel fehlt (unter /business „— FIAON Global“)");
+ok((nichtGefundenHtml("/en/business/gibt-es-nicht") ?? "").includes("<title>Page not found — FIAON Global</title>"), "404-Seite /en/business: englischer Titel fehlt");
+// „Mein Auftrag" aus der Mail (/business/auftrag/<Ref>?t=…) trägt den Kopf von /business/auftrag, nicht den Standardkopf der Privatkunden.
+{
+  const { seitenHtml } = await import("../server/lib/fiaon-seiten-seo");
+  const mein = seitenHtml("/business/auftrag/FIAON-MUSTER-0001") ?? "";
+  ok(mein.includes("<title>Mein Auftrag — FIAON Global</title>") && /noindex/.test(mein.match(/<meta name="robots"[^>]*>/)?.[0] ?? ""), "Mein Auftrag mit Auftragsnummer: Kopf von /business/auftrag fehlt (Titel der Privatkunden in Tab und Linkvorschau)");
+}
 ok(html404.includes('<div id="root"></div>'), "404-Seite: SPA-Wurzel fehlt — die Nicht-gefunden-Ansicht des Clients käme nicht");
 console.log(`  ${alle.length} Register-Pfade bekannt, ${businessRouten.length} /business-Routen aus App.tsx gegen den Server gehalten`);
 
@@ -271,7 +278,8 @@ for (const [pfad, e] of Object.entries(tabelle) as [string, any][]) {
 // Die Kacheln „Für wen" auf /business führen auf Unterseiten, die es gibt.
 for (const k of GLOBAL_WOERTER.de.fuer) ok(!k.pfad || seitenPfade.has(k.pfad), `/business „Für wen": ${k.tag} → ${k.pfad} gibt es nicht`);
 for (const [ziel] of GLOBAL_WOERTER.de.fuerLaenderLinks) ok(seitenPfade.has(ziel), `/business „Für wen": ${ziel} gibt es nicht`);
-for (const route of ["/business/widerrufsbelehrung", "/business/mustervertrag"]) {
+// 19.09.2026: beide Rechtsseiten auch englisch (Vertrag und Belehrung gibt es in Vertragssprache Englisch).
+for (const route of ["/business/widerrufsbelehrung", "/business/mustervertrag", "/en/business/widerrufsbelehrung", "/en/business/mustervertrag"]) {
   ok(appTsx.includes(`path="${route}"`) && appTsx.indexOf(`path="${route}"`) < appTsx.indexOf(`path="/business/:slug"`), `App.tsx: Route ${route} fehlt oder steht hinter /business/:slug`);
   ok(/noindex/.test(String(tabelle[route]?.robots ?? "")), `${route}: fehlt in der SEO-Tabelle oder ist nicht noindex`);
 }

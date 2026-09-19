@@ -322,6 +322,8 @@ function Router() {
       <Route path="/en/business" component={BusinessPage} />
       <Route path="/en/business/start" component={BusinessStartPage} />
       <Route path="/en/business/auftrag/:ref?" component={BusinessAuftragPage} />
+      <Route path="/en/business/widerrufsbelehrung" component={GlobalWiderrufPage} />
+      <Route path="/en/business/mustervertrag" component={GlobalMustervertragPage} />
       <Route path="/en/credit-card" component={SiteKreditkarte} />
       <Route path="/en/about" component={SiteUeberUns} />
       <Route path="/en/team" component={SiteTeam} />

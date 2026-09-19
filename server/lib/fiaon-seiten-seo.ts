@@ -270,7 +270,7 @@ function seoRahmenBusiness(sprache: Sprache): { kopf: string; fuss: string } {
     ? [{ titel: "FIAON Global", eintraege: [["/en/business#pakete", "Packages and prices"], ["/en/business/start", "Order now"], ["/en/business#gespraech", "Arrange a call"], ["/en/business/auftrag", "My order"]] }]
     : globalMenue().map((g) => ({ titel: g.titel, eintraege: g.eintraege.map((e) => [e.pfad, e.titel]) }));
   const kopf = `<header><nav aria-label="FIAON Global"><a href="${start}" aria-label="FIAON Global"><strong>FIAON Global</strong></a><ul>${gruppen.flatMap((g) => g.eintraege).slice(0, 12).map(([p, t]) => `<li>${link(p, t)}</li>`).join("")}</ul></nav></header>`;
-  const recht = en ? [["/impressum?bereich=business", "Legal notice"], ["/datenschutz?bereich=business", "Privacy policy"]] : [["/impressum?bereich=business", "Impressum"], ["/datenschutz?bereich=business", "Datenschutz"], ["/business/widerrufsbelehrung", "Widerrufsbelehrung"], ["/business/mustervertrag", "Mustervertrag"]];
+  const recht = en ? [["/impressum?bereich=business", "Legal notice"], ["/datenschutz?bereich=business", "Privacy policy"], ["/en/business/widerrufsbelehrung", "Withdrawal instructions"], ["/en/business/mustervertrag", "Model contract"]] : [["/impressum?bereich=business", "Impressum"], ["/datenschutz?bereich=business", "Datenschutz"], ["/business/widerrufsbelehrung", "Widerrufsbelehrung"], ["/business/mustervertrag", "Mustervertrag"]];
   const zeile = `FIAON LTD, 128 City Road, London, EC1V 2NX, United Kingdom · Companies House No. 17318250 · ${en ? "Phone" : "Telefon"} ${FIAON_FIRMA.telefon} · ${FIAON_FIRMA.email}`;
   const fuss = `<footer>${gruppen.map((g) => `<nav aria-label="${esc(g.titel)}"><h2>${esc(g.titel)}</h2><ul>${g.eintraege.map(([p, t]) => `<li>${link(p, t)}</li>`).join("")}</ul></nav>`).join("")}<nav aria-label="${en ? "Legal" : "Rechtliches"}"><ul>${recht.map(([p, t]) => `<li>${link(p, t)}</li>`).join("")}</ul></nav><p>${esc(zeile)}</p></footer>`;
   return { kopf, fuss };
@@ -302,7 +302,9 @@ export const VORAB_STIL = `<style>.vorab{max-width:760px;margin:0 auto;padding:2
  * Kopf und Fuß von FIAON Global (19.09.2026, E-192). Kopf, canonical und strukturierte Daten bleiben gleich.
  */
 export function seitenHtml(pfad: string, optionen: { bereich?: "business" } = {}): string | null {
-  const s = seoSeite(pfad);
+  // „Mein Auftrag" aus der Mail (/business/auftrag/<Ref>?t=…) trägt den Kopf der Seite /business/auftrag —
+  // vorher stand dort der Standardkopf „FIAON – Das Betriebssystem für Bonität", im Tab und in jeder Linkvorschau.
+  const s = seoSeite(pfad) ?? seoSeite(pfad.replace(/^(\/(?:en\/)?business\/auftrag)\/[^/]+\/?$/, "$1"));
   // /ratgeber hat seinen eigenen Vorrenderer (Artikel aus der Datenbank).
   if (!s || s.eigenerVorrenderer) return null;
   const html = indexHtml();
@@ -360,11 +362,13 @@ export function seiteUnbekannt(pfad: string): boolean {
 export function nichtGefundenHtml(pfad: string): string | null {
   const html = indexHtml();
   if (!html) return null;
-  // Deutsch wie die Nicht-gefunden-Ansicht des Clients (client/src/pages/not-found.tsx) — auch unter /en.
+  // Wie die Nicht-gefunden-Ansicht des Clients (client/src/pages/not-found.tsx): unter /business die von
+  // FIAON Global, unter /en englisch (19.09.2026, E-192).
+  const en = /^\/en(\/|$)/.test(pfad);
   return kopfEinsetzen(html, {
-    titel: "Seite nicht gefunden — FIAON",
-    beschreibung: "Diese Adresse gibt es bei FIAON nicht – vielleicht ein Tippfehler oder ein veralteter Link.",
-    url: `${BASIS}${pfad}`, robots: "noindex", canonical: false,
+    titel: en ? "Page not found — FIAON Global" : "Seite nicht gefunden — FIAON Global",
+    beschreibung: en ? "This address does not exist at FIAON Global — perhaps a typo or an outdated link." : "Diese Adresse gibt es bei FIAON Global nicht – vielleicht ein Tippfehler oder ein veralteter Link.",
+    url: `${BASIS}${pfad}`, robots: "noindex", canonical: false, sprache: en ? "en" : "de",
   });
 }
 

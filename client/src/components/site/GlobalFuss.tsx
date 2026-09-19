@@ -26,7 +26,7 @@ const EN = {
   ],
   orte: { london: "Contracting party", zuerich: "Capital stage partner", miami: "Team on the ground" },
   verbunden: "Schwarzott Capital Partners AG and Schwarzott Global LLC are connected to FIAON through our founder Justin Schwarzott. Your contracting party is always FIAON LTD.",
-  recht: [["/impressum", "Legal notice"], ["/datenschutz", "Privacy policy"], ["/cookie-einstellungen", "Cookie settings"]],
+  recht: [["/impressum", "Legal notice"], ["/datenschutz", "Privacy policy"], ["/cookie-einstellungen", "Cookie settings"], ["/en/business/widerrufsbelehrung", "Withdrawal instructions"], ["/en/business/mustervertrag", "Model contract"]],
   registriert: "Registered in England and Wales",
   keineBank: "FIAON is neither a bank nor a law firm. Accounts, cards and loans are decided solely by the institutions; tax and legal questions are handled by our partners under your engagement.",
 } as const;
@@ -43,10 +43,10 @@ export default function GlobalFuss() {
   const en = sprache === "en";
   const jahr = new Date().getFullYear();
   const recht: [string, string][] = en
-    ? EN.recht.map(([p, l]) => [schwesterPfad(p, "en") ?? p, l])
+    ? EN.recht.map(([p, l]) => [p.startsWith("/en/") ? p : schwesterPfad(p, "en") ?? p, l])
     : [["/impressum", "Impressum"], ["/datenschutz", "Datenschutz"], ["/cookie-einstellungen", "Cookie-Einstellungen"], ["/business/widerrufsbelehrung", "Widerrufsbelehrung"], ["/business/mustervertrag", "Mustervertrag"]];
   // Die Business-eigenen Rechtsseiten tragen den Rahmen ohnehin; die gemeinsamen bekommen ?bereich=business.
-  const rechtHref = (p: string) => (p.startsWith("/business") ? p : mitBereich(p));
+  const rechtHref = (p: string) => (/^\/(en\/)?business(\/|$)/.test(p) ? p : mitBereich(p));
 
   return (
     <footer className="gf" aria-label={en ? "FIAON Global — footer" : "FIAON Global — Fußzeile"}>

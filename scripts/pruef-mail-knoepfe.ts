@@ -117,11 +117,17 @@ async function main(): Promise<void> {
     !!mitZiel && /href="https:\/\/fiaon\.com\/login"/.test(mitZiel.html) && /href="https:\/\/fiaon\.com\/passwort-vergessen"/.test(mitZiel.html));
   ok("… und nennt die 60 Minuten des Passwort-Links", /60 Minuten/.test(mitZiel?.text ?? ""));
 
-  const zahlung = rendern("payment_details", { ...basis, sofort_url: null });
-  ok("Die fehlende Sofortzahlung ist KEINE Lücke (erwartet bei der Erstzahlung)",
-    !!zahlung && !zahlung.knopfEntfallen && !zahlung.fehlend.includes("sofort_url"), zahlung?.fehlend.join(","));
-  ok("… dafür rückt „QR-Code & Bankdaten“ als Knopf auf",
-    /href="https:\/\/fiaon\.com\/zahlung\/FIAON-PRUEF1"[^>]*>[^<]*QR-Code/.test(zahlung?.html ?? ""));
+  // 19.09.2026 (E-194): GoCardless ist beendet — der Hauptknopf jeder Zahlungsmail ist die
+  // Zahlungsseite (QR-Code & Bankdaten); einen Bank-App- oder Lastschrift-Knopf gibt es nicht mehr.
+  const zahlung = rendern("payment_details", { ...basis });
+  ok("Zahlungsmail: Hauptknopf ist die Zahlungsseite mit QR-Code & Bankdaten",
+    !!zahlung && !zahlung.knopfEntfallen && /href="https:\/\/fiaon\.com\/zahlung\/FIAON-PRUEF1"[^>]*>[^<]*QR-Code/.test(zahlung.html), zahlung?.fehlend.join(","));
+  {
+    const quelle = ["server/mail/vorlagen/zahlung.ts", "server/mail/vorlagen/konto.ts", "server/mail/vorlagen/rueckholung.ts", "server/mail/motor.ts"].map(lies).join("\n");
+    ok("Keine Vorlage trägt noch sofort_url oder sepa_link", !/params\.(sofort_url|sepa_link)/.test(quelle));
+    ok("Die Lastschrift-Mail „sepa_einrichten“ gibt es nicht mehr", !motor.hatVorlage("sepa_einrichten"));
+    ok("Keine Zahlungsmail bietet „Sofort per Bank-App“ an", !/Bank-App bezahlen/.test(zahlung?.html ?? "x"));
+  }
 
   const ohneAbmelden = rendern("lead_followup", { email: basis.email, vorname: "Prüf", antrag_url: "https://fiaon.com/antrag" });
   ok("Ohne Abmeldelink keine Zeile „Hier abmelden“ mit leerem Ziel",
@@ -131,9 +137,10 @@ async function main(): Promise<void> {
   ok("Werbe-Mails ohne Abmeldelink sind für die Tür gesperrt (ABMELDEPFLICHT)",
     ["lead_followup", "rueckhol_s5", "rueckhol_s5b", "rueckhol_s5c", "rueckhol_s5d"].every((ev) => motor.ABMELDEPFLICHT.has(ev)));
 
-  const sepa = rendern("sepa_einrichten", { ...basis, sepa_link: "https://fiaon.com/api/fiaon/lastschrift/direkt/x", offene_rate_hinweis: "" });
+  // Bis 19.09.2026 prüfte das die Lastschrift-Mail (offene_rate_hinweis); die ist mit GoCardless weg (E-194).
+  const wahlweise = rendern("app_monatsbericht", { ...basis, monat_text: "August 2026", grosse_zahl_text: "", betrag_text: "1,00 €", bericht_url: "https://fiaon.com/app/geld/bericht/2026-08" });
   ok("Ein wahlweiser Absatz ohne Wert entfällt (kein leerer Absatz)",
-    !!sepa && !/<font color="#1f2937" style="color:#1f2937 !important;"><\/font>/.test(sepa.html) && !sepa.fehlend.includes("offene_rate_hinweis"));
+    !!wahlweise && !/<font color="#1f2937" style="color:#1f2937 !important;"><\/font>/.test(wahlweise.html) && !wahlweise.fehlend.includes("grosse_zahl_text"));
 
   const bericht = rendern("app_monatsbericht", { ...basis, monat_text: "August 2026", grosse_zahl_text: "x", betrag_text: "1,00 €", bericht_url: "https://fiaon.com/app/geld/bericht/2026-08" });
   ok("Der Titel im Text-Teil wird NACH dem Füllen großgeschrieben",
@@ -222,7 +229,6 @@ async function main(): Promise<void> {
     { datei: "server/lib/fiaon-termine.ts", event: "termin_absage", schluessel: ["neu_buchen_link"] },
     { datei: "server/lib/fiaon-nicht-erreicht.ts", event: "nicht_erreicht_termin", schluessel: ["termin_link"] },
     { datei: "server/lib/fiaon-wiedereinstieg.ts", event: "nicht_erreicht_termin", schluessel: ["termin_link"] },
-    { datei: "server/lib/fiaon-sepa-werbung.ts", event: "sepa_einrichten", schluessel: ["sepa_link"] },
     { datei: "server/routes/fiaon-abo.ts", event: "vertrag_beendet", schluessel: ["portal_url"] },
     { datei: "server/routes/fiaon-abo.ts", event: "abo_verlaengerung_frage", schluessel: ["portal_url"] },
     { datei: "server/routes/fiaon-kuendigung.ts", event: "kuendigung_bestaetigt", schluessel: ["verwendungszweck"] },
@@ -360,8 +366,8 @@ async function teilZwei(knopfPlatzhalter: (ev: string) => string[]): Promise<voi
       // Bestellung ist der Entwurf, offen ist eine ältere, bezahlt eine noch ältere.
       const zd = await sendePayloadBauen("payment_details", personId, tx as any, { vorschau: true });
       ok("Zahlungsdaten tragen die OFFENE Bestellung, nicht die jüngste",
-        String(zd?.links.payment_reference ?? "").startsWith("FIAON-KO") && zd?.links.betrag === "79.99" && zd?.links.sofort_url === null,
-        JSON.stringify({ ref: zd?.links.payment_reference, betrag: zd?.links.betrag, sofort: zd?.links.sofort_url }));
+        String(zd?.links.payment_reference ?? "").startsWith("FIAON-KO") && zd?.links.betrag === "79.99" && !("sofort_url" in (zd?.links ?? {})),
+        JSON.stringify({ ref: zd?.links.payment_reference, betrag: zd?.links.betrag }));
       const zb = await sendePayloadBauen("payment_confirmed", personId, tx as any, { vorschau: true });
       ok("Die Zahlungsbestätigung nennt die BEZAHLTE Bestellung",
         String(zb?.links.payment_reference ?? "").startsWith("FIAON-KB") && zb?.links.betrag === "59.99",
@@ -397,7 +403,8 @@ async function teilZwei(knopfPlatzhalter: (ev: string) => string[]): Promise<voi
       ok("„Zugang zum Bereich“ an einen Bezahlten: erlaubt", (await versandErlaubt(personId, "zugang_link", tx as any)).erlaubt);
       ok("„Zugang zum Bereich“ an einen Unbezahlten: abgelehnt", !(await versandErlaubt(Number(q.id), "zugang_link", tx as any)).erlaubt);
       ok("Zahlungsbestätigung an einen Unbezahlten: abgelehnt", !(await versandErlaubt(Number(q.id), "payment_confirmed", tx as any)).erlaubt);
-      ok("Lastschrift-Bitte an einen Unbezahlten: abgelehnt", !(await versandErlaubt(Number(q.id), "sepa_einrichten", tx as any)).erlaubt);
+      ok("Die Lastschrift-Bitte steht in keinem Sende-Menü mehr (E-194)",
+        !(artenFuerRolle("agent") as string[]).includes("sepa_einrichten") && !(artenFuerRolle("onboarding") as string[]).includes("sepa_einrichten"));
       ok("Das Versandzentrum bietet „Zugang zum Bereich“ statt „welcome“ an",
         artenFuerRolle("agent").includes("zugang_link") && !artenFuerRolle("agent").includes("welcome")
         && artenFuerRolle("onboarding").includes("zugang_link"));

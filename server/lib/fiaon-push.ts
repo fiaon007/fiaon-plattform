@@ -249,25 +249,16 @@ export function pushSatzFuer(art: PushAnlass, daten: PushDaten = {}): PushInhalt
   }
 }
 
-/** Aktiver oder gerade eingerichteter Bankeinzug — dann keine Ratenerinnerung (dieselbe Regel wie GET /app/zahlung). */
-async function bankeinzugAktiv(personId: number): Promise<boolean> {
-  try {
-    const [p] = (await sqlPool`SELECT gc_mandate_ref, gc_mandate_status FROM fiaon_persons WHERE id = ${personId} LIMIT 1`) as any[];
-    return !!p?.gc_mandate_ref && ["active", "submitted", "created"].indexOf(String(p.gc_mandate_status || "")) !== -1;
-  } catch { return false; }
-}
-
 /**
  * Push bei einem Ereignis — die Stelle, die die Hauptsitzung an Versand, Ergebnis,
  * Nachfrage, Unterschrift, Zahlungseingang, Bericht und Fristenwächter hängt.
- * Ruft den Satz je Anlass, prüft die Sonderregel (Rate nur ohne Bankeinzug) und
- * sendet. Wirft nie.
+ * Ruft den Satz je Anlass und sendet. Wirft nie. (Die Sonderregel „Rate nur ohne
+ * Bankeinzug" ist seit 19.09.2026 weg — GoCardless ist beendet, E-194.)
  */
 export async function pushBeiEreignis(personId: number, art: PushAnlass, daten: PushDaten = {}): Promise<PushResultat> {
   try {
     if (!Number.isFinite(personId) || personId <= 0) return { ergebnis: "uebersprungen", gesendet: 0, abos: 0 };
     if (!pushVerfuegbar()) return { ergebnis: "nicht_verfuegbar", gesendet: 0, abos: 0 };
-    if (art === "rate_faellig_3_tage" && (await bankeinzugAktiv(personId))) return { ergebnis: "uebersprungen", gesendet: 0, abos: 0 };
     const inhalt = pushSatzFuer(art, daten);
     if (!inhalt) return { ergebnis: "uebersprungen", gesendet: 0, abos: 0 };
     return await pushSenden(personId, art, inhalt);
@@ -357,10 +348,10 @@ export async function aboVorhanden(personId: number, endpoint?: string | null): 
   return zeilen.length > 0;
 }
 
-// ── Tageslauf: Rate in drei Tagen fällig (nur ohne aktiven Bankeinzug) ───────
+// ── Tageslauf: Rate in drei Tagen fällig ─────────────────────────────────────
 /**
- * Läuft täglich; findet offene Raten mit Fälligkeit in genau drei Tagen bei Personen ohne
- * aktives Lastschriftmandat und schickt „Ihre nächste Rate wird fällig“. Beträge stehen
+ * Läuft täglich; findet offene Raten mit Fälligkeit in genau drei Tagen und schickt
+ * „Ihre nächste Rate wird fällig“ (seit 19.09.2026 an alle — keine Lastschrift mehr). Beträge stehen
  * nicht im Text (TFO-Vorgabe). Idempotent über die Tagesbremse in fiaon_push_log.
  */
 export async function pushRatenLauf(): Promise<{ geprueft: number; gesendet: number }> {
@@ -370,10 +361,8 @@ export async function pushRatenLauf(): Promise<{ geprueft: number; gesendet: num
     SELECT r.rate_nr, r.faellig_am, r.betrag_cents, a.person_id
       FROM fiaon_abo_raten r
       JOIN fiaon_applications a ON a.ref = r.ref
-      LEFT JOIN fiaon_persons p ON p.id = a.person_id
-     WHERE r.status = 'offen' AND r.faellig_am = (CURRENT_DATE + INTERVAL '3 days')::date
+     WHERE r.status = 'offen' AND r.storniert_am IS NULL AND r.faellig_am = (CURRENT_DATE + INTERVAL '3 days')::date
        AND a.person_id IS NOT NULL AND a.merged_into IS NULL
-       AND NOT (p.gc_mandate_ref IS NOT NULL AND p.gc_mandate_status IN ('active','submitted','created'))
        AND EXISTS (SELECT 1 FROM fiaon_push_abos ab WHERE ab.person_id = a.person_id AND ab.geloescht_am IS NULL)
      LIMIT 500`.catch(() => [])) as any[];
   let gesendet = 0;

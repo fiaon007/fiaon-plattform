@@ -115,7 +115,7 @@ function Pakete({ tab, setTab }: { tab: "privat" | "business"; setTab: (t: "priv
       </div>
       <p className="dk-leise" style={{ marginTop: 28, maxWidth: "72ch", marginLeft: "auto", marginRight: "auto" }}>
         {tab === "privat"
-          ? `Alle Pakete: monatlich per SEPA-Lastschrift · zwölf Raten, danach entscheiden Sie, ob Sie bleiben · Nur die Auskunft? Bonitätsauskunft ${SCHUFA_PREIS_EURO.toFixed(2).replace(".", ",")} € einmalig. Über Konto, Karte und Rahmen entscheidet die jeweilige Bank.`
+          ? `Alle Pakete: monatlich per Überweisung · zwölf Raten, danach entscheiden Sie, ob Sie bleiben · Nur die Auskunft? Bonitätsauskunft ${SCHUFA_PREIS_EURO.toFixed(2).replace(".", ",")} € einmalig. Über Konto, Karte und Rahmen entscheidet die jeweilige Bank.`
           : `FIAON Global: ein Preis, einmalig – kein Abo, keine Monatsraten. Über Konto, Karte und Rahmen entscheidet allein das jeweilige Institut. ${GLOBAL_ROLLEN.de.kosten}`}
       </p>
       {tab === "business" && (
@@ -173,17 +173,17 @@ export default function FiaonHome() {
 
       <Licht>
       <Block pille="Ihr Vertrauen" titel={<>Gef&uuml;hrt wie ein Finanzinstitut. <span className="dk-verlauf">Gebaut wie eine App.</span></>}
-             lead="FIAON LTD mit Sitz in London, Kunden in Deutschland, Österreich und der Schweiz. Jedes Schreiben, das Sie über FIAON versenden, ist anwaltlich geprüft. Jede Zahlung läuft per SEPA-Lastschrift über einen verifizierten Kreditor.">
+             lead="FIAON LTD mit Sitz in London, Kunden in Deutschland, Österreich und der Schweiz. Jedes Schreiben, das Sie über FIAON versenden, ist anwaltlich geprüft. Jede Zahlung läuft per Überweisung auf das Geschäftskonto der FIAON LTD.">
         <div className="dk-zweispaltig" style={{ marginTop: 56 }}>
           <div className="dk-raster zwei" style={{ marginTop: 0 }}>
             {[
               { tag: "01", titel: "Anwaltlich geprüft", text: "Löschanträge, Widersprüche und Ratenvereinbarungen entstehen aus Vorlagen, die unser Anwaltsteam geprüft hat – und gehen erst hinaus, wenn Sie sie freigeben." },
-              { tag: "02", titel: "SEPA-Lastschrift", text: "Monatliche Raten per SEPA über einen verifizierten Kreditor. Keine Kreditkarte nötig, keine Vorkasse, jede Abbuchung angekündigt." },
+              { tag: "02", titel: "Zahlung per Überweisung", text: "Monatliche Raten per Überweisung – Bankverbindung und Verwendungszweck stehen in jeder Zahlungsmail. Keine Kreditkarte nötig, keine Vorkasse, keine gespeicherten Zahlungsdaten." },
               { tag: "03", titel: "Verschlüsselt und DSGVO-konform", text: "Ihre Auskunft und Ihr Kontoauszug liegen verschlüsselt auf Servern in der EU. Sie entscheiden, was Sie hochladen – und können es jederzeit löschen lassen." },
               { tag: "04", titel: "Ein Mensch am Telefon", text: "Jeder Kunde beginnt mit einem Startgespräch. Danach kennen Sie Ihren Ansprechpartner mit Namen – und er kennt Ihre Akte." },
             ].map((k, i) => <Auf key={k.tag} verzoegerung={i * 80}><Glas tag={k.tag} titel={k.titel}>{k.text}</Glas></Auf>)}
           </div>
-          <Auf verzoegerung={150}><div className="dk-szene gross"><SchichtenSzene namen={["Anwaltlich geprüft", "SEPA-Lastschrift", "EU-Server"]} className="absolute inset-0" /></div></Auf>
+          <Auf verzoegerung={150}><div className="dk-szene gross"><SchichtenSzene namen={["Anwaltlich geprüft", "Überweisung", "EU-Server"]} className="absolute inset-0" /></div></Auf>
         </div>
       </Block>
 
@@ -241,7 +241,7 @@ export default function FiaonHome() {
           { f: "Was passiert mit meinen Einträgen?", a: "Jeder Eintrag bekommt eine Einschätzung: erledigt, löschbar, berichtigbar oder angreifbar. Für alles, was sich ändern lässt, bereitet FIAON das Schreiben vor. Sie geben es frei – FIAON versendet es und verfolgt die Antwort." },
           { f: "Bekomme ich eine Kreditkarte?", a: "Über die Vergabe entscheidet immer die Bank. FIAON bringt Ihre Bonität in Ordnung und bereitet Sie vor: Ein Girokonto ist für jeden Kunden erreichbar, eine Kreditkarte mit Rahmen bis 25.000 € bei guter Bonität. Ihr Fahrplan zeigt, wie weit Sie noch entfernt sind." },
           { f: "Wie arbeitet die FIAON-Analyse?", a: "Sie liest Auskünfte und Kontoauszüge, erklärt Einträge in Klartext und bereitet Schreiben vor. Sie ersetzt keine Rechts- oder Steuerberatung – jedes Schreiben ist anwaltlich geprüft und geht erst hinaus, wenn Sie es freigeben." },
-          { f: "Wie lange läuft ein Paket?", a: "Zwölf monatliche Raten per SEPA-Lastschrift. Nach der zwölften Rate fragen wir Sie, ob Sie bleiben möchten – keine stille Verlängerung." },
+          { f: "Wie lange läuft ein Paket?", a: "Zwölf monatliche Raten per Überweisung. Nach der zwölften Rate fragen wir Sie, ob Sie bleiben möchten – keine stille Verlängerung." },
           { f: "Wo liegen meine Daten?", a: "Verschlüsselt auf Servern in der EU, DSGVO-konform. Sie entscheiden, was Sie hochladen, und können es jederzeit löschen lassen." },
         ]} />
       </Block>
@@ -256,7 +256,7 @@ export default function FiaonHome() {
 
       <Abschluss
         titel={<>Ihr Weg beginnt <span className="dk-verlauf">mit einer E-Mail-Adresse.</span></>}
-        text="Konto in zwei Minuten. Ihre Auskunft innerhalb von 24 Stunden. Ein Mensch, der Sie durch alles Weitere begleitet. SEPA-Lastschrift · EU-Hosting · DSGVO-konform · Anwaltlich geprüft."
+        text="Konto in zwei Minuten. Ihre Auskunft innerhalb von 24 Stunden. Ein Mensch, der Sie durch alles Weitere begleitet. Zahlung per Überweisung · EU-Hosting · DSGVO-konform · Anwaltlich geprüft."
         knoepfe={<><Knopf onClick={openModal}>Jetzt starten</Knopf><Knopf href="/was-ist-fiaon" still>Die Plattform kennenlernen</Knopf></>}
       />
 

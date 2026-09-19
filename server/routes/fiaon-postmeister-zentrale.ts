@@ -160,8 +160,7 @@ router.get("/admin/postmeister/eintrag/:id", async (req: Request, res: Response)
     // 04.09.2026 (E-115): Der Vertragsstand für die Schalter im Postfach —
     // ist schon gekündigt? welche Rate bleibt? ist der Vertrag beendet?
     const [v] = r.ref ? ((await sqlPool`
-      SELECT gekuendigt_am, letzte_rate_nr, vertrag_ende_am, kuendigung_zurueckgenommen_am, payment_status,
-             gc_subscription_ref
+      SELECT gekuendigt_am, letzte_rate_nr, vertrag_ende_am, kuendigung_zurueckgenommen_am, payment_status
         FROM fiaon_applications WHERE ref = ${r.ref} LIMIT 1
     `.catch(() => [])) as any[]) : [null];
 
@@ -172,7 +171,7 @@ router.get("/admin/postmeister/eintrag/:id", async (req: Request, res: Response)
         anhaenge: jsonOderLeer(r.anhaenge, []), anhaengeEingang: jsonOderLeer(r.anhaenge_eingang, []),
         vertrag: v ? {
           gekuendigtAm: v.gekuendigt_am, letzteRateNr: v.letzte_rate_nr, vertragEndeAm: v.vertrag_ende_am,
-          zurueckgenommenAm: v.kuendigung_zurueckgenommen_am, zahlungsstatus: v.payment_status, lastschrift: !!v.gc_subscription_ref,
+          zurueckgenommenAm: v.kuendigung_zurueckgenommen_am, zahlungsstatus: v.payment_status,
         } : null,
         text: r.text, zusammenfassung: r.zusammenfassung, kategorien: r.kategorien ?? [],
         flags: jsonOderLeer(r.flags, {}), kundenlage: r.kundenlage, dringend: !!r.dringend,

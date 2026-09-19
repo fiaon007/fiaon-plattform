@@ -129,7 +129,7 @@ const STATIONEN: Station[] = [
     text: <>Welche Gläubiger löschen schnell, welche Formulierung wirkt, wie lange eine Auskunftei braucht: <b>anonymisiertes Wissen aus allen Akten</b> fließt in jede Einschätzung zurück. Der Kunde sieht, worauf seine Erfolgsaussicht beruht.</>,
     warum: "Das ist die Investoren-Geschichte: Jede Akte macht die nächste besser. Dieses Wissen hat keine Anwaltskanzlei, keine Score-App – und es wächst mit jedem Kunden." },
   { ziel: "kb-abo", ueber: "Station 14 · Warum das trägt", titel: "Zwölf Raten, die sich jeden Monat selbst erklären.",
-    text: <>59,99 € im Monat per Lastschrift – und in jedem Monat steht in der Akte, <b>was dafür passiert ist</b>: ein Brief, eine Frist, ein Abgleich, ein Punkt mehr. Nach der zwölften Rate fragt FIAON, ob er bleibt. Die Kurve beantwortet das.</>,
+    text: <>59,99 € im Monat per Überweisung – und in jedem Monat steht in der Akte, <b>was dafür passiert ist</b>: ein Brief, eine Frist, ein Abgleich, ein Punkt mehr. Nach der zwölften Rate fragt FIAON, ob er bleibt. Die Kurve beantwortet das.</>,
     warum: "Das ist das Modell: planbare Einnahmen, messbarer Nutzen, eine Akte, die wächst. Einsicht, Aktion, Zugang – für 100 Millionen Menschen im DACH-Raum." },
   { ziel: "kb-stufen", ueber: "Station 15 · Der Plan", titel: "Drei Stufen, zehn Funktionen, zwölf Monate.",
     text: <>Alles, was Sie gesehen haben, ist geplant und priorisiert: <b>Stufe 1 löst das Versprechen ein</b> (Einträge, Schreiben, Readiness), Stufe 2 bringt jeden Monat Bewegung (Monitoring, Kontoanbindung, Einigung, WhatsApp), Stufe 3 ist das Unicorn-Stück (Partner, Simulator, Datenvorsprung).</>,
@@ -573,14 +573,14 @@ export default function DemoKundenbereich() {
             } />
 
           {/* 12 · Abo */}
-          <Abschnitt id="kb-abo" aktiv={aktiv === "kb-abo"} titel="Abo & Zahlungen" unter="Zwölf Raten per SEPA-Lastschrift. In jedem Monat steht hier, was dafür passiert ist."
+          <Abschnitt id="kb-abo" aktiv={aktiv === "kb-abo"} titel="Abo & Zahlungen" unter="Zwölf Raten per Überweisung. In jedem Monat steht hier, was dafür passiert ist."
             kurz={<Pille ton="gut">4 von 12 bezahlt</Pille>}
             kinder={
               <div className="kb-abo">
                 <div className="kb-abo-balken">{Array.from({ length: 12 }, (_, i) => <i key={i} className={i < 4 ? "ok" : ""} />)}</div>
                 <div className="kb-zeilen">
                   <div className="kb-zeile"><span>Nächste Rate</span><b className="zahl">23.09.2026 · 59,99 €</b></div>
-                  <div className="kb-zeile"><span>Lastschrift</span><b>Mandat aktiv · angekündigt 5 Tage vorher</b></div>
+                  <div className="kb-zeile"><span>Zahlung</span><b>per Überweisung · Bankverbindung und Verwendungszweck in jeder Zahlungsmail</b></div>
                   <div className="kb-zeile"><span>Was im August passiert ist</span><b>1 Schreiben versendet · 1 Abgleich · Wert +5 · 1 Vereinbarung bedient</b></div>
                   <div className="kb-zeile"><span>Nach der zwölften Rate</span><b>FIAON fragt, ob Sie bleiben – die Kurve antwortet.</b></div>
                 </div>

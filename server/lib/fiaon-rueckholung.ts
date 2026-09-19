@@ -25,11 +25,10 @@
 // Zahlung geht!)“. Für diesen Lauf heißt das: Der Termin bleibt der HAUPT-
 // knopf — er ist der einzige Hebel mit gemessener Wirkung, und „jetzt zahlen“
 // als Aufruf ist gemessen wirkungslos. Wer aber gerade zahlen WILL, soll nicht
-// suchen müssen. Deshalb trägt die Nutzlast ab jetzt zusätzlich den Sofort-
-// Link, Empfänger, IBAN und BIC; die Vorlage entscheidet, ob sie daraus einen
-// zweiten, leiseren Weg baut (knopf2 + Datenkasten + GiroCode).
-// Was ein Knopf ohne Ziel angeht, ist der Motor streng: Fehlt `sofort_url`,
-// lässt er ihn weg (server/mail/motor.ts). Genau deshalb füllen wir ihn hier.
+// suchen müssen. Deshalb trägt die Nutzlast ab jetzt zusätzlich Empfänger,
+// IBAN und BIC; die Vorlage entscheidet, ob sie daraus einen zweiten,
+// leiseren Weg baut (knopf2 + Datenkasten + GiroCode). Bis 19.09.2026 kam
+// ein Sofortzahl-Link dazu — er lief über GoCardless und ist beendet (E-194).
 //
 // ── DIE SEGMENTE (Vorlagen: server/mail/vorlagen/rueckholung.ts) ──────────
 // S1 frische Zahlungsmeldung (<3 Tage): 9,52 % Zahlquote, Faktor 19 — aber
@@ -84,10 +83,6 @@ import { sqlPool } from "./db-pool";
 import { versendenUndProtokollieren } from "./fiaon-mail-log";
 import { terminLink } from "./fiaon-termine";
 import { abmeldeLinkPerson } from "../routes/fiaon-abmelden";
-// Der Sofort-Link kommt aus dem Steckplatz in fiaon-zahlungsauftrag.ts — NUR
-// lesen, nie ändern. Ist die Sofortzahlung nicht eingesteckt, liefert er null
-// und der Motor lässt den Knopf weg (kein toter Knopf).
-import { sofortUrlFuer } from "./fiaon-zahlungsauftrag";
 // Die Bankverbindung hat seit dem 02.09.2026 GENAU EINE Quelle. Ein Literal
 // hier wäre die zehnte Stelle, die beim nächsten Kontowechsel vergessen wird.
 import { BANK } from "@shared/fiaon-bank";
@@ -556,10 +551,9 @@ export async function rueckholLauf(): Promise<LaufErgebnis[]> {
         // ── ZAHLWEGE NUR, WO ES WIRKLICH ETWAS ZU ZAHLEN GIBT ─────────────
         // Die Lage „Preis fehlt“ (S3, 736 Anträge, und dieselben Menschen
         // später in der Dauerpflege) hat amount_due = 0 — das ist ja gerade
-        // ihr Befund. Ein GiroCode über 0 € und eine Sofortzahlung über 0 €
-        // wären dort keine Erleichterung, sondern ein Fehler beim Kunden.
-        // Deshalb bleibt `sofort_url` dort leer, und der Motor lässt den
-        // Knopf weg — der Termin bleibt der einzige Weg, wie es sein soll.
+        // ihr Befund. Ein GiroCode über 0 € wäre dort keine Erleichterung,
+        // sondern ein Fehler beim Kunden. Deshalb bleiben die Bankdaten dort
+        // leer — der Termin bleibt der einzige Weg, wie es sein soll.
         const zahlbar = Number(f.betrag) > 0 && !!f.zahlungsreferenz;
         const erg = await versendenUndProtokollieren(f.event as any, {
           email: String(f.email),
@@ -570,12 +564,6 @@ export async function rueckholLauf(): Promise<LaufErgebnis[]> {
           antrag_id: f.ref,
           termin_link: terminLink(f.personId, "rueckholung"),
           abmelde_url: abmeldeLinkPerson(f.personId),
-          // Der ZWEITE Weg neben dem Termin (Justin, 02.09.2026). `sofortUrlFuer`
-          // gibt null zurück, solange die Sofortzahlung nicht eingesteckt ist
-          // oder die Referenz nicht die Form eines Zahlungsauftrags hat (am
-          // 02.09. betraf das 22 offene Anträge mit Alt-Referenzen wie
-          // „FIAONMTCX7B“) — dann fällt der Knopf still weg.
-          sofort_url: zahlbar ? sofortUrlFuer(f.zahlungsreferenz) : null,
           // Empfänger/IBAN/BIC für den Datenkasten. Der Mail-Motor hat zwar
           // einen Rückfall auf dieselben Werte; mitgeschickt stehen sie aber
           // AUCH im Protokoll — eine Mail von damals lässt sich dann noch

@@ -23,7 +23,6 @@ import {
 } from "../lib/fiaon-inkasso";
 import { berlinToday } from "../lib/fiaon-time";
 
-import { wirdEingezogen, EINZUG_HINWEIS } from "../lib/fiaon-einzug-schutz";
 
 const router = Router();
 
@@ -284,8 +283,7 @@ router.get("/inkasso/rate/:id", requireAgent, async (req: AgentRequest, res: Res
     const [rate] = (await sqlPool`
       SELECT r.id, r.ref, r.rate_nr, r.betrag_cents, r.zahlungsreferenz, r.faellig_am,
              r.mahnstufe, r.erinnerungen, r.letzte_erinnerung_at, r.letzter_fehler,
-             r.inkasso_wiedervorlage, r.inkasso_zusage_am, a.person_id,
-             r.lastschrift_status, r.lastschrift_grund, r.lastschrift_am
+             r.inkasso_wiedervorlage, r.inkasso_zusage_am, a.person_id
       FROM fiaon_abo_raten r JOIN fiaon_applications a ON a.ref = r.ref
       WHERE r.id = ${id} AND r.status = 'offen'
         AND a.payment_status = 'paid' AND a.merged_into IS NULL
@@ -358,7 +356,6 @@ router.get("/inkasso/rate/:id", requireAgent, async (req: AgentRequest, res: Res
                COALESCE(NULLIF(p.zip, ''), a.zip) AS plz,
                COALESCE(NULLIF(p.city, ''), a.city) AS ort,
                a.pack_name, a.pack_key, a.amount_due, a.payment_reference,
-               p.gc_mandate_status,
                a.created_at::date AS kunde_seit,
                a.account_status, a.schufa_status,
                COALESCE(NULLIF(a.email, ''), NULLIF(a.contact_email, ''),
@@ -739,15 +736,7 @@ router.post("/inkasso/rate/:id/erinnerung", requireAgent, async (req: AgentReque
     `) as any[];
     if (!r) return res.status(404).json({ ok: false, error: "Diese Rate gibt es nicht mehr." });
 
-    // ── LÄUFT HIER SCHON EIN EINZUG? (02.09.2026) ──────────────────────────
-    // Bei der Abnahme gefunden: Dieser Knopf kannte den Abo-Schutz nicht.
-    // Der automatische Mahnlauf schützt Lastschriftkunden seit heute — ein
-    // Betreuer im Gespräch hätte sie trotzdem zur Zahlung aufgefordert, mit
-    // Bankdaten und Verwendungszweck. Der Kunde hätte überwiesen, und drei
-    // Tage später wäre derselbe Betrag abgebucht worden.
-    if (await wirdEingezogen(id)) {
-      return res.status(409).json({ ok: false, error: EINZUG_HINWEIS });
-    }
+    // (Bis 19.09.2026 sperrte hier der Einzugsschutz Lastschriftkunden — GoCardless ist beendet, E-194.)
 
     if (!r.email) {
       return res.status(400).json({

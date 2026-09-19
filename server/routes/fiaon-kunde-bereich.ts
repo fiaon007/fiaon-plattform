@@ -53,8 +53,8 @@ router.get("/kunde/me", async (req, res: Response) => {
 
 /**
  * POST /kunde/:ref/abo/verlaengerung — die Antwort auf „Möchten Sie bleiben?" (E-024).
- * { bleiben: true } → weitere 12 Raten, nächste Rate entsteht sofort, bei aktivem
- * Lastschrift-Mandat ein neues GoCardless-Abo. { bleiben: false } → Abo endet.
+ * { bleiben: true } → weitere 12 Raten, nächste Rate entsteht sofort (bezahlt wird
+ * per Überweisung). { bleiben: false } → Abo endet.
  */
 router.post("/kunde/:ref/abo/verlaengerung", requireKunde, async (req: KundeRequest, res: Response) => {
   try {
@@ -71,11 +71,6 @@ router.post("/kunde/:ref/abo/verlaengerung", requireKunde, async (req: KundeRequ
       const [letzte] = (await sqlPool`SELECT rate_nr, faellig_am, betrag_cents, zahlungsreferenz FROM fiaon_abo_raten
         WHERE ref = ${ref} AND storniert_am IS NULL ORDER BY rate_nr DESC LIMIT 1`) as any[];
       if (letzte) await naechsteRateAnlegen(ref, letzte);
-      // Lastschrift: neues 12er-Abo, wenn ein Mandat aktiv ist.
-      try {
-        const { gcAboAnlegen } = await import("./fiaon-lastschrift");
-        await gcAboAnlegen(ref);
-      } catch (e) { console.error("[MEIN-BEREICH] GC-Verlängerung:", e); }
       await sqlPool`INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
         VALUES (${ref}, NULL, 'System', 'system', 'Kunde hat das Abo um weitere 12 Raten verlängert (E-024).')`.catch(() => {});
       return res.json({ ok: true, verlaengert: true, meldung: "Schön, dass Sie bleiben. Ihr Abo läuft weitere zwölf Monate." });
@@ -107,7 +102,7 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
              EXISTS (SELECT 1 FROM fiaon_applications d WHERE d.gdpr_deleted_at IS NULL AND d.bank_statement_pdf IS NOT NULL AND (d.ref = a.ref OR (a.person_id IS NOT NULL AND d.person_id = a.person_id))) AS hat_kontoauszug,
              EXISTS (SELECT 1 FROM fiaon_applications d WHERE d.gdpr_deleted_at IS NULL AND d.id_card_pdf IS NOT NULL AND (d.ref = a.ref OR (a.person_id IS NOT NULL AND d.person_id = a.person_id))) AS hat_ausweis,
              a.reupload_bank_statement, a.reupload_id_card, a.profile_changes_requested, a.admin_profile_note,
-             p.assigned_agent_id, p.gc_mandate_ref, p.gc_mandate_status,
+             p.assigned_agent_id,
              (SELECT g.name FROM fiaon_agents g WHERE g.id = p.assigned_agent_id) AS betreuer_name,
              (SELECT g.rolle FROM fiaon_agents g WHERE g.id = p.assigned_agent_id) AS betreuer_rolle
       FROM fiaon_applications a
@@ -382,7 +377,6 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
       fahrplan: etappen,
       naechsterSchritt: jetzt ? { key: jetzt.key, titel: jetzt.titel, text: jetzt.text, href: jetzt.href || null } : null,
       ansprechpartner: a.betreuer_name ? { name: a.betreuer_name, rolle: a.betreuer_rolle || null } : null,
-      lastschrift: { mandat: a.gc_mandate_ref || null, status: a.gc_mandate_status || null, aktiv: a.gc_mandate_status === "active" },
       kontoVerbunden: false,
       // Einrichtung (23.08.2026): Ohne Passwort zeigt der Bereich die Einrichtungs-Ebene.
       passwortGesetzt: istGehasht(a.password),

@@ -27,7 +27,7 @@ export default function Datenraum() {
         <Karten items={[
           { tag: "01", titel: "Unternehmen", text: "FIAON LTD, London. Gründungsunterlagen, Gesellschafter, Director, Beschlüsse, Sitz und Vertretung." },
           { tag: "02", titel: "Finanzen", text: "Umsatz je Paket, Raten-Einzugsquote, offene Forderungen, Kosten, Planung. Monatlich aus der Plattform gezogen – keine Handarbeit." },
-          { tag: "03", titel: "Produkt und Technik", text: "Architektur, Kundenweg, Agentenportal, Schnittstellen (Auskunfteien, SEPA, KI), Deploy-Protokolle, Testberichte." },
+          { tag: "03", titel: "Produkt und Technik", text: "Architektur, Kundenweg, Agentenportal, Schnittstellen (Auskunfteien, Bankabgleich, KI), Deploy-Protokolle, Testberichte." },
           { tag: "04", titel: "Recht und Datenschutz", text: "AGB, Widerruf, Datenschutz, Einwilligungen, Vorlagen der Schreiben mit anwaltlicher Freigabe, Verfahrensverzeichnis." },
           { tag: "05", titel: "Team und Verträge", text: "Organisation, Handelsvertreterverträge, Provisionsregeln, Academy-Inhalte, Dienstleister." },
           { tag: "06", titel: "Markt", text: "DACH-Marktdaten, Wettbewerb, Partnergespräche, Roadmap Österreich und Schweiz, Europa." },

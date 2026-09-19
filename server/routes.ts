@@ -815,11 +815,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     tageslauf('monatsbericht', async () => await (await import('./lib/fiaon-monatsbericht')).monatsberichtLauf(), 6 * 60 * 60 * 1000, { beimStartNach: 420_000 });
     // Ereignisprotokoll: nach 90 Tagen weg (nur Bildschirm/Zeit, TFO-Vorgabe 06.09.).
     tageslauf('app-ereignisse-aufraeumen', async () => await (await import('./routes/fiaon-app-bericht')).ereignisseAufraeumen(), 24 * 60 * 60 * 1000, { beimStartNach: 600_000 });
-    // Push „Rate in drei Tagen fällig" — nur ohne Bankeinzug, nur mit VAPID-Schlüsseln, eine Mitteilung je Tag und Person.
+    // Push „Rate in drei Tagen fällig" — nur mit VAPID-Schlüsseln, eine Mitteilung je Tag und Person.
     tageslauf('push-rate-erinnerung', async () => await (await import('./lib/fiaon-push')).pushRatenLauf(), 24 * 60 * 60 * 1000, { beimStartNach: 660_000 });
   });
 
-  // 💶 SEPA-Lastschrift über GoCardless (Scheibe 11): Mandat, 12-Raten-Abo, Webhook.
+  // 💶 GoCardless (Lastschrift, Sofortzahlung) ist seit 19.09.2026 beendet (E-194). Übrig
+  // sind nur Umleitungen alter Mail-Links auf die Zahlungsseite und ein stummer Webhook.
   const fiaonLastschrift = await import('./routes/fiaon-lastschrift');
   app.use('/api/fiaon', fiaonLastschrift.default);
 
@@ -890,18 +891,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }, 30 * 60 * 1000, { beimStartNach: 180_000 });
   });
 
-  // 💶 Einladung zum Bankeinzug (01.09.2026, E-072). Halbstündlich, damit der
-  // Tagesdeckel über den Tag verteilt statt in einem Schwall rausgeht. Der Lauf
-  // ist ohne `sepa_werbung_pro_tag` ABGESCHALTET — er verschickt nach dem
-  // Ausrollen nichts, bis jemand die Zahl bewusst setzt.
-  import('./lib/fiaon-crons').then(({ tageslauf }) => {
-    tageslauf('sepa-werbung', async () => {
-      const { sepaWerbungLauf } = await import('./lib/fiaon-sepa-werbung');
-      const e = await sepaWerbungLauf();
-      if (e.verschickt > 0) console.log(`[SEPA-WERBUNG] ${e.verschickt} Einladungen verschickt (Deckel ${e.deckel}).`);
-      return e;
-    }, 30 * 60 * 1000, { beimStartNach: 150_000 });
-  });
+  // 💶 Die Einladung zum Bankeinzug (Lauf „sepa-werbung", E-072) ist seit 19.09.2026
+  // weg — GoCardless ist beendet (E-194), es gibt nichts mehr, wozu wir einladen.
 
   // 🏛 Datenraum der Schwarzott Capital Partners AG (26.08.2026).
   // Bewusst eigene Tabellen und eigene Sitzung — getrennt von FIAONS eigenem

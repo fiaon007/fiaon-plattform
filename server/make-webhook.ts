@@ -62,7 +62,6 @@ export type MakeEventType =
   //   erreicht' klickt muss der Kunde eine Email bekommen … hier neuen Termin
   //   buchen".
   | "termin_verpasst"        // Startgespraech nicht zustande gekommen — neuer Terminlink
-  | "sepa_einrichten"        // Bitte, die Lastschrift fuer die Folgeraten einzurichten
   // Rueckholung offener Antraege (E-073ff, 02.09.2026) — fuenf Lagen, ein Ziel: der Termin.
   | "rueckhol_s1"            // frische Zahlungsmeldung, Geld noch nicht da
   | "rueckhol_s2"            // alte Zahlungsmeldung + Entschuldigung fuer die Mahnungen
@@ -342,7 +341,7 @@ const PRIVATLINIE = new Set<string>([
   // 18.09.2026: zugang_link und bereich_freigeschaltet sprechen vom Kundenbereich — den hat ein Firmenauftrag nicht.
   "welcome", "zugang_link", "bereich_freigeschaltet",
   "payment_details", "followup_48h", "payment_reminder", "claim_received", "payment_confirmed",
-  "agent_payment_reminder", "payment_reactivated", "abo_payment_reminder", "abo_verlaengerung_frage", "sepa_einrichten",
+  "agent_payment_reminder", "payment_reactivated", "abo_payment_reminder", "abo_verlaengerung_frage",
   "onboarding_einladung", "konto_karte_einladung", "zustimmung_link", "antrag_erinnerung",
   "rueckhol_s1", "rueckhol_s2", "rueckhol_s3", "rueckhol_s4", "rueckhol_s5", "rueckhol_s5b", "rueckhol_s5c", "rueckhol_s5d",
 ]);
@@ -487,19 +486,8 @@ export function makePayloadFromRow(row: any): MakeWebhookPayload {
     nachname: row.last_name || (contactParts.length > 1 ? contactParts.slice(1).join(" ") : null),
     antrag_id: row.ref,
     payment_reference: row.payment_reference || null,
-    // ── KEINE SOFORTZAHLUNG FÜR DIE ERSTZAHLUNG (02.09.2026) ───────────
-    // Diese Nutzlast beschreibt immer eine Bestellung, also die Erstzahlung.
-    // Justins Regel dazu, wörtlich: „Die erste Rate und Boni also die 74 €
-    // kommen per Überweisung, ab Tag des Eingangs immer über GoCardless
-    // 1 Monat danach monatlich abbuchen (Das ABO nicht die 74 €!)"
-    // Die Sofortzahlung läuft technisch über GoCardless — das Geld wird dort
-    // gesammelt und erst nach Auszahlungsrhythmus weitergereicht. Genau das
-    // soll die Erstzahlung nicht: Sie ist der schnellste verfügbare Euro und
-    // gehört ohne Umweg auf unser Konto. Ist der Wert leer, lässt der
-    // Mail-Motor den Knopf weg. Dieselbe Frage entscheidet auf der
-    // Zahlungsseite sofortErlaubt() — dort zusätzlich mit dem Schalter
-    // sofort_erstzahlung_erlaubt, falls die Regel je zurückgenommen wird.
-    sofort_url: null,
+    // Bezahlt wird per Überweisung — Sofortzahlung und Lastschrift liefen über
+    // GoCardless und sind seit 19.09.2026 beendet (E-194).
     betrag: row.amount_due != null ? String(row.amount_due) : null,
     paket: row.pack_name ? String(row.pack_name).replace(/\n/g, " ") : null,
   };

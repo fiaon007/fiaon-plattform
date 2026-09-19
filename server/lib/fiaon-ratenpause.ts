@@ -20,9 +20,8 @@
 // Ist die älteste offene Rate länger als einen Monat überfällig, reicht ein
 // Monat nicht, um sie aus der Überfälligkeit zu holen — dann rückt die Kette so
 // weit wie nötig, höchstens drei Monate; darüber ist es ein Härtefall für die
-// Leitung. Höchstens eine Pause je Bestellung in 60 Tagen. Läuft für eine
-// offene Rate schon ein Lastschrifteinzug, gibt es keine Pause — der Einzug
-// ist bei der Bank, eine neue Fälligkeit hielte ihn nicht auf.
+// Leitung. Höchstens eine Pause je Bestellung in 60 Tagen. (Die Sperre bei
+// laufendem Lastschrifteinzug ist seit 19.09.2026 weg — GoCardless ist beendet.)
 //
 // Geld wird dabei nicht angefasst: kein Betrag, kein Status, keine Buchung.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -61,15 +60,12 @@ export async function ratenpauseAnwenden(
   if (grund.length < 5) return { ok: false, fehler: "Bitte kurz den Grund nennen (z. B. „Analyse fehlt noch“) — er steht im Verlauf." };
 
   const offene = (await lauf`
-    SELECT id, rate_nr, faellig_am::date::text AS faellig, zahlungsreferenz, lastschrift_status
+    SELECT id, rate_nr, faellig_am::date::text AS faellig, zahlungsreferenz
       FROM fiaon_abo_raten
      WHERE ref = ${ein.ref} AND status = 'offen' AND storniert_am IS NULL
      ORDER BY rate_nr
   `) as any[];
   if (offene.length === 0) return { ok: false, fehler: "Zu dieser Bestellung gibt es keine offene Rate." };
-  if (offene.some((r) => String(r.lastschrift_status || "") === "eingereicht")) {
-    return { ok: false, fehler: "Für eine offene Rate läuft bereits ein Lastschrifteinzug — eine Pause hält ihn nicht auf. Bitte an die Leitung." };
-  }
 
   if (!ein.ohneSperre) {
     const [zuletzt] = (await lauf`

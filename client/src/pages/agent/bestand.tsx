@@ -6,28 +6,31 @@
 // ALLE zugewiesenen Kunden (Leads, Rechnungen, Raten) mit dem 3D-Strom.
 // NACHHER ist dieser Raum das PORTFOLIO: nur übernommene Mandate
 // (fiaon_persons.mandat_seit, §16a), geliefert von GET /agent/vertrieb/bestand
-// (je Mandat: Karte + Raten-Stand + SEPA + Monatsrate).
+// (je Mandat: Karte + Raten-Stand + Monatsrate).
 //
 //   · Kopf, grafisch: Mandate x/500 mit Fortschrittsbogen (SVG-Ring) ·
 //     „Dein Bestand zahlt dir X €/Monat“ (Σ Monatsraten × Provisionssatz aus
 //     GET /agent/provision-satz) · Ratengesundheit als segmentierter Balken
-//     (pünktlich grün · offen blau · überfällig rot) · SEPA-Quote.
+//     (pünktlich grün · offen blau · überfällig rot).
 //   · Kundenkarten im Raster: Name, Gesundheits-Ampel (läuft · Rate offen ·
-//     überfällig seit X Tagen · kein SEPA), Monatsrate, nächster Termin bzw.
+//     überfällig seit X Tagen), Monatsrate, nächster Termin bzw.
 //     „lange kein Kontakt“ (> 14 Tage, gelb), Schnell-Aktionen Anrufen
 //     (fiaon-anrufen) · Akte (?person= → DIESELBE Akte-Lade aus pipeline.tsx,
 //     importiert, kein Duplikat) · Senden (SendeMenue ton="dunkel").
-//   · Filter-Chips (Alle · Überfällig · Kein SEPA · Termin fällig · > 14 Tage
+//   · Filter-Chips (Alle · Überfällig · Termin fällig · > 14 Tage
 //     kein Kontakt), Suche, Sortierung (Gesundheit · Mandat seit · Rate).
 //   · Ansicht „Strom“: der 3D-Kundenstrom aus pipeline.tsx (importiert) als
 //     optionale zweite Ansicht über dieselbe Mandatsliste.
 //   · Leerzustand motivierend mit Link in die Pipeline. Handytauglich.
+//   · 19.09.2026 (E-194): FIAON zieht keine Raten mehr ein — jede Rate kommt
+//     per Überweisung. Einzugs-Ampel, Einzugs-Quote und der Knopf, der den
+//     Kunden um einen Einzugsauftrag bat, sind entfernt.
 // Wording: FIAON berät nicht — „begleitet“, „zeigt“, „sortiert“.
 // ═══════════════════════════════════════════════════════════════════════════
 import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
-import { Phone, FileText, Search, Send, RefreshCw, X, Landmark } from "lucide-react";
+import { Phone, FileText, Search, Send, RefreshCw, X } from "lucide-react";
 import { AgentShell, api } from "./shared";
 import { useOffice } from "./OfficeShell";
 import { ToastAnbieter, eur } from "@/lib/fiaon-ui";
@@ -42,32 +45,30 @@ const MAX_MANDATE = 500;
 
 interface Mandat {
   kunde: Kunde;
-  raten: { bezahlt: number; offen: number; ueberfaellig: number; ueberfaelligSeitTagen: number | null; ruecklastschrift: boolean };
-  sepaAktiv: boolean;
+  raten: { bezahlt: number; offen: number; ueberfaellig: number; ueberfaelligSeitTagen: number | null };
   monatsrateCents: number | null;
 }
 
-type Gesund = "ueberfaellig" | "kein_sepa" | "offen" | "laeuft";
+type Gesund = "ueberfaellig" | "offen" | "laeuft";
 // 24.08.2026: Die Rangfolge wurde nur noch von totem Code hinter einem return
 // gelesen (Sortierung „Gesundheit", die es als Auswahl nicht mehr gibt). Sie
 // bleibt als Dokumentation der Priorität stehen, die `gesundVon` abbildet.
 // (Kein eslint-disable nötig: `void GESUND_RANG` unten markiert die Nutzung.
 //  Die Regel @typescript-eslint/no-unused-vars ist in diesem Projekt gar nicht
 //  eingerichtet — ein Stilllegen dafür ist selbst ein Fehler.)
-const GESUND_RANG: Record<Gesund, number> = { ueberfaellig: 0, kein_sepa: 1, offen: 2, laeuft: 3 };
+const GESUND_RANG: Record<Gesund, number> = { ueberfaellig: 0, offen: 1, laeuft: 2 };
 void GESUND_RANG;
 
-/** Die EINE Ampel je Mandat — Priorität: überfällig → kein SEPA → offen → läuft. */
+/** Die EINE Ampel je Mandat — Priorität: überfällig → offen → läuft. */
 function gesundVon(m: Mandat): { art: Gesund; label: string; farbe: string } {
   if (m.raten.ueberfaellig > 0) {
     const t = m.raten.ueberfaelligSeitTagen;
     return {
       art: "ueberfaellig",
-      label: m.raten.ruecklastschrift ? "Rücklastschrift" : `überfällig${t != null && t > 0 ? ` seit ${t} ${t === 1 ? "Tag" : "Tagen"}` : ""}`,
+      label: `überfällig${t != null && t > 0 ? ` seit ${t} ${t === 1 ? "Tag" : "Tagen"}` : ""}`,
       farbe: "#f87171",
     };
   }
-  if (!m.sepaAktiv) return { art: "kein_sepa", label: "kein SEPA", farbe: "#fbbf24" };
   if (m.raten.offen > 0) return { art: "offen", label: "Rate offen", farbe: "#60a5fa" };
   return { art: "laeuft", label: "läuft", farbe: "#34d399" };
 }
@@ -104,10 +105,11 @@ const anrufen = (nummer: string | null | undefined, personId: number, name: stri
 const VERTRAGSRATEN = 12;
 const euro0 = (c: number) => (c / 100).toLocaleString("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
 
-// 24.08.2026 (Justin): VORHER fünf Filter, darunter „Kein SEPA" und
-// „> 14 Tage kein Kontakt" — NACHHER nur noch drei, und die müssen ALLE
-// tun, was draufsteht. Der SEPA-Zustand wandert auf die Kundenkarte, wo er
-// mit einem Klick änderbar ist statt nur gezählt zu werden.
+// 24.08.2026 (Justin): VORHER fünf Filter, darunter „> 14 Tage kein
+// Kontakt" — NACHHER nur noch drei, und die müssen ALLE tun, was
+// draufsteht. (Der Einzugs-Filter von damals wanderte als Hinweis auf die
+// Kundenkarte; seit 19.09.2026 ist er ganz weg — E-194, FIAON zieht keine
+// Raten mehr ein.)
 const FILTER: { key: string; label: string }[] = [
   { key: "alle", label: "Alle" },
   { key: "ueberfaellig", label: "Überfällig" },
@@ -160,22 +162,8 @@ function BestandInnen() {
   const [offen, setOffen] = useState<number | null>(null);
   const [fremd, setFremd] = useState<Kunde | null>(null);
   const [sendeAn, setSendeAn] = useState<number | null>(null);
-  // 24.08.2026: Läuft gerade eine SEPA-Anfrage? (Person-ID, sonst null)
-  const [sepaLaeuft, setSepaLaeuft] = useState<number | null>(null);
-  const [sepaMeldung, setSepaMeldung] = useState<{ art: "gut" | "schlecht"; text: string } | null>(null);
   const handy = useMedia("(max-width: 700px)");
   const ruhig = useMedia("(prefers-reduced-motion: reduce)");
-
-  /** Bittet den Kunden per Mail, die Lastschrift für die Folgeraten
-   *  einzurichten. Kein Automatiklauf — immer ein bewusster Klick. */
-  const sepaBitten = async (personId: number, name: string) => {
-    setSepaLaeuft(personId); setSepaMeldung(null);
-    const r = await api(`/agent/versand/${personId}/sepa_einrichten`, { method: "POST", body: JSON.stringify({}) });
-    setSepaLaeuft(null);
-    setSepaMeldung(r.ok
-      ? { art: "gut", text: `${name} hat die Bitte bekommen, die Lastschrift im Kundenbereich einzurichten.` }
-      : { art: "schlecht", text: r.json?.error || "Die Anfrage konnte nicht gesendet werden." });
-  };
 
   const laden = useCallback(async (leise = false) => {
     if (!leise) setLaedt(true);
@@ -204,7 +192,6 @@ function BestandInnen() {
     const bez = mandate.reduce((s, m) => s + m.raten.bezahlt, 0);
     const off = mandate.reduce((s, m) => s + m.raten.offen, 0);
     const ueb = mandate.reduce((s, m) => s + m.raten.ueberfaellig, 0);
-    const sepa = mandate.filter((m) => m.sepaAktiv).length;
     // ── 24.08.2026: NICHT JEDE ZAHL IN DIESER SUMME IST EINE MONATSRATE ────
     // Der Server (GET /agent/vertrieb/bestand) nimmt als `monatsrateCents` den
     // echten Ratenbetrag — und wenn zu einem Mandat noch KEINE Rate angelegt
@@ -217,7 +204,6 @@ function BestandInnen() {
     return {
       monatlichCents: Math.round(rate * satz),
       bez, off, ueb, ratenGesamt: bez + off + ueb, ohneRate,
-      sepaQuote: mandate.length ? Math.round((sepa / mandate.length) * 100) : 0,
     };
   }, [mandate, satz]);
 
@@ -359,19 +345,13 @@ function BestandInnen() {
             <span>Summe der Monatsraten × {Math.round(satz * 100)} % Provision je bankbestätigter Rate{kopf.ohneRate > 0 ? ` · bei ${kopf.ohneRate} ${kopf.ohneRate === 1 ? "Mandat" : "Mandaten"} steht noch keine Rate — dort ist der Bestellbetrag gerechnet` : ""}</span>
           </div>
           {/* 24.08.2026 (Justin): Die Kacheln „Ratengesundheit" (pünktlich /
-              offen / überfällig) und „SEPA-Quote" sind entfallen. Beides waren
-              Zahlen zum Anschauen; was fehlt, steht jetzt dort, wo man es
-              ändern kann — auf der Kundenkarte. */}
+              offen / überfällig) und die Einzugs-Quote sind entfallen. Beides
+              waren Zahlen zum Anschauen; der Stand jedes Mandats steht auf
+              seiner Kundenkarte. */}
         </div>
       </section>
 
       {fehler && <p className="pi-fehler">{fehler}</p>}
-      {sepaMeldung && (
-        <p className={`pi-meldung ${sepaMeldung.art === "gut" ? "gut" : "schlecht"}`}>
-          {sepaMeldung.text}
-          <button type="button" className="pi-link" style={{ marginLeft: 8 }} onClick={() => setSepaMeldung(null)}>ausblenden</button>
-        </p>
-      )}
 
       {/* ── Filter, Suche, Sortierung, Ansicht ── */}
       <section className="be-leiste">
@@ -450,18 +430,11 @@ function BestandInnen() {
                     <span>Alle drei Bedingungen erfüllt – anrufen und den Weg zum Girokonto erklären.</span>
                   </button>
                 )}
-                {/* 24.08.2026 (Justin): VORHER war „kein SEPA" nur eine Ampel-
-                    Beschriftung — ein Zustand ohne Weg. NACHHER steht auf der
-                    Karte, was zu tun ist, und ein Klick schickt dem Kunden die
-                    Bitte, die Lastschrift im Kundenbereich einzurichten. */}
-                {!m.sepaAktiv && (
-                  <button type="button" className="be-sepa" disabled={sepaLaeuft === m.kunde.personId}
-                          onClick={() => void sepaBitten(m.kunde.personId, m.kunde.name)}
-                          title="Schickt dem Kunden die Bitte, die Lastschrift für die Folgeraten einzurichten.">
-                    <Landmark size={13} strokeWidth={1.75} />
-                    {sepaLaeuft === m.kunde.personId ? "Sende …" : "Lastschrift nicht eingerichtet — jetzt anfragen"}
-                  </button>
-                )}
+                {/* 19.09.2026 (E-194): Hier stand der Knopf, der den Kunden um
+                    einen Einzugsauftrag für die Folgeraten bat. FIAON zieht
+                    keine Raten mehr ein — jede Rate zahlt der Kunde per
+                    Überweisung, die Daten stehen in seiner Zahlungsmail und im
+                    Kundenbereich. Der Knopf ist ersatzlos entfernt. */}
                 <span className="be-karte-tun">
                   <button type="button" className="pi-knopf klein" disabled={!m.kunde.telefonWaehlbar}
                           onClick={() => anrufen(m.kunde.telefonWaehlbar, m.kunde.personId, m.kunde.name)}

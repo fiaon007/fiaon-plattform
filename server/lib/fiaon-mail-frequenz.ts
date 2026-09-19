@@ -153,7 +153,7 @@ async function stichtagLesen(): Promise<string> {
  * Der Ertrag der Mahnstrecke fällt vollständig in die ersten drei Mails, und
  * ab Mail 6 verdoppelt sich die Blockquote. Ein Deckel von 2 am Tag / 4 in der
  * Woche / 8 im Monat lässt jede sinnvolle Strecke zu (auch Justins
- * Zwei-Tage-Takt für die Lastschrift = 3,5 je Woche) und schneidet genau den
+ * Zwei-Tage-Takt = 3,5 je Woche) und schneidet genau den
  * ertraglosen Teil ab.
  */
 const STANDARD = { tag: 2, woche: 4, monat: 8 };
@@ -226,7 +226,7 @@ export async function darfAnEmpfaenger(email: string, event: string, opts: { man
     // wer morgens die Bankwechsel-Info bekam, hatte sein Werbebudget verbraucht.
     // (2) Der 30-Tage-Zähler sah die alte Mahnflut (Schnitt 15 je Kopf) und
     // sperrte damit die Menschen, denen die Bremse eigentlich helfen soll, für
-    // Wochen gegen die WERTVOLLEN Mails (SEPA-Einladung, Klärgespräch).
+    // Wochen gegen die WERTVOLLEN Mails (damals SEPA-Einladung, Klärgespräch).
     // Deshalb: Gezählt werden nur werbende Mails, und nur ab dem Stichtag, an
     // dem die Bremse selbst scharf war. Was davor rausging, ist Vergangenheit —
     // die Bremse schützt vor dem, was sie zulässt, nicht vor dem, was war.

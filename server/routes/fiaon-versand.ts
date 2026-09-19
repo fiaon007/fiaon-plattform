@@ -22,11 +22,11 @@ import { versendenUndProtokollieren } from "../lib/fiaon-mail-log";
 // Bis heute baute diese Route ihre Nutzlast selbst — rund 170 Zeilen neben
 // `sendePayloadBauen` (fiaon-mail-senden.ts), das dasselbe für Sende-Menü und
 // Vorschau tat. Die beiden liefen auseinander: Hier gab es Zahlungsdaten der
-// offenen Bestellung, sepa_link und das Datum des verpassten Termins, dort
+// offenen Bestellung und das Datum des verpassten Termins, dort
 // nicht; dort gab es den Katalogpreis (E-181), hier nicht. Und „Willkommen
 // und Zugang" schickte von hier `welcome` ohne jeden Link.
 // Jetzt baut `sendePayloadBauen` für beide Wege — mit allem, was hier stand
-// (Zahlungsdaten 02.09., Lastschrift 01./02.09., No-Show 24.08.). Die Regeln
+// (Zahlungsdaten 02.09., No-Show 24.08.; die Lastschrift ist seit 19.09.2026 weg, E-194). Die Regeln
 // dieser Route (Rechte, Zustand, Tageslimit) bleiben, wo sie waren; vor dem
 // Versand prüft `versandLuecke`, ob die Mail vollständig ist.
 // ══════════════════════════════════════════════════════════════════════════

@@ -115,7 +115,7 @@ export const RUECKHOLUNG_VORLAGEN: Record<string, MailBaustein> = {
   // wie bei claim_received in zahlung.ts.
   // Der Zahlweg steht bewusst UNTER der Bedingung „falls doch nicht heraus“:
   // Wer hier zum zweiten Mal überweist, hat am Ende zweimal gezahlt, und
-  // zurückholen müssten wir es dann auch noch. Kein `sofort_url` — der Lauf
+  // zurückholen müssten wir es dann auch noch. Kein Zahlknopf — der Lauf
   // liefert es nicht; der QR-Code und die Zahlungsseite tun dasselbe leiser.
   rueckhol_s1: {
     betreff: "Kurzer Zwischenstand zu Ihrer Zahlung, {{params.vorname}}",
@@ -287,19 +287,19 @@ export const RUECKHOLUNG_VORLAGEN: Record<string, MailBaustein> = {
   },
 
   // ── S5 (b) · „WAS SICH SEIT IHREM ANTRAG GEÄNDERT HAT“ ───────────────────
-  // Der Anlass-Einstieg: drei echte Neuerungen seit Sommer 2026 — Lastschrift
-  // für die Raten (E-072), Sofortzahlung per GiroCode in der Banking-App
-  // (02.09.), Online-Terminwahl mit Rückruf. Alle drei sitzen genau an den
-  // Stellen, an denen der Antragsweg gemessen bricht (Ratentreue 12,8 %,
-  // Überweisung ohne Verwendungszweck, Telefon-Warteschleife). Nichts davon
-  // ist ein Versprechen, alles davon ist gebaut.
+  // Der Anlass-Einstieg: drei echte Neuerungen seit Sommer 2026 — der GiroCode
+  // in jeder Zahlungsmail (scannen statt abtippen), alle Raten mit Betrag und
+  // Verwendungszweck im Kundenbereich, Online-Terminwahl mit Rückruf. Nichts
+  // davon ist ein Versprechen, alles davon ist gebaut. Bis 19.09.2026 standen
+  // hier Bank-App-Zahlung und Bankeinzug — beide liefen über GoCardless und
+  // sind beendet (E-194).
   rueckhol_s5b: {
     betreff: "Was sich seit Ihrem Antrag geändert hat",
-    preheader: "Drei Dinge sind einfacher geworden: Bezahlen per Banking-App, Bankeinzug für die Raten, ein Gespräch von fünfzehn Minuten.",
+    preheader: "Drei Dinge sind einfacher geworden: Bezahlen per GiroCode, alle Raten im Kundenbereich, ein Gespräch von fünfzehn Minuten.",
     titel: "Drei Dinge sind einfacher geworden",
     absaetze: [
       "Guten Tag {{params.vorname}}, seit Ihrem Antrag für <b>{{params.paket}}</b> hat sich bei uns einiges getan. Drei Dinge davon betreffen genau die Stellen, an denen es damals vielleicht gehakt hat.",
-      "<b>Bezahlen per Banking-App:</b> Ein Knopf in der Zahlungsmail, Sie wählen Ihre Bank, bestätigen in der App — Betrag und Verwendungszweck sind schon eingetragen, nichts abzutippen. <b>Bankeinzug für die Raten:</b> Nach der ersten Zahlung können Sie die Monatsraten einmal per Lastschrift einrichten; den Link dazu schicken wir Ihnen. <b>Ein Gespräch von fünfzehn Minuten:</b> Sie wählen online eine Zeit, wir rufen Sie dann an — ohne Warteschleife.",
+      "<b>Bezahlen per GiroCode:</b> In jeder Zahlungsmail steht ein Code für Ihre Banking-App — scannen, und Empfänger, Betrag und Verwendungszweck sind schon eingetragen, nichts abzutippen. <b>Alle Raten an einem Ort:</b> Ihr Kundenbereich zeigt jede Rate mit Betrag, Fälligkeit und Verwendungszweck. <b>Ein Gespräch von fünfzehn Minuten:</b> Sie wählen online eine Zeit, wir rufen Sie dann an — ohne Warteschleife.",
       "Nach fünfzehn Minuten wissen Sie drei Dinge: was in Ihrem Fall der nächste Schritt wäre, was er kostet und ob er sich für Sie lohnt — und wenn nicht, sagen wir Ihnen das genauso offen. Den Termin wählen Sie unten selbst; wir rufen Sie dann an.",
       "Möchten Sie keine Nachrichten mehr von uns: Antworten Sie mit <b>Stopp</b> oder nutzen Sie den Abmeldelink am Ende — dann schreiben wir Ihnen nicht mehr.",
     ],

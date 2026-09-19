@@ -144,8 +144,8 @@ function MiniRing() {
 
 const MiniAmpeln = (
   <Mini kopf="Kundenkarten mit Gesundheits-Ampel">
-    <div className="pr-mk"><span style={{ display: "flex", alignItems: "center", gap: 8 }}><i className="pr-ampel" data-t="gut" />Kunde A</span><small>läuft · SEPA aktiv</small></div>
-    <div className="pr-mk"><span style={{ display: "flex", alignItems: "center", gap: 8 }}><i className="pr-ampel" data-t="warn" />Kunde B</span><small>Rate offen · kein SEPA</small></div>
+    <div className="pr-mk"><span style={{ display: "flex", alignItems: "center", gap: 8 }}><i className="pr-ampel" data-t="gut" />Kunde A</span><small>läuft · Raten pünktlich</small></div>
+    <div className="pr-mk"><span style={{ display: "flex", alignItems: "center", gap: 8 }}><i className="pr-ampel" data-t="warn" />Kunde B</span><small>Rate offen · noch kein Eingang</small></div>
     <div className="pr-mk"><span style={{ display: "flex", alignItems: "center", gap: 8 }}><i className="pr-ampel" data-t="rot" />Kunde C</span><small>überfällig seit 9 Tagen</small></div>
     <div className="pr-mk"><span style={{ display: "flex", alignItems: "center", gap: 8 }}><i className="pr-ampel" data-t="warn" />Kunde D</span><small>&gt; 14 Tage kein Kontakt</small></div>
   </Mini>
@@ -443,7 +443,7 @@ const KAPITEL: Kapitel[] = [
     ],
   },
   {
-    key: "bestand", name: "Bestand", kurz: "Dein Portfolio: Mandate, Ampeln, SEPA", szene: "kundenbuch",
+    key: "bestand", name: "Bestand", kurz: "Dein Portfolio: Mandate, Ampeln, Zahlungen", szene: "kundenbuch",
     folien: [
       {
         kicker: "Bestand · /agent/bestand",
@@ -459,7 +459,7 @@ const KAPITEL: Kapitel[] = [
         kicker: "Bestand · Kopfzahlen",
         titel: <>Der Kopf zeigt, <V>was dein Bestand wert ist.</V></>,
         text: <>
-          <p>Oben stehen vier Wahrheiten: Mandate x/500 als Ring, „Dein Bestand zahlt dir X € im Monat" (Summe der Monatsraten mal dein Provisionssatz), die Ratengesundheit als Balken (pünktlich, offen, überfällig) und die SEPA-Quote.</p>
+          <p>Oben stehen zwei Wahrheiten: Mandate x/500 als Ring und „Dein Bestand zahlt dir X € im Monat" (Summe der Monatsraten mal dein Provisionssatz). Den Stand jedes Mandats zeigt seine Kundenkarte.</p>
           <p>Das ist dein wiederkehrendes Einkommen — es wächst mit jedem Mandat, das seine Raten zahlt.</p>
         </>,
         notizen: ["Kernbotschaft: Bestand = monatliches Einkommen", "Ratengesundheit ist der früheste Warnindikator"],
@@ -468,20 +468,20 @@ const KAPITEL: Kapitel[] = [
         kicker: "Bestand · Karten",
         titel: <>Jede Karte hat eine <V>Gesundheits-Ampel.</V></>,
         text: <>
-          <p>Je Kunde: Ampel (läuft, Rate offen, überfällig seit X Tagen, kein SEPA), Monatsrate, nächster Termin — oder gelb „lange kein Kontakt" nach 14 Tagen. Schnell-Aktionen: Anrufen, Akte, Senden.</p>
-          <p>Filter-Chips (Überfällig, Kein SEPA, Termin fällig, kein Kontakt), Suche und Sortierung halten auch 500 Karten bedienbar.</p>
+          <p>Je Kunde: Ampel (läuft, Rate offen, überfällig seit X Tagen), Monatsrate, nächster Termin — oder gelb „lange kein Kontakt" nach 14 Tagen. Schnell-Aktionen: Anrufen, Akte, Senden.</p>
+          <p>Filter (etwa Überfällig, Termin fällig, Bereit für Konto & Karte), Suche und Sortierung halten auch 500 Karten bedienbar.</p>
         </>,
         mini: MiniAmpeln,
         notizen: ["Rot/gelb zuerst abarbeiten — dafür sind die Filter da", "Akte ist dieselbe Lade wie in der Pipeline"],
       },
       {
-        kicker: "Bestand · SEPA-Wahrheit",
-        titel: <>SEPA: so läuft <V>das Geld wirklich.</V></>,
+        kicker: "Bestand · Zahlungs-Wahrheit",
+        titel: <>Überweisung: so läuft <V>das Geld wirklich.</V></>,
         text: <>
-          <p>Die <strong>erste Zahlung ist immer eine Überweisung</strong> — Paketrechnung und 74-€-Auskunft zahlt der Kunde aktiv, nie per Lastschrift. Die monatlichen Folgeraten laufen per SEPA, das der Kunde im Kundenbereich einrichtet.</p>
-          <p>An jeder offenen Rate steht der Grund: kein SEPA eingerichtet, Rücklastschrift oder schlicht offen. Zahlungen bestätigt derzeit der Admin von Hand — bis dahin gilt eine Rate als offen.</p>
+          <p><strong>Jede Zahlung ist eine Überweisung</strong> — Paketrechnung, 74-€-Auskunft und jede Monatsrate zahlt der Kunde aktiv, mit seinem Verwendungszweck. Bankverbindung und Verwendungszweck stehen in jeder Zahlungsmail und im Kundenbereich.</p>
+          <p>An jeder offenen Rate siehst du den Stand. Zahlungen bestätigt derzeit der Admin von Hand — bis dahin gilt eine Rate als offen.</p>
         </>,
-        notizen: ["„Kein SEPA“ = Kunde ansprechen, Einrichtung zeigen", "Ehrlich sagen: noch keine automatische Bank-Anbindung"],
+        notizen: ["Seit 19.09.2026 keine Lastschrift mehr: Jede Rate per Überweisung (Daten in der Zahlungsmail und im Kundenbereich). Fragt ein Kunde nach einer Rückbuchung: Bereits per Lastschrift eingezogene Beträge erstattet FIAON; die Rate überweist er dann selbst.", "Ehrlich sagen: noch keine automatische Bank-Anbindung"],
       },
     ],
   },
@@ -652,7 +652,7 @@ const KAPITEL: Kapitel[] = [
         kicker: "Vergütung · Auszahlung",
         titel: <>„Ausgezahlt wird, <V>was angekommen ist."</V></>,
         text: <>
-          <p>Provision gibt es nur auf <strong>bankbestätigte</strong> Raten — nicht auf Versprechen, nicht auf „bezahlt" geklickt. Die erste Zahlung eines Kunden ist immer eine Überweisung mit Referenz, Folgeraten laufen per SEPA.</p>
+          <p>Provision gibt es nur auf <strong>bankbestätigte</strong> Raten — nicht auf Versprechen, nicht auf „bezahlt" geklickt. Jede Zahlung eines Kunden ist eine Überweisung mit Referenz — die erste wie jede Rate.</p>
           <p>Das schützt dich auch: Was in deiner Wallet steht, ist echtes Geld, keine Hochrechnung.</p>
         </>,
         notizen: ["Der Satz ist die Hausregel — wörtlich so kommunizieren", "Abgleich läuft über den Kontoeingang"],

@@ -32,8 +32,7 @@ import { verifyNumberToken, markNumberUpdated } from "../fiaon-number-update";
 // Zuordnung (gemessen: scripts/person-nachlauf.ts).
 import { bindePersonAnAntrag } from "../fiaon-person-model";
 import { BANK } from "@shared/fiaon-bank";
-import { zahlungsauftragFinden, sofortUrlFuer, sofortErlaubt } from "../lib/fiaon-zahlungsauftrag";
-import { zahlwegVorrangLesen } from "../mail/motor";
+import { zahlungsauftragFinden } from "../lib/fiaon-zahlungsauftrag";
 import {
   LOGIN_ACCESS_STATUSES,
   LOGIN_CODES,
@@ -1182,21 +1181,8 @@ router.get("/payment-order/:paymentRef", async (req, res) => {
     // 02.09.2026: Bestellung ODER Monatsrate (FIAON-XXXXXX-N) — eine Seite, ein QR-Code.
     const z = await zahlungsauftragFinden(req.params.paymentRef);
     if (!z) return res.status(404).json({ ok: false, error: "Bestellung nicht gefunden" });
-    // 02.09.2026: Derselbe Schalter, der in den Mails die Knopfreihenfolge dreht,
-    // muss auch hier gelten — sonst holt die Mail den Kunden über die Überweisung
-    // ab und die Zahlungsseite schickt ihn doch in die Sofortzahlung, deren Geld
-    // bei GoCardless auf dem gesperrten Auszahlungskonto liegen bleibt.
-    const sofortVorrang = await zahlwegVorrangLesen();
-    // Und nicht jeder Auftrag darf die Sofortzahlung überhaupt sehen:
-    // Erstzahlungen gehören auf die Überweisung, und eine Rate, die ohnehin
-    // per Lastschrift eingezogen wird, darf niemand zusätzlich bezahlen.
-    const sofort = await sofortErlaubt(z);
-    res.json({
-      ok: true, ...z,
-      sofortUrl: sofort.erlaubt ? sofortUrlFuer(z.paymentReference) : null,
-      sofortGrund: sofort.erlaubt ? null : sofort.grund,
-      sofortVorrang, bank: FIAON_BANK_DETAILS,
-    });
+    // 19.09.2026 (E-194): Bezahlt wird nur per Überweisung — die Sofortzahlung über GoCardless ist beendet.
+    res.json({ ok: true, ...z, bank: FIAON_BANK_DETAILS });
   } catch (err) {
     console.error("[FIAON-PAYMENT] payment-order/:ref:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });

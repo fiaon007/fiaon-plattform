@@ -30,7 +30,7 @@
 // entsteht. Wer hier ein Feld ergänzt, ergänzt es für alle zwölf Stufen; sonst
 // erzählt die Demo zwei verschiedene Geschichten.
 //
-// Alles, was schreiben würde (Ticket, Passwort, Lastschrift, Abo), antwortet
+// Alles, was schreiben würde (Ticket, Passwort, Abo), antwortet
 // freundlich mit „nur zur Ansicht“. Max Mustermann ist kein Kunde.
 // ═══════════════════════════════════════════════════════════════════════════
 import { Router, type Request, type Response } from "express";
@@ -192,7 +192,6 @@ function demoBereich(stufeRoh: unknown) {
     fahrplan: etappen,
     naechsterSchritt: { key: jetzt.key, titel: jetzt.titel, text: jetzt.was, href: null },
     ansprechpartner: { name: "Lena Winter", rolle: "Onboarding" },
-    lastschrift: st.bezahlt ? { mandat: "MD-DEMO-0001", status: "active", aktiv: true } : { mandat: null, status: null, aktiv: false },
     kontoVerbunden: false,
     karte: { bereit: st.kartenweg, esFehlt: [], verschickt: st.kartenweg, tore },
     konto: { eroeffnet: st.konto, am: amKonto ? tag(amKonto) : null },
@@ -263,7 +262,6 @@ router.get(`/kunde/${DEMO_REF}/startgespraech`, (req: Request, res: Response) =>
 });
 router.post(`/kunde/${DEMO_REF}/tickets`, (_req: Request, res: Response) => nurAnsicht(res));
 router.post(`/kunde/${DEMO_REF}/passwort`, (_req: Request, res: Response) => nurAnsicht(res));
-router.post(`/kunde/${DEMO_REF}/lastschrift/start`, (_req: Request, res: Response) => nurAnsicht(res));
 router.post(`/kunde/${DEMO_REF}/abo/verlaengerung`, (_req: Request, res: Response) => nurAnsicht(res));
 router.post(`/kunde/${DEMO_REF}/startgespraech/spaeter`, (_req: Request, res: Response) => nurAnsicht(res));
 router.patch(`/profile/${DEMO_REF}`, (_req: Request, res: Response) => nurAnsicht(res));

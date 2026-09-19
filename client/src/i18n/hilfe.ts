@@ -29,11 +29,11 @@ const de = {
       { f: "Kann ich das Paket noch ändern?", a: "Ja – im Antrag, im Startgespräch und danach jederzeit nach oben; nach unten zum nächsten Ratenlauf. Der Paketfinder auf der Preisseite gibt die erste Orientierung." },
       { f: "Ich habe den Antrag abgebrochen – was nun?", a: "Sie können jederzeit weitermachen: Der Link in der E-Mail führt zurück in den Antrag. Es entstehen keine Kosten, bis Sie den Vertrag annehmen und die erste Rate zahlen." },
     ] },
-    { key: "zahlung", titel: "Zahlung und Raten", satz: "Erste Rate, SEPA, Zahlungskalender.", fragen: [
+    { key: "zahlung", titel: "Zahlung und Raten", satz: "Überweisung, Raten, Zahlungskalender.", fragen: [
       { f: "Wie bezahle ich die erste Rate?", a: "Per Überweisung an die Zahlungsdaten im Kundenbereich (mit QR-Code zum Scannen). Sobald die Bank den Eingang bestätigt, ist Ihr Paket aktiv – „bezahlt“ heißt bei FIAON immer bankbestätigt, nicht nur gemeldet." },
-      { f: "Wie laufen die weiteren Raten?", a: "Per SEPA-Lastschrift über einen verifizierten Kreditor, jeweils zum Monatsanfang. Sie erteilen das Mandat einmal im Kundenbereich. Zwei Tage vor jeder Abbuchung erinnert der Zahlungskalender." },
+      { f: "Wie laufen die weiteren Raten?", a: "Genauso wie die erste: Jede Rate zahlen Sie per Überweisung, FIAON bucht nichts von Ihrem Konto ab. Bankverbindung und Verwendungszweck stehen in jeder Zahlungsmail und im Kundenbereich unter Abo & Zahlungen. Zwei Tage vor jeder Fälligkeit erinnert der Zahlungskalender." },
       { f: "Meine Zahlung ist nicht angekommen – was tun?", a: "Überweisungen brauchen ein bis zwei Bankarbeitstage. Prüfen Sie Verwendungszweck (Ihre Referenz) und Betrag. Ist die Zahlung nach drei Werktagen nicht zugeordnet, melden Sie sich mit Datum und Betrag beim Support – wir suchen sie im Bankbuch." },
-      { f: "Was passiert, wenn eine Rate nicht abgebucht werden kann?", a: "Sie bekommen eine Nachricht mit einem neuen Termin; es entstehen keine Mahngebühren bei FIAON. Melden Sie sich vor dem Termin, wenn es eng wird – Ihre Ansprechpartnerin kann eine Rate verschieben." },
+      { f: "Was passiert, wenn ich eine Rate nicht pünktlich zahlen kann?", a: "Sie bekommen eine Erinnerung mit den Zahlungsdaten; es entstehen keine Mahngebühren bei FIAON. Melden Sie sich vor der Fälligkeit, wenn es eng wird – Ihre Ansprechpartnerin kann eine Rate verschieben." },
       { f: "Bekomme ich eine Rechnung?", a: "Ja, je Rate im Kundenbereich unter Abo & Zahlungen als PDF – mit Umsatzsteuer ausgewiesen." },
       { f: "Wird die Bonitätsauskunft angerechnet?", a: "Wer zuerst nur die Auskunft (74 Euro) bucht und innerhalb von 30 Tagen ein Paket wählt, bekommt den Betrag auf die erste Rate angerechnet – sagen Sie es im Startgespräch." },
     ] },
@@ -100,11 +100,11 @@ const en: typeof de = {
       { f: "Can I still change the plan?", a: "Yes — in the application, in the onboarding call and upwards at any time afterwards; downwards from the next instalment cycle. The plan finder on the pricing page gives a first orientation." },
       { f: "I abandoned the application — what now?", a: "You can continue at any time: the link in the e-mail takes you back into the application. No costs arise until you accept the contract and pay the first instalment." },
     ] },
-    { key: "zahlung", titel: "Payment and instalments", satz: "First instalment, SEPA, payment calendar.", fragen: [
+    { key: "zahlung", titel: "Payment and instalments", satz: "Bank transfer, instalments, payment calendar.", fragen: [
       { f: "How do I pay the first instalment?", a: "By bank transfer to the payment details in the customer area (with a QR code to scan). As soon as the bank confirms receipt, your plan is active — at FIAON “paid” always means bank-confirmed, not just reported." },
-      { f: "How do the further instalments work?", a: "By SEPA direct debit through a verified creditor, at the start of each month. You grant the mandate once in the customer area. Two days before each debit the payment calendar reminds you." },
+      { f: "How do the further instalments work?", a: "Just like the first: you pay every instalment by bank transfer, and FIAON never debits your account. Bank details and payment reference are in every payment e-mail and in the customer area under Subscription & payments. Two days before each due date the payment calendar reminds you." },
       { f: "My payment has not arrived — what should I do?", a: "Bank transfers take one to two banking days. Check the reference (your reference) and the amount. If the payment has not been allocated after three working days, contact support with date and amount — we look for it in the bank ledger." },
-      { f: "What happens if an instalment cannot be collected?", a: "You get a message with a new date; no reminder fees arise at FIAON. Get in touch before the date if money is tight — your contact person can move an instalment." },
+      { f: "What happens if I cannot pay an instalment on time?", a: "You get a reminder with the payment details; no reminder fees arise at FIAON. Get in touch before the due date if money is tight — your contact person can move an instalment." },
       { f: "Do I get an invoice?", a: "Yes, per instalment in the customer area under Subscription & payments as a PDF — with VAT shown." },
       { f: "Is the credit report credited?", a: "If you first buy only the report (€74) and choose a plan within 30 days, the amount is credited against the first instalment — say so in the onboarding call." },
     ] },

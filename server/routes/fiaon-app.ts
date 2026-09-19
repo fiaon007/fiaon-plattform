@@ -30,7 +30,6 @@ import { requireKunde, type KundeRequest } from "../lib/fiaon-kunde-session";
 import { bildAlsPdf, istBild, istHeic } from "../lib/fiaon-bild-zu-pdf";
 import { FRAGEN, REGELN, befunde, beantwortet, summeMonatlichCents, type Antworten, type Befund } from "@shared/fiaon-ansprueche";
 import { BANK } from "@shared/fiaon-bank";
-import { zahlungsauftragFinden } from "../lib/fiaon-zahlungsauftrag";
 
 const router = Router();
 
@@ -457,9 +456,9 @@ router.post("/admin/app/einstellung", async (req, res: Response) => {
 
 // ── Rate zahlen (Bauvorlage 3.10) ───────────────────────────────────────────
 // Der Kunde sieht EINEN offenen Zahlungsauftrag: die erste Zahlung, solange sie
-// fehlt, sonst die nächste offene Rate. Drei Wege: Bank-App (Sofortzahlung über
-// den signierten Link aus fiaon-lastschrift.ts, wenn GoCardless konfiguriert ist),
-// Überweisung (Daten aus shared/fiaon-bank.ts + GiroCode) und Bankeinzug.
+// fehlt, sonst die nächste offene Rate. Ein Weg: die Überweisung (Daten aus
+// shared/fiaon-bank.ts + GiroCode). Bank-App-Sofortzahlung und Bankeinzug liefen
+// über GoCardless und sind seit dem 19.09.2026 beendet (E-194).
 // „Ich habe überwiesen“ ist NUR ein Vermerk im Kontaktverlauf — nie claimed_paid,
 // nie eine Freischaltung (Hausgrundsatz 02.09.: 276 Behaupter ohne Geld).
 const VERMERK_ART = "kunde_zahlung_gemeldet";
@@ -481,43 +480,21 @@ async function offenerAuftrag(ref: string): Promise<{ art: "erstzahlung" | "rate
   return { art: "rate", referenz: String(r.zahlungsreferenz), betragCents: Number(r.betrag_cents), faelligAm: tag(r.faellig_am), faelligIso: r.faellig_am ? new Date(r.faellig_am).toISOString().slice(0, 10) : null, rateNr: Number(r.rate_nr), ratenVon: Number(r.gesamt) || 12, status: "offen" };
 }
 
-/** GET /kunde/:ref/app/zahlung — der eine offene Zahlungsauftrag mit allen drei Wegen. */
+/** GET /kunde/:ref/app/zahlung — der eine offene Zahlungsauftrag: Bankverbindung, Verwendungszweck, GiroCode. */
 router.get("/kunde/:ref/app/zahlung", requireKunde, async (req: KundeRequest, res: Response) => {
   try {
     const ref = req.kundeRef!;
     const z = await offenerAuftrag(ref);
-    const [ls] = (await sqlPool`SELECT p.gc_mandate_ref, p.gc_mandate_status FROM fiaon_applications a LEFT JOIN fiaon_persons p ON p.id = a.person_id WHERE a.ref = ${ref} LIMIT 1`) as any[];
-    const lastschriftAktiv = !!ls?.gc_mandate_ref && ["active", "submitted", "created"].indexOf(String(ls.gc_mandate_status || "")) !== -1;
-    const lastschriftWartet = !!ls?.gc_mandate_ref && ["pending_submission", "pending_customer_approval"].indexOf(String(ls.gc_mandate_status || "")) !== -1;
-    if (!z) return res.json({ ok: true, offen: null, lastschrift: { aktiv: lastschriftAktiv, wartet: lastschriftWartet } });
-
-    // Sofortzahlung nur, wenn GoCardless konfiguriert ist und der Auftrag für den Link taugt.
-    // ── SOFORTZAHLUNG NUR ÜBER DEN HAUS-SCHALTER (Prüfung 05.09.2026) ─────
-    // sofortErlaubt() kennt die zwei Regeln vom 02.09.: Die Erstzahlung geht
-    // per Überweisung direkt auf unser Konto (Schalter sofort_erstzahlung_erlaubt),
-    // und eine Rate, die per Lastschrift eingezogen wird, darf niemand zusätzlich
-    // zahlen (Doppelbuchung). sofortUrlFuer() liefert nur einen Link, wenn das
-    // Lastschrift-Modul eingesteckt ist — dieselbe Quelle wie Zahlungsseite und
-    // Mails. Der direkte Griff zu sofortLink() umging beides.
-    let sofortUrl: string | null = null;
-    try {
-      const za = await zahlungsauftragFinden(z.referenz);
-      if (za && za.status !== "paid" && za.status !== "cancelled" && Number(za.amountDue) > 0) {
-        const { sofortErlaubt, sofortUrlFuer } = await import("../lib/fiaon-zahlungsauftrag");
-        const erlaubt = await sofortErlaubt(za);
-        if (erlaubt.erlaubt) sofortUrl = sofortUrlFuer(z.referenz);
-      }
-    } catch (e: any) { console.error("[APP] sofortUrl:", e?.message || e); }
+    if (!z) return res.json({ ok: true, offen: null });
     const [v] = (await sqlPool`SELECT created_at FROM fiaon_contact_log WHERE ref = ${ref} AND type = ${VERMERK_ART} AND note LIKE ${"%" + z.referenz + "%"} ORDER BY created_at DESC LIMIT 1`.catch(() => [])) as any[];
     const heute = berlinHeute();
     const heuteIso = `${heute.j}-${String(heute.m).padStart(2, "0")}-${String(heute.t).padStart(2, "0")}`;
     res.json({
       ok: true,
-      offen: { ...z, ueberfaellig: !!z.faelligIso && z.faelligIso < heuteIso, sofortUrl,
+      offen: { ...z, ueberfaellig: !!z.faelligIso && z.faelligIso < heuteIso,
         qrPfad: `/api/fiaon/zahlung/${encodeURIComponent(z.referenz)}/qr.png`,
         bank: { empfaenger: BANK.empfaenger, iban: BANK.iban, ibanDisplay: BANK.ibanDisplay, bic: BANK.bic },
         vermerkAm: v?.created_at ? tag(v.created_at) : null },
-      lastschrift: { aktiv: lastschriftAktiv, wartet: lastschriftWartet },
     });
   } catch (e: any) {
     console.error("[APP] zahlung:", e?.message || e);

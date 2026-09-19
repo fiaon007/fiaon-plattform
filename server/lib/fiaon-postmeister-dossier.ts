@@ -185,59 +185,15 @@ export async function kundenlageBerechnen(personId: number | null, ref: string |
   if (a.payment_status === "claimed_paid") return { lage: "zahlung_gemeldet", grund: `hat am ${relativ(a.claimed_paid_at)} eine Zahlung gemeldet, Geld ist nicht angekommen` };
   if (a.payment_status !== "paid") return { lage: "unbezahlt", grund: "Bestellung liegt vor, erste Zahlung fehlt" };
 
-  // ═══════════════════════════════════════════════════════════════════════
-  // EINE RATE IM EINZUG IST NICHT ÜBERFÄLLIG (02.09.2026)
-  //
-  // Gefunden von fiaon-44: Ali Alfatlawi, Rate 2 über 7,99 €, bei GoCardless
-  // am 28.08. abgebucht und bestätigt — in unserer Datenbank „offen",
-  // Mahnstufe 2, drei Erinnerungen. Der Kunde zahlt und wird gemahnt.
-  //
-  // Für den Postmeister ist das doppelt schlimm: Die Lage `rate_ueberfaellig`
-  // VERLANGT eine Zahlungsseite in der Antwort (Pflichtangabe). Er hätte also
-  // einem Menschen, bei dem das Geld längst abgebucht wurde, eine
-  // Zahlungsaufforderung geschrieben — höflich formuliert und trotzdem falsch.
-  //
-  // Zwei Zeichen sagen, dass eingezogen wird:
-  //   · eine `gc_payment_id` an der Rate — der Einzug ist bereits ausgelöst
-  //   · ein laufendes Abo auf dem Vertrag, dessen Start zur Fälligkeit passt
-  //
-  // DIE SIEBEN TAGE VORLAUF sind gemessen, nicht geschätzt (fiaon-44, 02.09.):
-  // Fälligkeit und Abo-Einzug fallen selten auf denselben Tag — Brandt,
-  // Schneider und Sheeraz 0 Tage, Sturm und Thoma 1 Tag, Weber 32. Ohne
-  // Vorlauf wäre Eva Sturm am 27.09. gemahnt und am 28.09. abgebucht worden:
-  // dieselbe Rate, ein Tag Versatz. Sieben Tage fangen das ab und lassen
-  // Webers 32 Tage draußen, wo sie hingehören — das ist echte Altlast, die
-  // einzeln abgerufen wird und gemahnt werden darf.
-  //
-  // Die Abwägung: Ein zu Unrecht nicht gemahnter Kunde kostet Tage. Ein zu
-  // Unrecht gemahnter kostet das Vertrauen.
-  // ═══════════════════════════════════════════════════════════════════════
+  // 19.09.2026 (E-194): Hier stand die Ausnahme „Rate im Einzug ist nicht
+  // überfällig" (02.09.) samt der Anweisung „NICHT zur Zahlung auffordern".
+  // GoCardless ist beendet, eingezogenes Geld wird erstattet — jede offene,
+  // fällige Rate ist überfällig und wird per Überweisung bezahlt.
   const [r] = (await sqlPool`
-    WITH einzug AS (
-      SELECT r.*,
-             (r.gc_payment_id IS NOT NULL
-              OR EXISTS (
-                   SELECT 1 FROM fiaon_applications sub
-                    WHERE sub.ref = r.ref
-                      AND sub.gc_subscription_ref IS NOT NULL
-                      AND sub.gc_subscription_status = 'active'
-                      AND sub.gc_subscription_start IS NOT NULL
-                      AND r.faellig_am >= sub.gc_subscription_start - INTERVAL '7 days'
-                 )) AS wird_eingezogen
-        FROM fiaon_abo_raten r WHERE r.ref = ${ref}
-    )
-    SELECT COUNT(*) FILTER (WHERE status = 'offen' AND faellig_am <= CURRENT_DATE AND NOT wird_eingezogen)::int AS ueberfaellig,
-           COUNT(*) FILTER (WHERE status = 'offen' AND wird_eingezogen)::int AS im_einzug,
-           COUNT(*) FILTER (WHERE status = 'offen')::int AS offen
-      FROM einzug
+    SELECT COUNT(*) FILTER (WHERE status = 'offen' AND faellig_am <= CURRENT_DATE)::int AS ueberfaellig
+      FROM fiaon_abo_raten WHERE ref = ${ref} AND storniert_am IS NULL
   `) as any[];
   if (Number(r?.ueberfaellig || 0) > 0) return { lage: "rate_ueberfaellig", grund: `${r.ueberfaellig} Rate(n) überfällig` };
-  if (Number(r?.im_einzug || 0) > 0) {
-    return {
-      lage: "aktiv",
-      grund: `bezahlt und aktiv; ${r.im_einzug} Rate(n) werden per Lastschrift eingezogen — NICHT zur Zahlung auffordern`,
-    };
-  }
   if (!a.freigeschaltet_am && a.account_status !== "active") {
     return { lage: "bezahlt_ohne_startgespraech", grund: "bezahlt, Bereich wartet auf das Startgespräch" };
   }
@@ -252,7 +208,7 @@ export async function akteLesen(personId: number | null, ref: string | null): Pr
   const [person] = personId ? (await sqlPool`
     SELECT p.id, p.first_name, p.last_name, p.company_name, p.primary_email, p.primary_phone, p.anrede,
            p.sprache, p.sprache_notiz, p.city, p.country,
-           p.werbung_gesperrt_am, p.is_blocked, p.account_status, p.gc_mandate_status,
+           p.werbung_gesperrt_am, p.is_blocked, p.account_status,
            a.first_name AS betreuer_vorname, a.name AS betreuer_name
       FROM fiaon_persons p LEFT JOIN fiaon_agents a ON a.id = p.assigned_agent_id
      WHERE p.id = ${personId} LIMIT 1

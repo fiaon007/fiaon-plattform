@@ -49,7 +49,7 @@ export type SchrittArt =
   | "bereich"          // Link in den Kundenbereich (nur wenn freigeschaltet)
   | "unterlagen"       // Upload-Weg
   | "antrag"           // Antragsstrecke (Interessenten)
-  | "angebot"          // Bonitätsauskunft, Lastschrift, Upgrade
+  | "angebot"          // Bonitätsauskunft, Upgrade
   | "erledigt"         // nichts zu tun (Stopp gesetzt, Kündigung vermerkt)
   | "wartet_auf_uns";  // wir melden uns (nur mit Aufgabe im System)
 

@@ -408,10 +408,6 @@ export async function arbeitsliste(
            r.faellig_am, r.mahnstufe, r.erinnerungen, r.letzte_erinnerung_at,
            r.inkasso_wiedervorlage, r.inkasso_zusage_am, r.inkasso_versuche,
            r.eskaliert_am, r.notiz,
-           -- Lastschrift (22.08.2026): Eine geplatzte Lastschrift ist ein
-           -- eigener Fall, ein gekündigtes Mandat ein anderer erster Satz.
-           r.lastschrift_status, r.lastschrift_grund, r.lastschrift_am,
-           p.gc_mandate_status,
            a.person_id, a.payment_reference, SPLIT_PART(a.pack_name, E'\\n', 1) AS paket,
            COALESCE(NULLIF(TRIM(CONCAT_WS(' ', a.first_name, a.last_name)), ''),
                     a.contact_name, a.email) AS name,
@@ -495,9 +491,6 @@ export async function arbeitsliste(
       -- warten.
       ${opts.nurMeine ? lauf`(r.inkasso_agent_id = ${opts.nurMeine}) DESC,` : lauf``}
       (r.mahnstufe >= ${letzteStufe} AND r.faellig_am < (${heute}::date - ${14 + frist}::int)) DESC,
-      -- Geplatzte Lastschrift vor gebrochener Zusage: Hier hat die Bank
-      -- schon Nein gesagt, und jede Rücklastschrift kostet FIAON Gebühren.
-      (r.lastschrift_status = 'fehlgeschlagen') DESC,
       (r.inkasso_zusage_am IS NOT NULL AND r.inkasso_zusage_am < ${heute}::date) DESC,
       (r.faellig_am < ${heute}::date) DESC,
       r.mahnstufe DESC,

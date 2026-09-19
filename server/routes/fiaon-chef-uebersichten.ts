@@ -232,7 +232,7 @@ router.get("/chef/zahlungen", requireChef("geschaeftsfuehrung"), async (req: Req
       sqlPool.unsafe(`
         SELECT r.id, r.ref, r.rate_nr, r.betrag_cents, r.bezahlt_am, r.faellig_am,
                r.zahlungsreferenz, r.quelle, r.status, r.mahnstufe,
-               r.lastschrift_status, r.rechnung_am, r.notiz,
+               r.rechnung_am, r.notiz,
                (SELECT COUNT(*)::int FROM fiaon_abo_raten r2 WHERE r2.ref = r.ref) AS raten_gesamt,
                a.pack_name, a.pack_key, a.amount_due, a.payment_status,
                p.id AS person_id, p.person_ref,

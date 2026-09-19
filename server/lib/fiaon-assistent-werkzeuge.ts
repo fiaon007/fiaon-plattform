@@ -227,7 +227,7 @@ export const WERKZEUGE: Werkzeug[] = [
     titel: "Überfällige Raten zeigen",
     beschreibung:
       "Zeigt die eigenen Mandate mit überfälligen Raten (Stichtag heute, Europe/Berlin): wer, wie viele Raten "
-      + "überfällig, seit wie vielen Tagen, Rücklastschrift ja/nein. Gut für die Frage nach heute überfälligen Kunden.",
+      + "überfällig, seit wie vielen Tagen, Monatsrate. Gut für die Frage nach heute überfälligen Kunden.",
     stufe: "frei",
     zugang: "agent",
     rollen: ALLE_ROLLEN,
@@ -242,7 +242,6 @@ export const WERKZEUGE: Werkzeug[] = [
           name: m.kunde?.name ?? null,
           ueberfaelligeRaten: Number(m.raten?.ueberfaellig || 0),
           seitTagen: m.raten?.ueberfaelligSeitTagen ?? null,
-          ruecklastschrift: !!m.raten?.ruecklastschrift,
           monatsrateCents: m.monatsrateCents ?? null,
         }));
       return { ok: true, anzahl: faellig.length, ueberfaellige: faellig };

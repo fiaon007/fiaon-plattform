@@ -9,8 +9,9 @@
 // nur gezeichnet. Immer hell (styles/mein-bereich.css). Kunden werden gesiezt
 // (E-002). Keine Icons, keine Emojis.
 //
-// Noch nicht angebunden (ehrlich gezeigt statt leer): Kontoanbindung (E-014,
-// GoCardless), Schreiben-Generator, KI-Auswertung der Auskunft (E-015).
+// Noch nicht angebunden (ehrlich gezeigt statt leer): Kontoanbindung (E-014),
+// Schreiben-Generator, KI-Auswertung der Auskunft (E-015).
+// Seit 19.09.2026 (E-194) gibt es keine Lastschrift mehr: Jede Rate wird überwiesen.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BANK_ANLEITUNGEN, AUSZUG_GRUNDSATZ, bankAnleitungFuer } from "@shared/fiaon-bank-anleitungen";
@@ -44,7 +45,6 @@ interface Bereich {
   fahrplan: Etappe[];
   naechsterSchritt: { key: string; titel: string; text: string; href: string | null } | null;
   ansprechpartner: { name: string; rolle: string | null } | null;
-  lastschrift: { mandat: string | null; status: string | null; aktiv: boolean };
   kontoVerbunden: boolean;
   passwortGesetzt?: boolean;
   finanzen?: any;
@@ -194,13 +194,6 @@ export default function MeinBereichPage() {
     if (token) window.location.href = `/termin/${encodeURIComponent(token)}?art=start`;
     else alert(r.json?.error || "Der Terminlink konnte nicht erzeugt werden. Bitte versuchen Sie es gleich noch einmal.");
   };
-  const lastschriftStarten = async () => {
-    const r = await api(`/kunde/${encodeURIComponent(ref ?? "")}/lastschrift/start`, { method: "POST" });
-    if (r.ok && r.json?.url) window.location.href = r.json.url;
-    else if (r.ok && r.json?.bereits) alert("Ihre Lastschrift ist bereits eingerichtet.");
-    else alert(r.json?.error || "Die Lastschrift konnte nicht gestartet werden.");
-  };
-  const lastschriftRueckmeldung = new URLSearchParams(window.location.search).get("lastschrift");
   // Läuft gerade eine Als-Kunde-Ansicht? Dann ist der Betrachter Betreiber,
   // nicht Kunde — die Einrichtungs-Sperren gelten für ihn nicht.
   const istAnsicht = (() => {
@@ -355,7 +348,7 @@ export default function MeinBereichPage() {
                   <div className="mb-kz"><small>Paket-Rahmen</small><b className="zahl">{eur(d.paket.rahmen)}</b></div>
                   <div className="mb-kz"><small>Wunschlimit</small><b className="zahl">{eur(d.paket.wunschlimit)}</b></div>
                   <div className="mb-kz"><small>Bonitätswert</small><b className="zahl">{d.bonitaet?.geprueft ? "liegt vor" : "noch offen"}</b></div>
-                  <div className="mb-kz"><small>Nächste Abbuchung</small><b className="zahl">{d.abo.naechste ? `${d.abo.naechste.faelligAm} · ${eurCents(d.abo.naechste.betragCents)}` : (d.paket.monatlichCents ? eurCents(d.paket.monatlichCents) + " / Monat" : "—")}</b></div>
+                  <div className="mb-kz"><small>Nächste Rate</small><b className="zahl">{d.abo.naechste ? `${d.abo.naechste.faelligAm} · ${eurCents(d.abo.naechste.betragCents)}` : (d.paket.monatlichCents ? eurCents(d.paket.monatlichCents) + " / Monat" : "—")}</b></div>
                   <div className="mb-kz"><small>Status</small><b>{d.stufe.vollAktiv ? "Vollständig aktiv" : "Wartet auf Startgespräch"}</b></div>
                 </div>
               </div>
@@ -380,21 +373,6 @@ export default function MeinBereichPage() {
             {d.stufe.bezahlt && d.termin && d.termin.status !== "erledigt" && (
               <div className="mb-pflicht">
                 <div><h3>Ihr Startgespräch ist gebucht</h3><p>{new Date(d.termin.beginn).toLocaleString("de-DE", { weekday: "long", day: "2-digit", month: "long", hour: "2-digit", minute: "2-digit" })} Uhr{d.termin.agent ? ` mit ${d.termin.agent}` : ""}. Wir rufen Sie an — halten Sie bitte Ihren Bereich geöffnet, wir gehen ihn gemeinsam durch.</p></div>
-              </div>
-            )}
-            {/* NEU 01.09.2026 (E-072): Der Direktlink aus der Mail landet hier —
-                auch wenn er abgelaufen ist oder das Mandat schon steht. Jeder
-                Fall bekommt einen Satz in Klartext; „bereits“ und „abgebrochen“
-                sind KEINE Fehler und werden deshalb nicht rot gezeigt. */}
-            {lastschriftRueckmeldung && (
-              <div className={`mb-meldung ${["eingerichtet", "bereits", "ausstehend"].includes(lastschriftRueckmeldung) ? "gut" : ["abgebrochen", "erst_zahlen"].includes(lastschriftRueckmeldung) ? "" : "fehler"}`} style={{ marginTop: 0 }}>
-                {lastschriftRueckmeldung === "eingerichtet" ? "Ihre Lastschrift ist eingerichtet. Die Raten werden ab jetzt automatisch eingezogen — Sie müssen nichts mehr überweisen."
-                  : lastschriftRueckmeldung === "bereits" ? "Ihre Lastschrift ist bereits eingerichtet — es gibt nichts mehr zu tun."
-                  : lastschriftRueckmeldung === "ausstehend" ? "Ihre Bestätigung ist angekommen. GoCardless schließt die Einrichtung in wenigen Minuten ab — Sie müssen nichts weiter tun."
-                  : lastschriftRueckmeldung === "abgebrochen" ? "Die Einrichtung wurde abgebrochen. Sie können sie jederzeit unter Abo & Zahlungen erneut starten."
-                  : lastschriftRueckmeldung === "link_abgelaufen" ? "Dieser Link ist abgelaufen. Richten Sie den Bankeinzug bitte unten unter Abo & Zahlungen ein — das dauert genauso lange."
-                  : lastschriftRueckmeldung === "erst_zahlen" ? "Den Bankeinzug können Sie einrichten, sobald Ihre erste Zahlung bei uns eingegangen ist."
-                  : "Die Lastschrift konnte nicht eingerichtet werden. Bitte versuchen Sie es erneut oder schreiben Sie uns."}
               </div>
             )}
 
@@ -620,19 +598,16 @@ export default function MeinBereichPage() {
                   )}
                   <div className="mb-zeile"><span>Paket</span><span>{d.paket.name}</span></div>
                   <div className="mb-zeile"><span>{d.paket.abo ? "Monatlich" : "Einmalig"}</span><span className="zahl">{eurCents(d.paket.monatlichCents)}</span></div>
-                  <div className="mb-zeile"><span>Nächste Abbuchung</span><span className="zahl">{d.abo.naechste?.faelligAm || "—"}</span></div>
+                  <div className="mb-zeile"><span>Nächste Fälligkeit</span><span className="zahl">{d.abo.naechste?.faelligAm || "—"}</span></div>
                   <div className="mb-zeile"><span>Verwendungszweck</span><span className="zahl">{d.abo.naechste?.referenz || d.paket.zahlungsreferenz || "—"}</span></div>
                   <div className="mb-zeile"><span>Bezahlt / offen</span><span className="zahl">{d.abo.bezahlt} / {d.abo.offen}</span></div>
                   <div className="mb-zeile"><span>Kündbar</span><span>zum Monatsende, formlos per E-Mail</span></div>
-                  <div className="mb-zeile"><span>Lastschrift</span><span>{d.lastschrift.aktiv ? "eingerichtet — Raten werden automatisch eingezogen" : d.lastschrift.mandat ? "wird von Ihrer Bank bestätigt" : "nicht eingerichtet"}</span></div>
+                  <div className="mb-zeile"><span>Zahlungsweg</span><span>Überweisung</span></div>
                   <div style={{ marginTop: 14, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {!d.lastschrift.aktiv && d.paket.abo && d.stufe.bezahlt && <button className="mb-knopf klein" type="button" onClick={lastschriftStarten}>Lastschrift einrichten</button>}
-                    {d.abo.naechste && d.abo.naechste.status !== "bezahlt" && d.abo.naechste.referenz && <a className={`mb-knopf klein${d.lastschrift.aktiv ? " still" : ""}`} href={`/zahlung/${encodeURIComponent(d.abo.naechste.referenz)}`}>Jetzt überweisen</a>}
+                    {d.abo.naechste && d.abo.naechste.status !== "bezahlt" && d.abo.naechste.referenz && <a className="mb-knopf klein" href={`/zahlung/${encodeURIComponent(d.abo.naechste.referenz)}`}>Jetzt überweisen</a>}
                     <a className="mb-knopf still klein" href="/abo-kuendigen">Abo kündigen</a>
                   </div>
-                  {!d.lastschrift.aktiv && d.paket.abo && (d.stufe.bezahlt
-                    ? <p style={{ margin: "10px 0 0", fontSize: 12, color: "var(--text-still)" }}>Mit der Lastschrift geben Sie Ihre IBAN einmal sicher bei unserem Zahlungspartner GoCardless ein — FIAON sieht sie nie. Danach wird jede weitere Rate pünktlich eingezogen, ohne dass Sie an die Überweisung denken müssen.</p>
-                    : <p style={{ margin: "10px 0 0", fontSize: 12, color: "var(--text-still)" }}>Die Lastschrift können Sie einrichten, sobald Ihre erste Zahlung eingegangen ist.</p>)}
+                  {d.paket.abo && <p style={{ margin: "10px 0 0", fontSize: 12, color: "var(--text-still)" }}>Jede Rate überweisen Sie mit dem Verwendungszweck oben. Bankverbindung und QR-Code finden Sie in Ihrer Zahlungsmail und auf der Zahlungsseite.</p>}
                 </div>
                 <Passwort refKunde={d.kunde.ref} />
                 <Hilfe refKunde={d.kunde.ref} ansprechpartner={d.ansprechpartner?.name || null} />

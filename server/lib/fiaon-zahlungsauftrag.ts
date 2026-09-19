@@ -10,6 +10,7 @@
 //
 // Was hier NICHT passiert: keine Kundendaten außer Vorname und Paket. Die
 // Seite ist ohne Anmeldung erreichbar — die Referenz ist der Schlüssel.
+// Bezahlt wird seit dem 19.09.2026 ausschließlich per Überweisung (E-194).
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { sqlPool } from "./db-pool";
@@ -105,79 +106,11 @@ export async function zahlungsauftragFinden(refRoh: string): Promise<Zahlungsauf
   };
 }
 
-// ── SOFORTZAHLUNG PER BANK-APP (02.09.2026, Justin: „so innovativ wie möglich") ──
-// Den signierten Link baut fiaon-lastschrift.ts (GoCardless Instant Bank Pay).
-// Damit Mails, Zahlungsseite und Resolver ihn nutzen können, ohne dass sich
-// zwei Module gegenseitig importieren, steckt sich das Lastschrift-Modul beim
-// Laden hier ein. Solange nichts eingesteckt ist, gibt es keinen Link — und
-// der Mail-Motor lässt den Knopf weg, statt ins Leere zu verlinken.
-let sofortLinkQuelle: ((ref: string) => string | null) | null = null;
-export function registriereSofortLink(fn: (ref: string) => string | null): void { sofortLinkQuelle = fn; }
-export function sofortUrlFuer(ref: string | null | undefined): string | null {
-  if (!ref || !sofortLinkQuelle) return null;
-  try { return sofortLinkQuelle(String(ref)) || null; } catch { return null; }
-}
-
-/**
- * Darf für diesen Auftrag überhaupt eine Sofortzahlung angeboten werden?
- *
- * ── ZWEI GRÜNDE, WARUM NICHT (02.09.2026) ─────────────────────────────────
- *
- * 1. DIE ERSTZAHLUNG GEHÖRT AUF DIE ÜBERWEISUNG. Justins Regel, wörtlich:
- *    „Die erste Rate und Boni also die 74 € kommen per Überweisung, ab Tag
- *    des Eingangs immer über GoCardless 1 Monat danach monatlich abbuchen
- *    (Das ABO nicht die 74 €!)". Die Sofortzahlung läuft technisch über
- *    GoCardless — das Geld geht also nicht direkt auf unser Konto, sondern
- *    wird gesammelt und nach Auszahlungsrhythmus weitergereicht. Genau das
- *    soll die Erstzahlung nicht: Sie ist der schnellste verfügbare Euro.
- *
- * 2. EINE RATE, DIE EINGEZOGEN WIRD, DARF NIEMAND ZUSÄTZLICH BEZAHLEN.
- *    Gemessen am 02.09.: Für die Rate FIAON-4K3M67-2 stand ein offener
- *    Sofortzahl-Link bereit, WÄHREND dieselbe Rate per Abo eingezogen wird.
- *    Hätte die Kundin den Link benutzt, wären 99,99 € zweimal geflossen —
- *    einmal von ihr, einmal per Lastschrift. Zurückholen müssten wir es dann.
- *
- * Der Schalter `sofort_erstzahlung_erlaubt` hebt Punkt 1 auf, falls Justin
- * es später anders will. Punkt 2 ist nicht schaltbar: Doppelt abbuchen ist
- * kein Betriebsmodus.
- */
-export async function sofortErlaubt(z: Zahlungsauftrag): Promise<{ erlaubt: boolean; grund: string }> {
-  // E-188: Ein Firmenauftrag über FIAON Global (2.499 bis 35.999 €) wird auf Rechnung überwiesen —
-  // auch dann, wenn der Schalter unten die Sofortzahlung für Erstzahlungen freigibt. Instant Bank
-  // Pay trägt je Zahlung höchstens 5.000 €, und das Geld soll ohne Umweg auf dem Hauskonto ankommen.
-  if (z.firmenauftrag) return { erlaubt: false, grund: "Firmenauftrag: Überweisung auf Rechnung" };
-  if (z.art !== "rate") {
-    try {
-      const { sqlPool } = await import("./db-pool");
-      const [s] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = 'sofort_erstzahlung_erlaubt' LIMIT 1`) as any[];
-      if (String(s?.value ?? "").trim() === "1") return { erlaubt: true, grund: "Erstzahlung per Schalter freigegeben" };
-    } catch { /* Im Zweifel die strengere Regel. */ }
-    return { erlaubt: false, grund: "Erstzahlung läuft per Überweisung direkt auf unser Konto" };
-  }
-  // Rate: Wird sie ohnehin eingezogen, darf sie nicht zusätzlich zahlbar sein.
-  try {
-    const { sqlPool } = await import("./db-pool");
-    const [r] = (await sqlPool`
-      SELECT r.gc_payment_id,
-             a.gc_subscription_ref, a.gc_subscription_status, a.gc_subscription_start,
-             r.faellig_am
-        FROM fiaon_abo_raten r
-        JOIN fiaon_applications a ON a.ref = r.ref
-       WHERE UPPER(r.zahlungsreferenz) = ${String(z.paymentReference).toUpperCase()}
-         AND r.storniert_am IS NULL
-       LIMIT 1
-    `) as any[];
-    if (!r) return { erlaubt: true, grund: "Rate nicht gefunden — Sofortzahlung bleibt möglich" };
-    if (r.gc_payment_id) return { erlaubt: false, grund: "Diese Rate wird bereits per Lastschrift eingezogen" };
-    if (r.gc_subscription_ref && String(r.gc_subscription_status) === "active" && r.gc_subscription_start) {
-      const start = new Date(r.gc_subscription_start);
-      const faellig = new Date(r.faellig_am);
-      start.setDate(start.getDate() - 7); // derselbe Vorlauf wie im Mahnstopp
-      if (faellig >= start) return { erlaubt: false, grund: "Diese Rate wird per Lastschrift eingezogen" };
-    }
-  } catch { /* Datenbank stumm: lieber anbieten als Zahlung verhindern. */ }
-  return { erlaubt: true, grund: "kein laufender Einzug" };
-}
+// ── KEINE SOFORTZAHLUNG MEHR (19.09.2026, E-194) ─────────────────────────────
+// Die „Sofortzahlung per Bank-App" lief über GoCardless (Instant Bank Pay). Die
+// Zusammenarbeit ist beendet — bezahlt wird per Überweisung mit den Daten unten
+// (Zahlungsmail, Zahlungsseite, GiroCode). sofortUrlFuer/sofortErlaubt sind
+// entfernt; Mails und Seiten bieten keinen Bank-App-Knopf mehr an.
 
 /** Die GiroCode-Nutzlast zu einem Auftrag — Bankdaten IMMER aus der einen Quelle. */
 export function zahlungsauftragQrNutzlast(z: Zahlungsauftrag): string {

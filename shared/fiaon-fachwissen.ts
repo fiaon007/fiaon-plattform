@@ -131,10 +131,10 @@ export const FACHWISSEN: Fakt[] = [
   // ── Das Haus: Regeln für Mitarbeiter ─────────────────────────────────────
   {
     key: "erste-zahlung-direkt", bereich: "haus",
-    titel: "Die erste Zahlung ist IMMER eine Überweisung",
-    text: "Die erste Rate zahlt der Kunde selbst per Überweisung mit Referenz — nie per Lastschrift. Zahlungsdaten gehen nur über die Mailvorlage aus der Akte (payment_details) hinaus, nie aus dem Kopf: Die Bankverbindung hat eine einzige Quelle im System. Danach entscheidet der Kunde über SEPA-Lastschrift.",
-    stand: "2026-08-23", quelle: "Justin, Mitarbeiter-Office-Plan 23.08.2026 §13; Leitfäden A/B/C",
-    worte: ["erste zahlung", "ueberweisung", "lastschrift", "zahlungsdaten", "referenz", "bankverbindung", "iban"],
+    titel: "Jede Zahlung ist eine Überweisung — die erste und jede Rate",
+    text: "Seit 19.09.2026 gibt es keine Lastschrift mehr: Jede Zahlung — die erste wie jede weitere Rate — überweist der Kunde selbst, mit seiner Referenz im Verwendungszweck. Bankverbindung und Verwendungszweck stehen in jeder Zahlungsmail, auf der Zahlungsseite und im Kundenbereich. Zahlungsdaten gehen nur über die Mailvorlage aus der Akte (payment_details) hinaus, nie aus dem Kopf: Die Bankverbindung hat eine einzige Quelle im System. Fragt ein Kunde nach einer Rückbuchung: Bereits per Lastschrift eingezogene Beträge erstattet FIAON; die Rate überweist er dann selbst.",
+    stand: "2026-09-19", quelle: "Justin, Entscheidung 19.09.2026 (Lastschrift beendet, jede Rate per Überweisung); vorher Mitarbeiter-Office-Plan 23.08.2026 §13; Leitfäden A/B/C",
+    worte: ["erste zahlung", "ueberweisung", "lastschrift", "sepa", "folgerate", "rueckbuchung", "zahlungsdaten", "referenz", "bankverbindung", "iban"],
   },
   {
     key: "mandat-und-provision", bereich: "haus",

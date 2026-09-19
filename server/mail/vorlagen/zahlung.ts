@@ -20,7 +20,7 @@ export const ZAHLUNG_VORLAGEN: Record<string, MailBaustein> = {
   // dann mit dem Knopf „Zu meinem Bereich" auf die Anmeldung, wo überhaupt
   // keine Bankdaten stehen. Wer zahlen wollte, musste die neue IBAN von Hand
   // abtippen: genau der Weg, auf dem der Zahlendreher entsteht, den diese
-  // Mail verhindern soll. QR-Code, Sofortzahlung und Zahlungsseite ziehen
+  // Mail verhindern soll. QR-Code und Zahlungsseite ziehen
   // ihre Bankdaten aus derselben einen Quelle (shared/fiaon-bank.ts) — sie
   // können gar nicht auf das gesperrte Konto zeigen.
   //
@@ -56,8 +56,7 @@ export const ZAHLUNG_VORLAGEN: Record<string, MailBaustein> = {
       { label: "Verwendungszweck", wert: "{{params.verwendungszweck}}" },
     ],
     bild: { url: "https://fiaon.com/api/fiaon/zahlung/{{params.payment_reference}}/qr.png", alt: "GiroCode mit der neuen Bankverbindung — mit der Banking-App scannen", unterschrift: "Mit der Banking-App scannen: Die neue Verbindung, Ihr Betrag und Ihr Verwendungszweck sind schon ausgefüllt." },
-    knopf: { text: "Sofort per Bank-App bezahlen — in einer Minute gebucht", url: "{{params.sofort_url}}" },
-    knopf2: { text: "Zahlungsseite ansehen — QR-Code & Bankdaten", url: "https://fiaon.com/zahlung/{{params.payment_reference}}" },
+    knopf: { text: "Zahlungsseite öffnen — QR-Code & Bankdaten", url: "https://fiaon.com/zahlung/{{params.payment_reference}}" },
     fussnote: "Diese Nachricht ist keine Zahlungserinnerung — sie ändert nur das Konto, auf das Ihre Zahlung geht. Betrag und Verwendungszweck bleiben unverändert.",
   },
 
@@ -80,8 +79,7 @@ export const ZAHLUNG_VORLAGEN: Record<string, MailBaustein> = {
       { label: "Verwendungszweck", wert: "{{params.payment_reference}}" },
     ],
     bild: { url: "https://fiaon.com/api/fiaon/zahlung/{{params.payment_reference}}/qr.png", alt: "GiroCode — mit der Banking-App scannen", unterschrift: "Mit der Banking-App scannen: Empfänger, IBAN, Betrag und Verwendungszweck sind schon ausgefüllt." },
-knopf: { text: "Sofort per Bank-App bezahlen — in einer Minute gebucht", url: "{{params.sofort_url}}" },
-    knopf2: { text: "Zahlungsseite ansehen — QR-Code & Bankdaten", url: "https://fiaon.com/zahlung/{{params.payment_reference}}" },
+knopf: { text: "Zahlungsseite öffnen — QR-Code & Bankdaten", url: "https://fiaon.com/zahlung/{{params.payment_reference}}" },
     fussnote: "Der Verwendungszweck ist wichtig: An ihm erkennt unser System Ihre Zahlung automatisch.",
     karteZiel: true,
   },
@@ -106,8 +104,7 @@ knopf: { text: "Sofort per Bank-App bezahlen — in einer Minute gebucht", url: 
       { label: "Verwendungszweck", wert: "{{params.verwendungszweck}}" },
     ],
     bild: { url: "https://fiaon.com/api/fiaon/zahlung/{{params.verwendungszweck}}/qr.png", alt: "GiroCode — mit der Banking-App scannen", unterschrift: "Mit der Banking-App scannen: Empfänger, IBAN, Betrag und Verwendungszweck sind schon ausgefüllt." },
-    knopf: { text: "Rate sofort per Bank-App bezahlen — in einer Minute gebucht", url: "{{params.sofort_url}}" },
-    knopf2: { text: "Zahlungsseite ansehen — QR-Code & Bankdaten", url: "https://fiaon.com/zahlung/{{params.verwendungszweck}}" },
+    knopf: { text: "Rate bezahlen — QR-Code & Bankdaten", url: "https://fiaon.com/zahlung/{{params.verwendungszweck}}" },
     fussnote: "Gerade schwierig diesen Monat? Sagen Sie es uns einfach — gemeinsam findet sich fast immer eine Lösung, bevor etwas anbrennt.",
     karteZiel: true,
   },
@@ -184,8 +181,7 @@ knopf: { text: "Sofort per Bank-App bezahlen — in einer Minute gebucht", url: 
       { label: "Verwendungszweck", wert: "{{params.payment_reference}}" },
     ],
     bild: { url: "https://fiaon.com/api/fiaon/zahlung/{{params.payment_reference}}/qr.png", alt: "GiroCode — mit der Banking-App scannen", unterschrift: "Mit der Banking-App scannen: Empfänger, IBAN, Betrag und Verwendungszweck sind schon ausgefüllt." },
-knopf: { text: "Sofort per Bank-App bezahlen — in einer Minute gebucht", url: "{{params.sofort_url}}" },
-    knopf2: { text: "Zahlungsseite ansehen — QR-Code & Bankdaten", url: "https://fiaon.com/zahlung/{{params.payment_reference}}" },
+knopf: { text: "Zahlungsseite öffnen — QR-Code & Bankdaten", url: "https://fiaon.com/zahlung/{{params.payment_reference}}" },
     karteZiel: true,
   },
 

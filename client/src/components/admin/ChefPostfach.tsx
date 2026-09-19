@@ -565,7 +565,6 @@ export default function ChefPostfach() {
                               <span>
                                 <b>Kündigung vorgemerkt.</b>{" "}
                                 {E.vertrag?.vertragEndeAm ? "Der Vertrag ist beendet." : E.vertrag?.letzteRateNr ? `Rate ${E.vertrag.letzteRateNr} bleibt offen — mit ihrer Zahlung endet der Vertrag (Storno erst nach Zahlungseingang).` : "Wird mit der letzten Zahlung wirksam."}
-                                {E.vertrag?.lastschrift ? " Lastschrift läuft — Justin bekommt die Aufgabe, das Abo zu beenden." : ""}
                               </span>
                               {!E.vertrag?.vertragEndeAm && (
                                 <button type="button" className="pf-knopf still" disabled={laeuft === `zurueck-${E.id}`} onClick={() => void kuendigungZurueck(E.id)}>

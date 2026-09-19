@@ -157,7 +157,7 @@ async function fristenSammeln(kontext: WerkzeugKontext, tage: number): Promise<{
     fristen.push({
       art: "rate", dringlichkeit: "ueberfaellig", am: null, amText: m.raten?.ueberfaelligSeitTagen != null ? `seit ${m.raten.ueberfaelligSeitTagen} Tagen` : null,
       personId: m.kunde?.personId ?? null, name: m.kunde?.name ?? null,
-      text: `${n} Rate${n === 1 ? "" : "n"} überfällig${m.raten?.ruecklastschrift ? " · Rücklastschrift" : ""}${m.monatsrateCents ? ` · Rate ${euro(m.monatsrateCents)}` : ""}`,
+      text: `${n} Rate${n === 1 ? "" : "n"} überfällig${m.monatsrateCents ? ` · Rate ${euro(m.monatsrateCents)}` : ""}`,
     });
   }
 
@@ -228,7 +228,7 @@ export const WERKZEUGE_TAG: Werkzeug[] = [
         zusagen: (start.json?.zusagen || []).slice(0, 10).map((s: any) => ({ personId: s.personId ?? s.id ?? null, name: s.name ?? null, am: s.zusagedatum ? String(s.zusagedatum).slice(0, 10) : (s.zusageAm ?? null), telefon: s.telefon ?? null })),
         ueberfaelligeRaten: {
           anzahl: ueberfaellig.length,
-          erste: ueberfaellig.slice(0, 8).map((m: any) => ({ personId: m.kunde?.personId ?? null, name: m.kunde?.name ?? null, raten: Number(m.raten?.ueberfaellig || 0), seitTagen: m.raten?.ueberfaelligSeitTagen ?? null, ruecklastschrift: !!m.raten?.ruecklastschrift, rate: m.monatsrateCents ? euro(m.monatsrateCents) : null })),
+          erste: ueberfaellig.slice(0, 8).map((m: any) => ({ personId: m.kunde?.personId ?? null, name: m.kunde?.name ?? null, raten: Number(m.raten?.ueberfaellig || 0), seitTagen: m.raten?.ueberfaelligSeitTagen ?? null, rate: m.monatsrateCents ? euro(m.monatsrateCents) : null })),
         },
         auftraege: {
           anzahl: offeneAuftraege.length,
@@ -314,7 +314,7 @@ export const WERKZEUGE_TAG: Werkzeug[] = [
       if (k?.kontoGesperrt || k?.konto_gesperrt) hinweise.push("Das Konto ist GESPERRT — der Kunde kommt nicht in seinen Bereich. Grund steht im Verlauf.");
       if (g.dokumente && g.dokumente.vollstaendig === false) hinweise.push("Unterlagen unvollständig (Kontoauszug/Ausweis) — im Gespräch erbitten.");
       if (g.karte && g.karte.esFehlt && Array.isArray(g.karte.esFehlt) && g.karte.esFehlt.length) hinweise.push(`Für Konto und Karte fehlt noch: ${g.karte.esFehlt.join(", ")}.`);
-      if (situation?.rate) hinweise.push(`Rate ${situation.rate.nr} über ${euro(situation.rate.betragCents)} ist seit ${situation.rate.tage} Tagen überfällig${situation.rate.lastschriftStatus === "fehlgeschlagen" ? " (Rücklastschrift)" : ""}${situation.rate.referenz ? ` — Referenz ${situation.rate.referenz}` : ""}.`);
+      if (situation?.rate) hinweise.push(`Rate ${situation.rate.nr} über ${euro(situation.rate.betragCents)} ist seit ${situation.rate.tage} Tagen überfällig${situation.rate.referenz ? ` — Referenz ${situation.rate.referenz}` : ""}.`);
       if (situation?.terminHeute) hinweise.push(`Heute steht ein Termin an (${formatBerlin(situation.terminHeute)}) — dessen Gesprächsart bestimmt den Leitfaden.`);
       hinweise.push("Karte und Konto sind Ziel, nie Zusage — die Bank entscheidet. Keine Garantie, keine Beratung, kein „Score verbessern“.");
 
@@ -331,7 +331,7 @@ export const WERKZEUGE_TAG: Werkzeug[] = [
         } : { personId: id },
         lage: { art: lage, text: LAGE_TEXT[lage] || lage, stufe: g.stufe ?? null, naechsterSchritt: g.stufe?.naechsterSchritt ?? null },
         zahlung: {
-          ueberfaelligeRate: situation?.rate ? { nr: situation.rate.nr, betrag: euro(situation.rate.betragCents), faelligAm: situation.rate.faelligAm, tage: situation.rate.tage, referenz: situation.rate.referenz, sepa: situation.rate.sepaEingerichtet } : null,
+          ueberfaelligeRate: situation?.rate ? { nr: situation.rate.nr, betrag: euro(situation.rate.betragCents), faelligAm: situation.rate.faelligAm, tage: situation.rate.tage, referenz: situation.rate.referenz } : null,
           naechsteRate: situation?.naechsteRate ? { faelligAm: situation.naechsteRate.faelligAm, betrag: euro(situation.naechsteRate.betragCents) } : null,
           zusageAm: situation?.zusageAm ?? null,
           letzteZahlungen: Array.isArray(g.zahlungen) ? g.zahlungen.slice(0, 3) : null,

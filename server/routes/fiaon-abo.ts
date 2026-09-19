@@ -64,9 +64,7 @@ import { FIAON_BANK_DETAILS } from "./fiaon-antrag";
 import { getSettings, setSetting } from "./fiaon-agent";
 import { absoluteUrl } from "../fiaon-base-url";
 import { tageslauf } from "../lib/fiaon-crons";
-import { sofortUrlFuer } from "../lib/fiaon-zahlungsauftrag";
 
-import { wirdEingezogenSql, wirdEingezogen, EINZUG_HINWEIS } from "../lib/fiaon-einzug-schutz";
 
 const router = Router();
 
@@ -774,8 +772,6 @@ export function aboErinnerungPayload(r: any) {
     bic: FIAON_BANK_DETAILS.bic,
     verwendungszweck: r.zahlungsreferenz,
     portal_url: absoluteUrl("/login"),
-    // 02.09.2026: Sofortzahlung per Bank-App (leer, solange die Strecke nicht eingesteckt ist → Knopf fällt weg)
-    sofort_url: sofortUrlFuer(r.zahlungsreferenz),
   };
 }
 
@@ -837,47 +833,10 @@ async function faelligeRaten(limit: number, opts: { abStichtag?: string | null }
       AND (r.mahnstufe < ${MAHNSTUFEN.length}
            OR (${dauer} > 0 AND r.letzte_erinnerung_at IS NOT NULL
                AND r.letzte_erinnerung_at < NOW() - make_interval(days => ${dauer})))
-      -- ══════════════════════════════════════════════════════════════════
-      -- KEINE MAHNUNG AN JEMANDEN, BEI DEM WIR SELBST EINZIEHEN (02.09.2026)
-      --
-      -- Der Fall, der es aufgedeckt hat: Rate über 7,99 €, am 28.08. per
-      -- Lastschrift abgebucht und von GoCardless bestätigt. Bei uns stand
-      -- sie auf „offen" — der Kunde bekam drei Erinnerungen, die letzte am
-      -- 02.09. um 06:26. Er hatte bezahlt und wurde gemahnt.
-      --
-      -- Zwei Wege führen zu einem laufenden Einzug, beide zählen:
-      --   gc_payment_id — die Rate wird EINZELN abgerufen (überfällige
-      --                   Raten beim Mandatsstart)
-      --   das Abo       — deckt alle Raten AB seinem Startdatum ab
-      --
-      -- Das Startdatum ist der Grund, warum hier nicht pauschal „hat Abo"
-      -- steht: Eine Rate, die VOR dem Abo fällig war, zieht das Abo nicht
-      -- ein. Sie muss weiter gemahnt werden dürfen, sonst verschwindet ein
-      -- echter Außenstand lautlos aus dem Blick.
-      --
-      -- Ein fehlgeschlagener Einzug hebt den Schutz wieder auf: Dann ist die
-      -- Rate offen wie jede andere, und Mahnen ist richtig.
-      --
-      -- DIE SIEBEN TAGE VORLAUF sind gemessen, nicht geschätzt. Fälligkeit
-      -- und Abo-Einzug liegen selten exakt auf demselben Tag; am 02.09. sah
-      -- es über alle sieben Abos so aus:
-      --      Brandt, Schneider, Sheeraz   0 Tage (taggleich)
-      --      Sturm, Thoma                 1 Tag  (Einzug einen Tag später)
-      --      Weber                       32 Tage (echte Altlast von August)
-      -- Ohne Vorlauf wäre Eva Sturm am 27.09. gemahnt und am 28.09. abgebucht
-      -- worden — dieselbe Rate, ein Tag Versatz. Sieben Tage fangen die
-      -- Taggenauigkeits-Fälle sicher und lassen Webers 32 Tage draußen, wo
-      -- sie hingehören: Das ist keine Abo-Rate, sondern ein echter
-      -- Außenstand, der einzeln abgerufen wird und gemahnt werden darf.
-      AND r.gc_payment_id IS NULL
-      AND NOT EXISTS (
-        SELECT 1 FROM fiaon_applications sub
-        WHERE sub.ref = r.ref
-          AND sub.gc_subscription_ref IS NOT NULL
-          AND sub.gc_subscription_status = 'active'
-          AND sub.gc_subscription_start IS NOT NULL
-          AND r.faellig_am >= sub.gc_subscription_start - INTERVAL '7 days'
-      )
+      -- 19.09.2026 (E-194): Hier stand der Einzugsschutz (02.09.) — Raten mit
+      -- laufendem GoCardless-Abo oder Einzelabruf wurden nicht gemahnt. GoCardless
+      -- ist beendet, eingezogenes Geld wird erstattet: Jede offene Rate wird wieder
+      -- per Überweisung erinnert, auch die bisher geschützten.
       -- ══════════════════════════════════════════════════════════════════
       -- HIER STAND EIN FILTER AUF DIE E-MAIL DER BESTELLZEILE.
       --
@@ -1121,12 +1080,7 @@ async function vorabErinnern(heute: string, tage: number): Promise<number> {
     WHERE r.status = 'offen' AND r.storniert_am IS NULL
       AND r.faellig_am = ${zielTag}::date
       AND r.vorab_am IS NULL
-      -- 02.09.2026, bei der Abnahme gefunden: Diese Vorabinfo läuft STÜNDLICH
-      -- und ohne Klick — und sie kannte den Abo-Schutz nicht. Ab dem 13.09.
-      -- hätte sie sechs Lastschriftkunden zur Zahlung aufgefordert, drei Tage
-      -- bevor bei ihnen abgebucht wird. Dieselbe Bedingung wie im Mahnlauf,
-      -- jetzt aus der einen Quelle (fiaon-einzug-schutz.ts).
-      AND NOT ${sqlPool.unsafe(wirdEingezogenSql("r"))}
+      -- (Bis 19.09.2026 schützte hier der Einzugsschutz Lastschriftkunden — GoCardless ist beendet, E-194.)
     ORDER BY r.id
     LIMIT ${ABO_BATCH}
   `) as any[];
@@ -1589,20 +1543,19 @@ router.get("/admin/abo/raten", async (req, res) => {
  * sonst wandert der Zyklus mit jeder verspäteten Buchung nach hinten.
  */
 /**
- * EINE Buchung für „Rate ist bezahlt" — Admin-Knopf UND Lastschrift-Webhook.
+ * EINE Buchung für „Rate ist bezahlt" — Admin-Knopf UND Bankabgleich.
  *
  * Vorher gab es zwei: Der Knopf buchte mit Prämie, nächster Rate und
- * Akteneintrag; der Webhook setzte nur `status = 'bezahlt'`. Wer per
- * Lastschrift zahlte, bekam damit keine Folge-Rate, der Inkasso-Mitarbeiter
- * keine Prämie, die Akte keinen Eintrag. Zwei Wege, eine Wahrheit weniger.
+ * Akteneintrag; der Lastschrift-Webhook setzte nur `status = 'bezahlt'`.
+ * Seit 19.09.2026 bucht GoCardless gar nichts mehr (E-194) — bezahlt ist eine
+ * Rate nur mit einem Eingang auf unserem Konto.
  */
 export async function rateBezahltBuchen(opts: {
   rateId: number;
   /** YYYY-MM-DD — der Tag, an dem das Geld angekommen ist. */
   zahlungsdatum: string;
-  quelle: "admin" | "gocardless" | "bank";
+  quelle: "admin" | "bank";
   notiz?: string | null;
-  gcPaymentId?: string | null;
 }): Promise<{ ok: boolean; schonBezahlt?: boolean; error?: string; naechsteFaelligkeit?: string | null }> {
   await ensureAboTabellen();
   const [rate] = await sqlPool`SELECT * FROM fiaon_abo_raten WHERE id = ${opts.rateId}`;
@@ -1617,51 +1570,33 @@ export async function rateBezahltBuchen(opts: {
   // zurueckfaellt, ist nie richtig — es ist entweder ein Vertipper oder eine
   // falsche Zuordnung.
   //
-  // Die beiden Wege reagieren mit Absicht verschieden:
-  //   · Von Hand gebucht        → ABLEHNEN. Der Mensch sieht den Hinweis und
-  //     traegt das richtige Datum ein.
-  //   · Lastschrift bestaetigt  → ANNEHMEN und das Datum vorziehen. Eine
-  //     bestaetigte Abbuchung darf niemals verlorengehen, nur weil ein
-  //     aelterer Eintrag ein krummes Datum traegt.
+  // Dann wird ABGELEHNT: Der Mensch sieht den Hinweis und traegt das richtige
+  // Datum ein. (Bis 19.09.2026 nahm eine bestaetigte Lastschrift das Datum an
+  // und zog es vor — GoCardless ist beendet, E-194.)
   const [vorherige] = await sqlPool`
     SELECT MAX(bezahlt_am) AS letzte
       FROM fiaon_abo_raten
      WHERE ref = ${rate.ref} AND rate_nr < ${rate.rate_nr}
        AND status = 'bezahlt' AND bezahlt_am IS NOT NULL
   `;
-  let zahlungsdatum = opts.zahlungsdatum;
-  let datumVorgezogen: string | null = null;
+  const zahlungsdatum = opts.zahlungsdatum;
   if (vorherige?.letzte) {
     const vorherTag = new Date(vorherige.letzte).toISOString().slice(0, 10);
     if (zahlungsdatum < vorherTag) {
-      if (opts.quelle === "gocardless") {
-        datumVorgezogen = zahlungsdatum;
-        zahlungsdatum = vorherTag;
-      } else {
-        return {
-          ok: false,
-          error: `Das Zahldatum ${zahlungsdatum} liegt vor der vorherigen Rate (bezahlt am ${vorherTag}). `
-               + `Bitte pruefen: entweder stimmt das Datum nicht, oder der Eingang gehoert zu einer anderen Rate.`,
-        };
-      }
+      return {
+        ok: false,
+        error: `Das Zahldatum ${zahlungsdatum} liegt vor der vorherigen Rate (bezahlt am ${vorherTag}). `
+             + `Bitte pruefen: entweder stimmt das Datum nicht, oder der Eingang gehoert zu einer anderen Rate.`,
+      };
     }
   }
 
-
-  // Wurde das Datum vorgezogen, steht das in der Akte — sonst waere spaeter
-  // nicht mehr erkennbar, warum die Rate ein anderes Datum traegt als die Bank.
-  const vermerk = datumVorgezogen
-    ? [opts.notiz, `Zahldatum von ${datumVorgezogen} auf ${zahlungsdatum} vorgezogen: eine spaetere Rate kann nicht vor einer frueheren bezahlt sein.`]
-        .filter(Boolean).join(" · ")
-    : (opts.notiz ?? null);
+  const vermerk = opts.notiz ?? null;
 
   const geaendert = await sqlPool`
     UPDATE fiaon_abo_raten
     SET status = 'bezahlt', bezahlt_am = ${`${zahlungsdatum}T12:00:00Z`},
         quelle = ${opts.quelle === "admin" ? rate.quelle : opts.quelle},
-        lastschrift_status = ${opts.quelle === "gocardless" ? "eingezogen" : rate.lastschrift_status ?? null},
-        lastschrift_am = ${opts.quelle === "gocardless" ? new Date() : rate.lastschrift_am ?? null},
-        gc_payment_id = COALESCE(${opts.gcPaymentId ?? null}, gc_payment_id),
         notiz = CASE WHEN ${vermerk}::text IS NULL THEN notiz
                      ELSE CONCAT_WS(' · ', NULLIF(notiz, ''), ${vermerk}::text) END,
         updated_at = NOW()
@@ -1742,7 +1677,7 @@ export async function rateBezahltBuchen(opts: {
     console.error("[FIAON-ABO] Ratenprovision:", e);
   }
 
-  const quelleText = opts.quelle === "gocardless" ? "per Lastschrift eingezogen" : opts.quelle === "bank" ? "über den Kontoauszug gebucht" : "als bezahlt gebucht";
+  const quelleText = opts.quelle === "bank" ? "über den Kontoauszug gebucht" : "als bezahlt gebucht";
   await sqlPool`
     INSERT INTO fiaon_contact_log (ref, agent_id, agent_name, type, note)
     VALUES (${rate.ref}, NULL, 'System', 'system',

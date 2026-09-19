@@ -12,9 +12,9 @@
 // Diese Datei ist bewusst REIN (keine Abhängigkeiten außer der Agenda des
 // Startgesprächs, die selbst rein ist — siehe unten).
 //
-// Regeln in den Texten (Justin, 23.08.2026, Plan §13): erste Zahlung IMMER
-// direkt per Überweisung, nie Lastschrift; Karte und Konto sind Ziel, nie
-// Zusage; keine Garantie, keine Beratung.
+// Regeln in den Texten (Justin, 23.08.2026, Plan §13; 19.09.2026): jede
+// Zahlung – die erste wie jede Rate – direkt per Überweisung; Karte und Konto
+// sind Ziel, nie Zusage; keine Garantie, keine Beratung.
 // ═══════════════════════════════════════════════════════════════════════════
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -74,7 +74,7 @@ export const STARTGESPRAECH_KURZ =
   `Bezahlter Kunde – dieselbe Agenda wie im Cockpit, ${AGENDA.length} Schritte`;
 
 export const ARTEN: { key: Art; label: string; kurz: string; schritte: Schritt[]; einwaende: Einwand[] }[] = [
-  // ── Justins Leitfäden je Stufe (23.08.2026, Plan §13) – erste Zahlung IMMER direkt, nie Lastschrift ──
+  // ── Justins Leitfäden je Stufe (23.08.2026, Plan §13) – jede Zahlung direkt per Überweisung (seit 19.09.2026 auch jede Rate) ──
   {
     key: "stufe_a", label: "Stufe A · bezahlt, kein Termin", kurz: "Kunde hat „bezahlt“ geklickt – willkommen heißen, Karte pitchen, Termin sofort vergeben",
     schritte: [
@@ -117,7 +117,7 @@ export const ARTEN: { key: Art; label: string; kurz: string; schritte: Schritt[]
     ],
     einwaende: [
       { frage: "„Ich wollte nur mal schauen.“", antwort: "Genau dafür ist das Gespräch da: In zwei Minuten wissen Sie, ob FIAON für Sie passt. Was wäre Ihnen am wichtigsten – Karte, Kredit oder erst mal Klarheit über Ihre Einträge?" },
-      { frage: "„Das klingt nach Abzocke.“", antwort: "Verstehe ich – deshalb läuft alles transparent in Ihrem Bereich: Sie sehen jeden Schritt, jede Rate, jedes Schreiben. Die erste Rate überweisen Sie selbst, niemand bucht etwas ab." },
+      { frage: "„Das klingt nach Abzocke.“", antwort: "Verstehe ich – deshalb läuft alles transparent in Ihrem Bereich: Sie sehen jeden Schritt, jede Rate, jedes Schreiben. Jede Rate überweisen Sie selbst, niemand bucht etwas ab." },
       { frage: "„Ich habe kein Geld dafür.“", antwort: "Dann schauen wir auf den Einstieg mit FIAON Start – die Auskunft erklärt und die Schreiben zum Selbstversand. Und wir legen die erste Rate auf ein Datum, das für Sie passt." },
     ],
   },
@@ -136,6 +136,7 @@ export const ARTEN: { key: Art; label: string; kurz: string; schritte: Schritt[]
       { frage: "„Bei euch hat sich monatelang niemand gemeldet.“", antwort: "Sie haben recht, und genau deshalb rufe ich an. Das war unser Fehler, nicht Ihrer. Ab heute haben Sie mit mir einen festen Ansprechpartner – und ich zeige Ihnen im Gespräch, was in Ihrem Bereich schon alles vorbereitet ist." },
       { frage: "„Ich will kündigen.“", antwort: "Das können Sie jederzeit – aber bevor Sie entscheiden: Lassen Sie mich Ihnen in 15 Minuten zeigen, wo Sie gerade stehen und was schon bezahlt ist. Danach entscheiden Sie mit vollem Bild. Wann passt es Ihnen?" },
       { frage: "„Ich kann gerade nicht zahlen.“", antwort: "Dann setze ich Ihre Rate einen Monat aus – ohne Kosten. Wichtig ist mir nur, dass wir im Gespräch bleiben und Ihren Neustart planen." },
+      { frage: "„Ich dachte, das wird abgebucht.“", antwort: "Seit dem 19. September gibt es bei FIAON keine Lastschrift mehr – jede Rate überweisen Sie selbst; Bankverbindung und Verwendungszweck stehen in der Zahlungsmail und in Ihrem Bereich. Wurde schon etwas per Lastschrift eingezogen, erstattet FIAON den Betrag, und die Rate überweisen Sie dann selbst." },
     ],
   },
   {

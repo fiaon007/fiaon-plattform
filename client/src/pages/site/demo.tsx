@@ -18,11 +18,11 @@ import { AGENDA, darfAbschliessen, fortschritt, type AgendaStand } from "@shared
 
 const KUNDE = {
   name: "Max Mustermann", telefon: "+49 170 1234567", email: "max.mustermann@beispiel.de",
-  paket: "FIAON Pro (Standard)", zahlung: "Erste Rate bezahlt · SEPA-Mandat aktiv",
+  paket: "FIAON Pro (Standard)", zahlung: "Erste Rate bezahlt · per Überweisung",
   termin: "Heute · 10:30 Uhr · 15 Minuten",
   lage: [
     ["Paket", "FIAON Pro · 59,99 € im Monat"],
-    ["Zahlung", "1. Rate bezahlt · Lastschrift aktiv"],
+    ["Zahlung", "1. Rate bezahlt · per Überweisung"],
     ["Unterlagen", "Kontoauszug und Ausweis liegen vor"],
     ["Bonitätsauskunft", "Bestellt · in Beschaffung"],
     ["Stufe", "Wartet auf das Startgespräch"],
@@ -157,7 +157,7 @@ export default function Demo() {
             { tag: "Fahrplan", titel: "Vier Etappen erledigt, eine läuft", text: "Startgespräch, Unterlagen, Auskunft, Analyse – abgehakt. „Schreiben versenden“ ist der Schritt von heute: zwei Löschanträge draußen, einer erfolgreich." },
             { tag: "Meine Bonität", titel: "Drei Einträge, zwei angreifbar", text: "Die Auskunft ist ausgewertet und in Menschensprache erklärt. Der dritte Eintrag wartet auf die Antwort der Gegenseite – die Frist wird verfolgt." },
             { tag: "Meine Finanzen", titel: "Rund 525 € Spielraum im Monat", text: "Aus dem Kontoauszug: Gehalt stabil, keine Rücklastschriften, kein Dispo. Fixkosten und Kategorien aufgeschlüsselt, drei Merksätze." },
-            { tag: "Abo & Zahlungen", titel: "Vier von zwölf Raten bezahlt", text: "SEPA-Mandat aktiv, nächste Rate angekündigt. Nach der zwölften fragt FIAON, ob er bleibt. Seine Ansprechpartnerin steht mit Namen im Bereich." },
+            { tag: "Abo & Zahlungen", titel: "Vier von zwölf Raten bezahlt", text: "Jede Rate per Überweisung, die Zahlungsdaten der nächsten stehen bereit. Nach der zwölften fragt FIAON, ob er bleibt. Seine Ansprechpartnerin steht mit Namen im Bereich." },
           ].map((k, i) => <Auf key={k.tag} verzoegerung={i * 80}><Glas tag={k.tag} titel={k.titel}>{k.text}</Glas></Auf>)}
         </div>
         <div className="dk-knoepfe" style={{ marginTop: 32 }}><Knopf href="/demo/kundenbereich">Präsentation starten</Knopf><Knopf href="/demo/produkt" still>Der heutige Bereich, 1:1</Knopf></div>

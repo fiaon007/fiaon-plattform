@@ -84,6 +84,27 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    id: "2026-09-19-keine-lastschrift",
+    date: "2026-09-19",
+    category: "Geändert",
+    title: "Keine Lastschrift mehr: Jede Rate zahlt der Kunde per Überweisung",
+    summary:
+      "FIAON hat die Zusammenarbeit mit GoCardless beendet. Damit gibt es weder die Lastschrift (SEPA-Mandat) noch „Sofort per "
+      + "Bank-App bezahlen“ — für die erste Zahlung nicht und für die Raten nicht. Jede Rate überweist der Kunde selbst: "
+      + "Bankverbindung, Betrag und Verwendungszweck stehen in jeder Zahlungsmail, auf der Zahlungsseite und im Kundenbereich.",
+    changes: [
+      "Mails: Der Hauptknopf jeder Zahlungsmail ist „Zahlungsseite öffnen — QR-Code & Bankdaten“. Die Mail „Lastschrift einrichten“ gibt es nicht mehr — auch nicht im Menü „E-Mail senden“.",
+      "Bestand, Pipeline, Forderungsmanagement: Die Hinweise „kein SEPA“, „Lastschrift einrichten“ und „Lastschrift geplatzt“ sind weg.",
+      "Erinnerungen: Auch Kunden, die früher eine Lastschrift hatten, bekommen jetzt ganz normal ihre Zahlungserinnerung für offene Raten.",
+      "Die Vollständigkeit einer Akte verlangt keine IBAN des Kunden mehr — fragt bitte nicht danach.",
+    ],
+    howto: [
+      "Kunde fragt nach Lastschrift: „Die Lastschrift bieten wir nicht mehr an. Sie überweisen die Rate — Bankverbindung und Verwendungszweck stehen in Ihrer Zahlungsmail und im Kundenbereich unter ‚Zahlen‘.“",
+      "Kunde fragt nach einer Abbuchung von GoCardless: Bereits eingezogene Beträge erstattet FIAON. Die Rate überweist er dann selbst — nichts versprechen, was die Erstattung angeht; bei Fragen dazu an die Leitung.",
+    ],
+    important: true,
+  },
+  {
     id: "2026-09-18-mails-knoepfe",
     date: "2026-09-18",
     category: "Behoben",

@@ -85,14 +85,8 @@ export type VersandArt =
   //   der Akte auch von Hand wiederholen.
   // GRUND: Auftrag des Inhabers vom 24.08.2026.
   | "termin_verpasst"          // Termin nicht zustande gekommen — neuer Terminlink
-  // ── NEU 24.08.2026, zweiter Nachtrag ────────────────────────────────────
-  // VORHER: Die Karte im Bestand-Raum sagte nur „kein SEPA" — ein Zustand
-  //   ohne Weg. Wer ihn ändern wollte, musste den Kunden anrufen.
-  // NACHHER: Ein Klick auf der Kundenkarte schickt die Bitte, die Lastschrift
-  //   im Kundenbereich einzurichten. Die erste Zahlung bleibt IMMER eine
-  //   Überweisung — die Lastschrift betrifft nur die Folgeraten.
-  // GRUND: Auftrag des Inhabers vom 24.08.2026.
-  | "sepa_einrichten"          // Bitte, die Lastschrift für die Folgeraten einzurichten
+  // 19.09.2026 (E-194): „sepa_einrichten" (Bitte um die Lastschrift, 24.08.)
+  //   ist weg — GoCardless ist beendet, jede Rate wird überwiesen.
   // NEU 24.08.2026: Der Weg zum Girokonto bei unserem Kooperationspartner.
   // Er geht NUR auf, wenn alle drei Bedingungen aus fiaon-konto-karte.ts
   // erfüllt sind — deshalb steht er bewusst NICHT im allgemeinen Sendemenü,
@@ -145,11 +139,6 @@ export const VERSAND_TEXT: Record<VersandArt, { titel: string; zweck: string }> 
     zweck: "„Wir haben Sie leider nicht erreicht“ — mit dem Link auf einen neuen Termin.",
   },
   // NEU 24.08.2026 (siehe VersandArt oben).
-  sepa_einrichten: {
-    titel: "Lastschrift einrichten",
-    zweck: "Bitte an den Kunden, die Folgeraten per Lastschrift laufen zu lassen — mit dem Weg in seinen Kundenbereich.",
-  },
-  // NEU 24.08.2026 (siehe VersandArt oben).
   konto_karte_einladung: {
     titel: "Konto & Karte",
     zweck: "Der Weg zum kostenlosen Girokonto bei unserem Kooperationspartner — und darüber zur Kreditkarte.",
@@ -163,8 +152,8 @@ export const VERSAND_TEXT: Record<VersandArt, { titel: string; zweck: string }> 
 /**
  * Alle Arten mit Zustandsregel — die Liste, die mailSenden prüft (18.09.2026).
  * Abgeleitet aus VERSAND_TEXT, damit eine neue Art nicht in einer zweiten
- * Liste nachgetragen werden muss: Vorher fehlte sepa_einrichten in der Liste
- * von mailSenden, und payment_confirmed hatte gar keine Regel.
+ * Liste nachgetragen werden muss: Vorher fehlte eine Art in der Liste von
+ * mailSenden, und payment_confirmed hatte gar keine Regel.
  */
 export const VERSAND_ARTEN = Object.keys(VERSAND_TEXT) as VersandArt[];
 
@@ -178,8 +167,8 @@ export function artenFuerRolle(rolle: string): VersandArt[] {
   // „onboarding" bekommt sie zuerst — sie ist es, die den No-Show meldet.
   // GRUND: Auftrag des Inhabers vom 24.08.2026.
   // 18.09.2026: „welcome" → „zugang_link" (siehe VersandArt oben).
-  if (rolle === "onboarding") return ["onboarding_einladung", "termin_verpasst", "zugang_link", "sepa_einrichten"];
-  return ["payment_details", "zugang_link", "nicht_erreicht_termin", "onboarding_einladung", "termin_verpasst", "sepa_einrichten", "number_update_request"];
+  if (rolle === "onboarding") return ["onboarding_einladung", "termin_verpasst", "zugang_link"];
+  return ["payment_details", "zugang_link", "nicht_erreicht_termin", "onboarding_einladung", "termin_verpasst", "number_update_request"];
 }
 
 interface Zustand {
@@ -301,13 +290,6 @@ function bewerten(
   // hier nur das, was der Zustand schon weiß.
   if (art === "konto_karte_einladung" && !z.bezahlt) {
     return { erlaubt: false, grund: "Konto & Karte gibt es erst nach der Zahlung.", warnung: null, heute };
-  }
-  // NEU 24.08.2026: Die Bitte um die Lastschrift ergibt nur Sinn, wenn es
-  // überhaupt Folgeraten gibt — also nach der ersten, überwiesenen Zahlung.
-  // Vorher wäre sie eine Aufforderung ins Leere und würde den Kunden über
-  // den eigentlichen Weg (Überweisung mit Verwendungszweck) verwirren.
-  if (art === "sepa_einrichten" && !z.bezahlt) {
-    return { erlaubt: false, grund: "Die Lastschrift betrifft die Folgeraten — die erste Zahlung ist immer eine Überweisung.", warnung: null, heute };
   }
   if (art === "onboarding_einladung") {
     if (!z.bezahlt) return { erlaubt: false, grund: "Startgespräche bekommen nur bezahlte Kunden.", warnung: null, heute };

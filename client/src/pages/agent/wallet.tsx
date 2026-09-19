@@ -11,7 +11,7 @@
 // Provisionssatz aus GET /agent/provision-satz. Alle Beträge kommen fertig
 // gerechnet vom Server (Integer-Cents). Wording: „Ausgezahlt wird, was
 // angekommen ist" — Provision nur auf bankbestätigte Raten. Kein Stripe:
-// Zahlungen laufen über Bankeingang/GoCardless.
+// Zahlungen laufen über den Bankeingang (GoCardless ist seit 19.09.2026 beendet, E-194).
 // Route: /agent/wallet/:reiter?  (guthaben | auszahlung | leistung | partner)
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useMemo, useState } from "react";

@@ -84,7 +84,6 @@ const ROLLE_JE_EVENT: Record<string, AbsenderRolle> = {
   payment_cancelled: "accounting",
   payment_reactivated: "accounting",
   abo_verlaengerung_frage: "accounting",
-  sepa_einrichten: "accounting",
   // Rueckholung: S1/S2 sind Zahlungsklaerungen — sie kommen aus der Buchhaltung.
   // S3-S5 sind Wiederaufnahmen des Gespraechs und laufen unter dem Standard.
   rueckhol_s1: "accounting",
@@ -131,13 +130,14 @@ export const ABMELDEPFLICHT = new Set<string>([
 
 /**
  * Knöpfe, deren leerer Platzhalter ERWARTET ist und keinen Versand aufhält
- * (18.09.2026): Die Sofortzahlung fehlt bei jeder Erstzahlung mit Absicht
- * (makePayloadFromRow, Regel vom 02.09.) — dann rückt „QR-Code & Bankdaten"
- * auf. Jeder andere Knopf ohne Ziel ist ein Fehler, den der Handversand ablehnt.
+ * (18.09.2026). Jeder andere Knopf ohne Ziel ist ein Fehler, den der
+ * Handversand ablehnt.
  */
-// Merge 18.09.2026 abends: Auch der Knopf „Mein Auftrag" (FIAON Global) ist ein Zusatz — er fehlt
+// Merge 18.09.2026 abends: Der Knopf „Mein Auftrag" (FIAON Global) ist ein Zusatz — er fehlt
 // nur ohne Antragsnummer (dann gibt es kein Token), und die Mail trägt ihren Hauptweg trotzdem.
-export const KNOPF_DARF_FEHLEN = new Set<string>(["sofort_url", "mein_auftrag_url"]);
+// 19.09.2026 (E-194): „sofort_url" ist raus — die Sofortzahlung per Bank-App lief über
+// GoCardless und ist beendet; keine Vorlage trägt den Knopf noch.
+export const KNOPF_DARF_FEHLEN = new Set<string>(["mein_auftrag_url"]);
 
 export function absenderFuer(event: string): { name: string; email: string } {
   return ABSENDER[ROLLE_JE_EVENT[event] ?? "welcome"];
@@ -163,23 +163,6 @@ const BANK_FALLBACK: Record<string, string> = {
   iban: BANK.ibanDisplay,
   bic: BANK.bic,
 };
-
-// Der Vorrang wird alle 60 Sekunden nachgelesen — dieselbe Bauweise wie der
-// Versandweg-Schalter, damit eine Umstellung ohne Auslieferung wirkt.
-let sofortVorrang = false;
-let sofortVorrangBis = 0;
-export async function zahlwegVorrangLesen(): Promise<boolean> {
-  if (Date.now() < sofortVorrangBis) return sofortVorrang;
-  try {
-    const { sqlPool } = await import("../lib/db-pool");
-    const [r] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = 'zahlweg_sofort_vorrang' LIMIT 1`) as any[];
-    sofortVorrang = String(r?.value ?? "").trim() === "1";
-  } catch {
-    sofortVorrang = false; // Im Zweifel der sichere Weg: Überweisung zuerst.
-  }
-  sofortVorrangBis = Date.now() + 60_000;
-  return sofortVorrang;
-}
 
 /** {{params.x}} durch Werte ersetzen; fehlende Schlüssel einsammeln. */
 function fuellen(text: string, payload: Record<string, unknown>, fehlend: Set<string>): string {
@@ -274,9 +257,9 @@ export function mailRendern(event: string, payload: Record<string, unknown>): Ge
   const ohneWert = (k: string) =>
     String((payload as any)[k] ?? "").trim() === "" && BANK_FALLBACK[k] === undefined;
 
-  // Ein Knopf, dessen Adresse die Nutzlast nicht füllt (z. B. {{params.sofort_url}},
-  // solange die Sofortzahlung nicht eingerichtet ist), wird weggelassen — ein
-  // Knopf ohne Ziel ist schlimmer als kein Knopf. Der Ersatz: knopf2 rückt auf.
+  // Ein Knopf, dessen Adresse die Nutzlast nicht füllt (z. B. {{params.mein_auftrag_url}}
+  // ohne Antragsnummer), wird weggelassen — ein Knopf ohne Ziel ist schlimmer
+  // als kein Knopf. Der Ersatz: knopf2 rückt auf.
   const knopfLeer = (k?: { url: string }) => {
     const p = platzhalterIn(k?.url);
     return !!(p && ohneWert(p));
@@ -306,11 +289,11 @@ export function mailRendern(event: string, payload: Record<string, unknown>): Ge
     }
   }
   // ── ABSÄTZE, DIE NUR AUS EINEM PLATZHALTER BESTEHEN (18.09.2026) ──────────
-  // Sie sind in den Vorlagen als WAHLWEISE gebaut: „{{params.offene_rate_hinweis}}"
-  // in sepa_einrichten steht nur da, wenn wirklich eine Rate offen ist — so
-  // steht es dort im Kommentar. Der Motor hat das aber nie getan; übrig blieb
-  // ein leerer Absatz. Jetzt entfällt er, ohne als Lücke zu zählen. Dasselbe
-  // für eine Fußnote aus einem einzigen Platzhalter.
+  // Sie sind in den Vorlagen als WAHLWEISE gebaut: Ein Absatz wie
+  // „{{params.offene_rate_hinweis}}" steht nur da, wenn es den Hinweis wirklich
+  // gibt. Der Motor hat das früher nicht getan; übrig blieb ein leerer Absatz.
+  // Jetzt entfällt er, ohne als Lücke zu zählen. Dasselbe für eine Fußnote aus
+  // einem einzigen Platzhalter.
   {
     const nurPlatzhalter = (s?: string) => String(s ?? "").trim().match(/^\{\{params\.([a-z_0-9]+)\}\}$/i)?.[1] ?? null;
     const absaetze = vorlage.absaetze.filter((a) => { const p = nurPlatzhalter(a); return !(p && ohneWert(p)); });
@@ -318,27 +301,6 @@ export function mailRendern(event: string, payload: Record<string, unknown>): Ge
     if (absaetze.length !== vorlage.absaetze.length || (fussP && ohneWert(fussP))) {
       vorlage = { ...vorlage, absaetze, fussnote: fussP && ohneWert(fussP) ? undefined : vorlage.fussnote };
     }
-  }
-  // ══════════════════════════════════════════════════════════════════════
-  // WELCHER ZAHLWEG ZUERST STEHT — eine Einstellung, kein Umschreiben
-  //
-  // BEFUND 02.09.2026: GoCardless zahlt an EIN hinterlegtes Konto aus, und
-  // das ist die gesperrte Wise-IBAN (endet 57), Rhythmus monatlich, Währung
-  // GBP. Eine Sofortzahlung per Bank-App verlässt das Kundenkonto in
-  // Sekunden, liegt danach aber bei GoCardless bis zum 1. des Monats — und
-  // ginge dann ins Leere. Der QR-/Überweisungsweg geht direkt auf das
-  // Banking-Circle-Konto und ist an einem Bankarbeitstag da.
-  //
-  // Deshalb steht bis auf Weiteres die ÜBERWEISUNG vorn: knopf und knopf2
-  // werden getauscht, wenn `zahlweg_sofort_vorrang` nicht auf 1 steht.
-  // Sobald Justin bei GoCardless das Auszahlungskonto auf Banking Circle
-  // umgestellt und den Rhythmus auf täglich gesetzt hat, macht die Zahl 1
-  // die Sofortzahlung wieder zum Hauptweg — ohne eine einzige Vorlage
-  // anzufassen.
-  // ══════════════════════════════════════════════════════════════════════
-  const sofortIst = (k?: { url: string }) => !!k?.url.includes("params.sofort_url");
-  if (!sofortVorrang && sofortIst(vorlage.knopf) && vorlage.knopf2 && !knopfLeer(vorlage.knopf2)) {
-    vorlage = { ...vorlage, knopf: vorlage.knopf2, knopf2: vorlage.knopf };
   }
   if (knopfLeer(vorlage.knopf) || knopfLeer(vorlage.knopf2)) {
     // 18.09.2026: Jeder weggelassene Knopf wird gemeldet — außer der
@@ -488,10 +450,6 @@ export async function mailDirektSenden(
    */
   opts: { anhaenge?: { name: string; inhalt: Buffer }[] } = {},
 ): Promise<{ ok: boolean; messageId: string | null; grund?: string }> {
-  // Den Vorrang der Zahlwege vor dem Rendern nachlesen (60-Sekunden-Puffer).
-  // `mailRendern` ist synchron und nimmt den gepufferten Wert; der Anfangswert
-  // ist der sichere: Überweisung zuerst.
-  await zahlwegVorrangLesen().catch(() => {});
   const an = String((payload as any).email ?? "").trim();
   if (!an) return { ok: false, messageId: null, grund: "Keine Empfängeradresse in der Nutzlast." };
   if (!adresseSiehtGueltigAus(an)) {

@@ -124,8 +124,9 @@ export const AGENDA: AgendaSchritt[] = [
     zweck: "Der häufigste Streitfall beginnt mit „Ich dachte, das war einmalig\u201c. "
       + "Dieser Schritt räumt ihn aus, bevor er entsteht.",
     punkte: [
-      "„Ihr Paket ist ein laufendes Abo: Der Betrag kommt jeden Monat, nicht einmalig.“ "
-        + "Den Betrag NENNEN und das Datum der nächsten Abbuchung.",
+      "„Ihr Paket ist ein laufendes Abo: Der Betrag ist jeden Monat fällig, nicht einmalig — "
+        + "Sie überweisen ihn mit dem Verwendungszweck aus der Zahlungsmail.“ "
+        + "Den Betrag NENNEN und das Datum der nächsten Fälligkeit.",
       "„Kündbar zum Ende des laufenden Monats — schriftlich per E-Mail, formlos, "
         + "kein Grund nötig.“ Keine Mindestlaufzeit erfinden.",
       "„Die Bonitätsauskunft ist davon getrennt: 74 € EINMALIG, kein Abo.“ "

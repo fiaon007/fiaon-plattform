@@ -30,7 +30,6 @@ const ERLAUBTE_SCHLUESSEL = new Set([
   "max_reminders",           // Obergrenze Mahnungen je Bestellung (Mahnkette); 0 = ohne (E-182)
   "mahn_takte_pro_tag",      // wie oft am Tag die Mahnkette läuft
   "mahn_dauer_tage",         // E-182: Raten nach Stufe 5 alle N Tage weiter; 0 = Schluss nach Stufe 5
-  "sepa_werbung_pro_tag",    // Tagesdeckel der Lastschrift-Einladung; 0 = aus
   // ── FIAON Global (17.09.2026, E-188) — drei Einstellungen des Bestellwegs ──
   "global_zustaendig_agent_id", // wer neue Global-Aufträge und den Start bekommt; leer = Vertriebsleitung
   "global_provision_prozent",   // Satz der Abschlussprovision für Global-Einmalpreise; Vorgabe 25, 0 = keine
@@ -123,7 +122,7 @@ router.get("/chef/rueckholung", requireChef("geschaeftsfuehrung"), async (_req: 
       einstellungen([
         "rueckhol_pro_tag", "rueckhol_s1_an", "rueckhol_s2_an", "rueckhol_s3_an", "rueckhol_s4_an", "rueckhol_s5_an", "rueckhol_dauerpflege_abstand_tage",
         "frequenzbremse_an", "frequenz_pro_tag", "frequenz_pro_woche", "frequenz_pro_monat",
-        "max_reminders", "mahn_takte_pro_tag", "mahn_dauer_tage", "sepa_werbung_pro_tag",
+        "max_reminders", "mahn_takte_pro_tag", "mahn_dauer_tage",
         "global_zustaendig_agent_id", "global_provision_prozent", "rechnung_b2b_ust_modus",
       ]),
       // Rückhol-Versand je Segment, heute und gesamt.
@@ -138,7 +137,8 @@ router.get("/chef/rueckholung", requireChef("geschaeftsfuehrung"), async (_req: 
     ]);
 
     const { laufStand, ampelFuer } = await import("../lib/fiaon-crons");
-    const laufNamen = ["rueckholung", "sepa-werbung"];
+    // 19.09.2026 (E-194): Der Lauf „sepa-werbung" ist weg — GoCardless ist beendet.
+    const laufNamen = ["rueckholung"];
     const laeufe = await Promise.all(laufNamen.map(async (name) => {
       const s = await laufStand(name);
       return { name, ...s, ampel: ampelFuer(s.stundenHer) };

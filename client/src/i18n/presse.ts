@@ -10,7 +10,7 @@ const de = {
   faktenTag: "Fakten",
   fakten: (preise: string, auskunft: string) => [
     ["Unternehmen", "FIAON LTD, London"], ["Gründer und Director", "Justin Schwarzott"], ["Märkte", "Deutschland · Österreich · Schweiz"], ["Produkt", "Einsicht · Aktion · Zugang"],
-    ["Preise", preise], ["Bonitätsauskunft", auskunft], ["Zahlung", "SEPA-Lastschrift, 12 Raten"], ["Presse", "presse@fiaon.com"],
+    ["Preise", preise], ["Bonitätsauskunft", auskunft], ["Zahlung", "Überweisung, 12 Raten"], ["Presse", "presse@fiaon.com"],
   ] as [string, string][],
   preisSpanne: (min: string, max: string) => `${min} bis ${max} / Monat`, einmalig: (p: string) => `${p} einmalig`,
   zahlenPille: "Zahlen zum Zitieren", zahlenA: "Der Markt in ", zahlenB: "vier Zahlen.",
@@ -64,7 +64,7 @@ const en: typeof de = {
   faktenTag: "Facts",
   fakten: (preise, auskunft) => [
     ["Company", "FIAON LTD, London"], ["Founder and director", "Justin Schwarzott"], ["Markets", "Germany · Austria · Switzerland"], ["Product", "Insight · Action · Access"],
-    ["Prices", preise], ["Credit report", auskunft], ["Payment", "SEPA direct debit, 12 instalments"], ["Press", "presse@fiaon.com"],
+    ["Prices", preise], ["Credit report", auskunft], ["Payment", "Bank transfer, 12 instalments"], ["Press", "presse@fiaon.com"],
   ],
   preisSpanne: (min, max) => `${min} to ${max} / month`, einmalig: (p) => `${p} one-off`,
   zahlenPille: "Figures to quote", zahlenA: "The market in ", zahlenB: "four figures.",

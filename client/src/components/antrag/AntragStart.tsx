@@ -27,9 +27,9 @@ export function AntragStart({ packs, onWahl }: { packs: readonly StartPaket[]; o
           <Auf>
             <span className="dk-pille">Ihr Antrag beginnt hier</span>
             <h1 className="dk-h1">Wählen Sie Ihr Paket. <span className="dk-verlauf">Der Rest dauert zwei Minuten.</span></h1>
-            <p className="dk-lead">Kein Papier, keine Filiale, keine Vorkasse. Sie wählen, wie weit FIAON Sie begleitet – von der ersten Einsicht in Ihre Bonität bis zu Konto, Karte und Finanzierung. Das Paket lässt sich später noch ändern.</p>
+            <p className="dk-lead">Kein Papier, keine Filiale, keine Kreditkarte. Sie wählen, wie weit FIAON Sie begleitet – von der ersten Einsicht in Ihre Bonität bis zu Konto, Karte und Finanzierung. Das Paket lässt sich später noch ändern.</p>
             <div className="dk-knoepfe"><Knopf onClick={zuPaketen}>Pakete ansehen</Knopf><Knopf href="#ablauf" still>So geht es weiter</Knopf></div>
-            <p className="dk-leise" style={{ marginTop: 22 }}>SEPA-Lastschrift · zwölf Raten, danach Ihre Entscheidung · anwaltlich geprüfte Schreiben · Server in der EU</p>
+            <p className="dk-leise" style={{ marginTop: 22 }}>Zahlung per Überweisung · zwölf Raten, danach Ihre Entscheidung · anwaltlich geprüfte Schreiben · Server in der EU</p>
           </Auf>
           <Auf verzoegerung={150}><div className="dk-szene gross"><KartenSzene anzahl={1} className="absolute inset-0" /></div></Auf>
         </div>
@@ -59,7 +59,7 @@ export function AntragStart({ packs, onWahl }: { packs: readonly StartPaket[]; o
             ))}
           </div>
           <p className="dk-leise" style={{ marginTop: 26, maxWidth: "72ch", marginLeft: "auto", marginRight: "auto" }}>
-            Alle Pakete: monatlich per SEPA-Lastschrift oder Überweisung · zwölf Raten, danach entscheiden Sie, ob Sie bleiben · Paket im Antrag jederzeit änderbar.
+            Alle Pakete: monatlich per Überweisung · zwölf Raten, danach entscheiden Sie, ob Sie bleiben · Paket im Antrag jederzeit änderbar.
           </p>
         </Block>
 
@@ -80,7 +80,7 @@ export function AntragStart({ packs, onWahl }: { packs: readonly StartPaket[]; o
             <Schritte items={[
               { titel: "Paket wählen", text: "Ein Klick – Sie landen direkt im Antrag. Das Paket lässt sich dort noch ändern." },
               { titel: "Angaben in zwei Minuten", text: "Name, Adresse, Einkommen, Telefon. Verschlüsselt übertragen, am Handy wie am Rechner." },
-              { titel: "Zahlung einrichten", text: "SEPA-Lastschrift oder Überweisung. Ihr Bereich ist sofort aktiv, die Auskunft wird beantragt." },
+              { titel: "Erste Rate überweisen", text: "Bankverbindung und Verwendungszweck stehen in Ihrer Zahlungsmail. Mit dem Eingang ist Ihr Bereich aktiv, die Auskunft wird beantragt." },
               { titel: "Startgespräch", text: "Ein Mensch ruft Sie an, erklärt Ihre Auskunft und legt mit Ihnen den ersten Schritt fest." },
             ]} />
           </div>
@@ -89,17 +89,17 @@ export function AntragStart({ packs, onWahl }: { packs: readonly StartPaket[]; o
 
       {/* 5 · Vertrauen */}
       <Block pille="Ihr Vertrauen" titel={<>Geführt wie ein Finanzinstitut. <span className="dk-verlauf">Gebaut wie eine App.</span></>}
-             lead="FIAON LTD mit Sitz in London, Kunden in Deutschland, Österreich und der Schweiz. Jedes Schreiben anwaltlich geprüft, jede Zahlung per SEPA über einen verifizierten Kreditor, jede Akte verschlüsselt in der EU.">
+             lead="FIAON LTD mit Sitz in London, Kunden in Deutschland, Österreich und der Schweiz. Jedes Schreiben anwaltlich geprüft, jede Zahlung per Überweisung auf das Geschäftskonto der FIAON LTD, jede Akte verschlüsselt in der EU.">
         <div className="dk-zweispaltig" style={{ marginTop: 56 }}>
           <div className="dk-raster zwei" style={{ marginTop: 0 }}>
             {[
               { tag: "01", titel: "Anwaltlich geprüft", text: "Jede Vorlage ist vom Anwaltsteam freigegeben. Kein Schreiben geht hinaus, ohne dass Sie es freigeben." },
-              { tag: "02", titel: "SEPA-Lastschrift", text: "Monatliche Raten über einen verifizierten Kreditor. Keine Kreditkarte nötig, keine Vorkasse, jede Abbuchung angekündigt." },
+              { tag: "02", titel: "Zahlung per Überweisung", text: "Monatliche Raten auf das Geschäftskonto der FIAON LTD. Keine Kreditkarte nötig – Betrag, Fälligkeit und Verwendungszweck stehen in jeder Zahlungsmail." },
               { tag: "03", titel: "Verschlüsselt, DSGVO-konform", text: "Ihre Auskunft und Ihr Kontoauszug liegen auf Servern in der EU. Sie entscheiden, was Sie hochladen." },
               { tag: "04", titel: "Ein Mensch am Telefon", text: "Jeder Kunde beginnt mit einem Startgespräch. Danach kennen Sie Ihren Ansprechpartner mit Namen." },
             ].map((k, i) => <Auf key={k.tag} verzoegerung={i * 80}><Glas tag={k.tag} titel={k.titel}>{k.text}</Glas></Auf>)}
           </div>
-          <Auf verzoegerung={150}><div className="dk-szene gross"><SchichtenSzene namen={["Anwaltlich geprüft", "SEPA-Lastschrift", "EU-Server"]} className="absolute inset-0" /></div></Auf>
+          <Auf verzoegerung={150}><div className="dk-szene gross"><SchichtenSzene namen={["Anwaltlich geprüft", "Überweisung", "EU-Server"]} className="absolute inset-0" /></div></Auf>
         </div>
       </Block>
 
@@ -108,8 +108,8 @@ export function AntragStart({ packs, onWahl }: { packs: readonly StartPaket[]; o
       {/* 6 · Fragen */}
       <Block schmal pille="Häufige Fragen">
         <Fragen items={[
-          { f: "Was passiert nach dem Klick auf ein Paket?", a: "Sie landen im Antrag: wenige Angaben, zwei Minuten. Danach richten Sie die Zahlung ein, und Ihr Bereich ist sofort aktiv. FIAON beantragt Ihre Auskunft." },
-          { f: "Wann zahle ich?", a: "Die erste Rate mit der Aktivierung – per SEPA-Lastschrift oder Überweisung. Danach monatlich, zwölf Raten lang. Nach der zwölften fragen wir Sie, ob Sie bleiben möchten." },
+          { f: "Was passiert nach dem Klick auf ein Paket?", a: "Sie landen im Antrag: wenige Angaben, zwei Minuten. Danach überweisen Sie die erste Rate, und mit dem Eingang ist Ihr Bereich aktiv. FIAON beantragt Ihre Auskunft." },
+          { f: "Wann zahle ich?", a: "Die erste Rate mit der Aktivierung – per Überweisung. Danach monatlich, ebenfalls per Überweisung, zwölf Raten lang. Nach der zwölften fragen wir Sie, ob Sie bleiben möchten." },
           { f: "Kann ich das Paket später ändern?", a: "Ja, direkt im Antrag über „Paket ändern“ – und im Startgespräch prüfen wir gemeinsam, ob es passt." },
           { f: "Brauche ich Unterlagen?", a: "Für den Antrag nicht. Die Auskunft beantragt FIAON für Sie. Einen Kontoauszug können Sie später in Ihrem Bereich hochladen – für die Analyse Ihres Spielraums." },
           { f: "Bekomme ich garantiert eine Karte?", a: "Über Konto, Karte und Rahmen entscheidet immer die Bank. FIAON bringt Ihre Bonität in Ordnung und bereitet Sie vor – ein Girokonto ist für jeden Kunden erreichbar, eine Karte bis 25.000 € bei guter Bonität." },

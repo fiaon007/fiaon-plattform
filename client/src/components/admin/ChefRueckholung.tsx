@@ -212,7 +212,6 @@ export default function ChefRueckholung() {
         <div className="cr-schalter">
           {([
             ["rueckhol_pro_tag", "Rückhol-Mails je Tag", "Der Haupthahn. 0 = kein Versand. Empfehlung zum Start: 30 — erst S1/S2 abarbeiten, Wirkung ansehen, dann erhöhen."],
-            ["sepa_werbung_pro_tag", "Lastschrift-Einladungen je Tag", "Kunden mit offenen Raten und ohne Mandat. 0 = aus."],
             ["frequenzbremse_an", "Frequenzbremse (1 = an, 0 = aus)", "0 = keine Deckel je Empfänger, keine 14-Tage-Ruhe nach Blockaden, keine 20-Stunden-Ruhe. Unzustellbare Adressen und die Werbesperre für Werbung bleiben immer."],
             ["frequenz_pro_tag", "Je Empfänger: Mails pro Tag", "Deckel über ALLE werbenden Mails des Hauses. Standard 2."],
             ["frequenz_pro_woche", "Je Empfänger: pro Woche", "Standard 4. Justins 2-Tage-Takt passt darunter."],
@@ -288,7 +287,7 @@ export default function ChefRueckholung() {
         <div className="cr-laeufe">
           {daten.laeufe.map((l) => (
             <div key={l.name} className={`cr-lauf cr-lauf-${l.ampel}`}>
-              <b>{l.name === "rueckholung" ? "Rückholung (5 Segmente)" : l.name === "sepa-werbung" ? "SEPA-Einladungen" : l.name}</b>
+              <b>{l.name === "rueckholung" ? "Rückholung (5 Segmente)" : l.name}</b>
               <span>{l.letzteMeldung || "noch nie gelaufen"}</span>
               <small>{l.letzterErfolg ? `zuletzt ${seit(l.letzterErfolg)}` : "—"}</small>
             </div>

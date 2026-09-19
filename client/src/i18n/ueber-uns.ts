@@ -21,7 +21,7 @@ const de = {
   meilH2a: "Was seit der Gründung ", meilH2b: "passiert ist.", meilLead: "Jeder Punkt lässt sich belegen – im Handelsregister, im Logbuch, in der Datenbank.",
   meilensteine: [
     { zeit: "2025", titel: "Gründung als FIAON LTD", text: "Eintragung im britischen Handelsregister (Company No. 17318250). Die Idee: Der Platz zwischen Auskunftei und Bank ist unbesetzt – Score-Apps zeigen, Banken entscheiden, dazwischen hilft niemand." },
-    { zeit: "Frühjahr 2026", titel: "Die Plattform wird gebaut", text: "Kundenbereich, Antrag, Startgespräch, Schreiben aus anwaltlich geprüften Vorlagen. Zahlungen per Überweisung und SEPA-Lastschrift über einen verifizierten Kreditor – nie Vorkasse für Unerbrachtes." },
+    { zeit: "Frühjahr 2026", titel: "Die Plattform wird gebaut", text: "Kundenbereich, Antrag, Startgespräch, Schreiben aus anwaltlich geprüften Vorlagen. Zahlungen per Überweisung auf das Geschäftskonto der FIAON LTD – nie Vorkasse für Unerbrachtes." },
     { zeit: "4. Juli 2026", titel: "Erste bankbestätigte Zahlung", text: "Der erste Kunde, dessen Zahlung die Bank bestätigt hat – seither zählt FIAON nur, was bankbestätigt ist. Keine Anmeldungen, keine Absichten." },
     { zeit: "August 2026", titel: "Team, Academy, Ratgeber, Werkzeuge", text: "Acht Menschen in Vertrieb, Onboarding und Forderungsmanagement; niemand spricht mit Kunden, bevor er die Academy bestanden hat. Der Ratgeber mit Quellen je Zahl, die ersten kostenlosen Werkzeuge." },
     { zeit: "24. August 2026", titel: "Server nach Frankfurt", text: "Anwendung und Datenbank ziehen aus den USA in die EU-Region Frankfurt um. Seither: Deploys ohne Unterbrechung über einen Gesundheitspfad, Praxistest gegen die echte Datenbank vor jedem Release." },
@@ -67,7 +67,7 @@ const en: typeof de = {
   meilH2a: "What has happened ", meilH2b: "since we were founded.", meilLead: "Every point can be verified — in the companies register, in the logbook, in the database.",
   meilensteine: [
     { zeit: "2025", titel: "Founded as FIAON LTD", text: "Registered at Companies House (Company No. 17318250). The idea: the place between credit bureau and bank is empty — score apps display, banks decide, nobody helps in between." },
-    { zeit: "Spring 2026", titel: "The platform is built", text: "Customer area, application, onboarding call, letters from templates reviewed by lawyers. Payments by bank transfer and SEPA direct debit through a verified creditor — never payment in advance for services not delivered." },
+    { zeit: "Spring 2026", titel: "The platform is built", text: "Customer area, application, onboarding call, letters from templates reviewed by lawyers. Payments by bank transfer to the business account of FIAON LTD — never payment in advance for services not delivered." },
     { zeit: "4 July 2026", titel: "First bank-confirmed payment", text: "The first customer whose payment the bank confirmed — since then FIAON counts only what is bank-confirmed. No sign-ups, no intentions." },
     { zeit: "August 2026", titel: "Team, Academy, guides, tools", text: "Eight people in sales, onboarding and collections; nobody speaks to customers before passing the Academy. The guides with a source for every number, the first free tools." },
     { zeit: "24 August 2026", titel: "Servers to Frankfurt", text: "Application and database move from the USA to the EU region Frankfurt. Since then: deployments without interruption via a health path, a practical test against the real database before every release." },

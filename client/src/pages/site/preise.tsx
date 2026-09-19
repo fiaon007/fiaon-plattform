@@ -8,7 +8,7 @@
 //     /plattform-konzept, damit zwei Seiten nie zwei Antworten geben
 //   · Preisrechner „Was kostet mein Fall?": Einträge, Länder, Ziel →
 //     Paket + Gesamtpreis über zwölf Raten + Vergleich mit Selbst/Anwalt
-//   · Zahlungsweg als Zeitleiste (erste Rate Überweisung, dann SEPA)
+//   · Zahlungsweg als Zeitleiste (jede Rate per Überweisung — seit 19.09.2026 ohne Lastschrift, E-194)
 //   · Kündigungsregel „monatlich, formlos" (offizielle Geschäftsregel seit
 //     02.09.2026 — nicht zurückdrehen)
 //   · Leistungstabelle, Business-Stufen bleiben; neue Zeile: neuer Score

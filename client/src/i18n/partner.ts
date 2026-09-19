@@ -8,7 +8,7 @@ const de = {
   partnerWerden: "Partner werden", fuerWen: "Für wen das passt",
   kennzahlen: [
     { wert: "3", label: "Datenquellen je Kunde: Auskunft, Kontoauszug, Zahlungshistorie der Raten" },
-    { wert: "12", label: "Raten per SEPA-Lastschrift, bevor ein Kunde die Tür zur Karte erreicht – jede dokumentiert" },
+    { wert: "12", label: "Raten per Überweisung, bevor ein Kunde die Tür zur Karte erreicht – jede dokumentiert" },
     { wert: "100 %", label: "der Kunden beginnen mit einem Startgespräch – kein anonymer Antrag" },
     { wert: "DACH", label: "Deutschland, Österreich, Schweiz – mit SCHUFA, KSV und CRIF" },
   ],
@@ -17,7 +17,7 @@ const de = {
     { tag: "Banken und Kartenherausgeber", titel: "Neukunden mit Geschichte statt Antrag.", text: "Sie sehen bereinigte Einträge, den monatlichen Spielraum und zwölf pünktliche Raten – mit Einwilligung. Girokonto für jeden Kunden, Kreditkarte bei guter Bonität, Finanzierung später." },
     { tag: "Auskunfteien", titel: "Weniger Streit, saubere Daten.", text: "FIAON stellt Anfragen strukturiert und in einem Format, das Sie verarbeiten können. Löschanträge kommen geprüft und vollständig – für Deutschland, Österreich und die Schweiz." },
     { tag: "Inkasso und Gläubiger", titel: "Ratenvereinbarungen, die halten.", text: "Vorschläge, die zum Spielraum des Kunden passen – aus seinem Kontoauszug abgeleitet. Antwort-Tracking auf beiden Seiten, Erinnerungen an jede Frist." },
-    { tag: "Vermittler", titel: "Provision je Abschluss.", text: "Sie bringen Kunden, FIAON begleitet sie bis zur Karte. Vergütung je Abschluss und je eingezogener Rate – transparent in Ihrem Bereich, festgelegt von der Vertriebsleitung." },
+    { tag: "Vermittler", titel: "Provision je Abschluss.", text: "Sie bringen Kunden, FIAON begleitet sie bis zur Karte. Vergütung je Abschluss und je bezahlter Rate – transparent in Ihrem Bereich, festgelegt von der Vertriebsleitung." },
   ],
   wegPille: "Der Kundenweg", wegA: "Was passiert, bevor ein Kunde ", wegB: "bei Ihnen ankommt.", wegLead: "Drei Etappen, jede dokumentiert. Am Ende steht ein Kunde, der weiß, was über ihn gespeichert ist – und es geändert hat.",
   weg: [
@@ -30,7 +30,7 @@ const de = {
   erhalten: [
     { tag: "Bonität", titel: "Dokumentiert statt behauptet", text: "Die Auskunft nach der Bereinigung – mit den Antworten der Auskunfteien als Beleg." },
     { tag: "Spielraum", titel: "Aus dem Kontoauszug", text: "Einnahmen, Fixkosten, Abos, Spielraum: aus den letzten Monaten gelesen, nicht aus einem Formular abgetippt." },
-    { tag: "Zahlungshistorie", titel: "Zwölf Raten als Beweis", text: "Jede SEPA-Rate, jeder Einzug, jede Reaktion. Ein Kunde, der zwölf Monate pünktlich zahlt, hat es bewiesen." },
+    { tag: "Zahlungshistorie", titel: "Zwölf Raten als Beweis", text: "Jede Rate, jeder Zahlungseingang, jede Reaktion. Ein Kunde, der zwölf Monate pünktlich zahlt, hat es bewiesen." },
     { tag: "Einwilligung", titel: "DSGVO-sauber", text: "Der Kunde entscheidet, wem FIAON seine Akte zeigt. Die Einwilligung wird protokolliert und kann widerrufen werden." },
   ],
   zusammenPille: "Zusammenarbeit", zusammenA: "In vier Schritten zum ", zusammenB: "Pilot.",
@@ -41,7 +41,7 @@ const de = {
     { titel: "Anbindung", text: "Schnittstelle oder strukturierte Übergabe, Vergütungsregel, Reporting. Dann skalieren wir gemeinsam." },
   ],
   vermittlerPille: "Für Vermittler", vermittlerA: "Provision, die ", vermittlerB: "nachvollziehbar", vermittlerC: " ist.",
-  vermittler: ["Vergütung je Abschluss und je eingezogener Rate – sichtbar in Ihrem Bereich, Monat für Monat.", "Die Vertriebsleitung legt die Provisionsregel fest und kann sie je Kunde begründet anpassen – jede Änderung wird protokolliert.", "Keine Provision auf eigene Abos, keine Provision auf stornierte Pakete. Ehrlich, weil es sonst nicht hält.", "Wer Kunden nicht nur bringen, sondern begleiten möchte: Die Academy steht Ihnen offen – danach auch das Agentenportal."],
+  vermittler: ["Vergütung je Abschluss und je bezahlter Rate – sichtbar in Ihrem Bereich, Monat für Monat.", "Die Vertriebsleitung legt die Provisionsregel fest und kann sie je Kunde begründet anpassen – jede Änderung wird protokolliert.", "Keine Provision auf eigene Abos, keine Provision auf stornierte Pakete. Ehrlich, weil es sonst nicht hält.", "Wer Kunden nicht nur bringen, sondern begleiten möchte: Die Academy steht Ihnen offen – danach auch das Agentenportal."],
   einzelperson: "Als Einzelperson mitarbeiten",
   anfragePille: "Kontakt", anfrageA: "Partner ", anfrageB: "werden.", anfrageLead: "Schreiben Sie uns, wer Sie sind und was Sie suchen. Ein Mensch antwortet innerhalb von zwei Werktagen.",
   anfrageKnopf: "Anfrage senden", anfrageHinweis: "Oder direkt: partner@fiaon.com",
@@ -51,7 +51,7 @@ const de = {
   fragen: [
     { f: "Bekomme ich Daten ohne Einwilligung des Kunden?", a: "Nein. Der Kunde entscheidet, wem FIAON seine Akte zeigt. Die Einwilligung wird protokolliert und kann jederzeit widerrufen werden." },
     { f: "Entscheidet FIAON über Konto oder Karte?", a: "Nein. FIAON bereitet vor und dokumentiert. Über Konto, Karte und Rahmen entscheiden Sie – nach Ihren Kriterien." },
-    { f: "Wie wird die Vergütung geregelt?", a: "Je Abschluss, auf Wunsch je eingezogener Rate. Die Regel steht im Vertrag, jede Abrechnung ist in der Plattform nachvollziehbar." },
+    { f: "Wie wird die Vergütung geregelt?", a: "Je Abschluss, auf Wunsch je bezahlter Rate. Die Regel steht im Vertrag, jede Abrechnung ist in der Plattform nachvollziehbar." },
   ],
   abschlussA: "Ein Kunde, dessen Bonität repariert ist, sucht ein Konto. Die Frage ist nur, ", abschlussB: "bei wem.", abschlussText: "Einsicht und Aktion leistet FIAON. Den Zugang öffnen Partner. Wer früh dabei ist, bekommt die Kunden, die zwölf Monate lang bewiesen haben, dass sie es wert sind.", investoren: "Für Investoren",
 };
@@ -63,7 +63,7 @@ const en: typeof de = {
   partnerWerden: "Become a partner", fuerWen: "Who this suits",
   kennzahlen: [
     { wert: "3", label: "data sources per customer: report, bank statement, payment history of the instalments" },
-    { wert: "12", label: "instalments by SEPA direct debit before a customer reaches the door to the card – each documented" },
+    { wert: "12", label: "instalments by bank transfer before a customer reaches the door to the card – each documented" },
     { wert: "100 %", label: "of customers begin with an onboarding call – no anonymous application" },
     { wert: "DACH", label: "Germany, Austria, Switzerland – with SCHUFA, KSV and CRIF" },
   ],
@@ -72,7 +72,7 @@ const en: typeof de = {
     { tag: "Banks and card issuers", titel: "New customers with a history instead of an application.", text: "You see cleaned-up entries, the monthly headroom and twelve punctual instalments – with consent. A current account for every customer, a credit card with a good credit file, financing later." },
     { tag: "Credit bureaus", titel: "Less dispute, clean data.", text: "FIAON makes requests in a structured way and in a format you can process. Deletion requests arrive checked and complete – for Germany, Austria and Switzerland." },
     { tag: "Debt collectors and creditors", titel: "Instalment agreements that hold.", text: "Proposals that fit the customer's headroom – derived from their bank statement. Reply tracking on both sides, reminders for every deadline." },
-    { tag: "Introducers", titel: "Commission per deal.", text: "You bring customers, FIAON accompanies them to the card. Remuneration per deal and per collected instalment – transparent in your area, set by the head of sales." },
+    { tag: "Introducers", titel: "Commission per deal.", text: "You bring customers, FIAON accompanies them to the card. Remuneration per deal and per paid instalment – transparent in your area, set by the head of sales." },
   ],
   wegPille: "The customer journey", wegA: "What happens before a customer ", wegB: "arrives with you.", wegLead: "Three stages, each documented. At the end stands a customer who knows what is stored about them – and has changed it.",
   weg: [
@@ -85,7 +85,7 @@ const en: typeof de = {
   erhalten: [
     { tag: "Credit file", titel: "Documented instead of claimed", text: "The report after the clean-up – with the credit bureaus' replies as evidence." },
     { tag: "Headroom", titel: "From the bank statement", text: "Income, fixed costs, subscriptions, headroom: read from the last months, not typed from a form." },
-    { tag: "Payment history", titel: "Twelve instalments as proof", text: "Every SEPA instalment, every collection, every reaction. A customer who pays punctually for twelve months has proven it." },
+    { tag: "Payment history", titel: "Twelve instalments as proof", text: "Every instalment, every incoming payment, every reaction. A customer who pays punctually for twelve months has proven it." },
     { tag: "Consent", titel: "GDPR-clean", text: "The customer decides to whom FIAON shows their file. The consent is logged and can be revoked." },
   ],
   zusammenPille: "Working together", zusammenA: "Four steps to a ", zusammenB: "pilot.",
@@ -96,7 +96,7 @@ const en: typeof de = {
     { titel: "Integration", text: "Interface or structured handover, remuneration rule, reporting. Then we scale together." },
   ],
   vermittlerPille: "For introducers", vermittlerA: "Commission that is ", vermittlerB: "traceable", vermittlerC: ".",
-  vermittler: ["Remuneration per deal and per collected instalment – visible in your area, month by month.", "The head of sales sets the commission rule and can adjust it per customer with reasons – every change is logged.", "No commission on your own plans, no commission on cancelled plans. Honest, because otherwise it does not hold.", "If you want not only to bring customers but to accompany them: the academy is open to you – and after it the agent portal."],
+  vermittler: ["Remuneration per deal and per paid instalment – visible in your area, month by month.", "The head of sales sets the commission rule and can adjust it per customer with reasons – every change is logged.", "No commission on your own plans, no commission on cancelled plans. Honest, because otherwise it does not hold.", "If you want not only to bring customers but to accompany them: the academy is open to you – and after it the agent portal."],
   einzelperson: "Work with us as an individual",
   anfragePille: "Contact", anfrageA: "Become a ", anfrageB: "partner.", anfrageLead: "Write to us who you are and what you are looking for. A human replies within two working days.",
   anfrageKnopf: "Send enquiry", anfrageHinweis: "Or directly: partner@fiaon.com",
@@ -106,7 +106,7 @@ const en: typeof de = {
   fragen: [
     { f: "Do I receive data without the customer's consent?", a: "No. The customer decides to whom FIAON shows their file. The consent is logged and can be revoked at any time." },
     { f: "Does FIAON decide on account or card?", a: "No. FIAON prepares and documents. You decide on account, card and limit – by your criteria." },
-    { f: "How is remuneration regulated?", a: "Per deal, on request per collected instalment. The rule is in the contract, every statement is traceable in the platform." },
+    { f: "How is remuneration regulated?", a: "Per deal, on request per paid instalment. The rule is in the contract, every statement is traceable in the platform." },
   ],
   abschlussA: "A customer whose credit file has been repaired is looking for an account. The only question is ", abschlussB: "with whom.", abschlussText: "FIAON provides insight and action. Partners open access. Whoever joins early gets the customers who have proven for twelve months that they are worth it.", investoren: "For investors",
 };

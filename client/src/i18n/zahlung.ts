@@ -11,8 +11,9 @@
 // unverändert — mit EINER Korrektur: Schritt 3 duzte mitten auf der gesiezten Seite
 // („Wähle dort … und lade …"); er heißt jetzt „Wählen Sie dort … und laden Sie …".
 // „en" ist britisches Englisch und gilt NUR für den Firmenauftrag;
-// alles, was nur die Privatkundenlinie zeigt (Konto aktivieren, Terminkachel,
-// Sofortzahlung), steht deshalb nicht hier, sondern weiter deutsch in der Seite.
+// alles, was nur die Privatkundenlinie zeigt (Konto aktivieren, Terminkachel),
+// steht deshalb nicht hier, sondern weiter deutsch in der Seite. Seit 19.09.2026
+// ist die Überweisung der einzige Zahlweg — für die erste Zahlung wie für jede Rate.
 //
 // Die Datei folgt dem Hausmuster der Wörterbücher (const de / const en: typeof de):
 // scripts/seo-wortverbote-en.ts liest die englische Hälfte damit von selbst mit,

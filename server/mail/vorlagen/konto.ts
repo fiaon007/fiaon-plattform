@@ -26,8 +26,8 @@ export const KONTO_VORLAGEN: Record<string, MailBaustein> = {
   // GiroCode zieht seinen Betrag aus genau diesem Feld — er stünde bei vier
   // von fünf Empfängern über 0,00 €, und eine Überweisung über null Euro
   // bekommt niemand mehr eingesammelt. Der Preis entsteht mit der
-  // Bestellung, und mit ihr feuert payment_details: DORT gehören QR-Code,
-  // Sofortzahlung und Bankdaten hin, und dort stehen sie vollständig.
+  // Bestellung, und mit ihr feuert payment_details: DORT gehören QR-Code
+  // und Bankdaten hin, und dort stehen sie vollständig.
   //
   // ── KEINE ZUSAGE EINER MAIL, DIE NICHT KOMMT (18.09.2026) ─────────────────
   // `welcome` geht beim E-MAIL-SCHRITT des Antrags raus (fiaon-antrag.ts), also
@@ -111,8 +111,7 @@ export const KONTO_VORLAGEN: Record<string, MailBaustein> = {
       { label: "Verwendungszweck", wert: "{{params.payment_reference}}" },
     ],
     bild: { url: "https://fiaon.com/api/fiaon/zahlung/{{params.payment_reference}}/qr.png", alt: "GiroCode — mit der Banking-App scannen", unterschrift: "Mit der Banking-App scannen: Empfänger, IBAN, Betrag und Verwendungszweck sind schon ausgefüllt." },
-knopf: { text: "Sofort per Bank-App bezahlen — in einer Minute gebucht", url: "{{params.sofort_url}}" },
-    knopf2: { text: "Oder per Überweisung: QR-Code & Bankdaten", url: "https://fiaon.com/zahlung/{{params.payment_reference}}" },
+knopf: { text: "Zahlungsseite öffnen — QR-Code & Bankdaten", url: "https://fiaon.com/zahlung/{{params.payment_reference}}" },
     fussnote: "Eine Überweisung braucht in der Regel einen Bankarbeitstag. Sobald sie da ist, geht Ihr Bereich automatisch auf.",
     karteZiel: true,
   },
@@ -192,47 +191,6 @@ knopf: { text: "Sofort per Bank-App bezahlen — in einer Minute gebucht", url: 
     // Termin wählen") — die Vorlage zeigte ihn nie. Jetzt als leiser zweiter Weg.
     knopf2: { text: "Oder direkt einen Gesprächstermin wählen", url: "{{params.termin_link}}" },
     fussnote: "Die Nummer stimmt? Dann antworten Sie kurz mit einer Uhrzeit, zu der wir Sie gut erreichen.",
-  },
-
-  // ── DER KNOPF FÜHRT IN DIE STRECKE, NICHT INS DASHBOARD (01.09.2026) ──────
-  // Bis hierhin zeigte er auf /kundenbereich. Von 23 verschickten Mails wurden
-  // fünf geklickt und trotzdem kein einziges Mandat erteilt: Wer klickte, kam
-  // auf der Anmeldung heraus und musste den Knopf im Bereich erst suchen.
-  // `sepa_link` ist ein signierter Direktlink (fiaon-lastschrift.ts) — ein
-  // Klick, dann steht der Kunde bei GoCardless. Fehlt der Parameter, fällt die
-  // Vorlage auf den Kundenbereich zurück, statt einen toten Knopf zu zeigen.
-  //
-  // ── WARUM HIER KEIN QR-CODE UND KEINE ZAHLUNGSSEITE DAZUKOMMEN ────────────
-  // (geprüft 02.09.2026, obwohl im Text eine offene Rate vorkommt)
-  // Zwei Gründe, beide aus der Nutzlast:
-  // 1. `payment_reference` trägt hier das AKTENZEICHEN (k.ref aus
-  //    fiaon-sepa-werbung.ts), nicht die Zahlungsreferenz. QR-Bild und
-  //    Zahlungsseite schlagen damit fehl — zahlungsauftragFinden kennt nur
-  //    echte Zahlungsreferenzen und Ratenreferenzen (FIAON-XXXXXX-N).
-  // 2. Der Betrag der offenen Rate kommt als FREITEXT in
-  //    `offene_rate_hinweis`; 308 von 326 Versänden hatten überhaupt kein
-  //    Betragsfeld. Es gibt hier also nichts, woraus sich ein GiroCode
-  //    bauen ließe.
-  // Dazu kommt der Zweck: Diese Mail hat genau eine Aufgabe, das Mandat.
-  // Ein zweiter Zahlweg daneben nähme ihr den Klick, der sie überhaupt
-  // rechtfertigt. Die offene Rate wird über abo_payment_reminder angemahnt —
-  // und die trägt Betrag, Bankdaten, QR-Code und Sofortzahlung vollständig.
-  sepa_einrichten: {
-    betreff: "Eine Sorge weniger: Ihre Raten per Bankeinzug",
-    preheader: "Nie mehr an die Rate denken — einmal einrichten, fertig.",
-    titel: "Ihre Raten, automatisch pünktlich",
-    absaetze: [
-      "Guten Tag {{params.vorname}}, Ihre erste Zahlung ist bei uns eingegangen — vielen Dank. Damit ist Ihre Akte in Arbeit.",
-      "Für die weiteren Monatsraten gibt es einen bequemeren Weg als die Überweisung: den Bankeinzug. Ihre Rate wird dann automatisch und immer pünktlich abgebucht. Kein Verwendungszweck, keine vergessene Rate. Das ist mehr als Bequemlichkeit — eine lückenlose Zahlungshistorie ist genau das, woran später jede Bank Ihre Zuverlässigkeit abliest.",
-      // Steht nur da, wenn wirklich etwas offen ist: Der Motor lässt leere
-      // Platzhalter weg. Verschweigen wäre der teuerste Fehler — wer von der
-      // ersten Abbuchung überrascht wird, widerruft das Mandat sofort.
-      "{{params.offene_rate_hinweis}}",
-      "Ein Klick auf den Knopf, dann geben Sie Ihre Bankverbindung einmal sicher bei unserem Zahlungspartner GoCardless ein. Wir sehen Ihre Kontonummer nie. Das dauert zwei Minuten und lässt sich jederzeit widerrufen.",
-    ],
-    knopf: { text: "Bankeinzug einrichten", url: "{{params.sepa_link}}" },
-    fussnote: "Sie zahlen lieber weiterhin per Überweisung? Dann müssen Sie nichts tun — Ihre Raten bleiben wie gewohnt mit Verwendungszweck fällig.",
-    karteZiel: true,
   },
 
   konto_karte_einladung: {

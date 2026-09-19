@@ -23,7 +23,7 @@
 //
 //   npx tsx scripts/pruef-pakete.ts        (Exit 1 bei ROT)
 // ═══════════════════════════════════════════════════════════════════════════
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import {
   PAKETE, NICHT_ABO_SCHLUESSEL, PAKET_PREISE_EURO, PAKET_PREISE_CENTS,
@@ -272,9 +272,13 @@ const pflicht = datei("server/lib/fiaon-abo-pflicht.ts");
   ok("fehlendeAbos: Einmalkäufe des Katalogs sind ausgeschlossen", f.includes("AND NOT ${KEIN_ABO_SQL}") && f.includes("if (istEinmalkauf(z)) return [];"));
 }
 ok("Gegenprobe (Einmalkauf mit Raten) umfasst FIAON Global", funktion(pflicht, "export async function schufaMitRaten").includes("OR ${KEIN_ABO_SQL}"));
-ok("Lastschrift: kein Mandat für einen Einmalkauf", funktion(datei("server/routes/fiaon-lastschrift.ts"), "async function flowStarten").includes("paketVon(a.pack_key)?.abo === false"));
-ok("Lastschrift: GoCardless-Abo nur für Abo-Pakete", funktion(datei("server/routes/fiaon-lastschrift.ts"), "export async function gcAboAnlegen").includes("if (pk?.abo && pk.preisCents > 0)"));
-ok("SEPA-Einladung geht nicht an Einmalkäufer", datei("server/lib/fiaon-sepa-werbung.ts").includes("AND NOT ${sqlPool.unsafe(KEIN_ABO_SQL)}"));
+// 19.09.2026 (E-194): GoCardless ist beendet — keine Mandate, keine Abos, keine Einladung mehr.
+{
+  const ls = datei("server/routes/fiaon-lastschrift.ts");
+  ok("GoCardless beendet: kein API-Aufruf, kein Token", !/gocardless\.com\/(billing_requests|subscriptions|payments|mandates)/.test(ls) && !ls.includes("GOCARDLESS_ACCESS_TOKEN") && !ls.includes("fetch("));
+  ok("GoCardless beendet: der Webhook bucht keine Rate", !ls.includes("rateBezahltBuchen") && ls.includes("verarbeitet: false"));
+  ok("GoCardless beendet: die SEPA-Einladung ist gelöscht", !existsSync(path.join(WURZEL, "server/lib/fiaon-sepa-werbung.ts")));
+}
 {
   const z = datei("server/routes/fiaon-chef-zahlen.ts");
   ok("Chefbüro: MRR und Vertragsbestand ohne Einmalkäufe (zwei Stellen)", (z.match(/AND NOT \$\{KEIN_ABO_SQL\}/g) ?? []).length === 2);

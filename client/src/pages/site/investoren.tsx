@@ -385,12 +385,12 @@ export default function Investoren() {
           { tag: "Einsicht", titel: "Zeit bis zur ersten Einsicht", text: "Von der Anmeldung bis zur gelesenen Auskunft im Bereich. Ziel: unter 24 Stunden." },
           { tag: "Aktion", titel: "Antwortquote auf Schreiben", text: "Anteil der versendeten Löschanträge, Widersprüche und Ratenvorschläge, die eine Antwort erhalten – und wie viele davon positiv." },
           { tag: "Zugang", titel: "Graduation-Rate", text: "Anteil der Kunden, die aus dem Programm in ein Konto oder eine Finanzierung übergehen. Die Zahl, die Partner interessiert." },
-          { tag: "Ertrag", titel: "Raten-Einzugsquote", text: "Anteil der fälligen Raten, die beim ersten Versuch eingezogen werden – und nach Begleitung durch das eigene Team." },
+          { tag: "Ertrag", titel: "Raten-Einzugsquote", text: "Anteil der fälligen Raten, die pünktlich per Überweisung eingehen – und nach Begleitung durch das eigene Team." },
         ] : [
           { tag: "Insight", titel: "Time to first insight", text: "From sign-up to the first report read inside the customer area. Target: under 24 hours." },
           { tag: "Action", titel: "Reply rate on letters", text: "Share of deletion requests, objections and instalment proposals that receive a reply — and how many of those are positive." },
           { tag: "Access", titel: "Graduation rate", text: "Share of customers who graduate from the programme into an account or financing. The number partners care about." },
-          { tag: "Revenue", titel: "Instalment collection rate", text: "Share of due instalments collected on first attempt — and after accompaniment by our own team." },
+          { tag: "Revenue", titel: "Instalment collection rate", text: "Share of due instalments paid on time by bank transfer — and after accompaniment by our own team." },
         ]} zwei />
       </Block>
 
@@ -474,12 +474,12 @@ export default function Investoren() {
         <Fragen items={de ? [
           { f: "Wie verdient FIAON Geld?", a: "Mit dem Abo des Kunden (7,99 € bis 99,99 € im Monat, zwölf Raten), mit der einmaligen Bonitätsauskunft und mit Provisionen der Partnerbanken, wenn ein Kunde über FIAON ein Konto oder eine Finanzierung erhält." },
           { f: "Ist FIAON eine Bank?", a: "Nein. FIAON ist kein Kreditinstitut. Über Konto und Finanzierung entscheidet immer die jeweilige Partnerbank. FIAON bereitet den Kunden vor und dokumentiert seine Bonität." },
-          { f: "Wo sitzt das Unternehmen?", a: "FIAON LTD, London (Companies House No. 17318250). Die Kunden sitzen in Deutschland, Österreich und der Schweiz; die Plattform läuft auf EU-Servern (Frankfurt), die Zahlungen laufen per SEPA über einen verifizierten Kreditor." },
+          { f: "Wo sitzt das Unternehmen?", a: "FIAON LTD, London (Companies House No. 17318250). Die Kunden sitzen in Deutschland, Österreich und der Schweiz; die Plattform läuft auf EU-Servern (Frankfurt), die Zahlungen laufen per Überweisung auf das Geschäftskonto der FIAON LTD." },
           { f: "Was bekomme ich im Datenraum?", a: "Sechs Kapitel: Unternehmen, Finanzen, Produkt und Technik, Recht und Datenschutz, Team und Verträge, Markt. Dazu das Entscheidungsregister und das Logbuch – beides wird seit dem ersten Tag geführt." },
         ] : [
           { f: "How does FIAON make money?", a: "Through the customer subscription (€7.99 to €99.99 per month, twelve instalments), the one-off credit report, and partner-bank commissions when a customer obtains an account or financing through FIAON." },
           { f: "Is FIAON a bank?", a: "No. FIAON is not a credit institution. Accounts and financing are always decided by the respective partner bank. FIAON prepares the customer and documents their creditworthiness." },
-          { f: "Where is the company based?", a: "FIAON LTD, London (Companies House No. 17318250). Customers are in Germany, Austria and Switzerland; the platform runs on EU servers (Frankfurt) and payments run via SEPA through a verified creditor." },
+          { f: "Where is the company based?", a: "FIAON LTD, London (Companies House No. 17318250). Customers are in Germany, Austria and Switzerland; the platform runs on EU servers (Frankfurt) and payments are made by bank transfer to the business account of FIAON LTD." },
           { f: "What is inside the data room?", a: "Six chapters: company, financials, product and technology, legal and privacy, team and contracts, market. Plus the decision register and the logbook — both kept since day one." },
         ]} />
       </Block>

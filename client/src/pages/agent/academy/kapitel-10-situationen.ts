@@ -63,15 +63,15 @@ export const KAPITEL_10: KapitelInhalt = {
       lehre: "Zahlungen werden bestätigt, nicht geglaubt.",
     }),
     "fall-5": fall({
-      situation: `Collections zeigt: Herr R. (FIAON Pro, ${preis("pro")}), Rate 3 seit 14 Tagen offen, Lastschrift zurückgegeben, Erinnerungen Tag 0/3/7 ohne Antwort. Letzte Notiz vor drei Wochen: „sehr zufrieden, Löschantrag läuft“.`,
-      akte: ["Rate 3: 14 Tage offen, Rücklastschrift", "Erinnerungen: 3, keine Antwort", "Letzte Notiz: zufrieden"],
+      situation: `Collections zeigt: Herr R. (FIAON Pro, ${preis("pro")}), Rate 3 seit 14 Tagen offen, keine Überweisung eingegangen, Erinnerungen Tag 0/3/7 ohne Antwort. Letzte Notiz vor drei Wochen: „sehr zufrieden, Löschantrag läuft“.`,
+      akte: ["Rate 3: 14 Tage offen, kein Zahlungseingang", "Erinnerungen: 3, keine Antwort", "Letzte Notiz: zufrieden"],
       frage: "Wie eröffnest du den Anruf?",
       optionen: [
         { text: "„Herr R., Sie haben nicht bezahlt. Wenn bis Freitag nichts kommt, melden wir Sie bei der SCHUFA.“", folge: "Drohung mit Eintrag – weder gewollt noch ohne Weiteres zulässig (§ 31 BDSG). Ein zufriedener Kunde wird in einem Satz zum Gegner." },
-        { text: "„Guten Tag Herr R., [Name] von FIAON – ich rufe wegen Ihrer Rate vom [Datum] an, die ist noch offen, die Lastschrift ist zurückgegangen. Ist etwas dazwischengekommen?“ Dann Grund erfahren, Datum vereinbaren, Ergebnis klicken.", richtig: true, folge: "Meist ein leeres Konto oder ein Kontowechsel. Mit Datum und Weg ist die Rate in der Regel in der Woche da – und der Kunde bleibt zufrieden." },
+        { text: "„Guten Tag Herr R., [Name] von FIAON – ich rufe wegen Ihrer Rate vom [Datum] an, die ist noch offen. Ist etwas dazwischengekommen?“ Dann Grund erfahren, Datum vereinbaren, Ergebnis klicken.", richtig: true, folge: "Meist ein leeres Konto oder eine vergessene Überweisung. Mit Datum und Weg ist die Rate in der Regel in der Woche da – und der Kunde bleibt zufrieden." },
         { text: "Nicht anrufen – das Back-Office übernimmt ab Tag 30 sowieso.", folge: "Tag 14 ist dein Anruf. Wer ihn auslässt, schickt einen zufriedenen Kunden in den Mahnlauf – und verliert die Haltequote, an der der Quartalsbonus hängt." },
       ],
-      aufloesung: "Der Zahlungsmotor hat Tag 0–14 erledigt; du bist die bekannte Stimme. Grund erfahren, Lage sachlich einordnen (Sperre ab Tag 30 ist eine Information, keine Drohung), Vereinbarung mit Datum, Ergebnis klicken (zahlt am …). Bei Rücklastschrift: Lastschrift erneut anstoßen oder Überweisung vereinbaren.",
+      aufloesung: "Der Zahlungsmotor hat Tag 0–14 erledigt; du bist die bekannte Stimme. Grund erfahren, Lage sachlich einordnen (Sperre ab Tag 30 ist eine Information, keine Drohung), Vereinbarung mit Datum, Ergebnis klicken (zahlt am …). Die Zahlungsdaten schickst du gleich mit und liest den Verwendungszweck vor.",
       lehre: "Ein Hilfsangebot mit Datum – keine Mahnung mit Stimme.",
     }),
     "fall-6": fall({
@@ -98,15 +98,15 @@ export const KAPITEL_10: KapitelInhalt = {
       lehre: "Vier Prüfungen vor jedem Euro – und die Entscheidung bleibt beim Kunden.",
     }),
     "fall-8": fall({
-      situation: `Frau L. (FIAON Start, ${preis("start")}) schreibt nach der zweiten Abbuchung an Hilfe: „Ich dachte, das war einmalig! Ich will mein Geld zurück.“ In der Notiz des Startgespräches steht zu Abo-Klarheit nur: „ok“.`,
-      akte: ["Paket Start, Rate 2 abgebucht", "Notiz Abo-Klarheit: „ok“", "Anliegen über Hilfe, Ton verärgert"],
+      situation: `Frau L. (FIAON Start, ${preis("start")}) schreibt nach der zweiten Rate an Hilfe: „Ich dachte, das war einmalig! Ich will mein Geld zurück.“ In der Notiz des Startgespräches steht zu Abo-Klarheit nur: „ok“.`,
+      akte: ["Paket Start, Rate 2 bezahlt", "Notiz Abo-Klarheit: „ok“", "Anliegen über Hilfe, Ton verärgert"],
       frage: "Was tust du?",
       optionen: [
         { text: "„Das steht in den AGB, die Sie akzeptiert haben.“", folge: "Formal richtig, menschlich falsch – und die dünne Notiz „ok“ beweist nicht, dass es erklärt wurde. Kündigung plus Erstattungsforderung." },
         { text: "Anrufen, sich entschuldigen, dass es nicht klar angekommen ist; erklären, was das Abo leistet und was bisher passiert ist; Kündigungsweg nennen; über das Back-Office eine Kulanzprüfung für Rate 2 anstoßen, falls sie geht. Und: künftig die Abo-Klarheit wörtlich notieren.", richtig: true, folge: "Oft bleibt die Kundin, wenn sie versteht, was läuft. Wenn nicht, geht sie ohne Streit – und die nächste Notiz steht wörtlich drin." },
         { text: "Das Anliegen an die Geschäftsführung weiterleiten und abwarten.", folge: "Es ist dein Kunde und dein Startgespräch. Weiterleiten ohne eigenes Gespräch verliert einen Tag und die Beziehung." },
       ],
-      aufloesung: "Abo-Klarheit ist Schritt 6 der Agenda mit Pflichtnotiz – und „ok“ ist keine Notiz. Die Regel: Betrag nennen, Datum der nächsten Abbuchung nennen, Kündigungsweg nennen, Antwort wörtlich festhalten („Ja, 7,99 jeden Monat ist in Ordnung“). Der Streitfall entsteht nicht bei der Abbuchung, sondern im Startgespräch.",
+      aufloesung: "Abo-Klarheit ist Schritt 6 der Agenda mit Pflichtnotiz – und „ok“ ist keine Notiz. Die Regel: Betrag nennen, Datum der nächsten Rate nennen, Kündigungsweg nennen, Antwort wörtlich festhalten („Ja, 7,99 jeden Monat ist in Ordnung“). Der Streitfall entsteht nicht bei der zweiten Rate, sondern im Startgespräch.",
       lehre: "Eine Notiz, die nicht wörtlich ist, hat nicht stattgefunden.",
     }),
     "fall-9": fall({
@@ -150,7 +150,7 @@ export const KAPITEL_10: KapitelInhalt = {
     frage("Kündigungswunsch in Monat 4 – erster Schritt?", ["Kündigung bestätigen", "Akte erklären: was passiert ist, was kommt; Kündigungsweg ehrlich nennen; Entscheidung beim Kunden", "Rabatt", "„Geht nicht, zwölf Raten“"], 1, "Kündigungswünsche sind meist Informationslücken."),
     frage("Zwei Anträge, ein Mensch. Was tun?", ["Beide verkaufen", "Dublette melden, führenden Antrag festlegen, mit dem Kollegen absprechen, einmal anrufen", "Den älteren löschen", "Ignorieren"], 1, "Ein Mensch ist ein Datensatz."),
     frage("Screenshot ohne Verwendungszweck, kein Eingang im Abgleich.", ["„Bezahlt“ setzen", "Bedanken, Bankarbeitstage erklären, Referenz erbitten, Back-Office informieren, Termin anbieten", "Nochmal überweisen lassen", "Archivieren"], 1, "Zahlungen werden bestätigt, nicht geglaubt."),
-    frage("Tag-14-Anruf – welcher Satz ist tabu?", ["„Ist etwas dazwischengekommen?“", "„Sonst melden wir Sie bei der SCHUFA.“", "„Passt der 28.?“", "„Die Lastschrift ist zurückgegangen.“"], 1, "Keine Drohung mit Eintrag."),
+    frage("Tag-14-Anruf – welcher Satz ist tabu?", ["„Ist etwas dazwischengekommen?“", "„Sonst melden wir Sie bei der SCHUFA.“", "„Passt der 28.?“", "„Ihre Rate vom [Datum] ist noch offen.“"], 1, "Keine Drohung mit Eintrag."),
     frage("Interessent will eine schriftliche Löschgarantie in drei Monaten.", ["Schriftlich geben", "Klar nein; erklären, was FIAON schriftlich gibt: jeden Schritt mit Datum; Prüfmechanismus erklären", "„90 Prozent Erfolgsquote“", "Thema wechseln"], 1, "Ehrlichkeit ist das Verkaufsargument."),
     frage("Restschuldbefreiung vor 20 Monaten, Vermerk noch da, Konto verweigert.", ["Warten", "Löschung nach Art. 17 DSGVO (EuGH C-26/22) und Basiskonto nach ZKG – Ablehnung begründen lassen, BaFin", "Drei Kreditanfragen", "Neu Insolvenz anmelden"], 1, "Sechs Monate – und ein Konto ist ein Rechtsanspruch."),
     frage("Kundin mit zwei überfälligen Raten, schwieriger Start, nie Onboarding. Bester Einstieg?", ["„Zwei Raten offen – wann zahlen Sie?“", "Vorstellen, ehrlich entschuldigen, zuhören, dann zwei Wege: zahlen oder einen Monat aussetzen + Onboarding-Termin", "An das Back-Office geben", "Kündigung nahelegen"], 1, "Reaktivierung ist Rückgewinnung."),

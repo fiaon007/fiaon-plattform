@@ -17,7 +17,7 @@ const de = {
     { tag: "3 · Zweckbindung", titel: "Nur wofür es gedacht ist", text: "Ihre Daten dienen Ihrer Akte. Nicht der Werbung, nicht Partnern, nicht Statistiken mit Ihrem Namen. Anonymisierte Erfahrungen fließen in bessere Schreiben – ohne Personenbezug." },
     { tag: "4 · Zugriff", titel: "Wer darf hineinsehen", text: "Ihr Ansprechpartner und die Mitarbeiter an Ihrer Akte – jeder Zugriff protokolliert. Die Geschäftsführung sieht Akten nur auf Ihren Wunsch oder bei Beschwerden." },
     { tag: "5 · Löschung", titel: "Ihre Daten, Ihr Ende", text: "Nach Vertragsende löschen wir Auskunft und Unterlagen auf Wunsch vollständig. Sie können jederzeit eine Kopie Ihrer Akte anfordern – als Datei, in 30 Tagen." },
-    { tag: "Zahlungen", titel: "SEPA über einen verifizierten Kreditor", text: "Keine Kartendaten bei FIAON. Lastschriften laufen über einen verifizierten SEPA-Kreditor; jede Rate steht im Zahlungskalender Ihres Bereichs." },
+    { tag: "Zahlungen", titel: "Überweisung auf unser Geschäftskonto", text: "Keine Kartendaten bei FIAON, keine gespeicherten Zahlungsdaten: Jede Rate überweisen Sie selbst – Bankverbindung und Verwendungszweck stehen in jeder Zahlungsmail und im Kundenbereich. Alle Raten stehen im Zahlungskalender Ihres Bereichs." },
   ],
   technikPille: "Technik", technikH2a: "Unter der ", technikH2b: "Haube.",
   technik: [
@@ -77,7 +77,7 @@ const en: typeof de = {
     { tag: "3 · Purpose limitation", titel: "Only what it is meant for", text: "Your data serves your file. Not advertising, not partners, not statistics with your name. Anonymised experience flows into better letters — with no personal reference." },
     { tag: "4 · Access", titel: "Who may look inside", text: "Your contact person and the staff working on your file — every access logged. The management sees files only at your request or in the event of a complaint." },
     { tag: "5 · Deletion", titel: "Your data, your ending", text: "After the contract ends we delete report and documents completely on request. You can request a copy of your file at any time — as a file, within 30 days." },
-    { tag: "Payments", titel: "SEPA through a verified creditor", text: "No card data at FIAON. Direct debits run through a verified SEPA creditor; every instalment is shown in the payment calendar of your area." },
+    { tag: "Payments", titel: "Bank transfer to our business account", text: "No card data at FIAON, no stored payment details: you transfer every instalment yourself — bank details and payment reference are in every payment e-mail and in your customer area. All instalments are shown in the payment calendar of your area." },
   ],
   technikPille: "Technology", technikH2a: "Under the ", technikH2b: "bonnet.",
   technik: [

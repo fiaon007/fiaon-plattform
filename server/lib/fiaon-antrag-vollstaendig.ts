@@ -72,7 +72,7 @@ export interface Pflichtfeld {
    * einem Mitarbeiter gesagt, er solle etwas erfragen, das längst dasteht.
    *
    * Fehlt der Eintrag hier, gibt es die Angabe an der Person nicht (etwa
-   * Beschäftigung oder IBAN) — dann bleibt die Bestellung allein maßgeblich.
+   * Beschäftigung) — dann bleibt die Bestellung allein maßgeblich.
    */
   person?: string;
   /** Was ein Mensch am Telefon fragen würde. Steht so in der Karte. */
@@ -81,8 +81,6 @@ export interface Pflichtfeld {
   art: "text" | "ja";
   /**
    * Nur nötig, wenn diese Bedingung zutrifft (SQL-Ausdruck über `a`).
-   * Die IBAN braucht nur, wer per Lastschrift zahlt — genau wie im Formular
-   * (`if (d.billingMethod === "iban" && !d.iban)`).
    */
   nurWenn?: (zeile: Record<string, any>) => boolean;
   nurWennSql?: (a: string) => string;
@@ -131,11 +129,10 @@ export const PFLICHTFELDER: readonly Pflichtfeld[] = [
   // Schritt 6 — Abschluss
   { spalte: "email", person: "primary_email", name: "E-Mail-Adresse", art: "text" },
   { spalte: "salary_receipt_day", name: "Tag des Gehaltseingangs", art: "text" },
-  {
-    spalte: "iban", name: "IBAN", art: "text",
-    nurWenn: (z) => String(z.billing_method ?? "") === "iban",
-    nurWennSql: (a) => `${a}.billing_method = 'iban'`,
-  },
+  // 19.09.2026 (E-194): Die IBAN des Kunden ist KEIN Pflichtfeld mehr. Sie war nur für
+  // die Lastschrift da (billing_method = 'iban' ist der Vorgabewert jedes Antrags) — und
+  // stand so bei JEDEM Kunden als „Es fehlt: IBAN" in der Karte. GoCardless ist beendet,
+  // jede Rate wird überwiesen; niemand soll am Telefon nach einer IBAN fragen.
   { spalte: "consent_agb", name: "Zustimmung zu den AGB", art: "ja", nurKunde: true },
   { spalte: "consent_schufa", name: "SCHUFA-Einwilligung", art: "ja", nurKunde: true },
   { spalte: "consent_contract", name: "Zustimmung zum Vertrag", art: "ja", nurKunde: true },
@@ -175,7 +172,7 @@ function traegt(zeile: Record<string, any>, f: Pflichtfeld): boolean {
  * Welche Pflichtfelder fehlen? Klartext, in Formular-Reihenfolge.
  *
  * Der Rückgabewert wandert unverändert in die Karte: „Es fehlt: Geburtsdatum,
- * IBAN". Deshalb sind es Namen und keine Spaltenbezeichner — ein Agent am
+ * PLZ". Deshalb sind es Namen und keine Spaltenbezeichner — ein Agent am
  * Telefon liest keine `salary_receipt_day`.
  */
 export function fehlendeFelder(zeile: Record<string, any>): string[] {
@@ -228,7 +225,7 @@ export function antragVollstaendigSql(a = "a"): string {
 
 /**
  * Die fehlenden Felder als SQL-Ausdruck — ein Text wie
- * „Geburtsdatum, IBAN" oder `NULL`, wenn nichts fehlt.
+ * „Geburtsdatum, PLZ" oder `NULL`, wenn nichts fehlt.
  *
  * Dieselbe Reihenfolge wie `fehlendeFelder`, damit Liste und Akte denselben Satz
  * zeigen. Gebaut mit `concat_ws`, das NULL-Werte überspringt: Für jedes Feld

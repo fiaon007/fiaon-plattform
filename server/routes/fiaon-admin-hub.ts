@@ -1596,7 +1596,7 @@ router.post("/admin/events/send-real", async (req, res) => {
     if (!realPayload.email) return res.status(400).json({ ok: false, error: "Kunde hat keine E-Mail-Adresse hinterlegt" });
     // ── VOLLSTÄNDIG ODER GAR NICHT (18.09.2026) ─────────────────────────────
     // Dieses Werkzeug baut nur die Felder einer Bestellzeile. Für Ereignisse
-    // mit Termin-, Lastschrift-, Zustimmungs- oder Anmelde-Link (default-Zweig
+    // mit Termin-, Zustimmungs- oder Anmelde-Link (default-Zweig
     // oben) ging die Mail ohne ihren Knopf raus — der Motor ließ ihn still weg.
     // Dieselbe Prüfung wie beim Handversand sagt es jetzt schon in der
     // Vorschau; für solche Mails ist der Weg das Sende-Menü in der Akte, das

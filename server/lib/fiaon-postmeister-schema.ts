@@ -116,10 +116,9 @@ export async function postmeisterSchema(): Promise<void> {
   // ─────────────────────────────────────────────────────────────────────────
   // DIE ABO-SPALTEN — hier NUR abgesichert, angelegt werden sie woanders
   //
-  // Die Lagebestimmung fragt seit dem 02.09. `gc_subscription_ref` ab, damit
-  // niemand gemahnt wird, bei dem eingezogen wird. Diese Spalten gehören zur
-  // Lastschrift (fiaon-lastschrift.ts / fiaon-abo.ts), und dort werden sie
-  // gefüllt. Aber welche Migration beim Start zuerst läuft, ist nicht
+  // Die Lagebestimmung fragte vom 02.09. bis 19.09.2026 `gc_subscription_ref`
+  // ab (Einzugsschutz, E-194: GoCardless beendet). Die Spalten bleiben als
+  // Historie; angelegt werden sie in fiaon-abo.ts. Aber welche Migration beim Start zuerst läuft, ist nicht
   // festgelegt — und fehlt die Spalte, bricht die Abfrage bei JEDER Mail.
   // `ADD COLUMN IF NOT EXISTS` ist folgenlos, wenn sie schon da ist. Ein
   // doppelter Riegel kostet nichts; ein fehlender kostet einen Abend.

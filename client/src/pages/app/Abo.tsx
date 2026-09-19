@@ -100,7 +100,7 @@ export function Abo({ kundeRef, basis, demo, b }: { kundeRef: string; basis: str
         {b.paket.abo && (
           <div className="ap-zeile"><span>Raten</span><b>{b.abo?.bezahlt ?? 0} gezahlt · {b.abo?.offen ?? 0} offen</b></div>
         )}
-        {b.paket.abo && <div className="ap-zeile"><span>Zahlungsweg</span><b>{b.lastschrift.aktiv ? "Bankeinzug" : b.lastschrift.mandat ? "Bankeinzug – Bank bestätigt gerade" : "Überweisung"}</b></div>}
+        {b.paket.abo && <div className="ap-zeile"><span>Zahlungsweg</span><b>Überweisung</b></div>}
         {standSatz() && <div className="ap-zeile"><span>Laufzeit</span><b>{standSatz()}</b></div>}
         <Link href={`${basis}/geld`} className="ap-link" style={{ display: "inline-block", marginTop: 12 }}>Alle Raten und Zahlungsweg →</Link>
       </div>

@@ -519,8 +519,7 @@ const START: { s: string; titel: string; text: string; bereich: string; prio: nu
     text: "schufa_rejected / account_activated / account_suspended teilen sich heute eine Vorlage (Audit 22.08.)." },
   { s: "handy-check-menue", bereich: "pruefen", prio: 1, titel: "Am Handy prüfen: mobiles Menü und das E-Mail-Feld oben im Antrag",
     text: "Nach dem Umbau vom 22.08. — der Browser-Test konnte nicht abgeschlossen werden." },
-  { s: "gocardless-bad", bereich: "konten", prio: 1, titel: "GoCardless Bank Account Data registrieren, Secrets übergeben",
-    text: "Eigenes Portal (bankaccountdata.gocardless.com). Ohne die Secrets gibt es keine Kontoanbindung (PSD2)." },
+  // 19.09.2026 (E-194): „gocardless-bad“ (Bank Account Data registrieren) ist raus — GoCardless ist beendet.
   { s: "crif-b2b", bereich: "partner", prio: 2, titel: "CRIF-B2B anfragen — eine Bonitäts-API für DE/AT/CH", text: "Entscheidung E-015. Antwort an den Entwickler weitergeben." },
   { s: "brevo-sie", bereich: "brevo", prio: 2, titel: "23 Brevo-Vorlagen auf Sie umstellen", text: "Entscheidung E-002. Liste: 01_Plattform/MAKE_BLUEPRINT_AUDIT.md." },
   { s: "dkb-partner", bereich: "partner", prio: 2, titel: "DKB-Partnerschaft (Girokonto-Referral) anstoßen", text: "Ansprechpartner, Konditionen, Tracking-Link." },

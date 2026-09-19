@@ -101,7 +101,7 @@ export async function kundenwegLesen(personId: number | null, ref: string | null
     if (b.last_reminder_at) add(b.last_reminder_at, "mail_raus", `${Number(b.reminder_count || 0) || "Weitere"}. Zahlungserinnerung zur Bestellung ${b.ref} (letzte)`);
     add(b.mahnstopp_am, "system", `Mahnstopp gesetzt für ${b.ref}`);
     add(b.abo_gestoppt_am, "vertrag", `Abo gestoppt (${b.ref})${b.abo_stopp_grund ? `: ${kurz(b.abo_stopp_grund, 80)}` : ""}`);
-    add(b.gc_subscription_start, "zahlung", `Lastschrift-Abo bei GoCardless gestartet (${b.ref}, Status ${b.gc_subscription_status || "—"})`);
+    add(b.gc_subscription_start, "zahlung", `Lastschrift-Abo bei GoCardless gestartet (${b.ref}) — GoCardless ist seit 19.09.2026 beendet, die Raten laufen per Überweisung`);
     add(b.gekuendigt_am, "vertrag", `KÜNDIGUNG EINGEGANGEN (${b.kuendigung_quelle || "—"}) für ${b.ref}${b.kuendigung_grund ? ` — Grund: „${kurz(b.kuendigung_grund, 120)}"` : ""}${b.letzte_rate_nr ? ` — Rate ${b.letzte_rate_nr} bleibt die letzte` : ""}`);
     add(b.kuendigung_zurueckgenommen_am, "vertrag", `Kündigung zurückgenommen (${b.ref})`);
     add(b.vertrag_ende_am, "vertrag", `VERTRAG BEENDET (${b.ref})`);
@@ -120,7 +120,7 @@ export async function kundenwegLesen(personId: number | null, ref: string | null
     add(r.vorab_am, "mail_raus", `Vorab-Info zu Rate ${r.rate_nr} gesendet`);
     add(r.ueberfaellig_seit, "rate", `Rate ${r.rate_nr} überfällig`);
     if (r.letzte_erinnerung_at) add(r.letzte_erinnerung_at, "mail_raus", `${Number(r.erinnerungen || 0) || "Weitere"}. Erinnerung zu Rate ${r.rate_nr} (Mahnstufe ${r.mahnstufe ?? 0}, letzte)`);
-    add(r.lastschrift_am, "zahlung", `Rate ${r.rate_nr}: Lastschrift ${r.lastschrift_status || "angestoßen"}${r.gc_payment_id ? " (GoCardless)" : ""}`);
+    add(r.lastschrift_am, "zahlung", `Rate ${r.rate_nr}: Lastschrift ${r.lastschrift_status || "angestoßen"}${r.gc_payment_id ? " (GoCardless)" : ""} — Historie; seit 19.09.2026 keine Lastschrift mehr, eingezogene Beträge erstattet FIAON`);
     add(r.inkasso_zusage_am, "notiz", `Zusage des Kunden: zahlt Rate ${r.rate_nr} am ${tag(r.inkasso_zusage_am)}`);
     add(r.eskaliert_am, "system", `Rate ${r.rate_nr} an das Forderungsmanagement eskaliert`);
     add(r.bezahlt_am, "zahlung", `RATE ${r.rate_nr} BEZAHLT (${eur(r.betrag_cents)})`);
@@ -169,7 +169,7 @@ export async function kundenwegLesen(personId: number | null, ref: string | null
 
   // ── Mails raus (Mailwerk/Brevo) mit Zustellung ─────────────────────────
   const person = personId ? (await quelle("person", () => sqlPool`
-    SELECT primary_email, primary_phone, created_at, sprache, sprache_notiz, sprache_gesetzt_am, werbung_gesperrt_am, gc_mandate_status,
+    SELECT primary_email, primary_phone, created_at, sprache, sprache_notiz, sprache_gesetzt_am, werbung_gesperrt_am,
            ruhe_seit, wiedereinstieg_am, terminlink_mail_am, startgespraech_mail_am, is_blocked, account_status, assigned_agent_id, betreuung_seit,
            inkasso_ab, inkasso_grund, promised_payment_date, follow_up_date, unreachable_count
       FROM fiaon_persons WHERE id = ${personId} LIMIT 1` as unknown as Promise<any[]>))[0] : null;
@@ -312,7 +312,6 @@ export async function kundenwegLesen(personId: number | null, ref: string | null
   ].join(" · ");
   const kopf = [
     zustaendig ? `ZUSTÄNDIG: ${zustaendig.kundenName || zustaendig.name || "niemand eingetragen"} (${zustaendig.rolle === "inkasso" ? "Forderungsmanagement" : zustaendig.rolle === "onboarding" ? "Onboarding" : "Betreuung"}) — so nennst du ihn dem Kunden.` : null,
-    person?.gc_mandate_status ? `SEPA-Mandat: ${person.gc_mandate_status}.` : null,
     person?.is_blocked ? "Anrufe gesperrt." : null,
     person?.werbung_gesperrt_am ? "WERBESPERRE aktiv." : null,
     `ZAHLEN: ${zahlen}.`,

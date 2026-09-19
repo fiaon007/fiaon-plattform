@@ -2,7 +2,7 @@
 // /app/mehr/konto — KONTOANBINDUNG, Vorstufe (Bauvorlage 3.13, Scheibe 6, 06.09.2026)
 //
 // Heute gibt es NUR den Zustand „nicht verfügbar“: Es existiert kein Anbieter-
-// Zugang (GoCardless Bank Account Data ist bis 01.12. geplant, E-134). Darum
+// Zugang (der geplante Weg über GoCardless entfällt seit 19.09.2026, E-194). Darum
 // KEIN Bankfeld, KEIN Knopf „Zu meiner Bank“ — ein Knopf, der ins Leere
 // führt, ist eine Zusage, die wir nicht halten. Der Bildschirm erklärt in drei
 // Punkten, wie die Anbindung später funktioniert, und bietet als EINE Handlung

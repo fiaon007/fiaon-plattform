@@ -69,7 +69,7 @@ export const LEHRPLAN: LehrplanKapitel[] = [
   { key: "ablauf", nr: 3, titel: "Der Ablauf Tag für Tag", untertitel: "Vom Lead bis zur Auszahlung deiner Provision.", dauerMin: 70, schritte: [
     t("zeitleiste", "Die Zeitleiste: Lead → Kunde → Rate → Provision", 0, "zeitleiste"),
     t("lead-klassen", "Lead-Klassen A, B, C", 150),
-    t("zahlung", "Zahlung: Überweisung, Lastschrift, Kontoabgleich", 150),
+    t("zahlung", "Zahlung: Überweisung, Referenz, Kontoabgleich", 150),
     t("startgespraech", "Das Startgespräch – die Agenda", 180),
     t("raten", "Raten und der Zahlungsmotor", 150),
     t("provision", "Deine Provision: 25 % jeder bezahlten Rate", 150),

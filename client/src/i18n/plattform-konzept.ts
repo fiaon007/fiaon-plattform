@@ -67,7 +67,7 @@ const de = {
     ["Schweiz", "CRIF, Intrum und das Betreibungsregister beim Betreibungsamt. Auskunft nach Art. 25 DSG; Betreibungen bleiben fünf Jahre sichtbar – unbegründete lassen sich entfernen (Art. 8a SchKG)."],
   ] as [string, string][],
   technikPille: "Technik & Sicherheit", technikA: "Gebaut wie eine Bank, ", technikB: "gesprochen wie ein Mensch.", technikLead: "Ihre Auskunft ist das sensibelste Dokument, das es über Sie gibt. So behandeln wir es.",
-  kennzahlen: [{ wert: "EU", label: "Server in der Europäischen Union, DSGVO" }, { wert: "TLS", label: "Verschlüsselte Übertragung, verschlüsselte Ablage" }, { wert: "SEPA", label: "Zahlungen über einen verifizierten Kreditor" }, { wert: "0", label: "Daten an Dritte verkauft – nie" }],
+  kennzahlen: [{ wert: "EU", label: "Server in der Europäischen Union, DSGVO" }, { wert: "TLS", label: "Verschlüsselte Übertragung, verschlüsselte Ablage" }, { wert: "SEPA", label: "Jede Zahlung per Überweisung, keine gespeicherten Zahlungsdaten" }, { wert: "0", label: "Daten an Dritte verkauft – nie" }],
   technik: [
     { tag: "Vollmacht", titel: "Nur mit Ihrer Unterschrift", text: "FIAON beschafft die Auskunft ausschließlich mit Ihrer digitalen Vollmacht – und nur bei den Auskunfteien, die Sie freigeben." },
     { tag: "Freigabe", titel: "Kein Schreiben ohne Sie", text: "Jedes Schreiben sehen Sie vor dem Versand. Sie geben frei, FIAON versendet. Nichts geht raus, was Sie nicht gelesen haben." },
@@ -162,7 +162,7 @@ const en: typeof de = {
     ["Switzerland", "CRIF, Intrum and the debt enforcement register at the enforcement office. Information under Article 25 DSG; enforcement proceedings stay visible for five years – unfounded ones can be removed (Article 8a SchKG)."],
   ],
   technikPille: "Technology & security", technikA: "Built like a bank, ", technikB: "spoken like a human.", technikLead: "Your credit report is the most sensitive document that exists about you. This is how we treat it.",
-  kennzahlen: [{ wert: "EU", label: "Servers in the European Union, GDPR" }, { wert: "TLS", label: "Encrypted transfer, encrypted storage" }, { wert: "SEPA", label: "Payments via a verified creditor" }, { wert: "0", label: "Data sold to third parties – never" }],
+  kennzahlen: [{ wert: "EU", label: "Servers in the European Union, GDPR" }, { wert: "TLS", label: "Encrypted transfer, encrypted storage" }, { wert: "SEPA", label: "Every payment by bank transfer, no stored payment details" }, { wert: "0", label: "Data sold to third parties – never" }],
   technik: [
     { tag: "Power of attorney", titel: "Only with your signature", text: "FIAON obtains the report exclusively with your digital power of attorney – and only from the credit bureaus you approve." },
     { tag: "Approval", titel: "No letter without you", text: "You see every letter before it is sent. You approve, FIAON sends. Nothing goes out that you have not read." },

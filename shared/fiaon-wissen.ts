@@ -45,7 +45,7 @@ const preis = (c: number) => (c / 100).toFixed(2).replace(".", ",") + " €";
 /** Die Abo-Pakete, die heute verkauft werden. */
 function paketZeilen(): string {
   return PAKETE.filter((p) => p.abo && !p.eingestellt)
-    .map((p) => `- ${p.label} (${p.art === "privat" ? "Privatkunden" : "Geschäftskunden"}): ${preis(p.preisCents)} im Monat, zwölf Monatsraten per SEPA-Lastschrift oder Überweisung; Vertrag über zwölf Raten (siehe VERTRAG UND KÜNDIGUNG)`)
+    .map((p) => `- ${p.label} (${p.art === "privat" ? "Privatkunden" : "Geschäftskunden"}): ${preis(p.preisCents)} im Monat, zwölf Monatsraten, jede per Überweisung; Vertrag über zwölf Raten (siehe VERTRAG UND KÜNDIGUNG)`)
     .join("\n");
 }
 
@@ -67,7 +67,7 @@ export function globalWissen(): string {
     : "";
   return `FIAON GLOBAL — DIE US-STRUKTUR FÜR UNTERNEHMEN (seit 17.09.2026 das einzige Angebot für Geschäftskunden)
 Was es ist: FIAON gründet für Unternehmen aus Deutschland, Österreich und der Schweiz eine US-Gesellschaft, bereitet die Steuernummern (EIN, ITIN) vor und reicht sie ein, stellt US-Geschäftsadresse, US-Telefonnummer, Registered Agent und Dokumentenraum und bereitet Konto- und Kartenanträge vollständig vor — mit einem Team vor Ort in den USA und einem festen Ansprechpartner. Für jede Unternehmensart, vom Handwerksbetrieb bis zur Projektentwicklung.
-Vier Pakete, jedes ein EINMALPREIS. Es gibt keine Monatsraten, keine Lastschrift und keine Mindestlaufzeit; bezahlt wird einmal per Überweisung auf Rechnung:
+Vier Pakete, jedes ein EINMALPREIS. Es gibt keine Monatsraten und keine Mindestlaufzeit; bezahlt wird einmal per Überweisung auf Rechnung:
 ${tafeln}
 Der Kapitalrahmen in US-Dollar (bis 18.09.2026 „Planungsgröße“) ist der Rahmen, den der KUNDE anstrebt — an ihm richten sich Dauer und Tiefe der Betreuung aus. Er ist kein Ergebnis und keine Zusage von FIAON, auch beim VIP-Paket („bis zu 1.000.000 $“) nicht; über jeden Rahmen entscheidet das Institut. Dauern sind Erfahrungswerte („in der Regel"), nie Fristen.
 Wer entscheidet: Über Konto, Karte und Rahmen entscheidet allein das jeweilige US-Institut. ${GLOBAL_ROLLEN.de.fiaon} FIAON vermittelt keine Kredite. Nenne keine Banknamen als Zusage, keine Zinssätze, kein „bis zu" und keine Frist mit Zahl.
@@ -119,7 +119,8 @@ Wortregeln: FIAON berät nicht, garantiert nichts und „verbessert“ keinen Sc
 PAKETE UND PREISE (Stand heute, aus dem Katalog)
 ${pakete}
 - Nur die Bonitätsauskunft, ohne Paket: ${SCHUFA_PREIS_EURO.toFixed(2).replace(".", ",")} € einmalig, kein Abo.
-Das Paket lässt sich im Antrag und im Startgespräch ändern. Zahlung: erste Rate per Überweisung (Zahlungsdaten mit QR-Code im Kundenbereich), weitere Raten per SEPA-Lastschrift.
+Das Paket lässt sich im Antrag und im Startgespräch ändern. Zahlung: Jede Rate per Überweisung auf das Geschäftskonto der FIAON LTD, die erste wie alle weiteren (Zahlungsdaten mit QR-Code im Kundenbereich; Bankverbindung und Verwendungszweck in jeder Zahlungsmail).
+Zahlweg — die feste Antwort: „Kann ich per Lastschrift zahlen?“ Nein. FIAON bietet keine Lastschrift und keine Zahlung per Bank-App an und bucht nichts vom Konto des Kunden ab; jede Rate überweist der Kunde selbst, mit seinem Verwendungszweck. Fragt jemand nach einer früheren Abbuchung, verweise an die eigene Ansprechpartnerin (Kundenbereich unter Hilfe) oder den Support — sage selbst keinen Betrag und keinen Termin zu.
 Für Unternehmen gibt es keine Monatspakete mehr, sondern FIAON Global (nächster Abschnitt).
 
 ${globalWissen()}
@@ -166,7 +167,7 @@ KOSTENLOSE WERKZEUGE UND RATGEBER
 - fiaon.com/demo/kundenbereich: Präsentation des Kundenbereichs (Platzhalterdaten).
 
 UNTERNEHMEN, KONTAKT, SICHERHEIT
-${SUPPORT.firma}, ${SUPPORT.adresse} (${SUPPORT.register}). Kunden in Deutschland, Österreich und der Schweiz. Support: Telefon ${SUPPORT.telefon}, E-Mail ${SUPPORT.email}, Kontaktseite fiaon.com/kontakt (dort auch „Dringend melden“ direkt an die Geschäftsführung oder die eigene Ansprechpartnerin). Daten liegen verschlüsselt auf Servern in der EU (DSGVO). Zahlungen per SEPA über einen verifizierten Kreditor. Abo kündigen: im Kundenbereich unter Abo & Zahlungen. Karriere: fiaon.com/karriere (fest oder frei, remote in DACH). Investoren: fiaon.com/investoren. Presse: fiaon.com/presse.
+${SUPPORT.firma}, ${SUPPORT.adresse} (${SUPPORT.register}). Kunden in Deutschland, Österreich und der Schweiz. Support: Telefon ${SUPPORT.telefon}, E-Mail ${SUPPORT.email}, Kontaktseite fiaon.com/kontakt (dort auch „Dringend melden“ direkt an die Geschäftsführung oder die eigene Ansprechpartnerin). Daten liegen verschlüsselt auf Servern in der EU (DSGVO). Zahlungen ausschließlich per Überweisung auf das Geschäftskonto der FIAON LTD. Abo kündigen: im Kundenbereich unter Abo & Zahlungen. Karriere: fiaon.com/karriere (fest oder frei, remote in DACH). Investoren: fiaon.com/investoren. Presse: fiaon.com/presse.
 
 
 VERTRAG UND KÜNDIGUNG
@@ -175,7 +176,7 @@ VERTRAG UND KÜNDIGUNG
 - Eine unbezahlte Bestellung (noch keine Rate eingegangen) wird auf Wunsch einfach storniert — es bleibt nichts offen.
 - Widerruf: 14 Tage ab Vertragsschluss. Bereits gezahlte Raten werden grundsätzlich nicht erstattet; über Ausnahmen entscheidet allein die Geschäftsführung.
 - Bleibt eine offene Rate trotz Aufforderung unbezahlt, übergibt FIAON die Forderung an das für den Wohnort zuständige Gericht (Deutschland: Amtsgericht, gerichtliches Mahnverfahren; Österreich: Bezirksgericht; Schweiz: Betreibungsamt). Die Kosten trägt dann der Kunde.
-- Bankdaten, QR-Code und Verwendungszweck stehen ausschließlich auf der Zahlungsseite fiaon.com/zahlung/<Referenz>. Frühere Bankverbindungen (Wise, Belgien) gelten nicht mehr.
+- Bankdaten, QR-Code und Verwendungszweck stehen in jeder Zahlungsmail, auf der Zahlungsseite fiaon.com/zahlung/<Referenz> und im Kundenbereich unter „Abo & Zahlungen“ — nenne sie nie selbst, verweise dorthin. Frühere Bankverbindungen (Wise, Belgien) gelten nicht mehr.
 - Kündigung formlos: im Kundenbereich unter „Abo & Zahlungen" oder per E-Mail an welcome@fiaon.com.
 
 KONTO UND KARTE — REIHENFOLGE UND BEDINGUNGEN

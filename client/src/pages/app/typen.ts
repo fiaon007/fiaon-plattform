@@ -16,7 +16,6 @@ export interface Bereich {
   fahrplan: Etappe[];
   naechsterSchritt: { key: string; titel: string; text: string; href: string | null } | null;
   ansprechpartner: { name: string; rolle: string | null; avatar?: string | null } | null;
-  lastschrift: { mandat: string | null; status: string | null; aktiv: boolean };
   kontoVerbunden: boolean;
   karte?: { bereit: boolean; esFehlt?: string[]; verschickt?: boolean; tore: { titel: string; erfuellt: boolean; warum: string | null }[] } | null;
   // Schritt 10 des Weges (06.09.2026): die gemeldete oder vom Kooperations-

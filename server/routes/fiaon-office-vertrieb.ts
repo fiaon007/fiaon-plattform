@@ -11,7 +11,7 @@
 //                                              Termin-Zeiten (klickbare Slots)
 //   GET  /agent/vertrieb/bestand             → E-050 (§19): Portfolio der
 //                                              MANDATIERTEN Kunden — je Mandat
-//                                              Karte + Raten-Stand + SEPA +
+//                                              Karte + Raten-Stand +
 //                                              Monatsrate (für /agent/bestand)
 //
 // ── §16a: „Aktive Kunden“ zählen NUR übernommene Mandate ───────────────────
@@ -151,8 +151,7 @@ export type SituationsArt = "rate_ueberfaellig" | "zusage_gebrochen" | "rueckruf
   | "termin_heute" | "alles_gut";
 export interface KundenSituation {
   art: SituationsArt;
-  rate: { id: number; nr: number; betragCents: number; faelligAm: string; tage: number; referenz: string | null;
-    lastschriftStatus: string | null; lastschriftGrund: string | null; sepaEingerichtet: boolean } | null;
+  rate: { id: number; nr: number; betragCents: number; faelligAm: string; tage: number; referenz: string | null } | null;
   zusageAm: string | null;
   rueckrufAm: string | null;
   /** Nächster gebuchter Termin in der Zukunft. */
@@ -174,9 +173,7 @@ export async function kundenSituation(personId: number): Promise<KundenSituation
     SELECT p.priority_tier, p.promised_payment_date,
       (SELECT row_to_json(x) FROM (
          SELECT r.id, r.rate_nr, r.betrag_cents, r.faellig_am, r.zahlungsreferenz,
-                ((NOW() AT TIME ZONE 'Europe/Berlin')::date - r.faellig_am)::int AS tage,
-                -- E-047/§18 Nr. 9: der GRUND an der Rate (SEPA fehlt / Rücklastschrift / offen)
-                r.lastschrift_status, r.lastschrift_grund, p.gc_mandate_status
+                ((NOW() AT TIME ZONE 'Europe/Berlin')::date - r.faellig_am)::int AS tage
          FROM fiaon_abo_raten r JOIN fiaon_applications a ON a.ref = r.ref
          WHERE a.person_id = p.id AND a.merged_into IS NULL
            AND r.status <> 'bezahlt' AND r.storniert_am IS NULL
@@ -247,9 +244,6 @@ export async function kundenSituation(personId: number): Promise<KundenSituation
     id: Number(z.rate.id), nr: Number(z.rate.rate_nr), betragCents: Number(z.rate.betrag_cents || 0),
     faelligAm: String(z.rate.faellig_am), tage: Number(z.rate.tage || 0),
     referenz: z.rate.zahlungsreferenz ?? null,
-    lastschriftStatus: z.rate.lastschrift_status ?? null,
-    lastschriftGrund: z.rate.lastschrift_grund ?? null,
-    sepaEingerichtet: String(z.rate.gc_mandate_status || "") === "active",
   } : null;
   const zusageGebrochen = z.promised_payment_date && String(z.promised_payment_date).slice(0, 10) < heute;
   const art: SituationsArt =
@@ -976,8 +970,8 @@ router.get("/agent/vertrieb/frei", requireAgent, async (req: AgentRequest, res: 
 // IS NOT NULL, §16a) — je Mandat die bekannte Karte (KARTE_SQL/karte, keine
 // zweite Kartenform) plus Raten-Stand (bezahlt/offen/überfällig, dieselben
 // Regeln wie kundenSituation: status <> 'bezahlt', storniert_am IS NULL,
-// Stichtag Berlin-heute), SEPA-Status (gc_mandate_status = 'active' wie in
-// kundenSituation) und Monatsrate (Ratenbetrag, sonst amount_due der Karte).
+// Stichtag Berlin-heute) und Monatsrate (Ratenbetrag, sonst amount_due der Karte).
+// Der SEPA-Status ist seit 19.09.2026 weg — GoCardless ist beendet (E-194).
 // ═══════════════════════════════════════════════════════════════════════════
 router.get("/agent/vertrieb/bestand", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
@@ -991,13 +985,9 @@ router.get("/agent/vertrieb/bestand", requireAgent, async (req: AgentRequest, re
             'offen',        COUNT(*) FILTER (WHERE r.status <> 'bezahlt' AND r.faellig_am >= ${HEUTE}),
             'ueberfaellig', COUNT(*) FILTER (WHERE r.status <> 'bezahlt' AND r.faellig_am < ${HEUTE}),
             'ueberfaelligSeit', MIN(r.faellig_am) FILTER (WHERE r.status <> 'bezahlt' AND r.faellig_am < ${HEUTE}),
-            'ruecklastschrift', COALESCE(BOOL_OR(r.lastschrift_status = 'fehlgeschlagen' AND r.status <> 'bezahlt'), FALSE),
             'rateCents',    MAX(r.betrag_cents)
           ) FROM fiaon_abo_raten r JOIN fiaon_applications ar ON ar.ref = r.ref
           WHERE ar.person_id = p.id AND ar.merged_into IS NULL AND r.storniert_am IS NULL) AS raten_stand,
-         -- Vorher las die Unterabfrage gc_mandate_status aus fiaon_applications –
-         -- die Spalte lebt an der PERSON (Befund 24.08., 500er im Live-Betrieb).
-         (p.gc_mandate_status = 'active') AS sepa_aktiv,
          -- P17 (28.08.2026): Der Bestand wird nach Bearbeitungsstand filterbar —
          -- dafür braucht jede Karte zwei Antworten, die bisher fehlten.
          EXISTS (SELECT 1 FROM fiaon_applications ab WHERE ab.person_id = p.id
@@ -1025,9 +1015,7 @@ router.get("/agent/vertrieb/bestand", requireAgent, async (req: AgentRequest, re
           offen: Number(s.offen || 0),
           ueberfaellig: Number(s.ueberfaellig || 0),
           ueberfaelligSeitTagen: tage(s.ueberfaelligSeit ?? null),
-          ruecklastschrift: !!s.ruecklastschrift,
         },
-        sepaAktiv: !!r.sepa_aktiv,
         bezahlt: !!r.hat_bezahlt,
         onboardingErledigt: !!r.onboarding_erledigt,
         // Monatsrate: der echte Ratenbetrag; solange keine Raten existieren,

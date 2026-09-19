@@ -60,7 +60,8 @@ interface Fall {
   // 24.08.2026: Der Stand der Rate steht in /inkasso/liste — die gemeinsame
   // Akte (RatenBlock) zeigt ihn je Rate an, deshalb hier im Typ nachgetragen.
   status?: string | null;
-  lastschrift_status?: string | null; lastschrift_grund?: string | null; lastschrift_am?: string | null; gc_mandate_status?: string | null;
+  // 19.09.2026 (E-194): Die Einzugsfelder liefert /inkasso/liste nicht mehr —
+  // FIAON zieht keine Raten mehr ein, jede Rate kommt per Überweisung.
 }
 interface Mensch {
   personId: number | null; name: string; email: string | null; phone: string | null; phoneCountryCode: string | null;
@@ -73,15 +74,6 @@ type Frist = "ueberfaellig" | "heute" | "woche" | "alle" | "zusagen";
 const eur = (c: unknown) => `${(Number(c ?? 0) / 100).toFixed(2).replace(".", ",")} €`;
 const datum = (v: string | null | undefined) => v ? new Date(v).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit", timeZone: "Europe/Berlin" }) : "—";
 const STUFE: Record<number, [string, string]> = { 0: ["noch nicht gemahnt", "#9ca3af"], 1: ["Mahnstufe 1", "#93c5fd"], 2: ["Mahnstufe 2", "#93c5fd"], 3: ["Mahnstufe 3", "#fde68a"], 4: ["Mahnstufe 4", "#fde68a"], 5: ["Mahnstufe 5 — Versand beendet", "#fca5a5"] };
-function mandatText(status: unknown): string | null {
-  const s = String(status ?? ""); if (!s) return null;
-  if (s === "active") return "Lastschrift aktiv — die nächste Rate wird automatisch eingezogen";
-  if (s === "pending_submission" || s === "submitted") return "Lastschrift eingerichtet, Mandat wird noch bestätigt";
-  if (s === "cancelled") return "Lastschrift-Mandat gekündigt — kein automatischer Einzug mehr";
-  if (s === "failed") return "Lastschrift-Mandat fehlgeschlagen — Bank hat abgelehnt";
-  if (s === "expired") return "Lastschrift-Mandat abgelaufen";
-  return `Lastschrift: ${s}`;
-}
 
 // 24.08.2026 (Justin, Auftrag 2): VORHER stand hier nur die Hülle. NACHHER
 // liegt ein ToastAnbieter darin — die gemeinsame Akte meldet über Toasts
@@ -110,9 +102,6 @@ function ratenFelder(m: Mensch): Partial<Kunde> {
       id: Number(x.rate_id), rateNr: Number(x.rate_nr),
       betragCents: Number(x.betrag_cents || 0), faelligAm: x.faellig_am ?? null,
       status: String(x.status || "offen"),
-      lastschriftStatus: x.lastschrift_status ?? null,
-      lastschriftGrund: x.lastschrift_grund ?? null,
-      sepaEingerichtet: String(x.gc_mandate_status || "") === "active",
     })),
   };
 }
@@ -326,10 +315,10 @@ function CollectionsInnen() {
                   {(f.anruf_pflicht || f.zusage_gebrochen) && <p className={`co-band ${f.anruf_pflicht ? "rot" : "gelb"}`}>{f.anruf_pflicht ? "Anruf-Pflicht — der automatische Versand ist zu Ende" : `Zusage gebrochen — zugesagt war der ${datum(f.inkasso_zusage_am)}`}</p>}
                   {/* P16: Zusage offen — der Kunde hat ein Datum genannt, das noch vor uns liegt. */}
                   {f.zusage_offen && !f.zusage_gebrochen && <p className="co-band gut">{`Zusage — zahlt am ${datum(f.inkasso_zusage_am)}, Zahlung ausstehend`}</p>}
-                  {f.lastschrift_status === "fehlgeschlagen" && <p className="co-band rot">Lastschrift geplatzt{f.lastschrift_am ? ` am ${datum(f.lastschrift_am)}` : ""}{f.lastschrift_grund ? ` — ${f.lastschrift_grund}` : ""}</p>}
-                  {f.lastschrift_status !== "fehlgeschlagen" && mandatText(f.gc_mandate_status) && <p className={`co-band ${f.gc_mandate_status === "active" ? "gut" : "gelb"}`}>{mandatText(f.gc_mandate_status)}</p>}
-                  {/* E-047/§18 Nr. 9: VORHER fehlte der Fall „gar kein Mandat“ (mandatText → null, kein Band). */}
-                  {f.lastschrift_status !== "fehlgeschlagen" && !f.gc_mandate_status && <p className="co-band gelb">Kein SEPA eingerichtet – bitte den Kunden im Gespräch, die Lastschrift im Kundenbereich einzurichten.</p>}
+                  {/* 19.09.2026 (E-194): Die drei Einzugs-Bänder (Abbuchung zurückgekommen · Stand des
+                      Einzugsauftrags · „kein Einzug eingerichtet — bitte einrichten lassen“) sind entfernt.
+                      FIAON zieht keine Raten mehr ein; jede Rate zahlt der Kunde per Überweisung, die
+                      Daten stehen in seiner Zahlungsmail und im Kundenbereich (so auch in der Akte). */}
                   {m.zweitAbo && <p className="co-band gelb">Zweites Abo — {m.bestellungen} Bestellungen laufen parallel. Vor dem Mahnen klären.</p>}
                   <div className="co-karte-kopf">
                     <div><span className="name">{m.name}</span><span className="unter">{m.anzahl === 1 ? `Rate ${f.rate_nr} von 12 · ${f.paket || "—"} · ${f.raten_bezahlt} bezahlt` : `${m.anzahl} offene Raten · ${f.paket || "—"} · ${f.raten_bezahlt} bezahlt`}</span></div>

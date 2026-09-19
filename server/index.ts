@@ -18,8 +18,9 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 app.set("trust proxy", 1);
 
 
-// `rawBody` für Webhook-Signaturen (GoCardless): Die Signatur gilt über die Bytes,
-// wie sie ankamen — ein neu serialisiertes JSON wäre ein anderer Text.
+// `rawBody` für Webhook-Signaturen: Eine Signatur gilt über die Bytes, wie sie ankamen —
+// ein neu serialisiertes JSON wäre ein anderer Text. (Eingebaut für GoCardless, das seit
+// 19.09.2026 beendet ist, E-194; bleibt für künftige Signaturprüfungen stehen.)
 app.use(express.json({ limit: "50mb", verify: (req: any, _res, buf) => { req.rawBody = buf.toString("utf8"); } }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" })); // CloudMailin compatibility
 app.use(cookieParser());

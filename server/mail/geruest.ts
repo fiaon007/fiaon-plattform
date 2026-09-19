@@ -55,7 +55,7 @@ export interface MailBaustein {
   absaetze: string[];
   /** Der eine Knopf. Fehlt er, ist es eine reine Mitteilung. */
   knopf?: { text: string; url: string };
-  /** Zweiter, leiserer Knopf unter dem ersten (02.09.2026: „QR-Code & Bankdaten" neben „Sofort per Bank-App"). */
+  /** Zweiter, leiserer Knopf unter dem ersten. */
   knopf2?: { text: string; url: string };
   /** Optionales Bild über dem Knopf — bei Zahlungsmails der GiroCode (02.09.2026). */
   bild?: { url: string; alt: string; breite?: number; unterschrift?: string };

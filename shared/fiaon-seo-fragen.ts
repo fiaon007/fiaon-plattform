@@ -33,7 +33,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Wie lange läuft ein Paket?",
-      "a": "Zwölf monatliche Raten per SEPA-Lastschrift. Nach der zwölften Rate fragen wir Sie, ob Sie bleiben möchten – keine stille Verlängerung."
+      "a": "Zwölf monatliche Raten per Überweisung. Nach der zwölften Rate fragen wir Sie, ob Sie bleiben möchten – keine stille Verlängerung."
     },
     {
       "f": "Wo liegen meine Daten?",
@@ -59,7 +59,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Was kostet FIAON?",
-      "a": "Pakete ab 7,99 € im Monat, zwölf Raten per SEPA-Lastschrift, danach entscheiden Sie, ob Sie bleiben. Nur die Auskunft? 74 € einmalig."
+      "a": "Pakete ab 7,99 € im Monat, zwölf Raten per Überweisung, danach entscheiden Sie, ob Sie bleiben. Nur die Auskunft? 74 € einmalig."
     },
     {
       "f": "Wo liegen meine Daten?",
@@ -85,7 +85,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "What does FIAON cost?",
-      "a": "Plans from €7.99 a month, twelve instalments by SEPA direct debit, then you decide whether to stay. Just the report? €74 one-off."
+      "a": "Plans from €7.99 a month, twelve instalments by bank transfer, then you decide whether to stay. Just the report? €74 one-off."
     },
     {
       "f": "Where is my data held?",
@@ -107,7 +107,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Was kostet es – und wie lange bin ich gebunden?",
-      "a": "Pakete ab 7,99 € im Monat, zwölf Raten per Lastschrift. Nach der zwölften fragen wir, ob Sie bleiben. Nur die Auskunft: 74,00 € einmalig."
+      "a": "Pakete ab 7,99 € im Monat, zwölf Raten per Überweisung. Nach der zwölften fragen wir, ob Sie bleiben. Nur die Auskunft: 74,00 € einmalig."
     },
     {
       "f": "Kann ich das Paket später ändern?",
@@ -141,7 +141,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "What does it cost — and how long am I tied in?",
-      "a": "Plans from €7.99 a month, twelve instalments by direct debit. After the twelfth we ask whether you want to stay. Just the report: €74.00 one-off."
+      "a": "Plans from €7.99 a month, twelve instalments by bank transfer. After the twelfth we ask whether you want to stay. Just the report: €74.00 one-off."
     },
     {
       "f": "Can I change the plan later?",
@@ -307,7 +307,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Wie wird bezahlt?",
-      "a": "Erste Rate per Überweisung (Zahlungsdaten mit QR-Code im Kundenbereich), danach SEPA-Lastschrift über einen verifizierten Kreditor, jeweils zum Monatsanfang. Keine Kreditkarte nötig, keine Vorkasse für Leistungen, die noch nicht erbracht sind."
+      "a": "Jede Rate per Überweisung – die erste wie alle weiteren. Die Zahlungsdaten mit QR-Code stehen im Kundenbereich, Bankverbindung und Verwendungszweck zusätzlich in jeder Zahlungsmail. Keine Kreditkarte nötig, keine Vorkasse für Leistungen, die noch nicht erbracht sind."
     },
     {
       "f": "Kann ich das Paket wechseln?",
@@ -333,7 +333,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "How do I pay?",
-      "a": "First instalment by bank transfer (payment details with a QR code in your customer area), then SEPA direct debit through a verified creditor at the start of each month. No credit card needed, no payment in advance for services not yet delivered."
+      "a": "Every instalment by bank transfer — the first and all further ones. The payment details with a QR code are in your customer area, and bank details and payment reference are also in every payment e-mail. No credit card needed, no payment in advance for services not yet delivered."
     },
     {
       "f": "Can I change plans?",
@@ -641,7 +641,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Wo sitzt das Unternehmen?",
-      "a": "FIAON LTD, London (Companies House No. 17318250). Die Kunden sitzen in Deutschland, Österreich und der Schweiz; die Plattform läuft auf EU-Servern (Frankfurt), die Zahlungen laufen per SEPA über einen verifizierten Kreditor."
+      "a": "FIAON LTD, London (Companies House No. 17318250). Die Kunden sitzen in Deutschland, Österreich und der Schweiz; die Plattform läuft auf EU-Servern (Frankfurt), die Zahlungen laufen per Überweisung auf das Geschäftskonto der FIAON LTD."
     },
     {
       "f": "Was bekomme ich im Datenraum?",
@@ -853,15 +853,15 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Wie laufen die weiteren Raten?",
-      "a": "Per SEPA-Lastschrift über einen verifizierten Kreditor, jeweils zum Monatsanfang. Sie erteilen das Mandat einmal im Kundenbereich. Zwei Tage vor jeder Abbuchung erinnert der Zahlungskalender."
+      "a": "Genauso wie die erste: Jede Rate zahlen Sie per Überweisung, FIAON bucht nichts von Ihrem Konto ab. Bankverbindung und Verwendungszweck stehen in jeder Zahlungsmail und im Kundenbereich unter Abo & Zahlungen. Zwei Tage vor jeder Fälligkeit erinnert der Zahlungskalender."
     },
     {
       "f": "Meine Zahlung ist nicht angekommen – was tun?",
       "a": "Überweisungen brauchen ein bis zwei Bankarbeitstage. Prüfen Sie Verwendungszweck (Ihre Referenz) und Betrag. Ist die Zahlung nach drei Werktagen nicht zugeordnet, melden Sie sich mit Datum und Betrag beim Support – wir suchen sie im Bankbuch."
     },
     {
-      "f": "Was passiert, wenn eine Rate nicht abgebucht werden kann?",
-      "a": "Sie bekommen eine Nachricht mit einem neuen Termin; es entstehen keine Mahngebühren bei FIAON. Melden Sie sich vor dem Termin, wenn es eng wird – Ihre Ansprechpartnerin kann eine Rate verschieben."
+      "f": "Was passiert, wenn ich eine Rate nicht pünktlich zahlen kann?",
+      "a": "Sie bekommen eine Erinnerung mit den Zahlungsdaten; es entstehen keine Mahngebühren bei FIAON. Melden Sie sich vor der Fälligkeit, wenn es eng wird – Ihre Ansprechpartnerin kann eine Rate verschieben."
     },
     {
       "f": "Bekomme ich eine Rechnung?",
@@ -999,15 +999,15 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "How do the further instalments work?",
-      "a": "By SEPA direct debit through a verified creditor, at the start of each month. You grant the mandate once in the customer area. Two days before each debit the payment calendar reminds you."
+      "a": "Just like the first: you pay every instalment by bank transfer, and FIAON never debits your account. Bank details and payment reference are in every payment e-mail and in the customer area under Subscription & payments. Two days before each due date the payment calendar reminds you."
     },
     {
       "f": "My payment has not arrived — what should I do?",
       "a": "Bank transfers take one to two banking days. Check the reference (your reference) and the amount. If the payment has not been allocated after three working days, contact support with date and amount — we look for it in the bank ledger."
     },
     {
-      "f": "What happens if an instalment cannot be collected?",
-      "a": "You get a message with a new date; no reminder fees arise at FIAON. Get in touch before the date if money is tight — your contact person can move an instalment."
+      "f": "What happens if I cannot pay an instalment on time?",
+      "a": "You get a reminder with the payment details; no reminder fees arise at FIAON. Get in touch before the due date if money is tight — your contact person can move an instalment."
     },
     {
       "f": "Do I get an invoice?",
@@ -2349,7 +2349,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Wie sind die Daten geschützt?",
-      "a": "Verschlüsselte Übertragung (TLS), verschlüsselte Speicherung, Zugriff nur für den Ansprechpartner, der Ihre Akte führt, und die Betreiber. Hochgeladene Unterlagen werden beim Hochladen geprüft. Zahlungen laufen per SEPA über einen verifizierten Kreditor – FIAON speichert keine Kartendaten."
+      "a": "Verschlüsselte Übertragung (TLS), verschlüsselte Speicherung, Zugriff nur für den Ansprechpartner, der Ihre Akte führt, und die Betreiber. Hochgeladene Unterlagen werden beim Hochladen geprüft. Zahlungen laufen per Überweisung auf das Geschäftskonto der FIAON LTD – FIAON speichert keine Kartendaten."
     },
     {
       "f": "Was bedeutet der grüne Punkt oben?",
@@ -2371,7 +2371,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "How is the data protected?",
-      "a": "Encrypted transfer (TLS), encrypted storage, access only for the contact who manages your file and the operators. Uploaded documents are checked on upload. Payments run via SEPA through a verified creditor – FIAON stores no card details."
+      "a": "Encrypted transfer (TLS), encrypted storage, access only for the contact who manages your file and the operators. Uploaded documents are checked on upload. Payments are made by bank transfer to the business account of FIAON LTD – FIAON stores no card details."
     },
     {
       "f": "What does the green dot at the top mean?",
@@ -2441,7 +2441,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Wie wird die Vergütung geregelt?",
-      "a": "Je Abschluss, auf Wunsch je eingezogener Rate. Die Regel steht im Vertrag, jede Abrechnung ist in der Plattform nachvollziehbar."
+      "a": "Je Abschluss, auf Wunsch je bezahlter Rate. Die Regel steht im Vertrag, jede Abrechnung ist in der Plattform nachvollziehbar."
     }
   ],
   "/en/partners": [
@@ -2455,7 +2455,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "How is remuneration regulated?",
-      "a": "Per deal, on request per collected instalment. The rule is in the contract, every statement is traceable in the platform."
+      "a": "Per deal, on request per paid instalment. The rule is in the contract, every statement is traceable in the platform."
     }
   ],
   "/presse": [

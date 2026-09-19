@@ -74,9 +74,9 @@
 //     Situationstexte (Rechnung geht nach Antragsabschluss IMMER automatisch
 //     raus) · Leitfäden als LEGENDE unten (alle vier, nichts vorausgeklappt)
 //     statt Seitenkasten · Trenner „Deine nächsten Kunden“ mit Schimmern und
-//     mehr Luft zwischen Fokus und den nächsten fünf · SEPA-Grund an jeder
-//     offenen Rate (kein SEPA / Rücklastschrift / offen) + Hinweis „Admin
-//     bestätigt von Hand“.
+//     mehr Luft zwischen Fokus und den nächsten fünf · Hinweis „Admin
+//     bestätigt von Hand“ an jeder offenen Rate. (Der Einzugs-Grund, der
+//     daneben stand, ist seit 19.09.2026 weg — E-194, siehe unten.)
 //   · Aktive Kunden (§16a): VORHER alle bezahlten/zugewiesenen Kunden der
 //     Liste – NACHHER zählen NUR übernommene Mandate
 //     (fiaon_persons.mandat_seit, gesetzt beim Buchen von „Mandat
@@ -100,8 +100,9 @@
 //     cubic-bezier(.2,.8,.2,1) mit leichter Tiefe, kleine Karten rücken per
 //     FLIP nach (useFlip), Liste füllt sich still über GET /agent/vertrieb/
 //     arbeitsliste; prefers-reduced-motion blendet nur.
-// Regel (Justin): Die erste Zahlung ist immer eine Überweisung – nirgends
-// Lastschrift. Liste: GET /agent/kunden/liste (+ filter=bezahlt für Aktive).
+// Regel (Justin): Jede Zahlung ist eine Überweisung – die erste wie jede
+// Rate (seit 19.09.2026, E-194: FIAON zieht nichts mehr ein).
+// Liste: GET /agent/kunden/liste (+ filter=bezahlt für Aktive).
 // ═══════════════════════════════════════════════════════════════════════════
 import { kurzFenster } from "@shared/fiaon-erreichbarkeit";
 import { createPortal } from "react-dom";
@@ -197,8 +198,7 @@ export interface Kunde {
   rateAnzahl?: number;
   rateSummeCents?: number;
   /** E-045: die überfälligen Raten selbst (aus /inkasso/liste) – für die zwei Ausgänge in der Akte. */
-  rateListe?: { id: number; rateNr: number; betragCents: number; faelligAm: string | null; status: string;
-    lastschriftStatus?: string | null; lastschriftGrund?: string | null; sepaEingerichtet?: boolean }[];
+  rateListe?: { id: number; rateNr: number; betragCents: number; faelligAm: string | null; status: string }[];
   // ── E-044/§16a: vom Vertriebs-Router geliefert ──
   mandatSeit?: string | null;
   vollstaendig?: boolean;
@@ -318,14 +318,13 @@ function rueckrufFaellig(k: Kunde): boolean {
   const z = relativ(k.zusagedatum);
   return !!z?.dringend;
 }
-/** E-047/§18 Nr. 9: Der GRUND an einer offenen Rate — eine Formulierung für
- *  Akte, Collections-Sicht und Raten-Gruppe. Erste Rechnung + SCHUFA zahlt der
- *  Kunde aktiv per Überweisung; die Folgeraten laufen per Lastschrift. */
-function sepaGrund(r: { lastschriftStatus?: string | null; lastschriftGrund?: string | null; sepaEingerichtet?: boolean }): { text: string; ton: "rot" | "gelb" | "still" } {
-  if (r.lastschriftStatus === "fehlgeschlagen") return { text: `Rücklastschrift${r.lastschriftGrund ? ` – ${r.lastschriftGrund}` : " – der Einzug kam zurück"}`, ton: "rot" };
-  if (!r.sepaEingerichtet) return { text: "Kein SEPA eingerichtet – bitte den Kunden im Gespräch, die Lastschrift im Kundenbereich einzurichten", ton: "gelb" };
-  return { text: "offen – Zahlung noch nicht bestätigt", ton: "still" };
-}
+// ── 19.09.2026 (E-194): KEIN EINZUGS-GRUND MEHR AN DER RATE ────────────────
+// Hier stand eine Funktion, die jeder offenen Rate einen Grund gab: Abbuchung
+// zurückgekommen · kein Einzug eingerichtet (mit der Bitte an den Mitarbeiter,
+// den Kunden einen Einzug einrichten zu lassen) · offen. FIAON zieht keine
+// Raten mehr ein — jede Rate zahlt der Kunde per Überweisung; Bankverbindung
+// und Verwendungszweck stehen in seiner Zahlungsmail und im Kundenbereich.
+// Der Server liefert die Felder nicht mehr; die Funktion ist ersatzlos weg.
 
 async function inZwischenablage(text: string): Promise<boolean> {
   try { await navigator.clipboard.writeText(text); return true; } catch { /* Rückfall */ }
@@ -368,7 +367,7 @@ const REAKTIVIERUNG = {
     { titel: "Vorstellung und Entschuldigung", text: "Du rufst an, um dich vorzustellen – nicht, um Geld einzutreiben. Der Kunde hatte einen schwierigen Start.", satz: "Guten Tag, mein Name ist … von FIAON – ich rufe an, um mich vorzustellen. Ich weiß, Sie hatten einen echt schwierigen Start bei uns, und dafür möchte ich mich entschuldigen." },
     { titel: "Zuhören", text: "Was ist passiert? Nicht unterbrechen, nichts rechtfertigen. Der Grund entscheidet über den Weg.", satz: "Erzählen Sie mir kurz, wo es gehakt hat – ich möchte verstehen, was bei Ihnen los war." },
     { titel: "Den Wert wieder aufbauen", text: "Was FIAON für sein Ziel schon getan hat und noch tut – Auskunft, Schreiben, Konto, Karte.", satz: "Ihr Ziel steht ja weiter: … Genau daran arbeiten wir – und Ihr Bereich zeigt Ihnen jeden Schritt." },
-    { titel: "Zwei Wege anbieten", text: "Weg 1: Die offene Rate jetzt per Überweisung begleichen – dann läuft alles weiter. Weg 2: Einen Monat aussetzen und ein Onboarding-Gespräch buchen. Nie Lastschrift anbieten.", satz: "Ich sehe zwei Wege für Sie: Sie begleichen die offene Rate per Überweisung, dann läuft alles nahtlos weiter – oder wir setzen einen Monat aus und starten mit einem gemeinsamen Gespräch neu. Was passt besser?" },
+    { titel: "Zwei Wege anbieten", text: "Weg 1: Die offene Rate jetzt per Überweisung begleichen – dann läuft alles weiter. Weg 2: Einen Monat aussetzen und ein Onboarding-Gespräch buchen.", satz: "Ich sehe zwei Wege für Sie: Sie begleichen die offene Rate per Überweisung, dann läuft alles nahtlos weiter – oder wir setzen einen Monat aus und starten mit einem gemeinsamen Gespräch neu. Was passt besser?" },
     { titel: "Ergebnis festhalten", text: "Ausgang 1: Kunde zahlt → dein Reaktivierungsbonus (50 % der Rate). Ausgang 2: 1 Monat ausgesetzt + Onboarding-Termin gebucht → 0 €, aber der Kunde bleibt.", satz: "Danke für das Gespräch – Sie hören sofort von mir, sobald alles eingetragen ist." },
   ],
   einwaende: [
@@ -740,10 +739,6 @@ function PipelineInnen() {
                 id: Number(x.rate_id ?? x.id), rateNr: Number(x.rate_nr),
                 betragCents: Number(x.betrag_cents || 0), faelligAm: x.faellig_am ?? null,
                 status: String(x.status || "offen"),
-                // E-047/§18 Nr. 9: der Grund an der Rate (SEPA fehlt / Rücklastschrift / offen)
-                lastschriftStatus: x.lastschrift_status ?? null,
-                lastschriftGrund: x.lastschrift_grund ?? null,
-                sepaEingerichtet: String(x.gc_mandate_status || "") === "active",
               })),
             };
             const da = pers.personId != null ? zusammen.find((k) => k.personId === Number(pers.personId)) : undefined;
@@ -1397,7 +1392,7 @@ export function Strom({ liste, aktiv, setAktiv, erledigt, onAkte, flach, ruhig, 
         <span className="pi-sk-kopf"><i className="pi-glut" /><small>{faellig ? "Rückruf fällig" : STUFE[s].kurz}</small>{fertig && <em><Check size={11} strokeWidth={2.5} /> gebucht</em>}</span>
         <b>{k.name}</b>
         <span className="pi-sk-paket">{s === "rate" ? `Rate${k.rateNr ? ` ${k.rateNr}` : ""}${(k.rateAnzahl ?? 1) > 1 ? ` · ${k.rateAnzahl} offen` : ""} · zurückholen` : `${(k.buchungen ?? []).find((b) => !b.erledigt && b.art === "paket")?.bezeichnung || k.produkt || "kein Paket"}${preis ? ` · ${eur(preis)}` : ""}`}</span>
-        <span className="pi-sk-fuss">{s === "rate" ? `${k.rateCents ? eur(k.rateCents) : "Rate"} überfällig${k.rateFaelligAm ? ` seit ${dtag(k.rateFaelligAm)}` : ""} · ${k.rateListe?.[0] ? (sepaGrund(k.rateListe[0]).ton === "rot" ? "Rücklastschrift" : sepaGrund(k.rateListe[0]).ton === "gelb" ? "kein SEPA" : "offen") : "offen"}` : k.termin ? `${terminText(k.termin.beginn)} · ${k.termin.art}` : k.rueckrufAm ? `Rückruf ${terminText(k.rueckrufAm)}` : relativ(k.zusagedatum) ? `Zusage ${relativ(k.zusagedatum)!.text}` : wartezeit(k.letzterKontakt)}{kurzFenster(k.erreichbarkeit) ? ` · ${kurzFenster(k.erreichbarkeit)}` : ""}</span>
+        <span className="pi-sk-fuss">{s === "rate" ? `${k.rateCents ? eur(k.rateCents) : "Rate"} überfällig${k.rateFaelligAm ? ` seit ${dtag(k.rateFaelligAm)}` : ""}` : k.termin ? `${terminText(k.termin.beginn)} · ${k.termin.art}` : k.rueckrufAm ? `Rückruf ${terminText(k.rueckrufAm)}` : relativ(k.zusagedatum) ? `Zusage ${relativ(k.zusagedatum)!.text}` : wartezeit(k.letzterKontakt)}{kurzFenster(k.erreichbarkeit) ? ` · ${kurzFenster(k.erreichbarkeit)}` : ""}</span>
       </button>
     );
   };
@@ -1986,7 +1981,7 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
       : k.tier === 0 ? ((k.termin || k.terminAm) ? "alles_gut" : "bezahlt_ohne_termin")
       : k.tier === 1 ? "zahlung_gemeldet"
       : k.tier === 2 ? "rechnung_offen" : "lead_ohne_antrag");
-  const sitRate: { id: number; nr: number; betragCents: number; faelligAm: string | null; tage: number; referenz: string | null; lastschriftStatus?: string | null; lastschriftGrund?: string | null; sepaEingerichtet?: boolean } | null =
+  const sitRate: { id: number; nr: number; betragCents: number; faelligAm: string | null; tage: number; referenz: string | null } | null =
     sit?.rate ?? (k.rateListe?.[0] ? {
       id: k.rateListe[0].id, nr: k.rateListe[0].rateNr, betragCents: k.rateListe[0].betragCents,
       faelligAm: k.rateListe[0].faelligAm, tage: k.rateListe[0].faelligAm ? Math.max(0, kontaktTage(k.rateListe[0].faelligAm) ?? 0) : 0,
@@ -2749,7 +2744,10 @@ export function Akte({ k, onZu, onWeg, onNeu, onErledigt, onZaehler }: {
                  kopfRechts={<button type="button" className="pi-knopf still klein" onClick={() => void ratenKopieren()}><Copy size={13} strokeWidth={1.75} /> {kopiert ? "Kopiert" : "Bankdaten kopieren"}</button>}>
               <p className="pi-zweck-zahl">{sitRate.referenz ?? k.zahlung?.referenz ?? "—"}</p>
               <p className="pi-sek-satz">Rate {sitRate.nr} · {eur(sitRate.betragCents)} · fällig {sitRate.faelligAm ? dtag(sitRate.faelligAm) : "—"} · per Überweisung</p>
-              <p className={`pi-sek-satz ${sepaGrund(sit?.rate ?? {}).ton === "rot" ? "warn" : sepaGrund(sit?.rate ?? {}).ton === "gelb" ? "warn" : "leise"}`}>{sepaGrund(sit?.rate ?? {}).text}</p>
+              {/* 19.09.2026 (E-194): VORHER stand hier der Einzugs-Grund — meist
+                  „kein Einzug eingerichtet, bitte einrichten lassen“. NACHHER
+                  steht hier, wie der Kunde wirklich zahlt. */}
+              <p className="pi-sek-satz leise">Jede Rate zahlt der Kunde per Überweisung — Bankverbindung und Verwendungszweck stehen in seiner Zahlungsmail und im Kundenbereich.</p>
               <p className="pi-sek-satz leise">Zahlungen bestätigt der Admin von Hand – bis dahin gilt die Rate als offen.</p>
               <div className="pi-reihe">
                 <button type="button" className="pi-knopf still klein" disabled={laeuft === "sit-erinnerung"} onClick={() => void sitErinnerung()}>{laeuft === "sit-erinnerung" ? "…" : "Zahlungserinnerung senden"}</button>
@@ -3380,8 +3378,8 @@ function RatenBlock({ k, melden, fragen, onZaehler }: {
           <div className="wer">
             <b>Rate {r.rateNr} · {eur(r.betragCents)}</b>
             <small>{r.faelligAm ? `fällig ${dtag(r.faelligAm)}` : "fällig"} · {r.status}{r.betragCents ? ` · Bonus bei Rückholung ${eur(Math.round(r.betragCents * REAKTIVIERUNG_ANTEIL))}` : ""}</small>
-            {/* E-047/§18 Nr. 9: der Grund an der Rate */}
-            <small className={`sepa ${sepaGrund(r).ton}`}>{sepaGrund(r).text}</small>
+            {/* 19.09.2026 (E-194): Die zweite Zeile mit dem Einzugs-Grund je Rate ist weg
+                (Begründung beim Kommentar „KEIN EINZUGS-GRUND MEHR AN DER RATE“). */}
           </div>
           <span className="pi-reihe">
             <button type="button" className="pi-knopf still klein" disabled={laeuft === `er-${r.id}`} onClick={() => void erinnern(r)}>{laeuft === `er-${r.id}` ? "…" : "Erinnerung senden"}</button>

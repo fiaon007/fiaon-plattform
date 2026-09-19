@@ -209,9 +209,10 @@ export const RUNDGANG_BESTAND: RundgangSchritt[] = [
     ziel: ".be-karte",
     titel: "Eine Karte je Mensch.",
     text: "Name, Monatsrate, wie viele Raten schon bezahlt sind, wann du zuletzt gesprochen hast. "
-      + "Steht dort ein bernsteinfarbener Hinweis, fehlt die Lastschrift für die Folgeraten — ein "
-      + "Klick darauf bittet den Kunden per E-Mail, sie in seinem Kundenbereich einzurichten.",
-    tipp: "Kunden ohne Lastschrift werden am häufigsten überfällig. Diesen Hinweis solltest du nie stehen lassen.",
+      + "Jede Rate zahlt der Kunde per Überweisung — die Zahlungsdaten bekommt er mit jeder "
+      + "Zahlungsmail, und sie stehen in seinem Kundenbereich.",
+    tipp: "Seit 19.09.2026 gibt es keine Lastschrift mehr: Jede Rate zahlt der Kunde per Überweisung (Daten in der Zahlungsmail und im Kundenbereich). "
+      + "Fragt ein Kunde nach einer Rückbuchung: Bereits per Lastschrift eingezogene Beträge erstattet FIAON; die Rate überweist er dann selbst.",
   },
   {
     // 24.08.2026, mit der Konto-&-Karte-Funktion zusammen angelegt (AGENTS.md:
@@ -381,8 +382,8 @@ export const RUNDGANG_COLLECTIONS: RundgangSchritt[] = [
     ziel: ".co-karte",
     titel: "Eine Karte je Mensch, nicht je Rate.",
     text: "Hat jemand mehrere Raten offen, siehst du trotzdem nur eine Karte — sonst rufst du "
-      + "denselben Menschen dreimal an. Die Bänder oben sagen dir, was los ist: geplatzte "
-      + "Lastschrift, gebrochene Zusage, fehlende Lastschrift.",
+      + "denselben Menschen dreimal an. Die Bänder oben sagen dir, was los ist: Anruf-Pflicht, "
+      + "gebrochene Zusage, eine Zusage mit Datum oder ein zweites Abo.",
   },
 ];
 

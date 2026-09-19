@@ -204,12 +204,7 @@ const ZUSATZ: Partial<Record<MakeEventType, EventZusatz>> = {
     gruppe: "termin", zielgruppe: "kunde", rollen: ["admin", "vertriebsleiter", "agent", "onboarding"],
     klartext: "Einladung zum 15-minütigen Startgespräch für bezahlte Kunden.",
   },
-  // NEU 24.08.2026: Aus dem Bestand-Raum heraus. VORHER stand auf der
-  // Kundenkarte nur „kein SEPA" — ein Zustand ohne Weg. NACHHER ein Klick.
-  sepa_einrichten: {
-    gruppe: "konto", zielgruppe: "kunde", rollen: ["admin", "vertriebsleiter", "agent", "onboarding"],
-    klartext: "Bitte an den Kunden, die Folgeraten per Lastschrift einzurichten — die erste Zahlung bleibt eine Überweisung.",
-  },
+  // 19.09.2026 (E-194): „sepa_einrichten" ist weg — GoCardless ist beendet, jede Rate wird überwiesen.
   // NEU 24.08.2026: Der Weg zum Girokonto bei unserem Kooperationspartner —
   // Voraussetzung für die Kreditkarte. Geht NUR, wenn alle drei Bedingungen
   // erfüllt sind (fiaon-konto-karte.ts); der Server prüft das noch einmal

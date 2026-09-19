@@ -192,7 +192,7 @@ function schritteFuer(rolle: string): Schritt[] {
       "25 % je bankbestätigter Paket-Rate – mit Academy-Zertifikat 30 %. Dazu 10 € je 74-€-SCHUFA-Zahlung im Onboarding und 50 % des Zahlungswerts bei jeder Reaktivierung aus dem Altbestand.",
       "Boni obendrauf: 500 € je Quartal bei pünktlichem Stamm, 1.500 € bei 100 und 5.000 € bei 500 aktiven Kunden.",
       "Ausgezahlt wird, was angekommen ist: Provision entsteht erst, wenn die Rate bankbestätigt ist.",
-      "Eine feste Regel: Die erste Zahlung eines Kunden läuft immer direkt per Überweisung – nie per Lastschrift.",
+      "Eine feste Regel: Seit 19.09.2026 gibt es keine Lastschrift mehr – jede Zahlung, die erste wie jede Rate, überweist der Kunde selbst (Daten in der Zahlungsmail und im Kundenbereich). Fragt ein Kunde nach einer Rückbuchung: Bereits per Lastschrift eingezogene Beträge erstattet FIAON; die Rate überweist er dann selbst.",
     ],
   });
 

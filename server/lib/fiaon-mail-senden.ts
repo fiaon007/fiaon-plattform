@@ -246,8 +246,7 @@ const MIT_LOGIN = new Set<string>([
 // baute genau einen Link (termin_link, für drei Ereignisse). Jede andere
 // Vorlage mit Knopf ging OHNE ihr Ziel raus, und der Motor ließ den Knopf
 // still weg: die Zahlungsbestätigung ohne login_url, die Nummern-Bitte ohne
-// update_url, der Anmelde-Link ohne Link, die Lastschrift ohne sepa_link,
-// die Zustimmung ohne Zustimmungsseite.
+// update_url, der Anmelde-Link ohne Link, die Zustimmung ohne Zustimmungsseite.
 //
 // Hier stehen jetzt ALLE Links, die nur der Server bauen kann, an EINER
 // Stelle — für Versand, Vorschau und Versandzentrum. Geht eine Mail an diesen
@@ -316,11 +315,8 @@ async function linkBaustein(
     links.payment_reference = o.payment_reference || null;
     links.betrag = betragAusKatalog(o.pack_key, o.amount_due, o.ref);
     if (o.pack_name) links.paket = String(o.pack_name).split("\n")[0].trim();
-    // KEINE SOFORTZAHLUNG FÜR DIE ERSTZAHLUNG — dieselbe Regel wie die
-    // Automatik (makePayloadFromRow, 02.09.2026): Sie geht per Überweisung
-    // direkt aufs Hauskonto. Der Motor lässt den Knopf dann weg, und „QR-Code
-    // & Bankdaten" rückt auf (KNOPF_DARF_FEHLEN).
-    links.sofort_url = null;
+    // Bezahlt wird per Überweisung — die Sofortzahlung per Bank-App lief über
+    // GoCardless und ist seit 19.09.2026 beendet (E-194).
     // Empfänger/IBAN/BIC aus der einen Quelle — mitgeschickt stehen sie auch
     // im Protokoll, und die Mail lässt sich später richtig nachdrucken.
     links.empfaenger = BANK.empfaenger;
@@ -346,19 +342,7 @@ async function linkBaustein(
     }
   }
 
-  // ── Lastschrift (wie routes/fiaon-versand.ts, 01./02.09.2026) ────────────
-  // `sepa_link` ist der signierte Direktlink in die Mandatsstrecke; fehlt die
-  // Bestellung, bleibt der Kundenbereich der Rückfallweg. Der Satz über die
-  // offene Rate ist derselbe wie im Einladungslauf (fiaon-sepa-werbung.ts).
-  if (eventType === "sepa_einrichten") {
-    const { sepaLink } = await import("../routes/fiaon-lastschrift");
-    setze("sepa_link", ref ? sepaLink(ref) : absoluteUrl("/dashboard#abo"));
-    setze("kundenbereich_link", absoluteUrl("/dashboard#abo"));
-    if (!hat("offene_rate_hinweis")) {
-      const { offeneRateHinweis, offeneRatenCents } = await import("./fiaon-sepa-werbung");
-      links.offene_rate_hinweis = ref ? offeneRateHinweis(await offeneRatenCents(ref)) : "";
-    }
-  }
+  // (Bis 19.09.2026 stand hier der Lastschrift-Link „sepa_einrichten" — GoCardless ist beendet, E-194.)
 
   // ── Rufnummer: Formular UND Termin (fiaon-number-update.ts) ─────────────
   if (eventType === "number_update_request") {
@@ -491,8 +475,7 @@ async function linkBaustein(
  *
  * Vorher ließ der Motor einen Knopf ohne Ziel still weg, und der Handversand
  * schickte die Mail trotzdem: „Klicken Sie unten …" — und unten war nichts.
- * Die einzige erwartete Lücke ist die Sofortzahlung (KNOPF_DARF_FEHLEN): Fehlt
- * sie, rückt „QR-Code & Bankdaten" auf.
+ * Erwartete Lücken stehen in KNOPF_DARF_FEHLEN (Mail-Motor).
  */
 export async function versandLuecke(
   def: Pick<MailEvent, "type" | "label" | "pflichtFelder">, payload: Record<string, unknown>,
@@ -654,10 +637,9 @@ export async function mailSenden(ein: SendeEingabe): Promise<SendeErgebnis> {
   // eigene Regel haben, kommen durch — sie sind vom Vorgesetzten ausgelöste
   // Einzelfälle (Storno, DSGVO), bei denen der Mensch die Lage kennt.
   // ── EINE LISTE, NICHT ZWEI (18.09.2026) ──────────────────────────────────
-  // Hier stand eine eigene Liste mit sechs Arten. sepa_einrichten fehlte — die
-  // Lastschrift-Bitte ging aus dem Sende-Menü auch an Kunden ohne Zahlung —,
-  // und die Zahlungsbestätigung hatte gar keine Regel. Jetzt gilt jede Art,
-  // für die fiaon-versand.ts eine Regel kennt (VERSAND_ARTEN).
+  // Hier stand eine eigene Liste mit sechs Arten; die Zahlungsbestätigung hatte
+  // gar keine Regel. Jetzt gilt jede Art, für die fiaon-versand.ts eine Regel
+  // kennt (VERSAND_ARTEN).
   if (istVersandArt(def.type)) {
     const pruefung = await versandErlaubt(ein.personId, def.type, lauf);
     if (!pruefung.erlaubt) return abgelehnt(pruefung.grund || "Nicht erlaubt.");

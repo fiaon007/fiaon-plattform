@@ -248,7 +248,6 @@ export async function kuendigungSetzen(ref: string, opts: {
                 ${`Kündigung (${opts.quelle}), KULANZ — Vertrag endet sofort, ${offen.length} offene Rate(n) entfallen. Ein Mensch hat das im Postfach entschieden.${opts.grund ? ` Grund: ${String(opts.grund).slice(0, 200)}` : ""}`})
       `.catch(() => {});
     });
-    await lastschriftBeendenMerken(ref, a.person_id ?? null).catch(() => {});
     return { ok: true, ref, weg: "kulanz_sofort", letzteRateNr: hoechsteBezahlt || null, letzteRateBetragCents: null,
       letzteRateFaellig: null, stornierteRaten: offen.length, vertragEndeAm: wann.toISOString(), grund: "Vertrag beendet (Kulanz)" };
   }
@@ -342,31 +341,11 @@ export async function vertragEndePruefen(ref: string, rateNr: number): Promise<{
     VALUES (${ref}, ${a.person_id ?? null}, NULL, 'System', 'system',
             ${`Letzte Rate ${rateNr} bezahlt — der Vertrag ist damit beendet. Provisionen bleiben bestehen.`})
   `.catch(() => {});
-  await lastschriftBeendenMerken(ref, a.person_id ?? null).catch(() => {});
   return { beendet: true, person_id: a.person_id };
 }
 
-/**
- * 04.09.2026 (E-115): Läuft bei GoCardless ein Abo, zieht es nach dem
- * Vertragsende weiter ein — bisher hat das niemand beendet (kein einziger
- * cancel-Aufruf im Haus). Geldbewegungen bei GoCardless führt nach Justins
- * Regel NUR er aus; deshalb keine API-Aktion hier, sondern eine Aufgabe mit
- * Prio 1 auf seinem Brett — mit Abo-Kennung und dem Weg zur Akte.
- */
-async function lastschriftBeendenMerken(ref: string, personId: number | null): Promise<void> {
-  const [g] = (await sqlPool`
-    SELECT gc_subscription_ref, gc_subscription_status, gc_mandate_ref, first_name, last_name
-      FROM fiaon_applications WHERE ref = ${ref} LIMIT 1
-  `.catch(() => [])) as any[];
-  if (!g?.gc_subscription_ref || /cancel|finished|beendet/i.test(String(g.gc_subscription_status || ""))) return;
-  const { todoAnlegen } = await import("../routes/fiaon-betreiber-todo");
-  const name = [g.first_name, g.last_name].filter(Boolean).join(" ") || ref;
-  await todoAnlegen(`gc-abo-beenden:${ref}`, {
-    titel: `GoCardless-Abo beenden: ${name}`,
-    text: `Der Vertrag ${ref} ist beendet, bei GoCardless läuft das Abo ${g.gc_subscription_ref} (Mandat ${g.gc_mandate_ref || "—"}) aber weiter und würde weiter einziehen. Bitte im GoCardless-Dashboard das Abo beenden (Subscriptions → ${g.gc_subscription_ref} → Cancel). Das Mandat kann bleiben.${personId ? ` Person ${personId}.` : ""}`,
-    bereich: "konten", prioritaet: 1, quelle: "system", link: `/admin/kunde/${ref}`,
-  });
-}
+// 19.09.2026 (E-194): Hier stand `lastschriftBeendenMerken` (E-115) — bei Vertragsende eine
+// Aufgabe „GoCardless-Abo beenden“. GoCardless ist beendet; die Abos beendet Justin gesammelt.
 
 /** Läuft die Bestellung noch? (für Mahn-, Rückhol- und Werbeläufe) */
 export async function istGekuendigt(ref: string): Promise<boolean> {

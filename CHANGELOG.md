@@ -5,6 +5,27 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 19.09.2026 — FIAON Global: Pakete neu gestaltet, Global VIP als eigene Bühne
+
+**Was geändert wurde:** Die vier Pakettafeln auf `/business` (auch `/business/privatpersonen`, `/en/business`) sind
+neu aufgebaut. Global Struktur, Banking und Kapital stehen breit nebeneinander statt schmal zu viert: Kapitalrahmen
+und Festpreis nebeneinander, darüber eine Leiste, bis zu welcher Etappe (I–IV) das Paket begleitet, der Knopf vor der
+Liste, die lange Liste von Global Struktur aufklappbar. Die empfohlene Tafel (Global Kapital) hat einen Rand, durch
+den langsam Licht läuft. **Global VIP** steht darunter über die ganze Breite als dunkle Tafel: umlaufende Lichtkante,
+Punktwellen, Glanz auf „bis zu 1.000.000 $“ und ein Ticket „DACH → MIA“ (Flug und Hotel für den Auftakt sind im
+Paket), das sich mit der Maus neigt, mit fliegendem Flugzeug. Am Telefon bleibt die Wahl über die vier Knöpfe; der
+VIP-Knopf ist dunkel mit Glanz. Unter den Tafeln führt „Alle Leistungen im Vergleich“ zur geöffneten Tabelle.
+Bewegung nur, solange die Tafel zu sehen ist; bei „weniger Bewegung“ steht alles still.
+
+**Warum:** Justin 19.09.: „Die 4 Produkte sind mir zu lang, zu schmal … das VIP-Paket muss speziell angezeigt werden
+… mach es einfach attraktiver!“ Vorher: vier Tafeln je 276 px breit und fast 1.300 px hoch.
+
+**Wo zu finden:** `client/src/pages/site/business.tsx` (Abschnitt Pakete), `client/src/components/site/GlobalVip.tsx`
+(VIP-Tafel und Ticket), Stile in `client/src/styles/global.css` (Block „PAKETE NEU“). Inhalte, Preise und Kapitalrahmen
+unverändert aus `shared/fiaon-global.ts`.
+
+---
+
 ## 19.09.2026 — FIAON Global: Jahresbetreuung 699 € ab dem zweiten Jahr, Startseite für Privatpersonen, Weltzeituhren, Nachrichtenlage (E-196)
 
 **Was geändert wurde:**

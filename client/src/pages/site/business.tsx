@@ -56,6 +56,7 @@ import { werbeEreignis } from "@/lib/werbung";
 import GlobalUhren from "@/components/site/GlobalUhren";
 import GlobalSchlagzeilen from "@/components/site/GlobalSchlagzeilen";
 import GlobalJahresbetreuung from "@/components/site/GlobalJahresbetreuung";
+import { GlobalVipBuehne, GlobalVipTicket } from "@/components/site/GlobalVip";
 import "@/styles/global.css";
 
 /** Das eine Zeichen der Seite: ein ruhiger Haken. */
@@ -75,6 +76,21 @@ const FOKUS = "global_kapital";
 const ROEMISCH = ["I", "II", "III", "IV"];
 /** Ab welchem Paket eine Etappe des Wegs enthalten ist — deckungsgleich mit GLOBAL_VERGLEICH. */
 const ETAPPE_AB: GlobalSchluessel[] = ["global_struktur", "global_struktur", "global_banking", "global_kapital"];
+/** Bis zu welcher Etappe (1–4) ein Paket begleitet — aus ETAPPE_AB, also deckungsgleich mit dem Weg. */
+const etappenBis = (i: number) => ETAPPE_AB.filter((ab) => GLOBAL_PAKETE.findIndex((p) => p.key === ab) <= i).length;
+/** Global Struktur zeigt zuerst: Gründung, EIN/ITIN, Agent/Adresse/Telefon, erster Konto- und Kartenantrag. */
+const STRUKTUR_ZUERST = [0, 1, 2, 6];
+
+function Plus() {
+  return <svg className="fg-plus" width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>;
+}
+function Winkel({ offen }: { offen: boolean }) {
+  return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ transform: offen ? "rotate(180deg)" : undefined, transition: "transform .25s" }}><path d="m6 9 6 6 6-6" /></svg>;
+}
+/** Der Funke am VIP-Zeichen und am Band der empfohlenen Tafel. */
+function Funke() {
+  return <svg className="fg-funke" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1.5l2.6 7.9 7.9 2.6-7.9 2.6L12 22.5l-2.6-7.9L1.5 12l7.9-2.6z" fill="currentColor" /></svg>;
+}
 
 // ── ZWEI STARTSEITEN, EIN AUFBAU (19.09.2026, E-196) ─────────────────────────
 // Justin: „Auf /business/privatpersonen soll die Privatperson auch die anderen
@@ -102,6 +118,8 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
   const [mobilPaket, setMobilPaket] = useState<string>("global_struktur");
   // Die Vergleichstabelle ist am Handy zugeklappt (CSS greift nur unter 900 px).
   const [tabelleAuf, setTabelleAuf] = useState(false);
+  // Aufgeklappte Leistungslisten der Tafeln (Global Struktur hat acht Punkte).
+  const [mehr, setMehr] = useState<Record<string, boolean>>({});
   // Handlungsleiste am Handy: erst nach dem Kopf, nie über Kalender oder Schlussband.
   const [leiste, setLeiste] = useState<"aus" | "pakete" | "beauftragen">("aus");
 
@@ -145,6 +163,8 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
     document.getElementById("gespraech")?.scrollIntoView({ behavior: glatt() });
   };
   const zuDenPaketen = () => document.getElementById("pakete")?.scrollIntoView({ behavior: glatt() });
+  // Unter den Tafeln: „Alle Leistungen im Vergleich" öffnet die Tabelle und gleitet hin.
+  const zumVergleich = () => { setTabelleAuf(true); requestAnimationFrame(() => document.getElementById("vergleich")?.scrollIntoView({ behavior: glatt() })); };
   // Wer mitten in einer Tafel umschaltet, beginnt die neue oben — nicht irgendwo in ihrer Mitte.
   const paketZeigen = (key: string) => {
     setMobilPaket(key);
@@ -291,49 +311,106 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
                   </button>
                 ))}
               </div>
-              <div className="fg-pakete">
+              {/* 19.09.2026 — Justin: „zu lang, zu schmal … das VIP-Paket muss speziell angezeigt werden".
+                  Drei Tafeln nebeneinander (Zahlen nebeneinander, Knopf vor der Liste, lange Liste
+                  aufklappbar), Global VIP darunter über die ganze Breite (components/site/GlobalVip.tsx). */}
+              <div className="fg-tarife">
                 {GLOBAL_PAKETE.map((p, i) => {
                   const w = p[s];
                   const kapital = globalKapital(p.key, s);
                   const vip = p.key === "global_vip";
+                  const fokus = p.key === FOKUS;
+                  const bis = etappenBis(i);
+                  // Ab dem zweiten Paket ist der erste Punkt „Alles aus …" — er steht als eigene Zeile über der Liste.
+                  const erbe = i > 0 ? w.leistungen[0] : null;
+                  const eigene = i > 0 ? w.leistungen.slice(1) : w.leistungen;
+                  const klasse = `fg-tarif${fokus ? " fokus" : ""}${vip ? " vip" : ""}${p.key === mobilPaket ? " gewaehlt" : ""}`;
+                  const kapitalZeile = kapital.bisZu ? `${t.planung} ${kapital.bisZu}` : t.planung;
+                  const weg = (
+                    <div className="fg-tarif-weg">
+                      <span className="balken" aria-hidden="true">{ROEMISCH.map((r, j) => <i key={r} className={j < bis ? "an" : undefined} />)}</span>
+                      <span className="text">{t.etappenBis(ROEMISCH[bis - 1])} · {w.dauerKurz}</span>
+                    </div>
+                  );
+
+                  if (vip) {
+                    return (
+                      <Auf key={p.key} verzoegerung={i * 70}>
+                        <GlobalVipBuehne id={`paket-${p.key}`} className={klasse} label={w.name}>
+                          <div className="fg-vip-text">
+                            <div className="fg-vip-zeile"><span className="fg-vip-zeichen"><Funke />{t.vipZeichen}</span><span className="marke">{w.marke}</span></div>
+                            <h3>{w.name}</h3>
+                            <p className="fuer">{w.fuer}</p>
+                            {weg}
+                            <div className="fg-vip-kapital">
+                              <span>{kapitalZeile}</span>
+                              <b className="fg-glanz">{kapital.wert}</b>
+                              <em>{t.planungZusatz}</em>
+                            </div>
+                            {erbe && <p className="fg-tarif-erbe"><Plus />{erbe}</p>}
+                            <ul>{eigene.map((x) => <li key={x}><Haken />{x}</li>)}</ul>
+                          </div>
+                          <div className="fg-vip-seite">
+                            <GlobalVipTicket texte={t.vipTicket} />
+                            <div className="fg-vip-preis">
+                              <div><span>{t.festpreis}</span><b className="fg-glanz">{globalPreisText(p.key, s)}</b></div>
+                              <span className="inkl"><Haken groesse={13} />{t.inklusive}</span>
+                            </div>
+                            {/* Global VIP beginnt mit einem Gespräch — für 35.999 € kauft niemand ohne. */}
+                            <div className="tun">
+                              <button type="button" className="fg-knopf voll" aria-label={t.vipGespraech(w.name)} onClick={() => zumGespraech(p.key)}>{t.vipGespraechKurz}<Pfeil /></button>
+                              <a className="fg-textknopf" href={start(p.key)} onClick={klick(p.key, "tafel")}>{t.direktBeauftragen}</a>
+                            </div>
+                          </div>
+                        </GlobalVipBuehne>
+                      </Auf>
+                    );
+                  }
+
+                  const alle = mehr[p.key] === true;
+                  // Global Struktur hat acht Punkte: zuerst die vier, an denen man das Paket erkennt, der Rest aufklappbar.
+                  const zuerstIdx = i === 0 ? STRUKTUR_ZUERST.filter((j) => j < eigene.length) : eigene.map((_, j) => j);
+                  const zuerst = zuerstIdx.map((j) => eigene[j]);
+                  const danach = eigene.filter((_, j) => !zuerstIdx.includes(j));
                   return (
                     <Auf key={p.key} verzoegerung={i * 70}>
-                      <article id={`paket-${p.key}`} className={`fg-paket${p.key === FOKUS ? " fokus" : ""}${p.key === mobilPaket ? " gewaehlt" : ""}`} style={{ height: "100%" }} aria-label={w.name}>
-                        {p.key === FOKUS && <span className="fg-paket-band">{t.fokusBand}</span>}
-                        <span className="marke">{w.marke}</span>
-                        <h3>{w.name}</h3>
-                        <p className="fuer">{w.fuer}</p>
-                        <div className="fg-kapital">
-                          {/* „bis zu" gehört in die Überzeile — so bleibt die Zahl allein und jede Tafel gleich hoch */}
-                          <span>{kapital.bisZu ? `${t.planung} ${kapital.bisZu}` : t.planung}</span>
-                          <b className="fg-glanz">{kapital.wert}</b>
-                          <em>{t.planungZusatz}</em>
+                      <article id={`paket-${p.key}`} className={klasse} aria-label={w.name}>
+                        {fokus && <span className="fg-tarif-band"><Funke />{t.fokusBand}</span>}
+                        <div className="fg-tarif-kopf">
+                          <span className="marke">{w.marke}</span>
+                          <h3>{w.name}</h3>
+                          <p className="fuer">{w.fuer}</p>
                         </div>
-                        <div className="fg-preis">
-                          <span className="fg-preis-marke">{t.festpreis}</span>
-                          <b className="fg-glanz">{globalPreisText(p.key, s)}</b>
-                          <span className="fg-chip"><Haken groesse={13} />{t.inklusive}</span>
+                        {weg}
+                        <div className="fg-tarif-zahlen">
+                          <div>
+                            <span>{kapitalZeile}</span>
+                            <b className="fg-glanz">{kapital.wert}</b>
+                            <em>{t.planungZusatz}</em>
+                          </div>
+                          <div>
+                            <span>{t.festpreisKurz}</span>
+                            <b className="fg-glanz">{globalPreisText(p.key, s)}</b>
+                            <em className="inkl"><Haken groesse={12} />{t.einmaligInklusive}</em>
+                          </div>
                         </div>
-                        <div className="fg-masse">
-                          <div><span>{t.begleitung}</span><b>{w.dauerKurz}</b></div>
-                        </div>
-                        <ul>{w.leistungen.map((x, j) => <li key={x} className={j === 0 && i > 0 ? "erbe" : undefined}><Haken />{x}</li>)}</ul>
                         <div className="tun">
-                          {/* Global VIP beginnt mit einem Gespräch — für 35.999 € kauft niemand ohne. */}
-                          {vip ? (
-                            <>
-                              <button type="button" className="fg-knopf voll" onClick={() => zumGespraech(p.key)}>
-                                <span className="lang">{t.vipGespraech(w.name)}</span><span className="kurz">{t.vipGespraechKurz}</span>
-                              </button>
-                              <a className="fg-textknopf" href={start(p.key)} onClick={klick(p.key, "tafel")}>{t.direktBeauftragen}</a>
-                            </>
-                          ) : (
-                            <>
-                              <a className={`fg-knopf voll${p.key === FOKUS ? "" : " hell"}`} href={start(p.key)} aria-label={t.beauftragen(w.name)} onClick={klick(p.key, "tafel")}>
-                                <span className="lang">{t.beauftragen(w.name)}</span><span className="kurz">{t.beauftragenKurz}</span><Pfeil />
-                              </a>
-                              <button type="button" className="fg-textknopf" onClick={() => zumGespraech(p.key)}>{t.erstSprechen}</button>
-                            </>
+                          <a className={`fg-knopf voll${fokus ? "" : " hell"}`} href={start(p.key)} aria-label={t.beauftragen(w.name)} onClick={klick(p.key, "tafel")}>
+                            {t.beauftragenKurz}<Pfeil />
+                          </a>
+                          <button type="button" className="fg-textknopf" onClick={() => zumGespraech(p.key)}>{t.erstSprechen}</button>
+                        </div>
+                        <div className="fg-tarif-leistungen">
+                          {erbe && <p className="fg-tarif-erbe"><Plus />{erbe}</p>}
+                          <ul id={`leistungen-${p.key}`}>
+                            {zuerst.map((x) => <li key={x}><Haken />{x}</li>)}
+                            {alle && danach.map((x) => <li key={x} className="neu"><Haken />{x}</li>)}
+                          </ul>
+                          {danach.length > 0 && (
+                            <button type="button" className="fg-tarif-mehr" aria-expanded={alle} aria-controls={`leistungen-${p.key}`}
+                                    onClick={() => setMehr({ ...mehr, [p.key]: !alle })}>
+                              {alle ? t.wenigerLeistungen : t.alleLeistungen(eigene.length)}<Winkel offen={alle} />
+                            </button>
                           )}
                         </div>
                       </article>
@@ -342,6 +419,7 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
                 })}
               </div>
             </div>
+            <button type="button" className="fg-tarif-vergleich" onClick={zumVergleich}>{t.zumVergleich}<Pfeil /></button>
             <div className="fg-paket-fuss">
               <p>
                 {t.vertragVorab} <a href={s === "en" ? "/en/business/mustervertrag" : "/business/mustervertrag"}>{t.mustervertragLesen}</a>. {t.perRechnung} {t.kostenHinweis}
@@ -392,7 +470,7 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
           knopf={t.jbKnopf} gespraech={t.jbGespraech} so={t.jbSo} />
 
         {/* ── Alle Leistungen im Vergleich ───────────────────────────────────── */}
-        <section className={`fg-sek fg-vergleich${tabelleAuf ? " auf" : ""}`}>
+        <section id="vergleich" className={`fg-sek fg-vergleich${tabelleAuf ? " auf" : ""}`} style={{ scrollMarginTop: 72 }}>
           <div className="fg-rahmen">
             <Auf>
               <div className="fg-kopf">

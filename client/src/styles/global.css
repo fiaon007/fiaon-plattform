@@ -74,9 +74,9 @@
   .fg-schluss .fg-h2{--glanz-grund:#ffffff;--glanz-mitte:#d5e1f7;--glanz-licht:#9fbcf0}
   .fg-schluss .fg-h2 em{-webkit-text-fill-color:#c9d6ee}
   /* Die vier Tafeln glänzen nacheinander, nicht im Gleichschritt */
-  .fg-pakete>:nth-child(2) .fg-glanz{animation-delay:.35s}
-  .fg-pakete>:nth-child(3) .fg-glanz{animation-delay:.7s}
-  .fg-pakete>:nth-child(4) .fg-glanz{animation-delay:1.05s}
+  .fg-tarife>:nth-child(2) .fg-glanz{animation-delay:.35s}
+  .fg-tarife>:nth-child(3) .fg-glanz{animation-delay:.7s}
+  .fg-tarife>:nth-child(4) .fg-glanz{animation-delay:1.05s}
 }
 @keyframes fg-glanz{0%{background-position:100% 0}36%,100%{background-position:0 0}}
 
@@ -161,18 +161,6 @@
 .fg-ausstieg{margin-top:28px;font-size:15px;font-weight:400;color:var(--text);max-width:62ch;line-height:1.7}
 
 /* ── Pakete ─────────────────────────────────────────────────────────────── */
-.fg-pakete{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-top:56px;align-items:stretch}
-@media(max-width:1180px){.fg-pakete{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:640px){.fg-pakete{grid-template-columns:1fr}}
-.fg-paket{position:relative;display:flex;flex-direction:column;background:#fff;border:1px solid var(--linie);border-radius:14px;padding:30px 26px 26px;
-  box-shadow:0 1px 2px rgba(12,26,46,.03);transition:border-color .2s,box-shadow .2s,transform .2s}
-.fg-paket:hover{border-color:#b9c5d6;box-shadow:0 18px 44px rgba(18,40,74,.09);transform:translateY(-2px)}
-.fg-paket.fokus{border-color:var(--navy);box-shadow:0 0 0 1px var(--navy),0 26px 60px rgba(18,40,74,.14)}
-.fg-paket .marke{display:flex;align-items:center;min-height:24px;font-size:10.5px;font-weight:500;letter-spacing:.16em;text-transform:uppercase;color:var(--navy)}
-.fg-paket.fokus .marke{display:inline-flex;align-self:flex-start;padding:0 10px;border-radius:4px;background:var(--navy);color:#fff}
-.fg-paket h3{font-family:var(--serif);font-weight:400;font-size:27px;line-height:1.1;color:var(--tinte);margin-top:14px;letter-spacing:-.01em}
-.fg-paket .fuer{font-size:13.5px;line-height:1.62;font-weight:400;color:var(--text);margin-top:10px;min-height:6.5em}
-@media(max-width:640px){.fg-paket .fuer{min-height:0}}
 /* Der Kapitalrahmen: groß über dem Preis, der Satz zum Institut in derselben Tafel */
 .fg-kapital{margin-top:22px;padding:16px 16px 14px;border-radius:10px;background:linear-gradient(160deg,#f5f8fd 0%,#e9f0fb 100%);border:1px solid #d8e2f3}
 .fg-kapital span{display:block;font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--navy)}
@@ -182,17 +170,6 @@
 .fg-preis b{display:block;font-family:var(--serif);font-weight:400;font-size:46px;line-height:1;letter-spacing:-.02em;color:var(--tinte);font-variant-numeric:lining-nums tabular-nums}
 .fg-preis span{display:block;margin-top:8px;font-size:12px;color:var(--leise);letter-spacing:.02em}
 .fg-preis .fg-chip,.fg-chip{display:inline-flex;align-items:center;gap:6px;margin-top:14px;padding:6px 10px;border-radius:4px;background:var(--blau-hell);color:var(--navy);font-size:11.5px;font-weight:500;letter-spacing:.01em}
-.fg-masse{margin-top:18px;display:grid;gap:10px;padding:14px 0;border-top:1px solid var(--linie);border-bottom:1px solid var(--linie)}
-.fg-masse div{display:grid;gap:2px}
-.fg-masse span{font-size:10.5px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--leise)}
-.fg-masse b{font-size:14px;font-weight:500;color:var(--tinte);font-variant-numeric:tabular-nums}
-.fg-masse em{font-style:normal;font-size:11.5px;color:var(--leise);line-height:1.5}
-.fg-paket ul{list-style:none;padding:0;margin-top:18px;display:grid;gap:10px;flex:1;align-content:start}
-.fg-paket li{display:flex;gap:10px;align-items:flex-start;font-size:13.5px;line-height:1.5;color:var(--text)}
-.fg-paket li .fg-haken{margin-top:2px}
-.fg-paket li.erbe{font-weight:500;color:var(--tinte)}
-.fg-paket .tun{display:grid;gap:6px;margin-top:24px;justify-items:center}
-.fg-paket .tun .fg-knopf{min-height:48px;font-size:14px}
 .fg-paket-fuss{margin-top:18px;font-size:12px;color:var(--leise)}
 
 /* Alles inklusive */
@@ -308,8 +285,8 @@
 
 @media(prefers-reduced-motion:reduce){
   .fg-h1,.fg-h2,.fg-glanz{animation:none}
-  .fg-knopf,.fg-paket{transition:none}
-  .fg-knopf:hover,.fg-paket:hover{transform:none}
+  .fg-knopf,.fg-tarif{transition:none}
+  .fg-knopf:hover,.fg-tarif:hover{transform:none}
 }
 
 /* ── /business: Privatpersonen und Standorte (19.09.2026, E-191) ── */
@@ -386,12 +363,7 @@
 .fg-etappe-paket.alle{background:var(--stein-2);color:var(--text)}
 
 /* Tafeln: Band über dem Fokus, Preisbeschriftung vor der Zahl, Knopftext nach Breite */
-.fg-paket-band{position:absolute;top:-12px;left:24px;display:inline-flex;align-items:center;min-height:24px;padding:0 10px;border-radius:4px;background:var(--navy);color:#fff;font-size:10.5px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;box-shadow:0 6px 16px rgba(18,40,74,.22)}
-.fg-paket.fokus .marke{display:flex;align-self:auto;padding:0;border-radius:0;background:none;color:var(--navy)}
 .fg-preis .fg-preis-marke{display:block;margin:0 0 8px;font-size:10.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--leise)}
-.fg-paket .tun .fg-knopf{padding:0 16px;text-align:center;line-height:1.25}
-.fg-paket .tun .kurz{display:none}
-@media(min-width:1181px){.fg-paket .tun .lang{display:none}.fg-paket .tun .kurz{display:inline}}
 .fg-paket-fuss{display:grid;gap:6px;margin-top:22px}
 .fg-paket-fuss p{font-size:13px;line-height:1.6;color:var(--text)}
 .fg-paket-fuss a{color:var(--navy);text-decoration:underline;text-underline-offset:3px;text-decoration-color:rgba(18,40,74,.35)}
@@ -468,10 +440,10 @@
   .fg-paket-wahl span{font-size:11.5px;color:var(--leise);font-variant-numeric:tabular-nums}
   .fg-paket-wahl button[aria-pressed="true"]{background:var(--navy)}
   .fg-paket-wahl button[aria-pressed="true"] b,.fg-paket-wahl button[aria-pressed="true"] span{color:#fff}
-  .fg-paket{scroll-margin-top:150px}
-  .fg-pakete{margin-top:22px}
-  .fg-pakete>.dk-auf:not(:has(.gewaehlt)){display:none}
-  .fg-pakete>.dk-auf{opacity:1;transform:none;transition-delay:0s!important}
+  .fg-tarif{scroll-margin-top:150px}
+  .fg-tarife{margin-top:22px}
+  .fg-tarife>.dk-auf:not(:has(.gewaehlt)){display:none}
+  .fg-tarife>.dk-auf{opacity:1;transform:none;transition-delay:0s!important}
 }
 
 /* ════════════════════════════════════════════════════════════════════════
@@ -608,3 +580,199 @@
 .fg-jb.kompakt .fg-textknopf{margin-top:10px}
 @media(max-width:900px){.fg-jb.voll{grid-template-columns:minmax(0,1fr);gap:30px;padding:30px 22px}}
 @media(max-width:640px){.fg-jb.kompakt{padding:22px 18px}.fg-jb.kompakt ul{grid-template-columns:minmax(0,1fr)}}
+
+/* ════════════════════════════════════════════════════════════════════════
+   PAKETE NEU (19.09.2026) — Justin: „Die vier Produkte sind mir zu lang, zu
+   schmal … das VIP-Paket muss speziell angezeigt werden … mach es einfach
+   attraktiver!" Drei helle Tafeln nebeneinander (Zahlen nebeneinander, Knopf
+   vor der Liste, lange Liste aufklappbar), Global VIP darunter über die ganze
+   Breite als die EINE dunkle Glasfläche des Abschnitts. Bewegung nur, wo sie
+   etwas zeigt; bei „weniger Bewegung" steht alles still.
+   ════════════════════════════════════════════════════════════════════════ */
+.fg-tarife{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;margin-top:56px;align-items:stretch}
+.fg-tarife>.dk-auf{display:flex;min-width:0}
+.fg-tarife>.dk-auf>.fg-tarif{flex:1 1 auto;min-width:0}
+.fg-tarife>.dk-auf:has(.vip){grid-column:1/-1;margin-top:14px}
+
+/* ── Die drei hellen Tafeln ── */
+.fg-tarif{position:relative;display:flex;flex-direction:column;container-type:inline-size;background:var(--papier);border:1px solid var(--linie);border-radius:18px;padding:30px 28px 24px;
+  box-shadow:0 1px 2px rgba(12,26,46,.04),0 12px 32px rgba(18,40,74,.05);transition:transform .35s cubic-bezier(.2,.7,.2,1),box-shadow .35s,border-color .35s}
+.fg-tarif:not(.vip):hover{transform:translateY(-4px);border-color:#c3cfe0;box-shadow:0 2px 4px rgba(12,26,46,.05),0 26px 60px rgba(18,40,74,.12)}
+.fg-tarif:not(.vip):not(.fokus)::before{content:"";position:absolute;left:26px;right:26px;top:-1px;height:2px;border-radius:2px;background:linear-gradient(90deg,rgba(40,141,250,0),#288dfa,rgba(40,141,250,0));opacity:0;transition:opacity .35s}
+.fg-tarif:not(.vip):not(.fokus):hover::before{opacity:1}
+/* Die empfohlene Tafel: ein Rand, durch den langsam Licht läuft */
+.fg-tarif.fokus{border:1.5px solid transparent;
+  background:linear-gradient(180deg,#f6f9ff 0%,#fff 45%) padding-box,linear-gradient(120deg,#1d4ed8,#288dfa 30%,#c2d8ff 50%,#288dfa 70%,#1d4ed8) border-box;
+  background-size:100% 100%,300% 100%;animation:fg-tarif-rand 9s linear infinite;
+  box-shadow:0 30px 70px rgba(29,78,216,.13),0 2px 6px rgba(29,78,216,.08)}
+.fg-tarif.fokus:hover{border-color:transparent;box-shadow:0 36px 80px rgba(29,78,216,.18),0 2px 6px rgba(29,78,216,.1)}
+@keyframes fg-tarif-rand{from{background-position:0 0,0 0}to{background-position:0 0,300% 0}}
+.fg-tarif-band{position:absolute;top:-14px;left:26px;display:inline-flex;align-items:center;gap:7px;height:27px;padding:0 13px;border-radius:999px;
+  background:linear-gradient(90deg,#12284a,#1d4ed8);color:#fff;font-size:10.5px;font-weight:500;letter-spacing:.16em;text-transform:uppercase;box-shadow:0 10px 22px rgba(29,78,216,.28)}
+.fg-tarif-band .fg-funke{color:#9fc2ff}
+
+.fg-tarif-kopf .marke{display:block;font-size:10.5px;font-weight:500;letter-spacing:.16em;text-transform:uppercase;color:var(--navy)}
+.fg-tarif-kopf h3{font-family:var(--serif);font-weight:400;font-size:clamp(26px,2.3vw,31px);line-height:1.08;letter-spacing:-.012em;color:var(--tinte);margin-top:12px}
+.fg-tarif-kopf .fuer{font-size:14px;line-height:1.6;color:var(--text);margin-top:10px;min-height:4.8em}
+
+/* Wie weit das Paket begleitet: vier Etappen, gefüllt bis zur letzten enthaltenen */
+.fg-tarif-weg{display:flex;align-items:center;gap:12px;margin-top:18px;min-height:34px}
+.fg-tarif-weg .balken{display:grid;grid-template-columns:repeat(4,20px);gap:4px;flex:0 0 auto}
+.fg-tarif-weg .balken i{position:relative;display:block;height:5px;border-radius:3px;background:#e2e8f2;overflow:hidden}
+.fg-tarif-weg .balken i.an::after{content:"";position:absolute;inset:0;border-radius:inherit;background:linear-gradient(90deg,#1d4ed8,#288dfa);transform:scaleX(0);transform-origin:left;transition:transform .7s cubic-bezier(.2,.7,.2,1)}
+.dk-auf.da .fg-tarif-weg .balken i.an::after{transform:scaleX(1)}
+.fg-tarif-weg .balken i:nth-child(2)::after{transition-delay:.12s}
+.fg-tarif-weg .balken i:nth-child(3)::after{transition-delay:.24s}
+.fg-tarif-weg .balken i:nth-child(4)::after{transition-delay:.36s}
+.fg-tarif-weg .text{font-size:12px;line-height:1.35;color:var(--leise)}
+
+/* Kapitalrahmen und Festpreis nebeneinander — jede Zahl mit ihrem Satz */
+.fg-tarif-zahlen{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));margin-top:18px;border:1px solid #dde5f1;border-radius:14px;background:linear-gradient(155deg,#f8faff 0%,#eef3fb 100%);overflow:hidden}
+.fg-tarif-zahlen>div{display:grid;align-content:start;gap:7px;padding:15px 16px 14px;min-width:0}
+.fg-tarif-zahlen>div+div{border-left:1px solid #dde5f1}
+.fg-tarif-zahlen span{font-size:10px;font-weight:500;letter-spacing:.15em;text-transform:uppercase;color:var(--navy)}
+.fg-tarif-zahlen b{font-family:var(--serif);font-weight:400;font-size:clamp(25px,2.2vw,30px);line-height:1;letter-spacing:-.015em;color:var(--tinte);font-variant-numeric:lining-nums tabular-nums;white-space:nowrap}
+.fg-tarif-zahlen em{font-style:normal;font-size:11px;line-height:1.45;color:var(--leise)}
+.fg-tarif-zahlen em.inkl{display:inline-flex;align-items:flex-start;gap:5px;color:var(--navy)}
+.fg-tarif-zahlen em.inkl .fg-haken{margin-top:1px}
+@container (max-width:300px){.fg-tarif-zahlen{grid-template-columns:1fr}.fg-tarif-zahlen>div+div{border-left:0;border-top:1px solid #dde5f1}}
+
+.fg-tarif .tun{display:grid;gap:2px;justify-items:center;margin-top:18px}
+.fg-tarif .tun .fg-knopf{min-height:48px;font-size:14.5px;border-radius:10px}
+.fg-tarif.fokus .tun .fg-knopf:not(.hell){background:linear-gradient(135deg,#12284a,#1d4ed8);border-color:transparent;box-shadow:0 12px 26px rgba(29,78,216,.28)}
+.fg-tarif.fokus .tun .fg-knopf:not(.hell):hover{box-shadow:0 16px 34px rgba(29,78,216,.36)}
+
+.fg-tarif-leistungen{display:grid;gap:12px;align-content:start;margin-top:20px;padding-top:20px;border-top:1px solid var(--linie);flex:1 1 auto}
+.fg-tarif-erbe{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:500;line-height:1.4;color:var(--navy);padding:9px 12px;border-radius:10px;background:var(--blau-hell);border:1px solid #dbe6fd}
+.fg-tarif-erbe .fg-plus{flex:0 0 auto;color:var(--blau)}
+.fg-tarif-leistungen ul{list-style:none;padding:0;display:grid;gap:10px}
+.fg-tarif-leistungen li{display:flex;gap:10px;align-items:flex-start;font-size:13.5px;line-height:1.5;color:var(--text)}
+.fg-tarif-leistungen li .fg-haken{margin-top:2px}
+.fg-tarif-leistungen li.neu{animation:fg-tarif-neu .35s ease-out both}
+@keyframes fg-tarif-neu{from{opacity:0;transform:translateY(-4px)}}
+.fg-tarif-mehr{justify-self:start;display:inline-flex;align-items:center;gap:6px;background:none;border:0;padding:4px 0;font:500 13px/1.4 var(--sans);color:var(--navy);cursor:pointer}
+.fg-tarif-mehr:hover{color:var(--blau)}
+.fg-tarif-vergleich{display:flex;align-items:center;gap:8px;width:fit-content;margin:30px auto 0;background:none;border:0;padding:8px 4px;font:500 14px/1.4 var(--sans);color:var(--navy);cursor:pointer;
+  text-decoration:underline;text-underline-offset:4px;text-decoration-color:rgba(18,40,74,.3)}
+.fg-tarif-vergleich:hover{text-decoration-color:var(--navy)}
+
+/* ── Global VIP: die dunkle Tafel über die ganze Breite ── */
+@property --fg-vip-winkel{syntax:"<angle>";inherits:false;initial-value:0deg}
+.fg-tarif.vip{padding:0;border:0;border-radius:24px;overflow:hidden;isolation:isolate;color:#c7d3e8;
+  background:radial-gradient(90% 120% at 100% 0%,rgba(40,141,250,.2) 0%,rgba(40,141,250,0) 55%),linear-gradient(155deg,#0b1220 0%,#0f1b34 50%,#1a2744 100%);
+  box-shadow:0 40px 90px rgba(11,18,32,.34),0 0 0 1px rgba(255,255,255,.07) inset}
+.fg-vip-rand{position:absolute;inset:0;border-radius:inherit;padding:1.5px;pointer-events:none;z-index:3;
+  background:conic-gradient(from var(--fg-vip-winkel),rgba(40,141,250,0) 0deg,rgba(40,141,250,0) 210deg,rgba(40,141,250,.9) 290deg,#e3eeff 318deg,rgba(40,141,250,.9) 340deg,rgba(40,141,250,0) 360deg);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:fg-vip-rand 7s linear infinite}
+@keyframes fg-vip-rand{to{--fg-vip-winkel:360deg}}
+.fg-vip-licht{position:absolute;border-radius:50%;pointer-events:none;z-index:0}
+.fg-vip-licht.a{width:560px;height:560px;right:-180px;top:-260px;background:radial-gradient(circle,rgba(40,141,250,.34) 0%,rgba(40,141,250,0) 65%);animation:fg-vip-schweben 16s ease-in-out infinite alternate}
+.fg-vip-licht.b{width:480px;height:480px;left:-160px;bottom:-240px;background:radial-gradient(circle,rgba(29,78,216,.4) 0%,rgba(29,78,216,0) 65%);animation:fg-vip-schweben 20s ease-in-out infinite alternate-reverse}
+@keyframes fg-vip-schweben{from{transform:translate3d(0,0,0) scale(1)}to{transform:translate3d(-70px,50px,0) scale(1.12)}}
+.fg-tarif.vip .fg-vip-wellen{inset:auto 0 0 0;height:58%;opacity:.42;z-index:0;-webkit-mask-image:linear-gradient(to top,#000 25%,transparent);mask-image:linear-gradient(to top,#000 25%,transparent)}
+.fg-vip-inhalt{position:relative;z-index:2;display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:56px;padding:48px 52px 46px}
+
+.fg-vip-zeile{display:flex;align-items:center;flex-wrap:wrap;gap:12px 14px}
+.fg-vip-zeichen{display:inline-flex;align-items:center;gap:7px;height:28px;padding:0 13px;border-radius:999px;font-size:11px;font-weight:500;letter-spacing:.24em;color:#fff;
+  background:linear-gradient(90deg,rgba(40,141,250,.3),rgba(159,194,255,.12));border:1px solid rgba(159,194,255,.38);box-shadow:0 0 24px rgba(40,141,250,.25)}
+.fg-vip-zeichen .fg-funke{color:#bcd6ff;animation:fg-funke 3.2s ease-in-out infinite}
+@keyframes fg-funke{0%,100%{transform:scale(1) rotate(0);opacity:.85}50%{transform:scale(1.25) rotate(45deg);opacity:1}}
+.fg-tarif.vip .marke{font-size:10.5px;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:#9fb6da}
+.fg-tarif.vip h3{font-family:var(--serif);font-weight:300;font-size:clamp(38px,4vw,54px);line-height:1.02;letter-spacing:-.02em;color:#fff;margin-top:18px}
+.fg-tarif.vip .fuer{font-size:15.5px;line-height:1.65;font-weight:300;color:#b6c4dc;margin-top:14px;max-width:48ch}
+.fg-tarif.vip .fg-tarif-weg .balken i{background:rgba(255,255,255,.12)}
+.fg-tarif.vip .fg-tarif-weg .balken i.an::after{background:linear-gradient(90deg,#288dfa,#bcd6ff)}
+.fg-tarif.vip .fg-tarif-weg .text{color:#9fb0cc}
+.fg-vip-kapital{margin-top:26px;padding:20px 22px;border-radius:16px;background:linear-gradient(150deg,rgba(255,255,255,.07),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.1);box-shadow:0 1px 0 rgba(255,255,255,.08) inset}
+.fg-vip-kapital span{display:block;font-size:10.5px;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:#9fc2ff}
+.fg-vip-kapital b{display:block;margin-top:10px;font-family:var(--serif);font-weight:300;font-size:clamp(40px,4.6vw,62px);line-height:1;letter-spacing:-.02em;color:#fff;font-variant-numeric:lining-nums tabular-nums;white-space:nowrap}
+.fg-vip-kapital em{display:block;margin-top:10px;font-style:normal;font-size:12px;line-height:1.5;color:#93a4c2}
+.fg-tarif.vip .fg-glanz{--glanz-grund:#f4f7ff;--glanz-mitte:#9ec5ff;--glanz-licht:#ffffff}
+.fg-tarif.vip .fg-tarif-erbe{margin-top:22px;background:rgba(40,141,250,.12);border-color:rgba(159,194,255,.22);color:#dbe7ff}
+.fg-tarif.vip .fg-tarif-erbe .fg-plus{color:#9fc2ff}
+.fg-tarif.vip ul{list-style:none;padding:0;margin-top:14px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 22px}
+.fg-tarif.vip li{display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.5;color:#d5dff0}
+.fg-tarif.vip li .fg-haken{margin-top:2px;color:#7fb2ff}
+
+.fg-vip-seite{display:flex;flex-direction:column;justify-content:center;min-width:0}
+.fg-vip-preis{display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:10px 18px;margin-top:30px;padding-top:22px;border-top:1px solid rgba(255,255,255,.12)}
+.fg-vip-preis span{display:block;font-size:10.5px;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:#9fb6da}
+.fg-vip-preis b{display:block;margin-top:8px;font-family:var(--serif);font-weight:300;font-size:clamp(38px,3.6vw,50px);line-height:1;letter-spacing:-.02em;color:#fff;font-variant-numeric:lining-nums tabular-nums}
+.fg-vip-preis .inkl{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;letter-spacing:.01em;text-transform:none;color:#cfe0ff;padding:7px 11px;border-radius:999px;background:rgba(40,141,250,.14);border:1px solid rgba(159,194,255,.25)}
+.fg-vip-preis .inkl .fg-haken{color:#9fc2ff}
+.fg-tarif.vip .tun{display:grid;gap:4px;justify-items:center;margin-top:20px}
+.fg-tarif.vip .tun .fg-knopf{min-height:52px;background:#fff;color:var(--navy-2);border-color:#fff;border-radius:12px;font-size:15px;box-shadow:0 14px 34px rgba(40,141,250,.3)}
+.fg-tarif.vip .tun .fg-knopf:hover{background:#eaf2ff;box-shadow:0 18px 44px rgba(40,141,250,.45);transform:translateY(-1px)}
+.fg-tarif.vip .fg-textknopf{color:#cfe0ff;text-decoration-color:rgba(207,224,255,.4)}
+.fg-tarif.vip .fg-textknopf:hover{text-decoration-color:#cfe0ff}
+
+/* Das Ticket nach Miami: außen Neigung (Maus) und Schweben, innen das Blatt mit Kerben */
+.fg-ticket{position:relative;transform:perspective(1000px) rotateX(calc(var(--ny,0) * -7deg)) rotateY(calc(var(--nx,0) * 9deg));transition:transform .3s cubic-bezier(.2,.7,.2,1);
+  filter:drop-shadow(0 28px 38px rgba(0,0,0,.42));animation:fg-ticket-schweben 7s ease-in-out infinite}
+@keyframes fg-ticket-schweben{0%,100%{translate:0 0}50%{translate:0 -8px}}
+.fg-ticket-blatt{position:relative;border-radius:18px;padding:18px 20px 0;overflow:hidden;color:#0c1a2e;background:linear-gradient(140deg,#fbfdff 0%,#edf3ff 52%,#dde8fb 100%);
+  -webkit-mask:radial-gradient(circle 11px at 0 calc(100% - 88px),#0000 98%,#000) left/51% 100% no-repeat,radial-gradient(circle 11px at 100% calc(100% - 88px),#0000 98%,#000) right/51% 100% no-repeat;
+  mask:radial-gradient(circle 11px at 0 calc(100% - 88px),#0000 98%,#000) left/51% 100% no-repeat,radial-gradient(circle 11px at 100% calc(100% - 88px),#0000 98%,#000) right/51% 100% no-repeat}
+.fg-ticket-blatt::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(110deg,transparent 35%,rgba(255,255,255,.75) 50%,transparent 65%);transform:translateX(-120%);animation:fg-ticket-glanz 6.5s ease-in-out infinite}
+@keyframes fg-ticket-glanz{0%,60%{transform:translateX(-120%)}85%,100%{transform:translateX(120%)}}
+.fg-ticket-kopf{display:flex;align-items:center;justify-content:space-between;font-size:10px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:#12284a}
+.fg-ticket-kopf b{font-weight:600;padding:4px 9px;border-radius:6px;background:#0b1c36;color:#fff;letter-spacing:.22em}
+.fg-ticket-titel{margin-top:10px;font-family:var(--serif);font-size:21px;font-weight:400;line-height:1.2;color:#0c1a2e;letter-spacing:-.01em}
+.fg-ticket-route{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;margin-top:14px}
+.fg-ticket-route .ort{display:grid;gap:3px;min-width:0}
+.fg-ticket-route .ort.rechts{text-align:right;justify-items:end}
+.fg-ticket-route small{font-size:9.5px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:#5d6678}
+.fg-ticket-route b{font-family:var(--serif);font-weight:400;font-size:36px;line-height:1;letter-spacing:.02em;color:#0c1a2e}
+.fg-ticket-route .ort span{font-size:11px;line-height:1.35;color:#3b4658;max-width:12em}
+.fg-ticket-route .bahn{width:100%;height:44px;overflow:visible}
+.fg-ticket-route .spur{fill:none;stroke:#1d4ed8;stroke-width:1.3;stroke-dasharray:3 4;stroke-linecap:round;opacity:.55;animation:fg-ticket-spur 1.6s linear infinite}
+@keyframes fg-ticket-spur{to{stroke-dashoffset:-14}}
+.fg-ticket-route .flieger path{fill:#1d4ed8}
+.fg-ticket-unten{position:relative;box-sizing:border-box;height:88px;display:grid;align-content:start;gap:11px;margin:16px -20px 0;padding:14px 20px 0;border-top:1.5px dashed rgba(12,26,46,.2)}
+.fg-ticket-fuss{display:grid;grid-template-columns:1fr auto;gap:14px;margin:0}
+.fg-ticket-fuss div{display:grid;gap:3px}
+.fg-ticket-fuss dt{font-size:9.5px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:#5d6678}
+.fg-ticket-fuss dd{margin:0;font-size:13px;font-weight:500;color:#0c1a2e}
+.fg-ticket-strich{display:block;height:22px;border-radius:2px;opacity:.78;
+  background:repeating-linear-gradient(90deg,#0c1a2e 0 2px,transparent 2px 4px,#0c1a2e 4px 5px,transparent 5px 7px,#0c1a2e 7px 10px,transparent 10px 12px,#0c1a2e 12px 13px,transparent 13px 16px)}
+.fg-ticket-folie{position:absolute;inset:0;pointer-events:none;mix-blend-mode:soft-light;
+  background:radial-gradient(circle at calc(50% + var(--nx,0) * 40%) calc(40% + var(--ny,0) * 40%),rgba(255,255,255,.9) 0%,rgba(255,255,255,0) 45%),
+             linear-gradient(115deg,rgba(40,141,250,0) 30%,rgba(125,211,252,.35) 45%,rgba(196,181,253,.3) 52%,rgba(40,141,250,0) 66%)}
+
+/* Außer Sicht steht die VIP-Tafel still (GlobalVip.tsx setzt data-laeuft) */
+.fg-tarif.vip:not([data-laeuft]) *{animation-play-state:paused!important}
+
+/* ── Tablet: eine Tafel je Zeile, innen zweispaltig (links Zahlen und Knopf, rechts die Leistungen) ── */
+@media(max-width:1000px){
+  .fg-tarife{grid-template-columns:1fr;gap:18px}
+  .fg-tarif:not(.vip){display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:34px;align-content:start;
+    grid-template-areas:"kopf liste" "weg liste" "zahlen liste" "tun liste"}
+  .fg-tarif-kopf{grid-area:kopf}
+  .fg-tarif-weg{grid-area:weg}
+  .fg-tarif-zahlen{grid-area:zahlen}
+  .fg-tarif:not(.vip) .tun{grid-area:tun;align-self:start}
+  .fg-tarif-leistungen{grid-area:liste;margin-top:0;padding-top:0;border-top:0;padding-left:32px;border-left:1px solid var(--linie)}
+  .fg-tarif-kopf .fuer{min-height:0}
+  .fg-vip-inhalt{grid-template-columns:1fr;gap:34px;padding:40px 34px 36px}
+  .fg-vip-seite{max-width:540px}
+}
+/* ── Telefon: eine Tafel, darüber die Wahl (siehe oben) ── */
+@media(max-width:640px){
+  .fg-tarif:not(.vip){display:flex;padding:26px 20px 22px}
+  .fg-tarif-leistungen{margin-top:20px;padding-top:18px;padding-left:0;border-left:0;border-top:1px solid var(--linie)}
+  .fg-tarife>.dk-auf:has(.vip){margin-top:0}
+  .fg-tarif.vip{border-radius:20px}
+  .fg-vip-inhalt{padding:30px 20px 28px;gap:28px}
+  .fg-tarif.vip ul{grid-template-columns:1fr}
+  .fg-ticket-route b{font-size:30px}
+  .fg-paket-wahl #wahl-global_vip{position:relative;overflow:hidden;background:linear-gradient(150deg,#0b1220,#1a2744)}
+  .fg-paket-wahl #wahl-global_vip b{color:#fff}
+  .fg-paket-wahl #wahl-global_vip span{color:#9fc2ff}
+  .fg-paket-wahl #wahl-global_vip[aria-pressed="true"]{box-shadow:0 0 0 2px #288dfa inset}
+  .fg-paket-wahl #wahl-global_vip::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(110deg,transparent 35%,rgba(255,255,255,.22) 50%,transparent 65%);transform:translateX(-120%);animation:fg-ticket-glanz 5.5s ease-in-out infinite}
+}
+@media(prefers-reduced-motion:reduce){
+  .fg-tarif.fokus,.fg-vip-rand,.fg-vip-licht,.fg-funke,.fg-ticket,.fg-ticket-blatt::after,.fg-ticket-route .spur,.fg-tarif-leistungen li.neu,.fg-paket-wahl #wahl-global_vip::after{animation:none!important}
+  .fg-ticket{transform:none;transition:none}
+  .fg-tarif-weg .balken i.an::after{transform:none;transition:none}
+}

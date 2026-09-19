@@ -95,7 +95,9 @@ export default function GlobalNav() {
 
   // Auf dem Auftrag selbst braucht es keinen zweiten Knopf „Beauftragen".
   const imAuftrag = /^\/(en\/)?business\/(start|auftrag)(\/|$)/.test(pfad);
-  const startHref = globalStartPfad(undefined, en ? "en" : "de");
+  // 19.09.2026 (E-196): Auf der Startseite für Privatpersonen führt auch der Kopf in den Auftrag als Privatperson.
+  const privatSeite = pfad === "/business/privatpersonen";
+  const startHref = globalStartPfad(undefined, en ? "en" : "de", privatSeite ? "privat" : undefined);
   const gespraechHref = en ? "/en/business#gespraech" : "/business#gespraech";
   const auftragHref = en ? "/en/business/auftrag" : "/business/auftrag";
   // Auf der Übersicht selbst gleitet „Gespräch vereinbaren" zum Kalender statt neu zu laden.
@@ -164,7 +166,7 @@ export default function GlobalNav() {
               <div className="gk-promo gk-promo-pakete">
                 <p className="gk-panel-titel">Vier Pakete · Festpreis</p>
                 {GLOBAL_PAKETE.map((p) => (
-                  <a key={p.key} href={globalStartPfad(p.key, "de")} className="gk-paket">
+                  <a key={p.key} href={globalStartPfad(p.key, "de", privatSeite ? "privat" : undefined)} className="gk-paket">
                     <span>{p.de.name}</span><b>{globalPreisText(p.key)}</b>
                   </a>
                 ))}

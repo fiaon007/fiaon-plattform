@@ -50,7 +50,7 @@ import {
 } from "@shared/fiaon-global";
 import { globalStartPfad } from "@shared/fiaon-global-wege";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
-import { GLOBAL_STANDORTE } from "@shared/fiaon-global-partner";
+import { GLOBAL_STANDORTE, standortNachweis } from "@shared/fiaon-global-partner";
 import { werbeEreignis } from "@/lib/werbung";
 import "@/styles/global.css";
 
@@ -486,7 +486,7 @@ export default function Business() {
                       <b>{o.gesellschaft}</b>
                       <span className="rolle">{t.standorteRolle[o.schluessel]}</span>
                       <address>
-                        {o.adresse.join(", ")} · {t.standorteLand[o.schluessel]}{o.register ? <><br />{o.register}</> : null}
+                        {o.adresse.join(", ")} · {t.standorteLand[o.schluessel]}<br />{standortNachweis(o)}
                         {o === londonOrt && (
                           <><br />Director: {FIAON_FIRMA.director}<br /><a href={`tel:${FIAON_FIRMA.telefonTel}`}>{FIAON_FIRMA.telefon}</a> · <a href={`mailto:${FIAON_FIRMA.email}`}>{FIAON_FIRMA.email}</a></>
                         )}

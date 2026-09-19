@@ -14,8 +14,11 @@
 //   im Ausland.
 // · Schwarzott Global LLC — Miami, Florida; 3119 Coral Way, Suite 200,
 //   Miami, FL 33145 (Angabe der Gesellschaft). Das Florida-Register
-//   (Sunbiz) liegt hinter einer Bot-Sperre und wurde NICHT abgefragt —
-//   deshalb steht hier keine Registernummer. Nachtragen, wenn Justin sie nennt.
+//   (Sunbiz) liegt hinter einer Bot-Sperre und wurde NICHT abgefragt (19.09.2026
+//   erneut: Sunbiz 403, OpenCorporates Captcha, eigene Imprint-Seite 403) —
+//   deshalb steht hier keine Registernummer; die Seiten nennen stattdessen die
+//   Rechtsform (standortNachweis). Nummer in `register` eintragen, sobald Justin
+//   sie nennt — sie ersetzt die Rechtsform dann überall von selbst.
 //
 // ── OFFEN GESAGT: DIE VERBINDUNG ──────────────────────────────────────────
 // Alle drei Gesellschaften sind über Justin Schwarzott verbunden (Director der
@@ -98,6 +101,16 @@ export const GLOBAL_STANDORTE: GlobalStandort[] = [
     ],
   },
 ];
+
+/**
+ * Was eine Gesellschaft auf der Seite ausweist: die Registernummer — und wo sie (noch) nicht
+ * geprüft vorliegt, die Rechtsform nach dem Recht des Sitzstaats. So steht an jedem Standort
+ * eine vollständige Angabe, nie eine Lücke (19.09.2026, E-192).
+ */
+export function standortNachweis(o: GlobalStandort): string {
+  if (o.register) return o.register;
+  return o.schluessel === "miami" ? "Florida Limited Liability Company" : o.rechtsform;
+}
 
 /** Der Satz zur Verbindung — steht überall, wo die Partner genannt werden. */
 export const GLOBAL_VERBUNDEN =

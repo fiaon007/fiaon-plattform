@@ -10,7 +10,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useSprache } from "@/i18n/sprache";
 import { globalMenue } from "@shared/fiaon-global-menue";
-import { GLOBAL_STANDORTE, GLOBAL_VERBUNDEN } from "@shared/fiaon-global-partner";
+import { GLOBAL_STANDORTE, GLOBAL_VERBUNDEN, standortNachweis } from "@shared/fiaon-global-partner";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
 import { globalStartPfad } from "@shared/fiaon-global-wege";
 import { schwesterPfad } from "@shared/fiaon-seo-seiten";
@@ -83,7 +83,7 @@ export default function GlobalFuss() {
             <li key={o.schluessel}>
               <span className="gf-stadt">{o.stadt}</span>
               <b>{o.gesellschaft}</b>
-              <span>{en ? EN.orte[o.schluessel] : DE_ORTE[o.schluessel]}{o.register ? ` · ${o.register}` : ""}</span>
+              <span>{en ? EN.orte[o.schluessel] : DE_ORTE[o.schluessel]} · {standortNachweis(o)}</span>
             </li>
           ))}
         </ul>

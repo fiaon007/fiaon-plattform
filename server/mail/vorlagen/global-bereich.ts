@@ -63,7 +63,7 @@ const PAARE: Record<string, Record<GlobalBereichSprache, MailBaustein>> = {
   // Person ihn aus dem Office schickt. Ein Passwort gibt es für Firmenaufträge nicht.
   global_zugang: {
     de: {
-      kopfSatz: KOPF, rechtsSatz: GLOBAL_ROLLEN.de.fiaon,
+      bereich: "business", kopfSatz: KOPF, rechtsSatz: GLOBAL_ROLLEN.de.fiaon,
       betreff: "Ihr Zugang zu „Mein Auftrag“ — {{params.paket}}",
       preheader: "Ihr persönlicher Link: Stand, Vertrag, Rechnung, Dokumente und Termine zu Ihrem Auftrag.",
       titel: "Ihr Zugang zu „Mein Auftrag“",
@@ -80,7 +80,7 @@ const PAARE: Record<string, Record<GlobalBereichSprache, MailBaustein>> = {
       knopf: { text: "Mein Auftrag öffnen", url: "{{params.mein_auftrag_url}}" },
     },
     en: {
-      ...RAHMEN_EN, kopfSatz: KOPF, rechtsSatz: GLOBAL_ROLLEN.en.fiaon,
+      ...RAHMEN_EN, bereich: "business", kopfSatz: KOPF, rechtsSatz: GLOBAL_ROLLEN.en.fiaon,
       betreff: "Your access to “My order” — {{params.paket}}",
       preheader: "Your personal link: status, contract, invoice, documents and dates for your order.",
       titel: "Your access to “My order”",
@@ -106,7 +106,7 @@ const PAARE: Record<string, Record<GlobalBereichSprache, MailBaustein>> = {
   // in der Marke und im ersten Absatz.
   global_etappe: {
     de: {
-      kopfSatz: KOPF, rechtsSatz: GLOBAL_ROLLEN.de.fiaon,
+      bereich: "business", kopfSatz: KOPF, rechtsSatz: GLOBAL_ROLLEN.de.fiaon,
       marke: "{{params.etappe_marke}}",
       betreff: "Ihr Auftrag {{params.paket}}: {{params.etappe_titel}}",
       preheader: "Der Stand Ihres Auftrags und der nächste Schritt.",
@@ -125,7 +125,7 @@ const PAARE: Record<string, Record<GlobalBereichSprache, MailBaustein>> = {
       fussnote: INSTITUT.de,
     },
     en: {
-      ...RAHMEN_EN, kopfSatz: KOPF, rechtsSatz: GLOBAL_ROLLEN.en.fiaon,
+      ...RAHMEN_EN, bereich: "business", kopfSatz: KOPF, rechtsSatz: GLOBAL_ROLLEN.en.fiaon,
       marke: "{{params.etappe_marke}}",
       betreff: "Your order {{params.paket}}: {{params.etappe_titel}}",
       preheader: "The status of your order and the next step.",
@@ -149,7 +149,7 @@ const PAARE: Record<string, Record<GlobalBereichSprache, MailBaustein>> = {
   // (Tageslauf global_tageslauf, je Marke genau einmal). Information, keine Auskunft im Einzelfall.
   global_frist: {
     de: {
-      kopfSatz: KOPF, rechtsSatz: GLOBAL_ROLLEN.de.partner,
+      bereich: "business", kopfSatz: KOPF, rechtsSatz: GLOBAL_ROLLEN.de.partner,
       marke: "Pflichtenkalender",
       betreff: "Pflichtenkalender: {{params.frist_titel}} — {{params.frist_datum}}",
       preheader: "Ein Termin aus Ihrem Pflichtenkalender rückt näher.",
@@ -168,7 +168,7 @@ const PAARE: Record<string, Record<GlobalBereichSprache, MailBaustein>> = {
       knopf: { text: "Pflichtenkalender öffnen", url: "{{params.mein_auftrag_url}}" },
     },
     en: {
-      ...RAHMEN_EN, kopfSatz: KOPF, rechtsSatz: GLOBAL_ROLLEN.en.partner,
+      ...RAHMEN_EN, bereich: "business", kopfSatz: KOPF, rechtsSatz: GLOBAL_ROLLEN.en.partner,
       marke: "Compliance calendar",
       betreff: "Compliance calendar: {{params.frist_titel}} — {{params.frist_datum}}",
       preheader: "A date from your compliance calendar is approaching.",
@@ -192,7 +192,7 @@ const PAARE: Record<string, Record<GlobalBereichSprache, MailBaustein>> = {
   // (Gründungsurkunde, EIN-Bestätigung, Operating Agreement …). Nie als Anhang.
   global_dokument: {
     de: {
-      kopfSatz: KOPF, rechtsSatz: GLOBAL_ROLLEN.de.fiaon,
+      bereich: "business", kopfSatz: KOPF, rechtsSatz: GLOBAL_ROLLEN.de.fiaon,
       marke: "Dokumentenraum",
       betreff: "Neues Dokument in Ihrem Dokumentenraum — {{params.dokument_art}}",
       preheader: "FIAON hat ein Dokument für Sie bereitgestellt.",
@@ -209,7 +209,7 @@ const PAARE: Record<string, Record<GlobalBereichSprache, MailBaustein>> = {
       knopf: { text: "Dokument öffnen", url: "{{params.mein_auftrag_url}}" },
     },
     en: {
-      ...RAHMEN_EN, kopfSatz: KOPF, rechtsSatz: GLOBAL_ROLLEN.en.fiaon,
+      ...RAHMEN_EN, bereich: "business", kopfSatz: KOPF, rechtsSatz: GLOBAL_ROLLEN.en.fiaon,
       marke: "Document room",
       betreff: "New document in your document room — {{params.dokument_art}}",
       preheader: "FIAON has provided a document for you.",

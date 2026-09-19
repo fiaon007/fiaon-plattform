@@ -140,7 +140,7 @@ export default function GlobalLandingPage() {
       {/* ── Fuß: nur das Nötige ─────────────────────────────────────────── */}
       <footer style={{ borderTop: "1px solid var(--linie)", padding: "28px 0 40px", background: "var(--stein)" }}>
         <div className="fg-rahmen" style={{ display: "flex", flexWrap: "wrap", gap: "10px 22px", justifyContent: "space-between", fontSize: 12.5, color: "var(--leise)" }}>
-          <span>{FIAON_FIRMA.name} · {FIAON_FIRMA.strasse} · {FIAON_FIRMA.ortZeile} · Companies House {FIAON_FIRMA.companyNo}</span>
+          <span>{FIAON_FIRMA.name} · {FIAON_FIRMA.strasse} · {FIAON_FIRMA.ortZeile} · Companies House {FIAON_FIRMA.companyNo} · FIAON ist keine Bank und keine Kanzlei.</span>
           <span style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
             <a href="/business" style={{ color: "var(--navy)" }}>FIAON Global</a>
             {/* 19.09.2026: Rechtliches der Business-Welt — die AGB der Privatkunden-Linie gelten für FIAON Global nicht. */}

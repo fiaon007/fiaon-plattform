@@ -41,6 +41,7 @@
 // Registriert in routes.ts als tageslauf("global_zahlung_takt", …, 30 Minuten).
 // ═══════════════════════════════════════════════════════════════════════════
 import { berlinOffsetMinutes, berlinDatum, berlinWochentag } from "./fiaon-time";
+import { istFiaonSelbst } from "@shared/fiaon-global";
 
 /** Tag nach dem Auftrag (Berliner Kalendertage), an dem die Stufe frühestens fällig wird. */
 export const TAKT_TAGE = { erinnerung1: 3, erinnerung2: 7, aufgabe: 10 } as const;
@@ -161,7 +162,7 @@ export async function globalZahlungTaktLauf(jetzt: Date = new Date()): Promise<T
   await ensureTaktSpalten();
 
   const zeilen = (await sqlPool`
-    SELECT g.ref, g.created_at, g.zahlung_erinnerung_1_am, g.zahlung_erinnerung_2_am, g.zahlung_aufgabe_am,
+    SELECT g.ref, g.created_at, g.zahlung_erinnerung_1_am, g.zahlung_erinnerung_2_am, g.zahlung_aufgabe_am, g.firma_name,
            a.payment_status, a.cancelled_at, a.archived_at, a.claimed_paid_at
       FROM fiaon_global_auftraege g
       JOIN fiaon_applications a ON a.ref = g.ref
@@ -176,6 +177,10 @@ export async function globalZahlungTaktLauf(jetzt: Date = new Date()): Promise<T
   for (const z of zeilen) {
     erg.geprueft++;
     const ref = String(z.ref);
+    // FIAON ist nie Kunde (Florentines Fund, 19.09.2026): Ein Auftrag, in dem FIAON selbst als Auftraggeber
+    // steht — ein Test aus der Zeit vor der Sperre in fiaon-global-auftrag.ts —, bekommt weder Erinnerung
+    // noch Aufgabe. Er bleibt offen, bis ihn jemand im Office storniert.
+    if (istFiaonSelbst(z.firma_name)) { erg.zurueckgehalten++; continue; }
     const offen = !z.cancelled_at && !z.archived_at && !["paid", "cancelled", "superseded"].includes(String(z.payment_status));
     const stufe = zahlungstaktStufe({
       status: offen ? "offen" : "nicht_offen",

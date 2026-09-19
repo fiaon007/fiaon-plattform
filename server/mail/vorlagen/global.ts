@@ -80,7 +80,7 @@ const PAARE: Record<string, Record<GlobalMailSprache, MailBaustein>> = {
   // unterschriebene Auftrag und die Rechnung — beide als PDF.
   global_auftrag: {
     de: {
-      kopfSatz: KOPF, rechtsSatz: GLOBAL_ROLLEN.de.fiaon,
+      bereich: "business", kopfSatz: KOPF, rechtsSatz: GLOBAL_ROLLEN.de.fiaon,
       betreff: "Ihr Auftrag {{params.paket}} — Vertrag und Rechnung",
       preheader: "Ihr unterschriebener Auftrag und die Rechnung als PDF — und der Weg zur Zahlung.",
       titel: "Ihr Auftrag ist bei uns",
@@ -103,7 +103,7 @@ const PAARE: Record<string, Record<GlobalMailSprache, MailBaustein>> = {
       fussnote: GLOBAL_ROLLEN.de.kosten,
     },
     en: {
-      sprache: "en", kopfSatz: KOPF, rechtsSatz: GLOBAL_ROLLEN.en.fiaon,
+      sprache: "en", bereich: "business", kopfSatz: KOPF, rechtsSatz: GLOBAL_ROLLEN.en.fiaon,
       betreff: "Your order {{params.paket}} — contract and invoice",
       preheader: "Your signed order and the invoice as PDFs — and how to pay.",
       titel: "We have received your order",
@@ -133,7 +133,7 @@ const PAARE: Record<string, Record<GlobalMailSprache, MailBaustein>> = {
   // Drohung, keine Mahnstufe, keine Bankdaten im Text.
   global_zahlung_erinnerung: {
     de: {
-      kopfSatz: KOPF, rechtsSatz: GLOBAL_ROLLEN.de.fiaon,
+      bereich: "business", kopfSatz: KOPF, rechtsSatz: GLOBAL_ROLLEN.de.fiaon,
       marke: "Erinnerung",
       betreff: "Ihr Auftrag {{params.paket}} — die Zahlung steht noch aus",
       preheader: "Ihr Auftrag liegt bereit. Mit dem Zahlungseingang beginnen wir.",
@@ -155,7 +155,7 @@ const PAARE: Record<string, Record<GlobalMailSprache, MailBaustein>> = {
       fussnote: "Sie möchten den Auftrag nicht weiterverfolgen? Eine kurze Antwort auf diese E-Mail genügt.",
     },
     en: {
-      sprache: "en", kopfSatz: KOPF, rechtsSatz: GLOBAL_ROLLEN.en.fiaon,
+      sprache: "en", bereich: "business", kopfSatz: KOPF, rechtsSatz: GLOBAL_ROLLEN.en.fiaon,
       marke: "Reminder",
       betreff: "Your order {{params.paket}} — payment is still outstanding",
       preheader: "Your order is ready. Work begins once your payment has arrived.",
@@ -181,7 +181,7 @@ const PAARE: Record<string, Record<GlobalMailSprache, MailBaustein>> = {
   // Nach dem Zahlungseingang — erst wenn die Aufgabe bei der zuständigen Person liegt.
   global_start: {
     de: {
-      kopfSatz: KOPF, rechtsSatz: GLOBAL_ROLLEN.de.fiaon,
+      bereich: "business", kopfSatz: KOPF, rechtsSatz: GLOBAL_ROLLEN.de.fiaon,
       betreff: "Zahlung eingegangen — wir starten mit {{params.paket}}",
       preheader: "Ihr Ansprechpartner und die Unterlagen für den Start.",
       titel: "Wir beginnen",
@@ -202,7 +202,7 @@ const PAARE: Record<string, Record<GlobalMailSprache, MailBaustein>> = {
       fussnote: "Über Konto, Karte und Rahmen entscheidet allein das jeweilige Institut.",
     },
     en: {
-      sprache: "en", kopfSatz: KOPF, rechtsSatz: GLOBAL_ROLLEN.en.fiaon,
+      sprache: "en", bereich: "business", kopfSatz: KOPF, rechtsSatz: GLOBAL_ROLLEN.en.fiaon,
       betreff: "Payment received — we are starting {{params.paket}}",
       preheader: "Your contact and the documents for the start.",
       titel: "We are getting started",
@@ -228,7 +228,7 @@ const PAARE: Record<string, Record<GlobalMailSprache, MailBaustein>> = {
   // /chef/s/global-auftraege, wenn der Stichtag gesetzt wird.
   global_stichtag: {
     de: {
-      kopfSatz: KOPF, rechtsSatz: GLOBAL_ROLLEN.de.fiaon,
+      bereich: "business", kopfSatz: KOPF, rechtsSatz: GLOBAL_ROLLEN.de.fiaon,
       betreff: "Ihr Stichtag für Gesellschaft und EIN: {{params.stichtag_text}}",
       preheader: "Wie im Startgespräch festgelegt — zur Ablage bei Ihrem Auftrag.",
       titel: "Ihr Stichtag steht fest",
@@ -245,7 +245,7 @@ const PAARE: Record<string, Record<GlobalMailSprache, MailBaustein>> = {
       persoenlich: true,
     },
     en: {
-      sprache: "en", kopfSatz: KOPF, rechtsSatz: GLOBAL_ROLLEN.en.fiaon,
+      sprache: "en", bereich: "business", kopfSatz: KOPF, rechtsSatz: GLOBAL_ROLLEN.en.fiaon,
       betreff: "Your agreed date for the company and the EIN: {{params.stichtag_text}}",
       preheader: "As set in the kick-off call — for your records.",
       titel: "Your agreed date is set",

@@ -28,7 +28,13 @@ const EN = {
   verbunden: "Schwarzott Capital Partners AG and Schwarzott Global LLC are connected to FIAON through our founder Justin Schwarzott. Your contracting party is always FIAON LTD.",
   recht: [["/impressum", "Legal notice"], ["/datenschutz", "Privacy policy"], ["/cookie-einstellungen", "Cookie settings"]],
   registriert: "Registered in England and Wales",
+  keineBank: "FIAON is neither a bank nor a law firm. Accounts, cards and loans are decided solely by the institutions; tax and legal questions are handled by our partners under your engagement.",
 } as const;
+
+// 19.09.2026 (E-192): Ein Paket heißt „Global Banking" — „Bank" in einer Bezeichnung ist nach § 39 KWG Kreditinstituten
+// vorbehalten, außer der Zusammenhang schließt den Anschein von Bankgeschäften aus (§ 41 KWG). Dieser Satz steht
+// deshalb auf jeder Seite der Business-Welt, direkt beim Vertragspartner.
+const KEINE_BANK = "FIAON ist keine Bank und keine Kanzlei. Über Konten, Karten und Darlehen entscheiden allein die Institute; Steuer- und Rechtsfragen klären unsere Partner auf Ihr Mandat.";
 
 const DE_ORTE = { london: "Vertragspartner", zuerich: "Partner Kapital-Etappe", miami: "Team vor Ort" } as const;
 
@@ -85,6 +91,7 @@ export default function GlobalFuss() {
         <div className="gf-unten">
           <div className="gf-firma">
             <p>© {jahr} {FIAON_FIRMA.name} · {en ? EN.registriert : "Eingetragen in England und Wales"}, Company No. {FIAON_FIRMA.companyNo} · {FIAON_FIRMA.strasse}, {FIAON_FIRMA.ortZeile}</p>
+            <p className="gf-verbunden">{en ? EN.keineBank : KEINE_BANK}</p>
             <p className="gf-verbunden">{en ? EN.verbunden : GLOBAL_VERBUNDEN}</p>
           </div>
           <nav className="gf-recht" aria-label={en ? "Legal" : "Rechtliches"}>

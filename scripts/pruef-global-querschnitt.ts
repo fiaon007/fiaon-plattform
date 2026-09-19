@@ -164,6 +164,8 @@ const stand = (erstellt: Date, mehr: Partial<Stand> = {}): Stand =>
   ok(/WHERE g\.status = 'offen'/.test(q) && /payment_status/.test(q), "Lauf: liest nicht mehr nur offene Aufträge");
   ok(/darfAnEmpfaenger\(an, "global_zahlung_erinnerung"\)/.test(q), "Lauf: fragt die Frequenzbremse nicht mehr (hart unzustellbare Adressen!)");
   ok(!/UPDATE\s+fiaon_applications|INSERT INTO fiaon_(commissions|abo_raten|bank)/i.test(q), "Lauf: fasst Bestellung oder Geld an");
+  // 19.09.2026 (Florentines Fund): FIAON mahnt sich nie selbst — Aufträge mit FIAON als Auftraggeber werden übersprungen.
+  ok(/g\.firma_name/.test(q) && /if \(istFiaonSelbst\(z\.firma_name\)\) \{ erg\.zurueckgehalten\+\+; continue; \}/.test(q), "Lauf: überspringt Aufträge mit FIAON als Auftraggeber nicht mehr (Test-Aufträge bekämen Erinnerungen)");
 }
 
 // ═══ B · DIE TÜR ZUM PRIVATBEREICH ══════════════════════════════════════════
@@ -349,6 +351,7 @@ for (const event of ereignisse) {
   ok(paar.de.sprache === undefined && paar.en.sprache === "en", `${event}: Rahmensprache falsch gesetzt (de muss OHNE Angabe bleiben)`);
   ok(!!paar.de.kopfSatz && !!paar.de.rechtsSatz && !!paar.en.kopfSatz && !!paar.en.rechtsSatz, `${event}: Kopf- oder Rechtssatz der Global-Linie fehlt`);
   ok(!paar.de.karteZiel && !paar.en.karteZiel, `${event}: trägt den Kartenblock der Privatkundenlinie`);
+  ok(paar.de.bereich === "business" && paar.en.bereich === "business", `${event}: Rahmen der Business-Welt (bereich: "business") fehlt`);
 
   for (const sprache of ["de", "en"] as const) {
     const token = auftrag.globalTokenErzeugen("FIAON-PRUEFSTAND-0001");
@@ -364,6 +367,8 @@ for (const event of ereignisse) {
     ok(!/\{\{|\}\}|%%/.test(mail.html + mail.text + mail.betreff), `${wo}: ungefüllter Platzhalter im Ergebnis`);
     ok(!/Bonität ist machbar|keine Löschung berechtigter Einträge|Ihr Ziel bleibt die eigene Karte/.test(mail.html), `${wo}: trägt Sätze der Privatkundenlinie`);
     ok(mail.html.includes("FIAON Global"), `${wo}: Kopfsatz „FIAON Global“ fehlt`);
+    // 19.09.2026 (E-192): Der Fuß einer Global-Mail führt in die Business-Welt — nie auf die Startseite der Privatkunden.
+    ok(mail.html.includes('href="https://fiaon.com/business"') && mail.html.includes("/impressum?bereich=business") && !mail.html.includes('href="https://fiaon.com"') && /fiaon\.com\/business/.test(mail.text), `${wo}: Fuß verweist nicht auf fiaon.com/business bzw. Impressum im Business-Rahmen`);
     ok(!IBAN.test(mail.text) && !/\bBIC\b|\bIBAN\b/.test(mail.text.replace(/IBAN, amount|IBAN, Betrag/g, "")), `${wo}: Bankdaten im Mailtext`);
     ok(!mail.html.includes("<b>GmbH</b>") && nutzlast.firma.includes("&lt;b&gt;GmbH&lt;/b&gt;"), `${wo}: HTML aus dem Firmennamen wird nicht entschärft`);
     ok(sprache === "en" ? /^€\d{1,3}(,\d{3})*\.\d{2}$/.test(nutzlast.betrag_text) : /^\d{1,3}(\.\d{3})*,\d{2}\s€$/.test(nutzlast.betrag_text), `${wo}: Betrag „${nutzlast.betrag_text}“ nicht im Zahlenbild der Sprache`);

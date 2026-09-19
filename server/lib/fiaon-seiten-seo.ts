@@ -229,10 +229,12 @@ function strukturierteDaten(s: SeoSeite, url: string): unknown[] {
 // ── Der lesbare Korpus in #root ──────────────────────────────────────────────
 function link(pfad: string, text: string): string { return `<a href="${esc(pfad)}">${esc(text)}</a>`; }
 
-function weiterlesen(s: SeoSeite): string {
+function weiterlesen(s: SeoSeite, nurBusiness = false): string {
   const en = s.sprache === "en";
   // Englische Seiten verweisen auf die englische Schwester des Ziels, wo es sie gibt.
-  const ziele = (s.weiter ?? []).map((p) => seoSeite(en ? (schwesterPfad(p, "en") ?? p) : p)).filter((z): z is SeoSeite => !!z);
+  // Im Business-Rahmen nur Ziele der Business-Welt — das Impressum verweist sonst auf AGB und Kontakt der Privatkunden.
+  const ziele = (s.weiter ?? []).map((p) => seoSeite(en ? (schwesterPfad(p, "en") ?? p) : p))
+    .filter((z): z is SeoSeite => !!z && (!nurBusiness || /^\/(en\/)?business(\/|$)/.test(z.pfad)));
   if (!ziele.length) return "";
   const titel = en ? "Read on" : "Weiterlesen";
   return `<nav aria-label="${titel}"><h2>${titel}</h2><ul>${ziele.map((z) => `<li>${link(z.pfad, z.h1.replace(/\s+/g, " "))} – ${esc(z.beschreibung)}</li>`).join("")}</ul></nav>`;
@@ -271,10 +273,11 @@ function seoRahmenBusiness(sprache: Sprache): { kopf: string; fuss: string } {
   return { kopf, fuss };
 }
 
-function korpus(s: SeoSeite): string {
+function korpus(s: SeoSeite, businessRahmen = false): string {
   const fragen = seoFragen(s.pfad);
   const en = s.sprache === "en";
-  const business = /^\/(en\/)?business(\/|$)/.test(s.pfad);
+  // Gemeinsame Seiten (Impressum …), aus der Business-Welt geöffnet, tragen deren Rahmen (routes.ts, ?bereich=business).
+  const business = businessRahmen || /^\/(en\/)?business(\/|$)/.test(s.pfad);
   const { kopf: nav, fuss } = business ? seoRahmenBusiness(en ? "en" : "de") : seoRahmen(en ? "en" : "de");
   const wurzel = business ? link(en ? "/en/business" : "/business", "FIAON Global") : link(en ? "/en" : "/", "FIAON");
   const krumen = s.krumen?.length ? `<nav aria-label="${en ? "Breadcrumbs" : "Brotkrumen"}"><ol><li>${wurzel}</li>${s.krumen.filter((k) => !(business && k.pfad === (en ? "/en/business" : "/business"))).map((k) => `<li>${link(k.pfad, k.name)}</li>`).join("")}</ol></nav>` : "";
@@ -282,7 +285,7 @@ function korpus(s: SeoSeite): string {
   const werkzeuge = (s.pfad === "/werkzeuge" || s.pfad === "/en/tools") ? `<section><h2>${s.sprache === "en" ? "The twenty tools" : "Die zwanzig Werkzeuge"}</h2><ul>${(s.sprache === "en" ? SEO_WERKZEUGE_EN : SEO_WERKZEUGE).map((w) => `<li>${link(s.sprache === "en" ? (schwesterPfad(w.pfad, "en") ?? w.pfad) : w.pfad, w.name)} – ${esc(w.frage)} ${esc(w.satz)}</li>`).join("")}</ul></section>` : "";
   const glossar = (s.pfad === "/glossar-bonitaet" || s.pfad === "/en/credit-glossary") ? `<section><h2>${s.sprache === "en" ? "The terms" : "Die Begriffe"}</h2><dl>${(s.sprache === "en" ? SEO_GLOSSAR_EN : SEO_GLOSSAR).map((g) => `<dt>${esc(g.wort)}</dt><dd>${esc(g.text)}</dd>`).join("")}</dl></section>` : "";
   const faq = fragen.length ? `<section><h2>${en ? "Frequently asked questions" : "Häufige Fragen"}</h2>${fragen.map((f) => `<h3>${esc(f.f)}</h3><p>${esc(f.a)}</p>`).join("")}</section>` : "";
-  return `<div class="vorab">${nav}<main>${krumen}<article><h1>${esc(s.h1)}</h1><p>${esc(s.lead)}</p>${abschnitte}${werkzeuge}${glossar}${faq}${weiterlesen(s)}</article></main>${fuss}</div>`;
+  return `<div class="vorab">${nav}<main>${krumen}<article><h1>${esc(s.h1)}</h1><p>${esc(s.lead)}</p>${abschnitte}${werkzeuge}${glossar}${faq}${weiterlesen(s, business)}</article></main>${fuss}</div>`;
 }
 
 // Der Korpus ist für die Sekunde vor React da — und für Crawler. Ein wenig
@@ -290,8 +293,12 @@ function korpus(s: SeoSeite): string {
 // Bewusst NICHT versteckt (display:none wäre Cloaking).
 export const VORAB_STIL = `<style>.vorab{max-width:760px;margin:0 auto;padding:24px 20px;font:16px/1.6 Inter,system-ui,sans-serif;color:#0f172a}.vorab h1{font-size:2rem;line-height:1.2;margin:16px 0}.vorab h2{font-size:1.25rem;margin:28px 0 8px}.vorab h3{font-size:1.05rem;margin:18px 0 4px}.vorab ul,.vorab ol{padding-left:20px}.vorab nav ul{list-style:none;padding:0;display:flex;flex-wrap:wrap;gap:8px 16px}.vorab a{color:#1d4ed8}.vorab footer{margin-top:40px;border-top:1px solid #e2e8f0;padding-top:16px;font-size:14px}.vorab dt{font-weight:600;margin-top:12px}</style>`;
 
-/** Fertiges HTML für eine öffentliche Seite — oder null, wenn sie nicht geführt wird. */
-export function seitenHtml(pfad: string): string | null {
+/**
+ * Fertiges HTML für eine öffentliche Seite — oder null, wenn sie nicht geführt wird.
+ * `bereich: "business"`: eine gemeinsame Seite, aus der Business-Welt geöffnet — der Korpus bekommt
+ * Kopf und Fuß von FIAON Global (19.09.2026, E-192). Kopf, canonical und strukturierte Daten bleiben gleich.
+ */
+export function seitenHtml(pfad: string, optionen: { bereich?: "business" } = {}): string | null {
   const s = seoSeite(pfad);
   // /ratgeber hat seinen eigenen Vorrenderer (Artikel aus der Datenbank).
   if (!s || s.eigenerVorrenderer) return null;
@@ -309,7 +316,7 @@ export function seitenHtml(pfad: string): string | null {
   // Der Korpus nur für indexierbare Seiten — ein Login-Formular braucht
   // keinen Vorab-Text, und interne Wege sollen nichts preisgeben.
   if (!s.robots?.includes("noindex")) {
-    out = out.replace("</head>", `    ${VORAB_STIL}\n  </head>`).replace('<div id="root"></div>', `<div id="root">${korpus(s)}</div>`);
+    out = out.replace("</head>", `    ${VORAB_STIL}\n  </head>`).replace('<div id="root"></div>', `<div id="root">${korpus(s, optionen.bereich === "business")}</div>`);
   }
   return out;
 }

@@ -697,6 +697,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     next();
   });
 
+  // 19.09.2026 (E-192): Gemeinsame Seiten, aus der Business-Welt geöffnet (?bereich=business — Impressum,
+  // Datenschutz, Cookie-Einstellungen), tragen schon im Vorab-HTML den Rahmen von FIAON Global. Vorher stand
+  // dort bis zum Start von React der Rahmen der Privatkunden. Ohne ?bereich=business geht alles unverändert weiter.
+  app.get('*', async (req, res, next) => {
+    if (req.query.bereich !== 'business' || req.path.startsWith('/api') || req.path.includes('.') || /^\/(en\/)?business(\/|$)/.test(req.path)) return next();
+    try {
+      const { seitenHtml } = await import('./lib/fiaon-seiten-seo');
+      let html = seitenHtml(req.path, { bereich: 'business' });
+      if (!html) return next();
+      if (process.env.NODE_ENV !== 'production') {
+        try {
+          const { viteInstanz } = await import('./vite');
+          if (viteInstanz) html = await viteInstanz.transformIndexHtml(req.originalUrl, html);
+        } catch (e) { console.error('[SEITEN-SEO] vite:', String(e).slice(0, 120)); }
+      }
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Cache-Control', 'public, max-age=300');
+      res.send(html);
+    } catch (e) { console.error('[SEITEN-SEO] bereich:', e); next(); }
+  });
+
   const UMGEZOGEN: Record<string, string> = { '/global': '/business', '/en/global': '/en/business', '/business-antrag': '/business/start' };
   app.get(Object.keys(UMGEZOGEN), (req, res) => {
     const abfrage = req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?')) : '';

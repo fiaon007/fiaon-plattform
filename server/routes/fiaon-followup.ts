@@ -549,9 +549,9 @@ export async function runTerminErinnerungen(): Promise<number> {
         termin_art: terminArtAusQuelle(t.quelle).text,
         // 17.09.2026 (E-188): Die Absage-Seite duzt Privatkunden. Ein Unternehmen,
         // das ein Erstgespräch zu FIAON Global gebucht hat, liest dort die
-        // Sie-Fassung — der Zusatz am Link schaltet sie ein.
+        // Sie-Fassung — der Zusatz am Link schaltet sie ein; seit 19.09.2026 auch den Rahmen von FIAON Global.
         storno_link: t.storno_token
-          ? `${stornoLink(String(t.storno_token))}${String(t.quelle) === "global" ? "?anrede=sie" : ""}`
+          ? `${stornoLink(String(t.storno_token))}${String(t.quelle) === "global" ? "?anrede=sie&bereich=business" : ""}`
           : "",
         // Derselbe fertige Satz wie in der Bestätigung — für
         // {{params.hinweis_anruf}} in der Brevo-Vorlage. In der Erinnerung ist

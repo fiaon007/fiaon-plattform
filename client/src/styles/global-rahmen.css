@@ -133,7 +133,9 @@ html.fg-dokument #root { overflow-x:clip; }
 .gf-knopf:hover { background:#e9eef7; }
 .gf-knopf.hell { background:transparent; color:#fff !important; border-color:rgba(255,255,255,.34); }
 .gf-knopf.hell:hover { background:rgba(255,255,255,.08); }
-.gf-kontakt { display:flex; flex-wrap:wrap; gap:10px; margin-top:20px !important; font-size:13.5px !important; }
+.gf-kontakt { display:flex; flex-wrap:wrap; gap:8px 18px; margin-top:20px !important; font-size:13.5px !important; }
+/* Die Punkte zwischen Telefon, E-Mail und „Mein Auftrag" blieben beim Umbruch allein am Zeilenende stehen — der Abstand trennt. */
+.gf-kontakt > span[aria-hidden] { display:none; }
 .gf-kontakt a { color:#fff; text-decoration:underline; text-underline-offset:3px; text-decoration-color:rgba(255,255,255,.3); }
 .gf-themen { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:28px; }
 .gf-titel { margin:0 0 14px; font:600 10.5px/1 var(--gk-sans); letter-spacing:.18em; text-transform:uppercase; color:#9fb4d8; }

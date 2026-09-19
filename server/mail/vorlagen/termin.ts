@@ -48,7 +48,7 @@ export const TERMIN_VORLAGEN: Record<string, MailBaustein> = {
   // Fassung steht unten (GLOBAL_TERMIN_EN); der Motor nimmt sie, wenn die Nutzlast
   // `sprache: "en"` trägt (wer auf /en/business bucht).
   global_termin: {
-    kopfSatz: "FIAON Global", rechtsSatz: GLOBAL_ROLLEN.de.fiaon,
+    bereich: "business", kopfSatz: "FIAON Global", rechtsSatz: GLOBAL_ROLLEN.de.fiaon,
     betreff: "Ihr Gespräch zu FIAON Global: {{params.termin_datum}}, {{params.termin_uhrzeit}} Uhr",
     preheader: "Bestätigt. {{params.agent_vorname}} ruft Sie an — Sie müssen nichts vorbereiten.",
     titel: "Ihr Gespräch ist eingetragen",
@@ -144,7 +144,7 @@ export const TERMIN_VORLAGEN: Record<string, MailBaustein> = {
 // Die Seite hinter „Reschedule or cancel" und die Kalenderdatei sind noch deutsch.
 export const GLOBAL_TERMIN_EN: Record<string, MailBaustein> = {
   global_termin: {
-    sprache: "en", kopfSatz: "FIAON Global", rechtsSatz: GLOBAL_ROLLEN.en.fiaon,
+    sprache: "en", bereich: "business", kopfSatz: "FIAON Global", rechtsSatz: GLOBAL_ROLLEN.en.fiaon,
     betreff: "Your call about FIAON Global: {{params.termin_datum}}, {{params.termin_uhrzeit}}",
     preheader: "Confirmed. {{params.agent_vorname}} will call you — there is nothing to prepare.",
     titel: "Your call is booked",

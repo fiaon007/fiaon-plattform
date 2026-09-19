@@ -214,6 +214,27 @@ for (const [pfad, e] of Object.entries(tabelle) as [string, any][]) {
     ok(fremd.length === 0, `SEO ${eintrag.pfad ?? pfad}: Weiterlesen/Brotkrumen führen aus der Business-Welt: ${fremd.join(", ")}`);
   }
 }
+// Gemeinsame Seiten, aus der Business-Welt geöffnet (?bereich=business), tragen schon im Vorab-HTML den Business-Rahmen
+// (server/routes.ts → seitenHtml(pfad, { bereich: "business" })) — ohne Weiterlesen in die Privatkunden-Linie.
+{
+  const { seitenHtml } = await import("../server/lib/fiaon-seiten-seo");
+  const links = (html: string) => [...(html.split('<div class="vorab">')[1] ?? "").matchAll(/<a href="([^"]+)"/g)].map((m) => m[1]);
+  const erlaubt = /^(\/(en\/)?(business|impressum|datenschutz|cookie-einstellungen|privacy|legal-notice|cookie-settings)([/?#]|$)|tel:|mailto:|https?:)/;
+  for (const pfad of ["/impressum", "/privacy"]) {
+    const html = seitenHtml(pfad, { bereich: "business" }) ?? "";
+    const fremd = links(html).filter((h) => !erlaubt.test(h));
+    ok(html.includes('<nav aria-label="FIAON Global">') && fremd.length === 0, `Vorab-HTML ${pfad}?bereich=business: Business-Rahmen fehlt oder Links in die Privatwelt (${fremd.slice(0, 4).join(", ")})`);
+  }
+  ok((seitenHtml("/impressum") ?? "").includes('aria-label="Hauptnavigation"'), "Vorab-HTML /impressum ohne ?bereich: der Rahmen der Privatkunden fehlt");
+  const routen = fs.readFileSync(path.join(WURZEL, "server/routes.ts"), "utf8");
+  ok(routen.indexOf("seitenHtml(req.path, { bereich: 'business' })") > -1 && routen.indexOf("seitenHtml(req.path, { bereich: 'business' })") < routen.lastIndexOf("seitenHtml(req.path"), "routes.ts: der Business-Vorrenderer für ?bereich=business fehlt oder steht hinter dem allgemeinen");
+}
+// Die 404-Ansicht unter /business führt zu FIAON Global — nie zu Startseite, Login oder „Was ist FIAON?" der Privatkunden.
+{
+  const nf = fs.readFileSync(path.join(WURZEL, "client/src/pages/not-found.tsx"), "utf8");
+  const zweig = nf.slice(nf.indexOf("if (business)"), nf.indexOf("const primary"));
+  ok(/istBusinessBereich\(/.test(nf) && zweig.length > 50 && /"\/business"/.test(zweig) && !/"\/(login|was-ist-fiaon)"|href: "\/"/.test(zweig), "not-found.tsx: die 404-Ansicht unter /business führt nicht zu FIAON Global oder in die Privatwelt");
+}
 // Die Kacheln „Für wen" auf /business führen auf Unterseiten, die es gibt.
 for (const k of GLOBAL_WOERTER.de.fuer) ok(!k.pfad || seitenPfade.has(k.pfad), `/business „Für wen": ${k.tag} → ${k.pfad} gibt es nicht`);
 for (const [ziel] of GLOBAL_WOERTER.de.fuerLaenderLinks) ok(seitenPfade.has(ziel), `/business „Für wen": ${ziel} gibt es nicht`);

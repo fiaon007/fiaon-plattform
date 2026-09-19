@@ -51,6 +51,7 @@ import {
 import { globalStartPfad } from "@shared/fiaon-global-wege";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
 import { GLOBAL_STANDORTE } from "@shared/fiaon-global-partner";
+import { werbeEreignis } from "@/lib/werbung";
 import "@/styles/global.css";
 
 /** Das eine Zeichen der Seite: ein ruhiger Haken. */
@@ -127,7 +128,17 @@ export default function Business() {
     document.getElementById("gespraech")?.scrollIntoView({ behavior: glatt() });
   };
   const zuDenPaketen = () => document.getElementById("pakete")?.scrollIntoView({ behavior: glatt() });
+  // Wer mitten in einer Tafel umschaltet, beginnt die neue oben — nicht irgendwo in ihrer Mitte.
+  const paketZeigen = (key: string) => {
+    setMobilPaket(key);
+    requestAnimationFrame(() => {
+      const tafel = document.getElementById(`paket-${key}`);
+      if (tafel && tafel.getBoundingClientRect().top < 150) tafel.scrollIntoView({ block: "start", behavior: glatt() });
+    });
+  };
   const geld = GLOBAL_GELD_ZURUECK.aktiv ? GLOBAL_GELD_ZURUECK[s] : null;
+  // Wie auf Unterseiten und Landingpages: Jeder Klick auf „beauftragen" zählt (nur mit Einwilligung, lib/werbung.ts).
+  const klick = (paket?: string, ort = "") => () => werbeEreignis("global_beauftragen_klick", { paket: paket ?? "", seite: s === "en" ? "/en/business" : "/business", ort });
   const londonOrt = GLOBAL_STANDORTE.find((o) => o.schluessel === "london");
 
   return (
@@ -251,9 +262,9 @@ export default function Business() {
             {/* Am Handy: die Wahl zwischen den vier Tafeln — mit Preis, damit niemand suchen muss.
                 Der Rahmen hält die Wahl nur so lange oben, wie die Tafel zu sehen ist. */}
             <div className="fg-pakete-rahmen">
-              <div className="fg-paket-wahl" role="tablist" aria-label={t.paketeAuge}>
+              <div className="fg-paket-wahl" role="group" aria-label={t.paketeAuge}>
                 {GLOBAL_PAKETE.map((p) => (
-                  <button key={p.key} type="button" role="tab" id={`wahl-${p.key}`} aria-selected={mobilPaket === p.key} aria-controls={`paket-${p.key}`} onClick={() => setMobilPaket(p.key)}>
+                  <button key={p.key} type="button" id={`wahl-${p.key}`} aria-pressed={mobilPaket === p.key} aria-controls={`paket-${p.key}`} onClick={() => paketZeigen(p.key)}>
                     <b>{p[s].name.replace(/^Global\s+/, "")}</b><span>{globalPreisText(p.key, s)}</span>
                   </button>
                 ))}
@@ -292,11 +303,11 @@ export default function Business() {
                               <button type="button" className="fg-knopf voll" onClick={() => zumGespraech(p.key)}>
                                 <span className="lang">{t.vipGespraech(w.name)}</span><span className="kurz">{t.vipGespraechKurz}</span>
                               </button>
-                              <a className="fg-textknopf" href={start(p.key)}>{t.direktBeauftragen}</a>
+                              <a className="fg-textknopf" href={start(p.key)} onClick={klick(p.key, "tafel")}>{t.direktBeauftragen}</a>
                             </>
                           ) : (
                             <>
-                              <a className={`fg-knopf voll${p.key === FOKUS ? "" : " hell"}`} href={start(p.key)} aria-label={t.beauftragen(w.name)}>
+                              <a className={`fg-knopf voll${p.key === FOKUS ? "" : " hell"}`} href={start(p.key)} aria-label={t.beauftragen(w.name)} onClick={klick(p.key, "tafel")}>
                                 <span className="lang">{t.beauftragen(w.name)}</span><span className="kurz">{t.beauftragenKurz}</span><Pfeil />
                               </a>
                               <button type="button" className="fg-textknopf" onClick={() => zumGespraech(p.key)}>{t.erstSprechen}</button>
@@ -397,7 +408,7 @@ export default function Business() {
                 <tfoot>
                   <tr>
                     <td />
-                    {GLOBAL_PAKETE.map((p) => <td key={p.key} className={p.key === FOKUS ? "fokus" : undefined}><a className={`fg-knopf${p.key === FOKUS ? "" : " hell"}`} href={start(p.key)} aria-label={t.beauftragen(p[s].name)}>{t.beauftragenKurz}</a></td>)}
+                    {GLOBAL_PAKETE.map((p) => <td key={p.key} className={p.key === FOKUS ? "fokus" : undefined}><a className={`fg-knopf${p.key === FOKUS ? "" : " hell"}`} href={start(p.key)} aria-label={t.beauftragen(p[s].name)} onClick={klick(p.key, "tabelle")}>{t.beauftragenKurz}</a></td>)}
                   </tr>
                 </tfoot>
               </table>
@@ -512,7 +523,7 @@ export default function Business() {
             <h2 className="fg-h2">{t.schlussA}<em>{t.schlussB}</em></h2>
             <p className="fg-lead">{t.schlussText}</p>
             <div className="fg-knoepfe">
-              <a className="fg-knopf" href={start()}>{t.schlussBeauftragen}<Pfeil /></a>
+              <a className="fg-knopf" href={start()} onClick={klick(undefined, "schluss")}>{t.schlussBeauftragen}<Pfeil /></a>
               <button type="button" className="fg-knopf hell" onClick={() => zumGespraech()}>{t.knopfGespraech}</button>
             </div>
           </div>
@@ -522,7 +533,7 @@ export default function Business() {
         <div className={`fg-mobil${leiste !== "aus" ? " da" : ""}`} aria-hidden={leiste === "aus"}>
           <button type="button" className="hell" onClick={() => zumGespraech()} tabIndex={leiste === "aus" ? -1 : 0}>{t.leisteGespraech}</button>
           {leiste === "beauftragen"
-            ? <a className="voll" href={start()} tabIndex={0}>{t.leisteBeauftragen}</a>
+            ? <a className="voll" href={start()} tabIndex={0} onClick={klick(undefined, "leiste")}>{t.leisteBeauftragen}</a>
             : <button type="button" className="voll" onClick={zuDenPaketen} tabIndex={leiste === "aus" ? -1 : 0}>{t.leistePakete(abPreis)}</button>}
         </div>
       </div>

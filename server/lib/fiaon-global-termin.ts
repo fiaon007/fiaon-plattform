@@ -467,7 +467,8 @@ export function globalTerminPayload(ein: {
       termin_uhrzeit: ein.uhrzeit,
       termin_art: "First call, FIAON Global",
       termin_dauer: String(GLOBAL_DAUER_MIN),
-      storno_link: `${stornoLink(ein.stornoToken)}?anrede=sie`,
+      // ?bereich=business: Die Absage-Seite trägt Kopf und Fuß von FIAON Global, nicht die der Privatkunden (19.09.2026).
+      storno_link: `${stornoLink(ein.stornoToken)}?anrede=sie&bereich=business`,
       kalender_url: globalKalenderUrl(ein.stornoToken),
     };
   }
@@ -482,7 +483,8 @@ export function globalTerminPayload(ein: {
     termin_uhrzeit: ein.uhrzeit,
     termin_art: QUELLEN.global.text,
     termin_dauer: String(GLOBAL_DAUER_MIN),
-    storno_link: `${stornoLink(ein.stornoToken)}?anrede=sie`,
+    // ?bereich=business: Die Absage-Seite trägt Kopf und Fuß von FIAON Global, nicht die der Privatkunden (19.09.2026).
+    storno_link: `${stornoLink(ein.stornoToken)}?anrede=sie&bereich=business`,
     kalender_url: globalKalenderUrl(ein.stornoToken),
   };
 }
@@ -708,7 +710,7 @@ export async function globalKalenderZuToken(stornoToken: string): Promise<{ date
       terminId: Number(t.id), beginn: t.beginn, dauerMin: Number(t.dauer_min),
       ansprechpartner: String(t.agent_name || "Ihr Ansprechpartner"),
       telefon: t.telefon ?? null,
-      stornoLink: `${stornoLink(stornoToken)}?anrede=sie`,
+      stornoLink: `${stornoLink(stornoToken)}?anrede=sie&bereich=business`,
       erstelltAm: t.created_at ? new Date(t.created_at) : undefined,
     }),
   };
